@@ -87,8 +87,8 @@ example :
     ComputableInPolyTime (fun p : ℕ × ℕ => qG p.1 p.2) (encPair encNat encUnary) encUnary)
   refine ComputableInPolyTime.prod (by fun_prop) (ComputableInPolyTime.prod
     (checkSmallBiasShifts_polyTime_of_two_pow_le (m := fun x => x.1.1) (by fun_prop) (by fun_prop)
-      (by fun_prop) (.const 1) (.of_tidy (ComputableTidilyInPolyTime.unary_to_binary.comp
-        (biasDen_polyTime (by fun_prop) (by fun_prop)).tidy)) (by fun_prop)
+      (by fun_prop) (.const 1) ((ComputableInPolyTime.unary_to_binary.comp
+        (biasDen_polyTime (by fun_prop) (by fun_prop)))) (by fun_prop)
       fun x => qG_le_two_mul_add_one x.1.1 x.1.2)
     (buildShortenedTannerRows_polyTime (bound := fun x => 2 * x.1.1 + 1) (by fun_prop)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)

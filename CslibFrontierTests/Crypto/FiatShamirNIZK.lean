@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamirNIZK
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrIdentification
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import Mathlib.Tactic.LinearCombination
@@ -99,8 +100,7 @@ example :
           [((3, 2), 4)]
       (interpret (oracle (ZMod 5)) (fiatShamirNIZKVerify schnorr5 3 prf)).run cache') =
     PMF.pure (true, [((3, 2), 4)]) := by
-  simp only [fiatShamirNIZKProve, fiatShamirNIZKVerify, interpret_map, interpret_query,
-    StateT.run_map, PMF.monad_bind_eq_bind, PMF.monad_map_eq_map, PMF.bind_map, Function.comp_def]
+  simp only [fiatShamirNIZKProve, fiatShamirNIZKVerify, interp_norm, pmf_norm]
   have hlookup : ([((3, 2), 4)] : List ((ZMod 5 × ZMod 5) × ZMod 5)).lookup (3, 2) = some 4 := by
     decide
   rw [show (oracle (ZMod 5) ((3 : ZMod 5), (2 : ZMod 5))).run [((3, 2), 4)] =
@@ -146,9 +146,7 @@ example :
         (fiatShamirNIZKRealGame schnorr5 valid5 invalidQueryDist)
         (fiatShamirNIZKSimGame sim5 valid5 invalidQueryDist) = 0 := by
   have hreal : fiatShamirNIZKRealGame schnorr5 valid5 invalidQueryDist = PMF.pure true := by
-    simp only [fiatShamirNIZKRealGame, invalidQueryDist, interpret_bind, interpret_query,
-      interpret_pure, StateT.run_bind, StateT.run_pure, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.bind_bind]
+    simp only [fiatShamirNIZKRealGame, invalidQueryDist, interp_norm, pmf_norm]
     refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true)
       fun (c₁, cache₁) hc₁ => ?_).trans (PMF.bind_const _ _)
     change (c₁, cache₁) ∈
@@ -165,9 +163,7 @@ example :
     rw [oracle, memoize_of_some _ _ _ _ hlookup]
     simp
   have hsim : fiatShamirNIZKSimGame sim5 valid5 invalidQueryDist = PMF.pure true := by
-    simp only [fiatShamirNIZKSimGame, invalidQueryDist, interpret_bind, interpret_query,
-      interpret_pure, StateT.run_bind, StateT.run_pure, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.bind_bind]
+    simp only [fiatShamirNIZKSimGame, invalidQueryDist, interp_norm, pmf_norm]
     refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true)
       fun (c₁, cache₁) hc₁ => ?_).trans (PMF.bind_const _ _)
     change (c₁, cache₁) ∈
@@ -285,8 +281,7 @@ theorem succProbability_knowingProver (u : ZMod 5) :
   simp only [fiatShamirNIZKPokGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   refine Probability.PMF.le_bind_apply_on_support _ fun (r : ZMod 5) _ => ?_
   refine Probability.PMF.le_bind_apply_on_support _ fun proved hproved => ?_
-  simp only [knowingProver, interpret_bind, interpret_query, interpret_pure, StateT.run_bind,
-    StateT.run_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+  simp only [knowingProver, interp_norm, pmf_norm, PMF.mem_support_bind_iff,
     PMF.mem_support_pure_iff] at hproved
   obtain ⟨ans, hans, rfl⟩ := hproved
   change ans ∈ (memoize (fun _ => PMF.uniformOfFintype (ZMod 5)) (u, r • (2 : ZMod 5)) []).support
@@ -296,8 +291,8 @@ theorem succProbability_knowingProver (u : ZMod 5) :
     PMF.mem_support_pure_iff] at hans
   obtain ⟨c, -, rfl⟩ := hans
   refine Probability.PMF.le_bind_apply_on_support _ fun verified hverified => ?_
-  simp only [fiatShamirNIZKVerify, interpret_map, interpret_query, StateT.run_map,
-    PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hverified
+  simp only [fiatShamirNIZKVerify, interp_norm, PMF.monad_map_eq_map,
+    PMF.mem_support_map_iff] at hverified
   obtain ⟨v, hv, rfl⟩ := hverified
   change v ∈ (memoize (fun _ => PMF.uniformOfFintype (ZMod 5)) (u, r • (2 : ZMod 5))
     [((u, r • 2), c)]).support at hv
@@ -382,14 +377,12 @@ theorem succProbability_knowingSimProver :
     PMF.monad_pure_eq_pure]
   refine Probability.PMF.le_bind_apply_on_support _ fun (r : ZMod 5) _ => ?_
   refine Probability.PMF.le_bind_apply_on_support _ fun out hrun => ?_
-  simp only [knowingSimProver, interpret_bind, interpret_query, interpret_pure, StateT.run_bind,
-    StateT.run_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+  simp only [knowingSimProver, interp_norm, pmf_norm, PMF.mem_support_bind_iff,
     PMF.mem_support_pure_iff] at hrun
   obtain ⟨step₁, hstep₁, ans₂, hstep₂, rfl⟩ := hrun
   have hv12 : valid5 1 2 = true := by decide
-  simp only [nizkRealExtHandler, StateT.run, hv12, ↓reduceIte, fiatShamirNIZKProve, interpret_map,
-    interpret_query, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep₁
+  simp only [nizkRealExtHandler, StateT.run, hv12, ↓reduceIte, fiatShamirNIZKProve, interp_norm,
+    pmf_norm, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep₁
   obtain ⟨coins₁, -, proved₁, hc₁, rfl⟩ := hstep₁
   change proved₁ ∈
     (((fun c => (coins₁.1, schnorr5.respond 1 2 coins₁.2 c)) <$>
@@ -412,8 +405,8 @@ theorem succProbability_knowingSimProver :
     PMF.mem_support_pure_iff] at hc₂
   obtain ⟨c, -, rfl⟩ := hc₂
   refine Probability.PMF.le_bind_apply_on_support _ fun verified hver => ?_
-  simp only [fiatShamirNIZKVerify, interpret_map, interpret_query, StateT.run_map,
-    PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hver
+  simp only [fiatShamirNIZKVerify, interp_norm, PMF.monad_map_eq_map,
+    PMF.mem_support_map_iff] at hver
   obtain ⟨v, hv, rfl⟩ := hver
   change v ∈
     (memoize (fun _ => PMF.uniformOfFintype (ZMod 5)) (3, r • (2 : ZMod 5))
@@ -531,10 +524,8 @@ theorem succProbability_unstatedFalseStmtGame :
   have hgame :
       unstatedFalseStmtGame =
         (PMF.uniformOfFintype (ZMod 5)).map (fun c : ZMod 5 => decide (c ≠ 0)) := by
-    simp only [unstatedFalseStmtGame, unstatedFalseStmtAttacker, unstatedVerify, interpret_bind,
-      interpret_map, interpret_query, interpret_pure, StateT.run_bind, StateT.run_map,
-      StateT.run_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.monad_map_eq_map,
-      PMF.bind_bind, PMF.bind_map, Function.comp_def]
+    simp only [unstatedFalseStmtGame, unstatedFalseStmtAttacker, unstatedVerify, interp_norm,
+      pmf_norm]
     rw [show (oracle (ZMod 5) ((0 : ZMod 5), (1 : ZMod 5))).run [] =
       memoize (fun _ => PMF.uniformOfFintype (ZMod 5)) ((0 : ZMod 5), (1 : ZMod 5)) [] from rfl,
       memoize_of_none _ _ _ rfl]

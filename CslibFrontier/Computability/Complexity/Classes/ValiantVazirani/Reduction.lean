@@ -16,6 +16,7 @@ public import CslibFrontier.Languages.Probabilistic.Iteration
 public import CslibFrontier.Logics.Propositional.CNF.Encoding
 public import CslibFrontier.Probability.BitString.AffineHash
 public import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Logics.Propositional.CNF.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
@@ -162,10 +163,8 @@ private theorem binaryValue_take_hashBits (φ : CNF ℕ) (r : List Bool) :
     BitString.binaryValue (r.take (hashBits φ)) =
       BitString.boundedBinaryValue (2 * φ.vars.length + 5) (r.take (hashBits φ)) := by
   rw [BitString.boundedBinaryValue_eq, Nat.min_eq_right]
-  have h1 := BitString.binaryValue_lt_two_pow (r.take (hashBits φ))
-  have h2 : 2 ^ (r.take (hashBits φ)).length ≤ 2 ^ hashBits φ :=
-    Nat.pow_le_pow_right (by norm_num) (by simp)
-  have h3 := two_pow_hashBits_le φ
+  have := (BitString.binaryValue_lt_two_pow (r.take (hashBits φ))).trans_le
+    ((Nat.pow_le_pow_right (by decide) (List.length_take_le _ _)).trans (two_pow_hashBits_le φ))
   omega
 
 /-- **The Valiant–Vazirani reduction is polynomial-time**, on the framed encoding of the formula
@@ -176,10 +175,8 @@ theorem computableInPolyTime_reduce :
   have h : reduce = fun x : CNF ℕ × List Bool =>
       reduceWith x.1 (BitString.boundedBinaryValue (2 * x.1.vars.length + 5)
         (x.2.take (Nat.log 2 (x.1.vars.length + 2) + 1)))
-        (x.2.drop (Nat.log 2 (x.1.vars.length + 2) + 1)) := by
-    funext x
-    rw [reduce, binaryValue_take_hashBits]
-    rfl
+        (x.2.drop (Nat.log 2 (x.1.vars.length + 2) + 1)) :=
+    funext fun x => by rw [reduce, binaryValue_take_hashBits]; rfl
   have hvars : ComputableInPolyTime (fun x : CNF ℕ × List Bool => x.1.vars)
       (encPair (encList (encList (encPair encNat encBool))) encBits) (encList encNat) :=
     (CNF.computableInPolyTime_vars encNat).comp (by fun_prop)
@@ -213,12 +210,10 @@ private theorem eval_rowClauses (σ : Var → Bool) (vars : List ℕ) (i : ℕ) 
         ∀ (j : ℕ) (hj : j < vars.length), σ (.inr (i, j + 1)) =
           (σ (.inr (i, j)) ^^ (row.getD j false && σ (.inl vars[j]))) := by
   simp only [rowClauses, CNF.eval_cons, Clause.eval_cons, Clause.eval_nil, Bool.or_false,
-    Bool.and_eq_true, Literal.eval_eq_true_iff, CNF.eval_flatMap_eq_true_iff,
-    eval_stepClauses, Prod.forall, List.mem_zipIdx_iff_getElem?]
-  refine and_congr Iff.rfl (and_congr Iff.rfl ⟨fun h j hj => h _ _ (List.getElem?_eq_getElem hj),
-    fun h v j hv => ?_⟩)
-  obtain ⟨hj, rfl⟩ := List.getElem?_eq_some_iff.1 hv
-  exact h j hj
+    Bool.and_eq_true, Literal.eval_eq_true_iff, CNF.eval_flatMap_eq_true_iff, eval_stepClauses,
+    Prod.forall, List.mem_zipIdx_iff_getElem?, List.getElem?_eq_some_iff]
+  exact and_congr_right' (and_congr_right' ⟨fun h j hj => h _ j ⟨hj, rfl⟩,
+    fun h _ j ⟨hj, hv⟩ => hv ▸ h j hj⟩)
 
 /-- The `i`-th row read by `hashCNF`, for `i < k`, is the `i`-th block of the padded word. -/
 private theorem mem_zipIdx_listRows {k width : ℕ} {w row : List Bool} {i : ℕ} :
@@ -226,12 +221,7 @@ private theorem mem_zipIdx_listRows {k width : ℕ} {w row : List Bool} {i : ℕ
       ∃ hi : i < k,
         row = List.ofFn (BitString.block (BitString.ofList (k * width) w) ⟨i, hi⟩) := by
   rw [List.mem_zipIdx_iff_getElem?, BitString.listRows_eq_ofFn, List.getElem?_ofFn]
-  simp only
-  split
-  · rename_i hi
-    exact ⟨fun h => ⟨hi, (Option.some.inj h).symm⟩, fun ⟨_, h⟩ => congrArg some h.symm⟩
-  · rename_i hi
-    exact ⟨fun h => (nomatch h), fun ⟨h, _⟩ => absurd h hi⟩
+  split <;> simp [*, eq_comm]
 
 /-- The coefficient matrix read from `w` by `hashCNF`: `k` rows of `width` bits. Missing bits are
 `false`. -/
@@ -250,22 +240,13 @@ private theorem eval_hashCNF (σ : Var → Bool) (vars : List ℕ) (k : ℕ) (w 
       σ (.inr (i, 0)) = offset k vars.length w i ∧ σ (.inr (i, vars.length)) = false ∧
         ∀ (j : ℕ) (hj : j < vars.length), σ (.inr (i, j + 1)) =
           (σ (.inr (i, j)) ^^ (matrix k vars.length w i ⟨j, hj⟩ && σ (.inl vars[j]))) := by
-  have hrow (i : Fin k) {j : ℕ} (hj : j < vars.length) :
-      (List.ofFn (BitString.block (BitString.ofList (k * vars.length) w) i)).getD j false =
-        matrix k vars.length w i ⟨j, hj⟩ := by
-    rw [List.getD_ofFn_of_lt _ hj]
-    rfl
-  have hoff (i : Fin k) : (w.drop (k * vars.length)).getD i false = offset k vars.length w i := rfl
   simp only [hashCNF, CNF.eval_flatMap_eq_true_iff, Prod.forall, mem_zipIdx_listRows,
     forall_exists_index, eval_rowClauses]
-  constructor
-  · intro h i
-    obtain ⟨h0, hL, hs⟩ := h _ i i.2 rfl
-    exact ⟨h0.trans (hoff i), hL, fun j hj => (hs j hj).trans (by rw [hrow i hj])⟩
-  · rintro h row i hi rfl
-    obtain ⟨h0, hL, hs⟩ := h ⟨i, hi⟩
-    exact ⟨h0.trans (hoff ⟨i, hi⟩).symm, hL,
-      fun j hj => (hs j hj).trans (by rw [hrow ⟨i, hi⟩ hj])⟩
+  refine ⟨fun h i => ?_, fun h _ i hi hr => hr ▸ ?_⟩
+  · obtain ⟨h0, hL, hs⟩ := h _ i i.2 rfl
+    exact ⟨h0, hL, fun j hj => (hs j hj).trans (by rw [List.getD_ofFn_of_lt _ hj]; rfl)⟩
+  · obtain ⟨h0, hL, hs⟩ := h ⟨i, hi⟩
+    exact ⟨h0, hL, fun j hj => (hs j hj).trans (by rw [List.getD_ofFn_of_lt _ hj]; rfl)⟩
 
 open BitString.LinearHash (affineHash isPairwiseIndependentHash_affineHash)
 
@@ -285,8 +266,7 @@ private theorem auxValue_length (vars : List ℕ) (k : ℕ) (w : List Bool) (σ 
     auxValue vars k w σ i vars.length =
       affineHash (matrix k vars.length w, offset k vars.length w) (point vars σ) i := by
   rw [auxValue, affineHash, Pi.add_apply, add_comm, ← Fin.sum_univ_eq_sum_range]
-  simp only [Fin.is_lt, dite_true, Fin.eta]
-  rfl
+  simp only [Fin.is_lt, dite_true, Fin.eta]; rfl
 
 /-- In a satisfying assignment of the equations, the auxiliary variables hold the forced
 values. -/
@@ -311,14 +291,10 @@ private theorem eval_hashCNF_extend {vars : List ℕ} {k : ℕ} {w : List Bool} 
     (h : affineHash (matrix k vars.length w, offset k vars.length w) (point vars σ) = 0) :
     (hashCNF vars k w).eval (Sum.elim σ fun p =>
       if hp : p.1 < k then auxValue vars k w σ ⟨p.1, hp⟩ p.2 else false) = true := by
-  refine (eval_hashCNF _ vars k w).2 fun i => ⟨?_, ?_, fun j hj => ?_⟩
-  · simp [auxValue]
-  · simp only [Sum.elim_inr, i.2, dite_true, Fin.eta]
-    rw [auxValue_length, h]
-    rfl
+  refine (eval_hashCNF _ vars k w).2 fun i => ⟨by simp [auxValue], ?_, fun j hj => ?_⟩
+  · simp only [Sum.elim_inr, i.2, dite_true, Fin.eta, auxValue_length, h]; rfl
   · simp only [Sum.elim_inr, Sum.elim_inl, i.2, dite_true, Fin.eta, auxValue,
-      Finset.sum_range_succ, hj]
-    rw [← add_assoc]
+      Finset.sum_range_succ, hj, ← add_assoc]
     rfl
 
 /-! ### Variables of the reduced formula -/
@@ -336,18 +312,16 @@ private theorem mem_vars_rowClauses {vars : List ℕ} {i : ℕ} {row : List Bool
     (h : u ∈ (rowClauses vars i row c).vars) :
     (∃ v ∈ vars, u = .inl v) ∨ ∃ j ≤ vars.length, u = .inr (i, j) := by
   simp only [rowClauses, CNF.mem_vars, List.mem_cons, List.mem_flatMap] at h
-  obtain ⟨cl, hcl, b, hb⟩ := h
-  rcases hcl with rfl | rfl | ⟨⟨v, j⟩, hp, hcl⟩
+  rcases h with ⟨cl, rfl | rfl | ⟨⟨v, j⟩, hp, hcl⟩, b, hb⟩
   · simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at hb
     exact .inr ⟨0, Nat.zero_le _, hb.1⟩
   · simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at hb
     exact .inr ⟨_, le_rfl, hb.1⟩
   · obtain ⟨hj, hvj⟩ := List.mem_zipIdx' hp
-    have hv : v ∈ vars := hvj ▸ List.getElem_mem hj
     rcases mem_vars_stepClauses (CNF.mem_vars.2 ⟨cl, hcl, b, hb⟩) with rfl | rfl | rfl
     · exact .inr ⟨j + 1, hj, rfl⟩
     · exact .inr ⟨j, hj.le, rfl⟩
-    · exact .inl ⟨_, hv, rfl⟩
+    · exact .inl ⟨_, hvj ▸ List.getElem_mem hj, rfl⟩
 
 /-- Every variable of the equations is an original variable among `vars`, or an auxiliary
 variable `inr (i, j)` with `i < k` and `j ≤ vars.length`. -/
@@ -356,10 +330,8 @@ private theorem mem_vars_hashCNF {vars : List ℕ} {k : ℕ} {w : List Bool} {u 
     (∃ v ∈ vars, u = .inl v) ∨ ∃ i < k, ∃ j ≤ vars.length, u = .inr (i, j) := by
   simp only [hashCNF, CNF.mem_vars, List.mem_flatMap] at h
   obtain ⟨cl, ⟨⟨row, i⟩, hp, hcl⟩, b, hb⟩ := h
-  obtain ⟨hi, -⟩ := mem_zipIdx_listRows.1 hp
-  rcases mem_vars_rowClauses (CNF.mem_vars.2 ⟨cl, hcl, b, hb⟩) with h | ⟨j, hj, rfl⟩
-  · exact .inl h
-  · exact .inr ⟨i, hi, j, hj, rfl⟩
+  exact (mem_vars_rowClauses (CNF.mem_vars.2 ⟨cl, hcl, b, hb⟩)).imp_right
+    fun ⟨j, hj, hu⟩ => ⟨i, (mem_zipIdx_listRows.1 hp).1, j, hj, hu⟩
 
 /-! ### Soundness and isolation -/
 
@@ -390,12 +362,9 @@ theorem mem_solutions {φ : CNF ℕ} {x : BitString φ.vars.length} :
 theorem auxValue_congr {vars : List ℕ} {k : ℕ} {w : List Bool} {σ τ : ℕ → Bool}
     (h : point vars σ = point vars τ) (i : Fin k) (j : ℕ) :
     auxValue vars k w σ i j = auxValue vars k w τ i j := by
-  unfold auxValue
-  congr 1
-  refine Finset.sum_congr rfl fun j' _ => ?_
-  split
-  · rename_i hj'
-    rw [show σ vars[j'] = τ vars[j'] from congrFun h ⟨j', hj'⟩]
+  refine congrArg (_ + ·) (Finset.sum_congr rfl fun j' _ => ?_)
+  split <;> rename_i hj'
+  · rw [show σ vars[j'] = τ vars[j'] from congrFun h ⟨j', hj'⟩]
   · rfl
 
 open Classical in
@@ -413,43 +382,29 @@ theorem reduceWith_mem_USAT {φ : CNF ℕ} {k : ℕ} {w : List Bool}
     reduceWith φ k w ∈ USAT := by
   classical
   obtain ⟨x₀, hx₀⟩ := Finset.card_eq_one.1 h
-  have hmem : x₀ ∈ (solutions φ).filter fun x =>
-      affineHash (matrix k φ.vars.length w, offset k φ.vars.length w) x = 0 :=
-    hx₀ ▸ Finset.mem_singleton_self x₀
-  obtain ⟨hsol, hhash⟩ := Finset.mem_filter.1 hmem
+  obtain ⟨hsol, hhash⟩ := Finset.mem_filter.1 (hx₀ ▸ Finset.mem_singleton_self x₀)
   obtain ⟨σ, hσ, rfl⟩ := mem_solutions.1 hsol
-  set σ' : Var → Bool := Sum.elim σ fun p =>
-    if hp : p.1 < k then auxValue φ.vars k w σ ⟨p.1, hp⟩ p.2 else false with hσ'
-  have hsat : (φ.relabel Sum.inl ++ hashCNF φ.vars k w).eval σ' = true := by
-    simp only [CNF.eval_append, CNF.eval_relabel, Bool.and_eq_true]
-    exact ⟨hσ, eval_hashCNF_extend hhash⟩
+  let σ' : Var → Bool := Sum.elim σ fun p =>
+    if hp : p.1 < k then auxValue φ.vars k w σ ⟨p.1, hp⟩ p.2 else false
   refine ⟨Function.extend splitVarToNat σ' fun _ => false, ?_, fun τ hτ v hvψ => ?_⟩
-  · rw [reduceWith, CNF.eval_relabel, Function.extend_comp splitVarToNat_injective]
-    exact hsat
-  rw [reduceWith, CNF.eval_relabel] at hτ
-  simp only [CNF.eval_append, CNF.eval_relabel, Bool.and_eq_true] at hτ
-  obtain ⟨hφ, hH⟩ := hτ
+  · simp only [reduceWith, CNF.eval_relabel, Function.extend_comp splitVarToNat_injective,
+      CNF.eval_append, Bool.and_eq_true, σ']
+    exact ⟨hσ, eval_hashCNF_extend hhash⟩
+  simp only [reduceWith, CNF.eval_relabel, CNF.eval_append, Bool.and_eq_true] at hτ
   -- the point of `τ` is a solution hashing to zero, hence it is the point of `σ`
-  have hpoint : point φ.vars ((τ ∘ splitVarToNat) ∘ Sum.inl) = point φ.vars σ := by
-    have : point φ.vars ((τ ∘ splitVarToNat) ∘ Sum.inl) ∈ (solutions φ).filter fun x =>
-        affineHash (matrix k φ.vars.length w, offset k φ.vars.length w) x = 0 :=
-      Finset.mem_filter.2 ⟨mem_solutions.2 ⟨_, hφ, rfl⟩, hash_point_eq_zero_of_eval hH⟩
-    rw [hx₀] at this
-    exact Finset.mem_singleton.1 this
+  have hpoint : point φ.vars ((τ ∘ splitVarToNat) ∘ Sum.inl) = point φ.vars σ :=
+    Finset.mem_singleton.1 (hx₀ ▸ Finset.mem_filter.2
+      ⟨mem_solutions.2 ⟨_, hτ.1, rfl⟩, hash_point_eq_zero_of_eval hτ.2⟩)
   obtain ⟨u, hu, rfl⟩ := List.mem_map.1 ((CNF.vars_relabel _ _) ▸ hvψ)
   rw [splitVarToNat_injective.extend_apply]
-  change (τ ∘ splitVarToNat) u = σ' u
-  rw [CNF.vars, List.flatten_append, List.map_append, List.mem_append] at hu
-  rcases hu with hu | hu
-  · rw [← CNF.vars, CNF.vars_relabel] at hu
-    obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hu
-    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hv
+  rw [CNF.vars_append, List.mem_append, CNF.vars_relabel, List.mem_map] at hu
+  rcases hu.elim (fun ⟨v, hv, h⟩ => .inl ⟨v, hv, h.symm⟩) mem_vars_hashCNF with
+    ⟨v, hv, rfl⟩ | ⟨i, hi, j, hj, rfl⟩
+  · obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hv
     exact congrFun hpoint ⟨j, hj⟩
-  · rcases mem_vars_hashCNF hu with ⟨v, hv, rfl⟩ | ⟨i, hi, j, hj, rfl⟩
-    · obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hv
-      exact congrFun hpoint ⟨j, hj⟩
-    · rw [eq_auxValue_of_eval hH ⟨i, hi⟩ hj, auxValue_congr hpoint]
-      simp [hσ', hi]
+  · change (τ ∘ splitVarToNat) (.inr (i, j)) = σ' (.inr (i, j))
+    rw [eq_auxValue_of_eval hτ.2 ⟨i, hi⟩ hj, auxValue_congr hpoint]
+    simp [σ', hi]
 
 /-! ### The success probability -/
 
@@ -468,7 +423,7 @@ private theorem goodRows_le (φ : CNF ℕ) : goodRows φ ≤ φ.vars.length + 2 
     (Finset.card_le_univ _).trans_eq (by simp)
   have := Nat.log_mono_right (b := 2) hcard
   rw [Nat.log_pow (by decide)] at this
-  rw [goodRows]
+  unfold goodRows
   omega
 
 /-- The selector bits can select `goodRows φ` equations. -/
@@ -498,10 +453,8 @@ theorem three_mul_two_pow_le_card_filter_card_filter_eq_one {M : ℕ} {S : Finse
       (Fin k → BitString M) × BitString k =>
         (S.filter fun x => affineHash p x = 0).card = 1).card := by
     rw [pow_add, pow_mul', ← mul_assoc]
-    have := mul_le_mul_of_nonneg_left hdens (by norm_num : (0 : ℚ≥0) ≤ 16)
-    convert this using 1
-    push_cast
-    ring
+    convert mul_le_mul_of_nonneg_left hdens (by norm_num : (0 : ℚ≥0) ≤ 16) using 1
+    push_cast; ring
   exact_mod_cast h
 
 open Classical in
@@ -547,8 +500,7 @@ theorem offset_take (k width : ℕ) (w : List Bool) :
 /-- The coefficients of a word of exactly `k * width + k` bits are its first blocks. -/
 private theorem matrix_ofFn_append {k width : ℕ} (a : BitString (k * width)) (b : BitString k) :
     matrix k width (List.ofFn (Fin.append a b)) = BitString.blocksEquiv a := by
-  rw [matrix, List.ofFn_fin_append, BitString.ofList_ofFn_append]
-  rfl
+  rw [matrix, List.ofFn_fin_append, BitString.ofList_ofFn_append]; rfl
 
 /-- The offsets of a word of exactly `k * width + k` bits are its last `k` bits. -/
 private theorem offset_ofFn_append {k width : ℕ} (a : BitString (k * width)) (b : BitString k) :
@@ -564,14 +516,13 @@ theorem card_filter_seed {k width : ℕ}
       (Finset.univ.filter U).card := by
   refine Finset.card_nbij' (fun v => (matrix k width (List.ofFn v), offset k width (List.ofFn v)))
     (fun p => Fin.append (BitString.blocksEquiv.symm p.1) p.2)
-    (fun v hv => by simpa using hv) (fun p hp => ?_) (fun v _ => ?_) (fun p _ => ?_)
+    (fun _ hv => by simpa using hv) (fun p hp => ?_) (fun v _ => ?_) (fun _ _ => ?_)
   · simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hp ⊢
     rwa [matrix_ofFn_append, offset_ofFn_append, Equiv.apply_symm_apply]
   · conv_rhs => rw [← Fin.append_castAdd_natAdd (f := v)]
     conv_lhs => rw [← Fin.append_castAdd_natAdd (f := v)]
     simp only [matrix_ofFn_append, offset_ofFn_append, Equiv.symm_apply_apply]
-  · simp only
-    rw [matrix_ofFn_append, offset_ofFn_append, Equiv.apply_symm_apply]
+  · simp only [matrix_ofFn_append, offset_ofFn_append, Equiv.apply_symm_apply, Prod.mk.eta]
 
 open Classical in
 /-- The random words of length `m` for which the reduction outputs a uniquely satisfiable formula
@@ -591,9 +542,7 @@ private theorem three_mul_two_pow_le_card {φ : CNF ℕ} (hφ : φ.Satisfiable) 
       Finset.univ.filter fun r : Fin m → Bool => reduce (φ, List.ofFn r) ∈ USAT := by
     intro r hr
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-    rw [reduce]
-    simp only
-    rw [hr.1]
+    rw [reduce, hr.1]
     exact reduceWith_mem_USAT hr.2
   have hsplit := BitString.card_filter_take_drop (show t ≤ m by omega)
     (fun w => BitString.binaryValue w = k) (fun w => Isolates φ (matrix k n w, offset k n w))
@@ -606,25 +555,19 @@ private theorem three_mul_two_pow_le_card {φ : CNF ℕ} (hφ : φ.Satisfiable) 
   have hone : 1 ≤ (Finset.univ.filter fun u : Fin t → Bool =>
       BitString.binaryValue (List.ofFn u) = k).card :=
     Finset.card_pos.2 ⟨u, by simpa using hu⟩
-  have hU := three_mul_two_pow_le_card_isolates hφ
-  have hm' : m = t + (k * n + k) + (m - t - (k * n + k)) := by omega
-  calc 3 * 2 ^ m = 3 * 2 ^ (k * n + k) * 2 ^ t * 2 ^ (m - t - (k * n + k)) := by
-        conv_lhs => rw [hm']
-        rw [pow_add, pow_add]
-        ring
-    _ ≤ 16 * (Finset.univ.filter fun p => Isolates φ p).card * 2 ^ t *
-          2 ^ (m - t - (k * n + k)) := by gcongr
-    _ = 16 * 2 ^ t * (1 * ((Finset.univ.filter fun p => Isolates φ p).card *
-          2 ^ (m - t - (k * n + k)))) := by ring
-    _ ≤ 16 * 2 ^ t * ((Finset.univ.filter fun u : Fin t → Bool =>
-          BitString.binaryValue (List.ofFn u) = k).card *
-          ((Finset.univ.filter fun p => Isolates φ p).card * 2 ^ (m - t - (k * n + k)))) := by
-        gcongr
+  calc 3 * 2 ^ m = 3 * 2 ^ (k * n + k) * 1 * (2 ^ t * 2 ^ (m - t - (k * n + k))) := by
+        conv_lhs => rw [show m = (k * n + k) + t + (m - t - (k * n + k)) by omega]
+        rw [pow_add, pow_add]; ring
+    _ ≤ 16 * (Finset.univ.filter fun p => Isolates φ p).card *
+          (Finset.univ.filter fun u : Fin t → Bool =>
+            BitString.binaryValue (List.ofFn u) = k).card *
+          (2 ^ t * 2 ^ (m - t - (k * n + k))) :=
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul (three_mul_two_pow_le_card_isolates hφ) hone)
     _ = 16 * 2 ^ t * (Finset.univ.filter fun r : Fin m → Bool =>
           BitString.binaryValue ((List.ofFn r).take t) = k ∧
             Isolates φ (matrix k n ((List.ofFn r).drop t),
               offset k n ((List.ofFn r).drop t))).card := by
-        rw [hsplit, hrest]
+        rw [hsplit, hrest]; ring
     _ ≤ _ := Nat.mul_le_mul_left _ (Finset.card_le_card hsub)
 
 /-- The number of random bits the reduction reads on `φ`: `hashBits φ` selector bits, then the
@@ -638,8 +581,7 @@ private theorem hashBits_le (φ : CNF ℕ) : hashBits φ ≤ φ.vars.length + 2 
 /-- The reduction reads at most `(φ.vars.length + 2) ^ 2` random bits. -/
 theorem randomBits_le (φ : CNF ℕ) : randomBits φ ≤ (φ.vars.length + 2) ^ 2 := by
   have := hashBits_le φ
-  rw [randomBits, sq]
-  nlinarith
+  rw [randomBits, sq]; nlinarith
 
 open Classical in
 /-- **The Valiant–Vazirani reduction succeeds with probability `Ω(1 / n)`.** For a satisfiable
@@ -653,14 +595,9 @@ theorem three_mul_two_pow_le_card_reduce_mem_USAT {φ : CNF ℕ} (hφ : φ ∈ S
     3 * 2 ^ m ≤ 32 * (φ.vars.length + 3) *
       (Finset.univ.filter fun r : Fin m → Bool => reduce (φ, List.ofFn r) ∈ USAT).card := by
   have hk := goodRows_le φ
-  have h := three_mul_two_pow_le_card hφ (m := m) (by
-    rw [randomBits] at hm
-    have : goodRows φ * φ.vars.length + goodRows φ ≤
-        (φ.vars.length + 2) * (φ.vars.length + 1) := by nlinarith
-    omega)
-  refine h.trans (Nat.mul_le_mul_right _ ?_)
-  have := two_pow_hashBits_le φ
-  omega
+  have hb := two_pow_hashBits_le φ
+  refine (three_mul_two_pow_le_card hφ (m := m) ?_).trans (Nat.mul_le_mul_right _ (by omega))
+  rw [randomBits] at hm; nlinarith
 
 open Classical in
 /-- **The Valiant–Vazirani success probability as a density**: for a satisfiable formula `φ` with
@@ -690,20 +627,23 @@ theorem two_pow_le_two_mul_card_exists_row {M W : ℕ} (hM : 0 < M) (good : List
     2 ^ (11 * M * W) ≤ 2 * (Finset.univ.filter fun r : Fin (11 * M * W) → Bool =>
       ∃ b ∈ BitString.listRows (11 * M) W (List.ofFn r), good b).card := by
   set s := Finset.univ.filter fun b : Fin W → Bool => good (List.ofFn b) with hs
-  have hMq : (0 : ℚ) < M := by exact_mod_cast hM
+  have hMq : (0 : ℚ) < M := Nat.cast_pos.2 hM
   have hq : (3 / (32 * M) : ℚ) ≤ (s.dens : ℚ) := by
     rw [Finset.dens, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
     push_cast
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    have : (3 * 2 ^ W : ℚ) ≤ 32 * M * s.card := by exact_mod_cast hgood
-    linarith
+    linarith [show (3 * 2 ^ W : ℚ) ≤ 32 * M * s.card by exact_mod_cast hgood]
+  have h11 : (1 : ℚ) ≤ (Fintype.card (Fin (11 * M)) : ℚ) * (3 / (32 * M)) := by
+    rw [Fintype.card_fin]
+    push_cast
+    field_simp
+    norm_num
   have h := Fintype.half_le_dens_filter_exists_apply_mem (ι := Fin (11 * M)) (s := s) (𝕜 := ℚ)
-    (by positivity) hq (by rw [Fintype.card_fin]; push_cast; field_simp; norm_num)
+    (by positivity) hq h11
   have hcard : (Finset.univ.filter fun r : Fin (11 * M * W) → Bool =>
       ∃ b ∈ BitString.listRows (11 * M) W (List.ofFn r), good b).card =
-      (Finset.univ.filter fun ω : Fin (11 * M) → BitString W => ∃ j, ω j ∈ s).card := by
-    refine Finset.card_equiv BitString.blocksEquiv fun r => ?_
-    simp [BitString.listRows_eq_ofFn, hs]
+      (Finset.univ.filter fun ω : Fin (11 * M) → BitString W => ∃ j, ω j ∈ s).card :=
+    Finset.card_equiv BitString.blocksEquiv fun r => by simp [BitString.listRows_eq_ofFn, hs]
   rw [Finset.dens, Fintype.card_fun, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
     Fintype.card_fin, ← hcard] at h
   push_cast at h

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 public import Mathlib.Algebra.Order.Floor.Div
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchParameters
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 
 /-!
@@ -19,6 +20,7 @@ The block width is a power of two near the square root of the time guess times i
 length. The horizon is ceiling division by this positive width. Computing these parameters
 uses space linear in the actual binary time guess and does not require a time-constructibility
 hypothesis. The square inequalities state the approximation without real-valued square roots.
+`parameters` packages the choice for the increasing-guess search.
 -/
 
 public section
@@ -52,35 +54,19 @@ theorem horizon_mul_lt (T : ℕ) : horizon T * blockWidth T < T + blockWidth T :
 
 /-- A positive time guess gives a nonzero schedule horizon. -/
 theorem horizon_pos {T : ℕ} (hT : 0 < T) : 0 < horizon T := by
-  have h := coverage T
-  by_contra hn
-  have hz : horizon T = 0 := by omega
-  rw [hz, Nat.zero_mul] at h
-  omega
-
-private theorem pow_size_le_twice {n : ℕ} (hn : 0 < n) : 2 ^ n.size ≤ 2 * n := by
-  have hs : 0 < n.size := Nat.size_pos.mpr hn
-  have hlo : 2 ^ (n.size - 1) ≤ n := Nat.lt_size.mp (by omega)
-  calc
-    2 ^ n.size = 2 ^ (n.size - 1) * 2 := by
-      rw [← pow_succ]
-      congr 1
-      omega
-    _ ≤ n * 2 := Nat.mul_le_mul_right 2 hlo
-    _ = 2 * n := Nat.mul_comm _ _
+  by_contra! hz
+  simpa [Nat.le_zero.mp hz, hT.ne'] using coverage T
 
 /-- The chosen block square is at most four times the intended time-length product. -/
 theorem blockWidth_sq_le {T : ℕ} (hT : 0 < T) :
     blockWidth T ^ 2 ≤ 4 * (T * T.size) := by
   have hs : 0 < T.size := Nat.size_pos.mpr hT
-  have h₁ := pow_size_le_twice hT
-  have h₂ := pow_size_le_twice hs
+  have h₁ := two_pow_size_le_two_mul hT
+  have h₂ := two_pow_size_le_two_mul hs
   have hexp : 2 * ((T.size + T.size.size) / 2) ≤ T.size + T.size.size := by omega
   have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) hexp
   have hsq : 2 ^ (2 * ((T.size + T.size.size) / 2)) = blockWidth T ^ 2 := by
-    rw [blockWidth, ← pow_mul]
-    congr 1
-    omega
+    rw [blockWidth, ← pow_mul, Nat.mul_comm]
   rw [hsq, pow_add] at hp
   have hmul := Nat.mul_le_mul h₁ h₂
   nlinarith
@@ -98,9 +84,7 @@ theorem time_mul_size_lt_twice_blockWidth_sq (T : ℕ) :
   have hexp : T.size + T.size.size ≤ 2 * ((T.size + T.size.size) / 2) + 1 := by omega
   have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) hexp
   have hsq : 2 ^ (2 * ((T.size + T.size.size) / 2)) = blockWidth T ^ 2 := by
-    rw [blockWidth, ← pow_mul]
-    congr 1
-    omega
+    rw [blockWidth, ← pow_mul, Nat.mul_comm]
   simp only [pow_add, pow_one, hsq] at hp
   nlinarith
 
@@ -131,13 +115,9 @@ theorem horizon_mul_size_lt {T : ℕ} (hT : 0 < T) :
 /-- Block storage and horizon times binary time length balance within a fixed constant. -/
 theorem combined_le (T : ℕ) :
     blockWidth T + horizon T * T.size ≤ 5 * blockWidth T := by
-  by_cases hz : T = 0
-  · subst T
-    simp only [Nat.size_zero, Nat.mul_zero, Nat.add_zero]
-    omega
-  · have hq := horizon_mul_size_lt (Nat.pos_of_ne_zero hz)
-    have hs := size_lt_twice_blockWidth T
-    omega
+  rcases Nat.eq_zero_or_pos T with rfl | hT
+  · simp; omega
+  · linarith [horizon_mul_size_lt hT, size_lt_twice_blockWidth T]
 
 /-- An integer square bound for the complete balanced storage term. -/
 theorem combined_sq_le {T : ℕ} (hT : 0 < T) :
@@ -174,8 +154,8 @@ theorem blockWidth_inSpace : ComputableInSpace blockWidth encNat encNat
   have hsize := budget_comp_linear natSize hid
   have hsizeSize := budget_comp_linear natSize hsize
   have hexp := budget_natDiv (budget_natAdd hsize hsizeSize)
-    (budget_const (encB := encNat) 2 (.refl _))
-  refine (budget_natPow_variable (budget_const (encB := encNat) 2 (.refl _)) hexp
+    (budget_const (encB := encNat) 2)
+  refine (budget_natPow_variable (budget_const (encB := encNat) 2) hexp
     (.of_le_linear 4 4 fun T => ?_)).of_enc_eq fun _ => rfl
   have hsize_le := length_encNat_le_self T.size
   have hexp_le : (T.size + T.size.size) / 2 ≤ T.size := by grind [length_encNat_eq_size]
@@ -191,5 +171,14 @@ theorem horizon_inSpace : ComputableInSpace horizon encNat encNat
       (fun T => (encNat T).length) := of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   exact (budget_natDiv (budget_natPred (budget_natAdd hid blockWidth_inSpace))
     blockWidth_inSpace).of_enc_eq fun T => by rw [horizon, Nat.ceilDiv_eq_add_pred_div]
+
+/-- Williams's balanced block width and horizon as increasing-guess parameters. -/
+@[expose] def parameters : OuterSearch.Parameters where
+  blockWidth := blockWidth
+  horizon := horizon
+  blockWidth_pos := blockWidth_pos
+  coverage := coverage
+  blockWidth_inSpace := blockWidth_inSpace
+  horizon_inSpace := horizon_inSpace
 
 end Turing.MultiTapePTM.BlockComputation.BalancedParameters

@@ -1,7 +1,8 @@
 """Unit tests for scripts/parallel_defs.py: the changed lines on a scratch repository, the selection
 and reports on rows shaped like the output of `scripts/ParallelDefs.lean` (parallel definitions and
 duplicate statements), the driver's advisory exits, and, when Lean is available, the reader on
-compiled fixture modules (`CompiledFixtureTests`, `CompiledStatementFixtureTests`)."""
+compiled fixture modules (`CompiledFixtureTests`, `CompiledCollisionTests`,
+`CompiledStatementFixtureTests`)."""
 
 from __future__ import annotations
 
@@ -20,6 +21,15 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import parallel_defs as p  # noqa: E402
 
 TIERS = p.parse_tiers("200:0.3,120:0.6")
+
+
+class FreshnessTests(unittest.TestCase):
+    def test_uses_central_preflight_with_library_only_scope(self) -> None:
+        for current in (False, True):
+            with self.subTest(current=current), \
+                 mock.patch.object(p.lo, "lake_outputs_current", return_value=current) as probe:
+                self.assertEqual(p.outputs_current(), current)
+                probe.assert_called_once_with(("CslibFrontier",))
 
 
 def pair(a: str, b: str, size: int, sizes: tuple[int, int], am: str = "CslibFrontier.New",
@@ -186,7 +196,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("No candidate parallel definitions among the 4 examined declarations.",
                       p.markdown([], 4, 10))
         text = p.markdown(self.found, 7, 1)
-        self.assertIn("2 candidate(s) among the 7 examined declarations. The first 1 are listed.",
+        self.assertIn("2 candidate(s) among the 7 examined declarations. The first 1 are listed;",
                       text)
         self.assertIn("- CslibFrontier/MCSP/Magnification.lean:86: `Cslib.MCSP.MCSPAt` is", text)
         self.assertNotIn("New.big", text)
@@ -219,6 +229,17 @@ class ReportTests(unittest.TestCase):
         self.assertTrue(line.startswith("::notice file=CslibFrontier/New.lean,line=10,"
                                         "title=Possible duplicate statement::`New.dup`"))
 
+    def test_statement_source_links_and_partial_coverage(self) -> None:
+        found = p.select_groups(StatementSelectionTests.ROWS, same_module=False)
+        source = "https://github.com/example/library/blob/merge-sha"
+        text = p.markdown(found, 4, 10, theorems=True, source_url=source,
+                          missing=["CslibFrontier.Unbuilt"])
+        self.assertIn(f"({source}/CslibFrontier/New.lean#L10)", text)
+        self.assertIn(f"({source}/CslibFrontier/Old.lean#L20)", text)
+        self.assertIn("`Nat.add_comm` (in `Init.Core`)", text)
+        self.assertIn("**Incomplete comparison:**", text)
+        self.assertIn("Statement-key equality cannot find specializations", text)
+
     def test_annotations_are_escaped(self) -> None:
         finding = p.Finding("a", "CslibFrontier/x,y:z.lean", 3, "b%", "CslibFrontier/O.lean", 4, 300,
                             0.5)
@@ -227,6 +248,34 @@ class ReportTests(unittest.TestCase):
                                         "title=Possible parallel definition::"))
         self.assertIn("`b%25`", line)
         self.assertEqual(len(p.annotations(self.found, 1)), 1)
+
+    def test_both_declarations_link_to_the_checked_revision(self) -> None:
+        source = "https://github.com/example/library/blob/tested-sha"
+        text = p.markdown(self.found, 7, 10, source_url=source)
+        self.assertIn(f"[CslibFrontier/MCSP/Magnification.lean:86]"
+                      f"({source}/CslibFrontier/MCSP/Magnification.lean#L86)", text)
+        self.assertIn(f"[CslibFrontier/MCSP/Basic.lean:40]"
+                      f"({source}/CslibFrontier/MCSP/Basic.lean#L40)", text)
+        self.assertEqual(p.location("CslibFrontier/A B.lean", 3, source),
+                         f"[CslibFrontier/A B.lean:3]({source}/CslibFrontier/A%20B.lean#L3)")
+
+    def test_empty_report_discloses_missing_comparisons_and_scope(self) -> None:
+        text = p.markdown([], 4, 10, missing=["CslibFrontier.Unbuilt"])
+        self.assertIn("No candidate parallel definitions", text)
+        self.assertIn("**Incomplete comparison:** 1 library module(s)", text)
+        self.assertIn("`CslibFrontier.Unbuilt`", text)
+        self.assertIn("Inspect the separate Duplicate-statement notice", text)
+        self.assertIn("Repeated-proof-block notice", text)
+        self.assertIn("An empty report does not replace source search", text)
+
+    def test_github_source_url_requires_a_repository_and_revision(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(p.github_source_url())
+            os.environ["GITHUB_REPOSITORY"] = "example/library"
+            self.assertIsNone(p.github_source_url())
+            os.environ["GITHUB_SHA"] = "merge-sha"
+            self.assertEqual(p.github_source_url(),
+                             "https://github.com/example/library/blob/merge-sha")
 
 
 class DriverTests(unittest.TestCase):
@@ -266,15 +315,18 @@ class DriverTests(unittest.TestCase):
         (self.build / "CslibFrontier").mkdir(parents=True)
         (self.build / "CslibFrontier/New.olean").write_text("")
         with mock.patch.object(p, "run_reader", side_effect=RuntimeError("boom")):
-            code, out = self.run_main()
+            code, out = self.run_main("--github")
         self.assertEqual(code, 0)
         self.assertIn("skipped: the tool failed (boom)", out)
+        self.assertIn("This is not a completed duplication check", self.summary.read_text())
 
     def test_findings_go_to_the_summary_and_annotations(self) -> None:
         (self.build / "CslibFrontier").mkdir(parents=True)
         (self.build / "CslibFrontier/New.olean").write_text("")
         rows = [ALIAS, {"examined": 3, "modules": 2, "missing": []}]
-        with mock.patch.object(p, "run_reader", return_value=rows) as reader:
+        with mock.patch.object(p, "run_reader", return_value=rows) as reader, \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "example/library",
+                                             "GITHUB_SHA": "merge-sha"}):
             code, out = self.run_main("--github")
         self.assertEqual(code, 0)
         self.assertEqual(reader.call_args.args[1].splitlines(), ["lines CslibFrontier.New *"])
@@ -282,6 +334,9 @@ class DriverTests(unittest.TestCase):
         self.assertIn("1 candidate(s) among the 3 examined declarations.", out)
         self.assertIn("::notice file=CslibFrontier/MCSP/Magnification.lean,line=86,", out)
         self.assertIn("`Cslib.MCSP.MCSPAt` is `Cslib.GapMCSP.yesSet`", self.summary.read_text())
+        self.assertIn("https://github.com/example/library/blob/merge-sha/"
+                      "CslibFrontier/MCSP/Basic.lean#L40", self.summary.read_text())
+        self.assertIn("Record the disposition in the PR", self.summary.read_text())
 
     def test_theorems_mode(self) -> None:
         (self.build / "CslibFrontier").mkdir(parents=True)
@@ -326,7 +381,28 @@ class DriverTests(unittest.TestCase):
             code, out = self.run_main("--github")
         self.assertEqual(code, 0)
         self.assertIn("no `CslibFrontier/` definitions added or modified", out)
-        self.assertFalse(self.summary.exists())
+        self.assertIn("no `CslibFrontier/` definitions added or modified", self.summary.read_text())
+
+    def test_missing_statistics_are_a_skip(self) -> None:
+        (self.build / "CslibFrontier").mkdir(parents=True)
+        (self.build / "CslibFrontier/New.olean").write_text("")
+        with mock.patch.object(p, "run_reader", return_value=[]):
+            code, out = self.run_main("--github")
+        self.assertEqual(code, 0)
+        self.assertIn("skipped: the tool failed", out)
+        self.assertIn("no coverage statistics", self.summary.read_text())
+        self.assertNotIn("No candidate parallel definitions", self.summary.read_text())
+
+    def test_partial_coverage_reaches_the_summary(self) -> None:
+        (self.build / "CslibFrontier").mkdir(parents=True)
+        (self.build / "CslibFrontier/New.olean").write_text("")
+        rows = [{"examined": 3, "modules": 2, "missing": ["CslibFrontier.Unbuilt"]}]
+        with mock.patch.object(p, "run_reader", return_value=rows):
+            code, out = self.run_main("--github")
+        self.assertEqual(code, 0)
+        self.assertIn("**Incomplete comparison:**", out)
+        self.assertIn("**Incomplete comparison:**", self.summary.read_text())
+        self.assertIn("`CslibFrontier.Unbuilt`", self.summary.read_text())
 
 
 # A compiled module for `CompiledFixtureTests`. Declarations from `-- new` on are examined.
@@ -434,6 +510,187 @@ class CompiledFixtureTests(unittest.TestCase):
         self.assertEqual(aliases, [{"alias": "aliasBounded", "am": "ParallelFixture", "al": line,
                                     "b": "oldBounded", "bm": "ParallelFixture", "bl": 5,
                                     "bp": False}])
+
+
+def _find_colliding_const_names() -> tuple[str, str]:
+    """Find two distinct unqualified Lean constant names with identical `Expr.hash` (32-bit)."""
+    script = """import Lean
+open Lean
+private def checkPair (a b : Name) : Bool :=
+  let rec wrap : Nat → Expr → Expr
+    | 0, e => e
+    | n + 1, e => .app (.const `Nat.succ []) (wrap n e)
+  let ea := wrap 12 (.const a [])
+  let eb := wrap 12 (.const b [])
+  ea.hash == eb.hash && ea != eb
+
+#eval show IO Unit from do
+  if checkPair `c15494 `c98335 then
+    IO.println "PAIR c15494 c98335"
+    return
+  let mut seen : Std.HashMap UInt64 Name := {}
+  for i in [0:500000] do
+    let n : Name := .str .anonymous s!"c{i}"
+    let h := (Expr.const n []).hash
+    if let some m := seen[h]? then
+      if checkPair m n then
+        IO.println s!"PAIR {m} {n}"
+        return
+    seen := seen.insert h n
+  throw <| IO.userError "no 32-bit Expr.hash collision found in 500000 names"
+"""
+    out = subprocess.run(["lake", "env", "lean", "--stdin"], cwd=p.ROOT, input=script,
+                         text=True, check=True, capture_output=True)
+    for line in out.stdout.splitlines():
+        if line.startswith("PAIR "):
+            _, a, b = line.split()
+            return a, b
+    raise AssertionError(f"expected PAIR line from Lean collision probe, got: {out.stdout!r}")
+
+
+def _succ_chain(name: str, depth: int = 12) -> str:
+    expr = name
+    for _ in range(depth):
+        expr = f"Nat.succ ({expr})"
+    return expr
+
+
+@unittest.skipUnless(shutil.which("lake") and (p.ROOT / ".lake/packages").is_dir(),
+                     "needs Lean and the repository's packages (CI runs this after the build)")
+class CompiledCollisionTests(unittest.TestCase):
+    """Regression tests for 32-bit `Expr.hash` collisions in `scripts/ParallelDefs.lean`.
+
+    Regression for the false-positive match on PR #5668 reported by coordinator-6605: before
+    keying `bigSubterms`, `table` and `occurrences` by structural `Expr` equality, distinct
+    subterms sharing an `Expr.hash` were merged across declarations, dropped inside a single
+    declaration (`big.insert e.hash`), and double-counted toward `maxShared`.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.const_a, cls.const_b = _find_colliding_const_names()
+        chain_a = _succ_chain(cls.const_a, 12)
+        chain_b = _succ_chain(cls.const_b, 12)
+        src = f"""module
+public import Init
+public section
+
+def {cls.const_a} : Nat := 1
+def {cls.const_b} : Nat := 2
+
+def oldA1 : Nat := {chain_a}
+def oldB1 : Nat := {chain_b}
+def oldB2 : Nat := {chain_b}
+def bothUnexamined : Nat × Nat := ({chain_a}, {chain_b})
+
+def withLam (α : Type) (P : α → Nat → Prop) : α → Prop :=
+  fun x => P x 1 ∧ P x 2 ∧ P x 3 ∧ P x 4 ∧ P x 5
+
+-- new
+
+def newA : Nat := {chain_a}
+def newB : Nat := {chain_b}
+def bothExamined : Nat × Nat := ({chain_a}, {chain_b})
+
+def withForall (α : Type) (P : α → Nat → Prop) : Prop :=
+  ∀ x : α, P x 1 ∧ P x 2 ∧ P x 3 ∧ P x 4 ∧ P x 5
+
+end
+"""
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        build = root / "build"
+        build.mkdir()
+        (root / "CollisionFixture.lean").write_text(src)
+        subprocess.run(["lake", "env", "lean", f"--root={root}", "-o",
+                        str(build / "CollisionFixture.olean"),
+                        str(root / "CollisionFixture.lean")],
+                       cwd=p.ROOT, check=True, capture_output=True)
+        lines = src.splitlines()
+        first = lines.index("-- new") + 1
+        last = len(lines)
+        cls.build = build
+        cls.spec = f"lines CollisionFixture {first}-{last}\n"
+        cls.both_line = next(i for i, line in enumerate(lines, 1)
+                             if line.startswith("def bothExamined "))
+        # `chain_a` occurs in 4 defs (`oldA1`, `bothUnexamined`, `newA`, `bothExamined`);
+        # `chain_b` occurs in 5 defs (`oldB1`, `oldB2`, `bothUnexamined`, `newB`, `bothExamined`).
+        cls.rows_all = p.run_reader(build, cls.spec, 15, 10)
+        cls.pairs_all = {frozenset((r["a"], r["b"])): r for r in cls.rows_all if "pair" in r}
+        cls.rows_cap4 = p.run_reader(build, cls.spec, 15, 4)
+        cls.pairs_cap4 = {frozenset((r["a"], r["b"])): r for r in cls.rows_cap4 if "pair" in r}
+
+    def test_colliding_constants_are_not_falsely_paired(self) -> None:
+        for a in ("newA", "oldA1"):
+            for b in ("newB", "oldB1", "oldB2"):
+                self.assertNotIn(frozenset((a, b)), self.pairs_all, f"false pair {(a, b)}")
+
+    def test_intra_body_collision_preserves_both_subterms(self) -> None:
+        # Both `bothExamined` (pass 1 `bigSubterms`) and `bothUnexamined` (pass 2
+        # `matchingSubterms`) contain BOTH colliding `Nat.succ` chains of size 25.
+        for x, y, expected, forbidden in (
+            ("newA", "oldA1", self.const_a, self.const_b),
+            ("newA", "bothUnexamined", self.const_a, self.const_b),
+            ("newA", "bothExamined", self.const_a, self.const_b),
+            ("bothExamined", "oldA1", self.const_a, self.const_b),
+            ("newB", "oldB1", self.const_b, self.const_a),
+            ("newB", "oldB2", self.const_b, self.const_a),
+            ("newB", "bothUnexamined", self.const_b, self.const_a),
+            ("newB", "bothExamined", self.const_b, self.const_a),
+            ("bothExamined", "oldB1", self.const_b, self.const_a),
+            ("bothExamined", "oldB2", self.const_b, self.const_a),
+        ):
+            with self.subTest(pair=(x, y)):
+                row = self.pairs_all[frozenset((x, y))]
+                self.assertEqual(row["pair"], 25)
+                self.assertIn(expected, row["c"])
+                self.assertNotIn(forbidden, row["c"])
+        # Examining `bothExamined` alone verifies `bigSubterms` itself does not overwrite one
+        # colliding subterm with the other inside the same body.
+        solo_spec = f"lines CollisionFixture {self.both_line}-{self.both_line}\n"
+        solo = {(r["a"], r["b"]): r for r in p.run_reader(self.build, solo_spec, 15, 10)
+                if "pair" in r}
+        for other, expected, forbidden in (
+            ("oldA1", self.const_a, self.const_b),
+            ("newA", self.const_a, self.const_b),
+            ("oldB1", self.const_b, self.const_a),
+            ("newB", self.const_b, self.const_a),
+        ):
+            with self.subTest(solo_other=other):
+                row = solo[("bothExamined", other)]
+                self.assertEqual(row["pair"], 25)
+                self.assertIn(expected, row["c"])
+                self.assertNotIn(forbidden, row["c"])
+
+    def test_max_shared_counts_structural_expr_not_raw_hash(self) -> None:
+        # `chain_a` (4 defs) survives `max_shared=4` despite colliding `chain_b` (5 defs; 7 raw
+        # unique defs hitting the same 32-bit hash). `chain_b` itself is filtered out (> 4).
+        for x, y in (
+            ("newA", "oldA1"),
+            ("newA", "bothUnexamined"),
+            ("newA", "bothExamined"),
+            ("bothExamined", "oldA1"),
+        ):
+            row = self.pairs_cap4[frozenset((x, y))]
+            self.assertEqual(row["pair"], 25)
+            self.assertIn(self.const_a, row["c"])
+            self.assertNotIn(self.const_b, row["c"])
+        for x, y in (
+            ("newB", "oldB1"),
+            ("newB", "oldB2"),
+            ("newB", "bothUnexamined"),
+            ("newB", "bothExamined"),
+            ("bothExamined", "oldB1"),
+            ("bothExamined", "oldB2"),
+        ):
+            self.assertNotIn(frozenset((x, y)), self.pairs_cap4)
+
+    def test_lam_and_forall_root_hash_collision_not_matched(self) -> None:
+        # In Lean 4, `Expr.lam` and `Expr.forallE` mix identically in `Expr.hash` with no tag.
+        # `withLam` and `withForall` share their inner body (`P x 1 ∧ ... ∧ P x 5`), not the root.
+        row = self.pairs_all[frozenset(("withForall", "withLam"))]
+        self.assertLess(row["pair"], min(row["as"], row["bs"]))
 
 
 # A compiled module for `CompiledStatementFixtureTests`.
@@ -554,6 +811,72 @@ class CompiledStatementFixtureTests(unittest.TestCase):
                          [[("hyp_ab", True), ("hyp_ba", False)]])
         self.assertEqual(rows[-1]["examined"], 1)
         self.assertEqual(rows[-1]["external"], 0)
+
+
+# The statements from #4466, including the Fin-index notation and generated additive theorem.
+# Mathlib states these identities in reverse using natural-number indices (`xs[i.1]`).
+LIST_STATEMENT_FIXTURE = """module
+public import Mathlib.Algebra.BigOperators.Fin
+public import Mathlib.Data.List.OfFn
+public section
+open scoped BigOperators
+
+@[to_additive]
+theorem prod_map_eq_prod_fin {α β : Type*} [CommMonoid β] (xs : List α) (f : α → β) :
+    (xs.map f).prod = ∏ i : Fin xs.length, f xs[i] := by
+  rw [← List.ofFn_getElem_eq_map, List.prod_ofFn]
+  rfl
+
+theorem index_left (xs : List Nat) (i j : Fin xs.length)
+    (h : xs[i] ≤ xs[j] ∧ xs[j] ≤ xs[i]) : xs[i] ≤ xs[j] := h.1
+
+theorem index_right (xs : List Nat) (i j : Fin xs.length)
+    (h : xs[i] ≤ xs[j] ∧ xs[j] ≤ xs[i]) : xs[j] ≤ xs[i] := h.2
+
+theorem list_left (xs ys : List Nat) (i : Nat) (hx : i < xs.length) (hy : i < ys.length)
+    (h : xs[i] ≤ ys[i] ∧ ys[i] ≤ xs[i]) : xs[i] ≤ ys[i] := h.1
+
+theorem list_right (xs ys : List Nat) (i : Nat) (hx : i < xs.length) (hy : i < ys.length)
+    (h : xs[i] ≤ ys[i] ∧ ys[i] ≤ xs[i]) : ys[i] ≤ xs[i] := h.2
+"""
+
+
+@unittest.skipUnless(shutil.which("lake") and (p.ROOT / ".lake/packages").is_dir(),
+                     "needs Lean and the repository's packages (CI runs this after the build)")
+class CompiledListStatementFixtureTests(unittest.TestCase):
+    """The real list-indexing statements, through compilation and the dependency reader."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        build = root / "build"
+        build.mkdir()
+        source = root / "ListStatementFixture.lean"
+        source.write_text(LIST_STATEMENT_FIXTURE)
+        subprocess.run(["lake", "env", "lean", f"--root={root}", "-o",
+                        str(build / "ListStatementFixture.olean"), str(source)],
+                       cwd=p.ROOT, check=True, capture_output=True)
+        cls.rows = p.run_reader(build, "theorems\nexternal\nlines ListStatementFixture *\n", 0, 0)
+
+    def test_reversed_product_and_generated_sum_find_mathlib(self) -> None:
+        for operation in ("prod", "sum"):
+            with self.subTest(operation=operation):
+                name = f"{operation}_map_eq_{operation}_fin"
+                row = next((r for r in self.rows
+                            if any(t["n"] == name for t in r.get("thms", []))), None)
+                self.assertIsNotNone(row, name)
+                self.assertFalse(row["exact"])
+                self.assertIn({"n": f"Fin.{operation}_univ_fun_getElem",
+                               "m": "Mathlib.Algebra.BigOperators.Fin"}, row["ext"])
+
+    def test_different_indices_and_lists_stay_apart(self) -> None:
+        self.assertEqual(self.rows[-1]["examined"], 6)
+        for row in self.rows:
+            names = {t["n"] for t in row.get("thms", [])}
+            self.assertFalse({"index_left", "index_right"} <= names)
+            self.assertFalse({"list_left", "list_right"} <= names)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Communication.Lifting.Volume
 public import CslibFrontier.Computability.Communication.Lifting.Gadget
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Basic.Real.Basic
@@ -134,10 +135,7 @@ private theorem card_filter_subset_image_pointerGraph_mul_pow_le {F : Finset (Fi
   by_cases hex : ∃ x₀ ∈ X, T ⊆ pointerGraph F x₀
   · obtain ⟨x₀, hx₀, hTx₀⟩ := hex
     set I : Finset (Fin n) := T.image fun p => p.1.1
-    have hIF : I ⊆ F := by
-      intro i hi
-      obtain ⟨p, -, rfl⟩ := mem_image.mp hi
-      exact p.1.2
+    have hIF : I ⊆ F := forall_mem_image.2 fun p _ => p.1.2
     have hIT : #I = #T := by
       refine card_image_of_injOn fun p hp q hq h => ?_
       have hp' := mem_pointerGraph.mp (hTx₀ hp)
@@ -159,10 +157,7 @@ private theorem card_filter_subset_image_pointerGraph_mul_pow_le {F : Finset (Fi
     rw [hXh]
     nlinarith [pow_pos hr #T]
   · push Not at hex
-    have : Xh.filter (T ⊆ ·) = ∅ := by
-      refine filter_eq_empty_iff.mpr fun s hs hTs => ?_
-      obtain ⟨x, hx, rfl⟩ := mem_image.mp hs
-      exact hex x hx hTs
+    have : Xh.filter (T ⊆ ·) = ∅ := filter_eq_empty_iff.mpr <| forall_mem_image.2 hex
     rw [this, card_empty, Nat.cast_zero, zero_mul]
     positivity
 
@@ -195,10 +190,7 @@ theorem exists_forall_eq_of_isDense {F : Finset (Fin n)} {X : Finset (Fin n → 
   -- the pointer sets of `X`
   have hGinj := pointerGraph_injOn hXfix
   set Xh := X.image (pointerGraph F)
-  have hcardXh : ∀ s ∈ Xh, #s = #F := by
-    intro s hs
-    obtain ⟨x, -, rfl⟩ := mem_image.mp hs
-    exact card_pointerGraph F x
+  have hcardXh : ∀ s ∈ Xh, #s = #F := forall_mem_image.2 fun x _ => card_pointerGraph F x
   have hspread := card_filter_subset_image_pointerGraph_mul_pow_le hr hXfix hdense
   -- the target patterns
   set βh : Finset (F × Fin m) → F × Fin m → Bool := fun s p =>
@@ -232,5 +224,21 @@ theorem exists_forall_eq_of_isDense {F : Finset (Fin n)} {X : Finset (Fin n → 
     (by positivity : (0 : ℝ) < 2 ^ (#F * m))]
 
 end FullRange
+
+/-- All of `[m]ⁿ` is `τ`-dense when `τ ≤ m`. -/
+theorem isDense_univ {τ : ℝ} (hτ : 0 ≤ τ) (hτm : τ ≤ m) (F : Finset (Fin n)) :
+    IsDense τ F (univ : Finset (Fin n → Fin m)) := by
+  intro I _ _ α
+  have h1 : #((univ : Finset (Fin n → Fin m)).filter fun x => ∀ i ∈ I, x i = α i) ≤ m ^ #Iᶜ :=
+    card_le_pow_of_fixed fun x hx x' hx' i hi => by
+      rw [(mem_filter.mp hx).2 i hi, (mem_filter.mp hx').2 i hi]
+  have h1' : (#((univ : Finset (Fin n → Fin m)).filter fun x => ∀ i ∈ I, x i = α i) : ℝ) ≤
+      (m : ℝ) ^ #Iᶜ := by exact_mod_cast h1
+  have h2 : τ ^ #I ≤ (m : ℝ) ^ #I := pow_le_pow_left₀ hτ hτm _
+  have hu : (#(univ : Finset (Fin n → Fin m)) : ℝ) = (m : ℝ) ^ #Iᶜ * (m : ℝ) ^ #I := by
+    rw [← pow_add, card_compl, Nat.sub_add_cancel (card_le_univ I)]
+    simp
+  rw [hu]
+  exact mul_le_mul h1' h2 (by positivity) (by positivity)
 
 end Cslib.Communication.Lifting

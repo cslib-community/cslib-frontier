@@ -80,8 +80,8 @@ theorem sq_walk_pow_le (t : ℕ) (f : V → ℝ) (v : V) :
   induction t generalizing v with
   | zero => simp
   | succ t ih =>
-    rw [show G.walk ^ (t + 1) = G.walk * G.walk ^ t from pow_succ' _ _, Module.End.mul_apply,
-      Module.End.mul_apply]
+    rw [show G.walk ^ (t + 1) = G.walk * G.walk ^ t from pow_succ' _ _, mul_apply_eq_comp,
+      mul_apply_eq_comp]
     exact (G.sq_walk_le _ v).trans (G.walk_mono ih v)
 
 /-- **Jensen's inequality for fourth powers.** -/
@@ -90,9 +90,9 @@ theorem pow_four_walk_pow_le (t : ℕ) (f : V → ℝ) (v : V) :
   calc (G.walk ^ t) f v ^ 4 = ((G.walk ^ t) f v ^ 2) ^ 2 := by ring
     _ ≤ ((G.walk ^ t) (fun w ↦ f w ^ 2) v) ^ 2 :=
         pow_le_pow_left₀ (sq_nonneg _) (G.sq_walk_pow_le t f v) 2
-    _ ≤ (G.walk ^ t) (fun w ↦ (f w ^ 2) ^ 2) v := G.sq_walk_pow_le t _ v
-    _ = (G.walk ^ t) (fun w ↦ f w ^ 4) v := by
-        rw [show (fun w ↦ (f w ^ 2) ^ 2) = fun w ↦ f w ^ 4 from funext fun w ↦ by ring]
+    _ ≤ (G.walk ^ t) (fun w ↦ f w ^ 4) v :=
+        (G.sq_walk_pow_le t _ v).trans_eq
+          (by rw [show (fun w ↦ (f w ^ 2) ^ 2) = fun w ↦ f w ^ 4 from funext fun _ ↦ by ring])
 
 end Pointwise
 
@@ -127,7 +127,7 @@ theorem expect_walk_pow_add_pow_four_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) (
   set m := 𝔼 v, q v with hm
   set h := (G.walk ^ t) fun w ↦ q w - m with hh
   have hsplit : (G.walk ^ (s + t)) f = (G.walk ^ t) g := by
-    rw [add_comm, pow_add, Module.End.mul_apply]
+    rw [add_comm, pow_add, mul_apply_eq_comp]
   -- The walk of `q` is its mean plus the walk of the part of expectation zero.
   have hq_split (v : V) : (G.walk ^ t) q v = h v + m := by
     have : q = (fun w ↦ q w - m) + fun _ ↦ m := by
@@ -169,7 +169,6 @@ theorem expect_walk_pow_add_pow_four_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) (
     calc m ^ 2 ≤ (G.spectralExpansion ^ (2 * s) * 𝔼 v, f v ^ 2) ^ 2 := by gcongr
       _ = G.spectralExpansion ^ (4 * s) * (𝔼 v, f v ^ 2) ^ 2 := by ring
       _ ≤ G.spectralExpansion ^ (4 * s) * 𝔼 v, f v ^ 4 := by
-          have := G.spectralExpansion_nonneg
           gcongr
           exact sq_expect_sq_le_expect_pow_four f
   rw [hsplit]
@@ -180,14 +179,11 @@ the fourth moment by at most `2 λ(G) ^ (2 t)`. -/
 theorem expect_walk_pow_two_mul_pow_four_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) (t : ℕ) :
     𝔼 v, (G.walk ^ (2 * t)) f v ^ 4 ≤ 2 * G.spectralExpansion ^ (2 * t) * 𝔼 v, f v ^ 4 := by
   have h := G.expect_walk_pow_add_pow_four_le hf t t
-  have hl₀ := G.spectralExpansion_nonneg
-  have hl₁ := G.spectralExpansion_le_one
-  have hpow : G.spectralExpansion ^ (4 * t) ≤ G.spectralExpansion ^ (2 * t) :=
-    pow_le_pow_of_le_one hl₀ hl₁ (by omega)
-  have h4 : 0 ≤ 𝔼 v, f v ^ 4 := expect_nonneg fun v _ ↦ by positivity
   rw [← two_mul t] at h
-  have := mul_le_mul_of_nonneg_right hpow h4
-  nlinarith
+  have hpow := pow_le_pow_of_le_one G.spectralExpansion_nonneg G.spectralExpansion_le_one
+    (show 2 * t ≤ 4 * t by omega)
+  have h4 : 0 ≤ 𝔼 v, f v ^ 4 := expect_nonneg fun _ _ ↦ by positivity
+  nlinarith [mul_le_mul_of_nonneg_right hpow h4]
 
 /-- **Fourth-moment decay for every function**: over `2 t` steps, the fourth moment of the
 deviation from the mean shrinks by at least the factor `2 λ(G) ^ (2 t)`. -/

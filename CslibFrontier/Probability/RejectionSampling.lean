@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import Cslib.Probability.PMF
+import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.Map
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Data.Int.Interval
 public import Mathlib.Algebra.Order.Group.Int
@@ -23,7 +26,7 @@ value is uniform on `S` (`PMF.shiftReject_apply_some`, `PMF.shiftReject_apply_no
 exact, finite form of the rejection-sampling lemma behind Lyubashevsky's identification scheme
 and signatures ([Lyubashevsky2009], [Lyubashevsky2012]).
 
-The box instance (`PMF.boxReject`) is the variant used in Dilithium ([DucasEtAl2018]):
+The symmetric box instance (`PMF.boxReject`) specializes this rejection argument:
 `y` is uniform in the integer box `[-γ, γ]^ι` and the shift `v` has sup norm at most `β ≤ γ`.
 The accepted values are then uniform on `[-(γ - β), γ - β]^ι`, the acceptance probability is
 exactly `((2 (γ - β) + 1) / (2 γ + 1)) ^ |ι|`, and the abort probability is at most
@@ -156,14 +159,11 @@ theorem shiftReject_apply_none (hv : ∀ z ∈ S, z - v ∈ B) :
     rw [tsum_eq_sum (s := S) fun z hz => by simp [hz], Finset.sum_ite_mem, Finset.inter_self,
       Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
   have htotal := (shiftReject B S hB v).tsum_coe
-  rw [tsum_eq_add_tsum_ite none, ← (Option.some_injective α).tsum_eq] at htotal
-  · simp only [reduceCtorEq, ite_false, hsome] at htotal
-    exact ENNReal.eq_sub_of_add_eq
-      (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by simpa using hB.ne_empty)) htotal
-  · intro o ho
-    cases o with
-    | none => simp at ho
-    | some z => exact ⟨z, rfl⟩
+  rw [tsum_eq_add_tsum_ite none, ← (Option.some_injective α).tsum_eq
+    fun | none, ho => by simp at ho | some z, _ => ⟨z, rfl⟩] at htotal
+  simp only [reduceCtorEq, ite_false, hsome] at htotal
+  exact ENNReal.eq_sub_of_add_eq
+    (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by simpa using hB.ne_empty)) htotal
 
 /-- **Rejection sampling lemma** (exact form). Given acceptance, the output is uniform on `S`:
 the probability of `some z` is the acceptance probability `|S| / |B|` times the uniform
@@ -176,13 +176,40 @@ theorem shiftReject_apply_some_eq_mul (hv : ∀ z ∈ S, z - v ∈ B) (hS : S.No
       (by simpa using hS.ne_empty) (ENNReal.natCast_ne_top _), mul_one]
   · rw [mul_zero]
 
+/-- With probability `min(size, keep)/size`, draw a fresh value from `p`; otherwise return
+`none`. The gate uses a uniform finite index and is independent of the returned value. -/
+noncomputable def sampleWithRatio {β : Type*} (p : PMF β) (keep size : ℕ) (hn : 0 < size) :
+    PMF (Option β) :=
+  have : NeZero size := ⟨hn.ne'⟩
+  let coin := (PMF.uniformOfFintype (Fin size)).map fun i => decide (i.val < keep)
+  coin.bind fun b => if b then p.map some else PMF.pure none
+
+/-- Translated rejection sampling factors as an independent cardinality-ratio gate and a
+fresh uniform sample from the acceptance set, including the full probability of failure. -/
+theorem shiftReject_eq_sampleWithRatio (hv : ∀ z ∈ S, z - v ∈ B) (hS : S.Nonempty) :
+    shiftReject B S hB v =
+      sampleWithRatio (uniformOfFinset S hS) S.card B.card (Finset.card_pos.mpr hB) := by
+  classical
+  have : NeZero B.card := ⟨(Finset.card_pos.mpr hB).ne'⟩
+  let coin := (PMF.uniformOfFintype (Fin B.card)).map fun i => decide (i.val < S.card)
+  have hcard : S.card ≤ B.card :=
+    Finset.card_le_card_of_injOn (· - v) hv fun _ _ _ _ => sub_left_inj.mp
+  have htrue : coin true = (S.card : ℝ≥0∞) / B.card :=
+    (uniformFin_decide_lt B.card S.card).trans (by rw [min_eq_right hcard])
+  have hfalse : coin false = 1 - (S.card : ℝ≥0∞) / B.card :=
+    htrue ▸ ENNReal.eq_sub_of_add_eq (PMF.apply_ne_top _ _)
+      ((add_comm _ _).trans (PMF.apply_true_add_apply_false _))
+  ext (_ | z) <;> change _ = (coin.bind fun b => if b then _ else _) _ <;>
+    rw [PMF.bind_apply, tsum_fintype, Fintype.sum_bool, htrue, hfalse]
+  · simp [shiftReject_apply_none hv, PMF.map_apply]
+  · simp [shiftReject_apply_some_eq_mul hv hS, map_apply_of_injective _ (Option.some_injective _)]
+
 /-- The output law of rejection sampling is the same for all admissible shifts. -/
 theorem shiftReject_eq {v' : α} (hv : ∀ z ∈ S, z - v ∈ B) (hv' : ∀ z ∈ S, z - v' ∈ B) :
     shiftReject B S hB v = shiftReject B S hB v' := by
-  ext o
-  cases o with
-  | none => rw [shiftReject_apply_none hv, shiftReject_apply_none hv']
-  | some z => rw [shiftReject_apply_some hv, shiftReject_apply_some hv']
+  ext (_ | z)
+  · rw [shiftReject_apply_none hv, shiftReject_apply_none hv']
+  · rw [shiftReject_apply_some hv, shiftReject_apply_some hv']
 
 end Shift
 

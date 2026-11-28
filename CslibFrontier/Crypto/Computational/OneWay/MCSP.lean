@@ -28,10 +28,12 @@ import CslibFrontier.Foundations.Data.Nat.Asymptotics
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Languages.Probabilistic.Notation
+import CslibFrontier.Tactic.PPT
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.Uniform
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # MCSP in BPP rules out one-way functions
@@ -97,7 +99,7 @@ thresholds `⌊2 ^ m / (5 m)⌋`. The parts of the distinguisher live in the nam
 
 namespace Cslib.Crypto
 
-open Probability Turing.MultiTapeTM ComputableTidilyInPolyTime Complexity Circuits
+open Probability Turing.MultiTapeTM ComputableInPolyTime Complexity Circuits
   Circuits.Boolean
 open scoped BigOperators
 
@@ -123,13 +125,11 @@ theorem toReal_map_restrictTable_mem_le {n m : ℕ} (hn : 0 < n) (hm : m ≤ n) 
     ENNReal.toReal_natCast, ENNReal.toReal_natCast]
   have hcard : Nat.card {T : BitString (2 ^ m) //
       decide ((⟨m, T, 2 ^ m / (5 * m)⟩ : MCSP.Instance) ∈ MCSP) = true} =
-      {T : BitString (2 ^ m) | (⟨m, T, 2 ^ m / (5 * m)⟩ : MCSP.Instance) ∈ MCSP}.ncard := by
-    rw [← Nat.card_coe_set_eq]
-    exact Nat.card_congr (Equiv.subtypeEquivRight fun T => by simp)
+      {T : BitString (2 ^ m) | (⟨m, T, 2 ^ m / (5 * m)⟩ : MCSP.Instance) ∈ MCSP}.ncard :=
+    (Nat.card_congr (Equiv.subtypeEquivRight fun _ => by simp)).trans (Nat.card_coe_set_eq _)
   rw [hcard, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-  have := MCSP.ncard_setOf_mem_le hm16
   push_cast
-  exact div_le_div_of_nonneg_right (by exact_mod_cast this) (by positivity)
+  exact div_le_div_of_nonneg_right (by exact_mod_cast MCSP.ncard_setOf_mem_le hm16) (by positivity)
 
 /-! ### Running a bounded-error decider for MCSP -/
 
@@ -141,11 +141,11 @@ noncomputable def mcspRun (p : Polynomial ℕ) (V : MCSP.Instance × List Bool �
 
 variable {p : Polynomial ℕ} {V : MCSP.Instance × List Bool → Bool}
 
+@[fun_prop]
 theorem isPPTOn_mcspRun
     (hV : ComputableInPolyTime V (encPair MCSP.encInstance encBits) encBool) :
-    IsPPTOn MCSP.encInstance encBool (mcspRun p V) :=
-  IsPPTOn.map_with (ComputableInPolyTime.sampleList
-    (.of_tidy ((unary_eval p).comp (encoding_length MCSP.encInstance)))) hV
+    IsPPTOn MCSP.encInstance encBool (mcspRun p V) := by
+  ppt [mcspRun]
 
 /-- The acceptance probability of `mcspRun` is the fraction of accepting coin strings. -/
 theorem toReal_eval_mcspRun (p : Polynomial ℕ) (V : MCSP.Instance × List Bool → Bool)
@@ -162,32 +162,23 @@ theorem toReal_eval_mcspRun (p : Polynomial ℕ) (V : MCSP.Instance × List Bool
 theorem two_thirds_le_toReal_eval_mcspRun
     (hV : DecidesWithBoundedError MCSP.encInstance p V MCSP) {x : MCSP.Instance} (hx : x ∈ MCSP) :
     2 / 3 ≤ (ProbComp.eval (mcspRun p V x) true).toReal := by
-  rw [toReal_eval_mcspRun, le_div_iff₀ (by positivity)]
-  have h := (hV x).1 hx
-  have h' : ((2 * 2 ^ p.eval (MCSP.encInstance x).length : ℕ) : ℝ) ≤
-      ((3 * (Finset.univ.filter fun r : Fin (p.eval (MCSP.encInstance x).length) → Bool =>
-        V (x, List.ofFn r) = true).card : ℕ) : ℝ) := by exact_mod_cast h
-  push_cast at h'
-  linarith
+  rw [toReal_eval_mcspRun, div_le_div_iff₀ zero_lt_three (by positivity)]
+  exact_mod_cast ((hV x).1 hx).trans_eq (Nat.mul_comm 3 _)
 
 /-- A bounded-error decider accepts a non-member of MCSP with probability at most `1 / 3`. -/
 theorem toReal_eval_mcspRun_le_one_third
     (hV : DecidesWithBoundedError MCSP.encInstance p V MCSP) {x : MCSP.Instance} (hx : x ∉ MCSP) :
     (ProbComp.eval (mcspRun p V x) true).toReal ≤ 1 / 3 := by
-  rw [toReal_eval_mcspRun, div_le_iff₀ (by positivity)]
+  rw [toReal_eval_mcspRun, div_le_div_iff₀ (by positivity) zero_lt_three]
   set k := p.eval (MCSP.encInstance x).length
-  have h := (hV x).2 hx
-  have hsum := Finset.card_filter_add_card_filter_not
-    (s := (Finset.univ : Finset (Fin k → Bool))) (fun r => V (x, List.ofFn r) = true)
-  simp only [Bool.not_eq_true, Finset.card_univ, Fintype.card_fun, Fintype.card_bool,
-    Fintype.card_fin] at hsum
-  have h' : ((2 * 2 ^ k : ℕ) : ℝ) ≤ ((3 * (Finset.univ.filter fun r : Fin k → Bool =>
-      V (x, List.ofFn r) = false).card : ℕ) : ℝ) := by exact_mod_cast h
-  have hsum' : (((Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = true).card +
-      (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card : ℕ) : ℝ) =
-      ((2 ^ k : ℕ) : ℝ) := by exact_mod_cast hsum
-  push_cast at h' hsum'
-  linarith
+  have hsum : (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = true).card +
+      (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card = 2 ^ k := by
+    simpa [Bool.not_eq_true] using Finset.card_filter_add_card_filter_not
+      (s := (Finset.univ : Finset (Fin k → Bool))) (fun r => V (x, List.ofFn r) = true)
+  have hfalse : 2 * 2 ^ k ≤
+      3 * (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card :=
+    (hV x).2 hx
+  norm_cast; omega
 
 /-! ### The distinguisher -/
 
@@ -222,7 +213,7 @@ theorem interpret_mcspDistinguisher (d : ℕ) (oracle : List Bool → List Bool)
         (restriction oracle n (tableArity d n)), 2 ^ tableArity d n / (5 * tableArity d n)⟩ := by
   rw [mcspDistinguisher, OracleComp.interpret_bind, interpret_queryTable, pure_bind,
     ProbOracleComp.interpret_sample, tableInstance_map_tableQueries]
-  exact OracleComp.interpret_query_eq_self _
+  exact ProbComp.interpret_unifFin _
 
 /-! ### The distinguisher is uniform strict oracle PPT -/
 
@@ -230,9 +221,7 @@ theorem interpret_mcspDistinguisher (d : ℕ) (oracle : List Bool → List Bool)
 @[fun_prop]
 theorem computableInPolyTime_tableArity (d : ℕ) :
     ComputableInPolyTime (tableArity d) encUnary encUnary := by
-  unfold tableArity
-  have := ComputableInPolyTime.unary_clog_const 2
-  fun_prop
+  fun_prop [tableArity]
 
 /-- The table size `2 ^ m` is computed in unary from the unary parameter. -/
 theorem computableInPolyTime_two_pow_tableArity (d : ℕ) :
@@ -241,59 +230,44 @@ theorem computableInPolyTime_two_pow_tableArity (d : ℕ) :
     ComputableInPolyTime.unary_pow_clog_const ComputableInPolyTime.id' (2 ^ d) 2
 
 /-- The queries are computed in polynomial time from the unary parameter. -/
+@[fun_prop]
 theorem computableInPolyTime_tableQueries (d : ℕ) :
     ComputableInPolyTime (fun input : ℕ × List Bool =>
       tableQueries input.1 (tableArity d input.1)) (encPair encUnary encBits)
       (encList encBits) := by
-  refine .of_tidy ?_
   unfold tableQueries
-  have harity : ComputableTidilyInPolyTime (fun input : ℕ × List Bool => tableArity d input.1)
+  have harity : ComputableInPolyTime (fun input : ℕ × List Bool => tableArity d input.1)
       (encPair encUnary encBits) encUnary :=
-    (computableInPolyTime_tableArity d).tidy.comp (fst _ _)
+    (computableInPolyTime_tableArity d).comp (fst _ _)
   refine mapWithInput (bitsEnumList harity
     (size := fun L => (2 * (L + 1)) ^ d * (2 * (d * (2 * (L + 1))) + 1)) (by fun_prop)
     fun input => ?_) ?_
   · obtain ⟨n, aux⟩ := input
-    dsimp only
-    have hn : n ≤ (encPair encUnary encBits (n, aux)).length := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      omega
+    dsimp only [tableArity]
+    have hn : n ≤ (encPair encUnary encBits (n, aux)).length := by enc_len
     set L := (encPair encUnary encBits (n, aux)).length
     have hpow : 2 ^ Nat.clog 2 n ≤ 2 * (L + 1) := (Nat.two_pow_clog_two_le n).trans (by omega)
     have hclog : Nat.clog 2 n ≤ 2 * (L + 1) := Nat.lt_two_pow_self.le.trans hpow
-    refine Nat.mul_le_mul ?_ ?_
-    · rw [tableArity, mul_comm, pow_mul]
-      exact Nat.pow_le_pow_left hpow d
-    · have := Nat.mul_le_mul_left d hclog
-      rw [tableArity]
-      omega
-  · have hsub : ComputableTidilyInPolyTime (fun p : (ℕ × List Bool) × List Bool =>
-        p.1.1 - tableArity d p.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
-      unary_sub.comp ((fst _ _).fst'.prod (harity.comp (fst _ _)))
-    exact bitsAppend ((bitsReplicate false).comp hsub) (snd _ _)
+    exact Nat.mul_le_mul ((pow_mul' 2 d _).trans_le (Nat.pow_le_pow_left hpow d)) (by nlinarith)
+  · exact bitsAppend ((bitsReplicate false).comp
+      (unary_sub.comp ((fst _ _).fst'.prod (harity.comp (fst _ _))))) (snd _ _)
 
 /-- The instance read from the answers is computed in polynomial time. -/
+@[fun_prop]
 theorem computableInPolyTime_tableInstance (d : ℕ) :
     ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
       tableInstance (tableArity d pair.1.1) pair.2) (encPair (encPair encUnary encBits) encBits)
       MCSP.encInstance := by
-  refine .of_tidy ?_
-  have harity : ComputableTidilyInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
+  have harity : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
       tableArity d pair.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
-    (computableInPolyTime_tableArity d).tidy.comp (fst _ _).fst'
-  have hsize : ComputableTidilyInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
+    (computableInPolyTime_tableArity d).comp (fst _ _).fst'
+  have hsize : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
       2 ^ tableArity d pair.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
-    (computableInPolyTime_two_pow_tableArity d).tidy.comp (fst _ _).fst'
-  have hraw : ComputableTidilyInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
-      ((pair.2 ++ List.replicate (2 ^ tableArity d pair.1.1) false).take
-        (2 ^ tableArity d pair.1.1), 2 ^ tableArity d pair.1.1 / (5 * tableArity d pair.1.1)))
-      (encPair (encPair encUnary encBits) encBits) (encPair encBits encNat) :=
-    (bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
-      (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
-        ((const 5).prod harity)))))
-  refine hraw.of_enc_eq fun pair => ?_
-  rw [MCSP.encInstance_apply]
-  simp only [tableInstance, BitString.ofFn_ofList_eq_take]
+    (computableInPolyTime_two_pow_tableArity d).comp (fst _ _).fst'
+  refine ((bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
+    (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
+      ((const 5).prod harity)))))).of_enc_eq fun pair => ?_
+  simp [MCSP.encInstance_apply, tableInstance, BitString.ofFn_ofList_eq_take]
 
 /-- **The Kabanets–Cai distinguisher is uniform strict oracle PPT**, for a polynomial-time
 decider `V`: it makes `2 ^ m ≤ (2 (n + 1)) ^ d` queries of length `n` and runs `V` on a truth table
@@ -301,10 +275,7 @@ of `2 ^ m` bits. -/
 theorem isOraclePPT_mcspDistinguisher (d : ℕ)
     (hV : ComputableInPolyTime V (encPair MCSP.encInstance encBits) encBool) :
     IsOraclePPT encBool (mcspDistinguisher p V d) := by
-  apply IsOraclePPTOn.isOraclePPT
-  exact IsOraclePPTOn.bind_with
-    (isOraclePPTOn_queryTable.preprocess' (computableInPolyTime_tableQueries d))
-    ((isPPTOn_mcspRun hV).preprocess (computableInPolyTime_tableInstance d)).isOraclePPTOn
+  ppt [mcspDistinguisher]
 
 /-! ### The advantage of the distinguisher -/
 
@@ -312,23 +283,23 @@ theorem isOraclePPT_mcspDistinguisher (d : ℕ)
 uniform key. -/
 theorem eval_prfRealGame_mcspDistinguisher (family : List Bool → List Bool → List Bool)
     {d n : ℕ} (hm : tableArity d n ≤ n) :
-    ProbComp.eval (prfRealGame family (mcspDistinguisher p V d) n) =
+    ProbComp.eval (prfRealGame id family (mcspDistinguisher p V d) n) =
       (BitString.uniformList n).bind fun key => ProbComp.eval (mcspRun p V
         ⟨tableArity d n, MCSP.truthTable (tableArity d n)
           (restriction (family key) n (tableArity d n)),
           2 ^ tableArity d n / (5 * tableArity d n)⟩) := by
-  simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList,
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, BitString.eval_sampleList,
     interpret_mcspDistinguisher, restriction_prfOracle hm]
 
 /-- In the ideal game, the decider runs on the truth table of the restriction of a uniformly
 random function. -/
 theorem eval_prfIdealGame_mcspDistinguisher {d n : ℕ} (hn : 0 < n) (hm : tableArity d n ≤ n) :
-    ProbComp.eval (prfIdealGame (mcspDistinguisher p V d) n) =
+    ProbComp.eval (prfIdealGame id id (mcspDistinguisher p V d) n) =
       (PMF.uniformOfFintype (BitString n → BitString n)).bind fun table =>
         ProbComp.eval (mcspRun p V ⟨tableArity d n, MCSP.truthTable (tableArity d n)
           (restrictTable n (tableArity d n) hn table),
           2 ^ tableArity d n / (5 * tableArity d n)⟩) := by
-  simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform,
+  simp only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
     interpret_mcspDistinguisher, restriction_randomFunctionOracle hn hm]
 
 /-- For large `n`, the arity `m = d ⌈log₂ n⌉` with `d = c + 2` satisfies `16 ≤ m ≤ n`, and the
@@ -345,22 +316,13 @@ theorem eventually_tableArity (c : ℕ) :
   have hn2 : n ≤ 2 ^ t := Nat.le_pow_clog one_lt_two n
   have h2n : 2 ^ t ≤ 2 * n := Nat.pow_clog_le_mul one_lt_two (by omega)
   have ht : t ≤ 2 * n := Nat.lt_two_pow_self.le.trans h2n
-  refine ⟨by omega, ?_, ?_, ?_⟩
-  · rw [tableArity]
-    nlinarith
-  · rw [tableArity]
-    nlinarith
-  · rw [tableArity]
-    have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left (by omega) c
+  refine ⟨by omega, ?_, ?_, ?_⟩ <;> rw [tableArity]
+  · nlinarith
+  · nlinarith
+  · have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := mul_pow 5 n c ▸ Nat.pow_le_pow_left (by omega) c
     have h1 : 1 ≤ n ^ c := Nat.one_le_pow c n (by omega)
-    have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := by
-      rw [mul_comm, pow_mul]
-      exact Nat.pow_le_pow_left hn2 _
-    have hpos : 0 < 5 * ((c + 2) * t) := by
-      have : 0 < t := by omega
-      positivity
+    have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := pow_mul' 2 _ t ▸ Nat.pow_le_pow_left hn2 _
+    have hpos : 0 < 5 * ((c + 2) * t) := mul_pos (by decide) (mul_pos (by omega) (by omega))
     refine (Nat.le_div_iff_mul_le hpos).2 ?_
     calc (c * (3 * n + 2) ^ c + 2) * (5 * ((c + 2) * t))
         ≤ (c * (5 ^ c * n ^ c) + 2 * n ^ c) * (5 * ((c + 2) * (2 * n))) := by gcongr; omega
@@ -389,17 +351,15 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
   set m := tableArity (c + 2) n
   -- The decider accepts the pseudorandom truth table with probability at least `2 / 3`.
   have hreal : 2 / 3 ≤
-      (ProbComp.eval (prfRealGame family (mcspDistinguisher p V (c + 2)) n) true).toReal := by
+      (ProbComp.eval (prfRealGame id family (mcspDistinguisher p V (c + 2)) n) true).toReal := by
     rw [eval_prfRealGame_mcspDistinguisher family hmn, BitString.uniformList, PMF.bind_map,
       PMF.toReal_uniformOfFintype_bind_apply]
     refine Finset.le_expect Finset.univ_nonempty fun key _ => ?_
-    refine two_thirds_le_toReal_eval_mcspRun hdec (MCSP.mk_truthTable_mem_iff.2 ?_)
-    have := hc (List.ofFn key) m (by simpa using hmn)
-    rw [List.length_ofFn] at this
-    exact this.trans hsize
+    refine two_thirds_le_toReal_eval_mcspRun hdec (MCSP.mk_truthTable_mem_iff.2 (le_trans ?_ hsize))
+    simpa using hc (List.ofFn key) m (by simpa using hmn)
   -- It accepts a random truth table with probability at most `1 / 3 + 1 / 12`.
   have hideal :
-      (ProbComp.eval (prfIdealGame (mcspDistinguisher p V (c + 2)) n) true).toReal ≤
+      (ProbComp.eval (prfIdealGame id id (mcspDistinguisher p V (c + 2)) n) true).toReal ≤
         1 / 3 + 1 / 12 := by
     rw [eval_prfIdealGame_mcspDistinguisher hn hmn, PMF.toReal_uniformOfFintype_bind_apply]
     set g : (BitString n → BitString n) → Bool := fun table =>
@@ -411,14 +371,11 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
             true).toReal ≤ (PMF.pure (g table) true).toReal + 1 / 3 := by
       by_cases hx : (⟨m, MCSP.truthTable m (KabanetsCai.restrictTable n m hn table),
           2 ^ m / (5 * m)⟩ : MCSP.Instance) ∈ MCSP
-      · have : g table = true := decide_eq_true hx
-        rw [this, PMF.pure_apply_self, ENNReal.toReal_one]
+      · simp only [g, decide_eq_true hx, PMF.pure_apply_self, ENNReal.toReal_one]
         linarith [Cslib.Probability.PMF.toReal_apply_le_one (ProbComp.eval (mcspRun p V ⟨m,
           MCSP.truthTable m (KabanetsCai.restrictTable n m hn table), 2 ^ m / (5 * m)⟩)) true]
-      · have : g table = false := decide_eq_false hx
-        rw [this, PMF.pure_apply_of_ne _ _ Bool.false_ne_true.symm, ENNReal.toReal_zero,
-          zero_add]
-        exact toReal_eval_mcspRun_le_one_third hdec hx
+      · simpa only [g, decide_eq_false hx, PMF.pure_apply_of_ne _ _ Bool.false_ne_true.symm,
+          ENNReal.toReal_zero, zero_add] using toReal_eval_mcspRun_le_one_third hdec hx
     have hsmall : ((PMF.uniformOfFintype (BitString n → BitString n)).map g true).toReal ≤
         1 / 12 := by
       refine (toReal_map_restrictTable_mem_le hn hmn hm16).trans ?_
@@ -427,9 +384,8 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
         calc 12 * 2 ^ (2 ^ m / 4) ≤ 2 ^ 4 * 2 ^ (2 ^ m / 4) := by gcongr; norm_num
           _ = 2 ^ (4 + 2 ^ m / 4) := by rw [pow_add]
           _ ≤ 2 ^ 2 ^ m := Nat.pow_le_pow_right two_pos (by omega)
-      rw [div_le_iff₀ (by positivity)]
-      have : (12 : ℝ) * 2 ^ (2 ^ m / 4) ≤ 2 ^ 2 ^ m := by exact_mod_cast hnat
-      linarith
+      rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+      norm_cast; omega
     calc 𝔼 table, (ProbComp.eval (mcspRun p V ⟨m,
           MCSP.truthTable m (KabanetsCai.restrictTable n m hn table), 2 ^ m / (5 * m)⟩)
             true).toReal
@@ -443,9 +399,7 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
   rw [← NNReal.coe_le_coe, Game.coe_advantage, Game.succProbability, Game.succProbability,
     ENNReal.coe_toNNReal_eq_toReal, ENNReal.coe_toNNReal_eq_toReal]
   push_cast
-  rw [le_abs]
-  left
-  linarith
+  exact le_trans (by linarith) (le_abs_self _)
 
 /-- **Kabanets–Cai** [Kabanets and Cai][KabanetsCai2000]: if MCSP is in `BPP`, with
 instances encoded by their truth table and threshold, then no function is one-way. -/

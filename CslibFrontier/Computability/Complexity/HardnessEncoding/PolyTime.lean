@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.Program
 public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
@@ -17,7 +18,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # The worst-case-to-average-case encoding is computable in exponential time
@@ -52,17 +54,13 @@ is in `E` (`Cslib.HardnessEncoding.encodedLanguage_mem_E`, by
 
 @[expose] public section
 
+open Cslib.BinaryField
+
 namespace Cslib.HardnessEncoding
 
 open Turing.MultiTapeTM ComputableInPolyTime Cslib.AffineDisperser
 
 /-! ### Field arithmetic -/
-
-/-- The multiplication table of the power basis, from the coefficient list of the modulus. -/
-private theorem computableInPolyTime_powerMulTable :
-    ComputableInPolyTime powerMulTable encBits encTable := by
-  unfold powerMulTable
-  fun_prop
 
 /-- Inverses in coordinates, as a composition rule. -/
 @[fun_prop]
@@ -259,6 +257,7 @@ def paddedProgram (M : ℕ) (gL : List Bool → Bool) (x : List Bool × ℕ) : B
   encodedProgram M gL x.1 (padLength x)
 
 /-- The padding bounds `2 ^ ℓ` for the length parameter `ℓ`. -/
+@[growth_poly]
 private theorem two_pow_padLength_le (x : List Bool × ℕ) : 2 ^ padLength x ≤ x.2 + 1 := by
   rcases Nat.eq_zero_or_pos x.2 with h | h
   · simp [padLength, h]
@@ -266,17 +265,6 @@ private theorem two_pow_padLength_le (x : List Bool × ℕ) : 2 ^ padLength x �
           Nat.pow_le_pow_right (by norm_num) (min_le_right _ _)
       _ ≤ x.2 := Nat.pow_log_le_self 2 h.ne'
       _ ≤ x.2 + 1 := Nat.le_succ _
-
-/-- Exponentials of multiples of the length parameter are polynomial in the padded input. -/
-private theorem polyBounded_two_pow_mul_padLength (c : ℕ) :
-    PolyBounded (fun x : List Bool × ℕ => (encPair encBits encUnary x).length)
-      fun x => 2 ^ (c * padLength x) := by
-  refine PolyBounded.of_forall_le 1 c fun x => ?_
-  rw [one_mul, mul_comm, pow_mul]
-  refine Nat.pow_le_pow_left ((two_pow_padLength_le x).trans ?_) c
-  have := length_le_encPair_right encBits encUnary x
-  rw [encUnary_apply, List.length_replicate] at this
-  omega
 
 /-- The length parameter is polynomial-time. -/
 @[fun_prop]
@@ -314,25 +302,18 @@ theorem computableInPolyTime_paddedProgram (M : ℕ) {gL : List Bool → Bool} {
   -- the enumerations
   have hE : ComputableInPolyTime (fun x => BitString.enumList (blockLength M (padLength x)))
       (encPair encBits encUnary) (encList encBits) :=
-    bitsEnumList_of_polyBounded hb
-      ((polyBounded_two_pow_mul_padLength 1).mono fun x => by
-        rw [one_mul]
-        exact Nat.pow_le_pow_right (by norm_num) (hbℓ x))
+    bitsEnumList_of_polyBounded hb (by growth_poly)
   have hMb : ComputableInPolyTime (fun x => M * blockLength M (padLength x))
       (encPair encBits encUnary) encUnary := by
     fun_prop
   have hEn : ComputableInPolyTime
       (fun x => BitString.enumList (M * blockLength M (padLength x)))
       (encPair encBits encUnary) (encList encBits) :=
-    bitsEnumList_of_polyBounded hMb
-      ((polyBounded_two_pow_mul_padLength 1).mono fun x => by
-        rw [one_mul]
-        exact Nat.pow_le_pow_right (by norm_num) (hMbℓ x))
+    bitsEnumList_of_polyBounded hMb (by growth_poly)
   -- the queries to the decider
   have htest := ComputableInO.computableInPolyTime_take
     (fun _ _ h => Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_left k h)) hgL
-    hMb ((polyBounded_two_pow_mul_padLength k).mono fun x =>
-      Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_left k (hMbℓ x)))
+    hMb (by growth_poly)
   have hpts : ComputableInPolyTime
       (fun x => (BitString.enumList (M * blockLength M (padLength x))).filter
         fun z => gL (z.take (M * blockLength M (padLength x))))

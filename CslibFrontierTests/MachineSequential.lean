@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-! Sequencing with random stopping times, shared channels, and stateful coin/query handlers. -/
 
@@ -74,8 +75,7 @@ private theorem prepare_halts {S : Type} (oracle : (q : Query) → StateT S PMF 
   rintro ⟨final, s'⟩ hfinal
   simp only [MultiTapePTM.runConfigFrom, MultiTapeMachine.runConfigFrom, prepare,
     MultiTapeMachine.initialConfig, Cfg.init, Bool.false_eq_true, ↓reduceIte, bind_map_left,
-    OracleComp.interpret_bind, StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-    PMF.mem_support_bind_iff] at hfinal
+    interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hfinal
   obtain ⟨⟨bit, s₁⟩, _, hfinal⟩ := hfinal
   cases bit <;> aesop (add simp [Config.step, Turing.Action.apply, action])
 
@@ -85,10 +85,9 @@ private theorem respond_halts {S : Type} (oracle : (q : Query) → StateT S PMF 
       (respond.runConfigFrom coin query 2 (start respond cfg))).run s).support,
       result.1.tapes.state = none := by
   rintro ⟨final, s'⟩ hfinal
-  simp only [MultiTapePTM.runConfigFrom, MultiTapeMachine.runConfigFrom, start,
-    Cfg.withState, respond, Bool.false_eq_true, ↓reduceIte, bind_map_left,
-    OracleComp.interpret_bind, StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-    PMF.mem_support_bind_iff] at hfinal
+  simp only [MultiTapePTM.runConfigFrom, MultiTapeMachine.runConfigFrom, start, Cfg.withState,
+    respond, Bool.false_eq_true, ↓reduceIte, bind_map_left, interp_norm,
+    Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hfinal
   obtain ⟨⟨_, s₁⟩, _, ⟨⟨answer, s₂⟩, _, hfinal⟩⟩ := hfinal
   aesop (add simp [Config.receive, Config.step, Turing.Action.apply, action])
 

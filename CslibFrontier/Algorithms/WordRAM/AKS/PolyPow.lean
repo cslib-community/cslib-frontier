@@ -7,10 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Computability.WordRAM.Copy
-public import CslibFrontier.Computability.WordRAM.RegisterFrame
 public import Mathlib.Data.Nat.Size
 
 /-!
@@ -82,18 +81,11 @@ theorem mulMap_injective : mulMap.Injective := by decide
 theorem copyMap_injective : copyMap.Injective := by decide
 
 /-- The multiplication touches no register below `9` other than `rr` and `nn`. -/
-private theorem mulMap_ne {j : Fin 21} (hj : j.val < 9) (hr : j ≠ rr) (hn : j ≠ nn) (a : Fin 14) :
-    mulMap a ≠ j := by
-  intro h
-  subst h
-  fin_cases a <;> simp_all [mulMap]
+private theorem mulMap_ne :
+    ∀ j : Fin 21, j.val < 9 → j ≠ rr → j ≠ nn → ∀ a, mulMap a ≠ j := by decide
 
 /-- The copy touches no register below `9` other than `rr`. -/
-private theorem copyMap_ne {j : Fin 21} (hj : j.val < 9) (hr : j ≠ rr) (a : Fin 7) :
-    copyMap a ≠ j := by
-  intro h
-  subst h
-  fin_cases a <;> simp_all [copyMap]
+private theorem copyMap_ne : ∀ j : Fin 21, j.val < 9 → j ≠ rr → ∀ a, copyMap a ≠ j := by decide
 
 /-- Multiply the blocks at `x` and `y` into `T`, then copy `T` into the block at `d`. -/
 def mulInto (x y d : Fin 21) : Code .standard 21 :=
@@ -140,71 +132,58 @@ private theorem mulInto_exec {w : ℕ} (X : Data 21) {x y d : Fin 21} (hx : x.va
       (∀ j : Fin 21, j.val < 9 → Y.regs j = X.regs j) := by
   have hxa : x ≠ pa := fun h => by subst h; simp at hx
   have hya : y ≠ pa := fun h => by subst h; simp at hy
-  have hyb : y ≠ pb := fun h => by subst h; simp at hy
   have hda : d ≠ pa := fun h => by subst h; simp at hd
-  have hdb : d ≠ pb := fun h => by subst h; simp at hd
   have h1 : Fits w 1 := hfn.of_le (by nlinarith)
-  -- Set the arguments of the multiplication.
-  let X₁ := ((X.set pa a).set pb b).set pt t
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ pa ← x; pb ← y; pt ← T ]) X X₁ 3 := by
-    ram_eval [X₁, ha, hb, ht, hxa, hya, hyb]
-  have hX₁ (j : Fin 21) (hj : j.val < 9) : X₁.regs j = X.regs j := by
-    have h9 : j ≠ pa ∧ j ≠ pb ∧ j ≠ pt := by
-      refine ⟨?_, ?_, ?_⟩ <;> (intro h; subst h; simp at hj)
-    simp [X₁, h9.1, h9.2.1, h9.2.2]
-  -- Multiply.
-  obtain ⟨Y₁', hrun₂', ⟨hprod, hframe, -, -, -, hY₁r, hY₁n⟩, outside₁⟩ :=
-    ExecWithin.rename_post mulMap_injective (
-      PolyMul.exec (w := w) (X₁.comap mulMap) (a := a) (b := b) (t := t) (r := r) (n := n)
-        (by change X₁.regs pa = a; simp +decide [X₁]) (by change X₁.regs pb = b; simp +decide [X₁])
-        (by change X₁.regs pt = t; simp +decide [X₁])
-        (by change X₁.regs rr = r; rw [hX₁ rr (by simp), hr])
-        (by change X₁.regs nn = n; rw [hX₁ nn (by simp), hn])
-        hn0 hta htb hpa hpb hfa hfb hft hf2 hfn)
-  have hY₁'r (j : Fin 21) (hj : j.val < 9) : Y₁'.regs j = X.regs j := by
+  unfold mulInto
+  wram_exec [ha, hb, ht, hxa, hya]
+  refine WP.name fun X₁ hX₁ => ?_
+  have hX₁j (j : Fin 21) (hj : j.val < 9) : X₁.regs j = X.regs j := by
+    have h9 : j ≠ pa ∧ j ≠ pb ∧ j ≠ pt := ⟨fun h => by subst h; simp at hj,
+      fun h => by subst h; simp at hj, fun h => by subst h; simp at hj⟩
+    subst hX₁; wram_simp [h9.1, h9.2.1, h9.2.2]
+  have hX₁a : X₁.regs pa = a := by subst hX₁; wram_simp
+  have hX₁b : X₁.regs pb = b := by subst hX₁; wram_simp
+  have hX₁t : X₁.regs pt = t := by subst hX₁; wram_simp
+  have hX₁r : X₁.regs rr = r := (hX₁j rr (by decide)).trans hr
+  have hX₁n : X₁.regs nn = n := (hX₁j nn (by decide)).trans hn
+  have hX₁m : X₁.mem = X.mem := by subst hX₁; rfl
+  wram_call (PolyMul.exec (X₁.comap mulMap) hX₁a hX₁b hX₁t hX₁r hX₁n hn0 hta htb
+    (hX₁m ▸ hpa) (hX₁m ▸ hpb) hfa hfb hft hf2 hfn)
+    renamed mulMap_injective with Y₁ ⟨⟨hprod, hframe, -, -, -, hY₁r, hY₁n⟩, hout₁⟩
+  rw [hX₁m] at hprod hframe
+  have hY₁j (j : Fin 21) (hj : j.val < 9) : Y₁.regs j = X.regs j := by
     by_cases hjr : j = rr
-    · subst hjr
-      exact hY₁r.trans hr.symm
+    · exact hjr ▸ (show Y₁.regs rr = r from hY₁r).trans hr.symm
     by_cases hjn : j = nn
-    · subst hjn
-      exact hY₁n.trans hn.symm
-    rw [outside₁ j (mulMap_ne hj hjr hjn),
-      hX₁ j hj]
-  -- Set the arguments of the copy.
-  let X₂ := (Y₁'.set pa t).set pb dd
-  have hrun₃ : ExecWithin (B := .standard) w (ram[ pa ← T; pb ← d ]) Y₁' X₂ 2 := by
-    ram_eval [X₂, hY₁'r T (by simp), ht, hY₁'r d hd, hdd, hda]
-  have hX₂ (j : Fin 21) (hj : j.val < 9) : X₂.regs j = X.regs j := by
-    have h9 : j ≠ pa ∧ j ≠ pb := by
-      refine ⟨?_, ?_⟩ <;> (intro h; subst h; simp at hj)
-    simp [X₂, h9.1, h9.2, hY₁'r j hj]
-  -- Copy.
-  have hXr : X₂.regs rr = r := by rw [hX₂ rr (by simp), hr]
-  have hsrc : (X₂.comap copyMap).regs ArrayCopy.src = t := by
-    change X₂.regs pa = t; simp +decide [X₂]
-  have hdst : (X₂.comap copyMap).regs ArrayCopy.dst = dd := by
-    change X₂.regs pb = dd; simp +decide [X₂]
-  have hlen : (X₂.comap copyMap).regs ArrayCopy.len = r := hXr
-  obtain ⟨Y₂, hrun₄', ⟨hY₂m, -, -, hY₂len⟩, outside₂⟩ :=
-    ExecWithin.rename_post copyMap_injective (ArrayCopy.exec_of_separated_or_eq (w := w)
-      (X₂.comap copyMap) h1 (by rw [hsrc, hlen]; exact hft) (by rw [hdst, hlen]; exact hfd)
-      (by rw [hsrc, hdst, hlen]; omega))
-  simp only [Data.comap_mem] at hY₂m
-  rw [hlen, hsrc, hdst] at hY₂m
-  rw [hlen] at hrun₄'
-  refine ⟨Y₂, ?_, ?_, ?_, ?_⟩
-  · exact (hrun₁.seq (hrun₂'.seq (hrun₃.seq hrun₄'))).mono (by unfold mulTime; omega)
-  · intro k hk
-    rw [hY₂m, ArrayCopy.copyPrefix_read hk]
-    exact hprod k hk
-  · intro a' hat had
-    rw [hY₂m, ArrayCopy.copyPrefix_outside had]
-    exact hframe a' hat
-  · intro j hj
-    by_cases hjr : j = rr
-    · subst hjr
-      exact hY₂len.trans (hlen.trans hr.symm)
-    rw [outside₂ j (copyMap_ne hj hjr), hX₂ j hj]
+    · exact hjn ▸ (show Y₁.regs nn = n from hY₁n).trans hn.symm
+    exact (hout₁ j (mulMap_ne j hj hjr hjn)).trans (hX₁j j hj)
+  have hY₁T : Y₁.regs T = t := (hY₁j T (by decide)).trans ht
+  have hY₁d : Y₁.regs d = dd := (hY₁j d hd).trans hdd
+  wram_exec [hY₁T, hY₁d, hda]
+  refine WP.name fun X₂ hX₂ => ?_
+  have hX₂j (j : Fin 21) (hj : j.val < 9) : X₂.regs j = X.regs j := by
+    have h9 : j ≠ pa ∧ j ≠ pb := ⟨fun h => by subst h; simp at hj, fun h => by subst h; simp at hj⟩
+    subst hX₂; wram_simp [h9.1, h9.2, hY₁j j hj]
+  have hsrc : X₂.regs pa = t := by subst hX₂; wram_simp
+  have hdst : X₂.regs pb = dd := by subst hX₂; wram_simp
+  have hlen : X₂.regs rr = r := (hX₂j rr (by decide)).trans hr
+  have hX₂m : X₂.mem = Y₁.mem := by subst hX₂; rfl
+  wram_call (ArrayCopy.exec_of_separated_or_eq (X₂.comap copyMap) h1
+    (by change Fits w (X₂.regs pa + X₂.regs rr); rw [hsrc, hlen]; exact hft)
+    (by change Fits w (X₂.regs pb + X₂.regs rr); rw [hdst, hlen]; exact hfd)
+    (by change X₂.regs pa + X₂.regs rr ≤ X₂.regs pb ∨ X₂.regs pb + X₂.regs rr ≤ X₂.regs pa ∨
+          X₂.regs pa = X₂.regs pb
+        rw [hsrc, hdst, hlen]; omega))
+    renamed copyMap_injective with Y₂ ⟨⟨hY₂m, -, -, hY₂len⟩, hout₂⟩
+  change Y₂.mem = ArrayCopy.copyPrefix X₂.mem (X₂.regs pa) (X₂.regs pb) (X₂.regs rr) at hY₂m
+  rw [hlen, hsrc, hdst, hX₂m] at hY₂m
+  refine ⟨?_, fun k hk => ?_, fun a' hat had => ?_, fun j hj => ?_⟩
+  · rw [show copyMap ArrayCopy.len = rr from rfl, hlen]; unfold mulTime; omega
+  · rw [hY₂m, ArrayCopy.copyPrefix_read hk]; exact hprod k hk
+  · rw [hY₂m, ArrayCopy.copyPrefix_outside had]; exact hframe a' hat
+  · by_cases hjr : j = rr
+    · exact hjr ▸ (show Y₂.regs rr = X₂.regs rr from hY₂len).trans (hlen.trans hr.symm)
+    exact (hout₂ j (copyMap_ne j hj hjr)).trans (hX₂j j hj)
 
 /-- The hypotheses of `exec` on the three blocks, the modulus and the word size. -/
 private structure Hyp (w a b t r n e₀ : ℕ) : Prop where
@@ -228,108 +207,75 @@ private def Inv (a b t r n e₀ : ℕ) (target : AdjoinRoot (X ^ r - 1 : (ZMod n
 
 private theorem body_step {w a b t r n e₀ : ℕ} (H : Hyp w a b t r n e₀)
     {target : AdjoinRoot (X ^ r - 1 : (ZMod n)[X])} (y : Data 21)
-    (hy : Inv a b t r n e₀ target y) (hc : (Cond.lt z e).Holds y) :
+    (hy : Inv a b t r n e₀ target y) (hlt : (Cond.lt z e).Holds y) :
     ∃ y', ExecWithin w body y y' (2 * mulTime r + 4) ∧ Inv a b t r n e₀ target y' ∧
       Nat.size (y'.regs e) < Nat.size (y.regs e) := by
   obtain ⟨hyR, hyB, hyT, hyr, hyn, hy2, hyz, hye, hRred, hBred, hq⟩ := hy
   obtain ⟨E, hE⟩ : ∃ E, y.regs e = E := ⟨_, rfl⟩
-  have hEpos : 0 < E := by simpa only [Cond.holds_lt, hyz, hE] using hc
+  have hEpos : 0 < E := by simpa only [Cond.holds_lt, hyz, hE] using hlt
   rw [hE] at hye hq
   have h2 : Fits w 2 := H.hfn.of_le (by have := H.hn0; nlinarith)
   have hfE : Fits w E := H.hfe.of_le hye
-  -- The parity.
-  let y₁ := y.set par (E % 2)
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ par ← e % two ]) y y₁ 1 := by
-    ram_eval [y₁, hE, hy2, h2.of_le (Nat.mod_lt E (by norm_num)).le]
-  have hy₁ (j : Fin 21) (hj : j ≠ par) : y₁.regs j = y.regs j := by simp [y₁, hj]
-  have hz₁ : y₁.regs z = 0 := by rw [hy₁ z (by decide), hyz]
-  have hp₁ : y₁.regs par = E % 2 := by simp [y₁]
-  -- Multiply `R` by `B` when the exponent is odd.
-  obtain ⟨y₂, hrun₂, hy₂r, hy₂R, hy₂Rred, hy₂B⟩ : ∃ y₂, ExecWithin w
-      (.branch (.lt z par) (mulInto R B R) (ram[ par ← par ])) y₁ y₂ (mulTime r + 2) ∧
-      (∀ j : Fin 21, j.val < 9 → y₂.regs j = y₁.regs j) ∧
+  have hmod2 : E % 2 < 2 := Nat.mod_lt E (by norm_num)
+  have hdiv2 : E / 2 ≤ E := Nat.div_le_self E 2
+  unfold body
+  wram_exec -split [hE, hy2]
+  refine WP.cut (fun y₂ T₂ => T₂ ≤ mulTime r + 2 ∧
+      (∀ j : Fin 21, j.val < 9 → j ≠ par → y₂.regs j = y.regs j) ∧
       toQuot n r (fun i => y₂.mem (a + i)) =
         toQuot n r (fun i => y.mem (a + i)) * toQuot n r (fun i => y.mem (b + i)) ^ (E % 2) ∧
-      (∀ i < r, y₂.mem (a + i) < n) ∧ (∀ i < r, y₂.mem (b + i) = y.mem (b + i)) := by
+      (∀ i < r, y₂.mem (a + i) < n) ∧ (∀ i < r, y₂.mem (b + i) = y.mem (b + i))) ?_ ?_
+  · refine WP.name fun y₁ hy₁ => ?_
+    have hy₁j (j : Fin 21) (hjp : j ≠ par) : y₁.regs j = y.regs j := by
+      subst hy₁; wram_simp [hjp]
+    have hz₁ : y₁.regs z = 0 := (hy₁j z (by decide)).trans hyz
+    have hp₁ : y₁.regs par = E % 2 := by subst hy₁; wram_simp
+    have hy₁m : y₁.mem = y.mem := by subst hy₁; rfl
     rcases Nat.mod_two_eq_zero_or_one E with hpar | hpar
-    · refine ⟨y₁.set par (y₁.regs par), ?_, ?_, ?_, ?_, ?_⟩
-      · refine (ExecWithin.branch_neg ?_ ExecWithin.copy).mono (by unfold mulTime; omega)
-        simp only [Cond.holds_lt, hz₁, hp₁, hpar]; omega
-      · intro j _; simp
-      · simp [y₁, hpar]
-      · simpa [y₁] using hRred
-      · intro i _; rfl
-    · have hc' : (Cond.lt z par).Holds y₁ := by
-        simp only [Cond.holds_lt, hz₁, hp₁, hpar]; omega
-      obtain ⟨Y, hrun, hprod, hframe, hregs⟩ := mulInto_exec (w := w) y₁ (x := R) (y := B) (d := R)
-        (by decide) (by decide) (by decide) (a := a) (b := b) (t := t) (dd := a) (r := r) (n := n)
-        (by rw [hy₁ R (by decide), hyR]) (by rw [hy₁ B (by decide), hyB])
-        (by rw [hy₁ T (by decide), hyT]) (by rw [hy₁ R (by decide), hyR])
-        (by rw [hy₁ rr (by decide), hyr]) (by rw [hy₁ nn (by decide), hyn]) H.hn0 H.hta H.htb H.hta
-        (by simpa [y₁] using hRred) (by simpa [y₁] using hBred) H.hfa H.hfb H.hft H.hfa H.hf2 H.hfn
-      refine ⟨Y, (ExecWithin.branch_pos hc' hrun).mono (by omega), hregs, ?_, ?_, ?_⟩
+    · wram_exec [hz₁, hp₁, hpar]
+      refine ⟨by unfold mulTime; omega, fun j _ hjp => ?_, ?_, ?_, fun i _ => ?_⟩
+      · wram_simp [hy₁j j hjp]
+      · simp [Data.set_mem, hy₁m, hpar]
+      · simpa [Data.set_mem, hy₁m] using hRred
+      · simp [Data.set_mem, hy₁m]
+    · wram_exec [hz₁, hp₁, hpar]
+      wram_call (mulInto_exec (w := w) y₁ (x := R) (y := B) (d := R)
+        (by decide) (by decide) (by decide)
+        ((hy₁j R (by decide)).trans hyR) ((hy₁j B (by decide)).trans hyB)
+        ((hy₁j T (by decide)).trans hyT) ((hy₁j R (by decide)).trans hyR)
+        ((hy₁j rr (by decide)).trans hyr) ((hy₁j nn (by decide)).trans hyn)
+        H.hn0 H.hta H.htb H.hta (hy₁m ▸ hRred) (hy₁m ▸ hBred)
+        H.hfa H.hfb H.hft H.hfa H.hf2 H.hfn) with Y ⟨hprod, hframe, hregs⟩
+      rw [hy₁m] at hprod hframe
+      refine ⟨by omega, fun j hj hjp => (hregs j hj).trans (hy₁j j hjp), ?_, ?_, fun i hi => ?_⟩
       · rw [toQuot_congr hprod, toQuot_mulCoeff, hpar, pow_one]
-        rfl
-      · intro i hi
-        rw [hprod i hi]
-        exact mulCoeff_lt H.hn0 _ _ _
-      · intro i hi
-        refine hframe _ ?_ ?_
-        · rcases H.htb with h | h <;> omega
-        · rcases H.hab with h | h <;> omega
-  -- Square `B`.
-  have hy₂' (j : Fin 21) (hj : j.val < 9) (hjp : j ≠ par) : y₂.regs j = y.regs j := by
-    rw [hy₂r j hj, hy₁ j hjp]
-  obtain ⟨y₃, hrun₃, hprod₃, hframe₃, hregs₃⟩ := mulInto_exec (w := w) y₂ (x := B) (y := B)
-    (d := B) (by decide) (by decide) (by decide) (a := b) (b := b) (t := t) (dd := b) (r := r)
-    (n := n) (by rw [hy₂' B (by decide) (by decide), hyB])
-    (by rw [hy₂' B (by decide) (by decide), hyB]) (by rw [hy₂' T (by decide) (by decide), hyT])
-    (by rw [hy₂' B (by decide) (by decide), hyB]) (by rw [hy₂' rr (by decide) (by decide), hyr])
-    (by rw [hy₂' nn (by decide) (by decide), hyn]) H.hn0 H.htb H.htb H.htb
-    (fun i hi => by rw [hy₂B i hi]; exact hBred i hi)
-    (fun i hi => by rw [hy₂B i hi]; exact hBred i hi)
-    H.hfb H.hfb H.hft H.hfb H.hf2 H.hfn
-  have hy₃R (i : ℕ) (hi : i < r) : y₃.mem (a + i) = y₂.mem (a + i) := by
-    refine hframe₃ _ ?_ ?_
-    · rcases H.hta with h | h <;> omega
-    · rcases H.hab with h | h <;> omega
-  -- Halve the exponent.
-  have hy₃e : y₃.regs e = E := by rw [hregs₃ e (by decide), hy₂' e (by decide) (by decide), hE]
-  have hy₃2 : y₃.regs two = 2 := by
-    rw [hregs₃ two (by decide), hy₂' two (by decide) (by decide), hy2]
-  let y₄ := y₃.set e (E / 2)
-  have hrun₄ : ExecWithin (B := .standard) w (ram[ e ← e / two ]) y₃ y₄ 1 := by
-    ram_eval [y₄, hy₃e, hy₃2, hfE.of_le (Nat.div_le_self E 2)]
-  have hy₄ (j : Fin 21) (hj : j.val < 9) (hjp : j ≠ par) (hje : j ≠ e) : y₄.regs j = y.regs j := by
-    simp only [y₄, Data.set_regs, Function.update_of_ne hje]
-    rw [hregs₃ j hj, hy₂' j hj hjp]
-  refine ⟨y₄, ?_, ?_, ?_⟩
-  · exact (hrun₁.seq (hrun₂.seq (hrun₃.seq hrun₄))).mono (by omega)
-  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [hy₄ R (by decide) (by decide) (by decide), hyR]
-    · rw [hy₄ B (by decide) (by decide) (by decide), hyB]
-    · rw [hy₄ T (by decide) (by decide) (by decide), hyT]
-    · rw [hy₄ rr (by decide) (by decide) (by decide), hyr]
-    · rw [hy₄ nn (by decide) (by decide) (by decide), hyn]
-    · rw [hy₄ two (by decide) (by decide) (by decide), hy2]
-    · rw [hy₄ z (by decide) (by decide) (by decide), hyz]
-    · simp only [y₄, Data.set_regs, Function.update_self]
-      exact (Nat.div_le_self E 2).trans hye
-    · intro i hi
-      change y₃.mem (a + i) < n
-      rw [hy₃R i hi]
-      exact hy₂Rred i hi
-    · intro i hi
-      change y₃.mem (b + i) < n
-      rw [hprod₃ i hi]
-      exact mulCoeff_lt H.hn0 _ _ _
-    · simp only [y₄, Data.set_regs, Function.update_self]
-      change toQuot n r (fun i => y₃.mem (a + i)) * toQuot n r (fun i => y₃.mem (b + i)) ^ (E / 2) =
-        target
-      rw [toQuot_congr hy₃R, toQuot_congr hprod₃, toQuot_mulCoeff, toQuot_congr hy₂B, hy₂R, ← hq,
-        ← sq, ← pow_mul, mul_assoc, ← pow_add, Nat.mod_add_div]
-  · simp only [y₄, Data.set_regs, Function.update_self, hE]
-    exact size_div_two_lt hEpos
+      · intro i hi; rw [hprod i hi]; exact mulCoeff_lt H.hn0 _ _ _
+      · exact hframe _ (by rcases H.htb with h | h <;> omega) (by rcases H.hab with h | h <;> omega)
+  · rintro y₂ T₂ ⟨hT₂, hy₂j, hy₂R, hy₂Rred, hy₂B⟩
+    refine WP.seq ?_
+    wram_call (mulInto_exec (w := w) y₂ (x := B) (y := B) (d := B)
+      (by decide) (by decide) (by decide)
+      ((hy₂j B (by decide) (by decide)).trans hyB) ((hy₂j B (by decide) (by decide)).trans hyB)
+      ((hy₂j T (by decide) (by decide)).trans hyT) ((hy₂j B (by decide) (by decide)).trans hyB)
+      ((hy₂j rr (by decide) (by decide)).trans hyr) ((hy₂j nn (by decide) (by decide)).trans hyn)
+      H.hn0 H.htb H.htb H.htb (fun i hi => (hy₂B i hi).trans_lt (hBred i hi))
+      (fun i hi => (hy₂B i hi).trans_lt (hBred i hi))
+      H.hfb H.hfb H.hft H.hfb H.hf2 H.hfn) with y₃ ⟨hprod₃, hframe₃, hregs₃⟩
+    have hy₃R (i : ℕ) (hi : i < r) : y₃.mem (a + i) = y₂.mem (a + i) :=
+      hframe₃ _ (by rcases H.hta with h | h <;> omega) (by rcases H.hab with h | h <;> omega)
+    have hy₃j (j : Fin 21) (hj : j.val < 9) (hjp : j ≠ par) : y₃.regs j = y.regs j :=
+      (hregs₃ j hj).trans (hy₂j j hj hjp)
+    have hy₃e : y₃.regs e = E := (hy₃j e (by decide) (by decide)).trans hE
+    have hy₃2 : y₃.regs two = 2 := (hy₃j two (by decide) (by decide)).trans hy2
+    wram_exec [hy₃e, hy₃2]
+    wram_simp [Inv, hy₃j R (by decide) (by decide), hyR, hy₃j B (by decide) (by decide), hyB,
+      hy₃j T (by decide) (by decide), hyT, hy₃j rr (by decide) (by decide), hyr,
+      hy₃j nn (by decide) (by decide), hyn, hy₃2, hy₃j z (by decide) (by decide), hyz, hE,
+      Data.set_mem]
+    refine ⟨⟨hdiv2.trans hye, fun i hi => (hy₃R i hi).trans_lt (hy₂Rred i hi),
+      fun i hi => (hprod₃ i hi).trans_lt (mulCoeff_lt H.hn0 _ _ _), ?_⟩, size_div_two_lt hEpos⟩
+    rw [toQuot_congr hy₃R, toQuot_congr hprod₃, toQuot_mulCoeff, toQuot_congr hy₂B, hy₂R, ← hq,
+      ← sq, ← pow_mul, mul_assoc, ← pow_add, Nat.mod_add_div]
 
 /-- **Powers modulo `X^r - 1` and `n`.** If the result, base and scratch blocks `[a, a + r)`,
 `[b, b + r)` and `[t, t + r)` are pairwise disjoint, the result and base coefficients are below
@@ -349,28 +295,21 @@ theorem exec {w : ℕ} (x : Data 21) {a b t r n : ℕ} (ha : x.regs R = a) (hb :
       y.regs rr = r ∧ y.regs nn = n := by
   have H : Hyp w a b t r n (x.regs e) := ⟨hn0, hab, hta, htb, hfa, hfb, hft, hf2, hfn, hfe⟩
   have h2 : Fits w 2 := hfn.of_le (by nlinarith)
-  let x₀ := (x.set two 2).set z 0
-  have hrun₀ : ExecWithin (B := .standard) w (ram[ two ← #2; z ← #0 ]) x x₀ 2 := by
-    ram_eval [x₀, h2]
-  have hx₀ (j : Fin 21) (h2 : j ≠ two) (hz : j ≠ z) : x₀.regs j = x.regs j := by
-    simp [x₀, h2, hz]
+  unfold program
+  wram_exec
+  refine WP.name fun x₀ hx₀ => ?_
+  have hx₀e : x₀.regs e = x.regs e := by subst hx₀; wram_simp
   have hI : Inv a b t r n (x.regs e) (toQuot n r (fun i => x.mem (a + i)) *
       toQuot n r (fun i => x.mem (b + i)) ^ x.regs e) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, by simp +decide [x₀], by simp [x₀], ?_, hpa, hpb, ?_⟩
-    · rw [hx₀ R (by decide) (by decide), ha]
-    · rw [hx₀ B (by decide) (by decide), hb]
-    · rw [hx₀ T (by decide) (by decide), ht]
-    · rw [hx₀ rr (by decide) (by decide), hr]
-    · rw [hx₀ nn (by decide) (by decide), hn]
-    · rw [hx₀ e (by decide) (by decide)]
-    · rw [hx₀ e (by decide) (by decide)]; rfl
-  obtain ⟨y, hrun, hy, hc⟩ := ExecWithin.loop_invariant _ (fun y => Nat.size (y.regs e))
-    (body_step H) hI
-  obtain ⟨hyR, hyB, hyT, hyr, hyn, -, hyz, -, hRred, -, hq⟩ := hy
+    subst hx₀
+    simp only [Inv]
+    wram_simp [ha, hb, ht, hr, hn, Data.set_mem]
+    exact ⟨le_rfl, hpa, hpb⟩
+  obtain ⟨y, hrun, ⟨hyR, hyB, hyT, hyr, hyn, -, hyz, -, hRred, -, hq⟩, hc⟩ :=
+    ExecWithin.loop_invariant _ (fun y => Nat.size (y.regs e)) (body_step H) hI
   have hy0 : y.regs e = 0 := by simp only [Cond.holds_lt, hyz] at hc; omega
-  refine ⟨y, ?_, ?_, hRred, hyR, hyB, hyT, hyr, hyn⟩
-  · refine (hrun₀.seq hrun).mono ?_
-    rw [hx₀ e (by decide) (by decide), show 2 * mulTime r + 4 + 2 = 2 * mulTime r + 6 by ring]
+  refine WP.of_execWithin hrun ⟨?_, ?_, hRred, hyR, hyB, hyT, hyr, hyn⟩
+  · rw [hx₀e, show 2 * mulTime r + 4 + 2 = 2 * mulTime r + 6 by ring]
     unfold time
     omega
   · rw [← hq, hy0, pow_zero, mul_one]

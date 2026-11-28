@@ -116,8 +116,7 @@ example : ComputableInPolyTime
 example : ComputableInPolyTime
     (fun p : Option (Fin 0) × List Bool => p.1.elim p.2 (fun v => Fin.elim0 v))
     (encPair (encOption (encFinEnum (Fin 0))) encBits) encBits := by
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput
   · fun_prop
   · fun_prop
   · exact .of_finite _

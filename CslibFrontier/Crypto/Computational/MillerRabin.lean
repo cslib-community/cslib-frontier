@@ -127,11 +127,8 @@ private theorem two_mul_card_verifier_false_le {n : ℕ} (hn : ¬ n.Prime) :
   have h := (Complexity.MillerRabin.decidesWithOneSidedError n).1
   rw [eval_two_mul_X_length] at h
   have hyes := h (by simpa using hn)
-  have hsplit := Finset.card_filter_add_card_filter_not
-    (s := (Finset.univ : Finset (Fin (2 * n.size) → Bool)))
-    (fun r => Complexity.MillerRabin.verifier (n, List.ofFn r) = true)
-  simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool,
-    Bool.not_eq_true] at hsplit
+  have hsplit := Complexity.acceptCount_add_card_filter_eq_false
+    (V := Complexity.MillerRabin.verifier) (a := n) (n := 2 * n.size)
   omega
 
 /-- A count that is at most half of `2 ^ k` has probability at most `1 / 2` out of `2 ^ k`. -/
@@ -175,12 +172,8 @@ private theorem eval_millerRabinTest (n t : ℕ) :
 theorem eval_millerRabinTest_true (n t : ℕ) :
     ProbComp.eval (millerRabinTest n t) true = ProbComp.eval (millerRabinRound n) true ^ t := by
   have hall : (fun verdicts : List Bool => verdicts.all id) ⁻¹' {true} =
-      {verdicts | ∀ b ∈ verdicts, id b = true} := by
-    ext verdicts
-    simp
-  have hone : {b : Bool | id b = true} = {true} := by
-    ext b
-    simp
+      {verdicts | ∀ b ∈ verdicts, id b = true} := Set.ext fun _ => by simp
+  have hone : {b : Bool | id b = true} = {true} := Set.ext fun _ => by simp
   rw [eval_millerRabinTest, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
     hall, ProbComp.toOuterMeasure_replicate_forall, hone, PMF.toOuterMeasure_apply_singleton]
 
@@ -194,8 +187,7 @@ Theorem 9.33). The bound holds for every `n` that is not prime, including `0` an
 theorem eval_millerRabinTest_le_of_not_prime {n : ℕ} (hn : ¬ n.Prime) (t : ℕ) :
     ProbComp.eval (millerRabinTest n t) true ≤ (2 ^ t)⁻¹ := by
   rw [eval_millerRabinTest_true, ENNReal.inv_pow]
-  gcongr
-  exact eval_millerRabinRound_le_of_not_prime hn
+  exact pow_le_pow_left' (eval_millerRabinRound_le_of_not_prime hn) t
 
 /-! ### Efficiency -/
 

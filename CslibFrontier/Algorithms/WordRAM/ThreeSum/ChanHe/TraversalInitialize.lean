@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalInvariant
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Shared native initialization of a Chan–He root
@@ -53,7 +54,8 @@ theorem initializeRoot_exec {a : Arena} {w : ℕ} (x : Data 128) (e : Entry)
   have h1 : Fits w 1 := h2.of_le (by decide)
   have hp : Exec (B := .standard) w
       (ram[ zero ← #0; one ← #1; ptr ← stackBase; len ← #0 ]) x p 4 := by
-    ram_eval [p, ptr, len, zero, one, registers, WordStack.ptr, WordStack.len, stackBase, h1]
+    dsimp only [p, ptr, len]
+    wram_exec
   have pmeta (i : Fin 128) (hi : Outside i) : p.regs i = x.regs i := by
     have hne (j : Fin 9) : i ≠ registers j := by
       intro he
@@ -69,12 +71,9 @@ theorem initializeRoot_exec {a : Arena} {w : ℕ} (x : Data 128) (e : Entry)
       · subst i
         simpa +decide [Data.set, zero, one] using hc.2.2.2.2.2.2.2.2.2.2.symm
       · simp only [Function.update_of_ne ho, Function.update_of_ne hz]
-  have ploaded : e.Loaded p := by
-    refine ⟨(pmeta _ (Or.inl (by decide))).trans hl.1, ?_, ?_⟩
-    · intro j
-      exact (pmeta _ (Or.inl (by dsimp [arraySource, slot]; omega))).trans (hl.2.1 j)
-    · intro j
-      exact (pmeta _ (Or.inl (by dsimp [arrayLength, slot]; omega))).trans (hl.2.2 j)
+  have ploaded : e.Loaded p := ⟨(pmeta _ (Or.inl (by decide))).trans hl.1,
+    fun j => (pmeta _ (Or.inl (by dsimp [arraySource, slot]; omega))).trans (hl.2.1 j),
+    fun j => (pmeta _ (Or.inl (by dsimp [arrayLength, slot]; omega))).trans (hl.2.2 j)⟩
   have pstack : WordStack.Rep w a.stack a.capacity [] (p.comap registers) := by
     refine ⟨⟨fun i => (hp.bounded hx).1 (registers i), (hp.bounded hx).2⟩,
       ?_, ?_, Nat.zero_le _, fun i => Fin.elim0 i⟩
@@ -85,10 +84,7 @@ theorem initializeRoot_exec {a : Arena} {w : ℕ} (x : Data 128) (e : Entry)
     (fun i => (hp.bounded hx).1 (slot i)) (by simpa only [List.length_nil] using hcapacity)
   have bm (i : Fin 128) (hi : Outside i) : b.regs i = x.regs i :=
     (hr i hi).trans (pmeta i hi)
-  refine ⟨b, hp.seq hb, ?_, hc.congr (by
-    intro i hi
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-    exact bm i (Or.inl (by omega))), hf, bm⟩
+  refine ⟨b, hp.seq hb, ?_, hc.of_regs_71_96 (fun i _ hi => bm i (Or.inl hi)), hf, bm⟩
   simpa only [Entry.loaded_words ploaded, List.append_nil] using hs
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

@@ -1,16 +1,15 @@
 # Get oriented and build
 
-Start with the kind of claim you want Lean to check. A running Lean function, an equality of probability distributions, and a polynomial-time certificate answer different questions. cslib-frontier connects these layers through explicit theorems. Open a client that proves the kind of statement you need, then follow its imports and encodings. [cslib-frontier][complexitylib]
+Start with the kind of claim you want Lean to check. A running Lean function, an equality of probability distributions, and a polynomial-time certificate answer different questions. cslib-frontier connects these layers through explicit theorems. Open a client that proves the kind of statement you need, then follow its imports and encodings.
 
 ## Prerequisites and the checkout's version
 
-Use Git, Python 3.11+, Lean's `elan`/`lake` tools and a Lean-capable editor, or a text editor
+Use Git, Bash, Python 3.11+, Lean's `elan`/`lake` tools and a Lean-capable editor, or a text editor
 with command-line checks. An agent, MCP server or account with an AI provider is not required.
 Install Lean using its [official setup instructions](https://lean-lang.org/install/).
-The checked-out [`lean-toolchain`](../../lean-toolchain) selects the Lean release;
-[`lake-manifest.json`](../../lake-manifest.json) selects dependency revisions. Keep those
-files together and follow the [current setup instructions](../../README.md#build-a-checkout).
-Do not replace them with the historical survey's pins.
+The checked-out [`lean-toolchain`](../../lean-toolchain) selects the Lean release. The
+[`lakefile.toml`](../../lakefile.toml) declares the dependencies and
+[`lake-manifest.json`](../../lake-manifest.json) records their exact revisions.
 
 **Start:** a shell with Git and `elan` available, outside an existing checkout. Run:
 
@@ -35,6 +34,17 @@ scripts/cache/ensure.sh
 Bare `lake` does not run this helper. A recent stamp records an attempted restore, not
 proof that every artifact was found. MCP is an optional editor-assistance interface. Its commands do not invoke the bootstrap;
 run the helper before using MCP in a cold checkout.
+
+For ordinary edits, use editor/MCP diagnostics or build the affected modules and a representative
+client with `scripts/build.sh <targets> --wfail --iofail`. At a local checkpoint, use
+`scripts/check.sh --quick --no-full-fallback`. If it exits with status 3, quick mode cannot plan
+the change; run focused checks for the changed files and let hosted CI supply full validation.
+This avoids an automatic full local check. The default `scripts/check.sh` still runs the full
+suite: use it only when explicitly requested or hosted coverage is unavailable. Successful CI
+covering the final revision supplies full validation without repeating it locally.
+
+The check helpers also [recover diagnostics lost by local artifact reuse](troubleshooting.md#diagnose-warnings-that-only-ci-reports).
+That audit may re-elaborate restored sources; it is not part of an ordinary targeted build.
 
 ## Read the directory names correctly
 
@@ -134,7 +144,7 @@ before drawing conclusions about the tactic.
 
 **Finish:** from that worktree run `git diff --check` and `git status --short`. After
 restoring the experiment, the test file should have no diff. For a real change, include
-its complete client, the manual-impact assessment and the actual validation result in
+its complete client and the actual validation result in
 the [review handoff](contributing.md#make-the-handoff-reviewable). Never report the
 intentional failing build as a successful check.
 
@@ -158,13 +168,14 @@ The [Verso guide](../../guide/CslibFrontierGuide.lean) provides further checked 
 Use those source files for their example bodies. The workflow chapters' quoted Lean
 blocks remain contextual excerpts: open each linked full client for its complete imports
 and assumptions. Their identity is checked against current source by the manual checker;
-that check is not standalone elaboration. [Historical hosted validation](../development-history/timings.md)
+that check is not standalone elaboration. [Historical hosted validation](../history/timings.md)
 has its own dated scope and cannot validate later changes.
 
 ## Use cslib-frontier from your own project
 
-Match your project's `lean-toolchain` to the chosen cslib-frontier revision. Choose a full commit SHA deliberately; `git rev-parse HEAD` in that checkout prints it.
-In a TOML Lake project, add this template, replacing the placeholder with that SHA:
+Choose a full commit SHA from the [commit history](https://github.com/cslib-community/cslib-frontier/commits/main/).
+Copy that revision's `lean-toolchain` into your project. In your `lakefile.toml`, add the
+following entry with the SHA you chose.
 
 ```toml
 [[require]]
@@ -173,6 +184,11 @@ git = "https://github.com/cslib-community/cslib-frontier"
 rev = "<the-full-commit-SHA-you-selected>"
 ```
 
-Run `lake update cslib-frontier` and `lake build` from your project. If you directly require CSLib or Mathlib too, align them with the chosen manifest and include their package names in the update command when changing their pins. Commit the resulting manifest, Lake configuration and toolchain together. Updating only cslib-frontier leaves other direct dependencies locked. See the [external-project instructions](../../README.md#use-from-another-lean-project).
+CSLib and Mathlib are transitive dependencies. If your project also requires either directly,
+align its revision with cslib-frontier's `lake-manifest.json` at the commit you chose.
+From your project directory, run `lake update cslib-frontier`, then `lake build`. Include any
+direct dependencies whose pins you changed in the update command. For example, use
+`lake update cslib-frontier cslib mathlib` when changing both.
 
-[complexitylib]: ../sources.md#complexitylib
+Commit the resulting `lake-manifest.json`, Lake configuration and `lean-toolchain` together.
+The [library map](../README.md#library-map) links to complete Lean examples whose imports you can reuse.

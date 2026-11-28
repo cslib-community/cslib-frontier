@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Layout
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Logarithm
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Computed counter metadata and native setup
@@ -80,29 +81,14 @@ theorem exec_setup {W n p scratch a b c : ℕ} (x : Data 128) (hp0 : 0 < p)
   let k := Nat.clog 2 n
   obtain ⟨s, logRun, depth, h0, h1, h2, h4, memory, keep⟩ := exec_logarithm x
     (by rw [hn]; exact hw.of_le (by omega))
-  have sreg (j : Fin 128) (hj : MetadataRegister j) (hd : j ≠ Reg.depth)
-      (hz : j ≠ Reg.zero) (ho : j ≠ Reg.one) (ht : j ≠ Reg.two)
-      (hf : j ≠ Reg.four) : s.regs j = x.regs j :=
-    keep j (by unfold MetadataRegister at hj; omega) hd hz ho ht hf
   have sk : s.regs Reg.depth = k := by simpa only [hn] using depth
   obtain ⟨y, layoutRun, L, ym, yr⟩ := exec_layout s hp0
-    ((sreg _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hn)
-    ((sreg _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hp)
-    sk
-    ((sreg _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hs)
-    h2 (hw.of_le (by dsimp only [k]; omega))
-  have preserved (j : Fin 128) (hj : ¬LayoutLocal j) : y.regs j = s.regs j := yr j hj
-  refine ⟨y, ?_, ⟨L, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ym.trans memory⟩
-  · exact (logRun.seq layoutRun).mono (by rw [hn]; dsimp only [k]; omega)
-  · exact (preserved _ (by decide)).trans
-      ((sreg _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans ha)
-  · exact (preserved _ (by decide)).trans
-      ((sreg _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hb)
-  · exact (preserved _ (by decide)).trans
-      ((sreg _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hc)
-  · exact (preserved _ (by decide)).trans h0
-  · exact (preserved _ (by decide)).trans h1
-  · exact (preserved _ (by decide)).trans h2
-  · exact (preserved _ (by decide)).trans h4
+    (by regs_frame) (by regs_frame) sk (by regs_frame) h2
+    (hw.of_le (by dsimp only [k]; omega))
+  refine ⟨y, (logRun.seq layoutRun).mono ?_, ⟨L, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ym.trans memory⟩
+  · rw [hn]
+    dsimp only [k]
+    omega
+  all_goals regs_frame
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

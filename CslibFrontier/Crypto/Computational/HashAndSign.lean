@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.MerkleDamgard
@@ -16,10 +17,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
@@ -88,7 +89,7 @@ probability `1` at every security parameter `n` regardless of the underlying `Si
 * `Cslib.Crypto.SignatureScheme.EUFCMA.wordEUFCMA_of_hashFamily`: specialization to a bundled
   `HashFamily`.
 * `Cslib.Crypto.SignatureScheme.EUFCMA.wordEUFCMA_merkleDamgard`: specialization to a
-  `CompressionFamily` via Merkle–Damgård domain extension.
+  `CompressionFamily` via the one-bit-per-block Merkle–Damgård instance `merkleDamgard`.
 * `Cslib.Crypto.HashAndSign.not_eufCMA_scheme_of_collision`: key-independent collisions break the
   scheme.
 
@@ -172,9 +173,17 @@ theorem verify_sign (hlen : ∀ s msg, (H s msg).length = s.length) (n : ℕ)
 
 @[program_certificate]
 theorem isPPTOn_keyGen : IsPPTOn encUnary (encPair encBits encBits) (keyGen S) := by
+  change IsPPTOn encUnary (encPair encBits encBits) (fun n => keyGen S n)
   have hkg := S.keyGen_ppt
-  unfold keyGen
-  ppt
+  have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary (encPair encBits encBits)) encBits)
+  have hout := (hp.fst'.snd'.fst'.prod hp.snd').encoding_comp.prod
+    (hp.fst'.snd'.snd'.prod hp.snd').encoding_comp
+  simpa only [keyGen, bind_pure_comp] using
+    hkg.bind_with (by
+      simpa only [bind_pure_comp] using
+        (ComputableInPolyTime.sampleList hn).map_with hout)
 
 @[program_certificate]
 theorem isPPTOn_sign
@@ -182,8 +191,8 @@ theorem isPPTOn_sign
       (encPair encBits encBits) encBits) :
     IsPPTOn (encPair encBits encBits) encBits (fun ⟨sk, msg⟩ => sign S H sk msg) := by
   have hsign := S.sign_ppt
-  have hHt := hH.tidy
-  have hdec := keyDecoder.computableInPolyTime.tidy
+  have hHt := hH
+  have hdec := keyDecoder.computableInPolyTime
   unfold sign
   ppt
 
@@ -218,9 +227,9 @@ noncomputable def scheme
 /-- Extract a colliding message pair `(m*, m)` from the output `((m*, σ*), queried)` of a
 signing-oracle execution by selecting the first queried message `m ∈ queried` with
 `H s m = H s m*`. -/
-def collisionOf (s : List Bool) (out : (List Bool × List Bool) × List (List Bool)) :
-    List Bool × List Bool :=
-  (out.1.1, (out.2.find? fun m => H s m == H s out.1.1).getD [])
+def collisionOf (s : List Bool) : (List Bool × List Bool) × List (List Bool) →
+    List Bool × List Bool
+  | ((mStar, _), queried) => (mStar, (queried.find? fun m => H s m == H s mStar).getD [])
 
 @[fun_prop]
 theorem computableInPolyTime_collisionOf
@@ -230,22 +239,25 @@ theorem computableInPolyTime_collisionOf
         collisionOf H p.1 p.2)
       (encPair encBits (encPair (encPair encBits encBits) (encList encBits)))
       (encPair encBits encBits) := by
-  unfold collisionOf
+  change ComputableInPolyTime (fun p : List Bool × ((List Bool × List Bool) × List (List Bool)) =>
+      collisionOf H p.1 ((p.2.1.1, p.2.1.2), p.2.2)) _ _
+  simp only [collisionOf]
   polytime
 
 /-- Whenever `m* ∉ queried` and `queried.find? (fun m => H s m == H s m*)` succeeds, `collisionOf`
 produces a genuine collision for `H` under key `s`. -/
-theorem isCollision_collisionOf_of_isSome {n : ℕ} {s : List Bool}
-    {out : (List Bool × List Bool) × List (List Bool)} (hfresh : !out.2.contains out.1.1 = true)
-    (hfind : (out.2.find? fun m => H s m == H s out.1.1).isSome = true) :
-    isCollision H (fun _ _ => true) n s (collisionOf H s out).1 (collisionOf H s out).2 = true := by
+theorem isCollision_collisionOf_of_isSome {n : ℕ} {s mStar sig : List Bool}
+    {queried : List (List Bool)} (hfresh : !queried.contains mStar = true)
+    (hfind : (queried.find? fun m => H s m == H s mStar).isSome = true) :
+    isCollision H (fun _ _ => true) n s (collisionOf H s ((mStar, sig), queried)).1
+      (collisionOf H s ((mStar, sig), queried)).2 = true := by
   obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hfind
-  have hmem : m ∈ out.2 := List.mem_of_find?_eq_some hm
-  have hcoll : H s m = H s out.1.1 :=
-    beq_iff_eq.mp (List.find?_some (p := fun m => H s m == H s out.1.1) hm)
-  have hnotmem : out.1.1 ∉ out.2 := by
+  have hmem : m ∈ queried := List.mem_of_find?_eq_some hm
+  have hcoll : H s m = H s mStar :=
+    beq_iff_eq.mp (List.find?_some (p := fun m => H s m == H s mStar) hm)
+  have hnotmem : mStar ∉ queried := by
     simpa [List.contains_iff_mem] using hfresh
-  have hne : out.1.1 ≠ m := fun h => hnotmem (h ▸ hmem)
+  have hne : mStar ≠ m := fun h => hnotmem (h ▸ hmem)
   simp only [collisionOf, hm, Option.getD_some]
   exact isCollision_eq_true_iff.mpr ⟨rfl, rfl, hne, hcoll.symm⟩
 
@@ -279,26 +291,27 @@ theorem isPPT_collisionFinder
       (fun p : ℕ × List Bool => S.keyGen p.1) :=
     S.isPPTOn_keyGen_comp (ComputableInPolyTime.fst encUnary encBits)
   let E1 := encPair (encPair encUnary encBits) (encPair encBits encBits)
-  have hfst := ComputableTidilyInPolyTime.fst (encPair encUnary encBits) (encPair encBits encBits)
-  have hsnd := ComputableTidilyInPolyTime.snd (encPair encUnary encBits) (encPair encBits encBits)
-  have henc := ComputableTidilyInPolyTime.encode (encPair encBits encBits)
-  have hprep : ComputableTidilyInPolyTime
+  have hfst := ComputableInPolyTime.fst (encPair encUnary encBits) (encPair encBits encBits)
+  have hsnd := ComputableInPolyTime.snd (encPair encUnary encBits) (encPair encBits encBits)
+  have henc : ComputableInPolyTime (encPair encBits encBits)
+      (encPair encBits encBits) encBits := .of_eq fun _ => rfl
+  have hprep : ComputableInPolyTime
       (fun q : (ℕ × List Bool) × (List Bool × List Bool) =>
         (q.1.1, encPair encBits encBits (q.2.1, q.1.2), encPair encBits encBits (q.2.2, q.1.2)))
       E1 encKeyPairInput :=
     hfst.fst'.prod ((henc.comp (hsnd.fst'.prod hfst.snd')).prod
       (henc.comp (hsnd.snd'.prod hfst.snd')))
   have hrun₀ := (scheme S H hH hlen).isPPTOn_run_signingOracle hadversary
-  have hrun := hrun₀.preprocess (.of_tidy hprep)
+  have hrun := hrun₀.preprocess hprep
   let EOut := encPair (encPair encBits encBits) (encList encBits)
-  have hrfst := ComputableTidilyInPolyTime.fst E1 EOut
-  have hrsnd := ComputableTidilyInPolyTime.snd E1 EOut
-  have hpost : ComputableTidilyInPolyTime
+  have hrfst := ComputableInPolyTime.fst E1 EOut
+  have hrsnd := ComputableInPolyTime.snd E1 EOut
+  have hpost : ComputableInPolyTime
       (fun r : ((ℕ × List Bool) × (List Bool × List Bool)) ×
           ((List Bool × List Bool) × List (List Bool)) =>
         collisionOf H r.1.1.2 r.2)
       (encPair E1 EOut) (encPair encBits encBits) :=
-    (computableInPolyTime_collisionOf H hH).tidy.comp (hrfst.fst'.snd'.prod hrsnd)
+    (computableInPolyTime_collisionOf H hH).comp (hrfst.fst'.snd'.prod hrsnd)
   unfold collisionFinder
   exact hkeys.bind_with (hrun.bind_with hpost.isPPTOn)
 
@@ -316,12 +329,12 @@ forwarding hashed signing queries `H s msg` through `hashSigningHandler`, and ou
 forgery `(H s m*, σ*)`. -/
 noncomputable def baseForger (bound : ℕ → ℕ) (adversary : Forger) : Forger := fun n pk₀ => do
   let s ← ProbOracleComp.sample (BitString.sampleList n)
-  let out ← (OracleComp.interpret
+  let ((mStar, sig), _) ← (OracleComp.interpret
     (OracleComp.sumHandler
       (fun j => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin j)))
       (hashSigningHandler H s (bound n)))
     (adversary n (encPair encBits encBits (pk₀, s)))).run ()
-  return (H s out.1.1, out.1.2)
+  return (H s mStar, sig)
 
 private theorem isOraclePPTOn_hashSigningHandler
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
@@ -338,19 +351,15 @@ private theorem isOraclePPTOn_hashSigningHandler
   let EIn := encPair ECaller EReq
   have hc := ComputableInPolyTime.fst ECaller EReq
   have hr := ComputableInPolyTime.snd ECaller EReq
-  have hn := hc.fst'.fst'
-  have hs := hc.snd'
-  have hmsg := hr.fst'.snd'
-  have hdigest := hH.comp' (hs.prod hmsg)
-  have hbn := hboundPoly.comp' hn
-  have hq := IsOraclePPTOn.query_take' (input := EIn) () hdigest hbn
+  have hq := IsOraclePPTOn.query_take (input := EIn) ()
+    (hH.comp' (hc.snd'.prod hr.fst'.snd')) (hboundPoly.comp' hc.fst'.fst')
   have hpost : ComputableInPolyTime
       (fun r : (((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × Unit)) × List Bool =>
         (r.2, ()))
       (encPair EIn encBits) (encPair encBits (encFinEnum Unit)) :=
     (ComputableInPolyTime.snd EIn encBits).prod (ComputableInPolyTime.const ())
   unfold hashSigningHandler
-  simpa [bind_pure_comp] using hq.map_with'
+  simpa [bind_pure_comp] using hq.map_with
     (f := fun (_ : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × Unit)) sig => (sig, ()))
     hpost
 
@@ -367,17 +376,16 @@ theorem isOraclePPT_baseForger
       (fun p : ℕ × List Bool => ProbOracleComp.sample (BitString.sampleList p.1)) :=
     (ComputableInPolyTime.sampleList (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn
   let ECaller := encPair (encPair encUnary encBits) encBits
-  have hcfst := ComputableTidilyInPolyTime.fst (encPair encUnary encBits) encBits
-  have hcsnd := ComputableTidilyInPolyTime.snd (encPair encUnary encBits) encBits
-  have hprep : ComputableTidilyInPolyTime
+  have hcfst := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
+  have hcsnd := ComputableInPolyTime.snd (encPair encUnary encBits) encBits
+  have hprep : ComputableInPolyTime
       (fun c : (ℕ × List Bool) × List Bool => (c.1.1, encPair encBits encBits (c.1.2, c.2)))
       ECaller (encPair encUnary encBits) :=
-    hcfst.fst'.prod ((ComputableTidilyInPolyTime.encode (encPair encBits encBits)).comp
-      (hcfst.snd'.prod hcsnd))
-  have hres : ComputableTidilyInPolyTime
+    hcfst.fst'.prod (hcfst.snd'.prod hcsnd).encoding_comp
+  have hres : ComputableInPolyTime
       (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => bound pair.1.1.1)
       (encPair ECaller encBits) encUnary :=
-    ((ComputableTidilyInPolyTime.fst ECaller encBits).trans hcfst.fst').trans hboundPoly.tidy
+    ((ComputableInPolyTime.fst ECaller encBits).trans hcfst.fst').trans hboundPoly
   have hrun := hadversary.run_interpret_preprocess_open
     (prepare := fun c : (ℕ × List Bool) × List Bool =>
       (c.1.1, encPair encBits encBits (c.1.2, c.2)))
@@ -395,19 +403,19 @@ theorem isOraclePPT_baseForger
       obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hsig
       exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩)
   let EOut := encPair (encPair encBits encBits) (encFinEnum Unit)
-  have hrfst := ComputableTidilyInPolyTime.fst ECaller EOut
-  have hrsnd := ComputableTidilyInPolyTime.snd ECaller EOut
-  have hfinal : ComputableTidilyInPolyTime
+  have hrfst := ComputableInPolyTime.fst ECaller EOut
+  have hrsnd := ComputableInPolyTime.snd ECaller EOut
+  have hfinal : ComputableInPolyTime
       (fun r : ((ℕ × List Bool) × List Bool) × ((List Bool × List Bool) × Unit) =>
         (H r.1.2 r.2.1.1, r.2.1.2))
       (encPair ECaller EOut) (encPair encBits encBits) :=
-    (hH.tidy.comp (hrfst.snd'.prod hrsnd.fst'.fst')).prod hrsnd.fst'.snd'
+    (hH.comp (hrfst.snd'.prod hrsnd.fst'.fst')).prod hrsnd.fst'.snd'
   unfold baseForger
   exact hs.bind_with (hrun.bind_with (hfinal.isOraclePPTOn (Operation := Unit)))
 
 /-- When `bound` upper-bounds the bit-length of every signature in the support of
 `S.sign sk₀ (H s msg)` and `|H s msg| = n`, interpreting `hashSigningHandler` against
-`S.signingOracle sk₀` matches running `(scheme S H hH hlen).signingOracle ⟨sk₀, s⟩` while mapping
+`S.signingOracle n sk₀` matches running `(scheme S H hH hlen).signingOracle ⟨sk₀, s⟩` while mapping
 the recorded query log `queried` to `queried.map (H s)`. -/
 theorem eval_run_hashSigningHandler
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
@@ -419,7 +427,7 @@ theorem eval_run_hashSigningHandler
     {α : Type} (program : WordOracleComp Unit α) :
     (OracleComp.interpret
       (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-        (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+        (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
       ((OracleComp.interpret
         (OracleComp.sumHandler
           (fun j => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin j)))
@@ -436,7 +444,7 @@ theorem eval_run_hashSigningHandler
     (oracle' := fun (q : Unit × List Bool) (state : Unit × List (List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-          (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+          (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
         ((hashSigningHandler H s bound q).run state.1)).run state.2).map
           (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun queried => ((), queried.map (H s)))
@@ -449,7 +457,7 @@ theorem eval_run_hashSigningHandler
         PMF.map (fun result => (result.1.1, result.1.2, result.2))
           ((OracleComp.interpret
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-              (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+              (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
             (do
               let sig ← List.take bound <$> ProbOracleComp.query ((), H s msg)
               return (sig, ()))).run (List.map (H s) queried))
@@ -457,9 +465,8 @@ theorem eval_run_hashSigningHandler
         ProbOracleComp.interpret_query, OracleComp.interpret_pure,
         StateT.run_bind, StateT.run_map, StateT.run_pure]
       simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracle,
-        scheme, sign_encPair, ProbComp.eval_bind, ProbComp.eval_pure,
-        PMF.monad_map_eq_map, PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind,
-        PMF.map_bind, PMF.bind_bind, PMF.pure_bind, PMF.pure_map, List.map_cons]
+        SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, hmsg, beq_self_eq_true,
+        ↓reduceIte, scheme, sign_encPair, List.map_cons, pmf_norm]
       refine PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_
       rw [List.take_of_length_le (hbound (H s msg) hmsg sig hsig)])
     program []
@@ -498,11 +505,9 @@ theorem succProbability_eufCmaGame_le
             PMF.pure (((H s out.1.1).length == n) &&
               !(out.2.map (H s)).contains (H s out.1.1) &&
               S.verify keys.1 (H s out.1.1) out.1.2) := by
-    simp only [SignatureScheme.eufCmaGame, baseForger, ProbComp.eval_bind,
-      ProbComp.eval_pure, ProbOracleComp.eval_run_interpret, OracleComp.interpret_bind,
-      StateT.run_bind, ProbOracleComp.run_interpret_sample, OracleComp.interpret_pure,
-      StateT.run_pure, BitString.eval_sampleList, PMF.bind_map,
-      Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+    simp only [SignatureScheme.eufCmaGame, baseForger, ProbOracleComp.eval_run_interpret,
+      OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_sample,
+      OracleComp.interpret_pure, StateT.run_pure, BitString.eval_sampleList, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
     refine PMF.bind_congr_on_support _ _ _ fun s hs => ?_
     have hlen_s : s.length = n := BitString.length_of_mem_support_uniformList hs
@@ -515,8 +520,7 @@ theorem succProbability_eufCmaGame_le
           (runDist keys s).bind fun out =>
             PMF.pure (isCollision H (fun _ _ => true) n s
               (collisionOf H s out).1 (collisionOf H s out).2) := by
-    simp only [collisionGame, collisionFinder, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind]
+    simp only [collisionGame, collisionFinder, BitString.eval_sampleList, pmf_norm]
     rw [PMF.bind_comm]
   have hgame : ProbComp.eval ((scheme S H hH hlen).eufCmaGame adversary n) =
       (ProbComp.eval (S.keyGen n)).bind fun keys =>
@@ -524,8 +528,7 @@ theorem succProbability_eufCmaGame_le
           (runDist keys s).bind fun out =>
             PMF.pure (!out.2.contains out.1.1 && S.verify keys.1 (H s out.1.1) out.1.2) := by
     simp only [WordSignatureScheme.eufCmaGame, scheme, keyGen, verify_encPair,
-      ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-      PMF.bind_bind, PMF.pure_bind]
+      BitString.eval_sampleList, pmf_norm]
     rfl
   have key : ProbComp.eval ((scheme S H hH hlen).eufCmaGame adversary n) true ≤
       ProbComp.eval (S.eufCmaGame (baseForger H bound adversary) n) true +
@@ -536,20 +539,18 @@ theorem succProbability_eufCmaGame_le
     refine PMF.bind_apply_le_add_on_support _ true fun s hs => ?_
     have hlen_s : s.length = n := BitString.length_of_mem_support_uniformList hs
     refine PMF.bind_apply_le_add_on_support _ true fun out _ => ?_
-    cases hwin : (!out.2.contains out.1.1 && S.verify keys.1 (H s out.1.1) out.1.2)
+    obtain ⟨⟨mStar, sig⟩, queried⟩ := out
+    dsimp only
+    cases hwin : (!queried.contains mStar && S.verify keys.1 (H s mStar) sig)
     · simp
     · obtain ⟨hfresh, hver⟩ := Bool.and_eq_true_iff.mp hwin
-      cases hfind : (out.2.find? fun m => H s m == H s out.1.1).isSome
-      · have hnotmem : (out.2.map (H s)).contains (H s out.1.1) = false := by
-          rw [Bool.eq_false_iff]
-          intro hmem
-          obtain ⟨m, hm, hcoll⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmem)
-          have hex : ∃ m ∈ out.2, (H s m == H s out.1.1) = true :=
-            ⟨m, hm, beq_iff_eq.mpr hcoll⟩
-          have hisSome : (out.2.find? fun m => H s m == H s out.1.1).isSome = true :=
-            List.find?_isSome.mpr hex
-          exact Bool.false_ne_true (hfind.symm.trans hisSome)
-        have hlen_d : ((H s out.1.1).length == n) = true := by
+      cases hfind : (queried.find? fun m => H s m == H s mStar).isSome
+      · have hnotmem : (queried.map (H s)).contains (H s mStar) = false :=
+          Bool.eq_false_iff.mpr fun hmem => by
+            obtain ⟨m, hm, hcoll⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmem)
+            exact Bool.false_ne_true
+              (hfind.symm.trans (List.find?_isSome.mpr ⟨m, hm, beq_iff_eq.mpr hcoll⟩))
+        have hlen_d : ((H s mStar).length == n) = true := by
           rw [hlen, hlen_s, beq_self_eq_true]
         rw [hlen_d, hnotmem, hver]
         exact le_add_right le_rfl
@@ -559,36 +560,6 @@ theorem succProbability_eufCmaGame_le
   refine (ENNReal.toNNReal_mono
     (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩) key).trans_eq ?_
   rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-
-private theorem exists_sigLengthBound :
-    ∃ bound : ℕ → ℕ,
-      ComputableInPolyTime bound encUnary encUnary ∧
-      ∀ n : ℕ, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support,
-        ∀ msg : List Bool, msg.length = n →
-          ∀ sig ∈ (ProbComp.eval (S.sign keys.2 msg)).support, sig.length ≤ bound n := by
-  obtain ⟨ck, dk, hlenk⟩ := S.keyGen_ppt.length_le
-  obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
-  let bound (n : ℕ) : ℕ := cs * (2 * (ck * (n + 1) ^ dk) + n + 2) ^ ds
-  have hboundPoly : ComputableInPolyTime bound encUnary encUnary := by
-    let hn := ComputableInPolyTime.id' (encIn := encUnary)
-    let cst (k : ℕ) := ComputableInPolyTime.const (encIn := encUnary) (encOut := encUnary) k
-    exact ComputableInPolyTime.unary_mul' (cst cs)
-      ((ComputableInPolyTime.unary_pow ds).comp
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_add'
-            (ComputableInPolyTime.unary_mul' (cst 2)
-              (ComputableInPolyTime.unary_mul' (cst ck)
-                ((ComputableInPolyTime.unary_pow dk).comp
-                  (ComputableInPolyTime.unary_add' hn (cst 1)))))
-            hn)
-          (cst 2)))
-  refine ⟨bound, hboundPoly, fun n keys hkeys msg hmsg sig hsig => ?_⟩
-  have hkeyLen := hlenk n keys hkeys
-  simp only [encUnary_apply, List.length_replicate, length_encPair, encBits_apply] at hkeyLen
-  have hsigLen := hlens (keys.2, msg) sig hsig
-  simp only [length_encPair, encBits_apply] at hsigLen
-  refine hsigLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left ?_ ds))
-  omega
 
 /-! ### Key-Independent Collisions Break the Scheme -/
 
@@ -608,13 +579,13 @@ theorem isOraclePPT_fixedCollisionForger {bound : ℕ → ℕ}
   have hbn := hboundPoly.comp' (ComputableInPolyTime.fst encUnary encBits)
   have hmsg : ComputableInPolyTime (fun _ : ℕ × List Bool => m₀) EIn encBits :=
     ComputableInPolyTime.const m₀
-  have hq := IsOraclePPTOn.query_take' (input := EIn) () hmsg hbn
+  have hq := IsOraclePPTOn.query_take (input := EIn) () hmsg hbn
   have hpost : ComputableInPolyTime
       (fun r : (ℕ × List Bool) × List Bool => (m₁, r.2))
       (encPair EIn encBits) (encPair encBits encBits) :=
     (ComputableInPolyTime.const m₁).prod (ComputableInPolyTime.snd EIn encBits)
   unfold fixedCollisionForger
-  simpa [bind_pure_comp] using hq.map_with' (f := fun (_ : ℕ × List Bool) sig => (m₁, sig)) hpost
+  simpa [bind_pure_comp] using hq.map_with (f := fun (_ : ℕ × List Bool) sig => (m₁, sig)) hpost
 
 /-- If `m₀ ≠ m₁` collide under every hash key (`∀ s, H s m₀ = H s m₁`) and `bound n` upper-bounds
 the length of valid `S`-signatures, `fixedCollisionForger bound m₀ m₁` wins
@@ -637,23 +608,18 @@ theorem succProbability_eufCmaGame_fixedCollisionForger
     simp only [WordSignatureScheme.eufCmaGame, fixedCollisionForger,
       OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,
       OracleComp.interpret_pure, StateT.run_bind, StateT.run_map, StateT.run_pure]
-    simp only [StateT.run, WordSignatureScheme.signingOracle, scheme, keyGen, sign_encPair,
-      verify_encPair, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.bind_bind, PMF.map_bind, PMF.pure_bind,
-      PMF.pure_map]
+    simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracleOf,
+      SignatureScheme.signingOracleOn, ↓reduceIte, scheme, keyGen, sign_encPair, verify_encPair,
+      BitString.eval_sampleList, pmf_norm]
     refine (PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_).trans (PMF.bind_const _ _)
     refine (PMF.bind_congr_on_support _ _ _ fun s hs => ?_).trans (PMF.bind_const _ _)
     have hlen_s : s.length = n := BitString.length_of_mem_support_uniformList hs
     have hlen_d : (H s m₀).length = n := by rw [hlen, hlen_s]
     refine (PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_).trans (PMF.bind_const _ _)
     rw [List.take_of_length_le (hbound n keys hkeys (H s m₀) hlen_d sig hsig)]
-    have hver : S.verify keys.1 (H s m₁) sig = true := by
-      rw [← hcoll s]
-      exact S.verify_sign n keys hkeys (H s m₀) hlen_d sig hsig
-    have hnotmem : ([m₀] : List (List Bool)).contains m₁ = false := by
-      simp [hne]
-    rw [hnotmem, hver]
-    rfl
+    have hver : S.verify keys.1 (H s m₁) sig = true :=
+      hcoll s ▸ S.verify_sign n keys hkeys (H s m₀) hlen_d sig hsig
+    simp [hne, hver]
   simp [Game.succProbability, heval]
 
 /-- **Key-independent collisions break Construction 13.3**: if two distinct messages `m₀ ≠ m₁`
@@ -666,13 +632,10 @@ theorem not_eufCMA_scheme_of_collision
     {m₀ m₁ : List Bool} (hne : m₁ ≠ m₀) (hcoll : ∀ s, H s m₀ = H s m₁) :
     ¬ (scheme S H hH hlen).EUFCMA := by
   intro heuf
-  obtain ⟨bound, hboundPoly, hbound_le⟩ := exists_sigLengthBound S
-  have hneg := heuf.negligible (fixedCollisionForger bound m₀ m₁)
-    (isOraclePPT_fixedCollisionForger hboundPoly m₀ m₁)
-  have hzero : Negligible (fun _ : ℕ => (1 : ℝ≥0)) :=
-    hneg.congr fun n =>
-      succProbability_eufCmaGame_fixedCollisionForger S H hH hlen hbound_le hne hcoll n
-  exact not_negligible_const one_ne_zero hzero
+  obtain ⟨bound, hboundPoly, hbound_le⟩ := S.exists_sign_length_bound_of_length_eq
+  exact not_negligible_const one_ne_zero
+    ((heuf.negligible _ (isOraclePPT_fixedCollisionForger hboundPoly m₀ m₁)).congr fun n =>
+      succProbability_eufCmaGame_fixedCollisionForger S H hH hlen hbound_le hne hcoll n)
 
 end HashAndSign
 
@@ -691,7 +654,7 @@ theorem SignatureScheme.EUFCMA.wordEUFCMA_hashAndSign
       (encPair encBits encBits) encBits)
     (hlen : ∀ s msg, (H s msg).length = s.length) :
     (scheme S H hH hlen).EUFCMA := by
-  obtain ⟨bound, hboundPoly, hbound_le⟩ := exists_sigLengthBound S
+  obtain ⟨bound, hboundPoly, hbound_le⟩ := S.exists_sign_length_bound_of_length_eq
   apply WordSignatureScheme.EUFCMA.of_negligible
   intro adversary hadversary
   have hbase := hS.negligible (baseForger H bound adversary)
@@ -712,7 +675,8 @@ theorem SignatureScheme.EUFCMA.wordEUFCMA_of_hashFamily
 /-- **Merkle–Damgård + Hash-and-Sign** ([KatzLindell2020], Sections 6.2 and 13.3): an
 `EUFCMA`-secure fixed-length `SignatureScheme` together with a collision-resistant `2 n → n`
 `CompressionFamily` yields an `EUFCMA`-secure `WordSignatureScheme` on arbitrary-length messages via
-`merkleDamgard` and `HashAndSign.scheme`. -/
+`merkleDamgard` and `HashAndSign.scheme`. `merkleDamgard` puts one message bit in each block; it is
+not textbook length-strengthened Merkle–Damgård. -/
 theorem SignatureScheme.EUFCMA.wordEUFCMA_merkleDamgard
     {S : SignatureScheme} (hS : S.EUFCMA) {h : List Bool → List Bool → List Bool}
     (hh : CompressionFamily h) :

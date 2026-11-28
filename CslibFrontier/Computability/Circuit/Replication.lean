@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Parallel
 public import CslibFrontier.Foundations.Data.BitString.Block
 import CslibFrontier.Computability.Circuit.Simulation
 public import Mathlib.Logic.Equiv.Fin.Basic
+import CslibFrontier.Computability.Circuit.Simps
 
 /-!
 # Independent copies of a circuit
@@ -26,9 +27,8 @@ cost is monotone even at zero copies, where a separate empty circuit suffices.
 
 ## Main definitions
 
-* `Cslib.Circuits.directProductInput`, `Cslib.Circuits.blockMap`,
-  `Cslib.Circuits.directProduct`: input block selection and independent copies of multi-output and
-  scalar functions.
+* `Cslib.Circuits.blockMap`, `Cslib.Circuits.directProduct`: independent copies of multi-output
+  and scalar functions on the input blocks (`Cslib.BitString.block`).
 * `Cslib.Circuits.Circuit.parallelFamily`: different circuits on consecutive disjoint blocks.
 * `Cslib.Circuits.Circuit.replicate`: independent copies of a multi-output circuit, the
   constant family.
@@ -61,23 +61,19 @@ namespace Cslib.Circuits
 universe v u
 variable {σ : Signature.{v}} {U : Type u} {n m k : ℕ}
 
-/-- Select one consecutive block of inputs. -/
-def directProductInput (x : Fin (k * n) → U) (j : Fin k) : Fin n → U :=
-  fun i => x (finProdFinEquiv (j, i))
-
 /-- Apply a multi-output function independently to each input block. -/
 def blockMap (f : (Fin n → U) → Fin m → U) (k : ℕ) :
     (Fin (k * n) → U) → Fin (k * m) → U :=
-  fun x i => f (directProductInput x (finProdFinEquiv.symm i).1) (finProdFinEquiv.symm i).2
+  fun x i => f (BitString.block x (finProdFinEquiv.symm i).1) (finProdFinEquiv.symm i).2
 
 /-- Apply a scalar function independently to each input block. -/
 def directProduct (f : (Fin n → U) → U) (k : ℕ) : (Fin (k * n) → U) → Fin k → U :=
-  fun x j => f (directProductInput x j)
+  fun x j => f (BitString.block x j)
 
 /-- Coordinate `(j, i)` of `blockMap f k x` is output `i` of `f` on input block `j`. -/
 @[simp] theorem blockMap_apply (f : (Fin n → U) → Fin m → U)
     (x : Fin (k * n) → U) (j : Fin k) (i : Fin m) :
-    blockMap f k x (finProdFinEquiv (j, i)) = f (directProductInput x j) i := by
+    blockMap f k x (finProdFinEquiv (j, i)) = f (BitString.block x j) i := by
   simp [blockMap]
 
 /-- Block `j` of the outputs of `blockMap f k x` is `f` on input block `j`. -/
@@ -85,7 +81,6 @@ theorem block_blockMap (f : (Fin n → U) → Fin m → U) (x : Fin (k * n) → 
     BitString.block (blockMap f k x) = fun j => f (BitString.block x j) := by
   funext j i
   rw [BitString.block_apply, blockMap_apply]
-  rfl
 
 namespace Circuit
 
@@ -102,11 +97,11 @@ def parallelFamily : {k : ℕ} → (Fin k → Circuit σ n m) → Circuit σ (k 
 theorem eval_parallelFamily_apply {k : ℕ} (cs : Fin k → Circuit σ n m) (I : Interpretation σ U)
     (x : Fin (k * n) → U) (j : Fin k) (i : Fin m) :
     (parallelFamily cs).eval I x (finProdFinEquiv (j, i)) =
-      (cs j).eval I (directProductInput x j) i := by
+      (cs j).eval I (BitString.block x j) i := by
   induction k with
   | zero => exact j.elim0
   | succ k ih =>
-    simp only [parallelFamily, eval_comp, eval_wiring, eval_parallel, Function.comp_apply]
+    simp only [circuit_simps, parallelFamily, eval_parallel]
     by_cases hj : j.val < k
     · let j' : Fin k := ⟨j.val, hj⟩
       rw [show Fin.cast (Nat.succ_mul k m) (finProdFinEquiv (j, i)) =
@@ -134,8 +129,8 @@ theorem cost_program_parallelFamily {k : ℕ} (cs : Fin k → Circuit σ n m) (c
   | zero => simp only [parallelFamily, cost_program_wiring, Finset.univ_eq_empty,
       Finset.sum_empty]
   | succ k ih =>
-    simp only [parallelFamily, cost_program_comp, cost_program_parallel, cost_program_wiring,
-      Nat.zero_add, Nat.add_zero, ih, Fin.sum_univ_castSucc]
+    simp only [circuit_simps, parallelFamily, cost_program_parallel, Nat.zero_add, Nat.add_zero, ih,
+      Fin.sum_univ_castSucc]
 
 /-- Running a family on disjoint blocks adds gate counts exactly. -/
 @[simp] theorem size_parallelFamily {k : ℕ} (cs : Fin k → Circuit σ n m) :
@@ -150,7 +145,7 @@ def replicate (c : Circuit σ n m) (k : ℕ) : Circuit σ (k * n) (k * m) :=
 theorem eval_replicate_apply (c : Circuit σ n m) (k : ℕ) (I : Interpretation σ U)
     (x : Fin (k * n) → U) (j : Fin k) (i : Fin m) :
     (c.replicate k).eval I x (finProdFinEquiv (j, i)) =
-      c.eval I (directProductInput x j) i :=
+      c.eval I (BitString.block x j) i :=
   eval_parallelFamily_apply _ I x j i
 
 /-- Replication computes the blockwise application of the original circuit. -/
@@ -168,8 +163,8 @@ theorem cost_program_replicate (c : Circuit σ n m) (k : ℕ) (cost : σ.Op → 
   induction k with
   | zero => simp only [replicate, parallelFamily, cost_program_wiring, Nat.zero_mul]
   | succ k ih =>
-    simp only [replicate, parallelFamily, cost_program_comp, cost_program_parallel,
-      cost_program_wiring, Nat.zero_add, Nat.add_zero] at ih ⊢
+    simp only [circuit_simps, replicate, parallelFamily, cost_program_parallel, Nat.zero_add,
+      Nat.add_zero] at ih ⊢
     rw [ih, Nat.succ_mul]
 
 /-- Replication multiplies the gate count exactly. -/
@@ -185,14 +180,13 @@ def replicateScalar (c : Circuit σ n 1) (k : ℕ) : Circuit σ (k * n) k :=
 @[simp] theorem eval_replicateScalar (c : Circuit σ n 1) (k : ℕ) (I : Interpretation σ U)
     (x : Fin (k * n) → U) :
     (c.replicateScalar k).eval I x = directProduct (fun y => c.eval I y 0) k x := by
-  simp only [replicateScalar, eval_pi, eval_comp, eval_wiring]
+  simp only [circuit_simps, replicateScalar]
   rfl
 
 /-- Scalar replication also preserves the exact weighted cost. -/
 theorem cost_program_replicateScalar (c : Circuit σ n 1) (k : ℕ) (cost : σ.Op → ℕ) :
     (c.replicateScalar k).program.cost cost = k * c.program.cost cost := by
-  simp only [replicateScalar, cost_program_pi, cost_program_comp, cost_program_wiring,
-    Nat.zero_add, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  simp only [circuit_simps, replicateScalar, Nat.zero_add]
 
 /-- Scalar replication multiplies the gate count by `k`. -/
 @[simp] theorem size_replicateScalar (c : Circuit σ n 1) (k : ℕ) :
@@ -205,7 +199,7 @@ theorem Computes.replicateScalar {c : Circuit σ n 1} {I : Interpretation σ U}
     (c.replicateScalar k).Computes I (directProduct f k) := fun x => by
   rw [eval_replicateScalar]
   funext j
-  exact congrFun (hc (directProductInput x j)) 0
+  exact congrFun (hc (BitString.block x j)) 0
 
 /-- Retain a positive initial batch by rewiring inputs and selecting outputs, without adding
 or removing gates. Discarded input blocks read the first retained block. -/
@@ -220,8 +214,7 @@ theorem cost_program_takeDirectProductPrefix {small large : ℕ}
     (c : Circuit σ (large * n) large) (hsmall : 0 < small) (hle : small ≤ large)
     (cost : σ.Op → ℕ) :
     (c.takeDirectProductPrefix small hsmall hle).program.cost cost = c.program.cost cost := by
-  simp only [takeDirectProductPrefix, cost_program_comp, cost_program_wiring,
-    Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, takeDirectProductPrefix, Nat.zero_add, Nat.add_zero]
 
 /-- Retaining an initial batch preserves direct-product semantics. -/
 theorem Computes.takeDirectProductPrefix {small large : ℕ} {c : Circuit σ (large * n) large}
@@ -229,12 +222,12 @@ theorem Computes.takeDirectProductPrefix {small large : ℕ} {c : Circuit σ (la
     (hc : c.Computes I (directProduct f large)) (hsmall : 0 < small) (hle : small ≤ large) :
     (c.takeDirectProductPrefix small hsmall hle).Computes I (directProduct f small) := by
   intro x
-  simp only [Circuit.takeDirectProductPrefix, eval_comp, eval_wiring]
+  simp only [circuit_simps, Circuit.takeDirectProductPrefix]
   rw [hc]
   funext j
   apply congrArg f
   funext i
-  simp only [directProductInput, Function.comp_apply, Equiv.symm_apply_apply]
+  simp only [BitString.block, Function.comp_apply, Equiv.symm_apply_apply]
   simp
 
 end Circuit
@@ -278,19 +271,15 @@ theorem ecomplexityFrom_directProduct_comp_wiring_le {p : ℕ} (select : Fin n �
     ecomplexityFrom I cost (directProduct (fun x => f (x ∘ select)) k) id ≤
       ecomplexityFrom I cost (directProduct f k) id := by
   refine le_ecomplexityFrom_iff.mpr fun c hc => ?_
-  change c.Computes I (directProduct f k) at hc
-  let wiring := Circuit.wiring σ fun i : Fin (k * n) =>
-    finProdFinEquiv ((finProdFinEquiv.symm i).1, select (finProdFinEquiv.symm i).2)
-  have h : (c.comp wiring).ComputesFrom I (directProduct (fun x => f (x ∘ select)) k) id := by
-    intro x
-    rw [Circuit.eval_comp, hc]
-    funext j
-    apply congrArg f
-    funext i
-    simp only [directProductInput, wiring, Circuit.eval_wiring, Function.comp_apply,
-      Equiv.symm_apply_apply, id_eq]
-  exact (ecomplexityFrom_le_of_computesFrom _ h).trans_eq
+  refine (ecomplexityFrom_le_of_computesFrom (c.comp <| Circuit.wiring σ fun i : Fin (k * n) =>
+    finProdFinEquiv ((finProdFinEquiv.symm i).1, select (finProdFinEquiv.symm i).2))
+    fun x => ?_).trans_eq
     (by rw [Circuit.cost_program_comp, Circuit.cost_program_wiring, Nat.zero_add])
+  change c.Computes I (directProduct f k) at hc
+  change (c.comp _).eval I x = _
+  rw [Circuit.eval_comp, hc]
+  exact funext fun j => congrArg f <| funext fun i => by
+    simp only [BitString.block, Circuit.eval_wiring, Function.comp_apply, Equiv.symm_apply_apply]
 
 /-- Minimum direct-product size is monotone in the number of copies, including zero copies. -/
 theorem complexity_directProduct_mono [I.IsComplete] {small large : ℕ} (hle : small ≤ large) :
@@ -300,8 +289,8 @@ theorem complexity_directProduct_mono [I.IsComplete] {small large : ℕ} (hle : 
       fun _ => funext fun i => i.elim0).trans (by simp)
   obtain ⟨c, hc, hsize⟩ :=
     exists_computes_size_eq_complexity (I := I) (f := directProduct f large)
-  refine (complexity_le_of_computes _ (hc.takeDirectProductPrefix hsmall hle)).trans_eq ?_
-  simp [Circuit.takeDirectProductPrefix, hsize]
+  exact (complexity_le_of_computes _ (hc.takeDirectProductPrefix hsmall hle)).trans_eq
+    (by simp [Circuit.takeDirectProductPrefix, hsize])
 
 /-- One copy costs no more than a single-output implementation. -/
 theorem complexity_directProduct_one_le [I.IsComplete] :

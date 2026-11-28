@@ -8,6 +8,9 @@ module
 
 public import CslibFrontier.Tactic.PPT
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+
 /-! # Ordered plain conditional search under a normal tactic import
 
 No theorem here is a named or compositional certificate. Generic inputs and outputs prevent a
@@ -17,6 +20,30 @@ remain in AutomationBooleanMinimal and AutomationBooleanPPT.
 
 open Turing.MultiTapeTM
 namespace ConditionalDispatchTests
+
+-- A fixed clock for one actual normalized reverse machine. This is machine evidence,
+-- not an existential polynomial-time predicate or a derived closure calculus.
+private theorem reverseMachine_exists :
+    ∃ c d : ℕ, ComputableTidilyInTimeAndSpaceOfLength List.reverse encBits encBits
+      (fun n => c * (n + 1) ^ d) (fun n => c * (n + 1) ^ d) :=
+  Internal.NormalForm.polyTime ComputableInPolyTime.bitsReverse
+
+private noncomputable def reverseFactor : ℕ := Classical.choose reverseMachine_exists
+private noncomputable def reverseDegree : ℕ :=
+  Classical.choose (Classical.choose_spec reverseMachine_exists)
+private noncomputable def reverseClock (n : ℕ) : ℕ := reverseFactor * (n + 1) ^ reverseDegree
+private theorem reverseClock_polynomial : Cslib.PolynomiallyBounded reverseClock := by
+  unfold reverseClock
+  fun_prop
+private theorem reverseMachine :
+    ComputableTidilyInTimeAndSpaceOfLength List.reverse encBits encBits
+      reverseClock reverseClock :=
+  Classical.choose_spec (Classical.choose_spec reverseMachine_exists)
+
+attribute [local fun_prop] ComputableTidilyInTimeAndSpace ComputableInTimeAndSpace
+attribute [local fun_prop] ComputableTidilyInTimeAndSpace.computableInTimeAndSpace
+  ComputableInTimeAndSpace.computableInPolyTime
+
 
 set_option maxHeartbeats 200000 in
 -- Keep the original default budget for this driver control.
@@ -150,15 +177,22 @@ example {α β : Type} {input : α ↪ List Bool} {output : β ↪ List Bool}
 @[irreducible] private def rawBranch (word : List Bool) : List Bool := word.reverse
 
 private theorem rawBranch_certificate :
-    ComputableTidilyInPolyTime rawBranch encBits encBits := by
+    ComputableTidilyInTimeAndSpaceOfLength rawBranch encBits encBits reverseClock reverseClock := by
   unfold rawBranch
-  exact ComputableInPolyTime.bitsReverse.tidy
+  exact reverseMachine
 
 attribute [local fun_prop] rawBranch_certificate
 
 private abbrev RawBranchAlias {α β : Type} (f : α → β)
     (input : α ↪ List Bool) (output : β ↪ List Bool) :=
-  ComputableTidilyInPolyTime f input output
+  ComputableTidilyInTimeAndSpaceOfLength f input output reverseClock reverseClock
+
+-- Ordinary FunProp has an explicit raw conversion fixture; filtered search must exclude it.
+@[local fun_prop] private theorem rawBranch_toPlain {α β : Type} {f : α → β}
+    {input : α ↪ List Bool} {output : β ↪ List Bool}
+    (h : RawBranchAlias f input output) : ComputableInPolyTime f input output :=
+  ⟨reverseClock, reverseClock, reverseClock_polynomial, reverseClock_polynomial,
+    h.computableInTimeAndSpace⟩
 
 set_option maxHeartbeats 200000 in
 -- Keep the original default budget for this conditional privacy control.

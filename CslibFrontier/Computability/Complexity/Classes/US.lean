@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.UP
 public import CslibFrontier.Computability.Complexity.Classes.CeqP
+public import CslibFrontier.Computability.Complexity.Classes.DP
+import CslibFrontier.Computability.Complexity.Classes.SharpP.Choose
 
 /-!
 # Unique-solution polynomial time
@@ -16,7 +18,8 @@ public import CslibFrontier.Computability.Complexity.Classes.CeqP
 US tests whether a polynomial-time verifier has exactly one accepting witness
 [Blass and Gurevich][BlassGurevich1982]. Unlike UP, a no-instance may have multiple witnesses.
 This uses the existing verifier-based #P; no counting-machine characterization is asserted.
-The containments and closure below are elementary count identities.
+The containments and closure below are elementary count identities; for `US ⊆ DP`, a count is one
+exactly when it is positive and has no two-element subsets.
 
 ## Main definitions
 
@@ -24,7 +27,8 @@ The containments and closure below are elementary count identities.
 
 ## Main results
 
-* `UP_subset_US`, `coNP_subset_US`, `US_subset_CeqP`: basic containments.
+* `mem_US`: unfolding the definition.
+* `UP_subset_US`, `coNP_subset_US`, `US_subset_CeqP`, `US_subset_DP`: basic containments.
 * `inter_mem_US`, `PolyTimeReducible.mem_US`: intersection and reduction closure.
 
 ## References
@@ -43,6 +47,9 @@ variable {α : Type} {enc : α ↪ List Bool} {A B : Set α}
 def US (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ f ∈ SharpP enc, ∀ a, a ∈ A ↔ f a = 1}
 
+theorem mem_US : A ∈ US enc ↔ ∃ f ∈ SharpP enc, ∀ a, a ∈ A ↔ f a = 1 :=
+  Iff.rfl
+
 /-- Globally unambiguous verifiers are special cases of unique-solution verifiers. -/
 theorem UP_subset_US : UP enc ⊆ US enc := by
   rintro A ⟨f, hf, -, hA⟩
@@ -55,6 +62,21 @@ theorem coNP_subset_US : coNP enc ⊆ US enc := by
   refine ⟨f + 1, SharpP.add_one_mem hf, fun a => ?_⟩
   simpa only [Set.mem_compl_iff, not_not, not_lt, Nat.le_zero, Pi.add_apply, Pi.one_apply,
     Nat.add_eq_right] using not_congr (hA a)
+
+/-- **`US ⊆ DP`** [Blass and Gurevich, Section 1, p. 81][BlassGurevich1982], where US is defined by
+one polynomially bounded witness and `DP` (their `DIFᴾ`) as an NP set intersected with a coNP set.
+The proof here is via counts: an accepting count is one exactly when it is positive, an NP
+condition, and its number of two-element subsets `C(f a, 2)` is zero, a coNP condition
+(`SharpP.choose_mem`). -/
+theorem US_subset_DP : US enc ⊆ DP enc := by
+  rintro A ⟨f, hf, hA⟩
+  refine ⟨{a | 0 < f a}, mem_NP_iff_exists_SharpP.mpr ⟨f, hf, fun _ => Iff.rfl⟩,
+    {a | 0 < (f a).choose 2}ᶜ, ?_, Set.ext fun a => ?_⟩
+  · rw [mem_coNP, compl_compl]
+    exact mem_NP_iff_exists_SharpP.mpr ⟨_, SharpP.choose_mem hf (.const 2), fun _ => Iff.rfl⟩
+  · simp only [hA a, Set.mem_inter_iff, Set.mem_ofPred_eq, Set.mem_compl_iff, not_lt, Nat.le_zero,
+      Nat.choose_eq_zero_iff]
+    omega
 
 /-- Subtracting one from the count gives a GapP zero test. -/
 theorem US_subset_CeqP : US enc ⊆ CeqP enc := by

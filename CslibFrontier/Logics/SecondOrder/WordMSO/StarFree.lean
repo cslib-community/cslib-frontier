@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Computability.Languages.StarFree
 public import CslibFrontier.Logics.SecondOrder.WordMSO.FirstOrder
+import CslibFrontier.Foundations.Data.List.Extract
 import CslibFrontier.Logics.SecondOrder.WordMSO.Separation
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Star-free languages are first-order definable
@@ -123,13 +125,8 @@ private theorem isFO_window : ∀ (e : StarFreeExpression α) {m n : ℕ} (lo hi
   | .char a, _, _, lo, hi => by simp [window, isFO_inWindow]
   | .plus e f, _, _, lo, hi => Formula.isFO_or.2 ⟨isFO_window e lo hi, isFO_window f lo hi⟩
   | .compl e, _, _, lo, hi => Formula.isFO_not.2 (isFO_window e lo hi)
-  | .comp e f, m, n, lo, hi => by
-    have hε : ((if e.matchEpsilon then window f lo hi else .falsum : Formula α m n)).IsFO := by
-      cases e.matchEpsilon
-      · exact Formula.isFO_falsum
-      · exact isFO_window f lo hi
-    exact Formula.isFO_or.2 ⟨hε, Formula.isFO_ex.2 (Formula.isFO_and.2 ⟨isFO_inWindow _ _ _,
-      Formula.isFO_and.2 ⟨isFO_window e _ _, isFO_window f _ _⟩⟩)⟩
+  | .comp e f, _, _, lo, hi => by
+    cases h : e.matchEpsilon <;> simp [window, h, isFO_inWindow, isFO_window e, isFO_window f]
 
 variable {ℓ : ℕ}
 
@@ -170,52 +167,40 @@ private theorem realize_inWindow (w : Fin ℓ → α) {m n : ℕ} (lo hi : Optio
     (inWindow lo hi x : Formula α m n).Realize w v V ↔
       lowerCut v lo ≤ v x ∧ (v x : ℕ) < upperCut v hi := by
   simp only [inWindow, Formula.realize_and]
-  apply and_congr
-  · cases lo with
-    | none => simp [afterLo, lowerCut]
-    | some l =>
-      simp only [afterLo, Formula.realize_lt, lowerCut, Fin.lt_def]
-      omega
-  · cases hi with
-    | none => simp [upToHi, upperCut]
-    | some h =>
-      simp only [upToHi, Formula.realize_not, Formula.realize_lt, upperCut, Fin.lt_def]
-      omega
+  refine and_congr ?_ ?_
+  · cases lo <;> simp [afterLo, lowerCut]
+  · cases hi <;> simp [upToHi, upperCut]
 
 /-! ### Factors of a word -/
 
-private theorem extract_self' (u : List α) (i : ℕ) : u.extract i i = [] := by
-  simp
-
-private theorem length_extract' (u : List α) (i j : ℕ) :
-    (u.extract i j).length = min (j - i) (u.length - i) := by
-  simp
-
-private theorem extract_split (u : List α) {i s j : ℕ} (his : i ≤ s) (hsj : s ≤ j) :
-    u.extract i j = u.extract i s ++ u.extract s j := by
-  simp only [List.extract_eq_take_drop]
-  have h : j - i = (s - i) + (j - s) := by omega
-  rw [h, List.take_add, List.drop_drop, Nat.add_sub_cancel' his]
-
-/-- A factor of `u` lies in `L * M` iff it splits, at some position of the factor, into a factor
-in `L` and a factor in `M`. -/
-private theorem extract_mem_mul {L M : _root_.Language α} (u : List α) {i j : ℕ} (hij : i ≤ j) :
-    u.extract i j ∈ L * M ↔ ∃ s, i ≤ s ∧ s ≤ j ∧ u.extract i s ∈ L ∧ u.extract s j ∈ M := by
+/-- A factor of `u` lies in `L * M` iff either `L` matches the empty word and the whole factor lies
+in `M`, or the factor splits after some position `p` in the window into a nonempty `L`-factor and
+an `M`-factor. -/
+private theorem extract_mem_mul {L M : _root_.Language α} (u : List α) {i j : ℕ}
+    (hij : i ≤ j) (hj : j ≤ u.length) :
+    u.extract i j ∈ L * M ↔ ([] ∈ L ∧ u.extract i j ∈ M) ∨
+      ∃ p : Fin u.length, (i ≤ p ∧ (p : ℕ) < j) ∧
+        u.extract i (p + 1) ∈ L ∧ u.extract (p + 1) j ∈ M := by
   rw [Language.mem_mul]
   constructor
   · rintro ⟨x, hx, y, hy, hxy⟩
-    have hlen := congrArg List.length hxy
-    rw [List.length_append, length_extract'] at hlen
-    have hs : i + x.length ≤ j := by omega
-    have hsplit := extract_split u (Nat.le_add_right i x.length) hs
-    rw [hsplit] at hxy
-    have hxl : x.length = (u.extract i (i + x.length)).length := by
-      rw [length_extract']
-      omega
-    obtain ⟨h1, h2⟩ := List.append_inj hxy hxl
-    exact ⟨_, Nat.le_add_right _ _, hs, h1 ▸ hx, h2 ▸ hy⟩
-  · rintro ⟨s, his, hsj, hL, hM⟩
-    exact ⟨_, hL, _, hM, (extract_split u his hsj).symm⟩
+    cases x with
+    | nil => exact .inl ⟨hx, hxy ▸ hy⟩
+    | cons a xs =>
+      have hlen := congrArg List.length hxy
+      simp only [List.length_append, List.length_cons, List.extract_eq_take_drop,
+        List.length_take, List.length_drop] at hlen
+      have hs : i + (a :: xs).length ≤ j := by simp only [List.length_cons]; omega
+      rw [← u.extract_append_extract (Nat.le_add_right i (a :: xs).length) hs] at hxy
+      have hxl : (a :: xs).length = (u.extract i (i + (a :: xs).length)).length := by
+        simp only [List.length_cons, List.extract_eq_take_drop, List.length_take, List.length_drop]
+        omega
+      obtain ⟨h1, h2⟩ := List.append_inj hxy hxl
+      refine .inr ⟨⟨i + xs.length, by omega⟩, ⟨by simp only; omega, by simp only; omega⟩, ?_⟩
+      simpa only [List.length_cons, Nat.add_assoc] using ⟨h1 ▸ hx, h2 ▸ hy⟩
+  · rintro (⟨hL, hM⟩ | ⟨p, ⟨hip, hpj⟩, hL, hM⟩)
+    · exact ⟨[], hL, _, hM, rfl⟩
+    · exact ⟨_, hL, _, hM, u.extract_append_extract (by omega) (by omega)⟩
 
 /-- A factor of `u` is the one-letter word `a` iff the window has exactly one position, and `u`
 has the letter `a` there. -/
@@ -225,29 +210,22 @@ private theorem extract_eq_singleton (u : List α) (a : α) {i j : ℕ} (hj : j 
   constructor
   · intro h
     have hlen := congrArg List.length h
-    rw [length_extract', List.length_singleton] at hlen
+    simp only [List.extract_eq_take_drop, List.length_take, List.length_drop,
+      List.length_singleton] at hlen
     have hji : j = i + 1 := by omega
     have hi : i < u.length := by omega
     subst hji
-    have h1 : u.extract i (i + 1) = [u[i]] := by
-      simp only [List.extract_eq_take_drop, Nat.add_sub_cancel_left]
-      rw [List.take_one_drop_eq_of_lt_length hi]
-      rfl
-    rw [h1, List.singleton_inj] at h
-    exact ⟨⟨i, hi⟩, ⟨le_rfl, Nat.lt_succ_self i⟩, h, fun q hq => Fin.ext (by simp only; omega)⟩
+    rw [List.extract_eq_singleton (List.getElem?_eq_getElem hi), List.singleton_inj] at h
+    exact ⟨⟨i, hi⟩, ⟨le_rfl, Nat.lt_succ_self i⟩, h, fun q hq => by fin_index⟩
   · rintro ⟨⟨p, hp⟩, ⟨hip, hpj⟩, hpa, huniq⟩
     have hji : j = i + 1 := by
       by_contra hne
       have h1 := huniq ⟨i, by omega⟩ ⟨le_rfl, by simp only; omega⟩
       have h2 := huniq ⟨i + 1, by omega⟩ ⟨by simp only; omega, by simp only; omega⟩
-      have := congrArg Fin.val (h1.trans h2.symm)
-      simp only at this
-      omega
+      fin_index
     subst hji
     obtain rfl : p = i := by simp only at hip hpj; omega
-    simp only [List.extract_eq_take_drop, Nat.add_sub_cancel_left]
-    rw [List.take_one_drop_eq_of_lt_length hp]
-    exact congrArg (fun b => [b]) hpa
+    exact List.extract_eq_singleton (List.getElem?_eq_some_iff.mpr ⟨hp, hpa⟩)
 
 /-- The window formula of `e` holds iff the factor of the word in the window belongs to the
 language of `e`. -/
@@ -273,47 +251,20 @@ private theorem realize_window (u : List α) : ∀ (e : StarFreeExpression α) {
       realize_window u e lo hi v V h]
     exact Iff.rfl
   | .comp e f, m, _, lo, hi, v, V, h => by
-    have hj := upperCut_le v hi
-    rw [StarFreeExpression.matches'_comp, extract_mem_mul u h]
+    rw [StarFreeExpression.matches'_comp, extract_mem_mul u h (upperCut_le v hi)]
     simp only [window, Formula.realize_or, Formula.realize_ex, Formula.realize_and,
       realize_inWindow, Fin.snoc_last, lowerCut_liftBound, upperCut_liftBound]
-    constructor
-    · rintro (hε | ⟨p, ⟨hip, hpj⟩, he, hf⟩)
-      · cases hm : e.matchEpsilon with
-        | false =>
-          simp only [hm, Bool.false_eq_true, ↓reduceIte, Formula.realize_falsum] at hε
-        | true =>
-          simp only [hm, ↓reduceIte] at hε
-          refine ⟨lowerCut v lo, le_rfl, h, ?_, (realize_window u f lo hi v V h).1 hε⟩
-          rw [extract_self']
-          exact (StarFreeExpression.matchEpsilon_iff e).1 hm
-      · rw [realize_window u e _ _ _ V
-          (by simp only [lowerCut_liftBound, upperCut_some_last]; omega),
-          lowerCut_liftBound, upperCut_some_last] at he
-        rw [realize_window u f _ _ _ V
-          (by simp only [lowerCut_some_last, upperCut_liftBound]; omega),
-          lowerCut_some_last, upperCut_liftBound] at hf
-        exact ⟨p + 1, by omega, by omega, he, hf⟩
-    · rintro ⟨s, his, hsj, he, hf⟩
-      rcases Nat.eq_or_lt_of_le his with rfl | hlt
-      · left
-        rw [extract_self'] at he
-        have hm := (StarFreeExpression.matchEpsilon_iff e).2 he
-        simp only [hm, ↓reduceIte]
-        exact (realize_window u f lo hi v V h).2 hf
-      · right
-        have hs1 : s - 1 + 1 = s := by omega
-        refine ⟨⟨s - 1, by omega⟩, ⟨by simp only; omega, by simp only; omega⟩, ?_, ?_⟩
-        · rw [realize_window u e _ _ _ V
-            (by simp only [lowerCut_liftBound, upperCut_some_last]; omega),
-            lowerCut_liftBound, upperCut_some_last]
-          simp only [hs1]
-          exact he
-        · rw [realize_window u f _ _ _ V
-            (by simp only [lowerCut_some_last, upperCut_liftBound]; omega),
-            lowerCut_some_last, upperCut_liftBound]
-          simp only [hs1]
-          exact hf
+    refine or_congr ?_ (exists_congr fun p => and_congr_right fun ⟨hip, hpj⟩ => and_congr ?_ ?_)
+    · rw [← StarFreeExpression.matchEpsilon_iff e]
+      cases e.matchEpsilon
+      · simp
+      · simpa only [↓reduceIte, true_and] using realize_window u f lo hi v V h
+    · rw [realize_window u e _ _ _ V
+        (by simp only [lowerCut_liftBound, upperCut_some_last]; omega),
+        lowerCut_liftBound, upperCut_some_last]
+    · rw [realize_window u f _ _ _ V
+        (by simp only [lowerCut_some_last, upperCut_liftBound]; omega),
+        lowerCut_some_last, upperCut_liftBound]
 
 /-! ### The translation -/
 

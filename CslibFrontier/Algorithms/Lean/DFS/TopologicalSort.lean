@@ -16,14 +16,14 @@ public import Mathlib.Data.Fintype.EquivFin
 
 Topological sort of a directed graph given by adjacency lists: the vertices in reverse order of
 finishing time under the depth-first search of `CslibFrontier.Algorithms.Lean.DFS.Basic`, following
-[Cormen et al., Section 22.4][CLRS2009].
+[Cormen et al., Section 22.4][CLRS2009]. Linear-time iterative execution on the standard-basis word
+RAM is proved in `CslibFrontier.Algorithms.WordRAM.DFS`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.DFS.IsTopologicalOrder`: a list of all the vertices, without repetition,
   in which the source of every edge comes before its target.
-* `Cslib.Algorithms.Lean.DFS.topologicalSort`, `Cslib.Algorithms.Lean.DFS.topologicalSortM`:
-  topological sort, and topological sort in `TimeM`.
+* `Cslib.Algorithms.Lean.DFS.topologicalSort`: topological sort via reverse DFS finishing order.
 
 ## Main results
 
@@ -33,8 +33,6 @@ finishing time under the depth-first search of `CslibFrontier.Algorithms.Lean.DF
   vertices, topological sort returns a topological order exactly when the graph is acyclic
   [Cormen et al., Theorem 22.12][CLRS2009]. In particular a graph is acyclic if and only if it has
   a topological order (`Cslib.Algorithms.Lean.DFS.acyclic_iff_exists_isTopologicalOrder`).
-* `Cslib.Algorithms.Lean.DFS.time_topologicalSortM`: topological sort costs exactly
-  `|vs| + ∑ v, |adj v|`, linear in the size of the graph.
 
 ## References
 
@@ -93,7 +91,7 @@ from the vertices `vs` in turn. -/
 def topologicalSort [DecidableEq V] (adj : V → List V) (vs : List V) : List V :=
   (dfs adj vs.length vs).finished
 
-private theorem card_le_length [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs) :
+theorem card_le_length [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs) :
     Fintype.card V ≤ vs.length := by
   classical
   calc Fintype.card V = (Finset.univ : Finset V).card := rfl
@@ -138,36 +136,13 @@ theorem acyclic_iff_exists_isTopologicalOrder [Finite V] :
 
 end TopologicalSort
 
-/-! ### Cost -/
-
-open TimeM
-
-/-- Topological sort in `TimeM`. -/
-def topologicalSortM [DecidableEq V] (adj : V → List V) (vs : List V) : TimeM ℕ (List V) :=
-  State.finished <$> dfsM adj vs.length vs
-
-section Cost
-
-variable [DecidableEq V] [Fintype V] {vs : List V}
-
-omit [Fintype V] in
-theorem ret_topologicalSortM (adj : V → List V) (vs : List V) :
-    (topologicalSortM adj vs).ret = topologicalSort adj vs := by
-  simp [topologicalSortM, ret_dfsM, topologicalSort]
-
-/-- **Topological sort in linear time**: from a list `vs` of the vertices, topological sort costs
-exactly `|vs| + ∑ v, |adj v|`, the number of vertices listed plus the number of edges. -/
-theorem time_topologicalSortM (hvs : ∀ v, v ∈ vs) :
-    (topologicalSortM adj vs).time = vs.length + ∑ v, (adj v).length := by
-  rw [topologicalSortM, TimeM.time_map, time_dfsM]
-  congr 1
-  have hn : (dfs adj vs.length vs).finished.Nodup := nodup_topologicalSort hvs
-  rw [outDegreeSum, ← List.sum_toFinset _ hn]
-  congr 1
-  ext v
-  have hv : v ∈ (dfs adj vs.length vs).finished := mem_topologicalSort hvs v
-  simpa using hv
-
-end Cost
+/-- Topological sort of `List.finRange N` has length `N`. -/
+theorem length_topologicalSort_finRange {N : ℕ} (adj : Fin N → List (Fin N)) :
+    (topologicalSort adj (List.finRange N)).length = N := by
+  have hnd := nodup_topologicalSort (adj := adj) List.mem_finRange
+  have huniv : (topologicalSort adj (List.finRange N)).toFinset = Finset.univ := by
+    ext v; simp [mem_topologicalSort List.mem_finRange]
+  rw [← List.toFinset_card_of_nodup hnd, huniv]
+  simp
 
 end Cslib.Algorithms.Lean.DFS

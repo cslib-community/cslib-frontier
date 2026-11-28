@@ -43,10 +43,8 @@ open Turing.MultiTapeTM
 private theorem zipWith_listRows_eq {α β : Type} (evaluate : α → List Bool → β)
     (list : List α) (width : ℕ) (tape : List Bool) :
     List.zipWith evaluate list (BitString.listRows list.length width tape) =
-      list.zipIdx.map (fun p => evaluate p.1 (BitString.listRow width p.2 tape)) := by
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  simp [BitString.listRows]
+      list.zipIdx.map (fun p => evaluate p.1 (BitString.listRow width p.2 tape)) :=
+  List.ext_getElem (by simp) fun _ _ _ => by simp [BitString.listRows]
 
 /-- Traverse a framed input list with a strict PPT program. One machine and polynomial clock
 work for all lists, including the empty list, and charge the complete encoded output list. -/
@@ -56,37 +54,29 @@ theorem IsPPTOn.mapM {α β : Type} {input : α ↪ List Bool} {output : β ↪ 
     IsPPTOn (encList input) (encList output) (fun list => list.mapM program) := by
   obtain ⟨c, d, evaluate, hevaluate, _, hlaw⟩ := hprogram.exists_total_seeded_evaluator
   let budget (list : List α) := c * ((encList input list).length + 1) ^ d
-  have hencode : ComputableTidilyInPolyTime (encList input) (encList input) encBits :=
+  have hencode : ComputableInPolyTime (encList input) (encList input) encBits :=
     .of_eq fun _ => rfl
-  have hbudget : ComputableTidilyInPolyTime budget (encList input) encUnary := by
-    dsimp only [budget]
-    fun_prop
-  have hcount : ComputableTidilyInPolyTime (List.length (α := α))
-      (encList input) encUnary := by fun_prop
-  have hrun : ComputableTidilyInPolyTime (fun p : List α × List Bool =>
+  have hbudget : ComputableInPolyTime budget (encList input) encUnary := by
+    dsimp only [budget]; fun_prop
+  have hcount : ComputableInPolyTime (List.length (α := α)) (encList input) encUnary := by fun_prop
+  have hrun : ComputableInPolyTime (fun p : List α × List Bool =>
       p.1.zipIdx.map (fun q => evaluate q.1 (BitString.listRow (budget p.1) q.2 p.2)))
-      (encPair (encList input) encBits) (encList output) := by
-    apply ComputableTidilyInPolyTime.mapWithInput
-    · fun_prop
-    · exact hevaluate.tidy.comp (show ComputableTidilyInPolyTime
-        (fun p : (List α × List Bool) × (α × ℕ) =>
-          (p.2.1, BitString.listRow (budget p.1.1) p.2.2 p.1.2))
-        (encPair (encPair (encList input) encBits) (encPair input encUnary))
-        (encPair input encBits) by fun_prop)
-  have hcoins := (ComputableInPolyTime.of_tidy
-    (ComputableTidilyInPolyTime.unary_mul.comp (hcount.prod hbudget))).sampleList
-  apply (hcoins.map_with (f := fun list tape => list.zipIdx.map
-    (fun q => evaluate q.1 (BitString.listRow (budget list) q.2 tape))) (.of_tidy hrun)).congr
-  intro list
+      (encPair (encList input) encBits) (encList output) :=
+    ComputableInPolyTime.mapWithInput (by fun_prop) (hevaluate.comp (show ComputableInPolyTime
+      (fun p : (List α × List Bool) × (α × ℕ) =>
+        (p.2.1, BitString.listRow (budget p.1.1) p.2.2 p.1.2))
+      (encPair (encPair (encList input) encBits) (encPair input encUnary))
+      (encPair input encBits) by fun_prop))
+  refine (((ComputableInPolyTime.unary_mul.comp (hcount.prod hbudget)).sampleList).map_with
+    (f := fun list tape => list.zipIdx.map
+      (fun q => evaluate q.1 (BitString.listRow (budget list) q.2 tape))) hrun).congr fun list => ?_
   rw [ProbComp.eval_map, BitString.eval_sampleList]
-  symm
-  rw [ProbComp.eval_mapM_of_uniformList program evaluate (budget list) list]
-  · simp only [zipWith_listRows_eq, Function.comp_def]
-  · intro a ha
-    apply hlaw
-    exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by
-      have := length_le_encList_of_mem input ha
-      omega) d)
+  dsimp only [Function.comp_def]
+  rw [ProbComp.eval_mapM_of_uniformList program evaluate (budget list) list
+    fun a ha => hlaw a _ (Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d))]
+  · simp only [zipWith_listRows_eq]
+  · have := length_le_encList_of_mem input ha
+    omega
 
 /-- A list traversal may use the complete original input in every call. Preparing the pairs
 charges for repeated captured data as well as all elements of the computed list. -/
@@ -97,11 +87,10 @@ theorem IsPPTOn.mapMWith {α β γ : Type} {input : α ↪ List Bool}
     (hprogram : IsPPTOn (encPair input element) output (fun p => program p.1 p.2))
     (hlist : ComputableInPolyTime list input (encList element)) :
     IsPPTOn input (encList output) (fun a => (list a).mapM (program a)) := by
-  have hlist := hlist.tidy
-  have hpairs : ComputableTidilyInPolyTime (fun a => (list a).map fun b => (a, b))
-      input (encList (encPair input element)) := by fun_prop
-  apply (hprogram.mapM.preprocess (ComputableInPolyTime.of_tidy hpairs)).congr
-  intro a
-  simp only [List.mapM_map, Function.comp_def]
+  have hpairs : ComputableInPolyTime (fun a => (list a).map fun b => (a, b))
+      input (encList (encPair input element)) :=
+    ComputableInPolyTime.mapWithInput hlist ComputableInPolyTime.id'
+  exact (hprogram.mapM.preprocess hpairs).congr fun a => by
+    simp only [List.mapM_map, Function.comp_def]
 
 end Cslib.Probability

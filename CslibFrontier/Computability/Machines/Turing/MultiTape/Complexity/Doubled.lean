@@ -11,6 +11,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.InPlace
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
+
 /-!
 # Doubling bits
 
@@ -58,9 +61,9 @@ private theorem doubledTransducer_run (l : List Bool) :
 
 /-- Doubling the bits with framing markers uses linear work space. -/
 theorem doubled_inSpace :
-    ComputableTidilyInSpace doubled encBits encBits fun l => (encBits l).length :=
-  ComputableTidilyInSpace.of_inO (.of_linear
-    (doubledTransducer.computableTidilyInLinearTimeAndSpace fun l =>
+    ComputableInSpace doubled encBits encBits fun l => (encBits l).length :=
+  ComputableInSpace.of_inO (.of_linear
+    (ComputableInDegree.of_transducer doubledTransducer fun l =>
       (doubledTransducer_run l).symm))
 
 end Turing.MultiTapeTM

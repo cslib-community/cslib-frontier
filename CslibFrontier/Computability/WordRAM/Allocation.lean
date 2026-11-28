@@ -8,6 +8,8 @@ module
 -- upstream: candidate (based on edemaine/lean-trominoes @6d5b36c1)
 
 public import CslibFrontier.Computability.WordRAM.Notation
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Memory allocation and arrays on the word RAM
@@ -32,17 +34,18 @@ access is an addition followed by a load or a store. The registers they use are 
 * `Cslib.WordRAM.Block`, `Cslib.WordRAM.Block.Owns`, `Cslib.WordRAM.Block.read`,
   `Cslib.WordRAM.Block.Realizes`: a block of consecutive cells, address ownership, indexed read,
   and array realization.
-* `Cslib.WordRAM.clear`: memory with a range of cells set to `0`.
-* `Cslib.WordRAM.zeroFill`, `Cslib.WordRAM.alloc`, `Cslib.WordRAM.readAt`,
-  `Cslib.WordRAM.writeAt`: the standard-basis programs.
+* `Cslib.WordRAM.clear`, `Cslib.WordRAM.fill`: memory with a range of cells set to `0` or `v`.
+* `Cslib.WordRAM.zeroFill`, `Cslib.WordRAM.fillConst`, `Cslib.WordRAM.alloc`,
+  `Cslib.WordRAM.readAt`, `Cslib.WordRAM.writeAt`: the standard-basis programs.
 * `Cslib.WordRAM.Op.addAdditive`, `Cslib.WordRAM.zeroFillAdditive`,
   `Cslib.WordRAM.allocAdditive`, `Cslib.WordRAM.readAtAdditive`,
   `Cslib.WordRAM.writeAtAdditive`: the additive-basis counterparts.
 
 ## Main results
 
-* `Cslib.WordRAM.zeroFill_exec`, `Cslib.WordRAM.alloc_exec`, `Cslib.WordRAM.readAt_exec`,
-  `Cslib.WordRAM.writeAt_exec`: their executions, with exact instruction counts.
+* `Cslib.WordRAM.zeroFill_exec`, `Cslib.WordRAM.fillConst_exec`, `Cslib.WordRAM.alloc_exec`,
+  `Cslib.WordRAM.readAt_exec`, `Cslib.WordRAM.writeAt_exec`: their executions, with exact
+  instruction counts.
 
 ## References
 
@@ -71,6 +74,7 @@ structure Block where
 namespace Block
 
 /-- The block contains the cell at address `a`. -/
+@[wram_arith]
 def Owns (b : Block) (a : ℕ) : Prop := b.base ≤ a ∧ a < b.base + b.length
 
 /-- The contents of the block's cells in memory `m`, indexed from `0`. -/
@@ -81,9 +85,7 @@ def Realizes (b : Block) (m : ℕ → ℕ) (vs : Fin b.length → ℕ) : Prop :=
 
 /-- A block below the frontier is disjoint from any block allocated at the frontier. -/
 theorem disjoint_of_le {b : Block} {frontier k : ℕ} (hb : b.base + b.length ≤ frontier) {a : ℕ}
-    (ha : b.Owns a) : ¬(Block.mk frontier k).Owns a := by
-  simp only [Owns] at ha ⊢
-  omega
+    (ha : b.Owns a) : ¬(Block.mk frontier k).Owns a := by wram_omega [ha]
 
 /-- Writing a cell of the block updates the value at its index. -/
 theorem Realizes.update {b : Block} {m : ℕ → ℕ} {vs : Fin b.length → ℕ} (h : b.Realizes m vs)
@@ -138,7 +140,34 @@ theorem Block.realizes_clear (m : ℕ → ℕ) (base k : ℕ) :
     (Block.mk base k).Realizes (clear m base k) fun _ => 0 :=
   fun i => clear_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left i.2 _⟩
 
-/-! ## Zeroing a range of cells -/
+/-- Memory `m` with the `k` cells from address `base` set to `v`. -/
+def fill (m : ℕ → ℕ) (base k v : ℕ) : ℕ → ℕ :=
+  fun a => if base ≤ a ∧ a < base + k then v else m a
+
+/-- Filling `k` cells from `base` with `v` sets every cell in the block to `v`. -/
+theorem fill_of_owns {m : ℕ → ℕ} {base k v a : ℕ} (h : (Block.mk base k).Owns a) :
+    fill m base k v a = v := by
+  simp [fill, show base ≤ a ∧ a < base + k from h]
+
+/-- Filling `k` cells from `base` with `v` leaves every cell outside the block unchanged. -/
+theorem fill_of_not_owns {m : ℕ → ℕ} {base k v a : ℕ} (h : ¬(Block.mk base k).Owns a) :
+    fill m base k v a = m a := by
+  simp only [fill, ite_eq_right_iff]
+  exact fun h' => absurd h' h
+
+/-- Filling zero cells leaves memory unchanged. -/
+@[simp]
+theorem fill_zero (m : ℕ → ℕ) (base v : ℕ) : fill m base 0 v = m := by
+  funext a
+  simp [fill]
+
+theorem fill_succ (m : ℕ → ℕ) (base k v : ℕ) :
+    fill m base (k + 1) v = Function.update (fill m base k v) (base + k) v := by
+  funext a
+  simp only [fill, Function.update_apply]
+  split_ifs <;> omega
+
+/-! ## Zeroing and filling a range of cells -/
 
 /-- Zero the cells from the address in register `cur` up to the address in register `stop`,
 counting `cur` up to `stop`; registers `zero` and `one` hold `0` and `1`. -/
@@ -174,16 +203,82 @@ theorem zeroFill_exec {w : ℕ} {cur stop zero one : Fin r} {x : Data r} (hcs : 
   have h := Exec.loop (cond := .lt cur stop) xs k 2
     (fun i hi => by simp only [Cond.holds_lt, hcur, hstop]; omega)
     (by simp only [Cond.holds_lt, hcur, hstop]; omega) hbody
-  have hx : xs 0 = x := by
-    ext a
-    · simp [xs, hb]
-    · simp [xs]
+  have hx : xs 0 = x := by ext a <;> simp [xs, hb]
   have hk : xs k = ⟨Function.update x.regs cur (x.regs stop), clear x.mem b k⟩ := by
     simp only [xs]
     congr 2
     omega
-  rw [hx, hk, show k * (2 + 2) + 2 = 4 * k + 2 by omega] at h
-  exact h
+  rwa [hx, hk, show k * (2 + 2) + 2 = 4 * k + 2 by omega] at h
+
+/-- Fill the `len` cells starting at address `base` with the word in register `val`, using counter
+register `idx` and address scratch register `addr`; register `one` holds `1`. Does not modify
+`base`, `len`, `val`, or `one` (and permits aliasing among them, e.g. `len = val`). -/
+def fillConst (base len val one idx addr : Fin r) : Code .standard r :=
+  ram[ idx ← #0; while idx < len do [ addr ← base + idx; *addr ← val; idx ← idx + one ] ]
+
+/-- Filling `k` cells at `base` with `val` takes `5 k + 3` instructions: one setup store of `0`
+to `idx`, five instructions per cell (add, store, increment, branch, jump), and two to exit. -/
+theorem fillConst_exec {w : ℕ} {base len val one idx addr : Fin r} {x : Data r}
+    (hib : idx ≠ base) (hil : idx ≠ len) (hiv : idx ≠ val) (hio : idx ≠ one)
+    (hab : addr ≠ base) (hal : addr ≠ len) (hav : addr ≠ val) (hao : addr ≠ one)
+    (hai : addr ≠ idx) (h1 : x.regs one = 1)
+    (hfit_end : Fits w (x.regs base + x.regs len))
+    (hfit_len : Fits w (x.regs len)) :
+    ∃ y, Exec w (fillConst base len val one idx addr) x y (5 * x.regs len + 3) ∧
+      (∀ i, i ≠ idx → i ≠ addr → y.regs i = x.regs i) ∧
+      y.regs idx = x.regs len ∧
+      y.mem = fill x.mem (x.regs base) (x.regs len) (x.regs val) := by
+  set b := x.regs base
+  set k := x.regs len
+  set v := x.regs val
+  let regAt : ℕ → Fin r → ℕ
+    | 0 => Function.update x.regs idx 0
+    | i + 1 => Function.update (Function.update x.regs addr (b + i)) idx (i + 1)
+  let xs : ℕ → Data r := fun i => ⟨regAt i, fill x.mem b i v⟩
+  have hpres (i : ℕ) (j : Fin r) (hji : j ≠ idx) (hja : j ≠ addr) :
+      (xs i).regs j = x.regs j := by
+    cases i <;> simp [xs, regAt, Function.update_of_ne hji, Function.update_of_ne hja]
+  have hidx (i : ℕ) : (xs i).regs idx = i := by
+    cases i <;> simp [xs, regAt]
+  have hbody (i : ℕ) (hi : i < k) :
+      Exec w (ram[ addr ← base + idx; *addr ← val; idx ← idx + one ]) (xs i) (xs (i + 1)) 3 := by
+    have hb_i : (xs i).regs base = b := hpres i base hib.symm hab.symm
+    have hv_i : (xs i).regs val = v := hpres i val hiv.symm hav.symm
+    have ho_i : (xs i).regs one = 1 := (hpres i one hio.symm hao.symm).trans h1
+    have hadd : Fits w ((xs i).regs base + (xs i).regs idx) := by
+      rw [hb_i, hidx]; exact hfit_end.of_le (by omega)
+    convert (Exec.bin (f := .add) (d := addr) (i := base) (j := idx) (x := xs i) hadd).seq
+      ((Exec.store (a := addr) (s := val)).seq
+        (Exec.bin (f := .add) (d := idx) (i := idx) (j := one) ?hinc)) using 1
+    case hinc =>
+      simp only [Data.write_regs, Data.set_regs, Function.update_of_ne hai.symm,
+        Function.update_of_ne hao.symm, hidx, ho_i, BinOp.eval]
+      exact hfit_len.of_le (by omega)
+    ext a
+    · simp only [Data.set_regs, Data.write_regs, BinOp.eval, Function.update_apply,
+        hb_i, hidx, ho_i]
+      by_cases hai_a : a = idx
+      · subst hai_a; simp [xs, regAt, hai.symm, hao.symm]
+      · by_cases haa : a = addr
+        · subst haa; simp [xs, regAt, hai_a]
+        · simpa [xs, regAt, hai_a, haa] using (hpres i a hai_a haa).symm
+    · simp only [Data.set_mem, Data.write_mem, Data.set_regs, BinOp.eval, Function.update_self,
+        Function.update_of_ne hav.symm, hb_i, hv_i, hidx]
+      simp [xs, fill_succ]
+  have hloop := Exec.loop (cond := .lt idx len) xs k 3
+    (fun i hi => by
+      simp only [Cond.holds_lt, hidx, hpres i len hil.symm hal.symm]; exact hi)
+    (by
+      simp only [Cond.holds_lt, hidx, hpres k len hil.symm hal.symm]; exact Nat.lt_irrefl k)
+    hbody
+  have e₀ : Exec (B := .standard) w (.op (.const idx 0)) x (xs 0) 1 := by
+    have h0eq : xs 0 = x.set idx 0 := by ext a <;> simp [xs, regAt]
+    rw [h0eq]
+    exact Exec.const (fits_zero w)
+  refine ⟨xs k, ?_, hpres k, hidx k, rfl⟩
+  unfold fillConst
+  convert e₀.seq hloop using 1
+  omega
 
 /-! ## Allocation -/
 

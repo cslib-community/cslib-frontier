@@ -13,7 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.BitString.UniformSplit
 
 /-!
 # Saved tapes for encrypted key links
@@ -47,8 +47,10 @@ one `capacity * encCoins`-bit row, including repeated keys and repeated plaintex
     (n encCoins capacity : ℕ) (zero : Bool) (keys : List (List Bool × List Bool))
     (tape : List Bool) : List (List (List Bool)) :=
   List.zipWith (fun adjacent row =>
-    let bits := if zero then List.replicate adjacent.1.2.length false else adjacent.1.2
-    encryptBitsCoins evaluate n encCoins adjacent.2.1 bits (row.take (bits.length * encCoins)))
+    let prev := adjacent.1
+    let next := adjacent.2
+    let bits := if zero then List.replicate prev.2.length false else prev.2
+    encryptBitsCoins evaluate n encCoins next.1 bits (row.take (bits.length * encCoins)))
     (keys.zip keys.tail) (BitString.listRows (keys.zip keys.tail).length (capacity * encCoins) tape)
 
 /-- Every surrounding link uses an independent padded row. Component laws are required only
@@ -63,18 +65,16 @@ theorem eval_encryptKeyLinks_eq_map_coins (E : Scheme)
       (BitString.uniformList ((keys.zip keys.tail).length * (capacity * encCoins))).map
         (encryptKeyLinksCoins evaluate n encCoins capacity zero keys) := by
   have hprogram : (if zero then E.encryptZeroKeyLinks n keys else E.encryptKeyLinks n keys) =
-      (keys.zip keys.tail).mapM (fun adjacent => E.encryptBits n adjacent.2.1
-        (if zero then List.replicate adjacent.1.2.length false else adjacent.1.2)) := by
+      (keys.zip keys.tail).mapM fun adjacent => E.encryptBits n adjacent.2.1
+        (if zero then List.replicate adjacent.1.2.length false else adjacent.1.2) := by
     cases zero <;> rfl
   rw [hprogram]
   apply ProbComp.eval_mapM_of_uniformList
   intro adjacent hadjacent
   obtain ⟨hprev, hnext⟩ := List.of_mem_zip hadjacent
   apply E.eval_encryptBits_eq_map_coins_of_le
-  · intro bit _
-    exact hencrypt adjacent.2 (List.mem_of_mem_tail hnext) bit
-  · apply Nat.mul_le_mul_right encCoins
-    cases zero <;> simpa using hwidth adjacent.1 hprev
+  · exact fun bit _ => hencrypt adjacent.2 (List.mem_of_mem_tail hnext) bit
+  · exact Nat.mul_le_mul_right encCoins (by cases zero <;> simpa using hwidth adjacent.1 hprev)
 
 /-- Replay the surrounding links and the active boundary splice. The middle row reserves one
 fewer component seed; extra capacity within any row is ignored. -/
@@ -112,68 +112,42 @@ theorem eval_spliceEncryptedKeyLink_eq_map_coins (E : Scheme)
         (spliceEncryptedKeyLinkCoins evaluate n encCoins capacity before predecessor next after
           cut challenge) := by
   have hpred := hwidth predecessor (by simp)
-  have hpos : 0 < capacity := by omega
+  have hmemF {key} (hkey : key ∈ before ++ [predecessor]) :
+      key ∈ before ++ predecessor :: next :: after := by
+    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hkey ⊢
+    exact hkey.elim Or.inl (Or.inr ∘ Or.inl)
+  have hmemB {key} (hkey : key ∈ next :: after) :
+      key ∈ before ++ predecessor :: next :: after :=
+    List.mem_append_right _ (List.mem_cons_of_mem _ hkey)
+  have hfront := E.eval_encryptKeyLinks_eq_map_coins evaluate n encCoins capacity false
+    (before ++ [predecessor]) (fun key hk => hwidth key (hmemF hk))
+    (fun key hk => hencrypt key (hmemF hk))
+  have hback := E.eval_encryptKeyLinks_eq_map_coins evaluate n encCoins capacity true
+    (next :: after) (fun key hk => hwidth key (hmemB hk))
+    (fun key hk => hencrypt key (hmemB hk))
   have hfrontLength : ((before ++ [predecessor]).zip (before ++ [predecessor]).tail).length =
       before.length := by simp
   have hbackLength : ((next :: after).zip (next :: after).tail).length = after.length := by simp
-  have hfront := E.eval_encryptKeyLinks_eq_map_coins evaluate n encCoins capacity false
-    (before ++ [predecessor])
-    (fun key hkey => hwidth key (by
-      simp only [List.mem_append, List.mem_cons,
-      List.not_mem_nil, or_false] at hkey ⊢
-      rcases hkey with h | h
-      · exact Or.inl h
-      · exact Or.inr (Or.inl h)))
-    (fun key hkey => hencrypt key (by
-      simp only [List.mem_append, List.mem_cons,
-      List.not_mem_nil, or_false] at hkey ⊢
-      rcases hkey with h | h
-      · exact Or.inl h
-      · exact Or.inr (Or.inl h)))
-  have hback := E.eval_encryptKeyLinks_eq_map_coins evaluate n encCoins capacity true
-    (next :: after)
-    (fun key hkey => hwidth key (by
-      simp only [List.mem_append, List.mem_cons] at hkey ⊢
-      exact Or.inr (Or.inr hkey)))
-    (fun key hkey => hencrypt key (by
-      simp only [List.mem_append, List.mem_cons] at hkey ⊢
-      exact Or.inr (Or.inr hkey)))
   simp only [Bool.false_eq_true, ↓reduceIte, hfrontLength] at hfront
   simp only [↓reduceIte, hbackLength] at hback
   have hmiddle := E.eval_spliceEncryptedBit_eq_map_coins_of_le evaluate n encCoins
     ((capacity - 1) * encCoins) next.1 cut (predecessor.2.drop (cut + 1)) challenge
-    (hencrypt next (by simp)) (Nat.mul_le_mul_right encCoins (by
-      simp only [List.length_drop]
-      omega))
+    (hencrypt next (by simp))
+    (Nat.mul_le_mul_right encCoins (by simp only [List.length_drop]; omega))
   have hsize : ((before.length + after.length + 1) * capacity - 1) * encCoins =
       before.length * (capacity * encCoins) +
         ((capacity - 1) * encCoins + after.length * (capacity * encCoins)) := by
-    have heq : (before.length + after.length + 1) * capacity =
+    have : (before.length + after.length + 1) * capacity =
         before.length * capacity + after.length * capacity + capacity := by ring
     have hsub : (before.length + after.length + 1) * capacity - 1 =
         before.length * capacity + (capacity - 1) + after.length * capacity := by omega
     rw [hsub]
     ring
-  let front := encryptKeyLinksCoins evaluate n encCoins capacity false (before ++ [predecessor])
-  let middle := fun row : List Bool => spliceEncryptedBitCoins evaluate n encCoins next.1 cut
-    (predecessor.2.drop (cut + 1)) challenge
-    (row.take ((cut + (predecessor.2.drop (cut + 1)).length) * encCoins))
-  let back := encryptKeyLinksCoins evaluate n encCoins capacity true (next :: after)
-  rw [hsize, PMF.map]
-  change _ = (BitString.uniformList (before.length * (capacity * encCoins) +
-    ((capacity - 1) * encCoins + after.length * (capacity * encCoins)))).bind (fun tape =>
-      PMF.pure (front (tape.take (before.length * (capacity * encCoins))) ++
-        middle ((tape.drop (before.length * (capacity * encCoins))).take
-          ((capacity - 1) * encCoins)) ::
-        back ((tape.drop (before.length * (capacity * encCoins))).drop
-          ((capacity - 1) * encCoins))))
-  rw [BitString.uniformList_bind_split _ _ (fun first rest => PMF.pure
-    (front first ++ middle (rest.take ((capacity - 1) * encCoins)) ::
-      back (rest.drop ((capacity - 1) * encCoins))))]
   simp only [pmf_norm, spliceEncryptedKeyLink, hfront, hmiddle, hback]
-  congr 1 with first : 1
-  rw [BitString.uniformList_bind_split _ _ (fun second third =>
-    PMF.pure (front first ++ middle second :: back third))]
+  rw [hsize]
+  unfold spliceEncryptedKeyLinkCoins
+  simpa only [PMF.map, Function.comp_def] using
+    (BitString.uniformList_map_split3 _ _ _ _).symm
 
 /-- Real and zero link replay is native polynomial time in the keys, tape, unary capacity,
 and unary per-encryption seed budget. -/
@@ -195,25 +169,16 @@ and unary per-encryption seed budget. -/
     (ComputableInPolyTime.zip (encPair encBits encBits) (encPair encBits encBits)).comp
       (hkeys.prod ((ListEncoding.tail (enc₁ := encPair encBits encBits)
         (enc := encList (encPair encBits encBits))).computableInPolyTime.comp hkeys))
-  have hrows : ComputableInPolyTime (fun a =>
-      BitString.listRows ((keys a).zip (keys a).tail).length (capacity a * encCoins a) (tape a))
-      input (encList encBits) := by fun_prop
   have hpairs := (ComputableInPolyTime.zip
     (encPair (encPair encBits encBits) (encPair encBits encBits)) encBits).comp
-      (hadjacent.prod hrows)
-  have hstep : ComputableInPolyTime
-      (fun p : α × ((List Bool × List Bool) × (List Bool × List Bool)) × List Bool =>
-        let bits := if zero then List.replicate p.2.1.1.2.length false else p.2.1.1.2
-        encryptBitsCoins evaluate (n p.1) (encCoins p.1) p.2.1.2.1 bits
-          (p.2.2.take (bits.length * encCoins p.1)))
-      (encPair input (encPair (encPair (encPair encBits encBits) (encPair encBits encBits))
-        encBits)) (encList encBits) := by
-    apply computableInPolyTime_encryptBitsCoins hevaluate <;> cases zero <;> fun_prop
-  have hmap := ComputableInPolyTime.mapWithInput (f := fun a pair =>
+      (hadjacent.prod (by fun_prop : ComputableInPolyTime (fun a =>
+        BitString.listRows ((keys a).zip (keys a).tail).length (capacity a * encCoins a) (tape a))
+        input (encList encBits)))
+  convert ComputableInPolyTime.mapWithInput (f := fun a pair =>
     let bits := if zero then List.replicate pair.1.1.2.length false else pair.1.1.2
     encryptBitsCoins evaluate (n a) (encCoins a) pair.1.2.1 bits
-      (pair.2.take (bits.length * encCoins a))) hpairs hstep
-  convert hmap using 1
+      (pair.2.take (bits.length * encCoins a))) hpairs
+    (by apply computableInPolyTime_encryptBitsCoins hevaluate <;> cases zero <;> fun_prop) using 1
   funext a
   exact List.map_uncurry_zip_eq_zipWith.symm
 

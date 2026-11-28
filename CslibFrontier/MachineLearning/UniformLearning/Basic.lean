@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Probability.Product
 public import Cslib.MachineLearning.PACLearning.Defs
 public import Cslib.Probability.PMF
+public import Mathlib.Data.Finset.Density
 public import Mathlib.InformationTheory.Hamming
+import CslibFrontier.Foundations.Data.Hamming
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 
@@ -53,6 +55,8 @@ bound the number of examples, not the running time of the learner.
 ## Main results
 
 * `Cslib.MachineLearning.UniformLearning.uniformExamples_eq_pi`: the examples are independent.
+* `Cslib.MachineLearning.UniformLearning.uniformError_eq_one_sub_dens`: the error is one minus
+  the fraction of the points of agreement.
 * `Cslib.MachineLearning.UniformLearning.learns_iff`: learning in terms of uniform samples of
   points.
 * `Cslib.MachineLearning.UniformLearning.mem_uniformRealizable_iff`: the uniform realizable family
@@ -104,19 +108,25 @@ of the points where `h` and `f` differ. -/
 noncomputable def uniformError (f h : (ι → Bool) → Bool) : ℝ :=
   hammingDist h f / 2 ^ Fintype.card ι
 
-theorem uniformError_nonneg (f h : (ι → Bool) → Bool) : 0 ≤ uniformError f h := by
-  unfold uniformError
-  positivity
+theorem uniformError_nonneg (f h : (ι → Bool) → Bool) : 0 ≤ uniformError f h :=
+  div_nonneg (Nat.cast_nonneg _) (by positivity)
 
 @[simp] theorem uniformError_self (f : (ι → Bool) → Bool) : uniformError f f = 0 := by
   simp [uniformError]
 
 /-- The error of a hypothesis is at most one. -/
 theorem uniformError_le_one (f h : (ι → Bool) → Bool) : uniformError f h ≤ 1 := by
-  rw [uniformError, div_le_one (by positivity)]
-  have := hammingDist_le_card_fintype (x := h) (y := f)
-  rw [Fintype.card_fun, Fintype.card_bool] at this
-  exact_mod_cast this
+  rw [uniformError, div_le_one (by positivity), ← Nat.cast_ofNat, ← Nat.cast_pow, Nat.cast_le,
+    ← Fintype.card_bool, ← Fintype.card_fun]
+  exact hammingDist_le_card_fintype
+
+/-- The error of a hypothesis is one minus the fraction of the points where it agrees with the
+target. -/
+theorem uniformError_eq_one_sub_dens (f h : (ι → Bool) → Bool) :
+    uniformError f h = 1 - (Finset.dens {x | h x = f x} : ℝ) := by
+  rw [uniformError, hammingDist_eq_card_mul_one_sub_dens, Fintype.card_fun, Fintype.card_bool]
+  push_cast
+  field_simp
 
 /-- The error is the probability that a uniform point is misclassified. -/
 theorem toOuterMeasure_uniformOfFintype_ne (f h : (ι → Bool) → Bool) :
@@ -189,17 +199,15 @@ theorem Learns.isPACLearnerFor {A : Learner (ι → Bool) Bool m}
   refine ⟨A, fun D _ hD => ?_⟩
   obtain ⟨f, hf, rfl⟩ := hD
   set q := (PMF.uniformOfFintype (ι → Bool)).map fun x => (x, f x)
-  have herr (h : (ι → Bool) → Bool) : error q.toMeasure h = ENNReal.ofReal (uniformError f h) :=
-    error_map_eq_ofReal_uniformError f h
-  have hopt : optimalError q.toMeasure C = 0 :=
-    le_antisymm ((iInf₂_le f hf).trans (by rw [herr, uniformError_self, ENNReal.ofReal_zero]))
-      zero_le
-  have hpi : Measure.pi (fun _ : Fin m => q.toMeasure) = (uniformExamples f m).toMeasure := by
-    rw [uniformExamples_eq_pi, PMF.toMeasure_pi]
-  rw [hpi, PMF.toMeasure_apply_eq_toOuterMeasure_apply _ ((Set.to_countable _).measurableSet)]
+  have hopt : optimalError q.toMeasure C = 0 := le_antisymm
+    ((iInf₂_le f hf).trans (by
+      rw [error_map_eq_ofReal_uniformError, uniformError_self, ENNReal.ofReal_zero])) zero_le
+  rw [← PMF.toMeasure_pi, ← uniformExamples_eq_pi,
+    PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (Set.to_countable _).measurableSet]
   refine ((uniformExamples f m).toOuterMeasure.mono fun S hS => ?_).trans
-    ((hA f hf).trans_eq (ENNReal.ofReal_coe_nnreal))
-  simp only [Set.mem_ofPred_eq, hopt, zero_add, herr, ← ENNReal.ofReal_coe_nnreal] at hS ⊢
-  exact ((ENNReal.ofReal_lt_ofReal_iff'.1 hS).1)
+    ((hA f hf).trans_eq ENNReal.ofReal_coe_nnreal)
+  simp only [Set.mem_ofPred_eq, hopt, zero_add, q, error_map_eq_ofReal_uniformError,
+    ← ENNReal.ofReal_coe_nnreal] at hS ⊢
+  exact (ENNReal.ofReal_lt_ofReal_iff'.1 hS).1
 
 end Cslib.MachineLearning.UniformLearning

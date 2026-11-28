@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.StatisticalDistance
+public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.IID
 
@@ -27,6 +28,8 @@ replaces approximately sampled values by exactly sampled ones.
 * `Cslib.Probability.PMF.dist_bind_pair_pi_le_sum`: retain the shared public sample in that bound.
 * `Cslib.Probability.PMF.dist_iid_le`: `k` independent draws are at distance at most `k` times the
   distance of one draw.
+* `Cslib.Probability.CloseTo.piFin`: `CloseTo` of `PMF.piFin` over `Fin k` adds to `k * δ` on
+  arbitrary (possibly infinite) types.
 
 ## References
 
@@ -65,21 +68,17 @@ theorem dist_pi_le_sum [DecidableEq ι] (p q : ∀ i, PMF (α i)) :
     | @insert i s hi ih =>
       let mixed := fun j => if j ∈ s then p j else q j
       have insert_eq : (fun j => if j ∈ insert i s then p j else q j) =
-          Function.update mixed i (p i) := by
-        funext j
-        by_cases hji : j = i
-        · subst j; simp
-        · simp [hji, mixed]
-      have mixed_eq : mixed = Function.update mixed i (q i) := by
-        funext j
-        by_cases hji : j = i
-        · subst j; simp [mixed, hi]
-        · simp [hji]
+          Function.update mixed i (p i) :=
+        funext fun j => by rcases eq_or_ne j i with rfl | hji <;> simp [*, mixed]
+      have mixed_eq : mixed = Function.update mixed i (q i) :=
+        funext fun j => by rcases eq_or_ne j i with rfl | hji <;> simp [*, mixed]
       calc
         _ ≤ dist (pi (Function.update mixed i (p i))) (pi mixed) +
-            dist (pi mixed) (pi q) := by rw [insert_eq]; exact dist_triangle _ _ _
+            dist (pi mixed) (pi q) := by
+          rw [insert_eq]
+          exact dist_triangle _ _ _
         _ ≤ dist (p i) (q i) + ∑ j ∈ s, dist (p j) (q j) := by
-          apply add_le_add _ ih
+          refine add_le_add ?_ ih
           conv_lhs => rw [mixed_eq]
           simpa only [Function.update_idem] using dist_pi_update_le mixed i (p i) (q i)
         _ = _ := by rw [Finset.sum_insert hi]
@@ -96,10 +95,9 @@ theorem dist_bind_pair_pi_le_sum [DecidableEq ι] {Seed : Type*} [Fintype Seed] 
         (seed.bind (fun s => (q s i).map (s, ·))) := by
   rw [dist_bind_pair]
   calc
-    _ ≤ ∑ s, (seed s).toReal * ∑ i, dist (p s i) (q s i) := by
-      apply Finset.sum_le_sum
-      intro s _
-      exact mul_le_mul_of_nonneg_left (dist_pi_le_sum _ _) ENNReal.toReal_nonneg
+    _ ≤ ∑ s, (seed s).toReal * ∑ i, dist (p s i) (q s i) :=
+      Finset.sum_le_sum fun s _ =>
+        mul_le_mul_of_nonneg_left (dist_pi_le_sum _ _) ENNReal.toReal_nonneg
     _ = _ := by
       simp only [Finset.mul_sum, dist_bind_pair]
       exact Finset.sum_comm
@@ -110,7 +108,24 @@ theorem dist_iid_le {β : Type*} [Fintype β] (μ ν : PMF β) (k : ℕ) :
     dist (iid μ k) (iid ν k) ≤ k * dist μ ν := by
   classical
   rw [iid_eq_pi, iid_eq_pi]
-  refine (dist_pi_le_sum _ _).trans ?_
-  simp
+  simpa using dist_pi_le_sum (fun _ : Fin k => μ) (fun _ => ν)
 
 end Cslib.Probability.PMF
+
+namespace Cslib.Probability
+
+open scoped ENNReal
+
+/-- Statistical closeness of `PMF.piFin`: if each coordinate `p j` is `δ`-close to `q j`, then
+`PMF.piFin p` is `(k * δ)`-close to `PMF.piFin q`, without finiteness assumptions on `α`. -/
+theorem CloseTo.piFin {α : Type} :
+    ∀ {k : ℕ} {p q : Fin k → PMF α} {δ : ℝ≥0∞},
+      (∀ j, CloseTo (p j) (q j) δ) → CloseTo (PMF.piFin p) (PMF.piFin q) (k * δ)
+  | 0, _, _, _, _ => by simpa only [PMF.piFin, Nat.cast_zero, zero_mul] using CloseTo.refl _
+  | _ + 1, p, q, _, h => by
+    rw [PMF.piFin, PMF.piFin]
+    exact ((h 0).bind fun a _ =>
+      (CloseTo.piFin fun j => h j.succ).map (Fin.cons (α := fun _ => α) a)).mono
+      (by rw [Nat.cast_succ, add_mul, one_mul, add_comm])
+
+end Cslib.Probability

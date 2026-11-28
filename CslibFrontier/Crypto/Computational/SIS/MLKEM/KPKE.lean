@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Compress
 public import CslibFrontier.Crypto.Computational.SIS.ModuleEncryption
-public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
+public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin
 public import CslibFrontier.Languages.Probabilistic.CenteredBinomial
 public import CslibFrontier.Languages.Probabilistic.Vector
 
@@ -29,7 +29,8 @@ compression:
 The uncompressed ciphertext is the existing `moduleLWEEncrypt` ciphertext of the all-zero message
 shifted by the FIPS 203 message polynomial (`encryptRaw_eq_moduleLWEEncrypt_add`); the two encodings
 differ because FIPS 203 rounds `q / 2` up. Public keys reuse `ModuleLWEPublicKey`, and the scheme is
-packaged as an `ExplicitCoinPKE` (`toExplicitCoinPKE`) for the Fujisaki–Okamoto layer.
+packaged through the shared `ExplicitCoinPKE` interface (`toExplicitCoinPKE`) for later use by the
+Fujisaki–Okamoto layer.
 
 Correctness is deterministic: decryption recovers `m` whenever every coefficient of the decryption
 noise `decryptionNoise`, which collects the Module-LWE error terms and both compression errors, has
@@ -205,16 +206,10 @@ theorem decrypt_encrypt_phase (P : Params) (A : Matrix (Fin P.k) (Fin P.k) (Fin 
   have hphase := moduleLWEDecrypt_phase_eq A s e r e₁ e₂ (fun _ => false)
   rw [encodePolyMsg_false, zero_add] at hphase
   have hct : ct = decompressCiphertext P (compressCiphertext P raw) := rfl
-  have h₁ : raw.1 = (moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ fun _ => false).1 := by
-    rw [hraw, encryptRaw_eq_moduleLWEEncrypt_add]
-    simp
-  have h₂ : raw.2 = (moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ fun _ => false).2 +
-      messagePoly P m := by
-    rw [hraw, encryptRaw_eq_moduleLWEEncrypt_add]
-    simp
   simp only [decryptionNoise, ← hraw, ← hct]
-  rw [← hphase, innerPoly_sub_left, h₂, h₁]
-  abel
+  rw [← hphase, innerPoly_sub_left]
+  simp only [hraw, encryptRaw_eq_moduleLWEEncrypt_add, Prod.fst_add, Prod.snd_add]
+  abel_nf
 
 /-- **Bounded-noise correctness of K-PKE**: if every coefficient of `decryptionNoise` has centered
 magnitude at most `B` and `4 * B + 2 < q`, decryption of an honest encryption recovers the

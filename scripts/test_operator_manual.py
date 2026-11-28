@@ -11,8 +11,12 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from check_operator_manual import (MISNAMED_SOURCE_ANCHOR, STALE_SOURCE_ANCHOR, book_input_errors,
-                                   check, comment_depths, source_anchor_error)
+from build_operator_manual import main as build_main
+from check_operator_manual import (LABEL_LOCATOR, LIST_AFTER_PARAGRAPH, MISNAMED_SOURCE_ANCHOR,
+                                   SOURCES_LINE_FORMAT, STALE_SOURCE_ANCHOR, book_input_errors,
+                                   check, comment_depths, fix_anchors, frozen,
+                                   lists_after_paragraphs, main as check_main, source_anchor_error)
+import sources_format
 
 DATA = Path(__file__).resolve().parents[1] / "manual/data"
 with mock.patch.object(sys, "path", [str(DATA), *sys.path]):
@@ -84,6 +88,34 @@ class ManualChecks(unittest.TestCase):
     def test_current_checkout_needs_no_git_or_historical_revision(self):
         self.assertEqual(self.errors(), [])
 
+    def test_merge_conflicts_report_document_and_opening_line(self):
+        original = self.doc.read_text()
+        for body in (
+                "<<<<<<< HEAD\nOld scope.\n=======\nNew scope.\n>>>>>>> feature\n",
+                "<<<<<<< HEAD\n[paper]: https://example.org/old\n=======\n"
+                "[paper]: https://example.org/new\n>>>>>>> feature\n",
+                "<<<<<<< ours\nOurs.\n||||||| base\nOriginal.\n=======\nTheirs.\n>>>>>>> theirs\n",
+                "  <<<<<<<<<\nOurs.\n=========\nTheirs.\n  >>>>>>>>>\n",
+                "<<<<<<< HEAD\nUnfinished resolution.\n"):
+            with self.subTest(body=body):
+                self.doc.write_text(original + "\n" + body)
+                line = len(original.splitlines()) + 2
+                self.assertIn(f"workflows/first.md: Line {line}: unresolved Git merge conflict",
+                              self.errors())
+
+    def test_pdf_entry_point_rejects_conflicts_before_rendering(self):
+        self.doc.write_text(self.doc.read_text() +
+                            "\n<<<<<<< HEAD\nOld.\n=======\nNew.\n>>>>>>> feature\n")
+        for option in ("--tex-only", "--agent-manual"):
+            with self.subTest(option=option), mock.patch("build_operator_manual.ROOT", self.repo), \
+                    mock.patch.object(sys, "argv", ["build_operator_manual.py", option]), \
+                    mock.patch("build_operator_manual.subprocess.run") as render, \
+                    contextlib.redirect_stderr(io.StringIO()) as diagnostics:
+                self.assertEqual(build_main(), 1)
+                self.assertIn("workflows/first.md: Line", diagnostics.getvalue())
+                self.assertIn("unresolved Git merge conflict", diagnostics.getvalue())
+                render.assert_not_called()
+
     def test_source_relocation_is_allowed(self):
         self.client.write_text("-- inserted before the original source\n\n" + self.client.read_text())
         result = check(self.repo)
@@ -114,9 +146,77 @@ class ManualChecks(unittest.TestCase):
         self.doc.write_text(self.doc.read_text() + "\n[Read it][undefined]\n")
         self.assertTrue(any("undefined reference" in e for e in self.errors()))
 
+    def test_list_directly_after_a_paragraph_line_is_reported(self):
+        original = self.doc.read_text()
+        self.doc.write_text(original + "\nThe examples check:\n- one case;\n- another.\n")
+        line = len(original.splitlines()) + 3
+        self.assertEqual(self.errors(),
+                         [f"workflows/first.md: Line {line}: {LIST_AFTER_PARAGRAPH}"])
+        self.doc.write_text(original + "\nThe examples check:\n\n- one case;\n- another.\n")
+        self.assertEqual(self.errors(), [])
+
     def test_unregistered_lean_block_is_reported(self):
         self.doc.write_text(self.doc.read_text() + "\n```lean\nexample : True := .intro\n```\n")
         self.assertTrue(any("unregistered Lean block" in e for e in self.errors()))
+
+    def test_locator_inside_a_citation_label_is_reported(self):
+        # The PDF prints a link into `sources.md#key` as a citation number and drops its label.
+        sources = self.manual / "sources.md"
+        sources.write_text('# Sources\n\n<a id="book"></a>\nA book.\n')
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Sources](sources.md)\n")
+        original = self.doc.read_text()
+        reported = [
+            "[Author, Section 5.6][book]", "[Author, Sections 2–3][book]", "[Author, Sec. 5][book]",
+            "[Author, Chapter 18][book]", "[Author, Ch. 3][book]", "[Author, §5.11][book]",
+            "[Author, p. 12][book]", "[Author, pp. 56–57][book]", "[Author, page 12][book]",
+            "[Author, pages 12–15][book]", "[Author's Definition 4.1][book]",
+            "[Author, Def. 2][book]", "[Author, Theorem 4.17][book]", "[Author, Thm. 4][book]",
+            "[Author Lemma 1.11][book]", "[Author, Prop. 2][book]", "[Author, Cor. 3][book]",
+            "[Author, Exercise 2.1(b)][book]", "[Author, Problem 15-5][book]",
+            "[Author, Figure 3][book]", "[Author, Eq. (4.4)][book]",
+            "[Author, equation (2) there][book]", "[Author's notes, Lecture 3][book]",
+            "[Author, Part II][book]", "[Author, Game 2][book]", "[Author, Appendix B][book]",
+            "[CLRS 15.5][book]", "[Knuth 5.3.3][book]", "[TLS 1.3][book]",
+            "[Author, §1 and Appendix B][Book]", "[Author, Section 5.6][]",
+            "[Author, Theorem 4.1](../sources.md#book)", "[Author,\nSection 5.6][book]"]
+        accepted = [
+            "[Author][book], Section 5.6", "[Author 2009][book]", "[UOV v3.0][book]",
+            "[Author (2002)][book]", "[Problems in Algebra][book]",
+            "[Kleinberg and Tardos, Algorithm Design][book]", "[Theorem Proving in Lean][book]",
+            "[Author, Section 5.6](https://example.org/paper)",
+            "[Author, Section 5.6](first.md#first-client)", "[`Section 5.6`][book]",
+            "`[Author, Section 5.6][book]`", "```\n[Author, Section 5.6][book]\n```"]
+        line = len(original.splitlines()) + 2
+        definitions = ("\n\n[book]: ../sources.md#book\n"
+                       "[author, section 5.6]: ../sources.md#book\n")
+        for text in reported + accepted:
+            with self.subTest(text=text):
+                self.doc.write_text(original + "\n" + text + definitions)
+                found = [e for e in self.errors() if LABEL_LOCATOR in e]
+                if text in reported:
+                    label = " ".join(text[1:text.index("]")].split())
+                    prefix = f"workflows/first.md: Line {line}: {LABEL_LOCATOR}: [{label}] (`"
+                    self.assertEqual(len(found), 1)
+                    self.assertTrue(found[0].startswith(prefix), found[0])
+                else:
+                    self.assertEqual(found, [])
+        self.doc.write_text(original)
+        self.assertEqual(self.errors(), [])
+        # A link inside `sources.md` itself is a citation too.
+        sources.write_text(sources.read_text() + "\nSee [Author, Section 5.6](#book).\n")
+        self.assertEqual([e for e in self.errors() if LABEL_LOCATOR in e],
+                         [f"sources.md: Line 6: {LABEL_LOCATOR}: [Author, Section 5.6] "
+                          "(`Section 5`)"])
+
+    def test_sources_must_be_one_sentence_per_line(self):
+        sources = self.manual / "sources.md"
+        sources.write_text('# Sources\n\n<a id="book"></a>\n## book\n\nFirst sentence. Second sentence.\n')
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Sources](sources.md)\n")
+        self.assertEqual(self.errors(), [f"sources.md: Line 6: {SOURCES_LINE_FORMAT}"])
+        self.assertEqual(sources_format.main(["--write", str(sources)]), 0)
+        self.assertEqual(self.errors(), [])
 
     def test_context_requires_link_to_complete_client(self):
         self.doc.write_text(self.doc.read_text().replace(
@@ -275,6 +375,160 @@ class ManualChecks(unittest.TestCase):
             self.assertEqual(result["allowed_stale_source_anchors"], [f"{entry[0]}#L{line}"])
             self.assertEqual(result["unused_stale_source_anchor_entries"], [])
 
+    def test_fix_anchors_repoints_drifted_named_links_and_preserves_syntax(self):
+        (self.repo / "CslibFrontierTests/Anchored.lean").write_text(ANCHORED_SOURCE)
+        lines = ANCHORED_SOURCE.splitlines()
+        at = {text: lines.index(text) + 1 for text in (
+            "/-- A documented definition. -/", "@[simp] theorem one_eq : one = 1 := rfl",
+            "private noncomputable def two : Nat :=", "  2",
+            "/-- Prose that happens to start a line with a keyword:",
+            "theorem in a docstring is not a declaration. -/", "def three : Nat := 3")}
+        url = "../../CslibFrontierTests/Anchored.lean#L{}"
+        doc_lines = [
+            f"[Anchored.one]({url.format(at['def three : Nat := 3'])})",
+            f"[Pair]({url.format(at['theorem in a docstring is not a declaration. -/'])})",
+            f"[`one_eq`]({url.format(9999)})",
+            f"[one](<{url.format(at['  2'])}>) and [two]({url.format(at['  2'])} \"sec\")",
+            f"[`three`](\n  {url.format(at['  2'])})",
+            f"[\n  Anchored.three\n]({url.format(at['/-- A documented definition. -/'])})",
+        ]
+        self.doc.write_text(self.doc.read_text() + "\n" + "\n".join(doc_lines) + "\n")
+        self.assertEqual(len(self.errors()), 7)
+        fixes = fix_anchors(self.repo)
+        self.assertEqual([f["new"] for f in fixes], [
+            f"L{at['/-- A documented definition. -/']}",
+            f"L{at['/-- Prose that happens to start a line with a keyword:']}",
+            f"L{at['@[simp] theorem one_eq : one = 1 := rfl']}",
+            f"L{at['/-- A documented definition. -/']}",
+            f"L{at['private noncomputable def two : Nat :=']}",
+            f"L{at['def three : Nat := 3']}",
+            f"L{at['def three : Nat := 3']}",
+        ])
+        self.assertEqual(self.errors(), [])
+        text = self.doc.read_text()
+        self.assertIn(f"[one](<{url.format(at['/-- A documented definition. -/'])}>)", text)
+        self.assertIn(f"[two]({url.format(at['private noncomputable def two : Nat :='])} \"sec\")",
+                      text)
+        self.assertIn(f"[`three`](\n  {url.format(at['def three : Nat := 3'])})", text)
+        self.assertIn(f"[\n  Anchored.three\n]({url.format(at['def three : Nat := 3'])})", text)
+        self.assertEqual(fix_anchors(self.repo), [])
+        # Exercise the CLI `--fix-anchors` flag end-to-end on another drifted anchor.
+        self.doc.write_text(text + f"\n[three]({url.format(at['  2'])})\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = check_main(["--repo", str(self.repo), "--fix-anchors"])
+        self.assertEqual(code, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["errors"], [])
+        self.assertEqual(len(payload["fixed_anchors"]), 1)
+        self.assertEqual(payload["fixed_anchors"][0]["new"], f"L{at['def three : Nat := 3']}")
+
+    def test_fix_anchors_skips_valid_special_ambiguous_and_allowlisted_links(self):
+        source = (
+            "module\n\n"
+            "/-- Doc. -/\ndef one : Nat := 1\n\n"
+            "namespace A\ndef dup : Nat := 0\nend A\n\n"
+            "namespace B\ndef dup : Nat := 1\nend B\n"
+        )
+        (self.repo / "CslibFrontierTests/Dup.lean").write_text(source)
+        url = "../../CslibFrontierTests/Dup.lean#L{}"
+        body = (
+            "\n"
+            f"[one]({url.format(4)}) "        # valid keyword line inside (3, 4) header
+            f"[one]({url.format(1)}) "        # whole-file anchor #L1
+            f"[one]({url.format(4)}-L{12}) "  # range anchor
+            f"`[one]({url.format(999)})`\n"   # inline code span
+            "```markdown\n"
+            f"[one]({url.format(999)})\n"     # fenced block
+            "```\n"
+            "[one](https://example.org/Dup.lean#L999)\n"
+            f"[prose label]({url.format(5)})\n"  # unnamed drifted link (blank line 5)
+            f"[dup]({url.format(4)})\n"          # ambiguous multiple declarations (points to one)
+            f"[one]({url.format(2)})\n"          # allowlisted stale anchor below
+        )
+        before = self.doc.read_text() + body
+        self.doc.write_text(before)
+        entry = ("CslibFrontierTests/Dup.lean", 2)
+        with mock.patch("check_operator_manual.STALE_SOURCE_ANCHORS", {entry}):
+            self.assertEqual(fix_anchors(self.repo), [])
+            self.assertEqual(self.doc.read_text(), before)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = check_main(["--repo", str(self.repo), "--fix-anchors"])
+            self.assertEqual(code, 1)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["fixed_anchors"], [])
+            self.assertEqual(len(payload["errors"]), 2)
+
+    def frozen_page(self, body=""):
+        """A frozen reference chapter, linked from the entry page, with one stale source anchor."""
+        (self.repo / "CslibFrontierTests/Anchored.lean").write_text(ANCHORED_SOURCE)
+        stale = ANCHORED_SOURCE.splitlines().index("  2") + 1
+        url = f"../../CslibFrontierTests/Anchored.lean#L{stale}"
+        page = self.manual / "machines-and-classes/frozen.md"
+        page.parent.mkdir(exist_ok=True)
+        page.write_text(f"# Frozen chapter\n\n## Model\n\n[two]({url})\n{body}")
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Reference](machines-and-classes/frozen.md#model)\n")
+        return page, url
+
+    def test_frozen_page_tolerates_source_and_maintained_page_drift(self):
+        page, url = self.frozen_page(
+            "[one](../../CslibFrontierTests/Anchored.lean#L10000)\n"
+            "[Deleted](../../CslibFrontierTests/Deleted.lean#L3)\n"
+            "[Renamed heading](../workflows/first.md#gone)\n"
+            "[Removed page](../workflows/removed.md)\n")
+        result = check(self.repo)
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["frozen_documents"], 1)
+        # The same stale anchor in a maintained page still fails.
+        self.doc.write_text(self.doc.read_text() + f"\n[two]({url})\n")
+        self.assertEqual(self.errors(), [f"workflows/first.md: {STALE_SOURCE_ANCHOR}: {url}"])
+
+    def test_registry_in_a_frozen_directory_is_maintained(self):
+        _, url = self.frozen_page()
+        registry = self.manual / "programs-crypto-and-probability/assumptions.md"
+        self.assertFalse(frozen("programs-crypto-and-probability/assumptions.md"))
+        self.assertTrue(frozen("programs-crypto-and-probability/index.md"))
+        registry.parent.mkdir()
+        registry.write_text(f"# Assumptions\n\n[two]({url})\n")
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text()
+                          + "[Assumptions](programs-crypto-and-probability/assumptions.md)\n")
+        self.assertEqual(self.errors(), [
+            f"programs-crypto-and-probability/assumptions.md: {STALE_SOURCE_ANCHOR}: {url}"])
+
+    def test_links_into_and_between_frozen_pages_are_checked(self):
+        page, _ = self.frozen_page()
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text().replace("frozen.md#model", "frozen.md#gone"))
+        self.assertEqual(self.errors(), [
+            "README.md: missing Markdown anchor: machines-and-classes/frozen.md#gone"])
+        readme.write_text(readme.read_text().replace("frozen.md#gone", "absent.md"))
+        self.assertIn("README.md: missing local link: machines-and-classes/absent.md", self.errors())
+        readme.write_text(readme.read_text().replace("absent.md", "frozen.md"))
+        page.write_text(page.read_text() + "\n[Sibling](../model-map.md#gone) [Self](#gone)\n")
+        (self.manual / "model-map.md").write_text("# Model map\n")
+        self.assertEqual(self.errors(), [
+            f"machines-and-classes/frozen.md: missing Markdown anchor: {url}"
+            for url in ("../model-map.md#gone", "#gone")])
+
+    def test_frozen_page_keeps_checks_of_its_own_text(self):
+        page, _ = self.frozen_page("\nThe cases:\n- one;\n- another.\n\n[Read it][undefined]\n"
+                                   "[Outside](../../../outside.md)\n")
+        self.assertEqual([error.split(": ", 1)[1].split(":")[0] for error in self.errors()],
+                         ["Line 8", "undefined reference [undefined]",
+                          "local link escapes repository"])
+
+    def test_fix_anchors_leaves_frozen_pages_untouched(self):
+        page, url = self.frozen_page()
+        before = page.read_text()
+        self.doc.write_text(self.doc.read_text() + f"\n[two]({url})\n")
+        fixes = fix_anchors(self.repo)
+        self.assertEqual([fix["document"] for fix in fixes], ["workflows/first.md"])
+        self.assertEqual(page.read_text(), before)
+        self.assertEqual(self.errors(), [])
+
 
 class SourceLineAnchors(unittest.TestCase):
     """A relative `.lean#L` link must start a declaration, attribute, docstring or section."""
@@ -389,7 +643,8 @@ class BookInputs(unittest.TestCase):
             (self.root / name).write_text("# fixture rendering input\n")
         (self.root / "README.md").write_text("# A complete first chapter\n")
         (self.root / "AGENT_OPERATORS.md").write_text("# A short manual for the human driver\n")
-        (self.root / "paper-plan.md").write_text("# Archived editorial plan\n")
+        (self.root / "history").mkdir()
+        (self.root / "history/paper-plan.md").write_text("# Archived editorial plan\n")
         self.sources = self.root / "sources.md"
         self.sources.write_text('# Sources\n\n<a id="example"></a>\n## example\n\nCanonical citation.\n')
         self.output = self.root / "_build"
@@ -527,11 +782,30 @@ class BookInputs(unittest.TestCase):
             book.validate_manifest(self.root, self.output, ["README.md"])
 
 
+class MissingGlyphs(unittest.TestCase):
+    def test_log_lines_name_each_missing_character_once(self):
+        log = ("Missing character: There is no 𝔼 (U+1D53C) in font [DejaVuSansMono.ttf]:mode=node;\n"
+               "Missing character: There is no ι in font cmmi10!\n"
+               "Missing character: There is no 𝔼 (U+1D53C) in font [DejaVuSansMono.ttf]:mode=node;\n"
+               "Missing character: There is no ⬝ (U+2B1D) in font [texgyrepagella-regular.o\n")
+        self.assertEqual(book.missing_glyphs(log), [
+            "𝔼 (U+1D53C) in [DejaVuSansMono.ttf]", "ι (U+03B9) in cmmi10",
+            "⬝ (U+2B1D) in [texgyrepagella-regular.o"])
+        self.assertEqual(book.missing_glyphs("Output written on book.pdf (2 pages).\n"), [])
+
+    def test_unicode_absent_from_the_fonts_is_set_in_math(self):
+        self.assertEqual(book.base.inline_tex("𝔼"), r"\ensuremath{\mathbb{E}}")
+        self.assertEqual(book.base.inline_tex("A ⬝ v"), r"A \ensuremath{\cdot} v")
+        self.assertTrue(all(book.base.MATH.values()))
+        math = {'t': 'Math', 'c': [{'t': 'InlineMath'}, r'ι \times κ₁']}
+        self.assertEqual(book.base.transform(math, 'topic.md')['c'][1], r'{\iota} \times {\kappa}_1')
+
+
 class PortableLinks(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="cslib-frontier-manual-links-")
         self.addCleanup(self.temp.cleanup)
-        self.repo = Path(self.temp.name)
+        self.repo = Path(self.temp.name).resolve()
         self.root = self.repo / 'manual'
         self.root.mkdir()
         (self.repo / 'CslibFrontierTests').mkdir()
@@ -587,9 +861,61 @@ class PortableLinks(unittest.TestCase):
                 with self.subTest(href=href), self.assertRaisesRegex(ValueError, 'uncommitted changes'):
                     self.target(href)
 
+    def test_frozen_chapter_prints_the_text_of_a_link_to_a_removed_file(self):
+        frozen_page = 'machines-and-classes/reductions.md'
+        self.assertEqual(self.link('../../CslibFrontierTests/Removed.lean#L4', frozen_page),
+                         {'t': 'Span', 'c': [['', [], []], [{'t': 'Str', 'c': 'Client'}]]})
+        self.assertIn(f'/blob/{self.revision}/CslibFrontierTests/A%20client.lean#L4',
+                      self.target('../../CslibFrontierTests/A%20client.lean#L4', frozen_page))
+        with self.assertRaisesRegex(ValueError, 'absent from the rendered revision'):
+            self.target('../../CslibFrontierTests/Removed.lean',
+                        'programs-crypto-and-probability/assumptions.md')
+
     def test_paths_outside_repository_are_rejected(self):
         with self.assertRaisesRegex(ValueError, 'outside the repository'):
             self.target('../../outside.txt')
+
+
+class ListsAfterParagraphs(unittest.TestCase):
+    """Cases follow pandoc's `markdown+autolink_bare_uris` reader, which builds the PDFs."""
+
+    def test_list_starting_below_a_paragraph_line_is_found(self):
+        for text, lines in (
+                ("Intro:\n- a\n- b\n", [2]),
+                ("Intro:\n1. a\n2. b\n", [2]),
+                ("Intro:\n  - an indented item is still lazy paragraph text\n", [2]),
+                ("A wrapped sum `a\n+ b` starts a list on GitHub.\n", [2]),
+                ("- a\n\nA paragraph after the list.\n- b\n", [4]),
+                ("> Quote.\n- a\n", [2]),
+                ('<a id="anchor"></a>\n- a\n', [2]),
+                ("Intro:\n[ref]: https://example.org\n- a\n", [3]),
+                ("Para\n# Not a heading after a paragraph line\n- a\n", [3]),
+                ("A wrapped reference to\n#4903 landed.\n- a\n", [3]),
+                ("```text\nx\n```\nPara\n- a\n", [5]),
+                ("- a\n\n  ```text\n  x\n  ```\n\nA paragraph after the list.\n- b\n", [8])):
+            with self.subTest(text=text):
+                self.assertEqual(lists_after_paragraphs(text), lines)
+
+    def test_separated_open_and_non_paragraph_lists_are_accepted(self):
+        for text in ("Intro:\n\n- a\n- b\n",
+                     "# Heading\n- a\n",
+                     "- a\n  - nested\n- b\n",
+                     "- a lazy\ncontinuation line\n- b\n",
+                     "- a\n\n  A second paragraph of the item.\n  - nested\n",
+                     "1. a\n2. b\n   - nested\n",
+                     "1. Run:\n\n   ```bash\n   python3 x\n   ```\n\n   Then inspect.\n2. Build.\n",
+                     "- a\n\n  ```text\n  x\n\n  y\n  ```\n  after fence\n- b\n",
+                     "- a\n\n  ```text\n  x\n  ```\nlazy text continues the item\n- b\n",
+                     "| a | b |\n- a\n",
+                     "<!-- comment -->\n- a\n",
+                     "</div>\n- a\n",
+                     "[ref]: https://example.org\n- a\n",
+                     "Setext heading\n---\n- a\n",
+                     "```text\nIntro:\n- a literal, not a list\n```\n",
+                     "```text\nliteral\n```\n- a\n",
+                     "*Emphasis* and\n*more emphasis* are not items.\n"):
+            with self.subTest(text=text):
+                self.assertEqual(lists_after_paragraphs(text), [])
 
 
 class VisualSources(unittest.TestCase):
@@ -614,6 +940,42 @@ class VisualSources(unittest.TestCase):
         self.assertEqual(book.visuals.diagram_sources(text), [])
         self.assertEqual(book.visuals.check_markup(text)['diagrams'], 0)
 
+    def test_fenced_merge_conflicts_are_literal_examples(self):
+        conflict = "<<<<<<< HEAD\nOld.\n||||||| base\nBase.\n=======\nNew.\n>>>>>>> feature\n"
+        for fence in ("```", "~~~~", "`````"):
+            with self.subTest(fence=fence):
+                text = fence + "text\n" + conflict + fence + "\n"
+                self.assertEqual(book.visuals.check_markup(text),
+                                 {"diagrams": 0, "worked_examples": 0})
+        nested = "````markdown\n```text\n" + conflict + "```\n````\n"
+        self.assertEqual(book.visuals.check_markup(nested)['worked_examples'], 0)
+
+    def test_valid_markdown_is_not_a_merge_conflict(self):
+        text = "# Heading\n\nSetext heading\n=======\n\n---\n\n***\n\n___\n\n>>>>>>> A quotation\n"
+        self.assertEqual(book.visuals.check_markup(text), {"diagrams": 0, "worked_examples": 0})
+
+    def test_list_fenced_conflicts_are_literal_until_the_fence_closes(self):
+        conflict = "<<<<<<< HEAD\nOld.\n=======\nNew.\n>>>>>>> feature\n"
+        for marker in ("- ", "+ ", "* ", "1. ", "12) ", "- - "):
+            with self.subTest(marker=marker):
+                indent = " " * len(marker)
+                example = marker + "```text\n" + "".join(
+                    indent + line + "\n" for line in conflict.splitlines()) + indent + "```\n"
+                self.assertEqual(book.visuals.check_markup(example),
+                                 {"diagrams": 0, "worked_examples": 0})
+                for after in ("<<<<<<< HEAD\n", indent + "<<<<<<< HEAD\n"):
+                    with self.assertRaisesRegex(ValueError, "Line 8: unresolved Git merge conflict"):
+                        book.visuals.check_markup(example + after)
+                literal_diagram = marker + "````markdown\n" + indent + "```mermaid\n" + \
+                    indent + "This is a literal example, not a model diagram.\n" + \
+                    indent + "```\n" + indent + "````\n"
+                self.assertEqual(book.visuals.check_markup(literal_diagram)['diagrams'], 0)
+
+    def test_leaving_a_list_also_ends_its_literal_fence(self):
+        text = "- ```text\n  Literal example.\n<<<<<<< HEAD\nOld.\n=======\nNew.\n>>>>>>> feature\n"
+        with self.assertRaisesRegex(ValueError, "Line 3: unresolved Git merge conflict"):
+            book.visuals.check_markup(text)
+
     def test_similar_source_paths_keep_distinct_diagram_assets(self):
         paths = ['topic-one.md', 'topic/one.md', 'topic_one.md']
         names = [book.visuals.diagram_name(path, 1) for path in paths]
@@ -621,7 +983,7 @@ class VisualSources(unittest.TestCase):
         self.assertEqual(names[1], 'figures/topic/one-1.pdf')
 
     def test_nested_mermaid_fences_fail_before_publishing(self):
-        for prefix in ('> ', '>> ', '  ', '    ', '- ', '1. ', '> - '):
+        for prefix in ('> ', '>> ', '  ', '    ', '- ', '1. ', '> - ', '- - ', '1. - '):
             with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, 'top-level'):
                 book.visuals.check_markup(prefix + '```mermaid\n' + self.diagram + '```\n')
 

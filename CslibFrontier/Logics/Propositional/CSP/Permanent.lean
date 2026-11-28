@@ -49,8 +49,8 @@ namespace Cslib.Logic.PL.CSP
 `i * n + j` for every nonzero entry, and an exactly-one constraint for every row and every column
 on the variables of its nonzero entries. -/
 @[expose] def permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool) : CSP Unit ℕ :=
-  (List.range n).map (fun i => ((), ((List.range n).filter (r i)).map fun j => i * n + j)) ++
-    (List.range n).map fun j => ((), ((List.range n).filter fun i => r i j).map fun i => i * n + j)
+  (List.range n).map (fun i => ⟨(), ((List.range n).filter (r i)).map fun j => i * n + j⟩) ++
+    (List.range n).map fun j => ⟨(), ((List.range n).filter fun i => r i j).map fun i => i * n + j⟩
 
 variable {n : ℕ} {r : ℕ → ℕ → Bool}
 
@@ -103,7 +103,7 @@ theorem count_vars_permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool) (x : �
 /-- The exactly-one conditions of the permanent instance on a set `S` of `true` variables: every
 row and every column has exactly one nonzero entry whose variable is in `S`. -/
 private theorem forall_mem_permanentInstance_iff {S : Finset ℕ} :
-    (∀ c ∈ permanentInstance n r, (c.2.filter fun v => v ∈ S).length = 1) ↔
+    (∀ c ∈ permanentInstance n r, (c.scope.filter fun v => v ∈ S).length = 1) ↔
       (∀ i < n, ∃! j, j < n ∧ r i j = true ∧ i * n + j ∈ S) ∧
         ∀ j < n, ∃! i, i < n ∧ r i j = true ∧ i * n + j ∈ S := by
   simp only [permanentInstance, List.forall_mem_append, List.forall_mem_map, List.mem_range,
@@ -164,8 +164,7 @@ theorem partitionFunction_permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool)
         (hk ▸ Nat.mul_add_mod_of_lt hj))
       rw [← hkj]
       exact (Nat.mul_add_div_of_lt _ k.2).symm.trans (hk ▸ Nat.mul_add_div_of_lt i hj)
-    · intro h
-      exact ⟨⟨j, hj⟩, by rw [h]⟩
+    · exact fun h => ⟨⟨j, hj⟩, by rw [h]⟩
   symm
   refine Finset.card_bij' (fun σ _ => supp σ)
     (fun S hS => coverPerm (Finset.mem_filter.mp hS).2.1 (Finset.mem_filter.mp hS).2.2)
@@ -179,9 +178,8 @@ theorem partitionFunction_permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool)
     · refine ⟨σ.symm ⟨i, hi⟩, ⟨(σ.symm ⟨i, hi⟩).2, ?_, (hsupp σ hi (σ.symm ⟨i, hi⟩).2).mpr
         (by simp)⟩, fun j ⟨hj, _, hjS⟩ => ?_⟩
       · simpa using hσ (σ.symm ⟨i, hi⟩)
-      · have h := (hsupp σ hi hj).mp hjS
-        have : σ ⟨j, hj⟩ = ⟨i, hi⟩ := Fin.ext h
-        rw [← this, Equiv.symm_apply_apply]
+      · rw [← show σ ⟨j, hj⟩ = ⟨i, hi⟩ from Fin.ext ((hsupp σ hi hj).mp hjS),
+          Equiv.symm_apply_apply]
     · refine ⟨σ ⟨j, hj⟩, ⟨(σ ⟨j, hj⟩).2, hσ ⟨j, hj⟩, (hsupp σ (σ ⟨j, hj⟩).2 hj).mpr rfl⟩,
         fun i ⟨hi, _, hiS⟩ => ((hsupp σ hi hj).mp hiS).symm⟩
   · -- the permutation of an exact cover is supported
@@ -193,12 +191,10 @@ theorem partitionFunction_permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool)
   · -- the support of the permutation of an exact cover is the cover
     obtain ⟨hSX, hrow, hcol⟩ := Finset.mem_filter.mp hS
     ext x
-    constructor
-    · intro hx
-      obtain ⟨k, -, rfl⟩ := Finset.mem_image.mp hx
+    refine ⟨fun hx => ?_, fun hx => ?_⟩
+    · obtain ⟨k, -, rfl⟩ := Finset.mem_image.mp hx
       exact (coverPerm_spec hrow hcol k).2
-    · intro hx
-      obtain ⟨i, hi, j, hj, hr, rfl⟩ := hX.mp (Finset.mem_powerset.mp hSX hx)
-      refine (hsupp _ hi hj).mpr (coverPerm_unique hrow hcol ⟨j, hj⟩ hi ⟨hr, hx⟩)
+    · obtain ⟨i, hi, j, hj, hr, rfl⟩ := hX.mp (Finset.mem_powerset.mp hSX hx)
+      exact (hsupp _ hi hj).mpr (coverPerm_unique hrow hcol ⟨j, hj⟩ hi ⟨hr, hx⟩)
 
 end Cslib.Logic.PL.CSP

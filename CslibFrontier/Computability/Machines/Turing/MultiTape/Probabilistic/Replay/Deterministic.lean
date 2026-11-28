@@ -18,7 +18,8 @@ import Mathlib.Data.Fintype.Option
 Fixing all coins of a fair-coin oracle machine to a constant `bit` gives a deterministic word-query
 program (`Turing.MultiTapePTM.runConfigFrom` with `pure bit`) whose result against every
 deterministic oracle is supported by the fair-coin run
-(`Turing.MultiTapePTM.mem_support_runConfigFrom_pure`).
+(`Turing.MultiTapePTM.mem_support_runConfigFrom_pure`), and so is the result and final state of a
+deterministic stateful oracle (`Turing.MultiTapePTM.mem_support_runConfigFrom_pure_stateM`).
 
 Relabelling the control states along an equivalence preserves the run program
 (`Turing.MultiTapePTM.runFrom_relabel`), and tables with finitely many symbols, states and channels
@@ -33,8 +34,9 @@ form a finite type (`Turing.MultiTapeMachine.Action.instFinite`, `Turing.MultiTa
 * `Turing.MultiTapeMachine.Action.instFinite`, `Turing.MultiTapePTM.finite`: finitely many
   instructions and fair-coin tables.
 * `Turing.MultiTapePTM.runFrom_relabel`: relabelling preserves runs.
-* `Turing.MultiTapePTM.mem_support_runConfigFrom_pure`: a coin-fixed run is supported by the
-  fair-coin run.
+* `Turing.MultiTapePTM.mem_support_runConfigFrom_pure_stateM`,
+  `Turing.MultiTapePTM.mem_support_runConfigFrom_pure`: a coin-fixed run is supported by the
+  fair-coin run, against stateful and stateless deterministic oracles.
 
 ## References
 
@@ -127,21 +129,24 @@ instance finite [Finite Symbol] [Finite State] [Finite Oracle] :
       funext state symbol work answer bit
       exact congrFun (congrFun (congrFun (congrFun (congrFun h.2 state) symbol) work) answer) bit
 
-/-- **A coin-fixed run is supported.** Against a deterministic oracle, the result of the run with
-every coin fixed to `bit` is a supported result of the fair-coin run, with the unchanged state. -/
-theorem mem_support_runConfigFrom_pure {σ : Type} (machine : MultiTapePTM k Symbol State Oracle)
-    (bit : Bool) (answer : Oracle × List Symbol → List Symbol) (s : σ) (fuel : ℕ)
+/-- **A coin-fixed run against a stateful oracle is supported.** Against a deterministic stateful
+oracle `step`, the result and final state of the run with every coin fixed to `bit` are a supported
+outcome of the fair-coin run. -/
+theorem mem_support_runConfigFrom_pure_stateM {σ : Type}
+    (machine : MultiTapePTM k Symbol State Oracle) (bit : Bool)
+    (step : Oracle × List Symbol → σ → List Symbol × σ) (s : σ) (fuel : ℕ)
     (cfg : Config k Symbol State Oracle input) :
-    (OracleComp.interpret (m := Id) answer (machine.runConfigFrom (pure bit)
-        (fun oracle word => OracleComp.query (oracle, word)) fuel cfg), s) ∈
-      (ProbOracleComp.runWith (fun q s => PMF.pure (answer q, s))
+    (OracleComp.interpret (m := StateM σ) (fun q => (step q : StateM σ (List Symbol)))
+        (machine.runConfigFrom (pure bit)
+        (fun oracle word => OracleComp.query (oracle, word)) fuel cfg)).run s ∈
+      (ProbOracleComp.runWith (fun q s => PMF.pure (step q s))
         (machine.runConfigFrom (ProbOracleComp.sample (ProbComp.uniform Bool))
           (fun oracle word => ProbOracleComp.query (oracle, word)) fuel cfg) s).support := by
   have hbit : bit ∈ (Probability.PMF.uniformOfFintype Bool).support := by
     rw [PMF.mem_support_iff, Probability.PMF.uniformOfFintype_apply]
     exact ENNReal.inv_ne_zero.mpr (ENNReal.natCast_ne_top _)
   simp only [runConfigFrom]
-  induction fuel generalizing cfg with
+  induction fuel generalizing cfg s with
   | zero => exact (PMF.mem_support_pure_iff _ _).mpr rfl
   | succ fuel ih =>
     cases hs : cfg.tapes.state with
@@ -156,12 +161,29 @@ theorem mem_support_runConfigFrom_pure {σ : Type} (machine : MultiTapePTM k Sym
       refine ⟨bit, hbit, ?_⟩
       cases machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols bit
         with
-      | step action symbol move => exact ih _
+      | step action symbol move => exact ih _ _
       | query oracle next =>
         simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-          PMF.mem_support_bind_iff]
-        exact ⟨(answer (oracle, (cfg.channels oracle).queryBuffer), s),
-          (PMF.mem_support_pure_iff _ _).mpr rfl, ih _⟩
+          PMF.mem_support_bind_iff, OracleComp.interpret_bind, OracleComp.interpret_query,
+          StateT.run_bind]
+        exact ⟨step (oracle, (cfg.channels oracle).queryBuffer) s,
+          (PMF.mem_support_pure_iff _ _).mpr rfl, ih _ _⟩
+
+/-- **A coin-fixed run is supported.** Against a deterministic oracle, the result of the run with
+every coin fixed to `bit` is a supported result of the fair-coin run, with the unchanged state. -/
+theorem mem_support_runConfigFrom_pure {σ : Type} (machine : MultiTapePTM k Symbol State Oracle)
+    (bit : Bool) (answer : Oracle × List Symbol → List Symbol) (s : σ) (fuel : ℕ)
+    (cfg : Config k Symbol State Oracle input) :
+    (OracleComp.interpret (m := Id) answer (machine.runConfigFrom (pure bit)
+        (fun oracle word => OracleComp.query (oracle, word)) fuel cfg), s) ∈
+      (ProbOracleComp.runWith (fun q s => PMF.pure (answer q, s))
+        (machine.runConfigFrom (ProbOracleComp.sample (ProbComp.uniform Bool))
+          (fun oracle word => ProbOracleComp.query (oracle, word)) fuel cfg) s).support := by
+  have h := machine.mem_support_runConfigFrom_pure_stateM bit (fun q s => (answer q, s)) s fuel cfg
+  rwa [show (OracleComp.interpret (m := StateM σ) (fun q => ((fun s => (answer q, s)) :
+      StateM σ (List Symbol))) (machine.runConfigFrom (pure bit)
+        (fun oracle word => OracleComp.query (oracle, word)) fuel cfg)).run s = _ from
+    OracleComp.run_interpret_stateless (m := Id) answer _ s] at h
 
 end MultiTapePTM
 

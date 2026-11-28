@@ -36,35 +36,20 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.QuerySpec
 
 open Cslib.Matrix Cslib.Algorithms.ExactTriangle
 
-private theorem pairIndex_eq (n : ℕ) (q : Fin n × Fin n) :
-    pairIndex q = (finProdFinEquiv q).val := by
-  simp [pairIndex, finProdFinEquiv, Nat.add_comm, Nat.mul_comm]
-
-private theorem pairIndex_lt {n : ℕ} (q : Fin n × Fin n) : pairIndex q < n * n := by
-  rw [pairIndex_eq]
-  exact (finProdFinEquiv q).isLt
-
 private theorem card_of_mem_pairIndex {n N : ℕ} (hN : N ≤ n * n)
     (S : Finset (Fin n × Fin n)) (P : ℕ → Prop) [DecidablePred P]
     (hS : ∀ q, q ∈ S ↔ pairIndex q < N ∧ P (pairIndex q)) :
     S.card = Nat.count P N := by
   rw [Nat.count_eq_card_filter_range]
-  refine Finset.card_bij (fun q _ => pairIndex q) ?_ ?_ ?_
-  · intro q hq
-    exact Finset.mem_filter.mpr ⟨Finset.mem_range.mpr ((hS q).mp hq).1, ((hS q).mp hq).2⟩
-  · intro q _ r _ h
-    exact pairIndex_injective h
-  · intro k hk
-    obtain ⟨hkN, hkP⟩ := Finset.mem_filter.mp hk
-    have hklt : k < n * n := (Finset.mem_range.mp hkN).trans_le hN
-    let q := finProdFinEquiv.symm (⟨k, hklt⟩ : Fin (n * n))
-    have hq : pairIndex q = k := by
-      rw [pairIndex_eq]
-      exact congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨k, hklt⟩)
-    have hqS : q ∈ S := (hS q).mpr (by
-      rw [hq]
-      exact ⟨Finset.mem_range.mp hkN, hkP⟩)
-    exact ⟨q, hqS, hq⟩
+  refine Finset.card_bij (fun q _ => pairIndex q)
+    (fun q hq => Finset.mem_filter.mpr ⟨Finset.mem_range.mpr ((hS q).mp hq).1, ((hS q).mp hq).2⟩)
+    (fun _ _ _ _ h => pairIndex_injective h) fun k hk => ?_
+  obtain ⟨hkN, hkP⟩ := Finset.mem_filter.mp hk
+  let q := finProdFinEquiv.symm (⟨k, (Finset.mem_range.mp hkN).trans_le hN⟩ : Fin (n * n))
+  have hq : pairIndex q = k := by
+    rw [pairIndex_eq_val_finProdFinEquiv]
+    exact congrArg Fin.val (finProdFinEquiv.apply_symm_apply _)
+  exact ⟨q, (hS q).mpr ⟨hq ▸ Finset.mem_range.mp hkN, hq ▸ hkP⟩, hq⟩
 
 variable {n p : ℕ} (wAB : Fin n → Fin n → ℤ) (hp : p ≠ 0) (R : ℕ → ℕ)
   (hR : ∀ q : Fin n × Fin n, R (pairIndex q) = (resFin hp (wAB q.1 q.2)).val)
@@ -135,27 +120,22 @@ theorem query_readback (rho : Fin p) (mem : ℕ → ℕ) (base : ℕ)
   have hcount : Nat.count P t = k := Nat.count_nth hfinite
   let q := finProdFinEquiv.symm (⟨t, ht⟩ : Fin (n * n))
   have hqindex : pairIndex q = t := by
-    rw [pairIndex_eq]
+    rw [pairIndex_eq_val_finProdFinEquiv]
     exact congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨t, ht⟩)
-  have hq : q ∈ residueClass wAB p rho := (mem_class wAB hp R hR rho q).mpr (by
-    rw [hqindex]
-    exact htP)
+  have hq : q ∈ residueClass wAB p rho := (mem_class wAB hp R hR rho q).mpr (hqindex.symm ▸ htP)
   have hrank : rankIn (residueClass wAB p rho) q = k := by
-    rw [rank_residueClass wAB hp R hR, hqindex]
-    exact hcount
+    rw [rank_residueClass wAB hp R hR, hqindex, hcount]
   have hcoords := hread t ht htP
   change mem (base + 2 * Nat.count P t) = t / n ∧
     mem (base + 2 * Nat.count P t + 1) = t % n at hcoords
   rw [hcount] at hcoords
-  have hn : 0 < n := Nat.pos_of_ne_zero (by intro h; simpa [h] using q.1.isLt)
+  have hn : 0 < n := Nat.pos_of_ne_zero fun h => by simpa [h] using q.1.isLt
   have hrow : t / n = q.1.val := by
     rw [← hqindex, pairIndex, Nat.mul_comm q.1.val n, Nat.mul_add_div hn,
       Nat.div_eq_of_lt q.2.isLt, Nat.add_zero]
-  have hcol : t % n = q.2.val := by
-    rw [← hqindex, pairIndex, Nat.mul_add_mod_of_lt q.2.isLt]
-  refine ⟨q, ⟨hq, hrank, hcoords.1.trans hrow, hcoords.2.trans hcol⟩, ?_⟩
-  intro r hr
-  exact rankIn_injOn _ hr.1 hq (hr.2.1.trans hrank.symm)
+  have hcol : t % n = q.2.val := by rw [← hqindex, pairIndex, Nat.mul_add_mod_of_lt q.2.isLt]
+  exact ⟨q, ⟨hq, hrank, hcoords.1.trans hrow, hcoords.2.trans hcol⟩,
+    fun r hr => rankIn_injOn _ hr.1 hq (hr.2.1.trans hrank.symm)⟩
 
 /-- Every occupied position of a native chunk names exactly one member of the existing finite
 chunk. The local position is translated to its actual global class rank; the scanner's readback
@@ -172,25 +152,18 @@ theorem chunk_readback (D : ℕ) (rho : Fin p) (mem : ℕ → ℕ) (base : ℕ)
       rankIn (residueClass wAB p rho) q = k * queryCap n D + r ∧
       mem (base + 2 * (k * queryCap n D + r)) = q.1.val ∧
       mem (base + 2 * (k * queryCap n D + r) + 1) = q.2.val := by
-  have hkcard : k * queryCap n D < (residueClass wAB p rho).card := by
-    by_contra h
-    have hle : (residueClass wAB p rho).card ≤ k * queryCap n D := by omega
-    have hceil := (Nat.ceilDiv_le_iff hcap).mpr hle
-    change k < (residueClass wAB p rho).card ⌈/⌉ queryCap n D at hk
-    omega
+  have hkcard : k * queryCap n D < (residueClass wAB p rho).card :=
+    not_le.mp fun hle => not_le.mpr
+      (show k < (residueClass wAB p rho).card ⌈/⌉ queryCap n D from hk)
+      ((Nat.ceilDiv_le_iff hcap).mpr hle)
   have hrCap : r < queryCap n D := hr.trans_le (min_le_left _ _)
   have hrRem := hr.trans_le (min_le_right _ _)
-  have hglobal : k * queryCap n D + r < (residueClass wAB p rho).card := by omega
-  obtain ⟨q, hq, huniq⟩ := query_readback wAB hp R hR rho mem base hread _ hglobal
-  have hdiv : (k * queryCap n D + r) / queryCap n D = k := Nat.mul_add_div_of_lt k hrCap
-  have hchunk : q ∈ chunkOf wAB D p rho k := by
-    rw [mem_chunkOf wAB hp R hR]
-    refine ⟨(mem_class wAB hp R hR rho q).mp hq.1, ?_⟩
-    rw [← rank_residueClass wAB hp R hR, hq.2.1, hdiv]
-  refine ⟨q, ⟨hchunk, hq.2⟩, ?_⟩
-  intro q' hq'
-  apply huniq q'
-  exact ⟨(mem_class wAB hp R hR rho q').mpr
-    ((mem_chunkOf wAB hp R hR D rho k q').mp hq'.1).1, hq'.2⟩
+  obtain ⟨q, hq, huniq⟩ := query_readback wAB hp R hR rho mem base hread
+    (k * queryCap n D + r) (by omega)
+  have hchunk : q ∈ chunkOf wAB D p rho k := (mem_chunkOf wAB hp R hR D rho k q).mpr
+    ⟨(mem_class wAB hp R hR rho q).mp hq.1,
+      by rw [← rank_residueClass wAB hp R hR, hq.2.1, Nat.mul_add_div_of_lt k hrCap]⟩
+  exact ⟨q, ⟨hchunk, hq.2⟩, fun q' hq' => huniq q'
+    ⟨(mem_class wAB hp R hR rho q').mpr ((mem_chunkOf wAB hp R hR D rho k q').mp hq'.1).1, hq'.2⟩⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.QuerySpec

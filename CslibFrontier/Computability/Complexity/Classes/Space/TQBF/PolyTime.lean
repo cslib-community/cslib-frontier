@@ -316,6 +316,18 @@ theorem computableInPolyTime_certVar {w j : γ → ℕ}
   unfold certVar
   fun_prop
 
+/-- The shared tableau matrix is polynomial-time in the tableau and unary width. -/
+@[fun_prop]
+theorem computableInPolyTime_baseMatrix {tab : γ → CNF (CookLevin.Var k State)}
+    {w : γ → ℕ}
+    (htab : Turing.MultiTapeTM.ComputableInPolyTime tab encIn
+      (encList (encList (encPair CookLevin.encVar encBool))))
+    (hw : Turing.MultiTapeTM.ComputableInPolyTime w encIn encUnary) :
+    Turing.MultiTapeTM.ComputableInPolyTime (fun x => baseMatrix (tab x) (w x)) encIn encQBF := by
+  have hrelabel := (CNF.computableInPolyTime_relabel computableInPolyTime_tabVar).comp htab
+  unfold baseMatrix certLinks
+  fun_prop
+
 /-- **A tableau as the formula of level `0` is polynomial-time** in the tableau and the width in
 unary. -/
 @[fun_prop]
@@ -328,10 +340,8 @@ theorem computableInPolyTime_baseFormula {tab : γ → CNF (CookLevin.Var k Stat
   have hvars : Turing.MultiTapeTM.ComputableInPolyTime (fun x => (tab x).vars) encIn
       (encList CookLevin.encVar) :=
     (CNF.computableInPolyTime_vars CookLevin.encVar).comp htab
-  have hrelabel : Turing.MultiTapeTM.ComputableInPolyTime (fun x => CNF.relabel tabVar (tab x))
-      encIn (encList (encList (encPair encNat encBool))) :=
-    (CNF.computableInPolyTime_relabel computableInPolyTime_tabVar).comp htab
-  unfold baseFormula baseVars certLinks
+  have hmatrix := computableInPolyTime_baseMatrix htab hw
+  unfold baseFormula baseVars
   fun_prop
 
 end Base

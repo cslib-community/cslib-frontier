@@ -30,6 +30,8 @@ points with probability at most `1 / (|α| (|α| - 1) ⋯ (|α| - k + 1))`. Thes
   tuples sum to `(Fintype.card α)!`.
 * `Cslib.RandomPermutation.card_extPerms_ofFn_mul_descFactorial_le`: the falling-factorial bound
   `#extPerms * (Fintype.card α).descFactorial k ≤ (Fintype.card α)!` (original).
+* `Cslib.RandomPermutation.card_filter_apply_eq_mul_card_le`: its one-point case: at most
+  `(Fintype.card α)! / Fintype.card α` permutations send a given point to a given value.
 -/
 
 public section
@@ -56,20 +58,10 @@ theorem card_extPerms_ofFn_eq {k : ℕ} (xs : Fin k → α) (e e' : Fin k ↪ α
     (Equiv.ofInjective e e.injective).symm.trans (Equiv.ofInjective e' e'.injective)
   let σ : Equiv.Perm α := E.extendSubtype
   have hσ (i : Fin k) : σ (e i) = e' i := by
-    dsimp [σ]
-    rw [Equiv.extendSubtype_apply_of_mem E (e i) ⟨i, rfl⟩]
-    have hi : (Equiv.ofInjective e e.injective).symm ⟨e i, ⟨i, rfl⟩⟩ = i :=
-      e.injective (Equiv.apply_ofInjective_symm e.injective ⟨e i, ⟨i, rfl⟩⟩)
-    simp only [E, Equiv.trans_apply, hi, Equiv.ofInjective_apply]
-  refine Finset.card_bij (fun π _ => σ * π) ?_ ?_ ?_
-  · intro π hπ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hπ ⊢
-    intro i; simp [hπ i, hσ]
-  · intro π _ ρ _ h; simpa using h
-  · intro ρ hρ
-    refine ⟨σ⁻¹ * ρ, ?_, by simp⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hρ ⊢
-    intro i; rw [Equiv.Perm.mul_apply, hρ i, Equiv.Perm.inv_eq_iff_eq, hσ]
+    simp [σ, E, Equiv.extendSubtype_apply_of_mem E (e i) ⟨i, rfl⟩,
+      e.injective (Equiv.apply_ofInjective_symm e.injective ⟨e i, ⟨i, rfl⟩⟩)]
+  refine Finset.card_equiv (Equiv.mulLeft σ) fun π => ?_
+  simp [← hσ]
 
 /-- Summing the extension counts over all injective target tuples `e : Fin k ↪ α` counts every
 permutation of `α` exactly once. -/
@@ -108,5 +100,15 @@ theorem card_extPerms_ofFn_mul_descFactorial_le {k : ℕ} (xs : Fin k ↪ α) (y
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
       exact fun h => hys fun i j hij => xs.injective (π.injective (by rw [h i, h j, hij]))
     simp [hempty]
+
+/-- The one-point case of `card_extPerms_ofFn_mul_descFactorial_le`: at most
+`(Fintype.card α)! / Fintype.card α` permutations of `α` send `x` to `a`. -/
+theorem card_filter_apply_eq_mul_card_le (x a : α) :
+    (Finset.univ.filter fun π : Equiv.Perm α => π x = a).card * Fintype.card α ≤
+      (Fintype.card α).factorial := by
+  let xs : Fin 1 ↪ α := ⟨![x], Function.injective_of_subsingleton _⟩
+  have h := card_extPerms_ofFn_mul_descFactorial_le xs ![a]
+  rw [extPerms_ofFn_eq] at h
+  simpa [xs] using h
 
 end Cslib.RandomPermutation

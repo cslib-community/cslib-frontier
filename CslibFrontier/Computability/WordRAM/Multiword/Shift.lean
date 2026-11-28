@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Workspace
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Checked multiword right shifts
@@ -47,12 +48,6 @@ open Workspace
 
 variable {r : ℕ}
 
-private theorem value_frame {β : ℕ} {x y : Data (r + 4)}
-    {ds as : List (Fin (r + 4))} (hf : Frame x y ds)
-    (ha : ∀ i ∈ as, i ∉ ds ∧ IsDigit i) : value β y as = value β x as :=
-  value_congr fun i hi =>
-    hf.2 i (ha i hi).1 (digit_ne (ha i hi).2).1 (digit_ne (ha i hi).2).2.1
-
 /-- One division digit. `base` is the radix, `zero` the divisor, and `total` the shift. -/
 def cell (a d : Fin (r + 4)) : Code .standard (r + 4) := ram[
   carry ← carry * base;
@@ -60,57 +55,42 @@ def cell (a d : Fin (r + 4)) : Code .standard (r + 4) := ram[
   d ← carry >>> total;
   carry ← carry % zero ]
 
-/-- Full result of a division digit, including the remainder workspace. -/
-private def cellResult (x : Data (r + 4)) (a d : Fin (r + 4)) : Data (r + 4) :=
-  let t := x.regs carry * x.regs base + x.regs a
-  ((x.set carry t).set d (t >>> x.regs total)).set carry (t % x.regs zero)
-
-private theorem exec_cell {w : ℕ} (_hw : 2 ≤ w) (x : Data (r + 4))
+private theorem exec_cell {w : ℕ} (x : Data (r + 4))
     (a d : Fin (r + 4)) (ha : IsDigit a) (hd : IsDigit d)
     (hb : x.regs base = radix w) (hz : x.regs zero = 2 ^ x.regs total)
     (hs : x.regs total < w / 2) (had : x.regs a < radix w)
     (hc : x.regs carry < 2 ^ x.regs total) :
-    Exec w (cell a d) x (cellResult x a d) 4 ∧
-      (cellResult x a d).regs d < radix w ∧
-      (cellResult x a d).regs carry < 2 ^ x.regs total ∧
-      (cellResult x a d).regs d * 2 ^ x.regs total +
-        (cellResult x a d).regs carry = x.regs carry * radix w + x.regs a ∧
-      (cellResult x a d).regs total = x.regs total ∧ Frame x (cellResult x a d) [d] := by
-  obtain ⟨hat, hac, hab, haz⟩ := digit_ne ha
-  obtain ⟨hdt, hdc, hdb, hdz⟩ := digit_ne hd
+    ∃ y, Exec w (cell a d) x y 4 ∧
+      y.regs d < radix w ∧
+      y.regs carry < 2 ^ x.regs total ∧
+      y.regs d * 2 ^ x.regs total + y.regs carry = x.regs carry * radix w + x.regs a ∧
+      y.regs total = x.regs total ∧ Frame x y [d] := by
+  obtain ⟨_, hac, _, _⟩ := digit_ne ha
+  obtain ⟨hdt, hdc, _, hdz⟩ := digit_ne hd
   have hp : 0 < 2 ^ x.regs total := Nat.two_pow_pos _
   have hple : 2 ^ x.regs total ≤ radix w :=
     Nat.pow_le_pow_right (by decide) (by omega)
-  have hlt : x.regs carry * radix w + x.regs a < radix w * 2 ^ x.regs total := by
-    nlinarith
+  have hlt : x.regs carry * radix w + x.regs a < radix w * 2 ^ x.regs total := by nlinarith
   have hf : Fits w (x.regs carry * radix w + x.regs a) := by
     have hsq := radix_sq_le w
     unfold Fits
     nlinarith
-  have hm := hf.of_le (show x.regs carry * radix w ≤
-    x.regs carry * radix w + x.regs a by omega)
   have hq : Fits w ((x.regs carry * radix w + x.regs a) >>> x.regs total) := by
     rw [Nat.shiftRight_eq_div_pow]
     exact hf.of_le (Nat.div_le_self _ _)
   have hr := hf.of_le (Nat.mod_le (x.regs carry * radix w + x.regs a) (2 ^ x.regs total))
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · ram_eval [cell, cellResult, hat, hac, hdt, hdc, hdb, hdz, Ne.symm hdc, Ne.symm hdz, hb, hz,
-      total, carry, base, zero, Fin.mk.injEq, hf, hm, hq, hr]
-    simp only [Data.set, Function.update_idem]
-  · simp only [cellResult, Data.set_regs, Function.update_apply, hdc, ↓reduceIte,
-      hb, Nat.shiftRight_eq_div_pow]
+  refine WP.Exact.exists_exec ?_
+  unfold cell
+  wram_exec [hb, hz, hf, hq, hr]
+  refine ⟨?_, ?_, ?_, by wram_simp, ⟨rfl, fun i hi _ hic => by
+    simp only [List.mem_singleton] at hi; wram_simp⟩⟩
+  · wram_simp [Nat.shiftRight_eq_div_pow]
     exact (Nat.div_lt_iff_lt_mul hp).mpr hlt
-  · simpa only [cellResult, Data.set_regs, Function.update_self, hb, hz] using
-      Nat.mod_lt (x.regs carry * radix w + x.regs a) hp
-  · simpa only [cellResult, Data.set_regs, Function.update_apply, hdc, ↓reduceIte,
-      hb, hz, Nat.shiftRight_eq_div_pow, Nat.mul_comm, Nat.add_comm] using
-      Nat.mod_add_div (x.regs carry * radix w + x.regs a) (2 ^ x.regs total)
-  · simp only [cellResult, Data.set_regs, Function.update_apply, Ne.symm hdt,
-      show (total : Fin (r + 4)) ≠ carry by simp [total, carry], ↓reduceIte]
-  · refine ⟨rfl, ?_⟩
-    intro i hi ht hic
-    simp only [List.mem_singleton] at hi
-    simp only [cellResult, Data.set_regs, Function.update_apply, hi, hic, ↓reduceIte]
+  · wram_simp
+    exact Nat.mod_lt _ hp
+  · wram_simp [Nat.shiftRight_eq_div_pow]
+    rw [Nat.mul_comm, Nat.add_comm]
+    exact Nat.mod_add_div _ _
 
 /-- Divide from high to low, padding the high output digits with zeros. -/
 def digits : List (Fin (r + 4)) → List (Fin (r + 4)) → Code .standard (r + 4)
@@ -146,13 +126,11 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
     cases as with
     | cons => simp_all
     | nil =>
-      refine ⟨x.set carry 0, ?_, by simp [Bounded], ?_, ?_, ?_, ?_⟩
-      · ram_eval [digits]
-      · simp only [Data.set_regs, Function.update_self]; exact Nat.two_pow_pos _
-      · simp [value]
-      · simp [total, carry]
-      · exact ⟨rfl, fun i _ _ hc => by
-          simp only [Data.set_regs, Function.update_apply, hc, ↓reduceIte]⟩
+      refine WP.Exact.exists_exec ?_
+      unfold digits
+      wram_exec [List.length_nil]
+      refine ⟨by simp [Bounded], by wram_simp; exact Nat.two_pow_pos _, by simp [value],
+        by wram_simp, frame_set_carry x 0 []⟩
   | cons d ds ih =>
     have hd := digit_ne (hout d (by simp))
     have hds : ∀ i ∈ ds, IsDigit i := fun i hi => hout i (by simp [hi])
@@ -160,78 +138,41 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
     have hdnot := (List.nodup_cons.mp hnd).1
     cases as with
     | nil =>
-      obtain ⟨z, he, hzb, hzc, hzv, hzt, hzf⟩ := ih [] (by simp)
-        (by simp) hds hnd' (by simp) x hb hz hs (by simp [Bounded])
-      let y := z.set d 0
-      have hyf : Frame z y [d] := ⟨rfl, fun i hi _ _ => by
-        simp only [List.mem_singleton] at hi; simp [y, hi]⟩
-      have hyv : value (radix w) y ds = value (radix w) z ds :=
-        value_frame hyf (fun i hi => ⟨by
-          simp only [List.mem_singleton]; rintro rfl; exact hdnot hi, hds i hi⟩)
-      refine ⟨y, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa only [digits, List.length_cons, List.length_nil, Nat.mul_zero,
-          Nat.add_zero, Nat.add_assoc] using he.seq (Exec.const (d := d) (fits_zero w))
-      · intro i hi
-        rcases List.mem_cons.mp hi with rfl | hi
-        · simp only [y, Data.set_regs, Function.update_self]
-          exact lt_trans (by decide) (one_lt_radix hw)
-        · have hid : i ≠ d := fun heq => hdnot (heq ▸ hi)
-          rw [hyf.2 i (by simpa only [List.mem_singleton] using hid)
-            (digit_ne (hds i hi)).1 (digit_ne (hds i hi)).2.1]
-          exact hzb i hi
-      · simpa only [y, Data.set_regs, Function.update_apply, Ne.symm hd.2.1,
-          ↓reduceIte] using hzc
-      · change (y.regs d + radix w * value (radix w) y ds) * _ + _ = _
-        rw [hyv]
-        simp only [y, Data.set_regs, Function.update_self, Function.update_apply,
-          Ne.symm hd.2.1, ↓reduceIte, zero_add]
-        simp only [value, List.map_nil, Nat.ofDigits_nil] at hzv ⊢
-        have hv0 : Nat.ofDigits (radix w) (List.map z.regs ds) * 2 ^ x.regs total = 0 := by omega
-        have hc0 : z.regs carry = 0 := by omega
-        rw [mul_assoc, hv0, mul_zero, hc0, zero_add]
-      · simpa only [y, Data.set_regs, Function.update_apply, Ne.symm hd.1,
-          ↓reduceIte] using hzt
-      · exact frame_trans (frame_mono hzf (by simp)) (frame_mono hyf (by simp))
+      refine WP.Exact.exists_exec ?_
+      unfold digits
+      wram_exec
+      wram_call (ih [] (by simp) (by simp) hds hnd' (by simp) x hb hz hs
+        (by simp [Bounded])) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
+      wram_exec [List.length_cons, List.length_nil]
+      obtain ⟨hyb, hyv, hyframe⟩ := hzf.step_cons (frame_set_mem (d := d) z 0) hds hdnot hzb
+        (by wram_simp; exact lt_trans zero_lt_one (one_lt_radix hw))
+      refine ⟨hyb, by wram_simp [hzc], ?_, by wram_simp [hzt], hyframe⟩
+      change ((z.set d 0).regs d + radix w * value (radix w) (z.set d 0) ds) * _ + _ = _
+      wram_simp [hyv]
+      simp only [value, List.map_nil, Nat.ofDigits_nil] at hzv ⊢
+      obtain ⟨hz1, hzc0⟩ := Nat.add_eq_zero_iff.mp hzv
+      rw [mul_assoc, hz1, mul_zero, hzc0, zero_add]
     | cons a as =>
-      have hat := digit_ne (hin a (by simp))
       have hdis' : List.Disjoint ds as := List.disjoint_left.mpr fun i hi hj =>
         List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (List.mem_cons_of_mem a hj)
-      obtain ⟨z, he, hzb, hzc, hzv, hzt, hzf⟩ := ih as (by simpa using hlen)
-        (fun i hi => hin i (by simp [hi])) hds hnd' hdis' x hb hz hs
-        (fun i hi => ha i (by simp [hi]))
-      have hza : z.regs a = x.regs a := hzf.2 a
-        (fun hi => List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi)
-          List.mem_cons_self) hat.1 hat.2.1
-      have hbase : z.regs base = radix w := by
-        rw [hzf.2 base (fun hi => (digit_ne (hds base hi)).2.2.1 rfl)
-          (by simp [base, total]) (by simp [base, carry])]; exact hb
-      have hzero : z.regs zero = 2 ^ z.regs total := by
-        rw [hzf.2 zero (fun hi => (digit_ne (hds zero hi)).2.2.2 rfl)
-          (by simp [zero, total]) (by simp [zero, carry]), hzt]; exact hz
-      obtain ⟨hec, hyb, hyc, hyv, hyt, hyf⟩ := exec_cell hw z a d
-        (hin a (by simp)) (hout d (by simp)) hbase hzero (by rwa [hzt])
-        (by rw [hza]; exact ha a (by simp)) (by rwa [hzt])
-      let y := cellResult z a d
-      have hyval : value (radix w) y ds = value (radix w) z ds :=
-        value_frame hyf (fun i hi => ⟨by
-          simp only [List.mem_singleton]; rintro rfl; exact hdnot hi, hds i hi⟩)
-      refine ⟨y, ?_, ?_, ?_, ?_, hyt.trans hzt, ?_⟩
-      · simp only [digits, List.length_cons]
-        convert he.seq hec using 1; omega
-      · intro i hi
-        rcases List.mem_cons.mp hi with rfl | hi
-        · exact hyb
-        · have hid : i ≠ d := fun heq => hdnot (heq ▸ hi)
-          rw [hyf.2 i (by simpa only [List.mem_singleton] using hid)
-            (digit_ne (hds i hi)).1 (digit_ne (hds i hi)).2.1]
-          exact hzb i hi
-      · rwa [hzt] at hyc
-      · change (y.regs d + radix w * value (radix w) y ds) * _ + _ =
-          x.regs a + radix w * value (radix w) x as
-        rw [hzt, hza] at hyv
-        rw [hyval]
-        nlinarith [congrArg (radix w * ·) hzv]
-      · exact frame_trans (frame_mono hzf (by simp)) (frame_mono hyf (by simp))
+      refine WP.Exact.exists_exec ?_
+      unfold digits
+      wram_exec
+      wram_call (ih as (by simpa using hlen) (fun i hi => hin i (by simp [hi])) hds hnd' hdis'
+        x hb hz hs (fun i hi => ha i (by simp [hi]))) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
+      have hza : z.regs a = x.regs a := hzf.digit_regs (hin a (by simp))
+        (fun hi => List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) List.mem_cons_self)
+      wram_call (exec_cell z a d (hin a (by simp)) (hout d (by simp))
+        ((hzf.base_regs hds).trans hb) ((hzf.zero_regs hds).trans (hzt ▸ hz)) (by rwa [hzt])
+        (hza ▸ ha a (by simp)) (by rwa [hzt])) with y ⟨hy_d, hyc, hyv, hyt, hyf⟩
+      obtain ⟨hyb, hyval, hyframe⟩ := hzf.step_cons hyf hds hdnot hzb hy_d
+      refine ⟨by simp only [List.length_cons]; omega, hyb, by rwa [hzt] at hyc, ?_,
+        hyt.trans hzt, hyframe⟩
+      change (y.regs d + radix w * value (radix w) y ds) * _ + _ =
+        x.regs a + radix w * value (radix w) x as
+      rw [hzt, hza] at hyv
+      rw [hyval]
+      nlinarith [congrArg (radix w * ·) hzv]
 
 /-- Set up the residual power-of-two divisor and divide the remaining digits. -/
 def finish (as ds : List (Fin (r + 4))) : Code .standard (r + 4) :=
@@ -247,36 +188,29 @@ private theorem exec_finish {w : ℕ} (hw : 2 ≤ w)
       Bounded (radix w) y ds ∧
       value (radix w) y ds = value (radix w) x as >>> x.regs total ∧
       Frame x y (zero :: ds) := by
-  let z := (x.set zero 1).set zero (2 ^ x.regs total)
   have h1 := fits_one (w := w) (by omega)
   have hpow : Fits w (2 ^ x.regs total) :=
     (radix_fits hw).of_le (Nat.pow_le_pow_right (by decide) (by omega))
   have hshift : 1 <<< x.regs total = 2 ^ x.regs total := by
     rw [Nat.shiftLeft_eq, one_mul]
-  have hez : Exec w (ram[ zero ← #1; zero ← zero <<< total ]) x z 2 := by
-    ram_eval [z, zero, total, Fin.mk.injEq, h1, hpow, hshift]
-  have hzf : Frame x z [zero] := ⟨rfl, fun i hi _ _ => by
-    simp only [List.mem_singleton] at hi
-    simp only [z, Data.set_regs, Function.update_apply, hi, ↓reduceIte]⟩
-  have hzt : z.regs total = x.regs total := by simp [z, total, zero]
-  have hzb : z.regs base = radix w := by simpa [z, base, zero] using hb
-  have hza (i : Fin (r + 4)) (hi : i ∈ as) : z.regs i = x.regs i :=
-    hzf.2 i (by simpa only [List.mem_singleton] using (digit_ne (hin i hi)).2.2.2)
-      (digit_ne (hin i hi)).1 (digit_ne (hin i hi)).2.1
-  obtain ⟨y, he, hyb, hyc, hyv, _, hyf⟩ := exec_digits hw as ds hlen hin hout hnd hdis
-    z hzb (by simp [z]) (by rwa [hzt])
-    (fun i hi => by rw [hza i hi]; exact ha i hi)
-  have hzv : value (radix w) z as = value (radix w) x as :=
-    value_frame hzf (fun i hi => ⟨by
-      simpa only [List.mem_singleton] using (digit_ne (hin i hi)).2.2.2, hin i hi⟩)
-  rw [hzt, hzv] at hyv
+  refine WP.Exact.exists_exec ?_
+  unfold finish
+  wram_exec [h1, hpow, hshift]
+  refine WP.Exact.name fun z hzx => ?_
+  have hzf : Frame x z [zero] := by
+    rw [hzx, Data.set_set]
+    exact frame_set_mem x _
+  have hdis_z : ∀ i ∈ as, i ∉ [zero] :=
+    fun i hi hm => (digit_ne (hin i hi)).2.2.2 (List.mem_singleton.mp hm)
+  wram_call (exec_digits hw as ds hlen hin hout hnd hdis z
+    (by rw [hzx]; wram_simp [hb]) (by rw [hzx]; wram_simp) (by rw [hzx]; wram_simp; exact hs)
+    (hzf.bounded_of_digits hin hdis_z ha)) with y ⟨hyb, hyc, hyv, _, hyf⟩
+  have hzt : z.regs total = x.regs total := by rw [hzx]; wram_simp
+  rw [hzt, hzf.value_eq_of_digits hin hdis_z] at hyv
   rw [hzt] at hyc
-  refine ⟨y, ?_, hyb, ?_, ?_⟩
-  · unfold finish
-    convert hez.seq he using 1; omega
-  · rw [Nat.shiftRight_eq_div_pow]
-    exact (Nat.div_eq_of_lt_le (by omega) (by nlinarith)).symm
-  · exact frame_trans (frame_mono hzf (by simp)) (frame_mono hyf (by simp))
+  refine ⟨trivial, hyb, ?_, frame_trans (frame_mono hzf (by simp)) (frame_mono hyf (by simp))⟩
+  rw [Nat.shiftRight_eq_div_pow]
+  exact (Nat.div_eq_of_lt_le (by omega) (by nlinarith)).symm
 
 /-- Branch through the possible whole-digit shifts. Exhausting the input clears the output. -/
 def dispatch : List (Fin (r + 4)) → List (Fin (r + 4)) → Code .standard (r + 4)
@@ -313,59 +247,47 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
       Frame x y (base :: zero :: ds) := by
   induction as generalizing x with
   | nil =>
-    let z := x.set total 0
-    obtain ⟨y, he, hyb, hyv, hyf⟩ := exec_finish hw [] ds (by simp) (by simp) hout hnd
-      (by simp) z (by simpa [z, base, total] using hb) (by simp [z]; omega)
-      (by simp [Bounded])
-    refine ⟨y, ?_, hyb, ?_, ?_⟩
-    · simp only [dispatch, List.length_nil, Nat.mul_zero, Nat.add_zero]
-      convert (Exec.const (d := total) (x := x) (B := .standard)
-        (fits_zero w)).within.seq he.within using 1
-      simp only [List.length_nil]; omega
-    · simpa [value] using hyv
-    · exact frame_trans
-        (show Frame x z (base :: zero :: ds) from ⟨rfl, fun i _ ht _ => by
-          simp only [z, Data.set_regs, Function.update_apply, ht, ↓reduceIte]⟩)
-        (frame_mono hyf (by simp))
+    refine WP.exists_execWithin (WP.Exact.toWP ?_)
+    unfold dispatch
+    wram_exec
+    wram_call (exec_finish hw [] ds (by simp) (by simp) hout hnd (by simp) _
+      (by wram_simp [hb]) (by wram_simp; omega) (by simp [Bounded])) with y ⟨hyb, hyv, hyf⟩
+    refine ⟨by simp only [List.length_nil]; omega, hyb, ?_,
+      frame_trans (frame_set_total x 0 _) (frame_mono hyf (by simp))⟩
+    simpa only [value, List.map_nil, Nat.ofDigits_nil, Nat.zero_shiftRight] using hyv
   | cons a as ih =>
     have hlen' : as.length ≤ ds.length := by simp only [List.length_cons] at hlen; omega
     have hin' : ∀ i ∈ as, IsDigit i := fun i hi => hin i (by simp [hi])
     have hdis' : List.Disjoint ds as := List.disjoint_left.mpr fun i hi hj =>
       List.disjoint_left.mp hdis hi (List.mem_cons_of_mem a hj)
-    by_cases hsmall : x.regs total < w / 2
-    · obtain ⟨y, he, hyb, hyv, hyf⟩ :=
-        exec_finish hw (a :: as) ds hlen hin hout hnd hdis x hb hsmall ha
-      refine ⟨y, ?_, hyb, hyv, frame_mono hyf (by simp)⟩
-      simpa only [dispatch] using he.within.branch_pos
-        (show (Cond.lt total zero).Holds x by simpa [Cond.Holds, hz] using hsmall)
-    · let z := x.set total (x.regs total - w / 2)
-      have hez : Exec w (.op (.bin .sub total total zero)) x z 1 := by
-        have hf := hs.of_le (Nat.sub_le (x.regs total) (w / 2))
-        ram_eval [z, hz, hf]
-      have hzf : Frame x z (base :: zero :: ds) := ⟨rfl, fun i _ ht _ => by
-        simp only [z, Data.set_regs, Function.update_apply, ht, ↓reduceIte]⟩
-      have hza (i : Fin (r + 4)) (hi : i ∈ as) : z.regs i = x.regs i := by
-        simp only [z, Data.set_regs, Function.update_apply, (digit_ne (hin' i hi)).1,
-          ↓reduceIte]
-      obtain ⟨y, he, hyb, hyv, hyf⟩ := ih hlen' hin' hdis' z
-        (by simpa [z, base, total] using hb) (by simpa [z, zero, total] using hz)
-        (by simpa [z] using hs.of_le (Nat.sub_le (x.regs total) (w / 2)))
-        (fun i hi => by rw [hza i hi]; exact ha i (by simp [hi]))
-      have hzv : value (radix w) z as = value (radix w) x as := value_congr hza
+    have hf : Fits w (x.regs total - w / 2) := hs.of_le (Nat.sub_le _ _)
+    refine WP.exists_execWithin ?_
+    unfold dispatch
+    wram_exec [hz, hf]
+    case pos =>
+      obtain ⟨y, he, hyb, hyv, hyf⟩ :=
+        exec_finish hw (a :: as) ds hlen hin hout hnd hdis x hb hc ha
+      exact WP.of_execWithin he.within
+        ⟨by simp only [List.length_cons]; omega, hyb, hyv, frame_mono hyf (by simp)⟩
+    case neg =>
+      have hza (i : Fin (r + 4)) (hi : i ∈ as) :
+          (x.set total (x.regs total - w / 2)).regs i = x.regs i := by
+        have := (digit_ne (hin' i hi)).1
+        wram_simp
+      wram_call (ih hlen' hin' hdis' _ (by wram_simp [hb]) (by wram_simp [hz])
+        (by wram_simp [hf]) (fun i hi => by rw [hza i hi]; exact ha i (by simp [hi]))) with
+        y ⟨hyb, hyv, hyf⟩
       have hdrop : value (radix w) x (a :: as) >>> (w / 2) = value (radix w) x as := by
         rw [Nat.shiftRight_eq_div_pow]
         change (x.regs a + radix w * value (radix w) x as) / radix w = _
         rw [Nat.add_mul_div_left _ _ (by have := one_lt_radix hw; omega),
           Nat.div_eq_of_lt (ha a (by simp)), zero_add]
-      refine ⟨y, ?_, hyb, ?_, frame_trans hzf hyf⟩
-      · have hbranch := (hez.within.seq he).branch_neg (pos := finish (a :: as) ds)
-          (show ¬(Cond.lt total zero).Holds x by simpa [Cond.Holds, hz] using hsmall)
-        simp only [dispatch]
-        convert hbranch using 1
-        simp only [List.length_cons]; omega
-      · rw [show x.regs total = w / 2 + (x.regs total - w / 2) by omega,
-          Nat.shiftRight_add, hdrop]
-        simpa only [z, Data.set_regs, Function.update_self, hzv] using hyv
+      refine ⟨by simp only [List.length_cons]; omega, hyb, ?_,
+        frame_trans (frame_set_total x _ _) hyf⟩
+      rw [show x.regs total = w / 2 + (x.regs total - w / 2) by omega,
+        Nat.shiftRight_add, hdrop, ← value_congr hza]
+      wram_simp at hyv
+      exact hyv
 
 /-- Initialize the radix, half width and scalar shift, then execute checked division. -/
 def program (w : ℕ) (as ds : List (Fin (r + 4))) (s : Fin (r + 4)) :
@@ -390,30 +312,27 @@ theorem exec {w : ℕ} (hw : 2 ≤ w)
       Bounded (radix w) y ds ∧
       value (radix w) y ds = value (radix w) x as >>> x.regs s ∧
       Frame x y (base :: zero :: ds) ∧ y.regs s = x.regs s := by
-  let z := ((x.set base (radix w)).set zero (w / 2)).set total (x.regs s)
   obtain ⟨hst, hsc, hsb, hsz⟩ := digit_ne hsdigit
-  have hez : Exec (B := .standard) w
-      (ram[ base ← #(radix w); zero ← #(w / 2); total ← s ]) x z 3 := by
-    have hhalf := (fits_self w).of_le (Nat.div_le_self w 2)
-    have hβ := radix_fits hw
-    ram_eval [z, hsb, hsz, hhalf, hβ, base, zero, total, Fin.mk.injEq]
-  have hzf : Frame x z (base :: zero :: ds) := ⟨rfl, fun i hi ht _ => by
-    have hb : i ≠ base := fun h => hi (by simp [h])
-    have hz : i ≠ zero := fun h => hi (by simp [h])
-    simp only [z, Data.set_regs, Function.update_apply, ht, hb, hz, ↓reduceIte]⟩
+  have hhalf := (fits_self w).of_le (Nat.div_le_self w 2)
+  have hβ := radix_fits hw
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec [hhalf, hβ]
+  refine WP.name fun z hzx => ?_
   have hzi (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
     obtain ⟨ht, _, hb, hz⟩ := digit_ne hi
-    simp only [z, Data.set_regs, Function.update_apply, ht, hb, hz, ↓reduceIte]
-  obtain ⟨y, he, hyb, hyv, hyf⟩ := exec_dispatch hw as ds hlen hin hout hnd hdis z
-    (by simp [z, base, total, zero]) (by simp [z, zero, total]) (by simpa [z] using hs)
-    (fun i hi => by rw [hzi i (hin i hi)]; exact ha i hi)
-  have hzv : value (radix w) z as = value (radix w) x as := value_congr fun i hi => hzi i (hin i hi)
+    rw [hzx]; wram_simp
+  wram_call (exec_dispatch hw as ds hlen hin hout hnd hdis z (by rw [hzx]; wram_simp)
+    (by rw [hzx]; wram_simp) (by rw [hzx]; wram_simp [hs])
+    (fun i hi => by rw [hzi i (hin i hi)]; exact ha i hi)) with y ⟨hyb, hyv, hyf⟩
+  have hzf : Frame x z (base :: zero :: ds) := by
+    rw [hzx]
+    exact frame_trans (frame_set_mem x (radix w))
+      (frame_trans (frame_set_mem (d := zero) _ (w / 2)) (frame_set_total _ _ _))
   have hf := frame_trans hzf hyf
-  refine ⟨y, ?_, hyb, ?_, hf, ?_⟩
-  · unfold program
-    convert hez.within.seq he using 1; omega
-  · simpa only [z, Data.set_regs, Function.update_self, hzv] using hyv
-  · exact hf.2 s (by simp [hsb, hsz, hsout]) hst hsc
+  refine ⟨by omega, hyb, ?_, hf, hf.2 s (by simp [hsb, hsz, hsout]) hst hsc⟩
+  have hzt : z.regs total = x.regs s := by rw [hzx]; wram_simp
+  rwa [hzt, value_congr fun i hi => hzi i (hin i hi)] at hyv
 
 /-- Extract the outside-output register guarantee from the complete four-register frame. -/
 private theorem regs_eq_of_frame {x y : Data (r + 4)} {ds : List (Fin (r + 4))}
@@ -428,12 +347,8 @@ theorem shiftRight_eq_zero {w s : ℕ} (hw : 2 ≤ w) (x : Data (r + 4))
     (as : List (Fin (r + 4))) (ha : Bounded (radix w) x as)
     (hs : (w / 2) * as.length ≤ s) : value (radix w) x as >>> s = 0 := by
   have hv : value (radix w) x as < radix w ^ as.length := by
-    unfold value
-    have hd : ∀ d ∈ as.map x.regs, d < radix w := by
-      intro d hd
-      obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hd
-      exact ha i hi
-    simpa only [List.length_map] using Nat.ofDigits_lt_base_pow_length (one_lt_radix hw) hd
+    simpa only [value, List.length_map] using
+      Nat.ofDigits_lt_base_pow_length (one_lt_radix hw) (List.forall_mem_map.mpr ha)
   rw [radix, ← pow_mul] at hv
   rw [Nat.shiftRight_eq_div_pow]
   exact Nat.div_eq_of_lt (hv.trans_le (Nat.pow_le_pow_right (by decide) hs))

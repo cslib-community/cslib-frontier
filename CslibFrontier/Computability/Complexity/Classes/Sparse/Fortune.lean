@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Classes.NP.SelfReduction
+public import CslibFrontier.Computability.Complexity.Problems.SAT.Units
 public import CslibFrontier.Computability.Complexity.Classes.Sparse
 public import CslibFrontier.Computability.Complexity.Reduction
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
@@ -166,20 +166,17 @@ def accepts (key : CNF ℕ → List Bool) (c : ℕ) (φ : CNF ℕ) : Bool :=
 
 /-- A formula with unit clauses is satisfiable only if the formula is. -/
 theorem mem_SAT_of_units_append {a : List (Literal ℕ)} {φ : CNF ℕ}
-    (h : units a ++ φ ∈ SAT) : φ ∈ SAT := by
-  obtain ⟨σ, hσ⟩ := h
-  rw [CNF.eval_append, Bool.and_eq_true] at hσ
-  exact ⟨σ, hσ.2⟩
+    (h : units a ++ φ ∈ SAT) : φ ∈ SAT :=
+  let ⟨σ, hσ⟩ := h
+  ⟨σ, ((eval_units_append σ a φ).1 hσ).2⟩
 
 /-- A satisfiable node has a satisfiable child: fix the next occurrence `v` to its value under a
 satisfying assignment. -/
 theorem exists_child_mem_SAT {a : List (Literal ℕ)} {φ : CNF ℕ} (v : ℕ)
     (h : units a ++ φ ∈ SAT) : ∃ b, units (a ++ [(v, b)]) ++ φ ∈ SAT := by
   obtain ⟨σ, hσ⟩ := h
-  rw [CNF.eval_append, Bool.and_eq_true, eval_units] at hσ
-  refine ⟨σ v, σ, ?_⟩
-  rw [CNF.eval_append, Bool.and_eq_true, eval_units]
-  refine ⟨fun l hl => ?_, hσ.2⟩
+  rw [eval_units_append] at hσ
+  refine ⟨σ v, σ, (eval_units_append ..).2 ⟨fun l hl => ?_, hσ.2⟩⟩
   rcases List.mem_append.1 hl with hl | hl
   · exact hσ.1 l hl
   · rw [List.mem_singleton.1 hl]
@@ -204,24 +201,18 @@ theorem verifier_units_append_iff {a : List (Literal ℕ)} {φ : CNF ℕ}
     (ha : ∀ v ∈ φ.vars, v ∈ a.map Prod.fst) :
     verifier (units a ++ φ, a.map Prod.snd) = true ↔ units a ++ φ ∈ SAT := by
   refine ⟨fun h => ⟨_, h⟩, fun ⟨τ, hτ⟩ => ?_⟩
-  have hτ' := hτ
-  rw [CNF.eval_append, Bool.and_eq_true, eval_units] at hτ'
+  have hτ' := (eval_units_append τ a φ).1 hτ
   rw [verifier, CNF.eval_congr fun v hv => ?_]
   · exact hτ
   · have hva : v ∈ a.map Prod.fst := by
-      rw [CNF.vars, List.flatten_append, List.map_append, ← CNF.vars, ← CNF.vars,
-        vars_units] at hv
-      rcases List.mem_append.1 hv with hv | hv
-      · exact hv
-      · exact ha v hv
-    have hlt : (a.map Prod.fst).idxOf v < a.length := by
-      simpa using List.idxOf_lt_length_iff.2 hva
-    have hfst : (a[(a.map Prod.fst).idxOf v]).1 = v := by
-      have := List.getElem_idxOf (List.idxOf_lt_length_iff.2 hva)
-      simpa only [List.getElem_map] using this
-    rw [assignment, CNF.vars, List.flatten_append, List.map_append, ← CNF.vars, ← CNF.vars,
-      vars_units, List.idxOf_append_of_mem hva, List.getD_eq_getElem _ _ (by simpa using hlt),
-      List.getElem_map, ← hτ'.1 _ (List.getElem_mem hlt), hfst]
+      rw [vars_units_append] at hv
+      exact (List.mem_append.1 hv).elim id (ha v)
+    have hlt := List.idxOf_lt_length_iff.2 hva
+    have hlt' : (a.map Prod.fst).idxOf v < a.length := by simpa using hlt
+    rw [assignment, vars_units_append, List.idxOf_append_of_mem hva,
+      List.getD_eq_getElem _ _ (by simpa using hlt'), List.getElem_map,
+      ← hτ'.1 _ (List.getElem_mem hlt')]
+    exact congrArg τ (by simpa only [List.getElem_map] using List.getElem_idxOf hlt)
 
 /-! ### Pruned searches
 
@@ -252,14 +243,11 @@ theorem searchWith_induction (P : List ℕ → List (List (Literal ℕ)) → Pro
     simpa [searchWith] using h φ.vars [] [[]] (by simp) hroot
   intro l
   induction l with
-  | nil =>
-    intro pre nodes _ h
-    simpa using h
+  | nil => exact fun _ _ _ h => by simpa using h
   | cons v l ih =>
     intro pre nodes hpre h
     have hpre' : (pre ++ [v] ++ l).IsPrefix φ.vars := by simpa using hpre
-    simpa using ih (pre ++ [v]) _ hpre'
-      (hstep pre v nodes ((List.prefix_append _ l).trans hpre') h)
+    simpa using ih (pre ++ [v]) _ hpre' (hstep pre v _ ((List.prefix_append _ l).trans hpre') h)
 
 /-- **Correctness of a pruned search from its leaves.** If the leaves of the search fix every
 occurrence of `φ`, and include a satisfiable one whenever `φ` is satisfiable, then the search
@@ -269,14 +257,9 @@ theorem acceptsWith_iff_of_searchWith
     (hsat : φ ∈ SAT → ∃ a ∈ searchWith prune φ, units a ++ φ ∈ SAT) :
     acceptsWith prune φ = true ↔ φ ∈ SAT := by
   rw [acceptsWith, List.any_eq_true]
-  constructor
-  · rintro ⟨a, -, ha⟩
-    exact mem_SAT_of_units_append ⟨_, ha⟩
-  · intro hφ
-    obtain ⟨a, ha, hgood⟩ := hsat hφ
-    refine ⟨a, ha, (verifier_units_append_iff fun v hv => ?_).2 hgood⟩
-    rw [hfst a ha]
-    exact hv
+  exact ⟨fun ⟨a, _, ha⟩ => mem_SAT_of_units_append ⟨_, ha⟩, fun hφ =>
+    let ⟨a, ha, hgood⟩ := hsat hφ
+    ⟨a, ha, (verifier_units_append_iff fun v hv => hfst a ha ▸ hv).2 hgood⟩⟩
 
 /-- **Correctness of a pruned search.** If the rule `prune` keeps only nodes of the level it
 prunes, and keeps a satisfiable node of every level of the tree of `φ` that has one, then the
@@ -321,9 +304,7 @@ private theorem exists_mem_prune (hkey : ∀ ψ, ψ ∉ SAT ↔ key ψ ∈ K)
   obtain ⟨b₀, hb₀, hb₀sat⟩ := h
   rcases exists_mem_prune_or_length_eq (label := fun a => key (units a ++ φ)) (c := c) hb₀ with
     ⟨b, hbp, hlab⟩ | hlen
-  · refine ⟨b, hbp, ?_⟩
-    by_contra hbad
-    exact (hkey _).2 (hlab ▸ (hkey _).1 hbad) hb₀sat
+  · exact ⟨b, hbp, by_contra fun hbad => (hkey _).2 (hlab ▸ (hkey _).1 hbad) hb₀sat⟩
   · by_contra hnone
     push Not at hnone
     set kept := prune (fun a => key (units a ++ φ)) c l
@@ -376,18 +357,9 @@ of length at most `L (4 L + 5)`, where `L` is the length of the encoding of `φ`
 theorem length_encNode_le {φ : CNF ℕ} {a : List (Literal ℕ)} (ha : ∀ l ∈ a, l.1 ∈ φ.vars)
     (hlen : a.length ≤ φ.vars.length) :
     (encList (encPair encNat encBool) a).length ≤
-      (encCNF φ).length * (4 * (encCNF φ).length + 5) := by
-  have hlit : ∀ l ∈ a, (encPair encNat encBool l).length ≤ 2 * (encCNF φ).length + 2 := by
-    intro l hl
-    have := length_encNat_le_of_mem_vars (ha l hl)
-    rw [length_encPair, encBool_apply, List.length_singleton]
-    omega
-  have hlen' : a.length ≤ (encCNF φ).length := hlen.trans (length_vars_le φ)
-  calc (encList (encPair encNat encBool) a).length
-      ≤ a.length * (2 * (2 * (encCNF φ).length + 2) + 1) := length_encList_le _ _ hlit
-    _ ≤ (encCNF φ).length * (4 * (encCNF φ).length + 5) := by
-      rw [show 2 * (2 * (encCNF φ).length + 2) + 1 = 4 * (encCNF φ).length + 5 by ring]
-      exact Nat.mul_le_mul_right _ hlen'
+      (encCNF φ).length * (4 * (encCNF φ).length + 5) :=
+  (length_encList_le_of_mem_vars ha).trans
+    (Nat.mul_le_mul_right _ (hlen.trans (length_vars_le φ)))
 
 /-- Checking a leaf with the verifier is polynomial-time. -/
 theorem computableInPolyTime_verifier_units_append :
@@ -461,22 +433,15 @@ theorem SAT_mem_P {β : Type*} {encB : β ↪ List Bool} {S : Set β} (hS : S �
   sparse problem are that short. -/
   let q : Polynomial ℕ := Polynomial.C C *
     (p.comp (Polynomial.X + Polynomial.X * (8 * Polynomial.X + 11)) + 1) ^ D
-  have hq (L : ℕ) : q.eval L = C * (p.eval (L + L * (8 * L + 11)) + 1) ^ D := by
-    simp [q]
   refine ⟨fun φ => accepts (fun ψ => encB (f ψ)) (q.eval (encCNF φ).length) φ,
     computableInPolyTime_accepts hkey ((unary_eval q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := encB '' S) (M := p.eval ((encCNF φ).length +
-      (encCNF φ).length * (8 * (encCNF φ).length + 11))) (fun ψ => ?_) (fun a ha hlen => ?_)
-      (fun s hs => ?_)).symm⟩
-  · rw [encB.injective.mem_set_image]
-    exact hfS ψ
-  · refine (hp _).trans (Polynomial.eval_mono _ ?_)
-    have hunits := length_encCNF_units_le ha
-    have hvars := length_vars_le φ
-    rw [length_encCNF_append]
-    nlinarith
-  · rw [hq]
-    exact hCD _ s fun w hw => by simpa using hs w hw
+      (encCNF φ).length * (8 * (encCNF φ).length + 11)))
+      (fun ψ => (hfS ψ).trans (encB.injective.mem_set_image).symm)
+      (fun a ha _ => (hp _).trans (Polynomial.eval_mono _ (by
+        rw [length_encCNF_append]
+        nlinarith [length_encCNF_units_le ha, length_vars_le φ])))
+      (fun s hs => by simpa [q] using hCD _ s fun w hw => by simpa using hs w hw)).symm⟩
 
 end Fortune
 

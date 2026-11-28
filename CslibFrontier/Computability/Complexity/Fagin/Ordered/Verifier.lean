@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Fagin.Ordered
 public import CslibFrontier.Computability.Complexity.Fagin.Witness
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Ordered existential second-order queries are in NP
@@ -106,14 +107,10 @@ theorem mem_queryLanguage_witnessInput (a : EncodedStructure) (w : List Bool) :
         Fin a.1 ⊨ Φ.matrix := by
   simp only [FO.Ordered.queryLanguage, Set.mem_ofPred_eq,
     wellFormed_witnessInput_iff, witnessInput_card]
-  apply and_congr_right
-  intro ha
-  apply exists_congr
-  intro hn
+  refine and_congr_right fun ha => exists_congr fun hn => ?_
   let _ : Fact (2 ≤ a.1) := ⟨hn⟩
-  rw [decode_witnessInput ℓ e v a w ha]
   let _ := v.decode a
-  exact Φ.realize_orderedMatrix _
+  exact decode_witnessInput ℓ e v a w ha ▸ Φ.realize_orderedMatrix _
 
 /-- Existentially choosing a certificate of the prescribed length is equivalent to ordered ESO
 truth, with exactly the original source-only encoding and shape rejection. -/
@@ -129,12 +126,9 @@ theorem exists_witnessInput_mem_queryLanguage_iff (a : EncodedStructure) :
     exact ⟨ha, hn, ℓ.certRel a.1 (encStructure a).length w, hmatrix⟩
   · rintro ⟨ha, hn, R, hR⟩
     have hN : 0 < (encStructure a).length := by
-      simp only [encStructure, length_encPair]
-      omega
+      enc_len [encStructure]
     obtain ⟨w, hw, hrel⟩ := ℓ.exists_certificate (card_le_length_encStructure a) hN R
-    refine ⟨w, hw, (ℓ.mem_queryLanguage_witnessInput e v a w).2 ⟨ha, hn, ?_⟩⟩
-    rw [hrel]
-    exact hR
+    exact ⟨w, hw, (ℓ.mem_queryLanguage_witnessInput e v a w).2 ⟨ha, hn, hrel ▸ hR⟩⟩
 
 /-- Every fixed ordered ESO sentence has an actual polynomial-time verifier with the layout's
 certificate polynomial. The verifier explicitly rejects certificates of the wrong length. Its
@@ -184,16 +178,15 @@ in native nondeterministic polynomial time. No invariance under permutations is 
 theorem ESODefinable.encodedLanguage_mem_NP {L : Language} [L.IsRelational] (v : Vocabulary L)
     {K : Query L} (hK : ESODefinable K) : K.encodedLanguage v ∈ NP encStructure := by
   obtain ⟨Φ, hΦ⟩ := hK
-  have hK' : K = {M : Ordered.Structure L | Φ.Realize M} := Set.ext hΦ
-  rw [hK']
-  exact Φ.ordered_queryLanguage_mem_NP v
+  exact (Set.ext hΦ : K = {M : Ordered.Structure L | Φ.Realize M}) ▸
+    Φ.ordered_queryLanguage_mem_NP v
 
 /-- **Ordered Fagin characterization:** arbitrary queries of canonically ordered finite
 structures are ESO-definable exactly when their source-only encoded languages are in native
 `NP`. The universe has at least two elements and malformed relation tables are rejected. -/
 theorem esoDefinable_iff_encodedLanguage_mem_NP {L : Language} [L.IsRelational]
     (v : Vocabulary L) (K : Query L) : ESODefinable K ↔ K.encodedLanguage v ∈ NP encStructure :=
-  ⟨ESODefinable.encodedLanguage_mem_NP v, ESODefinable.of_queryLanguage_mem_NP v⟩
+  ⟨ESODefinable.encodedLanguage_mem_NP v, ESODefinable.of_encodedLanguage_mem_NP v⟩
 
 end FO.Ordered
 

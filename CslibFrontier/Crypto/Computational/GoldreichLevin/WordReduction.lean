@@ -10,10 +10,13 @@ module
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordDecoder
 public import CslibFrontier.Crypto.Computational.Basic
 public import CslibFrontier.Crypto.Computational.OneWay
+public import CslibFrontier.Foundations.Data.BitString.List.Dot
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Computability.Probabilistic.CoinTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The uniform Goldreich–Levin inverter
@@ -51,6 +54,8 @@ at `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using typed saved seeds and the t
 
 @[expose] public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime Cslib.Probability.IsPPTOn
+
 namespace Cslib.Crypto.GoldreichLevin
 
 open Probability BitString Turing.MultiTapeTM
@@ -70,7 +75,7 @@ noncomputable def parityPredictionGame (f : List Bool → List Bool) (adversary 
   let x ← BitString.sampleList n
   let query ← BitString.sampleList n
   let guess ← adversary n (f x ++ query)
-  return guess == (x.zipWith Bool.and query).foldl Bool.xor false
+  return guess == listDot x query
 
 /-- The prediction experiment composes sampling, the adversary and Boolean word operations. -/
 @[program_certificate]
@@ -78,7 +83,18 @@ theorem isPPTOn_parityPredictionGame {f : List Bool → List Bool} {adversary : 
     (hf : ComputableInPolyTime f encBits encBits) (ha : IsPPT encBool adversary) :
     IsPPTOn encUnary encBool (parityPredictionGame f adversary) := by
   unfold parityPredictionGame
-  ppt
+  apply (ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.id' (encIn := encUnary))).bind_with
+  apply (ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.fst encUnary encBits)).bind_with
+  simpa only [bind_pure_comp, Function.comp_def] using (ha.preprocess
+    (ComputableInPolyTime.fst encUnary encBits |>.comp
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits))
+    (by fun_prop : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => f q.1.2 ++ q.2)
+      (encPair (encPair encUnary encBits) encBits) encBits)).map_with
+    (by fun_prop : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × List Bool) × Bool => q.2 == listDot q.1.1.2 q.1.2)
+      (encPair (encPair (encPair encUnary encBits) encBits) encBool) encBool)
 
 /-- Sample one sign, one predictor seed and independent masks, then decode and check candidates. -/
 noncomputable def wordInverter (f : List Bool → List Bool)
@@ -89,7 +105,6 @@ noncomputable def wordInverter (f : List Bool → List Bool)
   return wordDecode f (fun query => evaluate (n, image ++ query) coins ^^ flip)
     degree n image masks
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Every fixed degree gives one strict PPT inverter for all parameters and images. -/
 @[program_certificate]
 theorem isPPT_wordInverter {f : List Bool → List Bool}
@@ -106,9 +121,27 @@ theorem isPPT_wordInverter {f : List Bool → List Bool}
           degree p.1.1.1.1 p.1.1.1.2 p.2)
       (encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
       encBits := by
-    apply polyTime_wordDecode degree hf <;> fun_prop
-  unfold wordInverter coinBudget
-  ppt
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair (encPair (encPair (encPair (encPair encUnary encBits) encBool)
+        encBits) encBits) encBits)
+    have hn := hp.fst'.fst'.fst'.fst'.fst'
+    have himage := hp.fst'.fst'.fst'.fst'.snd'
+    have hcoins := hp.fst'.fst'.snd'
+    have hflip := hp.fst'.fst'.fst'.snd'
+    have hprepare := (hn.prod
+      (ComputableInPolyTime.bitsAppend himage hp.snd')).prod hcoins
+    have hpredict := ComputableInPolyTime.bool_xor.comp
+      ((hevaluate.comp hprepare).prod hflip)
+    have hinput := ComputableInPolyTime.id'
+      (encIn := encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
+    exact polyTime_wordDecode degree hf hpredict
+      hinput.fst'.fst'.fst'.fst' hinput.fst'.fst'.fst'.snd' hinput.snd'
+  unfold wordInverter
+  apply IsPPTOn.isPPT
+  apply (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
+  refine (ComputableInPolyTime.sampleList (by unfold coinBudget; fun_prop)).bind_with ?_
+  simpa only [bind_pure_comp] using
+    (ComputableInPolyTime.sampleList (by fun_prop)).map_with hdecode
 
 /-- At every image length, the program realizes exactly the finite seeded inverter. -/
 theorem wordInverter_eval (f : List Bool → List Bool)
@@ -137,13 +170,8 @@ theorem fixedPredictor_distribution (adversary : Distinguisher)
     (PMF.uniformOfFintype (BitString (coinBudget c d n image.length))).map
         (fun coins => fixedPredictor evaluate c d n image coins query) =
       ProbComp.eval (adversary n (image ++ List.ofFn query)) := by
-  rw [hrealize]
-  have hlen : (encPair encUnary encBits (n, image ++ List.ofFn query)).length + 1 =
-      3 * n + image.length + 2 := by
-    simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
-      List.length_append, List.length_ofFn]
-    lia
-  rw [hlen]
+  rw [hrealize, show (encPair encUnary encBits (n, image ++ List.ofFn query)).length + 1 =
+    3 * n + image.length + 2 by enc_len [List.length_ofFn]]
   simp only [uniformList, PMF.map_comp, Function.comp_def, coinBudget, fixedPredictor]
   rfl
 
@@ -155,10 +183,10 @@ theorem eval_parityPredictionGame (f : List Bool → List Bool) (adversary : Dis
         (evaluate (n, input)))
     (n : ℕ) :
     ProbComp.eval (parityPredictionGame f adversary n) =
-      predictionExperiment (fun bits => f (List.ofFn bits)) (fixedPredictor evaluate c d n)
+      parityPredictionExperiment (fun bits => f (List.ofFn bits)) (fixedPredictor evaluate c d n)
         (fun image => PMF.uniformOfFintype (BitString (coinBudget c d n image.length))) := by
-  simp only [pmf_norm, parityPredictionGame, BitString.eval_sampleList, uniformList,
-    ← dotProduct_eq_foldl, predictionExperiment]
+  simp only [pmf_norm, parityPredictionGame, BitString.eval_sampleList, uniformList, listDot_ofFn,
+    parityPredictionExperiment]
   congr 1 with x : 1
   simp_rw [← fixedPredictor_distribution adversary evaluate c d hrealize,
     PMF.bind_map, Function.comp_def]
@@ -169,13 +197,12 @@ theorem eval_parityPredictionGame (f : List Bool → List Bool) (adversary : Dis
 theorem eval_wordInversionGame (f : List Bool → List Bool)
     (evaluate : (ℕ × List Bool) → List Bool → Bool) (c d degree n : ℕ) :
     ProbComp.eval (inversionGame f (wordInverter f evaluate c d degree) n) =
-      inversionExperiment (fun bits => f (List.ofFn bits))
+      inversionExperiment (PMF.uniformOfFintype (BitString n)) (fun bits => f (List.ofFn bits))
         (invertSigned (fun bits => f (List.ofFn bits)) (fixedPredictor evaluate c d n)
           (fun image => PMF.uniformOfFintype (BitString (coinBudget c d n image.length)))
           (maskCount n (precision degree n))) := by
   simp only [pmf_norm, inversionGame, BitString.eval_sampleList, uniformList, inversionExperiment,
-    wordInverter_eval, beq_eq_decide]
-  rfl
+    wordInverter_eval]
 
 /-- Prediction bias is at most the precision error plus eight times inversion success. -/
 theorem word_prediction_advantage_le (f : List Bool → List Bool) (adversary : Distinguisher)

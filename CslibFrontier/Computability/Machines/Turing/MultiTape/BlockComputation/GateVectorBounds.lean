@@ -51,10 +51,7 @@ theorem prefixState_encoding_le (params : Params) (values : ℕ → ℕ) (j : �
   have hc := length_encNat_mono hj
   have hl := length_encList_le encNat
     (List.ofFn fun i : Fin j => values i % p) (b := (encNat p).length)
-    (by
-      intro a ha
-      obtain ⟨i, rfl⟩ := List.mem_ofFn.mp ha
-      exact length_encNat_mono (Nat.mod_lt _ hp).le)
+    (fun _ ha => (List.mem_ofFn.mp ha).elim fun _ h => h ▸ length_encNat_mono (Nat.mod_lt _ hp).le)
   simp only [List.length_ofFn] at hl
   have hmul := Nat.mul_le_mul_right (2 * (encNat p).length + 1) hj
   dsimp only at hc hmul
@@ -80,10 +77,8 @@ theorem runFrom_one_encoding_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
   rw [← resume_prefix params values j _ hanswer] at hnext
   refine QueryMachine.withCalls_runFrom_call_encoding_le caller (Interpolation.machine M e)
     request resume w encCaller Interpolation.encState ?_ ?_ hpre hhalt hcaller hnext hsize t ht
-  · change decide (params.2 ≤ j) = false
-    exact decide_eq_false (by omega)
-  · change (if j < params.2 then some (start (prefixState params values j)) else none) = _
-    simp only [hj, ↓reduceIte]
+  · exact decide_eq_false (Nat.not_le.mpr hj)
+  · exact ite_eq_left hj
 
 /-- Concatenated coordinate calls obey one bound at all physical clocks. -/
 theorem exists_runFrom_prefix_encoding_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
@@ -134,7 +129,7 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
     (b : ℕ) [NeZero b] (σ : ℕ) (i : Fin q)
     (x : Fin (k * 3 + 1) → Fin r → ZMod p)
     (hb : Encoding.width k s b ≤ r * m) (hm : 0 < m)
-    (hsp : 2 ^ m ≤ p) (h : Fin (2 ^ m) ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p)) :
+    (h : Fin (2 ^ m) ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p)) :
     let f := codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
       (Encoding.encode e) (Encoding.decode e) (i.val + 1)
     let params : Params := (QueryGate.gateParams (s := 2 ^ m)
@@ -161,7 +156,7 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
   let B := 16 * ((QueryGate.encParams Interpolation.encContext maxParams).length + 1) +
     Interpolation.calleeSpace k s Q maxContext + 2
   choose times scalars hpre hhalt hans hscalar hsize using fun j : Fin r =>
-    coordinate_supplier_bounded M e w b σ i x hb hm j hsp h hh
+    coordinate_supplier_bounded M e w b σ i x hb hm j h hh
   let values : ℕ → ℕ := fun j => if hj : j < r then scalars ⟨j, hj⟩ else 0
   have hsupplier : ∀ j < params.2, ∃ T,
       (∀ t < T, (Interpolation.machine M e).halted ((Interpolation.machine M e).runFrom w
@@ -174,13 +169,10 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
         (start (prefixState params values j)) t)).length ≤ B) := by
     intro j hj
     have hjr : j < r := hj
-    refine ⟨times ⟨j, hjr⟩, ?_, ?_, ?_, ?_⟩
-    · simpa only [start, prefixState, params, setChunk_gateParams] using hpre ⟨j, hjr⟩
-    · simpa only [start, prefixState, params, setChunk_gateParams] using hhalt ⟨j, hjr⟩
-    · simpa only [start, prefixState, params, setChunk_gateParams, values, hjr, ↓reduceDIte]
-        using hans ⟨j, hjr⟩
-    · intro t ht
-      have hpar := setChunk_encoding_mono
+    simp only [start, prefixState, params, setChunk_gateParams]
+    refine ⟨times ⟨j, hjr⟩, hpre ⟨j, hjr⟩, hhalt ⟨j, hjr⟩, ?_, fun t ht => ?_⟩
+    · simpa only [values, hjr, ↓reduceDIte] using hans ⟨j, hjr⟩
+    · have hpar := setChunk_encoding_mono
         (QueryGate.gateParams (s := 2 ^ m)
           (⟨w.length, b, σ, i.val, m, 0, r * m⟩ : Interpolation.Context) x) (Nat.le_of_lt hjr)
       simp only [setChunk_gateParams] at hpar
@@ -188,28 +180,19 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
         w.length b σ i.val m (r * m) (Nat.le_of_lt hjr)
       have hlocal := hsize ⟨j, hjr⟩ t ht
       dsimp only at hlocal
-      have hbound : (Interpolation.encState ((Interpolation.machine M e).runFrom w
-          (Interpolation.initial (QueryGate.gateParams (s := 2 ^ m)
-            (⟨w.length, b, σ, i.val, m, j, r * m⟩ : Interpolation.Context) x)) t)).length ≤ B := by
-        dsimp only [B, maxParams, maxContext]
-        omega
-      simpa only [start, prefixState, params, setChunk_gateParams] using hbound
+      dsimp only [B, maxParams, maxContext]
+      omega
   obtain ⟨T, hT, hbound⟩ := exists_runFrom_prefix_encoding_le M e params w values B
     (Fact.out : p.Prime).pos hsupplier r le_rfl
-  refine ⟨T, _, hT, ?_, ?_, ?_, ?_, ?_⟩
-  · exact List.length_ofFn
+  refine ⟨T, _, hT, List.length_ofFn, ?_, fun j => ?_, ?_, fun t ht => ?_⟩
   · intro value hvalue
-    change value ∈ List.ofFn (fun j : Fin r => values j % p) at hvalue
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hvalue
     exact Nat.mod_lt _ (Fact.out : p.Prime).pos
-  · intro j
-    rw [List.getD_ofFn_of_lt _ j.isLt 0, ZMod.natCast_mod]
+  · rw [List.getD_ofFn_of_lt _ j.isLt 0, ZMod.natCast_mod]
     simpa only [values, j.isLt, ↓reduceDIte] using hscalar j
   · rw [hT]
-    change decide (r ≤ r) = true
-    simp
-  · intro t ht
-    have hbnd := hbound t ht
+    exact decide_eq_true le_rfl
+  · have hbnd := hbound t ht
     dsimp only [B, params, maxParams, maxContext] at hbnd ⊢
     omega
 
@@ -220,7 +203,7 @@ theorem exists_runFrom_gateExtension {p q r m : ℕ} [Fact p.Prime]
     (b : ℕ) [NeZero b] (σ : ℕ) (i : Fin q)
     (x : Fin (k * 3 + 1) → Fin r → ZMod p)
     (hb : Encoding.width k s b ≤ r * m) (hm : 0 < m)
-    (hsp : 2 ^ m ≤ p) (h : Fin (2 ^ m) ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p)) :
+    (h : Fin (2 ^ m) ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p)) :
     let f := codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
       (Encoding.encode e) (Encoding.decode e) (i.val + 1)
     let params : Params := (QueryGate.gateParams (s := 2 ^ m)
@@ -231,7 +214,7 @@ theorem exists_runFrom_gateExtension {p q r m : ℕ} [Fact p.Prime]
         Packed.gateExtension h (Packed.packBits hb) (Packed.unpackBits hb) f x j) ∧
       (machine M e).halted ((machine M e).runFrom w (initial params) T) = true := by
   obtain ⟨T, values, hrun, hlength, hcanonical, hvalues, hhalt, -⟩ :=
-    exists_runFrom_gateExtension_bounded M e w b σ i x hb hm hsp h hh
+    exists_runFrom_gateExtension_bounded M e w b σ i x hb hm h hh
   exact ⟨T, values, hrun, hlength, hcanonical, hvalues, hhalt⟩
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.GateVector

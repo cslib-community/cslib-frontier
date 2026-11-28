@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.CountStep
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete native count pass for wanted positions
@@ -43,19 +44,10 @@ theorem exec_clearCounts {w L m N Q : ℕ} (x : Data 96) (hx : Parameters L m N 
   let P (k : ℕ) (z : Data 96) : Prop := Parameters L m N Q z ∧
     (∀ t < k, z.mem (countAddress L Q + t) = 0) ∧
     (∀ a, a < countAddress L Q ∨ countAddress L Q + T ≤ a → z.mem a = x.mem a)
-  let start := x.set index 0
-  have hs : ExecWithin w (ram[index ← #0] : Code .standard 96) x start 1 := by
-    ram_eval [start]
-  have hp : Parameters L m N Q start := hx.reframe (by
-    intro i hi
-    apply hs.regs_eq
-    have h : ∀ i ∈ parameterRegisters, (ram[index ← #0] : Code .standard 96).Preserves i := by
-      decide +kernel
-    exact h i hi)
-  have hstart : P (start.regs index) start := ⟨hp, by simp [start], by simp [start]⟩
   have hb (z : Data 96) (hz : P (z.regs index) z) (hn : z.regs index < T) :
       ∃ u, ExecWithin w body z u 3 ∧ P (z.regs index + 1) u ∧
         u.regs index = z.regs index + 1 := by
+    obtain ⟨hzp, hzt, hza⟩ := hz
     have hl := local_fits hfit
     have hend := memoryLimit_eq L m N Q
     have h10 := Nat.zero_le (10 ^ L)
@@ -64,38 +56,26 @@ theorem exec_clearCounts {w L m N Q : ℕ} (x : Data 96) (hx : Parameters L m N 
       dsimp [T] at hn
       omega)
     have hnext : Fits w (z.regs index + 1) := hl.of_le (by dsimp [T] at hn; omega)
-    let u := ((z.set pointer (countAddress L Q + z.regs index)).write
-      (countAddress L Q + z.regs index) 0).set index (z.regs index + 1)
-    have he : ExecWithin w body z u 3 := by
-      ram_eval [body, u, hz.1.counts, hz.1.tables.zero, hz.1.tables.one, hfaddr, hnext,
-        pointer, counts, index, BandPreparation.zero, BandPreparation.one, Fin.mk.injEq]
-    have hu : Parameters L m N Q u := hz.1.reframe (by
-      intro i hi
-      apply he.regs_eq
-      have h : ∀ i ∈ parameterRegisters, body.Preserves i := by decide +kernel
-      exact h i hi)
-    have hi : u.regs index = z.regs index + 1 := by simp [u, index]
-    refine ⟨u, he, ⟨hu, ?_, ?_⟩, hi⟩
+    refine WP.exists_execWithin ?_
+    dsimp only [body]
+    wram_exec * [hfaddr, hnext]
+    refine ⟨⟨by regs_frame, ?_, ?_⟩, by wram_simp⟩
     · intro t ht
-      change Function.update z.mem (countAddress L Q + z.regs index) 0
-        (countAddress L Q + t) = 0
       by_cases h : t = z.regs index
-      · subst t
-        exact Function.update_self _ _ _
-      · rw [Function.update_of_ne (by omega)]
-        exact hz.2.1 t (by omega)
+      · subst h; wram_simp
+      · wram_simp; exact hzt t (by omega)
     · intro a ha
-      change Function.update z.mem (countAddress L Q + z.regs index) 0 a = x.mem a
-      rw [Function.update_of_ne (by rcases ha with ha | ha <;> omega)]
-      exact hz.2.2 a ha
-  obtain ⟨y, he, ⟨hyp, hyzero, hyframe⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.1.tileCount) hb (by simp [start]) hstart
-  refine ⟨y, ?_, hyp, hyzero, hyframe⟩
-  · apply (hs.seq he).mono
-    have hzero : start.regs index = 0 := by simp [start]
-    rw [hzero, Nat.sub_zero]
-    dsimp [T]
-    omega
+      have hne : a ≠ countAddress L Q + z.regs index := by rcases ha with ha | ha <;> omega
+      wram_simp [hne]
+      exact hza a ha
+  refine WP.exists_execWithin ?_
+  unfold clearCounts
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.tileCount) hb
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩)
+    with y ⟨⟨hyp, hyzero, hyframe⟩, _⟩
+  exact ⟨by wram_simp; omega, hyp, hyzero, hyframe⟩
 
 /-- Every original query is loaded and its actual tile computed. Duplicate input pairs
 increase counts independently; the readonly input and both computed tables are preserved. -/
@@ -116,45 +96,29 @@ theorem exec_countQueries {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ 
   let P (k : ℕ) (z : Data 96) : Prop := Parameters L m N Q z ∧
     (∀ i < Q, z.mem (5 + 2 * i) = (pairs i).1 ∧
       z.mem (5 + 2 * i + 1) = (pairs i).2) ∧
-    (∀ t < T, z.mem (countAddress L Q + t) = Nat.count (fun k => key k = t) (k)) ∧
+    (∀ t < T, z.mem (countAddress L Q + t) = Nat.count (fun k => key k = t) k) ∧
     (∀ a, a < countAddress L Q ∨ countAddress L Q + T ≤ a → z.mem a = x.mem a)
-  let start := x.set index 0
-  have hs : ExecWithin w (ram[index ← #0] : Code .standard 96) x start 1 := by
-    ram_eval [start]
-  have hsp : Parameters L m N Q start := hx.reframe (by
-    intro i hi
-    apply hs.regs_eq
-    have h : ∀ i ∈ parameterRegisters, (ram[index ← #0] : Code .standard 96).Preserves i := by
-      decide +kernel
-    exact h i hi)
-  have hi : P (start.regs index) start := by
-    refine ⟨hsp, hinput, ?_, by simp [start]⟩
-    intro t ht
-    simpa only [start, Data.set_regs, Function.update_self, Data.set_mem,
-      Nat.count_zero] using hzero t ht
   have hb (z : Data 96) (hz : P (z.regs index) z) (hn : z.regs index < Q) :
       ∃ u, ExecWithin w countStep z u 14 ∧
         P (z.regs index + 1) u ∧ u.regs index = z.regs index + 1 := by
     obtain ⟨u, he, hu, hidx, hcounts, hf⟩ := exec_countStep hm pairs hn (hpairs _ hn)
       z hz.1 rfl (hz.2.1 _ hn) hz.2.2.1 hfit
-    refine ⟨u, he, ⟨hu, ?_, ?_, ?_⟩, hidx⟩
-    · intro i hi
-      have ha : 5 + 2 * i + 1 < countAddress L Q := by
-        have h2 := Nat.zero_le (2 ^ L)
-        unfold countAddress tableAddress inputLimit
-        omega
-      rw [hf _ (Or.inl (by omega)), hf _ (Or.inl ha)]
-      exact hz.2.1 i hi
-    · intro t ht
-      exact hcounts t ht
-    · intro a ha
-      exact (hf a ha).trans (hz.2.2.2 a ha)
-  obtain ⟨y, he, ⟨hyp, _, hycounts, hyframe⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.1.queryCount) hb (by simp [start]) hi
-  refine ⟨y, ?_, hyp, hycounts, hyframe⟩
-  · apply (hs.seq he).mono
-    have hz : start.regs index = 0 := by simp [start]
-    rw [hz, Nat.sub_zero]
-    omega
+    refine ⟨u, he, ⟨hu, ?_, hcounts, fun a ha => (hf a ha).trans (hz.2.2.2 a ha)⟩, hidx⟩
+    intro i hi
+    have ha : 5 + 2 * i + 1 < countAddress L Q := by
+      have h2 := Nat.zero_le (2 ^ L)
+      unfold countAddress tableAddress inputLimit
+      omega
+    rw [hf _ (Or.inl (by omega)), hf _ (Or.inl ha)]
+    exact hz.2.1 i hi
+  refine WP.exists_execWithin ?_
+  unfold countQueries
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hb
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, hinput, fun t ht => by wram_simp [hzero t ht, Nat.count_zero],
+      fun _ _ => rfl⟩)
+    with y ⟨⟨hyp, _, hycounts, hyframe⟩, _⟩
+  exact ⟨by wram_simp; omega, hyp, hycounts, hyframe⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

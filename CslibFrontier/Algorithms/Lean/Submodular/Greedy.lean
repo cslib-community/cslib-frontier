@@ -327,11 +327,9 @@ theorem scanCandidates_eq_of_forall_le (f : Finset α → β) (S : Finset α)
 theorem submodularGreedyLoop_succ_right (f : Finset α → β) (u : List α) (m : ℕ) (S : Finset α) :
     submodularGreedyLoop f u (m + 1) S =
       submodularGreedyStep f u (submodularGreedyLoop f u m S) := by
-  induction m generalizing S with
-  | zero => rfl
-  | succ m ih =>
-    simp only [submodularGreedyLoop]
-    exact ih (submodularGreedyStep f u S)
+  fun_induction submodularGreedyLoop f u m S with
+  | case1 => rfl
+  | case2 => assumption
 
 @[simp] theorem submodularGreedy_zero (f : Finset α → β) (xs : List α) :
     submodularGreedy f xs 0 = ∅ := rfl
@@ -449,46 +447,20 @@ theorem sub_submodularGreedyStep_le
     (S : Finset α) :
     f OPT - f (submodularGreedyStep f u S) ≤ (1 - 1 / (k : β)) * (f OPT - f S) := by
   have hk_pos : (0 : β) < (k : β) := Nat.cast_pos.mpr hk
-  have hk_ne : (k : β) ≠ 0 := hk_pos.ne'
-  have hS_le : f S ≤ f (submodularGreedyStep f u S) := hmono (subset_submodularGreedyStep f u S)
-  by_cases hgap : f OPT - f S ≤ 0
-  · have hdiv_nonneg : (0 : β) ≤ 1 / (k : β) := div_nonneg zero_le_one hk_pos.le
-    have hmul_nonpos : (1 / (k : β)) * (f OPT - f S) ≤ 0 :=
-      mul_nonpos_of_nonneg_of_nonpos hdiv_nonneg hgap
-    linarith
-  · push Not at hgap
-    have hgain_each : ∀ x ∈ OPT \ S,
-        marginalGain f S x ≤ f (submodularGreedyStep f u S) - f S := by
-      intro x hx
-      rcases Finset.mem_sdiff.mp hx with ⟨hxOPT, hxS⟩
-      have hxu : x ∈ u := List.mem_toFinset.mp (hOPT_sub hxOPT)
-      exact sub_le_sub_right (submodularGreedyStep_max f u S hxu hxS) (f S)
-    have hsum_le : f OPT - f S ≤ (k : β) * (f (submodularGreedyStep f u S) - f S) := by
-      have h1 : f OPT - f S ≤ ∑ x ∈ OPT \ S, marginalGain f S x :=
-        hf.sub_le_sum_marginalGain_of_monotone hmono S OPT
-      have h2 : ∑ x ∈ OPT \ S, marginalGain f S x ≤
-          ∑ _x ∈ OPT \ S, (f (submodularGreedyStep f u S) - f S) :=
-        Finset.sum_le_sum hgain_each
-      have hcard_le : ((OPT \ S).card : β) ≤ (k : β) :=
-        Nat.cast_le.mpr ((Finset.card_le_card Finset.sdiff_subset).trans hOPT_card)
-      have hstep_nonneg : 0 ≤ f (submodularGreedyStep f u S) - f S := sub_nonneg.mpr hS_le
-      calc
-        f OPT - f S ≤ ∑ _x ∈ OPT \ S, (f (submodularGreedyStep f u S) - f S) := h1.trans h2
-        _ = ((OPT \ S).card : β) * (f (submodularGreedyStep f u S) - f S) := by
-          rw [Finset.sum_const, nsmul_eq_mul]
-        _ ≤ (k : β) * (f (submodularGreedyStep f u S) - f S) := by gcongr
-    have hmul_target : (k : β) * (f OPT - f (submodularGreedyStep f u S)) ≤
-        (k : β) * ((1 - 1 / (k : β)) * (f OPT - f S)) := by
-      have hid : (k : β) * (1 - 1 / (k : β)) = (k : β) - 1 := by
-        rw [mul_sub, mul_one, mul_one_div_cancel hk_ne]
-      calc
-        (k : β) * (f OPT - f (submodularGreedyStep f u S))
-            = (k : β) * (f OPT - f S) - (k : β) * (f (submodularGreedyStep f u S) - f S) := by ring
-        _ ≤ (k : β) * (f OPT - f S) - (f OPT - f S) := by linarith
-        _ = ((k : β) - 1) * (f OPT - f S) := by ring
-        _ = ((k : β) * (1 - 1 / (k : β))) * (f OPT - f S) := by rw [hid]
-        _ = (k : β) * ((1 - 1 / (k : β)) * (f OPT - f S)) := by ring
-    exact le_of_mul_le_mul_left hmul_target hk_pos
+  set S' := submodularGreedyStep f u S
+  have hstep_nonneg : 0 ≤ f S' - f S := sub_nonneg.mpr (hmono (subset_submodularGreedyStep f u S))
+  have hsum_le : f OPT - f S ≤ (k : β) * (f S' - f S) := calc
+    f OPT - f S ≤ ∑ x ∈ OPT \ S, marginalGain f S x :=
+      hf.sub_le_sum_marginalGain_of_monotone hmono S OPT
+    _ ≤ ∑ _x ∈ OPT \ S, (f S' - f S) := Finset.sum_le_sum fun x hx => sub_le_sub_right
+      (submodularGreedyStep_max f u S (List.mem_toFinset.mp (hOPT_sub (Finset.mem_sdiff.mp hx).1))
+        (Finset.mem_sdiff.mp hx).2) (f S)
+    _ = ((OPT \ S).card : β) * (f S' - f S) := by rw [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ (k : β) * (f S' - f S) := by
+      gcongr; exact_mod_cast (Finset.card_le_card Finset.sdiff_subset).trans hOPT_card
+  have hdiv : (f OPT - f S) / k ≤ f S' - f S := (div_le_iff₀' hk_pos).2 hsum_le
+  rw [one_sub_mul, one_div_mul_eq_div]
+  linarith
 
 /-- Residual gap bound after `m` greedy steps against any cardinality-`k` benchmark `OPT` (`k ≥ 1`):
 `f OPT - f (submodularGreedy f xs m) ≤ (1 - 1 / (k : β)) ^ m * (f OPT - f ∅)`. -/
@@ -571,18 +543,10 @@ theorem one_sub_exp_neg_one_mul_le_submodularGreedy
     {OPT : Finset α} (hOPT_sub : OPT ⊆ xs.toFinset) (hOPT_card : OPT.card ≤ k) :
     (1 - Real.exp (-1)) * f OPT ≤ f (submodularGreedy f xs k) := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
-  · have hOPT_empty : OPT = ∅ := Finset.card_eq_zero.mp (Nat.le_zero.mp hOPT_card)
-    rw [hOPT_empty, submodularGreedy_zero]
-    have hexp_pos : 0 ≤ Real.exp (-1) := (Real.exp_pos (-1)).le
-    have hcoef_le : 1 - Real.exp (-1) ≤ 1 := by linarith
-    calc
-      (1 - Real.exp (-1)) * f ∅ ≤ 1 * f ∅ := mul_le_mul_of_nonneg_right hcoef_le hf0
-      _ = f ∅ := one_mul (f ∅)
+  · rw [Finset.card_eq_zero.mp (Nat.le_zero.mp hOPT_card), submodularGreedy_zero]
+    exact mul_le_of_le_one_left hf0 (by linarith [Real.exp_pos (-1)])
   · have h := one_sub_exp_neg_div_mul_le_submodularGreedy hf hmono hf0 hk k hOPT_sub hOPT_card
-    have hk_ne : (k : ℝ) ≠ 0 := (Nat.cast_pos.mpr hk).ne'
-    have hdiv : -(k : ℝ) / (k : ℝ) = -1 := by
-      rw [neg_div, div_self hk_ne]
-    rwa [hdiv] at h
+    rwa [neg_div, div_self (Nat.cast_pos.mpr hk).ne'] at h
 
 end RealApproximation
 
@@ -594,18 +558,11 @@ section Tightness
 def leftCount (k : ℕ) (S : Finset (Fin k ⊕ Fin k)) : ℕ :=
   (Finset.univ.filter fun i : Fin k => Sum.inl i ∈ S).card
 
-private theorem leftCount_empty (k : ℕ) : leftCount k ∅ = 0 := by
-  simp [leftCount]
-
 private theorem leftCount_mono (k : ℕ) : Monotone (leftCount k) := by
   intro A B hAB
   exact Finset.card_le_card fun i hi => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
     exact hAB hi
-
-private theorem leftCount_insert_inr (k : ℕ) (j : Fin k) (S : Finset (Fin k ⊕ Fin k)) :
-    leftCount k (insert (Sum.inr j) S) = leftCount k S := by
-  simp [leftCount]
 
 private theorem leftCount_insert_inl_of_notMem (k : ℕ) (i : Fin k)
     {S : Finset (Fin k ⊕ Fin k)} (hi : Sum.inl i ∉ S) :
@@ -650,7 +607,7 @@ def tightOpt (k : ℕ) : Finset (Fin k ⊕ Fin k) :=
 
 @[simp] theorem tightComponent_empty {β : Type*} [Field β] (k : ℕ) (j : Fin k) :
     tightComponent (β := β) k j ∅ = 0 := by
-  simp [tightComponent, leftCount_empty]
+  simp [tightComponent, leftCount]
 
 @[simp] theorem tightObjective_empty {β : Type*} [Field β] (k : ℕ) :
     tightObjective (β := β) k ∅ = 0 := by
@@ -683,7 +640,7 @@ private theorem marginalGain_tightComponent_inr_ne {β : Type*} [Field β]
   unfold marginalGain tightComponent
   have hinr : (Sum.inr j ∈ insert (Sum.inr j') S) ↔ Sum.inr j ∈ S := by
     simp [hne.symm]
-  simp [hinr, leftCount_insert_inr]
+  simp [hinr, leftCount]
 
 theorem nodup_tightCandidates (k : ℕ) : (tightCandidates k).Nodup := by
   unfold tightCandidates
@@ -719,6 +676,9 @@ private theorem mem_leftPrefix {k t : ℕ} {x : Fin k ⊕ Fin k} :
     x ∈ leftPrefix k t ↔ ∃ i : Fin k, i.val < t ∧ x = Sum.inl i := by
   simp [leftPrefix, eq_comm]
 
+private theorem inr_notMem_leftPrefix {k t : ℕ} (j : Fin k) : Sum.inr j ∉ leftPrefix k t := by
+  simp [mem_leftPrefix]
+
 private theorem leftPrefix_zero (k : ℕ) : leftPrefix k 0 = ∅ := by
   ext x
   simp [mem_leftPrefix]
@@ -730,32 +690,16 @@ private theorem leftCount_leftPrefix {k t : ℕ} (ht : t ≤ k) :
       Finset.univ.filter (fun i : Fin k => i.val < t) := by
     ext i
     simp [mem_leftPrefix]
-  rw [hfilt]
-  have hbij : (Finset.univ.filter fun i : Fin k => i.val < t).card = (Finset.range t).card := by
-    refine Finset.card_bij (fun i _ => i.val) ?_ ?_ ?_
-    · intro i hi
-      exact Finset.mem_range.mpr (Finset.mem_filter.mp hi).2
-    · intro i₁ _ i₂ _ hval
-      exact Fin.ext hval
-    · intro m hm
-      have hmt : m < t := Finset.mem_range.mp hm
-      exact ⟨⟨m, hmt.trans_le ht⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hmt⟩, rfl⟩
-  rw [hbij, Finset.card_range]
+  rw [hfilt, ← Finset.card_range t]
+  exact Finset.card_bij (fun i _ => i.val) (by simp) (fun _ _ _ _ => Fin.ext)
+    fun m hm => ⟨⟨m, (Finset.mem_range.mp hm).trans_le ht⟩, by simpa using hm, rfl⟩
 
 private theorem filter_tightCandidates_leftPrefix {k t : ℕ} (ht : t < k) :
     ∃ cs, (tightCandidates k).filter (· ∉ leftPrefix k t) = Sum.inl ⟨t, ht⟩ :: cs := by
   have hsplit : List.finRange k =
       (List.finRange k).take t ++ ⟨t, ht⟩ :: (List.finRange k).drop (t + 1) := by
-    have hlen : t < (List.finRange k).length := by simp [ht]
-    have hdrop : (List.finRange k).drop t =
-        (List.finRange k)[t] :: (List.finRange k).drop (t + 1) :=
-      List.drop_eq_getElem_cons hlen
-    have hget : (List.finRange k)[t] = ⟨t, ht⟩ := by simp
-    calc
-      List.finRange k = (List.finRange k).take t ++ (List.finRange k).drop t :=
-        (List.take_append_drop t (List.finRange k)).symm
-      _ = (List.finRange k).take t ++ ⟨t, ht⟩ :: (List.finRange k).drop (t + 1) := by
-        rw [hdrop, hget]
+    have hget : (List.finRange k)[t]'(by simp [ht]) = ⟨t, ht⟩ := by simp
+    rw [← hget, ← List.drop_eq_getElem_cons, List.take_append_drop]
   unfold tightCandidates
   rw [hsplit, List.map_append, List.map_cons, List.append_assoc, List.filter_append]
   have htake_nil :
@@ -764,18 +708,11 @@ private theorem filter_tightCandidates_leftPrefix {k t : ℕ} (ht : t < k) :
     intro x hx
     rcases List.mem_map.mp hx with ⟨i, hi_take, rfl⟩
     have hi_lt : i.val < t := by
-      rcases List.mem_iff_getElem.mp hi_take with ⟨idx, hidx, hget⟩
-      have hidx_lt : idx < t := by grind
-      have hval : ((List.finRange k).take t)[idx].val = idx := by simp
-      rw [← hget, hval]
-      exact hidx_lt
+      obtain ⟨idx, hidx, rfl⟩ := List.mem_iff_getElem.mp hi_take
+      simp at hidx ⊢; omega
     have hmem : Sum.inl i ∈ leftPrefix k t := mem_leftPrefix.mpr ⟨i, hi_lt, rfl⟩
     simp [hmem]
-  have ht_notMem : Sum.inl (⟨t, ht⟩ : Fin k) ∉ leftPrefix k t := by
-    intro hmem
-    rcases mem_leftPrefix.mp hmem with ⟨i, hi_lt, hinj⟩
-    cases hinj
-    exact Nat.lt_irrefl t hi_lt
+  have ht_notMem : Sum.inl (⟨t, ht⟩ : Fin k) ∉ leftPrefix k t := by simp [mem_leftPrefix]
   rw [htake_nil, List.nil_append, List.cons_append]
   simp [ht_notMem]
 
@@ -847,12 +784,8 @@ theorem tightObjective_tightOpt {k : ℕ} (hk : 0 < k) :
 private theorem tightObjective_leftPrefix {k t : ℕ} (hk : 0 < k) (ht : t ≤ k) :
     tightObjective (β := β) k (leftPrefix k t) = 1 - (1 - 1 / (k : β)) ^ t := by
   have hk_ne : (k : β) ≠ 0 := (Nat.cast_pos.mpr hk).ne'
-  have hnot_inr : ∀ j : Fin k, Sum.inr j ∉ leftPrefix k t := by
-    intro j hj
-    rcases mem_leftPrefix.mp hj with ⟨i, _, h⟩
-    cases h
-  simp only [tightObjective, tightComponent, hnot_inr, ↓reduceIte, leftCount_leftPrefix ht,
-    Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  simp only [tightObjective, tightComponent, inr_notMem_leftPrefix, ↓reduceIte,
+    leftCount_leftPrefix ht, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
   rw [← mul_assoc, mul_one_div_cancel hk_ne, one_mul]
 
 private theorem tightObjective_insert_leftPrefix_eq {k t : ℕ} (hk : 0 < k) (ht : t < k)
@@ -860,10 +793,6 @@ private theorem tightObjective_insert_leftPrefix_eq {k t : ℕ} (hk : 0 < k) (ht
     tightObjective (β := β) k (insert x (leftPrefix k t)) =
       1 - (1 - 1 / (k : β)) ^ (t + 1) := by
   have hk_ne : (k : β) ≠ 0 := (Nat.cast_pos.mpr hk).ne'
-  have hnot_inr : ∀ j : Fin k, Sum.inr j ∉ leftPrefix k t := by
-    intro j hj
-    rcases mem_leftPrefix.mp hj with ⟨i, _, h⟩
-    cases h
   have hdiff : tightObjective (β := β) k (insert x (leftPrefix k t)) -
       tightObjective (β := β) k (leftPrefix k t) =
       (1 / (k : β)) * (1 - 1 / (k : β)) ^ t := by
@@ -879,13 +808,9 @@ private theorem tightObjective_insert_leftPrefix_eq {k t : ℕ} (hk : 0 < k) (ht
             (1 / (k : β)) * (1 - 1 / (k : β)) ^ t * (1 / (k : β)) := by
         intro j
         rw [marginalGain_tightComponent_inl k j i hx, leftCount_leftPrefix ht.le]
-        simp [hnot_inr j]
+        simp [inr_notMem_leftPrefix]
       simp only [hterm, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-      calc
-        (k : β) * ((1 / (k : β)) * (1 - 1 / (k : β)) ^ t * (1 / (k : β)))
-            = ((k : β) * (1 / (k : β))) * ((1 / (k : β)) * (1 - 1 / (k : β)) ^ t) := by ring
-        _ = 1 * ((1 / (k : β)) * (1 - 1 / (k : β)) ^ t) := by rw [mul_one_div_cancel hk_ne]
-        _ = (1 / (k : β)) * (1 - 1 / (k : β)) ^ t := one_mul _
+      field_simp
     | inr j₀ =>
       have hterm : ∀ j : Fin k,
           marginalGain (tightComponent (β := β) k j) (leftPrefix k t) (Sum.inr j₀) =
@@ -897,17 +822,8 @@ private theorem tightObjective_insert_leftPrefix_eq {k t : ℕ} (hk : 0 < k) (ht
         · have hne : j₀ ≠ j := fun h => hjj h.symm
           simp [hjj, marginalGain_tightComponent_inr_ne k hne]
       simp [hterm]
-  have hbase := tightObjective_leftPrefix (β := β) hk ht.le
-  calc
-    tightObjective (β := β) k (insert x (leftPrefix k t))
-        = tightObjective (β := β) k (leftPrefix k t) +
-            (tightObjective (β := β) k (insert x (leftPrefix k t)) -
-              tightObjective (β := β) k (leftPrefix k t)) := by ring
-    _ = (1 - (1 - 1 / (k : β)) ^ t) + (1 / (k : β)) * (1 - 1 / (k : β)) ^ t := by
-        rw [hdiff, hbase]
-    _ = 1 - (1 - 1 / (k : β)) ^ (t + 1) := by
-        rw [pow_succ]
-        ring
+  rw [eq_add_of_sub_eq hdiff, tightObjective_leftPrefix hk ht.le, pow_succ]
+  ring
 
 private theorem submodularGreedy_tightObjective_steps {k : ℕ} (hk : 0 < k) :
     ∀ t ≤ k,
@@ -924,12 +840,7 @@ private theorem submodularGreedy_tightObjective_steps {k : ℕ} (hk : 0 < k) :
     unfold submodularGreedyStep
     rw [hfilt]
     dsimp only
-    have ht_notMem : Sum.inl (⟨t, ht_lt⟩ : Fin k) ∉ leftPrefix k t := by
-      have hmem : Sum.inl (⟨t, ht_lt⟩ : Fin k) ∈
-          (tightCandidates k).filter (· ∉ leftPrefix k t) := by
-        rw [hfilt]
-        exact List.mem_cons_self
-      exact of_decide_eq_true (List.mem_filter.mp hmem).2
+    have ht_notMem : Sum.inl (⟨t, ht_lt⟩ : Fin k) ∉ leftPrefix k t := by simp [mem_leftPrefix]
     have hall_le : ∀ c ∈ cs,
         tightObjective (β := β) k (insert c (leftPrefix k t)) ≤
           tightObjective (β := β) k (insert (Sum.inl ⟨t, ht_lt⟩) (leftPrefix k t)) := by
@@ -943,14 +854,10 @@ private theorem submodularGreedy_tightObjective_steps {k : ℕ} (hk : 0 < k) :
     simp only [Finset.mem_insert, mem_leftPrefix]
     constructor
     · rintro (rfl | ⟨i, hi_lt, rfl⟩)
-      · exact ⟨⟨t, ht_lt⟩, Nat.lt_succ_self t, rfl⟩
-      · exact ⟨i, Nat.lt_succ_of_lt hi_lt, rfl⟩
+      exacts [⟨⟨t, ht_lt⟩, Nat.lt_succ_self t, rfl⟩, ⟨i, Nat.lt_succ_of_lt hi_lt, rfl⟩]
     · rintro ⟨i, hi_lt, rfl⟩
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hi_lt with hlt | heq
-      · exact Or.inr ⟨i, hlt, rfl⟩
-      · left
-        congr
-        exact Fin.ext heq
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hi_lt with hlt | rfl
+      exacts [Or.inr ⟨i, hlt, rfl⟩, Or.inl rfl]
 
 /-- **Exact Tightness of `1 - (1 - 1/k)^k`** ([NemhauserWolsey1978], Section 3;
 [NemhauserWolseyFisher1978], Section 4, Theorem 4.1(c) and Theorem 4.2, pp. 280–283): for every

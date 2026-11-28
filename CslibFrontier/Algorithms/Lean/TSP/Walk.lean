@@ -84,10 +84,7 @@ theorem cycleCost_pair (δ : α → α → ℕ) (u v : α) : cycleCost δ [u, v]
 
 private theorem sum_zipWith_append_singleton (δ : α → α → ℕ) (a x : α) (L : List α) :
     (List.zipWith δ (x :: L) (L ++ [a])).sum = walkCost δ x L a := by
-  induction L generalizing x with
-  | nil => simp [walkCost]
-  | cons y L ih =>
-    simp only [List.cons_append, List.zipWith_cons_cons, List.sum_cons, ih, walkCost]
+  fun_induction walkCost δ x L a <;> simp_all
 
 /-- A closed walk from `a` is the walk from `a` through the remaining vertices back to `a`. -/
 theorem cycleCost_cons (δ : α → α → ℕ) (a : α) (L : List α) :

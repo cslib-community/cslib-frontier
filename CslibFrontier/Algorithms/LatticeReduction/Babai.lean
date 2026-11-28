@@ -104,10 +104,7 @@ theorem nearestPlaneAux_spec {G : Vector (Vector ℚ m) n} {B : Vector (Vector �
     set c : ℤ := round (projCoeff (fun l : Fin m => G[k][l]) (fun l : Fin m => (r[l] : ℚ)))
       with hc
     set r1 : Vector ℤ m := Vector.ofFn fun l => r[l] - c * B[k][l] with hr1
-    have hstep : nearestPlaneAux G B (k + 1) r = nearestPlaneAux G B k r1 := by
-      simp only [nearestPlaneAux, hkn, dite_true]
-      rfl
-    rw [hstep]
+    rw [show nearestPlaneAux G B (k + 1) r = nearestPlaneAux G B k r1 from dite_eq_left hkn]
     obtain ⟨e, he, hsum, hbound⟩ := ih r1 hkn.le
     have hr1' : r.get - r1.get = c • rows B kk := by
       funext l
@@ -115,20 +112,18 @@ theorem nearestPlaneAux_spec {G : Vector (Vector ℚ m) n} {B : Vector (Vector �
       simp [hr1, rows_apply, hkk]
     refine ⟨Function.update e kk c, ?_, ?_, ?_⟩
     · intro i hi
-      rw [Function.update_of_ne (fun h => by rw [h] at hi; simp [hkk] at hi)]
+      rw [Function.update_of_ne (Fin.ne_of_gt (by simp only [Fin.lt_def, hkk]; omega))]
       exact he i (by omega)
-    · have : r.get - (nearestPlaneAux G B k r1).get =
-          (r.get - r1.get) + (r1.get - (nearestPlaneAux G B k r1).get) := by abel
-      rw [this, hsum, hr1']
-      have hupd : Function.update e kk c = e + Pi.single kk (c - e kk) := by
-        funext i
-        by_cases h : i = kk
-        · subst h; simp
-        · simp [h]
-      rw [hupd]
-      simp only [Pi.add_apply, add_smul, Finset.sum_add_distrib, Pi.single_apply, ite_smul,
-        zero_smul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-      rw [he kk le_rfl, sub_zero, add_comm]
+    · rw [show r.get - (nearestPlaneAux G B k r1).get =
+          (r.get - r1.get) + (r1.get - (nearestPlaneAux G B k r1).get) by abel, hr1', hsum,
+        ← Finset.add_sum_erase _ (fun i => Function.update e kk c i • rows B i)
+          (Finset.mem_univ kk),
+        Function.update_self,
+        ← Finset.add_sum_erase _ (fun i => e i • rows B i) (Finset.mem_univ kk),
+        he kk le_rfl, zero_smul, zero_add]
+      congr 1
+      exact Finset.sum_congr rfl fun i hi => by
+        rw [Function.update_of_ne (Finset.ne_of_mem_erase hi)]
     · intro j hj
       rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
       · exact hbound j hj
@@ -139,42 +134,35 @@ theorem nearestPlaneAux_spec {G : Vector (Vector ℚ m) n} {B : Vector (Vector �
       have hRout : intToEuclidean out.get =
           intToEuclidean r1.get - ∑ i, e i • realRows B i := by
         have h := congrArg intToEuclidean hsum
-        rw [map_sub, map_sum] at h
-        simp only [map_zsmul, ← realRows_eq_intToEuclidean] at h
-        rw [← h]
-        abel
+        simp only [map_sub, map_sum, map_zsmul, ← realRows_eq_intToEuclidean] at h
+        rw [← h]; abel
       have hRr1 : intToEuclidean r1.get = intToEuclidean r.get - c • realRows B kk := by
         have h := congrArg intToEuclidean hr1'
         rw [map_sub, map_zsmul, ← realRows_eq_intToEuclidean] at h
-        rw [← h]
-        abel
+        rw [← h]; abel
       have hin1 : inner ℝ g (∑ i, e i • realRows B i) = 0 := by
         rw [hg, inner_gramSchmidt_sum_zsmul _ e fun i hi => he i (by
-          have := Fin.lt_def.1 hi; simp [hkk] at this; omega), he kk (by simp [hkk]),
+          have := Fin.lt_def.1 hi; simp only [hkk] at this; omega), he kk (by simp [hkk]),
           Int.cast_zero, zero_mul]
       have hin2 : inner ℝ g (c • realRows B kk) = c * ‖g‖ ^ 2 := by
         rw [← Int.cast_smul_eq_zsmul ℝ, inner_smul_right, hg, inner_gramSchmidt_self_right]
         rfl
       rw [hRout, inner_sub_right, hin1, sub_zero, hRr1, inner_sub_right, hin2]
       -- the rounding step
-      have hcast : ((projCoeff (fun l : Fin m => G[k][l]) (fun l : Fin m => (r[l] : ℚ)) : ℚ) : ℝ) =
-          inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 := by
-        rw [cast_projCoeff]
-        have hGk : ratToEuclidean (fun l : Fin m => G[k][l]) = g := hG.ratToEuclidean_eq kk
-        rw [hGk, intToEuclidean_eq_ratToEuclidean]
-        rfl
-      have hround : (c : ℝ) = round (inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2) := by
-        rw [hc, ← hcast, Rat.round_cast]
       rcases eq_or_ne g 0 with h0 | h0
       · simp [h0]
       have hN : 0 < ‖g‖ ^ 2 := by positivity
-      have hr := abs_sub_round (inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2)
-      rw [← hround] at hr
-      have heq : inner ℝ g (intToEuclidean r.get) - c * ‖g‖ ^ 2 =
-          (inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c) * ‖g‖ ^ 2 := by
-        field_simp
-      rw [heq, abs_mul, abs_of_pos hN]
-      nlinarith
+      have hr : |inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c| ≤ 1 / 2 := by
+        rw [hc, ← Rat.round_cast (α := ℝ), cast_projCoeff]
+        erw [hG.ratToEuclidean_eq kk, ← intToEuclidean_eq_ratToEuclidean r.get]
+        exact abs_sub_round _
+      calc |inner ℝ g (intToEuclidean r.get) - c * ‖g‖ ^ 2|
+          = |(inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c) * ‖g‖ ^ 2| := by
+            rw [sub_mul, div_mul_cancel₀ _ hN.ne']
+        _ = |inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c| * ‖g‖ ^ 2 := by
+            rw [abs_mul, abs_of_pos hN]
+        _ ≤ (1 / 2) * ‖g‖ ^ 2 := by gcongr
+        _ = ‖g‖ ^ 2 / 2 := by ring
 
 /-- The output of the nearest-plane loop: `t - nearestPlane B t` is the residual of the loop, so
 `nearestPlane B t = ∑ⱼ eⱼ bⱼ` for some integers `eⱼ`, and every Gram–Schmidt coordinate of
@@ -200,9 +188,7 @@ target and output embedded in `ℝᵐ`. -/
 theorem isNearestPlane_nearestPlane (B : Vector (Vector ℤ m) n) (t : Vector ℤ m) :
     IsNearestPlane (realRows B) (intToEuclidean t.get) (intToEuclidean (nearestPlane B t).get) := by
   obtain ⟨e, he, hbound⟩ := nearestPlane_spec B t
-  refine ⟨mem_span_realRows_of_eq_sum he, fun j => ?_⟩
-  rw [← map_sub]
-  exact hbound j
+  exact ⟨mem_span_realRows_of_eq_sum he, fun j => map_sub intToEuclidean t.get _ ▸ hbound j⟩
 
 /-- The output of `babai` lies in the lattice spanned by the rows of `B`. -/
 theorem babai_mem_span (B : Vector (Vector ℤ m) n) (t : Vector ℤ m) :

@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Simple
-import Mathlib.Tactic.Linarith
 
 /-!
 # Finite certificates for contacts of polygonal routes
@@ -18,7 +17,7 @@ a singleton, or an overlapping segment. The Boolean checker accepts the first tw
 the singleton is an allowed contact point. Its soundness refers to the entire real segments.
 In fact, the sufficient bounding-box criterion is sound even for diagonal segments.
 
-The route checker includes a degenerate segment for every listed point, so its soundness also
+The route checker includes a degenerate segment for a singleton route, so its soundness also
 covers empty and singleton routes. In particular, checking against a singleton route certifies
 that an incidence route avoids a nonincident vertex.
 
@@ -73,6 +72,18 @@ private theorem mem_segment_int_bounds {a b : Point} {p : ℝ × ℝ} (hp : p �
   simpa only [Int.cast_min, Int.cast_max] using
     And.intro h.1.1 (And.intro h.1.2 (And.intro h.2.1 h.2.2))
 
+private theorem coord_mem_box {a b c d : ℤ} {x : ℝ}
+    (ha : ((min a b : ℤ) : ℝ) ≤ x ∧ x ≤ ((max a b : ℤ) : ℝ))
+    (hc : ((min c d : ℤ) : ℝ) ≤ x ∧ x ≤ ((max c d : ℤ) : ℝ)) :
+    ((max (min a b) (min c d) : ℤ) : ℝ) ≤ x ∧
+      x ≤ ((min (max a b) (max c d) : ℤ) : ℝ) := by
+  simp only [Int.cast_max, Int.cast_min, max_le_iff, le_min_iff] at ha hc ⊢
+  exact ⟨⟨ha.1, hc.1⟩, ha.2, hc.2⟩
+
+private theorem not_int_bounds_of_lt {x : ℝ} {a b : ℤ} (h : a < b)
+    (ha : x ≤ (a : ℝ)) (hb : (b : ℝ) ≤ x) : False :=
+  not_lt_of_ge (hb.trans ha) (Int.cast_lt.mpr h)
+
 /-- The finite checker controls every real intersection, not only lattice intersections. -/
 theorem segmentContactCheck_sound {allowed : List Point} {a b c d : Point}
     (h : segmentContactCheck allowed a b c d = true) {p : ℝ × ℝ}
@@ -84,36 +95,14 @@ theorem segmentContactCheck_sound {allowed : List Point} {a b c d : Point}
   let ux := min (max a.1 b.1) (max c.1 d.1)
   let ly := max (min a.2 b.2) (min c.2 d.2)
   let uy := min (max a.2 b.2) (max c.2 d.2)
-  have hx : (lx : ℝ) ≤ p.1 ∧ p.1 ≤ (ux : ℝ) := by
-    constructor
-    · change ((max (min a.1 b.1) (min c.1 d.1) : ℤ) : ℝ) ≤ p.1
-      rw [Int.cast_max, max_le_iff]
-      exact ⟨ha.1, hc.1⟩
-    · change p.1 ≤ ((min (max a.1 b.1) (max c.1 d.1) : ℤ) : ℝ)
-      rw [Int.cast_min, le_min_iff]
-      exact ⟨ha.2.1, hc.2.1⟩
-  have hy : (ly : ℝ) ≤ p.2 ∧ p.2 ≤ (uy : ℝ) := by
-    constructor
-    · change ((max (min a.2 b.2) (min c.2 d.2) : ℤ) : ℝ) ≤ p.2
-      rw [Int.cast_max, max_le_iff]
-      exact ⟨ha.2.2.1, hc.2.2.1⟩
-    · change p.2 ≤ ((min (max a.2 b.2) (max c.2 d.2) : ℤ) : ℝ)
-      rw [Int.cast_min, le_min_iff]
-      exact ⟨ha.2.2.2, hc.2.2.2⟩
-  change decide (ux < lx ∨ uy < ly ∨ lx = ux ∧ ly = uy ∧ (lx, ly) ∈ allowed) = true at h
-  rw [decide_eq_true_eq] at h
-  rcases h with h | h | ⟨hxy, hyy, hmem⟩
-  · have : (ux : ℝ) < (lx : ℝ) := by exact_mod_cast h
-    exact False.elim (by linarith [hx.1, hx.2])
-  · have : (uy : ℝ) < (ly : ℝ) := by exact_mod_cast h
-    exact False.elim (by linarith [hy.1, hy.2])
-  · refine ⟨(lx, ly), hmem, Prod.ext ?_ ?_⟩
-    · change p.1 = (lx : ℝ)
-      rw [← hxy] at hx
-      exact le_antisymm hx.2 hx.1
-    · change p.2 = (ly : ℝ)
-      rw [← hyy] at hy
-      exact le_antisymm hy.2 hy.1
+  have hx : (lx : ℝ) ≤ p.1 ∧ p.1 ≤ (ux : ℝ) := coord_mem_box ⟨ha.1, ha.2.1⟩ ⟨hc.1, hc.2.1⟩
+  have hy : (ly : ℝ) ≤ p.2 ∧ p.2 ≤ (uy : ℝ) := coord_mem_box ha.2.2 hc.2.2
+  rcases of_decide_eq_true h with h | h | ⟨hxy, hyy, hmem⟩
+  · exact False.elim (not_int_bounds_of_lt h hx.2 hx.1)
+  · exact False.elim (not_int_bounds_of_lt h hy.2 hy.1)
+  · exact ⟨(lx, ly), hmem, Prod.ext
+      (le_antisymm (hx.2.trans_eq (congrArg Int.cast hxy.symm)) hx.1)
+      (le_antisymm (hy.2.trans_eq (congrArg Int.cast hyy.symm)) hy.1)⟩
 
 /-- A route without repeated listed points is simple when every pair of distinct segments passes
 the contact check whose only allowed contact is their consecutive shared bend. -/
@@ -131,32 +120,30 @@ theorem isSimple_of_segmentContactCheck {r : Route} (hnodup : r.Nodup)
     exact ⟨Or.inl hpq, Or.inr (hpq.trans (congrArg realPoint hba.symm))⟩
   · exact False.elim (List.not_mem_nil hq)
 
-/-- Segment pieces for a route, including degenerate pieces for isolated listed points. -/
+/-- Consecutive segments of a route, with one degenerate segment for a singleton. -/
 def segmentPieces (r : Route) : List (Point × Point) :=
-  r.map (fun p => (p, p)) ++ r.consecutivePairs
+  match r with
+  | [a] => [(a, a)]
+  | _ => r.consecutivePairs
 
 /-- Continuous route support is exactly the union of its finite segment pieces. -/
 theorem mem_support_iff_segmentPieces {r : Route} {p : ℝ × ℝ} :
     p ∈ support r ↔ ∃ e ∈ segmentPieces r, p ∈ segment e.1 e.2 := by
-  constructor
-  · rintro (⟨a, ha, rfl⟩ | ⟨e, he, hp⟩)
-    · exact ⟨(a, a), List.mem_append_left _ (List.mem_map_of_mem ha),
-        _root_.left_mem_segment ℝ (realPoint a) (realPoint a)⟩
-    · exact ⟨e, List.mem_append_right _ he, hp⟩
-  · rintro ⟨e, he, hp⟩
-    rcases List.mem_append.mp he with he | he
-    · obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
-      have hpa : p = realPoint a := by simpa only [segment, _root_.segment_same,
-        Set.mem_singleton_iff] using hp
-      exact Or.inl ⟨a, ha, hpa⟩
-    · exact Or.inr ⟨e, he, hp⟩
+  match r with
+  | [] => simp [support, segmentPieces, List.consecutivePairs]
+  | [a] => simp [support, segmentPieces, List.consecutivePairs, segment, eq_comm]
+  | a :: b :: rest =>
+    exact ⟨mem_support_segment (by simp), fun h => Or.inr h⟩
 
 private theorem mem_of_mem_segmentPieces {r : Route} {e : Point × Point}
     (he : e ∈ segmentPieces r) : e.1 ∈ r ∧ e.2 ∈ r := by
-  rcases List.mem_append.mp he with he | he
-  · obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
-    exact ⟨ha, ha⟩
-  · have h := List.of_mem_zip he
+  match r with
+  | [] => simp [segmentPieces, List.consecutivePairs] at he
+  | [a] =>
+    obtain rfl : e = (a, a) := List.mem_singleton.mp he
+    simp
+  | a :: b :: rest =>
+    have h := List.of_mem_zip (show e ∈ (a :: b :: rest).consecutivePairs from he)
     exact ⟨h.1, List.mem_of_mem_tail h.2⟩
 
 /-- Minimum of a coordinate projection along a nonempty route `p :: r`. -/
@@ -171,9 +158,7 @@ def coordMax (f : Point → ℤ) (p : Point) : Route → ℤ
 
 private theorem coordMin_le (f : Point → ℤ) :
     ∀ {p : Point} {r : Route} {a : Point}, a ∈ p :: r → coordMin f p r ≤ f a
-  | _, [], _, ha => by
-    obtain rfl := List.mem_singleton.mp ha
-    exact le_rfl
+  | _, [], _, ha => by simp [coordMin, List.mem_singleton.mp ha]
   | _, _ :: _, _, ha => by
     rcases List.mem_cons.mp ha with rfl | ha
     · exact min_le_left _ _
@@ -181,9 +166,7 @@ private theorem coordMin_le (f : Point → ℤ) :
 
 private theorem le_coordMax (f : Point → ℤ) :
     ∀ {p : Point} {r : Route} {a : Point}, a ∈ p :: r → f a ≤ coordMax f p r
-  | _, [], _, ha => by
-    obtain rfl := List.mem_singleton.mp ha
-    exact le_rfl
+  | _, [], _, ha => by simp [coordMax, List.mem_singleton.mp ha]
   | _, _ :: _, _, ha => by
     rcases List.mem_cons.mp ha with rfl | ha
     · exact le_max_left _ _
@@ -196,15 +179,11 @@ private theorem mem_support_int_bounds {q : Point} {r : Route} {p : ℝ × ℝ}
   obtain ⟨e, he, hpe⟩ := mem_support_iff_segmentPieces.mp hp
   obtain ⟨he1, he2⟩ := mem_of_mem_segmentPieces he
   have hb := mem_segment_int_bounds hpe
-  have hxmin : ((coordMin Prod.fst q r : ℤ) : ℝ) ≤ ((min e.1.1 e.2.1 : ℤ) : ℝ) := by
-    exact_mod_cast le_min (coordMin_le Prod.fst he1) (coordMin_le Prod.fst he2)
-  have hxmax : ((max e.1.1 e.2.1 : ℤ) : ℝ) ≤ ((coordMax Prod.fst q r : ℤ) : ℝ) := by
-    exact_mod_cast max_le (le_coordMax Prod.fst he1) (le_coordMax Prod.fst he2)
-  have hymin : ((coordMin Prod.snd q r : ℤ) : ℝ) ≤ ((min e.1.2 e.2.2 : ℤ) : ℝ) := by
-    exact_mod_cast le_min (coordMin_le Prod.snd he1) (coordMin_le Prod.snd he2)
-  have hymax : ((max e.1.2 e.2.2 : ℤ) : ℝ) ≤ ((coordMax Prod.snd q r : ℤ) : ℝ) := by
-    exact_mod_cast max_le (le_coordMax Prod.snd he1) (le_coordMax Prod.snd he2)
-  exact ⟨hxmin.trans hb.1, hb.2.1.trans hxmax, hymin.trans hb.2.2.1, hb.2.2.2.trans hymax⟩
+  exact ⟨
+    (Int.cast_le.mpr (le_min (coordMin_le Prod.fst he1) (coordMin_le Prod.fst he2))).trans hb.1,
+    hb.2.1.trans (Int.cast_le.mpr (max_le (le_coordMax Prod.fst he1) (le_coordMax Prod.fst he2))),
+    (Int.cast_le.mpr (le_min (coordMin_le Prod.snd he1) (coordMin_le Prod.snd he2))).trans hb.2.2.1,
+    hb.2.2.2.trans (Int.cast_le.mpr (max_le (le_coordMax Prod.snd he1) (le_coordMax Prod.snd he2)))⟩
 
 /-- Check whether the integer coordinate bounding boxes of two routes are disjoint.
 Empty routes have empty support, so their bounding boxes are treated as disjoint. -/
@@ -223,31 +202,19 @@ theorem disjoint_support_of_routeBoxDisjoint {r s : Route}
   rw [Set.disjoint_left]
   intro p hr hs
   cases r with
-  | nil =>
-    obtain ⟨e, he, _⟩ := mem_support_iff_segmentPieces.mp hr
-    exact List.not_mem_nil he
+  | nil => exact List.not_mem_nil (mem_support_iff_segmentPieces.mp hr).choose_spec.1
   | cons a r =>
     cases s with
-    | nil =>
-      obtain ⟨e, he, _⟩ := mem_support_iff_segmentPieces.mp hs
-      exact List.not_mem_nil he
+    | nil => exact List.not_mem_nil (mem_support_iff_segmentPieces.mp hs).choose_spec.1
     | cons b s =>
       have hrb := mem_support_int_bounds hr
       have hsb := mem_support_int_bounds hs
       simp only [routeBoxDisjoint, decide_eq_true_eq] at h
       rcases h with h | h | h | h
-      · have : ((coordMax Prod.fst a r : ℤ) : ℝ) < ((coordMin Prod.fst b s : ℤ) : ℝ) := by
-          exact_mod_cast h
-        linarith [hrb.2.1, hsb.1]
-      · have : ((coordMax Prod.fst b s : ℤ) : ℝ) < ((coordMin Prod.fst a r : ℤ) : ℝ) := by
-          exact_mod_cast h
-        linarith [hrb.1, hsb.2.1]
-      · have : ((coordMax Prod.snd a r : ℤ) : ℝ) < ((coordMin Prod.snd b s : ℤ) : ℝ) := by
-          exact_mod_cast h
-        linarith [hrb.2.2.2, hsb.2.2.1]
-      · have : ((coordMax Prod.snd b s : ℤ) : ℝ) < ((coordMin Prod.snd a r : ℤ) : ℝ) := by
-          exact_mod_cast h
-        linarith [hrb.2.2.1, hsb.2.2.2]
+      · exact not_int_bounds_of_lt h hrb.2.1 hsb.1
+      · exact not_int_bounds_of_lt h hsb.2.1 hrb.1
+      · exact not_int_bounds_of_lt h hrb.2.2.2 hsb.2.2.1
+      · exact not_int_bounds_of_lt h hsb.2.2.2 hrb.2.2.1
 
 /-- Check whether two routes have disjoint bounding boxes or all finite segment-piece pairs
 have only permitted contacts. -/
@@ -271,10 +238,8 @@ theorem routeContactCheck_sound {allowed : List Point} {r s : Route}
 /-- An empty permitted-contact list certifies disjoint continuous supports. -/
 theorem disjoint_support_of_routeContactCheck {r s : Route}
     (h : routeContactCheck [] r s = true) : Disjoint (support r) (support s) := by
-  rw [Set.disjoint_left]
-  intro p hr hs
-  obtain ⟨q, hq, _⟩ := routeContactCheck_sound h hr hs
-  exact List.not_mem_nil hq
+  exact Set.disjoint_left.mpr fun p hr hs =>
+    List.not_mem_nil (routeContactCheck_sound h hr hs).choose_spec.1
 
 /-- Testing against a singleton route certifies that a route avoids a specified vertex. -/
 theorem not_mem_support_of_routeContactCheck {r : Route} {q : Point}

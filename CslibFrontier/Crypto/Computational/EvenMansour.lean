@@ -19,9 +19,10 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
-# Computational Even–Mansour block cipher and ideal-permutation PRP security
+# Word-level Even–Mansour block cipher and ideal-permutation PRP security
 
 The Even–Mansour block cipher ([EvenMansour1997]; [BonehShoup2023], Section 4.7;
 [KatzLindell2020]) constructs a block cipher on `n`-bit blocks from a public permutation `P` by
@@ -46,24 +47,26 @@ This module provides the computational word-level counterpart to
    key, `n`-bit block) and single-key (`n`-bit key, `n`-bit block) constructions as uniform
    `BlockCipher` instances whose induced permutations `BlockCipher.permEquiv` agree with
    `EvenMansour.evenMansourEquiv` and `EvenMansour.singleKeyEvenMansourEquiv`.
-2. **Randomized (`ProbOracleComp`) ideal-permutation security via coin fixing**:
-   fixing private coins (`ProbOracleComp.coinLaw` from
-   `CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing`) lifts the information-theoretic
-   bad-key coupling bounds `EvenMansour.advantage_evenMansourRealGame_evenMansourIdealGame_le` and
-   `EvenMansour.advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le` from deterministic
-   `OracleComp` distinguishers to randomized `ProbOracleComp (EvenMansourSpec G) Bool`
-   distinguishers (`advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le`,
-   `advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le`), and yields asymptotic
-   `Negligible` distinguishing advantage whenever the cipher and primitive query budgets
-   `Q_C, Q_P : ℕ → ℕ` are polynomially bounded (`negligible_advantage_evenMansourProbRealGame`,
+2. **Asymptotic `Negligible` security for polynomially query-bounded randomized (`ProbOracleComp`)
+   distinguishers**: building on the finite-group coin-fixing bounds
+   `EvenMansour.advantage_evenMansourProbRealGame_bitString_le` and
+   `EvenMansour.advantage_singleKeyEvenMansourProbRealGame_bitString_le` from
+   `CslibFrontier.Crypto.Protocols.Cipher.EvenMansour`, any family of randomized distinguishers
+   whose cipher and primitive query budgets `Q_C, Q_P : ℕ → ℕ` are polynomially bounded has
+   `Negligible` distinguishing advantage (`negligible_advantage_evenMansourProbRealGame`,
    `negligible_advantage_singleKeyEvenMansourProbRealGame`).
 3. **Word-oracle (`WordOracleComp`) ideal-permutation games and `IsOraclePPT` security**:
    `evenMansourWordRealGame`, `singleKeyEvenMansourWordRealGame`, and `evenMansourWordIdealGame`
    expose the bidirectional cipher and primitive permutation channels as word oracles (rejecting
    malformed queries with `[]`), satisfy the `2 * Q_C * Q_P / 2 ^ n` security bound, and are
-   computationally indistinguishable against all `IsOraclePPT encBool` distinguishers
+   `Game.Indistinguishable` against all `IsOraclePPT encBool` distinguishers
    (`indistinguishable_evenMansourWordRealGame_evenMansourWordIdealGame`,
    `indistinguishable_singleKeyEvenMansourWordRealGame_evenMansourWordIdealGame`).
+
+All security results here are information-theoretic in the ideal-permutation model: `P` is a
+uniformly random permutation, the bounds hold for every distinguisher with the stated query counts
+whatever its running time, and the `IsOraclePPT` theorems use that class only for its polynomial
+query bound. No computational assumption is involved.
 
 ## Main definitions
 
@@ -74,9 +77,6 @@ This module provides the computational word-level counterpart to
   `Cslib.Crypto.singleKeyEvenMansourDecryptWord`: word-level Even–Mansour encryption and decryption.
 * `Cslib.Crypto.evenMansourCipher`, `Cslib.Crypto.singleKeyEvenMansourCipher`: uniform
   `BlockCipher` bundles for two-key and single-key Even–Mansour.
-* `Cslib.Crypto.IsProbCallBounded`, `Cslib.Crypto.evenMansourProbRealGame`,
-  `Cslib.Crypto.singleKeyEvenMansourProbRealGame`, `Cslib.Crypto.evenMansourProbIdealGame`:
-  randomized ideal-permutation games and separate cipher/primitive query budgets.
 * `Cslib.Crypto.EvenMansourDistinguisher`, `Cslib.Crypto.evenMansourWordRealGame`,
   `Cslib.Crypto.singleKeyEvenMansourWordRealGame`, `Cslib.Crypto.evenMansourWordIdealGame`:
   word-oracle ideal-permutation games.
@@ -91,9 +91,6 @@ This module provides the computational word-level counterpart to
   word-level Even–Mansour operations.
 * `Cslib.Crypto.evenMansourDecryptWord_evenMansourEncryptWord`,
   `Cslib.Crypto.evenMansourEncryptWord_evenMansourDecryptWord`: word-level inversion laws.
-* `Cslib.Crypto.advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le`,
-  `Cslib.Crypto.advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le`:
-  `2 * Q_C * Q_P / |G|` security bounds for randomized `ProbOracleComp` distinguishers.
 * `Cslib.Crypto.negligible_advantage_evenMansourProbRealGame`,
   `Cslib.Crypto.negligible_advantage_singleKeyEvenMansourProbRealGame`: asymptotic `Negligible`
   security when `Q_C` and `Q_P` are polynomially bounded.
@@ -101,7 +98,8 @@ This module provides the computational word-level counterpart to
   `Cslib.Crypto.advantage_singleKeyEvenMansourWordRealGame_evenMansourWordIdealGame_le`,
   `Cslib.Crypto.indistinguishable_evenMansourWordRealGame_evenMansourWordIdealGame`,
   `Cslib.Crypto.indistinguishable_singleKeyEvenMansourWordRealGame_evenMansourWordIdealGame`:
-  quantitative and asymptotic `IsOraclePPT` security for word-oracle distinguishers.
+  quantitative and asymptotic security for word-oracle distinguishers, information-theoretic in
+  the ideal-permutation model (`IsOraclePPT` supplies only the query bound).
 
 ## References
 
@@ -194,34 +192,25 @@ ciphertext. -/
     (evenMansourPostKeyWord k₂ y).length = min y.length k₂.length := by
   simp [evenMansourPostKeyWord]
 
-theorem length_evenMansourPreKeyWord_of_eq {n : ℕ} {k₁ x : List Bool}
+private theorem length_evenMansourPreKeyWord_of_eq {n : ℕ} {k₁ x : List Bool}
     (hk₁ : k₁.length = n) (hx : x.length = n) :
     (evenMansourPreKeyWord k₁ x).length = n := by
   simp [hk₁, hx]
 
-theorem length_evenMansourPostKeyWord_of_eq {n : ℕ} {k₂ y : List Bool}
+private theorem length_evenMansourPostKeyWord_of_eq {n : ℕ} {k₂ y : List Bool}
     (hk₂ : k₂.length = n) (hy : y.length = n) :
     (evenMansourPostKeyWord k₂ y).length = n := by
   simp [hk₂, hy]
 
-private theorem zipWith_xor_self_right :
-    ∀ msg pad : List Bool, msg.length = pad.length →
-      List.zipWith Bool.xor (List.zipWith Bool.xor msg pad) pad = msg
-  | [], [], _ => rfl
-  | m :: msg, b :: pad, h => by
-    simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-    simp only [List.zipWith_cons_cons, zipWith_xor_self_right msg pad h]
-    cases m <;> cases b <;> rfl
-
 /-- Applying `evenMansourPreKeyWord k₁` twice cancels on equal-length words. -/
 @[simp] theorem evenMansourPreKeyWord_self (k₁ x : List Bool) (h : x.length = k₁.length) :
     evenMansourPreKeyWord k₁ (evenMansourPreKeyWord k₁ x) = x :=
-  zipWith_xor_self_right x k₁ h
+  BitString.zipWith_xor_self_right x k₁ h
 
 /-- Applying `evenMansourPostKeyWord k₂` twice cancels on equal-length words. -/
 @[simp] theorem evenMansourPostKeyWord_self (k₂ y : List Bool) (h : y.length = k₂.length) :
     evenMansourPostKeyWord k₂ (evenMansourPostKeyWord k₂ y) = y :=
-  zipWith_xor_self_right y k₂ h
+  BitString.zipWith_xor_self_right y k₂ h
 
 /-- On `BitString n`, `evenMansourPreKeyWord` computes `x + k₁`. -/
 theorem evenMansourPreKeyWord_ofFn {n : ℕ} (k₁ x : BitString n) :
@@ -233,14 +222,16 @@ theorem evenMansourPostKeyWord_ofFn {n : ℕ} (k₂ y : BitString n) :
     evenMansourPostKeyWord (List.ofFn k₂) (List.ofFn y) = List.ofFn (y + k₂) :=
   (BitString.ofFn_add y k₂).symm
 
-theorem splitTwoKeys_fst_eq_take (n : ℕ) (key : List Bool) :
+private theorem splitTwoKeys_fst_eq_take (n : ℕ) (key : List Bool) :
     (splitTwoKeys n key).1 = key.take n := by
   simp [splitTwoKeys, keyBlock]
 
+/-- The first subkey returned by `splitTwoKeys n key` has length `n` when `key.length = 2 * n`. -/
 theorem length_splitTwoKeys_fst {n : ℕ} {key : List Bool} (hkey : key.length = 2 * n) :
     (splitTwoKeys n key).1.length = n :=
   length_keyBlock hkey (by decide)
 
+/-- The second subkey returned by `splitTwoKeys n key` has length `n` when `key.length = 2 * n`. -/
 theorem length_splitTwoKeys_snd {n : ℕ} {key : List Bool} (hkey : key.length = 2 * n) :
     (splitTwoKeys n key).2.length = n :=
   length_keyBlock hkey (by decide)
@@ -250,10 +241,8 @@ words and the subkeys have length `n`. -/
 theorem length_evenMansourEncryptWord {n : ℕ} {P : List Bool → List Bool}
     (hP : ∀ u : List Bool, u.length = n → (P u).length = n)
     {k₁ k₂ x : List Bool} (hk₁ : k₁.length = n) (hk₂ : k₂.length = n) (hx : x.length = n) :
-    (evenMansourEncryptWord P k₁ k₂ x).length = n := by
-  have hpre : (evenMansourPreKeyWord k₁ x).length = n :=
-    length_evenMansourPreKeyWord_of_eq hk₁ hx
-  exact length_evenMansourPostKeyWord_of_eq hk₂ (hP _ hpre)
+    (evenMansourEncryptWord P k₁ k₂ x).length = n :=
+  length_evenMansourPostKeyWord_of_eq hk₂ (hP _ (length_evenMansourPreKeyWord_of_eq hk₁ hx))
 
 /-- Word-level Even–Mansour decryption preserves `n`-bit block length when `P_inv` preserves
 `n`-bit words and the subkeys have length `n`. -/
@@ -271,11 +260,9 @@ theorem evenMansourDecryptWord_evenMansourEncryptWord {n : ℕ}
     (hleft : ∀ u : List Bool, u.length = n → P_inv (P u) = u)
     {k₁ k₂ x : List Bool} (hk₁ : k₁.length = n) (hk₂ : k₂.length = n) (hx : x.length = n) :
     evenMansourDecryptWord P_inv k₁ k₂ (evenMansourEncryptWord P k₁ k₂ x) = x := by
-  have hpre : (evenMansourPreKeyWord k₁ x).length = n :=
-    length_evenMansourPreKeyWord_of_eq hk₁ hx
-  have hPpre : (P (evenMansourPreKeyWord k₁ x)).length = n := hP _ hpre
+  have hpre := length_evenMansourPreKeyWord_of_eq hk₁ hx
   simp only [evenMansourEncryptWord, evenMansourDecryptWord]
-  rw [evenMansourPostKeyWord_self k₂ _ (hPpre.trans hk₂.symm), hleft _ hpre,
+  rw [evenMansourPostKeyWord_self k₂ _ ((hP _ hpre).trans hk₂.symm), hleft _ hpre,
     evenMansourPreKeyWord_self k₁ x (hx.trans hk₁.symm)]
 
 /-- Word-level Even–Mansour encryption inverts decryption on `n`-bit words whenever `P_inv`
@@ -358,18 +345,12 @@ theorem computableInPolyTime_evenMansourEncryptWord {P : List Bool → List Bool
     (hP : ComputableInPolyTime P encBits encBits) :
     ComputableInPolyTime
       (fun t : List Bool × List Bool × List Bool => evenMansourEncryptWord P t.1 t.2.1 t.2.2)
-      (encPair encBits (encPair encBits encBits)) encBits := by
-  have hpre : ComputableInPolyTime
-      (fun t : List Bool × List Bool × List Bool => evenMansourPreKeyWord t.1 t.2.2)
-      (encPair encBits (encPair encBits encBits)) encBits := by
-    unfold evenMansourPreKeyWord
-    polytime
-  have hmid : ComputableInPolyTime
-      (fun t : List Bool × List Bool × List Bool => P (evenMansourPreKeyWord t.1 t.2.2))
-      (encPair encBits (encPair encBits encBits)) encBits := hP.comp hpre
-  exact computableInPolyTime_evenMansourPostKeyWord.comp ((by polytime :
-    ComputableInPolyTime (fun t : List Bool × List Bool × List Bool => t.2.1)
-      (encPair encBits (encPair encBits encBits)) encBits).prod hmid)
+      (encPair encBits (encPair encBits encBits)) encBits :=
+  computableInPolyTime_evenMansourPostKeyWord.comp
+    (((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)).prod
+      (hP.comp (computableInPolyTime_evenMansourPreKeyWord.comp
+        ((ComputableInPolyTime.fst _ _).prod
+          ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))))))
 
 /-- Word-level Even–Mansour decryption is computable in polynomial time whenever `P_inv` is. -/
 @[program_certificate]
@@ -396,14 +377,10 @@ private theorem computableInPolyTime_keyedEvenMansourEncryptWord {P : ℕ → Li
       (fun t : ℕ × List Bool × List Bool =>
         evenMansourEncryptWord (P t.1) (sub₁ t.1 t.2.1) (sub₂ t.1 t.2.1) t.2.2)
       (encKeyedInput encBits) encBits := by
-  let E := encPair encUnary (encPair encBits encBits)
-  have hn : ComputableInPolyTime (fun t : ℕ × List Bool × List Bool => t.1) E encUnary := by
-    polytime
-  have hblk : ComputableInPolyTime (fun t : ℕ × List Bool × List Bool => t.2.2) E encBits := by
-    polytime
-  have hpre := computableInPolyTime_evenMansourPreKeyWord.comp (hsub₁.prod hblk)
-  have hmid := hP.comp (hn.prod hpre)
-  exact computableInPolyTime_evenMansourPostKeyWord.comp (hsub₂.prod hmid)
+  exact computableInPolyTime_evenMansourPostKeyWord.comp
+    (hsub₂.prod (hP.comp ((ComputableInPolyTime.fst _ _).prod
+      (computableInPolyTime_evenMansourPreKeyWord.comp
+        (hsub₁.prod ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)))))))
 
 /-- Parameterized two-key Even–Mansour encryption is computable in polynomial time whenever `P`
 is. -/
@@ -459,7 +436,7 @@ theorem computableInPolyTime_singleKeyEvenMansourDecrypt {P_inv : ℕ → List B
 
 /-- The permutation on `BitString n` induced by a pair of length-preserving inverse word functions
 `(P n, P_inv n)`. -/
-@[expose] def permOfWordFamily (P P_inv : ℕ → List Bool → List Bool)
+def permOfWordFamily (P P_inv : ℕ → List Bool → List Bool)
     (hP_len : ∀ n block, block.length = n → (P n block).length = n)
     (hP_inv_len : ∀ n block, block.length = n → (P_inv n block).length = n)
     (hleft : ∀ n block, block.length = n → P_inv n (P n block) = block)
@@ -603,233 +580,8 @@ theorem permEquiv_singleKeyEvenMansourCipher (P P_inv : ℕ → List Bool → Li
   exact ofList_evenMansourEncryptWord_permOfWordFamily P P_inv hP_len hP_inv_len hleft hright n
     hkey hkey x
 
-/-! ### Randomized (`ProbOracleComp`) ideal-permutation security via coin fixing -/
-
-section ProbOracleSecurity
-
-variable {G : Type} [AddGroup G] [Fintype G] [DecidableEq G]
-
-omit [AddGroup G] [DecidableEq G] in
-instance instFintypeEvenMansourSpec
-    (q : RandomPermutation.PermQuery G ⊕ RandomPermutation.PermQuery G) :
-    Fintype (EvenMansour.EvenMansourSpec G q) := by
-  cases q <;> exact inferInstanceAs (Fintype G)
-
-/-- Answer a single `EvenMansourSpec G` query against cipher permutation `E` and primitive
-permutation `π`. -/
-@[expose] def evalTwoPermsQuery (E π : Equiv.Perm G)
-    (q : RandomPermutation.PermQuery G ⊕ RandomPermutation.PermQuery G) :
-    EvenMansour.EvenMansourSpec G q :=
-  match q with
-  | .inl qe => RandomPermutation.evalPerm E qe
-  | .inr qπ => RandomPermutation.evalPerm π qπ
-
-/-- Evaluate a randomized oracle program `ProbOracleComp (EvenMansourSpec G) α` against cipher
-permutation `E` and primitive permutation `π`. -/
-@[expose] noncomputable def evalProbTwoPerms {α : Type} (E π : Equiv.Perm G)
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) α) : PMF α :=
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (evalTwoPermsQuery E π q)))
-    program
-
-/-- A randomized adversary `program : ProbOracleComp (EvenMansourSpec G) α` makes at most `Q_e`
-cipher queries and at most `Q_π` primitive permutation queries on every execution path, regardless
-of its private coin choices. -/
-@[expose] def IsProbCallBounded {α : Type}
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) α) (Q_e Q_π : ℕ) : Prop :=
-  OracleComp.IsCostBounded (Sum.elim (fun _ => 0) EvenMansour.cipherCost) program Q_e ∧
-    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) EvenMansour.permCost) program Q_π
-
-omit [AddGroup G] [Fintype G] [DecidableEq G] in
-/-- Fixing the private coins `ω` of a randomized `(Q_e, Q_π)`-call-bounded distinguisher yields a
-deterministic distinguisher satisfying `EvenMansour.IsCallBounded _ Q_e Q_π`. -/
-theorem IsProbCallBounded.fixCoins {α : Type}
-    {program : ProbOracleComp (EvenMansour.EvenMansourSpec G) α} {Q_e Q_π : ℕ}
-    (h : IsProbCallBounded program Q_e Q_π) (ω : ProbOracleComp.Coins program) :
-    EvenMansour.IsCallBounded (ProbOracleComp.fixCoins program ω) Q_e Q_π :=
-  ⟨ProbOracleComp.isCostBounded_fixCoins h.1 ω, ProbOracleComp.isCostBounded_fixCoins h.2 ω⟩
-
-omit [AddGroup G] [Fintype G] [DecidableEq G] in
-/-- A closed probabilistic sample makes `0` cipher queries and `0` primitive queries. -/
-theorem isProbCallBounded_sample {α : Type} (p : ProbComp α) :
-    IsProbCallBounded (ProbOracleComp.sample (spec := EvenMansour.EvenMansourSpec G) p) 0 0 :=
-  ⟨ProbOracleComp.isCostBounded_sample EvenMansour.cipherCost p,
-   ProbOracleComp.isCostBounded_sample EvenMansour.permCost p⟩
-
-omit [AddGroup G] [Fintype G] [DecidableEq G] in
-/-- Lifting a deterministic `EvenMansour.IsCallBounded` program to `ProbOracleComp` preserves its
-`(Q_e, Q_π)` query budgets. -/
-theorem IsProbCallBounded.of_isCallBounded {α : Type}
-    {program : OracleComp (EvenMansour.EvenMansourSpec G) α} {Q_e Q_π : ℕ}
-    (h : EvenMansour.IsCallBounded program Q_e Q_π) :
-    IsProbCallBounded
-      (OracleComp.interpret (fun q => ProbOracleComp.query q) program) Q_e Q_π :=
-  ⟨ProbOracleComp.isCostBounded_interpret_query h.1,
-   ProbOracleComp.isCostBounded_interpret_query h.2⟩
-
-omit [AddGroup G] [Fintype G] [DecidableEq G] in
-/-- Any randomized program making at most `Q` total external queries satisfies
-`IsProbCallBounded program Q Q`. -/
-theorem IsProbCallBounded.of_isQueryBounded {α : Type}
-    {program : ProbOracleComp (EvenMansour.EvenMansourSpec G) α} {Q : ℕ}
-    (hQ : program.IsQueryBounded Q) : IsProbCallBounded program Q Q :=
-  ⟨hQ.of_le fun q => by
-      cases q with
-      | inl _ => rfl
-      | inr q => cases q <;> simp [EvenMansour.cipherCost],
-   hQ.of_le fun q => by
-      cases q with
-      | inl _ => rfl
-      | inr q => cases q <;> simp [EvenMansour.permCost]⟩
-
-/-- The real two-key Even–Mansour game for a randomized distinguisher
-`program : ProbOracleComp (EvenMansourSpec G) Bool`. -/
-@[expose] noncomputable def evenMansourProbRealGame
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool) : Game := do
-  let π ← PMF.uniformOfFintype (Equiv.Perm G)
-  let k ← PMF.uniformOfFintype (G × G)
-  evalProbTwoPerms (EvenMansour.evenMansourEquiv π k.1 k.2) π program
-
-/-- The real single-key Even–Mansour game for a randomized distinguisher
-`program : ProbOracleComp (EvenMansourSpec G) Bool`. -/
-@[expose] noncomputable def singleKeyEvenMansourProbRealGame
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool) : Game := do
-  let π ← PMF.uniformOfFintype (Equiv.Perm G)
-  let k ← PMF.uniformOfFintype G
-  evalProbTwoPerms (EvenMansour.singleKeyEvenMansourEquiv π k) π program
-
-/-- The ideal Even–Mansour game for a randomized distinguisher
-`program : ProbOracleComp (EvenMansourSpec G) Bool`: two independent uniform permutations
-`E, π ← Equiv.Perm G`. -/
-@[expose] noncomputable def evenMansourProbIdealGame
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool) : Game := do
-  let E ← PMF.uniformOfFintype (Equiv.Perm G)
-  let π ← PMF.uniformOfFintype (Equiv.Perm G)
-  evalProbTwoPerms E π program
-
-omit [AddGroup G] [Fintype G] [DecidableEq G] in
-private theorem interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms {α : Type} (E π : Equiv.Perm G)
-    (program : OracleComp (EvenMansour.EvenMansourSpec G) α) :
-    OracleComp.interpret (fun q => PMF.pure (evalTwoPermsQuery E π q)) program =
-      PMF.pure (EvenMansour.evalTwoPerms E π program) := by
-  rw [EvenMansour.pure_evalTwoPerms]
-  congr 1; funext q; cases q <;> rfl
-
-/-- Coin-fixing decomposition of `evenMansourProbRealGame`: sampling `(π, k)` independently of
-`program`'s private coins equals averaging the deterministic `EvenMansour.evenMansourRealGame` over
-`ProbOracleComp.coinLaw program`. -/
-theorem evenMansourProbRealGame_eq_coinLaw_bind
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool) :
-    evenMansourProbRealGame program =
-      (ProbOracleComp.coinLaw program).bind fun ω =>
-        EvenMansour.evenMansourRealGame (ProbOracleComp.fixCoins program ω) := by
-  let μ : PMF (Equiv.Perm G × (G × G)) :=
-    (PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
-      (PMF.uniformOfFintype (G × G)).map fun k => (π, k)
-  have hcoins := ProbOracleComp.table_bind_interpret_eq_coinLaw_bind μ
-    (fun p => evalTwoPermsQuery (EvenMansour.evenMansourEquiv p.1 p.2.1 p.2.2) p.1) program
-  simp only [pmf_norm, μ, evenMansourProbRealGame, EvenMansour.evenMansourRealGame,
-    EvenMansour.evalEvenMansour, evalProbTwoPerms,
-    interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms] at hcoins ⊢
-  exact hcoins
-
-/-- Coin-fixing decomposition of `singleKeyEvenMansourProbRealGame`: sampling `(π, k)`
-independently of `program`'s private coins equals averaging the deterministic
-`EvenMansour.singleKeyEvenMansourRealGame` over `ProbOracleComp.coinLaw program`. -/
-theorem singleKeyEvenMansourProbRealGame_eq_coinLaw_bind
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool) :
-    singleKeyEvenMansourProbRealGame program =
-      (ProbOracleComp.coinLaw program).bind fun ω =>
-        EvenMansour.singleKeyEvenMansourRealGame (ProbOracleComp.fixCoins program ω) := by
-  let μ : PMF (Equiv.Perm G × G) :=
-    (PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
-      (PMF.uniformOfFintype G).map fun k => (π, k)
-  have hcoins := ProbOracleComp.table_bind_interpret_eq_coinLaw_bind μ
-    (fun p => evalTwoPermsQuery (EvenMansour.singleKeyEvenMansourEquiv p.1 p.2) p.1) program
-  simp only [pmf_norm, μ, singleKeyEvenMansourProbRealGame,
-    EvenMansour.singleKeyEvenMansourRealGame, EvenMansour.evalEvenMansour, evalProbTwoPerms,
-    interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms] at hcoins ⊢
-  exact hcoins
-
-omit [AddGroup G] in
-/-- Coin-fixing decomposition of `evenMansourProbIdealGame`: sampling `(E, π)` independently of
-`program`'s private coins equals averaging the deterministic `EvenMansour.evenMansourIdealGame`
-over `ProbOracleComp.coinLaw program`. -/
-theorem evenMansourProbIdealGame_eq_coinLaw_bind
-    (program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool) :
-    evenMansourProbIdealGame program =
-      (ProbOracleComp.coinLaw program).bind fun ω =>
-        EvenMansour.evenMansourIdealGame (ProbOracleComp.fixCoins program ω) := by
-  let μ : PMF (Equiv.Perm G × Equiv.Perm G) :=
-    (PMF.uniformOfFintype (Equiv.Perm G)).bind fun E =>
-      (PMF.uniformOfFintype (Equiv.Perm G)).map fun π => (E, π)
-  have hcoins := ProbOracleComp.table_bind_interpret_eq_coinLaw_bind μ
-    (fun p => evalTwoPermsQuery p.1 p.2) program
-  simp only [pmf_norm, μ, evenMansourProbIdealGame, EvenMansour.evenMansourIdealGame,
-    evalProbTwoPerms, interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms] at hcoins ⊢
-  exact hcoins
-
-/-- **Randomized two-key Even–Mansour PRP security in the ideal-permutation model**
-([EvenMansour1997]; [BonehShoup2023], Theorem 4.14; [KatzLindell2020]): for any randomized
-distinguisher `program : ProbOracleComp (EvenMansourSpec G) Bool` making at most `Q_e` cipher
-queries and at most `Q_π` primitive permutation queries (`IsProbCallBounded program Q_e Q_π`), the
-distinguishing advantage between `evenMansourProbRealGame program` and
-`evenMansourProbIdealGame program` is at most `2 * Q_e * Q_π / |G|`. -/
-theorem advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le
-    {program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
-    (hcall : IsProbCallBounded program Q_e Q_π) :
-    (Game.advantage (evenMansourProbRealGame program) (evenMansourProbIdealGame program) : ℝ) ≤
-      2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  rw [evenMansourProbRealGame_eq_coinLaw_bind, evenMansourProbIdealGame_eq_coinLaw_bind]
-  refine Game.advantage_bind_le _ _ _ fun ω => ?_
-  exact EvenMansour.advantage_evenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
-
-/-- **Randomized single-key Even–Mansour PRP security in the ideal-permutation model**
-([DunkelmanKellerShamir2012]; [BonehShoup2023], Section 4.7): for any randomized distinguisher
-`program : ProbOracleComp (EvenMansourSpec G) Bool` making at most `Q_e` cipher queries and at
-most `Q_π` primitive permutation queries (`IsProbCallBounded program Q_e Q_π`), the distinguishing
-advantage between `singleKeyEvenMansourProbRealGame program` and
-`evenMansourProbIdealGame program` is at most `2 * Q_e * Q_π / |G|`. -/
-theorem advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le
-    {program : ProbOracleComp (EvenMansour.EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
-    (hcall : IsProbCallBounded program Q_e Q_π) :
-    (Game.advantage (singleKeyEvenMansourProbRealGame program)
-      (evenMansourProbIdealGame program) : ℝ) ≤
-      2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  rw [singleKeyEvenMansourProbRealGame_eq_coinLaw_bind, evenMansourProbIdealGame_eq_coinLaw_bind]
-  refine Game.advantage_bind_le _ _ _ fun ω => ?_
-  exact EvenMansour.advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
-    (hcall.fixCoins ω)
-
-end ProbOracleSecurity
-
-private theorem advantage_bitString_of_card_le {n Q_e Q_π : ℕ} {g₁ g₂ : Game}
-    (h : (Game.advantage g₁ g₂ : ℝ) ≤
-      2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card (BitString n) : ℝ)) :
-    (Game.advantage g₁ g₂ : ℝ) ≤ 2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n := by
-  simpa only [Fintype.card_pi, Fintype.card_fin, Fintype.card_bool, Finset.prod_const,
-    Finset.card_univ, Nat.cast_pow, Nat.cast_ofNat] using h
-
-/-- Specialization of `advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le` to `n`-bit
-strings `BitString n`: the distinguishing advantage is at most `2 * Q_e * Q_π / 2 ^ n`. -/
-theorem advantage_evenMansourProbRealGame_bitString_le {n Q_e Q_π : ℕ}
-    {program : ProbOracleComp (EvenMansour.EvenMansourSpec (BitString n)) Bool}
-    (hcall : IsProbCallBounded program Q_e Q_π) :
-    (Game.advantage (evenMansourProbRealGame program) (evenMansourProbIdealGame program) : ℝ) ≤
-      2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n :=
-  advantage_bitString_of_card_le
-    (advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le hcall)
-
-/-- Specialization of `advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le` to
-`n`-bit strings `BitString n`: the distinguishing advantage is at most `2 * Q_e * Q_π / 2 ^ n`. -/
-theorem advantage_singleKeyEvenMansourProbRealGame_bitString_le {n Q_e Q_π : ℕ}
-    {program : ProbOracleComp (EvenMansour.EvenMansourSpec (BitString n)) Bool}
-    (hcall : IsProbCallBounded program Q_e Q_π) :
-    (Game.advantage (singleKeyEvenMansourProbRealGame program)
-      (evenMansourProbIdealGame program) : ℝ) ≤
-      2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n :=
-  advantage_bitString_of_card_le
-    (advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le hcall)
+/-! ### Asymptotic `Negligible` security for polynomially query-bounded `ProbOracleComp`
+distinguishers -/
 
 private theorem negligible_advantage_of_bitString_le {g₁ g₂ : ℕ → Game} {Q_e Q_π : ℕ → ℕ}
     (hQ_e : PolynomiallyBounded Q_e) (hQ_π : PolynomiallyBounded Q_π)
@@ -846,12 +598,12 @@ advantage is `Negligible`. -/
 theorem negligible_advantage_evenMansourProbRealGame
     {program : (n : ℕ) → ProbOracleComp (EvenMansour.EvenMansourSpec (BitString n)) Bool}
     {Q_e Q_π : ℕ → ℕ} (hQ_e : PolynomiallyBounded Q_e) (hQ_π : PolynomiallyBounded Q_π)
-    (hcall : ∀ n, IsProbCallBounded (program n) (Q_e n) (Q_π n)) :
+    (hcall : ∀ n, EvenMansour.IsProbCallBounded (program n) (Q_e n) (Q_π n)) :
     Negligible fun n =>
-      Game.advantage (evenMansourProbRealGame (program n))
-        (evenMansourProbIdealGame (program n)) :=
+      Game.advantage (EvenMansour.evenMansourProbRealGame (program n))
+        (EvenMansour.evenMansourProbIdealGame (program n)) :=
   negligible_advantage_of_bitString_le hQ_e hQ_π fun n =>
-    advantage_evenMansourProbRealGame_bitString_le (hcall n)
+    EvenMansour.advantage_evenMansourProbRealGame_bitString_le (hcall n)
 
 /-- **Asymptotic single-key Even–Mansour security for polynomially query-bounded randomized
 distinguishers** ([DunkelmanKellerShamir2012]; [BonehShoup2023], Section 4.7): for any family of
@@ -861,12 +613,12 @@ distinguishing advantage is `Negligible`. -/
 theorem negligible_advantage_singleKeyEvenMansourProbRealGame
     {program : (n : ℕ) → ProbOracleComp (EvenMansour.EvenMansourSpec (BitString n)) Bool}
     {Q_e Q_π : ℕ → ℕ} (hQ_e : PolynomiallyBounded Q_e) (hQ_π : PolynomiallyBounded Q_π)
-    (hcall : ∀ n, IsProbCallBounded (program n) (Q_e n) (Q_π n)) :
+    (hcall : ∀ n, EvenMansour.IsProbCallBounded (program n) (Q_e n) (Q_π n)) :
     Negligible fun n =>
-      Game.advantage (singleKeyEvenMansourProbRealGame (program n))
-        (evenMansourProbIdealGame (program n)) :=
+      Game.advantage (EvenMansour.singleKeyEvenMansourProbRealGame (program n))
+        (EvenMansour.evenMansourProbIdealGame (program n)) :=
   negligible_advantage_of_bitString_le hQ_e hQ_π fun n =>
-    advantage_singleKeyEvenMansourProbRealGame_bitString_le (hcall n)
+    EvenMansour.advantage_singleKeyEvenMansourProbRealGame_bitString_le (hcall n)
 
 /-! ### Word-oracle (`WordOracleComp`) ideal-permutation games and `IsOraclePPT` security -/
 
@@ -876,14 +628,14 @@ operation `(false, false)` queries cipher encryption, `(false, true)` queries ci
 public permutation. -/
 abbrev EvenMansourDistinguisher := ℕ → List Bool → WordOracleComp (Bool × Bool) Bool
 
-/-- Cost function counting word-oracle cipher queries (`1` when `op.1 = false`, `0` when
-`op.1 = true`). -/
+/-- Cost function counting word-oracle cipher queries (`1` when `isPerm = false`, `0` when
+`isPerm = true`). -/
 @[expose] def wordCipherCost : (Bool × Bool) × List Bool → ℕ
   | ((false, _), _) => 1
   | ((true, _), _) => 0
 
-/-- Cost function counting word-oracle primitive permutation queries (`0` when `op.1 = false`, `1`
-when `op.1 = true`). -/
+/-- Cost function counting word-oracle primitive permutation queries (`0` when `isPerm = false`,
+`1` when `isPerm = true`). -/
 @[expose] def wordPermCost : (Bool × Bool) × List Bool → ℕ
   | ((false, _), _) => 0
   | ((true, _), _) => 1
@@ -900,19 +652,13 @@ when `op.1 = true`). -/
 theorem IsWordCallBounded.of_isQueryBounded {α : Type}
     {program : WordOracleComp (Bool × Bool) α} {Q : ℕ}
     (hQ : program.IsQueryBounded Q) : IsWordCallBounded program Q Q :=
-  ⟨hQ.of_le fun q => by
-      rcases q with _ | ⟨⟨b, _⟩, _⟩
-      · rfl
-      · cases b <;> simp [wordCipherCost],
-   hQ.of_le fun q => by
-      rcases q with _ | ⟨⟨b, _⟩, _⟩
-      · rfl
-      · cases b <;> simp [wordPermCost]⟩
+  ⟨hQ.of_le fun | .inl _ => le_rfl | .inr ⟨⟨b, _⟩, _⟩ => by cases b <;> simp [wordCipherCost],
+   hQ.of_le fun | .inl _ => le_rfl | .inr ⟨⟨b, _⟩, _⟩ => by cases b <;> simp [wordPermCost]⟩
 
-/-- Two-permutation word oracle on `n`-bit blocks: `op.1 = false` dispatches to the cipher
-permutation `E` (in direction `op.2`) and `op.1 = true` dispatches to the primitive permutation
-`π` (in direction `op.2`), rejecting malformed words of length `≠ n` with `[]`. -/
-@[expose] def evenMansourTwoPermWordOracle (n : ℕ) (E π : Equiv.Perm (BitString n))
+/-- Two-permutation word oracle on `n`-bit blocks: `isPerm = false` dispatches to the cipher
+permutation `E` (in direction `inverse`) and `isPerm = true` dispatches to the primitive permutation
+`π` (in direction `inverse`), rejecting malformed words of length `≠ n` with `[]`. -/
+private def evenMansourTwoPermWordOracle (n : ℕ) (E π : Equiv.Perm (BitString n))
     (request : (Bool × Bool) × List Bool) : List Bool :=
   match request with
   | ((isPerm, inverse), query) =>
@@ -922,7 +668,7 @@ permutation `E` (in direction `op.2`) and `op.1 = true` dispatches to the primit
 permutation `π`: cipher queries (`isPerm = false`) apply word-level `evenMansourEncrypt` /
 `evenMansourDecrypt` around `strongRandomPermOracle n π`, and primitive queries (`isPerm = true`)
 query `strongRandomPermOracle n π` directly. -/
-@[expose] def evenMansourKeyedWordOracle (n : ℕ) (π : Equiv.Perm (BitString n)) (key : List Bool)
+private def evenMansourKeyedWordOracle (n : ℕ) (π : Equiv.Perm (BitString n)) (key : List Bool)
     (request : (Bool × Bool) × List Bool) : List Bool :=
   match request with
   | ((false, false), query) =>
@@ -938,7 +684,7 @@ query `strongRandomPermOracle n π` directly. -/
 
 /-- Keyed word-level single-key Even–Mansour oracle on an `n`-bit key `key` and primitive
 permutation `π`. -/
-@[expose] def singleKeyEvenMansourKeyedWordOracle (n : ℕ) (π : Equiv.Perm (BitString n))
+private def singleKeyEvenMansourKeyedWordOracle (n : ℕ) (π : Equiv.Perm (BitString n))
     (key : List Bool) (request : (Bool × Bool) × List Bool) : List Bool :=
   match request with
   | ((false, false), query) =>
@@ -972,35 +718,24 @@ private theorem subkeyWordOracle_eq_twoPermWordOracle {n : ℕ} (π : Equiv.Perm
       evenMansourTwoPermWordOracle n
         (EvenMansour.evenMansourEquiv π (BitString.ofList n k₁) (BitString.ofList n k₂))
         π request := by
-  rcases request with ⟨⟨isPerm, inverse⟩, query⟩
-  have hrep_fwd : ∀ u : BitString n,
-      strongRandomPermOracle n π (false, List.ofFn u) = List.ofFn (π u) := fun u => by
-    simp [strongRandomPermOracle]
-  have hrep_inv : ∀ v : BitString n,
-      strongRandomPermOracle n π (true, List.ofFn v) = List.ofFn (π.symm v) := fun v => by
-    simp [strongRandomPermOracle]
-  cases isPerm
-  · cases inverse
-    · simp only [evenMansourTwoPermWordOracle, strongRandomPermOracle, Bool.false_eq_true,
-        ↓reduceIte]
-      split_ifs with hq
-      · conv_lhs =>
-          rw [← BitString.ofFn_ofList hk₁, ← BitString.ofFn_ofList hk₂, ← BitString.ofFn_ofList hq]
-        exact evenMansourEncryptWord_ofFn hrep_fwd _ _ _
-      · rfl
-    · simp only [evenMansourTwoPermWordOracle, strongRandomPermOracle, Bool.false_eq_true,
-        ↓reduceIte]
-      split_ifs with hq
-      · conv_lhs =>
-          rw [← BitString.ofFn_ofList hk₁, ← BitString.ofFn_ofList hk₂, ← BitString.ofFn_ofList hq]
-        exact evenMansourDecryptWord_ofFn hrep_inv _ _ _
-      · rfl
+  rcases request with ⟨⟨_ | _, inverse⟩, query⟩
+  · cases inverse <;>
+      simp only [evenMansourTwoPermWordOracle, strongRandomPermOracle, Bool.false_eq_true,
+        ↓reduceIte] <;>
+      split_ifs with hq <;> try rfl
+    · conv_lhs =>
+        rw [← BitString.ofFn_ofList hk₁, ← BitString.ofFn_ofList hk₂, ← BitString.ofFn_ofList hq]
+      exact evenMansourEncryptWord_ofFn (fun _ => by simp) _ _ _
+    · conv_lhs =>
+        rw [← BitString.ofFn_ofList hk₁, ← BitString.ofFn_ofList hk₂, ← BitString.ofFn_ofList hq]
+      exact evenMansourDecryptWord_ofFn (fun _ => by simp) _ _ _
   · rfl
 
 /-- For any `2 * n`-bit key `key`, `evenMansourKeyedWordOracle` agrees on all requests with
 `evenMansourTwoPermWordOracle` for `EvenMansour.evenMansourEquiv π k₁ k₂`. -/
-theorem evenMansourKeyedWordOracle_eq_twoPermWordOracle {n : ℕ} (π : Equiv.Perm (BitString n))
-    {key : List Bool} (hkey : key.length = 2 * n) (request : (Bool × Bool) × List Bool) :
+private theorem evenMansourKeyedWordOracle_eq_twoPermWordOracle {n : ℕ}
+    (π : Equiv.Perm (BitString n)) {key : List Bool} (hkey : key.length = 2 * n)
+    (request : (Bool × Bool) × List Bool) :
     evenMansourKeyedWordOracle n π key request =
       evenMansourTwoPermWordOracle n
         (EvenMansour.evenMansourEquiv π
@@ -1014,7 +749,7 @@ theorem evenMansourKeyedWordOracle_eq_twoPermWordOracle {n : ℕ} (π : Equiv.Pe
 
 /-- For any `n`-bit key `key`, `singleKeyEvenMansourKeyedWordOracle` agrees on all requests with
 `evenMansourTwoPermWordOracle` for `EvenMansour.singleKeyEvenMansourEquiv π k`. -/
-theorem singleKeyEvenMansourKeyedWordOracle_eq_twoPermWordOracle {n : ℕ}
+private theorem singleKeyEvenMansourKeyedWordOracle_eq_twoPermWordOracle {n : ℕ}
     (π : Equiv.Perm (BitString n)) {key : List Bool} (hkey : key.length = n)
     (request : (Bool × Bool) × List Bool) :
     singleKeyEvenMansourKeyedWordOracle n π key request =
@@ -1028,43 +763,37 @@ theorem singleKeyEvenMansourKeyedWordOracle_eq_twoPermWordOracle {n : ℕ}
     subkeyWordOracle_eq_twoPermWordOracle π hkey hkey ((isPerm, inverse), query)
 
 /-- The real word-oracle two-key Even–Mansour experiment: sample a uniform permutation `π` of
-`BitString n` and a uniform `2 * n`-bit key `key`, and run `adversary n []` against
-`evenMansourKeyedWordOracle n π key`. -/
-@[expose] noncomputable def evenMansourWordRealGame (adversary : EvenMansourDistinguisher)
+`BitString n` and a uniform `2 * n`-bit key `key`, and run `adversary n []` against the two-key
+Even–Mansour cipher and primitive permutation word channels (answering malformed queries of length
+`≠ n` with `[]`). -/
+noncomputable def evenMansourWordRealGame (adversary : EvenMansourDistinguisher)
     (n : ℕ) : ProbComp Bool := do
   let π ← ProbComp.uniform (Equiv.Perm (BitString n))
   let key ← BitString.sampleList (2 * n)
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin
-      (fun request => pure (evenMansourKeyedWordOracle n π key request)))
-    (adversary n [])
+  (adversary n []).run fun request => pure (evenMansourKeyedWordOracle n π key request)
 
 /-- The real word-oracle single-key Even–Mansour experiment: sample a uniform permutation `π` of
-`BitString n` and a uniform `n`-bit key `key`, and run `adversary n []` against
-`singleKeyEvenMansourKeyedWordOracle n π key`. -/
-@[expose] noncomputable def singleKeyEvenMansourWordRealGame
+`BitString n` and a uniform `n`-bit key `key`, and run `adversary n []` against the single-key
+Even–Mansour cipher and primitive permutation word channels (answering malformed queries of length
+`≠ n` with `[]`). -/
+noncomputable def singleKeyEvenMansourWordRealGame
     (adversary : EvenMansourDistinguisher) (n : ℕ) : ProbComp Bool := do
   let π ← ProbComp.uniform (Equiv.Perm (BitString n))
   let key ← BitString.sampleList n
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin
-      (fun request => pure (singleKeyEvenMansourKeyedWordOracle n π key request)))
-    (adversary n [])
+  (adversary n []).run fun request => pure (singleKeyEvenMansourKeyedWordOracle n π key request)
 
 /-- The ideal word-oracle Even–Mansour experiment: sample two independent uniform permutations
-`E, π` of `BitString n` and run `adversary n []` against `evenMansourTwoPermWordOracle n E π`. -/
-@[expose] noncomputable def evenMansourWordIdealGame (adversary : EvenMansourDistinguisher)
+`E, π` of `BitString n` and run `adversary n []` against the bidirectional word channels of `E` and
+`π` (answering malformed queries of length `≠ n` with `[]`). -/
+noncomputable def evenMansourWordIdealGame (adversary : EvenMansourDistinguisher)
     (n : ℕ) : ProbComp Bool := do
   let E ← ProbComp.uniform (Equiv.Perm (BitString n))
   let π ← ProbComp.uniform (Equiv.Perm (BitString n))
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin
-      (fun request => pure (evenMansourTwoPermWordOracle n E π request)))
-    (adversary n [])
+  (adversary n []).run fun request => pure (evenMansourTwoPermWordOracle n E π request)
 
 /-- Translate a single word-oracle request into a typed `EvenMansourSpec (BitString n)` query,
 returning `[]` on malformed words of length `≠ n` without querying. -/
-@[expose] def evenMansourWordQuery (n : ℕ) (request : (Bool × Bool) × List Bool) :
+private def evenMansourWordQuery (n : ℕ) (request : (Bool × Bool) × List Bool) :
     ProbOracleComp (EvenMansour.EvenMansourSpec (BitString n)) (List Bool) :=
   match request with
   | ((isPerm, inverse), query) =>
@@ -1082,7 +811,7 @@ returning `[]` on malformed words of length `≠ n` without querying. -/
 
 /-- Adapt a `WordOracleComp (Bool × Bool)` program into a typed
 `ProbOracleComp (EvenMansourSpec (BitString n))` program. -/
-@[expose] def evenMansourWordAdapter {α : Type} (n : ℕ)
+private def evenMansourWordAdapter {α : Type} (n : ℕ)
     (program : WordOracleComp (Bool × Bool) α) :
     ProbOracleComp (EvenMansour.EvenMansourSpec (BitString n)) α :=
   OracleComp.interpret
@@ -1101,31 +830,26 @@ private theorem isCostBounded_evenMansourWordAdapter {α : Type} (n : ℕ)
     (h : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) wCost) program Q) :
     OracleComp.IsCostBounded (Sum.elim (fun _ => 0) tCost)
       (evenMansourWordAdapter n program) Q := by
-  refine h.interpret fun q => ?_
-  rcases q with k | ⟨⟨isPerm, inverse⟩, query⟩
-  · exact ProbOracleComp.isCostBounded_sample tCost (ProbComp.unifFin k)
-  · dsimp only [OracleComp.sumHandler, evenMansourWordQuery]
-    by_cases hq : query.length = n
-    · let pq : RandomPermutation.PermQuery (BitString n) :=
-        if inverse then .inverse (BitString.ofList n query)
-        else .forward (BitString.ofList n query)
-      rw [Sum.elim_inr, ← hmatch isPerm pq inverse query]
-      cases isPerm
-      · simpa only [hq, ↓reduceIte, Bool.false_eq_true, map_eq_bind_pure_comp, Function.comp_def,
-          Nat.add_zero] using
-          (ProbOracleComp.isCostBounded_query tCost (Sum.inl pq)).bind fun _ =>
-            OracleComp.IsCostBounded.pure _ 0
-      · simpa only [hq, ↓reduceIte, map_eq_bind_pure_comp, Function.comp_def, Nat.add_zero] using
-          (ProbOracleComp.isCostBounded_query tCost (Sum.inr pq)).bind fun _ =>
-            OracleComp.IsCostBounded.pure _ 0
-    · simp only [hq, ↓reduceIte]
-      exact OracleComp.IsCostBounded.pure [] _
+  refine h.interpret fun
+    | .inl k => ProbOracleComp.isCostBounded_sample tCost (ProbComp.unifFin k)
+    | .inr ⟨⟨isPerm, inverse⟩, query⟩ => ?_
+  dsimp only [OracleComp.sumHandler, evenMansourWordQuery]
+  by_cases hq : query.length = n
+  · let pq : RandomPermutation.PermQuery (BitString n) :=
+      if inverse then .inverse (BitString.ofList n query) else .forward (BitString.ofList n query)
+    rw [Sum.elim_inr, ← hmatch isPerm pq inverse query]
+    cases isPerm <;>
+      simpa only [hq, ↓reduceIte, Bool.false_eq_true, map_eq_bind_pure_comp, Function.comp_def,
+        Nat.add_zero] using
+        (ProbOracleComp.isCostBounded_query tCost _).bind fun _ => .pure _ 0
+  · simp only [hq, ↓reduceIte]
+    exact .pure [] _
 
 /-- `evenMansourWordAdapter` preserves separate cipher and primitive query budgets `(Q_e, Q_π)`. -/
-theorem IsWordCallBounded.evenMansourWordAdapter {α : Type} (n : ℕ)
+private theorem IsWordCallBounded.evenMansourWordAdapter {α : Type} (n : ℕ)
     {program : WordOracleComp (Bool × Bool) α} {Q_e Q_π : ℕ}
     (h : IsWordCallBounded program Q_e Q_π) :
-    IsProbCallBounded (evenMansourWordAdapter n program) Q_e Q_π :=
+    EvenMansour.IsProbCallBounded (evenMansourWordAdapter n program) Q_e Q_π :=
   ⟨isCostBounded_evenMansourWordAdapter n wordCipherCost EvenMansour.cipherCost
      (fun b _ _ _ => by cases b <;> rfl) h.1,
    isCostBounded_evenMansourWordAdapter n wordPermCost EvenMansour.permCost
@@ -1133,78 +857,60 @@ theorem IsWordCallBounded.evenMansourWordAdapter {α : Type} (n : ℕ)
 
 private theorem evalProbTwoPerms_evenMansourWordAdapter {α : Type} (n : ℕ)
     (E π : Equiv.Perm (BitString n)) (program : WordOracleComp (Bool × Bool) α) :
-    evalProbTwoPerms E π (evenMansourWordAdapter n program) =
+    EvenMansour.evalProbTwoPerms E π (evenMansourWordAdapter n program) =
       OracleComp.interpret
         (OracleComp.sumHandler ProbComp.unifOracle
           (fun request => PMF.pure (evenMansourTwoPermWordOracle n E π request)))
         program := by
-  simp only [evalProbTwoPerms, evenMansourWordAdapter, OracleComp.interpret_interpret,
+  simp only [EvenMansour.evalProbTwoPerms, evenMansourWordAdapter, OracleComp.interpret_interpret,
     OracleComp.interpret_sumHandler, ProbOracleComp.interpret_sample, ProbComp.unifFin,
     OracleComp.interpret_query]
-  congr 1
-  refine congrArg (OracleComp.sumHandler ProbComp.unifOracle) ?_
-  funext ⟨⟨isPerm, inverse⟩, query⟩
+  refine congrArg (fun h => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle h)
+    program) (funext fun ⟨⟨isPerm, inverse⟩, query⟩ => ?_)
   by_cases hq : query.length = n
-  · simp only [evenMansourWordQuery, evenMansourTwoPermWordOracle, strongRandomPermOracle,
-      hq, ↓reduceIte]
-    cases isPerm <;> cases inverse <;>
-      simp [ProbOracleComp.interpret_query, evalTwoPermsQuery, RandomPermutation.evalPerm,
-        PMF.monad_map_eq_map]
+  · cases isPerm <;> cases inverse <;>
+      simp [evenMansourWordQuery, evenMansourTwoPermWordOracle, strongRandomPermOracle, hq,
+        ProbOracleComp.interpret_query, EvenMansour.evalTwoPermsQuery,
+        RandomPermutation.evalPerm, PMF.monad_map_eq_map]
   · simp [evenMansourWordQuery, evenMansourTwoPermWordOracle, strongRandomPermOracle, hq,
       Probability.PMF.monad_pure_eq_pure]
 
-private def twoKeyEquiv (n : ℕ) : BitString (2 * n) ≃ BitString n × BitString n where
-  toFun z :=
-    (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1,
-     BitString.ofList n (splitTwoKeys n (List.ofFn z)).2)
-  invFun p := BitString.ofList (2 * n) (List.ofFn p.1 ++ List.ofFn p.2)
-  left_inv z := by
-    have hz : (List.ofFn z).length = 2 * n := List.length_ofFn
-    have h1 : (splitTwoKeys n (List.ofFn z)).1 = (List.ofFn z).take n :=
-      splitTwoKeys_fst_eq_take n (List.ofFn z)
-    have h2 : (splitTwoKeys n (List.ofFn z)).2 = (List.ofFn z).drop n := by
-      simp only [splitTwoKeys, keyBlock, one_mul]
-      exact List.take_of_length_le (by simp only [List.length_drop, hz]; omega)
-    dsimp only
-    rw [BitString.ofFn_ofList (length_splitTwoKeys_fst hz),
-      BitString.ofFn_ofList (length_splitTwoKeys_snd hz), h1, h2, List.take_append_drop,
-      BitString.ofList_ofFn]
-  right_inv p := by
-    obtain ⟨k₁, k₂⟩ := p
-    have hlen : (List.ofFn k₁ ++ List.ofFn k₂).length = 2 * n := by
-      simp only [List.length_append, List.length_ofFn]
-      omega
-    dsimp only
-    rw [BitString.ofFn_ofList hlen]
-    have h1 : (splitTwoKeys n (List.ofFn k₁ ++ List.ofFn k₂)).1 = List.ofFn k₁ := by
-      simp [splitTwoKeys, keyBlock, List.take_left' List.length_ofFn]
-    have h2 : (splitTwoKeys n (List.ofFn k₁ ++ List.ofFn k₂)).2 = List.ofFn k₂ := by
-      simp [splitTwoKeys, keyBlock, List.drop_left' List.length_ofFn]
-    rw [h1, h2, BitString.ofList_ofFn, BitString.ofList_ofFn]
-
 /-- Evaluating `evenMansourWordRealGame` produces the exact same distribution as running
-`evenMansourProbRealGame` on `evenMansourWordAdapter`. -/
-theorem eval_evenMansourWordRealGame (adversary : EvenMansourDistinguisher) (n : ℕ) :
+`EvenMansour.evenMansourProbRealGame` on `evenMansourWordAdapter`. -/
+private theorem eval_evenMansourWordRealGame (adversary : EvenMansourDistinguisher) (n : ℕ) :
     ProbComp.eval (evenMansourWordRealGame adversary n) =
-      evenMansourProbRealGame (evenMansourWordAdapter n (adversary n [])) := by
-  simp only [pmf_norm, evenMansourWordRealGame, evenMansourProbRealGame, ProbComp.eval_uniform,
-    BitString.eval_sampleList, ProbOracleComp.eval_interpret]
+      EvenMansour.evenMansourProbRealGame (evenMansourWordAdapter n (adversary n [])) := by
+  simp only [pmf_norm, evenMansourWordRealGame, EvenMansour.evenMansourProbRealGame,
+    ProbComp.eval_uniform, BitString.eval_sampleList, ProbOracleComp.eval_run]
   congr 1 with π : 1
-  rw [← PMF.uniformOfFintype_map_equiv (twoKeyEquiv n), PMF.bind_map, BitString.uniformList,
-    PMF.bind_map]
-  congr 1 with z : 1
-  simp only [Function.comp_apply, twoKeyEquiv, Equiv.coe_fn_mk,
-    evalProbTwoPerms_evenMansourWordAdapter]
-  congr 2 with request : 1
-  rw [evenMansourKeyedWordOracle_eq_twoPermWordOracle π List.length_ofFn request]
+  rw [BitString.uniformList]
+  relabel_uniform (fun z : BitString (2 * n) =>
+    (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1,
+     BitString.ofList n (splitTwoKeys n (List.ofFn z)).2)) with p
+  · intro z₁ z₂ h
+    have h1 (z : BitString (2 * n)) :
+        List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1) ++
+          List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).2) = List.ofFn z := by
+      rw [BitString.ofFn_ofList (length_splitTwoKeys_fst List.length_ofFn),
+        BitString.ofFn_ofList (length_splitTwoKeys_snd List.length_ofFn), splitTwoKeys_fst_eq_take]
+      simp only [splitTwoKeys, keyBlock, one_mul]
+      rw [List.take_of_length_le (l := (List.ofFn z).drop n) (by simp [two_mul]),
+        List.take_append_drop]
+    exact List.ofFn_injective (by rw [← h1 z₁, ← h1 z₂, (Prod.mk.inj h).1, (Prod.mk.inj h).2])
+  · simp [Fintype.card_prod, two_mul, pow_add]
+  · simp only [evalProbTwoPerms_evenMansourWordAdapter]
+    congr 2 with request : 1
+    rw [evenMansourKeyedWordOracle_eq_twoPermWordOracle π List.length_ofFn request]
 
 /-- Evaluating `singleKeyEvenMansourWordRealGame` produces the exact same distribution as running
-`singleKeyEvenMansourProbRealGame` on `evenMansourWordAdapter`. -/
-theorem eval_singleKeyEvenMansourWordRealGame (adversary : EvenMansourDistinguisher) (n : ℕ) :
+`EvenMansour.singleKeyEvenMansourProbRealGame` on `evenMansourWordAdapter`. -/
+private theorem eval_singleKeyEvenMansourWordRealGame
+    (adversary : EvenMansourDistinguisher) (n : ℕ) :
     ProbComp.eval (singleKeyEvenMansourWordRealGame adversary n) =
-      singleKeyEvenMansourProbRealGame (evenMansourWordAdapter n (adversary n [])) := by
-  simp only [pmf_norm, singleKeyEvenMansourWordRealGame, singleKeyEvenMansourProbRealGame,
-    ProbComp.eval_uniform, BitString.eval_sampleList, ProbOracleComp.eval_interpret]
+      EvenMansour.singleKeyEvenMansourProbRealGame (evenMansourWordAdapter n (adversary n [])) := by
+  simp only [pmf_norm, singleKeyEvenMansourWordRealGame,
+    EvenMansour.singleKeyEvenMansourProbRealGame,
+    ProbComp.eval_uniform, BitString.eval_sampleList, ProbOracleComp.eval_run]
   congr 1 with π : 1
   rw [BitString.uniformList, PMF.bind_map]
   congr 1 with k : 1
@@ -1214,12 +920,12 @@ theorem eval_singleKeyEvenMansourWordRealGame (adversary : EvenMansourDistinguis
     BitString.ofList_ofFn]
 
 /-- Evaluating `evenMansourWordIdealGame` produces the exact same distribution as running
-`evenMansourProbIdealGame` on `evenMansourWordAdapter`. -/
-theorem eval_evenMansourWordIdealGame (adversary : EvenMansourDistinguisher) (n : ℕ) :
+`EvenMansour.evenMansourProbIdealGame` on `evenMansourWordAdapter`. -/
+private theorem eval_evenMansourWordIdealGame (adversary : EvenMansourDistinguisher) (n : ℕ) :
     ProbComp.eval (evenMansourWordIdealGame adversary n) =
-      evenMansourProbIdealGame (evenMansourWordAdapter n (adversary n [])) := by
-  simp only [pmf_norm, evenMansourWordIdealGame, evenMansourProbIdealGame, ProbComp.eval_uniform,
-    ProbOracleComp.eval_interpret, evalProbTwoPerms_evenMansourWordAdapter]
+      EvenMansour.evenMansourProbIdealGame (evenMansourWordAdapter n (adversary n [])) := by
+  simp only [pmf_norm, evenMansourWordIdealGame, EvenMansour.evenMansourProbIdealGame,
+    ProbComp.eval_uniform, ProbOracleComp.eval_run, evalProbTwoPerms_evenMansourWordAdapter]
 
 /-- **Word-oracle two-key Even–Mansour security bound** ([EvenMansour1997];
 [BonehShoup2023], Theorem 4.14): any word-oracle distinguisher making at most `Q_e` cipher queries
@@ -1232,7 +938,8 @@ theorem advantage_evenMansourWordRealGame_evenMansourWordIdealGame_le
       (ProbComp.eval (evenMansourWordIdealGame adversary n)) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n := by
   rw [eval_evenMansourWordRealGame, eval_evenMansourWordIdealGame]
-  exact advantage_evenMansourProbRealGame_bitString_le (hcall.evenMansourWordAdapter n)
+  exact EvenMansour.advantage_evenMansourProbRealGame_bitString_le
+    (hcall.evenMansourWordAdapter n)
 
 /-- **Word-oracle single-key Even–Mansour security bound** ([DunkelmanKellerShamir2012];
 [BonehShoup2023], Section 4.7): any word-oracle distinguisher making at most `Q_e` cipher queries
@@ -1245,7 +952,8 @@ theorem advantage_singleKeyEvenMansourWordRealGame_evenMansourWordIdealGame_le
       (ProbComp.eval (evenMansourWordIdealGame adversary n)) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n := by
   rw [eval_singleKeyEvenMansourWordRealGame, eval_evenMansourWordIdealGame]
-  exact advantage_singleKeyEvenMansourProbRealGame_bitString_le (hcall.evenMansourWordAdapter n)
+  exact EvenMansour.advantage_singleKeyEvenMansourProbRealGame_bitString_le
+    (hcall.evenMansourWordAdapter n)
 
 /-- **Asymptotic word-oracle two-key Even–Mansour security** for any distinguisher with
 polynomially bounded cipher and primitive query schedules `Q_e, Q_π : ℕ → ℕ`. -/
@@ -1286,16 +994,17 @@ private theorem indistinguishable_of_negligible_wordGame
       (IsOraclePPT encBool) := by
   intro adversary hadversary
   obtain ⟨c, d, hbounds⟩ := hadversary.query_bounds
-  let Q : ℕ → ℕ := fun n => c * (n + 2) ^ d
-  have hQ : PolynomiallyBounded Q := by dsimp only [Q]; fun_prop
-  exact hneg adversary hQ hQ fun n =>
-    IsWordCallBounded.of_isQueryBounded
-      (by simpa only [List.length_nil, Nat.add_zero, Q] using (hbounds n []).1)
+  have hQ : PolynomiallyBounded (fun n => c * (n + 2) ^ d) := by fun_prop
+  exact hneg adversary hQ hQ fun n => IsWordCallBounded.of_isQueryBounded
+    (by simpa only [List.length_nil, Nat.add_zero] using (hbounds n []).1)
 
-/-- **Computational two-key Even–Mansour ideal-permutation security against `IsOraclePPT`
+/-- **Two-key Even–Mansour security in the ideal-permutation model, against `IsOraclePPT`
 distinguishers** ([EvenMansour1997]; [BonehShoup2023], Theorem 4.14; [KatzLindell2020]): no
 uniform `IsOraclePPT encBool` distinguisher can distinguish `evenMansourWordRealGame` from
-`evenMansourWordIdealGame` with non-negligible advantage. -/
+`evenMansourWordIdealGame` with non-negligible advantage. The security is information-theoretic:
+the permutation is ideal, and the proof uses `IsOraclePPT` only for its polynomial query bound, so
+the conclusion holds for every distinguisher with polynomially many queries
+(`negligible_advantage_evenMansourWordRealGame`). -/
 theorem indistinguishable_evenMansourWordRealGame_evenMansourWordIdealGame :
     Game.Indistinguishable
       (fun adversary n => ProbComp.eval (evenMansourWordRealGame adversary n))
@@ -1304,10 +1013,13 @@ theorem indistinguishable_evenMansourWordRealGame_evenMansourWordIdealGame :
   indistinguishable_of_negligible_wordGame fun adversary _ _ =>
     negligible_advantage_evenMansourWordRealGame adversary
 
-/-- **Computational single-key Even–Mansour ideal-permutation security against `IsOraclePPT`
+/-- **Single-key Even–Mansour security in the ideal-permutation model, against `IsOraclePPT`
 distinguishers** ([DunkelmanKellerShamir2012]; [BonehShoup2023], Section 4.7): no uniform
 `IsOraclePPT encBool` distinguisher can distinguish `singleKeyEvenMansourWordRealGame` from
-`evenMansourWordIdealGame` with non-negligible advantage. -/
+`evenMansourWordIdealGame` with non-negligible advantage. The security is information-theoretic:
+the permutation is ideal, and the proof uses `IsOraclePPT` only for its polynomial query bound, so
+the conclusion holds for every distinguisher with polynomially many queries
+(`negligible_advantage_singleKeyEvenMansourWordRealGame`). -/
 theorem indistinguishable_singleKeyEvenMansourWordRealGame_evenMansourWordIdealGame :
     Game.Indistinguishable
       (fun adversary n => ProbComp.eval (singleKeyEvenMansourWordRealGame adversary n))

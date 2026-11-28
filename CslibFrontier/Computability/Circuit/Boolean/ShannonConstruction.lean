@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Minterms
 import Mathlib.Data.List.OfFn
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Shannon synthesis with a shared column library
@@ -92,18 +93,16 @@ the `p`th Boolean function at the index of `x`. -/
 @[simp] theorem eval_columnLibrary_minterms (x : BitString k) (p : Fin (2 ^ (2 ^ k))) :
     (columnLibrary k).eval interpretation ((mintermCircuit k).eval interpretation x) p =
       (BitString.equivFin (2 ^ k)).symm p (BitString.equivFin k x) := by
-  simp only [columnLibrary, Circuit.eval_pi, Formula.eval_toCircuit, eval_columnFormula,
-    eval_mintermCircuit]
+  simp only [circuit_simps, columnLibrary, eval_columnFormula, eval_mintermCircuit]
   apply Bool.eq_iff_iff.mpr
   simp only [decide_eq_true_eq, exists_eq_right']
 
 /-- `columnLibrary k` has size at most `2 ^ (2 ^ k) * 2 ^ k`. -/
+@[circuit_bound]
 theorem size_columnLibrary_le (k : ℕ) :
     (columnLibrary k).size ≤ 2 ^ (2 ^ k) * 2 ^ k := by
-  simp only [columnLibrary, Circuit.size_pi, Formula.size_toCircuit]
-  simpa using Finset.sum_le_sum
-    (s := Finset.univ) (f := fun p => (columnFormula ((BitString.equivFin (2 ^ k)).symm p)).size)
-    (g := fun _ => 2 ^ k) (fun p _ => size_columnFormula_le (pow_pos (by decide) _) _)
+  have := size_columnFormula_le (Nat.two_pow_pos k)
+  circuit_bound [columnLibrary]
 
 /-- The truth-table column at one data assignment, indexed as an address-value bit string. -/
 def column (f : BooleanFunction (k + d)) (y : Fin (2 ^ d)) : Fin (2 ^ (2 ^ k)) :=
@@ -121,15 +120,14 @@ def outputFormula (f : BooleanFunction (k + d)) : Formula signature (2 ^ (2 ^ k)
   Formula.orList (List.ofFn (rowFormula f))
 
 /-- `outputFormula f` has size at most `2 * 2 ^ d`. -/
+@[circuit_bound]
 theorem size_outputFormula_le (f : BooleanFunction (k + d)) :
     (outputFormula f).size ≤ 2 * 2 ^ d := by
   have h := Formula.size_orList_add_one (l := List.ofFn (rowFormula f))
     (by simp [List.ofFn_eq_nil_iff])
-  simp only [List.map_ofFn, Function.comp_def, rowFormula, Formula.size_and, Formula.size_input,
-    Nat.zero_add, List.ofFn_const, List.sum_replicate, smul_eq_mul, mul_one,
-    List.length_ofFn] at h
+  simp only [circuit_simps, rowFormula] at h
   change (Formula.orList (List.ofFn (rowFormula f))).size ≤ _
-  lia
+  omega
 
 /-- The two minterm tables read disjoint coordinate blocks. -/
 def splitMinterms (k d : ℕ) : Circuit signature (k + d) (2 ^ k + 2 ^ d) :=
@@ -151,17 +149,14 @@ private theorem eval_rowFormula (f : BooleanFunction (k + d)) (x : BitString (k 
         ((libraryAndData k d).eval interpretation ((splitMinterms k d).eval interpretation x)) =
       (decide (BitString.equivFin d (x ∘ Fin.natAdd k) = y) &&
         f (Fin.append (x ∘ Fin.castAdd d) ((BitString.equivFin d).symm y))) := by
-  simp only [rowFormula, Formula.eval_and, Formula.eval_input, libraryAndData, splitMinterms,
-    Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring, Fin.append_left,
-    Fin.append_right, Function.comp_def]
+  simp only [circuit_simps, rowFormula, libraryAndData, splitMinterms, Function.comp_def]
   rw [eval_columnLibrary_minterms]
   simp only [column, Equiv.symm_apply_apply, eval_mintermCircuit]
 
 /-- The selected row and address column reconstruct the original input. -/
 @[simp] theorem eval_circuit (f : BooleanFunction (k + d)) (x : BitString (k + d)) (i : Fin 1) :
     (circuit f).eval interpretation x i = f x := by
-  simp only [circuit, Circuit.eval_comp, Formula.eval_toCircuit, outputFormula,
-    Formula.eval_orList]
+  simp only [circuit_simps, circuit, outputFormula, Formula.eval_orList]
   apply Bool.eq_iff_iff.mpr
   simp only [List.any_eq_true, List.mem_ofFn]
   simp only [exists_exists_eq_and, eval_rowFormula, Bool.and_eq_true, decide_eq_true_eq]
@@ -178,8 +173,7 @@ theorem size_circuit_le (f : BooleanFunction (k + d)) : (circuit f).size ≤ bou
   have hd := size_mintermCircuit_add_three_le d
   have hlib := size_columnLibrary_le k
   have hout := size_outputFormula_le f
-  simp only [circuit, libraryAndData, splitMinterms, Circuit.size_comp, Circuit.size_append,
-    Circuit.size_wiring, Formula.size_toCircuit, Nat.zero_add, Nat.add_zero, bound]
+  simp only [circuit_simps, circuit, libraryAndData, splitMinterms, bound]
   lia
 
 end Cslib.Circuits.Boolean.ShannonSynthesis

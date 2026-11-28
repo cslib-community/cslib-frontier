@@ -14,12 +14,13 @@ import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.List.Append
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -104,19 +105,20 @@ def encodeWord (L : ℕ) (w : List Bool) : List Bool :=
   List.replicate (L - w.length) false ++ true :: w
 
 /-- Decoding inverts coding. -/
-private theorem decodeWord_encodeWord (L : ℕ) (w : List Bool) : decodeWord
+theorem decodeWord_encodeWord (L : ℕ) (w : List Bool) : decodeWord
     (encodeWord L w) = w := by
-  rw [decodeWord, encodeWord, List.idxOf_true_replicate_false_append, List.drop_append]
-  simp
+  simp [decodeWord, encodeWord, List.idxOf_true_replicate_false_append, List.drop_append]
 
-private theorem length_encodeWord {L : ℕ} {w : List Bool} (hw : w.length ≤ L) :
+/-- The code of a word of length at most `L` has length `L + 1`. -/
+theorem length_encodeWord {L : ℕ} {w : List Bool} (hw : w.length ≤ L) :
     (encodeWord L w).length = L + 1 := by
   enc_len [encodeWord]
 
 private theorem true_mem_encodeWord (L : ℕ) (w : List Bool) : true ∈ encodeWord L w := by
   simp [encodeWord]
 
-private theorem length_decodeWord_le {L : ℕ} {u : List Bool} (hu : u.length = L + 1) :
+/-- Any word decoded from a code of length `L + 1` has length at most `L`. -/
+theorem length_decodeWord_le {L : ℕ} {u : List Bool} (hu : u.length = L + 1) :
     (decodeWord u).length ≤ L := by
   simp only [decodeWord, List.length_drop]
   lia
@@ -130,11 +132,10 @@ private theorem eq_replicate_append_decodeWord {u : List Bool} (ht : true ∈ u)
 private theorem encodeWord_decodeWord {L : ℕ} {u : List Bool} (hu : u.length = L + 1)
     (ht : true ∈ u) :
     encodeWord L (decodeWord u) = u := by
-  have h := eq_replicate_append_decodeWord ht
-  have hlen := congrArg List.length h
+  have hlen := congrArg List.length (eq_replicate_append_decodeWord ht)
   simp only [List.length_append, List.length_replicate, List.length_cons, hu] at hlen
-  rw [encodeWord, show L - (decodeWord u).length = u.idxOf true by lia]
-  exact h.symm
+  have hidx : L - (decodeWord u).length = u.idxOf true := by lia
+  rw [encodeWord, hidx, ← eq_replicate_append_decodeWord ht]
 
 variable (L : ℕ)
 
@@ -148,9 +149,8 @@ def lastCode (u : List Bool) : Bool := decide (u = List.replicate (L + 1) true)
 def codeCount : ℕ := 2 ^ (L + 1) - 1
 
 private theorem iterate_firstCode (i : ℕ) :
-    increment^[i] (firstCode L) = increment^[i + 1] (List.replicate (L + 1) false) := by
-  rw [Function.iterate_succ_apply]
-  rfl
+    increment^[i] (firstCode L) = increment^[i + 1] (List.replicate (L + 1) false) :=
+  (Function.iterate_succ_apply increment i (List.replicate (L + 1) false)).symm
 
 variable {L}
 
@@ -167,22 +167,14 @@ private theorem lastCode_iterate_firstCode {i : ℕ} (hi : i < codeCount L) :
   obtain ⟨hv, hl⟩ := lsbValue_iterate_firstCode hi
   have hall := BitString.lsbValue_replicate_true (L + 1)
   simp only [lastCode, decide_eq_decide]
-  constructor
-  · intro h
-    rw [h] at hv
-    simp only [codeCount]
-    lia
-  · intro h
-    refine BitString.lsbValue_injective (by simp [hl]) ?_
-    simp only [codeCount] at h
-    lia
+  exact ⟨fun h => by rw [h] at hv; simp only [codeCount]; omega,
+    fun h => BitString.lsbValue_injective (by simp [hl]) (by simp only [codeCount] at h; omega)⟩
 
 private theorem true_mem_iterate_firstCode {i : ℕ} (hi : i < codeCount L) :
     true ∈ increment^[i] (firstCode L) := by
   by_contra h
-  have := BitString.lsbValue_eq_zero_of_true_not_mem h
-  rw [(lsbValue_iterate_firstCode hi).1] at this
-  lia
+  have := (lsbValue_iterate_firstCode hi).1
+  simp [BitString.lsbValue_eq_zero_of_true_not_mem h] at this
 
 /-- **The codes enumerate the short words**: decoding the first `codeCount L` codes gives every word
 of length at most `L` exactly once. -/
@@ -191,17 +183,14 @@ theorem image_decodeWord_iterate_firstCode :
       BitString.shortWords L := by
   ext w
   simp only [mem_image, mem_range, BitString.mem_shortWords]
-  constructor
-  · rintro ⟨i, hi, rfl⟩
-    exact length_decodeWord_le (lsbValue_iterate_firstCode hi).2
-  · intro hw
-    have hlen := length_encodeWord hw
-    have hpos := BitString.lsbValue_pos_of_true_mem (true_mem_encodeWord L w)
-    have hlt := BitString.lsbValue_lt (encodeWord L w)
-    rw [hlen] at hlt
-    refine ⟨lsbValue (encodeWord L w) - 1, by simp only [codeCount]; lia, ?_⟩
-    rw [iterate_firstCode, Nat.sub_add_cancel hpos, ← hlen, BitString.iterate_increment_lsbValue,
-      decodeWord_encodeWord]
+  refine ⟨fun ⟨i, hi, hw⟩ => hw ▸ length_decodeWord_le (lsbValue_iterate_firstCode hi).2,
+    fun hw => ?_⟩
+  have hlen := length_encodeWord hw
+  have hlt := hlen ▸ BitString.lsbValue_lt (encodeWord L w)
+  refine ⟨lsbValue (encodeWord L w) - 1, by simp only [codeCount]; lia, ?_⟩
+  rw [iterate_firstCode,
+    Nat.sub_add_cancel (BitString.lsbValue_pos_of_true_mem (true_mem_encodeWord L w)),
+    ← hlen, BitString.iterate_increment_lsbValue, decodeWord_encodeWord]
 
 private theorem injOn_decodeWord_iterate_firstCode :
     Set.InjOn (fun i => decodeWord (increment^[i] (firstCode L))) (range (codeCount L)) := by
@@ -209,7 +198,6 @@ private theorem injOn_decodeWord_iterate_firstCode :
   simp only [coe_range, Set.mem_Iio] at hi hj
   have hu := encodeWord_decodeWord (lsbValue_iterate_firstCode hi).2 (true_mem_iterate_firstCode hi)
   have hv := encodeWord_decodeWord (lsbValue_iterate_firstCode hj).2 (true_mem_iterate_firstCode hj)
-  simp only at h
   have := congrArg lsbValue (hu.symm.trans ((congrArg (encodeWord L) h).trans hv))
   rw [(lsbValue_iterate_firstCode hi).1, (lsbValue_iterate_firstCode hj).1] at this
   lia
@@ -248,15 +236,10 @@ theorem gameTree_value_eq {cap : ℕ} (hcap : Fintype.card R ≤ cap) (n : ℕ)
   | succ n ih =>
     rw [GameTree.value, ← min_eq_right (hle (n + 1) (decodeHistory hs)), value]
     congr 2
-    simp only [ih, decodeHistory_cons]
-    have hsup (m : List Bool) : ((range (codeCount L)).sup fun j =>
-        value F L n (decodeHistory hs ++ [(m, decodeWord (increment^[j] (firstCode L)))])) =
-        (BitString.shortWords L).sup fun y => value F L n (decodeHistory hs ++ [(m, y)]) := by
-      rw [← image_decodeWord_iterate_firstCode, Finset.sup_image]
-      rfl
-    simp only [hsup]
     rw [← image_decodeWord_iterate_firstCode,
       Finset.sum_image injOn_decodeWord_iterate_firstCode]
+    exact Finset.sum_congr rfl fun _ _ => by
+      simp [ih, decodeHistory_cons, Finset.sup_image, Function.comp_def]
 
 end GameTree
 
@@ -267,20 +250,15 @@ section PolyTime
 open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 
 /-- Decoding a word is polynomial-time. -/
-private theorem computableInPolyTime_decodeWord :
+theorem computableInPolyTime_decodeWord :
     ComputableInPolyTime decodeWord encBits encBits := by
-  have hidx : ComputableInPolyTime (fun u : List Bool => u.idxOf true + 1) encBits
-      encUnary := by
-    have h := (idxOf encBool).comp (bitsToList.prod (const (encOut := encBool) true))
-    exact unary_succ.comp h
-  exact bitsDropWithInput id' hidx
+  fun_prop [decodeWord]
 
 /-- Decoding a history is polynomial-time. -/
 private theorem computableInPolyTime_decodeHistory :
     ComputableInPolyTime decodeHistory (encList (encPair encBits encBits)) encHistory := by
   have hd := computableInPolyTime_decodeWord
-  unfold decodeHistory
-  fun_prop
+  fun_prop [decodeHistory]
 
 end PolyTime
 
@@ -320,17 +298,13 @@ private theorem iterate_evalStep (a : α) (st : List (GameTree.Frame (List Bool)
 /-- **The evaluation computes the value** of the verifier on `a`. -/
 theorem evaluate_eq (a : α) :
     evaluate enc M fuel a = value (coinFamily M (fuel a) (enc a)) (fuel a) (fuel a) [] := by
-  have hN : 0 < codeCount (fuel a) := by
-    simp only [codeCount]
-    have := Nat.one_lt_two_pow (n := fuel a + 1) (by lia)
-    lia
+  have hN : 0 < codeCount (fuel a) := Nat.sub_pos_of_lt (Nat.one_lt_two_pow (by lia))
   have htime : GameTree.time (codeCount (fuel a)) (fuel a) ≤ evalTime fuel a := by
     refine (GameTree.time_le _).trans (le_of_eq ?_)
-    rw [evalTime, codeCount, Nat.sub_add_cancel (Nat.one_le_two_pow), ← pow_mul]
+    rw [evalTime, codeCount, Nat.sub_add_cancel Nat.one_le_two_pow, ← pow_mul]
   rw [evaluate, iterate_evalStep, GameTree.iterate_step_eval hN
-    (fun i hi => lastCode_iterate_firstCode hi) htime]
-  simp only [Option.getD_some]
-  rw [gameTree_value_eq _ (by simp), decodeHistory_nil]
+    (fun i hi => lastCode_iterate_firstCode hi) htime, Option.getD_some,
+    gameTree_value_eq _ (by simp), decodeHistory_nil]
 
 /-- Returning a value into the stack, with its explicit cases. -/
 private def returnStep (L cap : ℕ) (st : List (GameTree.Frame (List Bool))) (v : ℕ) :
@@ -348,9 +322,7 @@ private theorem step_some_eq (L cap : ℕ) (leaf : List (List Bool × List Bool)
     (st : List (GameTree.Frame (List Bool))) (v : ℕ) :
     GameTree.step L cap (firstCode L) increment (lastCode L) leaf (st, some v) =
       returnStep L cap st v := by
-  rcases st with _ | ⟨⟨u, w, sm, ac⟩, st⟩
-  · rfl
-  · rfl
+  rcases st with _ | ⟨⟨u, w, sm, ac⟩, st⟩ <;> rfl
 
 /-- Pushing a frame, or returning the leaf value at the maximal depth. -/
 def pushStep (L : ℕ) (st : List (GameTree.Frame (List Bool))) (v : ℕ) :
@@ -367,10 +339,10 @@ theorem step_none_eq (L cap : ℕ) (leaf : List (List Bool × List Bool) → ℕ
 private theorem evalStep_eq (s : EvalState α) : evalStep enc M fuel s =
     if s.2.2.isSome then (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0))
     else (s.1, pushStep (fuel s.1) s.2.1 (min (2 ^ fuel s.1)
-      (leafValue (coinFamily M (fuel s.1) (enc s.1)) (GameTree.history s.2.1)))) := by
-  obtain ⟨a, st, _ | v⟩ := s
-  · rfl
-  · exact congrArg _ (step_some_eq _ _ _ st v)
+      (leafValue (coinFamily M (fuel s.1) (enc s.1)) (GameTree.history s.2.1)))) :=
+  match s with
+  | ⟨_, _, none⟩ => rfl
+  | ⟨_, st, some v⟩ => congrArg _ (step_some_eq _ _ _ st v)
 
 end Evaluation
 
@@ -382,19 +354,7 @@ open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 
 variable {γ : Type} {input : γ ↪ List Bool}
 
-@[local fun_prop] private theorem max_pt {left right : γ → ℕ}
-    (hl : ComputableInPolyTime left input encNat)
-    (hr : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun x => max (left x) (right x)) input encNat := by
-  simp only [max_def]
-  exact ite_decide (binary_le' hl hr) hr hl
-
-@[local fun_prop] private theorem min_pt {left right : γ → ℕ}
-    (hl : ComputableInPolyTime left input encNat)
-    (hr : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun x => min (left x) (right x)) input encNat := by
-  simp only [min_def]
-  exact ite_decide (binary_le' hl hr) hl hr
+attribute [local fun_prop] binary_max' binary_min'
 
 @[local fun_prop] private theorem firstCode_pt {count : γ → ℕ}
     (h : ComputableInPolyTime count input encUnary) :
@@ -404,8 +364,8 @@ variable {γ : Type} {input : γ ↪ List Bool}
 @[local fun_prop] private theorem lastCode_pt {count : γ → ℕ} {word : γ → List Bool}
     (h : ComputableInPolyTime count input encUnary)
     (hword : ComputableInPolyTime word input encBits) :
-    ComputableInPolyTime (fun x => lastCode (count x) (word x)) input encBool := by
-  exact decide_eq' hword ((bitsReplicate true).comp (unary_succ.comp h))
+    ComputableInPolyTime (fun x => lastCode (count x) (word x)) input encBool :=
+  decide_eq' hword ((bitsReplicate true).comp (unary_succ.comp h))
 
 variable {α : Type} (enc : α ↪ List Bool) {k : ℕ} {Control : Type}
   (M : _root_.Turing.MultiTapePTM k Bool Control Unit) (fuel : α → ℕ)
@@ -426,10 +386,8 @@ private theorem computableInPolyTime_returnStep :
     ComputableInPolyTime (fun s : EvalState α =>
       (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0)))
       (encEvalState enc) (encEvalState enc) := by
-  have hfuel' : ComputableInPolyTime (fun s : EvalState α => fuel s.1) (encEvalState enc)
-      encUnary := hfuel.comp (fst _ _)
-  unfold returnStep
-  fun_prop
+  have hinc := ComputableInPolyTime.increment
+  fun_prop [returnStep]
 
 /-- Pushing a frame is polynomial-time. -/
 private theorem computableInPolyTime_pushStep :
@@ -438,8 +396,7 @@ private theorem computableInPolyTime_pushStep :
       (encPair (encEvalState enc) encNat) (encEvalState enc) := by
   have hfuel' : ComputableInPolyTime (fun p : EvalState α × ℕ => fuel p.1.1)
       (encPair (encEvalState enc) encNat) encUnary := hfuel.comp (by fun_prop)
-  unfold pushStep
-  fun_prop
+  fun_prop [pushStep]
 
 /-- **The leaf value within polynomial space**: the count of accepting coins, capped. -/
 private theorem computableInPolySpace_leaf [Finite Control] :
@@ -450,35 +407,23 @@ private theorem computableInPolySpace_leaf [Finite Control] :
   have hdec := computableInPolyTime_decodeHistory
   have harg : ComputableInPolyTime (fun s : EvalState α =>
       (s.1, decodeHistory (GameTree.history s.2.1))) (encEvalState enc)
-      (encPair enc encHistory) := by
-    unfold GameTree.history
-    fun_prop
-  have hcap : ComputableInPolyTime (fun s : EvalState α => 2 ^ fuel s.1)
-      (encEvalState enc) encNat := binary_two_pow.comp (hfuel.comp (fst _ _))
-  have hmin : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2) (encPair encNat encNat)
-      encNat := by fun_prop
-  refine ((ComputableInPolySpace.of_polyTime hmin).comp
-    ((ComputableInPolySpace.of_polyTime hcap).prod (hcount.comp
-      (ComputableInPolySpace.of_polyTime harg)))).congr fun s => ?_
-  simp only [leafValue, countAccepts_eq_accepted]
+      (encPair enc encHistory) := by fun_prop [GameTree.history]
+  refine ((ComputableInPolySpace.of_polyTime (encIn := encPair encNat encNat) (encOut := encNat)
+    (f := fun p : ℕ × ℕ => min p.1 p.2) (by fun_prop)).comp
+    ((ComputableInPolySpace.of_polyTime (binary_two_pow.comp (hfuel.comp (fst _ _)))).prod
+      (hcount.comp (.of_polyTime harg)))).congr fun _ => ?_
+  simp only [leafValue, countAccepts_eq_accepted, Function.comp_apply]
 
 /-- **A step of the evaluation within polynomial space.** -/
 private theorem computableInPolySpace_evalStep [Finite Control] :
     ComputableInPolySpace (evalStep enc M fuel) (encEvalState enc) (encEvalState enc) := by
   have hcond : ComputableInPolyTime (fun s : EvalState α => s.2.2.isSome)
       (encEvalState enc) encBool := by fun_prop
-  refine (ComputableInPolySpace.ite (.of_polyTime hcond)
+  exact (ComputableInPolySpace.ite (.of_polyTime hcond)
     (.of_polyTime (computableInPolyTime_returnStep hfuel))
     ((ComputableInPolySpace.of_polyTime (computableInPolyTime_pushStep hfuel)).comp
       ((ComputableInPolySpace.of_polyTime id').prod
-        (computableInPolySpace_leaf M hfuel)))).congr fun s => ?_
-  rw [evalStep_eq]
-
-omit hfuel in
-/-- A number at most `2 ^ L` has a binary encoding of length at most `L + 1`. -/
-private theorem length_encNat_le {m L : ℕ} (h : m ≤ 2 ^ L) : (encNat m).length ≤ L + 1 := by
-  rw [encNat_apply, Nat.size_eq_bits_len]
-  exact Nat.size_le.mpr (h.trans_lt (Nat.pow_lt_pow_right (by norm_num) (by lia)))
+        (computableInPolySpace_leaf M hfuel)))).congr fun s => (evalStep_eq enc M fuel s).symm
 
 omit hfuel in
 /-- **The states of the evaluation are of polynomial size.** -/
@@ -493,48 +438,42 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
     (fun u hu => by simpa using hu) j
   set st := (GameTree.step (fuel a) (2 ^ fuel a) (firstCode (fuel a)) BitString.increment
     (lastCode (fuel a)) (leafValue (coinFamily M (fuel a) (enc a))))^[j] ([], none)
-  have hframe : ∀ f ∈ st.1, (encFrame f).length ≤ 7 * fuel a + 10 := by
-    intro f hf
+  have hframe (f) (hf : f ∈ st.1) : (encFrame f).length ≤ 7 * fuel a + 10 := by
     obtain ⟨hu, hw, hs, ha⟩ := hgood.frames f hf
-    have hs' := length_encNat_le hs
-    have ha' := length_encNat_le ha
+    have hs' := length_encNat_le_of_le_two_pow hs
+    have ha' := length_encNat_le_of_le_two_pow ha
     enc_len [encFrame, hu, hw] at hs' ha' ⊢
-  have hlist := length_encList_le encFrame st.1 hframe
-  have hdepth := Nat.mul_le_mul_right (2 * (7 * fuel a + 10) + 1) hgood.length
   have hret : (encOption encNat st.2).length ≤ fuel a + 2 := by
     rcases hst : st.2 with _ | v
     · simp
-    · have := length_encNat_le (hgood.value v hst)
+    · have := length_encNat_le_of_le_two_pow (hgood.value v hst)
       enc_len
   simp only [encEvalState, length_encPair]
-  nlinarith
+  have hlist2 : 2 * (encList encFrame st.1).length ≤ 2 * fuel a * (14 * fuel a + 21) := by
+    calc 2 * (encList encFrame st.1).length
+        ≤ 2 * (fuel a * (2 * (7 * fuel a + 10) + 1)) := Nat.mul_le_mul_left 2
+          ((length_encList_le encFrame st.1 hframe).trans (Nat.mul_le_mul_right _ hgood.length))
+      _ = 2 * fuel a * (14 * fuel a + 21) := by ring
+  omega
 
 omit hfuel in
 /-- **The evaluation within polynomial space.** -/
 theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
     (hfuel : ComputableInPolyTime fuel enc encUnary) :
     ComputableInPolySpace (evaluate enc M fuel) enc encNat := by
-  have hn : ComputableInPolyTime (evalTime fuel) enc encNat := by
-    have hexp : ComputableInPolyTime (fun a => (fuel a + 1) * (2 * fuel a + 1)) enc
-        encUnary := by
-      have h1 := unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))
-      have h2 := unary_add.comp ((unary_mul.comp ((const (encOut := encUnary) 2).prod hfuel)).prod
-        (const (encOut := encUnary) 1))
-      exact unary_mul.comp (h1.prod h2)
-    exact binary_two_pow.comp hexp
-  have hinit : ComputableInPolyTime (fun a : α => ((a, [], none) : EvalState α)) enc
-      (encEvalState enc) := by fun_prop
-  have hlen := hfuel.polyBounded_length
-  simp only [encUnary_apply, List.length_replicate] at hlen
-  have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit)
+  have hn : ComputableInPolyTime (evalTime fuel) enc encNat :=
+    binary_two_pow.comp <| unary_mul.comp
+      ((unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))).prod
+        (unary_add.comp ((unary_mul.comp ((const (encOut := encUnary) 2).prod hfuel)).prod
+          (const (encOut := encUnary) 1))))
+  have hit := ComputableInPolySpace.iterate hn
+    (.of_polyTime (f := fun a : α => ((a, [], none) : EvalState α))
+      (encIn := enc) (encOut := encEvalState enc) (by fun_prop))
     (computableInPolySpace_evalStep M hfuel)
     (B := fun a => 2 * (enc a).length + 2 * fuel a * (14 * fuel a + 21) + fuel a + 4)
-    (((((PolyBounded.const 2).mul .self).add (((PolyBounded.const 2).mul hlen).mul
-      (((PolyBounded.const 14).mul hlen).add (.const 21)))).add hlen).add (.const 4))
-    (fun a j _ => length_encEvalState_iterate_le M a j)
-  have hpost : ComputableInPolyTime (fun s : EvalState α => s.2.2.getD 0)
-      (encEvalState enc) encNat := by fun_prop
-  exact (ComputableInPolySpace.of_polyTime hpost).comp hit
+    (by growth_poly) (fun a j _ => length_encEvalState_iterate_le M a j)
+  exact (ComputableInPolySpace.of_polyTime (f := fun s : EvalState α => s.2.2.getD 0)
+    (encIn := encEvalState enc) (encOut := encNat) (by fun_prop)).comp hit
 
 end Space
 
@@ -563,28 +502,26 @@ theorem mem_iff_two_pow_lt_value {V : α → WordOracleComp Unit Bool} {A : Set 
   have hbounded := isBounded_coinFamily M t (enc a)
   have hacc (P : Prover Unit) : acceptProb (V a) P =
       (2 ^ t : ENNReal)⁻¹ * ∑ r, acceptFrom P P.init (some (coinFamily M t (enc a) r)) :=
-    acceptProb_eq_sum M (hV a) P
+    acceptProb_eq_sum M (by
+      simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV a) P
   have hpos : 2 ^ t ≠ 0 := by positivity
-  have hcast : ((2 ^ t : ℕ) : ENNReal) = 2 ^ t := by push_cast; rfl
   have hupper (P : Prover Unit) : acceptProb (V a) P ≤ (W : ENNReal) / (2 ^ t : ℕ) := by
-    rw [hacc, ENNReal.div_eq_inv_mul, hcast]
+    rw [hacc, ENNReal.div_eq_inv_mul, Nat.cast_pow, Nat.cast_ofNat]
     exact mul_le_mul_right (sum_acceptFrom_le_value hbounded P) _
   have hopt : acceptProb (V a) (optimalProver (coinFamily M t (enc a)) t t) =
       (W : ENNReal) / (2 ^ t : ℕ) := by
-    rw [hacc, ENNReal.div_eq_inv_mul, hcast, sum_acceptFrom_optimalProver hbounded]
-  constructor
-  · intro ha
-    obtain ⟨P, hP⟩ := hA.complete a ha
-    have h := hP.trans (hupper P)
-    rw [show (2 / 3 : ENNReal) = ((2 : ℕ) : ENNReal) / ((3 : ℕ) : ENNReal) by norm_num,
-      ENNReal.natCast_div_le_natCast_div_iff (by norm_num) hpos] at h
-    have := Nat.one_le_two_pow (n := t)
+    rw [hacc, ENNReal.div_eq_inv_mul, Nat.cast_pow, Nat.cast_ofNat,
+      sum_acceptFrom_optimalProver hbounded]
+  refine ⟨fun ha => ?_, fun hlt => by_contra fun ha => ?_⟩
+  · obtain ⟨P, hP⟩ := hA.complete a ha
+    have h : ((2 : ℕ) : ENNReal) / (3 : ℕ) ≤ (W : ENNReal) / (2 ^ t : ℕ) := by
+      simpa only [Nat.cast_ofNat] using hP.trans (hupper P)
+    have := (ENNReal.natCast_div_le_natCast_div_iff (by decide) hpos).mp h
     lia
-  · intro hlt
-    by_contra ha
-    have h := hopt ▸ hA.sound a ha (optimalProver _ t t)
-    rw [show (1 / 3 : ENNReal) = ((1 : ℕ) : ENNReal) / ((3 : ℕ) : ENNReal) by norm_num,
-      ENNReal.natCast_div_le_natCast_div_iff hpos (by norm_num)] at h
+  · have h : (W : ENNReal) / (2 ^ t : ℕ) ≤ ((1 : ℕ) : ENNReal) / (3 : ℕ) := by
+      simpa only [hopt, Nat.cast_one, Nat.cast_ofNat] using
+        hA.sound a ha (optimalProver (coinFamily M t (enc a)) t t)
+    have := (ENNReal.natCast_div_le_natCast_div_iff hpos (by decide)).mp h
     lia
 
 /-- **`IP ⊆ PSPACE`** [Arora and Barak, Chapter 8][AroraBarak09] [Sipser, Section
@@ -602,24 +539,15 @@ theorem IP_subset_PSPACE (enc : α ↪ List Bool) : IP enc ⊆ PSPACE enc := by
   let _ : Inhabited α := Classical.inhabited_of_nonempty hα
   obtain ⟨_, k, Control, _, M, c, d, hreal⟩ := hV
   set fuel : α → ℕ := fun a => c * ((enc a).length + 1) ^ d
-  have hfuel : ComputableInPolyTime fuel enc encUnary := by
-    have hlen : ComputableInPolyTime (fun a => (enc a).length) enc encUnary := by fun_prop
-    exact ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
-      hlen).of_enc_eq fun a => by simp [fuel]
-  have hdec : ComputableInPolySpace
-      (fun a => decide (2 ^ fuel a < 2 * evaluate enc M fuel a)) enc encBool := by
-    have hcap : ComputableInPolyTime (fun a => 2 ^ fuel a) enc encNat :=
-      ComputableInPolyTime.binary_two_pow.comp hfuel
-    have hpost : ComputableInPolyTime (fun p : ℕ × ℕ => decide (p.1 < 2 * p.2))
-        (encPair encNat encNat) encBool :=
-      ComputableInPolyTime.binary_lt.comp ((ComputableInPolyTime.fst _ _).prod
-        (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 2)
-          (ComputableInPolyTime.snd _ _)))
-    exact (ComputableInPolySpace.of_polyTime hpost).comp
-      ((ComputableInPolySpace.of_polyTime hcap).prod
-        (computableInPolySpace_evaluate M hfuel))
-  refine mem_PSPACE_of_computableInPolySpace hdec fun a => ?_
-  rw [mem_iff_two_pow_lt_value (fun a S oracle s => hreal a S oracle s) hA a, evaluate_eq,
-    decide_eq_true_iff]
+  have hfuel : ComputableInPolyTime fuel enc encUnary :=
+    ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
+      (ComputableInPolyTime.encoding_length enc)).of_enc_eq fun a => by simp [fuel]
+  refine ⟨fun a => decide (2 ^ fuel a < 2 * evaluate enc M fuel a),
+    (ComputableInPolySpace.of_polyTime (encIn := encPair encNat encNat) (encOut := encBool)
+      (f := fun p : ℕ × ℕ => decide (p.1 < 2 * p.2)) (by fun_prop)).comp
+      ((ComputableInPolySpace.of_polyTime (ComputableInPolyTime.binary_two_pow.comp hfuel)).prod
+        (computableInPolySpace_evaluate M hfuel)), fun a => ?_⟩
+  simp only [mem_iff_two_pow_lt_value (fun a => hreal a) hA a, evaluate_eq, decide_eq_true_iff,
+    fuel]
 
 end Cslib.Complexity

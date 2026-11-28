@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Nat.Size
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
@@ -51,38 +52,32 @@ theorem eventually_mul_log_add_pow_le_rpow {b : ℕ} (hb : 1 < b) (s c d : ℕ)
   filter_upwards [hsmall.bound (inv_pos.mpr hcoeff),
     eventually_ge_atTop (max 16 (s + 2))] with n he hn
   have hn16 : 16 ≤ n := (le_max_left _ _).trans hn
-  have hn2 : 2 ≤ n := by omega
   have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
   have hnR : (16 : ℝ) ≤ n := by exact_mod_cast hn16
   have hlog1 : 1 ≤ Real.log (n : ℝ) :=
     (Real.le_log_iff_exp_le hn0).mpr (Real.exp_one_lt_three.le.trans (by linarith))
-  have hshiftN : n + s ≤ n ^ 2 := by have := (le_max_right _ _).trans hn; nlinarith
-  have hshiftR : (n : ℝ) + s ≤ (n : ℝ) ^ 2 := by exact_mod_cast hshiftN
+  have hshiftN : n + s ≤ n ^ 2 := by
+    have := (le_max_right _ _).trans hn
+    rw [sq]; exact (by omega : n + s ≤ 2 * n).trans (Nat.mul_le_mul_right n (by omega))
   have hlogShift : Real.log (n + s : ℝ) ≤ 2 * Real.log (n : ℝ) := by
-    calc _ ≤ Real.log ((n : ℝ) ^ 2) :=
-        Real.log_le_log (by positivity) hshiftR
+    calc _ ≤ Real.log ((n : ℝ) ^ 2) := Real.log_le_log (by positivity) (by exact_mod_cast hshiftN)
       _ = _ := by rw [Real.log_pow]; norm_num
   have hnlog : (Nat.log b (n + s) : ℝ) ≤ Real.log (n + s : ℝ) / Real.log b := by
     simpa only [Real.logb, Nat.cast_add] using Real.natLog_le_logb (n + s) b
   have hbase : (Nat.log b (n + s) : ℝ) + c ≤ a * Real.log (n : ℝ) := by
-    have hdiv := div_le_div_of_nonneg_right hlogShift hlogb.le
-    have hc := mul_le_mul_of_nonneg_left hlog1 (show (0 : ℝ) ≤ c by positivity)
-    have hsum := _root_.add_le_add (hnlog.trans hdiv) hc
-    calc
-      _ ≤ (2 * Real.log (n : ℝ)) / Real.log b + c * Real.log (n : ℝ) := by
-        simpa only [_root_.mul_one] using hsum
-      _ = _ := by dsimp only [a]; ring
-  have hp := pow_le_pow_left₀ (by positivity : (0 : ℝ) ≤ (Nat.log b (n + s) : ℝ) + c)
-    hbase d
+    calc (Nat.log b (n + s) : ℝ) + c
+        ≤ (2 * Real.log (n : ℝ)) / Real.log b + c * Real.log (n : ℝ) :=
+          _root_.add_le_add (hnlog.trans (div_le_div_of_nonneg_right hlogShift hlogb.le))
+            (le_mul_of_one_le_right (Nat.cast_nonneg c) hlog1)
+      _ = a * Real.log (n : ℝ) := by dsimp only [a]; ring
   have hpow0 : 0 ≤ (n : ℝ) ^ ε := Real.rpow_nonneg (by positivity) _
   dsimp only [Function.comp_apply] at he
   rw [Real.norm_eq_abs, Real.rpow_natCast, abs_of_nonneg (pow_nonneg (by linarith) _),
     Real.norm_eq_abs, abs_of_nonneg hpow0] at he
   calc K * ((Nat.log b (n + s) : ℝ) + c) ^ d
-      ≤ K * (a * Real.log (n : ℝ)) ^ d := mul_le_mul_of_nonneg_left hp hK.le
+      ≤ K * (a * Real.log (n : ℝ)) ^ d := by gcongr
     _ = (K * a ^ d) * Real.log (n : ℝ) ^ d := by rw [mul_pow]; ring
-    _ ≤ (K * a ^ d) * ((K * a ^ d)⁻¹ * (n : ℝ) ^ ε) :=
-      mul_le_mul_of_nonneg_left he hcoeff.le
+    _ ≤ (K * a ^ d) * ((K * a ^ d)⁻¹ * (n : ℝ) ^ ε) := by gcongr
     _ = _ := by rw [← mul_assoc, mul_inv_cancel₀ hcoeff.ne', one_mul]
 
 /-- A fixed power of the binary length `Nat.size n + 1` is at most a constant times any positive
@@ -99,18 +94,16 @@ theorem exists_size_add_one_pow_le_mul_rpow (d : ℕ) {ε : ℝ} (hε : 0 < ε) 
   by_cases hn : n < M
   · have hle : ((Nat.size n + 1 : ℕ) : ℝ) ^ d ≤ B := by
       exact_mod_cast Finset.le_sup (f := fun n => (Nat.size n + 1) ^ d) (Finset.mem_range.mpr hn)
-    nlinarith
+    calc ((Nat.size n + 1 : ℕ) : ℝ) ^ d ≤ B + 1 := by linarith
+      _ ≤ (B + 1) * ((n : ℝ) + 1) ^ ε := le_mul_of_one_le_right (by positivity) h1
   · have h := hM n (not_lt.mp hn)
     simp only [Nat.add_zero, one_mul, Nat.cast_ofNat] at h
     have hsize : ((Nat.size n + 1 : ℕ) : ℝ) ≤ (Nat.log 2 n : ℝ) + 2 := by
-      have : Nat.size n ≤ Nat.log 2 n + 1 :=
-        Nat.size_le.mpr (Nat.lt_pow_succ_log_self one_lt_two n)
-      have : (Nat.size n : ℝ) ≤ (Nat.log 2 n : ℝ) + 1 := by exact_mod_cast this
-      push_cast
-      linarith
-    have hp : ((Nat.size n + 1 : ℕ) : ℝ) ^ d ≤ ((Nat.log 2 n : ℝ) + 2) ^ d := by gcongr
-    have hn' : (n : ℝ) ^ ε ≤ ((n : ℝ) + 1) ^ ε :=
-      Real.rpow_le_rpow (Nat.cast_nonneg n) (by linarith) hε.le
-    nlinarith
+      exact_mod_cast Nat.add_le_add_right (Nat.size_le_log_two_add_one n) 1
+    calc ((Nat.size n + 1 : ℕ) : ℝ) ^ d
+        ≤ ((Nat.log 2 n : ℝ) + 2) ^ d := by gcongr
+      _ ≤ (n : ℝ) ^ ε := h
+      _ ≤ ((n : ℝ) + 1) ^ ε := Real.rpow_le_rpow (Nat.cast_nonneg n) (by linarith) hε.le
+      _ ≤ (B + 1) * ((n : ℝ) + 1) ^ ε := le_mul_of_one_le_left (by positivity) (by linarith)
 
 end Nat

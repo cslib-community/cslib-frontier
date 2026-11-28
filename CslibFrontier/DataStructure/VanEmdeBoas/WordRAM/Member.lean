@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Native van Emde Boas membership descent
@@ -20,11 +21,9 @@ tree universe. The maximum guard is checked before any cluster address is calcul
 ## Main definitions
 
 * `MemberEntry`: the membership-loop register invariant.
-* `memberNext`: a mathematical description of one native iteration, not a machine instruction.
 
 ## Main results
 
-* `memberBody_exec`: an actual iteration takes at most 26 instructions.
 * `memberLoop_spec`: membership takes at most `28 * (d + 1) + 2` loop instructions,
   gives the functional answer and preserves all memory.
 
@@ -53,133 +52,33 @@ structure MemberEntry (base query : ℕ) (s : Data 32) : Prop where
   out_eq : s.regs out = 0
   runFlag_eq : s.regs runFlag = 1
 
-/-- A description of one native iteration. Each update corresponds to an instruction in
-`memberBody`; the description itself is used only in proofs. -/
-def memberNext (s : Data 32) (base query : ℕ) : Data 32 :=
-  let a := s.set present (s.mem base)
-  if s.mem base = 0 then a.set runFlag 0 else
-    let b := (a.set addr (base + 1)).set mn (s.mem (base + 1))
-    if query = s.mem (base + 1) then (b.set out 1).set runFlag 0 else
-      let c := (b.set addr (base + 2)).set mx (s.mem (base + 2))
-      if query = s.mem (base + 2) then (c.set out 1).set runFlag 0 else
-        if query < s.mem (base + 2) then
-          let e := (c.set addr (base + 3)).set q (s.mem (base + 3))
-          if s.mem (base + 3) = 0 then e.set runFlag 0 else
-            let f := (e.set addr (base + 4)).set t (s.mem (base + 4))
-            let hi := query / s.mem (base + 3)
-            let lo := query % s.mem (base + 3)
-            let g := (((f.set high hi).set low lo).set tmp (hi + 1)).set tmp
-              ((hi + 1) * s.mem (base + 4))
-            (((g.set child (base + 5)).set child
-              (base + 5 + (hi + 1) * s.mem (base + 4))).set p
-              (base + 5 + (hi + 1) * s.mem (base + 4))).set x lo
-        else c.set runFlag 0
-
-/-- Membership performs no writes, including on unsuccessful or out-of-universe queries. -/
-@[simp]
-theorem memberNext_mem (s : Data 32) (base query : ℕ) :
-    (memberNext s base query).mem = s.mem := by
-  simp only [memberNext]
-  split
-  · rfl
-  · split
-    · rfl
-    · split
-      · rfl
-      · split
-        · split <;> rfl
-        · rfl
-
-/-- One real membership iteration, including all branches and address computations.
-The sole address-fit assumption covers the represented record endpoint. -/
-theorem memberBody_exec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
-    (hs : MemberEntry base query s) (ht : tree.Valid) (hr : Rep tree base s.mem)
-    (ha : Fits w (base + span d)) :
-    ExecWithin w memberBody s (memberNext s base query) 26 := by
-  obtain ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, _, _⟩ := hs
-  -- `ram_eval` derives the smaller header bounds `Fits w (base + k)` from this one.
-  have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
-  -- The early exits read only the header, so split on the cached bounds before the shape.
-  have hheader := hr.header
-  rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
-  · have he : s.mem base = 0 := hheader.1
-    ram_eval [memberBody, memberNext, hp, hx, hz, he]
-  obtain ⟨he, ⟨hm, hM⟩, hq, hspan⟩ := hheader
-  by_cases heq : query = m
-  · ram_eval [memberBody, memberNext, readAt, hp, hx, hz, ho, he, hm, heq]
-  by_cases heq' : query = M
-  · have hneM : M ≠ m := by simpa only [heq'] using heq
-    ram_eval [memberBody, memberNext, readAt, hp, hx, hz, ho, htwo, he, hm, hM,
-      heq, heq', hneM]
-  by_cases hlt : query < M
-  · -- Below the maximum, a leaf stops and a node descends into the query's cluster.
-    cases tree with
-    | leaf =>
-      ram_eval [memberBody, memberNext, readAt, hp, hx, hz, ho, htwo, hthree,
-        he, hm, hM, hq, splitSize, heq, heq', hlt]
-    | @node d b _ _ =>
-      obtain rfl : b = some (m, M) := hb
-      have hsafe := member_descent_safe ht hr (by simpa only [hM] using hlt)
-      have hi := hsafe.1
-      have hu := universeSize_le_span d
-      have hu' := span_le_succ d
-      -- The other written values (the high coordinate, the product, `base + 5`) are
-      -- bounded by these, so `ram_eval` derives their bounds.
-      have hlo : Fits w (query % universeSize d) := ha.of_le (by omega)
-      have hnext : Fits w (query / universeSize d + 1) := ha.of_le (by omega)
-      have hchild : Fits w (base + 5 + (query / universeSize d + 1) * span d) := by
-        apply ha.of_le
-        dsimp only [clusterOffset] at hsafe
-        omega
-      have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
-      ram_eval [memberBody, memberNext, readAt, coordinates, hp, hx, hz, ho,
-        htwo, hthree, hfour, hfive, he, hm, hM, hq, hspan, splitSize, childSpan,
-        heq, heq', hlt, hqne]
-  · ram_eval [memberBody, memberNext, readAt, hp, hx, hz, ho, htwo,
-      he, hm, hM, heq, heq', hlt]
-
-/-- Constant registers are preserved by a membership iteration. -/
-private theorem memberNext_constants {base query : ℕ} {s : Data 32}
-    (hs : MemberEntry base query s) :
-    (memberNext s base query).regs zero = 0 ∧
-    (memberNext s base query).regs one = 1 ∧
-    (memberNext s base query).regs two = 2 ∧
-    (memberNext s base query).regs three = 3 ∧
-    (memberNext s base query).regs four = 4 ∧
-    (memberNext s base query).regs five = 5 := by
-  obtain ⟨hz, ho, ht, hthree, hfour, hfive, _⟩ := hs
-  simp only [memberNext]
-  split_ifs <;> simp +decide [hz, ho, ht, hthree, hfour, hfive]
-
 /-- A query above the cached maximum is absent; this fact uses validity, not outside memory. -/
 theorem member_eq_false_of_max_lt {d m M query : ℕ} {tree : Tree d}
     (ht : tree.Valid) (hb : tree.bounds = some (m, M)) (hx : M < query) :
     tree.member query = false := by
-  have hnot : ¬tree.Contains query := by
-    intro hc
-    have := ((ht.extrema_of_bounds hb).2.2.2.2 query hc).2
-    omega
-  cases he : tree.member query
-  · rfl
-  · exact False.elim (hnot ((Tree.member_iff_contains ht query).mp he))
+  rw [Bool.eq_false_iff, ne_eq, Tree.member_iff_contains ht]
+  intro hc
+  have := ((ht.extrema_of_bounds hb).2.2.2.2 query hc).2
+  omega
 
 /-- The cached maximum is a valid early successful membership result. -/
 theorem member_maximum {d m M : ℕ} {tree : Tree d}
     (ht : tree.Valid) (hb : tree.bounds = some (m, M)) : tree.member M = true :=
   (Tree.member_iff_contains ht M).mpr (ht.contains_maximum hb)
 
-private theorem memberLoop_finish {w base query answer : ℕ} {s : Data 32}
+/-- Terminate `memberLoop` in one `memberBody` pass when the body clears `runFlag` while
+preserving `zero = 0` and memory. -/
+private theorem memberLoop_finish {d w base query answer : ℕ} {s : Data 32}
     (hs : MemberEntry base query s)
-    (he : ExecWithin w memberBody s (memberNext s base query) 26)
-    (hk : (memberNext s base query).regs runFlag = 0)
-    (hout : (memberNext s base query).regs out = answer) :
-    ∃ z, ExecWithin w memberLoop s z 30 ∧ z.regs out = answer ∧ z.mem = s.mem := by
-  have hz := (memberNext_constants hs).1
-  refine ⟨_, he.loop_once (cond := .lt zero runFlag) ?_ ?_,
-    hout, memberNext_mem _ _ _⟩
+    (hstep : ∃ s₁, ExecWithin w memberBody s s₁ 26 ∧
+      s₁.regs zero = 0 ∧ s₁.regs runFlag = 0 ∧ s₁.regs out = answer ∧ s₁.mem = s.mem) :
+    ∃ z, ExecWithin w memberLoop s z (28 * (d + 1) + 2) ∧
+      z.regs out = answer ∧ z.mem = s.mem := by
+  obtain ⟨s₁, he, hz0, hk, hout, hmem⟩ := hstep
+  refine ⟨s₁, (he.loop_once (cond := .lt zero runFlag) ?_ ?_).mono (by omega), hout, hmem⟩
   · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
     decide
-  · simp only [Cond.holds_lt, hz, hk, lt_self_iff_false, not_false_eq_true]
+  · simp only [Cond.holds_lt, hz0, hk, lt_self_iff_false, not_false_eq_true]
 
 /-- The membership loop is correct for every depth and arbitrary surrounding memory.
 Its bound charges each body, loop test and jump; setup, dispatch and halt are separate. -/
@@ -188,82 +87,90 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
     (ha : Fits w (base + span d)) :
     ∃ z, ExecWithin w memberLoop s z (28 * (d + 1) + 2) ∧
       z.regs out = (if tree.member query then 1 else 0) ∧ z.mem = s.mem := by
-  induction d generalizing base query s with
-  | zero =>
-    have he := memberBody_exec hs ht hr ha
-    cases tree with
+  have ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩ := hs
+  have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
+  have hheader := hr.header
+  rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
+  · have he : s.mem base = 0 := hheader.1
+    have hmem_f : tree.member query = false := by
+      cases tree <;> simp_all [Tree.bounds, Tree.member]
+    apply memberLoop_finish hs
+    apply WP.exists_execWithin
+    unfold memberBody
+    wram_exec [hp, hz, he]
+    exact ⟨by wram_simp [hz], by wram_simp,
+      by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
+  obtain ⟨he_raw, ⟨hm, hM⟩, hq, hspan⟩ := hheader
+  have he : s.mem base = 1 := he_raw
+  by_cases heq : query = m
+  · have hmem_t : tree.member query = true := by
+      cases tree <;> simp_all [Tree.bounds, Tree.member]
+    apply memberLoop_finish hs
+    apply WP.exists_execWithin
+    unfold memberBody readAt
+    wram_exec [hp, hx, hz, ho, he, hm, heq]
+    exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hmem_t, ↓reduceIte], by wram_simp⟩
+  by_cases heq' : query = M
+  · have hneM : M ≠ m := by simpa only [heq'] using heq
+    have hmem_t : tree.member query = true := heq' ▸ member_maximum ht hb
+    apply memberLoop_finish hs
+    apply WP.exists_execWithin
+    unfold memberBody readAt
+    wram_exec [hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hneM]
+    exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hmem_t, ↓reduceIte], by wram_simp⟩
+  by_cases hlt : query < M
+  · cases tree with
     | leaf b =>
-      cases b with
-      | none =>
-        have hempty : s.mem base = 0 := hr.1
-        apply memberLoop_finish hs he
-        · simp +decide [memberNext, hempty]
-        · simp +decide [memberNext, hempty, Tree.member, hs.out_eq]
-      | some bounds =>
-        obtain ⟨m, M⟩ := bounds
-        obtain ⟨hpres, ⟨hm, hM⟩, hq, _⟩ := hr
-        have hk : (memberNext s base query).regs runFlag = 0 := by
-          simp only [memberNext, hpres, hm, hM, hq, splitSize,
-            Option.isSome_some, ↓reduceIte]
-          split_ifs <;> simp +decide
-        apply memberLoop_finish hs he hk
-        simp only [memberNext, hpres, hm, hM, hq, splitSize,
-          Option.isSome_some, ↓reduceIte, Tree.member]
-        split_ifs <;> simp_all +decide [hs.out_eq]
-  | succ d ih =>
-    have he := memberBody_exec hs ht hr ha
-    have finish (hk : (memberNext s base query).regs runFlag = 0)
-        (hout : (memberNext s base query).regs out = (if tree.member query then 1 else 0)) :
-        ∃ z, ExecWithin w memberLoop s z (28 * (d + 1 + 1) + 2) ∧
-          z.regs out = (if tree.member query then 1 else 0) ∧ z.mem = s.mem := by
-      obtain ⟨z, hz, ho, hm⟩ := memberLoop_finish hs he hk hout
-      exact ⟨z, hz.mono (by omega), ho, hm⟩
-    cases tree with
-    | node bounds summary cluster =>
-      cases bounds with
-      | none =>
-        have hempty : s.mem base = 0 := hr.1.1
-        apply finish
-        · simp +decide [memberNext, hempty]
-        · simp +decide [memberNext, hempty, Tree.member, hs.out_eq]
-      | some bounds =>
-        obtain ⟨m, M⟩ := bounds
-        obtain ⟨hpres, ⟨hm, hM⟩, hq, hspan⟩ := hr.1
-        by_cases hmin : query = m
-        · apply finish
-          · simp +decide [memberNext, hpres, hm, hmin]
-          · simp +decide [memberNext, hpres, hm, hmin, Tree.member]
-        by_cases hmax : query = M
-        · have hn : M ≠ m := by simpa only [hmax] using hmin
-          have hmem := member_maximum ht rfl
-          apply finish
-          · simp +decide [memberNext, hpres, hm, hM, hmax, hn]
-          · simp +decide [memberNext, hpres, hm, hM, hmax, hn, hmem]
-        by_cases hlt : query < M
-        · have hi := (member_descent_safe ht hr (by simpa only [hM] using hlt)).1
-          let i : Fin (universeSize d) := ⟨query / universeSize d, hi⟩
-          let next := memberNext s base query
-          have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
-          have hentry : MemberEntry (base + clusterOffset d i.val)
-              (query % universeSize d) next := by
-            obtain ⟨hz, ho, ht, hthree, hfour, hfive⟩ := memberNext_constants hs
-            refine ⟨hz, ho, ht, hthree, hfour, hfive, ?_, ?_, ?_, ?_⟩ <;>
-              simp +decide [next, memberNext, hpres, hm, hM, hq, hspan, splitSize,
-                childSpan, hmin, hmax, hlt, hqne, clusterOffset, i, Nat.add_assoc,
-                hs.out_eq, hs.runFlag_eq]
-          have hrep : Rep (cluster i) (base + clusterOffset d i.val) next.mem := by
-            simpa only [next, memberNext_mem] using hr.2.2 i
-          have hfit : Fits w (base + clusterOffset d i.val + span d) :=
-            ha.of_le (by have := cluster_end_le_span d hi; dsimp only [i]; omega)
-          obtain ⟨z, hz, ho, hmem⟩ := ih hentry (ht.2.2.1 i) hrep hfit
-          refine ⟨z, (he.loop_iter (cond := .lt zero runFlag) ?_ hz).mono (by omega),
-            ?_, hmem.trans (memberNext_mem _ _ _)⟩
-          · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-            decide
-          · simpa only [Tree.member, hmin, hi, ↓reduceDIte, ↓reduceIte] using ho
-        · have habsent := member_eq_false_of_max_lt (query := query) ht rfl (by omega)
-          apply finish
-          · simp +decide [memberNext, hpres, hm, hM, hmin, hmax, hlt]
-          · simp +decide [memberNext, hpres, hm, hM, hmin, hmax, hlt, habsent, hs.out_eq]
+      obtain rfl : b = some (m, M) := hb
+      have hmem_f : (Tree.leaf (some (m, M))).member query = false := by
+        simp [Tree.member, heq, heq']
+      apply memberLoop_finish hs
+      apply WP.exists_execWithin
+      unfold memberBody readAt
+      wram_exec [hp, hx, hz, ho, htwo, hthree, he, hm, hM, hq, splitSize, heq, heq', hlt]
+      exact ⟨by wram_simp [hz], by wram_simp,
+        by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
+    | @node d b summary cluster =>
+      obtain rfl : b = some (m, M) := hb
+      have hsafe := member_descent_safe ht hr (by simpa only [hM] using hlt)
+      have hi := hsafe.1
+      have hu := universeSize_le_span d
+      have hu' := span_le_succ d
+      have hlo : Fits w (query % universeSize d) := ha.of_le (by omega)
+      have hnext : Fits w (query / universeSize d + 1) := ha.of_le (by omega)
+      have hchild : Fits w (base + 5 + (query / universeSize d + 1) * span d) := by
+        apply ha.of_le
+        dsimp only [clusterOffset] at hsafe
+        omega
+      have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
+      let i : Fin (universeSize d) := ⟨query / universeSize d, hi⟩
+      obtain ⟨s₁, he_step, hentry, hs₁_mem⟩ : ∃ s₁, ExecWithin w memberBody s s₁ 26 ∧
+          MemberEntry (base + clusterOffset d i.val) (query % universeSize d) s₁ ∧
+          s₁.mem = s.mem := by
+        apply WP.exists_execWithin
+        unfold memberBody readAt coordinates
+        wram_exec [hp, hx, hz, ho, htwo, hthree, hfour, hfive, he, hm, hM, hq, hspan,
+          splitSize, childSpan, heq, heq', hlt, hqne]
+        exact ⟨⟨by wram_simp [hz], by wram_simp [ho], by wram_simp [htwo],
+          by wram_simp [hthree], by wram_simp [hfour], by wram_simp [hfive],
+          by wram_simp [clusterOffset, i, Nat.add_assoc], by wram_simp,
+          by wram_simp [hout0], by wram_simp [hrun]⟩, by wram_simp⟩
+      have hrep : Rep (cluster i) (base + clusterOffset d i.val) s₁.mem :=
+        hs₁_mem ▸ hr.2.2 i
+      have hfit : Fits w (base + clusterOffset d i.val + span d) :=
+        ha.of_le (by have := cluster_end_le_span d hi; dsimp only [i]; omega)
+      obtain ⟨z, hz_loop, ho_z, hmem_z⟩ := memberLoop_spec hentry (ht.2.2.1 i) hrep hfit
+      refine ⟨z, (he_step.loop_iter (cond := .lt zero runFlag) ?_ hz_loop).mono (by omega),
+        ?_, hmem_z.trans hs₁_mem⟩
+      · simp only [Cond.holds_lt, hz, hrun]
+        decide
+      · simpa only [Tree.member, heq, hi, ↓reduceDIte, ↓reduceIte] using ho_z
+  · have hmem_f := member_eq_false_of_max_lt (query := query) ht hb (by omega)
+    apply memberLoop_finish hs
+    apply WP.exists_execWithin
+    unfold memberBody readAt
+    wram_exec [hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hlt]
+    exact ⟨by wram_simp [hz], by wram_simp,
+      by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
 
 end Cslib.DataStructure.VanEmdeBoas.WordRAM

@@ -48,17 +48,6 @@ universe u v w
 
 variable {ι : Type u} {spec : OracleSpec.{u, v} ι} {α State State' : Type v}
 
-/-- Structural induction on an oracle program, presenting the step case as
-`OracleComp.query q >>= cont`. -/
-@[elab_as_elim] theorem induction {motive : OracleComp spec α → Prop}
-    (pure : ∀ a, motive (pure a))
-    (query_bind : ∀ q (cont : spec q → OracleComp spec α),
-      (∀ a, motive (cont a)) → motive (query q >>= cont))
-    (program : OracleComp spec α) : motive program := by
-  induction program with
-  | pure a => exact pure a
-  | liftBind q cont ih => exact query_bind q cont ih
-
 section RunInterpret
 
 variable {β : Type v} {m : Type v → Type w} [Monad m]
@@ -117,7 +106,7 @@ theorem run_interpret_invariant
       PMF.mem_support_pure_iff, Prod.mk.injEq] at h
     rwa [h.2]
   | query_bind q cont ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind,
+    simp only [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at h
     obtain ⟨⟨a, next⟩, ha, h⟩ := h
     exact ih a next (step q s hs a next ha) h
@@ -139,7 +128,7 @@ theorem run_interpret_simulation_of_invariant
   induction program using OracleComp.induction generalizing s with
   | pure a => simp [PMF.map, Function.comp_def]
   | query_bind q cont ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind,
+    simp only [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind, PMF.bind_bind]
     calc
       _ = (oracle q s).bind (fun (a, s') =>
@@ -259,7 +248,8 @@ theorem run_interpret_run_interpret {κ : Type w} {target : OracleSpec.{w, v} κ
   induction program using OracleComp.induction generalizing hidden external with
   | pure a => simp
   | query_bind q cont ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind, map_bind]
+    simp only [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, StateT.run_bind,
+      map_bind]
     simp only [StateT.run, bind_map_left]
     exact bind_congr fun (result : (spec q × Hidden) × External) =>
       ih result.1.1 result.1.2 result.2

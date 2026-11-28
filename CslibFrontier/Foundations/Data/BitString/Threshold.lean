@@ -27,8 +27,10 @@ functions. On an arbitrary finite set of voting indices, `BitString.strictMajori
 
 ## Main results
 
-* `Cslib.monotone_threshold`: threshold functions are monotone.
+* `Cslib.monotone_threshold`, `Cslib.monotone_majority`: threshold functions, and majority in
+  particular, are monotone.
 * `Cslib.strictMajority_not`: strict majority of the negated bits is the negation of majority.
+* `Cslib.majority_eq_strictMajority`: on an odd number of bits, majority is strict majority.
 * `Cslib.le_card_ne_of_strictMajority_ne`,
   `Cslib.BitString.card_filter_eq_le_half_of_strictMajorityOn_ne`: a wrong majority requires at
   least half wrong votes.
@@ -109,6 +111,10 @@ theorem monotone_threshold (j : ℕ) : Monotone (threshold n j) := fun _ _ hxy =
   exact Bool.le_iff_imp.2 fun h =>
     decide_eq_true ((of_decide_eq_true h).trans (monotone_weight hxy))
 
+/-- The majority function is monotone. -/
+theorem monotone_majority : Monotone (majority n) :=
+  monotone_threshold _
+
 /-- With cutoff `0`, the threshold function is the constant `true`. -/
 @[simp] theorem threshold_zero_right (x : BitString n) : threshold n 0 x = true :=
   threshold_eq_true_iff.2 (Nat.zero_le _)
@@ -174,6 +180,13 @@ theorem strictMajority_not (x : BitString n) :
   simp only [Fintype.card_fin] at h
   rw [Bool.eq_iff_iff, strictMajority_eq_true_iff, Bool.not_eq_true', ← Bool.not_eq_true,
     majority_eq_true_iff, h]
+  omega
+
+/-- On an odd number of bits there are no ties, so majority is strict majority. -/
+theorem majority_eq_strictMajority (m : ℕ) :
+    majority (2 * m + 1) = strictMajority (2 * m + 1) := by
+  unfold majority strictMajority
+  congr 1
   omega
 
 namespace BooleanFunction

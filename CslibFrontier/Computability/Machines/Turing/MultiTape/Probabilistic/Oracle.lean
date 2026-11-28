@@ -65,7 +65,9 @@ theorem length_output_runOracle_le (machine : MultiTapePTM k Symbol State Operat
     (fun op word => ProbOracleComp.query
       (spec := fun _ : Operation × List Symbol => List Symbol) (op, word))
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle) fuel
-    (machine.initialConfig input) s s' output h
+    (machine.initialConfig input) s s' output (by
+      rw [← ProbOracleComp.runWith_eq_run_interpret]
+      exact h)
   simpa only [initialConfig, Cfg.init, List.length_nil, Nat.zero_add] using hbound
 
 /-- A deterministic run ignores the external oracle and preserves its full private state. -/
@@ -74,6 +76,7 @@ theorem run_interpret_runOracle_ofDeterministic (machine : MultiTapeTM k Symbol 
     (fuel : ℕ) (input : List Symbol) (s : OracleState) :
     ProbOracleComp.runWith oracle ((ofDeterministic machine).runOracle fuel input) s =
       PMF.pure ((machine.runFrom (machine.initCfg input) fuel).output, s) := by
+  rw [ProbOracleComp.runWith_eq_run_interpret]
   apply run_interpret_ofDeterministic machine (ProbOracleComp.sample (ProbComp.uniform Bool))
     (fun op word => ProbOracleComp.query
       (spec := fun _ : Operation × List Symbol => List Symbol) (op, word))
@@ -130,7 +133,8 @@ theorem runOracle_ofClosed (machine : MultiTapePTM k Symbol State) (fuel : ℕ)
       rw [hsim, Functor.map_map]
     _ = ProbOracleComp.sample (machine.runClosed fuel input) := by
       simp only [runClosed, run, runFrom, runConfigFrom, ProbOracleComp.sample,
-        OracleComp.interpret_map, MultiTapeMachine.interpret_runConfigFrom]
+        OracleComp.substitute_eq_interpret, OracleComp.interpret_map,
+        MultiTapeMachine.interpret_runConfigFrom]
       congr 2 with oracle : 1
       exact oracle.elim
 
@@ -140,7 +144,8 @@ theorem runOracle_eq_sample_runClosed (machine : MultiTapePTM k Symbol State) (f
     (input : List Symbol) :
     machine.runOracle fuel input = ProbOracleComp.sample (machine.runClosed fuel input) := by
   simp only [runOracle, runClosed, run, runFrom, runConfigFrom, ProbOracleComp.sample,
-    OracleComp.interpret_map, MultiTapeMachine.interpret_runConfigFrom]
+    OracleComp.substitute_eq_interpret, OracleComp.interpret_map,
+    MultiTapeMachine.interpret_runConfigFrom]
   congr 2 with oracle : 1
   exact oracle.elim
 

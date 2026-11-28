@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Computability.Circuit.Quantum.PathSum
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ExplicitTables
 import CslibFrontier.Foundations.Data.List.Boole
+import CslibFrontier.Foundations.Data.List.GetD
 import CslibFrontier.Foundations.Data.List.SumIndicator
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.OfFn
 import Mathlib.Logic.Equiv.Fin.Basic
@@ -207,16 +209,16 @@ private theorem setQubits_controls (r : ℕ → Bool) (t : ℕ) (b : Bool) (cs :
     (ht : t ∉ cs) :
     setQubits r (t :: cs) (b :: cs.map r) = Function.update r t b := by
   rw [setQubits_cons]
-  suffices h : ∀ r' : ℕ → Bool, (∀ c ∈ cs, r' c = r c) →
-      setQubits r' cs (cs.map r) = r' by
-    exact h _ fun c hc => Function.update_of_ne (by rintro rfl; exact ht hc) _ _
-  intro r' hr'
-  induction cs generalizing r' with
-  | nil => rfl
-  | cons c cs ih =>
-    rw [List.map_cons, setQubits_cons, ← hr' c List.mem_cons_self, Function.update_eq_self]
-    exact ih (fun h => ht (List.mem_cons_of_mem _ h)) r' fun c' hc' =>
-      hr' c' (List.mem_cons_of_mem _ hc')
+  suffices h : ∀ l, (∀ c ∈ l, Function.update r t b c = r c) →
+      setQubits (Function.update r t b) l (l.map r) = Function.update r t b from
+    h cs fun c hc => Function.update_of_ne (by rintro rfl; exact ht hc) _ _
+  intro l
+  induction l with
+  | nil => intro _; rfl
+  | cons c l ih =>
+    intro hl
+    rw [List.map_cons, setQubits_cons, ← hl c List.mem_cons_self, Function.update_eq_self]
+    exact ih fun c' hc' => hl c' (List.mem_cons_of_mem _ hc')
 
 /-- The weight of a run of the gates `gs` from the register `r` that writes the bits `ys` to the
 qubits of the gates in turn, times `Φ` of the final register. -/
@@ -258,19 +260,15 @@ private theorem sum_ofFn_ite_eq {R : Type*} [AddCommMonoid R] {k : ℕ} (v : Lis
     ∑ ys : Fin k → Bool, (if List.ofFn ys = v then F (List.ofFn ys) else 0) = F v := by
   subst hv
   rw [Fintype.sum_eq_single (fun i => v[i])]
-  · have hv : (List.ofFn fun i : Fin v.length => v[i]) = v := List.ofFn_getElem
-    rw [hv, ite_eq_left rfl]
-  · intro ys hys
-    refine ite_eq_right fun h => hys (List.ofFn_injective (h.trans List.ofFn_getElem.symm))
+  · simp only [show (List.ofFn fun i : Fin v.length => v[i]) = v from List.ofFn_getElem,
+      ↓reduceIte]
+  · exact fun ys hys =>
+      ite_eq_right fun h => hys (List.ofFn_injective (h.trans List.ofFn_getElem.symm))
 
 private theorem getD_set_eq_update (s : List Bool) {t : ℕ} (ht : t < s.length) (b : Bool) :
     (fun j => (s.set t b).getD j false) = Function.update (fun j => s.getD j false) t b := by
   funext j
-  by_cases hj : j = t
-  · subst hj
-    simp [List.getD_eq_getElem?_getD, ht]
-  · rw [Function.update_of_ne hj]
-    simp [List.getD_eq_getElem?_getD, Ne.symm hj]
+  by_cases hj : j = t <;> simp [hj, Ne.symm, List.getD_eq_getElem?_getD, ht]
 
 /-- **The runs along the occurrences sum to the path sum** (with an initial sign `σ`): summing the
 weight of the runs over all bit strings written to the occurrences gives the sum over the paths
@@ -288,41 +286,31 @@ private theorem sgn_mul_sum_trajWeight {R : Type*} [CommRing R] (gs : List GateC
       ∑ π : Fin 0 → Bool, sgn σ * Φ (fun j => s.getD j false)
     simp
   | cons g gs ih =>
-    have hgs' : ∀ g ∈ gs, g.WellFormed s.length := fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg')
-    have hwf := hgs g List.mem_cons_self
+    obtain ⟨hwf, hgs'⟩ := List.forall_mem_cons.1 hgs
     rw [sum_ofFn_append ((congrArg List.length (occurrences_cons g gs)).trans
       (List.length_append ..)) fun ys => trajWeight (-1) (g :: gs) (fun j => s.getD j false) ys Φ]
     simp only [trajWeight, List.take_left' (List.length_ofFn), List.drop_left' (List.length_ofFn)]
     obtain ⟨_ | _, t, cs⟩ := g
-    · -- a classical gate: one bit string has nonzero weight
-      obtain ⟨hlen, hnd, hlt⟩ := hwf
-      have ht : t < s.length := hlt t List.mem_cons_self
-      have htcs : t ∉ cs := (List.nodup_cons.mp hnd).1
-      have hcs : ∀ c ∈ cs, (fun j => s.getD j false) c = s.getD c false := fun _ _ => rfl
+    · obtain ⟨_, hnd, hlt⟩ := hwf
+      have ht := hlt t List.mem_cons_self
       set b := s.getD t false ^^ cs.all fun c => s.getD c false
       have hentry (ys : List Bool) :
           gateEntry (-1 : R) (false, t, cs) ((qubits (false, t, cs)).map fun j => s.getD j false)
               ys = if ys = b :: cs.map (fun j => s.getD j false) then 1 else 0 := by
-        simp only [gateEntry, qubits, List.map_cons, List.headD_cons, List.tail_cons,
-          Bool.false_eq_true, ite_false, List.all_map, Function.comp_def, id, b]
-      simp only [hentry, ite_mul, one_mul, zero_mul]
-      rw [Finset.sum_comm, Finset.mul_sum]
+        simp [gateEntry, qubits, List.all_map, b]
       have hset : setQubits (fun j => s.getD j false) (qubits (false, t, cs))
           (b :: cs.map fun j => s.getD j false) = fun j => (s.set t b).getD j false := by
-        rw [qubits, setQubits_controls _ _ _ _ htcs, getD_set_eq_update s ht]
+        rw [qubits, setQubits_controls _ _ _ _ (List.nodup_cons.mp hnd).1, getD_set_eq_update s ht]
+      simp only [hentry, ite_mul, one_mul, zero_mul]
+      rw [Finset.sum_comm, Finset.mul_sum]
       have hlen' : (qubits (false, t, cs)).length =
-          (b :: cs.map fun j => s.getD j false).length := by
-        simp [qubits]
+          (b :: cs.map fun j => s.getD j false).length := by simp [qubits]
       simp_rw [fun zs => sum_ofFn_ite_eq (b :: cs.map fun j => s.getD j false) hlen'.symm
         (fun ys => trajWeight (-1 : R) gs (setQubits (fun j => s.getD j false)
           (qubits (false, t, cs)) ys) (List.ofFn zs) Φ), hset]
       rw [← Finset.mul_sum]
-      have h := ih (s.set t b) (by simpa using hgs') σ
-      rw [h]
-      rfl
-    · -- a Hadamard gate: sum over the bit written to the target
-      obtain ⟨ht, rfl⟩ := hwf
-      have hq : qubits (true, t, []) = [t] := rfl
+      exact ih (s.set t b) (by simpa using hgs') σ
+    · obtain ⟨ht, rfl⟩ := hwf
       have hsum1 (f : List Bool → R) : ∑ ys : Fin (qubits (true, t, [])).length → Bool,
           f (List.ofFn ys) = ∑ c : Bool, f [c] := by
         change ∑ ys : Fin 1 → Bool, f (List.ofFn ys) = _
@@ -331,19 +319,16 @@ private theorem sgn_mul_sum_trajWeight {R : Type*} [CommRing R] (gs : List GateC
       rw [hsum1 fun ys => ∑ zs : Fin (occurrences gs).length → Bool,
         gateEntry (-1 : R) (true, t, []) ((qubits (true, t, [])).map fun j => s.getD j false) ys *
           trajWeight (-1) gs (setQubits (fun j => s.getD j false) (qubits (true, t, [])) ys)
-            (List.ofFn zs) Φ, Finset.mul_sum]
-      rw [hadamardCount_cons_true, ← (Fin.consEquiv fun _ => Bool).sum_comp,
-        Fintype.sum_prod_type]
+            (List.ofFn zs) Φ, Finset.mul_sum,
+        hadamardCount_cons_true, ← (Fin.consEquiv fun _ => Bool).sum_comp, Fintype.sum_prod_type]
       refine Finset.sum_congr rfl fun c _ => ?_
       simp only [Fin.consEquiv_apply, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ,
         List.foldl_cons, pathStep, List.headD_cons, List.tail_cons]
-      have hentry : gateEntry (-1 : R) (true, t, []) ((qubits (true, t, [])).map
-          fun j => s.getD j false) [c] = sgn (s.getD t false && c) := by
+      have hentry : gateEntry (-1 : R) (true, t, [])
+          ((qubits (true, t, [])).map fun j => s.getD j false) [c] = sgn (s.getD t false && c) := by
         simp [gateEntry, qubits, sgn]
       have hset : setQubits (fun j => s.getD j false) (qubits (true, t, [])) [c] =
-          fun j => (s.set t c).getD j false := by
-        rw [getD_set_eq_update s ht c]
-        rfl
+          fun j => (s.set t c).getD j false := (getD_set_eq_update s ht c).symm
       rw [← Finset.mul_sum, hentry, hset, ← mul_assoc, ← sgn_xor]
       exact ih (s.set t c) (by simpa using hgs') (σ ^^ (s.getD t false && c))
 
@@ -356,9 +341,7 @@ theorem lastOcc_succ (qs : List ℕ) (j p : ℕ) :
   unfold lastOcc
   rw [List.range_succ, List.reverse_append, List.reverse_singleton, List.singleton_append,
     List.find?_cons]
-  by_cases h : qs.getD p 0 = j
-  · simp only [h, decide_true, ↓reduceIte]
-  · simp only [h, decide_false, ↓reduceIte]
+  by_cases h : qs.getD p 0 = j <;> simp only [h, decide_true, decide_false, ↓reduceIte]
 
 /-- The last occurrence of `j` before `p` is an occurrence of `j` before `p`, and no later
 occurrence before `p` is one of `j`. -/
@@ -369,31 +352,16 @@ theorem lastOcc_eq_some {qs : List ℕ} {j p w : ℕ} (h : lastOcc qs j p = some
   | succ p ih =>
     rw [lastOcc_succ] at h
     split_ifs at h with hp
-    · cases h
-      exact ⟨by omega, hp, fun w' h1 h2 => by omega⟩
+    · exact Option.some.inj h ▸ ⟨Nat.lt_succ_self _, hp, fun _ _ _ => by omega⟩
     · obtain ⟨h1, h2, h3⟩ := ih h
       refine ⟨by omega, h2, fun w' hw1 hw2 => ?_⟩
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hw2 with hw | rfl
-      · exact h3 w' hw1 hw
-      · exact hp
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hw2 with hw | rfl <;> [exact h3 w' hw1 hw; exact hp]
 
 /-- There is no occurrence of `j` before `p` exactly when no position before `p` holds `j`. -/
 theorem lastOcc_eq_none {qs : List ℕ} {j p : ℕ} :
     lastOcc qs j p = none ↔ ∀ w < p, qs.getD w 0 ≠ j := by
-  induction p with
-  | zero => simp [lastOcc_zero]
-  | succ p ih =>
-    rw [lastOcc_succ]
-    by_cases hp : qs.getD p 0 = j
-    · simp only [hp, ite_true, reduceCtorEq, false_iff, not_forall]
-      exact ⟨p, by omega, fun h => h hp⟩
-    · simp only [hp, ite_false, ih]
-      constructor
-      · intro h w hw
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw | rfl
-        · exact h w hw
-        · exact hp
-      · exact fun h w hw => h w (by omega)
+  unfold lastOcc
+  simp [List.find?_eq_none]
 
 /-! ### Occurrences of gates -/
 
@@ -412,9 +380,8 @@ theorem base_succ {gs : List GateCode} {i : ℕ} (hi : i < gs.length) :
 theorem base_length (gs : List GateCode) : base gs gs.length = (occurrences gs).length := by
   simp [base]
 
-theorem base_le (gs : List GateCode) (i : ℕ) : base gs i ≤ (occurrences gs).length := by
-  conv_rhs => rw [← List.take_append_drop i gs, occurrences_append, List.length_append]
-  exact Nat.le_add_right _ _
+theorem base_le (gs : List GateCode) (i : ℕ) : base gs i ≤ (occurrences gs).length :=
+  ((List.take_sublist i gs).flatMap qubits).length_le
 
 theorem base_add_le {gs : List GateCode} {i : ℕ} (hi : i < gs.length) :
     base gs i + (qubits (gs.getD i default)).length ≤ (occurrences gs).length :=
@@ -424,15 +391,13 @@ theorem base_add_le {gs : List GateCode} {i : ℕ} (hi : i < gs.length) :
 theorem getD_occurrences {gs : List GateCode} {i k : ℕ} (hi : i < gs.length)
     (hk : k < (qubits (gs.getD i default)).length) :
     (occurrences gs).getD (base gs i + k) 0 = (qubits (gs.getD i default)).getD k 0 := by
-  have h1 : (occurrences [gs.getD i default]) = qubits (gs.getD i default) := by
-    simp [occurrences]
   have hsplit : occurrences gs = occurrences (gs.take i) ++
       (qubits (gs.getD i default) ++ occurrences (gs.drop (i + 1))) := by
     conv_lhs => rw [← List.take_append_drop (i + 1) gs]
-    rw [occurrences_append, take_succ_getD hi, occurrences_append, h1, List.append_assoc]
+    simp only [occurrences, take_succ_getD hi, List.flatMap_append, List.flatMap_cons,
+      List.flatMap_nil, List.append_nil, List.append_assoc]
   rw [hsplit, List.getD_append_right _ _ _ _ (Nat.le_add_right (base gs i) k),
-    show base gs i + k - (occurrences (gs.take i)).length = k by simp [base],
-    List.getD_append _ _ _ _ hk]
+    base, Nat.add_sub_cancel_left, List.getD_append _ _ _ _ hk]
 
 /-! ### Registers along the occurrences -/
 
@@ -449,10 +414,8 @@ private theorem reg_succ (qs : List ℕ) (X y : ℕ → Bool) (p : ℕ) :
     reg qs X y (p + 1) = Function.update (reg qs X y p) (qs.getD p 0) (y p) := by
   funext j
   by_cases h : qs.getD p 0 = j
-  · subst h
-    simp [reg, lastOcc_succ]
-  · rw [Function.update_of_ne (Ne.symm h)]
-    simp only [reg, lastOcc_succ, h, ↓reduceIte]
+  · simp [← h, reg, lastOcc_succ]
+  · simp only [reg, lastOcc_succ, h, ↓reduceIte, Function.update_of_ne (Ne.symm h)]
 
 /-- Running through occurrences that hold the qubits `l` writes their bits to `l`. -/
 private theorem reg_add (qs : List ℕ) (X y : ℕ → Bool) (l : List ℕ) (b : ℕ)
@@ -467,21 +430,23 @@ private theorem reg_add (qs : List ℕ) (X y : ℕ → Bool) (l : List ℕ) (b :
       simpa [Nat.add_assoc, Nat.add_comm 1 k] using hl (k + 1) (by simp; omega)
     rw [List.length_cons, ← Nat.add_assoc, Nat.add_right_comm, ih', reg_succ, h0,
       List.range_succ_eq_map, List.map_cons, List.map_map, Nat.add_zero, setQubits_cons]
-    congr 2 with k : 1
-    simp only [Function.comp_apply, Nat.succ_eq_add_one]
-    congr 1
-    omega
+    simp [Function.comp_def, Nat.add_assoc, Nat.add_comm 1]
+
+/-- The product of gate entries along a circuit run with occurrence bits `y` and input `X`. -/
+private def gateProd {R : Type*} [Zero R] [One R] [Mul R] (neg : R) (gs : List GateCode)
+    (X y : ℕ → Bool) : R :=
+  ((List.range gs.length).map fun i => gateEntry neg (gs.getD i default)
+    ((qubits (gs.getD i default)).map (reg (occurrences gs) X y (base gs i)))
+    ((List.range (qubits (gs.getD i default)).length).map fun k => y (base gs i + k))).prod
 
 /-- **The gates read the registers of the run.** The product of the gate entries over the global
 occurrence numbering, with the inputs of each gate read from the register entering it, times `Φ`
 of the final register, is the weight of the run. -/
 private theorem prod_gateEntry_mul {R : Type*} [CommMonoidWithZero R] (neg : R)
     (gs : List GateCode) (X y : ℕ → Bool) (Φ : (ℕ → Bool) → R) :
-    ((List.range gs.length).map fun i => gateEntry neg (gs.getD i default)
-        ((qubits (gs.getD i default)).map (reg (occurrences gs) X y (base gs i)))
-        ((List.range (qubits (gs.getD i default)).length).map fun k => y (base gs i + k))).prod *
-      Φ (reg (occurrences gs) X y (occurrences gs).length) =
-    trajWeight neg gs X ((List.range (occurrences gs).length).map y) Φ := by
+    gateProd neg gs X y * Φ (reg (occurrences gs) X y (occurrences gs).length) =
+      trajWeight neg gs X ((List.range (occurrences gs).length).map y) Φ := by
+  unfold gateProd
   set F : ℕ → R := fun i => gateEntry neg (gs.getD i default)
     ((qubits (gs.getD i default)).map (reg (occurrences gs) X y (base gs i)))
     ((List.range (qubits (gs.getD i default)).length).map fun k => y (base gs i + k))
@@ -489,14 +454,10 @@ private theorem prod_gateEntry_mul {R : Type*} [CommMonoidWithZero R] (neg : R)
   suffices h : ∀ n i, i + n = gs.length → ((List.range' i n).map F).prod *
       Φ (reg (occurrences gs) X y (occurrences gs).length) =
         trajWeight neg (gs.drop i) (reg (occurrences gs) X y (base gs i)) (ys.drop (base gs i)) Φ by
-    have := h gs.length 0 (by simp)
-    simpa [List.range_eq_range', base, reg_zero, occurrences_nil] using this
+    simpa [List.range_eq_range', base, reg_zero, occurrences_nil] using h gs.length 0 (zero_add _)
   intro n
   induction n with
-  | zero =>
-    intro i hi
-    subst hi
-    simp [trajWeight, base_length]
+  | zero => intro i hi; subst hi; simp [trajWeight, base_length]
   | succ n ih =>
     intro i hi
     have hil : i < gs.length := by omega
@@ -504,10 +465,10 @@ private theorem prod_gateEntry_mul {R : Type*} [CommMonoidWithZero R] (neg : R)
       List.drop_eq_getElem_cons hil, ← List.getD_eq_getElem _ default hil, trajWeight]
     have hk := base_add_le hil
     have htake : (ys.drop (base gs i)).take (qubits (gs.getD i default)).length =
-        (List.range (qubits (gs.getD i default)).length).map fun k => y (base gs i + k) := by
-      refine List.ext_getElem (by simp only [ys, List.length_take, List.length_drop,
-        List.length_map, List.length_range]; omega) fun k h₁ h₂ => ?_
-      simp [ys]
+        (List.range (qubits (gs.getD i default)).length).map fun k => y (base gs i + k) :=
+      List.ext_getElem (by
+        simp only [ys, List.length_take, List.length_drop, List.length_map, List.length_range]
+        omega) fun k _ _ => by simp [ys]
     rw [htake, List.drop_drop, ← base_succ hil, ← reg_add _ _ _ _ _ fun k hk' =>
       getD_occurrences hil hk', ← base_succ hil]
 
@@ -537,30 +498,25 @@ private theorem entry_gateVertex (neg : R) (X : List Bool) (gs : List GateCode) 
           fun k => Z (c * (occurrences gs).length + (base gs i + k))) := by
   have hps : (gatePorts gs c i).length ≤ 6 := (length_gatePorts_le gs c i).trans (by omega)
   simp only [gateVertex]
-  rw [show (gatePorts gs c i).length = ((gatePorts gs c i).map fun e => Z (e / 2)).length by simp,
-    entry_boundedTable _ (by simpa using hps)]
+  have hplen := (List.length_map (fun e => Z (e / 2)) (as := gatePorts gs c i)).symm
+  rw [hplen, entry_boundedTable _ (by simpa using hps)]
   congr 1
   · refine List.map_congr_left fun j hj => ?_
     simp only [inBit, reg, inPort]
     cases hl : lastOcc (occurrences gs) j (base gs i) with
     | none => rfl
     | some w =>
-      simp only [Option.map_some, BitString.testBit_lsbValue]
       have hmem : 2 * (c * (occurrences gs).length + w) + 1 ∈ gatePorts gs c i :=
         List.mem_append_right _ (List.mem_filterMap.mpr ⟨j, hj, by simp [inPort, hl]⟩)
-      have hlt := List.idxOf_lt_length_of_mem hmem
-      rw [List.getD_eq_getElem _ _ (by simpa using hlt), List.getElem_map,
-        List.getElem_idxOf hlt]
+      simp only [Option.map_some, BitString.testBit_lsbValue, List.getD_eq_getElem?_getD,
+        List.getElem?_map, List.getElem?_idxOf hmem, Option.map_some, Option.getD_some]
       congr 1
       omega
   · refine List.map_congr_left fun k hk => ?_
     have hk' : k < (qubits (gs.getD i default)).length := List.mem_range.mp hk
-    rw [BitString.testBit_lsbValue, List.getD_eq_getElem _ _ (by
-      simp only [List.length_map, gatePorts, List.length_append, List.length_range]; omega),
-      List.getElem_map]
-    simp only [gatePorts]
-    rw [List.getElem_append_left (by simpa using hk')]
-    simp only [List.getElem_map, List.getElem_range]
+    rw [BitString.testBit_lsbValue, List.getD_eq_getElem?_getD, List.getElem?_map, gatePorts,
+      List.getElem?_append_left (by simpa using hk')]
+    simp only [List.getElem?_map, List.getElem?_range hk', Option.map_some, Option.getD_some]
     congr 1
     omega
 
@@ -579,23 +535,17 @@ private theorem entry_glueVertex (S : List ℕ) (gs : List GateCode) (w : ℕ) (
       if (lastOcc (occurrences gs) ((occurrences gs).getD w 0) (occurrences gs).length = some w →
           GlueOK S (Z w) (Z ((occurrences gs).length + w)) ((occurrences gs).getD w 0))
         then (1 : R) else 0 := by
+  have hdiv (m : ℕ) : (2 * m + 1) / 2 = m := by omega
   unfold glueVertex
   by_cases hl : lastOcc (occurrences gs) ((occurrences gs).getD w 0) (occurrences gs).length =
     some w
-  · simp only [hl, ↓reduceIte, List.map_cons, List.map_nil, true_implies,
-      show (2 * w + 1) / 2 = w by omega,
-      show (2 * ((occurrences gs).length + w) + 1) / 2 = (occurrences gs).length + w by omega]
+  · simp only [hl, ↓reduceIte, List.map_cons, List.map_nil, true_implies, hdiv]
     by_cases h0 : (occurrences gs).getD w 0 ∈ S
     · simp only [h0, ↓reduceIte, GlueOK, true_implies]
       cases Z w <;> cases Z ((occurrences gs).length + w) <;> rfl
     · simp only [h0, ↓reduceIte, GlueOK, entry_eqTable, false_implies, and_true]
   · simp only [hl, ↓reduceIte, false_implies]
     rfl
-
-private theorem entry_scalarVertex (S : List ℕ) (X : List Bool) (gs : List GateCode) :
-    entry (scalarVertex S X gs : List ℕ × List R).2
-        ((scalarVertex S X gs : List ℕ × List R).1.map fun _ => false) =
-      if ∀ j ∈ S, j ∈ occurrences gs ∨ X.getD j false = true then 1 else 0 := rfl
 
 end Entries
 
@@ -629,13 +579,10 @@ private instance (S : List ℕ) (X : List Bool) (gs : List GateCode) (r r' : ℕ
   infer_instance
 
 private theorem mem_iff_getD (qs : List ℕ) (j : ℕ) :
-    j ∈ qs ↔ ∃ w < qs.length, qs.getD w 0 = j := by
-  rw [List.mem_iff_getElem]
-  constructor
-  · rintro ⟨w, hw, rfl⟩
-    exact ⟨w, hw, List.getD_eq_getElem _ _ hw⟩
-  · rintro ⟨w, hw, rfl⟩
-    exact ⟨w, hw, (List.getD_eq_getElem _ _ hw).symm⟩
+    j ∈ qs ↔ ∃ w < qs.length, qs.getD w 0 = j :=
+  List.mem_iff_getElem.trans
+    ⟨fun ⟨w, hw, h⟩ => ⟨w, hw, (List.getD_eq_getElem _ _ hw).trans h⟩,
+      fun ⟨w, hw, h⟩ => ⟨w, hw, (List.getD_eq_getElem _ _ hw).symm.trans h⟩⟩
 
 /-- **The glue condition on two final registers** that agree with the input register off the
 touched qubits: the registers are equal and every qubit of `S` is one. -/
@@ -646,36 +593,27 @@ private theorem finalOK_iff (S : List ℕ) (X : List Bool) (gs : List GateCode) 
     FinalOK S X gs (fun j => s.getD j false) (fun j => s'.getD j false) ↔
       s = s' ∧ ∀ j ∈ S, s.getD j false = true := by
   set qs := occurrences gs
-  -- a touched qubit has a last occurrence
   have hlast (j : ℕ) (hj : j ∈ qs) : ∃ w < qs.length, qs.getD w 0 = j ∧
       lastOcc qs (qs.getD w 0) qs.length = some w := by
     cases hl : lastOcc qs j qs.length with
     | none =>
-      obtain ⟨w, hw, hwj⟩ := (mem_iff_getD qs j).mp hj
-      exact absurd hwj (lastOcc_eq_none.mp hl w hw)
-    | some w =>
-      obtain ⟨hw, hwj, -⟩ := lastOcc_eq_some hl
-      exact ⟨w, hw, hwj, hwj ▸ hl⟩
+      exact absurd ((mem_iff_getD qs j).mp hj) fun ⟨w, hw, hwj⟩ =>
+        lastOcc_eq_none.mp hl w hw hwj
+    | some w => obtain ⟨hw, hwj, -⟩ := lastOcc_eq_some hl; exact ⟨w, hw, hwj, hwj ▸ hl⟩
   constructor
   · rintro ⟨hglue, hS⟩
-    have heq (j : ℕ) : s.getD j false = s'.getD j false ∧ (j ∈ S → j ∈ qs →
-        s.getD j false = true) := by
-      by_cases hj : j ∈ qs
-      · obtain ⟨w, hw, rfl, hl⟩ := hlast j hj
-        exact ⟨(hglue w hw hl).1, fun h _ => (hglue w hw hl).2 h⟩
-      · exact ⟨(hu j hj).trans (hu' j hj).symm, fun _ h => absurd h hj⟩
+    have heq (j : ℕ) (hj : j ∈ qs) :
+        s.getD j false = s'.getD j false ∧ (j ∈ S → s.getD j false = true) := by
+      obtain ⟨w, hw, rfl, hl⟩ := hlast j hj
+      exact hglue w hw hl
     refine ⟨List.ext_getElem (hs.trans hs'.symm) fun j h₁ h₂ => ?_, fun j hj => ?_⟩
-    · have := (heq j).1
-      rwa [List.getD_eq_getElem _ _ h₁, List.getD_eq_getElem _ _ h₂] at this
-    · by_cases h : j ∈ qs
-      · exact (heq j).2 hj h
-      · rw [hu j h]
-        exact (hS j hj).resolve_left h
+    · have hget : s.getD j false = s'.getD j false :=
+        if hj : j ∈ qs then (heq j hj).1 else (hu j hj).trans (hu' j hj).symm
+      rwa [List.getD_eq_getElem _ _ h₁, List.getD_eq_getElem _ _ h₂] at hget
+    · exact if h : j ∈ qs then (heq j h).2 hj else (hu j h).symm ▸ (hS j hj).resolve_left h
   · rintro ⟨rfl, hs1⟩
-    refine ⟨fun w _ _ => ⟨rfl, hs1 _⟩, fun j hj => ?_⟩
-    by_cases h : j ∈ qs
-    · exact Or.inl h
-    · exact Or.inr ((hu j h).symm.trans (hs1 j hj))
+    exact ⟨fun w _ _ => ⟨rfl, hs1 _⟩, fun j hj =>
+      if h : j ∈ qs then Or.inl h else Or.inr ((hu j h).symm.trans (hs1 j hj))⟩
 
 /-! ### The contraction -/
 
@@ -690,8 +628,8 @@ private theorem sum_pair {M : Type*} [AddCommMonoid M] (N : ℕ) (G : (ℕ → B
   let e : (Fin N → Bool) × (Fin N → Bool) ≃ (Fin (2 * N) → Bool) :=
     (Fin.appendEquiv N N).trans (Equiv.arrowCongr (finCongr (two_mul N).symm) (Equiv.refl _))
   rw [← e.sum_comp, Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => congrArg G ?_
-  funext i
+  refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ =>
+    congrArg G (funext fun i => ?_)
   simp only [e, Equiv.trans_apply, Fin.appendEquiv_apply, Equiv.arrowCongr_apply,
     Equiv.refl_apply, Function.comp_apply, finCongr_symm, finCongr_apply, pairFun]
   by_cases h1 : i < N
@@ -699,37 +637,74 @@ private theorem sum_pair {M : Type*} [AddCommMonoid M] (N : ℕ) (G : (ℕ → B
     exact Fin.append_left a b ⟨i, h1⟩
   · by_cases h2 : i < 2 * N
     · simp only [h2, dite_true, h1, dite_false]
-      have := Fin.append_right a b ⟨i - N, by omega⟩
-      convert this using 2
-      ext
-      simp only [Fin.cast_mk, Fin.natAdd_eq_addNat, Fin.addNat_mk]
-      omega
+      exact (congrArg (Fin.append a b)
+        (Fin.ext (by simp only [Fin.val_cast, Fin.val_natAdd]; omega))).trans
+        (Fin.append_right a b ⟨i - N, by omega⟩)
     · simp only [h2, dite_false, h1]
 
 private theorem map_pairFun_left {N : ℕ} (a b : Fin N → Bool) :
-    (List.range N).map (fun u => pairFun a b (0 * N + u)) = List.ofFn a := by
-  refine List.ext_getElem (by simp) fun u h₁ h₂ => ?_
-  simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, Nat.zero_mul,
-    Nat.zero_add, pairFun]
-  simp only [List.length_map, List.length_range] at h₁
-  simp [h₁]
+    (List.range N).map (fun u => pairFun a b (0 * N + u)) = List.ofFn a :=
+  List.ext_getElem (by simp) fun u h₁ _ => by
+    simp [pairFun, show u < N by simpa using h₁]
 
 private theorem map_pairFun_right {N : ℕ} (a b : Fin N → Bool) :
-    (List.range N).map (fun u => pairFun a b (1 * N + u)) = List.ofFn b := by
-  refine List.ext_getElem (by simp) fun u h₁ h₂ => ?_
-  simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, Nat.one_mul, pairFun]
-  simp only [List.length_map, List.length_range] at h₁
-  simp [show N + u < 2 * N by omega]
+    (List.range N).map (fun u => pairFun a b (1 * N + u)) = List.ofFn b :=
+  List.ext_getElem (by simp) fun u h₁ _ => by
+    have hu : u < N := by simpa using h₁
+    simp [pairFun, show N + u < 2 * N by omega]
 
 /-- A well-formed gate code has at most three qubits. -/
 theorem length_qubits_le_three {m : ℕ} {g : GateCode} (h : g.WellFormed m) :
     (qubits g).length ≤ 3 := by
   obtain ⟨_ | _, t, cs⟩ := g
-  · simp only [qubits, List.length_cons]
-    have := h.1
-    omega
-  · simp only [qubits, h.2, List.length_cons, List.length_nil]
-    omega
+  · simpa [qubits] using Nat.succ_le_succ h.1
+  · simp [qubits, h.2]
+
+/-- The product of the row vertex entries of `network` when edge `e` carries `Z (e / 2)`. -/
+private theorem prod_rowVertices_network {R : Type*} [CommRing R] (S : List ℕ) (X : List Bool)
+    (gs : List GateCode) (hgs : ∀ g ∈ gs, (qubits g).length ≤ 3) (Z : ℕ → Bool) :
+    (((List.range gs.length).map (gateVertex (-1 : R) X gs 0) ++
+        (List.range gs.length).map (gateVertex (-1 : R) X gs 1) ++
+        (List.range (occurrences gs).length).map (glueVertex S gs) ++
+        [scalarVertex S X gs]).map
+      fun v : List ℕ × List R => entry v.2 (v.1.map fun e => Z (e / 2))).prod =
+      gateProd (-1) gs (fun j => X.getD j false) (fun u => Z (0 * (occurrences gs).length + u)) *
+        (gateProd (-1) gs (fun j => X.getD j false)
+          (fun u => Z (1 * (occurrences gs).length + u)) *
+        if FinalOK S X gs
+          (reg (occurrences gs) (fun j => X.getD j false)
+            (fun u => Z (0 * (occurrences gs).length + u)) (occurrences gs).length)
+          (reg (occurrences gs) (fun j => X.getD j false)
+            (fun u => Z (1 * (occurrences gs).length + u)) (occurrences gs).length)
+          then 1 else 0) := by
+  set qs := occurrences gs with hqs
+  set N := qs.length with hN
+  set Xf : ℕ → Bool := fun j => X.getD j false
+  have hP (c : ℕ) : ((List.range gs.length).map (gateVertex (-1 : R) X gs c)).map
+      (fun v => entry v.2 (v.1.map fun e => Z (e / 2))) =
+        (List.range gs.length).map fun i => gateEntry (-1 : R) (gs.getD i default)
+          ((qubits (gs.getD i default)).map (reg qs Xf (fun u => Z (c * N + u)) (base gs i)))
+          ((List.range (qubits (gs.getD i default)).length).map
+            fun k => Z (c * N + (base gs i + k))) := by
+    rw [List.map_map]
+    exact List.map_congr_left fun i hi =>
+      entry_gateVertex _ X gs c i (hgs _ (List.getD_mem default (List.mem_range.mp hi))) Z
+  have hG : ((List.range N).map (glueVertex S gs)).map
+      (fun v => entry (v : List ℕ × List R).2 (v.1.map fun e => Z (e / 2))) =
+        (List.range N).map fun w => if (lastOcc qs (qs.getD w 0) N = some w →
+          GlueOK S (reg qs Xf (fun u => Z (0 * N + u)) N (qs.getD w 0))
+            (reg qs Xf (fun u => Z (1 * N + u)) N (qs.getD w 0)) (qs.getD w 0)) then 1 else 0 := by
+    rw [List.map_map]
+    refine List.map_congr_left fun w _ => ?_
+    rw [Function.comp_apply, entry_glueVertex, ← hqs, ← hN]
+    by_cases hl : lastOcc qs (qs.getD w 0) N = some w <;>
+      simp only [reg, hl, Nat.zero_mul, Nat.zero_add, Nat.one_mul, false_implies]
+  simp only [List.map_append, List.prod_append, hP, hG, List.prod_map_boole, List.map_cons,
+    List.map_nil, List.prod_cons, List.prod_nil, mul_one]
+  rw [show entry (scalarVertex S X gs : List ℕ × List R).2 ((scalarVertex S X gs).1.map
+    fun e => Z (e / 2)) = if ∀ j ∈ S, j ∈ qs ∨ X.getD j false = true then 1 else 0 from rfl]
+  simp only [gateProd, FinalOK, ← hqs, ← hN, ite_and, List.mem_range]
+  split_ifs <;> ring
 
 /-- **The contraction of the network is the projected gap.** With `-1` as the Hadamard sign, over
 any commutative ring, the contraction of the network of well-formed gate codes with the measured
@@ -738,97 +713,42 @@ qubits `S` on the input register `X` is `onesGap S gs X`; for `S = [0]` it is th
 theorem contraction_network {R : Type*} [CommRing R] (S : List ℕ) (X : List Bool)
     (gs : List GateCode) (hgs : ∀ g ∈ gs, g.WellFormed X.length) :
     (network (-1 : R) S X gs).2.contraction = (onesGap S gs X : R) := by
-  set qs := occurrences gs with hqs
-  set N := qs.length with hN
-  set Xf : ℕ → Bool := fun j => X.getD j false
-  -- every gate has at most three qubits
-  have hq3 (i : ℕ) (hi : i < gs.length) : (qubits (gs.getD i default)).length ≤ 3 :=
-    length_qubits_le_three (hgs _ (List.getD_eq_getElem _ default hi ▸ List.getElem_mem hi))
-  -- the products of the gate vertices of a copy
-  let P : (ℕ → Bool) → R := fun y => ((List.range gs.length).map fun i =>
-    gateEntry (-1 : R) (gs.getD i default)
-      ((qubits (gs.getD i default)).map (reg qs Xf y (base gs i)))
-      ((List.range (qubits (gs.getD i default)).length).map fun k => y (base gs i + k))).prod
-  have hP (c : ℕ) (Z : ℕ → Bool) : ((List.range gs.length).map (gateVertex (-1 : R) X gs c)).map
-      (fun v => entry v.2 (v.1.map fun e => Z (e / 2))) =
-        (List.range gs.length).map fun i => gateEntry (-1 : R) (gs.getD i default)
-          ((qubits (gs.getD i default)).map (reg qs Xf (fun u => Z (c * N + u)) (base gs i)))
-          ((List.range (qubits (gs.getD i default)).length).map
-            fun k => (fun u => Z (c * N + u)) (base gs i + k)) := by
-    rw [List.map_map]
-    exact List.map_congr_left fun i hi =>
-      entry_gateVertex _ X gs c i (hq3 i (List.mem_range.mp hi)) Z
-  -- the glue and scalar vertices
-  have hG (Z : ℕ → Bool) : ((List.range N).map (glueVertex S gs)).map
-      (fun v => entry (v : List ℕ × List R).2 (v.1.map fun e => Z (e / 2))) =
-        (List.range N).map fun w => if (lastOcc qs (qs.getD w 0) N = some w →
-          GlueOK S (reg qs Xf (fun u => Z (0 * N + u)) N (qs.getD w 0))
-            (reg qs Xf (fun u => Z (1 * N + u)) N (qs.getD w 0)) (qs.getD w 0)) then 1 else 0 := by
-    rw [List.map_map]
-    refine List.map_congr_left fun w _ => ?_
-    rw [Function.comp_apply, entry_glueVertex, ← hqs, ← hN]
-    by_cases hl : lastOcc qs (qs.getD w 0) N = some w
-    · simp only [reg, hl, Nat.zero_mul, Nat.zero_add, Nat.one_mul]
-    · simp only [hl, false_implies]
-  have hrows (Z : ℕ → Bool) :
-      (((List.range gs.length).map (gateVertex (-1 : R) X gs 0) ++
-          (List.range gs.length).map (gateVertex (-1 : R) X gs 1) ++
-          (List.range N).map (glueVertex S gs) ++ [scalarVertex S X gs]).map
-        fun v : List ℕ × List R => entry v.2 (v.1.map fun e => Z (e / 2))).prod =
-      P (fun u => Z (0 * N + u)) * (P (fun u => Z (1 * N + u)) *
-        if FinalOK S X gs (reg qs Xf (fun u => Z (0 * N + u)) N)
-          (reg qs Xf (fun u => Z (1 * N + u)) N) then 1 else 0) := by
-    simp only [List.map_append, List.prod_append, hP, hG, List.prod_map_boole, List.map_cons,
-      List.map_nil, List.prod_cons, List.prod_nil, mul_one]
-    rw [show entry (scalarVertex S X gs : List ℕ × List R).2 ((scalarVertex S X gs).1.map
-      fun e => Z (e / 2)) = if ∀ j ∈ S, j ∈ qs ∨ X.getD j false = true then 1 else 0 from rfl]
-    simp only [P, FinalOK, ← hqs, ← hN, ite_and, List.mem_range]
-    split_ifs <;> ring
-  -- the pair reduction and the two halves
-  change contraction (⟨2 * (2 * N), _ ++ (List.range (2 * N)).map fun w =>
-    ([2 * w, 2 * w + 1], eqTable)⟩ : ExplicitTensorNetwork R) = _
+  change contraction (⟨2 * (2 * (occurrences gs).length),
+    _ ++ (List.range (2 * (occurrences gs).length)).map fun w =>
+      ([2 * w, 2 * w + 1], eqTable)⟩ : ExplicitTensorNetwork R) = _
   rw [contraction_append_pairs]
-  refine (sum_pair N fun Z => (((List.range gs.length).map (gateVertex (-1 : R) X gs 0) ++
+  refine (sum_pair (occurrences gs).length fun Z => (((List.range gs.length).map
+      (gateVertex (-1 : R) X gs 0) ++
       (List.range gs.length).map (gateVertex (-1 : R) X gs 1) ++
-      (List.range N).map (glueVertex S gs) ++ [scalarVertex S X gs]).map
+      (List.range (occurrences gs).length).map (glueVertex S gs) ++
+      [scalarVertex S X gs]).map
     fun v : List ℕ × List R => entry v.2 (v.1.map fun e => Z (e / 2))).prod).trans ?_
-  simp only [hrows]
-  -- each copy is a run along the occurrences
-  have hB (y : ℕ → Bool) (Φ : (ℕ → Bool) → R) :
-      P y * Φ (reg qs Xf y N) = trajWeight (-1) gs Xf ((List.range N).map y) Φ :=
-    prod_gateEntry_mul (-1 : R) gs Xf y Φ
+  simp only [prod_rowVertices_network S X gs (fun g hg => length_qubits_le_three (hgs g hg))]
+  set N := (occurrences gs).length
+  set Xf : ℕ → Bool := fun j => X.getD j false
   have hstep (a b : Fin N → Bool) :
-      P (fun u => pairFun a b (0 * N + u)) * (P (fun u => pairFun a b (1 * N + u)) *
-        if FinalOK S X gs (reg qs Xf (fun u => pairFun a b (0 * N + u)) N)
-          (reg qs Xf (fun u => pairFun a b (1 * N + u)) N) then 1 else 0) =
+      gateProd (-1 : R) gs Xf (fun u => pairFun a b (0 * N + u)) *
+        (gateProd (-1 : R) gs Xf (fun u => pairFun a b (1 * N + u)) *
+          if FinalOK S X gs (reg (occurrences gs) Xf (fun u => pairFun a b (0 * N + u)) N)
+            (reg (occurrences gs) Xf (fun u => pairFun a b (1 * N + u)) N) then 1 else 0) =
       trajWeight (-1) gs Xf (List.ofFn a) fun r0 =>
         trajWeight (-1) gs Xf (List.ofFn b) fun r1 => if FinalOK S X gs r0 r1 then 1 else 0 := by
-    have h1 := hB (fun u => pairFun a b (1 * N + u)) fun r1 =>
-      if FinalOK S X gs (reg qs Xf (fun u => pairFun a b (0 * N + u)) N) r1 then (1 : R) else 0
-    have h0 := hB (fun u => pairFun a b (0 * N + u)) fun r0 =>
+    rw [prod_gateEntry_mul (-1 : R) gs Xf (fun u => pairFun a b (1 * N + u)) fun r1 =>
+      if FinalOK S X gs (reg (occurrences gs) Xf (fun u => pairFun a b (0 * N + u)) N) r1
+        then (1 : R) else 0,
+      map_pairFun_right, ← map_pairFun_left a b]
+    exact prod_gateEntry_mul (-1 : R) gs Xf (fun u => pairFun a b (0 * N + u)) fun r0 =>
       trajWeight (-1) gs Xf (List.ofFn b) fun r1 => if FinalOK S X gs r0 r1 then (1 : R) else 0
-    simp only [map_pairFun_left, map_pairFun_right] at h0 h1
-    rw [h1]
-    exact h0
-  -- the path sums
   have hC (Φ : (ℕ → Bool) → R) : ∑ b : Fin N → Bool, trajWeight (-1) gs Xf (List.ofFn b) Φ =
       ∑ π : Fin (hadamardCount gs) → Bool, sgn (gs.foldl pathStep (X, List.ofFn π, false)).2.2 *
         Φ (fun j => (gs.foldl pathStep (X, List.ofFn π, false)).1.getD j false) := by
-    have := sgn_mul_sum_trajWeight gs X hgs false Φ
-    rwa [sgn, ite_eq_right Bool.false_ne_true, one_mul] at this
-  have hinner (a : Fin N → Bool) : ∑ b : Fin N → Bool, (trajWeight (-1) gs Xf (List.ofFn a)
-      fun r0 => trajWeight (-1) gs Xf (List.ofFn b) fun r1 =>
-        if FinalOK S X gs r0 r1 then (1 : R) else 0) =
-      trajWeight (-1) gs Xf (List.ofFn a) fun r0 =>
-        ∑ π' : Fin (hadamardCount gs) → Bool, sgn (gs.foldl pathStep (X, List.ofFn π', false)).2.2 *
-          if FinalOK S X gs r0
-            (fun j => (gs.foldl pathStep (X, List.ofFn π', false)).1.getD j false)
-            then 1 else 0 := by
-    rw [← trajWeight_sum]
-    congr 1 with r0 : 1
-    exact hC _
-  simp only [hstep, hinner]
-  rw [hC, onesGap, Int.cast_sum]
+    simpa only [sgn, ite_eq_right Bool.false_ne_true, one_mul] using
+      sgn_mul_sum_trajWeight gs X hgs false Φ
+  simp only [hstep]
+  rw [Finset.sum_congr rfl fun a _ =>
+      (trajWeight_sum (-1) Finset.univ gs Xf (List.ofFn a) _).symm.trans
+        (congrArg (trajWeight (-1) gs Xf (List.ofFn a)) (funext fun r0 => hC _)),
+    hC, onesGap, Int.cast_sum]
   refine Finset.sum_congr rfl fun π _ => ?_
   rw [Int.cast_sum, Finset.mul_sum]
   refine Finset.sum_congr rfl fun π' _ => ?_
@@ -837,17 +757,11 @@ theorem contraction_network {R : Type*} [CommRing R] (S : List ℕ) (X : List Bo
   have hok := finalOK_iff S X gs (s := f.1) (s' := f'.1) (length_foldl_pathStep _ _ _ _)
     (length_foldl_pathStep _ _ _ _) (fun j hj => getD_foldl_pathStep_of_not_mem gs hj _ _ _)
     (fun j hj => getD_foldl_pathStep_of_not_mem gs hj _ _ _)
-  have hterm : onesTerm S gs X (List.ofFn π) (List.ofFn π') =
-      if f.1 = f'.1 ∧ ∀ j ∈ S, f.1.getD j false = true then
-        (if f.2.2 ^^ f'.2.2 then -1 else 1) else 0 := by
-    simp only [onesTerm, pathRun, List.all_eq_true]
-    rfl
-  rw [hterm]
+  simp only [hok, onesTerm, pathRun, List.all_eq_true]
   by_cases hc : f.1 = f'.1 ∧ ∀ j ∈ S, f.1.getD j false = true
-  · rw [ite_eq_left (hok.mpr hc), ite_eq_left hc]
-    cases f.2.2 <;> cases f'.2.2 <;> simp [sgn]
-  · rw [ite_eq_right (mt hok.mp hc), ite_eq_right hc]
-    simp
+  · rw [ite_eq_left hc, ite_eq_left hc, mul_one, ← sgn_xor]
+    simp [sgn, f, f']
+  · rw [ite_eq_right hc, ite_eq_right hc, mul_zero, mul_zero, Int.cast_zero]
 
 /-! ### Residues of the contraction over `ℕ` -/
 
@@ -879,19 +793,15 @@ theorem contraction_network_mod (S : List ℕ) (X : List Bool) (gs : List GateCo
     (hgs : ∀ g ∈ gs, g.WellFormed X.length) {P : ℕ} (hP : hadamardCount gs < P) :
     (network (2 ^ P - 1 : ℕ) S X gs).2.contraction % 2 ^ P = (onesGap S gs X).toNat := by
   obtain ⟨h0, h1⟩ := onesGap_nonneg_and_le S gs hgs
-  have hlt : (onesGap S gs X).toNat < 2 ^ P := by
-    have : (onesGap S gs X).toNat ≤ 2 ^ hadamardCount gs :=
-      Int.toNat_le.mpr (by exact_mod_cast h1)
-    exact this.trans_lt (Nat.pow_lt_pow_right (by norm_num) hP)
+  have hlt : (onesGap S gs X).toNat < 2 ^ P :=
+    (Int.toNat_le.mpr (by exact_mod_cast h1)).trans_lt (Nat.pow_lt_pow_right (by norm_num) hP)
   have hcast : ((network (2 ^ P - 1 : ℕ) S X gs).2.contraction : ZMod (2 ^ P)) =
       ((onesGap S gs X).toNat : ZMod (2 ^ P)) := by
-    have hneg : ((2 ^ P - 1 : ℕ) : ZMod (2 ^ P)) = -1 := by
-      rw [Nat.cast_sub Nat.one_le_two_pow, ZMod.natCast_self, Nat.cast_one, zero_sub]
     rw [← Nat.coe_castRingHom, ExplicitTensorNetwork.map_contraction, network_mapTables,
-      Nat.coe_castRingHom, hneg, contraction_network S X gs hgs, ← Int.toNat_of_nonneg h0]
+      Nat.coe_castRingHom, ZMod.natCast_self_sub_one (2 ^ P), contraction_network S X gs hgs,
+      ← Int.toNat_of_nonneg h0]
     simp
-  rw [ZMod.natCast_eq_natCast_iff'] at hcast
-  rw [hcast, Nat.mod_eq_of_lt hlt]
+  rw [(ZMod.natCast_eq_natCast_iff' ..).1 hcast, Nat.mod_eq_of_lt hlt]
 
 /-! ### Sizes -/
 
@@ -901,8 +811,7 @@ theorem length_le_length_occurrences (gs : List GateCode) :
   induction gs with
   | nil => simp [occurrences]
   | cons g gs ih =>
-    rw [occurrences_cons, List.length_append, List.length_cons]
-    simp only [qubits, List.length_cons]
+    simp only [occurrences_cons, qubits, List.length_append, List.length_cons]
     omega
 
 theorem length_occurrences_le {m : ℕ} {gs : List GateCode} (hgs : ∀ g ∈ gs, g.WellFormed m) :
@@ -910,10 +819,9 @@ theorem length_occurrences_le {m : ℕ} {gs : List GateCode} (hgs : ∀ g ∈ gs
   induction gs with
   | nil => simp [occurrences]
   | cons g gs ih =>
-    rw [occurrences_cons, List.length_append, List.length_cons]
-    have h1 := length_qubits_le_three (hgs g List.mem_cons_self)
-    have h2 := ih fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg')
-    omega
+    rw [occurrences_cons, List.length_append, List.length_cons, Nat.mul_succ, Nat.add_comm _ 3]
+    exact add_le_add (length_qubits_le_three (hgs g List.mem_cons_self))
+      (ih fun _ hg => hgs _ (List.mem_cons_of_mem _ hg))
 
 variable {R : Type*} [Zero R] [One R]
 
@@ -946,15 +854,14 @@ theorem maxDegree_network_le (neg : R) (S : List ℕ) (X : List Bool) {gs : List
   refine (ExplicitTensorNetwork.maxDegree_le_iff _).mpr fun v hv => ?_
   simp only [vertices_network, List.mem_append, List.mem_map, List.mem_range,
     List.mem_singleton] at hv
+  have hgate (c i : ℕ) (hi : i < gs.length) : (gateVertex neg X gs c i).1.length ≤ 6 :=
+    (length_gatePorts_le gs c i).trans (by have := hgs _ (List.getD_mem default hi); omega)
   rcases hv with (((⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩) | ⟨w, -, rfl⟩) | rfl) | ⟨w, -, rfl⟩
-  · have := hgs _ (List.getD_eq_getElem _ default hi ▸ List.getElem_mem hi)
-    exact (length_gatePorts_le gs 0 i).trans (by omega)
-  · have := hgs _ (List.getD_eq_getElem _ default hi ▸ List.getElem_mem hi)
-    exact (length_gatePorts_le gs 1 i).trans (by omega)
+  · exact hgate 0 i hi
+  · exact hgate 1 i hi
   · unfold glueVertex
     split_ifs <;> simp
-  · simp [scalarVertex]
-  · simp
+  all_goals simp [scalarVertex]
 
 /-- **Full tables**: every table lists `2 ^ (number of ports)` entries. -/
 theorem length_table_network (neg : R) (S : List ℕ) (X : List Bool) {gs : List GateCode}
@@ -965,17 +872,14 @@ theorem length_table_network (neg : R) (S : List ℕ) (X : List Bool) {gs : List
     List.mem_singleton] at hv
   have hgate (c i : ℕ) (hi : i < gs.length) :
       (gateVertex neg X gs c i).2.length = 2 ^ (gateVertex neg X gs c i).1.length := by
-    have := hgs _ (List.getD_eq_getElem _ default hi ▸ List.getElem_mem hi)
-    simp only [gateVertex]
-    rw [boundedTable_eq _ ((length_gatePorts_le gs c i).trans (by omega)), List.length_map,
-      List.length_range]
+    simp [gateVertex, boundedTable_eq _ ((length_gatePorts_le gs c i).trans
+      (Nat.mul_le_mul_left 2 (hgs _ (List.getD_mem default hi))))]
   rcases hv with (((⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩) | ⟨w, -, rfl⟩) | rfl) | ⟨w, -, rfl⟩
   · exact hgate 0 i hi
   · exact hgate 1 i hi
   · unfold glueVertex
     split_ifs <;> rfl
-  · rfl
-  · rfl
+  all_goals rfl
 
 /-! ### The bipartition -/
 
@@ -1001,44 +905,26 @@ theorem base_mono (gs : List GateCode) {i i' : ℕ} (h : i ≤ i') : base gs i �
 theorem exists_base_le_lt {gs : List GateCode} {p : ℕ} (hp : p < (occurrences gs).length) :
     ∃ i < gs.length, base gs i ≤ p ∧ p < base gs (i + 1) := by
   classical
-  have hex : ∃ i, p < base gs (i + 1) ∧ i < gs.length := by
-    refine ⟨gs.length - 1, ?_, ?_⟩
-    · rcases Nat.eq_zero_or_pos gs.length with h | h
-      · simp [List.length_eq_zero_iff.mp h, occurrences] at hp
-      · rw [Nat.sub_add_cancel h, base_length]
-        exact hp
-    · rcases Nat.eq_zero_or_pos gs.length with h | h
-      · simp [List.length_eq_zero_iff.mp h, occurrences] at hp
-      · omega
+  have hpos : 0 < gs.length := List.length_pos_iff.2 (by rintro rfl; simp [occurrences] at hp)
+  have hex : ∃ i, p < base gs (i + 1) ∧ i < gs.length :=
+    ⟨gs.length - 1, by rwa [Nat.sub_add_cancel hpos, base_length], by omega⟩
   refine ⟨Nat.find hex, (Nat.find_spec hex).2, ?_, (Nat.find_spec hex).1⟩
-  rcases Nat.eq_zero_or_pos (Nat.find hex) with h | h
-  · rw [h]
-    simp [base, occurrences]
-  · have hmin := Nat.find_min hex (show Nat.find hex - 1 < Nat.find hex by omega)
-    rw [Nat.sub_add_cancel h] at hmin
-    have : Nat.find hex - 1 < gs.length := by have := (Nat.find_spec hex).2; omega
-    simp only [this, and_true, not_lt] at hmin
-    exact hmin
+  rcases h : Nat.find hex with _ | i
+  · exact Nat.zero_le p
+  · exact not_lt.mp fun hp' =>
+      Nat.find_min hex (h ▸ Nat.lt_succ_self i) ⟨hp', by have := (Nat.find_spec hex).2; omega⟩
 
 theorem eq_of_base_le_lt {gs : List GateCode} {p i i' : ℕ} (h1 : base gs i ≤ p)
     (h2 : p < base gs (i + 1)) (h1' : base gs i' ≤ p) (h2' : p < base gs (i' + 1)) : i = i' := by
-  rcases lt_trichotomy i i' with h | h | h
-  · have := base_mono gs (show i + 1 ≤ i' by omega)
-    omega
-  · exact h
-  · have := base_mono gs (show i' + 1 ≤ i by omega)
-    omega
+  by_contra! h
+  obtain h | h := h.lt_or_gt <;> have := base_mono gs (show _ + 1 ≤ _ from h) <;> omega
 
 /-- Gate `i` holds the qubit `q` exactly when one of its occurrences does. -/
 theorem mem_qubits_iff {gs : List GateCode} {i : ℕ} (hi : i < gs.length) (q : ℕ) :
     q ∈ qubits (gs.getD i default) ↔
       ∃ k < (qubits (gs.getD i default)).length, (occurrences gs).getD (base gs i + k) 0 = q := by
-  rw [List.mem_iff_getElem]
-  constructor
-  · rintro ⟨k, hk, rfl⟩
-    exact ⟨k, hk, (getD_occurrences hi hk).trans (List.getD_eq_getElem _ _ hk)⟩
-  · rintro ⟨k, hk, hq⟩
-    exact ⟨k, hk, ((List.getD_eq_getElem _ _ hk).symm.trans (getD_occurrences hi hk).symm).trans hq⟩
+  rw [mem_iff_getD]
+  exact exists_congr fun k => and_congr_right fun hk => by rw [getD_occurrences hi hk]
 
 /-- **The reader of a link edge.** Let `u` be an occurrence of the qubit `q`. If `u` is the last
 occurrence of `q`, no gate reads `q` from `u`; otherwise exactly one gate does, the gate of the
@@ -1054,43 +940,24 @@ theorem sum_readers {gs : List GateCode} (hnd : ∀ g ∈ gs, (qubits g).Nodup) 
   classical
   set qs := occurrences gs with hqs
   set q := qs.getD u 0
-  have hgate (i : ℕ) (hi : i < gs.length) :
-      (qubits (gs.getD i default)).Nodup :=
-    hnd _ (List.getD_eq_getElem _ default hi ▸ List.getElem_mem hi)
   by_cases hlast : lastOcc qs q qs.length = some u
-  · -- the last occurrence: no gate reads it
-    rw [ite_eq_left hlast]
-    suffices h : ∀ i ∈ List.range gs.length, ¬ (q ∈ qubits (gs.getD i default) ∧
-        lastOcc qs q (base gs i) = some u) by
-      rw [List.map_congr_left fun i hi => ite_eq_right (h i hi)]
-      simp
-    rintro i hi ⟨hq, hl⟩
+  · rw [ite_eq_left hlast, List.map_congr_left fun i hi => ite_eq_right ?_]
+    · simp
+    rintro ⟨hq, hl⟩
     have hi' := List.mem_range.mp hi
     obtain ⟨k, hk, hkq⟩ := (mem_qubits_iff hi' q).mp hq
     have h1 := (lastOcc_eq_some hl).1
-    have h2 := base_add_le hi'
-    rw [← hqs] at h2
+    have h2 := base_add_le hi'; rw [← hqs] at h2
     exact (lastOcc_eq_some hlast).2.2 (base gs i + k) (by omega) (by omega) hkq
   · rw [ite_eq_right hlast, Nat.add_zero]
-    -- the next occurrence of `q` after `u`
-    obtain ⟨w', hw'⟩ : ∃ w', lastOcc qs q qs.length = some w' := by
-      cases h : lastOcc qs q qs.length with
-      | none => exact absurd rfl (lastOcc_eq_none.mp h u hu)
-      | some w' => exact ⟨w', rfl⟩
-    obtain ⟨hw'N, hw'q, hw'next⟩ := lastOcc_eq_some hw'
-    have huw' : u < w' := by
-      rcases lt_trichotomy u w' with h | rfl | h
-      · exact h
-      · exact absurd hw' hlast
-      · exact absurd rfl (hw'next u h hu)
-    have hex : ∃ p, u < p ∧ p < qs.length ∧ qs.getD p 0 = q := ⟨w', huw', hw'N, hw'q⟩
+    have hex : ∃ p, u < p ∧ p < qs.length ∧ qs.getD p 0 = q := by
+      by_contra! h; exact hlast (lastOcc_eq_some_of hu rfl h)
     set p₀ := Nat.find hex
     obtain ⟨hup, hpN, hpq⟩ := Nat.find_spec hex
     have hmin : ∀ p, u < p → p < p₀ → qs.getD p 0 ≠ q := fun p h1 h2 h3 =>
       Nat.find_min hex h2 ⟨h1, by omega, h3⟩
     obtain ⟨i₀, hi₀, hb₀, hb₀'⟩ := exists_base_le_lt hpN
     rw [base_succ hi₀] at hb₀'
-    -- gate `i₀` reads `q` from `u`, and no other gate does
     have hiff : ∀ i < gs.length, (q ∈ qubits (gs.getD i default) ∧
         lastOcc qs q (base gs i) = some u) ↔ i = i₀ := by
       intro i hi
@@ -1098,34 +965,26 @@ theorem sum_readers {gs : List GateCode} (hnd : ∀ g ∈ gs, (qubits g).Nodup) 
       · rintro ⟨hq, hl⟩
         obtain ⟨k, hk, hkq⟩ := (mem_qubits_iff hi q).mp hq
         obtain ⟨hub, -, hnext⟩ := lastOcc_eq_some hl
-        have hp₀ : p₀ ≤ base gs i + k := Nat.find_min' hex ⟨by omega, by
-          have := base_add_le hi; rw [← hqs] at this; omega, hkq⟩
-        have hbi := base_succ hi
-        rcases lt_trichotomy i i₀ with h | h | h
-        · have := base_mono gs (show i + 1 ≤ i₀ by omega)
-          omega
-        · exact h
-        · have := base_mono gs (show i₀ + 1 ≤ i by omega)
-          rw [base_succ hi₀] at this
-          exact absurd hpq (hnext p₀ hup (by omega))
+        have hp₀ : p₀ ≤ base gs i + k := Nat.find_min' hex ⟨by omega,
+          (Nat.add_lt_add_left hk _).trans_le (base_add_le hi), hkq⟩
+        exact eq_of_base_le_lt (not_lt.mp fun h => hnext p₀ hup h hpq)
+          (hp₀.trans_lt ((Nat.add_lt_add_left hk _).trans_eq (base_succ hi).symm)) hb₀
+          (base_succ hi₀ ▸ hb₀')
       · intro h
         rw [h]
         have hk : p₀ - base gs i₀ < (qubits (gs.getD i₀ default)).length := by omega
         refine ⟨(mem_qubits_iff hi₀ q).mpr ⟨p₀ - base gs i₀, hk, by
-          rw [Nat.add_sub_cancel' hb₀]; exact hpq⟩, lastOcc_eq_some_of ?_ rfl ?_⟩
-        · -- `u` lies before gate `i₀`, whose qubits are distinct
-          by_contra hub
-          replace hub := Nat.le_of_not_lt hub
-          have hku : u - base gs i₀ < (qubits (gs.getD i₀ default)).length := by omega
-          have e1 := getD_occurrences hi₀ hku
-          have e2 := getD_occurrences hi₀ hk
-          rw [Nat.add_sub_cancel' hub] at e1
-          rw [Nat.add_sub_cancel' hb₀, hpq] at e2
-          rw [List.getD_eq_getElem _ _ hku] at e1
-          rw [List.getD_eq_getElem _ _ hk] at e2
-          have := (List.Nodup.getElem_inj_iff (hgate i₀ hi₀)).mp (e1.symm.trans e2)
-          omega
-        · exact fun w h1 h2 => hmin w h1 (by omega)
+          rw [Nat.add_sub_cancel' hb₀]; exact hpq⟩, lastOcc_eq_some_of ?_ rfl fun w h1 h2 =>
+          hmin w h1 (by omega)⟩
+        by_contra hub
+        have hku : u - base gs i₀ < (qubits (gs.getD i₀ default)).length := by omega
+        have e1 := getD_occurrences hi₀ hku
+        have e2 := getD_occurrences hi₀ hk
+        rw [Nat.add_sub_cancel' (by omega), List.getD_eq_getElem _ _ hku] at e1
+        rw [Nat.add_sub_cancel' hb₀, hpq, List.getD_eq_getElem _ _ hk] at e2
+        have := (List.Nodup.getElem_inj_iff (hnd _ (List.getD_mem default hi₀))).mp
+          (e1.symm.trans e2)
+        omega
     rw [List.map_congr_left fun i hi => if_congr (hiff i (List.mem_range.mp hi)) rfl rfl,
       List.sum_map_range_ite_eq, ite_eq_left hi₀]
 
@@ -1238,34 +1097,25 @@ theorem isRowsFirstBipartite_network (neg : R) (S : List ℕ) (X : List Bool) {g
     (hnd : ∀ g ∈ gs, (qubits g).Nodup) :
     (network neg S X gs).2.IsRowsFirstBipartite (network neg S X gs).1 := by
   have hnd' (i : ℕ) (hi : i ∈ List.range gs.length) : (qubits (gs.getD i default)).Nodup :=
-    hnd _ (List.getD_eq_getElem _ default (List.mem_range.mp hi) ▸
-      List.getElem_mem (List.mem_range.mp hi))
+    hnd _ (List.getD_mem default (List.mem_range.mp hi))
+  have hgate_lt {c i p : ℕ} (hc : c < 2) (hi : i < gs.length) (hp : p ∈ gatePorts gs c i) :
+      p < 2 * (2 * (occurrences gs).length) := by
+    rcases mem_gatePorts.mp hp with ⟨k, hk, rfl⟩ | ⟨j, -, w, hw, rfl⟩
+    · have := base_add_le hi; interval_cases c <;> omega
+    · have := (lastOcc_eq_some hw).1; have := base_le gs i; interval_cases c <;> omega
   refine ⟨?_, fun e he => ⟨?_, ?_⟩⟩
-  · -- every port names an edge
-    intro v hv p hp
+  · intro v hv p hp
     simp only [vertices_network, List.mem_append, List.mem_map, List.mem_range,
       List.mem_singleton] at hv
     simp only [numEdges_network]
     rcases hv with (((⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩) | ⟨w, hw, rfl⟩) | rfl) | ⟨w, hw, rfl⟩
-    · rcases mem_gatePorts.mp hp with ⟨k, hk, rfl⟩ | ⟨j, -, w, hw, rfl⟩
-      · have := base_add_le hi
-        omega
-      · have := (lastOcc_eq_some hw).1
-        have := base_le gs i
-        omega
-    · rcases mem_gatePorts.mp hp with ⟨k, hk, rfl⟩ | ⟨j, -, w, hw, rfl⟩
-      · have := base_add_le hi
-        omega
-      · have := (lastOcc_eq_some hw).1
-        have := base_le gs i
-        omega
+    · exact hgate_lt (by omega) hi hp
+    · exact hgate_lt (by omega) hi hp
     · unfold glueVertex at hp
-      split_ifs at hp <;> simp only [List.mem_cons, List.not_mem_nil, or_false] at hp <;> omega
+      split_ifs at hp <;> simp at hp <;> omega
     · simp [scalarVertex] at hp
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-      omega
-  · -- the rows: write `e = 2 (c N + u) + r`
-    simp only [numEdges_network] at he
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp; omega
+  · simp only [numEdges_network] at he
     obtain ⟨c, u, r, hc, hu, hr, rfl⟩ : ∃ c u r, c < 2 ∧ u < (occurrences gs).length ∧ r < 2 ∧
         e = 2 * (c * (occurrences gs).length + u) + r := by
       by_cases h : e / 2 < (occurrences gs).length
@@ -1276,41 +1126,26 @@ theorem isRowsFirstBipartite_network (neg : R) (S : List ℕ) (X : List Bool) {g
       List.sum_cons, List.sum_nil, Function.comp_def, gateVertex, scalarVertex, List.count_nil,
       Nat.add_zero]
     interval_cases r
-    · -- an out edge belongs to the gate of its occurrence in its copy
-      simp only [Nat.add_zero, count_glueVertex_out, List.map_const', List.sum_replicate,
+    · simp only [Nat.add_zero, count_glueVertex_out, List.map_const', List.sum_replicate,
         smul_eq_mul, Nat.mul_zero]
-      rw [List.map_congr_left fun i hi => count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi)
-          hc (show 0 < 2 by omega) hu,
-        List.map_congr_left fun i hi => count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi)
-          hc (show 1 < 2 by omega) hu,
+      rw [List.map_congr_left fun i hi =>
+          count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi) hc Nat.zero_lt_two hu,
+        List.map_congr_left fun i hi =>
+          count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi) hc Nat.one_lt_two hu,
         List.sum_map_ite_and, List.sum_map_ite_and, sum_range_base gs hu]
       interval_cases c <;> simp
-    · -- a link edge belongs to its reader or its glue vertex
-      rw [List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc
-          (show 0 < 2 by omega) hu,
-        List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc
-          (show 1 < 2 by omega) hu,
+    · let qs := occurrences gs
+      have hiff (w : ℕ) : (lastOcc qs (qs.getD w 0) qs.length = some w ∧ w = u) ↔
+          lastOcc qs (qs.getD u 0) qs.length = some u ∧ w = u :=
+        and_congr_left fun h => by rw [h]
+      rw [List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.zero_lt_two hu,
+        List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.one_lt_two hu,
         List.map_congr_left fun w hw => count_glueVertex_link S gs (List.mem_range.mp hw) hc hu,
-        List.sum_map_ite_and, List.sum_map_ite_and]
-      have hglue : ((List.range (occurrences gs).length).map fun w =>
-          if lastOcc (occurrences gs) ((occurrences gs).getD w 0) (occurrences gs).length =
-            some w ∧ w = u then (1 : ℕ) else 0).sum =
-          if lastOcc (occurrences gs) ((occurrences gs).getD u 0) (occurrences gs).length =
-            some u then 1 else 0 := by
-        rw [List.map_congr_left fun w _ => if_congr (show (lastOcc (occurrences gs)
-            ((occurrences gs).getD w 0) (occurrences gs).length = some w ∧ w = u) ↔
-              (lastOcc (occurrences gs) ((occurrences gs).getD u 0) (occurrences gs).length =
-                some u ∧ w = u) from
-            ⟨fun ⟨h1, h2⟩ => ⟨h2 ▸ h1, h2⟩, fun ⟨h1, h2⟩ => ⟨h2 ▸ h1, h2⟩⟩) rfl rfl,
-          List.sum_map_ite_and]
-        split_ifs
-        · rw [List.sum_map_range_ite_eq, ite_eq_left hu]
-        · rfl
-      rw [hglue]
-      have := sum_readers hnd hu
-      interval_cases c <;> simpa using this
-  · -- the columns: the segment vertex `e / 2`
-    simp only [numEdges_network] at he
+        List.sum_map_ite_and, List.sum_map_ite_and,
+        List.map_congr_left fun w _ => if_congr (hiff w) rfl rfl,
+        List.sum_map_ite_and, List.sum_map_range_ite_eq, ite_eq_left hu]
+      interval_cases c <;> simpa using sum_readers hnd hu
+  · simp only [numEdges_network] at he
     rw [fst_network, vertices_network, List.drop_left' (by simp; omega)]
     have hcount (w : ℕ) : ([2 * w, 2 * w + 1] : List ℕ).count e = if w = e / 2 then 1 else 0 := by
       simp only [List.count_cons, List.count_nil, beq_iff_eq]

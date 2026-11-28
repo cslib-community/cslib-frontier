@@ -23,6 +23,8 @@ algorithm with random access to the encoding needs, such as the logarithmic-spac
 ## Main definitions
 
 * `Cslib.Logic.tableStart`: the position of a truth table in the encoding of an input.
+* `Cslib.Logic.Vocabulary.encStructurePrefix`: the framed cardinality followed by the framed
+  tables of the first `m` symbols of a vocabulary.
 
 ## Main results
 
@@ -35,6 +37,9 @@ algorithm with random access to the encoding needs, such as the logarithmic-spac
   `Cslib.Logic.getElem?_encStructure_tableStart_two_mul_length`: the markers, bits and terminator
   of a table.
 * `Cslib.Logic.getElem?_encStructure_tableStart_length_add`: nothing follows the last table.
+* `Cslib.Logic.Vocabulary.encStructurePrefix_count`,
+  `Cslib.Logic.Vocabulary.length_encStructurePrefix`: the full prefix is the encoding, and each
+  prefix ends at a table start.
 
 ## References
 
@@ -93,11 +98,9 @@ theorem tableStart_mono (a : EncodedStructure) {i j : ℕ} (h : i ≤ j) :
   | base => exact le_rfl
   | succ j _ ih =>
     rcases lt_or_ge j a.2.length with hj | hj
-    · rw [tableStart_succ hj]
-      omega
-    · simp only [tableStart, List.take_of_length_le hj,
-        List.take_of_length_le (show a.2.length ≤ j + 1 by omega)] at ih ⊢
-      exact ih
+    · rw [tableStart_succ hj]; omega
+    · simpa only [tableStart, List.take_of_length_le hj,
+        List.take_of_length_le (Nat.le_succ_of_le hj)] using ih
 
 /-- Every table start position is at most `(encStructure a).length`. -/
 theorem tableStart_le_length (a : EncodedStructure) (i : ℕ) :
@@ -156,17 +159,60 @@ theorem getElem?_encStructure_tableStart_two_mul_length {a : EncodedStructure} {
 
 /-- Nothing follows the last table. -/
 theorem getElem?_encStructure_tableStart_length_add (a : EncodedStructure) (q : ℕ) :
-    (encStructure a)[tableStart a a.2.length + q]? = none := by
-  rw [List.getElem?_eq_none]
-  rw [length_encStructure]
-  omega
+    (encStructure a)[tableStart a a.2.length + q]? = none :=
+  List.getElem?_eq_none (by rw [length_encStructure]; omega)
 
 /-- There is a bit at the start of every table. -/
 theorem getElem?_encStructure_tableStart_isSome {a : EncodedStructure} {i : ℕ}
     (hi : i < a.2.length) : ((encStructure a)[tableStart a i]?).isSome := by
-  have h := getElem?_encStructure_tableStart_add a i 0
-  rw [Nat.add_zero] at h
-  rw [h, flatMap_frame_drop hi, List.getElem?_append_left (by simp [length_frame])]
+  rw [← Nat.add_zero (tableStart a i), getElem?_encStructure_tableStart_add, flatMap_frame_drop hi]
   simp [length_frame]
+
+/-! ### Prefixes through the first tables -/
+
+namespace Vocabulary
+
+variable {L : FirstOrder.Language} (v : Vocabulary L)
+
+/-- The prefix of `encStructure a` consisting of `frame (encUnary a.1)` followed by the framed
+truth tables of the first `m` relation symbols of `v`. -/
+def encStructurePrefix (a : EncodedStructure) (m : ℕ) : List Bool :=
+  frame (encUnary a.1) ++
+    (((List.ofFn fun i : Fin v.count => v.table a (v.symbol i)).take m).flatMap frame)
+
+@[simp]
+theorem encStructurePrefix_zero (a : EncodedStructure) :
+    v.encStructurePrefix a 0 = frame (encUnary a.1) := by
+  simp [encStructurePrefix]
+
+theorem encStructurePrefix_succ (a : EncodedStructure) (i : Fin v.count) :
+    v.encStructurePrefix a (i.1 + 1) =
+      v.encStructurePrefix a i.1 ++ frame (v.table a (v.symbol i)) := by
+  simp [encStructurePrefix, List.take_add_one, i.2, List.append_assoc]
+
+theorem encStructurePrefix_count {a : EncodedStructure} (ha : v.WellFormed a) :
+    v.encStructurePrefix a v.count = encStructure a := by
+  simp only [encStructurePrefix, encStructure, encPair_apply, encList]
+  congr 1
+  have htables : (List.ofFn fun i : Fin v.count => v.table a (v.symbol i)) = a.2 := by
+    refine List.ext_getElem (by simp [ha.1]) fun i hi hi' => ?_
+    simp only [List.getElem_ofFn, table, index, Equiv.symm_apply_apply]
+    exact List.getD_eq_getElem a.2 [] hi'
+  rw [List.take_of_length_le (by simp), htables]
+  rfl
+
+/-- The prefix through the first `m` tables ends where the table at position `m` starts
+(`Cslib.Logic.tableStart`). -/
+theorem length_encStructurePrefix {a : EncodedStructure} {m : ℕ} (hm : m ≤ a.2.length)
+    (hmc : m ≤ v.count) : (v.encStructurePrefix a m).length = tableStart a m := by
+  have htake : (List.ofFn fun i : Fin v.count => v.table a (v.symbol i)).take m = a.2.take m := by
+    refine List.ext_getElem (by simp only [List.length_take, List.length_ofFn]; omega)
+      fun i hi hi' => ?_
+    simp only [List.getElem_take, List.getElem_ofFn, table, index, Equiv.symm_apply_apply]
+    exact List.getD_eq_getElem a.2 [] (by simp only [List.length_take] at hi'; omega)
+  rw [encStructurePrefix, htake, List.length_append, length_frame, length_flatMap_frame,
+    tableStart, encUnary_apply, List.length_replicate]
+
+end Vocabulary
 
 end Cslib.Logic

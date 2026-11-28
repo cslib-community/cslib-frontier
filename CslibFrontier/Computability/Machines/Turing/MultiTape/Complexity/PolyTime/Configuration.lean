@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListLookup
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePiPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Tape
@@ -21,8 +23,7 @@ Ordinary and oracle structure construction, observations, fixed native actions, 
 replies and initialization are certified in plain polynomial time
 (`Turing.MultiTapeTM.ComputableInPolyTime`), by composition of pair, list, table and tape rules.
 Copying the input, work tapes, accumulated output and every channel is charged by their
-encodings. Tidy forms of the observations and oracle transitions, derived from the plain rules,
-remain for the tidy proofs that still use them.
+encodings.
 
 ## Main results
 
@@ -251,83 +252,10 @@ theorem finiteConfig_init {word : α → List Bool}
 
 end Turing.MultiTapeTM.ComputableInPolyTime
 
-namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
+namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 open Cslib.Turing MultiTapeMachine
 
 variable {k : ℕ} {State α : Type} [Finite State] {input : α ↪ List Bool}
 
-/-- Read the finite control. -/
-@[fun_prop]
-theorem finiteCfg_state : ComputableTidilyInPolyTime (FiniteCfg.state (k := k) (State := State))
-    encFiniteCfg (encFinite (Option State)) :=
-  ComputableInPolyTime.tidy ComputableInPolyTime.finiteCfg_state
-
-/-- Read all accumulated output. -/
-@[fun_prop]
-theorem finiteCfg_output : ComputableTidilyInPolyTime (FiniteCfg.output (k := k) (State := State))
-    encFiniteCfg encBits := ComputableInPolyTime.tidy ComputableInPolyTime.finiteCfg_output
-
-/-- Observe the read-only input, including both blank boundary cells. -/
-@[fun_prop]
-theorem finiteCfg_inputSymbol : ComputableTidilyInPolyTime
-    (FiniteCfg.inputSymbol (k := k) (State := State)) encFiniteCfg (encFinEnum (Option Bool)) :=
-  ComputableInPolyTime.tidy ComputableInPolyTime.finiteCfg_inputSymbol
-
-/-- Observe all work heads as a single fixed finite value. -/
-@[fun_prop]
-theorem finiteCfg_workTapeSymbols : ComputableTidilyInPolyTime
-    (FiniteCfg.workTapeSymbols (k := k) (State := State)) encFiniteCfg
-      (encFinEnum (Fin k → Option Bool)) :=
-  ComputableInPolyTime.tidy ComputableInPolyTime.finiteCfg_workTapeSymbols
-
-variable {Oracle : Type} [Fintype Oracle]
-
-/-- Read the ordinary finite storage. -/
-@[fun_prop]
-theorem finiteConfig_tapes : ComputableTidilyInPolyTime
-    (FiniteConfig.tapes (k := k) (State := State) (Oracle := Oracle))
-    encFiniteConfig encFiniteCfg := ComputableInPolyTime.finiteConfig_tapes.tidy
-
-/-- Read all query buffers and answer tapes. -/
-@[fun_prop]
-theorem finiteConfig_channels : ComputableTidilyInPolyTime
-    (FiniteConfig.channels (k := k) (State := State) (Oracle := Oracle)) encFiniteConfig
-    encChannels :=
-  ComputableInPolyTime.finiteConfig_channels.tidy
-
-/-- Observe every answer head as a single fixed finite value. -/
-@[fun_prop]
-theorem finiteConfig_answerSymbols : ComputableTidilyInPolyTime
-    (FiniteConfig.answerSymbols (k := k) (State := State) (Oracle := Oracle)) encFiniteConfig
-      (encFinite (Oracle → Option Bool)) :=
-  ComputableInPolyTime.finiteConfig_answerSymbols.tidy
-
-/-- Execute a fixed local action, including all pending requests and stored answers. -/
-@[fun_prop]
-theorem finiteConfig_step (action : Action k Bool State) (symbol : Oracle → Option Bool)
-    (move : Oracle → SignType) : ComputableTidilyInPolyTime
-      (fun cfg : FiniteConfig k Bool State Oracle => cfg.step action symbol move)
-      encFiniteConfig encFiniteConfig :=
-  (ComputableInPolyTime.finiteConfig_step action symbol move).tidy
-
-/-- Install a computed reply, clear its selected request and retain all other channels. -/
-@[fun_prop]
-theorem finiteConfig_receive [DecidableEq Oracle] {cfg : α → FiniteConfig k Bool State Oracle}
-    {answer : α → List Bool} (hcfg : ComputableTidilyInPolyTime cfg input encFiniteConfig)
-    (hanswer : ComputableTidilyInPolyTime answer input encBits) (channel : Oracle) (next : State) :
-    ComputableTidilyInPolyTime (fun a => (cfg a).receive channel next (answer a))
-      input encFiniteConfig :=
-  (ComputableInPolyTime.finiteConfig_receive hcfg.computableInPolyTime
-    hanswer.computableInPolyTime channel next).tidy
-
-/-- Initialize every channel with an empty request and blank answer tape. -/
-@[fun_prop]
-theorem finiteConfig_init {word : α → List Bool}
-    (hword : ComputableTidilyInPolyTime word input encBits) (state : State) :
-    ComputableTidilyInPolyTime
-      (fun a => FiniteConfig.init (k := k) (Oracle := Oracle) state (word a))
-      input encFiniteConfig :=
-  (ComputableInPolyTime.finiteConfig_init hword.computableInPolyTime state).tidy
-
-end Turing.MultiTapeTM.ComputableTidilyInPolyTime
+end Turing.MultiTapeTM.ComputableInPolyTime

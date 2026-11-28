@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Karn Seth
 -/
 
 module
@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Tactic.PolyTime.Init
 import Mathlib.Data.ZMod.Basic
@@ -24,12 +24,22 @@ multiplying by `a` at each `1` digit, reducing modulo `m` after every product. E
 value is below `m`, so the work is polynomial in the lengths of `a`, `e` and `m`.
 
 Without a modulus, `a ^ e` has about `e` times as many digits as `a`, exponentially many in the
-length of `e`; the statement therefore requires a positive modulus.
+length of `e`; the statement therefore requires a positive modulus. The total function `powMod`
+returns `1` at the modulus `0` instead, so it is polynomial-time on every input. This is where it
+differs from core's `Nat.powMod`, which returns the unreduced power at the modulus `0`. Powers
+compose (`Turing.MultiTapeTM.powMod_powMod`), and powers of a unit are units
+(`Turing.MultiTapeTM.coprime_powMod`).
+
+## Main definitions
+
+* `Turing.MultiTapeTM.powMod`: modular exponentiation, returning `1` at the modulus `0`.
 
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_powMod`: modular exponentiation of computed
   binary values with a positive modulus.
+* `Turing.MultiTapeTM.computableInPolyTime_powMod`: `powMod` of computed binary values, with no
+  condition on the modulus.
 
 ## References
 
@@ -65,24 +75,35 @@ private theorem powMod_eq (a e m : ℕ) :
   rw [foldl_step, Cslib.BitString.binaryValue_reverse_bits]
 
 /-- Modular exponentiation with the modulus `m + 1`, which is positive. -/
-private theorem computableTidilyInPolyTime_powMod_succ :
-    ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.1 ^ p.2.1 % (p.2.2 + 1))
+private theorem computableInPolyTime_powMod_succ :
+    ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => p.1 ^ p.2.1 % (p.2.2 + 1))
       (encPair encNat (encPair encNat encNat)) encNat := by
-  have hpar : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => (p.1, p.2.2 + 1))
+  have hpar : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => (p.1, p.2.2 + 1))
       (encPair encNat (encPair encNat encNat)) (encPair encNat encNat) := by
     fun_prop
-  have hlist : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.1.bits.reverse)
+  have hlist : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.1.bits.reverse)
       (encPair encNat (encPair encNat encNat)) encBits := by
     fun_prop
-  have hinit : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => 1 % (p.2.2 + 1))
+  have hinit : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => 1 % (p.2.2 + 1))
       (encPair encNat (encPair encNat encNat)) encNat := by
-    fun_prop
-  have hstep : ComputableTidilyInPolyTime
+    exact ComputableInPolyTime.binary_mod' (.const 1)
+      (ComputableInPolyTime.binary_add'
+        (ComputableInPolyTime.snd encNat (encPair encNat encNat)).snd' (.const 1))
+  have hstep : ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × ℕ) × Bool => step q.1.1 q.1.2 q.2)
       (encPair (encPair (encPair encNat encNat) encNat) encBool) encNat := by
     unfold step
-    fun_prop
-  have hfold := ComputableTidilyInPolyTime.foldlWith (encP := encPair encNat encNat)
+    have hstate := ComputableInPolyTime.fst
+      (encPair (encPair encNat encNat) encNat) encBool
+    have hbit := ComputableInPolyTime.snd
+      (encPair (encPair encNat encNat) encNat) encBool
+    have hm := hstate.fst'.snd'
+    have hr := hstate.snd'
+    exact ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul'
+        (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hr hr) hm)
+        (hbit.ite' hstate.fst'.fst' (.const 1))) hm
+  have hfold := ComputableInPolyTime.foldlWith (encP := encPair encNat encNat)
     (encA := encBool) (encL := encBits) (encB := encNat) hpar hlist hinit hstep
     (B := fun p => (encPair encNat (encPair encNat encNat) p).length)
     (PolyBounded.self)
@@ -108,12 +129,47 @@ theorem ComputableInPolyTime.binary_powMod {α : Type} {input : α ↪ List Bool
     (hexponent : ComputableInPolyTime exponent input encNat)
     (hmodulus : ComputableInPolyTime modulus input encNat) (hpos : ∀ a, 0 < modulus a) :
     ComputableInPolyTime (fun a => base a ^ exponent a % modulus a) input encNat := by
-  have hpred : ComputableTidilyInPolyTime (fun a => modulus a - 1) input encNat :=
-    ComputableTidilyInPolyTime.binary_sub' hmodulus.tidy (ComputableTidilyInPolyTime.const 1)
-  have hcomp := BinaryPowMod.computableTidilyInPolyTime_powMod_succ.comp
-    (hbase.tidy.prod (hexponent.tidy.prod hpred))
-  refine ComputableInPolyTime.of_tidy ?_
-  simpa only [Function.comp_def, Nat.sub_add_cancel (hpos _)] using hcomp
+  simpa only [Function.comp_def, Nat.sub_add_cancel (hpos _)] using
+    BinaryPowMod.computableInPolyTime_powMod_succ.comp
+      (hbase.prod (hexponent.prod (ComputableInPolyTime.binary_sub' hmodulus (.const 1))))
+
+/-! ### Total modular exponentiation -/
+
+/-- Modular exponentiation `x ^ e mod M`. For the degenerate modulus `M = 0` it returns `1`
+instead of the unreduced power, so that it is computable in polynomial time on every input. -/
+@[expose] def powMod (M x e : ℕ) : ℕ := if M = 0 then 1 else x ^ e % M
+
+theorem powMod_of_ne_zero {M : ℕ} (hM : M ≠ 0) (x e : ℕ) : powMod M x e = x ^ e % M := by
+  simp [powMod, hM]
+
+/-- Raising `powMod N g a` to the power `b` modulo `N` is `powMod N g (a * b)`. -/
+theorem powMod_powMod (N g a b : ℕ) : powMod N (powMod N g a) b = powMod N g (a * b) := by
+  by_cases hN : N = 0 <;> simp [powMod, hN, Nat.pow_mod, pow_mul]
+
+/-- A power of a unit modulo `N` is a unit modulo `N`. -/
+theorem coprime_powMod {N g : ℕ} (hg : Nat.Coprime g N) (e : ℕ) :
+    Nat.Coprime (powMod N g e) N := by
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · simp [powMod]
+  · rw [powMod_of_ne_zero hN.ne', Nat.Coprime, (Nat.mod_modEq (g ^ e) N).gcd_eq]
+    exact hg.pow_left e
+
+/-- `powMod` is computable in polynomial time. -/
+theorem computableInPolyTime_powMod {α : Type} {input : α ↪ List Bool} {M x e : α → ℕ}
+    (hM : ComputableInPolyTime M input encNat) (hx : ComputableInPolyTime x input encNat)
+    (he : ComputableInPolyTime e input encNat) :
+    ComputableInPolyTime (fun a => powMod (M a) (x a) (e a)) input encNat := by
+  have heq : (fun a => powMod (M a) (x a) (e a)) =
+      fun a => if M a = 0 then 1 else x a ^ e a % (M a - 1 + 1) := funext fun a => by
+    unfold powMod
+    split_ifs with h0
+    · rfl
+    · rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero h0)]
+  rw [heq]
+  exact ComputableInPolyTime.ite_decide (condition := fun a => M a = 0)
+    (.decide_eq' hM (.const 0)) (.const 1) <|
+    ComputableInPolyTime.binary_powMod hx he
+      (.binary_add' (.binary_sub' hM (.const 1)) (.const 1)) fun _ => Nat.succ_pos _
 
 end Turing.MultiTapeTM
 

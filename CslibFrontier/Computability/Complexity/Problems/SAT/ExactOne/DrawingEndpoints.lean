@@ -32,6 +32,8 @@ public section
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- A valid local variable index resolves to its moved source port or its affine core point. -/
@@ -41,9 +43,8 @@ theorem collared_variablePoint (g : LocalGeometry) (s : PortAssignment)
       if v ∈ g.terminalVariables then collarOuterPort (s.side (terminalIndex g v))
       else collarPoint (collarReflected s) (g.variablePosition v) := by
   unfold LocalGeometry.variablePosition collaredPrefixGeometry
-  rw [List.getD_eq_getElem _ _ (by simpa using hv), List.getElem_map, List.getElem_zipIdx]
-  simp only [Nat.zero_add]
-  rw [List.getD_eq_getElem _ _ hv]
+  rw [List.getD_eq_getElem _ _ (by simpa using hv), List.getElem_map, List.getElem_zipIdx,
+    Nat.zero_add, List.getD_eq_getElem _ _ hv]
 
 /-- An exposed local variable resolves to its prescribed outer collar midpoint. -/
 theorem collared_variablePoint_terminal (g : LocalGeometry) (s : PortAssignment)
@@ -74,13 +75,11 @@ theorem clauseGeometry_source_point (φ : CNF ℕ) (d : Graph.OrthogonalDrawing)
   have hlen : (profilePrefixGeometry (clauseProfile c)).variablePositions.length =
       (profileGeometry (clauseProfile c)).variablePositions.length := by
     simp only [profilePrefixGeometry, LocalGeometry.toPrefix, List.length_map, List.length_zipIdx]
-  have ht : (profileVariables (clauseProfile c)).idxOf (Sum.inl (Sum.inl j.val)) ∈
-      (profilePrefixGeometry (clauseProfile c)).terminalVariables := hv.2.1
-  rw [clauseGeometry, collared_variablePoint_terminal _ _ (by omega) ht]
+  rw [clauseGeometry,
+    collared_variablePoint_terminal (profilePrefixGeometry (clauseProfile c)) _ (by omega) hv.2.1]
   congr 2
   apply Fin.ext
-  change ((profileGeometry (clauseProfile c)).terminalVariables.idxOf
-    ((profileVariables (clauseProfile c)).idxOf (Sum.inl (Sum.inl j.val)))) % 3 = j.val
+  change (profileGeometry (clauseProfile c)).terminalVariables.idxOf _ % 3 = j.val
   rw [hv.2.2, Nat.mod_eq_of_lt j.isLt]
 
 /-- The exterior source incidence begins at the actual selected collar midpoint. -/
@@ -94,13 +93,10 @@ theorem positiveExterior_head {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   unfold positiveExterior translate
   rw [List.head?_map, he, Option.map_some]
   congr 1
-  have hs : sourceStart (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j) =
-      Graph.drawingPosition (SAT.incidenceGraph φ) d (φ.distinctVars.length + i) := by
-    rw [sourceStart, sourceEdgeIndex_edge φ hi hj]
   rw [collarOuterPort_eq_center_add, clausePorts_side hd hi j hj]
   unfold literalSide
-  rw [sideDirection_directionSide (sourceDirection_unit _ _ _)]
-  rw [exteriorPort, hs]
+  rw [sideDirection_directionSide (sourceDirection_unit _ _ _), exteriorPort,
+    sourceStart, sourceEdgeIndex_edge φ hi hj]
   unfold positiveBoxOrigin positiveTranslation positiveRadius
   abel
 

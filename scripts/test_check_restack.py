@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import check_restack  # noqa: E402
+from aggregate_order import import_key  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,9 @@ def bib(*entries: str) -> str:
     return "\n\n".join(entries) + "\n"
 
 
+SOURCES = '# Sources\n\n<a id="alpha"></a>\n## alpha\n\nAlpha one.\nAlpha two.\n'
+
+
 LAKEFILE = 'name = "fixture"\n\n[[lean_lib]]\nname = "CslibFrontier"\n'
 PREAMBLE = "module  -- shake: keep-all --deprecated_module: ignore\n\n"
 # The style of `CslibFrontierResults.lean`.
@@ -44,7 +48,11 @@ PLAIN = {"preamble": "", "keyword": "import"}
 
 
 def aggregate(*names: str, preamble: str = PREAMBLE, keyword: str = "public import") -> str:
-    """`CslibFrontier.lean` importing `Complexity.<name>` for each name, in the order given."""
+    """`CslibFrontier.lean` importing `CslibFrontier.<name>` for each name, in the order given.
+
+    The fixture modules `Ant`, `Bee`, `Bees`, `Cap`, `Dart` and `Emu` are named so that their
+    alphabetical order is also `mk_all`'s hash order (`test_fixture_names_are_in_mk_all_order`).
+    """
     return preamble + "".join(f"{keyword} CslibFrontier.{name}\n" for name in names)
 
 
@@ -64,8 +72,9 @@ class RestackTests(unittest.TestCase):
         self.root = pathlib.Path(tmp.name)
         self.git("init", "-q", "-b", "main")
         # `merge=union` is what `main` used before #3601; the replay must not depend on it.
-        self.commit("base", {"lakefile.toml": LAKEFILE, "CslibFrontier.lean": aggregate("A", "C", "E"),
-                             **modules("A", "C", "E"), "Lib.lean": LIB,
+        self.commit("base", {"lakefile.toml": LAKEFILE,
+                             "CslibFrontier.lean": aggregate("Ant", "Cap", "Emu"),
+                             **modules("Ant", "Cap", "Emu"), "Lib.lean": LIB,
                              ".gitattributes": "CslibFrontier.lean merge=union\n"})
 
     def git(self, *args: str) -> str:
@@ -98,10 +107,10 @@ class RestackTests(unittest.TestCase):
         return code, output.getvalue()
 
     def feature(self, files: dict[str, str | bytes | None] | None = None) -> str:
-        """A PR branch adding the module `CslibFrontier.B`; returns its approved head."""
+        """A PR branch adding the module `CslibFrontier.Bee`; returns its approved head."""
         self.git("checkout", "-q", "-b", "feature", "main")
-        return self.commit("feature", files or {"CslibFrontier.lean": aggregate("A", "B", "C", "E"),
-                                                **modules("B")})
+        return self.commit("feature", files or {
+            "CslibFrontier.lean": aggregate("Ant", "Bee", "Cap", "Emu"), **modules("Bee")})
 
     def on_main(self, files: dict[str, str | bytes | None]) -> str:
         self.git("checkout", "-q", "main")
@@ -136,9 +145,10 @@ class RestackTests(unittest.TestCase):
 
     def test_aggregate_as_mk_all_writes_it_passes(self) -> None:
         approved = self.feature()
-        self.on_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E"), **modules("Bb")})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu"),
+                      **modules("Bees")})
         # The union replay puts `main`'s line first, out of order.
-        regenerated = aggregate("A", "B", "Bb", "C", "E")
+        regenerated = aggregate("Ant", "Bee", "Bees", "Cap", "Emu")
         code, out = self.check(approved, self.merge_main({"CslibFrontier.lean": regenerated}))
         self.assertEqual(code, 0, out)
         self.assertIn("unlike the replay: CslibFrontier.lean", out)
@@ -147,24 +157,29 @@ class RestackTests(unittest.TestCase):
         # Without a merge attribute, the replay conflicts in the aggregate, as on GitHub.
         self.on_main({".gitattributes": "# no aggregate merge driver\n"})
         approved = self.feature()
-        self.on_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E"), **modules("Bb")})
-        new = self.merge_main({"CslibFrontier.lean": aggregate("A", "B", "Bb", "C", "E")})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu"),
+                      **modules("Bees")})
+        new = self.merge_main({"CslibFrontier.lean":
+                               aggregate("Ant", "Bee", "Bees", "Cap", "Emu")})
         code, out = self.check(approved, new)
         self.assertEqual(code, 0, out)
         self.assertIn("unlike the replay: CslibFrontier.lean", out)
 
     def test_import_resurrected_by_a_union_merge_is_reported(self) -> None:
-        # The PR moves `CslibFrontier.C` to `CslibFrontier.D`; `main` adds `CslibFrontier.B` next to it.
-        approved = self.feature({"CslibFrontier.lean": aggregate("A", "D", "E"),
-                                 "CslibFrontier/C.lean": None, **modules("D")})
-        self.on_main({"CslibFrontier.lean": aggregate("A", "B", "C", "E"), **modules("B")})
+        # The PR moves `CslibFrontier.Cap` to `CslibFrontier.Dart`; `main` adds `CslibFrontier.Bee`
+        # next to it.
+        approved = self.feature({"CslibFrontier.lean": aggregate("Ant", "Dart", "Emu"),
+                                 "CslibFrontier/Cap.lean": None, **modules("Dart")})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bee", "Cap", "Emu"),
+                      **modules("Bee")})
         union = self.merge_main()
-        self.assertIn("import CslibFrontier.C\n", (self.root / "CslibFrontier.lean").read_text())
+        self.assertIn("import CslibFrontier.Cap\n", (self.root / "CslibFrontier.lean").read_text())
         code, out = self.check(approved, union)
         self.assertEqual(code, 1, out)
         self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
-        self.assertIn("+public import CslibFrontier.C", out)
-        regenerated = self.commit("mk_all", {"CslibFrontier.lean": aggregate("A", "B", "D", "E")})
+        self.assertIn("+public import CslibFrontier.Cap", out)
+        regenerated = self.commit("mk_all", {
+            "CslibFrontier.lean": aggregate("Ant", "Bee", "Dart", "Emu")})
         code, out = self.check(approved, regenerated)
         self.assertEqual(code, 0, out)
         self.assertIn("unlike the replay: CslibFrontier.lean", out)
@@ -172,12 +187,15 @@ class RestackTests(unittest.TestCase):
     def test_plain_aggregate_conflicting_on_its_first_line_passes(self) -> None:
         # Like `CslibFrontierResults.lean`: plain style and no merge attribute. Both sides insert an
         # import before the first one, so the replay conflicts on line 1 and shows no style.
-        self.on_main({".gitattributes": "# no aggregate merge driver\n", "CslibFrontier/A.lean": None,
-                      "CslibFrontier.lean": aggregate("C", "E", **PLAIN)})
-        approved = self.feature({"CslibFrontier.lean": aggregate("B", "C", "E", **PLAIN),
-                                 **modules("B")})
-        self.on_main({"CslibFrontier.lean": aggregate("Bb", "C", "E", **PLAIN), **modules("Bb")})
-        new = self.merge_main({"CslibFrontier.lean": aggregate("B", "Bb", "C", "E", **PLAIN)})
+        self.on_main({".gitattributes": "# no aggregate merge driver\n",
+                      "CslibFrontier/Ant.lean": None,
+                      "CslibFrontier.lean": aggregate("Cap", "Emu", **PLAIN)})
+        approved = self.feature({"CslibFrontier.lean": aggregate("Bee", "Cap", "Emu", **PLAIN),
+                                 **modules("Bee")})
+        self.on_main({"CslibFrontier.lean": aggregate("Bees", "Cap", "Emu", **PLAIN),
+                      **modules("Bees")})
+        new = self.merge_main({"CslibFrontier.lean":
+                               aggregate("Bee", "Bees", "Cap", "Emu", **PLAIN)})
         replayed, conflicts = check_restack.replay(
             self.root, self.git("merge-base", "main", approved), approved, self.git("rev-parse", "main"))
         self.assertIn("CslibFrontier.lean", conflicts)
@@ -186,7 +204,8 @@ class RestackTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("unlike the replay: CslibFrontier.lean", out)
         # The style still comes from the other versions, so switching it is reported.
-        module = self.commit("module", {"CslibFrontier.lean": aggregate("B", "Bb", "C", "E")})
+        module = self.commit("module", {
+            "CslibFrontier.lean": aggregate("Bee", "Bees", "Cap", "Emu")})
         code, out = self.check(approved, module)
         self.assertEqual(code, 1, out)
         self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
@@ -195,17 +214,64 @@ class RestackTests(unittest.TestCase):
         # The PR switches the aggregate to plain imports while `main` adds a module. The headers
         # differ, so the driver leaves a text merge, which conflicts from line 1 on.
         self.on_main({".gitattributes": "CslibFrontier.lean merge=leanagg\n"})
-        approved = self.feature({"CslibFrontier.lean": aggregate("A", "C", "E", **PLAIN)})
-        self.on_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E"), **modules("Bb")})
-        new = self.merge_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E", **PLAIN)})
+        approved = self.feature({"CslibFrontier.lean": aggregate("Ant", "Cap", "Emu", **PLAIN)})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu"),
+                      **modules("Bees")})
+        new = self.merge_main({"CslibFrontier.lean":
+                               aggregate("Ant", "Bees", "Cap", "Emu", **PLAIN)})
         code, out = self.check(approved, new)
         self.assertEqual(code, 0, out)
         self.assertIn("the approved change switches CslibFrontier.lean to plain style", out)
         # Regenerating in `main`'s module style would undo the reviewed switch.
-        module = self.commit("module", {"CslibFrontier.lean": aggregate("A", "Bb", "C", "E")})
+        module = self.commit("module", {
+            "CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu")})
         code, out = self.check(approved, module)
         self.assertEqual(code, 1, out)
         self.assertIn("in plain style, which the approved change switches it to", out)
+
+    def alphabetical_rollout_base(self) -> None:
+        """Replace the fixture library with `A`, `C`, `D`, `E` in pre-#8486 alphabetical order;
+        their `mk_all` hash order is `A`, `D`, `C`, `E`."""
+        self.on_main({".gitattributes": "# no aggregate merge driver\n",
+                      "CslibFrontier/Ant.lean": None, "CslibFrontier/Cap.lean": None,
+                      "CslibFrontier/Emu.lean": None, **modules("A", "C", "D", "E"),
+                      "CslibFrontier.lean": aggregate("A", "C", "D", "E")})
+
+    def test_alphabetical_pr_with_unchanged_aggregate_crosses_hash_rollout(self) -> None:
+        self.alphabetical_rollout_base()
+        approved = self.feature({"Lib.lean": LIB.replace("def y := 2", "def y := 3")})
+        self.on_main({"CslibFrontier.lean": aggregate("A", "D", "C", "E")})
+        # Preflight validates the alphabetical order in force at the approved head's base.
+        code, out = self.check(approved, approved)
+        self.assertEqual(code, 0, out)
+        self.git("checkout", "-q", "-b", "unsorted", approved)
+        unsorted = self.commit("unsorted", {"CslibFrontier.lean": aggregate("C", "A", "D", "E")})
+        self.assertEqual(self.check(approved, unsorted)[0], 1)
+        # Restacking onto post-rollout `main` requires hash order.
+        code, out = self.check(approved, self.merge_main())
+        self.assertEqual(code, 0, out)
+        alphabetical = self.commit("alphabetical", {
+            "CslibFrontier.lean": aggregate("A", "C", "D", "E")})
+        code, out = self.check(approved, alphabetical)
+        self.assertEqual(code, 1, out)
+        self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
+
+    def test_alphabetical_pr_adding_module_crosses_hash_rollout(self) -> None:
+        self.alphabetical_rollout_base()
+        approved = self.feature({"CslibFrontier.lean": aggregate("A", "B", "C", "D", "E"),
+                                 **modules("B")})
+        self.on_main({"CslibFrontier.lean": aggregate("A", "D", "C", "E")})
+        code, out = self.check(approved, approved)
+        self.assertEqual(code, 0, out)
+        new = self.merge_main({"CslibFrontier.lean": aggregate("A", "D", "C", "B", "E")})
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 0, out)
+        self.assertIn("unlike the replay: CslibFrontier.lean", out)
+        alphabetical = self.commit("alphabetical", {
+            "CslibFrontier.lean": aggregate("A", "B", "C", "D", "E")})
+        code, out = self.check(approved, alphabetical)
+        self.assertEqual(code, 1, out)
+        self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
 
     def stack(self, lower_final: str) -> tuple[str, str, str]:
         """An upper PR approved on a lower PR that then lands, squashed, as `lower_final`.
@@ -237,15 +303,174 @@ class RestackTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn(f"--approved-base {lower}", out)
 
+    def newer_main_stack(self, lower_files: dict[str, str] | None = None,
+                         resolution: dict[str, str] | None = None) -> tuple[str, str]:
+        """An upper PR on a lower PR that merged a newer `main` than the lower head before
+        approval (#4510): `main` sets `y := 3` after the lower branch forks.
+
+        Returns the lower head and the approved upper head."""
+        self.git("checkout", "-q", "-b", "lower", "main")
+        lower = self.commit("lower", lower_files or {"Lower.lean": "def z := 3\n"})
+        self.git("checkout", "-q", "-b", "feature", "lower")
+        self.commit("upper", {"B.lean": "def b := z\n"})
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 3")})
+        return lower, self.merge_main(resolution)
+
+    def land_lower(self) -> None:
+        """Squash the lower branch onto `main`."""
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "--squash", "lower")
+        self.git("commit", "-q", "-m", "lower (#1)")
+
+    def test_stacked_pr_that_merged_newer_main_passes_from_the_lower_head(self) -> None:
+        lower, approved = self.newer_main_stack()
+        self.land_lower()
+        # `main` rewrites the line that the approved head took from the newer `main`.
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 4")})
+        new = self.merge_main()
+        # From the lower head alone, the replayed change would include `y := 3` and conflict.
+        replayed, conflicts = check_restack.replay(
+            self.root, lower, approved, self.git("merge-base", "main", new))
+        self.assertIn("Lib.lean", conflicts)
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 0, out)
+        main_base = self.git("merge-base", "main", approved)
+        self.assertIn(f"(from the merge of {lower[:12]} and {main_base[:12]})", out)
+        self.assertIn(f"--approved-base {lower}", out)
+
+    def test_stacked_pr_that_merged_newer_main_with_an_edit_is_reported(self) -> None:
+        lower, approved = self.newer_main_stack()
+        self.land_lower()
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 4")})
+        self.merge_main()
+        new = self.commit("edit", {"B.lean": "def b := z + 1\n"})
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("B.lean: the new head differs", out)
+
+    def test_stacked_pr_that_merged_newer_main_keeps_an_unlanded_lower_branch_out(self) -> None:
+        lower, approved = self.newer_main_stack({"Lower.lean": "axiom unreviewed : False\n"})
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 4")})
+        new = self.merge_main()
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("Lower.lean", out)
+
+    def test_stacked_pr_that_merged_newer_main_whose_lower_pr_changed_passes(self) -> None:
+        lower, approved = self.newer_main_stack()
+        self.git("checkout", "-q", "lower")
+        self.commit("lower revised", {"Lower.lean": "def z := 4\n"})
+        self.land_lower()
+        new = self.merge_main({"Lower.lean": "def z := 4\n"})
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 0, out)
+        # Keeping the lower PR's approved version instead is reported.
+        code, out = self.check(approved, self.commit("old", {"Lower.lean": "def z := 3\n"}),
+                               "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("Lower.lean", out)
+
+    def test_stacked_pr_whose_lower_pr_landed_before_its_main_merge_uses_main(self) -> None:
+        self.git("checkout", "-q", "-b", "lower", "main")
+        lower = self.commit("lower", {"Lower.lean": "def z := 3\n"})
+        self.git("checkout", "-q", "-b", "feature", "lower")
+        self.commit("upper", {"B.lean": "def b := z\n"})
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "--no-ff", "--no-edit", "lower")
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 3")})
+        approved = self.merge_main()
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 4")})
+        new = self.merge_main()
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"(from {self.git('merge-base', 'main', approved)[:12]})", out)
+
+    def conflicting_stack(self) -> tuple[str, str]:
+        """`newer_main_stack` where the lower branch and `main` both edit `y` and the approved
+        head resolves it as `y := 5`."""
+        return self.newer_main_stack({"Lib.lean": LIB.replace("def y := 2", "def y := 9")},
+                                     {"Lib.lean": LIB.replace("def y := 2", "def y := 5")})
+
+    def test_conflicting_lower_and_main_leave_the_resolution_for_review(self) -> None:
+        lower, approved = self.conflicting_stack()
+        self.on_main({"Other.lean": "def o := 0\n"})
+        new = self.merge_main()
+        # The base keeps the markers, so `main`'s own version conflicts with the resolution.
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("which conflicted in Lib.lean", out)
+        self.assertIn("Lib.lean: the replay conflicted here", out)
+
+    def test_conflicting_lower_and_main_pass_when_main_resolves_them_alike(self) -> None:
+        lower, approved = self.conflicting_stack()
+        # The lower PR lands with the same resolution.
+        self.on_main({"Lib.lean": LIB.replace("def y := 2", "def y := 5")})
+        new = self.merge_main()
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 0, out)
+        self.assertIn("which conflicted in Lib.lean", out)
+        dropped = self.commit("drop", {"Lib.lean": LIB.replace("def y := 2", "def y := 9")})
+        code, out = self.check(approved, dropped, "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("Lib.lean", out)
+
+    def modify_delete_stack(self, lower_files: dict[str, str | bytes | None]) -> tuple[str, str]:
+        """An upper PR on a lower PR that writes `lower_files`, deleting `F.lean`, where `main`
+        modifies `F.lean` after the lower branch forks and the approved head's merge of that `main`
+        keeps the deletion: a conflict of the base merge without markers.
+
+        Returns the lower head and the approved upper head."""
+        self.commit("F", {"F.lean": "def f := 1\n"})
+        self.git("checkout", "-q", "-b", "lower", "main")
+        lower = self.commit("lower", lower_files)
+        self.git("checkout", "-q", "-b", "feature", "lower")
+        self.commit("upper", {"B.lean": "def b := 0\n"})
+        self.on_main({"F.lean": "def f := 2\n"})
+        approved = self.merge_main({"F.lean": None})
+        # Neither PR's diff shows the deletion of `main`'s modified file.
+        self.assertNotIn("F.lean", self.git("diff", "--name-only", lower, approved))
+        return lower, approved
+
+    def test_modify_delete_in_the_base_is_reported_when_the_lower_pr_never_lands(self) -> None:
+        lower, approved = self.modify_delete_stack({"F.lean": None})
+        self.on_main({"Other.lean": "def o := 0\n"})
+        new = self.merge_main()
+        self.assertIn("F.lean", self.git("ls-tree", "--name-only", "main"))
+        self.assertNotIn("F.lean", self.git("ls-tree", "--name-only", new))
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("which conflicted in F.lean", out)
+        self.assertIn("F.lean: the replay conflicted here", out)
+
+    def test_modify_delete_in_the_base_is_reported_when_the_lower_pr_keeps_the_file(self) -> None:
+        lower, approved = self.modify_delete_stack({"F.lean": None, "Lower.lean": "def z := 3\n"})
+        self.git("checkout", "-q", "lower")
+        self.commit("lower revised", {"F.lean": "def f := 1\n"})
+        self.land_lower()
+        new = self.merge_main()
+        self.assertIn("F.lean", self.git("ls-tree", "--name-only", "main"))
+        self.assertNotIn("F.lean", self.git("ls-tree", "--name-only", new))
+        code, out = self.check(approved, new, "--approved-base", lower)
+        self.assertEqual(code, 1, out)
+        self.assertIn("F.lean: the replay conflicted here", out)
+
+    def test_modify_delete_in_the_base_passes_when_the_lower_pr_lands_the_deletion(self) -> None:
+        lower, approved = self.modify_delete_stack({"F.lean": None})
+        self.on_main({"F.lean": None})
+        self.on_main({"Other.lean": "def o := 0\n"})
+        code, out = self.check(approved, self.merge_main(), "--approved-base", lower)
+        self.assertEqual(code, 0, out)
+        self.assertIn("which conflicted in F.lean", out)
+
     # Changed restacks are reported.
 
     def test_edited_pr_line_is_reported(self) -> None:
         approved = self.feature()
-        edit = {"CslibFrontier/B.lean": "theorem b_holds : True := by trivial\n"}
+        edit = {"CslibFrontier/Bee.lean": "theorem bee_holds : True := by trivial\n"}
         code, out = self.check(approved, self.commit("edit", edit))
         self.assertEqual(code, 1, out)
-        self.assertIn("CslibFrontier/B.lean: the new head differs", out)
-        self.assertIn("+theorem b_holds : True := by trivial", out)
+        self.assertIn("CslibFrontier/Bee.lean: the new head differs", out)
+        self.assertIn("+theorem bee_holds : True := by trivial", out)
 
     def test_carriage_return_cannot_hide_content(self) -> None:
         approved = self.feature({"s.py": "y = 1\n"})
@@ -301,16 +526,19 @@ class RestackTests(unittest.TestCase):
 
     def test_aggregate_with_an_extra_import_is_reported(self) -> None:
         approved = self.feature()
-        new = self.commit("sneak", {"CslibFrontier.lean": aggregate("A", "B", "C", "D", "E")})
+        new = self.commit("sneak", {
+            "CslibFrontier.lean": aggregate("Ant", "Bee", "Cap", "Dart", "Emu")})
         code, out = self.check(approved, new)
         self.assertEqual(code, 1, out)
-        self.assertIn("+public import CslibFrontier.D", out)
+        self.assertIn("+public import CslibFrontier.Dart", out)
 
     def test_unsorted_aggregate_is_reported(self) -> None:
         approved = self.feature()
-        self.on_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E"), **modules("Bb")})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu"),
+                      **modules("Bees")})
         # This is also what the union replay holds, so the trees are identical.
-        new = self.merge_main({"CslibFrontier.lean": aggregate("A", "Bb", "B", "C", "E")})
+        new = self.merge_main({"CslibFrontier.lean":
+                               aggregate("Ant", "Bees", "Bee", "Cap", "Emu")})
         code, out = self.check(approved, new)
         self.assertEqual(code, 1, out)
         self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
@@ -318,7 +546,7 @@ class RestackTests(unittest.TestCase):
     def test_aggregate_switching_style_is_reported(self) -> None:
         approved = self.feature()
         self.on_main({"Other.lean": "def o := 0\n"})
-        plain = aggregate("A", "B", "C", "E", preamble="", keyword="import")
+        plain = aggregate("Ant", "Bee", "Cap", "Emu", preamble="", keyword="import")
         code, out = self.check(approved, self.merge_main({"CslibFrontier.lean": plain}))
         self.assertEqual(code, 1, out)
         self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
@@ -330,7 +558,8 @@ class RestackTests(unittest.TestCase):
         code, out = self.check(approved, self.merge_main())
         self.assertEqual(code, 0, out)
         self.assertIn("CslibFrontier.lean compared with the replay only", out)
-        reordered = self.commit("reorder", {"CslibFrontier.lean": aggregate("A", "C", "B", "E")})
+        reordered = self.commit("reorder", {
+            "CslibFrontier.lean": aggregate("Ant", "Cap", "Bee", "Emu")})
         code, out = self.check(approved, reordered)
         self.assertEqual(code, 1, out)
         self.assertIn("its `mk_all` content could not be derived: Lake reads `lakefile.lean`", out)
@@ -338,13 +567,13 @@ class RestackTests(unittest.TestCase):
     def test_unusual_module_paths_are_not_derived(self) -> None:
         for path, mode in (("CslibFrontier/Odd-name.lean", "100644"), ("CslibFrontier/Link", "120000"),
                            ("CslibFrontier/Sub.lean/X.lean", "100644")):
-            entries = {"CslibFrontier": "040000", "CslibFrontier/A.lean": "100644", path: mode}
+            entries = {"CslibFrontier": "040000", "CslibFrontier/Ant.lean": "100644", path: mode}
             with self.subTest(path=path), self.assertRaises(check_restack.Underivable):
                 check_restack.canonical_aggregate(entries, "", "CslibFrontier", True)
 
     def test_mode_change_is_reported(self) -> None:
         approved = self.feature()
-        self.git("update-index", "--chmod=+x", "CslibFrontier/B.lean")
+        self.git("update-index", "--chmod=+x", "CslibFrontier/Bee.lean")
         self.git("commit", "-q", "-m", "chmod")
         code, out = self.check(approved, self.git("rev-parse", "HEAD"))
         self.assertEqual(code, 1, out)
@@ -409,11 +638,12 @@ class RestackTests(unittest.TestCase):
         honest = self.merge_main()
         self.git("checkout", "-q", "-b", "dishonest", "main")
         self.git("merge", "-q", "--no-ff", "--no-edit", "feature")
-        dishonest = self.commit("edit", {"CslibFrontier/B.lean": "theorem b : True := by sorry\n"})
+        dishonest = self.commit("edit", {"CslibFrontier/Bee.lean":
+                                         "theorem b : True := by sorry\n"})
         self.git("replace", dishonest, honest)
         code, out = self.check(approved, dishonest)
         self.assertEqual(code, 1, out)
-        self.assertIn("B.lean", out)
+        self.assertIn("Bee.lean", out)
 
     def test_git_config_variable_cannot_hide_a_configured_driver(self) -> None:
         # `GIT_CONFIG` redirects only `git config`, so the driver listing would miss `keep`.
@@ -543,6 +773,70 @@ class RestackTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("references.bib", out)
 
+    # `manual/sources.md` merges by entry and line, as `scripts/resolve_sources_conflict.py` does.
+
+    def sources_conflict(self, pr: tuple[str, str], main: tuple[str, str]) -> str:
+        """A PR replacing `pr[0]` by `pr[1]` in `manual/sources.md` approved, and `main` then
+        replacing `main[0]` by `main[1]`."""
+        self.on_main({".gitattributes": "CslibFrontier.lean merge=union\n"
+                                        "manual/sources.md merge=sourcesmd\n",
+                      "manual/sources.md": SOURCES})
+        approved = self.feature({"manual/sources.md": SOURCES.replace(*pr)})
+        self.on_main({"manual/sources.md": SOURCES.replace(*main)})
+        return approved
+
+    def test_sources_merge_written_by_the_driver_passes(self) -> None:
+        approved = self.sources_conflict(("Alpha one.", "Alpha one.\nAdded by the PR."),
+                                         ("Alpha two.", "Alpha two, revised on main."))
+        self.git("config", "merge.sourcesmd.driver",
+                 f"{sys.executable} {ROOT / 'scripts' / 'resolve_sources_conflict.py'} "
+                 "--driver %O %A %B")
+        new = self.merge_main()
+        self.assertEqual(self.git("show", f"{new}:manual/sources.md") + "\n", SOURCES.replace(
+            "Alpha one.\nAlpha two.", "Alpha one.\nAdded by the PR.\nAlpha two, revised on main."))
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 0, out)
+
+    def test_sources_merge_dropping_a_pr_sentence_is_reported(self) -> None:
+        approved = self.sources_conflict(("Alpha one.", "Alpha one.\nAdded by the PR."),
+                                         ("Alpha two.", "Alpha two, revised on main."))
+        new = self.merge_main({"manual/sources.md": SOURCES.replace(
+            "Alpha two.", "Alpha two, revised on main.")})
+        self.git("config", "merge.sourcesmd.driver", "true")
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 1, out)
+        self.assertIn("manual/sources.md", out)
+
+    def test_both_sides_editing_one_sentence_is_reported(self) -> None:
+        approved = self.sources_conflict(("Alpha two.", "Alpha two, revised by the PR."),
+                                         ("Alpha two.", "Alpha two, revised on main."))
+        new = self.merge_main({"manual/sources.md": SOURCES.replace(
+            "Alpha two.", "Alpha two, revised by the PR.")})
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 1, out)
+        self.assertIn("manual/sources.md", out)
+
+    def test_partially_overlapping_provenance_insertion_is_reported(self) -> None:
+        approved = self.sources_conflict(
+            ("Alpha two.", "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved."),
+            ("Alpha two.", "Alpha two.\n\nRead in the same edition.\nTheorem 2.2 is proved."))
+        for candidate in (
+            # Keeping both paragraphs duplicates the shared lead-in.
+            "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved.\n\n"
+            "Read in the same edition.\nTheorem 2.2 is proved.",
+            # Combining them by hand needs delta review rather than carrying approval mechanically.
+            "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved.\n"
+            "Theorem 2.2 is proved.",
+        ):
+            with self.subTest(candidate=candidate):
+                self.git("checkout", "-q", "feature")
+                self.git("reset", "--hard", approved)
+                new = self.merge_main({"manual/sources.md": SOURCES.replace("Alpha two.",
+                                                                            candidate)})
+                code, out = self.check(approved, new)
+                self.assertEqual(code, 1, out)
+                self.assertIn("manual/sources.md", out)
+
     def test_hidden_submodule_pointer_change_is_reported(self) -> None:
         self.git("checkout", "-q", "-b", "feature", "main")
         self.git("update-index", "--add", "--cacheinfo", f"160000,{'1' * 40},sub")
@@ -624,7 +918,24 @@ class AggregateStyleTests(unittest.TestCase):
                     self.style(*versions, self.CONFLICT)
 
 
+class AggregateOrderTests(unittest.TestCase):
+    def test_order_follows_new_base_unless_approved_switches_it(self) -> None:
+        order = check_restack.aggregate_hash_order
+        self.assertFalse(order((False, False, False)))
+        self.assertTrue(order((False, True, False)))
+        self.assertTrue(order((False, False, True)))
+        self.assertFalse(order((True, True, False)))
+        self.assertFalse(order((None, None, False)))
+        self.assertTrue(order((None, True, False)))
+        self.assertTrue(order((None, None, None)))
+
+
 class AggregateListTests(unittest.TestCase):
+    def test_fixture_names_are_in_mk_all_order(self) -> None:
+        # `aggregate` writes its names in the order given, which the tests pass alphabetically.
+        names = ["Ant", "Bee", "Bees", "Cap", "Dart", "Emu"]
+        self.assertEqual(sorted(names, key=lambda name: import_key(f"CslibFrontier.{name}")), names)
+
     def test_listed_aggregates_exist(self) -> None:
         for path in check_restack.AGGREGATES:
             self.assertTrue((ROOT / path).is_file(), path)

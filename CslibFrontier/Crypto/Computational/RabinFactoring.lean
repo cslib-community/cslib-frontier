@@ -12,12 +12,15 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Probabilistic.Parameter
+public import CslibFrontier.Crypto.Computational.Factoring
 public import CslibFrontier.Crypto.Computational.QuadraticResiduosity
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import Cslib.Foundations.Data.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Tactic.PPT
@@ -29,14 +32,16 @@ import Mathlib.FieldTheory.Finite.Basic
 
 The Rabin squaring function `x ↦ x ^ 2 % N` over Blum moduli `N = p * q` (`p ≠ q` primes with
 `p ≡ q ≡ 3 [MOD 4]`), the integer factoring assumption `FactoringHard`, the Rabin one-wayness
-assumption `RabinOneWay`, and the polynomial-time equivalence `RabinOneWay gen ↔ FactoringHard gen`.
+assumption `RabinOneWay`, the polynomial-time equivalence `RabinOneWay gen ↔ FactoringHard gen`,
+and the Blum-modulus transfer `FactoringHard.of_modulusFactoringHard` and
+`QuadraticResiduosityHard.factoringHard`.
 
 ## Main definitions
 
 * `Cslib.Crypto.BlumDesc`, `Cslib.Crypto.BlumGen`: Blum modulus parameters and generators.
 * `Cslib.Crypto.rabinEval`: Rabin squaring `x ^ 2 % N`.
-* `Cslib.Crypto.factoringGame`, `Cslib.Crypto.FactoringHard`: the integer factoring experiment
-  and assumption.
+* `Cslib.Crypto.factoringGame`, `Cslib.Crypto.FactoringHard`: the Blum-generator integer factoring
+  experiment and assumption.
 * `Cslib.Crypto.rabinInversionGame`, `Cslib.Crypto.RabinOneWay`: the Rabin modular square-root
   experiment and assumption.
 * `Cslib.Crypto.rabinToFactor`, `Cslib.Crypto.factorToRabin`: explicit PPT reductions between
@@ -44,11 +49,16 @@ assumption `RabinOneWay`, and the polynomial-time equivalence `RabinOneWay gen �
 
 ## Main results
 
+* `Cslib.Crypto.factoringHard_iff_modulusFactoringHard`,
+  `Cslib.Crypto.FactoringHard.of_modulusFactoringHard`: `FactoringHard gen` is
+  `ModulusFactoringHard` on the pushed-forward Blum modulus distribution.
 * `Cslib.Crypto.rabinOneWay_of_factoringHard`: if factoring is hard for `gen`, then Rabin
   squaring is one-way for `gen`.
 * `Cslib.Crypto.factoringHard_of_rabinOneWay`: if Rabin squaring is one-way for `gen`, then
   factoring is hard for `gen`.
 * `Cslib.Crypto.rabinOneWay_iff_factoringHard`: `RabinOneWay gen ↔ FactoringHard gen`.
+* `Cslib.Crypto.QuadraticResiduosityHard.factoringHard`: quadratic residuosity hardness implies
+  `FactoringHard` for any Blum generator with the same modulus distribution.
 
 ## Implementation notes
 
@@ -73,50 +83,46 @@ charging the full binary-encoded inputs and sampled/callback outputs uniformly b
 ## References
 
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*][KatzLindell2020],
-  Section 9.2.3, Definition 9.45 (The Factoring Assumption) and Sections 15.5.1–15.5.2,
-  Lemma 15.35, Theorem 15.36, Proposition 15.37, and Theorem 15.38 (Computing Modular Square
-  Roots; A Trapdoor Permutation Based on Factoring).
+  Section 9.2.3, Definition 9.45 (The Factoring Assumption), Section 15.4 (Quadratic Residuosity),
+  and Sections 15.5.1–15.5.2, Lemma 15.35, Theorem 15.36, Proposition 15.37, and Theorem 15.38
+  (Computing Modular Square Roots; A Trapdoor Permutation Based on Factoring).
+  This is the source of the definitions.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], context
+  only: Exercise 16.9(a), p. 709 (a square-root oracle factors `n`), and Appendix A.2.3, p. 1097
+  (Quadratic residues).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
-/-- Validity predicate for Blum modulus parameters `(p, q)`. -/
-def BlumDescValid (raw : ℕ × ℕ) : Prop :=
-  IsBlumModulus raw.1 raw.2
-
-/-- Blum modulus parameters `(p, q)` with `p, q` distinct primes and `p ≡ q ≡ 3 [MOD 4]`. -/
-abbrev BlumDesc := { raw : ℕ × ℕ // BlumDescValid raw }
+/-- Blum modulus parameters `(p, q)` with distinct primes `p ≠ q` satisfying
+`p ≡ q ≡ 3 [MOD 4]`. -/
+@[ext]
+structure BlumDesc where
+  /-- First Blum prime factor. -/
+  p : ℕ
+  /-- Second Blum prime factor. -/
+  q : ℕ
+  /-- Primality of `p`. -/
+  hp : p.Prime
+  /-- Primality of `q`. -/
+  hq : q.Prime
+  /-- Distinctness of `p` and `q`. -/
+  hpq : p ≠ q
+  /-- `p ≡ 3 [MOD 4]`. -/
+  hp3 : p % 4 = 3
+  /-- `q ≡ 3 [MOD 4]`. -/
+  hq3 : q % 4 = 3
+  deriving DecidableEq
 
 namespace BlumDesc
 
-/-- First Blum prime factor. -/
-abbrev p (desc : BlumDesc) : ℕ := desc.1.1
-
-/-- Second Blum prime factor. -/
-abbrev q (desc : BlumDesc) : ℕ := desc.1.2
-
 /-- The Blum modulus `N = p * q`. -/
 abbrev modulus (desc : BlumDesc) : ℕ := desc.p * desc.q
-
-/-- Primality of `p`. -/
-theorem hp (desc : BlumDesc) : desc.p.Prime := desc.2.1.1
-
-/-- Primality of `q`. -/
-theorem hq (desc : BlumDesc) : desc.q.Prime := desc.2.2.1.1
-
-/-- Distinctness of `p` and `q`. -/
-theorem hpq (desc : BlumDesc) : desc.p ≠ desc.q := desc.2.2.2
-
-/-- `p ≡ 3 [MOD 4]`. -/
-theorem hp3 (desc : BlumDesc) : desc.p % 4 = 3 := desc.2.1.2
-
-/-- `q ≡ 3 [MOD 4]`. -/
-theorem hq3 (desc : BlumDesc) : desc.q % 4 = 3 := desc.2.2.1.2
 
 /-- The Blum modulus is positive. -/
 theorem modulus_pos (desc : BlumDesc) : 0 < desc.modulus :=
@@ -147,12 +153,29 @@ theorem twentyOne_le_modulus (desc : BlumDesc) : 21 ≤ desc.modulus := by
   · have hp7 : 7 ≤ desc.p := by omega
     nlinarith
 
+/-- View a Blum modulus descriptor as a `ModulusDesc`. -/
+@[expose]
+def toModulusDesc (desc : BlumDesc) : ModulusDesc where
+  p := desc.p
+  q := desc.q
+  prime_p := desc.hp
+  prime_q := desc.hq
+  ne_pq := desc.hpq
+  two_lt_p := by have := desc.three_le_p; omega
+  two_lt_q := by have := desc.three_le_q; omega
+
 end BlumDesc
+
+@[simp]
+theorem BlumDesc.toModulusDesc_modulus (desc : BlumDesc) :
+    desc.toModulusDesc.modulus = desc.modulus :=
+  rfl
 
 /-- A Blum modulus generator indexed by the security parameter `n`. -/
 abbrev BlumGen := ℕ → PMF BlumDesc
 
 /-- Rabin squaring function: `x ^ 2 % N`. -/
+@[expose]
 def rabinEval (N x : ℕ) : ℕ := x ^ 2 % N
 
 /-- Rabin squaring `(N, x) ↦ x ^ 2 % N` is computable in polynomial time whenever `N` and `x` are
@@ -165,23 +188,49 @@ theorem computableInPolyTime_rabinEval {α : Type} {enc : α ↪ List Bool} {N x
 
 /-- The integer factoring experiment: sample `desc ← gen n`, run `A n N`, and accept when `A`
 returns a nontrivial factorization `1 < a`, `1 < b`, `a * b = N`. -/
+@[expose]
 noncomputable def factoringGame (gen : BlumGen) (A : ℕ → ℕ → ProbComp (ℕ × ℕ))
     (n : ℕ) : Game := do
   let desc ← gen n
   let ab ← ProbComp.eval (A n desc.modulus)
   return decide (1 < ab.1 ∧ 1 < ab.2 ∧ ab.1 * ab.2 = desc.modulus)
 
-/-- The integer factoring assumption for `gen`: every uniform PPT factoring algorithm succeeds with
-negligible probability. -/
+/-- The integer factoring assumption for `gen` ([KatzLindell2020], Section 9.2.3, Definition 9.45):
+every uniform PPT factoring algorithm succeeds with negligible probability. -/
+@[expose]
 def FactoringHard (gen : BlumGen) : Prop :=
   ∀ A : ℕ → ℕ → ProbComp (ℕ × ℕ),
     IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
       (fun input => A input.1 input.2) →
     Negligible (fun n => Game.succProbability (factoringGame gen A n))
 
+/-- `factoringGame gen A n` is `modulusFactoringGame` on the pushed-forward Blum modulus
+distribution `(gen n).map BlumDesc.modulus`. -/
+@[simp]
+theorem factoringGame_eq_modulusFactoringGame (gen : BlumGen) (A : ℕ → ℕ → ProbComp (ℕ × ℕ))
+    (n : ℕ) :
+    factoringGame gen A n =
+      modulusFactoringGame (fun k => (gen k).map BlumDesc.modulus) A n := by
+  simp [factoringGame, modulusFactoringGame, Bind.bind, PMF.bind_map, Function.comp_def]
+
+/-- `FactoringHard gen` is equivalent to `ModulusFactoringHard` on the pushed-forward Blum modulus
+distribution. -/
+theorem factoringHard_iff_modulusFactoringHard (gen : BlumGen) :
+    FactoringHard gen ↔ ModulusFactoringHard (fun n => (gen n).map BlumDesc.modulus) := by
+  simp [FactoringHard, ModulusFactoringHard]
+
+/-- Transfer `ModulusFactoringHard` on a modulus distribution to `FactoringHard` on a Blum
+generator with the same modulus distribution. -/
+theorem FactoringHard.of_modulusFactoringHard {modGen : ℕ → PMF ℕ} {gen : BlumGen}
+    (h : ModulusFactoringHard modGen)
+    (hmod : ∀ n, modGen n = (gen n).map BlumDesc.modulus) :
+    FactoringHard gen :=
+  (factoringHard_iff_modulusFactoringHard gen).mpr (h.congr hmod)
+
 /-- The Rabin inversion experiment: sample `desc ← gen n` and a uniform bitstring `r` of length
 `2 * N.bits.length`, set `y = (ofBits r) ^ 2 % N`, and accept when `A n (N, y)` outputs `x'` with
 `x' ^ 2 % N = y`. -/
+@[expose]
 noncomputable def rabinInversionGame (gen : BlumGen) (A : ℕ → ℕ × ℕ → ProbComp ℕ)
     (n : ℕ) : Game := do
   let desc ← gen n
@@ -190,15 +239,20 @@ noncomputable def rabinInversionGame (gen : BlumGen) (A : ℕ → ℕ × ℕ →
   let x' ← ProbComp.eval (A n (desc.modulus, y))
   return decide (x' ^ 2 % desc.modulus = y)
 
-/-- The Rabin one-wayness assumption for `gen`: every uniform PPT inverter has negligible
-probability of finding a modular square root of `x ^ 2 % N`. -/
+/-- The Rabin one-wayness assumption for `gen` ([KatzLindell2020], Section 15.5.2; locator not
+independently inspected in the 3rd-edition PDF): every uniform strict PPT inverter has negligible
+probability of finding a modular square root of `x ^ 2 % N` on Blum moduli drawn from `gen`, with
+the preimage `x` drawn from a uniform bit string of length `2 * N.bits.length` reduced modulo `N`
+rather than a uniform unit in `ℤ_N^*`. -/
+@[expose]
 def RabinOneWay (gen : BlumGen) : Prop :=
   ∀ A : ℕ → ℕ × ℕ → ProbComp ℕ,
-    IsPPTOn (encPair encUnary (encPair encNat encNat)) encNat
+    IsPPTOn encModulusChallengeInput encNat
       (fun input => A input.1 input.2) →
     Negligible (fun n => Game.succProbability (rabinInversionGame gen A n))
 
 /-- Split `N` at `g = Nat.gcd u N`, returning `(g, N / g)`. -/
+@[expose]
 def rabinFactorPair (u N : ℕ) : ℕ × ℕ :=
   let g := Nat.gcd u N
   (g, N / g)
@@ -217,18 +271,15 @@ noncomputable def rabinToFactor (A : ℕ → ℕ × ℕ → ProbComp ℕ) (n N :
     let x' ← A n (N, y)
     return rabinFactorPair (x + x') N
 
-/-- Helper step for Chinese Remainder Theorem recombination in `crtSqrt`. -/
-def crtStep (sp sq inv a' : ℕ) : ℕ :=
-  (sp + a' - sq % a') * inv % a'
-
 /-- Recombine square roots modulo Blum primes `a` and `b` via Fermat's little theorem CRT. -/
+@[expose]
 def crtSqrt (y a b : ℕ) : ℕ :=
   let a' := if a = 0 then 1 else a
   let b' := if b = 0 then 1 else b
   let sp := y ^ ((a + 1) / 4) % a'
   let sq := y ^ ((b + 1) / 4) % b'
   let inv := b ^ (a - 2) % a'
-  sq + b * crtStep sp sq inv a'
+  sq + b * ((sp + a' - sq % a') * inv % a')
 
 /-- Explicit PPT reduction from Rabin inversion to factoring: given `(n, (N, y))`, run the
 factoring algorithm `F n N`; if it returns `(a, b)` with `1 < a`, `1 < b`, `a * b = N`, extract
@@ -243,28 +294,6 @@ def factorToRabin (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) (Ny : �
   else
     return 0
 
-private theorem blum_pow_add_one_div_four_sq {p y : ℕ} (hp : p.Prime) (hp3 : p % 4 = 3)
-    (hsq : ∃ x : ℕ, x ^ 2 ≡ y [MOD p]) :
-    (y ^ ((p + 1) / 4) % p) ^ 2 ≡ y [MOD p] := by
-  rcases hsq with ⟨x, hx⟩
-  have : Fact p.Prime := ⟨hp⟩
-  rw [← ZMod.natCast_eq_natCast_iff] at hx ⊢
-  push_cast at hx ⊢
-  rw [ZMod.natCast_mod, Nat.cast_pow, ← hx]
-  by_cases hx0 : (x : ZMod p) = 0
-  · have hpos : 0 < (p + 1) / 4 := by omega
-    rw [hx0, zero_pow (by norm_num), zero_pow (Nat.ne_of_gt hpos), zero_pow (by norm_num)]
-  · have h4 : 4 * ((p + 1) / 4) = p + 1 := by omega
-    calc
-      (((x : ZMod p) ^ 2) ^ ((p + 1) / 4)) ^ 2
-          = (x : ZMod p) ^ (4 * ((p + 1) / 4)) := by ring
-      _ = (x : ZMod p) ^ (p + 1) := by rw [h4]
-      _ = (x : ZMod p) ^ (p - 1) * (x : ZMod p) ^ 2 := by
-        have hp1 : 1 ≤ p := hp.one_lt.le
-        rw [← pow_add, show p - 1 + 2 = p + 1 by omega]
-      _ = 1 * (x : ZMod p) ^ 2 := by rw [ZMod.pow_card_sub_one_eq_one hx0]
-      _ = (x : ZMod p) ^ 2 := one_mul _
-
 private theorem crt_combine_sq_modEq {a b y : ℕ} (ha : a.Prime) (hb : b.Prime) (hab : a ≠ b)
     (ha3 : a % 4 = 3) (hb3 : b % 4 = 3) (hsq : ∃ x : ℕ, x ^ 2 ≡ y [MOD a * b]) :
     let sp := y ^ ((a + 1) / 4) % a
@@ -278,8 +307,10 @@ private theorem crt_combine_sq_modEq {a b y : ℕ} (ha : a.Prime) (hb : b.Prime)
   rcases hsq with ⟨x, hx⟩
   have hsq_a : ∃ z : ℕ, z ^ 2 ≡ y [MOD a] := ⟨x, hx.of_dvd (dvd_mul_right a b)⟩
   have hsq_b : ∃ z : ℕ, z ^ 2 ≡ y [MOD b] := ⟨x, hx.of_dvd (dvd_mul_left b a)⟩
-  have hsp : sp ^ 2 ≡ y [MOD a] := blum_pow_add_one_div_four_sq ha ha3 hsq_a
-  have hsq' : sq ^ 2 ≡ y [MOD b] := blum_pow_add_one_div_four_sq hb hb3 hsq_b
+  have hsp : sp ^ 2 ≡ y [MOD a] :=
+    Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq ha ha3 hsq_a
+  have hsq' : sq ^ 2 ≡ y [MOD b] :=
+    Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq hb hb3 hsq_b
   have hmod_b : sq + b * u ≡ sq [MOD b] := by
     rw [Nat.ModEq, Nat.add_mul_mod_self_left]
   have hmod_a : sq + b * u ≡ sp [MOD a] := by
@@ -309,16 +340,6 @@ private theorem crt_combine_sq_modEq {a b y : ℕ} (ha : a.Prime) (hb : b.Prime)
       _ = (y : ZMod a) ^ ((a + 1) / 4) := by ring
   exact ⟨(hmod_a.pow 2).trans hsp, (hmod_b.pow 2).trans hsq'⟩
 
-private theorem computableInPolyTime_crtStep {α : Type} {enc : α ↪ List Bool}
-    {sp sq inv a' : α → ℕ}
-    (hsp : ComputableInPolyTime sp enc encNat)
-    (hsq : ComputableInPolyTime sq enc encNat)
-    (hinv : ComputableInPolyTime inv enc encNat)
-    (ha' : ComputableInPolyTime a' enc encNat) :
-    ComputableInPolyTime (fun x => crtStep (sp x) (sq x) (inv x) (a' x)) enc encNat := by
-  unfold crtStep
-  fun_prop
-
 private theorem computableInPolyTime_crtSqrt {α : Type} {enc : α ↪ List Bool}
     {y a b : α → ℕ}
     (hy : ComputableInPolyTime y enc encNat)
@@ -326,10 +347,8 @@ private theorem computableInPolyTime_crtSqrt {α : Type} {enc : α ↪ List Bool
     (hb : ComputableInPolyTime b enc encNat) :
     ComputableInPolyTime (fun x => crtSqrt (y x) (a x) (b x)) enc encNat := by
   unfold crtSqrt
-  have ha_pos : ∀ x, 0 < (if a x = 0 then 1 else a x) := fun x => by
-    split_ifs <;> omega
-  have hb_pos : ∀ x, 0 < (if b x = 0 then 1 else b x) := fun x => by
-    split_ifs <;> omega
+  have ha_pos : ∀ x, 0 < (if a x = 0 then 1 else a x) := fun x => by split_ifs <;> omega
+  have hb_pos : ∀ x, 0 < (if b x = 0 then 1 else b x) := fun x => by split_ifs <;> omega
   have ha' : ComputableInPolyTime (fun x => if a x = 0 then 1 else a x) enc encNat := by fun_prop
   have hb' : ComputableInPolyTime (fun x => if b x = 0 then 1 else b x) enc encNat := by fun_prop
   have hsp : ComputableInPolyTime
@@ -341,7 +360,11 @@ private theorem computableInPolyTime_crtSqrt {α : Type} {enc : α ↪ List Bool
   have hinv : ComputableInPolyTime
       (fun x => b x ^ (a x - 2) % (if a x = 0 then 1 else a x)) enc encNat :=
     ComputableInPolyTime.binary_powMod hb (by fun_prop) ha' ha_pos
-  have hstep := computableInPolyTime_crtStep hsp hsq hinv ha'
+  have hmod := @ComputableInPolyTime.binary_mod'
+  have hsub : ∀ {u v : α → ℕ}, ComputableInPolyTime u enc encNat →
+      ComputableInPolyTime v enc encNat →
+      ComputableInPolyTime (fun x => u x - v x) enc encNat :=
+    fun hu hv => ComputableInPolyTime.binary_sub.comp (hu.prod hv)
   dsimp only
   fun_prop
 
@@ -358,7 +381,7 @@ private theorem computableInPolyTime_rabinFactorPair {α : Type} {enc : α ↪ L
 theorem isPPTOn_factorToRabin {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
     (hF : IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
       (fun input => F input.1 input.2)) :
-    IsPPTOn (encPair encUnary (encPair encNat encNat)) encNat
+    IsPPTOn encModulusChallengeInput encNat
       (fun input => factorToRabin F input.1 input.2) := by
   unfold factorToRabin
   have hcrt := @computableInPolyTime_crtSqrt
@@ -369,7 +392,7 @@ theorem isPPTOn_factorToRabin {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
 
 /-- `rabinToFactor A` is uniform PPT whenever `A` is uniform PPT. -/
 theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
-    (hA : IsPPTOn (encPair encUnary (encPair encNat encNat)) encNat
+    (hA : IsPPTOn encModulusChallengeInput encNat
       (fun input => A input.1 input.2)) :
     IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
       (fun input => rabinToFactor A input.1 input.2) := by
@@ -381,8 +404,7 @@ theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
   have hcond : ComputableInPolyTime
       (fun x : (ℕ × ℕ) × List Bool =>
         decide (1 < Nat.gcd (ofBits x.2) x.1.2 ∧ Nat.gcd (ofBits x.2) x.1.2 < x.1.2))
-      (encPair (encPair encUnary encNat) encBits) encBool := by
-    fun_prop
+      (encPair (encPair encUnary encNat) encBits) encBool := by fun_prop
   have hyes : ComputableInPolyTime
       (fun x : (ℕ × ℕ) × List Bool => rabinFactorPair (ofBits x.2) x.1.2)
       (encPair (encPair encUnary encNat) encBits) (encPair encNat encNat) :=
@@ -390,39 +412,18 @@ theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
   have hno_branch : IsPPTOn (encPair (encPair encUnary encNat) encBits) (encPair encNat encNat)
       (fun x : (ℕ × ℕ) × List Bool => do
         let x' ← A x.1.1 (x.1.2, (ofBits x.2) ^ 2 % x.1.2)
-        pure (rabinFactorPair (ofBits x.2 + x') x.1.2)) := by
-    refine IsPPTOn.bind_with
+        pure (rabinFactorPair (ofBits x.2 + x') x.1.2)) :=
+    IsPPTOn.bind_with
       (IsPPTOn.preprocess hA
         (prepare := fun x : (ℕ × ℕ) × List Bool =>
           (x.1.1, (x.1.2, (ofBits x.2) ^ 2 % x.1.2)))
-        (by fun_prop)) ?_
-    have hno : ComputableInPolyTime
-        (fun x : ((ℕ × ℕ) × List Bool) × ℕ => rabinFactorPair (ofBits x.1.2 + x.2) x.1.1.2)
-        (encPair (encPair (encPair encUnary encNat) encBits) encNat) (encPair encNat encNat) :=
-      hpair (by fun_prop) (by fun_prop)
-    exact hno.isPPTOn
-  exact (IsPPTOn.cond' hcond hyes.isPPTOn hno_branch).congr
+        (by
+          simp only [pow_two]
+          have := @ComputableInPolyTime.binary_mod'
+          fun_prop))
+      (hpair (by fun_prop) (by fun_prop)).isPPTOn
+  exact (IsPPTOn.cond hcond hyes.isPPTOn hno_branch).congr
     (fun _ => by simp only [decide_eq_true_eq])
-
-private theorem mul_eq_blum_cases {p q a b : ℕ} (hp : p.Prime) (hq : q.Prime)
-    (ha : 1 < a) (hb : 1 < b) (hab : a * b = p * q) :
-    (a = p ∧ b = q) ∨ (a = q ∧ b = p) := by
-  have hdvd : a ∣ p * q := ⟨b, hab.symm⟩
-  by_cases hpa : p ∣ a
-  · rcases hpa with ⟨k, rfl⟩
-    have hkb : k * b = q := by
-      have : p * (k * b) = p * q := by rw [← mul_assoc]; exact hab
-      exact Nat.eq_of_mul_eq_mul_left hp.pos this
-    rcases (Nat.dvd_prime hq).mp ⟨b, hkb.symm⟩ with rfl | hk
-    · left; exact ⟨mul_one p, by simpa using hkb⟩
-    · rw [hk] at hkb
-      have hb1 : b = 1 := Nat.eq_of_mul_eq_mul_left hq.pos (by simpa using hkb)
-      omega
-  · have haq : a ∣ q := (hp.coprime_iff_not_dvd.mpr hpa).symm.dvd_of_dvd_mul_left hdvd
-    rcases (Nat.dvd_prime hq).mp haq with rfl | rfl
-    · exact absurd ha (by omega)
-    · right
-      exact ⟨rfl, Nat.eq_of_mul_eq_mul_left hq.pos (by rw [hab, mul_comm])⟩
 
 /-- On a nontrivial factorization `a * b = N` of a Blum modulus, `crtSqrt` returns a square root of
 every Rabin image `x ^ 2 % N`. -/
@@ -439,15 +440,13 @@ private theorem crtSqrt_sq_mod_eq {desc : BlumDesc} {a b x : ℕ}
   have hcrt_eq : crtSqrt y a b =
       y ^ ((b + 1) / 4) % b + b * ((y ^ ((a + 1) / 4) % a + a - (y ^ ((b + 1) / 4) % b) % a) *
         (b ^ (a - 2) % a) % a) := by
-    simp only [crtSqrt, crtStep, ha0, hb0, ↓reduceIte]
+    simp only [crtSqrt, ha0, hb0, ↓reduceIte]
   rw [hcrt_eq]
-  rcases mul_eq_blum_cases desc.hp desc.hq ha hb hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  rcases mul_eq_mul_primes_cases desc.hp desc.hq ha hb hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
   · have hmod := crt_combine_sq_modEq desc.hp desc.hq desc.hpq desc.hp3 desc.hq3 ⟨x, hy_mod⟩
-    rw [Nat.ModEq, Nat.mod_eq_of_lt hy_lt] at hmod
-    exact hmod
+    rwa [Nat.ModEq, Nat.mod_eq_of_lt hy_lt] at hmod
   · have hmod := crt_combine_sq_modEq desc.hq desc.hp desc.hpq.symm desc.hq3 desc.hp3 ⟨x, hy_mod⟩
-    rw [Nat.ModEq, mul_comm desc.q desc.p, Nat.mod_eq_of_lt hy_lt] at hmod
-    exact hmod
+    rwa [Nat.ModEq, mul_comm desc.q desc.p, Nat.mod_eq_of_lt hy_lt] at hmod
 
 /-- Success probability of `factoringGame gen F n` is at most that of
 `rabinInversionGame gen (factorToRabin F) n`. -/
@@ -478,10 +477,6 @@ theorem succProbability_factoringGame_le (gen : BlumGen)
 theorem factoringHard_of_rabinOneWay {gen : BlumGen} (h : RabinOneWay gen) :
     FactoringHard gen := fun F hF =>
   negligible_of_le (h _ (isPPTOn_factorToRabin hF)) (succProbability_factoringGame_le gen F)
-
-private theorem ofBits_ofFn_equivFin_symm (L : ℕ) (x : Fin (2 ^ L)) :
-    ofBits (List.ofFn ((BitString.equivFin L).symm x)) = x.1 := by
-  rw [ofBits, ← BitString.lsbValue_eq_foldr_bit, BitString.lsbValue_ofFn, Equiv.apply_symm_apply]
 
 private theorem tsum_uniformList_mul (L : ℕ) (g : List Bool → ℝ≥0∞) :
     (∑' r : List Bool, BitString.uniformList L r * g r) =
@@ -855,7 +850,7 @@ theorem succProbability_rabinInversionGame_le (gen : BlumGen)
     omega
   -- Average both experiments over the `2 ^ L` uniform draws `x`.
   simp only [rabinToFactor, ProbComp.eval_bind, BitString.eval_sampleList, PMF.tsum_bind_mul,
-    tsum_uniformList_mul, ofBits_ofFn_equivFin_symm]
+    tsum_uniformList_mul, ofBits_ofFn, Equiv.apply_symm_apply]
   rw [mul_left_comm (3 : ℝ≥0∞)]
   refine mul_le_mul_of_nonneg_left ?_ zero_le
   refine (sum_rabin_success_le desc.hp desc.hq desc.hpq hp2 hq2 rfl hk
@@ -881,5 +876,13 @@ theorem rabinOneWay_of_factoringHard {gen : BlumGen} (h : FactoringHard gen) :
 theorem rabinOneWay_iff_factoringHard (gen : BlumGen) :
     RabinOneWay gen ↔ FactoringHard gen :=
   ⟨factoringHard_of_rabinOneWay, rabinOneWay_of_factoringHard⟩
+
+/-- **Quadratic residuosity hardness implies `FactoringHard`** for any Blum modulus generator `gen`
+whose modulus distribution matches `setup`. -/
+theorem QuadraticResiduosityHard.factoringHard {setup : ℕ → PMF ModulusDesc} {gen : BlumGen}
+    (h : QuadraticResiduosityHard setup)
+    (hmod : ∀ n, (setup n).map ModulusDesc.modulus = (gen n).map BlumDesc.modulus) :
+    FactoringHard gen :=
+  FactoringHard.of_modulusFactoringHard h.modulusFactoringHard hmod
 
 end Cslib.Crypto

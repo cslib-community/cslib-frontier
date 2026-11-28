@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Explicit
 import CslibFrontier.Foundations.Data.List.Boole
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 
 /-!
@@ -108,11 +109,8 @@ theorem contraction_append_pairs {R : Type*} [CommSemiring R] (W : ℕ)
     ⟨2 * W, rows ++ (List.range W).map fun w => ([2 * w, 2 * w + 1], eqTable)⟩
   -- an assignment that repeats each bit of `y` on the two edges of its pair
   let dup : (Fin W → Bool) → Fin (2 * W) → Bool := fun y e => y ⟨e / 2, by omega⟩
-  have hdup : Function.Injective dup := by
-    intro y y' h
-    funext w
-    have := congrFun h ⟨2 * w, by omega⟩
-    simpa [dup, show 2 * (w : ℕ) / 2 = w by omega] using this
+  have hdup : Function.Injective dup := fun y y' h => funext fun w => by
+    simpa [dup, show 2 * (w : ℕ) / 2 = w by omega] using congrFun h ⟨2 * w, by omega⟩
   have hpb (x : Fin (2 * W) → Bool) (ps : List ℕ) :
       G.portBits x ps = ps.map fun i => if h : i < 2 * W then x ⟨i, h⟩ else false := rfl
   -- the weight of an assignment
@@ -131,10 +129,7 @@ theorem contraction_append_pairs {R : Type*} [CommSemiring R] (W : ℕ)
       simp only [Function.comp_apply, hpb, List.map_cons, List.map_nil,
         show 2 * w < 2 * W by omega, show 2 * w + 1 < 2 * W by omega, dite_true, entry_eqTable]
       simp [hw']
-    rw [List.map_congr_left h1]
-    have key := List.prod_map_boole (M₀ := R) (List.range W)
-      (fun w => ∀ h : w < W, x ⟨2 * w, by omega⟩ = x ⟨2 * w + 1, by omega⟩)
-    rw [key]
+    rw [List.map_congr_left h1, List.prod_map_boole]
     congr 1
     exact propext ⟨fun h w => h w (List.mem_range.mpr w.2) w.2,
       fun h w _ hw => h ⟨w, hw⟩⟩
@@ -153,7 +148,7 @@ theorem contraction_append_pairs {R : Type*} [CommSemiring R] (W : ℕ)
       obtain ⟨e, he⟩ := e
       simp only [dup]
       rcases Nat.even_or_odd' e with ⟨w, rfl | rfl⟩
-      · exact congrArg x (Fin.ext (by change 2 * (2 * w / 2) = 2 * w; omega))
+      · exact congrArg x (by fin_index)
       · refine (congrArg x (Fin.ext ?_)).trans (h ⟨w, by omega⟩)
         change 2 * ((2 * w + 1) / 2) = 2 * w
         omega

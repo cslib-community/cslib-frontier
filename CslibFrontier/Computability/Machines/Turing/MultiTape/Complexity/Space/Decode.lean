@@ -10,15 +10,14 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Tape
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 public import CslibFrontier.Foundations.Data.StackTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 
 /-!
 # Decoding finite configurations in polynomial time
@@ -271,8 +270,7 @@ namespace ComputableInPolyTime
 /-- Emitting the bits of the framed cells is linear-time. -/
 private theorem cellsTransducer_run : ComputableInPolyTime
     (cellsTransducer.run cellsTransducer.q₀) encBits encBits :=
-  (ComputableTidilyInPolyTime.of_linear
-    (cellsTransducer.computableTidilyInLinearTimeAndSpace fun _ => rfl)).computableInPolyTime
+  (ComputableInDegree.of_transducer cellsTransducer fun _ => rfl).computableInPolyTime
 
 private theorem stackStep_eq (state : Option Bool × StackTape Bool) (bit : Bool) :
     stackStep state bit = (match state.1, bit with
@@ -333,14 +331,6 @@ private theorem dropFrame_iterate (n : ℕ) :
 theorem decodeTapes (k : ℕ) :
     ComputableInPolyTime (MultiTapeTM.decodeTapes k) encBits (encPi (encBiTape encBool)) :=
   pi fun _ => decodeBiTape.comp (unframe.comp (dropFrame_iterate _))
-
-/-- The smaller of two computed unary naturals, from the degree certificate
-`Turing.MultiTapeTM.ComputableInDegree.unary_min`. -/
-private theorem unary_min' {left right : List Bool → ℕ}
-    (hleft : ComputableInPolyTime left encBits encUnary)
-    (hright : ComputableInPolyTime right encBits encUnary) :
-    ComputableInPolyTime (fun word => min (left word) (right word)) encBits encUnary :=
-  ComputableInDegree.unary_min.computableInPolyTime.comp (hleft.prod hright)
 
 variable {k : ℕ} {State : Type} [Finite State]
 

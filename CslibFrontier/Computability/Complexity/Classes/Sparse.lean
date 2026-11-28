@@ -12,6 +12,7 @@ public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Mathlib.Data.Set.Card
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 
 /-!
 # Sparse problems
@@ -143,17 +144,11 @@ than any polynomial bound allows. -/
 theorem univ_notMem_SPARSE : (Set.univ : Set (List Bool)) ∉ SPARSE encBits := by
   rintro ⟨p, hp, h⟩
   obtain ⟨n, hn⟩ := hp.eventually_lt_two_pow.exists
-  have hsub : (((Finset.univ : Finset (Fin n → Bool)).image List.ofFn : Finset (List Bool)) :
-      Set (List Bool)) ⊆ {w ∈ Set.univ | (encBits w).length ≤ n} := by
-    intro w hw
-    simp only [Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.mem_range] at hw
-    obtain ⟨x, rfl⟩ := hw
-    simp
-  have hcard : ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn).card = 2 ^ n := by
-    rw [Finset.card_image_of_injective _ List.ofFn_injective, Finset.card_univ,
-      Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+  have hsub : (BitString.wordsOfLength n : Set (List Bool)) ⊆
+      {w ∈ Set.univ | (encBits w).length ≤ n} := fun w hw => by
+    simp [BitString.mem_wordsOfLength.mp hw]
   have hle := (Set.encard_le_encard hsub).trans (h n)
-  rw [Set.encard_coe_eq_coe_finsetCard, hcard] at hle
+  rw [Set.encard_coe_eq_coe_finsetCard, BitString.card_wordsOfLength] at hle
   exact absurd (Nat.cast_le.mp hle) (not_le.mpr hn)
 
 end Cslib.Complexity

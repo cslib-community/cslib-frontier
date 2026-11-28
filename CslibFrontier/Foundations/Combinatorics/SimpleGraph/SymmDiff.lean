@@ -43,6 +43,5 @@ edge sets. -/
 theorem edgeSet_symmDiff (G H : SimpleGraph V) :
     (symmDiff G H).edgeSet = symmDiff G.edgeSet H.edgeSet := by
   rw [symmDiff_def, symmDiff_def, edgeSet_sup, edgeSet_sdiff, edgeSet_sdiff]
-  rfl
 
 end SimpleGraph

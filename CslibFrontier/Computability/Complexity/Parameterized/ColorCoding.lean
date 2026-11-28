@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Parameterized
 public import CslibFrontier.Computability.Complexity.Problems.Graph.VertexColors
 public import CslibFrontier.Computability.Complexity.Problems.LongPath
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Complexity.FineGrained.Padding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -32,10 +33,11 @@ colorful path with color set exactly `S` ends. Such a path is the single vertex 
 of `v`. Color coding then finds a path on `k` vertices with probability at least `e ^ (-k)` by
 running this procedure on a uniformly random coloring.
 
-`Cslib.Complexity.ColorfulPath` is the problem: instances are a graph, a list of colors parallel to
-its vertex list (`Cslib.Complexity.colorOf`) and a target `k`, and the question is whether there is
-a path on `k` vertices with pairwise distinct colors less than `k`. The color sets are bit masks
-`m < 2 ^ k`, and the table (`Cslib.Complexity.ColorCoding.table`) has one entry per mask in
+`Cslib.Complexity.ColorfulPath` is the problem: an instance (`ColorfulPathInstance`) packages a
+graph, a list of colors parallel to its vertex list (`Cslib.Complexity.colorOf`), and a target
+`length` (`k`), encoded by `Cslib.Complexity.encColorfulPathInstance`. The question is whether
+there is a path on `k` vertices with pairwise distinct colors less than `k`. The color sets are bit
+masks `m < 2 ^ k`, and the table (`Cslib.Complexity.ColorCoding.table`) has one entry per mask in
 increasing order, so that the entry at `m - 2 ^ χ v` precedes that at `m`.
 
 *Resources.* The table on `N` masks is polynomial-time with `N` in unary
@@ -49,11 +51,15 @@ tractable in `k` (`Cslib.Complexity.ColorfulPath_mem_FPT`). The constant `δ` is
 
 ## Main definitions
 
+* `Cslib.Complexity.ColorfulPathInstance`: graph, color list, and target length `k`, encoded by
+  `Cslib.Complexity.encColorfulPathInstance`.
 * `Cslib.Complexity.ColorfulPath`: colorful paths on `k` vertices with colors less than `k`, the
   colors given by a list (`Cslib.Complexity.colorOf`).
 * `Cslib.Complexity.ColorCoding.Reaches`: the colorful paths with a given color set and last
   vertex.
 * `Cslib.Complexity.ColorCoding.table`: the dynamic programming table over color sets.
+* `Cslib.Complexity.ColorCoding.TableInput`: graph, color list, and unary mask count `numSets`
+  for `Cslib.Complexity.ColorCoding.computableInPolyTime_table`.
 * `Cslib.Complexity.colorfulPathBool`: the decider.
 
 ## Main results
@@ -82,17 +88,36 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM
 
-/-- **Colorful k-Path** [CyganEtAl2015, Section 5.2]: the triples `((G, cs), k)` such that `G` has a
+/-- An instance of `Cslib.Complexity.ColorfulPath`: a graph `graph`, a list of vertex
+colors `colors` parallel to its vertex list (`Cslib.Complexity.colorOf`), and a target path length
+`length`. -/
+@[ext]
+structure ColorfulPathInstance where
+  /-- The input graph. -/
+  graph : Graph
+  /-- Vertex colors listed parallel to `graph.vertices` (`Cslib.Complexity.colorOf`). -/
+  colors : List ℕ
+  /-- The target number of vertices (and available colors). -/
+  length : ℕ
+deriving DecidableEq, Repr
+
+/-- Binary encoding of `ColorfulPathInstance` as `(graph, (colors, length))`. -/
+enc_structure encColorfulPathInstance : ColorfulPathInstance where
+  graph : encGraph, colors : (encList encNat), length : encNat
+
+/-- **Colorful k-Path** [CyganEtAl2015, Section 5.2]: the instances `⟨G, cs, k⟩` such that `G` has a
 path on `k` vertices whose colors are pairwise distinct and less than `k`; colors are given by a
 list parallel to the vertex list (`Cslib.Complexity.colorOf`). -/
 @[expose]
-def ColorfulPath : Set ((Graph × List ℕ) × ℕ) :=
-  {x | ∃ p : List ℕ, x.1.1.IsVertexPath p ∧ p.length = x.2 ∧
-    (p.map (colorOf x.1.1 x.1.2)).Nodup ∧ ∀ v ∈ p, colorOf x.1.1 x.1.2 v < x.2}
+def ColorfulPath : Set ColorfulPathInstance :=
+  {x | ∃ p : List ℕ, x.graph.IsVertexPath p ∧ p.length = x.length ∧
+    (p.map (colorOf x.graph x.colors)).Nodup ∧
+      ∀ v ∈ p, colorOf x.graph x.colors v < x.length}
 
 theorem mem_ColorfulPath_iff {G : Graph} {cs : List ℕ} {k : ℕ} :
-    ((G, cs), k) ∈ ColorfulPath ↔ ∃ p : List ℕ, G.IsVertexPath p ∧ p.length = k ∧
-      (p.map (colorOf G cs)).Nodup ∧ ∀ v ∈ p, colorOf G cs v < k :=
+    (⟨G, cs, k⟩ : ColorfulPathInstance) ∈ ColorfulPath ↔
+      ∃ p : List ℕ, G.IsVertexPath p ∧ p.length = k ∧
+        (p.map (colorOf G cs)).Nodup ∧ ∀ v ∈ p, colorOf G cs v < k :=
   Iff.rfl
 
 namespace ColorCoding
@@ -124,64 +149,36 @@ variable {G χ}
 color set `m` ends at `v` exactly when `χ v ∈ m`, and either `m = {χ v}` or a colorful path with
 color set `m \ {χ v}` ends at a neighbor of `v`. -/
 theorem reaches_iff {m v : ℕ} :
-    Reaches G χ m v ↔ v ∈ G.1 ∧ m.testBit (χ v) = true ∧
+    Reaches G χ m v ↔ v ∈ G.vertices ∧ m.testBit (χ v) = true ∧
       (m = 2 ^ χ v ∨ ∃ u, Reaches G χ (m - 2 ^ χ v) u ∧ G.toSimpleGraph.Adj u v) := by
   constructor
   · rintro ⟨p, hp, hnd, hm⟩
     refine ⟨hp.2.1 v (by simp), (hm _).2 (by simp), ?_⟩
     rcases List.eq_nil_or_concat' p with rfl | ⟨L, u, rfl⟩
-    · left
-      exact Nat.eq_two_pow_of_testBit fun c => by simpa using hm c
-    · right
-      have hch := hp.2.2
-      rw [List.isChain_append] at hch
-      have hnd' := hnd
-      rw [List.map_append, List.nodup_append] at hnd'
-      have hva : χ v ∉ (L ++ [u]).map χ := fun h => hnd'.2.2 _ h _ (by simp) rfl
-      refine ⟨u, ⟨L, ⟨(List.nodup_append.1 hp.1).1,
-        fun x hx => hp.2.1 x (List.mem_append_left _ hx), hch.1⟩, hnd'.1, fun c => ?_⟩,
+    · exact .inl (Nat.eq_two_pow_of_testBit fun c => by simpa using hm c)
+    · rw [List.map_append, List.nodup_append] at hnd
+      have hch := List.isChain_append.1 hp.2.2
+      have hva : χ v ∉ (L ++ [u]).map χ := fun h => hnd.2.2 _ h _ (by simp) rfl
+      refine .inr ⟨u, ⟨L, ⟨(List.nodup_append.1 hp.1).1,
+        fun x hx => hp.2.1 x (List.mem_append_left _ hx), hch.1⟩, hnd.1, fun c => ?_⟩,
         hch.2.2 u (by simp) v (by simp)⟩
-      rw [Nat.testBit_sub_two_pow ((hm _).2 (by simp)), Bool.and_eq_true, hm,
-        decide_eq_true_iff]
-      constructor
-      · rintro ⟨hc, hne⟩
-        simpa [hne] using hc
-      · intro hc
-        refine ⟨by simp_all, fun h => hva (h ▸ hc)⟩
+      rw [Nat.testBit_sub_two_pow ((hm _).2 (by simp)), Bool.and_eq_true, hm, decide_eq_true_iff,
+        List.map_append, List.mem_append, List.map_singleton, List.mem_singleton]
+      exact ⟨fun h => h.1.resolve_right h.2, fun hc => ⟨.inl hc, fun h => hva (h ▸ hc)⟩⟩
   · rintro ⟨hv, hbit, rfl | ⟨u, ⟨p, hp, hnd, hm⟩, hadj⟩⟩
-    · refine ⟨[], ⟨by simp, by simpa using hv, by simp⟩, by simp, fun c => ?_⟩
-      rw [Nat.testBit_two_pow]
-      simp [eq_comm]
+    · exact ⟨[], ⟨List.nodup_singleton _, List.forall_mem_singleton.2 hv, List.isChain_singleton _⟩,
+        List.nodup_singleton _, fun c => by simp [Nat.testBit_two_pow, eq_comm]⟩
     · have hva : χ v ∉ (p ++ [u]).map χ := fun h => by
-        have := (hm (χ v)).2 h
-        rw [Nat.testBit_sub_two_pow hbit] at this
-        simp at this
-      have hvp : v ∉ p ++ [u] := fun h => hva (List.mem_map_of_mem h)
-      refine ⟨p ++ [u], ⟨?_, fun x hx => ?_, ?_⟩, ?_, fun c => ?_⟩
-      · exact List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb => by
-          simp only [List.mem_singleton] at hb
-          exact hb ▸ fun h => hvp (h ▸ ha)⟩
-      · rw [List.mem_append, List.mem_singleton] at hx
-        rcases hx with hx | rfl
-        · exact hp.2.1 x hx
-        · exact hv
-      · rw [List.isChain_append]
-        refine ⟨hp.2.2, by simp, fun x hx y hy => ?_⟩
-        simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
-          Option.mem_def, Option.some.injEq, List.head?_cons] at hx hy
-        subst hx hy
-        exact hadj
-      · rw [List.map_append, List.nodup_append]
-        exact ⟨hnd, by simp, fun a ha b hb => by
-          simp only [List.map_cons, List.map_nil, List.mem_singleton] at hb
-          exact hb ▸ fun h => hva (h ▸ ha)⟩
-      · have := hm c
-        rw [Nat.testBit_sub_two_pow hbit, Bool.and_eq_true, decide_eq_true_iff] at this
-        rw [List.map_append, List.mem_append, ← this, List.map_singleton, List.mem_singleton]
-        by_cases hc : c = χ v
-        · subst hc
-          simp [hbit]
-        · simp [hc]
+        simpa [Nat.testBit_sub_two_pow hbit] using (hm (χ v)).2 h
+      refine ⟨p ++ [u], ⟨List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb h =>
+          hva (List.mem_map_of_mem ((h.trans (List.mem_singleton.1 hb)) ▸ ha))⟩,
+        fun x hx => (List.mem_append.1 hx).elim (hp.2.1 x) fun hx => List.mem_singleton.1 hx ▸ hv,
+        List.isChain_append.2 ⟨hp.2.2, List.isChain_singleton _, by simp [hadj]⟩⟩,
+        List.map_append ▸ List.nodup_append.2 ⟨hnd, List.nodup_singleton _, fun a ha b hb h =>
+          hva (h.trans (List.mem_singleton.1 hb) ▸ ha)⟩, fun c => ?_⟩
+      rw [List.map_append, List.mem_append, ← hm c, Nat.testBit_sub_two_pow hbit,
+        Bool.and_eq_true, decide_eq_true_iff, List.map_singleton, List.mem_singleton]
+      by_cases hc : c = χ v <;> simp [hc, hbit]
 
 theorem table_succ (N : ℕ) :
     table G χ (N + 1) = table G χ N ++ [entry G χ (table G χ N) N] := by
@@ -202,7 +199,7 @@ theorem mem_table_getD {N m v : ℕ} (hm : m < N) :
   | succ N ih =>
     rw [table_succ]
     rcases Nat.lt_succ_iff_lt_or_eq.1 hm with hm | rfl
-    · rw [List.getD_append _ _ _ _ (by rw [length_table]; exact hm)]
+    · rw [List.getD_append _ _ _ _ (by rwa [length_table])]
       exact ih hm
     · rw [List.getD_append_right _ _ _ _ (by rw [length_table]), length_table, Nat.sub_self,
         List.getD_cons_zero, entry, List.mem_filter, Graph.mem_distinctVertices,
@@ -210,11 +207,7 @@ theorem mem_table_getD {N m v : ℕ} (hm : m < N) :
       refine and_congr_right fun _ => and_congr_right fun hbit => or_congr_right ?_
       have hlt : m - 2 ^ χ v < m := Nat.sub_lt_self (Nat.two_pow_pos _)
         (Nat.ge_two_pow_of_testBit hbit)
-      constructor
-      · rintro ⟨u, hu, hadj⟩
-        exact ⟨u, (ih hlt).1 hu, (Graph.adjBool_eq_true_iff G u v).1 hadj⟩
-      · rintro ⟨u, hu, hadj⟩
-        exact ⟨u, (ih hlt).2 hu, (Graph.adjBool_eq_true_iff G u v).2 hadj⟩
+      exact exists_congr fun u => and_congr (ih hlt) (Graph.adjBool_eq_true_iff G u v)
 
 /-- The colorful paths on `k` vertices with colors less than `k` are the colorful paths ending
 anywhere with color set `{0, …, k - 1}`. -/
@@ -223,26 +216,22 @@ theorem exists_reaches_iff {k : ℕ} (hk : 0 < k) :
       (p.map χ).Nodup ∧ ∀ v ∈ p, χ v < k := by
   constructor
   · rintro ⟨v, p, hp, hnd, hm⟩
-    have hmem : ∀ c, c ∈ (p ++ [v]).map χ ↔ c < k := fun c => by
+    have hmem (c : ℕ) : c ∈ (p ++ [v]).map χ ↔ c < k := by
       rw [← hm, Nat.testBit_two_pow_sub_one, decide_eq_true_iff]
+    have hfs : ((p ++ [v]).map χ).toFinset = Finset.range k :=
+      Finset.ext fun c => by rw [List.mem_toFinset, hmem, Finset.mem_range]
     refine ⟨p ++ [v], hp, ?_, hnd, fun x hx => (hmem _).1 (List.mem_map_of_mem hx)⟩
-    have hfs : ((p ++ [v]).map χ).toFinset = Finset.range k := by
-      ext c
-      rw [List.mem_toFinset, hmem, Finset.mem_range]
     rw [← List.length_map (f := χ), ← List.toFinset_card_of_nodup hnd, hfs, Finset.card_range]
   · rintro ⟨p, hp, hlen, hnd, hlt⟩
     rcases List.eq_nil_or_concat' p with rfl | ⟨L, v, rfl⟩
-    · rw [List.length_nil] at hlen
-      omega
+    · exact absurd hlen.symm hk.ne'
     have hfs : ((L ++ [v]).map χ).toFinset = Finset.range k :=
       Finset.eq_of_subset_of_card_le
-        (fun c hc => by
-          obtain ⟨x, hx, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hc)
-          exact Finset.mem_range.2 (hlt x hx))
+        (fun c hc => let ⟨x, hx, hc⟩ := List.mem_map.1 (List.mem_toFinset.1 hc)
+          hc ▸ Finset.mem_range.2 (hlt x hx))
         (by rw [Finset.card_range, List.toFinset_card_of_nodup hnd, List.length_map, hlen])
     refine ⟨v, L, hp, hnd, fun c => ?_⟩
-    rw [Nat.testBit_two_pow_sub_one, decide_eq_true_iff, ← Finset.mem_range, ← hfs,
-      List.mem_toFinset]
+    simp [Nat.testBit_two_pow_sub_one, ← Finset.mem_range, ← hfs, or_comm]
 
 /-! ### Polynomial time on padded inputs -/
 
@@ -269,159 +258,191 @@ private theorem table_eq_foldl (N : ℕ) :
 
 end ColorCoding
 
-/-- The input of a step of the table computation: the instance, the number of color sets in
-unary, the table so far and the color set in unary. -/
-private abbrev StepInput : Type := (((Graph × List ℕ) × ℕ) × List (List ℕ)) × ℕ
+namespace ColorCoding
 
-private abbrev encStepInput : StepInput ↪ List Bool :=
-  encPair (encPair (encPair (encPair encGraph (encList encNat)) encUnary)
-    (encList (encList encNat))) encUnary
+/-- Parameters for building the dynamic-programming table: the input graph, vertex color list
+(`Cslib.Complexity.colorOf`), and unary bound `numSets` on color-set masks. -/
+@[ext]
+structure TableInput where
+  /-- The input graph. -/
+  graph : Graph
+  /-- Vertex colors listed parallel to `graph.vertices` (`Cslib.Complexity.colorOf`). -/
+  colors : List ℕ
+  /-- Number of color-set masks to tabulate (encoded in unary). -/
+  numSets : ℕ
+deriving DecidableEq, Repr
+
+/-- Encoding of `ColorCoding.TableInput` with `numSets` in unary (`encUnary`). -/
+enc_structure encTableInput : TableInput where
+  graph : encGraph, colors : (encList encNat), numSets : encUnary
+
+/-- Binary encoding of dynamic-programming tables (`List (List ℕ)`): lists of vertex lists. -/
+abbrev encTable : List (List ℕ) ↪ List Bool := encList (encList encNat)
+
+/-- The input of a step of the table computation: the table parameters, the table so far, and
+the color set in unary. -/
+@[ext]
+structure StepInput where
+  /-- Table parameters (`graph`, `colors`, and unary `numSets`). -/
+  input : TableInput
+  /-- Dynamic-programming table rows accumulated for smaller color-set masks. -/
+  table : List (List ℕ)
+  /-- Current color-set mask (encoded in unary). -/
+  mask : ℕ
+deriving DecidableEq, Repr
+
+/-- Encoding of `ColorCoding.StepInput` with `input` under `encTableInput`, `table` under
+`encTable`, and `mask` in unary (`encUnary`). -/
+enc_structure encStepInput : StepInput where
+  input : encTableInput, table : encTable, mask : encUnary
+
+end ColorCoding
+
+section
+
+open scoped ColorCoding
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_entryCapped :
     ComputableInPolyTime
-      (fun q : StepInput =>
-        ColorCoding.entryCapped q.1.1.1.1 (colorOf q.1.1.1.1 q.1.1.1.2) q.1.2 q.2)
-      encStepInput (encList encNat) := by
-  have hG : ComputableInPolyTime (fun q : StepInput × ℕ => q.1.1.1.1.1)
-      (encPair encStepInput encNat) encGraph := by fun_prop
-  have hv : ComputableInPolyTime (fun q : StepInput × ℕ => q.2)
-      (encPair encStepInput encNat) encNat := by fun_prop
-  have hmU : ComputableInPolyTime (fun q : StepInput × ℕ => q.1.2)
-      (encPair encStepInput encNat) encUnary := by fun_prop
-  have hmB : ComputableInPolyTime (fun q : StepInput × ℕ => q.1.2)
-      (encPair encStepInput encNat) encNat := unary_to_binary.comp hmU
-  have hT : ComputableInPolyTime (fun q : StepInput × ℕ => q.1.1.2)
-      (encPair encStepInput encNat) (encList (encList encNat)) := by fun_prop
-  have hcol : ComputableInPolyTime
-      (fun q : StepInput × ℕ => colorOf q.1.1.1.1.1 q.1.1.1.1.2 q.2)
-      (encPair encStepInput encNat) encNat := by fun_prop
-  have hcap : ComputableInPolyTime
-      (fun q : StepInput × ℕ => min q.1.2 (colorOf q.1.1.1.1.1 q.1.1.1.1.2 q.2))
-      (encPair encStepInput encNat) encUnary := binary_min_unary' hmU hcol
-  have hpow : ComputableInPolyTime
-      (fun q : StepInput × ℕ => 2 ^ min q.1.2 (colorOf q.1.1.1.1.1 q.1.1.1.1.2 q.2))
-      (encPair encStepInput encNat) encNat := binary_two_pow.comp hcap
-  have hbit := binary_testBit hmB hcap
-  have heq := beq hmB hpow
-  have hsub := binary_sub' hmB hpow
-  have hrow := listGetD_binary (encA := encList encNat) [] hT hsub
-  have hany : ComputableInPolyTime
-      (fun q : StepInput × ℕ =>
-        (q.1.1.2.getD (q.1.2 - 2 ^ min q.1.2 (colorOf q.1.1.1.1.1 q.1.1.1.1.2 q.2)) []).any
-          fun u => q.1.1.1.1.1.adjBool u q.2)
-      (encPair encStepInput encNat) encBool := by
-    refine anyWithInput hrow ?_
-    have hG' : ComputableInPolyTime (fun p : (StepInput × ℕ) × ℕ => p.1.1.1.1.1.1)
-        (encPair (encPair encStepInput encNat) encNat) encGraph := hG.comp (fst _ _)
-    exact Graph.computableInPolyTime_adjBool_comp hG' (snd _ _) (hv.comp (fst _ _))
-  have htest := bool_and' hbit (bool_or.comp (heq.prod hany))
-  have hV : ComputableInPolyTime (fun q : StepInput => q.1.1.1.1.distinctVertices)
-      encStepInput (encList encNat) := by fun_prop
+      (fun q : ColorCoding.StepInput =>
+        ColorCoding.entryCapped q.input.graph (colorOf q.input.graph q.input.colors) q.table
+          q.mask)
+      ColorCoding.encStepInput (encList encNat) := by
+  have hmU : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.mask)
+      (encPair ColorCoding.encStepInput encNat) encUnary := by fun_prop
+  have hmB := unary_to_binary.comp hmU
+  have hcap := binary_min_unary' hmU
+    (by fun_prop : ComputableInPolyTime
+      (fun q : ColorCoding.StepInput × ℕ => colorOf q.1.input.graph q.1.input.colors q.2)
+      (encPair ColorCoding.encStepInput encNat) encNat)
+  have hpow := binary_two_pow.comp hcap
+  have hrow := listGetD_binary (encA := encList encNat) []
+    (by fun_prop : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.table)
+      (encPair ColorCoding.encStepInput encNat) ColorCoding.encTable)
+    (binary_sub' hmB hpow)
+  have hany := anyWithInput
+    (test := fun (q : ColorCoding.StepInput × ℕ) u => q.1.input.graph.adjBool u q.2) hrow <|
+    Graph.computableInPolyTime_adjBool_comp
+      (by fun_prop : ComputableInPolyTime
+        (fun p : (ColorCoding.StepInput × ℕ) × ℕ => p.1.1.input.graph)
+        (encPair (encPair ColorCoding.encStepInput encNat) encNat) encGraph)
+      (snd _ _) ((snd _ _).comp (fst _ _))
   unfold ColorCoding.entryCapped
-  exact filterWithInput hV htest
+  exact filterWithInput (by fun_prop)
+    (bool_and' (binary_testBit hmB hcap) (bool_or.comp ((beq hmB hpow).prod hany)))
 
 open ComputableInPolyTime in
-/-- The table on `N` color sets, for `N` in unary, is polynomial-time. -/
+/-- The table on `N` color sets, for `N` in unary (`ColorCoding.TableInput`), is polynomial-time. -/
 theorem ColorCoding.computableInPolyTime_table :
-    ComputableInPolyTime (fun x : (Graph × List ℕ) × ℕ => table x.1.1 (colorOf x.1.1 x.1.2) x.2)
-      (encPair encColoredGraph encUnary) (encList (encList encNat)) := by
+    ComputableInPolyTime
+      (fun x : TableInput => table x.graph (colorOf x.graph x.colors) x.numSets)
+      encTableInput encTable := by
   simp only [table_eq_foldl]
   have hstep : ComputableInPolyTime
-      (fun q : StepInput =>
-        q.1.2 ++ [entryCapped q.1.1.1.1 (colorOf q.1.1.1.1 q.1.1.1.2) q.1.2 q.2])
-      encStepInput (encList (encList encNat)) :=
-    listAppend' (snd' (fst _ _)) (cons' computableInPolyTime_entryCapped (const []))
+      (fun q : (TableInput × List (List ℕ)) × ℕ =>
+        q.1.2 ++ [entryCapped q.1.1.graph (colorOf q.1.1.graph q.1.1.colors) q.1.2 q.2])
+      (encPair (encPair encTableInput encTable) encUnary) encTable :=
+    listAppend' (snd' (fst _ _)) (cons' (computableInPolyTime_entryCapped.comp
+      (by fun_prop : ComputableInPolyTime
+        (fun q : (TableInput × List (List ℕ)) × ℕ => (⟨q.1.1, q.1.2, q.2⟩ : StepInput))
+        (encPair (encPair encTableInput encTable) encUnary) encStepInput)) (const []))
+  have hV : ComputableInPolyTime (fun x : TableInput => x.graph.distinctVertices)
+      encTableInput (encList encNat) := by fun_prop
   refine foldlWithInput_of_bounded_growth (encA := encUnary) (encL := encList encUnary)
-    (const []) ⟨range.comp (snd _ _), hstep, inferInstance, inferInstance⟩
-    (growth := fun x => 2 * (encList encNat x.1.1.distinctVertices).length + 1)
-    ⟨((PolyBounded.const 2).mul (Graph.computableInPolyTime_distinctVertices.comp
-      ((fst _ _).comp (fst _ _))).polyBounded_length).add (.const 1), fun x T m _ => ?_⟩
-  simp only [encList_append, List.length_append, encList_cons, encList_nil, List.append_nil,
-    length_frame]
-  have : (encList encNat (entryCapped x.1.1 (colorOf x.1.1 x.1.2) T m)).length ≤
-      (encList encNat x.1.1.distinctVertices).length :=
-    length_encList_sublist encNat List.filter_sublist
+    (const []) ⟨range.comp (by fun_prop), hstep, inferInstance, inferInstance⟩
+    (growth := fun x => 2 * (encList encNat x.graph.distinctVertices).length + 1)
+    ⟨((PolyBounded.const 2).mul hV.polyBounded_length).add (.const 1), fun x T m _ => ?_⟩
+  simp only [encTable, encList_append, List.length_append, encList_cons, encList_nil,
+    List.append_nil, length_frame]
+  have := length_encList_sublist encNat
+    (l₁ := entryCapped x.graph (colorOf x.graph x.colors) T m) List.filter_sublist
   omega
 
-/-- The padded test of the dynamic programming: whether the table on `N` color sets has a
-nonempty entry at the color set `N - 1`. -/
+/-- The padded test of the dynamic programming: whether the table on `numSets` color sets has a
+nonempty entry at the color set `numSets - 1`. -/
 @[expose]
-def ColorCoding.lastEntryNonempty (x : (Graph × List ℕ) × ℕ) : Bool :=
-  !((table x.1.1 (colorOf x.1.1 x.1.2) x.2).getD (x.2 - 1) []).isEmpty
+def ColorCoding.lastEntryNonempty (x : TableInput) : Bool :=
+  !((table x.graph (colorOf x.graph x.colors) x.numSets).getD (x.numSets - 1) []).isEmpty
 
 /-- **The color-coding decider for colorful k-paths** [CyganEtAl2015, Lemma 5.5]: accept when
 `k = 0`; otherwise check that `k` is at most the number `n` of distinct vertices, and that the table
 on the color sets `0, …, 2 ^ k - 1` has a nonempty entry at `{0, …, k - 1}`. -/
 @[expose]
-def colorfulPathBool (x : (Graph × List ℕ) × ℕ) : Bool :=
-  x.2 == 0 || (decide (x.2 ≤ x.1.1.distinctVertices.length) &&
-    ColorCoding.lastEntryNonempty (x.1, 2 ^ min x.1.1.distinctVertices.length x.2))
+def colorfulPathBool (x : ColorfulPathInstance) : Bool :=
+  x.length == 0 || (decide (x.length ≤ x.graph.distinctVertices.length) &&
+    ColorCoding.lastEntryNonempty
+      ⟨x.graph, x.colors, 2 ^ min x.graph.distinctVertices.length x.length⟩)
 
-theorem colorfulPathBool_eq_true_iff (x : (Graph × List ℕ) × ℕ) :
+theorem colorfulPathBool_eq_true_iff (x : ColorfulPathInstance) :
     colorfulPathBool x = true ↔ x ∈ ColorfulPath := by
-  obtain ⟨⟨G, cs⟩, k⟩ := x
+  obtain ⟨G, cs, k⟩ := x
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · exact iff_of_true (by simp [colorfulPathBool]) ⟨[], by simp [Graph.IsVertexPath]⟩
-  have hk0 : (k == 0) = false := by simpa using hk.ne'
   have hlt : 2 ^ k - 1 < 2 ^ k := Nat.sub_lt (Nat.two_pow_pos k) Nat.one_pos
-  rw [colorfulPathBool, hk0, Bool.false_or, Bool.and_eq_true, decide_eq_true_iff,
-    ColorCoding.lastEntryNonempty, Bool.not_eq_true', List.isEmpty_eq_false_iff]
-  constructor
-  · rintro ⟨hkn, hne⟩
-    rw [Nat.min_eq_right hkn] at hne
-    obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ hne
+  rw [colorfulPathBool, beq_eq_false_iff_ne.2 hk.ne', Bool.false_or, Bool.and_eq_true,
+    decide_eq_true_iff, ColorCoding.lastEntryNonempty, Bool.not_eq_true', List.isEmpty_eq_false_iff]
+  refine ⟨fun ⟨hkn, hne⟩ => ?_, fun hx => ?_⟩
+  · obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (by rwa [Nat.min_eq_right hkn] at hne)
     exact (ColorCoding.exists_reaches_iff hk).1 ⟨v, (ColorCoding.mem_table_getD hlt).1 hv⟩
-  · intro hx
-    obtain ⟨p, hp, hlen, -⟩ := id hx
+  · obtain ⟨p, hp, hlen, -⟩ := id hx
     have hkn : k ≤ G.distinctVertices.length := hlen.symm.trans_le hp.length_le
-    refine ⟨hkn, ?_⟩
-    rw [Nat.min_eq_right hkn]
     obtain ⟨v, hv⟩ := (ColorCoding.exists_reaches_iff hk).2 hx
-    exact List.ne_nil_of_mem ((ColorCoding.mem_table_getD hlt).2 hv)
+    refine ⟨hkn, ?_⟩
+    simpa only [Nat.min_eq_right hkn] using
+      List.ne_nil_of_mem ((ColorCoding.mem_table_getD hlt).2 hv)
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_colorfulPathPad :
     ComputableInPolyTime
-      (fun y : ((Graph × List ℕ) × ℕ) × ℕ => y.1.2 == 0 ||
-        (decide (y.1.2 ≤ y.1.1.1.distinctVertices.length) &&
-          ColorCoding.lastEntryNonempty (y.1.1, y.2)))
-      (encPair (encPair (encPair encGraph (encList encNat)) encNat) encUnary) encBool := by
-  have hx : ComputableInPolyTime (fun y : ((Graph × List ℕ) × ℕ) × ℕ => y.1.1)
-      (encPair (encPair (encPair encGraph (encList encNat)) encNat) encUnary)
-      (encPair encGraph (encList encNat)) := fst' (fst _ _)
-  have hk : ComputableInPolyTime (fun y : ((Graph × List ℕ) × ℕ) × ℕ => y.1.2)
-      (encPair (encPair (encPair encGraph (encList encNat)) encNat) encUnary) encNat :=
-    snd' (fst _ _)
-  have hN : ComputableInPolyTime (fun y : ((Graph × List ℕ) × ℕ) × ℕ => y.2)
-      (encPair (encPair (encPair encGraph (encList encNat)) encNat) encUnary) encUnary := snd _ _
+      (fun y : ColorfulPathInstance × ℕ => y.1.length == 0 ||
+        (decide (y.1.length ≤ y.1.graph.distinctVertices.length) &&
+          ColorCoding.lastEntryNonempty ⟨y.1.graph, y.1.colors, y.2⟩))
+      (encPair encColorfulPathInstance encUnary) encBool := by
+  have hk : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.1.length)
+      (encPair encColorfulPathInstance encUnary) encNat := by fun_prop
   have hn := (length_list_binary encNat).comp
-    (Graph.computableInPolyTime_distinctVertices.comp (fst' hx))
-  have htab := ColorCoding.computableInPolyTime_table.comp (hx.prod hN)
-  have hget := (listGetD (encA := encList encNat) []).comp (htab.prod (unary_sub' hN (const 1)))
+    (Graph.computableInPolyTime_distinctVertices.comp
+      (by fun_prop : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.1.graph)
+        (encPair encColorfulPathInstance encUnary) encGraph))
+  have htab := ColorCoding.computableInPolyTime_table.comp
+    (by fun_prop : ComputableInPolyTime
+      (fun y : ColorfulPathInstance × ℕ =>
+        (⟨y.1.graph, y.1.colors, y.2⟩ : ColorCoding.TableInput))
+      (encPair encColorfulPathInstance encUnary) ColorCoding.encTableInput)
+  have hget := (listGetD (encA := encList encNat) []).comp
+    (htab.prod (unary_sub' (snd _ _) (const 1)))
   exact bool_or.comp ((beq hk (const 0)).prod
     (bool_and' (binary_le' hk hn) (bool_not.comp ((listIsEmpty (encA := encNat)).comp hget))))
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_colorfulPathExponent :
-    ComputableInPolyTime (fun x : (Graph × List ℕ) × ℕ => min x.1.1.distinctVertices.length x.2)
-      (encPair (encPair encGraph (encList encNat)) encNat) encUnary :=
-  binary_min_unary' ((length_list encNat).comp
-    (Graph.computableInPolyTime_distinctVertices.comp (fst' (fst _ _)))) (snd _ _)
+    ComputableInPolyTime
+      (fun x : ColorfulPathInstance => min x.graph.distinctVertices.length x.length)
+      encColorfulPathInstance encUnary :=
+  binary_min_unary'
+    ((length_list encNat).comp
+      (Graph.computableInPolyTime_distinctVertices.comp
+        (by fun_prop : ComputableInPolyTime (fun x : ColorfulPathInstance => x.graph)
+          encColorfulPathInstance encGraph)))
+    (by fun_prop)
+
+end
 
 /-- **Colorful k-Path in time `2 ^ O(k)` times a polynomial** [AlonYusterZwick1995, Lemma 3.1]
 [CyganEtAl2015, Lemma 5.5], on multi-tape machines: the dynamic programming over color sets
 (`Cslib.Complexity.colorfulPathBool`) runs on the input padded to length `2 ^ min(n, k)`. The
 constant `δ` is not explicit; the bound `2 ^ k` of the RAM analysis is not claimed. -/
 theorem ColorfulPath_decidableInExpTime :
-    ∃ δ : ℝ, DecidableInExpTime ColorfulPath (encPair encColoredGraph encNat) Prod.snd δ :=
+    ∃ δ : ℝ,
+      DecidableInExpTime ColorfulPath encColorfulPathInstance ColorfulPathInstance.length δ :=
   DecidableInExpTime.of_computableInPolyTime_pad computableInPolyTime_colorfulPathPad
     computableInPolyTime_colorfulPathExponent (fun _ => min_le_right _ _)
     fun x => (colorfulPathBool_eq_true_iff x).symm
 
 /-- **Colorful k-Path is fixed-parameter tractable** in `k`. -/
-theorem ColorfulPath_mem_FPT : ColorfulPath ∈ FPT (encPair encColoredGraph encNat) Prod.snd :=
-  let ⟨_, h⟩ := ColorfulPath_decidableInExpTime
-  h.mem_FPT
+theorem ColorfulPath_mem_FPT :
+    ColorfulPath ∈ FPT encColorfulPathInstance ColorfulPathInstance.length :=
+  ColorfulPath_decidableInExpTime.elim fun _ => DecidableInExpTime.mem_FPT
 
 end Cslib.Complexity

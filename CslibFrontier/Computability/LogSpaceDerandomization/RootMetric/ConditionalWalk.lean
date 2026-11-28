@@ -104,13 +104,11 @@ theorem expect_conditionalWalk_sub_mean_pow_four_le [Fintype D] [Nonempty D]
       2 * (G x y).spectralExpansion ^ (2 * t x y) *
         𝔼 σ ∈ ({σ | X σ x ∧ Y σ y} : Finset Ω),
           |F σ x y - rowSliceMean X Y F x y| ^ 4 := by
-  have hmean := expect_retainedPairSlice X Y x y (fun σ => F σ x y)
-  have h := (G x y).expect_walk_pow_two_mul_sub_expect_pow_four_le
-    (fun σ => F σ.val x y) (t x y)
   have habs (r : ℝ) : |r| ^ 4 = r ^ 4 := (by decide : Even (4 : ℕ)).pow_abs r
   rw [← expect_retainedPairSlice X Y x y, ← expect_retainedPairSlice X Y x y]
   simp only [habs, conditionalWalk_coe]
-  simpa only [hmean, rowSliceMean] using h
+  simpa only [expect_retainedPairSlice X Y x y (fun σ => F σ x y), rowSliceMean] using
+    (G x y).expect_walk_pow_two_mul_sub_expect_pow_four_le (fun σ => F σ.val x y) (t x y)
 
 variable [Fintype V]
 
@@ -140,28 +138,23 @@ theorem rowNormPow_conditionalWalk_le [Fintype D] [Nonempty D] {N u lam : ℝ}
   apply rowNormPow_le_of_conditional_expect_le hNu
   intro x y
   refine (expect_conditionalWalk_sub_mean_pow_four_le X Y G (fun _ _ => t) F x y).trans ?_
-  apply mul_le_mul_of_nonneg_right _ (expect_nonneg fun _ _ => pow_nonneg (abs_nonneg _) _)
-  exact mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (G x y).spectralExpansion_nonneg
-    (hgap x y) _) (by norm_num)
+  gcongr
+  exact hgap x y
 
 private theorem expect_sub_expect_pow_four_le_raw {A : Type*} [Fintype A] (f : A → ℝ) :
     (𝔼 σ, |f σ - 𝔼 τ, f τ| ^ 4) ≤ 16 * 𝔼 σ, |f σ| ^ 4 := by
   rcases isEmpty_or_nonempty A with hA | hA
   · simp
   have habs (r : ℝ) : |r| ^ 4 = r ^ 4 := (by decide : Even (4 : ℕ)).pow_abs r
-  have hfirst := sq_expect_le_expect_sq (univ : Finset A) f
-  have hsecond := sq_expect_le_expect_sq (univ : Finset A) (fun σ => f σ ^ 2)
-  have hpow := pow_le_pow_left₀ (sq_nonneg (𝔼 σ, f σ)) hfirst 2
   have hmean : |𝔼 σ, f σ| ^ 4 ≤ 𝔼 σ, |f σ| ^ 4 := by
-    simpa only [habs, ← pow_mul, Nat.reduceMul] using hpow.trans hsecond
-  have hpoint (σ : A) : |f σ - 𝔼 τ, f τ| ^ 4 ≤
-      8 * (|f σ| ^ 4 + |𝔼 τ, f τ| ^ 4) := by
-    have ht := pow_le_pow_left₀ (abs_nonneg (f σ - 𝔼 τ, f τ)) (abs_sub (f σ) (𝔼 τ, f τ)) 4
-    have ha := add_pow_le (abs_nonneg (f σ)) (abs_nonneg (𝔼 τ, f τ)) 4
-    norm_num only [Nat.reduceSub, Nat.reducePow] at ha
-    exact ht.trans ha
-  have h : (𝔼 σ, |f σ - 𝔼 τ, f τ| ^ 4) ≤
-      𝔼 σ, 8 * (|f σ| ^ 4 + |𝔼 τ, f τ| ^ 4) := expect_le_expect fun σ _ => hpoint σ
+    simpa only [habs, ← pow_mul, Nat.reduceMul] using
+      (pow_le_pow_left₀ (sq_nonneg (𝔼 σ, f σ)) (sq_expect_le_expect_sq (univ : Finset A) f)
+        2).trans (sq_expect_le_expect_sq (univ : Finset A) fun σ => f σ ^ 2)
+  have h : (𝔼 σ, |f σ - 𝔼 τ, f τ| ^ 4) ≤ 𝔼 σ, 8 * (|f σ| ^ 4 + |𝔼 τ, f τ| ^ 4) :=
+    expect_le_expect fun σ _ => by
+      have ha := add_pow_le (abs_nonneg (f σ)) (abs_nonneg (𝔼 τ, f τ)) 4
+      norm_num only [Nat.reduceSub, Nat.reducePow] at ha
+      exact (pow_le_pow_left₀ (abs_nonneg _) (abs_sub _ _) 4).trans ha
   simp only [expect_add_distrib, ← mul_expect, Fintype.expect_const] at h
   linarith
 
@@ -177,17 +170,15 @@ theorem rowNormPow_conditionalWalk_le_raw [Fintype D] [Nonempty D] {N u lam : �
   intro x y
   have hlocal := expect_conditionalWalk_sub_mean_pow_four_le X Y G (fun _ _ => t) F x y
   have hraw := expect_sub_expect_pow_four_le_raw (fun σ : RetainedPairSlice X Y x y => F σ.val x y)
-  have hmean := expect_retainedPairSlice X Y x y (fun σ => F σ x y)
-  simp only [hmean] at hraw
-  rw [expect_retainedPairSlice X Y x y (fun σ =>
-      |F σ x y - 𝔼 τ ∈ ({τ | X τ x ∧ Y τ y} : Finset Ω), F τ x y| ^ 4),
-    expect_retainedPairSlice X Y x y (fun σ => |F σ x y| ^ 4)] at hraw
+  simp only [expect_retainedPairSlice X Y x y fun σ => F σ x y] at hraw
+  rw [expect_retainedPairSlice X Y x y fun σ =>
+      |F σ x y - 𝔼 τ ∈ ({τ | X τ x ∧ Y τ y} : Finset Ω), F τ x y| ^ 4,
+    expect_retainedPairSlice X Y x y fun σ => |F σ x y| ^ 4] at hraw
   have hpow := pow_le_pow_left₀ (G x y).spectralExpansion_nonneg (hgap x y) (2 * t)
-  have hmoment : 0 ≤ 𝔼 σ ∈ ({σ | X σ x ∧ Y σ y} : Finset Ω), |F σ x y| ^ 4 := by
-    positivity
-  have hscale := mul_le_mul_of_nonneg_left hraw
+  have hmoment : 0 ≤ 𝔼 σ ∈ ({σ | X σ x ∧ Y σ y} : Finset Ω), |F σ x y| ^ 4 := by positivity
+  have := mul_le_mul_of_nonneg_left hraw
     (mul_nonneg (by norm_num : (0 : ℝ) ≤ 2) (pow_nonneg (G x y).spectralExpansion_nonneg (2 * t)))
-  have hgapscale := mul_le_mul_of_nonneg_right hpow hmoment
+  have := mul_le_mul_of_nonneg_right hpow hmoment
   dsimp only [rowSliceMean] at hlocal ⊢
   nlinarith
 

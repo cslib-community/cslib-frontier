@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Probabilistic.PPT.Capture
 public import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Uniform runtime of the corrupted-sender simulator
@@ -63,10 +64,8 @@ private theorem senderLoop_eq
   | succ k ih =>
     simp only [List.replicate_succ, List.foldlM_cons, senderLoopStep,
       Nat.add_sub_cancel, bind_assoc, pure_bind, ih, senderViewProgram_succ, map_bind]
-    apply congrArg (Bind.bind (choose k st))
-    apply funext
-    rintro ⟨t, middle⟩
-    simp [List.reverse_cons, List.append_assoc]
+    exact congrArg (Bind.bind (choose k st))
+      (funext fun ⟨_, _⟩ => by simp [List.reverse_cons, List.append_assoc])
 
 /-- Native list transcript generation, uniformly in the unary count and charged initial state.
 Only the combined round's final state needs additive growth on supported choices. -/
@@ -100,9 +99,7 @@ theorem senderViewProgram_isPPT (stateEncoding : State ↪ List Bool)
     have htable := length_encFinEnum_lt t
     norm_num [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool,
       Fintype.card_fin] at htable
-    simp only [accEncoding, tableEncoding, length_encPair, encUnary_apply,
-      List.length_replicate, encList_cons, List.length_append, length_frame]
-    omega
+    enc_len [accEncoding, tableEncoding]
   have hloop : IsPPTOn (encPair encUnary stateEncoding) accEncoding
       (fun p : ℕ × State => (List.replicate p.1 ()).foldlM
         (senderLoopStep choose receive) (p.1, p.2, [])) :=
@@ -141,7 +138,7 @@ theorem senderClosedProgram_isPPT {Output : Type}
       (encPair (encFinEnum (Fin 4 → Bool)) stateEncoding) (fun p => choose p.1 p.2))
     (hreceive : ComputableInPolyTime (fun st => receive st ()) stateEncoding stateEncoding)
     (hfinish : IsPPTOn (encPair encUnary stateEncoding)
-      (encPair (encOption (encPair encBool (encList (encPair encBool encBool)))) outputEncoding)
+      (encPair (encOption (encPair encBool encOpeningPairs)) outputEncoding)
       (fun p => finish p.1 p.2))
     (growth : ℕ)
     (hgrowth : ∀ k st t middle, (t, middle) ∈ (ProbComp.eval (choose k st)).support →
@@ -151,17 +148,14 @@ theorem senderClosedProgram_isPPT {Output : Type}
         (encPair (encFinite Phased.Observation) (encPair stateEncoding outputEncoding)))
       (fun p => senderClosedProgram choose receive p.1 p.2 finish) := by
   have hview := senderViewProgram_isPPT stateEncoding choose receive hchoose hreceive growth hgrowth
-  have hselected := selectedBits_polyTime
-  have hopen := openPairs_polyTime
   have hextract : ComputableInPolyTime
       (fun tables : List (Fin 4 → Bool) => extractPairs (tables.map fun t =>
         (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true)))))
-      (encList (encFinEnum (Fin 4 → Bool))) encBool := by
-    apply extractPairs_polyTime.comp
-    apply ComputableInPolyTime.mapWithInput (encA := encFinEnum (Fin 4 → Bool)) .id'
-    exact (ComputableInPolyTime.of_finite
-      (fun t : Fin 4 → Bool =>
-        (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true))))).comp (.snd _ _)
+      (encList (encFinEnum (Fin 4 → Bool))) encBool :=
+    extractPairs_polyTime.comp (ComputableInPolyTime.mapWithInput
+      (encA := encFinEnum (Fin 4 → Bool)) .id'
+      ((ComputableInPolyTime.of_finite fun t : Fin 4 → Bool =>
+        (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true)))).comp (.snd _ _)))
   have hobserve : ComputableInPolyTime
       (fun p : Option Bool × Bool =>
         if p.1 == some p.2 then Phased.Observation.opened p.2 else .aborted)
@@ -176,7 +170,7 @@ theorem senderClosedProgram_isPPT {Output : Type}
         (p.1.1.1, p.1.2.2)) (by fun_prop)
   apply ComputableInPolyTime.isPPTOn
   let encTables := encList (encFinEnum (Fin 4 → Bool))
-  let encSubmission := encOption (encPair encBool (encList (encPair encBool encBool)))
+  let encSubmission := encOption (encPair encBool encOpeningPairs)
   let encContext := encPair
     (encPair (encPair encUnary stateEncoding) (encPair encTables stateEncoding)) encBits
   have hcontext := ComputableInPolyTime.fst encContext (encPair encSubmission outputEncoding)
@@ -184,8 +178,8 @@ theorem senderClosedProgram_isPPT {Output : Type}
   have hchoices := hcontext.snd'
   have htables := hcontext.fst'.snd'.fst'
   have hstate := hcontext.fst'.snd'.snd'
-  have hresultBit := hopen.comp
-    (hchoices.prod ((hselected.comp (htables.prod hchoices)).prod hresult.fst'))
+  have hresultBit := openPairs_polyTime.comp
+    (hchoices.prod ((selectedBits_polyTime.comp (htables.prod hchoices)).prod hresult.fst'))
   have hobs := hobserve.comp (hresultBit.prod (hextract.comp htables))
   exact (ComputableInPolyTime.const Phased.Observation.receipt).prod
     (hobs.prod (hstate.prod hresult.snd'))

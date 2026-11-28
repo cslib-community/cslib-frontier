@@ -7,15 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Classes.EXP
-public import CslibFrontier.Computability.Complexity.Classes.Oracle
+
+public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential.Basic
+public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Exponential
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
+import CslibFrontier.Computability.Complexity.Classes.Padding
 import CslibFrontier.Computability.Complexity.Reduction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy
-import CslibFrontier.Computability.Probabilistic.Oracle.Normalization
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
 # Exponential time relative to an oracle language
@@ -35,14 +33,20 @@ relativize `P`, and `Cslib.Complexity.ENP` is the union of `EWithOracle A` over 
 languages `A` in `NP`.
 
 Both `E` and `P` relative to `A` lie inside `E` relative to `A`
-(`Cslib.Complexity.E_subset_EWithOracle`, `Cslib.Complexity.PWithOracle_subset_EWithOracle`). The
+(`Cslib.Complexity.E_subset_EWithOracle`, `Cslib.Complexity.PWithOracle_subset_EWithOracle`), so
+`P ^ NP ⊆ E ^ NP` (`Cslib.Complexity.iUnion_PWithOracle_NP_subset_ENP`). The
 *preprocessing rule* `Cslib.Complexity.preimage_mem_EWithOracle` composes a deterministic
 preparation within time `O(2 ^ (d * n))` with a problem in `P` relative to `A` on the prepared
 instances. Its typical use is padding: a polynomial-time algorithm with an oracle, run on an
 exponentially padded instance, is an exponential-time algorithm with that oracle. The preparation
 phase is a tidy normal form of the deterministic machine, and the oracle phase a clean realization
-of the polynomial-time certificate (`Cslib.Probability.IsOraclePPTOn.isTidyOraclePPTOn`); the two
+of the polynomial-time certificate (provided by the internal oracle compiler); the two
 are sequenced by `Turing.MultiTapePTM.ComputesTidily.comp`, which charges the intermediate word.
+
+In this way `NE ⊆ E ^ NP` (`Cslib.Complexity.NE_subset_ENP`): a problem in nondeterministic time
+`2 ^ O(n)` is decided on exponentially padded instances by a problem in `NP`
+(`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`), so an exponential-time
+machine writes the padded instance and asks the `NP` oracle about it.
 
 ## Main definitions
 
@@ -60,8 +64,9 @@ are sequenced by `Turing.MultiTapePTM.ComputesTidily.comp`, which charges the in
   `Cslib.Complexity.ComputableInPolyTimeWithOracle.comp_computableInO`.
 * `Cslib.Complexity.E_subset_EWithOracle`, `Cslib.Complexity.PWithOracle_subset_EWithOracle`,
   `Cslib.Complexity.preimage_mem_EWithOracle`.
-* `Cslib.Complexity.E_subset_ENP`, `Cslib.Complexity.PWithOracle_subset_ENP`,
-  `Cslib.Complexity.NP_subset_ENP`.
+* `Cslib.Complexity.E_subset_ENP`, `Cslib.Complexity.iUnion_PWithOracle_NP_subset_ENP`,
+  `Cslib.Complexity.NP_subset_ENP`: `E`, `P ^ NP` and `NP` lie inside `E ^ NP`.
+* `Cslib.Complexity.NE_subset_ENP`: `NE ⊆ E ^ NP`, by padding.
 
 ## References
 
@@ -71,124 +76,6 @@ are sequenced by `Turing.MultiTapePTM.ComputesTidily.comp`, which charges the in
 @[expose] public section
 
 namespace Cslib
-
-namespace Probability
-
-open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapePTM
-
-/-- One finite machine and an exponential clock `c * 2 ^ (d * n)` in the input length `n` preserve
-the full interaction with every shared stateful oracle: `Cslib.Probability.IsOraclePPTOn` with the
-polynomial clock replaced by `2 ^ O(n)`. The oracle's computation is external; request
-construction and reply access are ordinary machine work. -/
-def IsOracleExpTimeOn {Operation α β : Type} [DecidableEq Operation]
-    (input : α ↪ List Bool) (output : β ↪ List Bool)
-    (program : α → WordOracleComp Operation β) : Prop :=
-  Finite Operation ∧ ∃ (k : ℕ) (Control : Type) (_ : Finite Control)
-    (machine : Turing.MultiTapePTM k Bool Control Operation) (c d : ℕ),
-    ∀ a (State : Type) (oracle : Operation × List Bool → StateT State PMF (List Bool)) s,
-      ProbOracleComp.runWith oracle (output <$> program a) s =
-      ProbOracleComp.runWith oracle (machine.runOracle (c * 2 ^ (d * (input a).length)) (input a)) s
-
-namespace IsOracleExpTimeOn
-
-variable {Operation α β : Type} [DecidableEq Operation]
-  {input : α ↪ List Bool} {output : β ↪ List Bool}
-
-/-- A machine computing the encoded program as a clean phase within time `c * 2 ^ (d * n)` is a
-certificate. -/
-private theorem of_computesTidily [Finite Operation] {k : ℕ} {Control : Type} [Finite Control]
-    {program : α → WordOracleComp Operation β}
-    (machine : Turing.MultiTapePTM k Bool Control Operation) (c d : ℕ) {time : α → ℕ}
-    (htime : ∀ a, time a ≤ c * 2 ^ (d * (input a).length))
-    (h : ∀ a, machine.ComputesTidily (input a) (time a) (output <$> program a)) :
-    IsOracleExpTimeOn input output program :=
-  ⟨inferInstance, k, Control, inferInstance, machine, c, d, fun a _ oracle s =>
-    (((h a).mono (htime a)).runOracle oracle s).symm⟩
-
-end IsOracleExpTimeOn
-
-variable {Operation α β γ : Type} [DecidableEq Operation]
-  {input : α ↪ List Bool} {middle : β ↪ List Bool} {output : γ ↪ List Bool}
-
-/-- `n + 1 ≤ 2 ^ n`, raised to the power `d`. -/
-private theorem succ_pow_le_two_pow_mul (n d : ℕ) : (n + 1) ^ d ≤ 2 ^ (d * n) := by
-  rw [Nat.pow_mul']
-  exact Nat.pow_le_pow_left Nat.lt_two_pow_self d
-
-/-- **A polynomial clock is an exponential clock.** The clean realization of a strict oracle PPT
-certificate keeps its result once it halts, so its polynomial clock can be raised to
-`c * 2 ^ (d * n)`. -/
-theorem IsOraclePPTOn.isOracleExpTimeOn {program : α → WordOracleComp Operation γ}
-    (h : IsOraclePPTOn input output program) : IsOracleExpTimeOn input output program := by
-  obtain ⟨hops, k, Control, hfinite, machine, c, d, hmachine⟩ := h.isTidyOraclePPTOn
-  exact IsOracleExpTimeOn.of_computesTidily machine c d
-    (fun a => Nat.mul_le_mul_left c (succ_pow_le_two_pow_mul _ d)) hmachine
-
-/-- Arithmetic for `preprocess_exp`: the two phases and the charged intermediate word fit in one
-exponential clock. -/
-private theorem preprocess_exp_bound (C c₂ d₂ X : ℕ) (hX : 1 ≤ X) :
-    5 * (C * (X + 1)) + c₂ * (C * (X + 1) + 1) ^ d₂ + 9 ≤
-      (5 * (2 * C) + c₂ * (2 * C + 1) ^ d₂ + 9) * X ^ (d₂ + 1) := by
-  have hX1 : X ≤ X ^ (d₂ + 1) := by
-    calc X = X ^ 1 := (pow_one X).symm
-      _ ≤ X ^ (d₂ + 1) := Nat.pow_le_pow_right hX (by omega)
-  have hXd : X ^ d₂ ≤ X ^ (d₂ + 1) := Nat.pow_le_pow_right hX (by omega)
-  have h1 : 1 ≤ X ^ (d₂ + 1) := Nat.one_le_pow _ _ hX
-  have hpow : (C * (X + 1) + 1) ^ d₂ ≤ (2 * C + 1) ^ d₂ * X ^ (d₂ + 1) := by
-    calc (C * (X + 1) + 1) ^ d₂ ≤ ((2 * C + 1) * X) ^ d₂ :=
-          Nat.pow_le_pow_left (by nlinarith) d₂
-      _ = (2 * C + 1) ^ d₂ * X ^ d₂ := Nat.mul_pow _ _ _
-      _ ≤ (2 * C + 1) ^ d₂ * X ^ (d₂ + 1) := Nat.mul_le_mul_left _ hXd
-  have hlin : 5 * (C * (X + 1)) ≤ 5 * (2 * C) * X ^ (d₂ + 1) := by
-    have := Nat.mul_le_mul_left (2 * C) hX1
-    nlinarith
-  have hc : c₂ * (C * (X + 1) + 1) ^ d₂ ≤ c₂ * (2 * C + 1) ^ d₂ * X ^ (d₂ + 1) := by
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left _ hpow
-  nlinarith
-
-/-- **Exponential-time preparation, then a strict oracle PPT program.** If `prepare` is
-computable within time `O(2 ^ (d * n))` and `program` is strict oracle PPT on the prepared
-instances, the composite is realized within time `2 ^ O(n)`. The prepared word may be
-exponentially long; the polynomial clock of `program` is then exponential in `n`. -/
-theorem IsOraclePPTOn.preprocess_exp {program : β → WordOracleComp Operation γ}
-    {prepare : α → β} {S : α → ℕ} {d : ℕ}
-    (hprogram : IsOraclePPTOn middle output program)
-    (hprepare : ComputableInO prepare input middle (fun a => 2 ^ (d * (input a).length)) S) :
-    IsOracleExpTimeOn input output (fun a => program (prepare a)) := by
-  classical
-  obtain ⟨hops, k₂, Control₂, hfinite₂, target, c₂, d₂, htarget⟩ := hprogram.isTidyOraclePPTOn
-  obtain ⟨C, ⟨k₁, State₁, hfinite₁, tm, htm⟩, -⟩ := Internal.NormalForm.inO hprepare
-  let source : MultiTapePTM k₁ Bool State₁ Operation := ofDeterministic tm
-  let firstTime : α → ℕ := fun a => C * (2 ^ (d * (input a).length) + 1)
-  have hsource (a : α) : source.ComputesTidily (input a) (firstTime a)
-      (pure (middle (prepare a))) :=
-    ComputesTidily.of_deterministic (htm a)
-  let continuation : List Bool → WordOracleComp Operation (List Bool) :=
-    Function.extend middle (fun b => output <$> program b) (fun _ => pure [])
-  have hcontinuation (b : β) : continuation (middle b) = output <$> program b :=
-    middle.injective.extend_apply _ _ b
-  refine IsOracleExpTimeOn.of_computesTidily (target.tidyComp source true)
-    (5 * (2 * C) + c₂ * (2 * C + 1) ^ d₂ + 9) (d * (d₂ + 1))
-    (time := fun a => 5 * firstTime a + c₂ * (firstTime a + 1) ^ d₂ + 9)
-    (fun a => ?_) (fun a => ?_)
-  · refine (preprocess_exp_bound C c₂ d₂ _
-      (Nat.one_le_two_pow (n := d * (input a).length))).trans (le_of_eq ?_)
-    rw [← Nat.pow_mul]
-    congr 2
-    ring
-  · have hcomp := (hsource a).comp true (prog₂ := continuation)
-      (t₂ := c₂ * (firstTime a + 1) ^ d₂)
-      (fun word State oracle s s' hword => by
-        have hlen := (hsource a).length_output_le oracle s hword
-        simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hword
-        obtain ⟨rfl, -⟩ := hword
-        rw [hcontinuation]
-        exact (htarget (prepare a)).mono (Nat.mul_le_mul_left c₂
-          (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) d₂)))
-    simpa only [pure_bind, hcontinuation] using hcomp
-
-end Probability
 
 namespace Complexity
 
@@ -290,14 +177,34 @@ theorem E_subset_EWithOracle (A : Set (List Bool)) (enc : α ↪ List Bool) :
 theorem E_subset_ENP (enc : α ↪ List Bool) : E enc ⊆ ENP enc := fun _ hL =>
   mem_ENP.mpr ⟨∅, P_subset_NP empty_mem_P, E_subset_EWithOracle ∅ enc hL⟩
 
-/-- `P` relative to a language in `NP` lies inside `E ^ NP`. -/
-theorem PWithOracle_subset_ENP {A : Set (List Bool)} (hA : A ∈ NP encBits) (enc : α ↪ List Bool) :
-    PWithOracle A enc ⊆ ENP enc := fun _ hL =>
-  mem_ENP.mpr ⟨A, hA, PWithOracle_subset_EWithOracle A enc hL⟩
+/-- **`P ^ NP ⊆ E ^ NP`**: `P` relative to a language in `NP` lies inside `E` relative to it. -/
+theorem iUnion_PWithOracle_NP_subset_ENP (enc : α ↪ List Bool) :
+    (⋃ A ∈ NP encBits, PWithOracle A enc) ⊆ ENP enc :=
+  Set.biUnion_mono subset_rfl fun A _ => PWithOracle_subset_EWithOracle A enc
 
 /-- `NP` lies inside `E ^ NP`: one request decides an `NP` language. -/
 theorem NP_subset_ENP : NP encBits ⊆ ENP encBits := fun A hA =>
-  PWithOracle_subset_ENP hA encBits (mem_PWithOracle_self A)
+  iUnion_PWithOracle_NP_subset_ENP encBits (Set.mem_biUnion hA (mem_PWithOracle_self A))
+
+/-- **`NE ⊆ E ^ NP`**, by the standard padding argument. A problem decidable by a nondeterministic
+machine within time `O(2 ^ (k * n))` is decided on the padded instances
+`frame (enc a) ++ 1^{2 ^ ((k + 1) * n)}` by a problem `B ∈ NP`
+(`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`). An exponential-time machine
+writes the padded instance and asks `B` about it, with one request of length `2 ^ O(n)`
+(`Cslib.Complexity.preimage_mem_EWithOracle`). -/
+theorem NE_subset_ENP (enc : α ↪ List Bool) : NE enc ⊆ ENP enc := by
+  intro A hA
+  obtain ⟨k, hk⟩ := mem_NE_iff.mp hA
+  obtain ⟨B, hB, hAB⟩ := exists_mem_NP_frame_append_mem_iff_of_mem_NTIME hk
+  obtain ⟨d, S, hpad⟩ := exists_computableInO_frame_append_two_pow (enc := enc)
+    (f := fun n => (k + 1) * n) (by fun_prop) fun n => Nat.le_mul_of_pos_left n k.succ_pos
+  have hA_eq : A = (fun a => frame (enc a) ++
+      List.replicate (2 ^ ((k + 1) * (enc a).length)) true) ⁻¹' B :=
+    Set.ext fun a => (hAB a _ (List.length_replicate.trans_ge (Nat.pow_le_pow_right two_pos
+      (Nat.mul_le_mul_right _ k.le_succ)))).symm
+  rw [hA_eq]
+  exact mem_ENP.mpr ⟨B, hB, preimage_mem_EWithOracle (d := d * (k + 1)) (mem_PWithOracle_self B)
+    (by simpa only [Nat.mul_assoc] using hpad)⟩
 
 end Complexity
 

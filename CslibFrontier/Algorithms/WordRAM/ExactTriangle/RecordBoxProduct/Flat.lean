@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.Entry
-import CslibFrontier.Computability.WordRAM.Width
+public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Flat
 
 /-!
 # Initialized flat native producer and product runs
@@ -30,17 +30,8 @@ open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 
 /-- Fixed register count, instruction bound including halt, and physical-width independence. -/
 theorem entryProgram_fixed : (entryProgram.program Reg.result).length ≤ 132352 ∧
-    ¬(entryProgram.program Reg.result).ReadsWidth := by
-  constructor
-  · simp only [Code.program, List.length_append, Code.length_assemble,
-      List.length_singleton, entryProgram, Code.size, produce, Code.size_rename]
-    have hc := program_fixed.1
-    have hp := Instances.program_fixed.1
-    omega
-  · apply Code.not_readsWidth_program
-    simp only [entryProgram, Code.ReadsWidth, produce, Code.readsWidth_rename, Op.ReadsWidth,
-      false_or]
-    exact not_or.mpr ⟨Instances.program_fixed.2, program_fixed.2⟩
+    ¬(entryProgram.program Reg.result).ReadsWidth :=
+  backend.entryProgram_fixed
 
 /-- Every sufficiently wide physical execution starts from the actual original input and
 returns the first prepared record's exact requested product values. There is no supplied
@@ -50,42 +41,8 @@ theorem runs_input {W m n g p A : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hD : 16 ≤ D m)
     (hg : 1 ≤ g) (hp : 0 < p) (hN : D m ^ 18 ≤ n)
     (hv : ∀ z ∈ values, z.natAbs ≤ A) (hW : admissionWidth n (D m) g p A ≤ W) :
-    InputFits W (PreparationInput.input n (D m) g p values) ∧
-    let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
-      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
-    ∃ a : Data 64, ∃ idx : InstanceIndex p,
-      ExecWithin W Instances.program (.init (PreparationInput.input n (D m) g p values)) a
-        (preparationTime n (D m) g p values - 1) ∧
-      idx ∈ instanceIndices (fun a b : Fin n => values.getD (pairIndex (a, b)) 0) (D m) g p ∧
-      recordOrdinal n (D m) g p (fun q => values.getD q 0) idx = 0 ∧
-      let qs := decodedQueries hn a.mem (recordQueries n (D m) p idx)
-        (recordQueryCount n (D m) p (fun q => values.getD q 0) idx)
-      ∃ y t, t + 1 ≤ preparationTime n (D m) g p values + timeBound (m := m) qs + 1 ∧
-        Runs W (entryProgram.program Reg.result)
-          (State.init (PreparationInput.input n (D m) g p values)) ⟨entryProgram.size, y⟩ t ∧
-        Executes W (entryProgram.program Reg.result)
-          (State.init (PreparationInput.input n (D m) g p values))
-          (a.regs Instances.heap + QueriedProduct.outputBase (21 * m) m n qs.length) (t + 1) ∧
-        y.Bounded W ∧
-        y.regs Reg.result = a.regs Instances.heap +
-          QueriedProduct.outputBase (21 * m) m n qs.length ∧
-        (∀ j : Fin qs.length,
-          y.mem (a.regs Instances.heap +
-            (QueriedProduct.outputBase (21 * m) m n qs.length + j.val)) =
-            Signed.encode ((leftMatrix m n g p (fun q => values.getD q 0) idx *
-              rightMatrix m n g p (fun q => values.getD q 0) idx) (qs.get j).1 (qs.get j).2)) ∧
-        (∀ u, u < a.regs Instances.heap ∨
-          a.regs Instances.heap + CallableProduct.windowSize n qs.length ≤ u →
-          y.mem u = a.mem u) ∧
-        (∀ j : Fin 64, y.regs (producerBank j) = a.regs j) ∧ qs.length * 2 ^ m ≤ n ^ 2 := by
-  obtain ⟨hi, a, idx, ha, hidx, hord, y, hy, yr, yv, yf, yg, hQ⟩ :=
-    exec_input values hlen hD hg hp hN hv hW
-  have ybound := hy.bounded (Data.Bounded.init hi)
-  obtain ⟨t, ht, he⟩ := hy
-  refine ⟨hi, a, idx, ha, hidx, hord, y, t, by omega, ?_, ?_, ybound, yr, yv, yf, yg, hQ⟩
-  · simpa only [Nat.zero_add, State.init] using he.runs (pc := 0)
-      (p := entryProgram.program Reg.result) (Program.Contains.self _).append_left
-  · simpa only [yr, State.init] using he.executes Reg.result
+    backend.RunsPost (W := W) (g := g) (p := p) hD hN values :=
+  backend.runs_input values hlen hD hg hp hN hv hW
 
 /-- Every native prefix is physically word-bounded from the actual admitted original input.
 In particular this includes dirty loads before the callable compiler's remainder instruction. -/
@@ -94,9 +51,8 @@ theorem bounded_reachable {W m n g p A k : ℕ} (values : List ℤ)
     (hg : 1 ≤ g) (hp : 0 < p) (hN : D m ^ 18 ≤ n)
     (hv : ∀ z ∈ values, z.natAbs ≤ A) (hW : admissionWidth n (D m) g p A ≤ W)
     {s : State 320} (hr : Runs W (entryProgram.program Reg.result)
-      (State.init (PreparationInput.input n (D m) g p values)) s k) : s.data.Bounded W := by
-  have hi := (exec_input values hlen hD hg hp hN hv hW).1
-  exact hr.bounded_init hi
+      (State.init (PreparationInput.input n (D m) g p values)) s k) : s.data.Bounded W :=
+  hr.bounded_init (RecordBoxProduct.exec_input values hlen hD hg hp hN hv hW).1
 
 /-- Every wider prefix of `entryProgram.program Reg.result` has the same input-derived word and
 support envelope. This derives from its actual initialized halting run, without a supplied execution
@@ -109,9 +65,7 @@ theorem bounded_reachable_original {W m n g p A k : ℕ} (values : List ℤ)
       (State.init (PreparationInput.input n (D m) g p values)) s k) :
     (∀ i, s.data.regs i < wordBound n (D m) g p A) ∧
       (∀ a, s.data.mem a < wordBound n (D m) g p A) ∧
-      ∀ a, wordBound n (D m) g p A ≤ a → s.data.mem a = 0 := by
-  obtain ⟨hi, a, idx, ha, hidx, hord, y, t, ht, hpref, he, hy, yr, hv', hf, hreg, hQ⟩ :=
-    runs_input values hlen hD hg hp hN hv le_rfl
-  exact hr.prefix_bounds_init entryProgram_fixed.2 hW hi he le_rfl
+      ∀ a, wordBound n (D m) g p A ≤ a → s.data.mem a = 0 :=
+  backend.bounded_reachable_original values hlen hD hg hp hN hv hW hr
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct

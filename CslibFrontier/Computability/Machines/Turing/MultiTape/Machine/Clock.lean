@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.AuxiliaryTape
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # An internal clock on a work tape
@@ -135,10 +136,8 @@ theorem run_interpret_tick (cfg : Config k Bool State Oracle input)
     (OracleComp.interpret oracle
       (machine.withClock.runConfigFrom choose query 1 (config cfg tape position true))).run s =
       PMF.pure (config cfg tape (position + 1) false, s) := by
-  simp only [runConfigFrom, config_state, withClock_tr, ↓reduceIte, step_tick,
-    OracleComp.interpret_bind, StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-    hpure, PMF.pure_bind, OracleComp.interpret_pure, StateT.run_pure,
-    Probability.PMF.monad_pure_eq_pure]
+  simp only [runConfigFrom, config_state, withClock_tr, ↓reduceIte, step_tick, interp_norm,
+    pmf_norm, hpure]
 
 include hchoose in
 /-- One available budget cell permits one source instruction and one clock advance. -/
@@ -156,21 +155,18 @@ theorem run_interpret_pair (cfg : Config k Bool State Oracle input)
     config_workTapeSymbols_castSucc, config_answerSymbols]
   cases hs : cfg.tapes.state with
   | none =>
-    simp only [OracleComp.interpret_bind, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, hpure, PMF.pure_bind]
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, hpure, PMF.pure_bind]
     rw [← hs, step_pause, run_interpret_tick machine choose query oracle hpure]
     simp
   | some state =>
-    simp only [hchoose, bind_map_left, OracleComp.interpret_bind, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.map_bind]
+    simp only [hchoose, bind_map_left, interp_norm, pmf_norm]
     congr 1 with result : 1
     rcases result with ⟨instruction, s'⟩
     cases instruction with
     | step action symbol move =>
       simp [liftInstruction, step_liftAction, run_interpret_tick machine choose query oracle hpure]
     | query op next =>
-      simp only [liftInstruction, config_channels, OracleComp.interpret_bind, StateT.run_bind,
-        Probability.PMF.monad_bind_eq_bind, PMF.map_bind]
+      simp only [liftInstruction, config_channels, interp_norm, pmf_norm]
       congr 1 with result : 1
       rcases result with ⟨answer, s''⟩
       simp [receive_config, run_interpret_tick machine choose query oracle hpure]
@@ -206,9 +202,7 @@ theorem run_interpret_stop (cfg : Config k Bool State Oracle input) (tape : ℤ 
       (machine.withClock.runConfigFrom choose query 1 (config cfg tape position false))).run s =
       PMF.pure (stopped cfg tape position, s) := by
   simp only [runConfigFrom, config_state, withClock_tr, Bool.false_eq_true, ↓reduceIte,
-    config_workTapeSymbols_last, hstop, OracleComp.interpret_bind, StateT.run_bind,
-    Probability.PMF.monad_bind_eq_bind, hpure, PMF.pure_bind, idle, step_stop,
-    OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure]
+    config_workTapeSymbols_last, hstop, interp_norm, pmf_norm, hpure, idle, step_stop]
 
 end Clock
 
@@ -248,9 +242,8 @@ theorem run_interpret_runConfigFrom_withClock_add (cfg : Config k Bool State Ora
     Probability.PMF.monad_bind_eq_bind,
     run_interpret_runConfigFrom_withClock machine choose hchoose query oracle hpure cfg tape
       position budget s hbudget hstop, PMF.bind_map]
-  simp only [Function.comp_def, runConfigFrom_halted _ _ _ _ _
-    (AuxiliaryTape.stopped_state ..),
-    OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure]
+  simp only [interp_norm, pmf_norm,
+    runConfigFrom_halted _ _ _ _ _ (AuxiliaryTape.stopped_state ..)]
   rfl
 
 /-- In particular, the output and final private state agree with the original clocked run. -/
@@ -265,7 +258,7 @@ theorem run_interpret_runFrom_withClock (cfg : Config k Bool State Oracle input)
   have h := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2)))
     (run_interpret_runConfigFrom_withClock_add machine choose hchoose query oracle hpure cfg tape
       position budget padding s hbudget hstop)
-  simpa [runFrom, OracleComp.interpret_map, StateT.run_map, PMF.map_comp, Function.comp_def] using h
+  simpa [runFrom, PMF.map_comp, Function.comp_def] using h
 
 /-- Every supported final configuration is halted when the prepared budget expires. -/
 theorem withClock_halted (cfg : Config k Bool State Oracle input) (tape : ℤ → Option Bool)

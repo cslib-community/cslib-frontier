@@ -8,8 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.Rewinding
-import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Algebra.Order.Chebyshev
 
 /-!
@@ -63,6 +69,17 @@ variable {S H β : Type} {q : ℕ}
 /-- The answers of `h` before the index `j` and those of `h'` from `j` on. -/
 def splice (j : Fin q) (h h' : Fin q → H) : Fin q → H := fun i => if i < j then h i else h' i
 
+/-- A splice at `j` lists as the first `j` answers of `h` followed by those of `h'` from `j` on. -/
+theorem ofFn_splice (j : Fin q) (h h' : Fin q → H) :
+    List.ofFn (splice j h h') = (List.ofFn h).take j ++ (List.ofFn h').drop j := by
+  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
+  simp only [List.length_ofFn] at h₁
+  by_cases hi : i < j
+  · rw [List.getElem_append_left (by simp; omega)]
+    simp [splice, Fin.lt_def, hi]
+  · rw [List.getElem_append_right (by simp; omega)]
+    simp [Nat.add_sub_cancel' (not_lt.mp hi), splice, Fin.lt_def, hi]
+
 variable [Fintype H] [Nonempty H]
 
 /-- One run: draw coins and uniform answers, and accept when `A` outputs an index. -/
@@ -72,6 +89,17 @@ noncomputable def accept (first : PMF S) (A : S → (Fin q → H) → Option (Fi
   let h ← PMF.uniformOfFintype (Fin q → H)
   return (A s h).1.isSome
 
+/-- Replay on two supplied tapes with shared coins and the first tape's prefix. Both the
+finite program and its probability law use this deterministic fork. -/
+def onTapes [DecidableEq H] (A : S → (Fin q → H) → Option (Fin q) × β)
+    (s : S) (h h' : Fin q → H) : Option (Fin q × β × β) :=
+  let (index, first) := A s h
+  match index with
+  | none => none
+  | some j =>
+    let (index', second) := A s (splice j h h')
+    if index' = some j ∧ h j ≠ h' j then some (j, first, second) else none
+
 /-- The forking algorithm ([BellareNeven2006]): run `A` on coins `s` and answers `h`; if it
 outputs an index `j`, rerun it on `s` and on `splice j h h'` for fresh answers `h'`, and succeed
 with both results when the rerun outputs `j` too and `h j ≠ h' j`. -/
@@ -80,10 +108,34 @@ noncomputable def fork [DecidableEq H] (first : PMF S)
   let s ← first
   let h ← PMF.uniformOfFintype (Fin q → H)
   let h' ← PMF.uniformOfFintype (Fin q → H)
-  return match (A s h).1 with
-    | none => none
-    | some j => if (A s (splice j h h')).1 = some j ∧ h j ≠ h' j then
-        some (j, (A s h).2, (A s (splice j h h')).2) else none
+  return onTapes A s h h'
+
+/-- A predicate of the two replies in a successful fork costs at most its largest probability
+against a fresh uniform reply. The first run may choose its index after seeing all its answers.
+The output's recorded reply must be the answer at the index it names. -/
+theorem bad_reply_le [DecidableEq H] (first : PMF S)
+    (A : S → (Fin q → H) → Option (Fin q) × β) (reply : β → H)
+    (named : ∀ s h j, (A s h).1 = some j → reply (A s h).2 = h j)
+    (bad : H → H → Bool) :
+    ((fork first A).map (fun r => r.any fun (_, a, b) => bad (reply a) (reply b)) true) ≤
+      Finset.univ.sup (fun c => (PMF.uniformOfFintype H).map (bad c) true) := by
+  simp only [fork, onTapes, pmf_norm]
+  apply Probability.PMF.bind_apply_le_on_support
+  intro s _
+  apply Probability.PMF.bind_apply_le_on_support
+  intro h _
+  cases hj : (A s h).1 with
+  | none => simp
+  | some j =>
+    refine le_trans ?_ (Finset.le_sup (f := fun c => (PMF.uniformOfFintype H).map (bad c) true)
+      (Finset.mem_univ (h j)))
+    rw [← Probability.PMF.pi_map_eval (fun _ : Fin q => PMF.uniformOfFintype H) j,
+      Probability.PMF.pi_uniformOfFintype, PMF.map_comp, ← PMF.bind_pure_comp]
+    apply Probability.PMF.bind_apply_mono_on_support
+    intro h' _
+    by_cases hf : (A s (splice j h h')).1 = some j ∧ h j ≠ h' j
+    · simp [hf, named s h j hj, named s (splice j h h') j hf.1, splice, Function.comp_def]
+    · simp [hf]
 
 /-! ### Splitting the answers at an index -/
 
@@ -91,47 +143,29 @@ noncomputable def fork [DecidableEq H] (first : PMF S)
 private def glue (j : Fin q) (b : Fin q → H) (t : H) (r : Fin q → H) : Fin q → H :=
   fun i => if i < j then b i else if i = j then t else r i
 
-/-- Gluing is the first component of an equivalence, whose other components are the unused
-parts of `b` and `r`. -/
-private def glueEquiv (j : Fin q) :
-    (Fin q → H) × H × (Fin q → H) ≃ (Fin q → H) × (Fin q → H) × H where
-  toFun x := (glue j x.1 x.2.1 x.2.2, fun i => if i < j then x.2.2 i else x.1 i, x.2.2 j)
-  invFun y := (fun i => if i < j then y.1 i else y.2.1 i, y.1 j,
-    fun i => if i < j then y.2.1 i else if i = j then y.2.2 else y.1 i)
-  left_inv x := by
-    obtain ⟨b, t, r⟩ := x
-    simp only [glue, lt_self_iff_false, ite_false, ite_true, Prod.mk.injEq]
-    refine ⟨funext fun i => ?_, trivial, funext fun i => ?_⟩
-    · split_ifs <;> rfl
-    · by_cases h₁ : i < j <;> by_cases h₂ : i = j <;> simp [h₁, h₂]
-  right_inv y := by
-    obtain ⟨x, z, u⟩ := y
-    simp only [lt_self_iff_false, ite_false, ite_true, Prod.mk.injEq]
-    refine ⟨funext fun i => ?_, funext fun i => ?_, trivial⟩
-    · by_cases h₁ : i < j <;> by_cases h₂ : i = j <;> simp [glue, h₁, h₂]
-    · split_ifs <;> rfl
-
 /-- Gluing independent uniform parts gives uniform answers. -/
 private theorem bind_glue {γ : Type} (j : Fin q) (k : (Fin q → H) → PMF γ) :
     ((PMF.uniformOfFintype (Fin q → H)).bind fun b => (PMF.uniformOfFintype H).bind fun t =>
       (PMF.uniformOfFintype (Fin q → H)).bind fun r => k (glue j b t r)) =
       (PMF.uniformOfFintype (Fin q → H)).bind k := by
-  have hprod : ((PMF.uniformOfFintype (Fin q → H)).bind fun b =>
-      (PMF.uniformOfFintype H).bind fun t => (PMF.uniformOfFintype (Fin q → H)).bind fun r =>
-        PMF.pure (b, t, r)) = PMF.uniformOfFintype ((Fin q → H) × H × (Fin q → H)) := by
-    rw [← Probability.PMF.uniformOfFintype_prod, ← Probability.PMF.uniformOfFintype_prod]
-    simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
-  have hfst : (PMF.uniformOfFintype ((Fin q → H) × H × (Fin q → H))).map
-      (fun x => glue j x.1 x.2.1 x.2.2) = PMF.uniformOfFintype (Fin q → H) := by
-    have := Probability.PMF.uniformOfFintype_prod_map_fst (α := Fin q → H)
-      (β := (Fin q → H) × H)
-    rw [← Probability.PMF.uniformOfFintype_map_equiv (glueEquiv j), PMF.map_comp] at this
-    exact this
-  calc _ = ((PMF.uniformOfFintype ((Fin q → H) × H × (Fin q → H))).map
-        (fun x => glue j x.1 x.2.1 x.2.2)).bind k := by
-        rw [← hprod]
-        simp only [PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    _ = _ := by rw [hfst]
+  conv_rhs =>
+    rw [← Probability.PMF.uniformOfFintype_prod_map_fst (α := Fin q → H)
+      (β := (Fin q → H) × H), PMF.bind_map]
+  relabel_uniform (fun (x : (Fin q → H) × H × (Fin q → H)) =>
+    (glue j x.1 x.2.1 x.2.2, fun i => if i < j then x.2.2 i else x.1 i, x.2.2 j))
+  rintro ⟨b₁, t₁, r₁⟩ ⟨b₂, t₂, r₂⟩ h
+  simp only [Prod.mk.injEq] at h
+  rcases h with ⟨hg, hbr, hrj⟩
+  refine Prod.ext (funext fun i => ?_) (Prod.ext ?_ (funext fun i => ?_))
+  · by_cases hi : i < j
+    · simpa [glue, hi] using congrFun hg i
+    · simpa [hi] using congrFun hbr i
+  · simpa [glue] using congrFun hg j
+  · by_cases hi : i < j
+    · simpa [hi] using congrFun hbr i
+    · by_cases heq : i = j
+      · exact heq ▸ hrj
+      · simpa [glue, hi, heq] using congrFun hg i
 
 omit [Fintype H] [Nonempty H] in
 private theorem glue_self (j : Fin q) (b : Fin q → H) (t : H) (r : Fin q → H) :
@@ -162,9 +196,8 @@ private theorem acceptAt_eq_once (first : PMF S) (A : S → (Fin q → H) → Op
       Rewinding.once (firstAt first) (fun _ => PMF.uniformOfFintype H)
         (fun _ _ => PMF.uniformOfFintype (Fin q → H))
         (fun x t r => decide ((A x.1 (glue j x.2 t r)).1 = some j)) := by
-  simp only [Rewinding.once, firstAt, Probability.PMF.monad_bind_eq_bind,
-    Probability.PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-  congr 1 with s : 1
+  simp only [Rewinding.once, firstAt, pmf_norm]
+  pmf_swap with s
   exact (bind_glue j fun h => PMF.pure (decide ((A s h).1 = some j))).symm
 
 variable [DecidableEq H]
@@ -181,32 +214,27 @@ private theorem forkAt_eq_twice (first : PMF S) (A : S → (Fin q → H) → Opt
       Rewinding.twice (firstAt first) (fun _ => PMF.uniformOfFintype H)
         (fun _ _ => PMF.uniformOfFintype (Fin q → H))
         (fun x t r => decide ((A x.1 (glue j x.2 t r)).1 = some j)) := by
-  simp only [Rewinding.twice, firstAt, Probability.PMF.monad_bind_eq_bind,
-    Probability.PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-  congr 1 with s : 1
+  simp only [Rewinding.twice, firstAt, pmf_norm]
+  pmf_swap with s
   rw [← bind_glue j]
-  congr 1 with b : 1
-  congr 1 with t : 1
+  pmf_swap with b t
   conv_lhs => enter [2, r]; rw [← bind_glue j]
-  simp only [splice_glue, glue_self, PMF.bind_const]
-  rw [PMF.bind_comm]
-  congr 1 with t' : 1
-  congr 1 with r : 1
-  congr 1 with r' : 1
-  congr 1
-  simp only [Bool.decide_and, ne_eq, decide_not, Bool.and_assoc]
-  rfl
+  simp only [splice_glue, glue_self, PMF.bind_const, Bool.decide_and, ne_eq, decide_not,
+    Bool.and_assoc]
+  pmf_swap
 
 /-! ### Summing over the indices -/
 
 omit [DecidableEq H] [Fintype H] [Nonempty H] in
-/-- An event that names one index is the disjoint union of its events at each index. -/
-private theorem bind_match_apply {X : Type} (μ : PMF X) (index : X → Option (Fin q))
+/-- An event that names one index has probability equal to the sum over all indices. -/
+private theorem toReal_bind_match_apply {X : Type} (μ : PMF X) (index : X → Option (Fin q))
     (event : Fin q → X → Prop) [∀ j x, Decidable (event j x)] :
-    (μ.bind fun x => PMF.pure (match index x with
+    ((μ.bind fun x => PMF.pure (match index x with
       | none => false
-      | some j => decide (event j x))) true =
-      ∑ j, (μ.bind fun x => PMF.pure (decide (index x = some j ∧ event j x))) true := by
+      | some j => decide (event j x))) true).toReal =
+      ∑ j, ((μ.bind fun x => PMF.pure (decide (index x = some j ∧ event j x))) true).toReal := by
+  rw [← ENNReal.toReal_sum fun _ _ => PMF.apply_ne_top _ _]
+  congr 1
   simp only [PMF.bind_apply, PMF.pure_apply]
   rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
   refine tsum_congr fun x => ?_
@@ -225,14 +253,11 @@ private theorem toReal_accept (first : PMF S) (A : S → (Fin q → H) → Optio
       let s ← first
       let h ← PMF.uniformOfFintype (Fin q → H)
       return decide ((A s h).1 = some j) : PMF Bool) true).toReal := by
-  have h := bind_match_apply ((first.bind fun s => (PMF.uniformOfFintype (Fin q → H)).bind
-    fun h => PMF.pure (s, h))) (fun x => (A x.1 x.2).1) (fun _ _ => True)
-  simp only [PMF.bind_bind, PMF.pure_bind, and_true] at h
-  rw [← ENNReal.toReal_sum fun _ _ => PMF.apply_ne_top _ _]
-  refine congrArg ENNReal.toReal (Eq.trans ?_ h)
-  simp only [accept, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
-  refine congrArg (fun p : PMF Bool => p true)
-    (congrArg _ (funext fun s => congrArg _ (funext fun h => ?_)))
+  have h := toReal_bind_match_apply (first.bind fun s =>
+    (PMF.uniformOfFintype (Fin q → H)).map (s, ·)) (fun x => (A x.1 x.2).1) (fun _ _ => True)
+  simp only [accept, pmf_norm, and_true] at h ⊢
+  refine Eq.trans (congrArg (fun p : PMF Bool => (p true).toReal) ?_) h
+  pmf_swap with s h
   cases (A s h).1 <;> rfl
 
 /-- The success probability of forking, as a real number. -/
@@ -243,17 +268,14 @@ private theorem toReal_fork (first : PMF S) (A : S → (Fin q → H) → Option 
       let h' ← PMF.uniformOfFintype (Fin q → H)
       return decide ((A s h).1 = some j ∧ (A s (splice j h h')).1 = some j ∧ h j ≠ h' j) :
         PMF Bool) true).toReal := by
-  have h := bind_match_apply ((first.bind fun s => (PMF.uniformOfFintype (Fin q → H)).bind
-    fun h => (PMF.uniformOfFintype (Fin q → H)).bind fun h' => PMF.pure (s, h, h')))
+  have h := toReal_bind_match_apply (first.bind fun s =>
+    (PMF.uniformOfFintype (Fin q → H)).bind fun h =>
+      (PMF.uniformOfFintype (Fin q → H)).map (s, h, ·))
     (fun x => (A x.1 x.2.1).1)
     (fun j x => (A x.1 (splice j x.2.1 x.2.2)).1 = some j ∧ x.2.1 j ≠ x.2.2 j)
-  simp only [PMF.bind_bind, PMF.pure_bind] at h
-  rw [← ENNReal.toReal_sum fun _ _ => PMF.apply_ne_top _ _]
-  refine congrArg ENNReal.toReal (Eq.trans ?_ h)
-  simp only [fork, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-    PMF.map_bind, PMF.pure_map]
-  refine congrArg (fun p : PMF Bool => p true) (congrArg _ (funext fun s =>
-    congrArg _ (funext fun h => congrArg _ (funext fun h' => ?_))))
+  simp only [fork, onTapes, pmf_norm] at h ⊢
+  refine Eq.trans (congrArg (fun p : PMF Bool => (p true).toReal) ?_) h
+  pmf_swap with s h h'
   cases (A s h).1 with
   | none => rfl
   | some j => by_cases hc : (A s (splice j h h')).1 = some j ∧ h j ≠ h' j <;> simp [hc]
@@ -266,30 +288,22 @@ outputs an index. -/
 theorem sq_div_sub_le_fork (first : PMF S) (A : S → (Fin q → H) → Option (Fin q) × β) :
     (accept first A true).toReal ^ 2 / q - (accept first A true).toReal / Fintype.card H ≤
       ((fork first A).map Option.isSome true).toReal := by
-  set N : ℝ := (Fintype.card H : ℝ)
+  rw [toReal_fork, toReal_accept]
   set a : Fin q → ℝ := fun j => ((do
     let s ← first
     let h ← PMF.uniformOfFintype (Fin q → H)
     return decide ((A s h).1 = some j) : PMF Bool) true).toReal
-  have hj (j : Fin q) : a j ^ 2 - a j / N ≤ ((do
-      let s ← first
-      let h ← PMF.uniformOfFintype (Fin q → H)
-      let h' ← PMF.uniformOfFintype (Fin q → H)
-      return decide ((A s h).1 = some j ∧ (A s (splice j h h')).1 = some j ∧ h j ≠ h' j) :
-        PMF Bool) true).toReal := by
-    simp only [a, acceptAt_eq_once, forkAt_eq_twice]
-    exact Rewinding.sq_sub_le_twice _ _ _
-  rw [toReal_fork, toReal_accept]
   have hcs : (∑ j, a j) ^ 2 / q ≤ ∑ j, a j ^ 2 := by
     rcases Nat.eq_zero_or_pos q with rfl | hq
     · simp
-    · rw [div_le_iff₀ (by exact_mod_cast hq), mul_comm]
+    · rw [div_le_iff₀ (Nat.cast_pos.2 hq), mul_comm]
       simpa using sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := a)
-  calc (∑ j, a j) ^ 2 / q - (∑ j, a j) / N ≤ ∑ j, a j ^ 2 - ∑ j, a j / N := by
-        rw [Finset.sum_div]
-        linarith
-    _ = ∑ j, (a j ^ 2 - a j / N) := by rw [Finset.sum_sub_distrib]
-    _ ≤ _ := Finset.sum_le_sum fun j _ => hj j
+  calc (∑ j, a j) ^ 2 / q - (∑ j, a j) / Fintype.card H
+      ≤ ∑ j, a j ^ 2 - ∑ j, a j / Fintype.card H := by
+        linarith [Finset.sum_div Finset.univ a (Fintype.card H : ℝ)]
+    _ = ∑ j, (a j ^ 2 - a j / Fintype.card H) := by rw [Finset.sum_sub_distrib]
+    _ ≤ _ := Finset.sum_le_sum fun j _ => by
+        simpa only [a, acceptAt_eq_once, forkAt_eq_twice] using Rewinding.sq_sub_le_twice _ _ _
 
 /-- The forking lemma solved for the acceptance probability: `acc ≤ q / |H| + √(q · frk)`. -/
 theorem le_add_sqrt_fork (first : PMF S) (A : S → (Fin q → H) → Option (Fin q) × β) :
@@ -297,25 +311,19 @@ theorem le_add_sqrt_fork (first : PMF S) (A : S → (Fin q → H) → Option (Fi
       q / Fintype.card H + √(q * ((fork first A).map Option.isSome true).toReal) := by
   set ε := (accept first A true).toReal with hεdef
   set N : ℝ := (Fintype.card H : ℝ)
-  have hN : 0 < N := Nat.cast_pos.mpr Fintype.card_pos
-  have hfork := sq_div_sub_le_fork first A
   by_cases hε : ε ≤ q / N
   · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
-  · have hq : (0 : ℝ) < q := by
-      rcases Nat.eq_zero_or_pos q with hq0 | hq0
-      · subst hq0
-        exact absurd (by simp [hεdef, toReal_accept]) hε
-      · exact_mod_cast hq0
-    have hsq : (ε - q / N) ^ 2 ≤ q * ((fork first A).map Option.isSome true).toReal := by
-      have hmul := mul_le_mul_of_nonneg_left hfork hq.le
-      refine le_trans ?_ hmul
-      have hexpand : q * (ε ^ 2 / q - ε / N) = (ε - q / N) ^ 2 + (ε - q / N) * (q / N) := by
-        field_simp
-        ring
-      rw [hexpand]
-      exact le_add_of_nonneg_right (mul_nonneg (by linarith) (by positivity))
-    have := Real.abs_le_sqrt hsq
-    linarith [le_abs_self (ε - q / N)]
+  · have hq : (0 : ℝ) < q := Nat.cast_pos.2 <| Nat.pos_of_ne_zero fun hq0 =>
+      hε (by simp [hq0, hεdef, toReal_accept])
+    have hsq : (ε - q / N) ^ 2 ≤ q * ((fork first A).map Option.isSome true).toReal :=
+      calc (ε - q / N) ^ 2
+          ≤ (ε - q / N) ^ 2 + (ε - q / N) * (q / N) :=
+            le_add_of_nonneg_right (mul_nonneg (by linarith) (by positivity))
+        _ = q * (ε ^ 2 / q - ε / N) := by
+            field_simp
+            ring
+        _ ≤ _ := mul_le_mul_of_nonneg_left (sq_div_sub_le_fork first A) hq.le
+    linarith [le_abs_self (ε - q / N), Real.abs_le_sqrt hsq]
 
 /-- A successful fork comes from one coin sample and two answer vectors that agree before the
 returned index `j` and differ at it, on both of which `A` outputs `j`. -/
@@ -323,17 +331,15 @@ theorem mem_support_fork {first : PMF S} {A : S → (Fin q → H) → Option (Fi
     {j : Fin q} {out out' : β} (hfork : some (j, out, out') ∈ (fork first A).support) :
     ∃ s ∈ first.support, ∃ h h' : Fin q → H, (∀ i < j, h i = h' i) ∧ h j ≠ h' j ∧
       A s h = (some j, out) ∧ A s h' = (some j, out') := by
-  simp only [fork, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hfork
-  obtain ⟨s, hs, h, -, h', -, hres⟩ := hfork
-  refine ⟨s, hs, h, splice j h h', fun i hi => by simp [splice, hi], ?_⟩
+  supp_cases hfork [fork, onTapes] with ⟨s, hs, h, h', hres⟩
   cases hA : (A s h).1 with
   | none => simp [hA] at hres
   | some j' =>
     simp only [hA] at hres
     split_ifs at hres with hc
-    · simp only [Option.some.injEq, Prod.mk.injEq] at hres
-      obtain ⟨rfl, rfl, rfl⟩ := hres
-      refine ⟨by simpa [splice] using hc.2, Prod.ext hA rfl, Prod.ext hc.1 rfl⟩
+    simp only [Option.some.injEq, Prod.mk.injEq] at hres
+    obtain ⟨rfl, rfl, rfl⟩ := hres
+    exact ⟨s, hs, h, splice j h h', fun i hi => by simp [splice, hi],
+      by simpa [splice] using hc.2, Prod.ext hA rfl, Prod.ext hc.1 rfl⟩
 
 end Cslib.Probability.Forking

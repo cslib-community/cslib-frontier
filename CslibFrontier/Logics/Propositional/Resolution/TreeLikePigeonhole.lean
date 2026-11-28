@@ -49,10 +49,15 @@ pigeons one at a time; only the explicit bound for each `h` is formalized.
 
 ## Main results
 
-* `Cslib.Logic.PL.CNF.Derivation.pow_le_size_pigeonhole`: `(n + 1 - h) ^ h` nodes for every `h`.
+* `Cslib.Logic.PL.CNF.Derivation.pow_le_leafCount_pigeonhole`,
+  `Cslib.Logic.PL.CNF.Derivation.pow_le_size_pigeonhole`: `(n + 1 - h) ^ h` leaves, and so nodes,
+  for every `h`.
 * `Cslib.Logic.PL.CNF.Derivation.pow_half_le_size_pigeonhole`: `(n / 2 + 1) ^ (n / 2)` nodes
   [BeyersdorffGalesiLauria2010, Theorem 2].
 * `Cslib.Logic.PL.CNF.pow_lt_two_mul_leafCount_pigeonhole`: the same bound for DPLL search trees.
+* `Cslib.Logic.PL.CNF.Derivation.pow_half_le_leafCount_relabel_pigeonhole`,
+  `Cslib.Logic.PL.CNF.pow_half_le_leafCount_relabel_pigeonhole`: `(n / 2 + 1) ^ (n / 2)` leaves of
+  tree-like refutations and of DPLL search trees for `PHP^m_n` with renamed variables.
 
 ## References
 
@@ -143,7 +148,7 @@ private theorem exists_potential_eq {h : ℕ} (ρ : Fin m × Fin n → Option Bo
     ∃ U ⊆ (matched ρ)ᶜ, #U = h - #(matched ρ) ∧ potential h ρ = ∏ i ∈ U, weight h ρ i := by
   have hne : (products h ρ).Nonempty := by
     obtain ⟨U, hU, hcard⟩ := exists_subset_card_eq (s := (matched ρ)ᶜ) (n := h - #(matched ρ))
-      (by rw [card_compl, Fintype.card_fin]; omega)
+      (by rw [card_compl, Fintype.card_fin]; exact Nat.sub_le_sub_right hh _)
     exact ⟨_, U, hU, hcard, rfl⟩
   exact Nat.sInf_mem hne
 
@@ -179,11 +184,8 @@ private theorem potential_none {h : ℕ} (hh : h ≤ m) :
 private theorem card_occupied_le {ρ : Fin m × Fin n → Option Bool} (hρ : IsMatching ρ) :
     #(occupied ρ) ≤ #(matched ρ) := by
   refine card_le_card_of_forall_subsingleton (r := fun j i => ρ (i, j) = some true) ?_ ?_
-  · intro j hj
-    obtain ⟨i, hi⟩ := mem_occupied.1 hj
-    exact ⟨i, mem_matched.2 ⟨j, hi⟩, hi⟩
-  · intro i _ j₁ hj₁ j₂ hj₂
-    exact hρ.1 i j₁ j₂ hj₁.2 hj₂.2
+  · exact fun j hj => (mem_occupied.1 hj).imp fun i hi => ⟨mem_matched.2 ⟨j, hi⟩, hi⟩
+  · exact fun i _ j₁ hj₁ j₂ hj₂ => hρ.1 i j₁ j₂ hj₁.2 hj₂.2
 
 /-- **A partial assignment falsifying a clause of `PHP^m_n` has potential at most `1`.** -/
 private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m × Fin n → Option Bool)
@@ -191,8 +193,7 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
     μ h ρ ≤ 1 := by
   by_cases hρ : IsMatching ρ
   swap
-  · rw [μ_of_not_isMatching hρ]
-    exact Nat.zero_le _
+  · exact (μ_of_not_isMatching hρ).trans_le (Nat.zero_le _)
   rw [μ_of_isMatching hρ]
   rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, hii', rfl⟩
   · -- every hole is excluded for pigeon `i` or occupied
@@ -205,9 +206,7 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
       simp [mem_excluded, hfalse]
     have hocc := card_occupied_le hρ
     by_cases hk : h ≤ #(matched ρ)
-    · refine (potential_le (U := ∅) (empty_subset _) ?_).trans_eq prod_empty
-      rw [card_empty]
-      omega
+    · exact (potential_le (empty_subset _) (by simp [Nat.sub_eq_zero_of_le hk])).trans_eq prod_empty
     · obtain ⟨U, hiU, hU, hcard⟩ := exists_subsuperset_card_eq
         (s := {i}) (t := (matched ρ)ᶜ) (n := h - #(matched ρ))
         (singleton_subset_iff.2 (mem_compl.2 hi)) (by rw [card_singleton]; omega)
@@ -215,9 +214,8 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
       have hzero : weight h ρ i = 0 := by
         rw [weight, hex, card_compl, Fintype.card_fin]
         omega
-      have := potential_le hU hcard
-      rw [prod_eq_zero (singleton_subset_iff.1 hiU) hzero] at this
-      omega
+      exact Nat.le_trans ((potential_le hU hcard).trans_eq
+        (prod_eq_zero (singleton_subset_iff.1 hiU) hzero)) (Nat.zero_le _)
   · -- a matching falsifies no hole clause
     have h₁ : ρ (i, j) = some true := hρc ((i, j), false) (by simp [holeClause])
     have h₂ : ρ (i', j) = some true := hρc ((i', j), false) (by simp [holeClause])
@@ -235,21 +233,13 @@ private theorem update_eq_some_true_iff (hv : ρ (i, j) = none) (b : Bool) (a : 
     (c : Fin n) :
     update ρ (i, j) (some b) (a, c) = some true ↔
       ((a, c) = (i, j) ∧ b = true) ∨ ρ (a, c) = some true := by
-  by_cases he : (a, c) = (i, j)
-  · rw [he, update_self, hv]
-    simp
-  · rw [update_of_ne he]
-    simp [he]
+  grind [update_self]
 
 private theorem isMatching_update_false (hρ : IsMatching ρ) (hv : ρ (i, j) = none) :
     IsMatching (update ρ (i, j) (some false)) := by
-  constructor
-  · intro a c c' h₁ h₂
+  constructor <;> intro _ _ _ h₁ h₂ <;>
     simp only [update_eq_some_true_iff hv, Bool.false_eq_true, and_false, false_or] at h₁ h₂
-    exact hρ.1 a c c' h₁ h₂
-  · intro a a' c h₁ h₂
-    simp only [update_eq_some_true_iff hv, Bool.false_eq_true, and_false, false_or] at h₁ h₂
-    exact hρ.2 a a' c h₁ h₂
+  exacts [hρ.1 _ _ _ h₁ h₂, hρ.2 _ _ _ h₁ h₂]
 
 private theorem matched_update_false (hv : ρ (i, j) = none) :
     matched (update ρ (i, j) (some false)) = matched ρ := by
@@ -281,25 +271,17 @@ private theorem excluded_update_false_self (hv : ρ (i, j) = none) :
 
 private theorem isMatching_update_true (hρ : IsMatching ρ) (hv : ρ (i, j) = none)
     (hi : i ∉ matched ρ) (hj : j ∉ occupied ρ) : IsMatching (update ρ (i, j) (some true)) := by
-  constructor
-  · intro a c c' h₁ h₂
-    simp only [update_eq_some_true_iff hv, and_true] at h₁ h₂
+  constructor <;> intro _ _ _ h₁ h₂ <;>
+    simp only [update_eq_some_true_iff hv, and_true] at h₁ h₂ <;>
     rcases h₁ with h₁ | h₁ <;> rcases h₂ with h₂ | h₂
-    · exact (Prod.ext_iff.1 h₁).2.trans (Prod.ext_iff.1 h₂).2.symm
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₁
-      exact absurd (mem_matched.2 ⟨c', h₂⟩) hi
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₂
-      exact absurd (mem_matched.2 ⟨c, h₁⟩) hi
-    · exact hρ.1 a c c' h₁ h₂
-  · intro a a' c h₁ h₂
-    simp only [update_eq_some_true_iff hv, and_true] at h₁ h₂
-    rcases h₁ with h₁ | h₁ <;> rcases h₂ with h₂ | h₂
-    · exact (Prod.ext_iff.1 h₁).1.trans (Prod.ext_iff.1 h₂).1.symm
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₁
-      exact absurd (mem_occupied.2 ⟨a', h₂⟩) hj
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₂
-      exact absurd (mem_occupied.2 ⟨a, h₁⟩) hj
-    · exact hρ.2 a a' c h₁ h₂
+  · exact (Prod.ext_iff.1 h₁).2.trans (Prod.ext_iff.1 h₂).2.symm
+  · exact absurd (mem_matched.2 ⟨_, (Prod.mk.inj h₁).1 ▸ h₂⟩) hi
+  · exact absurd (mem_matched.2 ⟨_, (Prod.mk.inj h₂).1 ▸ h₁⟩) hi
+  · exact hρ.1 _ _ _ h₁ h₂
+  · exact (Prod.ext_iff.1 h₁).1.trans (Prod.ext_iff.1 h₂).1.symm
+  · exact absurd (mem_occupied.2 ⟨_, (Prod.mk.inj h₁).2 ▸ h₂⟩) hj
+  · exact absurd (mem_occupied.2 ⟨_, (Prod.mk.inj h₂).2 ▸ h₁⟩) hj
+  · exact hρ.2 _ _ _ h₁ h₂
 
 private theorem matched_update_true (hv : ρ (i, j) = none) :
     matched (update ρ (i, j) (some true)) = insert i (matched ρ) := by
@@ -307,11 +289,9 @@ private theorem matched_update_true (hv : ρ (i, j) = none) :
   simp only [mem_matched, update_eq_some_true_iff hv, and_true, mem_insert, Prod.ext_iff]
   constructor
   · rintro ⟨c, ⟨rfl, -⟩ | hc⟩
-    · exact Or.inl rfl
-    · exact Or.inr ⟨c, hc⟩
+    exacts [Or.inl rfl, Or.inr ⟨c, hc⟩]
   · rintro (rfl | ⟨c, hc⟩)
-    · exact ⟨j, Or.inl ⟨rfl, rfl⟩⟩
-    · exact ⟨c, Or.inr hc⟩
+    exacts [⟨j, Or.inl ⟨rfl, rfl⟩⟩, ⟨c, Or.inr hc⟩]
 
 private theorem occupied_subset_update_true (hv : ρ (i, j) = none) :
     occupied ρ ⊆ occupied (update ρ (i, j) (some true)) := fun c hc => by
@@ -372,11 +352,8 @@ private theorem potential_split {h : ℕ} (hhm : h ≤ m) {ρ : Fin m × Fin n �
     obtain ⟨W, hW, hcardW, heqW⟩ := exists_potential_eq (update ρ (i, j) (some true)) hhm
     rw [matched_update_true hv] at hW hcardW
     have hiW : i ∉ W := fun hiW => mem_compl.1 (hW hiW) (mem_insert_self i _)
-    have hW' : insert i W ⊆ (matched ρ)ᶜ := by
-      intro a ha
-      rcases mem_insert.1 ha with rfl | ha
-      · exact mem_compl.2 hi
-      · exact mem_compl.2 fun hm => mem_compl.1 (hW ha) (mem_insert_of_mem hm)
+    have hW' : insert i W ⊆ (matched ρ)ᶜ := insert_subset (mem_compl.2 hi) fun a ha =>
+      mem_compl.2 fun hm => mem_compl.1 (hW ha) (mem_insert_of_mem hm)
     have hcardW' : #(insert i W) = h - #(matched ρ) := by
       rw [card_insert_of_notMem hiW, hcardW, card_insert_of_notMem hi]
       omega
@@ -384,21 +361,13 @@ private theorem potential_split {h : ℕ} (hhm : h ≤ m) {ρ : Fin m × Fin n �
     rw [prod_insert hiW, heqW]
     exact Nat.mul_le_mul_left _ (prod_le_prod fun a ha =>
       weight_le_update_true hv fun he => hiW (he ▸ ha))
+  have hmul (x : ℕ) : D * x ≤ (D - 1) * x + x := by
+    rw [← Nat.add_one_mul]
+    exact Nat.mul_le_mul_right x le_tsub_add
   rw [heq₀']
-  rcases Nat.eq_zero_or_pos D with hD0 | hD0
-  · rw [hD0, zero_mul] at hle₁
-    omega
-  obtain ⟨D', hD'⟩ : ∃ D', D = D' + 1 := ⟨D - 1, by omega⟩
-  rw [hD', Nat.add_sub_cancel]
-  rw [hD'] at hle₁ hle₂
-  rcases le_total (potential h (update ρ (i, j) (some true))) P with hR | hR
-  · calc potential h ρ ≤ (D' + 1) * potential h (update ρ (i, j) (some true)) := hle₂
-      _ = D' * potential h (update ρ (i, j) (some true)) +
-          potential h (update ρ (i, j) (some true)) := by ring
-      _ ≤ D' * P + potential h (update ρ (i, j) (some true)) := by gcongr
-  · calc potential h ρ ≤ (D' + 1) * P := hle₁
-      _ = D' * P + P := by ring
-      _ ≤ D' * P + potential h (update ρ (i, j) (some true)) := by gcongr
+  rcases le_total P (potential h (update ρ (i, j) (some true))) with hR | hR
+  · exact hle₁.trans ((hmul _).trans (Nat.add_le_add_left hR _))
+  · exact hle₂.trans ((hmul _).trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hR) _))
 
 /-- **The potential splits at every unset variable.** -/
 private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Option Bool)
@@ -406,8 +375,7 @@ private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Opti
     μ h ρ ≤ μ h (update ρ v (some false)) + μ h (update ρ v (some true)) := by
   by_cases hρ : IsMatching ρ
   swap
-  · rw [μ_of_not_isMatching hρ]
-    exact Nat.zero_le _
+  · exact (μ_of_not_isMatching hρ).trans_le (Nat.zero_le _)
   obtain ⟨i, j⟩ := v
   rw [μ_of_isMatching hρ, μ_of_isMatching (isMatching_update_false hρ hv)]
   by_cases hfree : i ∈ matched ρ ∨ j ∈ occupied ρ
@@ -425,20 +393,27 @@ private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Opti
 
 namespace Derivation
 
+/-- **Leaves of tree-like refutations of the pigeonhole principle.** For `m > n` and every `h`,
+every tree-like resolution refutation of `PHP^m_n` has at least `(n + 1 - h) ^ h` leaves (the
+bound is `0` for `h > n`). This is the asymmetric Prover–Delayer argument of
+[BeyersdorffGalesiLauria2010, Theorem 2] with the threshold `n / 2` replaced by `h`; the potential
+argument of their Theorem 1 counts leaves. -/
+theorem pow_le_leafCount_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Derivation []) :
+    (n + 1 - h) ^ h ≤ d.toDecisionTree.leafCount := by
+  by_cases hhn : h ≤ n
+  swap
+  · simp [Nat.sub_eq_zero_of_le (not_le.1 hhn), zero_pow (Nat.ne_zero_of_lt (not_le.1 hhn))]
+  rw [← potential_none (hhn.trans hnm.le), ← μ_of_isMatching isMatching_none]
+  exact potential_le_leafCount (μ h) (μ_split (hhn.trans hnm.le)) (μ_le_one hhn hnm) d
+    (Clause.falsifiedBy_nil _)
+
 /-- **Tree-like resolution lower bound for the pigeonhole principle.** For `m > n` and every `h`,
 every tree-like resolution refutation of `PHP^m_n` has at least `(n + 1 - h) ^ h` nodes (the bound
 is `0` for `h > n`). This is the asymmetric Prover–Delayer argument of
 [BeyersdorffGalesiLauria2010, Theorem 2] with the threshold `n / 2` replaced by `h`. -/
 theorem pow_le_size_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Derivation []) :
-    (n + 1 - h) ^ h ≤ d.size := by
-  by_cases hhn : h ≤ n
-  swap
-  · rw [Nat.sub_eq_zero_of_le (by omega), zero_pow (by omega)]
-    exact Nat.zero_le _
-  have hroot : μ h (fun _ : Fin m × Fin n => none) = (n + 1 - h) ^ h := by
-    rw [μ_of_isMatching isMatching_none, potential_none (by omega)]
-  rw [← hroot]
-  exact potential_none_le_size (μ h) (μ_split (by omega)) (μ_le_one hhn hnm) d
+    (n + 1 - h) ^ h ≤ d.size :=
+  (pow_le_leafCount_pigeonhole h hnm d).trans d.leafCount_toDecisionTree_le_size
 
 /-- **Tree-like resolution needs `2 ^ Ω(n log n)` nodes for the pigeonhole principle**
 [BeyersdorffGalesiLauria2010, Theorem 2]: for `m > n`, every tree-like resolution refutation of
@@ -446,6 +421,20 @@ theorem pow_le_size_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Der
 theorem pow_half_le_size_pigeonhole (hnm : n < m) (d : (pigeonhole m n).Derivation []) :
     (n / 2 + 1) ^ (n / 2) ≤ d.size :=
   (Nat.pow_le_pow_left (by omega) _).trans (pow_le_size_pigeonhole (n / 2) hnm d)
+
+/-- **Relabelled pigeonhole formulas.** For `m > n` and an injective map `f` renaming the variables
+of `PHP^m_n`, every tree-like refutation of the renamed formula has at least
+`(n / 2 + 1) ^ (n / 2)` leaves [BeyersdorffGalesiLauria2010, Theorem 2]. -/
+theorem pow_half_le_leafCount_relabel_pigeonhole {W : Type*} [DecidableEq W]
+    {f : Fin m × Fin n → W} (hf : Function.Injective f) (hnm : n < m)
+    (d : ((pigeonhole m n).relabel f).Derivation []) :
+    (n / 2 + 1) ^ (n / 2) ≤ d.toDecisionTree.leafCount := by
+  obtain ⟨d', hs⟩ := exists_size_eq_of_relabel hf d
+  have h₁ := d.two_mul_leafCount_toDecisionTree
+  have h₂ := d'.two_mul_leafCount_toDecisionTree
+  have hle := (Nat.pow_le_pow_left (by omega : n / 2 + 1 ≤ n + 1 - n / 2) (n / 2)).trans
+    (d'.pow_le_leafCount_pigeonhole (n / 2) hnm)
+  omega
 
 end Derivation
 
@@ -457,6 +446,17 @@ theorem pow_lt_two_mul_leafCount_pigeonhole (h : ℕ) (hnm : n < m)
   obtain ⟨d, hd⟩ := ht.exists_derivation
   have := d.pow_le_size_pigeonhole h hnm
   omega
+
+/-- **DPLL search trees for relabelled pigeonhole formulas**: for `m > n` and an injective map `f`
+renaming the variables of `PHP^m_n`, a decision tree finding a falsified clause of the renamed
+formula has at least `(n / 2 + 1) ^ (n / 2)` leaves [BeyersdorffGalesiLauria2010, Theorem 2]. -/
+theorem pow_half_le_leafCount_relabel_pigeonhole {W : Type*} {f : Fin m × Fin n → W}
+    (hf : Function.Injective f) (hnm : n < m) {t : DecisionTree W (Clause W)}
+    (ht : t.FindsFalsifiedClause ((pigeonhole m n).relabel f)) :
+    (n / 2 + 1) ^ (n / 2) ≤ t.leafCount := by
+  classical
+  obtain ⟨d, hd⟩ := ht.exists_derivation_leafCount_le
+  exact (d.pow_half_le_leafCount_relabel_pigeonhole hf hnm).trans hd
 
 end CNF
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Sorting
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Reversing sorting circuits with saved comparison decisions
@@ -69,8 +70,8 @@ private theorem eval_select {a t n m r : ℕ} (cs : Fin a → Fin t) (rs : Fin n
     (c : Fin t → BitString 2) (x : Fin m → BitString r) :
     (select cs rs).eval interpretation (pack c x) = pack (c ∘ cs) (x ∘ rs) := by
   apply ext <;> funext j bit <;>
-    simp [controls, records, select, layout, Circuit.eval_wiringOn, pack, directProductInput,
-      flatten, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
+    simp [circuit_simps, controls, records, select, layout, pack, BitString.block,
+      BitString.blocksEquiv_symm_apply, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 /-- Reverse a comparison layer, reading the saved decision and its complement. -/
 def unlayer (n r : ℕ) : Circuit signature (n * 2 + (n + n) * r) ((n + n) * r) :=
@@ -94,24 +95,19 @@ private theorem unlayer_input {n r : ℕ} (flags : BitString n)
           (fun bit => Fin.natAdd (n * 2) (finProdFinEquiv (Fin.natAdd n j, bit)))) bit)) =
       Fin.append ![flags j, !flags j] (Fin.append (x (Fin.castAdd n j)) (x (Fin.natAdd n j))) := by
   funext bit
-  cases bit using Fin.addCases with
-  | left bit =>
-    simp only [Fin.addCases_left, pack, Fin.append_left, flatten, Equiv.symm_apply_apply, pairs]
-  | right bit =>
-    cases bit using Fin.addCases <;>
-      simp only [Fin.addCases_right, Fin.addCases_left, pack, Fin.append_right, Fin.append_left,
-        flatten, Equiv.symm_apply_apply]
+  refine Fin.addCases (fun bit => ?_) (Fin.addCases (fun bit => ?_) (fun bit => ?_)) bit <;>
+    simp only [Fin.addCases_left, Fin.addCases_right, pack, Fin.append_left, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, Equiv.symm_apply_apply, pairs]
 
 private theorem eval_unlayer (n r : ℕ) (flags : BitString n) (x : Fin (n + n) → BitString r) :
-    directProductInput ((unlayer n r).eval interpretation (pack (pairs flags) x)) =
+    BitString.block ((unlayer n r).eval interpretation (pack (pairs flags) x)) =
       BitonicSort.routeLayer flags x := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp only [unlayer, Circuit.eval_comp, Circuit.eval_wiring, directProductInput,
-      Function.comp_apply, bitonicLayerCircuit.scatter, Equiv.symm_apply_apply,
-      Fin.addCases_left, Fin.addCases_right, Circuit.eval_replicate_apply]
+    simp only [circuit_simps, unlayer, BitString.block, bitonicLayerCircuit.scatter,
+      Equiv.symm_apply_apply, Fin.addCases_left, Fin.addCases_right, Circuit.eval_replicate_apply]
   all_goals
-    unfold directProductInput
+    unfold BitString.block
     simp only [Function.comp_def, Equiv.symm_apply_apply]
     erw [unlayer_input, compareSwapCircuit.eval_switch]
     simp only [BitonicSort.routeLayer, Fin.append_left, Fin.append_right]
@@ -119,8 +115,8 @@ private theorem eval_unlayer (n r : ℕ) (flags : BitString n) (x : Fin (n + n) 
 
 private theorem cost_unlayer (n r : ℕ) (cost : signature.Op → ℕ) :
     (unlayer n r).program.cost cost = n * (2 * r * (2 * cost .and + cost .or)) := by
-  simp only [unlayer, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Circuit.cost_program_replicate, compareSwapCircuit.cost_switch, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, unlayer, Circuit.cost_program_replicate, compareSwapCircuit.cost_switch,
+    Nat.zero_add, Nat.add_zero]
 
 /-- Reverse two independent circuits using the matching halves of their controls and records. -/
 def unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 + n * r) (n * r))
@@ -136,23 +132,22 @@ def unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 + n * r) (n * r))
 private theorem eval_unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 + n * r) (n * r))
     (right : Circuit signature (b * 2 + n * r) (n * r))
     (c : Fin (a + b) → BitString 2) (x : Fin (n + n) → BitString r) :
-    directProductInput ((unhalves left right).eval interpretation (pack c x)) =
+    BitString.block ((unhalves left right).eval interpretation (pack c x)) =
       Fin.append
-        (directProductInput (left.eval interpretation
+        (BitString.block (left.eval interpretation
           (pack (c ∘ Fin.castAdd b) (x ∘ Fin.castAdd n))))
-        (directProductInput (right.eval interpretation
+        (BitString.block (right.eval interpretation
           (pack (c ∘ Fin.natAdd a) (x ∘ Fin.natAdd n)))) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [unhalves, Circuit.eval_wiringOn, directProductInput, eval_select,
+    simp [circuit_simps, unhalves, BitString.block, eval_select,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 + n * r) (n * r))
     (right : Circuit signature (b * 2 + n * r) (n * r)) (cost : signature.Op → ℕ) :
     (unhalves left right).program.cost cost =
       left.program.cost cost + right.program.cost cost := by
-  simp only [unhalves, select, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.cost_program_wiringOn, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, unhalves, select, Nat.zero_add, Nat.add_zero]
 
 /-- Preserve the first controls while undoing the second stage, then undo the first stage. -/
 def unchain {a b n r : ℕ} (first : Circuit signature (a * 2 + n * r) (n * r))
@@ -167,23 +162,22 @@ private theorem eval_unchain {a b n r : ℕ} (first : Circuit signature (a * 2 +
     (c : Fin (a + b) → BitString 2) (x : Fin n → BitString r) :
     (unchain first second).eval interpretation (pack c x) =
       first.eval interpretation (pack (c ∘ Fin.castAdd b)
-        (directProductInput (second.eval interpretation (pack (c ∘ Fin.natAdd a) x)))) := by
+        (BitString.block (second.eval interpretation (pack (c ∘ Fin.natAdd a) x)))) := by
   simp only [unchain, Circuit.eval_comp, Circuit.eval_append, eval_select, Function.comp_id]
   congr 1 with i : 1
   cases i using Fin.addCases with
   | left i =>
-    simp [Circuit.eval_wiringOn, layout, pack, flatten,
+    simp [circuit_simps, layout, pack, BitString.blocksEquiv_symm_apply,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
   | right i =>
-    simp only [Fin.append_right, pack, flatten, directProductInput, Prod.mk.eta,
-      Equiv.apply_symm_apply]
+    simp only [Fin.append_right, pack, BitString.blocksEquiv_symm_apply, BitString.block,
+      Prod.mk.eta, Equiv.apply_symm_apply]
 
 private theorem cost_unchain {a b n r : ℕ} (first : Circuit signature (a * 2 + n * r) (n * r))
     (second : Circuit signature (b * 2 + n * r) (n * r)) (cost : signature.Op → ℕ) :
     (unchain first second).program.cost cost =
       first.program.cost cost + second.program.cost cost := by
-  simp only [unchain, select, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.cost_program_wiringOn, Nat.zero_add]
+  simp only [circuit_simps, unchain, select, Nat.zero_add]
   exact Nat.add_comm _ _
 
 private theorem pairs_comp {a b : ℕ} (flags : BitString a) (f : Fin b → Fin a) :
@@ -209,7 +203,7 @@ def bitonicUnsortCircuit (r : ℕ) : (d : ℕ) →
 /-- The reverse merge implements reversal for every paired trace and payload. -/
 theorem eval_bitonicUnmergeCircuit (r d : ℕ) (flags : BitString (mergeTraceSize d))
     (x : Fin (arity d) → BitString r) :
-    directProductInput ((bitonicUnmergeCircuit r d).eval interpretation (pack (pairs flags) x)) =
+    BitString.block ((bitonicUnmergeCircuit r d).eval interpretation (pack (pairs flags) x)) =
       BitonicSort.unrouteMerge d flags x := by
   induction d with
   | zero =>
@@ -226,7 +220,7 @@ theorem eval_bitonicUnmergeCircuit (r d : ℕ) (flags : BitString (mergeTraceSiz
 /-- The reverse sorter implements reversal for every paired trace and payload. -/
 theorem eval_bitonicUnsortCircuit (r d : ℕ) (flags : BitString (sortTraceSize d))
     (x : Fin (arity d) → BitString r) :
-    directProductInput ((bitonicUnsortCircuit r d).eval interpretation (pack (pairs flags) x)) =
+    BitString.block ((bitonicUnsortCircuit r d).eval interpretation (pack (pairs flags) x)) =
       BitonicSort.unrouteSort d flags x := by
   induction d with
   | zero =>
@@ -275,8 +269,8 @@ theorem size_bitonicUnsortCircuit (r d : ℕ) :
 theorem eval_bitonicUnsortCircuit_sort {k r v : ℕ} (key : Fin k → Fin r) (d : ℕ)
     (ascending : Bool) (f : BitString r → BitString v) (x : BitString (arity d * r)) :
     let output := (bitonicSortTraceCircuit key d ascending).eval interpretation x
-    directProductInput ((bitonicUnsortCircuit v d).eval interpretation
-      (pack (controls output) (f ∘ records output))) = f ∘ directProductInput x := by
+    BitString.block ((bitonicUnsortCircuit v d).eval interpretation
+      (pack (controls output) (f ∘ records output))) = f ∘ BitString.block x := by
   dsimp only
   rw [eval_bitonicSortTraceCircuit, controls_pack, records_pack, eval_bitonicUnsortCircuit]
   exact BitonicSort.unrouteSort_comp_sort _ _ _ _ _

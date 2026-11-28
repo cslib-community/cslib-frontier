@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Uniform polynomial-time evaluation of encrypted layers
@@ -63,9 +64,7 @@ variable {E : Scheme} {secretWidth ciphertextWidth : ℕ → ℕ}
 include hD in
 private theorem computableInPolyTime_decryptionArity :
     ComputableInPolyTime (fun n => secretWidth n + ciphertextWidth n) encUnary encUnary := by
-  have hview : ComputableInPolyTime
-      (fun C : Σ m, Circuit Boolean.signature m 1 => (C.1, C.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   exact (hview.comp hD).fst'
 
 include hencrypt hevaluate hD in
@@ -86,7 +85,6 @@ theorem isPPTOn_evaluateNode
   have hsecond : ComputableInPolyTime
       (fun a => (inputs a).getD (node a).code.2.2 []) input encBits :=
     ComputableInPolyTime.listGetD_binary (encA := encBits) [] hinputs (by fun_prop)
-  have hcond1 := hcode.fst'.fst'
   have hcond2 := hcode.fst'.snd'
   have hraw : IsPPTOn input encBits (fun a =>
       if (node a).code.1.1 then
@@ -101,13 +99,10 @@ theorem isPPTOn_evaluateNode
       · exact isPPTOn_refresh hencrypt hevaluate D hD hn hpk hek hfirst
     · exact hencrypt.preprocess (hn.prod (hpk.prod hcond2))
   have hcap := (computableInPolyTime_decryptionArity D hD).comp hn
-  have hbounded := hraw.map_with (f := fun a ciphertext =>
-    ciphertext.take (secretWidth (n a) + ciphertextWidth (n a)))
-    (ComputableInPolyTime.bitsTakeWithInput
-      (ComputableInPolyTime.snd input encBits)
-      (hcap.comp (ComputableInPolyTime.fst input encBits)))
-  apply hbounded.congr
-  intro a
+  refine (hraw.map_with (f := fun a ciphertext =>
+      ciphertext.take (secretWidth (n a) + ciphertextWidth (n a)))
+    (ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.snd input encBits)
+      (hcap.comp (ComputableInPolyTime.fst input encBits)))).congr fun a => ?_
   cases node a <;> rfl
 
 include hencrypt hevaluate hD in
@@ -190,17 +185,13 @@ theorem isPPTOn_evaluateLayers
       (fun p : α × (ℕ × List (List Bool)) =>
         evaluateLayerStep D (n p.1) (publicKeys p.1) (encryptedKeys p.1) (layers p.1) p.2) := by
     apply isPPTOn_evaluateLayerStep D hencrypt hevaluate hD <;> fun_prop
-  have hcount : ComputableInPolyTime (fun a => (layers a).length) input encUnary :=
-    (ComputableInPolyTime.length_list (encList Boolean.Layered.encNode)).comp hlayers
-  have hinit : ComputableInPolyTime (fun a => (0, inputs a)) input
-      (encPair encUnary (encList encBits)) :=
-    (ComputableInPolyTime.const 0).prod hinputs
   have hloop := IsPPTOn.iterateWith_of_bounded_growth
     (stateEncoding := encPair encUnary (encList encBits))
     (count := fun a => (layers a).length)
     (initial := fun a => (0, inputs a))
     (step := fun a => evaluateLayerStep D (n a) (publicKeys a) (encryptedKeys a) (layers a))
-    (by polytime) (by polytime) hstep hgrowth_poly
+    ((ComputableInPolyTime.length_list (encList Boolean.Layered.encNode)).comp hlayers)
+    ((ComputableInPolyTime.const 0).prod hinputs) hstep hgrowth_poly
     (fun a state next hnext => ?_)
   · exact hloop.map (ComputableInPolyTime.snd encUnary (encList encBits))
   rw [evaluateLayerStep, ProbComp.eval_map, PMF.mem_support_map_iff] at hnext

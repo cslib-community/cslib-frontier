@@ -67,35 +67,21 @@ theorem recursive_joint_zero_at {k r h : ℕ} {I : Type} [Fintype I]
       recursiveFamily T A.label F q' (BitString.flipOn {p} x) ≠
         recursiveFamily T A.label F q' x) ⊆ U ∪ V := by
     rintro ⟨⟨j, c⟩, a⟩ hp
-    have hchange := (Finset.mem_filter.mp hp).2
-    have hon' : recursiveFamily T A.label F q' (BitString.flipOn {((j, c), a)} x) = true := by grind
-    obtain ⟨i, hi'⟩ := (recursiveFamily_eq_true_iff T A.label F q' _).mp hon'
+    obtain ⟨i, hi'⟩ := (recursiveFamily_eq_true_iff T A.label F q' _).mp <|
+      Bool.eq_true_of_not_eq_false (by simpa only [hx'] using (Finset.mem_filter.mp hp).2.2)
     have hi := rowClause_nested T A.label F hF hqq.le _ i hi'
     have hioff := (recursiveFamily_eq_false_iff T A.label F q x).mp hx i
     rcases rowClause_repair_cases T A.label F q x i j c a hioff hi with
       ⟨hit, hji, htoff, hton⟩ | ⟨hig, hij, rfl, hgon, hgoff⟩
     · subst j
-      have hc := targetWitness_unique T A.label F q x hr i hit c htoff
-      apply Finset.mem_union_left
-      apply Finset.mem_biUnion.mpr
-      refine ⟨i, hit, ?_⟩
-      have hn : F (Fin.last h) (BitString.flipOn {a} (recursiveChild x i c)) ≠
-          F (Fin.last h) (recursiveChild x i c) := by simp [hton, htoff]
-      simpa [childChanges, hc] using hn
+      exact Finset.mem_union_left _
+        (mem_targetCandidates_biUnion_of_flip T A.label F hr q x hit htoff hton)
     · have hj := gateWitness_unique T A.label F q x i hig j hij hgon
       have hgon' := hF.accepts_of_le (gateIndex_strictAnti hqq).le hgon
       have hgoff' := ((rowClause_eq_true_iff T A.label F q' _ i).mp hi').2 j hij
       rw [recursiveChild_flip_same] at hgoff'
-      apply Finset.mem_union_right
-      apply Finset.mem_biUnion.mpr
-      refine ⟨i, hig, ?_⟩
-      have hn :
-          F (gateIndex q') (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-            F (gateIndex q') (recursiveChild x j (A.label i j)) ∧
-          F (gateIndex q) (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-            F (gateIndex q) (recursiveChild x j (A.label i j)) := by
-        simp [hgon, hgoff, hgon', hgoff']
-      simpa [childJointChanges, w, hj] using hn
+      refine Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨i, hig, ?_⟩)
+      simp [childJointChanges, w, ← hj, hgon, hgoff, hgon', hgoff']
   have hU : U.card ≤ 15 * sideSensitivity F false :=
     targetCandidates_biUnion_card_le T A F hF hr q x
   have hV : V.card ≤ 3 * jointSensitivity F true := by

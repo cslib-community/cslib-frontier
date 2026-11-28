@@ -1,0 +1,237 @@
+/-
+Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Christian Reitwiessner
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
+import Mathlib.Data.Finset.Powerset
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Nat.Choose.Bounds
+import CslibFrontier.Foundations.Data.Finset.Expect
+
+/-!
+# Visit counts of expander walks
+
+Selected-time hitting, factorial moments and integer tails for the uniform-start walk.
+The walk has `t + 1` vertices and `t` independently uniform ports. Loops and parallel
+edges are allowed. This is the analytic step in [Goldreich2007DraftR4], Exercise 8.44
+(PDF p. 117, printed p. 381).
+
+For `L = t + 1`, `ρ = dens W`, `η = spectralExpansion`, and `q = ρ + η²`,
+the selected-time probability is at most `q^(|S|/2)`, and
+`E choose(visitCount,m) ≤ choose(L,m) q^(m/2)`. The strict integer tail gains
+`1/(m+1)`. The source's strict inequality therefore requires `1 ≤ m ≤ L` and
+`q > 0`; without these hypotheses an empty set and `η = 0` would demand `0 < 0`.
+The printed `αL` binomial parameter needs an integer convention. The half-visits
+corollary uses integer division for `N > L/2`, including odd `L`.
+
+The guideline's full-set masks in (8.24) introduce factors `sqrt(1+η²)`;
+these cannot be dropped. Unrestricted norm contraction supplies factor one instead.
+See source qualifications in issue #4781. No sampler or runtime claim is made.
+
+## Main results
+
+* `Cslib.RotationMap.dens_filter_selected_walkAt_mem_le`
+* `Cslib.RotationMap.expect_choose_visitCount_le`
+* `Cslib.RotationMap.dens_filter_visitCount_ge_le`
+* `Cslib.RotationMap.dens_filter_visitCount_gt_le`
+* `Cslib.RotationMap.dens_filter_visitCount_half_lt`
+-/
+
+public section
+namespace Cslib.RotationMap
+open Finset
+open scoped BigOperators
+variable {V D : Type*} [Fintype V] [Fintype D] [Nonempty V] [Nonempty D]
+  [DecidableEq V] (G : RotationMap V D)
+
+/-- Number of visits to `W`, including the initial vertex. -/
+@[expose] def visitCount (W : Finset V) {t : ℕ} (p : V × (Fin t → D)) : ℕ :=
+  ((range (t + 1)).filter fun i => G.walkAt p i ∈ W).card
+
+omit [Fintype V] [Fintype D] [Nonempty V] [Nonempty D] in
+/-- A walk cannot have more visits than vertex times. -/
+theorem visitCount_le (W : Finset V) {t : ℕ} (p : V × (Fin t → D)) :
+    G.visitCount W p ≤ t + 1 :=
+  (card_filter_le _ _).trans_eq (card_range _)
+
+omit [Fintype V] [Fintype D] [Nonempty V] [Nonempty D] in
+/-- No vertex time visits the empty set. -/
+@[simp] theorem visitCount_empty {t : ℕ} (p : V × (Fin t → D)) :
+    G.visitCount ∅ p = 0 := by simp [visitCount]
+
+omit [Fintype D] [Nonempty V] [Nonempty D] in
+/-- Every vertex time visits the full vertex set. -/
+@[simp] theorem visitCount_univ {t : ℕ} (p : V × (Fin t → D)) :
+    G.visitCount univ p = t + 1 := by simp [visitCount]
+
+omit [Fintype V] [Fintype D] [Nonempty V] [Nonempty D] in
+/-- A zero-edge walk counts only its initial vertex. -/
+theorem visitCount_zero (W : Finset V) (p : V × (Fin 0 → D)) :
+    G.visitCount W p = if p.1 ∈ W then 1 else 0 := by
+  classical
+  by_cases hp : p.1 ∈ W <;> simp [visitCount, filter_singleton, walkAt_zero, hp]
+
+/-- The selected-time hitting estimate in squared form. Unselected steps use
+norm contraction, rather than the weaker full-set mask estimate from Exercise 8.43. -/
+theorem sq_dens_filter_selected_walkAt_mem_le (W : Finset V) (t : ℕ)
+    (S : Finset ℕ) (hS : S ⊆ range (t + 1)) :
+    (dens {p : V × (Fin t → D) | ∀ i ∈ S, G.walkAt p i ∈ W} : ℝ) ^ 2 ≤
+      ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ S.card := by
+  let B : ℕ → Finset V := fun i => if i ∈ S then W else univ
+  let q : ℝ := (dens W : ℝ) + G.spectralExpansion ^ 2
+  let c : ℕ → ℝ := fun i => if i ∈ S then q else 1
+  have hc (i : ℕ) : 0 ≤ c i := by dsimp [c, q]; split_ifs <;> positivity
+  have hstep (i : ℕ) (f : V → ℝ) :
+      (𝔼 v, (if v ∈ B (i + 1) then G.walk f v else 0) ^ 2) ≤
+        c (i + 1) * (𝔼 v, f v ^ 2) := by
+    by_cases hi : i + 1 ∈ S
+    · simpa [B, c, q, hi] using G.expect_mask_walk_sq_le W f
+    · simpa [B, c, hi] using G.expect_walk_sq_le f
+  have h := G.sq_dens_filter_forall_walkAt_mem_le_of_step_bounds B t
+    (fun i => c (i + 1)) (fun i => hc (i + 1)) hstep
+  have hevent (p : V × (Fin t → D)) :
+      (∀ i ≤ t, G.walkAt p i ∈ B i) ↔ ∀ i ∈ S, G.walkAt p i ∈ W :=
+    ⟨fun hp i hi => by simpa [B, hi] using hp i (Nat.lt_succ_iff.mp (mem_range.mp (hS hi))),
+      fun hp i _ => by by_cases hi : i ∈ S <;> simp [B, hi, hp i]⟩
+  simp only [hevent] at h
+  have h0 : (dens (B 0) : ℝ) ≤ c 0 := by
+    by_cases hi : 0 ∈ S <;> simp [B, c, q, hi, sq_nonneg]
+  refine h.trans ((mul_le_mul_of_nonneg_right h0
+    (prod_nonneg fun i _ => hc (i + 1))).trans_eq ?_)
+  rw [mul_comm, ← prod_range_succ']
+  dsimp only [c]
+  rw [← prod_filter, filter_mem_eq_inter, inter_eq_right.mpr hS, prod_const]
+
+/-- Selected-time hitting for any subset of the `t + 1` vertex times. -/
+theorem dens_filter_selected_walkAt_mem_le (W : Finset V) (t : ℕ)
+    (S : Finset ℕ) (hS : S ⊆ range (t + 1)) :
+    (dens {p : V × (Fin t → D) | ∀ i ∈ S, G.walkAt p i ∈ W} : ℝ) ≤
+      ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((S.card : ℝ) / 2) := by
+  apply (abs_le_of_sq_le_sq' ?_ (by positivity)).2
+  rw [← Real.rpow_natCast (_ ^ _) 2, ← Real.rpow_mul (by positivity), Nat.cast_ofNat,
+    div_mul_cancel₀ _ two_ne_zero, Real.rpow_natCast]
+  exact G.sq_dens_filter_selected_walkAt_mem_le W t S hS
+
+/-- The binomial factorial moment of the number of visits. -/
+theorem expect_choose_visitCount_le (W : Finset V) (t m : ℕ) :
+    (𝔼 p : V × (Fin t → D), (Nat.choose (G.visitCount W p) m : ℝ)) ≤
+      Nat.choose (t + 1) m *
+        ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
+  let T := (range (t + 1)).powersetCard m
+  have hcount (p : V × (Fin t → D)) :
+      (Nat.choose (G.visitCount W p) m : ℝ) =
+        ∑ S ∈ T, if ∀ i ∈ S, G.walkAt p i ∈ W then (1 : ℝ) else 0 := by
+    have heq : T.filter (fun S => ∀ i ∈ S, G.walkAt p i ∈ W) =
+        ((range (t + 1)).filter fun i => G.walkAt p i ∈ W).powersetCard m := by
+      ext S
+      simp only [T, mem_filter, mem_powersetCard, subset_iff]
+      exact ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨fun i hi => ⟨h1 hi, h3 i hi⟩, h2⟩,
+        fun ⟨h1, h2⟩ => ⟨⟨fun i hi => (h1 hi).1, h2⟩, fun i hi => (h1 hi).2⟩⟩
+    rw [sum_boole, heq, card_powersetCard]
+    rfl
+  simp only [hcount, expect_sum_comm]
+  calc _ ≤ ∑ _S ∈ T, ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) :=
+        sum_le_sum fun S hS => by
+          obtain ⟨hsub, hcard⟩ := mem_powersetCard.mp hS
+          rw [Fintype.expect_boole]
+          simpa only [hcard] using G.dens_filter_selected_walkAt_mem_le W t S hsub
+    _ = _ := by simp only [T, sum_const, nsmul_eq_mul, card_powersetCard, card_range]
+
+/-- Integer upper tail, including threshold zero and impossible thresholds. -/
+theorem dens_filter_visitCount_ge_le (W : Finset V) (t m : ℕ) :
+    (dens {p : V × (Fin t → D) | m ≤ G.visitCount W p} : ℝ) ≤
+      Nat.choose (t + 1) m *
+        ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
+  refine le_trans ?_ (G.expect_choose_visitCount_le W t m)
+  rw [← Fintype.expect_boole]
+  refine expect_le_expect fun p _ => ?_
+  split_ifs with hp
+  · exact_mod_cast Nat.choose_pos hp
+  · positivity
+
+/-- Strict integer upper tail with the factorial-moment improvement `1 / (m + 1)`. -/
+theorem dens_filter_visitCount_gt_le (W : Finset V) (t m : ℕ) :
+    (dens {p : V × (Fin t → D) | m < G.visitCount W p} : ℝ) ≤
+      (Nat.choose (t + 1) m *
+        ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2)) / (m + 1) := by
+  rw [le_div_iff₀ (by positivity)]
+  refine le_trans ?_ (G.expect_choose_visitCount_le W t m)
+  rw [← Fintype.expect_boole, expect_mul]
+  refine expect_le_expect fun p _ => ?_
+  split_ifs with hp
+  · simpa [Nat.choose_succ_self_right] using
+      (Nat.cast_le (α := ℝ)).mpr (Nat.choose_le_choose m (Nat.succ_le_of_lt hp))
+  · simp
+
+/-- The source's strictly-smaller bound, with the required nondegenerate hypotheses. -/
+theorem dens_filter_visitCount_gt_lt (W : Finset V) (t m : ℕ)
+    (hm : 1 ≤ m) (hmL : m ≤ t + 1)
+    (hq : 0 < (dens W : ℝ) + G.spectralExpansion ^ 2) :
+    (dens {p : V × (Fin t → D) | m < G.visitCount W p} : ℝ) <
+      Nat.choose (t + 1) m *
+        ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
+  refine (G.dens_filter_visitCount_gt_le W t m).trans_lt
+    (div_lt_self (mul_pos (mod_cast Nat.choose_pos hmL) (Real.rpow_pos_of_pos hq _))
+      (by exact_mod_cast Nat.lt_succ_of_le hm))
+
+/-- Goldreich's half-visits example for every positive vertex length `t + 1`.
+The event uses integer division, so odd lengths have their usual strict-majority meaning. -/
+theorem dens_filter_visitCount_half_lt (W : Finset V) (t : ℕ)
+    (hη : G.spectralExpansion < Real.sqrt (dens W : ℝ)) :
+    (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) <
+      (32 * (dens W : ℝ)) ^ (((t + 1 : ℕ) : ℝ) / 4) := by
+  let ρ : ℝ := dens W
+  have hρ : 0 < ρ := Real.sqrt_pos.mp (G.spectralExpansion_nonneg.trans_lt hη)
+  have hq : ρ + G.spectralExpansion ^ 2 < 2 * ρ := by
+    have hsq : G.spectralExpansion ^ 2 < ρ := by
+      calc G.spectralExpansion ^ 2 < (Real.sqrt ρ) ^ 2 :=
+            pow_lt_pow_left₀ hη G.spectralExpansion_nonneg two_ne_zero
+        _ = ρ := Real.sq_sqrt hρ.le
+    linarith
+  by_cases hsmall : ρ ≤ 1 / 32
+  · let k := (t + 2) / 2
+    have hk : 0 < k := by dsimp [k]; omega
+    have hkr : ((t + 1 : ℕ) : ℝ) / 4 ≤ (k : ℝ) / 2 := by
+      have hi : ((t + 1 : ℕ) : ℝ) ≤ 2 * (k : ℝ) := by
+        exact_mod_cast (show t + 1 ≤ 2 * k by dsimp [k]; omega)
+      linarith
+    have hevent : (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) ≤
+        dens ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) :=
+      mod_cast dens_mono fun p hp => by
+        simp only [mem_filter, mem_univ, true_and, k] at hp ⊢
+        omega
+    have hc : (0 : ℝ) < Nat.choose (t + 1) k := by
+      exact_mod_cast Nat.choose_pos (show k ≤ t + 1 by dsimp [k]; omega)
+    calc _ ≤ _ := hevent.trans (G.dens_filter_visitCount_ge_le W t k)
+      _ < (Nat.choose (t + 1) k : ℝ) * (2 * ρ) ^ ((k : ℝ) / 2) :=
+        mul_lt_mul_of_pos_left
+          (Real.rpow_lt_rpow (by positivity) hq (div_pos (mod_cast hk) (by norm_num))) hc
+      _ ≤ (2 : ℝ) ^ (t + 1) * (2 * ρ) ^ (((t + 1 : ℕ) : ℝ) / 4) :=
+        mul_le_mul (mod_cast Nat.choose_le_two_pow (t + 1) k)
+          (Real.rpow_le_rpow_of_exponent_ge (by positivity) (by linarith) hkr)
+          (by positivity) (by positivity)
+      _ = _ := by
+        rw [show (2 : ℝ) ^ (t + 1) = (16 : ℝ) ^ (((t + 1 : ℕ) : ℝ) / 4) by
+          rw [show (16 : ℝ) = (2 : ℝ) ^ (4 : ℝ) by norm_num, ← Real.rpow_mul (by norm_num),
+            show (4 : ℝ) * (((t + 1 : ℕ) : ℝ) / 4) = ((t + 1 : ℕ) : ℝ) by ring, Real.rpow_natCast],
+          ← Real.mul_rpow (by norm_num) (by positivity)]
+        congr 1; ring
+  · have hd : (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) ≤ 1 := by
+      exact_mod_cast (dens_le_one (s := {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p}))
+    exact hd.trans_lt (Real.one_lt_rpow (by change 1 < 32 * ρ; linarith) (by positivity))
+
+/-- Selected-time hitting with an explicit upper bound on the normalized eigenvalue. -/
+theorem dens_filter_selected_walkAt_mem_le_of_spectralExpansion_le
+    (W : Finset V) (t : ℕ) (S : Finset ℕ) (hS : S ⊆ range (t + 1))
+    (lambda d : ℝ) (h : G.spectralExpansion ≤ lambda / d) :
+    (dens {p : V × (Fin t → D) | ∀ i ∈ S, G.walkAt p i ∈ W} : ℝ) ≤
+      ((dens W : ℝ) + (lambda / d) ^ 2) ^ ((S.card : ℝ) / 2) := by
+  refine (G.dens_filter_selected_walkAt_mem_le W t S hS).trans ?_
+  gcongr
+
+end Cslib.RotationMap

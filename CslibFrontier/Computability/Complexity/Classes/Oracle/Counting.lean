@@ -8,11 +8,16 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Polynomial time with a `#P` oracle
@@ -48,6 +53,8 @@ is in it, by a program making one query
 ## Main results
 
 * `Cslib.Complexity.answersBits_bitGraph`: the bit graph answers the bits.
+* `Cslib.Complexity.bitGraph_mem_P`: the bit graph of a polynomial-time function is in `P`, when
+  its instance encoding has a decoder.
 * `Cslib.Complexity.mem_PWithOracle_bitGraph`: `P^#P` lies in polynomial time relative to the
   bit graph of a function in `#P`.
 * `Cslib.Complexity.P_subset_PWithSharpPOracle`: `P ⊆ P^#P`.
@@ -72,6 +79,15 @@ not codes may be in `A` or not. -/
 def AnswersBits (encβ : β ↪ List Bool) (f : β → ℕ) (A : Set (List Bool)) : Prop :=
   ∀ b i, encPair encβ encNat (b, i) ∈ A ↔ (f b).testBit i
 
+/-- Reading the first `w` bit answers in order reconstructs exactly the low bits of the value. -/
+theorem AnswersBits.ofFn_eq_lowBits {enc : β ↪ List Bool} {g : β → ℕ} {A : Set (List Bool)}
+    [DecidablePred (· ∈ A)] (hA : AnswersBits enc g A) (b : β) (w : ℕ) :
+    (List.ofFn fun i : Fin w => decide (encPair enc encNat (b, i.val) ∈ A)) =
+      BitString.lowBits w (g b) := by
+  rw [BitString.lowBits_eq_ofFn]
+  refine congrArg List.ofFn (funext fun i => Bool.eq_iff_iff.mpr ?_)
+  exact decide_eq_true_iff.trans (hA b i)
+
 /-- The bit graph of `f : β → ℕ`: the codes `encPair encβ encNat (b, i)` such that bit `i` of
 `f b` is `1`, and no other word. -/
 def bitGraph (encβ : β ↪ List Bool) (f : β → ℕ) : Set (List Bool) :=
@@ -81,6 +97,45 @@ def bitGraph (encβ : β ↪ List Bool) (f : β → ℕ) : Set (List Bool) :=
 theorem answersBits_bitGraph (encβ : β ↪ List Bool) (f : β → ℕ) :
     AnswersBits encβ f (bitGraph encβ f) := fun _ _ =>
   (encPair encβ encNat).injective.mem_set_image
+
+/-- **The bit graph of a polynomial-time function is in `P`.** If `g` is computable in polynomial
+time with binary output and `encβ` has a polynomial-time decoder, a word is decided by decoding it
+as a pair `(b, i)`, checking that it re-encodes to itself, and reading bit `i` of `g b`. The
+position `i` is binary, so it is first capped at the bit length of `g b`. -/
+theorem bitGraph_mem_P {encβ : β ↪ List Bool} {g : β → ℕ} (D : Decoder encβ)
+    (hg : ComputableInPolyTime g encβ encNat) : bitGraph encβ g ∈ P encBits := by
+  classical
+  let D' := D.pair Decoder.nat
+  have hdec : ComputableInPolyTime D'.decode encBits (encPair encβ encNat) :=
+    D'.computableInPolyTime
+  have henc : ComputableInPolyTime (encPair encβ encNat) (encPair encβ encNat) encBits := .id'
+  have hval : ComputableInPolyTime (fun w => g (D'.decode w).1) encBits encNat :=
+    hg.comp ((ComputableInPolyTime.fst _ _).comp hdec)
+  have hsize : ComputableInPolyTime (fun w => (g (D'.decode w).1).size) encBits encUnary := by
+    have hbits := (ComputableInPolyTime.of_eq (encIn := encNat) (encOut := encBits)
+      (f := Nat.bits) fun _ => rfl).comp hval
+    simpa only [Function.comp_def, Nat.size_eq_bits_len] using
+      ComputableInPolyTime.length_bits_comp hbits
+  have hidx : ComputableInPolyTime (fun w => min (g (D'.decode w).1).size (D'.decode w).2)
+      encBits encUnary :=
+    ComputableInPolyTime.binary_min_unary' hsize ((ComputableInPolyTime.snd _ _).comp hdec)
+  have hbit := ComputableInPolyTime.binary_testBit hval hidx
+  refine ⟨fun w => decide (encPair encβ encNat (D'.decode w) = w) &&
+    (g (D'.decode w).1).testBit (min (g (D'.decode w).1).size (D'.decode w).2),
+    by fun_prop, fun w => ?_⟩
+  have hmin (n i : ℕ) : n.testBit (min n.size i) = n.testBit i := by
+    rcases le_total i n.size with h | h
+    · rw [min_eq_right h]
+    · rw [min_eq_left h, Nat.testBit_eq_false_of_lt (Nat.lt_size_self n),
+        Nat.testBit_eq_false_of_lt ((Nat.lt_size_self n).trans_le
+          (Nat.pow_le_pow_right two_pos h))]
+  simp only [hmin, Bool.and_eq_true, decide_eq_true_eq]
+  constructor
+  · rintro ⟨x, hx, rfl⟩
+    rw [D'.decode_enc]
+    exact ⟨rfl, hx⟩
+  · rintro ⟨hw, hbit⟩
+    exact ⟨D'.decode w, hbit, hw⟩
 
 open Classical in
 /-- **`P^#P`** [Arora and Barak, Chapter 17][AroraBarak09]: the problems `L` such that, for some

@@ -176,9 +176,7 @@ private theorem sum_weight_mul_vote_le {rate : ℝ} (hrate : 0 < rate)
     rw [sum_range_succ]
     have hq := potential_le_quadratic hrate (margin f next j x) (margin f next (j + 1) x)
     have hstep : margin f next (j + 1) x - margin f next j x =
-        vote f (next (margin f next j)) x := by
-      simp only [margin]
-      ring
+        vote f (next (margin f next j)) x := add_sub_cancel_left _ _
     rw [hstep, vote_sq] at hq
     push_cast
     linarith
@@ -247,28 +245,15 @@ theorem exists_isHardCoreMeasure {f : BooleanFunction n} {s T : ℕ} {δ ε : �
   let j := Nat.find (⟨j₁, hj₁⟩ : ∃ j, ¬dense j)
   have hjT : j < T := (Nat.find_min' _ hj₁).trans_lt hj₁T
   have hjsparse : ¬dense j := Nat.find_spec (⟨j₁, hj₁⟩ : ∃ j, ¬dense j)
-  have hdense (l : ℕ) (hl : l < j) : dense l := by
-    by_contra h
-    exact Nat.find_min _ hl h
+  have hdense (l : ℕ) (hl : l < j) : dense l := not_not.1 (Nat.find_min _ hl)
   -- The strict majority of the first `j` predictors.
   let g : BooleanFunction n := fun x => strictMajority j fun l : Fin j => next (margin f next l) x
   have hcomplexity : complexity interpretation (single g) ≤ T * s + (2 + T * (2 * (T + 2))) := by
-    have h : complexity interpretation (single g) ≤
-        ∑ l : Fin j, complexity interpretation (single (next (margin f next l))) +
-          complexity interpretation (single (strictMajority j)) :=
-      (complexity_comp_le (fun x (l : Fin j) => next (margin f next l) x)
-        (single (strictMajority j))).trans
-        (Nat.add_le_add_right (complexity_pi_le fun l : Fin j => next (margin f next l)) _)
-    have hsum : ∑ l : Fin j, complexity interpretation (single (next (margin f next l))) ≤
-        ∑ _l : Fin j, s :=
-      sum_le_sum fun l _ => (hnext (margin f next l) (hdense l l.2)).1
-    simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul] at hsum
-    have hmaj : complexity interpretation (single (strictMajority j)) ≤
-        2 + j * (2 * (j + 2)) := complexity_threshold_le j (j / 2 + 1)
+    have h : complexity interpretation (single g) ≤ j * s + (2 + j * (2 * (j + 2))) :=
+      complexity_threshold_pi_le_of_le (j := j / 2 + 1) (fun l : Fin j => next (margin f next l))
+        fun l => (hnext (margin f next l) (hdense l l.2)).1
     have hjT' := hjT.le
-    have : j * s + (2 + j * (2 * (j + 2))) ≤ T * s + (2 + T * (2 * (T + 2))) := by
-      gcongr
-    omega
+    exact h.trans (by gcongr)
   -- Where the majority errs, the margin is nonpositive.
   have herr (x : BitString n) (hx : g x ≠ f x) : margin f next j x ≤ 0 := by
     have hcount := le_card_ne_of_strictMajority_ne hx

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Realization.Glue
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Certified finite-result word glue
@@ -101,11 +102,8 @@ def optionWords : Option ℕ ↪ (Fin 2 → ℕ) where
 /-- The legacy scalar encoding is the one-word instance of `optionWordsWith`. Its original
 vector presentation is retained for existing definitional and simplification clients. -/
 theorem optionWords_eq_optionWordsWith :
-    optionWords = optionWordsWith (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding := by
-  apply DFunLike.ext
-  intro a
-  funext i
-  cases a <;> fin_cases i <;> rfl
+    optionWords = optionWordsWith (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding :=
+  DFunLike.ext _ _ fun a => funext fun i => by cases a <;> fin_cases i <;> rfl
 
 /-- A Boolean tag with a retained zero slot supports native comparisons without immediates. -/
 def boolWords : Bool ↪ (Fin 2 → ℕ) where
@@ -176,10 +174,8 @@ def Witness.glueVectorOfScalars (input : δ ↪ (Fin k → ℕ)) (output : α �
         exact congrArg (fun a : Fin (l + N + 1) => a.val) (hi hij)
       have hauxi (i : Fin l) : Function.Injective (aux i) := by
         intro a b hab
-        apply Fin.ext
-        have h := congrArg (fun a : Fin (l + N + 1) => a.val) (hi hab)
-        dsimp only [aux] at h
-        omega
+        have := hi hab
+        fin_index
       have had (i : Fin l) (j : Fin k) (a : Fin (n i + 1)) : src j ≠ aux i a := hd _ _
       have hauxDst (i : Fin l) (j : Fin l) : ∀ a, aux i a ≠ dst j := by
         intro a h
@@ -329,13 +325,11 @@ theorem decrement {δ : Type} {k : ℕ} (input : δ ↪ (Fin k → ℕ)) (i : Fi
 /-- Return the two zero words encoding `none`, charging both constants and output copies. -/
 theorem returnNone {δ : Type} {k : ℕ} (input : δ ↪ (Fin k → ℕ)) :
     Realizes .exact (fun _ => pure none) input optionWords
-      (fun _ _ _ => True) (fun _ _ => 4) := by
-  have h := Realizes.glueVector (B := .exact) input optionWords (fun _ => none)
-    (fun _ _ => 0) (fun _ _ => 0) (fun _ => 1)
-    (fun _ i => by fin_cases i <;> rfl)
-    (P := fun _ => True) (fun _ => GlueComputes.const 0 (fun _ _ => le_rfl))
-  exact h.consequence (fun w _ _ _ _ _ => ⟨trivial, fun _ => fits_zero w⟩)
-    (fun _ _ => by simp)
+      (fun _ _ _ => True) (fun _ _ => 4) :=
+  (Realizes.glueVector (B := .exact) input optionWords (fun _ => none) (fun _ _ => 0)
+    (fun _ _ => 0) (fun _ => 1) (fun _ i => by fin_cases i <;> rfl) (P := fun _ => True)
+    (fun _ => .const 0 (fun _ _ => le_rfl))).consequence
+    (fun w _ _ _ _ _ => ⟨trivial, fun _ => fits_zero w⟩) (fun _ _ => by simp)
 
 /-- Return a presence tag and unshifted input payload, with both word fits explicit. -/
 theorem returnSome {δ : Type} {k : ℕ} (input : δ ↪ (Fin k → ℕ)) (j : Fin k) :
@@ -344,16 +338,13 @@ theorem returnSome {δ : Type} {k : ℕ} (input : δ ↪ (Fin k → ℕ)) (j : F
   let g : Fin 2 → (Fin k → ℕ) → ℕ := fun i v => if i = 0 then 1 else v j
   have hc (i : Fin 2) : GlueComputes .exact (fun _ : Fin k → ℕ => True) (g i) (g i) 1 := by
     fin_cases i
-    · exact GlueComputes.const 1 (fun _ _ => le_rfl)
-    · exact GlueComputes.proj j (fun _ _ => le_rfl)
-  have h := Realizes.glueVector input optionWords (fun d => some (input d j)) g g
-    (fun _ => 1) (fun _ i => by fin_cases i <;> rfl) hc
-  apply h.consequence (hwork := fun _ _ => by simp)
-  intro w d s _ _ ⟨h1, hv⟩
-  refine ⟨trivial, fun i => ?_⟩
-  fin_cases i
-  · exact h1
-  · exact hv
+    · exact .const 1 (fun _ _ => le_rfl)
+    · exact .proj j (fun _ _ => le_rfl)
+  refine (Realizes.glueVector input optionWords (fun d => some (input d j)) g g
+    (fun _ => 1) (fun _ i => by fin_cases i <;> rfl) hc).consequence ?_
+    (fun _ _ => by simp)
+  rintro w d s _ _ ⟨h1, hv⟩
+  exact ⟨trivial, fun i => by fin_cases i <;> assumption⟩
 
 end Realizes
 
@@ -376,18 +367,14 @@ theorem glueVector (input : δ ↪ (Fin k → ℕ)) (output : α ↪ (Fin l → 
     Finset.le_sup (f := fun j => (scalars j).scratchSize) (Finset.mem_univ i)
   let aux (i : Fin l) : Fin ((scalars i).scratchSize + 1) → Fin _ :=
     fun j => tmp ⟨l + j.val, by have := hn i; omega⟩
-  have hauxi (i : Fin l) : Function.Injective (aux i) := by
-    intro a b hab
-    apply Fin.ext
-    have hh := congrArg Fin.val (hi hab)
-    dsimp only [aux] at hh
-    omega
+  have hauxi (i : Fin l) : Function.Injective (aux i) := fun a b hab => by
+    have := hi hab
+    fin_index
   have hcglue (i : Fin l) :
       (Code.seq ((scalars i).code src (aux i))
         (.op (.copy (tmp (Fin.castAdd (W.scratchSize + 1) i)) (tmp ⟨l, by omega⟩)))).IsGlue :=
     ⟨((scalars i).code_spec src (aux i) (hauxi i) (fun _ _ => hd _ _)).1, trivial⟩
-  have hreg : IsRegOnlyCode (W.code frontier src tmp) :=
-    (coordinateSeq_glue _ (tmp ⟨l, by omega⟩) hcglue (List.finRange l)).isRegOnlyCode
+  have hreg := (coordinateSeq_glue _ (tmp ⟨l, by omega⟩) hcglue (List.finRange l)).isRegOnlyCode
   refine ⟨hnw, fun w d x hx hin hsafe hv => ?_⟩
   obtain ⟨y, hy, hm, hout, hframe⟩ := hrun w d x hx hin hsafe hv
   exact ⟨y, ExecBounded.of_execWithin_regOnly hreg hy, hm, hout, hframe⟩
@@ -403,10 +390,10 @@ theorem pure₀ {B : Basis} {δ α : Type} {k l : ℕ}
     RealizesBounded B (fun d => pure (f d)) input output
       (fun w d _ => P (input d) ∧ need w (input d)) (fun _ _ => 0) := by
   choose time htime using hcoord
-  refine ((glueVector input output f g (fun _ => bound) time hresult htime).consequence
+  exact ((glueVector input output f g (fun _ => bound) time hresult htime).consequence
     (fun w d _ hwords _ h => ⟨h.1, fun _ => hneed w _ hwords h.1 h.2⟩)
-    (fun _ _ => le_rfl)).mono_mul ((∑ i, time i) + l) (fun _ _ => ?_)
-  exact Nat.le_mul_of_pos_right _ (by omega)
+    (fun _ _ => le_rfl)).mono_mul ((∑ i, time i) + l)
+    (fun _ _ => Nat.le_mul_of_pos_right _ (by omega))
 
 end RealizesBounded
 end Cslib.WordRAM.Realization

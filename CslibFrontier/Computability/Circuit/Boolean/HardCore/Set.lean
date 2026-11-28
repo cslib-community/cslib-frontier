@@ -16,6 +16,7 @@ import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.PMF.Coin
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Finiteness
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Impagliazzo's hard-core lemma: hard-core sets
@@ -110,9 +111,7 @@ theorem isHardCoreSet_iff_isHardCoreMeasure {f : BooleanFunction n} {s : ℕ} {�
   have hagree (g : BooleanFunction n) :
       ∑ x with g x = f x, (if x ∈ H then (1 : ℝ) else 0) = #{x ∈ H | g x = f x} := by
     rw [sum_boole, filter_filter]
-    congr 2
-    ext x
-    simp [and_comm]
+    congr 2; ext x; simp [and_comm]
   constructor
   · intro h
     refine ⟨fun x => by split_ifs <;> simp, hsum ▸ h.mul_two_pow_le_card, fun g hg => ?_⟩
@@ -175,20 +174,17 @@ theorem exists_finset_card_agree_lt (f : BooleanFunction n) (M : BitString n →
   -- A union bound over the `|G| + 1` events.
   have hunion : (S.toOuterMeasure (bad₀ ∪ ⋃ g ∈ G, bad g)).toReal < 1 := by
     calc (S.toOuterMeasure (bad₀ ∪ ⋃ g ∈ G, bad g)).toReal
-        ≤ (S.toOuterMeasure bad₀ + ∑ g ∈ G, S.toOuterMeasure (bad g)).toReal :=
-          ENNReal.toReal_mono (by finiteness) ((MeasureTheory.measure_union_le _ _).trans
-            (add_le_add le_rfl (MeasureTheory.measure_biUnion_finset_le G bad)))
-      _ = (S.toOuterMeasure bad₀).toReal + ∑ g ∈ G, (S.toOuterMeasure (bad g)).toReal := by
-          rw [ENNReal.toReal_add (by finiteness) (by finiteness),
-            ENNReal.toReal_sum fun _ _ => by finiteness]
+        ≤ (S.toOuterMeasure bad₀).toReal + ∑ g ∈ G, (S.toOuterMeasure (bad g)).toReal := by
+          ennreal_to_real using
+            (MeasureTheory.measure_union_le (μ := S.toOuterMeasure) bad₀ _).trans
+              (add_le_add le_rfl (MeasureTheory.measure_biUnion_finset_le G bad))
       _ ≤ Real.exp (-2 * t ^ 2 / 2 ^ n) + ∑ _g ∈ G, Real.exp (-2 * t ^ 2 / 2 ^ n) :=
           add_le_add hbad₀ (sum_le_sum fun g _ => hbad g)
       _ = (#G + 1) * Real.exp (-2 * t ^ 2 / 2 ^ n) := by rw [sum_const, nsmul_eq_mul]; ring
       _ < 1 := hcount
   obtain ⟨ω, -, hω⟩ : ∃ ω ∈ S.support, ω ∉ bad₀ ∪ ⋃ g ∈ G, bad g := by
     by_contra! h
-    have h1 := (PMF.toOuterMeasure_apply_eq_one_iff S _).mpr h
-    rw [h1, ENNReal.toReal_one] at hunion
+    rw [(PMF.toOuterMeasure_apply_eq_one_iff S _).mpr h, ENNReal.toReal_one] at hunion
     exact lt_irrefl _ hunion
   simp only [Set.mem_union, Set.mem_iUnion, not_or, not_exists] at hω
   obtain ⟨hω₀, hωG⟩ := hω
@@ -196,12 +192,8 @@ theorem exists_finset_card_agree_lt (f : BooleanFunction n) (M : BitString n →
   refine ⟨({x | ω x = true} : Finset (BitString n)), ?_, fun g hg => ?_⟩
   · have hmean : ∑ x, ∑ b, (coin x b).toReal * size b = ∑ x, M x :=
       sum_congr rfl fun x _ => by simp [hcoin, size]
-    have hsize : ∑ x, size (ω x) = #{x | ω x = true} := by
-      simp only [size]
-      rw [sum_boole]
-    have h := hω₀
-    simp only [bad₀, Set.mem_ofPred_eq, not_le, hmean, hsize] at h
-    exact h
+    have hsize : ∑ x, size (ω x) = #{x | ω x = true} := by simp only [size]; rw [sum_boole]
+    simpa only [bad₀, Set.mem_ofPred_eq, not_le, hmean, hsize] using hω₀
   · have hmean : ∑ x, ∑ b, (coin x b).toReal * score g x b =
         (∑ x with g x = f x, M x) + a * (2 ^ n - ∑ x, M x) := by
       have hx (x : BitString n) : ∑ b, (coin x b).toReal * score g x b =
@@ -222,9 +214,7 @@ theorem exists_finset_card_agree_lt (f : BooleanFunction n) (M : BitString n →
         #{x | ω x = true ∧ g x = f x} := by rw [filter_filter]
     have h := hωG g hg
     simp only [bad, Set.mem_ofPred_eq, not_le, hmean, hscore] at h
-    have hGg := hG g hg
-    rw [hfilter]
-    nlinarith
+    rw [hfilter]; rw [mul_sub, mul_sub] at h; linarith only [h, hG g hg]
 
 /-- **From a hard-core measure to a hard-core set, losing density** [Holenstein2005]. Let `M` be a
 hard-core measure of density `δ` for `f` against circuits of size `s` with advantage `ε ≥ 0`,
@@ -237,8 +227,7 @@ theorem IsHardCoreMeasure.exists_isHardCoreSet_sub {f : BooleanFunction n} {s : 
     (hcount : (#(computableFunctions n s) + 1) * Real.exp (-2 * η ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f s (δ - η) (ε + η / (δ - η)) H := by
   have hN : (0 : ℝ) < 2 ^ n := by positivity
-  have hexp : -2 * (η * 2 ^ n) ^ 2 / 2 ^ n = -2 * η ^ 2 * 2 ^ n := by
-    field_simp
+  have hexp : -2 * (η * 2 ^ n) ^ 2 / 2 ^ n = -2 * η ^ 2 * 2 ^ n := by field_simp
   have hagree (g : BooleanFunction n) (hg : g ∈ computableFunctions n s) :
       ∑ x with g x = f x, M x ≤ min (1 / 2 + ε) 1 * ∑ x, M x := by
     have h := hM.sum_agree_le g (Circuits.mem_computableFunctions_iff_complexity_le.mp hg)
@@ -246,21 +235,21 @@ theorem IsHardCoreMeasure.exists_isHardCoreSet_sub {f : BooleanFunction n} {s : 
       sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun x _ _ => (hM.mem_Icc x).1
     rcases min_choice (1 / 2 + ε) 1 with hmin | hmin <;> rw [hmin]
     · exact h
-    · linarith
+    · linarith only [hle]
   obtain ⟨H, hsize, hH⟩ := exists_finset_card_agree_lt (t := η * 2 ^ n) f M hM.mem_Icc
-    (computableFunctions n s) ⟨le_min (by linarith) zero_le_one, min_le_right _ _⟩ hagree
-    (by positivity)
-    (by rw [hexp]; exact hcount)
-  have hcard : (δ - η) * 2 ^ n < #H := by nlinarith [hM.mul_two_pow_le_sum]
-  have hgap : 0 < δ - η := sub_pos.mpr hηδ
+    (computableFunctions n s) ⟨le_min (by linarith only [hε]) zero_le_one, min_le_right _ _⟩
+    hagree (by positivity) (by rw [hexp]; exact hcount)
+  have hcard : (δ - η) * 2 ^ n < #H := by
+    rw [sub_mul]; linarith only [hsize, hM.mul_two_pow_le_sum]
   refine ⟨H, hcard.le, fun g hg => ?_⟩
   have h := hH g (Circuits.mem_computableFunctions_iff_complexity_le.mpr hg)
   have hmin : min (1 / 2 + ε) 1 * (#H : ℝ) ≤ (1 / 2 + ε) * #H :=
     mul_le_mul_of_nonneg_right (min_le_left _ _) (Nat.cast_nonneg _)
   have hslack : η * 2 ^ n ≤ η / (δ - η) * #H := by
-    rw [div_mul_eq_mul_div, le_div_iff₀ hgap]
-    nlinarith
-  linarith
+    rw [div_mul_eq_mul_div, le_div_iff₀ (sub_pos.mpr hηδ),
+      show η * 2 ^ n * (δ - η) = η * ((δ - η) * 2 ^ n) by ring]
+    exact mul_le_mul_of_nonneg_left hcard.le hη
+  linarith only [h, hmin, hslack]
 
 /-- **Padding a hard-core measure.** Raising every weight of a hard-core measure `M` of density
 `δ` and advantage `ε` to `(1 - w) M x + w` gives a hard-core measure of density
@@ -274,32 +263,33 @@ theorem IsHardCoreMeasure.pad {f : BooleanFunction n} {s : ℕ} {δ ε w γ : �
   have hN : (0 : ℝ) < 2 ^ n := by positivity
   have hsum : ∑ x, ((1 - w) * M x + w) = (1 - w) * ∑ x, M x + w * 2 ^ n := by
     rw [sum_add_distrib, ← mul_sum, sum_const, card_univ, BitString.card, nsmul_eq_mul]
-    push_cast
-    ring
+    push_cast; ring
   have hδM := hM.mul_two_pow_le_sum
   refine ⟨fun x => ?_, ?_, fun g hg => ?_⟩
   · obtain ⟨h0, h1⟩ := hM.mem_Icc x
-    constructor <;> nlinarith
+    exact ⟨by positivity, by linarith only [mul_le_of_le_one_right (sub_nonneg.mpr hw1) h1]⟩
   · rw [hsum]
-    nlinarith
+    have := mul_le_mul_of_nonneg_left hδM (sub_nonneg.mpr hw1)
+    linarith only [this, show (δ + w * (1 - δ)) * 2 ^ n = (1 - w) * (δ * 2 ^ n) + w * 2 ^ n by ring]
   · have hagree : ∑ x with g x = f x, ((1 - w) * M x + w) =
         (1 - w) * ∑ x with g x = f x, M x + w * #{x | g x = f x} := by
-      rw [sum_add_distrib, ← mul_sum, sum_const, nsmul_eq_mul]
-      ring
+      rw [sum_add_distrib, ← mul_sum, sum_const, nsmul_eq_mul]; ring
     have hcount : (#{x | g x = f x} : ℝ) ≤ 2 ^ n := by
       have h := card_filter_le (univ : Finset (BitString n)) fun x => g x = f x
-      rw [card_univ, BitString.card] at h
-      exact_mod_cast h
+      rw [card_univ, BitString.card] at h; exact_mod_cast h
     have hle := hM.sum_agree_le g hg
     rw [hagree, hsum]
     have h1 : (1 - w) * ∑ x with g x = f x, M x ≤ (1 - w) * ((1 / 2 + ε) * ∑ x, M x) :=
-      mul_le_mul_of_nonneg_left hle (by linarith)
+      mul_le_mul_of_nonneg_left hle (by linarith only [hw1])
     have h2 : w * (#{x | g x = f x} : ℝ) ≤ w * 2 ^ n := mul_le_mul_of_nonneg_left hcount hw0
     have h3 : γ * (1 - w) * (δ * 2 ^ n) ≤ γ * (1 - w) * ∑ x, M x :=
-      mul_le_mul_of_nonneg_left hδM (mul_nonneg hγ (by linarith))
-    have h4 : w * (1 / 2 - ε - γ) * 2 ^ n ≤ γ * (1 - w) * δ * 2 ^ n :=
-      mul_le_mul_of_nonneg_right hwγ hN.le
-    nlinarith
+      mul_le_mul_of_nonneg_left hδM (mul_nonneg hγ (by linarith only [hw1]))
+    have h4 : w * (1 / 2 - ε - γ) * 2 ^ n ≤ γ * (1 - w) * δ * 2 ^ n := by gcongr
+    have h5 : (1 / 2 + (ε + γ)) * ((1 - w) * ∑ x, M x + w * 2 ^ n) =
+        (1 - w) * ((1 / 2 + ε) * ∑ x, M x) + γ * (1 - w) * ∑ x, M x +
+          (w * 2 ^ n - w * (1 / 2 - ε - γ) * 2 ^ n) := by ring
+    rw [← mul_assoc (γ * (1 - w))] at h3; rw [h5]
+    linarith only [h1, h2, h3, h4]
 
 /-- **From a hard-core measure to a hard-core set of the same density** [Impagliazzo1995],
 [Holenstein2005]. Let `M` be a hard-core measure of density `δ ∈ (0, 1)` for `f` against
@@ -315,21 +305,21 @@ theorem IsHardCoreMeasure.exists_isHardCoreSet {f : BooleanFunction n} {s : ℕ}
     (hcount : (#(computableFunctions n s) + 1) *
       Real.exp (-2 * (γ * δ * (1 - δ)) ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f s δ (ε + 2 * γ) H := by
-  have hγδ : γ * δ ≤ 1 := by nlinarith
+  have hγδ : γ * δ ≤ 1 := (mul_le_of_le_one_right hγ.le hδ1.le).trans hγ1
   have hpos : 0 ≤ γ * δ * (1 / 2 + ε + γ * (1 - δ)) := by
-    have : 0 ≤ 1 - δ := by linarith
+    have : 0 ≤ 1 - δ := by linarith only [hδ1]
     positivity
-  have hpad := hM.pad (w := γ * δ) (γ := γ) ⟨by positivity, hγδ⟩ hγ.le (by nlinarith [hpos])
-  have hη : 0 < γ * δ * (1 - δ) := by
-    have : 0 < 1 - δ := by linarith
-    positivity
-  obtain ⟨H, hH⟩ := hpad.exists_isHardCoreSet_sub (η := γ * δ * (1 - δ)) (by linarith) hη.le
-    (by nlinarith) hcount
+  have hpad := hM.pad (w := γ * δ) (γ := γ) ⟨by positivity, hγδ⟩ hγ.le
+    (by linarith only [hpos, show γ * (1 - γ * δ) * δ - γ * δ * (1 / 2 - ε - γ) =
+      γ * δ * (1 / 2 + ε + γ * (1 - δ)) by ring])
+  have hη : 0 < γ * δ * (1 - δ) := mul_pos (mul_pos hγ hδ) (sub_pos.mpr hδ1)
+  obtain ⟨H, hH⟩ := hpad.exists_isHardCoreSet_sub (η := γ * δ * (1 - δ))
+    (by linarith only [hε, hγ]) hη.le (by linarith only [hδ]) hcount
   have hδ' : δ + γ * δ * (1 - δ) - γ * δ * (1 - δ) = δ := by ring
   have hratio : γ * δ * (1 - δ) / (δ + γ * δ * (1 - δ) - γ * δ * (1 - δ)) ≤ γ := by
     rw [hδ', div_le_iff₀ hδ]
-    nlinarith
-  exact ⟨H, hH.mono le_rfl hδ'.ge (by linarith)⟩
+    exact (mul_le_of_le_one_right (mul_pos hγ hδ).le (by linarith only [hδ])).trans_eq (by ring)
+  exact ⟨H, hH.mono le_rfl hδ'.ge (by linarith only [hratio])⟩
 
 /-- **Impagliazzo's hard-core lemma, set form** [Impagliazzo1995], with explicit parameters. Let
 `0 < δ < 1`, `0 < ε`, `0 < γ ≤ 1`, and let `T` be a number of rounds with `1 ≤ 3 ε² δ² T`. If

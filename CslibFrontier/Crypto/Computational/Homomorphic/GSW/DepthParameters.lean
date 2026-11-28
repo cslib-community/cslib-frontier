@@ -70,29 +70,21 @@ def depthBudget (security : ℕ) : ℕ := 512 * logSize security
 def modulus (security : ℕ) : ℕ := 2 ^ width security
 
 /-- The logarithmic size is uniformly bounded away from zero. -/
-theorem two_le_logSize (security : ℕ) : 2 ≤ logSize security := by
-  have := Nat.clog_pos Nat.one_lt_two (by omega : 1 < security + 2)
-  unfold logSize
-  omega
+theorem two_le_logSize (security : ℕ) : 2 ≤ logSize security :=
+  Nat.add_le_add_left (Nat.clog_pos Nat.one_lt_two (by omega)) 1
 
 /-- A simple linear majorant for the logarithmic size. -/
-theorem logSize_le (security : ℕ) : logSize security ≤ security + 2 := by
-  have hpow : security + 2 ≤ 2 ^ (security + 1) := Nat.lt_two_pow_self
-  have := Nat.clog_le_of_le_pow hpow
-  unfold logSize
-  omega
+theorem logSize_le (security : ℕ) : logSize security ≤ security + 2 :=
+  (Nat.add_comm 1 _).trans_le
+    (Nat.succ_le_succ (Nat.clog_le_of_le_pow (Nat.lt_two_pow_self (n := security + 1))))
 
 /-- Every parameter has a nonempty modular word. -/
-theorem width_pos (security : ℕ) : 0 < width security := by
-  have := two_le_logSize security
-  unfold width
-  positivity
+theorem width_pos (security : ℕ) : 0 < width security :=
+  Nat.mul_pos (by decide) (Nat.pow_pos (Nat.zero_lt_of_lt (two_le_logSize security)))
 
 /-- The depth budget is positive for every security parameter. -/
-theorem depthBudget_pos (security : ℕ) : 0 < depthBudget security := by
-  have := two_le_logSize security
-  unfold depthBudget
-  positivity
+theorem depthBudget_pos (security : ℕ) : 0 < depthBudget security :=
+  Nat.mul_pos (by decide) (Nat.zero_lt_of_lt (two_le_logSize security))
 
 /-- The number of samples has exactly the required entropy surplus. -/
 theorem entropy_margin (security : ℕ) : rows security + 2 * security ≤ samples security := le_rfl
@@ -139,11 +131,8 @@ private theorem sizes_le_pow (security : ℕ) :
     unfold rows dimension
     nlinarith
   have hnext : 2 * 2 ^ (14 + 3 * t) ≤ 2 ^ (11 * t) := by
-    calc
-      _ = 2 ^ (15 + 3 * t) := by
-        rw [show 15 + 3 * t = (14 + 3 * t) + 1 by omega, pow_succ]
-        omega
-      _ ≤ _ := Nat.pow_le_pow_right (by decide) (by omega)
+    rw [← pow_succ']
+    exact Nat.pow_le_pow_right (by decide) (by omega)
   have hpos : 0 < 2 ^ (14 + 3 * t) := by positivity
   refine ⟨(by omega : rows security + 1 ≤ 2 * 2 ^ (14 + 3 * t)).trans hnext, ?_, ?_⟩
   · exact (by unfold samples; omega : samples security ≤ 2 * 2 ^ (14 + 3 * t)).trans hnext
@@ -162,11 +151,9 @@ theorem noise_margin (security : ℕ) :
       Nat.mul_le_mul (Nat.mul_le_mul (Nat.mul_le_mul_left _ hsamples) hnoise)
         (Nat.pow_le_pow_left hrows _)
     _ = 2 ^ (5632 * t ^ 2 + 12 * t + 2) := by
-      calc
-        _ = 2 ^ (2 + 11 * t + t + (11 * t) * (512 * t)) := by
-          rw [← pow_mul, pow_add, pow_add, pow_add]
-          norm_num
-        _ = _ := by congr 1; ring
+      rw [← pow_mul, (by decide : (4 : ℕ) = 2 ^ 2), ← pow_add, ← pow_add, ← pow_add]
+      congr 1
+      ring
     _ < modulus security := by
       apply Nat.pow_lt_pow_right (by decide)
       change 5632 * t ^ 2 + 12 * t + 2 < 16384 * t ^ 2
@@ -194,9 +181,7 @@ theorem nand_margin (security : ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_logSize :
     ComputableInPolyTime logSize encUnary encUnary := by
-  have := unary_clog_const 2
-  unfold logSize
-  fun_prop
+  fun_prop [logSize]
 
 /-- Compute the unary digit width, including its quadratic dependence on the logarithm. -/
 @[fun_prop]

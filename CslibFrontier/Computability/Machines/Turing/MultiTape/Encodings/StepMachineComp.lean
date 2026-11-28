@@ -57,7 +57,7 @@ public instance : Finite CompPhase :=
 /-- Countdowns, as triples. -/
 @[expose] public def Countdown.equivProd : Countdown ≃ ℕ × Bool × ℕ where
   toFun c := (c.k, c.found, c.len)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (k, found, len) => ⟨k, found, len⟩
 
 /-- Countdowns, as words. -/
 @[expose] public def encCountdown : Countdown ↪ List Bool :=
@@ -69,7 +69,7 @@ variable {σf σg : Type}
 @[expose] public def CompState.equivProd :
     CompState σf σg ≃ (σg × ℕ) × CompPhase × σf × Countdown where
   toFun s := (s.g, s.phase, s.f, s.cd)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩
+  invFun := fun (g, phase, f, cd) => ⟨g, phase, f, cd⟩
 
 /-- The states of `g.comp f`, as words. -/
 @[expose] public def encCompState (encF : σf ↪ List Bool) (encG : σg ↪ List Bool) :
@@ -243,8 +243,8 @@ lemma moveOn_inO : ComputableInO (fun q : ℕ × ℕ × SignType => moveOn q.1 q
   refine .mono (by fun_prop) 16 (fun q => ?_) fun q => ?_
   all_goals
     have h₃ := Countdown.length_encNat_pred_le q.2.1
-    have h₄ := ComputableTidilyInO.length_encNat_add_le q.1 1
-    have h₅ := ComputableTidilyInO.length_encNat_add_le q.2.1 1
+    have h₄ := length_encNat_add_le q.1 1
+    have h₅ := length_encNat_add_le q.2.1 1
     simp only [length_encPair] at *
     split_ifs <;> nlinarith
 
@@ -256,7 +256,7 @@ lemma length_encCountdown_foldl (w : List Bool) (c : Countdown) :
     Countdown.len_foldl]
   have := (show (encNat (c.k - w.length)).length ≤ (encNat c.k).length from by
     simpa [Nat.size_eq_bits_len] using Nat.size_le_size (Nat.sub_le c.k w.length))
-  have := ComputableTidilyInO.length_encNat_add_le c.len w.length
+  have := length_encNat_add_le c.len w.length
   omega
 
 /-- **Counting down a word**, in cubic time and linear space. -/
@@ -270,39 +270,34 @@ lemma foldl_push_inO {γ : Type} {encIn : γ ↪ List Bool} {list : γ → List 
     (fun _ => by omega) fun _ => by omega
   have hcd' := hcd.mono_le (T' := fun x => T₁ x + T₂ x) (S' := fun x => S₁ x + S₂ x)
     (fun _ => by omega) fun _ => by omega
+  have hstep (x) (i) : (encCountdown (((list x).take i).foldl Countdown.push (cd x))).length ≤
+      (encCountdown (cd x)).length + (list x).length :=
+    (length_encCountdown_foldl _ _).trans (Nat.add_le_add_left (List.length_take_le' i _) _)
   have h := foldl (encA := encBool) hlist' hcd' Countdown.push_inO
     (R := fun x => (2 * ((encCountdown (cd x)).length + (list x).length) + 3) ^ 2)
     (Q := fun x => 2 * ((encCountdown (cd x)).length + (list x).length) + 3)
     (B := fun x => (encCountdown (cd x)).length + (list x).length)
-    (fun x i hi => by
-      have := length_encCountdown_foldl ((list x).take i) (cd x)
-      have := List.length_take_le' i (list x)
+    (fun x i _ => by
+      have := hstep x i
       simp only [length_encPair, encBool_apply, List.length_singleton]
       exact Nat.pow_le_pow_left (by omega) 2)
-    (fun x i hi => by
-      have := length_encCountdown_foldl ((list x).take i) (cd x)
-      have := List.length_take_le' i (list x)
-      simp only [length_encPair, encBool_apply, List.length_singleton]
-      omega)
-    (fun x i hi => by
-      have := length_encCountdown_foldl ((list x).take i) (cd x)
-      have := List.length_take_le' i (list x)
-      omega)
+    (fun x i _ => by
+      have := hstep x i
+      simp only [length_encPair, encBool_apply, List.length_singleton]; omega)
+    (fun x i _ => hstep x i)
   refine h.mono 64 (fun x => ?_) fun x => ?_
   all_goals
     simp only [encBits_apply]
     generalize (list x).length = n
     generalize (encCountdown (cd x)).length = C
-  · have h₁ : (2 * (C + n) + 3) ^ 2 ≤ 9 * (n + C + 1) ^ 2 := by
-      rw [show 9 * (n + C + 1) ^ 2 = (3 * (n + C + 1)) ^ 2 by ring]
-      exact Nat.pow_le_pow_left (by omega) 2
+  · have h₁ : (2 * (C + n) + 3) ^ 2 ≤ (3 * (n + C + 1)) ^ 2 :=
+      Nat.pow_le_pow_left (by omega) 2
+    rw [Nat.mul_pow] at h₁
     have h₂ : (n + 1) * ((2 * (C + n) + 3) ^ 2 + (C + n) + n) ≤
         (n + C + 1) * (9 * (n + C + 1) ^ 2 + 2 * (n + C + 1)) :=
       Nat.mul_le_mul (by omega) (by omega)
-    have h₃ : (n + C + 1) * (9 * (n + C + 1) ^ 2 + 2 * (n + C + 1)) ≤ 11 * (n + C + 1) ^ 3 := by
-      have : (n + C + 1) ^ 2 ≤ (n + C + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by omega)
-      nlinarith
-    omega
+    have : (n + C + 1) ^ 2 ≤ (n + C + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by omega)
+    nlinarith
   · nlinarith
 
 /-! ### The step of the composition -/
@@ -487,11 +482,8 @@ lemma stepG_inO (hg : g.ResourceCertificate encG Tg Sg) :
 
 lemma le_compTime (s : CompState σf σg) :
     (encCompState encF encG s).length + 1 ≤ compTime encF encG Tf Sf Tg s := by
-  have : (encCompState encF encG s).length + 1 ≤ Sf s.f + (encCompState encF encG s).length + 1 :=
-    by omega
-  have := this.trans (Nat.le_self_pow (by norm_num : 3 ≠ 0) _)
-  simp only [compTime]
-  omega
+  have := Nat.le_self_pow (by norm_num : 3 ≠ 0) (Sf s.f + (encCompState encF encG s).length + 1)
+  simp only [compTime]; omega
 
 /-- **Rewinding**, the step of the composition in the phases `rewindStart` and `rewind`. -/
 lemma rewind_inO : ComputableInO (fun p : CompState σf σg × Option Bool =>

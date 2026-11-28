@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.DecisionTree.Basic
 public import CslibFrontier.MachineLearning.UniformLearning.Basic
+public import Mathlib.Data.Finset.Density
+import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Learning with membership queries
@@ -31,7 +34,9 @@ whose learners see only labelled samples.
 
 A *non-adaptive* learner chooses its query points from the seed alone, and then computes its
 hypothesis from the answers (`UniformLearning.QueryLearner.ofNonadaptive`); it makes as many
-queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le`).
+queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le`). A query tree
+that queries a list of points and then applies a function of the answers computes that function
+when it depends only on the queried values (`DecisionTree.eval_queryAll_of_congr`).
 
 ## Main definitions
 
@@ -48,11 +53,16 @@ queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le
 
 ## Main results
 
+* `Cslib.DecisionTree.eval_queryAll_of_congr`: a non-adaptive query tree computes a function of
+  the queried values.
 * `Cslib.MachineLearning.UniformLearning.QueryLearner.eval_ofNonadaptive`,
   `Cslib.MachineLearning.UniformLearning.QueryLearner.depth_ofNonadaptive_le`: the hypothesis and
   the query count of a non-adaptive learner.
 * `Cslib.MachineLearning.UniformLearning.QueryLearner.learns_ofLearner_iff`: membership queries
   subsume random examples.
+* `Cslib.MachineLearning.UniformLearning.QueryLearner.learns_uniformOfFintype_of_le_dens`: with
+  uniform seeds from a finite type, learning follows from a lower bound on the density of the
+  good seeds.
 
 ## References
 
@@ -61,6 +71,18 @@ queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le
 -/
 
 @[expose] public section
+
+namespace Cslib.DecisionTree
+
+/-- If `f` depends only on the values at the variables of `l`, the tree `queryAll f l a` computes
+`f`, whatever the starting assignment `a`. -/
+theorem eval_queryAll_of_congr {ι β : Type*} [DecidableEq ι] {f : (ι → Bool) → β} {l : List ι}
+    (hf : ∀ g g' : ι → Bool, (∀ j ∈ l, g j = g' j) → f g = f g') (a x : ι → Bool) :
+    (queryAll f l a).eval x = f x := by
+  rw [eval_queryAll]
+  exact hf _ _ fun j hj => ite_eq_left_iff.2 fun h => absurd hj h
+
+end Cslib.DecisionTree
 
 namespace Cslib.MachineLearning.UniformLearning
 
@@ -106,9 +128,28 @@ hypothesis of error above `ε` have probability at most `δ`. -/
 theorem learns_iff {A : QueryLearner ι Ω} {μ : PMF Ω} {C : ConceptClass (ι → Bool) Bool} {ε δ : ℝ} :
     A.Learns μ C ε δ ↔
       ∀ f ∈ C, μ.toOuterMeasure {ω | ε < uniformError f ((A ω).eval f)} ≤ ENNReal.ofReal δ := by
-  refine forall₂_congr fun f _ => ?_
-  rw [PMF.toOuterMeasure_map_apply]
+  simp_rw [Learns, PMF.toOuterMeasure_map_apply]
   rfl
+
+/-- **Learning from a density bound.** With uniform seeds from a finite type, a learner learns `C`
+with error `ε` and confidence `p` if, for every target in `C`, the seeds on which its hypothesis
+has error at most `ε` make up at least a `p` fraction of all seeds. -/
+theorem learns_uniformOfFintype_of_le_dens [Fintype Ω] [Nonempty Ω] {A : QueryLearner ι Ω}
+    {C : ConceptClass (ι → Bool) Bool} {ε p : ℝ}
+    (h : ∀ f ∈ C, p ≤ (Finset.dens {ω | uniformError f ((A ω).eval f) ≤ ε} : ℝ)) :
+    A.Learns (PMF.uniformOfFintype Ω) C ε (1 - p) := by
+  refine learns_iff.2 fun f hf => ?_
+  have hsplit := Finset.dens_filter_add_dens_filter_not_eq_dens (s := (Finset.univ : Finset Ω))
+    fun ω => uniformError f ((A ω).eval f) ≤ ε
+  simp only [Finset.dens_univ, not_le] at hsplit
+  have hcast : (Finset.dens {ω | uniformError f ((A ω).eval f) ≤ ε} : ℝ) +
+      Finset.dens {ω | ε < uniformError f ((A ω).eval f)} = 1 := mod_cast hsplit
+  have hbad : ((Finset.univ.filter (· ∈ {ω | ε < uniformError f ((A ω).eval f)})).card : ℝ) /
+      Fintype.card Ω = Finset.dens {ω | ε < uniformError f ((A ω).eval f)} :=
+    (Finset.nnratCast_dens _).symm
+  rw [← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _),
+    PMF.toOuterMeasure_uniformOfFintype_toReal]
+  exact ENNReal.ofReal_le_ofReal (by linarith [h f hf, hbad])
 
 end Learns
 
@@ -126,9 +167,8 @@ theorem eval_ofNonadaptive {points : Ω → List (ι → Bool)}
     {hyp : ((ι → Bool) → Bool) → Ω → (ι → Bool) → Bool}
     (hhyp : ∀ ω g g', (∀ x ∈ points ω, g x = g' x) → hyp g ω = hyp g' ω)
     (f : (ι → Bool) → Bool) (ω : Ω) :
-    (ofNonadaptive points hyp ω).eval f = hyp f ω := by
-  rw [ofNonadaptive, DecisionTree.eval_queryAll]
-  exact hhyp ω _ _ fun x hx => ite_eq_left_iff.2 fun h => absurd hx h
+    (ofNonadaptive points hyp ω).eval f = hyp f ω :=
+  DecisionTree.eval_queryAll_of_congr (hhyp ω) _ f
 
 /-- The non-adaptive learner makes at most as many queries as it lists points. -/
 theorem depth_ofNonadaptive_le (points : Ω → List (ι → Bool))

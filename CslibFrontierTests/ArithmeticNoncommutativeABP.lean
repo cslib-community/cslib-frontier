@@ -115,7 +115,7 @@ private theorem isHomogeneous_g : g.IsHomogeneous 2 :=
 
 private theorem coeff_g (a b : Fin 2) :
     coeff (FreeMonoid.of a * FreeMonoid.of b) g = if a = b then 1 else 0 := by
-  have h1 : ∀ x : Fin 2, (ι ℚ x).IsHomogeneous (FreeMonoid.of a).length := fun x => by
+  have h1 : ∀ x : Fin 2, (ι ℚ x).IsHomogeneous (FreeMonoid.of a).toList.length := fun x => by
     simpa using isHomogeneous_ι (R := ℚ) x
   rw [g, map_add, coeff_mul_mul_of_isHomogeneous _ _ _ (h1 0),
     coeff_mul_mul_of_isHomogeneous _ _ _ (h1 1), coeff_ι, coeff_ι, coeff_ι, coeff_ι]

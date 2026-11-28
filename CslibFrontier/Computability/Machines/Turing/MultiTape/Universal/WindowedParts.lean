@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedBound
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TakeDropUnary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ZipFold
@@ -218,15 +217,15 @@ private lemma run_halfT (start : Bool) (n : ℕ) :
 theorem firstHalf_inO :
     ComputableInO firstHalf encUnary encUnary (fun n => (encUnary n).length)
       (fun n => (encUnary n).length) :=
-  (ComputableTidilyInO.of_linear ((halfT false).computableTidilyInLinearTimeAndSpace fun n =>
-    (run_halfT false n).1.symm)).computableInO
+  (ComputableInO.of_linear (ComputableInDegree.of_transducer (halfT false) fun n =>
+    (run_halfT false n).1.symm))
 
 /-- Half a number of steps, rounded down, in unary, in linear time. -/
 theorem half_inO :
     ComputableInO (· / 2) encUnary encUnary (fun n => (encUnary n).length)
       (fun n => (encUnary n).length) :=
-  (ComputableTidilyInO.of_linear ((halfT true).computableTidilyInLinearTimeAndSpace fun n =>
-    (run_halfT true n).2.symm)).computableInO
+  (ComputableInO.of_linear (ComputableInDegree.of_transducer (halfT true) fun n =>
+    (run_halfT true n).2.symm))
 
 /-! ### A windowed step -/
 
@@ -325,8 +324,8 @@ private lemma wFin_inO : ComputableInO wFin
     rfl
   all_goals
     obtain ⟨⟨t, p⟩, ⟨s, p', ws⟩, o⟩ := y
-    have h₁ := ComputableTidilyInO.length_encNat_add_le p 1
-    have h₂ := ComputableTidilyInO.length_encNat_add_le p' 1
+    have h₁ := length_encNat_add_le p 1
+    have h₂ := length_encNat_add_le p' 1
     simp only [Function.comp_apply, length_encPair, eCfg_apply] at *
     split_ifs <;> nlinarith
 

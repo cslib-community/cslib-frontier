@@ -22,8 +22,8 @@ A finite work-tape window retains `Option Symbol`: blank and a written zero are 
 The radius-duration window below is deliberately a locality envelope, not a claim about the
 optimal number of aligned active blocks or their encoded bit length.
 
-The active-block route was proposed in worker-crei-dc679113’s M0 design for issue #888;
-these local trace lemmas do not implement its pending graph/packing obligations.
+These local trace lemmas cover the active-block route of issue #888 without implementing its
+pending graph or packing obligations.
 
 ## Main definitions
 

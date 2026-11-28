@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.BitString.CyclicDifference
 public import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.GroupTheory.Perm.Fin
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Tactic.SplitIfs
 
 /-!
@@ -24,6 +25,14 @@ an adjacent identification is the last-to-first edge, rather than an implicit pe
 * `Cslib.BitString.zeroPort`: identifies the endpoints of one cyclic edge.
 * `Cslib.BitString.differencePort`: lists the remaining difference coordinates in order.
 * `Cslib.BitString.capPort`: identifies old ports 1 and 3 and hides old port 2.
+
+## Main results
+
+* `Cslib.BitString.mem_cyclicDifferenceRelation_zeroRestriction`: exact conditioned deletion.
+* `Cslib.BitString.mem_cyclicDifferenceRelation_capRelation`: exact cap semantics.
+* `Cslib.BitString.capDifferencePort_eq_zero_iff`: only the first retained difference maps to zero.
+* `Cslib.BitString.three_le_val_capDifferencePort`: every other retained difference follows
+  the two hidden coordinates.
 -/
 
 public section
@@ -60,39 +69,30 @@ private theorem val_retainPort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
 private theorem val_differencePort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
     (differencePort i j).val = if j.val < i.val then j.val else j.val + 1 := by
   by_cases h : j.val < i.val
-  · rw [differencePort, Fin.succAbove_of_castSucc_lt _ _ (show j.castSucc < i from h)]
-    simp only [Fin.val_castSucc, h, ite_true]
-  · rw [differencePort, Fin.succAbove_of_le_castSucc _ _
-      (show i ≤ j.castSucc from Nat.le_of_not_gt h)]
-    simp only [Fin.val_succ, h, ite_false]
+  · simp only [differencePort, Fin.succAbove_of_castSucc_lt _ _ (show j.castSucc < i from h),
+      Fin.val_castSucc, h, ite_true]
+  · simp only [differencePort, Fin.succAbove_of_le_castSucc _ _
+      (show i ≤ j.castSucc from Nat.le_of_not_gt h), Fin.val_succ, h, ite_false]
 
 /-- Retaining ports after adjacent identification recovers the new free-port labels. -/
 @[simp] theorem zeroPort_retainPort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
     zeroPort i (retainPort i j) = j := by
-  apply Fin.ext
-  simp only [val_zeroPort, val_retainPort]
-  split_ifs <;> omega
+  fin_index [val_zeroPort, val_retainPort]
 
 /-- The deleted edge has equal endpoint labels, including the wraparound case. -/
 theorem zeroPort_next {n : ℕ} (i : Fin (n + 2)) :
     zeroPort i (finRotate (n + 2) i) = zeroPort i i := by
-  apply Fin.ext
-  simp only [val_zeroPort, val_finRotate]
-  split_ifs <;> omega
+  fin_index [val_zeroPort, val_finRotate]
 
 /-- Each retained edge starts at its corresponding new port. -/
 theorem zeroPort_differencePort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
     zeroPort i (differencePort i j) = j := by
-  apply Fin.ext
-  simp only [val_zeroPort, val_differencePort]
-  split_ifs <;> omega
+  fin_index [val_zeroPort, val_differencePort]
 
 /-- Each retained edge ends at the cyclic successor of its corresponding new port. -/
 theorem zeroPort_next_differencePort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
     zeroPort i (finRotate (n + 2) (differencePort i j)) = finRotate (n + 1) j := by
-  apply Fin.ext
-  simp only [val_zeroPort, val_finRotate, val_differencePort]
-  split_ifs <;> omega
+  fin_index [val_zeroPort, val_finRotate, val_differencePort]
 
 /-- Adjacent identification forces exactly the deleted difference to zero. -/
 theorem cyclicDifference_zeroPort {n : ℕ} (i : Fin (n + 2)) (y : Fin (n + 1) → Bool) :
@@ -127,7 +127,7 @@ theorem capPort_not {n : ℕ} (y : Fin (n + 2) → Bool) (z : Fin 1 → Bool) :
     (Sum.elim (fun i => !y i) (fun i => !z i)) ∘ capPort =
       fun i => !((Sum.elim y z) (capPort i)) := by
   funext i
-  simp only [Function.comp_apply]
+  dsimp only [Function.comp_apply]
   cases capPort i <;> rfl
 
 /-- Re-expanding a retained port returns the original port except for the merged endpoint. -/
@@ -135,22 +135,16 @@ theorem retainPort_zeroPort {n : ℕ} (i j : Fin (n + 2)) :
     retainPort i (zeroPort i j) = j ∨
       (j = finRotate (n + 2) i ∧ retainPort i (zeroPort i j) = i) ∨
       (j = i ∧ retainPort i (zeroPort i j) = finRotate (n + 2) i) := by
-  simp only [Fin.ext_iff, val_zeroPort, val_retainPort, val_finRotate]
-  split_ifs <;> omega
+  fin_index [val_zeroPort, val_retainPort, val_finRotate]
 
 /-- An assignment with zero difference at `i` is exactly the expansion of its retained ports. -/
 theorem comp_retainPort_zeroPort {n : ℕ} (i : Fin (n + 2)) (x : Fin (n + 2) → Bool)
     (h : cyclicDifference x i = false) : (x ∘ retainPort i) ∘ zeroPort i = x := by
   have he : x i = x (finRotate (n + 2) i) := by
-    change (x i ^^ x (finRotate (n + 2) i)) = false at h
-    cases ha : x i <;> cases hb : x (finRotate (n + 2) i) <;>
-      simp_all only [Bool.false_xor, Bool.true_xor, Bool.not_true, Bool.not_false,
-        Bool.true_eq_false, eq_self]
+    simpa only [cyclicDifference, bne_eq_false_iff_eq] using h
   funext j
   rcases retainPort_zeroPort i j with hj | ⟨rfl, hj⟩ | ⟨rfl, hj⟩
-  · exact congrArg x hj
-  · exact (congrArg x hj).trans he
-  · exact (congrArg x hj).trans he.symm
+  exacts [congrArg x hj, (congrArg x hj).trans he, (congrArg x hj).trans he.symm]
 
 /-- Adjacent equality restriction followed by deletion of the redundant port. -/
 @[expose] def zeroRestriction {n : ℕ} (i : Fin (n + 2))
@@ -169,14 +163,12 @@ theorem mem_cyclicDifferenceRelation_zeroRestriction {n : ℕ} (i : Fin (n + 2))
       ∃ s ∈ cyclicDifferenceRelation P, s i = false ∧ s ∘ differencePort i = d := by
   constructor
   · rintro ⟨y, hy, rfl⟩
-    exact ⟨cyclicDifference (y ∘ zeroPort i), ⟨_, hy, rfl⟩,
-      cyclicDifference_zeroPort i y, cyclicDifference_zeroPort_differencePort i y⟩
-  · rintro ⟨s, ⟨x, hx, rfl⟩, hi, hd⟩
-    refine ⟨x ∘ retainPort i, ?_, ?_⟩
-    · change (x ∘ retainPort i) ∘ zeroPort i ∈ P
-      rwa [comp_retainPort_zeroPort i x hi]
-    · rw [← hd, ← cyclicDifference_zeroPort_differencePort i (x ∘ retainPort i),
-        comp_retainPort_zeroPort i x hi]
+    exact ⟨_, ⟨_, hy, rfl⟩, cyclicDifference_zeroPort i y,
+      cyclicDifference_zeroPort_differencePort i y⟩
+  · rintro ⟨s, ⟨x, hx, rfl⟩, hi, rfl⟩
+    exact ⟨x ∘ retainPort i, by simpa [zeroRestriction, comp_retainPort_zeroPort i x hi] using hx,
+      by rw [← cyclicDifference_zeroPort_differencePort i (x ∘ retainPort i),
+        comp_retainPort_zeroPort i x hi]⟩
 
 /-- Old port 0 is retained as free port 0. -/
 @[simp] theorem capPort_zero (n : ℕ) : @capPort n 0 = Sum.inl 0 := by
@@ -197,57 +189,40 @@ theorem mem_cyclicDifferenceRelation_zeroRestriction {n : ℕ} (i : Fin (n + 2))
 /-- Old ports from 4 onward retain their order, shifted down by two. -/
 theorem capPort_of_four_le {n : ℕ} (j : Fin (n + 4)) (h : 4 ≤ j.val) :
     capPort j = Sum.inl ⟨j.val - 2, by omega⟩ := by
-  have h2 : j.val ≠ 2 := by omega
-  have h3 : j.val ≠ 3 := by omega
-  have hlt : ¬j.val < 2 := by omega
+  rcases (by omega : j.val ≠ 2 ∧ ¬j.val < 2 ∧ j.val ≠ 3) with ⟨h2, hlt, h3⟩
   simp only [capPort, h2, h3, hlt, ite_false, dite_false]
 
 /-- Retained difference edges start at the corresponding new free ports of a cap. -/
 theorem capPort_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
     capPort (capDifferencePort j) = Sum.inl j := by
   by_cases h0 : j.val = 0
-  · have hj : j = 0 := Fin.ext h0
-    subst j
+  · obtain rfl : j = 0 := Fin.ext h0
     exact capPort_zero n
   by_cases h1 : j.val = 1
-  · have hj : j = 1 := Fin.ext h1
-    subst j
+  · obtain rfl : j = 1 := Fin.ext h1
     exact capPort_three n
   simp only [capDifferencePort, h0, ite_false]
-  rw [capPort_of_four_le _ (by change 4 ≤ j.val + 2; omega)]
-  apply congrArg Sum.inl
-  exact Fin.ext (by dsimp only; omega)
+  rw [capPort_of_four_le _ (by dsimp; omega)]
+  exact congrArg Sum.inl (by fin_index)
 
 /-- Retained difference edges end at the corresponding cyclic successors after a cap. -/
 theorem capPort_next_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
     capPort (finRotate (n + 4) (capDifferencePort j)) =
       Sum.inl (finRotate (n + 2) j) := by
   by_cases h0 : j.val = 0
-  · have hj : j = 0 := Fin.ext h0
-    subst j
-    have he : @capDifferencePort n 0 = 0 := rfl
-    rw [he, finRotate_apply_zero, finRotate_apply_zero]
-    exact capPort_one n
+  · obtain rfl : j = 0 := Fin.ext h0
+    simp [capDifferencePort]
   by_cases hlast : j.val = n + 1
-  · have he : capDifferencePort j = Fin.last (n + 3) := by
-      apply Fin.ext
-      simp only [capDifferencePort, h0, ite_false, Fin.val_mk, Fin.val_last]
-      omega
-    have hj : j = Fin.last (n + 1) := Fin.ext hlast
-    rw [he, hj, finRotate_last, finRotate_last]
+  · obtain rfl : j = Fin.last (n + 1) := Fin.ext hlast
+    have he : capDifferencePort (Fin.last (n + 1)) = Fin.last (n + 3) := by
+      fin_index [capDifferencePort]
+    rw [he, finRotate_last, finRotate_last]
     exact capPort_zero n
-  have hlt : j.val < n + 1 := by omega
-  have he : finRotate (n + 4) (capDifferencePort j) =
-      (⟨j.val + 3, by omega⟩ : Fin (n + 4)) := by
-    apply Fin.ext
-    simp only [val_finRotate, capDifferencePort, h0, ite_false]
-    split_ifs <;> omega
-  rw [he, capPort_of_four_le _ (by change 4 ≤ j.val + 3; omega)]
-  apply congrArg Sum.inl
-  apply Fin.ext
-  rw [val_finRotate]
-  dsimp only
-  split_ifs <;> omega
+  have hlt3 : j.val + 3 < n + 4 := by omega
+  have he : finRotate (n + 4) (capDifferencePort j) = ⟨j.val + 3, hlt3⟩ := by
+    fin_index [val_finRotate, capDifferencePort]
+  rw [he, capPort_of_four_le _ (by dsimp; omega)]
+  exact congrArg Sum.inl (by fin_index [val_finRotate])
 
 /-- The cap retains precisely the differences in order `0,3,4,…`. -/
 theorem cyclicDifference_capPort {n : ℕ} (y : Fin (n + 2) → Bool) (z : Fin 1 → Bool) :
@@ -261,9 +236,8 @@ theorem cyclicDifference_capPort {n : ℕ} (y : Fin (n + 2) → Bool) (z : Fin 1
 theorem cyclicDifference_capPort_pair {n : ℕ} (y : Fin (n + 2) → Bool)
     (z : Fin 1 → Bool) :
     cyclicDifference ((Sum.elim y z) ∘ capPort) 1 =
-      cyclicDifference ((Sum.elim y z) ∘ capPort) 2 := by
-  change (y 1 ^^ z 0) = (z 0 ^^ y 1)
-  exact Bool.xor_comm _ _
+      cyclicDifference ((Sum.elim y z) ∘ capPort) 2 :=
+  Bool.xor_comm (y 1) (z 0)
 
 /-- Equality of adjacent differences is equality of the two outside ports. -/
 theorem cyclicDifference_pair_eq_iff {n : ℕ} (x : Fin (n + 4) → Bool) :
@@ -276,20 +250,14 @@ theorem comp_capRetainPort_capPort {n : ℕ} (x : Fin (n + 4) → Bool)
     (h : x 1 = x 3) :
     (Sum.elim (x ∘ capRetainPort) (fun _ : Fin 1 => x 2)) ∘ capPort = x := by
   funext j
-  by_cases h2 : j.val = 2
-  · have hj : j = 2 := Fin.ext h2
-    subst j
-    rfl
-  by_cases h3 : j.val = 3
-  · have hj : j = 3 := Fin.ext h3
-    subst j
+  unfold Function.comp capPort
+  split_ifs with h2 hlt h3
+  · exact congrArg x (Fin.ext h2).symm
+  · simp only [Sum.elim_inl, capRetainPort, hlt, dite_true, Fin.eta]
+  · obtain rfl : j = 3 := Fin.ext (h3.trans (Nat.mod_eq_of_lt (by omega : 3 < n + 4)).symm)
     exact h
-  by_cases hlt : j.val < 2
-  · simp only [Function.comp_apply, capPort, h2, ite_false, hlt, dite_true,
-      Sum.elim_inl, capRetainPort]
-  · simp only [Function.comp_apply, capPort, h2, ite_false, hlt, dite_false,
-      h3, Sum.elim_inl, capRetainPort]
-    split_ifs <;> exact congrArg x (by apply Fin.ext; dsimp only; omega)
+  · simp only [Sum.elim_inl, capRetainPort]
+    split_ifs <;> exact congrArg x (by fin_index)
 
 /-- Identify old ports 1 and 3, hide old port 2, and retain the other free ports in order. -/
 @[expose] def capRelation {n : ℕ} (P : Set (Fin (n + 4) → Bool)) :
@@ -307,14 +275,11 @@ theorem mem_cyclicDifferenceRelation_capRelation {n : ℕ}
       ∃ s ∈ cyclicDifferenceRelation P, s 1 = s 2 ∧ s ∘ capDifferencePort = d := by
   constructor
   · rintro ⟨y, ⟨z, hz⟩, rfl⟩
-    exact ⟨cyclicDifference ((Sum.elim y z) ∘ capPort), ⟨_, hz, rfl⟩,
-      cyclicDifference_capPort_pair y z, cyclicDifference_capPort y z⟩
-  · rintro ⟨s, ⟨x, hx, rfl⟩, hi, hd⟩
+    exact ⟨_, ⟨_, hz, rfl⟩, cyclicDifference_capPort_pair y z, cyclicDifference_capPort y z⟩
+  · rintro ⟨s, ⟨x, hx, rfl⟩, hi, rfl⟩
     have he := comp_capRetainPort_capPort x ((cyclicDifference_pair_eq_iff x).mp hi)
-    refine ⟨x ∘ capRetainPort, ⟨fun _ => x 2, ?_⟩, ?_⟩
-    · change (Sum.elim (x ∘ capRetainPort) (fun _ : Fin 1 => x 2)) ∘ capPort ∈ P
-      rwa [he]
-    · rw [← hd, ← cyclicDifference_capPort (x ∘ capRetainPort) (fun _ => x 2), he]
+    exact ⟨x ∘ capRetainPort, ⟨fun _ => x 2, by simpa only [he] using hx⟩,
+      by rw [← cyclicDifference_capPort (x ∘ capRetainPort) (fun _ => x 2), he]⟩
 
 /-- The retained difference map is the standard increasing embedding omitting `i`. -/
 theorem differencePort_eq_succAbove {n : ℕ} (i : Fin (n + 2)) :
@@ -322,30 +287,24 @@ theorem differencePort_eq_succAbove {n : ℕ} (i : Fin (n + 2)) :
 
 /-- Deleting an edge other than 0 leaves the distinguished difference at 0. -/
 @[simp] theorem differencePort_zero {n : ℕ} (i : Fin (n + 2)) (hi : i ≠ 0) :
-    differencePort i 0 = 0 := by
-  rw [differencePort_eq_succAbove, Fin.succAbove_of_castSucc_lt]
-  · rfl
-  · change (0 : Fin (n + 2)) < i
-    exact Fin.pos_iff_ne_zero.mpr hi
+    differencePort i 0 = 0 :=
+  Fin.succAbove_of_castSucc_lt i 0 (Fin.pos_iff_ne_zero.mpr hi)
 
 /-- A pair containing difference 0 has exactly the same pair as its zero-conditioned lift. -/
 theorem eq_pair_of_zero_restriction {n : ℕ} (i : Fin (n + 2)) (hi : i ≠ 0)
     (j : Fin (n + 1)) (s : Fin (n + 2) → Bool) (hs : s i = false)
     (hd : s ∘ differencePort i = flipOn {0, j} (fun _ => false)) :
     s = flipOn {0, differencePort i j} (fun _ => false) := by
-  have hz := differencePort_zero i hi
   funext k
   induction k using i.succAboveCases with
   | x =>
-    have hne : i ≠ differencePort i j := Fin.ne_succAbove i j
-    simp only [hs, flipOn, Finset.mem_insert, Finset.mem_singleton, hi, hne,
-      false_or, ite_false]
+    simp only [hs, flipOn, differencePort, Finset.mem_insert, Finset.mem_singleton, hi,
+      Fin.ne_succAbove i j, false_or, ite_false]
   | p l =>
-    have he := congrFun hd l
     have h0 : i.succAbove l = 0 ↔ l = 0 := by
-      rw [← hz]
+      rw [← differencePort_zero i hi]
       exact Fin.succAbove_right_injective.eq_iff
-    simpa [differencePort, flipOn, h0, Fin.succAbove_right_injective.eq_iff] using he
+    simpa [differencePort, flipOn, h0, Fin.succAbove_right_injective.eq_iff] using congrFun hd l
 
 private theorem val_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
     (capDifferencePort j).val = if j.val = 0 then 0 else j.val + 2 := by
@@ -355,10 +314,29 @@ private theorem val_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
 /-- The cap's retained differences are distinct. -/
 theorem capDifferencePort_injective {n : ℕ} :
     Function.Injective (@capDifferencePort n) := by
-  intro i j h
-  have hv := congrArg Fin.val h
-  simp only [val_capDifferencePort] at hv
-  split_ifs at hv <;> apply Fin.ext <;> omega
+  fin_index [val_capDifferencePort]
+
+/-- The cap preserves the distinguished zero coordinate and sends no other coordinate to it. -/
+@[simp] theorem capDifferencePort_eq_zero_iff {n : ℕ} (j : Fin (n + 2)) :
+    capDifferencePort j = 0 ↔ j = 0 :=
+  (capDifferencePort_injective (n := n)).eq_iff' rfl
+
+/-- Every nonzero retained difference lies after the two differences hidden by the cap. -/
+theorem three_le_val_capDifferencePort {n : ℕ} {j : Fin (n + 2)} (hj : j ≠ 0) :
+    3 ≤ (capDifferencePort j).val := by
+  have hjv : j.val ≠ 0 := fun he => hj (Fin.ext he)
+  simp only [val_capDifferencePort, hjv, ite_false]; omega
+
+/-- The first hidden difference is not in the cap's retained coordinates. -/
+@[simp] theorem capDifferencePort_ne_one {n : ℕ} (j : Fin (n + 2)) :
+    capDifferencePort j ≠ 1 := by
+  fin_index [val_capDifferencePort]
+
+/-- The second hidden difference is not in the cap's retained coordinates. -/
+@[simp] theorem capDifferencePort_ne_two {n : ℕ} (j : Fin (n + 2)) :
+    capDifferencePort j ≠ 2 := by
+  have ht : (2 : Fin (n + 4)).val = 2 := Nat.mod_eq_of_lt (by omega : 2 < n + 4)
+  fin_index [val_capDifferencePort, ht]
 
 /-- Exactly differences 1 and 2 are hidden by the cap. -/
 theorem exists_capDifferencePort {n : ℕ} (k : Fin (n + 4))
@@ -368,9 +346,7 @@ theorem exists_capDifferencePort {n : ℕ} (k : Fin (n + 4))
   have hk1 : k.val ≠ 1 := fun h => h1 (Fin.ext h)
   have hk2 : k.val ≠ 2 := fun h => h2 (Fin.ext h)
   refine ⟨⟨k.val - 2, by omega⟩, ?_⟩
-  apply Fin.ext
-  simp only [val_capDifferencePort]
-  split_ifs <;> omega
+  fin_index [val_capDifferencePort]
 
 /-- A pair after the cap lifts to exactly the old pair or the old quartet. -/
 theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
@@ -378,54 +354,26 @@ theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
     (hd : s ∘ capDifferencePort = flipOn {0, j} (fun _ => false)) :
     s = flipOn {0, capDifferencePort j} (fun _ => false) ∨
       s = flipOn {0, 1, 2, capDifferencePort j} (fun _ => false) := by
-  have h0 : capDifferencePort j ≠ 0 := by
-    intro h
-    apply hj
-    exact capDifferencePort_injective h
-  have h1 : capDifferencePort j ≠ 1 := by
-    intro h
-    have hv := congrArg Fin.val h
-    simp only [val_capDifferencePort] at hv
-    simp only [Fin.val_one] at hv
-    split_ifs at hv; omega
-  have h2 : capDifferencePort j ≠ 2 := by
-    intro h
-    have hv := congrArg Fin.val h
-    simp only [val_capDifferencePort] at hv
-    have ht : (2 : Fin (n + 4)).val = 2 := by
-      change 2 % (n + 4) = 2
-      exact Nat.mod_eq_of_lt (by omega)
-    rw [ht] at hv
-    split_ifs at hv; omega
+  have := hj
   have he (k : Fin (n + 4)) (hk1 : k ≠ 1) (hk2 : k ≠ 2) :
       s k = flipOn {0, capDifferencePort j} (fun _ => false) k := by
     obtain ⟨l, rfl⟩ := exists_capDifferencePort k hk1 hk2
-    have hb := congrFun hd l
-    have hz : capDifferencePort l = 0 ↔ l = 0 := by
-      change capDifferencePort l = capDifferencePort 0 ↔ l = 0
-      exact capDifferencePort_injective.eq_iff
-    simpa [flipOn, hz, capDifferencePort_injective.eq_iff] using hb
+    simpa [flipOn, capDifferencePort_injective.eq_iff] using congrFun hd l
   cases hb : s 1 with
   | false =>
-    left
-    funext k
-    by_cases hk1 : k = 1
-    · subst k
-      simp [flipOn, hb, Ne.symm h1]
-    by_cases hk2 : k = 2
-    · subst k
-      simp [flipOn, ← hs, hb, Ne.symm h2, Fin.ext_iff,
+    refine Or.inl (funext fun k => ?_)
+    rcases Decidable.eq_or_ne k 1 with rfl | hk1
+    · simp [flipOn, hb, Ne.symm (capDifferencePort_ne_one j)]
+    rcases Decidable.eq_or_ne k 2 with rfl | hk2
+    · simp [flipOn, ← hs, hb, Ne.symm (capDifferencePort_ne_two j), Fin.ext_iff,
         Nat.mod_eq_of_lt (by omega : 2 < n + 4)]
     exact he k hk1 hk2
   | true =>
-    right
-    funext k
-    by_cases hk1 : k = 1
-    · subst k
-      simp [flipOn, hb]
-    by_cases hk2 : k = 2
-    · subst k
-      simp [flipOn, ← hs, hb]
+    refine Or.inr (funext fun k => ?_)
+    rcases Decidable.eq_or_ne k 1 with rfl | hk1
+    · simp [flipOn, hb]
+    rcases Decidable.eq_or_ne k 2 with rfl | hk2
+    · simp [flipOn, ← hs, hb]
     simpa [flipOn, hk1, hk2] using he k hk1 hk2
 
 /-- Cyclic translation commutes with cyclic differences; orientation is preserved. -/
@@ -433,10 +381,8 @@ theorem cyclicDifference_comp_finCycle {n : ℕ} (e : Fin n) (x : Fin n → Bool
     cyclicDifference (x ∘ finCycle e) = cyclicDifference x ∘ finCycle e := by
   have := e.neZero
   funext i
-  simp only [cyclicDifference, Function.comp_apply, finCycle_apply, finRotate_apply]
-  congr 1
-  congr 1
-  exact add_right_comm i 1 e
+  simp only [cyclicDifference, Function.comp_apply, finCycle_apply, finRotate_apply,
+    add_right_comm i 1 e]
 
 /-- Cyclic translation by the inverse shift also commutes with cyclic differences. -/
 theorem cyclicDifference_comp_finCycle_symm {n : ℕ} (e : Fin n) (x : Fin n → Bool) :
@@ -444,9 +390,7 @@ theorem cyclicDifference_comp_finCycle_symm {n : ℕ} (e : Fin n) (x : Fin n →
       cyclicDifference x ∘ (finCycle e).symm := by
   have := e.neZero
   funext i
-  simp only [cyclicDifference, Function.comp_apply, finCycle_symm_apply, finRotate_apply]
-  congr 1
-  congr 1
-  exact add_sub_right_comm i 1 e
+  simp only [cyclicDifference, Function.comp_apply, finCycle_symm_apply, finRotate_apply,
+    add_sub_right_comm i 1 e]
 
 end Cslib.BitString

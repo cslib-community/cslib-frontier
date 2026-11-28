@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/Probability/Combinatorics/BinomialRandomGraph/`)
 
 public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.Connectivity
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Probability.Moments.Variance
 
 /-!
@@ -34,8 +35,8 @@ inequality (Mathlib's `ProbabilityTheory.meas_ge_le_variance_div_sq`) gives
 
 The source computes the second moment the same way and concludes through
 `P(X > 0) ≥ (E X) ^ 2 / E[X ^ 2]`; Chebyshev's inequality gives the same conclusion here. The
-Poisson limit `P(X = 0) → e ^ (-e ^ (-c))` at `n p - log n → c`, and with it the constant case of
-Theorem 4.1, is not formalized.
+Poisson limit `P(X = k) → e ^ (-λ) λ ^ k / k!` and `P(G(n, p) is connected) → e ^ (-e ^ (-c))`
+at `n p - log n → c` are proved in `BinomialRandomGraph.ConnectivityThreshold`.
 
 ## Main results
 
@@ -70,51 +71,48 @@ namespace SimpleGraph
 variable {V : Type*}
 
 /-- The `|V| - 1` possible edges at `v`. -/
-private noncomputable def incidentPairs [Fintype V] [DecidableEq V] (v : V) : Finset (Sym2 V) :=
-  (univ.erase v).image fun w => s(v, w)
-
-/-- There are `|V| - 1` possible edges at `v`. -/
-private theorem card_incidentPairs [Fintype V] [DecidableEq V] (v : V) :
-    #(incidentPairs v) = Fintype.card V - 1 := by
-  rw [incidentPairs, card_image_of_injective _ (fun _ _ h => Sym2.congr_right.1 h),
-    card_erase_of_mem (mem_univ _), card_univ]
-
-/-- No possible edge at `v` is a loop. -/
-private theorem not_isDiag_of_mem_incidentPairs [Fintype V] [DecidableEq V] {v : V} {e : Sym2 V}
-    (he : e ∈ incidentPairs v) : ¬e.IsDiag := by
-  simp only [incidentPairs, mem_image, mem_erase, mem_univ, and_true] at he
-  obtain ⟨w, hw, rfl⟩ := he
-  simpa using Ne.symm hw
-
-/-- `v` is isolated exactly when no possible edge at `v` is present. -/
-private theorem isIsolated_iff_disjoint_incidentPairs [Fintype V] [DecidableEq V]
-    (G : SimpleGraph V) (v : V) :
-    G.IsIsolated v ↔ Disjoint (incidentPairs v : Set (Sym2 V)) G.edgeSet := by
-  simp only [IsIsolated, Set.disjoint_left, incidentPairs, coe_image, coe_erase, coe_univ,
+theorem isIsolated_iff_disjoint_incident [Fintype V] [DecidableEq V] (G : SimpleGraph V) (v : V) :
+    G.IsIsolated v ↔ Disjoint (((Finset.univ.erase v).image (Sym2.mk v) : Finset (Sym2 V)) :
+      Set (Sym2 V)) G.edgeSet := by
+  simp only [SimpleGraph.IsIsolated, Set.disjoint_left, Finset.coe_image, Finset.coe_erase,
+    Finset.coe_univ,
     Set.mem_image, Set.mem_sdiff, Set.mem_univ, Set.mem_singleton_iff, true_and]
   constructor
-  · rintro h _ ⟨w, -, rfl⟩ hw
-    exact h w hw
-  · intro h w hw
-    exact h ⟨w, hw.ne', rfl⟩ hw
+  · rintro h _ ⟨w, hw, rfl⟩ hw_edge
+    exact h w hw_edge
+  · intro h w hw_edge
+    by_cases hw : w = v
+    · subst hw
+      exact G.irrefl hw_edge
+    · exact h ⟨w, hw, rfl⟩ hw_edge
+
+/-- The possible edges at `v` are not diagonal. -/
+private theorem not_isDiag_of_mem_incident [Fintype V] [DecidableEq V] {v : V} {e : Sym2 V}
+    (he : e ∈ (Finset.univ.erase v).image (Sym2.mk v)) : ¬e.IsDiag := by
+  obtain ⟨w, hw, rfl⟩ := Finset.mem_image.1 he
+  simpa using (Finset.ne_of_mem_erase hw).symm
+
+/-- There are `|V| - 1` possible edges at `v`. -/
+private theorem card_incident [Fintype V] [DecidableEq V] (v : V) :
+    #((Finset.univ.erase v).image (Sym2.mk v)) = Fintype.card V - 1 := by
+  rw [Finset.card_image_of_injective _ (fun _ _ h => Sym2.congr_right.1 h),
+    Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ]
 
 /-- A fixed vertex of `G(V, p)` is isolated with probability `(1 - p) ^ (|V| - 1)`. -/
 theorem binomialRandom_real_isIsolated [Fintype V] (p : I) (v : V) :
     G(V, p).real {G | G.IsIsolated v} = (1 - p : ℝ) ^ (Fintype.card V - 1) := by
   classical
-  have : {G : SimpleGraph V | G.IsIsolated v} =
-      {G | Disjoint (incidentPairs v : Set (Sym2 V)) G.edgeSet} := by
-    ext G
-    exact isIsolated_iff_disjoint_incidentPairs G v
-  rw [this, binomialRandom_real_disjoint_edgeSet p _
-    (fun _ => not_isDiag_of_mem_incidentPairs), card_incidentPairs]
+  simp_rw [isIsolated_iff_disjoint_incident]
+  rw [binomialRandom_real_disjoint_edgeSet p _ fun _ => not_isDiag_of_mem_incident,
+    card_incident]
 
 /-- The possible edges at two distinct vertices share only the edge between them. -/
 private theorem incidentPairs_inter [Fintype V] [DecidableEq V] {u v : V} (huv : u ≠ v) :
-    incidentPairs u ∩ incidentPairs v = {s(u, v)} := by
+    (Finset.univ.erase u).image (Sym2.mk u) ∩ (Finset.univ.erase v).image (Sym2.mk v) =
+      {s(u, v)} := by
   ext e
-  simp only [incidentPairs, mem_inter, mem_image, mem_erase, mem_univ, and_true,
-    mem_singleton]
+  simp only [Finset.mem_inter, Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true,
+    Finset.mem_singleton]
   constructor
   · rintro ⟨⟨w, hw, rfl⟩, ⟨w', hw', h⟩⟩
     rcases Sym2.eq_iff.1 h with ⟨h1, -⟩ | ⟨h1, h2⟩
@@ -129,20 +127,20 @@ theorem binomialRandom_real_isIsolated_and [Fintype V] (p : I) {u v : V} (huv : 
     G(V, p).real {G | G.IsIsolated u ∧ G.IsIsolated v} =
       (1 - p : ℝ) ^ (2 * Fintype.card V - 3) := by
   classical
-  have : {G : SimpleGraph V | G.IsIsolated u ∧ G.IsIsolated v} =
-      {G | Disjoint ((incidentPairs u ∪ incidentPairs v : Finset (Sym2 V)) : Set (Sym2 V))
-        G.edgeSet} := by
+  let tu : Finset (Sym2 V) := (Finset.univ.erase u).image (Sym2.mk u)
+  let tv : Finset (Sym2 V) := (Finset.univ.erase v).image (Sym2.mk v)
+  have hset : {G : SimpleGraph V | G.IsIsolated u ∧ G.IsIsolated v} =
+      {G | Disjoint ((tu ∪ tv : Finset (Sym2 V)) : Set (Sym2 V)) G.edgeSet} := by
     ext G
-    simp only [Set.mem_ofPred_eq, isIsolated_iff_disjoint_incidentPairs, coe_union,
+    simp only [tu, tv, Set.mem_ofPred_eq, isIsolated_iff_disjoint_incident, Finset.coe_union,
       Set.disjoint_union_left]
   have h2 : 2 ≤ Fintype.card V := Fintype.one_lt_card_iff.2 ⟨u, v, huv⟩
-  rw [this, binomialRandom_real_disjoint_edgeSet p _ (fun e he => by
-    rcases mem_union.1 he with he | he <;> exact not_isDiag_of_mem_incidentPairs he)]
-  have hc := card_union_add_card_inter (incidentPairs u) (incidentPairs v)
-  rw [incidentPairs_inter huv, card_singleton, card_incidentPairs, card_incidentPairs] at hc
+  rw [hset, binomialRandom_real_disjoint_edgeSet p (tu ∪ tv) fun e he =>
+    (Finset.mem_union.1 he).elim not_isDiag_of_mem_incident not_isDiag_of_mem_incident]
+  have hc := Finset.card_union_add_card_inter tu tv
+  rw [incidentPairs_inter huv, Finset.card_singleton, card_incident, card_incident] at hc
   congr 1
   omega
-
 
 /-! ### Moments of the number of isolated vertices -/
 
@@ -171,9 +169,8 @@ theorem integral_natCard_isIsolated_sq [Fintype V] (p : I) :
       Fintype.card V * (1 - p : ℝ) ^ (Fintype.card V - 1) +
         Fintype.card V * (Fintype.card V - 1) * (1 - p : ℝ) ^ (2 * Fintype.card V - 3) := by
   classical
-  have hmul : ∀ (s t : Set (SimpleGraph V)) (G : SimpleGraph V),
+  have hmul (s t : Set (SimpleGraph V)) (G : SimpleGraph V) :
       s.indicator (1 : SimpleGraph V → ℝ) G * t.indicator 1 G = (s ∩ t).indicator 1 G := by
-    intro s t G
     rw [Set.inter_indicator_one, Pi.mul_apply]
   simp_rw [natCard_isIsolated_eq_sum, sq, sum_mul_sum, hmul]
   rw [integral_finsetSum _ fun u _ => integrable_finsetSum _ fun v _ => Integrable.of_finite]
@@ -200,10 +197,7 @@ theorem integral_natCard_isIsolated_sq [Fintype V] (p : I) :
 theorem binomialRandom_real_exists_isIsolated_le [Fintype V] (p : I) :
     G(V, p).real {G | ∃ v, G.IsIsolated v} ≤
       Fintype.card V * (1 - p : ℝ) ^ (Fintype.card V - 1) := by
-  have : {G : SimpleGraph V | ∃ v, G.IsIsolated v} = ⋃ v, {G | G.IsIsolated v} := by
-    ext G
-    simp
-  rw [this]
+  rw [Set.ofPred_exists]
   refine (measureReal_iUnion_fintype_le _).trans_eq ?_
   simp_rw [binomialRandom_real_isIsolated]
   simp
@@ -271,7 +265,7 @@ theorem binomialRandom_real_forall_not_isIsolated_le [Fintype V] [Nonempty V] (p
   exact variance_div_sq_le hn1 (unitInterval.nonneg p) hp
 
 /-- A connected graph on at least two vertices has no isolated vertex. -/
-private theorem setOf_connected_subset [Nontrivial V] :
+theorem setOf_connected_subset [Nontrivial V] :
     {G : SimpleGraph V | G.Connected} ⊆ {G | ∀ v, ¬G.IsIsolated v} :=
   fun _ hG v => (Connected.preconnected hG).not_isIsolated v
 
@@ -306,9 +300,8 @@ private theorem one_div_mul_one_sub_pow_le {n : ℕ} (hn : 0 < n) {p : ℝ} (hp0
     nlinarith
   have h4 : Real.exp (-(n * (p / (1 - p)))) ≤ (1 - p) ^ (n - 1) := by
     have hr : 0 ≤ p / (1 - p) := div_nonneg hp0 hq.le
-    have hcast : ((n - 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast Nat.sub_le n 1
     calc Real.exp (-(n * (p / (1 - p)))) ≤ Real.exp (-((n - 1 : ℕ) * (p / (1 - p)))) :=
-          Real.exp_le_exp.2 (by nlinarith)
+          Real.exp_le_exp.2 (by cast_nlinarith [Nat.sub_le n 1])
       _ = Real.exp (-(p / (1 - p))) ^ (n - 1) := by rw [← Real.exp_nat_mul]; ring_nf
       _ ≤ (1 - p) ^ (n - 1) := pow_le_pow_left₀ (Real.exp_pos _).le h1' _
   have h5 : Real.exp (-(n * p + 2 * (Real.log n ^ 2 / n))) ≤ (1 - p) ^ (n - 1) := by
@@ -369,13 +362,11 @@ theorem tendsto_binomialRandom_real_forall_not_isIsolated {p : ℕ → I}
     filter_upwards [hp.eventually (eventually_le_atBot 0)] with n hn
     linarith
   have hlog1 : Tendsto (fun n : ℕ => Real.log n / n) atTop (𝓝 0) := by
-    have := (Real.tendsto_pow_log_div_mul_add_atTop 1 0 1 one_ne_zero).comp
-      tendsto_natCast_atTop_atTop
-    simpa [Function.comp_def] using this
+    simpa [Function.comp_def] using (Real.tendsto_pow_log_div_mul_add_atTop 1 0 1
+      one_ne_zero).comp tendsto_natCast_atTop_atTop
   have hlog2 : Tendsto (fun n : ℕ => Real.log n ^ 2 / n) atTop (𝓝 0) := by
-    have := (Real.tendsto_pow_log_div_mul_add_atTop 1 0 2 one_ne_zero).comp
-      tendsto_natCast_atTop_atTop
-    simpa [Function.comp_def] using this
+    simpa [Function.comp_def] using (Real.tendsto_pow_log_div_mul_add_atTop 1 0 2
+      one_ne_zero).comp tendsto_natCast_atTop_atTop
   have hp0 : Tendsto (fun n => (p n : ℝ)) atTop (𝓝 0) := by
     refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds hlog1
       (Eventually.of_forall fun n => unitInterval.nonneg (p n)) ?_
@@ -386,14 +377,11 @@ theorem tendsto_binomialRandom_real_forall_not_isIsolated {p : ℕ → I}
   have hhalf : ∀ᶠ n in atTop, (p n : ℝ) ≤ 1 / 2 :=
     hp0.eventually (eventually_le_nhds (by norm_num))
   have hratio : Tendsto (fun n => (p n : ℝ) / (1 - p n)) atTop (𝓝 0) := by
-    have := hp0.div ((tendsto_const_nhds : Tendsto (fun _ : ℕ => (1 : ℝ)) atTop (𝓝 1)).sub hp0)
-      (by norm_num)
-    rw [sub_zero, div_one] at this
-    exact this
+    simpa only [sub_zero, div_one, Pi.div_def] using
+      hp0.div (tendsto_const_nhds (x := (1 : ℝ)).sub hp0) (by norm_num)
   have hexp : Tendsto (fun n : ℕ => n * (p n : ℝ) - Real.log n + 2 * (Real.log n ^ 2 / n))
       atTop atBot := by
-    have := hp.atBot_add (hlog2.const_mul 2)
-    simpa using this
+    simpa using hp.atBot_add (hlog2.const_mul 2)
   have hinv : Tendsto (fun n : ℕ => 1 / (n * (1 - p n : ℝ) ^ (n - 1))) atTop (𝓝 0) := by
     refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds
       (Real.tendsto_exp_atBot.comp hexp) ?_ ?_

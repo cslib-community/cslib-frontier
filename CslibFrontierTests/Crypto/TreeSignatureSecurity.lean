@@ -4,7 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.Crypto.Computational.TreeSignature.Security
+import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
@@ -34,6 +39,8 @@ the `n`-bit message-domain guard of `TreeSignature.sign`:
    `OneWay.exists_eufCMA_of_hashFamily`.
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Crypto.TreeSignatureSecurity
 
 open Cslib Cslib.Crypto Cslib.Crypto.TreeSignature Cslib.Probability Turing.MultiTapeTM
@@ -50,9 +57,11 @@ noncomputable def echo : IndexedSignatureScheme where
   capacity_polyTime := ComputableInPolyTime.const 2
   keyGen_ppt := (ComputableInPolyTime.const ([], [])).isPPTOn
   sign_ppt := by
-    apply ComputableInPolyTime.isPPTOn
-    polytime
-  verify_polyTime := by polytime
+    exact (ComputableInPolyTime.snd encBits (encPair encUnary encBits)).encoding_comp.isPPTOn
+  verify_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encBits encIndexedSignedMessage)
+    exact hp.snd'.snd'.snd'.beq (hp.snd'.fst'.prod hp.snd'.snd'.fst').encoding_comp
   verify_sign _ _ _ _ _ _ sig hsig := by
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hsig
     simp [hsig]
@@ -176,8 +185,9 @@ private theorem lazySignHandler_depth_one {msg r : List Bool} {s s' : LazyTreeSt
     (hmsg : msg.length = 2)
     (hs : (r, s') ∈
       (ProbComp.eval (lazySignHandler echo (fun _ => 1) 2 ([], []) ((), msg) s)).support) :
-    (r = [] ∧ s'.2.2.2 = true ∧ s'.2.2.1 = s.2.2.1) ∨
-      ∃ b : Bool, [b] ∉ s.2.2.1 ∧ s'.2.2.1 = [b] :: s.2.2.1 := by
+    (r = [] ∧ s'.2.bad = true ∧ s'.2.seenLeaves = s.2.seenLeaves) ∨
+      ∃ b : Bool, [b] ∉ s.2.seenLeaves ∧ s'.2.seenLeaves = [b] :: s.2.seenLeaves := by
+  rcases s with ⟨caches, ⟨queried, seenLeaves, bad⟩⟩
   unfold lazySignHandler at hs
   simp only [hmsg, ↓reduceIte] at hs
   split_ifs at hs with hb
@@ -198,16 +208,14 @@ private theorem lazySignHandler_depth_one {msg r : List Bool} {s s' : LazyTreeSt
       exact Or.inr ⟨b, fun hm => hseen (List.contains_iff_mem.mpr hm), rfl⟩
 
 -- At depth `1`, `threeQueryForger` has exact success probability `0` in `lazyTreeGame` because the
--- 3rd query always hits a leaf collision (`s₃.2.2.2 = true`) and returns `r₃ = []`.
+-- 3rd query always hits a leaf collision (`s₃.2.bad = true`) and returns `r₃ = []`.
 example :
     Game.succProbability (ProbComp.eval (lazyTreeGame echo (fun _ => 1) threeQueryForger 2)) =
       0 := by
   have hzero : (ProbComp.eval (lazyTreeGame echo (fun _ => 1) threeQueryForger 2)) true = 0 := by
     rw [PMF.apply_eq_zero_iff]
     intro htrue
-    simp only [lazyTreeGame, echo, threeQueryForger, OracleComp.interpret_bind,
-      OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind,
-      StateT.run_pure] at htrue
+    simp only [lazyTreeGame, echo, threeQueryForger, interp_norm] at htrue
     simp only [StateT.run, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at htrue
     obtain ⟨⟨r₁, s₁⟩, hs₁, ⟨r₂, s₂⟩, hs₂, ⟨r₃, s₃⟩, hs₃, hwin⟩ := htrue
@@ -226,7 +234,7 @@ example :
           · unfold lazySignHandler at hs₂
             simp only [List.length_cons, List.length_nil, hb₁, ↓reduceIte, ProbComp.eval_pure,
               PMF.mem_support_pure_iff] at hs₂
-            have hb₂ : s₂.2.2.2 = true := by
+            have hb₂ : s₂.2.bad = true := by
               obtain ⟨_, rfl⟩ := Prod.mk.inj hs₂.symm
               rfl
             unfold lazySignHandler at hs₃
@@ -253,8 +261,15 @@ def zeroQueryEchoForger : Forger := fun n _ =>
 theorem isOraclePPT_zeroQueryEchoForger :
     IsOraclePPT (encPair encBits encBits) zeroQueryEchoForger := by
   refine IsOraclePPTOn.isOraclePPT ?_
-  unfold zeroQueryEchoForger encodeSignature
-  exact ComputableInPolyTime.isOraclePPTOn (by polytime)
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hmsg := (ComputableInPolyTime.bitsReplicate false).comp hn
+  have hlast := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg).encoding_comp
+  have hcerts := ComputableInPolyTime.const
+    (encIn := encPair encUnary encBits) (encOut := encList (encPair encBits encBits))
+    ([] : List (List Bool × List Bool))
+  have hsig := ((ComputableInPolyTime.const (encOut := encBits) [false]).prod
+    (hcerts.prod hlast)).encoding_comp
+  exact (hmsg.prod hsig).isOraclePPTOn
 
 -- Nonvacuity of `indexedForger` via `succProbability_lazyTreeGame_le`: `zeroQueryEchoForger` wins
 -- `lazyTreeGame` with probability `1` (`Q = 0`, `slotBound = 0`, `dyadicSize 0 = 2`), so
@@ -268,9 +283,8 @@ example (n : ℕ) :
       (ProbComp.eval (lazyTreeGame echo (fun _ => 1) zeroQueryEchoForger n)) = 1 := by
     have heval : ProbComp.eval (lazyTreeGame echo (fun _ => 1) zeroQueryEchoForger n) =
         PMF.pure true := by
-      simp only [lazyTreeGame, echo, zeroQueryEchoForger, OracleComp.interpret_pure,
-        StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
-        verify, encodeSignature, keyDecoder.decode_enc, signatureDecoder.decode_enc]
+      simp only [lazyTreeGame, echo, zeroQueryEchoForger, interp_norm, pmf_norm, verify,
+        encodeSignature, keyDecoder.decode_enc, signatureDecoder.decode_enc]
       simp
     simp [Game.succProbability, heval]
   have hsigCap : ∀ keys ∈ (ProbComp.eval (echo.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
@@ -323,5 +337,40 @@ example {f : List Bool → List Bool} (hf : OneWay f)
     ∃ M : SignatureScheme, M.EUFCMA ∧ M.OneTimeEUFCMA := by
   obtain ⟨M, hM⟩ := hf.exists_eufCMA_of_hashFamily hH
   exact ⟨M, hM, hM.oneTimeEUFCMA⟩
+
+/-! ### 5. Ordinary-import surface checks across split `TreeSignature` modules -/
+
+-- Disjointness of padded node-key and edge-signature requests on a concrete depth-`2` instance.
+example : padRequest 8 (keyInput [true]) ≠ padRequest 8 (signInput [true] 0) :=
+  padRequest_keyInput_ne_signInput (M := 8) (d := 2) (by decide) (by decide) (by decide) (by decide)
+
+-- The public signature-length bound `exists_sigCap_polyTime` yields a concrete polynomial-time cap
+-- on `echo` that bounds the signature of `[true, false]` at `n = 2`, index `1`.
+example : ∃ cap : ℕ → ℕ,
+    ComputableInPolyTime cap encUnary encUnary ∧
+    (encPair encUnary encBits (1, [true, false])).length ≤ cap 2 := by
+  obtain ⟨cap, hpoly, hbound⟩ := exists_sigCap_polyTime echo
+  have hk : (([], []) : List Bool × List Bool) ∈ (ProbComp.eval (echo.keyGen 2)).support := by
+    simp [echo]
+  have hs : encPair encUnary encBits (1, [true, false]) ∈
+      (ProbComp.eval (echo.sign [] 1 [true, false])).support := by
+    simp [echo]
+  exact ⟨cap, hpoly, hbound 2 ([], []) hk 1 (by decide) [true, false] (Or.inl rfl) _ hs⟩
+
+-- Strict oracle-PPT preservation of `indexedForger` on the concrete `zeroQueryEchoForger`.
+example : IsOraclePPT (encPair encUnary (encPair encBits encBits))
+    (indexedForger echo (fun _ => 1) (fun _ => 0) (fun m => m + 5) zeroQueryEchoForger) :=
+  isOraclePPT_indexedForger echo (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 0)
+    (by polytime) isOraclePPT_zeroQueryEchoForger
+
+-- `TreeLog` named fields on `initPlantedState` and `TreeMsg` definitional reducibility.
+example : initPlantedState.2.queried = [] ∧ initPlantedState.2.seenLeaves = [] ∧
+    initPlantedState.2.bad = false :=
+  ⟨rfl, rfl, rfl⟩
+
+example (n : ℕ) (msg : List Bool) :
+    TreeMsg echo n msg =
+      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (echo.keyGen n)).support, msg = keys'.1) :=
+  rfl
 
 end CslibFrontierTests.Crypto.TreeSignatureSecurity

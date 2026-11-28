@@ -100,14 +100,14 @@ theorem PRG.wordFamily_realExperiment {generator : List Bool → List Bool} {len
       (fun bits => ProbComp.eval (adversary n (List.ofFn bits))) =
         distinguishingGame (generatorEnsemble generator n) (adversary n) := by
   rw [generatorEnsemble_eq_outputDist hlen]
-  simp only [pmf_norm, distinguishingGame, PRG.Generator.realExperiment]
+  simp only [pmf_norm, distinguishingGame_eq_bind, PRG.Generator.realExperiment]
 
 /-- The ideal finite test sees exactly the uniform word of the declared output length. -/
 theorem PRG.wordFamily_idealExperiment (length : ℕ → ℕ) (adversary : Distinguisher) (n : ℕ) :
     Generator.idealExperiment
       (fun bits : BitString (length n) => ProbComp.eval (adversary n (List.ofFn bits))) =
         distinguishingGame (BitString.uniformList (length n)) (adversary n) := by
-  simp only [pmf_norm, Generator.idealExperiment, distinguishingGame, BitString.uniformList]
+  simp only [pmf_norm, Generator.idealExperiment, distinguishingGame_eq_bind, BitString.uniformList]
 
 /-- Finite-family security against uniformly realizable tests is exactly computational
 indistinguishability of the generated and uniform word ensembles. -/
@@ -117,14 +117,12 @@ theorem PRG.wordFamily_secure_iff {generator : List Bool → List Bool} {length 
       ComputationallyIndistinguishable (generatorEnsemble generator)
         (fun n => BitString.uniformList (length n)) := by
   rw [Family.secure_iff_indistinguishable]
-  constructor
-  · intro h adversary ha
-    simpa only [wordFamily_realExperiment hlen, wordFamily_idealExperiment] using
+  refine ⟨fun h adversary ha => ?_, ?_⟩
+  · simpa only [wordFamily_realExperiment hlen, wordFamily_idealExperiment] using
       h (fun n bits => ProbComp.eval (adversary n (List.ofFn bits)))
         ⟨adversary, ha, fun _ _ => rfl⟩
-  · rintro h test ⟨adversary, ha, heq⟩
-    have heq := funext fun n => funext (heq n)
-    subst test
+  · rintro h _ ⟨adversary, ha, heq⟩
+    rw [← funext₂ heq]
     simpa only [wordFamily_realExperiment hlen, wordFamily_idealExperiment] using h adversary ha
 
 /-- Sample a uniform seed, evaluate the generator, and run the distinguisher. -/
@@ -144,13 +142,13 @@ noncomputable def prgIdealGame (length : ℕ → ℕ) (adversary : Distinguisher
     (adversary : Distinguisher) (n : ℕ) :
     ProbComp.eval (prgRealGame generator adversary n) =
       distinguishingGame (generatorEnsemble generator n) (adversary n) := by
-  simp [prgRealGame, distinguishingGame, generatorEnsemble, PMF.bind_map, Function.comp_def]
+  simp [prgRealGame, distinguishingGame_eq_bind, generatorEnsemble, PMF.bind_map, Function.comp_def]
 
 /-- The ideal program denotes the uniform-word experiment. -/
 @[simp] theorem eval_prgIdealGame (length : ℕ → ℕ) (adversary : Distinguisher) (n : ℕ) :
     ProbComp.eval (prgIdealGame length adversary n) =
       distinguishingGame (BitString.uniformList (length n)) (adversary n) := by
-  simp [prgIdealGame, distinguishingGame]
+  simp [prgIdealGame, distinguishingGame_eq_bind]
 
 /-- The real experiment is an efficient program when its generator and distinguisher are. -/
 @[program_certificate]
@@ -168,7 +166,15 @@ theorem isPPTOn_prgIdealGame {length : ℕ → ℕ} {adversary : Distinguisher}
   unfold prgIdealGame
   ppt
 
-/-- A plain polynomial-time stretching generator, secure in the existing finite-family API. -/
+/-- A plain polynomial-time stretching generator, secure in the existing finite-family API.
+
+This is [Goldreich1998Fragments], Definition 3.3.2, p. 85: a deterministic polynomial-time
+generator with output length `length n > n` on seeds of length `n`, whose output on a uniform seed
+is indistinguishable from a uniform word of length `length n` by every probabilistic
+polynomial-time test that also receives `n` in unary (Definition 3.2.2, p. 78). It is also
+[BonehShoup2023], Attack Game 3.1 and Definition 3.1, pp. 46–47, read asymptotically with seeds
+of length `n` and outputs of length `length n`; the source does not make expansion part of the
+notion. -/
 structure PseudorandomGenerator (generator : List Bool → List Bool) (length : ℕ → ℕ) : Prop where
   /-- One deterministic polynomial-time machine evaluates the generator. -/
   polyTime : ComputableInPolyTime generator encBits encBits
@@ -187,8 +193,7 @@ theorem PseudorandomGenerator.of_indistinguishable
     (hstretch : ∀ n, n < length n)
     (hsecure : ComputationallyIndistinguishable (generatorEnsemble generator)
       (fun n => BitString.uniformList (length n))) : PseudorandomGenerator generator length := by
-  have hg := hg.tidy
-  exact ⟨.of_tidy hg, hlen, hstretch, (PRG.wordFamily_secure_iff hlen).mpr hsecure⟩
+  exact ⟨hg, hlen, hstretch, (PRG.wordFamily_secure_iff hlen).mpr hsecure⟩
 
 /-- The generated words are computationally indistinguishable from uniform words. -/
 theorem PseudorandomGenerator.indistinguishable
@@ -222,7 +227,6 @@ theorem PseudorandomGenerator.length_le {generator : List Bool → List Bool} {l
     (h : PseudorandomGenerator generator length) :
     ∃ c d : ℕ, ∀ n, length n ≤ c * (n + 1) ^ d := by
   obtain ⟨c, d, hbound⟩ := h.polyTime.polyBounded_length.exists_le
-  refine ⟨c, d, fun n => ?_⟩
-  simpa [h.length_eq] using hbound (List.replicate n false)
+  exact ⟨c, d, fun n => by simpa [h.length_eq] using hbound (List.replicate n false)⟩
 
 end Cslib.Crypto

@@ -11,6 +11,7 @@ public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Memoize
 public import CslibFrontier.Probability.Product
 
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Semantics
 
 /-!
@@ -395,8 +396,8 @@ theorem interpret_eq_memoize_map {Key' Value' : Type u} [BEq Key'] [LawfulBEq Ke
   have houtput := congrArg (PMF.map Prod.fst) hrun
   simp only [PMF.map_comp, Function.comp_def, represent, List.map_nil] at houtput
   rw [← houtput]
-  simpa only [OracleComp.interpret_interpret, OracleComp.interpret_map, OracleComp.interpret_query,
-    PMF.monad_map_eq_map, PMF.pure_map] using interpret_eq_memoize distribution
+  simpa only [OracleComp.interpret_interpret, interp_norm,
+    pmf_norm] using interpret_eq_memoize distribution
       (OracleComp.interpret (fun key => valueMap <$> OracleComp.query key) program)
 
 end ListFinite

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Add
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanStep
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual native selection and accumulation of one query
@@ -34,9 +35,6 @@ def AccumulateDispatchLocal (i : Fin registers) : Prop := AddValueLocal i ∨ i 
 instance (i : Fin registers) : Decidable (AccumulateDispatchLocal i) :=
   inferInstanceAs (Decidable (AddValueLocal i ∨ i = temporary))
 
-private theorem accumulateDispatch_preserves (i : Fin registers) :
-    ¬AccumulateDispatchLocal i → accumulateDispatch.Preserves i := by decide +kernel +revert
-
 /-- Exactly the contributing parent queries load and add a child value. Selection is proved
 from the actual comparisons with digit nine and the current term register. -/
 theorem exec_accumulateDispatch {w : ℕ} {a b : ℤ}
@@ -53,27 +51,12 @@ theorem exec_accumulateDispatch {w : ℕ} {a b : ℤ}
         Function.update x.mem (x.regs valueBase + q) (encode (a + b)) else x.mem) ∧
       (∀ i, ¬AccumulateDispatchLocal i → y.regs i = x.regs i) := by
   by_cases hsel : selected true (x.regs term) q
-  · obtain ⟨y, hy, hmem, _⟩ := exec_addValue ha hb x q hq h10 (hleft hsel) (hright hsel) hp hc
-    have hchoice : q % 10 = 9 ∨ q % 10 = x.regs term := hsel
-    have he : ExecWithin (w + 2) accumulateDispatch x y 25 := by
-      by_cases hfirst : q % 10 = 9
-      · exact (ExecWithin.branch_pos (by
-          simpa only [Cond.holds_eq, hd, h9] using hfirst) hy).mono (by decide)
-      · have hsecond := hchoice.resolve_left hfirst
-        exact (ExecWithin.branch_neg (by
-          simpa only [Cond.holds_eq, hd, h9] using hfirst)
-          (ExecWithin.branch_pos (by simpa only [Cond.holds_eq, hd] using hsecond) hy)).mono
-            (by decide)
-    exact ⟨y, he, by simpa only [hsel, ↓reduceIte] using hmem,
-      fun i hi => he.regs_eq (accumulateDispatch_preserves i hi)⟩
-  · have hfirst : q % 10 ≠ 9 := fun h => hsel (Or.inl h)
-    have hsecond : q % 10 ≠ x.regs term := fun h => hsel (Or.inr h)
-    let y := x.set temporary (x.regs temporary)
-    have he : ExecWithin (w + 2) accumulateDispatch x y 5 :=
-      ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd, h9] using hfirst)
-        (ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd] using hsecond) ExecWithin.copy)
-    exact ⟨y, he.mono (by decide), by simp [hsel, y],
-      fun i hi => he.regs_eq (accumulateDispatch_preserves i hi)⟩
+  · obtain ⟨y, hy, hmem, hyr⟩ := exec_addValue ha hb x q hq h10 (hleft hsel) (hright hsel) hp hc
+    exact ⟨y, (exec_selectDigit hd h9 hsel hy).mono (by decide),
+      by simpa only [hsel, ↓reduceIte] using hmem, fun i hi => hyr i (fun h => hi (Or.inl h))⟩
+  · exact ⟨x.set temporary (x.regs temporary),
+      (exec_selectDigit_skip hd h9 hsel).mono (by decide), by simp [hsel],
+      fun i _ => by simp only [Data.set_regs, Function.update_eq_self]⟩
 
 /-- Registers changed by loading, dispatching and advancing one parent query. -/
 def AccumulateStepLocal (i : Fin registers) : Prop :=
@@ -82,9 +65,6 @@ def AccumulateStepLocal (i : Fin registers) : Prop :=
 instance (i : Fin registers) : Decidable (AccumulateStepLocal i) :=
   inferInstanceAs (Decidable
     (AccumulateDispatchLocal i ∨ i = query ∨ i = digit ∨ i = index))
-
-private theorem accumulateStep_preserves (i : Fin registers) :
-    ¬AccumulateStepLocal i → accumulateStep.Preserves i := by decide +kernel +revert
 
 /-- One complete native parent-query iteration, including every index/digit/control operation.
 The conditional memory hypotheses reflect only which child words are actually requested. -/
@@ -105,31 +85,24 @@ theorem exec_accumulateStep {w : ℕ} {a b : ℤ}
       y.mem = (if selected true (x.regs term) q then
         Function.update x.mem (x.regs valueBase + q) (encode (a + b)) else x.mem) ∧
       (∀ i, ¬AccumulateStepLocal i → y.regs i = x.regs i) := by
-  let z := ((x.set address (x.regs listBase + x.regs index)).set query q).set digit (q % 10)
   have hmod : Fits (w + 2) (q % 10) :=
     h10fit.of_le (Nat.le_of_lt (Nat.mod_lt _ (by decide)))
-  have hload : ExecWithin (w + 2) scanLoad x z 3 := by
-    ram_eval [scanLoad, z, hq, h10, hr, hmod, address, listBase, index, query, digit, ten,
-      Fin.mk.injEq]
-  have hzreg (i : Fin registers) (ha : i ≠ address) (hq' : i ≠ query) (hd : i ≠ digit) :
-      z.regs i = x.regs i := by simp [z, ha, hq', hd]
-  obtain ⟨u, hu, hm, hf⟩ := exec_accumulateDispatch ha hb z q
-    (by simp [z, query, digit]) (by simp [z])
-    ((hzreg nine (by decide) (by decide) (by decide)).trans h9)
-    ((hzreg ten (by decide) (by decide) (by decide)).trans h10)
-    (by simpa +decide [z, term, address, query, digit, valueBase] using hleft)
-    (by simpa +decide [z, term, address, query, digit, childValues] using hright)
-    (by simpa +decide [z, address, query, digit, valueBase] using hp)
-    (by simpa +decide [z, address, query, digit, childValues] using hc)
-  have hui : u.regs index = x.regs index :=
-    (hf index (by decide)).trans (hzreg index (by decide) (by decide) (by decide))
-  have huo : u.regs one = 1 :=
-    (hf one (by decide)).trans ((hzreg one (by decide) (by decide) (by decide)).trans h1)
-  let y := u.set index (x.regs index + 1)
-  have hinc : ExecWithin (w + 2) (ram[ index ← index + one ]) u y 1 := by
-    ram_eval [y, hui, huo, hi]
-  have he : ExecWithin (w + 2) accumulateStep x y 29 := hload.seq (hu.seq hinc)
-  refine ⟨y, he, by simp [y], ?_, fun i hi => he.regs_eq (accumulateStep_preserves i hi)⟩
-  simpa +decide [y, z, term, address, query, digit, valueBase] using hm
+  refine WP.exists_execWithin ?_
+  unfold accumulateStep scanLoad
+  wram_exec [hq, h10, hr, hmod]
+  wram_call (exec_accumulateDispatch ha hb _ q (by wram_simp) (by wram_simp)
+    (by wram_simp [h9]) (by wram_simp [h10]) (by wram_simp; exact hleft)
+    (by wram_simp; exact hright) (by wram_simp; exact hp) (by wram_simp; exact hc))
+    with u ⟨hm, hf⟩
+  wram_simp at hm
+  wram_exec * [hi]
+  refine ⟨by wram_simp, hm, fun i h => ?_⟩
+  simp only [AccumulateStepLocal, not_or] at h
+  rcases h with ⟨hd, hq', hdig, hind⟩
+  wram_simp
+  rw [hf i hd]
+  simp only [AccumulateDispatchLocal, AddValueLocal, not_or] at hd
+  rcases hd with ⟨⟨-, had, -⟩, -⟩
+  wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

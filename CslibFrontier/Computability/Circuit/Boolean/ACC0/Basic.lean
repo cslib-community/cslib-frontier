@@ -11,7 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.ModGates
 public import CslibFrontier.Computability.Circuit.Boolean.ModMajority
 public import Mathlib.Data.Nat.Prime.Defs
-import CslibFrontier.Computability.Circuit.Boolean.Smolensky.Majority
+import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 
 /-!
 # Definition, divisibility monotonicity, and Boolean closure of `ACC⁰`
@@ -29,8 +29,9 @@ Repeating each input wire of a `MOD_q` gate `k ≥ 1` times multiplies the Hammi
 (`AC0Mod_subset_AC0Mod_mul_right`, `AC0Mod_subset_AC0Mod_of_dvd`). Two circuits with moduli `q₁`
 and `q₂` therefore embed into the common modulus `q₁ * q₂`, making `ACC0` closed under complement,
 intersection, and union (`ACC0.compl`, `ACC0.inf`, `ACC0.sup`). By Håstad's and
-Razborov–Smolensky's lower bounds for parity, `AC0 ⊂ AC0Mod 2 ⊆ ACC0` (`AC0_ssubset_AC0Mod_two`,
-`AC0_ssubset_ACC0`) and `AC0Mod p ⊂ ACC0` for every odd prime `p` (`AC0Mod_ssubset_ACC0`).
+Razborov–Smolensky's lower bounds for parity and `MOD_p`, `AC0 ⊂ AC0Mod 2 ⊆ ACC0`
+(`AC0_ssubset_AC0Mod_two`, `AC0_ssubset_ACC0`) and `AC0Mod p ⊂ ACC0` for every prime `p`
+(`AC0Mod_ssubset_ACC0`).
 
 ## Main definitions
 
@@ -49,7 +50,7 @@ Razborov–Smolensky's lower bounds for parity, `AC0 ⊂ AC0Mod 2 ⊆ ACC0` (`AC
   `Cslib.Circuits.Boolean.ACC0.sup`: Boolean closure of `ACC⁰`.
 * `Cslib.Circuits.Boolean.ACC0_subset_TC0`: `ACC⁰ ⊆ TC⁰`.
 * `Cslib.Circuits.Boolean.AC0_ssubset_ACC0`, `Cslib.Circuits.Boolean.AC0Mod_ssubset_ACC0`:
-  strictness of `AC⁰ ⊂ ACC⁰` and `AC⁰[p] ⊂ ACC⁰` for odd prime `p`.
+  strictness of `AC⁰ ⊂ ACC⁰` and `AC⁰[p] ⊂ ACC⁰` for every prime `p`.
 
 ## References
 
@@ -185,8 +186,7 @@ theorem AC0Mod_subset_AC0Mod_mul_left {k : ℕ} (hk : 0 < k) (q : ℕ) :
 theorem AC0Mod_subset_AC0Mod_of_dvd {q q' : ℕ} (hq' : 0 < q') (h : q ∣ q') :
     AC0Mod q ⊆ AC0Mod q' := by
   obtain ⟨k, rfl⟩ := h
-  have hk : 0 < k := Nat.pos_of_mul_pos_left hq'
-  exact AC0Mod_subset_AC0Mod_mul_right q hk
+  exact AC0Mod_subset_AC0Mod_mul_right q (Nat.pos_of_mul_pos_left hq')
 
 /-! ### Definition of `ACC⁰` and closure properties -/
 
@@ -210,16 +210,14 @@ theorem AC0_subset_ACC0 : AC0 ⊆ ACC0 :=
 /-- **AC⁰[q] ⊆ ACC⁰** for every modulus `q : ℕ` (including `q = 0, 1`). -/
 theorem AC0Mod_subset_ACC0 (q : ℕ) : AC0Mod q ⊆ ACC0 := by
   rcases q with _ | _ | q
-  · rw [AC0Mod_zero]
-    exact AC0_subset_ACC0
-  · rw [AC0Mod_one]
-    exact AC0_subset_ACC0
+  · exact AC0Mod_zero.symm ▸ AC0_subset_ACC0
+  · exact AC0Mod_one.symm ▸ AC0_subset_ACC0
   · exact fun _ hL => mem_ACC0_iff.2 ⟨q + 2, by omega, hL⟩
 
 /-- **`ACC⁰` is the union of `AC⁰[q]` over all `q : ℕ`.** -/
-theorem ACC0_eq_iUnion_AC0Mod : ACC0 = ⋃ q, AC0Mod q := by
-  refine Subset.antisymm (iUnion₂_subset fun q _ => subset_iUnion AC0Mod q) ?_
-  exact iUnion_subset AC0Mod_subset_ACC0
+theorem ACC0_eq_iUnion_AC0Mod : ACC0 = ⋃ q, AC0Mod q :=
+  Subset.antisymm (iUnion₂_subset fun q _ => subset_iUnion AC0Mod q)
+    (iUnion_subset AC0Mod_subset_ACC0)
 
 /-- Membership in `ACC⁰` is equivalent to membership in `AC⁰[q]` for some `q : ℕ`. -/
 theorem mem_ACC0_iff_exists_AC0Mod {L : Language Bool} :
@@ -240,12 +238,8 @@ theorem modGate_mem_ACC0 (q : ℕ) : Language.ofSlices (modGate q) ∈ ACC0 :=
   AC0Mod_subset_ACC0 q (modGate_mem_AC0Mod q)
 
 /-- **Parity is in `AC⁰[2]`.** -/
-theorem parity_mem_AC0Mod_two : Language.ofSlices parity ∈ AC0Mod 2 := by
-  have h : Language.ofSlices parity = Language.ofSlices (modGate 2) := by
-    congr 1 with n : 1
-    exact (modGate_two_eq_parity n).symm
-  rw [h]
-  exact modGate_mem_AC0Mod 2
+theorem parity_mem_AC0Mod_two : Language.ofSlices parity ∈ AC0Mod 2 :=
+  congrArg Language.ofSlices (funext modGate_two_eq_parity) ▸ modGate_mem_AC0Mod 2
 
 /-- **Parity is in `ACC⁰`.** -/
 theorem parity_mem_ACC0 : Language.ofSlices parity ∈ ACC0 :=
@@ -261,11 +255,14 @@ theorem AC0_ssubset_ACC0 : AC0 ⊂ ACC0 :=
   (Set.ssubset_iff_of_subset AC0_subset_ACC0).2
     ⟨_, parity_mem_ACC0, parity_notMem_AC0⟩
 
-/-- **`AC⁰[p]` is strictly contained in `ACC⁰`** for every odd prime `p`, witnessed by parity
-[Razborov1987], [Smolensky1987]. -/
-theorem AC0Mod_ssubset_ACC0 {p : ℕ} [Fact p.Prime] (hp2 : p ≠ 2) : AC0Mod p ⊂ ACC0 :=
-  (Set.ssubset_iff_of_subset (AC0Mod_subset_ACC0 p)).2
-    ⟨_, parity_mem_ACC0, Smolensky.parity_notMem_AC0Mod hp2⟩
+/-- **`AC⁰[p]` is strictly contained in `ACC⁰`** for every prime `p`, witnessed by parity for
+odd `p` and by `MOD_3` for `p = 2` [Smolensky1987]. -/
+theorem AC0Mod_ssubset_ACC0 {p : ℕ} [Fact p.Prime] : AC0Mod p ⊂ ACC0 := by
+  refine (Set.ssubset_iff_of_subset (AC0Mod_subset_ACC0 p)).2 ?_
+  rcases eq_or_ne p 2 with rfl | hp2
+  · have : Fact (Nat.Prime 3) := ⟨Nat.prime_three⟩
+    exact ⟨_, modGate_mem_ACC0 3, Smolensky.modGate_notMem_AC0Mod (by decide)⟩
+  · exact ⟨_, parity_mem_ACC0, Smolensky.parity_notMem_AC0Mod hp2⟩
 
 namespace AC0Mod
 
@@ -306,29 +303,27 @@ theorem top_mem : (⊤ : Language Bool) ∈ ACC0 :=
   AC0_subset_ACC0 (ConstDepth.top_mem (Signature.Hom.id _))
 
 /-- **`ACC⁰` is closed under complement.** -/
-theorem compl (hL : L ∈ ACC0) : Lᶜ ∈ ACC0 := by
-  obtain ⟨q, hq, hLq⟩ := mem_ACC0_iff.1 hL
-  exact mem_ACC0_iff.2 ⟨q, hq, AC0Mod.compl hLq⟩
+theorem compl (hL : L ∈ ACC0) : Lᶜ ∈ ACC0 :=
+  let ⟨q, hq, hLq⟩ := mem_ACC0_iff.1 hL
+  mem_ACC0_iff.2 ⟨q, hq, AC0Mod.compl hLq⟩
 
 /-- **`ACC⁰` is closed under intersection**: circuits with moduli `q₁` and `q₂` embed into
 `AC⁰[q₁ * q₂]`. -/
 theorem inf (hL : L ∈ ACC0) (hM : M ∈ ACC0) : L ⊓ M ∈ ACC0 := by
   obtain ⟨q₁, hq₁, hL₁⟩ := mem_ACC0_iff.1 hL
   obtain ⟨q₂, hq₂, hM₂⟩ := mem_ACC0_iff.1 hM
-  refine mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, ?_⟩
-  exact AC0Mod.inf
+  exact mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, AC0Mod.inf
     (AC0Mod_subset_AC0Mod_mul_right q₁ (by omega) hL₁)
-    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)
+    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)⟩
 
 /-- **`ACC⁰` is closed under union**: circuits with moduli `q₁` and `q₂` embed into
 `AC⁰[q₁ * q₂]`. -/
 theorem sup (hL : L ∈ ACC0) (hM : M ∈ ACC0) : L ⊔ M ∈ ACC0 := by
   obtain ⟨q₁, hq₁, hL₁⟩ := mem_ACC0_iff.1 hL
   obtain ⟨q₂, hq₂, hM₂⟩ := mem_ACC0_iff.1 hM
-  refine mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, ?_⟩
-  exact AC0Mod.sup
+  exact mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, AC0Mod.sup
     (AC0Mod_subset_AC0Mod_mul_right q₁ (by omega) hL₁)
-    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)
+    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)⟩
 
 end ACC0
 

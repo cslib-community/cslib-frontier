@@ -31,21 +31,11 @@ open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 /-- The existing product's output slice precedes its admitted virtual-window boundary. -/
 theorem outputBase_lt_window {m n Q : ℕ} (hN : D m ^ 18 ≤ n) :
     QueriedProduct.outputBase (21 * m) m n Q < CallableProduct.windowSize n Q := by
-  have hout : QueriedProduct.outputBase (21 * m) m n Q ≤
-      QueriedProduct.memoryEnd (21 * m) m n Q := by
-    unfold QueriedProduct.memoryEnd QueriedProduct.stampBase QueriedProduct.scratchBase
-    have hten := Nat.zero_le (10 ^ (21 * m))
-    have hframes := Nat.zero_le (2 * (21 * m + 1) * 10 ^ (21 * m))
-    omega
-  have hword : QueriedProduct.memoryEnd (21 * m) m n Q ≤
-      QueriedProduct.wordBudget (21 * m) m n Q := by
-    unfold QueriedProduct.wordBudget
-    omega
   have hbox : QueriedProduct.wordBudget (21 * m) m n Q ≤
       BoxProduct.wordBudget (21 * m) m (m / 9) n Q := by
     unfold BoxProduct.wordBudget
     omega
-  exact (hout.trans (hword.trans hbox)).trans_lt
+  exact ((QueriedProduct.outputBase_le_wordBudget (21 * m) m n Q).trans hbox).trans_lt
     (CallableBoxProduct.source_admission (Nat.div_le_self m 9) hN).2.2
 
 /-- Every pointer and temporary of the actual per-record caller fits from the original
@@ -54,9 +44,8 @@ theorem physical_fits {w m n g p A heap Q : ℕ}
     (hheap : heap ≤ PreparationInput.wordBound n (D m) g p A)
     (hQ : Q ≤ n ^ 2) (hN : D m ^ 18 ≤ n)
     (hW : admissionWidth n (D m) g p A ≤ w + 2) :
-    Fits (w + 2) (4 * heap + 4 * CallableProduct.windowSize n Q +
-      QueriedProduct.outputBase (21 * m) m n Q + 4 * Q + 4 * D m +
-      2 * (n * D m) + 9 * (n * n) + 4 * n + g + 4096) :=
+    Fits (w + 2) (witnessWindow n (D m) g heap Q
+      (QueriedProduct.outputBase (21 * m) m n Q)) :=
   physical_fits_of_lt_window hheap hQ (outputBase_lt_window hN) hW
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.BoxRecordWitness

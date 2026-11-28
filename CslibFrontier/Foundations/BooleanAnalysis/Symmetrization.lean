@@ -72,9 +72,8 @@ theorem comp_mem_lowDegree {φ : (κ → Bool) → ι → Bool}
   suffices h : lowDegree R ι D ≤ (lowDegree R κ D).comap (LinearMap.funLeft R R φ) from h hf
   refine Submodule.span_le.2 ?_
   rintro _ ⟨S, hS, rfl⟩
-  have h : (fun y => monomial R S (φ y)) = ∏ i ∈ S, fun y => bitVal R (φ y i) := by
-    funext y
-    simp [monomial, Finset.prod_apply]
+  have h : (fun y => monomial R S (φ y)) = ∏ i ∈ S, fun y => bitVal R (φ y i) :=
+    funext fun y => by simp [monomial, Finset.prod_apply]
   change (fun y => monomial R S (φ y)) ∈ lowDegree R κ D
   rw [h]
   exact lowDegree_mono (by simpa using hS) (prod_mem_lowDegree S fun i _ => hφ i)
@@ -119,19 +118,14 @@ private theorem card_filter_weight_eq_subset (S : Finset ι) (k : ℕ) :
       #((univ.powersetCard k).filter (S ⊆ ·)) := by
   refine card_nbij' (fun x => ({i | x i = true} : Finset ι)) (fun T i => decide (i ∈ T))
     (fun x hx => ?_) (fun T hT => ?_) (fun x _ => ?_) (fun T _ => ?_)
-  · obtain ⟨hw, hS⟩ := by simpa using hx
-    refine mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, hw⟩, fun i hi => ?_⟩
-    simpa using hS i hi
+  · obtain ⟨hw, hS⟩ := (mem_filter.1 hx).2
+    exact mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, hw⟩, by simpa [subset_iff] using hS⟩
   · obtain ⟨hT, hST⟩ := mem_filter.1 hT
     refine mem_filter.2 ⟨mem_univ _, ?_, fun i hi => by simpa using hST hi⟩
     rw [← (mem_powersetCard.1 hT).2, weight]
-    congr 1
-    ext i
-    simp
-  · funext i
-    simp
-  · ext i
-    simp
+    exact congrArg Finset.card (Finset.ext fun _ => by simp)
+  · exact funext fun _ => by simp
+  · exact Finset.ext fun _ => by simp
 
 /-- The monomial of a set of `s` coordinates averages to `k.choose s / n.choose s` over the inputs
 of weight `k ≤ n`. -/

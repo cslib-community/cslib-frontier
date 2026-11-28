@@ -30,10 +30,9 @@ Neither the program nor its parameters are chosen separately at each input lengt
 
 ## Main results
 
-* `HasGapWithAdvice.eventually_exists_indexed_mask`,
-  `HasGap.eventually_exists_indexed_mask`: one threshold for all tests in an efficient family.
-* `HasGapWithAdvice.eventually_exists_mask`,
-  `HasGap.eventually_exists_mask`: specialize to a single sequence test.
+* `HasGapWithAdvice.eventually_exists_indexed_mask`: one threshold for all tests in an efficient
+  family.
+* `HasGapWithAdvice.eventually_exists_mask`: specialize to a single sequence test.
 
 ## References
 
@@ -90,10 +89,9 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
   classical
   let source : ℕ → ProbComp (List Bool × Bool) := fun n => (fun value : pair.Observation n × Bool =>
     (pair.encode n value.1, value.2)) <$> pair.latentSample n
-  have hsource : IsPPTOn encUnary (encPair encBits encBool) source := by
-    apply pair.efficient.congr
-    intro n
-    simp only [source, pair.eval_sample, ProbComp.eval_map, pair.eval_latentSample]
+  have hsource : IsPPTOn encUnary (encPair encBits encBool) source :=
+    pair.efficient.congr fun n => by
+      simp only [source, pair.eval_sample, ProbComp.eval_map, pair.eval_latentSample]
   obtain ⟨sizeCoeff, sizeDegree, hsize⟩ := hsource.length_le
   let width := fun n => sizeCoeff * (n + 1) ^ sizeDegree
   have hwidth : ComputableInPolyTime width encUnary encUnary :=
@@ -151,8 +149,8 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
     (fun n => Nat.mul_pos (by decide) (params (n, []) 0).predictionInverseTolerance_pos)
   have hsmall := SequenceLearner.failureBound_eventually_le (params := fun n => params (n, []) 0)
     (inverseGap := inverseGap) (by change PolynomiallyBounded id; exact .id)
-    hdensity.tidy.polynomiallyBounded hrate.tidy.polynomiallyBounded
-    hinverseGap.tidy.polynomiallyBounded (fun _ => le_rfl)
+    hdensity.polynomiallyBounded hrate.polynomiallyBounded
+    hinverseGap.polynomiallyBounded (fun _ => le_rfl)
   filter_upwards [hsmall, hhard] with n hsmall hhard
   intro i hi hnum hnumBound hthreshold
   specialize hhard i hi
@@ -185,12 +183,9 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
       rw [ProbComp.eval_bind, pair.eval_latentSample, bind_apply_toReal]
       simpa only [mask, SequenceLearner.mask_probability, density, State.margin, State.votes]
         using hdense
-    have hnot := fun h => hnone ⟨mask, hdense', hmass, h⟩
-    apply le_of_not_gt
-    intro hgap
-    apply hnot
     have hsourceEq : ProbComp.eval (source n) = ProbComp.eval (pair.sample n) := by
       simp only [source, ProbComp.eval_map, pair.eval_latentSample, pair.eval_sample]
+    refine le_of_not_gt fun hgap => hnone ⟨mask, hdense', hmass, ?_⟩
     simpa only [ProbComp.eval_bind,
       ProbComp.eval_replicate_congr hsourceEq (count n)] using hgap
   have hprediction := SequenceLearner.predict_error (pair.latentSample n)
@@ -211,68 +206,22 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
         let value ← pair.latentSample n
         (fun answer => answer == value.2) <$>
           adversary (n, advice n) i (pair.encode n value.1)) := by
-    simp only [pmf_norm, predictionGame, pair.eval_sample, pair.eval_latentSample]
+    simp only [pmf_norm, predictionGame, predictionExperiment, pair.eval_sample,
+      pair.eval_latentSample]
     rfl
   rw [hlaw] at hhard
-  change (PMF.conditionalEntropy (pair.joint n) + gap n) / 2 ≤ _ at hhard
+  change (PMF.conditionalEntropy (pair.joint n) + gap n) / 2 ≤ _ +
+    1 / ↑(4 * (params (n, advice n) i).predictionInverseTolerance) at hhard
   change (params (n, advice n) i).delta ≤ _ at hthreshold
-  have htolerance : (0 : ℝ) < (params (n, advice n) i).predictionInverseTolerance := by
-    exact_mod_cast (params (n, advice n) i).predictionInverseTolerance_pos
-  change (ProbComp.eval (do
-    let value ← pair.latentSample n
-    (fun answer => answer == value.2) <$>
-      adversary (n, advice n) i (pair.encode n value.1)) false).toReal ≤
-      (params (n, advice n) i).delta / 2 -
-        1 / (params (n, advice n) i).predictionInverseTolerance +
-        (SequenceLearner.failureBound (params (n, advice n) i) (inverseGap n) : ℝ) at hprediction
+  change _ ≤ (params (n, advice n) i).delta / 2 -
+    1 / ((params (n, advice n) i).predictionInverseTolerance : ℝ) +
+    (SequenceLearner.failureBound (params (n, advice n) i) (inverseGap n) : ℝ) at hprediction
   change (SequenceLearner.failureBound (params (n, advice n) i) (inverseGap n) : ℝ) ≤
-    1 / (2 * (params (n, advice n) i).predictionInverseTolerance) at hsmall
-  simp only [Nat.cast_mul, Nat.cast_ofNat] at hhard
-  change _ ≤ _ + 1 / (4 * ((params (n, advice n) i).predictionInverseTolerance : ℝ)) at hhard
-  have hpositive : (0 : ℝ) < 1 / (4 * (params (n, advice n) i).predictionInverseTolerance) := by
-    positivity
-  have hhalf : (1 : ℝ) / (2 * (params (n, advice n) i).predictionInverseTolerance) =
-      2 * (1 / (4 * (params (n, advice n) i).predictionInverseTolerance)) := by ring
-  have hwhole : (1 : ℝ) / (params (n, advice n) i).predictionInverseTolerance =
-      4 * (1 / (4 * (params (n, advice n) i).predictionInverseTolerance)) := by ring
+    1 / (2 * ((params (n, advice n) i).predictionInverseTolerance : ℝ)) at hsmall
+  simp only [Nat.cast_mul, Nat.cast_ofNat, one_div, mul_inv_rev] at hhard hprediction hsmall
+  have hinv_pos : (0 : ℝ) < ((params (n, advice n) i).predictionInverseTolerance : ℝ)⁻¹ :=
+    inv_pos.mpr (Nat.cast_pos.mpr (params (n, advice n) i).predictionInverseTolerance_pos)
   linarith
-
-/-- All tests in a uniformly efficient polynomial-size family eventually admit dense soft masks
-with small distinguishing gap whenever their density is valid. The common eventual threshold
-allows arbitrary choices of index in the proof without supplying that choice to the program. -/
-theorem HasGap.eventually_exists_indexed_mask {pair : SamplablePair} {gap : ℕ → ℝ}
-    (hpair : pair.HasGap gap) (test : ℕ → ℕ → List (List Bool × Bool) → ProbComp Bool)
-    (htest : IsPPTOn (encPair (encPair encUnary encUnary) encLabeledSamples) encBool
-        (fun ((n, i), samples) => test n i samples))
-    {candidates count densityBound inverseGap : ℕ → ℕ} {numerator : ℕ → ℕ → ℕ}
-    (hcandidates : ComputableInPolyTime candidates encUnary encUnary)
-    (hcount : ComputableInPolyTime count encUnary encUnary)
-    (hnumerator : ComputableInPolyTime (fun input => numerator input.1 input.2)
-      (encPair encUnary encUnary) encUnary)
-    (hdensity : ComputableInPolyTime densityBound encUnary encUnary)
-    (hinverseGap : ComputableInPolyTime inverseGap encUnary encUnary)
-    (hgap : ∀ n, 0 < inverseGap n) :
-    ∀ᶠ n in atTop, ∀ i < candidates n,
-      0 < numerator n i → numerator n i ≤ dyadicSize (densityBound n) →
-      (numerator n i : ℝ) / dyadicSize (densityBound n) ≤
-        PMF.conditionalEntropy (pair.joint n) + gap n →
-      ∃ mask : pair.Observation n × Bool → ProbComp Bool,
-        (numerator n i : ℝ) / dyadicSize (densityBound n) ≤
-          Pr[pair.latentSample n >>= mask] ∧
-        (∀ value, 0 < Pr[mask value] →
-          1 / (dyadicSize (2 * inverseGap n * dyadicSize (densityBound n)) : ℝ) ≤
-            Pr[mask value]) ∧
-        (Game.advantage
-          (ProbComp.eval (OracleComp.replicate (count n) (pair.sample n) >>= test n i))
-          (ProbComp.eval (OracleComp.replicate (count n) (maskedSample (pair.latentSample n)
-            (fun value => pair.encode n value.1) Prod.snd mask) >>= test n i)) : ℝ) <
-              (dyadicSize (count n) : ℝ) / inverseGap n := by
-  have hp1 := ComputableInPolyTime.fst (encPair (encPair encUnary encBits) encUnary)
-    (encList (encPair encBits encBool))
-  have htest' := htest.preprocess ((hp1.fst'.fst'.prod hp1.snd').prod (.snd _ _))
-  exact (hasGap_iff_hasGapWithAdvice_nil.mp hpair).eventually_exists_indexed_mask
-    (fun a => test a.1) htest'
-    hcandidates hcount hnumerator hdensity hinverseGap hgap
 
 /-- Every advised sequence test eventually admits a dense soft mask with small distinguishing gap.
 The mask may depend on the test, advice and parameter; its positive probabilities are uniformly
@@ -312,38 +261,5 @@ theorem HasGapWithAdvice.eventually_exists_mask {pair : SamplablePair} {gap : �
     (.const 1) hcount hnum' hdensity hinverseGap hgap
   filter_upwards [h] with n hn
   exact hn 0 (by decide)
-
-/-- Every uniform sequence test eventually admits a dense soft mask with small distinguishing
-gap. The mask may depend on the test and parameter; its positive probabilities are uniformly
-bounded below by the configured dyadic rate. The statement exposes no boosting state. -/
-theorem HasGap.eventually_exists_mask {pair : SamplablePair} {gap : ℕ → ℝ}
-    (hpair : pair.HasGap gap) (test : ℕ → List (List Bool × Bool) → ProbComp Bool)
-    (htest : IsPPTOn (encPair encUnary encLabeledSamples) encBool
-        (fun input => test input.1 input.2))
-    {count numerator densityBound inverseGap : ℕ → ℕ}
-    (hcount : ComputableInPolyTime count encUnary encUnary)
-    (hnumerator : ComputableInPolyTime numerator encUnary encUnary)
-    (hdensity : ComputableInPolyTime densityBound encUnary encUnary)
-    (hinverseGap : ComputableInPolyTime inverseGap encUnary encUnary)
-    (hgap : ∀ n, 0 < inverseGap n) :
-    ∀ᶠ n in atTop, 0 < numerator n → numerator n ≤ dyadicSize (densityBound n) →
-      (numerator n : ℝ) / dyadicSize (densityBound n) ≤
-        PMF.conditionalEntropy (pair.joint n) + gap n →
-      ∃ mask : pair.Observation n × Bool → ProbComp Bool,
-        (numerator n : ℝ) / dyadicSize (densityBound n) ≤
-          Pr[pair.latentSample n >>= mask] ∧
-        (∀ value, 0 < Pr[mask value] →
-          1 / (dyadicSize (2 * inverseGap n * dyadicSize (densityBound n)) : ℝ) ≤
-            Pr[mask value]) ∧
-        (Game.advantage (ProbComp.eval (OracleComp.replicate (count n) (pair.sample n) >>= test n))
-          (ProbComp.eval (OracleComp.replicate (count n) (maskedSample (pair.latentSample n)
-            (fun value => pair.encode n value.1) Prod.snd mask) >>= test n)) : ℝ) <
-              (dyadicSize (count n) : ℝ) / inverseGap n := by
-  have hp1 := ComputableInPolyTime.fst (encPair encUnary encBits)
-    (encList (encPair encBits encBool))
-  have htest' := htest.preprocess (hp1.fst'.prod (.snd _ _))
-  exact (hasGap_iff_hasGapWithAdvice_nil.mp hpair).eventually_exists_mask
-    (fun a => test a.1) htest'
-    hcount hnumerator hdensity hinverseGap hgap
 
 end Cslib.Crypto.Pseudoentropy.SamplablePair

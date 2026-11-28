@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.QBF.Assignment
+
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.Game
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Reduction
@@ -17,6 +19,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # Games of polynomially many moves reduce to `TQBF`
 
@@ -26,10 +30,10 @@ quantifiers `∃ x, ∀ y` over the moves (`Cslib.Logic.PL.QBF.rounds`,
 `Cslib.Logic.PL.QBF.eval_rounds_eq_true_iff`), followed by the Cook–Levin tableau of the machine
 on the instance and the moves, its certificate bits linked to the variables of the moves and all
 its other variables quantified existentially. The variables of the moves are the blocks of level
-`0` of the reduction of `Cslib.Computability.Complexity.Classes.Space.TQBF.Reduction`, and the
-tableau is its formula of level `0` (`Cslib.Complexity.TQBF.baseFormula`), so the formula of a game
-(`Cslib.Complexity.TQBF.gameFormula`) holds exactly when the existential player wins the game in
-which the tableau has a satisfying assignment with the moves as certificate
+`0` of the reduction of `CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Reduction`, and
+the tableau is its formula of level `0` (`Cslib.Complexity.TQBF.baseFormula`), so the formula of a
+game (`Cslib.Complexity.TQBF.gameFormula`) holds exactly when the existential player wins the game
+in which the tableau has a satisfying assignment with the moves as certificate
 (`Cslib.Complexity.TQBF.eval_gameFormula`).
 
 For a polynomial-time game verifier, the formula of the game on an instance
@@ -105,44 +109,9 @@ theorem rounds_append (ps qs : List (V × V)) (φ : QBF V) :
 
 /-- Rounds of quantifiers quantify two variables each. -/
 theorem length_roundVars (ps : List (V × V)) : (roundVars ps).length = 2 * ps.length := by
-  induction ps with
-  | nil => rfl
-  | cons p ps ih =>
-    simp only [roundVars, List.flatMap_cons, List.length_append, List.length_cons,
-      List.length_nil] at ih ⊢
-    omega
+  simp [roundVars, List.length_flatMap, List.map_const', Nat.mul_comm]
 
 variable [DecidableEq V]
-
-/-- An assignment updated at a list of variables, in order, by a list of values. -/
-def updates (σ : V → Bool) : List V → List Bool → V → Bool
-  | v :: vs, b :: bs => updates (Function.update σ v b) vs bs
-  | _, _ => σ
-
-/-- Updating other variables does not change the value of a variable. -/
-theorem updates_of_notMem {σ : V → Bool} {vs : List V} {x : V} (hx : x ∉ vs) (bs : List Bool) :
-    updates σ vs bs x = σ x := by
-  induction vs generalizing σ bs with
-  | nil => cases bs <;> rfl
-  | cons v vs ih =>
-    cases bs with
-    | nil => rfl
-    | cons b bs =>
-      simp only [List.mem_cons, not_or] at hx
-      rw [updates, ih hx.2, Function.update_of_ne hx.1]
-
-/-- Updating distinct variables by as many values sets them to these values. -/
-theorem map_updates {σ : V → Bool} {vs : List V} (hvs : vs.Nodup) {bs : List Bool}
-    (hlen : bs.length = vs.length) : vs.map (updates σ vs bs) = bs := by
-  induction vs generalizing σ bs with
-  | nil => exact (List.length_eq_zero_iff.mp hlen).symm
-  | cons v vs ih =>
-    cases bs with
-    | nil => simp at hlen
-    | cons b bs =>
-      rw [List.nodup_cons] at hvs
-      rw [List.map_cons, updates, updates_of_notMem hvs.1, Function.update_self,
-        ih hvs.2 (by simpa using hlen)]
 
 /-- **Rounds of quantifiers are a game** of alternate single-bit moves, the existential first: the
 formula holds exactly when the existential player wins the game in which the moves set the
@@ -154,8 +123,7 @@ theorem eval_rounds_eq_true_iff (ps : List (V × V)) (φ : QBF V) (σ : V → Bo
   | nil => simp [rounds, roundVars, updates]
   | cons p ps ih =>
     rw [List.length_cons, Complexity.alternation_replicate_succ]
-    simp only [rounds, List.foldr_cons, eval_ex_eq_true_iff, eval_all_eq_true_iff]
-    simp only [rounds] at ih
+    simp only [rounds, List.foldr_cons, eval_ex_eq_true_iff, eval_all_eq_true_iff] at ih ⊢
     simp only [ih]
     rfl
 
@@ -175,14 +143,18 @@ theorem eval_rounds_congr {φ ψ : QBF V} (h : ∀ σ, φ.eval σ = ψ.eval σ) 
     (σ : V → Bool) : (rounds ps φ).eval σ = (rounds ps ψ).eval σ := by
   induction ps generalizing σ with
   | nil => exact h σ
-  | cons p ps ih => simp only [rounds, List.foldr_cons] at ih ⊢; simp only [eval_ex, eval_all, ih]
+  | cons p ps ih =>
+    simp only [rounds, List.foldr_cons] at ih ⊢
+    simp only [eval_ex, eval_all, ih]
 
 /-- Existential quantifiers over formulas with the same values have the same values. -/
 theorem eval_exs_congr {φ ψ : QBF V} (h : ∀ σ, φ.eval σ = ψ.eval σ) (vs : List V)
     (σ : V → Bool) : (exs vs φ).eval σ = (exs vs ψ).eval σ := by
   induction vs generalizing σ with
   | nil => exact h σ
-  | cons v vs ih => simp only [exs, List.foldr_cons] at ih ⊢; simp only [eval_ex, ih]
+  | cons v vs ih =>
+    simp only [exs, List.foldr_cons] at ih ⊢
+    simp only [eval_ex, ih]
 
 /-- **Vacuous universal quantifiers**: the rounds `∃ v, ∀ d` for the variables `v` of a list, over
 a variable `d` that is not free in the body, are existential quantifiers over the list. -/
@@ -200,14 +172,10 @@ theorem eval_rounds_map_pair {φ : QBF V} {d : V} (hd : d ∉ φ.freeVars) (vs :
 variables of its clauses are quantified. -/
 theorem closed_rounds_ofCNF_iff (ps : List (V × V)) (ψ : CNF V) :
     (rounds ps (ofCNF ψ)).Closed ↔ ∀ c ∈ ψ, ∀ l ∈ c, l.1 ∈ roundVars ps := by
-  rw [Closed, Finset.eq_empty_iff_forall_notMem]
-  simp only [mem_freeVars_rounds, mem_freeVars_ofCNF, CNF.vars, List.mem_map,
-    List.mem_flatten, not_and, not_not]
-  constructor
-  · intro h c hc l hl
-    exact h _ ⟨l, ⟨c, hc, hl⟩, rfl⟩
-  · rintro h _ ⟨l, ⟨c, hc, hl⟩, rfl⟩
-    exact h c hc l hl
+  simp only [Closed, Finset.eq_empty_iff_forall_notMem, mem_freeVars_rounds, mem_freeVars_ofCNF,
+    CNF.vars, List.mem_map, List.mem_flatten, not_and, not_not]
+  exact ⟨fun h c hc l hl => h l.1 ⟨l, ⟨c, hc, hl⟩, rfl⟩,
+    fun h _ ⟨l, ⟨c, hc, hl⟩, he⟩ => he ▸ h c hc l hl⟩
 
 end Cslib.Logic.PL.QBF
 
@@ -241,11 +209,8 @@ theorem roundVars_gamePairs (w : ℕ) :
     QBF.roundVars (gamePairs w) = blockVars w 0 0 ++ blockVars w 1 0 := by
   rw [QBF.roundVars, gamePairs, flatMap_range_pairs, two_mul, List.range_add, List.map_append,
     List.map_map]
-  congr 1
-  · refine List.map_congr_left fun j hj => ?_
-    simp [certVar, List.mem_range.mp hj]
-  · refine List.map_congr_left fun j _ => ?_
-    simp [certVar]
+  exact congrArg₂ _ (List.map_congr_left fun j hj => by simp [certVar, List.mem_range.mp hj])
+    (List.map_congr_left fun j _ => by simp [certVar])
 
 /-- **The formula of a game** on a tableau: rounds of quantifiers over the blocks of level `0`,
 then the tableau as the formula of level `0`. -/
@@ -267,14 +232,12 @@ theorem eval_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ
   rw [gameFormula, QBF.eval_rounds_eq_true_iff, length_gamePairs]
   refine alternation_congr_of_length fun z hz => ?_
   rw [sum_replicate_one] at hz
-  rw [eval_baseFormula]
   have hblocks : block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 0 0 ++
       block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 1 0 = z := by
     rw [block, block, ← List.map_append, ← roundVars_gamePairs]
     exact QBF.map_updates (roundVars_gamePairs w ▸ nodup_blockVars_append w 0)
-      (by rw [hz, roundVars_gamePairs, List.length_append, blockVars, blockVars, List.length_map,
-        List.length_map, List.length_range, two_mul])
-  rw [hblocks]
+      (by simp [hz, roundVars_gamePairs, blockVars, two_mul])
+  rw [eval_baseFormula, hblocks]
 
 /-- The formula of a game is closed. -/
 theorem closed_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
@@ -320,8 +283,7 @@ theorem gameReduce_mem_TQBF_iff {V : α × List Bool → Bool} {kV : ℕ} {State
   have hrun := (htm (a, z)).runFrom_initCfg
   have hlen : (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * w + 1 := by
     rw [length_encPair, encBits_apply, hz]
-    dsimp only
-    omega
+    dsimp only; omega
   dsimp only at hrun
   rw [hlen, encPair_apply, encBits_apply] at hrun
   have htab := CookLevin.exists_eval_tableau_iff (tm := tmV) (u := frame (enc a))
@@ -329,8 +291,7 @@ theorem gameReduce_mem_TQBF_iff {V : α × List Bool → Bool} {kV : ℕ} {State
   rw [hz] at htab
   rw [htab, show 2 * (enc a).length + 2 * w + 2 = 2 * (enc a).length + 2 * w + 1 + 1 by ring,
     hrun.2]
-  simp only [encBool_apply, List.cons.injEq, and_true]
-  exact ⟨fun h => h.2, fun h => ⟨hrun.1, h⟩⟩
+  simpa only [encBool_apply, List.cons.injEq, and_true] using ⟨And.right, And.intro hrun.1⟩
 
 /-- The tokens of a round of the game. -/
 def roundTokens (w i : ℕ) : List (QBF.Kind × ℕ) :=
@@ -397,22 +358,21 @@ variable {α : Type} {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α × Li
 
 /-- **Games with a polynomial-time winning condition reduce to `TQBF`.** -/
 private theorem IsGameVerifier.polyTimeReducible
-    (hV : ComputableTidilyInPolyTime V (encPair enc encBits) encBool)
+    (hV : ComputableInPolyTime V (encPair enc encBits) encBool)
     (h : IsGameVerifier enc p V A) : PolyTimeReducible enc encQBF A TQBF := by
-  obtain ⟨tV, sV, htV, -, kV, StateV, hfiniteV, tmV, htmV⟩ := hV
-  obtain ⟨cV, dV, htV⟩ := htV.exists_le
+  obtain ⟨cV, dV, kV, StateV, hfiniteV, tmV, htmV⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hV
   have := Fintype.ofFinite StateV
   classical
   exact ⟨TQBF.gameReduce enc p tmV cV dV,
     (TQBF.computableInPolyTime_gameReduce tmV cV dV),
-    fun a => (h a).trans (TQBF.gameReduce_mem_TQBF_iff (htmV.mono htV fun _ => le_rfl) a).symm⟩
+    fun a => (h a).trans (TQBF.gameReduce_mem_TQBF_iff htmV a).symm⟩
 
 /-- **Games of polynomially many moves are decided in polynomial space**: a problem with a
 polynomial-time game verifier is in `PSPACE`. -/
 theorem IsGameVerifier.mem_PSPACE
     (hV : Turing.MultiTapeTM.ComputableInPolyTime V (encPair enc encBits) encBool)
     (h : IsGameVerifier enc p V A) : A ∈ PSPACE enc := by
-  have hV := hV.tidy
   exact (h.polyTimeReducible hV).mem_PSPACE TQBF_mem_PSPACE
 
 /-- **`AP ⊆ PSPACE`** [Chandra, Kozen and Stockmeyer][ChandraKozenStockmeyer1981]

@@ -87,27 +87,16 @@ include R
 /-- The witnesses of `x` beginning with `b` are counted by `child x b`. -/
 theorem card_filter_head {x : α} (hx : 0 < R.len x) (b : Bool) :
     ((W x).filter (fun w => w.head? = some b)).card = (W (R.child x b)).card := by
-  refine Finset.card_bij' (fun w _ => w.tail) (fun w _ => b :: w) ?_ ?_ ?_ ?_
-  · intro w hw
-    rw [Finset.mem_filter] at hw
-    obtain ⟨hw, hhead⟩ := hw
-    cases w with
-    | nil => simp at hhead
-    | cons c w =>
-      simp only [List.head?_cons, Option.some.injEq] at hhead
-      subst hhead
-      exact (R.cons_mem_iff x hx c w).1 hw
-  · intro w hw
-    exact Finset.mem_filter.2 ⟨(R.cons_mem_iff x hx b w).2 hw, rfl⟩
-  · intro w hw
-    rw [Finset.mem_filter] at hw
-    cases w with
-    | nil => simp at hw
-    | cons c w =>
-      simp only [List.head?_cons, Option.some.injEq] at hw
-      simp [hw.2]
-  · intro w _
-    rfl
+  refine Finset.card_bij' (fun w _ => w.tail) (fun w _ => b :: w) ?_
+    (fun w hw => Finset.mem_filter.2 ⟨(R.cons_mem_iff x hx b w).2 hw, rfl⟩) ?_ fun _ _ => rfl
+  · rintro (_ | ⟨c, w⟩) hw
+    · simp at hw
+    · obtain ⟨hw', hhead⟩ := Finset.mem_filter.1 hw
+      obtain rfl := Option.some.inj hhead
+      exact (R.cons_mem_iff x hx c w).1 hw'
+  · rintro (_ | ⟨c, w⟩) hw
+    · simp at hw
+    · simpa [eq_comm] using (Finset.mem_filter.1 hw).2
 
 /-- **Self-reducibility splits the count**: for `len x > 0`,
 `|W x| = |W (child x false)| + |W (child x true)|`. -/
@@ -137,6 +126,20 @@ theorem card_child_eq_zero {x : α} (hx : 0 < R.len x) (h : (W x).card = 0) (b :
     (W (R.child x b)).card = 0 := by
   have := R.card_eq_add hx
   cases b <;> omega
+
+/-- A self-reducible witness set of witness length `ℓ` has at most `2 ^ ℓ` witnesses. -/
+theorem card_le_two_pow_len (x : α) :
+    (W x).card ≤ 2 ^ R.len x := by
+  generalize hℓ : R.len x = ℓ
+  induction ℓ generalizing x with
+  | zero =>
+    simpa using Finset.card_le_card (R.subset_singleton_nil hℓ)
+  | succ k ih =>
+    have hpos : 0 < R.len x := by omega
+    rw [R.card_eq_add hpos, pow_succ']
+    have h0 := ih (R.child x false) (by have := R.len_child x hpos false; omega)
+    have h1 := ih (R.child x true) (by have := R.len_child x hpos true; omega)
+    omega
 
 end SelfReducible
 

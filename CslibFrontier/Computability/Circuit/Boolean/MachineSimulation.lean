@@ -23,9 +23,11 @@ derives the symbols read and the situation of the step, and from the terms of th
 of gates. Running for `T` steps takes `O(T · (n + T))` gates
 [Sipser, Theorem 9.30][Sipser2013].
 
-The language of the inputs on which the machine has written `[true]` after `T n` steps is
-therefore in `P/poly` whenever `T` is polynomially bounded (`acceptedWithin_mem_PPoly`); this is
-the core of `P ⊆ P/poly` [Arora and Barak, Theorem 6.6][AroraBarak09].
+The slice at length `n` of the language of the inputs on which the machine has written `[true]`
+after `T n` steps therefore has `O((n + T n) ^ 2)` gates
+(`complexity_slice_acceptedWithin_le`), and the language is in `P/poly` whenever `T` is
+polynomially bounded (`acceptedWithin_mem_PPoly`); this is the core of `P ⊆ P/poly`
+[Arora and Barak, Theorem 6.6][AroraBarak09].
 
 ## Main definitions
 
@@ -52,6 +54,8 @@ the core of `P ⊆ P/poly` [Arora and Barak, Theorem 6.6][AroraBarak09].
   time `t` to those at time `t + 1`.
 * `Cslib.Circuits.Boolean.MachineSimulation.synthesis_basic`: the basic features at every time
   `t ≤ T`, from the inputs.
+* `Cslib.Circuits.Boolean.MachineSimulation.complexity_slice_acceptedWithin_le`: running `T` steps
+  takes `O((n + T) ^ 2)` gates.
 * `Cslib.Circuits.Boolean.MachineSimulation.acceptedWithin_mem_PPoly`.
 
 ## References
@@ -192,21 +196,19 @@ private theorem synthesis_inputIs (j : ℕ) (b : Option Bool) :
   · refine Synthesis.of_forall_eq_const (decide (none = b)) fun x => ?_
     rcases hj with rfl | hj
     · rfl
-    · simp only [inputIs, inputAt, show j ≠ 0 by omega, ite_false]
-      rw [List.getElem?_eq_none (by rw [List.length_ofFn]; omega)]
+    · simp [inputIs, inputAt, Nat.ne_of_gt (Nat.zero_lt_of_lt hj),
+        Nat.not_lt.2 (Nat.le_sub_one_of_lt hj)]
   · push Not at hj
     have hidx : j - 1 < n := by omega
-    have hinput : ∀ x : Fin n → Bool, inputIs j b x = decide (some (x ⟨j - 1, hidx⟩) = b) := by
-      intro x
-      simp only [inputIs, inputAt, show j ≠ 0 by omega, ite_false, List.getElem?_ofFn]
-      rw [dite_eq_left hidx]
+    have hinput (x : Fin n → Bool) : inputIs j b x = decide (some (x ⟨j - 1, hidx⟩) = b) := by
+      simp [inputIs, inputAt, show j ≠ 0 by omega, hidx]
     have hx : Synthesis interpretation (inputs n) {fun x : Fin n → Bool => x ⟨j - 1, hidx⟩} 0 :=
       Synthesis.of_mem ⟨⟨j - 1, hidx⟩, rfl⟩
     rcases b with _ | (_ | _)
-    · exact Synthesis.of_forall_eq_const false fun x => by rw [hinput]; simp
-    · exact Synthesis.congr_iff hx.not fun x => by rw [hinput]; simp
+    · exact Synthesis.of_forall_eq_const false fun x => by simp [hinput]
+    · exact Synthesis.congr_iff hx.not fun x => by simp [hinput]
     · exact Synthesis.congr_iff (hx.mono Set.Subset.rfl Set.Subset.rfl (Nat.zero_le 1))
-        fun x => by rw [hinput]; simp
+        fun x => by simp [hinput]
 
 /-- The symbol read by a work head, from the heads and cells in the window. -/
 private theorem synthesis_read (ht : t ≤ T) (i : Fin k) (s : Option Bool) :
@@ -250,11 +252,8 @@ private theorem synthesis_reads (ht : t ≤ T) :
   have hi := Synthesis.biUnion (I := interpretation) (s := inputs n ∪ basicAt tm T t)
     (Finset.univ : Finset (Option Bool)) (fun s => {featureFn tm t (.inRead s)})
     (fun _ => (n + 2) * 3 + 1) fun s _ => synthesis_inRead tm s
-  refine (hw.union hi).mono Set.Subset.rfl ?_ (le_of_eq ?_)
-  · rintro f ⟨φ, ⟨i, s, rfl⟩ | ⟨s, rfl⟩, rfl⟩
-    · exact Or.inl (Set.mem_biUnion (x := (i, s)) (Finset.mem_univ _) rfl)
-    · exact Or.inr (Set.mem_biUnion (x := s) (Finset.mem_univ _) rfl)
-  · simp [readsCost, Fintype.card_option]
+  refine (hw.union hi).mono Set.Subset.rfl ?_ (by simp [readsCost, Fintype.card_option])
+  rintro f ⟨φ, ⟨i, s, rfl⟩ | ⟨s, rfl⟩, rfl⟩ <;> simp
 
 /-- The indicator of a situation, from the state and the symbols read. -/
 private theorem synthesis_sit (y : Situation k State) :
@@ -277,12 +276,11 @@ private theorem synthesis_sit (y : Situation k State) :
 /-- Phase 2: every situation indicator. -/
 private theorem synthesis_sits :
     Synthesis interpretation (inputs n ∪ basicAt tm T t ∪ readsAt tm t) (sitsAt tm t)
-      (Fintype.card (Situation k State) * (k + 3)) := by
-  refine (Synthesis.biUnion (I := interpretation) (Finset.univ : Finset (Situation k State))
+      (Fintype.card (Situation k State) * (k + 3)) :=
+  (Synthesis.biUnion (I := interpretation) (Finset.univ : Finset (Situation k State))
     (fun y => {featureFn tm t (.sit y)}) (fun _ => k + 3) fun y _ =>
-      synthesis_sit tm y).mono Set.Subset.rfl ?_ (by simp)
-  rintro f ⟨y, rfl⟩
-  exact Set.mem_biUnion (x := y) (Finset.mem_univ _) rfl
+      synthesis_sit tm y).mono Set.Subset.rfl
+    (Set.range_subset_iff.2 fun y => Set.mem_biUnion (x := y) (Finset.mem_univ _) rfl) (by simp)
 
 /-! #### Phase 3: the next configuration -/
 
@@ -299,38 +297,27 @@ private theorem synthesis_next (ht : t ≤ T) {φ : Feature k State} (hφ : φ �
   have hφ' := List.mem_toFinset.1 hφ
   let D : List (List (BooleanFunction n × Bool)) :=
     (stepTerms tm n T φ).map fun c => c.map fun l => (featureFn tm t l.1, l.2)
-  have hw : ∀ c ∈ D, c.length ≤ 3 := by
-    intro c hc
+  have hw : ∀ c ∈ D, c.length ≤ 3 := fun c hc => by
     obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc
     simpa using length_le_three_of_mem_stepTerms tm hc'
-  have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ stepSources tm T t := by
-    intro c hc l hl
+  have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ stepSources tm T t := fun c hc l hl => by
     obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc
     obtain ⟨l', hl', rfl⟩ := List.mem_map.1 hl
-    rcases mem_basic_of_mem_stepTerms tm hφ' hc' hl' with hb | ⟨y, hy⟩
-    · exact featureFn_mem_stepSources tm (List.mem_toFinset.2 hb)
-    · rw [hy]
-      exact sit_mem_stepSources tm y
+    exact (mem_basic_of_mem_stepTerms tm hφ' hc' hl').elim
+      (fun hb => featureFn_mem_stepSources tm (List.mem_toFinset.2 hb))
+      fun ⟨y, hy⟩ => hy ▸ sit_mem_stepSources tm y
   refine (Synthesis.congr_iff (Synthesis.any_all_literal hw hD) fun x => ?_).mono
     Set.Subset.rfl Set.Subset.rfl ?_
   · rw [featureFn_eq_true, cfgAt_succ, holds_step_iff_exists_stepTerms tm List.length_ofFn
       (fun i => (abs_workTapePos_cfgAt_le tm t x i).trans (by exact_mod_cast ht)) hφ']
     have hlit (l : Feature k State × Bool) :
         featureFn tm t l.1 x = l.2 ↔ (l.1.Holds (cfgAt tm t x) ↔ l.2 = true) := by
-      rw [featureFn]
-      cases l.2 <;> simp
-    simp only [D, List.any_eq_true, List.all_eq_true, decide_eq_true_eq]
-    constructor
-    · rintro ⟨_, hc, h⟩
-      obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc
-      exact ⟨c', hc', fun l hl => (hlit l).1 (h _ (List.mem_map_of_mem hl))⟩
-    · rintro ⟨c, hc, h⟩
-      refine ⟨_, List.mem_map_of_mem hc, fun l' hl' => ?_⟩
-      obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hl'
-      exact (hlit l).2 (h l hl)
-  · have := length_stepTerms_le tm (n := n) (T := T) φ
-    simp only [D, List.length_map, featureCost]
-    exact Nat.add_le_add_right (Nat.mul_le_mul_right _ this) _
+      cases l.2 <;> simp [featureFn]
+    simp only [D, List.any_eq_true, List.all_eq_true, decide_eq_true_eq, List.mem_map,
+      exists_exists_and_eq_and, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, hlit]
+    rfl
+  · simpa only [D, List.length_map, featureCost] using Nat.add_le_add_right
+      (Nat.mul_le_mul_right _ (length_stepTerms_le tm (n := n) (T := T) φ)) _
 
 /-- Phase 3: all basic features of the next configuration. -/
 private theorem synthesis_nexts (ht : t ≤ T) :
@@ -338,11 +325,10 @@ private theorem synthesis_nexts (ht : t ≤ T) :
       (featureCount n T k State * featureCost k State) := by
   refine (Synthesis.biUnion (I := interpretation) (basicFeatures n T)
     (fun φ => {featureFn (n := n) tm (t + 1) φ}) (fun _ => featureCost k State)
-    fun φ hφ => synthesis_next tm ht hφ).mono Set.Subset.rfl ?_ ?_
-  · rintro f ⟨φ, hφ, rfl⟩
-    exact Set.mem_biUnion hφ rfl
-  · rw [Finset.sum_const, Nat.nsmul_eq_mul]
-    exact Nat.mul_le_mul_right _ (card_basicFeatures_le n T)
+    fun φ hφ => synthesis_next tm ht hφ).mono Set.Subset.rfl
+    (Set.image_subset_iff.2 fun _ hφ => Set.mem_biUnion hφ rfl) ?_
+  simpa only [Finset.sum_const, Nat.nsmul_eq_mul] using
+    Nat.mul_le_mul_right _ (card_basicFeatures_le n T)
 
 /-- The cost of one step of the simulation. -/
 def stepCost (n T k : ℕ) (State : Type) [Fintype State] : ℕ :=
@@ -368,23 +354,17 @@ private theorem synthesis_basic_zero :
     Synthesis interpretation (inputs n) (basicAt tm T 0) (featureCount n T k State) := by
   have h0 : ∀ x : Fin n → Bool, cfgAt tm 0 x = tm.initCfg (List.ofFn x) := fun _ => rfl
   refine (Synthesis.biUnion (I := interpretation) (basicFeatures n T)
-    (fun φ => {featureFn (n := n) tm 0 φ}) (fun _ => 1) fun φ hφ => ?_).mono Set.Subset.rfl ?_ ?_
-  · rcases mem_basic.1 (List.mem_toFinset.1 hφ) with ⟨q, rfl⟩ | ⟨j, -, rfl⟩ | ⟨i, z, -, rfl⟩ |
+    (fun φ => {featureFn (n := n) tm 0 φ}) (fun _ => 1) fun φ hφ => ?_).mono Set.Subset.rfl
+    (Set.image_subset_iff.2 fun _ hφ => Set.mem_biUnion hφ rfl)
+    (by simpa using card_basicFeatures_le n T)
+  rcases mem_basic.1 (List.mem_toFinset.1 hφ) with ⟨q, rfl⟩ | ⟨j, -, rfl⟩ | ⟨i, z, -, rfl⟩ |
       ⟨i, z, b, -, rfl⟩ | ⟨o, rfl⟩
-    · exact Synthesis.of_forall_eq_const (decide (some tm.q₀ = q)) fun x => by
-        simp [featureFn, h0, eq_comm]
-    · exact Synthesis.of_forall_eq_const (decide (1 = j)) fun x => by
-        simp [featureFn, h0, eq_comm]
-    · exact Synthesis.of_forall_eq_const (decide (0 = z)) fun x => by
-        simp [featureFn, h0, eq_comm]
-    · exact Synthesis.of_forall_eq_const (decide (none = b)) fun x => by
-        simp [featureFn, h0, eq_comm]
-    · exact Synthesis.of_forall_eq_const (decide (OutView.empty = o)) fun x => by
-        simp [featureFn, h0, eq_comm, OutView.ofList]
-  · rintro f ⟨φ, hφ, rfl⟩
-    exact Set.mem_biUnion hφ rfl
-  · rw [Finset.sum_const, Nat.nsmul_eq_mul, mul_one]
-    exact card_basicFeatures_le n T
+  · exact .of_forall_eq_const (decide (some tm.q₀ = q)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (1 = j)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (0 = z)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (none = b)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (OutView.empty = o)) fun _ => by
+      simp [featureFn, h0, eq_comm, OutView.ofList]
 
 /-- **The simulation**: the basic features at every time `t ≤ T`, from the inputs. -/
 theorem synthesis_basic : ∀ t ≤ T,
@@ -395,16 +375,33 @@ theorem synthesis_basic : ∀ t ≤ T,
     have := (synthesis_basic t (by omega)).trans (synthesis_step tm (by omega))
     rwa [Nat.add_mul, one_mul, ← Nat.add_assoc]
 
-/-- The total cost of simulating `T` steps on inputs of length `n`. -/
-private def simulationCost (n T k : ℕ) (State : Type) [Fintype State] : ℕ :=
-  featureCount n T k State + T * stepCost n T k State
-
 omit [DecidableEq State] in
-/-- The simulation cost is polynomially bounded when the number of steps is. -/
-private theorem polynomiallyBounded_simulationCost {T : ℕ → ℕ} (hT : PolynomiallyBounded T) :
-    PolynomiallyBounded fun n => simulationCost n (T n) k State := by
-  simp only [simulationCost, featureCount, stepCost, readsCost, featureCost]
-  fun_prop
+/-- **The simulation has `O((n + T) ^ 2)` gates**: the basic features and one step each cost
+`O(n + T)` gates. -/
+private theorem featureCount_add_mul_stepCost_le (n T : ℕ) :
+    featureCount n T k State + T * stepCost n T k State ≤
+      ((Fintype.card State + 8 + 12 * k) * (featureCost k State + 1) + 21 * k + 30 +
+        Fintype.card (Situation k State) * (k + 3)) * (n + T + 1) ^ 2 := by
+  set u := n + T + 1 with hu_def
+  set A := Fintype.card State + 8 + 12 * k
+  have hu : 1 ≤ u := by omega
+  have hF : featureCount n T k State ≤ A * u := by
+    simp only [featureCount, A]
+    nlinarith [Nat.le_mul_of_pos_right (Fintype.card State) hu,
+      Nat.mul_le_mul_left k (by omega : T ≤ u), Nat.le_mul_of_pos_right k hu]
+  have hR : readsCost n k T ≤ (21 * k + 30) * u := by
+    simp only [readsCost]
+    nlinarith [Nat.mul_le_mul_left k (by omega : T ≤ u), Nat.le_mul_of_pos_right k hu]
+  have hS : stepCost n T k State ≤ (A * featureCost k State + 21 * k + 30 +
+      Fintype.card (Situation k State) * (k + 3)) * u := by
+    simp only [stepCost]
+    linarith [Nat.mul_le_mul_right (featureCost k State) hF,
+      Nat.le_mul_of_pos_right (Fintype.card (Situation k State) * (k + 3)) hu]
+  calc featureCount n T k State + T * stepCost n T k State
+      ≤ A * u + u * ((A * featureCost k State + 21 * k + 30 +
+          Fintype.card (Situation k State) * (k + 3)) * u) :=
+        Nat.add_le_add hF (Nat.mul_le_mul (by omega) hS)
+    _ ≤ _ := by nlinarith
 
 end Run
 
@@ -417,20 +414,32 @@ steps is `[true]`. -/
 theorem mem_acceptedWithin_iff (T : ℕ → ℕ) (w : List Bool) :
     w ∈ acceptedWithin tm T ↔
       OutView.ofList (tm.runFrom (tm.initCfg w) (T w.length)).output = .one true := by
-  rw [acceptedWithin, Language.mem_ofSlices, featureFn_eq_true, Feature.holds_out, cfgAt,
-    congrArg (fun u => OutView.ofList (tm.runFrom (tm.initCfg u) (T w.length)).output)
-      (List.ext_getElem (by simp) fun i _ _ => by simp : List.ofFn (w[·]) = w)]
+  have hw : List.ofFn (w[·]) = w := List.ext_getElem (by simp) fun _ _ _ => by simp
+  rw [acceptedWithin, Language.mem_ofSlices, featureFn_eq_true, Feature.holds_out, cfgAt, hw]
+
+/-- **Running `T` steps takes `O((n + T) ^ 2)` gates.** For a machine with finitely many states,
+there is a constant `C` such that, for every step count `T n`, the slice at length `n` of the
+inputs on which the output after `T n` steps is `[true]` has circuit complexity at most
+`C (n + T n + 1) ^ 2` [Sipser, Theorem 9.30][Sipser2013]. -/
+theorem complexity_slice_acceptedWithin_le [Finite State] :
+    ∃ C : ℕ, ∀ (T : ℕ → ℕ) (n : ℕ),
+      complexity interpretation (single ((acceptedWithin tm T).slice n)) ≤
+        C * (n + T n + 1) ^ 2 := by
+  have := Fintype.ofFinite State
+  refine ⟨(Fintype.card State + 8 + 12 * k) * (featureCost k State + 1) + 21 * k + 30 +
+    Fintype.card (Situation k State) * (k + 3), fun T n => ?_⟩
+  rw [acceptedWithin, Language.slice_ofSlices]
+  exact ((synthesis_basic tm (T n) le_rfl).mono Set.Subset.rfl
+    (Set.singleton_subset_iff.2 (featureFn_mem_basicAt tm (out_mem_basicFeatures _)))
+    le_rfl).complexity_le.trans (featureCount_add_mul_stepCost_le n (T n))
 
 /-- **Machines with polynomial running time have polynomial circuits.** For a machine with finitely
 many states and a polynomially bounded `T`, the inputs on which the output after exactly `T n`
 steps is `[true]`, where `n` is the length of the input, form a language in `P/poly`. -/
 theorem acceptedWithin_mem_PPoly [Finite State] {T : ℕ → ℕ} (hT : PolynomiallyBounded T) :
     acceptedWithin tm T ∈ PPoly := by
-  have := Fintype.ofFinite State
-  refine PPoly.of_synthesis (polynomiallyBounded_simulationCost (k := k) (State := State) hT)
-    fun n => ?_
-  rw [acceptedWithin, Language.slice_ofSlices]
-  exact (synthesis_basic tm (T n) le_rfl).mono Set.Subset.rfl
-    (Set.singleton_subset_iff.2 (featureFn_mem_basicAt tm (out_mem_basicFeatures _))) le_rfl
+  obtain ⟨C, hC⟩ := complexity_slice_acceptedWithin_le tm (State := State)
+  have hpoly : PolynomiallyBounded fun n => C * (n + T n + 1) ^ 2 := by fun_prop
+  exact mem_PPoly.2 (hpoly.mono_of_le (hC T))
 
 end Cslib.Circuits.Boolean.MachineSimulation

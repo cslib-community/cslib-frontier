@@ -27,44 +27,42 @@ variable {Rel V : Type*} {F : CSP Rel V}
 `CSP.occurrences`, without choosing representatives or identifying repeated constraints. -/
 @[expose] def incidenceList (F : CSP Rel V) : List (Occurrence F) :=
   (List.ofFn fun i : Fin F.length =>
-    List.ofFn fun j : Fin F[i].2.length => (⟨i, j⟩ : Occurrence F)).flatten
+    List.ofFn fun j : Fin F[i].scope.length => (⟨i, j⟩ : Occurrence F)).flatten
 
 /-- Every incidence appears in the deterministic scan. -/
 theorem mem_incidenceList (o : Occurrence F) : o ∈ incidenceList F := by
-  rcases o with ⟨i, j⟩
-  exact List.mem_flatten.mpr ⟨_, List.mem_ofFn.mpr ⟨i, rfl⟩,
-    List.mem_ofFn.mpr ⟨j, rfl⟩⟩
+  exact List.mem_flatten.mpr ⟨_, List.mem_ofFn.mpr ⟨o.1, rfl⟩, List.mem_ofFn.mpr ⟨o.2, rfl⟩⟩
 
 instance (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F Bool) :
     Decidable (ValidLabeling sem f) :=
   inferInstanceAs (Decidable (∀ i : Fin F.length,
-    sem F[i].1 (localTuple f i) = true))
+    sem F[i].rel (localTuple f i) = true))
+
+/-- The original raw records enumerate constraint positions followed by ordered scope
+positions. Duplicate rows and repeated names keep their separate indexed records. -/
+theorem occurrences_eq_flatMap_zipIdx (F : CSP Rel V) :
+    F.occurrences =
+      F.zipIdx.flatMap (fun ⟨⟨_, scope⟩, i⟩ =>
+        scope.zipIdx.map fun ⟨v, j⟩ => (i, j, v)) := by
+  simp only [CSP.occurrences, Cslib.Logic.PL.occurrences, varCNF,
+    List.zipIdx_map, List.flatMap_map, List.map_flatMap, List.map_map, Function.comp_def,
+    Prod.map, id_eq]
 
 /-- Typed and untyped enumeration retain exactly the same order and positions. -/
 theorem occurrences_eq_map_incidenceList (F : CSP Rel V) :
     F.occurrences = (incidenceList F).map Occurrence.record := by
-  have he : F.occurrences =
-      F.zipIdx.flatMap (fun c => c.1.2.zipIdx.map fun v => (c.2, v.2, v.1)) := by
-    simp only [CSP.occurrences, Cslib.Logic.PL.occurrences, varCNF,
-      List.zipIdx_map, List.flatMap_map, List.map_flatMap, List.map_map, Function.comp_def,
-      Prod.map, id_eq]
-  rw [he]
+  rw [occurrences_eq_flatMap_zipIdx]
   unfold incidenceList
   conv_lhs => rw [← List.ofFn_getElem (xs := F.zipIdx)]
-  simp only [List.length_zipIdx, List.getElem_zipIdx, Nat.zero_add]
-  simp only [List.flatMap, List.map_flatten, List.map_ofFn, Function.comp_def]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
+  simp only [List.length_zipIdx, List.getElem_zipIdx, Nat.zero_add, List.flatMap,
+    List.map_flatten, List.map_ofFn, Function.comp_def]
+  refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
   simp only [Fin.val_cast]
-  conv_lhs => rw [← List.ofFn_getElem (xs := F[i.val].2.zipIdx)]
-  simp only [List.length_zipIdx, List.getElem_zipIdx, Nat.zero_add, List.map_ofFn]
-  rfl
+  conv_lhs => rw [← List.ofFn_getElem (xs := F[i.val].scope.zipIdx)]
+  simp [List.map_ofFn, Function.comp_def, Occurrence.record, Occurrence.var]
 
 /-- Positional incidences are not duplicated by the typed scan. -/
 theorem incidenceList_nodup (F : CSP Rel V) : (incidenceList F).Nodup := by
-  apply List.Nodup.of_map (f := Occurrence.record)
-  rw [← occurrences_eq_map_incidenceList]
-  exact occurrences_nodup F
+  exact (occurrences_eq_map_incidenceList F ▸ occurrences_nodup F).of_map _
 
 end Cslib.Logic.PL.CSP

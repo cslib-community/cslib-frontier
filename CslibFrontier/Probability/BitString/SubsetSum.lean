@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.UniversalHash
-public import CslibFrontier.Probability.StatisticalDistance.Product
 public import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Probability.UniversalHash.MultiSample
 import CslibFrontier.Probability.Uniform
 import CslibFrontier.Probability.PMF.Map
 
@@ -59,12 +59,9 @@ def hash (weights : ι → G) (input : ι → Bool) : G :=
 
 private theorem hash_single [DecidableEq ι] (input : ι → Bool) (i : ι) (value : G) :
     hash (Pi.single i value) input = if input i then value else 0 := by
-  classical
-  rw [hash, Finset.sum_eq_single i]
-  · simp
-  · intro j _ hji
-    simp [Pi.single_eq_of_ne hji]
-  · simp
+  rw [hash, Finset.sum_eq_single_of_mem i (Finset.mem_univ i)
+    fun j _ hji => by simp [Pi.single_eq_of_ne hji]]
+  simp
 
 variable [Fintype G] [DecidableEq ι]
 
@@ -84,11 +81,9 @@ theorem uniform_hash_sub (x y : ι → Bool) (hxy : x ≠ y) :
   apply uniformOfFintype_map_addHom transform
   obtain ⟨i, hi⟩ : ∃ i, x i ≠ y i := Function.ne_iff.mp hxy
   intro value
-  cases hx : x i <;> cases hy : y i
-  · exact (hi (hx.trans hy.symm)).elim
+  cases hx : x i <;> cases hy : y i <;> simp_all only [ne_eq, not_true_eq_false]
   · exact ⟨Pi.single i (-value), by simp [transform, hash_single, hx, hy]⟩
   · exact ⟨Pi.single i value, by simp [transform, hash_single, hx, hy]⟩
-  · exact (hi (hx.trans hy.symm)).elim
 
 open Classical in
 /-- The collision probability is exactly the reciprocal output-group cardinality. -/
@@ -125,27 +120,11 @@ theorem dist_hashRows_le {κ : Type*} [Fintype κ] [DecidableEq κ] :
       ((PMF.uniformOfFintype (ι → G)).bind
         (fun weights => (PMF.uniformOfFintype (κ → G)).map (weights, ·))) ≤
       Fintype.card κ * Real.sqrt (Fintype.card G / (2 : ℝ) ^ Fintype.card ι) / 2 := by
-  have hrow := (isTwoUniversal (ι := ι) (G := G)).leftover_hash
-    (PMF.uniformOfFintype (ι → Bool))
-  have hrows := dist_bind_pair_pi_le_sum (PMF.uniformOfFintype (ι → G))
-    (fun weights (_ : κ) => (PMF.uniformOfFintype (ι → Bool)).map (hash weights))
-    (fun _ (_ : κ) => PMF.uniformOfFintype G)
-  have real_law (weights : ι → G) :
-      pi (fun _ : κ => (PMF.uniformOfFintype (ι → Bool)).map (hash weights)) =
-        (PMF.uniformOfFintype (κ → ι → Bool)).map (hashRows weights) := by
-    rw [pi_map, pi_uniformOfFintype]
-    rfl
-  simp only [real_law, pi_uniformOfFintype] at hrows
-  calc
-    _ ≤ ∑ _i : κ, dist (seededHash (PMF.uniformOfFintype (ι → G))
-          (PMF.uniformOfFintype (ι → Bool)) hash)
-        ((PMF.uniformOfFintype (ι → G)).bind
-          (fun weights => (PMF.uniformOfFintype G).map (weights, ·))) := by
-      simpa only [seededHash, PMF.map_comp, Function.comp_def] using hrows
-    _ ≤ ∑ _i : κ, Real.sqrt (Fintype.card G / (2 : ℝ) ^ Fintype.card ι) / 2 := by
-      apply Finset.sum_le_sum
-      intro _ _
-      simpa [collisionProbability_uniform, div_eq_mul_inv] using hrow
-    _ = _ := by simp [mul_div_assoc]
+  rw [← pi_uniformOfFintype (ι := κ) (α := fun _ => ι → Bool)]
+  refine ((isTwoUniversal (ι := ι) (G := G)).leftover_hash_pi
+    (fun _ : κ => PMF.uniformOfFintype (ι → Bool))).trans_eq ?_
+  simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, collisionProbability_uniform,
+    Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv]
+  ring
 
 end Cslib.BitString.SubsetSum

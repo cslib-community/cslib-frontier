@@ -7,7 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.BoundedDegree
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.LowerBound
 public import Mathlib.Algebra.CharZero.Infinite
 
@@ -34,6 +37,10 @@ For the explicit Cauchy matrices `1 / (i - (N + j))` this gives, for fan-in two:
 * **Prime fields**: the same maps over `ZMod q`, for every prime `q ≥ 2 N`, need more than
   `(2 - ε) N` inner gates in every basis of fan-in two, uniformly in `q`.
 
+The weighted-kernel specializations in
+`CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn` give stronger bounds at small
+fan-in, including `2 s > (4 - ε) N` at fan-in three.
+
 ## Main results
 
 * `Cslib.Circuits.Frontier.eventually_two_sub_mul_lt_mul_innerSize_of_isTotallyRegular`: for
@@ -42,6 +49,21 @@ For the explicit Cauchy matrices `1 / (i - (N + j))` this gives, for fan-in two:
   circuits for the Cauchy maps.
 * `Cslib.Circuits.Frontier.eventually_two_sub_mul_lt_innerSize_cauchyNat_zmod`: the Cauchy maps
   over prime fields.
+* `Cslib.Circuits.Frontier.eventually_degreeCoefficient_lt_mul_innerSize_of_isTotallyRegular`:
+  the Gaussian vertex-score bound `(r - 1) s > (1 + 1 / A_{r+1} - ε) N` for arbitrary fan-in
+  `r ≥ 2`.
+* `Cslib.Circuits.Frontier.eventually_gaussian_sub_mul_lt_innerSize_of_isTotallyRegular`:
+  median edge-score bound `s > (L - ε) N` (`L ≈ 4.5625`) at fan-in two.
+* `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular`:
+  median-switched Gaussian bound `s > (L₃ - ε) N` (`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`)
+  at fan-in two (via `layoutBound_switched`), original to this library, including arithmetic
+  Cauchy circuits over characteristic zero and
+  prime-field Cauchy circuits over `ZMod q`.
+
+## References
+
+* [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
+  Exponential Algorithms*][Gaspers2026]
 -/
 
 public section
@@ -96,8 +118,7 @@ theorem eventually_two_sub_mul_lt_innerSize_arith_cauchyNat {ε : ℝ} (hε : 0 
       c.Computes (arithInterpretation F) (fun x => cauchyNat F N *ᵥ x) →
         (2 - ε) * N < c.innerSize := by
   filter_upwards [eventually_two_sub_mul_lt_mul_innerSize_of_isTotallyRegular_isPolynomial.{u, u}
-    le_rfl hε] with N hN
-  intro F _ _ c hc
+    le_rfl hε] with N hN F _ _ c hc
   simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
     hN F _ _ isPolynomial_arithInterpretation _ c (isTotallyRegular_cauchyNat N)
       c.fanInAtMost_two_arith hc
@@ -110,10 +131,112 @@ theorem eventually_two_sub_mul_lt_innerSize_cauchyNat_zmod {ε : ℝ} (hε : 0 <
       (I : Interpretation σ (ZMod q)) (c : Circuit σ N N), c.FanInAtMost 2 →
         c.Computes I (fun x => cauchyNat (ZMod q) N *ᵥ x) → (2 - ε) * N < c.innerSize := by
   filter_upwards [eventually_two_sub_mul_lt_mul_innerSize_of_isTotallyRegular_finite.{0, v}
-    le_rfl hε] with N hN
-  intro q _ hq σ I c hfan hc
+    le_rfl hε] with N hN q _ hq σ I c hfan hc
   have : NeZero q := ⟨(Fact.out : q.Prime).ne_zero⟩
   simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
     hN (ZMod q) σ I _ c (isTotallyRegular_cauchyNat_zmod hq) hfan hc
+
+/-! ### Bounded fan-in Gaussian vertex-score bounds -/
+
+/-- **Gaussian vertex-score lower bound for totally regular linear maps.** For every fan-in
+`r ≥ 2` and `ε > 0`, every large circuit with linear capacity computing `x ↦ M x` for a totally
+regular `N × N` matrix `M` has `s` inner gates with
+`(r - 1) s > (1 + 1 / Gaussian.degreeCoefficient (r + 1) - ε) N`. -/
+theorem eventually_degreeCoefficient_lt_mul_innerSize_of_isTotallyRegular {r : ℕ} (hr : 2 ≤ r)
+    {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
+      (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
+        c.FanInAtMost r → c.Computes I (fun x => M *ᵥ x) → c.LinearCapacity I →
+          (1 + 1 / Gaussian.degreeCoefficient (r + 1) - ε) * N < (r - 1) * c.innerSize :=
+  eventually_lt_mul_innerSize_of_isTotallyRegular hr (Gaussian.degreeCoefficient_pos (by omega))
+    (layoutBound_degree (by omega)) hε
+
+/-! ### Fan-in-two median edge-score (`4.5625 N`) and median-switched (`4.57597 N`) bounds -/
+
+/-- **Gaussian edge-score lower bound for linear maps of fan-in two (`L ≈ 4.5625`).** -/
+theorem eventually_gaussian_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
+      (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
+        c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) → c.LinearCapacity I →
+          (1 + Real.pi / (3 * Real.arccos ((1 + 2 * Real.sqrt 2) / 4)) - ε) * N < c.innerSize := by
+  filter_upwards [eventually_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 2) le_rfl
+    (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hε] with
+    N hN F _ σ I M c hM hfan hc hcap
+  simpa only [Gaussian.one_add_inv_two_mul_gaussianCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using hN F σ I M c hM hfan hc hcap
+
+/-- **Median-switched Gaussian lower bound for linear maps of fan-in two (`L₃ ≈ 4.575972`).**
+Every large fan-in-two circuit with linear capacity computing `x ↦ M x` for a totally regular
+`N × N` matrix `M` has more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` inner gates. Original to
+this library (instantiating the frontier framework with `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
+      (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
+        c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) → c.LinearCapacity I →
+          (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * N < c.innerSize := by
+  filter_upwards [eventually_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 2) le_rfl
+    (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε] with
+    N hN F _ σ I M c hM hfan hc hcap
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using hN F σ I M c hM hfan hc hcap
+
+/-- **Median-switched Gaussian lower bound for linear maps over finite fields**, for every basis
+of fan-in at most two: `s > (1 + 2π / (3 arccos (5 / 6)) - ε) N`. Original to this library (via
+`layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_finite {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Finite F] (σ : Signature.{v})
+      (I : Interpretation σ F) (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N),
+        M.IsTotallyRegular → c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) →
+          (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * N < c.innerSize := by
+  filter_upwards [eventually_lt_mul_innerSize_of_isTotallyRegular_finite.{u, v} (r := 2) le_rfl
+    (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε] with
+    N hN F _ _ σ I M c hM hfan hc
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using hN F σ I M c hM hfan hc
+
+/-- **Median-switched Gaussian lower bound for linear maps over infinite fields**, for every basis
+of fan-in-two polynomial operations: `s > (1 + 2π / (3 arccos (5 / 6)) - ε) N`. Original to this
+library (via `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial
+    {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Infinite F] (σ : Signature.{v})
+      (I : Interpretation σ F), I.IsPolynomial → ∀ (M : Matrix (Fin N) (Fin N) F)
+        (c : Circuit σ N N), M.IsTotallyRegular → c.FanInAtMost 2 →
+          c.Computes I (fun x => M *ᵥ x) →
+            (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * N < c.innerSize := by
+  filter_upwards [eventually_lt_mul_innerSize_of_isTotallyRegular_isPolynomial.{u, v} (r := 2)
+    le_rfl (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε] with
+    N hN F _ _ σ I hpoly M c hM hfan hc
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using hN F σ I hpoly M c hM hfan hc
+
+/-- **Arithmetic circuits for the Cauchy maps (`4.57597 N`).** Over every field of characteristic
+zero, in particular `ℚ`, `ℝ`, and `ℂ`, every arithmetic circuit computing `cauchyNat F N *ᵥ x`
+uses more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` additions and multiplications. Constants are
+free. Original to this library (via `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_innerSize_arith_cauchyNat {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [CharZero F] (c : Circuit (arithSignature F) N N),
+      c.Computes (arithInterpretation F) (fun x => cauchyNat F N *ᵥ x) →
+        (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * N < c.innerSize := by
+  filter_upwards
+    [eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial.{u, u} hε] with
+    N hN F _ _ c hc
+  exact hN F _ _ isPolynomial_arithInterpretation _ c (isTotallyRegular_cauchyNat N)
+    c.fanInAtMost_two_arith hc
+
+/-- **The Cauchy maps over prime fields (`4.57597 N`).** For all large `N` and every prime
+`q ≥ 2 N`, every circuit of fan-in at most two over any basis on `ZMod q` computing
+`cauchyNat (ZMod q) N *ᵥ x` has more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` inner gates.
+Original to this library (via `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_innerSize_cauchyNat_zmod {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (q : ℕ) [Fact q.Prime], 2 * N ≤ q → ∀ (σ : Signature.{v})
+      (I : Interpretation σ (ZMod q)) (c : Circuit σ N N), c.FanInAtMost 2 →
+        c.Computes I (fun x => cauchyNat (ZMod q) N *ᵥ x) →
+          (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * N < c.innerSize := by
+  filter_upwards
+    [eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_finite.{0, v} hε] with
+    N hN q _ hq σ I c hfan hc
+  have : NeZero q := ⟨(Fact.out : q.Prime).ne_zero⟩
+  exact hN (ZMod q) σ I _ c (isTotallyRegular_cauchyNat_zmod hq) hfan hc
 
 end Cslib.Circuits.Frontier

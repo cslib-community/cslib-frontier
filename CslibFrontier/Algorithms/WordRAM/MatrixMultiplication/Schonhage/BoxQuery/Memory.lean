@@ -43,21 +43,11 @@ theorem Readback.transport {L m t D V AA BB F : ℕ} {a b : Leaf L → ℤ}
     (hA : AA + 10 ^ L ≤ F) (hB : BB + 10 ^ L ≤ F)
     (hD : D + (m - t + 1) * 10 ^ L ≤ F) (hV : V + (boxes L m t).card ≤ F)
     (hf : ∀ q < F, ν q = μ q) : Readback m t D V AA BB a b ν := by
-  constructor
-  · intro i
-    rw [hf _ (by have := i.isLt; omega)]
-    exact h.left i
-  · intro i
-    rw [hf _ (by have := i.isLt; omega)]
-    exact h.right i
-  · intro s hs
-    rw [hf _ (by omega)]
-    exact h.directory s hs
-  · intro s hs hv
-    have hr := Nat.count_strict_mono hv hs
-    rw [BoxTable.count_eligible_eq_card_boxes] at hr
-    rw [hf _ (by omega)]
-    exact h.values s hs hv
+  refine ⟨fun i => (hf _ (by have := i.isLt; omega)).trans (h.left i),
+    fun i => (hf _ (by have := i.isLt; omega)).trans (h.right i),
+    fun s hs => (hf _ (by omega)).trans (h.directory s hs), fun s hs hv => ?_⟩
+  have hr := BoxTable.count_lt_card_boxes hs hv
+  exact (hf _ (by omega)).trans (h.values s hs hv)
 
 /-- A valid canonical key has a positive actual directory rank and exact signed stored value. -/
 theorem Readback.key {L m t D V AA BB : ℕ} {a b : Leaf L → ℤ} {μ : ℕ → ℕ}
@@ -70,8 +60,7 @@ theorem Readback.key {L m t D V AA BB : ℕ} {a b : Leaf L → ℤ} {μ : ℕ �
   let s := BoxTable.cubeSlot π
   have hs : s < (m - t + 1) * 10 ^ L := BoxTable.cubeSlot_lt hπ
   have hv : BoxTable.Eligible L (m - t) s := BoxTable.eligible_cubeSlot hπ
-  have hr := Nat.count_strict_mono hv hs
-  rw [BoxTable.count_eligible_eq_card_boxes] at hr
+  have hr := BoxTable.count_lt_card_boxes hs hv
   refine ⟨hs, hr, ?_, ?_⟩
   · rw [h.directory s hs, BoxTable.directoryWord, ite_eq_left hv]
   · rw [h.values s hs hv, BoxTable.slotValue, BoxTable.slotCube_cubeSlot hπ]

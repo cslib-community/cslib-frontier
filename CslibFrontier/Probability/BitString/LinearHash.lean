@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.BitString.List
+public import CslibFrontier.Foundations.Data.BitString.List.Dot
 public import Mathlib.Data.Matrix.Mul
 public import Mathlib.Algebra.Ring.BooleanRing
 public import CslibFrontier.Probability.UniversalHash
@@ -66,13 +67,10 @@ theorem uniform_hash_nonzero {n m : ℕ} (input : BitString n) (hinput : input �
     toFun := fun rows => hash rows input
     map_zero' := by ext i; simp [hash]
     map_add' := by intros; ext i; simp [hash, add_dotProduct] }
-  apply uniformOfFintype_map_addHom transform
-  obtain ⟨j, hj⟩ : ∃ j, input j ≠ false := by
+  obtain ⟨j, hj⟩ : ∃ j, input j = true := by
     by_contra! h
-    exact hinput (funext h)
-  have hj : input j = true := by cases h : input j <;> simp_all
-  intro output
-  refine ⟨fun i => Pi.single j (output i), ?_⟩
+    exact hinput (funext fun i => Bool.eq_false_iff.mpr (h i))
+  refine uniformOfFintype_map_addHom transform fun output => ⟨fun i => Pi.single j (output i), ?_⟩
   ext i
   simp [transform, hash, single_dotProduct, hj, Bool.mul_eq_and]
 
@@ -80,11 +78,9 @@ theorem uniform_hash_nonzero {n m : ℕ} (input : BitString n) (hinput : input �
 theorem uniform_hash_sub {n m : ℕ} (x y : BitString n) (hxy : x ≠ y) :
     (PMF.uniformOfFintype (Fin m → BitString n)).map
         (fun rows => hash rows x - hash rows y) = PMF.uniformOfFintype (BitString m) := by
-  have hsub (rows : Fin m → BitString n) : hash rows x - hash rows y = hash rows (x - y) := by
-    ext i
-    exact (dotProduct_sub _ _ _).symm
-  simp only [hsub]
-  exact uniform_hash_nonzero (x - y) (sub_ne_zero.mpr hxy)
+  have hsub (rows : Fin m → BitString n) : hash rows x - hash rows y = hash rows (x - y) :=
+    funext fun i => (dotProduct_sub _ _ _).symm
+  simpa only [hsub] using uniform_hash_nonzero (x - y) (sub_ne_zero.mpr hxy)
 
 /-- Uniform Boolean matrices are a `2⁻ᵐ`-Δ-universal hash family: the bitwise XOR of two hashes
 of distinct inputs is uniform. -/
@@ -103,11 +99,8 @@ theorem uniform_prefix {n m count : ℕ} (h : m ≤ count) :
     (PMF.uniformOfFintype (Fin count → BitString n)).map
         (fun rows => rows ∘ Fin.castLE h) =
       PMF.uniformOfFintype (Fin m → BitString n) := by
-  let restrict : (Fin count → BitString n) →+ (Fin m → BitString n) := {
-    toFun := fun rows => rows ∘ Fin.castLE h
-    map_zero' := rfl
-    map_add' := fun _ _ => rfl }
-  exact uniformOfFintype_map_addHom restrict
+  exact uniformOfFintype_map_addHom
+    { toFun := (· ∘ Fin.castLE h), map_zero' := rfl, map_add' := fun _ _ => rfl }
     (Fin.castLE_injective h).surjective_comp_right
 
 /-- Prefixes of one public matrix give universal hashes at every shorter output length. -/
@@ -115,21 +108,19 @@ theorem isTwoUniversal_prefix {n m count : ℕ} (h : m ≤ count) :
     IsTwoUniversal (PMF.uniformOfFintype (Fin count → BitString n))
       (fun rows => hash (rows ∘ Fin.castLE h)) := by
   apply IsUniversalHash.precompose_seed
-  rw [uniform_prefix]
-  exact isTwoUniversal n m
+  simpa only [uniform_prefix] using isTwoUniversal n m
 
 /-- A uniformly sampled flat matrix gives the usual two-universal family. -/
 theorem isTwoUniversal_flat (inputBits outputBits : ℕ) :
     IsTwoUniversal (PMF.uniformOfFintype (BitString (outputBits * inputBits)))
       (fun seed => hash (blocksEquiv (m := outputBits) (k := inputBits) seed)) := by
   apply IsUniversalHash.precompose_seed
-  rw [PMF.uniformOfFintype_map_equiv]
-  exact isTwoUniversal inputBits outputBits
+  simpa only [PMF.uniformOfFintype_map_equiv] using isTwoUniversal inputBits outputBits
 
 /-- A word implementation of binary matrix hashing. Missing seed bits are zero. -/
 def wordHash (count : ℕ) (seed input : List Bool) : List Bool :=
   (listRows count input.length seed).map
-    (fun row => (row.zipWith Bool.and input).foldl Bool.xor false)
+    (fun row => listDot row input)
 
 /-- Every row contributes one output bit, including when the input has length zero. -/
 @[simp] theorem length_wordHash (count : ℕ) (seed input : List Bool) :
@@ -141,7 +132,6 @@ theorem wordHash_eq_ofFn {n m : ℕ} (seed : List Bool) (input : BitString n) :
     wordHash m seed (List.ofFn input) =
       List.ofFn (hash (block (ofList (m * n) seed)) input) := by
   unfold wordHash hash
-  simp only [List.length_ofFn, listRows_eq_ofFn, List.map_ofFn, Function.comp_def,
-    ← dotProduct_eq_foldl]
+  simp only [List.length_ofFn, listRows_eq_ofFn, List.map_ofFn, Function.comp_def, listDot_ofFn]
 
 end Cslib.BitString.LinearHash

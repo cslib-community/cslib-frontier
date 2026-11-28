@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.USTCON.Reader.Encode
 public import CslibFrontier.Computability.Machines.ReadMachine.Tidy
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 import CslibFrontier.Tactic.Space
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The read machine for undirected connectivity within linear work space
@@ -161,10 +162,9 @@ private theorem pairFalse_inSpace :
     ComputableInSpace (fun x : Tuple => (x, false)) encTuple encStepIn
       fun x => stepBudget (x, false) :=
   (budget_prod (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl))
-    (budget_const (encB := encBool) false (.refl _))).weaken
+    (budget_const (encB := encBool) false)).weaken
     (.of_le fun x => by
-      simp only [stepBudget, encStepIn, length_encPair, encBool_apply, List.length_singleton]
-      omega)
+      enc_len [stepBudget, encStepIn, List.length_singleton])
 
 /-- Evaluating a step-input function on `(x, false)`. -/
 private theorem onTuple {β : Type} {encB : β ↪ List Bool} {f : Tuple × Bool → β}
@@ -215,8 +215,8 @@ private theorem addrT_inSpace :
   have hc (k : Ctl) := hCtlFinite (encB := encBool) fun k' ↦ decide (k' = k)
   have hbase := atRootT_inSpace
   have none' := budget_const (encB := encOption encNat) (encIn := encStepIn) (Bs := stepBudget)
-    none (.refl _)
-  have hhdr := budget_natAdd (budget_natAdd (budget_natAdd hN hS) hT) (budget_const 3 (.refl _))
+    none
+  have hhdr := budget_natAdd (budget_natAdd (budget_natAdd hN hS) hT) (budget_const 3)
   have h := budget_ite (hc .hdrN) (budget_optionSome hCnt) (budget_ite (hc .hdrS)
     (budget_optionSome (budget_natAdd (budget_natSucc hN) hCnt)) (budget_ite (hc .hdrT)
       (budget_optionSome
@@ -345,10 +345,8 @@ private theorem stepT_inSpace : ComputableInSpace stepT encStepIn (encPair encTu
     stepBudget := by
   have hc (k : Ctl) := hCtlFinite (encB := encBool) fun k' ↦ decide (k' = k)
   have cctl (k : Ctl) := budget_const (encB := encCtl) (encIn := encStepIn) (Bs := stepBudget) k
-    (.refl _)
   have cnat (a : ℕ) := budget_const (encB := encNat) (encIn := encStepIn) (Bs := stepBudget) a
-    (.refl _)
-  have nil := budget_const (encB := encBits) (encIn := encStepIn) (Bs := stepBudget) [] (.refl _)
+  have nil := budget_const (encB := encBits) (encIn := encStepIn) (Bs := stepBudget) []
   have T₁ := mkT hCtl (budget_natSucc hCnt) hN hS hT hDepth hLen hC hW hJ hV₁ hV₂ hLower hFrames
   have keep (k : Ctl) := mkT (cctl k) hCnt hN hS hT hDepth hLen hC hW hJ hV₁ hV₂ hLower hFrames
   have hdrN := budget_ite hBit (budget_prod T₁ nil) (budget_prod (mkT (cctl .hdrS) (cnat 0) hCnt
@@ -363,18 +361,18 @@ private theorem stepT_inSpace : ComputableInSpace stepT encStepIn (encPair encTu
     (budget_prod (mkT hCtl (budget_natDiv hCnt (cnat 2)) hN hS hT (budget_natAdd hDepth (cnat 16))
       (budget_natAdd hLen (cnat 4168)) hC hW hJ hV₁ hV₂ hLower hFrames) nil)
   have start := budget_prod (mkT (cctl .fill) hCnt hN hS hT hDepth hLen hC hC hLen hS hS
-    (budget_const (encB := encList encLab) [] (.refl _))
-    (budget_const (encB := encList encFrame) [] (.refl _))) nil
+    (budget_const (encB := encList encLab) [])
+    (budget_const (encB := encList encFrame) [])) nil
   have fill := budget_ite (budget_natEq (budget_length hLower) hDepth)
     (budget_prod (keep .next) nil)
     (budget_prod (mkT hCtl hCnt hN hS hT hDepth hLen hC hW hJ hV₁ hV₂
-      (budget_cons (budget_const (encB := encLab) (0 : Label) (.refl _)) hLower) hFrames) nil)
-  have hlab := budget_finite (encC := encLab) labelEquiv (budget_finMod numLabels_pos hW (.refl _))
+      (budget_cons (budget_const (encB := encLab) (0 : Label)) hLower) hFrames) nil)
+  have hlab := budget_finite (encC := encLab) labelEquiv (budget_finMod numLabels_pos hW)
   have next := budget_ite (budget_natIsZero hJ) (budget_prod (keep .check) nil)
     (budget_prod (mkT (cctl .eval) hCnt hN hS hT hDepth hLen hC (budget_natDiv hW (cnat numLabels))
       (budget_natPred hJ) hV₁ hV₂ hLower (budget_cons (budget_finite (encC := encFrame)
         (fun l : Label ↦ (ReingoldPc.zig₀, l)) hlab)
-        (budget_const (encB := encList encFrame) [] (.refl _)))) nil)
+        (budget_const (encB := encList encFrame) []))) nil)
   have eval := budget_ite (budget_isEmpty hFrames)
     (budget_prod (mkT (cctl .next) hCnt hN hS hT hDepth hLen hC hW hJ hV₁ hV₂ (budget_tail hLower)
       hFrames) nil)
@@ -382,9 +380,9 @@ private theorem stepT_inSpace : ComputableInSpace stepT encStepIn (encPair encTu
       (fst' (fst' evalStepT_inSpace)) (snd' (fst' evalStepT_inSpace))
       (fst' (snd' evalStepT_inSpace)) (snd' (snd' evalStepT_inSpace))) nil)
   have check := budget_ite (budget_finite (encC := encBool) not (budget_natIsZero hW))
-    (budget_prod (keep .done) (budget_const (encB := encBits) [false] (.refl _)))
+    (budget_prod (keep .done) (budget_const (encB := encBits) [false]))
     (budget_ite (budget_natEq hV₁ hT)
-      (budget_prod (keep .done) (budget_const (encB := encBits) [true] (.refl _)))
+      (budget_prod (keep .done) (budget_const (encB := encBits) [true]))
       (budget_prod (mkT (cctl .start) hCnt hN hS hT hDepth hLen (budget_natSucc hC) hW hJ hV₁ hV₂
         hLower hFrames) nil))
   have done := budget_prod hTup nil
@@ -397,23 +395,17 @@ private theorem stepT_inSpace : ComputableInSpace stepT encStepIn (encPair encTu
   apply congrArg (encPair encTuple encBits)
   cases ctl
   case eval =>
-    by_cases hfr : fr = []
-    · simp [stepT, step, State.ofTuple, State.toTuple, hfr]
-    · have he := evalStepT_eq n b ⟨v, low, fr⟩
-      simp only at he
-      simp [stepT, step, State.ofTuple, State.toTuple, hfr, he]
+    by_cases hfr : fr = [] <;>
+      simp [stepT, step, State.ofTuple, State.toTuple, hfr, evalStepT_eq n b ⟨v, low, fr⟩]
   case size => by_cases h : cnt = 0 <;> simp [stepT, step, State.ofTuple, State.toTuple, h]
   case fill => by_cases h : low.length = d <;> simp [stepT, step, State.ofTuple, State.toTuple, h]
   case next =>
     by_cases h : j = 0 <;> simp [stepT, step, State.ofTuple, State.toTuple, h, labelOfNat]
   case check =>
     obtain ⟨v₁, v₂⟩ := v
-    by_cases hw : w = 0
-    · by_cases hv : v₁ = t
-      · subst hv
-        simp [stepT, step, State.ofTuple, State.toTuple, hw]
-      · simp [stepT, step, State.ofTuple, State.toTuple, hw, hv]
-    · simp [stepT, step, State.ofTuple, State.toTuple, hw]
+    by_cases hw : w = 0 <;>
+      by_cases hv : v₁ = t <;>
+      simp [stepT, step, State.ofTuple, State.toTuple, hw, hv]
   all_goals cases b <;> simp [stepT, step, State.ofTuple, State.toTuple]
 
 /-! ### On states -/

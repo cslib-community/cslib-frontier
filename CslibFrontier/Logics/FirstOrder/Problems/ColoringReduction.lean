@@ -84,8 +84,9 @@ def orGate (u v : Fin 3) : Fin 3 × Fin 3 × Fin 3 :=
 
 /-- The coloring of the six vertices of the clause gadget for inputs colored `u`, `v`, `w`. -/
 def gadgetColor (u v w : Fin 3) : Fin 6 → Fin 3 :=
-  ![(orGate u v).1, (orGate u v).2.1, (orGate u v).2.2, (orGate (orGate u v).2.2 w).1,
-    (orGate (orGate u v).2.2 w).2.1, (orGate (orGate u v).2.2 w).2.2]
+  let ⟨c₀, c₁, c₂⟩ := orGate u v
+  let ⟨c₃, c₄, c₅⟩ := orGate c₂ w
+  ![c₀, c₁, c₂, c₃, c₄, c₅]
 
 /-- The edges of the clause gadget with inputs `u`, `v`, `w` and palette `t`, `f`, `b` are
 properly colored by `g`: vertices `0, 1, 2` and `3, 4, 5` are triangles, `0` is joined to `u`,
@@ -101,15 +102,6 @@ private theorem gadgetProper_gadgetColor :
       GadgetProper u v w (gadgetColor u v w) 1 2 := by
   decide
 
-private theorem fin_three_eq_of_ne :
-    ∀ x y z w : Fin 3, x ≠ w → y ≠ w → x ≠ y → z ≠ x → z ≠ y → z = w := by
-  intro x y z w
-  fin_cases x <;> fin_cases y <;> fin_cases z <;> fin_cases w <;> decide
-
-private theorem fin_three_eq {x y z w : Fin 3} (hx : x ≠ w) (hy : y ≠ w) (hxy : x ≠ y) (hzx : z ≠ x)
-    (hzy : z ≠ y) : z = w :=
-  fin_three_eq_of_ne x y z w hx hy hxy hzx hzy
-
 /-- **The gadget forces the clause**: in a proper coloring with palette `t`, `f`, `b`, some input
 of the gadget has the color `t` of true, if all inputs are colored `t` or `f`. -/
 private theorem gadget_forces {t f b u v w : Fin 3} {g : Fin 6 → Fin 3} (hu : u = t ∨ u = f)
@@ -119,8 +111,8 @@ private theorem gadget_forces {t f b u v w : Fin 3} {g : Fin 6 → Fin 3} (hu : 
   simp only [not_or] at hne
   rw [hu.resolve_left hne.1, hv.resolve_left hne.2.1, hw.resolve_left hne.2.2] at h
   obtain ⟨h0, h1, h01, h02, h12, h23, h4, h34, h35, h45, h5f, -⟩ := h
-  have hg2 : g 2 = f := fin_three_eq h0 h1 h01 (Ne.symm h02) (Ne.symm h12)
-  exact h5f (fin_three_eq (hg2 ▸ h23.symm) h4 h34 (Ne.symm h35) (Ne.symm h45))
+  have hg2 : g 2 = f := FO.graph.eq_third_color h0 h1 h01 (Ne.symm h02) (Ne.symm h12)
+  exact h5f (FO.graph.eq_third_color (hg2 ▸ h23.symm) h4 h34 (Ne.symm h35) (Ne.symm h45))
 
 /-! ### The graph of a CNF structure -/
 
@@ -186,9 +178,7 @@ noncomputable def gadgetDomain (ps : Fin 3 → Bool) : cnf.Formula (Fin 4) :=
 
 private theorem realize_gadgetDomain (ps : Fin 3 → Bool) (d : Fin 4 → M) :
     (gadgetDomain ps).Realize d ↔ GadgetDomain ps d := by
-  simp only [gadgetDomain, Formula.realize_inf, Formula.realize_iInf, Formula.realize_rel₂,
-    Term.realize_var, Formula.realize_iAlls, Formula.realize_imp, Formula.realize_iSup,
-    Sum.elim_inl, Sum.elim_inr, GadgetDomain]
+  fo_simp [gadgetDomain, GadgetDomain]
   refine and_congr Iff.rfl ⟨fun h ⟨p, y⟩ hl => ?_, fun h e p hp => ?_⟩
   · obtain ⟨i, hi⟩ := h (fun _ => y) p hl
     refine ⟨i, ?_⟩
@@ -316,15 +306,9 @@ private theorem exists_litColor_eq_zero {A : M → Prop} (hA : Satisfies A) {ps 
     litColor A (ps 0) (d 1) = 0 ∨ litColor A (ps 1) (d 2) = 0 ∨ litColor A (ps 2) (d 3) = 0 := by
   obtain ⟨l, hl, hA⟩ := (satisfies_iff A).1 hA (d 0)
   obtain ⟨i, rfl⟩ := hd.2 l hl
-  have h : litColor A (ps i) (d i.succ) = 0 := by
-    unfold litColor
-    split_ifs with h
-    · rfl
-    · exact absurd hA h
+  have h : litColor A (ps i) (d i.succ) = 0 := ite_eq_left hA
   fin_cases i
-  · exact .inl h
-  · exact .inr (.inl h)
-  · exact .inr (.inr h)
+  exacts [.inl h, .inr (.inl h), .inr (.inr h)]
 
 private theorem gadgetDomain_of_realize {g : Fin 6} {ps : Fin 3 → Bool} {d : Fin 4 → M}
     (hd : (coloringInterpretation.domain (.gadget g ps)).Realize d) : GadgetDomain ps d :=
@@ -408,23 +392,18 @@ private theorem exists_triple_of_encard_le_three {α : Type*} {S : Set α} (hne 
   have hfin : S.Finite := Set.finite_of_encard_le_coe h3
   have hn : S.encard = S.ncard := hfin.cast_ncard_eq.symm
   have h0 : S.ncard ≠ 0 := (Set.ncard_pos hfin).2 hne |>.ne'
-  have h3' : S.ncard ≤ 3 := by
-    have := hn ▸ h3
-    exact_mod_cast this
+  have h3' : S.ncard ≤ 3 := by exact_mod_cast hn ▸ h3
   obtain h | h | h : S.ncard = 1 ∨ S.ncard = 2 ∨ S.ncard = 3 := by omega
   · obtain ⟨a, rfl⟩ := Set.encard_eq_one.1 (by rw [hn, h]; rfl)
     exact ⟨![a, a, a], fun i => by fin_cases i <;> rfl, fun m hm => ⟨0, by simpa using hm.symm⟩⟩
   · obtain ⟨a, b, -, rfl⟩ := Set.encard_eq_two.1 (by rw [hn, h]; rfl)
     refine ⟨![a, b, b], fun i => by fin_cases i <;> simp, fun m hm => ?_⟩
     rcases hm with rfl | rfl
-    · exact ⟨0, rfl⟩
-    · exact ⟨1, rfl⟩
+    exacts [⟨0, rfl⟩, ⟨1, rfl⟩]
   · obtain ⟨a, b, e, -, -, -, rfl⟩ := Set.encard_eq_three.1 (by rw [hn, h]; rfl)
     refine ⟨![a, b, e], fun i => by fin_cases i <;> simp, fun m hm => ?_⟩
     rcases hm with rfl | rfl | rfl
-    · exact ⟨0, rfl⟩
-    · exact ⟨1, rfl⟩
-    · exact ⟨2, rfl⟩
+    exacts [⟨0, rfl⟩, ⟨1, rfl⟩, ⟨2, rfl⟩]
 
 /-- **A three-coloring gives a satisfying assignment**: the clauses of the structure are those of
 a satisfiable 3-CNF structure. -/
@@ -452,7 +431,7 @@ private theorem satisfies_of_colorable {f : coloringInterpretation.Model M → F
       f (litVertex p x) = f trueVertex ∨ f (litVertex p x) = f falseVertex := by
     by_contra h
     simp only [not_or] at h
-    exact hlitB p x (fin_three_eq hTB hFB hTF h.1 h.2)
+    exact hlitB p x (FO.graph.eq_third_color hTB hFB hTF h.1 h.2)
   have hneg (x : M) : f (litVertex true x) ≠ f (litVertex false x) :=
     hf _ _ ⟨_, List.mem_cons_self, formula_realize_top, _, rfl,
       fun j i hj => by cases Option.some.inj hj; rfl⟩
@@ -492,18 +471,13 @@ private theorem satisfies_of_colorable {f : coloringInterpretation.Model M → F
     cases Option.some.inj hj <;> rfl
   obtain ⟨i, hi⟩ : ∃ i : Fin 3, f (litVertex (ps i) (d i.succ)) = f trueVertex := by
     rcases gadget_forces (hlit _ _) (hlit _ _) (hlit _ _) hP with h | h | h
-    · exact ⟨0, h⟩
-    · exact ⟨1, h⟩
-    · exact ⟨2, h⟩
+    exacts [⟨0, h⟩, ⟨1, h⟩, ⟨2, h⟩]
   have hli : l i = (ps i, d i.succ) := by fin_cases i <;> rfl
   refine ⟨l i, hl i, ?_⟩
   rw [hli]
   change f (litVertex true (d i.succ)) = f trueVertex ↔ ps i = true
-  cases hp : ps i
-  · rw [hp] at hi
-    exact iff_of_false (fun h => hneg _ (h.trans hi.symm)) Bool.false_ne_true
-  · rw [hp] at hi
-    exact iff_of_true hi rfl
+  cases hp : ps i <;> rw [hp] at hi
+  exacts [iff_of_false (fun h => hneg _ (h.trans hi.symm)) Bool.false_ne_true, iff_of_true hi rfl]
 
 /-- **The graph of a CNF structure is three-colorable exactly when the structure is a satisfiable
 3-CNF structure.** -/
@@ -577,11 +551,6 @@ def coloringSubsingleton : Interpretation cnf Language.graph Unit where
   rel R := match R with
     | .adj => ∼(cnf.pos.formula₂ (.var (0, ())) (.var (0, ())) ⊔
         cnf.neg.formula₂ (.var (0, ())) (.var (0, ())))
-
-private theorem coloringSubsingleton_rel_adj :
-    coloringSubsingleton.rel adj = ∼(cnf.pos.formula₂ (.var (0, ())) (.var (0, ())) ⊔
-      cnf.neg.formula₂ (.var (0, ())) (.var (0, ()))) :=
-  rfl
 
 private theorem colorable_coloringSubsingleton_iff [Subsingleton M] [Nonempty M] :
     graph.Colorable 3 (coloringSubsingleton.Model M) ↔ IsThreeCNF M ∧ Satisfiable M := by

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.GenericRAM.Native.StackRecursionTree
+import CslibFrontier.Algorithms.Recursion.StackRecursionTree
 
 /-! # Derivations from recursion trees on a toy scheme
 
@@ -17,7 +17,7 @@ root's. -/
 
 namespace CslibFrontierTests.StackRecursionTree
 
-open Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+open Cslib.Algorithms.StackRecursion
 
 /-- The binary tree scheme on `(depth, levels below)`, with values tagged by the depth. The
 accumulator counts the children done and sums their values. -/

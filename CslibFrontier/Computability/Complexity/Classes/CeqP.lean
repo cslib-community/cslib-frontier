@@ -24,6 +24,7 @@ machine characterization is assumed.
 
 ## Main results
 
+* `Cslib.Complexity.mem_CeqP`, `Cslib.Complexity.mem_coCeqP`: unfolding the definitions.
 * `Cslib.Complexity.mem_CeqP_iff_exists_SharpP`: equality of two `#P` functions.
 * `Cslib.Complexity.inter_mem_CeqP`, `Cslib.Complexity.union_mem_CeqP`.
 * `Cslib.Complexity.coNP_subset_CeqP`, `Cslib.Complexity.CeqP_subset_PP`.
@@ -49,14 +50,16 @@ variable {α : Type} {enc : α ↪ List Bool} {A B : Set α}
 def CeqP (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ g ∈ GapP enc, ∀ a, a ∈ A ↔ g a = 0}
 
+theorem mem_CeqP : A ∈ CeqP enc ↔ ∃ g ∈ GapP enc, ∀ a, a ∈ A ↔ g a = 0 :=
+  Iff.rfl
+
 /-- A language is in `C=P` iff membership is equality of two accepting counts. -/
 theorem mem_CeqP_iff_exists_SharpP : A ∈ CeqP enc ↔
-    ∃ f ∈ SharpP enc, ∃ g ∈ SharpP enc, ∀ a, a ∈ A ↔ f a = g a := by
-  constructor
-  · rintro ⟨h, ⟨f, hf, g, hg, hh⟩, hA⟩
-    exact ⟨f, hf, g, hg, fun a => by simpa [hh a, sub_eq_zero] using hA a⟩
-  · rintro ⟨f, hf, g, hg, hA⟩
-    exact ⟨_, GapP.natCast_sub_natCast_mem hf hg, fun a => by simpa [sub_eq_zero] using hA a⟩
+    ∃ f ∈ SharpP enc, ∃ g ∈ SharpP enc, ∀ a, a ∈ A ↔ f a = g a :=
+  ⟨fun ⟨_, ⟨f, hf, g, hg, hh⟩, hA⟩ =>
+    ⟨f, hf, g, hg, fun a => by simpa [hh a, sub_eq_zero] using hA a⟩,
+   fun ⟨f, hf, g, hg, hA⟩ =>
+    ⟨_, GapP.natCast_sub_natCast_mem hf hg, fun a => by simpa [sub_eq_zero] using hA a⟩⟩
 
 /-- A coNP language is the zero set of the accepting count for its complement. -/
 theorem coNP_subset_CeqP : coNP enc ⊆ CeqP enc := by
@@ -77,14 +80,8 @@ theorem inter_mem_CeqP (hA : A ∈ CeqP enc) (hB : B ∈ CeqP enc) : A ∩ B ∈
   obtain ⟨f, hf, hA⟩ := hA
   obtain ⟨g, hg, hB⟩ := hB
   refine ⟨f * f + g * g, GapP.add_mem (GapP.mul_mem hf hf) (GapP.mul_mem hg hg), fun a => ?_⟩
-  simp only [Set.mem_inter_iff, hA a, hB a, Pi.add_apply, Pi.mul_apply]
-  constructor
-  · rintro ⟨h₁, h₂⟩
-    simp [h₁, h₂]
-  · intro h
-    have h₁ := sq_nonneg (f a)
-    have h₂ := sq_nonneg (g a)
-    constructor <;> nlinarith
+  simp only [Set.mem_inter_iff, hA a, hB a, Pi.add_apply, Pi.mul_apply,
+    mul_self_add_mul_self_eq_zero]
 
 /-- `C=P ⊆ PP` [Fortnow, Corollary 4.13][Fortnow1997]: for integer `g`, the gap `1 - g²` is
 positive precisely at its zeros. -/
@@ -93,12 +90,8 @@ theorem CeqP_subset_PP : CeqP enc ⊆ PP enc := by
   refine mem_PP_iff_exists_GapP.mpr
     ⟨1 - g * g, GapP.sub_mem' GapP.one_mem (GapP.mul_mem hg hg), fun a => ?_⟩
   simp only [hA a, Pi.sub_apply, Pi.one_apply, Pi.mul_apply]
-  constructor
-  · intro h
-    simp [h]
-  · intro h
-    have := sq_nonneg (g a)
-    nlinarith [sq_nonneg (g a - 1), sq_nonneg (g a + 1)]
+  exact ⟨fun h => by simp [h],
+    fun _ => by nlinarith [sq_nonneg (g a - 1), sq_nonneg (g a + 1)]⟩
 
 /-- `C=P` is closed under polynomial-time many-one reductions. -/
 theorem PolyTimeReducible.mem_CeqP {β : Type} {encB : β ↪ List Bool} {B : Set β}
@@ -122,9 +115,8 @@ theorem mem_coCeqP_iff_exists_GapP :
   exists_forall_mem_compl_iff fun _ _ => Iff.rfl
 
 /-- NP is contained in coC=P [Fortnow, Corollary 4.11][Fortnow1997]. -/
-theorem NP_subset_coCeqP : NP enc ⊆ coCeqP enc := by
-  intro A hA
-  exact coNP_subset_CeqP (by simpa [mem_coNP] using hA)
+theorem NP_subset_coCeqP : NP enc ⊆ coCeqP enc :=
+  fun _ hA => coNP_subset_CeqP (by simpa [mem_coNP] using hA)
 
 /-- coC=P is contained in PP [Fortnow, Corollary 4.10][Fortnow1997]. -/
 theorem coCeqP_subset_PP : coCeqP enc ⊆ PP enc := by

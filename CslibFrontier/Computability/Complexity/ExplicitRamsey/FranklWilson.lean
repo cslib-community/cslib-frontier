@@ -80,16 +80,31 @@ open Finset SimpleGraph Turing.MultiTapeTM
 
 namespace Cslib.ExplicitRamsey
 
+/-- Target subset size `q.2.1` in an `(n, d, l)` label query. -/
+abbrev labelSize (q : ℕ × ℕ × List ℕ) : ℕ := q.2.1
+
+/-- Candidate entry list `q.2.2` in an `(n, d, l)` label query. -/
+abbrev labelEntries (q : ℕ × ℕ × List ℕ) : List ℕ := q.2.2
+
 /-- Recognizes names of `d`-subsets of `Fin n`: strictly increasing lists of length `d` with
 entries below `n`. The input is `(n, d, l)`. -/
 @[expose] def isSubsetLabel (q : ℕ × ℕ × List ℕ) : Bool :=
-  decide (q.2.2.length = q.2.1) && q.2.2.isSortedLT &&
-    q.2.2.all fun x => decide (x < q.1)
+  decide ((labelEntries q).length = labelSize q) && (labelEntries q).isSortedLT &&
+    (labelEntries q).all fun x => decide (x < q.1)
+
+/-- Residue target `q.2.1` in a `(p, d, a, b)` Frankl–Wilson adjacency query. -/
+abbrev adjResidue (q : ℕ × ℕ × List ℕ × List ℕ) : ℕ := q.2.1
+
+/-- First vertex label `q.2.2.1` in a `(p, d, a, b)` Frankl–Wilson adjacency query. -/
+abbrev adjFirst (q : ℕ × ℕ × List ℕ × List ℕ) : List ℕ := q.2.2.1
+
+/-- Second vertex label `q.2.2.2` in a `(p, d, a, b)` Frankl–Wilson adjacency query. -/
+abbrev adjSecond (q : ℕ × ℕ × List ℕ × List ℕ) : List ℕ := q.2.2.2
 
 /-- Frankl–Wilson adjacency on names: whether the number of entries of the first name occurring in
 the second is not congruent to `d` mod `p`. The input is `(p, d, a, b)`. -/
 @[expose] def subsetAdj (q : ℕ × ℕ × List ℕ × List ℕ) : Bool :=
-  (q.2.2.1.filter fun x => decide (x ∈ q.2.2.2)).length % q.1 != q.2.1 % q.1
+  ((adjFirst q).filter fun x => decide (x ∈ adjSecond q)).length % q.1 != adjResidue q % q.1
 
 /-- Recognizes names of vertices of the Frankl–Wilson graph for the prime `p`: the
 `(p² - 1)`-subsets of `Fin (p ^ 3)`. The input is `(p, l)`. -/
@@ -112,11 +127,7 @@ private theorem sortedLT_subsetLabel {n d : ℕ} (s : {s : Finset (Fin n) // #s 
 private theorem mem_subsetLabel {n d : ℕ} (s : {s : Finset (Fin n) // #s = d}) (x : Fin n) :
     (x : ℕ) ∈ subsetLabel s ↔ x ∈ s.1 := by
   rw [subsetLabel, List.mem_map]
-  constructor
-  · rintro ⟨y, hy, hyx⟩
-    rw [← Fin.ext hyx]
-    exact (mem_sort _).1 hy
-  · exact fun h => ⟨x, (mem_sort _).2 h, rfl⟩
+  exact ⟨fun ⟨y, hy, hyx⟩ => Fin.ext hyx ▸ (mem_sort _).1 hy, fun h => ⟨x, (mem_sort _).2 h, rfl⟩⟩
 
 /-- Distinct vertices have distinct names. -/
 theorem subsetLabel_injective {n d : ℕ} : Function.Injective (subsetLabel (n := n) (d := d)) := by
@@ -130,8 +141,8 @@ strictly increasing lists of length `d` with entries below `n`. -/
 theorem range_subsetLabel (n d : ℕ) :
     Set.range (subsetLabel (n := n) (d := d)) = {l | isSubsetLabel (n, d, l) = true} := by
   ext l
-  simp only [Set.mem_range, Set.mem_ofPred_eq, isSubsetLabel, Bool.and_eq_true, decide_eq_true_eq,
-    List.isSortedLT_iff, List.all_eq_true]
+  simp only [Set.mem_range, Set.mem_ofPred_eq, isSubsetLabel, labelSize, labelEntries,
+    Bool.and_eq_true, decide_eq_true_eq, List.isSortedLT_iff, List.all_eq_true]
   constructor
   · rintro ⟨s, rfl⟩
     refine ⟨⟨?_, sortedLT_subsetLabel s⟩, fun x hx => ?_⟩
@@ -139,22 +150,14 @@ theorem range_subsetLabel (n d : ℕ) :
     · obtain ⟨y, -, rfl⟩ := List.mem_map.1 hx
       exact y.2
   · rintro ⟨⟨hlen, hsort⟩, hlt⟩
-    set u : Finset (Fin n) := univ.filter fun i => (i : ℕ) ∈ l with hu
-    have hmem : ∀ a, a ∈ (u.sort).map Fin.val ↔ a ∈ l := by
-      intro a
+    let u : Finset (Fin n) := univ.filter fun i => (i : ℕ) ∈ l
+    have hmem (a : ℕ) : a ∈ (u.sort).map Fin.val ↔ a ∈ l := by
       rw [List.mem_map]
-      constructor
-      · rintro ⟨y, hy, rfl⟩
-        exact (mem_filter.1 ((mem_sort _).1 hy)).2
-      · intro ha
-        exact ⟨⟨a, hlt a ha⟩, (mem_sort _).2 (mem_filter.2 ⟨mem_univ _, ha⟩), rfl⟩
-    have hsorted : ((u.sort).map Fin.val).SortedLT := by
-      rw [List.sortedLT_iff_isChain, List.isChain_map]
-      exact List.sortedLT_iff_isChain.1 (sortedLT_sort u)
-    have heq := hsorted.eq_of_mem_iff hsort hmem
-    have hcard : #u = d := by
-      rw [← length_sort (· ≤ ·), ← List.length_map (f := Fin.val), heq, hlen]
-    exact ⟨⟨u, hcard⟩, heq⟩
+      exact ⟨fun ⟨y, hy, hya⟩ => hya ▸ (mem_filter.1 ((mem_sort _).1 hy)).2,
+        fun ha => ⟨⟨a, hlt a ha⟩, (mem_sort _).2 (mem_filter.2 ⟨mem_univ _, ha⟩), rfl⟩⟩
+    have heq : (u.sort).map Fin.val = l :=
+      (sortedLT_subsetLabel ⟨u, rfl⟩).eq_of_mem_iff hsort hmem
+    exact ⟨⟨u, by rw [← length_sort (· ≤ ·), ← List.length_map (f := Fin.val), heq, hlen]⟩, heq⟩
 
 private theorem card_inter_eq_length {n d : ℕ} (s t : {s : Finset (Fin n) // #s = d}) :
     #(s.1 ∩ t.1) = ((subsetLabel s).filter fun x => decide (x ∈ subsetLabel t)).length := by
@@ -197,6 +200,12 @@ theorem computableInPolyTime_subsetAdj :
     ComputableInPolyTime subsetAdj
       (encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat)))) encBool := by
   unfold subsetAdj
+  let enc := encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat)))
+  have hleft : ComputableInPolyTime (fun q : ℕ × ℕ × List ℕ × List ℕ =>
+        (q.2.2.1.filter fun x => decide (x ∈ q.2.2.2)).length % q.1)
+      enc encNat := ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
+  have hright : ComputableInPolyTime (fun q : ℕ × ℕ × List ℕ × List ℕ => q.2.1 % q.1) enc encNat :=
+    ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
   fun_prop
 
 /-- Names of vertices of the Frankl–Wilson graph are recognized in polynomial time, uniformly in
@@ -210,8 +219,8 @@ theorem computableInPolyTime_franklWilsonIsLabel :
 theorem computableInPolyTime_franklWilsonAdj :
     ComputableInPolyTime franklWilsonAdj
       (encPair encNat (encPair (encList encNat) (encList encNat))) encBool := by
-  unfold franklWilsonAdj subsetAdj
-  fun_prop
+  unfold franklWilsonAdj
+  exact computableInPolyTime_subsetAdj.comp (by fun_prop)
 
 end Cslib.ExplicitRamsey
 

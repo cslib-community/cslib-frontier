@@ -54,29 +54,26 @@ theorem ComputableInTimeAndSpace.exists_tm2ComputableInPolyTime
     ∃ h : TM2ComputableInPolyTime encIn encOut f, ∀ stack, Finite (h.tm.Γ stack) := by
   obtain ⟨k, State, hfinite, tm, htm⟩ := h
   let : Fintype State := Fintype.ofFinite State
-  have htime : PolyBounded (fun a => (encIn a).length)
-      (fun a => (encIn a).length + (k + 1) * (t a + 1) + (encOut (f a)).length + 3) :=
-    ((PolyBounded.self.add ((PolyBounded.const (k + 1)).mul (ht.add (.const 1)))).add
-      (ht.mono fun a => (htm a).length_output_le)).add (.const 3)
-  obtain ⟨p, hp⟩ := htime.exists_polynomial
-  let target : TM2ComputableInPolyTime encIn encOut f := {
+  obtain ⟨p, hp⟩ := (((PolyBounded.self.add ((PolyBounded.const (k + 1)).mul
+    (ht.add (.const 1)))).add (ht.mono fun a => (htm a).length_output_le)).add
+      (.const 3)).exists_polynomial
+  refine ⟨{
     tm := ToTM2.machine tm.q₀ tm.tr
     inputAlphabet := Equiv.refl Bool
     outputAlphabet := Equiv.refl Bool
     time := p
-    outputsFun a := by
-      simp only [Equiv.refl, List.map_id]
-      have hrun := ToTM2.outputsInTime tm (htm a).1 (htm a).2.1
-      exact ⟨hrun.toEvalsTo, hrun.steps_le_m.trans (hp a)⟩ }
-  exact ⟨target, fun stack => inferInstance⟩
+    outputsFun a := ?_ }, fun _ => inferInstance⟩
+  simp only [Equiv.refl, List.map_id]
+  have hrun := ToTM2.outputsInTime tm (htm a).1 (htm a).2.1
+  exact ⟨hrun.toEvalsTo, hrun.steps_le_m.trans (hp a)⟩
 
 /-- Polynomial-time computation has a finite-alphabet Mathlib certificate under the same
 binary encodings. -/
 theorem ComputableInPolyTime.exists_tm2ComputableInPolyTime
     (h : ComputableInPolyTime f encIn encOut) :
-    ∃ h : TM2ComputableInPolyTime encIn encOut f, ∀ stack, Finite (h.tm.Γ stack) := by
-  obtain ⟨t, s, ht, _, h⟩ := h
-  exact h.exists_tm2ComputableInPolyTime (.of_polynomiallyBounded _ ht)
+    ∃ h : TM2ComputableInPolyTime encIn encOut f, ∀ stack, Finite (h.tm.Γ stack) :=
+  let ⟨_, _, ht, _, h⟩ := h
+  h.exists_tm2ComputableInPolyTime (.of_polynomiallyBounded _ ht)
 
 /-- Polynomial native space and explicitly polynomial output length give a terminating Mathlib
 certificate with polynomially bounded reachable stacks. Runtime is unrestricted. -/
@@ -94,23 +91,16 @@ theorem ComputableInTimeAndSpace.exists_tm2Computable
     inputAlphabet := Equiv.refl Bool
     outputAlphabet := Equiv.refl Bool
     outputsFun a := by
-      simpa only [Equiv.refl, List.map_id] using
-        ToTM2.outputs tm (htm a).1 }
-  refine ⟨target, fun stack => inferInstance,
-    (fun a => (encIn a).length + s a + (encOut (f a)).length),
-    (PolyBounded.self.add hs).add hout, ?_⟩
-  intro a i stack
-  have htotal := ToTM2.reachable_stack_bound tm (htm a).1 (htm a).2.2 i
-  have hsingle : (((TM2.stepTotal (ToTM2.machine tm.q₀ tm.tr).m)^[i]
-      (initList (ToTM2.machine tm.q₀ tm.tr) (encIn a))).stk stack).length ≤
-      ToTM2.totalStackLength ((TM2.stepTotal (ToTM2.machine tm.q₀ tm.tr).m)^[i]
-        (initList (ToTM2.machine tm.q₀ tm.tr) (encIn a))) := by
-    unfold ToTM2.totalStackLength
-    exact Finset.single_le_sum (f := fun stack =>
+      simpa only [Equiv.refl, List.map_id] using ToTM2.outputs tm (htm a).1 }
+  refine ⟨target, fun _ => inferInstance,
+    fun a => (encIn a).length + s a + (encOut (f a)).length,
+    (PolyBounded.self.add hs).add hout, fun a i stack => ?_⟩
+  simpa only [target, Equiv.refl_symm, Equiv.coe_refl, List.map_id] using
+    (Finset.single_le_sum (f := fun stack =>
       (((TM2.stepTotal (ToTM2.machine tm.q₀ tm.tr).m)^[i]
         (initList (ToTM2.machine tm.q₀ tm.tr) (encIn a))).stk stack).length)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_univ stack)
-  simpa only [target, Equiv.refl_symm, Equiv.coe_refl, List.map_id] using hsingle.trans htotal
+      (fun _ _ => Nat.zero_le _) (Finset.mem_univ stack)).trans
+      (ToTM2.reachable_stack_bound tm (htm a).1 (htm a).2.2 i)
 
 /-- For a Boolean computation the output is one bit, so only the native work-space bound needs
 to be supplied. The native time bound may be arbitrary. -/
@@ -130,7 +120,7 @@ theorem ComputableInPolySpace.exists_tm2Computable
     ∃ h : TM2Computable encIn encOut f, (∀ stack, Finite (h.tm.Γ stack)) ∧
       ∃ space : α → ℕ, PolyBounded (fun a => (encIn a).length) space ∧
         h.StacksBounded space := by
-  obtain ⟨t, s, hs, h, hout⟩ := h
+  obtain ⟨_, _, hs, h, hout⟩ := h
   have hspace := PolyBounded.of_polynomiallyBounded (fun a => (encIn a).length) hs
   exact h.exists_tm2Computable hspace (hspace.mono hout)
 
@@ -138,11 +128,10 @@ theorem ComputableInPolySpace.exists_tm2Computable
 machines with finite working alphabets, under the original binary encodings. -/
 theorem computableInPolyTime_iff_tm2 :
     ComputableInPolyTime f encIn encOut ↔
-      ∃ h : TM2ComputableInPolyTime encIn encOut f, ∀ stack, Finite (h.tm.Γ stack) := by
-  refine ⟨ComputableInPolyTime.exists_tm2ComputableInPolyTime, ?_⟩
-  rintro ⟨h, hfinite⟩
-  let := hfinite
-  exact h.computableInPolyTime
+      ∃ h : TM2ComputableInPolyTime encIn encOut f, ∀ stack, Finite (h.tm.Γ stack) :=
+  ⟨ComputableInPolyTime.exists_tm2ComputableInPolyTime, fun ⟨h, hfinite⟩ => by
+    let := hfinite
+    exact h.computableInPolyTime⟩
 
 /-- Polynomial-space computability is equivalent to termination of a Mathlib stack machine with
 finite stack alphabets and polynomially bounded reachable stacks. This equivalence also applies
@@ -151,11 +140,10 @@ theorem computableInPolySpace_iff_tm2 :
     ComputableInPolySpace f encIn encOut ↔
       ∃ h : TM2Computable encIn encOut f, (∀ stack, Finite (h.tm.Γ stack)) ∧
         ∃ space : α → ℕ, PolyBounded (fun a => (encIn a).length) space ∧
-          h.StacksBounded space := by
-  refine ⟨ComputableInPolySpace.exists_tm2Computable, ?_⟩
-  rintro ⟨h, hfinite, space, hspace, hstacks⟩
-  let := hfinite
-  exact h.computableInPolySpace hspace hstacks
+          h.StacksBounded space :=
+  ⟨ComputableInPolySpace.exists_tm2Computable, fun ⟨h, hfinite, space, hspace, hstacks⟩ => by
+    let := hfinite
+    exact h.computableInPolySpace hspace hstacks⟩
 
 end
 
@@ -172,13 +160,10 @@ theorem mem_PSPACE_iff_tm2 {α : Type} {encIn : α ↪ List Bool} {A : Set α} :
       (∀ stack, Finite (h.tm.Γ stack)) ∧
         (∃ space : α → ℕ, PolyBounded (fun a => (encIn a).length) space ∧
           h.StacksBounded space) ∧ (∀ a, a ∈ A ↔ f a = true) := by
-  rw [mem_PSPACE_iff_computableInPolySpace]
-  constructor
-  · rintro ⟨f, hf, hA⟩
-    obtain ⟨h, hfinite, hspace⟩ := hf.exists_tm2Computable
+  refine ⟨fun ⟨f, hf, hA⟩ => ?_, fun ⟨f, h, hfinite, ⟨space, hspace, hstacks⟩, hA⟩ => ?_⟩
+  · obtain ⟨h, hfinite, hspace⟩ := hf.exists_tm2Computable
     exact ⟨f, h, hfinite, hspace, hA⟩
-  · rintro ⟨f, h, hfinite, ⟨space, hspace, hstacks⟩, hA⟩
-    let := hfinite
+  · let := hfinite
     exact ⟨f, h.computableInPolySpace hspace hstacks, hA⟩
 
 end Cslib.Complexity

@@ -106,10 +106,7 @@ theorem card_affineWrapBox (H : ℕ) : #(affineWrapBox H) = 7 ^ H := by
     Fintype.card_fin, h7]
 
 private theorem zero_mem_affineWrapBox (H : ℕ) : (0 : Fin H → ℤ) ∈ affineWrapBox H := by
-  rw [affineWrapBox, Fintype.mem_piFinset]
-  intro _
-  rw [Pi.zero_apply, mem_Icc]
-  omega
+  simp [affineWrapBox, Fintype.mem_piFinset]
 
 /-- Generator index of `componentMove H M P L`: either a channel index `j : Fin J` paired with an
 affine generator, or a torus affine generator. -/
@@ -207,18 +204,14 @@ theorem isValidComponentStep_iff {L : Fin J → ℕ} [∀ j, NeZero (L j)]
     {y : ∀ j, ZMod (P j)} {e : ComponentLazyStep H J} {z : Fin H → ℤ}
     {A : ComponentSpace H M P} :
     IsValidComponentStep L y e z A ↔ z = componentStepWrap L y e A := by
-  rcases e with ⟨⟨j, k⟩ | k, b⟩ | d
-  · exact isValidWrap_iff
-  · rfl
-  · rfl
+  rcases e with ⟨⟨j, k⟩ | k, b⟩ | d <;> first | exact isValidWrap_iff | rfl
 
 theorem componentStepWrap_mem [∀ j, NeZero (P j)] {L : Fin J → ℕ} [∀ j, NeZero (L j)]
     {y : ∀ j, ZMod (P j)} (e : ComponentLazyStep H J) (A : ComponentSlice H M P L y) :
     componentStepWrap L y e (componentSliceVal A) ∈ affineWrapBox H := by
   rcases e with ⟨⟨j, k⟩ | k, b⟩ | d
   · exact wrap_affineGenerator_mem k b (A.1 j).2
-  · exact zero_mem_affineWrapBox H
-  · exact zero_mem_affineWrapBox H
+  all_goals exact zero_mem_affineWrapBox H
 
 /-- On the product retention slice, the ambient variant with `componentStepWrap` coincides with the
 exact neighbor in the reindexed lazy product multigraph. -/
@@ -233,22 +226,14 @@ theorem componentStepPerm_wrap_eq [∀ j, Fact (P j).Prime] {L : Fin J → ℕ} 
   · refine Prod.ext (funext fun j' ↦ ?_) ?_
     · by_cases hj : j' = j
       · subst hj
-        cases b
-        · simpa only [componentStepPerm, componentStepWrap, componentSliceVal, signedMove,
-            Bool.cond_false, neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inl,
-            neighbor_ofPerms_false, componentMove, boxProdPerms, Sum.elim_inl, componentEquiv,
-            Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.prodCongr_apply, Prod.map_fst, piPerms,
-            Equiv.piCongrRight_symm_apply, Equiv.piCongrRight_apply, Pi.map_apply, update_self,
-            affineMove] using
-            variantMove_wrap_eq (hL j') (affineGenerator H k).1 (affineGenerator H k).2 (A.1 j')
-        · simpa only [componentStepPerm, componentStepWrap, componentSliceVal, signedMove,
-            Bool.cond_true, neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inl,
-            neighbor_ofPerms_true, componentMove, boxProdPerms, Sum.elim_inl, componentEquiv,
-            Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.prodCongr_apply, Prod.map_fst, piPerms,
-            Equiv.piCongrRight_symm_apply, Equiv.piCongrRight_apply, Pi.map_apply, update_self,
-            affineMove, coordMove_symm] using
-            variantMove_wrap_eq (hL j') (signedMove (affineGenerator H k) true).1
-              (signedMove (affineGenerator H k) true).2 (A.1 j')
+        cases b <;>
+          simpa only [componentStepPerm, componentStepWrap, componentSliceVal, signedMove,
+            Bool.cond_false, Bool.cond_true, neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inl,
+            neighbor_ofPerms_false, neighbor_ofPerms_true, componentMove, boxProdPerms,
+            Sum.elim_inl, componentEquiv, Equiv.prodCongr_symm, Equiv.refl_symm,
+            Equiv.prodCongr_apply, Prod.map_fst, piPerms, Equiv.piCongrRight_symm_apply,
+            Equiv.piCongrRight_apply, Pi.map_apply, update_self, affineMove, coordMove_symm] using
+            variantMove_wrap_eq (hL j') _ _ (A.1 j')
       · cases b <;>
           simp only [componentStepPerm, componentSliceVal, neighbor_reindex, Equiv.symm_symm,
             neighbor_lazy_inl, neighbor_ofPerms_false, neighbor_ofPerms_true, componentMove,
@@ -261,19 +246,12 @@ theorem componentStepPerm_wrap_eq [∀ j, Fact (P j).Prime] {L : Fin J → ℕ} 
           neighbor_lazy_inl, neighbor_ofPerms_false, neighbor_ofPerms_true, componentMove,
           boxProdPerms, Sum.elim_inl, componentEquiv, Equiv.prodCongr_symm, Equiv.refl_symm,
           Equiv.prodCongr_apply, Prod.map_snd, Equiv.refl_apply]
-  · refine Prod.ext (funext fun j' ↦ ?_) ?_
-    · cases b <;>
-        simp only [componentStepPerm, componentSliceVal, Bool.cond_false, Bool.cond_true,
-          neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inl, neighbor_ofPerms_false,
-          neighbor_ofPerms_true, componentMove, boxProdPerms, Sum.elim_inr, componentEquiv,
-          Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.prodCongr_apply, Prod.map_fst,
-          Equiv.refl_apply, Equiv.symm_apply_apply]
-    · cases b <;>
-        simp only [componentStepPerm, componentSliceVal, Bool.cond_false, Bool.cond_true,
-          neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inl, neighbor_ofPerms_false,
-          neighbor_ofPerms_true, componentMove, boxProdPerms, Sum.elim_inr, componentEquiv,
-          Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.prodCongr_apply, Prod.map_snd,
-          Equiv.refl_apply, id_eq]
+  · refine Prod.ext (funext fun j' ↦ ?_) ?_ <;> cases b <;>
+      simp only [componentStepPerm, componentSliceVal, Bool.cond_false, Bool.cond_true,
+        neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inl, neighbor_ofPerms_false,
+        neighbor_ofPerms_true, componentMove, boxProdPerms, Sum.elim_inr, componentEquiv,
+        Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.prodCongr_apply, Prod.map_fst, Prod.map_snd,
+        Equiv.refl_apply, Equiv.symm_apply_apply, id_eq]
   · rw [neighbor_reindex, Equiv.symm_symm, neighbor_lazy_inr, Equiv.symm_apply_apply]
     rfl
 
@@ -310,7 +288,7 @@ theorem walk_pow_componentMove_eq_iterate [∀ j, Fact (P j).Prime] {L : Fin J �
   | succ t ih =>
     have hfun : (G.walk ^ t) (fun B ↦ f (componentSliceVal B)) =
         fun B ↦ (componentValidatedStep L y)^[t] f (componentSliceVal B) := funext ih
-    rw [pow_succ', Module.End.mul_apply, hfun, Function.iterate_succ_apply',
+    rw [pow_succ', mul_apply_eq_comp, hfun, Function.iterate_succ_apply',
       RotationMap.walk_apply, componentValidatedStep]
     exact expect_congr rfl fun e _ ↦
       (sum_ite_isValidComponentStep hL e ((componentValidatedStep L y)^[t] f) A).symm
@@ -379,19 +357,13 @@ theorem isValidComponentWord_iff {L : Fin J → ℕ} [∀ j, NeZero (L j)]
   | 0, _, z, _ => ⟨fun _ ↦ Subsingleton.elim z Fin.elim0, fun _ ↦ trivial⟩
   | _ + 1, w, z, A => by
     simp only [IsValidComponentWord, isValidComponentStep_iff, componentWordWrap]
-    constructor
-    · rintro ⟨hz₀, htail⟩
-      rw [hz₀] at htail
-      have htail' := isValidComponentWord_iff.1 htail
-      funext i
-      exact Fin.cases (by simpa using hz₀) (fun j ↦ congrFun htail' j) i
-    · intro hz
-      have hz₀ : z 0 = componentStepWrap L y (w 0) A := by
-        simpa using congrFun hz 0
+    refine ⟨fun ⟨hz₀, htail⟩ ↦ ?_, fun hz ↦ ?_⟩
+    · rw [hz₀, isValidComponentWord_iff] at htail
+      exact funext (Fin.cases hz₀ (congrFun htail))
+    · have hz₀ : z 0 = componentStepWrap L y (w 0) A := congrFun hz 0
       refine ⟨hz₀, ?_⟩
       rw [hz₀, isValidComponentWord_iff]
-      funext j
-      simpa using congrFun hz j.succ
+      exact funext fun j ↦ congrFun hz j.succ
 
 /-- **Existence and uniqueness of the valid wrap word** (Lemma 6.3, item 3): for every ambient
 state `A` and every move word `w`, exactly one wrap word `z` passes `IsValidComponentWord`. -/
@@ -409,19 +381,10 @@ theorem componentWordWrap_mem [∀ j, Fact (P j).Prime] {L : Fin J → ℕ} [∀
     ∀ {t : ℕ} (w : Fin t → ComponentLazyStep H J) (A : ComponentSlice H M P L y),
       componentWordWrap L y w (componentSliceVal A) ∈
         Fintype.piFinset fun _ : Fin t ↦ affineWrapBox H
-  | 0, _, _ => by
-    rw [Fintype.mem_piFinset]
-    exact fun a ↦ a.elim0
-  | _ + 1, w, A => by
-    rw [Fintype.mem_piFinset]
-    intro i
-    refine Fin.cases ?_ (fun j ↦ ?_) i
-    · simpa [componentWordWrap] using componentStepWrap_mem (w 0) A
-    · simp only [componentWordWrap, Fin.cons_succ, componentStepPerm_wrap_eq hL]
-      have hmem := componentWordWrap_mem hL (w ∘ Fin.succ)
-        (((ofPerms (componentMove H M P L)).lazy.reindex (componentEquiv M hL y).symm).neighbor
-          A (w 0))
-      exact (Fintype.mem_piFinset.1 hmem) j
+  | 0, _, _ => Fintype.mem_piFinset.2 fun a ↦ a.elim0
+  | _ + 1, w, A => Fintype.mem_piFinset.2 <| Fin.cases (componentStepWrap_mem (w 0) A) fun j ↦ by
+    simp only [componentWordWrap, Fin.cons_succ, componentStepPerm_wrap_eq hL]
+    exact Fintype.mem_piFinset.1 (componentWordWrap_mem hL (w ∘ Fin.succ) _) j
 
 /-- On `ComponentSlice H M P L y`, applying `componentWordPerm` with the unique valid wrap word
 reaches the endpoint `(G.pow t).neighbor A w` of the walk along `w` in the reindexed lazy product
@@ -438,16 +401,7 @@ theorem componentWordPerm_wrap_eq [∀ j, Fact (P j).Prime] {L : Fin J → ℕ} 
   | _ + 1, w, A => by
     simp only [componentWordPerm, componentWordWrap, Equiv.trans_apply, Fin.cons_zero,
       neighbor_pow_succ]
-    have hcons :
-        (Fin.cons (componentStepWrap L y (w 0) (componentSliceVal A))
-          (componentWordWrap L y (w ∘ Fin.succ)
-            (componentStepPerm L (w 0) (componentStepWrap L y (w 0) (componentSliceVal A))
-              (componentSliceVal A)))) ∘ Fin.succ =
-        componentWordWrap L y (w ∘ Fin.succ)
-          (componentStepPerm L (w 0) (componentStepWrap L y (w 0) (componentSliceVal A))
-            (componentSliceVal A)) :=
-      funext fun _ ↦ rfl
-    rw [hcons, componentStepPerm_wrap_eq hL]
+    rw [show (Fin.cons _ _ ∘ Fin.succ) = _ from funext fun _ ↦ rfl, componentStepPerm_wrap_eq hL]
     exact componentWordPerm_wrap_eq hL (w ∘ Fin.succ) _
 
 /-- **Exactly one length-`t` wrap word survives** on `ComponentSlice H M P L y`, evaluating to the

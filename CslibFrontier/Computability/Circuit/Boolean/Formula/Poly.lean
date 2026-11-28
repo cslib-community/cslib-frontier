@@ -40,8 +40,9 @@ agrees with a language in `FormulaSIZE s` or `FormulaPoly`, respectively, mirror
 * `Cslib.Circuits.Boolean.formulaSize_not`, `Cslib.Circuits.Boolean.formulaSize_and_le`,
   `Cslib.Circuits.Boolean.formulaSize_or_le`: leaf-size bounds for Boolean operations on functions.
 * `Cslib.Circuits.Boolean.FormulaSIZE_mono`: monotonicity of `FormulaSIZE`.
-* `Cslib.Circuits.Boolean.mem_FormulaPoly_iff_exists_formulas`: characterization of `FormulaPoly` by
-  explicit formula families.
+* `Cslib.Circuits.Boolean.mem_FormulaPoly_iff_exists_formulas`,
+  `Cslib.Circuits.Boolean.mem_FormulaPoly_iff_exists_formulas_size`: characterizations of
+  `FormulaPoly` by explicit formula families bounded in leaf size or in operation-node count.
 * `Cslib.Circuits.Boolean.mem_FormulaPoly_iff_exists_mem_FormulaSIZE`: `FormulaPoly` is the union of
   `FormulaSIZE (fun n => c * (n + 1) ^ c)`.
 * `Cslib.Circuits.Boolean.FormulaPoly.compl`, `Cslib.Circuits.Boolean.FormulaPoly.sup`,
@@ -67,38 +68,33 @@ variable {n : ℕ}
 
 /-- Negating a Boolean function does not increase its De Morgan formula leaf size. -/
 theorem formulaSize_not_le (f : BooleanFunction n) :
-    formulaSize (fun x => !f x) ≤ formulaSize f := by
-  obtain ⟨F, hF, hL⟩ := exists_computes_leafSize_eq f
-  have hnot : F.not.Computes interpretation (fun x => !f x) := fun x => by
-    rw [eval_not, hF]
-  exact (formulaSize_le hnot).trans (by rw [leafSize_not, hL])
+    formulaSize (fun x => !f x) ≤ formulaSize f :=
+  let ⟨F, hF, hL⟩ := exists_computes_leafSize_eq f
+  (formulaSize_le (F := F.not) fun x => by rw [eval_not, hF]).trans_eq (by rw [leafSize_not, hL])
 
 /-- Negating a Boolean function preserves its De Morgan formula leaf size. -/
 @[simp] theorem formulaSize_not (f : BooleanFunction n) :
-    formulaSize (fun x => !f x) = formulaSize f := by
-  refine le_antisymm (formulaSize_not_le f) ?_
-  have h := formulaSize_not_le (fun x => !f x)
-  simpa only [Bool.not_not] using h
+    formulaSize (fun x => !f x) = formulaSize f :=
+  le_antisymm (formulaSize_not_le f)
+    (by simpa only [Bool.not_not] using formulaSize_not_le (fun x => !f x))
 
 /-- The De Morgan formula leaf size of a conjunction is at most the sum of the leaf sizes of its
 conjuncts. -/
 theorem formulaSize_and_le (f g : BooleanFunction n) :
-    formulaSize (fun x => f x && g x) ≤ formulaSize f + formulaSize g := by
-  obtain ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq f
-  obtain ⟨G, hG, hGL⟩ := exists_computes_leafSize_eq g
-  have hand : (F.and G).Computes interpretation (fun x => f x && g x) := fun x => by
-    rw [eval_and, hF, hG]
-  exact (formulaSize_le hand).trans (by rw [leafSize_and, hFL, hGL])
+    formulaSize (fun x => f x && g x) ≤ formulaSize f + formulaSize g :=
+  let ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq f
+  let ⟨G, hG, hGL⟩ := exists_computes_leafSize_eq g
+  (formulaSize_le (F := F.and G) fun x => by rw [eval_and, hF, hG]).trans_eq
+    (by rw [leafSize_and, hFL, hGL])
 
 /-- The De Morgan formula leaf size of a disjunction is at most the sum of the leaf sizes of its
 disjuncts. -/
 theorem formulaSize_or_le (f g : BooleanFunction n) :
-    formulaSize (fun x => f x || g x) ≤ formulaSize f + formulaSize g := by
-  obtain ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq f
-  obtain ⟨G, hG, hGL⟩ := exists_computes_leafSize_eq g
-  have hor : (F.or G).Computes interpretation (fun x => f x || g x) := fun x => by
-    rw [eval_or, hF, hG]
-  exact (formulaSize_le hor).trans (by rw [leafSize_or, hFL, hGL])
+    formulaSize (fun x => f x || g x) ≤ formulaSize f + formulaSize g :=
+  let ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq f
+  let ⟨G, hG, hGL⟩ := exists_computes_leafSize_eq g
+  (formulaSize_le (F := F.or G) fun x => by rw [eval_or, hF, hG]).trans_eq
+    (by rw [leafSize_or, hFL, hGL])
 
 /-- The languages over `Bool` that have, for every input length `n`, a De Morgan formula of leaf
 size at most `s n` (`Formula[s]` in [OliveiraSanthanam2018, Sections 1.2 and 3.1]). -/
@@ -132,27 +128,48 @@ theorem mem_FormulaPoly_iff_exists_formulas {L : Language Bool} :
   · rintro ⟨F, p, hp, hF⟩
     exact hp.mono_of_le fun n => (formulaSize_le (hF n).2).trans (hF n).1
 
+/-- Every Boolean function has a De Morgan formula of least leaf size with at most
+`3 * formulaSize f + 1` operation nodes (`Formula.size`). -/
+theorem exists_computes_size_le_three_mul_formulaSize_add_one (f : BooleanFunction n) :
+    ∃ F : Formula signature n, F.Computes interpretation f ∧ F.leafSize = formulaSize f ∧
+      F.size ≤ 3 * formulaSize f + 1 := by
+  obtain ⟨F, hF, hL, h⟩ := exists_computes_size_le f
+  refine ⟨F, hF, hL, ?_⟩
+  rcases h with ⟨b, rfl⟩ | h
+  · simp
+  · omega
+
+/-- **`FormulaPoly` with operation-node bounds.** Because every formula `F` satisfies
+`F.leafSize ≤ F.size + 1` (`Formula.leafSize_le`) and every Boolean function has a formula of
+least leaf size with `F.size ≤ 3 * formulaSize f + 1`
+(`exists_computes_size_le_three_mul_formulaSize_add_one`), polynomial leaf size and polynomial
+operation-node count (`Formula.size`) define the same class `FormulaPoly`. -/
+theorem mem_FormulaPoly_iff_exists_formulas_size {L : Language Bool} :
+    L ∈ FormulaPoly ↔ ∃ (F : ∀ n, Formula signature n) (p : ℕ → ℕ), PolynomiallyBounded p ∧
+      ∀ n, (F n).size ≤ p n ∧ (F n).Computes interpretation (L.slice n) := by
+  refine ⟨fun hL => ?_, fun ⟨F, p, hp, hF⟩ =>
+    (hp.add (.const 1)).mono_of_le fun n => (formulaSize_le (hF n).2).trans
+      ((by simpa using (F n).leafSize_le arity_le_two : (F n).leafSize ≤ (F n).size + 1).trans
+        (Nat.add_le_add_right (hF n).1 1))⟩
+  choose F hF _ hsize using fun n =>
+    exists_computes_size_le_three_mul_formulaSize_add_one (L.slice n)
+  exact ⟨F, fun n => 3 * formulaSize (L.slice n) + 1,
+    ((PolynomiallyBounded.const 3).mul hL).add (.const 1), fun n => ⟨hsize n, hF n⟩⟩
+
 /-- `FormulaPoly` is the union of the classes `FormulaSIZE (fun n => c * (n + 1) ^ c)`. -/
 theorem mem_FormulaPoly_iff_exists_mem_FormulaSIZE {L : Language Bool} :
     L ∈ FormulaPoly ↔ ∃ c, L ∈ FormulaSIZE fun n => c * (n + 1) ^ c := by
   rw [mem_FormulaPoly, polynomiallyBounded_iff_le]
-  constructor
-  · rintro ⟨c, d, h⟩
-    refine ⟨max c d, fun n => (h n).trans ?_⟩
-    exact Nat.mul_le_mul (le_max_left c d)
-      (Nat.pow_le_pow_right (Nat.succ_pos n) (le_max_right c d))
-  · rintro ⟨c, h⟩
-    exact ⟨c, c, h⟩
+  exact ⟨fun ⟨c, d, h⟩ => ⟨max c d, fun n => (h n).trans (Nat.mul_le_mul (le_max_left c d)
+    (Nat.pow_le_pow_right (Nat.succ_pos n) (le_max_right c d)))⟩, fun ⟨c, h⟩ => ⟨c, c, h⟩⟩
 
 namespace FormulaPoly
 
 variable {L M : Language Bool}
 
 /-- A language whose slices are constant is in `FormulaPoly`. -/
-theorem of_slice_const (b : ℕ → Bool) (h : ∀ n x, L.slice n x = b n) : L ∈ FormulaPoly := by
-  refine (PolynomiallyBounded.const 0).mono_of_le fun n => ?_
-  have heq : L.slice n = fun _ => b n := funext (h n)
-  rw [heq, formulaSize_const]
+theorem of_slice_const (b : ℕ → Bool) (h : ∀ n x, L.slice n x = b n) : L ∈ FormulaPoly :=
+  (PolynomiallyBounded.const 0).mono_of_le fun n => by rw [funext (h n), formulaSize_const]
 
 /-- The empty language is in `FormulaPoly`. -/
 theorem zero_mem : (0 : Language Bool) ∈ FormulaPoly :=
@@ -163,26 +180,22 @@ theorem top_mem : (⊤ : Language Bool) ∈ FormulaPoly :=
   of_slice_const (fun _ => true) fun _ _ => Language.slice_top
 
 /-- `FormulaPoly` is closed under complement. -/
-theorem compl (hL : L ∈ FormulaPoly) : Lᶜ ∈ FormulaPoly := by
-  refine hL.mono_of_le fun n => ?_
-  have : Lᶜ.slice n = fun x => !L.slice n x := funext fun _ => Language.slice_compl
-  rw [this, formulaSize_not]
+theorem compl (hL : L ∈ FormulaPoly) : Lᶜ ∈ FormulaPoly :=
+  hL.mono_of_le fun n => by
+    rw [show Lᶜ.slice n = fun x => !L.slice n x from funext fun _ => Language.slice_compl,
+      formulaSize_not]
 
 /-- `FormulaPoly` is closed under union. -/
-theorem sup (hL : L ∈ FormulaPoly) (hM : M ∈ FormulaPoly) : L ⊔ M ∈ FormulaPoly := by
-  refine (hL.add hM).mono_of_le fun n => ?_
-  have : (L ⊔ M).slice n = fun x => L.slice n x || M.slice n x :=
-    funext fun _ => Language.slice_sup
-  rw [this]
-  exact formulaSize_or_le (L.slice n) (M.slice n)
+theorem sup (hL : L ∈ FormulaPoly) (hM : M ∈ FormulaPoly) : L ⊔ M ∈ FormulaPoly :=
+  (hL.add hM).mono_of_le fun n =>
+    (show (L ⊔ M).slice n = fun x => L.slice n x || M.slice n x from
+      funext fun _ => Language.slice_sup) ▸ formulaSize_or_le _ _
 
 /-- `FormulaPoly` is closed under intersection. -/
-theorem inf (hL : L ∈ FormulaPoly) (hM : M ∈ FormulaPoly) : L ⊓ M ∈ FormulaPoly := by
-  refine (hL.add hM).mono_of_le fun n => ?_
-  have : (L ⊓ M).slice n = fun x => L.slice n x && M.slice n x :=
-    funext fun _ => Language.slice_inf
-  rw [this]
-  exact formulaSize_and_le (L.slice n) (M.slice n)
+theorem inf (hL : L ∈ FormulaPoly) (hM : M ∈ FormulaPoly) : L ⊓ M ∈ FormulaPoly :=
+  (hL.add hM).mono_of_le fun n =>
+    (show (L ⊓ M).slice n = fun x => L.slice n x && M.slice n x from
+      funext fun _ => Language.slice_inf) ▸ formulaSize_and_le _ _
 
 end FormulaPoly
 

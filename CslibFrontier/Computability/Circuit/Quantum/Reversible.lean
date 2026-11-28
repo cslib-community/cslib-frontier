@@ -80,6 +80,10 @@ onto qubit `n + j`, with `z` the zero qubit. -/
 def codes (n z : ℕ) (gates : List (Op × List ℕ)) : List GateCode :=
   gates.zipIdx.flatMap fun p => gateCodes z (n + p.2) p.1
 
+/-- The qubit holding a Boolean output wire `o` when `z` is the compiler's zero qubit. Malformed
+wire numbers at or above `z` read that zero qubit, matching `evalCode`'s default-false semantics. -/
+def outQubit (z o : ℕ) : ℕ := min z o
+
 theorem codes_append_singleton (n z : ℕ) (gates : List (Op × List ℕ)) (g : Op × List ℕ) :
     codes n z (gates ++ [g]) = codes n z gates ++ gateCodes z (n + gates.length) g := by
   simp [codes, List.zipIdx_append]
@@ -92,8 +96,7 @@ theorem argQubit_lt_or_eq (z t : ℕ) (args : List ℕ) (i : ℕ) :
     argQubit z t args i < t ∨ argQubit z t args i = z := by
   unfold argQubit
   split_ifs with h
-  · exact Or.inl h
-  · exact Or.inr rfl
+  exacts [Or.inl h, Or.inr rfl]
 
 /-- **The qubit read for an argument holds its value**, when the qubits hold the wire values
 `vals` computed before the gate. -/
@@ -124,31 +127,9 @@ private theorem forall_mem_gateCodes {z t : ℕ} {g : Op × List ℕ} {P : GateC
     ∀ c ∈ gateCodes z t g, P c := by
   intro c hc
   obtain ⟨op, args⟩ := g
-  cases op with
-  | const b =>
-    cases b
-    · simp only [gateCodes, Bool.false_eq_true, ite_false, List.not_mem_nil] at hc
-    · simp only [gateCodes, ite_true, List.mem_singleton] at hc
-      exact hc ▸ hnot
-  | not =>
-    simp only [gateCodes, List.mem_cons, List.not_mem_nil, or_false] at hc
-    rcases hc with rfl | rfl
-    · exact hcnot 0
-    · exact hnot
-  | and =>
-    simp only [gateCodes] at hc
-    split_ifs at hc with h
-    · exact (List.mem_singleton.mp hc) ▸ hcnot 0
-    · exact (List.mem_singleton.mp hc) ▸ htof h
-  | or =>
-    simp only [gateCodes] at hc
-    split_ifs at hc with h
-    · exact (List.mem_singleton.mp hc) ▸ hcnot 0
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
-      rcases hc with rfl | rfl | rfl
-      · exact hcnot 0
-      · exact hcnot 1
-      · exact htof h
+  cases op <;> simp only [gateCodes] at hc <;> (try split_ifs at hc) <;>
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hc <;>
+    obtain rfl | rfl | rfl := hc <;> first | exact hnot | exact hcnot _ | exact htof ‹_›
 
 theorem isClassical_gateCodes {z t : ℕ} (htz : t < z) (hz : z < W) (g : Op × List ℕ) :
     IsClassical W (gateCodes z t g) := by
@@ -215,20 +196,12 @@ theorem readBit_classicalRun_gateCodes {z t : ℕ} (htz : t < z) (hz : z < W)
       simp only [gateCodes]
       split_ifs with h
       · simp [interpretation, ← h]
-      · simp only [List.foldl_cons, List.foldl_nil, List.all_cons, List.all_nil,
-          decide_true, Bool.true_and, Bool.and_true, Bool.false_xor, interpretation,
-          Fin.val_zero, Fin.val_one]
+      · simp only [List.foldl_cons, List.foldl_nil, GateCode.target_mk, GateCode.controls_mk,
+          List.all_cons, List.all_nil, decide_true, Bool.true_and, Bool.and_true, Bool.false_xor,
+          interpretation, Fin.val_zero, Fin.val_one]
         cases readBit Y (argQubit z t args 0) <;> cases readBit Y (argQubit z t args 1) <;> rfl
   · rw [ite_eq_right hp]
-    cases op with
-    | const b => cases b <;> simp [gateCodes, hp]
-    | not => simp [gateCodes, hp]
-    | and =>
-      simp only [gateCodes]
-      split_ifs <;> simp [hp]
-    | or =>
-      simp only [gateCodes]
-      split_ifs <;> simp [hp]
+    cases op <;> simp only [gateCodes] <;> (try split_ifs) <;> simp [hp]
 
 theorem isClassical_codes {n z : ℕ} {gates : List (Op × List ℕ)} (hz : n + gates.length ≤ z)
     (hW : z < W) : IsClassical W (codes n z gates) := by
@@ -268,11 +241,7 @@ private theorem gateCodes_eq (z t : ℕ) (g : Op × List ℕ) :
           (false, t, [argQubit z t g.2 0, argQubit z t g.2 1])])
       else [] := by
   obtain ⟨op, args⟩ := g
-  cases op with
-  | const b => cases b <;> simp [gateCodes]
-  | not => simp [gateCodes]
-  | and => simp [gateCodes]
-  | or => simp [gateCodes]
+  cases op <;> simp [gateCodes]
 
 theorem computableInPolyTime_gateCodes {z t : γ → ℕ} {g : γ → Op × List ℕ}
     (hz : ComputableInPolyTime z enc encUnary) (ht : ComputableInPolyTime t enc encUnary)

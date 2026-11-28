@@ -20,7 +20,7 @@ Checks enforced by default (see AGENTS.md):
    Citation-shaped labels followed by a bare prose word remain citation prose.
    Nested block-container definitions and indented (4-space) code blocks are not scanned;
    `scripts/check_docs.py` in `docs.yml` remains the full HTML backstop.
-5. (Default selection only.) `references.bib` keys are unique and its entries are sorted by key,
+5. (Default selection or `--check-metadata`.) `references.bib` keys are unique and its entries are sorted by key,
    both compared case-insensitively as BibTeX does, so that PRs adding entries rarely conflict.
 6. Every citation key in a docstring is a `references.bib` key. A citation is a bracketed segment
    (`[Key]`, `[Key, Theorem 2]`, `[Key; Other]`, or the reference in `[text][Key]`) that has the
@@ -37,8 +37,9 @@ Checks enforced by default (see AGENTS.md):
    Inline and multiline settings and decimal/hexadecimal numerals are checked. With the default
    selection, an entry whose file no longer needs it (no budget above the default, or a cap above the largest
    budget) is reported as stale, so the allowlist only shrinks as budgets are reduced (#1528).
-8. (Default selection only.) `ROADMAP.md` lists directions by scope only (CONTRIBUTING.md,
-   Documentation): it has no link reference definitions (`[label]: https://…`), since every PR
+8. (Default selection or `--check-metadata`.) `ROADMAP.md` and the per-area files under `roadmap/` list
+   directions by scope only (CONTRIBUTING.md, Documentation): they have no link reference
+   definitions (`[label]: https://…`), since every PR
    appending one to a shared tail block conflicted with the others in the merge queue, so every
    link, including each `[#N]`, is written inline. Each top-level entry has no nested bullets
    and at most `ROADMAP_ENTRY_MAX` characters of Markdown (a link counts as its text), which
@@ -53,6 +54,8 @@ Opt-in heuristic checks:
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor
+import os
 import pathlib
 import re
 import sys
@@ -234,10 +237,15 @@ def validate_doc_markdown_target(target: str, root: pathlib.Path) -> str | None:
     )
 
 
-def check_docstring_links(raw: str, rel: pathlib.Path, root: pathlib.Path) -> list[str]:
+def check_docstring_links(
+    raw: str,
+    rel: pathlib.Path,
+    root: pathlib.Path,
+    docstrings: list[tuple[int, str]] | None = None,
+) -> list[str]:
     """Check Markdown links and auto-linked `.lean` code tokens in `CslibFrontier/` docstrings."""
     errors: list[str] = []
-    for doc_start, doc in extract_docstrings(raw):
+    for doc_start, doc in (extract_docstrings(raw) if docstrings is None else docstrings):
         chars = list(doc)
         for m in DOC_FENCE_RE.finditer(doc):
             info = m.group("info").strip()
@@ -329,10 +337,17 @@ def docstring_citations(doc: str) -> list[tuple[int, str]]:
     return citations
 
 
-def check_docstring_citations(raw: str, rel: pathlib.Path, bib_keys: frozenset[str]) -> list[str]:
+def check_docstring_citations(
+    raw: str,
+    rel: pathlib.Path,
+    bib_keys: frozenset[str],
+    docstrings: list[tuple[int, str]] | None = None,
+) -> list[str]:
     """Report docstring citation keys that `references.bib` does not define."""
     errors: list[str] = []
-    for doc_start, doc in extract_docstrings(raw):
+    for doc_start, doc in (extract_docstrings(raw) if docstrings is None else docstrings):
+        if "[" not in doc:
+            continue
         for offset, key in docstring_citations(doc):
             if key not in bib_keys:
                 line_no = raw.count("\n", 0, doc_start + offset) + 1
@@ -498,29 +513,35 @@ def check_file(
     markers = upstream_markers(raw) if in_complexity else []
     if in_complexity and not any(UPSTREAM_STATUS_RE.fullmatch(status) for status in markers):
         errors.append(f"{rel}: missing or invalid `-- upstream:` marker")
-    if in_complexity:
-        errors.extend(check_docstring_links(raw, rel, root))
-    if bib_keys is not None:
-        errors.extend(check_docstring_citations(raw, rel, bib_keys))
+    docstrings: list[tuple[int, str]] | None = None
+    if in_complexity or bib_keys is not None:
+        docstrings = extract_docstrings(raw) if ("/-!" in raw or "/--" in raw) else []
+    if in_complexity and docstrings:
+        errors.extend(check_docstring_links(raw, rel, root, docstrings=docstrings))
+    if bib_keys is not None and docstrings:
+        errors.extend(check_docstring_citations(raw, rel, bib_keys, docstrings=docstrings))
 
-    for idx, s_line in enumerate(syntax.split("\n"), 1):
-        for m in FORBIDDEN_TOKEN_RE.finditer(s_line):
+    if "sorry" in syntax or "native_decide" in syntax:
+        for m in FORBIDDEN_TOKEN_RE.finditer(syntax):
+            idx = syntax.count("\n", 0, m.start()) + 1
             errors.append(f"{rel}:{idx}: forbidden `{m.group(1)}`")
 
-    for m in CUSTOM_AXIOM_RE.finditer(syntax):
-        line_no = syntax.count("\n", 0, m.start()) + 1
-        errors.append(f"{rel}:{line_no}: forbidden custom `axiom` declaration")
+    if "axiom" in syntax:
+        for m in CUSTOM_AXIOM_RE.finditer(syntax):
+            line_no = syntax.count("\n", 0, m.start()) + 1
+            errors.append(f"{rel}:{line_no}: forbidden custom `axiom` declaration")
 
-    for match in SET_OPTION_RE.finditer(code):
-        idx = code.count("\n", 0, match.start())
-        value_idx = code.count("\n", 0, match.end())
-        if not any(has_nearby_comment(raw_lines, code_lines, line)
-                   for line in range(idx, value_idx + 1)):
-            errors.append(
-                f"{rel}:{idx + 1}: `set_option {match.group(1)}` requires a justifying comment"
-            )
+    if "set_option" in code:
+        for match in SET_OPTION_RE.finditer(code):
+            idx = code.count("\n", 0, match.start())
+            value_idx = code.count("\n", 0, match.end())
+            if not any(has_nearby_comment(raw_lines, code_lines, line)
+                       for line in range(idx, value_idx + 1)):
+                errors.append(
+                    f"{rel}:{idx + 1}: `set_option {match.group(1)}` requires a justifying comment"
+                )
 
-    if heartbeat_caps is not None:
+    if heartbeat_caps is not None and "maxHeartbeats" in code:
         cap = heartbeat_caps.get(rel.as_posix(), DEFAULT_MAX_HEARTBEATS)
         for line_no, value in heartbeat_budgets(code_lines):
             if value is None:
@@ -533,7 +554,7 @@ def check_file(
                        "the file to scripts/heartbeat_allowlist.txt with review")
                 )
 
-    if check_simp and any(re.match(r"candidate\b", status) for status in markers):
+    if check_simp and "simp" in syntax and any(re.match(r"candidate\b", status) for status in markers):
         for line_no in find_nonterminal_bare_simps(syntax):
             errors.append(f"{rel}:{line_no}: non-terminal bare `simp` (use `simp only`)")
 
@@ -622,6 +643,11 @@ def roadmap_definitions(text: str) -> list[tuple[int, str]]:
     return found
 
 
+def roadmap_files(root: Path = ROOT) -> list[Path]:
+    """`ROADMAP.md`, the index, and the per-area files under `roadmap/`."""
+    return [root / "ROADMAP.md", *sorted((root / "roadmap").glob("*.md"))]
+
+
 def check_roadmap(text: str, rel: str = "ROADMAP.md") -> list[str]:
     """Inline links only, and short top-level entries without nested bullets."""
     errors: list[str] = []
@@ -658,6 +684,38 @@ def check_roadmap(text: str, rel: str = "ROADMAP.md") -> list[str]:
     return errors
 
 
+_WORKER_STATE: dict[str, object] = {}
+
+
+def _init_worker(
+    root: pathlib.Path,
+    check_simp: bool,
+    max_lines: int | None,
+    bib_keys: frozenset[str] | None,
+    heartbeat_caps: dict[str, int] | None,
+) -> None:
+    _WORKER_STATE["root"] = root
+    _WORKER_STATE["check_simp"] = check_simp
+    _WORKER_STATE["max_lines"] = max_lines
+    _WORKER_STATE["bib_keys"] = bib_keys
+    _WORKER_STATE["heartbeat_caps"] = heartbeat_caps
+
+
+def _check_file_worker(path: pathlib.Path) -> list[str]:
+    return check_file(
+        path,
+        root=_WORKER_STATE["root"],  # type: ignore[arg-type]
+        check_simp=_WORKER_STATE["check_simp"],  # type: ignore[arg-type]
+        max_lines=_WORKER_STATE["max_lines"],  # type: ignore[arg-type]
+        bib_keys=_WORKER_STATE["bib_keys"],  # type: ignore[arg-type]
+        heartbeat_caps=_WORKER_STATE["heartbeat_caps"],  # type: ignore[arg-type]
+    )
+
+
+def default_jobs() -> int:
+    return min(8, max(1, os.cpu_count() or 1))
+
+
 def check_paths(
     paths: list[pathlib.Path],
     root: pathlib.Path = ROOT,
@@ -665,23 +723,43 @@ def check_paths(
     max_lines: int | None = None,
     bib_keys: frozenset[str] | None = None,
     heartbeat_caps: dict[str, int] | None = None,
+    jobs: int | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    checked = 0
+    files: list[pathlib.Path] = []
     for p in paths:
         if not p.exists():
             errors.append(f"{p}: input path does not exist")
             continue
         if p.is_dir():
-            files = sorted(p.rglob("*.lean"))
+            files.extend(sorted(p.rglob("*.lean")))
         else:
-            files = [p]
-        for f in files:
-            checked += 1
-            errors.extend(check_file(f, root=root, check_simp=check_simp, max_lines=max_lines,
-                                     bib_keys=bib_keys, heartbeat_caps=heartbeat_caps))
-    if not checked and not errors:
+            files.append(p)
+    if not files and not errors:
         errors.append("no source files found in selected paths")
+        return errors
+    worker_count = default_jobs() if jobs is None else max(1, jobs)
+    if worker_count > 1 and len(files) >= 256 and sys.platform.startswith("linux"):
+        import multiprocessing
+        workers = min(worker_count, len(files))
+        try:
+            ctx = multiprocessing.get_context("fork")
+            pool_errors: list[str] = []
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                mp_context=ctx,
+                initializer=_init_worker,
+                initargs=(root, check_simp, max_lines, bib_keys, heartbeat_caps),
+            ) as pool:
+                for file_errors in pool.map(_check_file_worker, files, chunksize=64):
+                    pool_errors.extend(file_errors)
+            errors.extend(pool_errors)
+            return errors
+        except (OSError, PermissionError, RuntimeError):
+            pass
+    for f in files:
+        errors.extend(check_file(f, root=root, check_simp=check_simp, max_lines=max_lines,
+                                 bib_keys=bib_keys, heartbeat_caps=heartbeat_caps))
     return errors
 
 
@@ -704,10 +782,16 @@ def main() -> int:
         default=None,
         help="Optional maximum line count per Lean file",
     )
+    parser.add_argument("--check-metadata", action="store_true",
+                        help="check bibliography and roadmaps, plus any explicitly selected sources")
+    parser.add_argument("--jobs", type=int, default=None,
+                        help="worker processes for large file batches (default: up to 8 CPUs)")
     args = parser.parse_args()
 
     if args.paths:
         targets = [pathlib.Path(p).resolve() for p in args.paths]
+    elif args.check_metadata:
+        targets = []
     else:
         targets = [ROOT / "CslibFrontier", ROOT / "CslibFrontierTests"]
 
@@ -720,11 +804,15 @@ def main() -> int:
         max_lines=args.max_lines,
         bib_keys=bibliography_keys(bibliography),
         heartbeat_caps=heartbeat_caps,
-    )
-    if not args.paths:
-        errors += check_bibliography(bibliography)
+        jobs=args.jobs,
+    ) if targets else []
+    if not args.paths and not args.check_metadata:
         errors += check_heartbeat_allowlist_stale(heartbeat_caps)
-        errors += check_roadmap((ROOT / "ROADMAP.md").read_text(encoding="utf-8"))
+    if not args.paths or args.check_metadata:
+        errors += check_bibliography(bibliography)
+        for roadmap in roadmap_files():
+            errors += check_roadmap(roadmap.read_text(encoding="utf-8"),
+                                    roadmap.relative_to(ROOT).as_posix())
     if errors:
         for err in errors:
             print(f"ERROR: {err}", file=sys.stderr)

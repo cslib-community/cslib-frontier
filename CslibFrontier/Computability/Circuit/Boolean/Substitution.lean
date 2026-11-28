@@ -10,10 +10,12 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
 public import CslibFrontier.Foundations.Data.BitString.PartialAssignment
+public import CslibFrontier.Computability.Languages.Slice
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.BitString.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Substituting variables and constants for inputs
@@ -35,6 +37,11 @@ function of its first `n` inputs on a `δ` fraction of all inputs, then for some
 inputs the resulting function, two gates larger, agrees with it on a `δ` fraction of the inputs
 (`Cslib.Circuits.Boolean.exists_complexity_le_of_agree_prefix`).
 
+Fixing a prefix `u` of the input of a language `L`, and reading only the first `P` of `Q` new
+inputs, gives a function `r ↦ [u ++ (first P bits of r) ∈ L]` at most two gates larger than the
+slice of `L` at length `|u| + P` (`Cslib.Circuits.Boolean.complexity_le_of_append_take`). This is
+the circuit of a verifier with its instance hardwired, used in derandomization.
+
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.substitute`, `Cslib.Circuits.Boolean.appendInputs`,
@@ -46,6 +53,7 @@ inputs the resulting function, two gates larger, agrees with it on a `δ` fracti
 
 * `Cslib.Circuits.Boolean.complexity_substitute_le`: a substitution costs at most two gates.
 * `Cslib.Circuits.Boolean.exists_complexity_le_of_agree_prefix`: fixing ignored inputs.
+* `Cslib.Circuits.Boolean.complexity_le_of_append_take`: hardwiring a prefix of a language's input.
 -/
 
 @[expose] public section
@@ -81,10 +89,7 @@ def substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) : Circuit sign
 @[simp] theorem eval_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) (x : BitString n) :
     (substituteCircuit ρ).eval interpretation x = substitute ρ x := by
   funext j
-  cases h : ρ j with
-  | inl i => simp [substituteCircuit, substitute, h]
-  | inr b =>
-    cases b <;> simp [substituteCircuit, substitute, h]
+  rcases h : ρ j with i | (_ | _) <;> simp [substituteCircuit, substitute, h]
 
 /-- Substitution charges each of the two shared constant gates once. -/
 theorem cost_program_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool)
@@ -103,15 +108,10 @@ theorem cost_program_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Boo
 
 
 /-- The shared-constant substitution circuit has depth at most one. -/
+@[circuit_bound]
 theorem depth_substituteCircuit_le {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) :
     (substituteCircuit ρ).depth ≤ 1 := by
-  unfold substituteCircuit
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, Nat.zero_add]
-  refine (Circuit.depth_append_le _ _).trans (max_le ?_ ?_)
-  · simp [Circuit.id]
-  · exact Circuit.depth_pi_le _ fun i =>
-      (Formula.depth_toCircuit_le _).trans (by simp [Formula.const])
+  circuit_bound [substituteCircuit]
 
 /-- A substitution costs at most two gates, one for each constant. -/
 theorem complexity_substitute_le_two (ρ : Fin N → Fin n ⊕ Bool) :
@@ -148,6 +148,35 @@ def prependInputs {p : ℕ} (r : Fin p → Bool) : Fin (p + n) → Fin n ⊕ Boo
   funext j
   refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;> simp [substitute, prependInputs]
 
+/-- The substitution feeding a function of `u.length + P` variables with `u` followed by the first
+`P` of `Q ≥ P` variables. -/
+private def prefixWiring (u : List Bool) {P Q : ℕ} (hPQ : P ≤ Q) (j : Fin (u.length + P)) :
+    Fin Q ⊕ Bool :=
+  if h : (j : ℕ) < u.length then .inr u[j] else .inl ⟨j - u.length, by omega⟩
+
+private theorem ofFn_substitute_prefixWiring (u : List Bool) {P Q : ℕ} (hPQ : P ≤ Q)
+    (r : Fin Q → Bool) :
+    List.ofFn (substitute (prefixWiring u hPQ) r) = u ++ (List.ofFn r).take P := by
+  refine List.ext_getElem (by simp; omega) fun j h₁ h₂ => ?_
+  simp only [List.length_ofFn] at h₁
+  rw [List.getElem_ofFn]
+  by_cases hj : j < u.length <;>
+    [rw [List.getElem_append_left hj]; rw [List.getElem_append_right (by omega)]] <;>
+    simp [substitute, prefixWiring, hj]
+
+/-- **Hardwiring a prefix.** Let `f` on `Q` inputs test whether `u` followed by the first `P ≤ Q`
+bits of its input lies in `L`. Then `f` costs at most two gates more than the slice of `L` at
+length `u.length + P`. -/
+theorem complexity_le_of_append_take (L : Language Bool) (u : List Bool) {P Q : ℕ} (hPQ : P ≤ Q)
+    {f : BooleanFunction Q} (hf : ∀ r, f r = true ↔ u ++ (List.ofFn r).take P ∈ L) :
+    complexity interpretation (single f) ≤
+      complexity interpretation (single (L.slice (u.length + P))) + 2 := by
+  have h : f = fun r => L.slice (u.length + P) (substitute (prefixWiring u hPQ) r) := by
+    funext r
+    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, ofFn_substitute_prefixWiring, hf]
+  rw [h]
+  exact complexity_substitute_le _ _
+
 open Finset in
 /-- **Fixing ignored inputs.** If `g` on `N` inputs agrees with a function `E` of its first `n`
 inputs on more than `δ * 2 ^ N` inputs, then fixing the other `N - n` inputs suitably
@@ -172,33 +201,27 @@ theorem exists_complexity_le_of_agree_prefix (hle : n ≤ N) (E : BooleanFunctio
   -- the agreement splits over the fixings
   have hsplit : #{y | g y = E fun i => y (Fin.castLE hle i)} =
       ∑ z : BitString p, #{x | g (substitute (ρ z) x) = E x} := by
+    have hinv (y : BitString N) : (fun k => Fin.append (fun i => y (Fin.castLE hle i))
+        (fun j => y (Fin.cast hN (Fin.natAdd n j))) (Fin.cast hN.symm k)) = y := by
+      funext k
+      obtain ⟨k', rfl⟩ : ∃ k', k = Fin.cast hN k' := ⟨Fin.cast hN.symm k, by simp⟩
+      refine Fin.addCases (fun i => ?_) (fun j => ?_) k'
+      · simp only [Fin.cast_cast, Fin.cast_eq_self, Fin.append_left]
+        rfl
+      · simp only [Fin.cast_cast, Fin.cast_eq_self, Fin.append_right]
     rw [← card_sigma]
     refine card_nbij' (fun y => ⟨fun j => y (Fin.cast hN (Fin.natAdd n j)),
       fun i => y (Fin.castLE hle i)⟩) (fun q => fun k => Fin.append q.2 q.1 (Fin.cast hN.symm k))
       (fun y hy => ?_) (fun q hq => ?_) (fun y _ => ?_) (fun q _ => ?_)
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq, coe_sigma,
         Set.mem_sigma_iff, mem_coe, hρ] at hy ⊢
-      have hy' : (fun k => Fin.append (fun i => y (Fin.castLE hle i))
-          (fun j => y (Fin.cast hN (Fin.natAdd n j))) (Fin.cast hN.symm k)) = y := by
-        funext k
-        obtain ⟨k', rfl⟩ : ∃ k', k = Fin.cast hN k' := ⟨Fin.cast hN.symm k, by simp⟩
-        refine Fin.addCases (fun i => ?_) (fun j => ?_) k'
-        · simp only [Fin.cast_cast, Fin.cast_eq_self, Fin.append_left]
-          rfl
-        · simp only [Fin.cast_cast, Fin.cast_eq_self, Fin.append_right]
-      rw [hy']
-      exact hy
+      rwa [hinv]
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq, coe_sigma,
         Set.mem_sigma_iff, mem_coe, hρ] at hq ⊢
       rw [show (fun i => Fin.append q.2 q.1 (Fin.cast hN.symm (Fin.castLE hle i))) = q.2 from
         funext (hleft q.2 q.1)]
       exact hq
-    · funext k
-      obtain ⟨k', rfl⟩ : ∃ k', k = Fin.cast hN k' := ⟨Fin.cast hN.symm k, by simp⟩
-      refine Fin.addCases (fun i => ?_) (fun j => ?_) k'
-      · simp only [Fin.cast_cast, Fin.cast_eq_self, Fin.append_left]
-        rfl
-      · simp only [Fin.cast_cast, Fin.cast_eq_self, Fin.append_right]
+    · exact hinv y
     · obtain ⟨z, x⟩ := q
       simp only [Sigma.mk.injEq]
       refine ⟨funext fun j => ?_, heq_of_eq (funext (hleft x z))⟩

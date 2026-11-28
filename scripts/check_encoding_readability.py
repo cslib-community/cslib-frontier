@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-"""Name compound encodings that public statements repeat (#1656).
+"""Name compound encodings that public statements repeat, and forbid compound-encoding local
+notations (#1656).
 
 Usage: python3 scripts/check_encoding_readability.py
            [--base REF | --all | --report | --list [PREFIX]]
            [--update-baseline [--allow-increase]] [--summary [N]] [--root DIR] [--baseline FILE]
 
-This checks rule 1 of "Encodings in statements" in AGENTS.md. A *compound encoding* is an
+This checks rules 1 and 3 of "Encodings in statements" in AGENTS.md. A *compound encoding* is an
 application of one of the generic combinators `encPair`, `encList`, `encOption`, `encSum`,
-`encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them as an
-argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
+`encSigma`, `encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them
+as an argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
 neither is `encPair encNat (encCSP (encOption e) encNat)`, whose inner combinator is an argument of
 another function. A compound encoding
-that the signatures of three or more public declarations of a module spell out is a violation:
-give it a documented, reducible `abbrev` (or use one that already exists with the same meaning)
-and write the name in those statements.
+that the signatures of three or more public declarations of a module spell out is a violation
+(rule 1): give it a documented, reducible `abbrev` (or use one that already exists with the same
+meaning) and write the name in those statements. A `local notation` whose right-hand side contains
+a compound encoding is also a violation (rule 3): the repetition check reads a notation as an atom,
+so it hides a compound encoding, and `doc-gen4` shows its expansion; replace it with a documented,
+reducible `abbrev`.
 
 A signature runs from the declaration's name to the first top-level `:=`, `where` or equation
 clause `| … =>` (for `structure`, `class` and `inductive`, the first top-level `|`), so proofs and
@@ -40,34 +44,38 @@ A declaration counts towards a term when it spells the term out other than insid
 of a longer violation, which is reported instead: naming the longer term fixes both. The result is
 the same pass or fail as counting every occurrence; only the numbers differ.
 
-`scripts/encoding_readability_baseline.json` records the violations that the #1656 sweep has yet
-to name, as `{module path: {term: number of declarations}}`. In a module that the change touches
+`scripts/encoding_readability_baseline.json` records any legacy rule-1 violations as
+`{module path: {term: number of declarations}}`; compound-encoding `local notation`s are never
+recorded in the baseline. In a module that the change touches
 (adds, modifies or deletes, against the merge base of `--base`, default `origin/main`, and the
-working tree, as `scripts/check_changed_files.py` computes it), every violation must match its
-entry exactly. A violation without an entry, or with more declarations than its entry, fails. An
+working tree, as `scripts/check_changed_files.py` computes it), every repeated-encoding violation
+must match its baseline entry exactly, and no compound-encoding `local notation` may appear. A
+repeated-encoding violation without an entry, or with more declarations than its entry, fails. An
 entry that records more declarations than remain, or that no longer occurs, fails too until the
 baseline is lowered in the same change, so that a named encoding cannot be spelled out again later.
-Differences in modules that the change does not touch are reported but do not fail: existing code
-is brought in line when it is next modified, and by the sweep. Pull requests run this mode.
+Differences and compound-encoding `local notation`s in modules that the change does not touch are
+reported but do not fail. Pull requests run this mode.
 
-`--all` enforces the baseline in every module, for maintenance. `--report` prints every difference
+`--all` enforces the baseline and zero compound-encoding `local notation`s in every module, for
+maintenance. `--report` prints every baseline difference and compound-encoding `local notation`
 and always succeeds; merge groups and pushes to `main` run it, so that queued changes written before
 a baseline entry was lowered are not ejected. Merges can therefore leave `main` above the baseline
 in some module; the next change that touches that module names the encoding or, with
 `--update-baseline --allow-increase`, records it.
 
-`--update-baseline` rewrites the entries of the touched modules (with `--all`, of every module)
-with the current violations; it refuses to add or raise an entry unless `--allow-increase` is
-given, for instance when a module moves or a rename changes the spelling of recorded terms.
-`--summary` prints the totals, the counts per top-level directory of `CslibFrontier/`, the modules
-with the most violations and the terms repeated in several modules.
+`--update-baseline` rewrites the repeated-encoding entries of the touched modules (with `--all`, of
+every module) with the current violations; it refuses to add or raise an entry unless
+`--allow-increase` is given, for instance when a module moves or a rename changes the spelling of
+recorded terms, and it never records compound-encoding `local notation`s (failing if any remain in
+an enforced module).
+`--summary` prints the repeated-encoding totals, the counts per top-level directory of
+`CslibFrontier/`, the modules with the most violations and the terms repeated in several modules.
 
-`--list [PREFIX]` is for the sweep. It ignores the baseline and prints every violation, with its
-declarations, in the modules whose path is PREFIX or lies under it (such as `CslibFrontier/Logics`),
-or in every module. It also prints the `local notation`s whose right-hand side contains a compound
-encoding: the check reads a notation as an atom, so these hide compound encodings, and rule 3
-asks for a documented `abbrev` instead. It always succeeds, and combines with neither the other
-modes nor `--update-baseline` or `--summary`.
+`--list [PREFIX]` is for sweeping an area. It ignores the baseline and prints every repeated
+compound encoding, with its declarations, and every compound-encoding `local notation` in the
+modules whose path is PREFIX or lies under it (such as `CslibFrontier/Logics`), or in every module.
+It always succeeds, and combines with neither the other modes nor `--update-baseline` or
+`--summary`.
 
 The check reads only the sources: it needs no build outputs.
 """
@@ -75,7 +83,9 @@ The check reads only the sources: it needs no build outputs.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 import json
+import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -92,8 +102,8 @@ BASELINE = ROOT / "scripts/encoding_readability_baseline.json"
 UPDATE = "python3 scripts/check_encoding_readability.py --update-baseline"
 # The generic encoding combinators (`CslibFrontier/Computability/Machines/Turing/MultiTape/
 # Encodings/`) and their explicit arities.
-COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encFramed": 1,
-               "encPi": 1, "encDPi": 1}
+COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encSigma": 2,
+               "encFramed": 1, "encPi": 1, "encDPi": 1}
 # A compound term is repeated when at least this many public declarations of a module spell it out.
 MIN_DECLARATIONS = 3
 
@@ -102,8 +112,6 @@ MODIFIER = r"(?:public|private|protected|noncomputable|unsafe|partial|nonrec|sco
 PREFIX = re.compile(r"(?:open|set_option|include|omit|variable|attribute|unseal|seal|#\w+)\b"
                     r"[^\n]*?(?<![\w'.!?])in(?![\w'!?])")
 HEADER = re.compile(rf"((?:{MODIFIER}\s+)*)(class\s+inductive|[a-z_]+)(?![\w'!?])")
-# `public meta section`, which `proof_lengths.COMMAND` does not recognize as a command.
-EXTRA_SCOPE = re.compile(rf"^(?:@\[[^\]\n]*\]\s*)*(?:{MODIFIER}\s+)+section\b", re.M)
 DECLARATIONS = {"theorem", "lemma", "def", "abbrev", "instance", "structure", "class",
                 "class inductive", "inductive", "opaque", "axiom"}
 TYPE_DECLARATIONS = {"structure", "class", "class inductive", "inductive"}
@@ -341,8 +349,7 @@ def commands(text: str) -> Iterator[Command]:
     namespace, default visibility and `variable`s in force. Comments and strings are masked."""
     _, syntax = masks(text)
     in_module = re.search(r"^module\b", syntax, re.M) is not None
-    starts = sorted(set(command_starts(syntax)) | {m.start() for m in EXTRA_SCOPE.finditer(syntax)})
-    starts.append(len(syntax))
+    starts = command_starts(syntax) + [len(syntax)]
     scopes = [_Scope("", (), not in_module)]
     for start, end in zip(starts, starts[1:]):
         command = syntax[start:end]
@@ -661,27 +668,59 @@ def checked_files(root: Path, prefix: str = "") -> list[Path]:
                   and path.relative_to(root).parts[:len(parts)] == parts)
 
 
-def scan(root: Path, prefix: str = "", notations: dict[str, list[Notation]] | None = None
-         ) -> dict[str, list[Violation]]:
+def _scan_one(args: tuple[Path, Path, bool]
+              ) -> tuple[str, list[Violation], list[Notation] | None]:
+    root, path, collect_notations = args
+    rel = path.relative_to(root).as_posix()
+    text = path.read_text(encoding="utf-8")
+    if "enc" not in text:  # every key in COMBINATORS starts with "enc"
+        return rel, [], None
+    mentions = len(COMBINATOR_NAME.findall(text))
+    # A violation mentions combinators at least this often, a compound encoding twice.
+    notes: list[Notation] | None = (
+        [] if collect_notations and mentions >= 2 and "notation" in text else None
+    )
+    if mentions < 2 * MIN_DECLARATIONS and notes is None:
+        return rel, [], None
+    try:
+        violations = module_violations(public_declarations(text, notes))
+    except ValueError as error:
+        raise ValueError(f"{rel}: {error}") from error
+    return rel, violations, (notes if notes else None)
+
+
+def scan(root: Path, prefix: str = "", notations: dict[str, list[Notation]] | None = None,
+         *, jobs: int | None = None) -> dict[str, list[Violation]]:
     """The violations of each module (under `prefix`) that has any, by source path. If
     `notations` is given, record in it the `local notation`s of each module that abbreviate a
     compound encoding."""
-    found = {}
-    for path in checked_files(root, prefix):
-        rel = path.relative_to(root).as_posix()
-        text = path.read_text(encoding="utf-8")
-        mentions = len(COMBINATOR_NAME.findall(text))
-        # A violation mentions combinators at least this often, a compound encoding twice.
-        notes = [] if notations is not None and mentions >= 2 and "notation" in text else None
-        if mentions < 2 * MIN_DECLARATIONS and notes is None:
-            continue
+    files = checked_files(root, prefix)
+    collect_notations = notations is not None
+    found: dict[str, list[Violation]] = {}
+    worker_count = min(8, max(1, os.cpu_count() or 1)) if jobs is None else max(1, jobs)
+    if worker_count > 1 and len(files) >= 256 and sys.platform.startswith("linux"):
+        import multiprocessing
         try:
-            violations = module_violations(public_declarations(text, notes))
-        except ValueError as error:
-            raise ValueError(f"{rel}: {error}") from error
+            ctx = multiprocessing.get_context("fork")
+            pool_found: dict[str, list[Violation]] = {}
+            pool_notes: dict[str, list[Notation]] = {}
+            with ProcessPoolExecutor(max_workers=min(worker_count, len(files)), mp_context=ctx) as pool:
+                tasks = ((root, path, collect_notations) for path in files)
+                for rel, violations, notes in pool.map(_scan_one, tasks, chunksize=64):
+                    if violations:
+                        pool_found[rel] = violations
+                    if notes and notations is not None:
+                        pool_notes[rel] = notes
+            if notations is not None:
+                notations.update(pool_notes)
+            return pool_found
+        except (OSError, PermissionError, RuntimeError):
+            pass
+    for path in files:
+        rel, violations, notes = _scan_one((root, path, collect_notations))
         if violations:
             found[rel] = violations
-        if notes:
+        if notes and notations is not None:
             notations[rel] = notes
     return found
 
@@ -746,6 +785,15 @@ def over_report(over: list[Change], found: dict[str, list[Violation]]) -> str:
     return "\n".join(out)
 
 
+def notation_report(notations: dict[str, list[Notation]]) -> str:
+    out = ["Local notations that abbreviate a compound encoding; replace each with a "
+           "documented reducible `abbrev` (AGENTS.md, \"Encodings in statements\", "
+           "rule 3):"]
+    out += [f"  {path}:{notation.line}: local notation {notation.lhs} => {notation.rhs}"
+            for path, found_here in sorted(notations.items()) for notation in found_here]
+    return "\n".join(out)
+
+
 def listing(found: dict[str, list[Violation]], notations: dict[str, list[Notation]],
             prefix: str, modules: int) -> str:
     """Every violation and compound-encoding notation of the `modules` checked modules under
@@ -755,12 +803,7 @@ def listing(found: dict[str, list[Violation]], notations: dict[str, list[Notatio
         for violation in violations:
             out += [*violation_lines(path, violation), ""]
     if notations:
-        out.append("Local notations that abbreviate a compound encoding; replace each with a "
-                   "documented reducible `abbrev` (AGENTS.md, \"Encodings in statements\", "
-                   "rule 3):")
-        out += [f"  {path}:{notation.line}: local notation {notation.lhs} => {notation.rhs}"
-                for path, found_here in sorted(notations.items()) for notation in found_here]
-        out.append("")
+        out += [notation_report(notations), ""]
     where = f" under {prefix}" if prefix else ""
     total = sum(len(violations) for violations in found.values())
     count = sum(len(found_here) for found_here in notations.values())
@@ -827,7 +870,8 @@ def main(argv: list[str] | None = None) -> int:
                             "revision (default origin/main)")
     scope.add_argument("--all", action="store_true", help="enforce in every module")
     scope.add_argument("--report", action="store_true",
-                       help="report every difference from the baseline and succeed")
+                       help="report every baseline difference and compound-encoding local "
+                            "notation and succeed")
     scope.add_argument("--list", nargs="?", const="", metavar="PREFIX",
                        help="ignore the baseline and list every repeated compound encoding with "
                             "its declarations, and the local notations that abbreviate a compound "
@@ -851,38 +895,52 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--report does not combine with --update-baseline")
     if args.list is not None and (args.update_baseline or args.summary is not None):
         parser.error("--list does not combine with --update-baseline or --summary")
+    notations: dict[str, list[Notation]] = {}
     if args.list is not None:
-        notations: dict[str, list[Notation]] = {}
         found = scan(args.root, args.list, notations)
         print(listing(found, notations, args.list, len(checked_files(args.root, args.list))))
         return 0
     baseline_path = args.baseline or args.root / BASELINE.relative_to(ROOT)
-    found = scan(args.root)
-    current = counts(found)
     if args.summary is not None:
-        print(summary(current, args.summary))
+        print(summary(counts(scan(args.root)), args.summary))
         return 0
+    found = scan(args.root, notations=notations)
+    current = counts(found)
     baseline = load_baseline(baseline_path) if baseline_path.exists() else {}
     over, under = compare(current, baseline)
     status = (f"{sum(len(terms) for terms in current.values())} repeated compound encoding(s) "
               f"in {len(current)} module(s)")
+    notation_count = sum(len(found_here) for found_here in notations.values())
     touched = None if args.all or args.report else touched_modules(args.root, args.base)
     enforced = (lambda path: True) if touched is None else touched.__contains__
     if args.report:
+        blocks = []
         if over:
-            print(over_report(over, found))
+            blocks.append(over_report(over, found))
         if under:
-            print(("\n" if over else "") + "Stale baseline entries:\n" + under_report(under))
-        print(("\n" if over or under else "") + f"{status}; report only, nothing is enforced.")
+            blocks.append("Stale baseline entries:\n" + under_report(under))
+        if notations:
+            blocks.append(notation_report(notations))
+        blocks.append(f"{status}, and {notation_count} local notation(s) that abbreviate a "
+                      "compound encoding; report only, nothing is enforced.")
+        print("\n\n".join(blocks))
         return 0
     over_here = [change for change in over if enforced(change[0])]
     under_here = [change for change in under if enforced(change[0])]
     elsewhere = len(over) + len(under) - len(over_here) - len(under_here)
+    notations_here = {path: found_here for path, found_here in notations.items() if enforced(path)}
+    notations_elsewhere = notation_count - sum(len(v) for v in notations_here.values())
     if args.update_baseline:
-        if over_here and not args.allow_increase:
-            print(over_report(over_here, found), file=sys.stderr)
-            print("\nThe baseline only goes down; pass --allow-increase to raise it on purpose, "
-                  "for instance for a moved module or a renamed encoding.", file=sys.stderr)
+        if (over_here and not args.allow_increase) or notations_here:
+            err_blocks = []
+            if over_here and not args.allow_increase:
+                err_blocks.append(over_report(over_here, found) + "\n\nThe baseline only goes "
+                                  "down; pass --allow-increase to raise it on purpose, for "
+                                  "instance for a moved module or a renamed encoding.")
+            if notations_here:
+                err_blocks.append(notation_report(notations_here) + "\n\nCompound-encoding "
+                                  "`local notation`s are not recorded in the baseline.")
+            print("\n\n".join(err_blocks), file=sys.stderr)
             return 1
         kept = {path: terms for path, terms in baseline.items() if not enforced(path)}
         kept |= {path: terms for path, terms in current.items() if enforced(path)}
@@ -894,17 +952,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Not enforced: {elsewhere} difference(s) from the baseline in modules this change "
               "does not touch. The next change to those modules resolves them; run with --all "
               "to list them.")
+    if notations_elsewhere:
+        print(f"Not enforced: {notations_elsewhere} compound-encoding local notation(s) in "
+              "modules this change does not touch; run with --all to list them.")
+    err_blocks = []
     if over_here:
-        print(over_report(over_here, found), file=sys.stderr)
+        err_blocks.append(over_report(over_here, found))
     if under_here:
-        print(("\n" if over_here else "") + "Repeated encodings were named or removed, so the "
-              f"baseline is stale. Lower it with `{UPDATE}` and commit the result, so that they "
-              "cannot come back:\n" + under_report(under_here), file=sys.stderr)
-    if over_here or under_here:
+        err_blocks.append("Repeated encodings were named or removed, so the "
+                          f"baseline is stale. Lower it with `{UPDATE}` and commit the result, so "
+                          "that they cannot come back:\n" + under_report(under_here))
+    if notations_here:
+        err_blocks.append(notation_report(notations_here))
+    if err_blocks:
+        print("\n\n".join(err_blocks), file=sys.stderr)
         return 1
     checked = ("every module matches" if touched is None
                else f"the {len(touched)} changed module(s) match")
-    print(f"{status}; {checked} the baseline.")
+    print(f"{status}; {checked} the baseline, with 0 compound-encoding local notations.")
     return 0
 
 

@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import Mathlib.Tactic.NormNum
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Initializing the four columns of a Chan–He node
@@ -74,27 +74,14 @@ theorem memory_succ (mem : ℕ → ℕ) (dst p₀ p₁ p₂ p₃ k : ℕ) :
         (memory mem dst p₀ p₁ p₂ p₃ k) (dst + 4 * k) p₀)
           (dst + 4 * k + 1) p₁) (dst + 4 * k + 2) p₂) (dst + 4 * k + 3) p₃ := by
   funext a
-  by_cases h₀ : a = dst + 4 * k
-  · subst a; simp [memory, pattern]
-  by_cases h₁ : a = dst + 4 * k + 1
-  · subst a
-    simp [memory, pattern, show dst + 4 * k + 1 - dst = 4 * k + 1 by omega,
-      show dst ≤ dst + 4 * k + 1 by omega,
-      show dst + 4 * k + 1 < dst + 4 * (k + 1) by omega]
-  by_cases h₂ : a = dst + 4 * k + 2
-  · subst a
-    simp [memory, pattern, show dst + 4 * k + 2 - dst = 4 * k + 2 by omega,
-      show dst ≤ dst + 4 * k + 2 by omega,
-      show dst + 4 * k + 2 < dst + 4 * (k + 1) by omega]
-  by_cases h₃ : a = dst + 4 * k + 3
-  · subst a
-    simp [memory, pattern, show dst + 4 * k + 3 - dst = 4 * k + 3 by omega,
-      show dst ≤ dst + 4 * k + 3 by omega,
-      show dst + 4 * k + 3 < dst + 4 * (k + 1) by omega]
-  simp only [Function.update_of_ne h₃, Function.update_of_ne h₂,
-    Function.update_of_ne h₁, Function.update_of_ne h₀, memory]
-  have he : (dst ≤ a ∧ a < dst + 4 * (k + 1)) ↔ (dst ≤ a ∧ a < dst + 4 * k) := by omega
-  simp only [he]
+  simp only [Function.update_apply]
+  split_ifs with h₃ h₂ h₁ h₀
+  · simp [h₃, memory, pattern, add_assoc, Nat.mul_add]
+  · simp [h₂, memory, pattern, add_assoc, Nat.mul_add]
+  · simp [h₁, memory, pattern, add_assoc, Nat.mul_add]
+  · simp [h₀, memory, pattern]
+  · simp only [memory]
+    split_ifs <;> omega
 
 /-- Every address, store and increment of a four-word group is charged. -/
 def body : Code .standard 10 := ram[
@@ -121,50 +108,26 @@ theorem exec {w : ℕ} (x : Data 10) (h4 : Fits w 4)
       ∃ z, ExecWithin w body y z 10 ∧ P (y.regs idx + 1) z ∧
         z.regs idx = y.regs idx + 1 := by
     obtain ⟨hr, h1, hfour, hm⟩ := hy
-    have hd := hr dst (by decide)
-    have hp₀ := hr pad0 (by decide)
-    have hp₁ := hr pad1 (by decide)
-    have hp₂ := hr pad2 (by decide)
-    have hp₃ := hr pad3 (by decide)
-    have fa : Fits w (4 * y.regs idx) := hfit.of_le (by omega)
-    have fb : Fits w (x.regs dst + 4 * y.regs idx) := hfit.of_le (by omega)
-    have fc : Fits w (x.regs dst + 4 * y.regs idx + 1) := hfit.of_le (by omega)
-    have fd : Fits w (x.regs dst + 4 * y.regs idx + 1 + 1) := hfit.of_le (by omega)
-    have fe : Fits w (x.regs dst + 4 * y.regs idx + 1 + 1 + 1) := hfit.of_le (by omega)
-    have fi : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    refine ⟨?z, ?run, ?inv, ?increment⟩
-    case run => ram_eval [body, h1, hfour, hd, hp₀, hp₁, hp₂, hp₃, fa, fb, fc, fd, fe, fi]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · intro i hi
-        have ha : i ≠ addr := by intro h; subst i; norm_num [addr] at hi
-        have hn : i ≠ idx := by intro h; subst i; norm_num [idx] at hi
-        simpa only [Data.set_regs, Data.write_regs, Function.update_of_ne ha,
-          Function.update_of_ne hn] using hr i hi
-      · simpa +decide [one, addr, idx] using h1
-      · simpa +decide [four, addr, idx] using hfour
-      · simp only [Data.set_mem, Data.write_mem]
-        rw [hm, ← memory_succ]
-    case increment => rfl
-  let x₀ := ((x.set idx 0).set one 1).set four 4
-  have hx₀ : P (x₀.regs idx) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · intro i hi
-      have hi₁ : i ≠ one := by intro h; subst i; norm_num [one] at hi
-      have hi₄ : i ≠ four := by intro h; subst i; norm_num [four] at hi
-      have hin : i ≠ idx := by intro h; subst i; norm_num [idx] at hi
-      simp only [x₀, Data.set_regs, Function.update_of_ne hi₁,
-        Function.update_of_ne hi₄, Function.update_of_ne hin]
-    all_goals simp +decide [x₀, one, four, idx]
-  obtain ⟨y, he, ⟨hr, h1, hfour, hm⟩, hend⟩ := ExecWithin.loop_count P
-    (fun y hy => hy.1 len (by decide)) hbody (by simp +decide [x₀, idx, one, four]) hx₀
-  have hinit : ExecWithin (B := .standard) w (ram[ idx ← #0; one ← #1; four ← #4 ]) x x₀ 3 := by
-    ram_eval [x₀, h4, h4.of_le (by decide : 1 ≤ 4)]
-  refine ⟨y, ?_, hm, hr⟩
-  convert hinit.seq he using 1
-  · rfl
-  · simp +decide only [x₀, idx, one, four, Data.set_regs, Function.update_apply,
-      ↓reduceIte, Nat.sub_zero]
-    omega
+    refine WP.exists_execWithin ?_
+    unfold body
+    wram_exec [h1, hfour, hr dst (by decide), hr pad0 (by decide), hr pad1 (by decide),
+      hr pad2 (by decide), hr pad3 (by decide)]
+    refine ⟨⟨fun i hi => by
+      simp only [Data.set_regs, Data.write_regs, Function.update_apply, Fin.ext_iff,
+        idx, addr, hr i hi]
+      split_ifs <;> omega,
+      by wram_simp [h1], by wram_simp [hfour], ?_⟩, by wram_simp⟩
+    wram_simp
+    rw [hm, memory_succ]
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun y hy => hy.1 len (by decide)) hbody
+    (by wram_simp; omega) ⟨fun i hi => by
+      simp only [Data.set_regs, Function.update_apply, Fin.ext_iff, idx, one, four]
+      split_ifs <;> omega,
+      by wram_simp, by wram_simp, by wram_simp [memory_zero]⟩)
+    with y ⟨⟨hr, _, _, hm⟩, _⟩
+  exact ⟨by wram_simp; omega, hm, hr⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Padding

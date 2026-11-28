@@ -38,11 +38,11 @@ open Cslib.Logic.PL Turing.MultiTapeTM
 variable {Rel : Type}
 
 private theorem nonempty_of_eval {arity : Rel → ℕ} {sem : Rel → List Bool → Bool}
-    {c : Constraint Rel ℕ} (hc : c.2.length = arity c.1) {σ : ℕ → Bool}
-    (hσ : c.eval sem σ = true) : (CSP.booleanRelation arity sem c.1).Nonempty := by
-  refine ⟨fun i => σ (c.2.getD i 0), ?_⟩
-  change sem c.1 (List.ofFn fun i : Fin (arity c.1) => σ (c.2.getD i 0)) = true
-  change sem c.1 (c.2.map σ) = true at hσ
+    {c : Constraint Rel ℕ} (hc : c.scope.length = arity c.rel) {σ : ℕ → Bool}
+    (hσ : c.eval sem σ = true) : (CSP.booleanRelation arity sem c.rel).Nonempty := by
+  refine ⟨fun i => σ (c.scope.getD i 0), ?_⟩
+  change sem c.rel (List.ofFn fun i : Fin (arity c.rel) => σ (c.scope.getD i 0)) = true
+  change sem c.rel (c.scope.map σ) = true at hσ
   rwa [List.ofFn_getD_eq_map_of_length σ 0 hc]
 
 /-- A common unary constant gives native polynomial-time satisfiability for a fixed finite
@@ -54,28 +54,21 @@ theorem mem_P_of_constant [Finite Rel] (encRel : Rel ↪ List Bool) (arity : Rel
   classical
   let possible : Rel → Bool := fun R => decide ((CSP.booleanRelation arity sem R).Nonempty)
   let solver : CSP Rel ℕ → Bool := fun F =>
-    F.validArity arity && F.all (fun c => possible c.1)
-  have hp : ComputableInPolyTime possible encRel encBool := ComputableInPolyTime.of_finite _
-  have hall : ComputableInPolyTime
-      (fun F : CSP Rel ℕ => F.all (fun c => possible c.1)) (encCSP encRel encNat) encBool := by
-    exact ComputableInPolyTime.allWithInput ComputableInPolyTime.id'
-      ((hp.comp (ComputableInPolyTime.fst _ _)).comp (ComputableInPolyTime.snd _ _))
-  have hs : ComputableInPolyTime solver (encCSP encRel encNat) encBool := by
-    exact ComputableInPolyTime.bool_and.comp
-      ((CSP.computableInPolyTime_validArity encRel arity).prod hall)
-  refine ⟨solver, hs, fun F => ?_⟩
+    F.validArity arity && F.all (fun c => possible c.rel)
+  refine ⟨solver, ComputableInPolyTime.bool_and.comp
+    ((CSP.computableInPolyTime_validArity encRel arity).prod
+      (ComputableInPolyTime.allWithInput ComputableInPolyTime.id'
+        ((ComputableInPolyTime.of_finite possible).comp
+          (encConstraint_rel_polyTime (ComputableInPolyTime.snd _ _))))), fun F => ?_⟩
   change F.WellFormed arity ∧ F.Satisfiable sem ↔ solver F = true
   simp only [solver, Bool.and_eq_true, CSP.validArity_eq_true_iff, List.all_eq_true]
-  constructor
-  · rintro ⟨hF, σ, hσ⟩
-    refine ⟨hF, fun c hc => ?_⟩
-    exact decide_eq_true (nonempty_of_eval (hF c hc) ((List.all_eq_true.mp hσ) c hc))
-  · rintro ⟨hF, hpossible⟩
-    refine ⟨hF, fun _ => b, List.all_eq_true.mpr (fun c hc => ?_)⟩
-    have hne : (CSP.booleanRelation arity sem c.1).Nonempty :=
-      of_decide_eq_true (hpossible c hc)
-    have hconst := (CSP.hasPolymorphism_const_iff arity sem b).mp hb c.1 hne
-    change sem c.1 (List.ofFn (fun _ : Fin (arity c.1) => b)) = true at hconst
-    simpa only [Constraint.eval, List.ofFn_const, List.map_const', hF c hc] using hconst
+  refine ⟨fun ⟨hF, _, hσ⟩ => ⟨hF, fun c hc =>
+    decide_eq_true (nonempty_of_eval (hF c hc) ((List.all_eq_true.mp hσ) c hc))⟩, ?_⟩
+  rintro ⟨hF, hpossible⟩
+  refine ⟨hF, fun _ => b, List.all_eq_true.mpr fun c hc => ?_⟩
+  have hconst := (CSP.hasPolymorphism_const_iff arity sem b).mp hb c.rel
+    (of_decide_eq_true (hpossible c hc))
+  change sem c.rel (List.ofFn (fun _ : Fin (arity c.rel) => b)) = true at hconst
+  simpa only [Constraint.eval, List.ofFn_const, List.map_const', hF c hc] using hconst
 
 end Cslib.Complexity.CSPSAT

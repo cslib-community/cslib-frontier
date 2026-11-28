@@ -21,6 +21,8 @@ of a machine that behaves on every input of bits `x` as the machine described by
 descriptions, the counterpart of the machines printing a fixed word in
 [Sipser, Lemma 6.1][Sipser2013]; that the new description is computed from `d` and `p` in
 polynomial time is proved in `CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SMN`.
+Its exact framed unary encoded length is analyzed in
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SMNBounds`.
 
 The machine first writes a marker, then `p`, then a copy of its input on a new work tape, the
 *virtual input tape*, and rewinds that tape to the marker. It then runs the transitions of `d`
@@ -44,6 +46,8 @@ independent of the prefix and is reused, after other preparations of the virtual
 * `Turing.MultiTapeTM.Universal.Desc.computes_iff_of_iterate`: a description whose run is, after
   some steps, the image of the run of another description computes the same outputs.
 * `Turing.MultiTapeTM.Universal.Redirect.iterate_stepOut_redirect`: redirected runs.
+* `Turing.MultiTapeTM.Universal.Hardwire.iterate_hardwire`: the exact preparation clock followed
+  by a step-for-step run of the original description.
 * `Turing.MultiTapeTM.Universal.Desc.computes_hardwire`,
   `Turing.MultiTapeTM.Universal.Desc.halts_hardwire`: the behavior of `hardwire d p`.
 
@@ -236,10 +240,7 @@ theorem move_vmove_vtape (hxs : ∀ a ∈ xs, a ≠ marker) (hv : v ≤ xs.lengt
   cases v with
   | zero =>
     rw [read_vtape_zero]
-    rcases m with _ | _ | _
-    · rfl
-    · rfl
-    · exact vtape_move_pos (Nat.zero_le _)
+    rcases m with _ | _ | _ <;> [rfl; rfl; exact vtape_move_pos (Nat.zero_le _)]
   | succ v =>
     rw [read_vtape_succ]
     rcases Nat.lt_or_ge v xs.length with h | h
@@ -248,17 +249,10 @@ theorem move_vmove_vtape (hxs : ∀ a ∈ xs, a ≠ marker) (hv : v ≤ xs.lengt
       have hne : xs[v] ≠ marker := hxs _ (List.getElem_mem h)
       have hv : vmove (some xs[v]) m = m := by simp [vmove, hne]
       rw [hs, hv]
-      rcases m with _ | _ | _
-      · rfl
-      · exact vtape_move_neg h.le
-      · exact vtape_move_pos h
-    · have hs : inputSymbol xs (v + 1) = none := by
-        simp [inputSymbol, List.drop_of_length_le h]
+      rcases m with _ | _ | _ <;> [rfl; exact vtape_move_neg h.le; exact vtape_move_pos h]
+    · have hs : inputSymbol xs (v + 1) = none := by simp [inputSymbol, List.drop_of_length_le h]
       rw [hs]
-      rcases m with _ | _ | _
-      · rfl
-      · exact vtape_move_neg (by omega)
-      · rfl
+      rcases m with _ | _ | _ <;> [rfl; exact vtape_move_neg (by omega); rfl]
 
 end VTape
 
@@ -744,13 +738,10 @@ theorem iterate_prepare :
       (redirectCfg (fun q => 2 * q + 1) (x.length + 1) 0 [] ((p ++ x).map eBit) [] []
         (init d), []) := by
   have hw : (some marker :: (p ++ x.take x.length).map (some ∘ eBit)) =
-      vcells ((p ++ x).map eBit) := by
-    simp [vcells, List.map_map]
+      vcells ((p ++ x).map eBit) := by simp [vcells, List.map_map]
   have he : ((⟨4, none, none :: List.replicate d.tapes none⟩, ⟨.zero, [], none, some 2⟩) :
-      Key × Act) ∈ prep d p := by
-    simp [prep, copyEntries]
-  have hs : inputSymbol (x.map eBit) (x.length + 1) = none := by
-    simp [inputSymbol]
+      Key × Act) ∈ prep d p := by simp [prep, copyEntries]
+  have hs : inputSymbol (x.map eBit) (x.length + 1) = none := by simp [inputSymbol]
   have hend := stepOut_of_mem_prep d p x (c := ⟨some 4, x.length + 1,
     wtape (vcells ((p ++ x).map eBit)) :: List.replicate d.tapes Tape.blank⟩) rfl he
       (by simp [SCfg.key, hs]) []
@@ -773,6 +764,24 @@ theorem iterate_prepare :
 
 end Run
 
+/-- After the exact preparation clock, `hardwire d p` runs `d` step for step on `p ++ x`.
+The right side retains the redirected configuration, so the statement also certifies every
+intermediate machine state. -/
+theorem iterate_hardwire (d : Desc) (p x : List Bool) (t : ℕ) :
+    (stepOut (hardwire d p) (x.map eBit))^[2 * (p.length + x.length) + 4 + t]
+      (init (hardwire d p), []) =
+        (redirectCfg (fun q => 2 * q + 1) (x.length + 1) 0 [] ((p ++ x).map eBit) [] []
+          (((stepOut d ((p ++ x).map eBit))^[t] (init d, [])).1),
+        ((stepOut d ((p ++ x).map eBit))^[t] (init d, [])).2) := by
+  have hxs : ∀ a ∈ (p ++ x).map eBit, a ≠ marker := by
+    intro a ha
+    obtain ⟨b, -, rfl⟩ := List.mem_map.mp ha
+    cases b <;> simp [marker]
+  rw [add_comm, Function.iterate_add_apply, iterate_prepare]
+  exact iterate_stepOut_redirect (n := d.tapes) (fun _ _ h => by omega)
+    (find?_redirect_hardwire d p) (by simp [inputSymbol]) hxs rfl rfl
+    (fun ts _ was => by simp) t (by simp [init]) (by simp [init]) []
+
 end Hardwire
 
 open Redirect Hardwire in
@@ -780,17 +789,10 @@ open Redirect Hardwire in
 exactly when `d` halts on `p ++ x` with output `o`. -/
 theorem Desc.computes_hardwire (d : Desc) (p x : List Bool) (o : List ℕ) :
     (hardwire d p).Computes (x.map eBit) o ↔ d.Computes ((p ++ x).map eBit) o := by
-  have hxs : ∀ a ∈ (p ++ x).map eBit, a ≠ marker := by
-    intro a ha
-    obtain ⟨b, -, rfl⟩ := List.mem_map.mp ha
-    cases b <;> simp [marker]
   refine Desc.computes_iff_of_iterate
     (redirectCfg (fun q => 2 * q + 1) (x.length + 1) 0 [] ((p ++ x).map eBit) [] [])
-    (fun c => by simp [redirectCfg]) (2 * (p.length + x.length) + 4) (fun t => ?_) o
-  rw [add_comm, Function.iterate_add_apply, iterate_prepare]
-  exact iterate_stepOut_redirect (n := d.tapes) (fun _ _ h => by omega)
-    (find?_redirect_hardwire d p) (by simp [inputSymbol]) hxs rfl rfl
-    (fun ts _ was => by simp) t (by simp [init]) (by simp [init]) []
+    (fun c => by simp [redirectCfg]) (2 * (p.length + x.length) + 4)
+    (iterate_hardwire d p x) o
 
 /-- **Halting of `hardwire d p`**: on every input of bits `x`, it halts exactly when `d` halts on
 `p ++ x`. -/

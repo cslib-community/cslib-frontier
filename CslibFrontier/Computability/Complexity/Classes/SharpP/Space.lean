@@ -22,6 +22,7 @@ import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -29,7 +30,9 @@ import CslibFrontier.Tactic.EncLen
 
 Enumerate certificates with a fixed-width binary counter and keep the number accepted in a
 binary accumulator. The exponentially many iterations reuse their workspace: a certificate of
-length `m` needs `m` cells and its acceptance count has at most `m + 1` bits. This is the usual
+length `m` needs `m` counter cells and its acceptance count has at most `m + 1` bits.
+This is additional counting storage; each verifier call also uses its certified workspace.
+This is the usual
 polynomial-space simulation of counting [AroraBarak09]. The interactive-proof simulation counts
 its accepting coins with the same counter (`Cslib.Complexity.Interaction.countAccepts`).
 
@@ -68,7 +71,8 @@ def acceptCountStep (V : α × List Bool → Bool) (s : α × List Bool × ℕ) 
 
 /-- The number of certificates of length `t` that `V` accepts together with `a`, counted by running
 `acceptCountStep` over all `2 ^ t` values of a `t`-bit binary counter. It equals `acceptCount V a t`
-(`streamAcceptCount_eq_acceptCount`) and needs only the counter and the accumulator as workspace. -/
+(`streamAcceptCount_eq_acceptCount`). The counter and accumulator are the additional storage
+used between calls to `V`. -/
 def streamAcceptCount (V : α × List Bool → Bool) (a : α) (t : ℕ) : ℕ :=
   ((acceptCountStep V)^[2 ^ t] (a, List.replicate t false, 0)).2.2
 
@@ -80,49 +84,38 @@ private theorem iterate_acceptCountStep (V : α × List Bool → Bool) (a : α) 
   | zero => simp
   | succ j ih =>
     rw [Function.iterate_succ_apply', ih]
-    simp only [acceptCountStep, Function.iterate_succ_apply', Prod.mk.injEq, true_and]
-    rw [Finset.range_add_one, Finset.filter_insert]
-    split_ifs with hacc
-    · rw [Finset.card_insert_of_notMem (by simp)]
-    · rfl
+    simp only [acceptCountStep, Function.iterate_succ_apply', Prod.mk.injEq, true_and,
+      Finset.range_add_one, Finset.filter_insert]
+    split_ifs <;> simp
 
 /-- The streaming count of accepted certificates is `acceptCount`. -/
 theorem streamAcceptCount_eq_acceptCount (V : α × List Bool → Bool) (a : α) (t : ℕ) :
     streamAcceptCount V a t = acceptCount V a t := by
   rw [streamAcceptCount, iterate_acceptCountStep, acceptCount]
-  simp only
+  dsimp only
+  have hinc (f : Fin t → Bool) :
+      increment^[lsbValue (List.ofFn f)] (List.replicate t false) = List.ofFn f := by
+    simpa using BitString.iterate_increment_lsbValue (List.ofFn f)
   refine Finset.card_bij'
-    (fun i _ j => (increment^[i] (List.replicate t false)).getD j false)
-    (fun f _ => lsbValue (List.ofFn f)) ?_ ?_ ?_ ?_
-  · intro i hi
-    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hi ⊢
-    obtain ⟨_, hl⟩ := BitString.iterate_increment t i hi.1
-    rw [List.ofFn_getD_eq_of_length false hl]
+    (fun i _ (j : Fin t) => (increment^[i] (List.replicate t false)).getD j false)
+    (fun f _ => lsbValue (List.ofFn f)) (fun i hi => ?_) (fun f hf => ?_) (fun i hi => ?_)
+    fun f _ => funext fun j => ?_
+  · simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hi ⊢
+    rw [List.ofFn_getD_eq_of_length false (BitString.iterate_increment t i hi.1).2]
     exact hi.2
-  · intro f hf
-    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hf ⊢
-    have hlt := BitString.lsbValue_lt (List.ofFn f)
-    rw [List.length_ofFn] at hlt
-    refine ⟨hlt, ?_⟩
-    have := BitString.iterate_increment_lsbValue (List.ofFn f)
-    rw [List.length_ofFn] at this
-    rw [this]
-    exact hf
-  · intro i hi
-    simp only [Finset.mem_filter, Finset.mem_range] at hi
-    obtain ⟨hv, hl⟩ := BitString.iterate_increment t i hi.1
+  · simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hf ⊢
+    refine ⟨by simpa using BitString.lsbValue_lt (List.ofFn f), ?_⟩
+    rwa [hinc]
+  · obtain ⟨hv, hl⟩ := BitString.iterate_increment t i
+      (Finset.mem_range.mp (Finset.mem_filter.mp hi).1)
     rw [List.ofFn_getD_eq_of_length false hl, hv]
-  · intro f _
-    funext j
-    have := BitString.iterate_increment_lsbValue (List.ofFn f)
-    rw [List.length_ofFn] at this
-    rw [this]
-    simp
+  · simp [hinc]
 
-/-- Count the accepted certificates of a polynomial-time unary length in polynomial space.
-The result uses binary natural-number output, including when the certificate length is zero. -/
+/-- Count certificates accepted by a polynomial-space verifier, at a polynomial-time unary length.
+The binary counter reuses the verifier workspace; no polynomial bound on its time is needed.
+The result uses binary output, including when the certificate length is zero. -/
 theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α → ℕ}
-    (hV : Turing.MultiTapeTM.ComputableInPolyTime V (encPair enc encBits) encBool)
+    (hV : Turing.MultiTapeTM.ComputableInPolySpace V (encPair enc encBits) encBool)
     (hr : Turing.MultiTapeTM.ComputableInPolyTime r enc encUnary) :
     Turing.MultiTapeTM.ComputableInPolySpace (fun a => acceptCount V a (r a)) enc encNat := by
   classical
@@ -130,43 +123,41 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
   · exact (ComputableInPolySpace.of_polyTime
       (ComputableInPolyTime.const 0)).congr fun a => isEmptyElim a
   let _ : Inhabited α := Classical.inhabited_of_nonempty hα
-  have hn : ComputableInPolyTime (fun a => 2 ^ r a) enc encNat :=
-    ComputableInPolyTime.binary_two_pow.comp hr
   have hinit : ComputableInPolyTime
       (fun a => (a, List.replicate (r a) false, 0)) enc
       (encPair enc (encPair encBits encNat)) :=
     ComputableInPolyTime.id'.prod
       (((ComputableInPolyTime.bitsReplicate false).comp hr).prod
         (ComputableInPolyTime.const 0))
-  have hinc := ComputableInPolyTime.increment
-  have hstep : ComputableInPolyTime (acceptCountStep V)
+  have hfirst : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.1)
+      (encPair enc (encPair encBits encNat)) enc := .of_polyTime (by fun_prop)
+  have hword : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.2.1)
+      (encPair enc (encPair encBits encNat)) encBits := .of_polyTime (by fun_prop)
+  have hacc : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.2.2)
+      (encPair enc (encPair encBits encNat)) encNat := .of_polyTime (by fun_prop)
+  have hinc := ComputableInPolySpace.of_polyTime ComputableInPolyTime.increment
+  have hadd := ComputableInPolySpace.of_polyTime ComputableInPolyTime.binary_add
+  have hstep : ComputableInPolySpace (acceptCountStep V)
       (encPair enc (encPair encBits encNat)) (encPair enc (encPair encBits encNat)) := by
     unfold acceptCountStep
     fun_prop
-  have hlen := hr.polyBounded_length
-  simp only [encUnary_apply, List.length_replicate] at hlen
-  have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit) (.of_polyTime hstep)
-    (B := fun a => 2 * (enc a).length + 3 * r a + 5)
-    ((((PolyBounded.const 2).mul .self).add ((PolyBounded.const 3).mul hlen)).add (.const 5))
-    (fun a j hj => ?_)
-  · exact ((ComputableInPolySpace.of_polyTime
-      ((ComputableInPolyTime.snd _ _).snd')).comp hit).congr
-        fun a => streamAcceptCount_eq_acceptCount V a (r a)
-  · rw [iterate_acceptCountStep]
-    have hcard : ((Finset.range j).filter fun i =>
-        V (a, increment^[i] (List.replicate (r a) false))).card ≤ 2 ^ r a :=
-      (Finset.card_filter_le _ _).trans (by simpa using hj)
-    have hsize : (encNat ((Finset.range j).filter fun i =>
-        V (a, increment^[i] (List.replicate (r a) false))).card).length ≤ r a + 1 := by
-      rw [encNat_apply, Nat.size_eq_bits_len]
-      exact Nat.size_le.mpr (hcard.trans_lt (Nat.pow_lt_pow_right (by norm_num) (by lia)))
-    enc_len [BitString.length_iterate_increment] at hsize ⊢
+  refine ((ComputableInPolySpace.of_polyTime ((ComputableInPolyTime.snd _ _).snd')).comp
+    (ComputableInPolySpace.iterate (ComputableInPolyTime.binary_two_pow.comp hr)
+      (.of_polyTime hinit) hstep (B := fun a => 2 * (enc a).length + 3 * r a + 5) (by growth_poly)
+      fun a j hj => ?_)).congr fun a => streamAcceptCount_eq_acceptCount V a (r a)
+  rw [iterate_acceptCountStep]
+  have hsize : (encNat ((Finset.range j).filter fun i =>
+      V (a, increment^[i] (List.replicate (r a) false))).card).length ≤ r a + 1 := by
+    rw [encNat_apply, Nat.size_eq_bits_len]
+    exact Nat.size_le.mpr (((Finset.card_filter_le _ _).trans (by simpa using hj)).trans_lt
+      (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_one _)))
+  enc_len [BitString.length_iterate_increment] at hsize ⊢
 
 /-- Every #P function is computable in polynomial space when its output is written in binary. -/
 theorem SharpP.computableInPolySpace {f : α → ℕ} (hf : f ∈ SharpP enc) :
     Turing.MultiTapeTM.ComputableInPolySpace f enc encNat := by
   obtain ⟨p, V, hV, hf⟩ := mem_SharpP.mp hf
-  exact (computableInPolySpace_acceptCount hV (by fun_prop)).congr fun a =>
+  exact (computableInPolySpace_acceptCount (.of_polyTime hV) (by fun_prop)).congr fun a =>
     (hf a).symm
 
 /-- Every GapP function is computable in polynomial space with binary sign-magnitude output. -/

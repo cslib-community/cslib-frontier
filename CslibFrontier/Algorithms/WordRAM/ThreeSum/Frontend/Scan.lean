@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Select
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Compact native frontend scans
@@ -72,59 +74,21 @@ theorem step {w : ℕ} (x : Data 48)
       y.mem = (if k then Function.update x.mem (x.regs dst + x.regs out)
         (Math.value (x.regs mode) p.1) else x.mem) := by
   dsimp only
-  let p := (x.mem (x.regs keys + x.regs idx), x.mem (x.regs counts + x.regs idx))
-  let a := (((x.set addr (x.regs keys + x.regs idx)).set key p.1).set
-    addr (x.regs counts + x.regs idx)).set count p.2
-  have ha : ExecWithin w
-      (ram[ addr ← keys + idx; key ← *addr; addr ← counts + idx; count ← *addr ]) x a 4 := by
-    ram_eval [a, p, hkaddr, hcaddr, hkey]
-  obtain ⟨u, hu, hut, huk, hum⟩ := Select.exec a
-    (by simpa +decide [a] using hz) (by simpa +decide [a] using h1)
-    (by simpa +decide [a] using h2) (by simpa +decide [a] using h3)
-    (by simpa +decide [a] using h4) (by simpa +decide [a] using h5)
-    hkey (by simpa +decide [a, p] using habs) (by simpa +decide [a] using hfit)
-    hdouble hsmall
-  have hui : u.regs idx = x.regs idx := by
-    simpa +decide [a] using hu.regs_eq (i := idx) (by decide)
-  have huo : u.regs out = x.regs out := by
-    simpa +decide [a] using hu.regs_eq (i := out) (by decide)
-  have hud : u.regs dst = x.regs dst := by
-    simpa +decide [a] using hu.regs_eq (i := dst) (by decide)
-  have hu1 : u.regs one = 1 := by
-    simpa +decide [a] using (hu.regs_eq (i := one) (by decide)).trans
-      (show a.regs one = 1 by simpa +decide [a] using h1)
-  simp +decide only [a, Data.set_regs, Function.update_apply, ↓reduceIte] at hut huk hum
-  let k := Math.keep (x.regs magnitude) (x.regs beta) (x.regs beta')
-    (x.regs digit) (x.regs mode) p
-  have hv : Fits w (Math.value (x.regs mode) p.1) := by
+  have hv : Fits w (Math.value (x.regs mode) (x.mem (x.regs keys + x.regs idx))) := by
     dsimp only [Math.value, Math.twice]
     split_ifs
     · exact hdouble.of_le (Nat.sub_le _ _)
     · exact hkey
-  have hdo : Fits w (u.regs dst + u.regs out) := by simpa only [hud, huo] using hdaddr
-  have hii : Fits w (u.regs idx + 1) := by simpa only [hui] using hi
-  have hoo : Fits w (u.regs out + 1) := by simpa only [huo] using ho
-  have hvu : Fits w (u.regs key) := by rw [huk]; exact hv
-  by_cases he : k = true
-  · have ht : u.regs take = 1 := by rw [hut]; change k.toNat = 1; simp [he]
-    have ht' : ExecWithin w
-        (ram[ if take = one then [ addr ← dst + out; *addr ← key; out ← out + one ]
-          else [ addr ← addr ]; idx ← idx + one ]) u ?posY 6 := by
-      ram_eval [ht, hu1, hdo, hii, hoo, hvu]
-    refine ⟨?posY, ha.seq (hu.seq ht'), ?_, ?_, ?_⟩
-    · simp +decide [Data.set_regs, hui]
-    · simp +decide [Data.set_regs, huo, k, p, he]
-    · simp +decide [Data.set_mem, Data.write_mem, hud, huo, huk, hum, k, p, he]
-  · have he' : k = false := Bool.eq_false_iff.mpr he
-    have ht : u.regs take = 0 := by rw [hut]; change k.toNat = 0; simp [he']
-    have ht' : ExecWithin w
-        (ram[ if take = one then [ addr ← dst + out; *addr ← key; out ← out + one ]
-          else [ addr ← addr ]; idx ← idx + one ]) u ?negY 6 := by
-      ram_eval [ht, hu1, hii]
-    refine ⟨?negY, ha.seq (hu.seq ht'), ?_, ?_, ?_⟩
-    · simp +decide [Data.set_regs, hui]
-    · simp +decide [Data.set_regs, huo, k, p, he']
-    · simpa only [k, p, he', Bool.false_eq_true, ↓reduceIte, Data.set_mem] using hum
+  refine WP.exists_execWithin ?_
+  unfold body
+  wram_exec
+  wram_call (Select.exec _ ..) framed [hz, h1, h2, h3, h4, h5] with v m ⟨hut, hyk, hym⟩
+  wram_exec [hut, hyk, hym, h1, hv] <;>
+  · wram_simp [hyk, hym]
+    cases hk : Math.keep (x.regs magnitude) (x.regs beta) (x.regs beta')
+      (x.regs digit) (x.regs mode)
+      (x.mem (x.regs keys + x.regs idx), x.mem (x.regs counts + x.regs idx)) <;>
+      simp_all
 
 /-- Complete compact scan, with arbitrary old output/scratch memory and an exact memory frame.
 The source key/count blocks precede the output; their contents and all caller registers that
@@ -184,9 +148,8 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
     have hu : y.regs out ≤ y.regs idx := by
       rw [hout]; exact (hselected _).trans (min_le_left _ _)
     obtain ⟨z, he, hzi, hzo, hzm⟩ := step y
-      ((hr zero (by decide)).trans hz) ((hr one (by decide)).trans h1)
-      ((hr two (by decide)).trans h2) ((hr three (by decide)).trans h3)
-      ((hr four (by decide)).trans h4) ((hr five (by decide)).trans h5) hsmall
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      (by regs_frame) (by regs_frame) hsmall
       (hka.of_le (by rw [hys]; omega)) (hca.of_le (by rw [hyc]; omega))
       (hda.of_le (by rw [hyd]; omega)) (hka.of_le (by omega)) (hda.of_le (by omega))
       (by rw [hgetk]; exact hkey _ (List.getElem_mem hi))
@@ -212,25 +175,18 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
       split_ifs <;> simp only [Function.update_of_ne hne]
     refine ⟨z, he, ?_, hzi⟩
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro j hj
-      exact (he.regs_eq hj).trans (hr j hj)
+    · regs_frame
     · rw [hsuc, List.length_append, hzo, hout]
       cases k <;> simp
     · ram_keep hkeys using hf
     · ram_keep hcounts using hf
     · rw [hsuc]
       by_cases htake : k = true
-      · rw [ite_eq_left htake]
-        have hm : z.mem = Function.update y.mem (x.regs dst + (selected (y.regs idx)).length)
-            (Math.value (x.regs mode) rs[y.regs idx].1) := by
-          simpa only [htake, ↓reduceIte, hyd, hout] using hzm
-        rw [hm]
+      · simp only [htake, ↓reduceIte, hyd, hout] at hzm ⊢
+        rw [hzm]
         exact hacc.append_one _
-      · have hfalse : k = false := Bool.eq_false_iff.mpr htake
-        rw [ite_eq_right htake, List.append_nil]
-        have hm : z.mem = y.mem := by simpa only [hfalse, Bool.false_eq_true, ↓reduceIte]
-          using hzm
-        simpa only [hm] using hacc
+      · simp only [htake, Bool.false_eq_true, ↓reduceIte, List.append_nil] at hzm ⊢
+        rwa [hzm]
     · intro a hnot
       have hne : a ≠ x.regs dst + y.regs out := by
         intro ha
@@ -239,25 +195,21 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
         change x.regs dst ≤ a ∧ a < x.regs dst + rs.length
         omega
       exact (hf a hne).trans (hframe a hnot)
-  let x₀ := (x.set idx 0).set out 0
-  have hx₀ : P (x₀.regs idx) x₀ := by
-    refine ⟨?_, ?_, hk, hc, ?_, Modifies.refl _ _⟩
-    · intro j hj
-      have hji : j ≠ idx := by rintro rfl; exact (by decide : ¬body.Preserves idx) hj
-      have hjo : j ≠ out := by rintro rfl; exact (by decide : ¬body.Preserves out) hj
-      simp only [x₀, Data.set_regs, Function.update_of_ne hji, Function.update_of_ne hjo]
-    · simp +decide [x₀, selected, Math.select]
-    · simpa +decide [x₀, selected, Math.select] using Block.holdsList_nil (x.regs dst) x.mem
-  obtain ⟨y, he, ⟨hr, hout, _, _, hacc, hframe⟩, _⟩ := ExecWithin.loop_count P
-    (fun y hy => (hy.1 len (by decide)).trans hn) hbody (by simp +decide [x₀]) hx₀
-  have hinit : ExecWithin (B := .standard) w (ram[ idx ← #0; out ← #0 ]) x x₀ 2 := by
-    ram_eval [x₀]
-  refine ⟨y, ?_, ?_, ?_, hframe, hr⟩
-  · convert hinit.seq he using 1
-    · rfl
-    · simp +decide only [x₀, Data.set_regs, Function.update_apply, ↓reduceIte, Nat.sub_zero]
-      omega
-  · simpa only [selected, List.take_length] using hacc
-  · simpa only [selected, List.take_length] using hout
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec
+  wram_call (ExecWithin.loop_count P
+    (fun y hy => (hy.1 len (by decide)).trans hn) hbody (by wram_simp; omega)
+    ⟨fun j hj => by
+      have hji : j ≠ idx := fun h => (by decide : ¬body.Preserves idx) (h ▸ hj)
+      have hjo : j ≠ out := fun h => (by decide : ¬body.Preserves out) (h ▸ hj)
+      wram_simp [hji, hjo],
+      by wram_simp [selected, Math.select, List.take_zero, List.filter_nil, List.map_nil,
+        List.length_nil], hk, hc,
+      by wram_simp [selected, Math.select, List.take_zero, List.filter_nil, List.map_nil,
+        Block.holdsList_nil], Modifies.refl _ _⟩)
+    with y ⟨⟨hr, hout, _, _, hacc, hframe⟩, _⟩
+  exact ⟨by wram_simp; omega, by simpa only [selected, List.take_length] using hacc,
+    by simpa only [selected, List.take_length] using hout, hframe, hr⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend.Scan

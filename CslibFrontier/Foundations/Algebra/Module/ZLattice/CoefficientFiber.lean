@@ -23,7 +23,8 @@ is needed.
 ## Main definitions
 
 * `ZLattice.coefficientMod`: reduction of basis coordinates modulo an integer.
-* `ZLattice.coefficientLift`: a lattice representative of each residue vector.
+* `ZLattice.coefficientLift`: a lattice representative of each residue vector, for a nonzero
+  modulus.
 * `ZLattice.coefficientFiberEquiv`: translation from the scalar lattice to a residue fiber.
 
 ## Main results
@@ -56,7 +57,9 @@ variable (L : Submodule ℤ E) (b : Module.Basis ι ℤ L) (p : ℕ)
   map_zero' := by ext i; simp
   map_add' v w := by ext i; simp
 
-/-- The representative whose basis coordinates are the least nonnegative residue values. -/
+/-- The lattice vector whose `i`th basis coordinate is `(a i).val`. For `p ≠ 0` these are the least
+nonnegative residues and the vector is a representative of `a`
+(`coefficientMod_coefficientLift`). -/
 @[expose] def coefficientLift (a : ι → ZMod p) : L :=
   b.equivFun.symm (fun i ↦ ((a i).val : ℤ))
 
@@ -79,26 +82,21 @@ theorem coefficientMod_surjective [NeZero p] :
 theorem natCast_smul_le : (p : ℝ) • L ≤ L := by
   intro x hx
   obtain ⟨y, hy, rfl⟩ := (Submodule.mem_smul_pointwise_iff_exists x (p : ℝ) L).mp hx
-  rw [Nat.cast_smul_eq_nsmul]
-  exact L.nsmul_mem hy p
+  exact Nat.cast_smul_eq_nsmul ℝ p y ▸ L.nsmul_mem hy p
 
 /-- The zero coefficient fiber is the actual pointwise scalar image. -/
 theorem coefficientMod_eq_zero_iff (v : L) :
     coefficientMod L b p v = 0 ↔ (v : E) ∈ (p : ℝ) • L := by
   constructor
   · intro hv
-    have hd : ∀ i, (p : ℤ) ∣ b.equivFun v i := fun i ↦
-      (ZMod.intCast_zmod_eq_zero_iff_dvd _ p).mp (congrFun hv i)
-    choose q hq using hd
+    choose q hq using fun i ↦ (ZMod.intCast_zmod_eq_zero_iff_dvd _ p).mp (congrFun hv i)
     refine (Submodule.mem_smul_pointwise_iff_exists _ _ _).mpr
       ⟨(b.equivFun.symm q : L), (b.equivFun.symm q).property, ?_⟩
-    have he : (p : ℤ) • b.equivFun.symm q = v := by
-      apply b.equivFun.injective
-      ext i
+    have he : (p : ℤ) • b.equivFun.symm q = v := b.equivFun.injective <| funext fun i ↦ by
       rw [map_smul, b.equivFun.apply_symm_apply]
       exact (hq i).symm
-    have hc := congrArg (fun z : L ↦ (z : E)) he
-    change (p : ℤ) • ((b.equivFun.symm q : L) : E) = (v : E) at hc
+    have hc : (p : ℤ) • ((b.equivFun.symm q : L) : E) = (v : E) :=
+      congrArg (fun z : L ↦ (z : E)) he
     simpa only [Nat.cast_smul_eq_nsmul] using hc
   · intro hv
     obtain ⟨y, hy, he⟩ := (Submodule.mem_smul_pointwise_iff_exists _ _ _).mp hv

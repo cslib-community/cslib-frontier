@@ -14,9 +14,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
 import Mathlib.Data.Set.Finite.List
 import Mathlib.NumberTheory.Chebyshev
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Tally problems
@@ -103,8 +103,8 @@ to the tally language of their unary encodings. -/
 theorem PolyTimeCTTReducible.image_encUnary {α : Type} {encA : α ↪ List Bool} {L : Set α}
     {A : Set ℕ} (h : PolyTimeCTTReducible encA encUnary L A) :
     PolyTimeCTTReducible encA encBits L (encUnary '' A) := by
-  obtain ⟨r, q, hr, hq, hL⟩ := h
-  refine ⟨r, fun x => encUnary (q x), hr, ComputableInPolyTime.encoding_comp hq, fun a => ?_⟩
+  obtain ⟨r, q, ⟨hr, hq⟩, hL⟩ := h
+  refine ⟨r, fun x => encUnary (q x), ⟨hr, ComputableInPolyTime.encoding_comp hq⟩, fun a => ?_⟩
   simp only [hL a, encUnary.injective.mem_set_image]
 
 /-! ### Fingerprints modulo small numbers -/
@@ -133,8 +133,7 @@ private theorem foldl_residue (m : ℕ) (u : List Bool) (r v : ℕ) (hrv : r = v
   | nil => simpa using hrv
   | cons b u ih =>
     simp only [List.foldl_cons]
-    refine ih _ _ ?_
-    rw [hrv, Nat.add_mod, Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, ← Nat.add_mod]
+    exact ih _ _ (by rw [hrv, Nat.add_mod, Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, ← Nat.add_mod])
 
 /-- The residue is that of the binary value. -/
 theorem residue_eq (m : ℕ) (u : List Bool) : residue m u = binaryValue u % (m + 1) :=
@@ -211,8 +210,7 @@ private theorem computableInPolyTime_residue {γ : Type} {encIn : γ ↪ List Bo
     (encB := encUnary) (step := fun m r b => (2 * r + b.toNat) % (m + 1)) hm hu (const 0) hstep
     (growth := fun x => m x + 1) (hm.polyBounded.add (.const 1)) fun x r b _ => by
       have : (2 * r + b.toNat) % (m x + 1) < m x + 1 := Nat.mod_lt _ (by omega)
-      simp only [encUnary_apply, List.length_replicate]
-      omega
+      enc_len
 
 /-- **Sparse problems reduce conjunctively to tally problems** (Buhrman, Longpré and Spaan; cited
 in [Arvind, Köbler and Mundhenk, proof of Lemma 3.2][ArvindKoblerMundhenk1992]): a sparse problem
@@ -229,15 +227,11 @@ theorem exists_polyTimeCTTReducible_encUnary_of_mem_SPARSE {β : Type} {encB : �
   have hencB : ComputableInPolyTime (fun b => encB b) encB encBits :=
     of_eq (encIn := encB) (encOut := encBits) (f := fun b => encB b) fun _ => rfl
   refine ⟨Tally.fingerprints (encB '' S), fun b => P.eval (encB b).length,
-    fun p => Tally.fingerprint (encB p.1) p.2, (unary_eval P).comp (encoding_length encB), ?_,
+    fun p => Tally.fingerprint (encB p.1) p.2, ⟨(unary_eval P).comp (encoding_length encB), ?_⟩,
     fun b => ⟨fun hb i _ => ⟨encB b, ⟨b, hb, rfl⟩, i, rfl⟩, fun h => ?_⟩⟩
-  · have hlen : ComputableInPolyTime (fun p : β × ℕ => (encB p.1).length) (encPair encB encUnary)
-        encUnary := (encoding_length encB).comp (fst _ _)
-    have hres : ComputableInPolyTime (fun p : β × ℕ => Tally.residue p.2 (encB p.1))
-        (encPair encB encUnary) encUnary :=
-      computableInPolyTime_residue (snd _ _) (hencB.comp (fst _ _))
-    exact unary_pair.comp
-      (hlen.prod (unary_pair.comp ((snd _ _).prod hres)))
+  · exact unary_pair.comp (((encoding_length encB).comp (fst _ _)).prod
+      (unary_pair.comp ((snd _ _).prod
+        (computableInPolyTime_residue (snd _ _) (hencB.comp (fst _ _))))))
   · by_contra hb
     have hu : encB b ∉ encB '' S := fun hmem => hb (encB.injective.mem_set_image.1 hmem)
     obtain ⟨m, hm, hnot⟩ := Tally.exists_fingerprint_notMem
@@ -265,32 +259,27 @@ unanswerable one otherwise. -/
 theorem exists_polyTimeCTTReducible_encUnary_of_mem_P (h : L ∈ P encA) :
     ∃ A : Set ℕ, PolyTimeCTTReducible encA encUnary L A := by
   obtain ⟨f, hf, hL⟩ := mem_P.mp h
-  refine ⟨∅, fun a => if f a then 0 else 1, fun _ => 0, ?_, const _, fun a => ?_⟩
-  · exact ite' hf (const 0) (const 1)
-  · rw [hL a]
-    rcases hfa : f a <;> simp [hfa]
+  refine ⟨∅, fun a => if f a then 0 else 1, fun _ => 0, ⟨ite' hf (const 0) (const 1), const _⟩,
+    fun a => by cases hfa : f a <;> simp [hL a, hfa]⟩
 
 /-- **Conjunctive reductions to tally problems are closed under intersection**: ask the queries of
 both reductions, tagged by the reduction they come from. -/
 theorem PolyTimeCTTReducible.exists_encUnary_inter (h₁ : PolyTimeCTTReducible encA encUnary L₁ A₁)
     (h₂ : PolyTimeCTTReducible encA encUnary L₂ A₂) :
     ∃ A : Set ℕ, PolyTimeCTTReducible encA encUnary (L₁ ∩ L₂) A := by
-  obtain ⟨r₁, q₁, hr₁, hq₁, hL₁⟩ := h₁
-  obtain ⟨r₂, q₂, hr₂, hq₂, hL₂⟩ := h₂
+  obtain ⟨r₁, q₁, ⟨hr₁, hq₁⟩, hL₁⟩ := h₁
+  obtain ⟨r₂, q₂, ⟨hr₂, hq₂⟩, hL₂⟩ := h₂
   refine ⟨{c | ((Nat.unpair c).1 = 0 ∧ (Nat.unpair c).2 ∈ A₁) ∨
       ((Nat.unpair c).1 = 1 ∧ (Nat.unpair c).2 ∈ A₂)}, fun a => r₁ a + r₂ a,
     fun p => if p.2 < r₁ p.1 then Nat.pair 0 (q₁ p) else Nat.pair 1 (q₂ (p.1, p.2 - r₁ p.1)),
-    by fun_prop, ?_, fun a => ?_⟩
-  · have hfst : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair encA encUnary) encA :=
-      fst _ _
-    have hsnd : ComputableInPolyTime (fun p : α × ℕ => p.2) (encPair encA encUnary) encUnary :=
-      snd _ _
-    have hq₂' : ComputableInPolyTime (fun p : α × ℕ => q₂ (p.1, p.2 - r₁ p.1))
-        (encPair encA encUnary) encUnary := hq₂.comp (hfst.prod (unary_sub' hsnd (hr₁.comp hfst)))
-    have h := ite' (unary_lt' hsnd (hr₁.comp hfst))
-      (unary_pair.comp ((const 0).prod hq₁))
-      (unary_pair.comp ((const 1).prod hq₂'))
-    simpa only [Function.comp_def, decide_eq_true_eq] using h
+    ⟨by fun_prop, ?_⟩, fun a => ?_⟩
+  · have hfst := fst encA encUnary
+    have hsnd := snd encA encUnary
+    have hq₂' := hq₂.comp (hfst.prod (unary_sub' hsnd (hr₁.comp hfst)))
+    simpa only [Function.comp_def, decide_eq_true_eq] using
+      ite' (unary_lt' hsnd (hr₁.comp hfst))
+        (unary_pair.comp ((const 0).prod hq₁))
+        (unary_pair.comp ((const 1).prod hq₂'))
   · simp only [Set.mem_inter_iff, hL₁ a, hL₂ a]
     constructor
     · rintro ⟨h₁, h₂⟩ i hi
@@ -307,19 +296,15 @@ query of each reduction, whether one of the two is in its target. -/
 theorem PolyTimeCTTReducible.exists_encUnary_union (h₁ : PolyTimeCTTReducible encA encUnary L₁ A₁)
     (h₂ : PolyTimeCTTReducible encA encUnary L₂ A₂) :
     ∃ A : Set ℕ, PolyTimeCTTReducible encA encUnary (L₁ ∪ L₂) A := by
-  obtain ⟨r₁, q₁, hr₁, hq₁, hL₁⟩ := h₁
-  obtain ⟨r₂, q₂, hr₂, hq₂, hL₂⟩ := h₂
+  obtain ⟨r₁, q₁, ⟨hr₁, hq₁⟩, hL₁⟩ := h₁
+  obtain ⟨r₂, q₂, ⟨hr₂, hq₂⟩, hL₂⟩ := h₂
   refine ⟨{c | (Nat.unpair c).1 ∈ A₁ ∨ (Nat.unpair c).2 ∈ A₂}, fun a => r₁ a * r₂ a,
-    fun p => Nat.pair (q₁ (p.1, p.2 / r₂ p.1)) (q₂ (p.1, p.2 % r₂ p.1)), by fun_prop, ?_,
+    fun p => Nat.pair (q₁ (p.1, p.2 / r₂ p.1)) (q₂ (p.1, p.2 % r₂ p.1)), ⟨by fun_prop, ?_⟩,
     fun a => ?_⟩
-  · have hfst : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair encA encUnary) encA :=
-      fst _ _
-    have hdiv : ComputableInPolyTime (fun p : α × ℕ => p.2 / r₂ p.1) (encPair encA encUnary)
-        encUnary := unary_div.comp ((snd _ _).prod (hr₂.comp hfst))
-    have hmod : ComputableInPolyTime (fun p : α × ℕ => p.2 % r₂ p.1) (encPair encA encUnary)
-        encUnary := unary_mod.comp ((snd _ _).prod (hr₂.comp hfst))
-    exact unary_pair.comp
-      ((hq₁.comp (hfst.prod hdiv)).prod (hq₂.comp (hfst.prod hmod)))
+  · have hfst := fst encA encUnary
+    have hr₂' := hr₂.comp hfst
+    exact unary_pair.comp ((hq₁.comp (hfst.prod (unary_div.comp ((snd _ _).prod hr₂')))).prod
+      (hq₂.comp (hfst.prod (unary_mod.comp ((snd _ _).prod hr₂')))))
   · simp only [Set.mem_union, hL₁ a, hL₂ a, Set.mem_ofPred_eq, Nat.unpair_pair]
     constructor
     · intro h i hi
@@ -348,16 +333,14 @@ theorem PolyTimeCTTReducible.exists_encUnary_biUnion {ι : Type*} {L : ι → Se
     (h : ∀ i ∈ l, ∃ A : Set ℕ, PolyTimeCTTReducible encA encUnary (L i) A) :
     ∃ A : Set ℕ, PolyTimeCTTReducible encA encUnary (⋃ i ∈ l, L i) A := by
   induction l with
-  | nil => exact ⟨∅, fun _ => 1, fun _ => 0, const 1, const 0, fun a => by simp⟩
+  | nil => exact ⟨∅, fun _ => 1, fun _ => 0, ⟨const 1, const 0⟩, fun a => by simp⟩
   | cons i l ih =>
     obtain ⟨A₁, h₁⟩ := h i List.mem_cons_self
     obtain ⟨A₂, h₂⟩ := ih fun i' hi' => h i' (List.mem_cons_of_mem i hi')
     have hunion : (⋃ i' ∈ i :: l, L i') = L i ∪ ⋃ i' ∈ l, L i' := by
       ext a
-      simp only [Set.mem_iUnion, List.mem_cons, Set.mem_union, exists_prop, or_and_right,
-        exists_or, exists_eq_left]
-    rw [hunion]
-    exact h₁.exists_encUnary_union h₂
+      simp
+    exact hunion ▸ h₁.exists_encUnary_union h₂
 
 /-- **Asking a computed list of queries of a problem with a conjunctive reduction to a tally
 problem**: if `B` reduces conjunctively to a set `A` of natural numbers written in unary, so do the
@@ -367,19 +350,17 @@ theorem PolyTimeCTTReducible.forall_mem {β : Type} {encB : β ↪ List Bool} {B
     {A : Set ℕ} (h : PolyTimeCTTReducible encB encUnary B A) {Qs : α → List β}
     (hQs : ComputableInPolyTime Qs encA (encList encB)) :
     PolyTimeCTTReducible encA encUnary {a | ∀ b ∈ Qs a, b ∈ B} A := by
-  obtain ⟨r, q, hr, hq, hB⟩ := h
+  obtain ⟨r, q, ⟨hr, hq⟩, hB⟩ := h
   let W : α → List ℕ := fun a => (Qs a).flatMap fun b => (List.range (r b)).map fun i => q (b, i)
   have hW : ComputableInPolyTime W encA (encList encUnary) := by fun_prop
-  refine ⟨fun a => (W a).length, fun p => (W p.1)[p.2]?.getD 0, by fun_prop, by fun_prop,
+  refine ⟨fun a => (W a).length, fun p => (W p.1)[p.2]?.getD 0, ⟨by fun_prop, by fun_prop⟩,
     fun a => ?_⟩
   have hmem : (∀ b ∈ Qs a, b ∈ B) ↔ ∀ w ∈ W a, w ∈ A := by
     simp only [W, hB, List.mem_flatMap, List.mem_map, List.mem_range, forall_exists_index,
       and_imp]
     exact ⟨fun h w b hb i hi hw => hw ▸ h b hb i hi, fun h b hb i hi => h _ b hb i hi rfl⟩
   rw [Set.mem_ofPred_eq, hmem, List.forall_mem_iff_getElem]
-  refine forall_congr' fun i => ⟨fun h hi => ?_, fun h hi => ?_⟩
-  · simpa [List.getElem?_eq_getElem hi] using h hi
-  · simpa [List.getElem?_eq_getElem hi] using h hi
+  exact forall_congr' fun i => forall_congr' fun hi => by simp [List.getElem?_eq_getElem hi]
 
 end Closure
 

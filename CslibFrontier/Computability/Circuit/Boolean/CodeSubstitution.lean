@@ -79,21 +79,17 @@ private theorem toNat_outputs_substituteCircuit {n N : ℕ}
     rw [Fin.append_left]
     rfl
   | inr b =>
-    cases b <;> simp only [substituteCircuit, Circuit.comp, Circuit.wiring, Function.comp_apply, h,
-      Sum.elim_inr, Program.appendedWire_input, Circuit.append]
-    · rw [Fin.append_right]
-      rfl
-    · rw [Fin.append_right]
+    cases b <;>
+    · simp only [substituteCircuit, Circuit.comp, Circuit.wiring, Function.comp_apply,
+        h, Sum.elim_inr, Program.appendedWire_input, Circuit.append]
+      rw [Fin.append_right]
       rfl
 
 private theorem prefixFeed_toNat (r : List Bool) (n : ℕ) (i : Fin (r.length + n)) :
     ((substituteCircuit (prefixInputs r n)).outputs i).toNat = prefixWire r n i.val := by
   rw [toNat_outputs_substituteCircuit]
-  refine Fin.addCases (fun j => ?_) (fun j => ?_) i
-  · simp only [prefixInputs, Fin.append_left, Sum.elim_inr, prefixWire, Fin.val_castAdd,
-      j.isLt, ↓reduceIte]
-    simp only [List.getD_eq_getElem _ _ j.isLt]
-  · simp [prefixInputs, prefixWire]
+  refine Fin.addCases (fun j => ?_) (fun j => by simp [prefixInputs, prefixWire]) i
+  simp [prefixInputs, prefixWire, j.isLt]
 
 private theorem appendWireCode_prefixFeed (r : List Bool) (n i : ℕ) :
     Program.appendWireCode n (r.length + n) 2
@@ -107,26 +103,20 @@ private theorem appendWireCode_prefixFeed (r : List Bool) (n i : ℕ) :
 theorem code_prefixCircuit {n m : ℕ} (r : List Bool)
     (c : Circuit signature (r.length + n) m) :
     (prefixCircuit r c).code = prefixCode r n c.code := by
-  have hp : (substituteCircuit (prefixInputs r n)).program.code =
-      [(Op.const false, []), (Op.const true, [])] := rfl
   apply Prod.ext
   · change ((substituteCircuit (prefixInputs r n)).program.append
       (substituteCircuit (prefixInputs r n)).outputs c.program).code = _
-    rw [Program.code_append, hp]
-    change [(Op.const false, []), (Op.const true, [])] ++
-      c.program.code.map (fun g => (g.1, g.2.map
-        (Program.appendWireCode n (r.length + n) 2
-          (substituteCircuit (prefixInputs r n)).outputs))) = _
-    have hren := funext (appendWireCode_prefixFeed r n)
-    rw [hren]
+    rw [Program.code_append, show (substituteCircuit (prefixInputs r n)).program.code =
+      [(Op.const false, []), (Op.const true, [])] from rfl]
+    change [(Op.const false, []), (Op.const true, [])] ++ c.program.code.map (fun g =>
+      (g.1, g.2.map (Program.appendWireCode n (r.length + n) 2
+        (substituteCircuit (prefixInputs r n)).outputs))) = _
+    rw [funext (appendWireCode_prefixFeed r n)]
     rfl
-  · simp only [prefixCircuit, Circuit.comp, Circuit.code,
-      prefixCode, List.map_ofFn, Function.comp_apply]
+  · simp only [prefixCircuit, Circuit.comp, Circuit.code, prefixCode, List.map_ofFn,
+      Function.comp_apply]
     congr 1 with i : 1
-    rw [Program.appendedWire_toNat]
-    change Program.appendWireCode n (r.length + n) 2
-      (substituteCircuit (prefixInputs r n)).outputs (c.outputs i).toNat = _
-    exact appendWireCode_prefixFeed r n _
+    exact (Program.appendedWire_toNat ..).trans (appendWireCode_prefixFeed r n _)
 
 /-- Decoding the hardwired code produces the corresponding typed circuit. -/
 @[simp] theorem ofCode_prefixCode {n m : ℕ} (r : List Bool)
@@ -140,8 +130,7 @@ theorem isSome_ofCode_prefixCode {n m : ℕ} (r : List Bool)
     (h : (Circuit.ofCode (r.length + n) m code : Option (Circuit signature _ _)).isSome) :
     (Circuit.ofCode n m (prefixCode r n code) : Option (Circuit signature n m)).isSome := by
   obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp h
-  rw [← Circuit.code_of_ofCode_eq_some hc, ofCode_prefixCode]
-  rfl
+  simp [← Circuit.code_of_ofCode_eq_some hc]
 
 /-- Hardwiring a prefix supplies its bits before the live inputs. -/
 @[simp] theorem eval_prefixCircuit {n m : ℕ} (r : List Bool)
@@ -173,9 +162,7 @@ theorem evalOutputs_prefixCode {n m : ℕ} (r : List Bool)
     (code : List (Op × List ℕ) × List ℕ) :
     (prefixCode r n code).1.length = 2 + code.1.length ∧
       (prefixCode r n code).2.length = code.2.length := by
-  simp only [prefixCode, List.length_append, List.length_cons, List.length_nil,
-    List.length_map]
-  exact ⟨trivial, trivial⟩
+  simp [prefixCode]; omega
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
@@ -201,17 +188,7 @@ open Turing.MultiTapeTM ComputableInPolyTime
     (hn : ComputableInPolyTime n encIn encNat)
     (hcode : ComputableInPolyTime code encIn encCode) :
     ComputableInPolyTime (fun a => prefixCode (r a) (n a) (code a)) encIn encCode := by
-  have hwire : ComputableInPolyTime
-      (fun p : α × ℕ => prefixWire (r p.1) (n p.1) p.2)
-      (encPair encIn encNat) encNat := by fun_prop
-  have hgate : ComputableInPolyTime
-      (fun p : α × (Op × List ℕ) =>
-        (p.2.1, p.2.2.map (prefixWire (r p.1) (n p.1))))
-      (encPair encIn encGate) encGate :=
-    ((snd encIn encGate).fst').prod
-      (mapWithInput (snd encIn encGate).snd' (hwire.comp ((fst _ _).fst'.prod (snd _ _))))
-  exact (listAppend' (const [(Op.const false, []), (Op.const true, [])])
-    (mapWithInput hcode.fst' hgate)).prod (mapWithInput hcode.snd' hwire)
+  fun_prop [prefixCode]
 
 end Boolean
 end Cslib.Circuits

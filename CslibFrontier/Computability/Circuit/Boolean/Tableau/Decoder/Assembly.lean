@@ -12,6 +12,7 @@ import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import Mathlib.Data.Nat.Size
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # The decoder circuit of the succinct tableau
@@ -139,14 +140,7 @@ theorem code_decoder {x : List Bool} {n T : ℕ}
 
 theorem size_outputCircuit_le (s cb tb : ℕ) (x : List Bool) (n T : ℕ) :
     (outputCircuit s cb tb x n T).size ≤ 3 * (2 + (s + cb + tb) + 1) * 63 := by
-  simp only [outputCircuit, Circuit.size_pi, Formula.size_toCircuit]
-  calc ∑ o : Fin (3 * (2 + (s + cb + tb) + 1)), (outTemplate.rename _).size
-      ≤ ∑ _o : Fin (3 * (2 + (s + cb + tb) + 1)), 63 := Finset.sum_le_sum fun o _ => by
-        have := Formula.size_bind_le (c := 0) (s := fun j => Formula.input
-          (⟨wireNat s cb tb x n T o j, wireNat_lt o.isLt j.isLt⟩ :
-            Fin (aWidth s cb tb x n T + 3 * (13 + s)))) (fun _ => le_rfl) outTemplate
-        simpa [Formula.rename, size_outTemplate] using this
-    _ = 3 * (2 + (s + cb + tb) + 1) * 63 := by simp
+  circuit_bound [outputCircuit, Formula.rename, size_outTemplate]
 
 /-- **The decoder has `O(colBits T + timeBits T + x.length)` gates**, with a constant depending
 only on the machine. -/
@@ -157,23 +151,13 @@ theorem size_decoder_le {x : List Bool} {n T : ℕ}
   have hX := Nat.two_pow_size_le x.length
   have hpow : 2 ^ (Nat.size x.length + 1) = 2 * 2 ^ Nat.size x.length := Nat.pow_succ'
   have hout := size_outputCircuit_le (slotBits k State) (colBits T) (timeBits T) x n T
-  rw [decoder, Circuit.size_comp, Circuit.size_comp, middleCircuit, Circuit.size_append,
-    Circuit.size_comp, Circuit.size_wiring, Circuit.size_wiring, size_fieldCircuit,
-    length_fieldGates]
-  clear hm
-  generalize (tableCircuit tm).size = S at *
-  generalize (outputCircuit (slotBits k State) (colBits T) (timeBits T) x n T).size = O at *
-  generalize slotBits k State = s at *
-  generalize colBits T = cb at *
-  generalize timeBits T = tb at *
-  generalize x.length = X at *
-  generalize 2 ^ Nat.size X = Y at *
-  have h1 : 204 * s + 600 + S ≤ (204 * s + 600 + S) * (cb + tb + X + 1) :=
-    Nat.le_mul_of_pos_right _ (by omega)
-  have h2 : 204 * (cb + tb + X) ≤ (204 * s + 600 + S) * (cb + tb + X) :=
+  simp only [circuit_simps, decoder, middleCircuit, size_fieldCircuit, length_fieldGates, hpow]
+  have hmul : 204 * (colBits T + timeBits T + x.length) ≤
+      (204 * slotBits k State + 600 + (tableCircuit tm).size) *
+        (colBits T + timeBits T + x.length) :=
     Nat.mul_le_mul_right _ (by omega)
-  rw [Nat.mul_add (204 * s + 600 + S) (cb + tb + X) 1, Nat.mul_one] at h1 ⊢
-  rw [hpow]
+  have hrhs := Nat.mul_add_one (204 * slotBits k State + 600 + (tableCircuit tm).size)
+    (colBits T + timeBits T + x.length)
   omega
 
 /-! ### Correctness -/
@@ -205,16 +189,14 @@ theorem eval_middle_field {x : List Bool} {n T : ℕ}
           (keyWire (slotBits k State) (colBits T) (timeBits T) i))
         ⟨w.val - aWidth (slotBits k State) (colBits T) (timeBits T) x n T, by omega⟩ := by
   rw [Circuit.eval_comp, middleCircuit, Circuit.eval_append]
-  split
-  · rename_i h
-    have hw : w = Fin.castAdd _ ⟨w.val, h⟩ := rfl
-    conv_lhs => rw [hw]
-    rw [Fin.append_left, Circuit.eval_wiring, Function.comp_apply, id, eval_fieldCircuit]
-  · rename_i h
-    have hw : w = Fin.natAdd _ (⟨w.val - aWidth (slotBits k State) (colBits T) (timeBits T) x n T,
-        by omega⟩ : Fin (3 * (13 + slotBits k State))) := by ext; simp; omega
-    conv_lhs => rw [hw]
-    rw [Fin.append_right, Circuit.eval_comp, Circuit.eval_wiring, eval_tableCircuit]
+  induction w using Fin.addCases with
+  | left i =>
+    simp only [Fin.append_left, Fin.val_castAdd, i.isLt, ↓reduceDIte, Circuit.eval_wiring,
+      Function.comp_apply, id, eval_fieldCircuit]
+  | right j =>
+    simp only [Fin.append_right, Fin.val_natAdd, Nat.not_lt.mpr (Nat.le_add_right _ _),
+      ↓reduceDIte, Nat.add_sub_cancel_left, Circuit.eval_comp, Circuit.eval_wiring,
+      eval_tableCircuit]
     congr 1 with i : 1
     simp [keySel, eval_fieldCircuit]
 
@@ -237,96 +219,79 @@ theorem ofFn_eval_decoder {x : List Bool} {n T : ℕ} (hn : n < 2 * T) (hx : x.l
     List.ofFn ((decoder (n := n) tm hm).eval interpretation (fun i => idx.testBit i)) =
       (clauseAt tm x n T idx).flatMap
         (litBits (2 + (slotBits k State + colBits T + timeBits T))) := by
-  have hs := one_le_slotBits (k := k) (State := State)
-  have h2T : 2 * T < 2 ^ colBits T := Nat.lt_size_self _
-  have hT : T < 2 ^ timeBits T := Nat.lt_size_self _
-  have hkey := ofBits_keyWire (x := x) (n := n) (T := T) hidx hs h2T hT hn hx
-  have hcl := clauseOf_eq_map_shapeOf tm x n T (idx % 4) (idx / 4 % 4) (idx / 16)
-  rw [clauseAt, hcl]
-  generalize hκ : Key.ofFields (slotBits k State) (colBits T) x.length n T (idx % 4) (idx / 4 % 4)
-    (idx / 16) = κ at hkey
+  let s := slotBits k State
+  let cb := colBits T
+  let tb := timeBits T
+  let aw := aWidth s cb tb x n T
+  let lw := 2 + (s + cb + tb) + 1
+  have hs : 1 ≤ s := one_le_slotBits (k := k) (State := State)
+  have hkey := ofBits_keyWire (x := x) (n := n) (T := T) hidx hs (Nat.lt_size_self _)
+    (Nat.lt_size_self _) hn hx
+  rw [clauseAt, clauseOf_eq_map_shapeOf tm x n T (idx % 4) (idx / 4 % 4) (idx / 16)]
+  set κ := Key.ofFields s cb x.length n T (idx % 4) (idx / 4 % 4) (idx / 16)
   have hlen := length_shapeOf tm κ
   apply List.ext_getElem?
   intro o
   rw [List.getElem?_ofFn]
-  by_cases ho : o < 3 * (2 + (slotBits k State + colBits T + timeBits T) + 1)
-  · have hr : o / (2 + (slotBits k State + colBits T + timeBits T) + 1) < 3 :=
-      Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-    have hi : o % (2 + (slotBits k State + colBits T + timeBits T) + 1) <
-        2 + (slotBits k State + colBits T + timeBits T) + 1 := Nat.mod_lt _ (by omega)
+  by_cases ho : o < 3 * lw
+  · have hr : o / lw < 3 := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
+    have hi : o % lw < lw := Nat.mod_lt _ (by omega)
     rw [dite_eq_left ho]
-    conv_rhs => rw [← Nat.div_add_mod' o (2 + (slotBits k State + colBits T + timeBits T) + 1)]
-    rw [List.getElem?_flatMap_mul_add _ _ _ (fun _ _ => by simp [litBits]) (by simpa [hlen]) hi]
-    rw [List.getElem_map, getElem?_litBits _ _ hi]
+    conv_rhs => rw [← Nat.div_add_mod' o lw]
+    rw [List.getElem?_flatMap_mul_add _ _ _ (fun _ _ => by simp [litBits]; rfl)
+      (by simpa [hlen]) hi, List.getElem_map, getElem?_litBits _ _ hi]
     congr 1
-    -- the left side
     rw [decoder, Circuit.eval_comp]
     simp only [outputCircuit, Circuit.eval_pi, Formula.eval_toCircuit, Formula.eval_rename]
     set z' := ((middleCircuit tm x n T).comp (fieldCircuit hm)).eval interpretation
       (fun i => idx.testBit i) with hz'
-    let z : ℕ → Bool := fun w => if h : w < aWidth (slotBits k State) (colBits T) (timeBits T)
-      x n T + 3 * (13 + slotBits k State) then z' ⟨w, h⟩ else false
-    have hzz : (z' ∘ fun j : Fin 28 => (⟨wireNat (slotBits k State) (colBits T) (timeBits T) x n T
-        o j, wireNat_lt ho j.isLt⟩ : Fin _)) =
-        fun j : Fin 28 => z (wireNat (slotBits k State) (colBits T) (timeBits T) x n T o j) := by
-      funext j
-      simp [z, wireNat_lt ho j.isLt]
-    have hF : ∀ w < aWidth (slotBits k State) (colBits T) (timeBits T) x n T,
-        z w = fieldVal (slotBits k State) (colBits T) (timeBits T) x n T idx w := by
-      intro w hw
-      simp only [z, show w < aWidth (slotBits k State) (colBits T) (timeBits T) x n T +
-        3 * (13 + slotBits k State) by omega, ↓reduceDIte, hz', eval_middle_field, hw]
+    let z : ℕ → Bool := fun w => if h : w < aw + 3 * (13 + s) then z' ⟨w, h⟩ else false
+    have hzz : (z' ∘ fun j : Fin 28 =>
+        (⟨wireNat s cb tb x n T o j, wireNat_lt ho j.isLt⟩ : Fin _)) =
+        fun j : Fin 28 => z (wireNat s cb tb x n T o j) :=
+      funext fun j => by
+        dsimp only [Function.comp_apply, z]
+        rw [dite_eq_left (wireNat_lt ho j.isLt)]
+    have hF (w : ℕ) (hw : w < aw) : z w = fieldVal s cb tb x n T idx w := by
+      simp only [z, show w < aw + 3 * (13 + s) by omega, ↓reduceDIte, hz', eval_middle_field]
+      exact dite_eq_left hw
     rw [hzz, eval_outTemplate_wireNat hidx hF]
-    set r := o / (2 + (slotBits k State + colBits T + timeBits T) + 1) with hrdef
-    set i := o % (2 + (slotBits k State + colBits T + timeBits T) + 1) with hidef
+    set r := o / lw
     set sh := (shapeOf tm κ).getD r defaultShape with hsh
     have hsh' : sh = (shapeOf tm κ)[r]'(by omega) := by
-      rw [hsh, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
-      rfl
-    have htab (f : ℕ) (hf : f < 13 + slotBits k State) :
-        z (aWidth (slotBits k State) (colBits T) (timeBits T) x n T + r * (13 + slotBits k State) +
-          f) = if f < 2 + slotBits k State then tagSlot sh f
-            else selOf κ.c0 κ.t0 sh (f - (2 + slotBits k State)) := by
-      have hlt : r * (13 + slotBits k State) + f < 3 * (13 + slotBits k State) := by
-        have : r * (13 + slotBits k State) + (13 + slotBits k State) ≤
-            3 * (13 + slotBits k State) := by
-          rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right _ hr
+      rw [hsh, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]; rfl
+    have htab (f : ℕ) (hf : f < 13 + s) :
+        z (aw + r * (13 + s) + f) =
+          if f < 2 + s then tagSlot sh f else selOf κ.c0 κ.t0 sh (f - (2 + s)) := by
+      have hlt : r * (13 + s) + f < 3 * (13 + s) := by
+        have := Nat.mul_le_mul_right (13 + s) hr
+        rw [Nat.succ_mul] at this
         omega
-      simp only [z, show aWidth (slotBits k State) (colBits T) (timeBits T) x n T +
-        r * (13 + slotBits k State) + f < aWidth (slotBits k State) (colBits T) (timeBits T) x n T +
-          3 * (13 + slotBits k State) by omega, ↓reduceDIte, hz', eval_middle_field,
-        show ¬ aWidth (slotBits k State) (colBits T) (timeBits T) x n T +
-          r * (13 + slotBits k State) + f < aWidth (slotBits k State) (colBits T) (timeBits T) x n T
-          by omega]
-      simp only [tableFn, hkey]
-      have h₁ : (aWidth (slotBits k State) (colBits T) (timeBits T) x n T +
+      simp only [z, show aw + r * (13 + s) + f < aw + 3 * (13 + s) by omega, ↓reduceDIte, hz',
+        eval_middle_field]
+      dsimp only [s, cb, tb, aw] at hf hlt ⊢
+      rw [dite_eq_right (by omega)]
+      simp only [tableFn, hkey, show aWidth (slotBits k State) (colBits T) (timeBits T) x n T +
           r * (13 + slotBits k State) + f - aWidth (slotBits k State) (colBits T) (timeBits T)
-            x n T) = r * (13 + slotBits k State) + f := by omega
-      simp only [h₁, Nat.mul_add_div_of_lt r hf, Nat.mul_add_mod_of_lt hf, hsh]
+            x n T = r * (13 + slotBits k State) + f by omega,
+        Nat.mul_add_div_of_lt r hf, Nat.mul_add_mod_of_lt hf, hsh]
     rw [outBit_congr (ts' := tagSlot sh) (sel' := selOf κ.c0 κ.t0 sh)
       (fun f hf => by rw [htab f (by omega), ite_eq_left hf])
       (fun q hq => by rw [htab _ (by omega), ite_eq_right (by omega), Nat.add_sub_cancel_left])]
-    have hmem : sh ∈ shapeOf tm κ := by rw [hsh']; exact List.getElem_mem _
-    have hc0 : κ.c0 = decide (colOf (slotBits k State) (colBits T) (idx / 16) = 0) := by
-      rw [← hκ]; rfl
-    have ht0 : κ.t0 = decide (timeOf (slotBits k State) (colBits T) (idx / 16) = 0) := by
-      rw [← hκ]; rfl
-    rw [hc0, ht0]
-    rw [← hκ] at hmem
-    rw [outBit_shape (x := x) hs (inRange_of_mem_shapeOf tm hmem) ?_ (by omega), ← hsh']
+    have hmem : sh ∈ shapeOf tm κ := hsh' ▸ List.getElem_mem _
+    rw [show κ.c0 = decide (colOf s cb (idx / 16) = 0) from rfl,
+      show κ.t0 = decide (timeOf s cb (idx / 16) = 0) from rfl,
+      outBit_shape (x := x) hs (inRange_of_mem_shapeOf tm hmem) ?_ (Nat.lt_succ_iff.mp hi), ← hsh']
     · rfl
     · intro hl
       have hp := lt_of_mem_shapeOf tm hmem hl
       have hX := Nat.lt_size_self x.length
-      have hlk : lookW (slotBits k State) (colBits T) (timeBits T) x <
-          aWidth (slotBits k State) (colBits T) (timeBits T) x n T := lookW_lt
-      rw [hF _ hlk, lookW, ite_eq_right (by omega), fieldVal_or,
+      rw [hF _ lookW_lt, lookW, ite_eq_right (by omega), fieldVal_or,
         Nat.mod_eq_of_lt (show idx / 16 < 2 ^ Nat.size x.length by omega)]
       simp [show idx / 16 ≤ x.length - 1 by omega]
   · rw [dite_eq_right ho, eq_comm, List.getElem?_eq_none]
     rw [List.length_flatMap, List.map_congr_left (fun a _ => show (litBits
-      (2 + (slotBits k State + colBits T + timeBits T)) a).length =
-        2 + (slotBits k State + colBits T + timeBits T) + 1 by simp [litBits])]
+      (2 + (s + cb + tb)) a).length = lw by simp [litBits]; rfl)]
     simp only [List.map_const', List.sum_replicate, smul_eq_mul, List.length_map, hlen]
     omega
 

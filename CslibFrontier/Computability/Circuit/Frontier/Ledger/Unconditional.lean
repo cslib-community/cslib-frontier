@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.LowerBound
 
 /-!
@@ -44,6 +45,15 @@ fixed `m` cost nothing in the leading term.
 * `Cslib.Circuits.Frontier.eventually_gaussian_sub_mul_lt_card_of_ledger`,
   `eventually_gaussian_sub_mul_lt_card_of_aggregates`: the Gaussian `(L - ε) n` bounds at ordinary
   fan-in two.
+* `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_card_of_ledger`,
+  `eventually_switched_sub_mul_lt_card_of_aggregates`: the median-switched Gaussian `(L₃ - ε) n`
+  bounds (`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`), original to this library (via
+  `layoutBound_switched`).
+
+## References
+
+* [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
+  Exponential Algorithms*][Gaspers2026]
 -/
 
 public section
@@ -110,12 +120,10 @@ theorem eventually_gaussian_sub_mul_lt_card_of_ledger
         Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
           (1 + Real.pi / (3 * Real.arccos ((1 + 2 * Real.sqrt 2) / 4)) - ε) * n <
             (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
-  rw [Gaussian.one_add_inv_two_mul_gaussianCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ M _ _ hfan hled hM hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special M hfan hled hM hdec
+  simpa only [Gaussian.one_add_inv_two_mul_gaussianCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
 
 /-- **The Gaussian frontier lower bound with aggregate gates, at ordinary fan-in two.** Under the
 hypotheses of `eventually_gaussian_sub_mul_lt_card_of_ledger`, for every `ε > 0` and all large `n`,
@@ -134,11 +142,51 @@ theorem eventually_gaussian_sub_mul_lt_card_of_aggregates
         c.Decides I Acc (S n) →
           (1 + Real.pi / (3 * Real.arccos ((1 + 2 * Real.sqrt 2) / 4)) - ε) * n <
             (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
-  rw [Gaussian.one_add_inv_two_mul_gaussianCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ T _ _ hfan hagg hT hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special T hfan hagg hT hdec
+  simpa only [Gaussian.one_add_inv_two_mul_gaussianCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
+
+/-- **The median-switched Gaussian frontier lower bound with a ledger, at ordinary fan-in two.**
+Under the hypotheses of `eventually_two_sub_mul_lt_mul_card_of_ledger`, every circuit deciding
+`S_n` whose ordinary gates have fan-in at most two has more than `(L₃ - ε) n` ordinary inner gates,
+where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. Original to this library (instantiating
+the frontier ledger framework with `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_card_of_ledger
+    (hSK : DenseRectangleFree S K)
+    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (M : Type w)
+      [CommMonoid M] [Finite M],
+        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
+        Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
+          (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * n <
+            (c.program.innerGates.filter fun g => ¬special g).card := by
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
+
+/-- **The median-switched Gaussian frontier lower bound with aggregate gates, at ordinary fan-in
+two.** Under the hypotheses of `eventually_switched_sub_mul_lt_card_of_ledger`, every circuit
+deciding `S_n` with `k` aggregating special gates satisfying `k log |T| ≤ β(n)` has more than
+`(L₃ - ε) n` ordinary inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`.
+Original to this library (via `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_card_of_aggregates
+    (hSK : DenseRectangleFree S K)
+    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (T : Type w)
+      [CommMonoid T] [Finite T],
+        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
+        (∀ g, special g → Aggregates (I (c.program.lines g).op) T) →
+        Nat.card {g // special g} * Real.log (Nat.card T) ≤ β n →
+        c.Decides I Acc (S n) →
+          (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * n <
+            (c.program.innerGates.filter fun g => ¬special g).card := by
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
 
 end Cslib.Circuits.Frontier

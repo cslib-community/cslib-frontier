@@ -8,9 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.Nat.Log
 public import CslibFrontier.DataStructure.Dictionary.Spec
 public import Mathlib.Data.Nat.Choose.Basic
 public import Mathlib.Data.Nat.Log
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Dynamic dictionary specification with deletions and succinct space bounds
@@ -94,6 +98,9 @@ abbrev Op.Result {U : ℕ} : Op U → Type
   | .query _ => Option ℕ
   | .insert _ _ => Unit
   | .delete _ => Unit
+
+instance Op.instInhabitedResult {U : ℕ} (o : Op U) : Inhabited o.Result := by
+  cases o <;> dsimp [Op.Result] <;> infer_instance
 
 /-- Pure transition function for dynamic dictionary operations. -/
 abbrev step {U : ℕ} (s : State U) : (o : Op U) → State U × o.Result
@@ -252,7 +259,7 @@ for representing `n` keys in `Fin U` with values in `Fin V`. When `0 < V` and `n
 the exact minimum `⌈log₂ (C(U, n) * V^n)⌉` when `V` is a power of two and exceeds it by at most `n`
 bits otherwise. When `n > U`, `U.choose n = 0`; when `V = 0`, there are no valued non-empty
 dictionaries. -/
-@[expose]
+@[expose, wram_arith]
 def optBits (U V n : ℕ) : ℕ :=
   Nat.clog 2 (U.choose n) + n * Nat.clog 2 V
 
@@ -263,7 +270,7 @@ def logLogFactor (n : ℕ) : ℕ :=
 
 /-- Succinct space bound `⌈(OPT(U, V, n_max) + C * n_max * ⌈log₂ ⌈log₂ (max n_max 4)⌉⌉) / w⌉ + C₀`
 in `w`-bit machine words. -/
-@[expose]
+@[expose, wram_arith]
 def succinctWords (C C₀ U V w n_max : ℕ) : ℕ :=
   (optBits U V n_max + C * n_max * logLogFactor n_max + w - 1) / w + C₀
 
@@ -289,5 +296,39 @@ theorem one_le_logLogFactor (n : ℕ) : 1 ≤ logLogFactor n := by
 theorem logLogFactor_mono {m n : ℕ} (h : m ≤ n) : logLogFactor m ≤ logLogFactor n := by
   unfold logLogFactor
   exact Nat.clog_mono_right 2 (Nat.clog_mono_right 2 (max_le_max_right 4 h))
+
+private theorem clog_two_mul_le (x : ℕ) : Nat.clog 2 (2 * x) ≤ Nat.clog 2 x + 1 := by
+  rw [Nat.clog_le_iff_le_pow Nat.one_lt_two, pow_succ']
+  exact Nat.mul_le_mul_left 2 (Nat.le_pow_clog Nat.one_lt_two x)
+
+/-- Scaling bound for `Dynamic.logLogFactor` under 2x epoch size expansion. -/
+theorem logLogFactor_two_mul_le_add_one (n : ℕ) :
+    logLogFactor (2 * n) ≤ logLogFactor n + 1 := by
+  unfold logLogFactor
+  have hm : max (2 * n) 4 ≤ 2 * max n 4 := by omega
+  have hc1 : Nat.clog 2 (max (2 * n) 4) ≤ 2 * Nat.clog 2 (max n 4) := by
+    have hle1 := Nat.clog_mono_right 2 hm
+    have hle2 := clog_two_mul_le (max n 4)
+    have hpos : 1 ≤ Nat.clog 2 (max n 4) := by
+      have h4 := Nat.clog_mono_right 2 (le_max_right n 4)
+      have : Nat.clog 2 4 = 2 := by decide
+      omega
+    omega
+  exact (Nat.clog_mono_right 2 hc1).trans (clog_two_mul_le _)
+
+/-- Quadrupling `n` increases `logLogFactor` by at most `2`. -/
+theorem logLogFactor_four_mul_le_add_two (n : ℕ) :
+    logLogFactor (4 * n) ≤ logLogFactor n + 2 := by
+  have h4 : 4 * n = 2 * (2 * n) := by ring
+  rw [h4]
+  exact (logLogFactor_two_mul_le_add_one (2 * n)).trans
+    (Nat.add_le_add_right (logLogFactor_two_mul_le_add_one n) 1)
+
+/-- Quadrupling `n` increases `logLogFactor` by at most a factor of `4`. -/
+theorem logLogFactor_four_mul_le (n : ℕ) :
+    logLogFactor (4 * n) ≤ 4 * logLogFactor n := by
+  have h1 := logLogFactor_four_mul_le_add_two n
+  have h2 := one_le_logLogFactor n
+  omega
 
 end Cslib.DataStructure.Dictionary.Dynamic

@@ -1,16 +1,18 @@
 # Algorithms, memory, and data structures
 
+> **Frozen in November 2026.** This chapter is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 This part of cslib-frontier contains several machine models and a separate family of specification and resource interfaces. Unbounded natural RAM, generic partial-operation RAM, exact algebraic RAM, bounded Word-RAM and randomized Word-RAM do not have interchangeable costs. State-transition clients, memory oracles, online strategies and streaming sketches add useful models of interaction but are not automatically machine implementations [cslib-frontier][complexitylib].
 
 The survey baseline is `13e6a31951bf1c89a1a6258c44f9444aecbbefd8`. Definitions and representative theorem statements were inspected read-only. No Lean build was performed by this author. The [model map](../model-map.md) links the explanatory pages, which record inspected sources, principal declarations, assumptions, bridges and ownership.
 
 ## Reading map
 
-- [RAM variants](ram-variants.md): unbounded natural registers, unit/logarithmic cost, generic partial operations, exact real/prime-field arithmetic and native representation obligations.
+- [RAM variants and pointer machines](ram-variants.md): unbounded natural registers, unit/logarithmic cost, generic partial operations, exact real/prime-field arithmetic, allocating pointer machines, and native representation obligations.
 - [Word-RAM and proved bridges](wordram-and-bridges.md): instruction semantics, uniformity, output conventions, randomized execution, expected time, and actual Turing simulations.
 - [Memory and state-transition specifications](memory-specifications.md): relational adaptive clients, refinement, amortization, memory charges, native callable contracts, framing and traces.
 - [Online and streaming models](online-and-streaming.md): demand paging, competitive analysis, splay-tree amortized bounds (balance, static optimality, static finger, working set), Count-Min and native streaming folds.
-- [Strategic games, congestion and the price of anarchy](strategic-games.md): cost games, potential games, Rosenthal's theorem, smoothness and coarse correlated equilibria, the `5/2` and `4/3` price-of-anarchy bounds, and the odd number of Nash equilibria of nondegenerate bimatrix games (Lemke–Howson).
+- [Strategic games, congestion and the price of anarchy](strategic-games.md): cost games, potential games, Rosenthal's theorem, smoothness and coarse correlated equilibria, the `5/2` and `4/3` price-of-anarchy bounds, the odd number of Nash equilibria of nondegenerate bimatrix games (Lemke–Howson), and `PPAD` membership of two-player rational Nash equilibria.
 - [Borrowed registers and native Tree Evaluation](catalytic-and-tree-evaluation.md): exact restoration, explicit gate-table inputs, Cook–Mertz workspace, and fan-in/packed variants.
 - [Representative algorithm endpoints](algorithm-endpoints.md): what the algorithm modules (and the since-retired formal abstracts that restated some of them) prove, their cost models (some charge no running time) and their limitations. The topic pages, whose section headings list the algorithms covered:
   - [3SUM and Exact Triangle native pipelines](three-sum-and-exact-triangle.md)
@@ -29,6 +31,7 @@ The survey baseline is `13e6a31951bf1c89a1a6258c44f9444aecbbefd8`. Definitions a
 
 | Layer | Model or interface | Cost convention |
 |---|---|---|
+| Machine | Allocating pointer machine with pointer/data registers and linked records | One unit per instruction; space counts records; valid inputs and total undefined-data semantics |
 | Machine | Natural RAM extending URM registers | Unit cost or separately specified bit-length/logarithmic cost |
 | Machine schema | `GenericRAM.Model` | One step per instruction; partial operation, address, control and admissibility checks |
 | Machine instances | Tagged exact real / prime-field RAM | Unit-cost exact field operations plus bounded natural-word addresses |

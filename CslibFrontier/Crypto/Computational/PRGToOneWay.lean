@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.Stretch
 import CslibFrontier.Foundations.Data.BitString.ShortWords
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
@@ -108,12 +109,11 @@ theorem succProbability_uniformList_test_le {generator : List Bool → List Bool
     · exact PMF.coe_le_one _ _
     simp only [test, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_apply, PMF.pure_apply]
     refine le_of_eq (tsum_eq_zero_iff.2 fun x => ?_)
-    have hne : generator x ≠ List.ofFn r := fun hx => hr <| mem_image.2
-      ⟨x, hP x (by rw [← hlen x, hx, List.length_ofFn]), hx⟩
-    simp [hne]
+    simp [show generator x ≠ List.ofFn r from fun hx => hr <| mem_image.2
+      ⟨x, hP x (by rw [← hlen x, hx, List.length_ofFn]), hx⟩]
   have hgame : distinguishingGame (BitString.uniformList (ℓ n)) (test generator adversary n) true ≤
       ((2 : ℝ≥0∞) ^ ℓ n)⁻¹ * (#T : ℝ≥0∞) := by
-    rw [distinguishingGame, PMF.monad_bind_eq_bind, BitString.uniformList, PMF.bind_map,
+    rw [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, BitString.uniformList, PMF.bind_map,
       PMF.bind_apply, tsum_fintype]
     simp only [PMF.uniformOfFintype_apply, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
       Function.comp_apply]
@@ -128,14 +128,10 @@ theorem succProbability_uniformList_test_le {generator : List Bool → List Bool
           gcongr
           exact card_le_card_of_injOn List.ofFn (fun r hr => by simpa using hr)
             fun r _ s _ h => List.ofFn_injective h
-  have hT : (#T : ℝ≥0) ≤ ε * 2 ^ ℓ n :=
-    (by exact_mod_cast card_image_le : (#T : ℝ≥0) ≤ #P).trans hε
-  have hfin : distinguishingGame (BitString.uniformList (ℓ n)) (test generator adversary n) true ≤
-      (ε : ℝ≥0∞) := by
-    refine hgame.trans ?_
-    rw [ENNReal.inv_mul_le_iff (by positivity) (by simp), mul_comm]
-    exact_mod_cast hT
-  exact (ENNReal.toNNReal_mono ENNReal.coe_ne_top hfin).trans_eq (ENNReal.toNNReal_coe _)
+  refine (ENNReal.toNNReal_mono ENNReal.coe_ne_top (hgame.trans ?_)).trans_eq
+    (ENNReal.toNNReal_coe _)
+  rw [ENNReal.inv_mul_le_iff (by positivity) (by simp), mul_comm]
+  exact_mod_cast (by exact_mod_cast card_image_le : (#T : ℝ≥0) ≤ #P).trans hε
 
 end PRGToOneWay
 
@@ -188,17 +184,14 @@ increasing and eventually below `2 n`. -/
 theorem PseudorandomGenerator.oneWay_of_injective {generator : List Bool → List Bool}
     {ℓ : ℕ → ℕ} (hgenerator : PseudorandomGenerator generator ℓ) (hinj : Function.Injective ℓ)
     (hgap : Negligible fun n => (1 / 2 : ℝ≥0) ^ (ℓ n - n)) : OneWay generator := by
-  classical
-  refine hgenerator.oneWay_of_card_le hgap
-    (fun n => univ.image (List.ofFn : (Fin n → Bool) → _)) (fun n x hx => ?_) fun n => ?_
-  · obtain rfl : x.length = n := hinj hx
-    exact mem_image.2 ⟨x.get, mem_univ _, List.ofFn_get x⟩
-  · have h : (1 / 2 : ℝ≥0) ^ (ℓ n - n) * 2 ^ ℓ n = 2 ^ n := by
-      obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hgenerator.stretch n; omega⟩
-      rw [hk, Nat.add_sub_cancel, pow_add, one_div_pow]
-      field_simp
-    rw [h]
-    exact_mod_cast card_image_le.trans (by simp)
+  refine hgenerator.oneWay_of_card_le hgap BitString.wordsOfLength
+    (fun n x hx => BitString.mem_wordsOfLength.mpr (hinj hx)) fun n => ?_
+  have h : (1 / 2 : ℝ≥0) ^ (ℓ n - n) * 2 ^ ℓ n = 2 ^ n := by
+    obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hgenerator.stretch n; omega⟩
+    rw [hk, Nat.add_sub_cancel, pow_add, one_div_pow]
+    field_simp
+  rw [h]
+  exact_mod_cast (BitString.card_wordsOfLength n).le
 
 /-- **Every pseudorandom generator yields a one-way function.** Truncate the generator to one bit
 of stretch, amplify it to stretch `n ↦ 2 n + 1`, and apply `PseudorandomGenerator.oneWay`. -/

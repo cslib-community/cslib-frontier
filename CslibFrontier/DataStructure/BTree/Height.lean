@@ -27,6 +27,10 @@ the shape of a tree; they carry no cost content.
 * `IsWF.height_le_log`: the height is at most `Nat.log t ((size + 1) / 2) + 1`, the bound of
   [CLRS2009], Theorem 18.1, with heights counted in nodes rather than edges.
 * `Balanced.height_le_log`: the same bound from the shape alone, without key order.
+* `le_mul_height_of_node_le`: a count on trees that spends at most `c` at each node along a
+  descent is at most `c * height`.
+* `le_mul_height_of_scan`: its instance for a count that spends at most one more than a node's
+  key count at each node, which is at most `2 * t * height`.
 
 ## References
 
@@ -35,6 +39,7 @@ the shape of a tree; they carry no cost content.
 
 Ported from `cslib-community/EpsilonEridani` at commit `1966ab476`:
 [EpsilonEridani/Algorithms/Lean/BTree/Height.lean](https://github.com/cslib-community/EpsilonEridani/blob/1966ab476f5db00425c83e19857fd38ba01143c4/EpsilonEridani/Algorithms/Lean/BTree/Height.lean).
+`le_mul_height_of_scan` ported from `cslib-community/EpsilonEridani` PR `#39` at commit `9425389c8`.
 -/
 
 public section
@@ -51,7 +56,8 @@ variable {first : BTree α β} {rest : List (Triple α β)}
 
 /-- A node whose children each hold at least `n - 1` entries holds at least
 `(rest.length + 1) * n - 1`. -/
-theorem le_size_node {n : ℕ} (h₁ : n - 1 ≤ first.size) (h₂ : ∀ e ∈ rest, n - 1 ≤ e.child.size) :
+theorem le_size_node {n : ℕ} (h₁ : n - 1 ≤ first.size)
+    (h₂ : ∀ e ∈ rest, n - 1 ≤ e.child.size) :
     (rest.length + 1) * n - 1 ≤ (node first rest).size := by
   have hs :=
     (rest.map fun e => e.child.size).length_nsmul_le_sum (n - 1) (List.forall_mem_map.2 h₂)
@@ -94,7 +100,7 @@ theorem Occupied.pow_sub_one_le_size (ho : Occupied t tr) (hb : Balanced tr) :
       hb.height_of_mem_rest he ▸ ih₂ e he (ho.of_mem_rest he) (hb.of_mem_rest he)
     refine le_trans ?_ (le_size_node (ih₁ ho.first hb.first) hc)
     rw [hb.height_node, Nat.pow_succ']
-    exact Nat.sub_le_sub_right (Nat.mul_le_mul_right _ (by have := ho.le_length; omega)) 1
+    exact Nat.sub_le_sub_right (Nat.mul_le_mul_right _ (Nat.sub_le_iff_le_add.mp ho.le_length)) 1
 
 /-- A node with at most `2 * t - 1` keys, for positive `t`, whose children each satisfy the
 upper bound of `Occupied.size_le` satisfies it too. -/
@@ -102,16 +108,17 @@ private theorem size_node_le_pow {first : BTree α β} {rest : List (Triple α �
     (ht : 0 < t) (hm : rest.length ≤ 2 * t - 1)
     (hc : ∀ c ∈ (node first rest).children, c.size ≤ (2 * t) ^ c.height - 1) :
     (node first rest).size ≤ (2 * t) ^ (node first rest).height - 1 := by
-  have hpos := height_succ_le_of_mem_children (tr := node first rest) List.mem_cons_self
-  obtain ⟨H, hH⟩ : ∃ H, (node first rest).height = H + 1 :=
-    ⟨_, (Nat.sub_add_cancel (by omega)).symm⟩
-  have hle : ∀ c ∈ (node first rest).children, c.size ≤ (2 * t) ^ H - 1 := fun c hc' =>
-    (hc c hc').trans (Nat.sub_le_sub_right (Nat.pow_le_pow_right (by omega)
-      (by have := height_succ_le_of_mem_children hc'; omega)) 1)
+  have hpos : 0 < (node first rest).height :=
+    (Nat.zero_lt_succ _).trans_le height_first_succ_le
+  obtain ⟨H, hH⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
+  have ht₂ : 0 < 2 * t := Nat.mul_pos (by decide) ht
+  have hle : ∀ c ∈ (node first rest).children, c.size ≤ (2 * t) ^ H - 1 := fun c hc' => by
+    have hh := Nat.le_of_succ_le_succ ((height_succ_le_of_mem_children hc').trans_eq hH)
+    exact (hc c hc').trans (Nat.sub_le_sub_right (Nat.pow_le_pow_right ht₂ hh) 1)
   rw [hH, Nat.pow_succ']
-  exact (size_node_le (Nat.pow_pos (by omega)) (hle _ List.mem_cons_self) fun e he =>
+  exact (size_node_le (Nat.pow_pos ht₂) (hle _ List.mem_cons_self) fun e he =>
     hle _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).trans
-      (Nat.sub_le_sub_right (Nat.mul_le_mul_right _ (by omega)) 1)
+      (Nat.sub_le_sub_right (Nat.mul_le_mul_right _ (by lia)) 1)
 
 /-- An occupied subtree of height `h` holds at most `(2 * t) ^ h - 1` entries. -/
 theorem Occupied.size_le (ho : Occupied t tr) : tr.size ≤ (2 * t) ^ tr.height - 1 := by
@@ -147,7 +154,7 @@ theorem Balanced.le_size (hb : Balanced tr) (hk : tr ≠ .leaf → 1 ≤ tr.root
     refine le_trans ?_
       (le_size_node ((ho first List.mem_cons_self).pow_sub_one_le_size hb.first) hc)
     rw [hb.height_node, Nat.add_sub_cancel]
-    exact Nat.sub_le_sub_right (Nat.mul_le_mul_right _ (by omega)) 1
+    exact Nat.sub_le_sub_right (Nat.mul_le_mul_right _ (Nat.succ_le_succ hk)) 1
 
 /-- The height of a balanced tree with a key at a non-empty root and occupied children is
 logarithmic in its size, for `2 ≤ t`. Only the shape matters, not the order of the keys. -/
@@ -161,6 +168,46 @@ theorem Balanced.height_le_log (ht : 2 ≤ t) (hb : Balanced tr) (hk : tr ≠ .l
   have := Nat.le_log_of_pow_le (by omega) hle
   omega
 
+/-! ### Counts along a descent -/
+
+/-- A count on trees that spends at most `c` at a node with at most `2 * t - 1` keys beyond what
+it spends in one of the node's children, and nothing on the empty tree, is at most `c * height`
+on a tree whose root holds at most `2 * t - 1` keys and whose children are occupied. -/
+theorem le_mul_height_of_node_le {c : ℕ} {f : BTree α β → ℕ} (hleaf : f .leaf = 0)
+    (hnode : ∀ (first : BTree α β) (rest : List (Triple α β)) (B : ℕ), rest.length ≤ 2 * t - 1 →
+      (∀ ch ∈ (node first rest).children, f ch ≤ B) → f (node first rest) ≤ c + B)
+    {tr : BTree α β} (hk : tr.rootKeys ≤ 2 * t - 1) (hc : ∀ ch ∈ tr.children, Occupied t ch) :
+    f tr ≤ c * tr.height := by
+  induction tr with
+  | leaf => simp [hleaf]
+  | node first rest ihf ihr =>
+    have ih : ∀ ch ∈ (BTree.node first rest).children,
+        ch.rootKeys ≤ 2 * t - 1 → (∀ d ∈ ch.children, Occupied t d) → f ch ≤ c * ch.height := by
+      simpa only [children_node, List.forall_mem_cons, List.forall_mem_map] using ⟨ihf, ihr⟩
+    have hB : ∀ ch ∈ (node first rest).children, f ch ≤ c * ((node first rest).height - 1) :=
+      fun ch hch => by
+        have ho := hc ch hch
+        exact (ih ch hch ho.rootKeys_le (fun _ hd => ho.of_mem_children hd)).trans
+          (Nat.mul_le_mul_left c (Nat.le_sub_of_add_le (height_succ_le_of_mem_children hch)))
+    have hpos : 1 ≤ (node first rest).height :=
+      (Nat.succ_le_succ (Nat.zero_le _)).trans height_first_succ_le
+    calc
+      f (node first rest) ≤ c + c * ((node first rest).height - 1) := hnode first rest _ hk hB
+      _ = c * (node first rest).height := by
+        rw [Nat.add_comm c, ← Nat.mul_succ, Nat.succ_eq_add_one, Nat.sub_add_cancel hpos]
+
+/-- A count on trees that spends at most `rest.length + 1` at a node `.node first rest` beyond
+what it spends in one of the node's children, and nothing on the empty tree, is at most
+`2 * t * height`, for positive `t`, on a tree whose root holds at most `2 * t - 1` keys and whose
+children are occupied. -/
+theorem le_mul_height_of_scan (ht : 0 < t) {f : BTree α β → ℕ} (hleaf : f .leaf = 0)
+    (hnode : ∀ (first : BTree α β) (rest : List (Triple α β)) (B : ℕ),
+      (∀ c ∈ (node first rest).children, f c ≤ B) → f (node first rest) ≤ rest.length + 1 + B)
+    {tr : BTree α β} (hk : tr.rootKeys ≤ 2 * t - 1) (hc : ∀ c ∈ tr.children, Occupied t c) :
+    f tr ≤ 2 * t * tr.height :=
+  le_mul_height_of_node_le hleaf
+    (fun first rest B hl hB => (hnode first rest B hB).trans (by omega)) hk hc
+
 variable [LinearOrder α]
 
 /-- A non-empty well-formed tree of height `h` holds at least `2 * t ^ (h - 1) - 1` entries. -/
@@ -173,7 +220,7 @@ theorem IsWF.size_le (h : IsWF t tr) : tr.size ≤ (2 * t) ^ tr.height - 1 := by
   cases tr with
   | leaf => simp
   | node first rest =>
-    exact size_node_le_pow (by have := h.two_le; omega) h.rootKeys_le fun c hc =>
+    exact size_node_le_pow (Nat.zero_lt_two.trans_le h.two_le) h.rootKeys_le fun c hc =>
       (h.occupied_of_mem_children c hc).size_le
 
 /-- The height of a well-formed tree is logarithmic in its size (Cormen et al., Theorem 18.1). -/

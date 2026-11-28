@@ -14,6 +14,12 @@ The public direction is plain computability with independent time and space boun
 
 Input length is the length of the chosen encoding. Binary naturals, unary controls, framed lists, finite structures and machine descriptions have different size laws; changing an encoding can change the resource claim. The library therefore uses explicit input/output embeddings in computability statements and proves encoding-size bounds. For low-space functions the additional question is whether returned data counts toward the workspace contract. `ComputableInO` charges output size while `ComputableInBigO` does not; logarithmic-space transductions have a separate convention. See the [resource table](../machines-and-classes/native-and-resources.md).
 
+For framed list size bounds, reuse `length_encList_sublist` from
+[Encodings/List/Size.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/List/Size.lean).
+A suffix hypothesis `h` supplies `h.sublist`, so `length_encList_sublist enc h.sublist`
+bounds its encoded length by that of the original list. IP/MIP replay histories and TQBF
+frame/state bounds use this shared API without changing their encodings.
+
 The same discipline applies outside native machines:
 
 | Interface | What it charges | Further obligation |
@@ -32,6 +38,18 @@ The library repeatedly separates a high-level operation from its representation.
 
 The circuit refactor is documented by [PR #520](https://github.com/cslib-community/cslib-frontier/pull/520). The later named-cell pivot is documented by [issue #2205](https://github.com/cslib-community/cslib-frontier/issues/2205) and [PR #2228](https://github.com/cslib-community/cslib-frontier/pull/2228). The latter completes insertion-related Fibonacci-heap operations, not the full priority-queue refinement: decrease-key and extract-min remain outside that milestone. Their reported proof-size comparisons are historical measurements by the contributors, not benchmarks reproduced in the historical study.
 
+For list recursions that emit blocks and replace a carry at each indexed step, import
+[`Foundations/Data/List/EmitChain.lean`](../../CslibFrontier/Foundations/Data/List/EmitChain.lean)
+and use `List.eq_flatMap_range_of_emit`. Supply the short-suffix equation and the one-step
+equation; the theorem expands the consumed prefix as an indexed `flatMap`, followed by the
+terminal suffix. The carry update must depend only on the absolute step index. The two
+[clause-splitting](../../CslibFrontier/Logics/Propositional/CNF/ThreeCNF/PolyTime.lean)
+[certificates](../../CslibFrontier/Logics/Propositional/CNF/ThreeCNF/Exact/PolyTime.lean)
+use this with two reserved literals: ordinary splitting emits one clause and carries a negative
+fresh literal, while the count-preserving OR chain emits three clauses and carries a positive
+fresh literal. The equality preserves the output list, including order and repeated clauses;
+the clients still supply the encoding and polynomial-time certificates.
+
 ## Module interfaces and build consequences
 
 Lean's module system makes the distinction between public API dependencies and proof-only imports explicit. Source files use `module`, `public import` for dependencies needed by clients, and ordinary imports for proof support. `@[expose]` makes a definition body part of the downstream interface and is used selectively. A proof-only helper can remain private, while the small reusable theorem should live in the lowest suitable topic module. [Module guidance](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/CONTRIBUTING.md#public-surface-under-the-module-system)
@@ -42,7 +60,7 @@ Before the first supported release the project deliberately avoids accumulating 
 
 ## Reading design historically
 
-Several decisions evolved during rapid development: strengthening nondeterministic space termination, moving from tidy public contracts to plain ones, separating quantifier-free interpretations from first-order projections, revising word-RAM fault/basis conventions, and replacing a prose theorem list with checked abstracts (themselves retired on 2026-11-08 in favor of the results inventory). The pinned source links identify the surveyed snapshot. A history of why these choices changed must use dated issues or transcripts; current documentation alone cannot establish the original motivation. The [case studies](../development-history/case-studies.md) provide that evidence where available.
+Several decisions evolved during rapid development: strengthening nondeterministic space termination, moving from tidy public contracts to plain ones, separating quantifier-free interpretations from first-order projections, revising word-RAM fault/basis conventions, and replacing a prose theorem list with checked abstracts (themselves retired on 2026-11-08 in favor of the results inventory). The pinned source links identify the surveyed snapshot. A history of why these choices changed must use dated issues or transcripts; current documentation alone cannot establish the original motivation. The [case studies](../history/case-studies.md) provide that evidence where available.
 
 This architectural account is a synthesis of the inspected interfaces and policies. It is not a claim that every module already follows the preferred design without exceptions. [cslib-frontier][complexitylib]
 

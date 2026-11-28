@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Deterministic machines inside probabilistic programs
@@ -69,9 +70,8 @@ theorem run_interpret_runConfigFrom_ofDeterministic [DecidableEq Oracle]
         Function.iterate_fixed (MultiTapeTM.step_of_halt hs) _
       simp [MultiTapeMachine.runConfigFrom, hs, hh]
     | some state =>
-      simp only [MultiTapeMachine.runConfigFrom, hs, htr, bind_map_left,
-        OracleComp.interpret_bind, StateT.run_bind, hcoin,
-        Probability.PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, PMF.bind_const]
+      simp only [MultiTapeMachine.runConfigFrom, hs, htr, bind_map_left, interp_norm, pmf_norm,
+        hcoin, PMF.bind_const]
       rw [ih]
       congr 1
       simp only [MultiTapeTM.runFrom, Function.iterate_succ_apply]
@@ -87,7 +87,7 @@ theorem run_interpret_ofDeterministic [DecidableEq Oracle]
     (fuel : ℕ) (cfg : Config k Symbol State Oracle input) (s : OracleState) :
     (OracleComp.interpret oracle ((ofDeterministic machine).runFrom coin query fuel cfg)).run s =
       PMF.pure ((machine.runFrom cfg.tapes fuel).output, s) := by
-  simp [runFrom, OracleComp.interpret_map, StateT.run_map,
+  simp [runFrom,
     run_interpret_runConfigFrom_ofDeterministic machine coin query oracle coinLaw hcoin]
 
 /-- Closed fair-coin execution of a deterministic embedding has a point-mass output distribution. -/
@@ -107,6 +107,7 @@ theorem eval_runClosed_ofDeterministic (machine : MultiTapeTM k Symbol State)
   rw [PMF.monad_map_eq_map, PMF.map_comp, PMF.pure_map] at hout
   change PMF.map id _ = _ at hout
   rw [PMF.map_id] at hout
+  rw [← OracleComp.evalWith_eq_interpret] at hout
   exact hout
 
 end Turing.MultiTapePTM

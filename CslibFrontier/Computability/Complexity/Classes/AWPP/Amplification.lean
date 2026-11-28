@@ -64,23 +64,18 @@ private theorem card_outcome_fiber {β : Type} [Fintype β] (V : β → Bool) {T
         #{b | V b = false} ^ (T - (List.ofFn w).countP id) := by
   classical
   have heq : (univ.filter fun x : Fin T → β => (fun i => V (x i)) = w) =
-      Fintype.piFinset (fun i => univ.filter fun b => V b = w i) := by
+      Fintype.piFinset fun i => univ.filter fun b => V b = w i := by
     ext x
     simp [funext_iff]
-  rw [heq, Fintype.card_piFinset]
   have hrow (i : Fin T) : #{b | V b = w i} =
       if w i then #{b | V b = true} else #{b | V b = false} := by cases w i <;> rfl
+  have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin T))) (w · = true)
+  rw [heq, Fintype.card_piFinset]
   simp_rw [hrow]
-  rw [Finset.prod_ite]
-  have hc : (List.ofFn w).countP id = #{i | w i = true} := by
-    simp only [List.countP_ofFn, card_filter, id_eq]
-  simp only [Finset.prod_const, hc]
-  have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin T)))
-    (fun i => w i = true)
+  simp only [Finset.prod_ite, Finset.prod_const, List.countP_ofFn, id_eq]
   simp only [card_univ, Fintype.card_fin] at hsum
-  congr 1
-  congr 1
-  lia
+  congr 2
+  omega
 
 private theorem card_majority_eq {β : Type} [Fintype β] (V : β → Bool) (R : ℕ) :
     (#{x : Fin (2 * R) → β | R < (List.ofFn fun i => V (x i)).countP id} : ℤ) =
@@ -99,11 +94,8 @@ private theorem card_majority_eq {β : Type} [Fintype β] (V : β → Bool) (R :
       ext x
       simp only [S, mem_filter, mem_univ, true_and]
       exact ⟨And.right, fun h => ⟨h ▸ hw, h⟩⟩
-    · rw [ite_eq_right hw, card_eq_zero]
-      apply eq_empty_iff_forall_notMem.mpr
-      intro x hx
-      simp only [S, mem_filter, mem_univ, true_and] at hx
-      exact hw (hx.2 ▸ hx.1)
+    · rw [ite_eq_right hw, card_eq_zero, eq_empty_iff_forall_notMem]
+      exact fun x hx => hw ((mem_filter.1 hx).2 ▸ (mem_filter.1 (mem_filter.1 hx).1).2)
   have h := card_eq_sum_card_fiberwise (s := S) (t := univ)
     (f := fun x i => V (x i)) (fun _ _ => mem_univ _)
   change (S.card : ℤ) = _
@@ -121,28 +113,21 @@ theorem majorityPolynomial_mem {α : Type} {enc : α ↪ List Bool} {g D : α �
     (fun a => majorityPolynomial (g a) (D a) (r a)) ∈ GapP enc := by
   let ones : α × List Bool → ℕ := fun x => x.2.countP id
   have hones : ComputableInPolyTime ones (encPair enc encBits) encUnary := by
-    dsimp [ones]
-    fun_prop
-  have hR : ComputableInPolyTime (fun x : α × List Bool => r x.1)
-      (encPair enc encBits) encUnary := hr.comp (.fst enc encBits)
-  have hz : ComputableInPolyTime (fun x : α × List Bool => 2 * r x.1 - ones x)
-      (encPair enc encBits) encUnary := by fun_prop
+    dsimp only [ones]; fun_prop
   have hg' := GapP.pow_mem_polyTime (GapP.comp_mem hg (.fst enc encBits)) hones
-  have hd' := GapP.pow_mem_polyTime (GapP.comp_mem (GapP.sub_mem' hD hg) (.fst enc encBits)) hz
+  have hd' := GapP.pow_mem_polyTime (GapP.comp_mem (GapP.sub_mem' hD hg) (.fst enc encBits))
+    (by fun_prop : ComputableInPolyTime (fun x : α × List Bool => 2 * r x.1 - ones x) _ encUnary)
   have htest : ComputableInPolyTime
       (fun x : α × List Bool => if r x.1 < ones x then (1 : ℕ) else 0)
-      (encPair enc encBits) encNat :=
-    (ComputableInPolyTime.ite_decide (ComputableInPolyTime.unary_lt' hR
-      hones) (.const 1) (.const 0))
+      (encPair enc encBits) encNat := by
+    fun_prop
   have hweight := GapP.mul_mem (GapP.mul_mem hg' hd')
     (SharpP.natCast_mem_GapP (mem_SharpP_of_polyTime htest))
-  have hsum := GapP.sum_bits_mem hweight
-    (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hr))
-  convert hsum using 1
+  convert GapP.sum_bits_mem hweight
+    (by fun_prop : ComputableInPolyTime (fun a => 2 * r a) enc encUnary) using 1
   ext a
   unfold majorityPolynomial
-  apply Finset.sum_congr rfl
-  intro w _
+  refine Finset.sum_congr rfl fun w _ => ?_
   simp only [Pi.mul_apply, Function.comp_apply, Pi.sub_apply, ones]
   split_ifs <;> simp
 
@@ -157,7 +142,8 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
       (3 * g ≤ (2 : ℤ) ^ m → (2 : ℤ) ^ e * H ≤ D) := by
   classical
   let V : BitString m → Bool := fun x => decide (BitString.binaryValue (List.ofFn x) < g.toNat)
-  have hg : g.toNat ≤ 2 ^ m := by grind
+  have hgcast : (g.toNat : ℤ) = g := Int.toNat_of_nonneg h0
+  have hg : g.toNat ≤ 2 ^ m := by exact_mod_cast (hgcast.symm ▸ h1 : (g.toNat : ℤ) ≤ (2 : ℤ) ^ m)
   have hv : #{x | V x = true} = g.toNat := by
     simpa only [V, decide_eq_true_eq] using BitString.card_filter_binaryValue_lt hg
   have htot : #{x | V x = true} + #{x | V x = false} = 2 ^ m := by
@@ -168,17 +154,13 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
     6 * e < #{i | V (BitString.block x i) = true}}
   have hM : (M : ℤ) = majorityPolynomial g ((2 : ℤ) ^ m) (6 * e) := by
     have heq : M = #{x : Fin (2 * (6 * e)) → BitString m |
-        6 * e < (List.ofFn fun i => V (x i)).countP id} := by
-      apply card_equiv BitString.blocksEquiv
-      intro x
-      simp only [mem_filter, mem_univ, true_and, List.countP_ofFn, card_filter,
-        id_eq, BitString.blocksEquiv_apply]
-    rw [heq, card_majority_eq]
-    have ht : (#{x | V x = true} : ℤ) + #{x | V x = false} = (2 : ℤ) ^ m := by
-      exact_mod_cast htot
-    rw [ht, hv, Int.toNat_of_nonneg h0]
-  have hMle : M ≤ 2 ^ (2 * (6 * e) * m) := by
-    exact (card_filter_le _ _).trans (by simp)
+        6 * e < (List.ofFn fun i => V (x i)).countP id} :=
+      card_equiv BitString.blocksEquiv fun x => by
+        simp only [mem_filter, mem_univ, true_and, List.countP_ofFn, id_eq,
+          BitString.blocksEquiv_apply]
+    have htotZ : (#{x | V x = true} : ℤ) + #{x | V x = false} = (2 : ℤ) ^ m := mod_cast htot
+    rw [heq, card_majority_eq, htotZ, hv, hgcast]
+  have hMle : M ≤ 2 ^ (2 * (6 * e) * m) := (card_filter_le _ _).trans (by simp)
   have hcompl : M + #{x : BitString (2 * (6 * e) * m) |
       #{i | V (BitString.block x i) = true} ≤ 6 * e} = 2 ^ (2 * (6 * e) * m) := by
     simpa only [not_lt, card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using
@@ -186,36 +168,24 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
         (fun x => 6 * e < #{i | V (BitString.block x i) = true})
   dsimp only
   rw [← hM]
-  refine ⟨⟨by positivity, by exact_mod_cast hMle⟩, ?_, ?_⟩
-  · intro hy
-    have hv' : 2 * 2 ^ m ≤ 3 * #{x | V x = true} := by grind
+  refine ⟨⟨by positivity, by exact_mod_cast hMle⟩, fun hy => ?_, fun hn => ?_⟩
+  · have hv' : 2 * 2 ^ m ≤ 3 * #{x | V x = true} := by
+      rw [hv]
+      exact_mod_cast (hgcast ▸ hy : 2 * (2 : ℤ) ^ m ≤ 3 * (g.toNat : ℤ))
+    have htail := (Nat.cast_le (α := ℤ)).2 (Nat.eq_sub_of_add_eq' hcompl ▸
+      BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl (V · = true) hv')
+    simpa only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, Nat.cast_sub hMle] using htail
+  · have hg3 : 3 * g.toNat ≤ 2 ^ m := by
+      exact_mod_cast (hgcast ▸ hn : 3 * (g.toNat : ℤ) ≤ (2 : ℤ) ^ m)
     have htail := BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl
-      (fun x => V x = true) hv'
-    have hc : (#{x : BitString (2 * (6 * e) * m) |
-        #{i | V (BitString.block x i) = true} ≤ 6 * e} : ℤ) =
-        (2 : ℤ) ^ (2 * (6 * e) * m) - M := by
-      have hc' : (M : ℤ) + (#{x : BitString (2 * (6 * e) * m) |
-          #{i | V (BitString.block x i) = true} ≤ 6 * e} : ℤ) =
-          (2 : ℤ) ^ (2 * (6 * e) * m) := by exact_mod_cast hcompl
-      lia
-    have htail' : (2 : ℤ) ^ e *
-        (#{x : BitString (2 * (6 * e) * m) |
-          #{i | V (BitString.block x i) = true} ≤ 6 * e} : ℤ) ≤
-        (2 : ℤ) ^ (2 * (6 * e) * m) := by exact_mod_cast htail
-    rwa [hc] at htail'
-  · intro hn
-    have hv' : 2 * 2 ^ m ≤ 3 * #{x | V x = false} := by grind
-    have htail := BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl
-      (fun x => V x = false) hv'
+      (fun x => V x = false) (by omega : 2 * 2 ^ m ≤ 3 * #{x | V x = false})
     have hsub : M ≤ #{x : BitString (2 * (6 * e) * m) |
-        #{i | V (BitString.block x i) = false} ≤ 6 * e} := by
-      apply card_le_card
-      intro x hx
+        #{i | V (BitString.block x i) = false} ≤ 6 * e} := card_le_card fun x hx => by
       simp only [mem_filter, mem_univ, true_and] at hx ⊢
       have hs := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 * (6 * e)))))
         (fun i => V (BitString.block x i) = true)
       simp only [Bool.not_eq_true, card_univ, Fintype.card_fin] at hs
-      lia
+      omega
     exact_mod_cast (Nat.mul_le_mul_left (2 ^ e) hsub).trans htail
 
 /-- A dyadic AWPP witness with exponent `p(n)` amplifies to error `2^(-q(n))` by `12q(n)`
@@ -264,9 +234,8 @@ theorem exists_AWPP_gap_errorExponent {α : Type} {enc : α ↪ List Bool} {A : 
   obtain ⟨hG, hbound⟩ := AWPPAmplification.amplify hg p q hA
   refine ⟨_, hG, 12 * q * p, fun a => ?_⟩
   obtain ⟨h01, hy, hn⟩ := hbound a
-  have hle : r a ≤ q.eval (enc a).length := by simpa [q] using hb a
   have hpow : (2 : ℤ) ^ r a ≤ (2 : ℤ) ^ q.eval (enc a).length :=
-    pow_le_pow_right₀ (by norm_num) hle
+    pow_le_pow_right₀ (by norm_num) (by simpa [q] using hb a)
   exact ⟨h01, fun ha => (mul_le_mul_of_nonneg_right hpow (sub_nonneg.mpr h01.2)).trans (hy ha),
     fun ha => (mul_le_mul_of_nonneg_right hpow h01.1).trans (hn ha)⟩
 

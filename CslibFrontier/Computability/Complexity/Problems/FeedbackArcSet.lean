@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.FeedbackVertexSet
 public import CslibFrontier.Computability.Complexity.Problems.Graph.VertexColors
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -25,7 +26,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPr
 [Garey and Johnson][GareyJohnson1979]: given a directed graph `G` and a number `k`, removing some
 set of at most `k` arcs of `G` leaves no directed cycle (`Cslib.Complexity.Graph.IsDirAcyclic`).
 Graphs are read as directed graphs on their declared vertices, so a self-loop is a cycle of length
-one, and instances are encoded with the graph (`encGraph`) and `k` in binary (`encNat`).
+one, and instances are encoded with the graph (`encGraph`) and `k` in binary (`encNat`)
+(`Cslib.Complexity.FeedbackArcSetInstance`, encoded by `Cslib.Complexity.encFeedbackArcSet`).
 
 `NP` membership uses a list of numbers as the witness, read along the vertex list
 (`Cslib.Complexity.colorOf`): the arcs between declared vertices that do not increase the number
@@ -52,13 +54,14 @@ against the printed paper.
 
 ## Main definitions
 
+* `Cslib.Complexity.FeedbackArcSetInstance`, `Cslib.Complexity.encFeedbackArcSet`.
 * `Cslib.Complexity.FeedbackArcSet`.
 * `Cslib.Complexity.FeedbackVertexSet.splitVertices`,
   `Cslib.Complexity.FeedbackVertexSet.toFeedbackArcSet`.
 
 ## Main results
 
-* `Cslib.Complexity.FeedbackArcSet.mem_NP`: `FeedbackArcSet ∈ NP (encPair encGraph encNat)`.
+* `Cslib.Complexity.FeedbackArcSet.mem_NP`: `FeedbackArcSet ∈ NP encFeedbackArcSet`.
 * `Cslib.Complexity.FeedbackVertexSet.toFeedbackArcSet_mem_iff`,
   `Cslib.Complexity.FeedbackVertexSet.computableInPolyTime_toFeedbackArcSet`,
   `Cslib.Complexity.polyTimeReducible_FeedbackVertexSet_FeedbackArcSet`: the reduction.
@@ -71,21 +74,40 @@ against the printed paper.
 * [R. M. Karp, *Reducibility among combinatorial problems*][Karp1972]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
 open Turing.MultiTapeTM ComputableInPolyTime Graph
 
+/-- An instance `(graph, bound)` of **Feedback Arc Set**. -/
+@[ext]
+structure FeedbackArcSetInstance where
+  /-- The directed graph whose directed cycles must be hit. -/
+  graph : Graph
+  /-- The maximum number of arcs to remove. -/
+  bound : ℕ
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Encoding of `FeedbackArcSetInstance` as a pair `(graph, bound)`. -/
+enc_structure encFeedbackArcSet : FeedbackArcSetInstance where
+  graph : encGraph,
+  bound : encNat
+
+attribute [fun_prop] encFeedbackArcSet_graph_polyTime encFeedbackArcSet_bound_polyTime
+  encFeedbackArcSet_mk_polyTime
+
 /-- **Feedback arc set** [Karp1972] [Garey and Johnson, Problem GT8][GareyJohnson1979]: the
 directed graphs with a number `k` such that removing some set of at most `k` arcs leaves no
 directed cycle. -/
-def FeedbackArcSet : Set (Graph × ℕ) :=
-  {x | ∃ S : Finset (ℕ × ℕ), (∀ e ∈ S, e ∈ x.1.2) ∧ S.card ≤ x.2 ∧ (x.1.deleteArcs S).IsDirAcyclic}
+@[expose]
+def FeedbackArcSet : Set FeedbackArcSetInstance :=
+  {x | ∃ S : Finset (ℕ × ℕ), (∀ e ∈ S, e ∈ x.graph.edges) ∧ S.card ≤ x.bound ∧
+    (x.graph.deleteArcs S).IsDirAcyclic}
 
 theorem mem_FeedbackArcSet_iff {G : Graph} {k : ℕ} :
-    (G, k) ∈ FeedbackArcSet ↔
-      ∃ S : Finset (ℕ × ℕ), (∀ e ∈ S, e ∈ G.2) ∧ S.card ≤ k ∧ (G.deleteArcs S).IsDirAcyclic :=
+    (⟨G, k⟩ : FeedbackArcSetInstance) ∈ FeedbackArcSet ↔
+      ∃ S : Finset (ℕ × ℕ), (∀ e ∈ S, e ∈ G.edges) ∧ S.card ≤ k ∧ (G.deleteArcs S).IsDirAcyclic :=
   Iff.rfl
 
 namespace FeedbackArcSet
@@ -93,83 +115,78 @@ namespace FeedbackArcSet
 /-! ### Membership in `NP` -/
 
 /-- The arcs between declared vertices that the listed numbering `ρ` does not increase. -/
+@[expose]
 def backArcs (G : Graph) (ρ : List ℕ) : List (ℕ × ℕ) :=
-  G.2.filter fun e =>
-    decide (e.1 ∈ G.1) && decide (e.2 ∈ G.1) && decide (colorOf G ρ e.2 ≤ colorOf G ρ e.1)
+  G.edges.filter fun e =>
+    decide (e.1 ∈ G.vertices) && decide (e.2 ∈ G.vertices) &&
+      decide (colorOf G ρ e.2 ≤ colorOf G ρ e.1)
 
 theorem mem_backArcs {G : Graph} {ρ : List ℕ} {e : ℕ × ℕ} :
-    e ∈ backArcs G ρ ↔ e ∈ G.2 ∧ e.1 ∈ G.1 ∧ e.2 ∈ G.1 ∧ colorOf G ρ e.2 ≤ colorOf G ρ e.1 := by
+    e ∈ backArcs G ρ ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧
+      colorOf G ρ e.2 ≤ colorOf G ρ e.1 := by
   simp only [backArcs, List.mem_filter, Bool.and_eq_true, decide_eq_true_eq, and_assoc]
 
 /-- The check of a listed numbering: at most `k` distinct arcs are back arcs. -/
-private def check (x : (Graph × ℕ) × List ℕ) : Bool :=
-  decide ((selectDistinct (backArcs x.1.1 x.2)
-    (List.replicate (backArcs x.1.1 x.2).length true)).length ≤ x.1.2)
+private def check (x : FeedbackArcSetInstance × List ℕ) : Bool :=
+  decide ((selectDistinct (backArcs x.1.graph x.2)
+    (List.replicate (backArcs x.1.graph x.2).length true)).length ≤ x.1.bound)
 
 private theorem computableInPolyTime_backArcs :
-    ComputableInPolyTime (fun x : (Graph × ℕ) × List ℕ => backArcs x.1.1 x.2)
-      (encPair (encPair encGraph encNat) (encList encNat)) (encList (encPair encNat encNat)) := by
-  have hV : ComputableInPolyTime (fun p : ((Graph × ℕ) × List ℕ) × (ℕ × ℕ) => p.1.1.1.1)
-      (encPair (encPair (encPair encGraph encNat) (encList encNat)) (encPair encNat encNat))
-      (encList encNat) := Graph.computableInPolyTime_fst (by fun_prop)
-  unfold backArcs
-  exact filterWithInput (Graph.computableInPolyTime_snd (by fun_prop)) (by fun_prop)
+    ComputableInPolyTime (fun x : FeedbackArcSetInstance × List ℕ => backArcs x.1.graph x.2)
+      (encPair encFeedbackArcSet (encList encNat)) (encList (encPair encNat encNat)) := by
+  fun_prop [backArcs]
 
 private theorem computableInPolyTime_check :
-    ComputableInPolyTime check (encPair (encPair encGraph encNat) (encList encNat)) encBool := by
+    ComputableInPolyTime check (encPair encFeedbackArcSet (encList encNat)) encBool := by
   have hb := computableInPolyTime_backArcs
-  have hl : ComputableInPolyTime (fun x : (Graph × ℕ) × List ℕ =>
-      (selectDistinct (backArcs x.1.1 x.2)
-        (List.replicate (backArcs x.1.1 x.2).length true)).length)
-      (encPair (encPair encGraph encNat) (encList encNat)) encUnary :=
-    (length_list _).comp ((computableInPolyTime_selectDistinct _).comp
-      (hb.prod ((bitsReplicate true).comp ((length_list _).comp hb))))
-  have hk : ComputableInPolyTime (fun x : (Graph × ℕ) × List ℕ => x.1.2)
-      (encPair (encPair encGraph encNat) (encList encNat)) encNat := by
-    fun_prop
-  exact binary_le' (unary_to_binary.comp hl) hk
+  exact binary_le' (unary_to_binary.comp ((length_list _).comp
+    ((computableInPolyTime_selectDistinct _).comp
+      (hb.prod ((bitsReplicate true).comp ((length_list _).comp hb)))))) (by fun_prop)
 
-private theorem check_iff (x : (Graph × ℕ) × List ℕ) :
-    check x = true ↔ (backArcs x.1.1 x.2).toFinset.card ≤ x.1.2 := by
+private theorem check_iff (x : FeedbackArcSetInstance × List ℕ) :
+    check x = true ↔ (backArcs x.1.graph x.2).toFinset.card ≤ x.1.bound := by
   rw [check, decide_eq_true_eq, length_selectDistinct_replicate]
 
 /-- The witness relation: at most `k` distinct arcs are back arcs. -/
-private def Certifies (x : Graph × ℕ) (ρ : List ℕ) : Prop :=
-  (backArcs x.1 ρ).toFinset.card ≤ x.2
+private def Certifies (x : FeedbackArcSetInstance) (ρ : List ℕ) : Prop :=
+  (backArcs x.graph ρ).toFinset.card ≤ x.bound
 
 /-- Removing the back arcs of a numbering leaves an acyclic graph, so a numbering with at most `k`
 distinct back arcs shows membership. -/
-private theorem mem_of_certifies {G : Graph} {k : ℕ} {ρ : List ℕ} (h : Certifies (G, k) ρ) :
-    (G, k) ∈ FeedbackArcSet := by
+private theorem mem_of_certifies {G : Graph} {k : ℕ} {ρ : List ℕ} (h : Certifies ⟨G, k⟩ ρ) :
+    (⟨G, k⟩ : FeedbackArcSetInstance) ∈ FeedbackArcSet := by
   classical
   refine ⟨(backArcs G ρ).toFinset, fun e he => (mem_backArcs.1 (List.mem_toFinset.1 he)).1, h,
     isDirAcyclic_of_rank (f := colorOf G ρ) fun u v huv => ?_⟩
-  rw [dirAdj_deleteArcs, List.mem_toFinset, mem_backArcs] at huv
-  obtain ⟨⟨hu, hv, huv⟩, hback⟩ := huv
-  by_contra hlt
-  exact hback ⟨huv, hu, hv, Nat.le_of_not_lt hlt⟩
+  obtain ⟨⟨hu, hv, huv⟩, hback⟩ := by
+    rwa [dirAdj_deleteArcs, List.mem_toFinset, mem_backArcs] at huv
+  exact Nat.lt_of_not_ge fun hle => hback ⟨huv, hu, hv, hle⟩
 
 /-- A member has a numbering, at most the number of distinct declared vertices, listed along the
 vertex list, whose back arcs lie in a feedback arc set. -/
-private theorem exists_certifies {G : Graph} {k : ℕ} (h : (G, k) ∈ FeedbackArcSet) :
-    ∃ g : ℕ → ℕ, (∀ v ∈ G.1, g v ≤ G.1.toFinset.card) ∧ Certifies (G, k) (G.1.map g) := by
+private theorem exists_certifies {G : Graph} {k : ℕ}
+    (h : (⟨G, k⟩ : FeedbackArcSetInstance) ∈ FeedbackArcSet) :
+    ∃ g : ℕ → ℕ, (∀ v ∈ G.vertices, g v ≤ G.vertices.toFinset.card) ∧
+      Certifies ⟨G, k⟩ (G.vertices.map g) := by
   classical
   obtain ⟨S, -, hcard, hacyc⟩ := h
   obtain ⟨f, hflt, hf⟩ := exists_rank_of_isDirAcyclic hacyc
   refine ⟨f, fun v hv => (hflt v hv).le, (Finset.card_le_card fun e he => ?_).trans hcard⟩
-  rw [List.mem_toFinset, mem_backArcs] at he
-  obtain ⟨he, h1, h2, hle⟩ := he
+  obtain ⟨he, h1, h2, hle⟩ := mem_backArcs.1 (List.mem_toFinset.1 he)
   rw [colorOf_map h1, colorOf_map h2] at hle
   by_contra hS
-  have := hf e.1 e.2 (dirAdj_deleteArcs.2 ⟨⟨h1, h2, he⟩, hS⟩)
-  omega
+  exact not_lt_of_ge hle (hf e.1 e.2 (dirAdj_deleteArcs.2 ⟨⟨h1, h2, he⟩, hS⟩))
 
 /-- `FeedbackArcSet` belongs to `NP`, with a listed numbering as the witness. -/
-theorem mem_NP : FeedbackArcSet ∈ NP (encPair encGraph encNat) := by
-  refine mem_NP_of_colorOf computableInPolyTime_check
-    (fun G k ρ h => mem_of_certifies ((check_iff ((G, k), ρ)).1 h)) fun G k h => ?_
+theorem mem_NP : FeedbackArcSet ∈ NP encFeedbackArcSet := by
+  refine mem_NP_of_colorOf FeedbackArcSetInstance.graph computableInPolyTime_check
+    (fun ⟨G, k⟩ => by
+      rw [encFeedbackArcSet_apply]
+      exact G.length_vertices_le_encGraph.trans (length_le_encPair_left _ _ (G, k)))
+    (fun ⟨G, k⟩ ρ h => mem_of_certifies ((check_iff (⟨G, k⟩, ρ)).1 h)) fun ⟨G, k⟩ h => ?_
   obtain ⟨g, hgle, hg⟩ := exists_certifies h
-  exact ⟨g, fun v hv => (hgle v hv).trans G.1.toFinset_card_le, (check_iff ((G, k), _)).2 hg⟩
+  exact ⟨g, fun v hv => (hgle v hv).trans G.vertices.toFinset_card_le,
+    (check_iff (⟨G, k⟩, _)).2 hg⟩
 
 end FeedbackArcSet
 
@@ -179,28 +196,27 @@ namespace FeedbackVertexSet
 
 /-- **Vertex splitting**: every vertex `v` becomes the arc `2v → 2v + 1`, and every arc `u → v`
 becomes the arc `2u + 1 → 2v`. -/
+@[expose]
 def splitVertices (G : Graph) : Graph :=
-  (G.1.map (2 * ·) ++ G.1.map (2 * · + 1),
-    G.1.map (fun v => (2 * v, 2 * v + 1)) ++ G.2.map fun e => (2 * e.1 + 1, 2 * e.2))
+  ⟨G.vertices.map (2 * ·) ++ G.vertices.map (2 * · + 1),
+    G.vertices.map (fun v => (2 * v, 2 * v + 1)) ++ G.edges.map fun e => (2 * e.1 + 1, 2 * e.2)⟩
 
 /-- The arcs of the split graph: the arc `2v → 2v + 1` of a declared vertex `v`, and the arc
 `2u + 1 → 2v` of an arc `u → v` between declared vertices. -/
 theorem dirAdj_splitVertices {G : Graph} {a b : ℕ} :
     (splitVertices G).DirAdj a b ↔
-      (∃ v ∈ G.1, a = 2 * v ∧ b = 2 * v + 1) ∨
+      (∃ v ∈ G.vertices, a = 2 * v ∧ b = 2 * v + 1) ∨
         ∃ u v, G.DirAdj u v ∧ a = 2 * u + 1 ∧ b = 2 * v := by
   simp only [DirAdj, splitVertices, List.mem_append, List.mem_map, Prod.mk.injEq, Prod.exists]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨ha, hb, ⟨v, hv, rfl, rfl⟩ | ⟨u, v, he, rfl, rfl⟩⟩
     · exact Or.inl ⟨v, hv, rfl, rfl⟩
     · refine Or.inr ⟨u, v, ⟨?_, ?_, he⟩, rfl, rfl⟩
-      · obtain ⟨w, hw, h⟩ | ⟨w, hw, h⟩ := ha
+      · rcases ha with ⟨w, _, h⟩ | ⟨w, hw, h⟩
         · omega
-        · obtain rfl : w = u := by omega
-          exact hw
-      · obtain ⟨w, hw, h⟩ | ⟨w, hw, h⟩ := hb
-        · obtain rfl : w = v := by omega
-          exact hw
+        · exact (by omega : w = u) ▸ hw
+      · rcases hb with ⟨w, hw, h⟩ | ⟨w, _, h⟩
+        · exact (by omega : w = v) ▸ hw
         · omega
   · rintro (⟨v, hv, rfl, rfl⟩ | ⟨u, v, ⟨hu, hv, he⟩, rfl, rfl⟩)
     · exact ⟨Or.inl ⟨v, hv, rfl⟩, Or.inr ⟨v, hv, rfl⟩, Or.inl ⟨v, hv, rfl, rfl⟩⟩
@@ -216,21 +232,20 @@ private def splitRank (R : Finset ℕ) (f : ℕ → ℕ) (M w : ℕ) : ℕ :=
 
 private theorem splitRank_even (R : Finset ℕ) (f : ℕ → ℕ) (M v : ℕ) :
     splitRank R f M (2 * v) = if v ∈ R then 2 * M + 1 else 2 * f v + 1 := by
-  have h1 : 2 * v / 2 = v := by omega
-  have h2 : 2 * v % 2 = 0 := by omega
-  simp only [splitRank, h1, h2, ↓reduceIte]
+  simp only [splitRank, show 2 * v / 2 = v by omega, show 2 * v % 2 = 0 by omega, ↓reduceIte]
 
 private theorem splitRank_odd (R : Finset ℕ) (f : ℕ → ℕ) (M v : ℕ) :
     splitRank R f M (2 * v + 1) = if v ∈ R then 0 else 2 * f v + 2 := by
-  have h1 : (2 * v + 1) / 2 = v := by omega
-  have h2 : ¬(2 * v + 1) % 2 = 0 := by omega
-  simp only [splitRank, h1, h2, ↓reduceIte]
+  simp only [splitRank, show (2 * v + 1) / 2 = v by omega,
+    show ¬(2 * v + 1) % 2 = 0 by omega, ↓reduceIte]
 
 /-- The vertex-splitting reduction: the split graph with the same `k`. -/
-def toFeedbackArcSet (x : Graph × ℕ) : Graph × ℕ := (splitVertices x.1, x.2)
+@[expose]
+def toFeedbackArcSet (x : FeedbackVertexSetInstance) : FeedbackArcSetInstance :=
+  ⟨splitVertices x.graph, x.bound⟩
 
 /-- **Feedback vertex sets are feedback arc sets of the split graph.** -/
-theorem toFeedbackArcSet_mem_iff (x : Graph × ℕ) :
+theorem toFeedbackArcSet_mem_iff (x : FeedbackVertexSetInstance) :
     toFeedbackArcSet x ∈ FeedbackArcSet ↔ x ∈ FeedbackVertexSet := by
   classical
   obtain ⟨G, k⟩ := x
@@ -239,49 +254,45 @@ theorem toFeedbackArcSet_mem_iff (x : Graph × ℕ) :
   · rintro ⟨S, -, hcard, hacyc⟩
     obtain ⟨g, -, hg⟩ := exists_rank_of_isDirAcyclic hacyc
     -- Remove the vertices whose arcs `2v → 2v + 1` or `2v + 1 → 2w` were removed.
-    refine ⟨(S.image fun e => e.1 / 2).filter (· ∈ G.1), fun v hv => (Finset.mem_filter.1 hv).2,
+    refine ⟨(S.image fun e => e.1 / 2).filter (· ∈ G.vertices),
+      fun v hv => (Finset.mem_filter.1 hv).2,
       (Finset.card_filter_le _ _).trans (Finset.card_image_le.trans hcard),
       isDirAcyclic_of_rank (f := fun v => g (2 * v + 1)) fun u v huv => ?_⟩
-    rw [dirAdj_deleteVerts] at huv
-    obtain ⟨⟨hu, hv, he⟩, huR, hvR⟩ := huv
+    obtain ⟨⟨hu, hv, he⟩, huR, hvR⟩ := dirAdj_deleteVerts.1 huv
     simp only [Finset.mem_filter, Finset.mem_image, not_and] at huR hvR
-    have h1 : (2 * u + 1, 2 * v) ∉ S := fun h => huR ⟨_, h, by simp only; omega⟩ hu
-    have h2 : (2 * v, 2 * v + 1) ∉ S := fun h => hvR ⟨_, h, by simp only; omega⟩ hv
     have := hg _ _ (dirAdj_deleteArcs.2 ⟨dirAdj_splitVertices.2 (Or.inr ⟨u, v, ⟨hu, hv, he⟩,
-      rfl, rfl⟩), h1⟩)
-    have := hg _ _ (dirAdj_deleteArcs.2 ⟨dirAdj_splitVertices.2 (Or.inl ⟨v, hv, rfl, rfl⟩), h2⟩)
+      rfl, rfl⟩), fun h => huR ⟨_, h, by simp only; omega⟩ hu⟩)
+    have := hg _ _ (dirAdj_deleteArcs.2 ⟨dirAdj_splitVertices.2 (Or.inl ⟨v, hv, rfl, rfl⟩),
+      fun h => hvR ⟨_, h, by simp only; omega⟩ hv⟩)
     omega
   · rintro ⟨R, hRV, hcard, hacyc⟩
     obtain ⟨f, hflt, hf⟩ := exists_rank_of_isDirAcyclic hacyc
     -- Remove the arcs `2v → 2v + 1` of the removed vertices.
     refine ⟨R.image fun v => (2 * v, 2 * v + 1), fun e he => ?_,
       Finset.card_image_le.trans hcard, isDirAcyclic_of_rank
-        (f := splitRank R f (G.deleteVerts R).1.toFinset.card) fun a b hab => ?_⟩
+        (f := splitRank R f (G.deleteVerts R).vertices.toFinset.card) fun a b hab => ?_⟩
     · obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 he
       exact List.mem_append_left _ (List.mem_map.2 ⟨v, hRV v hv, rfl⟩)
-    · rw [dirAdj_deleteArcs, dirAdj_splitVertices] at hab
-      obtain ⟨⟨v, hv, rfl, rfl⟩ | ⟨u, v, huv, rfl, rfl⟩, hS⟩ := hab
-      · have hvR : v ∉ R := fun h => hS (Finset.mem_image.2 ⟨v, h, rfl⟩)
-        simp only [splitRank_even, splitRank_odd, hvR, ↓reduceIte]
+    · obtain ⟨⟨v, hv, rfl, rfl⟩ | ⟨u, v, huv, rfl, rfl⟩, hS⟩ := by
+        rwa [dirAdj_deleteArcs, dirAdj_splitVertices] at hab
+      · simp only [splitRank_even, splitRank_odd,
+          show v ∉ R from fun h => hS (Finset.mem_image.2 ⟨v, h, rfl⟩), ↓reduceIte]
         omega
       · rw [splitRank_even, splitRank_odd]
         by_cases huR : u ∈ R
         · simp only [huR, ↓reduceIte]
           split <;> omega
-        · have hu := hflt u (mem_deleteVerts_fst.2 ⟨huv.1, huR⟩)
+        · have := hflt u (mem_deleteVerts_vertices.2 ⟨huv.1, huR⟩)
           by_cases hvR : v ∈ R
-          · simp only [huR, hvR, ↓reduceIte]
-            omega
+          · simp only [huR, hvR, ↓reduceIte]; omega
           · have := hf u v (dirAdj_deleteVerts.2 ⟨huv, huR, hvR⟩)
-            simp only [huR, hvR, ↓reduceIte]
-            omega
+            simp only [huR, hvR, ↓reduceIte]; omega
 
 /-- The vertex-splitting reduction is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_toFeedbackArcSet :
-    ComputableInPolyTime toFeedbackArcSet (encPair encGraph encNat) (encPair encGraph encNat) := by
-  unfold toFeedbackArcSet splitVertices encGraph
-  fun_prop
+    ComputableInPolyTime toFeedbackArcSet encFeedbackVertexSet encFeedbackArcSet := by
+  fun_prop [splitVertices, toFeedbackArcSet]
 
 end FeedbackVertexSet
 
@@ -290,18 +301,17 @@ Karp [Karp1972] instead reduces NODE COVER to FEEDBACK ARC SET by splitting the 
 node-cover instance. This reduction generalizes his splitting to arbitrary directed graphs, and
 composing it with `polyTimeReducible_VertexCover_FeedbackVertexSet` recovers his graph. -/
 theorem polyTimeReducible_FeedbackVertexSet_FeedbackArcSet :
-    PolyTimeReducible (encPair encGraph encNat) (encPair encGraph encNat) FeedbackVertexSet
-      FeedbackArcSet :=
+    PolyTimeReducible encFeedbackVertexSet encFeedbackArcSet FeedbackVertexSet FeedbackArcSet :=
   ⟨FeedbackVertexSet.toFeedbackArcSet, FeedbackVertexSet.computableInPolyTime_toFeedbackArcSet,
     fun x => (FeedbackVertexSet.toFeedbackArcSet_mem_iff x).symm⟩
 
 /-- `FeedbackArcSet` is `NP`-hard. -/
-theorem FeedbackArcSet_npHard : NPHard (encPair encGraph encNat) FeedbackArcSet :=
+theorem FeedbackArcSet_npHard : NPHard encFeedbackArcSet FeedbackArcSet :=
   FeedbackVertexSet_npHard.trans polyTimeReducible_FeedbackVertexSet_FeedbackArcSet
 
 /-- **Feedback arc set is NP-complete**, for directed graphs with the target in binary
 [Karp1972]. -/
-theorem FeedbackArcSet_npComplete : NPComplete (encPair encGraph encNat) FeedbackArcSet :=
+theorem FeedbackArcSet_npComplete : NPComplete encFeedbackArcSet FeedbackArcSet :=
   ⟨FeedbackArcSet.mem_NP, FeedbackArcSet_npHard⟩
 
 end Cslib.Complexity

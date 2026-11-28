@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Compiler
+import CslibFrontier.Tactic.Space
 import Mathlib.Data.List.GetD
 
 /-!
@@ -50,6 +51,7 @@ the choice (`Turing.CounterProgram.haltsWithin_of_rank`,
   deterministic step followed by a choice.
 * `Turing.CounterProgram.haltsWithin_of_rank`, `Turing.CounterProgram.forall_run_of_rank`:
   halting on every branch and invariants of every branch, from a decreasing rank.
+* `Turing.CounterProgram.Branches.count`: reachability along a unary-counting loop.
 * `Turing.CounterProgram.accepts_of_branches`: a branch to the accepting halt accepts.
 * `Turing.CounterProgram.exists_decidesInLogSpace`: nondeterministic counter programs with
   polynomially bounded registers decide in logarithmic space.
@@ -184,6 +186,23 @@ theorem head (hs : P.halted s = false) (choice : Bool)
     Branches (P := P) (w := w) s s' :=
   (single hs choice).trans h
 
+/-- Reachability along a unary-counting loop: if reading at `(l, regs j)` for `j ≤ bound` reaches
+`(readLabel lInc lExit lEnd (some (decide (j < bound))), regs j)` and each increment `j < bound`
+from `(lInc, regs j)` returns to `(l, regs (j + 1))`, then `(l, regs 0)` branches to
+`(lExit, regs bound)`. -/
+theorem count {l lInc lExit lEnd bound : ℕ} (regs : ℕ → List ℕ)
+    (hread : ∀ j ≤ bound, Branches (P := P) (w := w) (l, regs j)
+      (readLabel lInc lExit lEnd (some (decide (j < bound))), regs j))
+    (hinc : ∀ j < bound, Branches (P := P) (w := w) (lInc, regs j) (l, regs (j + 1))) :
+    Branches (P := P) (w := w) (l, regs 0) (lExit, regs bound) :=
+  Nat.decreasingInduction
+    (motive := fun j _ => Branches (P := P) (w := w) (l, regs j) (lExit, regs bound))
+    (fun j hj ih =>
+      (Branches.trans (by simpa only [hj, decide_true, readLabel] using hread j hj.le)
+        (hinc j hj)).trans ih)
+    (by simpa only [lt_irrefl, decide_false, readLabel] using hread bound le_rfl)
+    (Nat.zero_le _)
+
 end Branches
 
 /-- **A branch to the accepting halt accepts.** -/
@@ -225,45 +244,23 @@ open MultiTapeTM ComputableInSpace Simulation
 private theorem withChoice_inSpace :
     ComputableInSpace (fun q : Config × Bool => withChoice q.1 q.2)
       (encPair encConfig encBool) encConfig fun q => (encPair encConfig encBool q).length := by
-  have hs : ComputableInSpace (fun q : Config × Bool => q.1) (encPair encConfig encBool)
-      encConfig fun q => (encPair encConfig encBool q).length := fst _ _
-  have hregs : ComputableInSpace (fun q : Config × Bool => q.1.2)
-      (encPair encConfig encBool) (encList encNat)
-      fun q => (encPair encConfig encBool q).length :=
-    budget_comp_lin (snd _ _) (.refl _) hs
-  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0 (.refl _))
-    (budget_finite (encC := encNat) Bool.toNat (snd encConfig encBool)))
-  exact budget_prod (budget_comp_lin (fst _ _) (.refl _) hs)
-    (budget_comp ComputableInSpace.set hv
-      (.const_mul 128 (.add hv.length_le (.const 1 _))))
+  space [withChoice]
 
 /-- The transition of the nondeterministic query machine is computed in linear space. -/
 private theorem next_inSpace :
     ComputableInSpace (fun p : Config × Option Bool × Bool => withChoice (P.exec p.1 p.2.1)
       p.2.2) (encPair encConfig (encPair (encOption encBool) encBool)) encConfig
       fun p => (encPair encConfig (encPair (encOption encBool) encBool) p).length := by
-  have hrest : ComputableInSpace (fun p : Config × Option Bool × Bool => p.2)
-      (encPair encConfig (encPair (encOption encBool) encBool))
-      (encPair (encOption encBool) encBool)
-      fun p => (encPair encConfig (encPair (encOption encBool) encBool) p).length := snd _ _
-  have hread : ComputableInSpace (fun p : Config × Option Bool × Bool => (p.1, p.2.1))
-      (encPair encConfig (encPair (encOption encBool) encBool)) encConfigRead
-      fun p => (encPair encConfig (encPair (encOption encBool) encBool) p).length :=
-    budget_prod (fst _ _) (budget_comp_lin (fst _ _) (.refl _) hrest)
-  have hexec := budget_comp_linear (g := fun x : Config × Option Bool => P.exec x.1 x.2)
-    (exec_inSpace (P := P)) hread
-  have hchoice := budget_comp_lin (g := fun q : Option Bool × Bool => q.2) (snd _ _) (.refl _)
-    hrest
-  have h := budget_comp_linear (g := fun q : Config × Bool => withChoice q.1 q.2)
-    withChoice_inSpace (budget_prod hexec hchoice)
-  exact h.of_enc_eq fun _ => rfl
+  have := exec_inSpace (P := P)
+  have := withChoice_inSpace
+  space
 
 /-- The acceptance test of the nondeterministic query machine is computed in linear space. -/
 private theorem accept_inSpace :
     ComputableInSpace P.toNondeterministicQueryMachine.accept encConfig encBool
       fun s => (encConfig s).length :=
   dispatch P.code (.halt []) (fun i _ => decide (i.finish = [true]))
-    (fun _ => budget_const _ (.refl _)) (fst _ _)
+    (fun _ => budget_const _) (fst _ _)
 
 /-- The labels of every branch are bounded by the largest label of the program, and the number of
 registers is fixed. -/
@@ -307,7 +304,7 @@ theorem exists_decidesInLogSpace (P : CounterProgram) {α : Type} {enc : α ↪ 
     (query_inSpace (P := P)) hnext (halted_inSpace (P := P))
     (accept_inSpace (P := P)) (fun _ => P.toNondeterministicQueryMachine.init) time hhalt hA
     (fun a => Nat.log2 (enc a).length + 1) (fun _ => le_rfl)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const _)
     ⟨2 * (encNat P.maxLabel).length + 1 + P.registers * (2 * d + 3), fun a choices => ?_⟩
   have hinit : P.init.1 ≤ P.maxLabel ∧ P.init.2.length = P.registers :=
     ⟨Nat.zero_le _, List.length_replicate⟩

@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 public import CslibFrontier.Tactic.PPT
 
 /-!
@@ -37,7 +39,6 @@ structure Parameters where
 theorem run_ppt (parameters : Parameters) {callback : List Bool → List Bool}
     (hcallback : ComputableInPolyTime callback encBits encBits) :
     IsPPTOn encBits encBits (run parameters callback) := by
-  have hcallback := hcallback.tidy
   fun_prop [run]
 
 /-- The second named program captures one sampled fair bit. -/
@@ -51,7 +52,6 @@ theorem run_ppt (parameters : Parameters) {callback : List Bool → List Bool}
 theorem train_ppt (parameters : Parameters) {callback : List Bool → List Bool}
     (hcallback : ComputableInPolyTime callback encBits encBits) :
     IsPPTOn encBits encBits (train parameters callback) := by
-  have hcallback := hcallback.tidy
   fun_prop [train, run]
 
 example (callback : List Bool → List Bool)
@@ -81,38 +81,56 @@ theorem consume_ppt {callback : List Bool → List Bool}
     (hcallback : ComputableInPolyTime callback encBits encBits) :
     IsPPTOn encBits encBits (consume callback) := by
   unfold consume
-  exact hcallback.tidy.isPPTOn
+  exact hcallback.isPPTOn
 
 /-- The global raw certificate cannot satisfy a nested plain callback obligation. -/
 @[irreducible] def rawOnlyReverse (word : List Bool) : List Bool := word.reverse
 
 /-- Construction evidence exists, so the negative checks search policy rather than impossibility. -/
-@[fun_prop] theorem rawOnlyReverse_tidy :
-    ComputableTidilyInPolyTime rawOnlyReverse encBits encBits := by
+private theorem rawOnlyReverse_plain : ComputableInPolyTime rawOnlyReverse encBits encBits := by
   unfold rawOnlyReverse
   fun_prop
 
+private noncomputable def rawFactor : ℕ :=
+  Classical.choose (Internal.NormalForm.polyTime rawOnlyReverse_plain)
+
+private noncomputable def rawDegree : ℕ :=
+  Classical.choose (Classical.choose_spec (Internal.NormalForm.polyTime rawOnlyReverse_plain))
+
+private noncomputable def rawBudget (n : ℕ) : ℕ := rawFactor * (n + 1) ^ rawDegree
+
+-- Register only the machine property for this boundary regression.
+attribute [local fun_prop] ComputableTidilyInTimeAndSpace
+
+@[fun_prop] private theorem rawOnlyReverse_tidy :
+    ComputableTidilyInTimeAndSpace rawOnlyReverse encBits encBits
+    (fun a => rawBudget (encBits a).length) (fun a => rawBudget (encBits a).length) := by
+  exact Classical.choose_spec (Classical.choose_spec
+    (Internal.NormalForm.polyTime rawOnlyReverse_plain))
+
 /-- A complete predicate alias exercises the same boundary inside probabilistic search. -/
-abbrev RawAliasFull {α β : Type*} (f : α → β)
+private abbrev RawAliasFull {α β : Type*} (f : α → β)
     (input : α ↪ List Bool) (output : β ↪ List Bool) : Prop :=
-  ComputableTidilyInPolyTime f input output
+  ComputableTidilyInTimeAndSpace f input output
+    (fun a => rawBudget (input a).length) (fun a => rawBudget (input a).length)
 
 /-- Registering this transition must not expose raw search to the nested plain obligation. -/
-@[fun_prop] theorem rawAlias_toPlain {α β : Type*} {f : α → β}
+@[fun_prop] private theorem rawAlias_toPlain {α β : Type*} {f : α → β}
     {input : α ↪ List Bool} {output : β ↪ List Bool}
-    (h : RawAliasFull f input output) : ComputableInPolyTime f input output :=
-  .of_tidy h
+    (h : RawAliasFull f input output) : ComputableInPolyTime f input output := by
+  refine ⟨rawBudget, rawBudget, ?_, ?_, h.computableInTimeAndSpace⟩ <;>
+    unfold rawBudget <;> fun_prop
 
 /-- A future function rule may also hide its construction premise behind a full alias. -/
 @[irreducible] def aliasPure (callback : List Bool → List Bool) (word : List Bool) :
     ProbComp (List Bool) := pure (callback word)
 
 /-- This explicit construction theorem remains usable, but is not a public search fallback. -/
-@[fun_prop] theorem aliasPure_raw {callback : List Bool → List Bool}
+@[fun_prop] private theorem aliasPure_raw {callback : List Bool → List Bool}
     (hcallback : RawAliasFull callback encBits encBits) :
     IsPPTOn encBits encBits (aliasPure callback) := by
   unfold aliasPure
-  exact hcallback.isPPTOn
+  exact (rawAlias_toPlain hcallback).isPPTOn
 
 /-- An opaque plain contract is a legitimate source of a nested deterministic certificate. -/
 @[irreducible] def PlainContract (callback : List Bool → List Bool) : Prop :=
@@ -140,7 +158,7 @@ example (callback : List Bool → List Bool)
   · fail_if_success (clear hplain hcontract; ppt)
     fun_prop
   · fail_if_success (clear hplain hcontract; ppt)
-    exact consume_ppt (.of_tidy rawOnlyReverse_tidy)
+    exact consume_ppt (rawAlias_toPlain rawOnlyReverse_tidy)
   · fail_if_success (clear hplain hcontract; ppt)
     fun_prop
 
@@ -148,6 +166,19 @@ example (callback : List Bool → List Bool)
 example : IsPPTOn encBits encBits (aliasPure rawOnlyReverse) := by
   fail_if_success ppt
   exact aliasPure_raw rawOnlyReverse_tidy
+
+-- Conditional guards in `ppt` stay on the plain `ComputableInPolyTime` calculus.
+example (yes no : List Bool → ProbComp (List Bool))
+    (hyes : IsPPTOn encBits encBits yes) (hno : IsPPTOn encBits encBits no) :
+    IsPPTOn encBits encBits
+      (fun word => if (rawOnlyReverse word).isEmpty then yes word else no word) ∧
+    IsPPTOn encBits encBits
+      (fun word => if rawOnlyReverse word = [] then yes word else no word) := by
+  refine ⟨?_, ?_⟩
+  · fail_if_success ppt
+    fun_prop
+  · fail_if_success ppt
+    fun_prop
 
 /-- A reducible client wrapper keeps the actual iteration operation visible to dispatch. -/
 abbrev wrappedIterate {State : Type} (count : ℕ) (step : State → ProbComp State)
@@ -202,7 +233,7 @@ from direct certificate conversion. -/
 
 /-- A global named theorem with a raw premise is an explicit construction API only. -/
 @[program_certificate _h]
-theorem implicationResult_raw (_h : RawAliasFull rawOnlyReverse encBits encBits) :
+private theorem implicationResult_raw (_h : RawAliasFull rawOnlyReverse encBits encBits) :
     IsPPTOn encBits encBits implicationResult := by
   unfold implicationResult
   fun_prop
@@ -240,7 +271,7 @@ example (h : RawAliasFull rawOnlyReverse encBits encBits →
   · fail_if_success (clear hf; ppt)
     ppt
   · fail_if_success (clear h hf hfamily hcb; ppt)
-    exact consume_ppt (.of_tidy rawOnlyReverse_tidy) |>.preprocess
+    exact consume_ppt (rawAlias_toPlain rawOnlyReverse_tidy) |>.preprocess
       (ComputableInPolyTime.fst encBits encBool)
 
 -- Forced production dispatch retains every compatible supplied callback encoding, and without

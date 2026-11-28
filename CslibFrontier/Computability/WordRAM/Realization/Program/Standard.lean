@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Realization.Program
+import CslibFrontier.Computability.WordRAM.MapOp
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Initialized flat programs with a fixed register layout
@@ -18,10 +20,20 @@ argument. Clients supply the same encoded-input, fit, domain and memory-history 
 The real `Data.init` prefix, native body and trailing halt are all charged. Its positive
 next-free address must fit even for an empty input; this is not a width-zero initialization.
 
+## Main definitions
+
+* `Realization.stripRand`: replaces unreachable `.rand` instructions with no-op register copies so
+  a deterministic `Program B r` satisfies `Program.IsRandFree`.
+
 ## Main results
 
+* `Realization.isRandFree_stripRand`, `Realization.not_readsWidth_stripRand`,
+  `Realization.step_stripRand_of_halt`, `Realization.runs_stripRand`: `stripRand` produces a
+  rand-free program preserving `¬ReadsWidth`, halting steps, and deterministic `Runs`.
 * `Realizes.exists_standard_init_program_state_from_words`: one flat program for independent
   raw memory and register arguments, related by their input prefix.
+* `Realizes.exists_standard_basis_init_program_state_from_words`: standard-basis width-blind
+  (`Program .standard r`, `¬prog.ReadsWidth`) translation of the same initialized flat program.
 * `Realizes.exists_standard_init_program_state`: the argument-indexed specialization, retaining
   the exact whole-memory, frontier and all encoded result words at its fixed halting location.
 * `Realizes.exists_standard_init_program`: the scalar `Executes` projection of that same run.
@@ -41,6 +53,55 @@ namespace Cslib.WordRAM.Realization
 
 open Cslib.DataStructure
 
+/-- Replace unreachable `.rand` instructions in `p` with no-op register copies so the resulting
+flat program satisfies `Program.IsRandFree` while preserving all deterministic runs. -/
+def stripRand {B : Basis} {r : ℕ} (p : Program B r) : Program B r :=
+  p.map fun
+    | .rand dst _ => .op (.copy dst dst)
+    | i => i
+
+/-- `stripRand p` contains no `.rand` instructions. -/
+theorem isRandFree_stripRand {B : Basis} {r : ℕ} (p : Program B r) :
+    (stripRand p).IsRandFree := by
+  intro i hi
+  obtain ⟨j, _, rfl⟩ := List.mem_map.mp hi
+  cases j <;> trivial
+
+/-- `stripRand` preserves width-blindness (`¬Program.ReadsWidth`). -/
+theorem not_readsWidth_stripRand {B : Basis} {r : ℕ} {p : Program B r}
+    (hp : ¬p.ReadsWidth) : ¬(stripRand p).ReadsWidth := by
+  rintro ⟨i, hi, hrw⟩
+  obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hi
+  cases j with
+  | rand _ _ => exact hrw
+  | _ => exact hp ⟨_, hj, hrw⟩
+
+private theorem step_stripRand_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
+    {s : State r} (hne : step w p s ≠ .fault) :
+    step w (stripRand p) s = step w p s := by
+  unfold step at hne ⊢
+  rw [stripRand, List.getElem?_map]
+  cases hp : p[s.pc]? with
+  | none => simp [hp] at hne
+  | some ins =>
+    cases ins with
+    | rand _ _ => simp [hp] at hne
+    | _ => rfl
+
+/-- Halting steps of `p` transfer unchanged to `stripRand p`. -/
+theorem step_stripRand_of_halt {B : Basis} {r w v : ℕ} {p : Program B r} {s : State r}
+    (h : step w p s = .halt v) : step w (stripRand p) s = .halt v := by
+  rw [step_stripRand_of_ne_fault (by rw [h]; exact nofun), h]
+
+/-- Deterministic `Runs` of `p` transfer unchanged to `stripRand p`. -/
+theorem runs_stripRand {B : Basis} {r w : ℕ} {p : Program B r}
+    {s t : State r} {m : ℕ} (h : Runs w p s t m) : Runs w (stripRand p) s t m := by
+  induction h with
+  | refl => exact .refl _
+  | tail _ _ _ _ hstep ih =>
+    unfold Next at hstep
+    exact .tail _ _ _ _ ih ((step_stripRand_of_ne_fault (by rw [hstep]; exact nofun)).trans hstep)
+
 private abbrev registers (k l n : ℕ) : ℕ := 1 + (k + (l + n + 1))
 
 private def standardFrontier {k l n : ℕ} : Fin (registers k l n) :=
@@ -58,30 +119,7 @@ private theorem standardPlacement (k l n : ℕ) :
     (∀ i j, standardInput (l := l) (n := n) i ≠ standardScratch (k := k) j) ∧
     (∀ j, standardScratch (k := k) (l := l) (n := n) j ≠ standardFrontier) ∧
     (∀ i, standardInput (k := k) (l := l) (n := n) i ≠ standardFrontier) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · intro i j h
-    apply Fin.ext
-    have := congrArg Fin.val h
-    simpa only [standardInput, Fin.val_natAdd, Fin.val_castAdd,
-      Nat.add_left_cancel_iff] using this
-  · intro i j h
-    apply Fin.ext
-    have := congrArg Fin.val h
-    simp only [standardScratch, Fin.val_natAdd] at this
-    omega
-  · intro i j h
-    have := congrArg Fin.val h
-    simp only [standardInput, standardScratch, Fin.val_natAdd, Fin.val_castAdd] at this
-    have := i.isLt
-    omega
-  · intro i h
-    have := congrArg Fin.val h
-    simp only [standardScratch, standardFrontier, Fin.val_natAdd] at this
-    omega
-  · intro i h
-    have := congrArg Fin.val h
-    simp only [standardInput, standardFrontier, Fin.val_natAdd, Fin.val_castAdd] at this
-    omega
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> fin_index [standardInput, standardScratch, standardFrontier]
 
 namespace Realizes
 
@@ -125,9 +163,7 @@ theorem exists_standard_init_program_state_from_words
   intro w d words hlayout hk hw hin hsafe hv
   obtain ⟨x, ex, hx, hm, hwords, _⟩ := inputPrefix_exec frontier (tmp (Fin.last (l + n)))
     src words hsrc (hf _) (fun j => hd j _) hs hk hw hin
-  have harg : x.regs ∘ src = input d := by
-    funext j
-    exact (hwords j).trans (hlayout j)
+  have harg : x.regs ∘ src = input d := funext fun j => (hwords j).trans (hlayout j)
   obtain ⟨y, ey, hmem, hout, _⟩ := (he frontier src tmp htmp hd hf hs).2 w d x hx harg
     (hm.symm ▸ hsafe) (hm.symm ▸ hv)
   rw [hm] at ey hmem hout
@@ -137,10 +173,8 @@ theorem exists_standard_init_program_state_from_words
   · simpa only [Nat.zero_add, State.init, code] using hr
   · rw [← hout i]
     exact step_halt (by simp [prog, Code.program])
-  · have hpos : 1 ≤ memoryCost (p d) (Memory.State.init words) +
-        work d (Memory.State.init words) + 1 := by omega
-    have hover := Nat.mul_le_mul_left (2 * k + 5) hpos
-    simp only [Nat.mul_one] at hover
+  · have := Nat.mul_le_mul_left (2 * k + 5) (Nat.le_add_left 1
+      (memoryCost (p d) (Memory.State.init words) + work d (Memory.State.init words)))
     rw [Nat.add_mul]
     omega
 
@@ -187,6 +221,76 @@ theorem exists_standard_init_program (h : Realizes .exact p input output safe wo
   intro w d hk hw hin hsafe hv
   obtain ⟨y, n, hr, hh, _, _, hn⟩ := he w d hk hw hin hsafe hv
   exact ⟨n + 1, ⟨⟨pc, y⟩, n, hr, hh, rfl⟩, hn⟩
+
+private theorem inputLoads_not_readsWidth {r k : ℕ} (ptr : Fin r) (src : Fin k → Fin r)
+    (offset : ℕ) : ¬(inputLoads ptr src offset).ReadsWidth := by
+  induction k generalizing offset with
+  | zero => simp [inputLoads, Code.ReadsWidth, Op.ReadsWidth]
+  | succ k ih =>
+    simp [inputLoads, Code.ReadsWidth, Op.ReadsWidth, ih]
+
+private theorem inputPrefix_not_readsWidth {r k : ℕ} (frontier ptr : Fin r)
+    (src : Fin k → Fin r) : ¬(inputPrefix frontier ptr src).ReadsWidth := by
+  simp [inputPrefix, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin, Basis.exact,
+    inputLoads_not_readsWidth]
+
+/-- Standard-basis width-blind analogue of `exists_standard_init_program_state_from_words`:
+translates the realized `Basis.exact` structured code along `Basis.Simulates.exactStandard` into
+a `Program .standard r` satisfying `¬prog.ReadsWidth`, preserving exact memory, frontier, result
+coordinates, and step bounds on every admitted run. -/
+theorem exists_standard_basis_init_program_state_from_words
+    (h : Realizes .exact p input output safe work) (i : Fin l) :
+    ∃ r C pc : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
+      ∃ frontier : Fin r, ∃ out : Fin l → Fin r,
+      ∀ w d words, (∀ j : Fin k, words.getD j.val 0 = input d j) →
+        k ≤ words.length → Fits w (words.length + 1) → InputFits w words →
+        safe w d (Memory.State.init words) →
+        (Memory.spec w).ValidHistory (Memory.State.init words)
+          ((Memory.spec w).clientHistory (Memory.State.init words) (p d)) →
+        ∃ y n, Runs w prog (State.init words) ⟨pc, y⟩ n ∧
+          step w prog ⟨pc, y⟩ =
+            .halt (output ((Memory.spec w).clientResult (Memory.State.init words) (p d)) i) ∧
+          memoryState frontier y = (Memory.spec w).clientState (Memory.State.init words) (p d) ∧
+          (∀ j, y.regs (out j) =
+            output ((Memory.spec w).clientResult (Memory.State.init words) (p d)) j) ∧
+          n + 1 ≤ C * (memoryCost (p d) (Memory.State.init words) +
+            work d (Memory.State.init words) + 1) + 1 := by
+  obtain ⟨n, C, emit, he⟩ := h
+  let r := registers k l n
+  let frontier : Fin r := standardFrontier
+  let src : Fin k → Fin r := standardInput
+  let tmp : Fin (l + n + 1) → Fin r := standardScratch
+  obtain ⟨hsrc, htmp, hd, hf, hs⟩ := standardPlacement k l n
+  let code := Code.seq (inputPrefix frontier (tmp (Fin.last (l + n))) src)
+    (emit frontier src tmp)
+  let codeStd := code.mapSimulates .exactStandard
+  let prog := codeStd.program (tmp (Fin.castAdd (n + 1) i))
+  have hnw_exact : ¬code.ReadsWidth := by
+    simp only [code, Code.ReadsWidth, not_or]
+    exact ⟨inputPrefix_not_readsWidth _ _ _, (he frontier src tmp htmp hd hf hs).1⟩
+  have hnw_std : ¬prog.ReadsWidth :=
+    Code.not_readsWidth_program
+      (fun h => hnw_exact (Code.readsWidth_of_mapSimulates .exactStandard h)) _
+  refine ⟨r, C + (2 * k + 5), codeStd.size, prog, hnw_std, frontier,
+    (fun j => tmp (Fin.castAdd (n + 1) j)), ?_⟩
+  intro w d words hlayout hk hw hin hsafe hv
+  obtain ⟨x, ex, hx, hm, hwords, _⟩ := inputPrefix_exec frontier (tmp (Fin.last (l + n)))
+    src words hsrc (hf _) (fun j => hd j _) hs hk hw hin
+  have harg : x.regs ∘ src = input d := funext fun j => (hwords j).trans (hlayout j)
+  obtain ⟨y, ey, hmem, hout, _⟩ := (he frontier src tmp htmp hd hf hs).2 w d x hx harg
+    (hm.symm ▸ hsafe) (hm.symm ▸ hv)
+  rw [hm] at ey hmem hout
+  obtain ⟨steps, hsteps, erun⟩ := ex.seq ey
+  have erunStd := erun.mapSimulates .exactStandard
+  have hr := erunStd.runs (pc := 0) (p := prog) (Program.Contains.self _).append_left
+  refine ⟨y, steps, ?_, ?_, hmem, hout, ?_⟩
+  · simpa only [Nat.zero_add, State.init, codeStd, code] using hr
+  · rw [← hout i]
+    exact step_halt (by simp [prog, Code.program])
+  · have := Nat.mul_le_mul_left (2 * k + 5) (Nat.le_add_left 1
+      (memoryCost (p d) (Memory.State.init words) + work d (Memory.State.init words)))
+    rw [Nat.add_mul]
+    omega
 
 end Realizes
 end Cslib.WordRAM.Realization

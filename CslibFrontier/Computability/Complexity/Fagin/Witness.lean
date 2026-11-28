@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Foundations.ModelTheory.Basic
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Materializing existential relation witnesses
@@ -94,14 +95,10 @@ Short certificates supply false bits to the missing positions. -/
 theorem wellFormed_witnessTables (a : EncodedStructure) (w : List Bool) :
     (varLanguage.vocabulary Φ.arity e).WellFormed
       (a.1, List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)) := by
-  constructor
-  · exact List.length_ofFn
-  · intro j
-    change Fin m at j
-    change ((List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)).getD j []).length =
-      a.1 ^ Φ.arity (e j)
-    rw [List.getD_eq_getElem _ _ (by simp)]
-    simp only [List.getElem_ofFn, length_witnessTable]
+  refine ⟨List.length_ofFn, fun (j : Fin m) => ?_⟩
+  change ((List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)).getD j []).length =
+    a.1 ^ Φ.arity (e j)
+  simp
 
 variable {K : Language.{u', v'}} (v : Vocabulary K)
 
@@ -140,13 +137,7 @@ theorem decode_witnessInput [K.IsRelational] (a : EncodedStructure) (w : List Bo
         a.1 a.2 _ ha.1 ⟨Φ.arity i, ⟨i, rfl⟩⟩]
       change ((List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)).getD
         (e.symm i : ℕ) []).getD (tupleIndex x) false = true ↔ _
-      rw [List.getD_eq_getElem
-        (List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)) []
-        (by simp)]
-      simp only [List.getElem_ofFn]
-      change (ℓ.witnessTable a w (e (e.symm i))).getD (tupleIndex x) false = true ↔
-        x ∈ ℓ.certRel a.1 (encStructure a).length w i
-      rw [Equiv.apply_symm_apply]
+      rw [List.getD_eq_getElem _ [] (by simp), List.getElem_ofFn, Equiv.apply_symm_apply]
       erw [getD_witnessTable ℓ a w i x]
       rfl
 
@@ -162,8 +153,7 @@ theorem length_encStructure_witnessInput_le (a : EncodedStructure) (w : List Boo
     (encStructure (ℓ.witnessInput e (a, w))).length ≤ (encStructure a).length +
       m * (2 * (encStructure a).length ^ ℓ.degree + 1) := by
   have hN : 0 < (encStructure a).length := by
-    simp only [encStructure, length_encPair]
-    omega
+    enc_len [encStructure]
   have hp (j : Fin m) : a.1 ^ Φ.arity (e j) ≤ (encStructure a).length ^ ℓ.degree :=
     (Nat.pow_le_pow_left (card_le_length_encStructure a) _).trans
       (Nat.pow_le_pow_right hN (ℓ.arity_le (e j)))

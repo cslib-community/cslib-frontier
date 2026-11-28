@@ -47,17 +47,17 @@ open scoped BigOperators _root_.Matrix
 
 /-- The selected row multiplied by `(1,-secret)`, reduced only after signed subtraction. -/
 def decryptResidue (n w : ℕ) (secret ciphertext : List Bool) : ℕ :=
-  (((Cslib.Matrix.binaryEntry (n + 1) w ciphertext (w - 1) 0 : ℤ) -
-    (((List.range n).map fun j =>
-      Cslib.Matrix.binaryEntry (n + 1) w ciphertext (w - 1) (j + 1) *
-        Cslib.Matrix.binaryEntry n w secret 0 j).sum : ℕ)) % (2 ^ w : ℤ)).toNat
+  LWE.secretProductResidue n w (w - 1) secret ciphertext
+
+/-- At width zero, the selected residue is zero. -/
+@[simp] theorem decryptResidue_zero (n : ℕ) (secret ciphertext : List Bool) :
+    decryptResidue n 0 secret ciphertext = 0 := by
+  simp [decryptResidue]
 
 /-- Decode the selected residue. Width zero returns `false`; every positive width uses the
 same half-open middle-half test as the typed decoder, including width one. -/
 def decryptSerialized (n w : ℕ) (secret ciphertext : List Bool) : Bool :=
-  if w = 0 then false else
-    let value := decryptResidue n w secret ciphertext
-    decide (2 ^ w ≤ 4 * value ∧ 4 * value < 3 * 2 ^ w)
+  LWE.decodeResidue w (decryptResidue n w secret ciphertext)
 
 /-- One recomposed NAND entry: its gadget value minus the exact selected row product. -/
 def nandEntry (n w : ℕ) (left right : List Bool) (i k j : ℕ) : ℕ :=
@@ -90,11 +90,9 @@ theorem binaryEntry_eq_recompose_decodeCiphertext (n w : ℕ) (word : List Bool)
   have hbound : (i.val * w + k.val) * (n + 1) + j.val < ((n + 1) * w) * (n + 1) := by
     simpa [finProdFinEquiv, Nat.add_comm, Nat.mul_comm] using
       (finProdFinEquiv (finProdFinEquiv (i, k), j)).isLt
-  rw [listRow_eq_ofFn w
-    (⟨(i.val * w + k.val) * (n + 1) + j.val, hbound⟩ : Fin (((n + 1) * w) * (n + 1)))]
-  rw [Nat.foldr_bit_ofFn, Nat.cast_sum]
-  apply Finset.sum_congr rfl
-  intro l hl
+  rw [listRow_eq_ofFn w ⟨(i.val * w + k.val) * (n + 1) + j.val, hbound⟩,
+    Nat.foldr_bit_ofFn, Nat.cast_sum]
+  refine Finset.sum_congr rfl fun l _ => ?_
   simp only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, bitMatrix_apply,
     decodeCiphertext_apply, block, ofList, finProdFinEquiv, Equiv.coe_fn_mk]
   congr 4
@@ -103,42 +101,30 @@ theorem binaryEntry_eq_recompose_decodeCiphertext (n w : ℕ) (word : List Bool)
 /-- Signed word arithmetic returns exactly the selected modular phase of the decoded inputs. -/
 theorem decryptResidue_eq {n w : ℕ} (hw : 0 < w) (secret ciphertext : List Bool) :
     decryptResidue n w secret ciphertext =
-      (decryptionPhase (decodeSecret n w secret) (decodeCiphertext n w ciphertext)
+      (decryptionPhase (LWE.decodeSecret n w secret) (decodeCiphertext n w ciphertext)
         (0, ⟨w - 1, by omega⟩)).val := by
-  let value : ℤ := (Cslib.Matrix.binaryEntry (n + 1) w ciphertext (w - 1) 0 : ℤ) -
-    ((∑ j : Fin n, Cslib.Matrix.binaryEntry (n + 1) w ciphertext (w - 1) (j.val + 1) *
-      Cslib.Matrix.binaryEntry n w secret 0 j.val : ℕ) : ℤ)
-  have hcast : (value : ZMod (2 ^ w)) =
-      decryptionPhase (decodeSecret n w secret) (decodeCiphertext n w ciphertext)
-        (0, ⟨w - 1, by omega⟩) := by
-    simp only [value, Int.cast_sub, Int.cast_sum, Int.cast_mul, Int.cast_natCast,
-      Nat.cast_sum, Nat.cast_mul,
-      decryptionPhase, ← binaryEntry_eq_recompose_decodeCiphertext,
-      decodeSecret, Cslib.Matrix.ofBinary_apply, Fin.val_zero, Fin.val_succ,
-      Nat.zero_mul, Nat.zero_add]
-  unfold decryptResidue
-  rw [List.map_range_eq_ofFn, List.sum_ofFn]
-  change (value % (2 ^ w : ℤ)).toNat = _
-  rw [← hcast]
-  exact (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)).symm
+  rw [decryptResidue, LWE.secretProductResidue_eq]
+  congr 1
+  simp only [decryptionPhase, ← binaryEntry_eq_recompose_decodeCiphertext, Fin.val_zero,
+    Fin.val_succ, Nat.zero_mul, Nat.zero_add]
 
 /-- The total word algorithm is the original decryption of the total decoded inputs. -/
 theorem decryptSerialized_eq (n w : ℕ) (secret ciphertext : List Bool) :
     decryptSerialized n w secret ciphertext =
-      decrypt (decodeSecret n w secret) (decodeCiphertext n w ciphertext) := by
+      decrypt (LWE.decodeSecret n w secret) (decodeCiphertext n w ciphertext) := by
   by_cases hw : w = 0
   · subst w
-    simp [decryptSerialized]
+    simp [decryptSerialized, decryptResidue]
   · have hpos : 0 < w := by omega
     rw [decrypt_eq_decode_decryptionPhase hpos]
-    simp only [decryptSerialized, hw, ↓reduceIte, decode, decryptResidue_eq hpos]
+    simp only [decryptSerialized, LWE.decode, decryptResidue_eq hpos]
 
 /-- Canonical words decrypt exactly as their typed secret and ciphertext. -/
 @[simp] theorem decryptSerialized_serialize {n w : ℕ} (secret : Fin n → ZMod (2 ^ w))
     (ciphertext : Ciphertext n w) :
-    decryptSerialized n w (serializeSecret secret) (serializeCiphertext ciphertext) =
+    decryptSerialized n w (LWE.serializeSecret secret) (serializeCiphertext ciphertext) =
       decrypt secret ciphertext := by
-  rw [decryptSerialized_eq, decode_serializeSecret, decode_serializeCiphertext]
+  rw [decryptSerialized_eq, LWE.decode_serializeSecret, decode_serializeCiphertext]
 
 private theorem nand_eq_decomposeMatrix {n w : ℕ} (left right : Ciphertext n w) :
     nand left right = decomposeMatrix w
@@ -165,23 +151,16 @@ theorem nandEntry_eq (n w : ℕ) (left right : List Bool)
     simp only [value, Int.cast_sub, Int.cast_sum, Int.cast_natCast, Nat.cast_sum,
       _root_.Matrix.sub_apply, _root_.Matrix.mul_apply, gadgetMatrix_apply]
     congr 1
-    · by_cases h : i = j
-      · simp [h]
-      · have hv : i.val ≠ j.val := fun hij => h (Fin.ext hij)
-        simp [h, hv]
+    · by_cases h : i = j <;> simp [h, Fin.val_inj]
     · rw [← (finProdFinEquiv : Fin (n + 1) × Fin w ≃ Fin ((n + 1) * w)).sum_comp]
-      apply Finset.sum_congr rfl
-      rintro ⟨r, l⟩ hr
-      rw [bitMatrix_apply, decodeCiphertext_apply,
-        ← binaryEntry_eq_recompose_decodeCiphertext]
-      simp only [finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.mul_comm,
-        Nat.add_comm]
+      refine Finset.sum_congr rfl fun ⟨r, l⟩ _ => ?_
+      rw [bitMatrix_apply, decodeCiphertext_apply, ← binaryEntry_eq_recompose_decodeCiphertext]
+      simp only [finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.mul_comm, Nat.add_comm]
       split_ifs with h <;> simp_all
   unfold nandEntry
   rw [List.map_range_eq_ofFn, List.sum_ofFn]
-  change (value % (2 ^ w : ℤ)).toNat = _
-  rw [← hcast]
-  exact (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)).symm
+  exact (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)).symm.trans
+    (congrArg ZMod.val hcast)
 
 /-- The actual NAND program agrees with the typed operation for every pair of raw words. -/
 theorem nandSerialized_eq (n w : ℕ) (left right : List Bool) :
@@ -212,9 +191,9 @@ theorem nandSerialized_eq (n w : ℕ) (left right : List Bool) :
 /-- The actual serialized NAND retains the exact propagated integer error equation. -/
 theorem nandSerialized_hasError {n w : ℕ} (secret left right : List Bool) (μ₁ μ₂ : Bool)
     (error₁ error₂ : Fin (n + 1) × Fin w → ℤ)
-    (hleft : HasError (decodeSecret n w secret) (decodeCiphertext n w left) μ₁ error₁)
-    (hright : HasError (decodeSecret n w secret) (decodeCiphertext n w right) μ₂ error₂) :
-    HasError (decodeSecret n w secret) (decodeCiphertext n w (nandSerialized n w left right))
+    (hleft : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w left) μ₁ error₁)
+    (hright : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w right) μ₂ error₂) :
+    HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w (nandSerialized n w left right))
       (!(μ₁ && μ₂)) (nandError (decodeCiphertext n w left) μ₂ error₁ error₂) := by
   rw [decode_nandSerialized]
   exact nand_hasError _ _ _ _ _ _ _ hleft hright
@@ -223,7 +202,7 @@ theorem nandSerialized_hasError {n w : ℕ} (secret left right : List Bool) (μ�
 noise margin. The ciphertext may be an output of previous homomorphic operations. -/
 theorem decryptSerialized_eq_of_hasError {n w : ℕ} (hw : 0 < w)
     (secret ciphertext : List Bool) (μ : Bool) (error : Fin (n + 1) × Fin w → ℤ)
-    (hC : HasError (decodeSecret n w secret) (decodeCiphertext n w ciphertext) μ error)
+    (hC : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w ciphertext) μ error)
     (herror : ∀ i, 4 * (error i).natAbs < 2 ^ w) :
     decryptSerialized n w secret ciphertext = μ := by
   rw [decryptSerialized_eq]
@@ -235,8 +214,9 @@ theorem decryptSerialized_encryptWithCoins {n m w bound : ℕ}
     (error : Fin m → ℤ) (μ : Bool) (coins : _root_.Matrix (Fin (n + 1) × Fin w) (Fin m) Bool)
     (hw : 0 < w) (herror : ∀ j, (error j).natAbs ≤ bound)
     (hmargin : 4 * (m * bound) < 2 ^ w) :
-    decryptSerialized n w (serializeSecret secret)
-      (encryptWithCoinsSerialized n m w (serializePublicMatrix (publicMatrix B secret error))
+    decryptSerialized n w (LWE.serializeSecret secret)
+      (encryptWithCoinsSerialized n m w
+        (LWE.serializePublicMatrix (LWE.publicMatrixInt B secret error))
         μ (serializeCoins coins)) = μ := by
   rw [encryptWithCoinsSerialized_serialize, decryptSerialized_serialize]
   exact decrypt_encryptWithCoins B secret error μ coins hw herror hmargin
@@ -246,8 +226,8 @@ margin. No freshness, support, or canonical-length premise is added. -/
 theorem decryptSerialized_nand {n w bound₁ bound₂ : ℕ}
     (secret left right : List Bool) (μ₁ μ₂ : Bool)
     (error₁ error₂ : Fin (n + 1) × Fin w → ℤ)
-    (hleft : HasError (decodeSecret n w secret) (decodeCiphertext n w left) μ₁ error₁)
-    (hright : HasError (decodeSecret n w secret) (decodeCiphertext n w right) μ₂ error₂)
+    (hleft : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w left) μ₁ error₁)
+    (hright : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w right) μ₂ error₂)
     (hw : 0 < w)
     (herror₁ : ∀ i, (error₁ i).natAbs ≤ bound₁)
     (herror₂ : ∀ i, (error₂ i).natAbs ≤ bound₂)
@@ -259,32 +239,30 @@ theorem decryptSerialized_nand {n w bound₁ bound₂ : ℕ}
 /-- Every supported actual key and encryption word is correct under the existing fresh margin. -/
 theorem keyGenSerialized_encrypt_correct {n m w η : ℕ} (hw : 0 < w)
     (hmargin : 4 * (m * η) < 2 ^ w) {keys : List Bool × List Bool}
-    (hkeys : keys ∈ (ProbComp.eval (keyGenSerialized n m w η)).support) (μ : Bool)
+    (hkeys : keys ∈ (ProbComp.eval (LWE.keyGenSerialized n m w η)).support) (μ : Bool)
     {ciphertext : List Bool}
     (hciphertext : ciphertext ∈ (ProbComp.eval (encryptSerialized n m w keys.1 μ)).support) :
     decryptSerialized n w keys.2 ciphertext = μ := by
-  rw [eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
-  obtain ⟨typedKeys, htypedKeys, rfl⟩ := hkeys
+  rw [LWE.eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
+  obtain ⟨_, hk, rfl⟩ := hkeys
   rw [eval_encryptSerialized_serializePublicMatrix, PMF.mem_support_map_iff] at hciphertext
-  obtain ⟨typedCiphertext, htypedCiphertext, rfl⟩ := hciphertext
-  rw [decryptSerialized_serialize]
-  exact keyGen_encrypt_correct hw hmargin htypedKeys μ htypedCiphertext
+  obtain ⟨_, hc, rfl⟩ := hciphertext
+  simpa only [decryptSerialized_serialize] using keyGen_encrypt_correct hw hmargin hk μ hc
 
 /-- Every pair of supported fresh actual encryption words has a correct actual NAND under the
 same strict fresh-NAND margin as the typed sampler theorem. -/
 theorem keyGenSerialized_nand_correct {n m w η : ℕ} (hw : 0 < w)
     (hmargin : 4 * ((1 + (n + 1) * w) * (m * η)) < 2 ^ w) {keys : List Bool × List Bool}
-    (hkeys : keys ∈ (ProbComp.eval (keyGenSerialized n m w η)).support) (μ₁ μ₂ : Bool)
+    (hkeys : keys ∈ (ProbComp.eval (LWE.keyGenSerialized n m w η)).support) (μ₁ μ₂ : Bool)
     {left right : List Bool}
     (hleft : left ∈ (ProbComp.eval (encryptSerialized n m w keys.1 μ₁)).support)
     (hright : right ∈ (ProbComp.eval (encryptSerialized n m w keys.1 μ₂)).support) :
     decryptSerialized n w keys.2 (nandSerialized n w left right) = !(μ₁ && μ₂) := by
-  rw [eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
-  obtain ⟨typedKeys, htypedKeys, rfl⟩ := hkeys
+  rw [LWE.eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
+  obtain ⟨_, hk, rfl⟩ := hkeys
   rw [eval_encryptSerialized_serializePublicMatrix, PMF.mem_support_map_iff] at hleft hright
-  obtain ⟨typedLeft, htypedLeft, rfl⟩ := hleft
-  obtain ⟨typedRight, htypedRight, rfl⟩ := hright
-  rw [nandSerialized_serialize, decryptSerialized_serialize]
-  exact keyGen_nand_correct hw hmargin htypedKeys μ₁ μ₂ htypedLeft htypedRight
+  obtain ⟨⟨_, hl, rfl⟩, ⟨_, hr, rfl⟩⟩ := And.intro hleft hright
+  simpa only [nandSerialized_serialize, decryptSerialized_serialize] using
+    keyGen_nand_correct hw hmargin hk μ₁ μ₂ hl hr
 
 end Cslib.Crypto.Homomorphic.GSW

@@ -54,6 +54,8 @@ exponential time to `APSPACE`.
 
 * `Turing.MultiTapeATM.WordGame.wins_false_cons_cons_iff`,
   `Turing.MultiTapeATM.WordGame.wins_true_cons_cons_iff`: won positions of each player.
+* `Turing.MultiTapeATM.runsInTime_wordGame_of_potential`: a decreasing potential pays for
+  position- and move-dependent round times.
 * `Turing.MultiTapeATM.wordGame_spec`: the machine stays within the space of the preparation and of
   one round, accepts exactly when the existential player wins, and halts within a time linear in
   the length of the longest play.
@@ -100,36 +102,20 @@ inductive Wins (U : List Bool → List Bool) : List Bool → Prop
 /-- A position of the existential player is won exactly when some move leads to a won position. -/
 theorem wins_false_cons_cons_iff {U : List Bool → List Bool} {x : Bool} {r : List Bool} :
     Wins U (false :: x :: r) ↔ ∃ b, Wins U (U (false :: b :: r)) := by
-  constructor
-  · intro h
-    cases h with
-    | existsMove b h => exact ⟨b, h⟩
-  · rintro ⟨b, h⟩
-    exact .existsMove b h
+  exact ⟨fun | .existsMove b h => ⟨b, h⟩, fun ⟨b, h⟩ => .existsMove b h⟩
 
 /-- A position of the universal player is won exactly when every move leads to a won position. -/
 theorem wins_true_cons_cons_iff {U : List Bool → List Bool} {x : Bool} {r : List Bool} :
     Wins U (true :: x :: r) ↔ ∀ b, Wins U (U (true :: b :: r)) := by
-  constructor
-  · intro h
-    cases h with
-    | forallMove h => exact h
-  · intro h
-    exact .forallMove h
+  exact ⟨fun | .forallMove h => h, .forallMove⟩
 
 /-- The empty position is lost. -/
 theorem not_wins_nil {U : List Bool → List Bool} : ¬ Wins U [] := by
-  intro h
-  cases h
+  nofun
 
 /-- A one-bit position is won exactly when the bit is `true`. -/
 theorem wins_singleton_iff {U : List Bool → List Bool} {b : Bool} : Wins U [b] ↔ b = true := by
-  constructor
-  · intro h
-    cases h
-    rfl
-  · rintro rfl
-    exact .accept
+  exact ⟨fun | .accept => rfl, fun h => h ▸ .accept⟩
 
 /-- A bound on the length of the plays may be raised. -/
 theorem Ends.mono {U : List Bool → List Bool} :
@@ -139,6 +125,40 @@ theorem Ends.mono {U : List Bool → List Bool} :
   | 0, _, _ :: _ :: _, _, h => h.elim
   | m + 1, n + 1, u :: x :: r, hmn, h => fun b => Ends.mono (by omega) (h b)
   | _ + 1, 0, _ :: _ :: _, hmn, _ => absurd hmn (by omega)
+
+/-- A bound on the remaining moves also bounds plays from every reachable position. -/
+theorem Ends.of_reach {U : List Bool → List Bool} {w₀ w : List Bool} {n : ℕ}
+    (h : Ends U n w₀) (hw : Reach U w₀ w) : Ends U n w := by
+  induction hw with
+  | start => exact h
+  | @move u x r b _ ih =>
+    cases n with
+    | zero => exact ih.elim
+    | succ n => exact (ih b).mono (Nat.le_succ n)
+
+/-- A natural-number potential decreasing after every move bounds the number of remaining moves.
+The decrease is required for both players and only at positions reachable from the initial one. -/
+theorem Ends.of_potential {U : List Bool → List Bool} {w₀ : List Bool}
+    (potential : List Bool → ℕ)
+    (hstep : ∀ u x r, Reach U w₀ (u :: x :: r) → ∀ b,
+      potential (U (u :: b :: r)) < potential (u :: x :: r)) :
+    Ends U (potential w₀) w₀ := by
+  have h (n : ℕ) : ∀ w, potential w = n → Reach U w₀ w → Ends U n w := by
+    induction n using Nat.strong_induction_on with
+    | ind n ih =>
+      intro w hn hw
+      rcases w with _ | ⟨u, _ | ⟨x, r⟩⟩
+      · cases n <;> trivial
+      · cases n <;> trivial
+      · have hlt := hstep u x r hw
+        cases n with
+        | zero => have := hlt false; omega
+        | succ n =>
+          intro b
+          exact (ih _ (by have := hlt b; omega) _ rfl (.move b hw)).mono (by
+            have := hlt b
+            omega)
+  exact h _ w₀ rfl .start
 
 /-! ### The machine -/
 
@@ -283,12 +303,9 @@ private theorem next_disp1_halt (b u : Bool) {w : List Bool} (hw : w[1]? = none)
     have h1 : tapeOfList w 1 = w[1]? := by simpa using tapeOfList_ofNat w 1
     simp [Cfg.workTapeSymbols, cfg, h1, hw]
   simp only [tm, MultiTapeTM.tr_ofTr, tr, hread, act]
-  refine Cfg.ext rfl (by simp [cfg, moveInputPos_zero]) ?_ ?_ ?_
-  · funext i
-    by_cases hi : i = N <;> simp [cfg, hi]
-  · funext i
-    by_cases hi : i = N <;> simp [cfg, hi]
-  · cases u <;> simp [cfg]
+  refine Cfg.ext rfl (by simp [cfg, moveInputPos_zero]) ?_ ?_
+      (by cases u <;> simp [cfg]) <;>
+    funext i <;> by_cases hi : i = N <;> simp [cfg, hi]
 
 variable (P R N) in
 private theorem next_disp1_move (b u x : Bool) {w : List Bool} (hw : w[1]? = some x) :
@@ -480,43 +497,73 @@ private theorem wins_of_acceptsWithin (hR : RoundSpec R N input U w₀ tR sR) (n
           acceptsWithin_iff_of_phase hnext hrun hd] at hb
         exact ih (m - τ) (by omega) _ (Reach.move b hreach) hb.2
 
+private theorem haltsWithin_of_potential (potential : List Bool → ℕ)
+    (hR : ∀ u x r, Reach U w₀ (u :: x :: r) → ∀ b, ∃ t,
+      R.runFrom (wordsCfg input (some R.q₀)
+          (Function.update (fun _ => []) N (u :: b :: r)) []) t =
+        wordsCfg input none (Function.update (fun _ => []) N (U (u :: b :: r))) [] ∧
+      t + 3 + potential (U (u :: b :: r)) ≤ potential (u :: x :: r)) :
+    ∀ w, Reach U w₀ w →
+      (wordGame P R N).HaltsWithin (potential w + 2) (dcfg (input := input) N w) := by
+  have h (n : ℕ) : ∀ w, potential w = n → Reach U w₀ w →
+      (wordGame P R N).HaltsWithin (n + 2) (dcfg (input := input) N w) := by
+    induction n using Nat.strong_induction_on with
+    | ind n ih =>
+      intro w hn hreach
+      rcases w with _ | ⟨u, _ | ⟨x, r⟩⟩
+      · exact haltsWithin_succ.mpr fun b => by
+          rw [next_disp0_nil P R N]
+          exact haltsWithin_of_halted rfl
+      · exact haltsWithin_succ.mpr fun b => by
+          rw [next_disp0_cons P R N b u []]
+          exact haltsWithin_succ.mpr fun b' => by
+            rw [next_disp1_halt P R N b' u rfl]
+            exact haltsWithin_of_halted rfl
+      · have hnpos : 1 ≤ n := by
+          obtain ⟨t, _, ht⟩ := hR u x r hreach false
+          omega
+        obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+        refine haltsWithin_succ.mpr fun b₀ => ?_
+        rw [next_disp0_cons P R N b₀ u (x :: r)]
+        refine haltsWithin_succ.mpr fun b₁ => ?_
+        rw [next_disp1_move P R N b₁ u x rfl]
+        refine haltsWithin_succ.mpr fun b => ?_
+        obtain ⟨t, hrunR, ht⟩ := hR u x r hreach b
+        obtain ⟨τ, hτ, hnext, hrun, hd⟩ := exists_round (P := P) hrunR
+        rw [next_move P R N b u (by simp), List.set_cons_succ, List.set_cons_zero,
+          haltsWithin_iff_of_phase hnext hrun hd]
+        exact ⟨by omega, (ih _ (by omega) _ rfl (.move b hreach)).mono (by omega)⟩
+  exact fun w hw => h _ w rfl hw
+
 private theorem haltsWithin_of_ends (hR : RoundSpec R N input U w₀ tR sR) (n : ℕ) :
     ∀ w, Reach U w₀ w → Ends U n w →
       (wordGame P R N).HaltsWithin (n * (tR + 3) + 2) (dcfg (input := input) N w) := by
-  induction n with
-  | zero =>
-    intro w hreach hend
-    rcases w with _ | ⟨u, _ | ⟨x, r⟩⟩
-    · exact haltsWithin_succ.mpr fun b => by
-        rw [next_disp0_nil P R N]
-        exact haltsWithin_of_halted rfl
-    · exact haltsWithin_succ.mpr fun b => by
-        rw [next_disp0_cons P R N b u []]
-        exact haltsWithin_succ.mpr fun b' => by
-          rw [next_disp1_halt P R N b' u rfl]
-          exact haltsWithin_of_halted rfl
-    · exact absurd hend (by simp [Ends])
-  | succ m ih =>
-    intro w hreach hend
-    rcases w with _ | ⟨u, _ | ⟨x, r⟩⟩
-    · exact haltsWithin_succ.mpr fun b => by
-        rw [next_disp0_nil P R N]
-        exact haltsWithin_of_halted rfl
-    · exact haltsWithin_succ.mpr fun b => by
-        rw [next_disp0_cons P R N b u []]
-        exact haltsWithin_succ.mpr fun b' => by
-          rw [next_disp1_halt P R N b' u rfl]
-          exact haltsWithin_of_halted rfl
-    · rw [show (m + 1) * (tR + 3) + 2 = m * (tR + 3) + 2 + tR + 1 + 1 + 1 by ring]
-      refine haltsWithin_succ.mpr fun b₀ => ?_
-      rw [next_disp0_cons P R N b₀ u (x :: r)]
-      refine haltsWithin_succ.mpr fun b₁ => ?_
-      rw [next_disp1_move P R N b₁ u x rfl]
-      refine haltsWithin_succ.mpr fun b => ?_
-      obtain ⟨τ, hτ, hnext, hrun, hd⟩ := exists_round (P := P) (hR u x r hreach b).1
-      rw [next_move P R N b u (by simp), List.set_cons_succ, List.set_cons_zero,
-        haltsWithin_iff_of_phase hnext hrun hd]
-      exact ⟨by omega, (ih _ (Reach.move b hreach) (hend b)).mono (by omega)⟩
+  classical
+  intro w hw hn
+  let depth (v : List Bool) : ℕ := if h : ∃ m, Ends U m v then Nat.find h else 0
+  have hdepth (v : List Bool) (hv : ∃ m, Ends U m v) :
+      Ends U (depth v) v ∧ ∀ m, Ends U m v → depth v ≤ m := by
+    simp only [depth, hv, ↓reduceDIte]
+    exact ⟨Nat.find_spec hv, fun _ hm => Nat.find_min' hv hm⟩
+  have hreach (v : List Bool) (hv : Reach U w v) : Reach U w₀ v := by
+    induction hv with
+    | start => exact hw
+    | move b _ ih => exact .move b ih
+  have hbudget := haltsWithin_of_potential (P := P) (R := R) (N := N)
+    (input := input) (U := U) (w₀ := w) (fun v => depth v * (tR + 3))
+    (fun u x r hr b => by
+      have hd := (hdepth _ ⟨n, hn.of_reach hr⟩).1
+      obtain ⟨m, hm⟩ : ∃ m, depth (u :: x :: r) = m + 1 :=
+        Nat.exists_eq_succ_of_ne_zero fun he => (he ▸ hd : Ends U 0 (u :: x :: r)).elim
+      rw [hm] at hd
+      have hchild := (hdepth _ ⟨m, hd b⟩).2 m (hd b)
+      refine ⟨tR, (hR u x r (hreach _ hr) b).1, ?_⟩
+      have := Nat.mul_le_mul_right (tR + 3) hchild
+      rw [hm, Nat.succ_mul]
+      omega)
+  exact (hbudget w .start).mono (by
+    have := Nat.mul_le_mul_right (tR + 3) ((hdepth w ⟨n, hn⟩).2 n hn)
+    omega)
 
 /-! ### Space -/
 
@@ -569,40 +616,30 @@ private theorem Good.next (hP : PrepSpec P N input w₀ tP sP)
   cases hc with
   | prep j hj =>
     by_cases hs : (P.runFrom (Cfg.init P.q₀ input) j).state = none
-    · rw [← MultiTapeTM.runFrom_eq_of_halt P _ hj hs, hP.1]
-      have : liftCfg (S₂ := S₂) .prep
+    · rw [← MultiTapeTM.runFrom_eq_of_halt P _ hj hs, hP.1,
+        show liftCfg (S₂ := S₂) .prep
           (wordsCfg input none (Function.update (fun _ => []) N w₀) []) =
-          dcfg (S₁ := S₁) N w₀ :=
-        (cfg_zero _ _ _).symm
-      rw [this]
+          dcfg (S₁ := S₁) N w₀ from (cfg_zero _ _ _).symm]
       exact good_next_dcfg .start b
     · rw [next_liftCfg_prep b hs]
-      have hj' : j < tP := by
-        rcases Nat.lt_or_eq_of_le hj with h | rfl
-        · exact h
-        · exact absurd (by rw [hP.1]; rfl) hs
-      have := Good.prep (P := P) (R := R) (N := N) (input := input) (U := U) (w₀ := w₀)
-        (tR := tR) (j + 1) (show j + 1 ≤ tP by omega)
-      simpa only [MultiTapeTM.runFrom, Function.iterate_succ_apply'] using this
+      have hj' : j < tP := hj.lt_of_ne fun h => hs (by rw [h, hP.1]; rfl)
+      simpa only [MultiTapeTM.runFrom, Function.iterate_succ_apply'] using
+        Good.prep (P := P) (R := R) (N := N) (input := input) (U := U) (w₀ := w₀)
+          (tR := tR) (j + 1) (Nat.succ_le_of_lt hj')
   | @round u x r b' j hreach hj =>
     obtain ⟨hrun, -⟩ := hR u x r hreach b'
     by_cases hs : (R.runFrom (wordsCfg input (some R.q₀)
         (Function.update (fun _ => []) N (u :: b' :: r)) []) j).state = none
-    · rw [← MultiTapeTM.runFrom_eq_of_halt R _ hj hs, hrun]
-      have : liftCfg (S₁ := S₁) .round
+    · rw [← MultiTapeTM.runFrom_eq_of_halt R _ hj hs, hrun,
+        show liftCfg (S₁ := S₁) .round
           (wordsCfg input none (Function.update (fun _ => []) N (U (u :: b' :: r))) []) =
-          dcfg (S₂ := S₂) N (U (u :: b' :: r)) :=
-        (cfg_zero _ _ _).symm
-      rw [this]
+          dcfg (S₂ := S₂) N (U (u :: b' :: r)) from (cfg_zero _ _ _).symm]
       exact good_next_dcfg (Reach.move b' hreach) b
     · rw [next_liftCfg_round b hs]
-      have hj' : j < tR := by
-        rcases Nat.lt_or_eq_of_le hj with h | rfl
-        · exact h
-        · exact absurd (by rw [hrun]; rfl) hs
-      have := Good.round (P := P) (R := R) (N := N) (input := input) (tP := tP) (tR := tR) b'
-        (j + 1) hreach (show j + 1 ≤ tR by omega)
-      simpa only [MultiTapeTM.runFrom, Function.iterate_succ_apply'] using this
+      have hj' : j < tR := hj.lt_of_ne fun h => hs (by rw [h, hrun]; rfl)
+      simpa only [MultiTapeTM.runFrom, Function.iterate_succ_apply'] using
+        Good.round (P := P) (R := R) (N := N) (input := input) (tP := tP) (tR := tR) b'
+          (j + 1) hreach (Nat.succ_le_of_lt hj')
   | d0 w hw => exact good_next_dcfg hw b
   | d1 u r hw =>
     rcases r with _ | ⟨x, r⟩
@@ -645,9 +682,6 @@ private theorem Good.workTapePos_mem (hP : PrepSpec P N input w₀ tP sP)
   | dm hw => exact workTapePos_cfg_mem hS i
   | halted c hs hpos => exact mem_window_of_le (hpos i) hS
 
-private theorem initCfg_wordGame :
-    (wordGame P R N).toPTM.toNTM.initCfg input = liftCfg .prep (Cfg.init P.q₀ input) := rfl
-
 private theorem good_of_mem (hP : PrepSpec P N input w₀ tP sP)
     (hR : RoundSpec R N input U w₀ tR sR) (p : (wordGame P R N).toPTM.toNTM.ComputationPath input) :
     ∀ c ∈ p.toRunPath, Good P R N input U w₀ tP tR c := by
@@ -655,15 +689,16 @@ private theorem good_of_mem (hP : PrepSpec P N input w₀ tP sP)
   induction i using Fin.induction with
   | zero =>
     have h0 : p.toRunPath 0 = (wordGame P R N).toPTM.toNTM.initCfg input := p.head_eq
-    rw [h0, initCfg_wordGame]
+    rw [h0]
     exact .prep 0 (Nat.zero_le _)
   | succ i ih =>
     obtain ⟨b, hb⟩ := (MultiTapePTM.step_toNTM_iff (wordGame P R N).toPTM).mp (p.step i)
-    have : p.toRunPath i.succ = (wordGame P R N).next b (p.toRunPath i.castSucc) := hb.symm
-    rw [this]
+    rw [← hb]
     exact ih.next hP hR b
 
-private theorem exists_prep (hP : PrepSpec P N input w₀ tP sP) :
+private theorem exists_prep
+    (hP : P.runFrom (Cfg.init P.q₀ input) tP =
+      wordsCfg input none (Function.update (fun _ => []) N w₀) []) :
     ∃ τ ≤ tP, (∀ j < τ, ∀ b, (wordGame P R N).next b (((wordGame P R N).next false)^[j]
         ((wordGame P R N).toPTM.toNTM.initCfg input)) =
         ((wordGame P R N).next false)^[j + 1] ((wordGame P R N).toPTM.toNTM.initCfg input)) ∧
@@ -674,12 +709,37 @@ private theorem exists_prep (hP : PrepSpec P N input w₀ tP sP) :
   have hstep : ∀ b (c : Cfg k Bool S₁ input), c.state ≠ none →
       (wordGame P R N).next b (liftCfg .prep c) = liftCfg .prep (P.step c) :=
     fun b c h => next_liftCfg_prep b h
-  obtain ⟨τ, hτ, h1, h2, h3⟩ := exists_phase .prep hstep (hP.1 ▸ rfl : (P.runFrom
+  obtain ⟨τ, hτ, h1, h2, h3⟩ := exists_phase .prep hstep (hP ▸ rfl : (P.runFrom
     (Cfg.init P.q₀ input) tP).state = none)
-  rw [hP.1] at h3
+  rw [hP] at h3
   exact ⟨τ, hτ, h1, h2, h3.trans (cfg_zero _ _ _).symm⟩
 
 end WordGame
+
+open WordGame in
+/-- **A potential pays for the time of a word game.** Suppose `P` writes `w₀` in `tP` steps,
+and, after each move from a reachable position, `R` writes the next position in some `t` steps.
+If the potential drops by at least `t + 3`, every branch halts within
+`tP + potential w₀ + 2` steps. The three steps dispatch and choose the move; the final two
+inspect a terminal word. Round times may depend on the position and on the chosen move.
+
+This is an actual machine-time bound. The potential is used only in the proof and need not be
+computable. The hypothesis must account for both moves, including losing plays. -/
+theorem runsInTime_wordGame_of_potential {k : ℕ} {S₁ S₂ : Type}
+    {P : MultiTapeTM k Bool S₁} {R : MultiTapeTM k Bool S₂} {N : Fin k}
+    {input : List Bool} {U : List Bool → List Bool} {w₀ : List Bool} {tP : ℕ}
+    (potential : List Bool → ℕ)
+    (hP : P.runFrom (Cfg.init P.q₀ input) tP =
+      wordsCfg input none (Function.update (fun _ => []) N w₀) [])
+    (hR : ∀ u x r, Reach U w₀ (u :: x :: r) → ∀ b, ∃ t,
+      R.runFrom (wordsCfg input (some R.q₀)
+          (Function.update (fun _ => []) N (u :: b :: r)) []) t =
+        wordsCfg input none (Function.update (fun _ => []) N (U (u :: b :: r))) [] ∧
+      t + 3 + potential (U (u :: b :: r)) ≤ potential (u :: x :: r)) :
+    (wordGame P R N).toPTM.toNTM.RunsInTime input (tP + (potential w₀ + 2)) := by
+  obtain ⟨τ, hτ, hnext, hrun, hd⟩ := exists_prep (R := R) (N := N) hP
+  rw [runsInTime_iff_haltsWithin, haltsWithin_iff_of_phase hnext hrun hd]
+  exact ⟨by omega, (haltsWithin_of_potential (P := P) potential hR w₀ .start).mono (by omega)⟩
 
 open WordGame in
 /-- **The word game machine plays the word game.** If `P` writes the initial position `w₀` within
@@ -696,7 +756,7 @@ theorem wordGame_spec {k : ℕ} {S₁ S₂ : Type} {P : MultiTapeTM k Bool S₁}
       ((wordGame P R N).Accepts input ↔ Wins U w₀) ∧
       ∀ n, Ends U n w₀ →
         (wordGame P R N).toPTM.toNTM.RunsInTime input (tP + (n * (tR + 3) + 2)) := by
-  obtain ⟨τ, hτ, hnext, hrun, hd⟩ := exists_prep (R := R) hP
+  obtain ⟨τ, hτ, hnext, hrun, hd⟩ := exists_prep (R := R) hP.1
   refine ⟨fun p => ?_, ⟨fun ⟨n, hn⟩ => ?_, fun hw => ?_⟩, fun n hn => ?_⟩
   · refine MultiTapeNTM.RunPath.InWindow.space_le fun c hc i => ?_
     exact (good_of_mem hP hR p c hc).workTapePos_mem hP hR

@@ -4,7 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Crypto.Protocols.SigmaProtocol.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
+import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 import CslibFrontier.Crypto.Computational.LWE.Basic
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Crypto.Computational.OneWay
@@ -23,7 +24,8 @@ candidate.
   exist, and no extractor can return a witness for it.
 * **Special honest-verifier zero knowledge.** The protocol whose commitment is the witness has no
   simulator for a statement with two witnesses: the simulator would have to reproduce both honest
-  transcripts, which differ.
+  transcripts, which differ. It likewise fails `ComputationalSpecialHVZK` unconditionally for every
+  typed simulator and every acceptance-error function `δ`.
 * **Decision LWE.** With no secret coordinates and zero noise, a real sample is the zero residue,
   while a uniform residue modulo `2` is zero half of the time. Testing whether the first bit is
   `false` has advantage `1 / 2`.
@@ -94,6 +96,91 @@ theorem not_specialHVZK_revealWitness (simulate : Unit → Bool → PMF (Bool ×
 /-- The witness-revealing protocol is complete, so zero knowledge is what fails. -/
 example : revealWitness.Complete (fun _ _ => True) := fun _ _ _ _ _ _ => rfl
 
+/-- Word encodings for the single-index `revealWitness` family. -/
+def revealWitnessEncoding :
+    SigmaProtocol.Encoding Unit (fun _ => Unit) (fun _ => Bool) (fun _ => Bool)
+      (fun _ => Unit) where
+  index := encUnit
+  statement _ := encUnit
+  commitment _ := encBool
+  challenge _ := encBool
+  response _ := encUnit
+
+/-- Attack Game 20.4 adversary that submits `(b, ())` and echoes the commitment bit. -/
+def chooseWitness (b : Bool) :
+    SigmaProtocol.CHVZKAdversary Unit (fun _ => Bool) (fun _ => Unit)
+      (fun _ => Bool) (fun _ => Bool) (fun _ => Unit) Unit :=
+  fun _ _ =>
+    { choose := fun _ => pure ((b, ()), ())
+      guess := fun _ conv => pure conv.1 }
+
+theorem isPPT_chooseWitness (b : Bool) :
+    SigmaProtocol.CHVZKAdversary.IsPPT revealWitnessEncoding (fun _ => encBool) encUnit
+      (chooseWitness b) where
+  choose := by
+    refine (ComputableInPolyTime.const ((encBool b, encUnit ()), ())).isPPTOn.congr
+      fun ⟨_, _⟩ => congrArg ProbComp.eval ?_
+    simp [chooseWitness, revealWitnessEncoding]
+  guess := by
+    have hg : ComputableInPolyTime
+        (fun g : SigmaProtocol.CHVZKGuessInput Unit (fun _ => Bool) (fun _ => Bool)
+          (fun _ => Unit) Unit => g)
+        (SigmaProtocol.encCHVZKGuessInput revealWitnessEncoding encUnit)
+        (SigmaProtocol.encCHVZKGuessInput revealWitnessEncoding encUnit) :=
+      ComputableInPolyTime.id'
+    have ht := SigmaProtocol.encCHVZKGuessInput_commitment_polyTime revealWitnessEncoding encUnit hg
+    have htrue : ComputableInPolyTime (fun w : List Bool => w == [true]) encBits encBool := by
+      fun_prop
+    refine (htrue.comp ht).isPPTOn.congr fun g => congrArg ProbComp.eval ?_
+    rcases g with ⟨_, _, _, false | true, _, _⟩ <;> rfl
+
+/-- **Revealing the witness fails `ComputationalSpecialHVZK` unconditionally** for every typed
+simulator `sim` and every acceptance-error function `δ` (without using `accepts`): the uniform
+strict PPT adversaries `chooseWitness true` and `chooseWitness false` yield `PMF.pure true` and
+`PMF.pure false` in `chvzkRealGame` while inducing the exact same `chvzkSimGame`. -/
+theorem not_computationalSpecialHVZK_revealWitness
+    (sim : SigmaProtocol.Simulator Unit (fun _ => Unit) (fun _ => Bool) (fun _ => Bool)
+      (fun _ => Unit))
+    (δ : Unit → ℝ≥0∞) :
+    ¬ SigmaProtocol.ComputationalSpecialHVZK (fun _ => revealWitness) (fun _ _ _ => True)
+      revealWitnessEncoding (fun _ => encBool) (fun _ => PMF.pure ()) sim δ := by
+  intro h
+  have hreal (b : Bool) (n : ℕ) :
+      SigmaProtocol.chvzkRealGame (fun _ => revealWitness) (fun _ _ _ => True)
+        (fun _ => PMF.pure ()) (chooseWitness b) n = PMF.pure b := by
+    simp [SigmaProtocol.chvzkRealGame, SigmaProtocol.chvzkExperiment, SigmaProtocol.conversation,
+      revealWitness, chooseWitness]
+  have hsim (n : ℕ) :
+      SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+        (chooseWitness false) n =
+      SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+        (chooseWitness true) n := by
+    simp [SigmaProtocol.chvzkSimGame, SigmaProtocol.chvzkExperiment, chooseWitness]
+  have hneg := (h.indistinguishable encUnit (chooseWitness true) (isPPT_chooseWitness true)).add
+    (h.indistinguishable encUnit (chooseWitness false) (isPPT_chooseWitness false))
+  have hone (n : ℕ) : (1 : ℝ≥0) ≤
+      Game.advantage
+        (SigmaProtocol.chvzkRealGame (fun _ => revealWitness) (fun _ _ _ => True)
+          (fun _ => PMF.pure ()) (chooseWitness true) n)
+        (SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+          (chooseWitness true) n) +
+      Game.advantage
+        (SigmaProtocol.chvzkRealGame (fun _ => revealWitness) (fun _ _ _ => True)
+          (fun _ => PMF.pure ()) (chooseWitness false) n)
+        (SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+          (chooseWitness false) n) := by
+    have htri := Game.advantage_triangle (PMF.pure true)
+      (SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+        (chooseWitness true) n)
+      (PMF.pure false)
+    have hpure : Game.advantage (PMF.pure true) (PMF.pure false) = 1 := by
+      simp [Game.succProbability]
+    rw [hpure] at htri
+    rw [hreal true n, hreal false n, hsim n,
+      Game.advantage_comm (PMF.pure false)]
+    exact htri
+  exact not_negligible_const one_ne_zero (negligible_of_le hneg hone)
+
 /-! ### Decision LWE -/
 
 /-- Zero noise for one-bit residues. -/
@@ -124,8 +211,7 @@ theorem eq_of_mem_support_realEnsemble {security : ℕ} {word : List Bool}
 theorem distinguishingGame_realEnsemble (security : ℕ) :
     distinguishingGame (LWE.realEnsemble (fun _ => 0) (fun _ => 1) (fun _ => 1) zeroNoise
       security) (firstBitFalse security) = PMF.pure true := by
-  unfold distinguishingGame
-  rw [PMF.monad_bind_eq_bind]
+  rw [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind]
   trans (LWE.realEnsemble (fun _ => 0) (fun _ => 1) (fun _ => 1) zeroNoise security).bind
     fun _ => PMF.pure true
   · refine PMF.bind_congr_on_support _ _ _ fun word hword => ?_
@@ -137,7 +223,7 @@ theorem distinguishingGame_realEnsemble (security : ℕ) :
 theorem distinguishingGame_uniformEnsemble_apply (security : ℕ) :
     distinguishingGame (LWE.uniformEnsemble (fun _ => 0) (fun _ => 1) (fun _ => 1) security)
       (firstBitFalse security) true = 2⁻¹ := by
-  simp only [distinguishingGame, LWE.uniformEnsemble, firstBitFalse, PMF.monad_bind_eq_bind,
+  simp only [distinguishingGame_eq_bind, LWE.uniformEnsemble, firstBitFalse, PMF.monad_bind_eq_bind,
     PMF.bind_map, Function.comp_def, ProbComp.eval_pure, PMF.bind_apply, tsum_fintype,
     PMF.uniformOfFintype_apply, PMF.pure_apply]
   rw [← Finset.mul_sum]
@@ -157,7 +243,7 @@ advantage `1 / 2`. -/
 theorem not_decisionLWE_zeroNoise :
     ¬ DecisionLWE (fun _ => 0) (fun _ => 1) (fun _ => 1) zeroNoise := by
   intro h
-  have hneg := h firstBitFalse firstBitFalse_ppt
+  have hneg := h.encoded firstBitFalse firstBitFalse_ppt
   have hadv (security : ℕ) : Game.advantage
       (distinguishingGame (LWE.realEnsemble (fun _ => 0) (fun _ => 1) (fun _ => 1) zeroNoise
         security) (firstBitFalse security))
@@ -211,33 +297,25 @@ theorem isOraclePPT_detCCAAdversary : IsOraclePPT encBool detCCAAdversary := by
       (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBool := by
     polytime
   unfold detCCAAdversary
-  exact ((IsOraclePPTOn.query_take' false hq1 hlim1).bind_with
-    ((IsOraclePPTOn.query_take' false hq2 hlim2).bind_with
+  exact ((IsOraclePPTOn.query_take false hq1 hlim1).bind_with
+    ((IsOraclePPTOn.query_take false hq2 hlim2).bind_with
       hout.isOraclePPTOn)).isOraclePPT
-
-theorem unframe_dropFrame_pair (a b : List Bool) :
-    unframe (encPair encBits encBits (a, b)) = a ∧
-      dropFrame (encPair encBits encBits (a, b)) = b := by
-  simp [encPair_apply, unframe_frame_append, dropFrame_frame_append]
 
 /-- In Experiment `false`, both queries encrypt `0ⁿ`; without ciphertext expansion the answers
 agree, so the adversary outputs `true`. -/
 theorem eval_ccaGame_detCCAAdversary_false (E : SymmetricCipher) (n : ℕ)
-    (hctLen : ∀ ke ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ msg : List Bool, msg.length = n →
-      ∀ c ∈ (ProbComp.eval (E.encrypt n ke msg)).support, c.length = n) :
+    (hctLen : E.CiphertextLength n n) :
     ProbComp.eval (E.ccaGame detCCAAdversary false n) = PMF.pure true := by
   simp only [ccaGame, detCCAAdversary, OracleComp.interpret_bind, OracleComp.interpret_map,
     OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
     StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
-  have hpair1 := unframe_dropFrame_pair (List.replicate n false) (List.replicate n true)
-  have hpair2 := unframe_dropFrame_pair (List.replicate n false) (List.replicate n false)
   trans (ProbComp.eval (E.keyGen n)).bind (fun _ => PMF.pure true)
   · refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
     unfold ccaOracle
     dsimp only [StateT.run]
-    simp only [hpair1.1, hpair1.2, hpair2.1, hpair2.2, List.length_replicate, beq_self_eq_true,
-      Bool.and_self, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
+    simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_replicate,
+      beq_self_eq_true, Bool.and_self, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind,
+      ProbComp.eval_pure,
       PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
     trans (ProbComp.eval (E.encrypt n ke (List.replicate n false))).bind (fun _ => PMF.pure true)
     · refine PMF.bind_congr_on_support _ _ _ fun c₁ hc₁ => ?_
@@ -253,15 +331,11 @@ theorem eval_ccaGame_detCCAAdversary_false (E : SymmetricCipher) (n : ℕ)
 /-- In Experiment `true` with `n ≥ 1`, the queries encrypt `1ⁿ` and then `0ⁿ`; by correctness the
 answers differ, so the adversary outputs `false`. -/
 theorem eval_ccaGame_detCCAAdversary_true (E : SymmetricCipher) {n : ℕ} (hn : 1 ≤ n)
-    (hctLen : ∀ ke ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ msg : List Bool, msg.length = n →
-      ∀ c ∈ (ProbComp.eval (E.encrypt n ke msg)).support, c.length = n) :
+    (hctLen : E.CiphertextLength n n) :
     ProbComp.eval (E.ccaGame detCCAAdversary true n) = PMF.pure false := by
   simp only [ccaGame, detCCAAdversary, OracleComp.interpret_bind, OracleComp.interpret_map,
     OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
     StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
-  have hpair1 := unframe_dropFrame_pair (List.replicate n false) (List.replicate n true)
-  have hpair2 := unframe_dropFrame_pair (List.replicate n false) (List.replicate n false)
   have hneMsg : List.replicate n true ≠ List.replicate n false := by
     obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by lia : n ≠ 0)
     simp
@@ -269,8 +343,9 @@ theorem eval_ccaGame_detCCAAdversary_true (E : SymmetricCipher) {n : ℕ} (hn : 
   · refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
     unfold ccaOracle
     dsimp only [StateT.run]
-    simp only [hpair1.1, hpair1.2, hpair2.1, hpair2.2, List.length_replicate, beq_self_eq_true,
-      Bool.and_self, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
+    simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_replicate,
+      beq_self_eq_true, Bool.and_self, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind,
+      ProbComp.eval_pure,
       PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
     trans (ProbComp.eval (E.encrypt n ke (List.replicate n true))).bind (fun _ => PMF.pure false)
     · refine PMF.bind_congr_on_support _ _ _ fun c₁ hc₁ => ?_
@@ -298,17 +373,14 @@ theorem eval_ccaGame_detCCAAdversary_true (E : SymmetricCipher) {n : ℕ} (hn : 
 encryption channel has advantage `1` at every positive parameter. This is the CCA counterpart of
 `SymmetricCipher.not_indcpa_of_ciphertext_length_eq`. -/
 theorem not_indcca_of_ciphertext_length_eq (E : SymmetricCipher)
-    (hctLen : ∀ n, ∀ ke ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ msg : List Bool, msg.length = n →
-      ∀ c ∈ (ProbComp.eval (E.encrypt n ke msg)).support, c.length = n) :
+    (hctLen : ∀ n, E.CiphertextLength n n) :
     ¬ E.INDCCA := by
   intro hcca
   have hneg := hcca detCCAAdversary isOraclePPT_detCCAAdversary
   have hcomp : Negligible (fun n =>
       Game.advantage (ProbComp.eval (E.ccaGame detCCAAdversary false (n + 1)))
         (ProbComp.eval (E.ccaGame detCCAAdversary true (n + 1)))) :=
-    hneg.comp_of_polynomial_bound (bound := fun m => m) (Filter.tendsto_add_atTop_nat 1)
-      (by fun_prop) (Filter.Eventually.of_forall fun n => by lia)
+    hneg.shift 1
   have hcongr : Negligible (fun _ : ℕ => (1 : ℝ≥0)) := hcomp.congr fun n => by
     rw [eval_ccaGame_detCCAAdversary_false E (n + 1) (hctLen (n + 1)),
       eval_ccaGame_detCCAAdversary_true E (by lia) (hctLen (n + 1)), Game.advantage]
@@ -361,7 +433,7 @@ def constFalse : PRG.Generator Unit (Fin 1 → Bool) := ⟨fun _ _ => false⟩
 /-- Guessing `false` predicts the bit of `constFalse` with probability `1`. -/
 theorem predictionExperiment_constFalse :
     constFalse.predictionExperiment 0 (fun _ => PMF.pure false) = PMF.pure true := by
-  simp [PRG.Generator.predictionExperiment, PRG.Generator.outputDist, constFalse,
+  simp [PRG.Generator.predictionExperiment_eq_bind, PRG.Generator.outputDist, constFalse,
     PMF.monad_bind_eq_bind, PMF.pure_map, Function.comp_def, PMF.bind_const]
 
 /-- **A constant generator is not next-bit unpredictable** at any error below `1 / 2`. -/

@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.BTree.Height
 public import CslibFrontier.DataStructure.BTree.Insert
+import Mathlib.Data.Finset.Sort
+import Mathlib.Data.Fintype.EquivFin
 
 /-!
 # Bulk loading of classic B-trees
@@ -47,6 +49,8 @@ becomes a single node, which keeps the entries. Costs are not stated here.
 * `height_ofSortedList_le`: for `2 ≤ t`, the height bound of `IsWF.height_le_log`, for every
   list.
 * `isWF_ofSortedList`: on a sorted list, the result is well-formed.
+* `exists_isWF_toList_map_snd_eq`: over an infinite key type, every list of values is the value
+  list of a well-formed tree of that many entries with distinct keys.
 * `lookup_ofSortedList`: on a sorted list, lookup is `List.lookup`.
 
 ## References
@@ -203,11 +207,7 @@ theorem _root_.Cslib.IsMonadHom.map_buildM (hf : IsMonadHom m n f) (t : ℕ) (vi
     (fuel : ℕ) (first : BTree α β) (rest : List (Triple α β)) :
     f (buildM t visit fuel first rest) = buildM t (f visit) fuel first rest := by
   induction fuel generalizing first rest with
-  | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simp [hf.map_pure]
-    · rw [buildM_cons, buildM_cons]
-      split <;> simp [hf.map_bind, hf.map_pure]
+  | zero => rcases rest with _ | ⟨e, es⟩ <;> simp [buildM_cons, hf.map_bind, hf.map_pure]
   | succ fuel ih =>
     rcases rest with _ | ⟨e, es⟩
     · simp [hf.map_pure]
@@ -333,11 +333,9 @@ theorem toList_pack (first : BTree α β) (rest : List (Triple α β)) (ss : Lis
     · rw [pack_cons_of_drop_eq_nil ss h]
       simp
     · rw [pack_cons_of_drop_eq_cons ss h]
-      have hr : rest = rest.take s ++ (k, v, c) :: rest' := by
-        rw [← h, List.take_append_drop]
       have := ih c rest'
       simp only [toListRest_eq_flatMap] at this
-      conv_rhs => rw [hr]
+      conv_rhs => rw [← List.take_append_drop s rest, h]
       simp only [toList_node, toListRest_eq_flatMap, List.flatMap_cons, List.flatMap_append,
         List.cons_append, List.append_assoc, ← this]
 
@@ -345,17 +343,12 @@ theorem toList_pack (first : BTree α β) (rest : List (Triple α β)) (ss : Lis
 theorem toList_build (fuel : ℕ) (first : BTree α β) (rest : List (Triple α β)) :
     (build t fuel first rest).toList = first.toList ++ toListRest rest := by
   induction fuel generalizing first rest with
-  | zero =>
-    rcases Nat.lt_or_ge (2 * t - 1) rest.length with h | h
-    · rw [build_zero_of_lt h, toList_node]
-    · rcases rest with _ | ⟨e, es⟩
-      · simp
-      · rw [build_of_length_le (List.cons_ne_nil e es) h, toList_node]
+  | zero => rcases rest with _ | ⟨e, es⟩ <;> simp [build, buildM_cons]
   | succ fuel ih =>
-    rcases Nat.lt_or_ge (2 * t - 1) rest.length with h | h
-    · rw [build_succ_of_lt h, ih, toList_pack]
-    · rcases rest with _ | ⟨e, es⟩
-      · simp
+    rcases rest with _ | ⟨e, es⟩
+    · simp
+    · rcases Nat.lt_or_ge (2 * t - 1) (e :: es).length with h | h
+      · rw [build_succ_of_lt h, ih, toList_pack]
       · rw [build_of_length_le (List.cons_ne_nil e es) h, toList_node]
 
 /-- Bulk loading keeps the entries in order, for every list and every `t`. -/
@@ -395,19 +388,14 @@ theorem isGrouping_groupSizes {t fuel r : ℕ} (hr : t - 1 ≤ r) (hf : r ≤ fu
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) r with h | h
     · rw [groupSizes_succ_of_lt h]
-      by_cases h' : r < 3 * t - 1
-      · simp only [h', ↓reduceIte]
-        have := IsGrouping.cut (t := t) le_rfl (by omega) (ih (r := r - (t - 1) - 1)
-          (by omega) (by omega))
-        have heq : t - 1 + 1 + (r - (t - 1) - 1) = r := by omega
-        rwa [heq] at this
-      · simp only [h', ↓reduceIte]
-        have := IsGrouping.cut (t := t) (by omega) le_rfl (ih (r := r - (2 * t - 1) - 1)
-          (by omega) (by omega))
-        have heq : 2 * t - 1 + 1 + (r - (2 * t - 1) - 1) = r := by omega
-        rwa [heq] at this
-    · rw [groupSizes_of_le h]
-      exact .last hr h
+      set s := if r < 3 * t - 1 then t - 1 else 2 * t - 1
+      have hs : t - 1 ≤ s ∧ s ≤ 2 * t - 1 ∧ t - 1 ≤ r - s - 1 ∧
+          r - s - 1 ≤ fuel ∧ s + 1 + (r - s - 1) = r := by
+        dsimp only [s]
+        split_ifs <;> refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> omega
+      have hcut := IsGrouping.cut hs.1 hs.2.1 (ih hs.2.2.1 hs.2.2.2.1)
+      rwa [hs.2.2.2.2] at hcut
+    · exact groupSizes_of_le h ▸ .last hr h
 
 /-- At minimum degree at least `2`, a grouping has fewer than half as many sizes as triples: every
 group but the last takes at least one triple and the one after it, and the last at least one. -/
@@ -435,12 +423,10 @@ theorem length_pack {t r : ℕ} {ss : List ℕ} {first : BTree α β}
   induction hg generalizing first rest with
   | last => rfl
   | @cut s r ss _ _ _ ih =>
+    have hlen := List.length_drop (i := s) (l := rest)
     rcases hd : rest.drop s with _ | ⟨⟨k, v, c⟩, rest'⟩
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_nil] at this
-      omega
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_cons] at this
+    · simp only [hd, List.length_nil] at hlen; omega
+    · simp only [hd, List.length_cons] at hlen
       rw [pack_cons_of_drop_eq_cons ss hd, List.length_cons, List.length_cons, ih (by omega)]
 
 /-- Cutting a good level of height `h` by a grouping gives a good level of height `h + 1`. -/
@@ -453,18 +439,14 @@ private theorem GoodLevel.pack {t h r : ℕ} {ss : List ℕ} {first : BTree α �
     rw [pack_nil]
     exact ⟨good_node hl.good_first hl.good_rest (by omega) (by omega), by simp⟩
   | @cut s r ss h₁ h₂ _ ih =>
+    have hlen := List.length_drop (i := s) (l := rest)
     rcases hd : rest.drop s with _ | ⟨⟨k, v, c⟩, rest'⟩
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_nil] at this
-      omega
-    · rw [pack_cons_of_drop_eq_cons ss hd]
-      have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
-      rw [hd] at hmem
-      have hlen := congrArg List.length hd
-      simp only [List.length_drop, List.length_cons] at hlen
-      have hl' := ih (first := c) (rest := rest')
-        ⟨hl.good_rest _ (hmem _ List.mem_cons_self),
-          fun e he => hl.good_rest e (hmem e (List.mem_cons_of_mem _ he))⟩ (by omega)
+    · simp only [hd, List.length_nil] at hlen; omega
+    · simp only [hd, List.length_cons] at hlen
+      have hmem (e) (he : e ∈ (k, v, c) :: rest') : e ∈ rest := List.mem_of_mem_drop (hd ▸ he)
+      have hl' := ih ⟨hl.good_rest _ (hmem _ List.mem_cons_self),
+        fun e he => hl.good_rest e (hmem e (List.mem_cons_of_mem _ he))⟩ (by omega)
+      rw [pack_cons_of_drop_eq_cons ss hd]
       refine ⟨good_node hl.good_first (fun e he => hl.good_rest e (List.mem_of_mem_take he))
         (by rw [List.length_take]; omega) (by rw [List.length_take]; omega), ?_⟩
       rintro e (_ | ⟨_, he⟩)
@@ -492,9 +474,8 @@ private theorem shaped_build {t h fuel : ℕ} {first : BTree α β}
     (hfuel : rest.length ≤ fuel) : Shaped t (build t fuel first rest) := by
   induction fuel generalizing h first rest with
   | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simpa using hl.good_first.shaped ht
-    · simp at hfuel
+    obtain rfl : rest = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hfuel)
+    simpa using hl.good_first.shaped ht
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
@@ -506,8 +487,7 @@ private theorem shaped_build {t h fuel : ℕ} {first : BTree α β}
       · simpa using hl.good_first.shaped ht
       · rw [build_of_length_le (List.cons_ne_nil e es) hle]
         obtain ⟨hb, -, hco⟩ := node_of_good hl.good_first hl.good_rest
-        exact { rootKeys_le := hle, rootKeys_pos := fun _ => by simp,
-                occupied_of_mem_children := hco, balanced := hb }
+        exact ⟨hle, fun _ => by simp, hco, hb⟩
 
 /-- Bulk loading builds a tree of root shape at a minimum degree of at least `2`. -/
 private theorem shaped_ofSortedList {t : ℕ} (ht : 2 ≤ t) (l : List (α × β)) :
@@ -524,6 +504,18 @@ theorem height_ofSortedList_le {t : ℕ} (ht : 2 ≤ t) (l : List (α × β)) :
   have hs := shaped_ofSortedList ht l
   simpa using hs.balanced.height_le_log ht hs.rootKeys_pos hs.occupied_of_mem_children
 
+/-- At a minimum degree of at least `2`, the root of a bulk-loaded tree holds at most
+`2 * t - 1` keys, for every list. -/
+theorem rootKeys_ofSortedList_le {t : ℕ} (ht : 2 ≤ t) (l : List (α × β)) :
+    (ofSortedList t l).rootKeys ≤ 2 * t - 1 :=
+  (shaped_ofSortedList ht l).rootKeys_le
+
+/-- At a minimum degree of at least `2`, the children of the root of a bulk-loaded tree are
+occupied, for every list. -/
+theorem occupied_of_mem_children_ofSortedList {t : ℕ} (ht : 2 ≤ t) (l : List (α × β))
+    {c : BTree α β} (hc : c ∈ (ofSortedList t l).children) : Occupied t c :=
+  (shaped_ofSortedList ht l).occupied_of_mem_children c hc
+
 variable [LinearOrder α]
 
 /-- Bulk loading a sorted list builds a well-formed tree at a minimum degree of at least `2`. -/
@@ -533,6 +525,23 @@ theorem isWF_ofSortedList {t : ℕ} {l : List (α × β)} (ht : 2 ≤ t) (h : l.
   { two_le := ht, rootKeys_le := hs.rootKeys_le, rootKeys_pos := hs.rootKeys_pos,
     occupied_of_mem_children := hs.occupied_of_mem_children, balanced := hs.balanced,
     sorted := by rwa [toList_ofSortedList] }
+
+/-- Every list of values `vs` is the value list of a well-formed B-tree of minimum degree `t ≥ 2`
+with `vs.length` entries and distinct keys, over an infinite linearly ordered key type: bulk load
+`vs` under any `vs.length` keys in increasing order. -/
+theorem exists_isWF_toList_map_snd_eq [Infinite α] {t : ℕ} (ht : 2 ≤ t) (vs : List β) :
+    ∃ tree : BTree α β, IsWF t tree ∧ tree.size = vs.length ∧
+      (tree.toList.map Prod.fst).Nodup ∧ tree.toList.map Prod.snd = vs := by
+  obtain ⟨s, hs⟩ := Infinite.exists_subset_card_eq α vs.length
+  have hlen : (s.sort (· ≤ ·)).length = vs.length := by rw [Finset.length_sort, hs]
+  have hfst : ((s.sort (· ≤ ·)).zip vs).map Prod.fst = s.sort (· ≤ ·) := List.map_fst_zip hlen.le
+  refine ⟨ofSortedList t ((s.sort (· ≤ ·)).zip vs), isWF_ofSortedList ht ?_, ?_, ?_, ?_⟩
+  · rw [List.isSortedAssoc_iff_pairwise, hfst]
+    exact (Finset.sortedLT_sort s).pairwise
+  · rw [size_ofSortedList, List.length_zip, hlen, Nat.min_self]
+  · rw [toList_ofSortedList, hfst]
+    exact Finset.sort_nodup s _
+  · rw [toList_ofSortedList, List.map_snd_zip hlen.ge]
 
 /-- Lookup in a bulk-loaded sorted list is lookup in the list. -/
 @[simp] theorem lookup_ofSortedList {t : ℕ} {l : List (α × β)} (h : l.IsSortedAssoc) (k : α) :

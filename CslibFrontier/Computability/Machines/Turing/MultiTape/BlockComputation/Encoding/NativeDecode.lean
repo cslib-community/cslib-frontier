@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
 import Mathlib.Data.List.Induction
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Native decoding of runtime-width Boolean block labels
@@ -77,22 +78,8 @@ input storage, even when their declared binary width is malformed. -/
 theorem parse_eq_some_iff (e : Q ≃ Fin s) (b : ℕ) (word : List Bool) (raw : RawResult k Q) :
     parse e (b, word) = some raw ↔ b ≠ 0 ∧ word.length = width k s b ∧
       word.headD false = true ∧ raw = payload e b word := by
-  constructor
-  · intro hp
-    unfold parse at hp
-    split at hp
-    · contradiction
-    · rename_i hbad
-      have hb : b ≠ 0 := fun h => hbad (Or.inl h)
-      have hw : word.length = width k s b := by
-        by_contra h
-        exact hbad (Or.inr h)
-      split at hp
-      · rename_i ht
-        exact ⟨hb, hw, ht, (Option.some.inj hp).symm⟩
-      · contradiction
-  · rintro ⟨hb, hw, ht, rfl⟩
-    simp only [parse, hb, hw, ne_eq, not_true_eq_false, or_self, ↓reduceIte, ht]
+  simp only [parse]
+  grind
 
 
 /-- Native length measurement of an actual stored bit word. -/
@@ -145,9 +132,9 @@ private theorem scan_inSpace : ComputableInSpace (fun p : Scan × Bool => scan p
   have hcode := budget_finite (encC := encNat) (fun p : Bool × Bool => cellCode p.1 p.2)
     (budget_prod hfirst hbit)
   exact budget_ite hq.fst'
-    (budget_prod (budget_const false (.refl _))
-      (budget_prod (budget_const false (.refl _)) (budget_cons hcode hacc)))
-    (budget_prod (budget_const true (.refl _)) (budget_prod hbit hacc))
+    (budget_prod (budget_const false)
+      (budget_prod (budget_const false) (budget_cons hcode hacc)))
+    (budget_prod (budget_const true) (budget_prod hbit hacc))
 
 private theorem scan_length (q : Scan) (bit : Bool) :
     (encList encNat (scan q bit).2.2).length ≤ (encList encNat q.2.2).length + 5 := by
@@ -182,7 +169,7 @@ theorem cells_inSpace : ComputableInSpace cells encBits (encList encNat)
   have hl : ComputableInSpace (fun word : List Bool => word) encBits encBits
       (fun word => word.length) := of_inO ComputableInDegree.id'.inO_one
   have hinit : ComputableInSpace (fun _ : List Bool => ((false, false, []) : Scan)) encBits
-      encScan (fun word => word.length) := budget_const _ (.refl _)
+      encScan (fun word => word.length) := budget_const _
   have hstate (word : List Bool) (i : ℕ) (hi : i ≤ word.length) :
       (encScan ((word.take i).foldl scan (false, false, []))).length ≤ 6 + 5 * word.length := by
     have h := scan_fold_length (word.take i) (false, false, [])
@@ -252,7 +239,7 @@ theorem state_inSpace (e : Q ≃ Fin s) : ComputableInSpace (state e) encNat
   classical
   let tags := List.ofFn fun i : Fin (s + 1) => (stateIndex e).symm i
   have h := dispatch tags none (fun tag _ => tag)
-    (fun tag => budget_const (encB := encFinite (Option Q)) tag (.refl _))
+    (fun tag => budget_const (encB := encFinite (Option Q)) tag)
     (of_inO (ComputableInDegree.id' (enc := encNat)).inO_one)
   refine h.of_enc_eq ?_
   intro n
@@ -272,8 +259,8 @@ theorem trackOffset_inSpace : ComputableInSpace
     (fun p => (encArgs p).length) := by
   have hb := fst encNat encBits
   have hsize := budget_comp_linear natSize hb
-  exact budget_natAdd (budget_const (1 + (s + 1).size) (.refl _))
-    (budget_natMul (budget_const (k + 1) (.refl _)) hsize)
+  exact budget_natAdd (budget_const (1 + (s + 1).size))
+    (budget_natMul (budget_const (k + 1)) hsize)
 
 private theorem payload_inSpace (e : Q ≃ Fin s) : ComputableInSpace
     (fun p : ℕ × List Bool => payload (k := k) e p.1 p.2) encArgs encRawResult
@@ -283,14 +270,14 @@ private theorem payload_inSpace (e : Q ≃ Fin s) : ComputableInSpace
   have hw := snd encNat encBits
   have hsize := budget_comp_linear natSize hb
   have hstateRead := budget_comp_linear readNat_inSpace
-    (budget_prod hw (budget_prod (budget_const 1 (.refl _))
-      (budget_const (s + 1).size (.refl _))))
+    (budget_prod hw (budget_prod (budget_const 1)
+      (budget_const (s + 1).size)))
   have hstate := budget_comp_linear (state_inSpace e) hstateRead
   have hheads := pi_linear (Index := Option (Fin k)) fun i =>
     budget_natMod (budget_comp_linear readNat_inSpace
       (budget_prod hw (budget_prod
-        (budget_natAdd (budget_const (1 + (s + 1).size) (.refl _))
-          (budget_natMul (budget_const ((finSuccEquiv k).symm i).val (.refl _)) hsize))
+        (budget_natAdd (budget_const (1 + (s + 1).size))
+          (budget_natMul (budget_const ((finSuccEquiv k).symm i).val) hsize))
         hsize))) hb
   have htrack0 := budget_comp_linear (bitsGetD false)
     (budget_prod hw (trackOffset_inSpace (k := k) (s := s)))
@@ -299,13 +286,13 @@ private theorem payload_inSpace (e : Q ≃ Fin s) : ComputableInSpace
   have htrack := budget_finite (encC := encFinite OutputTrack)
     (fun q : Bool × Bool => if q.2 then .other else if q.1 then .accept else .empty)
     (budget_prod htrack0 htrack1)
-  have hwindowSize := budget_natMul (budget_const (encB := encNat) 6 (.refl _)) hb
+  have hwindowSize := budget_natMul (budget_const (encB := encNat) 6) hb
   have hcells := pi_linear (Index := Fin k) fun i =>
     budget_comp_linear cells_inSpace (budget_comp_linear slice_inSpace
       (budget_prod hw (budget_prod
         (budget_natAdd (budget_natAdd (trackOffset_inSpace (k := k) (s := s))
-          (budget_const 2 (.refl _)))
-          (budget_natMul (budget_const i.val (.refl _)) hwindowSize)) hwindowSize)))
+          (budget_const 2))
+          (budget_natMul (budget_const i.val) hwindowSize)) hwindowSize)))
   exact (budget_prod hstate (budget_prod hheads (budget_prod htrack hcells))).of_enc_eq
     fun _ => rfl
 
@@ -316,10 +303,10 @@ theorem parse_inSpace (e : Q ≃ Fin s) : ComputableInSpace (parse (k := k) e) e
   have hw := snd encNat encBits
   have hsize := budget_comp_linear natSize hb
   have hwidth := budget_natAdd
-    (budget_natAdd (budget_const (1 + (s + 1).size) (.refl _))
-      (budget_natMul (budget_const (k + 1) (.refl _)) hsize))
-    (budget_natAdd (budget_const 2 (.refl _))
-      (budget_natMul (budget_const (6 * k) (.refl _)) hb))
+    (budget_natAdd (budget_const (1 + (s + 1).size))
+      (budget_natMul (budget_const (k + 1)) hsize))
+    (budget_natAdd (budget_const 2)
+      (budget_natMul (budget_const (6 * k)) hb))
   have hlength := budget_comp_linear wordLength_inSpace hw
   have hbad := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 || !q.2)
     (budget_prod (budget_natIsZero hb) (budget_natEq hlength hwidth))
@@ -331,7 +318,7 @@ theorem parse_inSpace (e : Q ≃ Fin s) : ComputableInSpace (parse (k := k) e) e
       (enc := encOption (encRawResult (k := k) (Q := Q)))).inO_one) (payload_inSpace (k := k) e)
   have hnone : ComputableInSpace (fun _ : ℕ × List Bool =>
       (none : Option (RawResult k Q))) encArgs (encOption encRawResult)
-      (fun p => (encArgs p).length) := budget_const none (.refl _)
+      (fun p => (encArgs p).length) := budget_const none
   refine (budget_ite hbad hnone (budget_ite htag hsome hnone)).of_enc_eq ?_
   intro p
   have hwidth : 1 + (s + 1).size + (k + 1) * p.1.size + (2 + 6 * k * p.1) =
@@ -347,22 +334,16 @@ private theorem cells_getD (word : List Bool) (i : ℕ) (hi : 2 * i + 1 < word.l
     (cells word).getD i 0 = cellCode (word.getD (2 * i) false) (word.getD (2 * i + 1) false) := by
   induction i generalizing word with
   | zero =>
-    rcases word with _ | ⟨first, word⟩
+    rcases word with _ | ⟨_, _ | ⟨_, _⟩⟩
     · simp at hi
-    rcases word with _ | ⟨second, word⟩
     · simp at hi
-    rfl
+    · rfl
   | succ i ih =>
-    rcases word with _ | ⟨first, word⟩
+    rcases word with _ | ⟨_, _ | ⟨_, word⟩⟩
     · simp at hi
-    rcases word with _ | ⟨second, word⟩
     · simp at hi
-    have hrest : 2 * i + 1 < word.length := by simp only [List.length_cons] at hi; omega
-    rw [cells, List.getD_cons_succ]
-    rw [show 2 * (i + 1) + 1 = ((2 * i + 1) + 1) + 1 from by omega,
-      show 2 * (i + 1) = (2 * i + 1) + 1 from by omega]
-    simp only [List.getD_cons_succ]
-    exact ih word hrest
+    · simp only [cells, Nat.mul_succ, List.getD_cons_succ]
+      exact ih word (by simp only [List.length_cons] at hi; omega)
 
 private theorem slice_ofFn {n : ℕ} (bits : BitString n) (offset count : ℕ)
     (h : offset + count ≤ n) :
@@ -414,9 +395,7 @@ theorem toView_payload (e : Q ≃ Fin s) (b : ℕ) [NeZero b]
     intro i
     simp only [fstBits_apply, Fin.tail]
     apply congrArg bits
-    apply Fin.ext
-    simp only [Fin.val_succ, Fin.val_castAdd]
-    omega
+    fin_index
   have hheads (head : Option (Fin k)) :
       readNat (List.ofFn bits)
         (1 + (s + 1).size + ((finSuccEquiv k).symm head).val * b.size) b.size =

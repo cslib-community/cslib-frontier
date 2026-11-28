@@ -1,5 +1,7 @@
 # Circuits, logic, and information-access models
 
+> **Frozen in November 2026.** This chapter is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 cslib-frontier uses several kinds of computational model for different purposes. A circuit gives a finite composition of semantic operations; a decision tree or communication protocol charges access to information; a logical formula defines a query on a finite structure; a proof object measures a derivation; a learner or tester measures examples or oracle queries. These models often share functions and theorems, but their resource units are not interchangeable. This section surveys their definitions and the principal bridges at source snapshot `13e6a31951bf1c89a1a6258c44f9444aecbbefd8`. [cslib-frontier][complexitylib]
 
 The curated [Model map](../model-map.md) contains **92 entries**, separating changes in semantics or resource accounting while grouping internal proof records under the model they support. The original survey checked 189 principal declaration anchors in 125 distinct cited files. These dated counts describe the editorial selection; they are neither a declaration census of the whole library nor an assertion that there are exactly 92 mathematically distinct models.
@@ -13,9 +15,10 @@ The curated [Model map](../model-map.md) contains **92 entries**, separating cha
 | [Networks and finite dynamics](networks-and-iteration.md) | How do graph separators, tensor contractions, nondeterministic paths and function iteration connect? |
 | [Query and communication complexity](query-and-communication.md) | Which information-access costs are charged, including LOCAL rounds and Byzantine agreement, and what lower-bound and simulation theorems use them? |
 | [Finite-model logic](finite-model-logic.md) | How do formulas, interpretations, encodings and native complexity classes meet? |
+| [SQL query semantics](sql-semantics.md) | What do SQL values, `NULL`, three-valued predicates, operators, expressions and bag-semantics queries mean, when is an expression or a query safe, when are two queries equivalent, which rewrite laws hold, how does the certified simplifier apply them, and how many rows does an equijoin return? |
 | [Propositional proof systems](proof-systems.md) | Which proof objects and measures support resolution lower bounds, interpolation, algebraic proof systems, cutting planes and Frege proofs? |
 | [Learning and property testing](learning-and-testing.md) | Are the proved bounds on samples, queries, or machine time? |
-| [Metacomplexity and lower-bound methods](metacomplexity-and-methods.md) | What are the MCSP variants and conditional barriers, and how are general lower-bound arguments packaged? |
+| [Metacomplexity and lower-bound methods](metacomplexity-and-methods.md) | What are the MCSP and time-bounded Kolmogorov problems, which magnification, one-way-function and NP-hardness consequences are proved and under which hypotheses, and how are general lower-bound arguments packaged? |
 
 ## Architecture and concrete use
 
@@ -53,7 +56,7 @@ The November 2 dependency-pin audit found that the live CSLib and Mathlib packag
 
 Coverage is organized by model family and behavior-changing variant. The 564 files under the circuit root alone include many arithmetic, encoding and proof-internal records that are not independent computational models. The map is intentionally curated rather than derived by treating each `structure` declaration as a model. Its principal remaining coverage risk is an omitted subordinate semantic variant in the large circuit/frontier/rational development; the source-location validator cannot establish semantic completeness.
 
-The [native verifier account](../machines-and-classes/verifiers-counting-interaction.md) owns IP and PCP class semantics. The distinct public-coin oracle-reduction model, sumcheck and GKR are covered in [interactive reductions](../programs-crypto-and-probability/interactive-reductions.md), including full versus coordinate access and the separate efficiency interfaces. This section owns their circuit and query-testing models. BQP and its four gate-time/acceptance variants are owned here through uniform-circuit semantics; [machines and classes](../machines-and-classes/index.md) cross-links native class containments involving them. Cryptographic games and pseudorandomness are owned by [programs and cryptography](../programs-crypto-and-probability/index.md); their natural-proofs client is discussed here. Development dates and automation claims belong to [development history](../development-history/index.md), not to current source annotations.
+The [native verifier account](../machines-and-classes/verifiers-counting-interaction.md) owns IP and PCP class semantics. The distinct public-coin oracle-reduction model, sumcheck and GKR are covered in [interactive reductions](../programs-crypto-and-probability/interactive-reductions.md), including full versus coordinate access and the separate efficiency interfaces. This section owns their circuit and query-testing models. BQP and its four gate-time/acceptance variants are owned here through uniform-circuit semantics; [machines and classes](../machines-and-classes/index.md) cross-links native class containments involving them. Cryptographic games and pseudorandomness are owned by [programs and cryptography](../programs-crypto-and-probability/index.md); their natural-proofs client is discussed here. Development dates and automation claims belong to [development history](../history/development.md), not to current source annotations.
 
 ## Maintaining the reference
 

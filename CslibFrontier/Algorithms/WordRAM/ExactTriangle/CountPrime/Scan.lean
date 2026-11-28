@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.ScanCell
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native selected-coefficient scan
@@ -59,45 +61,31 @@ theorem exec_count {w n p k : ℕ} (x : Data 128) (keys values : ℕ → ℕ)
     have hlt : y.regs Reg.index < n * n := by
       simpa only [Cond.holds_lt, keep Reg.cells (by decide), hc] using hcond
     obtain ⟨z, he, zm, zi, zr, keepz⟩ := exec_countStep y
-      ((keep _ (by decide)).trans hn) ((keep _ (by decide)).trans hp) rfl hlt hpadding
+      (by regs_frame) (by regs_frame) rfl hlt hpadding
       (by rw [memory, keep Reg.residueAB (by decide)]; exact hresidues _ hlt)
       (hkeys _ hlt)
       (by rw [memory, keep Reg.matrixR (by decide)]; exact hproduct _ hlt)
       (hbound _ hlt) result
       (scan_sum_le values (fun i hi => hbound i (hi.trans hlt)))
-      ((keep _ (by decide)).trans h0) ((keep _ (by decide)).trans h1)
-      ((keep _ (by decide)).trans h2)
+      (by regs_frame) (by regs_frame) (by regs_frame)
       (by rw [memory, keep Reg.spread (by decide)]; exact htable)
       (by simpa only [keep Reg.spread (by decide), keep Reg.residueAB (by decide),
         keep Reg.matrixR (by decide)] using hw)
     refine ⟨z, he, ⟨fun j hj => (keepz j hj).trans (regs j hj), zm.trans memory,
       by omega, ?_⟩, by omega⟩
     rw [zi, Finset.sum_range_succ, zr]
-  let start := (x.set Reg.result 0).set Reg.index 0
-  have init : ExecWithin (B := .standard) w
-      (ram[ Reg.result ← #0; Reg.index ← #0 ]) x start 2 := by
-    ram_eval [start, fits_zero w]
-  have startI : I start := by
-    refine ⟨?_, rfl, by change 0 ≤ n * n; omega, ?_⟩
-    · intro j hj
-      have hi : j ≠ Reg.index := by intro h; subst j; exact hj (by decide)
-      have hr : j ≠ Reg.result := by intro h; subst j; exact hj (by decide)
-      simp only [start, Data.set, Function.update_of_ne hi, Function.update_of_ne hr]
-    · change 0 = ∑ i ∈ Finset.range 0, values i
-      simp
-  obtain ⟨y, run, hy, stopped⟩ := ExecWithin.loop_invariant I
-    (fun y => n * n - y.regs Reg.index) body startI
-  obtain ⟨regs, memory, index, result⟩ := hy
+  refine WP.exists_execWithin ?_
+  unfold count
+  wram_exec
+  wram_call (ExecWithin.loop_invariant I (fun y => n * n - y.regs Reg.index) body
+    ⟨fun j hj => by
+      have hi : j ≠ Reg.index := fun h => hj (by subst j; decide)
+      have hr : j ≠ Reg.result := fun h => hj (by subst j; decide)
+      wram_simp [hi, hr],
+     rfl, by wram_simp; exact Nat.zero_le _, by wram_simp; simp⟩)
+    with y ⟨⟨regs, memory, index, result⟩, stopped⟩
   have ended : y.regs Reg.index = n * n := by
-    simp only [Cond.holds_lt, regs Reg.cells (by decide), hc] at stopped
-    omega
-  have full : ExecWithin w count x y (22 * (n * n) + 4) := by
-    obtain ⟨i, hi, he⟩ := init
-    obtain ⟨j, hj, hf⟩ := run
-    cases he with
-    | seq ha hb =>
-      exact ⟨_, by change j ≤ (n * n - 0) * (20 + 2) + 2 at hj; omega,
-        .seq ha (.seq hb hf)⟩
-  exact ⟨y, full, memory, by simpa only [ended] using result, regs⟩
+    simp only [Cond.holds_lt, regs Reg.cells (by decide), hc] at stopped; omega
+  exact ⟨by wram_simp; omega, memory, by simpa only [ended] using result, regs⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

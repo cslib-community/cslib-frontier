@@ -36,6 +36,8 @@ count `f` with an FP threshold `k` and an amplified gap is turned into the path 
 
 * `Cslib.Complexity.SBP_subset_BPPpath`: SBP is contained in BPPpath.
 * `Cslib.Complexity.BPP_subset_BPPpath`, `Cslib.Complexity.BPPpath_subset_PP`.
+* `Cslib.Complexity.PolyTimeReducible.mem_BPPpath`: closure under polynomial-time many-one
+  reductions.
 
 ## References
 
@@ -71,15 +73,11 @@ theorem SBP_subset_BPPpath : SBP enc ⊆ BPPpath enc := by
   intro A hA
   obtain ⟨f, hf, k, hk, hkpos, hgap⟩ := exists_SBP_gap_pow hA (m := 4) (by decide)
   refine ⟨fun a => 3 * f a, SharpP.mul_mem (SharpP.natCast_mem 3) hf, k,
-    mem_SharpP_of_polyTime hk, fun a => ⟨?_, fun ha => ?_, fun ha => ?_⟩⟩
-  · have := hkpos a
-    omega
-  · have := (hgap a).1 ha
-    dsimp only
-    omega
-  · have := (hgap a).2 ha
-    dsimp only
-    omega
+    mem_SharpP_of_polyTime hk, fun a => ?_⟩
+  have hk0 := hkpos a
+  obtain ⟨h1, h2⟩ := hgap a
+  dsimp only
+  grind
 
 /-- **BPP ⊆ BPPpath**, through `BPP ⊆ SBP`
 [Han, Hemaspaandra and Thierauf][HanHemaspaandraThierauf1997]. -/
@@ -93,12 +91,14 @@ theorem BPPpath_subset_PP : BPPpath enc ⊆ PP enc := by
     (SharpP.natCast_mem_GapP hrej), fun a => ?_⟩
   obtain ⟨hpos, hmem, hnot⟩ := h a
   change a ∈ A ↔ 0 < (acc a : ℤ) - rej a
-  by_cases ha : a ∈ A
-  · have := hmem ha
-    simp only [ha, true_iff]
-    omega
-  · have := hnot ha
-    simp only [ha, false_iff]
-    omega
+  grind
+
+/-- Exact-count precomposition preserves both path counts. -/
+theorem PolyTimeReducible.mem_BPPpath {β : Type} {encB : β ↪ List Bool} {B : Set β}
+    (h : PolyTimeReducible enc encB A B) (hB : B ∈ BPPpath encB) : A ∈ BPPpath enc := by
+  obtain ⟨r, hr, hAB⟩ := h
+  obtain ⟨acc, hacc, rej, hrej, hB⟩ := hB
+  exact ⟨acc ∘ r, SharpP.comp_mem hacc hr, rej ∘ r, SharpP.comp_mem hrej hr, fun a => by
+    simpa only [Function.comp_apply, ← hAB a] using hB (r a)⟩
 
 end Cslib.Complexity

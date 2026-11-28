@@ -35,6 +35,8 @@ on `{i}` is the average of its derivative in `i`
 * `Cslib.BitString.expect_update_false_add_update_true`: averaging over one bit.
 * `Cslib.BitString.fourierCoeff_singleton_eq_expect_derivative`: the coefficient on `{i}` is the
   average derivative in `i`.
+* `Cslib.BitString.expect_update_false`: fixing bit `i` to `false` moves the mean by the
+  coefficient on `{i}`.
 
 ## References
 
@@ -98,20 +100,22 @@ theorem fourierCoeff_cond (i : ι) (f₀ f₁ : (ι → Bool) → ℝ) (S : Fins
 equal to `false` and to `true` gives twice the average of `φ`. -/
 theorem expect_update_false_add_update_true (φ : (ι → Bool) → ℝ) (i : ι) :
     𝔼 x, (φ (update x i false) + φ (update x i true)) = 2 * 𝔼 x, φ x := by
-  have hpt (x : ι → Bool) : φ (update x i false) + φ (update x i true) =
-      φ x + φ (update x i (!x i)) := by
-    cases hx : x i
-    · rw [show update x i false = x from update_eq_self_iff.2 hx.symm, Bool.not_false]
-    · rw [show update x i true = x from update_eq_self_iff.2 hx.symm, Bool.not_true, add_comm]
-  have hflip : 𝔼 x, φ (update x i (!x i)) = 𝔼 x, φ x :=
-    Fintype.expect_bijective _ (Involutive.bijective fun x => by simp) _ _ fun _ => rfl
-  simp only [hpt, expect_add_distrib, hflip]
+  simp only [Fintype.expect_eq_sum_div_card, sum_update_false_add_update_true]
   ring
 
 /-- The Fourier coefficient of `f` on `{i}` is the average of the derivative of `f` in `i`. -/
 theorem fourierCoeff_singleton_eq_expect_derivative (i : ι) (f : (ι → Bool) → ℝ) :
     fourierCoeff f {i} = 𝔼 x, derivative i f x := by
   rw [← fourierCoeff_empty, fourierCoeff_derivative, ite_eq_right (notMem_empty i), insert_empty]
+
+/-- Fixing bit `i` to `false` moves the mean of `F` by its coefficient on `{i}`:
+`𝔼 F(x^{i ↦ false}) = 𝔼 F + F̂({i})`. -/
+theorem expect_update_false (F : (ι → Bool) → ℝ) (i : ι) :
+    𝔼 x, F (Function.update x i false) = 𝔼 x, F x + fourierCoeff F {i} := by
+  have h := expect_update_false_add_update_true F i
+  rw [fourierCoeff_singleton_eq_expect_derivative]
+  simp only [derivative, ← expect_div, expect_sub_distrib, expect_add_distrib] at h ⊢
+  linarith
 
 end DecidableEq
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Native natural powers
@@ -55,39 +56,21 @@ Every multiplication fit follows from the final power and exponent bound. -/
 theorem exec {w : ℕ} (b n : ℕ) (hb : 1 ≤ b) (x : Data 5)
     (hx : x.regs base = b) (hn : x.regs exponent = n) (hfit : Fits w (b ^ n + n + 2)) :
     ∃ y, ExecWithin w program x y (4 * n + 5) ∧ Post b n x y := by
-  unfold Post
-  have h0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-  have h1 : Fits w 1 := hfit.of_le (by omega)
-  let start := ((x.set value 1).set counter 0).set one 1
-  have hs : ExecWithin (B := .standard) w
-      (ram[ value ← #1; counter ← #0; one ← #1 ]) x start 3 := by
-    ram_eval [start, h0, h1, value, counter, one, Fin.mk.injEq]
+  unfold Post program
+  wram_exec
   let P (j : ℕ) (y : Data 5) : Prop :=
-    y.regs base = b ∧ y.regs exponent = n ∧ y.regs one = 1 ∧
-      y.regs value = b ^ j ∧ y.mem = x.mem
-  have hi : P (start.regs counter) start := by
-    simp [P, start, hx, hn, base, exponent, one, counter, value]
-  have hbody (y : Data 5) (hy : P (y.regs counter) y) (hc_lt : y.regs counter < n) :
-      ∃ z, ExecWithin w body y z 2 ∧ P (y.regs counter + 1) z ∧
-        z.regs counter = y.regs counter + 1 := by
-    obtain ⟨hbv, hnv, ho, hv, hm⟩ := hy
-    have hpn : b ^ (y.regs counter + 1) ≤ b ^ n := Nat.pow_le_pow_right hb (by omega)
-    have hp : Fits w (b ^ (y.regs counter + 1)) := hfit.of_le (hpn.trans (by omega))
-    have hj : Fits w (y.regs counter + 1) := hfit.of_le (by omega)
-    let z := (y.set value (b ^ (y.regs counter + 1))).set counter (y.regs counter + 1)
-    have he : ExecWithin w body y z 2 := by
-      ram_eval [body, z, hbv, ho, hv, ← pow_succ, hp, hj,
-        value, counter, base, one, Fin.mk.injEq]
-    refine ⟨z, he, ?_, by simp [z]⟩
-    simpa +decide [P, z, base, exponent, one, counter, value, Function.update_apply] using
-      (show y.regs base = b ∧ y.regs exponent = n ∧ y.regs one = 1 ∧ y.mem = x.mem from
-        ⟨hbv, hnv, ho, hm⟩)
-  obtain ⟨y, he, ⟨hyb, hyn, hy1, hyv, hym⟩, hj⟩ := ExecWithin.loop_count P
-    (fun y hy => hy.2.1) hbody (by simp [start, counter, one]) hi
-  refine ⟨y, ?_, hyv, hj, hy1, hym, hyb, hyn⟩
-  · apply (hs.seq he).mono
-    have hs0 : start.regs counter = 0 := by simp [start, counter, one]
-    rw [hs0, Nat.sub_zero]
-    omega
+    y.regs base = b ∧ y.regs exponent = n ∧ y.regs one = 1 ∧ y.regs value = b ^ j ∧ y.mem = x.mem
+  refine WP.of_spec (ExecWithin.loop_count (N := n) (T := 2) P (fun _ hy => hy.2.1) ?_ ?_ ?_) ?_
+  · rintro y ⟨hbv, hnv, ho, hv, hm⟩ hc_lt
+    have hp : Fits w (b ^ (y.regs counter + 1)) := by
+      fits [Nat.pow_le_pow_right hb (show y.regs counter + 1 ≤ n by omega)]
+    unfold body
+    wram_exec [hbv, ho, hv, ← pow_succ]
+    dsimp only [P]
+    wram_simp [hbv, hnv, ho, hm]
+  · wram_simp [Nat.zero_le]
+  · dsimp only [P]; wram_simp [hx, hn, pow_zero]
+  · rintro y ⟨⟨hyb, hyn, hy1, hyv, hym⟩, hj⟩
+    exact ⟨by wram_simp; omega, hyv, hj, hy1, hym, hyb, hyn⟩
 
 end Cslib.WordRAM.Power

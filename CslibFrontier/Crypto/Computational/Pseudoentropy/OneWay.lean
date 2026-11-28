@@ -29,7 +29,6 @@ uniform theorems are the empty-advice case.
 * `Cslib.Crypto.Pseudoentropy.HashPair.eventually_prediction_entropy_le_withAdvice`,
   `Cslib.Crypto.Pseudoentropy.HashPair.pair_hasGapWithAdvice`: the prediction gap relative to a
   fixed advice family.
-* `Cslib.Crypto.Pseudoentropy.HashPair.pair_hasGap`: prediction gap for normalized word functions.
 * `Cslib.Crypto.OneWay.exists_pseudoentropyPair`,
   `Cslib.Crypto.NonuniformOneWay.exists_pseudoentropyPair`: every uniform (nonuniform) OWF gives
   an exactly samplable pair with an inverse-linear prediction gap against uniform predictors
@@ -57,8 +56,7 @@ open scoped NNReal
 theorem precision_three_ge {n : ℕ} (hn : 8 ≤ n) :
     8 * hashCount n ≤ precision 3 n := by
   have hcount := hashCount_le n
-  have hsquare : 9 ^ 2 ≤ (n + 1) ^ 2 := Nat.pow_le_pow_left (by lia) 2
-  have hcube := Nat.mul_le_mul_right (n + 1) hsquare
+  have hcube := Nat.mul_le_mul_right (n + 1) (Nat.pow_le_pow_left (show 9 ≤ n + 1 by omega) 2)
   simp only [precision, pow_succ, pow_zero, one_mul] at hcube ⊢
   omega
 
@@ -68,11 +66,11 @@ parameter and word alone. -/
 private theorem exists_advice_budget_le {advice : ℕ → List Bool}
     (hadvice : PolynomiallyBounded (fun n => (advice n).length)) (c d : ℕ) :
     ∃ c' d' : ℕ, ∀ n word,
-      c * ((encPair (encPair encUnary encBits) encBits ((n, advice n), word)).length + 1) ^ d ≤
+      c * ((encAdvisedInput ((n, advice n), word)).length + 1) ^ d ≤
         c' * ((encPair encUnary encBits (n, word)).length + 1) ^ d' := by
   obtain ⟨C, D, hC⟩ := polynomiallyBounded_iff_le.mp hadvice
   refine ⟨c * (2 * C + 4) ^ d, (D + 1) * d, fun n word => ?_⟩
-  simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
+  simp only [encAdvisedInput, length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
   set L := 2 * n + 1 + word.length + 1 with hL
   have hLD : L ≤ L ^ (D + 1) := Nat.le_self_pow (Nat.succ_ne_zero D) L
   have hCL : C * (n + 1) ^ D ≤ C * L ^ (D + 1) :=
@@ -102,7 +100,7 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
     (hencode : ∀ n x, f (List.ofFn x) = encodeImage n (finiteFunction n x))
     (imageLength : ℕ → ℕ) (hlength : ∀ n image, (encodeImage n image).length = imageLength n)
     (adversary : (ℕ × List Bool) × List Bool → ProbComp Bool)
-    (hPPT : IsPPTOn (encPair (encPair encUnary encBits) encBits) encBool adversary) :
+    (hPPT : IsPPTOn encAdvisedInput encBool adversary) :
     ∀ᶠ n in atTop, 2 * Pr[predictionGame (sample f)
         (fun n word => adversary ((n, advice n), word)) n] - 1 ≤
       1 - PMF.conditionalEntropy (joint (count := hashCount n) (finiteFunction n)) -
@@ -116,22 +114,20 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
     (fun ((((_, word), _), (m, observation)), tape) => (((m, word), observation), tape) :
       (((ℕ × List Bool) × List Bool) × (ℕ × List Bool)) × List Bool →
         ((ℕ × List Bool) × List Bool) × List Bool)
-    (encPair (encPair (encPair (encPair encUnary encBits) encBits) (encPair encUnary encBits))
-      encBits) (encPair (encPair (encPair encUnary encBits) encBits) encBits) by fun_prop)
-  have hinverter := isPPTOn_wordInverter (evaluate := advisedEvaluate)
-    (parameter := fun ((n, _), _) => n) (image := fun ((_, _), image) => image) hf hevaluate
-    (by fun_prop) (by fun_prop) c' d' 3
-  have hinversion := hhard.inversion_negligible _ hinverter
+    (encPair (encPair encAdvisedInput (encPair encUnary encBits))
+      encBits) (encPair encAdvisedInput encBits) by fun_prop)
   have hloss : Negligible (fun n => 128 * (dyadicSize (16 * hashCount n) : ℝ≥0) ^ 2 *
       Game.succProbability (ProbComp.eval (inversionGame f
         (fun n image => wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image)
           n))) := by
     simpa only [Nat.cast_mul, Nat.cast_ofNat, Nat.cast_pow] using
-      hinversion.polynomiallyBounded_mul
+      (hhard.inversion_negligible _ (isPPTOn_wordInverter (evaluate := advisedEvaluate)
+        (parameter := fun ((n, _), _) => n) (image := fun ((_, _), image) => image) hf hevaluate
+        (by fun_prop) (by fun_prop) c' d' 3)).polynomiallyBounded_mul
         (show PolynomiallyBounded (fun n => 128 * dyadicSize (16 * hashCount n) ^ 2) by fun_prop)
-  have hsmall := hloss.eventually_le_inv_polynomial
-    hashCount_polynomiallyBounded (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n)))
-  filter_upwards [hsmall, eventually_ge_atTop 8] with n hsmall hn
+  filter_upwards [hloss.eventually_le_inv_polynomial hashCount_polynomiallyBounded
+    (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n))), eventually_ge_atTop 8]
+    with n hsmall hn
   simp only [NNReal.coe_mul, NNReal.coe_pow, NNReal.coe_ofNat, NNReal.coe_natCast,
     Game.coe_succProbability] at hsmall
   have h := word_prediction_entropy_le f (finiteFunction n) (encodeImage n)
@@ -139,37 +135,11 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
     (fun (m, word) coins => evaluate ((m, advice m), word) coins) c' d'
     (fun m word budget hle => hrealize ((m, advice m), word) budget ((hbudget m word).trans hle))
     3 (precision_three_ge hn)
-  have hsame : Pr[inversionGame f (wordInverter f
+  rw [div_eq_mul_one_div (2 : ℝ), show Pr[inversionGame f (wordInverter f
       (fun (m, word) coins => evaluate ((m, advice m), word) coins) c' d' 3) n] =
       Pr[inversionGame f (fun n image =>
-        wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image) n] := rfl
-  rw [div_eq_mul_one_div (2 : ℝ), hsame] at h
+        wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image) n] from rfl] at h
   linarith only [h, hsmall]
-
-/-- The finite entropy threshold holds eventually against every uniform PPT word predictor.
-The image may have any fixed width at each parameter; it need not be a permutation or regular.
-This is the empty-advice case of `eventually_prediction_entropy_le_withAdvice`. -/
-theorem eventually_prediction_entropy_le {f : List Bool → List Bool} (hf : OneWay f)
-    {Image : ℕ → Type} [∀ n, Finite (Image n)]
-    (finiteFunction : ∀ n, BitString n → Image n) (encodeImage : ∀ n, Image n ↪ List Bool)
-    (hencode : ∀ n x, f (List.ofFn x) = encodeImage n (finiteFunction n x))
-    (imageLength : ℕ → ℕ) (hlength : ∀ n image, (encodeImage n image).length = imageLength n)
-    (adversary : Distinguisher) (hPPT : IsPPT encBool adversary) :
-    ∀ᶠ n in atTop, 2 * Pr[predictionGame (sample f) adversary n] - 1 ≤
-      1 - PMF.conditionalEntropy (joint (count := hashCount n) (finiteFunction n)) -
-        1 / (hashCount n : ℝ) := by
-  obtain ⟨hpoly, hhard⟩ := oneWay_iff_inversionHardWithAdvice_nil.mp hf
-  have h := eventually_prediction_entropy_le_withAdvice hpoly hhard
-    (PolynomiallyBounded.const 0) finiteFunction encodeImage hencode imageLength hlength
-    (fun a => adversary a.1.1 a.2)
-    (hPPT.on.preprocess
-      ((ComputableInPolyTime.fst (encPair encUnary encBits) encBits).fst'.prod (.snd _ _)))
-  have hsame (n : ℕ) :
-      predictionGame (sample f)
-        (fun n word => (fun a : (ℕ × List Bool) × List Bool => adversary a.1.1 a.2)
-          ((n, ([] : List Bool)), word)) n =
-      predictionGame (sample f) adversary n := rfl
-  simpa only [hsame] using h
 
 /-- A function whose inversion is hard with a polynomially bounded advice family, and which has a
 fixed image width at each parameter, gives a samplable pair whose gap holds against predictors with
@@ -184,19 +154,9 @@ theorem pair_hasGapWithAdvice {f : List Bool → List Bool}
     (imageLength : ℕ → ℕ) (hlength : ∀ n image, (encodeImage n image).length = imageLength n) :
     (pair f hf finiteFunction encodeImage hencode).HasGapWithAdvice
       (fun n => 1 / (hashCount n : ℝ)) advice :=
-  eventually_prediction_entropy_le_withAdvice hf hhard hadvice finiteFunction encodeImage hencode
-    imageLength hlength
-
-/-- A one-way function with a fixed image width at each parameter gives a samplable
-pseudoentropy pair. The gap is inverse-linear in the original input length. -/
-theorem pair_hasGap {f : List Bool → List Bool} (hf : OneWay f)
-    {Image : ℕ → Type} [∀ n, Finite (Image n)]
-    (finiteFunction : ∀ n, BitString n → Image n) (encodeImage : ∀ n, Image n ↪ List Bool)
-    (hencode : ∀ n x, f (List.ofFn x) = encodeImage n (finiteFunction n x))
-    (imageLength : ℕ → ℕ) (hlength : ∀ n image, (encodeImage n image).length = imageLength n) :
-    (pair f hf.polyTime finiteFunction encodeImage hencode).HasGap
-      (fun n => 1 / (hashCount n : ℝ)) :=
-  eventually_prediction_entropy_le hf finiteFunction encodeImage hencode imageLength hlength
+  SamplablePair.hasGapWithAdvice_iff_word.mpr
+    (eventually_prediction_entropy_le_withAdvice hf hhard hadvice finiteFunction encodeImage
+      hencode imageLength hlength)
 
 end Cslib.Crypto.Pseudoentropy.HashPair
 
@@ -242,9 +202,9 @@ theorem NonuniformOneWay.exists_pseudoentropyPair {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     ∃ pair : SamplablePair, ∀ advice : ℕ → List Bool,
       PolynomiallyBounded (fun n => (advice n).length) →
-        pair.HasGapWithAdvice (fun n => 1 / (2 * ((n : ℝ) + 7))) advice := by
-  obtain ⟨g, length, hg, hlength, _⟩ := hf.exists_fixedOutputLength
-  obtain ⟨pair, hpair⟩ := exists_pseudoentropyPair_of_fixedOutputLength hg.polyTime hlength
-  exact ⟨pair, fun advice hadvice => hpair advice (hg.secure advice hadvice) hadvice⟩
+        pair.HasGapWithAdvice (fun n => 1 / (2 * ((n : ℝ) + 7))) advice :=
+  let ⟨_, _, hg, hlength, _⟩ := hf.exists_fixedOutputLength
+  let ⟨pair, hpair⟩ := exists_pseudoentropyPair_of_fixedOutputLength hg.polyTime hlength
+  ⟨pair, fun advice hadvice => hpair advice (hg.secure advice hadvice) hadvice⟩
 
 end Cslib.Crypto

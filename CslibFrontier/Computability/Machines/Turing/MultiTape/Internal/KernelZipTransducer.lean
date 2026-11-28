@@ -8,10 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTape
 public import Mathlib.Data.Fintype.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
+import Mathlib.Data.Fintype.Prod
 import Mathlib.Basic.Finite.Prod
 import Mathlib.Basic.Finite.Sum
 
@@ -27,7 +30,9 @@ tape and `u` on the work tape simultaneously. It runs in time linear in the inpu
 
 * `Turing.MultiTapeTM.ZipTransducer`: finite-state transducers on pairs of optional bits.
 * `Turing.MultiTapeTM.ZipTransducer.run`: the word a zip transducer emits on two words.
-* `Turing.MultiTapeTM.ZipTransducer.toTM`: the zip transducer as a machine with one work tape.
+* `Turing.MultiTapeTM.ZipTransducer.toMachine`: the zip transducer as an explicit table with one
+  work tape.
+* `Turing.MultiTapeTM.ZipTransducer.toTM`: its deterministic semantics.
 
 ## Main results
 
@@ -104,6 +109,7 @@ public inductive State (Q : Type*) where
   | zip (q : Q) (pending : Option Bool)
   /-- Emitting the last output symbol before halting. -/
   | flush (b : Bool)
+  deriving DecidableEq
 
 /-- An encoding of the control states into a finite type. -/
 private def State.toSum {Q : Type*} : State Q → Fin 3 ⊕ (Q × Option Bool) ⊕ Bool
@@ -118,44 +124,63 @@ public instance State.instFinite {Q : Type*} [Finite Q] : Finite (State Q) :=
   Finite.of_injective State.toSum fun a b h => by
     cases a <;> cases b <;> simp_all [State.toSum]
 
-/-- The action that halts without moving or writing. -/
-private def haltAction {Q : Type*} : Action 1 Bool (State Q) :=
-  { inputTape := 0, workTapes := fun _ => (none, 0), output := none, state := none }
+/-- Constructive enumeration of the zip-machine states from an enumeration of transducer
+states. -/
+public instance State.instFintype {Q : Type*} [Fintype Q] [DecidableEq Q] : Fintype (State Q) :=
+  ⟨{.copy, .copyBit, .rewind} ∪
+      (Finset.univ.product (Finset.univ : Finset (Option Bool))).image
+        (fun qp : Q × Option Bool => .zip qp.1 qp.2) ∪
+      Finset.univ.image .flush,
+    fun state => by cases state <;> simp⟩
 
-/-- The transition function of `ZipTransducer.toTM`. -/
-private def tr : State Q → Option Bool → Option Bool → Action 1 Bool (State Q)
-  | .copy, some true, _ =>
-    { inputTape := 1, workTapes := fun _ => (none, 0), output := none, state := some .copyBit }
-  | .copy, some false, _ =>
-    { inputTape := 1, workTapes := fun _ => (none, -1), output := none, state := some .rewind }
-  | .copy, none, _ => haltAction
-  | .copyBit, some b, _ =>
-    { inputTape := 1, workTapes := fun _ => (some (some b), 1), output := none,
-      state := some .copy }
-  | .copyBit, none, _ => haltAction
-  | .rewind, _, some _ =>
-    { inputTape := 0, workTapes := fun _ => (none, -1), output := none, state := some .rewind }
-  | .rewind, _, none =>
-    { inputTape := 0, workTapes := fun _ => (none, 1), output := none,
-      state := some (.zip τ.q₀ none) }
-  | .zip q (some b), _, _ =>
-    { inputTape := 0, workTapes := fun _ => (none, 0), output := some b,
-      state := some (.zip q none) }
-  | .zip q none, none, none =>
-    { inputTape := 0, workTapes := fun _ => (none, 0), output := (τ.final q).head?,
-      state := (τ.final q).tail.head?.map .flush }
-  | .zip q none, x, y =>
-    { inputTape := if x.isSome then 1 else 0,
-      workTapes := fun _ => (none, if y.isSome then 1 else 0),
-      output := (τ.step q (y, x)).2.head?,
-      state := some (.zip (τ.step q (y, x)).1 (τ.step q (y, x)).2.tail.head?) }
-  | .flush b, _, _ =>
-    { inputTape := 0, workTapes := fun _ => (none, 0), output := some b, state := none }
+/-- `τ` as an explicit transition table with one work tape. On `frame u ++ v` it copies `u`
+to the work tape, rewinds the work tape, and then runs `τ` on `u` from the work tape and `v`
+from the input tape. -/
+@[expose] public def toMachine : MultiTapeMachine 1 Bool (State Q) Empty Id :=
+  let haltAction : Action 1 Bool (State Q) :=
+    { inputTape := 0, workTapes := fun _ => (none, 0), output := none, state := none }
+  MultiTapeMachine.ofTr .copy fun state input work =>
+    match state, input, work 0 with
+    | .copy, some true, _ =>
+      { inputTape := 1, workTapes := fun _ => (none, 0), output := none,
+        state := some .copyBit }
+    | .copy, some false, _ =>
+      { inputTape := 1, workTapes := fun _ => (none, -1), output := none,
+        state := some .rewind }
+    | .copy, none, _ => haltAction
+    | .copyBit, some bit, _ =>
+      { inputTape := 1, workTapes := fun _ => (some (some bit), 1), output := none,
+        state := some .copy }
+    | .copyBit, none, _ => haltAction
+    | .rewind, _, some _ =>
+      { inputTape := 0, workTapes := fun _ => (none, -1), output := none,
+        state := some .rewind }
+    | .rewind, _, none =>
+      { inputTape := 0, workTapes := fun _ => (none, 1), output := none,
+        state := some (.zip τ.q₀ none) }
+    | .zip state (some bit), _, _ =>
+      { inputTape := 0, workTapes := fun _ => (none, 0), output := some bit,
+        state := some (.zip state none) }
+    | .zip state none, none, none =>
+      { inputTape := 0, workTapes := fun _ => (none, 0), output := (τ.final state).head?,
+        state := (τ.final state).tail.head?.map .flush }
+    | .zip state none, nextInput, nextWork =>
+      { inputTape := if nextInput.isSome then 1 else 0,
+        workTapes := fun _ => (none, if nextWork.isSome then 1 else 0),
+        output := (τ.step state (nextWork, nextInput)).2.head?,
+        state := some (.zip (τ.step state (nextWork, nextInput)).1
+          (τ.step state (nextWork, nextInput)).2.tail.head?) }
+    | .flush bit, _, _ =>
+      { inputTape := 0, workTapes := fun _ => (none, 0), output := some bit, state := none }
 
-/-- `τ` as a machine with one work tape. On `frame u ++ v` it copies `u` to the work tape,
-rewinds the work tape, and then runs `τ` on `u` from the work tape and `v` from the input tape. -/
-public def toTM : MultiTapeTM 1 Bool (State Q) :=
-  ofTr .copy fun s x ys => τ.tr s x (ys 0)
+/-- Deterministic semantics of the explicit zip-transducer table. -/
+@[expose] public def toTM : MultiTapeTM 1 Bool (State Q) :=
+  τ.toMachine.toTM
+
+/-- The ordinary action selected by the explicit zip-transducer table. -/
+private def tr (state : State Q) (input work : Option Bool) : Action 1 Bool (State Q) :=
+  MultiTapeMachine.Action.emptyOracleEquiv
+    (τ.toMachine.tr state input (fun _ => work) Empty.elim)
 
 /-! ### Configurations -/
 
@@ -166,7 +191,7 @@ variable {τ} {u v : List Bool}
 /-- The transition function of `τ.toTM` on its single work tape. -/
 private lemma tr_toTM (s : State Q) (x y : Option Bool) :
     τ.toTM.tr s x (fun _ => y) = τ.tr s x y :=
-  tr_ofTr _ _ s x _
+  by simp [toTM, tr, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr_tr]
 
 /-! ### The phases of the machine -/
 
@@ -192,7 +217,9 @@ private lemma seg_copy {i : ℕ} (hi : i ≤ u.length) :
       rw [step_cfgAt tr_toTM]
       have hp : min (2 * i + 1) ((frame u ++ v).length + 1) = 2 * i + 1 := by omega
       have hx : inputAt (frame u ++ v) (2 * i + 1) = some true := by simpa [inputAt] using h₁
-      simp only [hp, hx, tr, moveInputPosNat_one (by omega : 2 * i + 1 ≤ (frame u ++ v).length),
+      simp only [hp, hx, tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * i + 1 ≤ (frame u ++ v).length),
         SignType.coe_zero, add_zero, List.append_nil, Option.toList_none]
     have s₂ : τ.toTM.step
         (cfgAt (frame u ++ v) (some .copyBit) (2 * i + 2) (tapeOfList (u.take i)) i []) =
@@ -205,7 +232,9 @@ private lemma seg_copy {i : ℕ} (hi : i ≤ u.length) :
           tapeOfList (u.take (i + 1)) := by
         rw [List.take_add_one, List.getElem?_eq_getElem hi', Option.toList_some,
           tapeOfList_append_single, List.length_take, min_eq_left hi'.le]
-      simp only [hp, hx, tr, moveInputPosNat_one (by omega : 2 * i + 2 ≤ (frame u ++ v).length),
+      simp only [hp, hx, tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * i + 2 ≤ (frame u ++ v).length),
         SignType.coe_one, List.append_nil, Option.toList_none, ht]
       exact cfgAt_congr (by omega) (by push_cast; rfl)
     refine ((Seg.single (cfgAt_mem_cells (by omega) (by omega)) s₁
@@ -220,19 +249,19 @@ private lemma tr_rewind_some (x : Option Bool) (b : Bool) :
     τ.tr .rewind x (some b) =
       { inputTape := 0, workTapes := fun _ => (none, -1), output := none,
         state := some .rewind } := by
-  cases x <;> rfl
+  cases x <;> simp [tr, toMachine, MultiTapeMachine.ofTr_tr]
 
 private lemma tr_rewind_none (x : Option Bool) :
     τ.tr .rewind x none =
       { inputTape := 0, workTapes := fun _ => (none, 1), output := none,
         state := some (.zip τ.q₀ none) } := by
-  cases x <;> rfl
+  cases x <;> simp [tr, toMachine, MultiTapeMachine.ofTr_tr]
 
 private lemma tr_zip_some (q : Q) (b : Bool) (x y : Option Bool) :
     τ.tr (.zip q (some b)) x y =
       { inputTape := 0, workTapes := fun _ => (none, 0), output := some b,
         state := some (.zip q none) } := by
-  cases x <;> cases y <;> rfl
+  cases x <;> cases y <;> simp [tr, toMachine, MultiTapeMachine.ofTr_tr]
 
 private lemma tr_zip_step (q : Q) {x y : Option Bool} (h : ¬(x = none ∧ y = none)) :
     τ.tr (.zip q none) x y =
@@ -242,12 +271,12 @@ private lemma tr_zip_step (q : Q) {x y : Option Bool} (h : ¬(x = none ∧ y = n
         state := some (.zip (τ.step q (y, x)).1 (τ.step q (y, x)).2.tail.head?) } := by
   rcases x with _ | _ <;> rcases y with _ | _
   · simp at h
-  all_goals rfl
+  all_goals simp [tr, toMachine, MultiTapeMachine.ofTr_tr]
 
 private lemma tr_flush (b : Bool) (x y : Option Bool) :
     τ.tr (.flush b) x y =
       { inputTape := 0, workTapes := fun _ => (none, 0), output := some b, state := none } := by
-  cases x <;> cases y <;> rfl
+  cases x <;> cases y <;> simp [tr, toMachine, MultiTapeMachine.ofTr_tr]
 
 /-- The end of the frame: the input head moves to the second word and the work head starts
 moving back. -/
@@ -261,7 +290,9 @@ private lemma step_endFrame :
   have hp : min (2 * u.length + 1) ((frame u ++ v).length + 1) = 2 * u.length + 1 := by omega
   have hx : inputAt (frame u ++ v) (2 * u.length + 1) = some false := by
     simpa [inputAt] using getElem?_frame_append_length u v
-  simp only [hp, hx, tr, moveInputPosNat_one (by omega : 2 * u.length + 1 ≤ (frame u ++ v).length),
+  simp only [hp, hx, tr, toMachine, MultiTapeMachine.ofTr_tr,
+    MultiTapeMachine.Action.emptyOracleEquiv_step,
+    moveInputPosNat_one (by omega : 2 * u.length + 1 ≤ (frame u ++ v).length),
     SignType.coe_neg_one, List.append_nil, Option.toList_none]
   exact cfgAt_congr (by omega) (by omega)
 
@@ -332,8 +363,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     have hx : inputAt (frame u ++ v) (2 * u.length + 2 + v.length) = none := by
       unfold inputAt
       split_ifs
-      · rfl
-      · exact List.getElem?_eq_none (by omega)
+      exacts [rfl, List.getElem?_eq_none (by omega)]
     have hy : tapeOfList u ((min r u.length : ℕ) : ℤ) = none := by
       rw [tapeOfList_ofNat, List.getElem?_eq_none (by omega)]
     have s₁ : τ.toTM.step (cfgAt (frame u ++ v) (some (.zip q none))
@@ -341,7 +371,8 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
         cfgAt (frame u ++ v) ((τ.final q).tail.head?.map .flush) (2 * u.length + 2 + v.length)
           (tapeOfList u) u.length (o ++ (τ.final q).head?.toList) := by
       rw [step_cfgAt tr_toTM, hp, hx, hy]
-      simp only [tr, SignType.coe_zero, add_zero,
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step, SignType.coe_zero, add_zero,
         moveInputPosNat_zero (by omega : 2 * u.length + 2 + v.length ≤ (frame u ++ v).length + 1)]
       exact cfgAt_congr rfl (by omega)
     rw [hu, hv, run_nil_nil]
@@ -349,8 +380,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     rw [List.take_one, ← List.head?_tail, List.take_of_length_le (τ.length_final_le q)] at hfin
     rcases hb : (τ.final q).tail.head? with _ | b
     · rw [hb, Option.toList_none, List.append_nil] at hfin
-      rw [hb, Option.map_none] at s₁
-      rw [hfin] at s₁
+      rw [hb, Option.map_none, hfin] at s₁
       exact (Seg.single (cfgAt_mem_cells (by omega) (by omega)) s₁
         (cfgAt_mem_cells (by omega) (by omega))).mono (by omega)
     · rw [hb, Option.map_some] at s₁
@@ -379,18 +409,13 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
         using getElem?_frame_append_boundary u v (min r v.length)
     have hy : tapeOfList u ((min r u.length : ℕ) : ℤ) = (u.drop r).head? := by
       rw [tapeOfList_ofNat, getElem?_min_length]
+    have hsome (l : List Bool) : (l.drop r).head?.isSome = decide (r < l.length) := by
+      rw [List.head?_drop]
+      by_cases h : r < l.length <;> simp [h]
     set x := (v.drop r).head? with hxdef
     set y := (u.drop r).head? with hydef
-    have hxs : x.isSome = decide (r < v.length) := by
-      rw [hxdef, List.head?_drop]
-      rcases Nat.lt_or_ge r v.length with h | h
-      · simp [h]
-      · simp [Nat.not_lt.mpr h]
-    have hys : y.isSome = decide (r < u.length) := by
-      rw [hydef, List.head?_drop]
-      rcases Nat.lt_or_ge r u.length with h | h
-      · simp [h]
-      · simp [Nat.not_lt.mpr h]
+    have hxs : x.isSome = decide (r < v.length) := hsome v
+    have hys : y.isSome = decide (r < u.length) := hsome u
     have hmove : moveInputPosNat (frame u ++ v).length (2 * u.length + 2 + min r v.length)
         (if x.isSome then 1 else 0) = 2 * u.length + 2 + min (r + 1) v.length := by
       rw [hxs]
@@ -404,12 +429,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     have hhead : ((min r u.length : ℕ) : ℤ) + ((if y.isSome then 1 else 0 : SignType) : ℤ) =
         ((min (r + 1) u.length : ℕ) : ℤ) := by
       rw [hys]
-      rcases Nat.lt_or_ge r u.length with h | h
-      · simp only [decide_eq_true h, ↓reduceIte, SignType.coe_one]
-        omega
-      · simp only [decide_eq_false (Nat.not_lt.mpr h), Bool.false_eq_true, ↓reduceIte,
-          SignType.coe_zero]
-        omega
+      by_cases h : r < u.length <;> simp [h] <;> omega
     have s₁ : τ.toTM.step (cfgAt (frame u ++ v) (some (.zip q none))
         (2 * u.length + 2 + min r v.length) (tapeOfList u) (min r u.length : ℕ) o) =
         cfgAt (frame u ++ v) (some (.zip (τ.step q (y, x)).1 (τ.step q (y, x)).2.tail.head?))
@@ -440,9 +460,7 @@ private lemma seg_run (u v : List Bool) :
   have hn := length_frame_append u v
   have hinit : τ.toTM.initCfg (frame u ++ v) =
       cfgAt (frame u ++ v) (some .copy) (2 * 0 + 1) (tapeOfList (u.take 0)) ((0 : ℕ) : ℤ) [] := by
-    refine Cfg.ext rfl (Fin.ext ?_) (funext fun _ => ?_) rfl rfl
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
+    tm_step [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
   have hzip := seg_zip (τ := τ) (u := u) (v := v) τ.q₀ (r := 0) (Nat.zero_le _) []
   simp only [Nat.zero_min, Nat.add_zero, Nat.cast_zero, List.drop_zero, List.nil_append,
     Nat.sub_zero] at hzip

@@ -83,8 +83,6 @@ theorem isPPTOn_test {α : Type} {input : α ↪ List Bool}
     (hchallenge : ComputableInPolyTime challenge input encBits) :
     IsPPTOn input encBool
       (fun a => test (bound a) (real a) (ideal a) (adversary a) (challenge a)) := by
-  have hbound := hbound.tidy
-  have hchallenge := hchallenge.tidy
   unfold test
   apply IsPPTOn.bind_with (left := encUnary)
   · fun_prop
@@ -152,7 +150,6 @@ theorem ComputationallyIndistinguishable.uniform_bound
     ∃ ε : ℕ → ℝ≥0, Negligible ε ∧ ∀ n index, index ≤ bound n →
       Game.advantage (ProbComp.eval (real n >>= adversary n index))
         (ProbComp.eval (ideal n >>= adversary n index)) ≤ ε n := by
-  have hbound := hbound.tidy
   let reduction := fun n => UniformChoice.test (bound n) (real n) (ideal n) (adversary n)
   have hreduce : IsPPT encBool reduction := by
     unfold reduction
@@ -160,7 +157,7 @@ theorem ComputationallyIndistinguishable.uniform_bound
   have hnegligible : Negligible (fun n =>
       Game.advantage (ProbComp.eval (real n >>= reduction n))
         (ProbComp.eval (ideal n >>= reduction n))) := by
-    simpa only [distinguishingGame, PMF.monad_bind_eq_bind,
+    simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind,
       ProbComp.eval_bind] using hsecure reduction hreduce
   have hscaled := hnegligible.polynomiallyBounded_mul
     (dyadicSize_polynomiallyBounded.comp hbound.polynomiallyBounded)

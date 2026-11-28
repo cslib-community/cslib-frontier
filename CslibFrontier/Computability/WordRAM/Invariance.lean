@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Turing
 public import CslibFrontier.Computability.WordRAM.OfTuring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Polynomial time on the word RAM and on multi-tape Turing machines
@@ -77,7 +78,7 @@ over `B` computes it on the bits `(encIn a).map Bool.toNat` of its input, within
 instructions at every word size of at least `W |encIn a|`, for polynomially bounded `T` and `W`. -/
 theorem turingComputableInPolyTime_iff_exists_computesInTime (φ : Basis.additive.Hom B)
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat)) {f : α → ℕ} :
+      encWidthOperands (encOption encNat)) {f : α → ℕ} :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn encNat ↔
       ∃ (r : ℕ) (p : Program B r) (T W : ℕ → ℕ), PolynomiallyBounded T ∧
         PolynomiallyBounded W ∧ p.ComputesInTime (fun _ a => (encIn a).map Bool.toNat)
@@ -89,12 +90,10 @@ theorem turingComputableInPolyTime_iff_exists_computesInTime (φ : Basis.additiv
   · rintro ⟨r, p, T, W, hT, hW, hp⟩
     -- Simulate at a computable width above `W |encIn a|` and the input length.
     obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant (encIn := encIn)
-      (u := fun a => W (encIn a).length + (encIn a).length + 1)
-      (((PolyBounded.of_polynomiallyBounded _ hW).add PolyBounded.self).add (.const 1))
+      (u := fun a => W (encIn a).length + (encIn a).length + 1) (by growth_poly)
     refine hp.turingComputableInPolyTime_of_width hop hwidth
       (fun a => by have := hge a; omega) (fun a => ⟨?_, fun v hv => ?_⟩)
-      (computableInPolyTime_map_toNat encIn)
-      ((PolyBounded.of_polynomiallyBounded _ hT).comp PolyBounded.self)
+      (computableInPolyTime_map_toNat encIn) (by growth_poly)
     · have := hge a
       rw [List.length_map]
       exact Nat.lt_two_pow_self.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
@@ -127,7 +126,7 @@ theorem UniformComputableInPolyTime.polyBounded {f : α → ℕ}
     (h : UniformComputableInPolyTime B f (fun _ a => (encIn a).map Bool.toNat)
       (fun a => (encIn a).length)) :
     PolyBounded (fun a => (encIn a).length) f := by
-  obtain ⟨T, -, k, hk, r, p, hp⟩ := h
+  obtain ⟨T, -, k, hk, r, p, hp, _⟩ := h
   refine ⟨fun n => 2 ^ k * (n + 1) ^ k, .of_forall_le (2 ^ k) k fun _ => le_rfl, fun a => ?_⟩
   have hi := inputFits_map_toNat (encIn := encIn) hk a le_rfl
   obtain ⟨n, hex, -⟩ := hp a _ le_rfl hi
@@ -144,7 +143,7 @@ word-RAM side (`Cslib.WordRAM.UniformComputableInPolyTime.polyBounded`); without
 `Cslib.WordRAM.turingComputableInPolyTime_iff_exists_computesInTime`. -/
 theorem turingComputableInPolyTime_iff_uniformComputableInPolyTime (φ : Basis.additive.Hom B)
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat)) {f : α → ℕ}
+      encWidthOperands (encOption encNat)) {f : α → ℕ}
     (hf : PolyBounded (fun a => (encIn a).length) f) :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn encNat ↔
       UniformComputableInPolyTime B f (fun _ a => (encIn a).map Bool.toNat)
@@ -162,7 +161,8 @@ theorem turingComputableInPolyTime_iff_uniformComputableInPolyTime (φ : Basis.a
   obtain ⟨D', e', hD'⟩ := polynomiallyBounded_iff_le.1 hbound
   refine ⟨fun n => simTime K (Fintype.card Q) (t n), ?_, D + e + D' + e' + 1, by omega, regs K,
     _, Program.ComputesInTime.mapOp (p := simProgram tm.tr tm.q₀ (Fintype.equivFin Q)) φ
-      fun a w hw _ => ?_⟩
+      fun a w hw _ => ?_,
+    inputAdmissible_of_widthIndependent _ _⟩
   · unfold simTime
     exact (PolynomiallyBounded.const _).add (ht.mul (.const _))
   · obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl

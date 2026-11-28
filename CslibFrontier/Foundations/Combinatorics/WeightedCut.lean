@@ -29,7 +29,7 @@ sums the weights between the vertices sent to distinct supervertices
 (`Cslib.WeightedCut.IsContractionOf`). Pulling a cut of the contracted multigraph back to the
 original vertices gives a cut of the same weight (`Cslib.WeightedCut.cutWeight_pullbackCut`), so
 contraction never decreases the global minimum cut weight. Karger's contraction algorithm and the
-Karger–Stein algorithm (`CslibFrontier.Algorithms.WordRAM.Karger.Graph`) are built on these facts.
+Karger–Stein algorithm (`CslibFrontier.Algorithms.Karger.Graph`) are built on these facts.
 
 The multigraphs given by their ends (`Cslib.Multigraph`) have weight matrices with the same cut
 weights; see `CslibFrontier.Foundations.Combinatorics.WeightedCut.Multigraph`.
@@ -84,20 +84,17 @@ def IsNonTrivialCut (C : Finset V) : Prop :=
   C.Nonempty ∧ C ≠ Finset.univ
 
 theorem isNonTrivialCut_iff_card (C : Finset V) :
-    IsNonTrivialCut C ↔ 0 < C.card ∧ C.card < Fintype.card V := by
-  unfold IsNonTrivialCut
-  rw [Finset.card_pos, Finset.card_lt_iff_ne_univ]
+    IsNonTrivialCut C ↔ 0 < C.card ∧ C.card < Fintype.card V :=
+  Finset.card_pos.symm.and (Finset.card_lt_iff_ne_univ C).symm
 
 theorem isNonTrivialCut_singleton (hV : 2 ≤ Fintype.card V) (a : V) :
-    IsNonTrivialCut ({a} : Finset V) := by
-  rw [isNonTrivialCut_iff_card]
-  simp only [Finset.card_singleton]
-  omega
+    IsNonTrivialCut ({a} : Finset V) :=
+  (isNonTrivialCut_iff_card _).2 (by simp; omega)
 
 theorem exists_isNonTrivialCut (hV : 2 ≤ Fintype.card V) :
-    ∃ C : Finset V, IsNonTrivialCut C := by
-  obtain ⟨a⟩ : Nonempty V := Fintype.card_pos_iff.mp (by omega)
-  exact ⟨{a}, isNonTrivialCut_singleton hV a⟩
+    ∃ C : Finset V, IsNonTrivialCut C :=
+  have ⟨a⟩ : Nonempty V := Fintype.card_pos_iff.mp (by omega)
+  ⟨{a}, isNonTrivialCut_singleton hV a⟩
 
 /-- Weighted degree of vertex `u` in `W`. -/
 def rowDeg (W : V → V → ℕ) (u : V) : ℕ :=
@@ -126,64 +123,51 @@ variable [DecidableEq V]
 theorem isNonTrivialCut_compl {C : Finset V} (hC : IsNonTrivialCut C) :
     IsNonTrivialCut (Finset.univ \ C) := by
   rcases hC with ⟨⟨x, hx⟩, hnu⟩
-  refine ⟨?_, ?_⟩
-  · by_contra h_empty
-    rw [Finset.not_nonempty_iff_eq_empty, Finset.sdiff_eq_empty_iff_subset] at h_empty
-    exact hnu (Finset.eq_univ_of_forall fun y => h_empty (Finset.mem_univ y))
-  · intro huniv
-    have hx' : x ∈ Finset.univ \ C := by
-      rw [huniv]
-      exact Finset.mem_univ x
-    exact (Finset.mem_sdiff.mp hx').2 hx
+  exact ⟨Finset.sdiff_nonempty.2 fun h =>
+      hnu (Finset.eq_univ_of_forall fun y => h (Finset.mem_univ y)),
+    fun h => (Finset.mem_sdiff.1 (h ▸ Finset.mem_univ x)).2 hx⟩
 
-/-- Total weight of edges crossing `(C, Finset.univ \ C)`. -/
-def cutWeight (W : V → V → ℕ) (C : Finset V) : ℕ :=
+/-- Total weight of edges crossing `(C, Finset.univ \ C)`, for weights in any additive
+commutative monoid (natural numbers for multigraphs, or a linearly ordered field such as `ℝ`). -/
+def cutWeight {M : Type*} [AddCommMonoid M] (W : V → V → M) (C : Finset V) : M :=
   ∑ u ∈ C, ∑ v ∈ Finset.univ \ C, W u v
 
-theorem cutWeight_compl {W : V → V → ℕ} (hW : IsMultigraph W) (C : Finset V) :
+/-- For symmetric weights, the cut `(Finset.univ \ C, C)` weighs as much as `(C, Finset.univ \ C)`.
+-/
+theorem cutWeight_univ_sdiff_of_symm {M : Type*} [AddCommMonoid M] {W : V → V → M}
+    (hW : ∀ u v, W u v = W v u) (C : Finset V) :
     cutWeight W (Finset.univ \ C) = cutWeight W C := by
-  unfold cutWeight
-  have hsdiff : Finset.univ \ (Finset.univ \ C) = C := by
-    ext x
-    simp
-  rw [hsdiff, Finset.sum_comm]
-  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => hW.1 v u
+  simp only [cutWeight, Finset.sdiff_sdiff_eq_self (Finset.subset_univ C)]
+  exact Finset.sum_comm.trans <|
+    Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => hW v u
+
+theorem cutWeight_compl {W : V → V → ℕ} (hW : IsMultigraph W) (C : Finset V) :
+    cutWeight W (Finset.univ \ C) = cutWeight W C :=
+  cutWeight_univ_sdiff_of_symm hW.1 C
 
 theorem cutWeight_le_sum_rowDeg (W : V → V → ℕ) (C : Finset V) :
-    cutWeight W C ≤ ∑ u ∈ C, rowDeg W u := by
-  unfold cutWeight rowDeg
-  exact Finset.sum_le_sum fun u _ => Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
+    cutWeight W C ≤ ∑ u ∈ C, rowDeg W u :=
+  Finset.sum_le_sum fun _ _ => Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
 
 theorem two_mul_cutWeight_le_totalDoubledWeight {W : V → V → ℕ} (hW : IsMultigraph W)
     (C : Finset V) :
     2 * cutWeight W C ≤ totalDoubledWeight W := by
-  have hdisj : Disjoint C (Finset.univ \ C) := Finset.disjoint_sdiff
-  have hunion : C ∪ (Finset.univ \ C) = Finset.univ :=
-    Finset.union_sdiff_of_subset (Finset.subset_univ C)
   have h1 := cutWeight_le_sum_rowDeg W C
-  have h2 := cutWeight_le_sum_rowDeg W (Finset.univ \ C)
-  rw [cutWeight_compl hW C] at h2
-  have hsum : (∑ u ∈ C, rowDeg W u) + (∑ u ∈ Finset.univ \ C, rowDeg W u) =
-      totalDoubledWeight W := by
-    unfold totalDoubledWeight
-    rw [← Finset.sum_union hdisj, hunion]
+  have h2 := cutWeight_compl hW C ▸ cutWeight_le_sum_rowDeg W (Finset.univ \ C)
+  have hsum : (∑ u ∈ C, rowDeg W u) + ∑ u ∈ Finset.univ \ C, rowDeg W u = totalDoubledWeight W := by
+    rw [← Finset.sum_union Finset.disjoint_sdiff,
+      Finset.union_sdiff_of_subset (Finset.subset_univ C)]
+    rfl
   omega
 
 theorem cutWeight_singleton {W : V → V → ℕ} (hW : IsMultigraph W) (a : V) :
     cutWeight W {a} = rowDeg W a := by
-  unfold cutWeight rowDeg
-  rw [Finset.sum_singleton]
-  have hsplit : (Finset.univ : Finset V) = insert a (Finset.univ \ {a}) := by
-    ext x
-    simp
-  conv_rhs => rw [hsplit, Finset.sum_insert (by simp)]
-  rw [hW.2 a, zero_add]
+  simp only [cutWeight, rowDeg, Finset.sum_singleton, ← Finset.erase_eq]
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a), hW.2, zero_add]
 
 theorem cutWeight_two_singleton_zero {W : Fin 2 → Fin 2 → ℕ} (hW : IsMultigraph W) :
     cutWeight W ({0} : Finset (Fin 2)) = W 0 1 := by
-  rw [cutWeight_singleton hW 0]
-  unfold rowDeg
-  rw [Fin.sum_univ_two, hW.2 0, zero_add]
+  simp [cutWeight_singleton hW 0, rowDeg, Fin.sum_univ_two, hW.2]
 
 /-- On two vertices, every non-trivial cut weighs the weight of the edge. -/
 theorem cutWeight_fin_two {W : Fin 2 → Fin 2 → ℕ} (hW : IsMultigraph W) {B : Finset (Fin 2)}
@@ -213,19 +197,15 @@ theorem minCut_le_cutWeight (W : V → V → ℕ) {C : Finset V} (hC : IsNonTriv
 
 theorem exists_minCut_achiever (hV : 2 ≤ Fintype.card V) (W : V → V → ℕ) :
     ∃ C : Finset V, IsNonTrivialCut C ∧ cutWeight W C = minCut W := by
-  rcases exists_isNonTrivialCut hV with ⟨C₀, hC₀⟩
-  have hne : {k | ∃ C : Finset V, IsNonTrivialCut C ∧ cutWeight W C = k}.Nonempty :=
-    ⟨cutWeight W C₀, C₀, hC₀, rfl⟩
-  exact Nat.sInf_mem hne
+  obtain ⟨C₀, hC₀⟩ := exists_isNonTrivialCut hV
+  exact Nat.sInf_mem (s := {k | ∃ C : Finset V, IsNonTrivialCut C ∧ cutWeight W C = k})
+    ⟨_, C₀, hC₀, rfl⟩
 
 theorem le_minCut_iff (hV : 2 ≤ Fintype.card V) (W : V → V → ℕ) (m : ℕ) :
     m ≤ minCut W ↔ ∀ C : Finset V, IsNonTrivialCut C → m ≤ cutWeight W C := by
-  constructor
-  · intro hm C hC
-    exact hm.trans (minCut_le_cutWeight W hC)
-  · intro h
-    rcases exists_minCut_achiever hV W with ⟨C, hC, hEq⟩
-    exact hEq ▸ h C hC
+  refine ⟨fun hm _ hC => hm.trans (minCut_le_cutWeight W hC), fun h => ?_⟩
+  obtain ⟨C, hC, hEq⟩ := exists_minCut_achiever hV W
+  exact hEq ▸ h C hC
 
 theorem minCut_pos_iff (hV : 2 ≤ Fintype.card V) (W : V → V → ℕ) :
     0 < minCut W ↔ ∀ C : Finset V, IsNonTrivialCut C → 0 < cutWeight W C :=
@@ -233,9 +213,8 @@ theorem minCut_pos_iff (hV : 2 ≤ Fintype.card V) (W : V → V → ℕ) :
 
 theorem minCut_le_rowDeg (hV : 2 ≤ Fintype.card V) {W : V → V → ℕ} (hW : IsMultigraph W)
     (a : V) :
-    minCut W ≤ rowDeg W a := by
-  rw [← cutWeight_singleton hW a]
-  exact minCut_le_cutWeight W (isNonTrivialCut_singleton hV a)
+    minCut W ≤ rowDeg W a :=
+  cutWeight_singleton hW a ▸ minCut_le_cutWeight W (isNonTrivialCut_singleton hV a)
 
 theorem mul_minCut_le_totalDoubledWeight (hV : 2 ≤ Fintype.card V) {W : V → V → ℕ}
     (hW : IsMultigraph W) :
@@ -247,9 +226,8 @@ theorem mul_minCut_le_totalDoubledWeight (hV : 2 ≤ Fintype.card V) {W : V → 
 
 theorem totalDoubledWeight_pos_of_minCut_pos (hV : 2 ≤ Fintype.card V) {W : V → V → ℕ}
     (hW : IsMultigraph W) (hpos : 0 < minCut W) :
-    0 < totalDoubledWeight W := by
-  have hmul : 0 < Fintype.card V * minCut W := Nat.mul_pos (by omega) hpos
-  exact lt_of_lt_of_le hmul (mul_minCut_le_totalDoubledWeight hV hW)
+    0 < totalDoubledWeight W :=
+  (Nat.mul_pos (by omega) hpos).trans_le (mul_minCut_le_totalDoubledWeight hV hW)
 
 end Cut
 
@@ -291,23 +269,16 @@ theorem isNonTrivialCut_pullbackCut {part : V → U} (hsurj : Function.Surjectiv
     {B : Finset U} (hB : IsNonTrivialCut B) :
     IsNonTrivialCut (pullbackCut part B) := by
   rcases hB with ⟨⟨b, hb⟩, hnu⟩
-  rcases hsurj b with ⟨x, rfl⟩
-  refine ⟨⟨x, by simp [pullbackCut, hb]⟩, fun hall => hnu ?_⟩
-  refine Finset.eq_univ_of_forall fun b' => ?_
-  rcases hsurj b' with ⟨y, rfl⟩
-  have hy : y ∈ pullbackCut part B := hall ▸ Finset.mem_univ y
-  simpa [pullbackCut] using hy
+  obtain ⟨x, rfl⟩ := hsurj b
+  refine ⟨⟨x, by simp [pullbackCut, hb]⟩, fun hall => hnu (Finset.eq_univ_of_forall fun b' => ?_)⟩
+  obtain ⟨y, rfl⟩ := hsurj b'
+  simpa [pullbackCut] using (hall ▸ Finset.mem_univ y : y ∈ pullbackCut part B)
 
 theorem isNonTrivialCut_of_pullbackCut (part : V → U) {B : Finset U}
     (h : IsNonTrivialCut (pullbackCut part B)) :
     IsNonTrivialCut B := by
-  rcases h with ⟨hne, hnu⟩
-  refine ⟨?_, ?_⟩
-  · rcases hne with ⟨x, hx⟩
-    exact ⟨part x, (mem_pullbackCut part B x).mp hx⟩
-  · intro hBu
-    subst hBu
-    exact hnu (pullbackCut_univ part)
+  rcases h with ⟨⟨x, hx⟩, hnu⟩
+  exact ⟨⟨part x, (mem_pullbackCut part B x).mp hx⟩, fun hBu => hnu (hBu ▸ pullbackCut_univ part)⟩
 
 variable [DecidableEq V]
 
@@ -320,54 +291,35 @@ theorem isContractionOf_id {W₀ : V → V → ℕ} (hW₀ : IsMultigraph W₀) 
     IsContractionOf W₀ id W₀ where
   surj := Function.surjective_id
   multigraph := hW₀
-  offDiag a b _ := by
-    have hfa : (Finset.univ.filter fun x : V => id x = a) = {a} := by ext x; simp
-    have hfb : (Finset.univ.filter fun y : V => id y = b) = {b} := by ext y; simp
-    rw [hfa, hfb, Finset.sum_singleton, Finset.sum_singleton]
+  offDiag a b _ := by simp [Finset.filter_eq']
 
 theorem cutWeight_pullbackCut {W₀ : V → V → ℕ} {part : V → U} {W : U → U → ℕ}
     (hC : IsContractionOf W₀ part W) (B : Finset U) :
     cutWeight W₀ (pullbackCut part B) = cutWeight W B := by
-  unfold cutWeight
-  rw [← pullbackCut_compl]
-  have hdecomp : ∀ S : Finset U, ∀ f : V → ℕ,
-      ∑ x ∈ pullbackCut part S, f x =
-        ∑ a ∈ S, ∑ x ∈ Finset.univ.filter (part · = a), f x := by
-    intro S f
-    unfold pullbackCut
-    rw [← Finset.sum_biUnion]
-    · refine Finset.sum_congr ?_ fun _ _ => rfl
-      ext x
-      simp
-    · intro a _ b _ hab
-      simp only [Finset.disjoint_left, Finset.mem_filter, Finset.mem_univ, true_and]
-      rintro x rfl hxb
-      exact hab hxb
-  rw [hdecomp B]
+  have hdecomp (S : Finset U) (f : V → ℕ) :
+      ∑ x ∈ pullbackCut part S, f x = ∑ a ∈ S, ∑ x ∈ Finset.univ.filter (part · = a), f x := by
+    rw [← Finset.sum_fiberwise_of_maps_to fun _ hx => (mem_pullbackCut part S _).1 hx]
+    refine Finset.sum_congr rfl fun a ha => Finset.sum_congr ?_ fun _ _ => rfl
+    ext x
+    simp only [pullbackCut, Finset.mem_filter, Finset.mem_univ, true_and, and_iff_right_iff_imp]
+    exact fun h => h ▸ ha
+  simp only [cutWeight, ← pullbackCut_compl, hdecomp]
   refine Finset.sum_congr rfl fun a ha => ?_
   calc
-    ∑ x ∈ Finset.univ.filter (part · = a), ∑ y ∈ pullbackCut part (Finset.univ \ B), W₀ x y
-      = ∑ x ∈ Finset.univ.filter (part · = a),
-          ∑ b ∈ Finset.univ \ B, ∑ y ∈ Finset.univ.filter (part · = b), W₀ x y := by
-        refine Finset.sum_congr rfl fun x _ => hdecomp (Finset.univ \ B) (W₀ x)
-    _ = ∑ b ∈ Finset.univ \ B,
+    ∑ x ∈ Finset.univ.filter (part · = a),
+        ∑ b ∈ Finset.univ \ B, ∑ y ∈ Finset.univ.filter (part · = b), W₀ x y
+      = ∑ b ∈ Finset.univ \ B,
           ∑ x ∈ Finset.univ.filter (part · = a), ∑ y ∈ Finset.univ.filter (part · = b), W₀ x y :=
         Finset.sum_comm
-    _ = ∑ b ∈ Finset.univ \ B, W a b := by
-        refine Finset.sum_congr rfl fun b hb => ?_
-        have hab : a ≠ b := by
-          intro hEq
-          subst hEq
-          exact (Finset.mem_sdiff.mp hb).2 ha
-        exact (hC.offDiag a b hab).symm
+    _ = ∑ b ∈ Finset.univ \ B, W a b :=
+        Finset.sum_congr rfl fun b hb =>
+          (hC.offDiag a b fun h => (Finset.mem_sdiff.1 hb).2 (h ▸ ha)).symm
 
 theorem minCut_le_of_isContractionOf (hU : 2 ≤ Fintype.card U) {W₀ : V → V → ℕ}
     {part : V → U} {W : U → U → ℕ} (hC : IsContractionOf W₀ part W) :
-    minCut W₀ ≤ minCut W := by
-  rw [le_minCut_iff hU W]
-  intro B hB
-  rw [← cutWeight_pullbackCut hC B]
-  exact minCut_le_cutWeight W₀ (isNonTrivialCut_pullbackCut hC.surj hB)
+    minCut W₀ ≤ minCut W :=
+  (le_minCut_iff hU W _).2 fun B hB =>
+    cutWeight_pullbackCut hC B ▸ minCut_le_cutWeight W₀ (isNonTrivialCut_pullbackCut hC.surj hB)
 
 theorem two_vertex_contraction_output {W₀ : V → V → ℕ} {part : V → Fin 2}
     {W : Fin 2 → Fin 2 → ℕ} (hC : IsContractionOf W₀ part W) :

@@ -17,16 +17,16 @@ import Mathlib.Tactic.Linarith
 
 This module states the CRYSTALS-Dilithium signature scheme ([DucasEtAl2018]), standardized as
 ML-DSA in [NISTFIPS204], over `R_q = ℤ_q[X] / (X^n + 1)` (coefficient vectors `Fin n → ZMod q`
-with `Cslib.Crypto.negacyclicMul`), and proves its correctness.
+with `Cslib.negacyclicMul`), and proves its correctness.
 
 The model is the *uncompressed-public-key* scheme: the public key is `(A, t)` with
 `t = A s₁ + s₂`, a signature is `(z, c)`, and verification recomputes
-`w₁' = HighBits(A z - c t)` and checks `c = H(w₁', M)`. It omits the parts of [NISTFIPS204]
-that only shrink keys and signatures or derive randomness from seeds: `Power2Round` of `t`, the
-hint vector (`MakeHint` / `UseHint`), the byte encodings, the `ExpandA` / `ExpandS` /
-`ExpandMask` expansions and the message representative `μ`. The hash-to-ball map
-`SampleInBall ∘ H` is an arbitrary function `Hash`, and the masking vector `y` of each attempt is
-drawn from an arbitrary `ProbComp` sampler.
+`w₁' = HighBits(A z - c t)` and checks `c = H(w₁', M)`.
+This fixed hash-to-ball function compares challenge polynomials.
+FIPS 204 Algorithm 8 checks equality of the full commitment digests, uses a rounded public vector
+and hint, and hashes the message representative and encoded commitment. Its byte-level verifier
+is in `CslibFrontier.Crypto.Computational.MLDSA.FIPS204`. Each signing attempt in this algebraic
+model draws its masking vector `y` from an arbitrary `ProbComp` sampler.
 
 * **Parameters.** `Params` bundles `(n, q, k, ℓ, η, γ₁, γ₂, τ, β)`; `Params.mldsa44`,
   `Params.mldsa65` and `Params.mldsa87` are the three parameter sets of [NISTFIPS204]
@@ -50,6 +50,7 @@ drawn from an arbitrary `ProbComp` sampler.
 * `Cslib.Crypto.MLDSA.InBall`: the challenge set `B_τ`.
 * `Cslib.Crypto.MLDSA.PublicKey`, `Cslib.Crypto.MLDSA.SecretKey`,
   `Cslib.Crypto.MLDSA.SecretKey.publicKey`: keys, with `t = A s₁ + s₂`.
+* `Cslib.Crypto.MLDSA.Signature`: signatures `(z, c)`.
 * `Cslib.Crypto.MLDSA.signAttempt`, `Cslib.Crypto.MLDSA.sign`, `Cslib.Crypto.MLDSA.verify`:
   signing with aborts and verification.
 
@@ -174,17 +175,15 @@ instance (τ : ℕ) (c : Fin n → ZMod q) : Decidable (InBall τ c) :=
 /-- The centered `ℓ₁` norm of a challenge in `B_τ` is at most `τ`. -/
 theorem sum_abs_valMinAbs_le {τ : ℕ} {c : Fin n → ZMod q} (hc : InBall τ c) :
     ∑ j, |(c j).valMinAbs| ≤ τ := by
-  calc ∑ j, |(c j).valMinAbs| ≤ ∑ j, if c j ≠ 0 then (1 : ℤ) else 0 :=
-        Finset.sum_le_sum fun j _ => by
-          split_ifs with h
-          · exact hc.1 j
-          · rw [not_not.mp h, ZMod.valMinAbs_zero, abs_zero]
-    _ = τ := by rw [Finset.sum_boole, hc.2]
+  rw [← hc.2, ← Finset.sum_boole]
+  refine Finset.sum_le_sum fun j _ => ?_
+  by_cases h : c j = 0 <;> simp [h, hc.1 j]
 
-/-- **Challenge times short is short.** If `c ∈ B_τ` and `‖s‖_∞ ≤ η`, with `2 τ η < q` so that
-the product has centered representatives, then `‖c s‖_∞ ≤ τ η` in `R_q`. -/
+/-- **Challenge times short is short.** If `c ∈ B_τ` and `‖s‖_∞ ≤ η`, then
+`‖c s‖_∞ ≤ τ η` in `R_q`. Centered reduction modulo `q` cannot increase the norm, so a
+no-wrap hypothesis is unnecessary. -/
 theorem abs_valMinAbs_negacyclicMul_le [NeZero q] {τ η : ℕ} {c s : Fin n → ZMod q}
-    (hc : InBall τ c) (hs : ∀ j, |(s j).valMinAbs| ≤ η) (hq : 2 * (τ * η) < q) (i : Fin n) :
+    (hc : InBall τ c) (hs : ∀ j, |(s j).valMinAbs| ≤ η) (i : Fin n) :
     |(negacyclicMul c s i).valMinAbs| ≤ τ * η := by
   set ĉ : Fin n → ℤ := fun j => (c j).valMinAbs
   set ŝ : Fin n → ℤ := fun j => (s j).valMinAbs
@@ -192,16 +191,13 @@ theorem abs_valMinAbs_negacyclicMul_le [NeZero q] {τ η : ℕ} {c s : Fin n →
     have h := congrFun (map_negacyclicMul (Int.castRingHom (ZMod q)) ĉ ŝ) i
     simp only [Function.comp_apply, eq_intCast] at h
     rw [h]
-    congr 1 <;> funext j <;> exact (ZMod.coe_valMinAbs _).symm
-  have hbound : |negacyclicMul ĉ ŝ i| ≤ τ * η := by
+    congr 1 <;> exact funext fun _ => (ZMod.coe_valMinAbs _).symm
+  have hbound : |negacyclicMul ĉ ŝ i| ≤ τ * η :=
     calc |negacyclicMul ĉ ŝ i| ≤ (∑ j, |ĉ j|) * η := abs_negacyclicMul_le_sum_abs_mul hs i
       _ ≤ τ * η := mul_le_mul_of_nonneg_right (sum_abs_valMinAbs_le hc) (by positivity)
-  have hq' : (2 * (τ * η) : ℤ) < q := by exact_mod_cast hq
-  rw [hlift, (ZMod.valMinAbs_spec _ _).mpr ⟨rfl, ?_⟩]
-  · exact hbound
-  · rw [abs_le] at hbound
-    simp only [Set.mem_Ioc]
-    constructor <;> linarith [hbound.1, hbound.2]
+  calc |(negacyclicMul c s i).valMinAbs|
+      ≤ |negacyclicMul ĉ ŝ i| := hlift ▸ ZMod.abs_valMinAbs_intCast_le _
+    _ ≤ τ * η := hbound
 
 end Challenge
 
@@ -229,8 +225,17 @@ structure SecretKey where
 def SecretKey.publicKey {P : Params} (sk : SecretKey P) : PublicKey P :=
   ⟨sk.A, moduleSISMap sk.A sk.s₁ + sk.s₂⟩
 
-/-- A signature `(z, c)` with response `z ∈ R_q^ℓ` and challenge `c ∈ R_q`. -/
-abbrev Signature := (Fin P.ℓ → Fin P.n → ZMod P.q) × (Fin P.n → ZMod P.q)
+/-- An ML-DSA signature `(z, c)`: a response `z ∈ R_q^ℓ` and a challenge `c ∈ R_q`. -/
+@[ext] structure Signature where
+  /-- The response `z = y + c s₁`. -/
+  z : Fin P.ℓ → Fin P.n → ZMod P.q
+  /-- The challenge polynomial. -/
+  c : Fin P.n → ZMod P.q
+
+/-- Signatures are compared field by field; unlike a derived instance, this one reduces under
+`decide`. -/
+instance : DecidableEq (Signature P) := fun _ _ =>
+  decidable_of_iff _ (Signature.ext_iff (P := P)).symm
 
 /-- The commitment hash `(w₁, M) ↦ c`, standing for `SampleInBall ∘ H` of [NISTFIPS204]: it maps
 a high-bits vector `w₁ ∈ ℤ^{k × n}` and a message to a challenge polynomial. -/
@@ -267,7 +272,7 @@ def signAttempt (H : Hash P) (sk : SecretKey P) (msg : List Bool)
   let c := H (highBitsVec P w, msg)
   let z := y + fun j => negacyclicMul c (sk.s₁ j)
   if ResponseShort P z ∧ LowBitsShort P (w - fun i => negacyclicMul c (sk.s₂ i)) then
-    some (z, c)
+    some ⟨z, c⟩
   else none
 
 /-- Signing by rejection sampling: draw a mask from `mask` and run `signAttempt`, retrying after
@@ -284,8 +289,8 @@ def sign (H : Hash P) (sk : SecretKey P) (mask : ProbComp (Fin P.ℓ → Fin P.n
 /-- Verification: accept `(z, c)` on `M` iff `‖z‖_∞ < γ₁ - β`, `c ∈ B_τ`, and
 `c = H(HighBits(A z - c t), M)`. -/
 def verify (H : Hash P) (pk : PublicKey P) (msg : List Bool) (σ : Signature P) : Bool :=
-  decide (ResponseShort P σ.1) && decide (InBall P.τ σ.2) &&
-    decide (H (highBitsVec P (verifierCommitment P pk σ.1 σ.2), msg) = σ.2)
+  decide (ResponseShort P σ.z) && decide (InBall P.τ σ.c) &&
+    decide (H (highBitsVec P (verifierCommitment P pk σ.z σ.c), msg) = σ.c)
 
 /-! ### Correctness -/
 
@@ -298,13 +303,26 @@ theorem verifierCommitment_publicKey (sk : SecretKey P) (y : Fin P.ℓ → Fin P
     verifierCommitment P sk.publicKey (y + fun j => negacyclicMul c (sk.s₁ j)) c =
       moduleSISMap sk.A y - fun i => negacyclicMul c (sk.s₂ i) := by
   funext i
-  simp only [verifierCommitment, SecretKey.publicKey, moduleSISMap, Pi.sub_apply, Pi.add_apply,
-    negacyclicMul_add, Finset.sum_add_distrib, negacyclicMul_sum]
-  have h : ∀ j, negacyclicMul (sk.A i j) (negacyclicMul c (sk.s₁ j)) =
-      negacyclicMul c (negacyclicMul (sk.A i j) (sk.s₁ j)) := fun j => by
+  have h (j) : negacyclicMul (sk.A i j) (negacyclicMul c (sk.s₁ j)) =
+      negacyclicMul c (negacyclicMul (sk.A i j) (sk.s₁ j)) := by
     rw [← negacyclicMul_assoc, negacyclicMul_comm (sk.A i j) c, negacyclicMul_assoc]
-  simp only [h]
+  simp only [verifierCommitment, SecretKey.publicKey, moduleSISMap, Pi.sub_apply, Pi.add_apply,
+    negacyclicMul_add, Finset.sum_add_distrib, negacyclicMul_sum, h]
   abel
+
+/-- Once the low-bits rejection test succeeds, subtracting the challenge times a short
+secret preserves the high bits of the original commitment. -/
+theorem highBitsVec_sub_challenge (hP : P.Valid) {c : Fin P.n → ZMod P.q}
+    {w s : Fin P.k → Fin P.n → ZMod P.q} (hc : InBall P.τ c)
+    (hs : ∀ i j, |(s i j).valMinAbs| ≤ P.η)
+    (hlow : LowBitsShort P (w - fun i => negacyclicMul c (s i))) :
+    highBitsVec P (w - fun i => negacyclicMul c (s i)) = highBitsVec P w := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  funext i j
+  have hb : |(negacyclicMul c (s i) j).valMinAbs| ≤ P.β :=
+    (abs_valMinAbs_negacyclicMul_le hc (hs i) j).trans (by exact_mod_cast hP.τ_mul_η_le_β)
+  simpa only [highBitsVec, Pi.sub_apply, sub_add_cancel] using
+    (highBits_add_of_abs_lowBits_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hP.one_lt_q hb (hlow i j)).symm
 
 /-- **Correctness of one attempt.** If `‖s₂‖_∞ ≤ η` and the hash takes values in `B_τ`, every
 signature output by `signAttempt` verifies under the matching public key. -/
@@ -312,30 +330,12 @@ theorem verify_signAttempt (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ 
     {sk : SecretKey P} (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {msg : List Bool}
     {y : Fin P.ℓ → Fin P.n → ZMod P.q} {σ : Signature P}
     (h : signAttempt P H sk msg y = some σ) : verify P H sk.publicKey msg σ = true := by
-  have : NeZero P.q := ⟨by have := hP.one_lt_q; omega⟩
   simp only [signAttempt] at h
   split_ifs at h with hacc
-  cases h
-  obtain ⟨hz, hlow⟩ := hacc
-  set w := moduleSISMap sk.A y
-  set c := H (highBitsVec P w, msg)
+  obtain ⟨rfl⟩ := h
   simp only [verify, Bool.and_eq_true, decide_eq_true_eq]
-  refine ⟨⟨hz, hH _⟩, ?_⟩
-  rw [verifierCommitment_publicKey]
-  -- `HighBits(w - c s₂) = HighBits(w)`, since `c s₂` is `β`-short.
-  have hq : 2 * (P.τ * P.η) < P.q := by
-    have := hP.τ_mul_η_le_β; have := hP.two_mul_β_lt_q; omega
-  have hhigh : highBitsVec P (w - fun i => negacyclicMul c (sk.s₂ i)) = highBitsVec P w := by
-    funext i j
-    have hs : |(negacyclicMul c (sk.s₂ i) j).valMinAbs| ≤ P.β := by
-      have := abs_valMinAbs_negacyclicMul_le (hH (highBitsVec P w, msg)) (hs₂ i) hq j
-      have hτη : ((P.τ * P.η : ℕ) : ℤ) ≤ P.β := by exact_mod_cast hP.τ_mul_η_le_β
-      push_cast at hτη
-      linarith
-    have := highBits_add_of_abs_lowBits_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hP.one_lt_q hs (hlow i j)
-    simp only [Pi.sub_apply, sub_add_cancel] at this
-    exact this.symm
-  rw [hhigh]
+  refine ⟨⟨hacc.1, hH _⟩, ?_⟩
+  rw [verifierCommitment_publicKey, highBitsVec_sub_challenge hP (hH _) hs₂ hacc.2]
 
 /-- **Correctness of signing.** Under the hypotheses of `verify_signAttempt`, every signature that
 `sign` can output verifies, whatever the mask sampler and the retry bound. -/
@@ -354,10 +354,9 @@ theorem verify_sign (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ (H x))
       rw [hatt] at hy
       exact ih hy
     | some σ' =>
-      rw [hatt] at hy
-      simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
+      rw [hatt, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
         Option.some.injEq] at hy
-      subst hy
+      cases hy
       exact verify_signAttempt hP hH hs₂ hatt
 
 end Cslib.Crypto.MLDSA

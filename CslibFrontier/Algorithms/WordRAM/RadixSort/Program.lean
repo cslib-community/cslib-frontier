@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.RadixSort.Scan
 public import CslibFrontier.Computability.WordRAM.Compile
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Fixed-code native unsigned radix sorter
@@ -64,52 +65,23 @@ private theorem pass_exec {w b s d : ℕ} (xs : List ℕ) (x : Data 16)
       Block.HoldsList d (partition b xs) y.mem ∧
       y.regs src = d ∧ y.regs dst = s ∧ y.regs bit = b + 1 ∧
       Modifies (Block.mk d xs.length).footprint x.mem y.mem := by
-  let x₀ := (x.set out 0).set tag 0
-  have hinit : ExecWithin (B := .standard) w (ram[ out ← #0; tag ← #0 ]) x x₀ 2 := by
-    ram_eval [x₀]
-  obtain ⟨y, hy, hym, hysrc, hyout, hyf⟩ := Scan.exec (t := 0) xs [] x₀
-    (by simpa +decide [x₀] using hn) (by simpa +decide [x₀] using hs)
-    (by simpa +decide [x₀] using hd) (by simpa +decide [x₀] using hb)
-    (by simp [x₀]) (by simpa +decide [x₀] using ho)
-    (by simpa +decide [x₀] using h2) (by simp +decide [x₀])
-    hmem (Block.holdsList_nil _ _) hwords
-    (by simpa using length_select_le b 0 xs) hdisj hsfit hdfit
-  have hyr (j : Fin 16) (hj : Scan.code.Preserves j) : y.regs j = x₀.regs j :=
-    hy.regs_eq hj
-  let y₀ := y.set tag 1
-  have hn₀ : y₀.regs len = xs.length := by
-    simpa +decide [y₀, hyr len (by decide), x₀] using hn
-  have hs₀ : y₀.regs src = s := by
-    simpa +decide [y₀, hyr src (by decide), x₀] using hs
-  have hd₀ : y₀.regs dst = d := by
-    simpa +decide [y₀, hyr dst (by decide), x₀] using hd
-  have hb₀ : y₀.regs bit = b := by
-    simpa +decide [y₀, hyr bit (by decide), x₀] using hb
-  have ho₀ : y₀.regs one = 1 := by
-    simpa +decide [y₀, hyr one (by decide), x₀] using ho
-  have h2₀ : y₀.regs two = 2 := by
-    simpa +decide [y₀, hyr two (by decide), x₀] using h2
-  obtain ⟨z, hz, hzm, _, _, hzf⟩ := Scan.exec (t := 1) xs (select b 0 xs) y₀
-    hn₀ hs₀ hd₀ hb₀ (by simp [y₀]) ho₀ h2₀
-    (by simpa +decide [y₀] using hyout) hysrc
-    (by simpa only [y₀, Data.set_mem, List.nil_append] using hym) hwords
-    (by rw [← partition, length_partition]) hdisj hsfit hdfit
-  have hzs : z.regs src = s := (hz.regs_eq (by decide)).trans hs₀
-  have hzd : z.regs dst = d := (hz.regs_eq (by decide)).trans hd₀
-  have hzb : z.regs bit = b := (hz.regs_eq (by decide)).trans hb₀
-  have hzo : z.regs one = 1 := (hz.regs_eq (by decide)).trans ho₀
-  refine ⟨?u, ?run, ?_, ?_, ?_, ?_, ?_⟩
-  case run =>
-    have ha : ExecWithin w advance z ?u 4 := by
-      ram_eval [advance, hzs, hzd, hzb, hzo, hbit]
-    have hall := hinit.seq (hy.seq ((ExecWithin.const (d := tag) (x := y) h1).seq (hz.seq ha)))
-    exact hall.mono (by omega)
-  · exact hzm
-  · simp +decide [Data.set_regs]
-  · simp +decide [Data.set_regs]
-  · simp +decide [Data.set_regs]
-  · intro a hnot
-    exact (hzf a hnot).trans (hyf a hnot)
+  apply WP.exists_execWithin
+  unfold pass advance
+  wram_exec
+  wram_call (Scan.exec (s := s) (d := d) (b := b) (t := 0) xs [] _
+    (by wram_simp; exact hn) (by wram_simp; exact hs) (by wram_simp; exact hd)
+    (by wram_simp; exact hb) (by wram_simp) (by wram_simp; exact ho) (by wram_simp; exact h2)
+    (by wram_simp; rfl) hmem (Block.holdsList_nil _ _) hwords
+    (by simpa using length_select_le b 0 xs) hdisj hsfit hdfit) with y ⟨hym, hysrc, hyout, hyf⟩
+  wram_exec
+  wram_call (Scan.exec (s := s) (d := d) (b := b) (t := 1) xs (select b 0 xs) _
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by wram_simp)
+    (by regs_frame) (by regs_frame) (by wram_simp; exact hyout) hysrc
+    (by simpa only [Data.set_mem, List.nil_append] using hym) hwords
+    (by rw [← partition, length_partition]) hdisj hsfit hdfit) with z ⟨hzm, _, _, hzf⟩
+  wram_exec *
+  wram_simp *
+  exact ⟨hzm, fun a hnot => (hzf a hnot).trans (hyf a hnot)⟩
 
 /-- Sort all keys below `2^keyBits` in `keyBits * (22n+15)+5` instructions. The two arrays
 have length `n`, are adjacent, and start at caller-supplied `base`. Only these `2n` cells may
@@ -140,60 +112,28 @@ theorem exec {w base keyBits : ℕ} (xs : List ℕ) (x : Data 16)
         z.regs bit = y.regs bit + 1 := by
     obtain ⟨hyn, hyB, hyo, hy2, hyp, hym, hyf⟩ := hy
     have hl : (passes (y.regs bit) xs).length = n := (passes_perm _ _).length_eq
-    have hdis : y.regs src + n ≤ y.regs dst ∨ y.regs dst + n ≤ y.regs src := by
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> omega
-    have hsf : Fits w (y.regs src + n) := hfit.of_le (by
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> omega)
-    have hdf : Fits w (y.regs dst + n) := hfit.of_le (by
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> omega)
-    have hwds : ∀ v ∈ passes (y.regs bit) xs, Fits w v := fun v hv =>
-      hwords v ((passes_perm _ _).mem_iff.mp hv)
     obtain ⟨z, he, hzm, hzs, hzd, hzb, hzf⟩ := pass_exec (passes (y.regs bit) xs) y
-      (hyn.trans hl.symm) rfl rfl rfl hyo hy2 hym hwds
-      (by simpa only [hl] using hdis) (by simpa only [hl] using hsf)
-      (by simpa only [hl] using hdf) (hbits.of_le (by omega)) (h2.of_le (by omega))
-    refine ⟨z, by simpa only [hl] using he, ?_, hzb⟩
-    refine ⟨(he.regs_eq (by decide)).trans hyn, (he.regs_eq (by decide)).trans hyB,
-      (he.regs_eq (by decide)).trans hyo, (he.regs_eq (by decide)).trans hy2,
-      ?_, ?_, ?_⟩
-    · rw [hzs, hzd]
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩
-      · exact Or.inr ⟨hb, ha⟩
-      · exact Or.inl ⟨hb, ha⟩
-    · rw [hzs, passes]
-      exact hzm
-    · intro a hnot
-      have hnot' : a ∉ (Block.mk (y.regs dst) (passes (y.regs bit) xs).length).footprint := by
-        intro ha
-        apply hnot
-        rw [Block.mem_footprint] at ha ⊢
-        change y.regs dst ≤ a ∧
-          a < y.regs dst + (passes (y.regs bit) xs).length at ha
-        change base ≤ a ∧ a < base + 2 * n
-        rw [hl] at ha
-        rcases hyp with ⟨ha', hb'⟩ | ⟨ha', hb'⟩ <;> omega
-      exact (hzf a hnot').trans (hyf a hnot)
+      (hyn.trans hl.symm) rfl rfl rfl hyo hy2 hym
+      (fun v hv => hwords v ((passes_perm _ _).mem_iff.mp hv)) (by rw [hl]; omega)
+      (hfit.of_le (by rw [hl]; omega)) (hfit.of_le (by rw [hl]; omega))
+      (hbits.of_le (by omega)) (h2.of_le (by omega))
+    refine ⟨z, by simpa only [hl] using he, ⟨by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, ?_, by rw [hzs, passes]; exact hzm, fun a hnot => ?_⟩, hzb⟩
+    · rw [hzs, hzd]; exact hyp.symm.imp And.symm And.symm
+    · refine (hzf a fun ha => hnot ?_).trans (hyf a hnot)
+      simp only [Block.mem_footprint, Block.Owns, hl] at ha ⊢
+      omega
   let x₀ := ((x.set one 1).set two 2).set bit 0
   have hx₀ : P (x₀.regs bit) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, Modifies.refl _ _⟩
-    · simpa +decide [x₀] using hn
-    · simpa +decide [x₀] using hb
-    · simp +decide [x₀]
-    · simp +decide [x₀]
-    · left; simpa +decide [x₀, n] using And.intro hs hd
-    · simpa +decide [x₀, passes, hs] using hmem
+    refine ⟨by regs_frame, by regs_frame, by simp +decide [x₀], by simp +decide [x₀],
+      Or.inl ⟨by regs_frame, by regs_frame⟩, ?_, Modifies.refl _ _⟩
+    simpa +decide [x₀, passes, hs] using hmem
   obtain ⟨y, he, ⟨_, _, _, _, hyp, hym, hyf⟩, _⟩ := ExecWithin.loop_count P
     (fun _ ⟨_, hbits, _⟩ => hbits) hbody (by simp [x₀]) hx₀
   have hinit : ExecWithin (B := .standard) w (ram[ one ← #1; two ← #2; bit ← #0 ]) x x₀ 3 := by
-    ram_eval [x₀, h2, h2.of_le (show 1 ≤ 2 by omega)]
-  refine ⟨y, ?_, hym,
+    wram_exec
+  refine ⟨y, (hinit.seq he).mono (by simp +decide [timeBound, n, x₀, Nat.add_assoc]; omega), hym,
     (passes_correct keyBits xs hkeys).1, (passes_correct keyBits xs hkeys).2,
     hyp.imp And.left And.left, hyf⟩
-  have hall := hinit.seq he
-  convert hall using 1
-  · rfl
-  · simp +decide only [timeBound, n, x₀, Data.set_regs, Function.update_apply,
-      ↓reduceIte, Nat.sub_zero, Nat.add_assoc, Nat.reduceAdd]
-    omega
 
 end Cslib.Algorithms.WordRAM.RadixSort

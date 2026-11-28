@@ -29,7 +29,7 @@ private theorem rotateReflection_eq (n : ℕ) (v : Fin n) (d : Unit) :
   simp [rotateReflection, reflection, Nat.sub_sub, Nat.add_comm]
 
 private theorem isPolyTime_rotateReflection :
-    ComputableTidilyInPolyTime rotateReflection
+    ComputableInPolyTime rotateReflection
       (encPair encUnary (encPair encUnary (encFinEnum Unit)))
       (encPair encUnary (encFinEnum Unit)) := by
   unfold rotateReflection
@@ -130,7 +130,7 @@ example (g : Graph Bool) :
 example : ComputableInPolyTime powered (Graph.encoding encBool)
     (Graph.encoding (encPi (encPi encBool))) := by
   have hr := isPolyTime_rotateReflection
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Bool × Bool) => evalConstraint p.1 p.2.1 p.2.2)
       (encPair encBool (encPair encBool encBool)) encBool := by
     unfold evalConstraint
@@ -144,7 +144,7 @@ example {Input : Type} {input : Input ↪ List Bool} {graph : Input → Graph Bo
       (fun x => (graph x).powerPreprocess evalConstraint false rotateReflection 1 2 walks)
       input (Graph.encoding (encPi (encPi encBool))) := by
   have hr := isPolyTime_rotateReflection
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Bool × Bool) => evalConstraint p.1 p.2.1 p.2.2)
       (encPair encBool (encPair encBool encBool)) encBool := by
     unfold evalConstraint
@@ -162,7 +162,7 @@ example {Input : Type} {input : Input ↪ List Bool} {graph : Input → Graph Bo
       let g := graph x
       g.powerPreprocess evalConstraint false rotate 1 2 walks)
       input (Graph.encoding (encPi (encPi encBool))) := by
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Bool × Bool) => evalConstraint p.1 p.2.1 p.2.2)
       (encPair encBool (encPair encBool encBool)) encBool := by
     unfold evalConstraint
@@ -193,7 +193,7 @@ example {Input : Type} {input : Input ↪ List Bool} {graph : Input → Graph Bo
       SelectedHadamardTester.implementation.composeTabulated
         (numberSelectedSlots (unitOpinions (Fin 16) 4)).2 [default] selectedQueries powered)
       input (Graph.encoding (encPi (encPi encBool))) := by
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Unit × Unit) => unitEval p.1 p.2.1 p.2.2)
       (encPair encBool (encPair (encFinEnum Unit) (encFinEnum Unit))) encBool := by
     unfold unitEval
@@ -214,7 +214,7 @@ example {Input : Type} {input : Input ↪ List Bool} {graph : Input → Graph Bo
       (fun x => (graph x).powerPreprocess unitEval false rotate 4 2
         [(fun _ => .inr (), fun _ => 0)])
       input (Graph.encoding output) := by
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Unit × Unit) => unitEval p.1 p.2.1 p.2.2)
       (encPair encBool (encPair (encFinEnum Unit) (encFinEnum Unit))) encBool := by
     unfold unitEval
@@ -253,7 +253,7 @@ example : (selectedPartialRound exampleGraph).WellFormed :=
 example : ComputableInPolyTime selectedPartialRound (Graph.encoding encBool)
     (Graph.encoding (encPi (encPi encBool))) := by
   have hr := isPolyTime_rotateReflection
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Unit × Unit) => unitEval p.1 p.2.1 p.2.2)
       (encPair encBool (encPair (encFinEnum Unit) (encFinEnum Unit))) encBool := by
     unfold unitEval
@@ -274,7 +274,7 @@ private def completeRound (g : Graph Bool) :=
 example : ComputableInPolyTime completeRound (Graph.encoding encBool)
     (Graph.encoding (encPi (encPi encBool))) := by
   have hr := RotationMap.polytime_arithmeticExpanderRotate (encFinEnum ArithmeticLabel)
-  have he : ComputableTidilyInPolyTime
+  have he : ComputableInPolyTime
       (fun p : Bool × (Unit × Unit) => unitEval p.1 p.2.1 p.2.2)
       (encPair encBool (encPair (encFinEnum Unit) (encFinEnum Unit))) encBool := by
     unfold unitEval

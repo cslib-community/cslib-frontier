@@ -12,7 +12,6 @@ import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Fintype.Grid
 import CslibFrontier.Probability.KWiseIndependent.TugOfWar
 import CslibFrontier.Probability.KWiseIndependent.TugOfWarProduct
-import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Data.Int.Interval
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.Positivity
@@ -22,9 +21,11 @@ import Mathlib.Tactic.Positivity
 
 The **join size** of two relations with frequency vectors `f` and `g` on a common join attribute is
 the inner product `|F ⋈ G| = ∑ₐ fₐ gₐ`; for streams `u` and `v` of attribute values it is
-`Cslib.Streaming.joinSize u v = ∑ₐ count a u · count a v`. Its self-join `joinSize u u` is the
+`Cslib.Streaming.joinSize u v = ∑ₐ count a u · count a v`, the number of tuples in the equijoin
+(`Cslib.Streaming.length_filter_product_eq_joinSize`). Its self-join `joinSize u u` is the
 second frequency moment `F₂ u` (`Cslib.Streaming.joinSize_self`), and `joinSize u v ^ 2 ≤ F₂ u F₂ v`
-(`Cslib.Streaming.joinSize_sq_le`).
+(`Cslib.Streaming.joinSize_sq_le`). These are in `CslibFrontier.Computability.Streaming.Frequency`,
+which needs no probability.
 
 Alon, Gibbons, Matias and Szegedy [AlonGibbonsMatiasSzegedy1999, Section 4.3] estimate join sizes
 with **tug-of-war join signatures**: each relation keeps a tug-of-war counter
@@ -68,15 +69,12 @@ Chebyshev's constant failure probability.
 
 ## Main definitions
 
-* `Cslib.Streaming.joinSize`: the join size `∑ₐ count a u · count a v` of two streams.
 * `Cslib.Streaming.JoinState`: the memory of the join sketch.
 * `Cslib.Streaming.joinSketch`: the join sketch with given seeds.
 * `Cslib.Streaming.joinSketchRandom`: the randomized join sketch with uniform seeds.
 
 ## Main results
 
-* `Cslib.Streaming.joinSize_self`, `Cslib.Streaming.joinSize_comm`,
-  `Cslib.Streaming.joinSize_sq_le`: the self-join is `F₂`, and `|F ⋈ G|² ≤ F₂(F) F₂(G)`.
 * `Cslib.Streaming.joinSketch_state_left`, `Cslib.Streaming.joinSketch_state_right`,
   `Cslib.Streaming.run_joinSketch`: the counters are the AMS sketches of the two relations, and the
   answer is the median of means of their products.
@@ -104,47 +102,6 @@ open Finset Probability
 open scoped BigOperators
 
 variable {ι α Y : Type*}
-
-/-! ### Join sizes -/
-
-section JoinSize
-
-variable [DecidableEq α]
-
-/-- The **join size** `|F ⋈ G| = ∑ₐ count a u · count a v` of the relations whose join attribute
-values are listed by the streams `u` and `v`: the inner product of their frequency vectors. -/
-@[expose] def joinSize (u v : List α) : ℕ :=
-  ∑ a ∈ u.toFinset, u.count a * v.count a
-
-/-- The join size is the sum of `count a u · count a v` over any set of values containing those
-of `u`. -/
-theorem joinSize_eq_sum_of_subset {u v : List α} {T : Finset α} (hT : u.toFinset ⊆ T) :
-    joinSize u v = ∑ a ∈ T, u.count a * v.count a := by
-  unfold joinSize
-  refine Finset.sum_subset hT fun a _ ha => ?_
-  rw [List.mem_toFinset, ← List.count_eq_zero] at ha
-  rw [ha, zero_mul]
-
-theorem joinSize_comm (u v : List α) : joinSize u v = joinSize v u := by
-  rw [joinSize_eq_sum_of_subset (T := u.toFinset ∪ v.toFinset) subset_union_left,
-    joinSize_eq_sum_of_subset (T := u.toFinset ∪ v.toFinset) subset_union_right]
-  exact sum_congr rfl fun a _ => mul_comm _ _
-
-/-- The self-join size of a relation is its second frequency moment. -/
-theorem joinSize_self (u : List α) : joinSize u u = freqMoment 2 u := by
-  unfold joinSize freqMoment
-  exact sum_congr rfl fun a _ => (sq _).symm
-
-/-- **Join sizes are bounded by self-join sizes**: `|F ⋈ G|² ≤ F₂(F) F₂(G)`, by the
-Cauchy–Schwarz inequality. -/
-theorem joinSize_sq_le (u v : List α) :
-    joinSize u v ^ 2 ≤ freqMoment 2 u * freqMoment 2 v := by
-  have hT : u.toFinset ⊆ u.toFinset ∪ v.toFinset := subset_union_left
-  rw [joinSize_eq_sum_of_subset hT, freqMoment_eq_sum_of_subset two_ne_zero hT,
-    freqMoment_eq_sum_of_subset two_ne_zero subset_union_right]
-  exact sum_mul_sq_le_sq_mul_sq _ _ _
-
-end JoinSize
 
 /-! ### The join sketch -/
 
@@ -190,13 +147,9 @@ private theorem stateFrom_joinSketch (ω : Fin (2 * r) → Fin k → ι) (q : Jo
       add_zero]
   | cons x s ih =>
     rw [Algorithm.stateFrom_cons, ih]
-    cases x with
-    | inl a =>
-      simp only [joinSketch, Sum.elim_inl, List.filterMap_cons, Sum.getLeft?_inl,
-        Sum.getRight?_inl, List.map_cons, List.sum_cons, add_assoc]
-    | inr a =>
-      simp only [joinSketch, Sum.elim_inr, List.filterMap_cons, Sum.getLeft?_inr,
-        Sum.getRight?_inr, List.map_cons, List.sum_cons, add_assoc]
+    cases x <;> simp only [joinSketch, Sum.elim_inl, Sum.elim_inr, List.filterMap_cons,
+      Sum.getLeft?_inl, Sum.getRight?_inl, Sum.getLeft?_inr, Sum.getRight?_inr,
+      List.map_cons, List.sum_cons, add_assoc]
 
 /-- After the stream `s`, the counters with seed `θ` hold `∑_{a ∈ F} sgn (h θ a)` and
 `∑_{a ∈ G} sgn (h θ a)`, where `F` and `G` are the items tagged `Sum.inl` and `Sum.inr`. -/
@@ -223,8 +176,7 @@ theorem joinSketch_state_right (ω : Fin (2 * r) → Fin k → ι) (s : List (α
 private theorem cast_sum_map_sign [DecidableEq α] (u : List α) (θ : ι) :
     (((u.map fun a => sgn (h θ a)).sum : ℤ) : ℝ) =
       ∑ a ∈ u.toFinset, (u.count a : ℝ) * sgn (h θ a) := by
-  rw [Finset.sum_list_map_count, Int.cast_sum]
-  simp only [nsmul_eq_mul, Int.cast_mul, Int.cast_natCast]
+  simp [Finset.sum_list_map_count]
 
 /-- The answer of the join sketch is the median of means of the products of the tug-of-war sums of
 the two relations. -/
@@ -259,25 +211,19 @@ private theorem dens_medianOfMeans_joinSize_error_le [Fintype ι] [DecidableEq �
     rw [Fintype.expect_eq_sum_div_card, ← Int.cast_sum, hsum, Int.cast_zero, zero_div]
   set T := u.toFinset ∪ v.toFinset
   have hsub {w : List α} (hw : w.toFinset ⊆ T) (θ : ι) :
-      ∑ a ∈ w.toFinset, (w.count a : ℝ) * sgn (h θ a) = ∑ a ∈ T, (w.count a : ℝ) * sgn (h θ a) := by
-    refine Finset.sum_subset hw fun a _ ha => ?_
-    rw [List.mem_toFinset, ← List.count_eq_zero] at ha
-    rw [ha, Nat.cast_zero, zero_mul]
+      ∑ a ∈ w.toFinset, (w.count a : ℝ) * sgn (h θ a) = ∑ a ∈ T, (w.count a : ℝ) * sgn (h θ a) :=
+    Finset.sum_subset hw fun a _ ha => by
+      simp [List.count_eq_zero.2 (List.mem_toFinset.not.1 ha)]
   have hF {w : List α} (hw : w.toFinset ⊆ T) :
       ((freqMoment 2 w : ℕ) : ℝ) = ∑ a ∈ T, ((w.count a : ℝ)) ^ 2 := by
-    rw [freqMoment_eq_sum_of_subset two_ne_zero hw]
-    push_cast
-    rfl
+    simp only [freqMoment_eq_sum_of_subset two_ne_zero hw, Nat.cast_sum, Nat.cast_pow]
   have hJ : ((joinSize u v : ℕ) : ℝ) = ∑ a ∈ T, (u.count a : ℝ) * v.count a := by
-    rw [joinSize_eq_sum_of_subset (T := T) subset_union_left]
-    push_cast
-    rfl
+    simp only [joinSize_eq_sum_of_subset (T := T) subset_union_left, Nat.cast_sum, Nat.cast_mul]
   set g : ι → ℝ := fun θ => (∑ a ∈ T, (u.count a : ℝ) * sgn (h θ a)) *
     ∑ a ∈ T, (v.count a : ℝ) * sgn (h θ a)
   have hg : (fun θ => (∑ a ∈ u.toFinset, (u.count a : ℝ) * sgn (h θ a)) *
-      ∑ a ∈ v.toFinset, (v.count a : ℝ) * sgn (h θ a)) = g := by
-    funext θ
-    rw [hsub subset_union_left θ, hsub subset_union_right θ]
+      ∑ a ∈ v.toFinset, (v.count a : ℝ) * sgn (h θ a)) = g :=
+    funext fun θ => by rw [hsub subset_union_left θ, hsub subset_union_right θ]
   have hmean : 𝔼 θ, g θ = joinSize u v := by
     rw [hJ]
     exact (hh.mono (by norm_num)).expect_sum_mul_sign_mul_sum_mul_sign hε hε₀ T _ _
@@ -288,28 +234,26 @@ private theorem dens_medianOfMeans_joinSize_error_le [Fintype ι] [DecidableEq �
     rw [hmean, hJ]
     exact hh.expect_sq_sum_mul_sign_mul_sum_mul_sign_sub_le hε hε₀ T _ _
   rw [hg, hB, ← hmean]
+  have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
   rcases (show 0 ≤ B by positivity).eq_or_lt with hB0 | hBpos
   · -- If one relation is empty, every estimate is exact.
     set μ := 𝔼 θ, g θ
-    have hconst : ∀ θ, g θ = μ := by
+    have hconst (θ : ι) : g θ = μ := by
       have h0 : 𝔼 θ, (g θ - μ) ^ 2 = 0 :=
         le_antisymm (by rw [← hB0, mul_zero] at hvar; exact hvar)
           (Finset.expect_nonneg fun _ _ => sq_nonneg _)
-      intro θ
-      have := (Finset.expect_eq_zero_iff_of_nonneg (fun _ _ => sq_nonneg _)).1 h0 θ (mem_univ θ)
-      exact sub_eq_zero.1 (pow_eq_zero_iff two_ne_zero |>.1 this)
+      exact sub_eq_zero.1 <| (pow_eq_zero_iff two_ne_zero).1 <|
+        (Finset.expect_eq_zero_iff_of_nonneg (fun _ _ => sq_nonneg _)).1 h0 θ (mem_univ θ)
     have hempty : ({ω : Fin (2 * r) → Fin k → ι |
         η * √B < |medianOfMeans g ω - μ|} : Finset _) = ∅ := by
       have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
       refine filter_false_of_mem fun ω _ => ?_
-      have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
       simp only [medianOfMeans, hconst, Fintype.expect_const, median_const, sub_self, abs_zero,
         not_lt]
       positivity
     rw [hempty, dens_empty, NNRat.cast_zero]
     positivity
-  · have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
-    have hvar3 : 3 * 𝔼 θ, (g θ - 𝔼 θ', g θ') ^ 2 ≤ k * (η * √B) ^ 2 := by
+  · have hvar3 : 3 * 𝔼 θ, (g θ - 𝔼 θ', g θ') ^ 2 ≤ k * (η * √B) ^ 2 := by
       rw [mul_pow, Real.sq_sqrt hBpos.le]
       nlinarith
     exact dens_abs_medianOfMeans_sub_gt_le g (mul_pos hη (Real.sqrt_pos.2 hBpos)) hvar3
@@ -352,9 +296,8 @@ theorem solves_joinSketchRandom [Fintype ι] [Nonempty ι] [DecidableEq α] [Fin
           freqMoment 2 (s.filterMap Sum.getRight?))) m := by
   classical
   intro s _
-  rw [errorProb_joinSketchRandom]
-  simp only [not_le]
-  exact (dens_joinSketch_error_le hh hsq hsum hη hk s).trans hδ
+  simpa only [errorProb_joinSketchRandom, not_le] using
+    (dens_joinSketch_error_le hh hsq hsum hη hk s).trans hδ
 
 /-- **Relative error under a priori bounds** [AlonGibbonsMatiasSzegedy1999, Theorem 4.5]: if the
 join size is known to be at least `B₁ > 0` and the self-join sizes at most `B₂`, then
@@ -428,10 +371,8 @@ private theorem state_mem_joinStates (hsgn : ∀ y, |sgn y| ≤ 1)
     (joinSketch h sgn r k ω).state s ∈ joinStates W m := by
   rw [joinStates, mem_map_equiv, Equiv.symm_symm]
   simp only [JoinState.equivProd, Equiv.coe_fn_mk, mem_product, Fintype.mem_piFinset]
-  refine ⟨?_, fun i l => (mem_Icc_joinSketch_state hsgn ω hs i l).1,
+  exact ⟨by rwa [state_joinSketch], fun i l => (mem_Icc_joinSketch_state hsgn ω hs i l).1,
     fun i l => (mem_Icc_joinSketch_state hsgn ω hs i l).2⟩
-  rw [state_joinSketch]
-  exact hω
 
 /-- **The memory of the randomized join sketch** [AlonGibbonsMatiasSzegedy1999, Section 4.3]:
 every sketch it draws uses at most `b` bits of memory on streams of at most `m` items when
@@ -448,9 +389,8 @@ theorem spaceLE_joinSketchRandom [Fintype ι] [Nonempty ι] (hsgn : ∀ y, |sgn 
   refine Algorithm.spaceLE_of_subset_finset (T := joinStates {ω} m) ?_ ?_
   · rintro _ ⟨s, hs, rfl⟩
     exact state_mem_joinStates hsgn (mem_singleton_self ω) hs
-  · rw [card_joinStates, card_singleton, one_mul, ← pow_mul,
-      show 2 * (2 * r * k) = 4 * r * k by ring]
-    exact hb
+  · have hrk : 2 * (2 * r * k) = 4 * r * k := by ring
+    rwa [card_joinStates, card_singleton, one_mul, ← pow_mul, hrk]
 
 /-- **The memory of the join sketch with its seeds stored** [AlonGibbonsMatiasSzegedy1999,
 Section 4.3]: on streams of at most `m` items, the states reachable from all seeds together have a

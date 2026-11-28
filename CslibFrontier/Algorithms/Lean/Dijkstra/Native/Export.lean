@@ -34,7 +34,8 @@ public section
 namespace Cslib.Algorithms.Lean.Dijkstra.Native
 
 open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure Cslib.DataStructure.Memory
-open Cslib.Algorithms.WordRAM.Dijkstra (ListInstance encodeDist)
+open Cslib.Algorithms.Dijkstra (ListInstance)
+open Cslib.Algorithms.WordRAM.Dijkstra (encodeDist)
 
 /-- **The flat export of a native Dijkstra memory client.** Let `p` be uniformly realized on the
 input words of every graph at every word size that holds `8 (n + m + 2) (W + 2)`, and on those
@@ -69,16 +70,11 @@ theorem exists_program_state {p : Memory.Prog Unit} (c : ListInstance → ℕ)
   have hpReturn : Realizes .exact (fun _ : Unit => do p; pure 0)
       (WordEncoding.encode (α := Unit)) (WordEncoding.encode (α := ℕ))
       (fun w _ s => ∃ G : ListInstance, s = Memory.State.init G.encode ∧
-        Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) := by
-    apply (hp.bind₀ hReturn).consequence
-    · intro w d s _ _ h
-      exact ⟨h, trivial⟩
-    · intro _ _
-      exact le_rfl
+        Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) :=
+    (hp.bind₀ hReturn).consequence (fun _ _ _ _ _ h => ⟨h, trivial⟩) fun _ _ => le_rfl
   obtain ⟨r, C, pc, prog, frontier, _, he⟩ :=
     hpReturn.exists_standard_init_program_state_from_words 0
-  refine ⟨r, C + 1, pc, prog, frontier, ?_⟩
-  intro G w hfit
+  refine ⟨r, C + 1, pc, prog, frontier, fun G w hfit => ?_⟩
   obtain ⟨hvalid, hdist, hcost⟩ := hspec G hfit
   have hfront : Fits w (G.encode.length + 1) := by
     rw [G.encode_length]
@@ -90,26 +86,10 @@ theorem exists_program_state {p : Memory.Prog Unit} (c : ListInstance → ℕ)
   obtain ⟨y, steps, hrun, hhalt, hstate, _, htime⟩ :=
     he w () G.encode (fun i => Fin.elim0 i) (Nat.zero_le _) hfront
       (G.inputFits_encode hfit) ⟨G, rfl, hfit⟩ hv
-  have hs : (Memory.spec w).clientState (Memory.State.init G.encode) (do p; pure 0) =
-      (Memory.spec w).clientState (Memory.State.init G.encode) p := by
-    simp only [client_simps]
-  have hm : memoryCost (do p; pure 0) (Memory.State.init G.encode) =
-      memoryCost p (Memory.State.init G.encode) := by
-    simp only [client_simps, Nat.add_zero]
-  change memoryState frontier y = (Memory.spec w).clientState (Memory.State.init G.encode)
-    (do p; pure 0) at hstate
-  rw [hs] at hstate
-  change steps + 1 ≤ C * (memoryCost (do p; pure 0)
-    (Memory.State.init G.encode) + 0 + 1) + 1 at htime
-  rw [hm] at htime
-  have hr : (Memory.spec w).clientResult (Memory.State.init G.encode) (do p; pure 0) = 0 := by
-    simp only [client_simps]
-  rw [hr] at hhalt
+  simp only [client_simps, Nat.add_zero] at hstate htime hhalt
   rw [← memoryCost_eq_totalCost w] at hcost
-  refine ⟨y, steps, hrun, hhalt, hstate, ?_, ?_⟩
-  · nlinarith [Nat.mul_le_mul_left C hcost]
-  · intro v
-    have hm := congrArg (fun s : Memory.State => s.mem (G.outAddr v)) hstate
-    exact hm.trans (hdist v)
+  refine ⟨y, steps, hrun, hhalt, hstate, ?_, fun v =>
+    (congrArg (fun s : Memory.State => s.mem (G.outAddr v)) hstate).trans (hdist v)⟩
+  nlinarith [Nat.mul_le_mul_left C hcost]
 
 end Cslib.Algorithms.Lean.Dijkstra.Native

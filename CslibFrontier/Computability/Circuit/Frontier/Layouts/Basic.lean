@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Data.Nat.Log
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Archimedean.Real.Basic
 import Mathlib.Data.Finset.Sort
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Tools for layout bounds
@@ -68,22 +69,16 @@ theorem ncard_edgeCut_union_add {S T : Set V} (h : Disjoint S T)
   have hd (v : V) : v ∈ S → v ∉ T := fun hv => disjoint_left.mp h hv
   have h₁ : G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T) = G.edgeCut S ∪ G.edgeCut T := by
     ext e
-    have := hd (G.src e)
-    have := hd (G.tgt e)
     simp only [mem_union, mem_inter_iff, mem_edgeCut]
-    tauto
-  have h₂ : Disjoint (G.edgeCut (S ∪ T)) (G.edgeCut S ∩ G.edgeCut T) := by
-    refine disjoint_left.mpr fun e he he' => ?_
-    have := hd (G.src e)
-    have := hd (G.tgt e)
-    simp only [mem_union, mem_inter_iff, mem_edgeCut] at he he'
-    tauto
-  have hST : (G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T)).Finite := by
-    rw [h₁]
-    exact hS.union hT
+    lrat_tauto [hd (G.src e), hd (G.tgt e)]
+  have h₂ : Disjoint (G.edgeCut (S ∪ T)) (G.edgeCut S ∩ G.edgeCut T) :=
+    disjoint_left.mpr fun e he he' => by
+      simp only [mem_union, mem_inter_iff, mem_edgeCut] at he he'
+      lrat_tauto [hd (G.src e), hd (G.tgt e)]
+  have hST : (G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T)).Finite := h₁.symm ▸ hS.union hT
   have := ncard_union_add_ncard_inter (G.edgeCut S) (G.edgeCut T) hS hT
-  rw [← h₁, ncard_union_eq h₂ (hST.subset subset_union_left)
-    (hST.subset subset_union_right)] at this
+  rw [← h₁, ncard_union_eq h₂ (hST.subset subset_union_left) (hST.subset subset_union_right)]
+    at this
   omega
 
 /-- In a loopless multigraph, the edges leaving a single vertex are the edges at it. -/
@@ -91,11 +86,7 @@ theorem edgeCut_singleton (hG : G.Loopless) (v : V) : G.edgeCut {v} = G.incidenc
   ext e
   have := hG e
   simp only [mem_edgeCut, mem_singleton_iff, mem_incidenceSet]
-  constructor
-  · intro h
-    by_contra h'
-    exact h (iff_of_false (not_or.mp h').1 (not_or.mp h').2)
-  · rintro (h | h) <;> grind
+  grind
 
 variable {G} in
 /-- In a connected multigraph, some edge leaves every set of vertices other than the empty set
@@ -159,7 +150,7 @@ theorem initial_eq_of_lt_iff {α : Type*} [LinearOrder α] {f : V → α} {π : 
     (hπ : ∀ v w, π v < π w ↔ f v < f w) {t : ℕ} (ht : t < Nat.card V) :
     π.initial t = {v | f v < f (π.symm ⟨t, ht⟩)} := by
   ext v
-  rw [mem_initial, mem_ofPred_eq,← hπ, Equiv.apply_symm_apply, Fin.lt_def]
+  rw [mem_initial, mem_ofPred_eq, ← hπ, Equiv.apply_symm_apply, Fin.lt_def]
 
 end Layout
 

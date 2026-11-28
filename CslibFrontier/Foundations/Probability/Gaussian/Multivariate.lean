@@ -48,8 +48,11 @@ a centered Gaussian of variance `‖WithLp.toLp 2 a‖ ^ 2`, the squared Euclide
   window and tail bounds for a projection.
 * `ProbabilityTheory.measurePreserving_toLp_pi_gaussianReal`: independent standard Gaussian
   coordinates form a standard Gaussian vector of `EuclideanSpace ℝ ι`.
-* `ProbabilityTheory.pi_gaussianReal_map_dotProduct`: the law of a projection of independent
-  standard Gaussian coordinates.
+* `ProbabilityTheory.pi_gaussianReal_map_dotProduct`,
+  `ProbabilityTheory.pi_gaussianReal_map_dotProduct_eq_map_const_mul`: the law of a projection of
+  independent standard Gaussian coordinates.
+* `ProbabilityTheory.sqrt_dotProduct_self_eq_norm`, `ProbabilityTheory.sqrt_dotProduct_self_pos`:
+  `√(a ⬝ᵥ a)` is the Euclidean norm of `a`, positive for `a ≠ 0`.
 * `ProbabilityTheory.memLp_dotProduct_pi_gaussianReal`,
   `ProbabilityTheory.integrable_dotProduct_pi_gaussianReal`: its moments.
 * `ProbabilityTheory.measureReal_pi_gaussianReal_eq`: the product measure of standard Gaussians
@@ -100,9 +103,9 @@ theorem stdGaussian_map_inner_prod {u v : E} (huv : ⟪u, v⟫ = 0) :
 in a measurable set `s` with probability at most `volume s / (√(2π) ‖u‖)`. -/
 theorem stdGaussian_inner_mem_le {u : E} (hu : u ≠ 0) {s : Set ℝ} (hs : MeasurableSet s) :
     stdGaussian E {x | ⟪u, x⟫ ∈ s} ≤ ENNReal.ofReal (√(2 * Real.pi) * ‖u‖)⁻¹ * volume s := by
-  have hv : ‖u‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnnorm_ne_zero_iff.2 hu)
+  have hv : ‖u‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnNorm_ne_zero_iff.2 hu)
   have h := gaussianReal_le_ofReal_mul_volume 0 hv s
-  rw [← stdGaussian_map_inner, Measure.map_apply (by fun_prop) hs, NNReal.coe_pow, coe_nnnorm,
+  rw [← stdGaussian_map_inner, Measure.map_apply (by fun_prop) hs, NNReal.coe_pow, coe_nnNorm,
     Real.sqrt_mul (by positivity), Real.sqrt_sq (norm_nonneg u)] at h
   exact h
 
@@ -112,7 +115,7 @@ theorem stdGaussian_le_abs_inner_le (u : E) {c : ℝ} (hc : 0 < c) :
     stdGaussian E {x | c ≤ |⟪u, x⟫|} ≤ ENNReal.ofReal (‖u‖ ^ 2 / c ^ 2) := by
   have h := gaussianReal_meas_ge_le 0 (‖u‖₊ ^ 2) hc
   rw [← stdGaussian_map_inner, Measure.map_apply (by fun_prop)
-    (measurableSet_le measurable_const (by fun_prop)), NNReal.coe_pow, coe_nnnorm] at h
+    (measurableSet_le measurable_const (by fun_prop)), NNReal.coe_pow, coe_nnNorm] at h
   simp only [sub_zero] at h
   exact h
 
@@ -135,6 +138,26 @@ theorem pi_gaussianReal_map_dotProduct {ι : Type*} [Fintype ι] (a : ι → ℝ
       dotProduct_comm]
   rw [h, ← Measure.map_map (by fun_prop) (by fun_prop),
     (measurePreserving_toLp_pi_gaussianReal ι).map_eq, stdGaussian_map_inner]
+
+/-- The square root of `a ⬝ᵥ a` is the Euclidean norm of `a` (the plain `‖a‖` on `ι → ℝ` is the
+sup norm). -/
+theorem sqrt_dotProduct_self_eq_norm {ι : Type*} [Fintype ι] (a : ι → ℝ) :
+    √(a ⬝ᵥ a) = ‖WithLp.toLp 2 a‖ := by
+  rw [norm_eq_sqrt_real_inner, EuclideanSpace.inner_toLp_toLp, star_trivial]
+
+/-- The Euclidean norm `√(a ⬝ᵥ a)` of a nonzero `a` is positive. -/
+theorem sqrt_dotProduct_self_pos {ι : Type*} [Fintype ι] {a : ι → ℝ} (ha : a ≠ 0) :
+    0 < √(a ⬝ᵥ a) :=
+  Real.sqrt_pos.2 (by simpa using Matrix.dotProduct_self_star_pos_iff.2 ha)
+
+/-- Under independent standard Gaussian coordinates, the projection `a ⬝ᵥ ·` is a standard
+Gaussian scaled by the Euclidean norm `√(a ⬝ᵥ a)`. -/
+theorem pi_gaussianReal_map_dotProduct_eq_map_const_mul {ι : Type*} [Fintype ι] (a : ι → ℝ) :
+    (Measure.pi fun _ : ι => gaussianReal 0 1).map (a ⬝ᵥ ·) =
+      (gaussianReal 0 1).map (√(a ⬝ᵥ a) * ·) := by
+  rw [pi_gaussianReal_map_dotProduct, gaussianReal_map_const_mul, mul_zero, mul_one,
+    sqrt_dotProduct_self_eq_norm]
+  congr 1
 
 /-- Under independent standard Gaussian coordinates, the projection `a ⬝ᵥ ·` has finite moments
 of every finite order. -/

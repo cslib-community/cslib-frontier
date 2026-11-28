@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.Basic
-import Mathlib.Tactic.Linarith
 
 /-!
 # Correctness of strict van Emde Boas successor
@@ -38,27 +37,20 @@ public section
 
 namespace Cslib.DataStructure.VanEmdeBoas.Tree
 
-private theorem maximum_any_iff {d x : ℕ} {t : Tree d} :
-    t.maximum.any (x < ·) = true ↔ ∃ m M, t.bounds = some (m, M) ∧ x < M := by
-  cases hb : t.bounds with
-  | none => simp [maximum, hb]
-  | some b => obtain ⟨m, M⟩ := b; simp [maximum, hb]
+private theorem maximum_any_iff {d x : ℕ} {t : Tree d} (ht : t.Valid) :
+    t.maximum.any (x < ·) = true ↔ ∃ y, t.Contains y ∧ x < y := by
+  rcases hb : t.bounds with _ | ⟨m, M⟩
+  · simp [maximum, hb, not_contains_of_bounds_none hb]
+  · have he := ht.extrema_of_bounds hb
+    simp only [maximum, hb, Option.map_some, Option.any_some, decide_eq_true_eq]
+    exact ⟨fun h => ⟨M, he.2.2.2.1, h⟩,
+      fun ⟨y, hy, hxy⟩ => hxy.trans_le (he.2.2.2.2 y hy).2⟩
 
 private theorem succ_of_lt_min {d m M x : ℕ} {t : Tree d} (ht : t.Valid)
     (hb : t.bounds = some (m, M)) (hm : x < m) :
     t.Contains m ∧ x < m ∧ ∀ z, t.Contains z → x < z → m ≤ z :=
   have he := ht.extrema_of_bounds hb
   ⟨he.2.2.1, hm, fun z hz _ => (he.2.2.2.2 z hz).1⟩
-
-private theorem cluster_lt_split {d : ℕ} {i j : Fin (universeSize d)} {a b : ℕ}
-    (hb : b < universeSize d) (h : i.val * universeSize d + a < j.val * universeSize d + b) :
-    i.val < j.val ∨ i = j ∧ a < b := by
-  rcases lt_trichotomy i.val j.val with hlt | heq | hgt
-  · exact Or.inl hlt
-  · rw [heq] at h
-    exact Or.inr ⟨Fin.ext heq, by omega⟩
-  · have := index_lt_index (b := a) hb hgt
-    omega
 
 private theorem succ_cluster_ans {d m M x : ℕ} {s : Tree d}
     {c : Fin (universeSize d) → Tree d} (ht : (node (some (m, M)) s c).Valid) (hm : ¬x < m)
@@ -71,7 +63,7 @@ private theorem succ_cluster_ans {d m M x : ℕ} {s : Tree d}
       ∀ z, (node (some (m, M)) s c).Contains z → x < z → k.val * universeSize d + b ≤ z := by
   refine ⟨⟨m, M, rfl, Or.inr ⟨k, b, hb, rfl⟩⟩, hlt, fun z hz hxz => ?_⟩
   rcases hz with ⟨_, _, ⟨⟩, rfl | ⟨l, a, ha, rfl⟩⟩
-  · omega
+  · exact (hm hxz).elim
   · obtain ⟨hkl, hab⟩ := hle l a ha hxz
     rcases Nat.lt_or_eq_of_le hkl with hlt | hEq
     · exact (index_lt_index ((ht.2.2.1 k).contains_lt hb) hlt).le
@@ -96,7 +88,7 @@ theorem successor_spec {d : ℕ} {t : Tree d} (ht : t.Valid) (x : ℕ) :
         · exact succ_of_lt_min ht rfl hm
         · refine ⟨he.2.2.2.1, hM, fun z hz hxz => ?_⟩
           obtain ⟨_, _, hb, rfl | rfl⟩ := hz <;> cases hb <;> omega
-        · exact fun z hz => by have := (he.2.2.2.2 z hz).2; omega
+        · exact fun z hz => (he.2.2.2.2 z hz).2.trans (Nat.le_of_not_gt hM)
   | succ d ih =>
     cases t with
     | node b s c =>
@@ -110,55 +102,44 @@ theorem successor_spec {d : ℕ} {t : Tree d} (ht : t.Valid) (x : ℕ) :
           · rw [successor, ite_eq_right hm, ite_eq_left hM]
             exact fun z hz => (he.2.2.2.2 z hz).2.trans hM
           · have hi : x / universeSize d < universeSize d :=
-              (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr ((show x < M by omega).trans he.2.1)
+              (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr ((Nat.lt_of_not_ge hM).trans he.2.1)
             let i : Fin (universeSize d) := ⟨x / universeSize d, hi⟩
-            have hx : x = i.val * universeSize d + x % universeSize d := by
-              simpa only [i, Nat.mul_comm] using (Nat.div_add_mod x (universeSize d)).symm
+            have hx : x = i.val * universeSize d + x % universeSize d :=
+              (Nat.div_add_mod' x (universeSize d)).symm
             have hoc : ∀ j y, (c j).Contains y → s.Contains j.val :=
               fun j y hy => (ht.2.2.2.1 j).mpr (bounds_isSome_of_contains hy)
             rw [successor, ite_eq_right hm, ite_eq_right hM, dite_eq_left hi]
+            have hv := ht.2.2.1 i
             by_cases hc : (c i).maximum.any (x % universeSize d < ·) = true
             · rw [ite_eq_left hc]
-              have hs := ih (ht.2.2.1 i) (x % universeSize d)
+              have hs := ih hv (x % universeSize d)
               cases hsuc : (c i).successor (x % universeSize d) with
               | none =>
                 simp only [hsuc] at hs
-                obtain ⟨_, cM, hb, hlt⟩ := maximum_any_iff.mp hc
-                exact absurd (hs cM ((ht.2.2.1 i).contains_maximum hb)) (by omega)
+                obtain ⟨y, hy, hlt⟩ := (maximum_any_iff hv).mp hc
+                exact (Nat.not_lt_of_ge (hs y hy) hlt).elim
               | some y =>
                 simp only [hsuc, Option.map_some] at hs ⊢
                 refine succ_cluster_ans ht hm hs.1
                   (hx.trans_lt (Nat.add_lt_add_left hs.2.1 _)) fun l a ha hxz => ?_
                 rcases cluster_lt_split ((ht.2.2.1 l).contains_lt ha)
                     (hx ▸ hxz) with hlt | ⟨rfl, hlow⟩
-                · exact ⟨hlt.le, fun h => absurd (congrArg Fin.val h) (by omega)⟩
+                · exact ⟨hlt.le, fun h => (hlt.ne (congrArg Fin.val h)).elim⟩
                 · exact ⟨le_rfl, fun _ => hs.2.2 a ha hlow⟩
             · rw [ite_eq_right hc]
-              have hle : ∀ a, (c i).Contains a → a ≤ x % universeSize d := by
-                intro a ha
-                obtain ⟨⟨cm, cM⟩, hb⟩ := Option.isSome_iff_exists.mp (bounds_isSome_of_contains ha)
-                have hcM : ¬x % universeSize d < cM := fun h =>
-                  hc (maximum_any_iff.mpr ⟨cm, cM, hb, h⟩)
-                have := ((ht.2.2.1 i).extrema_of_bounds hb).2.2.2.2 a ha
-                omega
               have hlater : ∀ j a, (c j).Contains a →
-                  x < j.val * universeSize d + a → i.val < j.val := by
-                intro j a ha hxa
-                rcases cluster_lt_split ((ht.2.2.1 j).contains_lt ha)
-                    (hx ▸ hxa) with hlt | ⟨rfl, hlow⟩
-                · exact hlt
-                · exact absurd (hle a ha) (by omega)
+                  x < j.val * universeSize d + a → i.val < j.val := fun j a ha hxa =>
+                (cluster_lt_split ((ht.2.2.1 j).contains_lt ha) (hx ▸ hxa)).elim id
+                  fun ⟨rfl, hlow⟩ => (hc ((maximum_any_iff hv).mpr ⟨a, ha, hlow⟩)).elim
               have hs := ih ht.2.1 i.val
               cases hsuc : s.successor i.val with
               | none =>
                 simp only [hsuc, bind, Option.bind_none] at hs ⊢
                 intro z hz
                 rcases hz with ⟨_, _, ⟨⟩, rfl | ⟨j, a, ha, rfl⟩⟩
-                · omega
-                · by_contra hn
-                  have := hlater j a ha (by omega)
-                  have := hs j.val (hoc j a ha)
-                  omega
+                · exact Nat.le_of_not_gt hm
+                · exact Nat.le_of_not_gt fun h => Nat.not_lt_of_ge (hs j.val (hoc j a ha))
+                    (hlater j a ha h)
               | some j =>
                 simp only [hsuc, bind, Option.bind_some] at hs ⊢
                 have hj := ht.2.1.contains_lt hs.1
@@ -203,10 +184,9 @@ theorem successor_isSome_of_lt_max {d m M query : ℕ} {tree : Tree d}
     ∃ ans < universeSize d, tree.successor query = some ans := by
   cases hs : tree.successor query with
   | none =>
-    have hle := (successor_eq_none_iff ht query).mp hs M (ht.contains_maximum hb)
-    omega
+    exact absurd ((successor_eq_none_iff ht query).mp hs M (ht.contains_maximum hb))
+      (Nat.not_le_of_gt hq)
   | some ans =>
-    have hspec := (successor_eq_some_iff ht query ans).mp hs
-    exact ⟨ans, ht.contains_lt hspec.1, rfl⟩
+    exact ⟨ans, ht.contains_lt ((successor_eq_some_iff ht query ans).mp hs).1, rfl⟩
 
 end Cslib.DataStructure.VanEmdeBoas.Tree

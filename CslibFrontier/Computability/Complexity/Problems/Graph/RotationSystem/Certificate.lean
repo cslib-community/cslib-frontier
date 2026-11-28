@@ -68,7 +68,7 @@ namespace Dart
 @[expose] def index {G : Graph} (d : Dart G) : ℕ := 2 * d.1.val + d.2.toNat
 
 /-- Indexed darts are exactly the positions of the flattened endpoint list. -/
-@[expose] def indexEquiv (G : Graph) : Dart G ≃ Fin (2 * G.2.length) where
+@[expose] def indexEquiv (G : Graph) : Dart G ≃ Fin (2 * G.edges.length) where
   toFun d := ⟨d.index, by
     have := endpoint_index_lt G d.1.isLt d.2
     simpa only [incidenceVertices_length, index] using this⟩
@@ -87,6 +87,16 @@ namespace Dart
 theorem vertex_index {G : Graph} (d : Dart G) :
     G.incidenceVertices.getD d.index 0 = d.vertex :=
   getD_incidenceVertices_endpoint G d.1 d.2
+
+private theorem index_indexEquiv_symm {G : Graph} (i : Fin (2 * G.edges.length)) :
+    ((indexEquiv G).symm i).index = i.val :=
+  congrArg Fin.val ((indexEquiv G).apply_symm_apply i)
+
+private theorem vertex_mem_incidenceVertices {G : Graph} (d : Dart G) :
+    d.vertex ∈ G.incidenceVertices := by
+  rw [← d.vertex_index, List.getD_eq_getElem _ _
+    (show d.index < G.incidenceVertices.length from endpoint_index_lt G d.1.isLt d.2)]
+  exact List.getElem_mem _
 
 end Dart
 
@@ -114,28 +124,34 @@ namespace RotationCertificate
 
 /-- All declared endpoints, exact table length, permutation, and exact endpoint fibers. -/
 @[expose] def verifyRotation (G : Graph) (c : RotationCertificate) : Bool :=
-  (G.incidenceVertices.all fun v => G.1.any fun u => decide (u = v)) &&
-    decide (c.successor.length = 2 * G.2.length) &&
-    enumeratesBool (List.range (2 * G.2.length)) c.successor &&
-    (List.range (2 * G.2.length)).all fun i =>
-      (List.range (2 * G.2.length)).all fun j =>
-        decide (orbitBool (2 * G.2.length) c.successor i j =
+  (G.incidenceVertices.all fun v => G.vertices.any fun u => decide (u = v)) &&
+    decide (c.successor.length = 2 * G.edges.length) &&
+    enumeratesBool (List.range (2 * G.edges.length)) c.successor &&
+    (List.range (2 * G.edges.length)).all fun i =>
+      (List.range (2 * G.edges.length)).all fun j =>
+        decide (orbitBool (2 * G.edges.length) c.successor i j =
           decide (G.incidenceVertices.getD i 0 = G.incidenceVertices.getD j 0))
 
 private theorem verifyRotation_parts {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) :
-    (∀ v ∈ G.incidenceVertices, v ∈ G.1) ∧
-      c.successor.length = 2 * G.2.length ∧ c.successor.Nodup ∧
-      (∀ v, v ∈ c.successor ↔ v < 2 * G.2.length) ∧
-      ∀ i < 2 * G.2.length, ∀ j < 2 * G.2.length,
-        orbitBool (2 * G.2.length) c.successor i j =
+    (∀ v ∈ G.incidenceVertices, v ∈ G.vertices) ∧
+      c.successor.length = 2 * G.edges.length ∧ c.successor.Nodup ∧
+      (∀ v, v ∈ c.successor ↔ v < 2 * G.edges.length) ∧
+      ∀ i < 2 * G.edges.length, ∀ j < 2 * G.edges.length,
+        orbitBool (2 * G.edges.length) c.successor i j =
           decide (G.incidenceVertices.getD i 0 = G.incidenceVertices.getD j 0) := by
   simpa only [verifyRotation, Bool.and_eq_true, List.all_eq_true, List.any_eq_true,
     decide_eq_true_eq, enumeratesBool_eq_true_iff, List.mem_range,
     exists_eq_right, and_assoc] using h
 
+/-- Every accepted raw rotation table has exactly one successor entry per indexed dart.
+Unlike `length_ofRotation`, this applies to supplied certificates without a generator premise. -/
+theorem length_of_verifyRotation {G : Graph} {c : RotationCertificate}
+    (h : verifyRotation G c = true) : c.successor.length = 2 * G.2.length :=
+  (verifyRotation_parts h).2.1
+
 private def tableMap (G : Graph) (c : RotationCertificate) (h : verifyRotation G c = true)
-    (i : Fin (2 * G.2.length)) : Fin (2 * G.2.length) :=
+    (i : Fin (2 * G.edges.length)) : Fin (2 * G.edges.length) :=
   ⟨c.successor.getD i 0, (verifyRotation_parts h).2.2.2.1 _ |>.mp (by
     rw [List.getD_eq_getElem _ _ (by rw [(verifyRotation_parts h).2.1]; exact i.isLt)]
     exact List.getElem_mem _)⟩
@@ -143,17 +159,14 @@ private def tableMap (G : Graph) (c : RotationCertificate) (h : verifyRotation G
 private theorem tableMap_injective {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) : Function.Injective (tableMap G c h) := by
   intro i j hij
-  apply Fin.ext
-  have hi : i.val < c.successor.length := by rw [(verifyRotation_parts h).2.1]; exact i.isLt
-  have hj : j.val < c.successor.length := by rw [(verifyRotation_parts h).2.1]; exact j.isLt
+  have hi : i.val < c.successor.length := i.isLt.trans_eq (verifyRotation_parts h).2.1.symm
+  have hj : j.val < c.successor.length := j.isLt.trans_eq (verifyRotation_parts h).2.1.symm
   have heq := congrArg Fin.val hij
   simp only [tableMap, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj] at heq
-  have heq' : (⟨i.val, hi⟩ : Fin c.successor.length) = ⟨j.val, hj⟩ :=
-    (List.nodup_iff_injective_get.mp (verifyRotation_parts h).2.2.1) heq
-  exact congrArg (fun k : Fin c.successor.length => k.val) heq'
+  exact Fin.ext (Fin.mk.inj ((List.nodup_iff_injective_get.mp (verifyRotation_parts h).2.2.1) heq))
 
 private noncomputable def tablePerm (G : Graph) (c : RotationCertificate)
-    (h : verifyRotation G c = true) : Equiv.Perm (Fin (2 * G.2.length)) :=
+    (h : verifyRotation G c = true) : Equiv.Perm (Fin (2 * G.edges.length)) :=
   Equiv.ofBijective (tableMap G c h)
     ⟨tableMap_injective h, Finite.surjective_of_injective (tableMap_injective h)⟩
 
@@ -161,32 +174,28 @@ private theorem sameCycle_iff_bounded {α : Type} [Fintype α]
     (f : Equiv.Perm α) (d e : α) :
     f.SameCycle d e ↔ ∃ k < Fintype.card α, f^[k] d = e := by
   classical
-  constructor
-  · intro h
-    by_cases hd : d ∈ f.support
-    · obtain ⟨k, hk, he⟩ := h.exists_pow_eq_of_mem_support hd
-      exact ⟨k, hk.trans_le (Finset.card_le_univ _), by
-        simpa only [Equiv.Perm.iterate_eq_pow] using he⟩
-    · refine ⟨0, Fintype.card_pos_iff.mpr ⟨d⟩, ?_⟩
-      exact h.eq_of_left (Equiv.Perm.notMem_support.mp hd)
-  · rintro ⟨k, -, he⟩
-    exact ⟨(k : ℤ), by simpa only [zpow_natCast, Equiv.Perm.iterate_eq_pow] using he⟩
+  refine ⟨fun h => ?_, fun ⟨k, _, he⟩ =>
+    ⟨(k : ℤ), by simpa only [zpow_natCast, Equiv.Perm.iterate_eq_pow] using he⟩⟩
+  by_cases hd : d ∈ f.support
+  · obtain ⟨k, hk, he⟩ := h.exists_pow_eq_of_mem_support hd
+    exact ⟨k, hk.trans_le (Finset.card_le_univ _), by
+      simpa only [Equiv.Perm.iterate_eq_pow] using he⟩
+  · exact ⟨0, Fintype.card_pos_iff.mpr ⟨d⟩, h.eq_of_left (Equiv.Perm.notMem_support.mp hd)⟩
 
 /-- A bounded table orbit is the existing permutation's `SameCycle`, when its entries encode
 that permutation. The clock is the cardinality, rather than the permutation's order. -/
 theorem orbitBool_eq_true_iff {G : Graph} (f : Equiv.Perm (Dart G)) (table : List ℕ)
     (ht : ∀ d, table.getD d.index 0 = (f d).index) (d e : Dart G) :
-    orbitBool (2 * G.2.length) table d.index e.index = true ↔ f.SameCycle d e := by
+    orbitBool (2 * G.edges.length) table d.index e.index = true ↔ f.SameCycle d e := by
   have hw (k : ℕ) (d : Dart G) : walk table k d.index = (f^[k] d).index := by
     induction k with
     | zero => rfl
     | succ k ih =>
       rw [walk, Function.iterate_succ_apply', ← walk, ih, ht, Function.iterate_succ_apply']
-  simp only [orbitBool, List.any_eq_true, List.mem_range, decide_eq_true_eq, hw]
-  rw [sameCycle_iff_bounded, Dart.card]
-  constructor <;> rintro ⟨k, hk, he⟩ <;> refine ⟨k, hk, ?_⟩
-  · exact (Dart.indexEquiv G).injective (Fin.ext he)
-  · exact congrArg Dart.index he
+  simp only [orbitBool, List.any_eq_true, List.mem_range, decide_eq_true_eq, hw,
+    sameCycle_iff_bounded, Dart.card]
+  exact exists_congr fun _ => and_congr_right fun _ =>
+    ⟨fun he => (Dart.indexEquiv G).injective (Fin.ext he), congrArg Dart.index⟩
 
 private noncomputable def decodedPerm (G : Graph) (c : RotationCertificate)
     (h : verifyRotation G c = true) : Equiv.Perm (Dart G) :=
@@ -194,9 +203,8 @@ private noncomputable def decodedPerm (G : Graph) (c : RotationCertificate)
 
 private theorem index_decodedPerm {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d : Dart G) :
-    (decodedPerm G c h d).index = c.successor.getD d.index 0 := by
-  exact congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply
-    (tablePerm G c h (Dart.indexEquiv G d)))
+    (decodedPerm G c h d).index = c.successor.getD d.index 0 :=
+  Dart.index_indexEquiv_symm (tablePerm G c h (Dart.indexEquiv G d))
 
 /-- Decode an accepted finite table to the existing rotation-system structure. This operation
 is used in proofs; the native checker executes only finite list operations. -/
@@ -217,11 +225,11 @@ theorem index_decode_rotate {G : Graph} {c : RotationCertificate}
 
 /-- A table for an abstract rotation, in the canonical edge/end order. -/
 @[expose] def ofRotation {G : Graph} (r : RotationSystem G) : RotationCertificate :=
-  ⟨List.ofFn fun i : Fin (2 * G.2.length) => (r.rotate ((Dart.indexEquiv G).symm i)).index⟩
+  ⟨List.ofFn fun i : Fin (2 * G.edges.length) => (r.rotate ((Dart.indexEquiv G).symm i)).index⟩
 
 /-- The canonical table has exactly two entries per listed edge. -/
 @[simp] theorem length_ofRotation {G : Graph} (r : RotationSystem G) :
-    (ofRotation r).successor.length = 2 * G.2.length := by simp [ofRotation]
+    (ofRotation r).successor.length = 2 * G.edges.length := by simp [ofRotation]
 
 /-- Reading the canonical table recovers the rotation. -/
 theorem getD_ofRotation {G : Graph} (r : RotationSystem G) (d : Dart G) :
@@ -232,57 +240,49 @@ theorem getD_ofRotation {G : Graph} (r : RotationSystem G) (d : Dart G) :
 /-- Every existing rotation has an accepted finite certificate when its endpoints are declared.
 No rotation is assumed to be geometrically planar. -/
 theorem verifyRotation_ofRotation {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     verifyRotation G (ofRotation r) = true := by
-  have hinj : Function.Injective (fun i : Fin (2 * G.2.length) =>
-      (r.rotate ((Dart.indexEquiv G).symm i)).index) := by
-    intro i j h
-    exact (Dart.indexEquiv G).symm.injective (r.rotate.injective
-      ((Dart.indexEquiv G).injective (Fin.ext h)))
-  have hmem (v : ℕ) : v ∈ (ofRotation r).successor ↔ v < 2 * G.2.length := by
+  have hinj : Function.Injective (fun i : Fin (2 * G.edges.length) =>
+      (r.rotate ((Dart.indexEquiv G).symm i)).index) := fun _ _ h =>
+    (Dart.indexEquiv G).symm.injective
+      (r.rotate.injective ((Dart.indexEquiv G).injective (Fin.ext h)))
+  have hmem (v : ℕ) : v ∈ (ofRotation r).successor ↔ v < 2 * G.edges.length := by
     simp only [ofRotation, List.mem_ofFn]
-    constructor
-    · rintro ⟨i, rfl⟩
-      exact (Dart.indexEquiv G (r.rotate ((Dart.indexEquiv G).symm i))).isLt
-    · intro hv
-      refine ⟨Dart.indexEquiv G (r.rotate.symm ((Dart.indexEquiv G).symm ⟨v, hv⟩)), ?_⟩
-      simp only [Equiv.symm_apply_apply, Equiv.apply_symm_apply]
-      exact congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨v, hv⟩)
+    refine ⟨fun ⟨i, hv⟩ => hv ▸ (Dart.indexEquiv G _).isLt, fun hv =>
+      ⟨Dart.indexEquiv G (r.rotate.symm ((Dart.indexEquiv G).symm ⟨v, hv⟩)), ?_⟩⟩
+    simpa only [Equiv.symm_apply_apply, Equiv.apply_symm_apply] using
+      Dart.index_indexEquiv_symm ⟨v, hv⟩
   simp only [verifyRotation, Bool.and_eq_true, List.all_eq_true, List.any_eq_true,
     decide_eq_true_eq, enumeratesBool_eq_true_iff, List.mem_range]
-  refine ⟨⟨⟨?_, length_ofRotation r⟩, ?_⟩, ?_⟩
-  · exact fun v hv => ⟨v, hG v hv, rfl⟩
-  · exact ⟨List.nodup_ofFn.mpr hinj, hmem⟩
-  · intro i hi j hj
-    let d := (Dart.indexEquiv G).symm ⟨i, hi⟩
-    let e := (Dart.indexEquiv G).symm ⟨j, hj⟩
-    have hd : d.index = i := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨i, hi⟩)
-    have he : e.index = j := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨j, hj⟩)
-    rw [← hd, ← he]
-    apply Bool.eq_iff_iff.mpr
+  refine ⟨⟨⟨fun v hv => ⟨v, hG v hv, rfl⟩, length_ofRotation r⟩, List.nodup_ofFn.mpr hinj, hmem⟩,
+    fun i hi j hj => ?_⟩
+  let d := (Dart.indexEquiv G).symm ⟨i, hi⟩
+  let e := (Dart.indexEquiv G).symm ⟨j, hj⟩
+  have hd : d.index = i := Dart.index_indexEquiv_symm ⟨i, hi⟩
+  have he : e.index = j := Dart.index_indexEquiv_symm ⟨j, hj⟩
+  rw [← hd, ← he]
+  exact Bool.eq_iff_iff.mpr <| by
     rw [orbitBool_eq_true_iff r.rotate _ (getD_ofRotation r), decide_eq_true_eq,
       Dart.vertex_index, Dart.vertex_index, r.sameCycle_iff]
 
 /-- Encoding and then decoding preserves the actual successor permutation. -/
 theorem decode_ofRotation_rotate {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     (decode G (ofRotation r) (verifyRotation_ofRotation r hG)).rotate = r.rotate := by
-  apply Equiv.ext
-  intro d
-  apply (Dart.indexEquiv G).injective
-  apply Fin.ext
-  change ((decode G (ofRotation r) (verifyRotation_ofRotation r hG)).rotate d).index =
-    (r.rotate d).index
-  rw [index_decode_rotate, getD_ofRotation]
+  ext1 d
+  exact (Dart.indexEquiv G).injective (Fin.ext (by
+    change ((decode G (ofRotation r) (verifyRotation_ofRotation r hG)).rotate d).index =
+      (r.rotate d).index
+    rw [index_decode_rotate, getD_ofRotation]))
 
 /-- Canonical table encoding and checked decoding recover the existing rotation structure. -/
 theorem decode_ofRotation {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     decode G (ofRotation r) (verifyRotation_ofRotation r hG) = r := by
   have hrot := decode_ofRotation_rotate r hG
   generalize decode G (ofRotation r) (verifyRotation_ofRotation r hG) = s at hrot ⊢
-  cases s
-  cases r
+  rcases s with ⟨_, _⟩
+  rcases r with ⟨_, _⟩
   cases hrot
   rfl
 
@@ -290,16 +290,15 @@ theorem decode_ofRotation {G : Graph} (r : RotationSystem G)
 The bound depends on the encoded graph length, even for sparse, very large vertex labels. -/
 theorem length_enc_ofRotation_le {G : Graph} (r : RotationSystem G) :
     (encRotationCertificate (ofRotation r)).length ≤ 10 * ((encGraph G).length + 1) ^ 2 := by
-  have hm : G.2.length ≤ (encGraph G).length := by
-    calc G.2.length ≤ (encList (encPair encNat encNat) G.2).length :=
+  have hm : G.edges.length ≤ (encGraph G).length := by
+    calc G.edges.length ≤ (encList (encPair encNat encNat) G.edges).length :=
         length_le_length_encList _ _
-      _ ≤ (encGraph G).length := by enc_len [encGraph]
-  have hb : ∀ v ∈ (ofRotation r).successor, (encNat v).length ≤ 2 * G.2.length := by
+      _ ≤ (encGraph G).length := by enc_len [encGraph_apply]
+  have hb : ∀ v ∈ (ofRotation r).successor, (encNat v).length ≤ 2 * G.edges.length := by
     intro v hv
     obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
-    have hi := (Dart.indexEquiv G (r.rotate ((Dart.indexEquiv G).symm i))).isLt
     rw [encNat_apply, Nat.size_eq_bits_len]
-    exact (Nat.size_le_self _).trans (Nat.le_of_lt hi)
+    exact (Nat.size_le_self _).trans (Dart.indexEquiv G _).isLt.le
   have hs := length_encList_le encNat (ofRotation r).successor hb
   rw [length_ofRotation] at hs
   change (encList encNat (ofRotation r).successor).length ≤ _
@@ -308,11 +307,11 @@ theorem length_enc_ofRotation_le {G : Graph} (r : RotationSystem G) :
 /-- One breadth-first expansion, retaining the old list. Repetitions are harmless: the result
 is used only for membership, never as a vertex count. -/
 @[expose] def componentStep (G : Graph) (seen : List ℕ) : List ℕ :=
-  seen ++ G.1.filter fun v => seen.any fun u => G.adjBool u v
+  seen ++ G.vertices.filter fun v => seen.any fun u => G.adjBool u v
 
 /-- Finite reachability from a declared root, with one iteration per declared vertex record. -/
 @[expose] def componentVertices (G : Graph) (root : ℕ) : List ℕ :=
-  (componentStep G)^[G.1.length] [root]
+  (componentStep G)^[G.vertices.length] [root]
 
 /-- Native component membership; no range up to a binary vertex label is constructed. -/
 @[expose] def componentBool (G : Graph) (root v : ℕ) : Bool :=
@@ -320,80 +319,69 @@ is used only for membership, never as a vertex count. -/
 
 /-- Membership in the same connected component of the existing graph on declared vertices. -/
 @[expose] def SameComponent (G : Graph) (u v : ℕ) : Prop :=
-  ∃ hu : u ∈ G.1, ∃ hv : v ∈ G.1, G.induced.Reachable ⟨u, hu⟩ ⟨v, hv⟩
+  ∃ hu : u ∈ G.vertices, ∃ hv : v ∈ G.vertices, G.induced.Reachable ⟨u, hu⟩ ⟨v, hv⟩
 
 /-- A declared vertex is in its own component, including an isolated vertex. -/
-theorem SameComponent.refl {G : Graph} {v : ℕ} (hv : v ∈ G.1) : SameComponent G v v :=
+theorem SameComponent.refl {G : Graph} {v : ℕ} (hv : v ∈ G.vertices) : SameComponent G v v :=
   ⟨hv, hv, .rfl⟩
 
 /-- Component membership is symmetric. -/
 theorem SameComponent.symm {G : Graph} {u v : ℕ} (h : SameComponent G u v) :
-    SameComponent G v u := by
-  obtain ⟨hu, hv, h⟩ := h
-  exact ⟨hv, hu, h.symm⟩
+    SameComponent G v u :=
+  ⟨h.2.1, h.1, h.2.2.symm⟩
 
 /-- Component membership is transitive. -/
 theorem SameComponent.trans {G : Graph} {u v w : ℕ}
-    (h : SameComponent G u v) (h' : SameComponent G v w) : SameComponent G u w := by
-  obtain ⟨hu, hv, h⟩ := h
-  obtain ⟨_, hw, h'⟩ := h'
-  exact ⟨hu, hw, h.trans h'⟩
+    (h : SameComponent G u v) (h' : SameComponent G v w) : SameComponent G u w :=
+  ⟨h.1, h'.2.1, h.2.2.trans h'.2.2⟩
 
 private theorem mem_componentStep {G : Graph} {seen : List ℕ} {v : ℕ} :
     v ∈ componentStep G seen ↔
-      v ∈ seen ∨ v ∈ G.1 ∧ ∃ u ∈ seen, G.toSimpleGraph.Adj u v := by
+      v ∈ seen ∨ v ∈ G.vertices ∧ ∃ u ∈ seen, G.toSimpleGraph.Adj u v := by
   simp [componentStep, List.any_eq_true]
 
 private theorem mem_iterate_componentStep {G : Graph} {seen : List ℕ} {v : ℕ}
     (hv : v ∈ seen) (k : ℕ) : v ∈ (componentStep G)^[k] seen := by
   induction k with
   | zero => exact hv
-  | succ k ih =>
-    rw [Function.iterate_succ_apply']
-    exact mem_componentStep.mpr (Or.inl ih)
+  | succ k ih => exact Function.iterate_succ_apply' .. ▸ mem_componentStep.mpr (Or.inl ih)
 
 private theorem walk_mem_componentStep {G : Graph}
-    {u v : {v // v ∈ G.1}} (p : G.induced.Walk u v) {seen : List ℕ}
+    {u v : {v // v ∈ G.vertices}} (p : G.induced.Walk u v) {seen : List ℕ}
     (hu : u.val ∈ seen) : v.val ∈ (componentStep G)^[p.length] seen := by
   induction p generalizing seen with
   | nil => exact hu
   | @cons u w v hadj p ih =>
     rw [SimpleGraph.Walk.length_cons, Function.iterate_succ_apply]
-    apply ih
-    exact mem_componentStep.mpr (Or.inr ⟨w.property, u.val, hu, hadj⟩)
+    exact ih (mem_componentStep.mpr (Or.inr ⟨w.property, u.val, hu, hadj⟩))
 
 /-- The finite expansion agrees exactly with connectedness in the existing induced graph.
 The path bound is the number of declared vertices, including malformed duplicate records. -/
-theorem componentBool_eq_true_iff {G : Graph} {root v : ℕ} (hr : root ∈ G.1) :
+theorem componentBool_eq_true_iff {G : Graph} {root v : ℕ} (hr : root ∈ G.vertices) :
     componentBool G root v = true ↔ SameComponent G root v := by
   simp only [componentBool, List.any_eq_true, decide_eq_true_eq, exists_eq_right]
-  constructor
-  · intro hv
-    have hs (k : ℕ) : ∀ w ∈ (componentStep G)^[k] [root], SameComponent G root w := by
+  refine ⟨fun hv => ?_, ?_⟩
+  · have hs (k : ℕ) : ∀ w ∈ (componentStep G)^[k] [root], SameComponent G root w := by
       induction k with
       | zero =>
         intro w hw
-        have hw' : w = root := List.mem_singleton.mp hw
-        subst w
+        obtain rfl := List.mem_singleton.mp hw
         exact ⟨hr, hr, .rfl⟩
       | succ k ih =>
         intro w hw
-        rw [Function.iterate_succ_apply'] at hw
-        rcases mem_componentStep.mp hw with hw | ⟨hw, u, hu, hadj⟩
+        rcases mem_componentStep.mp (Function.iterate_succ_apply' .. ▸ hw) with
+          hw | ⟨hw, u, hu, hadj⟩
         · exact ih _ hw
-        · obtain ⟨hr, hu', hru⟩ := ih _ hu
-          exact ⟨hr, hw, hru.trans (SimpleGraph.Adj.reachable hadj)⟩
+        · exact (ih _ hu).trans ⟨(ih _ hu).2.1, hw, SimpleGraph.Adj.reachable hadj⟩
     exact hs _ _ hv
-  · rintro ⟨hr, hv, hconn⟩
+  · rintro ⟨_, _, hconn⟩
     obtain ⟨p, hp⟩ := hconn.exists_isPath
-    have hc : Fintype.card {v // v ∈ G.1} = G.1.toFinset.card := card_vertexSubtype G
-    have hlen' : p.length ≤ G.1.length := by
-      have := hp.length_lt
-      rw [hc] at this
-      exact this.le.trans G.1.toFinset_card_le
-    have hm := walk_mem_componentStep p (seen := [root]) (by simp)
-    have := mem_iterate_componentStep (G := G) hm (G.1.length - p.length)
-    rwa [← Function.iterate_add_apply, Nat.sub_add_cancel hlen'] at this
+    have hlen' : p.length ≤ G.vertices.length :=
+      (card_vertexSubtype G ▸ hp.length_lt).le.trans G.vertices.toFinset_card_le
+    simpa only [componentVertices, ← Function.iterate_add_apply, Nat.sub_add_cancel hlen'] using
+      mem_iterate_componentStep (G := G)
+        (walk_mem_componentStep p (seen := [root]) (by simp))
+        (G.vertices.length - p.length)
 
 /-- Reverse a dart's endpoint bit without inspecting vertex labels. -/
 @[expose] def reverseIndex (i : ℕ) : ℕ := if i % 2 = 0 then i + 1 else i - 1
@@ -406,15 +394,18 @@ theorem reverseIndex_index {G : Graph} (d : Dart G) : reverseIndex d.index = d.r
 /-- The face successor table: reverse the edge, then look up the inverse rotation.
 `idxOf` returns the table length on failure, making this total on malformed certificates. -/
 @[expose] def faceTable (G : Graph) (c : RotationCertificate) : List ℕ :=
-  (List.range (2 * G.2.length)).map fun i => c.successor.idxOf (reverseIndex i)
+  (List.range (2 * G.edges.length)).map fun i => c.successor.idxOf (reverseIndex i)
 
 /-- Test that this dart is the least indexed member of its face orbit, including fixed points. -/
 @[expose] def faceRepBool (n : ℕ) (table : List ℕ) (i : ℕ) : Bool :=
   (List.range n).all fun j => !orbitBool n table i j || decide (i ≤ j)
 
-private theorem idxOf_decode {G : Graph} {c : RotationCertificate}
+/-- For any accepted raw table, its actual inverse rotation is exactly the bounded list
+search for the given dart index. Empty graphs have no dart premise to manufacture. -/
+theorem index_decode_rotate_symm {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d : Dart G) :
-    c.successor.idxOf d.index = ((decode G c h).rotate.symm d).index := by
+    ((decode G c h).rotate.symm d).index = c.successor.idxOf d.index := by
+  symm
   let e := (decode G c h).rotate.symm d
   have hi : e.index < c.successor.length := by
     rw [(verifyRotation_parts h).2.1]
@@ -429,24 +420,24 @@ private theorem idxOf_decode {G : Graph} {c : RotationCertificate}
 theorem getD_faceTable {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d : Dart G) :
     (faceTable G c).getD d.index 0 = ((decode G c h).faceNext d).index := by
-  have hd : d.index < 2 * G.2.length := (Dart.indexEquiv G d).isLt
+  have hd : d.index < 2 * G.edges.length := (Dart.indexEquiv G d).isLt
   rw [List.getD_eq_getElem _ _ (by simpa only [faceTable, List.length_map,
     List.length_range] using hd)]
   simp only [faceTable, List.getElem_map, List.getElem_range, reverseIndex_index,
-    idxOf_decode h]
+    ← index_decode_rotate_symm h]
   rfl
 
 /-- Componentwise Euler test. Every declared root is checked separately. For a root with no
 incident dart, use the point-component convention `V=1,E=0,F=1`, not a dart orbit.
 For an edge component, count distinct vertices, listed edge positions, and every face orbit. -/
 @[expose] def verifyEuler (G : Graph) (c : RotationCertificate) : Bool :=
-  G.1.all fun root =>
+  G.vertices.all fun root =>
     if G.incidenceVertices.any (fun v => decide (v = root)) then
       decide (G.distinctVertices.countP (componentBool G root) +
-        ((List.range (2 * G.2.length)).countP fun i =>
+        ((List.range (2 * G.edges.length)).countP fun i =>
           componentBool G root (G.incidenceVertices.getD i 0) &&
-            faceRepBool (2 * G.2.length) (faceTable G c) i) =
-        G.2.countP (fun e => componentBool G root e.1) + 2)
+            faceRepBool (2 * G.edges.length) (faceTable G c) i) =
+        G.edges.countP (fun e => componentBool G root e.1) + 2)
     else decide (1 + 1 = 0 + 2)
 
 /-- Full supplied-certificate checker: rotation validity and componentwise numerical Euler. -/
@@ -457,48 +448,36 @@ end RotationCertificate
 
 namespace RotationSystem
 
-private theorem vertex_mem {G : Graph}
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (d : Dart G) : d.vertex ∈ G.1 := by
-  apply hG
-  rw [← Dart.vertex_index, List.getD_eq_getElem _ _ (show d.index < G.incidenceVertices.length
-    from endpoint_index_lt G d.1.isLt d.2)]
-  exact List.getElem_mem _
+/-- Every dart endpoint is declared when all listed edge endpoints are declared. -/
+theorem vertex_mem {G : Graph}
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) : d.vertex ∈ G.vertices :=
+  hG _ d.vertex_mem_incidenceVertices
 
-private theorem sameComponent_reverse {G : Graph}
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (d : Dart G) :
+/-- The two indexed ends of an edge belong to the same declared-vertex component,
+including when the edge is a loop. All listed endpoints must be declared. -/
+theorem sameComponent_reverse {G : Graph}
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
     RotationCertificate.SameComponent G d.vertex d.reverse.vertex := by
-  have hd := vertex_mem hG d
-  have he := vertex_mem hG d.reverse
   by_cases h : d.vertex = d.reverse.vertex
   · rw [h]
-    exact .refl he
-  · refine ⟨hd, he, SimpleGraph.Adj.reachable ?_⟩
-    change G.toSimpleGraph.Adj d.vertex d.reverse.vertex
-    rw [toSimpleGraph_adj]
-    refine ⟨h, ?_⟩
-    have hm : G.2.getD d.1.val (0, 0) ∈ G.2 := by
-      rw [List.getD_eq_getElem _ _ d.1.isLt]
-      exact List.getElem_mem _
-    rcases d with ⟨i, b⟩
-    cases b
-    · exact Or.inl hm
-    · exact Or.inr hm
+    exact .refl (vertex_mem hG d.reverse)
+  · exact ⟨vertex_mem hG d, vertex_mem hG d.reverse,
+      SimpleGraph.Adj.reachable (d.adj_vertex_reverse h)⟩
 
 /-- A face successor stays in the same edge component. -/
 theorem sameComponent_faceNext {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
     RotationCertificate.SameComponent G d.vertex (r.faceNext d).vertex := by
   have hv : (r.faceNext d).vertex = d.reverse.vertex := by
-    change (r.rotate.symm d.reverse).vertex = d.reverse.vertex
-    have := r.vertex_rotate (r.rotate.symm d.reverse)
-    simpa only [Equiv.apply_symm_apply] using this.symm
+    simpa only [faceNext, Equiv.trans_apply, Dart.reversal, Equiv.coe_fn_mk,
+      Equiv.apply_symm_apply] using (r.vertex_rotate (r.rotate.symm d.reverse)).symm
   rw [hv]
   exact sameComponent_reverse hG d
 
 /-- All darts of each face orbit belong to one edge component. Thus componentwise face counts
 cannot split an orbit or transfer a face between disconnected edge components. -/
 theorem sameComponent_of_sameFace {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) {d e : Dart G}
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) {d e : Dart G}
     (h : r.faceNext.SameCycle d e) :
     RotationCertificate.SameComponent G d.vertex e.vertex := by
   obtain ⟨k, -, rfl⟩ := (RotationCertificate.sameCycle_iff_bounded r.faceNext d e).mp h
@@ -520,14 +499,14 @@ point component with one conventional face and no dart. This is a numerical pred
 existing rotations, not an equivalence to geometric planarity. In particular, geometric outer
 faces of disconnected drawings have not been identified with these componentwise faces. -/
 @[expose] noncomputable def NumericalGenusZero {G : Graph} (r : RotationSystem G) : Prop :=
-  ∀ root ∈ G.1,
+  ∀ root ∈ G.vertices,
     if ∃ d : Dart G, d.vertex = root then
       G.distinctVertices.countP (fun v => decide (RotationCertificate.SameComponent G root v)) +
-        ((List.finRange (2 * G.2.length)).countP fun i =>
+        ((List.finRange (2 * G.edges.length)).countP fun i =>
           decide (RotationCertificate.SameComponent G root
             ((Dart.indexEquiv G).symm i).vertex ∧
               r.IsFaceRepresentative ((Dart.indexEquiv G).symm i))) =
-        G.2.countP (fun e => decide (RotationCertificate.SameComponent G root e.1)) + 2
+        G.edges.countP (fun e => decide (RotationCertificate.SameComponent G root e.1)) + 2
     else 1 + 1 = 0 + 2
 
 /-- Each face orbit has exactly one representative, including a one-dart fixed-point orbit. -/
@@ -554,37 +533,27 @@ private theorem incidentBool_eq_true_iff (G : Graph) (root : ℕ) :
     G.incidenceVertices.any (fun v => decide (v = root)) = true ↔
       ∃ d : Dart G, d.vertex = root := by
   simp only [List.any_eq_true, decide_eq_true_eq, exists_eq_right]
-  constructor
-  · intro hr
-    obtain ⟨i, hi⟩ := List.mem_iff_get.mp hr
-    let j : Fin (2 * G.2.length) := ⟨i.val, i.isLt.trans_eq (incidenceVertices_length G)⟩
-    let d := (Dart.indexEquiv G).symm j
-    refine ⟨d, ?_⟩
-    have hd : d.index = i.val := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply j)
-    rw [← Dart.vertex_index, hd, List.getD_eq_getElem _ _ i.isLt]
-    exact hi
-  · rintro ⟨d, rfl⟩
-    rw [← Dart.vertex_index, List.getD_eq_getElem _ _ (show d.index < G.incidenceVertices.length
-      from endpoint_index_lt G d.1.isLt d.2)]
-    exact List.getElem_mem _
+  refine ⟨fun hr => ?_, fun ⟨d, hd⟩ => hd ▸ d.vertex_mem_incidenceVertices⟩
+  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hr
+  let j : Fin (2 * G.edges.length) := ⟨i.val, i.isLt.trans_eq (incidenceVertices_length G)⟩
+  refine ⟨(Dart.indexEquiv G).symm j, ?_⟩
+  rw [← Dart.vertex_index, Dart.index_indexEquiv_symm, List.getD_eq_getElem _ _ i.isLt]
+  exact hi
 
 /-- The face representative test counts exactly the existing face orbits. -/
 theorem faceRepBool_eq_true_iff {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d : Dart G) :
-    faceRepBool (2 * G.2.length) (faceTable G c) d.index = true ↔
+    faceRepBool (2 * G.edges.length) (faceTable G c) d.index = true ↔
       (decode G c h).IsFaceRepresentative d := by
   simp only [faceRepBool, List.all_eq_true, List.mem_range, Bool.or_eq_true,
     Bool.not_eq_true', decide_eq_true_eq, RotationSystem.IsFaceRepresentative]
-  constructor
-  · intro hr e he
-    have hh := hr e.index (Dart.indexEquiv G e).isLt
-    have ho := (orbitBool_eq_true_iff (decode G c h).faceNext _ (getD_faceTable h) d e).mpr he
-    simpa only [ho, Bool.true_eq_false, false_or] using hh
-  · intro hr i hi
-    let e := (Dart.indexEquiv G).symm ⟨i, hi⟩
-    have he : e.index = i := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨i, hi⟩)
-    by_cases ho : orbitBool (2 * G.2.length) (faceTable G c) d.index i = true
+  refine ⟨fun hr e he => ?_, fun hr i hi => ?_⟩
+  · simpa only [(orbitBool_eq_true_iff (decode G c h).faceNext _ (getD_faceTable h) d e).mpr he,
+      Bool.true_eq_false, false_or] using hr e.index (Dart.indexEquiv G e).isLt
+  · by_cases ho : orbitBool (2 * G.edges.length) (faceTable G c) d.index i = true
     · right
+      let e := (Dart.indexEquiv G).symm ⟨i, hi⟩
+      have he : e.index = i := Dart.index_indexEquiv_symm ⟨i, hi⟩
       rw [← he] at ho ⊢
       exact hr e ((orbitBool_eq_true_iff _ _ (getD_faceTable h) d e).mp ho)
     · exact Or.inl (Bool.eq_false_iff.mpr ho)
@@ -597,33 +566,24 @@ theorem verifyEuler_eq_true_iff {G : Graph} {c : RotationCertificate}
   classical
   unfold verifyEuler RotationSystem.NumericalGenusZero
   rw [List.all_eq_true]
-  apply forall₂_congr
-  intro root hr
-  have hcb : componentBool G root = fun v => decide (SameComponent G root v) := by
-    funext v
-    apply Bool.eq_iff_iff.mpr
-    rw [decide_eq_true_eq]
-    exact componentBool_eq_true_iff hr
-  have hfaces : ((List.range (2 * G.2.length)).countP fun i =>
+  refine forall₂_congr fun root hr => ?_
+  have hcb : componentBool G root = fun v => decide (SameComponent G root v) :=
+    funext fun v => Bool.eq_iff_iff.mpr (by rw [decide_eq_true_eq, componentBool_eq_true_iff hr])
+  have hfaces : ((List.range (2 * G.edges.length)).countP fun i =>
       componentBool G root (G.incidenceVertices.getD i 0) &&
-        faceRepBool (2 * G.2.length) (faceTable G c) i) =
-      ((List.finRange (2 * G.2.length)).countP fun i =>
+        faceRepBool (2 * G.edges.length) (faceTable G c) i) =
+      ((List.finRange (2 * G.edges.length)).countP fun i =>
         decide (SameComponent G root ((Dart.indexEquiv G).symm i).vertex ∧
           (decode G c h).IsFaceRepresentative ((Dart.indexEquiv G).symm i))) := by
     rw [← List.map_coe_finRange_eq_range, List.countP_map]
-    apply List.countP_congr
-    intro i _
-    let d := (Dart.indexEquiv G).symm i
-    have hd : d.index = i.val := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply i)
+    refine List.countP_congr fun i _ => ?_
     simp only [Function.comp_apply, Bool.and_eq_true, decide_eq_true_eq]
-    rw [← hd, Dart.vertex_index, componentBool_eq_true_iff hr, faceRepBool_eq_true_iff h]
+    rw [← Dart.index_indexEquiv_symm i, Dart.vertex_index, componentBool_eq_true_iff hr,
+      faceRepBool_eq_true_iff h]
   by_cases hi : ∃ d : Dart G, d.vertex = root
-  · have hb := (incidentBool_eq_true_iff G root).mpr hi
-    simp only [hb, ↓reduceIte, hi, decide_eq_true_eq]
+  · simp only [(incidentBool_eq_true_iff G root).mpr hi, ↓reduceIte, hi, decide_eq_true_eq]
     rw [hfaces, hcb]
-  · have hb : G.incidenceVertices.any (fun v => decide (v = root)) = false :=
-      Bool.eq_false_iff.mpr (mt (incidentBool_eq_true_iff G root).mp hi)
-    simp [hb, hi]
+  · simp [Bool.eq_false_iff.mpr (mt (incidentBool_eq_true_iff G root).mp hi), hi]
 
 /-- Exact soundness and completeness for a *supplied* certificate. Acceptance is equivalent to
 an actual rotation represented by the table and satisfying componentwise numerical Euler. -/
@@ -631,29 +591,23 @@ theorem verifyGenusZero_eq_true_iff (G : Graph) (c : RotationCertificate) :
     verifyGenusZero G c = true ↔
       ∃ h : verifyRotation G c = true, (decode G c h).NumericalGenusZero := by
   simp only [verifyGenusZero, Bool.and_eq_true]
-  constructor
-  · rintro ⟨h, he⟩
-    exact ⟨h, (verifyEuler_eq_true_iff h).mp he⟩
-  · rintro ⟨h, he⟩
-    exact ⟨h, (verifyEuler_eq_true_iff h).mpr he⟩
+  exact ⟨fun ⟨h, he⟩ => ⟨h, (verifyEuler_eq_true_iff h).mp he⟩,
+    fun ⟨h, he⟩ => ⟨h, (verifyEuler_eq_true_iff h).mpr he⟩⟩
 
 /-- Every numerical genus-zero rotation has a certificate within the explicit quadratic bit
 bound, and every accepted such certificate supplies an actual numerical genus-zero rotation. -/
 theorem exists_bounded_certificate_iff (G : Graph)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     (∃ r : RotationSystem G, r.NumericalGenusZero) ↔
       ∃ c : RotationCertificate,
         (encRotationCertificate c).length ≤ 10 * ((encGraph G).length + 1) ^ 2 ∧
           verifyGenusZero G c = true := by
-  constructor
-  · rintro ⟨r, hr⟩
-    refine ⟨ofRotation r, length_enc_ofRotation_le r, ?_⟩
-    apply (verifyGenusZero_eq_true_iff _ _).mpr
-    refine ⟨verifyRotation_ofRotation r hG, ?_⟩
-    rwa [decode_ofRotation]
-  · rintro ⟨c, -, hc⟩
-    obtain ⟨h, hr⟩ := (verifyGenusZero_eq_true_iff G c).mp hc
-    exact ⟨decode G c h, hr⟩
+  refine ⟨fun ⟨r, hr⟩ => ⟨ofRotation r, length_enc_ofRotation_le r,
+    (verifyGenusZero_eq_true_iff _ _).mpr ⟨verifyRotation_ofRotation r hG, by
+      rwa [decode_ofRotation]⟩⟩, ?_⟩
+  rintro ⟨c, -, hc⟩
+  obtain ⟨h, hr⟩ := (verifyGenusZero_eq_true_iff G c).mp hc
+  exact ⟨decode G c h, hr⟩
 
 end RotationCertificate
 end Cslib.Complexity.Graph

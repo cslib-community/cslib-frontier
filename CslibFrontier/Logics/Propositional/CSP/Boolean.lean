@@ -31,6 +31,8 @@ nullary relations are allowed. This module defines the criterion, not its comple
 * `Cslib.Logic.PL.CSP.booleanRelation`: a relation on its declared finite set of coordinates.
 * `Cslib.Logic.PL.CSP.HasPolymorphism`: a common polymorphism of all relations in a language.
 * `Cslib.Logic.PL.CSP.HasSchaeferPolymorphism`: constants, AND, OR, majority or minority.
+* `Cslib.Logic.PL.CSP.paritySem`: the Boolean relation alphabet selecting even or odd parity,
+  the linear equations over `F₂` (`Cslib.Logic.PL.CSP.paritySem_three` at arity three).
 -/
 
 public section
@@ -42,11 +44,11 @@ variable {Rel V J : Type*}
 /-- Every constraint scope has the arity declared by its relation symbol. Repeated variables
 are allowed and count as distinct positions in the scope. -/
 @[expose] def WellFormed (arity : Rel → ℕ) (F : CSP Rel V) : Prop :=
-  ∀ c ∈ F, c.2.length = arity c.1
+  ∀ c ∈ F, c.scope.length = arity c.rel
 
 /-- Executable exact-arity guard for an instance of a fixed constraint language. -/
 @[expose] def validArity (arity : Rel → ℕ) (F : CSP Rel V) : Bool :=
-  F.all fun (R, vs) => decide (vs.length = arity R)
+  F.all fun c => decide (c.scope.length = arity c.rel)
 
 /-- The exact-arity guard agrees with the semantic well-formedness condition. -/
 @[simp] theorem validArity_eq_true_iff (arity : Rel → ℕ) (F : CSP Rel V) :
@@ -88,5 +90,18 @@ theorem hasPolymorphism_const_iff (arity : Rel → ℕ) (sem : Rel → List Bool
     exact h R (fun _ => a) (fun _ => ha)
   · intro h R a ha
     exact h R ⟨a 0, ha 0⟩
+
+/-- The relation symbol `b` asks that the XOR of the local bits equal `b`. This semantics works
+at every arity; the three-variable reduction in
+`CslibFrontier.Computability.PCP.Approximation.ThreeXOR` explicitly assumes scopes of length
+three. -/
+@[expose] def paritySem (b : Bool) (bits : List Bool) : Bool :=
+  bits.foldl Bool.xor false == b
+
+/-- On three bits, `paritySem` is precisely the three-variable XOR equation. -/
+@[simp]
+theorem paritySem_three (b x y z : Bool) :
+    paritySem b [x, y, z] = ((x ^^ y ^^ z) == b) := by
+  cases x <;> rfl
 
 end Cslib.Logic.PL.CSP

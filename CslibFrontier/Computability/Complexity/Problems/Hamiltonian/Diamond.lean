@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamond.Defs
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamond.Soundness
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -26,8 +27,9 @@ choose how many nodes each row has. A diamond graph (`Cslib.Complexity.Diamond.g
   and both ends have arcs to the bottom. Slot `s < slots i` of row `i` is the pair of row nodes
   `3 * s + 2` and `3 * s + 3`, and the nodes `3 * s + 1` separate the pairs;
 * `M` clause nodes;
-* a list of detours `(j, i, s, b)`, each through the node of clause `j` across slot `s` of row `i`:
-  left to right when `b` is true, right to left when it is false.
+* a list of detours (`Cslib.Complexity.Diamond.Detour`), each through clause `d.clause` across
+  `d.slot` of `d.row`: left to right when `d.leftToRight` is true, right to left when it is
+  false.
 
 When the detours across each slot all belong to one clause (`Cslib.Complexity.Diamond.WellFormed`),
 the graph has a Hamiltonian path from the first top to the last bottom exactly when the rows can be
@@ -85,7 +87,7 @@ variable (N slots M) (dir : ℕ → Bool) (pick : ℕ → Detour)
 
 /-- The clause visited across slot `s` of row `i`: one whose picked detour crosses the slot. -/
 private def visit (i s : ℕ) : Option ℕ :=
-  (List.range M).find? fun j => decide ((pick j).2.1 = i ∧ (pick j).2.2.1 = s)
+  (List.range M).find? fun j => decide ((pick j).row = i ∧ (pick j).slot = s)
 
 /-- The clause visited after row node `a` of row `i` in a rightward traversal: across the slot
 starting at `a`. -/
@@ -120,8 +122,7 @@ variable {i : ℕ} {o : ℕ → Option ℕ}
 
 private theorem mem_step {a x : ℕ} :
     x ∈ step i o a ↔ x = rowNode i a ∨ ∃ j, o a = some j ∧ x = clauseNode j := by
-  unfold step
-  cases o a <;> simp
+  cases h : o a <;> simp [step, h]
 
 private theorem step_ne_nil (a : ℕ) : step i o a ≠ [] := List.cons_ne_nil _ _
 
@@ -141,45 +142,30 @@ private theorem link_step {R : ℕ → ℕ → Prop} {a b : ℕ} (hrow : R (rowN
     (hclause : ∀ j, o a = some j → R (clauseNode j) (rowNode i b)) :
     ∀ x ∈ (step i o a).getLast?, ∀ y ∈ (step i o b).head?, R x y := by
   intro x hx y hy
-  rw [head?_step, Option.mem_some_iff] at hy
-  subst hy
+  obtain rfl := Option.mem_some_iff.1 hy
   unfold step at hx
-  cases hv : o a with
-  | none =>
-    simp only [hv, Option.map_none, Option.toList_none, List.getLast?_singleton,
-      Option.mem_def, Option.some.injEq] at hx
-    subst hx
-    exact hrow
-  | some j =>
-    simp only [hv, Option.map_some, Option.toList_some, List.getLast?_cons_cons,
-      List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
-    subst hx
-    exact hclause j hv
+  cases hv : o a <;>
+    simp only [hv, Option.map_none, Option.map_some, Option.toList_none, Option.toList_some,
+      List.getLast?_cons_cons, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
+  exacts [hx ▸ hrow, hx ▸ hclause _ hv]
 
 /-- Steps over distinct row nodes, visiting each clause after at most one of them, have no
 repetitions. -/
 private theorem nodup_flatMap_step {l : List ℕ} (hl : l.Nodup)
     (ho : ∀ a b j, o a = some j → o b = some j → a = b) : (l.flatMap (step i o)).Nodup := by
   rw [List.nodup_flatMap]
-  refine ⟨fun a _ => ?_, hl.pairwise_of_forall_ne fun a _ b _ hab => ?_⟩
-  · unfold step
-    cases o a <;> simp
-  · intro x hx hx'
-    rw [mem_step] at hx hx'
-    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩
-    · simp only [rowNode_inj] at h'
-      omega
-    · simp at h'
-    · simp at h'
-    · rw [clauseNode_inj] at h'
-      subst h'
-      exact hab (ho a b j hv hv')
+  refine ⟨fun a _ => by cases h : o a <;> simp [step, h],
+    hl.pairwise_of_forall_ne fun a _ b _ hab x hx hx' => ?_⟩
+  rcases mem_step.1 hx with rfl | ⟨j, hv, rfl⟩ <;> rcases mem_step.1 hx' with h' | ⟨j', hv', h'⟩ <;>
+    simp only [rowNode_inj, clauseNode_inj, rowNode_ne_clauseNode,
+      clauseNode_ne_rowNode] at h'
+  · exact absurd h'.2 hab
+  · exact hab (ho a b j hv (h' ▸ hv'))
 
 end Step
 
-private theorem rowLength_pos (i : ℕ) : 0 < rowLength slots i := by
-  simp only [rowLength]
-  omega
+private theorem rowLength_pos (i : ℕ) : 0 < rowLength slots i :=
+  Nat.succ_pos _
 
 private theorem arc_of_mem_diamondArcs {i : ℕ} (hi : i < N) {e : ℕ × ℕ}
     (he : e ∈ diamondArcs slots i) : e ∈ arcs N slots D :=
@@ -196,82 +182,59 @@ private theorem arc_row_pred {i a : ℕ} (hi : i < N) (ha : a + 1 < rowLength sl
     (List.mem_flatMap.2 ⟨a, List.mem_range.2 (by omega), by simp⟩))
 
 variable (hD : WellFormed N slots M D)
-  (hpick : ∀ j < M, pick j ∈ D ∧ (pick j).1 = j ∧ dir (pick j).2.1 = (pick j).2.2.2)
+  (hpick : ∀ j < M, pick j ∈ D ∧ (pick j).clause = j ∧ dir (pick j).row = (pick j).leftToRight)
 include hD hpick
 
 private theorem visit_eq_some_iff {i s j : ℕ} :
-    visit M pick i s = some j ↔ j < M ∧ (pick j).2.1 = i ∧ (pick j).2.2.1 = s := by
-  constructor
-  · intro h
-    have hmem := List.mem_of_find?_eq_some h
-    have hp := List.find?_some h
-    simp only [decide_eq_true_eq] at hp
-    exact ⟨List.mem_range.1 hmem, hp⟩
-  · rintro ⟨hj, hi, hs⟩
-    cases hv : visit M pick i s with
-    | none =>
-      rw [visit, List.find?_eq_none] at hv
-      exact absurd (by simp [hi, hs]) (hv j (List.mem_range.2 hj))
-    | some j' =>
-      have hmem := List.mem_range.1 (List.mem_of_find?_eq_some hv)
-      have hp := List.find?_some hv
-      simp only [decide_eq_true_eq] at hp
-      have h₁ := (hpick j hj).2.1
-      have h₂ := (hpick j' hmem).2.1
-      have := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
-        (hs.trans hp.2.symm)
-      rw [h₁, h₂] at this
-      rw [this]
+    visit M pick i s = some j ↔ j < M ∧ (pick j).row = i ∧ (pick j).slot = s := by
+  have hfwd {k} (hv : visit M pick i s = some k) :
+      k < M ∧ (pick k).row = i ∧ (pick k).slot = s :=
+    ⟨List.mem_range.1 (List.mem_of_find?_eq_some hv), by simpa using List.find?_some hv⟩
+  refine ⟨hfwd, fun ⟨hj, hi, hs⟩ => ?_⟩
+  cases hv : visit M pick i s with
+  | none => exact absurd (by simp [hi, hs]) ((List.find?_eq_none.1 hv) j (List.mem_range.2 hj))
+  | some j' =>
+    obtain ⟨hj', hp1, hp2⟩ := hfwd hv
+    rw [← (hpick j hj).2.1, hD.clause_eq _ (hpick j hj).1 _ (hpick j' hj').1
+      (hi.trans hp1.symm) (hs.trans hp2.symm), (hpick j' hj').2.1]
 
 /-- A rightward traversal visits clause `j` after row node `a` exactly when `a` starts the slot
 of its picked detour. -/
 private theorem rightVisit_eq_some_iff {i a j : ℕ} :
-    rightVisit M pick i a = some j ↔ j < M ∧ (pick j).2.1 = i ∧ a = 3 * (pick j).2.2.1 + 2 := by
+    rightVisit M pick i a = some j ↔
+      j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 2 := by
   unfold rightVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 /-- A leftward traversal visits clause `j` after row node `a` exactly when `a` ends the slot of
 its picked detour. -/
 private theorem leftVisit_eq_some_iff {i a j : ℕ} :
-    leftVisit M pick i a = some j ↔ j < M ∧ (pick j).2.1 = i ∧ a = 3 * (pick j).2.2.1 + 3 := by
+    leftVisit M pick i a = some j ↔
+      j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 3 := by
   unfold leftVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 omit hD in
 /-- The arcs of the picked detour of a clause, in the direction of its row. -/
 private theorem arc_detour {j : ℕ} (hj : j < M) :
-    (dir (pick j).2.1 = true →
-      (rowNode (pick j).2.1 (3 * (pick j).2.2.1 + 2), clauseNode j) ∈ arcs N slots D ∧
-      (clauseNode j, rowNode (pick j).2.1 (3 * (pick j).2.2.1 + 3)) ∈ arcs N slots D) ∧
-    (dir (pick j).2.1 = false →
-      (rowNode (pick j).2.1 (3 * (pick j).2.2.1 + 3), clauseNode j) ∈ arcs N slots D ∧
-      (clauseNode j, rowNode (pick j).2.1 (3 * (pick j).2.2.1 + 2)) ∈ arcs N slots D) := by
+    (dir (pick j).row = true →
+      (rowNode (pick j).row (3 * (pick j).slot + 2), clauseNode j) ∈ arcs N slots D ∧
+      (clauseNode j, rowNode (pick j).row (3 * (pick j).slot + 3)) ∈ arcs N slots D) ∧
+    (dir (pick j).row = false →
+      (rowNode (pick j).row (3 * (pick j).slot + 3), clauseNode j) ∈ arcs N slots D ∧
+      (clauseNode j, rowNode (pick j).row (3 * (pick j).slot + 2)) ∈ arcs N slots D) := by
   obtain ⟨hmem, hcl, hdir⟩ := hpick j hj
   have harc : ∀ e ∈ detourArcs (pick j), e ∈ arcs N slots D := fun e he =>
     List.mem_append_right _ (List.mem_flatMap.2 ⟨pick j, hmem, he⟩)
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · have hb : (pick j).2.2.2 = true := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
-  · have hb : (pick j).2.2.2 = false := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
+  refine ⟨fun h => ?_, fun h => ?_⟩ <;>
+    exact ⟨harc _ (by simp [detourArcs, ← hdir, h, hcl]),
+      harc _ (by simp [detourArcs, ← hdir, h, hcl])⟩
 
 /-- No clause is visited across the right end of a row. -/
-private theorem visit_last (i : ℕ) : visit M pick i (slots i) = none := by
-  cases hv : visit M pick i (slots i) with
-  | none => rfl
-  | some j =>
-    obtain ⟨hj, hi, hs⟩ := (visit_eq_some_iff hD hpick).1 hv
-    have := hD.slot_lt _ (hpick j hj).1
-    rw [hi, hs] at this
-    exact absurd this (lt_irrefl _)
+private theorem visit_last (i : ℕ) : visit M pick i (slots i) = none :=
+  Option.eq_none_iff_forall_ne_some.2 fun j hv =>
+    let ⟨hj, hrow, hs⟩ := (visit_eq_some_iff hD hpick).1 hv
+    (hrow ▸ hs ▸ hD.slot_lt _ (hpick j hj).1).false
 
 /-- The traversal of a row, its first and last node, and its arcs. -/
 private theorem rowPath_spec {i : ℕ} (hi : i < N) :
@@ -281,8 +244,7 @@ private theorem rowPath_spec {i : ℕ} (hi : i < N) :
     rowPath slots M dir pick i ≠ [] := by
   have hm := rowLength_sub_one slots i
   have hpos := rowLength_pos (slots := slots) i
-  have hdiam : ∀ e ∈ diamondArcs slots i, e ∈ arcs N slots D := fun e he =>
-    arc_of_mem_diamondArcs hi he
+  have hdiam (e) : e ∈ diamondArcs slots i → e ∈ arcs N slots D := arc_of_mem_diamondArcs hi
   unfold rowPath
   split_ifs with hd
   · refine ⟨List.isChain_flatMap_range (fun a _ => step_ne_nil a)
@@ -294,16 +256,13 @@ private theorem rowPath_spec {i : ℕ} (hi : i < N) :
       exact ((arc_detour (N := N) (slots := slots) hpick hj).1 hd).2
     · intro x hx
       rw [List.head?_flatMap_range hpos (step_ne_nil 0), head?_step, Option.mem_some_iff] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · intro x hx
+      have hdiv : (rowLength slots i - 1) / 3 = slots i := by omega
       rw [List.getLast?_flatMap_range hpos (step_ne_nil _)] at hx
-      unfold step rightVisit at hx
-      rw [show (rowLength slots i - 1) / 3 = slots i by omega, visit_last hD hpick] at hx
-      simp only [ite_self, Option.map_none, Option.toList_none, List.getLast?_singleton,
-        Option.mem_def, Option.some.injEq] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      simp only [step, rightVisit, hdiv, visit_last hD hpick, ite_self, Option.map_none,
+        Option.toList_none, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · simpa using ⟨0, hpos, step_ne_nil 0⟩
   · have hd' : dir i = false := by simpa using hd
     refine ⟨List.isChain_flatMap_reverse_range (fun a _ => step_ne_nil a)
@@ -312,61 +271,53 @@ private theorem rowPath_spec {i : ℕ} (hi : i < N) :
     · obtain ⟨hj, rfl, rfl⟩ := (leftVisit_eq_some_iff hD hpick).1 hv
       exact ((arc_detour (N := N) (slots := slots) hpick hj).2 hd').1
     · obtain ⟨hj, rfl, ha'⟩ := (leftVisit_eq_some_iff hD hpick).1 hv
-      obtain rfl : a = 3 * (pick j).2.2.1 + 2 := by omega
+      obtain rfl : a = 3 * (pick j).slot + 2 := by omega
       exact ((arc_detour (N := N) (slots := slots) hpick hj).2 hd').2
     · intro x hx
       rw [List.head?_flatMap_reverse_range hpos (step_ne_nil _), head?_step,
         Option.mem_some_iff] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · intro x hx
       rw [List.getLast?_flatMap_reverse_range hpos (step_ne_nil 0)] at hx
       simp only [step, leftVisit, lt_irrefl, and_false, ite_false, Option.map_none,
         Option.toList_none, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · simpa using ⟨0, hpos, step_ne_nil 0⟩
 
 /-- Steps over the nodes of row `i` visit its row nodes and the nodes of the clauses picked
 across it, when each clause is visited after the node at offset `c ≤ 3` of its slot. -/
 private theorem mem_flatMap_step {i v c : ℕ} {o : ℕ → Option ℕ} (hc : c ≤ 3)
-    (ho : ∀ a j, o a = some j ↔ j < M ∧ (pick j).2.1 = i ∧ a = 3 * (pick j).2.2.1 + c) :
+    (ho : ∀ a j, o a = some j ↔ j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + c) :
     (∃ a < rowLength slots i, v ∈ step i o a) ↔ (∃ a < rowLength slots i, v = rowNode i a) ∨
-      (∃ j < M, (pick j).2.1 = i ∧ v = clauseNode j) := by
+      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) := by
   simp only [mem_step]
   constructor
   · rintro ⟨a, ha, rfl | ⟨j, hv, rfl⟩⟩
     · exact Or.inl ⟨a, ha, rfl⟩
-    · obtain ⟨hj, hji, -⟩ := (ho a j).1 hv
-      exact Or.inr ⟨j, hj, hji, rfl⟩
+    · exact (fun ⟨hj, hji, _⟩ => Or.inr ⟨j, hj, hji, rfl⟩) ((ho a j).1 hv)
   · rintro (⟨a, ha, rfl⟩ | ⟨j, hj, hji, rfl⟩)
     · exact ⟨a, ha, Or.inl rfl⟩
-    · have hs := hD.slot_lt _ (hpick j hj).1
-      rw [hji] at hs
-      exact ⟨3 * (pick j).2.2.1 + c, by simp only [rowLength]; omega,
+    · have hs := hji ▸ hD.slot_lt _ (hpick j hj).1
+      exact ⟨3 * (pick j).slot + c, by simp only [rowLength]; omega,
         Or.inr ⟨j, (ho _ j).2 ⟨hj, hji, rfl⟩, rfl⟩⟩
 
 /-- The traversal of row `i` visits its row nodes and the nodes of the clauses picked across it.
 -/
 private theorem mem_rowPath {i v : ℕ} :
     v ∈ rowPath slots M dir pick i ↔ (∃ a < rowLength slots i, v = rowNode i a) ∨
-      (∃ j < M, (pick j).2.1 = i ∧ v = clauseNode j) := by
+      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) := by
   unfold rowPath
   split_ifs
-  · simp only [List.mem_flatMap, List.mem_range]
-    exact mem_flatMap_step hD hpick (by norm_num) fun _ _ => rightVisit_eq_some_iff hD hpick
-  · simp only [List.mem_flatMap, List.mem_reverse, List.mem_range]
-    exact mem_flatMap_step hD hpick le_rfl fun _ _ => leftVisit_eq_some_iff hD hpick
+  · simpa using mem_flatMap_step hD hpick (by decide) fun _ _ => rightVisit_eq_some_iff hD hpick
+  · simpa using mem_flatMap_step hD hpick le_rfl fun _ _ => leftVisit_eq_some_iff hD hpick
 
 private theorem nodup_rowPath (i : ℕ) : (rowPath slots M dir pick i).Nodup := by
   unfold rowPath
   split_ifs
-  · refine nodup_flatMap_step List.nodup_range fun a b j ha hb => ?_
-    rw [rightVisit_eq_some_iff hD hpick] at ha hb
-    omega
-  · refine nodup_flatMap_step (List.nodup_reverse.2 List.nodup_range) fun a b j ha hb => ?_
-    rw [leftVisit_eq_some_iff hD hpick] at ha hb
-    omega
+  · exact nodup_flatMap_step List.nodup_range fun a b j ha hb => by
+      rw [rightVisit_eq_some_iff hD hpick] at ha hb; omega
+  · exact nodup_flatMap_step (List.nodup_reverse.2 List.nodup_range) fun a b j ha hb => by
+      rw [leftVisit_eq_some_iff hD hpick] at ha hb; omega
 
 /-- The Hamiltonian path read off directions of the rows satisfying every clause. -/
 private theorem isDirHamPath_hamPath :
@@ -375,9 +326,8 @@ private theorem isDirHamPath_hamPath :
     fun _ => List.cons_ne_nil _ _
   have hmem_block : ∀ {i v}, v ∈ topNode i :: rowPath slots M dir pick i ↔ v = topNode i ∨
       (∃ a < rowLength slots i, v = rowNode i a) ∨
-      (∃ j < M, (pick j).2.1 = i ∧ v = clauseNode j) := by
-    intro i v
-    rw [List.mem_cons, mem_rowPath hD hpick]
+      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) :=
+    List.mem_cons.trans (or_congr_right (mem_rowPath hD hpick))
   refine ⟨?_, fun v => ?_, ?_, ?_, ?_⟩
   · -- No repetitions.
     rw [hamPath, List.nodup_append, List.nodup_flatMap]
@@ -392,25 +342,18 @@ private theorem isDirHamPath_hamPath :
         simp only [topNode_inj, rowNode_inj, clauseNode_inj, topNode_ne_rowNode,
           rowNode_ne_topNode, topNode_ne_clauseNode, clauseNode_ne_topNode,
           rowNode_ne_clauseNode, clauseNode_ne_rowNode] at h <;> grind
-    · rw [List.mem_singleton] at hw
-      subst hw
+    · obtain rfl := List.mem_singleton.1 hw
       obtain ⟨i, hi, hv⟩ := List.mem_flatMap.1 hv
-      rw [List.mem_range] at hi
-      rcases hmem_block.1 hv with rfl | ⟨a, -, rfl⟩ | ⟨j, -, -, rfl⟩
-      · simp only [ne_eq, topNode_inj]
-        omega
-      · simp
-      · simp
+      rcases hmem_block.1 hv with rfl | ⟨a, -, rfl⟩ | ⟨j, -, -, rfl⟩ <;>
+        simp [(List.mem_range.1 hi).ne]
   · -- Every vertex is visited.
     change v ∈ hamPath N slots M dir pick ↔ v ∈ vertices N slots M
     rw [mem_vertices, hamPath, List.mem_append, List.mem_flatMap, List.mem_singleton]
     constructor
     · rintro (⟨i, hi, hv⟩ | rfl)
-      · rw [List.mem_range] at hi
-        rcases hmem_block.1 hv with rfl | ⟨a, ha, rfl⟩ | ⟨j, hj, -, rfl⟩
-        · exact Or.inl ⟨i, hi.le, rfl⟩
-        · exact Or.inr (Or.inl ⟨i, hi, a, ha, rfl⟩)
-        · exact Or.inr (Or.inr ⟨j, hj, rfl⟩)
+      · rcases hmem_block.1 hv with rfl | ⟨a, ha, rfl⟩ | ⟨j, hj, -, rfl⟩
+        exacts [Or.inl ⟨i, (List.mem_range.1 hi).le, rfl⟩,
+          Or.inr (Or.inl ⟨i, List.mem_range.1 hi, a, ha, rfl⟩), Or.inr (Or.inr ⟨j, hj, rfl⟩)]
       · exact Or.inl ⟨_, le_rfl, rfl⟩
     · rintro (⟨i, hi, rfl⟩ | ⟨i, hi, a, ha, rfl⟩ | ⟨j, hj, rfl⟩)
       · rcases hi.lt_or_eq with hi | rfl
@@ -423,12 +366,10 @@ private theorem isDirHamPath_hamPath :
     rw [hamPath]
     rcases Nat.eq_zero_or_pos N with h | h
     · simp [h]
-    · rw [List.head?_append_of_ne_nil _ (by simpa using ⟨0, h⟩),
-        List.head?_flatMap_range h (hblock_ne 0)]
-      rfl
+    · exact (List.head?_append_of_ne_nil _ (by simpa using ⟨0, h⟩)).trans
+        (List.head?_flatMap_range h (hblock_ne 0))
   · -- It ends at the bottom of the last diamond.
-    rw [hamPath, List.getLast?_append_of_ne_nil _ (List.cons_ne_nil _ _)]
-    rfl
+    exact List.getLast?_append_of_ne_nil _ (List.cons_ne_nil _ _)
   · -- Consecutive vertices are joined by arcs.
     rw [hamPath, List.isChain_append]
     refine ⟨List.isChain_flatMap_range (fun i _ => hblock_ne i) (fun i hi => ?_) (fun i hi => ?_),
@@ -438,19 +379,15 @@ private theorem isDirHamPath_hamPath :
     · intro x hx y hy
       obtain ⟨-, -, hlast, hne⟩ := rowPath_spec hD hpick (i := i) (by omega)
       rw [← List.singleton_append, List.getLast?_append_of_ne_nil _ hne] at hx
-      simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hy
-      subst hy
-      exact hlast x hx
+      exact (Option.mem_some_iff.1 hy) ▸ hlast x hx
     · intro x hx y hy
-      simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hy
-      subst hy
-      rcases Nat.eq_zero_or_pos N with h | h
-      · simp [h] at hx
+      obtain rfl := Option.mem_some_iff.1 hy
+      rcases Nat.eq_zero_or_pos N with rfl | h
+      · simp at hx
       · obtain ⟨-, -, hlast, hne⟩ := rowPath_spec hD hpick (i := N - 1) (by omega)
         rw [List.getLast?_flatMap_range h (hblock_ne _), ← List.singleton_append,
           List.getLast?_append_of_ne_nil _ hne] at hx
-        have := hlast x hx
-        rwa [Nat.sub_add_cancel h] at this
+        exact Nat.sub_add_cancel h ▸ hlast x hx
 
 end DirectionsToPath
 
@@ -458,11 +395,11 @@ end DirectionsToPath
 from the top of the first diamond to the bottom of the last exactly when its rows can be given
 directions so that every clause has a detour in the direction of its row. -/
 theorem mem_DirHamPath_iff (hD : WellFormed N slots M D) :
-    (graph N slots M D, topNode 0, topNode N) ∈ DirHamPath ↔ Satisfiable M D := by
+    (⟨graph N slots M D, topNode 0, topNode N⟩ : PathInstance) ∈ DirHamPath ↔
+      Satisfiable M D := by
   refine ⟨satisfiable_of_mem_DirHamPath hD, fun ⟨dir, hdir⟩ => ?_⟩
   choose! pick hpick using hdir
-  exact ⟨_, isDirHamPath_hamPath (dir := dir) hD fun j hj =>
-    ⟨(hpick j hj).1, (hpick j hj).2.1, (hpick j hj).2.2⟩⟩
+  exact ⟨_, isDirHamPath_hamPath (dir := dir) hD hpick⟩
 
 /-- **Hamiltonian cycles of closed diamond graphs.** A well-formed closed diamond graph has a
 Hamiltonian cycle exactly when its rows can be given directions so that every clause has a detour
@@ -481,30 +418,33 @@ section PolyTime
 open Turing.MultiTapeTM ComputableInPolyTime
 
 /-- Detours encoded with unary clause, row and slot indices. -/
-abbrev encDetour : Detour ↪ List Bool :=
-  encPair encUnary (encPair encUnary (encPair encUnary encBool))
+enc_structure encDetour : Detour where
+  clause : encUnary,
+  row : encUnary,
+  slot : encUnary,
+  leftToRight : encBool
+
+attribute [fun_prop] encDetour_clause_polyTime encDetour_row_polyTime encDetour_slot_polyTime
+  encDetour_leftToRight_polyTime encDetour_mk_polyTime
 
 /-- The top nodes are computable in polynomial time from unary indices. -/
 @[fun_prop]
 theorem computableInPolyTime_topNode :
     ComputableInPolyTime (fun i => topNode i) encUnary encNat :=
-  unary_to_binary.comp
-    (show ComputableInPolyTime (fun i => Nat.pair 0 i) _ _ by fun_prop)
+  unary_to_binary.comp (by fun_prop [topNode])
 
 /-- The row nodes are computable in polynomial time from unary indices. -/
 @[fun_prop]
 theorem computableInPolyTime_rowNode :
     ComputableInPolyTime (fun p : ℕ × ℕ => rowNode p.1 p.2) (encPair encUnary encUnary)
       encNat :=
-  unary_to_binary.comp (show ComputableInPolyTime
-    (fun p : ℕ × ℕ => Nat.pair 1 (Nat.pair p.1 p.2)) _ _ by fun_prop)
+  unary_to_binary.comp (by fun_prop [rowNode])
 
 /-- The clause nodes are computable in polynomial time from unary indices. -/
 @[fun_prop]
 theorem computableInPolyTime_clauseNode :
     ComputableInPolyTime (fun j => clauseNode j) encUnary encNat :=
-  unary_to_binary.comp
-    (show ComputableInPolyTime (fun j => Nat.pair 2 j) _ _ by fun_prop)
+  unary_to_binary.comp (by fun_prop [clauseNode])
 
 /-- A diamond graph is computable in polynomial time from a layout computable in polynomial time,
 with the numbers of diamonds, slots and clauses in unary. -/
@@ -515,22 +455,14 @@ theorem computableInPolyTime_graph {α : Type} {encIn : α ↪ List Bool} {N M :
     (hM : ComputableInPolyTime M encIn encUnary)
     (hD : ComputableInPolyTime D encIn (encList encDetour)) :
     ComputableInPolyTime (fun a => graph (N a) (slots a) (M a) (D a)) encIn encGraph := by
-  have hvert : ComputableInPolyTime (fun a => vertices (N a) (slots a) (M a)) encIn
-      (encList encNat) := by
-    unfold vertices rowLength
-    fun_prop
   have hdiam : ComputableInPolyTime (fun p : α × ℕ => diamondArcs (slots p.1) p.2)
       (encPair encIn encUnary) (encList (encPair encNat encNat)) := by
-    unfold diamondArcs rowLength
-    fun_prop
+    fun_prop [diamondArcs, rowLength]
   have hdet : ComputableInPolyTime detourArcs encDetour (encList (encPair encNat encNat)) := by
-    unfold detourArcs encDetour
-    fun_prop
-  have harcs : ComputableInPolyTime (fun a => arcs (N a) (slots a) (D a)) encIn
-      (encList (encPair encNat encNat)) := by
-    unfold arcs
-    fun_prop
-  exact hvert.prod harcs
+    fun_prop [detourArcs]
+  exact encGraph_mk_polyTime
+    (by fun_prop [vertices, rowLength])
+    (by fun_prop [arcs])
 
 /-- A closed diamond graph is computable in polynomial time from a layout computable in polynomial
 time, with the numbers of diamonds, slots and clauses in unary. -/
@@ -543,9 +475,9 @@ theorem computableInPolyTime_cycleGraph {α : Type} {encIn : α ↪ List Bool} {
     ComputableInPolyTime (fun a => cycleGraph (N a) (slots a) (M a) (D a)) encIn
       encGraph := by
   have hg := computableInPolyTime_graph hN hslots hM hD
-  unfold encGraph at hg ⊢
-  exact hg.fst'.prod (cons' ((computableInPolyTime_topNode.comp hN).prod (const (topNode 0)))
-    hg.snd')
+  exact encGraph_mk_polyTime (encGraph_vertices_polyTime hg)
+    (cons' ((computableInPolyTime_topNode.comp hN).prod (const (topNode 0)))
+      (encGraph_edges_polyTime hg))
 
 end PolyTime
 

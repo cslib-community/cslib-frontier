@@ -121,9 +121,8 @@ theorem ctrlPhase_cond_apply (k : ℕ) (inv : Bool) (y x : Fin k → Bool) :
       Matrix (Fin k → Bool) (Fin k → Bool) ℂ) y x =
       if y = x then (if ∀ i, x i = true then (bif inv then -Complex.I else Complex.I) else 1)
       else 0 := by
-  by_cases hyx : y = x
-  · subst hyx
-    cases inv <;> by_cases h : ∀ i, y i = true <;> simp [ctrlPhase, h]
+  rcases eq_or_ne y x with rfl | hyx
+  · cases inv <;> by_cases h : ∀ i, y i = true <;> simp [ctrlPhase, h]
   · cases inv <;> simp [ctrlPhase, hyx, Ne.symm hyx]
 
 end Gate
@@ -132,6 +131,12 @@ end Gate
 noncomputable def PlacedGate.ctrlPhase (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin m) : PlacedGate m :=
   ⟨k, bif inv then (Gate.ctrlPhase k)⁻¹ else Gate.ctrlPhase k, e⟩
 
+/-- Moving a controlled phase gate to a larger register composes its wire placement. -/
+@[simp] theorem PlacedGate.mapWires_ctrlPhase {N k : ℕ} (e : Fin m ↪ Fin N) (inv : Bool)
+    (A : Fin k ↪ Fin m) :
+    (PlacedGate.ctrlPhase inv A).mapWires e = PlacedGate.ctrlPhase inv (A.trans e) := by
+  rfl
+
 /-- **The entries of a placed controlled phase gate**: it multiplies `|x⟩` by `i` (for `inv`, by
 `-i`) when every qubit of `e` is one. -/
 theorem PlacedGate.ctrlPhase_matrix_apply (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin m)
@@ -139,21 +144,14 @@ theorem PlacedGate.ctrlPhase_matrix_apply (inv : Bool) {k : ℕ} (e : Fin k ↪ 
     ((PlacedGate.ctrlPhase inv e).matrix : Matrix _ _ ℂ) y x =
       if y = x then (if ∀ i, x (e i) = true then (bif inv then -Complex.I else Complex.I) else 1)
       else 0 := by
-  rw [show PlacedGate.ctrlPhase inv e =
-      ⟨k, bif inv then (Gate.ctrlPhase k)⁻¹ else Gate.ctrlPhase k, e⟩ from rfl, matrix_apply]
-  dsimp only
-  rw [Gate.ctrlPhase_cond_apply]
-  simp only [Function.comp_apply]
+  simp only [PlacedGate.ctrlPhase, matrix_apply, Gate.ctrlPhase_cond_apply, Function.comp_apply]
   by_cases hyx : y = x
-  · subst hyx
-    simp
+  · simp [hyx]
   · rw [ite_eq_right hyx]
-    have key (h₁ : ∀ j, (¬∃ i, e i = j) → y j = x j) (h₂ : y ∘ e = x ∘ e) : y = x :=
-      funext fun j => by
-        by_cases hj : ∃ i, e i = j
-        · obtain ⟨i, rfl⟩ := hj
-          exact congrFun h₂ i
-        · exact h₁ j hj
+    have key (h₁ : ∀ j, (¬∃ i, e i = j) → y j = x j) (h₂ : y ∘ e = x ∘ e) : y = x := by
+      classical
+      exact funext fun j => if hj : ∃ i, e i = j then hj.choose_spec ▸ congrFun h₂ hj.choose
+        else h₁ j hj
     split_ifs with h₁ h₂ <;> first | rfl | exact absurd (key h₁ h₂) hyx
 
 /-- **A controlled phase gate multiplies a basis state** by `i` (for `inv`, by `-i`) when every
@@ -181,31 +179,13 @@ theorem im_toPlacedGate?_gate {g : GateCode} {p : PlacedGate m}
     split_ifs <;> simp
   match g, hp with
   | (true, t, []), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
+    obtain ⟨_, ⟨rfl⟩⟩ := Option.dite_none_right_eq_some.mp hp
     change ((Gate.hadamard : Matrix _ _ ℂ) y x).im = 0
     rw [Gate.hadamard_apply]
     split_ifs <;> simp
   | (true, t, _ :: _), hp => simp [toPlacedGate?] at hp
-  | (false, t, []), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
-    exact hperm _ y x
-  | (false, t, [c]), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
-    exact hperm _ y x
-  | (false, t, [c₁, c₂]), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
+  | (false, t, []), hp | (false, t, [_]), hp | (false, t, [_, _]), hp =>
+    obtain ⟨_, ⟨rfl⟩⟩ := Option.dite_none_right_eq_some.mp hp
     exact hperm _ y x
   | (false, t, _ :: _ :: _ :: _), hp => simp [toPlacedGate?] at hp
 
@@ -213,10 +193,8 @@ theorem im_toPlacedGate?_gate {g : GateCode} {p : PlacedGate m}
 theorem realSimulates_ofCodes {g : GateCode} (hg : g.WellFormed m) :
     (Circuit.ofCodes (m + 1) [g]).RealSimulates (Circuit.ofCodes m [g]) := by
   obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp (isSome_toPlacedGate?_iff.mpr hg)
-  have hp' : toPlacedGate? (m + 1) g = some (p.mapWires Fin.castSuccEmb) := by
-    have h := toPlacedGate?_shift (o := 0) (N := m + 1) (by omega) hg
-    rw [shift_zero, hp, Option.map_some] at h
-    exact h
+  have hp' := toPlacedGate?_shift (o := 0) (N := m + 1) (by omega) hg
+  rw [shift_zero, hp, Option.map_some] at hp'
   simp only [Circuit.ofCodes, List.filterMap_cons, hp, hp', List.filterMap_nil]
   exact p.realSimulates_mapWires_castSuccEmb (im_toPlacedGate?_gate hp)
 
@@ -235,7 +213,7 @@ namespace PhaseGateCode
 
 /-- The placed gate denoted by a gate code with phase gates on `m` qubits, or `none` when the code
 is not well formed. -/
-noncomputable def toPlacedGate? (m : ℕ) : PhaseGateCode → Option (PlacedGate m)
+@[expose] noncomputable def toPlacedGate? (m : ℕ) : PhaseGateCode → Option (PlacedGate m)
   | (false, g) => GateCode.toPlacedGate? m g
   | (true, inv, t, []) =>
     if h : t < m then
@@ -267,11 +245,7 @@ theorem isSome_toPlacedGate?_iff {c : PhaseGateCode} :
   | (false, g) => exact GateCode.isSome_toPlacedGate?_iff
   | (true, inv, t, []) => by_cases h : t < m <;> simp [toPlacedGate?, WellFormed, h]
   | (true, inv, t, [c]) =>
-    simp only [toPlacedGate?]
-    split_ifs with h <;> simp only [Option.isSome_some, Option.isSome_none] <;>
-      simp only [WellFormed, List.length_cons, List.length_nil, List.nodup_cons, List.mem_cons,
-        List.not_mem_nil, List.nodup_nil, forall_eq_or_imp, true_iff, false_iff,
-        Bool.false_eq_true] <;> grind
+    by_cases h : c < m ∧ t < m ∧ c ≠ t <;> simp [toPlacedGate?, WellFormed, h] <;> grind
   | (true, inv, t, _ :: _ :: _) => simp [toPlacedGate?, WellFormed]
 
 /-- **A well-formed phase gate code denotes a controlled phase gate** on qubits `e` whose
@@ -293,43 +267,34 @@ theorem exists_toPlacedGate?_eq_ctrlPhase {inv : Bool} {t : ℕ} {cs : List ℕ}
     have ht : t < m := hlt t List.mem_cons_self
     refine ⟨1, ⟨![⟨t, ht⟩], fun i j _ => Subsingleton.elim i j⟩, by simp [toPlacedGate?, ht],
       fun w => ?_⟩
-    rw [List.all_cons, List.all_nil, Bool.and_true, hread w ht]
-    simp only [Fin.forall_fin_one]
-    change Fin.init w ⟨t, ht⟩ = decide (Fin.init w ⟨t, ht⟩ = true)
-    simp
+    simp only [List.all_cons, List.all_nil, Bool.and_true, hread w ht, Fin.forall_fin_one,
+      Bool.decide_coe]
+    rfl
   | [c], _, hnd, hlt =>
-    have ht : t < m := hlt t (by simp)
-    have hc : c < m := hlt c (by simp)
-    have hct : c ≠ t := fun h => by simp [h] at hnd
-    have h : c < m ∧ t < m ∧ c ≠ t := ⟨hc, ht, hct⟩
-    refine ⟨2, ⟨![⟨c, h.1⟩, ⟨t, h.2.1⟩], ?_⟩, ?_, fun w => ?_⟩
+    have h : c < m ∧ t < m ∧ c ≠ t := ⟨hlt c (List.mem_cons_of_mem _ List.mem_cons_self),
+      hlt t List.mem_cons_self, fun h => (List.nodup_cons.mp hnd).1 (h ▸ List.mem_cons_self)⟩
+    refine ⟨2, ⟨![⟨c, h.1⟩, ⟨t, h.2.1⟩], ?_⟩, by simp [toPlacedGate?, h], fun w => ?_⟩
     · intro i j hij
       fin_cases i <;> fin_cases j <;> first | rfl | (simp [Fin.ext_iff] at hij; omega)
-    · simp only [toPlacedGate?]
-      rw [dite_eq_left h]
-    · rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true, hread w ht, hread w hc]
-      simp only [Fin.forall_fin_two]
-      change _ = decide (Fin.init w ⟨c, hc⟩ = true ∧ Fin.init w ⟨t, ht⟩ = true)
-      cases Fin.init w ⟨t, ht⟩ <;> cases Fin.init w ⟨c, hc⟩ <;> simp
+    · rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true, hread w h.2.1, hread w h.1]
+      simp only [Fin.forall_fin_two, Bool.decide_and, Bool.decide_coe]
+      exact Bool.and_comm _ _
   | _ :: _ :: _, hlen, _, _ => simp at hlen
 
 /-- The classical gate code that flips the encoding qubit `m` under the controls `t :: cs` of a
 well-formed phase gate code is well formed on `m + 1` qubits. -/
 theorem wellFormed_ctrlCode {inv : Bool} {t : ℕ} {cs : List ℕ}
-    (hc : WellFormed m (true, inv, t, cs)) : GateCode.WellFormed (m + 1) (false, m, t :: cs) := by
-  obtain ⟨hlen, hnd, hlt⟩ := hc
-  refine ⟨by simpa using hlen, List.nodup_cons.mpr ⟨fun h => Nat.lt_irrefl m (hlt m h), hnd⟩,
-    fun i hi => ?_⟩
-  rcases List.mem_cons.mp hi with rfl | hi
-  · omega
-  · have := hlt i hi
-    omega
+    (hc : WellFormed m (true, inv, t, cs)) : GateCode.WellFormed (m + 1) (false, m, t :: cs) :=
+  let ⟨hlen, hnd, hlt⟩ := hc
+  ⟨by simpa using hlen, List.nodup_cons.mpr ⟨fun h => Nat.lt_irrefl m (hlt m h), hnd⟩,
+    fun i hi => (List.mem_cons.mp hi).elim (fun h => h ▸ Nat.lt_succ_self _)
+      fun h => Nat.lt_succ_of_lt (hlt i h)⟩
 
 end PhaseGateCode
 
 /-- The circuit on `m` qubits denoted by a list of gate codes with phase gates, applied first to
 last. Codes that are not well formed are skipped. -/
-noncomputable def Circuit.ofPhaseCodes (m : ℕ) (gs : List PhaseGateCode) : Circuit m :=
+@[expose] noncomputable def Circuit.ofPhaseCodes (m : ℕ) (gs : List PhaseGateCode) : Circuit m :=
   gs.filterMap (PhaseGateCode.toPlacedGate? m)
 
 theorem Circuit.ofPhaseCodes_cons (c : PhaseGateCode) (gs : List PhaseGateCode) :
@@ -350,7 +315,6 @@ noncomputable def acceptProb (m : ℕ) (gs : List PhaseGateCode) (x : List Bool)
 
 theorem acceptProb_eq_onesProb (m : ℕ) (gs : List PhaseGateCode) (x : List Bool) :
     acceptProb m gs x = onesProb m gs [0] x := by
-  unfold acceptProb onesProb accepting
   rfl
 
 /-! ### The real translation -/
@@ -404,15 +368,13 @@ theorem realSimulates_phaseCodes (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin m) {q
       hR.eval (ket w) = s • ket (Function.update w r false) +
         (if w r then -s else s) • ket (Function.update w r true) := by
     refine ⟨(((Real.sqrt 2)⁻¹ : ℝ) : ℂ), ?_, fun w => ?_⟩
-    · rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt (by norm_num)]
-      norm_num
+    · rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt (by norm_num)]; norm_num
     · rw [GateCode.eval_toPlacedGate_hadamard_ket hhR hm, Fintype.sum_bool]
       simp only [hrm]
       cases w r <;> simp <;> abel
   have hX (w : Fin (m + 1) → Bool) : cx.eval (ket w) =
       ket (Function.update w r (w r ^^ decide (∀ i, Fin.init w (e i) = true))) := by
-    rw [GateCode.eval_toPlacedGate_ket hcx hm, hall]
-    rfl
+    rw [GateCode.eval_toPlacedGate_ket hcx hm, hall]; rfl
   have hinit (w : Fin (m + 1) → Bool) (c : Bool) :
       Fin.init (Function.update w r c) = Fin.init w :=
     Fin.init_update_last ..
@@ -450,9 +412,8 @@ theorem wellFormed_toRealCodes {gs : List PhaseGateCode} (hgs : ∀ c ∈ gs, c.
   have hwf := hgs c hc
   match c, hwf, hg with
   | (false, g'), hwf, hg =>
-    rw [show realCodes m (false, g') = [g'] from rfl, List.mem_singleton] at hg
-    subst hg
-    simpa using GateCode.WellFormed.shift (o := 0) (N := m + 1) (by omega) hwf
+    simpa [List.mem_singleton.mp hg] using
+      GateCode.WellFormed.shift (o := 0) (N := m + 1) (by omega) hwf
   | (true, inv, t, cs), hwf, hg =>
     have hH : GateCode.WellFormed (m + 1) (true, m, []) := ⟨by omega, rfl⟩
     have hX := wellFormed_ctrlCode hwf
@@ -474,19 +435,16 @@ theorem realSimulates_toRealCodes {gs : List PhaseGateCode} (hgs : ∀ c ∈ gs,
     | (false, g), hc => exact GateCode.realSimulates_ofCodes hc
     | (true, inv, t, cs), hc =>
       obtain ⟨k, e, he, hall⟩ := exists_toPlacedGate?_eq_ctrlPhase hc
-      have hdec : Circuit.ofPhaseCodes m [(true, inv, t, cs)] = [PlacedGate.ctrlPhase inv e] := by
-        simp [Circuit.ofPhaseCodes, he]
-      rw [hdec]
-      exact realSimulates_phaseCodes inv e (wellFormed_ctrlCode hc) hall
+      simpa only [realCodes, ↓reduceIte, Circuit.ofPhaseCodes, List.filterMap_cons, he,
+        List.filterMap_nil] using realSimulates_phaseCodes inv e (wellFormed_ctrlCode hc) hall
 
 /-- The input `x` on `m + 1` qubits is the input on `m` qubits followed by a zero, when `x` fits
 into `m` qubits. -/
 theorem _root_.Cslib.Quantum.inputState_succ {x : List Bool} (hx : x.length ≤ m) :
     inputState (m + 1) x = Fin.snoc (inputState m x) false := by
   funext i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · simp [inputState, List.getElem?_eq_none_iff.mpr hx]
-  · simp [inputState]
+  exact Fin.lastCases (by simp [inputState, List.getElem?_eq_none_iff.mpr hx])
+    (fun _ => by simp [inputState]) i
 
 /-- The outcomes of `m + 1` qubits in which the qubits `S` below `m` read one are those whose
 first `m` bits do. -/
@@ -526,8 +484,13 @@ end PhaseGateCode
 /-- The circuit of gate codes without phase gates, read as gate codes with phase gates. -/
 theorem Circuit.ofPhaseCodes_map (gs : List GateCode) :
     Circuit.ofPhaseCodes m (gs.map fun g => (false, g)) = Circuit.ofCodes m gs := by
-  simp only [Circuit.ofPhaseCodes, Circuit.ofCodes, List.filterMap_map]
-  rfl
+  simp only [Circuit.ofPhaseCodes, Circuit.ofCodes, List.filterMap_map]; rfl
+
+/-- Treating ordinary gate codes as phase-gate codes preserves acceptance probability. -/
+theorem PhaseGateCode.acceptProb_ofCodes (m : ℕ) (gs : List GateCode) (x : List Bool) :
+    PhaseGateCode.acceptProb m (gs.map fun g => (false, g)) x =
+      Cslib.Quantum.acceptProb m gs x := by
+  simp only [PhaseGateCode.acceptProb, Cslib.Quantum.acceptProb, Circuit.ofPhaseCodes_map]
 
 /-! ### Uniform families with phase gates -/
 
@@ -603,10 +566,8 @@ none. -/
     exact F.wellFormed n g hg
 
 @[simp] theorem acceptProb_toPhaseFamily (F : UniformCircuitFamily) (x : List Bool) :
-    F.toPhaseFamily.acceptProb x = F.acceptProb x := by
-  simp only [UniformPhaseCircuitFamily.acceptProb, PhaseGateCode.acceptProb, toPhaseFamily,
-    Circuit.ofPhaseCodes_map]
-  rfl
+    F.toPhaseFamily.acceptProb x = F.acceptProb x :=
+  PhaseGateCode.acceptProb_ofCodes _ _ _
 
 end UniformCircuitFamily
 

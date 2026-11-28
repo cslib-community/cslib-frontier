@@ -14,6 +14,7 @@ import Mathlib.FieldTheory.Finite.GaloisField
 import CslibFrontier.Computability.Circuit.Boolean.TC0
 import CslibFrontier.Computability.Circuit.Boolean.TopDown
 import CslibFrontier.Computability.Circuit.Monotone.Clique.Asymptotic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Foundations.BooleanAnalysis.HadamardTester
 import CslibFrontier.Probability.ApproximateCounting.Relative
@@ -74,9 +75,10 @@ theorem computesTidily_constTM (b : Bool) (w : List Bool) :
   congr <;> funext i <;> exact i.elim0
 
 theorem polyTime_const {α : Type} (enc : α ↪ List Bool) (b : Bool) :
-    ComputableTidilyInPolyTime (fun _ : α => b) enc encBool :=
+    ComputableInPolyTime (fun _ : α => b) enc encBool :=
   ⟨fun _ => 1, fun _ => 0, .const 1, .const 0,
-    0, Unit, inferInstance, constTM b, fun a => computesTidily_constTM b (enc a)⟩
+    0, Unit, inferInstance, constTM b,
+    fun a => (computesTidily_constTM b (enc a)).computesInTimeAndSpace⟩
 
 example :
     (∅ : Set (List Bool)) ∈ Cslib.Complexity.P encBits ∧

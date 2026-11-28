@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.PMF
@@ -101,8 +102,9 @@ theorem advantage_le (h : ProbOracleComp.IdenticalUntilBad first second bad)
     (program : ProbOracleComp spec α) (s : State) (next : α × State → Game) :
     (Game.advantage ((ProbOracleComp.runWith first program s).bind next)
         ((ProbOracleComp.runWith second program s).bind next) : ℝ) ≤
-      ((ProbOracleComp.runWith first program s).toOuterMeasure {x | bad x.2}).toReal :=
-  OracleComp.IdenticalUntilBad.advantage_le h program s next
+      ((ProbOracleComp.runWith first program s).toOuterMeasure {x | bad x.2}).toReal := by
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
+  exact OracleComp.IdenticalUntilBad.advantage_le h program s next
 
 end Cslib.ProbOracleComp.IdenticalUntilBad
 
@@ -115,10 +117,8 @@ open scoped ENNReal NNReal
 `o : List Bool → List Bool` and feed its output to `next : α → Game`. -/
 noncomputable def runStatelessOracle {α : Type} (o : List Bool → List Bool)
     (prog : WordOracleComp Unit α) (next : α → Game) : Game :=
-  (ProbComp.eval ((OracleComp.interpret
-    (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
-      (fun req (s : Unit) => pure (o req.2, s)))
-    prog).run ())).bind (fun out => next out.1)
+  (ProbComp.eval ((prog.runState fun req (s : Unit) => pure (o req.2, s)).run ())).bind
+    fun out => next out.1
 
 @[simp]
 theorem runStatelessOracle_pure {α : Type} (o : List Bool → List Bool)
@@ -134,7 +134,7 @@ theorem runStatelessOracle_query_inl {α : Type} (o : List Bool → List Bool)
     runStatelessOracle o (OracleComp.query (Sum.inl m) >>= k) next =
       (PMF.uniformOfFintype (Fin (m + 1))).bind
         (fun x => runStatelessOracle o (k x) next) := by
-  simp [runStatelessOracle, OracleComp.sumHandler, StateT.run_bind,
+  simp [runStatelessOracle, ProbOracleComp.runState, OracleComp.sumHandler, StateT.run_bind,
     ProbComp.eval_bind, PMF.bind_bind]
 
 theorem runStatelessOracle_query_inr {α : Type} (o : List Bool → List Bool)
@@ -144,7 +144,8 @@ theorem runStatelessOracle_query_inr {α : Type} (o : List Bool → List Bool)
     (next : α → Game) :
     runStatelessOracle o (OracleComp.query (Sum.inr req) >>= k) next =
       runStatelessOracle o (k (o req.2)) next := by
-  rw [runStatelessOracle, OracleComp.interpret_bind, OracleComp.interpret_query,
+  rw [runStatelessOracle, ProbOracleComp.runState, OracleComp.interpret_bind,
+    OracleComp.interpret_query,
     OracleComp.sumHandler, StateT.run_bind]
   rfl
 
@@ -176,23 +177,14 @@ theorem runStatelessOracle_bind_le {T α : Type} (μ : PMF T)
             runStatelessOracle (o τ) (OracleComp.query (Sum.inl m) >>= k) (next τ)) =
           (PMF.uniformOfFintype (Fin (m + 1))).bind
             (fun x => μ.bind fun τ => runStatelessOracle (o τ) (k x) (next τ)) := by
-        rw [show (fun τ =>
-            runStatelessOracle (o τ) (OracleComp.query (Sum.inl m) >>= k) (next τ)) = _ from
-          funext fun τ => runStatelessOracle_query_inl (o τ) m k (next τ)]
+        simp_rw [fun τ => runStatelessOracle_query_inl (o τ) m k (next τ)]
         exact PMF.bind_comm μ (PMF.uniformOfFintype (Fin (m + 1))) _
       rw [hinl o₁, hinl (fun _ => o₂)]
       exact ⟨PMF.bind_apply_le_add_const_on_support _ _ fun x _ => (ih x).1,
         PMF.bind_apply_le_add_const_on_support _ _ fun x _ => (ih x).2⟩
     · simp only [Sum.elim_inr]
-      have hinr₁ :
-          (fun τ => runStatelessOracle (o₁ τ) (OracleComp.query (Sum.inr req) >>= k) (next τ)) =
-            fun τ => runStatelessOracle (o₁ τ) (k (o₁ τ req.2)) (next τ) :=
-        funext fun τ => runStatelessOracle_query_inr (o₁ τ) req k (next τ)
-      have hinr₂ :
-          (fun τ => runStatelessOracle o₂ (OracleComp.query (Sum.inr req) >>= k) (next τ)) =
-            fun τ => runStatelessOracle o₂ (k (o₂ req.2)) (next τ) :=
-        funext fun τ => runStatelessOracle_query_inr o₂ req k (next τ)
-      rw [hinr₁, hinr₂]
+      simp_rw [fun τ => runStatelessOracle_query_inr (o₁ τ) req k (next τ),
+        fun τ => runStatelessOracle_query_inr o₂ req k (next τ)]
       have hstep (f g : T → Game)
           (hfg : ∀ τ, isBad τ req.2 = false → f τ = g τ) :
           (μ.bind f) b ≤ (μ.bind g) b + δ := by
@@ -200,21 +192,17 @@ theorem runStatelessOracle_bind_le {T α : Type} (μ : PMF T)
         calc ∑' τ, μ τ * f τ b
             ≤ ∑' τ, (μ τ * g τ b + μ τ * if isBad τ req.2 then 1 else 0) := by
               refine tsum_le_tsum fun τ => ?_
-              by_cases hb : isBad τ req.2 = true
-              · simp only [hb, ↓reduceIte, mul_one]
+              cases hb : isBad τ req.2
+              · simp [hfg τ hb]
+              · simp only [↓reduceIte, mul_one]
                 exact le_add_of_le_right (mul_le_of_le_one_right zero_le (PMF.coe_le_one _ _))
-              · simp only [Bool.not_eq_true] at hb
-                rw [hfg τ hb]; simp [hb]
           _ = (∑' τ, μ τ * g τ b) + ∑' τ, μ τ * if isBad τ req.2 then 1 else 0 := tsum_add
           _ ≤ (∑' τ, μ τ * g τ b) + δ := add_le_add le_rfl (hbad req.2)
-      have hstep1 := hstep
-        (fun τ => runStatelessOracle (o₁ τ) (k (o₁ τ req.2)) (next τ))
-        (fun τ => runStatelessOracle (o₁ τ) (k (o₂ req.2)) (next τ))
-        (fun τ hb => by rw [hagree τ req.2 hb])
-      have hstep2 := hstep
-        (fun τ => runStatelessOracle (o₁ τ) (k (o₂ req.2)) (next τ))
-        (fun τ => runStatelessOracle (o₁ τ) (k (o₁ τ req.2)) (next τ))
-        (fun τ hb => by rw [hagree τ req.2 hb])
+      let run (τ : T) (x : List Bool) := runStatelessOracle (o₁ τ) (k x) (next τ)
+      have hstep1 := hstep (fun τ => run τ (o₁ τ req.2)) (fun τ => run τ (o₂ req.2))
+        fun τ hb => congrArg (run τ) (hagree τ req.2 hb)
+      have hstep2 := hstep (fun τ => run τ (o₂ req.2)) (fun τ => run τ (o₁ τ req.2))
+        fun τ hb => congrArg (run τ) (hagree τ req.2 hb).symm
       have hcast : ((Q + 1 : ℕ) : ℝ≥0∞) * δ = (Q : ℝ≥0∞) * δ + δ := by
         rw [Nat.cast_add, Nat.cast_one, add_mul, one_mul]
       rw [hcast]
@@ -253,9 +241,8 @@ theorem bind_runStatelessOracle_comm {α β : Type} (μ : PMF β)
 theorem advantage_runStatelessOracle_le_of_support {α : Type}
     (o : List Bool → List Bool) (prog : WordOracleComp Unit α)
     (next₁ next₂ : α → Game) {ε : ℝ≥0}
-    (h : ∀ out ∈ (ProbComp.eval ((OracleComp.interpret
-      (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
-        (fun req (s : Unit) => pure (o req.2, s))) prog).run ())).support,
+    (h : ∀ out ∈ (ProbComp.eval
+      ((prog.runState fun req (s : Unit) => pure (o req.2, s)).run ())).support,
       Game.advantage (next₁ out.1) (next₂ out.1) ≤ ε) :
     Game.advantage (runStatelessOracle o prog next₁) (runStatelessOracle o prog next₂) ≤ ε :=
   advantage_bind_le_of_support _ _ _ h
@@ -271,17 +258,14 @@ theorem advantage_uniform_bind_of_eq_of_ne {q : ℕ} [NeZero q] (x₀ : ZMod q)
   have hadv := advantage_bind_le_succProbability_bind (PMF.uniformOfFintype (ZMod q)) g₁ g₂ err
     fun x => by
       by_cases hx : x = x₀
-      · rw [show err x true = 1 by simp [err, hx]]
+      · simp only [err, hx, decide_true, PMF.pure_apply, ↓reduceIte]
         exact ⟨le_add_of_le_right (PMF.coe_le_one _ _),
           le_add_of_le_right (PMF.coe_le_one _ _)⟩
       · rw [heq x hx]; exact ⟨le_self_add, le_self_add⟩
-  have hsucc :
-      Game.succProbability ((PMF.uniformOfFintype (ZMod q)).bind err) = 1 / (q : ℝ≥0) := by
-    have happly : (((PMF.uniformOfFintype (ZMod q)).bind err) true) = (q : ℝ≥0∞)⁻¹ := by
-      simp only [err, PMF.bind_apply, PMF.pure_apply, true_eq_decide_iff, mul_ite, mul_one,
-        mul_zero, tsum_ite_eq, PMF.uniformOfFintype_apply, ZMod.card]
-    rw [Game.succProbability, happly, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast, one_div]
-  exact hadv.trans_eq hsucc
+  refine hadv.trans_eq ?_
+  simp only [Game.succProbability, err, PMF.bind_apply, PMF.pure_apply, true_eq_decide_iff,
+    mul_ite, mul_one, mul_zero, tsum_ite_eq, PMF.uniformOfFintype_apply, ZMod.card,
+    ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast, one_div]
 
 /-- Stateful oracle handler that replies with `o₂ request.2` and updates its `Option (List Bool)`
 state to `some (extract request.2)` whenever `isBad request.2` holds. -/
@@ -296,10 +280,8 @@ noncomputable def runFinderOracle {α : Type} (o₂ : List Bool → List Bool)
     (isBad : List Bool → Bool) (extract : List Bool → List Bool)
     (prog : WordOracleComp Unit α) (s : Option (List Bool))
     (isGood : List Bool → Bool) : Game :=
-  (ProbComp.eval ((OracleComp.interpret
-    (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
-      (finderPhase2Oracle o₂ isBad extract))
-    prog).run s)).bind (fun out => PMF.pure (out.2.elim false isGood))
+  (ProbComp.eval ((prog.runState (finderPhase2Oracle o₂ isBad extract)).run s)).bind
+    fun out => PMF.pure (out.2.elim false isGood)
 
 @[simp]
 theorem runFinderOracle_pure {α : Type} (o₂ : List Bool → List Bool)
@@ -317,7 +299,7 @@ theorem runFinderOracle_query_inl {α : Type} (o₂ : List Bool → List Bool)
     runFinderOracle o₂ isBad extract (OracleComp.query (Sum.inl m) >>= k) s isGood =
       (PMF.uniformOfFintype (Fin (m + 1))).bind
         (fun x => runFinderOracle o₂ isBad extract (k x) s isGood) := by
-  simp [runFinderOracle, OracleComp.sumHandler, StateT.run_bind,
+  simp [runFinderOracle, ProbOracleComp.runState, OracleComp.sumHandler, StateT.run_bind,
     ProbComp.eval_bind, PMF.bind_bind]
 
 theorem runFinderOracle_query_inr {α : Type} (o₂ : List Bool → List Bool)
@@ -329,7 +311,8 @@ theorem runFinderOracle_query_inr {α : Type} (o₂ : List Bool → List Bool)
     runFinderOracle o₂ isBad extract (OracleComp.query (Sum.inr req) >>= k) s isGood =
       runFinderOracle o₂ isBad extract (k (o₂ req.2))
         (if isBad req.2 then some (extract req.2) else s) isGood := by
-  rw [runFinderOracle, OracleComp.interpret_bind, OracleComp.interpret_query,
+  rw [runFinderOracle, ProbOracleComp.runState, OracleComp.interpret_bind,
+    OracleComp.interpret_query,
     OracleComp.sumHandler_inr, StateT.run_bind]
   rfl
 
@@ -343,20 +326,17 @@ theorem runFinderOracle_true_of_good {α : Type} (o₂ : List Bool → List Bool
     ∀ (s : Option (List Bool)), s.elim false isGood = true →
       runFinderOracle o₂ isBad extract prog s isGood true = 1 := by
   induction prog using OracleComp.induction with
-  | pure a =>
-    intro s hs
-    simp [hs]
+  | pure a => exact fun s hs => by simp [hs]
   | query_bind q k ih =>
+    intro s hs
+    rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with m | req
-    · intro s hs
-      rw [runFinderOracle_query_inl, PMF.bind_apply]
+    · rw [runFinderOracle_query_inl, PMF.bind_apply]
       simp_rw [ih _ s hs, mul_one, PMF.tsum_coe]
-    · intro s hs
-      rw [runFinderOracle_query_inr]
-      apply ih
-      by_cases hb : isBad req.2 = true
-      · simp [hb, hbad_good req.2 hb]
-      · simp [hb, hs]
+    · rw [runFinderOracle_query_inr]
+      cases hb : isBad req.2
+      · exact ih _ s hs
+      · exact ih _ _ (hbad_good req.2 hb)
 
 /-- **Finder-oracle until-bad bound**: if `o₁ req = o₂ req` whenever `isBad req = false` and every
 query with `isBad req = true` satisfies `isGood (extract req) = true`, then the difference between
@@ -379,41 +359,20 @@ theorem runStatelessOracle_le_runFinderOracle {α : Type}
     simp only [runStatelessOracle_pure, runFinderOracle_pure]
     exact ⟨le_self_add, le_self_add⟩
   | query_bind q k ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with m | req
     · rw [runStatelessOracle_query_inl, runStatelessOracle_query_inl, runFinderOracle_query_inl]
       simp only [PMF.bind_apply]
-      constructor
-      · calc ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₁ (k x) next b
-            ≤ ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                (runStatelessOracle o₂ (k x) next b +
-                  runFinderOracle o₂ isBad extract (k x) none isGood true) :=
-              tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).1 zero_le
-          _ = (∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₂ (k x) next b) +
-                ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                  runFinderOracle o₂ isBad extract (k x) none isGood true := by
-              simp only [mul_add, tsum_add]
-      · calc ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₂ (k x) next b
-            ≤ ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                (runStatelessOracle o₁ (k x) next b +
-                  runFinderOracle o₂ isBad extract (k x) none isGood true) :=
-              tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).2 zero_le
-          _ = (∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₁ (k x) next b) +
-                ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                  runFinderOracle o₂ isBad extract (k x) none isGood true := by
-              simp only [mul_add, tsum_add]
+      exact ⟨(tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).1 zero_le).trans_eq
+          (by simp only [mul_add, tsum_add]),
+        (tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).2 zero_le).trans_eq
+          (by simp only [mul_add, tsum_add])⟩
     · rw [runStatelessOracle_query_inr, runStatelessOracle_query_inr, runFinderOracle_query_inr]
-      by_cases hb : isBad req.2 = true
-      · simp only [hb, ↓reduceIte]
-        have h1 :
-            runFinderOracle o₂ isBad extract (k (o₂ req.2)) (some (extract req.2)) isGood true =
-              1 :=
-          runFinderOracle_true_of_good o₂ isBad extract isGood hbad_good (k (o₂ req.2))
-            (some (extract req.2)) (hbad_good req.2 hb)
-        rw [h1]
+      cases hb : isBad req.2
+      · simpa only [Bool.false_eq_true, ↓reduceIte, hagree req.2 hb] using ih (o₂ req.2)
+      · simp only [↓reduceIte, runFinderOracle_true_of_good o₂ isBad extract isGood hbad_good
+          (k (o₂ req.2)) (some (extract req.2)) (hbad_good req.2 hb)]
         exact ⟨le_add_of_le_right (PMF.coe_le_one _ _),
           le_add_of_le_right (PMF.coe_le_one _ _)⟩
-      · simp only [Bool.not_eq_true] at hb
-        simp only [hb, Bool.false_eq_true, ↓reduceIte, hagree req.2 hb]
-        exact ih (o₂ req.2)
 
 end Cslib.Crypto.Game

@@ -4,7 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Probability.MoserTardos
+module
+-- upstream: local-only (test driver)
+
+import CslibFrontier.Probability.MoserTardos.Lopsided
+import CslibFrontier.Probability.MoserTardos.Parallel
+import CslibFrontier.Probability.LocalLemma
 import Cslib.Probability.PMF
 
 /-! The Moser–Tardos algorithmic local lemma: a satisfiable instance of its hypothesis on one fair
@@ -14,6 +19,8 @@ checked here). Also: two dependent events on three fair coins that meet the hypo
 equality; a degenerate instance with an impossible event and `x = 0`; an instance where the
 hypothesis must fail because every assignment hits some event; and a concrete valid log on a
 fixed table with its witness tree computed by `decide`. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.MoserTardos
 
@@ -245,5 +252,466 @@ example : witness vbl3 0 [2] = {(0, 0)} := by decide
 -- The coupling: the witness tree passes its check on `tbl`.
 example : Check vbl3 allTrue {(0, 0), (1, 1), (2, 2)} tbl :=
   witness_tbl ▸ check_witness vbl3 allTrue allTrue_dependsOn 0 [1, 2] tbl isLog_tbl
+
+/-! ### Symmetric Moser–Tardos, `PMF.pi` bridge, and Lopsided Section 6 -/
+
+-- Symmetric Moser–Tardos on `d = 0`: two independent events of probability `1 / 4` satisfy
+-- `e * (1 / 4) * (0 + 1) ≤ 1`, giving expected resamplings at most `(1 / 4) / (1 - 1 / 4) = 1 / 3`.
+private noncomputable def unifCoin (n : ℕ) : Fin n → Measure Bool :=
+  fun _ => (Cslib.Probability.PMF.uniformOfFintype Bool).toMeasure
+
+private instance (n : ℕ) (v : Fin n) : IsProbabilityMeasure (unifCoin n v) := by
+  unfold unifCoin
+  infer_instance
+
+private theorem unifCoin_true (n : ℕ) (v : Fin n) : unifCoin n v {true} = 1 / 2 := by
+  rw [unifCoin, PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton true),
+    Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_bool]
+  norm_num
+
+private theorem exp_one_le_eleven_quarters : Real.exp 1 ≤ 11 / 4 := by
+  have h := Real.exp_bound (x := (1 : ℝ)) (by norm_num) (n := 2) (by decide)
+  simp [Finset.sum_range_succ, Nat.factorial] at h
+  linarith [(abs_le.mp h).2]
+
+private def allTrueSet {n : ℕ} (s : Finset (Fin n)) : Set (Fin n → Bool) :=
+  {σ | ∀ v ∈ s, σ v = true}
+
+private theorem allTrueSet_eq_pi {n : ℕ} (s : Finset (Fin n)) :
+    allTrueSet s = Set.univ.pi fun v => if v ∈ s then ({true} : Set Bool) else Set.univ := by
+  ext σ
+  simp only [allTrueSet, Set.mem_ofPred_eq, Set.mem_pi, Set.mem_univ, true_implies]
+  refine ⟨fun h v => ?_, fun h v hv => ?_⟩
+  · split_ifs with hv
+    · exact h v hv
+    · exact Set.mem_univ _
+  · simpa [hv] using h v
+
+private theorem measurableSet_allTrueSet {n : ℕ} (s : Finset (Fin n)) :
+    MeasurableSet (allTrueSet s) := by
+  rw [allTrueSet_eq_pi]
+  exact MeasurableSet.univ_pi fun _ => by
+    split_ifs
+    · exact measurableSet_singleton true
+    · exact MeasurableSet.univ
+
+private theorem allTrueSet_dependsOn {n : ℕ} (s : Finset (Fin n)) :
+    DependsOn (· ∈ allTrueSet s) (s : Set (Fin n)) := fun σ τ h => by
+  simp only [allTrueSet, Set.mem_ofPred_eq]
+  exact propext (forall₂_congr fun v hv => by rw [h v (Finset.mem_coe.2 hv)])
+
+private theorem measureReal_allTrueSet {n : ℕ} (s : Finset (Fin n)) :
+    (Measure.pi (unifCoin n)).real (allTrueSet s) = (1 / 2 : ℝ) ^ s.card := by
+  rw [measureReal_def, allTrueSet_eq_pi, Measure.pi_pi, ENNReal.toReal_prod]
+  have h : ∀ v : Fin n, (unifCoin n v (if v ∈ s then {true} else Set.univ)).toReal =
+      if v ∈ s then (1 / 2 : ℝ) else 1 := by
+    intro v
+    split_ifs
+    · rw [unifCoin_true]; norm_num
+    · rw [measure_univ]; norm_num
+  simp_rw [h, Finset.prod_ite_mem, Finset.univ_inter, Finset.prod_const]
+
+private def vblDisj : Fin 2 → Finset (Fin 4)
+  | 0 => {0, 1}
+  | 1 => {2, 3}
+
+example {sel : (∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1) → List (Fin 2) → Option (Fin 2)}
+    (hsel : ∀ T w i, sel T w = some i → current vblDisj T w ∈ allTrueSet (vblDisj i))
+    (i : Fin 2) :
+    ∫⁻ T, resamplings (α := fun _ : Fin 4 => Bool) sel i T ∂table (unifCoin 4) ≤
+      ENNReal.ofReal (1 / 3) := by
+  refine (lintegral_resamplings_le_symmetric_zero (unifCoin 4) vblDisj
+    (fun j => allTrueSet (vblDisj j)) (fun j => measurableSet_allTrueSet (vblDisj j))
+    (fun j => allTrueSet_dependsOn (vblDisj j)) (fun j => by fin_cases j <;> decide)
+    (q := 1 / 4)
+    (fun j => by
+      rw [measureReal_allTrueSet]
+      have hcard : (vblDisj j).card = 2 := by fin_cases j <;> decide
+      norm_num [hcard])
+    (by have := exp_one_le_eleven_quarters; linarith) hsel i).trans_eq ?_
+  norm_num
+
+-- Symmetric `PMF.pi` bridge (`1 ≤ d`): two events on `Fin 5` sharing variable `2`, each of
+-- probability `1 / 8`, satisfy `e * (1 / 8) * (1 + 1) ≤ 1`.
+private def vblTriple : Fin 2 → Finset (Fin 5)
+  | 0 => {0, 1, 2}
+  | 1 => {2, 3, 4}
+
+example {sel : (∀ p : Fin 5 × ℕ, (fun _ : Fin 5 => Bool) p.1) → List (Fin 2) → Option (Fin 2)}
+    (hsel : ∀ T w i, sel T w = some i → current vblTriple T w ∈ allTrueSet (vblTriple i)) :
+    ∫⁻ T, resamplings (α := fun _ : Fin 5 => Bool) sel 0 T ∂table (unifCoin 5) ≤ 1 := by
+  refine (lintegral_resamplings_le_pmfPi_symmetric
+    (fun _ : Fin 5 => Cslib.Probability.PMF.uniformOfFintype Bool) vblTriple
+    (fun j => allTrueSet (vblTriple j)) (fun j => measurableSet_allTrueSet (vblTriple j))
+    (fun j => allTrueSet_dependsOn (vblTriple j)) (d := 1) le_rfl
+    (fun j => by fin_cases j <;> decide) (q := 1 / 8)
+    (fun j => by
+      rw [toReal_toOuterMeasure_pi_eq_measureReal _ (measurableSet_allTrueSet (vblTriple j))]
+      change (Measure.pi (unifCoin 5)).real (allTrueSet (vblTriple j)) ≤ 1 / 8
+      rw [measureReal_allTrueSet]
+      have hcard : (vblTriple j).card = 3 := by fin_cases j <;> decide
+      norm_num [hcard])
+    (by have := exp_one_le_eleven_quarters; linarith) hsel 0).trans_eq ?_
+  norm_num
+
+-- Explicit asymmetric `PMF.pi` bridge reusing `vblPair`/`heads` (`q = 1 / 4`, `x = 1 / 2`),
+-- matching `PMF.prod_one_sub_le_pi_iInter_compl` and `lintegral_resamplings_le_pmfPi`.
+example {sel : (∀ p : Fin 3 × ℕ, (fun _ : Fin 3 => Bool) p.1) → List (Fin 2) → Option (Fin 2)}
+    (hsel : ∀ T w i, sel T w = some i → current vblPair T w ∈ heads i)
+    (i : Fin 2) :
+    (∏ _j : Fin 2, (1 - (1 / 2 : ℝ))) ≤
+      ((Cslib.Probability.PMF.pi (fun _ : Fin 3 =>
+        Cslib.Probability.PMF.uniformOfFintype Bool)).toOuterMeasure
+          (⋂ j : Fin 2, (heads j)ᶜ)).toReal ∧
+      ∫⁻ T, resamplings (α := fun _ : Fin 3 => Bool) sel i T ∂table coin3 ≤ 1 := by
+  let pmf3 : Fin 3 → PMF Bool := fun _ => Cslib.Probability.PMF.uniformOfFintype Bool
+  have hcond : ∀ j : Fin 2,
+      ((Cslib.Probability.PMF.pi pmf3).toOuterMeasure (heads j)).toReal ≤
+        (1 / 2 : ℝ) * ∏ k ∈ other j, (1 - (1 / 2 : ℝ)) := by
+    intro j
+    rw [toReal_toOuterMeasure_pi_eq_measureReal pmf3 (measurableSet_heads j)]
+    change (Measure.pi coin3).real (heads j) ≤ _
+    rw [measureReal_heads]
+    fin_cases j <;> simp [other] <;> norm_num
+  refine ⟨?_, ?_⟩
+  · exact Cslib.Probability.PMF.prod_one_sub_le_pi_iInter_compl pmf3 heads vblPair
+      heads_dependsOn other other_spec (fun _ => 1 / 2)
+      (fun _ => ⟨by norm_num, by norm_num⟩) hcond
+  · refine (lintegral_resamplings_le_pmfPi pmf3 vblPair heads measurableSet_heads
+      heads_dependsOn other other_spec (fun _ => ⟨by norm_num, by norm_num⟩)
+      hcond hsel i).trans_eq ?_
+    norm_num
+
+-- Lopsided Section 6: four events `Fin 4` on `Fin 5` variables, ALL sharing variable `0`
+-- (`σ 0 = true ∧ σ (i + 1) = true`), each of probability `1 / 4`. Standard degree is `d = 3`,
+-- so `e * (1 / 4) * (3 + 1) = e > 1` fails standard symmetric LLL. Because they all require
+-- `σ 0 = true`, no two are lopsidependent (`Γ' i = ∅`, degree `0`), so Section 6 applies.
+private def vblStar (i : Fin 4) : Finset (Fin 5) := {0, i.succ}
+
+private theorem not_lopsidependent_starBad (i j : Fin 4) :
+    ¬Lopsidependent vblStar (fun k => allTrueSet (vblStar k)) i j := by
+  rw [lopsidependent_iff]
+  rintro ⟨f, g, hfg, hf, hg, hhor⟩
+  have heq : f = g := funext fun v => by
+    by_cases hv : v ∈ vblStar i ∩ vblStar j
+    · rcases Finset.mem_inter.1 hv with ⟨hvi, hvj⟩
+      exact (hf v hvi).trans (hg v hvj).symm
+    · exact hfg v hv
+  subst heq
+  rcases hhor with h | h <;> exact h (by assumption)
+
+-- Unlike standard `witness vblStar`, `witnessRel (lopsidedAdj vblStar _)` does not attach
+-- non-lopsidependent steps sharing variable `0`, and `Lopsided.table_witness_le` /
+-- `Lopsided.table_isLog_eq_prod` control its distribution.
+example :
+    witness vblStar (1 : Fin 4) [0] = {(1, 0), (0, 1)} ∧
+      (open Classical in
+        witnessRel (lopsidedAdj vblStar fun k => allTrueSet (vblStar k)) (1 : Fin 4) [0]) =
+          {(1, 0)} := by
+  refine ⟨by decide, ?_⟩
+  classical
+  have hlop : ¬lopsidedAdj vblStar (fun k => allTrueSet (vblStar k)) 1 0 := by
+    rw [lopsidedAdj_iff]
+    rintro (h | h)
+    · exact absurd h (by decide)
+    · exact not_lopsidependent_starBad 1 0 h
+  change pushRel (lopsidedAdj vblStar fun k => allTrueSet (vblStar k)) 0 {(1, 0)} = {(1, 0)}
+  simp [pushRel, levelRel, hlop]
+
+example (S : Finset (Fin 4 × ℕ)) :
+    (open Classical in
+      table (unifCoin 5) {T | ∃ i w, IsLog vblStar (fun k => allTrueSet (vblStar k)) T (i :: w) ∧
+        witnessRel (lopsidedAdj vblStar fun k => allTrueSet (vblStar k)) i w = S}) ≤
+      ∏ p ∈ S, Measure.pi (unifCoin 5) (allTrueSet (vblStar p.1)) := by
+  classical
+  exact Lopsided.table_witness_le (unifCoin 5) vblStar (fun k => allTrueSet (vblStar k))
+    (fun k => measurableSet_allTrueSet (vblStar k)) (fun k => allTrueSet_dependsOn (vblStar k)) S
+
+example (w : List (Fin 4)) :
+    table (unifCoin 5) {T | IsLog vblStar (fun k => allTrueSet (vblStar k)) T w} =
+      (w.map fun i => Measure.pi (unifCoin 5) (allTrueSet (vblStar i))).prod :=
+  Lopsided.table_isLog_eq_prod (unifCoin 5) vblStar (fun k => allTrueSet (vblStar k))
+    (fun k => measurableSet_allTrueSet (vblStar k)) (fun k => allTrueSet_dependsOn (vblStar k)) w
+
+-- Standard degree `d = 3` fails `e * (1 / 4) * (3 + 1) ≤ 1`, whereas Theorem 6.1 lopsided
+-- Moser–Tardos succeeds with `Γ := fun _ => ∅` (`d = 0`), giving expected resamplings `≤ 1 / 3`
+-- per event, a.s. constructive termination, and a satisfying assignment.
+example {sel : (∀ p : Fin 5 × ℕ, (fun _ : Fin 5 => Bool) p.1) → List (Fin 4) → Option (Fin 4)}
+    (hsel : ∀ T w i, sel T w = some i → current vblStar T w ∈ allTrueSet (vblStar i))
+    (hstop : ∀ T w, sel T w = none → ∀ i, current vblStar T w ∉ allTrueSet (vblStar i))
+    (i : Fin 4) :
+    ¬(Real.exp 1 * (1 / 4 : ℝ) * ((3 : ℕ) + 1) ≤ 1) ∧
+      (∫⁻ T, resamplings (α := fun _ : Fin 5 => Bool) sel i T ∂table (unifCoin 5) ≤
+        ENNReal.ofReal (1 / 3)) ∧
+      (∀ᵐ T ∂table (unifCoin 5), ∃ n, ∀ j : Fin 4,
+        current vblStar T (run sel T n) ∉ allTrueSet (vblStar j)) ∧
+      (∃ σ : Fin 5 → Bool, ∀ j : Fin 4, σ ∉ allTrueSet (vblStar j)) := by
+  let A : Fin 4 → Set (Fin 5 → Bool) := fun k => allTrueSet (vblStar k)
+  have hAm : ∀ k, MeasurableSet (A k) := fun k => measurableSet_allTrueSet (vblStar k)
+  have hAd : ∀ k, DependsOn (· ∈ A k) (vblStar k : Set (Fin 5)) :=
+    fun k => allTrueSet_dependsOn (vblStar k)
+  have hΓ : ∀ j k, k ≠ j → Lopsidependent vblStar A j k → k ∈ (∅ : Finset (Fin 4)) :=
+    fun j k _ h => absurd h (not_lopsidependent_starBad j k)
+  have hlll : Real.exp 1 * (1 / 4 : ℝ) * ((0 : ℕ) + 1) ≤ 1 := by
+    have := exp_one_le_eleven_quarters
+    linarith
+  have hprob : ∀ j, (Measure.pi (unifCoin 5)).real (A j) ≤ 1 / 4 := fun j => by
+    change (Measure.pi (unifCoin 5)).real (allTrueSet (vblStar j)) ≤ 1 / 4
+    rw [measureReal_allTrueSet]
+    have hcard : (vblStar j).card = 2 := by fin_cases j <;> decide
+    norm_num [hcard]
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · have h2 := Real.add_one_lt_exp (one_ne_zero : (1 : ℝ) ≠ 0)
+    linarith
+  · refine (Lopsided.lintegral_resamplings_le (unifCoin 5) vblStar A hAm hAd (fun _ => ∅) hΓ
+      (x := fun _ => 1 / 4) (fun _ => ⟨by norm_num, by norm_num⟩)
+      (fun j => by simpa using hprob j) hsel i).trans_eq ?_
+    norm_num
+  · exact Lopsided.ae_exists_forall_notMem_run_symmetric (unifCoin 5) vblStar A hAm hAd
+      (fun _ => ∅) hΓ (d := 0) (fun _ => by simp) hprob hlll hsel hstop
+  · exact Lopsided.exists_forall_notMem_symmetric (unifCoin 5) vblStar A hAm hAd
+      (fun _ => ∅) hΓ (d := 0) (fun _ => by simp) hprob hlll
+
+/-! ### Parallel Moser–Tardos (Algorithm 1.2, Theorem 1.3) -/
+
+-- Termination without slack. On the dependent pair `vblPair`, `Pr[A i] = 1/4 = 1/2 · (1 - 1/2)`
+-- holds with equality (`hypPair`). Since `min (x (1 - y)) (y (1 - x)) ≤ 1/4` for all weights, no
+-- weights satisfy the slack form `Pr[A i] ≤ (1 - ε) x_i (1 - x_j)` with `ε > 0`. Every admissible
+-- parallel rule still reaches an assignment avoiding both events, after at most `1 + 1 = 2`
+-- resamplings in expectation.
+example {psel : (∀ p : Fin 3 × ℕ, (fun _ : Fin 3 => Bool) p.1) → List (Fin 2) → List (Fin 2)}
+    (hrule : IsValidParallelRule vblPair heads psel) :
+    (∀ᵐ T ∂table coin3, ∃ n, ∀ i,
+        current vblPair T (parallelRun (α := fun _ : Fin 3 => Bool) psel T n) ∉ heads i) ∧
+      ∫⁻ T, ⨆ n, ((parallelRun (α := fun _ : Fin 3 => Bool) psel T n).length : ℝ≥0∞)
+        ∂table coin3 ≤ 2 := by
+  refine ⟨ae_exists_forall_notMem_parallelRun coin3 vblPair heads measurableSet_heads
+    heads_dependsOn other other_spec (x := fun _ => 1 / 2) (fun _ => ⟨by norm_num, by norm_num⟩)
+    hypPair hrule, (lintegral_iSup_length_parallelRun_le coin3 vblPair heads measurableSet_heads
+    heads_dependsOn other other_spec (x := fun _ => 1 / 2) (fun _ => ⟨by norm_num, by norm_num⟩)
+    hypPair hrule).trans (le_of_eq ?_)⟩
+  norm_num [Fin.sum_univ_two]
+
+-- The same for the canonical greedy rule.
+example : ∀ᵐ T ∂table coin3, ∃ n, ∀ i,
+    current vblPair T (parallelRun (greedyParallel vblPair heads) T n) ∉ heads i :=
+  ae_exists_forall_notMem_parallelRun coin3 vblPair heads measurableSet_heads heads_dependsOn
+    other other_spec (x := fun _ => 1 / 2) (fun _ => ⟨by norm_num, by norm_num⟩) hypPair
+    (isValidParallelRule_greedyParallel vblPair heads)
+
+private def vblPar : Fin 3 → Finset (Fin 8)
+  | 0 => {0, 1, 2}
+  | 1 => {2, 3, 4}
+  | 2 => {5, 6, 7}
+
+private def boolParRule :
+    (∀ p : Fin 8 × ℕ, (fun _ : Fin 8 => Bool) p.1) → List (Fin 3) → List (Fin 3) :=
+  greedyParallelList vblPar [0, 1, 2] fun σ i => decide (∀ v ∈ vblPar i, σ v = true)
+
+private theorem isValidParallelRule_boolParRule :
+    IsValidParallelRule vblPar (fun k => allTrueSet (vblPar k)) boolParRule :=
+  isValidParallelRule_greedyParallelList vblPar (fun k => allTrueSet (vblPar k))
+    [0, 1, 2] (fun i => by fin_cases i <;> decide) _
+    (fun σ i => by simp [allTrueSet])
+
+private def stepFalseParTable (p : Fin 8 × ℕ) : (fun _ : Fin 8 => Bool) p.1 :=
+  decide (p.2 = 0)
+
+-- Concrete parallel greedy MIS trace checked by `decide`:
+-- round 0 occurs `{0, 1, 2}` and greedily selects `[1, 2]` (resampling `{2, 3, 4, 5, 6, 7}`
+-- while excluding `0` because `0` shares variable `2` with `1`); resampling var `2` also clears
+-- event `0`, so round 1 returns `[]`.
+example :
+    boolParRule stepFalseParTable [] = [1, 2] ∧
+      parallelRun (α := fun _ : Fin 8 => Bool) boolParRule stepFalseParTable 1 = [1, 2] ∧
+      boolParRule stepFalseParTable
+          (parallelRun (α := fun _ : Fin 8 => Bool) boolParRule stepFalseParTable 1) = [] ∧
+      ∀ k : Fin 3, current vblPar stepFalseParTable
+        (parallelRun (α := fun _ : Fin 8 => Bool) boolParRule stepFalseParTable 1) ∉
+          allTrueSet (vblPar k) := by
+  refine ⟨by decide, by decide, by decide, fun k => ?_⟩
+  have hnil : boolParRule stepFalseParTable
+      (parallelRun (α := fun _ : Fin 8 => Bool) boolParRule stepFalseParTable 1) = [] := by
+    decide
+  exact (isValidParallelRule_boolParRule.eq_nil_iff stepFalseParTable _).1 hnil k
+
+-- Expected parallel rounds on `vblPar` (`q = 1 / 8`, `d = 1`, `ε = 1 / 4`) and a.s. termination,
+-- which needs no `ε`, together with the general `PMF.pi` bridges on `vblTriple`.
+example {psel : (∀ p : Fin 8 × ℕ, (fun _ : Fin 8 => Bool) p.1) → List (Fin 3) → List (Fin 3)}
+    (hrule : IsValidParallelRule vblPar (fun k => allTrueSet (vblPar k)) psel) :
+    ∫⁻ T, parallelRounds (α := fun _ : Fin 8 => Bool) psel T ∂table (unifCoin 8) ≤
+        ENNReal.ofReal ((max 0 (Real.log ((3 : ℝ) / 1)) + 1) / (1 / 4 : ℝ)) ∧
+      (∀ᵐ T ∂table (unifCoin 8), ∃ n, ∀ k : Fin 3,
+        current vblPar T (parallelRun psel T n) ∉ allTrueSet (vblPar k)) := by
+  have hdeg : ∀ i : Fin 3,
+      (Finset.univ.filter fun j : Fin 3 => j ≠ i ∧ ¬Disjoint (vblPar i) (vblPar j)).card ≤ 1 := by
+    intro i; fin_cases i <;> decide
+  have hprob : ∀ i : Fin 3, (Measure.pi (unifCoin 8)).real (allTrueSet (vblPar i)) ≤ 1 / 8 := by
+    intro i
+    rw [measureReal_allTrueSet]
+    have hcard : (vblPar i).card = 3 := by fin_cases i <;> decide
+    norm_num [hcard]
+  have hlll : Real.exp 1 * (1 / 8 : ℝ) * ((1 : ℕ) + 1 : ℝ) ≤ 1 - (1 / 4 : ℝ) := by
+    have := exp_one_le_eleven_quarters
+    norm_num
+    linarith
+  refine ⟨?_, ?_⟩
+  · simpa using
+      lintegral_parallelRounds_le_symmetric_of_pos (unifCoin 8) vblPar
+        (fun k => allTrueSet (vblPar k)) (fun k => measurableSet_allTrueSet (vblPar k))
+        (fun k => allTrueSet_dependsOn (vblPar k)) (d := 1) le_rfl hdeg (q := 1 / 8)
+        hprob ⟨by norm_num, by norm_num⟩ hlll hrule
+  · exact ae_exists_forall_notMem_parallelRun_symmetric (unifCoin 8) vblPar
+      (fun k => allTrueSet (vblPar k)) (fun k => measurableSet_allTrueSet (vblPar k))
+      (fun k => allTrueSet_dependsOn (vblPar k)) hdeg hprob (hlll.trans (by norm_num)) hrule
+
+example {psel : (∀ p : Fin 5 × ℕ, (fun _ : Fin 5 => Bool) p.1) → List (Fin 2) → List (Fin 2)}
+    (hrule : IsValidParallelRule vblTriple (fun k => allTrueSet (vblTriple k)) psel) :
+    ∫⁻ T, parallelRounds (α := fun _ : Fin 5 => Bool) psel T ∂table (unifCoin 5) ≤
+        ENNReal.ofReal ((max 0 (Real.log (1 / 3 + 1 / 3)) + 1) / (1 / 4 : ℝ)) ∧
+      (∀ᵐ T ∂table (unifCoin 5), ∃ n, ∀ k : Fin 2,
+        current vblTriple T (parallelRun psel T n) ∉ allTrueSet (vblTriple k)) := by
+  let π := Cslib.Probability.PMF.pi (fun _ : Fin 5 => Cslib.Probability.PMF.uniformOfFintype Bool)
+  have hAx : ∀ i : Fin 2,
+      (π.toOuterMeasure (allTrueSet (vblTriple i))).toReal ≤
+        (1 - (1 / 4 : ℝ)) * ((1 / 4 : ℝ) * ∏ _j ∈ ({i}ᶜ : Finset (Fin 2)), (1 - (1 / 4 : ℝ))) := by
+    intro i
+    rw [toReal_toOuterMeasure_pi_eq_measureReal _ (measurableSet_allTrueSet (vblTriple i))]
+    change (Measure.pi (unifCoin 5)).real (allTrueSet (vblTriple i)) ≤ _
+    rw [measureReal_allTrueSet]
+    have hcard : (vblTriple i).card = 3 := by fin_cases i <;> decide
+    have hc : ({i}ᶜ : Finset (Fin 2)).card = 1 := by fin_cases i <;> decide
+    simp only [Finset.prod_const, hc, pow_one, hcard]
+    norm_num
+  have hsum : (∑ _i : Fin 2, (1 / 4 : ℝ) / (1 - 1 / 4)) = 1 / 3 + 1 / 3 := by
+    norm_num [Fin.sum_univ_two]
+  have hunif : unifCoin 5 = fun _ => (Cslib.Probability.PMF.uniformOfFintype Bool).toMeasure := rfl
+  refine ⟨?_, ?_⟩
+  · rw [hunif, ← hsum]
+    exact lintegral_parallelRounds_le_pmfPi
+      (fun _ : Fin 5 => Cslib.Probability.PMF.uniformOfFintype Bool) vblTriple
+      (fun k => allTrueSet (vblTriple k)) (fun k => measurableSet_allTrueSet (vblTriple k))
+      (fun k => allTrueSet_dependsOn (vblTriple k)) (fun i => {i}ᶜ)
+      (fun i j hji _ => by simp [hji]) (x := fun _ => 1 / 4) (fun _ => ⟨by norm_num, by norm_num⟩)
+      (ε := 1 / 4) ⟨by norm_num, by norm_num⟩ hAx hrule
+  · rw [hunif]
+    exact ae_exists_forall_notMem_parallelRun_pmfPi
+      (fun _ : Fin 5 => Cslib.Probability.PMF.uniformOfFintype Bool) vblTriple
+      (fun k => allTrueSet (vblTriple k)) (fun k => measurableSet_allTrueSet (vblTriple k))
+      (fun k => allTrueSet_dependsOn (vblTriple k)) (fun i => {i}ᶜ)
+      (fun i j hji _ => by simp [hji]) (x := fun _ => 1 / 4) (fun _ => ⟨by norm_num, by norm_num⟩)
+      (fun i => (hAx i).trans (mul_le_of_le_one_left
+        (mul_nonneg (by norm_num) (Finset.prod_nonneg fun _ _ => by norm_num)) (by norm_num)))
+      hrule
+
+-- Negative counterexamples: a batch with dependent events `[0, 1]` violates `pairwise`,
+-- and a non-maximal batch `[2]` when event `0` (disjoint from `2`) occurs violates `max`.
+example :
+    ¬IsValidParallelRule vblPar (fun k => allTrueSet (vblPar k)) (fun _ _ => [0, 1]) ∧
+      ¬IsValidParallelRule vblPar (fun k => allTrueSet (vblPar k)) (fun _ _ => [2]) := by
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have hpw := h.pairwise stepFalseParTable []
+    simp only [List.pairwise_cons, List.mem_singleton, forall_eq, List.Pairwise.nil,
+      and_true] at hpw
+    exact hpw.1 ((adj_iff vblPar).2 (Or.inr (by decide)))
+  · have h0 : current vblPar stepFalseParTable [] ∈ allTrueSet (vblPar 0) := by
+      intro v _
+      rfl
+    obtain ⟨j, hj, hadj⟩ := h.max stepFalseParTable [] 0 h0
+    simp only [List.mem_singleton] at hj
+    subst hj
+    have hdisj : Disjoint (vblPar 0) (vblPar 2) := by decide
+    rcases (adj_iff vblPar).1 hadj with h02 | hnd
+    · revert h02; decide
+    · exact hnd hdisj
+
+-- Zero-degree symmetric parallel bound and explicit tail bound `table_succ_le_parallelRounds_le`
+-- on `vblDisj` (`q = 1 / 4`, `d = 0`, `ε = 1 / 4`, `x i = 1 / 3`).
+example {psel : (∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1) → List (Fin 2) → List (Fin 2)}
+    (hrule : IsValidParallelRule vblDisj (fun k => allTrueSet (vblDisj k)) psel) (k : ℕ) :
+    table (unifCoin 4) {T | (k : ℝ≥0∞) + 1 ≤ parallelRounds (α := fun _ : Fin 4 => Bool) psel T} ≤
+        ENNReal.ofReal ((3 / 4 : ℝ) ^ (k + 1)) ∧
+      ∫⁻ T, parallelRounds (α := fun _ : Fin 4 => Bool) psel T ∂table (unifCoin 4) ≤
+        ENNReal.ofReal ((max 0 (Real.log 2) + 1) / (1 / 4 : ℝ)) := by
+  have hdeg : ∀ i : Fin 2,
+      (Finset.univ.filter fun j : Fin 2 => j ≠ i ∧ ¬Disjoint (vblDisj i) (vblDisj j)).card ≤ 0 :=
+    fun i => by fin_cases i <;> decide
+  have hprob : ∀ i : Fin 2, (Measure.pi (unifCoin 4)).real (allTrueSet (vblDisj i)) ≤ 1 / 4 := by
+    intro i
+    rw [measureReal_allTrueSet]
+    have hcard : (vblDisj i).card = 2 := by fin_cases i <;> decide
+    norm_num [hcard]
+  have hlll : Real.exp 1 * (1 / 4 : ℝ) * ((0 : ℕ) + 1 : ℝ) ≤ 1 - (1 / 4 : ℝ) := by
+    have := exp_one_le_eleven_quarters
+    norm_num
+    linarith
+  have hPx : ∀ i : Fin 2, (Measure.pi (unifCoin 4)).real (allTrueSet (vblDisj i)) ≤
+      (1 - (1 / 4 : ℝ)) * ((1 / 3 : ℝ) * ∏ _j ∈ (∅ : Finset (Fin 2)), (1 - (1 / 3 : ℝ))) := by
+    intro i
+    refine (hprob i).trans ?_
+    simp only [Finset.prod_empty, mul_one]
+    norm_num
+  refine ⟨?_, ?_⟩
+  · refine (table_succ_le_parallelRounds_le (unifCoin 4) vblDisj (fun m => allTrueSet (vblDisj m))
+        (fun m => measurableSet_allTrueSet (vblDisj m))
+        (fun m => allTrueSet_dependsOn (vblDisj m)) (fun _ => ∅)
+        (fun i j hji hnd => by exfalso; revert hji hnd; fin_cases i <;> fin_cases j <;> decide)
+        (x := fun _ => 1 / 3) (fun _ => ⟨by norm_num, by norm_num⟩) (ε := 1 / 4)
+        ⟨by norm_num, by norm_num⟩ hPx hrule k).trans_eq ?_
+    norm_num [Fin.sum_univ_two]
+  · simpa using
+      lintegral_parallelRounds_le_symmetric (unifCoin 4) vblDisj
+        (fun m => allTrueSet (vblDisj m)) (fun m => measurableSet_allTrueSet (vblDisj m))
+        (fun m => allTrueSet_dependsOn (vblDisj m)) hdeg (q := 1 / 4) hprob
+        ⟨by norm_num, by norm_num⟩ hlll hrule
+
+-- Measurable rule-independent upper envelope (`exists_measurable_ge_parallelRounds`) and concrete
+-- depth-`1` witness from round `1` (`parallel_witness_depth`).
+example :
+    ∃ g : (∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1) → ℝ≥0∞, Measurable g ∧
+      ∫⁻ T, g T ∂table (unifCoin 4) ≤ 4 ∧
+      ∀ psel : (∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1) → List (Fin 2) → List (Fin 2),
+        IsValidParallelRule vblDisj (fun m => allTrueSet (vblDisj m)) psel →
+          ∀ T : ∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1,
+            parallelRounds (α := fun _ : Fin 4 => Bool) psel T ≤ g T := by
+  have hprob : ∀ i : Fin 2, (Measure.pi (unifCoin 4)).real (allTrueSet (vblDisj i)) ≤ 1 / 4 := by
+    intro i
+    rw [measureReal_allTrueSet]
+    have hcard : (vblDisj i).card = 2 := by fin_cases i <;> decide
+    norm_num [hcard]
+  have hPx : ∀ i : Fin 2, (Measure.pi (unifCoin 4)).real (allTrueSet (vblDisj i)) ≤
+      (1 - (1 / 4 : ℝ)) * ((1 / 3 : ℝ) * ∏ _j ∈ (∅ : Finset (Fin 2)), (1 - (1 / 3 : ℝ))) := by
+    intro i
+    refine (hprob i).trans ?_
+    simp only [Finset.prod_empty, mul_one]
+    norm_num
+  obtain ⟨g, hg, hgi, hgr⟩ :=
+    exists_measurable_ge_parallelRounds (unifCoin 4) vblDisj (fun m => allTrueSet (vblDisj m))
+      (fun m => measurableSet_allTrueSet (vblDisj m))
+      (fun m => allTrueSet_dependsOn (vblDisj m)) (fun _ => ∅)
+      (fun i j hji hnd => by exfalso; revert hji hnd; fin_cases i <;> fin_cases j <;> decide)
+      (x := fun _ => 1 / 3) (fun _ => ⟨by norm_num, by norm_num⟩) (ε := 1 / 4)
+      ⟨by norm_num, by norm_num⟩ hPx
+  refine ⟨g, hg, hgi.trans_eq ?_, hgr⟩
+  norm_num [Fin.sum_univ_two]
+
+example :
+    let psel : (∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1) → List (Fin 2) → List (Fin 2) :=
+      greedyParallelList vblDisj (List.finRange 2) fun σ i =>
+        decide (∀ v ∈ vblDisj i, σ v = true)
+    let T : ∀ p : Fin 4 × ℕ, (fun _ : Fin 4 => Bool) p.1 := fun p => decide (p.2 < 2)
+    let S := witness vblDisj 0 ([1] ++ parallelRun (α := fun _ : Fin 4 => Bool) psel T 1)
+    (∃ p ∈ S, p.2 = 1) ∧ (0, 1) ∈ S := by
+  intro psel T S
+  have hrule : IsValidParallelRule vblDisj (fun m => allTrueSet (vblDisj m)) psel :=
+    isValidParallelRule_greedyParallelList vblDisj (fun m => allTrueSet (vblDisj m))
+      (List.finRange 2) List.mem_finRange _ fun σ i => by
+        simp [allTrueSet]
+  have hsplit : psel T (parallelRun (α := fun _ : Fin 4 => Bool) psel T 1) =
+      [] ++ (0 : Fin 2) :: [1] := by
+    decide
+  refine ⟨(parallel_witness_depth vblDisj (fun m => allTrueSet (vblDisj m))
+    (fun m => allTrueSet_dependsOn (vblDisj m)) hrule T 1 hsplit).2.2.2.1, ?_⟩
+  decide
 
 end CslibFrontierTests.MoserTardos

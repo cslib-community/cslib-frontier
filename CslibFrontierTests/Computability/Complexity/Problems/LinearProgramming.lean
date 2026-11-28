@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
-public import CslibFrontier.Computability.Complexity.Problems.LinearProgramming
+import CslibFrontier.Computability.Complexity.Problems.LinearProgramming
 import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.LinearAlgebra.Matrix.Notation
 import Mathlib.Tactic.FinCases
@@ -17,34 +16,52 @@ import Mathlib.Tactic.NormNum
 /-!
 # Tests for rational LP feasibility in `NP ∩ coNP`
 
-Concrete systems for the certificate checks. The system `2 x ≤ 1, -2 x ≤ -1` is feasible only at
-`x = 1 / 2`, so it has no integer solution but `check` accepts the scaled witness `(2, [1])`. The
-system `x ≤ 0, -x ≤ -1` is infeasible and `certCheck` accepts the Farkas certificate `[1, 1]`. A
-nonpositive denominator, a certificate with positive right-hand side, and a certificate whose
-combination does not vanish are rejected. The empty system is feasible, and a row with no
-coefficients and a negative bound is infeasible. The basic-solution bound is instantiated on
-`2 x = 1`, whose solution needs the denominator `2`, within the bound
-`1! * (1 * 2 ^ 2 + 1) ^ 1 = 5`.
+Representative `module` client and concrete systems for the certificate checks across an ordinary
+`import`. The system `2 x ≤ 1, -2 x ≤ -1` is feasible only at `x = 1 / 2`, so it has no integer
+solution but `check` accepts the scaled witness `(2, [1])`. The system `x ≤ 0, -x ≤ -1` is
+infeasible and `certCheck` accepts the Farkas certificate `[1, 1]`. A nonpositive denominator, a
+certificate with positive right-hand side, and a certificate whose combination does not vanish are
+rejected. The empty system is feasible, and a row with no coefficients and a negative bound is
+infeasible. The basic-solution bound is instantiated on `2 x = 1`, whose solution needs the
+denominator `2`, within the bound `1! * (1 * 2 ^ 2 + 1) ^ 1 = 5`.
 -/
 
-@[expose] public section
+set_option linter.privateModule false
 
 namespace Cslib.Complexity.LinearProgrammingTests
 
 open Matrix LPFeasibility Turing.MultiTapeTM
 open Mathlib.Tactic.Matrix
 
+/-! ### Encoding preservation and generated `fun_prop` certificates -/
+
+-- `encLinearInequality` preserves the exact encoded words of the former pair encoding.
+example (a : List ℤ) (t : ℤ) :
+    encLinearInequality ⟨a, t⟩ = encPair (encList encIntBin) encIntBin (a, t) :=
+  rfl
+
+-- Generated `enc_structure` certificates compose across an ordinary `module` import.
+example :
+    ComputableInPolyTime (fun c : LinearInequality => (⟨c.coeffs, c.bound⟩ : LinearInequality))
+      encLinearInequality encLinearInequality := by
+  fun_prop
+
 /-! ### Feasible systems and the `NP` check -/
 
 /-- `2 x ≤ 1` and `-2 x ≤ -1`. -/
-abbrev half : List (List ℤ × ℤ) := [([2], 1), ([-2], -1)]
+private abbrev half : List LinearInequality := [⟨[2], 1⟩, ⟨[-2], -1⟩]
+
+-- `encSystem` on a concrete system produces the exact encoded word of the former list-of-pairs.
+example :
+    encSystem half = encList (encPair (encList encIntBin) encIntBin) [([2], 1), ([-2], -1)] :=
+  rfl
 
 /-- The scaled witness `w / d = 1 / 2` is accepted. -/
-theorem check_half : check (half, (2, [1])) = true := by
+private theorem check_half : check (half, (2, [1])) = true := by
   simp [check, ListMatrix.dotProduct_add_one, ListMatrix.dotProduct_zero]
 
 /-- Hence the system is feasible. -/
-theorem half_mem : half ∈ LPFeasibility := mem_of_check check_half
+private theorem half_mem : half ∈ LPFeasibility := mem_of_check check_half
 
 /-- A nonpositive denominator is rejected even when `w / d` would solve the system. -/
 example : check (half, (-2, [-1])) = false := by
@@ -60,15 +77,15 @@ example : ¬∃ x : ℤ, 2 * x ≤ 1 ∧ -2 * x ≤ -1 := by
   omega
 
 /-- The empty system is feasible. -/
-example : ([] : List (List ℤ × ℤ)) ∈ LPFeasibility := ⟨0, by simp⟩
+example : ([] : List LinearInequality) ∈ LPFeasibility := ⟨0, by simp⟩
 
 /-! ### Infeasible systems and the `coNP` check -/
 
 /-- `x ≤ 0` and `-x ≤ -1`. -/
-abbrev contra : List (List ℤ × ℤ) := [([1], 0), ([-1], -1)]
+private abbrev contra : List LinearInequality := [⟨[1], 0⟩, ⟨[-1], -1⟩]
 
 /-- The Farkas certificate `[1, 1]`: the rows add up to `0 ≤ -1`. -/
-theorem certCheck_contra : certCheck (contra, [1, 1]) = true := by
+private theorem certCheck_contra : certCheck (contra, [1, 1]) = true := by
   simp [certCheck, ListMatrix.dotProduct_add_one, ListMatrix.dotProduct_zero]
 
 /-- Hence the system is infeasible. -/
@@ -87,7 +104,7 @@ example : certCheck (contra, [-1, 1]) = false := by
   simp [certCheck, ListMatrix.dotProduct_add_one, ListMatrix.dotProduct_zero]
 
 /-- A row with no coefficients and a negative bound reads `0 ≤ -1`. -/
-example : [([], -1)] ∉ LPFeasibility := notMem_of_certCheck (q := [1]) (by
+example : [⟨[], -1⟩] ∉ LPFeasibility := notMem_of_certCheck (q := [1]) (by
   simp [certCheck, ListMatrix.dotProduct_add_one, ListMatrix.dotProduct_zero])
 
 /-- No certificate is accepted for a feasible system. -/
@@ -115,8 +132,8 @@ example : ∃ (d : ℤ) (p : Fin 1 → ℤ), 0 < d ∧ 0 ≤ p ∧ !![(2 : ℤ)]
 
 /-! ### The complexity statement -/
 
-example : LPFeasibility ∈ NP (encList (encPair (encList encIntBin) encIntBin)) ∩
-    coNP (encList (encPair (encList encIntBin) encIntBin)) :=
+example : LPFeasibility ∈ NP (encList encLinearInequality) ∩
+    coNP (encList encLinearInequality) :=
   mem_NP_inter_coNP
 
 end Cslib.Complexity.LinearProgrammingTests

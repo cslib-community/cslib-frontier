@@ -56,11 +56,7 @@ private theorem polyTime_transformedTargets {α : Type} {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime no enc (encList encIntBin)) :
     ComputableInPolyTime (fun a => transformedTargets (yes a) (no a))
       enc (encList encIntBin) := by
-  unfold transformedTargets
-  apply ComputableInPolyTime.mapWithInput hy
-  apply ComputableInPolyTime.intBin_prod.comp
-  apply ComputableInPolyTime.mapWithInput (hn.comp (.fst enc encIntBin))
-  fun_prop
+  fun_prop [transformedTargets]
 
 private theorem transformedTargets_nonzero {yes no : List ℤ} (hd : yes.Disjoint no) :
     (0 : ℤ) ∉ transformedTargets yes no := by
@@ -78,14 +74,10 @@ theorem mem_WPP_of_disjoint_targets {α : Type} {enc : α ↪ List Bool} {A : Se
     (hd : ∀ a, (yes a).Disjoint (no a))
     (hyes : ∀ a, a ∈ A → g a ∈ yes a) (hno : ∀ a, a ∉ A → g a ∈ no a) :
     A ∈ WPP enc := by
-  apply mem_WPP_of_polyTime_targets (GapP.prod_sub_mem hn hg)
-    (polyTime_transformedTargets hy hn)
-    (fun a => transformedTargets_nonzero (hd a))
-  · intro a ha
-    exact List.mem_map.mpr ⟨g a, hyes a ha, rfl⟩
-  · intro a ha
-    apply List.prod_eq_zero_iff.mpr
-    exact List.mem_map.mpr ⟨g a, hno a ha, sub_self _⟩
+  exact mem_WPP_of_polyTime_targets (GapP.prod_sub_mem hn hg)
+    (polyTime_transformedTargets hy hn) (fun a => transformedTargets_nonzero (hd a))
+    (fun a ha => List.mem_map.mpr ⟨g a, hyes a ha, rfl⟩)
+    (fun a ha => List.prod_eq_zero_iff.mpr (List.mem_map.mpr ⟨g a, hno a ha, sub_self _⟩))
 
 /-- Two-sided LWPP robustness with both target lists computed from unary input length.
 Disjointness is required at every natural length, including zero. Original zero targets are
@@ -97,16 +89,11 @@ theorem mem_LWPP_of_disjoint_targets {α : Type} {enc : α ↪ List Bool} {A : S
     (hd : ∀ n, (yes n).Disjoint (no n))
     (hyes : ∀ a, a ∈ A → g a ∈ yes (enc a).length)
     (hno : ∀ a, a ∉ A → g a ∈ no (enc a).length) : A ∈ LWPP enc := by
-  apply mem_LWPP_of_polyTime_targets
-    (GapP.prod_sub_mem
-      (hn.comp (ComputableInPolyTime.encoding_length enc)) hg)
-    (polyTime_transformedTargets hy hn)
-    (fun n => transformedTargets_nonzero (hd n))
-  · intro a ha
-    exact List.mem_map.mpr ⟨g a, hyes a ha, rfl⟩
-  · intro a ha
-    apply List.prod_eq_zero_iff.mpr
-    exact List.mem_map.mpr ⟨g a, hno a ha, sub_self _⟩
+  exact mem_LWPP_of_polyTime_targets
+    (GapP.prod_sub_mem (hn.comp (ComputableInPolyTime.encoding_length enc)) hg)
+    (polyTime_transformedTargets hy hn) (fun n => transformedTargets_nonzero (hd n))
+    (fun a ha => List.mem_map.mpr ⟨g a, hyes a ha, rfl⟩)
+    (fun a ha => List.prod_eq_zero_iff.mpr (List.mem_map.mpr ⟨g a, hno a ha, sub_self _⟩))
 
 private theorem indexedTargets_disjoint {α : Type} {yes no : α × ℕ → ℤ}
     {ry rn : α → ℕ} (a : α)
@@ -161,14 +148,10 @@ theorem mem_WPP_iff_exists_disjoint_targets {α : Type} {enc : α ↪ List Bool}
   constructor
   · rw [mem_WPP]
     rintro ⟨g, hg, f, hf, hn, hr, hA⟩
-    refine ⟨g, hg, fun a => [f a], fun _ => [0], by fun_prop, .const _, ?_, ?_, ?_⟩
-    · intro a
-      simpa using Ne.symm (hn a)
-    · intro a ha
-      simpa only [List.mem_singleton] using (hA a).mp ha
-    · intro a ha
-      simpa only [List.mem_singleton] using
-        (hr a).resolve_right (fun h => ha ((hA a).mpr h))
+    exact ⟨g, hg, fun a => [f a], fun _ => [0], by fun_prop, .const _,
+      fun a => List.disjoint_singleton.mpr (mt List.mem_singleton.mp (Ne.symm (hn a))),
+      fun a ha => List.mem_singleton.mpr ((hA a).mp ha),
+      fun a ha => List.mem_singleton.mpr ((hr a).resolve_right (mt (hA a).mpr ha))⟩
   · rintro ⟨g, hg, yes, no, hy, hn, hd, hyes, hno⟩
     exact mem_WPP_of_disjoint_targets hg hy hn hd hyes hno
 
@@ -185,14 +168,10 @@ theorem mem_LWPP_iff_exists_disjoint_targets {α : Type} {enc : α ↪ List Bool
   constructor
   · rw [mem_LWPP]
     rintro ⟨g, hg, f, hf, hn, hr, hA⟩
-    refine ⟨g, hg, fun n => [f n], fun _ => [0], by fun_prop, .const _, ?_, ?_, ?_⟩
-    · intro n
-      simpa using Ne.symm (hn n)
-    · intro a ha
-      simpa only [List.mem_singleton] using (hA a).mp ha
-    · intro a ha
-      simpa only [List.mem_singleton] using
-        (hr a).resolve_right (fun h => ha ((hA a).mpr h))
+    exact ⟨g, hg, fun n => [f n], fun _ => [0], by fun_prop, .const _,
+      fun n => List.disjoint_singleton.mpr (mt List.mem_singleton.mp (Ne.symm (hn n))),
+      fun a ha => List.mem_singleton.mpr ((hA a).mp ha),
+      fun a ha => List.mem_singleton.mpr ((hr a).resolve_right (mt (hA a).mpr ha))⟩
   · rintro ⟨g, hg, yes, no, hy, hn, hd, hyes, hno⟩
     exact mem_LWPP_of_disjoint_targets hg hy hn hd hyes hno
 

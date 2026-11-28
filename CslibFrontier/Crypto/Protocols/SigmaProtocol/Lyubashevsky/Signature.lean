@@ -31,12 +31,16 @@ Short Integer Solution (`SIS`) problem and to Fiat–Shamir-with-aborts signatur
    (`isSISSolution_extractSISFromRelaxedWitness`, `lyubashevskyForkToSIS`). For a single secret
    column `s` and integer challenge difference `Δc`, `isSISSolution_sub_smul_secret` gives the
    corresponding `2 γ + |Δc| η` reduction directly.
-2. **Identification security from the relaxed `[A | T]` relation.** For any key generator, the
-   generic rewinding reduction of `Identification.lean` bounds direct impersonation attacks
-   against `lyubashevsky` by `1 / 2 ^ k + √ε'`, where `ε'` is the probability that rewinding finds
-   a short integer solution for `[A | T]` (`lyubashevsky_succProbability_directAttack_le`). This
-   module does not compose that bound with the reduction of item 1 from `[A | T]` to `A`, so it
-   gives no impersonation bound in terms of a SIS solver for `A`.
+2. **A concrete direct-attack bound, a step toward [BonehShoup2023], Theorem 19.14.** For one
+   choice of parameters and any key generator, the generic rewinding reduction of
+   `Identification.lean` bounds direct impersonation attacks against `lyubashevsky` by
+   `1 / 2 ^ k + √ε'`, the bound (19.18), where `ε'` is the probability that rewinding finds a short
+   integer solution for `[A | T]` (`lyubashevsky_succProbability_directAttack_le`). This is not
+   Theorem 19.14 for Lyubashevsky identification: nothing certifies the rewinding extractor as
+   efficient, the parameters are fixed rather than a family, no hardness assumption is applied,
+   and the asymptotic theorem is open (#5293). This module also does not compose the bound with
+   the reduction of item 1 from `[A | T]` to `A`, so it gives no impersonation bound in terms of a
+   SIS solver for `A`.
 3. **Fiat–Shamir with aborts (`FiatShamirWithAborts`).** The generic API is publicly reexported
    from `Abort.FiatShamir`. For any aborting Sigma protocol
    `P : SigmaProtocol X Y T C (Option Z)` and random-oracle hash function `h : M × T → C`, a
@@ -77,8 +81,6 @@ Short Integer Solution (`SIS`) problem and to Fiat–Shamir-with-aborts signatur
 * `Cslib.Crypto.Protocols.SigmaProtocol.isSISSolution_extractSISFromRelaxedWitness`,
   `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevskyForkToSIS`: matrix-challenge SIS collision
   reduction for `lyubashevsky`.
-* `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevsky_succProbability_directAttack_le`: direct
-  impersonation bound for Lyubashevsky identification.
 * `Cslib.Crypto.Protocols.SigmaProtocol.fsAbortVerify_of_fsAbortSignAttempt_eq_some`,
   `Cslib.Crypto.Protocols.SigmaProtocol.fsAbortVerify_of_fsAbortSignBounded_eq_some`,
   `Cslib.Crypto.Protocols.SigmaProtocol.fsAbortSignBounded_apply_none`: correctness and exact
@@ -88,8 +90,15 @@ Short Integer Solution (`SIS`) problem and to Fiat–Shamir-with-aborts signatur
   `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevskySignatureForkToSIS`: forking extraction for
   Fiat–Shamir-with-aborts and Lyubashevsky signatures.
 
+## Step toward Theorem 19.14
+
+* `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevsky_succProbability_directAttack_le`: the
+  concrete direct-attack bound (19.18) for one instance of Lyubashevsky identification.
+
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 19.6, Theorem 19.14, p. 783.
 * [V. Lyubashevsky, *Fiat-Shamir with Aborts: Applications to Lattice and Factoring-Based
   Signatures*][Lyubashevsky2009]
 * [V. Lyubashevsky, *Lattice Signatures without Trapdoors*][Lyubashevsky2012]
@@ -121,20 +130,18 @@ theorem isSISSolution_sub_smul_secret {B η : ℕ}
     (hne : v ≠ Δc • s) :
     SIS.IsSolution A (B + Δc.natAbs * η) (v - Δc • s) := by
   refine ⟨sub_ne_zero.mpr hne, fun i => ?_, ?_⟩
-  · have hvi := mem_intBox.mp hv i
-    have hsi := mem_intBox.mp hs i
-    simp only [Pi.sub_apply, zsmul_eq_mul]
-    calc |v i - (Δc * s) i| = |v i - Δc * s i| := rfl
-      _ ≤ |v i| + |Δc * s i| := abs_sub _ _
+  · simp only [Pi.sub_apply, zsmul_eq_mul, Pi.mul_apply]
+    calc |v i - Δc * s i| ≤ |v i| + |Δc * s i| := abs_sub _ _
       _ = |v i| + |Δc| * |s i| := by rw [abs_mul]
       _ ≤ (B : ℤ) + |Δc| * (η : ℤ) :=
-        add_le_add hvi (mul_le_mul_of_nonneg_left hsi (abs_nonneg Δc))
+        add_le_add (mem_intBox.mp hv i)
+          (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
       _ = ((B + Δc.natAbs * η : ℕ) : ℤ) := by
         rw [Nat.cast_add, Nat.cast_mul, Int.natCast_natAbs]
   · have hcast : (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
         (Int.cast ∘ v) - (Δc : ZMod q) • (Int.cast ∘ s) :=
       funext fun i => by simp [Pi.sub_apply, Pi.smul_apply]
-    rw [hcast, Matrix.mulVec_sub, Matrix.mulVec_smul, hvA, hsA, sub_self]
+    rw [InKernelLattice, hcast, Matrix.mulVec_sub, Matrix.mulVec_smul, hvA, hsA, sub_self]
 
 /-- **Unit-challenge SIS reduction.** When `Δc = 1` (for example with binary challenges), any
 `v ≠ s` with `A v = t (mod q)` and `‖v‖∞ ≤ B` yields a short integer solution `v - s` for `A`
@@ -191,22 +198,13 @@ theorem mulVec_extractSISFromRelaxedWitness_eq_zero
     (hSy : y.1 * S.map Int.cast = y.2)
     (hu : Matrix.fromCols y.1 y.2 *ᵥ (Int.cast ∘ u) = 0) :
     y.1 *ᵥ (Int.cast ∘ extractSISFromRelaxedWitness S u) = 0 := by
-  have hmul : (Int.cast ∘ (S *ᵥ (u ∘ Sum.inr)) : Fin m → ZMod q) =
-      S.map Int.cast *ᵥ (Int.cast ∘ (u ∘ Sum.inr)) :=
-    funext (RingHom.map_mulVec (Int.castRingHom (ZMod q)) S (u ∘ Sum.inr))
   have hadd : (Int.cast ∘ extractSISFromRelaxedWitness S u : Fin m → ZMod q) =
       (Int.cast ∘ (u ∘ Sum.inl)) + S.map Int.cast *ᵥ (Int.cast ∘ (u ∘ Sum.inr)) := by
-    rw [extractSISFromRelaxedWitness,
-      show (Int.cast ∘ ((u ∘ Sum.inl) + S *ᵥ (u ∘ Sum.inr)) : Fin m → ZMod q) =
-        Int.cast ∘ (u ∘ Sum.inl) + Int.cast ∘ (S *ᵥ (u ∘ Sum.inr)) from
-          funext fun i => Int.cast_add _ _,
-      hmul]
-  rw [hadd, Matrix.mulVec_add, Matrix.mulVec_mulVec, hSy]
-  have hcols : Matrix.fromCols y.1 y.2 *ᵥ (Int.cast ∘ u) =
-      y.1 *ᵥ (Int.cast ∘ (u ∘ Sum.inl)) + y.2 *ᵥ (Int.cast ∘ (u ∘ Sum.inr)) := by
-    rw [Matrix.fromCols_mulVec]
-    rfl
-  rw [← hcols, hu]
+    ext i
+    simpa [extractSISFromRelaxedWitness] using
+      RingHom.map_mulVec (Int.castRingHom (ZMod q)) S (u ∘ Sum.inr) i
+  rw [hadd, Matrix.mulVec_add, Matrix.mulVec_mulVec, hSy, ← hu, Matrix.fromCols_mulVec]
+  rfl
 
 /-- Sup-norm bound on `S *ᵥ v` when the entries of `S` are at most `η` and the entries of `v` are
 at most `1`. -/
@@ -258,39 +256,27 @@ theorem lyubashevskyForkToSIS {γ β η : ℕ}
     SIS.IsSolution y.1 (2 * (γ - β) + k * η)
       (extractSISFromTwoTranscripts S c (some z) c' (some z')) := by
   rw [lyubashevsky_accepts_some_iff] at hz hz'
-  have hu : Matrix.fromCols y.1 y.2 *ᵥ
-      (Int.cast ∘ lyubashevskyExtract n m k q y w c (some z) c' (some z')) = 0 := by
-    rw [Matrix.fromCols_mulVec]
+  rw [← extractSISFromRelaxedWitness_lyubashevskyExtract S y w]
+  refine isSISSolution_extractSISFromRelaxedWitness hSy ?_ (fun i => ?_) (fun j => ?_) ?_
+  · rw [Matrix.fromCols_mulVec]
+    have hsub {k'} (a b : Fin k' → ℤ) :
+        (Int.cast ∘ (a - b) : Fin k' → ZMod q) = Int.cast ∘ a - Int.cast ∘ b :=
+      funext fun _ => Int.cast_sub _ _
     simp only [lyubashevskyExtract, Option.getD_some]
     change y.1 *ᵥ (Int.cast ∘ (z - z')) + y.2 *ᵥ
       (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c)) = 0
-    have hsub₁ : (Int.cast ∘ (z - z') : Fin m → ZMod q) = Int.cast ∘ z - Int.cast ∘ z' :=
-      funext fun i => Int.cast_sub _ _
-    have hsub₂ :
-        (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c) : Fin k → ZMod q) =
-          Int.cast ∘ lyubashevskyChallenge c' - Int.cast ∘ lyubashevskyChallenge c :=
-      funext fun j => Int.cast_sub _ _
-    rw [hsub₁, hsub₂, Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
+    rw [hsub, hsub, Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
     abel
-  have hinl (i : Fin m) :
-      |lyubashevskyExtract n m k q y w c (some z) c' (some z') (Sum.inl i)| ≤
-        ((2 * (γ - β) : ℕ) : ℤ) := by
-    simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
-    have hzi := mem_intBox.mp hz.1 i
-    have hzi' := mem_intBox.mp hz'.1 i
+  · simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
     calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _
-      _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) := add_le_add hzi hzi'
+      _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) :=
+        add_le_add (mem_intBox.mp hz.1 i) (mem_intBox.mp hz'.1 i)
       _ = ((2 * (γ - β) : ℕ) : ℤ) := by push_cast; ring
-  have hinr (j : Fin k) :
-      |lyubashevskyExtract n m k q y w c (some z) c' (some z') (Sum.inr j)| ≤ 1 := by
-    simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
+  · simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
     split_ifs <;> simp
-  have hne' : extractSISFromRelaxedWitness S
-      (lyubashevskyExtract n m k q y w c (some z) c' (some z')) ≠ 0 := by
-    rw [extractSISFromRelaxedWitness_lyubashevskyExtract, extractSISFromTwoTranscripts_eq_sub,
+  · rw [extractSISFromRelaxedWitness_lyubashevskyExtract, extractSISFromTwoTranscripts_eq_sub,
       Option.getD_some, Option.getD_some]
     exact sub_ne_zero.mpr hne
-  exact isSISSolution_extractSISFromRelaxedWitness hSy hu hinl hinr hne'
 
 end SISReduction
 
@@ -324,10 +310,21 @@ theorem mem_support_lyubashevskyKeyGen [NeZero q] {η : ℕ}
   rw [mem_support_uniformOfFinset_iff, mem_intBox] at hj
   simpa using hj i
 
-/-- **Lyubashevsky identification against direct attacks.** For any key generator and direct
-impersonator `A`, the impersonator's success probability against `lyubashevsky n m k q γ β` is at
-most `1 / 2 ^ k + √ε'`, where `ε'` is the probability that rewinding `A` extracts a short integer
-solution for `[A | T]` with bound `max (2 (γ - β)) 1`. -/
+/-- Concrete bound (19.18) for Lyubashevsky's identification protocol at one choice of
+parameters, a step toward [BonehShoup2023], Theorem 19.14, p. 783, not the cited result. For any
+key generator and direct impersonator `A`, the impersonator's success probability against
+`lyubashevsky n m k q γ β` is at most `1 / 2 ^ k + √ε'`, where `ε'` is the probability that the
+rewinding extractor `A.rewind (lyubashevskyExtract n m k q)` finds a short integer solution for
+`[A | T]` with bound `max (2 (γ - β)) 1`.
+
+Theorem 19.14 states that this extractor is efficient, running in about twice the impersonator's
+time, and concludes security against direct attacks for every efficient impersonator when the key
+generator is one-way. This lemma has no efficiency claim for the extractor, fixes `n`, `m`, `k`,
+`q`, `γ` and `β` rather than a parameter family, and applies no hardness assumption; the
+one-wayness it would need is for the relaxed relation of short kernel vectors of `[A | T]`, not
+SIS for `A`. The asymptotic theorem is open (#5293); the library has none for this protocol. A
+uniform strict-PPT rewinding extractor for the protocol family `lyubashevskyFamily` exists
+separately (`isPPTOn_lyubashevskyKnowledgeExtractor`). -/
 theorem lyubashevsky_succProbability_directAttack_le {γ β : ℕ}
     (keyGen : PMF (Matrix (Fin m) (Fin k) ℤ ×
       (Matrix (Fin n) (Fin m) (ZMod q) × Matrix (Fin n) (Fin k) (ZMod q))))
@@ -348,16 +345,14 @@ theorem lyubashevsky_succProbability_directAttack_le {γ β : ℕ}
       verify := (lyubashevsky n m k q γ β).verify }
   have hP' : P'.SpecialSoundness
       (fun u y => SIS.IsSolution (Matrix.fromCols y.1 y.2) (max (2 * (γ - β)) 1) u)
-      (lyubashevskyExtract n m k q) :=
-    lyubashevsky_specialSoundness (n := n) (m := m) (k := k) (q := q) (γ := γ) (β := β)
+      (lyubashevskyExtract n m k q) := lyubashevsky_specialSoundness
   have hdir : (lyubashevsky n m k q γ β).directAttack keyGen A =
       P'.directAttack (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2)) A := by
     simp only [directAttack, P', PMF.monad_bind_eq_bind, PMF.bind_map]
     rfl
   rw [hdir]
-  have h := succProbability_directAttack_le
+  simpa [Fintype.card_pi, Fintype.card_bool] using succProbability_directAttack_le
     (hP'.specialSoundOn (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2))) A
-  simpa [Fintype.card_pi, Fintype.card_bool] using h
 
 end Identification
 

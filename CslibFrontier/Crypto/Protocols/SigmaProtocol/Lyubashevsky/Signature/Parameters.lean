@@ -49,13 +49,13 @@ open scoped ENNReal NNReal _root_.Matrix
 /-- Explicit availability parameters. No hardness of the resulting SIS instances is asserted. -/
 @[expose] def lyubashevskySigningParams (security : ℕ) : LyubashevskyParams :=
   let t := security + 1
-  ((t, t, t, security), (2 ^ t, 4 * t ^ 2, t))
+  { n := t, m := t, k := t, width := security, q := 2 ^ t, γ := 4 * t ^ 2, β := t }
 
 /-- The schedule is polynomial-time: the exponential modulus is produced in binary. -/
 @[fun_prop]
 theorem computableInPolyTime_lyubashevskySigningParams :
     ComputableInPolyTime lyubashevskySigningParams encUnary encLyubashevskyParams := by
-  unfold lyubashevskySigningParams encLyubashevskyParams
+  unfold lyubashevskySigningParams
   fun_prop
 
 /-- The instantiated signer is strict PPT jointly in unary security and raw matrix/message
@@ -86,8 +86,7 @@ theorem lyubashevskySigningParams_attempt_none_le (security : ℕ)
     let p := lyubashevskySigningParams security
     lyubashevskySignAttempt p.n p.m p.k p.q p.γ p.β
       (lyubashevskyNativeHash hash p) S y msg none ≤ (1 / 2 : ℝ≥0∞) := by
-  dsimp only [lyubashevskySigningParams, LyubashevskyParams.n, LyubashevskyParams.m,
-    LyubashevskyParams.k, LyubashevskyParams.q, LyubashevskyParams.γ, LyubashevskyParams.β]
+  dsimp only [lyubashevskySigningParams]
   have hβ : 2 * (security + 1) ≤ 4 * (security + 1) ^ 2 := by nlinarith
   have h := lyubashevskySignAttempt_none_le hβ (by omega : (security + 1) * 1 ≤ security + 1)
     hS y (lyubashevskyNativeHash hash (lyubashevskySigningParams security)) msg
@@ -108,15 +107,11 @@ theorem lyubashevskySigningParams_failure_le (security : ℕ)
       (lyubashevskySignInput (lyubashevskySigningParams security) S A msg, security + 1)) none ≤
       (1 / 2 : ℝ≥0∞) ^ (security + 1) +
         (security + 1) ^ 2 * (8 * (security + 1) ^ 2 + 1) / 2 ^ security := by
-  have h := lyubashevskySignBoundedNative_none_le hash (lyubashevskySigningParams security)
-    S (A, 0) msg (security + 1)
-  have hp := pow_le_pow_left' (lyubashevskySigningParams_attempt_none_le security hS
-    (A, 0) hash msg) (security + 1)
-  refine h.trans ((add_le_add hp le_rfl).trans ?_)
-  apply le_of_eq
-  congr 1
-  dsimp only [lyubashevskySigningParams, LyubashevskyParams.m, LyubashevskyParams.γ,
-    LyubashevskyParams.width]
+  refine (lyubashevskySignBoundedNative_none_le hash (lyubashevskySigningParams security)
+    S (A, 0) msg (security + 1)).trans ((add_le_add (pow_le_pow_left'
+      (lyubashevskySigningParams_attempt_none_le security hS (A, 0) hash msg) _)
+      le_rfl).trans_eq (congrArg (_ + ·) ?_))
+  dsimp only [lyubashevskySigningParams]
   push_cast
   simp only [div_eq_mul_inv]
   ring
@@ -142,15 +137,8 @@ theorem negligible_lyubashevskySigningParams_failure
           (S security) (A security) (msg security), security + 1)) none).toNNReal) := by
   apply negligible_of_le negligible_lyubashevskySigningParams_bound
   intro security
-  have h := ENNReal.toNNReal_mono (by finiteness)
-    (lyubashevskySigningParams_failure_le security (hS security) (A security) hash (msg security))
-  have heq : ((1 / 2 : ℝ≥0∞) ^ (security + 1) +
-      (security + 1) ^ 2 * (8 * (security + 1) ^ 2 + 1) / 2 ^ security) =
-      (((1 / 2 : ℝ≥0) ^ (security + 1) +
-        (security + 1) ^ 2 * (8 * (security + 1) ^ 2 + 1) / 2 ^ security : ℝ≥0) : ℝ≥0∞) := by
-    push_cast
-    rfl
-  rw [heq, ENNReal.toNNReal_coe] at h
-  exact h
+  rw [← ENNReal.coe_le_coe, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
+  push_cast
+  exact lyubashevskySigningParams_failure_le security (hS security) (A security) hash (msg security)
 
 end Cslib.Crypto.Protocols.SigmaProtocol

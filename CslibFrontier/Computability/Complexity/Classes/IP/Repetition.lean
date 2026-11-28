@@ -77,24 +77,32 @@ private theorem acceptProb_bind_ite (P : Prover Operation)
     PMF.pure_apply, mul_zero, tsum_zero, zero_add]
   rfl
 
+/-- If the acceptance probability of one round is at most `ε` from every state of a fixed
+prover, then the acceptance probability of `k` successive rounds is at most `ε ^ k`. -/
+theorem acceptProb_sequentialRepeat_le_of_forall_init {round : WordOracleComp Operation Bool}
+    {ε : ENNReal} (P : Prover Operation) (h : ∀ s, acceptProb round { P with init := s } ≤ ε)
+    (k : ℕ) : acceptProb (sequentialRepeat k round) P ≤ ε ^ k := by
+  suffices ∀ s, acceptProb (sequentialRepeat k round) { P with init := s } ≤ ε ^ k from this _
+  induction k with
+  | zero => intro s; simp [sequentialRepeat, acceptProb]
+  | succ k ih =>
+    intro s
+    rw [sequentialRepeat, acceptProb_bind_ite, pow_succ]
+    calc ∑' t, P.run round s (true, t) *
+          acceptProb (sequentialRepeat k round) { P with init := t }
+        ≤ ∑' t, P.run round s (true, t) * ε ^ k :=
+          tsum_le_tsum fun t => mul_le_mul' le_rfl (ih t)
+      _ = (∑' t, P.run round s (true, t)) * ε ^ k := ENNReal.tsum_mul_right
+      _ ≤ ε * ε ^ k :=
+          mul_le_mul' ((acceptProb_eq_tsum round _).symm.trans_le (h s)) le_rfl
+      _ = ε ^ k * ε := mul_comm _ _
+
 /-- **Soundness amplification.** If every prover is accepted by one run with probability at most
 `ε`, every prover is accepted by `k` sequential runs with probability at most `ε ^ k`. -/
 theorem acceptProb_sequentialRepeat_le {round : WordOracleComp Operation Bool} {ε : ENNReal}
     (h : ∀ P : Prover Operation, acceptProb round P ≤ ε) (k : ℕ) (P : Prover Operation) :
-    acceptProb (sequentialRepeat k round) P ≤ ε ^ k := by
-  induction k generalizing P with
-  | zero => exact (PMF.coe_le_one _ _).trans (by simp)
-  | succ k ih =>
-    rw [sequentialRepeat, acceptProb_bind_ite, pow_succ]
-    calc ∑' s, P.run round P.init (true, s) *
-          acceptProb (sequentialRepeat k round) { P with init := s }
-        ≤ ∑' s, P.run round P.init (true, s) * ε ^ k :=
-          tsum_le_tsum fun s => mul_le_mul' le_rfl (ih _)
-      _ = (∑' s, P.run round P.init (true, s)) * ε ^ k := ENNReal.tsum_mul_right
-      _ ≤ ε * ε ^ k := by
-          gcongr
-          exact (acceptProb_eq_tsum round P).symm.trans_le (h P)
-      _ = ε ^ k * ε := mul_comm _ _
+    acceptProb (sequentialRepeat k round) P ≤ ε ^ k :=
+  acceptProb_sequentialRepeat_le_of_forall_init P (fun _ => h _) k
 
 /-- **Completeness under repetition.** A prover accepted by one run with probability at least `c`
 from each of its states is accepted by `k` sequential runs with probability at least `c ^ k`. -/
@@ -141,10 +149,10 @@ theorem _root_.Cslib.Probability.IsOraclePPTOn.sequentialRepeat_count
   simp only [sequentialRepeat_eq_iterate]
   have hstep : IsOraclePPTOn (encPair input encBool) encBool
       (fun pair : α × Bool => if pair.2 then round pair.1 else pure false) :=
-    IsOraclePPTOn.cond' (ComputableInPolyTime.snd input encBool)
-      (h.preprocess' (ComputableInPolyTime.fst input encBool))
+    IsOraclePPTOn.cond (ComputableInPolyTime.snd input encBool)
+      (h.preprocess (ComputableInPolyTime.fst input encBool))
       (ComputableInPolyTime.const false).isOraclePPTOn
-  exact (IsOraclePPTOn.iterateWith_spec' (stateEncoding := encBool)
+  exact (IsOraclePPTOn.iterateWith_spec (stateEncoding := encBool)
     (step := fun a ok => if ok then round a else pure false)
     hk (ComputableInPolyTime.const true) hstep
     (fun _ _ _ => True) (fun _ => trivial) (fun _ _ _ _ _ _ _ => trivial)

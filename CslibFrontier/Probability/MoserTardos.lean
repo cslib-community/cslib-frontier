@@ -59,7 +59,9 @@ every other event sharing a variable with `A i` (the hypothesis of the asymmetri
   the same bound dominates the count under every valid rule, so the bound also holds for the outer
   expectation.
 * `Cslib.Probability.MoserTardos.ae_exists_run_eq_none`: almost surely the algorithm stops after
-  finitely many steps, for every valid rule.
+  finitely many steps, for every valid rule. The step it rests on,
+  `Cslib.Probability.MoserTardos.ae_exists_forall_isLog_length_le_of_bound`, says that almost
+  surely the valid logs on the table have bounded length; the parallel algorithm uses it too.
 * `Cslib.Probability.MoserTardos.ae_exists_forall_notMem_run`: almost surely a valid rule that
   stops only when no event occurs reaches an assignment avoiding every event;
   `ae_exists_forall_notMem_run_greedy` is the case of the greedy rule.
@@ -115,9 +117,8 @@ instance : IsProbabilityMeasure (table μ) := by
 /-- Reading one sample of every variable from the table gives the product distribution. -/
 theorem table_map_read [Fintype V] (c : V → ℕ) :
     (table μ).map (fun T v => T (v, c v)) = Measure.pi μ := by
-  have hinj : Function.Injective fun v : V => (v, c v) := fun v w h => congrArg Prod.fst h
-  rw [table_def, Measure.map_infinitePi_infinitePi_of_inj (P := fun p : V × ℕ => μ p.1) hinj,
-    Measure.infinitePi_eq_pi]
+  rw [table_def, Measure.map_infinitePi_infinitePi_of_inj (P := fun p : V × ℕ => μ p.1)
+    (fun _ _ h => congrArg Prod.fst h), Measure.infinitePi_eq_pi]
 
 omit [∀ v, MeasurableSpace (α v)] in
 theorem measurable_read [∀ v, MeasurableSpace (α v)] (c : V → ℕ) :
@@ -145,8 +146,7 @@ omit [Fintype V] [∀ v, MeasurableSpace (α v)] in
 private theorem checkAt_dependsOn (A : ι → Set (∀ v, α v))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (S : Finset (ι × ℕ)) (p : ι × ℕ) :
     DependsOn (· ∈ checkAt vbl A S p) (coords vbl S p : Set (V × ℕ)) := fun _ _ h =>
-  hA p.1 fun _ hv => h _ (Finset.mem_coe.2 (mem_image_of_mem
-    (fun v => (v, depthUses vbl S p v)) (Finset.mem_coe.1 hv)))
+  hA p.1 fun _ hv => h _ (Finset.mem_coe.2 (mem_image_of_mem _ (Finset.mem_coe.1 hv)))
 
 omit [Fintype V] in
 private theorem measurableSet_checkAt (A : ι → Set (∀ v, α v))
@@ -163,11 +163,10 @@ omit [Fintype V] in
 private theorem disjoint_coords {S : Finset (ι × ℕ)} (hS : Proper vbl S) {p q : ι × ℕ}
     (hp : p ∈ S) (hq : q ∈ S) (hpq : p ≠ q) : Disjoint (coords vbl S p) (coords vbl S q) := by
   rw [Finset.disjoint_left]
-  intro c hcp hcq
-  obtain ⟨v, hv, rfl⟩ := mem_image.1 hcp
-  obtain ⟨v', hv', he⟩ := mem_image.1 hcq
-  obtain ⟨hvv, he⟩ := Prod.mk.inj he
-  rw [hvv] at hv' he
+  rintro _ hp' hq'
+  obtain ⟨v, hv, rfl⟩ := mem_image.1 hp'
+  obtain ⟨v', hv', he⟩ := mem_image.1 hq'
+  obtain ⟨rfl, he⟩ := Prod.mk.inj he
   exact depthUses_ne vbl hS hp hq hpq hv hv' he.symm
 
 private theorem table_iInter_checkAt (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
@@ -179,21 +178,17 @@ private theorem table_iInter_checkAt (A : ι → Set (∀ v, α v)) (hAm : ∀ i
   | empty => intro _; simp
   | insert a R ha ih =>
     intro hR
-    have haS : a ∈ S := hR (mem_insert_self a R)
     have hRS : R ⊆ S := (subset_insert a R).trans hR
     rw [set_biInter_insert, prod_insert ha, ← ih hRS, ← table_checkAt μ vbl A hAm S a, table_def]
     refine (indepSet_infinitePi_of_dependsOn (S := coords vbl S a)
       (T := R.biUnion (coords vbl S)) (measurableSet_checkAt vbl A hAm S a)
       (MeasurableSet.biInter R.countable_toSet fun p _ => measurableSet_checkAt vbl A hAm S p)
-      (checkAt_dependsOn vbl A hA S a) ?_ ?_).measure_inter_eq_mul
-    · intro T T' h
-      simp only [Set.mem_iInter]
-      refine propext (forall₂_congr fun p hp => ?_)
-      have := checkAt_dependsOn vbl A hA S p fun c hc =>
-        h c (Finset.mem_coe.2 (mem_biUnion.2 ⟨p, hp, Finset.mem_coe.1 hc⟩))
-      exact Iff.of_eq this
-    · refine (disjoint_biUnion_right _ _ _).2 fun p hp => ?_
-      exact disjoint_coords vbl hS haS (hRS hp) fun h => ha (h ▸ hp)
+      (checkAt_dependsOn vbl A hA S a) (fun T T' h => ?_) ?_).measure_inter_eq_mul
+    · simp only [Set.mem_iInter]
+      exact propext (forall₂_congr fun p hp => Iff.of_eq <| checkAt_dependsOn vbl A hA S p
+        fun c hc => h c (Finset.mem_coe.2 (mem_biUnion.2 ⟨p, hp, Finset.mem_coe.1 hc⟩)))
+    · exact (disjoint_biUnion_right _ _ _).2 fun p hp =>
+        disjoint_coords vbl hS (hR (mem_insert_self a R)) (hRS hp) fun h => ha (h ▸ hp)
 
 omit [Fintype V] [∀ v, MeasurableSpace (α v)] in
 private theorem check_eq_iInter (A : ι → Set (∀ v, α v)) (S : Finset (ι × ℕ)) :
@@ -227,112 +222,104 @@ theorem table_witness_le [DecidableEq ι] (A : ι → Set (∀ v, α v))
     table μ {T | ∃ i w, IsLog vbl A T (i :: w) ∧ witness vbl i w = S} ≤
       ∏ p ∈ S, Measure.pi μ (A p.1) := by
   rcases Set.eq_empty_or_nonempty {T | ∃ i w, IsLog vbl A T (i :: w) ∧ witness vbl i w = S} with
-    he | ⟨T₀, i₀, w₀, -, hw₀⟩
-  · rw [he, measure_empty]
-    exact zero_le
-  have hS : Proper vbl S := hw₀ ▸ proper_witness vbl i₀ w₀
-  rw [← measure_check_eq_prod μ vbl A hAm hA hS]
-  refine measure_mono fun T ⟨i, w, hlog, hw⟩ => ?_
-  rw [Set.mem_ofPred_eq, ← hw]
-  exact check_witness vbl A hA i w T hlog
+    he | ⟨T₀, i₀, w₀, -, rfl⟩
+  · simp [he]
+  rw [← measure_check_eq_prod μ vbl A hAm hA (proper_witness vbl i₀ w₀)]
+  exact measure_mono fun T ⟨i, w, hlog, hw⟩ => hw ▸ check_witness vbl A hA i w T hlog
 
 end Check
 
 section Expectation
 
-variable {V ι : Type*} [Fintype V] [DecidableEq V] [DecidableEq ι] [Fintype ι]
-  {α : V → Type*} [∀ v, MeasurableSpace (α v)] (μ : ∀ v, Measure (α v))
-  [∀ v, IsProbabilityMeasure (μ v)] (vbl : ι → Finset V)
+variable {V ι : Type*} {α : V → Type*} [∀ v, MeasurableSpace (α v)]
+  (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
 
-open scoped Classical in
-/-- The number of proper structures in `shapes vbl i H` whose checks pass on `T`. -/
-private noncomputable def passCount (A : ι → Set (∀ v, α v)) (i : ι) (H : ℕ)
+/-- The number of structures in `shapesRel R i H` passing `Pass` on `T`. -/
+private noncomputable def passCountRel [DecidableEq ι] [Fintype ι] (R : ι → ι → Prop)
+    [DecidableRel R] (Pass : Finset (ι × ℕ) → (∀ p : V × ℕ, α p.1) → Prop) (i : ι) (H : ℕ)
     (T : ∀ p : V × ℕ, α p.1) : ℝ≥0∞ :=
-  ∑ S ∈ shapes vbl i H, if Proper vbl S ∧ Check vbl A S T then 1 else 0
+  ∑ S ∈ shapesRel R i H, ({T' | Pass S T'} : Set (∀ p : V × ℕ, α p.1)).indicator 1 T
 
-omit [Fintype V] [∀ v, MeasurableSpace (α v)] in
-private theorem passCount_mono (A : ι → Set (∀ v, α v)) (i : ι) (T : ∀ p : V × ℕ, α p.1) :
-    Monotone fun H => passCount vbl A i H T :=
+omit [∀ v, MeasurableSpace (α v)] [∀ v, IsProbabilityMeasure (μ v)] in
+private theorem passCountRel_mono [DecidableEq ι] [Fintype ι] (R : ι → ι → Prop)
+    [DecidableRel R] (Pass : Finset (ι × ℕ) → (∀ p : V × ℕ, α p.1) → Prop) (i : ι)
+    (T : ∀ p : V × ℕ, α p.1) :
+    Monotone fun H => passCountRel R Pass i H T :=
   monotone_nat_of_le_succ fun H =>
-    sum_le_sum_of_subset_of_nonneg (shapes_mono vbl i H) fun _ _ _ => zero_le
+    sum_le_sum_of_subset_of_nonneg (shapesRel_mono R i H) fun _ _ _ => zero_le
 
-omit [Fintype V] [∀ v, MeasurableSpace (α v)] in
-private theorem count_le_iSup_passCount (A : ι → Set (∀ v, α v))
-    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1} (i : ι)
-    {w : List ι} (hw : IsLog vbl A T w) :
-    (w.count i : ℝ≥0∞) ≤ ⨆ H, passCount vbl A i H T := by
-  classical
-  refine le_trans ?_ (le_iSup (fun H => passCount vbl A i H T) w.length)
-  obtain ⟨W, hcard, hW⟩ := exists_witnesses vbl A hA T i w.length w hw le_rfl
-  rw [← hcard, passCount, card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
-  calc ∑ S ∈ W, (1 : ℝ≥0∞)
-      = ∑ S ∈ W, if Proper vbl S ∧ Check vbl A S T then 1 else 0 :=
-        sum_congr rfl fun S hS => (ite_eq_left (hW S hS).2).symm
-    _ ≤ _ := sum_le_sum_of_subset_of_nonneg (fun S hS => (hW S hS).1) fun _ _ _ => zero_le
+omit [∀ v, IsProbabilityMeasure (μ v)] in
+private theorem measurable_passCountRel [DecidableEq ι] [Fintype ι] (R : ι → ι → Prop)
+    [DecidableRel R] (Pass : Finset (ι × ℕ) → (∀ p : V × ℕ, α p.1) → Prop)
+    (hPass_meas : ∀ S, MeasurableSet {T | Pass S T}) (i : ι) (H : ℕ) :
+    Measurable (passCountRel R Pass i H) :=
+  Finset.measurable_sum _ fun S _ => measurable_const.indicator (hPass_meas S)
 
-omit [Fintype V] [DecidableEq ι] [Fintype ι] in
-open scoped Classical in
-/-- Each summand of `passCount`, the indicator that a structure is proper and passes its check, is
-measurable in the table. -/
-private theorem measurable_ite_proper_and_check (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (S : Finset (ι × ℕ)) :
-    Measurable fun T : ∀ p : V × ℕ, α p.1 =>
-      if Proper vbl S ∧ Check vbl A S T then (1 : ℝ≥0∞) else 0 := by
-  by_cases hS : Proper vbl S
-  · simp only [hS, true_and]
-    exact Measurable.ite (measurableSet_check vbl A hAm S) measurable_const measurable_const
-  · simp only [hS, false_and, ite_false]
-    exact measurable_const
-
-omit [Fintype V] in
-private theorem measurable_passCount (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
-    (i : ι) (H : ℕ) : Measurable (passCount vbl A i H) :=
-  Finset.measurable_sum _ fun S _ => measurable_ite_proper_and_check vbl A hAm S
-
-private theorem lintegral_passCount_le (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
-    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (Γ : ι → Finset ι)
-    (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
+private theorem lintegral_passCountRel_le [Fintype V] [DecidableEq ι] [Fintype ι]
+    (R : ι → ι → Prop) [DecidableRel R] (hRr : ∀ i, R i i) (A : ι → Set (∀ v, α v))
+    (Pass : Finset (ι × ℕ) → (∀ p : V × ℕ, α p.1) → Prop)
+    (hPass_meas : ∀ S, MeasurableSet {T | Pass S T})
+    (hPass_prob : ∀ S, table μ {T | Pass S T} ≤ ∏ p ∈ S, Measure.pi μ (A p.1))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → R i j → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
     (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j)) (i : ι) (H : ℕ) :
-    ∫⁻ T, passCount vbl A i H T ∂table μ ≤ ENNReal.ofReal (x i / (1 - x i)) := by
+    ∫⁻ T, passCountRel R Pass i H T ∂table μ ≤ ENNReal.ofReal (x i / (1 - x i)) := by
   classical
-  have hy0 : ∀ B, 0 ≤ (Measure.pi μ).real (A B) := fun B => measureReal_nonneg
-  have hterm : ∀ S ∈ shapes vbl i H,
-      ∫⁻ T, (if Proper vbl S ∧ Check vbl A S T then 1 else 0) ∂table μ ≤
-        ENNReal.ofReal (∏ p ∈ S, (Measure.pi μ).real (A p.1)) := by
-    intro S _
-    by_cases hS : Proper vbl S
-    · have heq : (fun T => if Proper vbl S ∧ Check vbl A S T then (1 : ℝ≥0∞) else 0) =
-          {T | Check vbl A S T}.indicator 1 := by
-        funext T
-        simp only [hS, true_and, Set.indicator, Set.mem_ofPred_eq, Pi.one_apply]
-      rw [heq, lintegral_indicator_one (measurableSet_check vbl A hAm S),
-        measure_check_eq_prod μ vbl A hAm hA hS, ENNReal.ofReal_prod_of_nonneg fun p _ => hy0 _]
-      exact (prod_congr rfl fun p _ => (ofReal_measureReal).symm).le
-    · simp only [hS, false_and, ite_false, lintegral_zero]
-      exact zero_le
-  simp only [passCount]
-  rw [lintegral_finsetSum _ fun S _ => measurable_ite_proper_and_check vbl A hAm S]
-  refine (sum_le_sum hterm).trans ?_
-  rw [← ENNReal.ofReal_sum_of_nonneg fun S _ => prod_nonneg fun p _ => hy0 _]
-  exact ENNReal.ofReal_le_ofReal (sum_prod_shapes_le vbl Γ hΓ hx hy0 hP i H)
+  have hy0 : ∀ B, 0 ≤ (Measure.pi μ).real (A B) := fun _ => measureReal_nonneg
+  simp only [passCountRel]
+  rw [lintegral_finsetSum
+    (f := fun S T => ({T' | Pass S T'} : Set (∀ p : V × ℕ, α p.1)).indicator 1 T)
+    _ fun S _ => measurable_const.indicator (hPass_meas S)]
+  refine (sum_le_sum (g := fun S => ENNReal.ofReal (∏ p ∈ S, (Measure.pi μ).real (A p.1)))
+    fun S _ => ?_).trans ?_
+  · rw [lintegral_indicator_one (hPass_meas S), ENNReal.ofReal_prod_of_nonneg fun _ _ => hy0 _]
+    exact (hPass_prob S).trans (prod_congr rfl fun _ _ => (ofReal_measureReal).symm).le
+  · rw [← ENNReal.ofReal_sum_of_nonneg fun _ _ => prod_nonneg fun _ _ => hy0 _]
+    exact ENNReal.ofReal_le_ofReal (sum_prod_shapesRel_le R hRr Γ hΓ hx hy0 hP i H)
 
-private theorem lintegral_iSup_passCount_le (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
-    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
+/-- Generalized Moser–Tardos expectation bound for all valid logs at once, over any reflexive
+dependency relation `R` and any measurable witness-structure check `Pass` bounded in probability
+by `∏ p ∈ S, Pr[A p.1]`. Both Theorem 1.2 and Lopsided Theorem 6.1 specialize this lemma. -/
+theorem lintegral_iSup_count_le_of_pass [Fintype V] [DecidableEq V] [DecidableEq ι] [Fintype ι]
+    (vbl : ι → Finset V) (R : ι → ι → Prop) [DecidableRel R] (hRr : ∀ i, R i i)
+    (A : ι → Set (∀ v, α v))
+    (Pass : Finset (ι × ℕ) → (∀ p : V × ℕ, α p.1) → Prop)
+    (hPass_meas : ∀ S, MeasurableSet {T | Pass S T})
+    (hPass_prob : ∀ S, table μ {T | Pass S T} ≤ ∏ p ∈ S, Measure.pi μ (A p.1))
+    (hPass_witness : ∀ T i H (w : List ι), IsLog vbl A T w → w.length ≤ H →
+      ∃ W : Finset (Finset (ι × ℕ)), #W = w.count i ∧
+        ∀ S ∈ W, S ∈ shapesRel R i H ∧ Pass S T)
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → R i j → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
     (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j)) (i : ι) :
-    ∫⁻ T, ⨆ H, passCount vbl A i H T ∂table μ ≤ ENNReal.ofReal (x i / (1 - x i)) := by
-  rw [lintegral_iSup (measurable_passCount vbl A hAm i)
-    (fun _ _ h T => passCount_mono vbl A i T h)]
-  exact iSup_le fun H => lintegral_passCount_le μ vbl A hAm hA Γ hΓ hx hP i H
+    ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤
+      ENNReal.ofReal (x i / (1 - x i)) := by
+  classical
+  have hcount : ∀ T (w : List ι), IsLog vbl A T w →
+      (w.count i : ℝ≥0∞) ≤ ⨆ H, passCountRel R Pass i H T := by
+    intro T w hw
+    refine le_trans ?_ (le_iSup (fun H => passCountRel R Pass i H T) w.length)
+    obtain ⟨W, hcard, hW⟩ := hPass_witness T i w.length w hw le_rfl
+    rw [← hcard, passCountRel, card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
+    calc ∑ S ∈ W, (1 : ℝ≥0∞)
+        = ∑ S ∈ W, ({T' | Pass S T'} : Set (∀ p : V × ℕ, α p.1)).indicator 1 T :=
+          sum_congr rfl fun S hS => (Set.indicator_of_mem (s := {T' | Pass S T'})
+            (hW S hS).2 (1 : (∀ p : V × ℕ, α p.1) → ℝ≥0∞)).symm
+      _ ≤ _ := sum_le_sum_of_subset_of_nonneg (fun S hS => (hW S hS).1) fun _ _ _ => zero_le
+  calc ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ
+      ≤ ∫⁻ T, ⨆ H, passCountRel R Pass i H T ∂table μ :=
+        lintegral_mono fun _ => iSup₂_le fun _ hw => hcount _ _ hw
+    _ = ⨆ H, ∫⁻ T, passCountRel R Pass i H T ∂table μ :=
+        lintegral_iSup (measurable_passCountRel R Pass hPass_meas i)
+          (fun _ _ h T => passCountRel_mono R Pass i T h)
+    _ ≤ _ := iSup_le fun H =>
+        lintegral_passCountRel_le μ R hRr A Pass hPass_meas hPass_prob Γ hΓ hx hP i H
 
-omit [Fintype ι] in
 /-- **Moser–Tardos, for all valid logs at once** [MoserTardos2010, Theorem 1.2]. Under the
 local-lemma hypothesis, the expected supremum, over all valid logs `w` on the table, of the number
 of resamplings of `A i` in `w` is at most `x i / (1 - x i)`. -/
-theorem lintegral_iSup_count_le [Finite ι] (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i))
+theorem lintegral_iSup_count_le [Fintype V] [DecidableEq V] [DecidableEq ι] [Finite ι]
+    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (Γ : ι → Finset ι)
     (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
@@ -340,10 +327,13 @@ theorem lintegral_iSup_count_le [Finite ι] (A : ι → Set (∀ v, α v))
     ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤
       ENNReal.ofReal (x i / (1 - x i)) := by
   have := Fintype.ofFinite ι
-  calc ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ
-      ≤ ∫⁻ T, ⨆ H, passCount vbl A i H T ∂table μ :=
-        lintegral_mono fun _ => iSup₂_le fun _ hw => count_le_iSup_passCount vbl A hA i hw
-    _ ≤ _ := lintegral_iSup_passCount_le μ vbl A hAm hA Γ hΓ hx hP i
+  refine lintegral_iSup_count_le_of_pass μ vbl (Adj vbl) (adj_refl vbl) A
+    (fun S T => Proper vbl S ∧ Check vbl A S T)
+    (fun S => (MeasurableSet.const _).inter (measurableSet_check vbl A hAm S)) (fun S => ?_)
+    (fun T j H w hw hl => ?_) Γ
+    (fun a b hne hadj => hΓ a b hne (((adj_iff vbl).1 hadj).resolve_left hne.symm)) hx hP i
+  · by_cases hS : Proper vbl S <;> simp [hS, measure_check_eq_prod, hAm, hA]
+  · simpa only [← shapes_eq_shapesRel vbl] using exists_witnesses vbl A hA T j H w hw hl
 
 end Expectation
 
@@ -354,7 +344,7 @@ variable {V ι : Type*} {α : V → Type*}
 /-- The log (latest first) of the Moser–Tardos algorithm after `n` steps on the table `T`, under
 the selection rule `sel`. At each step `sel T w` names the event to resample after the log `w`, or
 returns `none`, after which the log stays fixed. -/
-def run (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι) (T : ∀ p : V × ℕ, α p.1) :
+@[expose] def run (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι) (T : ∀ p : V × ℕ, α p.1) :
     ℕ → List ι
   | 0 => []
   | n + 1 =>
@@ -363,8 +353,8 @@ def run (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι) (T : ∀ p 
     | some i => i :: run sel T n
 
 theorem run_zero (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι) (T : ∀ p : V × ℕ, α p.1) :
-    run sel T 0 = [] := by
-  rw [run]
+    run sel T 0 = [] :=
+  rfl
 
 theorem run_succ_of_eq_none {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     {T : ∀ p : V × ℕ, α p.1} {n : ℕ} (h : sel T (run sel T n) = none) :
@@ -382,14 +372,10 @@ theorem isLog_run [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i) (T : ∀ p : V × ℕ, α p.1) :
     ∀ n, IsLog vbl A T (run sel T n)
-  | 0 => by
-    rw [run_zero]
-    exact isLog_nil vbl A T
+  | 0 => isLog_nil vbl A T
   | n + 1 => by
     cases h : sel T (run sel T n) with
-    | none =>
-      rw [run_succ_of_eq_none h]
-      exact isLog_run vbl A hsel T n
+    | none => simpa only [run_succ_of_eq_none h] using isLog_run vbl A hsel T n
     | some i =>
       rw [run_succ_of_eq_some h, isLog_cons]
       exact ⟨hsel T _ i h, isLog_run vbl A hsel T n⟩
@@ -428,8 +414,7 @@ theorem greedy_eq_some {A : ι → Set (∀ v, α v)} {T : ∀ p : V × ℕ, α 
     (h : greedy vbl A T w = some i) : current vbl T w ∈ A i := by
   unfold greedy at h
   split_ifs at h with hex
-  cases h
-  exact hex.choose_spec
+  exact Option.some.inj h ▸ hex.choose_spec
 
 theorem greedy_eq_none {A : ι → Set (∀ v, α v)} {T : ∀ p : V × ℕ, α p.1} {w : List ι}
     (h : greedy vbl A T w = none) (i : ι) : current vbl T w ∉ A i := by
@@ -444,6 +429,171 @@ section Theorem
 variable {V ι : Type*} [Fintype V] [DecidableEq V]
   {α : V → Type*} [∀ v, MeasurableSpace (α v)] (μ : ∀ v, Measure (α v))
   [∀ v, IsProbabilityMeasure (μ v)] (vbl : ι → Finset V)
+
+omit [Fintype V] in
+/-- Valid logs form a measurable set of tables. -/
+theorem measurableSet_isLog (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) :
+    ∀ w : List ι, MeasurableSet {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T w}
+  | [] => by simp [isLog_nil]
+  | j :: w => by
+    have heq : {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T (j :: w)} =
+        (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} :=
+      Set.ext fun T => by rw [Set.mem_ofPred_eq, isLog_cons, funext (current_apply vbl T w)]; rfl
+    exact heq ▸ (measurable_read _ (hAm j)).inter (measurableSet_isLog A hAm w)
+
+omit [Fintype V] in
+/-- The largest number of steps labelled `i` in a valid log is a measurable function of the
+table. -/
+theorem measurable_iSup_count [DecidableEq ι] [Countable ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i)) (i : ι) :
+    Measurable fun T : ∀ p : V × ℕ, α p.1 =>
+      ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) := by
+  classical
+  refine Measurable.iSup fun w => ?_
+  simpa only [iSup_eq_if] using
+    Measurable.ite (measurableSet_isLog vbl A hAm w) measurable_const measurable_const
+
+omit [Fintype V] [∀ v, MeasurableSpace (α v)] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- The length of a valid log is at most the sum over the events of the largest number of steps
+labelled with that event in a valid log on the same table. -/
+theorem length_le_sum_iSup_count [DecidableEq ι] [Fintype ι] (A : ι → Set (∀ v, α v))
+    {T : ∀ p : V × ℕ, α p.1} {w : List ι} (hw : IsLog vbl A T w) :
+    (w.length : ℝ≥0∞) ≤ ∑ i, ⨆ (w' : List ι) (_ : IsLog vbl A T w'), (w'.count i : ℝ≥0∞) := by
+  have hlen : w.length = ∑ i, w.count i := by
+    simpa using (Multiset.sum_count_eq_card (s := univ) (m := (w : Multiset ι))
+      fun a _ => mem_univ a).symm
+  rw [hlen, Nat.cast_sum]
+  exact sum_le_sum fun i _ => le_iSup₂_of_le (f := fun (w' : List ι) (_ : IsLog vbl A T w') =>
+    (w'.count i : ℝ≥0∞)) w hw le_rfl
+
+omit [Fintype V] [DecidableEq V] [∀ v, MeasurableSpace (α v)] [∀ v, IsProbabilityMeasure (μ v)] in
+private theorem length_run_of_forall {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
+    {T : ∀ p : V × ℕ, α p.1} (h : ∀ n, sel T (run sel T n) ≠ none) :
+    ∀ n, (run sel T n).length = n
+  | 0 => by rw [run_zero, List.length_nil]
+  | n + 1 => by
+    obtain ⟨i, hi⟩ := Option.ne_none_iff_exists'.1 (h n)
+    rw [run_succ_of_eq_some hi, List.length_cons, length_run_of_forall h n]
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from an upper bound on `⨆ (w valid), w.count i` to the expected
+resampling count of `A i` under any valid rule. -/
+theorem lintegral_resamplings_le_of_bound [DecidableEq ι] (A : ι → Set (∀ v, α v))
+    {i : ι} {c : ℝ≥0∞}
+    (hc : ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ c)
+    {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
+    (hsel : ∀ T w j, sel T w = some j → current vbl T w ∈ A j) :
+    ∫⁻ T, resamplings sel i T ∂table μ ≤ c :=
+  (lintegral_mono fun T => resamplings_le_iSup_count vbl A hsel i T).trans hc
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from an expectation bound on `⨆ (w valid), w.count i` to a measurable
+rule-independent dominating function. -/
+theorem exists_measurable_ge_resamplings_of_bound [DecidableEq ι] [Countable ι]
+    (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) {i : ι} {c : ℝ≥0∞}
+    (hc : ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ c) :
+    ∃ g : (∀ p : V × ℕ, α p.1) → ℝ≥0∞, Measurable g ∧ ∫⁻ T, g T ∂table μ ≤ c ∧
+      ∀ sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι,
+        (∀ T w j, sel T w = some j → current vbl T w ∈ A j) →
+          ∀ T, resamplings sel i T ≤ g T :=
+  ⟨_, measurable_iSup_count vbl A hAm i, hc,
+    fun _ hsel T => resamplings_le_iSup_count vbl A hsel i T⟩
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from per-event expected supremum bounds to a bound on the integral of the
+measurable majorant `∑ i, ⨆ (w valid), w.count i`. Pointwise bounds by this sum, such as
+`resamplings_le_iSup_count` for a sequential run and `length_le_sum_iSup_count` for any valid log,
+turn into expectation bounds through it. -/
+theorem lintegral_sum_iSup_count_le_of_bound [DecidableEq ι] [Fintype ι]
+    (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) {c : ι → ℝ≥0∞}
+    (hc : ∀ i, ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ c i) :
+    ∫⁻ T, ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ ∑ i, c i := by
+  rw [lintegral_finsetSum _ fun i _ => measurable_iSup_count vbl A hAm i]
+  exact sum_le_sum fun i _ => hc i
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from per-event expected supremum bounds to the expected total number of
+resamplings. -/
+theorem lintegral_sum_resamplings_le_of_bound [DecidableEq ι] [Fintype ι]
+    (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) {c : ι → ℝ≥0∞}
+    (hc : ∀ i, ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ c i)
+    {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
+    (hsel : ∀ T w j, sel T w = some j → current vbl T w ∈ A j) :
+    ∫⁻ T, ∑ i, resamplings sel i T ∂table μ ≤ ∑ i, c i :=
+  (lintegral_mono fun T => sum_le_sum fun i _ => resamplings_le_iSup_count vbl A hsel i T).trans
+    (lintegral_sum_iSup_count_le_of_bound μ vbl A hAm hc)
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from finite per-event expected supremum bounds: almost surely the valid
+logs on the table have bounded length. Any procedure whose logs are valid and grow at every
+step, sequential or parallel, therefore stops almost surely. -/
+theorem ae_exists_forall_isLog_length_le_of_bound [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i))
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ∞) :
+    ∀ᵐ T ∂table μ, ∃ N : ℕ, ∀ w : List ι, IsLog vbl A T w → w.length ≤ N := by
+  classical
+  have := Fintype.ofFinite ι
+  have hint : ∫⁻ T, ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w),
+      (w.count i : ℝ≥0∞) ∂table μ ≠ ∞ := by
+    rw [lintegral_finsetSum _ fun i _ => measurable_iSup_count vbl A hAm i]
+    exact ENNReal.sum_ne_top.2 fun i _ => hc i
+  filter_upwards [ae_lt_top (Finset.measurable_sum _ fun i _ => measurable_iSup_count vbl A hAm i)
+    hint] with T hT
+  obtain ⟨N, hN⟩ := ENNReal.exists_nat_gt hT.ne
+  exact ⟨N, fun w hw => Nat.cast_le.1 ((length_le_sum_iSup_count vbl A hw).trans_lt hN).le⟩
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from finite per-event expected supremum bounds to almost sure termination
+for every valid rule. -/
+theorem ae_exists_run_eq_none_of_bound [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i))
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ∞)
+    {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
+    (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i) :
+    ∀ᵐ T ∂table μ, ∃ n, sel T (run sel T n) = none := by
+  filter_upwards [ae_exists_forall_isLog_length_le_of_bound μ vbl A hAm hc] with T ⟨N, hN⟩
+  by_contra hne
+  have hlen := hN _ (isLog_run vbl A hsel T (N + 1))
+  rw [length_run_of_forall (not_exists.1 hne) (N + 1)] at hlen
+  omega
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from finite per-event expected supremum bounds to almost sure success for
+every valid rule that stops only when no event occurs. -/
+theorem ae_exists_forall_notMem_run_of_bound [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i))
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ∞)
+    {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
+    (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i)
+    (hstop : ∀ T w, sel T w = none → ∀ i, current vbl T w ∉ A i) :
+    ∀ᵐ T ∂table μ, ∃ n, ∀ i, current vbl T (run sel T n) ∉ A i := by
+  filter_upwards [ae_exists_run_eq_none_of_bound μ vbl A hAm hc hsel] with T ⟨n, hn⟩
+  exact ⟨n, hstop T _ hn⟩
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from finite per-event expected supremum bounds to almost sure success of
+the greedy rule. -/
+theorem ae_exists_forall_notMem_run_greedy_of_bound [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i))
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ∞) :
+    ∀ᵐ T ∂table μ, ∃ n, ∀ i, current vbl T (run (greedy vbl A) T n) ∉ A i :=
+  ae_exists_forall_notMem_run_of_bound μ vbl A hAm hc
+    (fun _ _ _ h => greedy_eq_some vbl h) (fun _ _ h => greedy_eq_none vbl h)
+
+omit [Fintype V] in
+/-- Generic deduction from finite per-event expected supremum bounds to existence of a good
+assignment. -/
+theorem exists_forall_notMem_of_bound [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i))
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ∞) :
+    ∃ σ : ∀ v, α v, ∀ i, σ ∉ A i := by
+  obtain ⟨T, n, hn⟩ := (ae_exists_forall_notMem_run_greedy_of_bound μ vbl A hAm hc).exists
+  exact ⟨_, hn⟩
 
 /-- **The Moser–Tardos theorem** [MoserTardos2010, Theorem 1.2]. Let `x i ∈ [0, 1)` with
 `Pr[A i] ≤ x i ∏ j ∈ Γ i, (1 - x j)`, where `Γ i` contains every other event sharing a variable
@@ -462,40 +612,8 @@ theorem lintegral_resamplings_le [DecidableEq ι] [Finite ι] (A : ι → Set (�
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i) (i : ι) :
     ∫⁻ T, resamplings sel i T ∂table μ ≤ ENNReal.ofReal (x i / (1 - x i)) :=
-  (lintegral_mono fun T => resamplings_le_iSup_count vbl A hsel i T).trans
-    (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i)
-
-omit [Fintype V] in
-/-- Valid logs form a measurable set of tables. -/
-theorem measurableSet_isLog (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) :
-    ∀ w : List ι, MeasurableSet {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T w}
-  | [] => by
-    simp only [isLog_nil, Set.ofPred_true, MeasurableSet.univ]
-  | j :: w => by
-    have hcur : ∀ T : ∀ p : V × ℕ, α p.1, current vbl T w = fun v => T (v, uses vbl w v) :=
-      fun T => funext fun v => current_apply vbl T w v
-    have heq : {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T (j :: w)} =
-        (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} := by
-      ext T
-      rw [Set.mem_ofPred_eq, isLog_cons, hcur]
-      rfl
-    rw [heq]
-    exact (measurable_read (fun v => uses vbl w v) (hAm j)).inter (measurableSet_isLog A hAm w)
-
-omit [Fintype V] in
-/-- The largest number of steps labelled `i` in a valid log is a measurable function of the
-table. -/
-theorem measurable_iSup_count [DecidableEq ι] [Countable ι] (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (i : ι) :
-    Measurable fun T : ∀ p : V × ℕ, α p.1 =>
-      ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) := by
-  classical
-  refine Measurable.iSup fun w => ?_
-  have heq : (fun T : ∀ p : V × ℕ, α p.1 => ⨆ (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞)) =
-      fun T => if IsLog vbl A T w then (w.count i : ℝ≥0∞) else 0 :=
-    funext fun T => iSup_eq_if _
-  rw [heq]
-  exact Measurable.ite (measurableSet_isLog vbl A hAm w) measurable_const measurable_const
+  lintegral_resamplings_le_of_bound μ vbl A
+    (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i) hsel
 
 /-- **Theorem 1.2 for the outer expectation** [MoserTardos2010]. Under the local-lemma hypothesis
 there is a measurable function `g` of the table, with `∫⁻ g ≤ x i / (1 - x i)`, that bounds the
@@ -512,21 +630,8 @@ theorem exists_measurable_ge_resamplings [DecidableEq ι] [Finite ι] (A : ι �
       ∀ sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι,
         (∀ T w j, sel T w = some j → current vbl T w ∈ A j) →
           ∀ T, resamplings sel i T ≤ g T :=
-  ⟨_, measurable_iSup_count vbl A hAm i, lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i,
-    fun _ hsel T => resamplings_le_iSup_count vbl A hsel i T⟩
-
-omit [Fintype V] [∀ v, MeasurableSpace (α v)] in
-private theorem length_le_sum_iSup_passCount [DecidableEq ι] [Fintype ι] (A : ι → Set (∀ v, α v))
-    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1}
-    {w : List ι} (hw : IsLog vbl A T w) :
-    (w.length : ℝ≥0∞) ≤ ∑ i, ⨆ H, passCount vbl A i H T := by
-  have hlen : (w.length : ℝ≥0∞) = ∑ i, (w.count i : ℝ≥0∞) := by
-    rw [← Nat.cast_sum]
-    congr 1
-    have := Multiset.sum_count_eq_card (s := univ) (m := (w : Multiset ι)) fun a _ => mem_univ a
-    simpa using this.symm
-  rw [hlen]
-  exact sum_le_sum fun i _ => count_le_iSup_passCount vbl A hA i hw
+  exists_measurable_ge_resamplings_of_bound μ vbl A hAm
+    (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i)
 
 /-- **The expected total number of resamplings** [MoserTardos2010, Theorem 1.2]: at most
 `∑ i, x i / (1 - x i)`, for every valid selection rule. -/
@@ -538,24 +643,9 @@ theorem lintegral_sum_resamplings_le [DecidableEq ι] [Fintype ι] (A : ι → S
     (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i) :
-    ∫⁻ T, ∑ i, resamplings sel i T ∂table μ ≤ ∑ i, ENNReal.ofReal (x i / (1 - x i)) := by
-  calc ∫⁻ T, ∑ i, resamplings sel i T ∂table μ
-      ≤ ∫⁻ T, ∑ i, ⨆ H, passCount vbl A i H T ∂table μ := by
-        refine lintegral_mono fun T => sum_le_sum fun i _ => ?_
-        rw [resamplings_def]
-        exact iSup_le fun n => count_le_iSup_passCount vbl A hA i (isLog_run vbl A hsel T n)
-    _ = ∑ i, ∫⁻ T, ⨆ H, passCount vbl A i H T ∂table μ :=
-        lintegral_finsetSum _ fun i _ => Measurable.iSup fun H => measurable_passCount vbl A hAm i H
-    _ ≤ _ := sum_le_sum fun i _ => lintegral_iSup_passCount_le μ vbl A hAm hA Γ hΓ hx hP i
-
-omit [Fintype V] [DecidableEq V] [∀ v, MeasurableSpace (α v)] in
-private theorem length_run_of_forall {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
-    {T : ∀ p : V × ℕ, α p.1} (h : ∀ n, sel T (run sel T n) ≠ none) :
-    ∀ n, (run sel T n).length = n
-  | 0 => by rw [run_zero, List.length_nil]
-  | n + 1 => by
-    obtain ⟨i, hi⟩ := Option.ne_none_iff_exists'.1 (h n)
-    rw [run_succ_of_eq_some hi, List.length_cons, length_run_of_forall h n]
+    ∫⁻ T, ∑ i, resamplings sel i T ∂table μ ≤ ∑ i, ENNReal.ofReal (x i / (1 - x i)) :=
+  lintegral_sum_resamplings_le_of_bound μ vbl A hAm
+    (fun i => lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i) hsel
 
 /-- **Termination** [MoserTardos2010, Theorem 1.2]: under the local-lemma hypothesis, for every
 valid selection rule, almost surely the rule stops (returns `none`) after finitely many steps. -/
@@ -566,23 +656,11 @@ theorem ae_exists_run_eq_none [Finite ι] (A : ι → Set (∀ v, α v)) (hAm : 
     (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i) :
-    ∀ᵐ T ∂table μ, ∃ n, sel T (run sel T n) = none := by
-  classical
-  have := Fintype.ofFinite ι
-  have hmeas : Measurable fun T => ∑ i, ⨆ H, passCount vbl A i H T :=
-    Finset.measurable_sum _ fun i _ => Measurable.iSup fun H => measurable_passCount vbl A hAm i H
-  have hint : ∫⁻ T, ∑ i, ⨆ H, passCount vbl A i H T ∂table μ ≠ ∞ := by
-    rw [lintegral_finsetSum _ fun i _ =>
-      Measurable.iSup fun H => measurable_passCount vbl A hAm i H]
-    exact ENNReal.sum_ne_top.2 fun i _ => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
-      (lintegral_iSup_passCount_le μ vbl A hAm hA Γ hΓ hx hP i)
-  filter_upwards [ae_lt_top hmeas hint] with T hT
-  by_contra hne
-  simp only [not_exists] at hne
-  obtain ⟨n, hn⟩ := ENNReal.exists_nat_gt hT.ne
-  have hlen := length_le_sum_iSup_passCount vbl A hA (isLog_run vbl A hsel T n)
-  rw [length_run_of_forall hne n] at hlen
-  exact lt_irrefl _ (hlen.trans_lt hn)
+    ∀ᵐ T ∂table μ, ∃ n, sel T (run sel T n) = none :=
+  ae_exists_run_eq_none_of_bound μ vbl A hAm
+    (fun i => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
+      (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i))
+    hsel
 
 /-- **The algorithm finds a good assignment** [MoserTardos2010, Theorem 1.2]: under the
 local-lemma hypothesis, for every valid selection rule that stops only when no event occurs,
@@ -596,9 +674,11 @@ theorem ae_exists_forall_notMem_run [Finite ι] (A : ι → Set (∀ v, α v))
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i)
     (hstop : ∀ T w, sel T w = none → ∀ i, current vbl T w ∉ A i) :
-    ∀ᵐ T ∂table μ, ∃ n, ∀ i, current vbl T (run sel T n) ∉ A i := by
-  filter_upwards [ae_exists_run_eq_none μ vbl A hAm hA Γ hΓ hx hP hsel] with T ⟨n, hn⟩
-  exact ⟨n, hstop T _ hn⟩
+    ∀ᵐ T ∂table μ, ∃ n, ∀ i, current vbl T (run sel T n) ∉ A i :=
+  ae_exists_forall_notMem_run_of_bound μ vbl A hAm
+    (fun i => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
+      (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i))
+    hsel hstop
 
 /-- **The greedy run finds a good assignment** [MoserTardos2010, Theorem 1.2]: under the
 local-lemma hypothesis, almost surely the greedy run reaches, after finitely many resamplings, an
@@ -609,8 +689,9 @@ theorem ae_exists_forall_notMem_run_greedy [Finite ι] (A : ι → Set (∀ v, �
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
     (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j)) :
     ∀ᵐ T ∂table μ, ∃ n, ∀ i, current vbl T (run (greedy vbl A) T n) ∉ A i :=
-  ae_exists_forall_notMem_run μ vbl A hAm hA Γ hΓ hx hP (fun _ _ _ h => greedy_eq_some vbl h)
-    fun _ _ h => greedy_eq_none vbl h
+  ae_exists_forall_notMem_run_greedy_of_bound μ vbl A hAm
+    (fun i => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
+      (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i))
 
 omit [DecidableEq V] in
 /-- **The variable local lemma, constructively** [MoserTardos2010, Theorem 1.2]: under the
@@ -622,8 +703,9 @@ theorem exists_forall_notMem [Finite ι] (A : ι → Set (∀ v, α v)) (hAm : �
     (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j)) :
     ∃ σ : ∀ v, α v, ∀ i, σ ∉ A i := by
   classical
-  obtain ⟨T, n, hn⟩ := (ae_exists_forall_notMem_run_greedy μ vbl A hAm hA Γ hΓ hx hP).exists
-  exact ⟨_, hn⟩
+  exact exists_forall_notMem_of_bound μ vbl A hAm
+    (fun i => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
+      (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i))
 
 end Theorem
 

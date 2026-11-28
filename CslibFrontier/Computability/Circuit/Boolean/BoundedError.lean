@@ -57,16 +57,9 @@ theorem complexity_le_of_eq_threshold {m j : ℕ} (F : BooleanFunction (n + p))
     complexity interpretation (single g) ≤
       m * (complexity interpretation (single F) + 2) + (2 + m * (2 * (m + 2))) := by
   let f : Fin m → BooleanFunction n := fun i x => F (substitute (appendInputs (ω i)) x)
-  have hg : single g = single (threshold m j) ∘ fun x i => f i x :=
-    funext fun x => funext fun _ => by simp [f, h x, single]
+  have hg : g = fun x => threshold m j fun i => f i x := funext fun x => by simp [f, h x]
   rw [hg]
-  refine (complexity_comp_le _ _).trans (add_le_add ((complexity_pi_le f).trans ?_)
-    (complexity_threshold_le m j))
-  calc ∑ i, complexity interpretation (single (f i))
-      ≤ ∑ _i : Fin m, (complexity interpretation (single F) + 2) :=
-        sum_le_sum fun i _ => complexity_substitute_le _ _
-    _ = m * (complexity interpretation (single F) + 2) := by
-        rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
+  exact complexity_threshold_pi_le_of_le f fun i => complexity_substitute_le _ _
 
 /-- **Adleman's theorem**, for one input length, on a set of inputs. If, for every `x ∈ S`, at
 least two thirds of the random strings `r` have `F (x ++ r) = g x`, then some function agreeing
@@ -136,11 +129,10 @@ theorem exists_complexity_le_of_oneSidedError (S : Set (Fin n → Bool))
     if g x.1 = true then univ.filter fun r => F (Fin.append x.1 r) = true else univ
   obtain ⟨ω, hω⟩ := Cslib.exists_forall_exists_apply_mem (X := S) (n := n)
     ((Fintype.card_subtype_le _).trans (by simp)) good fun x => by
-      rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
       by_cases hx : g x.1 = true
-      · simpa [good, hx] using h₁ x.1 x.2 hx
-      · rw [show good x = univ from ite_eq_right hx, card_univ, Fintype.card_fun,
-          Fintype.card_bool, Fintype.card_fin]
+      · simpa [good, hx, Fintype.card_fun] using h₁ x.1 x.2 hx
+      · simp only [good, ite_eq_right hx, card_univ, Fintype.card_fun, Fintype.card_bool,
+          Fintype.card_fin]
         omega
   refine ⟨fun x => threshold (n + 1) 1 fun i => F (Fin.append x (ω i)), fun x hx => ?_,
     complexity_le_of_eq_threshold F _ ω fun _ => rfl⟩
@@ -149,15 +141,11 @@ theorem exists_complexity_le_of_oneSidedError (S : Set (Fin n → Bool))
     Nat.one_le_iff_ne_zero, Ne,
     card_eq_zero, filter_eq_empty_iff]
   push Not
-  constructor
-  · rintro ⟨i, -, hi⟩
-    by_contra hgx
-    rw [h₂ x hx (by simpa using hgx) (ω i)] at hi
-    exact Bool.noConfusion hi
-  · intro hgx
-    obtain ⟨i, hi⟩ := hω ⟨x, hx⟩
-    simp only [good, hgx, ite_true, mem_filter, mem_univ, true_and] at hi
-    exact ⟨i, mem_univ _, hi⟩
+  refine ⟨fun ⟨i, _, hi⟩ => ?_, fun hgx => ?_⟩
+  · by_contra hgx
+    exact Bool.noConfusion (h₂ x hx (by simpa using hgx) (ω i) ▸ hi)
+  · obtain ⟨i, hi⟩ := hω ⟨x, hx⟩
+    exact ⟨i, mem_univ _, by simpa [good, hgx] using hi⟩
 
 /-- **Adleman's theorem for one-sided error**, for one input length. If, for every `x` with
 `g x = true`, at least half of the random strings `r` have `F (x ++ r) = true`, and for every `x`
@@ -200,11 +188,10 @@ theorem PPoly.of_boundedError {A : Language Bool} {p : ℕ → ℕ}
     (h : ∀ n x, 2 * 2 ^ p n ≤
       3 * (univ.filter fun r : Fin (p n) → Bool => F n (Fin.append x r) = A.slice n x).card) :
     A ∈ PPoly := by
-  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_boundedError F hF (fun _ => Set.univ) (fun n => A.slice n)
+  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_boundedError F hF (fun _ => Set.univ) A.slice
     fun n x _ => h n x
   have e : ∀ n, A.slice n = L.slice n := fun n => funext fun x => (hLA n x trivial).symm
-  rw [mem_PPoly] at hL ⊢
-  simpa only [e] using hL
+  simpa only [mem_PPoly, e] using hL
 
 /-- **Adleman's theorem for one-sided error**, on sets of inputs. -/
 theorem PPoly.exists_of_oneSidedError {p : ℕ → ℕ} (F : ∀ n, BooleanFunction (n + p n))
@@ -234,10 +221,9 @@ theorem PPoly.of_oneSidedError {A : Language Bool} {p : ℕ → ℕ}
       2 ^ p n ≤ 2 * (univ.filter fun r : Fin (p n) → Bool => F n (Fin.append x r) = true).card)
     (h₂ : ∀ n x, A.slice n x = false → ∀ r, F n (Fin.append x r) = false) :
     A ∈ PPoly := by
-  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_oneSidedError F hF (fun _ => Set.univ)
-    (fun n => A.slice n) (fun n x _ => h₁ n x) fun n x _ => h₂ n x
+  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_oneSidedError F hF (fun _ => Set.univ) A.slice
+    (fun n x _ => h₁ n x) fun n x _ => h₂ n x
   have e : ∀ n, A.slice n = L.slice n := fun n => funext fun x => (hLA n x trivial).symm
-  rw [mem_PPoly] at hL ⊢
-  simpa only [e] using hL
+  simpa only [mem_PPoly, e] using hL
 
 end Cslib.Circuits.Boolean

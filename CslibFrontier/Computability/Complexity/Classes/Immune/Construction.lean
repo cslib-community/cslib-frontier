@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Complexity.Classes.EXP.Decidable
 import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.Ladner.Stages
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.CourseOfValues
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
@@ -116,7 +117,7 @@ def actStep (T : List ℕ) : ℕ :=
     0 (· + 1)
 
 /-- The table of the actions at the first `n` stages. -/
-def table (n : ℕ) : List ℕ := (fun T => T ++ [actStep T])^[n] []
+def table (n : ℕ) : List ℕ := List.courseOfValues actStep n
 
 /-- The action at stage `n`: `e + 1` if requirement `e` acts, `0` if none does. -/
 def act (n : ℕ) : ℕ := actStep (table n)
@@ -130,17 +131,15 @@ theorem word_mem_language_iff {n : ℕ} : word n ∈ language ↔ act n % 2 = 1 
   rw [mem_language_iff, index_word]
 
 theorem table_succ (n : ℕ) : table (n + 1) = table n ++ [act n] := by
-  rw [table, Function.iterate_succ_apply']
+  rw [table, List.courseOfValues_succ]
   rfl
 
-theorem table_eq (n : ℕ) : table n = (List.range n).map act := by
-  induction n with
-  | zero => rfl
-  | succ n ih => rw [table_succ, List.range_succ, List.map_append, ← ih]; rfl
+theorem table_eq (n : ℕ) : table n = (List.range n).map act :=
+  List.courseOfValues_eq actStep n
 
 @[simp]
-theorem length_table (n : ℕ) : (table n).length = n := by
-  simp [table_eq]
+theorem length_table (n : ℕ) : (table n).length = n :=
+  List.length_courseOfValues actStep n
 
 theorem actStep_le (T : List ℕ) : actStep T ≤ T.length := by
   unfold actStep
@@ -184,16 +183,9 @@ theorem act_eq_succ_iff {n e : ℕ} :
     have he₀ : Eligible k n := eligible_iff.mpr ⟨List.mem_of_find?_eq_some h, hp⟩
     have hmin' : ∀ e' < k, ¬ Eligible e' n := fun e' he' hel => by
       have := hmin e' he'
-      rw [List.getElem_range, (eligible_iff.mp hel).2] at this
-      exact absurd this (by decide)
-    constructor
-    · rintro rfl
-      exact ⟨he₀, hmin'⟩
-    · rintro ⟨he, hmin''⟩
-      rcases lt_trichotomy k e with hlt | rfl | hgt
-      · exact absurd he₀ (hmin'' k hlt)
-      · rfl
-      · exact absurd he (hmin' e hgt)
+      simp [List.getElem_range, (eligible_iff.mp hel).2] at this
+    refine ⟨fun h => h ▸ ⟨he₀, hmin'⟩, fun ⟨he, hmin''⟩ => ?_⟩
+    exact le_antisymm (not_lt.mp (hmin' e · he)) (not_lt.mp (hmin'' k · he₀))
 
 /-- **No requirement acts exactly when none is eligible.** -/
 theorem act_eq_zero_iff {n : ℕ} : act n = 0 ↔ ∀ e, ¬ Eligible e n := by
@@ -223,12 +215,11 @@ theorem exists_act_eq_succ {e : ℕ} (h : ∀ N, ∃ n ≥ N, accepts e n = true
   simp only [not_exists] at hne
   -- the stages where a smaller requirement acts
   have hfin : {n | ∃ e' < e, act n = e' + 1}.Finite := by
-    have : {n | ∃ e' < e, act n = e' + 1} = ⋃ e' ∈ Finset.range e, {n | act n = e' + 1} := by
-      ext n
-      simp
-    rw [this]
-    exact Set.Finite.biUnion (Finset.finite_toSet _) fun e' _ =>
-      Set.Subsingleton.finite fun m hm n hn => eq_of_act_eq_succ hm hn
+    refine ((Finset.finite_toSet (Finset.range e)).biUnion fun e' _ =>
+      Set.Subsingleton.finite (s := {n | act n = e' + 1})
+        fun m hm n hn => eq_of_act_eq_succ hm hn).subset ?_
+    rintro n ⟨e', he', hact⟩
+    exact Set.mem_biUnion (Finset.mem_coe.mpr (Finset.mem_range.mpr he')) hact
   obtain ⟨N₀, hN₀⟩ := hfin.bddAbove
   obtain ⟨n, hn, hacc⟩ := h (N₀ + e + 1)
   have hel : Eligible e n := ⟨by omega, fun m _ => hne m, hacc⟩
@@ -258,19 +249,9 @@ private theorem computableInPolyTime_actStep :
 
 /-- **The tables of actions are polynomial-time** in their length, in unary. -/
 theorem computableInPolyTime_table : ComputableInPolyTime table encUnary (encList encUnary) :=
-  ComputableInPolyTime.iterate (encIn := encUnary) (encState := encList encUnary)
-    (count := fun n => n) (init := fun _ => []) (step := fun T => T ++ [actStep T]) (by fun_prop)
-    (by fun_prop) (by have := computableInPolyTime_actStep; fun_prop)
-    (bound := fun n => n * (2 * n + 1))
-    (.of_forall_le 2 2 fun n => by simp only [encUnary_apply, List.length_replicate]; nlinarith)
-    (fun n i hi => by
-      change (encList encUnary (table i)).length ≤ _
-      calc (encList encUnary (table i)).length ≤ (table i).length * (2 * n + 1) :=
-            length_encList_le encUnary _ fun a ha => by
-              rw [table_eq] at ha
-              obtain ⟨m, hm, rfl⟩ := List.mem_map.mp ha
-              simpa using (act_le m).trans (by have := List.mem_range.mp hm; omega)
-        _ ≤ n * (2 * n + 1) := by rw [length_table]; exact Nat.mul_le_mul_right _ hi)
+  .courseOfValues computableInPolyTime_actStep .id fun n i hi => by
+    have hact : List.courseOfValuesVal actStep i = act i := rfl
+    simpa only [encUnary_apply, List.length_replicate, hact] using (act_le i).trans hi.le
 
 /-- **The actions are polynomial-time** in the stage, in unary. -/
 theorem computableInPolyTime_act : ComputableInPolyTime act encUnary encUnary := by
@@ -327,11 +308,10 @@ theorem exists_act_mem {B : Set (List Bool)} (hB : B ∈ P encBits) (hinf : B.In
     Option.isNone_iff_eq_none.mp hst
   obtain ⟨hhalt', hout'⟩ := hrun (word n)
   have heq : tm.runFrom (tm.initCfg (word n)) n =
-      tm.runFrom (tm.initCfg (word n)) (t (word n).length) := by
-    rcases le_total n (t (word n).length) with hle | hle
-    · exact (MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt).symm
-    · simp only [Cfg.Halted] at hhalt'
-      exact MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt'
+      tm.runFrom (tm.initCfg (word n)) (t (word n).length) :=
+    (le_total n (t (word n).length)).elim
+      (fun hle => (MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt).symm)
+      (fun hle => MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt')
   rw [heq, hout', List.map_singleton, List.singleton_inj] at hout
   exact (hf _).mpr (eBit.injective hout)
 
@@ -341,11 +321,8 @@ theorem isBiImmune_language : IsBiImmune (P encBits) language := by
   intro B hB hinf
   obtain ⟨i, n, hn, hact⟩ := exists_act_mem hB hinf (r := 0) (by omega)
   obtain ⟨i', n', hn', hact'⟩ := exists_act_mem hB hinf (r := 1) (by omega)
-  refine ⟨⟨word n, hn, ?_⟩, ⟨word n', hn', ?_⟩⟩
-  · rw [word_mem_language_iff, hact]
-    omega
-  · rw [word_mem_language_iff, hact']
-    omega
+  exact ⟨⟨word n, hn, by rw [word_mem_language_iff, hact]; omega⟩,
+    ⟨word n', hn', by rw [word_mem_language_iff, hact']; omega⟩⟩
 
 /-- **`E` contains a `P`-bi-immune problem** [Balcázar and Schöning][BalcazarSchoening1985]. -/
 theorem exists_mem_E_isBiImmune_P : ∃ A ∈ E encBits, IsBiImmune (P encBits) A :=

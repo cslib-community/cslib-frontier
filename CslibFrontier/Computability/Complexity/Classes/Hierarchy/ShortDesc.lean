@@ -8,8 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
@@ -18,10 +20,12 @@ import Mathlib.Data.Nat.Size
 /-!
 # Short descriptions
 
-The time and space hierarchy theorems diagonalize only over inputs whose framed description is
+The time hierarchy theorems diagonalize only over inputs whose framed description is
 *short*: `2 ^ |unframe x| ≤ |x|` (`Cslib.Complexity.Diagonal.shortDesc`). Decoding a description
 of `L` bits then takes time polynomial in `L`, of a degree fixed by the decoder, hence `O(2 ^ L)`,
-which is `O(|x|)`. Padded descriptions are short.
+which is `O(|x|)`. Padded descriptions are short. The space hierarchy theorem asks for tiny
+descriptions instead (`CslibFrontier.Computability.Complexity.Classes.Hierarchy.TinyDesc`), so that
+decoding takes logarithmic space.
 
 ## Main definitions
 
@@ -89,7 +93,8 @@ private theorem computableInO_two_pow_le :
       rfl
   have hpos : ComputableInO (fun k : ℕ => [decide (0 < k)]) encUnary encBits (fun v => v)
       fun v => v :=
-    .of_bounds hT.computableInTimeAndSpace 12 (fun n => by rw [hlen]; omega)
+    .of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hT) 12
+      (fun n => by rw [hlen]; omega)
       (fun _ => Nat.zero_le _) fun _ => by simp only [encBits_apply, List.length_singleton]; omega
   have hnil : ComputableInO (fun _ : ℕ => ([] : List Bool)) encUnary encBits (fun v => v)
       fun v => v :=
@@ -103,14 +108,12 @@ private theorem computableInO_two_pow_le :
 framed description are written in unary, and the first is halved once per bit of the second. -/
 theorem computableInO_shortDesc :
     ComputableInO shortDesc encBits encBool (fun x => x.length) fun x => x.length := by
-  have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
-    (ComputableTidilyInO.of_linear (.of_unframe fun _ => rfl)).computableInO
-  have hl := ComputableInO.lengthUnary
-  have h := computableInO_two_pow_le.comp (hl.prod (hl.comp hu))
-  refine h.mono 8 (fun x => ?_) fun x => ?_
+  refine (computableInO_two_pow_le.comp
+    (by fun_prop : ComputableInO (fun x : List Bool => (x.length, (unframe x).length))
+      encBits (encPair encUnary encUnary) _ _)).mono 8 (fun x => ?_) fun x => ?_
   all_goals
     have h₁ := length_unframe_le x
-    simp only [Function.comp_apply] at h₁ ⊢
+    simp only [encBits_apply]
     omega
 
 end Cslib.Complexity.Diagonal

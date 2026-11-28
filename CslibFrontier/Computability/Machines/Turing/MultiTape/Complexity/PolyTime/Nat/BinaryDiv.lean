@@ -38,11 +38,11 @@ have length at most `word.length`, keeping the encoded pair linearly bounded thr
   most-significant-first bit word computes the quotient and remainder of its `binaryValue`.
 * `Turing.MultiTapeTM.BinaryDiv.divMod_eq`: folding over `a.bits.reverse` computes
   `(a / b, a % b)`.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_divMod`: joint quotient and remainder on
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_divMod`: joint quotient and remainder on
   `encNat`.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_div`, `.binary_mod`: binary division and
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_div`, `.binary_mod`: binary division and
   remainder on `encNat`.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_div'`, `.binary_mod'`: composition rules
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_div'`, `.binary_mod'`: composition rules
   for `fun_prop` and `polytime`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_div'`: named composition rule for plain
   certificates.
@@ -55,51 +55,22 @@ have length at most `word.length`, keeping the encoded pair linearly bounded thr
 public section
 
 
-
-namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
-
-/-- Compute both quotient and remainder of binary naturals by shift-and-subtract long division. -/
-theorem binary_divMod : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
-    (encPair encNat encNat) (encPair encNat encNat) :=
-  ComputableInPolyTime.binary_divMod.tidy
-
-/-- Division of binary naturals. -/
-@[fun_prop, program_certificate]
-theorem binary_div : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 / p.2)
-    (encPair encNat encNat) encNat :=
-  binary_divMod.fst'
-
-/-- Remainder of binary naturals. -/
-@[fun_prop, program_certificate]
-theorem binary_mod : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 % p.2)
-    (encPair encNat encNat) encNat :=
-  binary_divMod.snd'
+namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 /-- Divide computed binary values, fixing their intermediate encodings for proof search. -/
 @[fun_prop, program_certificate]
-theorem binary_div' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => left a / right a) input encNat :=
-  binary_div.comp (hleft.prod hright)
-
-/-- Remainder of computed binary values, fixing their intermediate encodings for proof search. -/
-@[fun_prop, program_certificate]
-theorem binary_mod' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => left a % right a) input encNat :=
-  binary_mod.comp (hleft.prod hright)
-
-end Turing.MultiTapeTM.ComputableTidilyInPolyTime
-
-namespace Turing.MultiTapeTM.ComputableInPolyTime
-
-/-- Divide computed binary values using the shared plain certificate. -/
 theorem binary_div' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
     (hleft : ComputableInPolyTime left input encNat)
     (hright : ComputableInPolyTime right input encNat) :
     ComputableInPolyTime (fun a => left a / right a) input encNat :=
   binary_div.comp (hleft.prod hright)
+
+/-- Remainder of computed binary values. Applied explicitly so unary remainder proof search
+does not select the binary encoding. -/
+theorem binary_mod' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
+    (hleft : ComputableInPolyTime left input encNat)
+    (hright : ComputableInPolyTime right input encNat) :
+    ComputableInPolyTime (fun a => left a % right a) input encNat :=
+  binary_mod.comp (hleft.prod hright)
 
 end Turing.MultiTapeTM.ComputableInPolyTime

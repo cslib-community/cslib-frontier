@@ -96,30 +96,24 @@ theorem twoTower_le_twoTower {j k : ℕ} : twoTower j ≤ twoTower k ↔ j ≤ k
   twoTower_strictMono.le_iff_le
 
 private theorem clog_two_lt_self {n : ℕ} (hn : 2 ≤ n) : clog 2 n < n := by
-  have h : clog 2 n ≤ n - 1 := (clog_le_iff_le_pow (by decide)).2 <| by
-    have := Nat.lt_two_pow_self (n := n - 1)
-    omega
+  have : clog 2 n ≤ n - 1 := (clog_le_iff_le_pow (by decide)).2
+    (by have := Nat.lt_two_pow_self (n := n - 1); omega)
   omega
 
 private theorem logStarAux_le_iff :
     ∀ fuel n k, n ≤ fuel → (logStarAux fuel n ≤ k ↔ n ≤ twoTower k)
-  | 0, n, k, hn => by
-    have := twoTower_pos k
-    simp only [logStarAux, Nat.zero_le, true_iff]
-    omega
-  | fuel + 1, n, k, hn => by
-    by_cases h1 : n ≤ 1
-    · simp only [logStarAux, h1, ↓reduceIte, Nat.zero_le, true_iff]
-      exact h1.trans (twoTower_pos k)
-    · simp only [logStarAux, h1, ↓reduceIte]
+  | fuel, n, k, hn => by
+    fun_induction logStarAux fuel n generalizing k with
+    | case1 | case2 =>
+      have := twoTower_pos k
+      omega
+    | case3 fuel n h1 ih =>
       have hlt := clog_two_lt_self (n := n) (by omega)
       cases k with
-      | zero =>
-        simp only [twoTower_zero]
-        omega
+      | zero => simp only [twoTower_zero]; omega
       | succ k =>
-        rw [Nat.add_le_add_iff_right, logStarAux_le_iff fuel (clog 2 n) k (by omega),
-          twoTower_succ, ← clog_le_iff_le_pow (by decide)]
+        rw [Nat.add_le_add_iff_right, ih k (by omega), twoTower_succ,
+          ← clog_le_iff_le_pow (by decide)]
 
 /-- `log* n ≤ k` exactly when `n ≤ 2 ↑↑ k`. -/
 theorem logStar_le_iff {n k : ℕ} : logStar n ≤ k ↔ n ≤ twoTower k :=
@@ -132,8 +126,7 @@ theorem le_twoTower_logStar (n : ℕ) : n ≤ twoTower (logStar n) :=
 theorem twoTower_logStar_pred_lt {n : ℕ} (hn : 1 < n) : twoTower (logStar n - 1) < n := by
   by_contra h
   have := logStar_le_iff.2 (not_lt.1 h)
-  have h0 : logStar n ≠ 0 := by
-    intro h0
+  have h0 : logStar n ≠ 0 := fun h0 => by
     have := le_twoTower_logStar n
     rw [h0, twoTower_zero] at this
     omega
@@ -164,18 +157,14 @@ theorem logStar_of_le_one {n : ℕ} (hn : n ≤ 1) : logStar n = 0 :=
 
 /-- The recursion `log* n = log* ⌈log₂ n⌉ + 1` for `n ≥ 2`. -/
 theorem logStar_of_two_le {n : ℕ} (hn : 2 ≤ n) : logStar n = logStar (clog 2 n) + 1 := by
-  refine le_antisymm (logStar_le_iff.2 ?_) ?_
-  · rw [twoTower_succ, ← clog_le_iff_le_pow (by decide)]
-    exact le_twoTower_logStar _
-  · cases h : logStar n with
-    | zero =>
-      have := le_twoTower_logStar n
-      rw [h, twoTower_zero] at this
-      omega
-    | succ k =>
-      have := le_twoTower_logStar n
-      rw [h, twoTower_succ, ← clog_le_iff_le_pow (by decide)] at this
-      exact Nat.add_le_add_right (logStar_le_iff.2 this) 1
+  refine le_antisymm (logStar_le_iff.2
+    ((clog_le_iff_le_pow (by decide)).1 (le_twoTower_logStar _))) ?_
+  have hle := le_twoTower_logStar n
+  cases h : logStar n with
+  | zero => rw [h, twoTower_zero] at hle; omega
+  | succ k =>
+    rw [h, twoTower_succ, ← clog_le_iff_le_pow (by decide)] at hle
+    exact Nat.add_le_add_right (logStar_le_iff.2 hle) 1
 
 /-- Iterating `c ↦ 2 ^ c` `k` times from `c` stays below the tower of height `k + log* c`. -/
 theorem iterate_two_pow_le_twoTower (k c : ℕ) :
@@ -185,5 +174,19 @@ theorem iterate_two_pow_le_twoTower (k c : ℕ) :
   | succ k ih =>
     rw [Function.iterate_succ_apply', Nat.add_right_comm, twoTower_succ]
     exact Nat.pow_le_pow_right Nat.two_pos ih
+
+/-- Bound `log* x` in terms of three iterations of `⌈log₂ ·⌉`. -/
+theorem logStar_le_triple_clog_add_three (x : ℕ) :
+    logStar x ≤ clog 2 (clog 2 (clog 2 x)) + 3 := by
+  set m := clog 2 (clog 2 (clog 2 x))
+  rw [logStar_le_iff]
+  calc x ≤ 2 ^ (2 ^ (2 ^ m)) :=
+        (le_pow_clog Nat.one_lt_two x).trans (Nat.pow_le_pow_right Nat.two_pos
+          ((le_pow_clog Nat.one_lt_two _).trans (Nat.pow_le_pow_right Nat.two_pos
+            (le_pow_clog Nat.one_lt_two _))))
+    _ ≤ 2 ^ (2 ^ (2 ^ twoTower m)) :=
+        Nat.pow_le_pow_right Nat.two_pos
+          (Nat.pow_le_pow_right Nat.two_pos (Nat.pow_le_pow_right Nat.two_pos (lt_twoTower m).le))
+    _ = twoTower (m + 3) := rfl
 
 end Nat

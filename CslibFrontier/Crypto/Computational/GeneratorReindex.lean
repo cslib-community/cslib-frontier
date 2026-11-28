@@ -90,12 +90,9 @@ theorem parameter_fits {length : ℕ → ℕ} {size : ℕ} (hsize : length 0 ≤
 @[simp]
 theorem parameter_apply_of_strictMono {length : ℕ → ℕ} (hmono : StrictMono length) (n : ℕ) :
     parameter length (length n) = n := by
-  apply le_antisymm
-  · by_contra! hlt
-    have hspec : length (parameter length (length n)) ≤ length n :=
-      parameter_fits (hmono.monotone (Nat.zero_le n))
-    exact (hmono hlt).not_ge hspec
-  · exact Nat.le_findGreatest (hmono.id_le n) le_rfl
+  refine le_antisymm ?_ (Nat.le_findGreatest (hmono.id_le n) le_rfl)
+  by_contra! hlt
+  exact (hmono hlt).not_ge (parameter_fits (hmono.monotone (Nat.zero_le n)))
 
 /-- The next parameter's seed is too large, even when the schedule is not monotone. -/
 theorem lt_length_succ_parameter {length : ℕ → ℕ} (hge : ∀ n, n + 1 ≤ length n) (size : ℕ) :
@@ -103,16 +100,14 @@ theorem lt_length_succ_parameter {length : ℕ → ℕ} (hge : ∀ n, n + 1 ≤ 
   have hle := parameter_le length size
   by_cases hlt : parameter length size < size
   · exact Nat.lt_of_not_ge (Nat.findGreatest_is_greatest (P := fun n => length n ≤ size)
-      (Nat.lt_succ_self (parameter length size)) (by lia : parameter length size + 1 ≤ size))
+      (Nat.lt_succ_self _) (by lia : parameter length size + 1 ≤ size))
   · have := hge (parameter length size + 1)
     lia
 
 /-- Every fixed parameter eventually fits, so the selected parameter tends to infinity. -/
-theorem parameter_tendsto (length : ℕ → ℕ) : Tendsto (parameter length) atTop atTop := by
-  apply tendsto_atTop.2
-  intro n
-  filter_upwards [eventually_ge_atTop (max n (length n))] with size hsize
-  exact Nat.le_findGreatest (by lia : n ≤ size) (by lia : length n ≤ size)
+theorem parameter_tendsto (length : ℕ → ℕ) : Tendsto (parameter length) atTop atTop :=
+  tendsto_atTop.2 fun n => (eventually_ge_atTop (max n (length n))).mono fun _ h =>
+    Nat.le_findGreatest (max_le_iff.mp h).1 (max_le_iff.mp h).2
 
 /-- Search for a family member that fits, then preserve the remaining seed bits as padding. -/
 def generate (length : ℕ → ℕ) (generator : ℕ → List Bool → List Bool)
@@ -176,26 +171,25 @@ theorem indistinguishable {length : ℕ → ℕ} {generator : ℕ → List Bool 
   intro adversary hadversary
   let real : ℕ → ProbComp (List Bool) := fun n => generator n <$> BitString.sampleList (length n)
   let ideal : ℕ → ProbComp (List Bool) := fun n => BitString.sampleList (length n + 1)
-  have hreal : IsPPTOn encUnary encBits real := hlength.sampleList.map_with hgenerator
-  have hideal : IsPPTOn encUnary encBits ideal := (hlength.unary_add' (.const 1)).sampleList
   have hfamily : ComputationallyIndistinguishable
       (fun n => ProbComp.eval (real n)) (fun n => ProbComp.eval (ideal n)) := by
     simpa only [real, ideal, ProbComp.eval_map, BitString.eval_sampleList] using hsecure
   let test := fun n size => GeneratorPadding.test (length n) size (adversary size)
   let eIn := encPair (encPair encUnary encUnary) encBits
-  have hadv' := hadversary.on.preprocess
-    ((ComputableInPolyTime.fst eIn encBits).fst'.snd'.prod (.snd eIn encBits))
   have htest : IsPPTOn eIn encBool (fun a => test a.1.1 a.1.2 a.2) :=
     GeneratorPadding.isPPTOn_test (hlength.comp (ComputableInPolyTime.fst _ _).fst')
-      (ComputableInPolyTime.fst _ _).snd' hadv' (.snd _ encBits)
-  obtain ⟨ε, hε, hbound⟩ := hfamily.uniform_bound hreal hideal
-    (bound := fun n => length (n + 1)) (hlength.comp .unary_succ) test htest
-  have hdecay := hε.comp_of_polynomial_bound (parameter_tendsto length)
-    (hlength.tidy.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
-    (Eventually.of_forall (fun size => (lt_length_succ_parameter hge size).le))
-  apply negligible_of_eventually_le hdecay
+      (ComputableInPolyTime.fst _ _).snd'
+      (hadversary.on.preprocess
+        ((ComputableInPolyTime.fst eIn encBits).fst'.snd'.prod (.snd eIn encBits)))
+      (.snd _ encBits)
+  obtain ⟨ε, hε, hbound⟩ := hfamily.uniform_bound (hlength.sampleList.map_with hgenerator)
+    ((hlength.unary_add' (.const 1)).sampleList) (bound := fun n => length (n + 1))
+    (hlength.comp .unary_succ) test htest
+  refine negligible_of_eventually_le (hε.comp_of_polynomial_bound (parameter_tendsto length)
+    (hlength.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
+    (Eventually.of_forall fun size => (lt_length_succ_parameter hge size).le)) ?_
   filter_upwards [eventually_ge_atTop (length 0)] with size hsize
-  simp only [distinguishingGame, PMF.monad_bind_eq_bind]
+  simp only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind]
   rw [generate_distribution length generator hsize,
     GeneratorPadding.advantage_eq _ _ (parameter_fits hsize) (Nat.lt_succ_self _)]
   simpa only [real, ideal, test, ProbComp.eval_bind, ProbComp.eval_map,
@@ -233,50 +227,45 @@ theorem nonuniformIndistinguishable {length : ℕ → ℕ} {generator : ℕ → 
       (fun n => uniformList (length n + 1))) :
     NonuniformlyIndistinguishable (generatorEnsemble (generate length generator))
       (fun n => uniformList (n + 1)) := by
-  have hlengthPoly : PolynomiallyBounded length := hlength.tidy.polynomiallyBounded
+  have hlengthPoly : PolynomiallyBounded length := hlength.polynomiallyBounded
   intro advice hadvice adversary hadversary
   let test (n size : ℕ) (adv : List Bool) (word : List Bool) : ProbComp Bool :=
     GeneratorPadding.test (length n) size (fun w => adversary ((size, adv), w)) word
   let eIn := encPair (encPair encUnary (encPair encUnary encBits)) encBits
-  have hadv' := hadversary.preprocess
-    ((ComputableInPolyTime.fst eIn encBits).fst'.snd'.prod (.snd eIn encBits))
   have htest : IsPPTOn eIn encBool
       (fun input => test input.1.1 input.1.2.1 input.1.2.2 input.2) :=
     GeneratorPadding.isPPTOn_test (hlength.comp (ComputableInPolyTime.fst _ _).fst')
-      (ComputableInPolyTime.fst _ _).snd'.fst' hadv' (.snd _ encBits)
+      (ComputableInPolyTime.fst _ _).snd'.fst'
+      (hadversary.preprocess
+        ((ComputableInPolyTime.fst eIn encBits).fst'.snd'.prod (.snd eIn encBits)))
+      (.snd _ encBits)
   let advAt (n size : ℕ) : ℝ≥0 :=
     Game.advantage
       (((uniformList (length n)).map (generator n)).bind
         (fun word => ProbComp.eval (test n size (advice size) word)))
       ((uniformList (length n + 1)).bind
         (fun word => ProbComp.eval (test n size (advice size) word)))
-  have hexists (n : ℕ) : ∃ s ≤ length (n + 1), ∀ size ≤ length (n + 1),
-      advAt n size ≤ advAt n s := by
-    obtain ⟨s, hs, hmax⟩ := Finset.exists_max_image (Finset.Iic (length (n + 1))) (advAt n)
-      ⟨0, Finset.mem_Iic.mpr (Nat.zero_le _)⟩
-    exact ⟨s, Finset.mem_Iic.mp hs, fun size hsize => hmax size (Finset.mem_Iic.mpr hsize)⟩
-  obtain ⟨worstSize, hworst⟩ := Classical.axiomOfChoice hexists
-  have hworst_le (n : ℕ) : worstSize n ≤ length (n + 1) := (hworst n).1
-  have hworst_max (n size : ℕ) (hsize : size ≤ length (n + 1)) :
-      advAt n size ≤ advAt n (worstSize n) := (hworst n).2 size hsize
+  choose worstSize hworst_le hworst_max using fun n =>
+    show ∃ s ≤ length (n + 1), ∀ size ≤ length (n + 1), advAt n size ≤ advAt n s by
+      obtain ⟨s, hs, hmax⟩ := Finset.exists_max_image (Finset.Iic (length (n + 1))) (advAt n)
+        ⟨0, Finset.mem_Iic.mpr (Nat.zero_le _)⟩
+      exact ⟨s, Finset.mem_Iic.mp hs, fun size hsize => hmax size (Finset.mem_Iic.mpr hsize)⟩
   have hworstPoly : PolynomiallyBounded worstSize :=
     (hlengthPoly.comp (PolynomiallyBounded.id.add (.const 1))).mono_of_le hworst_le
-  have hadviceWorst : PolynomiallyBounded (fun n => (advice (worstSize n)).length) :=
-    hadvice.comp hworstPoly
   have hadvicePair : PolynomiallyBounded
       (fun n => (encPair encUnary encBits (worstSize n, advice (worstSize n))).length) := by
     simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-    exact (((PolynomiallyBounded.const 2).mul hworstPoly).add (.const 1)).add hadviceWorst
+    exact (((PolynomiallyBounded.const 2).mul hworstPoly).add (.const 1)).add
+      (hadvice.comp hworstPoly)
   have hε : Negligible (fun n => advAt n (worstSize n)) := by
-    simpa only [advAt, distinguishingGame, PMF.monad_bind_eq_bind] using
+    simpa only [advAt, distinguishingGame_eq_bind, PMF.monad_bind_eq_bind] using
       (hsecure (fun n => encPair encUnary encBits (worstSize n, advice (worstSize n)))
         hadvicePair).negligible_encoded htest
-  have hdecay := hε.comp_of_polynomial_bound (parameter_tendsto length)
+  refine negligible_of_eventually_le (hε.comp_of_polynomial_bound (parameter_tendsto length)
     (hlengthPoly.comp (PolynomiallyBounded.id.add (.const 1)))
-    (Eventually.of_forall (fun size => (lt_length_succ_parameter hge size).le))
-  apply negligible_of_eventually_le hdecay
+    (Eventually.of_forall fun size => (lt_length_succ_parameter hge size).le)) ?_
   filter_upwards [eventually_ge_atTop (length 0)] with size hsize
-  simp only [distinguishingGame, PMF.monad_bind_eq_bind]
+  simp only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind]
   rw [generate_distribution length generator hsize,
     GeneratorPadding.advantage_eq _ _ (parameter_fits hsize) (Nat.lt_succ_self _)]
   exact hworst_max (parameter length size) size (lt_length_succ_parameter hge size).le

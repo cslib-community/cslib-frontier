@@ -3,7 +3,15 @@ Copyright (c) 2026 Erik Demaine. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine
 -/
-import CslibFrontier.Logics.Propositional.CNF.Planar.DirectedWire
+
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Logics.Propositional.CNF.Planar.DirectedWire
+
+public section
+
+namespace CslibFrontierTests.DirectedWire
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF Cslib.Logic.PL.CNF.DirectedWire
 
@@ -16,9 +24,9 @@ example : (links false [(0, 0), (1, 1)]).eval (fun n : ℕ => n == 0) = false :=
 -- Aliased endpoints still contribute two literal occurrences to a binary gap clause.
 example : (links true [((), ()), ((), ())]).vars.count () = 2 := by decide
 
-private def unitSource : CNF Unit := [[((), true)]]
-private def contradiction : CNF Unit := [[((), true)], [((), false)]]
-private def testWire (o : Occurrence Unit) : List (ℕ × ℕ) := [(0, 0), (o.1 + 1, o.1 + 1)]
+def unitSource : CNF Unit := [[((), true)]]
+def contradiction : CNF Unit := [[((), true)], [((), false)]]
+def testWire (o : Occurrence Unit) : List (ℕ × ℕ) := [(0, 0), (o.clause + 1, o.clause + 1)]
 
 -- A nonempty compatible wire assembly genuinely has a satisfying assignment.
 example : (assemble unitSource testWire 0).Satisfiable := by
@@ -41,3 +49,5 @@ example : ¬ (assemble contradiction testWire 0).Satisfiable := by
 -- Empty formulas and empty clauses retain their usual meanings.
 example : (assemble ([] : CNF Unit) testWire 0).eval (fun _ => false) = true := by decide
 example : (assemble ([[]] : CNF Unit) testWire 0).eval (fun _ => false) = false := by decide
+
+end CslibFrontierTests.DirectedWire

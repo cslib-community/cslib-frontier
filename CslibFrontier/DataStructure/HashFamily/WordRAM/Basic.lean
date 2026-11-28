@@ -454,6 +454,42 @@ private theorem span_exec_subroutineCode
       Function.update_of_ne hne₁, Function.update_of_ne hne₂, Function.update_of_ne hne₃]
     exact hpar j
 
+private def stateInv (H : Impl B r_core k_init w base U m params)
+    (θ : H.Seed) (x : Data (r_core + 5)) : Prop :=
+  x.Bounded w ∧
+  x.regs (coreReg H.baseReg) = base ∧
+  H.tableRep x.mem ∧
+  H.seedRep θ x.mem
+
+private theorem extend_coreReg_regs {r_core : ℕ} (y : Data r_core) (x : Data (r_core + 5))
+    (i : Fin r_core) : (y.extend coreReg x).regs (coreReg i) = y.regs i := by
+  change ((y.extend coreReg x).comap coreReg).regs i = y.regs i
+  rw [Data.comap_extend coreReg_injective]
+
+private theorem resample_rename_exec
+    (H : Impl B r_core k_init w base U m params)
+    {x : Data (r_core + 5)}
+    (hx : x.Bounded w)
+    (hb : (x.comap coreReg).regs H.baseReg = base)
+    (htab : H.tableRep x.mem) :
+    ∃ ν_core : PMF (LatentState H.Seed r_core),
+      ExecCodeDist w (H.resampleCode.rename coreReg) x
+        ((ν_core.map LatentState.data).map fun d => d.extend coreReg x)
+        (H.resampleSteps : ℝ≥0∞) ∧
+      ν_core.map LatentState.latent = PMF.uniformOfFintype H.Seed ∧
+      ∀ p ∈ ν_core.support,
+        H.stateInv p.latent (p.data.extend coreReg x) ∧
+        Modifies (Block.mk base H.space).footprint x.mem (p.data.extend coreReg x).mem := by
+  obtain ⟨ν_core, he_res, hunif, hsupp⟩ :=
+    H.resample_exec (hx.comap coreReg) hb htab
+  refine ⟨ν_core, he_res.rename coreReg_injective, hunif, fun p hp => ?_⟩
+  obtain ⟨hp_base, hp_tab, hp_seed, hp_mod⟩ := hsupp p hp
+  have hp_bdd : p.data.Bounded w :=
+    he_res.bounded (hx.comap coreReg) p.data
+      ((PMF.mem_support_map_iff _ _ _).mpr ⟨p, hp, rfl⟩)
+  exact ⟨⟨hp_bdd.extend coreReg_injective hx,
+    (extend_coreReg_regs p.data x H.baseReg).trans hp_base, hp_tab, hp_seed⟩, hp_mod⟩
+
 private theorem setup_exec_subroutineCode
     (H : Impl B r_core k_init w base U m params)
     {x₁ : Data (r_core + 5)}
@@ -472,214 +508,162 @@ private theorem setup_exec_subroutineCode
         Modifies (Block.mk base H.space).footprint x₁.mem t.data.mem := by
   obtain ⟨y_tab, he_tab, hy_base, hy_tab, hy_mod⟩ :=
     H.initTable_exec (hx₁.comap coreReg) hb hpar hz
-  have hy_bdd : y_tab.Bounded w := he_tab.bounded (hx₁.comap coreReg)
   let x₂ : Data (r_core + 5) := y_tab.extend coreReg x₁
-  have hx₂_bdd : x₂.Bounded w := hy_bdd.extend coreReg_injective hx₁
+  have hx₂_bdd : x₂.Bounded w :=
+    (he_tab.bounded (hx₁.comap coreReg)).extend coreReg_injective hx₁
   have he_tab_ren : ExecCodeDist w (H.initTableCode.rename coreReg) x₁ (PMF.pure x₂)
       (H.initTableSteps : ℝ≥0∞) := by
     simpa [x₂] using (ExecCodeDist.of_execWithin he_tab).rename coreReg_injective
-  have hx₂_comap : x₂.comap coreReg = y_tab :=
-    Data.comap_extend coreReg_injective y_tab x₁
-  obtain ⟨ν_core, he_res, hunif, hsupp_res⟩ :=
-    H.resample_exec (x := x₂.comap coreReg)
-      (hx₂_bdd.comap coreReg)
-      (by rw [hx₂_comap]; exact hy_base)
-      (by rw [hx₂_comap]; exact hy_tab)
-  have he_res_ren := he_res.rename coreReg_injective
-  let lift0 : LatentState H.Seed r_core → LatentState H.Seed (r_core + 5) :=
-    fun p => ⟨p.latent, p.data.extend coreReg x₂⟩
-  let ν₀ : PMF (LatentState H.Seed (r_core + 5)) := ν_core.map lift0
+  have hx₂_base : (x₂.comap coreReg).regs H.baseReg = base := by
+    simpa only [x₂, Data.comap_extend coreReg_injective] using hy_base
+  obtain ⟨ν_core, he_res_ren, hunif, hsupp_res⟩ :=
+    H.resample_rename_exec hx₂_bdd hx₂_base hy_tab
+  let ν₀ : PMF (LatentState H.Seed (r_core + 5)) :=
+    ν_core.map fun p => ⟨p.latent, p.data.extend coreReg x₂⟩
   have he_res_ν₀ : ExecCodeDist w (H.resampleCode.rename coreReg) x₂
-      (ν₀.map LatentState.data) (H.resampleSteps : ℝ≥0∞) := by
-    refine he_res_ren.congr_dist ?_ le_rfl
-    dsimp only [ν₀, lift0]
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
-  refine ⟨ν₀, ?_, ⟨?_, ?_⟩, ?_⟩
+      (ν₀.map LatentState.data) (H.resampleSteps : ℝ≥0∞) :=
+    he_res_ren.congr_dist (by simp only [ν₀, PMF.map_comp]; rfl) le_rfl
+  refine ⟨ν₀, ?_, ⟨by rw [PMF.map_comp]; exact hunif, ?_⟩, ?_⟩
   · simpa only [subroutineCode, Nat.cast_add] using he_tab_ren.seq_pure he_res_ν₀
-  · dsimp only [ν₀, lift0]
-    rw [PMF.map_comp]
-    exact hunif
   · intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨p, hp, rfl⟩ := ht
-    obtain ⟨hp_base, hp_tab, hp_seed, _⟩ := hsupp_res p hp
-    have hp_bdd : p.data.Bounded w :=
-      he_res.bounded (hx₂_bdd.comap coreReg) p.data
-        ((PMF.mem_support_map_iff _ _ _).mpr ⟨p, hp, rfl⟩)
-    have hreg : (p.data.extend coreReg x₂).regs (coreReg H.baseReg) = base := by
-      change ((p.data.extend coreReg x₂).comap coreReg).regs H.baseReg = base
-      rw [Data.comap_extend coreReg_injective]
-      exact hp_base
-    exact ⟨hp_bdd.extend coreReg_injective hx₂_bdd, hreg, hp_tab, hp_seed⟩
+    obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    exact (hsupp_res p hp).1
   · intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨p, hp, rfl⟩ := ht
-    obtain ⟨_, _, _, hp_mod⟩ := hsupp_res p hp
-    have hp_bdd : p.data.Bounded w :=
-      he_res.bounded (hx₂_bdd.comap coreReg) p.data
-        ((PMF.mem_support_map_iff _ _ _).mpr ⟨p, hp, rfl⟩)
-    have hfr_t : (p.data.extend coreReg x₂).regs (frontierReg r_core) = base + H.space := by
-      rw [Data.extend_regs_of_notMem _ _ frontierReg_notMem_range_coreReg,
+    obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    obtain ⟨hinv, hp_mod⟩ := hsupp_res p hp
+    refine ⟨hinv.1, ?_, ?_⟩
+    · simp only [subroutineCode, x₂,
         Data.extend_regs_of_notMem _ _ frontierReg_notMem_range_coreReg]
       exact hfr
-    have hmod_t : Modifies (Block.mk base H.space).footprint x₁.mem p.data.mem := by
-      simpa only [Data.comap, Finset.union_idempotent] using hy_mod.trans hp_mod
-    exact ⟨hp_bdd.extend coreReg_injective hx₂_bdd, hfr_t, hmod_t⟩
+    · simpa only [Data.comap, Finset.union_idempotent] using hy_mod.trans hp_mod
 
-private theorem step_resample_subroutineCode
+private theorem prep_zero_subroutineCode
     (H : Impl B r_core k_init w base U m params)
-    (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5))
-    (hbdd : t.data.Bounded w)
-    (hb : t.data.regs (coreReg H.baseReg) = base)
-    (htab : H.tableRep t.data.mem) :
-    ∃ μ_t : PMF (StepOutcome H.Seed PUnit (r_core + 5)),
-      ExecCodeDist w H.subroutineCode.code
-        ((H.subroutineCode.toDynamicProgram H.encode H.decode).prepare .resample t.data)
-        (μ_t.map StepOutcome.data) ((H.charge .resample : ℕ) : ℝ≥0∞) ∧
-      μ_t.map StepOutcome.latent = PMF.uniformOfFintype H.Seed ∧
-      ∀ q ∈ μ_t.support,
-        q.data.Bounded w ∧
-        H.decode .resample q.data.regs = some q.result ∧
-        Modifies (Block.mk base H.space).footprint t.data.mem q.data.mem ∧
-        q.data.regs (coreReg H.baseReg) = base ∧
-        H.tableRep q.data.mem ∧
-        H.seedRep q.latent q.data.mem := by
-  let x_prep := (H.subroutineCode.toDynamicProgram H.encode H.decode).prepare .resample t.data
+    (o : HashFamily.Op U) {x : Data (r_core + 5)}
+    (hx : x.Bounded w) (hb : x.regs (coreReg H.baseReg) = base) :
+    let x_prep := H.subroutineCode.prepare H.encode o x
+    let x_z := x_prep.set (zeroReg r_core) 0
+    ExecCodeDist (B := B) w (.op (.const (zeroReg r_core) 0)) x_prep (PMF.pure x_z) 1 ∧
+    x_z.Bounded w ∧
+    (x_z.comap coreReg).regs H.baseReg = base ∧
+    (∀ i : Fin r_core, (x_z.comap coreReg).regs i =
+      if i = H.keyReg then H.encode o (coreReg i) else x.regs (coreReg i)) ∧
+    ((Cond.eq (opReg r_core) (zeroReg r_core)).Holds x_z ↔ o = .resample) := by
+  intro x_prep x_z
   have hx_prep : x_prep.Bounded w :=
-    (H.subroutineCode.toDynamicProgram H.encode H.decode).prepare_bounded hbdd
-      (H.arguments_fit .resample)
-  let x_z := x_prep.set (zeroReg r_core) 0
+    H.subroutineCode.prepare_bounded H.encode hx (H.arguments_fit o)
   have he_z : ExecCodeDist (B := B) w (.op (.const (zeroReg r_core) 0))
       x_prep (PMF.pure x_z) 1 := by
     simpa [x_z] using ExecCodeDist.of_exec (Exec.const (by fits))
   have hx_z : x_z.Bounded w := he_z.bounded hx_prep x_z (by simp)
-  have hc_pos : (Cond.eq (opReg r_core) (zeroReg r_core)).Holds x_z := by
+  have hcore (i : Fin r_core) :
+      (x_z.comap coreReg).regs i =
+        if i = H.keyReg then H.encode o (coreReg i) else x.regs (coreReg i) := by
+    have hne_z : coreReg i ≠ zeroReg r_core :=
+      coreReg_ne_of_val_ge i (by simp [zeroReg])
+    have hne_op : coreReg i ≠ opReg r_core :=
+      coreReg_ne_of_val_ge i (by simp [opReg])
+    simp [x_z, x_prep, Data.comap, Data.set, Function.update_of_ne hne_z,
+      SubroutineCode.prepare, subroutineCode, hne_op, coreReg_injective.eq_iff]
+  have hbase : (x_z.comap coreReg).regs H.baseReg = base := by
+    rw [hcore H.baseReg]
+    simp [H.key_ne_base.symm, hb]
+  have hcond : (Cond.eq (opReg r_core) (zeroReg r_core)).Holds x_z ↔ o = .resample := by
     have hne : opReg r_core ≠ zeroReg r_core := by
       simp [opReg, zeroReg, Fin.ext_iff]
-    simp [Cond.Holds, x_z, x_prep, SubroutineCode.toDynamicProgram, DynamicProgram.prepare,
-      subroutineCode, encode, Data.set, Function.update_of_ne hne]
-  have hxz_base : (x_z.comap coreReg).regs H.baseReg = base := by
-    have hne_z : coreReg H.baseReg ≠ zeroReg r_core :=
-      coreReg_ne_of_val_ge H.baseReg (by simp [zeroReg])
-    have hne_op : coreReg H.baseReg ≠ opReg r_core :=
-      coreReg_ne_of_val_ge H.baseReg (by simp [opReg])
-    have hne_key : coreReg H.baseReg ≠ coreReg H.keyReg :=
-      fun h => H.key_ne_base (coreReg_injective h.symm)
-    simp [x_z, x_prep, Data.comap, Data.set, Function.update_of_ne hne_z,
-      SubroutineCode.toDynamicProgram, DynamicProgram.prepare, subroutineCode,
-      hne_op, hne_key, hb]
-  have hxz_mem : (x_z.comap coreReg).mem = t.data.mem := rfl
-  obtain ⟨ν_core, he_res, hunif, hsupp⟩ :=
-    H.resample_exec (hx_z.comap coreReg) hxz_base (by rw [hxz_mem]; exact htab)
-  have he_res_ren := he_res.rename coreReg_injective
-  let liftStep : LatentState H.Seed r_core → StepOutcome H.Seed PUnit (r_core + 5) :=
-    fun p => ⟨p.latent, p.data.extend coreReg x_z, PUnit.unit⟩
-  let μ_t : PMF (StepOutcome H.Seed PUnit (r_core + 5)) := ν_core.map liftStep
-  have he_branch : ExecCodeDist w
-      (.branch (.eq (opReg r_core) (zeroReg r_core))
-        (H.resampleCode.rename coreReg)
-        (H.evalCode.rename coreReg))
-      x_z (μ_t.map StepOutcome.data) ((H.resampleSteps : ℝ≥0∞) + 1) := by
-    refine (ExecCodeDist.branch_pos hc_pos he_res_ren).congr_dist ?_ le_rfl
-    dsimp only [μ_t, liftStep]
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
-  refine ⟨μ_t, ?_, ?_, ?_⟩
-  · have hseq := he_z.seq_pure he_branch
-    refine hseq.congr_dist rfl (le_of_eq ?_)
-    simp only [charge, Nat.cast_add, Nat.cast_ofNat]
-    ring
-  · dsimp only [μ_t, liftStep]
-    rw [PMF.map_comp]
-    exact hunif
-  · intro q hq
-    rw [PMF.mem_support_map_iff] at hq
-    obtain ⟨p, hp, rfl⟩ := hq
-    obtain ⟨hp_base, hp_tab, hp_seed, hp_mod⟩ := hsupp p hp
-    have hp_bdd : p.data.Bounded w :=
-      he_res.bounded (hx_z.comap coreReg) p.data
-        ((PMF.mem_support_map_iff _ _ _).mpr ⟨p, hp, rfl⟩)
-    have hreg : (p.data.extend coreReg x_z).regs (coreReg H.baseReg) = base := by
-      change ((p.data.extend coreReg x_z).comap coreReg).regs H.baseReg = base
-      rw [Data.comap_extend coreReg_injective]
-      exact hp_base
-    exact ⟨hp_bdd.extend coreReg_injective hx_z, rfl, hp_mod, hreg, hp_tab, hp_seed⟩
+    cases o <;>
+      simp [Cond.Holds, x_z, x_prep, SubroutineCode.prepare, subroutineCode, encode,
+        Data.set, Function.update_of_ne hne]
+  exact ⟨he_z, hx_z, hbase, hcore, hcond⟩
 
-private theorem step_eval_subroutineCode
-    (H : Impl B r_core k_init w base U m params) (u : Fin U)
+private theorem step_subroutineCode
+    (H : Impl B r_core k_init w base U m params) (o : HashFamily.Op U)
     (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5))
-    (hbdd : t.data.Bounded w)
-    (hb : t.data.regs (coreReg H.baseReg) = base)
-    (htab : H.tableRep t.data.mem)
-    (hseed : H.seedRep t.latent t.data.mem) :
-    ∃ y_ext : Data (r_core + 5),
+    (ht : H.stateInv t.latent t.data) :
+    ∃ μ_t : PMF (StepOutcome H.Seed (HashFamily.Result m o) (r_core + 5)),
       ExecCodeDist w H.subroutineCode.code
-        ((H.subroutineCode.toDynamicProgram H.encode H.decode).prepare (.eval u) t.data)
-        (PMF.pure y_ext) ((H.charge (.eval u) : ℕ) : ℝ≥0∞) ∧
-      y_ext.Bounded w ∧
-      H.decode (.eval u) y_ext.regs = some (H.eval t.latent u) ∧
-      y_ext.mem = t.data.mem ∧
-      y_ext.regs (coreReg H.baseReg) = base := by
-  let x_prep := (H.subroutineCode.toDynamicProgram H.encode H.decode).prepare (.eval u) t.data
-  have hx_prep : x_prep.Bounded w :=
-    (H.subroutineCode.toDynamicProgram H.encode H.decode).prepare_bounded hbdd
-      (H.arguments_fit (.eval u))
-  let x_z := x_prep.set (zeroReg r_core) 0
-  have he_z : ExecCodeDist (B := B) w (.op (.const (zeroReg r_core) 0))
-      x_prep (PMF.pure x_z) 1 := by
-    simpa [x_z] using ExecCodeDist.of_exec (Exec.const (by fits))
-  have hx_z : x_z.Bounded w := he_z.bounded hx_prep x_z (by simp)
-  have hc_neg : ¬(Cond.eq (opReg r_core) (zeroReg r_core)).Holds x_z := by
-    have hne : opReg r_core ≠ zeroReg r_core := by
-      simp [opReg, zeroReg, Fin.ext_iff]
-    simp [Cond.Holds, x_z, x_prep, SubroutineCode.toDynamicProgram, DynamicProgram.prepare,
-      subroutineCode, encode, Data.set, Function.update_of_ne hne]
-  have hxz_base : (x_z.comap coreReg).regs H.baseReg = base := by
-    have hne_z : coreReg H.baseReg ≠ zeroReg r_core :=
-      coreReg_ne_of_val_ge H.baseReg (by simp [zeroReg])
-    have hne_op : coreReg H.baseReg ≠ opReg r_core :=
-      coreReg_ne_of_val_ge H.baseReg (by simp [opReg])
-    have hne_key : coreReg H.baseReg ≠ coreReg H.keyReg :=
-      fun h => H.key_ne_base (coreReg_injective h.symm)
-    simp [x_z, x_prep, Data.comap, Data.set, Function.update_of_ne hne_z,
-      SubroutineCode.toDynamicProgram, DynamicProgram.prepare, subroutineCode,
-      hne_op, hne_key, hb]
-  have hxz_key : (x_z.comap coreReg).regs H.keyReg = u.val := by
-    have hne_z : coreReg H.keyReg ≠ zeroReg r_core :=
-      coreReg_ne_of_val_ge H.keyReg (by simp [zeroReg])
-    have hne_op : coreReg H.keyReg ≠ opReg r_core :=
-      coreReg_ne_of_val_ge H.keyReg (by simp [opReg])
-    simp [x_z, x_prep, Data.comap, Data.set, Function.update_of_ne hne_z,
-      SubroutineCode.toDynamicProgram, DynamicProgram.prepare, subroutineCode,
-      encode, hne_op]
-  obtain ⟨y_core, he_eval, hy_mem, hy_base, hy_out⟩ :=
-    H.eval_exec t.latent u (hx_z.comap coreReg) hxz_base hxz_key htab hseed
-  have hy_bdd : y_core.Bounded w := he_eval.bounded (hx_z.comap coreReg)
-  let y_ext : Data (r_core + 5) := y_core.extend coreReg x_z
-  have hy_ext_bdd : y_ext.Bounded w := hy_bdd.extend coreReg_injective hx_z
-  have he_eval_ren : ExecCodeDist w (H.evalCode.rename coreReg) x_z
-      (PMF.pure y_ext) (H.evalSteps : ℝ≥0∞) := by
-    simpa [y_ext] using (ExecCodeDist.of_execWithin he_eval).rename coreReg_injective
-  have he_branch : ExecCodeDist w
-      (.branch (.eq (opReg r_core) (zeroReg r_core))
-        (H.resampleCode.rename coreReg)
-        (H.evalCode.rename coreReg))
-      x_z (PMF.pure y_ext) ((H.evalSteps : ℝ≥0∞) + 2) :=
-    ExecCodeDist.branch_neg hc_neg he_eval_ren
-  have hy_out_ext : y_ext.regs (coreReg H.outReg) = (H.eval t.latent u).val := by
-    change (y_ext.comap coreReg).regs H.outReg = (H.eval t.latent u).val
-    rw [Data.comap_extend coreReg_injective]
-    exact hy_out
-  have hy_base_ext : y_ext.regs (coreReg H.baseReg) = base := by
-    change (y_ext.comap coreReg).regs H.baseReg = base
-    rw [Data.comap_extend coreReg_injective]
-    exact hy_base
-  refine ⟨y_ext, ?_, hy_ext_bdd, ?_, hy_mem, hy_base_ext⟩
-  · refine (he_z.seq_pure he_branch).congr_dist rfl (le_of_eq ?_)
-    simp only [charge, Nat.cast_add, Nat.cast_ofNat]
-    ring
-  · simp [decode, hy_out_ext, (H.eval t.latent u).isLt]
+        (H.subroutineCode.prepare H.encode o t.data)
+        (μ_t.map StepOutcome.data) ((H.charge o : ℕ) : ℝ≥0∞) ∧
+      (∀ os : List (HashFamily.Op U),
+        ((μ_t.map (t.appendStep o)).bind fun q_seq =>
+          (HashFamily.evalOpsFromSeed (PMF.uniformOfFintype H.Seed) H.eval q_seq.latent os).map
+            (q_seq.transcript ++ ·)) =
+        (HashFamily.evalOpsFromSeed (PMF.uniformOfFintype H.Seed) H.eval t.latent (o :: os)).map
+          (t.transcript ++ ·)) ∧
+      ∀ q ∈ μ_t.support,
+        H.stateInv q.latent q.data ∧
+        H.decode o q.data.regs = some q.result ∧
+        Modifies (Block.mk base H.space).footprint t.data.mem q.data.mem := by
+  obtain ⟨hbdd, hb, htab, hseed⟩ := ht
+  let x_z := (H.subroutineCode.prepare H.encode o t.data).set (zeroReg r_core) 0
+  obtain ⟨he_z, hx_z, hxz_base, hcore, hcond⟩ := H.prep_zero_subroutineCode o hbdd hb
+  cases o with
+  | resample =>
+    have hc_pos : (Cond.eq (opReg r_core) (zeroReg r_core)).Holds x_z := hcond.mpr rfl
+    obtain ⟨ν_core, he_res_ren, hunif, hsupp_res⟩ :=
+      H.resample_rename_exec hx_z hxz_base htab
+    let μ_t : PMF (StepOutcome H.Seed PUnit (r_core + 5)) :=
+      ν_core.map fun p => ⟨p.latent, p.data.extend coreReg x_z, PUnit.unit⟩
+    have he_branch : ExecCodeDist w
+        (.branch (.eq (opReg r_core) (zeroReg r_core))
+          (H.resampleCode.rename coreReg) (H.evalCode.rename coreReg))
+        x_z (μ_t.map StepOutcome.data) ((H.resampleSteps : ℝ≥0∞) + 1) :=
+      (ExecCodeDist.branch_pos hc_pos he_res_ren).congr_dist
+        (by simp only [μ_t, PMF.map_comp]; rfl) le_rfl
+    have hunif_t : μ_t.map StepOutcome.latent = PMF.uniformOfFintype H.Seed :=
+      (PMF.map_comp _ _ _).trans hunif
+    refine ⟨μ_t, ?_, fun os => ?_, fun q hq => ?_⟩
+    · refine (he_z.seq_pure he_branch).congr_dist rfl (le_of_eq ?_)
+      simp only [charge, Nat.cast_add, Nat.cast_ofNat]
+      ring
+    · rw [PMF.bind_map μ_t, HashFamily.evalOpsFromSeed, PMF.map_bind, ← hunif_t,
+        PMF.bind_map μ_t]
+      refine congrArg (μ_t.bind ·) (funext fun q => ?_)
+      rcases q with ⟨θ', x_q, ⟨⟩⟩
+      dsimp only [Function.comp_apply, StepOutcome.latent, SeqOutcome.appendStep]
+      rw [hunif_t, PMF.map_comp]
+      refine congrArg (PMF.map · _) (funext fun suf => ?_)
+      simp
+    · obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hq
+      obtain ⟨hinv, hp_mod⟩ := hsupp_res p hp
+      exact ⟨hinv, rfl, hp_mod⟩
+  | eval u =>
+    have hc_neg : ¬(Cond.eq (opReg r_core) (zeroReg r_core)).Holds x_z :=
+      fun h => nomatch hcond.mp h
+    have hxz_key : (x_z.comap coreReg).regs H.keyReg = u.val := by
+      have hne_op : coreReg H.keyReg ≠ opReg r_core :=
+        coreReg_ne_of_val_ge H.keyReg (by simp [opReg])
+      have hk := hcore H.keyReg
+      change (x_z.comap coreReg).regs H.keyReg = _ at hk
+      rw [hk]
+      simp [encode, hne_op]
+    obtain ⟨y_core, he_eval, hy_mem, hy_base, hy_out⟩ :=
+      H.eval_exec t.latent u (hx_z.comap coreReg) hxz_base hxz_key htab hseed
+    let y_ext : Data (r_core + 5) := y_core.extend coreReg x_z
+    have hy_ext_bdd : y_ext.Bounded w :=
+      (he_eval.bounded (hx_z.comap coreReg)).extend coreReg_injective hx_z
+    have he_eval_ren : ExecCodeDist w (H.evalCode.rename coreReg) x_z
+        (PMF.pure y_ext) (H.evalSteps : ℝ≥0∞) := by
+      simpa [y_ext] using (ExecCodeDist.of_execWithin he_eval).rename coreReg_injective
+    have he_branch := ExecCodeDist.branch_neg (pos := H.resampleCode.rename coreReg)
+      hc_neg he_eval_ren
+    have hy_out_ext : y_ext.regs (coreReg H.outReg) = (H.eval t.latent u).val :=
+      (extend_coreReg_regs y_core x_z H.outReg).trans hy_out
+    have hy_base_ext : y_ext.regs (coreReg H.baseReg) = base :=
+      (extend_coreReg_regs y_core x_z H.baseReg).trans hy_base
+    refine ⟨PMF.pure ⟨t.latent, y_ext, H.eval t.latent u⟩, ?_, fun os => ?_, fun q hq => ?_⟩
+    · refine (he_z.seq_pure he_branch).congr_dist (by simp) (le_of_eq ?_)
+      simp only [charge, Nat.cast_add, Nat.cast_ofNat]
+      ring
+    · rw [PMF.pure_map, PMF.pure_bind, HashFamily.evalOpsFromSeed, PMF.map_comp]
+      refine congrArg (PMF.map · _) (funext fun suf => ?_)
+      simp [SeqOutcome.appendStep]
+    · rw [PMF.support_pure, Set.mem_singleton_iff] at hq
+      subst hq
+      have hy_ext_mem : y_ext.mem = t.data.mem := hy_mem
+      refine ⟨⟨hy_ext_bdd, hy_base_ext, hy_ext_mem ▸ htab, hy_ext_mem ▸ hseed⟩, ?_, ?_⟩
+      · simp [decode, hy_out_ext, (H.eval t.latent u).isLt]
+      · exact hy_ext_mem ▸ Modifies.refl _ _
 
 private theorem steps_subroutineCode
     (H : Impl B r_core k_init w base U m params)
@@ -687,11 +671,7 @@ private theorem steps_subroutineCode
     (Contract : List (HashFamily.Op U) → PMF (List (HashFamily.Label U m)) → Prop)
     (remOps : List (HashFamily.Op U))
     (ν : PMF (SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)))
-    (hsupp : ∀ t ∈ ν.support,
-      t.data.Bounded w ∧
-      t.data.regs (coreReg H.baseReg) = base ∧
-      H.tableRep t.data.mem ∧
-      H.seedRep t.latent t.data.mem) :
+    (hsupp : ∀ t ∈ ν.support, H.stateInv t.latent t.data) :
     let S : DataStructure.ObliviousSequenceSpec :=
       ⟨HashFamily.Op U, @HashFamily.Result U m, ValidOpSeq, Contract⟩
     ∃ (ν_final : PMF (SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)))
@@ -710,159 +690,53 @@ private theorem steps_subroutineCode
     ext tr
     simp [HashFamily.evalOpsFromSeed]
   | cons o os ih =>
-    cases o with
-    | resample =>
-      classical
-      let hasInv (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)) : Prop :=
-        t.data.Bounded w ∧ t.data.regs (coreReg H.baseReg) = base ∧ H.tableRep t.data.mem
-      let θ₀ : H.Seed := Classical.arbitrary H.Seed
-      let μ_step (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)) :
-          PMF (StepOutcome H.Seed PUnit (r_core + 5)) :=
-        if ht : hasInv t then
-          Classical.choose (H.step_resample_subroutineCode t ht.1 ht.2.1 ht.2.2)
-        else
-          PMF.pure ⟨θ₀, t.data, PUnit.unit⟩
-      let T_step : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5) → ℝ≥0∞ :=
-        fun _ => ((H.charge .resample : ℕ) : ℝ≥0∞)
-      let ν₁ := ν.bind fun t => (μ_step t).map (t.appendStep .resample)
-      have hsupp₁ : ∀ q_seq ∈ ν₁.support,
-          q_seq.data.Bounded w ∧
-          q_seq.data.regs (coreReg H.baseReg) = base ∧
-          H.tableRep q_seq.data.mem ∧
-          H.seedRep q_seq.latent q_seq.data.mem := by
-        intro q_seq hq_seq
-        rw [PMF.mem_support_bind_iff] at hq_seq
-        obtain ⟨t, ht, hq_map⟩ := hq_seq
-        rw [PMF.mem_support_map_iff] at hq_map
-        obtain ⟨q, hq, rfl⟩ := hq_map
-        have ht_inv : hasInv t := ⟨(hsupp t ht).1, (hsupp t ht).2.1, (hsupp t ht).2.2.1⟩
-        have hμ_eq : μ_step t =
-            Classical.choose (H.step_resample_subroutineCode t ht_inv.1 ht_inv.2.1 ht_inv.2.2) := by
-          simp [μ_step, ht_inv]
-        rw [hμ_eq] at hq
-        have hspec := (Classical.choose_spec
-          (H.step_resample_subroutineCode t ht_inv.1 ht_inv.2.1 ht_inv.2.2)).2.2 q hq
-        exact ⟨hspec.1, hspec.2.2.2.1, hspec.2.2.2.2.1, hspec.2.2.2.2.2⟩
-      obtain ⟨ν_final, T_rest, hex_rest, htr_rest, hcost_rest⟩ := ih ν₁ hsupp₁
-      have hex_cons : ExecSteps H.subroutineCode S H.Seed w base H.space
-          H.encode H.decode (.resample :: os) ν ν_final
-          ((∑' t, ν t * T_step t) + T_rest) := by
-        refine ExecSteps.cons (S := S) (μ_step := μ_step) (T_step := T_step)
-          (fun t ht => ?_) hex_rest
-        have ht_inv : hasInv t := ⟨(hsupp t ht).1, (hsupp t ht).2.1, (hsupp t ht).2.2.1⟩
-        have hμ_eq : μ_step t =
-            Classical.choose (H.step_resample_subroutineCode t ht_inv.1 ht_inv.2.1 ht_inv.2.2) := by
-          simp [μ_step, ht_inv]
-        have hspec := Classical.choose_spec
-          (H.step_resample_subroutineCode t ht_inv.1 ht_inv.2.1 ht_inv.2.2)
-        rw [hμ_eq]
-        exact ⟨ht_inv.1, H.arguments_fit .resample,
-          (H.subroutineCode.toDynamicProgram H.encode H.decode).prepare_bounded ht_inv.1
-            (H.arguments_fit .resample),
-          hspec.1,
-          fun q hq => ⟨(hspec.2.2 q hq).1, (hspec.2.2 q hq).2.1, (hspec.2.2 q hq).2.2.1⟩⟩
-      have hT₁ : (∑' t, ν t * T_step t) = ((H.charge .resample : ℕ) : ℝ≥0∞) := by
-        dsimp only [T_step]
-        rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
-      refine ⟨ν_final, (∑' t, ν t * T_step t) + T_rest, hex_cons, ?_, ?_⟩
-      · rw [htr_rest]
-        dsimp only [ν₁]
-        rw [PMF.bind_bind]
-        refine PMF.bind_congr_on_support _ _ _ fun t ht => ?_
-        have ht_inv : hasInv t := ⟨(hsupp t ht).1, (hsupp t ht).2.1, (hsupp t ht).2.2.1⟩
-        have hμ_eq : μ_step t =
-            Classical.choose (H.step_resample_subroutineCode t ht_inv.1 ht_inv.2.1 ht_inv.2.2) := by
-          simp [μ_step, ht_inv]
-        have hunif_t : (μ_step t).map StepOutcome.latent = PMF.uniformOfFintype H.Seed := by
-          rw [hμ_eq]
-          exact (Classical.choose_spec
-            (H.step_resample_subroutineCode t ht_inv.1 ht_inv.2.1 ht_inv.2.2)).2.1
-        rw [PMF.bind_map, HashFamily.evalOpsFromSeed, PMF.map_bind, ← hunif_t, PMF.bind_map]
-        refine congrArg ((μ_step t).bind ·) (funext fun q => ?_)
-        rcases q with ⟨θ', x_q, ⟨⟩⟩
-        dsimp only [Function.comp_apply, StepOutcome.latent]
-        rw [PMF.map_comp]
-        refine congrArg (PMF.map · _) (funext fun suf => ?_)
-        simp [SeqOutcome.appendStep]
-      · simp only [List.map_cons, List.sum_cons, Nat.cast_add, hT₁]
-        exact add_le_add le_rfl hcost_rest
-    | eval u =>
-      classical
-      let hasInv (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)) : Prop :=
-        t.data.Bounded w ∧
-        t.data.regs (coreReg H.baseReg) = base ∧
-        H.tableRep t.data.mem ∧
-        H.seedRep t.latent t.data.mem
-      let yOf (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)) :
-          Data (r_core + 5) :=
-        if ht : hasInv t then
-          Classical.choose (H.step_eval_subroutineCode u t ht.1 ht.2.1 ht.2.2.1 ht.2.2.2)
-        else
-          t.data
-      let μ_step (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)) :
-          PMF (StepOutcome H.Seed (Fin m) (r_core + 5)) :=
-        PMF.pure ⟨t.latent, yOf t, H.eval t.latent u⟩
-      let T_step : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5) → ℝ≥0∞ :=
-        fun _ => ((H.charge (.eval u) : ℕ) : ℝ≥0∞)
-      let ν₁ := ν.bind fun t => (μ_step t).map (t.appendStep (.eval u))
-      have hsupp₁ : ∀ q_seq ∈ ν₁.support,
-          q_seq.data.Bounded w ∧
-          q_seq.data.regs (coreReg H.baseReg) = base ∧
-          H.tableRep q_seq.data.mem ∧
-          H.seedRep q_seq.latent q_seq.data.mem := by
-        intro q_seq hq_seq
-        rw [PMF.mem_support_bind_iff] at hq_seq
-        obtain ⟨t, ht, hq_map⟩ := hq_seq
-        rw [PMF.mem_support_map_iff] at hq_map
-        obtain ⟨q, hq, rfl⟩ := hq_map
-        dsimp only [μ_step] at hq
-        rw [PMF.support_pure, Set.mem_singleton_iff] at hq
-        subst hq
-        have ht_inv : hasInv t := hsupp t ht
-        have hy_eq : yOf t = Classical.choose
-            (H.step_eval_subroutineCode u t ht_inv.1 ht_inv.2.1 ht_inv.2.2.1 ht_inv.2.2.2) := by
-          simp [yOf, ht_inv]
-        have hspec := Classical.choose_spec
-          (H.step_eval_subroutineCode u t ht_inv.1 ht_inv.2.1 ht_inv.2.2.1 ht_inv.2.2.2)
-        dsimp only [SeqOutcome.appendStep]
-        rw [hy_eq, hspec.2.2.2.1]
-        exact ⟨hspec.2.1, hspec.2.2.2.2, ht_inv.2.2.1, ht_inv.2.2.2⟩
-      obtain ⟨ν_final, T_rest, hex_rest, htr_rest, hcost_rest⟩ := ih ν₁ hsupp₁
-      have hex_cons : ExecSteps H.subroutineCode S H.Seed w base H.space
-          H.encode H.decode (.eval u :: os) ν ν_final
-          ((∑' t, ν t * T_step t) + T_rest) := by
-        refine ExecSteps.cons (S := S) (μ_step := μ_step) (T_step := T_step)
-          (fun t ht => ?_) hex_rest
-        have ht_inv : hasInv t := hsupp t ht
-        have hy_eq : yOf t = Classical.choose
-            (H.step_eval_subroutineCode u t ht_inv.1 ht_inv.2.1 ht_inv.2.2.1 ht_inv.2.2.2) := by
-          simp [yOf, ht_inv]
-        have hspec := Classical.choose_spec
-          (H.step_eval_subroutineCode u t ht_inv.1 ht_inv.2.1 ht_inv.2.2.1 ht_inv.2.2.2)
-        refine ⟨ht_inv.1, H.arguments_fit (.eval u),
-          (H.subroutineCode.toDynamicProgram H.encode H.decode).prepare_bounded ht_inv.1
-            (H.arguments_fit (.eval u)), ?_, ?_⟩
-        · simpa [μ_step, hy_eq] using hspec.1
-        · intro q hq
-          dsimp only [μ_step] at hq
-          rw [PMF.support_pure, Set.mem_singleton_iff] at hq
-          subst hq
-          refine ⟨by simpa [hy_eq] using hspec.2.1, by simpa [hy_eq] using hspec.2.2.1, ?_⟩
-          rw [hy_eq, hspec.2.2.2.1]
-          exact Modifies.refl _ _
-      have hT₁ : (∑' t, ν t * T_step t) = ((H.charge (.eval u) : ℕ) : ℝ≥0∞) := by
-        dsimp only [T_step]
-        rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
-      refine ⟨ν_final, (∑' t, ν t * T_step t) + T_rest, hex_cons, ?_, ?_⟩
-      · rw [htr_rest]
-        dsimp only [ν₁, μ_step]
-        rw [PMF.bind_bind]
-        refine PMF.bind_congr_on_support _ _ _ fun t _ => ?_
-        rw [PMF.pure_map, PMF.pure_bind, HashFamily.evalOpsFromSeed, PMF.map_comp]
-        refine congrArg (PMF.map · _) (funext fun suf => ?_)
-        simp [SeqOutcome.appendStep]
-      · simp only [List.map_cons, List.sum_cons, Nat.cast_add, hT₁]
-        exact add_le_add le_rfl hcost_rest
+    classical
+    let dummyRes : HashFamily.Result m o :=
+      match o with
+      | .resample => PUnit.unit
+      | .eval u => H.eval (Classical.arbitrary H.Seed) u
+    let μ_step (t : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5)) :
+        PMF (StepOutcome H.Seed (HashFamily.Result m o) (r_core + 5)) :=
+      if ht : H.stateInv t.latent t.data then
+        Classical.choose (H.step_subroutineCode o t ht)
+      else
+        PMF.pure ⟨t.latent, t.data, dummyRes⟩
+    let T_step : SeqOutcome H.Seed (@HashFamily.Result U m) (r_core + 5) → ℝ≥0∞ :=
+      fun _ => ((H.charge o : ℕ) : ℝ≥0∞)
+    let ν₁ := ν.bind fun t => (μ_step t).map (t.appendStep o)
+    have hμ_eq {t} (ht : t ∈ ν.support) :
+        μ_step t = Classical.choose (H.step_subroutineCode o t (hsupp t ht)) := by
+      simp [μ_step, hsupp t ht]
+    have hsupp₁ : ∀ q_seq ∈ ν₁.support, H.stateInv q_seq.latent q_seq.data := by
+      intro q_seq hq_seq
+      obtain ⟨t, ht, q, hq, rfl⟩ := by
+        simpa only [ν₁, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] using hq_seq
+      rw [hμ_eq ht] at hq
+      exact ((Classical.choose_spec (H.step_subroutineCode o t (hsupp t ht))).2.2 q hq).1
+    obtain ⟨ν_final, T_rest, hex_rest, htr_rest, hcost_rest⟩ := ih ν₁ hsupp₁
+    have hex_cons : ExecSteps H.subroutineCode S H.Seed w base H.space
+        H.encode H.decode (o :: os) ν ν_final ((∑' t, ν t * T_step t) + T_rest) := by
+      refine ExecSteps.cons (S := S) (μ_step := μ_step) (T_step := T_step)
+        (fun t ht => ?_) hex_rest
+      have hinv := hsupp t ht
+      have hspec := Classical.choose_spec (H.step_subroutineCode o t hinv)
+      rw [hμ_eq ht]
+      exact ⟨hinv.1, H.arguments_fit o,
+        H.subroutineCode.prepare_bounded H.encode hinv.1 (H.arguments_fit o),
+        hspec.1,
+        fun q hq => ⟨(hspec.2.2 q hq).1.1, (hspec.2.2 q hq).2.1, (hspec.2.2 q hq).2.2⟩⟩
+    have hT₁ : (∑' t, ν t * T_step t) = ((H.charge o : ℕ) : ℝ≥0∞) := by
+      dsimp only [T_step]
+      rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
+    refine ⟨ν_final, (∑' t, ν t * T_step t) + T_rest, hex_cons, ?_, ?_⟩
+    · rw [htr_rest]
+      dsimp only [ν₁]
+      rw [PMF.bind_bind]
+      refine PMF.bind_congr_on_support _ _ _ fun t ht => ?_
+      rw [hμ_eq ht]
+      exact (Classical.choose_spec (H.step_subroutineCode o t (hsupp t ht))).2.1 os
+    · simp only [List.map_cons, List.sum_cons, Nat.cast_add, hT₁]
+      exact add_le_add le_rfl hcost_rest
 
 /-- Executing any `ops : List (HashFamily.Op U)` on `H.subroutineCode` from an initial distribution
 `ν₀` satisfying `H.initInv ν₀` produces a final state distribution `ν_final` whose transcript
@@ -886,13 +760,8 @@ theorem evalOps_execSteps
   intro S
   have hsupp_seq : ∀ t ∈ (ν₀.map (SeqOutcome.ofLatentState
       (Result := @HashFamily.Result U m))).support,
-      t.data.Bounded w ∧
-      t.data.regs (coreReg H.baseReg) = base ∧
-      H.tableRep t.data.mem ∧
-      H.seedRep t.latent t.data.mem := by
-    intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨u, hu, rfl⟩ := ht
+      H.stateInv t.latent t.data := fun t ht => by
+    obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
     exact hinv.2 u hu
   obtain ⟨ν_final, T_ops, hex, htr, hcost⟩ :=
     H.steps_subroutineCode ValidOpSeq Contract ops (ν₀.map SeqOutcome.ofLatentState) hsupp_seq

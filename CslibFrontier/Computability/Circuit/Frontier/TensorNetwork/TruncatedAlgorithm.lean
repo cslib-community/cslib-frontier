@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNa
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Polynomial truncation order from a contraction over `A_P`
@@ -119,9 +120,9 @@ theorem TruncatedContractionAlgorithm.bound {entry : T → List Bool → List �
           2 ^ (K * s / Nat.sqrt (Nat.log 2 s)) ∧
         A.certificate.space (P, ℓ, r, G) ≤ K * ((encTrunc encT (P, ℓ, r, G)).length + 1) ^ K := by
   obtain ⟨K, hK⟩ := A.bound_polynomial C D 1
-  refine ⟨K, fun s P ℓ r G hs hP hPD hℓ hℓD hA => hK s P ℓ r G hs hP ?_ hℓ ?_ hA⟩
-  · exact hPD.trans (Nat.le_mul_of_pos_right _ (by omega))
-  · simpa only [pow_one] using hℓD.trans (Nat.mul_le_mul_left D (Nat.le_succ s))
+  exact ⟨K, fun s P ℓ r G hs hP hPD hℓ hℓD hA => hK s P ℓ r G hs hP
+    (hPD.trans (Nat.le_mul_of_pos_right _ (by omega))) hℓ
+    (by simpa only [pow_one] using hℓD.trans (Nat.mul_le_mul_left D (Nat.le_succ s))) hA⟩
 
 /-! ### The guard -/
 
@@ -141,24 +142,16 @@ private theorem network_polyTime :
 /-- **The guard is polynomial-time.** -/
 theorem truncGuard_polyTime :
     ComputableInPolyTime (truncGuard (T := T)) (encTrunc encT) encBool := by
-  have hpc : ComputableInPolyTime
-      (fun x : ℕ × ℕ × ℕ × DescribedNetwork T => DescribedNetwork.pointCount x.2.1 x.2.2.2)
-      (encTrunc encT) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp (pointCount_polyTime (encT := encT).comp
-      ((ComputableInPolyTime.const ([] : List ℕ)).prod ComputableInPolyTime.id'))
-  have h2 : ComputableInPolyTime
-      (fun x : ℕ × ℕ × ℕ × DescribedNetwork T =>
-        2 ^ (FastContraction.modulus x.2.2.2.numEdges).length) (encTrunc encT) encNat :=
-    ComputableInPolyTime.binary_two_pow.comp ((ComputableInPolyTime.length_list _).comp
-      (FastContraction.modulus_polyTime.comp
-        (DescribedNetwork.numEdges_polyTime.comp network_polyTime)))
+  have hpc := ComputableInPolyTime.unary_to_binary.comp (pointCount_polyTime (encT := encT).comp
+    ((ComputableInPolyTime.const ([] : List ℕ)).prod ComputableInPolyTime.id'))
+  have h2 := ComputableInPolyTime.binary_two_pow.comp ((ComputableInPolyTime.length_list _).comp
+    (FastContraction.modulus_polyTime.comp
+      (DescribedNetwork.numEdges_polyTime.comp (network_polyTime (encT := encT)))))
   refine (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.binary_lt' h2 hpc)).of_enc_eq
-    fun x => congrArg encBool ?_
-  obtain ⟨P, ℓ, r, G⟩ := x
-  simp only [truncGuard, Function.comp_apply]
-  by_cases h : DescribedNetwork.pointCount ℓ G ≤ 2 ^ (FastContraction.modulus G.numEdges).length
-  · simp [h, Nat.not_lt.mpr h]
-  · simp [h, Nat.lt_of_not_le h]
+    fun ⟨P, ℓ, r, G⟩ => congrArg encBool ?_
+  dsimp [truncGuard]
+  rw [← decide_not]
+  exact decide_eq_decide.mpr Nat.not_lt.symm
 
 /-- **Admissible inputs pass the guard from some size on.** With at most `C s` vertices, at least
 `s` edges and `ℓ ≤ D s`, the guard holds once `s ≥ 4 (C D + 1)`: the modulus has degree at least
@@ -168,24 +161,19 @@ theorem truncGuard_of_le {C D s P ℓ r : ℕ} {G : DescribedNetwork T} (hs : 4 
     truncGuard (P, ℓ, r, G) = true := by
   simp only [truncGuard, decide_eq_true_eq]
   set m := G.numEdges
-  have hlog : m < 2 ^ (Nat.log 2 m + 1) := Nat.lt_pow_succ_log_self one_lt_two m
-  have h4 : m ^ 4 < 2 ^ (4 * Nat.log 2 m) * 16 := by
-    calc m ^ 4 < (2 ^ (Nat.log 2 m + 1)) ^ 4 := Nat.pow_lt_pow_left hlog (by norm_num)
+  have h4 : m ^ 4 < 2 ^ (4 * Nat.log 2 m) * 16 :=
+    calc m ^ 4 < (2 ^ (Nat.log 2 m + 1)) ^ 4 :=
+          Nat.pow_lt_pow_left (Nat.lt_pow_succ_log_self one_lt_two m) (by norm_num)
       _ = 2 ^ (4 * Nat.log 2 m) * 16 := by rw [← pow_mul]; ring
   have h5 : 2 ^ (4 * Nat.log 2 m) ≤ 2 ^ (FastContraction.modulus m).length :=
     Nat.pow_le_pow_right (by norm_num) (FastContraction.four_mul_log_le_length_modulus m)
   have hsm : s ^ 4 ≤ m ^ 4 := Nat.pow_le_pow_left hm 4
   have hpc : DescribedNetwork.pointCount ℓ G ≤ D * s * (C * s) + 1 := by
-    have : (ℓ - 1) * G.vertices.length ≤ D * s * (C * s) :=
-      Nat.mul_le_mul (by omega) hk
-    simp only [DescribedNetwork.pointCount]
-    omega
-  have hss : 16 * (C * D + 1) ≤ s * s := by nlinarith
+    have := Nat.mul_le_mul (show ℓ - 1 ≤ D * s by omega) hk
+    simp only [DescribedNetwork.pointCount]; omega
   have hkey : 16 * (D * s * (C * s) + 1) ≤ s ^ 4 := by
-    have e : s ^ 4 = s * s * (s * s) := by ring
-    have e2 : D * s * (C * s) = C * D * (s * s) := by ring
-    rw [e, e2]
-    have h1 : 1 ≤ s * s := by nlinarith
+    rw [show s ^ 4 = s * s * (s * s) by ring, show D * s * (C * s) = C * D * (s * s) by ring]
+    have : 16 * (C * D + 1) ≤ s * s := by nlinarith
     nlinarith
   omega
 
@@ -198,16 +186,15 @@ theorem truncGuard_of_polynomial_le {C D d s P ℓ r : ℕ} {G : DescribedNetwor
   simp only [truncGuard, decide_eq_true_eq]
   have hCD : C * D ≤ s := (le_max_left _ _).trans hs
   have hpow : 1 ≤ (s + 1) ^ (d + 1) := Nat.one_le_pow _ _ (by omega)
-  have hprod : (ℓ - 1) * G.vertices.length ≤ C * D * (s + 1) ^ (d + 1) := by
+  have hprod : (ℓ - 1) * G.vertices.length ≤ C * D * (s + 1) ^ (d + 1) :=
     calc (ℓ - 1) * G.vertices.length ≤ (D * (s + 1) ^ d) * (C * (s + 1)) :=
           Nat.mul_le_mul (by omega) (hk.trans (Nat.mul_le_mul_left C (Nat.le_succ s)))
       _ = C * D * (s + 1) ^ (d + 1) := by rw [pow_succ]; ring
   calc DescribedNetwork.pointCount ℓ G
-      ≤ (C * D + 1) * (s + 1) ^ (d + 1) := by
-        simp only [DescribedNetwork.pointCount]
-        nlinarith
-    _ ≤ (s + 1) * (s + 1) ^ (d + 1) := Nat.mul_le_mul_right _ (by omega)
-    _ = (s + 1) ^ (d + 2) := by rw [show d + 2 = (d + 1) + 1 by omega, pow_succ]; ring
+      ≤ (C * D + 1) * (s + 1) ^ (d + 1) := by simp only [DescribedNetwork.pointCount]; nlinarith
+    _ ≤ (s + 1) ^ (d + 2) := by
+        simpa only [pow_succ, mul_comm (s + 1)] using
+          Nat.mul_le_mul_right ((s + 1) ^ (d + 1)) (show C * D + 1 ≤ s + 1 by omega)
     _ ≤ (G.numEdges + 1) ^ (d + 2) := Nat.pow_le_pow_left (by omega) _
     _ ≤ 2 ^ (FastContraction.modulus G.numEdges).length :=
       FastContraction.pow_le_card_modulus (((le_max_right _ _).trans hs).trans hm)
@@ -252,8 +239,7 @@ theorem fastTruncCertificate_correct {entry : T → List Bool → List ℕ}
     fun k _ => ?_
   have h := hval P r (DescribedNetwork.specNet P ℓ (FastContraction.modulus G.numEdges)
     (FastContraction.digits (FastContraction.modulus G.numEdges).length k) G)
-  rw [DescribedNetwork.numEdges_specNet] at h
-  exact h
+  rwa [DescribedNetwork.numEdges_specNet] at h
 
 /-! ### The assembly -/
 
@@ -421,8 +407,7 @@ noncomputable def TruncatedContractionAlgorithm.ofCore {entry : T → List Bool 
         rw [this] at hg
         exact Bool.noConfusion hg
       have hL : (DescribedNetwork.encDescribed encT G).length ≤ n := by
-        simp only [hn, encTrunc, length_encPair]
-        omega
+        enc_len [hn, encTrunc]
       have hEf : Ke * ((DescribedNetwork.encDescribed encT G).length + 1) ^ Ke ≤ Ef n :=
         Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
       have h2s : 2 ^ (Ke * s) ≤ 2 ^ (Ke * s₀) :=

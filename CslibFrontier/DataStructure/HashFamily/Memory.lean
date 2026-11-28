@@ -130,9 +130,7 @@ theorem mem_writeFrom (i n : ℕ) (θ : Fin n → Fin (2 ^ b)) (s : Memory.State
 theorem tableOf_writeFrom {U : ℕ} (θ : Fin U → Fin (2 ^ b)) (s : Memory.State) :
     tableOf table b U (writeFrom table b 0 U θ s) = θ := by
   funext u
-  have h := mem_writeFrom (table := table) 0 U θ s u
-  rw [Nat.zero_add] at h
-  simp [tableOf, h]
+  simpa [tableOf] using congrArg (Fin.ofNat (2 ^ b)) (mem_writeFrom (table := table) 0 U θ s u)
 
 /-! ## Evaluation -/
 
@@ -146,8 +144,7 @@ theorem run_fill (i n : ℕ) (s : Memory.State) :
   induction n generalizing i s with
   | zero =>
     change (PMF.pure ((), s)).map Prod.snd = _
-    rw [PMF.pure_map]
-    exact (PMF.map_const _ _).symm
+    exact (PMF.pure_map _ _).trans (PMF.map_const _ _).symm
   | succ n ih =>
     change ((Memory.spec w).toRandomized.withCoins.run
       (ProbOracleComp.sample (ProbComp.uniform (Fin (2 ^ b))) >>= fun x =>
@@ -246,13 +243,11 @@ theorem isQueryBounded_fill (i n : ℕ) : OracleComp.IsQueryBounded (fill table 
   | succ n ih =>
     have hsample : OracleComp.IsQueryBounded
         (ProbOracleComp.sample (spec := Memory.Op.Result) (ProbComp.uniform (Fin (2 ^ b)))) 1 := by
-      rw [ProbComp.uniform, ProbOracleComp.sample_map]
+      rw [ProbComp.uniform, ProbOracleComp.sample_freeMMap]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    have hwrite (x : ℕ) : OracleComp.IsQueryBounded
-        (OracleComp.liftRight (spec₁ := unifSpec) (table.set i x)) 1 :=
-      OracleComp.IsCostBounded.query (spec := probOracleSpec Memory.Op.Result) _
-    have h := hsample.bind fun x => (hwrite x.val).bind fun _ => ih (i + 1)
-    exact h.mono (by omega)
+    exact (hsample.bind fun x =>
+      (OracleComp.IsCostBounded.query (spec := probOracleSpec Memory.Op.Result) _).bind fun _ =>
+        ih (i + 1)).mono (by omega)
 
 /-- Every operation makes at most its budget of calls. -/
 theorem isCostBounded_methods {U : ℕ} (o : HashFamily.Op U) :
@@ -297,12 +292,11 @@ private theorem run_eq_of_le (hb : b ≤ w) {U : ℕ} {α : Type}
     ((Memory.spec w).toRandomized.withCoins.run (run b U p) s).map Prod.fst =
       (Probability.PMF.uniformOfFintype (Fin U → Fin (2 ^ b))).bind fun θ =>
         ((tableSpec U b).run p θ).map Prod.fst := by
-  have hlen : (⟨s.frontier, U⟩ : Block).length = U := rfl
-  let M := refinement ⟨s.frontier, U⟩ b hlen hb
+  let M := refinement ⟨s.frontier, U⟩ b rfl hb
   have hlaw := M.run_link (OracleComp.query (.resample : HashFamily.Op U) >>= fun _ => p)
     (e := ⟨s.mem, s.frontier + U⟩) le_rfl
     ((tableSpec U b).toSpec.demonicValid_of_forall_valid (fun _ _ => trivial) _ _)
-  rw [run_eq_link p s hlen hb]
+  rw [run_eq_link p s rfl hb]
   calc _ = (((Memory.spec w).toRandomized.withCoins.run
           (link M.methods (OracleComp.query (.resample : HashFamily.Op U) >>= fun _ => p))
           ⟨s.mem, s.frontier + U⟩).map fun (a, e') => (a, M.abs e')).map Prod.fst := by
@@ -349,13 +343,12 @@ theorem demonicValid_run (hb : b ≤ w) {U : ℕ} {α : Type}
     (p : OracleComp (HashFamily.Result (U := U) (2 ^ b)) α) {s : Memory.State}
     (hfit : Fits w (s.frontier + U)) :
     (Memory.spec w).toRandomized.withCoins.toSpec.DemonicValid s (run b U p) := by
-  have hlen : (⟨s.frontier, U⟩ : Block).length = U := rfl
-  let M := refinement ⟨s.frontier, U⟩ b hlen hb
   refine StateTransitionSpec.DemonicValid.liftBind
     (D := (Memory.spec w).toRandomized.withCoins.toSpec)
     (Sum.inr (Memory.Op.allocDirty U)) _ hfit fun s' a hstep => ?_
   obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp ((PMF.mem_support_pure_iff _ _).mp hstep)
-  exact (M.toRefinement.simulates_demonic _ (e := ⟨s.mem, s.frontier + U⟩) le_rfl
+  exact ((refinement ⟨s.frontier, U⟩ b rfl hb).toRefinement.simulates_demonic _
+    (e := ⟨s.mem, s.frontier + U⟩) le_rfl
     ((tableSpec U b).toSpec.demonicValid_of_forall_valid (fun _ _ => trivial) _ _)).1
 
 /-- A client whose operations cost at most `n` in total, with `budget U`, runs from allocation
@@ -369,9 +362,8 @@ theorem isQueryBounded_run {U : ℕ} {α : Type}
     rw [Memory.allocBlockDirty, OracleComp.liftRight_bind]
     exact (OracleComp.IsCostBounded.query (spec := probOracleSpec Memory.Op.Result) _).bind
       (m := 0) fun _ => .pure _ _
-  have h := halloc.bind fun table => OracleComp.IsCostBounded.interpret
-    (isCostBounded_methods (table := table) (b := b))
-    ((OracleComp.IsCostBounded.query (cost := budget U) .resample).bind fun _ => hp)
-  simpa [run, budget, Nat.add_assoc] using h
+  simpa [run, budget, Nat.add_assoc] using halloc.bind fun table =>
+    OracleComp.IsCostBounded.interpret (isCostBounded_methods (table := table) (b := b))
+      ((OracleComp.IsCostBounded.query (cost := budget U) .resample).bind fun _ => hp)
 
 end Cslib.DataStructure.HashFamily.RandomTable

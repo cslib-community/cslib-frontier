@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.Realization.Program
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Functions computed by realized memory clients
@@ -18,8 +19,9 @@ public import CslibFrontier.Computability.WordRAM.Realization.Witness
 `Realizes.uniformComputableInPolyTime` turns one realization certificate into
 `UniformComputableInPolyTime`. The flat program is the certificate's emitted body, preceded by
 the charged argument-installation prefix `inputPrefix` and followed by a halt on one result
-coordinate; it is chosen before every width and input. The client supplies the input layout and
-an entry width. At every admitted width that the input fits, it shows that the input has at least
+coordinate; it is chosen before every width and input. The client supplies the input layout, an
+entry width, and a fitting admitted width for
+every instance. At every admitted width that the input fits, it shows that the input has at least
 `k` words and that its length plus one (the frontier) fits a word, and supplies the program's
 domain, its admissible history, its answer and a polynomial bound on its memory charge plus local
 work. A basis simulation carries the exact-basis code to the target basis.
@@ -40,7 +42,8 @@ variable {δ α : Type} {k l : ℕ} {p : δ → Memory.Prog α} {input : δ ↪ 
   {work : δ → Memory.State → ℕ}
 
 /-- **Uniform polynomial time from a realization.** If the first `k` input words encode the
-argument, and at every width admitted by `logWidth c` that the input fits, the input has at
+argument, every instance admits a fitting width, and at every width admitted by `logWidth c`
+that the input fits, the input has at
 least `k` words, its length plus one (the frontier) fits a word, the program's domain and
 admissible history hold, result coordinate `i` is the function's value, and the memory charge
 plus local work is at most `T (size d)` for a polynomially bounded `T`, then one flat program
@@ -49,6 +52,7 @@ theorem uniformComputableInPolyTime {B : Basis} (φ : Basis.exact.Simulates B)
     (h : Realizes .exact p input output safe work) (i : Fin l)
     {f : δ → ℕ} {encode : ℕ → δ → List ℕ} {size : δ → ℕ} {T : ℕ → ℕ}
     (hT : PolynomiallyBounded T) (c : ℕ) (hc : 0 < c)
+    (hadmit : InputAdmissible encode (fun d w => logWidth c (size d) ≤ w))
     (hlayout : ∀ w d (j : Fin k), (encode w d).getD j.val 0 = input d j)
     (hspec : ∀ d w, logWidth c (size d) ≤ w → InputFits w (encode w d) →
       k ≤ (encode w d).length ∧ Fits w ((encode w d).length + 1) ∧
@@ -63,20 +67,15 @@ theorem uniformComputableInPolyTime {B : Basis} (φ : Basis.exact.Simulates B)
   let fr : Fin r := ⟨0, by omega⟩
   let src : Fin k → Fin r := fun j => ⟨j.val + 1, by omega⟩
   let tmp : Fin (l + h.scratchSize + 1) → Fin r := fun j => ⟨k + 1 + j.val, by omega⟩
-  have hsrc : Function.Injective src := fun a b hab =>
-    Fin.ext (by have := congrArg Fin.val hab; simp only [src] at this; omega)
-  have htmp : Function.Injective tmp := fun a b hab =>
-    Fin.ext (by have := congrArg Fin.val hab; simp only [tmp] at this; omega)
-  have hd : ∀ a b, src a ≠ tmp b := fun a b hab => by
-    have := congrArg Fin.val hab; simp only [src, tmp] at this; omega
-  have hf : ∀ b, tmp b ≠ fr := fun b hb => by
-    have := congrArg Fin.val hb; simp only [tmp, fr] at this; omega
-  have hs : ∀ a, src a ≠ fr := fun a ha => by
-    have := congrArg Fin.val ha; simp only [src, fr] at this; omega
+  have hsrc : Function.Injective src := by fin_index [src]
+  have htmp : Function.Injective tmp := by fin_index [tmp]
+  have hd : ∀ a b, src a ≠ tmp b := by fin_index [src, tmp]
+  have hf : ∀ b, tmp b ≠ fr := by fin_index [tmp, fr]
+  have hs : ∀ a, src a ≠ fr := by fin_index [src, fr]
   refine UniformComputableInPolyTime.of_code
     ((Code.seq (inputPrefix fr (tmp (Fin.last _)) src) (h.code fr src tmp)).mapSimulates φ)
     (tmp (Fin.castAdd (h.scratchSize + 1) i)) (T := fun n => 2 * k + 5 + h.factor * (T n + 1))
-    (by fun_prop) c hc fun d w hw hin => ?_
+    (by fun_prop) c hc hadmit fun d w hw hin => ?_
   obtain ⟨hk, hfit, hsafe, hvalid, hout, hcost⟩ := hspec d w hw hin
   obtain ⟨x, ex, hx, hm, hwords, -⟩ := inputPrefix_exec fr (tmp (Fin.last _)) src (encode w d)
     hsrc (hf _) (fun j => hd j _) hs hk hfit hin

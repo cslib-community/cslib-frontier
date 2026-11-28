@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Undirected
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -20,10 +21,10 @@ import CslibFrontier.Tactic.EncLen
 # The traveling salesman problem
 
 `TSP` is the decision version of the traveling salesman problem
-[Papadimitriou, Section 9.3][Papadimitriou94]: an instance is a distance matrix `D`, given as a list
-of rows (row `i` lists the distances from city `i`), together with a budget `b`, and it belongs to
-`TSP` when some closed tour visiting every city exactly once has length at most `b`. The
-conventions are the following.
+[Papadimitriou, Section 9.3][Papadimitriou94]: an instance `x : TSPInstance` is a distance matrix
+`x.dist`, given as a list of rows (row `i` lists the distances from city `i`), together with a
+budget `x.bound`, and it belongs to `TSP` when some closed tour visiting every city exactly once
+has length at most `x.bound`. The conventions are the following.
 
 * The cities are the row indices `0, …, D.length - 1`. Rows may have any length: an entry missing
   from a ragged or short matrix reads `0` (`TSP.dist`).
@@ -50,8 +51,9 @@ with fewer than three vertices have no Hamiltonian cycle and are mapped to a fix
 
 ## Main definitions
 
-* `Cslib.Complexity.encTSP`, `Cslib.Complexity.TSP.dist`, `Cslib.Complexity.TSP.tourLength`,
-  `Cslib.Complexity.TSP`.
+* `Cslib.Complexity.TSPInstance`, `Cslib.Complexity.encTSP`: traveling salesman instances and their
+  binary encoding.
+* `Cslib.Complexity.TSP.dist`, `Cslib.Complexity.TSP.tourLength`, `Cslib.Complexity.TSP`.
 * `Cslib.Complexity.TSP.verifier`.
 * `Cslib.Complexity.HamCycle.toTSP`.
 
@@ -73,35 +75,45 @@ with fewer than three vertices have no Hamiltonian cycle and are mapped to a fix
 * [C. H. Papadimitriou, *Computational Complexity*][Papadimitriou94]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
-/-- Instances of the traveling salesman problem, a distance matrix given by its rows and a budget,
-encoded by framed lists of binary distances and a binary budget. -/
-def encTSP : List (List ℕ) × ℕ ↪ List Bool := encPair (encList (encList encNat)) encNat
+/-- An instance of the traveling salesman problem: a distance matrix `dist` given by its rows and
+a closed-tour budget `bound`. -/
+structure TSPInstance where
+  /-- The distance matrix, where row `i` entry `j` gives the distance from city `i` to city `j`. -/
+  dist : List (List ℕ)
+  /-- The maximum allowed total tour length. -/
+  bound : ℕ
+  deriving DecidableEq, Repr
+
+/-- Instances of the traveling salesman problem, encoded as framed lists of binary distances and a
+binary budget. -/
+enc_structure encTSP : TSPInstance where
+  dist : (encList (encList encNat)), bound : encNat
 
 namespace TSP
 
 /-- The distance from city `i` to city `j` in the matrix `D`: entry `j` of row `i`. Entries missing
 from a ragged or short matrix read `0`. -/
-def dist (D : List (List ℕ)) (i j : ℕ) : ℕ := (D.getD i []).getD j 0
+@[expose] def dist (D : List (List ℕ)) (i j : ℕ) : ℕ := (D.getD i []).getD j 0
 
 /-- The length of the closed tour visiting the cities of `p` in order: the sum of the distances
 from each city of `p` to the next one, the last city returning to the first. A tour of one city
 `c` has length `dist D c c`, and the empty tour has length `0`. -/
-def tourLength (D : List (List ℕ)) (p : List ℕ) : ℕ :=
+@[expose] def tourLength (D : List (List ℕ)) (p : List ℕ) : ℕ :=
   (List.zipWith (dist D) p (p.rotate 1)).sum
 
 end TSP
 
-/-- The traveling salesman problem: the distance matrices `D` with a budget `b` such that some
-closed tour visiting each city `0, …, D.length - 1` exactly once has length at most `b`
+/-- The traveling salesman problem: the instances `x : TSPInstance` such that some closed tour
+visiting each city `0, …, x.dist.length - 1` exactly once has length at most `x.bound`
 [Papadimitriou, Section 9.3][Papadimitriou94]. -/
-def TSP : Set (List (List ℕ) × ℕ) :=
-  {x | ∃ p : List ℕ, p.Perm (List.range x.1.length) ∧ TSP.tourLength x.1 p ≤ x.2}
+@[expose] def TSP : Set TSPInstance :=
+  {x | ∃ p : List ℕ, p.Perm (List.range x.dist.length) ∧ TSP.tourLength x.dist p ≤ x.bound}
 
 namespace TSP
 
@@ -111,22 +123,17 @@ entry `k + 1`. -/
 theorem tourLength_eq_sum (D : List (List ℕ)) (p : List ℕ) :
     tourLength D p = ((List.range p.length).map fun k =>
       dist D ((p ++ p.take 1).getD k 0) ((p ++ p.take 1).getD (k + 1) 0)).sum := by
-  rw [tourLength]
-  congr 1
-  apply List.ext_getElem (by simp)
-  intro k hk hk'
+  refine congrArg List.sum (List.ext_getElem (by simp) fun k hk hk' => ?_)
   simp only [List.length_zipWith, List.length_rotate, Nat.min_self] at hk
   rw [List.getElem_zipWith, List.getElem_rotate, List.getElem_map, List.getElem_range,
     List.getD_append _ _ _ _ hk, List.getD_eq_getElem _ _ hk]
   congr 1
   by_cases h : k + 1 < p.length
-  · rw [List.getD_append _ _ _ _ h, List.getD_eq_getElem _ _ h]
-    simp only [Nat.mod_eq_of_lt h]
+  · simp only [List.getD_append _ _ _ _ h, List.getD_eq_getElem _ _ h, Nat.mod_eq_of_lt h]
   · have hk1 : k + 1 = p.length := by omega
-    simp only [hk1, Nat.mod_self, List.getD_append_right _ _ _ _ (le_refl _), Nat.sub_self]
     cases p with
     | nil => simp at hk
-    | cons a l => rfl
+    | cons a l => simp [hk1]
 
 /-! ### Membership in `NP` -/
 
@@ -135,13 +142,9 @@ private theorem listGetD_binary {α γ : Type} {encA : α ↪ List Bool} {encIn 
     (hl : ComputableInPolyTime l encIn (encList encA))
     (hi : ComputableInPolyTime i encIn encNat) :
     ComputableInPolyTime (fun x => (l x).getD (i x) d) encIn encA := by
-  have heq : (fun x => (l x).getD (i x) d) = fun x => (l x).getD (min (l x).length (i x)) d := by
-    funext x
-    rcases le_total (l x).length (i x) with h | h
-    · rw [Nat.min_eq_left h, List.getD_eq_default _ _ h, List.getD_eq_default _ _ le_rfl]
-    · rw [Nat.min_eq_right h]
-  rw [heq]
-  exact listGetDWithInput hl (binary_min_unary' ((length_list encA).comp hl) hi) d
+  have heq : (fun x => (l x).getD (i x) d) = fun x => (l x).getD (min (l x).length (i x)) d :=
+    funext fun x => by rcases le_total (l x).length (i x) with h | h <;> simp [h]
+  exact heq ▸ listGetDWithInput hl (binary_min_unary' ((length_list encA).comp hl) hi) d
 
 /-- The length of a tour is polynomial-time in the distance matrix and the tour, both with binary
 entries: it is a binary sum over the positions of the tour, and a city beyond the matrix is looked
@@ -162,8 +165,7 @@ theorem computableInPolyTime_tourLength :
   have hq : ComputableInPolyTime
       (fun q : (List (List ℕ) × List ℕ) × ℕ => q.1.2 ++ [q.1.2.headD 0])
       (encPair (encPair (encList (encList encNat)) (encList encNat)) encUnary)
-      (encList encNat) := by
-    fun_prop
+      (encList encNat) := by fun_prop
   have hrow : ComputableInPolyTime
       (fun q : (List (List ℕ) × List ℕ) × ℕ =>
         q.1.1.getD ((q.1.2 ++ [q.1.2.headD 0]).getD q.2 0) [])
@@ -176,44 +178,39 @@ theorem computableInPolyTime_tourLength :
 /-- The verifier for `TSP`: decode a list of cities from the certificate (`Graph.decodeVertexList`
 applied to the cities `0, …, n - 1`) and check that it lists every city exactly once and that the
 closed tour visiting the cities in this order has length at most the budget. -/
-def verifier : (List (List ℕ) × ℕ) × List Bool → Bool :=
-  Graph.verifyOrdering (fun x => List.range x.1.length) fun x p => decide (tourLength x.1 p ≤ x.2)
+@[expose] def verifier : TSPInstance × List Bool → Bool :=
+  Graph.verifyOrdering (fun x => List.range x.dist.length)
+    fun x p => decide (tourLength x.dist p ≤ x.bound)
 
 /-- `TSP.verifier` verifies `TSP` with certificates of length `n ^ 2` for instances of encoded
 length `n`. -/
 theorem isVerifier : IsVerifier encTSP (Polynomial.X ^ 2) verifier TSP := by
   rintro ⟨D, b⟩
-  have hmem : (D, b) ∈ TSP ↔ ∃ p : List ℕ, p.Nodup ∧ (∀ v, v ∈ p ↔ v ∈ List.range D.length) ∧
-      tourLength D p ≤ b := by
-    refine exists_congr fun p => ?_
-    rw [← and_assoc]
-    refine and_congr_left fun _ => ⟨fun h => ⟨h.nodup_iff.2 List.nodup_range, fun _ => h.mem_iff⟩,
-      fun h => (List.perm_ext_iff_of_nodup h.1 List.nodup_range).2 h.2⟩
+  have hmem : (⟨D, b⟩ : TSPInstance) ∈ TSP ↔
+      ∃ p : List ℕ, p.Nodup ∧ (∀ v, v ∈ p ↔ v ∈ List.range D.length) ∧ tourLength D p ≤ b :=
+    exists_congr fun p => (and_congr_left fun _ =>
+      ⟨fun h => ⟨h.nodup_iff.2 List.nodup_range, fun _ => h.mem_iff⟩,
+        fun h => (List.perm_ext_iff_of_nodup h.1 List.nodup_range).2 h.2⟩).trans and_assoc
   rw [hmem]
-  refine Graph.isVerifier_verifyOrdering (V := fun x : List (List ℕ) × ℕ => List.range x.1.length)
-    (P := fun x p => tourLength x.1 p ≤ x.2) (fun x => ?_) (fun _ _ => decide_eq_true_iff) (D, b)
-  rw [List.length_range]
-  refine (length_le_length_encList (encList encNat) x.1).trans ?_
-  enc_len [encTSP]
+  refine Graph.isVerifier_verifyOrdering (V := fun x : TSPInstance => List.range x.dist.length)
+    (P := fun x p => tourLength x.dist p ≤ x.bound) (fun x => ?_)
+    (fun _ _ => decide_eq_true_iff) ⟨D, b⟩
+  rw [List.length_range, encTSP_apply]
+  exact (length_le_length_encList (encList encNat) x.dist).trans (by enc_len)
 
 /-- The `TSP` verifier is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encTSP encBits) encBool := by
-  have hV : ComputableInPolyTime (fun x : List (List ℕ) × ℕ => List.range x.1.length) encTSP
+  have hV : ComputableInPolyTime (fun x : TSPInstance => List.range x.dist.length) encTSP
       (encList encNat) := by
-    unfold encTSP
-    simpa only [List.map_id', Function.comp_def] using mapWithInput (f := fun _ i => i)
-      (range.comp ((length_list (encList encNat)).comp (fst (encList (encList encNat)) encNat)))
-      (unary_to_binary.comp (snd _ _))
-  have hD : ComputableInPolyTime (fun q : (List (List ℕ) × ℕ) × List ℕ => q.1.1)
-      (encPair encTSP (encList encNat)) (encList (encList encNat)) := by
-    unfold encTSP
-    exact (fst _ _).comp (fst _ _)
-  have hb : ComputableInPolyTime (fun q : (List (List ℕ) × ℕ) × List ℕ => q.1.2)
-      (encPair encTSP (encList encNat)) encNat := by
-    unfold encTSP
-    exact (snd _ _).comp (fst _ _)
+    exact (range.comp ((length_list (encList encNat)).comp
+      (by fun_prop : ComputableInPolyTime TSPInstance.dist encTSP (encList (encList encNat)))))
+      |>.reencodeList unary_to_binary
+  have hD : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.dist)
+      (encPair encTSP (encList encNat)) (encList (encList encNat)) := by fun_prop
+  have hb : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.bound)
+      (encPair encTSP (encList encNat)) encNat := by fun_prop
   have hlen := computableInPolyTime_tourLength.comp (hD.prod (snd _ (encList encNat)))
   exact Graph.computableInPolyTime_verifyOrdering hV (binary_le' hlen hb)
 
@@ -232,12 +229,12 @@ cities are the distinct declared vertices, at distance `1` when they are adjacen
 otherwise, and the budget is the number `n` of cities. When `n < 3` the graph has no Hamiltonian
 cycle, and the reduction returns the no-instance of one city at distance `1` from itself with
 budget `0`. -/
-def toTSP (G : Graph) : List (List ℕ) × ℕ :=
-  if G.distinctVertices.length < 3 then ([[1]], 0)
+@[expose] def toTSP (G : Graph) : TSPInstance :=
+  if G.distinctVertices.length < 3 then ⟨[[1]], 0⟩
   else
-    (G.distinctVertices.map fun u =>
+    ⟨G.distinctVertices.map fun u =>
       G.distinctVertices.map fun v => if G.adjBool u v then 1 else 2,
-    G.distinctVertices.length)
+    G.distinctVertices.length⟩
 
 private theorem dist_map {V : List ℕ} {G : Graph} {i j : ℕ} (hi : i < V.length)
     (hj : j < V.length) :
@@ -251,31 +248,23 @@ private theorem chain_iff {R : ℕ → ℕ → Prop} {q : List ℕ} :
       ∀ k < q.length, R ((q ++ q.take 1).getD k 0) ((q ++ q.take 1).getD (k + 1) 0) := by
   rw [Cycle.chain_coe_iff_isChain_append_take_one, List.isChain_iff_getElem]
   by_cases hq : q = []
-  · subst hq
-    simp
+  · simp [hq]
   · have hlen : (q ++ q.take 1).length = q.length + 1 := by
       have := List.length_pos_iff.2 hq
       enc_len [List.length_take]
-    constructor
-    · intro h k hk
-      have := h k (by omega)
-      rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)]
-    · intro h k hk
-      have := h k (by omega)
-      rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)] at this
+    refine ⟨fun h k hk => ?_, fun h k hk => ?_⟩ <;> have := h k (by omega)
+    · rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)]
+    · rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)] at this
 
 private theorem eq_one_of_sum_le {l : List ℕ} (h1 : ∀ a ∈ l, 1 ≤ a) (h : l.sum ≤ l.length) :
     ∀ a ∈ l, a = 1 := by
-  induction l with
-  | nil => simp
-  | cons a t ih =>
-    have ht := List.length_le_sum_of_one_le t fun b hb => h1 b (List.mem_cons_of_mem _ hb)
-    simp only [List.sum_cons, List.length_cons] at h
-    have ha := h1 a List.mem_cons_self
-    intro b hb
-    rcases List.mem_cons.1 hb with rfl | hb
-    · omega
-    · exact ih (fun c hc => h1 c (List.mem_cons_of_mem _ hc)) (by omega) b hb
+  rintro a ha
+  obtain ⟨s, t, rfl⟩ := List.append_of_mem ha
+  have hs := List.length_le_sum_of_one_le s fun x hx => h1 x (by simp [hx])
+  have ht := List.length_le_sum_of_one_le t fun x hx => h1 x (by simp [hx])
+  have ha1 := h1 a (by simp)
+  simp only [List.sum_append, List.sum_cons, List.length_append, List.length_cons] at h
+  omega
 
 private theorem getD_map_of_lt {l : List ℕ} {f : ℕ → ℕ} {j : ℕ} (hj : j < l.length) :
     (l.map f).getD j 0 = f (l.getD j 0) := by
@@ -285,30 +274,24 @@ private theorem getD_map_of_lt {l : List ℕ} {f : ℕ → ℕ} {j : ℕ} (hj : 
 private theorem getD_lt {l : List ℕ} {n : ℕ} (hn : 0 < n) (hl : ∀ a ∈ l, a < n) (j : ℕ) :
     l.getD j 0 < n := by
   rw [List.getD_eq_getElem?_getD]
-  cases h : l[j]? with
-  | none => exact hn
-  | some a => exact hl a (List.mem_of_getElem? h)
+  rcases h : l[j]? with _ | a
+  exacts [hn, hl a (List.mem_of_getElem? h)]
 
 /-- **Correctness of the reduction to `TSP`.** A graph has a Hamiltonian cycle exactly when its
 distance matrix has a closed tour of length at most the number of cities. -/
 theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
   rw [mem_HamCycle_iff]
   have hVnd := G.nodup_distinctVertices
-  have hmemV : ∀ v, v ∈ G.distinctVertices ↔ v ∈ G.1 := fun _ => Graph.mem_distinctVertices
-  have hlenV :
-      ∀ q : List ℕ, q.Nodup → (∀ v, v ∈ q ↔ v ∈ G.1) → q.length = G.distinctVertices.length :=
-    fun q hq hcov =>
-      ((List.perm_ext_iff_of_nodup hq hVnd).2 fun v => (hcov v).trans (hmemV v).symm).length_eq
+  have hmemV : ∀ v, v ∈ G.distinctVertices ↔ v ∈ G.vertices := fun _ => Graph.mem_distinctVertices
+  have hlenV (q : List ℕ) (hq : q.Nodup) (hcov : ∀ v, v ∈ q ↔ v ∈ G.vertices) :
+      q.length = G.distinctVertices.length :=
+    ((List.perm_ext_iff_of_nodup hq hVnd).2 fun v => (hcov v).trans (hmemV v).symm).length_eq
   unfold toTSP
   generalize G.distinctVertices = V at hVnd hmemV hlenV ⊢
   split_ifs with hn
-  · constructor
-    · rintro ⟨p, hp, hlen⟩
-      rw [show p = [0] by simpa using hp] at hlen
-      simp [TSP.tourLength, TSP.dist] at hlen
-    · rintro ⟨q, hq, hcov, h3, -⟩
-      have := hlenV q hq hcov
-      omega
+  · refine ⟨fun ⟨p, hp, hlen⟩ => ?_, fun ⟨q, hq, hcov, h3, _⟩ =>
+      absurd (hlenV q hq hcov) (by omega)⟩
+    simp [List.perm_singleton.1 hp, TSP.tourLength, TSP.dist] at hlen
   · push Not at hn
     simp only [TSP, Set.mem_ofPred_eq, List.length_map]
     constructor
@@ -316,10 +299,8 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       have hn0 : 0 < V.length := by omega
       have hplen : p.length = V.length := by rw [hp.length_eq, List.length_range]
       have hplt : ∀ a ∈ p, a < V.length := fun a ha => List.mem_range.1 (hp.subset ha)
-      have hget := getD_lt hn0 (l := p ++ p.take 1) fun a ha => by
-        rcases List.mem_append.1 ha with ha | ha
-        · exact hplt a ha
-        · exact hplt a (List.mem_of_mem_take ha)
+      have hget := getD_lt hn0 (l := p ++ p.take 1) fun a ha =>
+        (List.mem_append.1 ha).elim (hplt a) fun ha => hplt a (List.mem_of_mem_take ha)
       -- Every step of the tour costs `1`, so it joins adjacent vertices.
       rw [TSP.tourLength_eq_sum] at hlen
       have hone : ∀ k < V.length, G.adjBool (V.getD ((p ++ p.take 1).getD k 0) 0)
@@ -332,9 +313,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
           (by rw [List.length_map, List.length_range]; exact hlen.trans hplen.ge) _
           (List.mem_map.2 ⟨k, List.mem_range.2 (hplen ▸ hk), rfl⟩)
         · rw [dist_map (hget k) (hget (k + 1))] at h
-          split_ifs at h with hadj
-          · exact hadj
-          · omega
+          exact of_not_not fun hna => absurd ((ite_eq_right hna).symm.trans h) (by decide)
         · intro a ha
           obtain ⟨j, -, rfl⟩ := List.mem_map.1 ha
           rw [dist_map (hget j) (hget (j + 1))]
@@ -345,18 +324,14 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
         rw [List.getD_eq_getElem _ _ (hplt i hi), List.getD_eq_getElem _ _ (hplt j hj)] at hij
         exact hVnd.getElem_inj_iff.1 hij
       · rw [← hmemV, List.mem_map]
-        constructor
-        · rintro ⟨i, hi, rfl⟩
-          rw [List.getD_eq_getElem _ _ (hplt i hi)]
-          exact List.getElem_mem _
-        · intro hv
-          have hlt := List.idxOf_lt_length_iff.2 hv
-          refine ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 hlt), ?_⟩
-          rw [List.getD_eq_getElem _ _ hlt, List.getElem_idxOf]
+        exact ⟨fun ⟨i, hi, hv⟩ =>
+          hv ▸ (List.getD_eq_getElem _ _ (hplt i hi) ▸ List.getElem_mem _), fun hv =>
+          ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 (List.idxOf_lt_length_iff.2 hv)),
+            (List.getD_eq_getElem _ _ (List.idxOf_lt_length_iff.2 hv)).trans
+              (List.getElem_idxOf _)⟩⟩
       · have hp'len : (p ++ p.take 1).length = V.length + 1 := by
           enc_len [List.length_take, hplen]
-        rw [chain_iff]
-        intro k hk
+        refine chain_iff.2 fun k hk => ?_
         rw [List.length_map, hplen] at hk
         rw [← List.map_take, ← List.map_append, getD_map_of_lt (by omega),
           getD_map_of_lt (by omega)]
@@ -365,12 +340,10 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       have hqlen := hlenV q hq hcov
       have hqV : ∀ v ∈ q, v ∈ V := fun v hv => (hmemV v).2 ((hcov v).1 hv)
       refine ⟨q.map V.idxOf, ?_, ?_⟩
-      · have hnd : (q.map V.idxOf).Nodup :=
-          hq.map_on fun u hu v _ h => (List.idxOf_inj (hqV u hu)).1 h
-        have hsub : q.map V.idxOf ⊆ List.range V.length := fun i hi => by
+      · exact ((hq.map_on fun u hu _ _ h => (List.idxOf_inj (hqV u hu)).1 h).subperm fun i hi => by
           obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hi
-          exact List.mem_range.2 (List.idxOf_lt_length_iff.2 (hqV v hv))
-        exact (hnd.subperm hsub).perm_of_length_le (by simp [hqlen])
+          exact List.mem_range.2 (List.idxOf_lt_length_iff.2 (hqV v hv))).perm_of_length_le
+          (by simp [hqlen])
       · rw [TSP.tourLength_eq_sum]
         refine (List.sum_le_length_nsmul _ 1 fun a ha => ?_).trans (by simp [hqlen])
         obtain ⟨k, hk, rfl⟩ := List.mem_map.1 ha
@@ -380,9 +353,8 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
         have hmem : ∀ j < q.length + 1, (q ++ q.take 1).getD j 0 ∈ V := fun j hj => by
           have hj' : j < (q ++ q.take 1).length := by omega
           rw [List.getD_eq_getElem _ _ hj']
-          rcases List.mem_append.1 (List.getElem_mem hj') with h | h
-          · exact hqV _ h
-          · exact hqV _ (List.mem_of_mem_take h)
+          exact (List.mem_append.1 (List.getElem_mem hj')).elim (hqV _)
+            fun h => hqV _ (List.mem_of_mem_take h)
         rw [← List.map_take, ← List.map_append, getD_map_of_lt (by omega),
           getD_map_of_lt (by omega)]
         have h₁ := List.idxOf_lt_length_iff.2 (hmem k (by omega))
@@ -394,8 +366,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
 and the distances and the budget are written in binary. -/
 @[fun_prop]
 theorem computableInPolyTime_toTSP : ComputableInPolyTime toTSP encGraph encTSP := by
-  have hV : ComputableInPolyTime Graph.distinctVertices encGraph (encList encNat) :=
-    Graph.computableInPolyTime_distinctVertices
+  have hV := Graph.computableInPolyTime_distinctVertices
   have hn : ComputableInPolyTime (fun G : Graph => G.distinctVertices.length) encGraph
       encUnary := (length_list _).comp hV
   have hrow : ComputableInPolyTime
@@ -403,9 +374,8 @@ theorem computableInPolyTime_toTSP : ComputableInPolyTime toTSP encGraph encTSP 
       (encPair encGraph encNat) (encList encNat) :=
     mapWithInput (hV.comp (fst _ _))
       (Graph.computableInPolyTime_adjBool.ite (const 1) (const 2))
-  unfold toTSP encTSP
   exact (unary_lt' hn (const 3)).ite_decide (const _)
-    ((mapWithInput hV hrow).prod (unary_to_binary.comp hn))
+    (encTSP_mk_polyTime (mapWithInput hV hrow) (unary_to_binary.comp hn))
 
 end HamCycle
 

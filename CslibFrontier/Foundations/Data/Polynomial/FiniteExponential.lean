@@ -1,0 +1,102 @@
+/-
+Copyright (c) 2026 lean-canny contributors and Erik Demaine. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: lean-canny contributors, Erik Demaine
+-/
+module
+-- upstream: candidate (Mathlib, `Mathlib/Algebra/Polynomial/FiniteExponential`)
+
+public import CslibFrontier.Init
+public import Mathlib.Algebra.Polynomial.Derivative
+import Mathlib.Algebra.Polynomial.Div
+import Mathlib.Algebra.Polynomial.BigOperators
+public import Mathlib.Data.Nat.Factorial.Basic
+import Mathlib.Tactic.Ring
+
+/-!
+# Finite polynomial exponentials
+
+`Polynomial.finiteExponential D G` is the sum of `G^j / j!` for `j ≤ D`.
+Its differential equation holds through degree `D - 1` when `G` has zero constant term
+and the integers `1, …, D` are nonzero in the coefficient field. The degree bound also
+controls finite-field coefficient extraction.
+
+Adapted from the finite-exponential argument in
+[lean-canny](https://github.com/edemaine/lean-canny/blob/970f28a5ecefc1327402ade16c068aa4b1b2c183/LeanCanny/CountingHierarchy/FiniteExponential.lean).
+-/
+
+public section
+
+namespace Polynomial
+
+open scoped BigOperators
+
+variable {K : Type*} [Field K]
+
+/-- The exponential sum truncated in its power index. -/
+@[expose] noncomputable def finiteExponential (D : ℕ) (G : K[X]) : K[X] :=
+  ∑ j ∈ Finset.range (D + 1), C ((j.factorial : K)⁻¹) * G ^ j
+
+/-- Truncating the exponential at power `D` multiplies the degree bound by `D`. -/
+theorem natDegree_finiteExponential_le (D : ℕ) (G : K[X]) :
+    (finiteExponential D G).natDegree ≤ D * G.natDegree := by
+  apply natDegree_sum_le_of_forall_le
+  intro j hj
+  exact (natDegree_C_mul_le _ _).trans
+    (natDegree_pow_le.trans
+      (Nat.mul_le_mul_right G.natDegree (Nat.le_of_lt_succ (Finset.mem_range.mp hj))))
+
+private theorem inverse_factorial_succ (j : ℕ) (hj : (j + 1 : ℕ) ≠ (0 : K)) :
+    (((j + 1).factorial : K)⁻¹) * (j + 1 : ℕ) = ((j.factorial : K)⁻¹) := by
+  rw [Nat.factorial_succ, Nat.cast_mul, mul_inv_rev, mul_assoc,
+    inv_mul_cancel₀ hj, mul_one]
+
+/-- Differentiation cancels factorials whenever the relevant integers
+ are nonzero in the coefficient field. -/
+theorem derivative_finiteExponential (D : ℕ) (G : K[X])
+    (hK : ∀ j, 1 ≤ j → j ≤ D → (j : K) ≠ 0) :
+    derivative (finiteExponential D G) =
+      derivative G * ∑ j ∈ Finset.range D, C ((j.factorial : K)⁻¹) * G ^ j := by
+  rw [finiteExponential, derivative_sum, Finset.sum_range_succ']
+  simp only [pow_zero, mul_one, derivative_C, add_zero]
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro j hj
+  rw [derivative_mul, derivative_C, zero_mul, zero_add, derivative_pow_succ]
+  have hf := inverse_factorial_succ (K := K) j (hK (j + 1) (by omega)
+    (by have := Finset.mem_range.mp hj; omega))
+  calc
+    _ = C ((((j + 1).factorial : K)⁻¹) * (j + 1 : ℕ)) * G ^ j * derivative G := by
+      rw [map_mul, Nat.cast_add, Nat.cast_one]
+      ring
+    _ = _ := by rw [hf]; ring
+
+/-- The differential equation holds modulo `X^D`; no infinite power
+ series or rational-to-finite-field map is used. -/
+private theorem finiteExponential_differential_error (D : ℕ) (G : K[X])
+    (hK : ∀ j, 1 ≤ j → j ≤ D → (j : K) ≠ 0) :
+    derivative (finiteExponential D G) - derivative G * finiteExponential D G =
+      -(derivative G * C ((D.factorial : K)⁻¹) * G ^ D) := by
+  rw [derivative_finiteExponential D G hK]
+  conv_lhs => rhs; rw [finiteExponential, Finset.sum_range_succ]
+  ring
+
+theorem finiteExponential_differential_coeff (D : ℕ) (G : K[X])
+    (hG : G.coeff 0 = 0) (hK : ∀ j, 1 ≤ j → j ≤ D → (j : K) ≠ 0)
+    (k : ℕ) (hk : k < D) :
+    (derivative (finiteExponential D G)).coeff k =
+      (derivative G * finiteExponential D G).coeff k := by
+  rw [← sub_eq_zero, ← coeff_sub]
+  refine X_pow_dvd_iff.mp ?_ k hk
+  rw [finiteExponential_differential_error D G hK, dvd_neg]
+  exact dvd_mul_of_dvd_right (pow_dvd_pow_of_dvd (X_dvd_iff.mpr hG) D) _
+
+/-- The constant coefficient is normalized when the exponent has zero
+ constant term. -/
+theorem finiteExponential_coeff_zero (D : ℕ) (G : K[X]) (hG : G.coeff 0 = 0) :
+    (finiteExponential D G).coeff 0 = 1 := by
+  rw [finiteExponential, finsetSum_coeff, Finset.sum_range_succ']
+  simp only [coeff_zero_eq_eval_zero, eval_mul, eval_C, eval_pow] at hG ⊢
+  simp [hG]
+
+end Polynomial

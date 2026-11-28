@@ -101,15 +101,14 @@ theorem isPolyTime_proofQueries (width : ℕ) (enc : C ↪ List Bool) :
       ComputableInPolyTime.mapWithInput (.const (encOut := encList encUnary) (List.range width))
         (by fun_prop)
     exact hsrc.listAppend' hdst
-  simpa only [List.map_id', Function.comp_def] using
-    ComputableInPolyTime.unary_to_binary.map.comp h
+  exact h.reencodeList .unary_to_binary
 
 /-- A fixed finite decoder and a joint evaluator give an efficient verdict on arbitrary answers. -/
 @[fun_prop]
 theorem isPolyTime_proofVerdict (width : ℕ) (decode : (Fin width → Bool) → α)
     {enc : C ↪ List Bool} {alphabet : α ↪ List Bool} {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     ComputableInPolyTime
       (fun p : Edge C × List Bool => p.1.proofVerdict width decode eval p.2)
       (encPair (encoding enc) encBits) encBool := by
@@ -242,16 +241,16 @@ theorem accepts_proofOfLabels (width : ℕ) (encode : α → Fin width → Bool)
 theorem polyTime_edgeVerifier (width : ℕ) (decode : (Fin width → Bool) → α)
     {enc : C ↪ List Bool} {alphabet : α ↪ List Bool} {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     (edgeVerifier width decode eval).PolyTime (encoding enc) := by
-  refine ⟨?_, ?_, ?_⟩
-  · exact ComputableInPolyTime.unary_to_binary.comp (by
+  constructor
+  case coins =>
+    exact ComputableInPolyTime.unary_to_binary.comp (by
       change ComputableInPolyTime (fun g : Graph C => Nat.clog 2 g.edges.length)
         (encoding enc) encUnary
       fun_prop)
-  · unfold edgeVerifier
-    fun_prop
-  · unfold edgeVerifier
+  all_goals
+    unfold edgeVerifier
     fun_prop
 
 end Graph

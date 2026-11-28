@@ -1,23 +1,27 @@
-"""`scripts/full_check.py` mirrors CI's required `ci-checks` job, and its runner reports each step.
+"""`scripts/full_check.py` mirrors CI's source and Lean jobs, and its runner reports each step.
 
 The parity test reads `.github/workflows/lean_action_ci.yml` as text (CI's Python has no YAML
-library) and fails closed. Every named `ci-checks` step must be mirrored by `full_check.STEPS`, run
-by `scripts/check.sh` before the cache bootstrap (`PREFLIGHT`), or listed in `CI_ONLY`. The `run`
-script of a mirrored or preflight step may contain only its local commands, in order, and the lines
-in `PLUMBING` (`set -e` and the computation of `BASE`), which the local run replaces by the merge
-base of `--base`; any other line is reported. So is a step key the local run does not reproduce
-(anything outside `MIRRORED_KEYS`, such as `shell`, `continue-on-error` or `timeout-minutes`), a
-working directory or literal environment that differs from CI's, an environment value taken from
-GitHub context other than `CONTEXT_ENV`, a job-level `defaults` or literal `env`, and mirrored
-steps out of CI's order. A step's `if:` condition is not compared: the local run always runs a
-mirrored step, which is the stricter direction for steps that CI runs only on some events.
-`ParityProblemTests` mutates the workflow to check that each kind of drift is reported.
+library) and fails closed. Every named `source-checks` and `lean-checks` step must be mirrored by
+`full_check.STEPS`, run by `scripts/check.sh` before the cache bootstrap (`PREFLIGHT`), or listed in
+`CI_ONLY`. The `run` script of a mirrored or preflight step may contain only its local commands, in
+order, and the lines in `PLUMBING` (`set -e` and the computation of `BASE`), which the local run
+replaces by the merge base of `--base`; any other line is reported. So is a step key the local run
+does not reproduce (anything outside `MIRRORED_KEYS`, such as `shell`, `continue-on-error` or
+`timeout-minutes`), a working directory or literal environment that differs from CI's, an
+environment value taken from GitHub context other than `CONTEXT_ENV`, a job-level `defaults` or
+literal `env`, and mirrored steps out of order within either CI job. A step's `if:` condition is
+not compared: the local run always runs a mirrored step, which is the stricter direction for steps
+that CI runs only on some events. `ParityProblemTests` mutates the workflow to check that each kind
+of drift is reported. Separate aggregator tests require both jobs to succeed and check that its
+publication output is forwarded from `lean-checks`.
 """
 
 import importlib.util
 import io
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -29,7 +33,21 @@ sys.modules[SPEC.name] = full
 SPEC.loader.exec_module(full)
 REPO = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO / ".github/workflows/lean_action_ci.yml"
-JOB = "ci-checks"
+EXECUTION_JOBS = ("source-checks", "lean-checks")
+AGGREGATOR_JOB = "ci-checks"
+SOURCE_CHECK_NAMES = frozenset({
+    "Test Python tooling",
+    "Operator manual links and excerpts",
+    "Source hygiene",
+    "Forbid TimeM",
+    "Encoding readability ratchet (changed modules)",
+    "Encoding readability report",
+    "Projection chain ratchet (changed modules)",
+    "Projection chain report",
+    "Repeated-proof-block notice (advisory)",
+    "High-fan-in module impact (advisory)",
+    "Documentation pins",
+})
 # The only `run` lines of a mirrored step that the local run does not repeat: they compute CI's
 # base commit, which `full_check.py` passes as `BASE` instead.
 PLUMBING = frozenset({
@@ -117,7 +135,7 @@ def literal_env(lines: list[str]) -> dict[str, str]:
     return env
 
 
-def header_problems(lines: list[str]) -> list[str]:
+def header_problems(lines: list[str], job: str) -> list[str]:
     """Job-level settings that would change how CI runs the mirrored steps."""
     problems, section = [], None
     for line in lines[1:lines.index("    steps:")]:
@@ -126,25 +144,29 @@ def header_problems(lines: list[str]) -> list[str]:
         if re.match(r"    \S", line):
             section = line.strip().split(":", 1)[0]
             if section == "defaults":
-                problems.append(f"{JOB} sets job-level `defaults`, which the local run does not "
+                problems.append(f"{job} sets job-level `defaults`, which the local run does not "
                                 "reproduce")
         elif section == "env" and "${{" not in line:
-            problems.append(f"{JOB} sets job-level `env` {line.strip()!r}, which the local run "
+            problems.append(f"{job} sets job-level `env` {line.strip()!r}, which the local run "
                             "does not reproduce")
     return problems
 
 
 def parity_problems(text: str) -> list[str]:
-    """Each way that the `ci-checks` job of workflow `text` differs from the local check."""
-    problems = header_problems(job_lines(text, JOB))
-    steps = job_steps(text, JOB)
+    """Each way the source and Lean jobs of workflow `text` differ from the local check."""
+    problems = []
+    steps_by_job = {job: job_steps(text, job) for job in EXECUTION_JOBS}
+    for job in EXECUTION_JOBS:
+        problems.extend(header_problems(job_lines(text, job), job))
+    steps = [step for job in EXECUTION_JOBS for step in steps_by_job[job]]
     for step in steps:
         if "name" not in step and "run" in step:
             problems.append(f"an unnamed `run` step ({step['run'].splitlines()[0]!r}) cannot be "
                             "classified; name it")
-    named = {step["name"]: step for step in steps if "name" in step}
-    if len(named) != sum("name" in step for step in steps):
-        problems.append(f"{JOB} has two steps with the same name")
+    named_steps = [step for step in steps if "name" in step]
+    named = {step["name"]: step for step in named_steps}
+    if len(named) != len(named_steps):
+        problems.append("source-checks and lean-checks have two steps with the same name")
     mirrored = {step.name: step for step in full.STEPS}
     homes = (mirrored, full.PREFLIGHT, full.CI_ONLY)
     for name in named:
@@ -153,7 +175,8 @@ def parity_problems(text: str) -> list[str]:
                             "full_check.PREFLIGHT, or record why it stays in CI in "
                             "full_check.CI_ONLY")
     for name in sorted(set().union(*homes) - set(named)):
-        problems.append(f"{name}: listed in full_check, but {JOB} no longer has this step")
+        problems.append(f"{name}: listed in full_check, but CI no longer has this step in either "
+                        "execution job")
     local = [(step.name, step.commands, step.cwd, step.env) for step in full.STEPS]
     local += [(name, (command,), None, {}) for name, command in full.PREFLIGHT.items()]
     for name, commands, cwd, env in local:
@@ -181,24 +204,33 @@ def parity_problems(text: str) -> list[str]:
             if "${{" in value and variable.strip() not in CONTEXT_ENV:
                 problems.append(f"{name}: env {variable.strip()} comes from GitHub context, "
                                 "which the local run does not reproduce")
-    order = [name for name in named if name in mirrored]
-    expected = [step.name for step in full.STEPS if step.name in named]
-    if order != expected:
-        problems.append(f"mirrored steps run in CI in the order {order}, "
-                        f"in full_check.STEPS in the order {expected}")
+    for job, job_entries in steps_by_job.items():
+        order = [step["name"] for step in job_entries
+                 if step.get("name") in mirrored]
+        expected = [step.name for step in full.STEPS if step.name in order]
+        if order != expected:
+            problems.append(f"mirrored steps run in {job} in the order {order}, "
+                            f"in full_check.STEPS in the order {expected}")
     return problems
 
 
 class WorkflowParityTests(unittest.TestCase):
     def setUp(self):
         self.text = WORKFLOW.read_text()
-        self.named = [step for step in job_steps(self.text, JOB) if "name" in step]
+        self.named_by_job = {
+            job: [step for step in job_steps(self.text, job) if "name" in step]
+            for job in EXECUTION_JOBS
+        }
+        self.named = [step for job in EXECUTION_JOBS for step in self.named_by_job[job]]
 
     def test_parser_reads_the_steps_it_compares(self):
         # A parser that silently lost steps would make the parity test vacuous.
         names = [step["name"] for step in self.named]
+        source_names = [step["name"] for step in self.named_by_job["source-checks"]]
+        lean_names = [step["name"] for step in self.named_by_job["lean-checks"]]
+        self.assertEqual(set(source_names), SOURCE_CHECK_NAMES)
         self.assertIn("Tidy statement ratchet", names)
-        self.assertIn("lake build", names)
+        self.assertIn("lake build", lean_names)
         self.assertGreater(len(names), 25)
         handoff = next(step for step in self.named if step["name"] == "Test Lake build handoff reuse")
         local = next(step for step in full.STEPS if step.name == handoff["name"])
@@ -219,6 +251,249 @@ class WorkflowParityTests(unittest.TestCase):
         names = [step.name for step in full.STEPS]
         for audit in ("Tidy statement ratchet", "Result registry references", "Changed-file lints"):
             self.assertGreater(names.index(audit), names.index("lake build"))
+
+    def test_pr_and_full_lint_steps_are_complementary(self):
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        self.assertEqual(lean["lake lint (affected modules)"]["if"], "github.event_name == 'pull_request'")
+        self.assertEqual(lean["lake lint"]["if"], "github.event_name != 'pull_request'")
+        self.assertIn("python3 -B scripts/quick_check.py --lint-only --base \"$BASE\"",
+                      lean["lake lint (affected modules)"]["run"])
+        self.assertEqual(lean["lake lint"]["run"], "lake lint")
+
+    def test_fused_build_tooling_gates_and_push_only_advisory_reports(self):
+        select_header = "\n".join(job_lines(self.text, "select-checks"))
+        self.assertIn("tooling: ${{ steps.select.outputs.tooling }}", select_header)
+        source_header = "\n".join(
+            job_lines(self.text, "source-checks")[
+                :job_lines(self.text, "source-checks").index("    steps:")])
+        self.assertNotIn("needs:", source_header)
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        self.assertIn("CslibFrontierTests", lean["lake build"]["run"])
+        self.assertNotIn("lake test", lean)
+        for name in (
+            "Test Lake build handoff reuse",
+            "Test real Lake interrupt cleanup",
+            "Test real Lake cache publication staging",
+            "Test post-build Python tooling",
+            "Test import generation with custom source directories",
+        ):
+            with self.subTest(step=name):
+                self.assertEqual(lean[name]["if"],
+                                 "needs.select-checks.outputs.tooling == 'true'")
+        for name in ("Security premise report", "Reduction witness report"):
+            with self.subTest(report=name):
+                self.assertEqual(lean[name]["if"], "github.event_name == 'push'")
+
+    def test_merge_groups_build_the_same_targets_with_fail_fast(self):
+        # The merge-group build must check exactly what the mirrored build checks; it may only
+        # stop scheduling after the first failure. Exactly one of the two runs for every event.
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        full_build = lean["lake build"]
+        fail_fast = lean["lake build (merge group, fail fast)"]
+        self.assertEqual((full_build["id"], fail_fast["id"]), ("build", "build-fail-fast"))
+        self.assertEqual(full_build["if"], "github.event_name != 'merge_group'")
+        self.assertEqual(fail_fast["if"], "github.event_name == 'merge_group'")
+        self.assertEqual(set(fail_fast), {"name", "id", "if", "run"})
+        words = full_build["run"].split()
+        self.assertEqual(words[:2], ["lake", "build"])
+        self.assertEqual([word for word in fail_fast["run"].split() if word != "--fail-fast"],
+                         words)
+        self.assertEqual(fail_fast["run"].split().count("--fail-fast"), 1)
+        steps = job_steps(self.text, "lean-checks")
+        names = [step.get("name") for step in steps]
+        self.assertEqual(names.index("lake build (merge group, fail fast)"),
+                         names.index("lake build") + 1)
+        # A later step that needs a successful build must either run only on pushes or accept
+        # the fail-fast build too; otherwise it would silently stop running in merge groups.
+        gated = [step for step in steps
+                 if "steps.build.outcome == 'success'" in step.get("if", "")]
+        self.assertGreaterEqual(len(gated), 2)
+        for step in gated:
+            with self.subTest(step=step.get("name")):
+                condition = step["if"]
+                if "github.event_name == 'push'" not in condition:
+                    self.assertIn("steps.build-fail-fast.outcome == 'success'", condition)
+
+    def test_local_steps_are_not_ci_steps(self):
+        # A local step must neither pass for a mirror of a CI step nor hide one from the parity check.
+        ci = {step["name"] for step in self.named}
+        others = {step.name for step in full.STEPS} | set(full.PREFLIGHT) | set(full.CI_ONLY)
+        for step in full.LOCAL_STEPS:
+            with self.subTest(step=step.name):
+                self.assertNotIn(step.name, ci | others)
+
+
+class AncestorHandoffFailurePolicyTests(unittest.TestCase):
+    """Only the ancestor handoff's exit status 125 (unconfirmed process shutdown) stops the job.
+
+    The step is optional (`continue-on-error`), which alone would also hide that status from the
+    Git, cache and build steps after it. The step's own script and the guard's are run here with
+    a stand-in for the handoff command; the guard's condition is compared as text."""
+
+    RESTORE, GUARD = ("Restore nearest ancestor merge-group build outputs",
+                      "Stop after an unconfirmed ancestor-handoff shutdown")
+    CONDITION = "steps.ancestor-handoff.outputs.exit-status == '125'"
+
+    def setUp(self):
+        self.steps = job_steps(WORKFLOW.read_text(), "lean-checks")
+        self.index = next(i for i, step in enumerate(self.steps)
+                          if step.get("name") == self.RESTORE)
+        self.restore, self.guard = self.steps[self.index], self.steps[self.index + 1]
+
+    def run_script(self, script, status):
+        """Run a step's script as Actions does, with `python3` exiting with `status`."""
+        with tempfile.TemporaryDirectory(prefix="handoff-policy-") as temporary:
+            stub = Path(temporary, "python3")
+            stub.write_text(f"#!/bin/sh\necho \"$@\" > '{temporary}/arguments'\nexit {status}\n")
+            stub.chmod(0o755)
+            output = Path(temporary, "output")
+            output.touch()
+            result = subprocess.run(
+                ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
+                env={**os.environ, "PATH": f"{temporary}{os.pathsep}{os.environ['PATH']}",
+                     "GITHUB_OUTPUT": str(output)}, capture_output=True, text=True)
+            arguments = Path(temporary, "arguments")
+            return (result, dict(line.split("=", 1) for line in output.read_text().splitlines()),
+                    arguments.read_text().strip() if arguments.exists() else None)
+
+    def test_optional_step_records_the_handoff_exit_status(self):
+        self.assertEqual(self.restore.get("id"), "ancestor-handoff")
+        self.assertEqual(self.restore.get("continue-on-error"), "true")
+        self.assertEqual(self.restore.get("timeout-minutes"), "10")
+        for status in (0, 1, 124, 125):
+            with self.subTest(status=status):
+                result, outputs, arguments = self.run_script(self.restore["run"], status)
+                self.assertEqual(arguments, "-B scripts/cache_handoff.py restore --ancestor")
+                self.assertEqual(result.returncode, status)
+                self.assertEqual(outputs, {"exit-status": str(status)})
+                # Only an unconfirmed shutdown satisfies the guard; a miss (0) and any other
+                # failure of the optional step leave the job running.
+                self.assertEqual(f"steps.ancestor-handoff.outputs.exit-status == '{status}'"
+                                 == self.CONDITION, status == 125)
+
+    def test_guard_fails_the_job_before_any_other_step(self):
+        self.assertEqual(self.guard.get("name"), self.GUARD)
+        self.assertEqual(set(self.guard), {"name", "if", "run"})  # not optional, not bounded away
+        self.assertEqual(self.guard["if"], self.CONDITION)
+        result, outputs, arguments = self.run_script(self.guard["run"], 0)
+        self.assertEqual((result.returncode, outputs, arguments), (125, {}, None))
+        self.assertIn("::error title=Unconfirmed cache process shutdown::", result.stdout)
+        names = [step.get("name") for step in self.steps]
+        for later in ("Restore build outputs from the remote cache",
+                      "Restore validated merge-group build outputs", "lake build"):
+            self.assertGreater(names.index(later), self.index + 1)
+
+    def test_pr_handoff_is_an_optional_reader_before_the_remote_cache(self):
+        names = [step.get("name") for step in self.steps]
+        index = names.index("Restore PR base merge-group build outputs")
+        self.assertLess(self.index + 1, index)
+        self.assertLess(index, names.index("Restore build outputs from the remote cache"))
+        step = self.steps[index]
+        self.assertEqual(step["run"], "python3 -B scripts/cache_handoff.py restore --pr-base")
+        self.assertEqual(step["continue-on-error"], "true")
+        self.assertIn("github.event_name == 'pull_request' && github.base_ref == 'main'", step["if"])
+        self.assertIn("vars.DISABLE_PR_BUILD_HANDOFF", step["if"])
+        self.assertIn("RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}", step["env"])
+        for name in ("Stage merge-group build outputs", "Upload merge-group build outputs"):
+            self.assertIn("github.event_name == 'merge_group' &&", self.steps[names.index(name)]["if"])
+
+    def test_no_later_step_runs_after_the_guard_fails(self):
+        # A failed step skips every later step whose condition has no status function. Those that
+        # have one must require a completed build or explicitly exclude the guard failure. The
+        # guard only fires in merge groups, which run the fail-fast build step.
+        for build_id in ("build", "build-fail-fast"):
+            build = next(step for step in self.steps if step.get("id") == build_id)
+            self.assertGreater(self.steps.index(build), self.index + 1)
+            self.assertNotRegex(build.get("if", ""), r"always\(\)|cancelled\(\)|failure\(\)")
+        for step in self.steps[self.index + 2:]:
+            condition = step.get("if", "")
+            if re.search(r"always\(\)|cancelled\(\)|failure\(\)", condition):
+                with self.subTest(step=step.get("name")):
+                    if "steps.ancestor-handoff.outputs.exit-status != '125'" not in condition:
+                        self.assertIn("steps.build.outcome == 'success'", condition)
+
+    def test_handoff_cli_reserves_125_for_unconfirmed_shutdown(self):
+        sys.path.insert(0, str(REPO / "scripts"))
+        import cache_handoff
+        self.addCleanup(sys.path.remove, str(REPO / "scripts"))
+        for error, status in ((cache_handoff.UnsafeShutdown("unconfirmed"), 125),
+                              (cache_handoff.Rejected("no handoff"), 0),
+                              (subprocess.TimeoutExpired("gh", 60), 0), (OSError("transport"), 0)):
+            with self.subTest(error=error), \
+                    patch("sys.argv", ["cache_handoff.py", "restore", "--ancestor"]), \
+                    patch.object(cache_handoff, "restore_ancestor", side_effect=error), \
+                    patch("sys.stdout", io.StringIO()), patch("sys.stderr", io.StringIO()):
+                self.assertEqual(cache_handoff.main(), status)
+
+
+class AggregatorTests(unittest.TestCase):
+    def setUp(self):
+        self.text = WORKFLOW.read_text()
+        self.lines = job_lines(self.text, AGGREGATOR_JOB)
+        self.steps = job_steps(self.text, AGGREGATOR_JOB)
+
+    def test_required_context_depends_on_both_jobs_and_forwards_lean_publication(self):
+        header = "\n".join(self.lines[:self.lines.index("    steps:")])
+        self.assertIn("needs: [select-checks, source-checks, lean-checks]", header)
+        self.assertIn("if: always()", header)
+        self.assertIn("publication: ${{ needs.lean-checks.outputs.publication }}", header)
+        self.assertNotIn("steps.upload-publication.outputs", header)
+        self.assertEqual([step.get("name") for step in self.steps],
+                         ["Require source and Lean validation"])
+        env = self.steps[0]["env"]
+        self.assertIn("SOURCE_RESULT: ${{ needs.source-checks.result }}", env)
+        self.assertIn("LEAN_RESULT: ${{ needs.lean-checks.result }}", env)
+
+    def test_execution_jobs_can_start_in_parallel(self):
+        for job in EXECUTION_JOBS:
+            with self.subTest(job=job):
+                lines = job_lines(self.text, job)
+                header = "\n".join(lines[:lines.index("    steps:")])
+                self.assertNotIn("needs: source-checks", header)
+                self.assertNotIn("needs: lean-checks", header)
+
+    def test_gate_accepts_only_the_selected_lean_result(self):
+        env = self.steps[0]["env"]
+        self.assertIn("SELECTION_RESULT: ${{ needs.select-checks.result }}", env)
+        self.assertIn("EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && "
+                      "needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}", env)
+        script = self.steps[0]["run"]
+        for expected in ("success", "skipped"):
+            for selection, source, lean in (
+                ("success", "success", "success"), ("success", "success", "skipped"),
+                ("failure", "success", expected), ("success", "failure", expected),
+                ("success", "success", "failure"), ("success", "success", "cancelled")
+            ):
+                with self.subTest(expected=expected, selection=selection, source=source, lean=lean):
+                    result = subprocess.run(["bash", "-e", "-c", script], env={
+                        **os.environ, "SELECTION_RESULT": selection, "SOURCE_RESULT": source,
+                        "EXPECTED_LEAN": expected, "LEAN_RESULT": lean})
+                    self.assertEqual(result.returncode == 0,
+                                     selection == source == "success" and lean == expected)
+
+
+class HandoffOrderingTests(unittest.TestCase):
+    """Every unit-replacing build handoff precedes remote-cache top-up, and exact hits skip it."""
+
+    def test_all_handoffs_precede_remote_cache_and_exact_hits_skip_redundant_top_up(self):
+        steps = job_steps(WORKFLOW.read_text(), "lean-checks")
+        names = [step.get("name") for step in steps]
+        remote_idx = names.index("Restore build outputs from the remote cache")
+        for handoff_name in (
+            "Restore nearest ancestor merge-group build outputs",
+            "Restore PR base merge-group build outputs",
+            "Restore validated merge-group build outputs",
+        ):
+            with self.subTest(handoff=handoff_name):
+                self.assertLess(names.index(handoff_name), remote_idx)
+        pr_step = steps[names.index("Restore PR base merge-group build outputs")]
+        main_step = steps[names.index("Restore validated merge-group build outputs")]
+        remote_step = steps[remote_idx]
+        self.assertEqual(pr_step.get("id"), "pr-handoff")
+        self.assertEqual(main_step.get("id"), "main-handoff")
+        self.assertIn("steps.pr-handoff.outputs.restored != 'true'", remote_step["if"])
+        self.assertIn("steps.main-handoff.outputs.restored != 'true'", remote_step["if"])
+        self.assertNotIn("steps.ancestor-handoff", remote_step["if"])
 
 
 TIDY = "          python3 -B scripts/check_tidy_surface.py\n"
@@ -283,11 +558,11 @@ class ParityProblemTests(unittest.TestCase):
         self.assertReported(problems, "Operator manual links and excerpts", "--strict")
 
     def test_job_level_settings(self):
-        env = "    env:\n      HANDOFF_MEASUREMENT_PLAN:"
+        anchor = "  lean-checks:\n"
         defaults = "    defaults:\n      run:\n        shell: sh\n"
-        self.assertReported(self.report((env, defaults + env)), "defaults")
-        self.assertReported(self.report((env, f"    env:\n      STRICT: \"1\"\n"
-                                              "      HANDOFF_MEASUREMENT_PLAN:")), "STRICT")
+        env = "    env:\n      STRICT: \"1\"\n"
+        self.assertReported(self.report((anchor, anchor + defaults)), "defaults")
+        self.assertReported(self.report((anchor, anchor + env)), "STRICT")
 
     def test_misindented_key_is_not_absorbed(self):
         with self.assertRaisesRegex(ValueError, "unparsed workflow line"):
@@ -327,11 +602,20 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual((status, out, leftover), (0, "ok    only\n", []))
 
     def test_main_passes_the_base_to_the_steps(self):
-        with patch.object(full, "run_steps", return_value=0) as run:
+        with patch.object(full.check_vm_map_count, "preflight", return_value=0), \
+             patch.object(full, "run_steps", return_value=0) as run:
             self.assertEqual(full.main(["--base", "abc123"]), 0)
-            self.assertEqual(run.call_args.args, (full.STEPS, "abc123"))
+            self.assertEqual(run.call_args.args, (full.STEPS + full.LOCAL_STEPS, "abc123"))
             full.main([])
-            self.assertEqual(run.call_args.args, (full.STEPS, "origin/main"))
+            self.assertEqual(run.call_args.args, (full.STEPS + full.LOCAL_STEPS, "origin/main"))
+
+    def test_main_stops_when_vm_map_count_preflight_fails(self):
+        with patch.object(full.check_vm_map_count, "preflight", return_value=1), \
+             patch.object(full, "run_steps", return_value=0) as run:
+            self.assertEqual(full.main([]), 1)
+            run.assert_not_called()
+            self.assertEqual(full.main(["--skip-map-count-check"]), 0)
+            run.assert_called_once()
 
 
 if __name__ == "__main__":

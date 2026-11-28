@@ -130,8 +130,7 @@ def WeakOneWay (f : List Bool → List Bool) : Prop :=
 /-- Extract the polynomial-time certificate from `WeakOneWay`. -/
 theorem WeakOneWay.polyTime {f : List Bool → List Bool} (hf : WeakOneWay f) :
     ComputableInPolyTime f encBits encBits :=
-  let ⟨_, _, h⟩ := hf
-  h.polyTime
+  hf.elim fun _ h => h.2.polyTime
 
 /-- Monotonicity of `WeakOneWayAt` in the failure threshold $\alpha$. -/
 theorem WeakOneWayAt.mono {f : List Bool → List Bool} {α₁ α₂ : ℕ → ℝ}
@@ -180,13 +179,9 @@ theorem weakOneWay_iff_le {f : List Bool → List Bool} :
             ∀ᶠ n in atTop,
               (Game.succProbability (ProbComp.eval (inversionGame f adversary n)) : ℝ) ≤
                 1 - 1 / ((q.eval n : ℕ) : ℝ) := by
-  constructor
-  · rintro ⟨q, hq, hf⟩
-    refine ⟨hf.polyTime, q, hq, fun adversary hPPT => ?_⟩
-    filter_upwards [hf.weak adversary hPPT] with n hn
-    exact hn.le
-  · rintro ⟨hf, q, hq, h⟩
-    exact WeakOneWay.of_le hf hq h
+  refine ⟨fun ⟨q, hq, hf⟩ => ⟨hf.polyTime, q, hq, fun adversary hPPT => ?_⟩,
+    fun ⟨hf, q, hq, h⟩ => WeakOneWay.of_le hf hq h⟩
+  exact (hf.weak adversary hPPT).mono fun _ => le_of_lt
 
 /-- Every weak one-way function admits a monotone polynomial $q \in \mathbb{N}[X]$ with
 $q(n) \ge n + 1$ for all $n$ such that `WeakOneWayAt f (fun n => 1 / (q.eval n : ℝ))`. -/
@@ -205,17 +200,14 @@ theorem WeakOneWay.exists_monotone_poly {f : List Bool → List Bool} (hf : Weak
 theorem OneWay.weakOneWayAt_half {f : List Bool → List Bool} (hf : OneWay f) :
     WeakOneWayAt f (fun _ => 1 / 2) := by
   refine ⟨hf.polyTime, fun adversary hPPT => ?_⟩
-  have hneg := (hf.inversion_negligible adversary hPPT).eventually_le_inv_polynomial
-    (PolynomiallyBounded.const 3) (fun _ => by omega)
-  filter_upwards [hneg] with n hn
-  have hn' : (Game.succProbability (ProbComp.eval (inversionGame f adversary n)) : ℝ) ≤ 1 / 3 := by
-    exact_mod_cast hn
-  linarith
+  filter_upwards [(hf.inversion_negligible adversary hPPT).eventually_le_inv_polynomial
+    (PolynomiallyBounded.const 3) (fun _ => by omega)] with n hn
+  exact lt_of_le_of_lt (b := (1 / 3 : ℝ)) (mod_cast hn) (by norm_num)
 
 /-- Every strong one-way function is a weak one-way function. -/
-theorem OneWay.weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay f := by
-  refine ⟨2, fun _ => by simp, ?_⟩
-  simpa using hf.weakOneWayAt_half
+theorem OneWay.weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay f :=
+  ⟨2, fun _ => by simp,
+    by simpa using hf.weakOneWayAt_half⟩
 
 /-! ### Negative / nonvacuity witnesses -/
 
@@ -226,8 +218,7 @@ theorem not_weakOneWayAt_of_inverse {f : List Bool → List Bool} {α : ℕ → 
     (hPPT : IsPPT encBits (fun n y => pure (inverse n y)))
     (hinv : ∀ x, f (inverse x.length (f x)) = f x) : ¬ WeakOneWayAt f α := by
   intro hf
-  have h := (hf.weak (fun n y => pure (inverse n y)) hPPT).and hα
-  obtain ⟨n, hn, hpos⟩ := h.exists
+  obtain ⟨n, hn, hpos⟩ := ((hf.weak (fun n y => pure (inverse n y)) hPPT).and hα).exists
   rw [Game.succProbability, eval_inversionGame_of_rightInverse f inverse hinv n,
     PMF.pure_apply_self, ENNReal.toNNReal_one, NNReal.coe_one] at hn
   linarith
@@ -238,8 +229,8 @@ theorem not_weakOneWay_of_inverse {f : List Bool → List Bool}
     (hPPT : IsPPT encBits (fun n y => pure (inverse n y)))
     (hinv : ∀ x, f (inverse x.length (f x)) = f x) : ¬ WeakOneWay f := by
   rintro ⟨q, hq, hf⟩
-  refine not_weakOneWayAt_of_inverse (Eventually.of_forall fun n => ?_) inverse hPPT hinv hf
-  exact one_div_pos.mpr (Nat.cast_pos.mpr (hq n))
+  exact not_weakOneWayAt_of_inverse (Eventually.of_forall fun n =>
+    one_div_pos.mpr (Nat.cast_pos.mpr (hq n))) inverse hPPT hinv hf
 
 /-- Constant functions are not weakly one-way: the empty word is always a preimage. -/
 theorem not_weakOneWay_const (word : List Bool) : ¬ WeakOneWay (fun _ => word) :=
@@ -253,25 +244,18 @@ theorem WeakOneWayAt.normalize {f : List Bool → List Bool} {α : ℕ → ℝ}
     (hf : WeakOneWayAt f α) (bound : ℕ → ℕ)
     (hbound : ComputableInPolyTime bound encUnary encUnary) :
     WeakOneWayAt (OneWayNormalization.normalize f bound) α := by
-  have hbound_tidy := hbound.tidy
   refine ⟨OneWayNormalization.computableInPolyTime_normalize hf.polyTime hbound,
     fun adversary hPPT => ?_⟩
   have hreduce : IsPPT encBits (fun n image =>
       adversary n (BitString.padWord (bound n) image)) := by ppt
   filter_upwards [hf.weak _ hreduce] with n hn
-  have hle : (Game.succProbability
-        (ProbComp.eval (inversionGame (OneWayNormalization.normalize f bound) adversary n)) : ℝ) ≤
-      (Game.succProbability (ProbComp.eval (inversionGame f
-        (fun n image => adversary n (BitString.padWord (bound n) image)) n)) : ℝ) := by
-    exact_mod_cast OneWayNormalization.inversion_le f bound adversary n
-  exact hle.trans_lt hn
+  exact (mod_cast OneWayNormalization.inversion_le f bound adversary n : _ ≤ _).trans_lt hn
 
 /-- Self-delimiting output padding preserves `WeakOneWay` against uniform strict PPT inverters. -/
 theorem WeakOneWay.normalize {f : List Bool → List Bool} (hf : WeakOneWay f) (bound : ℕ → ℕ)
     (hbound : ComputableInPolyTime bound encUnary encUnary) :
-    WeakOneWay (OneWayNormalization.normalize f bound) := by
-  obtain ⟨q, hq, hweak⟩ := hf
-  exact ⟨q, hq, hweak.normalize bound hbound⟩
+    WeakOneWay (OneWayNormalization.normalize f bound) :=
+  hf.elim fun q h => ⟨q, h.1, h.2.normalize bound hbound⟩
 
 /-- Every weak one-way function yields a weak one-way function whose output length depends only on
 the input length, with a uniformly polynomial-time unary output-length function. -/
@@ -281,15 +265,9 @@ theorem WeakOneWay.exists_fixedOutputLength {f : List Bool → List Bool} (hf : 
       ComputableInPolyTime length encUnary encUnary := by
   obtain ⟨c, d, hsize⟩ := hf.polyTime.polyBounded_length.exists_le
   let bound (n : ℕ) := c * (n + 1) ^ d
-  have hbound : ComputableTidilyInPolyTime bound encUnary encUnary := by
-    unfold bound
-    fun_prop
-  have hlen : ComputableTidilyInPolyTime (fun n => 2 * bound n + 1) encUnary encUnary := by
-    fun_prop
-  refine ⟨OneWayNormalization.normalize f bound, fun n => 2 * bound n + 1,
-    hf.normalize bound (.of_tidy hbound), ?_, .of_tidy hlen⟩
-  intro input
-  exact BitString.length_padWord (hsize input)
+  exact ⟨OneWayNormalization.normalize f bound, fun n => 2 * bound n + 1,
+    hf.normalize bound (by fun_prop),
+    fun input => BitString.length_padWord (hsize input), by fun_prop⟩
 
 /-! ### Schedule reindexing for parameter-indexed one-way families
 (Library variant of the padding trick in
@@ -318,35 +296,21 @@ def reindex (m : ℕ → ℕ) (core : ℕ → List Bool → List Bool) (x : List
   let n := GeneratorReindex.parameter m x.length
   wrappedImage n (core n (x.take (m n)))
 
-private theorem computableTidilyInPolyTime_reindex {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
-    (hm : ComputableTidilyInPolyTime m encUnary encUnary)
-    (hcore : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => core p.1 p.2)
-      (encPair encUnary encBits) encBits) :
-    ComputableTidilyInPolyTime (reindex m core) encBits encBits := by
-  have hparam : ComputableTidilyInPolyTime
-      (fun x : List Bool => GeneratorReindex.parameter m x.length) encBits encUnary :=
-    (GeneratorReindex.isPolyTime_parameter (.of_tidy hm)
-      (ComputableInPolyTime.encoding_length encBits)).tidy
-  have htake : ComputableTidilyInPolyTime
-      (fun x : List Bool => x.take (m (GeneratorReindex.parameter m x.length))) encBits encBits :=
-    ComputableTidilyInPolyTime.bitsTakeWithInput ComputableTidilyInPolyTime.id' (hm.comp hparam)
-  have hpair : ComputableTidilyInPolyTime
-      (fun x : List Bool =>
-        (GeneratorReindex.parameter m x.length,
-          core (GeneratorReindex.parameter m x.length)
-            (x.take (m (GeneratorReindex.parameter m x.length)))))
-      encBits (encPair encUnary encBits) :=
-    hparam.prod (hcore.comp (hparam.prod htake))
-  exact hpair.of_enc_eq fun _ => rfl
-
 /-- Reindexing preserves deterministic polynomial-time computability. -/
 @[fun_prop]
 theorem computableInPolyTime_reindex {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
     (hm : ComputableInPolyTime m encUnary encUnary)
     (hcore : ComputableInPolyTime (fun p : ℕ × List Bool => core p.1 p.2)
       (encPair encUnary encBits) encBits) :
-    ComputableInPolyTime (reindex m core) encBits encBits :=
-  .of_tidy (computableTidilyInPolyTime_reindex hm.tidy hcore.tidy)
+    ComputableInPolyTime (reindex m core) encBits encBits := by
+  have hparam : ComputableInPolyTime
+      (fun x : List Bool => GeneratorReindex.parameter m x.length) encBits encUnary :=
+    GeneratorReindex.isPolyTime_parameter hm
+      (ComputableInPolyTime.encoding_length encBits)
+  have htake : ComputableInPolyTime
+      (fun x : List Bool => x.take (m (GeneratorReindex.parameter m x.length))) encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput ComputableInPolyTime.id' (hm.comp hparam)
+  exact (hparam.prod (hcore.comp (hparam.prod htake))).of_enc_eq fun _ => rfl
 
 /-- The parameter-indexed inversion game for `core` at input length `m n`.
 Scores `core n (candidate.take (m n)) == core n input` by truncating the inverter's candidate to
@@ -396,11 +360,9 @@ private theorem searchCandidate_spec {m : ℕ → ℕ} {core : ℕ → List Bool
     {n M : ℕ} {y coins : List Bool} (hM : M ≤ m (n + 1))
     (h : core n ((evaluate (M, wrappedImage n y) coins).take (m n)) = y) :
     core n ((searchCandidate m core evaluate n y coins).take (m n)) = y := by
-  have htry : tryLength m core evaluate n y coins M = true := by
-    simp [tryLength, h]
-  have hbest := Nat.findGreatest_spec
-    (P := fun M => tryLength m core evaluate n y coins M = true) hM htry
-  simpa [searchCandidate, bestLength, tryLength] using hbest
+  simpa [searchCandidate, bestLength, tryLength] using
+    Nat.findGreatest_spec (P := fun M => tryLength m core evaluate n y coins M = true) hM
+      (by simp [tryLength, h])
 
 /-- The parameter-indexed inverter induced by an inverter for `reindex m core`. -/
 private noncomputable def familyInverter (m : ℕ → ℕ) (core : ℕ → List Bool → List Bool)
@@ -408,70 +370,40 @@ private noncomputable def familyInverter (m : ℕ → ℕ) (core : ℕ → List 
   fun n y => searchCandidate m core evaluate n y <$> BitString.sampleList (coinBudget m c d n y)
 
 private theorem isPPT_familyInverter {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
-    (hm : ComputableTidilyInPolyTime m encUnary encUnary)
-    (hcore : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => core p.1 p.2)
+    (hm : ComputableInPolyTime m encUnary encUnary)
+    (hcore : ComputableInPolyTime (fun p : ℕ × List Bool => core p.1 p.2)
       (encPair encUnary encBits) encBits)
     {c d : ℕ} {evaluate : (ℕ × List Bool) → List Bool → List Bool}
-    (heval : ComputableTidilyInPolyTime (fun p : (ℕ × List Bool) × List Bool => evaluate p.1 p.2)
+    (heval : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => evaluate p.1 p.2)
       (encPair (encPair encUnary encBits) encBits) encBits) :
     IsPPT encBits (familyInverter m core c d evaluate) := by
   apply IsPPTOn.isPPT
   let E1 := encPair encUnary encBits
   let E2 := encPair E1 encBits
-  let E3 := encPair E2 encUnary
-  have hwrap : ComputableTidilyInPolyTime
+  have hwrap : ComputableInPolyTime
       (fun p : ℕ × List Bool => wrappedImage p.1 p.2) E1 encBits :=
-    ComputableTidilyInPolyTime.of_enc_eq ComputableTidilyInPolyTime.id' fun _ => rfl
-  have hm_succ : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => m (p.1 + 1)) E1 encUnary := by
-    fun_prop
-  have hbudget : ComputableTidilyInPolyTime
+    ComputableInPolyTime.of_enc_eq ComputableInPolyTime.id' fun _ => rfl
+  have hbudget : ComputableInPolyTime
       (fun p : ℕ × List Bool => coinBudget m c d p.1 p.2) E1 encUnary := by
     unfold coinBudget
-    have hlen := (ComputableTidilyInPolyTime.encoding_length encBits).comp hwrap
+    have hlen := (ComputableInPolyTime.encoding_length encBits).comp hwrap
     fun_prop
-  have htry : ComputableTidilyInPolyTime
+  have htry : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
         decide (tryLength m core evaluate q.1.1.1 q.1.1.2 q.1.2 q.2 = true))
-      E3 encBool := by
+      (encPair E2 encUnary) encBool := by
     simp only [tryLength]
-    have hn : ComputableTidilyInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.1.1.1)
-        E3 encUnary := (ComputableTidilyInPolyTime.fst _ _).fst'.fst'
-    have hy : ComputableTidilyInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.1.1.2)
-        E3 encBits := (ComputableTidilyInPolyTime.fst _ _).fst'.snd'
-    have hcoins : ComputableTidilyInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.1.2)
-        E3 encBits := (ComputableTidilyInPolyTime.fst _ _).snd'
-    have hM : ComputableTidilyInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.2)
-        E3 encUnary := ComputableTidilyInPolyTime.snd _ _
-    have hw : ComputableTidilyInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ => wrappedImage q.1.1.1 q.1.1.2)
-        E3 encBits := hwrap.comp (ComputableTidilyInPolyTime.fst _ _).fst'
-    have hev : ComputableTidilyInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
-          evaluate (q.2, wrappedImage q.1.1.1 q.1.1.2) q.1.2)
-        E3 encBits := heval.comp ((hM.prod hw).prod hcoins)
-    have htk : ComputableTidilyInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
-          (evaluate (q.2, wrappedImage q.1.1.1 q.1.1.2) q.1.2).take (m q.1.1.1))
-        E3 encBits := ComputableTidilyInPolyTime.bitsTakeWithInput hev (hm.comp hn)
-    have hcr : ComputableTidilyInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
-          core q.1.1.1 ((evaluate (q.2, wrappedImage q.1.1.1 q.1.1.2) q.1.2).take (m q.1.1.1)))
-        E3 encBits := hcore.comp (hn.prod htk)
-    exact hcr.beq hy
-  have hbest : ComputableTidilyInPolyTime
+    fun_prop
+  have hbest : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
         bestLength m core evaluate p.1.1 p.1.2 p.2) E2 encUnary :=
-    (ComputableInPolyTime.findGreatest
-      (hm_succ.comp (ComputableTidilyInPolyTime.fst _ _)).computableInPolyTime
-      htry.computableInPolyTime).tidy
-  have hsearch : ComputableTidilyInPolyTime
+    ComputableInPolyTime.findGreatest (by fun_prop) htry
+  have hsearch : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
-        searchCandidate m core evaluate p.1.1 p.1.2 p.2) E2 encBits := by
-    unfold searchCandidate
-    have hw := hwrap.comp (ComputableTidilyInPolyTime.fst E1 encBits)
-    have hcoins := ComputableTidilyInPolyTime.snd E1 encBits
-    exact heval.comp ((hbest.prod hw).prod hcoins)
-  exact IsPPTOn.map_with (ComputableInPolyTime.of_tidy hbudget).sampleList (.of_tidy hsearch)
+        searchCandidate m core evaluate p.1.1 p.1.2 p.2) E2 encBits :=
+    heval.comp ((hbest.prod (hwrap.comp (ComputableInPolyTime.fst E1 encBits))).prod
+      (ComputableInPolyTime.snd E1 encBits))
+  exact IsPPTOn.map_with hbudget.sampleList hsearch
 
 /-- **Fundamental schedule-reindexing reduction
 (`OneWayReindex.exists_familyInverter_inversion_le`).**
@@ -491,7 +423,7 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
           Game.succProbability (ProbComp.eval (familyInversionGame m core familyAdv
             (GeneratorReindex.parameter m M))) := by
   obtain ⟨c, d, evaluate, heval, _, hlaw⟩ := hPPT.on.exists_total_seeded_evaluator
-  refine ⟨familyInverter m core c d evaluate, isPPT_familyInverter hm.tidy hcore.tidy heval.tidy,
+  refine ⟨familyInverter m core c d evaluate, isPPT_familyInverter hm hcore heval,
     fun {M} hM0 => ?_⟩
   let n := GeneratorReindex.parameter m M
   have hfits : m n ≤ M := GeneratorReindex.parameter_fits hM0
@@ -501,18 +433,11 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
       (BitString.uniformList (m n)).bind (fun x₀ =>
         (ProbComp.eval (adversary M (wrappedImage n (core n x₀)))).map fun candidate =>
           reindex m core candidate == wrappedImage n (core n x₀)) := by
-    have h1 : ProbComp.eval (inversionGame (reindex m core) adversary M) =
-        ((BitString.uniformList M).map (List.take (m n))).bind (fun x₀ =>
-          (ProbComp.eval (adversary M (wrappedImage n (core n x₀)))).map fun candidate =>
-            reindex m core candidate == wrappedImage n (core n x₀)) := by
-      rw [PMF.bind_map]
-      simp only [inversionGame, ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure,
-        PMF.map]
-      apply PMF.bind_congr_on_support
-      intro input hinput
-      have hlen : input.length = M := BitString.length_of_mem_support_uniformList hinput
-      simp [Function.comp_def, reindex, hlen, n]
-    rwa [BitString.uniformList_take hfits] at h1
+    rw [← BitString.uniformList_take hfits, PMF.bind_map]
+    simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, BitString.eval_sampleList,
+      ProbComp.eval_pure, PMF.map]
+    exact PMF.bind_congr_on_support _ _ _ fun input hinput => by
+      simp [Function.comp_def, reindex, BitString.length_of_mem_support_uniformList hinput, n]
   have hrhs : ProbComp.eval (familyInversionGame m core (familyInverter m core c d evaluate) n) =
       (BitString.uniformList (m n)).bind (fun x₀ =>
         (BitString.uniformList (coinBudget m c d n (core n x₀))).map fun coins =>
@@ -520,23 +445,16 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
             core n x₀) := by
     simp [familyInversionGame, familyInverter, PMF.map]
   rw [hlhs, hrhs]
-  apply PMF.bind_apply_mono_on_support _ true
-  intro x₀ _
+  refine PMF.bind_apply_mono_on_support _ true fun x₀ _ => ?_
   set y := core n x₀
   have hlaw_M := hlaw (M, wrappedImage n y) (coinBudget m c d n y)
     (le_coinBudget m c d y hlt.le)
   rw [hlaw_M, PMF.map_comp]
-  apply PMF.bind_apply_mono_on_support _ true
-  intro coins _
+  refine PMF.bind_apply_mono_on_support _ true fun coins _ => ?_
   simp only [Function.comp_apply, PMF.pure_apply]
   by_cases h : reindex m core (evaluate (M, wrappedImage n y) coins) == wrappedImage n y
-  · have heq : reindex m core (evaluate (M, wrappedImage n y) coins) = wrappedImage n y :=
-      beq_iff_eq.mp h
-    simp only [reindex, wrappedImage_inj] at heq
-    obtain ⟨hn_eq, hcore_eq⟩ := heq
-    rw [hn_eq] at hcore_eq
-    have hspec := searchCandidate_spec hlt.le hcore_eq
-    simp [h, hspec]
+  · obtain ⟨hn_eq, hcore_eq⟩ := wrappedImage_inj.mp (beq_iff_eq.mp h)
+    simp [h, searchCandidate_spec hlt.le (hn_eq ▸ hcore_eq)]
   · simp [h]
 
 /-- **Weak one-wayness under schedule reindexing
@@ -561,22 +479,11 @@ theorem weakOneWay {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
     fun adversary hPPT => ?_
   obtain ⟨familyAdv, hfamilyPPT, hred⟩ :=
     exists_familyInverter_inversion_le hm hge hcore adversary hPPT
-  have hev := (GeneratorReindex.parameter_tendsto m).eventually (hweak familyAdv hfamilyPPT)
-  filter_upwards [hev, eventually_ge_atTop (m 0)] with M hM hM0
-  have h1 : (Game.succProbability
-        (ProbComp.eval (inversionGame (reindex m core) adversary M)) : ℝ) ≤
-      (Game.succProbability (ProbComp.eval (familyInversionGame m core familyAdv
-        (GeneratorReindex.parameter m M))) : ℝ) := by
-    exact_mod_cast hred hM0
-  have h2 : (1 : ℝ) - 1 / ((q.eval (GeneratorReindex.parameter m M) : ℕ) : ℝ) ≤
-      1 - 1 / ((q.eval M : ℕ) : ℝ) := by
-    have hparam_le : q.eval (GeneratorReindex.parameter m M) ≤ q.eval M :=
-      Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)
-    have hdiv : 1 / ((q.eval M : ℕ) : ℝ) ≤
-        1 / ((q.eval (GeneratorReindex.parameter m M) : ℕ) : ℝ) :=
-      one_div_le_one_div_of_le (Nat.cast_pos.mpr (hq _)) (Nat.cast_le.mpr hparam_le)
-    linarith
-  exact (h1.trans hM).trans h2
+  filter_upwards [(GeneratorReindex.parameter_tendsto m).eventually (hweak familyAdv hfamilyPPT),
+    eventually_ge_atTop (m 0)] with M hM hM0
+  exact (NNReal.coe_le_coe.mpr (hred hM0)).trans (hM.trans (sub_le_sub_left
+    (one_div_le_one_div_of_le (Nat.cast_pos.mpr (hq _))
+      (Nat.cast_le.mpr (Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)))) 1))
 
 /-- **Strong one-wayness under schedule reindexing
 (library generalization of the padding trick in
@@ -598,13 +505,12 @@ theorem oneWay {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
   intro adversary hPPT
   obtain ⟨familyAdv, hfamilyPPT, hred⟩ :=
     exists_familyInverter_inversion_le hm hge hcore adversary hPPT
-  have hneg := hsecure familyAdv hfamilyPPT
-  have hdecay := hneg.comp_of_polynomial_bound (GeneratorReindex.parameter_tendsto m)
-    (hm.tidy.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
-    (Eventually.of_forall fun M => (GeneratorReindex.lt_length_succ_parameter hge M).le)
-  apply negligible_of_eventually_le hdecay
-  filter_upwards [eventually_ge_atTop (m 0)] with M hM0
-  exact hred hM0
+  refine negligible_of_eventually_le
+    ((hsecure familyAdv hfamilyPPT).comp_of_polynomial_bound
+      (GeneratorReindex.parameter_tendsto m)
+      (hm.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
+      (Eventually.of_forall fun M => (GeneratorReindex.lt_length_succ_parameter hge M).le))
+    ((eventually_ge_atTop (m 0)).mono fun _ => hred)
 
 end OneWayReindex
 

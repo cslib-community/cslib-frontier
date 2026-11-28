@@ -46,6 +46,7 @@ follow (`growthFunction_le_sum_choose_vcDim`).
   shattered set.
 - `growthFunction_le_sum_choose`: **Sauer's lemma**.
 - `growthFunction_le_add_one_pow`, `growthFunction_le_exp_one_mul_div_pow`: polynomial forms.
+- `growthFunction_le_exp_mul_pow`: the form `exp (m / T) * T ^ d`, used for sample sizes.
 - `growthFunction_le_sum_choose_vcDim`: Sauer's lemma in terms of `vcDim`.
 
 ## References
@@ -129,10 +130,7 @@ theorem growthFunction_eq_two_pow_of_setShatters {C : ConceptClass α Bool} {W :
   have huniv : restriction C x = Set.univ := by
     refine Set.eq_univ_of_forall fun v => ?_
     obtain ⟨c, hc, hcW⟩ := hW ((Finset.univ.filter fun i => v i = true).image x : Set α)
-      (by
-        intro y hy
-        obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 hy)
-        exact hxW i)
+      (by rw [Finset.coe_image]; exact Set.image_subset_iff.2 fun i _ => hxW i)
     refine mem_restriction.2 ⟨c, hc, fun i => ?_⟩
     have hmem : x i ∈ c ⁻¹' {true} ∩ ↑W ↔
         x i ∈ ((Finset.univ.filter fun i => v i = true).image x : Set α) := by
@@ -181,9 +179,8 @@ theorem ncard_restriction_le_sum_choose {C : ConceptClass α Bool} {d : ℕ}
       obtain ⟨c, hc, hcu⟩ := h𝒜 u hu
       have hiu : i ∈ u := (Finset.mem_inter.1 (hsu.symm ▸ Finset.mem_singleton_self i)).2
       have hju : j ∈ u := (hcu j).2 (hij ▸ (hcu i).1 hiu)
-      have : j ∈ s ∩ u := Finset.mem_inter.2 ⟨hj, hju⟩
-      rw [hsu] at this
-      exact (Finset.mem_singleton.1 this).symm
+      rw [eq_comm, ← Finset.mem_singleton, ← hsu]
+      exact Finset.mem_inter.2 ⟨hj, hju⟩
     have hW : SetShatters C ↑(s.image x) := by
       intro W' hW'
       obtain ⟨u, hu, hsu⟩ := hs (Finset.filter_subset (fun i => x i ∈ W') s)
@@ -194,13 +191,11 @@ theorem ncard_restriction_le_sum_choose {C : ConceptClass α Bool} {d : ℕ}
         Set.mem_image, Finset.mem_coe]
       constructor
       · rintro ⟨hcy, i, hi, rfl⟩
-        have : i ∈ s ∩ u := Finset.mem_inter.2 ⟨hi, (hcu i).2 hcy⟩
-        rw [hsu] at this
+        have : i ∈ s.filter (fun i => x i ∈ W') := hsu ▸ Finset.mem_inter.2 ⟨hi, (hcu i).2 hcy⟩
         exact (Finset.mem_filter.1 this).2
       · intro hy
         obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 (hW' hy))
-        have hit : i ∈ s.filter (fun i => x i ∈ W') := Finset.mem_filter.2 ⟨hi, hy⟩
-        rw [← hsu] at hit
+        have hit : i ∈ s ∩ u := hsu ▸ Finset.mem_filter.2 ⟨hi, hy⟩
         exact ⟨(hcu i).1 (Finset.mem_inter.1 hit).2, i, hi, rfl⟩
     calc #s = #(s.image x) := (Finset.card_image_of_injOn hinj).symm
       _ ≤ d := hC _ hW
@@ -236,6 +231,16 @@ theorem growthFunction_le_exp_one_mul_div_pow {C : ConceptClass α Bool} {d m : 
   calc (growthFunction C m : ℝ) ≤ ∑ i ∈ Finset.range (d + 1), (m.choose i : ℝ) := by
         exact_mod_cast growthFunction_le_sum_choose hC m
     _ ≤ (Real.exp 1 * m / d) ^ d := Cslib.sum_choose_le_exp_one_mul_div_pow hdm
+
+/-- Sauer's lemma in the form `growthFunction C m ≤ exp (m / T) * T ^ d` for every real `T ≥ 1`.
+Unlike `growthFunction_le_exp_one_mul_div_pow`, it needs no relation between `d` and `m`; sample
+size bounds choose `T` to trade the exponential factor against the polynomial one. -/
+theorem growthFunction_le_exp_mul_pow {C : ConceptClass α Bool} {d : ℕ}
+    (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d) (m : ℕ) {T : ℝ} (hT : 1 ≤ T) :
+    (growthFunction C m : ℝ) ≤ Real.exp (m / T) * T ^ d := by
+  calc (growthFunction C m : ℝ) ≤ ∑ i ∈ Finset.range (d + 1), (m.choose i : ℝ) := by
+        exact_mod_cast growthFunction_le_sum_choose hC m
+    _ ≤ Real.exp (m / T) * T ^ d := Cslib.sum_choose_le_exp_mul_pow m d T hT
 
 /-- Sauer's lemma in terms of the VC dimension, for a class of finite VC dimension. -/
 theorem growthFunction_le_sum_choose_vcDim {C : ConceptClass α Bool} (hC : HasFiniteVCDim C)

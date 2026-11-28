@@ -64,20 +64,11 @@ open scoped List
 
 theorem flatten_onlineInsert_perm (C a : ℕ) :
     ∀ (o : Option ℕ) (bins : List (List ℕ)), (onlineInsert C a o bins).flatten ~ a :: bins.flatten
-  | _, [] => by simp [onlineInsert]
-  | none, b :: bs => by
-    simp only [onlineInsert, List.flatten_cons]
-    exact ((flatten_onlineInsert_perm C a none bs).append_left b).trans List.perm_middle
-  | some 0, b :: bs => by
-    simp only [onlineInsert]
-    split_ifs
-    · simp only [List.flatten_cons, List.append_assoc, List.singleton_append]
-      exact List.perm_middle
-    · simp only [List.flatten_cons]
-      exact ((flatten_onlineInsert_perm C a none bs).append_left b).trans List.perm_middle
-  | some (i + 1), b :: bs => by
-    simp only [onlineInsert, List.flatten_cons]
-    exact ((flatten_onlineInsert_perm C a (some i) bs).append_left b).trans List.perm_middle
+  | o, bins => by
+    fun_induction onlineInsert C a o bins with
+    | case1 | case3 => simp
+    | case2 b bs ih | case4 b bs _ ih | case5 i b bs ih =>
+      simpa using (ih.append_left b).trans List.perm_middle
 
 theorem sum_le_of_mem_onlineInsert {C a : ℕ} (ha : a ≤ C) :
     ∀ {o : Option ℕ} {bins : List (List ℕ)}, (∀ b ∈ bins, b.sum ≤ C) →
@@ -136,9 +127,7 @@ items. -/
 
 theorem runFrom_append (hist : List ℕ) (bins : List (List ℕ)) (l₁ l₂ : List ℕ) :
     A.runFrom hist bins (l₁ ++ l₂) = A.runFrom (hist ++ l₁) (A.runFrom hist bins l₁) l₂ := by
-  induction l₁ generalizing hist bins with
-  | nil => simp [runFrom]
-  | cons a l ih => simp [runFrom, ih]
+  fun_induction A.runFrom hist bins l₁ <;> simp_all [runFrom]
 
 /-- **Online.** The packing of `l₁ ++ l₂` continues the packing of `l₁`. -/
 theorem run_append (l₁ l₂ : List ℕ) : A.run (l₁ ++ l₂) = A.runFrom l₁ (A.run l₁) l₂ := by
@@ -149,17 +138,15 @@ theorem flatten_runFrom_perm :
       (A.runFrom hist bins l).flatten ~ bins.flatten ++ l
   | _, bins, [] => by simp [runFrom]
   | hist, bins, a :: l => by
-    simp only [runFrom]
-    refine (flatten_runFrom_perm _ _ l).trans ?_
-    refine ((flatten_onlineInsert_perm C a _ bins).append_right l).trans ?_
-    simpa using List.perm_middle.symm
+    simpa [runFrom] using (flatten_runFrom_perm _ _ l).trans
+      (((flatten_onlineInsert_perm C a _ bins).append_right l).trans List.perm_middle.symm)
 
 theorem sum_le_of_mem_runFrom :
     ∀ {hist : List ℕ} {bins : List (List ℕ)} {l : List ℕ}, (∀ a ∈ l, a ≤ C) →
       (∀ b ∈ bins, b.sum ≤ C) → ∀ b ∈ A.runFrom hist bins l, b.sum ≤ C
   | _, _, [], _, h => by simpa [runFrom] using h
   | _, _, a :: l, hl, h => by
-    simp only [runFrom]
+    rw [runFrom]
     exact sum_le_of_mem_runFrom (fun x hx => hl x (List.mem_cons_of_mem _ hx))
       (sum_le_of_mem_onlineInsert (hl a List.mem_cons_self) h)
 
@@ -173,8 +160,7 @@ theorem countP_any_runFrom {p : ℕ → Bool} :
       (A.runFrom hist bins l).countP (fun b => b.any p) = bins.countP (fun b => b.any p)
   | _, _, [], _ => by simp [runFrom]
   | _, _, a :: l, hl => by
-    simp only [runFrom]
-    rw [countP_any_runFrom (fun x hx => hl x (List.mem_cons_of_mem _ hx)),
+    rw [runFrom, countP_any_runFrom (fun x hx => hl x (List.mem_cons_of_mem _ hx)),
       countP_any_onlineInsert (hl a List.mem_cons_self)]
 
 end OnlinePacker
@@ -194,20 +180,18 @@ private theorem onlineInsert_findIdx? (C a : ℕ) :
   | [] => rfl
   | b :: bs => by
     rw [List.findIdx?_cons]
-    by_cases h : b.sum + a ≤ C
-    · simp [h, onlineInsert, firstFitInsert]
-    · simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte, onlineInsert_map_succ,
-        onlineInsert_findIdx? C a bs, firstFitInsert]
+    by_cases h : b.sum + a ≤ C <;>
+      simp [h, onlineInsert, firstFitInsert, onlineInsert_map_succ, onlineInsert_findIdx? C a bs]
 
 /-- The online packer `firstFitPacker` is First Fit. -/
 theorem run_firstFitPacker (C : ℕ) (l : List ℕ) : (firstFitPacker C).run l = firstFit C l := by
   suffices ∀ hist bins, (firstFitPacker C).runFrom hist bins l =
       l.foldl (fun bins a => firstFitInsert C a bins) bins from this [] []
   induction l with
-  | nil => intro _ _; rfl
+  | nil => exact fun _ _ => rfl
   | cons a l ih =>
     intro hist bins
-    rw [OnlinePacker.runFrom, List.foldl_cons, ← ih (hist ++ [a])]
-    simp only [firstFitPacker, onlineInsert_findIdx?]
+    simp only [OnlinePacker.runFrom, List.foldl_cons, ← ih (hist ++ [a]),
+      firstFitPacker, onlineInsert_findIdx?]
 
 end Cslib.Algorithms.Lean.BinPacking

@@ -64,7 +64,7 @@ theorem occurrence_index_lt {φ : CNF ℕ} {o : Occurrence ℕ}
 theorem incidenceGraph_edge_idxOf {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
     (SAT.incidenceGraph φ).2[(Cslib.Logic.PL.occurrences φ).idxOf o]'(occurrence_index_lt ho) =
-      (φ.distinctVars.idxOf o.2.2.1, φ.distinctVars.length + o.1) := by
+      (φ.distinctVars.idxOf o.lit.1, φ.distinctVars.length + o.clause) := by
   simp only [SAT.incidenceGraph, List.getElem_map]
   rw [List.getElem_idxOf (List.idxOf_lt_length_of_mem ho)]
 
@@ -93,88 +93,66 @@ theorem occurrencePath_ne_nil {φ : CNF ℕ} {o : Occurrence ℕ}
 /-- Actual occurrence paths start at the variable's source-grid center and end at their clause. -/
 theorem occurrencePath_endpoints {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
-    (occurrencePath φ o).head? = some (Layout.center (φ.distinctVars.idxOf o.2.2.1)) ∧
-      (occurrencePath φ o).getLast? = some (Layout.center (φ.distinctVars.length + o.1)) := by
+    (occurrencePath φ o).head? = some (Layout.center (φ.distinctVars.idxOf o.lit.1)) ∧
+      (occurrencePath φ o).getLast? = some (Layout.center (φ.distinctVars.length + o.clause)) := by
   have hi := occurrence_index_lt ho
   have h := Graph.unitPath_endpoints (SAT.incidenceGraph φ)
     (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless) hi
   have he := incidenceGraph_edge_idxOf ho
-  have hb := SAT.incidenceGraph_bipartite (List.getElem_mem hi)
-  rw [he] at hb
-  simp only [Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte] at h
-  simp only [List.getD_eq_getElem _ _ hi, he] at h
+  have hb := he ▸ SAT.incidenceGraph_bipartite (List.getElem_mem hi)
+  simp only [Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte, List.getD_eq_getElem _ _ hi,
+    he] at h
   change (occurrencePath φ o).head? =
-      some (Layout.center ((List.range _).idxOf (φ.distinctVars.idxOf o.2.2.1))) ∧
+      some (Layout.center ((List.range _).idxOf (φ.distinctVars.idxOf o.lit.1))) ∧
     (occurrencePath φ o).getLast? =
-      some (Layout.center ((List.range _).idxOf (φ.distinctVars.length + o.1))) at h
-  rw [List.idxOf_range_of_lt (by omega), List.idxOf_range_of_lt hb.2.2] at h
-  exact h
+      some (Layout.center ((List.range _).idxOf (φ.distinctVars.length + o.clause))) at h
+  rwa [List.idxOf_range_of_lt (by omega), List.idxOf_range_of_lt hb.2.2] at h
 
 /-- Actual literal paths contain at least one unit step, so final-literal lookups are in range. -/
 theorem occurrencePath_length_ge_two {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) : 2 ≤ (occurrencePath φ o).length := by
-  have hne := occurrencePath_ne_nil ho
   have hend := occurrencePath_endpoints ho
-  have hi : φ.distinctVars.idxOf o.2.2.1 < φ.distinctVars.length := by
-    apply List.idxOf_lt_length_of_mem
-    apply CNF.mem_distinctVars.mpr
-    rw [← Cslib.Logic.PL.map_occurrences]
-    exact List.mem_map_of_mem ho
-  have hcenters : Layout.center (φ.distinctVars.idxOf o.2.2.1) ≠
-      Layout.center (φ.distinctVars.length + o.1) := by
-    intro heq
-    have hx := congrArg Prod.fst heq
+  have hi : φ.distinctVars.idxOf o.lit.1 < φ.distinctVars.length :=
+    List.idxOf_lt_length_of_mem
+      (CNF.mem_distinctVars.mpr (Cslib.Logic.PL.variable_mem_of_mem_occurrences ho))
+  rcases hr : occurrencePath φ o with _ | ⟨p, _ | ⟨q, r⟩⟩
+  · exact absurd hr (occurrencePath_ne_nil ho)
+  · simp only [hr, List.head?_cons, List.getLast?_singleton, Option.some.injEq] at hend
+    have hx := congrArg Prod.fst (hend.1.symm.trans hend.2)
     simp only [Layout.center] at hx
     omega
-  cases hr : occurrencePath φ o with
-  | nil => exact False.elim (hne hr)
-  | cons p r =>
-    cases r with
-    | nil =>
-      simp only [hr, List.head?_cons, List.getLast?_singleton, Option.some.injEq] at hend
-      exact False.elim (hcenters (hend.1.symm.trans hend.2))
-    | cons q r => simp
+  · simp
 
 /-- The last two actual unit-path points are adjacent, including with the compiler's defaults. -/
 theorem occurrencePath_last_unit {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
     let r := occurrencePath φ o
     Orthogonal.length (r.getD (r.length - 2) (0, 0)) (r.getLastD (0, 0)) = 1 := by
-  have hlen := occurrencePath_length_ge_two ho
   dsimp only
-  apply occurrencePath_unit ho (e :=
-    ((occurrencePath φ o).getD ((occurrencePath φ o).length - 2) (0, 0),
-      (occurrencePath φ o).getLastD (0, 0)))
-  rw [List.consecutivePairs]
   let r := occurrencePath φ o
-  have hrlen : 2 ≤ r.length := hlen
+  have hrlen : 2 ≤ r.length := occurrencePath_length_ge_two ho
+  apply occurrencePath_unit ho (e := (r.getD (r.length - 2) (0, 0), r.getLastD (0, 0)))
+  rw [List.consecutivePairs]
   have hk : r.length - 2 < (r.zip r.tail).length := by grind
-  have heq : (r.zip r.tail)[r.length - 2] =
+  have hpair : (r.zip r.tail)[r.length - 2] =
       (r.getD (r.length - 2) (0, 0), r.getLastD (0, 0)) := by
     rw [List.getElem_zip]
-    apply Prod.ext
-    · rw [List.getD_eq_getElem _ _ (by dsimp only [r]; omega)]
-    · rw [List.getElem_tail]
-      rw [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?,
-        List.getElem?_eq_getElem (by omega), Option.getD_some]
-      change r[r.length - 2 + 1] = r[r.length - 1]
-      congr 1
-      omega
-  rw [← heq]
+    refine Prod.ext (List.getD_eq_getElem _ _ (by omega)).symm ?_
+    rw [List.getElem_tail, List.getLastD_eq_getLast?, List.getLast?_eq_getElem?,
+      List.getElem?_eq_getElem (by omega), Option.getD_some]
+    change r[r.length - 2 + 1] = r[r.length - 1]
+    congr 1
+    omega
+  rw [← hpair]
   exact List.getElem_mem hk
 
 /-- Enumerating source occurrences selects all actual paths in their original order. -/
 theorem occurrencePaths_eq_paths (φ : CNF ℕ) :
     (Cslib.Logic.PL.occurrences φ).map (occurrencePath φ) = paths φ := by
-  have hlen : (Cslib.Logic.PL.occurrences φ).length = (paths φ).length := by
-    simp [paths, SAT.incidenceGraph]
-  apply List.ext_getElem
-  · simpa using hlen
-  · intro i hi hj
-    rw [List.getElem_map]
-    unfold occurrencePath
-    rw [(Cslib.Logic.PL.occurrences_nodup φ).idxOf_getElem i (by simpa using hi),
-      List.getD_eq_getElem _ _ hj]
+  refine List.ext_getElem (by simp [paths, SAT.incidenceGraph]) fun i hi hj => ?_
+  rw [List.getElem_map, occurrencePath,
+    (Cslib.Logic.PL.occurrences_nodup φ).idxOf_getElem i (by simpa using hi),
+    List.getD_eq_getElem _ _ hj]
 
 /-- An actual occurrence selects a member of the canonical path list. -/
 theorem occurrencePath_mem_paths {φ : CNF ℕ} {o : Occurrence ℕ}

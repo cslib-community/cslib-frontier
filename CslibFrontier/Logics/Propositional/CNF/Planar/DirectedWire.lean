@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
 public import Mathlib.Data.List.Defs
+import CslibFrontier.Logics.Propositional.CNF.Vars
 import Mathlib.Data.List.Basic
 import Mathlib.Data.Bool.Basic
 
@@ -44,7 +45,7 @@ any particular generator satisfies the local equalities or endpoint conditions.
 The polarity-directed composition and cell-pair construction are original.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL.CNF.DirectedWire
 
@@ -52,24 +53,23 @@ variable {V W : Type*}
 
 /-- A positive literal propagates truth backwards; a negative literal propagates falsity
 backwards by a forward implication. This reuses the ordinary implication-clause constructor. -/
-def link (b : Bool) (previous next : V) : Clause V :=
+@[expose] def link (b : Bool) (previous next : V) : Clause V :=
   if b then Clause.imp [next] previous else Clause.imp [previous] next
 
 /-- One binary implication between each consecutive pair of cells, using its exit and entry. -/
-def links (b : Bool) (cells : List (V × V)) : CNF V :=
-  cells.consecutivePairs.map fun p => link b p.1.2 p.2.1
+@[expose] def links (b : Bool) (cells : List (V × V)) : CNF V :=
+  cells.consecutivePairs.map fun (prev, next) => link b prev.2 next.1
 
 /-- A link enforces exactly the direction needed for its literal's truth. -/
 theorem eval_link_iff (σ : V → Bool) (b : Bool) (previous next : V) :
     (link b previous next).eval σ = true ↔ (σ next = b → σ previous = b) := by
-  cases b <;> cases hp : σ previous <;> cases hn : σ next <;>
-    simp [link, Clause.eval_imp, hp, hn]
+  grind [link, Clause.eval_imp]
 
 /-- All links hold exactly when literal truth propagates across every gap. -/
 theorem eval_links_iff (σ : V → Bool) (b : Bool) (cells : List (V × V)) :
     (links b cells).eval σ = true ↔
-      ∀ p ∈ cells.consecutivePairs, σ p.2.1 = b → σ p.1.2 = b := by
-  simp only [links, eval_map_eq_true_iff, eval_link_iff]
+      ∀ prev next, (prev, next) ∈ cells.consecutivePairs → σ next.1 = b → σ prev.2 = b := by
+  simp only [links, eval_map_eq_true_iff, Prod.forall, eval_link_iff]
 
 /-- Empty and singleton cell lists have no intercell clauses. -/
 @[simp] theorem links_nil (b : Bool) : links b ([] : List (V × V)) = [] := rfl
@@ -90,10 +90,9 @@ theorem propagate (σ : V → Bool) (b : Bool) (first : V × V) (rest : List (V 
   | nil => exact (hcells first List.mem_cons_self).trans hlast
   | cons next rest ih =>
     rw [links_cons_cons, eval_cons, Bool.and_eq_true] at hlinks
-    have hn : σ next.1 = b := ih next
-      (fun c hc => hcells c (List.mem_cons_of_mem _ hc)) hlinks.2
-      (by simpa only [List.getLastD_cons] using hlast)
-    exact (hcells first List.mem_cons_self).trans ((eval_link_iff σ b _ _).1 hlinks.1 hn)
+    exact (hcells first List.mem_cons_self).trans ((eval_link_iff σ b _ _).1 hlinks.1
+      (ih next (fun c hc => hcells c (List.mem_cons_of_mem _ hc)) hlinks.2
+        (by simpa only [List.getLastD_cons] using hlast)))
 
 /-- The propagation rule for a possibly empty list, with nonemptiness stated explicitly.
 The fallback only makes the endpoint expressions total; it is unused under this hypothesis. -/
@@ -114,9 +113,9 @@ theorem eval_links_of_constant (σ : V → Bool) (b value : Bool) (cells : List 
     (h : ∀ c ∈ cells, σ c.1 = value ∧ σ c.2 = value) :
     (links b cells).eval σ = true := by
   apply (eval_links_iff σ b cells).2
-  intro p hp hn
+  intro prev next hp hn
   have hm := List.of_mem_zip hp
-  rw [(h p.1 hm.1).2, ← (h p.2 (List.mem_of_mem_tail hm.2)).1]
+  rw [(h prev hm.1).2, ← (h next (List.mem_of_mem_tail hm.2)).1]
   exact hn
 
 /-- There is exactly one clause per consecutive gap. -/
@@ -147,46 +146,41 @@ theorem length_vars_links (b : Bool) (cells : List (V × V)) :
 
 /-- Replace each original literal by the final exit variable on its occurrence's wire,
 retaining its polarity and its clause/literal position. -/
-def replacementClauses (φ : CNF V) (wire : Occurrence V → List (W × W))
+@[expose] def replacementClauses (φ : CNF V) (wire : Occurrence V → List (W × W))
     (fallback : W) : CNF W :=
-  φ.zipIdx.map fun c => c.1.zipIdx.map fun l =>
-    ((wire (c.2, l.2, l.1)).getLastD (fallback, fallback) |>.2, l.1.2)
+  φ.zipIdx.map fun (clause, ci) => clause.zipIdx.map fun (lit, li) =>
+    (((wire ⟨ci, li, lit⟩).getLastD (fallback, fallback)).2, lit.2)
 
 /-- The directed-link clauses for every original literal occurrence, including duplicates. -/
-def allLinks (φ : CNF V) (wire : Occurrence V → List (W × W)) : CNF W :=
-  (Cslib.Logic.PL.occurrences φ).flatMap fun o => links o.2.2.2 (wire o)
+@[expose] def allLinks (φ : CNF V) (wire : Occurrence V → List (W × W)) : CNF W :=
+  (Cslib.Logic.PL.occurrences φ).flatMap fun o => links o.lit.2 (wire o)
 
 /-- Original clauses at their wire endpoints, followed by all directed links.
 Local cell constraints, such as crossover formulas, are supplied separately by the caller. -/
-def assemble (φ : CNF V) (wire : Occurrence V → List (W × W)) (fallback : W) : CNF W :=
+@[expose] def assemble (φ : CNF V) (wire : Occurrence V → List (W × W)) (fallback : W) : CNF W :=
   replacementClauses φ wire fallback ++ allLinks φ wire
 
 /-- Evaluation of the replacement clauses, indexed by the original clause and literal positions. -/
 theorem eval_replacementClauses_iff (φ : CNF V) (wire : Occurrence V → List (W × W))
     (fallback : W) (σ : W → Bool) :
     (replacementClauses φ wire fallback).eval σ = true ↔
-      ∀ c ∈ φ.zipIdx, ∃ l ∈ c.1.zipIdx,
-        σ ((wire (c.2, l.2, l.1)).getLastD (fallback, fallback)).2 = l.1.2 := by
-  rw [replacementClauses, eval_map_eq_true_iff]
-  apply forall₂_congr fun c _ => ?_
+      ∀ clause ci, (clause, ci) ∈ φ.zipIdx → ∃ lit li, (lit, li) ∈ clause.zipIdx ∧
+        σ ((wire ⟨ci, li, lit⟩).getLastD (fallback, fallback)).2 = lit.2 := by
+  rw [replacementClauses, eval_map_eq_true_iff, Prod.forall]
+  refine forall₂_congr fun clause _ => forall_congr' fun _ => ?_
   rw [Clause.eval_eq_true_iff]
   constructor
-  · rintro ⟨lit, hmem, htruth⟩
-    obtain ⟨l, hl, rfl⟩ := List.mem_map.mp hmem
-    exact ⟨l, hl, htruth⟩
-  · rintro ⟨l, hl, htruth⟩
-    exact ⟨_, List.mem_map.mpr ⟨l, hl, rfl⟩, htruth⟩
+  · rintro ⟨_, hm, ht⟩
+    obtain ⟨⟨lit, li⟩, hl, rfl⟩ := List.mem_map.mp hm
+    exact ⟨lit, li, hl, ht⟩
+  · rintro ⟨lit, li, hl, ht⟩
+    exact ⟨_, List.mem_map.mpr ⟨(lit, li), hl, rfl⟩, ht⟩
 
 /-- The global link block holds exactly when every occurrence's wire links hold. -/
 theorem eval_allLinks_iff (φ : CNF V) (wire : Occurrence V → List (W × W)) (σ : W → Bool) :
     (allLinks φ wire).eval σ = true ↔
-      ∀ o ∈ Cslib.Logic.PL.occurrences φ, (links o.2.2.2 (wire o)).eval σ = true := by
-  exact eval_flatMap_eq_true_iff σ _ _
-
-private theorem occurrence_mem {φ : CNF V} {c : Clause V × ℕ} (hc : c ∈ φ.zipIdx)
-    {l : Literal V × ℕ} (hl : l ∈ c.1.zipIdx) :
-    (c.2, l.2, l.1) ∈ Cslib.Logic.PL.occurrences φ := by
-  exact List.mem_flatMap.mpr ⟨c, hc, List.mem_map.mpr ⟨l, hl, rfl⟩⟩
+      ∀ o ∈ Cslib.Logic.PL.occurrences φ, (links o.lit.2 (wire o)).eval σ = true :=
+  eval_flatMap_eq_true_iff σ _ _
 
 /-- Satisfaction projects back to the ordinary source formula when the caller proves local
 cell equality and agreement between the first entries and source variable values. -/
@@ -195,21 +189,16 @@ theorem eval_assemble_sound (φ : CNF V) (wire : Occurrence V → List (W × W))
     (hne : ∀ o ∈ Cslib.Logic.PL.occurrences φ, wire o ≠ [])
     (hcells : ∀ o ∈ Cslib.Logic.PL.occurrences φ, ∀ c ∈ wire o, σ c.1 = σ c.2)
     (hfirst : ∀ o ∈ Cslib.Logic.PL.occurrences φ,
-      σ ((wire o).headD (fallback, fallback)).1 = τ o.2.2.1)
+      σ ((wire o).headD (fallback, fallback)).1 = τ o.lit.1)
     (h : (assemble φ wire fallback).eval σ = true) : φ.eval τ = true := by
-  have h' := h
-  rw [assemble, eval_append, Bool.and_eq_true] at h'
-  have hr := (eval_replacementClauses_iff φ wire fallback σ).1 h'.1
-  have hw := (eval_allLinks_iff φ wire σ).1 h'.2
-  rw [← List.zipIdx_map_fst 0 φ, eval_map_eq_true_iff]
-  intro c hc
-  obtain ⟨l, hl, hv⟩ := hr c hc
-  have ho := occurrence_mem hc hl
-  apply (Clause.eval_eq_true_iff τ c.1).2
-  refine ⟨l.1, List.fst_mem_of_mem_zipIdx hl, ?_⟩
-  have hp := propagate_of_ne_nil σ l.1.2 fallback (wire (c.2, l.2, l.1))
-    (hne _ ho) (hcells _ ho) (hw _ ho) hv
-  exact (hfirst _ ho).symm.trans hp
+  rw [assemble, eval_append, Bool.and_eq_true, eval_replacementClauses_iff, eval_allLinks_iff] at h
+  rw [← List.zipIdx_map_fst 0 φ, eval_map_eq_true_iff, Prod.forall]
+  intro clause ci hc
+  obtain ⟨lit, li, hl, hv⟩ := h.1 clause ci hc
+  have ho := mk_mem_occurrences_of_mem_zipIdx hc hl
+  exact (Clause.eval_eq_true_iff τ clause).2 ⟨lit, List.fst_mem_of_mem_zipIdx hl,
+    (hfirst _ ho).symm.trans (propagate_of_ne_nil σ lit.2 fallback _ (hne _ ho) (hcells _ ho)
+      (h.2 _ ho) hv)⟩
 
 /-- A source satisfying assignment extends through the link assembly whenever the caller
 supplies one compatible target assignment constant along each occurrence's nonempty wire.
@@ -218,21 +207,21 @@ theorem eval_assemble_complete (φ : CNF V) (wire : Occurrence V → List (W × 
     (fallback : W) (τ : V → Bool) (σ : W → Bool)
     (hne : ∀ o ∈ Cslib.Logic.PL.occurrences φ, wire o ≠ [])
     (hcompat : ∀ o ∈ Cslib.Logic.PL.occurrences φ, ∀ c ∈ wire o,
-      σ c.1 = τ o.2.2.1 ∧ σ c.2 = τ o.2.2.1)
+      σ c.1 = τ o.lit.1 ∧ σ c.2 = τ o.lit.1)
     (h : φ.eval τ = true) : (assemble φ wire fallback).eval σ = true := by
   rw [assemble, eval_append, Bool.and_eq_true]
   constructor
   · apply (eval_replacementClauses_iff φ wire fallback σ).2
-    intro c hc
-    have hclause := (eval_eq_true_iff τ φ).1 h c.1 (List.fst_mem_of_mem_zipIdx hc)
-    obtain ⟨l, hl, hv⟩ := (Clause.eval_eq_true_iff τ c.1).1 hclause
-    rw [← List.zipIdx_map_fst 0 c.1] at hl
-    obtain ⟨li, hli, rfl⟩ := List.mem_map.mp hl
-    refine ⟨li, hli, ?_⟩
-    have ho := occurrence_mem hc hli
-    have hm : (wire (c.2, li.2, li.1)).getLastD (fallback, fallback) ∈
-        wire (c.2, li.2, li.1) := by
-      cases hw : wire (c.2, li.2, li.1) with
+    intro clause ci hc
+    have hclause := (eval_eq_true_iff τ φ).1 h clause (List.fst_mem_of_mem_zipIdx hc)
+    obtain ⟨lit, hl, hv⟩ := (Clause.eval_eq_true_iff τ clause).1 hclause
+    rw [← List.zipIdx_map_fst 0 clause] at hl
+    obtain ⟨⟨lit, li⟩, hli, rfl⟩ := List.mem_map.mp hl
+    refine ⟨lit, li, hli, ?_⟩
+    have ho := mk_mem_occurrences_of_mem_zipIdx hc hli
+    have hm : (wire ⟨ci, li, lit⟩).getLastD (fallback, fallback) ∈
+        wire ⟨ci, li, lit⟩ := by
+      cases hw : wire ⟨ci, li, lit⟩ with
       | nil => exact False.elim (hne _ ho hw)
       | cons a rest =>
         rw [List.getLastD_cons]
@@ -240,15 +229,14 @@ theorem eval_assemble_complete (φ : CNF V) (wire : Occurrence V → List (W × 
     exact (hcompat _ ho _ hm).2.trans hv
   · apply (eval_allLinks_iff φ wire σ).2
     intro o ho
-    exact eval_links_of_constant σ o.2.2.2 (τ o.2.2.1) (wire o) (hcompat o ho)
+    exact eval_links_of_constant σ o.lit.2 (τ o.lit.1) (wire o) (hcompat o ho)
 
 /-- Clause replacement preserves all original clause widths. -/
 theorem map_length_replacementClauses (φ : CNF V) (wire : Occurrence V → List (W × W))
     (fallback : W) : (replacementClauses φ wire fallback).map List.length = φ.map List.length := by
+  conv_rhs => rw [← List.zipIdx_map_fst 0 φ, List.map_map]
   simp only [replacementClauses, List.map_map, Function.comp_def, List.length_map,
     List.length_zipIdx]
-  simpa only [List.map_map, Function.comp_def] using
-    congrArg (List.map List.length) (List.zipIdx_map_fst 0 φ)
 
 /-- The link block has one clause per gap of each occurrence's wire. -/
 theorem length_allLinks (φ : CNF V) (wire : Occurrence V → List (W × W)) :
@@ -272,28 +260,21 @@ theorem length_vars_allLinks (φ : CNF V) (wire : Occurrence V → List (W × W)
     (allLinks φ wire).vars.length =
       2 * ((Cslib.Logic.PL.occurrences φ).map fun o => (wire o).length - 1).sum := by
   have total (os : List (Occurrence V)) :
-      (CNF.vars (os.flatMap fun o => links o.2.2.2 (wire o))).length =
+      (CNF.vars (os.flatMap fun o => links o.lit.2 (wire o))).length =
         2 * (os.map fun o => (wire o).length - 1).sum := by
     induction os with
     | nil => rfl
-    | cons o os ih =>
-      simp only [List.flatMap_cons, CNF.vars, List.flatten_append, List.map_append,
-        List.length_append]
-      change (links o.2.2.2 (wire o)).vars.length +
-        (CNF.vars (os.flatMap fun o => links o.2.2.2 (wire o))).length = _
-      rw [length_vars_links, ih]
-      simp only [List.map_cons, List.sum_cons, Nat.mul_add]
+    | cons _ _ ih =>
+      simp only [List.flatMap_cons, CNF.vars_append, List.length_append, length_vars_links, ih,
+        List.map_cons, List.sum_cons, Nat.mul_add]
   exact total _
 
 /-- Exact total literal count, with no distinctness assumptions on signal variables. -/
 theorem length_vars_assemble (φ : CNF V) (wire : Occurrence V → List (W × W)) (fallback : W) :
     (assemble φ wire fallback).vars.length = φ.vars.length +
       2 * ((Cslib.Logic.PL.occurrences φ).map fun o => (wire o).length - 1).sum := by
-  unfold assemble
-  simp only [CNF.vars, List.flatten_append, List.map_append, List.length_append]
-  change (replacementClauses φ wire fallback).vars.length + (allLinks φ wire).vars.length = _
-  rw [length_vars_replacementClauses, length_vars_allLinks]
-  rfl
+  rw [assemble, CNF.vars_append, List.length_append, length_vars_replacementClauses,
+    length_vars_allLinks]
 
 /-- Source clause widths are preserved and every added clause is binary. -/
 theorem width_assemble (φ : CNF V) (wire : Occurrence V → List (W × W)) (fallback : W)
@@ -302,10 +283,10 @@ theorem width_assemble (φ : CNF V) (wire : Occurrence V → List (W × W)) (fal
   intro c hc
   change c ∈ replacementClauses φ wire fallback ++ allLinks φ wire at hc
   rcases List.mem_append.mp hc with hc | hc
-  · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
-    have h := hwidth d.1 (List.fst_mem_of_mem_zipIdx hd)
+  · obtain ⟨⟨clause, ci⟩, hd, rfl⟩ := List.mem_map.mp hc
+    have h := hwidth clause (List.fst_mem_of_mem_zipIdx hd)
     calc
-      _ = d.1.length := by simp only [List.length_map, List.length_zipIdx]
+      _ = clause.length := by simp only [List.length_map, List.length_zipIdx]
       _ ≤ k := h
       _ ≤ max k 2 := Nat.le_max_left _ _
   · obtain ⟨o, _, hc⟩ := List.mem_flatMap.mp hc

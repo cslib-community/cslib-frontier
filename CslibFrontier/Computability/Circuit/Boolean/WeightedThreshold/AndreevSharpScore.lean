@@ -1,0 +1,368 @@
+/-
+Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Christian Reitwiessner
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Foundations.BooleanAnalysis.OddForm
+import CslibFrontier.Tactic.LinarithCast
+import Mathlib.Tactic.LinearCombination
+
+/-!
+# The sharper score for Andreev's function
+
+This module proves the score identity behind the exact depth-two threshold circuit for Andreev's
+function with `(5/16 + o(1)) n ^ 2` gates (`AndreevSharp`), stated over the table bits
+`x : BitString b → Bool` and the block counts `s : Fin b → ℕ` only. The mathematics is original,
+AI-assisted work under [#4640](https://github.com/cslib-community/cslib-frontier/issues/4640).
+Statement numbers and labels refer to the author's unpublished draft (C. Reitwiessner,
+*Depth-Two Threshold Circuits for Andreev's Function*, Theorem 5 and Appendix A), which is not
+publicly accessible; the correspondence with it is not verifiable by third parties.
+
+With `N = 2 ^ b`, block parities `p` (`blockParities`), `α = ⌊(m - 1) / 2⌋`, multipliers
+`μ_c` (`0` at `c = 0`, `1 + α` at the weight-one addresses `e_i`, `1` elsewhere),
+`W_S = ∑_{S · c odd} μ_c x_c`, `t_S = ∑_{i ∈ S} s_i`, `w = 2 ∑_c μ_c x_c + ∑_i s_i` and
+`R = 2 (N - 1) + 2 α b + b m`, the score `andreevSharpScore` is the preprint's
+`P = 2N + ∑_S r_S(2 W_S + t_S) + (N / 2)(w² + ∑ s_i²) + 4 N z - 2 N (α² + 1) E - 2 α N σ
+  + 2 N (1 + α) ∑_i x_{e_i} s_i - N (R + 4) x_0 [p = 0]`
+with the ridge `r_S(u) = -8 ⌈u/2⌉² + κ_S ⌈u/2⌉`, `κ_S = -4 (2α + 1)(b - 2|S|)`.
+
+The proof is by character sums over the odd-parity forms of
+`Foundations.BooleanAnalysis.OddForm`: the form `L_f(S) = ∑_c f(c) [S · c odd]` satisfies
+`2 ∑_S L_f(S) = N (∑ f - f 0)` and the bilinear identity
+`4 ∑_S L_f(S) L_h(S) = N ((F - f 0)(H - h 0) + ∑_c f c h c - f 0 h 0)`. Writing
+`4 r_S(2 W_S + t_S) = -8 G_S² + 2 κ_S G_S` with `G_S = 2 W_S + t_S + (t_S mod 2)`, an odd-parity
+form, collapses the sum over `S` to a closed form. Deviation from the preprint: the closed form
+is proved in one uniform expression (`andreevSharpScore_eq`) rather than through the three
+displayed identities of Appendix A, and the sum over `S` includes `S = ∅`, which contributes
+`r(0) = 0`.
+
+## Main definitions
+
+* `Cslib.Circuits.Boolean.WeightedThreshold.andreevSharpScore` and its ingredients
+  `andreevSharpAmp`, `andreevSharpMult`, `andreevSharpW`, `andreevSharpLoad`, `andreevSharpRange`,
+  `andreevSharpKappa`, `andreevRidge`, `blockParities`.
+
+## Main results
+
+* `Cslib.Circuits.Boolean.WeightedThreshold.andreevSharpScore_eq`: the closed form of the score
+  (preprint, equation `eq:bestclosed`).
+* `Cslib.Circuits.Boolean.WeightedThreshold.andreevSharpScore_margin`: if every block count is at
+  most `m`, then `P ≥ N` when the selected table bit is `false` and `P ≤ -N` when it is `true`.
+
+## References
+
+* [cslib-frontier#4640](https://github.com/cslib-community/cslib-frontier/issues/4640):
+  original AI-assisted work, following C. Reitwiessner, *Depth-Two Threshold Circuits for
+  Andreev's Function* (unpublished draft, not publicly accessible), Theorem 5 and Appendix A.
+-/
+
+@[expose] public section
+
+namespace Cslib.Circuits.Boolean.WeightedThreshold
+
+open BitString Finset
+
+/-! ### The sharper score -/
+
+section Score
+
+variable (b m : ℕ)
+
+/-- The amplification `α = ⌊(m - 1) / 2⌋` (with `α = 0` for `m = 0`). -/
+def andreevSharpAmp (m : ℕ) : ℕ :=
+  (m - 1) / 2
+
+/-- The table multiplier `μ_c`: `0` at the zero address, `1 + α` at weight-one addresses and `1`
+elsewhere. -/
+def andreevSharpMult (c : BitString b) : ℕ :=
+  if c = 0 then 0 else if IsSingle c then 1 + andreevSharpAmp m else 1
+
+/-- `W_S = ∑_{c : S · c odd} μ_c x_c`, the amplified count of table ones at odd addresses. -/
+def andreevSharpW (x : BitString b → Bool) (S : Finset (Fin b)) : ℕ :=
+  ∑ c, andreevSharpMult b m c * (x c).toNat * (parityOn S c).toNat
+
+/-- The global load `w = 2 ∑_c μ_c x_c + ∑_i s_i`, which equals `2 z + 2 α E + σ`. -/
+def andreevSharpLoad (x : BitString b → Bool) (s : Fin b → ℕ) : ℕ :=
+  2 * (∑ c, andreevSharpMult b m c * (x c).toNat) + ∑ i, s i
+
+/-- The range `R = 2 (2 ^ b - 1) + 2 α b + b m` of the load. -/
+def andreevSharpRange : ℕ :=
+  2 * (2 ^ b - 1) + 2 * andreevSharpAmp m * b + b * m
+
+/-- The coefficient shift `κ_S = -4 (2 α + 1) (b - 2 |S|)`. -/
+def andreevSharpKappa (S : Finset (Fin b)) : ℤ :=
+  -4 * (2 * andreevSharpAmp m + 1) * (b - 2 * #S)
+
+/-- The ridge function `r_κ(u) = -8 ⌈u / 2⌉ ^ 2 + κ ⌈u / 2⌉`. -/
+def andreevRidge (κ u : ℤ) : ℤ :=
+  -8 * ((u + 1) / 2) ^ 2 + κ * ((u + 1) / 2)
+
+/-- The parity vector of block counts. -/
+def blockParities (s : Fin b → ℕ) : BitString b :=
+  fun i => decide (s i % 2 = 1)
+
+variable {b} in
+/-- A truth-table bit as a real number. -/
+abbrev tableVal (x : BitString b → Bool) (c : BitString b) : ℝ :=
+  (x c).toNat
+
+/-- **The sharper score** (preprint, Appendix A, equation `eq:bestscore`): for table bits `x` and
+block counts `s`,
+`P = 2N + ∑_S r_S(2 W_S + t_S) + (N / 2)(w² + ∑ s_i²) + 4 N z - 2 N (α² + 1) E - 2 α N σ
+  + 2 N (1 + α) ∑_i x_{e_i} s_i - N (R + 4) x_0 [b = 0]`.
+The sum runs over all `S`; the empty set contributes `r(0) = 0`. -/
+noncomputable def andreevSharpScore (x : BitString b → Bool) (s : Fin b → ℕ) : ℝ :=
+  let N : ℝ := 2 ^ b
+  let α : ℝ := andreevSharpAmp m
+  2 * N + (∑ S, (andreevRidge (andreevSharpKappa b m S)
+      (2 * andreevSharpW b m x S + ∑ i ∈ S, s i) : ℝ)) +
+    N / 2 * ((andreevSharpLoad b m x s : ℝ) ^ 2 + ∑ i, (s i : ℝ) ^ 2) +
+    4 * N * (∑ c, if c = 0 then 0 else tableVal x c) -
+    2 * N * (α ^ 2 + 1) * (∑ i, tableVal x (Pi.single i true)) - 2 * α * N * (∑ i, (s i : ℝ)) +
+    2 * N * (1 + α) * (∑ i, tableVal x (Pi.single i true) * s i) -
+    N * (andreevSharpRange b m + 4) * tableVal x 0 *
+      (if blockParities b s = 0 then 1 else 0)
+
+end Score
+
+/-! ### Closed form of the score -/
+
+section ClosedForm
+
+variable {b m : ℕ}
+
+/-- `4 r_κ(u) = -8 G ^ 2 + 2 κ G` with `G = u + (u mod 2) = 2 ⌈u / 2⌉`. -/
+theorem four_mul_andreevRidge (κ : ℤ) (u : ℕ) :
+    4 * andreevRidge κ u = -8 * ((u + u % 2 : ℕ) : ℤ) ^ 2 + 2 * κ * (u + u % 2 : ℕ) := by
+  have h : ((u + u % 2 : ℕ) : ℤ) = 2 * (((u : ℤ) + 1) / 2) := by push_cast; omega
+  rw [h, andreevRidge]; ring
+
+/-- The parity of a block sum is the parity of the block parities. -/
+theorem sum_mod_two_eq_toNat_parityOn (s : Fin b → ℕ) (S : Finset (Fin b)) :
+    (∑ i ∈ S, s i) % 2 = (parityOn S (blockParities b s)).toNat := by
+  induction S using Finset.induction_on with
+  | empty => simp [parityOn]
+  | insert i S hi ih =>
+    rw [sum_insert hi, parityOn_insert hi, Nat.add_mod, ih]
+    simp only [blockParities]
+    rcases Nat.mod_two_eq_zero_or_one (s i) with h | h <;>
+      cases parityOn S (blockParities b s) <;> simp [h]
+
+/-- The real multiplier: `μ_c = [c ≠ 0] + α [c has weight one]`. -/
+theorem cast_andreevSharpMult (c : BitString b) :
+    (andreevSharpMult b m c : ℝ) =
+      (if c = 0 then 0 else 1) + andreevSharpAmp m * onSingles 1 c := by
+  rw [← ite_isSingle_eq_onSingles, andreevSharpMult]
+  rcases eq_or_ne c 0 with rfl | h0
+  · simp [not_isSingle_zero]
+  · by_cases hu : IsSingle c <;> simp [h0, hu]
+
+/-- The squared multiplier: `μ_c ^ 2 = [c ≠ 0] + (2 α + α ^ 2) [c has weight one]`, from
+`cast_andreevSharpMult` since both indicators are idempotent and the second implies the first. -/
+theorem cast_andreevSharpMult_sq (c : BitString b) :
+    (andreevSharpMult b m c : ℝ) ^ 2 =
+      (if c = 0 then 0 else 1) +
+        (2 * andreevSharpAmp m + andreevSharpAmp m ^ 2) * onSingles 1 c := by
+  rw [cast_andreevSharpMult, ← ite_isSingle_eq_onSingles]
+  rcases eq_or_ne c 0 with rfl | hz
+  · simp [not_isSingle_zero]
+  · by_cases hs : IsSingle c <;>
+      simp only [hz, hs, ↓reduceIte, mul_one, mul_zero, add_zero, one_pow]
+    ring
+
+@[simp]
+private theorem andreevSharpMult_single (i : Fin b) :
+    andreevSharpMult b m (Pi.single i true) = 1 + andreevSharpAmp m := by
+  have : IsSingle (Pi.single i true) := ⟨i, rfl⟩
+  simp [andreevSharpMult, this]
+
+private theorem tableVal_sq (x : BitString b → Bool) (c : BitString b) :
+    tableVal x c ^ 2 = tableVal x c := by
+  cases h : x c <;> simp [tableVal, h]
+
+/-- **Closed form of the sharper score** (preprint, Appendix A, equation `eq:bestclosed`, in a
+uniform shape): with `p` the block parities, `I₀ = [p = 0]` and `μ_p` the multiplier,
+`P = 2N + N w I₀ - N (1 - I₀) - 2 N μ_p x_p - N s̃_p + (2α + 1) N [p has weight one]
+  - N (R + 4) x_0 I₀`,
+where `s̃_p` is `s_i` if `p = e_i` and `0` otherwise. -/
+theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
+    andreevSharpScore b m x s =
+      2 * 2 ^ b + 2 ^ b * andreevSharpLoad b m x s *
+          (if blockParities b s = 0 then 1 else 0) -
+        2 ^ b * (1 - if blockParities b s = 0 then 1 else 0) -
+        2 * 2 ^ b * andreevSharpMult b m (blockParities b s) * tableVal x (blockParities b s) -
+        2 ^ b * onSingles (fun i => (s i : ℝ)) (blockParities b s) +
+        (2 * andreevSharpAmp m + 1) * 2 ^ b * onSingles 1 (blockParities b s) -
+        2 ^ b * (andreevSharpRange b m + 4) * tableVal x 0 *
+          (if blockParities b s = 0 then 1 else 0) := by
+  set p := blockParities b s with hp
+  set N : ℝ := 2 ^ b with hN
+  set α : ℝ := (andreevSharpAmp m : ℝ) with hα
+  set X := tableVal x with hX
+  set a : BitString b → ℝ := fun c => (andreevSharpMult b m c : ℝ) * X c with ha
+  set st : BitString b → ℝ := onSingles fun i => (s i : ℝ) with hst
+  set ε : BitString b → ℝ := onSingles 1 with hε
+  set δ : BitString b → ℝ := fun c => if c = p then 1 else 0 with hδ
+  set g : BitString b → ℝ := fun c => 2 * a c + st c + δ c with hg
+  set z : ℝ := ∑ c, if c = 0 then 0 else X c with hz
+  set E : ℝ := ∑ i, X (Pi.single i true) with hE
+  set σ : ℝ := ∑ i, (s i : ℝ) with hσ
+  set I0 : ℝ := if p = 0 then 1 else 0 with hI0
+  -- the per-set ridge terms as odd-parity forms
+  have hG (S : Finset (Fin b)) :
+      ((2 * andreevSharpW b m x S + ∑ i ∈ S, s i +
+        (2 * andreevSharpW b m x S + ∑ i ∈ S, s i) % 2 : ℕ) : ℝ) = oddForm g S := by
+    rw [Nat.mul_add_mod_self_left, sum_mod_two_eq_toNat_parityOn, ← hp]
+    have hW : (andreevSharpW b m x S : ℝ) = ∑ c, a c * (parityOn S c).toNat := by
+      simp only [andreevSharpW, ha, hX, tableVal, Nat.cast_sum, Nat.cast_mul]
+    have ht : ((∑ i ∈ S, s i : ℕ) : ℝ) = ∑ c, st c * (parityOn S c).toNat := by
+      simpa [hst, oddForm] using (oddForm_onSingles (fun i => (s i : ℝ)) S).symm
+    simp only [oddForm, hg, add_mul, sum_add_distrib, hδ, ite_mul, one_mul, zero_mul,
+      sum_ite_eq', mem_univ, ite_true]
+    push_cast
+    rw [hW, ← ht]
+    push_cast
+    simp only [mul_sum, mul_assoc]
+  have hcard (S : Finset (Fin b)) : (#S : ℝ) = oddForm ε S := by
+    simp [hε, oddForm_onSingles]
+  have hkappa (S : Finset (Fin b)) : (andreevSharpKappa b m S : ℝ) =
+      -4 * (2 * α + 1) * b + 8 * (2 * α + 1) * oddForm ε S := by
+    push_cast [andreevSharpKappa, ← hcard]; ring
+  have hridge : 4 * ∑ S, (andreevRidge (andreevSharpKappa b m S)
+      (2 * andreevSharpW b m x S + ∑ i ∈ S, s i) : ℝ) =
+      -2 * (4 * ∑ S, oddForm g S * oddForm g S) - 4 * (2 * α + 1) * b * (2 * ∑ S, oddForm g S) +
+        4 * (2 * α + 1) * (4 * ∑ S, oddForm ε S * oddForm g S) := by
+    simp only [mul_sum, ← sum_add_distrib, ← sum_sub_distrib]
+    refine sum_congr rfl fun S _ => ?_
+    set u := 2 * andreevSharpW b m x S + ∑ i ∈ S, s i with hu'
+    have hu : (2 * (andreevSharpW b m x S : ℤ) + ((∑ i ∈ S, s i : ℕ) : ℤ)) = (u : ℤ) := by
+      push_cast [hu']; ring
+    have h4 := congrArg (Int.cast (R := ℝ)) (four_mul_andreevRidge (andreevSharpKappa b m S) u)
+    simp only [Int.cast_mul, Int.cast_add, Int.cast_pow, Int.cast_neg, Int.cast_ofNat,
+      Int.cast_natCast] at h4
+    rw [hu, h4, hG S, hkappa]; ring
+  rw [two_mul_sum_oddForm, four_mul_sum_oddForm_mul_oddForm,
+    four_mul_sum_oddForm_mul_oddForm] at hridge
+  simp only [Fintype.card_fin] at hridge
+  -- basic inner products
+  have ha0 : a 0 = 0 := by simp [ha, andreevSharpMult]
+  have hst0 : st 0 = 0 := onSingles_zero _
+  have hε0 : ε 0 = 0 := onSingles_zero _
+  have hδ0 : δ 0 = I0 := by simp only [hδ, hI0, eq_comm]
+  have weighted_sum (κ : ℝ) :
+      (∑ c, ((if c = 0 then 0 else 1) + κ * ε c) * X c) = z + κ * E := by
+    simp only [hε, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
+      mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply, hz, hE]
+  have hsa : ∑ c, a c = z + α * E := by
+    simpa only [ha, cast_andreevSharpMult, hα, hε] using weighted_sum α
+  have hsaa : ∑ c, a c * a c = z + (2 * α + α ^ 2) * E := by
+    simpa only [ha, ← sq, mul_pow, hX, tableVal_sq, cast_andreevSharpMult_sq, hα, hε]
+      using weighted_sum (2 * α + α ^ 2)
+  have hsast : ∑ c, a c * st c = (1 + α) * ∑ i, X (Pi.single i true) * s i := by
+    simp_rw [hst, mul_comm (a _), sum_onSingles_mul, mul_sum, ha, andreevSharpMult_single]
+    exact sum_congr rfl fun _ _ => by push_cast; ring
+  have hsum_δ (F : BitString b → ℝ) : ∑ c, F c * δ c = F p := by
+    simp [hδ]
+  have hsst : ∑ c, st c = σ := by
+    simpa [hst, hσ] using sum_onSingles_mul (fun i => (s i : ℝ)) fun _ => 1
+  have hsstst : ∑ c, st c * st c = ∑ i, (s i : ℝ) ^ 2 := by
+    simp [hst, sum_onSingles_mul, sq]
+  have hsδ : ∑ c, δ c = 1 := by simp [hδ]
+  have hsε : ∑ c, ε c = b := by
+    simpa [hε] using sum_onSingles_mul (1 : Fin b → ℝ) fun _ => 1
+  have hsεa : ∑ c, ε c * a c = (1 + α) * E := by
+    simp [hε, sum_onSingles_mul, ha, hE, mul_sum, hα]
+  have hsεst : ∑ c, ε c * st c = σ := by simp [hε, sum_onSingles_mul, hst, hσ]
+  have hsg : ∑ c, g c = 2 * (z + α * E) + σ + 1 := by
+    simp only [hg, sum_add_distrib, ← mul_sum, hsa, hsst, hsδ]
+  have hg0 : g 0 = I0 := by simp only [hg, ha0, hst0, hδ0]; ring
+  have hsgg : ∑ c, g c * g c = 4 * (z + (2 * α + α ^ 2) * E) + ∑ i, (s i : ℝ) ^ 2 + 1 +
+      4 * ((1 + α) * ∑ i, X (Pi.single i true) * s i) + 4 * a p + 2 * st p := by
+    have h (c : BitString b) : g c * g c = 4 * (a c * a c) + st c * st c + δ c * δ c +
+        4 * (a c * st c) + 4 * (a c * δ c) + 2 * (st c * δ c) := by
+      simp only [hg]; ring
+    have hδδ : ∑ c, δ c * δ c = 1 := by rw [hsum_δ]; simp [hδ]
+    simp only [h, sum_add_distrib, ← mul_sum, hsaa, hsstst, hδδ, hsast, hsum_δ]
+  have hsεg : ∑ c, ε c * g c = 2 * ((1 + α) * E) + σ + ε p := by
+    have h (c : BitString b) : ε c * g c = 2 * (ε c * a c) + ε c * st c + ε c * δ c := by
+      simp only [hg]; ring
+    simp only [h, sum_add_distrib, ← mul_sum, hsεa, hsεst, hsum_δ]
+  rw [hsg, hg0, hsgg, hsε, hε0, hsεg] at hridge
+  -- the load
+  have hload : (andreevSharpLoad b m x s : ℝ) = 2 * (z + α * E) + σ := by
+    simp [andreevSharpLoad, ← hsa, ha, hX, hσ]
+  -- assemble
+  rw [mul_comm] at hridge
+  rw [andreevSharpScore, eq_div_of_mul_eq four_ne_zero hridge, hload]
+  simp only [← hN, ← hα, ← hσ, ← hp, ha, hI0]
+  split_ifs <;> ring
+
+/-- The load is at most the range: `w ≤ R`. -/
+theorem andreevSharpLoad_le (x : BitString b → Bool) (s : Fin b → ℕ) (hs : ∀ i, s i ≤ m) :
+    andreevSharpLoad b m x s ≤ andreevSharpRange b m := by
+  have hμ : ∑ c, andreevSharpMult b m c * (x c).toNat ≤ ∑ c, andreevSharpMult b m c :=
+    sum_le_sum fun c _ => by cases x c <;> simp
+  have hμN : ∑ c, andreevSharpMult b m c = (2 ^ b - 1) + andreevSharpAmp m * b := by
+    suffices ((∑ c, andreevSharpMult b m c : ℕ) : ℝ) =
+        (((2 ^ b - 1) + andreevSharpAmp m * b : ℕ) : ℝ) from mod_cast this
+    have h1 : (∑ c : BitString b, onSingles (1 : Fin b → ℝ) c) = b := by
+      simpa using sum_onSingles_mul (1 : Fin b → ℝ) fun _ => 1
+    have h0 (c : BitString b) : (if c = 0 then (0 : ℝ) else 1) = 1 - if c = 0 then 1 else 0 := by
+      split_ifs <;> norm_num
+    push_cast [Nat.cast_sub Nat.one_le_two_pow]
+    simp [cast_andreevSharpMult, sum_add_distrib, ← mul_sum, h1, h0, sum_sub_distrib]
+  have hσ : ∑ i, s i ≤ b * m := (sum_le_sum fun i _ => hs i).trans (by simp)
+  rw [andreevSharpLoad, andreevSharpRange]
+  linarith [hμ.trans hμN.le]
+
+/-- The real load is `2 (z + α E) + σ`. -/
+theorem cast_andreevSharpLoad (x : BitString b → Bool) (s : Fin b → ℕ) :
+    (andreevSharpLoad b m x s : ℝ) = 2 * ((∑ c, if c = 0 then 0 else tableVal x c) +
+      andreevSharpAmp m * ∑ i, tableVal x (Pi.single i true)) + ∑ i, (s i : ℝ) := by
+  push_cast [andreevSharpLoad]
+  simp only [cast_andreevSharpMult, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
+    mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply]
+
+/-- **The score has margin `N`** (preprint, Appendix A): if every block count is at most `m`,
+the score is at least `2 ^ b` when the selected table bit is `false` and at most `-2 ^ b` when it
+is `true`. -/
+theorem andreevSharpScore_margin (x : BitString b → Bool) (s : Fin b → ℕ)
+    (hs : ∀ i, s i ≤ m) :
+    (x (blockParities b s) = false → (2 : ℝ) ^ b ≤ andreevSharpScore b m x s) ∧
+      (x (blockParities b s) = true → andreevSharpScore b m x s ≤ -(2 : ℝ) ^ b) := by
+  rw [andreevSharpScore_eq]
+  set p := blockParities b s with hp
+  have hN : (0 : ℝ) < 2 ^ b := by positivity
+  by_cases hp0 : p = 0
+  · have hw := andreevSharpLoad_le x s hs
+    have hw0 : (0 : ℝ) ≤ andreevSharpLoad b m x s := Nat.cast_nonneg _
+    simp only [hp0, ↓reduceIte, onSingles_zero, andreevSharpMult, mul_one, sub_self, mul_zero,
+      Nat.cast_zero, sub_zero, add_zero]
+    constructor <;> intro hx <;> simp only [tableVal, hx, Bool.toNat_false, Bool.toNat_true,
+      Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero] <;> cast_nlinarith [hw]
+  · simp only [hp0, ↓reduceIte, mul_zero, sub_zero, add_zero]
+    by_cases hu : IsSingle p
+    · obtain ⟨i, hi⟩ := hu
+      have hsi : s i % 2 = 1 := by simpa [hp, blockParities] using congrFun hi i
+      have hsim := hs i
+      have hα : s i ≤ 2 * andreevSharpAmp m + 1 := by simp only [andreevSharpAmp]; omega
+      rw [hi, onSingles_single, onSingles_single, andreevSharpMult_single]
+      push_cast
+      have h1 := mul_le_mul_of_nonneg_left
+        (mod_cast hα : (s i : ℝ) ≤ 2 * andreevSharpAmp m + 1) hN.le
+      have h2 := mul_le_mul_of_nonneg_left (mod_cast (show 1 ≤ s i by omega) : (1 : ℝ) ≤ s i) hN.le
+      constructor <;> intro hx <;> simp only [tableVal, hx, Bool.toNat_false,
+        Bool.toNat_true, Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero,
+        Pi.one_apply] <;> nlinarith
+    · simp only [onSingles_of_not_isSingle _ hu, andreevSharpMult, hp0, hu, ↓reduceIte,
+        Nat.cast_one]
+      constructor <;> intro hx <;> simp only [tableVal, hx, Bool.toNat_false, Bool.toNat_true,
+        Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero] <;> nlinarith
+
+end ClosedForm
+
+end Cslib.Circuits.Boolean.WeightedThreshold

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Crypto.Primitives.PRG.Deterministic
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Data.Finset.Density
@@ -54,9 +55,6 @@ one does with probability at least `1 - (1 - ε / (2 m)) ^ k`
 
 ## Main results
 
-* `Cslib.Crypto.PRG.Generator.toReal_realExperiment_pure`,
-  `Cslib.Crypto.PRG.Generator.toReal_idealExperiment_pure`: the experiments of a deterministic
-  test are densities.
 * `Cslib.Crypto.PRG.NisanWigderson.toReal_predictionExperiment_eq_expect_trialAgreement`,
   `Cslib.Crypto.PRG.NisanWigderson.expect_trialAgreement`: the prediction experiments are averages
   of agreements.
@@ -82,30 +80,6 @@ namespace Cslib.Crypto.PRG
 
 open Cslib.Probability.PMF Finset
 open scoped BigOperators ENNReal
-
-section Deterministic
-
-variable {Seed Output : Type*}
-
-/-- A deterministic test accepts the output of a generator on a uniform seed with probability the
-density of the seeds on which it accepts. -/
-theorem Generator.toReal_realExperiment_pure [Fintype Seed] [Nonempty Seed]
-    (G : Generator Seed Output) (test : Output → Bool) :
-    (G.realExperiment (fun y => PMF.pure (test y)) true).toReal = dens {z | test (G z) = true} := by
-  rw [Generator.realExperiment, Generator.outputDist, PMF.bind_map,
-    ← toReal_uniformOfFintype_map_apply_true, ← PMF.bind_pure_comp]
-  rfl
-
-/-- A deterministic test accepts a uniform string with probability the density of the strings it
-accepts. -/
-theorem Generator.toReal_idealExperiment_pure [Fintype Output] [Nonempty Output]
-    (test : Output → Bool) :
-    (Generator.idealExperiment (fun y => PMF.pure (test y)) true).toReal =
-      dens {y | test y = true} := by
-  rw [Generator.idealExperiment, ← toReal_uniformOfFintype_map_apply_true, ← PMF.bind_pure_comp]
-  rfl
-
-end Deterministic
 
 namespace NisanWigderson
 
@@ -247,10 +221,7 @@ theorem div_two_mul_le_dens_goodTrials (hm : 0 < m) {ε : ℝ} (hε₀ : 0 ≤ �
   refine le_trans ?_ (Fintype.expect_sub_le_dens_filter
     (fun t => mod_cast trialAgreement_le_one D f test t) (by positivity))
   have h := half_add_div_le_expect_trialAgreement D f test hm hε
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  have hsplit : ε / m = ε / (2 * m) + ε / (2 * m) := by
-    field_simp
-    ring
+  have hsplit : ε / (2 * m) = ε / m / 2 := by ring
   linarith
 
 /-- **Repeated sampling.** Let `0 < m`, `0 ≤ ε`, and let a deterministic test accept generated

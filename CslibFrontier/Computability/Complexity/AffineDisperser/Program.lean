@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Complexity.AffineDisperser.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Explicit
 import Mathlib.Algebra.BigOperators.Fin
@@ -61,6 +62,8 @@ roots, every choice of roots gives the same function
 
 @[expose] public section
 
+open Cslib.BinaryField
+
 namespace Cslib.AffineDisperser
 
 open Function Module Polynomial Explicit Cslib.BitString
@@ -89,26 +92,20 @@ private theorem mixedDigit_eq (ms : List ℕ) (u : Fin (∏ i, ms.get i)) (i : F
     mixedDigit ms u i = (finPiFinEquiv.symm u i : ℕ) := by
   have hprod : ∏ j : Fin i, ms.get (Fin.castLE i.is_lt.le j) = (ms.take i).prod := by
     rw [← List.prod_ofFn]
-    congr 1
-    apply List.ext_getElem (by simp)
-    intro a h1 h2
-    simp
+    exact congrArg List.prod (List.ext_getElem (by simp) fun _ _ _ => by simp)
   change _ = u / (∏ j : Fin i, ms.get (Fin.castLE i.is_lt.le j)) % ms.get i
-  rw [hprod, mixedDigit, List.getD_eq_getElem _ _ i.2]
-  rfl
+  rw [hprod, mixedDigit, List.getD_eq_getElem _ _ i.2]; rfl
 
 private theorem bitEquiv_symm_all (k : ℕ) (p : ℕ → Bool) :
     bitEquiv.symm ((List.range k).all p) = ∏ i : Fin k, bitEquiv.symm (p i) := by
-  by_cases h : (List.range k).all p = true
+  rcases Bool.eq_false_or_eq_true ((List.range k).all p) with h | h
   · rw [h, bitEquiv_symm_true, eq_comm]
-    refine Finset.prod_eq_one fun i _ => ?_
-    rw [List.all_eq_true.1 h i (List.mem_range.2 i.2), bitEquiv_symm_true]
-  · rw [Bool.not_eq_true] at h
+    exact Finset.prod_eq_one fun i _ => by
+      rw [List.all_eq_true.1 h i (List.mem_range.2 i.2), bitEquiv_symm_true]
+  · obtain ⟨i, hi, hpi⟩ := List.all_eq_false.1 h
     rw [h, bitEquiv_symm_false, eq_comm]
-    obtain ⟨i, hi, hpi⟩ := List.all_eq_false.1 h
-    refine Finset.prod_eq_zero (i := ⟨i, List.mem_range.1 hi⟩) (Finset.mem_univ _) ?_
-    rw [Bool.not_eq_true] at hpi
-    simp [hpi]
+    exact Finset.prod_eq_zero (i := ⟨i, List.mem_range.1 hi⟩) (Finset.mem_univ _)
+      (by simp [Bool.eq_false_of_ne_true hpi])
 
 private theorem tableEntry_monomialTable {ms : List ℕ} {R : List (List (List Bool))} {u w : ℕ}
     (hu : u < ms.prod) (hw : w < ms.prod) :
@@ -128,25 +125,20 @@ theorem isMulTable_monomialTable (ms : List ℕ) (R : List (List (List Bool)))
       bitEquiv.symm (((R.getD i []).getD e []).getD d false) • α i ^ d) :
     IsMulTable ((prodPowBasis hm hE hα).reindex finPiFinEquiv) (monomialTable ms R) := by
   refine ⟨by simp [monomialTable], fun u w => ?_⟩
-  set c : (i : Fin ms.length) → ℕ → Fin (ms.get i) → ZMod 2 :=
-    fun i e d => bitEquiv.symm (((R.getD i []).getD e []).getD d false)
-  have hc : ∀ i, ∀ e < 2 * ms.get i, α i ^ e = ∑ d, c i e d • α i ^ (d : ℕ) := fun i e he => by
-    rw [hR i e he, Finset.sum_range (fun d => bitEquiv.symm (((R.getD i []).getD e []).getD d false)
-      • α i ^ d)]
-  rw [Basis.reindex_apply, Basis.reindex_apply, prodPowBasis_mul_prodPowBasis hm hE hα c hc,
+  have hms := Fin.prod_univ_getElem ms
+  rw [Basis.reindex_apply, Basis.reindex_apply,
+    prodPowBasis_mul_prodPowBasis hm hE hα
+      (fun i e d => bitEquiv.symm (((R.getD i []).getD e []).getD d false))
+      (fun i e he => by rw [hR i e he, Finset.sum_range]),
     fieldOfBits, ofBits, ← Equiv.sum_comp finPiFinEquiv]
   refine Finset.sum_congr rfl fun M _ => ?_
-  rw [Basis.reindex_apply, Equiv.symm_apply_apply]
-  congr 1
-  have hms := Fin.prod_univ_getElem ms
-  have hv : (finPiFinEquiv M : ℕ) < ms.prod := (finPiFinEquiv M).2.trans_eq hms
-  have hu : (u : ℕ) < ms.prod := u.2.trans_eq hms
-  have hw : (w : ℕ) < ms.prod := w.2.trans_eq hms
-  rw [tableEntry_monomialTable hu hw, List.getD_eq_getElem _ _ (by simpa using hv),
+  rw [Basis.reindex_apply, Equiv.symm_apply_apply,
+    tableEntry_monomialTable (u.2.trans_eq hms) (w.2.trans_eq hms),
+    List.getD_eq_getElem _ _ (by simpa using (finPiFinEquiv M).2.trans_eq hms),
     List.getElem_map, List.getElem_range, monomialBit, bitEquiv_symm_all]
-  refine Finset.prod_congr rfl fun i _ => ?_
-  rw [mixedDigit_eq ms u i, mixedDigit_eq ms w i, mixedDigit_eq ms (finPiFinEquiv M) i,
-    Equiv.symm_apply_apply]
+  exact congrArg (· • _) (Finset.prod_congr rfl fun i _ => by
+    rw [mixedDigit_eq ms u i, mixedDigit_eq ms w i, mixedDigit_eq ms (finPiFinEquiv M) i,
+      Equiv.symm_apply_apply])
 
 /-! ### The explicit field -/
 
@@ -210,18 +202,14 @@ private theorem isMulTable_explicitTable (N : ℕ)
   set code := leastIrreducibleCode (codeBound N) p
   have hcode : polyOfCode code = leastIrreducible p :=
     polyOfCode_leastIrreducibleCode hp (Nat.pow_le_pow_right two_pos (by omega))
-  have hcode0 : code ≠ 0 := by
-    intro h
-    rw [h, polyOfCode_zero] at hcode
-    exact (irreducible_leastIrreducible p).ne_zero hcode.symm
-  obtain ⟨l, hl⟩ := exists_bits_eq_append_true hcode0
+  obtain ⟨l, hl⟩ := exists_bits_eq_append_true fun h : code = 0 =>
+    (irreducible_leastIrreducible p).ne_zero (by rw [← hcode, h, polyOfCode_zero])
   have hpoly : polyOfBits (l ++ [true]) = leastIrreducible p := by
     rw [← hl, polyOfBits_bits, hcode]
   have hlen : l.length = p := by
     rw [← natDegree_polyOfBits_append_true l, hpoly, natDegree_leastIrreducible hp]
   have hR : (explicitPowerTables N).getD i [] = powerTable (l ++ [true]) := by
-    rw [explicitPowerTables, List.getD_eq_getElem _ _ (by simp), List.getElem_map, ← hl]
-    rfl
+    rw [explicitPowerTables, List.getD_eq_getElem _ _ (by simp), List.getElem_map, ← hl]; rfl
   rw [hR]
   rw [← hlen] at he ⊢
   exact pow_eq_sum_powerTable l (hpoly ▸ hα i) he
@@ -234,10 +222,10 @@ private theorem traceSymBits_reindex {ι ι' : Type*} [Fintype ι] [Fintype ι']
     (b : Basis ι (ZMod 2) F) (e : ι ≃ ι') (pos : Fin r × ι' → Fin N) (x : BitString N) :
     traceSymBits μ r t (b.reindex e) pos x =
       traceSymBits μ r t b (fun q => pos (q.1, e q.2)) x := by
-  have h : readField (b.reindex e) pos x = readField b (fun q => pos (q.1, e q.2)) x := by
-    funext i
-    rw [readField, readField, ofBits, ofBits, ← Equiv.sum_comp e]
-    simp [Basis.reindex_apply]
+  have h : readField (b.reindex e) pos x = readField b (fun q => pos (q.1, e q.2)) x :=
+    funext fun i => by
+      rw [readField, readField, ofBits, ofBits, ← Equiv.sum_comp e]
+      simp [Basis.reindex_apply]
   rw [traceSymBits, traceSymBits, h]
 
 /-- The coordinate computation with the explicit table is `traceSymBits` in the monomial basis in

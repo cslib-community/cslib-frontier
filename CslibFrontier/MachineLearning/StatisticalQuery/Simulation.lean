@@ -14,6 +14,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.Product.Reindex
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Simulating statistical queries from examples
@@ -116,21 +117,13 @@ theorem toOuterMeasure_simulate_notMem_le [Finite X] {m : ℕ} {α : Type}
     (hP : ∀ φ, P.toOuterMeasure {s | empirical φ s ∉ possible φ} ≤ β) :
     (PMF.pi fun _ : Fin n => P).toOuterMeasure {b | simulate n b A ∉ good} ≤ n * β := by
   induction hA generalizing good with
-  | pure a n =>
-    have hb : {b : Fin n → Fin m → X × Bool |
-        simulate n b (pure a : OracleComp (spec X) α) ∉ good} = ∅ := by
-      ext b
-      simp only [simulate_pure, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_not]
-      exact hgood rfl
-    rw [hb, measure_empty]
-    exact zero_le
+  | pure a n => simp [hgood rfl]
   | liftBind φ next n _ ih =>
     rw [PMF.pi_fin_succ]
     refine (PMF.toOuterMeasure_bind_failure_le _ _ {s | empirical φ s ∈ possible φ} _
       (↑n * β) fun s _ hs => ?_).trans ?_
     · rw [PMF.toOuterMeasure_map_apply]
-      exact ih (empirical φ s) (good := good)
-        (fun h hh => hgood (Set.mem_biUnion hs hh))
+      exact ih (empirical φ s) fun _ hh => hgood (Set.mem_biUnion hs hh)
     · rw [Set.compl_ofPred]
       calc P.toOuterMeasure {s | empirical φ s ∉ possible φ} + ↑n * β ≤ β + ↑n * β :=
             add_le_add (hP φ) le_rfl
@@ -212,14 +205,10 @@ theorem Learns.isPACLearnerFor [MeasurableSpace X] [MeasurableSingletonClass X] 
     IsPACLearnerFor (q * m) ε δ C (realizable D C) := by
   refine ⟨simulateLearner A q m, fun μ _ hμ => ?_⟩
   obtain ⟨c, hc, rfl⟩ := hμ
-  have hopt : optimalError (labelled D c).toMeasure C = 0 := by
-    refine le_antisymm ((iInf₂_le c hc).trans ?_) zero_le
-    rw [error_labelled]
-    simp [disagreement]
-  have hpi : Measure.pi (fun _ : Fin (q * m) => (labelled D c).toMeasure) =
-      (PMF.pi fun _ : Fin (q * m) => labelled D c).toMeasure := by
-    rw [PMF.toMeasure_pi]
-  rw [hpi, PMF.toMeasure_apply_eq_toOuterMeasure_apply _ ((Set.to_countable _).measurableSet)]
+  have hopt : optimalError (labelled D c).toMeasure C = 0 :=
+    le_antisymm ((iInf₂_le c hc).trans (by simp [error_labelled, disagreement])) zero_le
+  rw [← PMF.toMeasure_pi,
+    PMF.toMeasure_apply_eq_toOuterMeasure_apply _ ((Set.to_countable _).measurableSet)]
   calc (PMF.pi fun _ : Fin (q * m) => labelled D c).toOuterMeasure
         {S | optimalError (labelled D c).toMeasure C + ε <
           error (labelled D c).toMeasure (simulateLearner A q m S)}
@@ -227,9 +216,8 @@ theorem Learns.isPACLearnerFor [MeasurableSpace X] [MeasurableSingletonClass X] 
           ((fun S j k => S (finProdFinEquiv (j, k))) ⁻¹'
             {b | (ε.val : ℝ) < disagreement D c (simulate q b A)}) := by
         refine measure_mono fun S hS => ?_
-        simp only [Set.mem_ofPred_eq, hopt, zero_add, error_labelled] at hS
-        simp only [Set.mem_preimage, Set.mem_ofPred_eq]
-        rw [← ENNReal.ofReal_coe_nnreal] at hS
+        simp only [Set.mem_ofPred_eq, hopt, zero_add, error_labelled,
+          ← ENNReal.ofReal_coe_nnreal] at hS
         exact (ENNReal.ofReal_lt_ofReal_iff'.1 hS).1
     _ = (PMF.pi fun _ : Fin q => PMF.pi fun _ : Fin m => labelled D c).toOuterMeasure
           {b | (ε.val : ℝ) < disagreement D c (simulate q b A)} := by

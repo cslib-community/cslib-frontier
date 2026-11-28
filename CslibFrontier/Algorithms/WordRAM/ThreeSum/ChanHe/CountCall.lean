@@ -98,35 +98,33 @@ theorem exec {w M : ℕ} (j : Fin 3) (x : Data 64) (values : ℕ → ℤ) (hM : 
       y.regs (result j) = Cslib.Algorithms.ThreeSum.ChanHe.coll
         ((Finset.range (x.regs (length j))).image values) M ∧
       ∀ i, 28 ≤ i.val → i ≠ result j → y.regs i = x.regs i := by
-  let q := ((((x.set countSource (x.regs (source j))).set countScratch (x.regs scratch)).set
-    countLength (x.regs (length j))).set countModulus (x.regs modulus)).set
-    countHistogram (x.regs histogram)
-  have hprep : ExecWithin (w + 2) (prepare j) x q 5 := by
-    fin_cases j <;>
-      ram_eval [prepare, q, source, length, registers, countSource, countScratch,
-        countLength, countModulus, countHistogram, scratch, histogram, modulus,
-        Count.src, Count.scratch, Count.len, Count.modulus, Count.dst, Fin.mk.injEq]
-  unfold program
-  refine WP.exists_execWithin (WP.seq (WP.of_execWithin hprep (WP.seq ?_)))
-  wram_call (Count.exec_coll _ values hM hmod
-    (by wram_simp [q, Data.comap_regs, hmodreg])
-    (by wram_simp [q, Data.comap_regs]; exact hfit)
-    (by wram_simp [q, Data.comap_regs]; exact hs)
-    (by wram_simp [q, Data.comap_regs]; exact hk)
-    (by wram_simp [q, Data.comap_regs]; exact hd)
-    (by wram_simp [q, Data.comap_regs]; exact ht)
-    (by wram_simp [q, Data.comap_regs]; exact hsk)
-    (by wram_simp [q, Data.comap_regs]; exact hkd)
-    (by wram_simp [q, Data.comap_regs, Data.comap_mem]; exact hinput)
-    (by wram_simp [q, Data.comap_regs]; exact hinj)) renamed registers_injective
-    with y ⟨⟨ham, hav, _⟩, hframe⟩
-  wram_exec
-  wram_simp [q, Data.comap_regs, Data.comap_mem] at ham hav ⊢
-  refine ⟨by omega, ham, hav, fun i hi hres => ?_⟩
-  have hbank (k : Fin 28) : registers k ≠ i :=
-    Fin.ne_of_val_ne (by simp only [registers, Fin.val_castAdd]; omega)
-  wram_simp [hres]
-  rw [hframe i hbank]
-  wram_simp [q, hbank]
+  unfold program prepare
+  fin_cases j
+  all_goals
+    refine WP.exists_execWithin ?_
+    wram_exec
+    wram_call (Count.exec_coll _ values hM hmod
+      (by wram_simp [Data.comap_regs, registers, Count.modulus, hmodreg])
+      (by wram_simp [Data.comap_regs, registers, Count.len]; exact hfit)
+      (by wram_simp [Data.comap_regs, registers, Count.src, Count.len]; exact hs)
+      (by wram_simp [Data.comap_regs, registers, Count.scratch, Count.len]; exact hk)
+      (by wram_simp [Data.comap_regs, registers, Count.dst]; exact hd)
+      (by wram_simp [Data.comap_regs, registers, Count.len]; exact ht)
+      (by wram_simp [Data.comap_regs, registers, Count.src, Count.len, Count.scratch]; exact hsk)
+      (by wram_simp [Data.comap_regs, registers, Count.scratch, Count.len, Count.dst]; exact hkd)
+      (by
+        wram_simp [Data.comap_regs, Data.comap_mem, registers, Count.src, Count.len]
+        exact hinput)
+      (by wram_simp [Data.comap_regs, registers, Count.len]; exact hinj))
+      renamed registers_injective with y ⟨⟨ham, hav, _⟩, hframe⟩
+    wram_exec
+    wram_simp [Data.comap_regs, Data.comap_mem, registers, Count.len, Count.scratch,
+      Count.dst, Count.total] at ham hav ⊢
+    refine ⟨ham, hav, fun i hi hres => ?_⟩
+    have hbank (k : Fin 28) : registers k ≠ i :=
+      Fin.ne_of_val_ne (by simp only [registers, Fin.val_castAdd]; omega)
+    wram_simp [hres]
+    rw [hframe i hbank]
+    wram_simp [countSource, countScratch, countLength, countModulus, countHistogram, hbank]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.CountCall

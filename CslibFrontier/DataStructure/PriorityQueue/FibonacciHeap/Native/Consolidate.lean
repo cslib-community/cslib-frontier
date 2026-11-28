@@ -48,9 +48,8 @@ open Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap
 private def finishBody (d : Fin 3 → ℕ) : Memory.Prog Unit := do
   Memory.write (d 1 + 9 * d 0 + 1) 0
   Memory.write (d 1 + 9 * d 0 + 2) 0
-  let args ← pure ((d 0, d 1), (d 2 + 1, 0))
-  DataStructure.link (E := Memory.spec 0) ((layout args.1.1 args.1.2).methods 0)
-    (gather args.2.1 args.2.2)
+  DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (gather (d 2 + 1) 0)
 
 /-- Entry envelope and the gather domain at the actual two-write endpoint. -/
 @[expose] def finishSafe (w : ℕ) (d : Fin 3 → ℕ) (s : Memory.State) : Prop :=
@@ -62,22 +61,9 @@ private def finishBody (d : Fin 3 → ℕ) : Memory.Prog Unit := do
 
 private theorem realizes_finishBody : Realizes .exact finishBody (.refl _)
     (WordEncoding.encode (α := Unit)) finishSafe (fun _ _ => 0) := by
-  have hGather := realizes_gather.reindex
-    (fun d : (ℕ × ℕ) × (ℕ × ℕ) => ![d.1.1, d.1.2, d.2.1, d.2.2])
-    (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × ℕ))) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : (ℕ × ℕ) × (ℕ × ℕ) => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1 d.1.2).methods 0) (gather d.2.1 d.2.2))
-    (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
-    (fun w d s => gatherSafe w ![d.1.1, d.1.2, d.2.1, d.2.2] s) (fun _ _ => 0) at hGather
   have nine (n : ℕ) : n + n + n + n + n + n + n + n + n = 9 * n := by omega
-  conv =>
-    arg 2
-    ext d
-    simp only [finishBody, ← nine]
-  realize
-  all_goals try simp only [nine] at *
+  realize [realizes_gather] rewriting [finishBody, ← nine]
+  all_goals simp only [nine] at *
   all_goals first
     | exact h.1.of_le (by omega)
     | exact h.2.1
@@ -110,13 +96,11 @@ theorem finishSafe_of_gathering {n sz w base md : ℕ} {mem : Memory.State}
       (i := .numRoots) trivial 0,
       (layout n base).abs_write (m := mem) (i := .minRoot) trivial 0]
     rfl
-  have hi : (layout n base).Inv cleared := halloc
   have hd : md ≤ n := SlotInv.le_n h.table le_rfl
-  have hg : Gathering sz (view n ((layout n base).abs cleared)) [] slots md := ha.symm ▸ h
   have hmd : Fits w (md + 1) := hfit.of_le (by omega)
-  have hgs := gatherSafe_of_gathering (k := md + 1) (d := 0) hfit hi hg
-    (fun _ _ => Nat.zero_le _) (by omega)
-  exact ⟨hfit, hmd, hgs⟩
+  exact ⟨hfit, hmd,
+    gatherSafe_of_gathering (k := md + 1) (d := 0) hfit halloc (ha.symm ▸ h)
+      (fun _ _ => Nat.zero_le _) (by omega)⟩
 
 /-- The original three consolidation phases after detaching the minimum. Arguments are the
 old root count/right pointer and the minimum's child count/child pointer. -/
@@ -141,60 +125,20 @@ old root count/right pointer and the minimum's child count/child pointer. -/
 
 private def forestBody (d : Fin 6 → ℕ) : Memory.Prog Unit := do
   let child ← if d 5 = 0 then pure 0 else pure (d 5 - 1)
-  let args ← pure ((((d 0, d 1), d 4), child), 0)
-  let md ← DataStructure.link (E := Memory.spec 0) ((layout args.1.1.1.1 args.1.1.1.2).methods 0)
-    (scatterList (args.1.1.1.1 + 1) true args.1.1.2 args.1.2 args.2)
-  let count ← pure (d 2 - 1)
-  let args' ← pure ((((d 0, d 1), count), d 3), md)
-  let md' ← DataStructure.link (E := Memory.spec 0)
-    ((layout args'.1.1.1.1 args'.1.1.1.2).methods 0)
-    (scatterList (args'.1.1.1.1 + 1) false args'.1.1.2 args'.1.2 args'.2)
-  let final ← pure ((d 0, d 1), md')
-  DataStructure.link (E := Memory.spec 0) ((layout final.1.1 final.1.2).methods 0)
-    (finishRoots final.2)
+  let md ← DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (scatterList (d 0 + 1) true (d 4) child 0)
+  let md' ← DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (scatterList (d 0 + 1) false (d 2 - 1) (d 3) md)
+  DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (finishRoots md')
 
 private theorem realizes_forestBody : Realizes .exact forestBody (.refl _)
     (WordEncoding.encode (α := Unit)) forestSafe (fun _ _ => 0) := by
-  have hChildren := (realizes_scatterList true).reindex
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ =>
-      ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3, 4]
-    (by intro d i; fin_cases i <;> rfl)
-  have hRoots := (realizes_scatterList false).reindex
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ =>
-      ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3, 4]
-    (by intro d i; fin_cases i <;> rfl)
-  have hFinish := realizes_finishRoots.reindex
-    (fun d : (ℕ × ℕ) × ℕ => ![d.1.1, d.1.2, d.2])
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) ![0, 1, 2]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1.1.1 d.1.1.1.2).methods 0)
-      (scatterList (d.1.1.1.1 + 1) true d.1.1.2 d.1.2 d.2))
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ))
-    (WordEncoding.encode (α := ℕ))
-    (fun w d s => scatterListSafe true w
-      ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2] s) (fun _ _ => 0) at hChildren
-  change Realizes .exact
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1.1.1 d.1.1.1.2).methods 0)
-      (scatterList (d.1.1.1.1 + 1) false d.1.1.2 d.1.2 d.2))
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ))
-    (WordEncoding.encode (α := ℕ))
-    (fun w d s => scatterListSafe false w
-      ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2] s) (fun _ _ => 0) at hRoots
-  change Realizes .exact
-    (fun d : (ℕ × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1 d.1.2).methods 0) (finishRoots d.2))
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-    (fun w d s => finishSafe w ![d.1.1, d.1.2, d.2] s) (fun _ _ => 0) at hFinish
   unfold forestBody
-  realize
-  all_goals try simp only [forestSafe] at h
+  realize [realizes_scatterList true, realizes_scatterList false, realizes_finishRoots]
+  all_goals simp only [forestSafe] at h
   all_goals try simp only [hc, Nat.zero_sub] at h
-  all_goals try first
+  all_goals first
     | exact h.1
     | exact h.2.1
     | exact h.2.2.1
@@ -249,17 +193,14 @@ theorem forestSafe_of_detached {n K w base : ℕ} {s : IndexedMinPQ.State n}
     forestSafe w ![n, base, roots.length + 1, st.right m, cs.length, st.child m] mem := by
   have h₁ : Scattering (forestNodes (cs ++ roots)).length m true
       (view n ((layout n base).abs mem)) [] cs 0 := ha.symm ▸ hD.scatterChildren
-  have hx : ∀ y ∈ (cs.map FHTree.root).head?, st.child m - 1 = y.val := by
-    intro y hy
-    rw [hD.child y hy, Nat.add_sub_cancel]
-  have hs₁ := scatterListSafe_of_scattering hfit halloc h₁ rfl hx
-  obtain ⟨hi₁, slots₁, hc₁⟩ := scatterList_post hfit halloc h₁ rfl hx
-  have hc₁' := hc₁
-  rw [ha] at hc₁'
+  have hx : ∀ y ∈ (cs.map FHTree.root).head?, st.child m - 1 = y.val :=
+    fun y hy => by rw [hD.child y hy, Nat.add_sub_cancel]
+  obtain ⟨hi₁, _, hc₁⟩ := scatterList_post hfit halloc h₁ rfl hx
+  have hc₁' := ha ▸ hc₁
   have h₂ := hD.scatterRoots hc₁'
-  have hs₂ := scatterListSafe_of_scattering hfit hi₁ h₂ rfl hD.right
-  obtain ⟨hi₂, slots₂, hc₂⟩ := scatterList_post hfit hi₁ h₂ rfl hD.right
-  have hf := finishSafe_of_gathering hfit hi₂ (hD.gathering hc₁' hc₂)
-  exact ⟨by simp, hs₁, hs₂, hf⟩
+  obtain ⟨hi₂, _, hc₂⟩ := scatterList_post hfit hi₁ h₂ rfl hD.right
+  exact ⟨by simp, scatterListSafe_of_scattering hfit halloc h₁ rfl hx,
+    scatterListSafe_of_scattering hfit hi₁ h₂ rfl hD.right,
+    finishSafe_of_gathering hfit hi₂ (hD.gathering hc₁' hc₂)⟩
 
 end Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native

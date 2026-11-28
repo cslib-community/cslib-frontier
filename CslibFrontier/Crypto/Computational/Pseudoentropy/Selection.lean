@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.Selection
 import CslibFrontier.Computability.Probabilistic.Selection
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -31,8 +32,8 @@ security parameter; that choice is never supplied to the algorithm.
 
 * `selectPredictor_error_le`: compare with every candidate, charging validation error.
 * `isPPTOn_selectPredictor`: empirical selection is strict PPT.
-* `SamplablePair.HasGapWithAdvice.eventually_indexed_error_ge`,
-  `SamplablePair.HasGap.eventually_indexed_error_ge`: one threshold for all candidate indices.
+* `SamplablePair.HasGapWithAdvice.eventually_indexed_error_ge`: one threshold for all candidate
+  indices.
 
 ## References
 
@@ -76,18 +77,14 @@ theorem isPPTOn_selectPredictor {α : Type} {input : α ↪ List Bool}
     (hobservation : ComputableInPolyTime observation input encBits) :
     IsPPTOn input encBool (fun a =>
       selectPredictor (count a) (trials a) (source a) (predict a) (observation a)) := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at hcount
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at htrials
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at hobservation
   have htrial := hpredict.preprocess
     (input := encPair (encPair input encUnary) (encPair encBits encBool))
     (prepare := fun x : (α × ℕ) × (List Bool × Bool) => (x.1, x.2.1)) (by fun_prop)
-  have hfinal := hpredict.preprocess (input := encPair input encUnary)
-    (prepare := fun x : α × ℕ => (x, observation x.1)) (by fun_prop)
-  unfold selectPredictor
-  apply IsPPTOn.bind_with (left := encUnary) ?_ hfinal
-  apply IsPPTOn.selectBest ?_ (.of_tidy hcount) (.of_tidy htrials)
-  exact (hsource.preprocess (by fun_prop)).bind_with (htrial.map_with (by fun_prop))
+  exact IsPPTOn.bind_with (left := encUnary)
+    (IsPPTOn.selectBest ((hsource.preprocess (by fun_prop)).bind_with
+      (htrial.map_with (by fun_prop))) hcount htrials)
+    (hpredict.preprocess (input := encPair input encUnary)
+      (prepare := fun x : α × ℕ => (x, observation x.1)) (by fun_prop))
 
 attribute [program_certificate] isPPTOn_selectPredictor
 
@@ -100,7 +97,7 @@ theorem eval_predictionGame_selectPredictor (sample : ℕ → ProbComp (List Boo
       ProbComp.eval (OracleComp.selectBest (count n) (trials n)
         (fun i => predictionGame sample (fun n => predict n i) n) >>=
           fun i => predictionGame sample (fun n => predict n i) n) := by
-  simp only [pmf_norm, predictionGame, selectPredictor, bind_pure_comp]
+  simp only [pmf_norm, predictionGame, predictionExperiment, selectPredictor, bind_pure_comp]
   rw [PMF.bind_comm (ProbComp.eval (sample n))]
 
 /-- The selected predictor's error is bounded by every candidate's error plus estimation and
@@ -137,64 +134,31 @@ theorem HasGapWithAdvice.eventually_indexed_error_ge {pair : SamplablePair} {gap
         (ProbComp.eval
           (predictionGame pair.sample (fun n => predict (n, advice n) i) n) false).toReal +
           1 / inverseTolerance n := by
-  have hcount := hcount.tidy
-  have htolerance := htolerance.tidy
-  have hsource := pair.efficient
-  have hefficient : IsPPTOn (encPair (encPair encUnary encBits) encBits) encBool
+  have hefficient : IsPPTOn encAdvisedInput encBool
       (fun ((n, word), observation) => selectPredictor (count n)
         ((n + 1) * (4 * inverseTolerance n) ^ 2) (pair.sample n)
-        (predict (n, word)) observation) := by
-    apply isPPTOn_selectPredictor
-    · fun_prop
-    · fun_prop
-    · exact hsource.preprocess (by fun_prop)
-    · apply hpredict.preprocess
+        (predict (n, word)) observation) :=
+    isPPTOn_selectPredictor (by fun_prop) (by fun_prop)
+      (pair.efficient.preprocess (by fun_prop))
+      (hpredict.preprocess
         (prepare := fun x : (((ℕ × List Bool) × List Bool) × ℕ) × List Bool =>
-          ((x.1.1.1, x.1.2), x.2))
-      fun_prop
-    · fun_prop
-  have hselected := hgap.eventually_error_ge _ hefficient
+          ((x.1.1.1, x.1.2), x.2)) (by fun_prop)) (by fun_prop)
+  have hselected := SamplablePair.hasGapWithAdvice_iff_word.mp hgap _ hefficient
   have hdecay := (negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num))
     |>.polynomiallyBounded_mul hcount.polynomiallyBounded
   have hsmall := hdecay.eventually_le_inv_polynomial
-    (show PolynomiallyBounded (fun n => 2 * inverseTolerance n) from
-      (PolynomiallyBounded.const 2).mul htolerance.polynomiallyBounded)
+    ((PolynomiallyBounded.const 2).mul htolerance.polynomiallyBounded)
     (fun n => Nat.mul_pos (by decide) (hpos n))
   filter_upwards [hselected, hsmall] with n hn hsmall
+  rw [PMF.toReal_true_eq_one_sub] at hn
   intro i hi
   have herror := selectPredictor_error_le pair.sample (fun n => predict (n, advice n)) count id
     (fun n => 4 * inverseTolerance n) n i hi (by have := hpos n; positivity)
   simp only [NNReal.coe_mul, NNReal.coe_natCast, NNReal.coe_pow, NNReal.coe_div,
     NNReal.coe_one, NNReal.coe_ofNat, Nat.cast_mul, Nat.cast_ofNat] at hsmall herror
-  have hprecision : 2 / (4 * (inverseTolerance n : ℝ)) +
-      1 / (2 * inverseTolerance n) = 1 / inverseTolerance n := by ring
   dsimp only [id_eq] at herror
-  linarith
-
-/-- A pseudoentropy gap bounds every member of a uniformly efficient polynomial-size family
-at once, allowing any efficient inverse-polynomial slack. No computable choice of index is
-assumed, and the eventual threshold is common to all indices at each parameter. -/
-theorem HasGap.eventually_indexed_error_ge {pair : SamplablePair} {gap : ℕ → ℝ}
-    (hgap : pair.HasGap gap) (predict : ℕ → ℕ → List Bool → ProbComp Bool)
-    (hpredict : IsPPTOn
-      (encPair (encPair encUnary encUnary) encBits) encBool
-      (fun ((n, i), word) => predict n i word))
-    {count inverseTolerance : ℕ → ℕ}
-    (hcount : ComputableInPolyTime count encUnary encUnary)
-    (htolerance : ComputableInPolyTime inverseTolerance encUnary encUnary)
-    (hpos : ∀ n, 0 < inverseTolerance n) :
-    ∀ᶠ n in atTop, ∀ i < count n,
-      (PMF.conditionalEntropy (pair.joint n) + gap n) / 2 ≤
-        (ProbComp.eval (predictionGame pair.sample (fun n => predict n i) n) false).toReal +
-          1 / inverseTolerance n := by
-  have hprepare : ComputableInPolyTime
-      (fun (((n, _), i), word) => ((n, i), word) :
-        ((ℕ × List Bool) × ℕ) × List Bool → (ℕ × ℕ) × List Bool)
-      (encPair (encPair (encPair encUnary encBits) encUnary) encBits)
-      (encPair (encPair encUnary encUnary) encBits) := by fun_prop
-  exact (hasGap_iff_hasGapWithAdvice_nil.mp hgap).eventually_indexed_error_ge
-    (fun (n, _) i word => predict n i word) (hpredict.preprocess hprepare)
-    hcount htolerance hpos
+  linarith [show 2 / (4 * (inverseTolerance n : ℝ)) +
+    1 / (2 * inverseTolerance n) = 1 / inverseTolerance n by ring]
 
 end SamplablePair
 

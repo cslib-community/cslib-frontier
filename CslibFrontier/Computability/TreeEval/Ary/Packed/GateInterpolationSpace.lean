@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.GateInterpolation
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.InterpolationSpace
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.Space
 
 /-!
 # Packed grid weights in native work space
@@ -65,30 +67,12 @@ private abbrev encGridWeightState : GridWeightState ↪ List Bool :=
 private def gridWeightStateStep (q : GridWeightState) : GridWeightState :=
   (q.1, gridWeightStep q.1.1.1 q.1.1.2 q.1.2 q.2)
 
+attribute [local fun_prop] basisWeight_inSpace mulMod_inSpace
+
 private theorem gridWeightStateStep_inSpace :
     ComputableInSpace gridWeightStateStep encGridWeightState encGridWeightState
       fun q => (encGridWeightState q).length := by
-  have hpar := fst encGridWeightPar encNat3
-  have hps := fst' hpar
-  have hp := fst' hps
-  have hs := snd' hps
-  have hx := snd' hpar
-  have hst := snd encGridWeightPar encNat3
-  have hj := fst' hst
-  have hqa := snd' hst
-  have hq := fst' hqa
-  have ha := snd' hqa
-  have hcell := budget_comp_lin getD (linear_mul 8) (budget_prod hx hj)
-  have hdigit := budget_natMod hq hs
-  have hfactor := budget_comp_linear basisWeight_inSpace
-    (budget_prod hp (budget_prod hs (budget_prod hdigit hcell)))
-  have hmul := budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod ha hfactor))
-  have hacc := budget_ite (budget_natIsZero hp)
-    (budget_const (encB := encNat) 0 (.refl _)) hmul
-  have hnext := budget_prod hpar (budget_prod (budget_natSucc hj)
-    (budget_prod (budget_natDiv hq hs) hacc))
-  exact hnext.of_enc_eq fun q => by
-    by_cases h : q.1.1.1 = 0 <;> simp [gridWeightStateStep, gridWeightStep, h]
+  space [gridWeightStateStep, gridWeightStep]
 
 private theorem iterate_gridWeightStateStep (p s k : ℕ) (x : List ℕ) (n : ℕ) :
     gridWeightStateStep^[n] (((p, s), x), 0, k, 1 % p) =
@@ -104,18 +88,6 @@ theorem gridWeight_inSpace :
     ComputableInSpace (fun q : (ℕ × ℕ × ℕ × ℕ) × List ℕ =>
       gridWeight q.1.1 q.1.2.1 q.1.2.2.1 q.1.2.2.2 q.2)
       encGridWeightArgs encNat fun q => (encGridWeightArgs q).length := by
-  have hargs := fst encBasisArgs (encList encNat)
-  have hp := fst' hargs
-  have hrest := snd' hargs
-  have hs := fst' hrest
-  have hnk := snd' hrest
-  have hn := fst' hnk
-  have hk := snd' hnk
-  have hx := snd encBasisArgs (encList encNat)
-  have hpar := budget_prod (budget_prod hp hs) hx
-  have hone := budget_natMod (budget_const (encB := encNat) 1 (.refl _)) hp
-  have hinit := budget_prod hpar
-    (budget_prod (budget_const (encB := encNat) 0 (.refl _)) (budget_prod hk hone))
   have hstates (q : (ℕ × ℕ × ℕ × ℕ) × List ℕ) (j : ℕ) (hj : j ≤ q.1.2.2.1) :
       (encGridWeightState (gridWeightStateStep^[j]
         (((q.1.1, q.1.2.1), q.2), 0, q.1.2.2.2, 1 % q.1.1))).length ≤
@@ -135,11 +107,14 @@ theorem gridWeight_inSpace :
     rw [hc.1, hc.2]
     change (encGridWeightState (((q.1.1, q.1.2.1), q.2), j,
       q.1.2.2.2 / q.1.2.1 ^ j, gridWeight q.1.1 q.1.2.1 j q.1.2.2.2 q.2)).length ≤ _
-    simp only [encGridWeightState, encGridWeightPar, encGridWeightArgs, encBasisArgs,
-      encNat3, length_encPair] at hquot hcounter hacc hsucc ⊢
-    omega
-  have hrun := budget_iterate hn hinit gridWeightStateStep_inSpace hstates
-    (.of_le_linear 32 32 fun _ => le_rfl)
+    enc_len [encGridWeightState, encGridWeightPar, encGridWeightArgs, encBasisArgs,
+      encNat3] at hquot hcounter hacc hsucc ⊢
+  have hrun : ComputableInSpace
+      (fun q : (ℕ × ℕ × ℕ × ℕ) × List ℕ => gridWeightStateStep^[q.1.2.2.1]
+        (((q.1.1, q.1.2.1), q.2), 0, q.1.2.2.2, 1 % q.1.1))
+      encGridWeightArgs encGridWeightState (fun q => (encGridWeightArgs q).length) :=
+    budget_iterate (by space) (by space) gridWeightStateStep_inSpace hstates
+      (.of_le_linear 32 32 fun _ => le_rfl)
   refine (snd' (snd' (snd' hrun))).of_enc_eq fun q => ?_
   rw [iterate_gridWeightStateStep]
   rfl

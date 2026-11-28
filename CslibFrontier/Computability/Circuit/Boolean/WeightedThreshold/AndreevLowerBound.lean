@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Algebra.Order.Field.GeomSum
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Depth-two threshold gate and wire lower bounds for Andreev's function
@@ -64,9 +65,8 @@ theorem univ_image_andreevLiveVar_eq_blockLiveSet (b m : ℕ) (σ : Fin b → Fi
 
 /-- Every truth-table coordinate is distinct from every block coordinate. -/
 theorem andreevTableIndex_ne_andreevBlockVar (b m : ℕ) (idx : Fin (2 ^ b))
-    (j : Fin b) (t : Fin m) : andreevTableIndex b m idx ≠ andreevBlockVar b m j t := fun h => by
-  have hval := congrArg Fin.val h
-  simp only [andreevTableIndex, andreevBlockVar, Fin.val_castAdd, Fin.val_natAdd] at hval; omega
+    (j : Fin b) (t : Fin m) : andreevTableIndex b m idx ≠ andreevBlockVar b m j t := by
+  fin_index [andreevTableIndex, andreevBlockVar]
 
 /-- No truth-table coordinate belongs to `univ.image (andreevLiveVar b m σ)`. -/
 theorem andreevTableIndex_notMem_image_andreevLiveVar (b m : ℕ) (σ : Fin b → Fin m)
@@ -99,9 +99,9 @@ theorem andreevParities_embedUpdate_andreevLiveVar (b m : ℕ) (σ : Fin b → F
 theorem andreev_embedUpdate_andreevLiveVar (b m : ℕ) (σ : Fin b → Fin m)
     (w : BitString (2 ^ b + b * m)) (u : BitString b) :
     andreev b m (embedUpdate (andreevLiveVar b m σ) w u) =
-      w (andreevTableIndex b m (BitString.equivFin b (u + andreevResidualParities b m σ w))) := by
-  rw [andreev_eq_table_parities, andreevParities_embedUpdate_andreevLiveVar,
-    embedUpdate_of_notMem w u (andreevTableIndex_notMem_image_andreevLiveVar b m σ _)]
+      andreevTable b m w (u + andreevResidualParities b m σ w) := by
+  rw [andreev_eq_table_parities, andreevParities_embedUpdate_andreevLiveVar]
+  exact embedUpdate_of_notMem w u (andreevTableIndex_notMem_image_andreevLiveVar b m σ _)
 
 /-! ### Measure-preserving truth-table involutions and Hoeffding tail bound -/
 
@@ -117,22 +117,27 @@ def andreevTableCoords (b m : ℕ) : Finset (Fin (2 ^ b + b * m)) :=
 /-- Involution translating the truth-table coordinates by `andreevResidualParities b m σ w`. -/
 def andreevShiftResidual (b m : ℕ) (σ : Fin b → Fin m)
     (w : BitString (2 ^ b + b * m)) : BitString (2 ^ b + b * m) :=
-  Fin.addCases (fun idx => w (andreevTableIndex b m
-    (BitString.equivFin b ((BitString.equivFin b).symm idx + andreevResidualParities b m σ w))))
-    (fun v => w (Fin.natAdd (2 ^ b) v))
+  andreevTranslateTableFun b m (andreevResidualParities b m σ w) false w
 
 @[simp] theorem andreevResidualParities_andreevShiftResidual (b m : ℕ) (σ : Fin b → Fin m)
     (w : BitString (2 ^ b + b * m)) :
     andreevResidualParities b m σ (andreevShiftResidual b m σ w) =
       andreevResidualParities b m σ w := by
-  funext j; simp [andreevResidualParities, andreevShiftResidual, andreevBlockVar]
+  funext j
+  simp only [andreevResidualParities, andreevShiftResidual, andreevTranslateTableFun_blockVar]
 
 /-- `andreevShiftResidual b m σ` is an involution. -/
 theorem andreevShiftResidual_involutive (b m : ℕ) (σ : Fin b → Fin m) :
     Function.Involutive (andreevShiftResidual b m σ) := fun w => by
-  funext i; refine Fin.addCases (fun idx => ?_) (fun v => by simp [andreevShiftResidual]) i
+  funext i
+  refine Fin.addCases (fun idx => ?_)
+    (fun v => by simp only [andreevShiftResidual, andreevTranslateTableFun_natAdd]) i
   exact show andreevShiftResidual b m σ (andreevShiftResidual b m σ w) (andreevTableIndex b m idx) =
-    w (andreevTableIndex b m idx) by simp [andreevShiftResidual, andreevTableIndex]
+    w (andreevTableIndex b m idx) by
+      have h := andreevResidualParities_andreevShiftResidual b m σ w
+      rw [andreevShiftResidual] at h
+      simp only [andreevShiftResidual, andreevTranslateTableFun_tableIndex, Bool.xor_false, h,
+        Equiv.symm_apply_apply, Cslib.BitString.add_cancel_right, Equiv.apply_symm_apply]
 
 /-- Involution XNORing each table coordinate `idx` with `h ((BitString.equivFin b).symm idx)`. -/
 def andreevAlignTable (b m : ℕ) (h : BitString b → Bool)
@@ -143,7 +148,8 @@ def andreevAlignTable (b m : ℕ) (h : BitString b → Bool)
 /-- `andreevAlignTable b m h` is an involution. -/
 theorem andreevAlignTable_involutive (b m : ℕ) (h : BitString b → Bool) :
     Function.Involutive (andreevAlignTable b m h) := fun w => by
-  funext i; refine Fin.addCases (fun idx => ?_) (fun v => by simp [andreevAlignTable]) i
+  funext i; refine Fin.addCases (fun idx => ?_)
+    (fun v => by simp only [andreevAlignTable, Fin.addCases_right]) i
   change andreevAlignTable b m h (andreevAlignTable b m h w) (andreevTableIndex b m idx) = _
   simp only [andreevAlignTable, andreevTableIndex, Fin.addCases_left]
   cases w (Fin.castAdd (b * m) idx) <;> cases h ((BitString.equivFin b).symm idx) <;> rfl
@@ -163,8 +169,9 @@ theorem card_subcube_agree_andreev_eq_card_tableCoords_true (b m : ℕ) (σ : Fi
     ← Fintype.card_subtype, ← Fintype.card_subtype]
   refine Fintype.card_congr ((BitString.equivFin b).subtypeEquiv fun u => ?_)
   simp only [andreevSubcubePerm, Equiv.trans_apply, Function.Involutive.coe_toPerm,
-    andreevAlignTable, andreevShiftResidual, andreevTableIndex, Fin.addCases_left,
-    Equiv.symm_apply_apply, andreev_embedUpdate_andreevLiveVar]
+    andreevAlignTable, andreevShiftResidual, andreevTranslateTableFun_castAdd, Bool.xor_false,
+    andreevTableIndex, Fin.addCases_left, Equiv.symm_apply_apply,
+    andreev_embedUpdate_andreevLiveVar, andreevTable]
   cases h u <;>
     cases w (Fin.castAdd (b * m) (BitString.equivFin b (u + andreevResidualParities b m σ w))) <;>
       decide
@@ -176,8 +183,9 @@ theorem card_subcube_agree_andreev_le (b m : ℕ) (σ : Fin b → Fin m) (h : Bi
       t ≤ (#{u : BitString b | h u = andreev b m (embedUpdate (andreevLiveVar b m σ) w u)} : ℝ) -
         (2 : ℝ) ^ b / 2} : ℝ) ≤
       (2 : ℝ) ^ (2 ^ b + b * m) * Real.exp (-(2 * t ^ 2 / (2 : ℝ) ^ b)) := by
-  refine (le_of_eq ?_).trans (by simpa [Fintype.card_fin] using
-    Cslib.BitString.card_filter_le_card_filter_sub_half_le (andreevTableCoords b m) true ht)
+  refine (le_of_eq ?_).trans (by
+    simpa only [card_andreevTableCoords, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using
+      Cslib.BitString.card_filter_le_card_filter_sub_half_le (andreevTableCoords b m) true ht)
   simp_rw [card_subcube_agree_andreev_eq_card_tableCoords_true, ← Fintype.card_subtype]
   exact congrArg Nat.cast (Fintype.card_congr
     ((andreevSubcubePerm b m σ h).subtypeEquiv fun _ => Iff.rfl))
@@ -296,21 +304,23 @@ theorem card_eval_eq_andreev_le_of_unforced_mean_le {b m : ℕ} (hm : 0 < m)
     have hpt (w : BitString (2 ^ b + b * m)) : agree σ w ≤ ((2 : ℝ) ^ b / 2 + β) +
         α * Real.sqrt (U σ w : ℝ) + if w ∈ Bad then (2 : ℝ) ^ b else 0 := by
       have hle_2b : agree σ w ≤ (2 : ℝ) ^ b := by
-        dsimp [agree]; exact_mod_cast (card_le_univ _).trans_eq (by simp)
+        dsimp [agree]
+        exact_mod_cast (card_le_univ _).trans_eq
+          (by simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool])
       have hrest : 0 ≤ α * Real.sqrt (U σ w : ℝ) := mul_nonneg hα0 (Real.sqrt_nonneg _)
       by_cases hbad : w ∈ Bad
-      · simp only [hbad, ↓reduceIte]; linarith
+      · simp only [hbad, ↓reduceIte]; linarith only [hle_2b, hrest, hβ, h2b_pos]
       · simp only [hbad, ↓reduceIte, add_zero]
         by_cases hlt : U σ w < 2 ^ b
         · have hng : ¬ (α * Real.sqrt (U σ w : ℝ) + β ≤ agree σ w - (2 : ℝ) ^ b / 2) := fun hge =>
             hbad (mem_filter.mpr ⟨mem_univ w, U σ w, hlt, _, hU σ w, hge⟩)
-          linarith [lt_of_not_ge hng]
+          linarith only [lt_of_not_ge hng]
         · have h2b_le : (2 : ℝ) ^ b ≤ (U σ w : ℝ) := by exact_mod_cast not_lt.mp hlt
           have hhalf : (2 : ℝ) ^ b / 2 ≤ α * Real.sqrt (U σ w : ℝ) := by
             rw [show (2 : ℝ) ^ b / 2 = (Real.sqrt ((2 : ℝ) ^ b) / 2) * Real.sqrt ((2 : ℝ) ^ b) by
               rw [div_mul_eq_mul_div, Real.mul_self_sqrt h2b_pos.le]]
             exact mul_le_mul hα (Real.sqrt_le_sqrt h2b_le) (by positivity) hα0
-          linarith
+          linarith only [hle_2b, hhalf, hβ]
     have hsum_eq : (∑ w, agree σ w) = (2 : ℝ) ^ b * A := by
       have hnat := sum_card_filter_embedUpdate (andreevLiveVar_injective b m σ)
         (fun w' => f w' = andreev b m w')
@@ -320,7 +330,7 @@ theorem card_eval_eq_andreev_le_of_unforced_mean_le {b m : ℕ} (hm : 0 < m)
     have hsum_le := sum_le_sum fun w (_ : w ∈ univ) => hpt w
     rw [hsum_eq, sum_add_distrib, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hcardW,
       ← mul_sum, sum_ite_mem, univ_inter, sum_const, nsmul_eq_mul] at hsum_le
-    nlinarith [mul_le_mul_of_nonneg_right hBad_le h2b_pos.le]
+    linarith only [hsum_le, mul_le_mul_of_nonneg_right hBad_le h2b_pos.le]
   set C : ℝ := (Fintype.card (Fin b → Fin m) : ℝ) with hC
   have hC_pos : 0 < C := by
     rw [hC, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]; positivity
@@ -341,8 +351,10 @@ theorem card_eval_eq_andreev_le_of_unforced_mean_le {b m : ℕ} (hm : 0 < m)
     have hexp : C * ((2 : ℝ) ^ b * (N * (1 / 2 + (α * Real.sqrt B + β) / (2 : ℝ) ^ b + T))) =
         C * (N * ((2 : ℝ) ^ b / 2 + β)) + α * (C * N * Real.sqrt B) + C * (N * T * (2 : ℝ) ^ b)
           := by
-      field_simp; ring
-    rw [hexp]; nlinarith [mul_le_mul_of_nonneg_left hcs hα0]
+      have hdiv : (2 : ℝ) ^ b * ((α * Real.sqrt B + β) / (2 : ℝ) ^ b) = α * Real.sqrt B + β :=
+        mul_div_cancel₀ _ h2b_pos.ne'
+      linear_combination C * N * hdiv
+    rw [hexp]; linarith only [hsum_σ, mul_le_mul_of_nonneg_left hcs hα0]
   exact le_of_mul_le_mul_left (le_of_mul_le_mul_left hfinal hC_pos) h2b_pos
 
 /-- Squaring step: a correlation bound with excess `2 ^ b * (ε - T) - β ≥ 0` over the deviation
@@ -355,10 +367,9 @@ theorem sq_le_of_corr_le {b n : ℕ} {α β ε T B : ℝ} (hB0 : 0 ≤ B)
   have h1 := le_of_mul_le_mul_left hbound (by positivity : (0 : ℝ) < (2 : ℝ) ^ n)
   have h2b_pos : (0 : ℝ) < (2 : ℝ) ^ b := by positivity
   have h2 : (2 : ℝ) ^ b * (ε - T) - β ≤ α * Real.sqrt B := by
-    have hmul : (2 : ℝ) ^ b * ((α * Real.sqrt B + β) / (2 : ℝ) ^ b) = α * Real.sqrt B + β := by
-      field_simp
-    nlinarith [mul_le_mul_of_nonneg_left
-      (by linarith : ε - T ≤ (α * Real.sqrt B + β) / (2 : ℝ) ^ b) h2b_pos.le]
+    have h1' : ε - T ≤ (α * Real.sqrt B + β) / (2 : ℝ) ^ b := by linarith only [h1]
+    rw [le_div_iff₀' h2b_pos] at h1'
+    linarith only [h1']
   calc ((2 : ℝ) ^ b * (ε - T) - β) ^ 2 ≤ (α * Real.sqrt B) ^ 2 := pow_le_pow_left₀ hpos h2 2
     _ = α ^ 2 * B := by rw [mul_pow, Real.sq_sqrt hB0]
 
@@ -375,12 +386,15 @@ theorem andreevWeightScale_sq (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
 theorem sqrt_two_pow_div_two_le_andreevWeightScale (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
     Real.sqrt ((2 : ℝ) ^ b) / 2 ≤ andreevWeightScale b M := by
   have hlog := Real.log_nonneg (by exact_mod_cast hM : (1 : ℝ) ≤ M)
+  have hb0 : (0 : ℝ) ≤ b := Nat.cast_nonneg b
   rw [show Real.sqrt ((2 : ℝ) ^ b) / 2 = Real.sqrt ((2 : ℝ) ^ b / 4) by
     rw [Real.sqrt_div' _ (by norm_num : (0 : ℝ) ≤ 4),
       show Real.sqrt 4 = 2 from (Real.sqrt_eq_iff_eq_sq (by norm_num) (by norm_num)).mpr
         (by norm_num)]]
-  exact Real.sqrt_le_sqrt (by nlinarith [(by positivity : (0 : ℝ) < (2 : ℝ) ^ b),
-    (by positivity : (0 : ℝ) ≤ (b : ℝ))])
+  exact Real.sqrt_le_sqrt (by
+    linarith only [mul_le_mul_of_nonneg_left
+      (show (1 : ℝ) / 4 ≤ (b : ℝ) + 2 + Real.log M by linarith only [hlog, hb0])
+      (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ b)])
 
 /-- At slope `α = andreevWeightScale b M` and offset `β = (b + 2) * √(2 ^ b)`, the simultaneous
 tail is at most `(1 / 2) ^ (b + 6)`. -/
@@ -404,8 +418,8 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
   have hterm (q : ℕ) : (andreevWeightCount b M q : ℝ) *
       Real.exp (-(2 * (α * Real.sqrt q + β) ^ 2 / x)) ≤ (x + 1) ^ (b + 1) * K * r ^ q := by
     have hsq : α ^ 2 * q + β ^ 2 ≤ (α * Real.sqrt q + β) ^ 2 := by
-      nlinarith [Real.sq_sqrt (Nat.cast_nonneg q : (0 : ℝ) ≤ q),
-        mul_nonneg (mul_nonneg hα0 (Real.sqrt_nonneg (q : ℝ))) hβ0]
+      rw [add_sq, mul_pow α, Real.sq_sqrt (Nat.cast_nonneg q)]
+      linarith only [mul_nonneg (mul_nonneg hα0 (Real.sqrt_nonneg q)) hβ0]
     have hexp : Real.exp (-(2 * (α * Real.sqrt q + β) ^ 2 / x)) ≤
         Real.exp (-(2 * A)) ^ q * K := by
       rw [hK, ← Real.exp_nat_mul, ← Real.exp_add]
@@ -413,8 +427,9 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
       have hval : 2 * (α ^ 2 * q + β ^ 2) / x = 2 * A * q + 2 * ((b : ℝ) + 2) ^ 2 := by
         rw [hα_sq, hβ_sq]; field_simp
       have hdiv : 2 * (α ^ 2 * q + β ^ 2) / x ≤ 2 * (α * Real.sqrt q + β) ^ 2 / x :=
-        div_le_div_of_nonneg_right (by linarith) hx_pos.le
-      nlinarith
+        div_le_div_of_nonneg_right (by linarith only [hsq]) hx_pos.le
+      rw [show (q : ℝ) * -(2 * A) = -(2 * A * q) by ring]
+      linarith only [hval, hdiv]
     have hcount : (andreevWeightCount b M q : ℝ) = ((x + 1) ^ 2 * M) ^ q * (x + 1) ^ (b + 1) := by
       unfold andreevWeightCount
       push_cast
@@ -432,31 +447,31 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
     have hexpA : Real.exp (-(2 * A)) * (M : ℝ) ^ 2 = Real.exp (-(2 * ((b : ℝ) + 2))) := by
       have hlog2 : Real.exp (2 * Real.log M) = (M : ℝ) ^ 2 := by
         rw [show (2 : ℝ) * Real.log M = ((2 : ℕ) : ℝ) * Real.log M by norm_num, Real.exp_nat_mul,
-          Real.exp_log (by linarith)]
+          Real.exp_log (by linarith only [hM1])]
       rw [← hlog2, ← Real.exp_add, hA]; congr 1; ring
-    have hx1' : x + 1 ≤ 2 * x := by linarith
+    have hx1' : x + 1 ≤ 2 * x := by linarith only [hx1]
     have he2 : (4 : ℝ) ^ (b + 2) ≤ Real.exp (2 * ((b : ℝ) + 2)) := by
       have h4 : (4 : ℝ) ≤ Real.exp 2 := by
-        have h1 : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp 1]
-        rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]; nlinarith
+        have h1 : (2 : ℝ) ≤ Real.exp 1 := by linarith only [Real.add_one_le_exp 1]
+        rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
+        nlinarith only [h1]
       calc (4 : ℝ) ^ (b + 2) ≤ Real.exp 2 ^ (b + 2) := pow_le_pow_left₀ (by norm_num) h4 _
         _ = Real.exp (2 * ((b : ℝ) + 2)) := by
           rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
     have hx4 : 4 * (x + 1) ^ 2 ≤ (4 : ℝ) ^ (b + 2) := by
-      have : (4 : ℝ) ^ (b + 2) = 16 * x ^ 2 := by
-        rw [hx, ← pow_mul, show (4 : ℝ) = 2 ^ 2 by norm_num, ← pow_mul]; ring
-      rw [this]; nlinarith
-    have hE := Real.exp_pos (-(2 * A))
+      calc 4 * (x + 1) ^ 2 ≤ 4 * (2 * x) ^ 2 := by gcongr
+        _ = (4 : ℝ) ^ (b + 2) := by
+          rw [hx, show (4 : ℝ) = 2 ^ 2 by norm_num, ← pow_mul]; ring
     have hrM : r * M = (x + 1) ^ 2 * Real.exp (-(2 * ((b : ℝ) + 2))) := by
       rw [hr, ← hexpA]; ring
     have hmain : 4 * ((x + 1) ^ 2 * Real.exp (-(2 * ((b : ℝ) + 2)))) ≤ 1 := by
       rw [Real.exp_neg, ← div_eq_mul_inv, mul_div_assoc', div_le_one (Real.exp_pos _)]
-      linarith
-    nlinarith
+      exact hx4.trans he2
+    linarith only [le_mul_of_one_le_right hr0 hM1, hrM, hmain]
   have hgeom : (∑ q ∈ range (2 ^ b), r ^ q) ≤ 4 / 3 := by
     rw [range_eq_Ico]
-    refine (geom_sum_Ico_le_of_lt_one hr0 (by linarith)).trans ?_
-    rw [pow_zero, div_le_iff₀ (by linarith)]; linarith
+    refine (geom_sum_Ico_le_of_lt_one hr0 (by linarith only [hr_le])).trans ?_
+    rw [pow_zero, div_le_iff₀ (by linarith only [hr_le])]; linarith only [hr_le]
   have hT : andreevWeightTail b M α β ≤ (x + 1) ^ (b + 1) * K * (4 / 3) := by
     unfold andreevWeightTail
     refine (sum_le_sum fun q _ => hterm q).trans ?_
@@ -464,22 +479,20 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
     exact mul_le_mul_of_nonneg_left hgeom (by positivity)
   refine hT.trans ?_
   have hpow : (x + 1) ^ (b + 1) ≤ (2 : ℝ) ^ ((b + 1) * (b + 1)) := by
-    rw [pow_mul]; exact pow_le_pow_left₀ (by positivity) (by rw [pow_succ, ← hx]; linarith) _
+    rw [pow_mul]
+    exact pow_le_pow_left₀ (by positivity) (by rw [pow_succ, ← hx]; linarith only [hx1]) _
   have hexpK : (2 : ℝ) ^ ((b + 1) * (b + 1) + 1 + (b + 6)) ≤ Real.exp (2 * ((b : ℝ) + 2) ^ 2) :=
-    (pow_le_pow_right₀ (by norm_num) (by nlinarith)).trans
+    (pow_le_pow_right₀ (by norm_num) (by ring_nf; omega)).trans
       ((Real.two_pow_le_exp (2 * (b + 2) ^ 2)).trans_eq (by push_cast; ring_nf))
-  have hKpos : 0 < K := Real.exp_pos _
-  have hK_eq : K * Real.exp (2 * ((b : ℝ) + 2) ^ 2) = 1 := by
-    rw [hK, ← Real.exp_add]; simp
-  rw [one_div, inv_pow]
-  rw [← one_div]
-  apply (le_div_iff₀ (by positivity : (0 : ℝ) < (2 : ℝ) ^ (b + 6))).mpr
-  have hp : (x + 1) ^ (b + 1) * (4 / 3 : ℝ) * (2 : ℝ) ^ (b + 6) ≤
-      Real.exp (2 * ((b : ℝ) + 2) ^ 2) := by
-    calc _ ≤ (2 : ℝ) ^ ((b + 1) * (b + 1)) * 2 * (2 : ℝ) ^ (b + 6) := by gcongr; norm_num
-         _ = (2 : ℝ) ^ ((b + 1) * (b + 1) + 1 + (b + 6)) := by simp only [pow_add, pow_one]
-         _ ≤ _ := hexpK
-  nlinarith [mul_le_mul_of_nonneg_left hp hKpos.le]
+  rw [one_div_pow, le_div_iff₀ (by positivity)]
+  calc (x + 1) ^ (b + 1) * K * (4 / 3) * (2 : ℝ) ^ (b + 6)
+      = K * ((x + 1) ^ (b + 1) * (4 / 3) * (2 : ℝ) ^ (b + 6)) := by ring
+    _ ≤ K * Real.exp (2 * ((b : ℝ) + 2) ^ 2) := by
+      refine mul_le_mul_of_nonneg_left ?_ (Real.exp_pos _).le
+      calc _ ≤ (2 : ℝ) ^ ((b + 1) * (b + 1)) * 2 * (2 : ℝ) ^ (b + 6) := by gcongr; norm_num
+        _ = (2 : ℝ) ^ ((b + 1) * (b + 1) + 1 + (b + 6)) := by simp only [pow_add, pow_one]
+        _ ≤ _ := hexpK
+    _ = 1 := by rw [hK, ← Real.exp_add, neg_add_cancel, Real.exp_zero]
 
 /-- With `ε ≥ 3 (b + 2) / √(2 ^ b)`, the canonical offset and tail consume at most
 `2 ε / 3`, leaving a nonnegative excess of at least `2 ^ b * ε / 3`. -/
@@ -493,9 +506,9 @@ theorem excess_ge_of_three_mul_div_sqrt_le {b M : ℕ} (hM : 1 ≤ M) {ε : ℝ}
   have hs : 0 < Real.sqrt ((2 : ℝ) ^ b) := by positivity
   have hsq := Real.sq_sqrt hx.le
   have hs_le : Real.sqrt ((2 : ℝ) ^ b) ≤ (2 : ℝ) ^ b := by
-    have h1 : 1 ≤ Real.sqrt ((2 : ℝ) ^ b) := by
-      simpa using Real.sqrt_le_sqrt (one_le_pow₀ (by norm_num : (1 : ℝ) ≤ 2) (n := b))
-    nlinarith
+    have h1 : 1 ≤ Real.sqrt ((2 : ℝ) ^ b) :=
+      Real.one_le_sqrt.2 (one_le_pow₀ (by norm_num : (1 : ℝ) ≤ 2))
+    exact (le_mul_of_one_le_left hs.le h1).trans_eq (by rw [← sq, hsq])
   have ht : andreevWeightTail b M (andreevWeightScale b M)
       (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b)) ≤
       ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b) := by
@@ -505,15 +518,21 @@ theorem excess_ge_of_three_mul_div_sqrt_le {b M : ℕ} (hM : 1 ≤ M) {ε : ℝ}
     simp only [one_div, inv_pow] at hp ⊢
     refine hp.trans ((inv_anti₀ hs hs_le).trans ?_)
     rw [← one_div]
-    exact div_le_div_of_nonneg_right (by linarith [(by positivity : (0 : ℝ) ≤ (b : ℝ))]) hs.le
+    exact div_le_div_of_nonneg_right (by linarith only [(Nat.cast_nonneg b : (0 : ℝ) ≤ b)]) hs.le
   have hε' := (div_le_iff₀ hs).mp hε
   have hβ : 3 * (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b)) ≤ (2 : ℝ) ^ b * ε := by
-    nlinarith [mul_le_mul_of_nonneg_right hε' hs.le]
+    calc 3 * (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b))
+        = 3 * ((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b) := by ring
+      _ ≤ ε * Real.sqrt ((2 : ℝ) ^ b) * Real.sqrt ((2 : ℝ) ^ b) := by gcongr
+      _ = (2 : ℝ) ^ b * ε := by rw [mul_assoc, ← sq, hsq, mul_comm]
   have ht' : 3 * andreevWeightTail b M (andreevWeightScale b M)
       (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b)) ≤ ε := by
-    linarith [show 3 * (((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)) ≤ ε by simpa [mul_div_assoc]
-      using hε]
-  nlinarith [mul_le_mul_of_nonneg_left ht' hx.le]
+    linarith only [ht, show 3 * (((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)) ≤ ε by
+      rwa [← mul_div_assoc]]
+  have htail := mul_le_mul_of_nonneg_left ht' hx.le
+  rw [← mul_left_comm] at htail
+  rw [mul_sub]
+  linarith only [hβ, htail]
 
 /-! ### Depth-two gate and wire correlation and lower bounds -/
 
@@ -535,7 +554,7 @@ theorem card_eval_eq_andreev_le_of_depth_le_two_size {b m : ℕ} (hm : 0 < m)
     (fun σ w => circuitUnforcedConstCount c o (blockLiveSet (andreevBlockVar b m) σ) w)
     (fun σ w => by rw [← univ_image_andreevLiveVar_eq_blockLiveSet]; exact
       isDepthTwoOverWeights_eval_embedUpdate_const c hd o (andreevLiveVar_injective b m σ) w) ?_
-  simpa [Fintype.card_fin] using sum_circuitUnforcedConstCount_blockLiveSet_le c o
+  simpa only [Fintype.card_fin] using sum_circuitUnforcedConstCount_blockLiveSet_le c o
     (andreevBlockVar b m) (andreevBlockVar_joint_injective b m)
 
 /-- Explicit gate lower bound with separate slope and offset. -/
@@ -550,6 +569,32 @@ theorem size_ge_of_card_eval_eq_andreev_ge {b m : ℕ} (hm : 0 < m)
   sq_le_of_corr_le (by positivity) hpos (hcorr.trans
     (card_eval_eq_andreev_le_of_depth_le_two_size hm hα hβ c hd o))
 
+private theorem scale_bound_of_sq_le {b r : ℕ} {ε A B D : ℝ} (hA : 0 ≤ A)
+    (hε : 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b) ≤ ε)
+    (hAB : A * B = 4 * (r : ℝ) * D)
+    (hsq : ∀ {α β : ℝ}, Real.sqrt ((2 : ℝ) ^ b) / 2 ≤ α → 0 ≤ β →
+      0 ≤ (2 : ℝ) ^ b * (ε - andreevWeightTail b (r + 1) α β) - β →
+      ((2 : ℝ) ^ b * (ε - andreevWeightTail b (r + 1) α β) - β) ^ 2 ≤ α ^ 2 * B) :
+    A * (2 : ℝ) ^ b * ε ^ 2 ≤ 36 * ((b : ℝ) + 2 + Real.log (r + 1)) * (r : ℝ) * D := by
+  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
+  have hex := excess_ge_of_three_mul_div_sqrt_le (b := b) (M := r + 1) (by omega) hε
+  have h := (pow_le_pow_left₀ (by positivity) hex 2).trans
+    (hsq (sqrt_two_pow_div_two_le_andreevWeightScale b (by omega)) (by positivity)
+      ((by positivity : 0 ≤ (2 : ℝ) ^ b * ε / 3).trans hex))
+  rw [andreevWeightScale_sq b (by omega)] at h
+  simp only [Nat.cast_add, Nat.cast_one] at h
+  have hmul := mul_le_mul_of_nonneg_left h hA
+  have h1 : A * ((2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (r + 1)) * B) =
+      (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (r + 1)) * (r : ℝ) * D) := by
+    calc A * ((2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (r + 1)) * B)
+        = (2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (r + 1)) * (A * B) := by ring
+      _ = (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (r + 1)) * (r : ℝ) * D) := by
+        rw [hAB]; ring
+  have hLHS : A * ((2 : ℝ) ^ b * ε / 3) ^ 2 = (2 : ℝ) ^ b * (A * (2 : ℝ) ^ b * ε ^ 2 / 9) := by
+    ring
+  rw [h1, hLHS] at hmul
+  linarith only [le_of_mul_le_mul_left hmul (by positivity : (0 : ℝ) < (2 : ℝ) ^ b)]
+
 /-- Canonical gate bound: the counting loss is `b + 2 + log (c.size + 1)`.
 For polynomial resources this is linear in `b`, saving one logarithm over unrestricted LTF
   counting. -/
@@ -561,27 +606,9 @@ theorem size_ge_of_card_eval_eq_andreev_ge_of_le_eps {b m : ℕ} (hm : 0 < m)
     (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       36 * ((b : ℝ) + 2 + Real.log (c.size + 1)) * (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m :
         ℕ) : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hex := excess_ge_of_three_mul_div_sqrt_le (b := b) (M := c.size + 1) (by omega) hε
-  have hp : 0 ≤ (2 : ℝ) ^ b * (ε - andreevWeightTail b (c.size + 1)
-      (andreevWeightScale b (c.size + 1)) (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b))) -
-      ((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b) := (by positivity : 0 ≤ (2 : ℝ) ^ b * ε / 3).trans hex
-  have h := (pow_le_pow_left₀ (by positivity) hex 2).trans
-    (size_ge_of_card_eval_eq_andreev_ge hm
-      (sqrt_two_pow_div_two_le_andreevWeightScale b (by omega)) (by positivity) c hd o hp hcorr)
-  rw [andreevWeightScale_sq b (by omega)] at h
-  simp only [Nat.cast_add, Nat.cast_one] at h ⊢
-  have hmpos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have hmne : (m : ℝ) ≠ 0 := hmpos.ne'
-  have hmul := mul_le_mul_of_nonneg_left h hmpos.le
-  have heq : (m : ℝ) * ((2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (c.size + 1)) *
-      (4 * (1 / (m : ℝ)) * (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ))) =
-      (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (c.size + 1)) *
-        (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ)) := by field_simp
-  simp only [Nat.cast_add] at heq
-  rw [heq] at hmul
-  apply le_of_mul_le_mul_left (a := (2 : ℝ) ^ b) _ (by positivity)
-  nlinarith
+  have hm0 : (0 : ℝ) < m := Nat.cast_pos.mpr hm
+  exact scale_bound_of_sq_le hm0.le hε (by field_simp)
+    fun hα hβ hp => size_ge_of_card_eval_eq_andreev_ge hm hα hβ c hd o hp hcorr
 
 /-- Wire correlation bound counting only threshold shifts of the circuit's fixed bottom weights. -/
 theorem card_eval_eq_andreev_le_of_depth_le_two_wireCount {b m : ℕ} (hm : 0 < m)
@@ -601,7 +628,7 @@ theorem card_eval_eq_andreev_le_of_depth_le_two_wireCount {b m : ℕ} (hm : 0 < 
     (fun σ w => circuitUnforcedAtMostOneCount c o (blockLiveSet (andreevBlockVar b m) σ) w)
     (fun σ w => by rw [← univ_image_andreevLiveVar_eq_blockLiveSet]; exact
       isDepthTwoOverWeights_eval_embedUpdate c hd o (andreevLiveVar_injective b m σ) w) ?_
-  simpa [Fintype.card_fin] using sum_circuitUnforcedAtMostOneCount_blockLiveSet_le c o
+  simpa only [Fintype.card_fin] using sum_circuitUnforcedAtMostOneCount_blockLiveSet_le c o
     (andreevBlockVar b m) (andreevBlockVar_joint_injective b m)
 
 /-- Explicit wire lower bound with separate slope and offset. -/
@@ -626,29 +653,14 @@ theorem wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps {b m : ℕ} (hm : 0 < 
       (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w o = andreev b m w} : ℝ)) :
     (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       36 * ((b : ℝ) + 2 + Real.log (c.wireCount + 1)) * (c.wireCount : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hex := excess_ge_of_three_mul_div_sqrt_le (b := b) (M := c.wireCount + 1) (by omega) hε
-  have hp : 0 ≤ (2 : ℝ) ^ b * (ε - andreevWeightTail b (c.wireCount + 1)
-      (andreevWeightScale b (c.wireCount + 1)) (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b))) -
-      ((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b) := (by positivity : 0 ≤ (2 : ℝ) ^ b * ε / 3).trans hex
-  have h := (pow_le_pow_left₀ (by positivity) hex 2).trans
-    (wireCount_ge_of_card_eval_eq_andreev_ge hm
-      (sqrt_two_pow_div_two_le_andreevWeightScale b (by omega)) (by positivity) c hd o hp hcorr)
-  rw [andreevWeightScale_sq b (by omega)] at h
-  simp only [Nat.cast_add, Nat.cast_one] at h ⊢
-  have hmpos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have hmne : (m : ℝ) ≠ 0 := hmpos.ne'
-  have hsne : Real.sqrt (m : ℝ) ≠ 0 := (Real.sqrt_pos.mpr hmpos).ne'
-  simp only [one_div, Real.sqrt_inv] at h
-  have hmul := mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ (m : ℝ) * Real.sqrt (m : ℝ))
-  have heq : (m : ℝ) * Real.sqrt (m : ℝ) * ((2 : ℝ) ^ b *
-      ((b : ℝ) + 2 + Real.log (c.wireCount + 1)) *
-      (4 * (c.wireCount : ℝ) * (m : ℝ)⁻¹ * (Real.sqrt (m : ℝ))⁻¹)) =
-      (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (c.wireCount + 1)) * (c.wireCount : ℝ)) := by
+  have hm0 : (0 : ℝ) < m := Nat.cast_pos.mpr hm
+  have hAB : (m : ℝ) * Real.sqrt m *
+      (4 * (c.wireCount : ℝ) * (1 / (m : ℝ)) * Real.sqrt (1 / (m : ℝ))) =
+      4 * (c.wireCount : ℝ) * 1 := by
+    rw [Real.sqrt_div' _ hm0.le, Real.sqrt_one]
     field_simp
-  rw [heq] at hmul
-  apply le_of_mul_le_mul_left (a := (2 : ℝ) ^ b) _ (by positivity)
-  nlinarith
+  simpa only [mul_one] using scale_bound_of_sq_le (by positivity) hε hAB
+    fun hα hβ hp => wireCount_ge_of_card_eval_eq_andreev_ge hm hα hβ c hd o hp hcorr
 
 private theorem card_eval_eq_andreev_of_computes {b m : ℕ}
     (c : Circuit signature (2 ^ b + b * m) 1)
@@ -681,27 +693,32 @@ theorem wireCount_ge_of_computes_andreev {b m : ℕ} (hm : 0 < m)
     (card_eval_eq_andreev_of_computes c hcomp)
 
 /-- Remove the logarithm of the resource by splitting at `2 ^ (3 * b)`. -/
-private theorem resource_bound_of_log_bound (b r : ℕ) {L D : ℝ} (hD : 0 ≤ D)
-    (hlarge : L ≤ (2 : ℝ) ^ (3 * b) * D)
-    (hsmall : L ≤ 36 * ((b : ℝ) + 2 + Real.log (r + 1)) * r * D) :
-    L ≤ 144 * ((b : ℝ) + 2) * r * D := by
+private theorem resource_bound_of_log_bound (b r : ℕ) {A ε D : ℝ} (_ : 0 ≤ A) (hD : 0 ≤ D)
+    (hA : A ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * D)
+    (hε : 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b) ≤ ε) (hε1 : ε ≤ 1)
+    (hsmall : A * (2 : ℝ) ^ b * ε ^ 2 ≤ 36 * ((b : ℝ) + 2 + Real.log (r + 1)) * r * D) :
+    A * (2 : ℝ) ^ b * ε ^ 2 ≤ 144 * ((b : ℝ) + 2) * r * D := by
   by_cases hr : r < 2 ^ (3 * b)
   · have hlog : Real.log ((r : ℝ) + 1) ≤ 3 * (b : ℝ) := by
-      have hr' : (r : ℝ) + 1 ≤ (2 : ℝ) ^ (3 * b) := by exact_mod_cast (show r + 1 ≤ 2 ^ (3 * b)
-        by omega)
-      have he := Real.two_pow_le_exp (3 * b)
-      have hle := Real.log_le_log (by positivity : (0 : ℝ) < (r : ℝ) + 1) (hr'.trans he)
-      simpa only [Real.log_exp, Nat.cast_mul, Nat.cast_ofNat] using hle
-    refine hsmall.trans ?_
-    exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right
-      (by linarith : 36 * ((b : ℝ) + 2 + Real.log (r + 1)) ≤ 144 * ((b : ℝ) + 2))
-      (Nat.cast_nonneg r)) hD
-  · have hr' : (2 : ℝ) ^ (3 * b) ≤ r := by exact_mod_cast not_lt.mp hr
-    calc L ≤ (2 : ℝ) ^ (3 * b) * D := hlarge
-         _ ≤ (r : ℝ) * D := mul_le_mul_of_nonneg_right hr' hD
-         _ ≤ 144 * ((b : ℝ) + 2) * r * D := by
-           exact mul_le_mul_of_nonneg_right (le_mul_of_one_le_left (Nat.cast_nonneg r)
-             (by linarith [(Nat.cast_nonneg b : (0 : ℝ) ≤ b)])) hD
+      have hr' : (r : ℝ) + 1 ≤ (2 : ℝ) ^ (3 * b) := by
+        exact_mod_cast (show r + 1 ≤ 2 ^ (3 * b) by omega)
+      simpa only [Real.log_exp, Nat.cast_mul, Nat.cast_ofNat] using
+        Real.log_le_log (by positivity : (0 : ℝ) < (r : ℝ) + 1)
+          (hr'.trans (Real.two_pow_le_exp (3 * b)))
+    exact hsmall.trans (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right
+      (by linarith only [hlog] : 36 * ((b : ℝ) + 2 + Real.log (r + 1)) ≤ 144 * ((b : ℝ) + 2))
+      (Nat.cast_nonneg r)) hD)
+  · have hε0 : 0 ≤ ε :=
+      (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
+    have hεsq : ε ^ 2 ≤ 1 := pow_le_one₀ hε0 hε1
+    have hr' : (2 : ℝ) ^ (3 * b) ≤ r := by exact_mod_cast not_lt.mp hr
+    calc A * (2 : ℝ) ^ b * ε ^ 2
+        ≤ ((2 : ℝ) ^ b * (2 : ℝ) ^ b * D) * (2 : ℝ) ^ b * 1 := by gcongr
+      _ = (2 : ℝ) ^ (3 * b) * D := by rw [Nat.mul_comm 3 b, pow_mul]; ring
+      _ ≤ (r : ℝ) * D := mul_le_mul_of_nonneg_right hr' hD
+      _ ≤ 144 * ((b : ℝ) + 2) * r * D := mul_le_mul_of_nonneg_right
+          (le_mul_of_one_le_left (Nat.cast_nonneg r)
+            (by linarith only [(Nat.cast_nonneg b : (0 : ℝ) ≤ b)])) hD
 
 /-- Explicit gate bound with a linear counting loss in `b`, valid when `m ≤ 2 ^ b`.
 At `b * m = 2 ^ b` this gives `Ω(ε² n^(3/2) / log² n)`. -/
@@ -713,25 +730,18 @@ theorem size_ge_of_card_eval_eq_andreev_ge_of_le_two_pow {b m : ℕ} (hm : 0 < m
       (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w o = andreev b m w} : ℝ)) :
     (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       144 * ((b : ℝ) + 2) * (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hεsq : ε ^ 2 ≤ 1 := by nlinarith
-  have hN1 : (1 : ℝ) ≤ (2 : ℝ) ^ b := one_le_pow₀ (by norm_num)
   have hmN' : (m : ℝ) ≤ (2 : ℝ) ^ b := by exact_mod_cast hmN
-  have hs1 : (1 : ℝ) ≤ Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-    apply Real.one_le_sqrt.mpr
-    exact_mod_cast (show 1 ≤ 2 ^ b + b * m by have := Nat.one_le_two_pow (n := b); omega)
-  apply resource_bound_of_log_bound b c.size (by positivity) _
+  have hN1 : (1 : ℝ) ≤ (2 : ℝ) ^ b := one_le_pow₀ (by norm_num)
+  have hs1 : (1 : ℝ) ≤ Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := Real.one_le_sqrt.mpr
+    (by exact_mod_cast (show 1 ≤ 2 ^ b + b * m by have := Nat.one_le_two_pow (n := b); omega))
+  have hA : (m : ℝ) ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
+    have h1 : 1 ≤ (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) :=
+      one_le_mul_of_one_le_of_one_le hN1 hs1
+    calc (m : ℝ) ≤ (2 : ℝ) ^ b * 1 := by rw [mul_one]; exact hmN'
+      _ ≤ (2 : ℝ) ^ b * ((2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ)) := by gcongr
+      _ = (2 : ℝ) ^ b * (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by ring
+  exact resource_bound_of_log_bound b c.size (Nat.cast_nonneg m) (by positivity) hA hε hε1
     (size_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)
-  calc (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * 1 := by gcongr
-       _ ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * (2 : ℝ) ^ b *
-           Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-           have hprod : 1 ≤ (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-             nlinarith [mul_nonneg (sub_nonneg.mpr hN1) (sub_nonneg.mpr hs1)]
-           have hp := mul_le_mul_of_nonneg_left hprod
-             (by positivity : 0 ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b)
-           nlinarith
-       _ = (2 : ℝ) ^ (3 * b) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-         rw [Nat.mul_comm 3 b, pow_mul]; ring
 
 /-- Explicit active-wire bound with linear counting loss in `b`.
 At `b * m = 2 ^ b` this gives `Ω(ε² n^(5/2) / log^(5/2) n)`. -/
@@ -743,18 +753,16 @@ theorem wireCount_ge_of_card_eval_eq_andreev_ge_of_le_two_pow {b m : ℕ} (hm : 
       (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w o = andreev b m w} : ℝ)) :
     (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       144 * ((b : ℝ) + 2) * (c.wireCount : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hεsq : ε ^ 2 ≤ 1 := by nlinarith
-  have hN1 : (1 : ℝ) ≤ (2 : ℝ) ^ b := one_le_pow₀ (by norm_num)
   have hmN' : (m : ℝ) ≤ (2 : ℝ) ^ b := by exact_mod_cast hmN
-  have hsN : Real.sqrt (m : ℝ) ≤ (2 : ℝ) ^ b := by
-    have hsq := Real.sq_sqrt (Nat.cast_nonneg m : (0 : ℝ) ≤ m)
-    nlinarith [Real.sqrt_nonneg (m : ℝ)]
-  have h := resource_bound_of_log_bound b c.wireCount (D := 1) (by norm_num)
-    (show (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤ (2 : ℝ) ^ (3 * b) * 1 by
-      calc _ ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * (2 : ℝ) ^ b * 1 := by gcongr
-           _ = _ := by rw [Nat.mul_comm 3 b, pow_mul]; ring)
-    (by simpa using wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)
-  simpa using h
+  have hsN : Real.sqrt (m : ℝ) ≤ (2 : ℝ) ^ b :=
+    Real.sqrt_le_iff.2 ⟨by positivity,
+      hmN'.trans (le_self_pow₀ (one_le_pow₀ (by norm_num)) two_ne_zero)⟩
+  have hA : (m : ℝ) * Real.sqrt (m : ℝ) ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * 1 := by
+    rw [mul_one]
+    exact mul_le_mul hmN' hsN (Real.sqrt_nonneg _) (by positivity)
+  simpa only [mul_one] using resource_bound_of_log_bound b c.wireCount (D := 1)
+    (by positivity) zero_le_one hA hε hε1
+    (by simpa only [mul_one] using
+      wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

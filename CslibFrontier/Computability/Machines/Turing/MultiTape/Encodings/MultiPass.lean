@@ -12,6 +12,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.MultiPass
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.SelectTapes
+import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -52,12 +55,9 @@ and then applies `passEnd`. -/
 /-- The flag after a pass: `[true]` if another pass follows, blank otherwise. -/
 @[expose] public def flagWord (b : Bool) : List Bool := if b then [true] else []
 
-open ComputableTidilyInLinearTimeAndSpace in
-lemma linear_flagWord : ComputableTidilyInLinearTimeAndSpace flagWord encBool encBits := by
-  convert (of_eq (f := id) (encIn := encBool) (encMid := encBool) fun _ => rfl).ite
-    ((const [true]).restrict _) ((const []).restrict _) using 1
-  funext c
-  cases c <;> rfl
+/-- The continuation flag has a direct linear certificate and constant output length. -/
+public theorem linear_flagWord : ComputableInDegree flagWord encBool encBits 1 0 :=
+  ComputableInDegree.of_finite flagWord
 
 /-- **Multi-pass folds are tidily computable.** The input `x` is encoded by concatenating the
 non-empty tokens `tok a` of the elements `elems x`, from each of which the finite-state reader `r`
@@ -128,11 +128,12 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
       (fun x => c * (sI x + sF (passState (init x) next passEnd (elems x) (passes x + 1)) +
         sMax x + lMax x + 1)) := by
   -- the parts, on framed states
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := encS)
-    (encOut := encFramed encS) fun _ => rfl
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed encS) (encOut := encS) fun s => by simp
-  obtain ⟨cfl, hfl⟩ := linear_flagWord
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <|
+    ComputableInDegree.of_frame (f := id) (encIn := encS)
+    (encMid := encFramed encS) fun _ => rfl
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed encS) (encMid := encS) fun s => by simp
+  obtain ⟨cfl, hfl⟩ := Internal.NormalForm.linear linear_flagWord
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cI, hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hinit
   obtain ⟨cN, hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hnext
@@ -156,32 +157,23 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
   let N : Fin (M + 4) := ⟨M + 1, by omega⟩
   let F : Fin (M + 4) := ⟨M + 2, by omega⟩
   let C : Fin (M + 4) := ⟨M + 3, by omega⟩
-  have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
-  have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
-  have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
-  have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := M + 4) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := M + 4) (by omega) (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := M + 4) (by omega)
-    (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
-    (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := exists_embedding_eq (K := M + 4) (by omega) (Fin.natAdd kF (0 : Fin 2)) V
-  obtain ⟨ePE, hePE⟩ := exists_embedding_eq (K := M + 4) (by omega)
-    (Fin.natAdd kPE (0 : Fin 2)) V
-  obtain ⟨ePN, hePN, hePN'⟩ := exists_embedding_eq₂ (K := M + 4) (by omega)
-    (i := Fin.natAdd (kPN + 1) (0 : Fin 2)) (o := (Fin.last kPN).castAdd 2)
-    (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eC, heC, heC'⟩ := exists_embedding_eq₂ (K := M + 4) (by omega)
-    (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
-    (by simp [Fin.ext_iff]) hVC
+  have ⟨hVN, hVF, hNF, hVC⟩ : V ≠ N ∧ V ≠ F ∧ N ≠ F ∧ V ≠ C := by
+    simp [V, N, F, C, Fin.ext_iff]
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega) (Fin.last kI) V
+  obtain ⟨eE, hE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmE.inputFromWord true) (by omega) V fun a => (htmE a).inputFromWord true
+  obtain ⟨eN, hN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmN a).onWords true
+  obtain ⟨eF, hF⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmF.inputFromWord true) (by omega) V fun a => (htmF a).inputFromWord true
+  obtain ⟨ePE, hPE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmPE.inputFromWord true) (by omega) V fun a => (htmPE a).inputFromWord true
+  obtain ⟨ePN, hPN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmPN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmPN a).onWords true
+  obtain ⟨eC, hC⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmC.onWords true) (by simp [Fin.ext_iff]) (by omega) hVC fun a => (htmC a).onWords true
   -- the machines on the common tapes
   have hI := fun a => (htmI a).outputToWord_onTape heI
-  have hE := fun a => (htmE a).inputFromWord_extendTapes true heE
-  have hN := fun a => (htmN a).onWords_extendTapes true heN heN'
-  have hF := fun a => (htmF a).inputFromWord_extendTapes true heF
-  have hPE := fun a => (htmPE a).inputFromWord_extendTapes true hePE
-  have hPN := fun a => (htmPN a).onWords_extendTapes true hePN hePN'
-  have hC := fun a => (htmC a).onWords_extendTapes true heC heC'
   set D := cfr + cuf + cfl + cI + cN + cF + cPE + cPN₁ + cPN + cC₁ + cC + M + 100 with hD
   -- the state type nests the states of eight machines, beyond the default instance size limit
   refine ⟨2000 * (D * D * D), _, _, by set_option synthInstance.maxSize 1024 in infer_instance,
@@ -274,14 +266,8 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (ms i n))))
         (fun _ ws ws' em => ws' = ws ∧ em = encE' (passEmit (ms i n)))
         (T + 3 * (D * (L + 1)) + 4) (Sm + 3 * (D * (L + 1)) + 4 * L + 3 * (M + 4) + 12) := by
-      refine (hPE (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_
-      · have := hTe
-        have := hmul₂ cuf (by omega) _ hn₀
-        have := hmul cPE (by omega) _ hn₀
-        simp only [id_eq, encFramed_apply, length_frame]
-        omega
-      · have := hSe
-        have := hmul₂ cuf (by omega) _ hn₀
+      refine (hPE (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_ <;>
+      · have := hmul₂ cuf (by omega) _ hn₀
         have := hmul cPE (by omega) _ hn₀
         simp only [id_eq, encFramed_apply, length_frame]
         omega
@@ -289,16 +275,8 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (ms i n))))
         (fun _ ws ws' em => ws' = Function.update ws N (frame (encS (ps (i + 1)))) ∧ em = [])
         (T + 10 * (D * (L + 1)) + 7) (Sm + 20 * (D * (L + 1)) + 4 * (M + 4) + 20) := by
-      refine (hPN (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_
-      · have := hTe
-        have := hmul₂ cuf (by omega) _ hn₀
-        have := hmul cPN₁ (by omega) _ hn₀
-        have := hmul cfr (by omega) _ hn₁
-        have := hmul cPN (by omega) _ hn₁
-        simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame, hendS]
-        omega
-      · have := hSe
-        have := hmul₂ cuf (by omega) _ hn₀
+      refine (hPN (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_ <;>
+      · have := hmul₂ cuf (by omega) _ hn₀
         have := hmul cPN₁ (by omega) _ hn₀
         have := hmul cfr (by omega) _ hn₁
         have := hmul cPN (by omega) _ hn₁
@@ -311,17 +289,8 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
       have hfl1 : (flagWord (cont (ps (i + 1)))).length ≤ 1 := by
         unfold flagWord; split_ifs <;> simp
       refine (hC (ps (i + 1))).imp (fun _ _ h => h)
-        (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [cs], he⟩) ?_ ?_
-      · have := hTe
-        have := hmul₂ cuf (by omega) _ hn₁
-        have := hmul cC₁ (by omega) _ hn₁
-        have := hc2 cfl (by omega) 1 le_rfl
-        have := hc2 cC (by omega) 1 le_rfl
-        simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame, encBool_apply,
-          List.length_singleton, encBits_apply]
-        omega
-      · have := hSe
-        have := hmul₂ cuf (by omega) _ hn₁
+        (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [cs], he⟩) ?_ ?_ <;>
+      · have := hmul₂ cuf (by omega) _ hn₁
         have := hmul cC₁ (by omega) _ hn₁
         have := hc2 cfl (by omega) 1 le_rfl
         have := hc2 cC (by omega) 1 le_rfl
@@ -337,14 +306,11 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
       (frame (encS (ps (i + 1)))) (cs i) (cs (i + 1)) hloop' hEe hNe hCm).imp
       (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_
     · have := hcs i
-      have := hmsS i hi n le_rfl
       have hnR : n * (2 * T + 4 * (D * (L + 1))) ≤ n * R := Nat.mul_le_mul_left _ (by omega)
       have hR : (n + 1) * R = n * R + R := by ring
-      have hRdef : R = 3 * T + 60 * (D * (L + 1)) := rfl
       simp only [length_frame, tP, hR]
       omega
     · have := hcs i
-      have := hmsS i hi n le_rfl
       simp only [length_frame, sP]
       omega
   -- the initial state and the final emission
@@ -414,13 +380,13 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         _ ≤ W := Nat.le_mul_of_pos_left _ (by omega)
     have h₁ : P * (tP + 1) ≤ 200 * (D * W) :=
       (Nat.mul_le_mul_left P htP).trans_eq (by simp only [W]; ring)
-    have h₂ : D * (L + 1) ≤ D * W := Nat.mul_le_mul_left D hW
-    have h₃ : D * W ≤ E * W := Nat.mul_le_mul_right W hDE
-    have h₄ : tI x ≤ E * tI x := Nat.le_mul_of_pos_left _ hE1
-    have h₅ : tF (ps P) ≤ E * tF (ps P) := Nat.le_mul_of_pos_left _ hE1
     have h₆ : 2000 * E * (tI x + tF (ps P) + W) = 2000 * (E * tI x) + 2000 * (E * tF (ps P)) +
         2000 * (E * W) := by ring
     rw [h₆]
+    have := Nat.mul_le_mul_left D hW
+    have := Nat.mul_le_mul_right W hDE
+    have := Nat.le_mul_of_pos_left (tI x) hE1
+    have := Nat.le_mul_of_pos_left (tF (ps P)) hE1
     omega
   · beta_reduce
     rw [← hSdef, ← hLdef]
@@ -431,21 +397,19 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
     have hSm : Sm ≤ D * Sm := Nat.le_mul_of_pos_left _ hD1
     have hDL : D ≤ D * (L + 1) := Nat.le_mul_of_pos_right _ (by omega)
     have hsR : sR ≤ 200 * (D * Y) := by omega
-    have hKs : (M + 4) * sR ≤ 200 * (D * (D * Y)) :=
-      (Nat.mul_le_mul (by omega) hsR).trans_eq (by ring)
-    have hDY : D * Y ≤ D * (D * Y) := Nat.le_mul_of_pos_left _ hD1
     have hsP : (M + 4) * sP ≤ 600 * (E * Y) := by
+      have hKs : (M + 4) * sR ≤ 200 * (D * (D * Y)) :=
+        (Nat.mul_le_mul hKD hsR).trans_eq (by ring)
+      have := Nat.le_mul_of_pos_left (D * Y) hD1
       have : sP ≤ 600 * (D * (D * Y)) := by rw [hsPdef, Nat.mul_assoc]; omega
-      exact (Nat.mul_le_mul (by omega) this).trans_eq (by simp only [E]; ring)
-    have hEY : D * Y ≤ E * Y := Nat.mul_le_mul_right Y hDE
-    have h₄ : sI x ≤ E * sI x := Nat.le_mul_of_pos_left _ hE1
-    have h₅ : sF (ps (passes x + 1)) ≤ E * sF (ps (passes x + 1)) :=
-      Nat.le_mul_of_pos_left _ hE1
+      exact (Nat.mul_le_mul hKD this).trans_eq (by simp only [E]; ring)
     have h₆ : 2000 * E * (sI x + sF (ps (passes x + 1)) + Sm + L + 1) =
         2000 * (E * sI x) + 2000 * (E * sF (ps (passes x + 1))) + 2000 * (E * Y) := by
       simp only [Y]; ring
-    have h₇ : 2 * (M + 4) * sP = 2 * ((M + 4) * sP) := by ring
-    rw [h₆, h₇]
+    rw [h₆, show 2 * (M + 4) * sP = 2 * ((M + 4) * sP) by ring]
+    have := Nat.mul_le_mul_right Y hDE
+    have := Nat.le_mul_of_pos_left (sI x) hE1
+    have := Nat.le_mul_of_pos_left (sF (ps (passes x + 1))) hE1
     omega
 
 end Turing.MultiTapeTM

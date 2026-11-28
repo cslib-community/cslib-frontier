@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
+import CslibFrontier.Tactic.WramOmega
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
@@ -18,6 +20,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Schöning's algorithm on the randomized word RAM
@@ -65,7 +68,6 @@ trial.
 * `Cslib.Algorithms.WordRAM.Schoening.ampCode`, `Cslib.Algorithms.WordRAM.Schoening.ampProgram`:
   the amplified algorithm, structured and compiled.
 * `Cslib.Algorithms.WordRAM.Schoening.ampTime`: its instruction bound.
-* `Cslib.Algorithms.WordRAM.Schoening.cfgSuccess`: whether a halting run output `1`.
 
 ## Main results
 
@@ -93,6 +95,8 @@ namespace Cslib.Algorithms.WordRAM.Schoening
 open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.Schoening
 open Reg
 
+attribute [local wram_arith] trialCoreTime
+
 variable {n : ℕ}
 
 /-! ### Repeated trials -/
@@ -117,14 +121,12 @@ theorem repeatTrial_false_toReal (φ : CNF (Fin n)) (R : ℕ) :
     simp only [PMF.toOuterMeasure_apply_singleton] at h
     have hsum : ∑ σ, ((trial φ) σ).toReal * (if φ.eval σ = true then 0 else 1) =
         1 - succeedProb φ (trial φ) := by
-      have hfail := Probability.PMF.toOuterMeasure_toReal_add_compl (trial φ)
-        {σ | φ.eval σ = true}
       have hcongr : ∑ σ, ((trial φ) σ).toReal * (if φ.eval σ = true then 0 else 1) =
           ((trial φ).toOuterMeasure {σ | φ.eval σ = true}ᶜ).toReal := by
         rw [Probability.PMF.toOuterMeasure_apply_toReal]
         exact Finset.sum_congr rfl fun σ _ => by by_cases hσ : φ.eval σ = true <;> simp [hσ]
       rw [hcongr, succeedProb]
-      linarith
+      linarith [Probability.PMF.toOuterMeasure_toReal_add_compl (trial φ) {σ | φ.eval σ = true}]
     rw [repeatTrial, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
       h, pow_succ]
     calc ∑ σ, ((trial φ) σ).toReal *
@@ -132,10 +134,7 @@ theorem repeatTrial_false_toReal (φ : CNF (Fin n)) (R : ℕ) :
         = ∑ σ, ((trial φ) σ).toReal * (if φ.eval σ = true then 0 else 1) *
             (1 - succeedProb φ (trial φ)) ^ R := by
           refine Finset.sum_congr rfl fun σ _ => ?_
-          by_cases hσ : φ.eval σ = true
-          · simp only [hσ, ↓reduceIte, PMF.pure_apply, Bool.false_eq_true, ENNReal.toReal_zero,
-              mul_zero, zero_mul]
-          · simp only [hσ, Bool.false_eq_true, ↓reduceIte, ih, mul_one]
+          by_cases hσ : φ.eval σ = true <;> simp [hσ, ih]
       _ = (1 - succeedProb φ (trial φ)) ^ R * (1 - succeedProb φ (trial φ)) := by
           rw [← Finset.sum_mul, hsum, mul_comm]
 
@@ -212,19 +211,16 @@ def ampCode : Code .standard 24 := ram[ ⟪ampSetup⟫; ⟪countSetup⟫; flag �
 def ampProgram : Program .standard 24 := ampCode.program out
 
 /-- The instruction bound of the setup. -/
+@[wram_arith]
 def setupTime (k n c : ℕ) : ℕ :=
   (n + k) * (30 * counterLen k n c + 30) + 20 * counterLen k n c + 50
 
 /-- The instruction bound of Schöning's algorithm with confidence `c`, on `n` variables, clauses
 of at most `k` literals and an input of length `L`. -/
+@[wram_arith]
 noncomputable def ampTime (k n c L : ℕ) : ℕ :=
   schoeningTrials k n c * (36 * n * L + 66 * n + 12 * L + 43) + setupTime k n c +
     9 * counterLen k n c + 45
-
-/-- Whether a halting run output `1`. -/
-def cfgSuccess {r : ℕ} : RandCfg r → Bool
-  | .halted v _ => decide (v = 1)
-  | _ => false
 
 /-- **The running time** of Schöning's algorithm is `O((n + k + L) ^ 3 (2 - 2 / k) ^ n (c + 1))`:
 explicitly, at most `900 (n + k + L + 1) ^ 3 (2 (k - 1) / k) ^ n (c + 1)` instructions. For
@@ -233,58 +229,43 @@ theorem ampTime_le {k : ℕ} (hk : 3 ≤ k) (n c L : ℕ) :
     (ampTime k n c L : ℝ) ≤
       900 * ((n + k + L + 1 : ℕ) : ℝ) ^ 3 * (2 * ((k : ℝ) - 1) / k) ^ n * (c + 1) := by
   set r := (2 * ((k : ℝ) - 1) / k) ^ n with hr
-  obtain ⟨N, hN⟩ : ∃ N, n + k + L + 1 = N := ⟨_, rfl⟩
-  rw [hN]
+  set N := n + k + L + 1
   have hk3 : (3 : ℝ) ≤ k := by exact_mod_cast hk
   have hr1 : 1 ≤ r := one_le_pow₀ (by rw [le_div_iff₀ (by linarith)]; linarith)
   have hR := schoeningTrials_le hk n c
   rw [← hr] at hR
   -- the setup
   have hS : setupTime k n c + 9 * counterLen k n c + 45 ≤ 305 * N ^ 3 * (c + 1) := by
-    obtain ⟨m, hm⟩ : ∃ m, n + k = m := ⟨_, rfl⟩
-    have hℓ : counterLen k n c ≤ 6 * m ^ 2 + c := hm ▸ counterLen_le k n c
+    have hℓ := counterLen_le k n c
+    have hmℓ := Nat.mul_le_mul_left (n + k) hℓ
     have h1 : setupTime k n c + 9 * counterLen k n c + 45 ≤
-        (m + 1) * (30 * counterLen k n c + 95) := by
-      simp only [setupTime, hm]; ring_nf; omega
-    have h2 : (m + 1) * (30 * counterLen k n c + 95) ≤ (m + 1) * (180 * m ^ 2 + 30 * c + 95) :=
-      Nat.mul_le_mul_left _ (by omega)
-    have h3 : (m + 1) * (180 * m ^ 2 + 30 * c + 95) ≤ 305 * (m + 1) ^ 3 * (c + 1) := by
-      ring_nf; omega
-    have h4 : (m + 1) ^ 3 ≤ N ^ 3 := Nat.pow_le_pow_left (by omega) 3
-    have h5 := Nat.mul_le_mul_right (c + 1) (Nat.mul_le_mul_left 305 h4)
-    omega
+        305 * (n + k + 1) ^ 3 * (c + 1) := by
+      simp only [setupTime]
+      ring_nf at hℓ hmℓ ⊢
+      omega
+    exact h1.trans (Nat.mul_le_mul_right _
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 3)))
   -- the trials
   have hP : 9 * n + 4 ≤ 9 * (n + 1) ∧ 36 * n * L + 66 * n + 12 * L + 43 ≤ 66 * (n + 1) * (L + 1) :=
     ⟨by omega, by ring_nf; omega⟩
-  have hPN : 9 * (n + 1) * (66 * (n + 1) * (L + 1)) ≤ 594 * N ^ 3 := by
-    have h1 : n + 1 ≤ N := by omega
-    have h2 : L + 1 ≤ N := by omega
-    have h3 : (n + 1) * (n + 1) * (L + 1) ≤ N * N * N :=
-      Nat.mul_le_mul (Nat.mul_le_mul h1 h1) h2
+  have hPN : 9 * (n + 1) * (66 * (n + 1) * (L + 1)) ≤ 594 * N ^ 3 :=
     calc 9 * (n + 1) * (66 * (n + 1) * (L + 1)) = 594 * ((n + 1) * (n + 1) * (L + 1)) := by ring
-      _ ≤ 594 * (N * N * N) := Nat.mul_le_mul_left _ h3
+      _ ≤ 594 * (N * N * N) := Nat.mul_le_mul_left _ (by gcongr <;> omega)
       _ = 594 * N ^ 3 := by ring
   have hPr : ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) ≤ 66 * (n + 1) * (L + 1) := by
     exact_mod_cast hP.2
   have hPN' : (9 * n + 4 : ℝ) * (66 * (n + 1) * (L + 1)) ≤ 594 * (N : ℝ) ^ 3 := by
-    have : ((9 * n + 4) * (66 * (n + 1) * (L + 1)) : ℕ) ≤ 594 * N ^ 3 :=
-      (Nat.mul_le_mul_right _ hP.1).trans hPN
-    exact_mod_cast this
+    exact_mod_cast (Nat.mul_le_mul_right _ hP.1).trans hPN
   have hSr : ((setupTime k n c + 9 * counterLen k n c + 45 : ℕ) : ℝ) ≤
       305 * (N : ℝ) ^ 3 * (c + 1) := by
     exact_mod_cast hS
-  have hexp : (ampTime k n c L : ℝ) =
-      (schoeningTrials k n c : ℝ) * ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) +
-        ((setupTime k n c + 9 * counterLen k n c + 45 : ℕ) : ℝ) := by
-    simp only [ampTime]; push_cast; ring
   have hT : (schoeningTrials k n c : ℝ) * ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) ≤
-      (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) :=
-    mul_le_mul hR hPr (Nat.cast_nonneg _) (by positivity)
-  have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 3 := by positivity
-  have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  rw [hexp]
-  nlinarith [mul_le_mul_of_nonneg_right hPN' (mul_nonneg (by linarith : (0 : ℝ) ≤ r) hc0),
-    mul_le_mul_of_nonneg_left hr1 (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ c + 1))]
+      (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) := by gcongr
+  simp only [ampTime]
+  push_cast at hT hSr ⊢
+  nlinarith [mul_le_mul_of_nonneg_right hPN'
+      (mul_nonneg (by linarith : (0 : ℝ) ≤ r) (Nat.cast_nonneg c)),
+    mul_le_mul_of_nonneg_left hr1 (by positivity : (0 : ℝ) ≤ (N : ℝ) ^ 3 * (c + 1))]
 
 /-! ### The setup -/
 
@@ -336,20 +317,16 @@ private theorem SetupState.set {φ : CNF (Fin n)} {k c A : ℕ} {ds : List ℕ} 
   simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hi
   obtain ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hi
   exact
-    { frame := h.frame.of_mem_lt (by simp [Function.update_of_ne (Ne.symm h0)])
-        (by simp [Function.update_of_ne (Ne.symm h1)])
-        (by simp [Function.update_of_ne (Ne.symm h2)])
-        (by simp [Function.update_of_ne (Ne.symm h3)])
-        (by simp [Function.update_of_ne (Ne.symm h4)])
-        fun _ _ => rfl
-      kReg_eq := by simp [Function.update_of_ne (Ne.symm h5), h.kReg_eq]
-      cReg_eq := by simp [Function.update_of_ne (Ne.symm h6), h.cReg_eq]
-      kSub_eq := by simp [Function.update_of_ne (Ne.symm h7), h.kSub_eq]
-      bBase_eq := by simp [Function.update_of_ne (Ne.symm h8), h.bBase_eq]
-      bLen_eq := by simp [Function.update_of_ne (Ne.symm h9), h.bLen_eq]
-      digits := by simpa using h.digits
+    { frame := h.frame.of_mem_lt (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
+        (by wram_simp) fun _ _ => rfl
+      kReg_eq := by wram_simp [h.kReg_eq]
+      cReg_eq := by wram_simp [h.cReg_eq]
+      kSub_eq := by wram_simp [h.kSub_eq]
+      bBase_eq := by wram_simp [h.bBase_eq]
+      bLen_eq := by wram_simp [h.bLen_eq]
+      digits := h.digits
       binary := h.binary
-      out_eq := by simp [Function.update_of_ne (Ne.symm h10), h.out_eq] }
+      out_eq := by wram_simp [h.out_eq] }
 
 /-- A multiply-add during the setup. -/
 private theorem SetupState.mulAdd {φ : CNF (Fin n)} {k c A w a cy Bd : ℕ} {ds : List ℕ}
@@ -357,24 +334,22 @@ private theorem SetupState.mulAdd {φ : CNF (Fin n)} {k c A w a cy Bd : ℕ} {ds
     (haB : a ≤ Bd)
     (hcB : cy ≤ Bd) (hf : Fits w (2 * Bd)) (hfit : Fits w (A + n + (mulAddDigits a cy ds).length)) :
     ∃ y, ExecWithin w mulAdd x y (10 * (mulAddDigits a cy ds).length + 5) ∧
-      SetupState φ k c A (mulAddDigits a cy ds) y ∧ y.regs outer = x.regs outer := by
+      SetupState φ k c A (mulAddDigits a cy ds) y := by
   obtain ⟨y, hy, hh, hl, hm⟩ := mulAdd_spec h.frame.zero_eq h.frame.one_eq ha hcy h.bLen_eq
     (by rw [h.bBase_eq]; exact h.digits) h.binary haB hcB hf (by rw [h.bBase_eq]; exact hfit)
   rw [h.bBase_eq] at hh hm
-  exact ⟨y, hy, h.of_exec (by decide) hy hm hl hh (mulAddDigits_digit_le a cy ds),
-    hy.regs_eq (by decide)⟩
+  exact ⟨y, hy, h.of_exec (by decide) hy hm hl hh (mulAddDigits_digit_le a cy ds)⟩
 
 /-- A division during the setup. -/
 private theorem SetupState.divFloor {φ : CNF (Fin n)} {k c A w d : ℕ} {ds : List ℕ} {x : Data 24}
     (h : SetupState φ k c A ds x) (hd : 0 < d) (hdv : x.regs dvs = d) (hfd : Fits w (2 * d))
     (hfit : Fits w (A + n + ds.length)) :
     ∃ y, ExecWithin w divFloor x y (10 * ds.length + 4) ∧
-      SetupState φ k c A (divDigits d 0 ds).1 y ∧ y.regs outer = x.regs outer := by
+      SetupState φ k c A (divDigits d 0 ds).1 y := by
   obtain ⟨y, hy, hh, hm⟩ := divFloor_spec hd hfd h.frame.zero_eq h.frame.one_eq hdv h.bLen_eq
     (by rw [h.bBase_eq]; exact h.digits) h.binary (by rw [h.bBase_eq]; exact hfit)
   rw [h.bBase_eq] at hh hm
-  refine ⟨y, hy, h.of_exec (by decide) hy hm ?_ hh (divDigits_digit_le hd hd h.binary),
-    hy.regs_eq (by decide)⟩
+  refine ⟨y, hy, h.of_exec (by decide) hy hm ?_ hh (divDigits_digit_le hd hd h.binary)⟩
   rw [hy.regs_eq (by decide), h.bLen_eq, length_divDigits]
 
 /-- **A counted loop** of the setup: `j` runs of a body taking the counter digits `ds` to
@@ -387,9 +362,8 @@ private theorem SetupState.repeatCode {φ : CNF (Fin n)} {k c A w Tb j : ℕ} {l
     (hfit : Fits w j) {x : Data 24} (hx : SetupState φ k c A ds x) (hl : x.regs lim = j) :
     ∃ y, ExecWithin w (repeatCode lim body) x y (j * (Tb + 3) + 3) ∧
       SetupState φ k c A (F^[j] ds) y := by
-  have hz := hx.frame.zero_eq
-  have h₀ : ExecWithin w (ram[ outer ← zero ] : Code .standard 24) x (x.set outer 0) 1 := by
-    ram_eval [hz]
+  have h₀ : ExecWithin w (ram[ outer ← zero ] : Code .standard 24) x (x.set outer 0) 1 :=
+    WP.execWithin (by wram_exec [hx.frame.zero_eq]; rfl)
   let P (i : ℕ) (x : Data 24) := x.regs lim = j ∧ SetupState φ k c A (F^[i] ds) x
   obtain ⟨y, hy, ⟨_, hyI⟩, _⟩ := ExecWithin.loop_count (w := w)
     (x := x.set outer 0) (index := outer) (limit := lim)
@@ -401,11 +375,11 @@ private theorem SetupState.repeatCode {φ : CNF (Fin n)} {k c A w Tb j : ℕ} {l
       have hyo : y.regs outer = i := hy.regs_eq hbo
       have hyl : y.regs lim = j := (hy.regs_eq hbl).trans hxl
       have hinc : ExecWithin w (ram[ outer ← outer + one ] : Code .standard 24) y
-          (y.set outer (i + 1)) 1 := by
-        ram_eval [hyo, hyI.frame.one_eq, hfit.of_le (show i + 1 ≤ j by omega)]
-      refine ⟨_, hy.seq hinc, ⟨?_, hyI.set (by decide) _⟩, by simp [i]⟩
-      rw [Data.set_regs, Function.update_of_ne hlim, hyl]) (by simp)
-    ⟨by simp [Function.update_of_ne hlim, hl], by simpa using hx.set (by decide) 0⟩
+          (y.set outer (i + 1)) 1 :=
+        WP.execWithin (by wram_exec [hyo, hyI.frame.one_eq]; rfl)
+      refine ⟨_, hy.seq hinc, ⟨by wram_simp [hyl], hyI.set (by decide) _⟩, by wram_simp; rfl⟩)
+    (by wram_simp; exact Nat.zero_le j)
+    ⟨by wram_simp [hl], by simpa using hx.set (by decide) 0⟩
   refine ⟨y, (h₀.seq hy).mono ?_, hyI⟩
   simp only [Data.set_regs, Function.update_self, Nat.sub_zero,
     show Tb + 1 + 2 = Tb + 3 by omega]
@@ -418,18 +392,12 @@ private theorem SetupState.numStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
     ∃ y, ExecWithin w numStep₁ x y (10 * (mulStep (2 * (k - 1)) ds).length + 8) ∧
       SetupState φ k c A (mulStep (2 * (k - 1)) ds) y := by
   unfold mulStep at hfit ⊢
-  have hf1 : Fits w (k - 1) := hf.of_le (by omega)
-  have hf2 : Fits w (k - 1 + (k - 1)) := hf.of_le (by omega)
-  let x₃ := ((x.set mulr (k - 1)).set mulr (k - 1 + (k - 1))).set carry 0
-  have hpre : ExecWithin w (ram[ mulr ← kReg - one; mulr ← mulr + mulr; carry ← zero ] :
-      Code .standard 24) x x₃ 3 := by
-    ram_eval [x₃, h.kReg_eq, h.frame.one_eq, h.frame.zero_eq, hf1, hf2]
-  have h₃ : SetupState φ k c A ds x₃ :=
-    ((h.set (by decide) _).set (by decide) _).set (by decide) _
-  obtain ⟨y, hy, hyS, -⟩ := h₃.mulAdd (a := 2 * (k - 1)) (cy := 0) (Bd := 2 * (k - 1))
-    (by simp +decide [x₃]; omega) (by simp +decide [x₃]) le_rfl (Nat.zero_le _)
-    (hf.of_le (by omega)) hfit
-  exact ⟨y, (hpre.seq hy).mono (by omega), hyS⟩
+  unfold Schoening.numStep₁
+  refine WP.exists_execWithin ?_
+  wram_exec [h.kReg_eq, h.frame.one_eq, h.frame.zero_eq]
+  wram_call ((((h.set (by decide) _).set (by decide) _).set (by decide) _).mulAdd
+    (a := 2 * (k - 1)) (cy := 0) (Bd := 2 * (k - 1)) ..) framed with v m hyS
+  exact ⟨by omega, hyS⟩
 
 /-- Multiplication by `k` during the setup. -/
 private theorem SetupState.numStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : List ℕ} {x : Data 24}
@@ -438,13 +406,12 @@ private theorem SetupState.numStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
     ∃ y, ExecWithin w numStep₂ x y (10 * (mulStep k ds).length + 8) ∧
       SetupState φ k c A (mulStep k ds) y := by
   unfold mulStep at hfit ⊢
-  let x₂ := (x.set mulr k).set carry 0
-  have hpre : ExecWithin w (ram[ mulr ← kReg; carry ← zero ] : Code .standard 24) x x₂ 2 := by
-    ram_eval [x₂, h.kReg_eq, h.frame.zero_eq]
-  have h₂ : SetupState φ k c A ds x₂ := (h.set (by decide) _).set (by decide) _
-  obtain ⟨y, hy, hyS, -⟩ := h₂.mulAdd (a := k) (cy := 0) (Bd := k) (by simp +decide [x₂])
-    (by simp +decide [x₂]) le_rfl (Nat.zero_le _) hf hfit
-  exact ⟨y, (hpre.seq hy).mono (by omega), hyS⟩
+  unfold Schoening.numStep₂
+  refine WP.exists_execWithin ?_
+  wram_exec [h.kReg_eq, h.frame.zero_eq]
+  wram_call (((h.set (by decide) _).set (by decide) _).mulAdd (a := k) (cy := 0) (Bd := k) ..)
+    framed with v m hyS
+  exact ⟨by omega, hyS⟩
 
 /-- Division by `k`, rounding up, during the setup. -/
 private theorem SetupState.denStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : List ℕ} {x : Data 24}
@@ -455,18 +422,14 @@ private theorem SetupState.denStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   have hlen : (ceilStep k ds).length = (mulAddDigits 1 (k - 1) ds).length := by
     rw [ceilStep, length_divDigits]
   rw [hlen] at hfit ⊢
-  have hf1 : Fits w (k - 1) := hf.of_le (by omega)
-  let x₂ := (x.set mulr 1).set carry (k - 1)
-  have hpre : ExecWithin w (ram[ mulr ← one; carry ← kReg - one ] : Code .standard 24) x x₂ 2 := by
-    ram_eval [x₂, h.kReg_eq, h.frame.one_eq, hf1]
-  have h₂ : SetupState φ k c A ds x₂ := (h.set (by decide) _).set (by decide) _
-  obtain ⟨y, hy, hyS, -⟩ := h₂.mulAdd (a := 1) (cy := k - 1) (Bd := k) (by simp +decide [x₂])
-    (by simp +decide [x₂]) (by omega) (by omega) hf hfit
-  have hdv : ExecWithin w (ram[ dvs ← kReg ] : Code .standard 24) y (y.set dvs k) 1 := by
-    ram_eval [hyS.kReg_eq]
-  obtain ⟨z, hz, hzS, -⟩ := (hyS.set (i := dvs) (by decide) k).divFloor (d := k) (by omega)
-    (by simp +decide) hf hfit
-  exact ⟨z, (hpre.seq (hy.seq (hdv.seq hz))).mono (by omega), hzS⟩
+  refine WP.exists_execWithin ?_
+  unfold Schoening.denStep₁
+  wram_exec [h.frame.one_eq, h.kReg_eq]
+  wram_call (((h.set (by decide) _).set (by decide) _).mulAdd (a := 1) (cy := k - 1) (Bd := k)
+    ..) framed with v m hyS
+  wram_exec [hyS.kReg_eq]
+  wram_call ((hyS.set (by decide) _).divFloor (d := k) ..) framed with v' m' hzS
+  exact ⟨by omega, hzS⟩
 
 /-- Division by `k - 1`, rounding up, during the setup. -/
 private theorem SetupState.denStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : List ℕ} {x : Data 24}
@@ -477,23 +440,14 @@ private theorem SetupState.denStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   have hlen : (ceilStep (k - 1) ds).length = (mulAddDigits 1 (k - 1 - 1) ds).length := by
     rw [ceilStep, length_divDigits]
   rw [hlen] at hfit ⊢
-  have hf1 : Fits w (k - 1) := hf.of_le (by omega)
-  have hf2 : Fits w (k - 1 - 1) := hf.of_le (by omega)
-  let x₃ := ((x.set mulr 1).set carry (k - 1)).set carry (k - 1 - 1)
-  have hpre : ExecWithin w (ram[ mulr ← one; carry ← kReg - one; carry ← carry - one ] :
-      Code .standard 24) x x₃ 3 := by
-    ram_eval [x₃, h.kReg_eq, h.frame.one_eq, hf1, hf2]
-  have h₃ : SetupState φ k c A ds x₃ :=
-    ((h.set (by decide) _).set (by decide) _).set (by decide) _
-  obtain ⟨y, hy, hyS, -⟩ := h₃.mulAdd (a := 1) (cy := k - 1 - 1) (Bd := k)
-    (by simp +decide [x₃]) (by simp +decide [x₃]) (by omega) (by omega) hf hfit
-  have hdv : ExecWithin w (ram[ dvs ← kReg - one ] : Code .standard 24) y (y.set dvs (k - 1))
-      1 := by
-    ram_eval [hyS.kReg_eq, hyS.frame.one_eq, hf1]
-  obtain ⟨z, hz, hzS, -⟩ := (hyS.set (i := dvs) (by decide) (k - 1)).divFloor (d := k - 1)
-    (by omega)
-    (by simp +decide) (hf.of_le (by omega)) hfit
-  exact ⟨z, (hpre.seq (hy.seq (hdv.seq hz))).mono (by omega), hzS⟩
+  refine WP.exists_execWithin ?_
+  unfold Schoening.denStep₂
+  wram_exec [h.frame.one_eq, h.kReg_eq]
+  wram_call ((((h.set (by decide) _).set (by decide) _).set (by decide) _).mulAdd
+    (a := 1) (cy := k - 1 - 1) (Bd := k) ..) framed with v m hyS
+  wram_exec [hyS.kReg_eq, hyS.frame.one_eq]
+  wram_call ((hyS.set (by decide) _).divFloor (d := k - 1) ..) framed with v' m' hzS
+  exact ⟨by omega, hzS⟩
 
 /-- **Computing the trial count.** From an empty counter, the setup leaves the digits
 `counterDigits k n c` of `schoeningTrials k n c` within `setupTime k n c` instructions. -/
@@ -505,70 +459,61 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
   set ℓ := counterLen k n c with hℓ
   have hlast := length_counterDigits_le hk n c
   obtain ⟨hs1, hs2, hs3, hs4⟩ := length_stages_le k n c
-  have hfl {m : ℕ} (hm : m ≤ ℓ) : Fits w (A + n + m) := hfa.of_le (by omega)
-  -- the counter starts at `3 n + 1`
   have hL₀ : (mulAddDigits 0 (3 * n + 1) []).length ≤ ℓ := (hs1 0 (Nat.zero_le _)).trans hlast
-  have hf3 : Fits w (n + n) := hfm.of_le (by omega)
-  have hf4 : Fits w (n + n + n) := hfm.of_le (by omega)
-  have hf5 : Fits w (n + n + n + 1) := hfm.of_le (by omega)
-  let x₄ := (((x.set mulr 0).set carry (n + n)).set carry (n + n + n)).set carry (n + n + n + 1)
-  have hpre : ExecWithin w (ram[ mulr ← zero; carry ← nReg + nReg; carry ← carry + nReg;
-      carry ← carry + one ] : Code .standard 24) x x₄ 4 := by
-    ram_eval [x₄, h.frame.zero_eq, h.frame.one_eq, h.frame.nReg_eq, hf3, hf4, hf5]
-  have h₄ : SetupState φ k c A [] x₄ :=
-    (((h.set (by decide) _).set (by decide) _).set (by decide) _).set (by decide) _
-  obtain ⟨y₀, hy₀, hS₀, -⟩ := h₄.mulAdd (a := 0) (cy := 3 * n + 1) (Bd := 3 * n + 1)
-    (by simp +decide [x₄]) (by simp +decide [x₄]; omega) (Nat.zero_le _) le_rfl
-    (hfm.of_le (by omega)) (hfl hL₀)
-  have h0 : ExecWithin w countInit x y₀ (10 * ℓ + 9) := (hpre.seq hy₀).mono (by omega)
+  refine WP.exists_execWithin ?_
+  unfold countSetup countInit confStep
+  -- the counter starts at `3 n + 1`
+  wram_exec [h.frame.zero_eq, h.frame.one_eq, h.frame.nReg_eq]
+  wram_call (((((h.set (by decide) _).set (by decide) _).set (by decide) _).set
+    (by decide) _).mulAdd (a := 0) (cy := 3 * n + 1) (Bd := 3 * n + 1) ..) framed with v₀ m₀ hS₀
   -- multiply by `2 (k - 1)`, `n` times
-  obtain ⟨y₁, hy₁, hS₁⟩ := hS₀.repeatCode (lim := nReg) (body := numStep₁) (j := n)
-    (Tb := 10 * ℓ + 8) (by decide) (by decide)
-    (by decide) (mulStep (2 * (k - 1))) (fun i hi z hz => by
+  refine WP.seq ?_
+  wram_call (hS₀.repeatCode (w := w) (lim := nReg) (body := numStep₁) (j := n) (Tb := 10 * ℓ + 8)
+    (by decide) (by decide) (by decide) (mulStep (2 * (k - 1))) (fun i hi z hz => by
       have hb := (hs1 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.numStep₁ hk (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.numStep₁ (w := w) hk (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₀.frame.nReg_eq
+    (by fits) hS₀.frame.nReg_eq)
+    with y₁ hS₁
   -- multiply by `k`, `k - 3` times
-  obtain ⟨y₂, hy₂, hS₂⟩ := hS₁.repeatCode (lim := kSub) (body := numStep₂) (j := k - 3)
-    (Tb := 10 * ℓ + 8) (by decide)
-    (by decide) (by decide) (mulStep k) (fun i hi z hz => by
+  refine WP.seq ?_
+  wram_call (hS₁.repeatCode (w := w) (lim := kSub) (body := numStep₂) (j := k - 3)
+    (Tb := 10 * ℓ + 8) (by decide) (by decide) (by decide) (mulStep k) (fun i hi z hz => by
       have hb := (hs2 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.numStep₂ (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.numStep₂ (w := w) (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₁.kSub_eq
+    (by fits) hS₁.kSub_eq)
+    with y₂ hS₂
   change SetupState φ k c A (numeratorDigits k n) y₂ at hS₂
   -- divide by `k`, `n` times
-  obtain ⟨y₃, hy₃, hS₃⟩ := hS₂.repeatCode (lim := nReg) (body := denStep₁) (j := n)
-    (Tb := 20 * ℓ + 13) (by decide) (by decide)
-    (by decide) (ceilStep k) (fun i hi z hz => by
+  refine WP.seq ?_
+  wram_call (hS₂.repeatCode (w := w) (lim := nReg) (body := denStep₁) (j := n) (Tb := 20 * ℓ + 13)
+    (by decide) (by decide) (by decide) (ceilStep k) (fun i hi z hz => by
       have hb := (hs3 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.denStep₁ hk (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.denStep₁ (w := w) hk (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₂.frame.nReg_eq
+    (by fits) hS₂.frame.nReg_eq)
+    with y₃ hS₃
   -- divide by `k - 1`, `k - 3` times
-  obtain ⟨y₄, hy₄, hS₄⟩ := hS₃.repeatCode (lim := kSub) (body := denStep₂) (j := k - 3)
-    (Tb := 20 * ℓ + 13) (by decide)
-    (by decide) (by decide) (ceilStep (k - 1)) (fun i hi z hz => by
+  refine WP.seq ?_
+  wram_call (hS₃.repeatCode (w := w) (lim := kSub) (body := denStep₂) (j := k - 3)
+    (Tb := 20 * ℓ + 13) (by decide) (by decide) (by decide) (ceilStep (k - 1)) (fun i hi z hz => by
       have hb := (hs4 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.denStep₂ hk (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.denStep₂ (w := w) hk (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₃.kSub_eq
+    (by fits) hS₃.kSub_eq)
+    with y₄ hS₄
   -- multiply by `c`
-  have hlast' : (mulAddDigits c 0 ((ceilStep (k - 1))^[k - 3] ((ceilStep k)^[n]
-      (numeratorDigits k n)))).length ≤ ℓ := hlast
-  let x₂ := (y₄.set mulr c).set carry 0
-  have hpre₅ : ExecWithin w (ram[ mulr ← cReg; carry ← zero ] : Code .standard 24) y₄ x₂ 2 := by
-    ram_eval [x₂, hS₄.cReg_eq, hS₄.frame.zero_eq]
-  have h₂ : SetupState φ k c A _ x₂ := (hS₄.set (by decide) _).set (by decide) _
-  obtain ⟨y₅, hy₅, hS₅, -⟩ := h₂.mulAdd (a := c) (cy := 0) (Bd := c) (by simp +decide [x₂])
-    (by simp +decide [x₂]) le_rfl (Nat.zero_le _) (hfm.of_le (by omega)) (hfl hlast')
-  have h5 : ExecWithin w confStep y₄ y₅ (10 * ℓ + 7) := (hpre₅.seq hy₅).mono (by omega)
-  refine ⟨y₅, (h0.seq (hy₁.seq (hy₂.seq (hy₃.seq (hy₄.seq h5))))).mono ?_, hS₅⟩
+  wram_exec [hS₄.cReg_eq, hS₄.frame.zero_eq]
+  have hlast' : (mulAddDigits c 0 ((ceilStep (k - 1))^[k - 3]
+      ((ceilStep k)^[n] (numeratorDigits k n)))).length ≤ ℓ := hlast
+  wram_call (((hS₄.set (by decide) _).set (by decide) _).mulAdd (a := c) (cy := 0) (Bd := c) ..)
+    framed with v₅ m₅ hS₅
+  refine ⟨?_, hS₅⟩
   simp only [setupTime, ← hℓ]
   have hkn : k - 3 ≤ k := Nat.sub_le k 3
   nlinarith
@@ -586,34 +531,25 @@ theorem ampSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + n + k + 4)) :
     ExecWithin w ampSetup (Data.init (k :: c :: encode φ)) (ampSetupData k c φ) 13 ∧
       SetupState φ k c ((k :: c :: encode φ).length + 1) [] (ampSetupData k c φ) := by
-  have hf1 : Fits w 1 := hw.of_le (by omega)
-  have hf2 : Fits w ((k :: c :: encode φ).length + 1) := hw.of_le (by omega)
-  have hf3 : Fits w 2 := hw.of_le (by omega)
-  have hf4 : Fits w 3 := hw.of_le (by omega)
-  have hf5 : Fits w 4 := hw.of_le (by omega)
-  have hf6 : Fits w ((k :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have hf7 : Fits w (k - 3) := hw.of_le (by omega)
   have hm0 : (Data.init (k :: c :: encode φ) : Data 24).mem 0 = (k :: c :: encode φ).length :=
     rfl
   have hm1 : (Data.init (k :: c :: encode φ) : Data 24).mem 1 = k := rfl
   have hm2 : (Data.init (k :: c :: encode φ) : Data 24).mem 2 = c := rfl
   have hm3 : (Data.init (k :: c :: encode φ) : Data 24).mem 3 = n := rfl
-  refine ⟨?run, ?state⟩
-  case run =>
-    ram_eval [ampSetup, ampSetupData, Data.init_regs, hm0, hm1, hm2, hm3, hf1, hf2, hf3, hf4, hf5,
-      hf6, hf7]
-  case state =>
-    refine ⟨⟨by simp +decide [ampSetupData], by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], ?_, ?_, fun _ _ => rfl⟩, by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], by simp +decide [ampSetupData], holdsList_nil _ _,
-      by simp, by simp +decide [ampSetupData]⟩
-    · intro i
-      change (Data.init (k :: c :: encode φ) : Data 24).mem (4 + i.val) = (encodeClauses φ)[i.val]
-      rw [show 4 + i.val = (3 + i.val) + 1 by omega, Data.init_mem_succ]
-      simp [encode, show 3 + i.val = (i.val + 1) + 1 + 1 by omega]
-    · simp [length_encode]; omega
+  refine ⟨WP.execWithin (by
+      unfold ampSetup ampSetupData
+      wram_exec [Data.init_regs, hm0, hm1, hm2, hm3]
+      rfl), ?_⟩
+  refine ⟨⟨by wram_simp [ampSetupData, Data.init_regs], by wram_simp [ampSetupData],
+    by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData],
+    ?_, ?_, fun _ _ => rfl⟩, by wram_simp [ampSetupData], by wram_simp [ampSetupData],
+    by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData]; rfl,
+    holdsList_nil _ _, by simp, by wram_simp [ampSetupData, Data.init_regs]⟩
+  · intro i
+    change (Data.init (k :: c :: encode φ) : Data 24).mem (4 + i.val) = (encodeClauses φ)[i.val]
+    rw [show 4 + i.val = (3 + i.val) + 1 by omega, Data.init_mem_succ]
+    simp [encode, show 3 + i.val = (i.val + 1) + 1 + 1 by omega]
+  · simp [length_encode]; omega
 
 /-! ### The trials -/
 
@@ -697,26 +633,15 @@ private theorem ampLoop_law {φ : CNF (Fin n)} {C A w : ℕ} (hw : Fits w (A + 3
       y.regs flag = (if φ.eval (assignmentAt y.mem A n) then 0 else 1)
     have hrest := ExecRandLaw.seq_det_right (T₂ := 3)
       (c₂ := ram[ if out = one then [ flag ← zero ] else [ flag ← one ] ]) (Q := Q) hcore
-      fun y ⟨⟨⟨⟨⟨hy, _⟩, hyo⟩, hyb⟩, hyl⟩, hyf⟩ => by
-        by_cases he : φ.eval (assignmentAt y.mem A n) = true
-        · simp only [he, ↓reduceIte] at hyo
-          refine ⟨_, (ExecWithin.branch_pos (by simp [Cond.holds_eq, hyo, hy.one_eq])
-            (ExecWithin.copy (B := .standard) (w := w) (d := flag) (s := zero) (x := y))).mono
-            (by omega), ⟨hy.congr (by simp +decide) (by simp +decide) (by simp +decide)
-              (by simp +decide) (by simp +decide) fun _ _ => rfl, ?_, ?_, ?_, ?_⟩, rfl⟩
-          · simp +decide [hyb, hb₁]
-          · simp +decide [hyl, hl₁]
-          · simpa +decide [he] using hyo
-          · simp +decide [he, hy.zero_eq]
-        · simp only [he, Bool.false_eq_true, ↓reduceIte] at hyo
-          refine ⟨_, (ExecWithin.branch_neg (by simp [Cond.holds_eq, hyo, hy.one_eq])
-            (ExecWithin.copy (B := .standard) (w := w) (d := flag) (s := one) (x := y))).mono
-            le_rfl, ⟨hy.congr (by simp +decide) (by simp +decide) (by simp +decide)
-              (by simp +decide) (by simp +decide) fun _ _ => rfl, ?_, ?_, ?_, ?_⟩, rfl⟩
-          · simp +decide [hyb, hb₁]
-          · simp +decide [hyl, hl₁]
-          · simpa +decide [he] using hyo
-          · simp +decide [he, hy.one_eq]
+      fun y ⟨⟨⟨⟨⟨hy, _⟩, hyo⟩, hyb⟩, hyl⟩, _⟩ => by
+        refine WP.exists_execWithin ?_
+        by_cases he : φ.eval (assignmentAt y.mem A n) = true <;>
+          simp only [he, Bool.false_eq_true, ↓reduceIte] at hyo <;>
+          wram_exec [hyo, hy.one_eq, hy.zero_eq] <;>
+          exact ⟨⟨hy.congr (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
+            (by wram_simp) fun _ _ => rfl, by wram_simp [hyb, hb₁],
+            by wram_simp [hyl, hl₁], by wram_simp [hyo, he, Bool.false_eq_true, ↓reduceIte],
+            by wram_simp [hy.zero_eq, hy.one_eq, he, Bool.false_eq_true, ↓reduceIte]⟩, rfl⟩
     have hbody : ExecRandLaw w ampBody x Q
         (9 * decSteps ds + 4 + (trialCoreTime n (encodeClauses φ).length + 3 + 2)) (4 * n)
         (fun y => assignmentAt y.mem A n) (trial φ) :=
@@ -743,9 +668,8 @@ private theorem ampLoop_law {φ : CNF (Fin n)} {C A w : ℕ} (hw : Fits w (A + 3
             ⟨hy.self, hyb, by rw [hyl, length_decDigits], hdy, decDigits_digit_le hx.binary, hyf,
               hyo⟩ hv₁ (by rw [length_decDigits]; exact hfit)
     have hsteps := decSteps_add_count_le ds
-    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
+    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_ <;>
+      · simp only [Nat.add_mul, Nat.one_mul]; omega
 
 /-! ### The algorithm -/
 
@@ -770,40 +694,37 @@ theorem ampProgram_spec (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((k :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess = repeatTrial φ (schoeningTrials k n c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts =
+      repeatTrial φ (schoeningTrials k n c) := by
   set L := (k :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length ≤ L := by
     simp only [hL, List.length_cons, length_encode]; omega
-  obtain ⟨h₀, hS₀⟩ := ampSetup_exec k c φ (hw.of_le (by omega))
+  obtain ⟨h₀, hS₀⟩ := ampSetup_exec (w := w) k c φ (by fits)
   rw [← hL] at hS₀
-  obtain ⟨y₁, hy₁, hS₁⟩ := countSetup_exec hk hS₀ (hw.of_le (by omega)) (hw.of_le (by omega))
-  have hfl : ExecWithin w (ram[ flag ← one ] : Code .standard 24) y₁ (y₁.set flag 1) 1 := by
-    ram_eval [hS₁.frame.one_eq]
+  obtain ⟨y₁, hy₁, hS₁⟩ := countSetup_exec (w := w) hk hS₀ (by fits) (by fits)
+  have hfl : ExecWithin w (ram[ flag ← one ] : Code .standard 24) y₁ (y₁.set flag 1) 1 :=
+    WP.execWithin (by wram_exec [hS₁.frame.one_eq]; rfl)
   have hlen := length_counterDigits_le hk n c
   have hstate : LoopState φ 4 (L + 1) (counterDigits k n c) (y₁.set flag 1) :=
-    { frame := hS₁.frame.of_mem_lt (by simp +decide) (by simp +decide) (by simp +decide)
-        (by simp +decide) (by simp +decide) fun _ _ => rfl
-      bBase_eq := by simp +decide [hS₁.bBase_eq]
-      bLen_eq := by simp +decide [hS₁.bLen_eq]
+    { frame := hS₁.frame.of_mem_lt (by wram_simp) (by wram_simp) (by wram_simp)
+        (by wram_simp) (by wram_simp) fun _ _ => rfl
+      bBase_eq := by wram_simp [hS₁.bBase_eq]
+      bLen_eq := by wram_simp [hS₁.bLen_eq]
       digits := hS₁.digits
       binary := hS₁.binary
-      flag_eq := by simp
-      out_eq := by simp +decide [hS₁.out_eq] }
-  have hloop := ampLoop_law (φ := φ) (C := 4) (A := L + 1) (hw.of_le (by omega)) (by omega)
+      flag_eq := by wram_simp
+      out_eq := by wram_simp [hS₁.out_eq] }
+  have hloop := ampLoop_law (w := w) (φ := φ) (C := 4) (A := L + 1) (by fits) (by omega)
     (schoeningTrials k n c) (counterDigits k n c) (y₁.set flag 1) hstate
-    (ofDigits_counterDigits hk n c) (hw.of_le (by omega))
+    (ofDigits_counterDigits hk n c) (by fits)
   have hall := ExecRandLaw.seq_det h₀ (ExecRandLaw.seq_det hy₁ (ExecRandLaw.seq_det hfl hloop))
   have hcount := List.count_le_length (a := 0) (l := counterDigits k n c)
   obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := hall.program out (T' := ampTime k n c L)
     (by
-      simp only [ampTime, trialCoreTime]
-      have := Nat.mul_le_mul_left (schoeningTrials k n c)
-        (show 36 * n * (encodeClauses φ).length + 66 * n + 12 * (encodeClauses φ).length + 13 + 30
-          ≤ 36 * n * L + 66 * n + 12 * L + 43 by
-          have := Nat.mul_le_mul_left (36 * n) hE
-          omega)
-      omega)
-    cfgSuccess fun _ _ => rfl
+      wram_omega [Nat.mul_le_mul_left (schoeningTrials k n c)
+        (show trialCoreTime n (encodeClauses φ).length + 30 ≤ 36 * n * L + 66 * n + 12 * L + 43 by
+          wram_omega [Nat.mul_le_mul_left (36 * n) hE])])
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -814,7 +735,7 @@ probability of one trial. -/
 theorem ampProgram_failure_eq (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + 6 * n + 4 * k + 2 * c + counterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess false).toReal =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal =
       (1 - succeedProb φ (trial φ)) ^ schoeningTrials k n c := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2, repeatTrial_false_toReal]
 
@@ -825,7 +746,7 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 3 ≤ k) {φ : CNF (Fin n)} 
     (hlen : ∀ cl ∈ φ, cl.length ≤ k) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + 6 * n + 4 * k + 2 * c + counterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess false).toReal ≤ Real.exp (-c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-c) := by
   rw [ampProgram_failure_eq k c hk φ hw]
   have hp := trial_success_of_length_le hk hφ hlen
   simp only [Fintype.card_fin] at hp
@@ -840,16 +761,9 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 3 ≤ k) {φ : CNF (Fin n)} 
     positivity
   have hinv : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n *
       ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) = P₀⁻¹ := by
-    rw [hP₀]
-    have hk0 : (k : ℝ) ≠ 0 := by linarith
-    have hk10 : (k : ℝ) - 1 ≠ 0 := by linarith
-    have h1 : (2 * ((k : ℝ) - 1) / k) * ((k : ℝ) / (2 * ((k : ℝ) - 1))) = 1 := by field_simp
-    have h2 : ((k : ℝ) / ((k : ℝ) - 1)) * (((k : ℝ) - 1) / k) = 1 := by field_simp
-    field_simp
-    calc _ = ((2 * ((k : ℝ) - 1) / k) * ((k : ℝ) / (2 * ((k : ℝ) - 1)))) ^ n *
-          (((k : ℝ) / ((k : ℝ) - 1)) * (((k : ℝ) - 1) / k)) ^ (k - 3) := by
-          rw [mul_pow, mul_pow]; ring
-      _ = 1 := by rw [h1, h2, one_pow, one_pow, one_mul]
+    rw [hP₀, inv_div, div_eq_mul_inv (3 * (n : ℝ) + 1), mul_inv, ← inv_pow, ← inv_pow,
+      inv_div, inv_div]
+    ring
   have hp1 : succeedProb φ (trial φ) ≤ 1 := by
     rw [succeedProb]
     exact Probability.PMF.toOuterMeasure_toReal_le_one _ _

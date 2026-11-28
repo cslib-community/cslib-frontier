@@ -45,6 +45,8 @@ depth `b = 0` via `LoopSegment.finish`.
   and word-bound invariance across a `LoopSegment`.
 * `Cslib.WordRAM.execRand_seq_det`: appends a deterministic `ExecWithin` continuation onto a
   randomized `ExecRand` computation as a pure `Functor.map`.
+* `Cslib.WordRAM.execRand_seq_det_map`: appends a deterministic `Exec` continuation, indexed by
+  the sample, onto a randomized prefix that is the pushforward of a sampler.
 
 ## References
 
@@ -103,29 +105,17 @@ theorem trans {x : Data r} {m₁ : ProbComp (Data r × ℕ)} {m₂ : Data r → 
       pure (z₂.1, z₁.2 + z₂.2)) := by
   induction h₁ with
   | nil x =>
-    have hx : (x, 0) ∈ (pure (x, 0) : ProbComp (Data r × ℕ)).support := by simp
-    have h₂x := h₂ (x, 0) hx
-    have heq : (do
-        let z₁ ← (pure (x, 0) : ProbComp (Data r × ℕ))
-        let z₂ ← m₂ z₁.1
-        pure (z₂.1, z₁.2 + z₂.2)) = m₂ x := by
-      simp only [pure_bind, Nat.zero_add, Prod.mk.eta, bind_pure]
-    rw [heq]
-    exact h₂x
+    simpa only [pure_bind, Nat.zero_add, Prod.mk.eta, bind_pure] using h₂ (x, 0) (by simp)
   | @step x mb mr hc hb hr ih =>
     let mr' : Data r → ProbComp (Data r × ℕ) := fun d => do
       let b ← mr d
       let c ← m₂ b.1
       pure (c.1, b.2 + c.2)
-    have hnext : ∀ a ∈ mb.support, LoopSegment w cond body a.1 (mr' a.1) := by
-      intro a ha
-      refine ih a ha fun b hb_mem => h₂ (b.1, a.2 + b.2 + 2) ?_
-      rw [OracleComp.mem_supportWith_bind_iff]
-      refine ⟨a, ha, ?_⟩
-      rw [OracleComp.mem_supportWith_bind_iff]
-      exact ⟨b, hb_mem, by simp⟩
-    have hstep := LoopSegment.step (mr := mr') hc hb hnext
-    convert hstep using 1
+    have hnext : ∀ a ∈ mb.support, LoopSegment w cond body a.1 (mr' a.1) := fun a ha =>
+      ih a ha fun b hb_mem => h₂ (b.1, a.2 + b.2 + 2) <| by
+        simp only [OracleComp.mem_supportWith_bind_iff]
+        exact ⟨a, ha, b, hb_mem, by simp⟩
+    convert LoopSegment.step (mr := mr') hc hb hnext using 1
     simp only [mr', bind_assoc, pure_bind, Nat.add_assoc]
     refine congrArg (mb >>= ·) (funext fun a => ?_)
     refine congrArg (mr a.1 >>= ·) (funext fun b => ?_)
@@ -172,21 +162,15 @@ theorem finish {x : Data r} {m : ProbComp (Data r × ℕ)}
     ExecRand w (.loop cond body) x ((fun z => (z.1, z.2 + 2)) <$> m) := by
   induction h with
   | nil x =>
-    have hx : ¬cond.Holds x := hexit (x, 0) (by simp)
-    simpa only [map_pure] using ExecRand.loop_exit hx
+    simpa only [map_pure] using ExecRand.loop_exit (hexit (x, 0) (by simp))
   | @step x mb mr hc hb hr ih =>
     let ml' : Data r → ProbComp (Data r × ℕ) := fun d =>
       (fun b => (b.1, b.2 + 2)) <$> mr d
-    have hcont : ∀ a ∈ mb.support,
-        ExecRand w (.loop cond body) a.1 (ml' a.1) := by
-      intro a ha
-      refine ih a ha fun b hb_mem => hexit (b.1, a.2 + b.2 + 2) ?_
-      rw [OracleComp.mem_supportWith_bind_iff]
-      refine ⟨a, ha, ?_⟩
-      rw [OracleComp.mem_supportWith_bind_iff]
-      exact ⟨b, hb_mem, by simp⟩
-    have hiter := ExecRand.loop_iter (ml := ml') hc hb hcont
-    convert hiter using 1
+    have hcont : ∀ a ∈ mb.support, ExecRand w (.loop cond body) a.1 (ml' a.1) := fun a ha =>
+      ih a ha fun b hb_mem => hexit (b.1, a.2 + b.2 + 2) <| by
+        simp only [OracleComp.mem_supportWith_bind_iff]
+        exact ⟨a, ha, b, hb_mem, by simp⟩
+    convert ExecRand.loop_iter (ml := ml') hc hb hcont using 1
     simp only [ml', ← bind_pure_comp, bind_assoc, pure_bind, Nat.add_assoc]
 
 /-- Any register preserved by `body` is preserved along every `LoopSegment`. -/
@@ -206,10 +190,7 @@ private theorem bounded_aux {x : Data r} {m : ProbComp (Data r × ℕ)}
     (h : LoopSegment w cond body x m) (hx : x.Bounded w) :
     ∀ z : Data r × ℕ, z ∈ m.support → z.1.Bounded w := by
   induction h with
-  | nil _ =>
-    intro z hz
-    supp_cases hz
-    exact hx
+  | nil _ => simpa using hx
   | step _ hb _ ih =>
     intro z hz
     supp_cases hz with ⟨a, ha, b, hb_mem, rfl⟩
@@ -244,14 +225,22 @@ theorem execRand_seq_det {B : Basis} {r w T : ℕ} {c₁ c₂ : Code B r} {x : D
     have hex := h₂ z hz
     simp only [g, hex, ↓reduceDIte]
     exact ⟨hex.choose_spec.1.choose_spec.1, hex.choose_spec.1.choose_spec.2, hex.choose_spec.2⟩
-  have hseq := ExecRand.seq h₁ (m₂ := fun d => pure (g d)) fun z hz => (hg z hz).2.1.execRand
-  have heq : (do
-      let z₁ ← m₁
-      let z₂ ← (pure (g z₁.1) : ProbComp (Data r × ℕ))
-      pure (z₂.1, z₁.2 + z₂.2)) =
-      ((fun z => ((g z.1).1, z.2 + (g z.1).2)) <$> m₁) := by
-    simp only [pure_bind, ← bind_pure_comp]
-  rw [heq] at hseq
-  exact ⟨g, hseq, hg⟩
+  refine ⟨g, ?_, hg⟩
+  simpa only [pure_bind, ← bind_pure_comp] using
+    ExecRand.seq h₁ (m₂ := fun d => pure (g d)) fun z hz => (hg z hz).2.1.execRand
+
+/-- A randomized prefix reaching `p a` after `n a` instructions for each sample `a ∼ μ`, followed
+by a deterministic continuation from `p a` to `y a` in `t a` instructions, runs as the pushforward
+of `μ`. -/
+theorem execRand_seq_det_map {B : Basis} {r w : ℕ} {α : Type} {c₁ c₂ : Code B r} {x : Data r}
+    {μ : ProbComp α} {p y : α → Data r} {n t : α → ℕ}
+    (h₁ : ExecRand w c₁ x ((fun a => (p a, n a)) <$> μ))
+    (h₂ : ∀ a, Exec w c₂ (p a) (y a) (t a)) :
+    ExecRand w (.seq c₁ c₂) x ((fun a => (y a, n a + t a)) <$> μ) := by
+  have hc (a : α) : codeComp w c₂ (p a) = pure (y a, t a) := (h₂ a).execRand.codeComp_eq
+  have hseq := ExecRand.seq h₁ (m₂ := codeComp w c₂) fun z hz => by
+    obtain ⟨a, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+    simpa only [hc] using (h₂ a).execRand
+  simpa only [← bind_pure_comp, bind_assoc, pure_bind, hc] using hseq
 
 end Cslib.WordRAM

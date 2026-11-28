@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.ExactThreeSAT
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
+import CslibFrontier.Logics.Propositional.CNF.Eval
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -17,9 +19,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 /-!
 # MAX 2-SAT is NP-complete
 
-`MaxTwoSAT` is the set of pairs `(φ, K)` of a formula `φ` in conjunctive normal form with at most
-two literals per clause and a target `K` such that some assignment satisfies at least `K` clauses
-of `φ`, counted with multiplicity. Garey, Johnson and Stockmeyer proved it `NP`-complete
+`MaxTwoSAT` consists of instances `x : MaxTwoSATInstance` (`Cslib.Complexity.encMaxTwoSAT`) pairing
+a formula `x.formula` in conjunctive normal form with at most two literals per clause and a target
+`x.target` such that some assignment satisfies at least `x.target` clauses of `x.formula`, counted
+with multiplicity. Garey, Johnson and Stockmeyer proved it `NP`-complete
 [Garey, Johnson and Stockmeyer][GareyJohnsonStockmeyer1976] (attribution from secondary sources;
 the theorem number is not checked against the paper), although 2-satisfiability itself is in `NL`
 (`Cslib.Complexity.TwoSAT.mem_NL`).
@@ -38,13 +41,14 @@ formula with a clause of another width becomes a fixed no-instance. Composed wit
 
 ## Main definitions
 
+* `Cslib.Complexity.MaxTwoSATInstance`, `Cslib.Complexity.encMaxTwoSAT`.
 * `Cslib.Complexity.MaxTwoSAT`: the decision version of maximum 2-satisfiability.
 * `Cslib.Complexity.MaxTwoSAT.gadget`: the ten-clause gadget of one clause.
 * `Cslib.Complexity.toMaxTwoSAT`: the reduction from `ExactThreeSAT`.
 
 ## Main results
 
-* `Cslib.Complexity.MaxTwoSAT.mem_NP`: `MaxTwoSAT ∈ NP`.
+* `Cslib.Complexity.MaxTwoSAT.mem_NP`: `MaxTwoSAT ∈ NP encMaxTwoSAT`.
 * `Cslib.Complexity.MaxTwoSAT.countP_gadget`: the satisfied clauses of one gadget, counted by
   `MaxTwoSAT.gadgetScore`.
 * `Cslib.Complexity.MaxTwoSAT.gadgetScore_le`, `Cslib.Complexity.MaxTwoSAT.gadgetScore_majority`,
@@ -66,85 +70,84 @@ formula with a clause of another width becomes a fixed no-instance. Composed wit
   secondary sources)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM ComputableInPolyTime
 
-/-- Maximum 2-satisfiability: the pairs `(φ, K)` such that every clause of `φ` has at most two
-literals and some assignment satisfies at least `K` clauses of `φ`, counted with multiplicity. -/
-def MaxTwoSAT : Set (CNF ℕ × ℕ) :=
-  {x | (∀ c ∈ x.1, c.length ≤ 2) ∧ ∃ σ : ℕ → Bool, x.2 ≤ x.1.countP (Clause.eval σ)}
+/-- An instance `(formula, target)` of **MAX 2-SAT**. -/
+@[ext]
+structure MaxTwoSATInstance where
+  /-- The formula in conjunctive normal form, with at most two literals per clause. -/
+  formula : CNF ℕ
+  /-- The minimum number of clauses that must be satisfied. -/
+  target : ℕ
+  deriving DecidableEq, Repr
+
+/-- Encoding of `MaxTwoSATInstance` as `(formula, target)` with `target` in binary. -/
+enc_structure encMaxTwoSAT : MaxTwoSATInstance where
+  formula : encCNF,
+  target : encNat
+
+attribute [fun_prop] encMaxTwoSAT_formula_polyTime encMaxTwoSAT_target_polyTime
+  encMaxTwoSAT_mk_polyTime
+
+/-- Maximum 2-satisfiability: the instances `x : MaxTwoSATInstance` such that every clause of
+`x.formula` has at most two literals and some assignment satisfies at least `x.target` clauses of
+`x.formula`, counted with multiplicity. -/
+@[expose]
+def MaxTwoSAT : Set MaxTwoSATInstance :=
+  {x | (∀ c ∈ x.formula, c.length ≤ 2) ∧
+    ∃ σ : ℕ → Bool, x.target ≤ x.formula.countP (Clause.eval σ)}
 
 /-- Membership in `MaxTwoSAT`, unfolded. -/
+@[simp]
 theorem mem_MaxTwoSAT_iff {φ : CNF ℕ} {K : ℕ} :
-    (φ, K) ∈ MaxTwoSAT ↔
+    (⟨φ, K⟩ : MaxTwoSATInstance) ∈ MaxTwoSAT ↔
       (∀ c ∈ φ, c.length ≤ 2) ∧ ∃ σ : ℕ → Bool, K ≤ φ.countP (Clause.eval σ) :=
   Iff.rfl
 
 namespace MaxTwoSAT
 
-/-- Assignments that agree on the variables of `φ` satisfy the same number of its clauses. -/
-private theorem countP_eval_congr {σ τ : ℕ → Bool} {φ : CNF ℕ} (h : ∀ v ∈ φ.vars, σ v = τ v) :
-    φ.countP (Clause.eval σ) = φ.countP (Clause.eval τ) := by
-  refine List.countP_congr fun c hc => ?_
-  have hc' : CNF.eval σ [c] = CNF.eval τ [c] := CNF.eval_congr fun v hv => by
-    obtain ⟨d, hd, b, hb⟩ := CNF.mem_vars.1 hv
-    rw [List.mem_singleton.1 hd] at hb
-    exact h v (CNF.mem_vars.2 ⟨c, hc, b, hb⟩)
-  simp only [CNF.eval_cons, CNF.eval_nil, Bool.and_true] at hc'
-  rw [hc']
 
 /-! ### Membership in NP -/
 
 /-- The verifier for `MaxTwoSAT`: check that every clause has at most two literals and count the
 clauses satisfied by the certificate assignment of `SAT.assignment`. -/
-def verifier (x : (CNF ℕ × ℕ) × List Bool) : Bool :=
-  (x.1.1.all fun c => decide (c.length ≤ 2)) &&
-    decide (x.1.2 ≤ x.1.1.countP (Clause.eval (SAT.assignment x.1.1 x.2)))
+@[expose]
+def verifier (x : MaxTwoSATInstance × List Bool) : Bool :=
+  (x.1.formula.all fun c => decide (c.length ≤ 2)) &&
+    decide (x.1.target ≤ x.1.formula.countP (Clause.eval (SAT.assignment x.1.formula x.2)))
 
 /-- `MaxTwoSAT.verifier` verifies `MaxTwoSAT` with certificates as long as the encoded instance:
 the certificate lists the values of the variables in order of first occurrence. -/
-theorem isVerifier : IsVerifier (encPair encCNF encNat) Polynomial.X verifier MaxTwoSAT := by
-  refine IsVerifier.of_padding (fun x w _ h => ?_) fun x hx => ?_
+theorem isVerifier : IsVerifier encMaxTwoSAT Polynomial.X verifier MaxTwoSAT := by
+  refine IsVerifier.of_padding (fun x w _ h => ?_) fun x ⟨hlen, σ, hσ⟩ => ?_
   · simp only [verifier, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
     exact ⟨h.1, _, h.2⟩
-  · obtain ⟨hlen, σ, hσ⟩ := hx
-    have hvars : x.1.vars.length ≤ (encPair encCNF encNat x).length :=
-      (SAT.length_vars_le x.1).trans (length_le_encPair_left _ _ _)
-    refine ⟨x.1.vars.map σ, by simpa using hvars, fun k => ?_⟩
-    simp only [verifier, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨hlen, hσ.trans (countP_eval_congr fun v hv => ?_).le⟩
-    have hlt : x.1.vars.idxOf v < x.1.vars.length := List.idxOf_lt_length_iff.2 hv
-    have hlt' : x.1.vars.idxOf v < (x.1.vars.map σ).length := by simpa using hlt
-    rw [SAT.assignment, List.getD_eq_getElem?_getD, List.getElem?_append_left hlt',
-      List.getElem?_map, List.getElem?_eq_getElem hlt, List.getElem_idxOf hlt]
-    rfl
+  · refine ⟨x.formula.vars.map σ, ?_, fun k => ?_⟩
+    · simpa [encMaxTwoSAT_apply] using (SAT.length_vars_le x.formula).trans
+        (length_le_encPair_left encCNF encNat (x.formula, x.target))
+    · simp only [verifier, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
+      exact ⟨hlen, hσ.trans (CNF.countP_eval_congr fun v hv =>
+        (SAT.assignment_vars_map_append _ σ _ hv).symm).le⟩
 
 /-- Checking the clause widths and counting the satisfied clauses is polynomial-time: the count
 is computed in unary and compared with the binary target. -/
 @[fun_prop]
 theorem computableInPolyTime_verifier :
-    ComputableInPolyTime verifier (encPair (encPair encCNF encNat) encBits) encBool := by
-  have hφ : ComputableInPolyTime (fun x : (CNF ℕ × ℕ) × List Bool => x.1.1)
-      (encPair (encPair encCNF encNat) encBits) (encList (encList (encPair encNat encBool))) :=
-    (fst _ _).comp (fst _ _)
-  have hcount : ComputableInPolyTime
-      (fun x : (CNF ℕ × ℕ) × List Bool =>
-        x.1.1.countP (Clause.eval (SAT.assignment x.1.1 x.2)))
-      (encPair (encPair encCNF encNat) encBits) encNat :=
-    unary_to_binary.comp (countPWithInput hφ (SAT.computableInPolyTime_clause.comp
-      (((hφ.comp (fst _ _)).prod ((snd _ _).comp (fst _ _))).prod (snd _ _))))
-  have hwidth : ComputableInPolyTime
-      (fun x : (CNF ℕ × ℕ) × List Bool => x.1.1.all fun c => decide (c.length ≤ 2))
-      (encPair (encPair encCNF encNat) encBits) encBool := by
-    unfold encCNF
-    fun_prop
-  exact bool_and' hwidth (binary_le' ((snd _ _).comp (fst _ _)) hcount)
+    ComputableInPolyTime verifier (encPair encMaxTwoSAT encBits) encBool := by
+  have hφ : ComputableInPolyTime (fun x : MaxTwoSATInstance × List Bool => x.1.formula)
+      (encPair encMaxTwoSAT encBits) (encList (encList (encPair encNat encBool))) :=
+    encMaxTwoSAT_formula_polyTime (fst _ _)
+  exact bool_and' ((computableInPolyTime_all_length_le 2).comp hφ)
+    (binary_le' (encMaxTwoSAT_target_polyTime (fst _ _))
+      (unary_to_binary.comp (countPWithInput hφ (SAT.computableInPolyTime_clause.comp
+        (((hφ.comp (fst _ _)).prod ((snd _ _).comp (fst _ _))).prod (snd _ _))))))
 
 /-- `MaxTwoSAT` belongs to `NP`. -/
-theorem mem_NP : MaxTwoSAT ∈ NP (encPair encCNF encNat) :=
+theorem mem_NP : MaxTwoSAT ∈ NP encMaxTwoSAT :=
   ⟨Polynomial.X, verifier, computableInPolyTime_verifier, isVerifier⟩
 
 /-! ### The gadget -/
@@ -152,12 +155,14 @@ theorem mem_NP : MaxTwoSAT ∈ NP (encPair encCNF encNat) :=
 /-- The ten-clause gadget of Garey, Johnson and Stockmeyer for the clause `a ∨ b ∨ c`, with the
 variable `w`: the unit clauses `a`, `b`, `c`, `w`, the clauses `¬a ∨ ¬b`, `¬a ∨ ¬c`, `¬b ∨ ¬c`, and
 the clauses `a ∨ ¬w`, `b ∨ ¬w`, `c ∨ ¬w`. -/
+@[expose]
 def gadget (a b c : Literal ℕ) (w : ℕ) : CNF ℕ :=
   [[a], [b], [c], [(w, true)], [a.negate, b.negate], [a.negate, c.negate], [b.negate, c.negate],
     [a, (w, false)], [b, (w, false)], [c, (w, false)]]
 
 /-- The number of satisfied clauses of a gadget whose literals take the values `x`, `y`, `z` and
 whose variable takes the value `q`. -/
+@[expose]
 def gadgetScore (x y z q : Bool) : ℕ :=
   x.toNat + y.toNat + z.toNat + q.toNat + (!x || !y).toNat + (!x || !z).toNat +
     (!y || !z).toNat + (x || !q).toNat + (y || !q).toNat + (z || !q).toNat
@@ -202,10 +207,12 @@ end MaxTwoSAT
 open MaxTwoSAT
 
 /-- Double the variable of a literal; the odd variables are then free for the gadgets. -/
+@[expose]
 def MaxTwoSAT.doubleLiteral (l : Literal ℕ) : Literal ℕ := (2 * l.1, l.2)
 
 /-- The gadget of the clause numbered `i`, whose first three literals are doubled, with the fresh
 variable `2 i + 1`. -/
+@[expose]
 def MaxTwoSAT.clauseGadget (c : Clause ℕ) (i : ℕ) : CNF ℕ :=
   gadget (doubleLiteral (c.headD (0, true))) (doubleLiteral (c.tail.headD (0, true)))
     (doubleLiteral (c.tail.tail.headD (0, true))) (2 * i + 1)
@@ -214,18 +221,18 @@ def MaxTwoSAT.clauseGadget (c : Clause ℕ) (i : ℕ) : CNF ℕ :=
 literals becomes the gadgets of its clauses, with target seven satisfied clauses per gadget. Any
 other formula becomes the formula with one empty clause and target one, a fixed no-instance: no
 assignment satisfies the empty clause. -/
-def toMaxTwoSAT (φ : CNF ℕ) : CNF ℕ × ℕ :=
+@[expose]
+def toMaxTwoSAT (φ : CNF ℕ) : MaxTwoSATInstance :=
   if φ.all fun c => c.length == 3 then
-    (φ.zipIdx.flatMap fun c => clauseGadget c.1 c.2, 7 * φ.length)
-  else ([[]], 1)
+    ⟨φ.zipIdx.flatMap fun c => clauseGadget c.1 c.2, 7 * φ.length⟩
+  else ⟨[[]], 1⟩
 
 /-- The satisfied clauses of the reduced formula are the sum of the satisfied clauses of the
 gadgets. -/
 private theorem MaxTwoSAT.countP_flatMap_clauseGadget (σ : ℕ → Bool) (φ : CNF ℕ) :
     (φ.zipIdx.flatMap fun c => clauseGadget c.1 c.2).countP (Clause.eval σ) =
-      (φ.zipIdx.map fun c => (clauseGadget c.1 c.2).countP (Clause.eval σ)).sum := by
-  rw [List.countP_flatMap]
-  rfl
+      (φ.zipIdx.map fun c => (clauseGadget c.1 c.2).countP (Clause.eval σ)).sum :=
+  List.countP_flatMap ..
 
 /-- On a clause of three literals, the gadget score under `σ` is that of the three literal values
 under any `τ` with `τ v = σ (2 v)`. -/
@@ -233,10 +240,8 @@ private theorem MaxTwoSAT.countP_clauseGadget (σ τ : ℕ → Bool) (hτ : ∀ 
     (a b c : Literal ℕ) (i : ℕ) :
     (clauseGadget [a, b, c] i).countP (Clause.eval σ) =
       gadgetScore (Literal.eval τ a) (Literal.eval τ b) (Literal.eval τ c) (σ (2 * i + 1)) := by
-  have hτ' : τ = fun v => σ (2 * v) := funext hτ
-  subst hτ'
-  rw [clauseGadget, countP_gadget]
-  rfl
+  cases funext hτ
+  exact countP_gadget _ _ _ _ _
 
 /-- A formula is in `ExactThreeSAT` exactly when its image under `toMaxTwoSAT` is in
 `MaxTwoSAT`. -/
@@ -254,47 +259,41 @@ theorem mem_MaxTwoSAT_toMaxTwoSAT_iff (φ : CNF ℕ) :
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
       have hmem : (φ[i], i) ∈ φ.zipIdx :=
         List.mem_zipIdx_iff_getElem?.2 (List.getElem?_eq_getElem hi)
-      refine absurd hσ (not_le.2 ?_)
-      have hlt := List.sum_lt_sum (l := φ.zipIdx)
-        (fun p => (clauseGadget p.1 p.2).countP (Clause.eval σ)) (fun _ => 7)
-        (fun ⟨c, j⟩ hp => by
-          obtain ⟨a, b, d, rfl⟩ := hzip c j hp
-          rw [countP_clauseGadget σ _ fun _ => rfl]
-          exact gadgetScore_le _ _ _ _)
-        ⟨(φ[i], i), hmem, by
-          obtain ⟨a, b, d, hp⟩ := hzip _ _ hmem
-          dsimp only
-          rw [hp, countP_clauseGadget σ _ fun _ => rfl]
-          rw [hp] at hfalse
-          simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.not_eq_true,
-            Bool.or_eq_false_iff] at hfalse
-          obtain ⟨ha, hb, hd⟩ := hfalse
-          rw [ha, hb, hd]
-          exact Nat.lt_of_le_of_lt (gadgetScore_false_le _) (by norm_num)⟩
-      simpa [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm] using hlt
+      refine not_lt_of_ge hσ ?_
+      simpa [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm] using
+        List.sum_lt_sum (l := φ.zipIdx)
+          (fun p => (clauseGadget p.1 p.2).countP (Clause.eval σ)) (fun _ => 7)
+          (fun ⟨c, j⟩ hp => by
+            obtain ⟨a, b, d, rfl⟩ := hzip c j hp
+            rw [countP_clauseGadget σ _ fun _ => rfl]
+            exact gadgetScore_le _ _ _ _)
+          ⟨(φ[i], i), hmem, by
+            obtain ⟨a, b, d, hp⟩ := hzip _ _ hmem
+            simp only [hp, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.not_eq_true,
+              Bool.or_eq_false_iff] at hfalse
+            rcases hfalse with ⟨ha, hb, hd⟩
+            dsimp only
+            rw [hp, countP_clauseGadget σ _ fun _ => rfl, ha, hb, hd]
+            exact (gadgetScore_false_le _).trans_lt (by decide)⟩
     · rintro ⟨-, τ, hτ⟩
       refine ⟨fun d hd => ?_, fun n => if n % 2 = 0 then τ (n / 2) else
         majority (Literal.eval τ ((φ.getD (n / 2) []).headD (0, true)))
           (Literal.eval τ ((φ.getD (n / 2) []).tail.headD (0, true)))
-          (Literal.eval τ ((φ.getD (n / 2) []).tail.tail.headD (0, true))), ?_⟩
-      · obtain ⟨p, -, hd⟩ := List.mem_flatMap.1 hd
+          (Literal.eval τ ((φ.getD (n / 2) []).tail.tail.headD (0, true))), le_of_eq ?_⟩
+      · obtain ⟨_, _, hd⟩ := List.mem_flatMap.1 hd
         exact length_le_of_mem_gadget hd
-      · refine le_of_eq ?_
-        rw [List.map_congr_left (g := fun _ => 7) fun p hp => ?_]
+      · rw [List.map_congr_left (g := fun _ => 7) fun p hp => ?_]
         · simp [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm]
-        obtain ⟨c, j⟩ := p
+        rcases p with ⟨c, j⟩
         obtain ⟨a, b, d, rfl⟩ := hzip c j hp
         have hget : φ[j]? = some [a, b, d] := List.mem_zipIdx_iff_getElem?.1 hp
-        have hc : Clause.eval τ [a, b, d] = true :=
-          (CNF.eval_eq_true_iff _ _).1 hτ _ (List.mem_of_getElem? hget)
+        have hc := (CNF.eval_eq_true_iff _ _).1 hτ _ (List.mem_of_getElem? hget)
         dsimp only
-        rw [countP_clauseGadget _ τ fun v => by simp]
-        have hodd : ¬(2 * j + 1) % 2 = 0 := by omega
-        have hdiv : (2 * j + 1) / 2 = j := by omega
-        simp only [hodd, hdiv, ↓reduceIte, List.getD_eq_getElem?_getD, hget, Option.getD_some,
-          List.headD_cons, List.tail_cons]
-        simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false] at hc
-        exact gadgetScore_majority (by simpa [Bool.or_assoc] using hc)
+        rw [countP_clauseGadget _ τ fun _ => by simp]
+        simp only [show ¬(2 * j + 1) % 2 = 0 by omega, show (2 * j + 1) / 2 = j by omega,
+          ↓reduceIte, List.getD_eq_getElem?_getD, hget, Option.getD_some, List.headD_cons,
+          List.tail_cons]
+        exact gadgetScore_majority (by simpa [Clause.eval_cons, Bool.or_assoc] using hc)
   · simp only [toMaxTwoSAT, hall, Bool.false_eq_true, ↓reduceIte]
     refine iff_of_false (fun ⟨_, σ, hσ⟩ => ?_) fun ⟨h3, _⟩ => hall ?_
     · simp at hσ
@@ -343,36 +342,37 @@ private theorem computableInPolyTime_target :
 
 private theorem computableInPolyTime_gadgets :
     ComputableInPolyTime (fun φ : CNF ℕ => φ.zipIdx.flatMap fun c => clauseGadget c.1 c.2) encCNF
-      encCNF := by
-  exact flatMapWithInput computableInPolyTime_zipIdx_cnf computableInPolyTime_clauseGadget
+      encCNF :=
+  flatMapWithInput computableInPolyTime_zipIdx_cnf computableInPolyTime_clauseGadget
 
 /-- The reduction `toMaxTwoSAT` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toMaxTwoSAT :
-    ComputableInPolyTime toMaxTwoSAT encCNF (encPair encCNF encNat) :=
+    ComputableInPolyTime toMaxTwoSAT encCNF encMaxTwoSAT :=
   ite' computableInPolyTime_allThree
-    (computableInPolyTime_gadgets.prod computableInPolyTime_target) (const _)
+    (encMaxTwoSAT_mk_polyTime computableInPolyTime_gadgets computableInPolyTime_target)
+    (const _)
 
 /-- `ExactThreeSAT` reduces to `MaxTwoSAT` in polynomial time via `toMaxTwoSAT`. -/
 theorem polyTimeReducible_ExactThreeSAT_MaxTwoSAT :
-    PolyTimeReducible encCNF (encPair encCNF encNat) ExactThreeSAT MaxTwoSAT :=
+    PolyTimeReducible encCNF encMaxTwoSAT ExactThreeSAT MaxTwoSAT :=
   ⟨toMaxTwoSAT, computableInPolyTime_toMaxTwoSAT,
     fun φ => (mem_MaxTwoSAT_toMaxTwoSAT_iff φ).symm⟩
 
 /-- `ThreeSAT` reduces to `MaxTwoSAT` in polynomial time: pad every clause to three literals by
 repetition (`toExactThreeSAT`), then apply `toMaxTwoSAT`. -/
 theorem polyTimeReducible_ThreeSAT_MaxTwoSAT :
-    PolyTimeReducible encCNF (encPair encCNF encNat) ThreeSAT MaxTwoSAT :=
+    PolyTimeReducible encCNF encMaxTwoSAT ThreeSAT MaxTwoSAT :=
   polyTimeReducible_ThreeSAT_ExactThreeSAT.trans polyTimeReducible_ExactThreeSAT_MaxTwoSAT
 
 /-- `MaxTwoSAT` is `NP`-hard. -/
-theorem MaxTwoSAT_npHard : NPHard (encPair encCNF encNat) MaxTwoSAT :=
+theorem MaxTwoSAT_npHard : NPHard encMaxTwoSAT MaxTwoSAT :=
   ExactThreeSAT_npHard.trans polyTimeReducible_ExactThreeSAT_MaxTwoSAT
 
 /-- **MAX 2-SAT is NP-complete** [Garey, Johnson and Stockmeyer][GareyJohnsonStockmeyer1976]
 (attribution from secondary sources). The target `K` is in binary, and clauses of one literal are
 allowed. -/
-theorem MaxTwoSAT_npComplete : NPComplete (encPair encCNF encNat) MaxTwoSAT :=
+theorem MaxTwoSAT_npComplete : NPComplete encMaxTwoSAT MaxTwoSAT :=
   ⟨MaxTwoSAT.mem_NP, MaxTwoSAT_npHard⟩
 
 end Cslib.Complexity

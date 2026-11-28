@@ -210,8 +210,7 @@ private theorem rejectsAll_le_one (a : ℝ≥0 → Bool) : ∀ xs, rejectsAll a 
   | x :: xs => by
       rw [rejectsAll]
       split_ifs
-      · exact zero_le
-      · exact rejectsAll_le_one a xs
+      exacts [zero_le, rejectsAll_le_one a xs]
 
 private theorem rejectsAll_eq (a : ℝ≥0 → Bool) :
     ∀ xs, rejectsAll a xs = if ∀ x ∈ xs, a x = false then 1 else 0
@@ -241,9 +240,8 @@ private theorem prophet_step (μ : PMF ℝ≥0) {t : ℝ≥0} {a : ℝ≥0 → B
   have hq : ∑' x, μ x * (if a x then (0 : ℝ≥0∞) else 1) ≤ 1 :=
     Cslib.Probability.PMF.tsum_mul_le_of_forall_le μ fun x => by split_ifs <;> simp
   have hqR : (∑' x, μ x * (if a x then (0 : ℝ≥0∞) else 1)) * R ≤ 1 := mul_le_one' hq hR
-  have hpt : ∀ x : ℝ≥0, (t : ℝ≥0∞) + ((x - t : ℝ≥0) : ℝ≥0∞) + (if a x then 0 else 1) * (R * S) ≤
+  have hpt (x : ℝ≥0) : (t : ℝ≥0∞) + ((x - t : ℝ≥0) : ℝ≥0∞) + (if a x then 0 else 1) * (R * S) ≤
       (if a x then (x : ℝ≥0∞) else A) + (if a x then 0 else 1) * (t * R) := by
-    intro x
     by_cases hx : a x = true
     · simp only [hx, ↓reduceIte, zero_mul, add_zero]
       rw [← ENNReal.coe_add, add_tsub_cancel_of_le (ha₂ x hx)]
@@ -342,14 +340,10 @@ private theorem le_two_mul_of_bound {t : ℝ≥0} {R M A : ℝ≥0∞}
   lift A to ℝ≥0 using hA
   norm_cast at hb h ⊢
   rw [← NNReal.coe_le_coe] at hb ⊢
-  push_cast at hb ⊢
-  rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
-  · have h1' : 2 * (t : ℝ) ≤ M := by exact_mod_cast h1
-    have h2' : 1 ≤ 2 * (R : ℝ) := by exact_mod_cast h2
-    nlinarith [mul_nonneg (sub_nonneg.mpr h1') (sub_nonneg.mpr h2')]
-  · have h1' : (M : ℝ) ≤ 2 * t := by exact_mod_cast h1
-    have h2' : 2 * (R : ℝ) ≤ 1 := by exact_mod_cast h2
-    nlinarith [mul_nonneg (sub_nonneg.mpr h1') (sub_nonneg.mpr h2')]
+  simp only [← NNReal.coe_le_coe] at h
+  push_cast at hb h ⊢
+  rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+    nlinarith [mul_nonneg (sub_nonneg.mpr h1) (sub_nonneg.mpr h2)]
 
 /-- **The prophet inequality, threshold form.** Let `acceptRule a` accept every value above `t`
 and only values of at least `t`, and let `R` be the probability that it accepts no value. If
@@ -390,14 +384,11 @@ theorem expectedMax_le_two_mul_expectedReward_thresholdRule_of_le (laws : List (
     (hM : expectedMax laws ≤ 2 * m) :
     expectedMax laws ≤ 2 * expectedReward (thresholdRule m) laws := by
   rcases eq_zero_or_pos m with rfl | hpos
-  · have h0 : expectedMax laws = 0 := by simpa using hM
-    rw [h0]
-    exact zero_le
+  · simp [show expectedMax laws = 0 by simpa using hM]
   have hR : rejectProb (fun x => decide (m ≤ x)) laws =
       (jointLaw laws).toOuterMeasure {xs | listMax xs < m} := by
     rw [rejectProb]
-    congr 1
-    ext xs
+    congr 1 with xs
     simp [listMax_lt_iff hpos xs]
   refine expectedMax_le_two_mul_expectedReward (fun x hx => decide_eq_true hx.le)
     (fun x hx => of_decide_eq_true hx) laws (Or.inr ⟨hM, ?_⟩)
@@ -414,8 +405,7 @@ theorem expectedMax_le_two_mul_expectedReward_strictThresholdRule_of_le (laws : 
   have hR : rejectProb (fun x => decide (m < x)) laws =
       (jointLaw laws).toOuterMeasure {xs | listMax xs ≤ m} := by
     rw [rejectProb]
-    congr 1
-    ext xs
+    congr 1 with xs
     simp [listMax_le_iff m xs]
   refine expectedMax_le_two_mul_expectedReward (fun x hx => decide_eq_true hx)
     (fun x hx => (of_decide_eq_true hx).le) laws (Or.inl ⟨hM, ?_⟩)

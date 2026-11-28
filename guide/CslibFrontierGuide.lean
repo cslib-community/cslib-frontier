@@ -6,8 +6,10 @@ Authors: Samuel Schlesinger
 import VersoManual
 import CslibFrontierGuide.FirstSteps
 import CslibFrontierGuide.NPCompleteness
+import CslibFrontierGuide.Matching
 import CslibFrontierGuide.Streaming
 import CslibFrontierGuide.FirstOrderOperators
+import CslibFrontierGuide.SQL
 
 open Verso.Genre Manual
 
@@ -28,18 +30,18 @@ that no longer matches the library fails the build.
 Names in the examples link to the [API documentation][api], which lists every declaration with its
 docstring and source. Other entry points:
 
-* The README's [Start here][start] table points to checked examples for each kind of task.
+* The [library map][map] links to reference chapters and examples by topic.
 * The [results inventory][results] collects named results with their theorem names and sources.
 * [ROADMAP.md][roadmap] records outstanding work, and [CONTRIBUTING.md][contributing] explains how
   to propose and review changes.
 
-The guide is new: after first steps, it has chapters on NP-completeness, streaming, and first-order
-logic with operators. Further areas follow one at a time, and each chapter's friction points are
-fixed in the library rather than documented around.
+The guide is new: after first steps, it has chapters on NP-completeness, unweighted graph matching,
+streaming, first-order logic with operators, and SQL query semantics. Further areas follow one at a
+time, and each chapter's friction points are fixed in the library rather than documented around.
 
 [cslib]: https://github.com/leanprover/cslib
 [api]: https://www.cslib.io/cslib-frontier/
-[start]: https://github.com/cslib-community/cslib-frontier#start-here
+[map]: https://github.com/cslib-community/cslib-frontier/blob/main/manual/README.md#library-map
 [results]: https://github.com/cslib-community/cslib-frontier/blob/main/results/README.md
 [roadmap]: https://github.com/cslib-community/cslib-frontier/blob/main/ROADMAP.md
 [contributing]: https://github.com/cslib-community/cslib-frontier/blob/main/CONTRIBUTING.md
@@ -48,6 +50,10 @@ fixed in the library rather than documented around.
 
 {include 1 CslibFrontierGuide.NPCompleteness}
 
+{include 1 CslibFrontierGuide.Matching}
+
 {include 1 CslibFrontierGuide.Streaming}
 
 {include 1 CslibFrontierGuide.FirstOrderOperators}
+
+{include 1 CslibFrontierGuide.SQL}

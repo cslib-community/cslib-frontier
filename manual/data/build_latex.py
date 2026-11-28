@@ -22,10 +22,11 @@ ORDER = [
       'computability-and-description', 'verifiers-counting-interaction', 'reductions',
       'parameterized-complexity', 'search-and-promises', 'endpoints-and-hierarchies', 'native-counting']),
     ('circuits-logic-and-other-models', ['index', 'circuits-and-formulas', 'networks-and-iteration',
-      'algebraic-and-quantum', 'query-and-communication', 'finite-model-logic',
+      'algebraic-and-quantum', 'query-and-communication', 'finite-model-logic', 'sql-semantics',
       'proof-systems', 'learning-and-testing', 'metacomplexity-and-methods']),
     ('programs-crypto-and-probability', ['index', 'programs-and-realization',
-      'security-games-and-primitives', 'interactive-reductions', 'protocols-and-privacy',
+      'security-games-and-primitives', 'assumptions', 'interactive-reductions',
+      'protocols-and-privacy',
       'average-case-hardness', 'distributional-complexity', 'homomorphic-encryption']),
     ('algorithms-and-memory', ['index', 'ram-variants', 'wordram-and-bridges',
       'memory-specifications', 'online-and-streaming', 'strategic-games',
@@ -34,9 +35,22 @@ ORDER = [
       'dictionaries-hashing-and-randomized', 'flows-cuts-and-matching',
       'three-sum-and-exact-triangle', 'approximation-algorithms', 'optimization-and-duality',
       'mechanism-design']),
-    ('development-history', ['index', 'methods', 'timings', 'case-studies', 'transcripts', 'study-design']),
+    ('history', ['index', 'survey', 'development', 'methods', 'timings', 'case-studies',
+      'transcripts', 'study-design']),
 ]
 FILES = ['index.md'] + [f'{section}/{name}.md' for section, names in ORDER for name in names] + ['model-map.md']
+# The reference chapters are frozen: nobody keeps them current, so nothing outside them may force an
+# edit to them. Entries are pages or directories relative to the manual root; the registries in
+# MAINTAINED stay current although they sit in a frozen directory.
+FROZEN = {'index.md', 'model-map.md', 'design-and-assurance', 'machines-and-classes',
+          'circuits-logic-and-other-models', 'programs-crypto-and-probability',
+          'algorithms-and-memory'}
+MAINTAINED = {'programs-crypto-and-probability/assumptions.md'}
+
+
+def frozen(relative):
+    """Whether the page at this path, relative to the manual root, is a frozen reference chapter."""
+    return relative not in MAINTAINED and (relative in FROZEN or relative.split('/')[0] in FROZEN)
 
 
 def run(args, **kwargs):
@@ -57,19 +71,35 @@ def tex_escape(text):
     return ''.join(special.get(c, c) for c in text)
 
 
+# Break points inside identifiers: before a capital that follows a lowercase letter or digit, and
+# before the last capital of an acronym followed by lowercase (`LWECCA|Nonvacuity`).
+CAMEL_BREAK = r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])'
 MATH = {'ℕ': r'\mathbb{N}', 'ℝ': r'\mathbb{R}', 'ℓ': r'\ell', '→': r'\to',
         '←': r'\leftarrow', '↔': r'\leftrightarrow', '↦': r'\mapsto', '↪': r'\hookrightarrow',
         '∀': r'\forall', '∃': r'\exists', '∈': r'\in', '∧': r'\wedge', '∩': r'\cap',
-        '≠': r'\ne', '≤': r'\le', '≥': r'\ge', '⊆': r'\subseteq', '⊊': r'\subsetneq',
+        '≠': r'\ne', '≤': r'\le', '≪': r'\ll', '≥': r'\ge', '⊆': r'\subseteq', '⊊': r'\subsetneq',
         '⊕': r'\oplus', '∞': r'\infty', '−': '-', '×': r'\times', 'Γ': r'\Gamma',
         'Σ': r'\Sigma', 'α': r'\alpha', 'β': r'\beta', 'δ': r'\delta', 'ε': r'\varepsilon',
         'η': r'\eta', 'ι': r'\iota', 'κ': r'\kappa', 'λ': r'\lambda', 'μ': r'\mu',
-        'σ': r'\sigma', '₁': '_1', '₂': '_2', 'ᵢ': '_i', 'ⱼ': '_j', '¹': '^1', '²': '^2', '³': '^3'}
+        'σ': r'\sigma', '₁': '_1', '₂': '_2', 'ᵢ': '_i', 'ⱼ': '_j', '¹': '^1', '²': '^2', '³': '^3',
+        # Neither DejaVu Sans Mono nor TeX Gyre Pagella has these glyphs; set them in math mode.
+        '₀': '_0', '⁰': '^0', '⁴': '^4', '⁻': '^-', '⬝': r'\cdot', '⋈': r'\bowtie',
+        '⨆': r'\bigsqcup', '∤': r'\nmid', '⋖': r'\lessdot', '⊨': r'\models', '⧸': '/',
+        '𝔼': r'\mathbb{E}', '𝔽': r'\mathbb{F}', '𝕜': r'\Bbbk', '𝟙': r'\mathbf{1}',
+        '𝒜': r'\mathcal{A}', 'ℬ': r'\mathcal{B}', '𝒞': r'\mathcal{C}', '𝒟': r'\mathcal{D}',
+        'ℱ': r'\mathcal{F}', '𝒩': r'\mathcal{N}', '𝒳': r'\mathcal{X}', '𝓕': r'\mathcal{F}',
+        '𝓝': r'\mathcal{N}'}
 
 
 def inline_tex(text):
     # Math symbols remain inspectable even inside identifiers and table cells.
     return ''.join(r'\ensuremath{' + MATH[c] + '}' if c in MATH else tex_escape(c) for c in text)
+
+
+def math_tex(text):
+    # Pandoc passes `$...$` through verbatim, and the math fonts lack Unicode letters such as `ι`.
+    return ''.join('{' + MATH[c] + '}' if MATH.get(c, '').startswith('\\') else MATH.get(c, c)
+                   for c in text)
 
 
 def ast_for(text):
@@ -126,13 +156,17 @@ def transform(node, path, chapter_index=False, references=False):
                 return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), ['#doc-sources', title]]}
             if relative in FILES:
                 return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), ['#' + label(relative, parsed.fragment), title]]}
+            if frozen(path) and SOURCE_REVISION is not None and resolved.is_relative_to(ROOT.parent) \
+                    and resolved.relative_to(ROOT.parent).as_posix() not in SOURCE_PATHS:
+                # A frozen chapter may cite a file that has since moved or gone; print the text.
+                return {'t': 'Span', 'c': [['', [], []], transform(content, path, chapter_index, references)]}
             href = repository_link(resolved, parsed)
         return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), [href, title]]}
     if typ == 'Code':
         text = node['c'][1]
         # Allow breaks at semantic separators and within long opaque hashes.
         escaped = inline_tex(text)
-        escaped = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', lambda _: r'\allowbreak{}', escaped)
+        escaped = re.sub(CAMEL_BREAK, lambda _: r'\allowbreak{}', escaped)
         escaped = escaped.replace(r'\_', r'\_\allowbreak{}').replace('.', r'.\allowbreak{}').replace('/', r'/\allowbreak{}').replace('-', r'-\allowbreak{}')
         escaped = escaped.replace('*', r'*\allowbreak{}').replace('+', r'+\allowbreak{}')
         if re.fullmatch(r'[0-9a-f]{32,}', text):
@@ -140,8 +174,10 @@ def transform(node, path, chapter_index=False, references=False):
         return raw('RawInline', r'{\small\ttfamily ' + escaped + '}')
     if typ == 'Str' and (any(c in MATH for c in node['c']) or '/' in node['c'] or '_' in node['c'] or re.search(r'[a-z][A-Z]', node['c'])):
         escaped = inline_tex(node['c']).replace('/', r'/\allowbreak{}').replace(r'\_', r'\_\allowbreak{}')
-        escaped = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', lambda _: r'\allowbreak{}', escaped)
+        escaped = re.sub(CAMEL_BREAK, lambda _: r'\allowbreak{}', escaped)
         return raw('RawInline', escaped)
+    if typ == 'Math':
+        return {'t': typ, 'c': [node['c'][0], math_tex(node['c'][1])]}
     if typ in {'RawBlock', 'RawInline'} and node['c'][0] == 'html':
         match = re.search(r'<a id="([^"]+)"', node['c'][1])
         return raw(typ, r'\phantomsection\label{' + label(path, match[1]) + '}') if match else raw(typ, '')
@@ -171,6 +207,8 @@ PREAMBLE = r'''% Generated from the reviewed cslib-frontier research dossier.
 \setmainfont{texgyrepagella-regular.otf}[BoldFont=texgyrepagella-bold.otf,ItalicFont=texgyrepagella-italic.otf,BoldItalicFont=texgyrepagella-bolditalic.otf]
 \setsansfont{texgyreheros-regular.otf}[BoldFont=texgyreheros-bold.otf,ItalicFont=texgyreheros-italic.otf]
 \setmonofont{DejaVuSansMono.ttf}[Scale=0.82,BoldFont=DejaVuSansMono-Bold.ttf,ItalicFont=DejaVuSansMono-Oblique.ttf]
+% Log characters absent from the fonts; the builder fails on them.
+\tracinglostchars=2
 \usepackage{amsmath,amssymb}
 \usepackage{microtype}
 \usepackage{longtable,booktabs,array,calc}
@@ -244,8 +282,9 @@ validation evidence, and independent agent review have distinct scopes.\par}
 \pagenumbering{roman}
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
-cslib-frontier is a Lean library of computational complexity theory built on CSLib
-and Mathlib. This survey examines its computational models and their connections,
+cslib-frontier, then named complexitylib, is a Lean library built on CSLib and
+Mathlib; at this snapshot its scope was computational complexity theory. This
+survey examines its computational models and their connections,
 with explicit attention to encodings, uniformity, resource measures, and quantifier
 order. It describes native machine interfaces, circuits, logical and information-access
 models, probabilistic programs and cryptography, and RAM-based algorithms and

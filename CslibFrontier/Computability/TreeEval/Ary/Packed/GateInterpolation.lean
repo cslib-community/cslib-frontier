@@ -97,16 +97,15 @@ theorem interpolateGrid_lt {p : ℕ} (hp : 0 < p) (s n : ℕ) (table : ℕ → �
     interpolateGrid p s n table x < p := by
   unfold interpolateGrid
   generalize s ^ n = t
-  cases t with
-  | zero => exact hp
-  | succ t =>
-    rw [Function.iterate_succ_apply']
+  rcases t with _ | t
+  · exact hp
+  · rw [Function.iterate_succ_apply']
     simp only [gridSumStep, hp.ne', ↓reduceIte]
     exact Nat.mod_lt _ hp
 
 variable {p : ℕ} [Fact p.Prime]
 
-private theorem cast_gridWeight_range {s : ℕ} (hs : 0 < s) (hsp : s ≤ p) (k : ℕ)
+private theorem cast_gridWeight_range {s : ℕ} (hs : 0 < s) (k : ℕ)
     (x : List ℕ) (n : ℕ) :
     ((gridWeight p s n k x : ℕ) : ZMod p) =
       ∏ j ∈ Finset.range n,
@@ -121,7 +120,7 @@ private theorem cast_gridWeight_range {s : ℕ} (hs : 0 < s) (hsp : s ≤ p) (k 
       (gridWeightStep_counters p s k x n).2, (Fact.out : p.Prime).ne_zero,
       ↓reduceIte, cast_mulMod, Finset.prod_range_succ]
     change ((gridWeight p s n k x : ℕ) : ZMod p) * _ = _
-    rw [ih, cast_basisWeight hsp ⟨k / s ^ n % s, Nat.mod_lt _ hs⟩]
+    rw [ih, cast_basisWeight ⟨k / s ^ n % s, Nat.mod_lt _ hs⟩]
 
 private theorem cast_gridSum_range (s n : ℕ) (table : ℕ → ℕ) (x : List ℕ) (t : ℕ) :
     (((gridSumStep p s n table x)^[t] (0, 0)).2 : ZMod p) =
@@ -135,7 +134,7 @@ private theorem cast_gridSum_range (s n : ℕ) (table : ℕ → ℕ) (x : List �
 
 /-- The streamed modular sum is exactly the finite-grid low-degree extension. The table is
 indexed by Mathlib's existing base-`s` numbering of tuples; no additional gate model is used. -/
-theorem cast_interpolateGrid {s n : ℕ} (hs : 0 < s) (hsp : s ≤ p)
+theorem cast_interpolateGrid {s n : ℕ} (hs : 0 < s)
     (h : Fin s ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p))
     (table : ℕ → ℕ) (x : List ℕ) :
     ((interpolateGrid p s n table x : ℕ) : ZMod p) =
@@ -143,24 +142,18 @@ theorem cast_interpolateGrid {s n : ℕ} (hs : 0 < s) (hsp : s ≤ p)
         (fun a : Fin n → Fin s => (table (finFunctionFinEquiv a) : ZMod p))
         (fun i => (x.getD i 0 : ZMod p)) := by
   rw [interpolateGrid, cast_gridSum_range, Finset.sum_range]
-  have hemb : (fun a : Fin s => (a.val : ZMod p)) = h := funext fun a => (hh a).symm
-  calc
-    (∑ k : Fin (s ^ n), (table k : ZMod p) * (gridWeight p s n k x : ZMod p)) =
-        ∑ a : Fin n → Fin s,
-          (table (finFunctionFinEquiv a) : ZMod p) *
-            (gridWeight p s n (finFunctionFinEquiv a) x : ZMod p) :=
-      (Equiv.sum_comp finFunctionFinEquiv _).symm
+  calc (∑ k : Fin (s ^ n), (table k : ZMod p) * (gridWeight p s n k x : ZMod p))
+      = ∑ a : Fin n → Fin s, (table (finFunctionFinEquiv a) : ZMod p) *
+          (gridWeight p s n (finFunctionFinEquiv a) x : ZMod p) :=
+        (Equiv.sum_comp finFunctionFinEquiv _).symm
     _ = _ := by
-      apply Finset.sum_congr rfl
-      intro a _
-      congr 1
-      rw [cast_gridWeight_range hs hsp, Finset.prod_range, hemb]
-      apply Finset.prod_congr rfl
-      intro i _
-      have hdigit : (⟨gridDigit s (finFunctionFinEquiv a) i, Nat.mod_lt _ hs⟩ : Fin s) = a i := by
-        apply Fin.ext
-        exact (finFunctionFinEquiv_symm_apply_val (finFunctionFinEquiv a) i).symm.trans
-          (congrArg Fin.val (congrFun (finFunctionFinEquiv.symm_apply_apply a) i))
-      rw [hdigit]
+        refine Finset.sum_congr rfl fun a _ => congrArg (_ * ·) ?_
+        rw [cast_gridWeight_range hs, Finset.prod_range,
+          show (fun a : Fin s => (a.val : ZMod p)) = h from funext fun a => (hh a).symm]
+        refine Finset.prod_congr rfl fun i _ => ?_
+        have hdigit : (⟨gridDigit s (finFunctionFinEquiv a) i, Nat.mod_lt _ hs⟩ : Fin s) = a i :=
+          Fin.ext ((finFunctionFinEquiv_symm_apply_val (finFunctionFinEquiv a) i).symm.trans
+            (congrArg Fin.val (congrFun (finFunctionFinEquiv.symm_apply_apply a) i)))
+        rw [hdigit]
 
 end Cslib.TreeEval.Ary.Packed

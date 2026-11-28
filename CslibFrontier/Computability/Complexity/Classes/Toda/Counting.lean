@@ -49,8 +49,9 @@ the words accepted by `Cslib.Complexity.Toda.countingTest` — a size `k ≤ K` 
 `parityCoeff K (k - 1)` coefficient words, a random string `r` and a strictly increasing list of
 `k` accepted witnesses, padded with zero words — number
 `H = ∑ i < K, parityCoeff K i * ∑ r, choose (f r) (i + 1)`
-(`Cslib.Complexity.Toda.card_filter_countingTest`), and with `K = R + 1`, `H` is `G` modulo
-`2 ^ (R + 1)` (`Cslib.Complexity.Toda.cast_card_filter_countingTest`).
+(`Cslib.Complexity.Toda.card_filter_countingTest`), and `H` is `G` modulo `2 ^ K`
+(`Cslib.Complexity.Toda.cast_card_filter_countingTest`); the bit extraction below takes
+`K = R + 1`.
 
 ## One bit decides the majority
 
@@ -67,7 +68,7 @@ odd number of accepted witnesses (`Cslib.Complexity.Toda.testBit_card_filter_sha
 
 ## Main results
 
-* `Cslib.Complexity.Toda.cast_card_filter_countingTest`: the count is `G` modulo `2 ^ (R + 1)`.
+* `Cslib.Complexity.Toda.cast_card_filter_countingTest`: the count is `G` modulo `2 ^ K`.
 * `Cslib.Complexity.Toda.testBit_card_filter_sharpTest`: one bit says whether `2 G > 2 ^ R`.
 
 ## References
@@ -83,6 +84,8 @@ namespace Cslib.Complexity.Toda
 open Finset BitString Turing.MultiTapeTM
 open SharpP (subsetTest card_filter_subsetTest)
 
+attribute [local irreducible] ComputableInPolyTime
+
 /-! ### Modulus amplification -/
 
 /-- Natural coefficients equal to `(-2) ^ i` modulo `2 ^ K`, for `i ≤ K`: `2 ^ i` for even `i`
@@ -91,16 +94,11 @@ def parityCoeff (K i : ℕ) : ℕ := if Even i then 2 ^ i else 2 ^ K - 2 ^ i
 
 private theorem cast_parityCoeff {K i : ℕ} (hi : i ≤ K) :
     (parityCoeff K i : ZMod (2 ^ K)) = (-2) ^ i := by
-  have h2 : ((2 ^ K : ℕ) : ZMod (2 ^ K)) = 0 := ZMod.natCast_self _
   unfold parityCoeff
-  split
-  · rename_i h
-    rw [h.neg_pow]
-    push_cast
-    rfl
-  · rename_i h
-    rw [(Nat.not_even_iff_odd.1 h).neg_pow, Nat.cast_sub (Nat.pow_le_pow_right (by norm_num) hi),
-      h2]
+  split_ifs with h
+  · simp [h.neg_pow]
+  · rw [(Nat.not_even_iff_odd.1 h).neg_pow, Nat.cast_sub (Nat.pow_le_pow_right (by norm_num) hi),
+      ZMod.natCast_self]
     push_cast
     ring
 
@@ -130,8 +128,7 @@ private theorem testBit_two_mul_add_two_pow_sub_one {R G H : ℕ} (hG : G ≤ 2 
   have h4 : 2 ^ (R + 1) = 2 * 2 ^ R := by ring
   have hlt : 2 * G + 2 ^ R - 1 < 2 * 2 ^ (R + 1) := by omega
   by_cases hc : 2 ^ R < 2 * G
-  · have hq : (2 * G + 2 ^ R - 1) / 2 ^ (R + 1) = 1 := by
-      exact Nat.div_eq_of_lt_le (by omega) (by omega)
+  · have hq : (2 * G + 2 ^ R - 1) / 2 ^ (R + 1) = 1 := Nat.div_eq_of_lt_le (by omega) (by omega)
     simp [hq, hc]
   · have hq : (2 * G + 2 ^ R - 1) / 2 ^ (R + 1) = 0 := Nat.div_eq_of_lt (by omega)
     simp [hq, hc]
@@ -286,11 +283,8 @@ private theorem card_filter_coeff_and_subsetTest (accept : List Bool → List Bo
       coeffTest K k (List.ofFn u) = true ∧
         subsetTest (accept ((List.ofFn w).take R)) K Z k ((List.ofFn w).drop R) =
           true).card =
-        ∑ u : Fin K → Bool, if coeffTest K k (List.ofFn u) = true then Y else 0 := by
-    refine sum_congr rfl fun u _ => ?_
-    by_cases h : coeffTest K k (List.ofFn u) = true
-    · simp only [h, true_and, ↓reduceIte, hY]
-    · simp [h]
+        ∑ u : Fin K → Bool, if coeffTest K k (List.ofFn u) = true then Y else 0 :=
+    sum_congr rfl fun u _ => by by_cases h : coeffTest K k (List.ofFn u) = true <;> simp [h, hY]
   rw [hsum, ← Finset.sum_filter, sum_const, smul_eq_mul, card_filter_coeffTest hk1 hkK, hY']
 
 /-- **The count of the counting test**: `∑ i < K, parityCoeff K i * ∑ r, choose (f r) (i + 1)`,
@@ -334,10 +328,10 @@ theorem card_filter_countingTest (accept : List Bool → List Bool → Bool) (K 
     (by rw [Nat.add_sub_cancel])
 
 /-- **The count of the counting test is the number of random strings with an odd number of
-accepted words**, modulo `2 ^ (R + 1)`, with sizes up to `K = R + 1`. -/
-theorem cast_card_filter_countingTest (accept : List Bool → List Bool → Bool) (R Z : ℕ) :
-    ((univ.filter fun w : Fin ((R + 1) + ((R + 1) + (R + (R + 1) * Z))) → Bool =>
-      countingTest accept (R + 1) R Z (List.ofFn w) = true).card : ZMod (2 ^ (R + 1))) =
+accepted words**, modulo `2 ^ K`, with sizes up to `K`. -/
+theorem cast_card_filter_countingTest (accept : List Bool → List Bool → Bool) (K R Z : ℕ) :
+    ((univ.filter fun w : Fin (K + (K + (R + K * Z))) → Bool =>
+      countingTest accept K R Z (List.ofFn w) = true).card : ZMod (2 ^ K)) =
       (univ.filter fun r : Fin R → Bool => Odd (univ.filter fun z : Fin Z → Bool =>
         accept (List.ofFn r) (List.ofFn z) = true).card).card := by
   classical
@@ -404,7 +398,8 @@ theorem testBit_card_filter_sharpTest (accept : List Bool → List Bool → Bool
         Odd (univ.filter fun z : Fin Z → Bool =>
           accept (List.ofFn r) (List.ofFn z) = true).card).card) := by
   rw [card_filter_sharpTest]
-  refine testBit_two_mul_add_two_pow_sub_one ?_ (cast_card_filter_countingTest accept R Z)
+  refine testBit_two_mul_add_two_pow_sub_one ?_
+    (cast_card_filter_countingTest accept (R + 1) R Z)
   exact (card_le_univ _).trans_eq (by simp)
 
 /-! ### Polynomial time -/

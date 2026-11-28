@@ -11,7 +11,8 @@ public import CslibFrontier.Computability.Complexity.AverageCase
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Distributional
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -68,45 +69,40 @@ theorem exists_heuristic_of_mem_HeurP (b : List Bool → Bool)
   have hfalse : ((BitString.uniformList n).map fun x =>
       decide ((A (x, 2 * p.eval x.length)).toNat = (b x).toNat)) false ≤
       ((2 * p.eval n + 1 : ℕ) : ℝ≥0∞)⁻¹ := by
-    have herr := hA.error_le n (2 * p.eval n)
-    rw [Ensemble.uniform_dist] at herr
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    refine le_trans (PMF.toOuterMeasure_mono _ ?_) herr
+    refine (PMF.toOuterMeasure_mono _ ?_).trans
+      (Ensemble.uniform_dist n ▸ hA.error_le n (2 * p.eval n))
     rintro x ⟨hx, hsupp⟩
-    have hlen : x.length = n := BitString.length_of_mem_support_uniformList hsupp
-    simp only [Set.mem_preimage, Set.mem_singleton_iff, decide_eq_false_iff_not, hlen] at hx
+    simp only [Set.mem_preimage, Set.mem_singleton_iff, decide_eq_false_iff_not,
+      BitString.length_of_mem_support_uniformList hsupp] at hx
     simp only [Set.mem_ofPred_eq]
-    cases hAx : A (x, 2 * p.eval n) <;> cases hbx : b x <;> simp_all
-  have hreal := ENNReal.toReal_mono (by simp) hfalse
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hreal
+    cases h1 : A (x, 2 * p.eval n) <;> cases h2 : b x <;> simp_all
+  ennreal_to_real at hfalse
   rw [Probability.PMF.toReal_true_eq_one_sub]
-  have hp0 : (0 : ℝ) < (p.eval n : ℕ) := by exact_mod_cast hp n
   have hlt : ((2 * p.eval n + 1 : ℕ) : ℝ)⁻¹ < 1 / ((p.eval n : ℕ) : ℝ) := by
     rw [← one_div]
-    apply one_div_lt_one_div_of_lt hp0
+    refine one_div_lt_one_div_of_lt (by exact_mod_cast hp n) ?_
     push_cast
     linarith
   linarith
-
-/-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
-mildly hard on average against deterministic polynomial-time heuristics. -/
-theorem not_mildlyHardOnAverageDet_of_mem_HeurP (b : List Bool → Bool)
-    (h : (⟨{x | b x = true}, Ensemble.uniform⟩ : DistProblem) ∈ HeurP) :
-    ¬ MildlyHardOnAverageDet (fun x => (b x).toNat) := by
-  rintro ⟨p, hp, hhard⟩
-  obtain ⟨H, hH, hsucc⟩ := exists_heuristic_of_mem_HeurP b h p hp
-  obtain ⟨n, hn⟩ := (hhard H hH).exists
-  exact absurd hn (not_le.mpr (hsucc n))
 
 /-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
 even infinitely-often mildly hard on average against deterministic polynomial-time heuristics. -/
 theorem not_mildlyHardOnAverageIO_of_mem_HeurP (b : List Bool → Bool)
     (h : (⟨{x | b x = true}, Ensemble.uniform⟩ : DistProblem) ∈ HeurP) :
     ¬ MildlyHardOnAverageIO (fun x => (b x).toNat) := by
+  rw [MildlyHardOnAverageIO, MildlyHardOnAverageIOWith, mildlyHardOnAverageFor_isDetPolyTime_iff]
   rintro ⟨p, hp, hhard⟩
   obtain ⟨H, hH, hsucc⟩ := exists_heuristic_of_mem_HeurP b h p hp
   obtain ⟨n, hn⟩ := (hhard H hH).exists
-  exact absurd hn (not_le.mpr (hsucc n))
+  exact not_lt_of_ge hn (hsucc n)
+
+/-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
+mildly hard on average against deterministic polynomial-time heuristics. -/
+theorem not_mildlyHardOnAverageDet_of_mem_HeurP (b : List Bool → Bool)
+    (h : (⟨{x | b x = true}, Ensemble.uniform⟩ : DistProblem) ∈ HeurP) :
+    ¬ MildlyHardOnAverageDet (fun x => (b x).toNat) :=
+  fun hhard => not_mildlyHardOnAverageIO_of_mem_HeurP b h hhard.mildlyHardOnAverageIO
 
 /-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
 mildly hard on average against strict PPT heuristics

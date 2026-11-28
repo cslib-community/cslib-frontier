@@ -11,9 +11,11 @@ public import CslibFrontier.Computability.Circuit.Boolean.CarrySave
 public import CslibFrontier.Computability.Circuit.Boolean.Comparison
 public import CslibFrontier.Computability.Circuit.Boolean.FanInTwo
 public import CslibFrontier.Computability.Circuit.Boolean.Threshold
+public import CslibFrontier.Computability.Circuit.Boolean.WordConstant
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Simulation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Threshold and majority circuits in `NC¹`
@@ -36,8 +38,6 @@ in De Morgan depth `O(d log F)` and size `O(s F log F)`
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.wordConstCircuit`: a constant `w`-bit word circuit of size `2` and depth
-  at most `1`.
 * `Cslib.Circuits.Boolean.thresholdDeMorganCircuit`: a De Morgan circuit of size `O(k log k)` and
   depth `O(log k)` computing `threshold k j`.
 * `Cslib.Circuits.Boolean.majorityDeMorganCircuit`: a De Morgan circuit of size `O(k log k)` and
@@ -73,36 +73,6 @@ in De Morgan depth `O(d log F)` and size `O(s F log F)`
 namespace Cslib.Circuits.Boolean
 
 variable {n m w : ℕ}
-
-/-! ### Constant word circuit -/
-
-/-- Constant `w`-bit word circuit on `n` inputs: computes `false` and `true` once and wires each
-output bit `i` to the corresponding constant gate. -/
-def wordConstCircuit (n : ℕ) (y : BitString w) : Circuit signature n w :=
-  (Circuit.wiring signature fun i : Fin w =>
-      if y i then Fin.natAdd 1 (0 : Fin 1) else Fin.castAdd 1 (0 : Fin 1)).comp
-    ((Circuit.oneGate (Op.const false) Fin.elim0).append
-      (Circuit.oneGate (Op.const true) Fin.elim0))
-
-/-- `wordConstCircuit n y` evaluates to the constant bit string `y` on every input. -/
-@[simp] theorem eval_wordConstCircuit (y : BitString w) (x : BitString n) :
-    (wordConstCircuit n y).eval interpretation x = y := by
-  funext i
-  rw [wordConstCircuit, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_append,
-    Function.comp_apply]
-  cases y i <;> rfl
-
-/-- `wordConstCircuit n y` uses `2` gates (one `false` and one `true` constant gate). -/
-@[simp] theorem size_wordConstCircuit (n : ℕ) (y : BitString w) :
-    (wordConstCircuit n y).size = 2 :=
-  rfl
-
-/-- `wordConstCircuit n y` has depth at most `1`. -/
-theorem depth_wordConstCircuit_le (n : ℕ) (y : BitString w) :
-    (wordConstCircuit n y).depth ≤ 1 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, zero_add]
-  exact (Circuit.depth_append_le _ _).trans (by simp)
 
 /-! ### Threshold and majority circuits in `NC¹` -/
 
@@ -142,31 +112,13 @@ theorem size_thresholdDeMorganCircuit_le (k j : ℕ) :
     (thresholdDeMorganCircuit k j).size ≤
       4 + k + 40 * k * Nat.clog 2 (k + 1) +
         Nat.clog 2 (k + 1) * (20 * Nat.clog 2 (k + 1) + 6) := by
-  dsimp [thresholdDeMorganCircuit]
-  split_ifs with h
-  · rw [Circuit.size_comp, Circuit.size_append, size_leCircuit, size_wordConstCircuit]
-    have hw := size_weightCircuit_le k
-    have hmax : max 1 k ≤ 1 + k := max_le (Nat.le_add_right 1 k) (Nat.le_add_left k 1)
-    nlinarith
-  · rw [Circuit.size_oneGate]
-    omega
+  have : max 1 k ≤ 1 + k := max_le (by omega) (by omega)
+  circuit_bound [thresholdDeMorganCircuit, size_leCircuit, size_wordConstCircuit]
 
 /-- `thresholdDeMorganCircuit k j` has depth at most `2 + 23 ⌈log₂ (k + 1)⌉`. -/
 theorem depth_thresholdDeMorganCircuit_le (k j : ℕ) :
     (thresholdDeMorganCircuit k j).depth ≤ 2 + 23 * Nat.clog 2 (k + 1) := by
-  dsimp [thresholdDeMorganCircuit]
-  split_ifs with h
-  · refine (Circuit.depth_comp_le _ _).trans ?_
-    have hle := depth_leCircuit_le (Nat.clog 2 (k + 1))
-    have happ := (Circuit.depth_append_le
-        (wordConstCircuit k ((BitString.equivFin (Nat.clog 2 (k + 1))).symm
-          ⟨j, (Nat.lt_succ_of_le h).trans_le (Nat.le_pow_clog one_lt_two (k + 1))⟩))
-        (weightCircuit k)).trans
-      (max_le ((depth_wordConstCircuit_le _ _).trans (Nat.le_add_right 1 _))
-        (depth_weightCircuit_le k))
-    omega
-  · rw [Circuit.depth_oneGate]
-    omega
+  circuit_bound [thresholdDeMorganCircuit]
 
 /-- **Logarithmic-depth majority circuit**: computes `majority k` over the De Morgan basis of
 fan-in two in size `O(k log k)` and depth `O(log k)`. -/
@@ -209,16 +161,15 @@ theorem threshold_mem_NC_one (t : ℕ → ℕ) :
   refine ⟨25, fun n =>
       4 + n + 40 * n * Nat.clog 2 (n + 1) +
         Nat.clog 2 (n + 1) * (20 * Nat.clog 2 (n + 1) + 6),
-    by fun_prop, fun n => ?_⟩
-  refine ⟨thresholdDeMorganCircuit n (t n), ?_, ?_,
-    size_thresholdDeMorganCircuit_le n (t n)⟩
-  · simpa only [Language.slice_ofSlices] using computes_thresholdDeMorganCircuit n (t n)
-  · have hclog : Nat.clog 2 (n + 1) ≤ Nat.log 2 n + 1 :=
-      (Nat.clog_le_iff_le_pow one_lt_two).2 (Nat.lt_pow_succ_log_self one_lt_two n)
-    have hd := depth_thresholdDeMorganCircuit_le n (t n)
-    dsimp only
-    rw [pow_one]
-    omega
+    by fun_prop, fun n => ⟨thresholdDeMorganCircuit n (t n),
+      by simpa only [Language.slice_ofSlices] using computes_thresholdDeMorganCircuit n (t n),
+      ?_, size_thresholdDeMorganCircuit_le n (t n)⟩⟩
+  have h1 := (Nat.clog_le_iff_le_pow one_lt_two).2 (Nat.lt_pow_succ_log_self one_lt_two n)
+  have h2 := depth_thresholdDeMorganCircuit_le n (t n)
+  rw [Nat.succ_eq_add_one, Nat.succ_eq_add_one] at h1
+  dsimp only
+  rw [pow_one]
+  omega
 
 /-- **Majority is in NC¹.** -/
 theorem majority_mem_NC_one : Language.ofSlices majority ∈ NC 1 :=
@@ -242,11 +193,7 @@ def Op.deMorganCircuit : (op : Op) → Circuit Boolean.signature op.arity 1
 theorem Op.computes_deMorganCircuit (op : Op) :
     op.deMorganCircuit.Computes Boolean.interpretation (single (interpretation op)) := by
   cases op with
-  | not =>
-    intro x
-    funext o
-    rw [Subsingleton.elim o 0]
-    rfl
+  | not => exact fun _ => funext fun o => Subsingleton.elim o 0 ▸ rfl
   | threshold m j => exact computes_thresholdDeMorganCircuit m j
 
 /-- The De Morgan circuit of a threshold operation of arity `k` uses `O(k log k)` gates. -/
@@ -255,9 +202,7 @@ theorem Op.size_deMorganCircuit_le (op : Op) :
       4 + op.arity + 40 * op.arity * Nat.clog 2 (op.arity + 1) +
         Nat.clog 2 (op.arity + 1) * (20 * Nat.clog 2 (op.arity + 1) + 6) := by
   cases op with
-  | not =>
-    simp only [deMorganCircuit, Circuit.size_oneGate]
-    omega
+  | not => simp only [deMorganCircuit, Circuit.size_oneGate]; omega
   | threshold m j => exact size_thresholdDeMorganCircuit_le m j
 
 /-- The De Morgan circuit of a threshold operation of arity `k` has depth at most
@@ -265,9 +210,7 @@ theorem Op.size_deMorganCircuit_le (op : Op) :
 theorem Op.depth_deMorganCircuit_le (op : Op) :
     op.deMorganCircuit.depth ≤ 2 + 23 * Nat.clog 2 (op.arity + 1) := by
   cases op with
-  | not =>
-    simp only [deMorganCircuit, Circuit.depth_oneGate]
-    omega
+  | not => simp only [deMorganCircuit, Circuit.depth_oneGate]; omega
   | threshold m j => exact depth_thresholdDeMorganCircuit_le m j
 
 /-- **De Morgan circuits simulate fan-in-bounded threshold circuits**: a circuit over the threshold
@@ -283,21 +226,19 @@ theorem exists_deMorgan_simulation_of_fanInAtMost {F : ℕ} (C : Circuit signatu
         Nat.clog 2 (F + 1) * (20 * Nat.clog 2 (F + 1) + 6)) ∧
       D.depth ≤ (2 + 23 * Nat.clog 2 (F + 1)) * C.depth := by
   have hlines := Program.fanInAtMost_iff.1 hF
-  refine ⟨C.simulate Op.deMorganCircuit, ?_, ?_, ?_⟩
-  · exact Circuit.eval_simulate _ _ Op.computes_deMorganCircuit
+  refine ⟨C.simulate Op.deMorganCircuit, Circuit.eval_simulate _ _ Op.computes_deMorganCircuit,
+    ?_, (Circuit.depth_simulate_le _ _).trans
+      (C.depthWith_le_mul_depth fun k => (Op.depth_deMorganCircuit_le _).trans ?_)⟩
   · rw [Circuit.size_simulate, Program.cost_eq_sum]
     refine (Finset.sum_le_sum (g := fun _ =>
         4 + F + 40 * F * Nat.clog 2 (F + 1) +
           Nat.clog 2 (F + 1) * (20 * Nat.clog 2 (F + 1) + 6)) fun k _ => ?_).trans_eq
       (by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, Circuit.size])
-    have hk : (C.program.lines k).op.arity ≤ F := hlines k
-    have hclog : Nat.clog 2 ((C.program.lines k).op.arity + 1) ≤ Nat.clog 2 (F + 1) :=
-      Nat.clog_mono_right 2 (Nat.add_le_add_right hk 1)
+    have hk := hlines k
+    have := Nat.clog_mono_right 2 (Nat.add_le_add_right hk 1)
     refine (Op.size_deMorganCircuit_le _).trans ?_
     gcongr
-  · refine (Circuit.depth_simulate_le _ _).trans
-      (C.depthWith_le_mul_depth fun k => (Op.depth_deMorganCircuit_le _).trans ?_)
-    have hk : (C.program.lines k).op.arity ≤ F := hlines k
+  · have := hlines k
     gcongr
 
 end Threshold
@@ -325,13 +266,8 @@ theorem ExtOp.size_majorityDeMorganCircuit_le (op : ExtOp) :
         Nat.clog 2 (op.arity + 1) * (20 * Nat.clog 2 (op.arity + 1) + 6) := by
   cases op with
   | ac op =>
-    rw [majorityDeMorganCircuit, Formula.size_toCircuit]
-    have h1 := Op.size_deMorganFormula_le op
-    have h2 : max 1 op.arity ≤ 1 + op.arity := max_le (Nat.le_add_right 1 _) (Nat.le_add_left _ 1)
-    change op.deMorganFormula.size ≤
-      4 + op.arity + 40 * op.arity * Nat.clog 2 (op.arity + 1) +
-        Nat.clog 2 (op.arity + 1) * (20 * Nat.clog 2 (op.arity + 1) + 6)
-    omega
+    have := Op.size_deMorganFormula_le op
+    circuit_bound [majorityDeMorganCircuit, ExtOp.arity]
   | gate m => exact Boolean.size_majorityDeMorganCircuit_le m
 
 /-- The De Morgan circuit of a `TC` operation of arity `k` has depth at most
@@ -340,11 +276,9 @@ theorem ExtOp.depth_majorityDeMorganCircuit_le (op : ExtOp) :
     op.majorityDeMorganCircuit.depth ≤ 2 + 23 * Nat.clog 2 (op.arity + 1) := by
   cases op with
   | ac op =>
-    refine (Formula.depth_toCircuit_le _).trans ((Op.depth_deMorganFormula_le op).trans ?_)
-    have hclog : Nat.clog 2 op.arity ≤ Nat.clog 2 (op.arity + 1) :=
-      Nat.clog_mono_right 2 (Nat.le_succ _)
-    change max 1 (Nat.clog 2 op.arity) ≤ 2 + 23 * Nat.clog 2 (op.arity + 1)
-    omega
+    have := Op.depth_deMorganFormula_le op
+    have := Nat.clog_mono_right 2 (Nat.le_succ op.arity)
+    circuit_bound [majorityDeMorganCircuit, ExtOp.arity]
   | gate m => exact Boolean.depth_majorityDeMorganCircuit_le m
 
 /-- **De Morgan circuits simulate fan-in-bounded majority circuits**: a circuit over the `TC` basis
@@ -383,8 +317,7 @@ theorem mem_NC_succ_of_threshold_fanInAtMost {L : Language Bool} {i c : ℕ} {s 
   obtain ⟨D, hDe, hDs, hDd⟩ := Threshold.exists_deMorgan_simulation_of_fanInAtMost C hCf
   refine ⟨D, fun x => (congrFun hDe x).trans (hCc x), ?_, ?_⟩
   · have hlog : 2 + 23 * Nat.clog 2 (F n + 1) ≤ (23 * e + 2) * (Nat.log 2 n + 1) := by
-      have h1 := he n
-      nlinarith
+      linarith [he n]
     calc D.depth ≤ (2 + 23 * Nat.clog 2 (F n + 1)) * C.depth := hDd
       _ ≤ ((23 * e + 2) * (Nat.log 2 n + 1)) * (c * (Nat.log 2 n + 1) ^ i) := by gcongr
       _ = c * (23 * e + 2) * (Nat.log 2 n + 1) ^ (i + 1) := by ring
@@ -400,8 +333,7 @@ theorem mem_NC_succ_of_majority_fanInAtMost {L : Language Bool} {i c : ℕ} {s F
       C.Computes (Unbounded.extInterpretation majority) (single (L.slice n)) ∧
       C.depth ≤ c * (Nat.log 2 n + 1) ^ i ∧ C.size ≤ s n ∧ C.FanInAtMost (F n)) :
     L ∈ NC (i + 1) := by
-  apply mem_NC_succ_of_threshold_fanInAtMost (c := c) (s := s) (F := F) hs hF
-  intro n
+  refine mem_NC_succ_of_threshold_fanInAtMost (c := c) hs hF fun n => ?_
   obtain ⟨C, hc, hd, hs, hf⟩ := hC n
   exact ⟨C.mapOp Threshold.ofMajority, hc.mapOp,
     by simpa using hd, by simpa using hs, by simpa using hf⟩

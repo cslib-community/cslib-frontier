@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.GetD
@@ -568,21 +569,9 @@ theorem exists_threshold_checkBranchFeasible_eq_true (N₀_branch : ℕ) {β₀ 
       let β := ParameterCheck.chooseBeta (Nat.clog 2 n')
         (branchMaxFactorIncidence n' eqs') (branchMaxFactorWidth n' eqs')
       1 ≤ β ∧ β ≤ β₀ ∧ checkBranchFeasible N₀_branch (n', eqs') = true := by
-  have hall : ∃ n_all : ℕ, 20 ≤ n_all ∧ ∀ β, 1 ≤ β → β ≤ β₀ → ∀ ⦃n b w M : ℕ⦄, n_all ≤ n →
-      1 ≤ b → b ≤ Nat.clog 2 n ^ β → 1 ≤ w → w ≤ Nat.clog 2 n ^ β →
-      n ≤ M → M ≤ b * n → ParameterCheck.checkScheduleFeasible n M b w β = true := by
-    induction β₀, hβ₀ using Nat.le_induction with
-    | base =>
-      obtain ⟨n₁, hn₁, hf₁⟩ := ParameterCheck.exists_checkScheduleFeasible_eq_true le_rfl
-      exact ⟨n₁, hn₁, fun β h1 hle => (show β = 1 by omega) ▸ hf₁⟩
-    | succ k _ ih =>
-      obtain ⟨n_k, hn_k, hf_k⟩ := ih
-      obtain ⟨n_s, _, hf_s⟩ := ParameterCheck.exists_checkScheduleFeasible_eq_true (Nat.succ_pos k)
-      refine ⟨max n_k n_s, le_trans hn_k (le_max_left _ _), fun β h1 hle n b w M hn => ?_⟩
-      rcases Nat.eq_or_lt_of_le hle with rfl | hlt
-      · exact hf_s (le_trans (le_max_right _ _) hn)
-      · exact hf_k β h1 (Nat.lt_succ_iff.mp hlt) (le_trans (le_max_left _ _) hn)
-  obtain ⟨n_all, _, hchk_all⟩ := hall
+  choose n_fn _ hf_fn using fun β =>
+    ParameterCheck.exists_checkScheduleFeasible_eq_true (le_max_left 1 β)
+  let n_all := (Finset.range (β₀ + 1)).sup n_fn
   refine ⟨max (max N₀_branch 20) n_all, le_max_left _ _, fun {n' eqs'} hn' hcan hvars hb hw => ?_⟩
   have hn_guard : N₀_branch ≤ n' := le_trans (le_trans (le_max_left _ _) (le_max_left _ _)) hn'
   have hn_20 : 20 ≤ n' := le_trans (le_trans (le_max_right _ _) (le_max_left _ _)) hn'
@@ -591,11 +580,18 @@ theorem exists_threshold_checkBranchFeasible_eq_true (N₀_branch : ℕ) {β₀ 
       (Nat.clog_mono_right 2 (by omega))
   obtain ⟨hβ1, hb_β, hw_β, hmin⟩ := ParameterCheck.chooseBeta_spec
     (b := branchMaxFactorIncidence n' eqs') (w := branchMaxFactorWidth n' eqs') hlam2
-  have hβ_le : ParameterCheck.chooseBeta (Nat.clog 2 n')
-      (branchMaxFactorIncidence n' eqs') (branchMaxFactorWidth n' eqs') ≤ β₀ := by
-    by_contra hgt; exact hmin β₀ hβ₀ (Nat.lt_of_not_ge hgt) ⟨hb, hw⟩
-  have hsched := hchk_all _ hβ1 hβ_le (le_trans (le_max_right _ _) hn')
-    (one_le_branchMaxFactorIncidence n' eqs') hb_β (one_le_branchMaxFactorWidth n' eqs') hw_β
+  set β := ParameterCheck.chooseBeta (Nat.clog 2 n')
+    (branchMaxFactorIncidence n' eqs') (branchMaxFactorWidth n' eqs')
+  have hβ_le : β ≤ β₀ := by
+    by_contra hgt
+    exact hmin β₀ hβ₀ (Nat.lt_of_not_ge hgt) ⟨hb, hw⟩
+  have hn_fn : n_fn β ≤ n' :=
+    (Finset.le_sup (f := n_fn) (Finset.mem_range.mpr (by omega))).trans
+      ((le_max_right _ _).trans hn')
+  have hf_β := hf_fn β
+  rw [max_eq_right hβ1] at hf_β
+  have hsched := hf_β hn_fn (one_le_branchMaxFactorIncidence n' eqs') hb_β
+    (one_le_branchMaxFactorWidth n' eqs') hw_β
     (le_branchAugmentedIncidence n' eqs') (branchAugmentedIncidence_le_mul n' eqs')
   refine ⟨hβ1, hβ_le, ?_⟩; unfold checkBranchFeasible
   simp only [Bool.and_eq_true, decide_eq_true_eq, checkVarsLt_eq_true_iff,
@@ -614,19 +610,6 @@ private theorem spc_map {α β γ : Type} {encI : α ↪ List Bool} {encA : β �
     (hf : ComputableInPolyTime f (encPair encI encA) encB) :
     ComputableInPolyTime (fun a => (l a).map fun x => f (a, x)) encI (encList encB) :=
   mapWithInput (f := fun a x => f (a, x)) hl hf
-
-private theorem unaryFoldMax (init : ℕ) :
-    ComputableInPolyTime (fun l : List ℕ => l.foldl max init) (encList encUnary) encUnary := by
-  refine foldl' (encA := encUnary) (encL := encList encUnary) (encB := encUnary)
-    (list := id) (init := fun _ => init) (step := max)
-    id' (const init) (of_tidy .unary_max) (B := fun l => init + (encList encUnary l).length)
-    ((PolyBounded.const init).add .self) (fun l i _ => ?_)
-  simp only [encUnary_apply, List.length_replicate]
-  refine (List.max_le_iff (l := _ :: _) (by simp)).mpr ?_
-  simp only [List.mem_cons, forall_eq_or_imp]; refine ⟨Nat.le_add_right _ _, fun x hx => ?_⟩
-  have hsz := SizedListEncoding.length_elem_le (encA := encUnary) (encL := encList encUnary)
-    l x (List.mem_of_mem_take hx)
-  simp only [encUnary_apply, List.length_replicate] at hsz; omega
 
 @[fun_prop]
 theorem computableInPolyTime_checkVarsLt :
@@ -665,10 +648,10 @@ private theorem computableInPolyTime_checkCanonicalEquation :
 
 @[fun_prop]
 theorem computableInPolyTime_checkCanonicalSystem :
-    ComputableInPolyTime checkCanonicalSystem encSparseSystem encBool := by
-  let encEq := encList (encList encNat)
-  exact allWithEncoding
-    (computableInPolyTime_checkCanonicalEquation.comp' (snd (encList encEq) encEq)) id' id'
+    ComputableInPolyTime checkCanonicalSystem encSparseSystem encBool :=
+  allWithEncoding
+    (computableInPolyTime_checkCanonicalEquation.comp'
+      (snd (encList (encList (encList encNat))) _)) id' id'
 
 @[fun_prop]
 theorem computableInPolyTime_scopeWidthOn :
@@ -683,9 +666,8 @@ theorem computableInPolyTime_scopeWidthOn :
 
 @[fun_prop]
 theorem computableInPolyTime_sysMaxDegree :
-    ComputableInPolyTime sysMaxDegree encSparseSystem encUnary := by
-  let encM := encList encNat
-  exact (unaryFoldMax 0).comp' ((map (length_list encNat)).comp' (of_tidy (.flatten encM)))
+    ComputableInPolyTime sysMaxDegree encSparseSystem encUnary :=
+  (unary_foldl_max 0).comp' ((map (length_list encNat)).comp' (flatten (encList encNat)))
 
 @[fun_prop]
 theorem computableInPolyTime_branchMaxFactorIncidence :
@@ -694,7 +676,7 @@ theorem computableInPolyTime_branchMaxFactorIncidence :
   let encS := encList (encList (encList encNat)); let encIn := encPair encUnary encS
   have hr := range.comp' (fst encUnary encS); have hvb := unary_to_binary.comp' (snd encIn encUnary)
   have hvd := computableInPolyTime_varDegree.comp' (hvb.prod (fst encIn encUnary).snd')
-  have hmax := (unaryFoldMax 0).comp' (spc_map hr hvd)
+  have hmax := (unary_foldl_max 0).comp' (spc_map hr hvd)
   exact unary_to_binary.comp' (unary_add.comp' (hmax.prod (const 1)))
 
 @[fun_prop]
@@ -703,7 +685,7 @@ theorem computableInPolyTime_branchMaxFactorWidth :
       (encPair encUnary encSparseSystem) encNat := by
   let eEq := encList (encList encNat); let eS := encList eEq; let eI := encPair encUnary eS
   have hsc := computableInPolyTime_scopeWidthOn.comp' (((fst eI eEq).fst').prod (snd eI eEq))
-  exact unary_to_binary.comp' ((unaryFoldMax 1).comp' (spc_map (snd encUnary eS) hsc))
+  exact unary_to_binary.comp' ((unary_foldl_max 1).comp' (spc_map (snd encUnary eS) hsc))
 
 @[fun_prop]
 theorem computableInPolyTime_branchAugmentedIncidence :
@@ -712,7 +694,8 @@ theorem computableInPolyTime_branchAugmentedIncidence :
   let eEq := encList (encList encNat); let eS := encList eEq; let eI := encPair encUnary eS
   have hsc := computableInPolyTime_scopeWidthOn.comp' (((fst eI eEq).fst').prod (snd eI eEq))
   have hl := spc_map (snd encUnary eS) (unary_to_binary.comp' hsc)
-  have hsum := (of_tidy .binary_sum).comp' hl; have hnb := unary_to_binary.comp' (fst encUnary eS)
+  have hsum := ComputableInPolyTime.binary_sum.comp' hl
+  have hnb := unary_to_binary.comp' (fst encUnary eS)
   exact binary_add.comp' (hsum.prod hnb)
 
 @[fun_prop]
@@ -720,19 +703,18 @@ theorem computableInPolyTime_prepareBranchEvalInput :
     ComputableInPolyTime prepareBranchEvalInput
       (encPair encUnary encSparseSystem) encBranchEvalInput := by
   let encSys := encList (encList (encList encNat))
-  have hn_u := fst encUnary encSys; have hn_b := unary_to_binary.comp' hn_u
-  have heqs := snd encUnary encSys; have hk' := computableInPolyTime_sysMaxDegree.comp' heqs
-  have hclog := binary_clog_two_nat.comp' hn_b
-  have hβ := ParameterCheck.computableInPolyTime_chooseBeta_apply hclog
+  have hn_u := fst encUnary encSys
+  have hn_b := unary_to_binary.comp' hn_u
+  have heqs := snd encUnary encSys
+  have hk' := computableInPolyTime_sysMaxDegree.comp' heqs
+  have hβ := ParameterCheck.computableInPolyTime_chooseBeta_apply (binary_clog_two_nat.comp' hn_b)
     computableInPolyTime_branchMaxFactorIncidence computableInPolyTime_branchMaxFactorWidth
-  have hr := ParameterCheck.computableInPolyTime_numGroups.comp' hn_b
-  have hQ := ParameterCheck.computableInPolyTime_numNodes.comp' hn_b
-  have hR := ParameterCheck.computableInPolyTime_rowBound_apply hβ hn_b
-  have hA := ParameterCheck.computableInPolyTime_intervalStart_apply hβ hn_b
+  have hsched :=
+    (ParameterCheck.computableInPolyTime_computeScheduleParams_apply hβ hn_b).snd'.snd'
   exact ((hn_u.prod hk').prod ((computableInPolyTime_branchMaxFactorIncidence.prod
     (computableInPolyTime_branchMaxFactorWidth.prod
       (computableInPolyTime_branchAugmentedIncidence.prod hβ))).prod
-    ((hr.prod (hQ.prod (hR.prod hA))).prod heqs))).of_enc_eq fun _ => rfl
+    (hsched.prod heqs))).of_enc_eq fun _ => rfl
 
 @[fun_prop]
 theorem computableInPolyTime_checkBranchFeasible (N₀_branch : ℕ) :
@@ -775,12 +757,7 @@ theorem computableInPolyTime_checkTopFeasible (N₀_top : ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_toBranchInput :
     ComputableInPolyTime toBranchInput encSparseSystemInput HeavyBranchFold.encBranchInput := by
-  unfold toBranchInput encSparseSystemInput HeavyBranchFold.encBranchInput
-  let eS := encList (encList (encList encNat)); let eP := encPair encUnary (encPair encNat encNat)
-  have hn_u := fst encUnary (encPair eP eS); have hrest := snd encUnary (encPair eP eS)
-  have hsb := (snd encUnary (encPair encNat encNat)).comp' ((fst eP eS).comp' hrest)
-  have hb₀ := (snd encNat encNat).comp' hsb; have heqs := (snd eP eS).comp' hrest
-  exact hn_u.prod ((HeavyBranchFold.computableInPolyTime_heavyVarList_comp hn_u hb₀ heqs).prod heqs)
+  fun_prop [toBranchInput]
 
 @[fun_prop]
 theorem computableInPolyTime_mkPaperSparseInput :
@@ -1242,14 +1219,7 @@ theorem computableInPolyTime_compileContextParityInput (k_deg : ℕ)
     (hb : ComputableInPolyTime b₀Of encC encNat) (hφ : ComputableInPolyTime φOf encC encCNF) :
     ComputableInPolyTime (compileContextParityInput k_deg nOf sDivOf b₀Of φOf)
       (encContextRows encC) encSparseSystemInput := by
-  unfold compileContextParityInput encSparseSystemInput
-  have hctx := ComputableInPolyTime.fst encC (encList encBits)
-  have hrows := ComputableInPolyTime.snd encC (encList encBits)
-  have hk : ComputableInPolyTime (fun _ : C × List (List Bool) => k_deg)
-      (encPair encC (encList encBits)) encUnary := ComputableInPolyTime.const k_deg
-  have hsys := (computableInPolyTime_compileParitySystemBounded k_deg (encRow := encBits)).comp'
-    ((hφ.comp' hctx).prod hrows)
-  exact (hn.comp' hctx).prod ((hk.prod ((hs.comp' hctx).prod (hb.comp' hctx))).prod hsys)
+  fun_prop [compileContextParityInput]
 
 /-- **Uniform `NativeCertificate` for `countContextParity`** matching `GreedyContext` (§6.3). -/
 noncomputable def contextParityCertificate (N₀_top N₀_branch k_deg : ℕ)

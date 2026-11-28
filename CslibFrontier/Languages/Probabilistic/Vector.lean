@@ -31,14 +31,21 @@ values with the product distribution `PMF.pi`.
 * `Cslib.OracleComp.replicateFin_eq_pi`: `replicateFin` is the constant-family specialization of
   `pi`.
 * `Cslib.OracleComp.map_ofFn_replicateFin`: agreement with list-valued repetition.
+* `Cslib.OracleComp.map_ofFn_pi`: listing a non-dependent tuple is a list traversal `List.mapM`.
 * `Cslib.OracleComp.mem_supportWith_pi_iff`: the possible results of `pi` over any interface are
   coordinatewise.
 * `Cslib.ProbComp.mem_support_pi_iff`, `Cslib.ProbComp.mem_support_replicateFin_iff`: its special
   case for closed programs, even for infinite types.
+* `Cslib.ProbComp.eval_pi_eq_piFin`, `Cslib.ProbComp.eval_pi_map_ofFn`: homogeneous `pi` evaluates
+  to `PMF.piFin` without finiteness assumptions and agrees with `(List.finRange m).mapM` under
+  `List.ofFn`.
 * `Cslib.ProbComp.eval_pi`, `Cslib.ProbComp.eval_replicateFin`: independent finite coordinates have
   the product law `PMF.pi`.
+* `Cslib.ProbComp.eval_pi_uniform`: independent uniform coordinates are uniform on the tuple.
 * `Cslib.ProbComp.eval_pi_map`, `Cslib.ProbComp.eval_replicateFin_map_coords`: coordinatewise maps
   commute with `pi` and `replicateFin`.
+* `Cslib.ProbComp.eval_bind_pi_update`: resampling one coordinate of `pi programs` from its own
+  program leaves the law unchanged.
 * `Cslib.ProbComp.eval_bind_restrict_pi`, `Cslib.ProbComp.eval_map_restrict_pi`: restricting
   `eval (pi programs)` to `I : Finset (Fin m)` runs only the programs in `I`.
 * `Cslib.ProbComp.eval_replicateFin_map`: list-valued encodings preserve the joint law.
@@ -67,10 +74,13 @@ def pi : {m : ℕ} → {α : Fin m → Type v} →
   | m + 1, _, programs =>
     programs 0 >>= fun first => Fin.cons first <$> pi (fun i : Fin m => programs i.succ)
 
+/-- Running an empty dependent tuple of oracle computations returns `fun i => i.elim0`. -/
 @[simp] theorem pi_zero {α : Fin 0 → Type v}
     (programs : (i : Fin 0) → OracleComp spec (α i)) :
     pi programs = pure (fun i => i.elim0) := rfl
 
+/-- Running a nonempty dependent tuple of oracle computations runs coordinate `0` and prepends its
+result to the remaining coordinates. -/
 theorem pi_succ {m : ℕ} {α : Fin (m + 1) → Type v}
     (programs : (i : Fin (m + 1)) → OracleComp spec (α i)) :
     pi programs =
@@ -85,14 +95,14 @@ def piRestrict : {m : ℕ} → {α : Fin m → Type v} → (I : Finset (Fin m)) 
     let I' : Finset (Fin m) := Finset.univ.filter (fun j : Fin m => j.succ ∈ I)
     let restProg : (j : I') → OracleComp spec (α j.1.succ) :=
       fun j => programs ⟨j.1.succ, (Finset.mem_filter.mp j.2).2⟩
-    if h0 : (0 : Fin (m + 1)) ∈ I then
-      programs ⟨0, h0⟩ >>= fun first =>
-        (fun (rest : (j : I') → α j.1.succ) (i : I) =>
-          Fin.cases
-            (motive := fun k => k ∈ I → α k)
-            (fun _ => first)
-            (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-            i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
+    if h0 : (0 : Fin (m + 1)) ∈ I then do
+      let first ← programs ⟨0, h0⟩
+      (fun (rest : (j : I') → α j.1.succ) (i : I) =>
+        Fin.cases
+          (motive := fun k => k ∈ I → α k)
+          (fun _ => first)
+          (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
+          i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
     else
       (fun (rest : (j : I') → α j.1.succ) (i : I) =>
         Fin.cases
@@ -109,9 +119,12 @@ def replicateFin (count : ℕ) (program : OracleComp spec α) : OracleComp spec 
 theorem replicateFin_eq_pi (count : ℕ) (program : OracleComp spec α) :
     replicateFin count program = pi (fun _ : Fin count => program) := rfl
 
+/-- Zero repetitions of `program` return `Fin.elim0`. -/
 @[simp] theorem replicateFin_zero (program : OracleComp spec α) :
     replicateFin 0 program = pure Fin.elim0 := rfl
 
+/-- Running `count + 1` repetitions executes `program` once and prepends its result to `count`
+remaining repetitions. -/
 theorem replicateFin_succ (count : ℕ) (program : OracleComp spec α) :
     replicateFin (count + 1) program =
       (program >>= fun first => Fin.cons first <$> replicateFin count program) := rfl
@@ -124,6 +137,16 @@ theorem replicateFin_succ (count : ℕ) (program : OracleComp spec α) :
   | succ count ih =>
     simp [replicateFin_succ, replicate_succ, map_bind, Functor.map_map, List.ofFn_succ, ← ih]
 
+/-- Listing the coordinates of a tuple of runs with one result type is traversing the indices in
+order. -/
+theorem map_ofFn_pi {m : ℕ} (programs : Fin m → OracleComp spec α) :
+    List.ofFn <$> pi programs = (List.finRange m).mapM programs := by
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    rw [pi_succ, List.finRange_succ, List.mapM_cons, List.mapM_map, ← ih]
+    simp [map_bind, Functor.map_map, List.ofFn_succ, Function.comp_def]
+
 /-- A tuple is a possible result of `pi programs` exactly when each coordinate is a possible
 result of its program. -/
 theorem mem_supportWith_pi_iff (possible : (q : Query) → Set (spec q)) {m : ℕ}
@@ -131,21 +154,12 @@ theorem mem_supportWith_pi_iff (possible : (q : Query) → Set (spec q)) {m : �
     r ∈ supportWith possible (pi programs) ↔ ∀ i, r i ∈ supportWith possible (programs i) := by
   induction m with
   | zero =>
-    have hr : r = fun i => i.elim0 := funext fun i => i.elim0
-    subst hr
+    obtain rfl : r = fun i => i.elim0 := funext fun i => i.elim0
     simp
   | succ m ih =>
     simp only [pi_succ, mem_supportWith_bind_iff, mem_supportWith_map_iff, ih]
-    constructor
-    · rintro ⟨first, hfirst, rest, hrest, rfl⟩ i
-      refine Fin.cases ?_ ?_ i
-      · simpa using hfirst
-      · intro j
-        simpa using hrest j
-    · intro hr
-      refine ⟨r 0, hr 0, fun j => r j.succ, fun j => hr j.succ, ?_⟩
-      ext i
-      exact Fin.cases rfl (fun _ => rfl) i
+    refine ⟨fun ⟨first, h0, rest, hs, hEq⟩ => hEq ▸ Fin.cases h0 hs, fun hr => ?_⟩
+    exact ⟨r 0, hr 0, fun j => r j.succ, fun j => hr j.succ, funext (Fin.cases rfl fun _ => rfl)⟩
 
 end OracleComp
 
@@ -180,15 +194,12 @@ theorem eval_pi_map {m : ℕ} {α β : Fin m → Type}
   induction m with
   | zero =>
     simp only [OracleComp.pi_zero, eval_pure, PMF.pure_map]
-    congr 1
-    ext i
-    exact i.elim0
+    exact congrArg PMF.pure (funext fun i => i.elim0)
   | succ m ih =>
     simp only [OracleComp.pi_succ, eval_bind, eval_map, ih, PMF.bind_map, PMF.map_bind,
       PMF.map_comp]
-    refine congrArg _ (funext fun first => congrArg (PMF.map · _) (funext fun rest => ?_))
-    ext i
-    exact Fin.cases rfl (fun _ => rfl) i
+    exact congrArg _ (funext fun _ => congrArg (PMF.map · _)
+      (funext fun _ => funext (Fin.cases rfl fun _ => rfl)))
 
 /-- Evaluating `pi` on pure coordinate programs yields `PMF.pure`. -/
 @[simp] theorem eval_pi_pure {m : ℕ} {α : Fin m → Type} (x : (i : Fin m) → α i) :
@@ -255,6 +266,43 @@ theorem eval_pi_comm {m k : ℕ} {α : Fin m → Fin k → Type}
     ext i s
     exact Fin.cases rfl (fun _ => rfl) s
 
+/-- Resampling one coordinate of `pi programs` from its own program leaves the law unchanged. -/
+theorem eval_bind_pi_update {m : ℕ} {α : Fin m → Type} (programs : (i : Fin m) → ProbComp (α i))
+    (j : Fin m) :
+    (eval (programs j)).bind (fun t => (eval (OracleComp.pi programs)).map fun r =>
+      Function.update r j t) = eval (OracleComp.pi programs) := by
+  induction m with
+  | zero => exact j.elim0
+  | succ m ih =>
+    cases j using Fin.cases with
+    | zero =>
+      simp only [OracleComp.pi_succ, eval_bind, eval_map, PMF.map_bind, PMF.map_comp,
+        Function.comp_def, Fin.update_cons_zero, PMF.bind_const]
+    | succ k =>
+      simp only [OracleComp.pi_succ, eval_bind, eval_map, PMF.map_bind, PMF.map_comp,
+        Function.comp_def, ← Fin.cons_update]
+      rw [PMF.bind_comm]
+      refine congrArg (eval (programs 0)).bind (funext fun x => ?_)
+      conv_rhs => rw [← ih (fun i => programs i.succ) k]
+      simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+
+/-- Evaluating a homogeneous `OracleComp.pi` run produces `PMF.piFin` of the coordinate laws,
+without any finiteness assumption on `α`. -/
+theorem eval_pi_eq_piFin :
+    ∀ {m : ℕ} (programs : Fin m → ProbComp α),
+      eval (OracleComp.pi programs) = Probability.PMF.piFin fun i => eval (programs i)
+  | 0, _ => rfl
+  | _ + 1, programs => by
+    simp only [OracleComp.pi_succ, Probability.PMF.piFin, eval_bind, eval_map,
+      eval_pi_eq_piFin (fun i => programs i.succ)]
+
+/-- Mapping `List.ofFn` over `eval (OracleComp.pi programs)` has the same law as
+`eval ((List.finRange m).mapM programs)`. -/
+theorem eval_pi_map_ofFn {m : ℕ} (programs : Fin m → ProbComp α) :
+    (eval (OracleComp.pi programs)).map List.ofFn =
+      eval ((List.finRange m).mapM programs) := by
+  rw [← eval_map, OracleComp.map_ofFn_pi]
+
 /-- When each coordinate type is finite, `eval (pi programs)` is the independent product
 distribution `PMF.pi`. -/
 theorem eval_pi {m : ℕ} {α : Fin m → Type} [∀ i, Finite (α i)]
@@ -263,8 +311,7 @@ theorem eval_pi {m : ℕ} {α : Fin m → Type} [∀ i, Finite (α i)]
   induction m with
   | zero =>
     ext r
-    have hr : r = fun i => i.elim0 := funext fun i => i.elim0
-    subst hr
+    obtain rfl : r = fun i => i.elim0 := funext fun i => i.elim0
     simp
   | succ m ih =>
     rw [OracleComp.pi_succ, eval_bind]
@@ -273,22 +320,18 @@ theorem eval_pi {m : ℕ} {α : Fin m → Type} [∀ i, Finite (α i)]
     rw [Fin.prod_univ_succ, tsum_eq_single (r 0)]
     · congr 1
       rw [tsum_eq_single (fun i : Fin m => r i.succ)]
-      · rw [ite_eq_left]
-        ext i
-        exact Fin.cases rfl (fun _ => rfl) i
-      · intro b hb
-        rw [ite_eq_right]
-        intro hEq
-        apply hb
-        funext i
-        simpa using (congrFun hEq (Fin.succ i)).symm
+      · exact ite_eq_left (funext (Fin.cases rfl fun _ => rfl))
+      · exact fun b hb => ite_eq_right fun hEq =>
+          hb (funext fun i => by simpa using (congrFun hEq i.succ).symm)
     · intro a ha
-      simp only [mul_eq_zero, tsum_eq_zero_iff]
-      right
-      intro b
-      rw [ite_eq_right]
-      intro hEq
+      refine mul_eq_zero_of_right _ (tsum_eq_zero_iff.mpr fun b => ite_eq_right fun hEq => ?_)
       exact ha (by simpa using (congrFun hEq 0).symm)
+
+/-- Independent uniform coordinates give the uniform distribution on tuples: `eval` of the
+coordinatewise uniform programs is `PMF.uniformOfFintype` on the product. -/
+theorem eval_pi_uniform {m : ℕ} {α : Fin m → Type} [∀ i, Fintype (α i)] [∀ i, Nonempty (α i)] :
+    eval (OracleComp.pi fun i => uniform (α i)) = PMF.uniformOfFintype ((i : Fin m) → α i) := by
+  simp only [eval_pi, eval_uniform, Probability.PMF.pi_uniformOfFintype]
 
 /-- Binding `eval (pi programs)` to a continuation that depends only on `I.restrict r` is
 equivalent to running only the programs in `I` via `piRestrict`. No finiteness assumption on `α`
@@ -304,51 +347,31 @@ theorem eval_bind_restrict_pi {m : ℕ} {α : Fin m → Type} {β : Type}
     exact congrArg k (funext fun i => i.1.elim0)
   | succ m ih =>
     let I' : Finset (Fin m) := Finset.univ.filter (fun j : Fin m => j.succ ∈ I)
+    have htail (z : (0 : Fin (m + 1)) ∈ I → α 0) (first : α 0)
+        (hz : ∀ h0 : (0 : Fin (m + 1)) ∈ I, first = z h0) :
+        (eval (OracleComp.pi fun i : Fin m => programs i.succ)).bind
+            (fun x => k (I.restrict (Fin.cons first x))) =
+          (eval (OracleComp.piRestrict (α := fun j => α j.succ) I'
+            (fun j => programs j.1.succ))).bind fun rest =>
+            k fun i => Fin.cases (motive := fun idx => idx ∈ I → α idx) z
+              (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩) i.1 i.2 := by
+      refine (congrArg (eval _).bind (funext fun rest => ?_)).trans
+        (ih (α := fun j => α j.succ) I' (fun j => programs j.succ) _)
+      exact congrArg k (funext fun ⟨i, hi⟩ =>
+        Fin.cases (motive := fun idx => ∀ h : idx ∈ I, Fin.cons first rest idx =
+          Fin.cases (motive := fun idx => idx ∈ I → α idx) z
+            (fun j hj => I'.restrict rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
+            idx h) hz (fun _ _ => rfl) i hi)
     simp only [OracleComp.pi_succ, OracleComp.piRestrict, eval_bind, eval_map, PMF.bind_bind,
       PMF.bind_map]
     by_cases h0 : (0 : Fin (m + 1)) ∈ I
     · simp only [dite_eq_left h0, eval_bind, eval_map, PMF.bind_bind, PMF.bind_map,
         Function.comp_def]
-      refine congrArg _ (funext fun first => ?_)
-      have hih := ih (α := fun j => α j.succ) I' (fun j => programs j.succ) (fun rest =>
-        k (fun i =>
-          Fin.cases (motive := fun idx => idx ∈ I → α idx)
-            (fun _ => first)
-            (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-            i.1 i.2))
-      refine (congrArg (eval _).bind (funext fun rest => ?_)).trans hih
-      exact congrArg k (funext fun ⟨i, hi⟩ =>
-        Fin.cases (motive := fun idx => ∀ h : idx ∈ I, Fin.cons first rest idx =
-          Fin.cases (motive := fun idx => idx ∈ I → α idx) (fun _ => first)
-            (fun j hj => I'.restrict rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩) idx h)
-          (fun _ => rfl) (fun _ _ => rfl) i hi)
+      exact congrArg _ (funext fun first => htail (fun _ => first) first fun _ => rfl)
     · simp only [dite_eq_right h0, eval_map, PMF.bind_map, Function.comp_def]
-      have hconst : ∀ first : α 0,
-          (eval (OracleComp.pi fun i : Fin m => programs i.succ)).bind
-            (fun x => k (I.restrict (Fin.cons first x))) =
-          (eval (OracleComp.piRestrict (α := fun j => α j.succ) I'
-            (fun j => programs j.1.succ))).bind
-            (fun rest =>
-              k (fun i =>
-                Fin.cases (motive := fun idx => idx ∈ I → α idx)
-                  (fun hk => (h0 hk).elim)
-                  (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-                  i.1 i.2)) := by
-        intro first
-        have hih := ih (α := fun j => α j.succ) I' (fun j => programs j.succ) (fun rest =>
-          k (fun i =>
-            Fin.cases (motive := fun idx => idx ∈ I → α idx)
-              (fun hk => (h0 hk).elim)
-              (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-              i.1 i.2))
-        refine (congrArg (eval _).bind (funext fun rest => ?_)).trans hih
-        exact congrArg k (funext fun ⟨i, hi⟩ =>
-          Fin.cases (motive := fun idx => ∀ h : idx ∈ I, Fin.cons first rest idx =
-            Fin.cases (motive := fun idx => idx ∈ I → α idx) (fun hk => (h0 hk).elim)
-              (fun j hj => I'.restrict rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-                idx h)
-            (fun h => (h0 h).elim) (fun _ _ => rfl) i hi)
-      rw [congrArg (eval (programs 0)).bind (funext hconst), PMF.bind_const]
+      rw [congrArg (eval (programs 0)).bind
+        (funext fun first => htail (fun hk => (h0 hk).elim) first fun hk => (h0 hk).elim),
+        PMF.bind_const]
       rfl
 
 /-- Restricting `eval (pi programs)` to a subset `I : Finset (Fin m)` has the same law as

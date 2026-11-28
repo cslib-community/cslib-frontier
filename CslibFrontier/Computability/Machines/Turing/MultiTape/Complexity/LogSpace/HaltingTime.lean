@@ -18,8 +18,10 @@ A nondeterministic machine whose computation paths all halt, and whose computati
 stay within space `s`, halts within as many steps as it has reachable views: at most
 `2 ^ (2 * coreLengthBound k State n s + 1)` on an input of length `n`
 (`Turing.MultiTapeNTM.runsInTime_of_runsInSpace`). Under a logarithmic space bound this is
-polynomial in `n` (`Turing.MultiTapeNTM.exists_runsInTime_polynomial_of_runsInSpace_log`), so for
-logarithmic-space machines "every branch halts" already gives a polynomial clock.
+polynomial in `n`: halting within `Turing.polyClock d n = 2 * (2 * (n + 1)) ^ d` steps for an
+exponent `d` depending only on the machine and the space constant
+(`Turing.MultiTapeNTM.exists_runsInTime_polynomial_of_runsInSpace_log`). So for logarithmic-space
+machines "every branch halts" already gives a polynomial clock.
 
 The argument is the classical one [Sipser, Section 8.4][Sipser2013]: the views along a
 computation path form a walk of views (`Turing.MultiTapeNTM.ViewRep.step`); a running path longer
@@ -65,8 +67,7 @@ theorem exists_viewChain (p : ntm.RunPath input) (hp : p.head = ntm.initCfg inpu
     have hne : views ≠ [] := by rintro rfl; simp at hlen
     have hlast : ViewRep (views.getLast hne) p.last := by
       have := hrep (views.length - 1) (by omega)
-      rw [List.getLast_eq_getElem]
-      rw [RelSeries.last]
+      rw [List.getLast_eq_getElem, RelSeries.last]
       convert this using 2
       ext; simp; omega
     change ntm.Step p.last c at hc
@@ -84,12 +85,10 @@ theorem exists_viewChain (p : ntm.RunPath input) (hp : p.head = ntm.initCfg inpu
         simp only [ViewStep, hlast.state.trans hs]
         exact ⟨action, by rwa [hin, hwork], rfl⟩
     refine ⟨views ++ [next], by simp [hlen], ?_, ?_, fun i hi => ?_⟩
-    · exact hchain.append (.singleton _) (by
-        intro x hx y hy
-        simp only [List.getLast?_eq_some_getLast hne, Option.mem_def, Option.some.injEq] at hx
-        simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hy
-        subst hx hy
-        exact hstep)
+    · exact hchain.append (.singleton _) fun x hx y hy => by
+        simp only [List.getLast?_eq_some_getLast hne, List.head?_cons, Option.mem_def,
+          Option.some.injEq] at hx hy
+        exact hx ▸ hy ▸ hstep
     · cases views with
       | nil => contradiction
       | cons => simpa using hhead
@@ -153,9 +152,8 @@ theorem runsInTime_of_runsInSpace {s t : ℕ} (hs : ntm.RunsInSpace input s)
       Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite := by
     intro finite hf
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hf
-    have := (hchain.relatesInSteps_getElem 0 j (by omega)).reflTransGen
-    simp only [Nat.zero_add, h0] at this
-    exact this
+    simpa only [Nat.zero_add, h0] using
+      (hchain.relatesInSteps_getElem 0 j (by omega)).reflTransGen
   -- more views than reachable views: some view repeats
   have hnotnodup : ¬ views.Nodup := fun hnodup => by
     have := length_le_of_nodup_reachable hs hnodup hreach
@@ -172,9 +170,7 @@ theorem runsInTime_of_runsInSpace {s t : ℕ} (hs : ntm.RunsInSpace input s)
   -- the cycle at the repeated view, pumped to length at least `t`
   have hpre :
       Relation.RelatesInSteps ntm.ViewStep (ntm.initView input) (views[i]'(by omega)) i := by
-    have := hchain.relatesInSteps_getElem 0 i (by omega)
-    simp only [Nat.zero_add, h0] at this
-    exact this
+    simpa only [Nat.zero_add, h0] using hchain.relatesInSteps_getElem 0 i (by omega)
   have hcycle : Relation.RelatesInSteps ntm.ViewStep (views[i]'(by omega)) (views[i]'(by omega))
       (j - i) := by
     have := hchain.relatesInSteps_getElem i (j - i) (by omega)
@@ -190,11 +186,11 @@ theorem runsInTime_of_runsInSpace {s t : ℕ} (hs : ntm.RunsInSpace input s)
 /-- **Logarithmic space gives a polynomial clock.** For every space constant `c` there is an
 exponent `d` such that on every input of length `n`, if every computation path stays within space
 `c * (log₂ n + 1)` and every computation path halts within some time, then every computation path
-halts within `2 * (2 * (n + 1)) ^ d` steps. -/
+halts within `polyClock d n` steps. -/
 theorem exists_runsInTime_polynomial_of_runsInSpace_log (ntm : MultiTapeNTM k Bool State)
     (c : ℕ) : ∃ d, ∀ {input : List Bool} {t : ℕ},
       ntm.RunsInSpace input (c * (Nat.log2 input.length + 1)) → ntm.RunsInTime input t →
-        ntm.RunsInTime input (2 * (2 * (input.length + 1)) ^ d) :=
+        ntm.RunsInTime input (polyClock d input.length) :=
   ⟨_, fun hs ht =>
     (runsInTime_of_runsInSpace hs ht).mono (two_pow_coreLengthBound_log_le k State c _)⟩
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Balanced
 public import CslibFrontier.Computability.Circuit.Boolean.Comparison
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Tournaments: selecting a record with the least key
@@ -114,14 +115,11 @@ records. -/
 
 /-- **A tournament has logarithmic depth.** Among `m + 1` records computed by circuits of depth at
 most `D`, it has depth at most `D + (4 k + 4) ⌈log₂ (m + 1)⌉`. -/
+@[circuit_bound]
 theorem depth_tournamentCircuit_le (leaves : Fin (m + 1) → Circuit signature n (k + p)) {D : ℕ}
     (h : ∀ i, (leaves i).depth ≤ D) :
     (tournamentCircuit k p leaves).depth ≤ D + (4 * k + 4) * Nat.clog 2 (m + 1) := by
-  refine (Circuit.depth_balanced_le _ _ (D := D) (fun C hC => ?_) (by simp)).trans ?_
-  · obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hC
-    exact h i
-  · rw [List.length_ofFn]
-    exact Nat.add_le_add_left (Nat.mul_le_mul_right _ (depth_keyedMinCircuit_le k p)) D
+  circuit_bound [tournamentCircuit]
 
 /-! ### Records given as inputs -/
 
@@ -148,7 +146,6 @@ theorem exists_eval_packedTournamentCircuit (records : Fin (m + 1) → BitString
 /-- **The packed tournament has logarithmic depth**: `(4 k + 4) ⌈log₂ (m + 1)⌉`. -/
 theorem depth_packedTournamentCircuit_le (k p m : ℕ) :
     (packedTournamentCircuit k p m).depth ≤ (4 * k + 4) * Nat.clog 2 (m + 1) := by
-  simpa [packedTournamentCircuit] using depth_tournamentCircuit_le (k := k) (p := p) (D := 0)
-    (fun i => Circuit.wiring signature fun j => finProdFinEquiv (i, j)) fun i => by simp
+  circuit_bound [packedTournamentCircuit]
 
 end Cslib.Circuits.Boolean

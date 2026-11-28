@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Classes.P
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
@@ -14,7 +15,11 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
-# Images of problems in `NP`
+# Images of problems in `P` and `NP`
+
+The encodings of the members of a problem in `P` form a problem in `P` on words, when the encoding
+has a decoder (`Cslib.Complexity.mem_P_image`): decode the word, check that it encodes what was
+decoded, and run the decider.
 
 The encodings of the members of a problem in `NP` form a problem in `NP` on words, when the
 encoding has a decoder (`Cslib.Complexity.mem_NP_image`): the verifier decodes the word, checks
@@ -25,6 +30,7 @@ reduction, every problem in `NP`.
 
 ## Main results
 
+* `Cslib.Complexity.mem_P_image`: images of problems in `P` under encodings with decoders.
 * `Cslib.Complexity.mem_NP_image`: images of problems in `NP` under encodings with decoders.
 * `Cslib.Complexity.image_SAT_mem_NP`: the encodings of the satisfiable formulas.
 -/
@@ -34,6 +40,23 @@ public section
 namespace Cslib.Complexity
 
 open Turing.MultiTapeTM
+
+/-- **Images of problems in `P`.** The encodings of the members of a problem in `P` form a
+problem in `P` on words, when the encoding has a decoder: decode the word, check that it encodes
+what was decoded, and run the decider of the problem. -/
+theorem mem_P_image {β : Type} {encB : β ↪ List Bool} (D : Decoder encB) {B : Set β}
+    (hB : B ∈ P encB) : encB '' B ∈ P encBits := by
+  obtain ⟨f, hf, hBf⟩ := mem_P.mp hB
+  have henc : ComputableInPolyTime (fun b => encB b) encB encBits := .of_eq fun _ => rfl
+  have hdec := D.computableInPolyTime
+  refine mem_P.mpr
+    ⟨fun w => decide (encB (D.decode w) = w) && f (D.decode w), by fun_prop, fun w => ?_⟩
+  simp only [Bool.and_eq_true, decide_eq_true_eq]
+  constructor
+  · rintro ⟨b, hb, rfl⟩
+    exact ⟨by rw [D.decode_enc], by rw [D.decode_enc]; exact (hBf b).1 hb⟩
+  · rintro ⟨hw, hfw⟩
+    exact ⟨D.decode w, (hBf _).2 hfw, hw⟩
 
 /-- **Images of problems in `NP`.** The encodings of the members of a problem in `NP` form a
 problem in `NP` on words, when the encoding has a decoder: the verifier decodes the word, checks

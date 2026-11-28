@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Computability.MCSP.Basic
 public import Cslib.Computability.Circuit.Boolean.Lupanov
 public import Cslib.Computability.Circuit.Boolean.Shannon
-import CslibFrontier.Foundations.Data.Nat.Factorial
+import CslibFrontier.Computability.Circuit.Boolean.CountingBound
+import Mathlib.Data.Nat.Cast.Order.Field
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -65,13 +66,6 @@ private theorem add_le_two_pow {l : ℕ} (hl : 6 ≤ l) : 6 * l + 9 ≤ 2 ^ l :=
   induction l, hl using Nat.le_induction with
   | base => norm_num
   | succ l _ ih => rw [pow_succ]; omega
-
-private theorem mul_sq_le_two_pow {n : ℕ} (hn : 16 ≤ n) : 64 * n ^ 2 ≤ 2 ^ n := by
-  induction n, hn using Nat.le_induction with
-  | base => norm_num
-  | succ n hn ih =>
-    calc 64 * (n + 1) ^ 2 ≤ 2 * (64 * n ^ 2) := by nlinarith
-      _ ≤ 2 ^ (n + 1) := by rw [pow_succ 2 n]; omega
 
 /-! ### Every function has a circuit with `12 · 2 ^ n / n` gates -/
 
@@ -157,44 +151,6 @@ private theorem mul_bound_le {n : ℕ} (hn : 64 ≤ n) :
       _ = 3 * (C * P) := by ring
   omega
 
-/-! ### Few functions have a circuit with `2 ^ n / (5 n)` gates -/
-
-/-- For `n ≥ 16`, at most `2 ^ (2 ^ n / 4)` Boolean functions on `n` inputs have a circuit with
-at most `2 ^ n / (5 n)` gates. -/
-private theorem card_computableFunctions_le {n : ℕ} (hn : 16 ≤ n) :
-    (computableFunctions n (2 ^ n / (5 * n))).card ≤ 2 ^ (2 ^ n / 4) := by
-  set s := 2 ^ n / (5 * n)
-  set c := (computableFunctions n s).card
-  have h64 := mul_sq_le_two_pow hn
-  have hsn : 5 * n * s ≤ 2 ^ n := Nat.mul_div_le _ _
-  have hs : n + 1 ≤ s := (Nat.le_div_iff_mul_le (by omega)).mpr (by nlinarith)
-  have hs64 : 64 * s ≤ 2 ^ n := le_trans (Nat.mul_le_mul_right s (by omega : 64 ≤ 5 * n)) hsn
-  -- Shannon's count, simplified with `n + 1 ≤ s` and `s ^ s ≤ 3 ^ s s!`.
-  have hcount : c * s.factorial ≤ 4 * s ^ 2 * (20 * s ^ 2) ^ s := by
-    refine (card_computableFunctions_mul_factorial_le n s).trans ?_
-    calc (s + 1) * (5 * (n + s + 1) ^ 2) ^ s * (n + s)
-        ≤ (2 * s) * (5 * (2 * s) ^ 2) ^ s * (2 * s) := by gcongr <;> omega
-      _ = 4 * s ^ 2 * (20 * s ^ 2) ^ s := by ring
-  have hc : c * s ^ s ≤ 4 * s ^ 2 * (60 * s) ^ s * s ^ s := by
-    calc c * s ^ s ≤ c * (3 ^ s * s.factorial) :=
-          Nat.mul_le_mul_left _ (Nat.pow_self_le_three_pow_mul_factorial s)
-      _ = 3 ^ s * (c * s.factorial) := by ring
-      _ ≤ 3 ^ s * (4 * s ^ 2 * (20 * s ^ 2) ^ s) := Nat.mul_le_mul_left _ hcount
-      _ = 4 * s ^ 2 * (60 * s) ^ s * s ^ s := by
-        rw [mul_pow, mul_pow, show (60 : ℕ) ^ s = 3 ^ s * 20 ^ s by rw [← mul_pow]; norm_num]; ring
-  have hc' : c ≤ 4 * s ^ 2 * (60 * s) ^ s :=
-    Nat.le_of_mul_le_mul_right hc (pow_pos (by omega) s)
-  have hexp : n * (s + 2) ≤ 2 ^ n / 4 := by
-    apply (Nat.le_div_iff_mul_le (by norm_num)).mpr
-    nlinarith
-  calc c ≤ 4 * s ^ 2 * (60 * s) ^ s := hc'
-    _ ≤ (2 ^ n) ^ 2 * (2 ^ n) ^ s := by
-        gcongr
-        · nlinarith
-        · omega
-    _ = 2 ^ (n * (s + 2)) := by rw [← pow_add, ← pow_mul]; ring_nf
-    _ ≤ 2 ^ (2 ^ n / 4) := Nat.pow_le_pow_right two_pos hexp
-
 /-! ### The explicit window -/
 
 variable {n s : ℕ}
@@ -217,7 +173,7 @@ tables of functions on `n` inputs are yes-instances of MCSP at threshold `2 ^ n 
 theorem ncard_setOf_mem_le (hn : 16 ≤ n) :
     {T : BitString (2 ^ n) | ⟨n, T, 2 ^ n / (5 * n)⟩ ∈ MCSP}.ncard ≤ 2 ^ (2 ^ n / 4) := by
   rw [ncard_setOf_mem]
-  exact card_computableFunctions_le hn
+  exact card_computableFunctions_two_pow_div_five_mul_le hn
 
 /-- For `n ≥ 16`, some truth table of a function on `n` inputs is a no-instance of MCSP at
 threshold `2 ^ n / (5 n)`. -/

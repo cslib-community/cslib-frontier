@@ -78,30 +78,6 @@ section RadixAndListHelpers
 
 variable {k : ℕ}
 
-/-- Every compact ID strictly below `vertexBound B` has positive radix `B`. -/
-theorem radix_pos_of_lt_vertexBound {B u : ℕ} (hu : u < vertexBound (k := k) B) : 0 < B := by
-  rcases Nat.eq_zero_or_pos B with rfl | hpos
-  · have : Nonempty (Register k) := ⟨.inputPos⟩
-    have hcard : Fintype.card (Register k) ≠ 0 := Fintype.card_ne_zero
-    simp [vertexBound, zero_pow hcard] at hu
-  · exact hpos
-
-/-- Packing `readRegisters B u` recovers any compact ID `u < vertexBound B`. -/
-theorem pack_readRegisters_of_lt_vertexBound {B u : ℕ} (hu : u < vertexBound (k := k) B) :
-    Cslib.Radix.pack B (readRegisters (k := k) B u) = u := by
-  have hB : 0 < B := radix_pos_of_lt_vertexBound hu
-  obtain ⟨x, hx, hval⟩ := Nat.exists_ofDigits_ofFn (B := B) (d := Fintype.card (Register k)) hu
-  let f : Register k → ℕ := fun i => x (Fintype.equivFin (Register k) i)
-  have hf_lt : ∀ i, f i < B := fun i => hx _
-  have hpack_f : Cslib.Radix.pack B f = u := by
-    unfold Cslib.Radix.pack
-    simpa only [f, Equiv.apply_symm_apply] using hval
-  have hread : readRegisters (k := k) B u = f := by
-    funext i
-    rw [← hpack_f]
-    exact Cslib.Radix.component_pack hB hf_lt i
-  rw [hread, hpack_f]
-
 /-- Combine two optional natural targets into a strictly sorted duplicate-free list of length at
 most `2`. -/
 private def pairSortedTargets : Option ℕ → Option ℕ → List ℕ
@@ -128,23 +104,16 @@ private theorem mem_pairSortedTargets (a b : Option ℕ) (v : ℕ) :
       simp [eq_comm]
 
 private theorem nodup_pairSortedTargets (a b : Option ℕ) : (pairSortedTargets a b).Nodup := by
-  rcases a with _ | v₀ <;> rcases b with _ | v₁
-  · simp [pairSortedTargets]
-  · simp [pairSortedTargets]
-  · simp [pairSortedTargets]
-  · dsimp only [pairSortedTargets]
-    split_ifs with h₁ h₂
-    · simp [Nat.ne_of_lt h₁]
-    · simp [Nat.ne_of_lt h₂]
-    · simp
-
-private theorem length_pairSortedTargets_le (a b : Option ℕ) :
-    (pairSortedTargets a b).length ≤ 2 := by
   rcases a with _ | v₀ <;> rcases b with _ | v₁ <;> dsimp only [pairSortedTargets]
   · simp
   · simp
   · simp
-  · split_ifs <;> simp
+  · split_ifs with h₁ h₂ <;> simp [Nat.ne_of_lt, *]
+
+private theorem length_pairSortedTargets_le (a b : Option ℕ) :
+    (pairSortedTargets a b).length ≤ 2 := by
+  rcases a with _ | v₀ <;> rcases b with _ | v₁ <;> dsimp only [pairSortedTargets] <;>
+    (try split_ifs) <;> simp
 
 /-- Insert `x` into a strictly increasing `List ℕ`, discarding duplicates. -/
 private def insertSortedNat (x : ℕ) : List ℕ → List ℕ
@@ -156,53 +125,32 @@ private def insertSortedNat (x : ℕ) : List ℕ → List ℕ
 
 private theorem mem_insertSortedNat (x : ℕ) (l : List ℕ) (z : ℕ) :
     z ∈ insertSortedNat x l ↔ z = x ∨ z ∈ l := by
-  induction l with
-  | nil => simp [insertSortedNat]
-  | cons y ys ih =>
-    dsimp only [insertSortedNat]
-    split_ifs with hlt heq
-    · simp
-    · subst heq
-      simp only [List.mem_cons]
-      tauto
-    · simp only [List.mem_cons, ih]
-      tauto
+  fun_induction insertSortedNat x l with
+  | case4 y ys _ _ ih => -- x > y: recurse
+    simp only [List.mem_cons, ih]
+    tauto
+  | _ => simp -- [], x < y, x = y
 
 private theorem length_insertSortedNat_le (x : ℕ) (l : List ℕ) :
     (insertSortedNat x l).length ≤ l.length + 1 := by
-  induction l with
-  | nil => simp [insertSortedNat]
-  | cons y ys ih =>
-    dsimp only [insertSortedNat]
-    split_ifs
-    · simp
-    · simp
-    · simp only [List.length_cons]
-      omega
+  fun_induction insertSortedNat x l <;> simp only [List.length_cons] <;> omega
 
 private theorem pairwise_lt_insertSortedNat (x : ℕ) {l : List ℕ} (hl : l.Pairwise (· < ·)) :
     (insertSortedNat x l).Pairwise (· < ·) := by
-  induction l with
-  | nil => simp [insertSortedNat]
-  | cons y ys ih =>
-    rw [List.pairwise_cons] at hl
-    obtain ⟨hy, hys⟩ := hl
-    dsimp only [insertSortedNat]
-    split_ifs with hlt heq
-    · rw [List.pairwise_cons]
-      refine ⟨?_, List.pairwise_cons.mpr ⟨hy, hys⟩⟩
-      intro z hz
-      rcases List.mem_cons.mp hz with rfl | hz'
-      · exact hlt
-      · exact lt_trans hlt (hy z hz')
-    · exact List.pairwise_cons.mpr ⟨hy, hys⟩
-    · have hyx : y < x := by omega
-      rw [List.pairwise_cons]
-      refine ⟨?_, ih hys⟩
-      intro z hz
-      rcases (mem_insertSortedNat x ys z).mp hz with rfl | hz'
-      · exact hyx
-      · exact hy z hz'
+  fun_induction insertSortedNat x l with
+  | case1 => simp -- []
+  | case2 y ys hlt => -- x < y: prepend x
+    refine List.pairwise_cons.mpr ⟨fun z hz => ?_, hl⟩
+    rcases List.mem_cons.mp hz with rfl | hz'
+    · exact hlt
+    · exact lt_trans hlt ((List.pairwise_cons.mp hl).1 z hz')
+  | case3 => exact hl -- x = y: unchanged
+  | case4 y ys hge hne ih => -- x > y: recurse
+    obtain ⟨hy, hys⟩ := List.pairwise_cons.mp hl
+    refine List.pairwise_cons.mpr ⟨fun z hz => ?_, ih hys⟩
+    rcases (mem_insertSortedNat x ys z).mp hz with rfl | hz'
+    · omega
+    · exact hy z hz'
 
 /-- Fuel-unrolled version of `insertSortedNat` for fixed-length lists in `ComputableInSpace`. -/
 private def insertSortedFuel : ℕ → ℕ → List ℕ → List ℕ
@@ -239,17 +187,14 @@ private def getElemOptFuel : ℕ → List ℕ → ℕ → Option ℕ
 
 private theorem getElemOptFuel_eq :
     ∀ (fuel : ℕ) (l : List ℕ) (q : ℕ), l.length ≤ fuel → getElemOptFuel fuel l q = l[q]?
-  | 0, l, q, hl => by
-    cases l with
-    | nil => simp [getElemOptFuel]
-    | cons _ _ => simp at hl
-  | fuel + 1, [], q, _ => by simp [getElemOptFuel]
-  | fuel + 1, y :: ys, 0, _ => by simp [getElemOptFuel]
-  | fuel + 1, y :: ys, q + 1, hl => by
-    have hys : ys.length ≤ fuel := by simpa using hl
+  | 0, [], _, _ => rfl
+  | 0, _ :: _, _, hl => by simp at hl
+  | fuel + 1, [], _, _ => by simp [getElemOptFuel]
+  | fuel + 1, _ :: _, 0, _ => by simp [getElemOptFuel]
+  | fuel + 1, _ :: ys, q + 1, hl => by
     simp only [getElemOptFuel, List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte,
       Nat.add_one_ne_zero, List.tail_cons, Nat.add_sub_cancel, List.getElem?_cons_succ]
-    exact getElemOptFuel_eq fuel ys q hys
+    exact getElemOptFuel_eq fuel ys q (by simpa using hl)
 
 /-- Fuel-unrolled `l.idxOf u` for fixed-length lists in `ComputableInSpace`. -/
 private def idxOfFuel : ℕ → List ℕ → ℕ → ℕ
@@ -261,19 +206,15 @@ private def idxOfFuel : ℕ → List ℕ → ℕ → ℕ
 
 private theorem idxOfFuel_eq :
     ∀ (fuel : ℕ) (l : List ℕ) (u : ℕ), l.length ≤ fuel → idxOfFuel fuel l u = l.idxOf u
-  | 0, l, u, hl => by
-    cases l with
-    | nil => simp [idxOfFuel]
-    | cons _ _ => simp at hl
-  | fuel + 1, [], u, _ => by simp [idxOfFuel]
+  | 0, [], _, _ => rfl
+  | 0, _ :: _, _, hl => by simp at hl
+  | fuel + 1, [], _, _ => by simp [idxOfFuel]
   | fuel + 1, y :: ys, u, hl => by
-    have hys : ys.length ≤ fuel := by simpa using hl
     simp only [idxOfFuel, List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte,
       List.headD_cons, List.tail_cons, List.idxOf_cons]
     by_cases hyu : y = u
     · simp [hyu]
-    · have hbeq : (y == u) = false := beq_false_of_ne hyu
-      simp [hyu, hbeq, idxOfFuel_eq fuel ys u hys]
+    · simp [hyu, beq_false_of_ne hyu, idxOfFuel_eq fuel ys u (by simpa using hl)]
 
 section FuelBudgets
 
@@ -281,12 +222,11 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 
 private theorem insertSortedFuel_budget (fuel : ℕ) {x : α → ℕ} {l : α → List ℕ}
     (hx : ComputableInSpace x enc encNat S)
-    (hl : ComputableInSpace l enc (encList encNat) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hl : ComputableInSpace l enc (encList encNat) S) :
     ComputableInSpace (fun a => insertSortedFuel fuel (x a) (l a)) enc (encList encNat) S := by
   induction fuel generalizing l with
   | zero =>
-    exact budget_cons hx (budget_const [] hin)
+    exact budget_cons hx (budget_const [])
   | succ fuel ih =>
     have hy := budget_headD 0 hl
     have hys := budget_tail hl
@@ -294,20 +234,19 @@ private theorem insertSortedFuel_budget (fuel : ℕ) {x : α → ℕ} {l : α �
     have hinner := budget_ite (budget_natLt hx hy) (budget_cons hx hl)
       (budget_ite (budget_natEq hx hy) hl (budget_cons hy hrec))
     simpa only [insertSortedFuel, decide_eq_true_eq] using
-      budget_ite (budget_isEmpty hl) (budget_cons hx (budget_const [] hin)) hinner
+      budget_ite (budget_isEmpty hl) (budget_cons hx (budget_const [])) hinner
 
 private theorem getElemOptFuel_budget (fuel : ℕ) {l : α → List ℕ} {q : α → ℕ}
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hq : ComputableInSpace q enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hq : ComputableInSpace q enc encNat S) :
     ComputableInSpace (fun a => getElemOptFuel fuel (l a) (q a)) enc (encOption encNat) S := by
   induction fuel generalizing l q with
   | zero =>
-    exact budget_const none hin
+    exact budget_const none
   | succ fuel ih =>
     have hrec := ih (budget_tail hl) (budget_natPred hq)
     simpa only [getElemOptFuel, decide_eq_true_eq] using
-      budget_ite (budget_isEmpty hl) (budget_const none hin)
+      budget_ite (budget_isEmpty hl) (budget_const none)
         (budget_ite (budget_natIsZero hq) (budget_optionSome (budget_headD 0 hl)) hrec)
 
 /-- Indexing an optional natural number out of a bounded-length list preserves a common space
@@ -315,10 +254,9 @@ budget. -/
 private theorem getElem?_budget (fuel : ℕ) {l : α → List ℕ} {q : α → ℕ}
     (hlen : ∀ a, (l a).length ≤ fuel)
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hq : ComputableInSpace q enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hq : ComputableInSpace q enc encNat S) :
     ComputableInSpace (fun a => (l a)[q a]?) enc (encOption encNat) S :=
-  (getElemOptFuel_budget fuel hl hq hin).of_enc_eq fun a => by
+  (getElemOptFuel_budget fuel hl hq).of_enc_eq fun a => by
     rw [getElemOptFuel_eq fuel (l a) (q a) (hlen a)]
 
 /-- Indexing an optional natural number out of a bounded-length list and defaulting `none` to `0`
@@ -326,45 +264,41 @@ preserves a common space budget. -/
 theorem getElem?_getD_zero_budget (fuel : ℕ) {l : α → List ℕ} {q : α → ℕ}
     (hlen : ∀ a, (l a).length ≤ fuel)
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hq : ComputableInSpace q enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hq : ComputableInSpace q enc encNat S) :
     ComputableInSpace (fun a => ((l a)[q a]?).getD 0) enc encNat S :=
-  budget_optionGetD 0 (getElem?_budget fuel hlen hl hq hin)
+  budget_optionGetD 0 (getElem?_budget fuel hlen hl hq)
 
 private theorem idxOfFuel_budget (fuel : ℕ) {l : α → List ℕ} {u : α → ℕ}
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hu : ComputableInSpace u enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => idxOfFuel fuel (l a) (u a)) enc encNat S := by
   induction fuel generalizing l with
   | zero =>
-    exact budget_const 0 hin
+    exact budget_const 0
   | succ fuel ih =>
     have hrec := ih (budget_tail hl)
     simpa only [idxOfFuel, decide_eq_true_eq] using
-      budget_ite (budget_isEmpty hl) (budget_const 0 hin)
-        (budget_ite (budget_natEq (budget_headD 0 hl) hu) (budget_const 0 hin)
+      budget_ite (budget_isEmpty hl) (budget_const 0)
+        (budget_ite (budget_natEq (budget_headD 0 hl) hu) (budget_const 0)
           (budget_natSucc hrec))
 
 /-- The index of a natural number in a bounded-length list preserves a common space budget. -/
 private theorem idxOf_budget (fuel : ℕ) {l : α → List ℕ} {u : α → ℕ}
     (hlen : ∀ a, (l a).length ≤ fuel)
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hu : ComputableInSpace u enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => (l a).idxOf (u a)) enc encNat S :=
-  (idxOfFuel_budget fuel hl hu hin).of_enc_eq fun a => by
+  (idxOfFuel_budget fuel hl hu).of_enc_eq fun a => by
     rw [idxOfFuel_eq fuel (l a) (u a) (hlen a)]
 
 private theorem pairSortedTargets_budget {a b : α → Option ℕ}
     (ha : ComputableInSpace a enc (encOption encNat) S)
-    (hb : ComputableInSpace b enc (encOption encNat) S)
-    (hin : (fun x => (enc x).length) ≼ S) :
+    (hb : ComputableInSpace b enc (encOption encNat) S) :
     ComputableInSpace (fun x => pairSortedTargets (a x) (b x)) enc (encList encNat) S := by
   have hva := budget_optionGetD 0 ha
   have hvb := budget_optionGetD 0 hb
   have hnil : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encNat) S :=
-    budget_const [] hin
+    budget_const []
   have hboth :=
     budget_ite (budget_natLt hva hvb) (budget_cons hva (budget_cons hvb hnil))
       (budget_ite (budget_natLt hvb hva) (budget_cons hvb (budget_cons hva hnil))
@@ -501,8 +435,7 @@ theorem stepTargetWithSymbol_budget (tm : MultiTapeTM k Bool State)
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => stepTargetWithSymbol tm (B a) (n a) (u a) (symbol a))
       enc (encOption encNat) S := by
   have hr := readRegisters_budget (k := k) hB hu
@@ -513,21 +446,21 @@ theorem stepTargetWithSymbol_budget (tm : MultiTapeTM k Bool State)
         enc (encOption encNat) S := by
     intro l
     induction l with
-    | nil => exact budget_const none hin
+    | nil => exact budget_const none
     | cons t ts ih =>
-      have hnxt := nextRegisters_budget hn hr hin t.2.2.2
-      have hpack := pack_inSpace hB hnxt hin
+      have hnxt := nextRegisters_budget hn hr t.2.2.2
+      have hpack := pack_inSpace hB hnxt
       have hpred := budget_boolAnd
-        (budget_boolAnd (matchesEntry_budget hn hr hs hin t) (fitsB_budget hB hnxt hin))
-        (valid_budget (k := k) (State := State) hB hn hpack hin)
+        (budget_boolAnd (matchesEntry_budget hn hr hs t) (fitsB_budget hB hnxt))
+        (valid_budget (k := k) (State := State) hB hn hpack)
       exact (budget_ite hpred (budget_optionSome hpack) ih).of_enc_eq fun a => by
         dsimp only [findStepTarget, stepEntryPred]
         rfl
   simpa only [stepTargetWithSymbol, decide_eq_true_eq] using
-    budget_ite (valid_budget (k := k) (State := State) hB hn hu hin)
-      (budget_ite (budget_natEq (hr .control) (budget_const (stateCode (none : Option State)) hin))
+    budget_ite (valid_budget (k := k) (State := State) hB hn hu)
+      (budget_ite (budget_natEq (hr .control) (budget_const (stateCode (none : Option State))))
         (budget_optionSome hu) (hfind (instructions tm.toMultiTapeNTM)))
-      (budget_const none hin)
+      (budget_const none)
 
 end Budgets
 
@@ -605,26 +538,22 @@ theorem lt_vertexBound_of_mem_coinOutTargetsWithSymbol (machine : MultiTapePTM k
     (hv : v ∈ coinOutTargetsWithSymbol machine B n u symbol) :
     u < vertexBound (k := k) B ∧ v < vertexBound (k := k) B := by
   have hpos := (mem_coinOutTargetsWithSymbol_iff machine B n u v symbol).mp hv
-  constructor
-  · by_contra hu
-    rw [coinCountWithSymbol_eq_zero_of_source_ge machine (Nat.le_of_not_lt hu) symbol] at hpos
-    omega
-  · by_contra hv'
-    rw [coinCountWithSymbol_eq_zero_of_target_ge machine (Nat.le_of_not_lt hv') symbol] at hpos
-    omega
+  exact ⟨Nat.not_le.mp fun hu =>
+      (coinCountWithSymbol_eq_zero_of_source_ge machine hu symbol ▸ hpos).false,
+    Nat.not_le.mp fun hv' =>
+      (coinCountWithSymbol_eq_zero_of_target_ge machine hv' symbol ▸ hpos).false⟩
 
 theorem coinOutTargetsWithSymbol_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
     {B n u : α → ℕ} {symbol : α → Option Bool} (machine : MultiTapePTM k Bool State)
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => coinOutTargetsWithSymbol machine (B a) (n a) (u a) (symbol a))
       enc (encList encNat) S :=
   pairSortedTargets_budget
-    (stepTargetWithSymbol_budget (machine.withCoin false).toTM hB hn hu hs hin)
-    (stepTargetWithSymbol_budget (machine.withCoin true).toTM hB hn hu hs hin) hin
+    (stepTargetWithSymbol_budget (machine.withCoin false).toTM hB hn hu hs)
+    (stepTargetWithSymbol_budget (machine.withCoin true).toTM hB hn hu hs)
 
 /-! ### Backward predecessor recipes and incoming sources -/
 
@@ -721,6 +650,14 @@ private theorem predRegisters_eq_of_step {B n : ℕ} {r : Register k → ℕ} {s
     | .neg => decide (r .inputPos = 0)
     | .zero => false
     | .pos => decide (r .inputPos = n + 1)
+  have hwrite_div (i : Fin k) (x : ℕ) :
+      ((act.workTapes i).1.elim (r (.head i)) symbolCode + 3 * x) / 3 = x := by
+    have hlt : (act.workTapes i).1.elim (r (.head i)) symbolCode < 3 := by
+      rcases (act.workTapes i).1 with _ | b
+      · rw [Option.elim_none, of_decide_eq_true (hheads _ ⟨i, rfl⟩)]
+        exact symbolCode_lt _
+      · exact symbolCode_lt b
+    rw [Nat.add_mul_div_left _ _ (by decide : 0 < 3), Nat.div_eq_of_lt hlt, Nat.zero_add]
   refine ⟨altInput, prevOutput, funext fun reg => ?_⟩
   cases reg with
   | inputPos =>
@@ -744,38 +681,18 @@ private theorem predRegisters_eq_of_step {B n : ℕ} {r : Register k → ℕ} {s
     dsimp only [predRegisters]
     exact (of_decide_eq_true (hheads _ ⟨i, rfl⟩)).symm
   | left i =>
-    have hhi : r (.head i) = symbolCode (workObs i) :=
-      of_decide_eq_true (hheads _ ⟨i, rfl⟩)
-    let hwrite := (act.workTapes i).1.elim (r (.head i)) symbolCode
-    have hhwrite_lt : hwrite < 3 := by
-      dsimp only [hwrite]
-      rcases (act.workTapes i).1 with _ | b
-      · rw [Option.elim_none, hhi]
-        exact symbolCode_lt _
-      · exact symbolCode_lt b
     dsimp only [predRegisters]
     rw [hrv (.head i), hrv (.left i)]
     cases hm_wt : (act.workTapes i).2 <;>
       simp only [nextRegisters, tapeStep, hm_wt]
     · exact Nat.mod_add_div (r (.left i)) 3
-    · change (hwrite + 3 * r (.left i)) / 3 = r (.left i)
-      rw [Nat.add_mul_div_left _ _ (by decide : 0 < 3), Nat.div_eq_of_lt hhwrite_lt, Nat.zero_add]
+    · exact hwrite_div i (r (.left i))
   | right i =>
-    have hhi : r (.head i) = symbolCode (workObs i) :=
-      of_decide_eq_true (hheads _ ⟨i, rfl⟩)
-    let hwrite := (act.workTapes i).1.elim (r (.head i)) symbolCode
-    have hhwrite_lt : hwrite < 3 := by
-      dsimp only [hwrite]
-      rcases (act.workTapes i).1 with _ | b
-      · rw [Option.elim_none, hhi]
-        exact symbolCode_lt _
-      · exact symbolCode_lt b
     dsimp only [predRegisters]
     rw [hrv (.head i), hrv (.right i)]
     cases hm_wt : (act.workTapes i).2 <;>
       simp only [nextRegisters, tapeStep, hm_wt]
-    · change (hwrite + 3 * r (.right i)) / 3 = r (.right i)
-      rw [Nat.add_mul_div_left _ _ (by decide : 0 < 3), Nat.div_eq_of_lt hhwrite_lt, Nat.zero_add]
+    · exact hwrite_div i (r (.right i))
     · exact Nat.mod_add_div (r (.right i)) 3
 
 private theorem exists_predRecipe_of_edgeWithSymbol {B n u v : ℕ} {symbol : Option Bool}
@@ -793,10 +710,7 @@ private theorem exists_predRecipe_of_edgeWithSymbol {B n u v : ℕ} {symbol : Op
     obtain ⟨altInput, prevOutput, hpred⟩ := predRegisters_eq_of_step hB hin_lt hout_lt hm hf
     refine ⟨.step t altInput prevOutput, ?_, ?_⟩
     · simp only [predRecipes, List.mem_cons, List.mem_flatMap, List.mem_append]
-      refine Or.inr ⟨t, ?_, mem_stepRecipesFor t altInput prevOutput⟩
-      cases bit
-      · exact Or.inl hmem
-      · exact Or.inr hmem
+      exact Or.inr ⟨t, by cases bit <;> simp [hmem], mem_stepRecipesFor t altInput prevOutput⟩
     · dsimp only [evalPredRecipe]
       rw [hpred, pack_readRegisters_of_lt_vertexBound hu_lt]
 
@@ -860,27 +774,11 @@ private theorem mem_collectInSources_map_iff (machine : MultiTapePTM k Bool Stat
           0 < coinCountWithSymbol machine B w.length u v w[queryIndex (k := k) B u]?
   | [] => by simp [collectInSources]
   | rec :: recs => by
-    simp only [List.map_cons, collectInSources]
     have ih := mem_collectInSources_map_iff machine B w v u recs
-    split_ifs with hpos
-    · rw [mem_insertSortedNat, ih]
-      constructor
-      · rintro (rfl | ⟨⟨rec', hmem, heq⟩, hpos'⟩)
-        · exact ⟨⟨rec, List.mem_cons_self, rfl⟩, hpos⟩
-        · exact ⟨⟨rec', List.mem_cons_of_mem rec hmem, heq⟩, hpos'⟩
-      · rintro ⟨⟨rec', hmem, heq⟩, hpos'⟩
-        rcases List.mem_cons.mp hmem with rfl | hmem'
-        · exact Or.inl heq.symm
-        · exact Or.inr ⟨⟨rec', hmem', heq⟩, hpos'⟩
-    · rw [ih]
-      constructor
-      · rintro ⟨⟨rec', hmem, heq⟩, hpos'⟩
-        exact ⟨⟨rec', List.mem_cons_of_mem rec hmem, heq⟩, hpos'⟩
-      · rintro ⟨⟨rec', hmem, heq⟩, hpos'⟩
-        rcases List.mem_cons.mp hmem with rfl | hmem'
-        · subst heq
-          exact absurd hpos' hpos
-        · exact ⟨⟨rec', hmem', heq⟩, hpos'⟩
+    simp only [List.map_cons, collectInSources, List.mem_cons, exists_eq_or_imp]
+    rcases eq_or_ne u (evalPredRecipe rec B v) with rfl | hne
+    · split_ifs with hpos <;> simp [mem_insertSortedNat, ih, hpos]
+    · split_ifs <;> simp [mem_insertSortedNat, ih, hne, Ne.symm hne]
 
 /-- Incoming sources of `v` computed from pre-queried input symbols aligned with `predRecipes`. -/
 noncomputable def coinInSourcesWithSymbols (machine : MultiTapePTM k Bool State)
@@ -937,7 +835,7 @@ theorem mem_coinOutTargetsWithSymbol_iff_mem_coinInSources (machine : MultiTapeP
     (D d n a p : ℕ) (symOut : Option Bool) (inSyms : List (Option Bool)) : Option (ℕ × ℕ) :=
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   if a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T then
     let u := a % N
     match (coinOutTargetsWithSymbol machine B n u symOut)[p]? with
@@ -953,7 +851,7 @@ theorem mem_coinOutTargetsWithSymbol_iff_mem_coinInSources (machine : MultiTapeP
   let n := w.length
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   if a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T then
     let u := a % N
     let symOut := w[queryIndex (k := k) B u]?
@@ -999,7 +897,7 @@ theorem mem_coinOutTargetsWithSymbol_iff_mem_coinInSources (machine : MultiTapeP
     (D d n a p : ℕ) (symOut : Option Bool) : ℕ :=
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   if a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T then
     let u := a % N
     match (coinOutTargetsWithSymbol machine B n u symOut)[p]? with
@@ -1031,44 +929,32 @@ theorem clockedOutCount_le_two (machine : MultiTapePTM k Bool State)
 theorem clockedOutPort_eq_none_of_ge_bound (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {a : ℕ} (ha : clockedVertexBound (k := k) D d w.length ≤ a)
     (p : ℕ) : clockedOutPort machine D d w a p = none := by
-  dsimp only [clockedOutPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutPort, ite_eq_right_iff]; omega
 
 theorem clockedOutPort_eq_none_of_port_ge (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} (a : ℕ) {p : ℕ} (hp : 2 ≤ p) :
     clockedOutPort machine D d w a p = none := by
-  dsimp only [clockedOutPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutPort, ite_eq_right_iff]; omega
 
 theorem clockedInPort_eq_none_of_ge_bound (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {b : ℕ} (hb : clockedVertexBound (k := k) D d w.length ≤ b)
     (q : ℕ) : clockedInPort machine D d w b q = none := by
-  dsimp only [clockedInPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedInPort, ite_eq_right_iff]; omega
 
 theorem clockedInPort_eq_none_of_port_ge (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} (b : ℕ) {q : ℕ} (hq : inPortBound machine ≤ q) :
     clockedInPort machine D d w b q = none := by
-  dsimp only [clockedInPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedInPort, ite_eq_right_iff]; omega
 
 theorem clockedOutCount_eq_zero_of_ge_bound (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {a : ℕ} (ha : clockedVertexBound (k := k) D d w.length ≤ a)
     (p : ℕ) : clockedOutCount machine D d w a p = 0 := by
-  dsimp only [clockedOutCount, clockedOutCountWithSymbol]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutCount, clockedOutCountWithSymbol, ite_eq_right_iff]; omega
 
 theorem clockedOutCount_eq_zero_of_port_ge (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} (a : ℕ) {p : ℕ} (hp : 2 ≤ p) :
     clockedOutCount machine D d w a p = 0 := by
-  dsimp only [clockedOutCount, clockedOutCountWithSymbol]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutCount, clockedOutCountWithSymbol, ite_eq_right_iff]; omega
 
 theorem clockedOutCount_eq_zero_of_outPort_eq_none (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {a p : ℕ} (h : clockedOutPort machine D d w a p = none) :
@@ -1098,6 +984,21 @@ theorem clockedOutCount_pos_of_outPort_eq_some (machine : MultiTapePTM k Bool St
   | none => rw [hg] at h; cases h
   | some v => exact (mem_coinOutTargetsWithSymbol_iff machine ..).mp (List.mem_of_getElem? hg)
 
+private theorem clockedPort_invert {N src pSrc qDest dest pDest bound : ℕ}
+    {srcList destList : List ℕ} {target : ℕ}
+    (hsrc_nodup : srcList.Nodup) (hg : srcList[pSrc]? = some target)
+    (htarget_lt : target < N) (hu_mem : src % N ∈ destList)
+    (hdest_len : destList.length ≤ bound)
+    (heq : (qDest * N + target, destList.idxOf (src % N)) = (dest, pDest)) :
+    dest / N = qDest ∧ dest % N = target ∧ pDest < bound ∧
+      destList[pDest]? = some (src % N) ∧ srcList.idxOf target = pSrc := by
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
+  obtain ⟨hp_len, hp_val⟩ := List.getElem?_eq_some_iff.mp hg
+  obtain ⟨hdiv, hmod⟩ : (qDest * N + target) / N = qDest ∧ (qDest * N + target) % N = target :=
+    (Nat.div_mod_unique (Nat.zero_lt_of_lt htarget_lt)).2 ⟨by ring, htarget_lt⟩
+  exact ⟨hdiv, hmod, (List.idxOf_lt_length_of_mem hu_mem).trans_le hdest_len,
+    List.getElem?_idxOf hu_mem, hp_val ▸ hsrc_nodup.idxOf_getElem pSrc hp_len⟩
+
 theorem clockedOutCount_eq_clockedCoinCount_of_outPort_eq_some
     (machine : MultiTapePTM k Bool State) {D d : ℕ} {w : List Bool} {a p b q : ℕ}
     (h : clockedOutPort machine D d w a p = some (b, q)) :
@@ -1114,13 +1015,12 @@ theorem clockedOutCount_eq_clockedCoinCount_of_outPort_eq_some
   | none => rw [hg] at h; cases h
   | some v =>
     rw [hg, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨hb_eq, -⟩ := h
-    have hv_mem : v ∈ coinOutTargetsWithSymbol machine B w.length (a % N)
-        w[queryIndex (k := k) B (a % N)]? := List.mem_of_getElem? hg
+    obtain ⟨rfl, -⟩ := h
     have hv_lt : v < N :=
-      (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine hv_mem).2
-    obtain ⟨hb_div, hb_mod⟩ : b / N = a / N + 1 ∧ b % N = v :=
-      (Nat.div_mod_unique (Nat.zero_lt_of_lt hv_lt)).2 ⟨by rw [← hb_eq]; ring, hv_lt⟩
+      (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine (List.mem_of_getElem? hg)).2
+    obtain ⟨hb_div, hb_mod⟩ :
+        ((a / N + 1) * N + v) / N = a / N + 1 ∧ ((a / N + 1) * N + v) % N = v :=
+      (Nat.div_mod_unique (Nat.zero_lt_of_lt hv_lt)).2 ⟨by ring, hv_lt⟩
     dsimp only [clockedOutCount, clockedOutCountWithSymbol, clockedCoinCountWithSymbol]
     rw [ite_eq_left hcond, hg, ite_eq_left hb_div.symm, hb_mod]
 
@@ -1132,90 +1032,62 @@ theorem clockedOutPort_eq_some_iff (machine : MultiTapePTM k Bool State)
   let n := w.length
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   constructor
   · intro hout
     dsimp only [clockedOutPort] at hout
     split_ifs at hout with hcond
-    obtain ⟨_, hp_lt, ha_div⟩ := hcond
-    have ha_div' : a / N < T := ha_div
+    have ha_div : a / N < T := hcond.2.2
     cases hg : (coinOutTargetsWithSymbol machine B n (a % N)
         w[queryIndex (k := k) B (a % N)]?)[p]? with
     | none => rw [hg] at hout; cases hout
     | some v =>
-      rw [hg, Option.some.injEq, Prod.mk.injEq] at hout
-      obtain ⟨hb_eq, hq_eq⟩ := hout
-      have hv_mem : v ∈ coinOutTargetsWithSymbol machine B n (a % N)
-          w[queryIndex (k := k) B (a % N)]? := List.mem_of_getElem? hg
+      rw [hg, Option.some.injEq] at hout
+      have hv_mem := List.mem_of_getElem? hg
       have hv_lt : v < N := (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine hv_mem).2
-      have hN_pos : 0 < N := Nat.zero_lt_of_lt hv_lt
-      have hu_mem : a % N ∈ coinInSources machine B w v :=
-        (mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w (a % N) v).mp hv_mem
-      have hq_len : (coinInSources machine B w v).idxOf (a % N) <
-          (coinInSources machine B w v).length := List.idxOf_lt_length_of_mem hu_mem
-      have hq_lt : q < inPortBound machine := by
-        rw [← hq_eq]
-        exact hq_len.trans_le (length_coinInSources_le machine B w v)
-      obtain ⟨hb_div, hb_mod⟩ : b / N = a / N + 1 ∧ b % N = v :=
-        (Nat.div_mod_unique hN_pos).2 ⟨by rw [← hb_eq]; ring, hv_lt⟩
+      obtain ⟨hb_div, hb_mod, hq_lt, hget_in, hidx_out⟩ :=
+        clockedPort_invert (qDest := a / N + 1)
+          (nodup_coinOutTargetsWithSymbol machine B n (a % N) _) hg hv_lt
+          ((mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w (a % N) v).mp hv_mem)
+          (length_coinInSources_le machine B w v) hout
       have hb_lt : b < clockedVertexBound (k := k) D d n :=
-        (Nat.div_lt_iff_lt_mul (y := T + 1) hN_pos).1 (by omega)
+        (Nat.div_lt_iff_lt_mul (y := T + 1) (Nat.zero_lt_of_lt hv_lt)).1 (by omega)
       have hb_cond : b < clockedVertexBound (k := k) D d n ∧ q < inPortBound machine ∧
           0 < b / N := ⟨hb_lt, hq_lt, by rw [hb_div]; exact Nat.succ_pos _⟩
-      obtain ⟨hp_len, hp_val⟩ := List.getElem?_eq_some_iff.mp hg
       dsimp only [clockedInPort]
-      rw [ite_eq_left hb_cond, hb_mod, ← hq_eq, List.getElem?_eq_getElem hq_len,
-        List.getElem_idxOf hq_len]
+      rw [ite_eq_left hb_cond, hb_mod, hget_in]
       simp only [Option.some.injEq, Prod.mk.injEq]
-      refine ⟨?_, ?_⟩
-      · rw [hb_div, Nat.add_sub_cancel, Nat.mul_comm]
-        exact Nat.div_add_mod a N
-      · rw [← hp_val]
-        exact (nodup_coinOutTargetsWithSymbol machine B n (a % N) _).idxOf_getElem p hp_len
+      exact ⟨by rw [hb_div, Nat.add_sub_cancel, Nat.mul_comm]; exact Nat.div_add_mod a N, hidx_out⟩
   · intro hin
     dsimp only [clockedInPort] at hin
     split_ifs at hin with hcond
-    obtain ⟨hb_lt, _, hb_pos⟩ := hcond
+    obtain ⟨hb_lt, -, hb_pos⟩ := hcond
     have hb_pos' : 0 < b / N := hb_pos
     cases hg : (coinInSources machine B w (b % N))[q]? with
     | none => rw [hg] at hin; cases hin
     | some u =>
-      rw [hg, Option.some.injEq, Prod.mk.injEq] at hin
-      obtain ⟨ha_eq, hp_eq⟩ := hin
-      have hu_mem : u ∈ coinInSources machine B w (b % N) := List.mem_of_getElem? hg
-      have hv_mem : b % N ∈ coinOutTargetsWithSymbol machine B n u
-          w[queryIndex (k := k) B u]? :=
-        (mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w u (b % N)).mpr hu_mem
+      rw [hg, Option.some.injEq] at hin
+      have hv_mem : b % N ∈ coinOutTargetsWithSymbol machine B n u w[queryIndex (k := k) B u]? :=
+        (mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w u (b % N)).mpr
+          (List.mem_of_getElem? hg)
       have hu_lt : u < N := (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine hv_mem).1
       have hN_pos : 0 < N := Nat.zero_lt_of_lt hu_lt
-      have hp_len : (coinOutTargetsWithSymbol machine B n u
-          w[queryIndex (k := k) B u]?).idxOf (b % N) <
-          (coinOutTargetsWithSymbol machine B n u w[queryIndex (k := k) B u]?).length :=
-        List.idxOf_lt_length_of_mem hv_mem
-      have hp_lt : p < 2 := by
-        rw [← hp_eq]
-        exact hp_len.trans_le (length_coinOutTargetsWithSymbol_le machine B n u _)
-      have hb_lt' : b < (T + 1) * N := hb_lt
-      have hb_div_lt : b / N < T + 1 :=
-        (Nat.div_lt_iff_lt_mul hN_pos).mpr hb_lt'
-      obtain ⟨ha_div, ha_mod⟩ : a / N = b / N - 1 ∧ a % N = u :=
-        (Nat.div_mod_unique hN_pos).2 ⟨by rw [← ha_eq]; ring, hu_lt⟩
+      obtain ⟨ha_div, ha_mod, hp_lt, hget_out, hidx_in⟩ :=
+        clockedPort_invert (qDest := b / N - 1)
+          (nodup_coinInSources machine B w (b % N)) hg hu_lt hv_mem
+          (length_coinOutTargetsWithSymbol_le machine B n u _) hin
+      have hb_div_lt : b / N < T + 1 := (Nat.div_lt_iff_lt_mul hN_pos).mpr (hb_lt : b < (T + 1) * N)
       have ha_div_lt : a / N < T := by omega
       have ha_lt : a < clockedVertexBound (k := k) D d n :=
         (Nat.div_lt_iff_lt_mul (y := T + 1) hN_pos).1 (by omega)
       have ha_cond : a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T :=
         ⟨ha_lt, hp_lt, ha_div_lt⟩
-      obtain ⟨hq_len, hq_val⟩ := List.getElem?_eq_some_iff.mp hg
       dsimp only [clockedOutPort]
-      rw [ite_eq_left ha_cond, ha_mod, ← hp_eq, List.getElem?_eq_getElem hp_len,
-        List.getElem_idxOf hp_len]
+      rw [ite_eq_left ha_cond, ha_mod, hget_out]
       simp only [Option.some.injEq, Prod.mk.injEq]
-      refine ⟨?_, ?_⟩
-      · have hsub : b / N - 1 + 1 = b / N := by omega
-        rw [ha_div, hsub, Nat.mul_comm]
-        exact Nat.div_add_mod b N
-      · rw [← hq_val]
-        exact (nodup_coinInSources machine B w (b % N)).idxOf_getElem q hq_len
+      refine ⟨?_, hidx_in⟩
+      rw [ha_div, show b / N - 1 + 1 = b / N by omega, Nat.mul_comm]
+      exact Nat.div_add_mod b N
 
 /-! ### Space-budget certificates for pre-queried port and multiplicity evaluation -/
 
@@ -1226,16 +1098,15 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 /-- Evaluate a fixed `PredRecipe` within any common space budget. -/
 theorem evalPredRecipe_budget (rec : PredRecipe k State) {B v : α → ℕ}
     (hB : ComputableInSpace B enc encNat S)
-    (hv : ComputableInSpace v enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hv : ComputableInSpace v enc encNat S) :
     ComputableInSpace (fun a => evalPredRecipe rec (B a) (v a)) enc encNat S := by
   cases rec with
   | self => exact hv
   | step t altInput prevOutput =>
     let (qSrc, _, workObs, act) := t
     have hrv := readRegisters_budget (k := k) hB hv
-    have hthree : ComputableInSpace (fun _ : α => 3) enc encNat S := budget_const 3 hin
-    refine pack_inSpace hB (fun reg => ?_) hin
+    have hthree : ComputableInSpace (fun _ : α => 3) enc encNat S := budget_const 3
+    refine pack_inSpace hB (fun reg => ?_)
     cases reg with
     | inputPos =>
       dsimp only [predRegisters]
@@ -1249,9 +1120,9 @@ theorem evalPredRecipe_budget (rec : PredRecipe k State) {B v : α → ℕ}
         cases altInput
         · exact budget_natPred (hrv .inputPos)
         · exact hrv .inputPos
-    | control => exact budget_const (stateCode (some qSrc)) hin
-    | output => exact budget_const prevOutput.val hin
-    | head i => exact budget_const (symbolCode (workObs i)) hin
+    | control => exact budget_const (stateCode (some qSrc))
+    | output => exact budget_const prevOutput.val
+    | head i => exact budget_const (symbolCode (workObs i))
     | left i =>
       dsimp only [predRegisters]
       cases (act.workTapes i).2 with
@@ -1277,7 +1148,7 @@ theorem evalPredRecipe_getD_inSpace (machine : MultiTapePTM k Bool State)
       enc encNat fun a => (enc a).length :=
   dispatch (predRecipes machine) .self
     (fun rec a => evalPredRecipe rec (B a) (v a))
-    (fun rec => evalPredRecipe_budget rec hB hv (.refl _)) hidx
+    (fun rec => evalPredRecipe_budget rec hB hv) hidx
 
 /-- Evaluate `coinInSourcesWithSymbols` within a common space budget when the `inPortBound machine`
 queried input symbols are supplied by a family of functions `symAt i`. -/
@@ -1287,8 +1158,7 @@ theorem coinInSourcesWithSymbols_ofFn_budget (machine : MultiTapePTM k Bool Stat
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hsym : ∀ i, ComputableInSpace (symAt i) enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hsym : ∀ i, ComputableInSpace (symAt i) enc (encOption encBool) S) :
     ComputableInSpace
       (fun a => coinInSourcesWithSymbols machine (B a) (n a) (v a)
         (List.ofFn fun i : Fin (inPortBound machine) => symAt i a))
@@ -1304,14 +1174,14 @@ theorem coinInSourcesWithSymbols_ofFn_budget (machine : MultiTapePTM k Bool Stat
   induction recs with
   | nil =>
     intro _ _
-    exact budget_const [] hin
+    exact budget_const []
   | cons rec recs ih =>
     intro f hf
-    have hu := evalPredRecipe_budget rec hB hv hin
+    have hu := evalPredRecipe_budget rec hB hv
     have hrest := ih (fun j => f j.succ) (fun j => hf j.succ)
-    have hpos := budget_natLt (budget_const 0 hin)
-      (coinCountWithSymbol_budget machine hB hn hu hv (hf 0) hin)
-    have hins := insertSortedFuel_budget recs.length hu hrest hin
+    have hpos := budget_natLt (budget_const 0)
+      (coinCountWithSymbol_budget machine hB hn hu hv (hf 0))
+    have hins := insertSortedFuel_budget recs.length hu hrest
     refine (budget_ite hpos hins hrest).of_enc_eq fun a => ?_
     simp only [List.ofFn_succ, collectInSources, decide_eq_true_eq]
     congr 1
@@ -1320,31 +1190,50 @@ theorem coinInSourcesWithSymbols_ofFn_budget (machine : MultiTapePTM k Bool Stat
         (length_collectInSources_le machine (B a) (n a) (v a) recs _)).symm
     · rfl
 
+private theorem clockedOutTarget_budget (machine : MultiTapePTM k Bool State)
+    (D d : ℕ) {n a p : α → ℕ} {symOut : α → Option Bool}
+    (hn : ComputableInSpace n enc encNat S)
+    (ha : ComputableInSpace a enc encNat S)
+    (hp : ComputableInSpace p enc encNat S)
+    (hsym : ComputableInSpace symOut enc (encOption encBool) S) :
+    let B x := radix D (n x)
+    let N x := vertexBound (k := k) (B x)
+    let u x := a x % N x
+    ComputableInSpace B enc encNat S ∧
+    ComputableInSpace N enc encNat S ∧
+    ComputableInSpace
+      (fun x => decide (a x < clockedVertexBound (k := k) D d (n x)) &&
+        (decide (p x < 2) && decide (a x / N x < polyClock d (n x)))) enc encBool S ∧
+    ComputableInSpace u enc encNat S ∧
+    ComputableInSpace
+      (fun x => (coinOutTargetsWithSymbol machine (B x) (n x) (u x) (symOut x))[p x]?)
+      enc (encOption encNat) S := by
+  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2
+  have hB := radix_budget D hn
+  have hN := vertexBound_budget (k := k) hB
+  have hT := polyClock_budget d hn
+  have hM := clockedVertexBound_budget (k := k) D d hn
+  have hcond := budget_boolAnd (budget_natLt ha hM)
+    (budget_boolAnd (budget_natLt hp htwo) (budget_natLt (budget_natDiv ha hN) hT))
+  have hu := budget_natMod ha hN
+  have houtList := coinOutTargetsWithSymbol_budget machine hB hn hu hsym
+  have hvOpt := getElem?_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp
+  exact ⟨hB, hN, hcond, hu, hvOpt⟩
+
 /-- Space budget for `clockedOutCountWithSymbol`. -/
 theorem clockedOutCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (D d : ℕ) {n a p : α → ℕ} {symOut : α → Option Bool}
     (hn : ComputableInSpace n enc encNat S)
     (ha : ComputableInSpace a enc encNat S)
     (hp : ComputableInSpace p enc encNat S)
-    (hsym : ComputableInSpace symOut enc (encOption encBool) S)
-    (hin : (fun x => (enc x).length) ≼ S) :
+    (hsym : ComputableInSpace symOut enc (encOption encBool) S) :
     ComputableInSpace
       (fun x => clockedOutCountWithSymbol machine D d (n x) (a x) (p x) (symOut x))
       enc encNat S := by
-  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
-    budget_natPow (budget_natAdd hn htwo) hin D
-  have hN := vertexBound_budget (k := k) hB hin
-  have hT := budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) hin d)
-  have hM := clockedVertexBound_budget (k := k) D d hn hin
-  have hcond := budget_boolAnd (budget_natLt ha hM)
-    (budget_boolAnd (budget_natLt hp htwo) (budget_natLt (budget_natDiv ha hN) hT))
-  have hu := budget_natMod ha hN
-  have houtList := coinOutTargetsWithSymbol_budget machine hB hn hu hsym hin
-  have hvOpt := getElem?_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp hin
-  have hcnt := coinCountWithSymbol_budget machine hB hn hu (budget_optionGetD 0 hvOpt) hsym hin
-  refine (budget_ite hcond (budget_ite (budget_optionIsSome hvOpt) hcnt (budget_const 0 hin))
-    (budget_const 0 hin)).of_enc_eq fun x => ?_
+  obtain ⟨hB, -, hcond, hu, hvOpt⟩ := clockedOutTarget_budget machine D d hn ha hp hsym
+  have hcnt := coinCountWithSymbol_budget machine hB hn hu (budget_optionGetD 0 hvOpt) hsym
+  refine (budget_ite hcond (budget_ite (budget_optionIsSome hvOpt) hcnt (budget_const 0))
+    (budget_const 0)).of_enc_eq fun x => ?_
   clear * -
   simp only [clockedOutCountWithSymbol, Bool.and_eq_true, decide_eq_true_eq]
   split_ifs <;> (try split) <;> simp_all
@@ -1357,30 +1246,19 @@ theorem clockedOutPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
     (ha : ComputableInSpace a enc encNat S)
     (hp : ComputableInSpace p enc encNat S)
     (hsymOut : ComputableInSpace symOut enc (encOption encBool) S)
-    (hinSym : ∀ i, ComputableInSpace (inSymAt i) enc (encOption encBool) S)
-    (hin : (fun x => (enc x).length) ≼ S) :
+    (hinSym : ∀ i, ComputableInSpace (inSymAt i) enc (encOption encBool) S) :
     ComputableInSpace
       (fun x => clockedOutPortWithSymbols machine D d (n x) (a x) (p x) (symOut x)
         (List.ofFn fun i => inSymAt i x))
       enc (encOption (encPair encNat encNat)) S := by
-  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
-    budget_natPow (budget_natAdd hn htwo) hin D
-  have hN := vertexBound_budget (k := k) hB hin
-  have hT := budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) hin d)
-  have hM := clockedVertexBound_budget (k := k) D d hn hin
-  have hcond := budget_boolAnd (budget_natLt ha hM)
-    (budget_boolAnd (budget_natLt hp htwo) (budget_natLt (budget_natDiv ha hN) hT))
-  have hu := budget_natMod ha hN
-  have houtList := coinOutTargetsWithSymbol_budget machine hB hn hu hsymOut hin
-  have hvOpt := getElem?_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp hin
+  obtain ⟨hB, hN, hcond, hu, hvOpt⟩ := clockedOutTarget_budget machine D d hn ha hp hsymOut
   have hvVal := budget_optionGetD 0 hvOpt
-  have hinList := coinInSourcesWithSymbols_ofFn_budget machine inSymAt hB hn hvVal hinSym hin
+  have hinList := coinInSourcesWithSymbols_ofFn_budget machine inSymAt hB hn hvVal hinSym
   have hqIdx := idxOf_budget (inPortBound machine) (fun _ => length_coinInSourcesWithSymbols_le ..)
-    hinList hu hin
+    hinList hu
   have hbVal := budget_natAdd (budget_natMul (budget_natSucc (budget_natDiv ha hN)) hN) hvVal
   have hnone : ComputableInSpace (fun _ : α => (none : Option (ℕ × ℕ)))
-      enc (encOption (encPair encNat encNat)) S := budget_const none hin
+      enc (encOption (encPair encNat encNat)) S := budget_const none
   refine (budget_ite hcond (budget_ite (budget_optionIsSome hvOpt)
     (budget_optionSome (budget_prod hbVal hqIdx)) hnone) hnone).of_enc_eq fun x => ?_
   clear * -
@@ -1396,30 +1274,27 @@ theorem clockedInPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
     (hb : ComputableInSpace b enc encNat S)
     (hq : ComputableInSpace q enc encNat S)
     (hinSym : ∀ i, ComputableInSpace (inSymAt i) enc (encOption encBool) S)
-    (hsymPred : ComputableInSpace symPred enc (encOption encBool) S)
-    (hin : (fun x => (enc x).length) ≼ S) :
+    (hsymPred : ComputableInSpace symPred enc (encOption encBool) S) :
     ComputableInSpace
       (fun x => clockedInPortWithSymbols machine D d (n x) (b x) (q x)
         (List.ofFn fun i => inSymAt i x) (symPred x))
       enc (encOption (encPair encNat encNat)) S := by
-  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
-    budget_natPow (budget_natAdd hn htwo) hin D
-  have hN := vertexBound_budget (k := k) hB hin
-  have hM := clockedVertexBound_budget (k := k) D d hn hin
+  have hB := radix_budget D hn
+  have hN := vertexBound_budget (k := k) hB
+  have hM := clockedVertexBound_budget (k := k) D d hn
   have hcond := budget_boolAnd (budget_natLt hb hM)
-    (budget_boolAnd (budget_natLt hq (budget_const (inPortBound machine) hin))
-      (budget_natLt (budget_const 0 hin) (budget_natDiv hb hN)))
+    (budget_boolAnd (budget_natLt hq (budget_const (inPortBound machine)))
+      (budget_natLt (budget_const 0) (budget_natDiv hb hN)))
   have hv := budget_natMod hb hN
-  have hinList := coinInSourcesWithSymbols_ofFn_budget machine inSymAt hB hn hv hinSym hin
+  have hinList := coinInSourcesWithSymbols_ofFn_budget machine inSymAt hB hn hv hinSym
   have huOpt := getElem?_budget (inPortBound machine)
-    (fun _ => length_coinInSourcesWithSymbols_le ..) hinList hq hin
+    (fun _ => length_coinInSourcesWithSymbols_le ..) hinList hq
   have huVal := budget_optionGetD 0 huOpt
-  have houtList := coinOutTargetsWithSymbol_budget machine hB hn huVal hsymPred hin
-  have hpIdx := idxOf_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hv hin
+  have houtList := coinOutTargetsWithSymbol_budget machine hB hn huVal hsymPred
+  have hpIdx := idxOf_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hv
   have haVal := budget_natAdd (budget_natMul (budget_natPred (budget_natDiv hb hN)) hN) huVal
   have hnone : ComputableInSpace (fun _ : α => (none : Option (ℕ × ℕ)))
-      enc (encOption (encPair encNat encNat)) S := budget_const none hin
+      enc (encOption (encPair encNat encNat)) S := budget_const none
   refine (budget_ite hcond (budget_ite (budget_optionIsSome huOpt)
     (budget_optionSome (budget_prod haVal hpIdx)) hnone) hnone).of_enc_eq fun x => ?_
   clear * -

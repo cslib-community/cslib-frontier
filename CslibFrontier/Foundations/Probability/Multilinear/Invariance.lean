@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Foundations.Probability.Multilinear.Bonami
 public import Mathlib.Analysis.Calculus.ContDiff.Defs
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import CslibFrontier.Foundations.Analysis.Calculus.Taylor
 import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
 import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
+import CslibFrontier.Foundations.Probability.SmoothTests
 
 /-!
 # The Basic Invariance Principle
@@ -32,8 +32,11 @@ Corollary 11.67). The typical instance takes `x` uniform `±1` bits and `y` stan
 The proof is Lindeberg's replacement method. The hybrids `Measure.pi (s.piecewise ν μ)` replace the
 coordinates in `s` one at a time (`MeasureTheory.abs_integral_pi_sub_le_sum`). Replacing coordinate
 `t` writes `F = E_t F + z · D_t F` with `E_t F`, `D_t F` independent of the new coordinate `z`; by
-Taylor's theorem to third order, the first three moments of `x_t` and `y_t` agree, so the step costs
-at most `C / 24 · (E[x_t⁴] + E[y_t⁴]) · E[(D_t F)⁴] ≤ 3 C / 4 · E[(D_t F)⁴]`
+Taylor's theorem to third order (the one-coordinate step
+`ProbabilityTheory.abs_integral_sub_integral_le_of_moments` of
+`CslibFrontier.Foundations.Probability.SmoothTests`), the first three moments of `x_t` and `y_t`
+agree, so the step costs at most
+`C / 24 · (E[x_t⁴] + E[y_t⁴]) · E[(D_t F)⁴] ≤ 3 C / 4 · E[(D_t F)⁴]`
 (`HasInvarianceMoments.abs_integral_sub_le`). The Bonami Lemma for the hybrid ensemble
 (`integral_multilinearEval_pow_four_le`) bounds `E[(D_t F)⁴] ≤ 9 ^ (k - 1) Inf_t[F] ^ 2`.
 
@@ -48,8 +51,6 @@ place of `3 ^ k`; the hypercontractive version (Exercise 11.47) is not formalize
 
 ## Main results
 
-* `ProbabilityTheory.abs_integral_sub_integral_le_of_moments`: the one-dimensional replacement
-  step, for laws with matching moments up to order `n` and a `C^(n+1)` test function.
 * `ProbabilityTheory.abs_integral_comp_multilinearEval_sub_le`: the Basic Invariance Principle.
 * `ProbabilityTheory.abs_integral_comp_multilinearEval_sub_le_of_influence_le`: Corollary 11.67.
 * `ProbabilityTheory.abs_integral_comp_multilinearEval_sub_le_of_contDiff_three`: the `C³` form.
@@ -66,80 +67,17 @@ open scoped Nat ENNReal
 
 namespace ProbabilityTheory
 
-/-! ### One coordinate -/
-
-/-- **The one-dimensional replacement step.** If the laws `μ` and `ν` have finite moments of order
-`n + 1` and the same moments of orders `0, …, n`, and `ψ` is `C^(n+1)` with `|ψ⁽ⁿ⁺¹⁾| ≤ C`, then
-for all `a`, `b`, `|E_μ ψ(a + s b) - E_ν ψ(a + s b)|` is at most
-`C / (n + 1)! · |b| ^ (n + 1) · (E_μ |s| ^ (n + 1) + E_ν |s| ^ (n + 1))`. -/
-theorem abs_integral_sub_integral_le_of_moments {μ ν : Measure ℝ} [IsProbabilityMeasure μ]
-    [IsProbabilityMeasure ν] {n : ℕ} (hμ : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) μ)
-    (hν : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) ν)
-    (hmom : ∀ j ≤ n, ∫ s, s ^ j ∂μ = ∫ s, s ^ j ∂ν)
-    {ψ : ℝ → ℝ} (hψ : ContDiff ℝ (n + 1) ψ) {C : ℝ}
-    (hC : ∀ y, |iteratedDeriv (n + 1) ψ y| ≤ C) (a b : ℝ) :
-    |∫ s, ψ (a + s * b) ∂μ - ∫ s, ψ (a + s * b) ∂ν| ≤
-      C / (n + 1)! * |b| ^ (n + 1) * (∫ s, |s| ^ (n + 1) ∂μ + ∫ s, |s| ^ (n + 1) ∂ν) := by
-  set T : ℝ → ℝ := fun s => ∑ j ∈ range (n + 1), iteratedDeriv j ψ a * (s * b) ^ j / (j ! : ℝ)
-  set R : ℝ → ℝ := fun s => ψ (a + s * b) - T s
-  set K : ℝ := C / (n + 1)! * |b| ^ (n + 1)
-  have hR (s : ℝ) : |R s| ≤ K * |s| ^ (n + 1) := by
-    calc |R s| ≤ C * |s * b| ^ (n + 1) / (n + 1)! := abs_sub_sum_iteratedDeriv_le hψ hC a (s * b)
-      _ = K * |s| ^ (n + 1) := by rw [abs_mul, mul_pow]; ring
-  have hψc : Continuous ψ := hψ.continuous
-  have hTint {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      Integrable T m ∧ ∫ s, T s ∂m =
-        ∑ j ∈ range (n + 1), iteratedDeriv j ψ a * b ^ j / j ! * ∫ s, s ^ j ∂m := by
-    have hint (j : ℕ) (hj : j ∈ range (n + 1)) :
-        Integrable (fun s => iteratedDeriv j ψ a * (s * b) ^ j / j !) m := by
-      have := (integrable_pow_of_memLp hm (j := j) (by
-        have := mem_range.1 hj; omega)).const_mul (iteratedDeriv j ψ a * b ^ j / j !)
-      refine this.congr (ae_of_all _ fun s => ?_)
-      simp only [mul_pow]; ring
-    refine ⟨integrable_finsetSum _ hint, ?_⟩
-    rw [integral_finsetSum _ hint]
-    refine sum_congr rfl fun j _ => ?_
-    rw [← integral_const_mul]
-    congr 1 with s : 1; simp only [mul_pow]; ring
-  have hRint {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      Integrable R m :=
-    ((integrable_abs_pow_of_memLp hm le_rfl).const_mul K).mono'
-      (by fun_prop : Continuous R).aestronglyMeasurable
-      (ae_of_all _ fun s => by simpa using hR s)
-  have hsplit {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      ∫ s, ψ (a + s * b) ∂m = ∫ s, T s ∂m + ∫ s, R s ∂m := by
-    rw [← integral_add (hTint hm).1 (hRint hm)]
-    congr 1 with s : 1; simp [R]
-  have hRle {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      |∫ s, R s ∂m| ≤ K * ∫ s, |s| ^ (n + 1) ∂m := by
-    rw [← integral_const_mul]
-    exact (abs_integral_le_integral_abs).trans (integral_mono (hRint hm).abs
-      ((integrable_abs_pow_of_memLp hm le_rfl).const_mul K) hR)
-  have hT : ∫ s, T s ∂μ = ∫ s, T s ∂ν := by
-    rw [(hTint hμ).2, (hTint hν).2]
-    refine sum_congr rfl fun j hj => ?_
-    rw [hmom j (Nat.lt_succ_iff.1 (mem_range.1 hj))]
-  rw [hsplit hμ, hsplit hν, hT, add_sub_add_left_eq_sub, mul_add]
-  exact (abs_sub _ _).trans (add_le_add (hRle hμ) (hRle hν))
-
 namespace HasInvarianceMoments
 
 variable {μ ν : Measure ℝ} [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
 
 /-- Under Hypothesis 11.65, `E|z|³ ≤ √(E z² · E z⁴) ≤ 3`. -/
 theorem integral_abs_pow_three_le (hμ : HasInvarianceMoments μ) : ∫ s, |s| ^ 3 ∂μ ≤ 3 := by
-  have hm4 : MemLp id ((4 : ℕ) : ℝ≥0∞) μ := by exact_mod_cast hμ.memLp_four
-  have h := sq_integral_mul_le (P := μ) (f := fun s => |s|) (g := fun s => s ^ 2)
-    (by simpa using integrable_pow_of_memLp hm4 (j := 2) (by norm_num))
-    (by simpa only [← pow_mul] using integrable_pow_of_memLp hm4 (j := 4) le_rfl)
-    ((integrable_abs_pow_of_memLp hm4 (j := 3) (by norm_num)).congr (ae_of_all _ fun s => by
-      simp only; rw [← sq_abs s]; ring))
-  have h3 : ∫ s, |s| * s ^ 2 ∂μ = ∫ s, |s| ^ 3 ∂μ := by
-    congr 1 with s : 1; rw [← sq_abs s]; ring
-  simp only [sq_abs, ← pow_mul] at h
-  rw [h3, hμ.integral_sq, one_mul] at h
+  have h := sq_integral_abs_pow_three_le hμ.memLp_four
+  rw [hμ.integral_sq, one_mul] at h
   have h0 : 0 ≤ ∫ s, |s| ^ 3 ∂μ := integral_nonneg fun _ => by positivity
-  nlinarith [hμ.integral_pow_four_le]
+  exact (pow_le_pow_iff_left₀ h0 (by norm_num) two_ne_zero).1
+    (h.trans (by linarith [hμ.integral_pow_four_le]))
 
 /-- **The replacement step under Hypothesis 11.65, `C⁴` form.** If `ψ` is `C⁴` with `|ψ⁗| ≤ C`,
 then `|E_ν ψ(a + s b) - E_μ ψ(a + s b)| ≤ C / 24 · (E_ν s⁴ + E_μ s⁴) · b⁴ ≤ 3 C / 4 · b⁴`. -/
@@ -151,17 +89,12 @@ theorem abs_integral_sub_le (hμ : HasInvarianceMoments μ) (hν : HasInvariance
   · have h4 (m : Measure ℝ) (hm : HasInvarianceMoments m) : ∫ s, |s| ^ (3 + 1) ∂m ≤ 9 := by
       simpa [Even.pow_abs (by decide : Even 4)] using hm.integral_pow_four_le
     have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
-    refine h.trans ?_
-    have hf : ((3 + 1)! : ℝ) = 24 := by norm_num [Nat.factorial]
-    rw [hf]
-    have hb4 : 0 ≤ C / 24 * |b| ^ (3 + 1) := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left (add_le_add (h4 ν hν) (h4 μ hμ)) hb4]
+    refine h.trans ((mul_le_mul_of_nonneg_left (add_le_add (h4 ν hν) (h4 μ hμ))
+      (by positivity)).trans_eq ?_)
+    rw [show ((3 + 1)! : ℝ) = 24 by norm_num [Nat.factorial]]; ring
   · intro j hj
-    interval_cases j
-    · simp
-    · simpa using hν.integral_id.trans hμ.integral_id.symm
-    · rw [hν.integral_sq, hμ.integral_sq]
-    · rw [hν.integral_pow_three, hμ.integral_pow_three]
+    interval_cases j <;> simp [hν.integral_id, hμ.integral_id, hν.integral_sq, hμ.integral_sq,
+      hν.integral_pow_three, hμ.integral_pow_three]
 
 /-- **The replacement step under Hypothesis 11.65, `C³` form.** If `ψ` is `C³` with `|ψ‴| ≤ C`,
 then `|E_ν ψ(a + s b) - E_μ ψ(a + s b)| ≤ C / 6 · (E_ν |s|³ + E_μ |s|³) · |b|³ ≤ C · |b|³`. -/
@@ -173,17 +106,12 @@ theorem abs_integral_sub_le_of_contDiff_three (hμ : HasInvarianceMoments μ)
     (by exact_mod_cast hν.memLp_four.mono_exponent (by norm_num))
     (by exact_mod_cast hμ.memLp_four.mono_exponent (by norm_num)) ?_ hψ hC a b
   · have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
-    refine h.trans ?_
-    have hf : ((2 + 1)! : ℝ) = 6 := by norm_num [Nat.factorial]
-    rw [hf]
-    have hb3 : 0 ≤ C / 6 * |b| ^ (2 + 1) := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left
-      (add_le_add hν.integral_abs_pow_three_le hμ.integral_abs_pow_three_le) hb3]
+    refine h.trans ((mul_le_mul_of_nonneg_left
+      (add_le_add hν.integral_abs_pow_three_le hμ.integral_abs_pow_three_le)
+      (by positivity)).trans_eq ?_)
+    rw [show ((2 + 1)! : ℝ) = 6 by norm_num [Nat.factorial]]; ring
   · intro j hj
-    interval_cases j
-    · simp
-    · simpa using hν.integral_id.trans hμ.integral_id.symm
-    · rw [hν.integral_sq, hμ.integral_sq]
+    interval_cases j <;> simp [hν.integral_id, hμ.integral_id, hν.integral_sq, hμ.integral_sq]
 
 end HasInvarianceMoments
 
@@ -195,9 +123,7 @@ omit [Fintype ι] in
 theorem hasInvarianceMoments_piecewise (s : Finset ι) {μ ν : ι → Measure ℝ}
     (hμ : ∀ i, HasInvarianceMoments (μ i)) (hν : ∀ i, HasInvarianceMoments (ν i)) (i : ι) :
     HasInvarianceMoments (s.piecewise ν μ i) := by
-  by_cases h : i ∈ s
-  · rw [Finset.piecewise_eq_of_mem _ _ _ h]; exact hν i
-  · rw [Finset.piecewise_eq_of_notMem _ _ _ h]; exact hμ i
+  by_cases h : i ∈ s <;> simp [h, hμ i, hν i]
 
 omit [DecidableEq ι] in
 /-- A test function with bounded `(n+1)`st derivative, `n + 1 ≤ 4`, composed with a multilinear
@@ -205,38 +131,9 @@ polynomial of `L⁴` variables is integrable. -/
 theorem integrable_comp_multilinearEval (μ : ι → Measure ℝ) [∀ i, IsProbabilityMeasure (μ i)]
     (hμ : ∀ i, MemLp id 4 (μ i)) (c : Finset ι → ℝ) {ψ : ℝ → ℝ} {n : ℕ} (hn : n + 1 ≤ 4)
     (hψ : ContDiff ℝ (n + 1) ψ) {C : ℝ} (hC : ∀ y, |iteratedDeriv (n + 1) ψ y| ≤ C) :
-    Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi μ) := by
-  obtain ⟨K, hK⟩ := hψ.exists_abs_le_mul_one_add_pow_of_abs_iteratedDeriv_le hC
-  refine (((integrable_const 1).add
-    (integrable_abs_multilinearEval_pow μ hμ c hn)).const_mul K).mono'
-    (hψ.continuous.comp (continuous_multilinearEval c)).aestronglyMeasurable
-    (ae_of_all _ fun z => ?_)
-  simpa [Real.norm_eq_abs] using hK (multilinearEval c z)
-
-/-- One step of the hybrid argument for a multilinear polynomial: if each one-coordinate
-replacement costs at most `K |b| ^ p` for the coefficient `b` of the replaced variable, then
-replacing coordinate `t` costs at most `K E|D_t F| ^ p` over the hybrid. -/
-private theorem abs_integral_pi_piecewise_insert_sub_le (μ ν : ι → Measure ℝ)
-    [∀ i, IsProbabilityMeasure (μ i)] [∀ i, IsProbabilityMeasure (ν i)]
-    (hμ : ∀ i, HasInvarianceMoments (μ i)) (hν : ∀ i, HasInvarianceMoments (ν i))
-    (c : Finset ι → ℝ) {ψ : ℝ → ℝ} (hψ : ∀ s : Finset ι,
-      Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi (s.piecewise ν μ)))
-    {p : ℕ} (hp : p ≤ 4) {K : ℝ}
-    (h1 : ∀ t a b, |∫ s, ψ (a + s * b) ∂ν t - ∫ s, ψ (a + s * b) ∂μ t| ≤ K * |b| ^ p)
-    {s : Finset ι} {t : ι} (ht : t ∉ s) :
-    |∫ z, ψ (multilinearEval c z) ∂Measure.pi ((insert t s).piecewise ν μ) -
-      ∫ z, ψ (multilinearEval c z) ∂Measure.pi (s.piecewise ν μ)| ≤
-      K * ∫ z, |multilinearEval (multilinearDerivCoeff c t) z| ^ p
-        ∂Measure.pi (s.piecewise ν μ) := by
-  have := isProbabilityMeasure_piecewise μ ν s
-  have hPm := hasInvarianceMoments_piecewise s hμ hν
-  rw [integral_pi_piecewise_insert_sub μ ν ht hψ, ← integral_const_mul]
-  refine (abs_integral_le_integral_abs).trans (integral_mono_of_nonneg
-    (ae_of_all _ fun _ => abs_nonneg _)
-    ((integrable_abs_multilinearEval_pow _ (fun i => (hPm i).memLp_four) _ hp).const_mul K)
-    (ae_of_all _ fun v => ?_))
-  simp only [multilinearEval_update c t]
-  exact h1 t _ _
+    Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi μ) :=
+  integrable_comp_of_memLp hψ hC ((memLp_multilinearEval μ (p := 4) (by norm_num)
+    (by exact_mod_cast hμ) c).mono_exponent (by exact_mod_cast hn))
 
 /-- `9 E[(D_t F)⁴] ≤ 9 ^ k Inf_t[F] ^ 2` for `F` of degree at most `k` (the Bonami Lemma for
 `D_t F`, of degree at most `k - 1`). -/
@@ -258,6 +155,35 @@ private theorem integral_multilinearDerivCoeff_pow_four_le (P : ι → Measure �
 
 variable (μ ν : ι → Measure ℝ) [∀ i, IsProbabilityMeasure (μ i)] [∀ i, IsProbabilityMeasure (ν i)]
 
+/-- Shared hybrid argument: if each one-coordinate replacement costs at most `K |b| ^ (n + 1)` and
+`K E|D_t F| ^ (n + 1) ≤ B t` over every hybrid, then `|E_μ ψ(F) - E_ν ψ(F)| ≤ ∑ t, B t`. -/
+private theorem abs_integral_comp_multilinearEval_sub_le_of_step
+    (hμ : ∀ i, HasInvarianceMoments (μ i)) (hν : ∀ i, HasInvarianceMoments (ν i))
+    {c : Finset ι → ℝ} {ψ : ℝ → ℝ} {n : ℕ} (hn : n + 1 ≤ 4)
+    (hψ : ContDiff ℝ (n + 1) ψ) {C : ℝ} (hC : ∀ y, |iteratedDeriv (n + 1) ψ y| ≤ C)
+    {K : ℝ} (h1 : ∀ t a b, |∫ s, ψ (a + s * b) ∂ν t - ∫ s, ψ (a + s * b) ∂μ t| ≤ K * |b| ^ (n + 1))
+    {B : ι → ℝ}
+    (hD : ∀ s : Finset ι, ∀ t,
+      K * ∫ z, |multilinearEval (multilinearDerivCoeff c t) z| ^ (n + 1)
+        ∂Measure.pi (s.piecewise ν μ) ≤ B t) :
+    |∫ z, ψ (multilinearEval c z) ∂Measure.pi μ - ∫ z, ψ (multilinearEval c z) ∂Measure.pi ν| ≤
+      ∑ t, B t := by
+  have hint (s : Finset ι) :
+      Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi (s.piecewise ν μ)) := by
+    have := isProbabilityMeasure_piecewise μ ν s
+    exact integrable_comp_multilinearEval _
+      (fun i => (hasInvarianceMoments_piecewise s hμ hν i).memLp_four) c hn hψ hC
+  refine abs_integral_pi_sub_le_sum μ ν _ fun s t ht => ?_
+  have := isProbabilityMeasure_piecewise μ ν s
+  have hPm := hasInvarianceMoments_piecewise s hμ hν
+  rw [integral_pi_piecewise_insert_sub μ ν ht hint]
+  refine (abs_integral_le_integral_abs.trans (integral_mono_of_nonneg
+    (ae_of_all _ fun _ => abs_nonneg _)
+    ((integrable_abs_multilinearEval_pow _ (fun i => (hPm i).memLp_four) _ hn).const_mul K)
+    (ae_of_all _ fun v => by simp only [multilinearEval_update c t]; exact h1 t _ _))).trans ?_
+  rw [integral_const_mul]
+  exact hD s t
+
 /-- **The Basic Invariance Principle** [O'Donnell, Section 11.6, equation (11.29)][ODonnell2014].
 Let `F` be a formal multilinear polynomial of degree at most `k`, and let `x` and `y` be vectors of
 independent random variables with laws `μ i` and `ν i`, each satisfying Hypothesis 11.65. If
@@ -269,21 +195,16 @@ theorem abs_integral_comp_multilinearEval_sub_le (hμ : ∀ i, HasInvarianceMome
     (hC : ∀ y, |iteratedDeriv 4 ψ y| ≤ C) :
     |∫ z, ψ (multilinearEval c z) ∂Measure.pi μ - ∫ z, ψ (multilinearEval c z) ∂Measure.pi ν| ≤
       C / 12 * 9 ^ k * ∑ t, multilinearInfluence c t ^ 2 := by
-  have hint (s : Finset ι) :
-      Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi (s.piecewise ν μ)) := by
-    have := isProbabilityMeasure_piecewise μ ν s
-    exact integrable_comp_multilinearEval _
-      (fun i => (hasInvarianceMoments_piecewise s hμ hν i).memLp_four) c (n := 3) le_rfl hψ hC
   rw [mul_sum]
-  refine abs_integral_pi_sub_le_sum μ ν _ fun s t ht => ?_
+  refine abs_integral_comp_multilinearEval_sub_le_of_step μ ν hμ hν (n := 3) le_rfl hψ hC
+    (fun t a b => (hμ t).abs_integral_sub_le (hν t) hψ hC a b) fun s t => ?_
   have := isProbabilityMeasure_piecewise μ ν s
-  refine (abs_integral_pi_piecewise_insert_sub_le μ ν hμ hν c hint le_rfl
-    (fun t a b => (hμ t).abs_integral_sub_le (hν t) hψ hC a b) ht).trans ?_
   have hD := integral_multilinearDerivCoeff_pow_four_le _
     (hasInvarianceMoments_piecewise s hμ hν) hc t
   simp only [Even.pow_abs (by decide : Even 4)]
   have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
-  nlinarith [mul_le_mul_of_nonneg_left hD hC0]
+  simpa only [← mul_assoc, show C / 12 * 9 = 3 / 4 * C by ring] using
+    mul_le_mul_of_nonneg_left hD (by positivity : 0 ≤ C / 12)
 
 /-- `∑_t Inf_t[F] ^ 2 ≤ ε k ∑_{S ≠ ∅} F̂(S) ^ 2` when `F` has degree at most `k` and every
 influence is at most `ε` [O'Donnell, proof of Corollary 11.67][ODonnell2014]. -/
@@ -363,7 +284,11 @@ private theorem integral_abs_multilinearDerivCoeff_pow_three_le (P : ι → Meas
     norm_num
   refine (pow_le_pow_iff_left₀ (by positivity) hR0 two_ne_zero).1 ?_
   rw [hR]
-  nlinarith [mul_le_mul_of_nonneg_left h4 hI0]
+  calc (3 * M) ^ 2 = 9 * M ^ 2 := by ring
+    _ ≤ 9 * (I * ∫ z, D z ^ 4 ∂Measure.pi P) := by gcongr
+    _ = I * (9 * ∫ z, D z ^ 4 ∂Measure.pi P) := by ring
+    _ ≤ I * (9 ^ k * I ^ 2) := by gcongr
+    _ = 9 ^ k * I ^ 3 := by ring
 
 /-- **The Basic Invariance Principle, `C³` form.** In the setting of
 `abs_integral_comp_multilinearEval_sub_le`, if `ψ` is only `C³` with `|ψ‴| ≤ C`, then
@@ -377,20 +302,14 @@ theorem abs_integral_comp_multilinearEval_sub_le_of_contDiff_three
     (hC : ∀ y, |iteratedDeriv 3 ψ y| ≤ C) :
     |∫ z, ψ (multilinearEval c z) ∂Measure.pi μ - ∫ z, ψ (multilinearEval c z) ∂Measure.pi ν| ≤
       C / 3 * 3 ^ k * ∑ t, multilinearInfluence c t ^ ((3 : ℝ) / 2) := by
-  have hint (s : Finset ι) :
-      Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi (s.piecewise ν μ)) := by
-    have := isProbabilityMeasure_piecewise μ ν s
-    exact integrable_comp_multilinearEval _
-      (fun i => (hasInvarianceMoments_piecewise s hμ hν i).memLp_four) c (n := 2) (by norm_num)
-      hψ hC
   rw [mul_sum]
-  refine abs_integral_pi_sub_le_sum μ ν _ fun s t ht => ?_
+  refine abs_integral_comp_multilinearEval_sub_le_of_step μ ν hμ hν (n := 2) (by norm_num) hψ hC
+    (fun t a b => (hμ t).abs_integral_sub_le_of_contDiff_three (hν t) hψ hC a b) fun s t => ?_
   have := isProbabilityMeasure_piecewise μ ν s
-  refine (abs_integral_pi_piecewise_insert_sub_le μ ν hμ hν c hint (by norm_num)
-    (fun t a b => (hμ t).abs_integral_sub_le_of_contDiff_three (hν t) hψ hC a b) ht).trans ?_
   have hD := integral_abs_multilinearDerivCoeff_pow_three_le _
     (hasInvarianceMoments_piecewise s hμ hν) hc t
   have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
-  nlinarith [mul_le_mul_of_nonneg_left hD hC0]
+  simpa only [← mul_assoc, show C / 3 * 3 = C by ring] using
+    mul_le_mul_of_nonneg_left hD (by positivity : 0 ≤ C / 3)
 
 end ProbabilityTheory

@@ -8,13 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
-public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
+public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Foundations.Quantum.Bell
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
-import CslibFrontier.Foundations.Analysis.InnerProductSpace.CHSH
-import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
+import CslibFrontier.Foundations.Quantum.Algebra.Involution
 
 /-!
 # Tsirelson's bound for the CHSH game
@@ -26,9 +25,12 @@ expectation `⟨ψ|A_x ⊗ B_y|ψ⟩` of the observables `A_x = X_x^0 - X_x^1` a
 probability `1/2 + (E₀₀ + E₀₁ + E₁₀ - E₁₁)/8` (`Cslib.PCP.TwoProverGame.quantumWinProb_chsh`).
 
 **Tsirelson's inequality** [Cirel'son][Cirelson1980] bounds the CHSH expression of the correlations
-by `2√2` (`Cslib.PCP.QuantumStrategy.chsh_correlation_le`). The proof is the vector argument: with
-`u_x = (A_x ⊗ 1)ψ` and `v_y = (1 ⊗ B_y)ψ`, the correlation is `Re ⟨u_x, v_y⟩`, every vector has
-norm at most `1` because `A_x² ≤ 1` and `B_y² ≤ 1` for any two-outcome POVM, and
+by `2√2` (`Cslib.PCP.QuantumStrategy.chsh_correlation_le`). It comes from the commuting-operator
+model: a tensor-product strategy is an instance of that model
+(`Cslib.PCP.QuantumStrategy.toCommuting`) with the same correlations
+(`Cslib.PCP.QuantumStrategy.correlation_toCommuting`), and there the inequality holds for every
+state on any star-ordered algebra (`Cslib.Quantum.AlgState.re_chsh_le`). In the GNS pre-inner
+product space of the state the observables `A_x` and `B_y` are vectors of norm at most `1`, and
 `Re⟨u₀, v₀ + v₁⟩ + Re⟨u₁, v₀ - v₁⟩ ≤ ‖v₀ + v₁‖ + ‖v₀ - v₁‖ ≤ 2√2` by Cauchy–Schwarz and the
 parallelogram law (`chsh_re_inner_le`). Hence every quantum strategy wins
 CHSH with probability at most `1/2 + √2/4 = cos²(π/8)`
@@ -79,7 +81,7 @@ covers every POVM directly.
 namespace Cslib.PCP
 
 open Matrix Quantum
-open scoped Kronecker Real ComplexOrder
+open scoped Kronecker Real ComplexOrder MatrixOrder
 
 namespace QuantumStrategy
 
@@ -108,47 +110,19 @@ theorem correlation_eq (S : QuantumStrategy X Y Bool Bool ι κ) (x : X) (y : Y)
     dotProduct_sub, Complex.sub_re]
   ring
 
-/-- The correlation as an inner product `Re ⟨(A_x ⊗ 1)ψ, (1 ⊗ B_y)ψ⟩`. -/
-private theorem correlation_eq_re_inner (S : QuantumStrategy X Y Bool Bool ι κ) (x : X) (y : Y) :
-    S.correlation x y = RCLike.re (inner ℂ
-      (WithLp.toLp 2 (((S.alice x).observable ⊗ₖ (1 : Matrix κ κ ℂ)) *ᵥ S.state.ofLp) :
-        EuclideanSpace ℂ (ι × κ))
-      (WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ (S.bob y).observable) *ᵥ S.state.ofLp))) := by
-  have key : star (((S.alice x).observable ⊗ₖ (1 : Matrix κ κ ℂ)) *ᵥ S.state.ofLp) ⬝ᵥ
-      (((1 : Matrix ι ι ℂ) ⊗ₖ (S.bob y).observable) *ᵥ S.state.ofLp) =
-      star S.state.ofLp ⬝ᵥ (((S.alice x).observable ⊗ₖ (S.bob y).observable) *ᵥ
-        S.state.ofLp) := by
-    rw [star_mulVec, ← dotProduct_mulVec, mulVec_mulVec, conjTranspose_kronecker,
-      (S.alice x).isHermitian_observable.eq, conjTranspose_one, ← mul_kronecker_mul, mul_one,
-      one_mul]
-  rw [correlation, ← key, EuclideanSpace.inner_eq_star_dotProduct, WithLp.ofLp_toLp,
-    WithLp.ofLp_toLp, dotProduct_comm]
-  rfl
-
-private theorem norm_alice_le (S : QuantumStrategy X Y Bool Bool ι κ) (x : X) :
-    ‖(WithLp.toLp 2 (((S.alice x).observable ⊗ₖ (1 : Matrix κ κ ℂ)) *ᵥ S.state.ofLp) :
-        EuclideanSpace ℂ (ι × κ))‖ ≤ 1 := by
-  refine (norm_toLp_mulVec_le_of_posSemidef ?_ S.state).trans_eq S.norm_state
-  rw [conjTranspose_kronecker, (S.alice x).isHermitian_observable.eq, conjTranspose_one,
-    ← mul_kronecker_mul, mul_one, ← one_kronecker_one, ← sub_kronecker]
-  exact (S.alice x).posSemidef_one_sub_observable_mul_self.kronecker PosSemidef.one
-
-private theorem norm_bob_le (S : QuantumStrategy X Y Bool Bool ι κ) (y : Y) :
-    ‖(WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ (S.bob y).observable) *ᵥ S.state.ofLp) :
-        EuclideanSpace ℂ (ι × κ))‖ ≤ 1 := by
-  refine (norm_toLp_mulVec_le_of_posSemidef ?_ S.state).trans_eq S.norm_state
-  rw [conjTranspose_kronecker, (S.bob y).isHermitian_observable.eq, conjTranspose_one,
-    ← mul_kronecker_mul, mul_one, ← one_kronecker_one, ← kronecker_sub]
-  exact PosSemidef.one.kronecker (S.bob y).posSemidef_one_sub_observable_mul_self
+/-- The tensor-product strategy and its commuting-operator form have the same correlations. -/
+theorem correlation_toCommuting (S : QuantumStrategy X Y Bool Bool ι κ) (x : X) (y : Y) :
+    S.toCommuting.correlation x y = S.correlation x y := by
+  rw [CommutingStrategy.correlation_eq, correlation_eq]
+  simp only [prob_toCommuting, prob_eq]; ring
 
 /-- **Tsirelson's inequality** [Cirel'son][Cirelson1980]: the CHSH expression of the correlations
-of any quantum strategy with binary answers is at most `2√2`. -/
+of any quantum strategy with binary answers is at most `2√2`. It is the inequality for the
+commuting-operator form of the strategy (`Cslib.PCP.CommutingStrategy.chsh_correlation_le`). -/
 theorem chsh_correlation_le (S : QuantumStrategy X Y Bool Bool ι κ) (x₀ x₁ : X) (y₀ y₁ : Y) :
     S.correlation x₀ y₀ + S.correlation x₀ y₁ + S.correlation x₁ y₀ - S.correlation x₁ y₁ ≤
       2 * √2 := by
-  simp only [correlation_eq_re_inner]
-  exact chsh_re_inner_le (S.norm_alice_le x₀) (S.norm_alice_le x₁)
-    (S.norm_bob_le y₀) (S.norm_bob_le y₁)
+  simpa only [correlation_toCommuting] using S.toCommuting.chsh_correlation_le x₀ x₁ y₀ y₁
 
 end QuantumStrategy
 
@@ -159,28 +133,14 @@ theorem quantumWinProb_chsh {ι κ : Type*} [Fintype ι] [DecidableEq ι] [Finty
     (S : QuantumStrategy Bool Bool Bool Bool ι κ) :
     chsh.quantumWinProb S = 1 / 2 + (S.correlation false false + S.correlation false true +
       S.correlation true false - S.correlation true true) / 8 := by
-  rw [quantumWinProb_eq_sum]
-  simp only [chsh_questions_apply, Fintype.sum_bool]
-  simp only [chsh, Bool.xor_true, Bool.xor_false, Bool.not_true, Bool.not_false, Bool.and_true,
-    Bool.and_false, Bool.true_eq_false, Bool.false_eq_true, ite_true, ite_false]
-  have h1 := S.correlation_eq false false
-  have h2 := S.correlation_eq false true
-  have h3 := S.correlation_eq true false
-  have h4 := S.correlation_eq true true
-  have h5 := S.sum_prob false false
-  have h6 := S.sum_prob false true
-  have h7 := S.sum_prob true false
-  have h8 := S.sum_prob true true
-  simp only [Fintype.sum_bool] at h5 h6 h7 h8
-  simp only [QuantumStrategy.prob_eq] at h1 h2 h3 h4 h5 h6 h7 h8
-  linarith
+  simp only [← commutingWinProb_toCommuting, commutingWinProb_chsh,
+    QuantumStrategy.correlation_toCommuting]
 
 /-- **Tsirelson's bound**: every quantum strategy wins CHSH with probability at most `cos²(π/8)`. -/
 theorem quantumWinProb_chsh_le {ι κ : Type*} [Fintype ι] [DecidableEq ι] [Fintype κ]
     [DecidableEq κ] (S : QuantumStrategy Bool Bool Bool Bool ι κ) :
-    chsh.quantumWinProb S ≤ Real.cos (π / 8) ^ 2 := by
-  rw [quantumWinProb_chsh, Real.cos_sq_pi_div_eight]
-  linarith [S.chsh_correlation_le false true false true]
+    chsh.quantumWinProb S ≤ Real.cos (π / 8) ^ 2 :=
+  commutingWinProb_toCommuting chsh S ▸ commutingWinProb_chsh_le S.toCommuting
 
 /-- The entangled value of CHSH is at most `cos²(π/8)`. -/
 theorem quantumValue_chsh_le : chsh.quantumValue ≤ Real.cos (π / 8) ^ 2 :=
@@ -200,35 +160,23 @@ noncomputable def chshBobObservable (y : Bool) : Matrix Bool Bool ℂ :=
 
 theorem isHermitian_chshAliceObservable (x : Bool) : (chshAliceObservable x).IsHermitian := by
   cases x
-  · exact pauliZ_isHermitian
-  · exact pauliX_isHermitian
+  exacts [pauliZ_isHermitian, pauliX_isHermitian]
 
 theorem chshAliceObservable_mul_self (x : Bool) :
     chshAliceObservable x * chshAliceObservable x = 1 := by
   cases x
-  · exact pauliZ_mul_self
-  · exact pauliX_mul_self
+  exacts [pauliZ_mul_self, pauliX_mul_self]
 
 theorem isHermitian_chshBobObservable (y : Bool) : (chshBobObservable y).IsHermitian := by
   have hc : IsSelfAdjoint ((√2 / 2 : ℝ) : ℂ) := Complex.conj_ofReal _
   cases y
-  · exact (pauliZ_isHermitian.add pauliX_isHermitian).smul hc
-  · exact (pauliZ_isHermitian.sub pauliX_isHermitian).smul hc
-
-private theorem sqrt_two_div_two_mul_self :
-    ((√2 / 2 : ℝ) : ℂ) * ((√2 / 2 : ℝ) : ℂ) = 2⁻¹ := by
-  rw [← Complex.ofReal_mul, div_mul_div_comm, Real.mul_self_sqrt zero_le_two]
-  norm_num
+  exacts [(pauliZ_isHermitian.add pauliX_isHermitian).smul hc,
+    (pauliZ_isHermitian.sub pauliX_isHermitian).smul hc]
 
 theorem chshBobObservable_mul_self (y : Bool) :
-    chshBobObservable y * chshBobObservable y = 1 := by
-  cases y
-  · rw [chshBobObservable, Bool.cond_false, smul_mul_smul_comm, add_mul, mul_add, mul_add,
-      pauliZ_mul_self, pauliX_mul_self, pauliZ_mul_pauliX, sqrt_two_div_two_mul_self]
-    module
-  · rw [chshBobObservable, Bool.cond_true, smul_mul_smul_comm, sub_mul, mul_sub, mul_sub,
-      pauliZ_mul_self, pauliX_mul_self, pauliZ_mul_pauliX, sqrt_two_div_two_mul_self]
-    module
+    chshBobObservable y * chshBobObservable y = 1 :=
+  normalized_add_sub_mul_self_of_anticommute pauliZ_mul_self pauliX_mul_self
+    (by rw [pauliZ_mul_pauliX, neg_neg]) y
 
 /-- The **optimal CHSH strategy** [Cleve, Høyer, Toner, Watrous, §3.1][CleveHoyerTonerWatrous2004]:
 the EPR pair `(|00⟩ + |11⟩)/√2` (`Cslib.Quantum.bell`), with Alice measuring `Z` or `X` and Bob
@@ -245,16 +193,14 @@ noncomputable def chshEPR : QuantumStrategy Bool Bool Bool Bool Bool Bool where
 `-√2/2`. -/
 theorem correlation_chshEPR (x y : Bool) :
     chshEPR.correlation x y = bif x && y then -(√2 / 2) else √2 / 2 := by
-  have hA : (chshEPR.alice x).observable = chshAliceObservable x :=
-    POVM.observable_ofObservable _ (isHermitian_chshAliceObservable x)
-      (chshAliceObservable_mul_self x)
-  have hB : (chshEPR.bob y).observable = chshBobObservable y :=
+  rw [QuantumStrategy.correlation]
+  dsimp only [chshEPR]
+  rw [POVM.observable_ofObservable _ (isHermitian_chshAliceObservable x)
+      (chshAliceObservable_mul_self x),
     POVM.observable_ofObservable _ (isHermitian_chshBobObservable y)
-      (chshBobObservable_mul_self y)
-  have hS : chshEPR.state = maxEntangled Bool := bell_eq_maxEntangled
-  rw [QuantumStrategy.correlation, hA, hB, hS, star_maxEntangled_dotProduct_kronecker_mulVec]
-  cases x <;> cases y <;>
-    simp [chshAliceObservable, chshBobObservable]
+      (chshBobObservable_mul_self y),
+    bell_eq_maxEntangled, star_maxEntangled_dotProduct_kronecker_mulVec]
+  cases x <;> cases y <;> simp [chshAliceObservable, chshBobObservable]
 
 /-- The EPR strategy wins CHSH with probability `cos²(π/8)`. -/
 theorem quantumWinProb_chsh_chshEPR : chsh.quantumWinProb chshEPR = Real.cos (π / 8) ^ 2 := by

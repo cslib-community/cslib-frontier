@@ -89,13 +89,13 @@ example : ∃ (budget : ℕ → ℕ)
     have h : IsOraclePPTOn encBits encBits (fun input => machine.runOracle 2 input) := by
       simpa only [encBits_apply, pow_zero, mul_one] using
         (IsOraclePPTOn.of_machine (input := encBits) machine 2 0)
-    exact h.preprocess' (prepare := fun p : ℕ × List Bool => p.2) (by fun_prop)
+    exact h.preprocess (prepare := fun p : ℕ × List Bool => p.2) (by fun_prop)
   obtain ⟨_, _, _, native, c, d, keyC, keyD, hkeys, _, _, heq⟩ :=
     hsource.exists_savedCoins_of_keyGen gen_ppt
-  refine ⟨fun n => c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d,
+  refine ⟨savedCoinBudget c d keyC keyD,
     fun n pk coins => native.runCoins (fun op word => ProbOracleComp.query (op, word))
       (coins.take (c * ((encPair encUnary encBits (n, pk)).length + 1) ^ d))
-      (encPair encUnary encBits (n, pk)), by fun_prop, ?_⟩
+      (encPair encUnary encBits (n, pk)), polynomiallyBounded_savedCoinBudget c d keyC keyD, ?_⟩
   intro n keys hmem s
   simpa only [encBits, Function.Embedding.coe_refl, id_map, observe] using
     heq n keys.1 (hkeys n keys hmem) ℕ handler s

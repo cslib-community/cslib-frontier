@@ -20,8 +20,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Game.Statistical
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Probability.Uniform.Translate
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.GameHop
 
@@ -34,7 +36,9 @@ printed pp. 488–493, 501–502, 521–522][BonehShoup2023], over an arbitrary 
 `AD : Type`) over a `PrimeOrderGroupFamily`, proves its algebraic and word-level
 decryption correctness and polynomial-time computability certificates, and establishes the
 **adaptive Lemma 12.8 projective-hash rejection bound** and **Lemma 12.6 one-time group-mask
-challenge blindness** (Games 3 $\to$ 3.5 $\to$ 4 $\to$ 5 of Theorem 12.9, printed pp. 492–493)
+challenge blindness** (the hops `cramerShoupGame3` $\to$ `cramerShoupGame3Half` $\to$
+`cramerShoupGame4` $\to$ `cramerShoupGame5`, covering Games 4 $\to$ 5 $\to$ 6 in the proof of
+Theorem 12.9, printed pp. 492–493)
 against an adaptive `ADCCA2AdversaryOf Msg AD`. Groups are written additively as
 `ZMod (F.order d)`-modules (matching `DiscreteLog`, `DiffieHellman`, `ElGamal`, and
 `ProjectiveHash`).
@@ -152,6 +156,12 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   `computableInPolyTime_encodeCramerShoupEncrypt`,
   `computableInPolyTime_encodeCramerShoupChallenge`, `computableInPolyTime_decodeCramerShoup`:
   decryption correctness and polynomial-time computability certificates.
+* `isCramerShoupHashInput`, `isCramerShoupHashInput_iff`,
+  `computableInPolyTime_isCramerShoupHashInput`,
+  `decodeCramerShoup_eq_none_of_isCramerShoupHashInput_eq_false`: the well-formed inputs
+  $\mathbb{G}^3 \times \mathcal{D}$ of the hash $H'$, on which the security theorems assume
+  collision resistance; they are exactly the encoded tuples, membership is decidable in polynomial
+  time, and decryption rejects every ciphertext whose hashed tuple is not well-formed.
 * `cramerShoupGame3`, `cramerShoupGame3Half`, `cramerShoupGame4`, `cramerShoupGame5`,
   `advantage_cramerShoupGame3_game3Half_le`, `advantage_cramerShoupGame3Half_game4_le`,
   `advantage_cramerShoupGame3_game4_le`, `cramerShoupGame5_false_eq_true`,
@@ -327,28 +337,6 @@ abbrev csExpB (abc : ℕ × ℕ × ℕ) : ℕ :=
 abbrev csExpC (abc : ℕ × ℕ × ℕ) : ℕ :=
   (csExpBC abc).2
 
-/-- Group-element word triple `(u, v, w)` of a 4-tuple DDH input `(d, u, v, w)`. -/
-abbrev csDdhTuple {Desc : Type} (input : Desc × List Bool × List Bool × List Bool) :
-    List Bool × List Bool × List Bool :=
-  input.2
-
-/-- Challenge word pair `(v, w)` of a 4-tuple DDH input `(d, u, v, w)`. -/
-abbrev csDdhChallenge {Desc : Type} (input : Desc × List Bool × List Bool × List Bool) :
-    List Bool × List Bool :=
-  (csDdhTuple input).2
-
-/-- Public-key word `u` of a 4-tuple DDH input `(d, u, v, w)`. -/
-abbrev csDdhU {Desc : Type} (input : Desc × List Bool × List Bool × List Bool) : List Bool :=
-  (csDdhTuple input).1
-
-/-- First challenge word `v` of a 4-tuple DDH input `(d, u, v, w)`. -/
-abbrev csDdhV {Desc : Type} (input : Desc × List Bool × List Bool × List Bool) : List Bool :=
-  (csDdhChallenge input).1
-
-/-- Second challenge word `w` of a 4-tuple DDH input `(d, u, v, w)`. -/
-abbrev csDdhW {Desc : Type} (input : Desc × List Bool × List Bool × List Bool) : List Bool :=
-  (csDdhChallenge input).2
-
 /-- Per-stage decryption-query bound `(Q₁ n, Q₂ n)` for an `ADCCA2AdversaryOf Msg AD`. -/
 def ADCCA2AdversaryOf.IsQueryBounded {Msg AD : Type} (adversary : ADCCA2AdversaryOf Msg AD)
     (Q₁ Q₂ : ℕ → ℕ) : Prop :=
@@ -356,7 +344,8 @@ def ADCCA2AdversaryOf.IsQueryBounded {Msg AD : Type} (adversary : ADCCA2Adversar
   (∀ n state ct, (adversary.guess n state ct).IsQueryBounded (Q₂ n))
 
 /-- Every strict oracle PPT `ADCCA2AdversaryOf Msg AD` has polynomial bounds on its Phase 1
-queries, Phase 2 queries, and saved-state length in terms of `(n, pk.length, ct.length)`. -/
+queries and saved-state length in terms of `(n, pk.length)`, and on its Phase 2 queries in terms
+of `(n, state.length, ct.length)` for every state word `state`. -/
 theorem ADCCA2AdversaryOf.IsPPT.query_bounds {Msg AD : Type} {encMsg : Msg ↪ List Bool}
     {encAD : AD ↪ List Bool} {adversary : ADCCA2AdversaryOf Msg AD}
     (hA : adversary.IsPPT encMsg encAD) :
@@ -419,7 +408,7 @@ def CCA2AdversaryOf.toADUnit {Msg : Type} (adversary : CCA2AdversaryOf Msg) :
 theorem CCA2AdversaryOf.IsPPT.toADUnit {Msg : Type} {encMsg : Msg ↪ List Bool}
     {adversary : CCA2AdversaryOf Msg} (hA : adversary.IsPPT encMsg) :
     adversary.toADUnit.IsPPT encMsg (encFinEnum Unit) where
-  choose := (hA.choose.on.map'
+  choose := (hA.choose.on.map
     (((ComputableInPolyTime.fst (encPair encMsg encMsg) encBits).prod (.const ())).prod
       (ComputableInPolyTime.snd (encPair encMsg encMsg) encBits))).isOraclePPT
   guess := hA.guess
@@ -642,6 +631,61 @@ with an encoded associated-data word `ad : List Bool` as a framed 4-tuple bit st
 def encodeCramerShoupTuple (d : F.Desc) (v w e : F.Carrier d) (ad : List Bool) : List Bool :=
   encBits4 (F.encode d v, F.encode d w, F.encode d e, ad)
 
+/-- The well-formed inputs of the hash `cramerShoupHashMod H d`: the words of
+$\mathbb{G}^3 \times \mathcal{D}$, the domain of $H'$ in [BonehShoup2023], Exercise 12.27
+(printed p. 521). A word is accepted when it is a canonically framed 4-tuple
+`encBits4 (v, w, e, ad)` whose first three components `isElem` accepts as group elements of `d`.
+With associated data (`hasAD = true`) the component `ad` may be any word, since decryption accepts
+any associated-data word; without it (`hasAD = false`) it must be `[]`, the only associated data
+the scheme then hashes. `isCramerShoupHashInput_iff` shows that these are exactly the words
+`encodeCramerShoupTuple d v w e ad`. -/
+def isCramerShoupHashInput (hasAD : Bool) (isElem : F.Desc × List Bool → Bool) (d : F.Desc)
+    (x : List Bool) : Bool :=
+  let (v, w, e, ad) := decodeBits4 x
+  (encBits4 (v, w, e, ad) == x) && isElem (d, v) && isElem (d, w) && isElem (d, e) &&
+    (hasAD || ad == [])
+
+/-- When `isElem` accepts exactly the group-element words, `isCramerShoupHashInput` accepts exactly
+the encoded tuples `encodeCramerShoupTuple d v w e ad` of $\mathbb{G}^3 \times \mathcal{D}$, with
+`ad = []` when `hasAD = false`. -/
+theorem isCramerShoupHashInput_iff (hasAD : Bool) {isElem : F.Desc × List Bool → Bool}
+    (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
+    (d : F.Desc) (x : List Bool) :
+    F.isCramerShoupHashInput hasAD isElem d x = true ↔
+      ∃ (v w e : F.Carrier d) (ad : List Bool), (hasAD = true ∨ ad = []) ∧
+        F.encodeCramerShoupTuple d v w e ad = x := by
+  constructor
+  · intro h
+    generalize hparts : decodeBits4 x = parts at h
+    obtain ⟨a, b, c, ad⟩ := parts
+    simp only [isCramerShoupHashInput, hparts, Bool.and_eq_true, beq_iff_eq, Bool.or_eq_true]
+      at h
+    obtain ⟨⟨⟨⟨hx, ha⟩, hb⟩, hc⟩, had⟩ := h
+    obtain ⟨v, rfl⟩ := (hmem d a).mp ha
+    obtain ⟨w, rfl⟩ := (hmem d b).mp hb
+    obtain ⟨e, rfl⟩ := (hmem d c).mp hc
+    exact ⟨v, w, e, ad, had, hx⟩
+  · rintro ⟨v, w, e, ad, had, rfl⟩
+    simp only [isCramerShoupHashInput, encodeCramerShoupTuple, decodeBits4_encBits4,
+      beq_self_eq_true, (hmem d _).mpr ⟨_, rfl⟩, Bool.true_and, Bool.or_eq_true, beq_iff_eq,
+      had]
+
+/-- `isCramerShoupHashInput` is decidable in polynomial time whenever `isElem` is. -/
+theorem computableInPolyTime_isCramerShoupHashInput (hasAD : Bool)
+    {isElem : F.Desc × List Bool → Bool}
+    (hisElem : ComputableInPolyTime isElem (encPair F.encDesc encBits) encBool) :
+    ComputableInPolyTime (fun ⟨d, x⟩ => F.isCramerShoupHashInput hasAD isElem d x)
+      (encPair F.encDesc encBits) encBool :=
+  let hd := ComputableInPolyTime.fst F.encDesc encBits
+  let hx := ComputableInPolyTime.snd F.encDesc encBits
+  let hparts := computableInPolyTime_decodeBits4.comp' hx
+  let hframe := hparts.encoding_comp.beq hx
+  let hv := hisElem.comp' (hd.prod hparts.fst')
+  let hw := hisElem.comp' (hd.prod hparts.snd'.fst')
+  let he := hisElem.comp' (hd.prod hparts.snd'.snd'.fst')
+  let had := (ComputableInPolyTime.const hasAD).bool_or' (hparts.snd'.snd'.snd'.beq (.const []))
+  (((hframe.bool_and' hv).bool_and' hw).bool_and' he).bool_and' had
+
 /-- Algebraic Cramer–Shoup public key `pk = (u, h, h₁, h₂) ∈ G⁴` generated from secret exponents
 `(α, σ, τ, σ₁, τ₁, σ₂, τ₂)` ([BonehShoup2023], Section 12.5.3, printed p. 489). -/
 def cramerShoupPublicKey (d : F.Desc) (α σ τ σ₁ τ₁ σ₂ τ₂ : ZMod (F.order d)) :
@@ -687,7 +731,7 @@ theorem cramerShoupEncrypt_cramerShoupPublicKey (H : F.Desc × List Bool → Lis
 ([BonehShoup2023], Exercise 12.27, printed p. 522): check
 $f'_{\sigma_1,\tau_1,\sigma_2,\tau_2}(v, w, \rho) = z'$ where $\rho = H'(v, w, e, ad)$, and if so
 output `some (e - f_{σ,τ}(v, w))`. -/
-def cramerShoupDecrypt [∀ d, DecidableEq (F.Carrier d)]
+def cramerShoupDecrypt
     (H : F.Desc × List Bool → List Bool) (d : F.Desc)
     (sk : (ZMod (F.order d) × ZMod (F.order d)) ×
       ((ZMod (F.order d) × ZMod (F.order d)) × (ZMod (F.order d) × ZMod (F.order d))))
@@ -705,7 +749,7 @@ Exercise 12.27, printed pp. 489, 521–522): decrypting an honest encryption und
 `cramerShoupPublicKey d α σ τ σ₁ τ₁ σ₂ τ₂` with `((σ, τ), ((σ₁, τ₁), (σ₂, τ₂)))` and the same
 associated data `ad` recovers `some m`. -/
 @[simp]
-theorem cramerShoupDecrypt_cramerShoupEncrypt [∀ d, DecidableEq (F.Carrier d)]
+theorem cramerShoupDecrypt_cramerShoupEncrypt
     (H : F.Desc × List Bool → List Bool) (d : F.Desc)
     (α σ τ σ₁ τ₁ σ₂ τ₂ β : ZMod (F.order d)) (m : F.Carrier d) (ad : List Bool) :
     F.cramerShoupDecrypt H d ((σ, τ), ((σ₁, τ₁), (σ₂, τ₂)))
@@ -729,9 +773,7 @@ def encodeGroupNeg (d : F.Desc) (z : List Bool) : List Bool :=
 @[simp]
 theorem encodeGroupNeg_encode (d : F.Desc) (x : F.Carrier d) :
     F.encodeGroupNeg d (F.encode d x) = F.encode d (-x) := by
-  have hneg : ((F.order d - 1 : ℕ) : ZMod (F.order d)) = -1 := by
-    rw [Nat.cast_sub (F.prime_order d).pos, ZMod.natCast_self, Nat.cast_one, zero_sub]
-  simp only [encodeGroupNeg, F.smul_encode, hneg, neg_one_smul]
+  simp only [encodeGroupNeg, F.smul_encode, ZMod.natCast_self_sub_one, neg_one_smul]
 
 /-- Word-level universal projective hash `f_{s,t}(v, w) = s • v + t • w`. -/
 def encodeProjHash (d : F.Desc) (s t : ℕ) (v w : List Bool) : List Bool :=
@@ -870,7 +912,7 @@ def decodeCramerShoup (H : F.Desc × List Bool → List Bool)
 
 /-- **Word-level Cramer–Shoup decryption matches algebraic `cramerShoupDecrypt` on encoded
 ciphertexts**. -/
-theorem decodeCramerShoup_encode [∀ d, DecidableEq (F.Carrier d)]
+theorem decodeCramerShoup_encode
     (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool)
     (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
     (d : F.Desc) (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ)))
@@ -894,6 +936,23 @@ theorem decodeCramerShoup_encode [∀ d, DecidableEq (F.Carrier d)]
     encodeGroupNeg_encode, F.add_encode, cramerShoupDecrypt, encodeCramerShoupTuple,
     cramerShoupHashMod, sub_eq_add_neg, decide_eq_true_eq]
   split_ifs <;> rfl
+
+/-- Decryption rejects every ciphertext whose hashed tuple `extractCramerShoupTuple ct ad` is not a
+well-formed hash input: a ciphertext that decrypts has group-element components `v`, `w`, `e`. -/
+theorem decodeCramerShoup_eq_none_of_isCramerShoupHashInput_eq_false (hasAD : Bool)
+    (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool) (d : F.Desc)
+    (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))) (ct ad : List Bool) (had : hasAD = true ∨ ad = [])
+    (h : F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple ct ad) = false) :
+    F.decodeCramerShoup H isElem d sk ct ad = none := by
+  have hAD : (hasAD || ad == []) = true := by rcases had with rfl | rfl <;> simp
+  simp only [isCramerShoupHashInput, extractCramerShoupTuple, decodeBits4_encBits4,
+    beq_self_eq_true, Bool.true_and, hAD, Bool.and_true] at h
+  simp only [decodeCramerShoup]
+  split_ifs with hc
+  · simp only [Bool.and_eq_true] at hc
+    obtain ⟨⟨⟨⟨-, hv⟩, hw⟩, he⟩, -⟩ := hc
+    simp [hv, hw, he] at h
+  · rfl
 
 /-- **Word-level Cramer–Shoup decryption of an honest encryption recovers
 `some (F.encode d m)`**. -/
@@ -1059,33 +1118,9 @@ theorem computableInPolyTime_decodeCramerShoup
   let hneg := F.computableInPolyTime_smul.comp'
     (hd.prod (((F.computableInPolyTime_order.comp' hd).binary_sub' (.const 1)).prod
       (F.computableInPolyTime_encodeProjHash hd hsk.fst'.fst' hsk.fst'.snd' hv hw)))
-  let hmsg := (ComputableTidilyInPolyTime.optionSome encBits).computableInPolyTime.comp'
+  let hmsg := (ComputableInPolyTime.optionSome encBits).comp'
     (F.computableInPolyTime_add.comp' (hd.prod (he.prod hneg)))
   .ite hcond hmsg (.const none)
-
-/-- Change of variables `σ ↦ δ - α * τ` under two independent uniform draws in `ZMod q`. -/
-private theorem uniform_sub_mul_bind {α_out : Type*} (q : ℕ) [NeZero q] (α : ZMod q)
-    (f : ZMod q → ZMod q → PMF α_out) :
-    ((PMF.uniformOfFintype (ZMod q)).bind fun σ =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun τ => f σ τ) =
-    ((PMF.uniformOfFintype (ZMod q)).bind fun δ =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun τ => f (δ - α * τ) τ) := by
-  rw [PMF.bind_comm]
-  conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ => ?_)
-  change (PMF.uniformOfFintype (ZMod q)).bind (fun σ => f σ τ) =
-    (PMF.uniformOfFintype (ZMod q)).bind ((fun σ => f σ τ) ∘ Equiv.subRight (α * τ))
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-
-/-- Change of variables `τ ↦ ξ - c` under a uniform draw in `ZMod q`. -/
-private theorem uniform_sub_bind {α_out : Type*} (q : ℕ) [NeZero q] (c : ZMod q)
-    (f : ZMod q → PMF α_out) :
-    ((PMF.uniformOfFintype (ZMod q)).bind fun τ => f τ) =
-    ((PMF.uniformOfFintype (ZMod q)).bind fun ξ => f (ξ - c)) := by
-  change (PMF.uniformOfFintype (ZMod q)).bind f =
-    (PMF.uniformOfFintype (ZMod q)).bind (f ∘ Equiv.subRight c)
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-
 
 /-! ### Collision detection and decryption oracle replies -/
 
@@ -1171,11 +1206,11 @@ noncomputable def cramerShoupGame3
 
 /-! ### Projective-hash rejection (Games 3.5, 4, and 5) and concrete 1CCA bound -/
 
-/-- Decryption helper for Game 4 ([BonehShoup2023], Section 12.5.3, printed p. 492): on the fiber
-`σ = δ - α * τ`, `σ₁ = δ₁ - α * τ₁`, `σ₂ = δ₂ - α * τ₂`, reject any ciphertext whose `(v', w')`
-pair does not satisfy `w' == F.smul (d, α.val, v')`, and otherwise decrypt using
-`(δ, 0, δ₁, 0, δ₂, 0)` (which agrees with `(σ, τ, σ₁, τ₁, σ₂, τ₂)` on all Diffie–Hellman queries
-by `projHash_fiber_eq` and `projHash2_fiber_dh`). -/
+/-- Decryption helper for `cramerShoupGame4` (Game 5 of [BonehShoup2023], Section 12.5.3, printed
+p. 492): on the fiber `σ = δ - α * τ`, `σ₁ = δ₁ - α * τ₁`, `σ₂ = δ₂ - α * τ₂`, reject any
+ciphertext whose `(v', w')` pair does not satisfy `w' == F.smul (d, α.val, v')`, and otherwise
+decrypt using `(δ, 0, δ₁, 0, δ₂, 0)` (which agrees with `(σ, τ, σ₁, τ₁, σ₂, τ₂)` on all
+Diffie–Hellman queries by `projHash_fiber_eq` and `projHash2_fiber_dh`). -/
 def decodeCramerShoupDH
     (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool)
     (d : F.Desc) (α δ δ₁ δ₂ : ZMod (F.order d)) (ct ad : List Bool) : Option (List Bool) :=
@@ -1203,10 +1238,10 @@ def cramerShoupDHPhase2Reply
   else
     encOption encBits (F.decodeCramerShoupDH H isElem d α δ δ₁ δ₂ q.1 q.2)
 
-/-- Bad-event predicate for Game 3 $\to$ Game 4 ([BonehShoup2023], Section 12.5.3, equations
-(12.26)–(12.27), printed pp. 492–493): `ct_q = encBits4 (v', w', e', z')` is a syntactically
-well-formed non-DH ciphertext (`w' != F.smul (d, α.val, v')`) whose tag `z'` matches
-`encodeProjHash2` on `(v', w', e', ad_q)`. -/
+/-- Bad-event predicate for `cramerShoupGame3` $\to$ `cramerShoupGame4` (Games 4 $\to$ 5 of
+[BonehShoup2023], Section 12.5.3, equations (12.26)–(12.27), printed pp. 492–493):
+`ct_q = encBits4 (v', w', e', z')` is a syntactically well-formed non-DH ciphertext
+(`w' != F.smul (d, α.val, v')`) whose tag `z'` matches `encodeProjHash2` on `(v', w', e', ad_q)`. -/
 def isCramerShoupBadDH
     (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool)
     (d : F.Desc) (α : ZMod (F.order d))
@@ -1266,23 +1301,19 @@ private theorem decodeCramerShoup_fiber_eq_decodeCramerShoupDH_of_not_bad
               (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) =
             F.encodeProjHash d δ.val 0 (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) := by
         rw [← hvElem, hwElem, encodeProjHash_encode, encodeProjHash_encode]
-        simp only [ZMod.natCast_zmod_val, Nat.cast_zero]
-        have hfib1 := projHash_fiber_eq F d α β' (α * β') δ τ
-        have hfib0 := projHash_fiber_eq F d α β' (α * β') δ 0
-        rw [sub_self, zero_mul, add_zero] at hfib1 hfib0
-        rw [mul_zero, sub_zero] at hfib0
-        rw [hfib1, hfib0]
+        simp only [ZMod.natCast_zmod_val, Nat.cast_zero,
+          projHash_fiber_eq F d α β' (α * β'), sub_self, zero_mul, add_zero]
+        simpa only [mul_zero, sub_zero, sub_self, zero_mul, add_zero] using
+          congrArg (F.encode d) (projHash_fiber_eq F d α β' (α * β') δ 0).symm
       have hproj2 (r : ℕ) :
           F.encodeProjHash2 d (δ₁ - α * τ₁).val τ₁.val (δ₂ - α * τ₂).val τ₂.val r
             (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) =
           F.encodeProjHash2 d δ₁.val 0 δ₂.val 0 r
             (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) := by
         rw [← hvElem, hwElem, encodeProjHash2_encode, encodeProjHash2_encode]
-        simp only [ZMod.natCast_zmod_val, Nat.cast_zero]
-        have hfib2 := projHash2_fiber_dh F d α β' δ₁ δ₂ τ₁ τ₂ (r : ZMod (F.order d))
-        have hfib0 := projHash2_fiber_dh F d α β' δ₁ δ₂ 0 0 (r : ZMod (F.order d))
-        simp only [mul_zero, sub_zero] at hfib0
-        rw [hfib2, hfib0]
+        simpa only [ZMod.natCast_zmod_val, Nat.cast_zero, mul_zero, sub_zero] using
+          congrArg (F.encode d) ((projHash2_fiber_dh F d α β' δ₁ δ₂ τ₁ τ₂ r).trans
+            (projHash2_fiber_dh F d α β' δ₁ δ₂ 0 0 r).symm)
       simp only [skNatOfZMod, ZMod.val_zero, hproj1, hproj2]
     · simp only [Bool.not_eq_true] at hv
       simp only [hv, csCtV, Bool.and_false, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
@@ -1491,19 +1522,16 @@ private theorem tsum_isCramerShoupBadDH_phase2_le
               · simpa only [extractCramerShoupTuple, parts, ct, decodeBits4_encBits4,
                   cramerShoupHashMod, csCtV, csCtW, csCtE, csCtTail, csCtBody, ρ', ρ, r'] using hρ
             exact Bool.false_ne_true (hnot_coll.symm.trans hcoll)
-          rcases Prod.mk.inj (encBits4.injective htuple_eq) with ⟨hv_eq, hrest1⟩
-          rcases Prod.mk.inj hrest1 with ⟨hw_eq, hrest2⟩
-          rcases Prod.mk.inj hrest2 with ⟨he_eq, had_eq⟩
-          have hne_ct : ct_q ≠ ct := by
-            intro hct_eq
-            have htrue : ((ct_q == ct) && (ad_q == ad)) = true := by
-              simp only [hct_eq, had_eq, beq_self_eq_true, Bool.and_self]
-            exact Bool.false_ne_true (hne_ct_ad.symm.trans htrue)
+          obtain ⟨hv_eq, hw_eq, he_eq, had_eq⟩ :
+              csCtV parts = v ∧ csCtW parts = w ∧ csCtE parts = e ∧ ad_q = ad := by
+            simpa only [Prod.mk.injEq] using encBits4.injective htuple_eq
+          have hne_ct : ct_q ≠ ct := fun hct_eq => Bool.false_ne_true
+            (hne_ct_ad.symm.trans (by simp only [hct_eq, had_eq, beq_self_eq_true, Bool.and_self]))
+          have hr'_eq : (r' : ZMod (F.order d)) = ρ := hρ
           have htag_eq :
               F.encodeProjHash2 d (δ₁ - α * (ξ - ρ * τ₂)).val (ξ - ρ * τ₂).val
                 (δ₂ - α * τ₂).val τ₂.val r' (csCtV parts) (csCtW parts) =
               F.encode d ((β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d) := by
-            have hr'_eq : (r' : ZMod (F.order d)) = ρ := hρ
             rw [hv_eq, hw_eq, encodeProjHash2_encode]
             simp only [ZMod.natCast_zmod_val, hr'_eq, projHash2_fiber_challenge_eq]
           have hz_ne :
@@ -1563,10 +1591,11 @@ def HonestPhase2QueryBound (hasAD : Bool) {Msg AD : Type}
         F.encode d ((β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d))
       (adversary.guess n (csChoiceState choiceOut.1) ct).IsQueryBounded Q₂
 
-/-- **Game 3.5** (intermediate hybrid between Game 3 and Game 4 of [BonehShoup2023],
-Section 12.5.3, printed pp. 491–492): under the fiber change of variables
-`σ = δ - α * τ`, `σ₁ = δ₁ - α * τ₁`, `σ₂ = δ₂ - α * τ₂`, replace Phase 1's decryption oracle
-`cramerShoupPhase1Reply` with `cramerShoupDHPhase1Reply` (rejecting non-DH queries in Phase 1). -/
+/-- **Game 3.5** (intermediate hybrid between `cramerShoupGame3` and `cramerShoupGame4`, which
+correspond to Games 4 and 5 of [BonehShoup2023], Section 12.5.3, printed pp. 491–492): under the
+fiber change of variables `σ = δ - α * τ`, `σ₁ = δ₁ - α * τ₁`, `σ₂ = δ₂ - α * τ₂`, replace
+Phase 1's decryption oracle `cramerShoupPhase1Reply` with `cramerShoupDHPhase1Reply` (rejecting
+non-DH queries in Phase 1). -/
 noncomputable def cramerShoupGame3Half
     (hasAD : Bool) {Msg AD : Type} (encodeMsg : F.Desc × Msg → List Bool)
     (encodeAD : F.Desc × AD → List Bool)
@@ -1610,11 +1639,12 @@ theorem advantage_cramerShoupGame3_game3Half_le
       (Q₁ : ℝ≥0) / (m : ℝ≥0) := by
   dsimp only [cramerShoupGame3, cramerShoupGame3Half, PMF.monad_bind_eq_bind]
   peel_binds d α β γ
-  rw [uniform_sub_mul_bind (F.order d) α]
+  rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   peel_binds δ τ
-  rw [uniform_sub_mul_bind (F.order d) α]
+  rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   peel_binds δ₁
-  conv_lhs => enter [1, 2, τ₁]; rw [uniform_sub_mul_bind (F.order d) α]
+  conv_lhs =>
+    enter [1, 2, τ₁]; rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   simp only [F.encodeCramerShoupPublicKey_fiber_eq]
   let U := PMF.uniformOfFintype (ZMod (F.order d))
   rw [advantage_bind_comm U U]; peel_binds δ₂
@@ -1717,7 +1747,8 @@ theorem advantage_cramerShoupGame3Half_game4_le
         (U.bind fun τ₁ => U.bind fun τ₂ => f τ₁ τ₂) =
         U.bind fun ξ => U.bind fun τ₂ => f (ξ - ρ * τ₂) τ₂ := by
       rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-      exact congrArg _ (funext fun τ₂ => uniform_sub_bind (F.order d) (ρ * τ₂) (fun τ₁ => f τ₁ τ₂))
+      exact congrArg _ (funext fun τ₂ =>
+        (PMF.uniformOfFintype_bind_sub_right (ρ * τ₂) (fun τ₁ => f τ₁ τ₂)).symm)
     conv_lhs => enter [1]; rw [hshift_one]
     conv_lhs => enter [2]; rw [hshift_one]
     peel_binds ξ
@@ -1756,8 +1787,11 @@ theorem advantage_cramerShoupGame3Half_game4_le
       (F.div_order_le_div_of_le hm0 (hm d d_mem))
   · simp only [hvalid, Bool.false_eq_true, ↓reduceIte, PMF.bind_const, Game.advantage_self, zero_le]
 
-/-- **Game 3 $\to$ Game 4 bound** ([BonehShoup2023], Section 12.5.3, equations (12.26)–(12.27),
-printed pp. 492–493, using Lemma 12.8, printed p. 488): replacing both Phase 1 and Phase 2
+/-- **Game 3 $\to$ Game 4 bound** (Games 4 $\to$ 5 of [BonehShoup2023], Section 12.5.3,
+equations (12.26)–(12.27), printed pp. 492–493, using Lemma 12.8, printed p. 488): if `isElem`
+accepts exactly the encodings of group elements, every supported group has order at least `m > 0`,
+and Phase 1 and Phase 2 make at most `Q₁` and `Q₂` queries on honest inputs
+(`HonestPhase1QueryBound`, `HonestPhase2QueryBound`), then replacing both Phase 1 and Phase 2
 decryption oracles with their DH-restricted counterparts changes the game advantage by at most
 `(Q₁ + Q₂) / m`. -/
 theorem advantage_cramerShoupGame3_game4_le
@@ -1824,11 +1858,13 @@ theorem cramerShoupGame5_false_eq_true
       F.cramerShoupGame5 hasAD encodeMsg encodeAD setup H isElem adversary true n :=
   rfl
 
-/-- **Game 4 $\to$ Game 5 bound** ([BonehShoup2023], Section 12.5.3, equations (12.23) and (12.28),
-printed pp. 492–493, using Lemma 12.6, printed p. 486):
-whenever `γ ≠ α * β`, `projHash F d (δ - α * τ) τ (β • g) (γ • g) + m` is uniformly distributed
-over `F.Carrier d` by `uniform_projHash_fiber_add` (Lemma 12.6), so `cramerShoupGame4` and
-`cramerShoupGame5` differ only on the event `γ = α * β` of probability `1 / F.order d ≤ 1 / m`. -/
+/-- **Game 4 $\to$ Game 5 bound** (Games 5 $\to$ 6 of [BonehShoup2023], Section 12.5.3, with the
+non-DH-triple step of its Game 3 folded in; equations (12.23) and (12.28), printed pp. 492–493,
+using Lemma 12.6, printed p. 486): suppose `isElem` accepts exactly the encodings of group elements
+and every supported group has order at least `m > 0`. Whenever `γ ≠ α * β`,
+`projHash F d (δ - α * τ) τ (β • g) (γ • g) + m` is uniformly distributed over `F.Carrier d` by
+`uniform_projHash_fiber_add` (Lemma 12.6), so `cramerShoupGame4` and `cramerShoupGame5` differ
+only on the event `γ = α * β` of probability `1 / F.order d ≤ 1 / m`. -/
 theorem advantage_cramerShoupGame4_game5_le
     (hasAD : Bool) {Msg AD : Type} (encodeMsg : F.Desc × Msg → List Bool)
     (encodeAD : F.Desc × AD → List Bool)
@@ -1845,15 +1881,12 @@ theorem advantage_cramerShoupGame4_game5_le
   peel_binds d α β
   refine (advantage_uniform_bind_of_eq_of_ne (α * β) _ _ fun γ hγ => ?_).trans
     (by simpa only [Nat.cast_one] using F.div_order_le_div_of_le (Q := 1) hm0 (hm d d_mem))
-  refine congrArg _ (funext fun δ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun δ₁ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ₁ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun δ₂ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ₂ => ?_)
+  have hswap {μ : PMF (ZMod (F.order d))} {f g : _ → _ → Game}
+      (h : ∀ y, μ.bind (f · y) = μ.bind (g · y)) :
+      μ.bind (fun x => μ.bind (f x)) = μ.bind (fun x => μ.bind (g x)) :=
+    (PMF.bind_comm μ μ f).trans ((congrArg _ (funext h)).trans (PMF.bind_comm μ μ g).symm)
+  refine congrArg _ (funext fun δ =>
+    hswap fun δ₁ => hswap fun τ₁ => hswap fun δ₂ => hswap fun τ₂ => ?_)
   rw [bind_runStatelessOracle_comm, bind_runStatelessOracle_comm]
   refine congrArg _ (funext fun choice => ?_)
   by_cases hvalid : (isElem (d, encodeMsg (d, csChoiceMsg₀ choice)) &&

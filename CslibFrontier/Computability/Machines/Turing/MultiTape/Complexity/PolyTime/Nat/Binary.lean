@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger, Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryNormalization
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPower
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
@@ -52,22 +54,22 @@ multiplication.
 
 ## Main results
 
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.bitsToNat`: binary decoding of arbitrary words.
+* `Turing.MultiTapeTM.ComputableInPolyTime.bitsToNat`: binary decoding of arbitrary words.
 * `Nat.size_sum_le`: the binary length of a list sum. The binary lengths of sums, products and
   powers (`Nat.size_add_le`, `Nat.size_mul_le`, `Nat.size_pow_le`) are in
   `CslibFrontier/Foundations/Data/Nat/BinarySize.lean`.
 * `Turing.MultiTapeTM.BinarySub.sub_eq`: truncated subtraction through the final borrow.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_add`, `.binary_mul`: addition and
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_add`, `.binary_mul`: addition and
   multiplication.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_sum`: the sum of a list.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_two_pow`: `2 ^ k` in binary, from `k` in
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_sum`: plain binary-list summation.
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_two_pow`: `2 ^ k` in binary, from `k` in
   unary.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_lt`, `.binary_le`: comparisons.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_sub`: truncated subtraction.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_pow`: a power to a unary exponent.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_add'`, `.binary_lt'`, `.binary_le'`:
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_lt`, `.binary_le`: comparisons.
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_sub`: truncated subtraction.
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_pow`: a power to a unary exponent.
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_add'`, `.binary_lt'`, `.binary_le'`:
   composition rules for `fun_prop`.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_mul'`, `.binary_sub'`, `.binary_pow'`:
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_mul'`, `.binary_sub'`, `.binary_pow'`:
   composition rules for `fun_prop`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_add'`, `.binary_sub'`, `.binary_pow'`: named
   composition rules for plain certificates.
@@ -77,7 +79,7 @@ multiplication.
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_size`, `.binary_min_unary`,
   `.binary_min_unary'`, `.binary_shiftRight`, `.binary_shiftRight'`: bit-length in unary, capping
   a binary natural by a unary bound, and binary right shift.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_testBit`: a bit of a binary number at a
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_testBit`: a bit of a binary number at a
   unary position.
 -/
 
@@ -120,68 +122,36 @@ private lemma bitwise_eq (op : Bool → Bool → Bool) (h0 : op false false = fa
   · exact (Nat.lt_size_self p.1).trans_le (Nat.pow_le_pow_right (by lia) (by lia))
   · exact (Nat.lt_size_self p.2).trans_le (Nat.pow_le_pow_right (by lia) (by lia))
 
-private lemma ofBits_tail (w : List Bool) : ofBits w.tail = ofBits w / 2 := by
-  cases w with
-  | nil => simp [ofBits]
-  | cons b w =>
-    simp only [List.tail_cons, ofBits, List.foldr_cons, Nat.bit_val]
-    cases b <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> lia
-
-private lemma ofBits_drop (w : List Bool) (k : ℕ) : ofBits (w.drop k) = ofBits w / 2 ^ k := by
-  induction k generalizing w with
-  | zero => simp
-  | succ k ih =>
-    rw [← List.drop_tail, ih, ofBits_tail, Nat.div_div_eq_div_mul, Nat.pow_succ']
-
-/-- Right shift drops at most the dividend's bit length of least-significant digits. -/
-private lemma shiftRight_eq_ofBits_drop (p : ℕ × ℕ) :
-    p.1 >>> p.2 = ofBits (p.1.bits.drop (min p.1.bits.length p.2)) := by
-  have hdrop : p.1.bits.drop (min p.1.bits.length p.2) = p.1.bits.drop p.2 := by
-    rcases le_total p.1.bits.length p.2 with h | h
-    · rw [Nat.min_eq_left h, List.drop_eq_nil_of_le le_rfl, List.drop_eq_nil_of_le h]
-    · rw [Nat.min_eq_right h]
-  rw [hdrop, ofBits_drop, ofBits, Nat.foldr_bit_bits, Nat.shiftRight_eq_div_pow]
-
 end Turing.MultiTapeTM.BinarySub
 
-namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
-
-/-- Decode arbitrary little-endian bit words to binary naturals. -/
-@[fun_prop]
-theorem bitsToNat : ComputableTidilyInPolyTime ofBits encBits encNat := by
-  obtain ⟨c, d, k, State, hfin, tm, htm⟩ :=
-    Internal.NormalForm.polyTime ComputableInPolyTime.bitsToNat
-  exact ⟨_, _, .of_forall_le c d (fun _ => le_rfl),
-    .of_forall_le c d (fun _ => le_rfl), k, State, hfin, tm, htm⟩
+namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 /-- The binary digits of a natural number, as a raw bit string. -/
 @[fun_prop]
-theorem natBits : ComputableTidilyInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
-
-/-- Addition of binary naturals. -/
-@[fun_prop]
-theorem binary_add : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 + p.2)
-    (encPair encNat encNat) encNat :=
-  ComputableInPolyTime.binary_add.tidy
+theorem natBits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
 
 /-- Multiplication of binary naturals. -/
 @[fun_prop]
-theorem binary_mul : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 * p.2)
+theorem binary_mul : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 * p.2)
     (encPair encNat encNat) encNat :=
   (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.fst encNat encNat)
-    (ComputableInPolyTime.snd encNat encNat)).tidy
+    (ComputableInPolyTime.snd encNat encNat))
 
 /-- Add computed binary values, fixing their intermediate encodings for proof search. -/
 @[fun_prop]
 theorem binary_add' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => left a + right a) input encNat :=
+    (hleft : ComputableInPolyTime left input encNat)
+    (hright : ComputableInPolyTime right input encNat) :
+    ComputableInPolyTime (fun a => left a + right a) input encNat :=
   binary_add.comp (hleft.prod hright)
+
+end Turing.MultiTapeTM.ComputableInPolyTime
+
+namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 /-- The sum of a list of binary naturals, by a left fold of binary additions. -/
 @[fun_prop]
-theorem binary_sum : ComputableTidilyInPolyTime List.sum (encList encNat) encNat := by
+theorem binary_sum : ComputableInPolyTime List.sum (encList encNat) encNat := by
   have hq := fst (encPair (encList encNat) encNat) encNat
   have h := foldlWith_of_bounded_growth (encA := encNat) (encL := encList encNat)
     (encB := encNat) (par := fun l : List ℕ => l) (list := fun l => l)
@@ -194,9 +164,13 @@ theorem binary_sum : ComputableTidilyInPolyTime List.sum (encList encNat) encNat
       lia)
   simpa only [← List.sum_eq_foldl_nat] using h
 
+end Turing.MultiTapeTM.ComputableInPolyTime
+
+namespace Turing.MultiTapeTM.ComputableInPolyTime
+
 /-- `2 ^ k` in binary, from `k` in unary, by doubling. -/
 @[fun_prop]
-theorem binary_two_pow : ComputableTidilyInPolyTime (fun k : ℕ => 2 ^ k) encUnary encNat := by
+theorem binary_two_pow : ComputableInPolyTime (fun k : ℕ => 2 ^ k) encUnary encNat := by
   have hfold (k : ℕ) : (List.replicate k true).foldl (fun n _ => n + n) 1 = 2 ^ k := by
     induction k with
     | zero => rfl
@@ -207,7 +181,7 @@ theorem binary_two_pow : ComputableTidilyInPolyTime (fun k : ℕ => 2 ^ k) encUn
   have hq := fst encNat encBool
   have h := foldl_of_bounded_growth (encA := encBool) (encL := encBits) (encB := encNat)
     (list := fun k => List.replicate k true) (step := fun n _ => n + n)
-    (of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl) (const 1)
+    (of_eq (encIn := encUnary) (encOut := encBits) fun _ => rfl) (const 1)
     (binary_add.comp (hq.prod hq)) (growth := 1)
     (fun n _ => by
       simp only [encNat_apply, Nat.size_eq_bits_len]
@@ -217,112 +191,50 @@ theorem binary_two_pow : ComputableTidilyInPolyTime (fun k : ℕ => 2 ^ k) encUn
       lia)
   simpa only [hfold] using h
 
-/-- Strict comparison of binary naturals, from the linear zip-transducer certificate. -/
-@[fun_prop]
-theorem binary_lt : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => decide (p.1 < p.2))
-    (encPair encNat encNat) encBool :=
-  ComputableInPolyTime.binary_lt.tidy
-
-/-- Comparison of binary naturals, from the linear zip-transducer certificate. -/
-@[fun_prop]
-theorem binary_le : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => decide (p.1 ≤ p.2))
-    (encPair encNat encNat) encBool :=
-  ComputableInPolyTime.binary_le.tidy
+/-- Testing a binary number for positivity is polynomial-time. -/
+theorem binary_pos :
+    ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
+  ComputableInPolyTime.binary_lt.comp
+    ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
 
 /-- Strictly compare computed binary values, fixing their intermediate encodings. -/
 @[fun_prop]
 theorem binary_lt' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => decide (left a < right a)) input encBool :=
+    (hleft : ComputableInPolyTime left input encNat)
+    (hright : ComputableInPolyTime right input encNat) :
+    ComputableInPolyTime (fun a => decide (left a < right a)) input encBool :=
   binary_lt.comp (hleft.prod hright)
-
-/-- Compare computed binary values, fixing their intermediate encodings. -/
-@[fun_prop]
-theorem binary_le' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => decide (left a ≤ right a)) input encBool :=
-  binary_le.comp (hleft.prod hright)
-
-/-- Multiply computed binary values, fixing their intermediate encodings for proof search. -/
-@[fun_prop]
-theorem binary_mul' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => left a * right a) input encNat :=
-  binary_mul.comp (hleft.prod hright)
-
-/-- A power of a binary natural to a unary exponent, by repeated multiplication. -/
-@[fun_prop]
-theorem binary_pow : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 ^ p.2)
-    (encPair encNat encUnary) encNat := by
-  have hfold (m k : ℕ) : (List.replicate k true).foldl (fun n _ => n * m) 1 = m ^ k := by
-    induction k with
-    | zero => rfl
-    | succ k ih =>
-      rw [List.replicate_succ', List.foldl_append, ih, List.foldl_cons, List.foldl_nil,
-        Nat.pow_succ]
-  have hlist : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => List.replicate p.2 true)
-      (encPair encNat encUnary) encBits :=
-    (of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl).comp (snd encNat encUnary)
-  have hq := fst (encPair encNat encNat) encBool
-  have h := foldlWith_of_bounded_growth (encA := encBool) (encL := encBits) (encB := encNat)
-    (par := fun p : ℕ × ℕ => p.1) (step := fun m n _ => n * m) (init := fun _ => 1)
-    (fst encNat encUnary) hlist (const 1) (binary_mul.comp (hq.snd'.prod hq.fst'))
-    (growth := fun p => (encPair encNat encUnary p).length) .self
-    (fun p n _ _ => by
-      have := Nat.size_mul_le n p.1
-      have := length_le_encPair_left encNat encUnary p
-      simp only [encNat_apply, Nat.size_eq_bits_len] at this ⊢
-      lia)
-  simpa only [hfold] using h
 
 /-- Raise a computed binary value to a computed unary exponent, fixing the intermediate
 encodings. -/
 @[fun_prop]
 theorem binary_pow' {α : Type} {input : α ↪ List Bool} {base exponent : α → ℕ}
-    (hbase : ComputableTidilyInPolyTime base input encNat)
-    (hexponent : ComputableTidilyInPolyTime exponent input encUnary) :
-    ComputableTidilyInPolyTime (fun a => base a ^ exponent a) input encNat :=
+    (hbase : ComputableInPolyTime base input encNat)
+    (hexponent : ComputableInPolyTime exponent input encUnary) :
+    ComputableInPolyTime (fun a => base a ^ exponent a) input encNat :=
   binary_pow.comp (hbase.prod hexponent)
-
-/-- Truncated subtraction of binary naturals, reusing the shared plain schoolbook certificate. -/
-@[fun_prop]
-theorem binary_sub : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 - p.2)
-    (encPair encNat encNat) encNat :=
-  ComputableInPolyTime.binary_sub.tidy
 
 /-- Subtract computed binary values, truncating at zero and fixing their intermediate
 encodings. -/
 @[fun_prop]
 theorem binary_sub' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encNat)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => left a - right a) input encNat :=
+    (hleft : ComputableInPolyTime left input encNat)
+    (hright : ComputableInPolyTime right input encNat) :
+    ComputableInPolyTime (fun a => left a - right a) input encNat :=
   binary_sub.comp (hleft.prod hright)
 
-/-- Read the bit of a computed binary number at a computed unary position. -/
-@[fun_prop]
-theorem binary_testBit {α : Type} {input : α ↪ List Bool} {n i : α → ℕ}
-    (hn : ComputableTidilyInPolyTime n input encNat)
-    (hi : ComputableTidilyInPolyTime i input encUnary) :
-    ComputableTidilyInPolyTime (fun a => (n a).testBit (i a)) input encBool := by
-  refine ((bitsGetD false).comp ((natBits.comp hn).prod hi)).of_enc_eq fun a => ?_
-  simp only [Function.comp_apply, Nat.testBit_eq_inth, ← List.getD_default_eq_getI]
-  rfl
-
 /-- Any zero-preserving bitwise operation on binary naturals is polynomial-time. -/
-private theorem binary_bitwise (op : Bool → Bool → Bool) (h0 : op false false = false) :
-    ComputableTidilyInPolyTime (fun p : ℕ × ℕ => Nat.bitwise op p.1 p.2)
+@[program_certificate]
+theorem binary_bitwise (op : Bool → Bool → Bool) (h0 : op false false = false) :
+    ComputableInPolyTime (fun p : ℕ × ℕ => Nat.bitwise op p.1 p.2)
       (encPair encNat encNat) encNat := by
-  have hpairs : ComputableTidilyInPolyTime BinarySub.digitPairs (encPair encNat encNat)
+  have hpairs : ComputableInPolyTime BinarySub.digitPairs (encPair encNat encNat)
       (encList (encPair encBool encBool)) := by
     unfold BinarySub.digitPairs
     fun_prop
-  have hop : ComputableTidilyInPolyTime (fun d : Bool × Bool => op d.1 d.2)
+  have hop : ComputableInPolyTime (fun d : Bool × Bool => op d.1 d.2)
       (encPair encBool encBool) encBool := of_finite _
-  have hstep : ComputableTidilyInPolyTime
+  have hstep : ComputableInPolyTime
       (fun p : List Bool × (Bool × Bool) => p.1 ++ [op p.2.1 p.2.2])
       (encPair encBits (encPair encBool encBool)) encBits :=
     bitsAppend (fst _ _) (bitsCons (hop.comp (snd _ _)) (const []))
@@ -336,7 +248,7 @@ private theorem binary_bitwise (op : Bool → Bool → Bool) (h0 : op false fals
 
 /-- The smaller of a unary natural and a binary natural, returned in unary by saturating binary
 decoding. -/
-private theorem binary_min_unary : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
+theorem binary_min_unary : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
     (encPair encUnary encNat) encUnary := by
   have h := foldlWith (encA := encBool) (encL := encBits) (encP := encUnary)
     (par := Prod.fst) (list := fun p : ℕ × ℕ => p.2.bits.reverse)
@@ -354,40 +266,35 @@ private theorem binary_min_unary : ComputableTidilyInPolyTime (fun p : ℕ × �
     Cslib.BitString.binaryValue_reverse_bits]
 
 /-- Cap a computed binary natural by a computed unary bound, returning the result in unary. -/
-private theorem binary_min_unary' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableTidilyInPolyTime left input encUnary)
-    (hright : ComputableTidilyInPolyTime right input encNat) :
-    ComputableTidilyInPolyTime (fun a => min (left a) (right a)) input encUnary :=
+@[fun_prop, program_certificate]
+theorem binary_min_unary' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
+    (hleft : ComputableInPolyTime left input encUnary)
+    (hright : ComputableInPolyTime right input encNat) :
+    ComputableInPolyTime (fun a => min (left a) (right a)) input encUnary :=
   binary_min_unary.comp (hleft.prod hright)
 
 /-- Right shift of binary naturals, by dropping at most the dividend's bit length of low-order
 digits. -/
-private theorem binary_shiftRight : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 >>> p.2)
+theorem binary_shiftRight : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 >>> p.2)
     (encPair encNat encNat) encNat := by
   have hbits := natBits.comp (fst encNat encNat)
-  have hlen : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1.bits.length)
+  have hlen : ComputableInPolyTime (fun p : ℕ × ℕ => p.1.bits.length)
       (encPair encNat encNat) encUnary := (length encBool).comp hbits
   have hdrop := bitsDropWithInput hbits (binary_min_unary' hlen (snd encNat encNat))
-  convert bitsToNat.comp hdrop using 1
-  funext p
-  exact BinarySub.shiftRight_eq_ofBits_drop p
+  refine hdrop.of_enc_eq fun p => ?_
+  change (p.1 >>> p.2).bits = p.1.bits.drop (min p.1.bits.length p.2)
+  rw [Nat.bits_shiftRight, Nat.min_comm]
+  exact List.drop_eq_drop_min
 
-end Turing.MultiTapeTM.ComputableTidilyInPolyTime
+end Turing.MultiTapeTM.ComputableInPolyTime
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
-
-/-- Any zero-preserving bitwise operation on binary naturals is polynomial-time. -/
-@[program_certificate]
-theorem binary_bitwise (op : Bool → Bool → Bool) (h0 : op false false = false) :
-    ComputableInPolyTime (fun p : ℕ × ℕ => Nat.bitwise op p.1 p.2)
-      (encPair encNat encNat) encNat :=
-  .of_tidy (ComputableTidilyInPolyTime.binary_bitwise op h0)
 
 /-- Bitwise AND of binary naturals. -/
 @[fun_prop, program_certificate]
 theorem binary_and : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 &&& p.2)
     (encPair encNat encNat) encNat :=
-  .of_tidy <| (ComputableTidilyInPolyTime.binary_bitwise and rfl).of_enc_eq fun p =>
+  (ComputableInPolyTime.binary_bitwise and rfl).of_enc_eq fun p =>
     congrArg encNat <| Nat.eq_of_testBit_eq fun i => by
       rw [Nat.testBit_bitwise rfl, Nat.testBit_and]
 
@@ -404,7 +311,7 @@ theorem binary_or : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 ||| p.2)
 @[fun_prop, program_certificate]
 theorem binary_xor : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 ^^^ p.2)
     (encPair encNat encNat) encNat :=
-  .of_tidy <| (ComputableTidilyInPolyTime.binary_bitwise xor rfl).of_enc_eq fun p =>
+  (ComputableInPolyTime.binary_bitwise xor rfl).of_enc_eq fun p =>
     congrArg encNat <| Nat.eq_of_testBit_eq fun i => by
       rw [Nat.testBit_bitwise rfl, Nat.testBit_xor]
 
@@ -440,28 +347,6 @@ theorem binary_size : ComputableInPolyTime Nat.size encNat encUnary := by
   funext n
   exact (Nat.size_eq_bits_len n).symm
 
-/-- The smaller of a unary natural and a binary natural, returned in unary by saturating binary
-decoding. -/
-@[fun_prop, program_certificate]
-theorem binary_min_unary : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
-    (encPair encUnary encNat) encUnary :=
-  .of_tidy ComputableTidilyInPolyTime.binary_min_unary
-
-/-- Cap a computed binary natural by a computed unary bound, returning the result in unary. -/
-@[fun_prop, program_certificate]
-theorem binary_min_unary' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableInPolyTime left input encUnary)
-    (hright : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun a => min (left a) (right a)) input encUnary :=
-  binary_min_unary.comp (hleft.prod hright)
-
-/-- Right shift of binary naturals, by dropping at most the dividend's bit length of low-order
-digits. -/
-@[fun_prop, program_certificate]
-theorem binary_shiftRight : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 >>> p.2)
-    (encPair encNat encNat) encNat :=
-  .of_tidy ComputableTidilyInPolyTime.binary_shiftRight
-
 /-- Right shift of computed binary naturals. -/
 @[fun_prop, program_certificate]
 theorem binary_shiftRight' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
@@ -469,14 +354,6 @@ theorem binary_shiftRight' {α : Type} {input : α ↪ List Bool} {left right : 
     (hright : ComputableInPolyTime right input encNat) :
     ComputableInPolyTime (fun a => left a >>> right a) input encNat :=
   binary_shiftRight.comp (hleft.prod hright)
-
-/-- The strict order of two computed numbers in binary. -/
-@[fun_prop]
-theorem binary_lt' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableInPolyTime left input encNat)
-    (hright : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun a => decide (left a < right a)) input encBool :=
-  binary_lt.comp (hleft.prod hright)
 
 end Turing.MultiTapeTM.ComputableInPolyTime
 
@@ -486,38 +363,5 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 -- Preserve the original facade's registration scope for captured binary multiplication.
 attribute [fun_prop] binary_mul'
-
-/-- `2 ^ k` in binary, from `k` in unary, by doubling. -/
-@[fun_prop]
-theorem binary_two_pow :
-    ComputableInPolyTime (fun (k : ℕ) => 2 ^ k)
-  encUnary encNat :=
-  .of_tidy Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_two_pow
-
-end Turing.MultiTapeTM.ComputableInPolyTime
-
-namespace Turing.MultiTapeTM.ComputableInPolyTime
-
-/-- Add computed binary values using the shared plain certificate. -/
-theorem binary_add' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableInPolyTime left input encNat)
-    (hright : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun a => left a + right a) input encNat :=
-  binary_add.comp (hleft.prod hright)
-
-/-- Subtract computed binary values using the shared plain certificate. -/
-theorem binary_sub' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableInPolyTime left input encNat)
-    (hright : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun a => left a - right a) input encNat :=
-  binary_sub.comp (hleft.prod hright)
-
-/-- `Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_pow'` for plain certificates. -/
-theorem binary_pow' {α : Type} {input : α ↪ List Bool} {base exponent : α → ℕ}
-    (hbase : ComputableInPolyTime base input encNat)
-    (hexponent : ComputableInPolyTime exponent input encUnary) :
-    ComputableInPolyTime (fun a => base a ^ exponent a) input encNat :=
-  .of_tidy (ComputableTidilyInPolyTime.binary_pow' (hbase := hbase.tidy)
-    (hexponent := hexponent.tidy))
 
 end Turing.MultiTapeTM.ComputableInPolyTime

@@ -160,31 +160,15 @@ theorem exec_layout_at {w N U src : ℕ} (x : Data 64)
     (hfill : Fits w (4 * U + 2)) :
     ∃ y, ExecWithin w layout x y 12 ∧ ParametersAt N U src (N + src) y ∧
       y.regs inst = 0 ∧ y.regs found = 0 ∧ y.mem = x.mem := by
-  let t := sideLength N
-  have ht : Fits w t := hsize.of_le (by have := Nat.le_mul_self t; dsimp [t] at *; omega)
-  have ha : Fits w (t * t) := hsize.of_le (by dsimp [t] at *; omega)
-  have hs : Fits w (t + t) := hsize.of_le (by have := Nat.le_mul_self t; dsimp [t] at *; omega)
-  have hab : Fits w (src + N) := hsize.of_le (by omega)
-  have hbc : Fits w (src + N + t * t) := hsize.of_le (by dsimp [t] at *; omega)
-  have hac : Fits w (src + N + t * t + t * t) := hsize.of_le (by dsimp [t] at *; omega)
-  have hfree : Fits w (src + N + t * t + t * t + t * t) :=
-    hsize.of_le (by dsimp [t] at *; omega)
-  have hu2 : Fits w (U + U) := hfill.of_le (by omega)
-  have hu1 : Fits w (U + U + 1) := hfill.of_le (by omega)
-  have hu4 : Fits w (U + U + 1 + (U + U + 1)) := hfill.of_le (by omega)
-  refine ⟨?y, ?run, ?parameters, ?counter, ?found, ?memory⟩
-  case run =>
-    ram_eval [layout, hr, ho, hN, hU, hb, ht, ha, hs, hab, hbc, hac, hfree,
-      hu2, hu1, hu4, t, sideLength, len, upper, base, matAB, matBC, matAC,
-      free, side, inst, stop, found, one, filler, encodedFiller, area, sqrtRoot, Fin.mk.injEq]
-  case parameters =>
-    constructor <;>
-      simp +decide [Data.set_regs, len, upper, base, matAB,
-        matBC, matAC, free, side, stop, filler, encodedFiller, one,
-        hN, hU, hb, ho, sideLength] <;> omega
-  case counter => simp [inst]
-  case found => simp
-  case memory => rfl
+  dsimp only [sideLength] at hsize
+  have ht2 : Nat.sqrt N + 1 ≤ (Nat.sqrt N + 1) * (Nat.sqrt N + 1) := Nat.le_mul_self _
+  refine WP.exists_execWithin ?_
+  unfold layout
+  wram_exec [hr, ho, hN, hU, hb]
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+    by wram_simp, by wram_simp, by wram_simp⟩
+  all_goals wram_simp [hN, hU, hb, ho, sideLength]
+  all_goals omega
 
 /-- Exact initialization from the ordinary length header. The existing parameter program
 computes `U = (N+2)^κ`; its entire execution is charged, including the unused extra parameters.

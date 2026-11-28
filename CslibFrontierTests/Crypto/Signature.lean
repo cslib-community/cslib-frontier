@@ -11,7 +11,9 @@ import CslibFrontier.Crypto.Computational.Signature
 # Tests for digital signature schemes, Lamport's one-time signature scheme, and OWF reductions
 
 Provides concrete instantiations of `SignatureScheme` (both a trivial scheme and `lamportScheme`
-applied to the identity function), and verifies that `OneTimeEUFCMA` and `EUFCMA` reject the
+applied to the identity function), exercises `lamportVerify` acceptance and rejection of
+wrong-length preimage blocks, instantiates `OneWayOn.oneTimeEUFCMA_lamport` on the `{0,1}ⁿ`
+domain `fun n w => decide (w.length = n)`, and verifies that `OneTimeEUFCMA` and `EUFCMA` reject the
 trivial scheme via an explicit zero-query PPT forger.
 -/
 
@@ -71,15 +73,60 @@ example : lamportVerify id (encList encBits
   simp only [lamportVerify, frames_encList]
   decide
 
--- A wrong-length first query returns no Lamport secret but still consumes the one query.
-example : idLamportScheme.oneTimeSigningOracle
-      (encList encBits [[false], [true]]) ((), []) [] = pure ([], [[]]) := by
-  simp only [SignatureScheme.oneTimeSigningOracle, idLamportScheme, lamportScheme, lamportSign,
-    frames_encList]
+-- Regression for the domain-length check (#5686): `lamportVerify` rejects signature blocks whose
+-- length differs from `msg.length`, even when their `f`-image matches the public-key slot.
+example :
+    let f : List Bool → List Bool := fun w => [w.headD false]
+    let pk := encList encBits ([[false], [true]].map f)
+    f [false, true] = f [false] ∧
+    f [] = f [false] ∧
+    lamportVerify f pk [false] (encList encBits [[false]]) = true ∧
+    lamportVerify f pk [false] (encList encBits [[false, true]]) = false ∧
+    lamportVerify f pk [false] (encList encBits [[]]) = false := by
+  simp only [lamportVerify, frames_encList]
+  decide
+
+-- Same check with `take 1` (`w` longer than `msg.length = 1` matches `f [false] = [false]`).
+example :
+    let f : List Bool → List Bool := fun w => w.take 1
+    let pk := encList encBits ([[false], [true]].map f)
+    f [false, true] = f [false] ∧
+    lamportVerify f pk [false] (encList encBits [[false]]) = true ∧
+    lamportVerify f pk [false] (encList encBits [[false, true]]) = false := by
+  simp only [lamportVerify, frames_encList]
+  decide
+
+-- `OneWayOn.oneTimeEUFCMA_lamport` works strictly under Boneh–Shoup Definition 8.6 on `{0,1}ⁿ`
+-- (`valid n w := decide (w.length = n)`), not only unrestricted `OneWay`.
+example {f : List Bool → List Bool} (hf : OneWayOn f fun n w => decide (w.length = n)) :
+    (lamportScheme f hf.polyTime).OneTimeEUFCMA :=
+  hf.oneTimeEUFCMA_lamport fun _ _ => decide_eq_true
+
+example {f : List Bool → List Bool} (hf : OneWayOn f fun n w => w.length == n) :
+    ∃ S : SignatureScheme, S.OneTimeEUFCMA :=
+  hf.exists_oneTimeSignature fun _ _ h => beq_iff_eq.mpr h
+
+example {f : List Bool → List Bool} (hf : OneWay f) :
+    (lamportScheme f hf.polyTime).OneTimeEUFCMA :=
+  hf.oneWayOn.oneTimeEUFCMA_lamport fun _ _ _ => rfl
+
+example {f : List Bool → List Bool} (hf : ComputableInPolyTime f encBits encBits)
+    (n : ℕ) (adversary : Forger) :
+    Game.succProbability (ProbComp.eval ((lamportScheme f hf).eufOneTimeGame adversary n)) ≤
+      (dyadicSize (2 * n) : ℝ≥0) *
+        Game.succProbability (ProbComp.eval
+          (inversionGameOn f (fun k w => decide (w.length = k))
+            (lamportInverter f hf adversary) n)) :=
+  succProbability_eufOneTimeGame_lamport_le hf (fun _ => decide_eq_true) adversary
+
+-- A wrong-length query is refused: it returns no Lamport secret and does not use up the one query.
+example : idLamportScheme.oneTimeSigningOracle 1
+      (encList encBits [[false], [true]]) ((), []) [] = pure ([], []) := by
   rfl
 
-example : idLamportScheme.oneTimeSigningOracle
-      (encList encBits [[false], [true]]) ((), [true]) [[]] = pure ([], [[]]) := by
+-- A second query is refused.
+example : idLamportScheme.oneTimeSigningOracle 1
+      (encList encBits [[false], [true]]) ((), [true]) [[false]] = pure ([], [[false]]) := by
   rfl
 
 -- Even an always-accepting verifier cannot bypass the game's n-bit message check.

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.NP.Advice
+public import CslibFrontier.Computability.Complexity.Classes.PH.Yap
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -32,8 +33,10 @@ when some entry of the list is, and whose length is bounded by a polynomially bo
 the largest length of an entry, whatever the length of the list. Fortnow and Santhanam proved that
 no `NP`-hard problem has one unless `coNP ⊆ NP/poly`: this is the `NP ⊆ coNP/poly` conclusion of
 [BodlaenderJansenKratsch2014, Theorem 2] (`Cslib.Complexity.coNP_subset_NPPoly_of_orDistillation`,
-with `Cslib.Complexity.NPPoly`). Its other conclusion, the collapse of the polynomial hierarchy to
-its third level by Yap's theorem, is not formalized here.
+with `Cslib.Complexity.NPPoly`), and Yap's theorem [Yap][Yap1983]
+(`Cslib.Complexity.PH_eq_SigmaP_three_of_coNP_subset_NPPoly`) gives its second conclusion, the
+collapse of the polynomial hierarchy to `Σ₃`
+(`Cslib.Complexity.PH_eq_SigmaP_three_of_orDistillation`).
 
 The proof is a counting argument. Fix a length `n`, and compress lists of `t(n)` no-instances of
 length `n` to words shorter than `t(n)`. Fewer than `2 ^ t(n)` such words exist, so
@@ -84,8 +87,11 @@ required only for nonempty lists, as Definition 4 concerns `t ≥ 1` instances.
   OR-distillation is in `NP/poly`.
 * `Cslib.Complexity.coNP_subset_NPPoly_of_orCompression`,
   `Cslib.Complexity.coNP_subset_NPPoly_of_orDistillation`,
-  `Cslib.Complexity.NP_subset_coNPPoly_of_orDistillation`: **Fortnow–Santhanam**: if an `NP`-hard
-  problem has an OR-distillation, then `coNP ⊆ NP/poly`, equivalently `NP ⊆ coNP/poly`.
+  `Cslib.Complexity.NP_subset_coNPPoly_of_orDistillation`,
+  `Cslib.Complexity.PH_eq_SigmaP_three_of_orCompression`,
+  `Cslib.Complexity.PH_eq_SigmaP_three_of_orDistillation`: **Fortnow–Santhanam**: if an `NP`-hard
+  problem has an OR-distillation, then `coNP ⊆ NP/poly` (equivalently `NP ⊆ coNP/poly`) and
+  `PH = Σ₃`.
 
 ## References
 
@@ -93,6 +99,7 @@ required only for nonempty lists, as Definition 4 concerns `t ≥ 1` instances.
   cross-composition*][BodlaenderJansenKratsch2014]
 * [L. Fortnow, R. Santhanam, *Infeasibility of instance compression and succinct PCPs for
   NP*][FortnowSanthanam2011]
+* [C.-K. Yap, *Some consequences of non-uniform conditions on uniform classes*][Yap1983]
 -/
 
 public section
@@ -155,7 +162,7 @@ theorem IsPolyEquivalence.comap {encC : β ↪ List Bool} {r : β × β → Bool
     IsPolyEquivalence enc fun p => r (g p.1, g p.2) := by
   classical
   obtain ⟨c, hc, hT⟩ := hr.classes
-  obtain ⟨q, hq⟩ := ((encoding_length encC).comp hg).polyBounded.exists_polynomial
+  obtain ⟨q, hq⟩ := hg.polyBounded_length.exists_polynomial
   refine ⟨⟨fun a => hr.equivalence.refl _, fun h => hr.equivalence.symm h,
     fun h h' => hr.equivalence.trans h h'⟩,
     hr.polyTime.comp ((hg.comp (fst enc enc)).prod (hg.comp (snd enc enc))),
@@ -209,9 +216,8 @@ private theorem exists_orCompression_advice {r : α × α → Bool}
   classical
   -- the instances of length `n`, and the no-instances among them related to `z`
   let I : Finset α := (BitString.shortWords n).preimage enc enc.injective.injOn
-  have hI : #I < 2 ^ (n + 1) := by
-    refine lt_of_le_of_lt (card_le_card_of_injOn enc (fun a ha => mem_preimage.1 ha)
-      enc.injective.injOn) (BitString.card_shortWords_lt n)
+  have hI : #I < 2 ^ (n + 1) := (card_le_card_of_injOn enc (fun a ha => mem_preimage.1 ha)
+    enc.injective.injOn).trans_lt (BitString.card_shortWords_lt n)
   let R : α → Finset α := fun z => I.filter fun a => (enc a).length = n ∧ a ∉ A ∧ r (z, a) = true
   have hR (z a : α) : a ∈ R z ↔ (enc a).length = n ∧ a ∉ A ∧ r (z, a) = true := by
     simp only [R, I, mem_filter, mem_preimage, BitString.mem_shortWords, and_iff_right_iff_imp]
@@ -219,8 +225,7 @@ private theorem exists_orCompression_advice {r : α × α → Bool}
   have hlog (z : α) : Nat.log 2 #(R z) ≤ n := by
     have hlt : #(R z) < 2 ^ (n + 1) := (card_filter_le _ _).trans_lt hI
     rcases Nat.eq_zero_or_pos #(R z) with h0 | hpos
-    · rw [h0, Nat.log_zero_right]
-      exact Nat.zero_le _
+    · simp [h0]
     · exact Nat.lt_succ_iff.1 (Nat.log_lt_of_lt_pow hpos.ne' hlt)
   -- compress a tuple of instances
   let F : (Fin (t n) → α) → List Bool := fun g => encB (f (List.ofFn g))
@@ -234,9 +239,7 @@ private theorem exists_orCompression_advice {r : α × α → Bool}
     refine hshort _ (List.length_ofFn) (fun a ha => ?_) (hpair z g hg)
     obtain ⟨i, rfl⟩ := List.mem_ofFn.1 ha
     exact ((hR z _).1 (hg i)).1
-  have htpos : 0 < t n := by
-    by_contra h0
-    have h0 : t n = 0 := by omega
+  have htpos : 0 < t n := Nat.pos_of_ne_zero fun h0 => by
     have := hshort [] (by simp [h0]) (by simp) (by simp)
     omega
   -- the compressions of tuples of related no-instances are fewer than `2 ^ t n` words
@@ -361,8 +364,7 @@ theorem compl_mem_NPPoly_of_orCompression (D : Decoder enc) {r : α × α → Bo
       have hfl : f l' = f l := encB.injective hl'f
       have hnot : f l ∉ B := by
         rw [← hfl, hOR l' hl'ne hl'rel]
-        rintro ⟨b, hb, hbA⟩
-        exact hl'A b hb hbA
+        exact fun ⟨b, hb, hbA⟩ => hl'A b hb hbA
       have hpair : ∀ b ∈ l, ∀ b' ∈ l, r (b, b') = true := fun b hb b' hb' =>
         hr.equivalence.trans (hr.equivalence.symm (hrel b hb)) (hrel b' hb')
       exact hnot ((hOR l (List.ne_nil_of_mem hal) hpair).2 ⟨a, hal, haA⟩)
@@ -383,7 +385,7 @@ theorem coNP_subset_NPPoly_of_orCompression (hA : NPHard enc A) {r : α × α �
       (∀ a ∈ l, ∀ b ∈ l, r (a, b) = true) → (encB (f l)).length < t n)
     {γ : Type} (encC : γ ↪ List Bool) : coNP encC ⊆ NPPoly encC := by
   obtain ⟨red, hred, hSAT⟩ := hA encCNF SAT CookLevin.SAT_npComplete.1
-  obtain ⟨q, hq⟩ := ((encoding_length enc).comp hred).polyBounded.exists_polynomial
+  obtain ⟨q, hq⟩ := hred.polyBounded_length.exists_polynomial
   -- transfer everything to `SAT`, whose formulas have a decoder
   have hUNSAT : SATᶜ ∈ NPPoly encCNF := by
     refine compl_mem_NPPoly_of_orCompression (B := B) cnfDecoder (hr.comap hred)
@@ -414,8 +416,8 @@ theorem IsORDistillation.compl_mem_NPPoly (D : Decoder enc) {f : List α → β}
 /-- **Fortnow–Santhanam**, the `NP ⊆ coNP/poly` conclusion of
 [BodlaenderJansenKratsch2014, Theorem 2], stated as `coNP ⊆ NP/poly`: if an `NP`-hard problem has
 an OR-distillation into any problem, with a polynomially bounded size bound, then
-`coNP ⊆ NP/poly`, for every encoding of instances. The collapse of the polynomial hierarchy that
-Theorem 2 derives from it by Yap's theorem is not formalized. -/
+`coNP ⊆ NP/poly`, for every encoding of instances. For the collapse `PH = Σ₃` that Theorem 2
+derives from it by Yap's theorem, see `Cslib.Complexity.PH_eq_SigmaP_three_of_orDistillation`. -/
 theorem coNP_subset_NPPoly_of_orDistillation (hA : NPHard enc A) {f : List α → β} {s : ℕ → ℕ}
     (h : IsORDistillation enc encB A B f s) (hs : PolynomiallyBounded s) {γ : Type}
     (encC : γ ↪ List Bool) : coNP encC ⊆ NPPoly encC :=
@@ -427,11 +429,36 @@ theorem coNP_subset_NPPoly_of_orDistillation (hA : NPHard enc A) {f : List α �
 /-- **Fortnow–Santhanam**, the `NP ⊆ coNP/poly` conclusion of
 [BodlaenderJansenKratsch2014, Theorem 2]: if an `NP`-hard problem has an OR-distillation into any
 problem, with a polynomially bounded size bound, then `NP ⊆ coNP/poly`, for every encoding of
-instances. The collapse of the polynomial hierarchy that Theorem 2 derives from it by Yap's theorem
-is not formalized. -/
+instances. For the collapse `PH = Σ₃` that Theorem 2 derives from it by Yap's theorem, see
+`Cslib.Complexity.PH_eq_SigmaP_three_of_orDistillation`. -/
 theorem NP_subset_coNPPoly_of_orDistillation (hA : NPHard enc A) {f : List α → β} {s : ℕ → ℕ}
     (h : IsORDistillation enc encB A B f s) (hs : PolynomiallyBounded s) {γ : Type}
     (encC : γ ↪ List Bool) : NP encC ⊆ coNPPoly encC :=
   coNP_subset_NPPoly_iff.1 (coNP_subset_NPPoly_of_orDistillation hA h hs encC)
+
+/-- **Fortnow–Santhanam and Yap for compressions of equivalent instances**
+[BodlaenderJansenKratsch2014, Theorems 2 and 6], [Yap][Yap1983]: under the hypotheses of
+`Cslib.Complexity.coNP_subset_NPPoly_of_orCompression`, the polynomial hierarchy collapses to its
+third level, `PH = Σ₃`. -/
+theorem PH_eq_SigmaP_three_of_orCompression (hA : NPHard enc A) {r : α × α → Bool}
+    (hr : IsPolyEquivalence enc r) {f : List α → β}
+    (hf : ComputableInPolyTime f (encList enc) encB)
+    (hOR : ∀ l : List α, l ≠ [] → (∀ a ∈ l, ∀ b ∈ l, r (a, b) = true) →
+      (f l ∈ B ↔ ∃ a ∈ l, a ∈ A))
+    {t : ℕ → ℕ} (ht : PolynomiallyBounded t)
+    (hshort : ∀ n (l : List α), l.length = t n → (∀ a ∈ l, (enc a).length ≤ n) →
+      (∀ a ∈ l, ∀ b ∈ l, r (a, b) = true) → (encB (f l)).length < t n)
+    {γ : Type} (encC : γ ↪ List Bool) : PH encC = SigmaP 3 encC :=
+  PH_eq_SigmaP_three_of_coNP_subset_NPPoly
+    (coNP_subset_NPPoly_of_orCompression hA hr hf hOR ht hshort)
+
+/-- **Fortnow–Santhanam and Yap**, the `PH = Σ₃` conclusion of
+[BodlaenderJansenKratsch2014, Theorem 2] via [Yap][Yap1983]: if an `NP`-hard problem has an
+OR-distillation into any problem, with a polynomially bounded size bound, then `PH = Σ₃`, for
+every encoding of instances. -/
+theorem PH_eq_SigmaP_three_of_orDistillation (hA : NPHard enc A) {f : List α → β} {s : ℕ → ℕ}
+    (h : IsORDistillation enc encB A B f s) (hs : PolynomiallyBounded s) {γ : Type}
+    (encC : γ ↪ List Bool) : PH encC = SigmaP 3 encC :=
+  PH_eq_SigmaP_three_of_coNP_subset_NPPoly (coNP_subset_NPPoly_of_orDistillation hA h hs)
 
 end Cslib.Complexity

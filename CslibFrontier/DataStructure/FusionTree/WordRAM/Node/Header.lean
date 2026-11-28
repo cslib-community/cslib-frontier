@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Registers
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Model
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Loading concrete fusion-node parameters
@@ -57,9 +58,8 @@ theorem rep_of_tree {w a m : ℕ} {cs : List FusionTree.Tree}
     (hr : WordRAM.Rep parameters (.node m cs) a mem)
     (hp : parameters (.node m cs) = p.words) : Rep p a mem := by
   have hh := hr.node_header
-  refine ⟨hh.2.1, fun j => (hh.2.2.2 j).trans (congrFun hp j), ?_⟩
-  intro i
-  simpa only [headerWords, Nat.mul_comm] using (hr.child i).1
+  exact ⟨hh.2.1, fun j => (hh.2.2.2 j).trans (congrFun hp j), fun i => by
+    simpa only [headerWords, Nat.mul_comm] using (hr.child i).1⟩
 
 /-- Loaded parameters and original inputs, with the actual full-key table. -/
 structure Ready {w n : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w keys)
@@ -95,12 +95,9 @@ theorem Ready.except_scratch {w n q a : ℕ} {keys : Fin n → ℕ} {p : NodePar
     (hlo : 2 ≤ i.val) (hhi : i.val < 10) (hm : y.mem = x.mem)
     (hp : ∀ j : Fin registers, j.val < 40 → j ≠ i → y.regs j = x.regs j) :
     Ready p q a y := by
-  apply (hx.set_scratch i (y.regs i) hlo hhi).frame
-  refine ⟨hm, ?_⟩
-  intro j hj
-  by_cases he : j = i
-  · subst j
-    simp only [Data.set_regs, Function.update_self]
+  refine (hx.set_scratch i (y.regs i) hlo hhi).frame ⟨hm, fun j hj => ?_⟩
+  rcases eq_or_ne j i with rfl | he
+  · simp only [Data.set_regs, Function.update_self]
   · exact (hp j hj he).trans (Function.update_of_ne he _ _).symm
 
 /-- Copy the base pointer, then perform the actual eighteen-word header load. -/
@@ -114,12 +111,11 @@ theorem exec_readHeader {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParamete
     ∃ y, Exec w readHeader x y 55 ∧ Ready p q a y ∧ y.mem = x.mem := by
   let u := x.set (headerBank 0) a
   have hxu : Exec (B := .standard) w (.op (.copy (headerBank 0) pointer)) x u 1 := by
-    simpa only [hxa] using (Exec.copy (B := .standard) (w := w)
-      (d := headerBank 0) (s := pointer) (x := x))
+    simpa only [hxa] using
+      Exec.copy (B := .standard) (w := w) (d := headerBank 0) (s := pointer) (x := x)
   have hup : (u.comap headerBank).regs ReadHeaderProgram.pointer = a := by
     simp [u, ReadHeaderProgram.pointer]
-  have hu : Fits w ((u.comap headerBank).regs ReadHeaderProgram.pointer + 17) := hup ▸ ha
-  have he := ReadHeaderProgram.exec (u.comap headerBank) hu
+  have he := ReadHeaderProgram.exec (u.comap headerBank) (hup ▸ ha)
   have hv := ReadHeaderProgram.result_spec (u.comap headerBank)
   generalize ReadHeaderProgram.result (u.comap headerBank) = v at he hv
   let y := v.extend headerBank u
@@ -128,26 +124,21 @@ theorem exec_readHeader {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParamete
     rw [regs_extend_bank, hv.2.2 i, hup]
     rfl
   have hyinput (i : Fin registers) (hi : i.val < 10) : y.regs i = x.regs i := by
-    have hn : ¬∃ j, headerBank j = i := by
-      rintro ⟨j, heq⟩
+    have hn : ¬∃ j, headerBank j = i := fun ⟨_, heq⟩ => by
       have := congrArg Fin.val heq
       dsimp only [headerBank, bank] at this
       omega
     change Function.extend headerBank v.regs u.regs i = _
     rw [Function.extend_apply' _ _ _ hn]
-    have hni : i ≠ headerBank 0 := by
-      intro heq
-      exact hn ⟨0, heq.symm⟩
-    exact Function.update_of_ne hni _ _
-  refine ⟨y, hxu.seq (he.rename (bank_injective _)), ?_, hv.2.1⟩
-  refine ⟨⟨(hyword 1).trans hr.count_eq, ?_⟩,
-    (hyinput query (by decide)).trans hxq, (hyinput pointer (by decide)).trans hxa,
-    fun i => (congrFun hv.2.1 _).trans (hr.keys_eq i)⟩
-  intro j
-  have hh := hyword ⟨j.val + 3, by omega⟩
+    exact Function.update_of_ne (fun h => hn ⟨0, h.symm⟩) _ _
+  refine ⟨y, hxu.seq (he.rename (bank_injective _)),
+    ⟨⟨(hyword 1).trans hr.count_eq, fun j => ?_⟩,
+      by regs_frame,
+      by regs_frame,
+      fun i => (congrFun hv.2.1 _).trans (hr.keys_eq i)⟩, hv.2.1⟩
   have hm : x.mem (a + (j.val + 3)) = p.words j := by
     rw [show a + (j.val + 3) = a + 3 + j.val by omega]
     exact hr.words_eq j
-  simpa only [parameter, Nat.add_assoc] using hh.trans hm
+  simpa only [parameter, Nat.add_assoc] using (hyword ⟨j.val + 3, by omega⟩).trans hm
 
 end Cslib.DataStructure.FusionTree.WordRAM.NodeProgram

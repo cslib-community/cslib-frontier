@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Signed.Operations
+public import CslibFrontier.Computability.WordRAM.Blocks
 
 /-!
 # Compiling signed RAM programs to the unsigned word RAM
@@ -63,9 +64,8 @@ def block (base pc : ℕ) (i : GenericRAM.Instr model r) : WordRAM.Program .stan
     (.jump (entry base (pc + 1)))
 
 /-- Compile a suffix whose first source instruction has index `pc`. -/
-def compileFrom (base : ℕ) : ℕ → GenericRAM.Program model r → WordRAM.Program .standard (r + 9)
-  | _, [] => []
-  | pc, i :: p => block base pc i ++ compileFrom base (pc + 1) p
+def compileFrom (base : ℕ) : ℕ → GenericRAM.Program model r → WordRAM.Program .standard (r + 9) :=
+  Cslib.Program.compileBlocks (block base)
 
 private theorem size_arithmeticCode (f : Arithmetic) : (arithmeticCode (r := r) f).size ≤ 28 := by
   cases f <;> simp [arithmeticCode, Code.size, WordRAM.Signed.add, subtract, multiply, divide,
@@ -87,18 +87,14 @@ private theorem size_compileCond (c : GenericRAM.Cond model r) : (compileCond c)
 /-- Every live prefix fits in its fixed-size block. -/
 theorem length_rawBlock_le (base pc : ℕ) (i : GenericRAM.Instr model r) :
     (rawBlock base pc i).length ≤ 64 := by
-  cases i with
-  | op o =>
-    simp only [rawBlock, List.length_append, WordRAM.Code.length_assemble,
-      List.length_cons, List.length_nil]
-    have := size_compileOp o
+  cases i <;> simp only [rawBlock, List.length_append, WordRAM.Code.length_assemble,
+    List.length_cons, List.length_nil]
+  · have := size_compileOp ‹_›
     omega
-  | branch c t =>
-    simp only [rawBlock, List.length_append, WordRAM.Code.length_assemble,
-      List.length_cons, List.length_nil]
-    have := size_compileCond c
+  · omega
+  · have := size_compileCond ‹_›
     omega
-  | _ => simp [rawBlock]
+  · omega
 
 /-- Every source instruction occupies exactly sixty-four target slots. -/
 @[simp]
@@ -111,30 +107,16 @@ theorem length_block (base pc : ℕ) (i : GenericRAM.Instr model r) :
 /-- Code size is linear in source instruction-list length. -/
 @[simp]
 theorem length_compileFrom (base pc : ℕ) (p : GenericRAM.Program model r) :
-    (compileFrom base pc p).length = 64 * p.length := by
-  induction p generalizing pc with
-  | nil => simp [compileFrom]
-  | cons i p ih => simp [compileFrom, ih, Nat.mul_add, Nat.add_comm]
+    (compileFrom base pc p).length = 64 * p.length :=
+  Cslib.Program.length_compileBlocks (fun pc i _ => length_block base pc i) pc
 
 private theorem contains_raw {base start : ℕ} {p : GenericRAM.Program model r}
     {q : WordRAM.Program .standard (r + 9)}
     (hq : q.Contains (entry base start) (compileFrom base start p))
     {pc : ℕ} {i : GenericRAM.Instr model r} (hi : p[pc]? = some i) :
     q.Contains (entry base (start + pc)) (rawBlock base (start + pc) i) := by
-  induction p generalizing start pc with
-  | nil => simp at hi
-  | cons a p ih =>
-    cases pc with
-    | zero =>
-      have he : a = i := by simpa using hi
-      subst i
-      exact hq.append_left.append_left
-    | succ pc =>
-      have ht : q.Contains (entry base (start + 1)) (compileFrom base (start + 1) p) := by
-        simpa only [length_block, entry, Nat.mul_add, Nat.mul_one, Nat.add_assoc] using
-          hq.append_right
-      simpa only [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
-        ih ht (by simpa using hi)
+  have hc := hq.block (fun pc i _ => length_block base pc i) hi
+  simpa only [entry, Nat.mul_add, Nat.add_assoc] using hc.append_left
 
 private theorem continue_eq {w : ℕ} {s t : GenericRAM.State model r}
     (h : GenericRAM.Outcome.continue w s = .next t) : s = t := by
@@ -149,76 +131,34 @@ private theorem next_simulation {w base : ℕ} {p : GenericRAM.Program model r}
     ∃ y k, k ≤ 32 ∧ WordRAM.Runs (w + 2) q ⟨entry base s.pc, x⟩
       ⟨entry base t.pc, y⟩ k ∧ Represents w t.data y := by
   unfold GenericRAM.Next GenericRAM.step at hn
-  split at hn
-  next hpc =>
-    cases hi : p[s.pc]? with
-    | none => simp [hi] at hn
-    | some i =>
-      have hc := hcode s.pc i hi
-      simp only [hi] at hn
-      cases i with
-      | op o =>
-        cases he : o.eval w s.data with
-        | none => simp [he] at hn
-        | some d =>
-          have ht : (⟨s.pc + 1, d⟩ : GenericRAM.State model r) = t :=
-            continue_eq (w := w) (by simpa only [he] using hn)
-          subst t
-          obtain ⟨y, ⟨k, hk, hex⟩, hyr⟩ := exec_compileOp o hx he
-          have hr : WordRAM.Runs (w + 2) q ⟨entry base s.pc, x⟩
-              ⟨entry base s.pc + (compileOp o).size, y⟩ k := hex.runs hc.append_left
-          have hj : WordRAM.Next (w + 2) q ⟨entry base s.pc + (compileOp o).size, y⟩
-              ⟨entry base (s.pc + 1), y⟩ := by
-            exact WordRAM.step_jump (by simpa using hc.append_right.head)
-          exact ⟨y, k + 1, by omega, hr.tail _ _ _ _ hj, hyr⟩
-      | jump target =>
-        have ht : (⟨target, s.data⟩ : GenericRAM.State model r) = t := continue_eq (w := w) hn
-        subst t
-        exact ⟨x, 1, by decide, .single (WordRAM.step_jump hc.head), hx⟩
-      | branch c target =>
-        cases htest : c.eval w s.data with
-        | none => simp [htest] at hn
-        | some b =>
-          have ht : (⟨if b then target else s.pc + 1, s.data⟩ : GenericRAM.State model r) = t :=
-            continue_eq (w := w) (by simpa only [htest] using hn)
-          subst t
-          obtain ⟨y, ⟨k, hk, hex⟩, hyr, hyo, hyrep⟩ := exec_compileCond c hx htest
-          have hr : WordRAM.Runs (w + 2) q ⟨entry base s.pc, x⟩
-              ⟨entry base s.pc + (compileCond c).size, y⟩ k := hex.runs hc.append_left
-          have hb : q[entry base s.pc + (compileCond c).size]? =
-              some (.branch (.eq result two) (entry base target)) := by
-            simpa using hc.append_right.head
-          have hj : q[entry base s.pc + (compileCond c).size + 1]? =
-              some (.jump (entry base (s.pc + 1))) := by
-            simpa only [WordRAM.Code.length_assemble] using hc.append_right.cons_tail.head
-          cases b with
-          | false =>
-            have hcond : ¬(WordRAM.Cond.eq result two).Holds y := by
-              simp [WordRAM.Cond.holds_eq, hyr, hyo]
-            have hfirst : WordRAM.Next (w + 2) q
-                ⟨entry base s.pc + (compileCond c).size, y⟩
-                ⟨entry base s.pc + (compileCond c).size + 1, y⟩ := by
-              simpa only [WordRAM.Next, hcond, ite_false] using WordRAM.step_branch (w := w + 2)
-                (s := ⟨entry base s.pc + (compileCond c).size, y⟩) hb
-            have hlast : WordRAM.Next (w + 2) q
-                ⟨entry base s.pc + (compileCond c).size + 1, y⟩
-                ⟨entry base (s.pc + 1), y⟩ := WordRAM.step_jump hj
-            exact ⟨y, k + 1 + 1, by omega, (hr.tail _ _ _ _ hfirst).tail _ _ _ _ hlast, hyrep⟩
-          | true =>
-            have hcond : (WordRAM.Cond.eq result two).Holds y := by
-              simp [WordRAM.Cond.holds_eq, hyr, hyo]
-            have hlast : WordRAM.Next (w + 2) q
-                ⟨entry base s.pc + (compileCond c).size, y⟩
-                ⟨entry base target, y⟩ := by
-              simpa only [WordRAM.Next, hcond, ite_true] using WordRAM.step_branch (w := w + 2)
-                (s := ⟨entry base s.pc + (compileCond c).size, y⟩) hb
-            exact ⟨y, k + 1, by omega, hr.tail _ _ _ _ hlast, hyrep⟩
-      | halt i =>
-        change (if model.validMove w (s.data.regs i) then
-          GenericRAM.Outcome.halt (s.data.regs i) else .fault) =
-            (GenericRAM.Outcome.next t : GenericRAM.Outcome model r) at hn
-        split at hn <;> cases hn
-  next hpc => cases hn
+  split_ifs at hn
+  split at hn <;> (try split at hn) <;> (try simp only [reduceCtorEq] at hn) <;>
+    obtain rfl := continue_eq hn
+  · rename_i o hi _ _ he
+    have hc := hcode s.pc _ hi
+    obtain ⟨y, ⟨k, hk, hex⟩, hyr⟩ := exec_compileOp o hx he
+    exact ⟨y, k + 1, by omega, (hex.runs hc.append_left).tail _ _ _ _
+      (WordRAM.step_jump (by simpa using hc.append_right.head)), hyr⟩
+  · rename_i hi
+    exact ⟨x, 1, by decide, .single (WordRAM.step_jump (hcode s.pc _ hi).head), hx⟩
+  · rename_i c target hi _ b htest
+    have hc := hcode s.pc _ hi
+    obtain ⟨y, ⟨k, hk, hex⟩, hyr, hyo, hyrep⟩ := exec_compileCond c hx htest
+    have hr := hex.runs hc.append_left
+    have hb : q[entry base s.pc + (compileCond c).size]? =
+        some (.branch (.eq result two) (entry base target)) := by
+      simpa using hc.append_right.head
+    have hs := WordRAM.step_branch (w := w + 2) (s := ⟨_, y⟩) hb
+    simp only [WordRAM.Cond.holds_eq, hyr, hyo] at hs
+    cases b with
+    | false =>
+      have hlast : WordRAM.Next (w + 2) q ⟨entry base s.pc + (compileCond c).size + 1, y⟩
+          ⟨entry base (s.pc + 1), y⟩ := WordRAM.step_jump (by
+        simpa only [WordRAM.Code.length_assemble] using hc.append_right.cons_tail.head)
+      exact ⟨y, k + 1 + 1, by omega,
+        (hr.tail _ _ _ _ (by simpa [WordRAM.Next] using hs)).tail _ _ _ _ hlast, hyrep⟩
+    | true =>
+      exact ⟨y, k + 1, by omega, hr.tail _ _ _ _ (by simpa [WordRAM.Next] using hs), hyrep⟩
 
 private theorem runs_simulation {w base n : ℕ} {p : GenericRAM.Program model r}
     {q : WordRAM.Program .standard (r + 9)} {s t : GenericRAM.State model r}
@@ -246,39 +186,12 @@ private theorem halt_simulation {w base : ℕ} {p : GenericRAM.Program model r}
     (hx : Represents w s.data x) (he : GenericRAM.step w p s = .halt v) :
     WordRAM.step (w + 2) q ⟨entry base s.pc, x⟩ = .halt (encode v) := by
   unfold GenericRAM.step at he
-  split at he
-  next hpc =>
-    cases hi : p[s.pc]? with
-    | none => simp [hi] at he
-    | some i =>
-      have hc := hcode s.pc i hi
-      simp only [hi] at he
-      cases i with
-      | op o =>
-        cases ho : o.eval w s.data with
-        | none => simp [ho] at he
-        | some d =>
-          exact False.elim (continue_ne_halt (w := w) ⟨s.pc + 1, d⟩ v
-            (by simpa only [ho] using he))
-      | jump target =>
-        exact False.elim (continue_ne_halt (w := w) ⟨target, s.data⟩ v he)
-      | branch c target =>
-        cases ho : c.eval w s.data with
-        | none => simp [ho] at he
-        | some b =>
-          exact False.elim (continue_ne_halt (w := w)
-            ⟨if b then target else s.pc + 1, s.data⟩ v (by simpa only [ho] using he))
-      | halt i =>
-        change (if model.validMove w (s.data.regs i) then
-          GenericRAM.Outcome.halt (s.data.regs i) else .fault) =
-            (GenericRAM.Outcome.halt v : GenericRAM.Outcome model r) at he
-        have hv : s.data.regs i = v := by
-          split at he
-          · exact GenericRAM.Outcome.halt.inj he
-          · cases he
-        simpa only [hx.regs, hv] using WordRAM.step_halt (w := w + 2)
-          (s := ⟨entry base s.pc, x⟩) hc.head
-  next hpc => cases he
+  split_ifs at he
+  split at he <;> (try split at he) <;> (try simp only [reduceCtorEq, continue_ne_halt] at he)
+  rename_i hi _
+  cases he
+  simpa only [hx.regs] using
+    WordRAM.step_halt (w := w + 2) (s := ⟨entry base s.pc, x⟩) (hcode s.pc _ hi).head
 
 /-- The compiler places every live instruction prefix at its relocated address. -/
 theorem contains_compileFrom (pre : WordRAM.Program .standard (r + 9))
@@ -313,9 +226,9 @@ theorem executes_compile {w n : ℕ} {p : GenericRAM.Program model r}
     ∃ k ≤ 32 * n, WordRAM.Executes (w + 2) (pre ++ compileFrom pre.length 0 p)
       ⟨entry pre.length s.pc, x⟩ (encode v) k := by
   obtain ⟨t, m, hsteps, hhalt, rfl⟩ := hr
-  have hc := fun pc i hi => contains_compileFrom (p := p) (pc := pc) (i := i) pre hi
-  obtain ⟨y, k, hk, hrun, hyr⟩ := runs_simulation hc hx hsteps
-  have ht := halt_simulation hc hyr hhalt
-  exact ⟨k + 1, by omega, WordRAM.Executes.of_runs hrun (WordRAM.Executes.halt ht)⟩
+  obtain ⟨y, k, hk, hrun, hyr⟩ :=
+    runs_simulation (fun _ _ hi => contains_compileFrom pre hi) hx hsteps
+  exact ⟨k + 1, by omega, .of_runs hrun
+    (.halt (halt_simulation (fun _ _ hi => contains_compileFrom pre hi) hyr hhalt))⟩
 
 end Cslib.GenericRAM.Signed.ToWordRAM

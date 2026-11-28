@@ -12,6 +12,8 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Residues
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native Chan–He collision counting
@@ -48,17 +50,11 @@ def residuesRegisters (i : Fin 16) : Fin 28 := ⟨i.val, by omega⟩
 /-- Histogram registers occupy registers sixteen through twenty-six. -/
 def histogramRegisters (i : Fin 11) : Fin 28 := ⟨16 + i.val, by omega⟩
 
-private theorem residues_injective : Function.Injective residuesRegisters := by
-  intro i j h
-  apply Fin.ext
-  exact congrArg (fun i : Fin 28 => i.val) h
+private theorem residues_injective : Function.Injective residuesRegisters :=
+  fun _ _ h => Fin.ext (congrArg (Fin.val : Fin 28 → ℕ) h)
 
-private theorem histogram_injective : Function.Injective histogramRegisters := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  dsimp [histogramRegisters] at this
-  omega
+private theorem histogram_injective : Function.Injective histogramRegisters :=
+  fun _ _ h => Fin.ext (Nat.add_left_cancel (congrArg (Fin.val : Fin 28 → ℕ) h))
 
 /-- Encoded integer input base. -/
 abbrev src : Fin 28 := 9
@@ -129,71 +125,49 @@ theorem exec {w M : ℕ} (x : Data 28) (values : ℕ → ℤ) (hM : 0 < M)
       y.mem = memory x.mem values (x.regs len) M (x.regs scratch) (x.regs dst) ∧
       y.regs total = Histogram.pairs (fun i => (values i % (M : ℤ)).toNat) (x.regs len) ∧
       ∀ i, ((9 ≤ i.val ∧ i.val ≤ 12) ∨ i = dst) → y.regs i = x.regs i := by
-  obtain ⟨y, hy, ⟨ham, har⟩, hframe⟩ := ExecWithin.rename_post residues_injective
-    (Residues.exec (x.comap residuesRegisters) values hM hmod hmodreg hfit hs hk hsk hinput)
-  have hys : y.regs scratch = x.regs scratch := har Residues.dst (by decide)
-  have hyl : y.regs len = x.regs len := har Residues.len (by decide)
-  have hym : y.regs modulus = encode (M : ℤ) :=
-    (har Residues.modulus (by decide)).trans hmodreg
-  have hyd : y.regs dst = x.regs dst := hframe dst (by
-    intro i he
-    have := congrArg Fin.val he
-    dsimp only [residuesRegisters, dst] at this
-    omega)
-  let q := ((((y.set (histogramRegisters Histogram.src) (x.regs scratch)).set
-      (histogramRegisters Histogram.dst) (x.regs dst)).set
-      (histogramRegisters Histogram.len) (x.regs len)).set
-      (histogramRegisters Histogram.one) 2).set (histogramRegisters Histogram.bins) M
   have htwo : Fits (w + 2) 2 := (show Fits 2 2 from by decide).mono (by omega)
+  have h1 : Fits (w + 2) 1 := htwo.of_le (by decide)
   have hraw : Fits (w + 2) M :=
-    ((encode_fits hmod).mono (by omega)).of_le (by
-      simp only [encode, Int.natAbs_natCast]
-      omega)
-  have hprep : ExecWithin (w + 2) prepare y q 5 := by
-    ram_eval [prepare, q, hys, hyl, hym, hyd, htwo, hraw, histogramRegisters,
-      Histogram.src, Histogram.dst, Histogram.len, Histogram.one, Histogram.bins,
-      hsrc, hdst, hlen, hbins, hone, scratch, len, modulus, dst, Fin.mk.injEq,
-      encode_div_two, Int.natAbs_natCast]
-  have hqs : (q.comap histogramRegisters).regs Histogram.src = x.regs scratch := by
-    simp +decide [q, histogramRegisters, Histogram.src, Histogram.dst, Histogram.len,
-      Histogram.one, Histogram.bins]
-  have hqd : (q.comap histogramRegisters).regs Histogram.dst = x.regs dst := by
-    simp +decide [q, histogramRegisters, Histogram.src, Histogram.dst, Histogram.len,
-      Histogram.one, Histogram.bins]
-  have hql : (q.comap histogramRegisters).regs Histogram.len = x.regs len := by
-    simp +decide [q, histogramRegisters, Histogram.src, Histogram.dst, Histogram.len,
-      Histogram.one, Histogram.bins]
-  have hqb : (q.comap histogramRegisters).regs Histogram.bins = M := by
-    simp [q]
-  have hqm : q.mem = Residues.memory x.mem values M (x.regs scratch) (x.regs len) := ham
-  have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
-  obtain ⟨b, hb, ⟨hbm, hbt, _⟩, _⟩ := ExecWithin.rename_post histogram_injective
-    (Histogram.exec (q.comap histogramRegisters)
-    (fun i => (values i % (M : ℤ)).toNat) h1
-    (by simpa only [hqs, hql] using hk) (by simpa only [hqd, hqb] using hd)
-    (by simpa only [hql] using ht) (by simpa only [hqs, hql, hqd] using hkd)
-    (by
-      intro i hi
-      rw [hqb]
-      have hnonneg := Int.emod_nonneg (values i) (show (M : ℤ) ≠ 0 by omega)
-      have hlt := Int.emod_lt_of_pos (values i) (show (0 : ℤ) < M by omega)
-      omega)
-    (by
-      intro i hi
-      have hi' : i < x.regs len := by simpa only [hql] using hi
-      rw [Data.comap_mem, hqm, hqs]
-      simp [Residues.memory, hi']))
-  have he := (hy.seq (hprep.seq hb)).mono
-    (show (23 * x.regs len + 4) + (5 + (5 * (q.comap histogramRegisters).regs Histogram.bins +
-      11 * (q.comap histogramRegisters).regs Histogram.len + 9)) ≤
-        34 * x.regs len + 5 * M + 18 by rw [hql, hqb]; omega)
-  refine ⟨b, he, ?_, ?_, fun i hi =>
-    ExecWithin.regs_eq he (preserves_parameters i hi)⟩
-  · simp only [Data.comap_mem] at hbm
-    rw [hbm, hqm, hqd, hqb, hql]
-    rfl
-  · change (b.comap histogramRegisters).regs Histogram.total = _
-    rw [hbt, hql]
+    ((encode_fits hmod).mono (by omega)).of_le (by simp only [encode, Int.natAbs_natCast]; omega)
+  obtain ⟨y, he, hym, hyt⟩ : ∃ y,
+      ExecWithin (w + 2) program x y (34 * x.regs len + 5 * M + 18) ∧
+      y.mem = memory x.mem values (x.regs len) M (x.regs scratch) (x.regs dst) ∧
+      y.regs total = Histogram.pairs (fun i => (values i % (M : ℤ)).toNat) (x.regs len) := by
+    refine WP.exists_execWithin ?_
+    unfold program prepare
+    wram_exec
+    wram_call (Residues.exec _ values hM hmod hmodreg hfit hs hk hsk hinput)
+      canonical residues_injective with a ⟨ham, har⟩
+    change a.mem = Residues.memory x.mem values M (x.regs scratch) (x.regs len) at ham
+    have has : a.regs Residues.dst = x.regs scratch := har Residues.dst (by decide)
+    have hal : a.regs Residues.len = x.regs len := har Residues.len (by decide)
+    have hamod : a.regs Residues.modulus = encode (M : ℤ) :=
+      (har Residues.modulus (by decide)).trans hmodreg
+    wram_exec [has, hal, hamod, encode_div_two, Int.natAbs_natCast]
+    wram_call (Histogram.exec _ (fun i => (values i % (M : ℤ)).toNat) h1
+      (by wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins]; exact hk)
+      (by wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins]; exact hd)
+      (by wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins]; exact ht)
+      (by wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins]; exact hkd)
+      (fun i _ => by
+        wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins]
+        have := Int.emod_nonneg (values i) (show (M : ℤ) ≠ 0 by omega)
+        have := Int.emod_lt_of_pos (values i) (show (0 : ℤ) < M by omega)
+        omega)
+      (fun i hi => by
+        have hi' : i < x.regs len := by
+          wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins] at hi
+          exact hi
+        wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins, ham]
+        simp [Residues.memory, hi']))
+      canonical histogram_injective with b ⟨hbm, hbt, _⟩
+    have hres_len : residuesRegisters Residues.len = len := rfl
+    refine ⟨by wram_simp [histogramRegisters, hres_len,
+      hsrc, hdst, hlen, hone, hbins]; omega, ?_, ?_⟩
+    · wram_simp [histogramRegisters, hsrc, hdst, hlen, hone, hbins, hbm, ham]
+      rfl
+    · wram_simp [total, histogramRegisters, hsrc, hdst, hlen, hone, hbins, hbt]
+  exact ⟨y, he, hym, hyt, fun i hi => he.regs_eq (preserves_parameters i hi)⟩
 
 /-- For an injective integer array, the composed program returns exactly the collision
 count used by the existing Chan–He prime searches. -/

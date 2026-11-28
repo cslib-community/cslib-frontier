@@ -93,33 +93,28 @@ theorem pow_apply_eigenvectorBasis (hT : T.IsSymmetric) (j : ℕ) (i : Fin N) :
   induction j with
   | zero => simp
   | succ j ih =>
-    rw [pow_succ', Module.End.mul_apply, ih, map_smul, hT.apply_eigenvectorBasis, smul_smul,
+    rw [pow_succ', mul_apply_eq_comp, ih, map_smul, hT.apply_eigenvectorBasis, smul_smul,
       ← pow_succ]
 
 /-- **The trace of a power of a symmetric operator is the sum of the powers of its
 eigenvalues.** -/
 theorem trace_pow_eq_sum_eigenvalues (hT : T.IsSymmetric) (j : ℕ) :
     trace 𝕜 E (T ^ j) = ∑ i, ((hT.eigenvalues hN i : 𝕜) ^ j) := by
-  rw [trace_eq_sum_inner _ (hT.eigenvectorBasis hN)]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [hT.pow_apply_eigenvectorBasis hN, inner_smul_right, inner_self_eq_norm_sq_to_K,
-    OrthonormalBasis.norm_eq_one]
-  simp
+  simp only [trace_eq_sum_inner _ (hT.eigenvectorBasis hN), hT.pow_apply_eigenvectorBasis hN,
+    inner_smul_right, inner_self_eq_norm_sq_to_K, OrthonormalBasis.norm_eq_one,
+    RCLike.ofReal_one, one_pow, mul_one]
 
 /-- The real part of `tr (T ^ j)` is the sum of the `j`-th powers of the eigenvalues. -/
 theorem re_trace_pow_eq_sum_eigenvalues (hT : T.IsSymmetric) (j : ℕ) :
     RCLike.re (trace 𝕜 E (T ^ j)) = ∑ i, hT.eigenvalues hN i ^ j := by
-  rw [hT.trace_pow_eq_sum_eigenvalues hN, map_sum]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [← RCLike.ofReal_pow, RCLike.ofReal_re]
+  simp only [hT.trace_pow_eq_sum_eigenvalues hN, map_sum, ← RCLike.ofReal_pow, RCLike.ofReal_re]
 
 /-- An eigenvalue is the quadratic form at its unit eigenvector. -/
 theorem eigenvalues_eq_re_inner (hT : T.IsSymmetric) (i : Fin N) :
     hT.eigenvalues hN i =
       RCLike.re ⟪hT.eigenvectorBasis hN i, T (hT.eigenvectorBasis hN i)⟫_𝕜 := by
-  rw [hT.apply_eigenvectorBasis, inner_smul_right, inner_self_eq_norm_sq_to_K,
-    OrthonormalBasis.norm_eq_one]
-  simp
+  simp only [hT.apply_eigenvectorBasis, inner_smul_right, inner_self_eq_norm_sq_to_K,
+    OrthonormalBasis.norm_eq_one, RCLike.ofReal_one, one_pow, mul_one, RCLike.ofReal_re]
 
 /-- **The quadratic form in an eigenbasis** is the sum of the eigenvalues weighted by the squared
 norms of the coordinates. -/
@@ -146,10 +141,9 @@ theorem pow_le_re_trace_pow (hT : T.IsPositive) {x : E} (hx : ‖x‖ = 1) {c : 
     (hcx : c ≤ RCLike.re ⟪x, T x⟫_𝕜) (j : ℕ) : c ^ j ≤ RCLike.re (trace 𝕜 E (T ^ j)) := by
   have hS := hT.isSymmetric
   rw [hS.re_trace_pow_eq_sum_eigenvalues rfl]
-  have hne : Nonempty (Fin (finrank 𝕜 E)) := by
-    refine ⟨⟨0, Module.finrank_pos_iff_exists_ne_zero.mpr ⟨x, ?_⟩⟩⟩
-    rintro rfl
-    simp at hx
+  have hne : Nonempty (Fin (finrank 𝕜 E)) :=
+    Fin.pos_iff_nonempty.mp (Module.finrank_pos_iff_exists_ne_zero.mpr
+      ⟨x, norm_ne_zero_iff.mp (by simp [hx])⟩)
   obtain ⟨i, -, hi⟩ :=
     Finset.exists_max_image Finset.univ (hS.eigenvalues rfl) Finset.univ_nonempty
   have hci : c ≤ hS.eigenvalues rfl i := by

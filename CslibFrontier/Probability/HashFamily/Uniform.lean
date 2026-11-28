@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.HashFamily
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
+import CslibFrontier.Probability.Uniform.Translate
 import Mathlib.Algebra.Group.Equiv.Basic
 
 /-!
@@ -41,13 +42,10 @@ theorem isDeltaUniversalHash_uniformOfFintype {X G : Type*} [Fintype X] [Decidab
   rw [← Probability.PMF.uniformOfFintype_update x, PMF.map_bind]
   simp only [id_eq, PMF.map_comp, Function.comp_def, Function.update_self,
     Function.update_of_ne hx.symm]
-  simp only [PMF.map, Function.comp_def]
+  simp only [PMF.map]
   rw [PMF.bind_comm]
-  have hsub (f : X → G) :
-      ((PMF.uniformOfFintype G).bind fun a => PMF.pure (a - f x')) =
-        PMF.uniformOfFintype G :=
-    Probability.PMF.uniformOfFintype_map_equiv (Equiv.subRight (f x'))
-  simp only [hsub, PMF.bind_const]
+  exact (congrArg (PMF.bind _) (funext fun f : X → G =>
+    Probability.PMF.uniformOfFintype_map_sub_right (f x'))).trans (PMF.bind_const _ _)
 
 /-- The negated uniform random function `f ↦ (fun x => -f x)` from a finite domain `X` into a
 finite additive group `G` is `|G|⁻¹`-almost-Δ-universal. -/
@@ -56,10 +54,8 @@ theorem isDeltaUniversalHash_neg_uniformOfFintype {X G : Type*} [Fintype X] [Dec
     IsDeltaUniversalHash (PMF.uniformOfFintype (X → G)) (fun f x => -f x)
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
   intro x x' hx δ
-  have hmap := Probability.PMF.uniformOfFintype_map_equiv
-    (Equiv.piCongrRight fun _ : X => Equiv.neg G)
   have h := isDeltaUniversalHash_uniformOfFintype x x' hx δ
-  rw [← hmap, PMF.toOuterMeasure_map_apply] at h
-  exact h
+  rwa [← Probability.PMF.uniformOfFintype_map_equiv (Equiv.piCongrRight fun _ : X => Equiv.neg G),
+    PMF.toOuterMeasure_map_apply] at h
 
 end Cslib.Probability

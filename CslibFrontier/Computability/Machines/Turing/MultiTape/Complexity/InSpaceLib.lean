@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Lists
@@ -49,12 +49,14 @@ variable {α β γ δ : Type} {encIn : α ↪ List Bool} {encB : β ↪ List Boo
 
 /-! ### Computing within a space budget -/
 
-theorem budget_comp {f : α → β} {g : β → γ} {Sg : β → ℕ}
+theorem budget_comp {α β γ : Type*} {encIn : α ↪ List Bool} {encB : β ↪ List Bool}
+    {encC : γ ↪ List Bool} {Bs : α → ℕ} {f : α → β} {g : β → γ} {Sg : β → ℕ}
     (hg : ComputableInSpace g encB encC Sg) (hf : ComputableInSpace f encIn encB Bs)
     (hS : (fun x => Sg (f x)) ≼ Bs) : ComputableInSpace (fun x => g (f x)) encIn encC Bs :=
   (hg.comp hf).weaken (.add (.refl _) hS)
 
-theorem budget_comp_linear {f : α → β} {g : β → γ}
+theorem budget_comp_linear {α β γ : Type*} {encIn : α ↪ List Bool} {encB : β ↪ List Bool}
+    {encC : γ ↪ List Bool} {Bs : α → ℕ} {f : α → β} {g : β → γ}
     (hg : ComputableInSpace g encB encC fun b => (encB b).length)
     (hf : ComputableInSpace f encIn encB Bs) :
     ComputableInSpace (fun x => g (f x)) encIn encC Bs :=
@@ -95,9 +97,10 @@ theorem budget_ite {c : α → Bool} {f g : α → β} (hc : ComputableInSpace c
     ComputableInSpace (fun x => if c x then f x else g x) encIn encB Bs :=
   (hc.ite hf hg).weaken (.add (.refl _) (.ite _ (.refl _) (.refl _)))
 
-theorem budget_const (b : β) (hl : (fun x => (encIn x).length) ≼ Bs) :
-    ComputableInSpace (fun _ : α => b) encIn encB Bs :=
-  (const b).weaken hl
+/-- A fixed value, within any budget: its machine writes the value without reading the input, so
+no allowance for the length of the input is needed. -/
+theorem budget_const (b : β) : ComputableInSpace (fun _ : α => b) encIn encB Bs :=
+  (constZero b).mono_le fun _ => Nat.zero_le _
 
 theorem budget_finite {f : α → β} [Finite β] (g : β → γ)
     (hf : ComputableInSpace f encIn encB Bs) :
@@ -259,7 +262,7 @@ theorem natDivMod :
       (encPair encNat encNat) fun p => 16 * ((encPair encNat encNat p).length + 1) := by
   have hinit : ComputableInSpace (fun p : ℕ × ℕ => (p.2, 0, p.1)) (encPair encNat encNat)
       encNat3 fun p => 2 * ((encPair encNat encNat p).length + 1) :=
-    (budget_prod (snd _ _) (budget_prod (budget_const 0 (.refl _)) (fst _ _))).weaken
+    (budget_prod (snd _ _) (budget_prod (budget_const 0) (fst _ _))).weaken
       (.of_le fun p => by omega)
   have hlen (p : ℕ × ℕ) (k : ℕ) : (encNat3 (divStep^[k] (p.2, 0, p.1))).length ≤
       3 * ((encPair encNat encNat p).length + 1) := by
@@ -341,18 +344,6 @@ theorem set_eq_mapIdx (l : List ℕ) (i v : ℕ) :
   rw [List.getElem_set, List.getElem_mapIdx]
   split_ifs with h₃ h₄ h₄ <;> first | rfl | omega
 
-theorem length_encList_set_le (l : List ℕ) (i v : ℕ) :
-    (encList encNat (l.set i v)).length ≤
-      (encList encNat l).length + 2 * (encNat v).length + 1 := by
-  induction l generalizing i with
-  | nil => simp
-  | cons a l ih =>
-    rcases i with _ | i
-    · simp [length_encList]; omega
-    · simp only [List.set_cons_succ, length_encList, List.map_cons, List.sum_cons] at ih ⊢
-      have := ih i
-      omega
-
 /-- The encoding of the states of `setStep`. -/
 abbrev encSetState : (ℕ × ℕ) × ℕ × List ℕ ↪ List Bool :=
   encPair (encPair encNat encNat) (encPair encNat (encList encNat))
@@ -392,7 +383,7 @@ theorem set :
       .of_le fun _ => by omega
     have h₂ := (snd (encList encNat) (encPair encNat encNat)).weaken hl
     exact budget_prod (budget_prod (fst' h₂) (snd' h₂))
-      (budget_prod (budget_const 0 hl) (budget_const [] hl))
+      (budget_prod (budget_const 0) (budget_const []))
   have hstate (p : List ℕ × ℕ × ℕ) (k : ℕ) (hk : k ≤ p.1.length) :
       (encSetState ((p.1.take k).foldl setStep ((p.2.1, p.2.2), 0, []))).length ≤
         6 * ((encPair (encList encNat) (encPair encNat encNat) p).length + 1) := by
@@ -400,7 +391,7 @@ theorem set :
     simp only [zero_add, List.nil_append, List.length_take, Nat.min_eq_left hk]
     have hset : (p.1.take k).mapIdx (fun k a => if k = p.2.1 then p.2.2 else a) =
         (p.1.take k).set p.2.1 p.2.2 := (set_eq_mapIdx _ _ _).symm
-    have h₁ := length_encList_set_le (p.1.take k) p.2.1 p.2.2
+    have h₁ := length_encList_set_le encNat (p.1.take k) p.2.1 p.2.2
     have h₂ := length_encList_take_le encNat p.1 k
     have h₃ : (encNat k).length ≤ (encList encNat p.1).length :=
       (length_encNat_le_self k).trans (hk.trans (length_le_length_encList _ _))
@@ -450,7 +441,7 @@ theorem replicate [Inhabited ε] :
   have hinit : ComputableInSpace (fun p : ℕ × ε => (p.2, ([] : List ε)))
       (encPair encNat enc) (encPair enc (encList enc))
       fun p => 2 * ((encPair encNat enc p).length + 1) :=
-    (budget_prod (snd _ _) (budget_const [] (.refl _))).weaken (.of_le fun p => by omega)
+    (budget_prod (snd _ _) (budget_const [])).weaken (.of_le fun p => by omega)
   have hlen (p : ℕ × ε) (k : ℕ) (hk : k ≤ p.1) :
       (encPair enc (encList enc) ((fun q : ε × List ε => (q.1, q.1 :: q.2))^[k] (p.2, []))).length
         ≤ 3 * ((p.1 + 1) * ((encPair encNat enc p).length + 1)) := by
@@ -558,6 +549,21 @@ theorem budget_length {l : α → List ε} (hl : ComputableInSpace l encIn (encL
     ComputableInSpace (fun x => (l x).length) encIn encNat Bs :=
   budget_comp_lin length (linear_mul 8) hl
 
+/-- Read an indexed binary natural, with zero as the default, within the caller's budget. -/
+theorem budget_getD {l : α → List ℕ} {i : α → ℕ}
+    (hl : ComputableInSpace l encIn (encList encNat) Bs)
+    (hi : ComputableInSpace i encIn encNat Bs) :
+    ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat Bs :=
+  budget_comp_lin getD (linear_mul 8) (budget_prod hl hi)
+
+/-- Replace an indexed binary natural within the caller's budget. -/
+theorem budget_set {l : α → List ℕ} {i v : α → ℕ}
+    (hl : ComputableInSpace l encIn (encList encNat) Bs)
+    (hi : ComputableInSpace i encIn encNat Bs)
+    (hv : ComputableInSpace v encIn encNat Bs) :
+    ComputableInSpace (fun x => (l x).set (i x) (v x)) encIn (encList encNat) Bs :=
+  budget_comp_lin set (linear_mul 128) (budget_prod hl (budget_prod hi hv))
+
 end BudgetOps
 
 /-- The successor, within the budget. -/
@@ -619,18 +625,18 @@ theorem budget_natLt {a b : α → ℕ} (ha : ComputableInSpace a encIn encNat B
 
 /-- A fixed natural power, within the budget. -/
 theorem budget_natPow {a : α → ℕ} (ha : ComputableInSpace a encIn encNat Bs)
-    (hin : (fun x => (encIn x).length) ≼ Bs) (d : ℕ) :
+    (d : ℕ) :
     ComputableInSpace (fun x => a x ^ d) encIn encNat Bs := by
   induction d with
-  | zero => simpa using budget_const (encB := encNat) 1 hin
+  | zero => simpa using budget_const (encB := encNat) 1
   | succ d ih => simpa [pow_succ] using budget_natMul ih ha
 
 /-- The remainder modulo a positive constant, as an element of `Fin w`. -/
 theorem budget_finMod {w : ℕ} (hw : 0 < w) {m : α → ℕ}
-    (hm : ComputableInSpace m encIn encNat Bs) (hin : (fun x => (encIn x).length) ≼ Bs) :
+    (hm : ComputableInSpace m encIn encNat Bs) :
     ComputableInSpace (fun x => (⟨m x % w, Nat.mod_lt _ hw⟩ : Fin w)) encIn
       (Fin.valEmbedding.trans encNat) Bs :=
-  (budget_natMod hm (budget_const (encB := encNat) w hin)).of_enc_eq fun _ => rfl
+  (budget_natMod hm (budget_const (encB := encNat) w)).of_enc_eq fun _ => rfl
 
 /-- `some` of a value, within the budget. -/
 theorem budget_optionSome {a : α → β} (ha : ComputableInSpace a encIn encB Bs) :

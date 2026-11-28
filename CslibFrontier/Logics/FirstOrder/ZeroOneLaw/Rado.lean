@@ -31,6 +31,8 @@ subgraph of it [Rado1964], and it is isomorphic to its complement.
 * `Cslib.Logic.FO.graph.satisfies_extensionAxiom_iff_exists_adj`: the extension axioms in the
   finite-set form `∀ A B` disjoint, `∃ z ∉ A ∪ B` adjacent to all of `A` and none of `B`.
 * `Cslib.Logic.FO.graph.model_radoGraph`: the Rado graph is a model of `randomGraphTheory`.
+* `Cslib.Logic.FO.graph.models_iff_satisfies_radoGraph`: the consequences of `randomGraphTheory`
+  are the sentences true in the Rado graph.
 * `Cslib.Logic.FO.graph.tendsto_randomGraphProb_one_iff_radoGraph`,
   `Cslib.Logic.FO.graph.tendsto_randomGraphProb_zero_iff_radoGraph`: a sentence holds almost
   surely iff it holds in the Rado graph, and almost never iff it fails there.
@@ -67,37 +69,29 @@ theorem satisfies_extensionAxiom_iff_exists_adj {V : Type*} (G : SimpleGraph V) 
     -- Enumerate `A ∪ B` and prescribe adjacency exactly to the elements of `A`.
     let e := (A ∪ B).equivFin.symm
     let x : Fin (A ∪ B).card → V := fun i => (e i : V)
-    have hx : Function.Injective x := Subtype.val_injective.comp e.injective
-    obtain ⟨z, hz, hadj⟩ :=
-      (satisfies_extensionAxiom_iff G _ _).1 (hG _ fun i => decide (x i ∈ A)) x hx
-    have hx_surj : ∀ a ∈ A ∪ B, ∃ i, x i = a := fun a ha => ⟨e.symm ⟨a, ha⟩, by simp [x]⟩
-    have hzadj : ∀ a ∈ A ∪ B, G.Adj z a ↔ a ∈ A := by
-      intro a ha
-      obtain ⟨i, rfl⟩ := hx_surj a ha
-      rw [hadj i, decide_eq_true_iff]
-    refine ⟨z, fun h => ?_, fun h => ?_, fun a ha => (hzadj a (Finset.mem_union_left _ ha)).2 ha,
+    obtain ⟨z, hz, hadj⟩ := (satisfies_extensionAxiom_iff G _ _).1
+      (hG _ fun i => decide (x i ∈ A)) x (Subtype.val_injective.comp e.injective)
+    have hz_out (a : V) (ha : a ∈ A ∪ B) : z ≠ a := fun h => hz (e.symm ⟨a, ha⟩) (by simp [x, h])
+    have hzadj (a : V) (ha : a ∈ A ∪ B) : G.Adj z a ↔ a ∈ A := by
+      simpa [x] using hadj (e.symm ⟨a, ha⟩)
+    exact ⟨z, fun h => hz_out z (Finset.mem_union_left _ h) rfl,
+      fun h => hz_out z (Finset.mem_union_right _ h) rfl,
+      fun a ha => (hzadj a (Finset.mem_union_left _ ha)).2 ha,
       fun b hb h => Finset.disjoint_left.1 hAB ((hzadj b (Finset.mem_union_right _ hb)).1 h) hb⟩
-    · obtain ⟨i, hi⟩ := hx_surj z (Finset.mem_union_left _ h)
-      exact hz i hi.symm
-    · obtain ⟨i, hi⟩ := hx_surj z (Finset.mem_union_right _ h)
-      exact hz i hi.symm
   · intro hG k s
     rw [satisfies_extensionAxiom_iff]
     intro x hx
     obtain ⟨z, hzA, hzB, hA, hB⟩ := hG ((Finset.univ.filter fun i => s i = true).image x)
-      ((Finset.univ.filter fun i => s i = false).image x) (by
-        rw [Finset.disjoint_left]
+      ((Finset.univ.filter fun i => s i = false).image x) (Finset.disjoint_left.2 <| by
         simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
         rintro _ ⟨i, hi, rfl⟩ ⟨j, hj, hji⟩
-        rw [hx hji, hi] at hj
-        exact Bool.noConfusion hj)
-    refine ⟨z, fun i hzi => ?_, fun i => ⟨fun h => ?_, fun h => hA _ (Finset.mem_image_of_mem _
-      (by simpa using h))⟩⟩
-    · cases hsi : s i
-      · exact hzB (hzi ▸ Finset.mem_image_of_mem _ (by simpa using hsi))
-      · exact hzA (hzi ▸ Finset.mem_image_of_mem _ (by simpa using hsi))
-    · by_contra hsi
-      exact hB _ (Finset.mem_image_of_mem _ (by simpa using hsi)) h
+        exact Bool.noConfusion (hi.symm.trans (hx hji ▸ hj)))
+    refine ⟨z, fun i hzi => ?_, fun i => ⟨fun h => by_contra fun hsi =>
+      hB _ (Finset.mem_image_of_mem _ (by simpa using hsi)) h,
+      fun h => hA _ (Finset.mem_image_of_mem _ (by simpa using h))⟩⟩
+    cases hsi : s i
+    · exact hzB (hzi ▸ Finset.mem_image_of_mem _ (by simpa using hsi))
+    · exact hzA (hzi ▸ Finset.mem_image_of_mem _ (by simpa using hsi))
 
 /-- A simple graph with every extension property is a model of the theory of the random graph. -/
 theorem model_randomGraphTheory_of_satisfies {V : Type*} (G : SimpleGraph V)
@@ -131,26 +125,29 @@ theorem model_radoGraph :
     @Theory.Model _ ℕ SimpleGraph.radoGraph.structure randomGraphTheory :=
   model_randomGraphTheory_of_satisfies _ satisfies_extensionAxiom_radoGraph
 
+/-- A sentence of the graph language is a consequence of `randomGraphTheory` exactly when it holds
+in the Rado graph: the theory is complete and the Rado graph is a model of it. -/
+theorem models_iff_satisfies_radoGraph (φ : Language.graph.Sentence) :
+    randomGraphTheory ⊨ᵇ φ ↔ Satisfies SimpleGraph.radoGraph φ := by
+  let := SimpleGraph.radoGraph.structure
+  have := model_radoGraph
+  exact (isComplete_randomGraphTheory.realize_sentence_iff φ ℕ).symm
+
 /-- **The almost-sure theory of `G(n, 1/2)` is the theory of the Rado graph.** A sentence of the
 graph language holds in `G(n, 1/2)` with probability tending to `1` exactly when it holds in the
 Rado graph [Libkin2004, Section 12.3]. -/
 theorem tendsto_randomGraphProb_one_iff_radoGraph (φ : Language.graph.Sentence) :
     Filter.Tendsto (fun n => randomGraphProb n fun G => Satisfies G φ) Filter.atTop (nhds 1) ↔
-      Satisfies SimpleGraph.radoGraph φ := by
-  let := SimpleGraph.radoGraph.structure
-  have := model_radoGraph
-  rw [tendsto_randomGraphProb_one_iff]
-  exact (isComplete_randomGraphTheory.realize_sentence_iff φ ℕ).symm
+      Satisfies SimpleGraph.radoGraph φ :=
+  (tendsto_randomGraphProb_one_iff φ).trans (models_iff_satisfies_radoGraph φ)
 
 /-- A sentence of the graph language holds in `G(n, 1/2)` with probability tending to `0` exactly
 when it fails in the Rado graph. -/
 theorem tendsto_randomGraphProb_zero_iff_radoGraph (φ : Language.graph.Sentence) :
     Filter.Tendsto (fun n => randomGraphProb n fun G => Satisfies G φ) Filter.atTop (nhds 0) ↔
-      ¬Satisfies SimpleGraph.radoGraph φ := by
-  let := SimpleGraph.radoGraph.structure
-  have := model_radoGraph
-  rw [tendsto_randomGraphProb_zero_iff, ← satisfies_not]
-  exact (isComplete_randomGraphTheory.realize_sentence_iff φ.not ℕ).symm
+      ¬Satisfies SimpleGraph.radoGraph φ :=
+  (tendsto_randomGraphProb_zero_iff φ).trans <|
+    (models_iff_satisfies_radoGraph φ.not).trans (satisfies_not _ φ)
 
 /-! ### Uniqueness, universality and self-complementarity -/
 

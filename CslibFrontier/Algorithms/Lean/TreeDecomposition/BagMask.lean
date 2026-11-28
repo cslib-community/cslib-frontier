@@ -9,10 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Rooted
-public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Finset.Sort
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # Subsets of a bag as bit masks
@@ -26,13 +23,13 @@ The library has other mask encodings: `Cslib.Algorithms.Lean.Yates.maskSet` and
 `Cslib.Algorithms.MatrixMultiplication.Schonhage.MaskTable.maskSet` for subsets of `Fin n`,
 `Cslib.Complexity.maskSelect` for a list of Boolean selectors, and Mathlib's `Nat.bitIndices`.
 None of them maps numeric masks to subsets of an arbitrary list of vertices by the recursion on
-its head that the scan loops below follow, so the encoding is defined here.
+its head that the scan helpers below follow, so the encoding is defined here.
 
-The module also provides the `TimeM ℕ` loops that such programs run on masks: membership by a
-linear scan of a bag, the parent-bag mask of a child subset, its restriction, the weight of the
-entries that are forgotten, and an independence test. Each loop ticks once per scanned entry, so
-its tick count depends only on the lengths of the bag lists, and its return value is specified on
-`ofMask`/`toMask`.
+The module also provides the pure scan helpers that executable programs run on masks: membership
+by a linear scan of a bag, the parent-bag mask of a child subset, its restriction, the weight of
+the entries that are forgotten, and an independence test. Their values are specified against
+`ofMask`/`toMask`, while machine-level running-time bounds live in
+`CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet`.
 
 `SimpleGraph.RootedTreeDecomposition` stores its bags as `Finset`s, which have no executable
 order. `IsBagOrder R L` states that `L i` lists the vertices of `R.bag i` without repetition, and
@@ -42,10 +39,8 @@ order. `IsBagOrder R L` states that `L i` lists the vertices of `R.bag i` withou
 
 * `Cslib.Algorithms.Lean.TreeDecomposition.ofMask`: the subset of a bag list selected by a mask.
 * `Cslib.Algorithms.Lean.TreeDecomposition.toMask`: the mask of a subset.
-* `Cslib.Algorithms.Lean.TreeDecomposition.memM`, `selMemM`, `keyM`, `restrictM`,
-  `forgetWeightM`, `noAdjM`, `indepM`, `zerosM`: timed loops on masks.
-* `Cslib.Algorithms.Lean.TreeDecomposition.indepCost`: the ticks `b (b + 1) / 2` of the
-  independence test on a bag of `b` vertices.
+* `Cslib.Algorithms.Lean.TreeDecomposition.memBag`, `selMemMask`, `keyMask`, `restrictMask`,
+  `forgetWeight`, `noAdjMask`, `indepMask`: executable scan helpers on masks.
 * `Cslib.Algorithms.Lean.TreeDecomposition.IsBagOrder`: an ordering of the bags of a rooted
   decomposition.
 * `Cslib.Algorithms.Lean.TreeDecomposition.sortedBags`: the sorted ordering of the bags.
@@ -56,10 +51,8 @@ order. `IsBagOrder R L` states that `L i` lists the vertices of `R.bag i` withou
   `Cslib.Algorithms.Lean.TreeDecomposition.toMask_ofMask`,
   `Cslib.Algorithms.Lean.TreeDecomposition.powerset_toFinset_eq_image`: the bijection between
   masks and subsets.
-* `Cslib.Algorithms.Lean.TreeDecomposition.ret_keyM`, `ret_restrictM`, `ret_forgetWeightM`,
-  `ret_indepM`: the values of the loops.
-* `Cslib.Algorithms.Lean.TreeDecomposition.time_keyM`, `time_restrictM`, `time_forgetWeightM`,
-  `time_indepM`: their exact tick counts.
+* `Cslib.Algorithms.Lean.TreeDecomposition.keyMask_eq_toMask`, `restrictMask_eq_toMask`,
+  `forgetWeight_eq_sum`, `indepMask_eq_true_iff`: specifications of the mask helpers.
 * `Cslib.Algorithms.Lean.TreeDecomposition.isBagOrder_sortedBags`: `sortedBags` is an ordering of
   the bags.
 -/
@@ -103,12 +96,8 @@ theorem ofMask_subset (L : List V) (m : ℕ) : ofMask L m ⊆ L.toFinset := by
   induction L generalizing m with
   | nil => exact Finset.empty_subset _
   | cons v L ih =>
-    intro x hx
-    rw [mem_ofMask_cons] at hx
-    rw [List.toFinset_cons, Finset.mem_insert]
-    rcases hx with ⟨-, rfl⟩ | hx
-    · exact .inl rfl
-    · exact .inr (ih _ hx)
+    rw [List.toFinset_cons]
+    exact fun x hx => Finset.mem_insert.2 ((mem_ofMask_cons.1 hx).imp And.right fun h => ih _ h)
 
 theorem toMask_lt (L : List V) (S : Finset V) : toMask L S < 2 ^ L.length := by
   induction L with
@@ -122,57 +111,37 @@ theorem toMask_congr {L : List V} {S T : Finset V} (h : ∀ x ∈ L, x ∈ S ↔
   induction L with
   | nil => rfl
   | cons v L ih =>
-    simp only [toMask]
-    rw [ih fun x hx => h x (List.mem_cons_of_mem v hx)]
-    by_cases hv : v ∈ S
-    · rw [ite_eq_left hv, ite_eq_left ((h v List.mem_cons_self).1 hv)]
-    · rw [ite_eq_right hv, ite_eq_right fun hT => hv ((h v List.mem_cons_self).2 hT)]
+    simp only [toMask, ih fun x hx => h x (List.mem_cons_of_mem v hx), h v List.mem_cons_self]
 
 theorem ofMask_toMask (L : List V) (S : Finset V) : ofMask L (toMask L S) = S ∩ L.toFinset := by
   induction L with
   | nil => simp [ofMask]
   | cons v L ih =>
-    have hdiv : ((if v ∈ S then 1 else 0) + 2 * toMask L S) / 2 = toMask L S := by
-      split_ifs <;> omega
     by_cases hv : v ∈ S
-    · have hmod : ((if v ∈ S then 1 else 0) + 2 * toMask L S) % 2 = 1 := by grind
-      simp only [toMask, ofMask, hmod, hdiv, ih, ite_true, List.toFinset_cons]
-      rw [Finset.inter_insert_of_mem hv]
-    · have hmod : ¬((if v ∈ S then 1 else 0) + 2 * toMask L S) % 2 = 1 := by grind
-      simp only [toMask, ofMask, hmod, hdiv, ih, ite_false, List.toFinset_cons]
-      rw [Finset.inter_insert_of_notMem hv]
+    · simp [toMask, ofMask, hv, ih, Finset.inter_insert_of_mem,
+        show (1 + 2 * toMask L S) % 2 = 1 by omega,
+        show (1 + 2 * toMask L S) / 2 = toMask L S by omega]
+    · simp [toMask, ofMask, hv, ih, Finset.inter_insert_of_notMem]
 
 theorem toMask_ofMask {L : List V} (hL : L.Nodup) {m : ℕ} (hm : m < 2 ^ L.length) :
     toMask L (ofMask L m) = m := by
   induction L generalizing m with
-  | nil =>
-    rw [List.length_nil, pow_zero] at hm
-    rw [toMask]
-    omega
+  | nil => simp [toMask] at hm ⊢; omega
   | cons v L ih =>
-    rw [List.nodup_cons] at hL
-    have hm' : m / 2 < 2 ^ L.length := by grind
-    have hrest : toMask L (ofMask (v :: L) m) = toMask L (ofMask L (m / 2)) := by
-      refine toMask_congr fun x hx => ?_
-      have hxv : x ≠ v := fun h => hL.1 (h ▸ hx)
-      rw [mem_ofMask_cons]
-      simp [hxv]
+    obtain ⟨hvL, hL⟩ := List.nodup_cons.1 hL
+    rw [toMask_cons, toMask_congr (T := ofMask L (m / 2)) fun x hx => by
+        simp [mem_ofMask_cons, show x ≠ v from fun e => hvL (e ▸ hx)],
+      ih hL (by simp only [List.length_cons, pow_succ] at hm; omega)]
     have hv : v ∈ ofMask (v :: L) m ↔ m % 2 = 1 := by
-      have hvL : v ∉ ofMask L (m / 2) := fun h => hL.1 (List.mem_toFinset.1 (ofMask_subset L _ h))
-      rw [mem_ofMask_cons]
-      simp [hvL]
-    rw [toMask_cons, hrest, ih hL.2 hm']
-    by_cases h : m % 2 = 1
-    · rw [ite_eq_left (hv.2 h)]
-      omega
-    · rw [ite_eq_right fun h' => h (hv.1 h')]
-      omega
+      have hvL' : v ∉ ofMask L (m / 2) := fun h => hvL (List.mem_toFinset.1 (ofMask_subset L _ h))
+      simp [mem_ofMask_cons, hvL']
+    simp only [hv]
+    split_ifs <;> omega
 
 theorem toMask_eq_toMask_iff {L : List V} {S T : Finset V} :
     toMask L S = toMask L T ↔ S ∩ L.toFinset = T ∩ L.toFinset := by
   refine ⟨fun h => by rw [← ofMask_toMask, h, ofMask_toMask], fun h => toMask_congr fun x hx => ?_⟩
-  have := congrArg (x ∈ ·) h
-  simpa [List.mem_toFinset.2 hx] using this
+  simpa [List.mem_toFinset.2 hx] using congrArg (x ∈ ·) h
 
 theorem powerset_toFinset_eq_image (L : List V) :
     L.toFinset.powerset = (Finset.range (2 ^ L.length)).image (ofMask L) := by
@@ -186,84 +155,53 @@ theorem powerset_toFinset_eq_image (L : List V) :
 
 end Mask
 
-/-! ### Timed loops -/
+/-! ### Scan helpers on masks -/
 
 section Loops
 
 variable {V : Type*} [DecidableEq V]
 
-/-- Membership test by a linear scan of `L`, one tick per scanned entry. -/
-@[expose] def memM (x : V) : List V → TimeM ℕ Bool
-  | [] => pure false
-  | u :: L => do
-    TimeM.tick 1
-    let r ← memM x L
-    pure (decide (x = u) || r)
+/-- Membership test by a linear scan of `L`. -/
+@[expose] def memBag (x : V) : List V → Bool
+  | [] => false
+  | u :: L => decide (x = u) || memBag x L
 
-/-- Membership in the subset of `L` selected by the mask `m`, by a linear scan of `L`, one tick per
-scanned entry. -/
-@[expose] def selMemM (x : V) : List V → ℕ → TimeM ℕ Bool
-  | [], _ => pure false
-  | u :: L, m => do
-    TimeM.tick 1
-    let r ← selMemM x L (m / 2)
-    pure ((decide (m % 2 = 1) && decide (x = u)) || r)
+/-- Membership in the subset of `L` selected by the mask `m`, by a linear scan of `L`. -/
+@[expose] def selMemMask (x : V) : List V → ℕ → Bool
+  | [], _ => false
+  | u :: L, m => (decide (m % 2 = 1) && decide (x = u)) || selMemMask x L (m / 2)
 
 /-- The parent-bag mask of the child subset selected by `t`: for each entry `u` of the parent bag
 `LP`, test whether `u` is selected in the child bag `LB`. -/
-@[expose] def keyM (LB : List V) : List V → ℕ → TimeM ℕ ℕ
-  | [], _ => pure 0
-  | u :: LP, t => do
-    let r ← keyM LB LP t
-    let b ← selMemM u LB t
-    TimeM.tick 1
-    pure ((if b then 1 else 0) + 2 * r)
+@[expose] def keyMask (LB : List V) : List V → ℕ → ℕ
+  | [], _ => 0
+  | u :: LP, t => (if selMemMask u LB t then 1 else 0) + 2 * keyMask LB LP t
 
 /-- The parent-bag mask of `S ∩ B`, where `S` is the parent subset selected by `s` and `B` is the
 set of entries of the child bag `LB`. -/
-@[expose] def restrictM (LB : List V) : List V → ℕ → TimeM ℕ ℕ
-  | [], _ => pure 0
-  | u :: LP, s => do
-    let r ← restrictM LB LP (s / 2)
-    let b ← memM u LB
-    TimeM.tick 1
-    pure ((if s % 2 = 1 ∧ b = true then 1 else 0) + 2 * r)
+@[expose] def restrictMask (LB : List V) : List V → ℕ → ℕ
+  | [], _ => 0
+  | u :: LP, s =>
+    (if s % 2 = 1 ∧ memBag u LB = true then 1 else 0) + 2 * restrictMask LB LP (s / 2)
 
 /-- The total weight of the entries selected by `t` from the child bag `LB` that are not in the
 parent bag `LP`. -/
-@[expose] def forgetWeightM (w : V → ℕ) (LP : List V) : List V → ℕ → TimeM ℕ ℕ
-  | [], _ => pure 0
-  | u :: LB, t => do
-    let r ← forgetWeightM w LP LB (t / 2)
-    let b ← memM u LP
-    TimeM.tick 1
-    pure ((if t % 2 = 1 ∧ b = false then w u else 0) + r)
-
-/-- A zero array of size `c`, one tick per cell. -/
-@[expose] def zerosM (c : ℕ) : TimeM ℕ (Array ℕ) := do
-  TimeM.tick c
-  pure (Array.replicate c 0)
+@[expose] def forgetWeight (w : V → ℕ) (LP : List V) : List V → ℕ → ℕ
+  | [], _ => 0
+  | u :: LB, t =>
+    (if t % 2 = 1 ∧ memBag u LP = false then w u else 0) + forgetWeight w LP LB (t / 2)
 
 variable (G : SimpleGraph V) [DecidableRel G.Adj]
 
-/-- Whether `x` has no neighbour in the subset of `L` selected by `m`, one adjacency query per
-entry. -/
-@[expose] def noAdjM (x : V) : List V → ℕ → TimeM ℕ Bool
-  | [], _ => pure true
-  | u :: L, m => do
-    TimeM.tick 1
-    let r ← noAdjM x L (m / 2)
-    pure (r && !(decide (m % 2 = 1) && decide (G.Adj x u)))
+/-- Whether `x` has no neighbour in the subset of `L` selected by `m`. -/
+@[expose] def noAdjMask (x : V) : List V → ℕ → Bool
+  | [], _ => true
+  | u :: L, m => noAdjMask x L (m / 2) && !(decide (m % 2 = 1) && decide (G.Adj x u))
 
-/-- Whether the subset of `L` selected by `m` is independent, one adjacency query per pair of
-entries. -/
-@[expose] def indepM : List V → ℕ → TimeM ℕ Bool
-  | [], _ => pure true
-  | u :: L, m => do
-    let r ← indepM L (m / 2)
-    let a ← noAdjM G u L (m / 2)
-    TimeM.tick 1
-    pure (r && (!decide (m % 2 = 1) || a))
+/-- Whether the subset of `L` selected by `m` is independent. -/
+@[expose] def indepMask : List V → ℕ → Bool
+  | [], _ => true
+  | u :: L, m => indepMask L (m / 2) && (!decide (m % 2 = 1) || noAdjMask G u L (m / 2))
 
 end Loops
 
@@ -291,195 +229,80 @@ theorem isBagOrder_sortedBags [LinearOrder V] (R : G.RootedTreeDecomposition n) 
 
 end BagOrder
 
-/-! ### Return values of the loops -/
+/-! ### Specifications of the scan helpers -/
 
-section RetLoops
+section LoopSpecs
 
 variable {V : Type*} [DecidableEq V]
 
-theorem ret_zerosM (c : ℕ) : (zerosM c).ret = Array.replicate c 0 := rfl
-
-theorem ret_memM (x : V) (L : List V) : (memM x L).ret = decide (x ∈ L) := by
+@[simp]
+theorem memBag_eq_decide (x : V) (L : List V) : memBag x L = decide (x ∈ L) := by
   induction L with
-  | nil => simp [memM]
-  | cons u L ih => simp [memM, ih]
+  | nil => rfl
+  | cons u L ih => simp [memBag, ih, List.mem_cons]
 
-theorem ret_selMemM (x : V) (L : List V) (m : ℕ) :
-    (selMemM x L m).ret = decide (x ∈ ofMask L m) := by
+@[simp]
+theorem selMemMask_eq_decide (x : V) (L : List V) (m : ℕ) :
+    selMemMask x L m = decide (x ∈ ofMask L m) := by
   induction L generalizing m with
-  | nil => simp [selMemM, ofMask]
-  | cons u L ih => simp [selMemM, ih, mem_ofMask_cons]
+  | nil => simp [selMemMask, ofMask]
+  | cons u L ih => simp [selMemMask, ih, mem_ofMask_cons]
 
-theorem ret_keyM (LB LP : List V) (t : ℕ) : (keyM LB LP t).ret = toMask LP (ofMask LB t) := by
+@[simp]
+theorem keyMask_eq_toMask (LB LP : List V) (t : ℕ) :
+    keyMask LB LP t = toMask LP (ofMask LB t) := by
   induction LP with
   | nil => rfl
-  | cons u LP ih => simp [keyM, toMask, ih, ret_selMemM]
+  | cons u LP ih => simp [keyMask, ih, toMask]
 
-theorem ret_restrictM (LB : List V) {LP : List V} (hLP : LP.Nodup) (s : ℕ) :
-    (restrictM LB LP s).ret = toMask LP (ofMask LP s ∩ LB.toFinset) := by
+theorem restrictMask_eq_toMask (LB : List V) {LP : List V} (hLP : LP.Nodup) (s : ℕ) :
+    restrictMask LB LP s = toMask LP (ofMask LP s ∩ LB.toFinset) := by
   induction LP generalizing s with
   | nil => rfl
   | cons u LP ih =>
     obtain ⟨hu, hLP⟩ := List.nodup_cons.1 hLP
-    simp only [restrictM, TimeM.ret_bind, TimeM.ret_pure, ih hLP, ret_memM,
-      decide_eq_true_eq, toMask]
-    have hmem : u ∈ ofMask (u :: LP) s ∩ LB.toFinset ↔ s % 2 = 1 ∧ u ∈ LB := by
-      rw [Finset.mem_inter, mem_ofMask_cons, List.mem_toFinset]
-      constructor
-      · rintro ⟨⟨h, -⟩ | h, h'⟩
-        · exact ⟨h, h'⟩
-        · exact absurd (List.mem_toFinset.1 (ofMask_subset LP _ h)) hu
-      · rintro ⟨h, h'⟩
-        exact ⟨.inl ⟨h, rfl⟩, h'⟩
+    have hu' : u ∉ ofMask LP (s / 2) := fun h => hu (List.mem_toFinset.1 (ofMask_subset LP _ h))
+    simp only [restrictMask, memBag_eq_decide, ih hLP, decide_eq_true_eq, toMask,
+      Finset.mem_inter, mem_ofMask_cons, and_true, hu', or_false, List.mem_toFinset]
     rw [toMask_congr (S := ofMask (u :: LP) s ∩ LB.toFinset)
-      (T := ofMask LP (s / 2) ∩ LB.toFinset) fun x hx => ?_]
-    · simp only [hmem]
-    · have hxu : x ≠ u := fun h => hu (h ▸ hx)
-      simp [mem_ofMask_cons, hxu]
+      (T := ofMask LP (s / 2) ∩ LB.toFinset) fun x hx => by
+        simp [mem_ofMask_cons, show x ≠ u from fun e => hu (e ▸ hx)]]
 
-theorem ret_forgetWeightM (w : V → ℕ) (LP : List V) {LB : List V} (hLB : LB.Nodup) (t : ℕ) :
-    (forgetWeightM w LP LB t).ret = ∑ v ∈ ofMask LB t \ LP.toFinset, w v := by
+theorem forgetWeight_eq_sum (w : V → ℕ) (LP : List V) {LB : List V} (hLB : LB.Nodup) (t : ℕ) :
+    forgetWeight w LP LB t = ∑ v ∈ ofMask LB t \ LP.toFinset, w v := by
   induction LB generalizing t with
-  | nil => simp [forgetWeightM, ofMask]
+  | nil => simp [forgetWeight, ofMask]
   | cons u LB ih =>
     obtain ⟨hu, hLB⟩ := List.nodup_cons.1 hLB
-    simp only [forgetWeightM, TimeM.ret_bind, TimeM.ret_pure, ih hLB, ret_memM]
     have huA : u ∉ ofMask LB (t / 2) \ LP.toFinset := fun h =>
       hu (List.mem_toFinset.1 (ofMask_subset LB _ (Finset.mem_sdiff.1 h).1))
-    rw [ofMask_cons]
-    by_cases ht : t % 2 = 1 <;> by_cases huP : u ∈ LP
-    · simp [ht, huP, Finset.insert_sdiff_of_mem _ (List.mem_toFinset.2 huP)]
-    · rw [ite_eq_left ht, Finset.insert_sdiff_of_notMem _ (fun h => huP (List.mem_toFinset.1 h)),
-        Finset.sum_insert huA]
-      simp [ht, huP]
-    · simp [ht]
-    · simp [ht]
+    simp only [forgetWeight, memBag_eq_decide, ih hLB, ofMask_cons]
+    by_cases ht : t % 2 = 1 <;> by_cases huP : u ∈ LP <;>
+      simp [ht, huP, huA, Finset.insert_sdiff_of_mem, Finset.insert_sdiff_of_notMem]
 
-theorem ret_noAdjM (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V) (m : ℕ) :
-    (noAdjM G x L m).ret = true ↔ ∀ y ∈ ofMask L m, ¬G.Adj x y := by
+theorem noAdjMask_eq_true_iff (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V)
+    (m : ℕ) : noAdjMask G x L m = true ↔ ∀ y ∈ ofMask L m, ¬G.Adj x y := by
   induction L generalizing m with
-  | nil => simp [noAdjM, ofMask]
+  | nil => simp [noAdjMask, ofMask]
   | cons u L ih =>
-    simp only [noAdjM, TimeM.ret_bind, TimeM.ret_pure, Bool.and_eq_true, ih,
-      Bool.not_eq_true', Bool.and_eq_false_iff, decide_eq_false_iff_not, mem_ofMask_cons]
-    constructor
-    · rintro ⟨h, h'⟩ y (⟨hm, rfl⟩ | hy)
-      · rcases h' with h' | h'
-        · exact absurd hm h'
-        · exact h'
-      · exact h y hy
-    · intro h
-      refine ⟨fun y hy => h y (.inr hy), ?_⟩
-      by_cases hm : m % 2 = 1
-      · exact .inr (h u (.inl ⟨hm, rfl⟩))
-      · exact .inl hm
+    simp only [noAdjMask, Bool.and_eq_true, ih, Bool.not_eq_true', Bool.and_eq_false_iff,
+      decide_eq_false_iff_not, mem_ofMask_cons]
+    by_cases hm : m % 2 = 1 <;> simp [hm, or_imp, forall_and, and_comm]
 
-theorem ret_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
-    (indepM G L m).ret = true ↔ G.IsIndepSet (↑(ofMask L m) : Set V) := by
+theorem indepMask_eq_true_iff (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
+    indepMask G L m = true ↔ G.IsIndepSet (↑(ofMask L m) : Set V) := by
   induction L generalizing m with
-  | nil => simp [indepM, ofMask]
+  | nil => simp [indepMask, ofMask]
   | cons u L ih =>
-    simp only [indepM, TimeM.ret_bind, TimeM.ret_pure, Bool.and_eq_true, ih,
-      Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, ret_noAdjM]
-    rw [ofMask_cons]
+    simp only [indepMask, Bool.and_eq_true, ih, Bool.or_eq_true, Bool.not_eq_true',
+      decide_eq_false_iff_not, noAdjMask_eq_true_iff, ofMask_cons]
     by_cases hm : m % 2 = 1
-    · rw [ite_eq_left hm, Finset.coe_insert]
-      simp only [isIndepSet_iff]
-      rw [Set.pairwise_insert]
-      constructor
-      · rintro ⟨h, h' | h'⟩
-        · exact absurd hm h'
-        · exact ⟨h, fun b hb _ => ⟨h' b hb, fun hba => h' b hb hba.symm⟩⟩
-      · rintro ⟨h, h'⟩
-        refine ⟨h, .inr fun y hy hadj => ?_⟩
-        exact (h' y hy (G.ne_of_adj hadj)).1 hadj
+    · simp only [hm, ↓reduceIte, not_true_eq_false, false_or, Finset.coe_insert, isIndepSet_iff,
+        Set.pairwise_insert]
+      exact ⟨fun ⟨h, h'⟩ => ⟨h, fun b hb _ => ⟨h' b hb, fun hba => h' b hb hba.symm⟩⟩,
+        fun ⟨h, h'⟩ => ⟨h, fun y hy hadj => (h' y hy (G.ne_of_adj hadj)).1 hadj⟩⟩
     · simp [hm]
 
-end RetLoops
-
-/-! ### Times of the loops -/
-
-section TimeLoops
-
-variable {V : Type*} [DecidableEq V]
-
-/-- The ticks of the independence test on a bag with `b` entries: one per pair `i ≤ j`. -/
-@[expose] def indepCost (b : ℕ) : ℕ := b * (b + 1) / 2
-
-theorem time_zerosM (c : ℕ) : (zerosM c).time = c := by
-  simp [zerosM]
-
-theorem time_memM (x : V) (L : List V) : (memM x L).time = L.length := by
-  induction L with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [memM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
-
-theorem time_selMemM (x : V) (L : List V) (m : ℕ) : (selMemM x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [selMemM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
-
-theorem time_keyM (LB LP : List V) (t : ℕ) :
-    (keyM LB LP t).time = LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [keyM]
-  | cons u LP ih =>
-    simp only [keyM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_selMemM,
-      List.length_cons]
-    ring
-
-theorem time_restrictM (LB LP : List V) (s : ℕ) :
-    (restrictM LB LP s).time = LP.length * (LB.length + 1) := by
-  induction LP generalizing s with
-  | nil => simp [restrictM]
-  | cons u LP ih =>
-    simp only [restrictM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_memM,
-      List.length_cons]
-    ring
-
-theorem time_forgetWeightM (w : V → ℕ) (LP LB : List V) (t : ℕ) :
-    (forgetWeightM w LP LB t).time = LB.length * (LP.length + 1) := by
-  induction LB generalizing t with
-  | nil => simp [forgetWeightM]
-  | cons u LB ih =>
-    simp only [forgetWeightM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_memM,
-      List.length_cons]
-    ring
-
-omit [DecidableEq V] in
-theorem time_noAdjM (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V) (m : ℕ) :
-    (noAdjM G x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [noAdjM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
-
-theorem indepCost_succ (b : ℕ) : indepCost (b + 1) = indepCost b + (b + 1) := by
-  unfold indepCost
-  have h : (b + 1) * (b + 1 + 1) = b * (b + 1) + 2 * (b + 1) := by ring
-  rw [h, Nat.add_mul_div_left _ _ (by norm_num)]
-
-theorem indepCost_mono {a b : ℕ} (h : a ≤ b) : indepCost a ≤ indepCost b :=
-  Nat.div_le_div_right (Nat.mul_le_mul h (Nat.add_le_add_right h 1))
-
-theorem indepCost_le (b : ℕ) : indepCost b ≤ b * b :=
-  Nat.div_le_of_le_mul (by nlinarith)
-
-omit [DecidableEq V] in
-theorem time_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
-    (indepM G L m).time = indepCost L.length := by
-  induction L generalizing m with
-  | nil => simp [indepM, indepCost]
-  | cons u L ih =>
-    simp only [indepM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_noAdjM,
-      List.length_cons, indepCost_succ]
-    omega
-
-end TimeLoops
+end LoopSpecs
 
 end Cslib.Algorithms.Lean.TreeDecomposition

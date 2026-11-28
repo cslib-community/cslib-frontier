@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Serial
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Program
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Honest sender and corrupted receiver in the serial world
@@ -93,11 +94,11 @@ private theorem run_exchange (k : ℕ) (s : Store) (values : Fin 4 → Bool) (in
           session := { s.session with tables := s.session.tables ++ [values] }
           pending := none
           receipts := s.receipts ++ [(index, values index)] }) := by
-  simp only [pmf_norm, Nat.reduceAdd, world, handler, OracleComp.sumHandler, Store.send,
-    Session.advance, Bool.or_eq_true, ot14World, Fin.isValue, bind_pure_comp, map_pure, ot14Answer,
-    exchange, Interactive.liftProver, ProbOracleComp.interpret_query, Interactive.liftVerifier,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hstop, Bool.false_eq_true, ite_false,
-    hseal, hpending, hlen, ite_true, ProbOracleComp.runWith_map, or_self, Prod.map_apply, id_eq]
+  simp only [interp_norm, pmf_norm, Nat.reduceAdd, world, handler, Store.send, Session.advance,
+    Bool.or_eq_true, ot14World, Fin.isValue, bind_pure_comp, map_pure, ot14Answer, exchange,
+    Interactive.liftProver, Interactive.liftVerifier, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, hstop, Bool.false_eq_true, ite_false, hseal, hpending, hlen,
+    ite_true, ProbOracleComp.runWith_map, or_self, Prod.map_apply, id_eq]
   rfl
 
 private def extendStore {n : ℕ} (s : Store) (b : Bool) (masks : Fin n → Bool)
@@ -130,41 +131,24 @@ private theorem run_receiverCommitAdapter {State : Type}
       simp only [pmf_norm, receiverCommitAdapter, receiverCommitWith, receiverCommitProgram,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
         ProbComp.eval_uniform, ot14World]
-      apply congrArg ((ProbComp.eval (choose n st)).bind)
-      funext chosen
-      rcases chosen with ⟨index, next⟩
-      apply congrArg ((PMF.uniformOfFintype Bool).bind)
-      funext mask
+      congr 1 with ⟨index, next⟩ : 1
+      congr 1 with mask : 1
       rw [run_exchange k s _ _ hstop hseal hpending hbudget]
-      simp only [PMF.monad_pure_eq_pure, PMF.pure_bind]
-      change (ProbComp.eval (receive next (table b mask index))).bind _ =
-        (ProbComp.eval (receive next (table b mask index))).bind _
-      apply congrArg ((ProbComp.eval (receive next (table b mask index))).bind)
-      funext after
+      simp only [PMF.monad_pure_eq_pure, PMF.pure_bind,
+        show Fin.cases (motive := ot14Spec.Answer ()) () (fun _ => table b mask index) 1 =
+          table b mask index from rfl]
+      congr 1 with after : 1
       let nextStore : Store :=
         { s with
           session := { s.session with tables := s.session.tables ++ [table b mask] }
           pending := none
           receipts := s.receipts ++ [(index, table b mask index)] }
-      change (ProbOracleComp.runWith (world k).impl
-        (receiverCommitAdapter choose receive b n after) nextStore).bind
-          (fun ((masks, transcript, final), last) => pure
-            (((Fin.cons mask masks : Fin (n + 1) → Bool),
-              (Fin.cons (index, table b mask index) transcript : Fin (n + 1) → Fin 4 × Bool),
-              final), last)) =
-        (ProbComp.eval (receiverCommitProgram choose receive b n after)).bind
-          (fun (masks, transcript, final) => pure
-            (((Fin.cons mask masks : Fin (n + 1) → Bool),
-              (Fin.cons (index, table b mask index) transcript : Fin (n + 1) → Fin 4 × Bool),
-              final),
-              extendStore s b ((Fin.cons mask masks : Fin (n + 1) → Bool))
-                ((Fin.cons (index, table b mask index) transcript : Fin (n + 1) → Fin 4 × Bool))))
-      rw [ih after nextStore hstop hseal rfl (by
-        dsimp only [nextStore]
-        simp only [List.length_append, List.length_singleton]
-        omega)]
-      simp [PMF.bind_map, extendStore, nextStore, List.ofFn_succ, List.append_assoc,
-        Function.comp_def]
+      have ih' := ih after nextStore hstop hseal rfl (by simp [nextStore]; omega)
+      simp only [receiverCommitAdapter, receiverCommitProgram] at ih'
+      rw [ih']
+      simp only [PMF.bind_map, extendStore, nextStore, List.ofFn_succ, List.append_assoc,
+        List.singleton_append, Function.comp_def, ot14World]
+      rfl
 
 /-- The common serial world preserves the existing joint commit law, including the honest
 sender masks used internally for the later opening. Those masks are not receiver observations. -/
@@ -207,33 +191,25 @@ theorem eval_receiverAdapter {State Later Output : Type}
       (fun i => (transcript i).2) b (opening b masks) := by
     rw [opening_eq_equivocate_of_mem_support _ _ _ _ h]
     exact equivocate_accepts b transcript
-  have hc : openPairs (List.ofFn fun i => (fin4ToBoolPair (transcript i).1).2)
-      (List.ofFn fun i => (transcript i).2)
-      (({ submission := some (b, openingWord (opening b masks)) } : Session).opening k) =
-      some b := by
-    rw [openPairs_decodeOpening, decodeOpening_openingWord]
-    simp [openResult, ha]
-  simp only [pmf_norm, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure,
-    Interactive.liftProver, Interactive.liftVerifier, ProbOracleComp.interpret_query,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, world, handler,
-    OracleComp.sumHandler]
-  simp only [extendStore, Session.initial, List.nil_append, Store.send, Session.advance,
-    Bool.false_eq_true, ite_false, ite_true, List.length_ofFn,
-    Store.observations, Session.receipt, Session.observation]
-  apply congrArg ((ProbComp.eval (plan transcript final)).bind)
-  funext planned
-  rcases planned with ⟨release, later⟩
-  have hc' : openPairs ((List.ofFn transcript).map fun r => (fin4ToBoolPair r.1).2)
+  have hc : openPairs ((List.ofFn transcript).map fun r => (fin4ToBoolPair r.1).2)
       ((List.ofFn transcript).map Prod.snd)
       (({ submission := some (b, openingWord (opening b masks)) } : Session).opening k) =
       some b := by
-    simpa only [List.map_ofFn, Function.comp_def] using hc
+    rw [List.map_ofFn, List.map_ofFn, openPairs_decodeOpening, decodeOpening_openingWord]
+    simp [openResult, Function.comp_def, ha]
+  simp only [interp_norm, pmf_norm, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure,
+    Interactive.liftProver, Interactive.liftVerifier, ProbOracleComp.runWith_query,
+    ProbOracleComp.runWith_sample, world, handler]
+  simp only [extendStore, Session.initial, List.nil_append, Store.send, Session.advance,
+    Bool.false_eq_true, ite_false, ite_true, List.length_ofFn,
+    Store.observations, Session.receipt, Session.observation]
+  congr 1 with ⟨release, later⟩ : 1
   cases release with
   | false => simp [Store.readOpening, Session.opening, openPairs, decodeOpening]
   | true =>
       simp only [ite_true, Store.readOpening, Bool.true_and,
         decodeOpening_openingWord, Option.map_some]
-      erw [hc']
+      erw [hc]
       simp
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment.Serial

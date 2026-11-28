@@ -103,9 +103,8 @@ theorem length_indexStep_le (st : List Bool × List ℕ) (b : Block) :
     refine (Nat.size_le.mpr ((lsbValue_lt _).trans_le
       (Nat.pow_le_pow_right (by norm_num) ?_))).trans le_rfl
     exact (List.length_take_le _ _).trans (blockWires_le b)
-  simp only [indexStep, length_encPair, encBits_apply, length_encList, List.map_append,
-    List.sum_append, List.length_drop, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
-  omega
+  enc_len [indexStep, length_encList, List.map_append, List.sum_append, List.length_drop,
+    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
 
 /-- **Reading the indices of the blocks is polynomial-time.** -/
 theorem blockIndices_polyTime :
@@ -113,40 +112,29 @@ theorem blockIndices_polyTime :
       (encPair (encList encBlock) encBits) (encList encNat) := by
   let encQ := encPair (encList encBlock) encBits
   let encS := encPair encBits (encList encNat)
-  have hinit : ComputableInPolyTime (fun q : List Block × List Bool => (q.2, ([] : List ℕ)))
-      encQ encS := (snd (encList encBlock) encBits).prod (const [])
-  have hlist : ComputableInPolyTime (fun q : List Block × List Bool => q.1) encQ
-      (encList encBlock) := fst (encList encBlock) encBits
-  have hp1 : ComputableInPolyTime
-      (fun p : ((List Block × List Bool) × (List Bool × List ℕ)) × Block => p.1.2)
-      (encPair (encPair encQ encS) encBlock) encS :=
-    (snd encQ encS).comp (fst (encPair encQ encS) encBlock)
-  have hp2 : ComputableInPolyTime
-      (fun p : ((List Block × List Bool) × (List Bool × List ℕ)) × Block => p.2)
-      (encPair (encPair encQ encS) encBlock) encBlock :=
-    snd (encPair encQ encS) encBlock
-  have hstep := indexStep_polyTime.comp (hp1.prod hp2)
-  have hgrowth : ∀ (q : List Block × List Bool) (st : List Bool × List ℕ) (b : Block),
-      b ∈ q.1 → (encS (indexStep st b)).length ≤ (encS st).length + (2 * (encQ q).length + 1) := by
-    intro q st b hb
+  have hstep := indexStep_polyTime.comp
+    (((snd encQ encS).comp (fst (encPair encQ encS) encBlock)).prod
+      (snd (encPair encQ encS) encBlock))
+  have hgrowth (q : List Block × List Bool) (st : List Bool × List ℕ) (b : Block)
+      (hb : b ∈ q.1) :
+      (encS (indexStep st b)).length ≤ (encS st).length + (2 * (encQ q).length + 1) := by
     have h1 : (encS (indexStep st b)).length ≤ (encS st).length + 2 * b.1.length + 1 :=
       length_indexStep_le st b
     have h2 : b.1.length ≤ (encQ q).length := by
       have h4 := length_le_encList_of_mem encBlock hb
-      have h3 : b.1.length ≤ (encBlock b).length := by
-        have h5 := sum_length_le_length_encList (encPair encNat encNat) b.1
-        have h6 : b.1.length ≤ (b.1.map fun a => (encPair encNat encNat a).length).sum := by
-          refine (List.length_map (f := fun a => (encPair encNat encNat a).length)
-            (as := b.1)).symm.le.trans ?_
-          exact List.length_le_sum_of_one_le _ fun x hx => by
-            obtain ⟨a, -, rfl⟩ := List.mem_map.mp hx
-            enc_len
-        enc_len [encBlock, encIncidences]
+      have h5 := sum_length_le_length_encList (encPair encNat encNat) b.1
+      have h6 : b.1.length ≤ (b.1.map fun a => (encPair encNat encNat a).length).sum := by
+        refine (List.length_map (f := fun a => (encPair encNat encNat a).length)
+          (as := b.1)).symm.le.trans (List.length_le_sum_of_one_le _ fun x hx => ?_)
+        obtain ⟨a, -, rfl⟩ := List.mem_map.mp hx
+        enc_len
+      have h3 : b.1.length ≤ (encBlock b).length := by enc_len [encBlock, encIncidences]
       enc_len [encQ]
     omega
   have hfold := foldlWithInput_of_bounded_growth (encA := encBlock) (encL := encList encBlock)
-    (encB := encS) (step := fun _ st b => indexStep st b) hinit
-    ⟨hlist, hstep, inferInstance, inferInstance⟩
+    (encB := encS) (step := fun _ st b => indexStep st b)
+    ((snd (encList encBlock) encBits).prod (const []))
+    ⟨fst (encList encBlock) encBits, hstep, inferInstance, inferInstance⟩
     (growth := fun q => 2 * (encQ q).length + 1)
     ⟨((PolyBounded.const 2).mul .self).add (.const 1), hgrowth⟩
   exact ((snd encBits (encList encNat)).comp hfold).of_enc_eq fun q =>
@@ -157,20 +145,15 @@ theorem selectBlock_polyTime :
     ComputableInPolyTime (fun q : Block × ℕ => selectBlock q.1 q.2)
       (encPair encBlock encNat) encIncidences := by
   have hb := fst encBlock encNat
-  have hι := snd encBlock encNat
   have hinc := (fst (encList (encPair encNat encNat)) encUnary).comp hb
-  have hN := (length_list (encPair encNat encNat)).comp hinc
-  have hd := (snd (encList (encPair encNat encNat)) encUnary).comp hb
-  have hmask := SubsetPairFold.unrankCombination_polyTime.comp ((hN.prod hd).prod hι)
+  have hmask := SubsetPairFold.unrankCombination_polyTime.comp
+    ((((length_list (encPair encNat encNat)).comp hinc).prod
+      ((snd (encList (encPair encNat encNat)) encUnary).comp hb)).prod (snd encBlock encNat))
   have hzip := (zip (encPair encNat encNat) encBool).comp (hinc.prod (bitsToList.comp hmask))
-  have htest : ComputableInPolyTime
-      (fun p : (Block × ℕ) × ((ℕ × ℕ) × Bool) => p.2.2)
-      (encPair (encPair encBlock encNat) (encPair (encPair encNat encNat) encBool)) encBool :=
-    (snd (encPair encNat encNat) encBool).comp (snd _ _)
   have hfilter := filterWithInput (test := fun (_ : Block × ℕ) (p : (ℕ × ℕ) × Bool) => p.2)
-    hzip htest
-  have hmap := (map (fst (encPair encNat encNat) encBool)).comp hfilter
-  exact hmap.of_enc_eq fun q => rfl
+    hzip ((snd (encPair encNat encNat) encBool).comp
+      (snd (encPair encBlock encNat) (encPair (encPair encNat encNat) encBool)))
+  exact ((map (fst (encPair encNat encNat) encBool)).comp hfilter).of_enc_eq fun _ => rfl
 
 /-- **The selected incidences are polynomial-time**, from the blocks and the indices. -/
 theorem selected_polyTime :

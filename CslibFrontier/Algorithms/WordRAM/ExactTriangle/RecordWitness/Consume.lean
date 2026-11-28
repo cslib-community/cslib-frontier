@@ -30,9 +30,8 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
 open Cslib.WordRAM Cslib.Algorithms.ExactTriangle
 
 -- This checks the finite write sets of the fixed consumer, including the renamed scan bank.
-set_option maxRecDepth 4096 in
 private theorem consume_preserves : ∀ j : Fin 400, j.val < 320 → consume.Preserves j := by
-  decide
+  decide +kernel
 
 /-- Execute the actual descriptor decoder and short-circuit verifier loop. The additional
 scan term uses the native counter, bounded by failed accepted pairs plus one success. -/

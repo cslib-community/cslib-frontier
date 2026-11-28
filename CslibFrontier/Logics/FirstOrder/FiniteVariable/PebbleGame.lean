@@ -25,7 +25,7 @@ A position is a set `S : Set (Fin k)` of placed pebble indices together with ass
 `a : Fin k → M` and `b : Fin k → N`; only the values on `S` matter (`pebbleWins_congr`). Moving
 pebble `i` to `c` and `d` gives the position `(insert i S, update a i c, update b i d)`. These are
 exactly the assignments of the `k`-variable formulas of
-`CslibFrontier.Logics.FirstOrder.FiniteVariable.Basic`, whose quantifier `all i` updates
+`CslibFrontier.Logics.FirstOrder.FiniteVariable.Basic`, whose quantifiers `ex i` and `all i` update
 variable `i`.
 
 `PebbleWins L n S a b` says that Duplicator wins the `n`-round game from the position, and
@@ -45,8 +45,9 @@ relation symbols and is proved in `CslibFrontier.Logics.FirstOrder.FiniteVariabl
 ## Main results
 
 * `Cslib.Logic.FO.PebbleWins.mono`, `Cslib.Logic.FO.PebbleWins.of_subset`,
-  `Cslib.Logic.FO.pebbleWins_congr`: monotonicity in the number of rounds and in the placed
-  pebbles, and independence of unplaced pebbles.
+  `Cslib.Logic.FO.pebbleWins_congr`, `Cslib.Logic.FO.partialIsoOn_comp_equiv_iff`: monotonicity in
+  the number of rounds and in the placed pebbles, independence of unplaced pebbles, and pebble
+  reindexing.
 * `Cslib.Logic.FO.PebbleWins.refl`, `Cslib.Logic.FO.PebbleWins.symm`,
   `Cslib.Logic.FO.PebbleWins.trans`, `FirstOrder.Language.Equiv.pebbleWins`: the
   equivalence-relation laws and invariance under isomorphism.
@@ -108,23 +109,65 @@ theorem PartialIsoOn.mono {S T : Set (Fin k)} {a : Fin k → M} {b : Fin k → N
 /-- A partial isomorphism on `S` depends only on the values of the pebbles in `S`. -/
 theorem PartialIsoOn.congr {S : Set (Fin k)} {a a' : Fin k → M} {b b' : Fin k → N}
     (ha : Set.EqOn a a' S) (hb : Set.EqOn b b' S) (h : PartialIsoOn L S a b) :
-    PartialIsoOn L S a' b' := by
-  refine ⟨fun i hi j hj => ?_, fun R f hf => ?_⟩
-  · rw [← ha hi, ← ha hj, ← hb hi, ← hb hj]
-    exact h.eq_iff i hi j hj
-  · have ha' : a' ∘ f = a ∘ f := funext fun t => (ha (hf t)).symm
-    have hb' : b' ∘ f = b ∘ f := funext fun t => (hb (hf t)).symm
-    rw [ha', hb']
-    exact h.relMap_iff R f hf
+    PartialIsoOn L S a' b' :=
+  ⟨fun i hi j hj => ha hi ▸ ha hj ▸ hb hi ▸ hb hj ▸ h.eq_iff i hi j hj, fun R f hf => by
+    have haf : a' ∘ f = a ∘ f := funext fun t => (ha (hf t)).symm
+    have hbf : b' ∘ f = b ∘ f := funext fun t => (hb (hf t)).symm
+    simpa only [haf, hbf] using h.relMap_iff R f hf⟩
 
 /-- With no pebbles placed, every position is a partial isomorphism, provided `L` has no nullary
 relation symbols: these are sentences that the two structures would have to agree on. -/
 theorem partialIsoOn_empty [IsEmpty (L.Relations 0)] (a : Fin k → M) (b : Fin k → N) :
-    PartialIsoOn L ∅ a b := by
-  refine ⟨fun _ hi => absurd hi (Set.notMem_empty _), fun {l} R f hf => ?_⟩
-  cases l with
-  | zero => exact isEmptyElim R
-  | succ l => exact absurd (hf 0) (Set.notMem_empty _)
+    PartialIsoOn L ∅ a b :=
+  ⟨fun _ hi => absurd hi (Set.notMem_empty _), fun {l} R f hf => by
+    cases l with
+    | zero => exact isEmptyElim R
+    | succ _ => exact absurd (hf 0) (Set.notMem_empty _)⟩
+
+/-- Reindexing pebble names along a bijection preserves partial isomorphisms. -/
+theorem partialIsoOn_comp_equiv_iff {k' : ℕ} (σ : Fin k' ≃ Fin k) {S : Set (Fin k)}
+    {a : Fin k → M} {b : Fin k → N} :
+    PartialIsoOn L (σ ⁻¹' S) (a ∘ σ) (b ∘ σ) ↔ PartialIsoOn L S a b := by
+  refine ⟨fun h => ⟨fun i hi j hj => by
+      simpa only [Function.comp_apply, σ.apply_symm_apply] using
+        h.eq_iff (σ.symm i) (by simpa using hi) (σ.symm j) (by simpa using hj),
+    fun R f hf => ?_⟩, fun h => ⟨fun i hi j hj => h.eq_iff (σ i) hi (σ j) hj,
+    fun R f hf => h.relMap_iff R (σ ∘ f) fun t => hf t⟩⟩
+  simpa [Function.comp_def] using h.relMap_iff R (σ.symm ∘ f) fun t => by simpa using hf t
+
+/-- Updating pebble `i` to an already-placed pebble `a j₀` (`j₀ ∈ S`) preserves `PartialIsoOn`
+when paired with `b j₀`. -/
+theorem PartialIsoOn.update_of_mem {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
+    (h : PartialIsoOn L S a b) {i j₀ : Fin k} (hj₀ : j₀ ∈ S) {c : M} (hc : a j₀ = c) :
+    PartialIsoOn L (insert i S) (Function.update a i c) (Function.update b i (b j₀)) := by
+  let g : Fin k → Fin k := Function.update id i j₀
+  have hgS (r : Fin k) (hr : r ∈ insert i S) : g r ∈ S := by
+    rcases eq_or_ne r i with rfl | hri <;> simp_all [g]
+  have ha : Function.update a i c = a ∘ g := hc ▸ (Function.comp_update a id i j₀).symm
+  have hb : Function.update b i (b j₀) = b ∘ g := (Function.comp_update b id i j₀).symm
+  rw [ha, hb]
+  exact ⟨fun r hr s hs => h.eq_iff (g r) (hgS r hr) (g s) (hgS s hs),
+    fun R f hf => h.relMap_iff R (g ∘ f) fun t => hgS (f t) (hf t)⟩
+
+/-- Equality preservation on `insert i S` when updating pebble `i` to fresh elements `c` and `d`
+outside `{a j | j ∈ S ∧ j ≠ i}` and `{b j | j ∈ S ∧ j ≠ i}`. -/
+theorem PartialIsoOn.update_eq_iff_of_fresh {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
+    (h : PartialIsoOn L S a b) {i : Fin k} {c : M} {d : N}
+    (hc : ∀ j ∈ S, j ≠ i → a j ≠ c) (hd : ∀ j ∈ S, j ≠ i → d ≠ b j)
+    {r : Fin k} (hr : r ∈ insert i S) {q : Fin k} (hq : q ∈ insert i S) :
+    Function.update a i c r = Function.update a i c q ↔
+      Function.update b i d r = Function.update b i d q := by
+  by_cases hri : r = i <;> by_cases hqi : q = i
+  · simp [hri, hqi]
+  · simp only [hri, Function.update_self, Function.update_of_ne hqi]
+    exact iff_of_false (fun hca => hc q ((Set.mem_insert_iff.1 hq).resolve_left hqi) hqi hca.symm)
+      (hd q ((Set.mem_insert_iff.1 hq).resolve_left hqi) hqi)
+  · simp only [hqi, Function.update_self, Function.update_of_ne hri]
+    exact iff_of_false (hc r ((Set.mem_insert_iff.1 hr).resolve_left hri) hri)
+      fun hbd => hd r ((Set.mem_insert_iff.1 hr).resolve_left hri) hri hbd.symm
+  · simp only [Function.update_of_ne hri, Function.update_of_ne hqi]
+    exact h.eq_iff r ((Set.mem_insert_iff.1 hr).resolve_left hri)
+      q ((Set.mem_insert_iff.1 hq).resolve_left hqi)
 
 /-! ### The game -/
 
@@ -148,22 +191,21 @@ def PebbleWins : ℕ → Set (Fin k) → (Fin k → M) → (Fin k → N) → Pro
         PebbleWins n (insert i S) (Function.update a i c) (Function.update b i d))
 
 theorem pebbleWins_zero {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
-    PebbleWins L 0 S a b ↔ PartialIsoOn L S a b := by
-  rw [PebbleWins]
+    PebbleWins L 0 S a b ↔ PartialIsoOn L S a b :=
+  Iff.rfl
 
 theorem pebbleWins_succ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
     PebbleWins L (n + 1) S a b ↔ PartialIsoOn L S a b ∧
       (∀ i (c : M), ∃ d : N,
         PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) ∧
       (∀ i (d : N), ∃ c : M,
-        PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) := by
-  rw [PebbleWins]
+        PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) :=
+  Iff.rfl
 
 theorem PebbleWins.partialIsoOn {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L n S a b) : PartialIsoOn L S a b := by
-  cases n with
-  | zero => exact pebbleWins_zero.1 h
-  | succ n => exact (pebbleWins_succ.1 h).1
+  rcases n with _ | n
+  exacts [h, h.1]
 
 theorem PebbleWins.forth {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L (n + 1) S a b) (i : Fin k) (c : M) :
@@ -221,14 +263,9 @@ theorem PebbleWins.trans :
     ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} {c : Fin k → P},
       PebbleWins L n S a b → PebbleWins L n S b c → PebbleWins L n S a c
   | 0, _, _, _, _, h₁, h₂ => pebbleWins_zero.2 (h₁.partialIsoOn.trans h₂.partialIsoOn)
-  | _ + 1, _, _, _, _, h₁, h₂ => by
-    refine pebbleWins_succ.2 ⟨h₁.partialIsoOn.trans h₂.partialIsoOn, fun i x => ?_, fun i z => ?_⟩
-    · obtain ⟨y, hy⟩ := h₁.forth i x
-      obtain ⟨z, hz⟩ := h₂.forth i y
-      exact ⟨z, hy.trans hz⟩
-    · obtain ⟨y, hy⟩ := h₂.back i z
-      obtain ⟨x, hx⟩ := h₁.back i y
-      exact ⟨x, hx.trans hy⟩
+  | _ + 1, _, _, _, _, h₁, h₂ => pebbleWins_succ.2 ⟨h₁.partialIsoOn.trans h₂.partialIsoOn,
+      fun i x => (h₁.forth i x).elim fun y hy => (h₂.forth i y).imp fun _ => hy.trans,
+      fun i z => (h₂.back i z).elim fun y hy => (h₁.back i y).imp fun _ hx => hx.trans hy⟩
 
 /-! ### Back-and-forth invariants and the infinite game -/
 
@@ -262,6 +299,14 @@ for `k > 0` when `M` or `N` is empty. -/
 def PebbleWinsForever (S : Set (Fin k)) (a : Fin k → M) (b : Fin k → N) : Prop :=
   ∃ I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop, IsPebbleBackAndForth L I ∧ I S a b
 
+/-- Unfolds `PebbleWinsForever` into existence of a `k`-pebble back-and-forth invariant. -/
+theorem pebbleWinsForever_iff_exists_isPebbleBackAndForth {S : Set (Fin k)} {a : Fin k → M}
+    {b : Fin k → N} :
+    PebbleWinsForever L S a b ↔
+      ∃ I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop,
+        IsPebbleBackAndForth L I ∧ I S a b :=
+  Iff.rfl
+
 /-- Every position of a back-and-forth invariant is won by Duplicator in the infinite game. -/
 theorem IsPebbleBackAndForth.pebbleWinsForever
     {I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop} (hI : IsPebbleBackAndForth L I)
@@ -292,14 +337,11 @@ theorem pebbleWinsForever_iff_forall_pebbleWins [Finite M] [Finite N] {S : Set (
 and its image. -/
 theorem _root_.FirstOrder.Language.Equiv.pebbleWinsForever (e : M ≃[L] N) (S : Set (Fin k))
     (a : Fin k → M) : PebbleWinsForever L S a (e ∘ a) := by
-  refine ⟨fun _ a b => b = e ∘ a, ⟨?_, ?_, ?_⟩, rfl⟩
-  · rintro S a b rfl
-    refine ⟨fun i _ j _ => e.injective.eq_iff.symm, fun R f _ => ?_⟩
-    rw [Function.comp_assoc, e.map_rel]
-  · rintro S a b rfl i c
-    exact ⟨e c, (Function.comp_update e a i c).symm⟩
-  · rintro S a b rfl i d
-    exact ⟨e.symm d, by rw [Function.comp_update, e.apply_symm_apply]⟩
+  refine ⟨fun _ a b => b = e ∘ a, ⟨?_, fun h i c => ⟨e c, h ▸ (Function.comp_update e _ i c).symm⟩,
+    fun h i d => ⟨e.symm d, by rw [h, Function.comp_update, e.apply_symm_apply]⟩⟩, rfl⟩
+  rintro S a b rfl
+  exact ⟨fun _ _ _ _ => e.injective.eq_iff.symm,
+    fun R f _ => by rw [Function.comp_assoc, e.map_rel]⟩
 
 /-- Duplicator wins every finite game between a structure and an isomorphic copy, from a position
 and its image. -/
@@ -309,40 +351,57 @@ theorem _root_.FirstOrder.Language.Equiv.pebbleWins (e : M ≃[L] N) (n : ℕ) (
 
 /-! ### The easy direction of the pebble-game characterization of `FO^k` -/
 
+/-- Generic quantifier-rank induction for preserving `GenFormula` truth across a family of
+`n`-round game positions `R n S a b`. Base positions must form partial isomorphisms on `S`, and
+stepping from `n + 1` to `n` at `i` must preserve each quantifier `q : Q`. -/
+theorem FiniteVariable.GenFormula.realize_iff_of_step {Q : Type}
+    [FiniteVariable.Quantifier Q M] [FiniteVariable.Quantifier Q N]
+    (R : ℕ → Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop)
+    (h0 : ∀ {n S a b}, R n S a b → PartialIsoOn L S a b)
+    (hquant : ∀ {n S a b} (q : Q) (i : Fin k) (pM : M → Prop) (pN : N → Prop),
+      R (n + 1) S a b →
+      (∀ {c d}, R n (insert i S) (Function.update a i c) (Function.update b i d) →
+        (pM c ↔ pN d)) →
+      (FiniteVariable.Quantifier.eval q pM ↔ FiniteVariable.Quantifier.eval q pN))
+    {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} (h : R n S a b)
+    {φ : FiniteVariable.GenFormula Q L k} (hr : φ.quantifierRank ≤ n) (hS : ↑φ.freeVars ⊆ S) :
+    φ.Realize a ↔ φ.Realize b := by
+  induction φ generalizing n S a b with
+  | falsum => simp only [FiniteVariable.GenFormula.realize_falsum]
+  | equal i j =>
+    simp only [FiniteVariable.GenFormula.freeVars_equal, Finset.coe_insert, Finset.coe_singleton,
+      Set.insert_subset_iff, Set.singleton_subset_iff] at hS
+    simp only [FiniteVariable.GenFormula.realize_equal]
+    exact (h0 h).eq_iff i hS.1 j hS.2
+  | rel R' f =>
+    simp only [FiniteVariable.GenFormula.realize_rel]
+    exact (h0 h).relMap_iff R' f fun t => hS (by simp)
+  | imp φ ψ ihφ ihψ =>
+    simp only [FiniteVariable.GenFormula.quantifierRank_imp, max_le_iff] at hr
+    simp only [FiniteVariable.GenFormula.freeVars_imp, Finset.coe_union, Set.union_subset_iff] at hS
+    simp only [FiniteVariable.GenFormula.realize_imp]
+    exact imp_congr (ihφ h hr.1 hS.1) (ihψ h hr.2 hS.2)
+  | quant q i φ ih =>
+    simp only [FiniteVariable.GenFormula.quantifierRank_quant] at hr
+    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+    rw [FiniteVariable.GenFormula.freeVars_quant, Finset.coe_erase, Set.sdiff_subset_iff,
+      ← Set.insert_eq] at hS
+    rw [FiniteVariable.GenFormula.realize_quant, FiniteVariable.GenFormula.realize_quant]
+    exact hquant q i _ _ h fun hc => ih hc (by omega) hS
+
 /-- **Pebble games, easy direction.** If Duplicator wins the `n`-round `k`-pebble game from
 `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable formulas of quantifier rank at most `n`
 whose free variables are placed pebbles. No finiteness assumption is needed. -/
 theorem PebbleWins.realize_iff {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L n S a b) {φ : FiniteVariable.Formula L k} (hr : φ.quantifierRank ≤ n)
-    (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b := by
-  induction φ generalizing n S a b with
-  | falsum => simp only [FiniteVariable.Formula.realize_falsum]
-  | equal i j =>
-    simp only [FiniteVariable.Formula.freeVars_equal, Finset.coe_insert, Finset.coe_singleton,
-      Set.insert_subset_iff, Set.singleton_subset_iff] at hS
-    simp only [FiniteVariable.Formula.realize_equal]
-    exact h.partialIsoOn.eq_iff i hS.1 j hS.2
-  | rel R f =>
-    simp only [FiniteVariable.Formula.realize_rel]
-    exact h.partialIsoOn.relMap_iff R f fun t => hS (by simp)
-  | imp φ ψ ihφ ihψ =>
-    simp only [FiniteVariable.Formula.quantifierRank_imp, max_le_iff] at hr
-    simp only [FiniteVariable.Formula.freeVars_imp, Finset.coe_union, Set.union_subset_iff] at hS
-    simp only [FiniteVariable.Formula.realize_imp]
-    exact imp_congr (ihφ h hr.1 hS.1) (ihψ h hr.2 hS.2)
-  | all i φ ih =>
-    simp only [FiniteVariable.Formula.quantifierRank_all] at hr
-    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
-    rw [FiniteVariable.Formula.freeVars_all, Finset.coe_erase, Set.sdiff_subset_iff,
-      ← Set.insert_eq] at hS
-    simp only [FiniteVariable.Formula.realize_all]
-    constructor
-    · intro hA d
-      obtain ⟨c, hc⟩ := h.back i d
-      exact (ih hc (by omega) hS).1 (hA c)
-    · intro hB c
-      obtain ⟨d, hd⟩ := h.forth i c
-      exact (ih hd (by omega) hS).2 (hB d)
+    (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
+  FiniteVariable.GenFormula.realize_iff_of_step (PebbleWins L) PebbleWins.partialIsoOn
+    (fun q i _ _ hstep ih => by
+      cases q
+      simp only [FiniteVariable.ExistentialQuant.eval_ex]
+      exact ⟨fun ⟨c, hc⟩ => let ⟨d, hd⟩ := hstep.forth i c; ⟨d, (ih hd).1 hc⟩,
+        fun ⟨d, hd⟩ => let ⟨c, hc⟩ := hstep.back i d; ⟨c, (ih hc).2 hd⟩⟩)
+    h hr hS
 
 /-- **Infinite pebble games, easy direction.** If Duplicator wins the infinite `k`-pebble game
 from `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable formulas whose free variables are

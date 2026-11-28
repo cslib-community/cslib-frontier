@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Equality of selected Boolean inputs
@@ -56,29 +57,22 @@ def equalBits {n : ℕ} : {k : ℕ} → (Fin k → Fin n) → (Fin k → Fin n) 
   induction k with
   | zero => simp [equalBits, Subsingleton.elim (x ∘ left) (x ∘ right)]
   | succ k ih =>
-    simp only [equalBits, Formula.eval_and, Formula.eval_or, Formula.eval_not, Formula.eval_input,
-      Bool.and_eq_true, ih]
+    simp only [circuit_simps, equalBits, Bool.and_eq_true, ih]
     have head : (x (left 0) && x (right 0) || !x (left 0) && !x (right 0)) = true ↔
         x (left 0) = x (right 0) := by
       cases x (left 0) <;> cases x (right 0) <;> simp
     rw [head]
-    constructor
-    · rintro ⟨hzero, htail⟩
-      funext i
-      exact Fin.cases hzero (fun j => congrFun htail j) i
-    · intro h
-      exact ⟨congrFun h 0, funext fun j => congrFun h j.succ⟩
+    exact ⟨fun ⟨hzero, htail⟩ => funext (Fin.cases hzero (congrFun htail)),
+      fun h => ⟨congrFun h 0, funext fun j => congrFun h j.succ⟩⟩
 
 /-- Each coordinate uses three AND gates, two negations and one OR, after one true constant. -/
 theorem cost_equalBits {n k : ℕ} (left right : Fin k → Fin n) (cost : signature.Op → ℕ) :
     (equalBits left right).cost cost =
       cost (.const true) + k * (3 * cost .and + 2 * cost .not + cost .or) := by
   induction k with
-  | zero => simp [equalBits, Formula.const]
+  | zero => simp [equalBits]
   | succ k ih =>
-    simp only [equalBits, Formula.and, Formula.or, Formula.not, Formula.cost_gate,
-      Formula.cost_input, Fin.sum_univ_two, Fin.sum_univ_one, Matrix.cons_val_zero,
-      Matrix.cons_val_one, ih]
+    simp only [circuit_simps, equalBits, ih]
     ring
 
 /-- The formula has six gates per selected coordinate and one constant gate. -/
@@ -113,9 +107,9 @@ theorem cost_program_adjacentEqualityCircuit {input count keyWidth : ℕ}
       cost (.const false) + (count - 1) *
         (cost (.const true) + keyWidth * (3 * cost .and + 2 * cost .not + cost .or)) := by
   cases count with
-  | zero => simp [adjacentEqualityCircuit, Circuit.cost_program_pi]
+  | zero => simp [circuit_simps, adjacentEqualityCircuit]
   | succ count =>
-    simp [adjacentEqualityCircuit, Circuit.cost_program_pi, Fin.sum_univ_succ,
-      Formula.cost_toCircuit, Formula.cost_equalBits, Formula.const, Nat.add_comm]
+    simp [circuit_simps, adjacentEqualityCircuit, Fin.sum_univ_succ, Formula.cost_equalBits,
+      Nat.add_comm]
 
 end Cslib.Circuits.Boolean

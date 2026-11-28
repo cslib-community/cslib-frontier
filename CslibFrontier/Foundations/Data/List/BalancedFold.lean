@@ -31,6 +31,7 @@ formula saying that a branching program of length `k` maps one state to another.
 ## Main results
 
 * `List.balancedFold_induction`: a property preserved by concatenation holds for balanced folds.
+  `List.balancedFold_induction_halves` also gives the lengths of the two halves.
 * `List.balancedFold_hom`: maps commuting with the operations commute with balanced folds.
 * `List.balancedFold_eq_foldr`: for an associative operation with an identity, the balanced fold
   is `foldr`.
@@ -75,21 +76,35 @@ theorem balancedFold_of_two_le {l : List β} (hl : 2 ≤ l.length) :
   match l, hl with
   | _ :: _ :: _, _ => rw [balancedFold]
 
-/-- **Induction for balanced folds.** A property of lists and values that holds for the empty list
-and `e`, for every singleton `[b]` and `f b`, and for `l₁ ++ l₂` and `op x y` whenever it holds for
-nonempty `l₁` and `x` and for nonempty `l₂` and `y`, holds for every list and its balanced fold. -/
-theorem balancedFold_induction {p : List β → α → Prop} (nil : p [] e)
+/-- **Induction for balanced folds, with the lengths of the halves.** A property of lists and
+values that holds for the empty list and `e`, for every singleton `[b]` and `f b`, and for
+`l₁ ++ l₂` and `op x y` whenever it holds for `l₁` and `x` and for `l₂` and `y`, where `l₁` is
+nonempty and `l₂` has the same length as `l₁` or one more, holds for every list and its balanced
+fold. These are the halves that `balancedFold` splits a list into. -/
+theorem balancedFold_induction_halves {p : List β → α → Prop} (nil : p [] e)
     (singleton : ∀ b, p [b] (f b))
-    (append : ∀ l₁ l₂ x y, l₁ ≠ [] → l₂ ≠ [] → p l₁ x → p l₂ y → p (l₁ ++ l₂) (op x y))
+    (append : ∀ l₁ l₂ x y, l₁ ≠ [] → l₁.length ≤ l₂.length → l₂.length ≤ l₁.length + 1 →
+      p l₁ x → p l₂ y → p (l₁ ++ l₂) (op x y))
     (l : List β) : p l (l.balancedFold op e f) := by
   induction l using balancedFold.induct with
   | case1 => simpa using nil
   | case2 b => simpa using singleton b
   | case3 b b' l ih₁ ih₂ =>
     have := append _ _ _ _ (by simp [List.take_eq_nil_iff])
-      (by simp only [ne_eq, List.drop_eq_nil_iff, length_cons]; omega) ih₁ ih₂
+      (by simp only [length_take, length_drop, length_cons]; omega)
+      (by simp only [length_take, length_drop, length_cons]; omega) ih₁ ih₂
     rwa [List.take_append_drop,
       ← balancedFold_of_two_le (op := op) (e := e) (f := f) (l := b :: b' :: l) (by simp)] at this
+
+/-- **Induction for balanced folds.** A property of lists and values that holds for the empty list
+and `e`, for every singleton `[b]` and `f b`, and for `l₁ ++ l₂` and `op x y` whenever it holds for
+nonempty `l₁` and `x` and for nonempty `l₂` and `y`, holds for every list and its balanced fold. -/
+theorem balancedFold_induction {p : List β → α → Prop} (nil : p [] e)
+    (singleton : ∀ b, p [b] (f b))
+    (append : ∀ l₁ l₂ x y, l₁ ≠ [] → l₂ ≠ [] → p l₁ x → p l₂ y → p (l₁ ++ l₂) (op x y))
+    (l : List β) : p l (l.balancedFold op e f) :=
+  balancedFold_induction_halves nil singleton
+    (fun l₁ l₂ x y h₁ h₁₂ _ => append l₁ l₂ x y h₁ (by rintro rfl; simp_all)) l
 
 /-- A map commuting with the operations commutes with balanced folds. -/
 theorem balancedFold_hom (g : α → γ) {op' : γ → γ → γ} (hg : ∀ x y, g (op x y) = op' (g x) (g y))

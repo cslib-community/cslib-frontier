@@ -62,8 +62,9 @@ constants must first be replaced by their defining formulas.
 * [P. G. Kolaitis, *On the expressive power of logics on finite models*][Kolaitis2007], Chapter 2
   of *Finite Model Theory and Its Applications* (the sharp characterization of `n`-equivalent
   finite linear orders).
-* [L. Libkin, *Elements of Finite Model Theory*][Libkin2004], Chapter 3 (linear orders of
-  size at least `2 ^ n` are indistinguishable in `n` rounds; EVEN is not definable over orders).
+* [L. Libkin, *Elements of Finite Model Theory*][Libkin2004], Chapter 3: Theorem 3.6 (linear
+  orders of size at least `2 ^ n` are indistinguishable in `n` rounds) and Corollary 3.12 (EVEN
+  is not definable over orders).
 -/
 
 public section
@@ -235,8 +236,7 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
   have hc0 := C.nonneg c
   have hcm := C.lt_card c
   by_cases hx : ∃ p, ext C a p = C.pos c
-  · obtain ⟨p₀, hp₀⟩ := hx
-    rcases p₀ with _ | _ | i
+  · obtain ⟨_ | _ | i, hp₀⟩ := hx
     · simp only [ext] at hp₀; omega
     · simp only [ext] at hp₀; omega
     · refine ⟨b i, h.snoc c (b i) fun p => ?_⟩
@@ -247,20 +247,14 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
       omega
   · simp only [not_exists] at hx
     classical
-    obtain ⟨pl, hpl, hplmax⟩ : ∃ pl, ext C a pl < C.pos c ∧
-        ∀ p, ext C a p < C.pos c → ext C a p ≤ ext C a pl := by
-      have hne : (Finset.univ.filter fun p => ext C a p < C.pos c).Nonempty :=
-        ⟨none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
-      obtain ⟨pl, hmem, hmax⟩ := Finset.exists_max_image _ (ext C a) hne
-      exact ⟨pl, (Finset.mem_filter.1 hmem).2,
-        fun p hp => hmax p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp⟩)⟩
-    obtain ⟨pr, hpr, hprmin⟩ : ∃ pr, C.pos c < ext C a pr ∧
-        ∀ p, C.pos c < ext C a p → ext C a pr ≤ ext C a p := by
-      have hne : (Finset.univ.filter fun p => C.pos c < ext C a p).Nonempty :=
-        ⟨some none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
-      obtain ⟨pr, hmem, hmin⟩ := Finset.exists_min_image _ (ext C a) hne
-      exact ⟨pr, (Finset.mem_filter.1 hmem).2,
-        fun p hp => hmin p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp⟩)⟩
+    obtain ⟨pl, hmem_l, hmax⟩ := Finset.exists_max_image
+      (Finset.univ.filter fun p => ext C a p < C.pos c) (ext C a)
+      ⟨none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
+    obtain ⟨pr, hmem_r, hmin⟩ := Finset.exists_min_image
+      (Finset.univ.filter fun p => C.pos c < ext C a p) (ext C a)
+      ⟨some none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
+    have hpl := (Finset.mem_filter.1 hmem_l).2
+    have hpr := (Finset.mem_filter.1 hmem_r).2
     have hG := h' pl pr
     have hHpos : 0 < ext D b pr - ext D b pl := by unfold GapClose at hG; omega
     obtain ⟨v, hv0, hvH, hv1, hv2⟩ :=
@@ -271,11 +265,11 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
     refine ⟨d, h.snoc c d fun p => ?_⟩
     rw [hd]
     rcases lt_or_gt_of_ne (hx p) with hlt | hgt
-    · have hle := hplmax p hlt
+    · have hle := hmax p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hlt⟩)
       have hp := h' p pl
       unfold GapClose at hp hv1 ⊢
       omega
-    · have hle := hprmin p hgt
+    · have hle := hmin p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hgt⟩)
       have hp := h' pr p
       unfold GapClose at hp hv2 ⊢
       omega
@@ -289,6 +283,28 @@ private theorem Good.back {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {a
     {b : Fin k → N} (h : Good C D (r + 1) a b) (d : N) :
     ∃ c, Good C D r (Fin.snoc a c : Fin (k + 1) → M) (Fin.snoc b d : Fin (k + 1) → N) :=
   (h.symm.forth d).imp fun _ hc => hc.symm
+
+/-- If `0 < ext C a q - ext C a p < min (2 * 2 ^ r) (ext D b q - ext D b p)`, Spoiler splits the
+longer gap in `N` to violate `Good C D r` on the extended position. -/
+private theorem Good.not_lt_of_back {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'}
+    {a : Fin k → M} {b : Fin k → N}
+    (hstep : ∀ y : N, ∃ x : M, Good C D r (Fin.snoc a x) (Fin.snoc b y))
+    {p q : Option (Option (Fin k))}
+    (hpq : ext C a p < ext C a q) (hshort : ext C a q - ext C a p < 2 * 2 ^ r)
+    (hlt : ext C a q - ext C a p < ext D b q - ext D b p) : False := by
+  have hP : (1 : ℤ) ≤ 2 ^ r := one_le_pow₀ (by norm_num)
+  have hbp := ext_bounds D b p
+  have hbq := ext_bounds D b q
+  obtain ⟨v, hv1, hv2, hv⟩ : ∃ v : ℤ, 1 ≤ v ∧ ext C a q - ext C a p - 2 ^ r + 1 ≤ v ∧
+      (v = 1 ∨ v = ext C a q - ext C a p - 2 ^ r + 1) :=
+    ⟨max 1 (ext C a q - ext C a p - 2 ^ r + 1), le_max_left _ _, le_max_right _ _, max_choice _ _⟩
+  obtain ⟨y, hy⟩ := D.surj (ext D b p + v) (by omega) (by omega)
+  obtain ⟨x, hg⟩ := hstep y
+  have g1 := hg (lift p) (some (some (Fin.last k)))
+  have g2 := hg (some (some (Fin.last k))) (lift q)
+  rw [ext_lift, ext_lift, ext_last, ext_last, hy] at g1 g2
+  unfold GapClose at g1 g2
+  omega
 
 /-! ### The game on linear orders -/
 
@@ -347,47 +363,21 @@ private theorem DuplicatorWins.good {m m' : ℕ} {C : Coords M m} {D : Coords N 
   | 0, _, _, _, h => partialIso_good_zero h.partialIso
   | r + 1, k, a, b, h => by
     obtain ⟨hp, hforth, hback⟩ := duplicatorWins_succ.1 h
-    have hP : (1 : ℤ) ≤ 2 ^ r := one_le_pow₀ (by norm_num)
     have h0 := partialIso_good_zero (C := C) (D := D) hp
     have key : ∀ p q, ext C a p < ext C a q →
         GapClose (2 * 2 ^ r) (ext C a q - ext C a p) (ext D b q - ext D b p) := by
       intro p q hpq
       have h0pq := h0 p q
       simp only [pow_zero] at h0pq
-      have hbp := ext_bounds D b p
-      have hbq := ext_bounds D b q
-      have hap := ext_bounds C a p
-      have haq := ext_bounds C a q
       by_contra hne
       unfold GapClose at h0pq hne
       rcases lt_or_gt_of_ne (show ext C a q - ext C a p ≠ ext D b q - ext D b p by omega)
         with hGH | hGH
-      · -- Spoiler splits the longer gap in `N`.
-        obtain ⟨v, hv1, hv2, hv⟩ : ∃ v : ℤ, 1 ≤ v ∧ ext C a q - ext C a p - 2 ^ r + 1 ≤ v ∧
-            (v = 1 ∨ v = ext C a q - ext C a p - 2 ^ r + 1) :=
-          ⟨max 1 (ext C a q - ext C a p - 2 ^ r + 1), le_max_left _ _, le_max_right _ _,
-            max_choice _ _⟩
-        obtain ⟨y, hy⟩ := D.surj (ext D b p + v) (by omega) (by omega)
-        obtain ⟨x, hx⟩ := hback y
-        have hg := DuplicatorWins.good (C := C) (D := D) hx
-        have g1 := hg (lift p) (some (some (Fin.last k)))
-        have g2 := hg (some (some (Fin.last k))) (lift q)
-        rw [ext_lift, ext_lift, ext_last, ext_last, hy] at g1 g2
-        unfold GapClose at g1 g2
-        omega
-      · -- Spoiler splits the longer gap in `M`.
-        obtain ⟨v, hv1, hv2, hv⟩ : ∃ v : ℤ, 1 ≤ v ∧ ext D b q - ext D b p - 2 ^ r + 1 ≤ v ∧
-            (v = 1 ∨ v = ext D b q - ext D b p - 2 ^ r + 1) :=
-          ⟨max 1 (ext D b q - ext D b p - 2 ^ r + 1), le_max_left _ _, le_max_right _ _,
-            max_choice _ _⟩
-        obtain ⟨x, hx⟩ := C.surj (ext C a p + v) (by omega) (by omega)
-        obtain ⟨y, hy⟩ := hforth x
-        have hg := DuplicatorWins.good (C := C) (D := D) hy
-        have g1 := hg (lift p) (some (some (Fin.last k)))
-        have g2 := hg (some (some (Fin.last k))) (lift q)
-        rw [ext_lift, ext_lift, ext_last, ext_last, hx] at g1 g2
-        unfold GapClose at g1 g2
-        omega
+      · exact Good.not_lt_of_back (fun y => (hback y).imp fun _ hx => DuplicatorWins.good hx)
+          hpq (by omega) hGH
+      · exact Good.not_lt_of_back
+          (fun x => (hforth x).imp fun _ hy => (DuplicatorWins.good hy).symm)
+          (by omega) (by omega) hGH
     refine good_succ_iff.2 fun p q => ?_
     rcases lt_trichotomy (ext C a p) (ext C a q) with hpq | hpq | hpq
     · exact key p q hpq

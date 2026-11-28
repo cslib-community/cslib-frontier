@@ -88,27 +88,13 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
       (z.regs Reg.index) (z.regs Reg.found)
     ∀ z, Inv z → (Cond.lt Reg.index Reg.limit).Holds z →
       ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z := by
-  let V := fun q => values.getD q 0
+  intro V charge B F C Inv Φ z hz hc
   let M := a.regs Instances.produced
-  let charge := fun idx : InstanceIndex p => recordBase (m := m) hn V a.mem idx +
-    (40 * (n * D m) + 67)
-  let B := fun i => charge (order i)
-  let F := fun i => recordFailures (m := m) (g := g) hn V a.mem (order i)
-  let C := 42 * pieceSize (D m) g + 28
-  let Inv := Invariant (m := m) (g := g) V a x order hn
-  let Φ := fun z : Data 416 => remainingCharge B F C M (z.regs Reg.index) (z.regs Reg.found)
-  dsimp only
-  intro z hz hc
-  have hguard : z.regs Reg.index < z.regs Reg.limit := hc
-  have before : z.regs Reg.found = 0 := by
-    rcases hz.flag with h | h
-    · exact h
-    · have hlim := hz.limit
-      rw [h, ite_eq_left rfl] at hlim
-      omega
+  have before : z.regs Reg.found = 0 := hz.flag.resolve_right fun h => by
+    simpa [h, ne_of_gt hc] using hz.limit
   have lim : z.regs Reg.limit = M := by
     simpa only [before, zero_ne_one, ite_false] using hz.limit
-  have hi : z.regs Reg.index < M := by omega
+  have hi : z.regs Reg.index < M := lim ▸ hc
   obtain ⟨y, S, T, he, hT, yi, yl, yo, ys, yf, hS, hcoarse, yhit, yw, ym,
       ycursor, yproduced, yheap⟩ :=
     exec_step values hlen hD hg hp hN hv hW a z hout hz.cursor hz.progress hz.heap
@@ -116,42 +102,28 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
       hz.one hz.scans_coarse (order (z.regs Reg.index)) (order_mem _ hi) (order_ord _ hi)
   have newflag : y.regs Reg.found ≤ 1 := by rcases yf with h | h <;> omega
   have yInv : Inv y := by
-    refine ⟨ycursor, yproduced.trans yi.symm, yheap, ?_, ?_, ?_, yo, yf, ?_, ?_, ?_, ?_, yw⟩
+    refine ⟨ycursor, yproduced.trans yi.symm, yheap,
+      fun u hu => (ym u (Or.inl hu)).trans (hz.protected_mem hu), ?_,
+      yi ▸ Nat.succ_le_of_lt hi, yo, yf, by simpa only [yi] using yl, ?_,
+      by rw [ys, yi, Nat.add_mul, Nat.one_mul]; exact Nat.add_le_add hz.scans_coarse hcoarse,
+      ?_, yw⟩
     · intro u hu
-      exact (ym u (Or.inl hu)).trans (hz.protected_mem hu)
-    · intro u hu
-      have houtside : u < a.regs Instances.output ∨ a.regs Instances.output + (6 + 2 * (n * D m)) +
-          CallableProduct.windowSize n
-            (RecordProduct.recordQueryCount n (D m) p V (order (z.regs Reg.index))) ≤ u := by
-        rcases hu with h | h
-        · exact Or.inl h
-        · exact Or.inr (le_trans (Nat.add_le_add_left
-            (CallableProduct.windowSize_mono_right n (recordQueryCount_le n (D m) p V _)) _) h)
-      exact (ym u houtside).trans (hz.frame u hu)
-    · rw [yi]
-      exact Nat.succ_le_of_lt hi
-    · simpa only [yi] using yl
+      refine (ym u (hu.imp id fun h => le_trans (Nat.add_le_add_left
+        (CallableProduct.windowSize_mono_right n (recordQueryCount_le n (D m) p V _)) _) h)).trans
+        (hz.frame u hu)
     · have hs := hz.scans_failed
       rw [before, Nat.add_zero] at hs
       rw [ys, yi, Finset.sum_range_succ]
-      change z.regs Reg.scans + S ≤
-        (∑ j ∈ Finset.range (z.regs Reg.index), F j) + F (z.regs Reg.index) + y.regs Reg.found
-      change S ≤ F (z.regs Reg.index) + y.regs Reg.found at hS
-      change z.regs Reg.scans ≤ ∑ j ∈ Finset.range (z.regs Reg.index), F j at hs
+      dsimp only [V] at *
       omega
-    · rw [ys, yi, Nat.add_mul, Nat.one_mul]
-      exact Nat.add_le_add hz.scans_coarse hcoarse
-    · rw [yi, Nat.count_succ]
-      have searched := hz.searched
-      rw [before] at searched
-      rw [searched, Nat.zero_add]
+    · rw [yi, Nat.count_succ, hz.searched, before, Nat.zero_add]
       rcases yf with h | h
-      · rw [ite_eq_right (by intro hh; have := yhit.mpr hh; omega), h]
+      · rw [ite_eq_right (mt yhit.mpr (by omega)), h]
       · rw [ite_eq_left (yhit.mp h), h]
   refine ⟨y, T, he, yInv, ?_⟩
   change T + 2 ≤ B (z.regs Reg.index) + C * S at hT
-  have paid := remainingCharge_step (base := B) (failures := F) (C := C) hi hT hS newflag
-  simpa only [Φ, yi, before] using paid
+  simpa only [Φ, yi, before] using
+    remainingCharge_step (base := B) (failures := F) (C := C) hi hT hS newflag
 
 /-- Construct and immediately consume each logical record, stopping at the first original
 witness. The reference readback indexes immutable catalogue data and mathematical charges;
@@ -199,117 +171,77 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
       y.regs (producerBank Instances.produced) = y.regs Reg.index ∧
       y.regs (producerBank Instances.heap) = y.regs (producerBank Instances.output) := by
   classical
-  let V := fun q => values.getD q 0
-  let wAB := fun u v : Fin n => V (pairIndex (u, v))
-  let wBC := fun b c : Fin n => V (n * n + pairIndex (b, c))
-  let wAC := fun u c : Fin n => V (2 * (n * n) + pairIndex (u, c))
+  intro V wAB wBC wAC hn
   have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
-  have hn : 0 < n := lt_of_lt_of_le (by omega) hDn
   have hp0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
   let M := a.regs Instances.produced
   let I := instanceIndices wAB (D m) g p
   obtain ⟨f, finj, hf, fsurj⟩ := exists_occupied_order V hout hD hDn hg hp0
   let order : ℕ → InstanceIndex p := fun i =>
-    if hi : i < M then f ⟨i, hi⟩ else (⟨0, Nat.pos_of_ne_zero hp0⟩, 0, 0)
+    if hi : i < M then f ⟨i, hi⟩ else ⟨⟨0, Nat.pos_of_ne_zero hp0⟩, 0, 0⟩
   have order_at (i : ℕ) (hi : i < M) : order i = f ⟨i, hi⟩ := dite_eq_left hi
-  have order_mem (i : ℕ) (hi : i < M) : order i ∈ I := by
-    rw [order_at i hi]
-    exact (hf _).1
+  have order_mem (i : ℕ) (hi : i < M) : order i ∈ I := order_at i hi ▸ (hf _).1
   have order_ord (i : ℕ) (hi : i < M) :
-      RecordProduct.recordOrdinal n (D m) g p V (order i) = i := by
-    rw [order_at i hi]
-    exact (hf _).2
+      RecordProduct.recordOrdinal n (D m) g p V (order i) = i := order_at i hi ▸ (hf _).2
   have sum_eq (charge : InstanceIndex p → ℕ) :
-      (∑ j ∈ Finset.range M, charge (order j)) = ∑ idx ∈ I, charge idx := by
-    apply Finset.sum_bij (fun i hi => f ⟨i, Finset.mem_range.mp hi⟩)
-    · exact fun i hi => (hf _).1
-    · intro i hi j hj heq
-      exact congrArg Fin.val (finj heq)
-    · intro idx hidx
-      obtain ⟨i, hi⟩ := fsurj idx hidx
-      exact ⟨i.val, Finset.mem_range.mpr i.isLt, hi⟩
-    · intro i hi
-      rw [order_at i (Finset.mem_range.mp hi)]
+      (∑ j ∈ Finset.range M, charge (order j)) = ∑ idx ∈ I, charge idx :=
+    Finset.sum_bij (fun i hi => f ⟨i, Finset.mem_range.mp hi⟩) (fun _ _ => (hf _).1)
+      (fun _ _ _ _ heq => congrArg Fin.val (finj heq))
+      (fun idx hidx => let ⟨i, hi⟩ := fsurj idx hidx; ⟨i.val, Finset.mem_range.mpr i.isLt, hi⟩)
+      (fun i hi => by rw [order_at i (Finset.mem_range.mp hi)])
   let charge := fun (idx : InstanceIndex p) =>
     recordBase (m := m) hn V a.mem idx + (40 * (n * D m) + 67)
   let B := fun i => charge (order i)
   let F := fun i => recordFailures (m := m) (g := g) hn V a.mem (order i)
   let C := 42 * pieceSize (D m) g + 28
-  have hF : (∑ j ∈ Finset.range M, F j) ≤ falsePositiveCount wAB wBC wAC p := by
-    rw [show (∑ j ∈ Finset.range M, F j) =
-      ∑ idx ∈ I, recordFailures (m := m) (g := g) hn V a.mem idx from
-        sum_eq (recordFailures (m := m) (g := g) hn V a.mem)]
-    exact sum_recordFailures_le hn V hout hD hDn hg hp I (fun _ hi => hi)
+  have hF : (∑ j ∈ Finset.range M, F j) ≤ falsePositiveCount wAB wBC wAC p :=
+    (sum_eq (recordFailures (m := m) (g := g) hn V a.mem)).trans_le
+      (sum_recordFailures_le hn V hout hD hDn hg hp I (fun _ hi => hi))
   let Inv := Invariant (m := m) (g := g) V a x order hn
   let Φ := fun z : Data 416 => remainingCharge B F C M (z.regs Reg.index) (z.regs Reg.found)
-  have body : ∀ z, Inv z → (Cond.lt Reg.index Reg.limit).Holds z →
-      ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z := by
-    exact exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
+  have body := exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
   have h1 : Fits (w + 2) 1 := (counter_fits hW).of_le (by unfold counterEnvelope; omega)
   obtain ⟨s, hs, sm, si, sl, sf, ss, so, sbank⟩ := exec_setup x h1
   have sInv : Inv s := by
     refine ⟨cursor.transfer (fun j _ _ _ _ => sbank _ (by change j.val < 400; omega)),
-      ?_, ?_, ?_, ?_, ?_, so, Or.inl sf, ?_, ?_, ?_, ?_, ?_⟩
-    · exact ((sbank _ (by decide)).trans hproduced).trans si.symm
-    · exact ((sbank _ (by decide)).trans hslotHeap).trans (sbank _ (by decide)).symm
-    · intro u hu
-      exact (congrFun sm u).trans (hmem hu)
-    · intro u _
-      exact congrFun sm u
-    · rw [si]
-      exact Nat.zero_le _
-    · rw [sf, ite_eq_right (by decide : ¬(0 : ℕ) = 1), sl]
-      have hc := cursor.total
-      rw [cursor.chunks, cursor.pieces] at hc
-      exact hc.trans hout.2.2.2.2.1.symm
-    · simp only [si, ss, sf, Finset.range_zero, Finset.sum_empty, Nat.zero_add, le_refl]
-    · simp only [ss, si, Nat.zero_mul, le_refl]
-    · simp only [si, sf, Nat.count_zero]
-    · intro h
-      omega
+      ((sbank _ (by decide)).trans hproduced).trans si.symm,
+      ((sbank _ (by decide)).trans hslotHeap).trans (sbank _ (by decide)).symm,
+      fun u hu => (congrFun sm u).trans (hmem hu), fun u _ => congrFun sm u,
+      si ▸ Nat.zero_le _, so, Or.inl sf, ?_,
+      by simp only [si, ss, sf, Finset.range_zero, Finset.sum_empty, Nat.zero_add, le_refl],
+      by simp only [ss, si, Nat.zero_mul, le_refl],
+      by simp only [si, sf, Nat.count_zero], fun h => by omega⟩
+    rw [sf, ite_eq_right (by decide : ¬(0 : ℕ) = 1), sl]
+    have hc := cursor.total
+    rw [cursor.chunks, cursor.pieces] at hc
+    exact hc.trans hout.2.2.2.2.1.symm
   obtain ⟨y, hy, hIy, hcy⟩ := ExecWithin.loop_potential Inv Φ body sInv
   have hbudget : 5 + (Φ s + 2) ≤
-      (∑ idx ∈ I, charge idx) +
-        C * (falsePositiveCount wAB wBC wAC p + 1) + 7 := by
+      (∑ idx ∈ I, charge idx) + C * (falsePositiveCount wAB wBC wAC p + 1) + 7 := by
     dsimp only [Φ, remainingCharge]
-    rw [si, sf]
-    simp only [Finset.range_zero, Finset.sum_empty, Nat.sub_zero]
-    have hmul := Nat.mul_le_mul_left C (Nat.add_le_add_right hF 1)
+    simp only [si, sf, Finset.range_zero, Finset.sum_empty, Nat.sub_zero]
+    have := Nat.mul_le_mul_left C (Nat.add_le_add_right hF 1)
     rw [sum_eq charge]
     omega
-  have hex : ExecWithin (w + 2) traverse x y
-      ((∑ idx ∈ I, charge idx) +
-        C * (falsePositiveCount wAB wBC wAC p + 1) + 7) := (hs.seq hy).mono hbudget
-  refine ⟨y, hex, hIy.flag, ?_, ?_, hIy.witness, hIy.frame, hIy.cursor, hIy.progress, hIy.heap⟩
-  · exact hIy.scans_failed.trans (Nat.add_le_add_right
-      ((sum_prefix_le F hIy.index_le).trans hF) _)
-  · constructor
-    · intro hf
-      obtain ⟨ha, hb, hc, hw⟩ := hIy.witness hf
-      exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, hw⟩
-    · intro hzero
-      by_contra hnot
-      have hf : y.regs Reg.found = 0 := by rcases hIy.flag with h | h <;> omega
-      have hlim : y.regs Reg.limit = M := by
-        simpa only [hf, zero_ne_one, ite_false] using hIy.limit
-      have hi : y.regs Reg.index = M := by
-        change ¬ y.regs Reg.index < y.regs Reg.limit at hcy
-        have := hIy.index_le
-        omega
-      obtain ⟨u, v, c, hw⟩ := hzero
-      have hans := RecordProduct.product_answers_correct V wAB wBC wAC hD hg hp
-        (by intro b c; rfl) (by intro u c; rfl)
-      obtain ⟨rho, k, piece, hacc, hc⟩ := exists_mem_acceptedPairs hD hDn hg hp0 hans hw
-      obtain ⟨hidx, hquery, -⟩ := mem_acceptedPairs.mp hacc
-      obtain ⟨j, hj⟩ := fsurj (rho, k, piece) hidx
-      have hh : recordHit (m := m) (n := n) (g := g) V (order j.val) := by
-        rw [order_at j.val j.isLt, hj]
-        exact ⟨(u, v), hquery, c, hc, hw⟩
-      have hpositive := Nat.count_strict_mono (p := fun j =>
-        recordHit (m := m) (n := n) (g := g) V (order j)) hh j.isLt
-      have searched := hIy.searched
-      rw [hf, hi] at searched
-      rw [searched] at hpositive
-      exact Nat.not_lt_zero _ hpositive
+  refine ⟨y, (hs.seq hy).mono hbudget, hIy.flag,
+    hIy.scans_failed.trans (Nat.add_le_add_right ((sum_prefix_le F hIy.index_le).trans hF) _),
+    ⟨fun hf => let ⟨ha, hb, hc, hw⟩ := hIy.witness hf; ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, hw⟩, ?_⟩,
+    hIy.witness, hIy.frame, hIy.cursor, hIy.progress, hIy.heap⟩
+  intro ⟨u, v, c, hw⟩
+  by_contra hnot
+  have hf : y.regs Reg.found = 0 := hIy.flag.resolve_right hnot
+  have hi : y.regs Reg.index = M := by
+    have hlim : y.regs Reg.limit = M := by simpa [hf] using hIy.limit
+    exact le_antisymm hIy.index_le (not_lt.mp (hlim ▸ hcy))
+  obtain ⟨idx, hacc, hc⟩ := exists_mem_acceptedPairs hD hDn hg hp0
+    (RecordProduct.product_answers_correct V wAB wBC wAC hD hg hp (fun _ _ => rfl) (fun _ _ => rfl))
+    hw
+  obtain ⟨j, hj⟩ := fsurj idx (mem_acceptedPairs.mp hacc).1
+  have hh : recordHit (m := m) (n := n) (g := g) V (order j.val) := by
+    rw [order_at j.val j.isLt, hj]
+    exact ⟨(u, v), (mem_acceptedPairs.mp hacc).2.1, c, hc, hw⟩
+  have h0 : Nat.count (fun k => recordHit (m := m) (n := n) (g := g) V (order k)) M = 0 :=
+    hi ▸ hIy.searched.trans hf
+  exact Nat.not_lt_zero _ (h0 ▸ Nat.count_strict_mono hh j.isLt)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

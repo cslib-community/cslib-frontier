@@ -59,13 +59,10 @@ theorem map_evalInt {A B : Type*} [CommRing A] [CommRing B] (φ : A →+* B) (y 
     φ (evalInt y p) = evalInt (φ y) p := by
   induction p using Polynomial.induction_on' with
   | add p q ihp ihq =>
-    rw [evalInt, eval₂_add, map_add, ← evalInt, ← evalInt, ihp, ihq, evalInt, evalInt,
-      ← eval₂_add]
-    rfl
+    simp only [evalInt, eval₂_add, map_add] at ihp ihq ⊢
+    rw [ihp, ihq]
   | monomial n a =>
-    rw [evalInt, evalInt, eval₂_monomial, eval₂_monomial, map_mul, map_pow]
-    congr 1
-    rw [eq_intCast, eq_intCast, map_intCast]
+    simp only [evalInt, eval₂_monomial, map_mul, map_pow, eq_intCast, map_intCast]
 
 /-- Mapping `parityFactor ℓ y` coefficientwise by `φ : A →+* B` yields `parityFactor ℓ (φ y)`. -/
 theorem map_parityFactor {A B : Type*} [CommRing A] [CommRing B] (φ : A →+* B) (ℓ : ℕ) (y : A) :
@@ -80,9 +77,7 @@ theorem map_parityFactor {A B : Type*} [CommRing A] [CommRing B] (φ : A →+* B
 theorem map_sumCoeffsBelow {A B : Type*} [Semiring A] [Semiring B] (φ : A →+* B)
     (P : A[X]) (m : ℕ) :
     φ (P.sumCoeffsBelow m) = (P.map φ).sumCoeffsBelow m := by
-  rw [sumCoeffsBelow, sumCoeffsBelow, map_sum]
-  refine sum_congr rfl fun j _ => ?_
-  rw [coeff_map]
+  simp only [sumCoeffsBelow, map_sum, coeff_map]
 
 /-- Evaluating the `s`-th coefficient of `∏ i ∈ I, parityFactor ℓ (L i)` at `t : R` agrees with
 the `s`-th coefficient of `∏ i ∈ I, parityFactor ℓ ((L i).eval t)`. -/
@@ -90,11 +85,9 @@ theorem eval_coeff_prod_parityFactor [CommRing R] (I : Finset κ) (ℓ : ℕ)
     (L : κ → R[X]) (s : ℕ) (t : R) :
     ((∏ i ∈ I, parityFactor ℓ (L i)).coeff s).eval t =
       (∏ i ∈ I, parityFactor ℓ ((L i).eval t)).coeff s := by
-  let φ : R[X] →+* R := evalRingHom t
-  change φ ((∏ i ∈ I, parityFactor ℓ (L i)).coeff s) = _
+  change evalRingHom t ((∏ i ∈ I, parityFactor ℓ (L i)).coeff s) = _
   rw [← coeff_map, Polynomial.map_prod]
-  refine congrArg (fun Q : R[X] => Q.coeff s) (prod_congr rfl fun i _ => ?_)
-  exact map_parityFactor φ ℓ (L i)
+  exact congrArg (fun Q : R[X] => Q.coeff s) (prod_congr rfl fun i _ => map_parityFactor _ ℓ _)
 
 /-- Evaluating `sumCoeffsBelow m` of `∏ i ∈ I, parityFactor ℓ (L i)` at `t : R` agrees with
 `sumCoeffsBelow m` of `∏ i ∈ I, parityFactor ℓ ((L i).eval t)`. -/
@@ -112,20 +105,12 @@ theorem natDegree_evalInt_le [CommRing R] (y : R[X]) (p : ℤ[X]) :
   refine (natDegree_sum_le _ _).trans ?_
   rw [Finset.fold_max_le]
   refine ⟨Nat.zero_le _, fun i hi => ?_⟩
-  rw [mem_range, Nat.lt_succ_iff] at hi
   dsimp only [Function.comp_apply]
-  have hcast : (Int.castRingHom R[X] (p.coeff i)) = C (p.coeff i : R) := by
-    rw [eq_intCast, ← C_eq_intCast]
-  rw [hcast]
-  calc
-    (C (p.coeff i : R) * y ^ i).natDegree
-      ≤ (C (p.coeff i : R)).natDegree + (y ^ i).natDegree := natDegree_mul_le
-    _ ≤ 0 + i * y.natDegree := by
-        rw [natDegree_C]
-        exact add_le_add le_rfl natDegree_pow_le
-    _ ≤ p.natDegree * y.natDegree := by
-        rw [zero_add]
-        exact Nat.mul_le_mul_right _ hi
+  rw [eq_intCast, ← C_eq_intCast]
+  calc (C (p.coeff i : R) * y ^ i).natDegree
+      ≤ i * y.natDegree := (natDegree_C_mul_le _ _).trans natDegree_pow_le
+    _ ≤ p.natDegree * y.natDegree :=
+        Nat.mul_le_mul_right _ (Nat.lt_succ_iff.mp (mem_range.mp hi))
 
 /-- `evalInt y (parityBaseDigit ℓ j)` has `natDegree ≤ y.natDegree`. -/
 theorem natDegree_evalInt_parityBaseDigit_le [CommRing R] (ℓ j : ℕ) (y : R[X]) :
@@ -171,39 +156,29 @@ theorem natDegree_coeff_prod_parityFactor_le [CommRing R] (I : Finset κ) (ℓ :
   induction I using Finset.induction_on with
   | empty =>
     intro s
-    simp only [prod_empty, card_empty, zero_add]
-    rcases eq_or_ne s 0 with rfl | hs
-    · simp only [coeff_one_zero, natDegree_one, zero_le]
-    · rw [coeff_one, ite_eq_right hs, natDegree_zero]
-      exact Nat.zero_le _
+    by_cases hs : s = 0 <;> simp [coeff_one, hs]
   | insert a I ha ih =>
     intro s
     rw [prod_insert ha, card_insert_of_notMem ha, coeff_mul]
-    have haL : (L a).natDegree ≤ d := hL a (mem_insert_self a I)
-    have hIL : ∀ i ∈ I, (L i).natDegree ≤ d := fun i hi => hL i (mem_insert_of_mem hi)
     refine (natDegree_sum_le _ _).trans ?_
     rw [Finset.fold_max_le]
     refine ⟨Nat.zero_le _, fun p hp => ?_⟩
-    rw [mem_antidiagonal] at hp
-    calc
-      (((parityFactor ℓ (L a)).coeff p.1) *
+    calc (((parityFactor ℓ (L a)).coeff p.1) *
           ((∏ i ∈ I, parityFactor ℓ (L i)).coeff p.2)).natDegree
-        ≤ ((parityFactor ℓ (L a)).coeff p.1).natDegree +
-            ((∏ i ∈ I, parityFactor ℓ (L i)).coeff p.2).natDegree := natDegree_mul_le
-      _ ≤ (1 + 2 * p.1) * (L a).natDegree + d * (#I + 2 * p.2) :=
-          add_le_add (natDegree_coeff_parityFactor_le ℓ (L a) p.1) (ih hIL p.2)
-      _ ≤ (1 + 2 * p.1) * d + d * (#I + 2 * p.2) := by gcongr
-      _ = d * (#I + 1 + 2 * (p.1 + p.2)) := by ring
-      _ = d * (#I + 1 + 2 * s) := by rw [hp]
+        ≤ (1 + 2 * p.1) * (L a).natDegree + d * (#I + 2 * p.2) :=
+          natDegree_mul_le.trans (add_le_add (natDegree_coeff_parityFactor_le ℓ (L a) p.1)
+            (ih (fun i hi => hL i (mem_insert_of_mem hi)) p.2))
+      _ ≤ (1 + 2 * p.1) * d + d * (#I + 2 * p.2) :=
+          Nat.add_le_add_right (Nat.mul_le_mul_left _ (hL a (mem_insert_self a I))) _
+      _ = d * (#I + 1 + 2 * s) := by rw [← mem_antidiagonal.mp hp]; ring
 
 /-- For `s < ℓ`, the `V ^ s`-coefficient of `∏ i ∈ I, parityFactor ℓ (L i)` has
 `natDegree ≤ d * (#I + 2 * (ℓ - 1))`. -/
 theorem natDegree_coeff_prod_parityFactor_le_of_lt [CommRing R] (I : Finset κ) (ℓ : ℕ)
     (L : κ → R[X]) {d : ℕ} (hL : ∀ i ∈ I, (L i).natDegree ≤ d) {s : ℕ} (hs : s < ℓ) :
     ((∏ i ∈ I, parityFactor ℓ (L i)).coeff s).natDegree ≤
-      d * (#I + 2 * (ℓ - 1)) := by
-  refine (natDegree_coeff_prod_parityFactor_le I ℓ L hL s).trans ?_
-  exact Nat.mul_le_mul_left d (by omega)
+      d * (#I + 2 * (ℓ - 1)) :=
+  (natDegree_coeff_prod_parityFactor_le I ℓ L hL s).trans (Nat.mul_le_mul_left d (by omega))
 
 /-- The truncated sum `sumCoeffsBelow ℓ (∏ i ∈ I, parityFactor ℓ (L i))` has
 `natDegree ≤ d * (#I + 2 * (ℓ - 1))`. -/
@@ -211,10 +186,9 @@ theorem natDegree_sumCoeffsBelow_prod_parityFactor_le [CommRing R] (I : Finset �
     (L : κ → R[X]) {d : ℕ} (hL : ∀ i ∈ I, (L i).natDegree ≤ d) :
     ((∏ i ∈ I, parityFactor ℓ (L i)).sumCoeffsBelow ℓ).natDegree ≤
       d * (#I + 2 * (ℓ - 1)) := by
-  rw [sumCoeffsBelow]
   refine (natDegree_sum_le _ _).trans ?_
   rw [Finset.fold_max_le]
-  refine ⟨Nat.zero_le _, fun s hs => ?_⟩
-  exact natDegree_coeff_prod_parityFactor_le_of_lt I ℓ L hL (mem_range.mp hs)
+  exact ⟨Nat.zero_le _, fun _ hs =>
+    natDegree_coeff_prod_parityFactor_le_of_lt I ℓ L hL (mem_range.mp hs)⟩
 
 end Polynomial

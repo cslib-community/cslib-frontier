@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut
+public import Mathlib.Algebra.Order.Monoid.Defs
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -36,9 +37,12 @@ The cut function `X ↦ cutWeight W X` is submodular, and posimodular for a mult
 * `Cslib.WeightedCut.le_minCutBetween_iff`: for `s ≠ t`, `m ≤ λ(s, t)` exactly when every set
   containing `s` and missing `t` weighs at least `m`.
 * `Cslib.WeightedCut.minCutBetween_comm`: `λ(s, t) = λ(t, s)` for a multigraph.
-* `Cslib.WeightedCut.cutWeight_union_add_cutWeight_inter_le`: submodularity of the cut function.
-* `Cslib.WeightedCut.cutWeight_sdiff_add_cutWeight_sdiff_le`: posimodularity of the cut function of
-  a multigraph.
+* `Cslib.WeightedCut.cutWeight_union_add_cutWeight_inter_le_of_nonneg`: submodularity of the cut
+  function of non-negative weights in an ordered additive monoid (`ℕ`, `ℝ`, ...), and its `ℕ` case
+  `Cslib.WeightedCut.cutWeight_union_add_cutWeight_inter_le`.
+* `Cslib.WeightedCut.cutWeight_sdiff_add_cutWeight_sdiff_le_of_symm`: posimodularity of the cut
+  function of symmetric non-negative weights, and its multigraph case
+  `Cslib.WeightedCut.cutWeight_sdiff_add_cutWeight_sdiff_le`.
 * `Cslib.WeightedCut.min_le_minCutBetween`: the triangle inequality
   `min (λ(u, v)) (λ(v, w)) ≤ λ(u, w)`.
 
@@ -54,14 +58,21 @@ namespace Cslib.WeightedCut
 
 variable {V : Type*} [Fintype V] [DecidableEq V]
 
-/-- The weight of the complement `Xᶜ` of a cut of a multigraph is the weight of `X`. -/
-theorem cutWeight_compl' {W : V → V → ℕ} (hW : IsMultigraph W) (X : Finset V) :
-    cutWeight W Xᶜ = cutWeight W X := by
-  rw [Finset.compl_eq_univ_sdiff, cutWeight_compl hW]
+section Ordered
 
-/-- The cut function is submodular: `w(δ(A ∪ B)) + w(δ(A ∩ B)) ≤ w(δ(A)) + w(δ(B))`. Symmetry of
-`W` is not needed. -/
-theorem cutWeight_union_add_cutWeight_inter_le (W : V → V → ℕ) (A B : Finset V) :
+variable {M : Type*} [AddCommMonoid M]
+
+/-- For symmetric weights, the complement `Xᶜ` of a cut weighs as much as `X`. -/
+theorem cutWeight_compl_of_symm {W : V → V → M} (hW : ∀ u v, W u v = W v u) (X : Finset V) :
+    cutWeight W Xᶜ = cutWeight W X := by
+  rw [Finset.compl_eq_univ_sdiff, cutWeight_univ_sdiff_of_symm hW]
+
+variable [PartialOrder M] [IsOrderedAddMonoid M]
+
+/-- The cut function of non-negative weights is submodular:
+`w(δ(A ∪ B)) + w(δ(A ∩ B)) ≤ w(δ(A)) + w(δ(B))`. Symmetry of `W` is not needed. -/
+theorem cutWeight_union_add_cutWeight_inter_le_of_nonneg (W : V → V → M) (hW : ∀ u v, 0 ≤ W u v)
+    (A B : Finset V) :
     cutWeight W (A ∪ B) + cutWeight W (A ∩ B) ≤ cutWeight W A + cutWeight W B := by
   have key : ∀ C : Finset V, cutWeight W C =
       ∑ u, ∑ v, if u ∈ C ∧ v ∉ C then W u v else 0 := by
@@ -83,21 +94,38 @@ theorem cutWeight_union_add_cutWeight_inter_le (W : V → V → ℕ) (A B : Fins
   rw [← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
   refine Finset.sum_le_sum fun v _ => ?_
   by_cases huA : u ∈ A <;> by_cases huB : u ∈ B <;> by_cases hvA : v ∈ A <;>
-    by_cases hvB : v ∈ B <;> simp [huA, huB, hvA, hvB]
+    by_cases hvB : v ∈ B <;> simp [huA, huB, hvA, hvB, hW]
+
+/-- The cut function of symmetric non-negative weights is posimodular:
+`w(δ(A \ B)) + w(δ(B \ A)) ≤ w(δ(A)) + w(δ(B))`. -/
+theorem cutWeight_sdiff_add_cutWeight_sdiff_le_of_symm {W : V → V → M}
+    (hWs : ∀ u v, W u v = W v u) (hWn : ∀ u v, 0 ≤ W u v) (A B : Finset V) :
+    cutWeight W (A \ B) + cutWeight W (B \ A) ≤ cutWeight W A + cutWeight W B := by
+  have h := cutWeight_union_add_cutWeight_inter_le_of_nonneg W hWn A Bᶜ
+  have hu : A ∪ Bᶜ = (B \ A)ᶜ := Finset.ext fun _ => by simp; tauto
+  rw [cutWeight_compl_of_symm hWs B, ← Finset.sdiff_eq_inter_compl, hu,
+    cutWeight_compl_of_symm hWs] at h
+  rwa [add_comm (cutWeight W (A \ B))]
+
+end Ordered
+
+/-- The weight of the complement `Xᶜ` of a cut of a multigraph is the weight of `X`. -/
+theorem cutWeight_compl' {W : V → V → ℕ} (hW : IsMultigraph W) (X : Finset V) :
+    cutWeight W Xᶜ = cutWeight W X :=
+  cutWeight_compl_of_symm hW.1 X
+
+/-- The cut function is submodular: `w(δ(A ∪ B)) + w(δ(A ∩ B)) ≤ w(δ(A)) + w(δ(B))`. Symmetry of
+`W` is not needed. -/
+theorem cutWeight_union_add_cutWeight_inter_le (W : V → V → ℕ) (A B : Finset V) :
+    cutWeight W (A ∪ B) + cutWeight W (A ∩ B) ≤ cutWeight W A + cutWeight W B :=
+  cutWeight_union_add_cutWeight_inter_le_of_nonneg W (fun _ _ => Nat.zero_le _) A B
 
 /-- The cut function of a multigraph is posimodular:
 `w(δ(A \ B)) + w(δ(B \ A)) ≤ w(δ(A)) + w(δ(B))`. -/
 theorem cutWeight_sdiff_add_cutWeight_sdiff_le {W : V → V → ℕ} (hW : IsMultigraph W)
     (A B : Finset V) :
-    cutWeight W (A \ B) + cutWeight W (B \ A) ≤ cutWeight W A + cutWeight W B := by
-  have h := cutWeight_union_add_cutWeight_inter_le W A Bᶜ
-  rw [cutWeight_compl' hW B, ← Finset.sdiff_eq_inter_compl] at h
-  have hu : A ∪ Bᶜ = (B \ A)ᶜ := by
-    ext x
-    simp only [Finset.mem_union, Finset.mem_compl, Finset.mem_sdiff]
-    tauto
-  rw [hu, cutWeight_compl' hW] at h
-  omega
+    cutWeight W (A \ B) + cutWeight W (B \ A) ≤ cutWeight W A + cutWeight W B :=
+  cutWeight_sdiff_add_cutWeight_sdiff_le_of_symm hW.1 (fun _ _ => Nat.zero_le _) A B
 
 /-- The minimum `s`–`t` cut weight `λ(s, t)` of a weighted multigraph `W`: the least weight of a
 vertex set containing `s` and missing `t`, and `0` when `s = t`. -/
@@ -121,26 +149,20 @@ theorem exists_cutWeight_eq_minCutBetween (W : V → V → ℕ) {s t : V} (hst :
     ⟨_, {s}, Finset.mem_singleton_self s, fun h => hst (Finset.mem_singleton.mp h).symm, rfl⟩
 
 theorem le_minCutBetween_iff (W : V → V → ℕ) {s t : V} (hst : s ≠ t) (m : ℕ) :
-    m ≤ minCutBetween W s t ↔ ∀ X : Finset V, s ∈ X → t ∉ X → m ≤ cutWeight W X := by
-  constructor
-  · intro hm X hs ht
-    exact hm.trans (minCutBetween_le_cutWeight W hs ht)
-  · intro h
+    m ≤ minCutBetween W s t ↔ ∀ X : Finset V, s ∈ X → t ∉ X → m ≤ cutWeight W X :=
+  ⟨fun hm _ hs ht => hm.trans (minCutBetween_le_cutWeight W hs ht), fun h => by
     obtain ⟨X, hs, ht, hX⟩ := exists_cutWeight_eq_minCutBetween W hst
-    exact hX ▸ h X hs ht
+    exact hX ▸ h X hs ht⟩
 
 /-- A set containing `s` and missing `t` is a minimum `s`–`t` cut exactly when its weight is at
 most that of every such set. -/
 theorem cutWeight_eq_minCutBetween_iff (W : V → V → ℕ) {s t : V} {X : Finset V} (hs : s ∈ X)
     (ht : t ∉ X) :
     cutWeight W X = minCutBetween W s t ↔
-      ∀ Y : Finset V, s ∈ Y → t ∉ Y → cutWeight W X ≤ cutWeight W Y := by
-  have hst : s ≠ t := fun h => ht (h ▸ hs)
-  constructor
-  · intro hX Y hsY htY
-    exact hX ▸ minCutBetween_le_cutWeight W hsY htY
-  · intro h
-    exact le_antisymm ((le_minCutBetween_iff W hst _).mpr h) (minCutBetween_le_cutWeight W hs ht)
+      ∀ Y : Finset V, s ∈ Y → t ∉ Y → cutWeight W X ≤ cutWeight W Y :=
+  ⟨fun hX _ hsY htY => hX ▸ minCutBetween_le_cutWeight W hsY htY, fun h =>
+    le_antisymm ((le_minCutBetween_iff W (fun he : s = t => ht (he ▸ hs)) _).mpr h)
+      (minCutBetween_le_cutWeight W hs ht)⟩
 
 /-- The minimum cut weight between two vertices of a multigraph is symmetric. -/
 theorem minCutBetween_comm {W : V → V → ℕ} (hW : IsMultigraph W) (s t : V) :
@@ -170,13 +192,9 @@ attained at least twice: if `λ(u, v) < λ(v, w)` then `λ(u, w) = λ(u, v)`. -/
 theorem minCutBetween_eq_of_lt {W : V → V → ℕ} (hW : IsMultigraph W) {u v w : V} (huv : u ≠ v)
     (h : minCutBetween W u v < minCutBetween W v w) :
     minCutBetween W u w = minCutBetween W u v := by
-  have huw : u ≠ w := by
-    rintro rfl
-    rw [minCutBetween_comm hW v u] at h
-    exact lt_irrefl _ h
+  have huw : u ≠ w := fun he => lt_irrefl _ (he ▸ minCutBetween_comm hW v u ▸ h)
   have h1 := min_le_minCutBetween W huw v
-  have h2 := min_le_minCutBetween W huv w
-  rw [minCutBetween_comm hW w v] at h2
+  have h2 := minCutBetween_comm hW w v ▸ min_le_minCutBetween W huv w
   rw [min_le_iff] at h1 h2
   omega
 

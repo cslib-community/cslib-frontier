@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.State
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.LeafStep
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Base case of the actual native Strassen traversal induction
@@ -60,29 +61,17 @@ theorem exec_ready_zero {w p A B a b out scratch frames frame : ℕ}
     (by rw [hx.output_eq]; exact haddr.of_le (by unfold addressBound; omega))
     (by simpa only [hx.inputA_eq, hx.output_eq, pow_zero, Nat.one_mul] using hl.left_disjoint)
     (by simpa only [hx.inputB_eq, hx.output_eq, pow_zero, Nat.one_mul] using hl.right_disjoint)
-  refine ⟨y, ?_, ?_⟩
-  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simpa only [hx.output_eq, pow_zero, Nat.one_mul,
-        Cslib.Algorithms.MatrixMultiplication.Strassen.multiply] using values
-    · intro q hq
-      have hno : ¬(out ≤ q ∧ q < out + p) := by
-        intro h
-        exact hq (Or.inl (by simpa only [pow_zero, Nat.one_mul] using h))
-      exact outside q (by rw [hx.output_eq]; omega)
-    · exact (hyregs Reg.output (by decide) (by decide) (by decide) (by decide)).trans hx.output_eq
-    · exact (hyregs Reg.modulus (by decide) (by decide) (by decide) (by decide)).trans hx.modulus_eq
-    · exact (hyregs Reg.frames (by decide) (by decide) (by decide) (by decide)).trans hx.frames_eq
-    · simpa only [hx.frames_eq, hx.frame_eq] using hyframe
-    · simpa only [hx.frames_eq, hx.frame_eq, hx.active_eq] using hyactive
-    · exact (hyregs Reg.zero (by decide) (by decide) (by decide) (by decide)).trans hx.zero_eq
-    · exact (hyregs Reg.one (by decide) (by decide) (by decide) (by decide)).trans hx.one_eq
-    · exact (hyregs Reg.four (by decide) (by decide) (by decide) (by decide)).trans hx.four_eq
-    · exact (hyregs Reg.frameWidth (by decide) (by decide) (by decide) (by decide)).trans
-        hx.frameWidth_eq
-  · intro z T hz
-    have hc : (Cond.lt Reg.zero Reg.active).Holds x := by
-      simp only [Cond.holds_lt, hx.zero_eq, hx.active_eq]
-      decide
+  refine ⟨y, ⟨?_, fun q hq => outside q ?_, by regs_frame, by regs_frame, by regs_frame,
+    by simpa only [hx.frames_eq, hx.frame_eq] using hyframe,
+    by simpa only [hx.frames_eq, hx.frame_eq, hx.active_eq] using hyactive,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩, fun z T hz => ?_⟩
+  · simpa only [hx.output_eq, pow_zero, Nat.one_mul,
+      Cslib.Algorithms.MatrixMultiplication.Strassen.multiply] using values
+  · have hno : ¬(out ≤ q ∧ q < out + p) := fun h =>
+      hq (Or.inl (by simpa only [pow_zero, Nat.one_mul] using h))
+    rw [hx.output_eq]; omega
+  · have hc : (Cond.lt Reg.zero Reg.active).Holds x := by
+      simp only [Cond.holds_lt, hx.zero_eq, hx.active_eq]; decide
     exact (ExecWithin.loop_iter hc hy hz).mono (by simp only [traceBudget]; omega)
 
 end Cslib.Algorithms.WordRAM.Strassen

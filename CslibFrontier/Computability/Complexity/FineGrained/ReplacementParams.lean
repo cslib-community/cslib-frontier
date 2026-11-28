@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingScale
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Order.Interval.Finset.Nat
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Foundations.Data.Nat.Asymptotics
 import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
 import Mathlib.Algebra.Order.Floor.Ring
@@ -166,10 +168,8 @@ theorem clog_lt_succ_sq_mul_pow_four {n : ℕ} (hnu : 1 ≤ Nat.clog 2 (Nat.clog
     Nat.clog 2 n < (numGroups n + 1) ^ 2 * Nat.clog 2 (Nat.clog 2 n) ^ 4 := by
   set lam := Nat.clog 2 n
   set nu := Nat.clog 2 lam
-  have hdiv : lam.sqrt + 1 ≤ (numGroups n + 1) * nu ^ 2 := by
-    have hlt := Nat.lt_mul_div_succ lam.sqrt (pow_pos hnu 2)
-    rw [mul_comm] at hlt
-    exact hlt
+  have hdiv : lam.sqrt + 1 ≤ (numGroups n + 1) * nu ^ 2 :=
+    (Nat.lt_mul_div_succ lam.sqrt (pow_pos hnu 2)).trans_eq (mul_comm _ _)
   calc lam < (lam.sqrt + 1) ^ 2 := Nat.lt_succ_sqrt' lam
     _ ≤ ((numGroups n + 1) * nu ^ 2) ^ 2 := Nat.pow_le_pow_left hdiv 2
     _ = (numGroups n + 1) ^ 2 * nu ^ 4 := by ring
@@ -214,19 +214,7 @@ theorem numNodes_eq_floor (n : ℕ) :
 /-- `rowBound β n` agrees with `(β + 3) * ⌈√λ⌉₊` for every `β` and `n`. -/
 theorem rowBound_eq_mul_ceil (β n : ℕ) :
     rowBound β n = (β + 3) * ⌈Real.sqrt (Nat.clog 2 n)⌉₊ := by
-  unfold rowBound; congr 1
-  set m := Nat.clog 2 n
-  rcases Nat.eq_zero_or_pos m with hm | hm
-  · simp only [hm, ↓reduceIte, Nat.cast_zero, Real.sqrt_zero, Nat.ceil_zero]
-  simp only [hm.ne', ↓reduceIte]
-  symm
-  rw [Nat.ceil_eq_iff (Nat.succ_ne_zero _), Nat.succ_sub_one,
-    Real.lt_sqrt (Nat.cast_nonneg _), Real.sqrt_le_iff]
-  have hlt : m - 1 < ((m - 1).sqrt + 1) ^ 2 := by
-    have h := Nat.lt_succ_sqrt (m - 1)
-    rwa [← sq] at h
-  exact ⟨by exact_mod_cast (Nat.sqrt_le' (m - 1)).trans_lt (Nat.sub_lt hm one_pos),
-    ⟨by positivity, by exact_mod_cast (by omega : m ≤ ((m - 1).sqrt + 1) ^ 2)⟩⟩
+  rw [rowBound, Real.natCeil_sqrt_eq]
 
 /-- Once `1 ≤ λ`, the interval length is at most `2 (β + 3) √λ`: `⌈√λ⌉₊ ≤ √λ + 1 ≤ 2 √λ`. -/
 private theorem rowBound_le_two_mul_sqrt {β n : ℕ} (hlam : 1 ≤ Nat.clog 2 n) :
@@ -314,9 +302,7 @@ theorem intervalStart_eq_natFloor {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 1 
   obtain ⟨hlt, hle⟩ := intervalStart_bounds hr hR hRQ
   have hnonneg : 0 ≤ mean n - ((rowBound β n : ℝ) - 1) / 2 :=
     (Nat.cast_nonneg (intervalStart β n)).trans hle
-  symm
-  rw [Nat.floor_eq_iff hnonneg]
-  exact ⟨hle, by linarith⟩
+  exact ((Nat.floor_eq_iff hnonneg).2 ⟨hle, by linarith⟩).symm
 
 /-- `(intervalStart β n : ℤ)` equals the integer floor `⌊μ - (R - 1) / 2⌋` once `2 ≤ r`, `1 ≤ R`,
 and `2 R ≤ Q`. -/
@@ -324,9 +310,7 @@ theorem intervalStart_eq_intFloor {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 1 
     (hRQ : 2 * rowBound β n ≤ numNodes n) :
     (intervalStart β n : ℤ) = ⌊mean n - ((rowBound β n : ℝ) - 1) / 2⌋ := by
   obtain ⟨hlt, hle⟩ := intervalStart_bounds hr hR hRQ
-  symm
-  rw [Int.floor_eq_iff]
-  exact ⟨by exact_mod_cast hle, by push_cast; linarith⟩
+  exact (Int.floor_eq_iff.2 ⟨by exact_mod_cast hle, by push_cast; linarith⟩).symm
 
 /-- The interval `I = {A₀, …, A₀ + R - 1}` has exact cardinality `R` whenever `1 ≤ R`. -/
 theorem card_interval {β n : ℕ} (hR : 1 ≤ rowBound β n) :
@@ -379,16 +363,6 @@ private theorem one_le_iter_clog_of_numNodes_pos {n : ℕ} (hQ : 0 < numNodes n)
   by_contra h
   simp only [not_le, Nat.lt_one_iff] at h
   simp only [numNodes, h, mul_zero, Nat.div_zero, lt_self_iff_false] at hQ
-
-private theorem log_le_of_le_two_pow {x : ℝ} {k : ℕ} (hx : 0 < x) (hxk : x ≤ (2 : ℝ) ^ k) :
-    Real.log x ≤ k := by
-  have hlog2 : Real.log 2 ≤ 1 := by
-    linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
-  calc Real.log x
-      ≤ Real.log ((2 : ℝ) ^ k) := Real.log_le_log hx hxk
-    _ = (k : ℝ) * Real.log 2 := Real.log_pow 2 k
-    _ ≤ (k : ℝ) * 1 := mul_le_mul_of_nonneg_left hlog2 (Nat.cast_nonneg k)
-    _ = k := mul_one _
 
 /-- **Deterministic Binomial tail bound of Lemma 4.8**: once `1 ≤ β`, `2 ≤ r`, `32 ≤ R`, and
 `6 R ≤ Q`, for every `1 ≤ b ≤ λ ^ β` the Binomial tail outside `interval β n` is strictly less than
@@ -451,8 +425,7 @@ theorem binomTail_lt_tailBudget {β n b : ℕ} (hβ : 1 ≤ β) (hr : 2 ≤ numG
       _ = Real.exp ((m + 1 : ℕ) : ℝ) := by rw [← Real.exp_nat_mul, mul_one]
       _ < Real.exp (16 * ((β : ℝ) + 3) ^ 2 * nu) := Real.exp_lt_exp.mpr harg_lt
   have hexp_lt_pow : 2 * Real.exp (-(16 * ((β : ℝ) + 3) ^ 2 * nu)) < 1 / (2 : ℝ) ^ m := by
-    rw [Real.exp_neg, ← div_eq_mul_inv, div_lt_div_iff₀ (Real.exp_pos _) (by positivity), one_mul]
-    exact hpow_lt
+    rwa [Real.exp_neg, ← div_eq_mul_inv, div_lt_div_iff₀ (Real.exp_pos _) (by positivity), one_mul]
   have hdenom_nat : b * r ^ 2 * lam ≤ 2 ^ m := by
     have hr2_lam : r ^ 2 ≤ lam :=
       (Nat.pow_le_pow_left (Nat.div_le_self _ _) 2).trans (Nat.sqrt_le' lam)
@@ -508,7 +481,7 @@ theorem rowCost_le {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 32 ≤ rowBound �
         _ = 2 ^ (lam / 128 + 2) := by rw [← pow_add, add_comm]
         _ ≤ 2 ^ lam := Nat.pow_le_pow_right two_pos (by omega)
     have hlog_D : Real.log (2 * (D : ℝ) + 1) ≤ lam :=
-      log_le_of_le_two_pow (by positivity) (by exact_mod_cast h2D_nat)
+      Real.log_le_of_le_two_pow (by positivity) (by exact_mod_cast h2D_nat)
     have hr_pos : (0 : ℝ) < r := by positivity
     have hlam_pos : (0 : ℝ) < lam := by positivity
     calc tau n * Real.log (2 * (D : ℝ) + 1)
@@ -546,13 +519,13 @@ theorem rowCost_le {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 32 ≤ rowBound �
         calc 2 * (Q : ℝ) / R ≤ 2 * (Q : ℝ) / 1 := by gcongr
           _ = ((2 * Q : ℕ) : ℝ) := by push_cast; ring
           _ ≤ (2 : ℝ) ^ (2 * nu) := by exact_mod_cast h2Q_nat
-      simpa only [Nat.cast_mul, Nat.cast_ofNat] using log_le_of_le_two_pow (by positivity) hQR_le
+      simpa only [Nat.cast_mul, Nat.cast_ofNat] using
+        Real.log_le_of_le_two_pow (by positivity) hQR_le
     have hlog_nonneg : 0 ≤ Real.log (2 * (Q : ℝ) / R) := by
       refine Real.log_nonneg ((one_le_div (by positivity)).mpr ?_)
       exact_mod_cast (by omega : R ≤ 2 * Q)
     calc (R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R)
-        ≤ (512 * ((β : ℝ) + 3) * nu / Real.sqrt lam) * (2 * nu) :=
-          mul_le_mul hratio hlog_Q hlog_nonneg (by positivity)
+        ≤ (512 * ((β : ℝ) + 3) * nu / Real.sqrt lam) * (2 * nu) := by gcongr
       _ = 1024 * ((β : ℝ) + 3) * (nu : ℝ) ^ 2 / Real.sqrt lam := by ring
   calc (R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R) + tau n * Real.log (2 * (D : ℝ) + 1) + 1 / r
       ≤ 1024 * ((β : ℝ) + 3) * (nu : ℝ) ^ 2 / Real.sqrt lam +
@@ -823,7 +796,8 @@ theorem isBigO_mul_rowCost_interpolationScale {β : ℕ} :
             _ ≤ (2 ^ lam) ^ 2 := Nat.pow_le_pow_left (Nat.le_pow_clog one_lt_two n) 2
             _ = 2 ^ (2 * lam) := by rw [← pow_mul, mul_comm]
         exact_mod_cast hnat
-      simpa only [Nat.cast_mul, Nat.cast_ofNat] using log_le_of_le_two_pow (by positivity) hn_pow
+      simpa only [Nat.cast_mul, Nat.cast_ofNat] using
+        Real.log_le_of_le_two_pow (by positivity) hn_pow
     have hnu_le : (nu : ℝ) ≤ K * LL := by
       have hlam_le_L : (lam : ℝ) ≤ 2 / Real.log 2 * L :=
         (clog_two_le_mul_log (by omega)).trans <|
@@ -836,8 +810,7 @@ theorem isBigO_mul_rowCost_interpolationScale {β : ℕ} :
             ≤ Real.log (2 / Real.log 2 * L) := Real.log_le_log (by positivity) hlam_le_L
           _ = Real.log (2 / Real.log 2) + LL := Real.log_mul (by positivity) hL_pos.ne'
           _ ≤ Real.log (2 / Real.log 2) * LL + LL := by
-              have := le_mul_of_one_le_right hpos_c hLL_ge
-              linarith
+              linarith [le_mul_of_one_le_right hpos_c hLL_ge]
           _ = (Real.log (2 / Real.log 2) + 1) * LL := by ring
       calc (nu : ℝ) ≤ 2 / Real.log 2 * Real.log lam := clog_two_le_mul_log hlam3
         _ ≤ 2 / Real.log 2 * ((Real.log (2 / Real.log 2) + 1) * LL) := by gcongr

@@ -3,9 +3,12 @@
 from contextlib import closing, redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -480,29 +483,40 @@ class CheckOutputTests(unittest.TestCase):
 
     def test_trim_redirects_omitted_recursors_to_the_documented_type(self):
         self.index["modules"]["Init.Core"] = {}
+        self.index["modules"]["Init.Prelude"] = {}
         self.index["declarations"]["Sum"] = {
             "docLink": "./Init/Core.html#Sum", "kind": "inductive",
         }
         self.index["declarations"]["Prod"] = {
             "docLink": "./Init/Core.html#Prod", "kind": "structure",
         }
+        self.index["declarations"]["List"] = {
+            "docLink": "./Init/Prelude.html#List", "kind": "inductive",
+        }
         self.write(self.page("Init.Core"), '<div id="Sum"></div><div id="Prod"></div>')
+        self.write(self.page("Init.Prelude"), '<div id="List"></div>')
         prefixes = ("./", check_docs.API_DOCS_URL, check_docs.MATHLIB_DOCS_URL)
-        links = [f'<a href="{prefix}Init/Core.html#{name}.rec">{name}.rec</a>'
-                 for prefix in prefixes for name in ("Sum", "Prod")]
+        suffixes = ("rec", "recOn", "casesOn", "brecOn", "below", "ndrec", "noConfusion")
+        links = [f'<a href="{prefix}Init/Core.html#{name}.{suffix}">{name}.{suffix}</a>'
+                 for prefix in prefixes for name in ("Sum", "Prod") for suffix in suffixes]
+        links.append('<a href="./Init/Prelude.html#List.casesOn">List.casesOn</a>')
         self.write(self.page("CslibFrontier"), "\n".join(links))
         self.write(self.docs / "declarations/declaration-data.bmp", json.dumps(self.index))
 
         check_docs.trim_output()
         with redirect_stdout(io.StringIO()):
             check_docs.check_output()
-        expected = "\n".join(
-            f'<a href="{check_docs.MATHLIB_DOCS_URL}Init/Core.html#{name}">{name}.rec</a>'
-            for _ in prefixes for name in ("Sum", "Prod")
+        expected = [
+            f'<a href="{check_docs.MATHLIB_DOCS_URL}Init/Core.html#{name}">{name}.{suffix}</a>'
+            for _ in prefixes for name in ("Sum", "Prod") for suffix in suffixes
+        ]
+        expected.append(
+            f'<a href="{check_docs.MATHLIB_DOCS_URL}Init/Prelude.html#List">List.casesOn</a>'
         )
-        self.assertEqual(self.page("CslibFrontier").read_text(), expected)
+        expected_text = "\n".join(expected)
+        self.assertEqual(self.page("CslibFrontier").read_text(), expected_text)
         check_docs.trim_output()
-        self.assertEqual(self.page("CslibFrontier").read_text(), expected)
+        self.assertEqual(self.page("CslibFrontier").read_text(), expected_text)
 
     def test_trim_recursor_fallback_rejects_unproved_targets(self):
         for module in ("Init.Core", "Init.Other"):
@@ -515,8 +529,10 @@ class CheckOutputTests(unittest.TestCase):
             "docLink": "./Init/Core.html#ordinary", "kind": "def",
         }
         self.write(self.docs / "declarations/declaration-data.bmp", json.dumps(self.index))
-        for target in ("Init/Core.html#Missing.rec", "Init/Core.html#ordinary.rec",
-                       "Init/Core.html#Sum.missing", "Init/Other.html#Sum.rec"):
+        for target in ("Init/Core.html#Missing.rec", "Init/Core.html#Missing.casesOn",
+                       "Init/Core.html#ordinary.rec", "Init/Core.html#ordinary.casesOn",
+                       "Init/Core.html#Sum.missing", "Init/Other.html#Sum.rec",
+                       "Init/Other.html#Sum.casesOn"):
             with self.subTest(target=target):
                 self.write(self.page("CslibFrontier"), f'<a href="./{target}">bad</a>')
                 with self.assertRaisesRegex(ValueError, "Broken dependency anchor"):
@@ -848,6 +864,274 @@ class CheckConfigTests(unittest.TestCase):
     def test_shared_packages_agree(self):
         self.manifests["guide"][2]["rev"] = "n"
         self.assert_failure("Guide and documentation lockfiles differ for MD4Lean: rev")
+
+
+class DocsCachePreparationTests(unittest.TestCase):
+    obsolete_modules = (
+        "CslibFrontier.Removed.One",
+        "CslibFrontier.Removed.Two",
+    )
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.build = self.root / "docbuild/.lake/build"
+        self.data_dir = self.build / "doc-data"
+        self.database = self.build / "api-docs.db"
+        root_patch = patch.object(check_docs, "ROOT", self.root)
+        root_patch.start()
+        self.addCleanup(root_patch.stop)
+        for module in ("CslibFrontier", "CslibFrontier.Current"):
+            lean_file = self.root / (module.replace(".", "/") + ".lean")
+            lean_file.parent.mkdir(parents=True, exist_ok=True)
+            lean_file.write_text("")
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+    def create_schema_db(self):
+        with closing(sqlite3.connect(self.database)) as db:
+            db.executescript(
+                """
+                PRAGMA journal_mode = WAL;
+                PRAGMA foreign_keys = ON;
+                CREATE TABLE modules (name TEXT PRIMARY KEY, source_url TEXT);
+                CREATE TABLE module_imports (
+                    importer TEXT NOT NULL,
+                    imported TEXT NOT NULL,
+                    FOREIGN KEY (importer) REFERENCES modules(name) ON DELETE CASCADE
+                );
+                CREATE TABLE name_info (
+                    module_name TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    PRIMARY KEY (module_name, position),
+                    FOREIGN KEY (module_name) REFERENCES modules(name) ON DELETE CASCADE
+                );
+                CREATE TABLE internal_names (
+                    name TEXT NOT NULL,
+                    target_module TEXT NOT NULL,
+                    target_position INTEGER NOT NULL,
+                    FOREIGN KEY (target_module, target_position)
+                        REFERENCES name_info(module_name, position) ON DELETE CASCADE
+                );
+                CREATE TABLE tactics (
+                    module_name TEXT NOT NULL,
+                    internal_name TEXT NOT NULL,
+                    PRIMARY KEY (module_name, internal_name),
+                    FOREIGN KEY (module_name) REFERENCES modules(name) ON DELETE CASCADE
+                );
+                CREATE TABLE tactic_tags (
+                    module_name TEXT NOT NULL,
+                    internal_name TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    FOREIGN KEY (module_name, internal_name)
+                        REFERENCES tactics(module_name, internal_name) ON DELETE CASCADE
+                );
+                """
+            )
+
+    def test_prepare_cache_prunes_obsolete_modules_markers_and_non_markers(self):
+        self.create_schema_db()
+        kept_modules = ("CslibFrontier", "CslibFrontier.Current", "Cslib.Dep", "Mathlib.Dep", "Init")
+        with closing(sqlite3.connect(self.database)) as db, db:
+            db.execute("PRAGMA foreign_keys = ON")
+            for name in kept_modules + self.obsolete_modules:
+                db.execute("INSERT INTO modules (name, source_url) VALUES (?, ?)", (name, "u"))
+                db.execute("INSERT INTO module_imports (importer, imported) VALUES (?, ?)",
+                           (name, "Init"))
+                db.execute("INSERT INTO name_info (module_name, position, name) VALUES (?, ?, ?)",
+                           (name, 0, name + ".decl"))
+                db.execute("INSERT INTO internal_names (name, target_module, target_position) "
+                           "VALUES (?, ?, ?)", (name + ".decl", name, 0))
+                db.execute("INSERT INTO tactics (module_name, internal_name) VALUES (?, ?)",
+                           (name, name + ".tac"))
+                db.execute("INSERT INTO tactic_tags (module_name, internal_name, tag) VALUES (?, ?, ?)",
+                           (name, name + ".tac", "finishing"))
+
+        kept_markers = [
+            "CslibFrontier.doc",
+            "CslibFrontier.doc.hash",
+            "CslibFrontier.doc.trace",
+            "CslibFrontier.Current.doc",
+            "core-Init.doc",
+            "core-Init.doc.hash",
+            "Cslib.Dep.doc",
+            "Mathlib.Dep.doc.trace",
+        ]
+        stale_markers = [
+            f"{mod}{ext}"
+            for mod in self.obsolete_modules
+            for ext in (".doc", ".doc.hash", ".doc.trace")
+        ]
+        non_markers = [
+            "references.json",
+            "references.json.hash",
+            "CslibFrontier.docs_built",
+            "declaration-data-CslibFrontier.Current.bmp",
+            "declaration-data-CslibFrontier.Removed.One.bmp",
+        ]
+        for rel in kept_markers + stale_markers + non_markers:
+            (self.data_dir / rel).write_text("x")
+
+        with patch.object(check_docs, "check_config"), \
+                patch("sys.argv", ["check_docs.py", "--prepare-cache"]):
+            check_docs.main()
+
+        for rel in kept_markers:
+            self.assertTrue((self.data_dir / rel).is_file(), rel)
+        for rel in stale_markers + non_markers:
+            self.assertFalse((self.data_dir / rel).exists(), rel)
+
+        with closing(sqlite3.connect(self.database)) as db:
+            modules = {row[0] for row in db.execute("SELECT name FROM modules")}
+            self.assertEqual(modules, set(kept_modules))
+            for table, col in (
+                ("module_imports", "importer"),
+                ("name_info", "module_name"),
+                ("internal_names", "target_module"),
+                ("tactics", "module_name"),
+                ("tactic_tags", "module_name"),
+            ):
+                rows = {row[0] for row in db.execute(f"SELECT {col} FROM {table}")}
+                self.assertEqual(rows, set(kept_modules), table)
+        wal = self.database.with_name("api-docs.db-wal")
+        self.assertTrue(not wal.exists() or wal.stat().st_size == 0)
+
+    def test_prepare_cache_handles_corrupt_db_only_when_discard_corrupt_is_set(self):
+        self.database.parent.mkdir(parents=True, exist_ok=True)
+        self.database.write_bytes(b"truncated sqlite")
+        (self.database.with_name("api-docs.db-wal")).write_bytes(b"wal")
+        (self.data_dir / "CslibFrontier.Current.doc").write_text("ok")
+
+        with self.assertRaises(sqlite3.DatabaseError):
+            check_docs.prepare_cache(discard_corrupt=False)
+        self.assertTrue(self.database.is_file())
+
+        with redirect_stdout(io.StringIO()), \
+                patch.object(check_docs, "check_config"), \
+                patch("sys.argv", ["check_docs.py", "--prepare-cache", "--discard-corrupt"]):
+            check_docs.main()
+
+        self.assertFalse(self.database.exists())
+        self.assertFalse(self.database.with_name("api-docs.db-wal").exists())
+        self.assertFalse(self.data_dir.exists())
+
+    def test_checkpoint_cache_flushes_committed_wal_rows_to_main_database(self):
+        self.create_schema_db()
+        conn = sqlite3.connect(self.database)
+        self.addCleanup(conn.close)
+        conn.execute("PRAGMA wal_autocheckpoint = 0")
+        conn.execute("INSERT INTO modules (name, source_url) VALUES ('CslibFrontier', 'u')")
+        conn.execute(
+            "INSERT INTO modules (name, source_url) VALUES ('CslibFrontier.Current', 'u')"
+        )
+        conn.commit()
+        wal = self.database.with_name("api-docs.db-wal")
+        self.assertTrue(wal.is_file() and wal.stat().st_size > 0)
+
+        with patch.object(check_docs, "check_config"), \
+                patch("sys.argv", ["check_docs.py", "--checkpoint-cache"]):
+            check_docs.main()
+
+        self.assertTrue(not wal.exists() or wal.stat().st_size == 0)
+        conn.close()
+        for sidecar in ("api-docs.db-wal", "api-docs.db-shm"):
+            sidecar_path = self.database.with_name(sidecar)
+            if sidecar_path.exists():
+                sidecar_path.unlink()
+        with closing(sqlite3.connect(self.database)) as db:
+            modules = {row[0] for row in db.execute("SELECT name FROM modules")}
+        self.assertEqual(modules, {"CslibFrontier", "CslibFrontier.Current"})
+
+
+class DocsWorkflowCacheTests(unittest.TestCase):
+    @staticmethod
+    def step(text, name):
+        lines = text.splitlines(keepends=True)
+        start = next(i for i, line in enumerate(lines) if line.strip() == "- name: " + name)
+        indent = len(lines[start]) - len(lines[start].lstrip())
+        end = next(
+            (i for i in range(start + 1, len(lines))
+             if lines[i].strip() and len(lines[i]) - len(lines[i].lstrip()) <= indent),
+            len(lines),
+        )
+        return textwrap.dedent("".join(lines[start:end]))
+
+    def test_docgen_db_cache_key_cleanup_and_main_only_save(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        docs = (repo_root / ".github/workflows/docs.yml").read_text()
+        restore = self.step(docs, "Restore the documentation database")
+        discard = self.step(docs, "Discard an incomplete documentation cache restore")
+        generate = self.step(docs, "Generate API documentation")
+        save = self.step(docs, "Save the documentation database")
+
+        expected_prefix = (
+            "docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-"
+            "${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', "
+            "'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}"
+        )
+        self.assertIn(f"key: {expected_prefix}-${{{{ github.sha }}}}-${{{{ github.run_id }}}}", restore)
+        self.assertIn(f"restore-keys: |\n      {expected_prefix}-", restore)
+        self.assertIn(f"key: {expected_prefix}-${{{{ github.sha }}}}-${{{{ github.run_id }}}}", save)
+
+        self.assertNotIn("${{", discard.split("run: |\n", 1)[1])
+        self.assertIn("DOCGEN_RESTORE_OUTCOME: ${{ steps.docgen-db.outcome }}", discard)
+        self.assertIn("DOCGEN_MATCHED_KEY: ${{ steps.docgen-db.outputs.cache-matched-key }}", discard)
+
+        discard_script = textwrap.dedent(discard.split("run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            db = root / "docbuild/.lake/build/api-docs.db"
+            wal = root / "docbuild/.lake/build/api-docs.db-wal"
+            marker = root / "docbuild/.lake/build/doc-data/CslibFrontier.doc"
+            for outcome, matched, kept in (
+                ("success", "docgen-db-v1-abc", True),
+                ("success", "", False),
+                ("failure", "docgen-db-v1-abc", False),
+                ("skipped", "", False),
+            ):
+                for path in (db, wal, marker):
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("data")
+                env = {
+                    **os.environ,
+                    "DOCGEN_RESTORE_OUTCOME": outcome,
+                    "DOCGEN_MATCHED_KEY": matched,
+                }
+                subprocess.run(["bash", "-eu", "-c", discard_script], cwd=root, env=env, check=True)
+                self.assertEqual(db.exists(), kept, (outcome, matched))
+                self.assertEqual(wal.exists(), kept, (outcome, matched))
+                self.assertEqual(marker.exists(), kept, (outcome, matched))
+
+        self.assertIn("python3 -B scripts/check_docs.py --prepare-cache --discard-corrupt", generate)
+        self.assertIn("python3 -B scripts/check_docs.py --checkpoint-cache", generate)
+        self.assertLess(
+            generate.index("--prepare-cache"),
+            generate.index("lake -d docbuild build CslibFrontier:docs"),
+        )
+        self.assertLess(
+            generate.index("lake -d docbuild build CslibFrontier:docs"),
+            generate.index("--checkpoint-cache"),
+        )
+
+        condition = save.split("if: >-\n", 1)[1].split("continue-on-error:", 1)[0].strip()
+        values = {
+            "github.ref": "refs/heads/main",
+            "vars.DISABLE_CACHE_RESTORE": "",
+            "steps.docgen-db.outputs.cache-hit": "false",
+        }
+
+        def enabled(**overrides):
+            expr = condition
+            for key, value in (values | overrides).items():
+                expr = expr.replace(key, repr(value))
+            return eval(expr.replace("&&", " and ").replace("\n", " "), {"__builtins__": {}})
+
+        self.assertTrue(enabled())
+        self.assertFalse(enabled(**{"github.ref": "refs/heads/feature"}))
+        self.assertFalse(enabled(**{"vars.DISABLE_CACHE_RESTORE": "true"}))
+        self.assertFalse(enabled(**{"vars.DISABLE_CACHE_RESTORE": "1"}))
+        self.assertFalse(enabled(**{"steps.docgen-db.outputs.cache-hit": "true"}))
 
 
 if __name__ == "__main__":

@@ -7,10 +7,15 @@ Authors: Vincent Liew
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.Noise
+public import Mathlib.Analysis.Calculus.Deriv.Basic
+import Mathlib.Algebra.Ring.GeomSum
+import Mathlib.Analysis.Calculus.Deriv.Add
+import Mathlib.Analysis.Calculus.Deriv.Mul
+import Mathlib.Analysis.Calculus.Deriv.Pow
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Finset.Markov
-import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -23,7 +28,11 @@ derivative, `Infᵢ^{(ρ)}[f] = Stab_ρ[Dᵢ f]` (`BitString.stableInfluence`), 
 `Infᵢ^{(ρ)}[f] = ∑_{S ∋ i} ρ ^ (|S| - 1) f̂(S) ^ 2` (`BitString.stableInfluence_eq_sum`) and
 `I^{(ρ)}[f] = ∑_S |S| ρ ^ (|S| - 1) f̂(S) ^ 2` (`BitString.totalStableInfluence_eq_sum`)
 [O'Donnell, Fact 2.53][ODonnell2014], so at `ρ = 1` they are the influence and the total
-influence (`BitString.stableInfluence_one`, `BitString.totalStableInfluence_one`).
+influence (`BitString.stableInfluence_one`, `BitString.totalStableInfluence_one`). The total
+stable influence is the derivative of the noise stability in `ρ`
+(`BitString.hasDerivAt_noiseStability`, the rest of Fact 2.53); at `ρ = 0` that derivative is the
+level-one weight and at `ρ = 1` the total influence (`BitString.hasDerivAt_noiseStability_zero`,
+`BitString.hasDerivAt_noiseStability_one`) [O'Donnell, Proposition 2.51][ODonnell2014].
 
 Damping the high degrees caps the total: since `k δ (1 - δ) ^ (k - 1) ≤ 1` for every `k`
 [O'Donnell, Exercise 2.45][ODonnell2014], `δ I^{(1 - δ)}[f] ≤ Var[f]` for `0 ≤ δ ≤ 1`
@@ -33,6 +42,23 @@ coordinates of `(1 - δ)`-stable influence at least `ε`
 as a Boolean function read as signs, at most `1 / (δ ε)` coordinates have `(1 - δ)`-stable
 influence at least `ε` [O'Donnell, Proposition 2.54][ODonnell2014], in contrast with ordinary
 influences, which can all be large at once.
+
+## Usage
+
+The derivative of the noise stability in its rate is stated as `HasDerivAt` of
+`fun r => noiseStability r f`: `BitString.hasDerivAt_noiseStability f ρ` gives the derivative
+`totalStableInfluence ρ f` at every real `ρ` (two-sided, although Definition 2.52 takes
+`ρ ∈ [0, 1]`), and `BitString.hasDerivAt_noiseStability_zero f` and
+`BitString.hasDerivAt_noiseStability_one f` give `levelWeight 1 f` at `0` and `totalInfluence f`
+at `1`. `HasDerivAt.deriv` turns each into an equation for
+`deriv (fun r => noiseStability r f)`. To evaluate the derivative on a concrete function, rewrite
+with `BitString.totalStableInfluence_eq_sum` and compute its Fourier coefficients. The
+restatement of Proposition 2.51 for noise sensitivity, `d/dδ NS_δ[f] = I[f]` at `δ = 0`, is not
+stated separately. Its claim that `NS_δ[f]` increases on `[0, 1/2]` for Boolean `f` is
+`BitString.noiseSensitivity_mono` (`Noise.lean`). The checked clients in
+[CslibFrontierTests/BooleanAnalysisStableInfluence.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisStableInfluence.lean)
+compute these for the character `χ_{0,1}` on three coordinates, whose stability `ρ ^ 2` has
+derivative `2ρ`: zero, its level-one weight, at `0` and two, its total influence, at `1`.
 
 ## Main definitions
 
@@ -45,6 +71,15 @@ influences, which can all be large at once.
   Fourier formulas.
 * `Cslib.BitString.stableInfluence_one`, `Cslib.BitString.totalStableInfluence_one`: at `ρ = 1`
   they are the influence and the total influence.
+* `Cslib.BitString.hasDerivAt_noiseStability`: `d/dρ Stab_ρ[f] = I^{(ρ)}[f]` (Fact 2.53).
+* `Cslib.BitString.hasDerivAt_noiseStability_zero`,
+  `Cslib.BitString.hasDerivAt_noiseStability_one`: the derivative is `W¹[f]` at `ρ = 0` and
+  `I[f]` at `ρ = 1` (Proposition 2.51).
+* `Cslib.BitString.pow_mul_fourierCoeff_sq_le_stableInfluence`: each term of the Fourier formula
+  bounds the stable influence.
+* `Cslib.BitString.stableInfluence_mono`, `Cslib.BitString.stableInfluence_noiseOp_le`,
+  `Cslib.BitString.influence_noiseOp_le_stableInfluence`: stable influences increase with the
+  rate, do not increase under noise, and bound the influences of the noised function.
 * `Cslib.BitString.mul_totalStableInfluence_le`,
   `Cslib.BitString.mul_totalStableInfluence_signVal_le_one`: `δ I^{(1 - δ)}[f] ≤ Var[f]`, which is
   at most one for Boolean `f`.
@@ -76,6 +111,13 @@ noncomputable def stableInfluence (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ
 noncomputable def totalStableInfluence (ρ : ℝ) (f : (ι → Bool) → ℝ) : ℝ :=
   ∑ i, stableInfluence ρ i f
 
+/-- The stable influence is the noise stability of the derivative,
+`Infᵢ^{(ρ)}[f] = Stab_ρ[Dᵢ f]` [O'Donnell, Definition 2.52][ODonnell2014], unfolding
+`stableInfluence` for other modules. -/
+theorem stableInfluence_eq_noiseStability_derivative (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ) :
+    stableInfluence ρ i f = noiseStability ρ (derivative i f) := by
+  rw [stableInfluence]
+
 /-- **The Fourier formula for the stable influence**:
 `Infᵢ^{(ρ)}[f] = ∑_{S ∋ i} ρ ^ (|S| - 1) f̂(S) ^ 2` [O'Donnell, Definition 2.52][ODonnell2014]. -/
 theorem stableInfluence_eq_sum (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ) :
@@ -92,6 +134,39 @@ theorem stableInfluence_nonneg {ρ : ℝ} (hρ : 0 ≤ ρ) (i : ι) (f : (ι →
     0 ≤ stableInfluence ρ i f := by
   rw [stableInfluence_eq_sum]
   exact sum_nonneg fun _ _ => mul_nonneg (pow_nonneg hρ _) (sq_nonneg _)
+
+/-- **A single term of the stable influence**: for `i ∈ S` and `0 ≤ ρ`,
+`ρ ^ (|S| - 1) f̂(S) ^ 2 ≤ Infᵢ^{(ρ)}[f]`. -/
+theorem pow_mul_fourierCoeff_sq_le_stableInfluence {ρ : ℝ} (hρ : 0 ≤ ρ) {i : ι} {S : Finset ι}
+    (hi : i ∈ S) (f : (ι → Bool) → ℝ) :
+    ρ ^ (#S - 1) * fourierCoeff f S ^ 2 ≤ stableInfluence ρ i f := by
+  rw [stableInfluence_eq_sum]
+  exact single_le_sum (f := fun T => ρ ^ (#T - 1) * fourierCoeff f T ^ 2)
+    (fun T _ => mul_nonneg (pow_nonneg hρ _) (sq_nonneg _)) (mem_filter.2 ⟨mem_univ _, hi⟩)
+
+/-- Stable influences increase with the rate: `Infᵢ^{(ρ)}[f] ≤ Infᵢ^{(ρ')}[f]` for
+`0 ≤ ρ ≤ ρ'`. -/
+theorem stableInfluence_mono {ρ ρ' : ℝ} (hρ : 0 ≤ ρ) (hρρ' : ρ ≤ ρ') (i : ι)
+    (f : (ι → Bool) → ℝ) : stableInfluence ρ i f ≤ stableInfluence ρ' i f :=
+  noiseStability_mono hρ hρρ' (derivative i f)
+
+/-- Noise does not increase stable influences: `Infᵢ^{(ρ)}[T_σ f] ≤ Infᵢ^{(ρ)}[f]` for `0 ≤ ρ`
+and `|σ| ≤ 1`. -/
+theorem stableInfluence_noiseOp_le {ρ σ : ℝ} (hρ : 0 ≤ ρ) (hσ : |σ| ≤ 1) (i : ι)
+    (f : (ι → Bool) → ℝ) : stableInfluence ρ i (noiseOp σ f) ≤ stableInfluence ρ i f := by
+  rw [stableInfluence_eq_sum, stableInfluence_eq_sum]
+  exact sum_le_sum fun S _ =>
+    mul_le_mul_of_nonneg_left (sq_fourierCoeff_noiseOp_le hσ f S) (pow_nonneg hρ _)
+
+/-- The influence of `i` on `T_ρ f` is at most the `ρ`-stable influence of `i` on `f` for
+`0 ≤ ρ ≤ 1`: `Infᵢ[T_ρ f] = ∑_{S ∋ i} ρ ^ (2 |S|) f̂(S) ^ 2 ≤ Infᵢ^{(ρ)}[f]`
+[O'Donnell, proof of Corollary 11.69][ODonnell2014]. -/
+theorem influence_noiseOp_le_stableInfluence {ρ : ℝ} (hρ₀ : 0 ≤ ρ) (hρ₁ : ρ ≤ 1) (i : ι)
+    (f : (ι → Bool) → ℝ) : influence i (noiseOp ρ f) ≤ stableInfluence ρ i f := by
+  rw [influence_eq_sum_fourierCoeff_sq, stableInfluence_eq_sum]
+  refine sum_le_sum fun S _ => ?_
+  rw [fourierCoeff_noiseOp, mul_pow, ← pow_mul]
+  exact mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one hρ₀ hρ₁ (by omega)) (sq_nonneg _)
 
 /-- At `ρ = 1` the total stable influence is the total influence. -/
 theorem totalStableInfluence_one (f : (ι → Bool) → ℝ) :
@@ -113,6 +188,35 @@ theorem totalStableInfluence_eq_sum (ρ : ℝ) (f : (ι → Bool) → ℝ) :
   refine sum_congr rfl fun S _ => ?_
   rw [sum_ite_mem, univ_inter, sum_const, nsmul_eq_mul]
   ring
+
+/-- **The derivative of the noise stability is the total stable influence**
+[O'Donnell, Fact 2.53][ODonnell2014]:
+`d/dρ Stab_ρ[f] = I^{(ρ)}[f] = ∑_S |S| ρ ^ (|S| - 1) f̂(S) ^ 2`, since `Stab_ρ[f]` is the
+polynomial `∑_S ρ ^ |S| f̂(S) ^ 2` in `ρ`. Definition 2.52 takes `ρ ∈ [0, 1]`; this holds at
+every real `ρ`, as a two-sided derivative. -/
+theorem hasDerivAt_noiseStability (f : (ι → Bool) → ℝ) (ρ : ℝ) :
+    HasDerivAt (fun r => noiseStability r f) (totalStableInfluence ρ f) ρ := by
+  rw [show (fun r => noiseStability r f) = fun r => ∑ S, r ^ #S * fourierCoeff f S ^ 2 from
+    funext fun r => noiseStability_eq_sum r f, totalStableInfluence_eq_sum]
+  exact HasDerivAt.fun_sum fun S _ => (hasDerivAt_pow #S ρ).mul_const _
+
+/-- **The derivative of the noise stability at `0` is the level-one weight**
+[O'Donnell, Proposition 2.51][ODonnell2014]: `d/dρ Stab_ρ[f] = W¹[f]` at `ρ = 0`. -/
+theorem hasDerivAt_noiseStability_zero (f : (ι → Bool) → ℝ) :
+    HasDerivAt (fun r => noiseStability r f) (levelWeight 1 f) 0 := by
+  convert hasDerivAt_noiseStability f 0 using 1
+  rw [totalStableInfluence_eq_sum, levelWeight, sum_filter]
+  refine sum_congr rfl fun S _ => ?_
+  rcases Nat.lt_trichotomy #S 1 with h | h | h
+  · simp [Nat.lt_one_iff.1 h]
+  · simp [h]
+  · simp [h.ne', zero_pow (show #S - 1 ≠ 0 by omega)]
+
+/-- **The derivative of the noise stability at `1` is the total influence**
+[O'Donnell, Proposition 2.51][ODonnell2014]: `d/dρ Stab_ρ[f] = I[f]` at `ρ = 1`. -/
+theorem hasDerivAt_noiseStability_one (f : (ι → Bool) → ℝ) :
+    HasDerivAt (fun r => noiseStability r f) (totalInfluence f) 1 := by
+  simpa [totalStableInfluence_one] using hasDerivAt_noiseStability f 1
 
 /-- `k δ (1 - δ) ^ (k - 1) ≤ 1` for `0 ≤ δ ≤ 1` [O'Donnell, Exercise 2.45][ODonnell2014]: the
 `k` terms of the geometric sum `δ ∑_{j < k} (1 - δ) ^ j = 1 - (1 - δ) ^ k` are each at least

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Counter
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Foundations.Data.Nat.CeilDiv
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -64,30 +65,16 @@ noncomputable def schoeningTrials (k n c : ℕ) : ℕ :=
 
 /-- Rounding up a quotient of natural numbers. -/
 theorem natCeil_natCast_div {m d : ℕ} (hd : 0 < d) :
-    ⌈(m : ℝ) / d⌉₊ = (m + d - 1) / d := by
-  have hd' : (0 : ℝ) < d := by exact_mod_cast hd
-  apply le_antisymm
-  · rw [Nat.ceil_le, div_le_iff₀ hd']
-    have h := Nat.div_add_mod' (m + d - 1) d
-    have hr := Nat.mod_lt (m + d - 1) hd
-    have : m ≤ (m + d - 1) / d * d := by omega
-    exact_mod_cast this
-  · have hq := Nat.le_ceil ((m : ℝ) / d)
-    rw [div_le_iff₀ hd'] at hq
-    have hq' : m ≤ ⌈(m : ℝ) / d⌉₊ * d := by exact_mod_cast hq
-    rw [Nat.div_le_iff_le_mul_add_pred hd, Nat.mul_comm]
-    omega
+    ⌈(m : ℝ) / d⌉₊ = (m + d - 1) / d :=
+  (Nat.ceil_div_eq_ceilDiv m hd).trans (Nat.ceilDiv_eq_add_pred_div m d)
 
 /-- Rounding up in two stages is rounding up once. -/
 theorem add_pred_div_add_pred_div {v a b : ℕ} (ha : 0 < a) (hb : 0 < b) :
     ((v + a - 1) / a + b - 1) / b = (v + a * b - 1) / (a * b) := by
-  have h : v + a - 1 + a * (b - 1) = v + a * b - 1 := by
-    obtain ⟨b, rfl⟩ : ∃ b', b = b' + 1 := ⟨b - 1, by omega⟩
-    simp only [Nat.add_sub_cancel, Nat.mul_add, Nat.mul_one]
-    omega
-  calc ((v + a - 1) / a + b - 1) / b = (v + a - 1 + a * (b - 1)) / a / b := by
-        rw [Nat.add_mul_div_left _ _ ha, Nat.add_sub_assoc hb]
-    _ = (v + a * b - 1) / (a * b) := by rw [Nat.div_div_eq_div_mul, h]
+  simp only [← Nat.ceilDiv_eq_add_pred_div]
+  exact eq_of_forall_ge_iff fun c => by
+    rw [ceilDiv_le_iff_le_mul hb, ceilDiv_le_iff_le_mul ha,
+      ceilDiv_le_iff_le_mul (Nat.mul_pos ha hb), mul_assoc]
 
 /-! ### The digits of the trial count -/
 
@@ -149,8 +136,6 @@ theorem schoeningTrials_eq {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
     rw [Nat.cast_sub (by omega), Nat.cast_one]
   push_cast [hcast]
   simp only [div_pow]
-  have hp0 : (k : ℝ) ^ n ≠ 0 := pow_ne_zero _ hk0
-  have hp1 : ((k : ℝ) - 1) ^ (k - 3) ≠ 0 := pow_ne_zero _ hk1
   field_simp
 
 /-- **The value of the counter digits** is the trial count. -/
@@ -219,10 +204,8 @@ theorem numeratorDigits_bound {k : ℕ} (hk : 3 ≤ k) (n : ℕ) :
       ∀ d ∈ numeratorDigits k n, d ≤ 1 := by
   set D := (Nat.digits 2 (3 * n + 2 * k)).length
   have h0 : (mulAddDigits 0 (3 * n + 1) []).length ≤ D := by
-    have := length_mulAddDigits_le (a := 0) (cy := 3 * n + 1) (ds := []) (B := 3 * n + 2 * k)
-      (by simp) (by omega)
-      (show 3 * n + 1 ≤ 3 * n + 2 * k by omega)
-    simpa using this
+    simpa using length_mulAddDigits_le (a := 0) (cy := 3 * n + 1) (ds := []) (B := 3 * n + 2 * k)
+      (by simp) (by omega) (by omega)
   have h1 := length_iterate_le (F := mulStep (2 * (k - 1))) (D := D)
     (fun ds _ => mulStep_digit_le _ ds)
     (fun ds hds => length_mulStep_le (B := 3 * n + 2 * k) hds (by omega)) n
@@ -232,10 +215,7 @@ theorem numeratorDigits_bound {k : ℕ} (hk : 3 ≤ k) (n : ℕ) :
     (fun ds hds => length_mulStep_le (B := 3 * n + 2 * k) hds (by omega)) (k - 3)
     h1.2
   refine ⟨?_, h2.2⟩
-  rw [numeratorDigits]
-  have := h1.1
-  have := h2.1
-  rw [Nat.add_mul, Nat.add_mul, Nat.one_mul]
+  rw [numeratorDigits, Nat.add_mul, Nat.add_mul, Nat.one_mul]
   omega
 
 /-- **The number of digits** of the trial count is at most `counterLen k n c`. -/
@@ -251,8 +231,6 @@ theorem length_counterDigits_le {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
     (fun ds _ => ceilStep_digit_le (by omega) ds)
     (fun ds hds => length_ceilStep_le (B := 3 * n + 2 * k) hds (by omega) (by omega)) (k - 3) h3.2
   have h5 := length_mulAddDigits_le h4.2 (le_refl c) (Nat.zero_le c)
-  have := h3.1
-  have := h4.1
   have : (1 + n + (k - 3)) * D + n * D + (k - 3) * D ≤ (2 * n + 2 * k) * D := by
     rw [← Nat.add_mul, ← Nat.add_mul]
     exact Nat.mul_le_mul_right _ (by omega)
@@ -310,23 +288,17 @@ theorem div_sub_one_pow_le_three {k : ℕ} (hk : 3 ≤ k) :
 theorem schoeningTrials_le {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
     (schoeningTrials k n c : ℝ) ≤ (9 * n + 4) * (2 * ((k : ℝ) - 1) / k) ^ n * c := by
   have hk3 : (3 : ℝ) ≤ k := by exact_mod_cast hk
-  have hr : 1 ≤ 2 * ((k : ℝ) - 1) / k := by
-    rw [le_div_iff₀ (by linarith)]
-    linarith
+  have hr : 1 ≤ 2 * ((k : ℝ) - 1) / k := (le_div_iff₀ (by linarith)).mpr (by linarith)
   have hrn : 1 ≤ (2 * ((k : ℝ) - 1) / k) ^ n := one_le_pow₀ hr
   have hq := div_sub_one_pow_le_three hk
-  have hq0 : 0 ≤ ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) := by
-    apply pow_nonneg; apply div_nonneg <;> linarith
+  have hq0 : 0 ≤ ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) :=
+    pow_nonneg (div_nonneg (by positivity) (by linarith)) _
   set A := (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3)
-  have hA0 : 0 ≤ A := by positivity
   have hA : A ≤ 3 * (3 * n + 1) * (2 * ((k : ℝ) - 1) / k) ^ n := by
-    have : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) ≤
-        (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * 3 :=
-      mul_le_mul_of_nonneg_left hq (by positivity)
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hq
+      (by positivity : (0 : ℝ) ≤ (3 * n + 1) * (2 * ((k : ℝ) - 1) / k) ^ n)]
   have hceil : (⌈A⌉₊ : ℝ) ≤ (9 * n + 4) * (2 * ((k : ℝ) - 1) / k) ^ n := by
-    have := Nat.ceil_lt_add_one hA0
-    nlinarith
+    nlinarith [Nat.ceil_lt_add_one (by positivity : 0 ≤ A)]
   rw [schoeningTrials]
   push_cast
   exact mul_le_mul_of_nonneg_right hceil (Nat.cast_nonneg c)

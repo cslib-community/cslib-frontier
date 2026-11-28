@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Power.Rename
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Frame
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual initialized Strassen root and power call
@@ -25,10 +26,6 @@ public section
 namespace Cslib.Algorithms.WordRAM.Strassen
 
 open Cslib.WordRAM
-
-private theorem locateRoot_preserves (i : Fin 64) :
-    i ≠ Reg.size → i ≠ Reg.frames → i ≠ Reg.frame → i ≠ Reg.phase → i ≠ Reg.active →
-      locateRoot.Preserves i := by decide +kernel +revert
 
 /-- Compute the runtime length, constants and explicit root frame in at most `4L+30`
 instructions, including the actual power call and every frame store. -/
@@ -47,106 +44,45 @@ theorem exec_setup {w : ℕ} (x : Data 64)
       ∀ a, a < y.regs Reg.frame ∨ y.regs Reg.frame + 7 ≤ a → y.mem a = x.mem a := by
   have hpow : 0 < 4 ^ x.regs Reg.depth := by positivity
   have h7 : Fits w 7 := hw.of_le (by omega)
-  have h4 : Fits w 4 := hw.of_le (by omega)
-  have h1 : Fits w 1 := hw.of_le (by omega)
-  let r := (((((x.set Reg.zero 0).set Reg.one 1).set Reg.four 4).set Reg.frameWidth 7).set
-    Reg.powerBase 4).set Reg.powerExponent (x.regs Reg.depth)
-  have hr : ExecWithin w powerArguments x r 6 := by
-    ram_eval [powerArguments, r, h1, h4, h7, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.depth]
+  have hmul := Nat.mul_comm (4 ^ x.regs Reg.depth) (x.regs Reg.modulus)
+  have hsize : Fits w (4 ^ x.regs Reg.depth * x.regs Reg.modulus) := by fits [hpow, hmul]
+  have hframe_fit : Fits w (x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus) := by
+    fits [hpow, hmul]
+  apply WP.exists_execWithin
+  unfold setup powerArguments locateRoot
+  wram_exec
+  refine WP.name fun r hr => ?_
   let f : Fin 5 → Fin 64 := Fin.castLE (by decide)
-  obtain ⟨s, hpower, hsvalue, _, _, htm, _, _, hframe⟩ :=
-    Power.exec_rename f (Fin.castLE_injective _) 4 (x.regs Reg.depth) (by decide) r
-      (by simp +decide [r, f, Power.base, Reg.powerBase, Reg.powerExponent])
-      (by simp [r, f, Power.exponent, Reg.powerExponent])
-      (hw.of_le (by omega))
-  change s.regs Reg.powerValue = 4 ^ x.regs Reg.depth at hsvalue
-  have hhigh (i : Fin 64) (hi : 32 ≤ i.val) : s.regs i = r.regs i := by
-    apply hframe
-    intro j hj
-    have hj' := congrArg Fin.val hj
-    change j.val = i.val at hj'
-    omega
-  have hsmod : s.regs Reg.modulus = x.regs Reg.modulus := by
-    simpa +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.modulus] using hhigh Reg.modulus (by decide)
-  have hsscratch : s.regs Reg.scratch = x.regs Reg.scratch := by
-    simpa +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.scratch] using hhigh Reg.scratch (by decide)
-  have hsmem : s.mem = x.mem := htm
-  have hsize : Fits w (4 ^ x.regs Reg.depth * x.regs Reg.modulus) := by
-    rw [Nat.mul_comm]
-    exact hw.of_le (by omega)
-  have hframe : Fits w (x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus) := by
-    rw [Nat.mul_comm (4 ^ x.regs Reg.depth)]
-    exact hw.of_le (by omega)
-  let root := x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus
-  let u := ((((s.set Reg.size (4 ^ x.regs Reg.depth * x.regs Reg.modulus)).set Reg.frames
-    root).set Reg.frame root).set Reg.phase 0).set Reg.active 1
-  have hu : ExecWithin w locateRoot s u 5 := by
-    ram_eval [locateRoot, u, root, hsvalue, hsmod, hsscratch, hsize, hframe, h1,
-      Reg.powerValue, Reg.modulus, Reg.size, Reg.frames, Reg.frame, Reg.scratch,
-      Reg.phase, Reg.active]
-  have hur (i : Fin 64) (hsize : i ≠ Reg.size) (hframes : i ≠ Reg.frames)
-      (hframe : i ≠ Reg.frame) (hphase : i ≠ Reg.phase) (hactive : i ≠ Reg.active) :
-      u.regs i = s.regs i :=
-    hu.regs_eq (locateRoot_preserves i hsize hframes hframe hphase hactive)
-  have hu1 : u.regs Reg.one = 1 := by
-    rw [hur Reg.one (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhigh Reg.one (by decide)]
-    simp +decide [r, Reg.one, Reg.zero, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent]
-  have huframe : u.regs Reg.frame = root := by
-    simp +decide [u, Reg.size, Reg.frames, Reg.frame, Reg.phase, Reg.active]
-  obtain ⟨y, hy, values, frame, regs⟩ := exec_storeFrame u hu1 (by
-    rw [huframe]
-    dsimp only [root]
-    rw [Nat.mul_comm (4 ^ x.regs Reg.depth)]
-    exact hw.of_le (by omega))
-  have he : ExecWithin w setup x y (4 * x.regs Reg.depth + 30) :=
-    (hr.seq (hpower.seq (hu.seq hy))).mono (by omega)
-  have hyframe : y.regs Reg.frame = root := (regs Reg.frame (by decide)).trans huframe
-  have hyframes : y.regs Reg.frames = root := by
-    rw [regs Reg.frames (by decide)]
-    simp +decide [u, Reg.frames, Reg.frame, Reg.phase, Reg.active]
-  have hparams (i : Fin 64)
-      (hi : i ∈ [Reg.inputA, Reg.inputB, Reg.output, Reg.scratch, Reg.depth, Reg.modulus]) :
-      y.regs i = x.regs i := by
+  wram_call (Power.exec_rename f (Fin.castLE_injective _) 4 (x.regs Reg.depth) (by decide) r
+    (by simp +decide [hr, f, Power.base, Reg.powerBase, Reg.powerExponent])
+    (by simp [hr, f, Power.exponent, Reg.powerExponent]) (hw.of_le (by omega)))
+    with s ⟨hsvalue, _, _, hsmem, _, _, hframe⟩
+  have hsval : s.regs Reg.powerValue = 4 ^ x.regs Reg.depth := hsvalue
+  wram_exec * [hr]
+  refine WP.name fun u hu => ?_
+  wram_call (exec_storeFrame u (by rw [hu]; regs_frame)
+    (by wram_simp [hu]; exact hw.of_le (by omega)))
+    with y ⟨values, frame, regs⟩
+  have hyframe : y.regs Reg.frame =
+      x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by rw [hu] at *; regs_frame
+  have hyframes : y.regs Reg.frames =
+      x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by rw [hu] at *; regs_frame
+  refine ⟨by omega, ?_, by simpa only [Nat.mul_comm] using hyframes, hyframe.trans hyframes.symm,
+    by rw [hu] at *; regs_frame, by rw [hu] at *; regs_frame,
+    by rw [hu, hr] at *; regs_frame, by rw [hu, hr] at *; regs_frame,
+    by rw [hu, hr] at *; regs_frame, by rw [hu, hr] at *; regs_frame, ?_, ?_, ?_⟩
+  · have : y.regs Reg.size = 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by
+      rw [hu] at *; regs_frame
+    simpa only [Nat.mul_comm] using this
+  · intro i hi
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-    rcases hi with rfl | rfl | rfl | rfl | rfl | rfl <;>
-      rw [regs _ (by decide), hur _ (by decide) (by decide) (by decide) (by decide) (by decide),
-        hhigh _ (by decide)] <;>
-      simp +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth, Reg.powerBase,
-        Reg.powerExponent, Reg.inputA, Reg.inputB, Reg.output, Reg.scratch, Reg.depth, Reg.modulus]
-  refine ⟨y, he, ?_, ?_, hyframe.trans hyframes.symm, ?_, ?_, ?_, ?_, ?_, ?_, hparams, ?_, ?_⟩
-  · rw [regs Reg.size (by decide)]
-    simp +decide [u, Reg.size, Reg.frames, Reg.frame, Reg.phase, Reg.active, Nat.mul_comm]
-  · simpa only [root, Nat.mul_comm] using hyframes
-  · rw [regs Reg.phase (by decide)]
-    simp +decide [u, Reg.phase, Reg.active]
-  · rw [regs Reg.active (by decide)]
-    simp [u]
-  · rw [regs Reg.zero (by decide),
-      hur Reg.zero (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhigh Reg.zero (by decide)]
-    simp +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent]
-  · exact (regs Reg.one (by decide)).trans hu1
-  · rw [regs Reg.four (by decide),
-      hur Reg.four (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhigh Reg.four (by decide)]
-    simp +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent]
-  · rw [regs Reg.frameWidth (by decide),
-      hur Reg.frameWidth (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhigh Reg.frameWidth (by decide)]
-    simp +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent]
+    rcases hi with rfl | rfl | rfl | rfl | rfl | rfl <;> (rw [hu, hr] at *; regs_frame)
   · intro j
     rw [regs Reg.frame (by decide), values j, regs (field j) (by fin_cases j <;> decide)]
   · intro a ha
+    have huframe : u.regs Reg.frame =
+        x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by wram_simp [hu]
     rw [frame a (by simpa only [hyframe, huframe] using ha)]
-    change s.mem a = x.mem a
-    exact congrFun hsmem a
+    simpa only [hu, hr, Data.set_mem] using congrFun hsmem a
 
 end Cslib.Algorithms.WordRAM.Strassen

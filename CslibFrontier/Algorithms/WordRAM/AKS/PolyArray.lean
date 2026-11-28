@@ -9,7 +9,8 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Foundations.NumberTheory.AKS.Coefficients
-import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 
 /-!
 # Writing and comparing coefficient arrays on the word RAM
@@ -78,33 +79,6 @@ def finish : Code .standard 10 := .seq storeConst addMonomial
 def program : Code .standard 10 :=
   .seq (ram[ one ← #1; zero ← #0; i ← #0 ]) (.seq (.loop (.lt i rr) clearBody) finish)
 
-private theorem clear_step {w b r : ℕ} {m : ℕ → ℕ} (hfb : Fits w (b + r)) (y : Data 10)
-    (hy : y.regs base = b ∧ y.regs rr = r ∧ y.regs one = 1 ∧ y.regs zero = 0 ∧
-      ∀ a', y.mem a' = if b ≤ a' ∧ a' < b + y.regs i then 0 else m a')
-    (hc : y.regs i < r) :
-    ∃ z, ExecWithin w clearBody y z 3 ∧
-      (z.regs base = b ∧ z.regs rr = r ∧ z.regs one = 1 ∧ z.regs zero = 0 ∧
-        ∀ a', z.mem a' = if b ≤ a' ∧ a' < b + (y.regs i + 1) then 0 else m a') ∧
-      z.regs i = y.regs i + 1 := by
-  obtain ⟨hyb, hyr, hyo, hyz, hym⟩ := hy
-  obtain ⟨I, hI⟩ : ∃ I, y.regs i = I := ⟨_, rfl⟩
-  have hlt : I < r := by simpa only [hI] using hc
-  have hf₁ : Fits w (b + I) := hfb.of_le (by omega)
-  have hf₂ : Fits w (I + 1) := hfb.of_le (by omega)
-  let z := ((y.set addr (b + I)).write (b + I) 0).set i (I + 1)
-  have hrun : ExecWithin (B := .standard) w clearBody y z 3 := by
-    ram_eval [clearBody, z, hyb, hI, hyo, hyz, hf₁, hf₂]
-  refine ⟨z, hrun, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_⟩
-  · simp +decide [z, hyb]
-  · simp +decide [z, hyr]
-  · simp +decide [z, hyo]
-  · simp +decide [z, hyz]
-  · intro a'
-    simp only [z, Data.set_mem, Data.write_mem,
-      Function.update_apply, hym, hI]
-    split_ifs <;> first | rfl | omega
-  · simp only [z, Data.set_regs, Function.update_self, hI]
-
 /-- **Writing `X^e + a`.** For `r ≥ 1` and `n ≥ 1`, with `e mod r` in `er` and the block end,
 `a`, `n` and `n + 1` fitting a word, the block `[b, b + r)` receives the coefficients
 `Cslib.AKS.powAddCoeff n r e a` within `5 r + 13` instructions, and no other cell changes. -/
@@ -115,84 +89,70 @@ theorem exec {w : ℕ} (x : Data 10) {b r n e a : ℕ} (hb : x.regs base = b) (h
       (∀ k < r, y.mem (b + k) = Cslib.AKS.powAddCoeff n r e a k) ∧
       (∀ a', ¬(b ≤ a' ∧ a' < b + r) → y.mem a' = x.mem a') ∧
       y.regs base = b ∧ y.regs rr = r ∧ y.regs nn = n := by
-  have h1 : Fits w 1 := hfn.of_le (by omega)
-  let x₀ := ((x.set one 1).set zero 0).set i 0
-  have hrun₀ : ExecWithin (B := .standard) w (ram[ one ← #1; zero ← #0; i ← #0 ]) x x₀ 3 := by
-    ram_eval [x₀, h1]
-  let P (j : ℕ) (y : Data 10) : Prop :=
-    y.regs base = b ∧ y.regs rr = r ∧ y.regs one = 1 ∧ y.regs zero = 0 ∧
-      ∀ a', y.mem a' = if b ≤ a' ∧ a' < b + j then 0 else x.mem a'
-  have hx₀ : P (x₀.regs i) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, fun a' => ?_⟩
-    · simp +decide [x₀, hb]
-    · simp +decide [x₀, hr]
-    · simp +decide [x₀]
-    · simp +decide [x₀]
-    · simp only [x₀, Data.set_mem, Data.set_regs, Function.update_self]
-      split_ifs <;> first | rfl | omega
-  obtain ⟨y, hrun₁, ⟨hyb, hyr, hyo, -, hym⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.2.1) (clear_step hfb) (by simp [x₀]) hx₀
-  -- The two nonzero coefficients.
-  have hyn : y.regs nn = n := by
-    rw [hrun₁.regs_eq (by decide), show x₀.regs nn = x.regs nn by simp +decide [x₀], hn]
-  have hya : y.regs aa = a := by
-    rw [hrun₁.regs_eq (by decide), show x₀.regs aa = x.regs aa by simp +decide [x₀], ha]
-  have hye : y.regs er = e % r := by
-    rw [hrun₁.regs_eq (by decide), show x₀.regs er = x.regs er by simp +decide [x₀], her]
+  have _ := hfa
+  have hclear : ∃ y, ExecWithin w (.loop (.lt i rr) clearBody)
+      (((x.set one 1).set zero 0).set i 0) y (5 * r + 2) ∧
+      y.mem = fun a' => if b ≤ a' ∧ a' < b + r then 0 else x.mem a' := by
+    wram_fold (fun rest y => y.regs i + rest.length = r ∧
+        ∀ a', y.mem a' = if b ≤ a' ∧ a' < b + y.regs i then 0 else x.mem a')
+      over (List.replicate r ()) cost (fun _ => 3)
+    case init =>
+      exact ⟨by wram_simp; simp, fun a' => by wram_simp; exact (ite_eq_right (by omega)).symm⟩
+    case exit =>
+      rintro v m hI; rw [hr]; omega
+    case step =>
+      rintro _ as v m hI
+      have hfit' (u : ℕ) (hu : u ≤ b + r) : Fits w u := hfb.of_le hu
+      refine ⟨by rw [hr]; omega, ?_⟩
+      unfold clearBody
+      wram_exec [hb, hfit']
+      refine ⟨by wram_simp; omega, fun a' => ?_⟩
+      by_cases ha' : a' = b + v i
+      · subst ha'; wram_simp; exact (ite_eq_left (by omega)).symm
+      · refine Eq.trans (by mem_frame : _ = m a') ?_
+        rw [hI.2 a']; wram_simp; congr 1; exact propext ⟨by omega, by omega⟩
+    case post =>
+      rintro v m hI
+      refine ⟨by simp; omega, funext fun a' => ?_⟩
+      rw [hI.2 a']; congr 1; exact propext ⟨by omega, by omega⟩
   have her' : e % r < r := Nat.mod_lt _ hr0
   have hamod : a % n < n := Nat.mod_lt _ hn0
-  have hf₁ : Fits w (a % n) := hfa.of_le (Nat.mod_le _ _)
-  have hf₂ : Fits w (b + e % r) := hfb.of_le (by omega)
-  -- The cell at `e mod r` after the first store.
-  obtain ⟨c, hc⟩ : ∃ c, c = if e % r = 0 then a % n else 0 := ⟨_, rfl⟩
-  obtain ⟨y', hy'⟩ : ∃ y', (y.set t (a % n)).write b (a % n) = y' := ⟨_, rfl⟩
-  have hrun₂ : ExecWithin (B := .standard) w storeConst y y' 2 := by
-    rw [← hy']; ram_eval [storeConst, hya, hyn, hyb, hf₁]
-  have hy'b : y'.regs base = b := by rw [← hy']; simp +decide [hyb]
-  have hy'e : y'.regs er = e % r := by rw [← hy']; simp +decide [hye]
-  have hy'o : y'.regs one = 1 := by rw [← hy']; simp +decide [hyo]
-  have hy'n : y'.regs nn = n := by rw [← hy']; simp +decide [hyn]
-  have hy'r : y'.regs rr = r := by rw [← hy']; simp +decide [hyr]
-  have hy'm : y'.mem = Function.update y.mem b (a % n) := by rw [← hy']; rfl
-  have hcell : y'.mem (b + e % r) = c := by
-    rw [hy'm]
-    by_cases h : e % r = 0
-    · simp [hc, h]
-    · rw [Function.update_of_ne (by omega), hym]
-      simp [hc, h, show b + e % r < b + r by omega]
+  set c := if e % r = 0 then a % n else 0 with hc
   have hcn : c < n := by rw [hc]; split_ifs <;> omega
-  have hf₃ : Fits w (c + 1) := hfn.of_le (by omega)
-  have hf₄ : Fits w ((c + 1) % n) := hfn.of_le (by have := Nat.mod_lt (c + 1) hn0; omega)
-  let z := ((((y'.set addr (b + e % r)).set t c).set t (c + 1)).set t ((c + 1) % n)).write
-    (b + e % r) ((c + 1) % n)
-  have hrun₃ : ExecWithin (B := .standard) w addMonomial y' z 5 := by
-    ram_eval [addMonomial, z, hy'b, hy'e, hy'o, hy'n, hcell, hf₂, hf₃, hf₄]
-  refine ⟨z, (hrun₀.seq (hrun₁.seq (hrun₂.seq hrun₃))).mono ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · have : x₀.regs i = 0 := by simp +decide [x₀]
-    rw [this]; omega
+  have hfc1 : Fits w (c + 1) := hfn.of_le (by omega)
+  have hcm : (c + 1) % n < n := Nat.mod_lt _ hn0
+  unfold program finish storeConst addMonomial
+  wram_exec
+  wram_call hclear framed with v₁ m₁ rfl
+  have hcell : (((Data.havoc (.loop (.lt i rr) clearBody) (((x.set one 1).set zero 0).set i 0) v₁
+      fun a' => if b ≤ a' ∧ a' < b + r then 0 else x.mem a').set t (a % n)).write b (a % n)).mem
+      (b + e % r) = c := by
+    by_cases h : e % r = 0
+    · wram_simp [h]; simp [hc, h]
+    · refine Eq.trans (by mem_frame : _ = _) ?_
+      simp [hc, h, her']
+  wram_exec [hb, hr, hn, her, ha, hcell, hfc1]
+  refine ⟨?_, ?_, by wram_simp [hb], by wram_simp [hr], by wram_simp [hn]⟩
   · intro k hk
-    simp only [z, Data.write_mem, Data.set_mem]
     by_cases hke : k = e % r
     · subst hke
-      rw [Function.update_self]
+      wram_simp [hcell]
       simp only [Cslib.AKS.powAddCoeff, ↓reduceIte, hc]
       split_ifs with h0
       · rw [Nat.mod_add_mod, Nat.add_comm]
       · simp
-    · rw [Function.update_of_ne (by omega), hy'm]
-      by_cases hk0 : k = 0
+    · by_cases hk0 : k = 0
       · subst hk0
-        simp only [Nat.add_zero, Function.update_self, Cslib.AKS.powAddCoeff, hke, ↓reduceIte,
-          Nat.zero_add]
-      · rw [Function.update_of_ne (by omega), hym]
-        simp [Cslib.AKS.powAddCoeff, hke, hk0, show b + k < b + r by omega]
+        refine Eq.trans (by mem_frame : _ = (((Data.havoc _ _ v₁ _).set t (a % n)).write b
+          (a % n)).mem (b + 0)) ?_
+        wram_simp
+        simp [Cslib.AKS.powAddCoeff, hke]
+      · refine Eq.trans (by mem_frame : _ = (if b ≤ b + k ∧ b + k < b + r then 0
+          else x.mem (b + k))) ?_
+        simp [Cslib.AKS.powAddCoeff, hke, hk0, hk]
   · intro a' ha'
-    simp only [z, Data.write_mem, Data.set_mem]
-    rw [Function.update_of_ne (by omega), hy'm, Function.update_of_ne (by omega), hym]
-    simp [ha']
-  · simp +decide [z, hy'b]
-  · simp +decide [z, hy'r]
-  · simp +decide [z, hy'n]
+    refine Eq.trans (by mem_frame : _ = (if b ≤ a' ∧ a' < b + r then 0 else x.mem a')) ?_
+    exact ite_eq_right ha'
 
 end Fill
 
@@ -226,51 +186,6 @@ def body : Code .standard 9 := ram[
 def program : Code .standard 9 :=
   .seq (ram[ flag ← #1; one ← #1; k ← #0 ]) (.loop (.lt k rr) body)
 
-private theorem step {w a b r : ℕ} {m : ℕ → ℕ} (hfa : Fits w (a + r)) (hfb : Fits w (b + r))
-    (y : Data 9)
-    (hy : y.regs p = a ∧ y.regs q = b ∧ y.regs rr = r ∧ y.regs one = 1 ∧
-      y.mem = m ∧ (y.regs flag = if ∀ k' < y.regs k, m (a + k') = m (b + k') then 1 else 0))
-    (hc : y.regs k < r) :
-    ∃ z, ExecWithin w body y z 9 ∧
-      (z.regs p = a ∧ z.regs q = b ∧ z.regs rr = r ∧ z.regs one = 1 ∧
-        z.mem = m ∧ (z.regs flag = if ∀ k' < y.regs k + 1, m (a + k') = m (b + k') then 1 else 0)) ∧
-      z.regs k = y.regs k + 1 := by
-  classical
-  obtain ⟨hya, hyb, hyr, hyo, hym, hyf⟩ := hy
-  obtain ⟨K, hK⟩ : ∃ K, y.regs k = K := ⟨_, rfl⟩
-  have hlt : K < r := by simpa only [hK] using hc
-  rw [hK] at hyf
-  have hf₁ : Fits w (a + K) := hfa.of_le (by omega)
-  have hf₂ : Fits w (b + K) := hfb.of_le (by omega)
-  have hf₃ : Fits w (K + 1) := hfa.of_le (by omega)
-  have hiff : (∀ k' < K + 1, m (a + k') = m (b + k')) ↔
-      (∀ k' < K, m (a + k') = m (b + k')) ∧ m (a + K) = m (b + K) := by
-    constructor
-    · intro h; exact ⟨fun k' hk' => h k' (by omega), h K (by omega)⟩
-    · rintro ⟨h, hK'⟩ k' hk'
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hk' with hk' | rfl
-      · exact h k' hk'
-      · exact hK'
-  let f := if m (a + K) = m (b + K) then y.regs flag else 0
-  let z := ((((((y.set addr (a + K)).set u (m (a + K))).set addr (b + K)).set v
-    (m (b + K))).set flag f).set k (K + 1))
-  have hrun : ExecWithin (B := .standard) w body y z 9 := by
-    by_cases heq : m (a + K) = m (b + K)
-    · refine ExecWithin.mono (T := 8) ?_ (by omega)
-      ram_eval [body, z, f, hya, hyb, hK, hyo, hym, heq, hf₁, hf₂, hf₃]
-    · ram_eval [body, z, f, hya, hyb, hK, hyo, hym, heq, hf₁, hf₂, hf₃]
-  refine ⟨z, hrun, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
-  · simp +decide [z, hya]
-  · simp +decide [z, hyb]
-  · simp +decide [z, hyr]
-  · simp +decide [z, hyo]
-  · simp +decide [z, hym]
-  · simp only [z, f, Data.set_regs, hK]
-    rw [Function.update_of_ne (by decide), Function.update_self]
-    simp only [hiff]
-    by_cases heq : m (a + K) = m (b + K) <;> simp [heq, hyf]
-  · simp only [z, Data.set_regs, Function.update_self, hK]
-
 /-- **Comparing blocks.** With both block ends fitting a word, the program leaves `1` in `flag`
 exactly when the blocks `[a, a + r)` and `[b, b + r)` agree, and `0` otherwise, within
 `11 r + 5` instructions, without changing memory. -/
@@ -279,24 +194,33 @@ theorem exec {w : ℕ} (x : Data 9) {a b r : ℕ} (ha : x.regs p = a) (hb : x.re
     ∃ y, ExecWithin w program x y (11 * r + 5) ∧ y.regs flag ≤ 1 ∧
       (y.regs flag = 1 ↔ ∀ k' < r, x.mem (a + k') = x.mem (b + k')) ∧ y.mem = x.mem := by
   classical
-  let x₀ := ((x.set flag 1).set one 1).set k 0
-  have hrun₀ : ExecWithin (B := .standard) w (ram[ flag ← #1; one ← #1; k ← #0 ]) x x₀ 3 := by
-    ram_eval [x₀, h1]
-  let P (j : ℕ) (y : Data 9) : Prop :=
-    y.regs p = a ∧ y.regs q = b ∧ y.regs rr = r ∧ y.regs one = 1 ∧ y.mem = x.mem ∧
-      (y.regs flag = if ∀ k' < j, x.mem (a + k') = x.mem (b + k') then 1 else 0)
-  have hx₀ : P (x₀.regs k) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, rfl, ?_⟩ <;> simp +decide [x₀, ha, hb, hr]
-  obtain ⟨y, hrun₁, ⟨-, -, -, -, hym, hyf⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ ⟨_, _, hrr, _⟩ => hrr) (step hfa hfb) (by simp [x₀]) hx₀
-  refine ⟨y, (hrun₀.seq hrun₁).mono ?_, ?_, ?_, hym⟩
-  · have : x₀.regs k = 0 := by simp +decide [x₀]
-    rw [this]; omega
-  · rw [hyf]; split_ifs <;> omega
-  · rw [hyf]
-    split_ifs with h
-    · exact ⟨fun _ => h, fun _ => rfl⟩
-    · exact ⟨fun h' => by simp at h', fun h' => absurd h' h⟩
+  unfold program
+  wram_exec
+  wram_fold (fun rest y => y.regs k + rest.length = r ∧ y.mem = x.mem ∧
+      y.regs flag = if ∀ k' < y.regs k, x.mem (a + k') = x.mem (b + k') then 1 else 0)
+    over (List.replicate r ()) cost (fun _ => 9)
+  case init =>
+    exact ⟨by wram_simp; simp, rfl, by wram_simp; simp⟩
+  case exit =>
+    rintro v m hI; rw [hr]; omega
+  case step =>
+    rintro _ as v m ⟨hk, rfl, hfl⟩
+    have hf1 (t : ℕ) (ht : t ≤ a + r) : Fits w t := hfa.of_le ht
+    have hf2 (t : ℕ) (ht : t ≤ b + r) : Fits w t := hfb.of_le ht
+    have hiff : (∀ k' < v k + 1, x.mem (a + k') = x.mem (b + k')) ↔
+        (∀ k' < v k, x.mem (a + k') = x.mem (b + k')) ∧ x.mem (a + v k) = x.mem (b + v k) :=
+      ⟨fun h => ⟨fun k' hk' => h k' (by omega), h (v k) (by omega)⟩,
+        fun ⟨h, hK⟩ k' hk' => (Nat.lt_succ_iff_lt_or_eq.mp hk').elim (h k') (· ▸ hK)⟩
+    refine ⟨by rw [hr]; omega, ?_⟩
+    unfold body
+    wram_exec [ha, hb, hf1, hf2] <;>
+      exact ⟨by wram_simp; omega, by wram_simp, by wram_simp [hfl, hiff]; simp [hc]⟩
+  case post =>
+    rintro v m ⟨hk, rfl, hfl⟩
+    have hkr : v k = r := by omega
+    rw [hkr] at hfl
+    refine ⟨by simp; omega, by rw [hfl]; split_ifs <;> omega, ?_, rfl⟩
+    rw [hfl]; split_ifs with h; exacts [iff_of_true (by simp) h, iff_of_false (by simp) h]
 
 end Compare
 

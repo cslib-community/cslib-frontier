@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Evaluate
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Powers
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Callable native pruned-query kernel
@@ -61,8 +62,7 @@ theorem exec_kernel {w L f a0 b0 q0 o0 Q E A B : ℕ}
         y.mem (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L + q) ≤ y.regs epoch) := by
   obtain ⟨p, hp, hpmem, hpL, hspan, _, hnil, hone, _, hten, hnine, hfour, _⟩ :=
     exec_powers (Q := Q) x hL (hfit.of_le (by unfold kernelBudget; omega))
-  have hpFrame : p.regs scratch = f :=
-    (hp.regs_eq (by decide : powers.Preserves scratch)).trans hf
+  have hpFrame : p.regs scratch = f := by regs_frame
   have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hLcap : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
   obtain ⟨u, hu, humem, huf, hul, huv, hus, _⟩ := exec_locate p hone hfour
@@ -70,35 +70,19 @@ theorem exec_kernel {w L f a0 b0 q0 o0 Q E A B : ℕ}
       rw [hpFrame, hpL, hspan]
       unfold kernelBudget evaluationBudget nodeBudget
       nlinarith only [hpow, hLcap]))
-  have fixed (i : Fin registers) (hi : locate.Preserves i) (hi' : powers.Preserves i) :
-      u.regs i = x.regs i := (hu.regs_eq hi).trans (hp.regs_eq hi')
   have hregs : KernelRegs L f a0 b0 u := by
-    constructor
-    · exact (hu.regs_eq (by decide : locate.Preserves inputDepth)).trans hpL
-    · exact (hu.regs_eq (by decide : locate.Preserves span)).trans hspan
-    · exact (fixed _ (by decide) (by decide)).trans hA
-    · exact (fixed _ (by decide) (by decide)).trans hB
-    · exact huf.trans hpFrame
-    · simpa only [hpFrame, hpL] using hul
-    · simpa only [hpFrame, hpL, hspan] using huv
-    · simpa only [hpFrame, hpL, hspan] using hus
-    · exact (hu.regs_eq (by decide : locate.Preserves nil)).trans hnil
-    · exact (hu.regs_eq (by decide : locate.Preserves one)).trans hone
-    · exact (hu.regs_eq (by decide : locate.Preserves ten)).trans hten
-    · exact (hu.regs_eq (by decide : locate.Preserves nine)).trans hnine
-    · exact (hu.regs_eq (by decide : locate.Preserves frameWidth)).trans hfour
+    refine ⟨?_, ?_, ?_, ?_, huf.trans hpFrame,
+      by simpa only [hpFrame, hpL] using hul,
+      by simpa only [hpFrame, hpL, hspan] using huv,
+      by simpa only [hpFrame, hpL, hspan] using hus, ?_, ?_, ?_, ?_, ?_⟩ <;> regs_frame
   have hmem : u.mem = x.mem := humem.trans hpmem
   obtain ⟨y, hy, hvalues, hframe, hout, hel, heu, htable⟩ := exec_evaluate a b qs u hregs
-    ((fixed _ (by decide) (by decide)).trans hQ)
-    ((fixed _ (by decide) (by decide)).trans hq0)
-    ((fixed _ (by decide) (by decide)).trans ho0)
-    ((fixed _ (by decide) (by decide)).trans hE)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     (by simpa only [hmem] using hinput) (by simpa only [hmem] using hleft)
     (by simpa only [hmem] using hright) hbeforeA hbeforeB hqueryOut houtFrame
     (by simpa only [hmem] using hmarks) ha hb hw hmag
     (hfit.of_le (by unfold kernelBudget; omega))
-  refine ⟨y, ?_, hvalues, ?_, hout, hel, heu, htable⟩
-  · exact (hp.seq (hu.seq hy)).mono (by omega)
-  · simpa only [hmem] using hframe
+  exact ⟨y, (hp.seq (hu.seq hy)).mono (by omega), hvalues, by simpa only [hmem] using hframe,
+    hout, hel, heu, htable⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

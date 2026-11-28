@@ -314,10 +314,14 @@ theorem mvvOutput_iff {G : V × V → Bool} {w : V × V → ℕ} {i j : V} :
       weightedEdmonds G w i j * adjugate (weightedEdmonds G w) j i := by
   rw [mvvOutput]
 
-/-- The output of the procedure is decidable. -/
+/-- The output of the procedure is decidable, by an executable test. Mathlib's `padicValInt` is
+noncomputable, so the instance decides the same divisibility with the executable `padicValNat`,
+which `Nat.padicValNat_def` identifies with the `multiplicity` that `padicValInt` unfolds to. -/
 instance (G : V × V → Bool) (w : V × V → ℕ) (i j : V) : Decidable (mvvOutput G w i j) :=
-  inferInstanceAs (Decidable (¬ (2 : ℤ) ^ (padicValInt 2 (weightedEdmonds G w).det + 1) ∣
-    weightedEdmonds G w i j * adjugate (weightedEdmonds G w) j i))
+  decidable_of_iff
+    (¬ (2 : ℤ) ^ (padicValNat 2 (weightedEdmonds G w).det.natAbs + 1) ∣
+      weightedEdmonds G w i j * adjugate (weightedEdmonds G w) j i)
+    (by rw [mvvOutput_iff, padicValInt, Nat.padicValNat_def])
 
 /-- **The procedure is correct on isolating weights**: if `σ₀` is the unique minimum-weight perfect
 matching of the bipartite graph `G` under `w`, the procedure outputs exactly the pairs of `σ₀`. -/
@@ -336,7 +340,8 @@ theorem mvvSucceeds_iff {G : V × V → Bool} {w : V × V → ℕ} :
     MVVSucceeds G w ↔ ∃ σ ∈ perfectMatchings G, ∀ i j, σ i = j ↔ mvvOutput G w i j := by
   rw [MVVSucceeds]
 
-/-- Success of the procedure is decidable. -/
+/-- Success of the procedure is decidable, by searching the permutations with the executable
+test for `mvvOutput`. -/
 instance (G : V × V → Bool) (w : V × V → ℕ) : Decidable (MVVSucceeds G w) :=
   inferInstanceAs (Decidable (∃ σ ∈ perfectMatchings G, ∀ i j, σ i = j ↔ mvvOutput G w i j))
 
@@ -367,26 +372,20 @@ omit [Fintype V] [DecidableEq V] in
 /-- On an edge, the extended weight is the label plus one. -/
 theorem extendWeight_of_edge {G : V × V → Bool} {N : ℕ} (w : Edges G → Fin N) {e : V × V}
     (h : G e = true) : extendWeight w e = (w ⟨e, h⟩).val + 1 := by
-  unfold extendWeight
-  simp [h]
+  simp [extendWeight, h]
 
 omit [Fintype V] [DecidableEq V] in
 /-- Off the edges, the extended weight is `0`. -/
 theorem extendWeight_of_not_edge {G : V × V → Bool} {N : ℕ} (w : Edges G → Fin N) {e : V × V}
     (h : G e = false) : extendWeight w e = 0 := by
-  unfold extendWeight
-  simp [h]
+  simp [extendWeight, h]
 
 /-- Distinct perfect matchings have distinct edge sets. -/
 theorem matchingEdges_injOn (G : V × V → Bool) :
     Set.InjOn (matchingEdges G) (perfectMatchings G : Set (Perm V)) := by
   intro σ hσ τ _ h
-  refine Equiv.ext fun v => ?_
-  have hmem : (⟨(v, σ v), mem_perfectMatchings.1 hσ v⟩ : Edges G) ∈ matchingEdges G σ := by
-    simp [matchingEdges]
-  rw [h] at hmem
-  simp only [matchingEdges, mem_filter, mem_univ, true_and] at hmem
-  exact hmem.symm
+  refine Equiv.ext fun v => ((?_) : τ v = σ v).symm
+  simpa [matchingEdges] using Finset.ext_iff.1 h ⟨(v, σ v), mem_perfectMatchings.1 hσ v⟩
 
 /-- The isolation-lemma weight of the edges of a perfect matching is its matching weight under
 the extended weights. -/
@@ -419,19 +418,13 @@ theorem half_le_dens_exists_isUniqueMinMatching {G : V × V → Bool} (hG : HasP
   refine (half_le_dens_minWeightSets_card_eq_one hN hF).trans (dens_le_dens fun w hw => ?_)
   simp only [mem_filter, mem_univ, true_and, card_eq_one] at hw ⊢
   obtain ⟨S, hS⟩ := hw
-  have hSmem : S ∈ minWeightSets (fun x : Fin N => x.val + 1) w
-      ((perfectMatchings G).image (matchingEdges G)) := hS ▸ mem_singleton_self S
-  obtain ⟨hSF, hSmin⟩ := mem_minWeightSets.1 hSmem
+  obtain ⟨hSF, hSmin⟩ := mem_minWeightSets.1 (hS ▸ mem_singleton_self S)
   obtain ⟨σ₀, hσ₀, rfl⟩ := mem_image.1 hSF
   refine ⟨σ₀, hσ₀, fun τ hτ hne => ?_⟩
   rw [← setWeight_matchingEdges hσ₀, ← setWeight_matchingEdges hτ]
-  refine lt_of_le_of_ne (hSmin _ (mem_image_of_mem _ hτ)) fun heq => hne ?_
-  refine matchingEdges_injOn G hτ hσ₀ ?_
-  have : matchingEdges G τ ∈ minWeightSets (fun x : Fin N => x.val + 1) w
-      ((perfectMatchings G).image (matchingEdges G)) :=
-    mem_minWeightSets.2 ⟨mem_image_of_mem _ hτ, fun T hT => heq ▸ hSmin T hT⟩
-  rw [hS] at this
-  exact mem_singleton.1 this
+  refine lt_of_le_of_ne (hSmin _ (mem_image_of_mem _ hτ)) fun heq =>
+    hne (matchingEdges_injOn G hτ hσ₀ (mem_singleton.1 (hS ▸ mem_minWeightSets.2
+      ⟨mem_image_of_mem _ hτ, fun T hT => heq ▸ hSmin T hT⟩)))
 
 /-- **The Mulmuley–Vazirani–Vazirani algorithm for bipartite graphs, algebraic core**
 [MulmuleyVaziraniVazirani1987] [Motwani and Raghavan, Section 12.4][MotwaniRaghavan95]: if the

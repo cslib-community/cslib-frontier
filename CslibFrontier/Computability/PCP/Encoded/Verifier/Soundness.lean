@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.Encoded.Verifier
 public import CslibFrontier.Probability.BitString
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.UniformNat
 import CslibFrontier.Foundations.Data.Nat.Log
 
@@ -55,19 +55,15 @@ private theorem card_reject_indexVerdict (g : Graph C) (eval : C → α → α �
     (Finset.univ.filter fun i : Fin bound => indexVerdict g eval labels i.val = false).card =
       ((g.toGraph eval).unsatEdges labels).card := by
   classical
-  symm
-  apply Finset.card_bij (fun i _ => Fin.castLE hbound i)
-  · intro i hi
-    apply Finset.mem_filter.mpr
-    refine ⟨Finset.mem_univ _, ?_⟩
-    change indexVerdict g eval labels i.val = false
+  refine (Finset.card_bij (fun i _ => Fin.castLE hbound i)
+    (fun i hi => Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩)
+    (fun _ _ _ _ hij => Fin.ext (congrArg (fun index : Fin bound => index.val) hij))
+    fun i hi => ?_).symm
+  · change indexVerdict g eval labels i.val = false
     simpa only [ConstraintGraph.mem_unsatEdges, ConstraintGraph.Satisfies, toGraph,
-      List.get_eq_getElem, indexVerdict,
-      List.getElem?_eq_getElem i.isLt, Option.elim_some, Bool.not_eq_true] using hi
-  · intro i hi j hj hij
-    exact Fin.ext (congrArg (fun index : Fin bound => index.val) hij)
-  · intro i hi
-    have hi' : indexVerdict g eval labels i.val = false := (Finset.mem_filter.mp hi).2
+      List.get_eq_getElem, indexVerdict, List.getElem?_eq_getElem i.isLt, Option.elim_some,
+      Bool.not_eq_true] using hi
+  · have hi' : indexVerdict g eval labels i.val = false := (Finset.mem_filter.mp hi).2
     have hlt : i.val < g.edges.length := by
       by_contra h
       simp [indexVerdict, List.getElem?_eq_none (Nat.le_of_not_gt h)] at hi'
@@ -110,15 +106,12 @@ theorem unsatFrac_div_two_le_rejectProb (width : ℕ) (decode : (Fin width → B
       (((BitString.uniformList (Nat.clog 2 g.edges.length)).map
         (fun random => (edgeVerifier width decode eval).accepts g proof random)) false).toReal := by
   rcases g.edges.length.eq_zero_or_pos with hzero | hpos
-  · simp only [ConstraintGraph.unsatFrac, Fintype.card_fin, hzero, Nat.cast_zero, div_zero,
-      zero_div]
-    exact ENNReal.toReal_nonneg
+  · simp [ConstraintGraph.unsatFrac, hzero]
   · rw [rejectProb_edgeVerifier, ENNReal.toReal_div]
     simp only [ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_ofNat,
       ConstraintGraph.unsatFrac, Fintype.card_fin, div_div]
-    apply div_le_div_of_nonneg_left (Nat.cast_nonneg _) (by positivity)
-    have h := Nat.pow_clog_le_mul Nat.one_lt_two hpos.ne'
-    exact_mod_cast (by simpa only [Nat.mul_comm] using h)
+    refine div_le_div_of_nonneg_left (Nat.cast_nonneg _) (by positivity) ?_
+    exact_mod_cast (Nat.mul_comm _ _ ▸ Nat.pow_clog_le_mul Nat.one_lt_two hpos.ne')
 
 /-- The graph's unsatisfiability value bounds rejection for every proof word. -/
 theorem unsatVal_div_two_le_rejectProb (width : ℕ) (decode : (Fin width → Bool) → α)
@@ -135,10 +128,8 @@ theorem acceptProb_edgeVerifier_le (width : ℕ) (decode : (Fin width → Bool) 
     (((BitString.uniformList (Nat.clog 2 g.edges.length)).map
       (fun random => (edgeVerifier width decode eval).accepts g proof random)) true).toReal ≤
         1 - (g.toGraph eval).unsatVal / 2 := by
-  have h := unsatVal_div_two_le_rejectProb width decode eval g proof
-  have hsum := PMF.toReal_true_add_toReal_false
-    ((BitString.uniformList (Nat.clog 2 g.edges.length)).map
-      (fun random => (edgeVerifier width decode eval).accepts g proof random))
-  linarith
+  linarith [unsatVal_div_two_le_rejectProb width decode eval g proof,
+    PMF.toReal_true_add_toReal_false ((BitString.uniformList (Nat.clog 2 g.edges.length)).map
+      fun random => (edgeVerifier width decode eval).accepts g proof random)]
 
 end Cslib.PCP.Encoded.Graph

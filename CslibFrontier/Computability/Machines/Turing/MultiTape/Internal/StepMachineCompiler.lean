@@ -19,6 +19,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OnWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.Basic
 public import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -59,15 +60,10 @@ public lemma linear_stepFlagWord :
 @[simp] public lemma moveOfCell_encSign (m : SignType) : moveOfCell (encSign m).head? = m := by
   cases m <;> rfl
 
-public lemma peekWord_injective : Function.Injective peekWord := by
-  intro a b h
-  cases a with
-  | none => cases b with
-    | none => rfl
-    | some b => simp [peekWord] at h
-  | some a => cases b with
-    | none => simp [peekWord] at h
-    | some b => simp_all [peekWord]
+public lemma peekWord_injective : Function.Injective peekWord
+  | none, none, _ => rfl
+  | none, some _, h | some _, none, h => by simp [peekWord] at h
+  | some _, some _, h => by simpa [peekWord] using h
 
 /-- A value behind the symbol under the input head, recorded by `peekWord`. -/
 @[expose] public def encPeek {τ : Type*} (enc : τ ↪ List Bool) : Option Bool × τ ↪ List Bool :=
@@ -285,15 +281,16 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
   have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
   have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
   have hVM : V ≠ Mv := by simp [V, Mv, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := M + 5) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := M + 5) (by omega) (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := M + 5) (by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 5) (by omega) (Fin.last kI) V
+  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 5) (by omega)
+    (Fin.natAdd kE (0 : Fin 2)) V
+  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 5) (by omega)
     (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eM, heM, heM'⟩ := exists_embedding_eq₂ (K := M + 5) (by omega)
+  obtain ⟨eM, heM, heM'⟩ := Fin.exists_embedding_eq₂ (K := M + 5) (by omega)
     (i := Fin.natAdd (kM + 1) (0 : Fin 2)) (o := (Fin.last kM).castAdd 2)
     (by simp [Fin.ext_iff]) hVM
-  obtain ⟨eC, heC, heC'⟩ := exists_embedding_eq₂ (K := M + 5) (by omega)
+  obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := M + 5) (by omega)
     (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
     (by simp [Fin.ext_iff]) hVC
   have hI := transformsTapes_outputToWord htmI heI
@@ -334,6 +331,15 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
   have hfl (n : ℕ) : (stepFlagWord (!halt (q n))).length ≤ 1 := by
     unfold stepFlagWord; split_ifs <;> simp
   have hmv (mm : SignType) : (encSign mm).length ≤ 1 := by cases mm <;> simp [encSign]
+  have hPn1 (n : ℕ) (hn : n < R) :
+      (encPeek (encPair encS encSign)
+        (none, (step (q n) (a n)).1, (step (q n) (a n)).2.1)).length ≤ 2 * L + 4 := by
+    simpa only [hq n hn] using hP none (n + 1) hn (step (q n) (a n)).2.1
+  have hMmBound (n : ℕ) (hn : n < R) :
+      cM * ((encPeek (encAug encS) (none, q (n + 1), mv (n + 1))).length + 1) ≤
+        D * (2 * L + 5) := by
+    have := hP none (n + 1) hn (mv (n + 1))
+    exact Nat.mul_le_mul (by omega) (by omega)
   have h := computesTidily_stepTM hVN hVF hNF hVC hVM w R (fun n => encAug encS (q n, mv n))
     (fun n => (st n).2.2) (fun n => encSign (st n).2.1) (fun n => stepFlagWord (!halt (q n)))
     (fun n => (m.run w n).pos) rfl
@@ -362,11 +368,7 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
     (fun n hn => (hN (a n, (q n, mv n))).imp (fun _ _ h => h)
       (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [hq n hn, mv, st, peekWord, slot], he⟩) (by
         have := hP (a n) n hn.le (mv n); have := (hst n hn.le).1
-        have : (encPeek (encPair encS encSign) (none, (step (q n) (a n)).1,
-            (step (q n) (a n)).2.1)).length ≤ 2 * L + 4 := by
-          have := hP none (n + 1) hn (step (q n) (a n)).2.1
-          rw [hq n hn] at this
-          exact this
+        have := hPn1 n hn
         have := Nat.mul_le_mul (show cN ≤ D by omega)
           (show (encPeek (encAug encS) (a n, q n, mv n)).length +
             (encPeek (encAug encS) (a n, q n, mv n)).length + TS (q n, a n) +
@@ -375,11 +377,7 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
               2 * Tm + 8 * L + 20 by omega)
         dsimp -zeta only; simp only [Function.comp_apply]; omega) (by
         have := hP (a n) n hn.le (mv n); have := (hst n hn.le).2
-        have : (encPeek (encPair encS encSign) (none, (step (q n) (a n)).1,
-            (step (q n) (a n)).2.1)).length ≤ 2 * L + 4 := by
-          have := hP none (n + 1) hn (step (q n) (a n)).2.1
-          rw [hq n hn] at this
-          exact this
+        have := hPn1 n hn
         have := Nat.mul_le_mul (show cN ≤ D by omega)
           (show (encPeek (encAug encS) (a n, q n, mv n)).length +
             (encPeek (encAug encS) (a n, q n, mv n)).length + SS (q n, a n) +
@@ -389,15 +387,12 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
         dsimp -zeta only; simp only [Function.comp_apply]; omega))
     (fun n hn => (hMm (none, (q (n + 1), mv (n + 1)))).imp (fun _ _ h => by rw [h]; rfl)
       (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [mv], he⟩) (by
-        have := hP none (n + 1) hn (mv (n + 1)); have := hmv (mv (n + 1))
-        have := Nat.mul_le_mul (show cM ≤ D by omega)
-          (show (encPeek (encAug encS) (none, q (n + 1), mv (n + 1))).length + 1 ≤ 2 * L + 5 by
-            omega)
+        have := hmv (mv (n + 1))
+        have := hMmBound n hn
         dsimp -zeta only; omega) (by
-        have := hP none (n + 1) hn (mv (n + 1)); have := hmv (mv (n + 1))
-        have := Nat.mul_le_mul (show cM ≤ D by omega)
-          (show (encPeek (encAug encS) (none, q (n + 1), mv (n + 1))).length + 1 ≤ 2 * L + 5 by
-            omega)
+        have := hP none (n + 1) hn (mv (n + 1))
+        have := hmv (mv (n + 1))
+        have := hMmBound n hn
         dsimp -zeta only; omega))
     (fun n hn => (hC (none, (q n, mv n))).imp (fun _ _ h => by rw [h]; rfl)
       (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; rfl, he⟩) (by
@@ -438,13 +433,8 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
     simp only [encPeek_apply] at h₁ h₂
     simp only [stepRoundTime, List.length_append, slot, peekWord, List.length_cons,
       List.length_nil] at h₁ h₂ ⊢
-    have e₁ : D * (Tm + 4 * L + 10) = D * Tm + 4 * (D * L) + 10 * D := by ring
-    have e₂ : D * (2 * Tm + 8 * L + 20) = 2 * (D * Tm) + 8 * (D * L) + 20 * D := by ring
-    have e₃ : D * (2 * L + 5) = 2 * (D * L) + 5 * D := by ring
-    have e₄ : D * (Tm + 2 * L + 5) = D * Tm + 2 * (D * L) + 5 * D := by ring
-    have e₅ : D * (Tm + L + 1) = D * Tm + D * L + D := by ring
+    simp only [Nat.mul_add, Nat.mul_left_comm D, Nat.mul_one]
     have : L ≤ D * L := Nat.le_mul_of_pos_left _ (by omega)
-    rw [e₁, e₂, e₃, e₄, e₅]
     omega
   have hS : ∑ n ∈ Finset.range R, (stepRoundTime (stepFlagWord (!halt (q n))).length
       (peekWord (a n) ++ encAug encS (q n, mv n)).length
@@ -461,14 +451,8 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
       (D * (2 * Sm + 8 * L + 20) + 12 * L + 40 + 4 * (M + 5))
       (D * (2 * L + 5) + 4 * L + 30 + 4 * (M + 5))
       (D * (Sm + 2 * L + 5) + 4 * L + 30 + 4 * (M + 5)) ≤ 200 * (D * (Sm + L + 1)) := by
-    simp only [stepRoundSpace]
-    have e₁ : D * (Sm + 4 * L + 10) = D * Sm + 4 * (D * L) + 10 * D := by ring
-    have e₂ : D * (2 * Sm + 8 * L + 20) = 2 * (D * Sm) + 8 * (D * L) + 20 * D := by ring
-    have e₃ : D * (2 * L + 5) = 2 * (D * L) + 5 * D := by ring
-    have e₄ : D * (Sm + 2 * L + 5) = D * Sm + 2 * (D * L) + 5 * D := by ring
-    have e₅ : D * (Sm + L + 1) = D * Sm + D * L + D := by ring
+    simp only [stepRoundSpace, Nat.mul_add, Nat.mul_left_comm D, Nat.mul_one]
     have : L ≤ D * L := Nat.le_mul_of_pos_left _ (by omega)
-    rw [e₁, e₂, e₃, e₄, e₅]
     omega
   refine h.mono ?_ ?_
   · exact step_time_le cI D (TI x) w.length R Tm L _ _ _ (by omega) (by omega) hP₁ hP₂ hS

@@ -10,11 +10,11 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Data.Set.Card
-public import Mathlib.Data.Set.Finite.List
+public import CslibFrontier.Foundations.Data.List.WordsLe
+public import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.List.OfFn
-import Mathlib.Data.Vector.Basic
 
 /-!
 # Counting binary words
@@ -26,11 +26,11 @@ leaves some word of length `n` unused.
 
 ## Main definitions
 
-* `Cslib.BitString.shortWords`: the binary words of length at most `L`.
+* `Cslib.BitString.shortWords`: the binary words of length at most `L`, the case `Γ = Bool` of
+  `List.wordsLe`.
 
 ## Main results
 
-* `Cslib.BitString.encard_setOf_length_eq`: there are `2 ^ n` words of length `n`.
 * `Cslib.BitString.encard_setOf_length_lt_add_one`: there are `2 ^ n - 1` words of length below
   `n`.
 * `Cslib.BitString.exists_length_eq_notMem`: fewer than `2 ^ n` words leave a word of length `n`
@@ -46,49 +46,34 @@ namespace Cslib.BitString
 
 open Finset
 
-/-- There are `2 ^ n` binary strings of length `n`. -/
-theorem encard_setOf_length_eq (n : ℕ) : {p : List Bool | p.length = n}.encard = 2 ^ n := by
-  change ENat.card (List.Vector Bool n) = _
-  rw [ENat.card_eq_coe_fintype_card, card_vector]
-  simp
-
 /-- There are `2 ^ n - 1` binary strings of length below `n`. -/
 theorem encard_setOf_length_lt_add_one (n : ℕ) :
     {p : List Bool | p.length < n}.encard + 1 = 2 ^ n := by
   induction n with
   | zero => simp
   | succ n ih =>
-    have hunion : {p : List Bool | p.length < n + 1} =
-        {p | p.length < n} ∪ {p | p.length = n} := by
-      ext p
-      simp only [Set.mem_ofPred_eq, Set.mem_union]
-      omega
-    have hdisj : Disjoint {p : List Bool | p.length < n} {p | p.length = n} :=
-      Set.disjoint_left.mpr fun _ hlt heq => Nat.ne_of_lt hlt heq
-    rw [hunion, Set.encard_union_eq hdisj, add_right_comm, ih, encard_setOf_length_eq,
-      pow_succ, mul_two]
+    have hunion : {p : List Bool | p.length < n + 1} = {p | p.length < n} ∪ {p | p.length = n} :=
+      Set.ext fun _ => Nat.lt_succ_iff_lt_or_eq
+    rw [hunion, Set.encard_union_eq (Set.disjoint_left.mpr fun _ (hlt : List.length _ < n) =>
+      hlt.ne), add_right_comm, ih, encard_setOf_length_eq, pow_succ, mul_two]
 
 /-- Fewer than `2 ^ n` words leave a word of length `n` unused. -/
 theorem exists_length_eq_notMem (Q : List (List Bool)) (n : ℕ) (hQ : Q.length < 2 ^ n) :
     ∃ w : List Bool, w.length = n ∧ w ∉ Q := by
   classical
-  have hcard : Q.toFinset.card <
-      ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn).card := by
-    rw [Finset.card_image_of_injective _ List.ofFn_injective, Finset.card_univ,
-      Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-    exact (List.toFinset_card_le Q).trans_lt hQ
-  obtain ⟨w, hw, hwQ⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard
-  obtain ⟨f, -, rfl⟩ := Finset.mem_image.mp hw
-  exact ⟨List.ofFn f, List.length_ofFn, fun h => hwQ (List.mem_toFinset.mpr h)⟩
+  obtain ⟨w, hw, hwQ⟩ := Finset.exists_mem_notMem_of_card_lt_card
+    (s := Q.toFinset) (t := wordsOfLength n)
+    ((List.toFinset_card_le Q).trans_lt (by rwa [card_wordsOfLength]))
+  exact ⟨w, mem_wordsOfLength.mp hw, mt List.mem_toFinset.mpr hwQ⟩
 
 /-- The binary words of length at most `L`. -/
 noncomputable def shortWords (L : ℕ) : Finset (List Bool) :=
-  (List.finite_length_le Bool L).toFinset
+  List.wordsLe Bool L
 
 /-- A word lies in `shortWords L` exactly when its length is at most `L`. -/
 @[simp]
-theorem mem_shortWords {L : ℕ} {w : List Bool} : w ∈ shortWords L ↔ w.length ≤ L := by
-  simp [shortWords]
+theorem mem_shortWords {L : ℕ} {w : List Bool} : w ∈ shortWords L ↔ w.length ≤ L :=
+  List.mem_wordsLe
 
 /-- The empty word lies in `shortWords L`. -/
 theorem nil_mem_shortWords (L : ℕ) : [] ∈ shortWords L := by simp
@@ -100,10 +85,8 @@ theorem shortWords_eq_biUnion (L : ℕ) :
       (range (L + 1)).biUnion fun m => univ.image (List.ofFn : (Fin m → Bool) → _) := by
   ext w
   simp only [mem_shortWords, mem_biUnion, mem_range, mem_image, mem_univ, true_and]
-  refine ⟨fun hw => ⟨w.length, by omega, w.get, List.ofFn_get w⟩, ?_⟩
-  rintro ⟨m, hm, r, rfl⟩
-  rw [List.length_ofFn]
-  omega
+  exact ⟨fun hw => ⟨w.length, Nat.lt_succ_of_le hw, w.get, List.ofFn_get w⟩,
+    fun ⟨_, hm, r, h⟩ => h ▸ (List.length_ofFn (f := r)).trans_le (Nat.lt_succ_iff.mp hm)⟩
 
 /-- There are `2 ^ (L + 1) - 1` binary words of length at most `L`. -/
 theorem card_shortWords (L : ℕ) : #(shortWords L) = 2 ^ (L + 1) - 1 := by

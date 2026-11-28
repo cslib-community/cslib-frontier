@@ -96,9 +96,9 @@ private def sourceIndex (h : requests + (sources + padding) = BitonicSort.arity 
 
 private theorem layout_apply (h : requests + (sources + padding) = BitonicSort.arity d)
     (x : BitString input) (i : Fin (requests + (sources + padding))) (bit : Fin (k + 1 + v)) :
-    directProductInput (layout sourceKeys sourceValues queryKeys h x) (Fin.cast h i) bit =
+    layout sourceKeys sourceValues queryKeys h x (finProdFinEquiv (Fin.cast h i, bit)) =
       (rows sourceKeys sourceValues queryKeys i bit).elim x id := by
-  simp [layout, substitution, substitute, directProductInput]
+  simp [layout, substitution, substitute]
 
 private theorem request_key (h : requests + (sources + padding) = BitonicSort.arity d)
     (x : BitString input) (request : Fin requests) :
@@ -139,23 +139,19 @@ private theorem exists_source_iff (h : requests + (sources + padding) = BitonicS
       p (header (layout sourceKeys sourceValues queryKeys h x) i ∘ Fin.castSucc)
         (value (layout sourceKeys sourceValues queryKeys h x) i)) ↔
       ∃ j, p (substitute (sourceKeys j) x) (substitute (sourceValues j) x) := by
-  constructor
-  · rintro ⟨i, ht, hp⟩
-    obtain ⟨i, rfl⟩ := (finCongr h).surjective i
-    revert ht hp
-    refine Fin.addCases (fun request ht hp => ?_) (fun i => ?_) i
-    · have := request_tag sourceKeys sourceValues queryKeys h x request
-      simp only [requestIndex] at this
-      exact Bool.noConfusion (this.symm.trans ht)
-    · refine Fin.addCases (fun j ht hp => ?_) (fun pad ht hp => ?_) i
-      · change p (header (layout sourceKeys sourceValues queryKeys h x) (sourceIndex h j) ∘
-          Fin.castSucc)
-          (value (layout sourceKeys sourceValues queryKeys h x) (sourceIndex h j)) at hp
-        exact ⟨j, by simpa only [source_key, source_value] using hp⟩
-      · simp [header, Function.comp_def, layout_apply, rows] at ht
-  · rintro ⟨j, hj⟩
-    exact ⟨sourceIndex h j, source_tag sourceKeys sourceValues queryKeys h x j, by
-      simpa only [source_key, source_value] using hj⟩
+  refine ⟨fun ⟨i, ht, hp⟩ => ?_, fun ⟨j, hj⟩ =>
+    ⟨sourceIndex h j, source_tag sourceKeys sourceValues queryKeys h x j,
+      by simpa only [source_key, source_value] using hj⟩⟩
+  obtain ⟨i, rfl⟩ := (finCongr h).surjective i
+  revert ht hp
+  refine Fin.addCases (fun request ht _ => ?_)
+    (Fin.addCases (fun j _ hp => ?_) fun _ ht _ => ?_) i
+  · have := request_tag sourceKeys sourceValues queryKeys h x request
+    simp only [requestIndex] at this
+    exact Bool.noConfusion (this.symm.trans ht)
+  · change p (header _ (sourceIndex h j) ∘ Fin.castSucc) (value _ (sourceIndex h j)) at hp
+    exact ⟨j, by simpa only [source_key, source_value] using hp⟩
+  · simp [header, Function.comp_def, layout_apply, rows] at ht
 
 /-- Select the values at the original request positions by free wiring. -/
 def outputs (h : requests + (sources + padding) = BitonicSort.arity d) :
@@ -178,7 +174,7 @@ theorem eval_withPadding_iff (h : requests + (sources + padding) = BitonicSort.a
         substitute (sourceValues source) x bit = true := by
   simp only [withPadding, Circuit.eval_comp, outputs, Circuit.eval_wiring,
     eval_substituteCircuit, Function.comp_apply, Equiv.symm_apply_apply]
-  change directProductInput
+  change BitString.block
     ((routeValuesCircuit Fin.castSucc (Fin.last k) d v).eval interpretation
       (layout sourceKeys sourceValues queryKeys h x)) (requestIndex h request) bit = true ↔ _
   rw [eval_routeValuesCircuit_value_eq_true_iff Fin.castSucc (Fin.last k) _ _
@@ -215,22 +211,16 @@ theorem size_withPadding (h : requests + (sources + padding) = BitonicSort.arity
 theorem size_withPadding_le (h : requests + (sources + padding) = BitonicSort.arity d) :
     (withPadding sourceKeys sourceValues queryKeys h).size ≤
       24 * BitonicSort.arity d * (d + 1) ^ 2 * (k + v + 1) := by
-  have ha : 1 ≤ BitonicSort.arity d := by
-    rw [BitonicSort.arity_eq_two_pow]
-    exact Nat.one_le_pow _ _ (by decide)
-  have hd : 1 ≤ (d + 1) ^ 2 := Nat.one_le_pow _ _ (by lia)
+  have ha : 1 ≤ BitonicSort.arity d :=
+    BitonicSort.arity_eq_two_pow d ▸ Nat.one_le_pow _ _ (by decide)
   have ht : BitonicSort.sortTraceSize d ≤ BitonicSort.arity d * (d + 1) ^ 2 := by
     have hh := BitonicSort.four_mul_sortTraceSize d
-    rw [← BitonicSort.arity_eq_two_pow] at hh
-    nlinarith
-  have hl : 1 + (BitonicSort.arity d - 1) * (6 * k + 1) +
-      v * (1 + 4 * BitonicSort.arity d) + 2 ≤ 10 * BitonicSort.arity d * (k + v + 1) := by
-    have hn := Nat.mul_le_mul_right (6 * k + 1) (Nat.sub_le (BitonicSort.arity d) 1)
-    nlinarith
+    rw [← BitonicSort.arity_eq_two_pow] at hh; nlinarith
   have hm := Nat.mul_le_mul ht (show 12 * (k + v) + 14 ≤ 14 * (k + v + 1) by lia)
-  have hp := Nat.mul_le_mul_left (10 * BitonicSort.arity d * (k + v + 1)) hd
-  rw [size_withPadding]
-  nlinarith
+  have hp := Nat.mul_le_mul_left (10 * BitonicSort.arity d * (k + v + 1))
+    (Nat.one_le_pow 2 (d + 1) (by lia))
+  have hn := Nat.mul_le_mul_right (6 * k + 1) (Nat.sub_le (BitonicSort.arity d) 1)
+  rw [size_withPadding]; nlinarith
 
 end Layout
 

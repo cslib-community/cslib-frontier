@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Machine
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Characterization
+import CslibFrontier.Foundations.Data.Nat.AffineBound
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 
 /-!
@@ -75,35 +76,24 @@ theorem mem_SharpTIME : f ∈ SharpTIME enc t ↔
           (Cfg.init machine.initial (enc a)) = f a :=
   Iff.rfl
 
-/-- Monotonicity uses stability of terminal counts after a sufficient all-branches clock, rather
-than freely padding accepting coin strings. -/
-theorem SharpTIME_mono {t₁ t₂ : ℕ → ℕ} (h : ∀ n, t₁ n ≤ t₂ n) :
-    SharpTIME enc t₁ ⊆ SharpTIME enc t₂ := by
-  rintro f ⟨c₁, c₂, k, State, hfinite, machine, hnon, hm⟩
-  refine ⟨c₁, c₂, k, State, hfinite, machine, hnon, fun a => ?_⟩
-  obtain ⟨hhalt, hcount⟩ := hm a
-  have hle : c₁ * t₁ (enc a).length + c₂ ≤ c₁ * t₂ (enc a).length + c₂ :=
-    Nat.add_le_add_right (Nat.mul_le_mul_left _ (h _)) _
-  refine ⟨hhalt.mono hle, ?_⟩
-  change machine.branchCount (· == [true]) _ _ = f a
-  rw [hhalt.branchCount_eq hle]
-  exact hcount
-
 /-- Constant factors and additive constants of the time bound are absorbed by the constants of
-`SharpTIME`. -/
+`SharpTIME`. This uses stability of terminal counts after a sufficient all-branches clock, rather
+than freely padding accepting coin strings. -/
 theorem SharpTIME_mono_of_le_mul_add {t₁ t₂ : ℕ → ℕ} {C : ℕ} (h : ∀ n, t₁ n ≤ C * t₂ n + C) :
     SharpTIME enc t₁ ⊆ SharpTIME enc t₂ := by
   rintro f ⟨c₁, c₂, k, State, hfinite, machine, hnon, hm⟩
   refine ⟨c₁ * C, c₁ * C + c₂, k, State, hfinite, machine, hnon, fun a => ?_⟩
   obtain ⟨hhalt, hcount⟩ := hm a
-  have hle : c₁ * t₁ (enc a).length + c₂ ≤ c₁ * C * t₂ (enc a).length + (c₁ * C + c₂) := by
-    have := Nat.mul_le_mul_left c₁ (h (enc a).length)
-    rw [Nat.mul_add, ← Nat.mul_assoc] at this
-    omega
+  have hle := Nat.mul_add_le_mul_add_of_le_mul_add (h (enc a).length) c₁ c₂
   refine ⟨hhalt.mono hle, ?_⟩
   change machine.branchCount (· == [true]) _ _ = f a
   rw [hhalt.branchCount_eq hle]
   exact hcount
+
+/-- `SharpTIME` is monotone in the time bound. -/
+theorem SharpTIME_mono {t₁ t₂ : ℕ → ℕ} (h : ∀ n, t₁ n ≤ t₂ n) :
+    SharpTIME enc t₁ ⊆ SharpTIME enc t₂ :=
+  SharpTIME_mono_of_le_mul_add (C := 1) fun n => by have := h n; omega
 
 /-- Polynomial slices are monotone in the degree: a smaller degree gives a smaller class. At
 input length `0` the clocks are `0 ^ d ≤ 0 ^ D + 1`, which the additive constant absorbs. -/
@@ -121,34 +111,24 @@ This is the forward native-machine correspondence, with its affine polynomial cl
 theorem SharpTIME.subset_SharpP (d : ℕ) : SharpTIME enc (· ^ d) ⊆ SharpP enc := by
   rintro f ⟨c₁, c₂, k, State, hfinite, machine, _, hm⟩
   let p : Polynomial ℕ := Polynomial.C c₁ * Polynomial.X ^ d + Polynomial.C c₂
-  have hp (n : ℕ) : p.eval n = c₁ * n ^ d + c₂ := by simp [p]
   have heq : f = fun a => machine.acceptCount (p.eval (enc a).length)
-      (Cfg.init machine.initial (enc a)) := by
-    funext a
-    rw [hp]
-    exact (hm a).2.symm
-  rw [heq]
-  exact machine.acceptCount_mem_SharpP enc p
+      (Cfg.init machine.initial (enc a)) :=
+    funext fun a => by simpa [p] using (hm a).2.symm
+  exact heq ▸ machine.acceptCount_mem_SharpP enc p
 
 /-- The existing verifier-defined `#P` is the union of the polynomial-time native counting
 classes. The all-branches clock can be enlarged to an affine power without changing the count. -/
 theorem mem_SharpP_iff_exists_mem_SharpTIME :
     f ∈ SharpP enc ↔ ∃ d, f ∈ SharpTIME enc (· ^ d) := by
-  constructor
-  · intro hf
-    obtain ⟨k, State, hfinite, machine, p, hnon, hm⟩ :=
-      mem_SharpP_iff_exists_machine.mp hf
-    obtain ⟨c, d, hbound⟩ :=
-      polynomiallyBounded_iff_le.mp (PolynomiallyBounded.polynomial_eval p)
-    refine ⟨d, c * 2 ^ d, c, k, State, hfinite, machine, hnon, fun a => ?_⟩
-    obtain ⟨hhalt, hcount⟩ := hm a
-    have hle : p.eval (enc a).length ≤ c * 2 ^ d * (enc a).length ^ d + c :=
-      (hbound _).trans (Nat.mul_add_one_pow_le_two_pow c d _)
-    refine ⟨hhalt.mono hle, ?_⟩
-    change machine.branchCount (· == [true]) _ _ = f a
-    rw [hhalt.branchCount_eq hle]
-    exact hcount
-  · rintro ⟨d, hf⟩
-    exact SharpTIME.subset_SharpP d hf
+  refine ⟨fun hf => ?_, fun ⟨d, hf⟩ => SharpTIME.subset_SharpP d hf⟩
+  obtain ⟨k, State, hfinite, machine, p, hnon, hm⟩ :=
+    mem_SharpP_iff_exists_machine.mp hf
+  obtain ⟨c, d, hbound⟩ :=
+    polynomiallyBounded_iff_le.mp (PolynomiallyBounded.polynomial_eval p)
+  refine ⟨d, c * 2 ^ d, c, k, State, hfinite, machine, hnon, fun a => ?_⟩
+  obtain ⟨hhalt, hcount⟩ := hm a
+  have hle : p.eval (enc a).length ≤ c * 2 ^ d * (enc a).length ^ d + c :=
+    (hbound _).trans (Nat.mul_add_one_pow_le_two_pow c d _)
+  exact ⟨hhalt.mono hle, (hhalt.branchCount_eq hle _).trans hcount⟩
 
 end Cslib.Complexity

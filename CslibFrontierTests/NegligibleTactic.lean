@@ -7,15 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests of the negligible tactic)
 
-public import CslibFrontier.Tactic.Negligible
-public import CslibFrontier.Crypto.Game
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
+import CslibFrontier.Tactic.Negligible
+import CslibFrontier.Crypto.Game
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 
 /-!
 # Tests for `negligible`
 -/
 
-public section
+set_option linter.privateModule false
 
 open Cslib Cslib.Crypto Turing.MultiTapeTM
 open scoped NNReal ENNReal
@@ -59,6 +59,29 @@ example (hQ : PolynomiallyBounded Q) (hε : Negligible ε) :
     Negligible (fun n => ∑ _i ∈ Finset.range (Q n), ε n) := by
   negligible
 
+private noncomputable def testHidingError (out src : ℕ) : ℝ≥0 :=
+  NNReal.sqrt ((2 : ℝ≥0) ^ out / 2 ^ src)
+
+example {f : ℕ → ℝ≥0} {out src : ℕ → ℕ} (h : Bool → Negligible ε)
+    (hmargin : ∀ᶠ n in Filter.atTop, out n + 2 * n ≤ src n)
+    (hle : ∀ n, f n ≤ ε n + (Q n : ℝ≥0) * testHidingError (out n) (src n))
+    (hQ : PolynomiallyBounded Q) :
+    Negligible f := by
+  have _ := h
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
+  negligible [testHidingError] using hle
+
+example {g : Bool → ℕ → ℝ≥0} {f : ℕ → ℝ≥0} (h : ∀ b, Negligible (g b))
+    (hle : ∀ n, f n ≤ g false n + g true n) :
+    Negligible f := by
+  negligible using hle
+
+/-- A polynomial bound on `f + g` does not rewrite inside the negligible leaf `(f n + g n)⁻¹`. -/
+example {f g : ℕ → ℕ} (_hp : PolynomiallyBounded (fun n => f n + g n))
+    (hinv : Negligible fun n => ((f n + g n : ℕ) : ℝ≥0)⁻¹) :
+    Negligible fun n => 3 * ((f n + g n : ℕ) : ℝ≥0)⁻¹ := by
+  negligible
+
 /-! ### Local `let` definitions and unary `ComputableInPolyTime` certificates -/
 
 example (c d : ℕ) (hε : Negligible ε) :
@@ -67,8 +90,18 @@ example (c d : ℕ) (hε : Negligible ε) :
   intro Q
   negligible
 
+private abbrev UnaryCert (f : ℕ → ℕ) : Prop :=
+  ComputableInPolyTime f encUnary encUnary
+
+private abbrev UnaryCertPair (f g : ℕ → ℕ) : Prop :=
+  UnaryCert f ∧ ComputableInPolyTime g encUnary encUnary
+
 example (hQ : ComputableInPolyTime Q encUnary encUnary) (hε : Negligible ε) :
     Negligible (fun n => (2 * Q n : ℝ≥0) / 2 ^ n + (Q n : ℝ≥0) * ε n) := by
+  negligible
+
+example {P : ℕ → ℕ} (hQ : UnaryCert Q) (hPR : UnaryCertPair P R) (hε : Negligible ε) :
+    Negligible (fun n => (2 * Q n + P n : ℝ≥0) / 2 ^ n + (R n : ℝ≥0) * ε n) := by
   negligible
 
 /-! ### Pointwise upper bounds (`negligible using hle`) in `ℝ≥0` and `ℝ` -/
@@ -90,6 +123,44 @@ example {g : ℕ → Game} (hQ : PolynomiallyBounded Q) (hR : PolynomiallyBounde
       (Q n : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ +
         Real.sqrt (((R n + 1 : ℕ) : ℝ) * (ε n : ℝ)) + (δ n : ℝ)) :
     Negligible (fun n => Game.succProbability (g n)) := by
+  negligible using hle
+
+/-! ### Multiple `def` game-advantage leaves (no deep `whnf` unfolding across distinct games) -/
+
+private noncomputable def testBindGameA (D : ℕ → Bool × Bool → PMF Bool) (bit : Bool) (n : ℕ) :
+    Game :=
+  (PMF.pure false).bind fun x =>
+    (PMF.pure true).bind fun y =>
+      (PMF.pure bit).bind fun z =>
+        D n (x ^^ bit, y ^^ z)
+
+private noncomputable def testBindGameB (D : ℕ → Bool × Bool → PMF Bool) (bit : Bool) (n : ℕ) :
+    Game :=
+  (PMF.pure true).bind fun x =>
+    (PMF.pure false).bind fun y =>
+      D n (x, y ^^ bit)
+
+set_option maxHeartbeats 25000 in
+-- Verify `negligible` matches game leaves at `.instances` transparency without unfolding `def`s.
+example (D₁ D₂ : Bool → ℕ → Bool × Bool → PMF Bool) {target : Bool → ℕ → Game}
+    (h₀ : Negligible fun n =>
+      Game.advantage (testBindGameA (fun m p => D₁ false m p) false n)
+        (testBindGameB (fun m p => D₁ false m p) false n))
+    (h₁ : Negligible fun n =>
+      Game.advantage (testBindGameA (fun m p => D₂ false m p) false n)
+        (testBindGameB (fun m p => D₂ false m p) false n))
+    (h₂ : Negligible fun n =>
+      Game.advantage (testBindGameA (fun m p => D₂ true m p) true n)
+        (testBindGameB (fun m p => D₂ true m p) true n))
+    (h₃ : Negligible fun n =>
+      Game.advantage (testBindGameA (fun m p => D₁ true m p) true n)
+        (testBindGameB (fun m p => D₁ true m p) true n))
+    (hle : ∀ n, Game.advantage (target false n) (target true n) ≤
+      Game.advantage (testBindGameA (D₁ false) false n) (testBindGameB (D₁ false) false n) +
+      Game.advantage (testBindGameA (D₂ false) false n) (testBindGameB (D₂ false) false n) +
+      Game.advantage (testBindGameA (D₂ true) true n) (testBindGameB (D₂ true) true n) +
+      Game.advantage (testBindGameA (D₁ true) true n) (testBindGameB (D₁ true) true n)) :
+    Negligible (fun n => Game.advantage (target false n) (target true n)) := by
   negligible using hle
 
 /-! ### Eventual upper bounds (`negligible eventually hle`) in `ℝ≥0` and `ℝ` -/
@@ -120,6 +191,7 @@ example : Negligible (fun n => ((2 : ℝ≥0) ^ n)⁻¹) ∧ Nonempty ℕ := by
 example : True := by
   fail_if_success have : Negligible (fun _ => (1 : ℝ≥0)) := by negligible
   fail_if_success have : Negligible (fun n => 1 / (n + 1 : ℝ≥0)) := by negligible
+  fail_if_success have : Negligible (fun n => NNReal.sqrt ((2 : ℝ≥0) ^ n / 2 ^ n)) := by negligible
   trivial
 
 /--
@@ -177,4 +249,16 @@ Issues:
 example : Negligible (fun n => (1 : ℝ≥0)) := by
   negligible
 
-end
+/--
+error: negligible: `fun_prop` could not close the normalized goal:
+  Negligible fun n => NNReal.sqrt (2 ^ n * 2⁻¹ ^ n)
+Supply missing `Negligible` or `PolynomiallyBounded` hypotheses in context, or pass an explicit upper bound with `negligible using hle` / `negligible eventually hle`.
+`fun_prop` was unable to prove `Negligible fun n => NNReal.sqrt (2 ^ n * 2⁻¹ ^ n)`
+
+Issues:
+  No theorems found for `HPow.hPow` in order to prove `PolynomiallyBoundedNNReal fun a => 2 ^ a`
+  Failed to prove necessary assumption `2 < 1` when applying theorem `Cslib.Crypto.negligible_geometric`.
+-/
+#guard_msgs in
+example : Negligible (fun n => testHidingError n n) := by
+  negligible [testHidingError]

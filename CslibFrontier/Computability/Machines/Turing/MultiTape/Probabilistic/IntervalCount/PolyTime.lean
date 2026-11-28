@@ -80,9 +80,10 @@ variable {k : ℕ} {State : Type}
 @[expose] def LocalCfg.equivProd :
     LocalCfg k State ≃ Option State × ℕ × (Fin k → BiTape Bool) × (Fin k → ℤ) × OutputTrack where
   toFun l := (l.state, l.inputPos, l.workTapes, l.workTapePos, l.track)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
+  invFun := fun (state, inputPos, workTapes, workTapePos, track) =>
+    ⟨state, inputPos, workTapes, workTapePos, track⟩
+  left_inv l := by cases l; rfl
+  right_inv := fun (_, _, _, _, _) => rfl
 
 variable [Finite State]
 
@@ -139,14 +140,6 @@ private theorem localCfg_track :
     ComputableInPolyTime (LocalCfg.track (k := k) (State := State)) encLocalCfg
       (encFinite OutputTrack) :=
   localCfg_parts.snd'.snd'.snd'.snd'
-
-/-- Adding a binary integer, by two subtractions. -/
-private theorem intBin_add' {left right : α → ℤ}
-    (hleft : ComputableInPolyTime left input encIntBin)
-    (hright : ComputableInPolyTime right input encIntBin) :
-    ComputableInPolyTime (fun a => left a + right a) input encIntBin := by
-  have h := intBin_sub.comp (hleft.prod (intBin_sub.comp ((const 0).prod hright)))
-  simpa only [Function.comp_def, zero_sub, sub_neg_eq_add] using h
 
 /-- The input symbol at a stored input position. -/
 private theorem inputAt_eq_getD (x : List Bool) (j : ℕ) :
@@ -443,13 +436,6 @@ private theorem biTape_ofCells {cells : α → List (Option Bool)} {pos : α →
     (stackTape_ofList hright)
   simpa only [BiTape.ofCells, drop_eq_map_range] using h
 
-/-- The sign of a binary integer is its first bit. -/
-private theorem intBin_isNeg' {z : α → ℤ} (hz : ComputableInPolyTime z input encIntBin) :
-    ComputableInPolyTime (fun a => decide (z a < 0)) input encBool := by
-  have hbits : ComputableInPolyTime (fun z : ℤ => encIntBin z) encIntBin encBits :=
-    of_eq fun _ => rfl
-  exact ((headD false).comp hbits).comp hz
-
 private theorem getD_none_eq_join (l : List (Option Bool)) (n : ℕ) :
     l.getD n none = l[n]?.join := by
   rw [List.getD_eq_getElem?_getD]
@@ -476,14 +462,12 @@ private theorem biTape_read {tape : α → BiTape Bool} {z : α → ℤ}
     (hz : ComputableInPolyTime z input encIntBin) :
     ComputableInPolyTime (fun a => (tape a).read (z a)) input (encOption encBool) := by
   simp only [read_eq]
-  refine ite_decide (decide_eq' hz (const 0)) ((biTape_head _).comp htape)
-    (ite_decide (intBin_isNeg' hz) ?_ ?_)
-  · have hneg : ComputableInPolyTime (fun a => -z a) input encIntBin := by
-      simpa only [Function.comp_def, zero_sub] using intBin_sub.comp ((const 0).prod hz)
-    exact listGetD_binary none ((stackTape_toList _).comp ((biTape_left _).comp htape))
-      (binary_sub' (intBin_toNat.comp hneg) (const 1))
+  refine ite_decide (by fun_prop) ((biTape_head _).comp htape)
+    (ite_decide (by fun_prop) ?_ ?_)
+  · exact listGetD_binary none ((stackTape_toList _).comp ((biTape_left _).comp htape))
+      (binary_sub' (by fun_prop) (const 1))
   · exact listGetD_binary none ((stackTape_toList _).comp ((biTape_right _).comp htape))
-      (binary_sub' (intBin_toNat.comp hz) (const 1))
+      (binary_sub' (by fun_prop) (const 1))
 
 /-- The coordinate of a head of computed storage. -/
 private theorem localCfg_headCoord {l : α → LocalCfg k State}
@@ -491,8 +475,8 @@ private theorem localCfg_headCoord {l : α → LocalCfg k State}
     ComputableInPolyTime (fun a => (l a).headCoord head) input encIntBin := by
   cases head with
   | none =>
-    exact intBin_sub.comp
-      ((intBin_natCast.comp (unary_to_binary.comp (localCfg_inputPos.comp hl))).prod (const 1))
+    have := localCfg_inputPos.comp hl
+    fun_prop [LocalCfg.headCoord]
   | some h => exact (pi_apply _ h).comp (localCfg_workTapePos.comp hl)
 
 /-- The window cells of computed storage. -/
@@ -502,17 +486,11 @@ private theorem localCfg_windowCellsAt {b : α → ℕ} {j : α → ℤ} {l : α
     ComputableInPolyTime (fun a => (l a).windowCellsAt (b a) (j a) h) input
       (encList (encOption encBool)) := by
   have hfst := fst input encUnary
-  have hbZ : ComputableInPolyTime (fun p : α × ℕ => (b p.1 : ℤ)) (encPair input encUnary)
-      encIntBin := intBin_natCast.comp (unary_to_binary.comp (hb.comp hfst))
-  have hcZ : ComputableInPolyTime (fun p : α × ℕ => (p.2 : ℤ)) (encPair input encUnary)
-      encIntBin := intBin_natCast.comp (unary_to_binary.comp (snd _ _))
-  have hoff : ComputableInPolyTime
-      (fun p : α × ℕ => (b p.1 : ℤ) * (j p.1 - 1) + (p.2 : ℤ) - (l p.1).workTapePos h)
+  have hwpos : ComputableInPolyTime (fun p : α × ℕ => (l p.1).workTapePos h)
       (encPair input encUnary) encIntBin :=
-    intBin_sub.comp ((intBin_add' (intBin_mul' hbZ (intBin_sub.comp ((hj.comp hfst).prod
-      (const 1)))) hcZ).prod ((pi_apply _ h).comp (localCfg_workTapePos.comp (hl.comp hfst))))
+    (pi_apply _ h).comp (localCfg_workTapePos.comp (hl.comp hfst))
   exact mapWithInput (unary_range' (unary_mul' (const 3) hb))
-    (biTape_read ((pi_apply _ h).comp (localCfg_workTapes.comp (hl.comp hfst))) hoff)
+    (biTape_read ((pi_apply _ h).comp (localCfg_workTapes.comp (hl.comp hfst))) (by fun_prop))
 
 /-- The stored input position of a coordinate. -/
 private theorem val_inputPosOfCoord (x : List Bool) (p : ℤ) :
@@ -542,14 +520,7 @@ private theorem inputPosOfCoord' {word : α → List Bool} {p : α → ℤ}
     (hp : ComputableInPolyTime p input encIntBin) :
     ComputableInPolyTime (fun a => (inputPosOfCoord (word a) (p a)).val) input encUnary := by
   simp only [val_inputPosOfCoord]
-  have hp1 := intBin_add' hp (const 1)
-  have hlen : ComputableInPolyTime (fun a => (word a).length) input encUnary :=
-    length_bits.comp hword
-  have hlenZ : ComputableInPolyTime (fun a => ((word a).length : ℤ) + 2) input encIntBin :=
-    intBin_add' (intBin_natCast.comp (unary_to_binary.comp hlen)) (const 2)
-  refine ite (bool_and' (bool_not.comp (intBin_isNeg' hp1))
-    (intBin_isNeg' (intBin_sub.comp (hp1.prod hlenZ)))) ?_ (const 0)
-  exact binary_min_unary.comp ((unary_add' hlen (const 1)).prod (intBin_toNat.comp hp1))
+  fun_prop
 
 end Window
 
@@ -581,10 +552,10 @@ structure IntervalData (k : ℕ) (State : Type) where
     List Bool × ℕ × (Option (Fin k) → ℤ) × (Option (Fin k) → SignType) × ControlData k State ×
       (Fin k → List (Option Bool)) × ControlData k State × (Fin k → List (Option Bool)) where
   toFun d := (d.input, d.b, d.J, d.δ, d.cIn, d.wIn, d.cOut, d.wOut)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2.1, p.2.2.2.2.2.2.1,
-    p.2.2.2.2.2.2.2⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
+  invFun := fun (input, b, J, δ, cIn, wIn, cOut, wOut) =>
+    ⟨input, b, J, δ, cIn, wIn, cOut, wOut⟩
+  left_inv d := by cases d; rfl
+  right_inv := fun (_, _, _, _, _, _, _, _) => rfl
 
 /-- The encoding of a control record on plain data: the state and the track by their ranks, and
 the offsets in unary. -/
@@ -658,14 +629,12 @@ private theorem localStartData' {d : α → IntervalData k State}
     ComputableInPolyTime (fun a => (d a).cIn) input encControlData)
   have hw : ComputableInPolyTime (fun a => (d a).wIn) input
       (encPi (encList (encOption encBool))) := hp.snd'.snd'.snd'.snd'.snd'.fst'
-  have hbZ : ComputableInPolyTime (fun a => ((d a).b : ℤ)) input encIntBin :=
-    intBin_natCast.comp (unary_to_binary.comp hb)
   have hoff (head : Option (Fin k)) : ComputableInPolyTime (fun a => (d a).cIn.2.1 head) input
       encUnary := (pi_apply _ head).comp hc.snd'.fst'
   have hcoord (head : Option (Fin k)) : ComputableInPolyTime
       (fun a => ((d a).b : ℤ) * (d a).J head + ((d a).cIn.2.1 head : ℤ)) input encIntBin :=
-    intBin_add' (intBin_mul' hbZ ((pi_apply _ head).comp hJ))
-      (intBin_natCast.comp (unary_to_binary.comp (hoff head)))
+    intBin_add' (intBin_mul' (intBin_natCast_unary.comp hb) ((pi_apply _ head).comp hJ))
+      (intBin_natCast_unary.comp (hoff head))
   exact localCfg_mk hc.fst' (inputPosOfCoord' hword (hcoord none))
     (pi fun h => biTape_ofCells ((pi_apply _ h).comp hw) (unary_add' hb (hoff (some h))))
     (pi fun h => hcoord (some h)) hc.snd'.snd'
@@ -718,10 +687,6 @@ private theorem computableInPolyTime_stepTest [DecidableEq State] :
   have hw : ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.wOut)
       (encPair encIntervalData encLocalCfg) (encPi (encList (encOption encBool))) :=
     hp.snd'.snd'.snd'.snd'.snd'.snd'.snd'
-  have hbZ : ComputableInPolyTime
-      (fun p : IntervalData k State × LocalCfg k State => (p.1.b : ℤ))
-      (encPair encIntervalData encLocalCfg) encIntBin :=
-    intBin_natCast.comp (unary_to_binary.comp hb)
   refine bool_and' (bool_and' (bool_and' (decide_eq' (localCfg_state.comp hl) hc.fst')
     (decide_eq' (localCfg_track.comp hl) hc.snd'.snd')) ?_) ?_
   · refine allConst _ fun head _ => bool_and' (unary_lt' ((pi_apply _ head).comp hc.snd'.fst') hb)
@@ -730,8 +695,9 @@ private theorem computableInPolyTime_stepTest [DecidableEq State] :
         (fun p : IntervalData k State × LocalCfg k State => ((p.1.δ head : SignType) : ℤ))
         (encPair encIntervalData encLocalCfg) encIntBin :=
       (of_finite fun δ : Option (Fin k) → SignType => ((δ head : SignType) : ℤ)).comp hδ
-    exact intBin_add' (intBin_mul' hbZ (intBin_add' ((pi_apply _ head).comp hJ) hδZ))
-      (intBin_natCast.comp (unary_to_binary.comp ((pi_apply _ head).comp hc.snd'.fst')))
+    exact intBin_add' (intBin_mul' (intBin_natCast_unary.comp hb)
+      (intBin_add' ((pi_apply _ head).comp hJ) hδZ))
+      (intBin_natCast_unary.comp ((pi_apply _ head).comp hc.snd'.fst'))
   · exact allConst _ fun h _ => decide_eq'
       (localCfg_windowCellsAt hb ((pi_apply _ (some h)).comp hJ) hl h) ((pi_apply _ h).comp hw)
 

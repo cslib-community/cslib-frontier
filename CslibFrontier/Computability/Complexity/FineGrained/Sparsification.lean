@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.Exponents
 public import CslibFrontier.Computability.Complexity.FineGrained.SparsificationRounds
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.Tree
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.PolyTime
+import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Foundations.Data.List.Fold
 import CslibFrontier.Foundations.Data.Nat.Power
@@ -152,11 +153,9 @@ private theorem iterate_step_map (g : CNF ℕ → Bool) (n : ℕ)
     obtain ⟨stk', acc'⟩ := (rule hK hα).tree.searchStep (fun acc t => acc || g t.1) (stk, acc)
     exact ih stk' acc'
 
-private theorem step_nil (g : CNF ℕ → Bool) (acc : Bool) : step K α g ([], acc) = ([], acc) := rfl
-
 private theorem iterate_step_nil (g : CNF ℕ → Bool) (n : ℕ) (acc : Bool) :
     (step K α g)^[n] ([], acc) = ([], acc) :=
-  Function.iterate_fixed (step_nil g acc) n
+  Function.iterate_fixed rfl n
 
 /-! ### The root -/
 
@@ -327,27 +326,22 @@ theorem search_eq_true_iff {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M) {
   classical
   set R := rule hK hα
   set s₀ := rootState hkK φ
+  have hroot : root k φ = normalize φ :=
+    ite_eq_left (List.all_eq_true.mpr fun c hc => decide_eq_true (hφ c hc))
+  have hsat₀ (x : ℕ → Bool) : (R.toClauseSet s₀).Sat x ↔ φ.eval x = true := by
+    change (root k φ).toClauseSet.Sat x ↔ φ.eval x = true
+    rw [hroot, sat_toClauseSet_normalize_iff]
+  have hleaf {w : List Bool} (hw : R.tree.IsLeafWord s₀ w) :
+      g (R.tree.walk s₀ w).1 = true ↔ ∃ x, (R.toClauseSet (R.tree.walk s₀ w)).Sat x :=
+    (hg _ fun c hc => length_le_of_mem_walk hK hα hkK hφ hw.isNodeWord hc).trans
+      (exists_congr fun x => (CNF.sat_toClauseSet_iff _ x).symm)
   rw [search, (iterate_step hK hα hkK hM g φ).1, decide_eq_true_iff]
-  have hroot : (root k φ) = normalize φ := by
-    rw [root, ite_eq_left (List.all_eq_true.mpr fun c hc => decide_eq_true (hφ c hc))]
-  constructor
-  · rintro ⟨w, hw, hgw⟩
-    obtain ⟨x, hx⟩ := (hg _ fun c hc => length_le_of_mem_walk hK hα hkK hφ hw.isNodeWord hc).mp
-      hgw
-    refine ⟨x, ?_⟩
-    have hsat : (R.toClauseSet (R.tree.walk s₀ w)).Sat x := (CNF.sat_toClauseSet_iff _ x).mpr hx
-    have := (BranchingRule.exists_isLeafWord_sat_iff (one_le_threshold hK hα) s₀ x).mp
-      ⟨w, hw, hsat⟩
-    change (root k φ).toClauseSet.Sat x at this
-    rwa [hroot, sat_toClauseSet_normalize_iff] at this
-  · rintro ⟨x, hx⟩
-    have hsat : (R.toClauseSet s₀).Sat x := by
-      change (root k φ).toClauseSet.Sat x
-      rwa [hroot, sat_toClauseSet_normalize_iff]
-    obtain ⟨w, hw, hwx⟩ :=
-      (BranchingRule.exists_isLeafWord_sat_iff (one_le_threshold hK hα) s₀ x).mpr hsat
-    refine ⟨w, hw, (hg _ fun c hc => length_le_of_mem_walk hK hα hkK hφ hw.isNodeWord hc).mpr
-      ⟨x, (CNF.sat_toClauseSet_iff _ x).mp hwx⟩⟩
+  exact ⟨fun ⟨w, hw, hgw⟩ => let ⟨x, hx⟩ := (hleaf hw).mp hgw
+    ⟨x, (hsat₀ x).mp ((BranchingRule.exists_isLeafWord_sat_iff (one_le_threshold hK hα) s₀ x).mp
+      ⟨w, hw, hx⟩)⟩,
+    fun ⟨x, hx⟩ => let ⟨w, hw, hwx⟩ := (BranchingRule.exists_isLeafWord_sat_iff
+      (one_le_threshold hK hα) s₀ x).mpr ((hsat₀ x).mpr hx)
+    ⟨w, hw, (hleaf hw).mpr ⟨x, hwx⟩⟩⟩
 
 /-! ### Polynomial-time parts -/
 
@@ -711,42 +705,33 @@ theorem exists_decidableInExpTime_numVars_of_length (k : ℕ) {ε : ℝ} (hε : 
   obtain ⟨M, hM⟩ := exists_nat_gt (1 / ε)
   have hMpos : (0 : ℝ) < M := lt_trans (by positivity) hM
   have hMε : 1 / (M : ℝ) < ε := by
-    rw [div_lt_iff₀ hMpos]
-    rw [div_lt_iff₀ hε] at hM
-    linarith
+    rw [div_lt_iff₀ hMpos, mul_comm, ← div_lt_iff₀ hε]
+    exact hM
   obtain ⟨α, hα, hcount⟩ :=
     ClauseSet.Sparsification.exists_sum_choose_le hK (ε := 1 / M) (by positivity)
   have hLB : Sparsify.LeafBound K α M := fun N => by
-    have h₁ := hcount N
+    have hlt : N < M * (N / M + 1) := by
+      have := Nat.mod_lt N (Nat.cast_pos.mp hMpos)
+      have := Nat.div_add_mod N M
+      nlinarith
+    have hltR : (N : ℝ) < M * ((N / M + 1 : ℕ) : ℝ) := by exact_mod_cast hlt
     have h₂ : (1 / M : ℝ) * N ≤ ((N / M + 1 : ℕ) : ℝ) := by
-      have hlt : N < M * (N / M + 1) := by
-        have := Nat.mod_lt N (show 0 < M by exact_mod_cast hMpos)
-        have := Nat.div_add_mod N M
-        nlinarith
-      have : (N : ℝ) < M * ((N / M + 1 : ℕ) : ℝ) := by exact_mod_cast hlt
       rw [one_div_mul_eq_div, div_le_iff₀ hMpos]
       linarith
-    have h₃ : (2 : ℝ) ^ ((1 / M : ℝ) * N) ≤ 2 ^ (N / M + 1) := by
-      rw [← Real.rpow_natCast]
-      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) h₂
-    exact_mod_cast h₁.trans h₃
+    exact_mod_cast (hcount N).trans
+      (Real.rpow_natCast 2 _ ▸ Real.rpow_le_rpow_of_exponent_le (by norm_num) h₂)
   refine ⟨Sparsify.occBound K α, fun δ hδ h => ?_⟩
   obtain ⟨e, h⟩ := h
   obtain ⟨g, t, c, hg, hgA, ht⟩ := h.exists_computableInO
-  have hgsat : ∀ ψ : CNF ℕ, (∀ c ∈ ψ, c.length ≤ k) → (g ψ = true ↔ ψ.Satisfiable) :=
-    fun ψ hψ => by
-      rw [← hgA]
-      exact ⟨fun h => h.2, fun h => ⟨hψ, h⟩⟩
+  have hgsat (ψ : CNF ℕ) (hψ : ∀ c ∈ ψ, c.length ≤ k) : g ψ = true ↔ ψ.Satisfiable := by
+    rw [← hgA]
+    exact ⟨And.right, And.intro hψ⟩
   have hsearch := Sparsify.decidableInExpTime_search hK hα hkK hLB hg hδ ht
   have heq : KSAT k = {φ : CNF ℕ | (φ.all fun c => decide (c.length ≤ k)) = true} ∩
       {φ | Sparsify.search K α k M g φ = true} := by
     ext φ
     simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true, decide_eq_true_eq]
-    constructor
-    · rintro ⟨hw, hs⟩
-      exact ⟨hw, (Sparsify.search_eq_true_iff hK hα hkK hLB hgsat hw).mpr hs⟩
-    · rintro ⟨hw, hs⟩
-      exact ⟨hw, (Sparsify.search_eq_true_iff hK hα hkK hLB hgsat hw).mp hs⟩
+    exact and_congr_right fun hw => (Sparsify.search_eq_true_iff hK hα hkK hLB hgsat hw).symm
   rw [heq]
   exact (hsearch.inter (computableInPolyTime_all_length_le k) (by positivity)).mono
     (by linarith)
@@ -762,10 +747,7 @@ theorem DecidableInSubexpTime.numVars_of_length {k : ℕ}
   obtain ⟨c, hc⟩ := exists_decidableInExpTime_numVars_of_length k (half_pos hδ)
   have hδ' : 0 < δ / 2 / (c + 1) := by positivity
   refine (hc _ hδ'.le (h _ hδ')).mono ?_
-  have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  have : (c : ℝ) * (δ / 2 / (c + 1)) ≤ δ / 2 := by
-    rw [mul_div_assoc', div_le_iff₀ (by positivity)]
-    nlinarith
+  have h := natCast_mul_div_add_one_le (half_pos hδ).le c
   linarith
 
 /-- **The exponential time hypothesis in terms of clauses** [ImpagliazzoPaturiZane2001]: `ETH`

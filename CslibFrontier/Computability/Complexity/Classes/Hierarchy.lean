@@ -15,7 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Na
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
 /-!
@@ -151,12 +151,7 @@ theorem not_forall_halted_diagonal {k : ℕ} {State : Type} [Finite State]
 theorem [Arora and Barak, Theorem 3.1][AroraBarak09]. -/
 theorem diagonal_notMem_P : {x | diagonal x = true} ∉ P encBits := by
   rintro ⟨f, ⟨t, s, ht, -, k, State, hfinite, tm, htm⟩, hf⟩
-  have hfx (x : List Bool) : f x = diagonal x := by
-    cases h : diagonal x
-    · cases hfx : f x
-      · rfl
-      · exact absurd ((hf x).mpr hfx) (by simp [h])
-    · exact (hf x).mp h
+  have hfx (x : List Bool) : f x = diagonal x := Bool.eq_iff_iff.mpr (hf x).symm
   exact not_forall_halted_diagonal tm (.of_polynomiallyBounded _ ht) fun x => by
     obtain ⟨hhalt, hout⟩ := (htm x).runFrom_of_le le_rfl
     exact ⟨hhalt, hout.trans (by rw [encBool_apply, hfx])⟩
@@ -226,18 +221,15 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
             Nat.mul_le_mul (Nat.pow_le_pow_left hIM 4) (Nat.pow_le_pow_left (by omega) 2)
         _ = 64 * (M ^ 4 * J ^ 2) := by ring
         _ ≤ 64 * (M ^ 5 * J ^ 3) := by gcongr <;> omega
-    have hA : A + (n + n) ≤ M ^ 5 * J ^ 3 := by
-      have h₁ : A + (n + n) ≤ M := by omega
-      have h₂ : M ≤ M ^ 5 * J ^ 3 :=
-        (hM2.trans hM25).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos hJ))
-      omega
+    have hA : A + (n + n) ≤ M ^ 5 * J ^ 3 :=
+      (by omega : A + (n + n) ≤ M).trans
+        ((hM2.trans hM25).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos hJ)))
     rw [hK]
     generalize M ^ 5 * J ^ 3 = X at hA hU hO2 ⊢
     linarith
   · have hY : 10 * (cO + 1) * (M ^ 2 * J) ≤ 100 * (cO + 1) ^ 2 * (M ^ 5 * J) :=
       calc _ ≤ 10 * (10 * (cO + 1) ^ 2) * (M ^ 5 * J) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left _ (by nlinarith))
-              (Nat.mul_le_mul_right _ hM25)
+            by gcongr; nlinarith
         _ = 100 * (cO + 1) ^ 2 * (M ^ 5 * J) := by ring
     have hM2J : M ^ 2 * J ≤ M ^ 5 * J := Nat.mul_le_mul_right _ hM25
     rw [hK]
@@ -247,6 +239,10 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
 
 end Diagonal
 
+-- Decoder opacity removed its 77867 unfoldings, but the next hosted diagnostics still count
+-- 364160 reductions of Desc.tapes through the description encoding. Keep both implementations
+-- opaque here: only their named computability, encoding-length and resource contracts are used.
+attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 open Diagonal in
 /-- **The diagonal is decidable in exponential time**, within time `O(2 ^ (4 * n))` and space
 `O(2 ^ (2 * n))` on inputs of length `n`, charging decoding, the symbols, the clock, the universal
@@ -255,13 +251,18 @@ theorem computableInO_diagonal :
     ComputableInO diagonal encBits encBool (fun x => 2 ^ (4 * x.length))
       fun x => 2 ^ (2 * x.length) := by
   obtain ⟨dd, ed, hdec⟩ := exists_computableInDegree_decodeDesc
-  have hu := Internal.DecoderWords.unframe_degree
-  have hdesc := (hdec.comp hu).inO
-  have hsym := Universal.computableInO_map_eBit
-  have hclock := (ComputableInDegree.two_pow_length encBits).inO_one
-  have hpre := hdesc.prod (hsym.prod hclock)
-  have hU := computableInO_universal.comp hpre
-  have h := computableInO_verdict.comp hU
+  have hdesc := (hdec.comp Internal.DecoderWords.unframe_degree).inO
+  have hpre : ComputableInO
+      (fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length))
+      encBits eIn _ _ :=
+    hdesc.prod (Universal.computableInO_map_eBit.prod
+      (ComputableInDegree.two_pow_length encBits).inO_one)
+  have hU := computableInO_universal_polynomialBound.comp
+    (f := universal)
+    (g := fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hpre
+  have h := computableInO_verdict.comp
+    (f := verdict)
+    (g := fun x : List Bool => universal (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hU
   -- the sizes of the decoded description and of the result
   obtain ⟨cD, hcD⟩ := hdesc.length_le
   obtain ⟨cO, hcO⟩ := hU.length_le
@@ -272,17 +273,15 @@ theorem computableInO_diagonal :
     (by fun_prop)
   set K := 65 + 100 * (cO + 1) ^ 2 with hK
   have hbounds (x : List Bool) := by
-    have hL : (encNat (2 ^ x.length)).length = x.length + 1 := by
-      rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
-    have hN := length_encList_map_eBit_le x
     have hE := hcO x
     simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at hE
     exact bounds_aux
       (I := (eIn (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)).length) Nat.one_le_two_pow
-      (hcD x) hN hL (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
+      (hcD x) (length_encList_map_eBit_le x) (length_encNat_two_pow x.length)
+      (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
   refine h.mono (K * C) (fun x => ?_) fun x => ?_
   · obtain ⟨h₁, -⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₁ ⊢
+    simp only [encBits, Function.Embedding.refl_apply] at h₁ ⊢
     have hJ4 : 2 ^ (4 * x.length) = 2 ^ x.length * (2 ^ x.length) ^ 3 := by
       ring
     have := hC x.length
@@ -290,7 +289,7 @@ theorem computableInO_diagonal :
       _ ≤ K * (C * 2 ^ x.length * (2 ^ x.length) ^ 3) := by gcongr
       _ ≤ K * C * (2 ^ (4 * x.length) + 1) := by rw [hJ4]; nlinarith
   · obtain ⟨-, h₂⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₂ ⊢
+    simp only [encBits, Function.Embedding.refl_apply] at h₂ ⊢
     have hJ2 : 2 ^ (2 * x.length) = 2 ^ x.length * 2 ^ x.length := by rw [two_mul, pow_add]
     have := hC x.length
     calc _ ≤ K * (_ ^ 5 * 2 ^ x.length) := h₂

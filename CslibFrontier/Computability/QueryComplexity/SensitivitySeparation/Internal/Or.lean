@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.Internal.Composition
+public import CslibFrontier.Computability.QueryComplexity.OrBlocks
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
@@ -17,7 +18,9 @@ The OR `orBits` of finitely many bits and the disjunction `orCopies f` of `Finty
 copies of a Boolean function `f`. Passing to `orCopies f` multiplies the sensitivity bound on
 rejected inputs and the block sensitivity at the all-false input by `Fintype.card K`, while the
 bound on accepted inputs is unchanged; this balances the zero and one sensitivities of the terminal
-predicate.
+predicate. The sensitivity bound uses the shared dependent-OR count
+`Cslib.BitString.sum_le_max_of_or`, which also serves the unequal-block native layout
+`Cslib.BitString.orBlocks`.
 
 ## Main definitions
 
@@ -71,10 +74,8 @@ open scoped Classical in
 `orBits x`. -/
 private theorem orBits_flip_of_witness (x : K → Bool) {i j : K}
     (hji : j ≠ i) (hj : x j = true) : orBits (BitString.flipOn {i} x) = orBits x := by
-  have h₁ : orBits x = true := (orBits_eq_true x).mpr ⟨j, hj⟩
-  have h₂ : orBits (BitString.flipOn {i} x) = true :=
-    (orBits_eq_true _).mpr ⟨j, by rw [BitString.flipOn_singleton_of_ne hji x, hj]⟩
-  exact h₂.trans h₁.symm
+  rw [(orBits_eq_true x).mpr ⟨j, hj⟩]
+  exact (orBits_eq_true _).mpr ⟨j, by rw [BitString.flipOn_singleton_of_ne hji x, hj]⟩
 
 /-- Disjunction of independent copies of a Boolean function. -/
 def orCopies (f : (I → Bool) → Bool) : (K × I → Bool) → Bool := compose orBits f
@@ -93,56 +94,32 @@ theorem sensitivity_orCopies_le (f : (I → Bool) → Bool) (S₀ S₁ : ℕ)
     (h₁ : ∀ x, f x = true → sensitivityAt f x ≤ S₁) :
     sensitivity (orCopies (K := K) f) ≤ max (Fintype.card K * S₀) S₁ := by
   classical
-  apply sensitivity_le
-  intro x
+  refine sensitivity_le _ fun x => ?_
   change sensitivityAt (compose orBits f) x ≤ _
   rw [sensitivityAt_compose]
   let y : K → Bool := fun k => f (fun a => x (k, a))
-  let s : Finset K := Finset.univ.filter fun i => orBits (BitString.flipOn {i} y) ≠ orBits y
-  change (∑ i ∈ s, sensitivityAt f (fun a => x (i, a))) ≤ _
-  by_cases hy : orBits y = false
-  · have hall := (orBits_eq_false y).mp hy
-    calc
-      _ ≤ ∑ _i ∈ s, S₀ := Finset.sum_le_sum fun i _ => h₀ _ (hall i)
-      _ = s.card * S₀ := by simp
-      _ ≤ Fintype.card K * S₀ := Nat.mul_le_mul_right _ (Finset.card_le_univ _)
-      _ ≤ max (Fintype.card K * S₀) S₁ := le_max_left _ _
-  · have htrue : orBits y = true := by cases h : orBits y <;> simp_all
-    obtain ⟨i, hi⟩ := (orBits_eq_true y).mp htrue
-    have hs : s ⊆ {i} := by
-      intro j hj
-      have hc := (Finset.mem_filter.mp hj).2
-      by_contra hji
-      have hij : i ≠ j := Ne.symm (by simpa only [Finset.mem_singleton] using hji)
-      exact hc (orBits_flip_of_witness y hij hi)
-    calc
-      _ ≤ ∑ j ∈ ({i} : Finset K), sensitivityAt f (fun a => x (j, a)) :=
-        Finset.sum_le_sum_of_subset_of_nonneg hs (by intros; exact Nat.zero_le _)
-      _ = sensitivityAt f (fun a => x (i, a)) := by simp
-      _ ≤ S₁ := h₁ _ hi
-      _ ≤ max (Fintype.card K * S₀) S₁ := le_max_right _ _
+  refine BitString.sum_le_max_of_or y _ (fun i => sensitivityAt f (fun a => x (i, a)))
+    (fun j hj i hi => ?_) (fun i hi => h₀ _ hi) (fun i hi => h₁ _ hi)
+  by_contra hij
+  exact (Finset.mem_filter.mp hi).2
+    (orBits_flip_of_witness y (Ne.symm (by simpa only [Finset.mem_singleton] using hij)) hj)
 
 /-- The block sensitivity of `orBits` at the all-false input is at least `Fintype.card K`. -/
 theorem card_le_blockSensitivityAt_orBits_zero :
     Fintype.card K ≤ blockSensitivityAt (orBits (K := K)) (fun _ => false) := by
   classical
-  apply le_blockSensitivityAt_of_family orBits (fun _ => false) (fun k : K => {k})
-  · intro k
-    simp
-  · intro k l hkl
-    simpa using hkl
-  · intro k
-    have h : orBits (BitString.flipOn {k} (fun _ : K => false)) = true :=
-      (orBits_eq_true _).mpr ⟨k, by simp⟩
-    simp [h]
+  refine le_blockSensitivityAt_of_family orBits (fun _ => false) (fun k : K => {k})
+    (fun _ => by simp)
+    (fun _ _ hkl => by simpa using hkl) fun k => ?_
+  simp [(orBits_eq_true (BitString.flipOn {k} fun _ : K => false)).mpr ⟨k, by simp⟩]
 
 /-- If `f` rejects the all-false input, then `Fintype.card K` times the block sensitivity of `f` at
 the all-false input is at most the block sensitivity of `orCopies f` there. -/
 theorem blockSensitivityAt_orCopies_zero (f : (I → Bool) → Bool)
     (hf : f (fun _ => false) = false) :
     Fintype.card K * blockSensitivityAt f (fun _ => false) ≤
-      blockSensitivityAt (orCopies (K := K) f) (fun _ => false) := by
-  exact (Nat.mul_le_mul_right _ card_le_blockSensitivityAt_orBits_zero).trans
+      blockSensitivityAt (orCopies (K := K) f) (fun _ => false) :=
+  (Nat.mul_le_mul_right _ card_le_blockSensitivityAt_orBits_zero).trans
     (blockSensitivityAt_compose_zero_le orBits f hf)
 
 end Internal

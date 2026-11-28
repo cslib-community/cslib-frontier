@@ -82,13 +82,7 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
     (hX : ∀ a k, 0 ≤ X a k ∧ X a k ≤ 1) (hY : ∀ k a, 0 ≤ Y k a ∧ Y k a ≤ 1)
     (hN : D m ^ 18 ≤ n)
     (hfit : Fits W (2 * b + 4 * CallableProduct.windowSize n qs.length + 1024)) :
-    ∃ y, ExecWithin W program x y (timeBound (m := m) qs) ∧
-      y.regs Reg.result = b + QueriedProduct.outputBase (21 * m) m n qs.length ∧
-      (∀ j : Fin qs.length,
-        y.mem (b + (QueriedProduct.outputBase (21 * m) m n qs.length + j.val)) =
-          Signed.encode ((X * Y) (qs.get j).1 (qs.get j).2)) ∧
-      (∀ a, a < b ∨ b + CallableProduct.windowSize n qs.length ≤ a → y.mem a = x.mem a) ∧
-      ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j := by
+    ExecPost program (21 * m) W b (timeBound (m := m) qs) X Y qs x := by
   have hmargin := preparation_margin (Q := qs.length) hN
   obtain ⟨a, ha, ab, as, aright, aq, ahead, athreshold, af, ar⟩ := exec_prepare X Y qs x
     hD hn hi hout hb hrec hrecord (hfit.of_le (by omega))
@@ -100,21 +94,12 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
       (BoxProduct.input_prefix true X Y qs j (by omega) hj').symm
   obtain ⟨y, hy, yr, yv, yf, yg⟩ := exec_invoke X Y qs a ab as aright aq ahead athreshold
     hsb htb hqb
-    (by
-      intro j hj
-      rw [hread _ (by omega)]
-      exact (hleft j hj).trans
-        (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
-    (by
-      intro j hj
-      rw [hread _ (by omega)]
-      exact (hright j hj).trans
-        (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
-    (by
-      intro j hj
-      rw [hread _ (by omega)]
-      exact (hqueries j hj).trans
-        (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
+    (fun j hj => (hread _ (by omega)).trans <| (hleft j hj).trans
+      (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
+    (fun j hj => (hread _ (by omega)).trans <| (hright j hj).trans
+      (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
+    (fun j hj => (hread _ (by omega)).trans <| (hqueries j hj).trans
+      (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
     hX hY (Nat.div_le_self _ _) hN hfit
   have hI : 5 ≤ QueriedProduct.inputEnd m n qs.length := by
     unfold QueriedProduct.inputEnd; omega
@@ -122,14 +107,20 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
       CallableProduct.windowSize n qs.length := by
     unfold QueriedProduct.inputEnd
     omega
-  refine ⟨y, (ha.seq hy).mono ?_, yr, yv, ?_, ?_⟩
+  refine ⟨y, (ha.seq hy).mono ?_, yr, yv, fun j hj => (yf j hj).trans (af j (by omega)),
+    fun j hj => ?_⟩
   · exact (show 8 * m + 64 + (PointerBoxProduct.timeBound m (m / 9) qs + 5) ≤
         gatherTimeBound (m := m) qs by unfold gatherTimeBound; omega).trans
       (gatherTimeBound_le_timeBound qs)
-  · intro j hj
-    exact (yf j hj).trans (af j (by omega))
-  · intro j hj
-    have hne : j ≠ Reg.result := by intro h; subst j; simp [Reg.result] at hj
+  · have hne : j ≠ Reg.result := by intro h; subst j; simp [Reg.result] at hj
     exact (yg j (by omega) hne).trans (ar j hj)
+
+/-- The `RecordBoxProduct` backend at tensor level `21 * m`. -/
+abbrev backend : RecordBackend where
+  program := program
+  level m := 21 * m
+  timeBound m {_n} qs := timeBound (m := m) qs
+  program_fixed := program_fixed
+  exec := @exec
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct

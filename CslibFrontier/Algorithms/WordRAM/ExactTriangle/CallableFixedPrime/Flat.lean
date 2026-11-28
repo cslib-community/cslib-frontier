@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Input
+public import CslibFrontier.Computability.WordRAM.FlatEndpoint
 
 /-!
 # Initialized halting caller-safe box fixed-prime computation
@@ -25,24 +26,77 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime
 open Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-private theorem pow_sourceWidth_add_two (n D g p T : ℕ) :
-    2 ^ (sourceWidth n D g p T + 2) = 4 * windowSize n D g p T := by
-  simp [windowSize, pow_add, Nat.mul_comm]
+/-- Numerical envelope for initialized prefix words and newly written addresses. -/
+@[expose] def prefixBound (n d g p : ℕ) (values : List ℤ) : ℕ :=
+  wordBound n d g p (rawTotal n values) (workspaceBase n) (inputWordBound n d g p values)
 
-private theorem input_low_admission {m n g p : ℕ} (values : List ℤ)
-    (hlen : values.length = 3 * (n * n)) :
-    InputFits (sourceWidth n (D m) g p (rawTotal n values) + 2)
-        (PreparationInput.input n (D m) g p values) ∧
-      Fits (sourceWidth n (D m) g p (rawTotal n values) + 2)
-        (n + D m + g + p + 5 + 3 * (n * n) + 1024) := by
-  have hi := input_fits_source (m := m) (g := g) (p := p) values hlen
-    (natAbs_le_rawTotal values hlen)
-  have hI := inputEnd_le_window (m := m) (g := g) (p := p) values hlen
-  obtain ⟨hS, -, hc⟩ := source_bounds n (D m) g p (rawTotal n values)
-  refine ⟨hi.mono (by omega), ?_⟩
-  change _ < 2 ^ (sourceWidth n (D m) g p (rawTotal n values) + 2)
-  rw [pow_sourceWidth_add_two]
-  omega
+/-- Minimum-width `FlatEndpoint` certificate for the initialized callable fixed-prime solver. -/
+theorem entry_endpoint {m n g p : ℕ} (values : List ℤ)
+    (hlen : values.length = 3 * (n * n)) (hD : 16 ≤ D m)
+    (hg : 1 ≤ g) (hp : p ∈ Nat.sqrtPrimeWindow (D m)) (hN : D m ^ 18 ≤ n) :
+    let V := fun q => values.getD q 0
+    let wAB := fun u v : Fin n => V (pairIndex (u, v))
+    let wBC := fun u v : Fin n => V (n * n + pairIndex (u, v))
+    let wAC := fun u v : Fin n => V (2 * (n * n) + pairIndex (u, v))
+    let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
+      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
+    ∃ a : Data 64,
+      Instances.Output n (D m) g p V
+        (.init (PreparationInput.input n (D m) g p values)) a ∧
+      FlatEndpoint entryProgram Reg.found
+        (fun _ : Unit => inputWidth n (D m) g p values)
+        (fun _ => prefixBound n (D m) g p values)
+        (fun _ => PreparationInput.input n (D m) g p values)
+        (fun _ => 14 + timeBound (m := m) hn g p values a.mem)
+        (fun _ y =>
+          (y.regs Reg.found = 0 ∨ y.regs Reg.found = 1) ∧
+          y.regs Reg.scans ≤ falsePositiveCount wAB wBC wAC p + y.regs Reg.found ∧
+          (y.regs Reg.found = 1 ↔ HasZeroTriangle wAB wBC wAC) ∧
+          (y.regs Reg.found = 1 → ∃ u v c : Fin n,
+            y.regs Reg.witnessA = u.val ∧ y.regs Reg.witnessB = v.val ∧
+            y.regs Reg.witnessC = c.val ∧ weightSum wAB wBC wAC u v c = 0) ∧
+          (∀ q, q < workspaceBase n ∨
+            workspaceBase n + windowSize n (D m) g p (rawTotal n values) ≤ q →
+            y.mem q = (Data.init (PreparationInput.input n (D m) g p values) : Data 640).mem q) ∧
+          ∀ j : Fin 640, j.val < 160 → y.regs j = 0) := by
+  let T := rawTotal n values
+  let M := windowSize n (D m) g p T
+  let b := workspaceBase n
+  let wMin := inputWidth n (D m) g p values
+  have fit : Fits wMin (b + 4 * M + 4 * M + 1024) := admission_fits le_rfl
+  have fit_win : Fits wMin (b + 4 * M + 1024) := fit.of_le (by omega)
+  obtain ⟨-, hw_src, -, hS, -, hc⟩ :=
+    MemoryWindow.dynamicWidth_fits (b := b) (widthCoeff := 6166) (S := n + D m + g + p + T + 4)
+      (by decide) (by omega) (fit_win.of_le (Nat.le_add_right _ 1024))
+  have hiMin : InputFits wMin (PreparationInput.input n (D m) g p values) :=
+    (input_fits_source (m := m) (g := g) (p := p) values hlen
+      (natAbs_le_rawTotal values hlen)).mono hw_src
+  have hS_M : n + D m + g + p + T + 4 ≤ M := hS
+  have hinitfit : Fits wMin (n + D m + g + p + 5 + 3 * (n * n) + 1024) :=
+    fit.of_le (by dsimp only [b, workspaceBase] at *; omega)
+  obtain ⟨x, hinit, xmem, xn, xD, xg, xp, xab, xbc, xac, xb⟩ := exec_entryHeader values hinitfit
+  have hx : x.Bounded wMin := hinit.bounded (Data.Bounded.init hiMin)
+  have word (q : ℕ) : x.mem (5 + q) = Signed.encode (values.getD q 0) :=
+    (congrFun xmem _).trans (PreparationInput.input_word n (D m) g p values q)
+  obtain ⟨a, hout, y, hy, -, yf, ys, yiff, yw, yframe, -⟩ := exec values hlen hD hg hp hN
+    x xn xD xg xp xb (by rw [xab]; dsimp only [workspaceBase]; omega)
+    (by rw [xbc]; dsimp only [workspaceBase]; omega)
+    (by rw [xac]; dsimp only [workspaceBase]; omega)
+    (fun q _ => by rw [xab]; exact word q)
+    (fun q _ => by rw [xbc]; simpa only [Nat.add_assoc] using word (n * n + q))
+    (fun q _ => by rw [xac]; simpa only [two_mul, Nat.add_assoc] using word (2 * (n * n) + q))
+    hx (fit.of_le (by dsimp only [b, M, T] at *; omega))
+  have he := hinit.seq hy
+  refine ⟨a, hout,
+    { not_readsWidth := not_or.mpr ⟨entryHeader_fixed.2, program_not_readsWidth⟩
+      inputFits_min := fun _ => hiMin
+      two_pow_wMin_le := fun _ =>
+        pow_admissionWidth_le n (D m) g p T b (inputWordBound n (D m) g p values)
+      exec_min := fun _ => ⟨y, he, yf, ys, yiff, fun hf => ?_,
+        fun q hq => (yframe q hq).trans (congrFun xmem q),
+        fun j hj => he.regs_eq (entryProgram_preserves_selector j hj)⟩ }⟩
+  obtain ⟨ha, hb, hc, hz⟩ := yw hf
+  exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, rfl, rfl, rfl, hz⟩
 
 /-- Fully initialized same-state prefix and halt. The width guarantee also establishes original
 input fit; no producer state, prepared catalogue, layout, solver or run law is an input. -/
@@ -75,61 +129,9 @@ theorem runs_input {W m n g p : ℕ} (values : List ℤ)
             workspaceBase n + windowSize n (D m) g p (rawTotal n values) ≤ q →
             y.mem q = (Data.init (PreparationInput.input n (D m) g p values) : Data 640).mem q) ∧
           ∀ j : Fin 640, j.val < 160 → y.regs j = 0 := by
-  let T := rawTotal n values
-  let M := windowSize n (D m) g p T
-  let b := workspaceBase n
-  let w₀ := sourceWidth n (D m) g p T + 2
-  have fit : Fits W (b + 4 * M + 4 * M + 1024) := admission_fits hW
-  have hw₀ : w₀ ≤ W := by
-    have h4M : Fits W (4 * M) := fit.of_le (by omega)
-    change 4 * M < 2 ^ W at h4M
-    have hpw : 2 ^ w₀ = 4 * M := pow_sourceWidth_add_two n (D m) g p T
-    by_contra h
-    have hpow := Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) (by omega : W ≤ w₀)
-    rw [hpw] at hpow
-    omega
-  obtain ⟨hi₀, hinitfit⟩ := input_low_admission (m := m) (g := g) (p := p) values hlen
-  obtain ⟨x, hinit, xmem, xn, xD, xg, xp, xab, xbc, xac, xb⟩ := exec_entryHeader values hinitfit
-  have hi : InputFits W (PreparationInput.input n (D m) g p values) := hi₀.mono hw₀
-  have hx₀ : x.Bounded w₀ := hinit.bounded (Data.Bounded.init hi₀)
-  have hx : x.Bounded W := ⟨fun i => (hx₀.1 i).mono hw₀, fun q => (hx₀.2 q).mono hw₀⟩
-  have hinitial : ExecWithin W entryHeader
-      (.init (PreparationInput.input n (D m) g p values)) x 14 :=
-    ExecWithin.mono_width entryHeader_fixed.2 hinit hw₀
-  have vab (q : ℕ) (hq : q < n * n) :
-      x.mem (x.regs Reg.ab + q) = Signed.encode (values.getD q 0) := by
-    rw [xab, xmem]
-    exact PreparationInput.input_word n (D m) g p values q
-  have vbc (q : ℕ) (hq : q < n * n) :
-      x.mem (x.regs Reg.bc + q) = Signed.encode (values.getD (n * n + q) 0) := by
-    rw [xbc, xmem]
-    simpa only [Data.init, Nat.add_assoc] using
-      PreparationInput.input_word n (D m) g p values (n * n + q)
-  have vac (q : ℕ) (hq : q < n * n) : x.mem (x.regs Reg.ac + q) =
-      Signed.encode (values.getD (2 * (n * n) + q) 0) := by
-    rw [xac, xmem]
-    simpa only [Data.init, two_mul, Nat.add_assoc] using
-      PreparationInput.input_word n (D m) g p values (2 * (n * n) + q)
-  obtain ⟨a, hout, y, hy, ybound, yf, ys, yiff, yw, yframe, -⟩ := exec values hlen hD hg hp hN
-    x xn xD xg xp xb (by rw [xab]; dsimp only [workspaceBase]; omega)
-    (by rw [xbc]; dsimp only [workspaceBase]; omega)
-    (by rw [xac]; dsimp only [workspaceBase]; omega) vab vbc vac hx
-    (fit.of_le (by dsimp only [b, M, T] at *; omega))
-  have he : ExecWithin W entryProgram
-      (.init (PreparationInput.input n (D m) g p values)) y
-      (14 + timeBound (m := m) _ g p values a.mem) := hinitial.seq hy
-  obtain ⟨t, ht, hex⟩ := he
-  refine ⟨hi, a, hout, y, t, ?_, ?_, ?_, ybound, yf, ys, yiff, ?_, ?_, ?_⟩
-  · exact (Nat.add_le_add_right ht 1).trans_eq (by ring)
-  · simpa only [Nat.zero_add, State.init] using hex.runs (pc := 0)
-      (p := entryProgram.program Reg.found) (Program.Contains.self _).append_left
-  · simpa only [State.init] using hex.executes Reg.found
-  · intro hf
-    obtain ⟨ha, hb, hc, hz⟩ := yw hf
-    exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, rfl, rfl, rfl, hz⟩
-  · intro q hq
-    exact (yframe q hq).trans (congrFun xmem q)
-  · intro j hj
-    exact hex.regs_eq (entryProgram_preserves_selector j hj)
+  obtain ⟨a, hout, E⟩ := entry_endpoint values hlen hD hg hp hN
+  obtain ⟨y, t, ht, hruns, hexec, ybound, yf, ys, yiff, yw, yframe, ysel⟩ := E.runs () hW
+  exact ⟨E.inputFits () hW, a, hout, y, t, by omega, hruns, hexec, ybound,
+    yf, ys, yiff, yw, yframe, ysel⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

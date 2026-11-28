@@ -10,6 +10,7 @@ module
 public import Cslib.Computability.Circuit.Boolean.Synthesis
 public import Cslib.Computability.Circuit.Boolean.Complexity
 public import CslibFrontier.Foundations.Data.BitString.Threshold
+import CslibFrontier.Computability.Circuit.Complexity
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.Group.Nat.Defs
@@ -38,6 +39,9 @@ size `O(k ^ 2)` on top of them.
 * `Cslib.Circuits.Boolean.synthesis_atLeast`: one threshold function, within `O(k ^ 2)` gates.
 * `Cslib.Circuits.Boolean.complexity_threshold_le`: the threshold functions `Cslib.threshold` on
   `m` variables have circuits with `O(m ^ 2)` gates.
+* `Cslib.Circuits.Boolean.complexity_threshold_pi_le`,
+  `Cslib.Circuits.Boolean.complexity_threshold_pi_le_of_le`: a threshold of `m` functions costs
+  at most their complexities and `O(m ^ 2)` gates.
 -/
 
 @[expose] public section
@@ -67,10 +71,8 @@ theorem atLeast_succ_succ (i j : ℕ) (x : Fin n → Bool) :
     atLeast f (i + 1) (j + 1) x = (atLeast f i (j + 1) x || (f i x && atLeast f i j x)) := by
   simp only [atLeast, Finset.range_add_one, Finset.filter_insert]
   by_cases hi : f i x = true
-  · rw [ite_eq_left hi, Finset.card_insert_of_notMem (by simp)]
-    simp only [hi, Bool.true_and]
-    rw [Bool.eq_iff_iff]
-    simp only [Bool.or_eq_true, decide_eq_true_eq]
+  · rw [ite_eq_left hi, Finset.card_insert_of_notMem (by simp), Bool.eq_iff_iff]
+    simp only [hi, Bool.true_and, Bool.or_eq_true, decide_eq_true_eq]
     omega
   · rw [ite_eq_right hi]
     simp [hi]
@@ -88,11 +90,8 @@ theorem synthesis_atLeastUpTo {s : Set (BooleanFunction n)} (k : ℕ) (hf : ∀ 
       (by omega)
     rintro g ⟨i', hi', j, -, rfl⟩
     obtain rfl : i' = 0 := Nat.le_zero.1 hi'
-    rcases j with _ | j
-    · exact Or.inl (by rw [atLeast_zero_right]; rfl)
-    · exact Or.inr (by rw [atLeast_zero_succ]; rfl)
+    rcases j with _ | j <;> simp [atLeast_zero_succ]
   | i + 1, hi => by
-    have hprev := synthesis_atLeastUpTo k hf i (by omega)
     have hmem : ∀ j ≤ k + 1, atLeast f i j ∈ s ∪ atLeastUpTo f k i :=
       fun j hj => Or.inr ⟨i, le_rfl, j, hj, rfl⟩
     have hlevel : Synthesis interpretation (s ∪ atLeastUpTo f k i)
@@ -100,23 +99,19 @@ theorem synthesis_atLeastUpTo {s : Set (BooleanFunction n)} (k : ℕ) (hf : ∀ 
       refine Synthesis.biUnion _ _ _ fun j hj => ?_
       have hj := Finset.mem_range.1 hj
       rcases j with _ | j
-      · refine (Synthesis.of_mem (hmem 0 (Nat.zero_le _))).mono Set.Subset.rfl ?_ (Nat.zero_le 2)
-        simp
-      · have h := (Synthesis.of_mem (hmem (j + 1) (by omega))).or
+      · exact (Synthesis.of_mem (hmem 0 (Nat.zero_le _))).mono Set.Subset.rfl (by simp)
+          (Nat.zero_le 2)
+      · exact (((Synthesis.of_mem (hmem (j + 1) (by omega))).or
           ((Synthesis.of_mem (Or.inl (hf i (by omega)) : f i ∈ s ∪ atLeastUpTo f k i)).and
-            (Synthesis.of_mem (hmem j (by omega))))
-        refine (h.mono Set.Subset.rfl ?_ le_rfl)
-        rw [Set.singleton_subset_iff, Set.mem_singleton_iff]
-        funext x
-        rw [atLeast_succ_succ]
-    refine (hprev.comp hlevel).mono Set.Subset.rfl ?_ ?_
+            (Synthesis.of_mem (hmem j (by omega))))).mono Set.Subset.rfl
+          (Set.singleton_subset_iff.2 (funext (atLeast_succ_succ f i j))) le_rfl)
+    refine ((synthesis_atLeastUpTo k hf i (by omega)).comp hlevel).mono Set.Subset.rfl ?_ ?_
     · rintro g ⟨i', hi', j, hj, rfl⟩
       rcases Nat.lt_or_ge i' (i + 1) with h | h
       · exact Or.inl ⟨i', by omega, j, hj, rfl⟩
       · obtain rfl : i' = i + 1 := by omega
         exact Or.inr (Set.mem_biUnion (Finset.mem_range.2 (by omega)) rfl)
-    · rw [Finset.sum_const, Finset.card_range, Nat.nsmul_eq_mul]
-      nlinarith
+    · rw [Finset.sum_const, Finset.card_range, Nat.nsmul_eq_mul]; nlinarith
 
 /-- The threshold function "at least `j` of `f 0, …, f (k - 1)` are true", for `j ≤ k + 1`, on
 top of available functions, within `O(k ^ 2)` gates. -/
@@ -130,11 +125,9 @@ theorem synthesis_atLeast {s : Set (BooleanFunction n)} {k j : ℕ} (hf : ∀ i 
 theorem atLeast_eq_threshold (m j : ℕ) :
     atLeast (fun l y => if h : l < m then y ⟨l, h⟩ else false) m j = threshold m j := by
   funext y
-  simp only [atLeast, threshold, BitString.weight]
-  congr 2
-  rw [Finset.card_filter, Finset.card_filter,
-    ← Fin.sum_univ_eq_sum_range (fun l => if (if h : l < m then y ⟨l, h⟩ else false) = true then 1
-      else 0)]
+  simp only [atLeast, threshold, BitString.weight, Finset.card_filter,
+    ← Fin.sum_univ_eq_sum_range fun l =>
+      if (if h : l < m then y ⟨l, h⟩ else false) = true then 1 else 0]
   simp
 
 /-- The threshold functions on `m` variables have circuits with `O(m ^ 2)` gates. -/
@@ -142,15 +135,29 @@ theorem complexity_threshold_le (m j : ℕ) :
     complexity interpretation (single (threshold m j)) ≤ 2 + m * (2 * (m + 2)) := by
   by_cases hj : j ≤ m + 1
   · rw [← atLeast_eq_threshold]
-    have hg : ∀ l < m, (fun y : BitString m => if h : l < m then y ⟨l, h⟩ else false) ∈
-        inputs m := fun l hl => ⟨⟨l, hl⟩, funext fun y => by simp [hl]⟩
-    exact (synthesis_atLeast _ hg hj).complexity_le
-  · have : threshold m j = fun _ => false := funext fun y => by
-      have := BitString.weight_le y
-      rw [Fintype.card_fin] at this
+    exact (synthesis_atLeast _ (s := inputs m)
+      (fun l hl => ⟨⟨l, hl⟩, funext fun y => by simp [hl]⟩) hj).complexity_le
+  · have hfalse : threshold m j = fun _ => false := funext fun y => by
+      have := Fintype.card_fin m ▸ BitString.weight_le y
       rw [← Bool.not_eq_true, threshold_eq_true_iff]
       omega
-    rw [this]
+    rw [hfalse]
     exact (Synthesis.const false).complexity_le.trans (by omega)
+
+/-- A threshold of `m` functions costs at most their complexities and `O(m ^ 2)` gates. -/
+theorem complexity_threshold_pi_le {m j : ℕ} (f : Fin m → BooleanFunction n) :
+    complexity interpretation (single fun x => threshold m j fun i => f i x) ≤
+      ∑ i, complexity interpretation (single (f i)) + (2 + m * (2 * (m + 2))) :=
+  (complexity_comp_le (fun x i => f i x) (single (threshold m j))).trans
+    (add_le_add (complexity_pi_le f) (complexity_threshold_le m j))
+
+/-- A threshold of `m` functions with circuits of at most `s` gates has at most
+`m s + 2 + 2 m (m + 2)` gates. -/
+theorem complexity_threshold_pi_le_of_le {m j s : ℕ} (f : Fin m → BooleanFunction n)
+    (hf : ∀ i, complexity interpretation (single (f i)) ≤ s) :
+    complexity interpretation (single fun x => threshold m j fun i => f i x) ≤
+      m * s + (2 + m * (2 * (m + 2))) := by
+  refine (complexity_threshold_pi_le f).trans (Nat.add_le_add_right ?_ _)
+  simpa using Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hf i
 
 end Cslib.Circuits.Boolean

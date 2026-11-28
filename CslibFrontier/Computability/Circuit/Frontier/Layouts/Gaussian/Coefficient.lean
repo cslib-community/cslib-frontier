@@ -81,7 +81,9 @@ theorem one_add_inv_two_mul_gaussianCoefficient :
   congr 1
   field_simp
 
-private theorem cos_two_mul_le {x u v : ℝ} (hlo : x ^ 2 ≤ 2) (hu : cos x ≤ u)
+/-- Double-angle upper bound for `cos`: when `x ^ 2 ≤ 2` (so `cos x ≥ 0`) and `cos x ≤ u`,
+`cos (2 * x) ≤ v` whenever `2 * u ^ 2 - 1 ≤ v`. -/
+theorem cos_two_mul_le {x u v : ℝ} (hlo : x ^ 2 ≤ 2) (hu : cos x ≤ u)
     (hv : 2 * u ^ 2 - 1 ≤ v) : cos (2 * x) ≤ v := by
   have hnonneg : 0 ≤ cos x := by linarith [one_sub_sq_div_two_le_cos (x := x)]
   have hsq := pow_le_pow_left₀ hnonneg hu 2

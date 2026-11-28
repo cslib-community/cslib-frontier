@@ -13,50 +13,41 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.HopcroftKarp
 /-!
 # Minimum chain cover by Hopcroft–Karp
 
-`minChainCoverM e` computes a minimum chain cover and a maximum antichain of a finite poset `α`,
+`minChainCover e` computes a minimum chain cover and a maximum antichain of a finite poset `α`,
 given as an enumeration `e : Fin n ≃ α` with decidable `<`. It runs Fulkerson's reduction
 (`CslibFrontier.Algorithms.Lean.MaxFlow.Dilworth`) on the output of Hopcroft–Karp:
 
-1. `hopcroftKarpDenseM (enumLtGraph e)` returns a maximum matching `M` and a minimum König cover
+1. `hopcroftKarpDense (enumLtGraph e)` returns a maximum matching `M` and a minimum König cover
    `C` of the bipartite graph joining index `i` to index `j` when `e i < e j`.
-2. Starting from the labels `i ↦ i`, `chainLabelsM` scans every pair of indices and, for each pair
-   `(i, j) ∈ M`, relabels `j`'s chain with `i`'s label (`mergeChainsM`). The resulting label
+2. Starting from the labels `i ↦ i`, `chainLabels` scans every pair of indices and, for each pair
+   `(i, j) ∈ M`, relabels `j`'s chain with `i`'s label (`mergeChains`). The resulting label
    fibres are chains, and there are `n - |M|` labels.
 3. The indices missed by `C` on both sides form an antichain of at least `n - |C| = n - |M|`
    elements (`uncoveredStep`).
 
-`minChainCoverM_correct` proves that the label fibres are chains, the returned index set is an
+`minChainCover_correct` proves that the label fibres are chains, the returned index set is an
 antichain, and the number of labels equals the size of the antichain, `n - |M|`. With weak
 duality this certifies both as optimal (`card_le_card_antichain_of_isAntichain`,
 `card_antichain_le_of_isChain_fibre`), which is the algorithmic content of Dilworth's theorem.
 
-## Cost model and limitations
-
-* **Charged (`TimeM ℕ` ticks):** Hopcroft–Karp on the dense `n × n` instance
-  (`hopcroftKarpDenseM_time_le`); `n` ticks to allocate the label table; `1` tick per scanned
-  pair (`n²`); `n` ticks per merge, one per label entry rewritten (`≤ n |M| ≤ n²`); and `1` tick per
-  index when collecting the antichain (`n`). The total is at most
-  `(2⌊√n⌋ + 1) (10 n + 1 + 4 n²) + 2 n² + 6 n` (`minChainCoverM_time_le`), that is `O(n^{5/2})`.
-* **Abstract unit-cost primitives:** as in `hopcroftKarpDenseM`, `Vector` reads and maps (inside
-  a charged merge), `Finset` membership and insertion, `Fin n` comparisons, and order queries
-  `e i < e j` are `O(1)` within each charged step. Computing `e` is not charged. This is an
-  abstract RAM-style step count, not Turing-machine time.
-* The scan over all `n²` pairs replaces iteration over `M`, which `Finset` does not provide
-  computably; it stays within the Hopcroft–Karp bound.
+Machine-checked `O(n^{5/2})` word-RAM running-time bounds for minimum chain cover and maximum
+antichain live in `CslibFrontier.Algorithms.WordRAM.HopcroftKarp`.
 
 ## Main definitions
 
 * `enumLtGraph`: Fulkerson's graph `ltGraph` read through an enumeration.
-* `ChainCoverOutput`, `ChainCoverOutput.label`: chain labels, antichain and matching.
-* `mergeChainsM`, `chainLabelsM`, `uncoveredStep`: the steps of the algorithm.
-* `minChainCoverM`: the algorithm.
+* `ChainCoverOutput`, `ChainCoverOutput.label`, `ChainCoverOutput.numChains`: chain labels,
+  antichain, matching, and chain count.
+* `mergeChains`, `chainLabels`, `uncoveredStep`: the steps of the algorithm.
+* `minChainCover`: the pure algorithm.
 
 ## Main results
 
-* `minChainCoverM_correct`: chain fibres, an antichain, and equal sizes `n - |M|`.
+* `minChainCover_correct`: chain fibres, an antichain, and equal sizes `n - |M|`.
 * `card_le_card_antichain_of_isAntichain`, `card_antichain_le_of_isChain_fibre`: the output is a
   maximum antichain and the labels form a minimum chain cover.
-* `minChainCoverM_time_le`: `O(n^{5/2})` charged steps.
+* `chainLabels_eq_foldl_rowMate`: row-mate fold characterization of `chainLabels` for matchings
+  (used by the word-RAM realization).
 
 ## References
 
@@ -72,7 +63,6 @@ public section
 namespace Cslib.Algorithms.Lean.MaxFlow
 
 open Cslib.Algorithms.Lean
-open scoped TimeM
 
 variable {α : Type*} {n : ℕ}
 
@@ -81,7 +71,7 @@ to index `j` when `e i < e j`. -/
 @[expose] def enumLtGraph [LT α] [DecidableLT α] (e : Fin n ≃ α) : Fin n × Fin n → Bool :=
   fun p => ltGraph (e p.1, e p.2)
 
-/-- Output of `minChainCoverM`. -/
+/-- Output of `minChainCover`. -/
 structure ChainCoverOutput (n : ℕ) where
   /-- Chain label of each index; indices with equal labels lie on one chain. -/
   labels : Vector (Fin n) n
@@ -91,20 +81,18 @@ structure ChainCoverOutput (n : ℕ) where
   matching : Finset (Fin n × Fin n)
 
 /-- Merge the chain of index `j` into the chain of index `i`, for `p = (i, j)`: every label equal
-to `j`'s becomes `i`'s. Charges `n` ticks, one per entry rewritten. -/
-@[expose] def mergeChainsM (labels : Vector (Fin n) n) (p : Fin n × Fin n) :
-    TimeM ℕ (Vector (Fin n) n) := do
-  ✓[n] pure (Vector.ofFn fun i =>
-    if vget labels i = vget labels p.2 then vget labels p.1 else vget labels i)
+to `j`'s becomes `i`'s. -/
+@[expose] def mergeChains (labels : Vector (Fin n) n) (p : Fin n × Fin n) : Vector (Fin n) n :=
+  Vector.ofFn fun i =>
+    if vget labels i = vget labels p.2 then vget labels p.1 else vget labels i
 
-/-- Scan the candidate pairs `ps`, charging one tick per pair, and merge along those in `M`. -/
-@[expose] def chainLabelsM (M : Finset (Fin n × Fin n)) :
-    List (Fin n × Fin n) → Vector (Fin n) n → TimeM ℕ (Vector (Fin n) n)
-  | [], labels => pure labels
-  | p :: ps, labels => do
-    ✓
-    let labels ← if p ∈ M then mergeChainsM labels p else pure labels
-    chainLabelsM M ps labels
+/-- Scan the candidate pairs `ps` and merge along those in `M`. -/
+@[expose] def chainLabels (M : Finset (Fin n × Fin n)) :
+    List (Fin n × Fin n) → Vector (Fin n) n → Vector (Fin n) n
+  | [], labels => labels
+  | p :: ps, labels =>
+    let labels' := if p ∈ M then mergeChains labels p else labels
+    chainLabels M ps labels'
 
 /-- Insert index `i` into the antichain when the König cover `C` misses it on both sides. -/
 @[expose] def uncoveredStep (C : VertexCover (Fin n) (Fin n)) (A : Finset (Fin n)) (i : Fin n) :
@@ -112,15 +100,13 @@ to `j`'s becomes `i`'s. Charges `n` ticks, one per entry rewritten. -/
   if i ∉ C.left ∧ i ∉ C.right then insert i A else A
 
 /-- **Minimum chain cover** of a finite poset enumerated by `e : Fin n ≃ α`, by Fulkerson's
-reduction: a maximum matching of `enumLtGraph e` from `hopcroftKarpDenseM`, chains obtained by
+reduction: a maximum matching of `enumLtGraph e` from `hopcroftKarpDense`, chains obtained by
 merging along its edges, and a maximum antichain read off the König cover. -/
-@[expose] def minChainCoverM [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    TimeM ℕ (ChainCoverOutput n) := do
-  let hk ← hopcroftKarpDenseM (enumLtGraph e)
-  let labels₀ ← ✓[n] pure (Vector.ofFn id)
-  let labels ← chainLabelsM hk.matching (List.finRange n ×ˢ List.finRange n) labels₀
-  let antichain ← foldlTickM (uncoveredStep hk.cover) (List.finRange n) ∅
-  pure ⟨labels, antichain, hk.matching⟩
+@[expose] def minChainCover [LT α] [DecidableLT α] (e : Fin n ≃ α) : ChainCoverOutput n :=
+  let hk := hopcroftKarpDense (enumLtGraph e)
+  let labels := chainLabels hk.matching (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id)
+  let antichain := (List.finRange n).foldl (uncoveredStep hk.cover) ∅
+  ⟨labels, antichain, hk.matching⟩
 
 /-- The chain label of `x : α` in an output `out` for the enumeration `e`. -/
 @[expose] def ChainCoverOutput.label (e : Fin n ≃ α) (out : ChainCoverOutput n) (x : α) : Fin n :=
@@ -144,53 +130,77 @@ private theorem mem_foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) (l : L
     unfold uncoveredStep
     split_ifs with h <;> grind
 
-private theorem foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) :
+theorem foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) :
     (List.finRange n).foldl (uncoveredStep C) ∅ = C.uncovered := by
   ext i
-  rw [mem_foldl_uncoveredStep, mem_uncovered]
-  simp
+  simp [mem_foldl_uncoveredStep, mem_uncovered]
+
+private theorem chainLabels_append (M : Finset (Fin n × Fin n))
+    (ps₁ ps₂ : List (Fin n × Fin n)) (labels : Vector (Fin n) n) :
+    chainLabels M (ps₁ ++ ps₂) labels = chainLabels M ps₂ (chainLabels M ps₁ labels) := by
+  induction ps₁ generalizing labels with
+  | nil => rfl
+  | cons p ps₁ ih =>
+    simp only [List.cons_append, chainLabels]
+    exact ih _
+
+/-- When `rm i` is the unique right mate of `i` (`rm i = some j ↔ (i, j) ∈ M`), scanning
+`List.finRange n ×ˢ List.finRange n` in `chainLabels` equals a single `O(n)`-outer-step fold over
+`i ∈ List.finRange n`. -/
+theorem chainLabels_eq_foldl_rowMate {M : Finset (Fin n × Fin n)}
+    (rm : Fin n → Option (Fin n)) (hrm : ∀ i j, rm i = some j ↔ (i, j) ∈ M)
+    (labels₀ : Vector (Fin n) n) :
+    chainLabels M (List.finRange n ×ˢ List.finRange n) labels₀ =
+      (List.finRange n).foldl
+        (fun lab i => match rm i with | some j => mergeChains lab (i, j) | none => lab)
+        labels₀ := by
+  have hrow : ∀ (i : Fin n) (js : List (Fin n)) (hnd : js.Nodup) (lab : Vector (Fin n) n),
+      chainLabels M (js.map fun j => (i, j)) lab =
+        match rm i with
+        | some j => if j ∈ js then mergeChains lab (i, j) else lab
+        | none => lab := by
+    intro i js hnd lab
+    induction js generalizing lab with
+    | nil =>
+      cases rm i <;> rfl
+    | cons j₀ js ih =>
+      obtain ⟨hj₀, hnd'⟩ := List.nodup_cons.mp hnd
+      simp only [List.map_cons, chainLabels, ← hrm, ih hnd']
+      cases rm i with
+      | none => rfl
+      | some j₁ => by_cases heq : j₁ = j₀ <;> simp [heq, hj₀]
+  have houter : ∀ (is : List (Fin n)) (lab : Vector (Fin n) n),
+      chainLabels M (is.flatMap fun i => (List.finRange n).map fun j => (i, j)) lab =
+        is.foldl (fun lab i => match rm i with | some j => mergeChains lab (i, j) | none => lab)
+          lab := by
+    intro is
+    induction is with
+    | nil => intro _; rfl
+    | cons i is ih =>
+      intro lab
+      rw [List.flatMap_cons, chainLabels_append, List.foldl_cons,
+        hrow i (List.finRange n) (List.nodup_finRange n) lab, ih]
+      cases rm i <;> simp [List.mem_finRange]
+  exact houter (List.finRange n) labels₀
 
 /-- One merge step on the label table is `mergeLabel` on the label function. -/
-private theorem vget_mergeChainsM (e : Fin n ≃ α) (labels : Vector (Fin n) n)
+private theorem vget_mergeChains (e : Fin n ≃ α) (labels : Vector (Fin n) n)
     (p : Fin n × Fin n) :
-    (fun x => vget (mergeChainsM labels p).ret (e.symm x)) =
+    (fun x => vget (mergeChains labels p) (e.symm x)) =
       mergeLabel (fun x => vget labels (e.symm x)) (e p.1, e p.2) := by
   funext x
-  simp only [mergeChainsM, mergeLabel, vget, TimeM.ret_bind, TimeM.ret_pure, Vector.getElem_ofFn,
-    Equiv.symm_apply_apply]
+  simp only [mergeChains, mergeLabel, vget, Vector.getElem_ofFn, Equiv.symm_apply_apply]
   rfl
 
-private theorem chainLabelsM_ret (e : Fin n ≃ α) (M : Finset (Fin n × Fin n))
+private theorem chainLabels_spec (e : Fin n ≃ α) (M : Finset (Fin n × Fin n))
     (ps : List (Fin n × Fin n)) (labels : Vector (Fin n) n) :
-    (fun x => vget (chainLabelsM M ps labels).ret (e.symm x)) =
+    (fun x => vget (chainLabels M ps labels) (e.symm x)) =
       ((ps.filter (· ∈ M)).map (Prod.map e e)).foldl (mergeLabel ·)
         (fun x => vget labels (e.symm x)) := by
   induction ps generalizing labels with
   | nil => rfl
   | cons p ps ih =>
-    by_cases hp : p ∈ M
-    · rw [List.filter_cons_of_pos (by simpa using hp), List.map_cons, List.foldl_cons]
-      simp only [chainLabelsM, hp, ite_true, TimeM.ret_bind, ih]
-      rw [vget_mergeChainsM]
-      rfl
-    · rw [List.filter_cons_of_neg (by simpa using hp)]
-      simp only [chainLabelsM, hp, ite_false, TimeM.ret_bind, TimeM.ret_pure, ih]
-
-private theorem chainLabelsM_time (M : Finset (Fin n × Fin n)) (ps : List (Fin n × Fin n))
-    (labels : Vector (Fin n) n) :
-    (chainLabelsM M ps labels).time = ps.length + n * (ps.filter (· ∈ M)).length := by
-  induction ps generalizing labels with
-  | nil => simp [chainLabelsM]
-  | cons p ps ih =>
-    by_cases hp : p ∈ M
-    · rw [List.filter_cons_of_pos (by simpa using hp)]
-      simp only [chainLabelsM, hp, ite_true, TimeM.time_bind, TimeM.time_tick, ih, mergeChainsM,
-        TimeM.time_pure, List.length_cons, Nat.mul_add, Nat.mul_one]
-      omega
-    · rw [List.filter_cons_of_neg (by simpa using hp)]
-      simp only [chainLabelsM, hp, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        ih, List.length_cons]
-      omega
+    by_cases hp : p ∈ M <;> simp [chainLabels, hp, ih, vget_mergeChains, Prod.map_def]
 
 /-- Scanning all pairs of indices visits each element of `M` exactly once. -/
 private theorem nodup_filter_pairs (M : Finset (Fin n × Fin n)) :
@@ -209,134 +219,102 @@ private theorem length_filter_pairs (M : Finset (Fin n × Fin n)) :
   ext p
   rw [List.mem_toFinset, mem_filter_pairs]
 
-private theorem ret_minChainCoverM [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    (minChainCoverM e).ret =
-      ⟨(chainLabelsM (hopcroftKarpDenseM (enumLtGraph e)).ret.matching
-          (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id)).ret,
-        (hopcroftKarpDenseM (enumLtGraph e)).ret.cover.uncovered,
-        (hopcroftKarpDenseM (enumLtGraph e)).ret.matching⟩ := by
-  simp only [minChainCoverM, TimeM.ret_bind, TimeM.ret_pure, foldlTickM_ret, foldl_uncoveredStep]
+private theorem minChainCover_eq [LT α] [DecidableLT α] (e : Fin n ≃ α) :
+    minChainCover e =
+      ⟨chainLabels (hopcroftKarpDense (enumLtGraph e)).matching
+          (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id),
+        (hopcroftKarpDense (enumLtGraph e)).cover.uncovered,
+        (hopcroftKarpDense (enumLtGraph e)).matching⟩ := by
+  simp [minChainCover, foldl_uncoveredStep]
 
 variable [PartialOrder α] [DecidableLT α]
 
-/-- **Correctness of `minChainCoverM`.** The label fibres are chains, the returned indices form an
+/-- **Correctness of `minChainCover`.** The label fibres are chains, the returned indices form an
 antichain, and the number of labels equals the size of the antichain, namely `n - |M|` for the
 maximum matching `M` found by Hopcroft–Karp. By weak duality the antichain is maximum and the
 chain cover minimum (`card_le_card_antichain_of_isAntichain`,
 `card_antichain_le_of_isChain_fibre`). -/
-theorem minChainCoverM_correct (e : Fin n ≃ α) :
-    (∀ c, IsChain (· ≤ ·) ((minChainCoverM e).ret.label e ⁻¹' {c})) ∧
-      IsAntichain (· ≤ ·) (e '' (minChainCoverM e).ret.antichain) ∧
-      (minChainCoverM e).ret.numChains = (minChainCoverM e).ret.antichain.card ∧
-      (minChainCoverM e).ret.antichain.card + (minChainCoverM e).ret.matching.card = n := by
+theorem minChainCover_correct (e : Fin n ≃ α) :
+    (∀ c, IsChain (· ≤ ·) ((minChainCover e).label e ⁻¹' {c})) ∧
+      IsAntichain (· ≤ ·) (e '' (minChainCover e).antichain) ∧
+      (minChainCover e).numChains = (minChainCover e).antichain.card ∧
+      (minChainCover e).antichain.card + (minChainCover e).matching.card = n := by
   classical
   let _ : Fintype α := Fintype.ofEquiv _ e
-  obtain ⟨hmax, hmin, hcard, -⟩ := hopcroftKarpDenseM_correct (enumLtGraph e)
-  rw [ret_minChainCoverM]
-  generalize (hopcroftKarpDenseM (enumLtGraph e)).ret = hk at hmax hmin hcard
+  obtain ⟨hmax, hmin, hcard, -⟩ := hopcroftKarpDense_correct (enumLtGraph e)
+  rw [minChainCover_eq]
+  generalize hopcroftKarpDense (enumLtGraph e) = hk at hmax hmin hcard
   set M := hk.matching
   set C := hk.cover
   set ps := (List.finRange n ×ˢ List.finRange n).filter (· ∈ M)
   set L := ps.map (Prod.map e e)
-  have hlabel : ChainCoverOutput.label e ⟨(chainLabelsM M (List.finRange n ×ˢ List.finRange n)
-      (Vector.ofFn id)).ret, C.uncovered, M⟩ =
+  have hlabel : ChainCoverOutput.label e ⟨chainLabels M (List.finRange n ×ˢ List.finRange n)
+      (Vector.ofFn id), C.uncovered, M⟩ =
       L.foldl (mergeLabel ·) (fun x => vget (Vector.ofFn id : Vector (Fin n) n) (e.symm x)) :=
-    chainLabelsM_ret e M _ _
+    chainLabels_spec e M _ _
   have hinj : Function.Injective fun x => vget (Vector.ofFn id : Vector (Fin n) n) (e.symm x) :=
     fun x y h => e.symm.injective (by simpa [vget] using h)
   have hemb : Function.Injective (Prod.map e e) := e.injective.prodMap e.injective
   have hL : L.Nodup := (nodup_filter_pairs M).map hemb
-  have hmemL : ∀ a b : α, (a, b) ∈ L ↔ (e.symm a, e.symm b) ∈ M := by
-    intro a b
-    simp only [L, ps, List.mem_map, mem_filter_pairs, Prod.exists, Prod.map, Prod.mk.injEq]
-    constructor
-    · rintro ⟨i, j, h, rfl, rfl⟩
-      simpa using h
-    · intro h
-      exact ⟨_, _, h, by simp, by simp⟩
-  have hmatch : IsMatching (ltGraph (α := α)) L.toFinset := by
-    refine ⟨fun ⟨a, b⟩ h => ?_, fun a b₁ b₂ h₁ h₂ => ?_, fun a₁ a₂ b h₁ h₂ => ?_⟩
-    · rw [List.mem_toFinset, hmemL] at h
-      have := hmax.1.1 _ h
-      simpa [enumLtGraph] using this
-    · rw [List.mem_toFinset, hmemL] at h₁ h₂
-      exact e.symm.injective (hmax.1.2.1 _ _ _ h₁ h₂)
-    · rw [List.mem_toFinset, hmemL] at h₁ h₂
-      exact e.symm.injective (hmax.1.2.2 _ _ _ h₁ h₂)
+  have hmemL (a b : α) : (a, b) ∈ L.toFinset → (e.symm a, e.symm b) ∈ M := by
+    simp only [List.mem_toFinset, L, ps, List.mem_map, mem_filter_pairs, Prod.exists, Prod.map,
+      Prod.mk.injEq]
+    rintro ⟨i, j, h, rfl, rfl⟩
+    simpa only [Equiv.symm_apply_apply] using h
+  have hmatch : IsMatching (ltGraph (α := α)) L.toFinset :=
+    ⟨fun ⟨a, b⟩ h => by simpa [enumLtGraph] using hmax.1.1 _ (hmemL a b h),
+      fun _ _ _ h₁ h₂ => e.symm.injective (hmax.1.2.1 _ _ _ (hmemL _ _ h₁) (hmemL _ _ h₂)),
+      fun _ _ _ h₁ h₂ => e.symm.injective (hmax.1.2.2 _ _ _ (hmemL _ _ h₁) (hmemL _ _ h₂))⟩
   obtain ⟨hchain, hnum⟩ := foldl_mergeLabel_spec hinj hL hmatch
   rw [← hlabel] at hchain hnum
-  set lab := ChainCoverOutput.label e ⟨(chainLabelsM M (List.finRange n ×ˢ List.finRange n)
-      (Vector.ofFn id)).ret, C.uncovered, M⟩
+  set lab := ChainCoverOutput.label e ⟨chainLabels M (List.finRange n ×ˢ List.finRange n)
+      (Vector.ofFn id), C.uncovered, M⟩
   have hcardα : Fintype.card α = n := (Fintype.card_congr e.symm).trans (Fintype.card_fin n)
   have hLlen : L.length = M.card := by rw [List.length_map, length_filter_pairs]
-  have hrange : (Finset.univ.image lab) = Finset.univ.image (vget (chainLabelsM M
-      (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id)).ret) := by
+  have hrange : (Finset.univ.image lab) = Finset.univ.image (vget (chainLabels M
+      (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id))) := by
     ext c
     simp only [Finset.mem_image, Finset.mem_univ, true_and]
-    constructor
-    · rintro ⟨x, rfl⟩
-      exact ⟨e.symm x, rfl⟩
-    · rintro ⟨i, rfl⟩
-      exact ⟨e i, by simp [lab, ChainCoverOutput.label]⟩
+    exact ⟨fun ⟨x, hx⟩ => ⟨e.symm x, hx⟩,
+      fun ⟨i, hi⟩ => ⟨e i, by simp [← hi, lab, ChainCoverOutput.label]⟩⟩
   have hanti : IsAntichain (· ≤ ·) (e '' C.uncovered) := by
     rintro _ ⟨i, hi, rfl⟩ _ ⟨j, hj, rfl⟩ hij hle
     rw [Finset.mem_coe, mem_uncovered] at hi hj
-    have hlt : e i < e j := lt_of_le_of_ne hle hij
-    rcases hmin.1 i j (by simpa [enumLtGraph] using hlt) with h | h
-    · exact hi.1 h
-    · exact hj.2 h
+    exact (hmin.1 i j (by simpa [enumLtGraph] using lt_of_le_of_ne hle hij)).elim hi.1 hj.2
   have hle : n - M.card ≤ C.uncovered.card := by
-    have := card_sub_size_le_card_uncovered C
-    rwa [Fintype.card_fin, ← hcard] at this
-  have hge : C.uncovered.card ≤ (Finset.univ.image lab).card := by
-    have hinjOn : Set.InjOn lab (e '' C.uncovered) :=
-      hanti.injOn_of_isChain_fibre hchain
+    simpa only [Fintype.card_fin, ← hcard] using card_sub_size_le_card_uncovered C
+  have hge : C.uncovered.card ≤ (Finset.univ.image lab).card :=
     calc C.uncovered.card = (C.uncovered.map e.toEmbedding).card := (Finset.card_map _).symm
       _ ≤ (Finset.univ.image lab).card :=
         Finset.card_le_card_of_injOn lab (fun x _ => Finset.mem_coe.mpr
           (Finset.mem_image_of_mem lab (Finset.mem_univ x)))
-          (by rwa [Finset.coe_map, Equiv.coe_toEmbedding])
+          (by simpa only [Finset.coe_map, Equiv.coe_toEmbedding] using
+            hanti.injOn_of_isChain_fibre hchain)
   rw [hrange] at hnum hge
   refine ⟨hchain, hanti, ?_, ?_⟩ <;> simp only [ChainCoverOutput.numChains] <;> omega
 
 variable (e : Fin n ≃ α)
 
-/-- The antichain returned by `minChainCoverM` is maximum. -/
+/-- The antichain returned by `minChainCover` is maximum. -/
 theorem card_le_card_antichain_of_isAntichain {A : Finset α}
-    (hA : IsAntichain (· ≤ ·) (A : Set α)) : A.card ≤ (minChainCoverM e).ret.antichain.card := by
-  obtain ⟨hchain, -, hnum, -⟩ := minChainCoverM_correct e
+    (hA : IsAntichain (· ≤ ·) (A : Set α)) : A.card ≤ (minChainCover e).antichain.card := by
+  obtain ⟨hchain, -, hnum, -⟩ := minChainCover_correct e
   rw [← hnum]
-  calc A.card = (A.image ((minChainCoverM e).ret.label e)).card :=
+  calc A.card = (A.image ((minChainCover e).label e)).card :=
         (Finset.card_image_of_injOn (hA.injOn_of_isChain_fibre hchain)).symm
-    _ ≤ (minChainCoverM e).ret.numChains := Finset.card_le_card fun c hc => by
+    _ ≤ (minChainCover e).numChains := Finset.card_le_card fun c hc => by
         obtain ⟨x, -, rfl⟩ := Finset.mem_image.mp hc
         exact Finset.mem_image_of_mem _ (Finset.mem_univ _)
 
-/-- The chain cover returned by `minChainCoverM` is minimum: every covering of `α` by `k` chains
+/-- The chain cover returned by `minChainCover` is minimum: every covering of `α` by `k` chains
 has `k` at least the number of its labels. -/
 theorem card_antichain_le_of_isChain_fibre {k : ℕ} {f : α → Fin k}
-    (hf : ∀ i, IsChain (· ≤ ·) (f ⁻¹' {i})) : (minChainCoverM e).ret.antichain.card ≤ k := by
-  obtain ⟨-, hanti, -, -⟩ := minChainCoverM_correct e
-  have h := IsAntichain.card_le_of_isChain_fibre (t := (minChainCoverM e).ret.antichain.map
-    e.toEmbedding) (by rwa [Finset.coe_map, Equiv.coe_toEmbedding]) hf
-  rwa [Finset.card_map, Fintype.card_fin] at h
+    (hf : ∀ i, IsChain (· ≤ ·) (f ⁻¹' {i})) : (minChainCover e).antichain.card ≤ k := by
+  obtain ⟨-, hanti, -, -⟩ := minChainCover_correct e
+  simpa only [Finset.card_map, Fintype.card_fin] using IsAntichain.card_le_of_isChain_fibre
+    (t := (minChainCover e).antichain.map e.toEmbedding)
+    (by simpa only [Finset.coe_map, Equiv.coe_toEmbedding] using hanti) hf
 
 end Proofs
-
-/-! ### Running time -/
-
-/-- **Running time of `minChainCoverM`**: `O(n^{5/2})` charged steps, dominated by
-Hopcroft–Karp on the dense `n × n` instance. -/
-theorem minChainCoverM_time_le [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    (minChainCoverM e).time ≤ (2 * Nat.sqrt n + 1) * (10 * n + 1 + 4 * (n * n)) + 2 * (n * n) +
-      6 * n := by
-  have hhk := hopcroftKarpDenseM_time_le (enumLtGraph e)
-  have hM := (hopcroftKarpDenseM_correct (enumLtGraph e)).1.1.card_le_card_left
-  rw [Fintype.card_fin] at hM
-  rw [min_self, show 7 * n + 3 * n = 10 * n by omega] at hhk
-  simp only [minChainCoverM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, foldlTickM_time,
-    chainLabelsM_time, length_filter_pairs, List.length_product, List.length_finRange]
-  have := Nat.mul_le_mul_left n hM
-  omega
 
 end Cslib.Algorithms.Lean.MaxFlow

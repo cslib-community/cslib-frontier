@@ -89,39 +89,34 @@ private theorem sum_cube_ite (ℓ : P → Option κ) [DecidableEq κ] :
     ∑ c : κ → ZMod 2, (if ∀ p v, ℓ p = some v → c v = 1 then (1 : R) else 0) =
       if ∀ v, ∃ p, ℓ p = some v then 1 else 0 := by
   classical
-  let T : Finset κ := Finset.univ.filter fun v => ∃ p, ℓ p = some v
-  let t : κ → Finset (ZMod 2) := fun v => if v ∈ T then {1} else Finset.univ
-  have hmem : ∀ c : κ → ZMod 2,
-      (∀ p v, ℓ p = some v → c v = 1) ↔ c ∈ Fintype.piFinset t := fun c => by
-    rw [Fintype.mem_piFinset]
-    constructor
-    · intro h v
-      by_cases hv : v ∈ T
-      · obtain ⟨p, hp⟩ := (Finset.mem_filter.1 hv).2
-        simp [t, hv, h p v hp]
-      · simp [t, hv]
-    · intro h p v hp
-      have hv : v ∈ T := Finset.mem_filter.2 ⟨Finset.mem_univ v, p, hp⟩
-      simpa [t, hv] using h v
-  simp_rw [hmem]
-  rw [Finset.sum_boole, Finset.filter_mem_eq_inter, Finset.univ_inter, Fintype.card_piFinset]
-  have hprod : ∏ v, (t v).card = 2 ^ (Finset.univ.filter fun v => v ∉ T).card := by
-    rw [Finset.card_eq_sum_ones, ← Finset.prod_pow_eq_pow_sum, Finset.prod_filter]
-    refine Finset.prod_congr rfl fun v _ => ?_
-    by_cases hv : v ∈ T <;> simp [t, hv, ZMod.card]
-  rw [hprod]
+  have hprod (c : κ → ZMod 2) :
+      (if ∀ p v, ℓ p = some v → c v = 1 then (1 : R) else 0) =
+        ∏ v, if (∃ p, ℓ p = some v) → c v = 1 then (1 : R) else 0 := by
+    split_ifs with h
+    · exact (Finset.prod_eq_one fun v _ => ite_eq_left fun ⟨p, hp⟩ => h p v hp).symm
+    · push Not at h
+      obtain ⟨p, v, hp, hv⟩ := h
+      exact (Finset.prod_eq_zero (Finset.mem_univ v)
+        (ite_eq_right fun hv' => hv (hv' ⟨p, hp⟩))).symm
+  simp_rw [hprod]
+  rw [← Fintype.prod_sum fun (v : κ) (b : ZMod 2) =>
+    if (∃ p, ℓ p = some v) → b = 1 then 1 else 0]
+  have hcoord (v : κ) :
+      (∑ b : ZMod 2, if (∃ p, ℓ p = some v) → b = 1 then (1 : R) else 0) =
+        if ∃ p, ℓ p = some v then 1 else 0 := by
+    rw [show (∑ b : ZMod 2, if (∃ p, ℓ p = some v) → b = 1 then (1 : R) else 0) =
+      (if (∃ p, ℓ p = some v) → (0 : ZMod 2) = 1 then 1 else 0) +
+        (if (∃ p, ℓ p = some v) → (1 : ZMod 2) = 1 then 1 else 0) from Fin.sum_univ_two _]
+    by_cases hv : ∃ p, ℓ p = some v
+    · simp [hv]
+    · simp only [hv, IsEmpty.forall_iff, ↓reduceIte]
+      rw [one_add_one_eq_two, ← map_ofNat (algebraMap (ZMod 2) R) 2,
+        show (2 : ZMod 2) = 0 from rfl, map_zero]
+  simp_rw [hcoord]
   split_ifs with hcov
-  · have : (Finset.univ.filter fun v => v ∉ T) = ∅ := by
-      refine Finset.filter_false_of_mem fun v _ => ?_
-      simpa [T] using hcov v
-    simp [this]
-  · push Not at hcov
-    obtain ⟨v, hv⟩ := hcov
-    have hpos : 0 < (Finset.univ.filter fun v => v ∉ T).card :=
-      Finset.card_pos.2 ⟨v, Finset.mem_filter.2 ⟨Finset.mem_univ v, by simpa [T] using hv⟩⟩
-    have h2 : (2 : R) = 0 := by
-      rw [← map_ofNat (algebraMap (ZMod 2) R) 2, show (2 : ZMod 2) = 0 from rfl, map_zero]
-    rw [Nat.cast_pow, Nat.cast_ofNat, h2, zero_pow hpos.ne']
+  · exact Finset.prod_eq_one fun v _ => ite_eq_left (hcov v)
+  · obtain ⟨v, hv⟩ := not_forall.1 hcov
+    exact Finset.prod_eq_zero (Finset.mem_univ v) (ite_eq_right hv)
 
 /-- **Cube sum of a product of affine forms**: summing `∏ₚ (aₚ + ∑ᵥ cᵥ • bₚᵥ)` over the Boolean
 cube leaves the assignments `ℓ` of factors to variables, or to the constant term (`none`), that
@@ -198,7 +193,7 @@ theorem prod_sub_mul_eq_sum {R : Type*} [CommRing R] {n : ℕ} (f g : Fin n → 
         cases w i <;> simp
       _ = _ := by
         rw [Finset.prod_mul_distrib, Finset.prod_ite]
-        simp only [Finset.prod_const, one_pow, mul_one, List.countP_ofFn, Finset.card_filter, id_eq]
+        simp only [Finset.prod_const, one_pow, mul_one, List.countP_ofFn, id_eq]
   simp_rw [← h]
   rw [← Fintype.prod_sum (fun (i : Fin n) (b : Bool) => if b then -(c * g i) else f i)]
   simp [sub_eq_add_neg, add_comm]

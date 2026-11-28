@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.ExactOne.ModelCount
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSATThree.Syntax
+import CslibFrontier.Computability.Complexity.Classes.NP.Closure
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -60,13 +61,8 @@ def verifier (x : CNF ℕ × List Bool) : Bool := x.1.evalOne (SAT.assignment x.
 /-- The standard SAT certificates also represent every exact-one satisfying assignment. -/
 theorem isVerifier : IsVerifier encCNF Polynomial.X verifier OneSAT := by
   refine IsVerifier.of_padding (fun φ w _ h => ⟨_, h⟩) fun φ ⟨τ, hτ⟩ => ?_
-  refine ⟨φ.vars.map τ, by simpa using SAT.length_vars_le φ, fun k => ?_⟩
-  refine (CNF.evalOne_congr fun v hv => ?_).trans hτ
-  have hlt : φ.vars.idxOf v < φ.vars.length := List.idxOf_lt_length_iff.mpr hv
-  have hlt' : φ.vars.idxOf v < (φ.vars.map τ).length := by simpa using hlt
-  rw [SAT.assignment, List.getD_eq_getElem?_getD, List.getElem?_append_left hlt',
-    List.getElem?_map, List.getElem?_eq_getElem hlt, List.getElem_idxOf hlt]
-  rfl
+  exact ⟨φ.vars.map τ, by simpa using SAT.length_vars_le φ, fun k =>
+    (CNF.evalOne_congr fun _ hv => SAT.assignment_vars_map_append φ τ _ hv).trans hτ⟩
 
 /-- Count the true literal occurrences of a clause in native polynomial time. -/
 @[fun_prop]
@@ -74,10 +70,12 @@ theorem computableInPolyTime_clause_count :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × Clause ℕ =>
         p.2.countP (Literal.eval (SAT.assignment p.1.1 p.1.2)))
-      (encPair (encPair encCNF encBits) (encClause encNat)) encUnary := by
-  apply ComputableInPolyTime.countPWithInput
-  · fun_prop
-  · fun_prop [SAT.assignment]
+      (encPair (encPair encCNF encBits) (encClause encNat)) encUnary :=
+  ComputableInPolyTime.countPWithInput (encA := encPair encNat encBool) (by fun_prop)
+    (SAT.computableInPolyTime_literal.comp
+      (g := fun p : ((CNF ℕ × List Bool) × Clause ℕ) × Literal ℕ => (p.1.1, p.2))
+      (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat))
+        (encPair encNat encBool)) (by fun_prop))
 
 /-- An exact-one clause is verified in polynomial time. -/
 @[fun_prop]
@@ -93,18 +91,13 @@ theorem computableInPolyTime_clause :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  fun_prop [verifier, CNF.evalOne]
+  unfold verifier CNF.evalOne
+  exact ComputableInPolyTime.allWithInput (encA := encClause encNat)
+    (ComputableInPolyTime.fst encCNF encBits) computableInPolyTime_clause
 
 /-- Exact-one satisfiability belongs to NP. -/
 theorem mem_NP : OneSAT ∈ NP encCNF :=
   ⟨Polynomial.X, verifier, computableInPolyTime_verifier, isVerifier⟩
-
-/-- A language cut out of exact-one satisfiability by a polynomial-time guard belongs to NP. -/
-private theorem mem_NP_of_guard {L : Set (CNF ℕ)} {check : CNF ℕ → Bool}
-    (hc : ComputableInPolyTime check encCNF encBool)
-    (h : ∀ φ, φ ∈ L ↔ check φ = true ∧ φ ∈ OneSAT) : L ∈ NP encCNF := by
-  obtain rfl : L = {φ | check φ = true ∧ φ ∈ OneSAT} := Set.ext h
-  exact ⟨Polynomial.X, fun x => check x.1 && verifier x, by fun_prop, isVerifier.guard⟩
 
 /-- Check that all literal polarities are positive. -/
 def positiveCheck (φ : CNF ℕ) : Bool := φ.all fun c => c.all Prod.snd
@@ -200,7 +193,7 @@ theorem mem_iff_syntaxCheck (φ : CNF ℕ) :
 
 /-- Positive width-three exact-one satisfiability belongs to NP. -/
 theorem mem_NP : PositiveOneInThreeSAT ∈ NP encCNF :=
-  OneSAT.mem_NP_of_guard computableInPolyTime_syntaxCheck mem_iff_syntaxCheck
+  mem_NP_of_guard computableInPolyTime_syntaxCheck OneSAT.mem_NP mem_iff_syntaxCheck
 
 end PositiveOneInThreeSAT
 
@@ -229,7 +222,7 @@ theorem mem_iff_syntaxCheck (φ : CNF ℕ) :
 
 /-- Positive exact-three exact-one satisfiability belongs to NP. -/
 theorem mem_NP : PositiveOneInExactThreeSAT ∈ NP encCNF :=
-  OneSAT.mem_NP_of_guard computableInPolyTime_syntaxCheck mem_iff_syntaxCheck
+  mem_NP_of_guard computableInPolyTime_syntaxCheck OneSAT.mem_NP mem_iff_syntaxCheck
 
 end PositiveOneInExactThreeSAT
 
@@ -260,7 +253,7 @@ theorem mem_iff_syntaxCheck (φ : CNF ℕ) :
 
 /-- Positive width-three exact-one satisfiability with occurrence bound three belongs to NP. -/
 theorem mem_NP : PositiveOneInThreeSATThree ∈ NP encCNF :=
-  OneSAT.mem_NP_of_guard computableInPolyTime_syntaxCheck mem_iff_syntaxCheck
+  mem_NP_of_guard computableInPolyTime_syntaxCheck OneSAT.mem_NP mem_iff_syntaxCheck
 
 end PositiveOneInThreeSATThree
 
@@ -284,11 +277,8 @@ theorem syntaxCheck_iff (φ : CNF ℕ) :
         OneSAT.positiveCheck φ = true ∧ ∀ v, φ.vars.count v ≤ 3 := by
   rw [syntaxCheck, Bool.and_eq_true, PositiveOneInExactThreeSAT.syntaxCheck_iff,
     ThreeSATThree.syntaxCheck_iff]
-  constructor
-  · rintro ⟨⟨hc, hp⟩, _, hv⟩
-    exact ⟨hc, hp, hv⟩
-  · rintro ⟨hc, hp, hv⟩
-    exact ⟨⟨hc, hp⟩, (fun c h => (hc c h).1.le), hv⟩
+  exact ⟨fun ⟨⟨hc, hp⟩, _, hv⟩ => ⟨hc, hp, hv⟩,
+    fun ⟨hc, hp, hv⟩ => ⟨⟨hc, hp⟩, fun c h => (hc c h).1.le, hv⟩⟩
 
 /-- Membership is the syntax guard together with exact-one satisfiability. -/
 theorem mem_iff_syntaxCheck (φ : CNF ℕ) :
@@ -298,7 +288,7 @@ theorem mem_iff_syntaxCheck (φ : CNF ℕ) :
 
 /-- Positive exact-three exact-one satisfiability with occurrence bound three belongs to NP. -/
 theorem mem_NP : PositiveOneInExactThreeSATThree ∈ NP encCNF :=
-  OneSAT.mem_NP_of_guard computableInPolyTime_syntaxCheck mem_iff_syntaxCheck
+  mem_NP_of_guard computableInPolyTime_syntaxCheck OneSAT.mem_NP mem_iff_syntaxCheck
 
 end PositiveOneInExactThreeSATThree
 

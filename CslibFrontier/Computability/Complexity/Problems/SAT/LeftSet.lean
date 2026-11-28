@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.Reduction
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Complexity.Classes.NP.Witness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -29,10 +30,10 @@ largest witness, so the boundary of the left set locates that prefix.
 
 For `SAT`, a witness of a formula `φ` lists the values of a satisfying assignment at the literal
 occurrences of `φ`, in order (`φ.vars`), as in the self-reduction of
-`CslibFrontier/Computability/Complexity/Classes/NP/SelfReduction.lean`. So `(φ, w) ∈ LeftSAT` when
-`w` has one bit per occurrence and some satisfying assignment, read along the occurrences, gives
-a word lexicographically at least `w` (`Cslib.Complexity.LeftSAT`). Words are compared in Mathlib's
-lexicographic order on `List Bool`, with `false < true`.
+`CslibFrontier/Computability/Complexity/Classes/NP/SelfReduction.lean`. So `⟨φ, w⟩ ∈ LeftSAT`
+when `w` has one bit per occurrence and some satisfying assignment, read along the occurrences,
+gives a word lexicographically at least `w` (`Cslib.Complexity.LeftSAT`). Words are compared in
+Mathlib's lexicographic order on `List Bool`, with `false < true`.
 
 The clauses `SAT.atLeast a` say that the values of the occurrences fixed by a list of literals `a`
 are lexicographically at least the values `a` gives them (`Cslib.Complexity.SAT.eval_atLeast`):
@@ -55,6 +56,8 @@ assignment, which is the search-to-decision property behind the left-set techniq
 
 * `Cslib.Complexity.SAT.atLeast`: clauses saying that an assignment is lexicographically at least
   the values of a list of literals.
+* `Cslib.Complexity.LeftSATInstance`, `Cslib.Complexity.encLeftSAT`: formula-word instances and
+  their encoding.
 * `Cslib.Complexity.LeftSAT`: the left set of `SAT`.
 
 ## Main results
@@ -78,7 +81,7 @@ assignment, which is the search-to-decision property behind the left-set techniq
   sparse sets*][OgiwaraWatanabe1991]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
@@ -92,7 +95,7 @@ namespace SAT
 read along the variables of `a`: for each position `j` where `a` has the value `true`, the clause
 that one of the variables of `a` at a position before `j` with the value `false`, or the variable
 at `j`, is true. -/
-def atLeast (a : List (Literal ℕ)) : CNF ℕ :=
+@[expose] def atLeast (a : List (Literal ℕ)) : CNF ℕ :=
   (a.zipIdx.filter fun ((_, b), _) => b).map fun ((v, _), j) =>
     ((a.take j).filter fun (_, b) => !b).map (fun (u, _) => (u, true)) ++ [(v, true)]
 
@@ -119,19 +122,15 @@ theorem eval_atLeast (σ : ℕ → Bool) (a : List (Literal ℕ)) :
   | nil => simp
   | cons l a ih =>
     obtain ⟨v, b⟩ := l
-    have h₁ : ¬(true < false) := by decide
-    have h₃ : false < true := by decide
     simp only [List.map_cons, List.cons_le_cons_iff']
-    cases b with
-    | true =>
-      rw [atLeast_cons_true, CNF.eval_cons, Bool.and_eq_true, ih]
-      rcases hv : σ v <;> simp [hv, h₁]
-    | false =>
-      rw [atLeast_cons_false, CNF.eval_eq_true_iff]
+    cases b
+    · rw [atLeast_cons_false, CNF.eval_eq_true_iff]
       simp only [List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂,
         Clause.eval_cons, Literal.eval_mk, Bool.or_eq_true, beq_iff_eq]
       rw [← ih, CNF.eval_eq_true_iff]
-      cases σ v <;> simp [h₃]
+      cases σ v <;> simp [show false < true by decide]
+    · rw [atLeast_cons_true, CNF.eval_cons, Bool.and_eq_true, ih]
+      cases h : σ v <;> simp [h, Clause.eval_cons, Literal.eval_mk, show ¬(true < false) by decide]
 
 /-- **Satisfiability with a lexicographic lower bound:** `SAT.atLeast a ++ φ` is satisfiable
 exactly when some satisfying assignment of `φ` is lexicographically at least `a`. -/
@@ -144,29 +143,43 @@ end SAT
 
 /-! ### The left set -/
 
+/-- An instance of the left set of `SAT`: a formula in conjunctive normal form paired with a
+candidate witness prefix word. -/
+structure LeftSATInstance where
+  /-- The formula in conjunctive normal form. -/
+  formula : CNF ℕ
+  /-- The bit string compared lexicographically against satisfying witnesses. -/
+  word : List Bool
+  deriving DecidableEq, Repr
+
+/-- Pairs of a formula and a bit string, encoded by `encCNF` and `encBits`. -/
+enc_structure encLeftSAT : LeftSATInstance where
+  formula : encCNF, word : encBits
+
 /-- **The left set of `SAT`** [Arvind, Köbler and Mundhenk, Definition 2.3]
-[ArvindKoblerMundhenk1992]: the pairs `(φ, w)` of a formula `φ` and a word `w` with one bit for
-each literal occurrence of `φ`, such that the values of some satisfying assignment of `φ` at its
-occurrences, read in order, form a word lexicographically at least `w`. The witnesses of `φ` are
-these words of values, and `w` is in the left set exactly when it is at most the largest of
-them. -/
-def LeftSAT : Set (CNF ℕ × List Bool) :=
-  {(φ, w) | w.length = φ.vars.length ∧ ∃ σ, φ.eval σ = true ∧ w ≤ φ.vars.map σ}
+[ArvindKoblerMundhenk1992]: the instances `x : LeftSATInstance` of a formula `x.formula` and a
+word `x.word` with one bit for each literal occurrence of `x.formula`, such that the values of
+some satisfying assignment of `x.formula` at its occurrences, read in order, form a word
+lexicographically at least `x.word`. The witnesses of `x.formula` are these words of values,
+and `x.word` is in the left set exactly when it is at most the largest of them. -/
+@[expose] def LeftSAT : Set LeftSATInstance :=
+  {x | x.word.length = x.formula.vars.length ∧
+    ∃ σ, x.formula.eval σ = true ∧ x.word ≤ x.formula.vars.map σ}
 
 theorem mem_LeftSAT {φ : CNF ℕ} {w : List Bool} :
-    (φ, w) ∈ LeftSAT ↔ w.length = φ.vars.length ∧ ∃ σ, φ.eval σ = true ∧ w ≤ φ.vars.map σ :=
+    ⟨φ, w⟩ ∈ LeftSAT ↔ w.length = φ.vars.length ∧ ∃ σ, φ.eval σ = true ∧ w ≤ φ.vars.map σ :=
   Iff.rfl
 
 /-- The left set of a formula is an initial segment of the words of the right length. -/
-theorem LeftSAT.mem_of_le {φ : CNF ℕ} {w w' : List Bool} (h : (φ, w) ∈ LeftSAT)
-    (hlen : w'.length = w.length) (hle : w' ≤ w) : (φ, w') ∈ LeftSAT := by
+theorem LeftSAT.mem_of_le {φ : CNF ℕ} {w w' : List Bool} (h : ⟨φ, w⟩ ∈ LeftSAT)
+    (hlen : w'.length = w.length) (hle : w' ≤ w) : ⟨φ, w'⟩ ∈ LeftSAT := by
   obtain ⟨hw, σ, hσ, hwσ⟩ := h
   exact ⟨hlen.trans hw, σ, hσ, hle.trans hwσ⟩
 
 /-- **The largest member of the left set of a formula is a witness**, so searching for it with
 membership queries, for example bit by bit, finds a satisfying assignment. -/
-theorem LeftSAT.exists_eq_map_of_maximal {φ : CNF ℕ} {w : List Bool} (h : (φ, w) ∈ LeftSAT)
-    (hmax : ∀ w' : List Bool, w'.length = w.length → w < w' → (φ, w') ∉ LeftSAT) :
+theorem LeftSAT.exists_eq_map_of_maximal {φ : CNF ℕ} {w : List Bool} (h : ⟨φ, w⟩ ∈ LeftSAT)
+    (hmax : ∀ w' : List Bool, w'.length = w.length → w < w' → ⟨φ, w'⟩ ∉ LeftSAT) :
     ∃ σ, φ.eval σ = true ∧ w = φ.vars.map σ := by
   obtain ⟨hw, σ, hσ, hwσ⟩ := h
   refine ⟨σ, hσ, (lt_or_eq_of_le hwσ).resolve_left fun hlt => hmax _ ?_ hlt ⟨?_, σ, hσ, le_rfl⟩⟩
@@ -175,23 +188,17 @@ theorem LeftSAT.exists_eq_map_of_maximal {φ : CNF ℕ} {w : List Bool} (h : (φ
 /-- **Membership in the left set as satisfiability:** pair the occurrences of `φ` with the bits of
 `w`, and require the assignment to be lexicographically at least them. -/
 theorem mem_LeftSAT_iff_atLeast {φ : CNF ℕ} {w : List Bool} :
-    (φ, w) ∈ LeftSAT ↔ w.length = φ.vars.length ∧ SAT.atLeast (φ.vars.zip w) ++ φ ∈ SAT := by
+    ⟨φ, w⟩ ∈ LeftSAT ↔ w.length = φ.vars.length ∧ SAT.atLeast (φ.vars.zip w) ++ φ ∈ SAT := by
   rw [mem_LeftSAT, SAT.atLeast_append_mem_SAT_iff]
   refine and_congr_right fun hw => exists_congr fun σ => and_congr_right fun _ => ?_
-  have hsnd : (φ.vars.zip w).map Prod.snd = w := List.map_snd_zip (by omega)
-  have hfst : ((φ.vars.zip w).map fun l => σ l.1) = φ.vars.map σ := by
-    rw [show (fun l : ℕ × Bool => σ l.1) = σ ∘ Prod.fst from rfl, ← List.map_map,
-      List.map_fst_zip (by omega)]
-  rw [hsnd, hfst]
+  rw [List.map_snd_zip (by omega), show (fun l : ℕ × Bool => σ l.1) = σ ∘ Prod.fst from rfl,
+    ← List.map_map, List.map_fst_zip (by omega)]
 
 /-- The all-`false` word is lexicographically least among the words of its length. -/
 private theorem replicate_false_le : ∀ {w : List Bool}, List.replicate w.length false ≤ w
   | [] => le_rfl
-  | b :: w => by
-    rw [List.length_cons, List.replicate_succ, List.cons_le_cons_iff']
-    cases b
-    · exact .inr ⟨rfl, replicate_false_le⟩
-    · exact .inl rfl
+  | false :: _ => List.cons_le_cons_iff'.2 (.inr ⟨rfl, replicate_false_le⟩)
+  | true :: _ => List.cons_le_cons_iff'.2 (.inl rfl)
 
 /-- A word padded with `false` is at most a word of the same length exactly when it is at most
 the prefix of that word of its own length. -/
@@ -211,24 +218,15 @@ bit per occurrence, form a member of the left set. -/
 theorem SAT.atLeast_append_mem_SAT_iff_mem_LeftSAT {φ : CNF ℕ} {a : List (Literal ℕ)}
     (ha : a.map Prod.fst = φ.vars.take a.length) :
     atLeast a ++ φ ∈ SAT ↔
-      (φ, a.map Prod.snd ++ List.replicate (φ.vars.length - a.length) false) ∈ LeftSAT := by
+      ⟨φ, a.map Prod.snd ++ List.replicate (φ.vars.length - a.length) false⟩ ∈ LeftSAT := by
   have hlen : a.length ≤ φ.vars.length := by grind [List.length_map, List.length_take]
-  rw [atLeast_append_mem_SAT_iff, mem_LeftSAT]
-  have hlen' : (a.map Prod.snd ++ List.replicate (φ.vars.length - a.length) false).length =
-      φ.vars.length := by
-    simp only [List.length_append, List.length_map, List.length_replicate]
-    omega
-  refine ⟨fun ⟨σ, hσ, hle⟩ => ⟨hlen', σ, hσ, ?_⟩, fun ⟨_, σ, hσ, hle⟩ => ⟨σ, hσ, ?_⟩⟩
-  all_goals
-    have hval : (a.map fun l => σ l.1) = (φ.vars.map σ).take (a.map Prod.snd).length := by
-      rw [List.length_map, ← List.map_take, ← ha, List.map_map]
-      rfl
-  · have := (append_replicate_false_le_iff (y := a.map Prod.snd) (v := φ.vars.map σ)
-      (by simpa using hlen)).2 (hval ▸ hle)
-    simpa using this
-  · rw [hval]
-    refine (append_replicate_false_le_iff (by simpa using hlen)).1 ?_
-    simpa using hle
+  rw [atLeast_append_mem_SAT_iff, mem_LeftSAT, and_iff_right (by simp; omega)]
+  refine exists_congr fun σ => and_congr_right fun _ => ?_
+  have hval : (a.map fun l => σ l.1) = (φ.vars.map σ).take (a.map Prod.snd).length := by
+    rw [List.length_map, ← List.map_take, ← ha, List.map_map]
+    rfl
+  simpa [hval] using (append_replicate_false_le_iff (y := a.map Prod.snd) (v := φ.vars.map σ)
+    (by simpa using hlen)).symm
 
 /-! ### Reductions -/
 
@@ -239,34 +237,39 @@ theorem SAT.computableInPolyTime_atLeast :
   unfold atLeast encCNF
   fun_prop
 
-/-- **The left set reduces to `SAT`:** a pair `(φ, w)` with one bit per occurrence goes to
-`φ` with the clauses saying that the assignment is at least `w`, and any other pair to the
-unsatisfiable formula with an empty clause. -/
+/-- **The left set reduces to `SAT`:** an instance `x` with one bit per occurrence goes to
+`x.formula` with the clauses saying that the assignment is at least `x.word`, and any other
+instance to the unsatisfiable formula with an empty clause. -/
 theorem LeftSAT_polyTimeReducible_SAT :
-    PolyTimeReducible (encPair encCNF encBits) encCNF LeftSAT SAT := by
-  refine ⟨fun (φ, w) => if w.length = φ.vars.length then SAT.atLeast (φ.vars.zip w) ++ φ else [[]],
+    PolyTimeReducible encLeftSAT encCNF LeftSAT SAT := by
+  refine ⟨fun x =>
+      if x.word.length = x.formula.vars.length then
+        SAT.atLeast (x.formula.vars.zip x.word) ++ x.formula
+      else [[]],
     ?_, fun ⟨φ, w⟩ => ?_⟩
-  · have hw : ComputableInPolyTime (fun p : CNF ℕ × List Bool => p.2) (encPair encCNF encBits)
-        (encList encBool) := ComputableInPolyTime.bitsToList.comp (ComputableInPolyTime.snd _ _)
+  · have hφ : ComputableInPolyTime (fun x : LeftSATInstance => x.formula) encLeftSAT
+        (encList (encList (encPair encNat encBool))) := by
+      change ComputableInPolyTime LeftSATInstance.formula encLeftSAT encCNF
+      fun_prop
+    have hw : ComputableInPolyTime (fun x : LeftSATInstance => x.word) encLeftSAT
+        (encList encBool) := ComputableInPolyTime.bitsToList.comp (by fun_prop)
     unfold encCNF
     fun_prop
   · rw [mem_LeftSAT_iff_atLeast]
     dsimp only
-    split
-    · simp_all
-    · simp only [false_and, false_iff, *]
-      rintro ⟨σ, hσ⟩
-      simp at hσ
+    split_ifs with h
+    · exact and_iff_right h
+    · exact iff_of_false (not_and_of_not_left _ h) fun ⟨_, hσ⟩ => by simp at hσ
 
 /-- **The left set of `SAT` is in `NP`.** -/
-theorem LeftSAT_mem_NP : LeftSAT ∈ NP (encPair encCNF encBits) :=
+theorem LeftSAT_mem_NP : LeftSAT ∈ NP encLeftSAT :=
   LeftSAT_polyTimeReducible_SAT.mem_NP SAT.mem_NP
 
 /-- **`SAT` reduces to its left set:** pair a formula with the all-`false` word, which is at most
 every witness. -/
 theorem SAT_polyTimeReducible_LeftSAT :
-    PolyTimeReducible encCNF (encPair encCNF encBits) SAT LeftSAT := by
-  refine ⟨fun φ => (φ, List.replicate φ.vars.length false), by fun_prop, fun φ => ?_⟩
+    PolyTimeReducible encCNF encLeftSAT SAT LeftSAT := by
+  refine ⟨fun φ => ⟨φ, List.replicate φ.vars.length false⟩, by fun_prop, fun φ => ?_⟩
   rw [mem_LeftSAT]
   refine ⟨fun ⟨σ, hσ⟩ => ⟨List.length_replicate .., σ, hσ, ?_⟩, fun ⟨_, σ, hσ, _⟩ => ⟨σ, hσ⟩⟩
   simpa using replicate_false_le (w := φ.vars.map σ)

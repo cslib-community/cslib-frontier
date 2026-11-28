@@ -7,7 +7,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib.Algebra.MvPolynomial.Degrees
+public import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 public import Mathlib.Algebra.MvPolynomial.Eval
 public import Mathlib.Algebra.Polynomial.Coeff
 public import Mathlib.Algebra.Polynomial.Eval.Coeff
@@ -27,7 +27,6 @@ be any commutative ring. No Taylor reconstruction, truncation or quotient identi
 
 * `MvPolynomial.totalDegree_coeff_eval₂_le`: polynomial substitution preserves the coefficient
   degree bound.
-* `MvPolynomial.totalDegree_X_le`: every formal variable `X i` has total degree at most `1`.
 * `MvPolynomial.totalDegree_coeff_X_mul_map_le`: a scalar polynomial with zero constant term
   can multiply a formal variable while preserving the bound.
 -/
@@ -71,24 +70,11 @@ public theorem totalDegree_coeff_eval₂_le (p : MvPolynomial κ R)
     (Q : κ → Polynomial (MvPolynomial ι R))
     (hQ : ∀ v j, ((Q v).coeff j).totalDegree ≤ j) (j : ℕ) :
     ((eval₂ (Polynomial.C.comp C) Q p).coeff j).totalDegree ≤ j := by
-  suffices h : ∀ j, ((eval₂ (Polynomial.C.comp C) Q p).coeff j).totalDegree ≤ j from h j
-  induction p using MvPolynomial.induction_on with
-  | C a =>
-      intro j
-      simpa only [eval₂_C, RingHom.coe_comp, Function.comp_apply] using
-        (coeff_degree_constant (ι := ι) a j)
-  | add p q hp hq =>
-      intro j
-      simpa only [eval₂_add] using coeff_degree_add _ _ hp hq j
-  | mul_X p v hp =>
-      intro j
-      simpa only [eval₂_mul, eval₂_X] using coeff_degree_mul _ _ hp (hQ v) j
-
-/-- Every formal variable `X i` has total degree at most `1`, without requiring `Nontrivial R`. -/
-public theorem totalDegree_X_le {ι R : Type*} [CommSemiring R] (i : ι) :
-    (X i : MvPolynomial ι R).totalDegree ≤ 1 := by
-  change (monomial (Finsupp.single i 1) (1 : R)).totalDegree ≤ 1
-  exact (totalDegree_monomial_le _ _).trans (by simp)
+  induction p using MvPolynomial.induction_on generalizing j with
+  | C a => simpa only [eval₂_C, RingHom.coe_comp, Function.comp_apply] using
+      coeff_degree_constant a j
+  | add p q hp hq => simpa only [eval₂_add] using coeff_degree_add _ _ hp hq j
+  | mul_X p v hp => simpa only [eval₂_mul, eval₂_X] using coeff_degree_mul _ _ hp (hQ v) j
 
 /-- Every formal-variable occurrence in this correction carries a positive power of the outer
 variable: the scalar polynomial's constant coefficient must be zero. Higher outer powers are

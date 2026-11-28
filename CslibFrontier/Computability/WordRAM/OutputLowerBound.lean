@@ -40,10 +40,7 @@ theorem Runs.card_changed_le {w n : ℕ} {p : Program B r} {s t : State r}
     (h : Runs w p s t n) (S : Finset ℕ)
     (hchange : ∀ a ∈ S, t.data.mem a ≠ s.data.mem a) : S.card ≤ n := by
   obtain ⟨_, W, _, hW, hm, _⟩ := h.exists_footprints
-  apply (Finset.card_le_card ?_).trans hW
-  intro a ha
-  by_contra hnot
-  exact hchange a ha (hm a hnot)
+  exact (Finset.card_le_card fun a ha => by_contra fun hnot => hchange a ha (hm a hnot)).trans hW
 
 /-- A dense output block costs at least one store per changed entry. -/
 theorem Runs.block_lowerBound {w n : ℕ} {p : Program B r} {s t : State r}
@@ -51,11 +48,9 @@ theorem Runs.block_lowerBound {w n : ℕ} {p : Program B r} {s t : State r}
     (hchange : ∀ i : Fin b.length, t.data.mem (b.base + i) ≠ s.data.mem (b.base + i)) :
     b.length ≤ n := by
   rw [← b.card_footprint]
-  apply h.card_changed_le
-  intro a ha
+  refine h.card_changed_le _ fun a ha => ?_
   obtain ⟨hlo, hhi⟩ := Block.mem_footprint.mp ha
-  have he : b.base + (a - b.base) = a := by omega
-  simpa only [he] using hchange ⟨a - b.base, by omega⟩
+  simpa only [Nat.add_sub_cancel' hlo] using hchange ⟨a - b.base, by omega⟩
 
 /-- Every positive-address cell of a zero-word input starts at zero, regardless of input length. -/
 theorem Data.init_replicate_zero_mem {r m a : ℕ} (ha : 0 < a) :
@@ -70,13 +65,13 @@ reuse the input-length header. The output-length header may require an additiona
 theorem ExecutesList.replicate_lowerBound {w m k n v : ℕ} {p : Program B r}
     (h : ExecutesList w p (.init (List.replicate m 0)) (List.replicate k v) n)
     (hv : v ≠ 0) : k + 1 ≤ n := by
-  obtain ⟨t, steps, base, hr, _, hout, rfl⟩ := h
+  obtain ⟨t, steps, base, hr, _, hout, _, rfl⟩ := h
   have hl := (outputList_eq_iff.mp hout).2
   have hb : k ≤ steps := hr.block_lowerBound ⟨base + 1, k⟩ (by
     intro i
-    have he := hl ⟨i.val, by simpa only [List.length_replicate] using i.isLt⟩
-    change t.data.mem (base + 1 + i.val) = (List.replicate k v)[i.val] at he
-    simp only [List.getElem_replicate] at he
+    have he : t.data.mem (base + 1 + i.val) = v :=
+      (hl ⟨i.val, by simpa only [List.length_replicate] using i.isLt⟩).trans
+        (List.getElem_replicate ..)
     simpa only [he, State.init,
       Data.init_replicate_zero_mem (by omega : 0 < base + 1 + i.val)] using hv)
   omega

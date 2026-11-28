@@ -80,21 +80,16 @@ open scoped NNReal
 @[fun_prop]
 theorem computableInPolyTime_secretWidth :
     ComputableInPolyTime secretWidth encUnary encUnary := by
-  have hd := Parameters.computableInPolyTime_dimension
-  have hw := computableInPolyTime_width
-  unfold secretWidth
-  fun_prop
+  fun_prop [secretWidth]
 
 /-- For any polynomial-time unary budget family, the unified base reduction `leveledAdversary`
 for the leveled GSW scheme is native strict PPT. -/
 theorem isPPT_leveledAdversary {budget : ℕ → ℕ}
     (hbudget : ComputableInPolyTime budget encUnary encUnary)
     {adversary : Encryption.Adversary} (hadversary : adversary.IsPPT) :
-    (Leveled.leveledAdversary scheme (fun k => 2 * budget k) secretWidth adversary).IsPPT := by
-  have hdepth : ComputableInPolyTime (fun k => 2 * budget k) encUnary encUnary := by
-    fun_prop
-  exact Leveled.isPPT_leveledAdversary isPPTOn_encrypt hadversary isPPTOn_keyGen
-    hdepth computableInPolyTime_secretWidth
+    (Leveled.leveledAdversary scheme (fun k => 2 * budget k) secretWidth adversary).IsPPT :=
+  Leveled.isPPT_leveledAdversary isPPTOn_encrypt hadversary isPPTOn_keyGen
+    (by fun_prop) computableInPolyTime_secretWidth
 
 /-- Exact concrete-security reduction loss of the leveled GSW scheme to the base GSW scheme
 ([Gentry2009], Section 2, Theorem 4, p. 171, up to a constant factor in the loss;
@@ -116,7 +111,7 @@ theorem advantage_scheme_le (adversary : Encryption.Adversary) (security : ℕ) 
     2 * Game.advantage
       (distinguishingGame
         (LWE.realEnsemble dimension samples width
-          (fun k => noiseLaw (width k) (noise k)) security)
+          (fun k => LWE.noiseLaw (width k) (noise k)) security)
         (lweDistinguisher dimension samples width adversary security))
       (distinguishingGame
         (LWE.uniformEnsemble dimension samples width security)
@@ -126,7 +121,8 @@ theorem advantage_scheme_le (adversary : Encryption.Adversary) (security : ℕ) 
   have hfg :
       Encryption.advantage (Encryption.game scheme.keyGen scheme.encrypt adversary) security =
       Encryption.advantage
-        (Encryption.game (fun k => keyGenSerialized (dimension k) (samples k) (width k) (noise k))
+        (Encryption.game (fun k => LWE.keyGenSerialized (dimension k) (samples k) (width k)
+            (noise k))
           (fun k => encryptSerialized (dimension k) (samples k) (width k)) adversary) security :=
     congrArg₂
       (fun kg enc => Encryption.advantage (Encryption.game kg enc adversary) security)
@@ -144,7 +140,7 @@ theorem advantage_leveled_le (budget : ℕ → ℕ) (adversary : Encryption.Adve
       (2 * Game.advantage
         (distinguishingGame
           (LWE.realEnsemble dimension samples width
-            (fun k => noiseLaw (width k) (noise k)) security)
+            (fun k => LWE.noiseLaw (width k) (noise k)) security)
           (lweDistinguisher dimension samples width
             (Leveled.leveledAdversary scheme (fun k => 2 * budget k) secretWidth adversary)
             security))
@@ -177,14 +173,9 @@ theorem exists_leveled_decrypt_circuits :
         (circuits k).eval Boolean.interpretation
             (BitString.ofList ((3 * secretWidth k + 1) + (ciphertextWidth k + 1))
               (sk ++ ciphertext)) 0 =
-          (Leveled.scheme decryptionCircuits budget).decrypt k sk ciphertext := by
-  have hsecret : ComputableInPolyTime secretWidth encUnary encUnary := by
-    have := Parameters.computableInPolyTime_dimension
-    have := computableInPolyTime_width
-    unfold secretWidth
-    fun_prop
-  exact Leveled.exists_uniform_decrypt_circuits decryptionCircuits
-    computableInPolyTime_decryptionCircuits hsecret
+          (Leveled.scheme decryptionCircuits budget).decrypt k sk ciphertext :=
+  Leveled.exists_uniform_decrypt_circuits decryptionCircuits
+    computableInPolyTime_decryptionCircuits computableInPolyTime_secretWidth
 
 /-- Leveled FHE from GSW under decision LWE for this family, with quasi-polynomial modulus.
 One uniformly generated polynomial-size circuit family computes the common decryption algorithm
@@ -195,7 +186,7 @@ and exactly that decryption algorithm: it is correct for every circuit of the re
 has the fixed widths, native algorithms and IND-CPA security. No circular-security assumption is
 used. -/
 theorem exists_leveled_of_decisionLWE
-    (hLWE : DecisionLWE dimension samples width (fun k => noiseLaw (width k) (noise k))) :
+    (hLWE : DecisionLWE dimension samples width (fun k => LWE.noiseLaw (width k) (noise k))) :
     ∃ circuits : ∀ k, Circuit Boolean.signature
         ((3 * secretWidth k + 1) + (ciphertextWidth k + 1)) 1,
       ComputableInPolyTime
@@ -237,11 +228,10 @@ theorem exists_leveled_of_decisionLWE
             (Leveled.scheme decryptionCircuits budget).encrypt := by
   have hD := computableInPolyTime_decryptionCircuits
   obtain ⟨circuits, hgen, hsize, hcircuits⟩ := exists_leveled_decrypt_circuits
-  have hdecrypt := (Leveled.computableInPolyTime_scheme_decrypt decryptionCircuits hD
-    (fun _ => 0))
   obtain ⟨hsecret, hciphertext⟩ := Leveled.polynomiallyBounded_widths decryptionCircuits hD
-  refine ⟨circuits, hgen, hsize, fun k sk c hsk hc => hcircuits (fun _ => 0) k sk c hsk hc,
-    hdecrypt, hsecret, hciphertext, fun depth hdepth => ?_⟩
+  refine ⟨circuits, hgen, hsize, hcircuits (fun _ => 0),
+    Leveled.computableInPolyTime_scheme_decrypt decryptionCircuits hD (fun _ => 0),
+    hsecret, hciphertext, fun depth hdepth => ?_⟩
   obtain ⟨budget, hbudget, hle, hcorrect, hpermitted, hwidth, -, -, hkeyGen, hencrypt, -,
       hevaluate, hsecure⟩ :=
     Leveled.exists_scheme_of_polynomiallyBounded decryptionCircuits correct fixedWidth
@@ -256,7 +246,7 @@ scheme, the self-loop construction correctly evaluates every finite circuit. Its
 of GSW, its decryption circuits have polynomial size, its four algorithms are native, and it is
 IND-CPA. -/
 theorem fullyHomomorphic_of_decisionLWE_of_circularSecure
-    (hLWE : DecisionLWE dimension samples width (fun k => noiseLaw (width k) (noise k)))
+    (hLWE : DecisionLWE dimension samples width (fun k => LWE.noiseLaw (width k) (noise k)))
     (hcircular : Encryption.CircularSecure scheme.keyGen scheme.encrypt) :
     (FixedKey.scheme decryptionCircuits).Correct ∧
       (∀ k c, (FixedKey.scheme decryptionCircuits).permitted k c) ∧
@@ -277,13 +267,9 @@ theorem fullyHomomorphic_of_decisionLWE_of_circularSecure
         encBits
         (fun (n, pk, C, cts) => (FixedKey.scheme decryptionCircuits).evaluate n pk C cts) ∧
       Encryption.INDCPA (FixedKey.scheme decryptionCircuits).keyGen
-        (FixedKey.scheme decryptionCircuits).encrypt := by
-  obtain ⟨hcorrect, hpermitted, hwidth, hsecret, hciphertext, hsize, hkeyGen, hencrypt,
-      hdecrypt, hevaluate, hsecure⟩ :=
-    FixedKey.fullyHomomorphic decryptionCircuits correct fixedWidth bootstrappable
-      (indCPA_scheme hLWE) hcircular isPPTOn_keyGen isPPTOn_encrypt isPPTOn_evaluate
-      computableInPolyTime_decryptionCircuits
-  exact ⟨hcorrect, hpermitted, hwidth, hsecret, hciphertext, hsize, hkeyGen, hencrypt,
-    hdecrypt, hevaluate, hsecure⟩
+        (FixedKey.scheme decryptionCircuits).encrypt :=
+  FixedKey.fullyHomomorphic decryptionCircuits correct fixedWidth bootstrappable
+    (indCPA_scheme hLWE) hcircular isPPTOn_keyGen isPPTOn_encrypt isPPTOn_evaluate
+    computableInPolyTime_decryptionCircuits
 
 end Cslib.Crypto.Homomorphic.GSW.DepthParameters

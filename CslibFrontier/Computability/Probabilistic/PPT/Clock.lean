@@ -61,10 +61,12 @@ theorem exists_halting_clock {k : ℕ} {State : Type} [Finite State]
     simp only [PMF.monad_map_eq_map, PMF.map_comp] at h
     change PMF.map id _ = PMF.map id _ at h
     simp only [PMF.map_id] at h
-    exact h
+    simpa only [Turing.MultiTapePTM.runClosed, ProbComp.eval,
+      OracleComp.evalWith_eq_interpret] using h
   · intro final hfinal
     apply hhalt (final, ())
     rw [OracleComp.run_interpret_stateless, PMF.monad_map_eq_map]
+    rw [ProbComp.eval, OracleComp.evalWith_eq_interpret] at hfinal
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨final, hfinal, rfl⟩
 
 end Turing.MultiTapePTM

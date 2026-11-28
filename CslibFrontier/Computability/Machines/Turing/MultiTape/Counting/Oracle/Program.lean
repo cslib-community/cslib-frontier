@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Program
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Occurrence programs with word oracles
@@ -129,20 +130,17 @@ theorem interpret_runOccurrenceProgram_succ
           (OracleComp.interpret (occurrenceTraceHandler oracle)
             (machine.runOccurrenceProgram fuel (cfg.receive op next answer))).run
               (trace ++ [index.val], nextState) := by
-  simp only [runOccurrenceProgram, runConfigFrom, h, MultiTapeCTM.chooseOccurrence,
-    OracleComp.interpret_map, OracleComp.interpret_query, OracleComp.interpret_bind,
-    StateT.run_bind, StateT.run_map]
+  simp only [runOccurrenceProgram, runConfigFrom, h, MultiTapeCTM.chooseOccurrence, interp_norm]
   dsimp only [occurrenceTraceHandler, StateT.run]
   simp only [List.map_eq_map, List.ofFn_eq_map, List.map_map,
     List.bind_eq_flatMap, List.flatMap_map]
-  apply List.flatMap_congr
-  intro index _
+  refine List.flatMap_congr fun index _ => ?_
   simp only [Function.comp_apply, id_eq]
   cases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
     cfg.answerSymbols)[index.val] with
   | step => rfl
   | query op next =>
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query]
+    simp only [interp_norm]
     change _ ++ [] = _
     exact List.append_nil _
 
@@ -168,18 +166,15 @@ theorem interpret_occurrenceTraceHandler_erase {S α : Type}
     change ((OracleComp.interpret (occurrenceTraceHandler oracle)
       (OracleComp.query q >>= next)).run _).map _ =
       (OracleComp.interpret (occurrenceHandler oracle) (OracleComp.query q >>= next)).run _
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [interp_norm]
     cases q with
     | inl n =>
-      dsimp only [occurrenceTraceHandler, occurrenceHandler, StateT.run]
-      simp only [List.bind_eq_flatMap, List.ofFn_eq_map, List.flatMap_map, List.map_flatMap]
-      apply List.flatMap_congr
-      intro index _
-      exact ih index (trace ++ [index.val]) s
+      simp only [occurrenceTraceHandler, occurrenceHandler, StateT.run,
+        List.bind_eq_flatMap, List.ofFn_eq_map, List.flatMap_map, List.map_flatMap]
+      exact List.flatMap_congr fun index _ => ih index (trace ++ [index.val]) s
     | inr q =>
-      dsimp only [occurrenceTraceHandler, occurrenceHandler, StateT.run]
-      simpa only [List.bind_eq_flatMap, List.flatMap_cons, List.flatMap_nil, List.append_nil,
-        StateT.run] using
+      simpa only [occurrenceTraceHandler, occurrenceHandler, StateT.run,
+        List.bind_eq_flatMap, List.flatMap_cons, List.flatMap_nil, List.append_nil] using
         ih (oracle q s).1 trace (oracle q s).2
 
 /-- The recorded run differs from the ordinary shared-program interpretation only by its log. -/

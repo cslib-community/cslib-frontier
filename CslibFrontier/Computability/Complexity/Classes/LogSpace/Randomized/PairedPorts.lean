@@ -178,6 +178,38 @@ noncomputable def compactPairedPorts (machine : MultiTapePTM k Bool State)
     (mem_compactOutTargets_iff_mem_compactInSources machine B w)
     fun hne => mem_compactOutTargets_of_compactCoinMatrix_ne_zero machine hne
 
+private theorem compactPort_map_val {N dOther : ℕ}
+    (port : Option (Fin N × Fin dOther))
+    (targets : List (Fin N)) (targetsNat : List ℕ)
+    (other : Fin N → List (Fin N)) (otherNat : ℕ → List ℕ)
+    (u : Fin N) (idx : ℕ)
+    (hmap_t : targets.map Fin.val = targetsNat)
+    (hmap_o : ∀ v, (other v).map Fin.val = otherNat v.val)
+    (hmem : ∀ v, v ∈ targets → u ∈ other v)
+    (hlen : ∀ v, (other v).length ≤ dOther)
+    (hnone : port = none ↔ targets[idx]? = none)
+    (hsome : ∀ v (q : Fin dOther),
+      targets[idx]? = some v ∧ q.val = (other v).idxOf u → port = some (v, q)) :
+    port.map (fun (v, q) => (v.val, q.val)) =
+      match targetsNat[idx]? with
+      | none => none
+      | some v => some (v, (otherNat v).idxOf u.val) := by
+  have hget : (targets[idx]?).map Fin.val = targetsNat[idx]? := by
+    rw [← List.getElem?_map, hmap_t]
+  cases hg : targets[idx]? with
+  | none =>
+    rw [hg, Option.map_none] at hget
+    rw [← hget, Option.map_eq_none_iff, hnone]
+    exact hg
+  | some v =>
+    rw [hg, Option.map_some] at hget
+    rw [← hget]
+    have hq_lt : (other v).idxOf u < dOther :=
+      (List.idxOf_lt_length_of_mem (hmem v (List.mem_of_getElem? hg))).trans_le (hlen v)
+    rw [hsome v ⟨(other v).idxOf u, hq_lt⟩ ⟨hg, rfl⟩, Option.map_some]
+    dsimp only
+    rw [← List.idxOf_map_of_injective Fin.val_injective, hmap_o]
+
 /-- Natural-number value of `(compactPairedPorts machine R B w).outPort u p`. -/
 theorem compactPairedPorts_outPort_val (machine : MultiTapePTM k Bool State)
     (R : Type*) [Field R] (B : ℕ) (w : List Bool)
@@ -186,34 +218,13 @@ theorem compactPairedPorts_outPort_val (machine : MultiTapePTM k Bool State)
       match (coinOutTargetsWithSymbol machine B w.length u.val
           w[queryIndex (k := k) B u.val]?)[p.val]? with
       | none => none
-      | some v => some (v, (coinInSources machine B w v).idxOf u.val) := by
-  have hget : ((compactOutTargets machine B w u)[p.val]?).map Fin.val =
-      (coinOutTargetsWithSymbol machine B w.length u.val
-        w[queryIndex (k := k) B u.val]?)[p.val]? := by
-    rw [← List.getElem?_map, map_val_compactOutTargets]
-  cases hg : (compactOutTargets machine B w u)[p.val]? with
-  | none =>
-    rw [hg, Option.map_none] at hget
-    rw [← hget]
-    dsimp only
-    rw [Option.map_eq_none_iff, compactPairedPorts, Matrix.PairedPorts.ofLists_outPort_eq_none_iff]
-    exact hg
-  | some v =>
-    rw [hg, Option.map_some] at hget
-    rw [← hget]
-    dsimp only
-    have hv_mem : v ∈ compactOutTargets machine B w u := List.mem_of_getElem? hg
-    have hu_mem : u ∈ compactInSources machine B w v :=
-      (mem_compactOutTargets_iff_mem_compactInSources machine B w u v).mp hv_mem
-    have hq_lt : (compactInSources machine B w v).idxOf u < inPortBound machine :=
-      (List.idxOf_lt_length_of_mem hu_mem).trans_le (length_compactInSources_le machine B w v)
-    let q : Fin (inPortBound machine) := ⟨(compactInSources machine B w v).idxOf u, hq_lt⟩
-    have hsome : (compactPairedPorts machine R B w).outPort u p = some (v, q) := by
-      rw [compactPairedPorts, Matrix.PairedPorts.ofLists_outPort_eq_some_iff]
-      exact ⟨hg, rfl⟩
-    rw [hsome, Option.map_some]
-    dsimp only [q]
-    rw [← List.idxOf_map_of_injective Fin.val_injective, map_val_compactInSources]
+      | some v => some (v, (coinInSources machine B w v).idxOf u.val) :=
+  compactPort_map_val _ _ _ (compactInSources machine B w) (coinInSources machine B w) u p.val
+    (map_val_compactOutTargets machine B w u) (map_val_compactInSources machine B w)
+    (fun v => (mem_compactOutTargets_iff_mem_compactInSources machine B w u v).mp)
+    (length_compactInSources_le machine B w)
+    (Matrix.PairedPorts.ofLists_outPort_eq_none_iff ..)
+    (fun _ _ => (Matrix.PairedPorts.ofLists_outPort_eq_some_iff ..).mpr)
 
 /-- Natural-number value of `(compactPairedPorts machine R B w).inPort v q`. -/
 theorem compactPairedPorts_inPort_val (machine : MultiTapePTM k Bool State)
@@ -225,33 +236,14 @@ theorem compactPairedPorts_inPort_val (machine : MultiTapePTM k Bool State)
       | some u =>
         some (u,
           (coinOutTargetsWithSymbol machine B w.length u
-            w[queryIndex (k := k) B u]?).idxOf v.val) := by
-  have hget : ((compactInSources machine B w v)[q.val]?).map Fin.val =
-      (coinInSources machine B w v.val)[q.val]? := by
-    rw [← List.getElem?_map, map_val_compactInSources]
-  cases hg : (compactInSources machine B w v)[q.val]? with
-  | none =>
-    rw [hg, Option.map_none] at hget
-    rw [← hget]
-    dsimp only
-    rw [Option.map_eq_none_iff, compactPairedPorts, Matrix.PairedPorts.ofLists_inPort_eq_none_iff]
-    exact hg
-  | some u =>
-    rw [hg, Option.map_some] at hget
-    rw [← hget]
-    dsimp only
-    have hu_mem : u ∈ compactInSources machine B w v := List.mem_of_getElem? hg
-    have hv_mem : v ∈ compactOutTargets machine B w u :=
-      (mem_compactOutTargets_iff_mem_compactInSources machine B w u v).mpr hu_mem
-    have hp_lt : (compactOutTargets machine B w u).idxOf v < 2 :=
-      (List.idxOf_lt_length_of_mem hv_mem).trans_le (length_compactOutTargets_le machine B w u)
-    let p : Fin 2 := ⟨(compactOutTargets machine B w u).idxOf v, hp_lt⟩
-    have hsome : (compactPairedPorts machine R B w).inPort v q = some (u, p) := by
-      rw [compactPairedPorts, Matrix.PairedPorts.ofLists_inPort_eq_some_iff]
-      exact ⟨hg, rfl⟩
-    rw [hsome, Option.map_some]
-    dsimp only [p]
-    rw [← List.idxOf_map_of_injective Fin.val_injective, map_val_compactOutTargets]
+            w[queryIndex (k := k) B u]?).idxOf v.val) :=
+  compactPort_map_val _ _ _ (compactOutTargets machine B w)
+    (fun u => coinOutTargetsWithSymbol machine B w.length u w[queryIndex (k := k) B u]?) v q.val
+    (map_val_compactInSources machine B w v) (map_val_compactOutTargets machine B w)
+    (fun u => (mem_compactOutTargets_iff_mem_compactInSources machine B w u v).mpr)
+    (length_compactOutTargets_le machine B w)
+    (Matrix.PairedPorts.ofLists_inPort_eq_none_iff ..)
+    (fun _ _ => (Matrix.PairedPorts.ofLists_inPort_eq_some_iff ..).mpr)
 
 /-- Outgoing port weight of `compactPairedPorts` in terms of `coinCountWithSymbol`. -/
 theorem compactPairedPorts_outWeight (machine : MultiTapePTM k Bool State)
@@ -281,14 +273,46 @@ theorem compactPairedPorts_outWeight (machine : MultiTapePTM k Bool State)
 /-! ### Clocked paired ports on consecutive identifiers -/
 
 /-- Paired-port structure on the finite clocked transition matrix
-`finTimeLayer (2 * (2 * (w.length + 1)) ^ d) (compactCoinMatrix machine R (radix D w.length) w)`
+`finTimeLayer (polyClock d w.length) (compactCoinMatrix machine R (radix D w.length) w)`
 indexed by `Fin (clockedVertexBound D d w.length)`. -/
 noncomputable def clockedCompactPairedPorts (machine : MultiTapePTM k Bool State)
     (R : Type*) [Field R] (D d : ℕ) (w : List Bool) :
-    (finTimeLayer (2 * (2 * (w.length + 1)) ^ d)
+    (finTimeLayer (polyClock d w.length)
       (compactCoinMatrix machine R (radix D w.length) w)).PairedPorts 2 (inPortBound machine) :=
-  (compactPairedPorts machine R (radix D w.length) w).finTimeLayer
-    (2 * (2 * (w.length + 1)) ^ d)
+  (compactPairedPorts machine R (radix D w.length) w).finTimeLayer (polyClock d w.length)
+
+private theorem clockedPort_map_val {M N dOther stepClock aVal pVal aBound pBound : ℕ}
+    {cond : Prop} [Decidable cond] [Decidable (aVal < aBound ∧ pVal < pBound ∧ cond)]
+    (ha_lt : aVal < aBound) (hp_lt : pVal < pBound)
+    {rawPort : Option (Fin M × Fin dOther)} {basePort : Option (Fin N × Fin dOther)}
+    (hval : rawPort.map (fun bq => (bq.1.val, bq.2)) =
+      if cond then
+        match basePort with
+        | none => none
+        | some (v, q) => some (stepClock * N + v.val, q)
+      else none)
+    {natTarget : Option ℕ} {otherIdx : ℕ → ℕ}
+    (hbase : basePort.map (fun (v, q) => (v.val, q.val)) =
+      match natTarget with | none => none | some v => some (v, otherIdx v)) :
+    rawPort.map (fun (b, q) => (b.val, q.val)) =
+      if aVal < aBound ∧ pVal < pBound ∧ cond then
+        match natTarget with
+        | none => none
+        | some v => some (stepClock * N + v, otherIdx v)
+      else none := by
+  have hmap : rawPort.map (fun (b, q) => (b.val, q.val)) =
+      (rawPort.map fun bq => (bq.1.val, bq.2)).map fun (bVal, q) => (bVal, q.val) := by
+    rw [Option.map_map]
+    rfl
+  rw [hmap, hval]
+  by_cases hc : cond
+  · rw [ite_eq_left hc, ite_eq_left ⟨ha_lt, hp_lt, hc⟩]
+    rcases basePort with _ | ⟨v, q⟩ <;> rcases natTarget with _ | vNat <;>
+      simp only [Option.map_none, Option.map_some, reduceCtorEq, Option.some.injEq,
+        Prod.mk.injEq] at hbase
+    · rfl
+    · simp [hbase.1, hbase.2]
+  · rw [ite_eq_right hc, ite_eq_right (fun h => hc h.2.2), Option.map_none]
 
 /-- Exact agreement between `(clockedCompactPairedPorts ...).outPort` and `clockedOutPort`. -/
 theorem clockedCompactPairedPorts_outPort_val (machine : MultiTapePTM k Bool State)
@@ -297,42 +321,9 @@ theorem clockedCompactPairedPorts_outPort_val (machine : MultiTapePTM k Bool Sta
     ((clockedCompactPairedPorts machine R D d w).outPort a p).map
         (fun (b, q) => (b.val, q.val)) =
       clockedOutPort machine D d w a.val p.val := by
-  have ha_lt : a.val < clockedVertexBound (k := k) D d w.length := a.isLt
-  unfold clockedVertexBound at a
-  let n := w.length
-  let B := radix D n
-  let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
-  have hmap : ((clockedCompactPairedPorts machine R D d w).outPort a p).map
-      (fun (b, q) => (b.val, q.val)) =
-      ((((compactPairedPorts machine R B w).finTimeLayer T).outPort a p).map
-        (fun (b, q) => (b.val, q))).map (fun (bVal, q) => (bVal, q.val)) := by
-    rw [clockedCompactPairedPorts, Option.map_map]
-    rfl
-  rw [hmap, Matrix.PairedPorts.finTimeLayer_outPort_val]
-  dsimp only [clockedOutPort]
-  by_cases hdiv : a.val / N < T
-  · have hcond : a.val < clockedVertexBound (k := k) D d n ∧ p.val < 2 ∧ a.val / N < T :=
-      ⟨ha_lt, p.isLt, hdiv⟩
-    rw [ite_eq_left hdiv, ite_eq_left hcond]
-    have hbase := compactPairedPorts_outPort_val machine R B w a.modNat p
-    change (((compactPairedPorts machine R B w).outPort a.modNat p).map
-        fun (v, q) => (v.val, q.val)) =
-      match (coinOutTargetsWithSymbol machine B n (a.val % N)
-          w[queryIndex (k := k) B (a.val % N)]?)[p.val]? with
-      | none => none
-      | some v => some (v, (coinInSources machine B w v).idxOf (a.val % N)) at hbase
-    -- split both options; `hbase` rules out the mismatched cases
-    rcases ho : (compactPairedPorts machine R B w).outPort a.modNat p with _ | ⟨v, q⟩ <;>
-      rcases hg : (coinOutTargetsWithSymbol machine B n (a.val % N)
-        w[queryIndex (k := k) B (a.val % N)]?)[p.val]? with _ | vNat <;>
-      simp only [ho, hg, Option.map_none, Option.map_some, reduceCtorEq, Option.some.injEq,
-        Prod.mk.injEq] at hbase
-    · rfl
-    · simp [hbase.1, hbase.2, n, B, N]
-  · have hcond : ¬ (a.val < clockedVertexBound (k := k) D d n ∧ p.val < 2 ∧ a.val / N < T) :=
-      fun h => hdiv h.2.2
-    rw [ite_eq_right hdiv, ite_eq_right hcond, Option.map_none]
+  have ha_lt := a.isLt; unfold clockedVertexBound at a
+  exact clockedPort_map_val ha_lt p.isLt (Matrix.PairedPorts.finTimeLayer_outPort_val ..)
+    (compactPairedPorts_outPort_val machine R (radix D w.length) w a.modNat p)
 
 /-- Exact agreement between `(clockedCompactPairedPorts ...).inPort` and `clockedInPort`. -/
 theorem clockedCompactPairedPorts_inPort_val (machine : MultiTapePTM k Bool State)
@@ -341,42 +332,9 @@ theorem clockedCompactPairedPorts_inPort_val (machine : MultiTapePTM k Bool Stat
     ((clockedCompactPairedPorts machine R D d w).inPort b q).map
         (fun (a, p) => (a.val, p.val)) =
       clockedInPort machine D d w b.val q.val := by
-  have hb_lt : b.val < clockedVertexBound (k := k) D d w.length := b.isLt
-  unfold clockedVertexBound at b
-  let n := w.length
-  let B := radix D n
-  let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
-  have hmap : ((clockedCompactPairedPorts machine R D d w).inPort b q).map
-      (fun (a, p) => (a.val, p.val)) =
-      ((((compactPairedPorts machine R B w).finTimeLayer T).inPort b q).map
-        (fun (a, p) => (a.val, p))).map (fun (aVal, p) => (aVal, p.val)) := by
-    rw [clockedCompactPairedPorts, Option.map_map]
-    rfl
-  rw [hmap, Matrix.PairedPorts.finTimeLayer_inPort_val]
-  dsimp only [clockedInPort]
-  by_cases hdiv : 0 < b.val / N
-  · have hcond : b.val < clockedVertexBound (k := k) D d n ∧ q.val < inPortBound machine ∧
-        0 < b.val / N := ⟨hb_lt, q.isLt, hdiv⟩
-    rw [ite_eq_left hdiv, ite_eq_left hcond]
-    have hbase := compactPairedPorts_inPort_val machine R B w b.modNat q
-    change (((compactPairedPorts machine R B w).inPort b.modNat q).map
-        fun (u, p) => (u.val, p.val)) =
-      match (coinInSources machine B w (b.val % N))[q.val]? with
-      | none => none
-      | some u =>
-        some (u, (coinOutTargetsWithSymbol machine B n u
-          w[queryIndex (k := k) B u]?).idxOf (b.val % N)) at hbase
-    -- split both options; `hbase` rules out the mismatched cases
-    rcases hi : (compactPairedPorts machine R B w).inPort b.modNat q with _ | ⟨u, p⟩ <;>
-      rcases hg : (coinInSources machine B w (b.val % N))[q.val]? with _ | uNat <;>
-      simp only [hi, hg, Option.map_none, Option.map_some, reduceCtorEq, Option.some.injEq,
-        Prod.mk.injEq] at hbase
-    · rfl
-    · simp [hbase.1, hbase.2, n, B, N]
-  · have hcond : ¬ (b.val < clockedVertexBound (k := k) D d n ∧ q.val < inPortBound machine ∧
-        0 < b.val / N) := fun h => hdiv h.2.2
-    rw [ite_eq_right hdiv, ite_eq_right hcond, Option.map_none]
+  have hb_lt := b.isLt; unfold clockedVertexBound at b
+  exact clockedPort_map_val hb_lt q.isLt (Matrix.PairedPorts.finTimeLayer_inPort_val ..)
+    (compactPairedPorts_inPort_val machine R (radix D w.length) w b.modNat q)
 
 /-- Exact agreement between `(clockedCompactPairedPorts ...).outWeight` and half of
 `clockedOutCount`. -/
@@ -390,7 +348,7 @@ theorem clockedCompactPairedPorts_outWeight (machine : MultiTapePTM k Bool State
   let n := w.length
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   rw [clockedCompactPairedPorts, Matrix.PairedPorts.finTimeLayer_outWeight_apply]
   dsimp only [clockedOutCount, clockedOutCountWithSymbol]
   by_cases hdiv : a.val / N < T
@@ -437,7 +395,7 @@ theorem exists_compactTimeLayer_of_mem_RL (h : A ∈ RL enc) :
         let D := radixExponent State c
         let B := radix D w.length
         let N := vertexBound (k := k) B
-        let T := 2 * (2 * (w.length + 1)) ^ d
+        let T := polyClock d w.length
         let P := compactCoinMatrix M ℝ B w
         let e₀ := compactAcceptVec (k := k) (State := State) ℝ B w.length
         let S := finTimeLayer T P
@@ -452,34 +410,17 @@ theorem exists_compactTimeLayer_of_mem_RL (h : A ∈ RL enc) :
         p ∈ Set.Icc 0 1 ∧
         (a ∈ A → 1 / 2 ≤ p x₀) ∧ (a ∉ A → p x₀ = 0) := by
   classical
-  obtain ⟨k, State, _, M, c, d, hM⟩ := exists_polyClock_of_mem_RL h
+  obtain ⟨k, State, _, M, c, d, hM, herr⟩ := exists_polyClock_of_mem_RL h
   let : Fintype State := Fintype.ofFinite State
-  refine ⟨k, State, inferInstance, M, c, d, fun a => ?_⟩
-  obtain ⟨hs, hT, hmem, hnot⟩ := hM a
-  refine ⟨hs, ?_⟩
-  dsimp only
-  have hP0 := compactCoinMatrix_nonneg (machine := M) (R := ℝ)
-    (radix (radixExponent State c) (enc a).length) (enc a)
-  have hP1 := compactCoinMatrix_mulVec_one_le (machine := M) (R := ℝ)
-    (radix (radixExponent State c) (enc a).length) (enc a)
-  refine ⟨hT, ?_, finTimeLayer_isStrictUpperTriangular _ _, finTimeLayer_nonneg hP0 _,
-    finTimeLayer_mulVec_one_le hP1 _, ?_, one_sub_finTimeLayer_mulVec _ _ _,
-    inv_one_sub_finTimeLayer_mulVec _ _ _,
-    finTimeLayerPotential_mem_Icc hP0 hP1 (compactAcceptVec_mem_Icc _ _) _, ?_, ?_⟩
-  · rw [Fintype.card_fin]
-    exact (Nat.le_succ _).trans (clockedVertexBound_add_one_le_pow
-      (k := k) (radixExponent State c) d (enc a).length)
-  · intro x
-    unfold finTimeLayerReward timeLayerReward compactAcceptVec
-    dsimp only [Function.comp_apply]
-    split_ifs <;> simp
-  · intro ha
-    rw [finTimeLayer_compactCoinMatrix_acceptance, le_div_iff₀ (by positivity)]
+  refine ⟨k, State, inferInstance, M, c, d, fun a => ⟨hM.runsInSpace a, ?_⟩⟩
+  obtain ⟨hmem, hnot⟩ := herr a
+  obtain ⟨hcard, hS, hS0, hS1, he, hp, hinv, hIcc⟩ := compactTimeLayer_polyClock M c d (enc a)
+  refine ⟨hM.runsInTime a, hcard, hS, hS0, hS1, he, hp, hinv, hIcc, fun ha => ?_, fun ha => ?_⟩
+  · rw [finTimeLayer_compactCoinMatrix_acceptance, le_div_iff₀ (by positivity)]
     have hc := (Nat.cast_le (α := ℝ)).mpr (hmem ha)
     push_cast at hc
     linarith
-  · intro ha
-    rw [finTimeLayer_compactCoinMatrix_acceptance]
+  · rw [finTimeLayer_compactCoinMatrix_acceptance]
     simp [hnot ha]
 
 /-- Port queries `(a, u, p)` of a `Cslib.Complexity.PairedTimeLayerFamily`: the instance `a` under
@@ -673,21 +614,13 @@ noncomputable def PairedTimeLayerFamily.ofMachine {k : ℕ} {State : Type} [Fint
     PairedTimeLayerFamily enc :=
   let D := radixExponent State c
   let x₀ (a : α) : Fin (clockedVertexBound (k := k) D d (enc a).length) :=
-    (timeLayerEquiv (2 * (2 * ((enc a).length + 1)) ^ d)
+    (timeLayerEquiv (polyClock d (enc a).length)
       (vertexBound (k := k) (radix D (enc a).length))).symm
       (toLex (0, compactStart M c (hs a)))
-  have henc : ComputableInLogSpace (fun a : α => enc a) enc encBits :=
-    ComputableInLogSpace.id.congr fun _ => rfl
-  have hmap2 : ComputableInLogSpace (fun (a, u) => (enc a, u))
-      (encPair enc encNat) (encPair encBits encNat) :=
-    (ComputableInLogSpace.pair
-      (henc.comp (ComputableInLogSpace.fst enc encNat))
-      (ComputableInLogSpace.snd enc encNat)).congr_fun fun ⟨_, _⟩ => rfl
-  have hmap3 : ComputableInLogSpace (fun (a, u, p) => (enc a, u, p))
-      (encPair enc (encPair encNat encNat)) (encPair encBits (encPair encNat encNat)) :=
-    (ComputableInLogSpace.pair
-      (henc.comp (ComputableInLogSpace.fst enc (encPair encNat encNat)))
-      (ComputableInLogSpace.snd enc (encPair encNat encNat))).congr_fun fun ⟨_, _, _⟩ => rfl
+  have hmap2 : ComputableInLogSpace (fun x : α × ℕ => (enc x.1, x.2))
+      (encPair enc encNat) (encPair encBits encNat) := by fun_prop
+  have hmap3 : ComputableInLogSpace (fun x : α × ℕ × ℕ => (enc x.1, x.2))
+      (encPortQuery enc) (encPair encBits (encPair encNat encNat)) := by fun_prop
   { dIn := inPortBound M
     dIn_pos := inPortBound_pos M
     dimExp := D * Fintype.card (Register k) + d + 2
@@ -695,21 +628,21 @@ noncomputable def PairedTimeLayerFamily.ofMachine {k : ℕ} {State : Type} [Fint
     dim_pos a := (x₀ a).pos
     dim_le_pow a := (Nat.le_succ _).trans
       (clockedVertexBound_add_one_le_pow (k := k) D d (enc a).length)
-    matrix a := finTimeLayer (2 * (2 * ((enc a).length + 1)) ^ d)
+    matrix a := finTimeLayer (polyClock d (enc a).length)
       (compactCoinMatrix M ℝ (radix D (enc a).length) (enc a))
     isStrictUpperTriangular _ := finTimeLayer_isStrictUpperTriangular _ _
     matrix_nonneg a := finTimeLayer_nonneg
       (compactCoinMatrix_nonneg (machine := M) (R := ℝ) (radix D (enc a).length) (enc a)) _
     matrix_mulVec_one_le a := finTimeLayer_mulVec_one_le
       (compactCoinMatrix_mulVec_one_le (machine := M) (R := ℝ) (radix D (enc a).length) (enc a)) _
-    reward a := finTimeLayerReward (2 * (2 * ((enc a).length + 1)) ^ d)
+    reward a := finTimeLayerReward (polyClock d (enc a).length)
       (compactAcceptVec (k := k) (State := State) ℝ (radix D (enc a).length) (enc a).length)
     reward_eq_zero_or_one a x := by
       unfold clockedVertexBound at x
       rw [finTimeLayerReward_eq_clockedAccept]
       cases clockedAccept (k := k) (State := State)
-        (radix D (enc a).length) (enc a).length (2 * (2 * ((enc a).length + 1)) ^ d) x <;> simp
-    potential a := finTimeLayerPotential (2 * (2 * ((enc a).length + 1)) ^ d)
+        (radix D (enc a).length) (enc a).length (polyClock d (enc a).length) x <;> simp
+    potential a := finTimeLayerPotential (polyClock d (enc a).length)
       (compactCoinMatrix M ℝ (radix D (enc a).length) (enc a))
       (compactAcceptVec (k := k) (State := State) ℝ (radix D (enc a).length) (enc a).length)
     one_sub_mulVec_potential _ := one_sub_finTimeLayer_mulVec _ _ _
@@ -722,14 +655,14 @@ noncomputable def PairedTimeLayerFamily.ofMachine {k : ℕ} {State : Type} [Fint
     ports a := clockedCompactPairedPorts M ℝ D d (enc a)
     startNat a := startID M.toNTM (radix D (enc a).length)
     acceptBool a u := clockedAccept (k := k) (State := State)
-      (radix D (enc a).length) (enc a).length (2 * (2 * ((enc a).length + 1)) ^ d) u
+      (radix D (enc a).length) (enc a).length (polyClock d (enc a).length) u
     outCount a u p := clockedOutCount M D d (enc a) u p
     outPortNat a u p := clockedOutPort M D d (enc a) u p
     inPortNat a v q := clockedInPort M D d (enc a) v q
     val_start a := val_clockedStart M c _ (hs a)
     reward_eq_acceptBool a u := finTimeLayerReward_eq_clockedAccept
       (k := k) (State := State) (R := ℝ) (radix D (enc a).length) (enc a).length
-      (2 * (2 * ((enc a).length + 1)) ^ d) u
+      (polyClock d (enc a).length) u
     acceptBool_eq_false_of_ge := fun _ {_} hu => clockedAccept_eq_false_of_ge_bound hu
     outCount_le_two a u p := clockedOutCount_le_two M D d (enc a) u p
     outWeight_eq_outCount a u p := clockedCompactPairedPorts_outWeight M ℝ D d (enc a) u p
@@ -745,9 +678,9 @@ noncomputable def PairedTimeLayerFamily.ofMachine {k : ℕ} {State : Type} [Fint
     inPortNat_eq_none_of_ge_dim := fun _ {_} q hv => clockedInPort_eq_none_of_ge_bound M hv q
     inPortNat_eq_none_of_port_ge := fun _ v {_} hq => clockedInPort_eq_none_of_port_ge M v hq
     computableInLogSpace_dim :=
-      ((computableInLogSpace_clockedVertexBound (k := k) D d).comp henc).congr_fun fun _ => rfl
+      (computableInLogSpace_clockedVertexBound (k := k) D d).comp' (by fun_prop)
     computableInLogSpace_startNat :=
-      ((computableInLogSpace_startID M.toNTM D).comp henc).congr_fun fun _ => rfl
+      (computableInLogSpace_startID M.toNTM D).comp' (by fun_prop)
     computableInLogSpace_acceptBool :=
       ((computableInLogSpace_clockedAccept (k := k) (State := State) D d).comp hmap2).congr_fun
         fun ⟨_, _⟩ => rfl
@@ -764,8 +697,8 @@ theorem PairedTimeLayerFamily.ofMachine_potential_start {k : ℕ} {State : Type}
     (enc : α ↪ List Bool) (M : MultiTapePTM k Bool State) (c d : ℕ)
     (hs : ∀ a, M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1))) (a : α) :
     (ofMachine enc M c d hs).potential a ((ofMachine enc M c d hs).start a) =
-      (M.acceptCoins (enc a) (2 * (2 * ((enc a).length + 1)) ^ d) : ℝ) /
-        2 ^ (2 * (2 * ((enc a).length + 1)) ^ d) := by
+      (M.acceptCoins (enc a) (polyClock d (enc a).length) : ℝ) /
+        2 ^ (polyClock d (enc a).length) := by
   dsimp only [ofMachine]
   rw [finTimeLayer_compactCoinMatrix_acceptance]
 

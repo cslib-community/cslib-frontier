@@ -17,6 +17,9 @@ namespace CslibFrontierTests.PolyTimeContracts
 
 open Turing.MultiTapeTM
 
+-- Direct FunProp checks use the certificate API without expanding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
+
 -- The size adapter has exactly the original pointwise polynomial contract.
 example {α : Type*} (size cost : α → ℕ) :
     PolyBounded size cost ↔ ∃ c d, ∀ a, cost a ≤ c * (size a + 1) ^ d :=
@@ -43,29 +46,29 @@ example : ¬ PolyBounded (fun _ : ℕ => 0) id := by
 -- Fixed lists may contain higher-universe objects for which no bit encoding is supplied.
 example {ι : Type 1} (indices : List ι) (test : List Bool → ι → Bool)
     (htest : ∀ i ∈ indices,
-      ComputableTidilyInPolyTime (fun word => test word i) encBits encBool) :
-    ComputableTidilyInPolyTime (fun word => indices.all (test word)) encBits encBool := by
+      ComputableInPolyTime (fun word => test word i) encBits encBool) :
+    ComputableInPolyTime (fun word => indices.all (test word)) encBits encBool := by
   fun_prop
 
 example {ι : Type 1} (indices : List ι) (test : List Bool → ι → Bool)
     (htest : ∀ i ∈ indices,
-      ComputableTidilyInPolyTime (fun word => test word i) encBits encBool) :
-    ComputableTidilyInPolyTime (fun word => indices.any fun i => test word i)
+      ComputableInPolyTime (fun word => test word i) encBits encBool) :
+    ComputableInPolyTime (fun word => indices.any fun i => test word i)
       encBits encBool := by
   polytime
 
 -- No callback certificate is needed when there are no indices.
 example (test : List Bool → Fin 0 → Bool) :
-    ComputableTidilyInPolyTime (fun word => ([] : List (Fin 0)).all (test word))
+    ComputableInPolyTime (fun word => ([] : List (Fin 0)).all (test word))
       encBits encBool := by
-  exact ComputableTidilyInPolyTime.allConst [] (by simp)
+  exact ComputableInPolyTime.allConst [] (by simp)
 
 -- The same runtime scan supports unrelated element representations.
 example {α β : Type} (input : α ↪ List Bool) (element : β ↪ List Bool)
     (values : α → List β) (test : α × β → Bool)
-    (hvalues : ComputableTidilyInPolyTime values input (encList element))
-    (htest : ComputableTidilyInPolyTime test (encPair input element) encBool) :
-    ComputableTidilyInPolyTime
+    (hvalues : ComputableInPolyTime values input (encList element))
+    (htest : ComputableInPolyTime test (encPair input element) encBool) :
+    ComputableInPolyTime
       (fun x => let entries := values x; entries.all fun value => test (x, value))
       input encBool := by
   fail_if_success (clear hvalues; polytime)
@@ -74,44 +77,44 @@ example {α β : Type} (input : α ↪ List Bool) (element : β ↪ List Bool)
 
 example {α β : Type} (input : α ↪ List Bool) (element : β ↪ List Bool)
     (values : α → List β) (test : α × β → Bool)
-    (hvalues : ComputableTidilyInPolyTime values input (encList element))
-    (htest : ComputableTidilyInPolyTime test (encPair input element) encBool) :
-    ComputableTidilyInPolyTime (fun x => (values x).any fun value => test (x, value))
+    (hvalues : ComputableInPolyTime values input (encList element))
+    (htest : ComputableInPolyTime test (encPair input element) encBool) :
+    ComputableInPolyTime (fun x => (values x).any fun value => test (x, value))
       input encBool := by
   polytime
 
 -- Raw and framed Boolean words use their existing list interfaces.
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun p : List Bool × Bool => p.1.all fun bit => bit == p.2)
     (encPair encBits encBool) encBool := by polytime
 
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun p : List Bool × Bool => p.1.all (fun bit => bit == p.2))
     (encPair (encList encBool) encBool) encBool := by polytime
 
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun p : List ℕ × ℕ => p.1.any fun n => n == p.2)
     (encPair (encList encNat) encNat) encBool := by polytime
 
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun p : List ℕ × ℕ => p.1.any fun n => n == p.2)
     (encPair (encList encUnary) encUnary) encBool := by polytime
 
 -- Separate certificates at each fixed index give no uniform runtime-index certificate.
 example (test : List Bool → ℕ → Bool)
-    (_hfixed : ∀ n, ComputableTidilyInPolyTime (fun word => test word n) encBits encBool) :
+    (_hfixed : ∀ n, ComputableInPolyTime (fun word => test word n) encBits encBool) :
     True := by
   fail_if_success
-    have : ComputableTidilyInPolyTime
+    have : ComputableInPolyTime
         (fun word => (List.range word.length).all (test word)) encBits encBool := by polytime
   trivial
 
 -- An arbitrary mathematical bound need not have a computation certificate.
 example {α β : Type} {input : α ↪ List Bool} {stateEncoding : β ↪ List Bool}
     {initial : α → β} {step : β → β} {count bound : α → ℕ}
-    (hcount : ComputableTidilyInPolyTime count input encUnary)
-    (hinitial : ComputableTidilyInPolyTime initial input stateEncoding)
-    (hstep : ComputableTidilyInPolyTime step stateEncoding stateEncoding)
+    (hcount : ComputableInPolyTime count input encUnary)
+    (hinitial : ComputableInPolyTime initial input stateEncoding)
+    (hstep : ComputableInPolyTime step stateEncoding stateEncoding)
     (invariant : α → ℕ → β → Prop)
     (hbase : ∀ x, invariant x 0 (initial x))
     (hpreserve : ∀ x i state, i < count x → invariant x i state →
@@ -119,8 +122,8 @@ example {α β : Type} {input : α ↪ List Bool} {stateEncoding : β ↪ List B
     (hsize : PolyBounded (fun x => (input x).length) bound)
     (hbound : ∀ x i state, i ≤ count x → invariant x i state →
       (stateEncoding state).length ≤ bound x) :
-    ComputableTidilyInPolyTime (fun x => step^[count x] (initial x)) input stateEncoding := by
-  exact (ComputableTidilyInPolyTime.iterate_spec hcount hinitial hstep invariant
+    ComputableInPolyTime (fun x => step^[count x] (initial x)) input stateEncoding := by
+  exact (ComputableInPolyTime.iterate_spec hcount hinitial hstep invariant
     hbase hpreserve hsize hbound).1
 
 -- Accumulating rows charges each copied row and every outer list frame.
@@ -128,10 +131,10 @@ private def repeatRows (p : List Bool × ℕ) : List (List Bool) :=
   (fun rows => p.1 :: rows)^[p.2] []
 
 private theorem repeatRows_spec :
-    ComputableTidilyInPolyTime repeatRows (encPair encBits encUnary) (encList encBits) ∧
+    ComputableInPolyTime repeatRows (encPair encBits encUnary) (encList encBits) ∧
       ∀ p, (repeatRows p).length = p.2 ∧ ∀ row ∈ repeatRows p, row = p.1 := by
   unfold repeatRows
-  refine ComputableTidilyInPolyTime.iterateWith_spec (par := Prod.fst)
+  refine ComputableInPolyTime.iterateWith_spec (par := Prod.fst)
     (count := Prod.snd) (init := fun _ => []) (step := List.cons)
     (by polytime) (by polytime) (by polytime) (by polytime)
     (invariant := fun p i rows => rows.length = i ∧ ∀ row ∈ rows, row = p.1)
@@ -139,7 +142,7 @@ private theorem repeatRows_spec :
   · intro p i rows _ h
     simpa only [List.length_cons, h.1, List.mem_cons, forall_eq_or_imp, true_and]
       using h.2
-  · exact ComputableTidilyInPolyTime.polyBounded (by polytime)
+  · exact ComputableInPolyTime.polyBounded (by polytime)
   · intro p i rows hi h
     calc
       (encList encBits rows).length ≤ rows.length * (2 * p.1.length + 1) :=
@@ -147,7 +150,7 @@ private theorem repeatRows_spec :
       _ ≤ _ := by simpa only [h.1] using Nat.mul_le_mul_right (2 * p.1.length + 1) hi
 
 -- A nested loop composes the row certificate; no intermediate representation is supplied here.
-example : ComputableTidilyInPolyTime (fun p : List Bool × ℕ =>
+example : ComputableInPolyTime (fun p : List Bool × ℕ =>
     (List.range p.2).flatMap fun n => repeatRows (p.1, n))
     (encPair encBits encUnary) (encList encBits) := by
   have h := repeatRows_spec.1
@@ -166,14 +169,16 @@ private def tagRows (p : TaggedRowsInput) : List (List Bool) :=
 -- Each copied row is bounded by the actual source list, including with an arbitrary initial state.
 -- No fixed additive bound would hold for all possible rows outside that list.
 private theorem tagRows_polytime :
-    ComputableTidilyInPolyTime tagRows taggedRowsInputEncoding (encList encBits) := by
+    ComputableInPolyTime tagRows taggedRowsInputEncoding (encList encBits) := by
   unfold tagRows taggedRowsInputEncoding
-  refine ComputableTidilyInPolyTime.foldlWith_of_bounded_growth (encA := encBits)
+  refine ComputableInPolyTime.foldlWith_of_bounded_growth
+    (encIn := taggedRowsInputEncoding) (encP := encBits)
+    (encA := encBits) (encL := encList encBits) (encB := encList encBits)
     (par := fun p : TaggedRowsInput => p.1.2)
     (step := fun tag rows row => (row ++ tag) :: rows)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (growth := fun p => 2 * ((encList encBits p.1.1).length + p.1.2.length) + 1)
-    (ComputableTidilyInPolyTime.polyBounded (by fun_prop)) ?_
+    (ComputableInPolyTime.polyBounded (input := taggedRowsInputEncoding) (by fun_prop)) ?_
   intro p state row hrow
   have hsize := SizedListEncoding.length_elem_le
     (encA := encBits) (encL := encList encBits) p.1.1 row hrow
@@ -181,7 +186,7 @@ private theorem tagRows_polytime :
   lia
 
 -- A downstream traversal consumes the accumulated rows through the ordinary list API.
-example : ComputableTidilyInPolyTime (fun p => (tagRows p).map List.reverse)
+example : ComputableInPolyTime (fun p => (tagRows p).map List.reverse)
     taggedRowsInputEncoding (encList encBits) := by
   have h := tagRows_polytime
   polytime
@@ -196,15 +201,16 @@ private def skipCopies (p : (Bool × ℕ) × List Bool) : List Bool :=
 
 -- Prefix membership, rather than a global growth claim, rules out the doubling branch.
 private theorem skipCopies_spec :
-    ComputableTidilyInPolyTime skipCopies (encPair (encPair encBool encUnary) encBits) encBits ∧
+    ComputableInPolyTime skipCopies (encPair (encPair encBool encUnary) encBits) encBits ∧
       ∀ p, skipCopies p = p.2 := by
   unfold skipCopies
-  refine ComputableTidilyInPolyTime.foldlWith_spec (encA := encBool) (encL := encList encBool)
+  refine ComputableInPolyTime.foldlWith_spec (encA := encBool) (encL := encList encBool)
     (par := fun p : (Bool × ℕ) × List Bool => p.1.1)
     (step := fun tag state bit => if bit = tag then state else state ++ state)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (fun p _ state => state = p.2) (by simp) ?_
-    (size := fun p => p.2.length) (ComputableTidilyInPolyTime.polyBounded (by fun_prop)) ?_
+    (size := fun p => p.2.length) (ComputableInPolyTime.polyBounded
+      (input := encPair (encPair encBool encUnary) encBits) (by fun_prop)) ?_
   · intro p consumed state bit hprefix hstate
     have hbit : bit = p.1.1 := List.eq_of_mem_replicate (hprefix.subset (by simp))
     simp [hbit, hstate]
@@ -215,10 +221,10 @@ example : skipCopies ((true, 3), [true, false]) = [true, false] := skipCopies_sp
 
 -- A standard outer operation leaves the fold's meaningful step and growth contracts usable.
 example (step : List Bool → Bool → List Bool) (growth : ℕ)
-    (hstep : ComputableTidilyInPolyTime (fun pair : List Bool × Bool => step pair.1 pair.2)
+    (hstep : ComputableInPolyTime (fun pair : List Bool × Bool => step pair.1 pair.2)
       (encPair encBits encBool) encBits)
     (hgrowth : ∀ word bit, (step word bit).length ≤ word.length + growth) :
-    ComputableTidilyInPolyTime (fun word : List Bool => (word.foldl step []).reverse)
+    ComputableInPolyTime (fun word : List Bool => (word.foldl step []).reverse)
       encBits encBits := by
   fail_if_success (clear hstep; polytime)
   fail_if_success (clear hgrowth; polytime)
@@ -227,19 +233,31 @@ example (step : List Bool → Bool → List Bool) (growth : ℕ)
 -- Framed input and state elements may have unrelated encodings; let notation needs no annotation.
 example {α β : Type} (item : α ↪ List Bool) (stateElement : β ↪ List Bool)
     (step : List β → α → List β) (growth : ℕ)
-    (hstep : ComputableTidilyInPolyTime (fun pair : List β × α => step pair.1 pair.2)
+    (hstep : ComputableInPolyTime (fun pair : List β × α => step pair.1 pair.2)
       (encPair (encList stateElement) item) (encList stateElement))
     (hgrowth : ∀ state value, (encList stateElement (step state value)).length ≤
       (encList stateElement state).length + growth) :
-    ComputableTidilyInPolyTime
+    ComputableInPolyTime
       (fun list : List α => let accumulated := list.foldl step []; accumulated.reverse)
       (encList item) (encList stateElement) := by polytime
 
+-- A supplied callback can select a noncanonical element interface for a canonical framed list.
+example {α : Type} (item altItem : α ↪ List Bool)
+    [ListEncoding altItem (encList item)] [SizedListEncoding altItem (encList item)]
+    (step : List Bool → α → List Bool) (growth : ℕ)
+    (hstep : ComputableInPolyTime (fun pair : List Bool × α => step pair.1 pair.2)
+      (encPair encBits altItem) encBits)
+    (hgrowth : ∀ state value, (step state value).length ≤ state.length + growth) :
+    ComputableInPolyTime (fun list : List α => list.foldl step [])
+      (encList item) encBits := by
+  fail_if_success (clear hstep; polytime)
+  polytime
+
 -- Growth outside the reachable invariant does not matter; the step still has a uniform certificate.
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun n : ℕ => (fun word : List Bool => if word.isEmpty then [] else word ++ word)^[n] [])
     encUnary encBits := by
-  refine (ComputableTidilyInPolyTime.iterate_spec (by polytime) (by polytime) (by polytime)
+  refine (ComputableInPolyTime.iterate_spec (by polytime) (by polytime) (by polytime)
     (fun _ _ word => word = []) (by simp) ?_ (.const 0) ?_).1
   · intros
     simp_all
@@ -249,7 +267,7 @@ example : ComputableTidilyInPolyTime
 -- A small final projection supplies no bound on a loop's intermediate storage.
 example : True := by
   fail_if_success
-    have : ComputableTidilyInPolyTime (fun n : ℕ =>
+    have : ComputableInPolyTime (fun n : ℕ =>
         ((fun p : ℕ × List Bool =>
           if p.1 = 0 then (0, []) else (p.1 - 1, p.2 ++ p.2))^[n + 1] (n, [true])).2)
         encUnary encBits := by polytime
@@ -262,9 +280,9 @@ variable {γ α β : Type} (input : γ ↪ List Bool) (element : α ↪ List Boo
     [hencoding : ListEncoding element listEncoding]
     [hsize : SizedListEncoding element listEncoding]
     (list : γ → List α) (initial : γ → β) (step : γ → β → α → β)
-    (hlist : ComputableTidilyInPolyTime list input listEncoding)
-    (hinitial : ComputableTidilyInPolyTime initial input stateEncoding)
-    (hstep : ComputableTidilyInPolyTime (fun p : (γ × β) × α => step p.1.1 p.1.2 p.2)
+    (hlist : ComputableInPolyTime list input listEncoding)
+    (hinitial : ComputableInPolyTime initial input stateEncoding)
+    (hstep : ComputableInPolyTime (fun p : (γ × β) × α => step p.1.1 p.1.2 p.2)
       (encPair (encPair input stateEncoding) element) stateEncoding)
     (growth : γ → ℕ) (hpoly : PolyBounded (fun x => (input x).length) growth)
     (hgrowth : ∀ x state value, value ∈ list x →
@@ -273,7 +291,7 @@ variable {γ α β : Type} (input : γ ↪ List Bool) (element : α ↪ List Boo
 include hlist hinitial hstep hpoly hgrowth
 
 -- Each part of the contract is needed. The growth bound need not itself be computable.
-example : ComputableTidilyInPolyTime (fun x => (list x).foldl (step x) (initial x))
+example : ComputableInPolyTime (fun x => (list x).foldl (step x) (initial x))
     input stateEncoding := by
   fail_if_success (clear hlist; polytime)
   fail_if_success (clear hinitial; polytime)
@@ -289,16 +307,16 @@ example : ComputableTidilyInPolyTime (fun x => (list x).foldl (step x) (initial 
 example (otherElement : α ↪ List Bool) (otherListEncoding : List α ↪ List Bool)
     [ListEncoding otherElement otherListEncoding]
     [SizedListEncoding otherElement otherListEncoding]
-    (_hotherList : ComputableTidilyInPolyTime list input otherListEncoding)
+    (_hotherList : ComputableInPolyTime list input otherListEncoding)
     (otherGrowth looseGrowth : γ → ℕ)
     (_hother : PolyBounded (fun x => (input x).length) otherGrowth)
     (_hloose : ∀ x state value, value ∈ list x →
       (stateEncoding (step x state value)).length ≤ (stateEncoding state).length + looseGrowth x) :
-    ComputableTidilyInPolyTime (fun x => (list x).foldl (step x) (initial x))
+    ComputableInPolyTime (fun x => (list x).foldl (step x) (initial x))
       input stateEncoding := by
   revert hlist hpoly hgrowth
   intro hlist hpoly hgrowth
-  have : ComputableTidilyInPolyTime
+  have : ComputableInPolyTime
       (fun x => let entries := list x; entries.foldl (fun state value => step x state value)
         (initial x)) input stateEncoding := by polytime
   clear this
@@ -313,7 +331,7 @@ variable {otherListEncoding₁ otherListEncoding₂ : List α ↪ List Bool}
     [hsize₁ : SizedListEncoding otherElement₁ otherListEncoding₁]
     [hencoding₂ : ListEncoding otherElement₂ otherListEncoding₂]
     [hsize₂ : SizedListEncoding otherElement₂ otherListEncoding₂]
-    (_hotherStep : ComputableTidilyInPolyTime
+    (_hotherStep : ComputableInPolyTime
       (fun p : (γ × β) × α => step p.1.1 p.1.2 p.2)
       (encPair (encPair input stateEncoding) otherCallbackElement) stateEncoding)
 
@@ -321,50 +339,50 @@ include hencoding₁ hsize₁ hencoding₂ hsize₂ _hotherStep
 
 -- All six certificate orders must work, including when the compatible choice is in the middle.
 -- Every list representation has interfaces, but only one callback certificate is compatible.
-example (hgood : ComputableTidilyInPolyTime list input listEncoding)
-    (_hother₁ : ComputableTidilyInPolyTime list input otherListEncoding₁)
-    (_hother₂ : ComputableTidilyInPolyTime list input otherListEncoding₂) :
-    ComputableTidilyInPolyTime (fun x => (list x).foldl (step x) (initial x))
+example (hgood : ComputableInPolyTime list input listEncoding)
+    (_hother₁ : ComputableInPolyTime list input otherListEncoding₁)
+    (_hother₂ : ComputableInPolyTime list input otherListEncoding₂) :
+    ComputableInPolyTime (fun x => (list x).foldl (step x) (initial x))
       input stateEncoding := by polytime
 
-example (hgood : ComputableTidilyInPolyTime list input listEncoding)
-    (_hother₂ : ComputableTidilyInPolyTime list input otherListEncoding₂)
-    (_hother₁ : ComputableTidilyInPolyTime list input otherListEncoding₁) :
-    ComputableTidilyInPolyTime
+example (hgood : ComputableInPolyTime list input listEncoding)
+    (_hother₂ : ComputableInPolyTime list input otherListEncoding₂)
+    (_hother₁ : ComputableInPolyTime list input otherListEncoding₁) :
+    ComputableInPolyTime
       (fun x => (list x).foldl (fun state value => step x state value) (initial x))
       input stateEncoding := by
   revert hstep
   intro hstep
   polytime
 
-example (_hother₁ : ComputableTidilyInPolyTime list input otherListEncoding₁)
-    (hgood : ComputableTidilyInPolyTime list input listEncoding)
-    (_hother₂ : ComputableTidilyInPolyTime list input otherListEncoding₂) :
-    ComputableTidilyInPolyTime
+example (_hother₁ : ComputableInPolyTime list input otherListEncoding₁)
+    (hgood : ComputableInPolyTime list input listEncoding)
+    (_hother₂ : ComputableInPolyTime list input otherListEncoding₂) :
+    ComputableInPolyTime
       (fun x => let entries := list x;
         entries.foldl (fun state value => step x state value) (initial x))
       input stateEncoding := by polytime
 
-example (_hother₂ : ComputableTidilyInPolyTime list input otherListEncoding₂)
-    (hgood : ComputableTidilyInPolyTime list input listEncoding)
-    (_hother₁ : ComputableTidilyInPolyTime list input otherListEncoding₁) :
-    ComputableTidilyInPolyTime (fun x => (list x).foldl (step x) (initial x))
+example (_hother₂ : ComputableInPolyTime list input otherListEncoding₂)
+    (hgood : ComputableInPolyTime list input listEncoding)
+    (_hother₁ : ComputableInPolyTime list input otherListEncoding₁) :
+    ComputableInPolyTime (fun x => (list x).foldl (step x) (initial x))
       input stateEncoding := by
   revert hstep
   intro hstep
   polytime
 
-example (_hother₁ : ComputableTidilyInPolyTime list input otherListEncoding₁)
-    (_hother₂ : ComputableTidilyInPolyTime list input otherListEncoding₂)
-    (hgood : ComputableTidilyInPolyTime list input listEncoding) :
-    ComputableTidilyInPolyTime
+example (_hother₁ : ComputableInPolyTime list input otherListEncoding₁)
+    (_hother₂ : ComputableInPolyTime list input otherListEncoding₂)
+    (hgood : ComputableInPolyTime list input listEncoding) :
+    ComputableInPolyTime
       (fun x => (list x).foldl (fun state value => step x state value) (initial x))
       input stateEncoding := by polytime
 
-example (_hother₂ : ComputableTidilyInPolyTime list input otherListEncoding₂)
-    (_hother₁ : ComputableTidilyInPolyTime list input otherListEncoding₁)
-    (hgood : ComputableTidilyInPolyTime list input listEncoding) :
-    ComputableTidilyInPolyTime
+example (_hother₂ : ComputableInPolyTime list input otherListEncoding₂)
+    (_hother₁ : ComputableInPolyTime list input otherListEncoding₁)
+    (hgood : ComputableInPolyTime list input listEncoding) :
+    ComputableInPolyTime
       (fun x => let entries := list x;
         entries.foldl (fun state value => step x state value) (initial x))
       input stateEncoding := by
@@ -382,21 +400,21 @@ private theorem taggedBits_growth (p : List Bool × List Bool) (state : List Boo
   simp [Nat.add_left_comm]
 
 -- Both raw and framed source words infer the callback encoding from ordinary constructors.
-example : ComputableTidilyInPolyTime taggedBits (encPair encBits encBits) encBits := by
+example : ComputableInPolyTime taggedBits (encPair encBits encBits) encBits := by
   have hpoly : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits encBits p).length) (fun p => p.1.length + 1) :=
-    ComputableTidilyInPolyTime.polyBounded (by fun_prop)
+    ComputableInPolyTime.polyBounded (input := encPair encBits encBits) (by fun_prop)
   have hgrowth := taggedBits_growth
   unfold taggedBits
   polytime
 
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun p : List Bool × List Bool => let tag := p.1;
       p.2.foldl (fun state bit => tag ++ bit :: state) [])
     (encPair encBits (encList encBool)) encBits := by
   have hpoly : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits (encList encBool) p).length) (fun p => p.1.length + 1) :=
-    ComputableTidilyInPolyTime.polyBounded (by fun_prop)
+    ComputableInPolyTime.polyBounded (input := encPair encBits (encList encBool)) (by fun_prop)
   have hgrowth := taggedBits_growth
   polytime
 
@@ -406,9 +424,9 @@ section CapturedIteration
 
 variable {α β : Type} (input : α ↪ List Bool) (stateEncoding : β ↪ List Bool)
     (count : α → ℕ) (initial : α → β) (step : α → β → β)
-    (hcount : ComputableTidilyInPolyTime count input encUnary)
-    (hinitial : ComputableTidilyInPolyTime initial input stateEncoding)
-    (hstep : ComputableTidilyInPolyTime (fun p : α × β => step p.1 p.2)
+    (hcount : ComputableInPolyTime count input encUnary)
+    (hinitial : ComputableInPolyTime initial input stateEncoding)
+    (hstep : ComputableInPolyTime (fun p : α × β => step p.1 p.2)
       (encPair input stateEncoding) stateEncoding)
     (growth : α → ℕ) (hpoly : PolyBounded (fun x => (input x).length) growth)
     (hgrowth : ∀ x state, (stateEncoding (step x state)).length ≤
@@ -417,7 +435,7 @@ variable {α β : Type} (input : α ↪ List Bool) (stateEncoding : β ↪ List 
 include hcount hinitial hstep hpoly hgrowth
 
 -- A captured loop still needs a unary count, uniform step and polynomial state-growth bound.
-example : ComputableTidilyInPolyTime (fun x => (step x)^[count x] (initial x))
+example : ComputableInPolyTime (fun x => (step x)^[count x] (initial x))
     input stateEncoding := by
   fail_if_success (clear hcount; polytime)
   fail_if_success (clear hinitial; polytime)
@@ -431,11 +449,11 @@ example (otherGrowth looseGrowth : α → ℕ)
     (_hother : PolyBounded (fun x => (input x).length) otherGrowth)
     (_hloose : ∀ x state, (stateEncoding (step x state)).length ≤
       (stateEncoding state).length + looseGrowth x) :
-    ComputableTidilyInPolyTime (fun x => (step x)^[count x] (initial x))
+    ComputableInPolyTime (fun x => (step x)^[count x] (initial x))
       input stateEncoding := by
   revert hpoly hgrowth
   intro hpoly hgrowth
-  have : ComputableTidilyInPolyTime
+  have : ComputableInPolyTime
       (fun x => let update := fun state => step x state; update^[count x] (initial x))
       input stateEncoding := by polytime
   clear this
@@ -446,12 +464,12 @@ example (otherGrowth looseGrowth : α → ℕ)
 end CapturedIteration
 
 -- Accumulating captured rows infers the framed state and pays for each copied row.
-example : ComputableTidilyInPolyTime
+example : ComputableInPolyTime
     (fun p : List Bool × ℕ => (fun rows => p.1 :: rows)^[p.2] [])
     (encPair encBits encUnary) (encList encBits) := by
   have hpoly : PolyBounded (fun p : List Bool × ℕ => (encPair encBits encUnary p).length)
       (fun p => 2 * p.1.length + 1) :=
-    ComputableTidilyInPolyTime.polyBounded (by polytime)
+    ComputableInPolyTime.polyBounded (by polytime)
   have hgrowth (p : List Bool × ℕ) (rows : List (List Bool)) :
       (encList encBits (p.1 :: rows)).length ≤
         (encList encBits rows).length + (2 * p.1.length + 1) := by

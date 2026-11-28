@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged in-place normalization of an array
@@ -67,14 +68,12 @@ private theorem normalizePrefix_succ (mem : ℕ → ℕ) (b M k : ℕ) :
   funext a
   by_cases ha : a = b + k
   · subst a; simp [normalizePrefix]
-  · simp only [normalizePrefix, Function.update_of_ne ha]
-    have h : (b ≤ a ∧ a < b + (k + 1)) ↔ (b ≤ a ∧ a < b + k) := by omega
-    simp only [h]
+  · simp only [normalizePrefix, Function.update_of_ne ha,
+      show (b ≤ a ∧ a < b + (k + 1)) ↔ (b ≤ a ∧ a < b + k) by omega]
 
 private theorem normalizePrefix_zero (mem : ℕ → ℕ) (b M : ℕ) :
     normalizePrefix mem b M 0 = mem := by
-  funext a
-  simp [normalizePrefix]
+  funext a; simp [normalizePrefix]
 
 /-- In-place normalization costs at most `7n+4` native instructions, including every indexed
 load/store and loop decision. The input arguments and all outside memory are preserved. -/
@@ -83,49 +82,21 @@ theorem exec {W b M n : ℕ} (x : Data 7) (hb : x.regs base = b)
     (hfit : Fits W (b + n + M + 2)) :
     ∃ y, ExecWithin W program x y (7 * n + 4) ∧ y.mem = normalizePrefix x.mem b M n ∧
       y.regs base = b ∧ y.regs length = n ∧ y.regs modulus = M := by
-  have h0 : Fits W 0 := fits_zero _
-  have h1 : Fits W 1 := hfit.of_le (by omega)
-  let start := (x.set index 0).set one 1
-  have hs : ExecWithin (B := .standard) W (ram[ index ← #0; one ← #1 ]) x start 2 := by
-    ram_eval [start, h0, h1]
+  unfold program
+  wram_exec
   let P (j : ℕ) (y : Data 7) : Prop := y.regs base = b ∧ y.regs length = n ∧
-    y.regs modulus = M ∧ y.regs one = 1 ∧
-    y.mem = normalizePrefix x.mem b M j
-  have hi : P (start.regs index) start := by
-    simp [P, start, normalizePrefix_zero, hb, hn, hm, base, length, modulus, index, one]
-  have step (y : Data 7) (hy : P (y.regs index) y) (hlt : y.regs index < n) :
-      ∃ z, ExecWithin W body y z 5 ∧ P (y.regs index + 1) z ∧
-        z.regs index = y.regs index + 1 := by
-    obtain ⟨yb, yn, ym, yo, ymem⟩ := hy
-    have ha : Fits W (b + y.regs index) := hfit.of_le (by omega)
-    have hv : Fits W (x.mem (b + y.regs index) % M) :=
-      hfit.of_le ((Nat.mod_lt _ hM).le.trans (by omega))
-    have hj : Fits W (y.regs index + 1) := hfit.of_le (by omega)
+    y.regs modulus = M ∧ y.regs one = 1 ∧ y.mem = normalizePrefix x.mem b M j
+  refine WP.of_spec (ExecWithin.loop_count (N := n) (T := 5) P (fun _ hy => hy.2.1) ?_ ?_ ?_) ?_
+  · rintro y ⟨yb, yn, ym, yo, ymem⟩ hlt
     have hread : y.mem (b + y.regs index) = x.mem (b + y.regs index) := by
-      rw [ymem]
-      simp [normalizePrefix]
-    let z := ((((y.set address (b + y.regs index)).set value
-      (x.mem (b + y.regs index))).set value
-      (x.mem (b + y.regs index) % M)).write (b + y.regs index)
-        (x.mem (b + y.regs index) % M)).set index (y.regs index + 1)
-    have he : ExecWithin W body y z 5 := by
-      ram_eval [body, z, yb, ym, yo, hread, ha, hv, hj,
-        base, length, modulus, index, address, value, one, Fin.mk.injEq]
-    refine ⟨z, he, ?_, by simp [z]⟩
-    · refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [z, Function.update_apply] using yb
-      · simpa +decide [z, Function.update_apply] using yn
-      · simpa +decide [z, Function.update_apply] using ym
-      · simpa +decide [z, Function.update_apply] using yo
-      · simpa +decide only [z, Data.set_regs, Data.set_mem, Data.write_regs, Data.write_mem,
-          Function.update_apply, ymem, index, address, value, one, Fin.reduceEq, ↓reduceIte] using
-          (normalizePrefix_succ x.mem b M (y.regs index)).symm
-  obtain ⟨y, he, ⟨hyb, hyn, hym, _, hymem⟩, _⟩ := ExecWithin.loop_count P
-    (fun y hy => hy.2.1) step (by simp [start, index, one]) hi
-  refine ⟨y, ?_, hymem, hyb, hyn, hym⟩
-  · apply (hs.seq he).mono
-    have hstart : start.regs index = 0 := by simp [start, index, one]
-    rw [hstart]
-    omega
+      rw [ymem]; simp [normalizePrefix]
+    unfold body
+    wram_exec [yb, ym, yo, hread]
+    dsimp only [P]
+    wram_simp [yb, yn, ym, yo, ymem, ← normalizePrefix_succ]
+  · wram_simp [Nat.zero_le]
+  · dsimp only [P]; wram_simp [hb, hn, hm, normalizePrefix_zero]
+  · rintro y ⟨⟨hyb, hyn, hym, _, hymem⟩, _⟩
+    exact ⟨by wram_simp; omega, hymem, hyb, hyn, hym⟩
 
 end Cslib.WordRAM.ArrayNormalize

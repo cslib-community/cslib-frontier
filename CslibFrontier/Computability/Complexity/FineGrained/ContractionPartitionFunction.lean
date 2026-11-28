@@ -81,7 +81,7 @@ variable {Rel : Type}
 /-- The instances handed to the contraction algorithm: nonempty, with every constraint of between
 one and `k` variables. -/
 @[expose] def guard (k : ℕ) (F : CSP Rel ℕ) : Bool :=
-  !F.isEmpty && F.all fun c => decide (1 ≤ c.2.length ∧ c.2.length ≤ k)
+  !F.isEmpty && F.all fun c => decide (1 ≤ c.scope.length ∧ c.scope.length ≤ k)
 
 /-- The precision of the contraction, `(W + 1) 3 N` for `N` variable occurrences. -/
 @[expose] def precision (W : ℕ) (F : CSP Rel ℕ) : ℕ := (W + 1) * (3 * F.vars.length)
@@ -138,49 +138,46 @@ omit encRel hwt
 variable {k W wt}
 
 theorem guard_eq_true_iff {F : CSP Rel ℕ} :
-    guard k F = true ↔ F ≠ [] ∧ ∀ c ∈ F, 1 ≤ c.2.length ∧ c.2.length ≤ k := by
+    guard k F = true ↔ F ≠ [] ∧ ∀ c ∈ F, 1 ≤ c.scope.length ∧ c.scope.length ≤ k := by
   simp [guard]
 
 /-- **The machine computes the partition function** of every instance whose constraints have
 between one and `k` variables, when the weights at patterns of length at most `k` are at most
 `W`. -/
 theorem count_eq (hW : ∀ R w, w.length ≤ k → wt R w ≤ W) {F : CSP Rel ℕ}
-    (hk : ∀ c ∈ F, 1 ≤ c.2.length ∧ c.2.length ≤ k) :
+    (hk : ∀ c ∈ F, 1 ≤ c.scope.length ∧ c.scope.length ≤ k) :
     count k W wt F = F.partitionFunction wt := by
   unfold count
   split
   · rw [contraction_cspNetwork fun c hc => (hk c hc).2]
-    refine Nat.mod_eq_of_lt ?_
     obtain ⟨hne, -⟩ := guard_eq_true_iff.mp ‹_›
     have hm := CSP.length_le_length_vars fun c hc => (hk c hc).1
     have h1 : 1 ≤ F.length := List.length_pos_iff.mpr hne
-    have hn : F.numVars ≤ F.vars.length := List.toFinset_card_le _
     have hZ := CSP.partitionFunction_le (wt := wt) (F := F) (W := W) fun c hc w hw =>
-      hW c.1 w (hw ▸ (hk c hc).2)
+      hW c.rel w (hw ▸ (hk c hc).2)
     rw [Fintype.card_bool] at hZ
     set N := F.vars.length
-    have hW2 : W + 1 ≤ 2 ^ W := Nat.lt_two_pow_self
-    calc F.partitionFunction wt ≤ 2 ^ F.numVars * W ^ F.length := hZ
-      _ ≤ 2 ^ N * (2 ^ W) ^ N := Nat.mul_le_mul (Nat.pow_le_pow_right (by norm_num) hn)
+    refine Nat.mod_eq_of_lt (calc
+      F.partitionFunction wt ≤ 2 ^ F.numVars * W ^ F.length := hZ
+      _ ≤ 2 ^ N * (2 ^ W) ^ N := Nat.mul_le_mul
+          (Nat.pow_le_pow_right (by norm_num) (List.toFinset_card_le _))
           ((Nat.pow_le_pow_left (Nat.le_succ W) _).trans
-            ((Nat.pow_le_pow_right (Nat.succ_pos W) hm).trans (Nat.pow_le_pow_left hW2 _)))
+            ((Nat.pow_le_pow_right (Nat.succ_pos W) hm).trans
+              (Nat.pow_le_pow_left Nat.lt_two_pow_self _)))
       _ = 2 ^ ((W + 1) * N) := by rw [← pow_mul, ← pow_add]; ring_nf
       _ < 2 ^ precision W F := Nat.pow_lt_pow_right (by norm_num) (by
-          rw [precision]
-          have : 1 ≤ N := h1.trans hm
-          nlinarith)
+          have := h1.trans hm
+          rw [precision]; nlinarith))
   · next hg =>
-    unfold fallback
     cases F with
     | nil =>
-      simp only [List.isEmpty_nil, ↓reduceIte, CSP.partitionFunction, CSP.weight, List.map_nil,
-        List.prod_nil, Finset.sum_const, smul_eq_mul, Nat.mul_one, Finset.card_univ]
-      have hempty : ∀ x : (CSP.vars ([] : CSP Rel ℕ)).toFinset, False := fun x => by
+      simp only [fallback, List.isEmpty_nil, ↓reduceIte, CSP.partitionFunction, CSP.weight,
+        List.map_nil, List.prod_nil, Finset.sum_const, smul_eq_mul, Nat.mul_one, Finset.card_univ]
+      have hempty (x : (CSP.vars ([] : CSP Rel ℕ)).toFinset) : False := by
         simpa [CSP.vars] using x.2
       exact (Fintype.card_eq_one_iff.mpr ⟨fun x => (hempty x).elim,
         fun _ => funext fun x => (hempty x).elim⟩).symm
-    | cons c F =>
-      exact absurd (guard_eq_true_iff.mpr ⟨List.cons_ne_nil _ _, hk⟩) hg
+    | cons _ _ => exact absurd (guard_eq_true_iff.mpr ⟨List.cons_ne_nil _ _, hk⟩) hg
 
 /-! ### Resources -/
 
@@ -189,19 +186,15 @@ is admissible at size `3 N`, its number of edges, with constant `k + 4`. -/
 theorem explicitAdmissible_cspNetwork {F : CSP Rel ℕ} (hg : guard k F = true) :
     ExplicitAdmissible (k + 4) (3 * F.vars.length) (cspNetwork k wt F) := by
   obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-  have hk : ∀ c ∈ F, c.2.length ≤ k := fun c hc => (hcl c hc).2
+  have hk : ∀ c ∈ F, c.scope.length ≤ k := fun c hc => (hcl c hc).2
   have h1 : 1 ≤ F.length := List.length_pos_iff.mpr hne
   have hm := CSP.length_le_length_vars fun c hc => (hcl c hc).1
   have hlog : 1 ≤ Nat.log 2 (3 * F.vars.length) := Nat.log_pos (by norm_num) (by omega)
-  refine ⟨isRowsFirstBipartite_cspNetwork k wt F, ?_, ?_, ?_, length_table_cspNetwork hk, ?_⟩
-  · rw [numEdges_cspNetwork]
-    nlinarith
-  · refine (maxDegree_cspNetwork_le hk).trans ?_
-    have : max k 4 ≤ k + 4 := max_le (by omega) (by omega)
-    nlinarith
-  · rw [length_vertices_cspNetwork]
-    nlinarith
-  · rw [numEdges_cspNetwork]
+  have hmax : max k 4 ≤ k + 4 := max_le (by omega) (by omega)
+  exact ⟨isRowsFirstBipartite_cspNetwork k wt F, by rw [numEdges_cspNetwork]; nlinarith,
+    (maxDegree_cspNetwork_le hk).trans (by nlinarith),
+    by rw [length_vertices_cspNetwork]; nlinarith,
+    length_table_cspNetwork hk, by rw [numEdges_cspNetwork]⟩
 
 /-- **Weighted `#CSP` by tensor contraction.** For each arity bound `k` and weight bound `W`, one
 machine computes `F.partitionFunction wt` on every instance `F` whose constraints have between one
@@ -215,7 +208,7 @@ theorem exists_partitionFunctionCounter (encRel : Rel ↪ List Bool) (k W : ℕ)
       ComputableInPolyTime (fun R : Rel => wt R w) encRel encNat)
     (hW : ∀ R w, w.length ≤ k → wt R w ≤ W) :
     ∃ (count : CSP Rel ℕ → ℕ) (A e b : ℕ),
-      (∀ F : CSP Rel ℕ, (∀ c ∈ F, 1 ≤ c.2.length ∧ c.2.length ≤ k) →
+      (∀ F : CSP Rel ℕ, (∀ c ∈ F, 1 ≤ c.scope.length ∧ c.scope.length ≤ k) →
         count F = F.partitionFunction wt) ∧
       ComputableInO count (encCSP encRel encNat) encNat
         (fun F => 2 ^ (A * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.numVars + 2))) *
@@ -226,19 +219,19 @@ theorem exists_partitionFunctionCounter (encRel : Rel ↪ List Bool) (k W : ℕ)
     (computableInPolyTime_fallback encRel) (k + 4) (W + 1) (fun F => 3 * F.vars.length)
     fun F hg => by
       obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-      have h1 : 1 ≤ F.length := List.length_pos_iff.mpr hne
-      have hm := CSP.length_le_length_vars fun c hc => (hcl c hc).1
+      have : 1 ≤ F.vars.length :=
+        (List.length_pos_iff.mpr hne).trans_le (CSP.length_le_length_vars fun c hc => (hcl c hc).1)
       dsimp only [contractionInput, precision]
       exact ⟨by omega, by nlinarith, le_rfl, explicitAdmissible_cspNetwork hg⟩
-  have hc := h (fun F => 3 * K * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.numVars + 2)))
+  obtain ⟨e, he⟩ := (h
+    (fun F => 3 * K * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.numVars + 2)))
     fun F hg => by
       obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-      have h1 : 1 ≤ F.length := List.length_pos_iff.mpr hne
-      have hm := CSP.length_le_length_vars fun c hc => (hcl c hc).1
-      have hexp := ContractionCounting.exponent_le (K := K) (k := 1) (m := F.vars.length)
-        (by omega) (by omega) (List.toFinset_card_le F.vars)
-      rwa [Nat.mul_one] at hexp
-  obtain ⟨e, he⟩ := hc.computableInO
+      have : 1 ≤ F.vars.length :=
+        (List.length_pos_iff.mpr hne).trans_le (CSP.length_le_length_vars fun c hc => (hcl c hc).1)
+      have hexp := ContractionCounting.exponent_le (K := K) (k := 1)
+        (m := F.vars.length) (by omega) (by omega) (List.toFinset_card_le F.vars)
+      rwa [Nat.mul_one] at hexp).computableInO
   exact ⟨count k W wt, 3 * K, e, e, fun F hk => count_eq hW hk, he⟩
 
 /-- **Weighted `#CSP` on bounded-degree instances.** For each arity bound `k` and weight bound
@@ -254,7 +247,7 @@ theorem exists_partitionFunctionCounter_boundedDegree (encRel : Rel ↪ List Boo
       ComputableInPolyTime (fun R : Rel => wt R w) encRel encNat)
     (hW : ∀ R w, w.length ≤ k → wt R w ≤ W) :
     ∃ (count : CSP Rel ℕ → ℕ) (T S : CSP Rel ℕ → ℕ) (e b : ℕ),
-      (∀ F : CSP Rel ℕ, (∀ c ∈ F, 1 ≤ c.2.length ∧ c.2.length ≤ k) →
+      (∀ F : CSP Rel ℕ, (∀ c ∈ F, 1 ≤ c.scope.length ∧ c.scope.length ≤ k) →
         count F = F.partitionFunction wt) ∧
       ComputableInO count (encCSP encRel encNat) encNat T S ∧
       (∀ F, S F = ((encCSP encRel encNat F).length + 1) ^ b) ∧
@@ -265,8 +258,8 @@ theorem exists_partitionFunctionCounter_boundedDegree (encRel : Rel ↪ List Boo
   refine ⟨count, _, _, e, b, hcount, hc, fun _ => rfl, fun Δ => ⟨A * (Δ + 1), fun F hF => ?_⟩⟩
   refine Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) (Nat.div_le_div_right ?_))
   have h := CSP.length_vars_le_mul_numVars hF
-  have : F.vars.length + 1 ≤ (Δ + 1) * (F.numVars + 1) := by nlinarith
-  calc A * (F.vars.length + 1) ≤ A * ((Δ + 1) * (F.numVars + 1)) := Nat.mul_le_mul_left _ this
+  calc A * (F.vars.length + 1)
+      ≤ A * ((Δ + 1) * (F.numVars + 1)) := Nat.mul_le_mul_left _ (by nlinarith)
     _ = A * (Δ + 1) * (F.numVars + 1) := by ring
 
 /-- **Weighted `#CSP` by tensor contraction over a finite relation alphabet**: the weights at
@@ -274,7 +267,7 @@ patterns of length at most `k` are then bounded and polynomial-time in the relat
 theorem exists_partitionFunctionCounter_of_finite [Finite Rel] (encRel : Rel ↪ List Bool)
     (k : ℕ) (wt : Rel → List Bool → ℕ) :
     ∃ (count : CSP Rel ℕ → ℕ) (T S : CSP Rel ℕ → ℕ) (e b : ℕ),
-      (∀ F : CSP Rel ℕ, (∀ c ∈ F, 1 ≤ c.2.length ∧ c.2.length ≤ k) →
+      (∀ F : CSP Rel ℕ, (∀ c ∈ F, 1 ≤ c.scope.length ∧ c.scope.length ≤ k) →
         count F = F.partitionFunction wt) ∧
       ComputableInO count (encCSP encRel encNat) encNat T S ∧
       (∀ F, S F = ((encCSP encRel encNat F).length + 1) ^ b) ∧

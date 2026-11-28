@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Circuit.Wiring
 import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Correctness
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Batcher sorting circuits
@@ -104,12 +105,12 @@ open bitonicLayerCircuit
 /-- Gather reads corresponding records from the two halves without changing their bits. -/
 private theorem bitonicLayerCircuit.gather_pair {n r : ℕ} (x : BitString ((n + n) * r))
     (j : Fin n) :
-    directProductInput (x ∘ gather n r) j =
-      Fin.append (directProductInput x (Fin.castAdd n j))
-        (directProductInput x (Fin.natAdd n j)) := by
+    BitString.block (x ∘ gather n r) j =
+      Fin.append (BitString.block x (Fin.castAdd n j))
+        (BitString.block x (Fin.natAdd n j)) := by
   funext b
   cases b using Fin.addCases <;>
-    simp [directProductInput, gather, pairInput, -Fin.natAdd_eq_addNat]
+    simp [BitString.block, gather, pairInput, -Fin.natAdd_eq_addNat]
 
 namespace bitonicMergeCircuit
 
@@ -129,35 +130,30 @@ open bitonicMergeCircuit
 
 /-- The first flat input block is the first half of the record array. -/
 private theorem bitonicMergeCircuit.records_firstHalf {n r : ℕ} (x : BitString ((n + n) * r)) :
-    directProductInput (x ∘ firstHalf n r) = directProductInput x ∘ Fin.castAdd n := by
+    BitString.block (x ∘ firstHalf n r) = BitString.block x ∘ Fin.castAdd n := by
   funext j b
-  simp only [firstHalf, directProductInput, Function.comp_apply, Equiv.symm_apply_apply]
+  simp only [firstHalf, BitString.block, Function.comp_apply, Equiv.symm_apply_apply]
 
 /-- The second flat input block is the second half of the record array. -/
 private theorem bitonicMergeCircuit.records_secondHalf {n r : ℕ} (x : BitString ((n + n) * r)) :
-    directProductInput (x ∘ secondHalf n r) = directProductInput x ∘ Fin.natAdd n := by
+    BitString.block (x ∘ secondHalf n r) = BitString.block x ∘ Fin.natAdd n := by
   funext j b
-  simp only [secondHalf, directProductInput, Function.comp_apply, Equiv.symm_apply_apply]
+  simp only [secondHalf, BitString.block, Function.comp_apply, Equiv.symm_apply_apply]
 
 namespace bitonicSortTraceCircuit
 
-/-- Flatten a finite array of equal-width records. -/
-def flatten {n r : ℕ} (x : Fin n → BitString r) : BitString (n * r) :=
-  fun i => x (finProdFinEquiv.symm i).1 (finProdFinEquiv.symm i).2
-
-/-- Taking the record view of a flattened record array recovers the array. -/
-@[simp] theorem directProductInput_flatten {n r : ℕ} (x : Fin n → BitString r) :
-    directProductInput (flatten x) = x := by
-  funext i b
-  simp only [directProductInput, flatten, Equiv.symm_apply_apply]
+/-- Flatten a finite array of equal-width records: the inverse of cutting into blocks,
+`BitString.blocksEquiv.symm`. -/
+abbrev flatten {n r : ℕ} (x : Fin n → BitString r) : BitString (n * r) :=
+  BitString.blocksEquiv.symm x
 
 /-- The controls retain both a decision and its complement. -/
 def controls {t n r : ℕ} (x : BitString (t * 2 + n * r)) : Fin t → BitString 2 :=
-  directProductInput (x ∘ Fin.castAdd (n * r))
+  BitString.block (x ∘ Fin.castAdd (n * r))
 
 /-- The payload records following the controls. -/
 def records {t n r : ℕ} (x : BitString (t * 2 + n * r)) : Fin n → BitString r :=
-  directProductInput (x ∘ Fin.natAdd (t * 2))
+  BitString.block (x ∘ Fin.natAdd (t * 2))
 
 /-- Encode control pairs followed by records. -/
 def pack {t n r : ℕ} (c : Fin t → BitString 2) (x : Fin n → BitString r) :
@@ -167,48 +163,34 @@ def pack {t n r : ℕ} (c : Fin t → BitString 2) (x : Fin n → BitString r) :
 /-- Reading the controls of `pack c x` recovers `c`. -/
 @[simp] theorem controls_pack {t n r : ℕ} (c : Fin t → BitString 2)
     (x : Fin n → BitString r) : controls (pack c x) = c := by
-  funext i b
-  simp only [controls, pack, flatten, directProductInput, Function.comp_apply,
-    Fin.append_left, Equiv.symm_apply_apply]
+  simp only [controls, pack, Fin.append_comp_castAdd, BitString.block_blocksEquiv_symm]
 
 /-- Reading the records of `pack c x` recovers `x`. -/
 @[simp] theorem records_pack {t n r : ℕ} (c : Fin t → BitString 2)
     (x : Fin n → BitString r) : records (pack c x) = x := by
-  funext i b
-  simp only [records, pack, flatten, directProductInput, Function.comp_apply,
-    Fin.append_right, Equiv.symm_apply_apply]
+  simp only [records, pack, Fin.append_comp_natAdd, BitString.block_blocksEquiv_symm]
 
 /-- Restricting `pack c x` to the suffix past the control wires yields `flatten x`. -/
 @[simp] theorem pack_comp_natAdd {t n r : ℕ} (c : Fin t → BitString 2)
     (x : Fin n → BitString r) : pack c x ∘ Fin.natAdd (t * 2) = flatten x :=
   Fin.append_comp_natAdd _ _
 
-/-- Flattening the record view recovers the original wire assignment. -/
-@[simp] theorem flatten_directProductInput {n r : ℕ} (x : BitString (n * r)) :
-    flatten (directProductInput x) = x := by
-  funext i
-  simp only [flatten, directProductInput, Prod.mk.eta, Equiv.apply_symm_apply]
-
 /-- Apply a circuit to the payload while retaining every control pair by free wiring. -/
 theorem eval_parallel_pack {t n m r v : ℕ}
     (f : Circuit signature (n * r) (m * v)) (c : Fin t → BitString 2)
     (x : Fin n → BitString r) :
     ((Circuit.id signature (t * 2)).parallel f).eval interpretation (pack c x) =
-      pack c (directProductInput (f.eval interpretation (flatten x))) := by
+      pack c (BitString.block (f.eval interpretation (flatten x))) := by
   simp only [Circuit.eval_parallel, Circuit.id, Circuit.eval_wiring, Function.comp_id,
-    pack, Fin.append_comp_castAdd, Fin.append_comp_natAdd, flatten_directProductInput]
+    pack, Fin.append_comp_castAdd, Fin.append_comp_natAdd, BitString.blocksEquiv_symm_block]
 
 /-- Control pairs and payload records determine the complete wire assignment. -/
 theorem ext {t n r : ℕ} {x y : BitString (t * 2 + n * r)}
     (hc : controls x = controls y) (hd : records x = records y) : x = y := by
   funext i
-  cases i using Fin.addCases with
-  | left i =>
+  refine Fin.addCases (fun i => ?_) (fun i => ?_) i <;>
     obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective i
-    exact congrFun (congrFun hc j) b
-  | right i =>
-    obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective i
-    exact congrFun (congrFun hd j) b
+  exacts [congrFun (congrFun hc j) b, congrFun (congrFun hd j) b]
 
 /-- The explicit numbering of control-pair and record coordinates. -/
 def layout (t n r : ℕ) : (Fin t × Fin 2) ⊕ (Fin n × Fin r) ≃
@@ -236,7 +218,7 @@ private theorem controls_collect {input a b n m r : ℕ}
         (controls (right.eval interpretation x)) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [controls, collect, layout, Circuit.eval_wiringOn, directProductInput,
+    simp [circuit_simps, controls, collect, layout, BitString.block,
       Equiv.sumSumSumComm, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem records_collect {input a b n m r : ℕ}
@@ -247,15 +229,14 @@ private theorem records_collect {input a b n m r : ℕ}
         (records (right.eval interpretation x)) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [records, collect, layout, Circuit.eval_wiringOn, directProductInput,
+    simp [circuit_simps, records, collect, layout, BitString.block,
       Equiv.sumSumSumComm, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_collect {input a b n m r : ℕ}
     (left : Circuit signature input (a * 2 + n * r))
     (right : Circuit signature input (b * 2 + m * r)) (cost : signature.Op → ℕ) :
     (collect left right).program.cost cost = left.program.cost cost + right.program.cost cost := by
-  simp only [collect, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.cost_program_wiringOn, Nat.add_zero]
+  simp only [circuit_simps, collect, Nat.add_zero]
 
 /-- Preserve the first controls while executing the second circuit on its payload. -/
 def chain {input a b n m r : ℕ}
@@ -279,7 +260,7 @@ private theorem controls_chain {input a b n m r : ℕ}
           (first.eval interpretation x ∘ Fin.natAdd (a * 2)))) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [controls, chain, layout, Circuit.eval_wiringOn, directProductInput,
+    simp [circuit_simps, controls, chain, layout, BitString.block,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem records_chain {input a b n m r : ℕ}
@@ -288,7 +269,7 @@ private theorem records_chain {input a b n m r : ℕ}
     records ((chain first second).eval interpretation x) =
       records (second.eval interpretation (first.eval interpretation x ∘ Fin.natAdd (a * 2))) := by
   funext j bit
-  simp [records, chain, layout, Circuit.eval_wiringOn, directProductInput,
+  simp [circuit_simps, records, chain, layout, BitString.block,
     -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_chain {input a b n m r : ℕ}
@@ -296,8 +277,7 @@ private theorem cost_chain {input a b n m r : ℕ}
     (second : Circuit signature (n * r) (b * 2 + m * r)) (cost : signature.Op → ℕ) :
     (chain first second).program.cost cost =
       first.program.cost cost + second.program.cost cost := by
-  simp only [chain, Circuit.cost_program_comp, Circuit.cost_program_parallel, Circuit.id,
-    Circuit.cost_program_wiringOn, Circuit.cost_program_wiring, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, chain, Circuit.cost_program_parallel, Nat.zero_add, Nat.add_zero]
 
 private theorem eval_collect {input a b n m r : ℕ}
     (left : Circuit signature input (a * 2 + n * r))
@@ -359,11 +339,9 @@ private theorem cost_pair {r : ℕ} (flag : Circuit signature (r + r) 1) (ascend
     (cost : signature.Op → ℕ) :
     (pair flag ascending).program.cost cost =
       (compareSwapCircuit.record flag).program.cost cost := by
-  cases ascending with
-  | true => rfl
-  | false =>
-    unfold pair
-    erw [Circuit.cost_program_comp, Circuit.cost_program_wiring, Nat.add_zero]
+  cases ascending
+  · erw [pair, Circuit.cost_program_comp, Circuit.cost_program_wiring, Nat.add_zero]
+  · rfl
 
 /-- Compare a layer and retain all of its controls before the payload. -/
 def layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascending : Bool) :
@@ -393,17 +371,16 @@ private theorem eval_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascend
     (x : BitString ((n + n) * r)) :
     (layer key n ascending).eval interpretation x =
       pack (pairs (BitonicSort.layerFlags (fun row : BitString r => toLex (row ∘ key))
-        ascending (directProductInput x)))
+        ascending (BitString.block x)))
         (BitonicSort.compareLayer (fun row : BitString r => toLex (row ∘ key))
-          ascending (directProductInput x)) := by
+          ascending (BitString.block x)) := by
   classical
   apply ext
   · rw [controls_pack]
     funext j bit
-    simp only [controls, layer, directProductInput, Circuit.eval_comp,
-      Circuit.eval_wiring, Function.comp_apply, Fin.addCases_left,
+    simp only [circuit_simps, controls, layer, BitString.block, Fin.addCases_left,
       Equiv.symm_apply_apply, Circuit.eval_replicate_apply, bitonicLayerCircuit.gather_pair,
-      eval_pair, Fin.append_left, flag_eq_decide, pairs, BitonicSort.layerFlags]
+      eval_pair, flag_eq_decide, pairs, BitonicSort.layerFlags]
     cases ascending <;>
       simp only [Bool.false_eq_true, ↓reduceIte, decide_not, Bool.not_not] <;>
       congr 2 <;> first
@@ -412,17 +389,16 @@ private theorem eval_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascend
   · rw [records_pack]
     funext j bit
     cases j using Fin.addCases <;>
-      simp only [records, layer, directProductInput, Circuit.eval_comp,
-        Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, Fin.addCases_left,
-        Equiv.symm_apply_apply, Circuit.eval_replicate_apply, bitonicLayerCircuit.gather_pair,
-        eval_pair, Fin.append_right, flag_eq_decide, BitonicSort.compareLayer,
+      simp only [circuit_simps, records, layer, BitString.block, Fin.addCases_right,
+        Fin.addCases_left, Equiv.symm_apply_apply, Circuit.eval_replicate_apply,
+        bitonicLayerCircuit.gather_pair, eval_pair, flag_eq_decide, BitonicSort.compareLayer,
         BitonicSort.compareLayer.source]
     all_goals
       cases ascending <;>
         simp only [Bool.false_eq_true, ↓reduceIte, decide_eq_true_eq,
           Bool.not_eq_true', decide_eq_false_iff_not] <;>
         split_ifs <;>
-        simp_all only [Fin.append_left, Fin.append_right, directProductInput] <;>
+        simp_all only [Fin.append_left, Fin.append_right, BitString.block] <;>
         contradiction
 
 private theorem cost_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascending : Bool)
@@ -431,8 +407,8 @@ private theorem cost_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascend
       (compareSwapCircuit.record
         (Formula.lexLt (Fin.natAdd r ∘ key) (Fin.castAdd r ∘ key)).toCircuit).program.cost
           cost := by
-  simp only [layer, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Circuit.cost_program_replicate, cost_pair, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, layer, Circuit.cost_program_replicate, cost_pair, Nat.zero_add,
+    Nat.add_zero]
 
 /-- Run one traced circuit on each half of a record array. -/
 def halves {a b n r : ℕ} (left : Circuit signature (n * r) (a * 2 + n * r))
@@ -450,13 +426,12 @@ private theorem eval_halves {a b n r : ℕ} (left : Circuit signature (n * r) (a
         (Fin.append
           (records (left.eval interpretation (x ∘ bitonicMergeCircuit.firstHalf n r)))
           (records (right.eval interpretation (x ∘ bitonicMergeCircuit.secondHalf n r)))) := by
-  simp only [halves, eval_collect, Circuit.eval_comp, Circuit.eval_wiring]
+  simp only [circuit_simps, halves, eval_collect]
 
 private theorem cost_halves {a b n r : ℕ} (left : Circuit signature (n * r) (a * 2 + n * r))
     (right : Circuit signature (n * r) (b * 2 + n * r)) (cost : signature.Op → ℕ) :
     (halves left right).program.cost cost = left.program.cost cost + right.program.cost cost := by
-  simp only [halves, cost_collect, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Nat.zero_add]
+  simp only [circuit_simps, halves, cost_collect, Nat.zero_add]
 
 end bitonicSortTraceCircuit
 
@@ -484,45 +459,39 @@ theorem eval_bitonicMergeTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
     (ascending : Bool) (x : BitString (arity d * r)) :
     (bitonicMergeTraceCircuit key d ascending).eval interpretation x =
       pack (pairs (BitonicSort.mergeTrace (fun row : BitString r => toLex (row ∘ key))
-        d ascending (directProductInput x)))
+        d ascending (BitString.block x)))
         (BitonicSort.merge (fun row : BitString r => toLex (row ∘ key))
-          d ascending (directProductInput x)) := by
+          d ascending (BitString.block x)) := by
   induction d with
   | zero =>
     dsimp only [bitonicMergeTraceCircuit, mergeTraceSize, BitonicSort.merge, BitonicSort.mergeTrace]
-    funext i
-    cases i using Fin.addCases with
-    | left i => exact Fin.elim0 i
-    | right i =>
-      simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right,
-        pack, Fin.append_right, flatten, directProductInput, Prod.mk.eta,
-        Equiv.apply_symm_apply, id_eq]
+    refine funext (Fin.addCases (fun i => i.elim0) fun i => ?_)
+    simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, pack, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
+      Equiv.apply_symm_apply, id_eq]
   | succ d ih =>
     dsimp only [arity] at x
     simp only [bitonicMergeTraceCircuit, mergeTraceSize, arity,
       BitonicSort.mergeTrace, BitonicSort.merge]
     erw [eval_chain _ _ _ _ _ (eval_layer key (arity d) ascending x), eval_halves]
     simp only [ih, controls_pack, records_pack, bitonicMergeCircuit.records_firstHalf,
-      bitonicMergeCircuit.records_secondHalf, directProductInput_flatten, pairs_append]
+      bitonicMergeCircuit.records_secondHalf, BitString.block_blocksEquiv_symm, pairs_append]
 
 /-- The forward sorter exposes exactly the semantic trace and sorted records. -/
 theorem eval_bitonicSortTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : ℕ)
     (ascending : Bool) (x : BitString (arity d * r)) :
     (bitonicSortTraceCircuit key d ascending).eval interpretation x =
       pack (pairs (BitonicSort.sortTrace (fun row : BitString r => toLex (row ∘ key))
-        d ascending (directProductInput x)))
+        d ascending (BitString.block x)))
         (BitonicSort.sort (fun row : BitString r => toLex (row ∘ key))
-          d ascending (directProductInput x)) := by
+          d ascending (BitString.block x)) := by
   induction d generalizing ascending with
   | zero =>
     dsimp only [bitonicSortTraceCircuit, sortTraceSize, BitonicSort.sort, BitonicSort.sortTrace]
-    funext i
-    cases i using Fin.addCases with
-    | left i => exact Fin.elim0 i
-    | right i =>
-      simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right,
-        pack, Fin.append_right, flatten, directProductInput, Prod.mk.eta,
-        Equiv.apply_symm_apply, id_eq]
+    refine funext (Fin.addCases (fun i => i.elim0) fun i => ?_)
+    simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, pack, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
+      Equiv.apply_symm_apply, id_eq]
   | succ d ih =>
     dsimp only [arity] at x
     simp only [bitonicSortTraceCircuit, sortTraceSize, arity,
@@ -530,7 +499,7 @@ theorem eval_bitonicSortTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
     erw [eval_chain _ _ _ _ _ (eval_halves _ _ x), eval_bitonicMergeTraceCircuit]
     simp only [ih, arity, mergeTraceSize, controls_pack, records_pack,
       bitonicMergeCircuit.records_firstHalf,
-      bitonicMergeCircuit.records_secondHalf, directProductInput_flatten]
+      bitonicMergeCircuit.records_secondHalf, BitString.block_blocksEquiv_symm]
     erw [controls_pack, records_pack, ← pairs_append, ← pairs_append]
 
 /-- A traced merge computes each comparator once, retaining its existing control pair. -/
@@ -584,49 +553,40 @@ def bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ) (ascend
 /-- Reading complete output records agrees with the generic bitonic comparison layer. -/
 theorem eval_bitonicLayerCircuit {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascending : Bool)
     (x : BitString ((n + n) * r)) :
-    directProductInput ((bitonicLayerCircuit key n ascending).eval interpretation x) =
+    BitString.block ((bitonicLayerCircuit key n ascending).eval interpretation x) =
       BitonicSort.compareLayer (fun record : BitString r => toLex (record ∘ key)) ascending
-        (directProductInput x) := by
-  by_cases hr : r = 0
-  · subst r
-    funext j bit
-    exact Fin.elim0 bit
-  · rw [bitonicLayerCircuit, ite_eq_right hr, Circuit.eval_comp,
-      Circuit.eval_wiring, eval_layer]
+        (BitString.block x) := by
+  rcases eq_or_ne r 0 with rfl | hr
+  · exact funext fun _ => funext fun i => Fin.elim0 i
+  · rw [bitonicLayerCircuit, ite_eq_right hr, Circuit.eval_comp, Circuit.eval_wiring, eval_layer]
     exact records_pack _ _
 
 /-- The native circuit realizes bitonic merge on complete records. -/
 theorem eval_bitonicMergeCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)
     (ascending : Bool) (x : BitString (BitonicSort.arity depth * r)) :
-    directProductInput ((bitonicMergeCircuit key depth ascending).eval interpretation x) =
+    BitString.block ((bitonicMergeCircuit key depth ascending).eval interpretation x) =
       BitonicSort.merge (fun record : BitString r => toLex (record ∘ key)) depth ascending
-        (directProductInput x) := by
-  by_cases hr : r = 0
-  · subst r
-    funext j bit
-    exact Fin.elim0 bit
-  · rw [bitonicMergeCircuit, ite_eq_right hr, Circuit.eval_comp,
-      Circuit.eval_wiring, eval_bitonicMergeTraceCircuit]
-    exact records_pack _ _
+        (BitString.block x) := by
+  rcases eq_or_ne r 0 with rfl | hr
+  · exact funext fun _ => funext fun i => Fin.elim0 i
+  · rw [bitonicMergeCircuit, ite_eq_right hr, Circuit.eval_comp, Circuit.eval_wiring,
+      eval_bitonicMergeTraceCircuit, pack_comp_natAdd, BitString.block_blocksEquiv_symm]
 
 /-- The native circuit realizes Batcher sorting on complete records. -/
 theorem eval_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)
     (ascending : Bool) (x : BitString (BitonicSort.arity depth * r)) :
-    directProductInput ((bitonicSortCircuit key depth ascending).eval interpretation x) =
+    BitString.block ((bitonicSortCircuit key depth ascending).eval interpretation x) =
       BitonicSort.sort (fun record : BitString r => toLex (record ∘ key)) depth ascending
-        (directProductInput x) := by
-  by_cases hr : r = 0
-  · subst r
-    funext j bit
-    exact Fin.elim0 bit
-  · rw [bitonicSortCircuit, ite_eq_right hr, Circuit.eval_comp,
-      Circuit.eval_wiring, eval_bitonicSortTraceCircuit]
-    exact records_pack _ _
+        (BitString.block x) := by
+  rcases eq_or_ne r 0 with rfl | hr
+  · exact funext fun _ => funext fun i => Fin.elim0 i
+  · rw [bitonicSortCircuit, ite_eq_right hr, Circuit.eval_comp, Circuit.eval_wiring,
+      eval_bitonicSortTraceCircuit, pack_comp_natAdd, BitString.block_blocksEquiv_symm]
 
 /-- The output keys of ascending sorting are nondecreasing. -/
 theorem monotone_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)
     (x : BitString (BitonicSort.arity depth * r)) :
-    Monotone (fun j => toLex (directProductInput
+    Monotone (fun j => toLex (BitString.block
       ((bitonicSortCircuit key depth true).eval interpretation x) j ∘ key)) := by
   rw [eval_bitonicSortCircuit]
   exact BitonicSort.monotone_sort (fun record : BitString r => toLex (record ∘ key)) depth _
@@ -634,7 +594,7 @@ theorem monotone_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth :
 /-- The output keys of descending sorting are nonincreasing. -/
 theorem antitone_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)
     (x : BitString (BitonicSort.arity depth * r)) :
-    Antitone (fun j => toLex (directProductInput
+    Antitone (fun j => toLex (BitString.block
       ((bitonicSortCircuit key depth false).eval interpretation x) j ∘ key)) := by
   rw [eval_bitonicSortCircuit]
   exact BitonicSort.antitone_sort (fun record : BitString r => toLex (record ∘ key)) depth _
@@ -642,9 +602,9 @@ theorem antitone_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth :
 /-- Sorting preserves the multiset of complete input records, including payload and duplicates. -/
 theorem bitonicSortCircuit_perm {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)
     (ascending : Bool) (x : BitString (BitonicSort.arity depth * r)) :
-    (List.ofFn (directProductInput
+    (List.ofFn (BitString.block
       ((bitonicSortCircuit key depth ascending).eval interpretation x))).Perm
-        (List.ofFn (directProductInput x)) := by
+        (List.ofFn (BitString.block x)) := by
   rw [eval_bitonicSortCircuit]
   exact BitonicSort.sort_perm _ _ _ _
 
@@ -653,9 +613,8 @@ theorem cost_program_bitonicLayerCircuit {k r : ℕ} (key : Fin k → Fin r) (n 
     (ascending : Bool) (cost : signature.Op → ℕ) :
     (bitonicLayerCircuit key n ascending).program.cost cost =
       n * (compareSwapCircuit key).program.cost cost := by
-  by_cases hr : r = 0
-  · rw [bitonicLayerCircuit, ite_eq_left hr, compareSwapCircuit, ite_eq_left hr]
-    simp only [Circuit.id, Circuit.cost_program_wiring, Nat.mul_zero]
+  rcases Decidable.eq_or_ne r 0 with rfl | hr
+  · simp [bitonicLayerCircuit, compareSwapCircuit, Circuit.id]
   · rw [bitonicLayerCircuit, ite_eq_right hr, Circuit.cost_program_comp,
       Circuit.cost_program_wiring, Nat.add_zero, cost_layer,
       compareSwapCircuit.cost_record_eq_exchange, compareSwapCircuit, ite_eq_right hr]
@@ -665,9 +624,8 @@ theorem two_mul_cost_program_bitonicMergeCircuit {k r : ℕ} (key : Fin k → Fi
     (depth : ℕ) (ascending : Bool) (cost : signature.Op → ℕ) :
     2 * (bitonicMergeCircuit key depth ascending).program.cost cost =
       depth * 2 ^ depth * (compareSwapCircuit key).program.cost cost := by
-  by_cases hr : r = 0
-  · rw [bitonicMergeCircuit, ite_eq_left hr, compareSwapCircuit, ite_eq_left hr]
-    simp only [Circuit.id, Circuit.cost_program_wiring, Nat.mul_zero]
+  rcases Decidable.eq_or_ne r 0 with rfl | hr
+  · simp [bitonicMergeCircuit, compareSwapCircuit, Circuit.id]
   · rw [bitonicMergeCircuit, ite_eq_right hr, Circuit.cost_program_comp,
       Circuit.cost_program_wiring, Nat.add_zero, cost_program_bitonicMergeTraceCircuit,
       ← Nat.mul_assoc, BitonicSort.two_mul_mergeTraceSize,
@@ -679,9 +637,8 @@ theorem four_mul_cost_program_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fi
     (depth : ℕ) (ascending : Bool) (cost : signature.Op → ℕ) :
     4 * (bitonicSortCircuit key depth ascending).program.cost cost =
       depth * (depth + 1) * 2 ^ depth * (compareSwapCircuit key).program.cost cost := by
-  by_cases hr : r = 0
-  · rw [bitonicSortCircuit, ite_eq_left hr, compareSwapCircuit, ite_eq_left hr]
-    simp only [Circuit.id, Circuit.cost_program_wiring, Nat.mul_zero]
+  rcases Decidable.eq_or_ne r 0 with rfl | hr
+  · simp [bitonicSortCircuit, compareSwapCircuit, Circuit.id]
   · rw [bitonicSortCircuit, ite_eq_right hr, Circuit.cost_program_comp,
       Circuit.cost_program_wiring, Nat.add_zero, cost_program_bitonicSortTraceCircuit,
       ← Nat.mul_assoc, BitonicSort.four_mul_sortTraceSize,
@@ -716,7 +673,6 @@ theorem size_bitonicSortTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
   have h := cost_program_bitonicSortTraceCircuit key d ascending (fun _ => 1)
   rw [compareSwapCircuit.cost_record] at h
   simp only [Program.cost_const, one_mul, Formula.size_toCircuit, Formula.size_lexLt] at h
-  rw [h]
-  ring
+  exact h.trans (by ring)
 
 end Cslib.Circuits.Boolean

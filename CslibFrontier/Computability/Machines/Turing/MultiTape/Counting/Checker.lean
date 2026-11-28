@@ -132,17 +132,16 @@ theorem computableInPolyTime_indexStep [Finite State]
     (machine : MultiTapeCTM k Bool State) :
     ComputableInPolyTime (fun p : Storage k State × ℕ => indexStep machine p.1 p.2)
       (encPair encFiniteConfig encUnary) (encOption encFiniteConfig) := by
-  refine .of_tidy ?_
   classical
   let encIn := encPair (encFiniteConfig (k := k) (State := State) (Oracle := Empty)) encUnary
-  have hcfg : ComputableTidilyInPolyTime (fun p : Storage k State × ℕ => p.1)
+  have hcfg : ComputableInPolyTime (fun p : Storage k State × ℕ => p.1)
       encIn encFiniteConfig := .fst _ _
-  have hindex : ComputableTidilyInPolyTime (fun p : Storage k State × ℕ => p.2)
+  have hindex : ComputableInPolyTime (fun p : Storage k State × ℕ => p.2)
       encIn encUnary := .snd _ _
-  have hstate := ComputableTidilyInPolyTime.finiteCfg_state.comp
-    (ComputableTidilyInPolyTime.finiteConfig_tapes.comp hcfg)
+  have hstate := ComputableInPolyTime.finiteCfg_state.comp
+    (ComputableInPolyTime.finiteConfig_tapes.comp hcfg)
   unfold indexStep
-  refine ComputableTidilyInPolyTime.finite_cases
+  refine ComputableInPolyTime.finite_cases
     (branch := fun state p => match state with
       | none => if p.2 = 0 then some p.1 else none
       | some state =>
@@ -152,24 +151,24 @@ theorem computableInPolyTime_indexStep [Finite State]
   cases state with
   | none =>
     exact (hindex.decide_eq' (.const 0)).ite_decide
-      ((ComputableTidilyInPolyTime.optionSome _).comp hcfg) (.const none)
+      ((ComputableInPolyTime.optionSome _).comp hcfg) (.const none)
   | some state =>
-    have hview : ComputableTidilyInPolyTime (fun p : Storage k State × ℕ =>
+    have hview : ComputableInPolyTime (fun p : Storage k State × ℕ =>
         (state, p.1.tapes.inputSymbol, p.1.tapes.workTapeSymbols)) encIn
         (encPair (encFinite State)
           (encPair (encFinEnum (Option Bool)) (encFinEnum (Fin k → Option Bool)))) := by fun_prop
-    have hactions : ComputableTidilyInPolyTime (fun p : Storage k State × ℕ =>
+    have hactions : ComputableInPolyTime (fun p : Storage k State × ℕ =>
         localActions machine (state, p.1.tapes.inputSymbol, p.1.tapes.workTapeSymbols))
         encIn (encList (encFinite (Turing.Action k Bool State))) :=
-      (ComputableTidilyInPolyTime.of_finite (localActions machine)).comp hview
+      (ComputableInPolyTime.of_finite (localActions machine)).comp hview
     refine (hactions.getElem? (encA := encFinite (Turing.Action k Bool State)) hindex).finite_cases
       (branch := fun selected p => selected.map
         (fun action => p.1.step action Empty.elim Empty.elim)) (fun selected => ?_)
     cases selected with
     | none => exact .const none
     | some action =>
-      exact (ComputableTidilyInPolyTime.optionSome _).comp
-        ((ComputableTidilyInPolyTime.finiteConfig_step action Empty.elim Empty.elim).comp hcfg)
+      exact (ComputableInPolyTime.optionSome _).comp
+        ((ComputableInPolyTime.finiteConfig_step action Empty.elim Empty.elim).comp hcfg)
 
 /-- A replay step retains the existing linear storage bound, including forced terminal padding. -/
 theorem indexStep_spaceBound (machine : MultiTapeCTM k Bool State)
@@ -212,7 +211,6 @@ theorem computableInPolyTime_binaryStep [Finite State]
     ComputableInPolyTime (binaryStep machine width)
       encRuntime encRuntime := by
   unfold binaryStep
-  simp only [bind]
   option_match_to_elim
   fun_prop
 
@@ -231,14 +229,13 @@ output and remaining certificate; there is no assumed simulation or counting cer
 theorem computableInPolyTime_runBinary [Finite State]
     (machine : MultiTapeCTM k Bool State) (width : ℕ) :
     ComputableInPolyTime (runBinary machine width) (encPair encBits encBits) encRuntime := by
-  refine .of_tidy ?_
   obtain ⟨c, hstorage⟩ := length_encFiniteConfig_le (k := k) (State := State) (Oracle := Empty)
-  have hcount : ComputableTidilyInPolyTime (fun p : List Bool × List Bool => p.2.length / width)
+  have hcount : ComputableInPolyTime (fun p : List Bool × List Bool => p.2.length / width)
       (encPair encBits encBits) encUnary := by fun_prop
-  have hinit : ComputableTidilyInPolyTime (initial machine) (encPair encBits encBits)
+  have hinit : ComputableInPolyTime (initial machine) (encPair encBits encBits)
       encRuntime := by unfold initial; fun_prop
-  apply (ComputableTidilyInPolyTime.iterate_spec hcount hinit
-    (computableInPolyTime_binaryStep machine width).tidy
+  apply (ComputableInPolyTime.iterate_spec hcount hinit
+    (computableInPolyTime_binaryStep machine width)
     (fun p i r => r.1.length ≤ p.2.length ∧
       ∀ finite, r.2 = some finite → FiniteConfig.SpaceBound p.1.length i 0 finite)
     (fun p => ⟨le_rfl, fun finite hf => by
@@ -271,14 +268,13 @@ theorem computableInPolyTime_runBinary [Finite State]
 theorem computableInPolyTime_finish [Finite State] :
     ComputableInPolyTime (finish (k := k) (State := State))
       encFiniteConfig (encOption encBits) := by
-  refine .of_tidy ?_
-  have hstate := ComputableTidilyInPolyTime.finiteCfg_state.comp
-    (ComputableTidilyInPolyTime.finiteConfig_tapes (k := k) (State := State) (Oracle := Empty))
-  have hhalt := (ComputableTidilyInPolyTime.of_finite
-    (encB := encBool) (Option.isNone (α := State))).comp hstate
-  have hout := ComputableTidilyInPolyTime.finiteCfg_output.comp
-    (ComputableTidilyInPolyTime.finiteConfig_tapes (k := k) (State := State) (Oracle := Empty))
-  exact hhalt.cond ((ComputableTidilyInPolyTime.optionSome encBits).comp hout) (.const none)
+  have hstate := ComputableInPolyTime.finiteCfg_state.comp
+    (ComputableInPolyTime.finiteConfig_tapes (k := k) (State := State) (Oracle := Empty))
+  have hhalt := (ComputableInPolyTime.of_finite
+    (encOut := encBool) (Option.isNone (α := State))).comp hstate
+  have hout := ComputableInPolyTime.finiteCfg_output.comp
+    (ComputableInPolyTime.finiteConfig_tapes (k := k) (State := State) (Oracle := Empty))
+  exact hhalt.ite' ((ComputableInPolyTime.optionSome encBits).comp hout) (.const none)
 
 /-- A leftover partial block or an invalid/nonhalting replay has no output certificate. -/
 def finishRuntime (runtime : Runtime k State) : Option (List Bool) :=
@@ -336,7 +332,6 @@ theorem computableInPolyTime_finishRuntime [Finite State] :
     ComputableInPolyTime (finishRuntime (k := k) (State := State))
       encRuntime (encOption encBits) := by
   unfold finishRuntime
-  simp only [bind]
   option_match_to_elim
   fun_prop
 
@@ -362,7 +357,7 @@ theorem checkBinary_eq_certificateAccepts (machine : MultiTapeCTM k Bool State)
 theorem computableInPolyTime_checkBinary [Finite State]
     (machine : MultiTapeCTM k Bool State) (width : ℕ) (verdict : Bool) :
     ComputableInPolyTime (checkBinary machine width verdict) (encPair encBits encBits) encBool := by
-  unfold checkBinary Option.any
+  unfold checkBinary
   option_match_to_elim
   fun_prop
 

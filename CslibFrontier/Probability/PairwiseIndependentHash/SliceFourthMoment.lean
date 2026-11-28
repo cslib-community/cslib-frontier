@@ -59,7 +59,6 @@ private theorem two_mul_pow_le {V D : Type*} [Fintype V] [Fintype D]
     (G : RotationMap V D) {lam : ℝ} (hG : G.spectralExpansion ≤ lam) (t : ℕ) (X : ℝ)
     (hX : 0 ≤ X) : 2 * G.spectralExpansion ^ (2 * t) * X ≤ 2 * lam ^ (2 * t) * X := by
   gcongr
-  exact G.spectralExpansion_nonneg
 
 /-- **Fourth-moment conditional averaging on a retention slice**: on the retention slice of every
 identifier `y`, `2 t` steps of the lazy affine walk multiply the fourth central moment of every

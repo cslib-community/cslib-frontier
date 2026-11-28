@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Exact physical normalization after a pointer-gather product
@@ -42,31 +43,12 @@ theorem exec_finish {W b I Q O M : ℕ} (x : Data 163)
       (∀ i : Fin Q, y.mem (b + (O + i.val)) = answers i) ∧
       ∀ a, (a < b ∨ b + (I + 1) ≤ a) → (a < b + O ∨ b + O + Q ≤ a) →
         y.mem a = x.mem a := by
-  let z := (x.set Reg.third 1).set Reg.inputSize (I + 1)
-  have hz : ExecWithin W CallableBoxProduct.includeThreshold x z 2 := by
-    ram_eval [CallableBoxProduct.includeThreshold, z, hI,
-      hfit.of_le (show 1 ≤ b + (I + 1) + O + Q + M + 8 by omega),
-      hfit.of_le (show I + 1 ≤ b + (I + 1) + O + Q + M + 8 by omega),
-      Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize, Fin.mk.injEq]
-  have zb : z.regs Reg.base = b := by
-    simpa +decide [z, Reg.base, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      Function.update_apply] using hb
-  have zm : z.regs Reg.modulus = M := by
-    simpa +decide [z, Reg.modulus, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      Function.update_apply] using hmod
-  have zq : z.regs Reg.queryCount = Q := by
-    simpa +decide [z, Reg.queryCount, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      QueriedProduct.Reg.queryCount, Function.update_apply] using hQ
-  have zo : z.regs Reg.output = O := by
-    simpa +decide [z, Reg.output, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      QueriedProduct.Reg.output, Function.update_apply] using hO
-  obtain ⟨s, hs, sm, sf⟩ := exec_restoreInput (n := I + 1) z zb (by simp [z]) zm hM
-    (hfit.of_le (by omega))
-  obtain ⟨y, hy, ym, yr, _⟩ := exec_returnOutput s
-    ((sf _ (by decide)).trans zb) ((sf _ (by decide)).trans zo)
-    ((sf _ (by decide)).trans zq) ((sf _ (by decide)).trans zm) hM
-    (hfit.of_le (by omega))
-  refine ⟨y, (hz.seq (hs.seq hy)).mono (by omega), yr, ?_, ?_, ?_⟩
+  refine WP.exists_execWithin ?_
+  unfold finish CallableBoxProduct.includeThreshold
+  wram_exec *
+  wram_call exec_restoreInput with s ⟨sm, sf⟩
+  wram_call exec_returnOutput with y ⟨ym, yr, _⟩
+  refine ⟨by omega, yr, ?_, ?_, ?_⟩
   · intro a ha
     rw [ym, ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega), sm,
       ArrayNormalize.normalizePrefix_read _ _ _ _ _ ha]
@@ -75,7 +57,7 @@ theorem exec_finish {W b I Q O M : ℕ} (x : Data 163)
     rw [ym, show b + (O + i.val) = (b + O) + i.val by omega,
       ArrayNormalize.normalizePrefix_read _ _ _ _ _ i.isLt, sm,
       ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega)]
-    simpa only [z, Data.set_mem, Nat.add_assoc] using hv i
+    simpa only [Data.set_mem, Nat.add_assoc] using hv i
   · intro a ha ho
     rw [ym, ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega), sm,
       ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega)]

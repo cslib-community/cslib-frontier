@@ -20,6 +20,8 @@
 #     tracking, so a plain `git push` cannot target the base branch.
 #
 # Cache seeding note:
+#   Seed build outputs only when the destination toolchain/manifest and clean checked-out pins
+#   match. Otherwise seed the clean matching source checkouts with independent Git controls.
 #   Package sources are hard-linked (`cp -al`) by default. Root build/config caches and every
 #   package's `.lake` cache are copied with independent inodes, preserving modes and mtimes.
 #   Cache symlinks and any package symlinks whose targets are absolute or escape the package
@@ -204,15 +206,98 @@ walk_dir(pathlib.Path("."))
 PY
 }
 
-# seed_package <source> <destination> <copy_sources>. Copy caches without first hard-linking them.
+# Both native clone options fall back to copying bytes on filesystems without reflinks.
+# Select once per worktree, preserving the existing link-dereferencing copy on other platforms.
+cache_copy=(cp -aL)
+if cp --version 2>/dev/null | grep -q 'GNU coreutils'; then
+  cache_copy=(cp -aL --reflink=auto)
+elif [ "$(uname -s)" = Darwin ]; then
+  cache_copy=(/bin/cp -acL)
+fi
+
+# Print the copy mode followed by the verified package names. A pair of manifest-free
+# checkouts uses the legacy directory scan; a manifest-backed seed never scans for extra packages.
+# A different dependency or toolchain can invalidate even the matching packages' build outputs.
+seed_plan() {
+  python3 - "$ROOT" "$1" <<'PYTHON'
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+primary, target = map(Path, sys.argv[1:])
+
+def same_input(name):
+    source, dest = primary / name, target / name
+    if source.is_file() and dest.is_file():
+        return source.read_bytes() == dest.read_bytes()
+    return not (source.exists() or source.is_symlink() or dest.exists() or dest.is_symlink())
+
+def pinned_source(pkg, revision):
+    if not (pkg / ".git").exists():
+        return False
+    cmd = ["git", "--no-optional-locks", "-C", str(pkg)]
+    head = subprocess.run(cmd + ["rev-parse", "--verify", "HEAD"], capture_output=True, text=True)
+    if head.returncode or head.stdout.strip() != revision:
+        return False
+    status = subprocess.run(cmd + ["status", "--porcelain", "--untracked-files=normal",
+                                   "--", ".", ":(exclude).lake"], capture_output=True)
+    return status.returncode == 0 and not status.stdout
+
+try:
+    compatible = all(same_input(name) for name in (
+        "lean-toolchain", "lake-manifest.json", "lakefile.toml", "lakefile.lean"))
+    manifest = target / "lake-manifest.json"
+    existing_packages = (target / ".lake/packages").exists()
+    matched = []
+    if manifest.is_file():
+        entries = json.loads(manifest.read_bytes())["packages"]
+        if not isinstance(entries, list):
+            raise ValueError("expected manifest packages array")
+        seen = set()
+        for entry in entries:
+            name = entry["name"]
+            if (not isinstance(name, str) or not name or name in {".", "..", "*"} or "\n" in name
+                    or Path(name).name != name or name in seen):
+                raise ValueError("invalid or duplicate package name")
+            seen.add(name)
+            if entry["type"] == "git" and pinned_source(primary / ".lake/packages" / name, entry["rev"]):
+                matched.append(name)
+            else:
+                compatible = False
+            # prepare_lake preserves an existing packages directory rather than populating
+            # it. Its actual source trees must therefore match too, including missing pins.
+            if existing_packages and (entry["type"] != "git" or not pinned_source(
+                    target / ".lake/packages" / name, entry["rev"])):
+                compatible = False
+    elif existing_packages:
+        # Without a manifest there is no pinned destination identity to verify.
+        compatible = False
+    if compatible:
+        print("verified" if manifest.is_file() else "legacy")
+    else:
+        print(f"Skipping incompatible build outputs; reusing {len(matched)} pinned source checkouts.",
+              file=sys.stderr)
+        if matched:
+            print("sources")
+    for name in matched:
+        print(name)
+except (OSError, ValueError, KeyError, TypeError) as error:
+    print(f"Skipping initial cache copies: could not verify the seed inputs ({error}).", file=sys.stderr)
+PYTHON
+}
+
+# seed_package <source> <destination> <copy_sources> <copy_outputs>.
 seed_package() (
-  local source="$1" destination="$2" copy_sources="$3" entry base
+  local source="$1" destination="$2" copy_sources="$3" copy_outputs="$4" entry base
   mkdir -p "$destination"
   shopt -s dotglob nullglob
   for entry in "$source"/*; do
     base="$(basename "$entry")"
     if [ "$base" = ".lake" ]; then
-      cp -aL "$entry" "$destination/.lake"
+      if [ "$copy_outputs" = "true" ]; then
+        "${cache_copy[@]}" "$entry" "$destination/.lake"
+      fi
     elif [ "$base" = ".git" ]; then
       isolate_git_dir "$entry" "$destination/.git"
     elif [ "$copy_sources" = "true" ]; then
@@ -353,25 +438,42 @@ prepare_lake() {
     bootstrap_worktree_cache "$wt_path"
     return 0
   fi
+  local plan copy_outputs=false pkg name copy_sources
+  plan="$(seed_plan "$wt_path")"
+  if [ -z "$plan" ]; then
+    bootstrap_worktree_cache "$wt_path"
+    return 0
+  fi
+  local mode
+  local -a packages=()
+  {
+    IFS= read -r mode
+    while IFS= read -r name; do
+      packages+=("$ROOT/.lake/packages/$name")
+    done
+  } <<< "$plan"
+  if [ "$mode" = "legacy" ]; then
+    packages=("$ROOT"/.lake/packages/*)
+  fi
+  if [ "$mode" != "sources" ]; then copy_outputs=true; fi
   mkdir -p "$wt_path/.lake"
   if [ -d "$ROOT/.lake/packages" ] && [ ! -d "$wt_path/.lake/packages" ]; then
     mkdir -p "$wt_path/.lake/packages"
-    local pkg name copy_sources
-    for pkg in "$ROOT"/.lake/packages/*; do
+    for pkg in ${packages[@]+"${packages[@]}"}; do
       [ -d "$pkg" ] || continue
       name="$(basename "$pkg")"
       copy_sources="false"
       if [ "$copy_mode" = "all" ] || { [ "$copy_mode" = "cslib" ] && [ "$name" = "cslib" ]; }; then
         copy_sources="true"
       fi
-      seed_package "$pkg" "$wt_path/.lake/packages/$name" "$copy_sources"
+      seed_package "$pkg" "$wt_path/.lake/packages/$name" "$copy_sources" "$copy_outputs"
     done
   fi
-  if [ -d "$ROOT/.lake/config" ] && [ ! -d "$wt_path/.lake/config" ]; then
-    cp -aL "$ROOT/.lake/config" "$wt_path/.lake/config"
+  if [ "$copy_outputs" = "true" ] && [ -d "$ROOT/.lake/config" ] && [ ! -d "$wt_path/.lake/config" ]; then
+    "${cache_copy[@]}" "$ROOT/.lake/config" "$wt_path/.lake/config"
   fi
-  if [ -d "$ROOT/.lake/build" ] && [ ! -d "$wt_path/.lake/build" ]; then
-    cp -aL "$ROOT/.lake/build" "$wt_path/.lake/build"
+  if [ "$copy_outputs" = "true" ] && [ -d "$ROOT/.lake/build" ] && [ ! -d "$wt_path/.lake/build" ]; then
+    "${cache_copy[@]}" "$ROOT/.lake/build" "$wt_path/.lake/build"
   fi
   bootstrap_worktree_cache "$wt_path"
 }
@@ -482,7 +584,7 @@ case "$cmd" in
       fi
     done
     prepare_lake "$wt_path" "$copy_mode"
-    echo "Seeded .lake cache in $wt_path"
+    echo "Cache preparation finished for $wt_path"
     ;;
   list)
     git worktree list

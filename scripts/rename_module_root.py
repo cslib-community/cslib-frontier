@@ -35,8 +35,8 @@ Apply mode (the default) transforms the checkout in the current directory in pla
    when the module does not exist (test fixtures), so they are rewritten too. Comment lines that
    the longer names push past 100 columns are re-wrapped, and `FIXUPS` makes the few edits that
    no rule can.
-   `manual/development-history/` and `manual/data/` describe and analyse the pinned historical
-   snapshot, so only their URLs change.
+   `manual/history/` (formerly `manual/development-history/`) and `manual/data/` describe and
+   analyse the pinned historical snapshot, so only their URLs change.
 3. The aggregators are regenerated: with `lake exe mk_all` unless `--no-mk-all`, otherwise by the
    same rule in Python (`regenerate_aggregates`).
 
@@ -97,6 +97,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from aggregate_order import import_key  # noqa: E402
 from proof_lengths import masks  # noqa: E402  (the shared Lean comment and string lexer)
 
 TOOL = Path(__file__).resolve()
@@ -135,7 +136,7 @@ EXCLUDED = frozenset({
     "scripts/cache/setup-gcs.sh",
 })
 # Historical analyses of the pinned snapshot: only URLs change.
-URL_ONLY = ("manual/development-history/", "manual/data/")
+URL_ONLY = ("manual/history/", "manual/development-history/", "manual/data/")
 # Tooling sources: their dotted root tokens are module names even for nonexistent (fixture) modules.
 TOOLING_SUFFIXES = (".py", ".sh", ".cjs", ".js", ".yml", ".yaml")
 PRAGMA = "rename-module-root: keep"
@@ -717,10 +718,10 @@ def aggregate_specs(lakefile: str) -> list[tuple[str, str, str]]:
 
 
 def render_aggregate(existing: str, files, below: str, prefix: str) -> str:
-    """What `lake exe mk_all` writes: the sorted imports of every module below the root, in the
-    style (module with `public import`, or plain `import`) of the existing file."""
-    modules = sorted(p[len(prefix):-5].replace("/", ".") for p in files
-                     if p.startswith(below) and p.endswith(".lean"))
+    """What `lake exe mk_all` writes: the imports of every module below the root, in its hash order
+    and in the style (module with `public import`, or plain `import`) of the existing file."""
+    modules = sorted((p[len(prefix):-5].replace("/", ".") for p in files
+                      if p.startswith(below) and p.endswith(".lean")), key=import_key)
     if existing.lstrip().startswith("module"):
         return MODULE_PREAMBLE + "".join(f"public import {m}\n" for m in modules)
     return "".join(f"import {m}\n" for m in modules)

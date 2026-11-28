@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Order.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
+import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Tactic.FieldSimp
@@ -119,9 +120,8 @@ theorem sum_uniformMass {α : Type*} [Fintype α] [DecidableEq α]
 /-- Summing against uniform mass agrees with the finite-set expectation. -/
 theorem sum_uniformMass_mul {α : Type*} [Fintype α] [DecidableEq α]
     (X : Finset α) (f : α → ℝ) : (∑ x, uniformMass X x * f x) = 𝔼 x ∈ X, f x := by
-  simp only [uniformMass, ite_mul, zero_mul]
-  rw [sum_ite, sum_const_zero, add_zero]
-  simp only [filter_mem_eq_inter, univ_inter, ← mul_sum, expect_eq_sum_div_card]
+  simp only [uniformMass, ite_mul, zero_mul, sum_ite, sum_const_zero, add_zero,
+    filter_mem_eq_inter, univ_inter, ← mul_sum, expect_eq_sum_div_card]
   ring
 
 /-- Uniform densities are nonnegative, including for the empty set. -/
@@ -134,33 +134,25 @@ the documented real-logarithm convention. -/
 theorem uniformDeficit_nonneg {ι : Type*} [Fintype ι]
     (X : Finset (ι → Bool)) : 0 ≤ uniformDeficit X := by
   classical
-  by_cases hx : X.Nonempty
-  · have hpos : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hx
-    have hc : (X.card : ℝ) ≤ (2 : ℝ) ^ (Fintype.card ι : ℝ) := by
-      rw [Real.rpow_natCast]
-      exact_mod_cast (show X.card ≤ 2 ^ Fintype.card ι by simpa using card_le_univ X)
-    have h := (Real.logb_le_iff_le_rpow (by norm_num : (1 : ℝ) < 2) hpos).mpr hc
-    exact sub_nonneg.mpr h
-  · rw [not_nonempty_iff_eq_empty.mp hx]
-    simp [uniformDeficit]
+  rcases X.eq_empty_or_nonempty with rfl | hx
+  · simp [uniformDeficit]
+  · refine sub_nonneg.mpr ((Real.logb_le_iff_le_rpow (by norm_num)
+      (by exact_mod_cast card_pos.mpr hx)).mpr ?_)
+    exact_mod_cast (card_le_univ X).trans_eq (by simp)
 
 /-- A nonempty subset has cardinality `2^(dimension - deficit)`. -/
 theorem card_eq_rpow_sub_uniformDeficit {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (X.card : ℝ) = (2 : ℝ) ^ ((Fintype.card ι : ℝ) - uniformDeficit X) := by
-  have hp : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
-  dsimp [uniformDeficit]
-  rw [sub_sub_cancel, Real.rpow_logb (by norm_num) (by norm_num) hp]
+  rw [uniformDeficit, sub_sub_cancel,
+    Real.rpow_logb two_pos (by norm_num) (Nat.cast_pos.2 hX.card_pos)]
 
 /-- A deficit bound is equivalent to the corresponding density lower bound
 when the subset is nonempty. -/
 theorem uniformDeficit_le_iff {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) {k : ℝ} : uniformDeficit X ≤ k ↔
       (2 : ℝ) ^ ((Fintype.card ι : ℝ) - k) ≤ X.card := by
-  have he := Real.rpow_le_rpow_left_iff (x := (2 : ℝ))
-    (y := (Fintype.card ι : ℝ) - k)
-    (z := (Fintype.card ι : ℝ) - uniformDeficit X) (by norm_num)
-  rw [← card_eq_rpow_sub_uniformDeficit hX] at he
-  exact he.trans (by constructor <;> intro h <;> linarith) |>.symm
+  simp only [card_eq_rpow_sub_uniformDeficit hX, Real.rpow_le_rpow_left_iff one_lt_two,
+    sub_le_sub_iff_left]
 
 /-- A uniform deficit bound implies the light-patterns lemma's pointwise
 probability-mass hypothesis. -/
@@ -174,42 +166,30 @@ theorem uniformMass_le_rpow {ι : Type*} [Fintype ι]
       · exact le_rfl
       · positivity
     _ = (2 : ℝ) ^ (uniformDeficit X - Fintype.card ι) := by
-      rw [card_eq_rpow_sub_uniformDeficit hX, one_div,
-        ← Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2)]
-      congr 1
-      ring
+      rw [card_eq_rpow_sub_uniformDeficit hX, one_div, ← Real.rpow_neg (by norm_num), neg_sub]
     _ ≤ _ := Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
 
 /-- Entropy deficit bounds the normalized density pointwise. -/
 theorem uniformDensity_le_rpow {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) {k : ℝ} (hk : uniformDeficit X ≤ k) (x : ι → Bool) :
     uniformDensity X x ≤ (2 : ℝ) ^ k := by
-  have hproduct : (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (k - Fintype.card ι) =
-      (2 : ℝ) ^ k := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
-  exact (mul_le_mul_of_nonneg_left (uniformMass_le_rpow hX hk x) (by positivity)).trans_eq
-    hproduct
+  refine (mul_le_mul_of_nonneg_left (uniformMass_le_rpow hX hk x) (by positivity)).trans_eq ?_
+  rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num), add_sub_cancel]
 
 /-- The density is `2^deficit` on the nonempty set and zero elsewhere. -/
 theorem uniformDensity_eq_deficit {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) (z : ι → Bool) :
     uniformDensity X z = (2 : ℝ) ^ uniformDeficit X * (if z ∈ X then 1 else 0) := by
   by_cases hz : z ∈ X
-  · simp only [uniformDensity, uniformMass, ite_eq_left hz, mul_one, mul_one_div]
-    rw [card_eq_rpow_sub_uniformDeficit hX, ← Real.rpow_natCast,
-      ← Real.rpow_sub (by norm_num)]
-    congr 1
-    ring
+  · simp only [uniformDensity, uniformMass, hz, ↓reduceIte, mul_one, mul_one_div,
+      card_eq_rpow_sub_uniformDeficit hX, ← Real.rpow_natCast]
+    rw [← Real.rpow_sub (by norm_num), sub_sub_cancel]
   · simp [uniformDensity, uniformMass, hz]
 
 /-- Normalization of the density of a nonempty finite cube subset. -/
 theorem expect_uniformDensity {ι : Type*} [Fintype ι] [DecidableEq ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (𝔼 x, uniformDensity X x) = 1 := by
-  unfold uniformDensity
-  rw [Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
-  simp
+  simp [uniformDensity, Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
 
 /-- **Pigeonhole for deficits**: some fiber of a map from a nonempty set `X` to a type of at most
 `2 ^ m` elements is nonempty, of deficit at most the deficit of `X` plus `m`. -/
@@ -226,21 +206,14 @@ theorem exists_uniformDeficit_fiber_le {ι M : Type*} [Fintype ι] [Fintype M] [
     rw [nsmul_eq_mul]
     calc
       _ ≤ (2 : ℝ) ^ m * b := mul_le_mul_of_nonneg_right hm (by dsimp [b]; positivity)
-      _ = _ := by dsimp [b]; field_simp
+      _ = _ := mul_div_cancel₀ _ (by positivity)
   obtain ⟨a, _, ha⟩ := exists_le_card_fiber_of_nsmul_le_card_of_maps_to
-    (s := X) (t := univ) (f := send) (b := b) (fun _ _ => mem_univ _) univ_nonempty
-    (by simpa only [card_univ] using hb)
-  have hne : (X.filter fun x => send x = a).Nonempty := by
-    apply card_pos.mp
-    have hbpos : 0 < b := by dsimp [b]; positivity
-    exact_mod_cast hbpos.trans_le ha
+    (fun _ _ => mem_univ _) univ_nonempty (by simpa only [card_univ] using hb)
+  have hne : (X.filter fun x => send x = a).Nonempty :=
+    card_pos.mp (by exact_mod_cast (show 0 < b by dsimp [b]; positivity).trans_le ha)
   refine ⟨a, hne, (uniformDeficit_le_iff hne).mpr ?_⟩
-  convert ha using 1
-  dsimp [b]
-  rw [card_eq_rpow_sub_uniformDeficit (show X.Nonempty from ⟨x, hx⟩),
-    ← Real.rpow_sub (by norm_num)]
-  congr 1
-  ring
+  simpa +zetaDelta only [card_eq_rpow_sub_uniformDeficit ⟨x, hx⟩, ← Real.rpow_sub two_pos,
+    sub_add_eq_sub_sub] using ha
 
 /-! ### Gluing points along a set of coordinates -/
 
@@ -299,25 +272,20 @@ theorem resample_eq_piecewise (s x y : ι → Bool) :
 
 /-- Resampling completes the restriction of the sampled point. -/
 theorem resample_eq_completePattern (s x y : ι → Bool) :
-    resample s x y = completePattern s x (fun i => y i) := by
-  funext i
-  by_cases hi : s i = true <;> simp [resample, completePattern, hi]
+    resample s x y = completePattern s x (fun i => y i) :=
+  funext fun i => by by_cases hi : s i = true <;> simp [resample, completePattern, hi]
 
 /-- Resampling the coordinates outside `s` of `x` from `y` is resampling the coordinates in `s`
 of `y` from `x`. -/
-theorem resample_not (s x y : ι → Bool) : resample (fun i => !s i) x y = resample s y x := by
-  funext i
-  cases hs : s i <;> simp [resample, hs]
+theorem resample_not (s x y : ι → Bool) : resample (fun i => !s i) x y = resample s y x :=
+  funext fun i => by cases hs : s i <;> simp [resample, hs]
 
 private theorem resample_update_not [DecidableEq ι] {s : ι → Bool} {i : ι} (hi : s i = true)
     (x y : ι → Bool) :
     resample s x (Function.update y i (!y i)) =
-      Function.update (resample s x y) i (!(resample s x y i)) := by
-  funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [resample, hi]
-  · simp [resample, Set.piecewise, Function.update_of_ne hj]
+      Function.update (resample s x y) i (!(resample s x y i)) :=
+  funext fun j => by
+    rcases eq_or_ne j i with rfl | hj <;> simp [resample, Set.piecewise, *]
 
 variable [Fintype ι] [DecidableEq ι]
 
@@ -327,39 +295,27 @@ theorem card_coordinateFiber (X : Finset (ι → Bool)) (s x : ι → Bool) :
     (coordinateFiber X s x).card =
       (X.filter fun y => (fun i : {i // s i ≠ true} => y i) =
         (fun i : {i // s i ≠ true} => x i)).card := by
-  refine card_bij (fun z _ => completePattern s x z) ?_ ?_ ?_
-  · intro z hz
-    refine mem_filter.mpr ⟨(mem_filter.mp hz).2, ?_⟩
-    funext i
-    simp [completePattern, i.property]
-  · intro z hz w hw he
-    funext i
-    have h := congrFun he i
-    simpa [completePattern, i.property] using h
-  · intro y hy
-    have he : completePattern s x (fun i => y i) = y := by
-      funext i
-      by_cases hi : s i = true
-      · simp [completePattern, hi]
-      · have h := congrFun (mem_filter.mp hy).2 ⟨i, hi⟩
-        simpa [completePattern, hi] using h.symm
-    refine ⟨fun i => y i, ?_, he⟩
-    exact mem_filter.mpr ⟨mem_univ _, by rw [he]; exact (mem_filter.mp hy).1⟩
+  refine card_bij (fun z _ => completePattern s x z)
+    (fun z hz => mem_filter.mpr ⟨(mem_filter.mp hz).2,
+      funext fun i => by simp [completePattern, i.property]⟩)
+    (fun z _ w _ he => funext fun i => by simpa [completePattern, i.property] using congrFun he i)
+    fun y hy => ?_
+  have he : completePattern s x (fun i => y i) = y := funext fun i => by
+    by_cases hi : s i = true
+    · simp [completePattern, hi]
+    · simpa [completePattern, hi] using (congrFun (mem_filter.mp hy).2 ⟨i, hi⟩).symm
+  exact ⟨fun i => y i, mem_filter.mpr ⟨mem_univ _, he.symm ▸ (mem_filter.mp hy).1⟩, he⟩
 
 /-- Conditioning at a point of `X` leaves a nonempty fiber. -/
 theorem coordinateFiber_nonempty {X : Finset (ι → Bool)} (s : ι → Bool) {x : ι → Bool}
     (hx : x ∈ X) : (coordinateFiber X s x).Nonempty := by
-  refine ⟨fun i => x i, mem_filter.mpr ⟨mem_univ _, ?_⟩⟩
-  have he : completePattern s x (fun i => x i) = x := by
-    funext i
-    simp [completePattern]
-  rwa [he]
+  have he : completePattern s x (fun i => x i) = x := funext fun i => by simp [completePattern]
+  exact ⟨fun i => x i, mem_filter.mpr ⟨mem_univ _, he.symm ▸ hx⟩⟩
 
 /-- Fiber densities are nonnegative, including for empty fibers. -/
 theorem coordinateDensity_nonneg (X : Finset (ι → Bool)) (s x : ι → Bool) :
-    0 ≤ coordinateDensity X s x := by
-  unfold coordinateDensity
-  positivity
+    0 ≤ coordinateDensity X s x :=
+  div_nonneg (Nat.cast_nonneg _) (by positivity)
 
 /-- The fraction of a fiber is the probability that coordinate resampling
 lands in the set. -/
@@ -376,10 +332,7 @@ theorem coordinateDensity_resample_union (X : Finset (ι → Bool)) (P Q x y : �
     coordinateDensity X Q (resample P x y) =
       coordinateDensity X Q (resample (fun i => P i || Q i) x y) := by
   rw [coordinateDensity_eq_expect, coordinateDensity_eq_expect]
-  apply expect_congr rfl
-  intro z _
-  apply congrArg (fun t => if t ∈ X then (1 : ℝ) else 0)
-  funext i
+  refine expect_congr rfl fun z _ => congrArg (if · ∈ X then (1 : ℝ) else 0) (funext fun i => ?_)
   cases hp : P i <;> cases hq : Q i <;> simp [resample, hp, hq]
 
 end Gluing
@@ -426,8 +379,8 @@ theorem coordinateMarginal_eq_expect_completePattern (f : (ι → Bool) → ℝ)
 /-- The projection of `f` at `x` is its marginal at the selected coordinates of `x`. -/
 theorem projectionAverage_eq_coordinateMarginal (f : (ι → Bool) → ℝ) (selected x : ι → Bool) :
     projectionAverage f selected x = coordinateMarginal f selected (fun i => x i) := by
-  rw [coordinateMarginal_eq_expect_completePattern, projectionAverage]
-  simp_rw [resample_eq_completePattern]
+  simp_rw [coordinateMarginal_eq_expect_completePattern, projectionAverage,
+    resample_eq_completePattern]
 
 /-- Marginalization preserves the uniform mean, hence also density normalization. -/
 theorem expect_coordinateMarginal (f : (ι → Bool) → ℝ) (selected : ι → Bool) :
@@ -462,19 +415,16 @@ theorem expect_resample_subset_le (X : Finset (ι → Bool)) {f : (ι → Bool) 
     (hf : ∀ x, 0 ≤ f x) (P : ι → Bool) :
     (𝔼 x ∈ X, 𝔼 y, f (resample P x y)) ≤ (∑ z, f z) / (X.card : ℝ) := by
   rw [expect_eq_sum_div_card]
-  have hs : (∑ x ∈ X, 𝔼 y, f (resample P x y)) ≤ ∑ x, 𝔼 y, f (resample P x y) :=
-    sum_le_sum_of_subset_of_nonneg (subset_univ X)
-      (fun x _ _ => expect_nonneg (fun y _ => hf _))
-  rw [← Fintype.card_mul_expect, expect_resample, Fintype.card_mul_expect] at hs
-  exact div_le_div_of_nonneg_right hs (by positivity)
+  refine div_le_div_of_nonneg_right ?_ (Nat.cast_nonneg _)
+  rw [← Fintype.card_mul_expect, ← expect_resample f P, Fintype.card_mul_expect]
+  exact sum_le_sum_of_subset_of_nonneg (subset_univ X) fun _ _ _ => expect_nonneg fun _ _ => hf _
 
 /-- The density of the fiber of `X` over the coordinates of `x` outside `s` is the projection of
 the indicator of `X` to the coordinates outside `s`. -/
 theorem coordinateDensity_eq_projectionAverage (X : Finset (ι → Bool)) (s x : ι → Bool) :
     coordinateDensity X s x =
       projectionAverage (fun y => if y ∈ X then 1 else 0) (fun i => !s i) x := by
-  rw [coordinateDensity_eq_expect, projectionAverage]
-  simp_rw [resample_not]
+  simp_rw [coordinateDensity_eq_expect, projectionAverage, resample_not]
 
 /-- Projecting the restriction of `f` to the fiber over `x`, a function of the patterns on `s`, to
 the coordinates `R` is projecting `f` to `R` together with the coordinates outside `s`. -/
@@ -500,21 +450,14 @@ theorem expect_log_card_fiber {α β : Type*} [Fintype β] [Nonempty β] [Decida
       𝔼 x ∈ X, Real.log (X.filter (fun y => g y = g x)).card := by
   let m : β → ℝ := fun b => (X.filter fun x => g x = b).card
   have hsum : (∑ b, m b) = (X.card : ℝ) := by
-    dsimp [m]
-    exact_mod_cast (card_eq_sum_card_fiberwise (s := X) (t := univ)
-      (f := g) (by intro x hx; exact mem_univ _) ).symm
+    dsimp only [m]
+    exact_mod_cast (card_eq_sum_card_fiberwise (s := X) (f := g) fun _ _ => mem_univ _).symm
   have hN : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
-  have hB : (0 : ℝ) < Fintype.card β := by exact_mod_cast Fintype.card_pos
-  have h := Real.sum_mul_log_div_card_le univ (x := m) (by intro b _; dsimp [m]; positivity)
-  rw [card_univ] at h
-  rw [hsum, Real.log_div hN.ne' hB.ne'] at h
-  have he : (∑ x ∈ X, Real.log (X.filter (fun y => g y = g x)).card) =
-      ∑ b, m b * Real.log (m b) := by
-    rw [← sum_fiberwise' X g (fun b => Real.log (m b))]
-    simp only [sum_const, nsmul_eq_mul]
-    rfl
-  rw [expect_eq_sum_div_card, he]
-  exact (le_div_iff₀ hN).mpr (by nlinarith)
+  have h := Real.sum_mul_log_div_card_le univ (x := m) (fun _ _ => Nat.cast_nonneg _)
+  rw [card_univ, hsum, Real.log_div hN.ne' (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)] at h
+  rw [expect_eq_sum_div_card, ← sum_fiberwise' X g (fun b => Real.log (m b)), le_div_iff₀ hN]
+  simp only [sum_const, nsmul_eq_mul, m] at h ⊢
+  nlinarith
 
 /-- Korten's entropy lemma (Lemma 4): conditioning on the unselected bits
 does not increase the average deficit in the selected-coordinate cube. -/
@@ -523,30 +466,15 @@ theorem expect_uniformDeficit_coordinateFiber {ι : Type*} [Fintype ι] [Decidab
     (𝔼 x ∈ X, uniformDeficit (coordinateFiber X s x)) ≤ uniformDeficit X := by
   have h := expect_log_card_fiber X hX (fun x (i : {i // s i ≠ true}) => x i)
   have hl : 0 < Real.log 2 := Real.log_pos (by norm_num)
-  have hc : (Fintype.card {i // s i = true} : ℝ) +
-      Fintype.card {i // s i ≠ true} = Fintype.card ι := by
-    have hle := Fintype.card_subtype_le (fun i => s i = true)
-    have he : Fintype.card {i // s i = true} +
-        Fintype.card {i // s i ≠ true} = Fintype.card ι := by
-      rw [Fintype.card_subtype_compl]
-      omega
-    exact_mod_cast he
-  have he : (𝔼 x ∈ X, uniformDeficit (coordinateFiber X s x)) =
-      Fintype.card {i // s i = true} -
-        (𝔼 x ∈ X, Real.log (X.filter fun y =>
-          (fun i : {i // s i ≠ true} => y i) =
-          (fun i : {i // s i ≠ true} => x i)).card) / Real.log 2 := by
-    simp only [uniformDeficit, Real.logb, expect_sub_distrib, ← expect_div,
-      expect_const hX, card_coordinateFiber]
-  rw [he]
-  have hcard : Real.log (Fintype.card ({i // s i ≠ true} → Bool)) =
-      Fintype.card {i // s i ≠ true} * Real.log 2 := by
-    simp
-  rw [hcard] at h
-  dsimp [uniformDeficit, Real.logb]
+  have hc : (Fintype.card {i // s i = true} : ℝ) + Fintype.card {i // s i ≠ true} =
+      Fintype.card ι := mod_cast Fintype.card_subtype_compl (fun i : ι => s i = true) ▸
+        Nat.add_sub_of_le (Fintype.card_subtype_le _)
   have hd := div_le_div_of_nonneg_right h hl.le
-  simp only [sub_div, mul_div_cancel_right₀ _ hl.ne', ne_eq] at hd
-  linarith only [hc, hd]
+  simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
+    Real.log_pow, sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd
+  simp only [uniformDeficit, Real.logb, expect_sub_distrib, ← expect_div, expect_const hX,
+    card_coordinateFiber]
+  linarith
 
 /-- For every fixed set of free coordinates, a uniform point of `X` yields
 a fiber of deficit at most `64*k` with probability at least `63/64`. -/
@@ -559,18 +487,14 @@ theorem le_expect_uniformDeficit_coordinateFiber_le {ι : Type*} [Fintype ι] [D
   have hpoint (x : ι → Bool) :
       1 ≤ (if uniformDeficit (coordinateFiber X s x) ≤ 64 * k then (1 : ℝ) else 0) +
         uniformDeficit (coordinateFiber X s x) / (64 * k) := by
-    by_cases hx : uniformDeficit (coordinateFiber X s x) ≤ 64 * k
-    · rw [ite_eq_left hx]
-      have := div_nonneg (uniformDeficit_nonneg (coordinateFiber X s x)) hp.le
-      linarith
-    · rw [ite_eq_right hx, zero_add]
-      exact (le_div_iff₀ hp).mpr (by linarith)
-  have h := expect_le_expect (s := X) (fun x _ => hpoint x)
+    split_ifs with hx
+    · linarith [div_nonneg (uniformDeficit_nonneg (coordinateFiber X s x)) hp.le]
+    · simpa only [zero_add] using (le_div_iff₀ hp).mpr (by linarith)
+  have h := expect_le_expect (s := X) fun x _ => hpoint x
   rw [expect_const hX, expect_add_distrib, ← expect_div] at h
-  have hd := div_le_div_of_nonneg_right
-    ((expect_uniformDeficit_coordinateFiber X hX s).trans hdef) hp.le
-  have he : k / (64 * k) = 1 / 64 := by field_simp
-  rw [he] at hd
+  have hd : (𝔼 x ∈ X, uniformDeficit (coordinateFiber X s x)) / (64 * k) ≤ 1 / 64 :=
+    (div_le_div_of_nonneg_right
+      ((expect_uniformDeficit_coordinateFiber X hX s).trans hdef) hp.le).trans_eq (by field_simp)
   linarith
 
 /-! ### Functions that flip with a coordinate -/
@@ -579,16 +503,10 @@ theorem le_expect_uniformDeficit_coordinateFiber_le {ι : Type*} [Fintype ι] [D
 theorem expect_ite_eq_one_half_of_update_not {ι : Type*} [Fintype ι] [DecidableEq ι]
     (f : (ι → Bool) → Bool) (i : ι) (hf : ∀ x, f (Function.update x i (!x i)) = !f x) (b : Bool) :
     (𝔼 x, if f x = b then (1 : ℝ) else 0) = 1 / 2 := by
-  let flip (x : ι → Bool) := Function.update x i (!x i)
-  have hinv : Function.Involutive flip := fun x => by simp [flip]
-  have he := Fintype.expect_equiv (hinv.toPerm flip)
-    (fun x => if f (flip x) = b then (1 : ℝ) else 0)
-    (fun x => if f x = b then (1 : ℝ) else 0) (fun _ => rfl)
-  have hpoint (x : ι → Bool) : (if f (flip x) = b then (1 : ℝ) else 0) =
-      1 - (if f x = b then 1 else 0) := by
-    rw [hf]
-    cases h : f x <;> cases b <;> norm_num
-  simp_rw [hpoint, expect_sub_distrib, Fintype.expect_const] at he
+  have he := expect_update_not i fun x => if f x = b then (1 : ℝ) else 0
+  have hpoint (x : ι → Bool) : (if (!f x) = b then (1 : ℝ) else 0) =
+      1 - (if f x = b then 1 else 0) := by cases f x <;> cases b <;> norm_num
+  simp_rw [hf, hpoint, expect_sub_distrib, Fintype.expect_const] at he
   linarith
 
 /-- A Boolean function that flips with the coordinate `i` is true on half of every fiber over a
@@ -597,9 +515,8 @@ theorem coordinateDensity_filter_eq_one_half_of_update_not {ι : Type*} [Fintype
     (f : (ι → Bool) → Bool) (i : ι) (hf : ∀ x, f (Function.update x i (!x i)) = !f x)
     (P x : ι → Bool) (hi : P i = true) (b : Bool) :
     coordinateDensity (univ.filter fun z => f z = b) P x = 1 / 2 := by
-  rw [coordinateDensity_eq_expect]
-  simp only [mem_filter, mem_univ, true_and]
-  exact expect_ite_eq_one_half_of_update_not (fun y => f (resample P x y)) i
-    (fun y => by rw [resample_update_not hi, hf]) b
+  simpa only [coordinateDensity_eq_expect, mem_filter, mem_univ, true_and] using
+    expect_ite_eq_one_half_of_update_not (fun y => f (resample P x y)) i
+      (fun y => by rw [resample_update_not hi, hf]) b
 
 end Cslib.BitString

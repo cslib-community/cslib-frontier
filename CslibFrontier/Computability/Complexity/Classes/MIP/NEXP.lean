@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # The unconditional upper bound `MIP ⊆ NEXP`
@@ -71,8 +72,8 @@ $$\mathsf{MIP}_2 \subseteq \mathsf{MIP} \subseteq \mathsf{NEXP}.$$
    `MultiTapePTM.comp` and converting to `MultiTapeNTM` via `MultiTapePTM.toNTM` places the
    unpadded language in `NEXP`.
 
-The converse inclusion `NEXP ⊆ MIP₂` (which requires the Babai–Fortnow–Lund multilinearity test
-and the arithmetization of `NEXP` verification tableaux) is not formalized here and remains open.
+The converse uses the arithmetized verification tableau and the two-prover simulation of its
+proof oracle. The umbrella module `Classes.MIP` combines the directions.
 
 ## Main definitions
 
@@ -170,26 +171,16 @@ theorem foldl_consistentHistStep_false (h₁ h₂ : History) (ok : Bool) :
 
 theorem foldl_consistentHistStep_true (h₁ h₂ : History) (ok : Bool) :
     (h₁.foldl consistentHistStep (h₂, true, ok)).2.2 = (ok && consistentHist h₁ h₂) := by
-  induction h₁ generalizing h₂ ok with
-  | nil =>
-    simp [consistentHist]
-  | cons e₁ rest₁ ih =>
-    obtain ⟨q₁, r₁⟩ := e₁
-    cases h₂ with
-    | nil =>
-      simp only [List.foldl_cons, consistentHistStep, Bool.not_true, List.isEmpty_nil,
-        Bool.false_or, ↓reduceIte, foldl_consistentHistStep_false, consistentHist, Bool.and_true]
-    | cons e₂ rest₂ =>
-      obtain ⟨q₂, r₂⟩ := e₂
-      simp only [List.foldl_cons, consistentHistStep, Bool.not_true, List.isEmpty_cons,
-        Bool.false_or, Bool.false_eq_true, ↓reduceIte, List.headD_cons, List.tail_cons,
-        consistentHist]
-      by_cases hq : q₁ = q₂
-      · subst hq
-        simp only [beq_self_eq_true, ↓reduceIte, ih, Bool.and_assoc]
-      · have hq' : (q₁ == q₂) = false := beq_false_of_ne hq
-        simp only [hq', Bool.false_eq_true, ↓reduceIte, foldl_consistentHistStep_false,
-          Bool.and_true]
+  fun_induction consistentHist h₁ h₂ generalizing ok with
+  | case1 => simp -- [], _
+  | case2 h₁ hne => -- _ :: _, []
+    cases h₁
+    · exact absurd rfl hne
+    · simp [consistentHistStep, foldl_consistentHistStep_false]
+  -- same query: compare replies
+  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => simp [consistentHistStep, hq, ih, Bool.and_assoc]
+  -- different queries: stop
+  | case4 => simp_all [consistentHistStep, foldl_consistentHistStep_false]
 
 theorem consistentHistStep_suffix {h₂ : History} {s : History × Bool × Bool}
     (hs : s.1 <:+ h₂) (e₁ : List Bool × List Bool) :
@@ -222,7 +213,7 @@ theorem computableInPolyTime_consistentHist :
     (size := fun p => 2 * (encPair encHistory encHistory p).length + 6)
     (PolyBounded.of_forall_le 8 1 fun p => by simp only [pow_one]; lia)
     (fun p _ s _ hs => by
-      have hlen := Interaction.length_encList_le_of_suffix (enc := encPair encBits encBits) hs
+      have hlen := length_encList_sublist (encPair encBits encBits) hs.sublist
       have hp := length_le_encPair_right encHistory encHistory p
       simp only [length_encPair, encBool_apply, List.length_singleton]
       lia)).1
@@ -288,15 +279,13 @@ theorem aliveStep_sound (t : ℕ) (D : Fin p → DetProver)
   rcases hs : cfg.tapes.state with _ | c
   · simp only [hs] at hlive ⊢
     refine ⟨s, hvalid, ?_⟩
-    simp [taggedStep, OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure]
+    simp [taggedStep, Probability.PMF.monad_pure_eq_pure]
   · simp only [hs, Option.map_some, map_pure, pure_bind] at hlive ⊢
     rcases htr : M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
       ⟨action, symbol, move⟩ | ⟨op, next⟩
     · simp only [htr] at hlive ⊢
       refine ⟨s, hvalid, ?_⟩
-      simp [taggedStep, OracleComp.interpret_pure, StateT.run_pure,
-        Probability.PMF.monad_pure_eq_pure]
+      simp [taggedStep, Probability.PMF.monad_pure_eq_pure]
     · simp only [htr, taggedStep, answerFromHistory, matchTaggedOp] at hlive ⊢
       cases th with
       | nil => simp at hlive
@@ -321,10 +310,7 @@ theorem aliveStep_sound (t : ℕ) (D : Fin p → DetProver)
               have hvi := hvalid i
               rw [projHistory_cons_of_ne hne] at hvi
               simpa only [s', Function.update_of_ne hi] using hvi
-          · simp only [bind_map_left, OracleComp.interpret_bind, OracleComp.interpret_query,
-              OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure,
-              Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-              StateT.run_mk, PMF.pure_map, PMF.pure_bind, ← hy]
+          · simp only [bind_map_left, interp_norm, pmf_norm, StateT.run_mk, ← hy]
             rfl
         · simp [hmatch] at hlive
 
@@ -344,8 +330,7 @@ theorem foldl_aliveStep_sound (t : ℕ) (D : Fin p → DetProver) (l : List Bool
         PMF.pure ((l.foldl (aliveStep M t) (cfg, th, true)).1, s') := by
   induction l generalizing cfg th s with
   | nil =>
-    exact ⟨s, hvalid, by simp [OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure]⟩
+    exact ⟨s, hvalid, by simp [Probability.PMF.monad_pure_eq_pure]⟩
   | cons b l ih =>
     simp only [List.foldl_cons] at hlive ⊢
     have hstep_live : (aliveStep M t (cfg, th, true) b).2.2 = true := by
@@ -364,8 +349,7 @@ theorem foldl_aliveStep_sound (t : ℕ) (D : Fin p → DetProver) (l : List Bool
     obtain ⟨s₂, hvalid₂, hrun₂⟩ := ih (aliveStep M t (cfg, th, true) b).1
       (aliveStep M t (cfg, th, true) b).2.1 s₁ hvalid₁ hlive
     refine ⟨s₂, hvalid₂, ?_⟩
-    simp only [List.foldlM_cons, OracleComp.interpret_bind, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, hrun₁, PMF.pure_bind, hrun₂]
+    simp only [List.foldlM_cons, interp_norm, pmf_norm, hrun₁, hrun₂]
 
 /-- **Soundness of `accepts`**: if `r.length = t`, `accepts M x r th = true`, and every prover's
 projection of `th` is valid for `D i` from `s i`, then `coinProgram M t x r` accepts with
@@ -382,8 +366,7 @@ theorem acceptFrom_eq_one_of_accepts {x r : List Bool} {t : ℕ} (hr : r.length 
   have hout' := of_decide_eq_true hout
   obtain ⟨s', _, hrun⟩ := foldl_aliveStep_sound M r.length D r
     (MultiTapeMachine.FiniteConfig.init M.initial x) th s hvalid hlive
-  simp only [acceptFrom, coinProgram, OracleComp.interpret_map, StateT.run_map,
-    PMF.monad_map_eq_map, hrun, PMF.pure_map]
+  simp only [acceptFrom, coinProgram, interp_norm, pmf_norm, hrun]
   simp [hout']
 
 /-- The canonical tagged history generated by running `M` with truncation `t` against deterministic
@@ -449,8 +432,7 @@ theorem foldl_aliveStep_canonicalTrace (t : ℕ) (D : Fin p → DetProver)
         (l.foldlM (coinStep M t) cfg)).run s) = PMF.pure (cfg', s') := by
   induction l generalizing cfg s with
   | nil =>
-    exact ⟨cfg, s, rfl, by simp [OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure]⟩
+    exact ⟨cfg, s, rfl, by simp [Probability.PMF.monad_pure_eq_pure]⟩
   | cons b l ih =>
     rcases hs : cfg.tapes.state with _ | c
     · simp only [canonicalTrace, List.foldl_cons, List.foldlM_cons, aliveStep,
@@ -458,9 +440,7 @@ theorem foldl_aliveStep_canonicalTrace (t : ℕ) (D : Fin p → DetProver)
         Option.map_none, taggedStep]
       obtain ⟨cfg', s', hfold, hrun⟩ := ih cfg s
       refine ⟨cfg', s', hfold, ?_⟩
-      simp only [OracleComp.interpret_bind, OracleComp.interpret_pure, StateT.run_bind,
-        StateT.run_pure, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-        PMF.pure_bind, hrun]
+      simp only [interp_norm, pmf_norm, hrun]
     · rcases htr : M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
         ⟨action, symbol, move⟩ | ⟨op, next⟩
       · simp only [canonicalTrace, List.foldl_cons, List.foldlM_cons, aliveStep,
@@ -491,10 +471,7 @@ theorem foldl_aliveStep_canonicalTrace (t : ℕ) (D : Fin p → DetProver)
               let answer ← List.take t <$> OracleComp.query (op, (cfg.channels op).1)
               pure (cfg.receive op next answer))).run s) =
             PMF.pure (cfg.receive op next y, Function.update s op res.2) := by
-          simp only [bind_map_left, OracleComp.interpret_bind, OracleComp.interpret_query,
-            OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure,
-            Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-            StateT.run_mk, PMF.pure_map, PMF.pure_bind]
+          simp only [bind_map_left, interp_norm, pmf_norm, StateT.run_mk]
           rfl
         rw [hq, PMF.pure_bind, hrun]
 
@@ -511,9 +488,8 @@ theorem acceptFrom_eq_ite_accepts_canonicalTrace {x r : List Bool} {t : ℕ}
   subst hr
   obtain ⟨cfg', s', hfold, hrun⟩ := foldl_aliveStep_canonicalTrace M r.length D
     (MultiTapeMachine.FiniteConfig.init M.initial x) (fun i => (D i).init) r
-  simp only [acceptFrom, coinProgram, OracleComp.interpret_map, StateT.run_map,
-    PMF.monad_map_eq_map, accepts, Interaction.accepts, Interaction.aliveRun, hfold,
-    List.isEmpty_nil, Bool.true_and, hrun, PMF.pure_map]
+  simp only [acceptFrom, coinProgram, interp_norm, pmf_norm, accepts, Interaction.accepts,
+    Interaction.aliveRun, hfold, List.isEmpty_nil, Bool.true_and, hrun]
   cases decide (cfg'.tapes.output = [true]) <;> simp
 
 /-- Size bounds on `canonicalTrace M t D cfg s l`: its length is at most `l.length`, every channel
@@ -608,43 +584,20 @@ variable [Finite Control]
 theorem computableInPolyTime_checkCert (c d : ℕ) :
     Turing.MultiTapeTM.ComputableInPolyTime (fun q : List Bool × Cert => checkCert M c d q.1 q.2)
       (encPair encBits encCert) encBool := by
-  have haccepts := computableInPolyTime_accepts M
-  have hproj := computableInPolyTime_projHistory
-  have hconsistent := computableInPolyTime_consistentHist
-  have ht : ComputableInPolyTime
-      (fun q : List Bool × Cert => c * (q.1.length + 1) ^ d)
+  dsimp only [checkCert]
+  have ht : ComputableInPolyTime (fun q : List Bool × Cert => c * (q.1.length + 1) ^ d)
       (encPair encBits encCert) encUnary := by fun_prop
-  have h1 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e => (e.1.length == c * (q.1.length + 1) ^ d) && accepts M q.1 e.1 e.2)
-      (encPair encBits encCert) encBool := by fun_prop
-  have h2 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e₁ => q.2.countP (fun e₂ => e₁.1 == e₂.1) == 1)
-      (encPair encBits encCert) encBool := by fun_prop
-  have h3 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e₁ => q.2.all fun e₂ =>
-          (List.range p).all fun i => consistentHist (projHistory i e₁.2) (projHistory i e₂.2))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h4 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        decide (2 ^ (c * (q.1.length + 1) ^ d) < 2 * q.2.length))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h := bool_and.comp ((bool_and.comp ((bool_and.comp (h1.prod h2)).prod h3)).prod h4)
-  exact h
+  refine ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_and' ?_ ?_) ?_) ?_ <;> fun_prop
 
 /-- `checkPaddedCert` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_checkPaddedCert (c d : ℕ) :
     Turing.MultiTapeTM.ComputableInPolyTime (checkPaddedCert M c d) (encPair encBits encCert)
       encBool := by
-  have hlen : ComputableInPolyTime
-      (fun q : List Bool × Cert => decide ((encCert q.2).length ≤ q.1.length))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h := bool_and.comp (hlen.prod ((computableInPolyTime_checkCert M c d).comp
-    ((unframe.comp (fst encBits encCert)).prod (snd encBits encCert))))
-  exact h
+  unfold checkPaddedCert
+  have := computableInPolyTime_checkCert M c d
+  fun_prop
 
 /-- The padded multiprover language `paddedMIP M c d` belongs to `NP encBits`. -/
 theorem paddedMIP_mem_NP (c d : ℕ) : paddedMIP M c d ∈ NP encBits := by
@@ -871,7 +824,9 @@ theorem MIP_subset_NEXP : MIP enc ⊆ NEXP enc := by
     constructor
     · intro ha
       obtain ⟨P, hP⟩ := hproto.complete a ha
-      have haccP := acceptProb_eq_sum M (hreal a) (Prover.independent P)
+      have haccP := acceptProb_eq_sum M (by
+        simpa only [ProbOracleComp.runWith_eq_run_interpret] using hreal a)
+        (Prover.independent P)
       have hopt := MIP.exists_deterministic_prover_family
         (fun r : Fin t → Bool => coinProgram M t x (List.ofFn r))
         (fun r => by
@@ -932,7 +887,8 @@ theorem MIP_subset_NEXP : MIP enc ⊆ NEXP enc := by
       obtain ⟨D, hsum_le, hlt⟩ := MIP.exists_detProver_of_checkCert M hcheck
       by_contra ha
       have hsound := hproto.sound a ha (fun i => (D i).toProver)
-      have haccD := acceptProb_eq_sum M (hreal a)
+      have haccD := acceptProb_eq_sum M (by
+        simpa only [ProbOracleComp.runWith_eq_run_interpret] using hreal a)
         (Prover.independent fun i => (D i).toProver)
       have hineq : (cert.length : ℝ≥0∞) / (2 ^ t : ℕ) ≤ (1 / 3 : ℝ≥0∞) := by
         calc (cert.length : ℝ≥0∞) / (2 ^ t : ℕ)

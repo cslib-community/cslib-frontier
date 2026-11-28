@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Scan
 public import CslibFrontier.Computability.WordRAM.Heap
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Initialization of the actual root stack frame
@@ -35,9 +36,6 @@ def RootFinishLocal (i : Fin registers) : Prop :=
 instance (i : Fin registers) : Decidable (RootFinishLocal i) :=
   inferInstanceAs (Decidable (i = address ∨ i = level ∨ i = mode ∨ i = active))
 
-private theorem rootFinish_preserves (i : Fin registers) :
-    ¬RootFinishLocal i → rootFinish.Preserves i := by decide +kernel +revert
-
 /-- Eleven native instructions write the root's computed count, zero prefix, unit stride and
 zero term, then set the controller to its entry phase. -/
 theorem exec_rootFinish {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
@@ -49,29 +47,19 @@ theorem exec_rootFinish {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
         (x.regs frames + 2) 1) (x.regs frames + 3) 0 ∧
       Modifies (Block.mk (x.regs frames) 4).footprint x.mem y.mem ∧
       (∀ i, ¬RootFinishLocal i → y.regs i = x.regs i) := by
-  let f := x.regs frames
-  let y := (((((((((((x.set address f).write f (x.regs childCount)).set address (f + 1)).write
-    (f + 1) 0).set address (f + 2)).write (f + 2) 1).set address (f + 3)).write
-    (f + 3) 0).set level 0).set mode 0).set active 1)
-  have hconst : Fits w 1 := hw.of_le (by omega)
   have hf1 : Fits w (x.regs frames + 1) := hw.of_le (by omega)
   have hf2 : Fits w (x.regs frames + 2) := hw.of_le (by omega)
-  have he : ExecWithin w rootFinish x y 11 := by
-    ram_eval [rootFinish, y, f, h0, h1, hw, hconst, hf1, hf2, address, level, mode, active,
-      one, nil, childCount, frames, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, by simp [y], rfl, ?_,
-    fun i hi => he.regs_eq (rootFinish_preserves i hi)⟩
-  · simp +decide [y, active, mode, level]
-  · simp +decide [y, active, mode]
+  refine WP.exists_execWithin ?_
+  unfold rootFinish
+  wram_exec [h0, h1, hw, hf1, hf2]
+  refine ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, ?_, fun i hi => ?_⟩
   · intro a ha
-    have hnot : ¬(f ≤ a ∧ a < f + 4) := by
-      simpa only [Block.mem_footprint, Block.Owns, f, Block.base, Block.length] using ha
-    have h0' : a ≠ f := by omega
-    have h1' : a ≠ f + 1 := by omega
-    have h2' : a ≠ f + 2 := by omega
-    have h3' : a ≠ f + 3 := by omega
-    simp only [y, Data.set_mem, Data.write_mem, Function.update_of_ne h3',
-      Function.update_of_ne h2', Function.update_of_ne h1', Function.update_of_ne h0']
+    have hnot : ¬(x.regs frames ≤ a ∧ a < x.regs frames + 4) := by
+      simpa only [Block.mem_footprint, Block.Owns] using ha
+    wram_simp
+  · simp only [RootFinishLocal, not_or] at hi
+    rcases hi with ⟨h1', h2', h3', h4'⟩
+    wram_simp
 
 /-- Registers written by root-list construction and its first frame initialization. -/
 def RootLocal (i : Fin registers) : Prop :=
@@ -80,9 +68,6 @@ def RootLocal (i : Fin registers) : Prop :=
 instance (i : Fin registers) : Decidable (RootLocal i) :=
   inferInstanceAs (Decidable
     (ScanLocal i ∨ RootFinishLocal i ∨ i = listBase ∨ i = count ∨ i = childList))
-
-private theorem rootList_preserves (i : Fin registers) :
-    ¬RootLocal i → rootList.Preserves i := by decide +kernel +revert
 
 /-- Construct the actual distinct root list and frame. Repeated input queries are read and
 removed by the native timestamp scan, rather than supplied as a mathematical set. The frame,
@@ -113,74 +98,41 @@ theorem exec_rootList {w N capacity : ℕ} (x : Data registers) (input : ℕ →
         ¬(Block.mk (x.regs stamps) capacity).Owns a →
         ¬(Block.mk (x.regs frames) 4).Owns a → y.mem a = x.mem a) ∧
       (∀ i, ¬RootLocal i → y.regs i = x.regs i) := by
-  let u := ((x.set listBase (x.regs queries)).set count N).set childList (x.regs lists)
-  have hu : ExecWithin w rootScanSetup x u 3 := by
-    ram_eval [rootScanSetup, u, hN, listBase, count, childList, queryCount, queries, lists,
-      Fin.mk.injEq]
-  obtain ⟨v, hv, _, hve, hvc, htable, _, hscanFrame, hvreg⟩ := exec_scan (N := N)
-    (capacity := capacity) false u input
-    (by simp +decide [u, count, childList])
-    (by simpa +decide [u, listBase, count, childList] using hinput)
+  refine WP.exists_execWithin ?_
+  unfold rootList rootScanSetup
+  wram_exec [hN]
+  wram_call (exec_scan (N := N) (capacity := capacity) false _ input
+    (by wram_simp) (by wram_simp; exact hinput)
     (by simpa only [shortened, Bool.false_eq_true, ↓reduceIte] using hcodes)
-    (Or.inl (by simpa +decide [u, childList, stamps, count, listBase] using hsep))
-    (Or.inl (by simpa +decide [u, childList, listBase, count] using hsrcOut))
-    (Or.inl (by simpa +decide [u, stamps, listBase, count, childList] using
-      hsrcOut.trans (Nat.le_trans (Nat.le_add_right _ _) hsep)))
-    (by simpa +decide [u, stamps, epoch, childList, count, listBase] using hmarks)
-    (by simpa +decide [u, one, childList, count, listBase] using h1)
-    (by simpa +decide [u, ten, childList, count, listBase] using h10)
-    (by simpa +decide [u, nine, childList, count, listBase] using h9)
-    (hw.of_le (by simp +decide [u, listBase, count, childList, stamps, epoch]; omega))
-  have fixed (i : Fin registers) (hi : ¬ScanLocal i)
-      (hb : i ≠ listBase) (hc : i ≠ count) (ho : i ≠ childList) :
-      v.regs i = x.regs i := by
-    rw [hvreg i hi]
-    simp only [u, Data.set_regs, Function.update_of_ne ho, Function.update_of_ne hc,
-      Function.update_of_ne hb]
-  have hvf := fixed frames (by decide) (by decide) (by decide) (by decide)
-  have hvs := fixed stamps (by decide) (by decide) (by decide) (by decide)
-  obtain ⟨y, hy, hyl, hym, hya, hmem, hfinishFrame, _⟩ := exec_rootFinish v
-    ((fixed nil (by decide) (by decide) (by decide) (by decide)).trans h0)
-    ((fixed one (by decide) (by decide) (by decide) (by decide)).trans h1)
-    (hw.of_le (by rw [hvf]; omega))
-  have he : ExecWithin w rootList x y (20 * N + 19) := by
-    exact (hu.seq (hv.seq hy)).mono (by omega)
-  have hyoutside (a : ℕ) (ha : ¬(Block.mk (x.regs frames) 4).Owns a) :
-      y.mem a = v.mem a := hfinishFrame a (by simpa only [Block.mem_footprint, hvf] using ha)
-  have htable' : ScanMemory v.mem (x.regs lists) (x.regs stamps) (x.regs epoch + 1)
-      capacity ((Finset.range N).image input) := by
-    simpa +decide [u, childList, stamps, epoch, listBase, count, term, scanSet_root] using htable
-  refine ⟨y, he, hyl, hym, hya, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    fun i hi => he.regs_eq (rootList_preserves i hi)⟩
-  · simpa +decide [hy.regs_eq (by decide : rootFinish.Preserves epoch), u, epoch,
-      childList, count, listBase] using hve
-  · ram_keep htable' using hyoutside
-  · rw [hmem, hvf]
-    simpa +decide [Function.update_apply, u, childList, count, listBase, term, scanSet_root]
-      using hvc
-  · rw [hmem, hvf]
-    simp
-  · rw [hmem, hvf]
-    simp
-  · rw [hmem, hvf]
-    simp
+    (Or.inl (by wram_simp; exact hsep)) (Or.inl (by wram_simp; exact hsrcOut))
+    (Or.inl (by wram_simp; exact hsrcOut.trans (Nat.le_trans (Nat.le_add_right _ _) hsep)))
+    (by wram_simp; exact hmarks) (by wram_simp [h1]) (by wram_simp [h10]) (by wram_simp [h9])
+    (hw.of_le (by wram_simp; omega)))
+    with v ⟨_, hve, hvc, htable, _, hscanFrame, hvreg⟩
+  wram_simp at hve hvc htable hscanFrame
+  rw [scanSet_root] at hvc htable
+  have hvf : v.regs frames = x.regs frames := by regs_frame
+  wram_call (exec_rootFinish v (by regs_frame) (by regs_frame) (hw.of_le (by rw [hvf]; omega)))
+    with y ⟨hyl, hym, hya, hmem, hfinishFrame, hyreg⟩
+  rw [hvf] at hmem hfinishFrame
+  have hyoutside (a : ℕ) (ha : ¬(Block.mk (x.regs frames) 4).Owns a) : y.mem a = v.mem a :=
+    hfinishFrame a (by simpa only [Block.mem_footprint] using ha)
+  refine ⟨by omega, hyl, hym, hya, by regs_frame, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun i hi => ?_⟩
+  · ram_keep htable using hyoutside
+  · rw [hmem]; simp [hvc]
+  · rw [hmem]; simp
+  · rw [hmem]; simp
+  · rw [hmem]; simp
   · intro i hi
-    rw [hyoutside _ (by change ¬(x.regs frames ≤ _ ∧ _ < x.regs frames + 4); omega)]
-    rw [hscanFrame]
+    rw [hyoutside _ (by change ¬(x.regs frames ≤ _ ∧ _ < x.regs frames + 4); omega), hscanFrame]
     · exact hinput i hi
-    · change ¬(u.regs childList ≤ _ ∧ _ < u.regs childList + capacity)
-      simp +decide only [u, Data.set_regs, childList, count, listBase,
-        Function.update_apply, ↓reduceIte]
-      omega
-    · change ¬(u.regs stamps ≤ _ ∧ _ < u.regs stamps + capacity)
-      have hus : u.regs stamps = x.regs stamps := by
-        simp +decide [u, stamps, childList, count, listBase]
-      rw [hus]
-      omega
+    · change ¬(x.regs lists ≤ _ ∧ _ < x.regs lists + capacity); omega
+    · change ¬(x.regs stamps ≤ _ ∧ _ < x.regs stamps + capacity); omega
   · intro a hao has haf
-    rw [hyoutside a haf, hscanFrame]
-    · rfl
-    · simpa +decide [u, childList, count, listBase] using hao
-    · simpa +decide [u, stamps, childList, count, listBase] using has
+    exact (hyoutside a haf).trans (hscanFrame a hao has)
+  · simp only [RootLocal, not_or] at hi
+    rcases hi with ⟨hscan, hfin, hb, hc, hl⟩
+    rw [hyreg i hfin, hvreg i hscan]
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

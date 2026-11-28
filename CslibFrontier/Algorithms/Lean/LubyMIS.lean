@@ -10,9 +10,12 @@ module
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import Mathlib.Combinatorics.SimpleGraph.Clique
 public import Mathlib.Combinatorics.SimpleGraph.DegreeSum
+import CslibFrontier.Languages.Probabilistic.Expect
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Markov
 import CslibFrontier.Probability.UniformOrder
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Data.Nat.Choose.Bounds
 
@@ -175,6 +178,11 @@ noncomputable def run (k : ℕ) : ProbComp (State V) :=
 noncomputable def lubyMIS (k : ℕ) : ProbComp (Finset V) :=
   State.chosen <$> run G k
 
+/-- The law of `lubyMIS`: pushing `run G k` forward along `State.chosen`. -/
+theorem eval_lubyMIS (k : ℕ) :
+    ProbComp.eval (lubyMIS G k) = (ProbComp.eval (run G k)).map State.chosen :=
+  ProbComp.eval_map _ _
+
 theorem run_zero : run G 0 = pure (init : State V) := by
   simp only [run, OracleComp.iterate_zero]
 
@@ -230,9 +238,8 @@ theorem Invariant.step {s : State V} (h : Invariant G s) (σ : Ranking V) :
     · exact h.isIndepSet hu hv huv hadj
     · exact (h.disjoint v ((mem_joiners G).1 hv).1 u hu).1 hadj
     · exact (h.disjoint u ((mem_joiners G).1 hu).1 v hv).1 hadj.symm
-    · have h1 := ((mem_joiners G).1 hu).2 v ((mem_joiners G).1 hv).1 hadj
-      have h2 := ((mem_joiners G).1 hv).2 u ((mem_joiners G).1 hu).1 hadj.symm
-      exact lt_asymm h1 h2
+    · exact lt_asymm (((mem_joiners G).1 hu).2 v ((mem_joiners G).1 hv).1 hadj)
+        (((mem_joiners G).1 hv).2 u ((mem_joiners G).1 hu).1 hadj.symm)
   · intro v hv u hu
     rw [mem_step_live] at hv
     rw [step_chosen, mem_union] at hu
@@ -308,9 +315,7 @@ theorem maximal_of_mem_support_lubyMIS {k : ℕ} (hk : Fintype.card V ≤ k) {S 
         · exact absurd he hne.ne_empty
         · have := card_step_live_lt G hne σ
           exact Or.inr (by omega)) s hs
-  rcases hcard with he | hcard
-  · exact he
-  · exact card_eq_zero.1 (by omega)
+  exact hcard.elim id fun h => card_eq_zero.1 (by omega)
 
 /-- **Independence.** After any number of phases, every possible output is an independent set. -/
 theorem isIndepSet_of_mem_support_lubyMIS {k : ℕ} {S : Finset V}
@@ -370,12 +375,8 @@ private theorem degree_step_add_le (σ : Ranking V) (v : V) :
     have hu' : u ∈ H.neighborFinset v := (SimpleGraph.mem_neighborFinset _ _ _).2 hu
     rw [hdeg0, zero_add, sum_eq_single_of_mem u hu']
     · rw [ite_eq_left hW]
-    · intro u' hu'' hne
-      rw [ite_eq_right]
-      intro hW'
-      have h1 : σ u < σ u' := hW u' (mem_union_right _ hu'') hne
-      have h2 : σ u' < σ u := hW' u (mem_union_right _ hu') (Ne.symm hne)
-      exact lt_asymm h1 h2
+    · exact fun u' hu'' hne => ite_eq_right fun hW' =>
+        lt_asymm (hW u' (mem_union_right _ hu'') hne) (hW' u (mem_union_right _ hu') hne.symm)
   · push Not at hex
     rw [sum_eq_zero fun u hu => ite_eq_right (hex u hu), add_zero]
     exact hdeg
@@ -405,30 +406,23 @@ theorem two_mul_sum_liveEdges_step_le :
     rw [sum_comm]
     refine sum_congr rfl fun u _ => ?_
     rw [← sum_filter, sum_const, smul_eq_mul]
+  have hmem : ∀ u v, H.Adj u v → u ∈ H.neighborFinset u ∪ H.neighborFinset v := fun _ _ huv =>
+    mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv.symm)
   have haS : ∀ u v, H.Adj u v → a u v * (H.degree u + H.degree v) ≥ N := by
     intro u v huv
-    have hu : u ∈ H.neighborFinset u ∪ H.neighborFinset v :=
-      mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv.symm)
     calc N = a u v * (H.neighborFinset u ∪ H.neighborFinset v).card :=
-          (card_filter_least_mul_card hu).symm
+          (card_filter_least_mul_card (hmem u v huv)).symm
       _ ≤ a u v * (H.degree u + H.degree v) := by
           refine Nat.mul_le_mul_left _ ?_
           rw [← SimpleGraph.card_neighborFinset_eq_degree,
             ← SimpleGraph.card_neighborFinset_eq_degree]
           exact card_union_le _ _
-  have hsym : ∀ u v, H.Adj u v → a u v = a v u := by
-    intro u v huv
-    have hu : u ∈ H.neighborFinset u ∪ H.neighborFinset v :=
-      mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv.symm)
-    have hv : v ∈ H.neighborFinset v ∪ H.neighborFinset u :=
-      mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv)
-    have h1 := card_filter_least_mul_card hu
-    have h2 : a v u * (H.neighborFinset u ∪ H.neighborFinset v).card =
-        Fintype.card (Ranking V) := by
+  have hsym : ∀ u v, H.Adj u v → a u v = a v u := fun u v huv => by
+    have h2 : a v u * (H.neighborFinset u ∪ H.neighborFinset v).card = N := by
       rw [union_comm]
-      exact card_filter_least_mul_card hv
-    have hpos : 0 < (H.neighborFinset u ∪ H.neighborFinset v).card := card_pos.2 ⟨u, hu⟩
-    exact Nat.eq_of_mul_eq_mul_right hpos (h1.trans h2.symm)
+      exact card_filter_least_mul_card (hmem v u huv.symm)
+    exact Nat.eq_of_mul_eq_mul_right (card_pos.2 ⟨u, hmem u v huv⟩)
+      ((card_filter_least_mul_card (hmem u v huv)).trans h2.symm)
   -- The counted removals total at least `N` times the live edges.
   have hTlow : N * liveEdges G s ≤ ∑ v, ∑ u ∈ H.neighborFinset v, a u v * H.degree v := by
     have hswap : ∑ v, ∑ u ∈ H.neighborFinset v, a u v * H.degree v =
@@ -467,17 +461,9 @@ theorem two_mul_expect_liveEdges_phase_le :
     2 * ∑' t, ProbComp.eval (phase G s) t * (liveEdges G t : ℝ≥0∞) ≤ liveEdges G s := by
   rw [eval_phase, Probability.PMF.tsum_map_mul, tsum_fintype]
   simp only [Probability.PMF.uniformOfFintype_apply]
-  rw [← mul_sum, ← mul_assoc, mul_comm 2, mul_assoc]
-  have h := two_mul_sum_liveEdges_step_le G s
-  have hN : (Fintype.card (Ranking V) : ℝ≥0∞) ≠ 0 := by
-    exact_mod_cast Fintype.card_ne_zero
-  calc (Fintype.card (Ranking V) : ℝ≥0∞)⁻¹ *
-        (2 * ∑ σ : Ranking V, (liveEdges G (step G s σ) : ℝ≥0∞))
-      ≤ (Fintype.card (Ranking V) : ℝ≥0∞)⁻¹ *
-          ((Fintype.card (Ranking V) : ℝ≥0∞) * liveEdges G s) := by
-        exact mul_le_mul_right (by exact_mod_cast h) _
-    _ = liveEdges G s := by
-        rw [← mul_assoc, ENNReal.inv_mul_cancel hN (ENNReal.natCast_ne_top _), one_mul]
+  ennreal_to_real
+  rw [← Finset.mul_sum, mul_left_comm, inv_mul_le_iff₀ (by exact_mod_cast Fintype.card_pos)]
+  exact_mod_cast two_mul_sum_liveEdges_step_le G s
 
 end Progress
 
@@ -494,25 +480,10 @@ theorem liveEdges_init : liveEdges G (init : State V) = G.edgeFinset.card := by
 /-- After `k` phases the expected number of live edges is at most `|E| / 2 ^ k`. -/
 theorem two_pow_mul_expect_liveEdges_run_le (k : ℕ) :
     2 ^ k * ∑' t, ProbComp.eval (run G k) t * (liveEdges G t : ℝ≥0∞) ≤ G.edgeFinset.card := by
-  induction k with
-  | zero =>
-    rw [pow_zero, one_mul, run_zero, ProbComp.eval_pure,
-      tsum_eq_single init (fun t ht => by rw [PMF.pure_apply, ite_eq_right ht, zero_mul]),
-      PMF.pure_apply, ite_eq_left rfl, one_mul, liveEdges_init]
-  | succ k ih =>
-    rw [run_succ, ProbComp.eval_bind, Probability.PMF.tsum_bind_mul]
-    calc 2 ^ (k + 1) * ∑' a, ProbComp.eval (run G k) a *
-          ∑' t, ProbComp.eval (phase G a) t * (liveEdges G t : ℝ≥0∞)
-        = 2 ^ k * ∑' a, ProbComp.eval (run G k) a *
-          (2 * ∑' t, ProbComp.eval (phase G a) t * (liveEdges G t : ℝ≥0∞)) := by
-          rw [pow_succ, mul_assoc, ← ENNReal.tsum_mul_left]
-          congr 1
-          refine tsum_congr fun a => ?_
-          ring
-      _ ≤ 2 ^ k * ∑' a, ProbComp.eval (run G k) a * (liveEdges G a : ℝ≥0∞) := by
-          gcongr with a
-          exact two_mul_expect_liveEdges_phase_le G a
-      _ ≤ G.edgeFinset.card := ih
+  simpa only [run, ProbComp.expect, one_pow, one_mul, liveEdges_init] using
+    ProbComp.pow_mul_expect_iterate_le (c := 2) (d := 1) (phase G) init
+      (fun t => (liveEdges G t : ℝ≥0∞))
+      (fun a => (two_mul_expect_liveEdges_phase_le G a).trans_eq (one_mul _).symm) k
 
 /-- With no live edge left, the next phase makes every live vertex join, and none stays live. -/
 theorem live_step_eq_empty {s : State V} (h : liveEdges G s = 0) (σ : Ranking V) :
@@ -531,23 +502,19 @@ theorem live_step_eq_empty {s : State V} (h : liveEdges G s = 0) (σ : Ranking V
 theorem two_pow_mul_toOuterMeasure_live_nonempty_le (k : ℕ) :
     2 ^ k * (ProbComp.eval (run G (k + 1))).toOuterMeasure {s | s.live.Nonempty} ≤
       G.edgeFinset.card := by
-  refine le_trans ?_ (two_pow_mul_expect_liveEdges_run_le G k)
-  rw [run_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
-  gcongr with a
-  rcases Nat.eq_zero_or_pos (liveEdges G a) with h0 | hpos
-  · rw [h0, Nat.cast_zero, eval_phase, PMF.toOuterMeasure_map_apply]
-    refine le_of_eq (PMF.toOuterMeasure_apply_eq_zero_iff _ _ |>.2 ?_)
-    refine Set.disjoint_left.2 fun σ _ hσ => ?_
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, live_step_eq_empty G h0 σ,
-      Finset.not_nonempty_empty] at hσ
-  · exact (Probability.PMF.toOuterMeasure_le_one _ _).trans (Nat.one_le_cast.2 hpos)
+  rw [run_succ, ProbComp.eval_bind]
+  refine (mul_le_mul_right (Probability.PMF.toOuterMeasure_bind_le_tsum_nat _ _ _
+    (liveEdges G) fun a _ h0 b hb => ?_) _).trans (two_pow_mul_expect_liveEdges_run_le G k)
+  supp_cases hb [eval_phase] with ⟨σ, rfl⟩
+  simp [live_step_eq_empty G h0 σ]
 
 /-- **High-probability round bound.** If `|E| ≤ 2 ^ m`, then after `m + t + 1` phases the chosen
 set fails to be a maximal independent set with probability at most `2 ^ (-t)`. -/
 theorem toOuterMeasure_not_maximal_lubyMIS_le {m : ℕ} (hm : G.edgeFinset.card ≤ 2 ^ m) (t : ℕ) :
     (ProbComp.eval (lubyMIS G (m + t + 1))).toOuterMeasure
         {S | ¬ Maximal G.IsIndepSet (S : Set V)} ≤ (2 ^ t)⁻¹ := by
-  rw [lubyMIS, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
+  rw [lubyMIS, ProbComp.eval_map,
+    PMF.toOuterMeasure_map_apply]
   have hsub : (State.chosen ⁻¹' {S : Finset V | ¬ Maximal G.IsIndepSet (S : Set V)}) ∩
       (ProbComp.eval (run G (m + t + 1))).support ⊆ {s | s.live.Nonempty} := by
     rintro s ⟨hs, hsupp⟩
@@ -556,19 +523,11 @@ theorem toOuterMeasure_not_maximal_lubyMIS_le {m : ℕ} (hm : G.edgeFinset.card 
     exact nonempty_iff_ne_empty.2 hs
   refine (PMF.toOuterMeasure_mono _ hsub).trans ?_
   have h := two_pow_mul_toOuterMeasure_live_nonempty_le G (m + t)
-  have h2 : (2 : ℝ≥0∞) ^ (m + t) ≠ 0 := pow_ne_zero _ two_ne_zero
-  have h2' : (2 : ℝ≥0∞) ^ (m + t) ≠ ⊤ := ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-  rw [mul_comm, ← ENNReal.le_div_iff_mul_le (Or.inl h2) (Or.inl h2')] at h
-  refine h.trans ?_
-  rw [pow_add, ENNReal.div_eq_inv_mul, ENNReal.mul_inv (Or.inl (pow_ne_zero _ two_ne_zero))
-    (Or.inl (ENNReal.pow_ne_top ENNReal.ofNat_ne_top)), mul_comm _ (2 ^ t)⁻¹, mul_assoc]
-  calc (2 ^ t)⁻¹ * (((2 : ℝ≥0∞) ^ m)⁻¹ * G.edgeFinset.card)
-      ≤ (2 ^ t)⁻¹ * (((2 : ℝ≥0∞) ^ m)⁻¹ * 2 ^ m) := by
-        gcongr
-        exact_mod_cast hm
-    _ = (2 ^ t)⁻¹ := by
-        rw [ENNReal.inv_mul_cancel (pow_ne_zero _ two_ne_zero)
-          (ENNReal.pow_ne_top ENNReal.ofNat_ne_top), mul_one]
+  ennreal_to_real at h ⊢
+  rw [pow_add] at h
+  rw [inv_eq_one_div, le_div_iff₀ (by positivity)]
+  have hm' : (G.edgeFinset.card : ℝ) ≤ 2 ^ m := by exact_mod_cast hm
+  nlinarith [pow_pos (two_pos : (0 : ℝ) < 2) m]
 
 /-- The success form: if `|E| ≤ 2 ^ m`, then after `m + t + 1` phases the output is a maximal
 independent set with probability at least `1 - 2 ^ (-t)`. -/
@@ -576,12 +535,10 @@ theorem one_sub_le_toOuterMeasure_maximal_lubyMIS {m : ℕ} (hm : G.edgeFinset.c
     (t : ℕ) :
     1 - (2 ^ t)⁻¹ ≤ (ProbComp.eval (lubyMIS G (m + t + 1))).toOuterMeasure
         {S | Maximal G.IsIndepSet (S : Set V)} := by
-  have hsum := Probability.PMF.toOuterMeasure_add_compl_ennreal
-    (ProbComp.eval (lubyMIS G (m + t + 1))) {S | Maximal G.IsIndepSet (S : Set V)}
-  have hfail := toOuterMeasure_not_maximal_lubyMIS_le G hm t
-  rw [tsub_le_iff_right, ← hsum]
+  rw [tsub_le_iff_right, ← Probability.PMF.toOuterMeasure_add_compl_ennreal
+    (ProbComp.eval (lubyMIS G (m + t + 1))) {S | Maximal G.IsIndepSet (S : Set V)}]
   gcongr
-  exact hfail
+  exact toOuterMeasure_not_maximal_lubyMIS_le G hm t
 
 /-- The success form with `m = ⌈log₂ |E|⌉`: `⌈log₂ |E|⌉ + t + 1` phases suffice. -/
 theorem one_sub_le_toOuterMeasure_maximal_lubyMIS_clog (t : ℕ) :
@@ -592,7 +549,7 @@ theorem one_sub_le_toOuterMeasure_maximal_lubyMIS_clog (t : ℕ) :
 
 omit [DecidableEq V] in
 /-- A graph on `n` vertices has at most `2 ^ (2 ⌈log₂ n⌉)` edges. -/
-private theorem card_edgeFinset_le_two_pow_two_mul_clog :
+theorem card_edgeFinset_le_two_pow_two_mul_clog :
     G.edgeFinset.card ≤ 2 ^ (2 * Nat.clog 2 (Fintype.card V)) :=
   calc G.edgeFinset.card ≤ (Fintype.card V).choose 2 := G.card_edgeFinset_le_card_choose_two
     _ ≤ Fintype.card V ^ 2 := Nat.choose_le_pow _ _

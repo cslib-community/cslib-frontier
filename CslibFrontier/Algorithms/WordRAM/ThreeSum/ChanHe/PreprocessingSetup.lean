@@ -11,6 +11,9 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingProg
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingLayout
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingReserve
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Internal initialization proof for native preprocessing
@@ -63,29 +66,13 @@ private theorem snapshot_exec {κ n w : ℕ} (x : Data 128)
     (hc : x.regs Frontend.descriptorCount = (Frontend.layout κ n).count)
     (he : x.regs Frontend.heapEnd = (Frontend.layout κ n).endpoint)
     (h6 : Fits w 6) : ∃ y, Exec w snapshot x y 13 ∧ Saved κ n y ∧ y.mem = x.mem := by
-  let l := Frontend.layout κ n
-  let y := x |>.set descriptors l.descriptors |>.set roots l.count
-    |>.set levels (Cslib.Algorithms.ThreeSum.ChanHe.fuel n)
-    |>.set inputMagnitude ((n + 2) ^ κ)
-    |>.set candidateLimit (Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ))
-    |>.set labels l.digits
-    |>.set packedLength (8 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2)
-    |>.set firstFree l.endpoint |>.set current 0 |>.set stride 6
-    |>.set one 1 |>.set zero 0 |>.set four 4
-  have hf := hp.fuel
-  have hU := hp.magnitude
-  have hm := hp.primeBound
-  have hΛ := hp.digits
-  have hN := hp.packedLen
+  obtain ⟨hf, hU, hm, hΛ, hN⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ :=
+    ⟨hp.fuel, hp.magnitude, hp.primeBound, hp.digits, hp.packedLen⟩
   simp only [Data.comap_regs] at hf hU hm hΛ hN
-  have h1 : Fits w 1 := h6.of_le (by decide)
-  have h4 : Fits w 4 := h6.of_le (by decide)
-  refine ⟨y, ?_, ?_, rfl⟩
-  · ram_eval [snapshot, y, l, hb, hc, he, hf, hU, hm, hΛ, hN, h1, h4, h6,
-      Frontend.layout, descriptors, roots, levels, inputMagnitude, candidateLimit,
-      labels, packedLength, firstFree, current, stride, one, zero, four]
-  · constructor <;> simp +decide [y, l, descriptors, roots, levels, inputMagnitude,
-      candidateLimit, labels, packedLength, firstFree, current, stride, one, zero, four]
+  refine WP.Exact.exists_exec ?_
+  unfold snapshot
+  wram_exec [hb, hc, he, hf, hU, hm, hΛ, hN]
+  exact ⟨by constructor <;> wram_simp [Frontend.layout], by wram_simp⟩
 
 /-- Compute the actual shared bitmap from the already computed frontend and numeric parameters. -/
 private theorem primes_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
@@ -101,37 +88,36 @@ private theorem primes_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
       ∀ p < base, y.mem p = x.mem p := by
   let m := Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ)
   let base := (Frontend.layout κ n).endpoint
-  let p := (x.set (primeRegisters PrimeTable.limit) m).set (primeRegisters PrimeTable.base) base
-  have hp : Exec w preparePrimes x p 2 := by
-    ram_eval [preparePrimes, p, hs.limit, hs.endpoint, m, base]
-  have hpi : Function.Injective primeRegisters := by
-    intro i j hij
-    exact Fin.ext (congrArg (fun k : Fin 128 => k.val) hij)
-  obtain ⟨y, hz, ⟨hmem, hcount, _, _⟩, _⟩ := ExecWithin.rename_post hpi
-    (PrimeTable.exec (p.comap primeRegisters)
-    (hfit.of_le (by change m + 3 ≤ base + m + 4; omega))
-    (hfit.of_le (by change base + (m + 1) ≤ base + m + 4; omega)))
-  have he : ExecWithin w (.seq preparePrimes (PrimeTable.program.rename primeRegisters)) x y
-      (2 + ((m + 1) * (7 * m + 15) + 8)) := by
-    simpa +decide [p, Data.comap, primeRegisters, PrimeTable.limit, m] using
-      hp.within.seq hz
-  have hmemory : y.mem = PrimeTable.memory x.mem base (m + 1) := by
-    simpa +decide [p, Data.comap, primeRegisters, PrimeTable.limit,
-      PrimeTable.base] using hmem
-  refine ⟨y, he, hs.congr (fun i hi _ => he.regs_eq ?_), hmemory, ?_, ?_, ?_⟩
-  · have hh : ∀ i : Fin 128, 109 ≤ i.val →
-        (Code.seq preparePrimes (PrimeTable.program.rename primeRegisters)).Preserves i := by decide
-    exact hh i hi
-  · simpa +decide [p, Data.comap, primeRegisters, PrimeTable.limit] using hcount
-  · intro q hq
-    change y.mem (base + q) = if q.Prime then 1 else 0
-    change q ≤ m at hq
-    rw [hmemory]
-    simp only [PrimeTable.memory, show base ≤ base + q ∧ base + q < base + (m + 1) by omega,
-      and_self, ↓reduceIte, Nat.add_sub_cancel_left]
+  have hpi : Function.Injective primeRegisters :=
+    fun _ _ hij => Fin.ext (congrArg (fun k : Fin 128 => k.val) hij)
+  have hh : ∀ i : Fin 128, 109 ≤ i.val →
+      (Code.seq preparePrimes (PrimeTable.program.rename primeRegisters)).Preserves i := by decide
+  obtain ⟨y, he, hmemory, hcount⟩ : ∃ y,
+      ExecWithin w (.seq preparePrimes (PrimeTable.program.rename primeRegisters)) x y
+        (2 + ((m + 1) * (7 * m + 15) + 8)) ∧
+      y.mem = PrimeTable.memory x.mem base (m + 1) ∧
+      y.regs (primeRegisters PrimeTable.count) = (Nat.primesLE m).card := by
+    refine WP.exists_execWithin ?_
+    unfold preparePrimes
+    wram_exec [hs.limit, hs.endpoint]
+    wram_call (PrimeTable.exec _
+      (by wram_simp [primeRegisters]; exact hfit.of_le (by change m + 3 ≤ base + m + 4; omega))
+      (by
+        wram_simp [primeRegisters]
+        exact hfit.of_le (by change base + (m + 1) ≤ base + m + 4; omega)))
+      canonical hpi with z ⟨hmem, hcount, _, _⟩
+    exact ⟨by wram_simp [primeRegisters]; dsimp only [m]; omega,
+      by wram_simp [primeRegisters, hmem, m, base],
+      by wram_simp [primeRegisters, hcount, m]⟩
+  refine ⟨y, he, hs.congr (fun i hi _ => he.regs_eq (hh i hi)), hmemory, hcount, ?_, ?_⟩
   · intro q hq
     rw [hmemory]
-    simp only [PrimeTable.memory, show ¬(base ≤ q ∧ q < base + (m + 1)) by omega, ↓reduceIte]
+    simp only [PrimeTable.memory, base]
+    rw [ite_eq_left (by omega), Nat.add_sub_cancel_left]
+  · intro q hq
+    rw [hmemory]
+    simp only [PrimeTable.memory, base]
+    exact ite_eq_right (by omega)
 
 /-- Execute all shared traversal arguments, constants and explicit-stack reservations. -/
 private theorem setupTraversal_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
@@ -144,61 +130,27 @@ private theorem setupTraversal_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ
       y.regs power = 1 ∧
       y.regs remaining = Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 1 ∧
       y.regs scalar = 3 ∧ y.mem = x.mem := by
-  let a := arena κ n x.mem
-  let F := a.fuel
-  let y := x |>.set Traversal.limit a.m |>.set Traversal.digits a.Λ
-    |>.set Traversal.magnitude a.U |>.set Traversal.groups a.N
-    |>.set Traversal.bitmap a.primes |>.set Traversal.primeCount (Nat.primesLE a.m).card
-    |>.set Traversal.stackBase (a.primes + a.m)
-    |>.set Traversal.stackBase a.stack
-    |>.set Traversal.stackCapacity (F + F)
-    |>.set Traversal.stackCapacity (F + F + 1) |>.set scalar 7
-    |>.set Traversal.stackCapacity a.capacity |>.set Traversal.outputs a.table
-    |>.set Traversal.outputCount 0 |>.set Traversal.zero 0 |>.set Traversal.one 1
-    |>.set power 1 |>.set remaining (F + 1) |>.set scalar 3
-  have hfloor : a.primes + a.m + 1 + 7 * (2 * F + 1) ≤ a.floor := by
-    dsimp only [a, F, arena]
-    omega
-  have fit (v : ℕ) (hv : v ≤ a.floor + a.U + a.N + F + 16) : Fits w v := hfit.of_le hv
-  have hU : Fits w (2 * (n + 2) ^ κ) := fit _ (by change a.U ≤ _; omega)
-  have hN : Fits w (2 * a.m ^ 2) := fit _ (by change a.N ≤ _; omega)
-  have hstack₀ : Fits w (a.primes + a.m) := fit _ (by omega)
-  have hstack : Fits w a.stack := fit _ (by change a.primes + a.m + 1 ≤ _; omega)
-  have hF₀ : Fits w (F + F) := fit _ (by omega)
-  have hF₁ : Fits w (F + F + 1) := fit _ (by omega)
-  have hcap : Fits w a.capacity := fit _ (by change 7 * (2 * F + 1) ≤ _; omega)
-  have htable : Fits w a.table := fit _ (by change a.primes + a.m + 1 + 7 * (2 * F + 1) ≤ _; omega)
-  have hnext : Fits w (F + 1) := fit _ (by omega)
-  have h1 : Fits w 1 := fit _ (by omega)
-  have h3 : Fits w 3 := fit _ (by omega)
-  have h7 : Fits w 7 := fit _ (by omega)
-  have hdiv : 8 * a.m ^ 2 / 4 = 2 * a.m ^ 2 := by omega
-  simp only [a, F, arena, ← two_mul, Nat.mul_comm, Nat.add_assoc]
-    at hU hN hstack₀ hstack hF₀ hF₁ hcap htable hnext hdiv
-  dsimp only [primeRegisters, PrimeTable.count] at hc
-  have he : Exec w setupTraversal x y 19 := by
-    ram_eval [setupTraversal, y, a, F, arena, hs.limit, hs.digits, hs.magnitude,
-      hs.length, hs.endpoint, hs.fuel, hs.one, hs.four, hc, hdiv, hU, hN,
-      hstack₀, hstack, hF₀, hF₁, hcap, htable, hnext, h1, h3, h7,
-      Traversal.limit, Traversal.digits, Traversal.magnitude, Traversal.groups,
-      Traversal.bitmap, Traversal.primeCount, Traversal.stackBase, Traversal.stackCapacity,
-      Traversal.outputs, Traversal.outputCount, Traversal.zero, Traversal.one,
-      candidateLimit, labels, inputMagnitude, packedLength, four, firstFree, levels,
-      one, power, remaining, scalar, primeRegisters, PrimeTable.count,
-      ← two_mul, Nat.mul_comm, Nat.add_assoc]
-  refine ⟨y, he, hs.congr (fun i hi hj => he.within.regs_eq ?_), ?_, ?_, ?_, ?_, ?_, rfl⟩
-  · have hh : ∀ i : Fin 128, 109 ≤ i.val → i ≠ power → i ≠ remaining → i ≠ scalar →
-        setupTraversal.Preserves i := by decide
-    exact hh i hi (by intro hh; subst i; norm_num [power] at hj)
-      (by intro hh; subst i; norm_num [remaining] at hj)
-      (by intro hh; subst i; norm_num [scalar] at hj)
-  · constructor <;> simp +decide [y, a, F, arena, Traversal.limit, Traversal.digits,
-      Traversal.magnitude, Traversal.groups, Traversal.bitmap, Traversal.primeCount,
-      Traversal.outputs, Traversal.stackBase, Traversal.stackCapacity,
-      Traversal.zero, Traversal.one, scalar, remaining, power]
-  all_goals simp +decide [y, F, a, arena, Traversal.outputCount,
-    Traversal.one, Traversal.zero, Traversal.outputs, Traversal.stackCapacity,
-    power, remaining, scalar]
+  have hfloor : (Frontend.layout κ n).endpoint +
+      Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) + 1 +
+      7 * (2 * Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 1) ≤ (arena κ n x.mem).floor := by
+    dsimp only [arena]; omega
+  change Fits w ((arena κ n x.mem).floor + 2 * (n + 2) ^ κ +
+    2 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 +
+    Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 16) at hfit
+  have hdiv : 8 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 / 4 =
+      2 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 := by omega
+  have hc' := hc
+  dsimp only [primeRegisters, PrimeTable.count] at hc'
+  refine WP.Exact.exists_exec ?_
+  unfold setupTraversal
+  wram_exec [hs.limit, hs.digits, hs.magnitude, hs.length, hs.endpoint, hs.fuel,
+    hs.one, hs.four, hc', hdiv]
+  refine ⟨?_, ?_, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+  · constructor <;> wram_simp [hs.base, hs.count, hs.fuel, hs.magnitude, hs.limit,
+      hs.digits, hs.length, hs.endpoint, hs.index, hs.stride, hs.one, hs.zero, hs.four]
+  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    all_goals wram_simp [arena]
+    all_goals omega
 
 /-- Compute all root reservations and the actual first fresh heap address by native code. -/
 private theorem finish_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
@@ -224,29 +176,30 @@ private theorem finish_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
     exact hregs i (by intro hh; subst i; norm_num [power] at hi)
       (by intro hh; subst i; norm_num [remaining] at hi))
-  have pcount : p.regs Traversal.outputCount = 0 :=
-    (hregs _ (by decide) (by decide)).trans hcount
-  let y := p |>.set outputCapacity a.outputCapacity |>.set Traversal.heap a.floor
-    |>.set heapFloor a.floor
-  have hcap : Fits w a.outputCapacity := hfloor.of_le (by dsimp only [a, arena]; omega)
-  have hout := pc.2.2.2.2.2.2.1
-  dsimp only [a, arena] at hcap hfloor hout
-  have hz : Exec w finishLayout p y 3 := by
-    ram_eval [finishLayout, y, a, arena, ps.count, hpower, hout, hcap, hfloor,
-      outputCapacity, roots, power, Traversal.outputs, Traversal.heap, heapFloor]
-  have ys : Saved κ n y := ps.congr (fun i hi hj => hz.within.regs_eq (by
-    have hh : ∀ i : Fin 128, 109 ≤ i.val → (i.val ≤ 120 ∨ i.val = 126) →
-        finishLayout.Preserves i := by decide
-    exact hh i hi hj))
-  have yc : a.Controls y := pc.congr (by
-    intro i hi
-    apply hz.within.regs_eq
-    have hh : ∀ i : Fin 128, i.val ∈ [71, 72, 73, 74, 75, 76, 78, 80, 81, 82, 83] →
-        finishLayout.Preserves i := by decide
-    exact hh i hi)
-  refine ⟨y, (he.seq hz.within).mono (by omega), ys, yc, ?_, ?_, ?_, ?_, hmem⟩
-  · simpa +decide [y, outputCapacity, Traversal.heap, heapFloor,
-      Traversal.outputCount] using pcount
-  all_goals simp +decide [y, a, outputCapacity, Traversal.heap, heapFloor]
+  have pcount : p.regs Traversal.outputCount = 0 := by regs_frame
+  have hcap : Fits w ((Frontend.layout κ n).count *
+      3 ^ (Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 1)) :=
+    hfloor.of_le (by dsimp only [arena]; omega)
+  have hout : p.regs Traversal.outputs = a.table := pc.2.2.2.2.2.2.1
+  have hfl_eq : a.table + (Frontend.layout κ n).count *
+      3 ^ (Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 1) = (arena κ n x.mem).floor := rfl
+  obtain ⟨y, hz, hycount, hyheap, hycap, hyfl, hym⟩ : ∃ y,
+      Exec w finishLayout p y 3 ∧
+      y.regs Traversal.outputCount = 0 ∧ y.regs Traversal.heap = (arena κ n x.mem).floor ∧
+      y.regs outputCapacity = (arena κ n x.mem).outputCapacity ∧
+      y.regs heapFloor = (arena κ n x.mem).floor ∧ y.mem = p.mem := by
+    refine WP.Exact.exists_exec ?_
+    unfold finishLayout
+    wram_exec [ps.count, hpower, hout, hfl_eq]
+    exact ⟨by wram_simp [pcount], by wram_simp, by wram_simp [arena], by wram_simp, by wram_simp⟩
+  have ys : Saved κ n y := ps.congr fun i hi hj =>
+    hz.within.regs_eq ((by decide : ∀ i : Fin 128, 109 ≤ i.val →
+      (i.val ≤ 120 ∨ i.val = 126) → finishLayout.Preserves i) i hi hj)
+  have yc : (arena κ n x.mem).Controls y := pc.congr fun i hi =>
+    hz.within.regs_eq ((by decide : ∀ i : Fin 128,
+      i.val ∈ [71, 72, 73, 74, 75, 76, 78, 80, 81, 82, 83] →
+      finishLayout.Preserves i) i hi)
+  exact ⟨y, (he.seq hz.within).mono (by omega), ys, yc, hycount, hyheap, hycap, hyfl,
+    hym.trans hmem⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Preprocessing

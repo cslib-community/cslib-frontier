@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Coefficient
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native multiplication of cyclic coefficient arrays
@@ -69,50 +70,26 @@ theorem exec {w p A B : ℕ} (x : Data 32) (u v : ℕ → ℤ)
     have hro := hregs Reg.output (by decide)
     have readA (i : ℕ) (hip : i < p) :
         y.mem (y.regs Reg.inputA + i) = encode (u i) := by
-      rw [hra, hframe _ (by rcases hdisjA with h | h <;> omega)]
-      exact hA i hip
+      rw [hra, hframe _ (by omega)]; exact hA i hip
     have readB (i : ℕ) (hip : i < p) :
         y.mem (y.regs Reg.inputB + i) = encode (v i) := by
-      rw [hrb, hframe _ (by rcases hdisjB with h | h <;> omega)]
-      exact hB i hip
+      rw [hrb, hframe _ (by omega)]; exact hB i hip
     obtain ⟨z, hz, hzrow, hzmem, hzregs⟩ := exec_coefficient y u v hl rfl hlt h1
       hbound hu hv readA readB h2p (by simpa only [hra] using ha)
       (by simpa only [hrb] using hb) (by rw [hro]; exact hout.of_le (by omega))
     have hmem : z.mem = Function.update y.mem (x.regs Reg.output + y.regs Reg.coefficient)
-        (encode (convolution p u v (y.regs Reg.coefficient))) := by
-      simpa only [hro] using hzmem
-    refine ⟨z, hz, ⟨?_, ?_, ?_, ?_⟩, hzrow⟩
-    · intro i hip
-      have hpi : 9 ≤ i.val ∧ (i.val ≤ 12 ∨ 18 ≤ i.val) := by
-        rcases hip with h | h
-        · exact ⟨h.1, Or.inl h.2⟩
-        · exact ⟨by omega, Or.inr (by omega)⟩
-      exact (hzregs i hpi).trans (hregs i hip)
-    · exact (hzregs Reg.one (by decide)).trans h1
-    · intro r hri
-      rw [hmem]
-      by_cases he : r = y.regs Reg.coefficient
-      · subst r
-        simp
-      · rw [Function.update_of_ne (by omega)]
-        exact hvalues r (by omega)
-    · intro a ha'
-      have hne : a ≠ x.regs Reg.output + y.regs Reg.coefficient := by omega
-      rw [hmem, Function.update_of_ne hne]
-      apply hframe
-      intro h
-      apply ha'
-      omega
+        (encode (convolution p u v (y.regs Reg.coefficient))) := by simpa only [hro] using hzmem
+    obtain ⟨hvalues', hframe'⟩ :=
+      prefix_write_step (e := fun r => encode (convolution p u v r)) hvalues hframe hmem
+    exact ⟨z, hz, ⟨fun i hip => (hzregs i (by omega)).trans (hregs i hip),
+      (hzregs Reg.one (by decide)).trans h1, hvalues', hframe'⟩, hzrow⟩
   let x₀ := (x.set Reg.coefficient 0).set Reg.one 1
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
   have hinit : ExecWithin (B := .standard) (w + 2)
-      (ram[ Reg.coefficient ← #0; Reg.one ← #1 ]) x x₀ 2 := by ram_eval [x₀, h1]
+      (ram[ Reg.coefficient ← #0; Reg.one ← #1 ]) x x₀ 2 := by wram_exec
   have hx₀ : P (x₀.regs Reg.coefficient) x₀ := by
-    refine ⟨fun i hi => hinit.regs_eq (init_preserves i hi), ?_, ?_, ?_⟩
-    · simp [x₀]
-    · simp +decide [x₀, Reg.one, Reg.coefficient]
-    · intro a _
-      rfl
+    exact ⟨fun i hi => hinit.regs_eq (init_preserves i hi), by simp [x₀],
+      by simp +decide [x₀, Reg.one, Reg.coefficient], fun _ _ => rfl⟩
   obtain ⟨y, hy, ⟨hregs, _, hvalues, hframe⟩, _⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 Reg.length (by decide)).trans hlen) hbody
     (by simp +decide [x₀, Reg.one, Reg.coefficient]) hx₀
@@ -121,9 +98,6 @@ theorem exec {w p A B : ℕ} (x : Data 32) (u v : ℕ → ℤ)
       simp +decide only [x₀, Data.set_regs, Function.update_apply, Reg.coefficient, Reg.one,
         ↓reduceIte, Nat.sub_zero]
       exact le_of_eq (by ring))
-  refine ⟨y, he, hvalues, ?_, hregs⟩
-  intro a ha'
-  apply hframe
-  omega
+  exact ⟨y, he, hvalues, fun a ha' => hframe a (by omega), hregs⟩
 
 end Cslib.Algorithms.WordRAM.CyclicConvolution

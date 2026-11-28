@@ -25,6 +25,10 @@ is not claimed to be prefix-consistent.
 * `PRGStretch.polyTime_take_forwardIterate`: native computation on a seed and unary round count.
 * `PRGStretch.indistinguishable_take_forwardIterate`: any native polynomial-length emitted prefix
   is computationally indistinguishable from a uniform word of that length.
+* `PRGStretch.take_forwardIterate_eq_flatten_emitBit`: the emitted prefix is the sequence of last
+  bits `σ₁ ⋯ σ_count` of Goldreich's Construction 8.7.
+* `PRGStretch.pseudorandomGenerator_take_forwardIterate`: that construction is a pseudorandom
+  generator of every efficiently computed stretch ([Goldreich2007DraftR4], Proposition 8.8).
 
 ## References
 
@@ -32,6 +36,10 @@ These are consequences of the existing stretch construction and security theorem
 prefix is the pad used by the stream-cipher construction in [BonehShoup2023], Section 3.2,
 Theorem 3.1, printed pp. 48–51. This module supplies the prefix prerequisite, not a cipher-security
 theorem or a message-domain extension.
+
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, March 2007 draft
+  `r4.pdf`][Goldreich2007DraftR4], Construction 8.7 and Proposition 8.8 (printed p. 328,
+  PDF p. 64).
 -/
 
 public section
@@ -55,14 +63,23 @@ private theorem length_emitted {generator : List Bool → List Bool}
     length_emitBit_of_eq (fun t ht => by rw [hlen, ht]) rfl
   simp [List.length_flatten, List.map_map, Function.comp_def, hbit]
 
+/-- The emitted prefix is the output `σ₁ σ₂ ⋯ σ_count` of [Goldreich2007DraftR4], Construction 8.7
+(Eq. (8.8)): starting from `x₀ = seed`, `σᵢ₊₁` is the last bit of `generator xᵢ` (`emitBit`) and
+`xᵢ₊₁` is the rest of that output (`seedStep`, so `xᵢ = seedAt generator seed i`). -/
+theorem take_forwardIterate_eq_flatten_emitBit {generator : List Bool → List Bool}
+    (hlen : ∀ s, (generator s).length = s.length + 1) (seed : List Bool) (count : ℕ) :
+    (forwardIterate generator count seed).take count =
+      ((List.range count).map fun i => emitBit generator (seedAt generator seed i)).flatten := by
+  rw [forwardIterate_eq]
+  exact List.take_left' (length_emitted hlen seed count)
+
 /-- Only the emitted prefix is consistent across stopping times; the final seed is excluded. -/
 theorem take_forwardIterate_prefix {generator : List Bool → List Bool}
     (hlen : ∀ s, (generator s).length = s.length + 1) (seed : List Bool)
     {count total : ℕ} (hle : count ≤ total) :
     (forwardIterate generator total seed).take count =
       (forwardIterate generator count seed).take count := by
-  rw [forwardIterate_eq, forwardIterate_eq,
-    List.take_left' (length_emitted hlen seed count)]
+  rw [take_forwardIterate_eq_flatten_emitBit hlen, forwardIterate_eq]
   rw [show total = count + (total - count) by omega, List.range_add,
     List.map_append, List.flatten_append, List.append_assoc]
   exact List.take_left' (length_emitted hlen seed count)
@@ -95,23 +112,49 @@ theorem indistinguishable_take_forwardIterate {generator : List Bool → List Bo
       (fun n => (uniformList n).map
         (fun seed => (forwardIterate generator (count n) seed).take (count n)))
       (fun n => uniformList (count n)) := by
-  have h := (indistinguishable hgenerator hcount).map
-    (f := fun n word => word.reverse.take (count n)) (by fun_prop)
-  convert h using 1
+  convert (indistinguishable hgenerator hcount).map
+    (f := fun n word => word.reverse.take (count n)) (by fun_prop) using 1
   · funext n
     simp only [generatorEnsemble, PMF.map_comp, Function.comp_def]
     apply PMF.map_congr_on_support
     intro seed hseed
-    have hs := length_of_mem_support_uniformList hseed
-    simp only [stretch, hs]
-    have heq := reverse_forwardIterate_eq_iterate_of_forall hgenerator.length_eq seed (count n)
-    rw [hs] at heq
-    rw [← heq, List.reverse_reverse]
+    rw [stretch, ← reverse_forwardIterate_eq_iterate_of_forall hgenerator.length_eq,
+      List.reverse_reverse, length_of_mem_support_uniformList hseed]
   · funext n
     symm
     change (uniformList (n + count n)).map ((List.take (count n)) ∘ List.reverse) = _
     rw [← PMF.map_comp,
       uniformList_map_of_bijective List.reverse List.reverse_involutive.bijective
         (fun _ => List.length_reverse), uniformList_take (by omega)]
+
+/-- **Stretch amplification by emitted last bits** ([Goldreich2007DraftR4], Proposition 8.8):
+for a pseudorandom generator `generator` of stretch `k + 1` and a stretch function `ℓ`
+(`n < ℓ n`) computable in polynomial time in unary, the generator of Construction 8.7, which
+outputs the last bits `σ₁ ⋯ σ_ℓ(|s|)` of `ℓ(|s|)` successive expansions of the seed `s`
+(`take_forwardIterate_eq_flatten_emitBit`), is a pseudorandom generator of stretch `ℓ`.
+
+`PseudorandomGenerator` asks for one deterministic polynomial-time machine, exact output length
+`ℓ(|s|)`, and indistinguishability from uniform for uniform probabilistic polynomial-time tests.
+Its tests (`prgRealGame`, `prgIdealGame`) also receive the seed length `n` in unary, while the
+tests of Definition 8.1 (Eq. (8.2)) see only the challenge word. This does not change the
+implication: on the premise, a challenge-only test recovers `n = |word| - 1` from the one-bit
+stretch and can simulate a test that receives `n`; on the conclusion, a test that receives `n`
+may ignore it. So the source implication follows even when `ℓ` does not determine the seed
+length. The source's "polynomially bounded" stretch follows from computing `ℓ` in unary in
+polynomial time. -/
+theorem pseudorandomGenerator_take_forwardIterate {generator : List Bool → List Bool}
+    (hgenerator : PseudorandomGenerator generator (fun n => n + 1)) {ℓ : ℕ → ℕ}
+    (hℓ : ComputableInPolyTime ℓ encUnary encUnary) (hstretch : ∀ n, n < ℓ n) :
+    PseudorandomGenerator
+      (fun seed => (forwardIterate generator (ℓ seed.length) seed).take (ℓ seed.length)) ℓ := by
+  refine PseudorandomGenerator.of_indistinguishable
+    ((polyTime_take_forwardIterate hgenerator.polyTime hgenerator.length_eq).comp
+      (show ComputableInPolyTime (fun seed => (seed, ℓ seed.length)) encBits _ by fun_prop))
+    (fun seed => length_take_forwardIterate hgenerator.length_eq seed _) hstretch ?_
+  convert indistinguishable_take_forwardIterate hgenerator hℓ using 1
+  funext n
+  exact (generatorEnsemble_postprocess id
+    (fun n seed => (forwardIterate generator (ℓ n) seed).take (ℓ n)) n).trans
+    (by rw [generatorEnsemble, PMF.map_id])
 
 end Cslib.Crypto.PRGStretch

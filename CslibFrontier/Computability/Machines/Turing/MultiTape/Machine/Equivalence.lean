@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine
 public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Effect-free specializations of the common machine
@@ -22,6 +24,9 @@ and stuck configurations; there is no clock rescaling or simulation overhead.
 
 * `Turing.MultiTapeMachine.Action.emptyOracleEquiv`: remove empty communication instructions.
 * `Turing.MultiTapeMachine.Config.emptyOracleEquiv`: remove empty communication state.
+* `Turing.MultiTapeMachine.ofTr`: build an effect-free machine from an explicit transition
+  function.
+* `Turing.MultiTapeMachine.rewindInput`: the explicit-transition input rewinder.
 * `Turing.MultiTapeTM.toMachine`, `Turing.MultiTapeNTM.toMachine`: embed upstream machines.
 * `Turing.MultiTapeMachine.toTM`, `Turing.MultiTapeMachine.toNTM`: recover upstream machines.
 * `Turing.MultiTapeMachine.tmEquiv`: equivalence with upstream's deterministic machine type.
@@ -29,6 +34,9 @@ and stuck configurations; there is no clock rescaling or simulation overhead.
 ## Main results
 
 * `Turing.MultiTapeMachine.step_toTM`: deterministic steps commute with conversion.
+* `Turing.MultiTapeMachine.toTM_ofTr`: the explicit constructor recovers the corresponding
+  upstream machine without transition extraction.
+* `Turing.MultiTapeMachine.runFrom_rewindInput`: exact execution of the explicit input rewinder.
 * `Turing.MultiTapeMachine.step_toNTM_iff`: nondeterministic steps commute with conversion.
 -/
 
@@ -54,6 +62,13 @@ def Action.emptyOracleEquiv : Action k Symbol State Empty ≃ Turing.Action k Sy
     | query oracle _ => exact oracle.elim
   right_inv _ := rfl
 
+/-- Removing empty communication fields from an ordinary step returns its tape action. -/
+@[simp]
+theorem Action.emptyOracleEquiv_step (action : Turing.Action k Symbol State)
+    (querySymbol : Empty → Option Symbol) (answerMove : Empty → SignType) :
+    Action.emptyOracleEquiv (.step action querySymbol answerMove) = action :=
+  rfl
+
 /-- Empty communication state contains no information beyond the upstream configuration. -/
 def Config.emptyOracleEquiv : Config k Symbol State Empty input ≃ Cfg k Symbol State input where
   toFun := Config.tapes
@@ -74,6 +89,102 @@ theorem Config.eq_iff_tapes_eq {cfg cfg' : Config k Symbol State Empty input} :
 def toTM (machine : MultiTapeMachine k Symbol State Empty Id) : MultiTapeTM k Symbol State :=
   MultiTapeTM.ofTr machine.initial fun state symbol work =>
     Action.emptyOracleEquiv (machine.tr state symbol work Empty.elim)
+
+/-- Build an effect-free deterministic machine from an explicit ordinary transition function.
+Unlike `MultiTapeTM.toMachine`, this constructor never extracts a function from a transition
+relation. -/
+def ofTr (initial : State)
+    (transition : State → Option Symbol → (Fin k → Option Symbol) →
+      Turing.Action k Symbol State) :
+    MultiTapeMachine k Symbol State Empty Id where
+  initial := initial
+  tr state symbol work _ :=
+    .step (transition state symbol work) Empty.elim Empty.elim
+
+/-- An explicit ordinary transition is the unique instruction stored by `ofTr`. -/
+theorem ofTr_tr (initial : State)
+    (transition : State → Option Symbol → (Fin k → Option Symbol) →
+      Turing.Action k Symbol State)
+    (state : State) (symbol : Option Symbol) (work : Fin k → Option Symbol) :
+    (ofTr initial transition).tr state symbol work Empty.elim =
+      .step (transition state symbol work) Empty.elim Empty.elim :=
+  rfl
+
+/-- Forgetting an explicit effect-free table gives exactly the corresponding upstream machine. -/
+theorem toTM_ofTr (initial : State)
+    (transition : State → Option Symbol → (Fin k → Option Symbol) →
+      Turing.Action k Symbol State) :
+    (ofTr initial transition).toTM = MultiTapeTM.ofTr initial transition :=
+  rfl
+
+/-- The input rewinder as an explicit effect-free transition table. -/
+def rewindInput (Symbol : Type*) :
+    MultiTapeMachine 0 Symbol MultiTapeTM.RewindState Empty Id :=
+  ofTr .start fun state symbol _ =>
+    match state, symbol with
+    | .start, _ => ⟨-1, Fin.elim0, none, some .walk⟩
+    | .walk, some _ => ⟨-1, Fin.elim0, none, some .walk⟩
+    | .walk, none => ⟨1, Fin.elim0, none, none⟩
+
+namespace RewindInput
+
+variable {input : List Symbol} {tapes : Fin 0 → ℤ → Option Symbol}
+  {heads : Fin 0 → ℤ} {out : List Symbol}
+
+private theorem transition (state : MultiTapeTM.RewindState) (symbol : Option Symbol)
+    (work : Fin 0 → Option Symbol) :
+    (rewindInput Symbol).toTM.tr state symbol work =
+      match state, symbol with
+      | .start, _ => ⟨-1, Fin.elim0, none, some .walk⟩
+      | .walk, some _ => ⟨-1, Fin.elim0, none, some .walk⟩
+      | .walk, none => ⟨1, Fin.elim0, none, none⟩ :=
+  by
+    simp only [toTM, rewindInput, ofTr, MultiTapeTM.tr_ofTr]
+    cases state <;> cases symbol <;> rfl
+
+private theorem step_eq {cfg : Cfg 0 Symbol MultiTapeTM.RewindState input}
+    {state : MultiTapeTM.RewindState} (hstate : cfg.state = some state) :
+    (rewindInput Symbol).toTM.step cfg =
+      let action := (rewindInput Symbol).toTM.tr state cfg.inputSymbol cfg.workTapeSymbols
+      ⟨action.state, moveInputPos cfg.inputPos action.inputTape, cfg.workTapes,
+        cfg.workTapePos, cfg.output⟩ := by
+  rw [MultiTapeTM.step_of_state hstate]
+  tm_step [toTM, rewindInput, ofTr]
+
+private theorem runFrom_walk (position : Fin (input.length + 2))
+    (hposition : position.val ≤ input.length) :
+    (rewindInput Symbol).toTM.runFrom
+        ⟨some .walk, position, tapes, heads, out⟩ (position.val + 1) =
+      ⟨none, 1, tapes, heads, out⟩ := by
+  induction hvalue : position.val generalizing position with
+  | zero =>
+      obtain rfl : position = 0 := Fin.ext hvalue
+      rw [MultiTapeTM.runFrom, Function.iterate_one, step_eq rfl,
+        inputSymbol_eq_none_of_boundary (.inl rfl)]
+      rw [transition]
+      rfl
+  | succ value ih =>
+      rw [MultiTapeTM.runFrom, Function.iterate_succ_apply, ← MultiTapeTM.runFrom, step_eq rfl,
+        inputSymbolInner value (by grind) (by omega)]
+      rw [transition]
+      exact ih (moveInputPos position .neg) (by grind [SignType.cast])
+        (by grind [SignType.cast])
+
+end RewindInput
+
+/-- From its explicit initial state at input position `position`, the rewinder halts after
+`position - 1 + 2` steps with the input head at position `1` and everything else unchanged. -/
+theorem runFrom_rewindInput {input : List Symbol} (position : Fin (input.length + 2))
+    (tapes : Fin 0 → ℤ → Option Symbol) (heads : Fin 0 → ℤ) (out : List Symbol) :
+    (rewindInput Symbol).toTM.runFrom
+        ⟨some (rewindInput Symbol).initial, position, tapes, heads, out⟩
+        (position.val - 1 + 2) = ⟨none, 1, tapes, heads, out⟩ := by
+  have hposition : (moveInputPos position .neg).val = position.val - 1 := by
+    grind [SignType.cast]
+  rw [MultiTapeTM.runFrom, Function.iterate_succ_apply, RewindInput.step_eq rfl,
+    ← MultiTapeTM.runFrom, ← hposition]
+  rw [RewindInput.transition]
+  exact RewindInput.runFrom_walk (moveInputPos position .neg) (by omega)
 
 /-- Recover the nondeterministic upstream transition relation from the set of permitted actions. -/
 def toNTM (machine : MultiTapeMachine k Symbol State Empty Set) : MultiTapeNTM k Symbol State where

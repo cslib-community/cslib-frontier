@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.Collision
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Small-bias distributions and the XOR lemma
@@ -58,6 +59,8 @@ an `ε`-biased distribution is read as a `k`-wise `ε`-biased one
 * `Cslib.BitString.four_mul_dist_uniform_sq_le_sum_bias_sq`,
   `Cslib.BitString.dist_uniform_le_sqrt_sum_bias_sq`: Vazirani's XOR lemma.
 * `Cslib.BitString.IsSmallBias.dist_uniform_le`: `ε`-biased distributions are close to uniform.
+* `Cslib.BitString.IsSmallBias.le_card_filter_parityOn`: a uniform `ε`-biased sample space has
+  odd parity on a nonempty set at at least a `(1 - ε) / 2` fraction of its points.
 * `Cslib.BitString.IsKWiseSmallBias.dist_map_restrict_le`: `k`-wise `ε`-biased distributions are
   almost `k`-wise independent.
 * `Cslib.BitString.IsSmallBias.isKWiseSmallBias_map_dotProduct`: `k`-wise independent parities
@@ -123,9 +126,8 @@ theorem bias_map {α : Type*} [Fintype α] (X : PMF α) (g : α → ι → Bool)
 /-- The bias of a sample space `g`, with a uniformly random seed, is the average of the character
 over the seeds. -/
 theorem bias_uniformOfFintype_map {σ : Type*} [Fintype σ] [Nonempty σ] (g : σ → ι → Bool)
-    (S : Finset ι) : bias ((PMF.uniformOfFintype σ).map g) S = 𝔼 s, chi ℝ S (g s) := by
-  rw [bias_map, Fintype.expect_eq_sum_div_card, sum_div]
-  simp [div_eq_inv_mul]
+    (S : Finset ι) : bias ((PMF.uniformOfFintype σ).map g) S = 𝔼 s, chi ℝ S (g s) :=
+  Probability.PMF.sum_uniformOfFintype_map_mul g (chi ℝ S)
 
 /-- The uniform distribution has bias zero at every nonempty set. -/
 theorem bias_uniformOfFintype (S : Finset ι) :
@@ -150,6 +152,19 @@ theorem sum_bias_sq (X : PMF (ι → Bool)) :
         simp only [sum_chi_mul_chi, mul_ite, mul_zero, sum_ite_eq, mem_univ, ite_true,
           collisionProbability_eq_sum, mul_sum]
         exact sum_congr rfl fun x _ => by ring
+
+omit [DecidableEq ι] in
+/-- The cube on `n` coordinates has `2 ^ n - 1` nonempty sets of coordinates, the sets that carry
+a bias constraint in `IsSmallBias`. -/
+theorem card_filter_nonempty :
+    (#({S : Finset ι | S.Nonempty} : Finset (Finset ι)) : ℝ) = 2 ^ Fintype.card ι - 1 := by
+  have h := card_filter_add_card_filter_not (s := (univ : Finset (Finset ι))) (·.Nonempty)
+  have hne : #({S : Finset ι | ¬S.Nonempty} : Finset (Finset ι)) = 1 := by
+    rw [card_eq_one]
+    exact ⟨∅, by ext S; simp [not_nonempty_iff_eq_empty]⟩
+  rw [hne, card_univ, Fintype.card_finset] at h
+  rw [eq_sub_iff_add_eq]
+  exact_mod_cast h
 
 /-- **Vazirani's XOR lemma**, squared form: four times the squared statistical distance of `X`
 from uniform is at most the sum of the squared biases of `X` at the nonempty sets. -/
@@ -213,15 +228,6 @@ theorem dist_uniform_le (hX : IsSmallBias ε X) :
     dist X (PMF.uniformOfFintype (ι → Bool)) ≤
       Real.sqrt (2 ^ Fintype.card ι - 1) * ε / 2 := by
   refine (dist_uniform_le_sqrt_sum_bias_sq X).trans ?_
-  have hcount : (#({S : Finset ι | S.Nonempty} : Finset (Finset ι)) : ℝ) =
-      2 ^ Fintype.card ι - 1 := by
-    have h := card_filter_add_card_filter_not (s := (univ : Finset (Finset ι))) (·.Nonempty)
-    have hne : #({S : Finset ι | ¬S.Nonempty} : Finset (Finset ι)) = 1 := by
-      rw [card_eq_one]
-      exact ⟨∅, by ext S; simp [not_nonempty_iff_eq_empty]⟩
-    rw [hne, card_univ, Fintype.card_finset] at h
-    rw [eq_sub_iff_add_eq]
-    exact_mod_cast h
   rcases isEmpty_or_nonempty ι with hι | hι
   · have : ({S : Finset ι | S.Nonempty} : Finset (Finset ι)) = ∅ := by
       ext S
@@ -237,8 +243,23 @@ theorem dist_uniform_le (hX : IsSmallBias ε X) :
           exact sq_le_sq' (abs_le.1 (hX S (mem_filter.1 hS).2)).1
             (abs_le.1 (hX S (mem_filter.1 hS).2)).2
       _ = Real.sqrt (2 ^ Fintype.card ι - 1) * ε := by
-          rw [sum_const, nsmul_eq_mul, hcount, Real.sqrt_mul' _ (sq_nonneg ε),
+          rw [sum_const, nsmul_eq_mul, card_filter_nonempty, Real.sqrt_mul' _ (sq_nonneg ε),
             Real.sqrt_sq hε]
+
+/-- **Small-bias sample spaces hit every nonzero parity often**: if the uniform distribution on
+the `d` sample points `s j` is `ε`-biased, then for every nonempty `S` at least a
+`(1 - ε) / 2` fraction of the points have odd parity on `S`. -/
+theorem le_card_filter_parityOn {d : ℕ} [NeZero d] {s : Fin d → ι → Bool}
+    (hs : IsSmallBias ε ((PMF.uniformOfFintype (Fin d)).map s)) {S : Finset ι}
+    (hS : S.Nonempty) : (1 - ε) / 2 * d ≤ #{j | parityOn S (s j) = true} := by
+  classical
+  have h := (le_abs_self _).trans (hs S hS)
+  rw [bias_eq_one_sub_two_mul, PMF.toOuterMeasure_map_apply,
+    toOuterMeasure_uniformOfFintype_toReal] at h
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fintype.card_fin] at h
+  have hd : (0 : ℝ) < d := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne d)
+  apply (le_div_iff₀ hd).1
+  linarith
 
 end IsSmallBias
 

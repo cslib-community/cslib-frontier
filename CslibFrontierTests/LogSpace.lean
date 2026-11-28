@@ -4,13 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.Classes.LogSpace
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Circuit
+import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
+import CslibFrontier.Computability.Circuit.Boolean.UniformFanIn
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
+import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import CslibFrontier.Tactic.LogSpace
 
 /-! Logarithmic space: a nontrivial problem in `L` decided in constant workspace, complements,
-reductions and composition, a nondeterministic machine with a branch running forever, the
+reductions and composition, a nondeterministic machine with a branch running forever, decided in
+polynomial time and in time `2 ^ O(log₂ n)` by searching its reachable views, the
 bounds at inputs of length zero and one, codes of views without their input, and breadth-first
 search on small graphs. -/
 
@@ -37,8 +41,8 @@ private theorem oddOnes_false : oddOnes [true, true] = false := by decide
 
 /-- The parity fold runs with constant workspace, hence in logarithmic space. -/
 private theorem computableInLogSpace_oddOnes : ComputableInLogSpace oddOnes encBits encBool := by
-  obtain ⟨c, h, -⟩ := ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false
-  exact ⟨_, c, h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun _ =>
+  obtain ⟨c, h, -⟩ := ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false
+  exact ⟨_, c, h.mono (fun _ => le_rfl) fun _ =>
     by simpa using Nat.le_mul_of_pos_right c (Nat.succ_pos _)⟩
 
 attribute [local program_certificate] computableInLogSpace_oddOnes
@@ -55,6 +59,17 @@ example :
     OddOnes ∈ PSPACE encBits :=
   let hL : OddOnes ∈ L encBits := ⟨oddOnes, computableInLogSpace_oddOnes, fun _ => Iff.rfl⟩
   ⟨hL, compl_mem_L hL, L_subset_NL hL, NL_subset_P (L_subset_NL hL), L_subset_PSPACE hL⟩
+
+/-- The native parity machine gives a logspace-uniform fan-in-two family of depth `O(log² n)`. -/
+example : OddOnes ∈ Circuits.Boolean.LogspaceUniformNC 2 :=
+  NL_subset_logspaceUniformNC_two (L_subset_NL
+    (show OddOnes ∈ L encBits from ⟨oddOnes, computableInLogSpace_oddOnes, fun _ => Iff.rfl⟩))
+
+/-- The same generator theorem applies to the native encoding of directed reachability. -/
+example : ∃ K ∈ Circuits.Boolean.LogspaceUniformNC 2,
+    ∀ I, I ∈ STCON ↔ encSTCON I ∈ K := by
+  obtain ⟨K, hK, h⟩ := exists_mem_logspaceUniformAC_one_of_mem_NL STCON.mem_NL
+  exact ⟨K, Circuits.Boolean.logspaceUniformAC_subset_NC_succ 1 hK, h⟩
 
 /-- The `DSPACE(log₂)` shape of cslib pull request #767. -/
 example : ∃ c₁ c₂ t, DecidableInTimeAndSpace OddOnes encBits t
@@ -75,7 +90,7 @@ logarithmic space and polynomial time) to the words whose reversal has an odd nu
 private theorem logSpaceReducible_oddOnes_reverse :
     LogSpaceReducible encBits encBits OddOnes {w | oddOnes w.reverse = true} := by
   refine ⟨List.reverse, ⟨_, 0,
-    ComputableTidilyInTimeAndSpace.reverse_bits.computableInTimeAndSpace.mono (fun _ => le_rfl)
+    ComputableInTimeAndSpace.reverse_bits.mono (fun _ => le_rfl)
       fun _ => Nat.zero_le _⟩, fun w => ?_⟩
   simp [OddOnes]
 
@@ -116,6 +131,11 @@ private theorem recognizesInSpace_loopOrAccept :
 /-- Breadth-first search ignores the looping branch. -/
 example : (Set.univ : Set (List Bool)) ∈ P encBits :=
   mem_P_of_recognizesInSpace recognizesInSpace_loopOrAccept
+
+/-- The search through the reachable views stops by itself, here within time `2 ^ O(log₂ n)`. -/
+example : ∃ c, (Set.univ : Set (List Bool)) ∈ DTIME encBits fun n => 2 ^ (c * (Nat.log2 n + 1)) :=
+  (recognizesInSpace_loopOrAccept.mem_DTIME (s := fun n => 0 * (Nat.log2 n + 1))).imp
+    fun _ h => DTIME_mono (fun _ => by simp) h
 
 /-! ### Codes of views without their input -/
 

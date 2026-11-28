@@ -91,10 +91,10 @@ theorem mem_PromiseCoRP_iff : Q ∈ PromiseCoRP enc ↔
   constructor
   · rintro ⟨p, V, hV, h⟩
     refine ⟨p, fun x => !V x, ComputableInPolyTime.bool_not.comp hV,
-      fun a ha r => by simp [(h a).2 ha r], fun a ha => by simpa using (h a).1 ha⟩
+      fun a ha r => by simp [(h a).2 ha r], fun a ha => by simpa [acceptCount] using (h a).1 ha⟩
   · rintro ⟨p, V, hV, hyes, hno⟩
     refine ⟨p, fun x => !V x, ComputableInPolyTime.bool_not.comp hV,
-      fun a => ⟨fun ha => by simpa using hno a ha, fun ha r => by simp [hyes a ha r]⟩⟩
+      fun a => ⟨fun ha => by simpa [acceptCount] using hno a ha, fun ha r => by simp [hyes a ha r]⟩⟩
 
 /-- Every promise problem separated by a language in `BPP` is in `PromiseBPP`. -/
 theorem promiseClass_BPP_subset_PromiseBPP : promiseClass (BPP enc) ⊆ PromiseBPP enc := by
@@ -143,6 +143,16 @@ theorem probability_sampleList_verifier (V : α × List Bool → Bool) (a : α) 
   simp only [ProbComp.eval_map, BitString.eval_sampleList]
   exact uniformList_acceptCount_toReal V a n
 
+private theorem two_thirds_le_div_two_pow {k n : ℕ} :
+    2 / 3 ≤ (k : ℝ) / 2 ^ n ↔ 2 * 2 ^ n ≤ 3 * k := by
+  rw [div_le_div_iff₀ (by norm_num) (by positivity), mul_comm (k : ℝ) 3]
+  exact_mod_cast Iff.rfl
+
+private theorem half_le_div_two_pow {k n : ℕ} :
+    1 / 2 ≤ (k : ℝ) / 2 ^ n ↔ 2 ^ n ≤ 2 * k := by
+  rw [div_le_div_iff₀ (by norm_num) (by positivity), one_mul, mul_comm (k : ℝ) 2]
+  exact_mod_cast Iff.rfl
+
 /-- **Probabilistic-program characterization of `PromiseBPP`**: a promise problem is in
 `PromiseBPP` exactly when a uniform strict PPT Boolean program accepts every yes-instance with
 probability at least `2 / 3` and rejects every no-instance with probability at least `2 / 3`. -/
@@ -155,50 +165,31 @@ theorem mem_PromiseBPP_iff_exists_isPPTOn : Q ∈ PromiseBPP enc ↔
   · rintro ⟨p, V, hV, hQ⟩
     refine ⟨fun a => (fun w => V (a, w)) <$> BitString.sampleList (p.eval (enc a).length),
       isPPTOn_sampleVerify p hV, fun a ha => ?_, fun a ha => ?_⟩
-    · rw [probability_sampleList_verifier, le_div_iff₀ (by positivity)]
-      have h : (2 : ℝ) * 2 ^ p.eval (enc a).length ≤
-          3 * (acceptCount V a (p.eval (enc a).length) : ℝ) := by
-        exact_mod_cast (hQ a).1 ha
-      linarith
+    · rw [probability_sampleList_verifier, two_thirds_le_div_two_pow]
+      exact (hQ a).1 ha
     · rw [Functor.map_map, probability_sampleList_verifier (V := fun x => !V x),
-        le_div_iff₀ (by positivity)]
-      have h : (2 : ℝ) * 2 ^ p.eval (enc a).length ≤
-          3 * (acceptCount (fun x => !V x) a (p.eval (enc a).length) : ℝ) := by
-        simpa only [acceptCount, Bool.not_eq_true'] using
-          (by exact_mod_cast (hQ a).2 ha : (2 : ℝ) * 2 ^ p.eval (enc a).length ≤ _)
-      linarith
+        two_thirds_le_div_two_pow]
+      simpa only [acceptCount, Bool.not_eq_true'] using (hQ a).2 ha
   · rintro ⟨M, hM, hyes, hno⟩
     obtain ⟨c, d, evalM, hevalM, hlaw⟩ := hM.exists_seeded_evaluator
     refine ⟨Polynomial.C c * (Polynomial.X + 1) ^ d, fun x => evalM x.1 x.2, hevalM,
-      fun a => ⟨fun ha => ?_, fun ha => ?_⟩⟩
-    · have hp : (Polynomial.C c * (Polynomial.X + 1) ^ d).eval (enc a).length =
-          c * ((enc a).length + 1) ^ d := by simp
-      dsimp only [BoundedErrorAt]
-      rw [hp]
+      fun a => ?_⟩
+    have hp : (Polynomial.C c * (Polynomial.X + 1) ^ d).eval (enc a).length =
+        c * ((enc a).length + 1) ^ d := by simp
+    refine ⟨fun ha => ?_, fun ha => ?_⟩
+    · rw [BoundedErrorAt, hp]
       have hprob := hyes a ha
       rw [hlaw a, uniformList_acceptCount_toReal (V := fun x => evalM x.1 x.2),
-        le_div_iff₀ (by positivity)] at hprob
-      have h3 : (2 : ℝ) * 2 ^ (c * ((enc a).length + 1) ^ d) ≤
-          3 * (acceptCount (fun x => evalM x.1 x.2) a (c * ((enc a).length + 1) ^ d) : ℝ) := by
-        linarith
-      exact_mod_cast h3
-    · have hp : (Polynomial.C c * (Polynomial.X + 1) ^ d).eval (enc a).length =
-          c * ((enc a).length + 1) ^ d := by simp
-      dsimp only [BoundedErrorAt]
-      rw [hp]
+        two_thirds_le_div_two_pow] at hprob
+      exact hprob
+    · rw [BoundedErrorAt, hp]
       have hprob := hno a ha
       have hmap : ProbComp.eval (Bool.not <$> M a) =
           (BitString.uniformList (c * ((enc a).length + 1) ^ d)).map (fun w => !evalM a w) := by
-        rw [ProbComp.eval_map, hlaw a, PMF.map_comp]
-        rfl
+        rw [ProbComp.eval_map, hlaw a, PMF.map_comp]; rfl
       rw [hmap, uniformList_acceptCount_toReal (V := fun x => !evalM x.1 x.2),
-        le_div_iff₀ (by positivity)] at hprob
-      have h3 : (2 : ℝ) * 2 ^ (c * ((enc a).length + 1) ^ d) ≤
-          3 * (acceptCount (fun x => !evalM x.1 x.2) a (c * ((enc a).length + 1) ^ d) : ℝ) := by
-        linarith
-      simpa only [acceptCount, Bool.not_eq_true'] using (by exact_mod_cast h3 :
-        2 * 2 ^ (c * ((enc a).length + 1) ^ d) ≤
-          3 * acceptCount (fun x => !evalM x.1 x.2) a (c * ((enc a).length + 1) ^ d))
+        two_thirds_le_div_two_pow] at hprob
+      simpa only [acceptCount, Bool.not_eq_true'] using hprob
 
 /-- **Probabilistic-program characterization of `PromiseRP`**: a promise problem is in `PromiseRP`
 exactly when a uniform strict PPT Boolean program accepts every yes-instance with probability at
@@ -212,34 +203,21 @@ theorem mem_PromiseRP_iff_exists_isPPTOn : Q ∈ PromiseRP enc ↔
   · rintro ⟨p, V, hV, hQ⟩
     refine ⟨fun a => (fun w => V (a, w)) <$> BitString.sampleList (p.eval (enc a).length),
       isPPTOn_sampleVerify p hV, fun a ha => ?_, fun a ha hmem => ?_⟩
-    · rw [probability_sampleList_verifier, le_div_iff₀ (by positivity)]
-      have h : (2 : ℝ) ^ p.eval (enc a).length ≤
-          2 * (acceptCount V a (p.eval (enc a).length) : ℝ) := by
-        exact_mod_cast (hQ a).1 ha
-      linarith
+    · rw [probability_sampleList_verifier, half_le_div_two_pow]
+      exact (hQ a).1 ha
     · simp only [ProbComp.eval_map, BitString.eval_sampleList,
         PMF.mem_support_map_iff, BitString.mem_support_uniformList_iff] at hmem
       obtain ⟨w, hw, hVw⟩ := hmem
-      have := hQ.exists_certificate.2 a ha w hw
-      rw [this] at hVw
-      exact Bool.noConfusion hVw
+      exact absurd hVw (by simp [hQ.exists_certificate.2 a ha w hw])
   · rintro ⟨M, hM, hyes, hno⟩
     obtain ⟨c, d, evalM, hevalM, hsupp, hlaw⟩ := hM.exists_total_seeded_evaluator
     refine ⟨Polynomial.C c * (Polynomial.X + 1) ^ d, fun x => evalM x.1 x.2, hevalM,
       fun a => ⟨fun ha => ?_, fun ha r => ?_⟩⟩
-    · have hp : (Polynomial.C c * (Polynomial.X + 1) ^ d).eval (enc a).length =
-          c * ((enc a).length + 1) ^ d := by simp
-      rw [hp]
-      have hprob := hyes a ha
+    · have hprob := hyes a ha
       rw [hlaw a _ le_rfl, uniformList_acceptCount_toReal (V := fun x => evalM x.1 x.2),
-        le_div_iff₀ (by positivity)] at hprob
-      have h2 : (2 : ℝ) ^ (c * ((enc a).length + 1) ^ d) ≤
-          2 * (acceptCount (fun x => evalM x.1 x.2) a (c * ((enc a).length + 1) ^ d) : ℝ) := by
-        linarith
-      exact_mod_cast h2
-    · rw [← Bool.not_eq_true]
-      intro htrue
-      exact hno a ha (htrue ▸ hsupp a (List.ofFn r))
+        half_le_div_two_pow] at hprob
+      simpa using hprob
+    · exact Bool.eq_false_iff.2 fun htrue => hno a ha (htrue ▸ hsupp a (List.ofFn r))
 
 /-- **Probabilistic-program characterization of `PromiseCoRP`**: a promise problem is in
 `PromiseCoRP` exactly when a uniform strict PPT Boolean program never rejects a yes-instance and
@@ -253,21 +231,16 @@ theorem mem_PromiseCoRP_iff_exists_isPPTOn : Q ∈ PromiseCoRP enc ↔
   · rintro ⟨M, hM, hyes, hno⟩
     refine ⟨fun a => Bool.not <$> M a,
       hM.map_with (ComputableInPolyTime.bool_not.comp (.snd enc encBool)),
-      fun a ha hmem => ?_, fun a ha => ?_⟩
-    · simp only [ProbComp.eval_map, PMF.mem_support_map_iff,
-        Bool.not_eq_false'] at hmem
-      obtain ⟨b, hb, rfl⟩ := hmem
-      exact hno a ha hb
-    · have h : Bool.not <$> (Bool.not <$> M a) = M a := by simp
-      rw [h]
-      exact hyes a ha
+      fun a ha hmem => ?_, fun a ha => by simpa using hyes a ha⟩
+    simp only [ProbComp.eval_map, PMF.mem_support_map_iff, Bool.not_eq_false'] at hmem
+    obtain ⟨_, hb, rfl⟩ := hmem
+    exact hno a ha hb
   · rintro ⟨M, hM, hyes, hno⟩
     refine ⟨fun a => Bool.not <$> M a,
       hM.map_with (ComputableInPolyTime.bool_not.comp (.snd enc encBool)),
       fun a ha => hno a ha, fun a ha hmem => ?_⟩
-    simp only [ProbComp.eval_map, PMF.mem_support_map_iff,
-      Bool.not_eq_true'] at hmem
-    obtain ⟨b, hb, rfl⟩ := hmem
+    simp only [ProbComp.eval_map, PMF.mem_support_map_iff, Bool.not_eq_true'] at hmem
+    obtain ⟨_, hb, rfl⟩ := hmem
     exact hyes a ha hb
 
 end PromiseProbabilistic

@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.SatCount
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 import CslibFrontier.Foundations.Data.BitString.Weight
 import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Exact MAX-SAT threshold counts
@@ -98,6 +99,7 @@ def literalCircuit (n : ℕ) (l : Literal ℕ) : Circuit signature n 1 :=
   split_ifs <;> cases b <;> simp_all [interpretation]
 
 /-- A single literal costs at most one gate. -/
+@[circuit_bound]
 theorem size_literalCircuit_le (n : ℕ) (l : Literal ℕ) : (literalCircuit n l).size ≤ 1 := by
   unfold literalCircuit
   split_ifs <;> simp
@@ -113,21 +115,12 @@ def clauseCircuit (n : ℕ) (c : Clause ℕ) : Circuit signature n 1 :=
 /-- The clause compiler returns its disjunction, including false for an empty clause. -/
 @[simp] theorem eval_clauseCircuit (n : ℕ) (c : Clause ℕ) (x : BitString n) :
     (clauseCircuit n c).eval interpretation x 0 = Clause.eval (assignment n x) c := by
-  have h := List.balancedFold_hom (fun C : Circuit signature n 1 => C.eval interpretation x 0)
-    (op' := (· || ·)) (op := fun C D => clauseJoin.comp (C.append D))
-    (e := Circuit.oneGate (.const false) Fin.elim0) (f := id)
+  rw [clauseCircuit, Circuit.balanced, List.balancedFold_hom
+    (fun C : Circuit signature n 1 => C.eval interpretation x 0) (op' := (· || ·))
     (fun C D => by
-      simp only [clauseJoin, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_oneGate,
-        interpretation]
-      rfl)
-    (c.map (literalCircuit n))
-  change (clauseCircuit n c).eval interpretation x 0 = _ at h
-  rw [h]
-  change (c.map (literalCircuit n)).balancedFold (· || ·) false
-    (fun C => C.eval interpretation x 0) = _
-  rw [List.balancedFold_eq_foldr]
+      simp only [circuit_simps, clauseJoin]
+      rfl), List.balancedFold_eq_foldr]
   simp only [List.map_map, Function.comp_def, eval_literalCircuit]
-  clear h
   induction c with
   | nil => rfl
   | cons l c ih =>
@@ -137,16 +130,7 @@ def clauseCircuit (n : ℕ) (c : Clause ℕ) : Circuit signature n 1 :=
 /-- A balanced clause uses at most two gates per literal and one empty-clause fallback. -/
 theorem size_clauseCircuit_le (n : ℕ) (c : Clause ℕ) :
     (clauseCircuit n c).size ≤ 2 * c.length + 1 := by
-  have hsum : ((c.map (literalCircuit n)).map Circuit.size).sum ≤ c.length := by
-    calc _ ≤ (c.map (fun _ => 1)).sum := by
-          rw [List.map_map]
-          exact List.sum_le_sum (fun l _ => size_literalCircuit_le n l)
-      _ = c.length := by simp
-  have h := Circuit.size_balanced_le clauseJoin
-    (Circuit.oneGate (σ := signature) (n := n) (.const false) Fin.elim0)
-    (c.map (literalCircuit n))
-  simp only [clauseJoin, Circuit.size_oneGate, List.length_map, Nat.mul_one] at h
-  exact h.trans (by omega)
+  circuit_bound [clauseCircuit, clauseJoin]
 
 /-- Compute all clause values on the original declared inputs. -/
 def scoreCircuit (F : Instance) : Circuit signature F.1 F.2.length :=
@@ -159,13 +143,13 @@ theorem weight_eval_scoreCircuit (F : Instance) (x : BitString F.1) :
   simp only [scoreCircuit, Circuit.eval_pi, eval_clauseCircuit]
   have he : List.ofFn (fun i : Fin F.2.length => Clause.eval (assignment F.1 x) F.2[i]) =
       F.2.map (Clause.eval (assignment F.1 x)) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hj
-    simp
+    simpa only [List.map_ofFn, Function.comp_def, Fin.getElem_fin] using
+      congrArg (List.map (Clause.eval (assignment F.1 x))) (List.ofFn_getElem (xs := F.2))
   rw [he, List.count_eq_countP]
   simp [score, List.countP_map, Function.comp_def]
 
 /-- All clause values together have linear gate count. -/
+@[circuit_bound]
 theorem size_scoreCircuit_le (F : Instance) :
     (scoreCircuit F).size ≤ 2 * F.2.vars.length + F.2.length := by
   rw [scoreCircuit, Circuit.size_pi]
@@ -174,10 +158,9 @@ theorem size_scoreCircuit_le (F : Instance) :
     _ = 2 * F.2.vars.length + F.2.length := by
       have he : (∑ i : Fin F.2.length, F.2[i].length) = (F.2.map List.length).sum := by
         rw [← List.sum_ofFn]
-        congr 1
-        apply List.ext_getElem (by simp)
-        intro i hi hj
-        simp
+        exact congrArg List.sum (by
+          simpa only [List.map_ofFn, Function.comp_def, Fin.getElem_fin] using
+            congrArg (List.map List.length) (List.ofFn_getElem (xs := F.2)))
       simp only [CNF.length_vars, Finset.sum_add_distrib, ← Finset.mul_sum, he,
         Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, Nat.mul_one]
 
@@ -200,11 +183,7 @@ theorem satCount_thresholdCircuit (F : Instance) (q : ℕ) :
 /-- All gates, including shared constants and empty-clause defaults, satisfy a linear bound. -/
 theorem size_thresholdCircuit_le (F : Instance) (q : ℕ) :
     (thresholdCircuit F q).size ≤ 478 * (workSize F + 1) := by
-  rw [thresholdCircuit, Circuit.size_comp]
-  have hc := size_scoreCircuit_le F
-  have ht := size_linearThresholdCircuit_le F.2.length q
-  dsimp only [workSize]
-  omega
+  circuit_bound [thresholdCircuit, workSize]
 
 /-- On width-`k` formulas, the structural size is at most `(k+1)` times the clause count. -/
 theorem workSize_le_of_width (k : ℕ) (F : Instance)

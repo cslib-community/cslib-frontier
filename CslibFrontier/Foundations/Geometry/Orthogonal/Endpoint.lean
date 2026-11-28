@@ -78,7 +78,7 @@ theorem returnFanWalk (v : ℕ) (s : Fin 3) :
     fin_cases s <;> norm_num [direction, center, elbow, column, portStep]; ring_nf; simp
   rw [segmentWalk, hl, hd]
   fin_cases s <;> norm_num [walk, center, elbow, column, portStep] <;>
-    (try constructor) <;> omega
+    (constructor) <;> omega
 
 end Layout
 end Cslib.Orthogonal

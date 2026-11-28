@@ -100,33 +100,29 @@ theorem initialPilotOuter_allocated
         (CopyPadding.identifier D ss) (CopyPadding.identifier D st))
         (fun _ _ => steps) A σ x y - rowSliceMean X Y A x y) ≤ ε^4 := by
   intro X Y A steps
-  have hNu : 0 ≤ (P : ℝ) * rate ks := mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le
+  have hNu : 0 ≤ (P : ℝ) * rate ks := by positivity
   have hrange := rowNormPow_fourth_le_expect_envelope hNu X Y A
     (fun _ => (2 * HP.Q HP.toHierarchyParams.atomCap)^4) (fun _ => by positivity)
     (fun σ x y _ _ => by
-      rw [abs_of_nonneg (normalized_range HP D R bin ks kt kb ss st cutoff h C
-        rawSteps prepSteps detectorSteps σ x y).1]
-      exact pow_le_pow_left₀
-        (normalized_range HP D R bin ks kt kb ss st cutoff h C
-          rawSteps prepSteps detectorSteps σ x y).1
-        (normalized_range HP D R bin ks kt kb ss st cutoff h C
-          rawSteps prepSteps detectorSteps σ x y).2 4)
+      have hr := normalized_range HP D R bin ks kt kb ss st cutoff h C
+        rawSteps prepSteps detectorSteps σ x y
+      rw [abs_of_nonneg hr.1]
+      exact pow_le_pow_left₀ hr.1 hr.2 4)
   simp only [ZMod.card, Fintype.expect_const] at hrange
-  have hden : (1:ℝ) < 155648 * (J+1) * (4:ℝ)^4 := by
-    have := Nat.cast_nonneg (α := ℝ) J; nlinarith
-  have hr : 0 < 1 - 1 / (155648 * (J+1) * (4:ℝ)^4) :=
+  have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
+    linarith [Nat.cast_nonneg (α := ℝ) J]
+  have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
-    (show 0 ≤ 32 * ((P : ℝ)^2 / (P * rate ks) *
-      (2 * HP.Q HP.toHierarchyParams.atomCap)^4) by positivity)
+    (show 0 ≤ 32 * ((P : ℝ) ^ 2 / (P * rate ks) *
+      (2 * HP.Q HP.toHierarchyParams.atomCap) ^ 4) by positivity)
     hε 0 steps (Nat.le_max_right _ _)
   simp only [pow_zero, mul_one] at hp
   refine ⟨lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left _ _), ?_⟩
   have hn := noise R.source R.terminal R.source_terminal (side P ks) (side P kt)
     (side_le P ks) (side_le P kt) (CopyPadding.identifier D ss)
     (CopyPadding.identifier D st) hNu steps A
-  exact hn.trans ((mul_le_mul_of_nonneg_left hrange (by positivity)).trans
-    (by nlinarith only [hp]))
+  exact ((hn.trans (mul_le_mul_of_nonneg_left hrange (by positivity))).trans_eq (by ring)).trans hp
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Centered noise and root-paid mean bias control the completed first correction.
@@ -157,7 +153,7 @@ theorem initialPilotCompleted_error
         (4 * (2 * HP.Q HP.toHierarchyParams.atomCap)^((3 : ℝ)/4))^4 *
           rootDistPow 4 P (rate k) X Y A A') := by
   intro X Y A A' G target
-  have hNu : 0 ≤ (P : ℝ) * rate k := mul_nonneg (Nat.cast_nonneg _) (rate_pos k).le
+  have hNu : 0 ≤ (P : ℝ) * rate k := by positivity
   have hm : ∀ x y, rate k * rowSliceMean X Y A' x y = target x y :=
     initialTrueNormalized_mean HP D hD R H k hk ss st C hC hC1 hCf
   have hb := rowNormPow_sliceMean_sub_le_rootDistPow hNu X Y A A'
@@ -177,7 +173,12 @@ theorem initialPilotCompleted_error
         (rowSliceMean X Y A x y - rowSliceMean X Y A' x y)) := by
     funext σ x y; rw [← hm x y]; ring
   rw [hn, hm', rowNormPow_mul (rate_pos k).le, rowNormPow_mul (rate_pos k).le] at he
-  exact he.trans (by nlinarith [mul_le_mul_of_nonneg_left hb (pow_nonneg (rate_pos k).le 4)])
+  calc _ ≤ _ := he
+    _ = 8 * (rate k) ^ 4 * (rowNormPow 4 P (rate k) X Y (fun σ x y =>
+          conditionalWalk X Y G (fun _ _ => outerSteps) A σ x y - rowSliceMean X Y A x y) +
+        rowNormPow 4 P (rate k) X Y (fun _ x y =>
+          rowSliceMean X Y A x y - rowSliceMean X Y A' x y)) := by ring
+    _ ≤ _ := by gcongr
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Positive-tolerance accuracy toward the genuine canonical FIRST pilot correction.
@@ -239,18 +240,12 @@ theorem initialPilotCompleted_accuracy
   have hb := initialPilotCompleted_error HP D hD R H bin k k hk ss st cutoff h C
     hC hC1 hCf rawSteps 1 detectorSteps outerSteps
   dsimp only at hb hn he
-  have he' : rootDistPow 4 P (rate k)
-      (X R.source (side P k) (CopyPadding.identifier D ss))
-      (Y R.terminal (side P k) (CopyPadding.identifier D st))
-      (initialPilotNormalized HP D R bin k k k ss st cutoff h C rawSteps 1 detectorSteps)
-      (initialTrueNormalized HP D R k k ss st C) ≤ tolerance^4 := he
-  apply hb.trans
   have hc : 0 ≤ conversion := by dsimp only [conversion]; positivity
-  have hf : 0 ≤ 8 * (rate k)^4 := by positivity
-  have hbound := mul_le_mul_of_nonneg_left
-    (add_le_add hn (mul_le_mul_of_nonneg_left he' hc)) hf
-  have hbound' : _ ≤ payment * tolerance^4 := hbound.trans_eq (by
-    dsimp only [payment]; ring)
-  exact hbound'.trans (calibrated_fourth_moment hp hε)
+  calc _ ≤ _ := hb
+    _ ≤ 8 * (rate k) ^ 4 * (tolerance ^ 4 + conversion * tolerance ^ 4) := by
+      gcongr
+      exact he
+    _ = payment * tolerance ^ 4 := by dsimp only [payment]; ring
+    _ ≤ ε ^ 4 := calibrated_fourth_moment hp hε
 
 end Matrix.HierarchyParams.H4RankEnvironment

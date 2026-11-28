@@ -62,20 +62,7 @@ private theorem reduce_polytime :
       (fun x : (ℕ × ℕ) × List ℤ => (List.range x.1.1).map fun i =>
         ((x.2.getD i 0 - x.2.getD (x.1.1 + i) 0) % (x.1.2 : ℤ)).toNat)
       (encPair (encPair encUnary encNat) (encList encIntBin)) (encList encNat) := by
-  apply ComputableInPolyTime.mapWithInput
-    (show ComputableInPolyTime (fun x : (ℕ × ℕ) × List ℤ => List.range x.1.1)
-      (encPair (encPair encUnary encNat) (encList encIntBin))
-      (encList encUnary) by fun_prop)
-  have hpar := ComputableInPolyTime.fst
-    (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary
-  have hi := ComputableInPolyTime.snd
-    (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary
-  have hlo := (ComputableInPolyTime.listGetD (encA := encIntBin) 0).comp
-    (hpar.snd'.prod hi)
-  have hhi := (ComputableInPolyTime.listGetD (encA := encIntBin) 0).comp
-    (hpar.snd'.prod (ComputableInPolyTime.unary_add.comp (hpar.fst'.fst'.prod hi)))
-  exact ComputableInPolyTime.intBin_emodNat'
-    (ComputableInPolyTime.intBin_sub.comp (hlo.prod hhi)) hpar.fst'.snd'
+  fun_prop
 
 private theorem product_polytime :
     ComputableInPolyTime

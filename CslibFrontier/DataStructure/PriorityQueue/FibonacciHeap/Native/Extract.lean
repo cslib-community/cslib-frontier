@@ -43,18 +43,9 @@ private def forestReturnSafe (w : ℕ) (d : Fin 8 → ℕ) (s : Memory.State) : 
 
 private theorem realizes_forestReturn : Realizes .exact forestReturn (.refl _)
     (WordEncoding.encode (α := Option (ℕ × ℕ))) forestReturnSafe (fun _ _ => 0) := by
-  have hForest := realizes_scatterForest.reindex
-    (fun d : Fin 8 → ℕ => ![d 0, d 1, d 2, d 3, d 4, d 5]) (.refl _) ![0, 1, 2, 3, 4, 5]
-    (by intro d i; fin_cases i <;> rfl)
-  have hRet : Realizes .exact
-      (fun d : (Fin 8 → ℕ) × Unit =>
-        if d.1 6 < d.1 0 then pure (some (d.1 6, d.1 7)) else pure none)
-      (appendWords (.refl _) (WordEncoding.encode (α := Unit)))
-      (WordEncoding.encode (α := Option (ℕ × ℕ)))
-      (fun w _ _ => Fits w 1) (fun _ _ => 0) := by
-    realize
-    exact h
-  exact (hForest.bind₀ hRet).congr (fun _ => rfl)
+  unfold forestReturn
+  realize [realizes_scatterForest]
+  all_goals first | exact h.1 | exact h.2
 
 private def extractBody (d : Fin 2 → ℕ) : Memory.Prog (Option (ℕ × ℕ)) := do
   let m ← Memory.read (d 1 + 9 * d 0 + 1)
@@ -69,9 +60,7 @@ private def extractBody (d : Fin 2 → ℕ) : Memory.Prog (Option (ℕ × ℕ)) 
     let nr ← Memory.read (d 1 + 9 * d 0 + 2)
     let degree ← Memory.read (d 1 + 5 * d 0 + u)
     let child ← Memory.read (d 1 + 2 * d 0 + u)
-    let args ← pure (((((((d 0, d 1), nr), right), degree), child), u), key)
-    forestReturn ![args.1.1.1.1.1.1.1, args.1.1.1.1.1.1.2, args.1.1.1.1.1.2,
-      args.1.1.1.1.2, args.1.1.1.2, args.1.1.2, args.1.2, args.2]
+    forestReturn ![d 0, d 1, nr, right, degree, child, u, key]
 
 private def extractSafe (w : ℕ) (d : Fin 2 → ℕ) (s : Memory.State) : Prop :=
   Fits w (d 1 + (9 * d 0 + 5)) ∧
@@ -86,19 +75,9 @@ private def extractSafe (w : ℕ) (d : Fin 2 → ℕ) (s : Memory.State) : Prop 
 
 private theorem realizes_extractBody : Realizes .exact extractBody (.refl _)
     (WordEncoding.encode (α := Option (ℕ × ℕ))) extractSafe (fun _ _ => 0) := by
-  have hTail := realizes_forestReturn.reindex
-    (fun d : ((((((ℕ × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ =>
-      ![d.1.1.1.1.1.1.1, d.1.1.1.1.1.1.2, d.1.1.1.1.1.2, d.1.1.1.1.2,
-        d.1.1.1.2, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((((((ℕ × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ))
-    ![0, 1, 2, 3, 4, 5, 6, 7] (by intro d i; fin_cases i <;> rfl)
   have nine (n : ℕ) : n + n + n + n + n + n + n + n + n = 9 * n := by omega
-  conv =>
-    arg 2
-    ext d
-    simp only [extractBody, ← nine]
-  realize
-  all_goals try simp only [nine] at *
+  realize [realizes_forestReturn] rewriting [extractBody, ← nine]
+  all_goals simp only [nine] at *
   all_goals try have hdom := h.2 (by assumption)
   all_goals try simp (disch := omega) only [Function.update_of_ne] at *
   all_goals first

@@ -8,31 +8,32 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
+public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Probabilistic.Memoize
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Several independent keys of a pseudorandom function
 
 A pseudorandom function stays pseudorandom when an adversary may query `t` independently keyed
-copies at once, for every fixed number `t` of keys. [BonehShoup2023], Exercise 4.26, allows any
-polynomially bounded number of keys; the asymptotic statement here covers only constant `t`, while
-the concrete bound holds for every `t`. The real game `prfMultiRealGame` samples one
-`t * n`-bit key and answers channel `i : Fin t` with the family under the `i`-th `n`-bit block
-`keyBlock n i key`; the ideal game `prfMultiIdealGame` answers the channels with `t` independent
-uniform random functions.
+copies at once, for every constant number `t` of keys. This is a step toward [BonehShoup2023],
+Exercise 4.26, not the exercise: the exercise allows any polynomially bounded number of keys, and
+that statement is open (#5293). The concrete bound holds for every `t`, but its sum of `t` hybrid
+reductions gives the asymptotic statement only for constant `t`. The real game `prfMultiRealGame`
+samples one `t * n`-bit key and answers channel `i : Fin t` with the family under the `i`-th
+`n`-bit block `keyBlock n i key`; the ideal game `prfMultiIdealGame` answers the channels with `t`
+independent uniform random functions.
 
 The proof is the standard hybrid argument. In the `j`-th hybrid the channels below `j` are random
 and the others are keyed. The reduction `prfMultiReduction family t j adversary` samples its own
@@ -42,7 +43,10 @@ PRF game it is the `j`-th hybrid and against the ideal PRF game the `(j + 1)`-st
 advantage is at most the sum of the `t` PRF advantages
 (`advantage_prfMultiRealGame_prfMultiIdealGame_le`). The reduction is oracle PPT
 (`isOraclePPT_prfMultiReduction`), which gives the asymptotic statement
-`PseudorandomFunction.multiKey`.
+`PseudorandomFunction.multiKey_constantCount`. Against every table on `n`-bit strings, the word
+reduction has the law of the finite reduction `PRF.multiKeyReduction` of `PRF.atLevel family n` on
+the adapted adversary (`interpret_prfMultiReduction_eq_multiKeyReduction`); both PRF games run it
+against such a table.
 
 ## Main definitions
 
@@ -54,10 +58,17 @@ advantage is at most the sum of the `t` PRF advantages
 ## Main results
 
 * `Cslib.Crypto.isOraclePPT_prfMultiReduction`: the hybrid reduction is oracle PPT.
+* `Cslib.Crypto.interpret_prfMultiReduction_eq_multiKeyReduction`: the word hybrid reduction is
+  the finite one of `Cslib.Crypto.PRF.multiKeyReduction`, against every table.
+
+## Steps toward Exercise 4.26
+
 * `Cslib.Crypto.advantage_prfMultiRealGame_prfMultiIdealGame_le`: the multi-key advantage is at
   most the sum of the PRF advantages of the `t` hybrid reductions.
-* `Cslib.Crypto.PseudorandomFunction.multiKey`: independently keyed copies of a pseudorandom
-  function are indistinguishable from independent random functions.
+* `Cslib.Crypto.PseudorandomFunction.multiKey_constantCount`: for a constant number of keys,
+  independently keyed copies of a pseudorandom function are indistinguishable from independent
+  random functions. The Luby–Rackoff theorems of
+  `CslibFrontier/Crypto/Computational/LubyRackoff.lean` use it with three and four keys.
 
 ## References
 
@@ -93,19 +104,14 @@ abbrev MultiKeyDistinguisher (t : ℕ) := ℕ → List Bool → WordOracleComp (
 @[expose] noncomputable def prfMultiRealGame (family : List Bool → List Bool → List Bool) (t : ℕ)
     (adversary : MultiKeyDistinguisher t) (n : ℕ) : ProbComp Bool := do
   let key ← BitString.sampleList (t * n)
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin (fun request =>
-      pure (prfOracle family n (keyBlock n request.1 key) request.2)))
-    (adversary n [])
+  (adversary n []).run fun request =>
+    pure (prfOracle family n (keyBlock n request.1 key) request.2)
 
 /-- The ideal multi-key experiment: `t` independent uniform random functions. -/
 @[expose] noncomputable def prfMultiIdealGame (t : ℕ) (adversary : MultiKeyDistinguisher t)
     (n : ℕ) : ProbComp Bool := do
   let tables ← ProbComp.uniform (Fin t → BitString n → BitString n)
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin (fun request =>
-      pure (randomFunctionOracle n (tables request.1) request.2)))
-    (adversary n [])
+  (adversary n []).run fun request => pure (randomFunctionOracle n (tables request.1) request.2)
 
 /-- The cache of the hybrid reduction, keyed by channel and query. -/
 abbrev MultiKeyCache (t : ℕ) := List ((Fin t × List Bool) × List Bool)
@@ -142,9 +148,11 @@ section Efficiency
 
 variable {family : List Bool → List Bool → List Bool}
 
-/-- The encoding of the reduction's cache. -/
+/-- The encoding of the reduction's cache: the memoization cache encoding (`encMemoCache`) whose
+keys pair a key index (`encFinEnum`, framed) with a query (`encBits`) and whose values are
+`encBits`. -/
 private abbrev cacheEncoding (t : ℕ) : MultiKeyCache t ↪ List Bool :=
-  encList (encPair (encPair (encFinEnum (Fin t)) encBits) encBits)
+  encMemoCache (encPair (encFinEnum (Fin t)) encBits) encBits
 
 /-- The input of one handler call: the caller `((n, aux), key)`, the request and the cache. -/
 private abbrev HandlerInput (t : ℕ) :=
@@ -175,13 +183,13 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
   let hn := h1.fst'.fst'
   let hquery := h2.fst'.snd'
   let hcache := h2.snd'
-  refine IsOraclePPTOn.finite_cases' (tagEncoding := encFinEnum (Fin t))
+  refine IsOraclePPTOn.finite_cases (tagEncoding := encFinEnum (Fin t))
     (tag := fun x : HandlerInput t => x.2.1.1)
     (branch := fun i x => prfMultiHandler family t j x.1.1.1 x.1.2 (i, x.2.1.2) x.2.2)
     h2.fst'.fst' fun i => ?_
   by_cases hlt : i.val < j
   · simp only [prfMultiHandler, hlt, ↓reduceIte]
-    refine IsOraclePPTOn.ite' (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
+    refine IsOraclePPTOn.ite (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
     · exact (IsPPTOn.memoize (input := handlerInputEncoding t)
         (keyEncoding := encPair (encFinEnum (Fin t)) encBits) (valueEncoding := encBits)
         (compute := fun (x : HandlerInput t) (_ : Fin t × List Bool) =>
@@ -192,7 +200,7 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
         (((ComputableInPolyTime.const ([] : List Bool)).prod hcache))).isOraclePPTOn
   by_cases heq : i.val = j
   · simp only [prfMultiHandler, heq, ↓reduceIte, lt_irrefl]
-    exact (IsOraclePPTOn.query_take' () hquery hn).map_with'
+    exact (IsOraclePPTOn.query_take () hquery hn).map_with
       (f := fun (x : HandlerInput t) reply => (reply, x.2.2))
       ((ComputableInPolyTime.snd _ _).prod (hcache.comp (ComputableInPolyTime.fst _ _)))
   · simp only [prfMultiHandler, hlt, heq, ↓reduceIte]
@@ -211,7 +219,7 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
   let hres := (((ComputableInPolyTime.const (8 * t)).unary_add'
     (ComputableInPolyTime.unary_mul' (.const 4) hq.length_bits_comp)).unary_add'
     (ComputableInPolyTime.unary_mul' (.const 2) hcaller.fst'.fst')).unary_add' (.const 8)
-  have hrun := hadversary.run_interpret_preprocess_open' (External := Unit)
+  have hrun := hadversary.run_interpret_preprocess_open (External := Unit)
     (State := MultiKeyCache t) (input := encPair (encPair encUnary encBits) encBits)
     (operationEncoding := encFinEnum (Fin t)) (stateEncoding := cacheEncoding t)
     (handler := fun (caller : (ℕ × List Bool) × List Bool) request cache =>
@@ -223,7 +231,7 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
     hres ?_
   · exact (((ComputableInPolyTime.const t).unary_mul'
       (.fst _ _)).sampleList.isOraclePPTOn.bind_with
-      (hrun.map' (ComputableInPolyTime.fst _ _))).isOraclePPT
+      (hrun.map (ComputableInPolyTime.fst _ _))).isOraclePPT
   intro caller ⟨i, query⟩ cache hcache result hresult
   dsimp only [cacheEncoding]
   have hkeyLength : (encPair (encFinEnum (Fin t)) encBits (i, query)).length ≤
@@ -244,17 +252,13 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
         exact (BitString.length_of_mem_support_uniformList hvalue).le) result hresult
     exact ⟨by simpa only [encBits_apply] using hcache',
       by simp only [encBits_apply] at hreply; omega, by omega⟩
-  · simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-      at hresult
-    subst hresult
+  · supp_cases hresult
     exact ⟨hcache, by simp, by dsimp only; omega⟩
   · simp only [OracleComp.mem_supportWith_map_iff] at hresult
     obtain ⟨reply, ⟨raw, _, rfl⟩, rfl⟩ := hresult
     have := List.length_take_le caller.1.1 raw
     exact ⟨hcache, by dsimp only; omega, by dsimp only; omega⟩
-  · simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-      at hresult
-    subst hresult
+  · supp_cases hresult
     have := List.length_take_le caller.1.1
       (prfOracle family caller.1.1 (keyBlock caller.1.1 i caller.2) query)
     exact ⟨hcache, by dsimp only; omega, by dsimp only; omega⟩
@@ -294,24 +298,22 @@ private theorem interpret_prfMultiReduction (family : List Bool → List Bool �
   simp only [prfMultiReduction, OracleComp.interpret_bind, ProbOracleComp.interpret_sample,
     OracleComp.interpret_map]
   rw [show OracleComp.interpret ProbComp.unifOracle (BitString.sampleList (t * n)) =
-    ProbComp.eval (BitString.sampleList (t * n)) from rfl, BitString.eval_sampleList,
+    ProbComp.eval (BitString.sampleList (t * n)) from
+      (OracleComp.evalWith_eq_interpret _ _).symm, BitString.eval_sampleList,
     Probability.PMF.monad_bind_eq_bind]
   congr 1 with key : 1
-  have hhom : IsMonadHom (ProbOracleComp (fun _ : Unit × List Bool => List Bool)) PMF
-      (OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-        (fun request : Unit × List Bool => PMF.pure (external request.2)))) :=
-    OracleComp.isMonadHom_evalWith _
-  rw [OracleComp.map_run_interpret hhom, PMF.monad_map_eq_map]
+  rw [← OracleComp.evalWith_eq_interpret,
+    OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith _), PMF.monad_map_eq_map]
   congr 3 with q cache : 2
   rcases q with k | ⟨i, query⟩
-  · simp [StateT.lift, ProbOracleComp.interpret_sample, ProbComp.unifFin, PMF.map,
-      Function.comp_def]
+  · simp [StateT.lift, ProbOracleComp.evalWith_sumHandler_unifOracle_sample,
+      ProbComp.unifFin, ProbComp.eval, PMF.map, Function.comp_def]
   · simp only [OracleComp.sumHandler, prfMultiHandler, semanticHandler]
     split_ifs
-    · rw [ProbOracleComp.interpret_sample]
+    · rw [ProbOracleComp.evalWith_sumHandler_unifOracle_sample]
       exact (ProbComp.eval_memoize _ _ _).trans (by simp only [BitString.eval_sampleList])
     · simp
-    · simp [PMF.monad_map_eq_map]
+    · simp [ProbOracleComp.evalWith_sumHandler_query]
     · simp
 
 /-- The deterministic answers of the reduction when the random channels below `j` read eager tables
@@ -370,9 +372,7 @@ private theorem run_semanticHandler (family : List Bool → List Bool → List B
         change memoize (fun _ => BitString.uniformList n)
           (i, List.ofFn (BitString.ofList n query)) cache = _
         rw [BitString.ofFn_ofList hlength]
-      · rfl
-      · rfl
-      · rfl
+      all_goals rfl
   -- the eager side reads the curried table
   have heager (table : Fin t × BitString n → BitString n) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
@@ -418,12 +418,14 @@ private theorem uniformList_bind_keyBlock {β : Type} (t n : ℕ) (f : (Fin t �
     ring
 
 /-- Keyed replies to valid queries have the key's length. -/
-private theorem length_prfOracle_le (hfamily : PseudorandomFunction family) {n : ℕ}
+private theorem length_prfOracle_le
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    {n : ℕ}
     {key : List Bool} (hkey : key.length = n) (query : List Bool) :
     (prfOracle family n key query).length ≤ n := by
   unfold prfOracle
   split_ifs with hquery
-  · exact (hfamily.length_eq key query (hquery.trans hkey.symm)).trans hkey |>.le
+  · exact (hlength key query (hquery.trans hkey.symm)).trans hkey |>.le
   · exact Nat.zero_le _
 
 /-- Table replies have at most `n` bits. -/
@@ -454,7 +456,7 @@ private theorem eval_prfMultiRealGame (family : List Bool → List Bool → List
     (adversary : MultiKeyDistinguisher t) (n : ℕ) :
     ProbComp.eval (prfMultiRealGame family t adversary n) = hybridGame family t 0 adversary n := by
   simp only [prfMultiRealGame, ProbComp.eval_bind, BitString.eval_sampleList,
-    ProbOracleComp.eval_interpret, ProbComp.eval_pure]
+    ProbOracleComp.eval_run, ProbComp.eval_pure]
   refine (uniformList_bind_keyBlock t n (fun blocks =>
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
       (fun request : Fin t × List Bool =>
@@ -466,15 +468,16 @@ private theorem eval_prfMultiIdealGame (family : List Bool → List Bool → Lis
     (adversary : MultiKeyDistinguisher t) (n : ℕ) :
     ProbComp.eval (prfMultiIdealGame t adversary n) = hybridGame family t t adversary n := by
   simp only [pmf_norm, prfMultiIdealGame, hybridGame, hybridOracle, Fin.is_lt, ↓reduceIte,
-    PMF.bind_const, ProbComp.eval_uniform, ProbOracleComp.eval_interpret]
+    PMF.bind_const, ProbComp.eval_uniform, ProbOracleComp.eval_run]
 
 /-- Against the real PRF game, the `j`-th reduction is the `j`-th hybrid. -/
-private theorem eval_prfRealGame_prfMultiReduction (hfamily : PseudorandomFunction family)
+private theorem eval_prfRealGame_prfMultiReduction
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     {j : ℕ} (hj : j < t) (adversary : MultiKeyDistinguisher t) (n : ℕ) :
-    ProbComp.eval (prfRealGame family (prfMultiReduction family t j adversary) n) =
+    ProbComp.eval (prfRealGame id family (prfMultiReduction family t j adversary) n) =
       hybridGame family t j adversary n := by
   classical
-  simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList,
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, BitString.eval_sampleList,
     ProbOracleComp.eval_interpret, ProbComp.eval_pure, interpret_prfMultiReduction,
     run_semanticHandler]
   simp only [hybridGame, PMF.monad_bind_eq_bind]
@@ -493,18 +496,19 @@ private theorem eval_prfRealGame_prfMultiReduction (hfamily : PseudorandomFuncti
   · have hi : i = ⟨j, hj⟩ := Fin.ext heq
     subst hi
     rw [Function.update_self, List.take_of_length_le
-      (length_prfOracle_le hfamily List.length_ofFn query)]
+      (length_prfOracle_le hlength List.length_ofFn query)]
   · have hi : i ≠ ⟨j, hj⟩ := fun h => heq (congrArg Fin.val h)
     rw [Function.update_of_ne hi, List.take_of_length_le
-      (length_prfOracle_le hfamily List.length_ofFn query)]
+      (length_prfOracle_le hlength List.length_ofFn query)]
 
 /-- Against the ideal PRF game, the `j`-th reduction is the `(j + 1)`-st hybrid. -/
-private theorem eval_prfIdealGame_prfMultiReduction (hfamily : PseudorandomFunction family)
+private theorem eval_prfIdealGame_prfMultiReduction
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     {j : ℕ} (hj : j < t) (adversary : MultiKeyDistinguisher t) (n : ℕ) :
-    ProbComp.eval (prfIdealGame (prfMultiReduction family t j adversary) n) =
+    ProbComp.eval (prfIdealGame id id (prfMultiReduction family t j adversary) n) =
       hybridGame family t (j + 1) adversary n := by
   classical
-  simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform,
+  simp only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbOracleComp.eval_interpret, ProbComp.eval_pure, interpret_prfMultiReduction,
     run_semanticHandler]
   simp only [hybridGame, PMF.monad_bind_eq_bind]
@@ -535,29 +539,82 @@ private theorem eval_prfIdealGame_prfMultiReduction (hfamily : PseudorandomFunct
       rw [List.take_of_length_le (length_randomFunctionOracle_le _ _)]
     · have hlt' : ¬i.val < j + 1 := by omega
       simp only [hlt, heq, hlt', ↓reduceIte]
-      rw [List.take_of_length_le (length_prfOracle_le hfamily List.length_ofFn query)]
+      rw [List.take_of_length_le (length_prfOracle_le hlength List.length_ofFn query)]
 
-/-- **Multi-key PRF hybrid** ([BonehShoup2023], Exercise 4.26): the advantage of a multi-key
-adversary is at most the sum of the PRF advantages of the `t` hybrid reductions. -/
-theorem advantage_prfMultiRealGame_prfMultiIdealGame_le (hfamily : PseudorandomFunction family)
+/-- **The word hybrid reduction is the finite one.** For a length-preserving family and every
+table `T` on `n`-bit strings, presented on the word channel as `randomFunctionOracle n T`, the
+`j`-th word reduction on `adversary n []` has the law of the finite hybrid reduction
+`PRF.multiKeyReduction` of `PRF.atLevel family n` on the adapted adversary, run against `T`. Both
+PRF games run the word reduction against such a table: `prfIdealGame` against a uniform one, and
+`prfRealGame` against `PRF.atLevel family n key` for a uniform key, whose word oracle is
+`prfOracle family n key`. -/
+theorem interpret_prfMultiReduction_eq_multiKeyReduction
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (j n : ℕ) (adversary : MultiKeyDistinguisher t) (T : BitString n → BitString n) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        (fun request : Unit × List Bool => PMF.pure (randomFunctionOracle n T request.2)))
+        (prfMultiReduction family t j adversary n []) =
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun x => PMF.pure (T x))
+        (PRF.multiKeyReduction (PRF.atLevel family n) j
+          ((OracleCodec.withOp (Fin t) (OracleCodec.bitString n)).adapt (adversary n []))) := by
+  classical
+  rw [interpret_prfMultiReduction family t j n adversary (randomFunctionOracle n T),
+    PRF.interpret_multiKeyReduction_eq_bind]
+  simp only [run_semanticHandler]
+  refine (uniformList_bind_keyBlock t n (fun blocks =>
+    (PMF.uniformOfFintype (Fin t → BitString n → BitString n)).bind fun tables =>
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        (fun request : Fin t × List Bool =>
+          PMF.pure (eagerOracle family t j n blocks (randomFunctionOracle n T) tables request)))
+        (adversary n []))).trans ?_
+  congr 1 with keys : 1
+  congr 1 with tables : 1
+  rw [OracleCodec.interpret_adapt]
+  congr 2
+  funext ⟨i, query⟩
+  rw [OracleCodec.wordOracle_withOp]
+  dsimp only
+  by_cases hquery : query.length = n
+  · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
+      randomFunctionOracle, prfOracle, PRF.atLevel, BitString.ofFn_ofList hquery,
+      Function.Embedding.coeFn_mk, PMF.monad_map_eq_map, PMF.pure_map]
+    congr 1
+    split_ifs with hlt heq
+    · rfl
+    · exact List.take_of_length_le List.length_ofFn.le
+    · have hlength : (family (List.ofFn (keys i)) query).length = n := by
+        simpa using hlength (List.ofFn (keys i)) query (by simp [hquery])
+      rw [List.take_of_length_le hlength.le, BitString.ofFn_ofList hlength]
+  · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
+      randomFunctionOracle, prfOracle]
+    split_ifs <;> simp
+
+/-- Hybrid bound, a step toward [BonehShoup2023], Exercise 4.26, not the cited result: for a
+length-preserving family, the advantage of a multi-key adversary is at most the sum of the PRF
+advantages of the `t` hybrid reductions. The exercise asks for one elementary wrapper `B` with
+`PRFadv[A, F'] = n · PRFadv[B, F]`. -/
+theorem advantage_prfMultiRealGame_prfMultiIdealGame_le
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (adversary : MultiKeyDistinguisher t) (n : ℕ) :
     Game.advantage (ProbComp.eval (prfMultiRealGame family t adversary n))
         (ProbComp.eval (prfMultiIdealGame t adversary n)) ≤
       ∑ j ∈ Finset.range t,
         Game.advantage
-          (ProbComp.eval (prfRealGame family (prfMultiReduction family t j adversary) n))
-          (ProbComp.eval (prfIdealGame (prfMultiReduction family t j adversary) n)) := by
+          (ProbComp.eval (prfRealGame id family (prfMultiReduction family t j adversary) n))
+          (ProbComp.eval (prfIdealGame id id (prfMultiReduction family t j adversary) n)) := by
   rw [eval_prfMultiRealGame family adversary n, eval_prfMultiIdealGame family adversary n]
   refine (Game.advantage_hybrid_le_sum (fun j => hybridGame family t j adversary n) t).trans
     (Finset.sum_le_sum fun j hj => le_of_eq ?_)
   have hj : j < t := Finset.mem_range.mp hj
-  rw [eval_prfRealGame_prfMultiReduction hfamily hj, eval_prfIdealGame_prfMultiReduction hfamily hj]
+  rw [eval_prfRealGame_prfMultiReduction hlength hj, eval_prfIdealGame_prfMultiReduction hlength hj]
 
-/-- **Independently keyed copies of a pseudorandom function are pseudorandom**
-([BonehShoup2023], Exercise 4.26, for a constant number of keys): for every fixed number `t` of
-keys, no oracle-PPT adversary distinguishes `t` keyed copies from `t` independent uniform random
-functions. The exercise allows a polynomially bounded number of keys; this statement does not. -/
-theorem PseudorandomFunction.multiKey (hfamily : PseudorandomFunction family) (t : ℕ) :
+/-- Constant-key-count step toward [BonehShoup2023], Exercise 4.26, not the cited result: for
+every constant number `t` of keys, no oracle-PPT adversary distinguishes `t` keyed copies of a
+pseudorandom function from `t` independent uniform random functions. The exercise allows any
+polynomially bounded number `n ≥ 1` of keys; that statement is open (#5293). The Luby–Rackoff
+theorems use this one with `t = 3` and `t = 4`. -/
+theorem PseudorandomFunction.multiKey_constantCount (hfamily : PseudorandomFunction family)
+    (t : ℕ) :
     Game.Indistinguishable
       (fun adversary n => ProbComp.eval (prfMultiRealGame family t adversary n))
       (fun adversary n => ProbComp.eval (prfMultiIdealGame t adversary n))
@@ -566,7 +623,7 @@ theorem PseudorandomFunction.multiKey (hfamily : PseudorandomFunction family) (t
   refine negligible_of_le (Negligible.sum (Finset.range t) fun j _ =>
     hfamily.secure _ (isOraclePPT_prfMultiReduction hfamily t j hadversary)) fun n => ?_
   simpa only [Finset.sum_apply] using
-    advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily adversary n
+    advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily.length_eq adversary n
 
 end Correctness
 

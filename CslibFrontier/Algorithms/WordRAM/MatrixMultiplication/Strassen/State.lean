@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Initialize
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Bounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Internal explicit-stack Strassen invariants
@@ -50,15 +51,49 @@ theorem NodeLayout.child {p k a b out scratch frames frame : ℕ}
     (h : NodeLayout p (k + 1) a b out scratch frames frame) :
     NodeLayout p k scratch (scratch + 4 ^ k * p) (scratch + 2 * (4 ^ k * p))
       (scratch + 3 * (4 ^ k * p)) frames (frame + 7) := by
-  refine ⟨h.modulus_pos, ?_, ?_, ?_, ?_, ?_, Or.inl ?_, Or.inl ?_⟩
-  · omega
-  · omega
-  · omega
-  · simpa only [child_scratch_end] using h.scratch_before
-  · have hf := h.frames_before
-    omega
-  · omega
-  · omega
+  have hf := h.frames_before
+  exact ⟨h.modulus_pos, by omega, by omega, by omega,
+    by simpa only [child_scratch_end] using h.scratch_before, by omega,
+    Or.inl (by omega), Or.inl (by omega)⟩
+
+/-- Every index of either input array lies outside the output block and strictly below `scratch`. -/
+theorem NodeLayout.input_outside {p k a b out scratch frames frame i : ℕ}
+    (hl : NodeLayout p k a b out scratch frames frame) (hi : i < 4 ^ k * p) :
+    ((a + i < out ∨ out + 4 ^ k * p ≤ a + i) ∧ a + i < scratch) ∧
+      ((b + i < out ∨ out + 4 ^ k * p ≤ b + i) ∧ b + i < scratch) := by
+  have ha := hl.left_before
+  have hb := hl.right_before
+  refine ⟨⟨?_, by omega⟩, ⟨?_, by omega⟩⟩
+  · rcases hl.left_disjoint with h | h <;> omega
+  · rcases hl.right_disjoint with h | h <;> omega
+
+/-- Both input arrays lie outside the current output block, so any state whose memory agrees
+outside `[out, out + 4 ^ k * p)` retains both input arrays. -/
+theorem NodeLayout.inputs_of_outside {p k a b out scratch frames frame : ℕ}
+    (hl : NodeLayout p k a b out scratch frames frame) {μ ν : ℕ → ℕ}
+    (hν : ∀ d, d < out ∨ out + 4 ^ k * p ≤ d → ν d = μ d) :
+    (∀ i < 4 ^ k * p, ν (a + i) = μ (a + i)) ∧
+      (∀ i < 4 ^ k * p, ν (b + i) = μ (b + i)) :=
+  ⟨fun _ hi => hν _ (hl.input_outside hi).1.1,
+    fun _ hi => hν _ (hl.input_outside hi).2.1⟩
+
+/-- Both parent input arrays precede `scratch` and `frame` and are disjoint from `out`, so
+stage executions that modify only output, child scratch and current/child frame preserve them. -/
+theorem NodeLayout.inputs_of_stage {p k a b out scratch frames frame : ℕ}
+    (hl : NodeLayout p (k + 1) a b out scratch frames frame) {μ ν : ℕ → ℕ}
+    (hν : ∀ d, (d < out ∨ out + 4 ^ (k + 1) * p ≤ d) →
+      (d < scratch ∨ scratch + 2 * (4 ^ k * p) ≤ d) →
+      (d < frame + 6 ∨ frame + 14 ≤ d) → ν d = μ d) :
+    (∀ i < 4 ^ (k + 1) * p, ν (a + i) = μ (a + i)) ∧
+      (∀ i < 4 ^ (k + 1) * p, ν (b + i) = μ (b + i)) := by
+  have hs := hl.scratch_before
+  have hf := hl.frames_before
+  exact ⟨fun _ hi =>
+      have h := (hl.input_outside hi).1
+      hν _ h.1 (Or.inl h.2) (Or.inl (by omega)),
+    fun _ hi =>
+      have h := (hl.input_outside hi).2
+      hν _ h.1 (Or.inl h.2) (Or.inl (by omega))⟩
 
 /-- Current matrix parameters and fixed controller constants, before phase-specific work. -/
 structure NodeHeader (p k a b out scratch frames frame : ℕ) (x : Data 64) : Prop where
@@ -95,42 +130,14 @@ structure NodeHeader (p k a b out scratch frames frame : ℕ) (x : Data 64) : Pr
 theorem NodeHeader.of_regs_eq {p k a b out scratch frames frame : ℕ} {x y : Data 64}
     (h : NodeHeader p k a b out scratch frames frame x)
     (hr : ∀ i, 32 ≤ i.val → i.val < 50 → y.regs i = x.regs i) :
-    NodeHeader p k a b out scratch frames frame y :=
-  ⟨(hr _ (by decide) (by decide)).trans h.inputA_eq,
-    (hr _ (by decide) (by decide)).trans h.inputB_eq,
-    (hr _ (by decide) (by decide)).trans h.output_eq,
-    (hr _ (by decide) (by decide)).trans h.scratch_eq,
-    (hr _ (by decide) (by decide)).trans h.modulus_eq,
-    (hr _ (by decide) (by decide)).trans h.depth_eq,
-    (hr _ (by decide) (by decide)).trans h.size_eq,
-    (hr _ (by decide) (by decide)).trans h.frames_eq,
-    (hr _ (by decide) (by decide)).trans h.frame_eq,
-    (hr _ (by decide) (by decide)).trans h.active_eq,
-    (hr _ (by decide) (by decide)).trans h.zero_eq,
-    (hr _ (by decide) (by decide)).trans h.one_eq,
-    (hr _ (by decide) (by decide)).trans h.four_eq,
-    (hr _ (by decide) (by decide)).trans h.frameWidth_eq⟩
+    NodeHeader p k a b out scratch frames frame y := by regs_frame
 
 /-- Frame loads and output clearing may change the two cursors, which are not parameters
 of the current node. All actual header fields are preserved. -/
 theorem NodeHeader.of_regs_eq_cursors {p k a b out scratch frames frame : ℕ} {x y : Data 64}
     (h : NodeHeader p k a b out scratch frames frame x)
     (hr : ∀ i, i ≠ Reg.address → i ≠ Reg.index → y.regs i = x.regs i) :
-    NodeHeader p k a b out scratch frames frame y :=
-  ⟨(hr _ (by decide) (by decide)).trans h.inputA_eq,
-    (hr _ (by decide) (by decide)).trans h.inputB_eq,
-    (hr _ (by decide) (by decide)).trans h.output_eq,
-    (hr _ (by decide) (by decide)).trans h.scratch_eq,
-    (hr _ (by decide) (by decide)).trans h.modulus_eq,
-    (hr _ (by decide) (by decide)).trans h.depth_eq,
-    (hr _ (by decide) (by decide)).trans h.size_eq,
-    (hr _ (by decide) (by decide)).trans h.frames_eq,
-    (hr _ (by decide) (by decide)).trans h.frame_eq,
-    (hr _ (by decide) (by decide)).trans h.active_eq,
-    (hr _ (by decide) (by decide)).trans h.zero_eq,
-    (hr _ (by decide) (by decide)).trans h.one_eq,
-    (hr _ (by decide) (by decide)).trans h.four_eq,
-    (hr _ (by decide) (by decide)).trans h.frameWidth_eq⟩
+    NodeHeader p k a b out scratch frames frame y := by regs_frame
 
 /-- Actual current fields and frame words at a newly entered root or pushed child. -/
 structure NodeReady (p k a b out scratch frames frame : ℕ) (x : Data 64) : Prop
@@ -186,14 +193,9 @@ theorem traceBudget_potential_le (p k : ℕ) :
   induction k with
   | zero => simp only [traceBudget, pow_zero, Nat.mul_one]; omega
   | succ k ih =>
-    have he : traceBudget p (k + 1) + 231 * p * 4 ^ (k + 1) + 150 + p * 4 ^ k =
-        7 * (traceBudget p k + 231 * p * 4 ^ k + 150) := by
-      rw [traceBudget, pow_succ]
-      ring
-    calc
-      _ ≤ traceBudget p (k + 1) + 231 * p * 4 ^ (k + 1) + 150 + p * 4 ^ k :=
-        Nat.le_add_right _ _
-      _ = _ := he
+    calc _ ≤ traceBudget p (k + 1) + 231 * p * 4 ^ (k + 1) + 150 + p * 4 ^ k :=
+          Nat.le_add_right _ _
+      _ = 7 * (traceBudget p k + 231 * p * 4 ^ k + 150) := by rw [traceBudget, pow_succ]; ring
       _ ≤ 7 * ((42 * p * p + 240 * p + 178) * 7 ^ k) := Nat.mul_le_mul_left _ ih
       _ = _ := by rw [pow_succ]; ring
 
@@ -212,15 +214,15 @@ theorem exec_setup_ready {w : ℕ} (x : Data 64)
   have hf : y.regs Reg.frame =
       x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by
     simpa only [Nat.mul_comm] using hframe.trans hframes
-  refine ⟨y, hy, {
+  exact ⟨y, hy, {
     inputA_eq := hparams _ (by decide)
     inputB_eq := hparams _ (by decide)
     output_eq := hparams _ (by decide)
     scratch_eq := hparams _ (by decide)
     modulus_eq := hparams _ (by decide)
     depth_eq := hparams _ (by decide)
-    size_eq := ?_
-    frames_eq := ?_
+    size_eq := by simpa only [Nat.mul_comm] using hsize
+    frames_eq := by simpa only [Nat.mul_comm] using hframes
     frame_eq := hf
     phase_eq := hphase
     active_eq := hactive
@@ -228,9 +230,6 @@ theorem exec_setup_ready {w : ℕ} (x : Data 64)
     one_eq := hone
     four_eq := hfour
     frameWidth_eq := hwidth
-    frame_words := ?_ }, hmem⟩
-  · simpa only [Nat.mul_comm] using hsize
-  · simpa only [Nat.mul_comm] using hframes
-  · simpa only [hf] using hfields
+    frame_words := by simpa only [hf] using hfields }, hmem⟩
 
 end Cslib.Algorithms.WordRAM.Strassen

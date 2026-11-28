@@ -56,8 +56,8 @@ theorem WordOracleComp.run_interpret_singleOracle {State : Type} (i₀ : ι)
     (s : State) :
     ProbOracleComp.runWith oracle (WordOracleComp.singleOracle i₀ p) s =
     ProbOracleComp.runWith (fun q : Unit × List Bool => oracle (i₀, q.2)) p s := by
-  rw [WordOracleComp.singleOracle, ProbOracleComp.runWith, ProbOracleComp.runWith,
-    OracleComp.runWith, OracleComp.runWith, OracleComp.interpret_interpret]
+  rw [WordOracleComp.singleOracle, ProbOracleComp.runWith_eq_run_interpret,
+    ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_interpret]
   congr 2 with q : 1
   cases q <;> simp only [OracleComp.sumHandler, ProbOracleComp.query, OracleComp.interpret_query]
 

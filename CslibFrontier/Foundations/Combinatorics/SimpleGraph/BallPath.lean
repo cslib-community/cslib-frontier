@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
 public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 public import Mathlib.Combinatorics.SimpleGraph.Hasse
 public import Mathlib.Combinatorics.SimpleGraph.Sum
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.Order.Group.Unbundled.Int
 import Mathlib.Data.ZMod.Defs
 import Mathlib.Tactic.Ring
@@ -41,6 +42,7 @@ distances behind Gaifman-locality proofs that transitive closure and reachabilit
 ## Main definitions
 
 * `SimpleGraph.IsBallPath`: a path parametrization of a ball.
+* `SimpleGraph.Hom.sumFold`: the fold homomorphism from `G ⊕g G` onto `G`.
 
 ## Main results
 
@@ -49,6 +51,7 @@ distances behind Gaifman-locality proofs that transitive closure and reachabilit
 * `SimpleGraph.exists_isBallPath_cycleGraph`: balls in cycle graphs.
 * `SimpleGraph.exists_isBallPath_pathGraph`: balls in path graphs.
 * `SimpleGraph.edist_pathGraph`: distances in path graphs.
+* `SimpleGraph.edist_sum_inl`: distances between left-copy vertices in `G ⊕g H`.
 -/
 
 public section
@@ -126,9 +129,8 @@ theorem edist_le_iff (hφ : IsBallPath G r lo hi φ) {k : ℕ} (hk : k ≤ r) {x
   refine ⟨fun h => ?_, fun ⟨s, hs, hsk, hx⟩ => hx ▸ hφ.edist_le hs hsk⟩
   induction k generalizing x with
   | zero =>
-    refine ⟨0, ⟨hφ.lo_nonpos, hφ.hi_nonneg⟩, by simp, ?_⟩
-    have : G.edist (φ 0) x = 0 := nonpos_iff_eq_zero.1 (by exact_mod_cast h)
-    exact (edist_eq_zero_iff.1 this).symm
+    exact ⟨0, ⟨hφ.lo_nonpos, hφ.hi_nonneg⟩, by simp,
+      (edist_eq_zero_iff.1 (nonpos_iff_eq_zero.1 (by exact_mod_cast h))).symm⟩
   | succ k ih =>
     obtain ⟨d, hd⟩ : ∃ d : ℕ, G.edist (φ 0) x = d :=
       ENat.ne_top_iff_exists.1 (ne_top_of_le_ne_top (ENat.natCast_ne_top _) h) |>.imp
@@ -136,8 +138,7 @@ theorem edist_le_iff (hφ : IsBallPath G r lo hi φ) {k : ℕ} (hk : k ≤ r) {x
     rcases Nat.lt_or_ge d (k + 1) with hdk | hdk
     · obtain ⟨s, hs, hsk, rfl⟩ := ih (by omega) (by rw [hd]; exact_mod_cast (by omega : d ≤ k))
       exact ⟨s, hs, ⟨by omega, by omega⟩, rfl⟩
-    · have hd' : d = k + 1 := le_antisymm (by rw [hd] at h; exact_mod_cast h) hdk
-      subst hd'
+    · cases le_antisymm (by exact_mod_cast (hd ▸ h)) hdk
       obtain ⟨v, hvx, hv⟩ := exists_adj_edist_eq_of_edist_eq_add_one (by rw [hd]; push_cast; rfl)
       obtain ⟨s, hs, hsk, rfl⟩ := ih (by omega) hv.le
       obtain ⟨t, ht, rfl⟩ := hφ.exists_of_adj hs (by omega) (by omega) hvx
@@ -189,14 +190,11 @@ open scoped Fin.IntCast
 
 private theorem fin_intCast_eq_zero {N : ℕ} [NeZero N] {z : ℤ} (h1 : -(N : ℤ) < z)
     (h2 : z < N) : (z : Fin N) = 0 ↔ z = 0 := by
-  refine ⟨fun h => ?_, fun h => by subst h; rfl⟩
+  refine ⟨fun h => ?_, fun h => h ▸ rfl⟩
   have hv := congrArg Fin.val h
   rw [Fin.val_intCast, Fin.val_zero] at hv
-  have hN : (0 : ℤ) < N := by omega
-  have hmod : z % N = 0 := by
-    have := Int.emod_nonneg z hN.ne'
-    omega
-  exact Int.eq_zero_of_abs_lt_dvd (Int.dvd_of_emod_eq_zero hmod) (abs_lt.2 ⟨h1, h2⟩)
+  have := Int.emod_nonneg z (by omega : (N : ℤ) ≠ 0)
+  exact Int.eq_zero_of_abs_lt_dvd (Int.dvd_of_emod_eq_zero (by omega)) (abs_lt.2 ⟨h1, h2⟩)
 
 /-- Around every vertex `c` of the cycle graph on `N ≥ 2r + 2` vertices, `s ↦ c + s` is a ball
 path over `[-r, r]`. -/
@@ -252,22 +250,18 @@ theorem exists_isBallPath_pathGraph {N r : ℕ} (j : Fin N) {lo hi : ℤ}
     (hlo : lo = -(min r j : ℕ)) (hhi : hi = (min r (N - 1 - j) : ℕ)) :
     ∃ φ : ℤ → Fin N, φ 0 = j ∧ IsBallPath (pathGraph N) r lo hi φ := by
   subst hlo hhi
-  have hj := j.2
-  have hv : ∀ s : ℤ, ((pathAt j s : Fin N) : ℕ) = min (j + s).toNat (N - 1) := fun _ => rfl
-  refine ⟨pathAt j, Fin.ext (by rw [hv]; omega), by omega, by omega, by omega, by omega,
+  refine ⟨pathAt j, by fin_index [pathAt], by omega, by omega, by omega, by omega,
     fun s hs t ht hst => ?_, fun s t hs ht => ?_, fun s hs h1 h2 y hy => ?_⟩
   · simp only [Set.mem_Icc] at hs ht
-    have := congrArg Fin.val hst
-    rw [hv, hv] at this
-    omega
+    fin_index [pathAt]
   · simp only [Set.mem_Icc] at hs ht
-    rw [pathGraph_adj, hv, hv]
+    simp only [pathGraph_adj, pathAt]
     omega
   · simp only [Set.mem_Icc] at hs
-    rw [pathGraph_adj, hv] at hy
+    simp only [pathGraph_adj, pathAt] at hy
     rcases hy with hy | hy
-    · exact ⟨s + 1, ⟨by omega, by omega⟩, Fin.ext (by rw [hv]; omega)⟩
-    · exact ⟨s - 1, ⟨by omega, by omega⟩, Fin.ext (by rw [hv]; omega)⟩
+    · exact ⟨s + 1, ⟨by omega, by omega⟩, by fin_index [pathAt]⟩
+    · exact ⟨s - 1, ⟨by omega, by omega⟩, by fin_index [pathAt]⟩
 
 /-- Every walk in `pathGraph N` is at least as long as the distance of the endpoint indices. -/
 private theorem pathGraph_length_walk {N : ℕ} {i j : Fin N} (p : (pathGraph N).Walk i j) :
@@ -300,10 +294,10 @@ theorem edist_pathGraph {N : ℕ} (i j : Fin N) :
   refine le_antisymm ?_ ?_
   · rcases le_total (i : ℕ) j with h | h
     · have := edist_pathGraph_add_le (j - i) i (by omega)
-      rw [show (⟨i + (j - i), by omega⟩ : Fin N) = j from Fin.ext (by simp only; omega)] at this
+      rw [show (⟨i + (j - i), by omega⟩ : Fin N) = j by fin_index] at this
       rwa [show (j : ℕ) - i + (i - j) = j - i by omega]
     · have := edist_pathGraph_add_le (i - j) j (by omega)
-      rw [show (⟨j + (i - j), by omega⟩ : Fin N) = i from Fin.ext (by simp only; omega),
+      rw [show (⟨j + (i - j), by omega⟩ : Fin N) = i by fin_index,
         edist_comm] at this
       rwa [show (j : ℕ) - i + (i - j) = i - j by omega]
   · have : NeZero N := ⟨by have := i.2; omega⟩
@@ -313,5 +307,39 @@ theorem edist_pathGraph {N : ℕ} (i j : Fin N) :
     exact_mod_cast pathGraph_length_walk p
 
 end Path
+
+section Sum
+
+/-- The fold homomorphism from `G ⊕g G` onto `G`, identifying the two copies. -/
+def Hom.sumFold (G : SimpleGraph V) : G ⊕g G →g G where
+  toFun := Sum.elim id id
+  map_rel' {x y} h := by cases x <;> cases y <;> simp_all
+
+/-- Evaluating `SimpleGraph.Hom.sumFold` at a vertex. -/
+@[simp]
+theorem Hom.sumFold_apply (G : SimpleGraph V) (x : V ⊕ V) :
+    Hom.sumFold G x = Sum.elim id id x := by
+  unfold Hom.sumFold
+  rfl
+
+private theorem walk_sum_inl {x : V} :
+    ∀ {z : V ⊕ W} (p : (G ⊕g H).Walk (.inl x) z),
+      ∃ (y : V) (q : G.Walk x y), z = .inl y ∧ q.length = p.length
+  | _, .nil => ⟨x, .nil, rfl, rfl⟩
+  | _, @Walk.cons _ _ _ (.inl _) _ h p => by
+    obtain ⟨y, q, rfl, hlen⟩ := walk_sum_inl p
+    exact ⟨y, .cons (sum_adj_inl.1 h) q, rfl, congrArg (· + 1) hlen⟩
+  | _, @Walk.cons _ _ _ (.inr _) _ h _ => absurd h (not_adj_sum_inl_inr _ _)
+
+/-- Extended distances in `G ⊕g H` between vertices of the left copy agree with distances in
+`G`. -/
+theorem edist_sum_inl (G : SimpleGraph V) (H : SimpleGraph W) (x y : V) :
+    (G ⊕g H).edist (.inl x) (.inl y) = G.edist x y := by
+  refine le_antisymm (Embedding.sumInl.toHom.edist_le x y) (le_iInf fun p => ?_)
+  obtain ⟨y', q, hy, hlen⟩ := walk_sum_inl p
+  cases Sum.inl.inj hy
+  exact hlen ▸ edist_le q
+
+end Sum
 
 end SimpleGraph

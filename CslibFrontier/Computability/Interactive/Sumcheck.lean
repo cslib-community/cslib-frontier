@@ -19,10 +19,10 @@ public import Mathlib.Algebra.Polynomial.Eval.Defs
 # The sumcheck protocol with a final evaluation check
 
 The index is a polynomial `P` in `n` variables over a finite field `F` with every individual
-degree at most `d`. A claim `(r, c)` at round `i` consists of the challenges `r : Fin i → F` of
-the earlier rounds and a value `c`. It states that the sum of `P` over the Boolean hypercube in
-the coordinates `i, …, n - 1`, with the coordinates below `i` fixed to `r`, is `c`
-(`Sumcheck.rel P i`). At round `0` this is the sumcheck claim `∑_{b ∈ {0,1}ⁿ} P b = c`, and at
+degree at most `d`. A claim at round `i` (`Sumcheck.Claim`) consists of the challenges
+`r : Fin i → F` of the earlier rounds and a value `c`. It states that the sum of `P` over the
+Boolean hypercube in the coordinates `i, …, n - 1`, with the coordinates below `i` fixed to `r`, is
+`c` (`Sumcheck.rel P i`). At round `0` this is the sumcheck claim `∑_{b ∈ {0,1}ⁿ} P b = c`, and at
 round `n` it is the evaluation claim `P r = c`.
 
 This is the protocol of Lund, Fortnow, Karloff and Nisan [LundFortnowKarloffNisan1992] as a
@@ -73,7 +73,11 @@ variable {F : Type} [Field F] [Fintype F] [DecidableEq F] {n : ℕ} (d : ℕ)
   (P : MvPolynomial (Fin n) F)
 
 /-- A claim of round `i`: the challenges of the rounds before `i` and the claimed value. -/
-abbrev Claim (F : Type) (i : ℕ) : Type := (Fin i → F) × F
+structure Claim (F : Type) (i : ℕ) where
+  /-- The challenges of the rounds before `i`. -/
+  challenges : Fin i → F
+  /-- The claimed partial sum at `challenges`. -/
+  value : F
 
 /-- The point of `F^n` equal to `r` on the first `i` coordinates and to the Boolean point `b` on
 the others. -/
@@ -86,7 +90,7 @@ noncomputable def partialSum {i : ℕ} (r : Fin i → F) : F :=
   ∑ b : Fin (n - i) → Bool, MvPolynomial.eval (point r b) P
 
 /-- The relation of round `i`: the claimed value is the partial sum. There is no witness. -/
-def rel (i : ℕ) : Claim F i → Unit → Prop := fun c _ => partialSum P c.1 = c.2
+def rel (i : ℕ) : Claim F i → Unit → Prop := fun c _ => partialSum P c.challenges = c.value
 
 /-- The honest message of round `i`: the partial sum as a polynomial in coordinate `i`. -/
 noncomputable def roundPoly {i : ℕ} (r : Fin i → F) : Polynomial F :=
@@ -102,22 +106,22 @@ abbrev roundSpec (F : Type) [Semiring F] : Spec :=
 /-- The verifier's test of a round polynomial `g` against the claimed value `c`. -/
 abbrev accepts (c : F) (g : Polynomial F) : Prop := g.natDegree ≤ d ∧ g.eval 0 + g.eval 1 = c
 
-/-- Round `i` of sumcheck: on the claim `(r, c)` and the challenge `z`, the new claim is
-`(Fin.snoc r z, g.eval z)` for the prover's polynomial `g`. -/
+/-- Round `i` of sumcheck: on the claim `⟨r, c⟩` and the challenge `z`, the new claim is
+`⟨Fin.snoc r z, g.eval z⟩` for the prover's polynomial `g`. -/
 noncomputable def round (i : ℕ) :
     Reduction OracleSpec.empty OracleSpec.empty (roundSpec F) (Claim F i) Unit (Claim F (i + 1))
       Unit where
   prover x _ :=
-    let g := roundPoly P x.1
+    let g := roundPoly P x.challenges
     pure (show ProbOracleComp OracleSpec.empty
         (Polynomial F × (F → ProbOracleComp OracleSpec.empty _)) from
-      pure (g, fun z => pure ((Fin.snoc x.1 z, g.eval z), ())))
+      pure (g, fun z => pure (⟨Fin.snoc x.challenges z, g.eval z⟩, ())))
   verifier :=
     { samplers := (ProbComp.uniform F, ())
       decide := fun x c => do
         let g ← OracleComp.query (spec := OracleSpec.empty ⊕ₒ msgSpec (roundSpec F))
           (.inr (.inl ()))
-        return if accepts d x.2 g then some (Fin.snoc x.1 c.1, g.eval c.1) else none }
+        return if accepts d x.value g then some ⟨Fin.snoc x.challenges c.1, g.eval c.1⟩ else none }
 
 /-- The final check: evaluate `P` at the claimed point, without interaction. -/
 noncomputable def finalCheck :
@@ -125,7 +129,8 @@ noncomputable def finalCheck :
   prover _ _ := pure ((), ())
   verifier :=
     { samplers := ()
-      decide := fun x _ => pure (if MvPolynomial.eval x.1 P = x.2 then some () else none) }
+      decide := fun x _ =>
+        pure (if MvPolynomial.eval x.challenges P = x.value then some () else none) }
 
 /-- **Sumcheck followed by the final check**: a proof system for the claim `∑_{b ∈ {0,1}ⁿ} P b = c`
 (`rel P 0`). -/
@@ -163,13 +168,14 @@ private theorem natDegree_aeval_le (k : Fin n) (φ : Fin n → Polynomial F)
 
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial has degree at most `d`. -/
-private theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
-    (r : Fin i → F) : (roundPoly P r).natDegree ≤ d := by
-  refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun b _ => ?_
-  refine (natDegree_aeval_le P ⟨i, hi⟩ _ (fun j hj => ?_) ?_).trans (hP _)
-  · have : j.val ≠ i := fun h => hj (Fin.ext h)
-    split_ifs <;> exact Polynomial.natDegree_C _
-  · simp
+theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
+    (r : Fin i → F) : (roundPoly P r).natDegree ≤ d :=
+  Polynomial.natDegree_sum_le_of_forall_le _ _ fun _ _ =>
+    (natDegree_aeval_le P ⟨i, hi⟩ _
+      (fun j hj => by
+        have := Fin.val_ne_of_ne hj
+        split_ifs <;> exact Polynomial.natDegree_C _)
+      (by simp)).trans (hP _)
 
 omit [Field F] [Fintype F] [DecidableEq F] in
 /-- The coordinate `j < i + 1` of `Fin.snoc r z`. -/
@@ -180,7 +186,7 @@ private theorem snoc_mk {i : ℕ} (r : Fin i → F) (z : F) {j : ℕ} (hj : j < 
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial at `z` is the partial sum of the next round at the point extended
 by `z`. -/
-private theorem eval_roundPoly_eq {i : ℕ} (r : Fin i → F) (z : F) :
+theorem eval_roundPoly_eq {i : ℕ} (r : Fin i → F) (z : F) :
     (roundPoly P r).eval z = partialSum P (Fin.snoc r z) := by
   rw [roundPoly, Polynomial.eval_finsetSum, partialSum]
   refine Finset.sum_congr rfl fun b _ => ?_
@@ -214,7 +220,7 @@ private theorem point_snoc {i : ℕ} (r : Fin i → F) (c : Bool) (b : Fin (n - 
 omit [Fintype F] [DecidableEq F] in
 /-- The verifier's test passes on the honest round polynomial: its values at `0` and `1` sum to
 the partial sum. -/
-private theorem roundPoly_eval_zero_add_one {i : ℕ} (hi : i < n) (r : Fin i → F) :
+theorem roundPoly_eval_zero_add_one {i : ℕ} (hi : i < n) (r : Fin i → F) :
     (roundPoly P r).eval 0 + (roundPoly P r).eval 1 = partialSum P r := by
   rw [eval_roundPoly_eq, eval_roundPoly_eq, add_comm]
   conv_rhs => rw [partialSum, sum_bool_succ (show n - i = n - (i + 1) + 1 by omega),
@@ -225,17 +231,11 @@ private theorem roundPoly_eval_zero_add_one {i : ℕ} (hi : i < n) (r : Fin i �
 
 omit [Fintype F] [DecidableEq F] in
 /-- At round `n` all coordinates are fixed: the partial sum is the evaluation. -/
-theorem partialSum_self (r : Fin n → F) : partialSum P r = MvPolynomial.eval r P := by
-  rw [partialSum, Finset.sum_eq_single (fun _ => false)]
-  · exact congrArg (MvPolynomial.eval · P) (funext fun j => dite_eq_left j.isLt)
-  · exact fun b _ hb => absurd (funext fun j => absurd j.isLt (by omega)) hb
-  · exact fun h => absurd (Finset.mem_univ _) h
-
-/-- The verifier of round `i` outputs the claim at the challenge if it accepts the message. -/
-private theorem round_outputOn (i : ℕ) (x : Claim F i) (τ : Transcript (roundSpec F)) :
-    (round d P i).verifier.outputOn x τ =
-      if accepts d x.2 τ.1 then some (Fin.snoc x.1 τ.2.1, τ.1.eval τ.2.1) else none :=
-  rfl
+theorem partialSum_self (r : Fin n → F) : partialSum P r = MvPolynomial.eval r P :=
+  (Finset.sum_eq_single (fun _ => false)
+    (fun _ _ hb => absurd (funext fun j => absurd j.isLt (by omega)) hb)
+    (fun h => absurd (Finset.mem_univ _) h)).trans
+    (congrArg (MvPolynomial.eval · P) (funext fun j => dite_eq_left j.isLt))
 
 /-! ### Component theorems (milestone 2) -/
 
@@ -245,39 +245,42 @@ theorem round_complete (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n) :
   intro x w hxw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [round, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample, PMF.pure_bind,
-    PMF.bind_bind]
-  have hacc : accepts d x.2 (roundPoly P x.1) :=
-    ⟨natDegree_roundPoly_le d P hP hi x.1, (roundPoly_eval_zero_add_one P hi x.1).trans hxw⟩
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun z => le_of_eq ?_
-  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨?_, ?_⟩)
-  · exact (round_outputOn d P i x _).trans (ite_eq_left hacc)
-  · exact (eval_roundPoly_eq P x.1 z).symm
+    PMF.bind_bind, PMF.toOuterMeasure_bind_apply]
+  have hacc : accepts d x.value (roundPoly P x.challenges) :=
+    ⟨natDegree_roundPoly_le d P hP hi x.challenges,
+      (roundPoly_eval_zero_add_one P hi x.challenges).trans hxw⟩
+  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun z => le_of_eq <|
+    (PMF.toOuterMeasure_pure_apply _ _).trans <|
+      ite_eq_right fun h => h ⟨ite_eq_left hacc, (eval_roundPoly_eq P x.challenges z).symm⟩
 
 /-- Each round is round-by-round sound with error `d / |F|` (Schwartz–Zippel for one variable). -/
 theorem round_rbrSound (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n) :
     (round d P i).verifier.RbrSound (language (rel P i)) (language (rel P (i + 1)))
       ((d : ℝ≥0∞) / Fintype.card F, ()) := by
   refine ⟨fun x p => match p with
-    | none => partialSum P x.1 = x.2
-    | some (g, none) => accepts d x.2 g ∧ g = roundPoly P x.1
-    | some (g, some (z, _)) => accepts d x.2 g ∧ g.eval z = (roundPoly P x.1).eval z,
-    fun x hx h => hx ⟨(), h⟩, fun x => ⟨?_, fun g => ⟨?_, fun z => ?_⟩⟩⟩
-  · rintro hS m ⟨hacc, rfl⟩
-    exact hS ((roundPoly_eval_zero_add_one P hi x.1).symm.trans hacc.2)
+    | none => partialSum P x.challenges = x.value
+    | some (g, none) => accepts d x.value g ∧ g = roundPoly P x.challenges
+    | some (g, some (z, _)) =>
+      accepts d x.value g ∧ g.eval z = (roundPoly P x.challenges).eval z,
+    fun x hx h => hx ⟨(), h⟩, fun x => ⟨fun hS _ ⟨hacc, hg⟩ =>
+      hS ((roundPoly_eval_zero_add_one P hi x.challenges).symm.trans (hg ▸ hacc.2)),
+      fun g => ⟨?_, ?_⟩⟩⟩
   · intro hS
     change (ProbComp.eval (ProbComp.uniform F)).toOuterMeasure
-      {c | accepts d x.2 g ∧ g.eval c = (roundPoly P x.1).eval c} ≤ (d : ℝ≥0∞) / Fintype.card F
-    by_cases hacc : accepts d x.2 g
+      {c | accepts d x.value g ∧ g.eval c = (roundPoly P x.challenges).eval c} ≤
+        (d : ℝ≥0∞) / Fintype.card F
+    by_cases hacc : accepts d x.value g
     · rw [ProbComp.eval_uniform]
       exact Probability.PMF.toOuterMeasure_uniformOfFintype_le_of_eval_eq
-        (fun h => hS ⟨hacc, h⟩) hacc.1 (natDegree_roundPoly_le d P hP hi x.1) fun _ hc => hc.2
+        (fun h => hS ⟨hacc, h⟩) hacc.1 (natDegree_roundPoly_le d P hP hi x.challenges)
+        fun _ hc => hc.2
     · simp [hacc]
-  · rintro hS ⟨x', ⟨_, hx'⟩, hout⟩
-    rw [round_outputOn] at hout
+  · rintro z hS ⟨x', ⟨_, hx'⟩, hout⟩
+    change (if accepts d x.value g then some ⟨Fin.snoc x.challenges z, g.eval z⟩ else none) =
+      some x' at hout
     split_ifs at hout with hacc
     obtain rfl := Option.some.inj hout
-    exact hS ⟨hacc, hx'.symm.trans (eval_roundPoly_eq P x.1 z).symm⟩
+    exact hS ⟨hacc, hx'.symm.trans (eval_roundPoly_eq P x.challenges z).symm⟩
 
 omit [Fintype F] in
 /-- The final check is perfectly complete. -/
@@ -295,7 +298,7 @@ omit [Fintype F] in
 /-- The final check is round-by-round sound without error. -/
 theorem finalCheck_rbrSound :
     (finalCheck P).verifier.RbrSound (language (rel P n)) Set.univ () := by
-  refine ⟨fun x _ => MvPolynomial.eval x.1 P = x.2,
+  refine ⟨fun x _ => MvPolynomial.eval x.challenges P = x.value,
     fun x hx h => hx ⟨(), by rw [rel, partialSum_self]; exact h⟩,
     fun x hS ⟨x', _, hout⟩ => hS ?_⟩
   by_contra h
@@ -306,7 +309,7 @@ theorem finalCheck_rbrSound :
 /-- **Completeness of sumcheck with the final check.** -/
 theorem proof_complete (hP : ∀ j, P.degreeOf j ≤ d) :
     (proof d P).Complete World.plain (rel P 0) Accept 0 := by
-  have h := (Reduction.Complete.iterate (rel := rel P) n fun i hi =>
+  have h := (Reduction.Complete.iterate (rel := rel P) n fun _ hi =>
     round_complete d P hP hi).append (finalCheck_complete P)
   simp only [Finset.sum_const_zero, add_zero] at h
   exact h
@@ -317,9 +320,9 @@ theorem proof_sound (hP : ∀ j, P.degreeOf j ≤ d) :
     (proof d P).verifier.Sound (oP := OracleSpec.empty) World.plain (language (rel P 0)) Set.univ
       (n * ((d : ℝ≥0∞) / Fintype.card F)) := by
   have h := ((Verifier.RbrSound.iterate (R := round d P) (L := fun i => language (rel P i)) n
-    fun i hi => round_rbrSound d P hP hi).append (finalCheck_rbrSound P)).sound
-  simp only [PerChallenge.sum_append, PerChallenge.sum_iterate] at h
-  simp only [PerChallenge.sum, add_zero, Finset.sum_const, Finset.card_range, nsmul_eq_mul] at h
+    fun _ hi => round_rbrSound d P hP hi).append (finalCheck_rbrSound P)).sound
+  simp only [PerChallenge.sum_append, PerChallenge.sum_iterate, PerChallenge.sum, add_zero,
+    Finset.sum_const, Finset.card_range, nsmul_eq_mul] at h
   exact h
 
 end Cslib.Interactive.Sumcheck

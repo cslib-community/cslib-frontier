@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -232,12 +233,8 @@ theorem rpReducible_iff_exists_seeded :
     rw [hp]
     have hprob := hno a ha
     rw [hlaw a _ le_rfl, BitString.toOuterMeasure_map_uniformList_toReal,
-      le_div_iff₀ (by positivity)] at hprob
-    have h3 : (2 : ℝ) * 2 ^ (c * ((encA a).length + 1) ^ d) ≤
-        3 * ((Finset.univ.filter fun r : Fin (c * ((encA a).length + 1) ^ d) → Bool =>
-          evalR a (List.ofFn r) ∈ Y.no).card : ℝ) := by
-      linarith
-    exact_mod_cast h3
+      div_le_div_iff₀ (by norm_num) (by positivity), mul_comm _ (3 : ℝ)] at hprob
+    exact_mod_cast hprob
   · rintro ⟨p, f, hf, hyes, hno⟩
     let R (a : α) : ProbComp β :=
       (fun w => f (a, w)) <$> BitString.sampleList (p.eval (encA a).length)
@@ -247,16 +244,13 @@ theorem rpReducible_iff_exists_seeded :
     refine ⟨R, hR, fun a ha b hb => ?_, fun a ha => ?_⟩
     · supp_cases hb [R, BitString.eval_sampleList, BitString.mem_support_uniformList_iff] with
         ⟨w, hw, rfl⟩
-      have hr := hyes a ha fun i => w[i.val]'(by omega)
-      rwa [show (List.ofFn fun i : Fin (p.eval (encA a).length) => w[i.val]'(by omega)) = w from
-        List.ext_getElem (by simp [hw]) fun i _ _ => by simp] at hr
+      have heq : (List.ofFn fun i : Fin (p.eval (encA a).length) => w[i.val]'(by omega)) = w :=
+        List.ext_getElem (by simp [hw]) fun _ _ _ => by simp
+      simpa only [heq] using hyes a ha fun i => w[i.val]'(by omega)
     · simp only [R, ProbComp.eval_map, BitString.eval_sampleList]
-      rw [BitString.toOuterMeasure_map_uniformList_toReal, le_div_iff₀ (by positivity)]
-      have h3 : (2 : ℝ) * 2 ^ p.eval (encA a).length ≤
-          3 * ((Finset.univ.filter fun r : Fin (p.eval (encA a).length) → Bool =>
-            f (a, List.ofFn r) ∈ Y.no).card : ℝ) := by
-        exact_mod_cast hno a ha
-      linarith
+      rw [BitString.toOuterMeasure_map_uniformList_toReal,
+        div_le_div_iff₀ (by norm_num) (by positivity), mul_comm _ (3 : ℝ)]
+      exact_mod_cast hno a ha
 
 /-! ### Lifting deterministic reductions and structural closure -/
 
@@ -266,10 +260,9 @@ theorem PolyTimeReducible.rpReducibleWithError (h : PolyTimeReducible encA encB 
     RPReducibleWithError encA encB (fun _ => 1) X Y := by
   obtain ⟨f, hf, hyes, hno⟩ := h
   refine ⟨fun a => pure (f a), hf.isPPTOn, fun a ha b hb => ?_, fun a ha => ?_⟩
-  · simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hb
-    exact hb ▸ hyes ha
-  · have hmem : f a ∈ Y.no := hno ha
-    simp [ProbComp.eval_pure, hmem]
+  · supp_cases hb with rfl
+    exact hyes ha
+  · simp [ProbComp.eval_pure, hno ha]
 
 /-- Every deterministic polynomial-time reduction of promise problems is a randomized one-sided
 reduction (`RPReducible`). -/
@@ -299,10 +292,10 @@ theorem RPReducible.refl (encA : α ↪ List Bool) (X : PromiseProblem α) :
 /-- Enlarging the target promise preserves `RPReducibleWithError`. -/
 theorem RPReducibleWithError.of_subset {s : α → ℝ}
     (h : RPReducibleWithError encA encB s X Y) (hyes : Y.yes ⊆ Y'.yes) (hno : Y.no ⊆ Y'.no) :
-    RPReducibleWithError encA encB s X Y' := by
-  obtain ⟨R, hR, hRyes, hRno⟩ := h
-  refine ⟨R, hR, fun a ha b hb => hyes (hRyes a ha b hb), fun a ha => (hRno a ha).trans ?_⟩
-  exact PMF.toOuterMeasure_toReal_mono (ProbComp.eval (R a)) hno
+    RPReducibleWithError encA encB s X Y' :=
+  let ⟨R, hR, hRyes, hRno⟩ := h
+  ⟨R, hR, fun a ha b hb => hyes (hRyes a ha b hb),
+    fun a ha => (hRno a ha).trans (PMF.toOuterMeasure_toReal_mono _ hno)⟩
 
 /-- Enlarging the target promise preserves `RPReducible`. -/
 theorem RPReducible.of_subset (h : RPReducible encA encB X Y) (hyes : Y.yes ⊆ Y'.yes)
@@ -345,23 +338,19 @@ theorem RPReducibleWithError.trans_add {s₁ : α → ℝ} {s₂ : ℝ}
     have hfail := PMF.toOuterMeasure_bind_failure_toReal_le
       (ProbComp.eval (R₁ a)) (fun b => ProbComp.eval (R₂ b)) Y.no Z.noᶜ
       (sub_nonneg.mpr hs₂) fun b _ hb => by
-        have hadd := PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₂ b)) Z.no
-        have h := hno₂ b hb
-        linarith
-    have hadd₁ := PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₁ a)) Y.no
-    have hadd₂ := PMF.toOuterMeasure_toReal_add_compl
-      ((ProbComp.eval (R₁ a)).bind fun b => ProbComp.eval (R₂ b)) Z.no
-    have h₁ := hno₁ a ha
-    linarith
+        linarith [PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₂ b)) Z.no, hno₂ b hb]
+    linarith [PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₁ a)) Y.no,
+      PMF.toOuterMeasure_toReal_add_compl
+        ((ProbComp.eval (R₁ a)).bind fun b => ProbComp.eval (R₂ b)) Z.no, hno₁ a ha]
 
 /-- Precomposing an `RPReducibleWithError` reduction with an explicit deterministic polynomial-time
 reduction `f` from `X` to `Y` pulls back its soundness threshold along `f`. -/
 theorem RPReducibleWithError.of_computableInPolyTime {s : β → ℝ} {f : α → β}
     (hf : ComputableInPolyTime f encA encB) (hyes : Set.MapsTo f X.yes Y.yes)
     (hno : Set.MapsTo f X.no Y.no) (hYZ : RPReducibleWithError encB encC s Y Z) :
-    RPReducibleWithError encA encC (fun a => s (f a)) X Z := by
-  obtain ⟨R, hR, hRyes, hRno⟩ := hYZ
-  exact ⟨fun a => R (f a), hR.preprocess hf,
+    RPReducibleWithError encA encC (fun a => s (f a)) X Z :=
+  let ⟨R, hR, hRyes, hRno⟩ := hYZ
+  ⟨fun a => R (f a), hR.preprocess hf,
     fun a ha c hc => hRyes (f a) (hyes ha) c hc, fun a ha => hRno (f a) (hno ha)⟩
 
 /-- Precomposing an `RPReducibleWithError` reduction at a uniform threshold with a deterministic
@@ -372,9 +361,8 @@ existentially quantifies over the reduction function `f`, the output threshold c
 theorem PolyTimeReducible.trans_rpReducibleWithError {s : ℝ}
     (hXY : PolyTimeReducible encA encB X Y)
     (hYZ : RPReducibleWithError encB encC (fun _ => s) Y Z) :
-    RPReducibleWithError encA encC (fun _ => s) X Z := by
-  obtain ⟨f, hf, hyes, hno⟩ := hXY
-  exact hYZ.of_computableInPolyTime hf hyes hno
+    RPReducibleWithError encA encC (fun _ => s) X Z :=
+  hXY.elim fun _ ⟨hf, hyes, hno⟩ => hYZ.of_computableInPolyTime hf hyes hno
 
 /-- Postcomposing an `RPReducibleWithError` reduction with a deterministic polynomial-time reduction
 preserves its soundness threshold. -/
@@ -411,20 +399,27 @@ private def and2 (M : α → ProbComp Bool) (a : α) : ProbComp Bool :=
   M a >>= fun b₁ => (fun b₂ => b₁ && b₂) <$> M a
 
 private theorem isPPTOn_and2 {M : α → ProbComp Bool} (hM : IsPPTOn encA encBool M) :
-    IsPPTOn encA encBool (and2 M) := by
-  unfold and2
-  exact hM.bind_with ((hM.preprocess (.fst encA encBool)).map_with
+    IsPPTOn encA encBool (and2 M) :=
+  hM.bind_with ((hM.preprocess (.fst encA encBool)).map_with
     (f := fun p b₂ => p.2 && b₂) (by fun_prop))
 
 private theorem probability_and2 (M : α → ProbComp Bool) (a : α) :
     Pr[and2 M a] = Pr[M a] * Pr[M a] := by
-  change Pr[M a >>= fun b₁ => (fun b₂ => b₁ && b₂) <$> M a] = _
-  rw [ProbComp.probability_bind, Fintype.sum_bool]
-  simp only [Bool.true_and, Bool.false_and]
-  have htrue : Pr[(fun b₂ : Bool => b₂) <$> M a] = Pr[M a] := by simp
-  have hfalse : Pr[(fun _ : Bool => false) <$> M a] = 0 := by
-    simp [ProbComp.eval_map, PMF.map_apply]
-  rw [htrue, hfalse, mul_zero, add_zero]
+  simp [and2, ProbComp.eval_map, PMF.map_apply]
+
+private theorem probability_sampleList_ge_of_errorExponentAt_true {β : Type} {enc : β ↪ List Bool}
+    {q p : Polynomial ℕ} {V : β × List Bool → Bool} {b : β} (h : ErrorExponentAt enc q p V b true) :
+    1 - 1 / (2 : ℝ) ^ q.eval (enc b).length ≤
+      Pr[(fun w => V (b, w)) <$> BitString.sampleList (p.eval (enc b).length)] := by
+  have hcast : (2 : ℝ) ^ q.eval (enc b).length *
+      ((2 : ℝ) ^ p.eval (enc b).length - acceptCount V b (p.eval (enc b).length)) ≤
+      2 ^ p.eval (enc b).length := by
+    simpa only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
+      Nat.cast_sub acceptCount_le_two_pow] using
+      Nat.cast_le (α := ℝ).mpr (errorExponentAt_true_iff.1 h)
+  rw [probability_sampleList_verifier, sub_le_iff_le_add, ← sub_le_iff_le_add',
+    one_sub_div (by positivity), div_le_div_iff₀ (by positivity) (by positivity)]
+  linarith
 
 /-- **`PromiseCoRP` is closed under `RPReducible`** (library lemma): if `X` reduces to `Y` by a
 randomized one-sided reduction and `Y ∈ PromiseCoRP encB`, then `X ∈ PromiseCoRP encA`. -/
@@ -436,31 +431,23 @@ theorem RPReducible.mem_PromiseCoRP (hXY : RPReducible encA encB X Y)
   let M (b : β) : ProbComp Bool :=
     (fun w => V (b, w)) <$> BitString.sampleList (p.eval (encB b).length)
   have hM (b : β) (hb : b ∈ Y.no) : 3 / 4 ≤ Pr[M b] := by
-    rw [probability_sampleList_verifier, le_div_iff₀ (by positivity)]
-    have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := b)
-      (n := p.eval (encB b).length)
-    have h := (hYV b).1 hb
-    simp only [Polynomial.eval_ofNat] at h
-    have h' : (3 : ℝ) * 2 ^ p.eval (encB b).length ≤ 4 * acceptCount V b (p.eval (encB b).length) :=
-      by exact_mod_cast (by omega)
-    linarith
+    have h := probability_sampleList_ge_of_errorExponentAt_true ((hYV b).1 hb)
+    rw [Polynomial.eval_ofNat] at h; linarith
   -- on a no-instance of `X`, the composition accepts with probability at least `2 / 3 * 3 / 4`
   refine compl_mem_PromiseRP_iff.1 (mem_PromiseRP_iff_exists_isPPTOn.2
     ⟨fun a => R a >>= M, hR.bind (IsPPTOn.of_seeded ((ComputableInPolyTime.unary_eval p).comp
       (ComputableInPolyTime.encoding_length encB)) hV), fun a ha => ?_, fun a ha hmem => ?_⟩)
   · have h := PMF.toOuterMeasure_bind_ge_mul (ProbComp.eval (R a)) (fun b => ProbComp.eval (M b))
       Y.no {true} (by norm_num : (0 : ℝ) ≤ 3 / 4) (hnoR a ha) fun b _ hb => by
-        rw [PMF.toOuterMeasure_apply_singleton]
-        exact hM b hb
+        simpa only [PMF.toOuterMeasure_apply_singleton] using hM b hb
     rw [← ProbComp.eval_bind, PMF.toOuterMeasure_apply_singleton] at h
     linarith
   · -- on a yes-instance of `X`, every output of the reduction is a yes-instance of `Y`
     supp_cases hmem [M, BitString.eval_sampleList, BitString.mem_support_uniformList_iff] with
       ⟨b, hb, w, hw, hVw⟩
-    have := ((hYV.solvesWithOneSidedError fun _ => by simp).exists_certificate).2 b
+    have h0 := ((hYV.solvesWithOneSidedError fun _ => by simp).exists_certificate).2 b
       (hyesR a ha b hb) w hw
-    rw [this] at hVw
-    exact Bool.noConfusion hVw
+    exact Bool.noConfusion (h0.symm.trans hVw)
 
 /-- If `X` is `RPReducible` to `Y` and `Y ∈ PromiseP encB`, then `X ∈ PromiseCoRP encA`. -/
 theorem RPReducible.mem_PromiseCoRP_of_mem_PromiseP (hXY : RPReducible encA encB X Y)
@@ -485,22 +472,12 @@ theorem RPReducible.mem_PromiseBPP (hXY : RPReducible encA encB X Y)
   let M (b : β) : ProbComp Bool :=
     (fun w => V (b, w)) <$> BitString.sampleList (p.eval (encB b).length)
   have hMyes (b : β) (hb : b ∈ Y.yes) : 7 / 8 ≤ Pr[M b] := by
-    rw [probability_sampleList_verifier, le_div_iff₀ (by positivity)]
-    have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := b)
-      (n := p.eval (encB b).length)
-    have h := (hYV b).1 hb
-    simp only [ErrorExponentAt, Bool.not_true, Polynomial.eval_ofNat] at h
-    have h' : (7 : ℝ) * 2 ^ p.eval (encB b).length ≤ 8 * acceptCount V b (p.eval (encB b).length) :=
-      by exact_mod_cast (by omega)
-    linarith
+    have h := probability_sampleList_ge_of_errorExponentAt_true ((hYV b).1 hb)
+    rw [Polynomial.eval_ofNat] at h; linarith
   have hMno (b : β) (hb : b ∈ Y.no) : Pr[M b] ≤ 1 / 8 := by
-    rw [probability_sampleList_verifier, div_le_iff₀ (by positivity)]
-    have h := (hYV b).2 hb
-    simp only [ErrorExponentAt, Bool.not_false, Polynomial.eval_ofNat] at h
-    rw [← acceptCount] at h
-    have h' : (8 : ℝ) * acceptCount V b (p.eval (encB b).length) ≤ 2 ^ p.eval (encB b).length :=
-      by exact_mod_cast h
-    linarith
+    have h := Nat.cast_le (α := ℝ).mpr (errorExponentAt_false_iff.1 ((hYV b).2 hb))
+    simp only [Polynomial.eval_ofNat, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat] at h
+    rw [probability_sampleList_verifier, div_le_div_iff₀ (by positivity) (by positivity)]; linarith
   -- one run of `R` followed by `M` accepts yes-instances with probability at least `7 / 8` and
   -- no-instances with probability at most `1 / 3 + 1 / 8`; two runs must both accept
   let T (a : α) : ProbComp Bool := R a >>= M
@@ -509,33 +486,28 @@ theorem RPReducible.mem_PromiseBPP (hXY : RPReducible encA encB X Y)
   refine mem_PromiseBPP_iff_exists_isPPTOn.mpr ⟨and2 T, isPPTOn_and2 hT, fun a ha => ?_,
     fun a ha => ?_⟩
   · have hT_yes : 7 / 8 ≤ Pr[T a] := by
-      have hyes_one : ((ProbComp.eval (R a)).toOuterMeasure Y.yes).toReal = 1 :=
-        (ENNReal.toReal_eq_one_iff _).mpr
-          ((PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr (hyesR a ha))
       have h := PMF.toOuterMeasure_bind_ge_mul (ProbComp.eval (R a)) (fun y => ProbComp.eval (M y))
-        Y.yes {true} (by norm_num : (0 : ℝ) ≤ 7 / 8) hyes_one.ge
-        fun y _ hy => by
-          rw [PMF.toOuterMeasure_apply_singleton]
-          exact hMyes y hy
+        Y.yes {true} (by norm_num : (0 : ℝ) ≤ 7 / 8)
+        ((ENNReal.toReal_eq_one_iff _).mpr ((PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr
+          (hyesR a ha))).ge
+        fun y _ hy => by simpa only [PMF.toOuterMeasure_apply_singleton] using hMyes y hy
       rwa [one_mul, ← ProbComp.eval_bind, PMF.toOuterMeasure_apply_singleton] at h
     rw [probability_and2]
-    nlinarith
+    calc (2 / 3 : ℝ) ≤ (7 / 8) * (7 / 8) := by norm_num
+      _ ≤ Pr[T a] * Pr[T a] := mul_le_mul hT_yes hT_yes (by norm_num) ENNReal.toReal_nonneg
   · have hT_no : Pr[T a] ≤ 11 / 24 := by
       have hfail := PMF.toOuterMeasure_bind_failure_toReal_le
         (ProbComp.eval (R a)) (fun y => ProbComp.eval (M y)) Y.no {true}
         (by norm_num : (0 : ℝ) ≤ 1 / 8) fun y _ hy => by
-          rw [PMF.toOuterMeasure_apply_singleton]
-          exact hMno y hy
+          simpa only [PMF.toOuterMeasure_apply_singleton] using hMno y hy
       rw [← ProbComp.eval_bind, PMF.toOuterMeasure_apply_singleton] at hfail
-      have hadd := PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R a)) Y.no
-      have hno := hnoR a ha
-      linarith
-    have hT_nn : 0 ≤ Pr[T a] := ENNReal.toReal_nonneg
+      linarith [PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R a)) Y.no, hnoR a ha]
     have hand2 : Pr[and2 T a] ≤ 1 / 3 := by
       rw [probability_and2]
-      nlinarith
-    rw [ProbComp.probability_not]
-    linarith
+      calc Pr[T a] * Pr[T a] ≤ (11 / 24) * (11 / 24) :=
+            mul_le_mul hT_no hT_no ENNReal.toReal_nonneg (by norm_num)
+        _ ≤ 1 / 3 := by norm_num
+    rw [ProbComp.probability_not]; linarith
 
 /-- If a decision problem `A` is `RPReducible` to `Y` and `Y ∈ PromiseBPP encB`, then
 `A ∈ BPP encA`. -/

@@ -19,9 +19,13 @@ import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 
 On the negative input `[1, -1, 1, …, 1]`, changing any tail position to zero creates a
 distinct-position 3SUM witness. Consequently every correct native program must read every tail
-cell. The proof uses actual flat runs, canonical signed encoding and the existing `Admissible`
-domain: width is the same for the two inputs, and every width above the size-only threshold is
-admitted. Width-reading instructions, arbitrary basis operations and writes are permitted.
+cell. The proof uses actual flat runs, canonical signed encoding, the
+`Decision.MagnitudeBoundedInput` promise domain, and the size-only `Decision.width` threshold
+shared with the fast algorithm:
+width is the same for the two inputs, and every width above the threshold is admitted.
+Width-reading instructions, arbitrary basis operations and writes are permitted. The low-level
+`decidesInTime_lowerBound` theorem retains the conditional `Decision.Admissible` form for arbitrary
+integer lists.
 
 This adapts the unread-cell adversary argument in the source module
 `ModelChecks.ThreeSumLowerBound`, `oddVec` through `not_solvedInTimeAt_threeSum`, in
@@ -29,10 +33,16 @@ This adapts the unread-cell adversary argument in the source module
 source's signed modular RAM or its time predicate. Here a load reads one unsigned memory word,
 the input is length-prefixed, registers start zero, overflow faults, and the halt is charged.
 
+## Main definitions
+
+* `hardInput`, `hardInputBounded`, `hardInputSetBounded`: the negative and perturbed positive
+  adversary instances, and their embeddings into `Decision.MagnitudeBoundedInput`.
+
 ## Main results
 
 * `decidesInTime_lowerBound`: the negative length-`n+2` input needs at least `n+1` instructions.
-* `not_uniformDecidableInO_sublinear`: no exponent below one gives uniform native decision.
+* `not_uniformDecidableInO_sublinear`: no exponent below one gives uniform native decision on the
+  polynomial-magnitude promise domain.
 -/
 
 public section
@@ -55,11 +65,10 @@ private theorem hardInput_values {n : ℕ} {z : ℤ} (h : z ∈ hardInput n) : z
 theorem hardInput_no_solution (n : ℕ) :
     ¬HasSolution (fun i : Fin (hardInput n).length => (hardInput n)[i]) := by
   rintro ⟨i, j, k, _, _, _, hs⟩
-  have hi := hardInput_values (List.getElem_mem i.isLt)
-  have hj := hardInput_values (List.getElem_mem j.isLt)
-  have hk := hardInput_values (List.getElem_mem k.isLt)
   simp only [Fin.getElem_fin] at hs
-  rcases hi with hi | hi <;> rcases hj with hj | hj <;> rcases hk with hk | hk <;>
+  rcases hardInput_values (List.getElem_mem i.isLt) with hi | hi <;>
+    rcases hardInput_values (List.getElem_mem j.isLt) with hj | hj <;>
+    rcases hardInput_values (List.getElem_mem k.isLt) with hk | hk <;>
     simp only [hi, hj, hk] at hs <;> omega
 
 /-- Replacing any tail entry by zero produces the witness at positions `0`, `1`, `i+2`. -/
@@ -72,34 +81,48 @@ theorem hardInput_set_solution (n i : ℕ) (hi : i < n) :
     Fin.ne_of_val_ne (by omega : 0 ≠ i + 2), ?_⟩
   simp [hardInput]
 
-private theorem hardInput_admissible (κ n w : ℕ)
-    (hw : Decision.width κ 123357 (n + 2) ≤ w) : Decision.Admissible κ (hardInput n) w := by
-  refine ⟨by simpa using hw, ?_⟩
+/-- Every entry of `hardInput n` satisfies the polynomial magnitude bound for any exponent `κ`. -/
+theorem hardInput_bounded (κ n : ℕ) :
+    ∀ z ∈ hardInput n, |z| ≤ (((hardInput n).length + 2) ^ κ : ℕ) := by
   intro z hz
-  have hpow : 1 ≤ (n + 2 + 2) ^ κ := Nat.one_le_pow _ _ (by omega)
-  rcases hardInput_values hz with rfl | rfl <;> simp only [abs_one, abs_neg, length_hardInput]
-    <;> exact_mod_cast hpow
+  rcases hardInput_values hz with rfl | rfl <;>
+    simp only [abs_one, abs_neg, length_hardInput] <;>
+    exact_mod_cast Nat.one_le_pow κ (n + 2 + 2) (by omega)
+
+/-- Every entry of the perturbed adversary input satisfies the polynomial magnitude bound for any
+exponent `κ`. -/
+theorem hardInput_set_bounded (κ n i : ℕ) :
+    ∀ z ∈ (hardInput n).set (i + 2) 0,
+      |z| ≤ ((((hardInput n).set (i + 2) 0).length + 2) ^ κ : ℕ) := by
+  intro z hz
+  rcases List.mem_or_eq_of_mem_set hz with hz | rfl
+  · simpa only [List.length_set] using hardInput_bounded κ n z hz
+  · simp only [abs_zero]; positivity
+
+/-- The negative adversary input carried into the polynomial-magnitude promise domain. -/
+@[expose] def hardInputBounded (κ n : ℕ) : Decision.MagnitudeBoundedInput κ :=
+  ⟨hardInput n, hardInput_bounded κ n⟩
+
+/-- The perturbed positive adversary input carried into the polynomial-magnitude promise domain. -/
+@[expose] def hardInputSetBounded (κ n i : ℕ) : Decision.MagnitudeBoundedInput κ :=
+  ⟨(hardInput n).set (i + 2) 0, hardInput_set_bounded κ n i⟩
+
+private theorem hardInput_admissible (κ n w : ℕ)
+    (hw : Decision.width κ 123357 (n + 2) ≤ w) : Decision.Admissible κ (hardInput n) w :=
+  ⟨by simpa using hw, hardInput_bounded κ n⟩
 
 private theorem hardInput_set_admissible (κ n i w : ℕ)
     (hw : Decision.width κ 123357 (n + 2) ≤ w) :
-    Decision.Admissible κ ((hardInput n).set (i + 2) 0) w := by
-  refine ⟨by simpa using hw, ?_⟩
-  intro z hz
-  rcases List.mem_or_eq_of_mem_set hz with hz | rfl
-  · have h := (hardInput_admissible κ n w hw).2 z hz
-    simpa using h
-  · simp only [abs_zero]
-    positivity
+    Decision.Admissible κ ((hardInput n).set (i + 2) 0) w :=
+  ⟨by simpa using hw, hardInput_set_bounded κ n i⟩
 
 private theorem init_map_set_agree {r : ℕ} (input : List ℤ) (i : ℕ) (z : ℤ) :
     (Data.init (input.map Signed.encode) : Data r).AgreeOutside {i + 1}
       (Data.init ((input.set i z).map Signed.encode)) := by
-  refine ⟨rfl, ?_⟩
-  intro a ha
+  refine ⟨rfl, fun a ha => ?_⟩
   have hne : a ≠ i + 1 := by simpa using ha
-  by_cases hzero : a = 0
-  · subst a
-    simp
+  rcases eq_or_ne a 0 with rfl | hzero
+  · simp
   · have hindex : i ≠ a - 1 := by omega
     simp [Data.init, hzero, List.map_set, List.getD_eq_getElem?_getD, hindex]
 
@@ -118,24 +141,20 @@ theorem decidesInTime_lowerBound {B : Basis} {r κ n w : ℕ} {p : Program B r}
   have htail : (Finset.range n).image (· + 3) ⊆ R := by
     intro a ha'
     obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp ha'
-    have hi' := Finset.mem_range.mp hi
     by_contra hn
-    have ha' := hardInput_set_admissible κ n i w hw
-    obtain ⟨v', steps', he', _, _, hv'⟩ :=
-      h ((hardInput n).set (i + 2) 0) w ha' ha'.inputFits
+    have ha2 := hardInput_set_admissible κ n i w hw
+    obtain ⟨v', _, he', _, _, hv'⟩ := h ((hardInput n).set (i + 2) 0) w ha2 ha2.inputFits
     have herep : Executes w p
         (.init (((hardInput n).set (i + 2) 0).map Signed.encode)) v steps :=
       hrep {i + 3} _ (by simpa using hn) rfl
         (by simpa only [State.init, Nat.add_assoc] using
           init_map_set_agree (r := r) (hardInput n) (i + 2) 0)
-    have heq := (herep.unique he').1
-    have hyes : v' = 1 := hv'.mpr (hardInput_set_solution n i hi')
-    exact hardInput_no_solution n (hv.mp (heq.trans hyes))
-  have hcard : n ≤ R.card := by
-    calc n = ((Finset.range n).image (· + 3)).card := by
-            rw [Finset.card_image_of_injective _ (fun _ _ h => Nat.add_right_cancel h),
-              Finset.card_range]
-         _ ≤ R.card := Finset.card_le_card htail
+    exact hardInput_no_solution n (hv.mp ((herep.unique he').1.trans
+      (hv'.mpr (hardInput_set_solution n i (Finset.mem_range.mp hi)))))
+  have hcard : n ≤ R.card := calc
+    n = ((Finset.range n).image (· + 3)).card := by
+        rw [Finset.card_image_of_injective _ fun _ _ => Nat.add_right_cancel, Finset.card_range]
+    _ ≤ R.card := Finset.card_le_card htail
   omega
 
 private theorem exists_sublinear_bound {a : ℝ} (ha : a < 1) (c N : ℕ) :
@@ -144,43 +163,45 @@ private theorem exists_sublinear_bound {a : ℝ} (ha : a < 1) (c N : ℕ) :
     (tendsto_natCast_atTop_atTop (R := ℝ))).const_mul ((c : ℝ) + 1)
   have hp : -(1 - a) = a - 1 := by ring
   simp only [hp, mul_zero, Function.comp_apply] at hlim
-  have hsmall := hlim.eventually_lt_const (by norm_num : (0 : ℝ) < 1 / 2)
-  have hlarge : ∀ᶠ n : ℕ in Filter.atTop, (2 * (c : ℝ) + 6) < n :=
-    tendsto_natCast_atTop_atTop.eventually_gt_atTop _
-  obtain ⟨n, hn, hs, hl⟩ :=
-    ((Filter.eventually_ge_atTop N).and (hsmall.and hlarge)).exists
+  obtain ⟨n, hn, hs, hl⟩ := ((Filter.eventually_ge_atTop N).and
+    ((hlim.eventually_lt_const (by norm_num : (0 : ℝ) < 1 / 2)).and
+      (tendsto_natCast_atTop_atTop.eventually_gt_atTop (2 * (c : ℝ) + 6)))).exists
   refine ⟨n, hn, ?_⟩
   have hnpos : (0 : ℝ) < n := by linarith
-  rw [Real.rpow_sub hnpos, Real.rpow_one] at hs
-  have hpow : ((c : ℝ) + 1) * (n : ℝ) ^ a < (n : ℝ) / 2 := by
-    have := (div_lt_iff₀ hnpos).mp (show (((c : ℝ) + 1) * (n : ℝ) ^ a) / n < 1 / 2 by
-      simpa only [mul_div_assoc] using hs)
-    linarith
-  have hceil := Nat.ceil_lt_add_one (Real.rpow_nonneg (show (0 : ℝ) ≤ n by positivity) a)
-  have hnonneg := Real.rpow_nonneg (show (0 : ℝ) ≤ n by positivity) a
-  have hbound : (c : ℝ) * ⌈(n : ℝ) ^ a⌉₊ + 2 < n := by
-    have hc : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-    nlinarith
-  exact_mod_cast hbound
+  rw [Real.rpow_sub hnpos, Real.rpow_one, ← mul_div_assoc, div_lt_iff₀ hnpos] at hs
+  have hnn := Real.rpow_nonneg hnpos.le a
+  have hceil := Nat.ceil_lt_add_one hnn
+  exact_mod_cast (by nlinarith [Nat.cast_nonneg (α := ℝ) c] : (c : ℝ) * ⌈(n : ℝ) ^ a⌉₊ + 2 < n)
 
-/-- The established native 3SUM decision notion cannot hold at any exponent below one.
-The magnitude exponent is arbitrary, including zero. Both adversarial inputs fit the same
-physical width; no input-dependent width or advice is assumed. -/
+/-- The established native 3SUM decision notion cannot hold at any exponent below one on the
+polynomial-magnitude promise domain. The magnitude exponent is arbitrary, including zero. Both
+adversarial inputs fit the same physical width; no input-dependent width or advice is assumed. -/
 theorem not_uniformDecidableInO_sublinear (B : Basis) (κ : ℕ) {a : ℝ} (ha : a < 1) :
     ¬UniformDecidableInO B
-      {input : List ℤ | HasSolution (fun i : Fin input.length => input[i])}
-      (fun _ input => input.map Signed.encode) List.length
-      (fun n _ => ⌈(n : ℝ) ^ a⌉₊) (Decision.Admissible κ) := by
-  rintro ⟨time, ⟨r, p, hp⟩, c, N, _, hbound⟩
+      {input : Decision.MagnitudeBoundedInput κ |
+        HasSolution (fun i : Fin input.val.length => input.val[i])}
+      (fun _ input => input.val.map Signed.encode) (fun input => input.val.length)
+      (fun n _ => ⌈(n : ℝ) ^ a⌉₊)
+      (fun input W => Decision.width κ 123357 input.val.length ≤ W) := by
+  rintro ⟨time, ⟨r, p, hp, _⟩, c, N, _, hbound⟩
+  let time' : List ℤ → ℕ → ℕ := fun input W =>
+    if h : ∀ z ∈ input, |z| ≤ ((input.length + 2) ^ κ : ℕ) then time ⟨input, h⟩ W else 0
+  have hp' : p.DecidesInTime (fun _ input => input.map Signed.encode)
+      {input | HasSolution (fun i : Fin input.length => input[i])}
+      time' (Decision.Admissible κ) := fun input W hadm hfit =>
+    ((hp ⟨input, hadm.2⟩ W hadm.1 hfit).congr Iff.rfl).mono
+      (by dsimp only [time']; rw [dite_eq_left_of_eq_true (eq_true hadm.2)])
   obtain ⟨m, hm, hlt⟩ := exists_sublinear_bound ha c (N + 2)
-  have hm2 : 2 ≤ m := by omega
   have he : m - 2 + 2 = m := by omega
   let w := Decision.width κ 123357 m
   have hw : Decision.width κ 123357 (m - 2 + 2) ≤ w := by simp only [he, w, le_refl]
-  have hlo := decidesInTime_lowerBound (n := m - 2) hp hw
-  have hhi := hbound (hardInput (m - 2)) w (by simp only [length_hardInput]; omega)
-    (hardInput_admissible κ (m - 2) w hw)
-  simp only [length_hardInput, he] at hhi
+  have hlo := decidesInTime_lowerBound (n := m - 2) hp' hw
+  dsimp only [time'] at hlo
+  rw [dite_eq_left_of_eq_true (eq_true (hardInput_bounded κ (m - 2)))] at hlo
+  have hhi := hbound (hardInputBounded κ (m - 2)) w
+    (by simp only [hardInputBounded, length_hardInput]; omega)
+    (by simpa only [hardInputBounded, length_hardInput] using hw)
+  simp only [hardInputBounded, length_hardInput, he] at hhi
   omega
 
 end Cslib.Algorithms.WordRAM.ThreeSum

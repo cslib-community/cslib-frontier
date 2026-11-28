@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Fin
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPower
@@ -147,8 +148,8 @@ theorem computableInPolyTime_blockIndexNum {σ i : α → ℕ}
   refine pi fun head => ?_
   have hcount := fun δ => computableInPolyTime_digitCount (k := k) hσ
     (const ((finSuccEquiv k).symm head : ℕ)) (const δ) hi
-  exact intBin_sub.comp ((intBin_natCast.comp (unary_to_binary.comp (hcount 2))).prod
-    (intBin_natCast.comp (unary_to_binary.comp (hcount 0))))
+  exact intBin_sub' (intBin_natCast_unary.comp (hcount 2))
+    (intBin_natCast_unary.comp (hcount 0))
 
 /-- Block movements of a schedule number are polynomial-time. -/
 theorem computableInPolyTime_blockMoveNum {σ i : α → ℕ}
@@ -306,13 +307,6 @@ end Interval
 
 /-! ### Reading letters and the tables -/
 
-private theorem lsbValue_eq_ofBits : ∀ w : List Bool, Cslib.BitString.lsbValue w = ofBits w
-  | [] => rfl
-  | c :: w => by
-    rw [Cslib.BitString.lsbValue, lsbValue_eq_ofBits w]
-    simp only [ofBits, List.foldr_cons, Nat.bit_val]
-    ring
-
 /-- **Letter numbers read from table indices are polynomial-time.** -/
 theorem computableInPolyTime_readNum {m j base : α → ℕ} {P : α → List ℕ}
     (hm : ComputableInPolyTime m inp encUnary) (hP : ComputableInPolyTime P inp (encList encNat))
@@ -325,8 +319,8 @@ theorem computableInPolyTime_readNum {m j base : α → ℕ} {P : α → List �
       (idxOfWithInput (hP.comp (fst _ _))
         (unary_to_binary.comp (unary_add' (hbase.comp (fst _ _)) (snd _ _)))))
   have hbits := (bits_encList_polyTime encBool).2.comp hlist
-  have hnum := (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.bitsToNat).comp hbits
-  simpa only [readNum, lsbValue_eq_ofBits, Function.comp_def] using hnum
+  have hnum := (ComputableInPolyTime.bitsToNat).comp hbits
+  simpa only [readNum, ← ofBits_eq_lsbValue, Function.comp_def] using hnum
 
 private theorem blockSrcNum' {q n : α → ℕ} (hq : ComputableInPolyTime q inp encUnary)
     (hn : ComputableInPolyTime n inp encUnary) :

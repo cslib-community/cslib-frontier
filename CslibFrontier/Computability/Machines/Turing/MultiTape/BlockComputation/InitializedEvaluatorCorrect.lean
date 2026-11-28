@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitializedEvaluator
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitializerBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteEvaluatorCorrect
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleSearchCorrect
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 
 /-!
 # Initialized same-input evaluation of the encoded block tree
@@ -18,6 +20,12 @@ The fixed machine selects its packing parameters, allocates its actual padded ba
 per clock, and enters the concrete evaluator. Its final bank decodes to the existing encoded
 tree's root. Every physical clock in both phases is covered by an explicit allowance. Outer
 time and schedule search and the standard Turing-machine compilation remain separate tasks.
+
+## Main results
+
+* `InitializedEvaluator.scheduleEvaluator_correct`: the packaged evaluator is correct for its
+  source machine within `scheduleAllowance`, the allowance at the first excluded schedule
+  number.
 -/
 
 public section
@@ -76,10 +84,8 @@ theorem runFrom_entry (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
   dsimp only
   rw [QueryMachine.runFrom_succ, runFrom_initializer_prefix M e (N, b, σ, q) w
     (((k * 3 + 1) + 1) * chunkCount (k * 3 + 1) (Encoding.width k s b)) le_rfl]
-  change (if (Initializer.machine k).halted
-    ((Initializer.machine k).runFrom w (Initializer.prepare k s (N, b, σ, q))
-      (((k * 3 + 1) + 1) * chunkCount (k * 3 + 1) (Encoding.width k s b))) then _ else _) = _
-  simp only [Initializer.halted_prepare, ↓reduceIte]
+  simp only [QueryMachine.step, machine, Sum.elim_inl, Initializer.halted_prepare,
+    Bool.false_eq_true, ↓reduceIte]
 
 /-- One metadata-only allowance covers initialization and every evaluator subroutine clock. -/
 @[expose] noncomputable def allowance (k s : ℕ) (Q : Type) (N b σ q : ℕ) : ℕ :=
@@ -107,19 +113,15 @@ theorem length_runFrom_entry_le [Finite Q]
       Initializer.space k ((Initializer.prepare k s args).1) + C + 2 := by
   let cells := Initializer.bankCells k ((Initializer.prepare k s args).1)
   by_cases hinit : t ≤ cells
-  · have hbound : (Initializer.encState ((Initializer.machine k).runFrom w
-        (Initializer.prepare k s args) t)).length ≤
-        Initializer.space k ((Initializer.prepare k s args).1) :=
-      Initializer.length_runFrom_prepare_le k s args w t
+  · have hbound := Initializer.length_runFrom_prepare_le k s args w t
     rw [runFrom_initializer_prefix M e args w t hinit]
     change (Initializer.encState ((Initializer.machine k).runFrom w
       (Initializer.prepare k s args) t)).length + 1 ≤ _
     omega
-  · have htge : cells + 1 ≤ t := by omega
-    obtain ⟨u, rfl⟩ := Nat.exists_eq_add_of_le htge
-    have hu : u ≤ T := by change cells + 1 + u ≤ cells + 1 + T at ht; omega
+  · obtain ⟨u, rfl⟩ := Nat.exists_eq_add_of_le (Nat.not_le.mp hinit)
+    dsimp only [cells] at ht
+    have hbound := hspace u (by omega)
     rw [QueryMachine.runFrom_add, hentry, runFrom_inr]
-    have hbound := hspace u hu
     change (ConcreteEvaluator.encState
       ((ConcreteEvaluator.machine M e).runFrom w active u)).length + 1 ≤ _
     omega
@@ -163,8 +165,7 @@ theorem exists_runFrom_decode_root [Finite Q] (M : MultiTapeTM k Bool Q) (e : Q 
   have hcapacity : r ≤ ((2 ^ m) ^ (d * r)).size := by
     rw [← pow_mul, Nat.size_pow]
     have hmr : r ≤ m * (d * r) := by
-      have := Nat.mul_le_mul_right r (Nat.mul_pos hm hd)
-      nlinarith
+      simpa only [Nat.mul_assoc] using Nat.le_mul_of_pos_left r (Nat.mul_pos hm hd)
     omega
   obtain ⟨T, bank, hrun, hdecode, hspace⟩ := ConcreteEvaluator.exists_runFrom_decode_root
     (q := q) M e w b σ hcapacity hb hm hsp (alphabetEmbedding hd hB) (fun _ => rfl)
@@ -172,18 +173,13 @@ theorem exists_runFrom_decode_root [Finite Q] (M : MultiTapeTM k Bool Q) (e : Q 
   have hentry : (machine M e).runFrom w (start k s (w.length, b, σ, q)) (cells + 1) =
       .inr (.inl (ctx, (p, d, r), RawController.ofCfg
         (Iter.initialCfg (0 : Cslib.TreeEval.Ary.State (ZMod p) d r) 1 (0 : Fin (d + 1))))) := by
-    rw [runFrom_entry]
-    unfold resume
-    rw [Initializer.result_runFrom_prepare]
-  have hafter (u : ℕ) :
-      (machine M e).runFrom w (start k s (w.length, b, σ, q)) ((cells + 1) + u) =
-        .inr ((ConcreteEvaluator.machine M e).runFrom w
-          (.inl (ctx, (p, d, r), RawController.ofCfg
-            (Iter.initialCfg (0 : Cslib.TreeEval.Ary.State (ZMod p) d r) 1 0))) u) := by
-    rw [QueryMachine.runFrom_add, hentry, runFrom_inr]
-  refine ⟨cells + 1 + T, bank, ?_, hdecode, ?_, ?_⟩
-  · rw [hafter, hrun]
-  · rw [hafter, hrun]
+    simp only [cells, d, r, B, m, p, limit, ctx, runFrom_entry, resume,
+      Initializer.result_runFrom_prepare]
+  have hfin : (machine M e).runFrom w (start k s (w.length, b, σ, q)) (cells + 1 + T) =
+      .inr (.inl (ctx, (p, d, r), bank, [], none)) := by
+    rw [QueryMachine.runFrom_add, hentry, runFrom_inr, hrun]
+  refine ⟨cells + 1 + T, bank, hfin, hdecode, ?_, ?_⟩
+  · rw [hfin]
     change !RawController.validBank p d r bank || (true && true) = true
     simp
   · exact length_runFrom_entry_le M e (w.length, b, σ, q) w
@@ -192,5 +188,37 @@ theorem exists_runFrom_decode_root [Finite Q] (M : MultiTapeTM k Bool Q) (e : Q 
       (RawController.Query.queryStateBound (ConcreteSupplier.encContext ctx).length
         p d r q (ConcreteSupplier.replySpace k s Q w.length b σ q m (2 ^ m)
           limit p d r)) hentry hspace
+
+open MultiTapeTM QueryReplay in
+/-- Schedule metadata enters the candidate allowance only through its binary encoded size. -/
+theorem allowance_schedule_mono (k s : ℕ) (Q : Type) (N b q σ τ : ℕ) (hστ : σ ≤ τ) :
+    allowance k s Q N b σ q ≤ allowance k s Q N b τ q := by
+  have h := length_encNat_mono hστ
+  simp only [allowance, Initializer.space, Initializer.prepare,
+    Initializer.bankCells, parameters, Initializer.encMetadata, Initializer.encArgs,
+    encParameters, RawController.Query.queryStateBound, ConcreteSupplier.encContext,
+    ConcreteSupplier.replySpace, ConcreteSupplier.gateSpace, ConcreteSupplier.metadataSpace,
+    QueryGate.encParams, Interpolation.encContext_apply,
+    Interpolation.encContextFields, encNat3, length_encPair]
+  omega
+
+/-- One candidate allowance, uniformly enlarged to the first excluded schedule metadata. -/
+@[expose] noncomputable def scheduleAllowance (k s : ℕ) (Q : Type) (N b q : ℕ) : ℕ :=
+  allowance k s Q N b (3 ^ ((k + 1) * q)) q
+
+/-- The packaged initialized evaluator is correct for its source machine: each in-range
+schedule halts with the classified root, which is the boundary decision exactly for the actual
+schedule, within the uniform schedule allowance. -/
+theorem scheduleEvaluator_correct [Finite Q] (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
+    (scheduleEvaluator M e).Correct M (scheduleAllowance k s Q) := by
+  intro w b _ q σ hσ
+  obtain ⟨U, bank, hrun, hdecode, hhalt, hsize⟩ := exists_runFrom_decode_root M e w b σ q
+  refine ⟨U, hhalt, ?_, fun t ht =>
+    (hsize t ht).trans (allowance_schedule_mono k s Q w.length b q σ _ hσ.le)⟩
+  change outcome e ((w.length, b, q), (machine M e).runFrom w (start k s (w.length, b, σ, q)) U) = _
+  rw [hrun]
+  change RootDecision.classify k e (b, _) = _
+  rw [hdecode, RootDecision.classify_ofFn_eq_decision_decode]
+  exact RootDecision.decision_eval_eq_boundary M e w b σ
 
 end Turing.MultiTapePTM.BlockComputation.InitializedEvaluator

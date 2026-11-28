@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import CslibFrontier.Foundations.BooleanAnalysis.HarmonicTransform
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 import Mathlib.Algebra.Order.Floor.Ring
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -78,21 +79,18 @@ theorem bernoulliAverage_lowerSet_transfer {A : Set (ι → Bool)}
   let h := ⌊1 / (4 * r)⌋₊
   have hr1 : r ≤ 1 := by linarith
   have hmul : (1 / (4 * r)) * r = 1 / 4 := by field_simp
-  have hupper : (h : ℝ) * r ≤ 1 / 4 := by
-    have hf := mul_le_mul_of_nonneg_right (Nat.floor_le (show 0 ≤ 1 / (4 * r) by positivity)) hr.le
-    rwa [hmul] at hf
+  have hupper : (h : ℝ) * r ≤ 1 / 4 :=
+    (mul_le_mul_of_nonneg_right (Nat.floor_le (by positivity)) hr.le).trans_eq hmul
   have hlower : 1 ≤ (h : ℝ) * (5 * r) := by
     have hf := mul_lt_mul_of_pos_right (Nat.lt_floor_add_one (1 / (4 * r))) hr
-    rw [hmul] at hf
-    dsimp [h]
-    nlinarith
-  have hpos : 0 < (h : ℝ) := by
-    by_contra hn
-    have := mul_nonpos_of_nonpos_of_nonneg (le_of_not_gt hn) (by positivity : 0 ≤ 5 * r)
+    rw [hmul, add_mul, one_mul] at hf
+    rw [mul_left_comm]
     linarith
+  have hpos : 0 < (h : ℝ) :=
+    pos_of_mul_pos_left (by linarith : 0 < (h : ℝ) * (5 * r)) (by positivity)
   have hinv : (h : ℝ)⁻¹ ≤ 5 * r := by
-    rw [inv_eq_one_div]
-    exact (div_le_iff₀ hpos).mpr (by nlinarith)
+    rw [inv_eq_one_div, div_le_iff₀ hpos]
+    exact hlower.trans_eq (mul_comm _ _)
   have hbase := bernoulliAverage_indicator_mem_Icc A
     (by norm_num : (0 : ℝ) ≤ 1 / 4) (by norm_num)
   calc
@@ -106,6 +104,10 @@ theorem bernoulliAverage_lowerSet_transfer {A : Set (ι → Bool)}
 
 /-! ### The harmonic mean transform at a sparse random set -/
 
+private theorem le_one_div_512_of_le_div {k r : ℝ} (hk : 1 ≤ k) (hr' : r ≤ 1 / (512 * k)) :
+    r ≤ 1 / 512 :=
+  hr'.trans <| one_div_le_one_div_of_le (by norm_num) (by linarith)
+
 /-- For `1 ≤ k` and `0 ≤ r ≤ 1 / (512 k)`, `(1 / (2 * √(2 ^ k))) ^ (5 r) ≥ 63 / 64`. -/
 private theorem sixtyThree_div_sixtyFour_le_rpow {k r : ℝ} (hk : 1 ≤ k) (hr : 0 ≤ r)
     (hr' : r ≤ 1 / (512 * k)) :
@@ -115,8 +117,7 @@ private theorem sixtyThree_div_sixtyFour_le_rpow {k r : ℝ} (hk : 1 ≤ k) (hr 
   have hBp : 0 < B := Real.rpow_pos_of_pos (by norm_num) k
   have ha : 0 < a := by dsimp [a]; positivity
   have hkr : r * (512 * k) ≤ 1 := (le_div_iff₀ (by positivity)).mp hr'
-  have hrk : r ≤ r * k := by nlinarith [mul_nonneg hr (sub_nonneg.mpr hk)]
-  have hlog : Real.log a = -(k / 2 + 1) * Real.log 2 := by
+  have hlog : Real.log a * (5 * r) = -((k / 2 + 1) * (5 * r) * Real.log 2) := by
     dsimp [a, B]
     rw [Real.log_div one_ne_zero (by positivity), Real.log_one,
       Real.log_mul (by norm_num) (by positivity), Real.log_sqrt hBp.le,
@@ -124,10 +125,8 @@ private theorem sixtyThree_div_sixtyFour_le_rpow {k r : ℝ} (hk : 1 ≤ k) (hr 
     ring
   have he := Real.add_one_le_exp (Real.log a * (5 * r))
   rw [← Real.rpow_def_of_pos ha, hlog] at he
-  have hlog2 : Real.log 2 ≤ 1 := by
-    linarith [Real.log_le_sub_one_of_pos (show (0 : ℝ) < 2 by norm_num)]
   have hloss : (k / 2 + 1) * (5 * r) * Real.log 2 ≤ (k / 2 + 1) * (5 * r) :=
-    mul_le_of_le_one_right (by positivity) hlog2
+    mul_le_of_le_one_right (by positivity) Real.log_two_lt_one.le
   nlinarith
 
 /-- **The harmonic mean transform at a sparse random set**, as in the proof of
@@ -146,21 +145,13 @@ theorem le_bernoulliAverage_le_harmonicTransform_of_rpow
   have hB : 1 ≤ B := Real.one_le_rpow (by norm_num) (by linarith)
   have ha : 0 < a := by dsimp [a]; positivity
   have hA : IsLowerSet A := fun _ _ hst ht => ht.trans (harmonicTransform_antitone hf hst)
-  have hA' : A.Nonempty := by
-    refine ⟨fun _ => false, ?_⟩
-    change 1 / (4 * B) ≤ harmonicTransform f (fun _ => false)
-    rw [harmonicTransform_empty, hmean]
-    apply (div_le_one (by positivity)).mpr
-    linarith
-  have hkr : r * (512 * k) ≤ 1 := (le_div_iff₀ (by positivity)).mp hr'
-  have hr20 : r ≤ 1 / 20 := by nlinarith [mul_nonneg hr (sub_nonneg.mpr hk)]
+  have hA' : A.Nonempty := ⟨fun _ => false, by
+    simpa only [A, Set.mem_ofPred_eq, harmonicTransform_empty, hmean] using
+      (div_le_one (by positivity)).mpr (by linarith)⟩
+  have hr20 : r ≤ 1 / 20 := (le_one_div_512_of_le_div hk hr').trans (by norm_num)
   have hind : A.indicator 1 =
-      fun s => if 1 / (4 * B) ≤ harmonicTransform f s then (1 : ℝ) else 0 := by
-    funext s
-    by_cases h : 1 / (4 * B) ≤ harmonicTransform f s
-    · rw [Set.indicator_of_mem (show s ∈ A from h), ite_eq_left h]
-      rfl
-    · rw [Set.indicator_of_notMem (show s ∉ A from h), ite_eq_right h]
+      fun s => if 1 / (4 * B) ≤ harmonicTransform f s then (1 : ℝ) else 0 :=
+    funext fun s => Set.indicator_apply A (1 : (ι → Bool) → ℝ) s
   have hgood : a ≤ bernoulliAverage (1 / 4) (A.indicator 1) :=
     hind ▸ le_bernoulliAverage_le_harmonicTransform hf hmean hB hbound
   have htransfer := (Real.rpow_le_rpow ha.le hgood (by positivity : 0 ≤ 5 * r)).trans
@@ -178,13 +169,10 @@ theorem le_bernoulliAverage_expect_coordinateMarginal_le
       if (𝔼 z, if coordinateMarginal f s z ≤ (2 : ℝ) ^ (-2 * k - 2) then (1 : ℝ) else 0) ≤
         (2 : ℝ) ^ (-k) then 1 else 0) := by
   have ht : (2 : ℝ) ^ (-2 * k - 2) / (1 / (4 * (2 : ℝ) ^ k)) = (2 : ℝ) ^ (-k) := by
-    have hfour : (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) := by norm_num
-    rw [one_div, div_inv_eq_mul, hfour, ← Real.rpow_add (by norm_num),
-      ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
-  have hkr : r * (512 * k) ≤ 1 := (le_div_iff₀ (by positivity)).mp hr'
-  have hr1 : r ≤ 1 := by nlinarith [mul_nonneg hr (sub_nonneg.mpr hk)]
+    have h4 : (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) := by norm_num
+    rw [one_div, div_inv_eq_mul, h4, ← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
+    exact congrArg ((2 : ℝ) ^ ·) (by ring)
+  have hr1 : r ≤ 1 := (le_one_div_512_of_le_div hk hr').trans (by norm_num)
   refine (le_bernoulliAverage_le_harmonicTransform_of_rpow hf hmean hk hbound hr hr').trans
     (bernoulliAverage_mono hr hr1 fun s => ?_)
   by_cases hs : 1 / (4 * (2 : ℝ) ^ k) ≤ harmonicTransform f s
@@ -235,21 +223,21 @@ private theorem coordinateMarginal_normalize (mass : (ι → Bool) → ℝ) (s :
     (z : {i // s i = true} → Bool) :
     coordinateMarginal (fun x => (2 : ℝ) ^ Fintype.card ι * mass x) s z =
       (2 : ℝ) ^ Fintype.card {i // s i = true} * coordinateMass mass s z := by
-  let e := Equiv.piEquivPiSubtypeProd (fun i => s i = true) (fun _ => Bool)
   have hc : (2 : ℝ) ^ Fintype.card ι =
       (2 : ℝ) ^ Fintype.card {i // s i = true} *
         (Fintype.card ({i // s i ≠ true} → Bool) : ℝ) := by
-    have h := Fintype.card_congr e
-    simp only [Fintype.card_fun, Fintype.card_bool, Fintype.card_prod] at h
-    simp only [Fintype.card_fun, Fintype.card_bool]
-    exact_mod_cast h
+    simpa [Fintype.card_fun] using congrArg ((↑) : ℕ → ℝ)
+      (Fintype.card_congr (Equiv.piEquivPiSubtypeProd (fun i => s i = true) (fun _ => Bool)))
   unfold coordinateMarginal coordinateMass
   rw [Fintype.expect_eq_sum_div_card, ← mul_sum, hc]
-  have hp : (0 : ℝ) < Fintype.card ({i // s i ≠ true} → Bool) := by
-    exact_mod_cast (Fintype.card_pos : 0 < Fintype.card ({i // s i ≠ true} → Bool))
+  have hp : (0 : ℝ) < Fintype.card ({i // s i ≠ true} → Bool) := Nat.cast_pos.mpr Fintype.card_pos
   field_simp
 
 /-! ### Korten's light-patterns lemma -/
+
+private theorem two_pow_mul_rpow_eq {m : ℕ} {x y : ℝ} (h : (m : ℝ) + x = y) :
+    (2 : ℝ) ^ m * (2 : ℝ) ^ x = (2 : ℝ) ^ y := by
+  rw [← h, Real.rpow_add two_pos, Real.rpow_natCast]
 
 /-- Scaling `mass` by `2 ^ |ι|` converts the marginal-density threshold `2 ^ (-2 k - 2)` into the
 pattern-mass count bound at threshold `2 ^ (-|s| - 2 k - 2)`. -/
@@ -265,14 +253,9 @@ private theorem ite_expect_coordinateMarginal_le_of_normalize (mass : (ι → Bo
   let m := Fintype.card {i // s i = true}
   have hp : (0 : ℝ) < (2 : ℝ) ^ m := by positivity
   have hthreshold : (2 : ℝ) ^ m * (2 : ℝ) ^ (-(m : ℝ) - 2 * k - 2) =
-      (2 : ℝ) ^ (-2 * k - 2) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
-  have hcount : (2 : ℝ) ^ (-k) * (2 : ℝ) ^ m = (2 : ℝ) ^ ((m : ℝ) - k) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
+      (2 : ℝ) ^ (-2 * k - 2) := two_pow_mul_rpow_eq (by ring)
+  have hcount : (2 : ℝ) ^ (-k) * (2 : ℝ) ^ m = (2 : ℝ) ^ ((m : ℝ) - k) :=
+    (mul_comm _ _).trans (two_pow_mul_rpow_eq (by ring))
   have he (z : {i // s i = true} → Bool) :
       coordinateMarginal f s z ≤ (2 : ℝ) ^ (-2 * k - 2) ↔
         coordinateMass mass s z ≤ (2 : ℝ) ^ (-(m : ℝ) - 2 * k - 2) := by
@@ -284,8 +267,7 @@ private theorem ite_expect_coordinateMarginal_le_of_normalize (mass : (ι → Bo
       ((univ.filter fun z => coordinateMass mass s z ≤
         (2 : ℝ) ^ (-(m : ℝ) - 2 * k - 2)).card : ℝ) / (2 : ℝ) ^ m := by
     simp_rw [he]
-    rw [Fintype.expect_eq_sum_div_card]
-    simp [m]
+    simp [Fintype.expect_eq_sum_div_card, m]
   simp only [havg, div_le_iff₀ hp, hcount]
   exact le_rfl
 
@@ -304,17 +286,12 @@ theorem le_bernoulliAverage_card_coordinateMass_le
   let f : (ι → Bool) → ℝ := fun x => (2 : ℝ) ^ Fintype.card ι * mass x
   have hf : ∀ x, 0 ≤ f x := fun x => mul_nonneg (by positivity) (hm x)
   have hsum : (𝔼 x, f x) = 1 := by
-    dsimp [f]
-    rw [Fintype.expect_eq_sum_div_card, ← mul_sum, hmean]
-    simp
-  have hproduct : (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (k - Fintype.card ι) = (2 : ℝ) ^ k := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
+    simp [f, Fintype.expect_eq_sum_div_card, ← mul_sum, hmean]
+  have hproduct : (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (k - Fintype.card ι) = (2 : ℝ) ^ k :=
+    two_pow_mul_rpow_eq (by ring)
   have hfb : ∀ x, f x ≤ (2 : ℝ) ^ k := fun x =>
     (mul_le_mul_of_nonneg_left (hbound x) (by positivity)).trans_eq hproduct
-  have hkr : r * (512 * k) ≤ 1 := (le_div_iff₀ (by positivity)).mp hr'
-  have hr1 : r ≤ 1 := by nlinarith [mul_nonneg hr (sub_nonneg.mpr hk)]
+  have hr1 : r ≤ 1 := (le_one_div_512_of_le_div hk hr').trans (by norm_num)
   exact (le_bernoulliAverage_expect_coordinateMarginal_le hf hsum hk hfb hr hr').trans
     (bernoulliAverage_mono hr hr1 (ite_expect_coordinateMarginal_le_of_normalize mass k))
 

@@ -27,6 +27,7 @@ import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
 import Mathlib.Order.Interval.Finset.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Heavy-variable branching and streaming common-zero accumulation
@@ -112,15 +113,14 @@ private theorem monomialSum_toFinsetEquation {n : ℕ} {eq : List (List ℕ)}
   simp only [Function.comp_apply, monomial_apply]
   have hiff : (∀ i ∈ f m, σ i = true) ↔ (∀ v ∈ m.toFinset, extendAssignment σ v = true) :=
     ⟨fun h v hv => by
-      have hvm := List.mem_toFinset.mp hv; have hvn := hvars m hm v hvm
+      have hvm := List.mem_toFinset.mp hv
+      have hvn := hvars m hm v hvm
       simpa only [extendAssignment, hvn, ↓reduceDIte] using
         h ⟨v, hvn⟩ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hvm⟩),
     fun h i hi => by
-      have him := List.mem_toFinset.mpr (Finset.mem_filter.mp hi).2
-      simpa only [extendAssignment_coe] using h i him⟩
-  by_cases h : ∀ i ∈ f m, σ i = true
-  · rw [ite_eq_left h, ite_eq_left (hiff.mp h)]
-  · rw [ite_eq_right h, ite_eq_right (mt hiff.mpr h)]
+      simpa only [extendAssignment_coe] using
+        h i (List.mem_toFinset.mpr (Finset.mem_filter.mp hi).2)⟩
+  simp only [hiff]
 
 /-- **Specification bridge to `SparseEquations.commonZeroCount`**: for any canonical sparse `𝔽₂`
 system `sys` on `< n` variables, `rootCount n sys` agrees with `Cslib.BitString.commonZeroCount`. -/
@@ -128,7 +128,9 @@ theorem rootCount_eq_commonZeroCount {n : ℕ} {sys : List (List (List ℕ))}
     (hcan : ∀ eq ∈ sys, IsCanonicalEquation eq) (hvars : ∀ eq ∈ sys, ∀ m ∈ eq, ∀ v ∈ m, v < n) :
     rootCount n sys =
       commonZeroCount Finset.univ (fun i : Fin sys.length => toFinsetEquation n sys[i]) := by
-  rw [rootCount, commonZeroCount]; congr 1; ext σ
+  rw [rootCount, commonZeroCount]
+  congr 1
+  ext σ
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, evalSystem_eq_true_iff, IsCommonZero]
   refine ⟨fun h i _ => ?_, fun h eq heq => ?_⟩
   · rw [monomialSum_toFinsetEquation (hcan sys[i] (List.getElem_mem i.2))
@@ -136,9 +138,7 @@ theorem rootCount_eq_commonZeroCount {n : ℕ} {sys : List (List (List ℕ))}
   · obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem heq
     have hz := (monomialSum_toFinsetEquation (hcan sys[k] heq) (hvars sys[k] heq) σ).symm.trans
       (h ⟨k, hk⟩ trivial)
-    cases hb : evalMonomialList sys[k] (extendAssignment σ)
-    · rfl
-    · rw [hb, bitVal_true] at hz; exact absurd hz one_ne_zero
+    cases hb : evalMonomialList sys[k] (extendAssignment σ) <;> simp_all
 
 theorem pairwise_lt_heavyVarList (n b₀ : ℕ) (sys : List (List (List ℕ))) :
     (heavyVarList n b₀ sys).Pairwise (· < ·) := List.pairwise_lt_range.filter _
@@ -376,22 +376,22 @@ theorem prepareBranch_reduced_canonical {n : ℕ} {S : List ℕ} {vals : List Bo
       (∀ eq' ∈ sys', ∀ m' ∈ eq', ∀ v' ∈ m', v' < n') := by
   obtain ⟨hcontra, hne_nz, rfl, hsys'⟩ := prepareBranch_eq_reduced_iff.mp hred
   refine ⟨rfl, fun h => hne_nz (List.map_eq_nil_iff.mp (hsys'.symm.trans h)), ?_, ?_, ?_, ?_⟩
-  · intro hmem; obtain ⟨_, _, hne, heq⟩ := mem_reduced_exists hred hmem
+  · intro hmem
+    obtain ⟨_, _, hne, heq⟩ := mem_reduced_exists hred hmem
     exact hne (List.map_eq_nil_iff.mp heq.symm)
-  · intro hmem; rw [hsys'] at hmem; obtain ⟨eq₁, heq₁, hmap⟩ := List.mem_map.mp hmem
-    cases eq₁ with
-    | nil => simp only [relabelEquation, List.map_nil, reduceCtorEq] at hmap
-    | cons m₁ ms₁ =>
-      simp only [relabelEquation, List.map_cons, List.cons.injEq, List.map_eq_nil_iff] at hmap
-      exact hcontra (hmap.1 ▸ hmap.2 ▸ heq₁)
-  · intro eq' heq'; obtain ⟨eq₀, heq₀, _, rfl⟩ := mem_reduced_exists hred heq'
+  · simp only [hsys', relabelEquation, List.mem_map, List.map_eq_cons_iff, List.map_eq_nil_iff]
+    rintro ⟨_, heq₁, _, _, rfl, rfl, rfl⟩
+    exact hcontra heq₁
+  · intro eq' heq'
+    obtain ⟨eq₀, heq₀, _, rfl⟩ := mem_reduced_exists hred heq'
     refine isCanonicalEquation_relabelEquation hS
       (isCanonicalEquation_substituteEquation S vals (hcan eq₀ heq₀)) fun m' hm' u hu => ?_
     obtain ⟨_, _, rfl⟩ := mem_substituteEquation_exists hm'
     exact of_decide_eq_true (List.mem_filter.mp hu).2
   · intro eq' heq' m' hm' v' hv'
     obtain ⟨eq₀, heq₀, _, rfl⟩ := mem_reduced_exists hred heq'
-    obtain ⟨m₁, hm₁, rfl⟩ := List.mem_map.mp hm'; obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hv'
+    obtain ⟨m₁, hm₁, rfl⟩ := List.mem_map.mp hm'
+    obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hv'
     obtain ⟨m₀, hm₀, rfl⟩ := mem_substituteEquation_exists hm₁
     obtain ⟨hum₀, huS⟩ := List.mem_filter.mp hu
     exact relabelFreeVar_lt_sub hS hSn (of_decide_eq_true huS) (hvars eq₀ heq₀ m₀ hm₀ u hum₀)
@@ -549,9 +549,8 @@ private noncomputable def fiberEquiv {n : ℕ} {S : List ℕ} {vals : List Bool}
     simp only [mergeAssignment, u.2, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply, u]
   right_inv := fun ⟨σ, hσ⟩ => by
     apply Subtype.ext; funext i; simp only [mergeAssignment]; split_ifs with hiS
-    · have hk : S.idxOf (i : ℕ) < S.length := List.idxOf_lt_length_of_mem hiS
-      rw [← hσ, List.getD_eq_getElem _ false (by rw [List.length_map]; exact hk)]
-      simp only [List.getElem_map, List.getElem_idxOf hk, extendAssignment_coe]
+    · rw [← hσ]
+      simp [List.getD_eq_getElem?_getD, hiS, extendAssignment_coe]
     · simp only [Equiv.symm_apply_apply]
 
 private theorem evalSystem_mergeAssignment {n : ℕ} {S : List ℕ} {vals : List Bool}
@@ -610,20 +609,23 @@ theorem branchRootCount_prepareBranch {n : ℕ} {S : List ℕ} {vals : List Bool
         S.map (extendAssignment σ) = vals ∧ evalSystem sys (extendAssignment σ) = true).card =
       (Finset.univ.filter fun τ : BitString (n - S.length) =>
         evalSystem sys (extendAssignment (mergeAssignment hS hSn vals τ)) = true).card := by
-    symm; refine Finset.card_bij (fun τ _ => (fiberEquiv hS hSn hvals τ).1) ?_ ?_ ?_
-    · intro τ hτ; rw [Finset.mem_filter] at hτ ⊢
-      exact ⟨Finset.mem_univ _, (fiberEquiv hS hSn hvals τ).2, hτ.2⟩
-    · exact fun _ _ _ _ h => (fiberEquiv hS hSn hvals).injective (Subtype.ext h)
-    · intro σ hσ; rw [Finset.mem_filter] at hσ
-      let τ := (fiberEquiv hS hSn hvals).symm ⟨σ, hσ.2.1⟩
-      have hτ : (fiberEquiv hS hSn hvals τ).1 = σ :=
-        congrArg Subtype.val ((fiberEquiv hS hSn hvals).apply_symm_apply ⟨σ, hσ.2.1⟩)
-      refine ⟨τ, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hτ⟩
-      change evalSystem sys (extendAssignment (fiberEquiv hS hSn hvals τ).1) = true
-      rw [hτ]; exact hσ.2.2
+    symm
+    refine Finset.card_bij (fun τ _ => (fiberEquiv hS hSn hvals τ).1)
+      (fun τ hτ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (fiberEquiv hS hSn hvals τ).2,
+        (Finset.mem_filter.mp hτ).2⟩)
+      (fun _ _ _ _ h => (fiberEquiv hS hSn hvals).injective (Subtype.ext h)) fun σ hσ => ?_
+    obtain ⟨-, hmap, hev⟩ := Finset.mem_filter.mp hσ
+    let τ := (fiberEquiv hS hSn hvals).symm ⟨σ, hmap⟩
+    have hτ : (fiberEquiv hS hSn hvals τ).1 = σ :=
+      congrArg Subtype.val ((fiberEquiv hS hSn hvals).apply_symm_apply ⟨σ, hmap⟩)
+    refine ⟨τ, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hτ⟩
+    change evalSystem sys (extendAssignment (fiberEquiv hS hSn hvals τ).1) = true
+    rwa [hτ]
   rw [hbij]
-  have heval := fun τ => evalSystem_mergeAssignment (vals := vals) hS hSn hvars τ
-  simp only [heval]; unfold prepareBranch; dsimp only; split_ifs
+  simp only [fun τ => evalSystem_mergeAssignment (vals := vals) hS hSn hvars τ]
+  unfold prepareBranch
+  dsimp only
+  split_ifs
   · simp only [branchRootCount, Finset.filter_false, Finset.card_empty]
   · simp only [branchRootCount, Finset.filter_true_of_mem, implies_true, Finset.card_univ]
     exact BitString.card.symm
@@ -681,19 +683,18 @@ theorem computableInPolyTime_heavyVarList :
       (encList encNat) := by
   let encSys := encList (encList (encList encNat))
   have hrange : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × List (List (List ℕ)) => (List.range p.1.1).map fun v => v)
+      (fun p : (ℕ × ℕ) × List (List (List ℕ)) => List.range p.1.1)
       (encPair (encPair encUnary encNat) encSys) (encList encNat) :=
-    (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
-      (ComputableInPolyTime.range.comp ((ComputableInPolyTime.fst _ _).fst'))
+    (ComputableInPolyTime.range.comp ((ComputableInPolyTime.fst _ _).fst'))
+      |>.reencodeList .unary_to_binary
   have hpred : ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × List (List (List ℕ))) × ℕ => decide (q.1.1.2 < varDegree q.2 q.1.2))
       (encPair (encPair (encPair encUnary encNat) encSys) encNat) encBool :=
     ComputableInPolyTime.binary_lt' ((ComputableInPolyTime.fst _ _).fst'.snd')
       (ComputableInPolyTime.unary_to_binary.comp (computableInPolyTime_varDegree.comp
         ((ComputableInPolyTime.snd _ _).prod ((ComputableInPolyTime.fst _ _).snd'))))
-  exact (ComputableInPolyTime.filterWithInput
-    (test := fun x v => decide (x.1.2 < varDegree v x.2)) hrange hpred).of_enc_eq
-      fun _ => congrArg (encList encNat) (by rw [List.map_id']; rfl)
+  exact ComputableInPolyTime.filterWithInput (test := fun x v => decide (x.1.2 < varDegree v x.2))
+    hrange hpred
 
 @[fun_prop] theorem computableInPolyTime_heavyVarList_comp {α : Type} {encIn : α ↪ List Bool}
     {fn fb : α → ℕ} {fsys : α → List (List (List ℕ))}
@@ -1047,20 +1048,14 @@ private theorem branchCountCertificate_bounds {solver : ℕ → List (List (List
   | contradiction =>
     dsimp only [branchCountCertificate, NativeCertificate.congr, NativeCertificate.option,
       NativeCertificate.linear, NativeCertificate.const, BranchOutcome.toOption, Option.elim,
-      reducedCost]; omega
-  | tautology n' =>
+      reducedCost]
+    omega
+  | tautology _ | reduced _ _ =>
     rw [encBranchOutcome_eq]
     dsimp only [branchCountCertificate, NativeCertificate.congr, NativeCertificate.option,
       NativeCertificate.linear, NativeCertificate.comp, NativeCertificate.payload,
-      NativeCertificate.pull, NativeCertificate.post, BooleanFold.clock, BranchOutcome.toOption,
-      Option.elim, reducedCost]
-    enc_len [encBranchOutcome_eq, BranchOutcome.toOption]
-  | reduced n' sys' =>
-    rw [encBranchOutcome_eq]
-    dsimp only [branchCountCertificate, NativeCertificate.congr, NativeCertificate.option,
-      NativeCertificate.linear, NativeCertificate.comp, NativeCertificate.payload,
-      NativeCertificate.prod, NativeCertificate.fst, NativeCertificate.post,
-      BranchOutcome.toOption, Option.elim, reducedCost]
+      NativeCertificate.pull, NativeCertificate.prod, NativeCertificate.fst, NativeCertificate.post,
+      BooleanFold.clock, BranchOutcome.toOption, Option.elim, reducedCost]
     enc_len [encBranchOutcome_eq, BranchOutcome.toOption]
 
 theorem computableInPolyTime_prepareStep :
@@ -1240,9 +1235,8 @@ private theorem branch_step_bounds {solver : ℕ → List (List (List ℕ)) → 
       (Nat.mul_le_mul hj (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))).trans_eq
         (Nat.pow_add 2 _ _).symm
   have hlen_accSum : (encNat st.2.2.2).length ≤ L := by
-    have h : (encNat st.2.2.2).length ≤ (encNat (2 ^ (inp.2.1.length + inp.1))).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hsum_le
-    rw [BooleanFold.length_clock] at h; omega
+    have h := length_encNat_le_of_le_two_pow hsum_le
+    omega
   have hlen_acc : (encPair encBranchInput encNat st.2.2).length ≤ 3 * L + 1 := by
     grind [length_encPair]
   have hst1 : st.1 = j := IndexFold.run_index _ _ _
@@ -1286,9 +1280,8 @@ private theorem branch_step_bounds {solver : ℕ → List (List (List ℕ)) → 
           (hn' ▸ Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)),
         hR inp idx' hidx'_lt n' sys' hout, hQ inp idx' hidx'_lt n' sys' hout⟩
   have hlen_bc : (encNat (branchCountOracle solver o)).length ≤ L := by
-    have h : (encNat (branchCountOracle solver o)).length ≤ (encNat (2 ^ inp.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hbc_le
-    rw [BooleanFold.length_clock] at h; omega
+    have h := length_encNat_le_of_le_two_pow hbc_le
+    omega
   have hlen_add : (encPair encNat encNat (q.2.2, branchCountOracle solver o)).length ≤ 3 * L + 1 :=
     by rw [show q.2.2 = st.2.2.2 from rfl, length_encPair]; dsimp only; omega
   let hpv := NativeCertificate.ofPolyTime_isPolynomial
@@ -1360,10 +1353,11 @@ theorem streamBranches_computableInO {solver : ℕ → List (List (List ℕ)) �
     (fun inp j hj => (branch_step_bounds csolver hbound hR hQ inp hj).1)
   let hd := NativeCertificate.ofPolyTime_isPolynomial computableInPolyTime_dim
   refine hfold.mono_le (fun inp => ?_) (fun inp => ?_)
-  · let L := (encBranchInput inp).length
+  all_goals
+    let L := (encBranchInput inp).length
     have hL : 2 * inp.1 + 2 * inp.2.1.length + 2 ≤ L := length_le_encBranchInput inp
-    have hdT : dimCert.time inp ≤ monoPolyBound hd.1 L := le_monoPolyBound hd.1 inp le_rfl
-    have hclk := BooleanFold.length_clock inp.2.1.length
+    have hclk := length_encNat_two_pow inp.2.1.length
+  · have hdT : dimCert.time inp ≤ monoPolyBound hd.1 L := le_monoPolyBound hd.1 inp le_rfl
     have hsq : (inp.2.1.length + 1 + 1) ^ 2 ≤ (L + 2) ^ 2 := Nat.pow_le_pow_left (by omega) 2
     have hct : BooleanFold.clock.time inp.2.1.length = inp.2.1.length := by
       simp only [BooleanFold.clock, encUnary_apply, List.length_replicate]
@@ -1377,10 +1371,7 @@ theorem streamBranches_computableInO {solver : ℕ → List (List (List ℕ)) �
       dsimp only [stepOverhead, L] at hsq ⊢; omega
     have hprod := Nat.mul_le_mul_left (2 ^ inp.2.1.length + 1) hmul
     dsimp only [stepOverhead, L, BranchInput.vars, BranchInput.varSystem] at hdT hprod ⊢; omega
-  · let L := (encBranchInput inp).length
-    have hL : 2 * inp.1 + 2 * inp.2.1.length + 2 ≤ L := length_le_encBranchInput inp
-    have hdS : dimCert.space inp ≤ monoPolyBound hd.2 L := le_monoPolyBound hd.2 inp le_rfl
-    have hclk := BooleanFold.length_clock inp.2.1.length
+  · have hdS : dimCert.space inp ≤ monoPolyBound hd.2 L := le_monoPolyBound hd.2 inp le_rfl
     have hcs : BooleanFold.clock.space inp.2.1.length = inp.2.1.length := by
       simp only [BooleanFold.clock, encUnary_apply, List.length_replicate]
     simp only [NativeCertificate.comp_space, NativeCertificate.prod_space, initAccCert,

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.SplayTree.AccessLemma
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import Mathlib.Analysis.PSeries
 
 /-!
@@ -58,35 +59,32 @@ namespace Cslib.DataStructure.SplayTree
 
 open Cslib.DataStructure.SearchTree (elements Ordered)
 
-/-! ### Inverse-Square Sums -/
+/-! ### Inverse-Square Sums and Binary-Logarithm Helper -/
 
 /-- An injective `ℕ`-valued map with values at least `c` has `∑ 1/(g(y) + 1)² ≤ 2/(c + 1)`. -/
 private theorem sum_inv_sq_le_of_injOn {β : Type*} {s : Finset β} {g : β → ℕ}
     (hg : Set.InjOn g s) (c : ℕ) (hc : ∀ y ∈ s, c ≤ g y) :
     ∑ y ∈ s, 1 / ((g y : ℝ) + 1) ^ 2 ≤ 2 / ((c : ℝ) + 1) := by
   classical
-  obtain ⟨N, hN⟩ : ∃ N : ℕ, ∀ y ∈ s, g y + 1 < N :=
-    ⟨∑ y ∈ s, (g y + 2), fun y hy => by
-      have := Finset.single_le_sum (f := fun y => g y + 2) (fun _ _ => Nat.zero_le _) hy
-      omega⟩
-  have hinj : Set.InjOn (fun y => g y + 1) s := fun a ha b hb hab =>
-    hg ha hb (Nat.add_right_cancel hab)
+  let N := ∑ y ∈ s, (g y + 2)
   have hsub : s.image (fun y => g y + 1) ⊆ Finset.Ioo c N := by
-    intro k hk
-    obtain ⟨y, hy, rfl⟩ := Finset.mem_image.mp hk
-    have := hc y hy
-    have := hN y hy
-    simp only [Finset.mem_Ioo]
+    refine Finset.image_subset_iff.mpr fun y hy =>
+      Finset.mem_Ioo.mpr ⟨by have := hc y hy; omega, ?_⟩
+    have := Finset.single_le_sum (f := fun y => g y + 2) (fun _ _ => Nat.zero_le _) hy
     omega
   calc ∑ y ∈ s, 1 / ((g y : ℝ) + 1) ^ 2
       = ∑ k ∈ s.image (fun y => g y + 1), ((k : ℝ) ^ 2)⁻¹ := by
-        rw [Finset.sum_image fun a ha b hb hab => hinj ha hb hab]
-        refine Finset.sum_congr rfl fun y _ => ?_
-        push_cast
-        rw [one_div]
+        rw [Finset.sum_image fun a ha b hb hab => hg ha hb (by omega)]
+        refine Finset.sum_congr rfl fun y _ => by push_cast; rw [one_div]
     _ ≤ ∑ k ∈ Finset.Ioo c N, ((k : ℝ) ^ 2)⁻¹ :=
         Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
     _ ≤ 2 / ((c : ℝ) + 1) := sum_Ioo_inv_sq_le c N
+
+private theorem logb_div_inv_sq {C : ℝ} (hC : 0 < C) (k : ℕ) :
+    Real.logb 2 (C / (1 / ((k : ℝ) + 1) ^ 2)) =
+      Real.logb 2 C + 2 * Real.logb 2 ((k : ℝ) + 1) := by
+  rw [div_div_eq_mul_div, div_one, Real.logb_mul hC.ne' (by positivity), Real.logb_pow,
+    Nat.cast_ofNat]
 
 /-! ### Static Finger Theorem -/
 
@@ -107,8 +105,7 @@ private noncomputable def fingerWeight (s : Finset α) (f y : α) : ℝ :=
   1 / ((fingerDist s f y : ℝ) + 1) ^ 2
 
 private theorem fingerWeight_pos (s : Finset α) (f y : α) : 0 < fingerWeight s f y := by
-  unfold fingerWeight
-  positivity
+  unfold fingerWeight; positivity
 
 /-- The finger distance between keys of `s` is less than `|s|`: the counted keys exclude `f`. -/
 theorem fingerDist_lt_card {s : Finset α} {f : α} (hf : f ∈ s) (y : α) :
@@ -121,30 +118,20 @@ private theorem fingerDist_strictAntiOn (s : Finset α) (f : α) :
   intro a ha b hb hab
   simp only [Finset.mem_coe, Finset.mem_filter] at ha hb
   simp only [fingerDist, ha.2, hb.2, ↓reduceIte]
-  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.mpr ⟨a, ?_, ?_⟩)
-  · intro z hz
-    simp only [Finset.mem_filter] at hz ⊢
-    exact ⟨hz.1, hab.le.trans hz.2.1, hz.2.2⟩
-  · simp only [Finset.mem_filter]
-    exact ⟨ha.1, le_rfl, hab.trans_le hb.2⟩
-  · simp only [Finset.mem_filter, not_and, not_lt]
-    intro _ hba
-    exact absurd hba (not_le.mpr hab)
+  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.mpr
+    ⟨a, by simp [ha.1, hab.trans_le hb.2], by simp [not_le.mpr hab]⟩)
+  intro z hz; simp only [Finset.mem_filter] at hz ⊢
+  exact ⟨hz.1, hab.le.trans hz.2.1, hz.2.2⟩
 
 private theorem fingerDist_strictMonoOn (s : Finset α) (f : α) :
     StrictMonoOn (fingerDist s f) ↑(s.filter fun y => ¬ y ≤ f) := by
   intro a ha b hb hab
   simp only [Finset.mem_coe, Finset.mem_filter] at ha hb
   simp only [fingerDist, ha.2, hb.2, ↓reduceIte]
-  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.mpr ⟨b, ?_, ?_⟩)
-  · intro z hz
-    simp only [Finset.mem_filter] at hz ⊢
-    exact ⟨hz.1, hz.2.1, hz.2.2.trans hab.le⟩
-  · simp only [Finset.mem_filter]
-    exact ⟨hb.1, not_le.mp hb.2, le_rfl⟩
-  · simp only [Finset.mem_filter, not_and, not_le]
-    intro _ _
-    exact hab
+  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.mpr
+    ⟨b, by simp [hb.1, not_le.mp hb.2], by simp [hab]⟩)
+  intro z hz; simp only [Finset.mem_filter] at hz ⊢
+  exact ⟨hz.1, hz.2.1, hz.2.2.trans hab.le⟩
 
 private theorem one_le_fingerDist {s : Finset α} {f y : α} (hy : y ∈ s) (hfy : f < y) :
     1 ≤ fingerDist s f y := by
@@ -158,21 +145,14 @@ private theorem sum_fingerWeight_le (s : Finset α) (f : α) :
   unfold fingerWeight
   rw [← Finset.sum_filter_add_sum_filter_not s (· ≤ f)]
   have h₁ := sum_inv_sq_le_of_injOn (fingerDist_strictAntiOn s f).injOn 0 fun _ _ => Nat.zero_le _
-  have h₂ := sum_inv_sq_le_of_injOn (fingerDist_strictMonoOn s f).injOn 1 fun y hy => by
-    simp only [Finset.mem_filter] at hy
-    exact one_le_fingerDist hy.1 (not_le.mp hy.2)
-  simp only [Nat.cast_zero, zero_add, div_one] at h₁
-  simp only [Nat.cast_one] at h₂
-  rw [show (2 : ℝ) / (1 + 1) = 1 by norm_num] at h₂
+  have h₂ := sum_inv_sq_le_of_injOn (fingerDist_strictMonoOn s f).injOn 1 fun y hy =>
+    one_le_fingerDist (Finset.mem_filter.mp hy).1 (not_le.mp (Finset.mem_filter.mp hy).2)
+  simp only [one_div, not_le] at h₁ h₂ ⊢
+  norm_num at h₁ h₂
   linarith
 
-private theorem logb_two_three_le_two : Real.logb 2 3 ≤ 2 := by
-  have h4 : Real.logb 2 4 = 2 := by
-    rw [show (4 : ℝ) = 2 ^ (2 : ℕ) by norm_num, Real.logb_pow, Real.logb_self_eq_one (by norm_num)]
-    norm_num
-  calc Real.logb 2 3 ≤ Real.logb 2 4 :=
-        Real.logb_le_logb_of_le (by norm_num) (by norm_num) (by norm_num)
-    _ = 2 := h4
+private theorem logb_two_three_le_two : Real.logb 2 3 ≤ 2 :=
+  (Real.logb_le_iff_le_rpow (by norm_num) (by norm_num)).2 (by norm_num)
 
 /-- **Static Finger Theorem** ([SleatorTarjan1985b], Section 2, Theorem 3, p. 659): let `t` be an
 `Ordered` splay tree with `n = |t|` keys and `f ∈ t` a fixed key. A sequence `xs` of `m` accesses to
@@ -185,42 +165,30 @@ theorem splaySeqTime_le_static_finger (xs : List α) {t : BinaryTree α} (ht : O
     (splaySeqTime xs t : ℝ) ≤ 7 * xs.length +
       6 * (xs.map fun x => Real.logb 2 ((fingerDist (elements t) f x : ℝ) + 1)).sum +
       (elements t).card * (2 + 2 * Real.logb 2 (elements t).card) := by
-  set s := elements t with hs
-  have hW : subtreeWeight (fingerWeight s f) t ≤ 3 := by
-    rw [subtreeWeight_eq_sum_elements _ ht]
-    exact sum_fingerWeight_le s f
+  set s := elements t
+  have hW : subtreeWeight (fingerWeight s f) t ≤ 3 :=
+    (subtreeWeight_eq_sum_elements _ ht).symm ▸ sum_fingerWeight_le s f
   have hmain := splaySeqTime_le_fixed_weights (fingerWeight_pos s f) xs ht hxs hW
-  have hterm : ∀ y, Real.logb 2 (3 / fingerWeight s f y) =
-      Real.logb 2 3 + 2 * Real.logb 2 ((fingerDist s f y : ℝ) + 1) := by
-    intro y
-    rw [fingerWeight, div_div_eq_mul_div, div_one, Real.logb_mul (by norm_num) (by positivity),
-      Real.logb_pow]
-    push_cast
-    ring
+  have hterm (y : α) : Real.logb 2 (3 / fingerWeight s f y) =
+      Real.logb 2 3 + 2 * Real.logb 2 ((fingerDist s f y : ℝ) + 1) :=
+    logb_div_inv_sq (by norm_num) (fingerDist s f y)
   have hlog3 := logb_two_three_le_two
-  have hacc : ∀ l : List α, (l.map fun x => 3 * Real.logb 2 (3 / fingerWeight s f x) + 1).sum ≤
-      7 * l.length + 6 * (l.map fun x => Real.logb 2 ((fingerDist s f x : ℝ) + 1)).sum := by
-    intro l
-    induction l with
+  have hacc : (xs.map fun x => 3 * Real.logb 2 (3 / fingerWeight s f x) + 1).sum ≤
+      7 * xs.length + 6 * (xs.map fun x => Real.logb 2 ((fingerDist s f x : ℝ) + 1)).sum := by
+    clear hmain hxs
+    induction xs with
     | nil => simp
     | cons x l ih =>
       simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.cast_add, Nat.cast_one]
-      have := hterm x
-      linarith
+      linarith [hterm x]
   have hdrop : ∑ y ∈ s, Real.logb 2 (3 / fingerWeight s f y) ≤
       s.card * (2 + 2 * Real.logb 2 s.card) := by
-    calc ∑ y ∈ s, Real.logb 2 (3 / fingerWeight s f y)
-        ≤ ∑ _y ∈ s, (2 + 2 * Real.logb 2 s.card) := by
-          refine Finset.sum_le_sum fun y _ => ?_
-          rw [hterm y]
-          have hle : (fingerDist s f y : ℝ) + 1 ≤ s.card := by
-            exact_mod_cast fingerDist_lt_card hf y
-          have hlog : Real.logb 2 ((fingerDist s f y : ℝ) + 1) ≤ Real.logb 2 s.card :=
-            Real.logb_le_logb_of_le (by norm_num) (by positivity) hle
-          linarith
-      _ = s.card * (2 + 2 * Real.logb 2 s.card) := by
-          rw [Finset.sum_const, nsmul_eq_mul]
-  linarith [hacc xs]
+    rw [← nsmul_eq_mul, ← Finset.sum_const]
+    refine Finset.sum_le_sum fun y _ => ?_
+    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity)
+      (by exact_mod_cast fingerDist_lt_card hf y : (fingerDist s f y : ℝ) + 1 ≤ s.card)
+    linarith [hterm y]
+  linarith
 
 end StaticFinger
 
@@ -259,13 +227,11 @@ private theorem wsAux_eq (h F : List α) :
   induction F generalizing h with
   | nil => rfl
   | cons x F ih =>
-    rw [wsAux, ih, List.mapIdx_cons]
-    simp only [List.take_zero, List.reverse_nil, List.nil_append, List.take_succ_cons,
-      List.reverse_cons, List.append_assoc, List.singleton_append]
+    simp only [wsAux, ih, List.mapIdx_cons, List.take_zero, List.reverse_nil, List.nil_append,
+      List.take_succ_cons, List.reverse_cons, List.append_assoc, List.singleton_append]
 
 private theorem wsAux_nil (xs : List α) : wsAux [] xs = workingSetNumbers xs := by
-  rw [wsAux_eq]
-  simp only [List.append_nil, workingSetNumbers]
+  simp only [wsAux_eq, List.append_nil, workingSetNumbers]
 
 private theorem takeWhile_ne_cons_of_ne {a y : α} (h : a ≠ y) (l : List α) :
     (a :: l).takeWhile (fun z => z ≠ y) = a :: l.takeWhile (fun z => z ≠ y) :=
@@ -276,10 +242,8 @@ private theorem takeWhile_ne_cons_self (y : α) (l : List α) :
   List.takeWhile_cons_of_neg (p := fun z => decide (z ≠ y)) (by simp)
 
 private theorem not_mem_toFinset_takeWhile_ne (y : α) (l : List α) :
-    y ∉ (l.takeWhile fun z => z ≠ y).toFinset := by
-  intro hmem
-  have := List.all_eq_true.mp List.all_takeWhile y (List.mem_toFinset.mp hmem)
-  simp at this
+    y ∉ (l.takeWhile fun z => z ≠ y).toFinset := fun hmem =>
+  absurd (List.all_eq_true.mp List.all_takeWhile y (List.mem_toFinset.mp hmem)) (by simp)
 
 private theorem takeWhile_ne_append_cons_self (x : α) (h l : List α) :
     (h ++ x :: l).takeWhile (fun y => y ≠ x) = h.takeWhile (fun y => y ≠ x) := by
@@ -287,36 +251,27 @@ private theorem takeWhile_ne_append_cons_self (x : α) (h l : List α) :
   | nil => rw [List.nil_append, takeWhile_ne_cons_self, List.takeWhile_nil]
   | cons a h ih =>
     by_cases hax : a = x
-    · subst a
-      rw [List.cons_append, takeWhile_ne_cons_self, takeWhile_ne_cons_self]
+    · subst a; rw [List.cons_append, takeWhile_ne_cons_self, takeWhile_ne_cons_self]
     · rw [List.cons_append, takeWhile_ne_cons_of_ne hax, takeWhile_ne_cons_of_ne hax, ih]
 
 /-- The rank of `x` just before it is accessed depends only on the history. -/
 private theorem recencyRank_append_cons_self (x : α) (h l : List α) :
     recencyRank x (h ++ x :: l) = recencyRank x h := by
-  unfold recencyRank
-  rw [takeWhile_ne_append_cons_self]
+  simp only [recencyRank, takeWhile_ne_append_cons_self]
 
 private theorem toFinset_takeWhile_subset (x y : α) (hxy : x ≠ y) (h L : List α) :
     ((h ++ x :: L).takeWhile fun z => z ≠ y).toFinset ⊆
       ((x :: (h ++ L)).takeWhile fun z => z ≠ y).toFinset := by
   rw [takeWhile_ne_cons_of_ne hxy, List.toFinset_cons]
   induction h with
-  | nil =>
-    rw [List.nil_append, List.nil_append, takeWhile_ne_cons_of_ne hxy, List.toFinset_cons]
+  | nil => rw [List.nil_append, List.nil_append, takeWhile_ne_cons_of_ne hxy, List.toFinset_cons]
   | cons a h ih =>
     by_cases hay : a = y
-    · subst a
-      rw [List.cons_append, takeWhile_ne_cons_self, List.toFinset_nil]
+    · subst a; rw [List.cons_append, takeWhile_ne_cons_self, List.toFinset_nil]
       exact Finset.empty_subset _
     · rw [List.cons_append, List.cons_append, takeWhile_ne_cons_of_ne hay,
         takeWhile_ne_cons_of_ne hay, List.toFinset_cons, List.toFinset_cons]
-      intro z hz
-      rcases Finset.mem_insert.mp hz with rfl | hz
-      · exact Finset.mem_insert_of_mem (Finset.mem_insert_self _ _)
-      · rcases Finset.mem_insert.mp (ih hz) with rfl | hz'
-        · exact Finset.mem_insert_self _ _
-        · exact Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hz')
+      exact (Finset.insert_subset_insert a ih).trans (by rw [Finset.insert_comm])
 
 /-- After an access to `x` moves it to the front, no other key's rank decreases
 ([SleatorTarjan1985b], Section 2, proof of Theorem 4, p. 660). -/
@@ -335,48 +290,32 @@ private theorem takeWhile_ne_subset_or (l : List α) {y y' : α} (hy : y ∈ l) 
   induction l with
   | nil => simp at hy
   | cons a l ih =>
-    by_cases hay : a = y
-    · subst a
-      left
-      rw [takeWhile_ne_cons_self, takeWhile_ne_cons_of_ne hne, List.toFinset_nil,
-        List.toFinset_cons]
-      exact ⟨Finset.empty_subset _, Finset.mem_insert_self _ _⟩
-    · by_cases hay' : a = y'
-      · subst a
-        right
-        rw [takeWhile_ne_cons_self, takeWhile_ne_cons_of_ne (Ne.symm hne), List.toFinset_nil,
-          List.toFinset_cons]
-        exact ⟨Finset.empty_subset _, Finset.mem_insert_self _ _⟩
-      · have hy₁ : y ∈ l := (List.mem_cons.mp hy).resolve_left (Ne.symm hay)
-        have hy₁' : y' ∈ l := (List.mem_cons.mp hy').resolve_left (Ne.symm hay')
-        rw [takeWhile_ne_cons_of_ne hay, takeWhile_ne_cons_of_ne hay', List.toFinset_cons,
-          List.toFinset_cons]
-        rcases ih hy₁ hy₁' with ⟨hsub, hmem⟩ | ⟨hsub, hmem⟩
-        · exact Or.inl ⟨Finset.insert_subset_insert a hsub, Finset.mem_insert_of_mem hmem⟩
-        · exact Or.inr ⟨Finset.insert_subset_insert a hsub, Finset.mem_insert_of_mem hmem⟩
+    rcases eq_or_ne a y with rfl | hay
+    · simp [hne]
+    rcases eq_or_ne a y' with rfl | hay'
+    · simp [hne.symm]
+    simp only [takeWhile_ne_cons_of_ne hay, takeWhile_ne_cons_of_ne hay', List.toFinset_cons]
+    exact (ih (List.mem_of_ne_of_mem hay.symm hy) (List.mem_of_ne_of_mem hay'.symm hy')).imp
+      (fun h => ⟨Finset.insert_subset_insert a h.1, Finset.mem_insert_of_mem h.2⟩)
+      (fun h => ⟨Finset.insert_subset_insert a h.1, Finset.mem_insert_of_mem h.2⟩)
 
 private theorem recencyRank_injOn (l : List α) :
     Set.InjOn (recencyRank · l) ↑l.toFinset := by
   intro y hy y' hy' heq
   by_contra hne
-  have hy₁ : y ∈ l := List.mem_toFinset.mp (Finset.mem_coe.mp hy)
-  have hy₁' : y' ∈ l := List.mem_toFinset.mp (Finset.mem_coe.mp hy')
   simp only [recencyRank] at heq
-  rcases takeWhile_ne_subset_or l hy₁ hy₁' hne with ⟨hsub, hmem⟩ | ⟨hsub, hmem⟩
-  · have := Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr
-      ⟨y, hmem, not_mem_toFinset_takeWhile_ne y l⟩)
-    omega
-  · have := Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr
-      ⟨y', hmem, not_mem_toFinset_takeWhile_ne y' l⟩)
-    omega
+  rcases takeWhile_ne_subset_or l (List.mem_toFinset.mp (Finset.mem_coe.mp hy))
+      (List.mem_toFinset.mp (Finset.mem_coe.mp hy')) hne with ⟨hsub, hmem⟩ | ⟨hsub, hmem⟩ <;>
+    · have hlt := Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr
+        ⟨_, hmem, not_mem_toFinset_takeWhile_ne _ l⟩)
+      omega
 
 private theorem recencyRank_lt_card {l : List α} {y : α} (hy : y ∈ l) :
-    recencyRank y l < l.toFinset.card := by
-  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.mpr ⟨y, ?_, ?_⟩)
-  · intro z hz
-    exact List.mem_toFinset.mpr ((List.takeWhile_sublist _).subset (List.mem_toFinset.mp hz))
-  · exact List.mem_toFinset.mpr hy
-  · exact not_mem_toFinset_takeWhile_ne y l
+    recencyRank y l < l.toFinset.card :=
+  Finset.card_lt_card (Finset.ssubset_iff_of_subset
+    (fun _ hz =>
+      List.mem_toFinset.mpr ((List.takeWhile_sublist _).subset (List.mem_toFinset.mp hz)))
+    |>.mpr ⟨y, List.mem_toFinset.mpr hy, not_mem_toFinset_takeWhile_ne y l⟩)
 
 /-- The move-to-front ranks of the keys of `l` are exactly `0, …, |l| - 1`. -/
 private theorem image_recencyRank (l : List α) :
@@ -392,21 +331,19 @@ private noncomputable def mtfWeight (l : List α) (y : α) : ℝ :=
   1 / ((recencyRank y l : ℝ) + 1) ^ 2
 
 private theorem mtfWeight_pos (l : List α) (y : α) : 0 < mtfWeight l y := by
-  unfold mtfWeight
-  positivity
+  unfold mtfWeight; positivity
 
 /-- The move-to-front weights permute `1, 1/4, …, 1/|l|²`, so their total depends only on the set
 of keys. -/
 private theorem sum_mtfWeight (l : List α) :
     ∑ y ∈ l.toFinset, mtfWeight l y =
       ∑ k ∈ Finset.range l.toFinset.card, 1 / ((k : ℝ) + 1) ^ 2 := by
-  rw [← image_recencyRank, Finset.sum_image (recencyRank_injOn l)]
-  rfl
+  rw [← image_recencyRank, Finset.sum_image (recencyRank_injOn l)]; rfl
 
 private theorem sum_range_inv_sq_le_two (n : ℕ) :
     ∑ k ∈ Finset.range n, 1 / ((k : ℝ) + 1) ^ 2 ≤ 2 := by
-  have := sum_inv_sq_le_of_injOn (s := Finset.range n) (Set.injOn_id _) 0 fun _ _ => Nat.zero_le _
-  simpa using this
+  simpa using
+    sum_inv_sq_le_of_injOn (s := Finset.range n) (Set.injOn_id _) 0 fun _ _ => Nat.zero_le _
 
 end WorkingSetNumbers
 
@@ -446,67 +383,40 @@ private theorem splaySeqTime_mtf_telescoping (F : List α) {h R : List α} {t : 
   induction F generalizing h t with
   | nil => simp [wsAux]
   | cons x F ih =>
-    have hx : x ∈ elements t := by
-      rw [← hset]
-      simp
+    have hx : x ∈ elements t := hset ▸ by simp
     have ho' : Ordered (splay x t).tree := ordered_splay ht x
     have he' : elements (splay x t).tree = elements t := elements_splay x t
     have hset₁ : (x :: h ++ F ++ R).toFinset = elements (splay x t).tree := by
-      rw [he', ← hset]
-      ext z
-      simp only [List.mem_toFinset, List.mem_append, List.mem_cons]
-      tauto
+      rw [he', ← hset]; ext z
+      simp only [List.mem_toFinset, List.mem_append, List.mem_cons]; tauto
     -- Access step: the Access Lemma with the current weights `mtfWeight (h ++ x :: F ++ R)`.
     have hacc := splay_splayTime_amortized_le_of_mem (mtfWeight_pos (h ++ x :: F ++ R)) ht hx
-    have hW₀ : subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t ≤ 2 := by
-      rw [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight]
-      exact sum_range_inv_sq_le_two _
-    have hrank : recencyRank x (h ++ x :: F ++ R) = recencyRank x h := by
-      rw [List.append_assoc, List.cons_append, recencyRank_append_cons_self]
     have hlog : Real.logb 2 (subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t /
         mtfWeight (h ++ x :: F ++ R) x) ≤ 1 + 2 * Real.logb 2 ((recencyRank x h : ℝ) + 1) := by
-      have hk : (0 : ℝ) < (recencyRank x h : ℝ) + 1 := by positivity
+      have hW₀ : subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t ≤ 2 := by
+        simpa only [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight] using
+          sum_range_inv_sq_le_two _
       have hwx := mtfWeight_pos (h ++ x :: F ++ R) x
       have hWpos : 0 < subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t :=
         subtreeWeight_pos (mtfWeight_pos _) (by rintro rfl; simp [elements] at hx)
-      calc Real.logb 2 (subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t /
-            mtfWeight (h ++ x :: F ++ R) x)
-          ≤ Real.logb 2 (2 / mtfWeight (h ++ x :: F ++ R) x) :=
-            Real.logb_le_logb_of_le (by norm_num) (div_pos hWpos hwx)
-              (div_le_div_of_nonneg_right hW₀ hwx.le)
-        _ = 1 + 2 * Real.logb 2 ((recencyRank x h : ℝ) + 1) := by
-            rw [mtfWeight, hrank, div_div_eq_mul_div, div_one,
-              Real.logb_mul (by norm_num) (by positivity), Real.logb_pow,
-              Real.logb_self_eq_one (by norm_num)]
-            push_cast
-            ring
+      refine (Real.logb_le_logb_of_le (b := 2) (by norm_num) (div_pos hWpos hwx)
+        (div_le_div_of_nonneg_right hW₀ hwx.le)).trans_eq ?_
+      rw [mtfWeight, List.append_assoc, List.cons_append, recencyRank_append_cons_self,
+        logb_div_inv_sq (by norm_num), Real.logb_self_eq_one (by norm_num)]
     -- Reassignment step: `x` is at the root and receives weight `1`; no other weight increases.
-    have hroot : rootKey (splay x t).tree = some x := rootKey_splay_of_mem ht hx
-    have hsumeq : subtreeWeight (mtfWeight (x :: h ++ F ++ R)) (splay x t).tree =
-        subtreeWeight (mtfWeight (h ++ x :: F ++ R)) (splay x t).tree := by
-      rw [subtreeWeight_eq_sum_elements _ ho', subtreeWeight_eq_sum_elements _ ho', ← hset₁]
-      exact (sum_mtfWeight_congr (hset.trans (he'.symm.trans hset₁.symm))).symm
-    have hdec : ∀ y ∈ elements (splay x t).tree, y ≠ x →
-        mtfWeight (x :: h ++ F ++ R) y ≤ mtfWeight (h ++ x :: F ++ R) y := by
-      intro y _ hyx
-      have hle : recencyRank y (h ++ x :: F ++ R) ≤ recencyRank y (x :: h ++ F ++ R) := by
-        have := recencyRank_le_recencyRank_cons (Ne.symm hyx) h (F ++ R)
-        simpa only [List.append_assoc, List.cons_append] using this
-      unfold mtfWeight
-      gcongr
-    have hre := potential_reweight_root_le (mtfWeight_pos _) ho' hroot hsumeq hdec
-    -- Remaining accesses.
+    have hre := potential_reweight_root_le (w := mtfWeight (h ++ x :: F ++ R))
+      (w' := mtfWeight (x :: h ++ F ++ R)) (mtfWeight_pos _) ho' (rootKey_splay_of_mem ht hx)
+      (by rw [subtreeWeight_eq_sum_elements _ ho', subtreeWeight_eq_sum_elements _ ho', ← hset₁]
+          exact (sum_mtfWeight_congr (hset.trans (he'.symm.trans hset₁.symm))).symm)
+      fun y _ hyx => by
+        have hle : recencyRank y (h ++ x :: F ++ R) ≤ recencyRank y (x :: h ++ F ++ R) := by
+          simpa only [List.append_assoc, List.cons_append] using
+            recencyRank_le_recencyRank_cons (Ne.symm hyx) h (F ++ R)
+        unfold mtfWeight; gcongr
     have hrest := ih (h := x :: h) ho' hset₁
-    have hseq : (splaySeq (x :: F) t).1 = (splaySeq F (splay x t).tree).1 := rfl
-    have htime : splaySeqTime (x :: F) t =
-        splayTime (splay x t) + splaySeqTime F (splay x t).tree := rfl
-    have hws : ((wsAux h (x :: F)).map wsCharge).sum =
-        wsCharge (recencyRank x h) + ((wsAux (x :: h) F).map wsCharge).sum := rfl
-    have hrev : (x :: F).reverse ++ h ++ R = F.reverse ++ x :: h ++ R := by
-      simp
-    have hcharge : wsCharge (recencyRank x h) =
-        6 * Real.logb 2 ((recencyRank x h : ℝ) + 1) + 4 := rfl
-    rw [hseq, htime, hws, hrev, Nat.cast_add]
+    have hrev : (x :: F).reverse ++ h ++ R = F.reverse ++ x :: h ++ R := by simp
+    simp only [splaySeqTime, splaySeq, wsAux, List.map_cons, List.sum_cons, wsCharge, hrev,
+      Nat.cast_add] at hrest ⊢
     linarith
 
 /-- **Working Set Theorem** ([SleatorTarjan1985b], Section 2, Theorem 4, pp. 659–660): let `t` be
@@ -526,64 +436,31 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
     (splaySeqTime xs t : ℝ) ≤ 4 * xs.length +
       6 * ((workingSetNumbers xs).map fun k : ℕ => Real.logb 2 ((k : ℝ) + 1)).sum +
       (elements t).card * (1 + 2 * Real.logb 2 (elements t).card) := by
-  -- The never-accessed keys, in any order, follow the accessed keys in the initial order.
-  obtain ⟨R, hR⟩ : ∃ R : List α, ∀ z, z ∈ R ↔ z ∈ elements t :=
-    ⟨(elements t).toList, fun z => Finset.mem_toList⟩
-  have hset : ([] ++ xs ++ R).toFinset = elements t := by
-    ext z
-    simp only [List.nil_append, List.mem_toFinset, List.mem_append, hR]
-    constructor
-    · rintro (hz | hz)
-      · exact hxs z hz
-      · exact hz
-    · exact Or.inr
+  let R := (elements t).toList
+  have hset : ([] ++ xs ++ R).toFinset = elements t :=
+    Finset.ext fun z => by simp [R, or_iff_right_iff_imp.mpr (hxs z)]
   have htel := splaySeqTime_mtf_telescoping xs ht hset
   rw [wsAux_nil, sum_map_wsCharge, length_workingSetNumbers] at htel
   obtain ⟨ho_end, he_end⟩ := splaySeq_ordered_and_elements xs ht
+  have hW : subtreeWeight (mtfWeight ([] ++ xs ++ R)) t ≤ 2 := by
+    simpa only [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight] using
+      sum_range_inv_sq_le_two _
   -- Initial potential: total weight at most `2`, so every rank is at most `1`.
-  have hΦ₀ : potential (mtfWeight ([] ++ xs ++ R)) t ≤ (elements t).card := by
-    have hW : subtreeWeight (mtfWeight ([] ++ xs ++ R)) t ≤ 2 := by
-      rw [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight]
-      exact sum_range_inv_sq_le_two _
-    have h := potential_le_sum_logb_of_le (mtfWeight_pos _) ht hW
-    rw [Real.logb_self_eq_one (by norm_num), Finset.sum_const, nsmul_eq_mul, mul_one] at h
-    exact h
+  have hΦ₀ := potential_le_sum_logb_of_le (mtfWeight_pos ([] ++ xs ++ R)) ht hW
+  rw [Real.logb_self_eq_one (by norm_num), Finset.sum_const, nsmul_eq_mul, mul_one] at hΦ₀
   -- Final potential: every final weight is at least `1/n²`.
   have hsetₘ : (xs.reverse ++ [] ++ R).toFinset = elements t := by
-    rw [← hset]
-    ext z
-    simp only [List.mem_toFinset, List.mem_append, List.mem_reverse, List.nil_append,
-      List.append_nil]
+    simp [← hset]
   have hΦₘ : -((elements t).card * (2 * Real.logb 2 (elements t).card)) ≤
       potential (mtfWeight (xs.reverse ++ [] ++ R)) (splaySeq xs t).1 := by
-    have h := sum_logb_weight_le_potential (mtfWeight_pos (xs.reverse ++ [] ++ R)) ho_end
-    rw [he_end] at h
-    refine le_trans ?_ h
-    calc -((elements t).card * (2 * Real.logb 2 (elements t).card))
-        = ∑ _y ∈ elements t, -(2 * Real.logb 2 (elements t).card) := by
-          rw [Finset.sum_const, nsmul_eq_mul]
-          ring
-      _ ≤ ∑ y ∈ elements t,
-          Real.logb 2 (mtfWeight (xs.reverse ++ [] ++ R) y) := by
-          refine Finset.sum_le_sum fun y hy => ?_
-          have hk : (0 : ℝ) <
-              (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 := by
-            positivity
-          have hy' : y ∈ xs.reverse ++ [] ++ R := by
-            rw [← List.mem_toFinset, hsetₘ]
-            exact hy
-          have hle : (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤
-              (elements t).card := by
-            have := recencyRank_lt_card hy'
-            rw [hsetₘ] at this
-            exact_mod_cast this
-          have hlog : Real.logb 2
-              ((recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1) ≤
-                Real.logb 2 (elements t).card :=
-            Real.logb_le_logb_of_le (by norm_num) hk hle
-          rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow]
-          push_cast
-          linarith
+    refine le_trans ?_ (he_end ▸ sum_logb_weight_le_potential
+      (mtfWeight_pos (xs.reverse ++ [] ++ R)) ho_end)
+    rw [← nsmul_eq_mul, ← neg_nsmul, ← Finset.sum_const]
+    refine Finset.sum_le_sum fun y hy => ?_
+    have hle_card : (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card := by
+      exact_mod_cast hsetₘ ▸ recencyRank_lt_card (List.mem_toFinset.mp (hsetₘ.symm ▸ hy))
+    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hle_card
+    rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow, Nat.cast_ofNat]; linarith
   linarith
 
 end WorkingSet

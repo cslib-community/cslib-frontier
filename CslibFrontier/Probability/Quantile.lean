@@ -36,10 +36,10 @@ public section
 
 namespace Cslib.Probability.PMF
 
-variable {α : Type*} [Fintype α]
+variable {α β : Type*} [Fintype α] [LinearOrder β]
 
 /-- A finite score distribution has a cutoff bracketing every probability level. -/
-theorem exists_quantile (source : PMF α) (score : α → ℝ) {δ : ℝ}
+theorem exists_quantile (source : PMF α) (score : α → β) {δ : ℝ}
     (hδ : 0 ≤ δ) (hδone : δ ≤ 1) :
     ∃ cutoff ∈ Set.range score,
       (∑ x, if score x < cutoff then (source x).toReal else 0) ≤ δ ∧
@@ -47,9 +47,8 @@ theorem exists_quantile (source : PMF α) (score : α → ℝ) {δ : ℝ}
   classical
   let cumulative := fun cutoff => ∑ x, if score x ≤ cutoff then (source x).toReal else 0
   let candidates := Finset.univ.filter (fun x => δ ≤ cumulative (score x))
-  have hnonempty : (Finset.univ : Finset α).Nonempty := by
-    obtain ⟨x, _⟩ := source.support_nonempty
-    exact ⟨x, Finset.mem_univ _⟩
+  have hnonempty : (Finset.univ : Finset α).Nonempty :=
+    ⟨_, Finset.mem_univ source.support_nonempty.some⟩
   have hcandidates : candidates.Nonempty := by
     obtain ⟨x, _, hx⟩ := Finset.exists_max_image Finset.univ score hnonempty
     refine ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
@@ -67,13 +66,12 @@ theorem exists_quantile (source : PMF α) (score : α → ℝ) {δ : ℝ}
       ⟨fun hy => hmax y (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩),
         fun hy => hy.trans_lt hxc⟩
     simpa only [cumulative, hevent] using hsmall.le
-  · have hnone (x : α) : ¬ score x < score cut := by
-      intro hx
-      exact hbelow ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩⟩
+  · have hnone (x : α) : ¬ score x < score cut := fun hx =>
+      hbelow ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩⟩
     simpa only [ite_eq_right (hnone _), Finset.sum_const_zero] using hδ
 
 /-- A lower tail has the prescribed mass, filling only the boundary level fractionally. -/
-theorem exists_lowerTail (source : PMF α) (score : α → ℝ) {δ : ℝ}
+theorem exists_lowerTail (source : PMF α) (score : α → β) {δ : ℝ}
     (hδ : 0 ≤ δ) (hδone : δ ≤ 1) :
     ∃ cutoff ∈ Set.range score, ∃ softSet : α → ℝ,
       (∀ x, softSet x ∈ Set.Icc 0 1) ∧
@@ -88,8 +86,7 @@ theorem exists_lowerTail (source : PMF α) (score : α → ℝ) {δ : ℝ}
   have hsplit : (∑ x, if score x ≤ cutoff then (source x).toReal else 0) =
       lower + boundary := by
     rw [← Finset.sum_add_distrib]
-    apply Finset.sum_congr rfl
-    intro x _
+    refine Finset.sum_congr rfl fun x _ => ?_
     rcases lt_trichotomy (score x) cutoff with hlt | heq | hgt
     · simp [hlt.le, hlt, hlt.ne]
     · simp [heq]
@@ -103,27 +100,22 @@ theorem exists_lowerTail (source : PMF α) (score : α → ℝ) {δ : ℝ}
     · exact (div_le_one (lt_of_le_of_ne hboundary (Ne.symm hz))).mpr (by linarith)
   have hmass : lower + boundary * fraction = δ := by
     by_cases hz : boundary = 0
-    · have heq : lower = δ := by linarith
-      simp [hz, heq]
-    · dsimp only [fraction]
-      rw [mul_div_cancel₀ _ hz]
-      ring
+    · simp only [hz, zero_mul, add_zero]
+      linarith
+    · simp [fraction, mul_div_cancel₀ _ hz]
   let softSet := fun x => if score x < cutoff then (1 : ℝ)
     else if score x = cutoff then fraction else 0
   refine ⟨cutoff, hcutoff, softSet, ?_, ?_, ?_, ?_⟩
   · intro x
     dsimp only [softSet]
     split_ifs <;> simp_all
-  · intro x hx
-    simp [softSet, hx]
-  · intro x hx
-    simp [softSet, hx.not_gt, hx.ne']
+  · exact fun x hx => by simp [softSet, hx]
+  · exact fun x hx => by simp [softSet, hx.not_gt, hx.ne']
   · calc
       _ = lower + boundary * fraction := by
         dsimp only [lower, boundary]
         rw [Finset.sum_mul, ← Finset.sum_add_distrib]
-        apply Finset.sum_congr rfl
-        intro x _
+        refine Finset.sum_congr rfl fun x _ => ?_
         by_cases hlt : score x < cutoff
         · simp [softSet, hlt, hlt.ne]
         · simp [softSet, hlt, mul_ite]

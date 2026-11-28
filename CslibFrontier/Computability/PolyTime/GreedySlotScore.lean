@@ -42,8 +42,11 @@ results in `Cslib.BalancedSchedules` govern the concrete list/integer algorithms
 unencoded typed specification bridges. Total fallback conventions: `wordToSchedule` clamps digits
 `≥ r` and missing positions to `0`; `streamBestSlotLabel` returns `List.replicate Q 0` when
 `r ^ Q = 0`; `clearedPartialCollision`, `updateSlotSchedules`, and `readSlotSchedule` use total
-`List.getD` / `List.set` defaults on out-of-bounds indices; and `scoreDenom` replaces zero
-normalizers `numEdges * C` or `Q * n` by `1`.
+`List.getD` / `List.set` defaults on out-of-bounds indices; `scoreDenom` replaces zero
+normalizers `numEdges * C` or `Q * n` by `1`, and is `0` when `r = 0`; and
+`clearedIncidencePotential` and `clearedGroupPotential` use truncated subtraction in `ℕ`. They and
+`clearedJointScore` are exact cleared numerators for `1 ≤ r` and `K = r ^ Q` on the typed bridge
+lists `edgesOfFin` and `partialScheduleListOfFin`, where no subtraction truncates.
 
 ## Main definitions
 
@@ -73,9 +76,10 @@ normalizers `numEdges * C` or `Q * n` by `1`.
 * `exists_min_index_streamBestSlotLabel`, `streamBestSlotLabel_false_eq_bestVariableLabel`,
   `streamBestSlotLabel_true_eq_bestFactorLabel`: first-minimizer and `bestVariableLabel` /
   `bestFactorLabel` bridges.
-* `length_encSlotSelectState_run_le`, `streamBestSlotCertificate_bounds`,
-  `computableInO_streamBestSlotLabel`, `computableInPolySpace_streamBestSlotLabel`: all-prefix
-  live-state bit bound, `O((r ^ Q + 1) * poly(|input|))` native time, and polynomial workspace.
+* `length_encSlotSelectState_run_le`, `streamBestSlotCertificate_factorTimePolySpace`,
+  `streamBestSlotCertificate_bounds`, `computableInO_streamBestSlotLabel`,
+  `computableInPolySpace_streamBestSlotLabel`: all-prefix live-state bit bound,
+  `O((r ^ Q + 1) * poly(|input|))` native time, and polynomial workspace.
 
 ## References
 
@@ -235,7 +239,10 @@ binary `j`. -/
 @[fun_prop] theorem computableInPolyTime_decodeLabelWord :
     ComputableInPolyTime (fun (((r, Q), j) : (ℕ × ℕ) × ℕ) => decodeLabelWord r Q j)
       (encPair (encPair encNat encUnary) encNat) (encList encNat) := by
-  simp only [decodeLabelWord, Cslib.Radix.digit_eq_div_pow_mod]; fun_prop
+  simp only [decodeLabelWord, Cslib.Radix.digit_eq_div_pow_mod]
+  refine ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop) ?_
+  exact ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.binary_div' (by fun_prop) (by fun_prop)) (by fun_prop)
 
 @[fun_prop] theorem computableInPolyTime_decodeLabelWord' {α : Type} {input : α ↪ List Bool}
     {r Q j : α → ℕ} (hr : ComputableInPolyTime r input encNat)
@@ -263,7 +270,10 @@ def clearedIncidenceCollisions (K : ℕ) (edges : List (ℕ × ℕ))
     clearedPartialCollision K varSched e.2 e'.2 *
       clearedPartialCollision K facSched e.1 e'.1).sum).sum
 
-/-- Cleared-integer numerator of `partialIncidencePotential` over common denominator `K ^ 2`. -/
+/-- `clearedIncidenceCollisions` minus `edges.length ^ 2`, with truncated subtraction in `ℕ`. For
+`1 ≤ r` and `K = r ^ Q`, on `edgesOfFin` and `partialScheduleListOfFin` lists it is the
+cleared-integer numerator of `partialIncidencePotential` over common denominator `K ^ 2`
+(`clearedIncidencePotential_eq_mul`); otherwise the subtraction can truncate to `0`. -/
 def clearedIncidencePotential (K : ℕ) (edges : List (ℕ × ℕ))
     (varSched facSched : List (Option (List ℕ))) : ℕ :=
   clearedIncidenceCollisions K edges varSched facSched - edges.length ^ 2
@@ -275,16 +285,22 @@ def clearedGroupCollisions (n Q r : ℕ) (varSched : List (Option (List ℕ))) :
     ((List.range n).map fun v =>
       ((List.range n).map fun v' => clearedPartialCollision r ct v v').sum).sum).sum
 
-/-- Cleared-integer numerator of `partialGroupPotential` over common denominator `r`. -/
+/-- `clearedGroupCollisions` minus `Q * n ^ 2`, with truncated subtraction in `ℕ`. For `1 ≤ r`, on
+`partialScheduleListOfFin` lists it is the cleared-integer numerator of `partialGroupPotential`
+over common denominator `r`; otherwise the subtraction can truncate to `0`. -/
 def clearedGroupPotential (n Q r : ℕ) (varSched : List (Option (List ℕ))) : ℕ :=
   clearedGroupCollisions n Q r varSched - Q * n ^ 2
 
-/-- Common positive integer denominator clearing `normalizedPartialScore` across all candidate
-evaluations without rational GCD reductions ([OpenAI2026ETH], Lemma 4.5, p. 31). -/
+/-- Common integer denominator clearing `normalizedPartialScore` across all candidate
+evaluations without rational GCD reductions ([OpenAI2026ETH], Lemma 4.5, p. 31). It is positive
+when `1 ≤ r` (`scoreDenom_pos`) and `0` when `r = 0`. -/
 def scoreDenom (numEdges n Q r C : ℕ) : ℕ :=
   (r ^ Q) ^ 2 * max (numEdges * C) 1 * r * max (Q * n) 1
 
-/-- Exact natural-number numerator of `normalizedPartialScore` over `scoreDenom`. -/
+/-- Natural-number numerator of `normalizedPartialScore` over `scoreDenom`: exact for `1 ≤ r` on
+`edgesOfFin` and `partialScheduleListOfFin` lists
+(`normalizedPartialScore_eq_clearedJointScore_div`). It is built from `clearedIncidencePotential`
+and `clearedGroupPotential`, whose subtractions can truncate to `0` otherwise. -/
 def clearedJointScore (n Q r C : ℕ) (edges : List (ℕ × ℕ))
     (varSched facSched : List (Option (List ℕ))) : ℕ :=
   (if edges.length * C = 0 then 0
@@ -578,9 +594,6 @@ theorem clearedJointScore_le_iff_normalizedPartialScore_le {E m n Q r : ℕ} (hr
 
 /-! ### Polynomial-time certificate for `clearedJointScore` -/
 
-private theorem binary_sum_polyTime :
-    ComputableInPolyTime List.sum (encList encNat) encNat := by fun_prop
-
 private theorem computableInPolyTime_clearedPartialCollision {α γ : Type} [DecidableEq α]
     {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
     {cardL i j : γ → ℕ} {assigned : γ → List (Option α)}
@@ -664,8 +677,8 @@ private theorem computableInPolyTime_coordProject :
     have hq1 := ComputableInPolyTime.fst (encPair eIn eEdge) eEdge
     have hq0 := hq1.fst'; have hq12 := hq1.snd'
     have hq2 := ComputableInPolyTime.snd (encPair eIn eEdge) eEdge
-    refine binary_sum_polyTime.comp (ComputableInPolyTime.mapWithInput
-      hedges (binary_sum_polyTime.comp
+    refine ComputableInPolyTime.binary_sum.comp (ComputableInPolyTime.mapWithInput
+      hedges (ComputableInPolyTime.binary_sum.comp
         (ComputableInPolyTime.mapWithInput (hedges.comp (ComputableInPolyTime.fst eIn eEdge)) ?_)))
     exact ComputableInPolyTime.binary_mul'
       (computableInPolyTime_clearedPartialCollision
@@ -684,9 +697,9 @@ private theorem computableInPolyTime_coordProject :
     have hr1 := ComputableInPolyTime.fst (encPair (encPair eIn encUnary) encUnary) encUnary
     have hr0 := hr1.fst'; have hr12 := hr1.snd'
     have hr2 := ComputableInPolyTime.snd (encPair (encPair eIn encUnary) encUnary) encUnary
-    refine binary_sum_polyTime.comp (ComputableInPolyTime.mapWithInput hrangeQ ?_)
-    refine binary_sum_polyTime.comp (ComputableInPolyTime.mapWithInput
-      (hrangeN.comp (ComputableInPolyTime.fst eIn encUnary)) (binary_sum_polyTime.comp
+    refine ComputableInPolyTime.binary_sum.comp (ComputableInPolyTime.mapWithInput hrangeQ ?_)
+    refine ComputableInPolyTime.binary_sum.comp (ComputableInPolyTime.mapWithInput
+      (hrangeN.comp (ComputableInPolyTime.fst eIn encUnary)) (ComputableInPolyTime.binary_sum.comp
         (ComputableInPolyTime.mapWithInput (hrangeN.comp hrStep1.fst') ?_)))
     exact computableInPolyTime_clearedPartialCollision (hrBin.comp hr0.fst') (hct.comp hr0)
       (ComputableInPolyTime.unary_to_binary.comp hr12)
@@ -1061,152 +1074,53 @@ private theorem computableInPolyTime_extractBestSlotWord :
       (encPair encNat encSlotSelectAcc) (encList encNat) := by
   unfold extractBestSlotWord encSlotSelectAcc encScoreParams; fun_prop
 
-private noncomputable def mkSlotCert
-    (cn : NativeCertificate streamSlotCount encStreamSlotIn encNat)
-    (ci : NativeCertificate streamSlotInit encStreamSlotIn encSlotSelectAcc)
-    (cb : NativeCertificate selectSlotStep (encPair encNat encSlotSelectAcc) encSlotSelectAcc)
-    (cEx : NativeCertificate extractBestSlotWord
-      (encPair encNat encSlotSelectAcc) (encList encNat)) :
-    NativeCertificate (fun a : StreamSlotIn =>
-      streamBestSlotLabel a.1.1.1 a.1.1.2 a.1.2.1.1 a.1.2.1.2 a.1.2.2 a.2.2 a.2.1)
-      encStreamSlotIn (encList encNat) :=
-  (cEx.comp (IndexFold.certificate cn ci cb)).congr
-    fun ⟨⟨⟨n, Q⟩, ⟨r, C⟩, edges⟩, ⟨slot, scheds⟩⟩ => by
-      have hp := (run_selectSlotStep_params ((n, Q), (r, C), edges) slot scheds (r ^ Q)).1
-      simp only [Function.comp_apply, extractBestSlotWord, streamSlotCount, streamSlotInit,
-        streamBestSlotLabel, hp]
-
 /-- Uniform native machine certificate for single-slot candidate streaming `streamBestSlotLabel`. -/
 noncomputable def streamBestSlotCertificate :
     NativeCertificate
       (fun ((((n, Q), (r, C), edges), (slot, scheds)) : StreamSlotIn) =>
         streamBestSlotLabel n Q r C edges scheds slot)
       encStreamSlotIn (encList encNat) :=
-  mkSlotCert (NativeCertificate.ofPolyTime computableInPolyTime_streamSlotCount)
-    (NativeCertificate.ofPolyTime computableInPolyTime_streamSlotInit)
-    (NativeCertificate.ofPolyTime computableInPolyTime_selectSlotStep)
-    (NativeCertificate.ofPolyTime computableInPolyTime_extractBestSlotWord)
+  ((NativeCertificate.ofPolyTime computableInPolyTime_extractBestSlotWord).comp
+    (IndexFold.certificate
+      (NativeCertificate.ofPolyTime computableInPolyTime_streamSlotCount)
+      (NativeCertificate.ofPolyTime computableInPolyTime_streamSlotInit)
+      (NativeCertificate.ofPolyTime computableInPolyTime_selectSlotStep))).congr
+    fun ⟨⟨⟨n, Q⟩, ⟨r, C⟩, edges⟩, ⟨slot, scheds⟩⟩ => by
+      have hp := (run_selectSlotStep_params ((n, Q), (r, C), edges) slot scheds (r ^ Q)).1
+      simp only [Function.comp_apply, extractBestSlotWord, streamSlotCount, streamSlotInit,
+        streamBestSlotLabel, hp]
 
-private theorem streamSlotIn_parts_le (a : StreamSlotIn) :
-    a.1.1.1 ≤ (encStreamSlotIn a).length ∧ a.1.1.2 ≤ (encStreamSlotIn a).length ∧
-      (encNat a.1.2.1.1).length ≤ (encStreamSlotIn a).length ∧
-      (encNat a.1.2.1.2).length ≤ (encStreamSlotIn a).length ∧
-      a.1.2.2.length ≤ (encStreamSlotIn a).length := by
-  have hed : a.1.2.2.length ≤ (encList (encPair encNat encNat) a.1.2.2).length := by
-    rw [length_encList]; generalize a.1.2.2 = l; induction l with
+/-- `streamBestSlotCertificate` runs in `(r ^ Q + 1) * poly(|input|)` native time and polynomial
+workspace. -/
+theorem streamBestSlotCertificate_factorTimePolySpace :
+    streamBestSlotCertificate.FactorTimePolySpace
+      (fun a => let (((_, Q), (r, _), _), _) := a; r ^ Q + 1) := by
+  let bFull (a : StreamSlotIn) :=
+    8 * (encStreamSlotIn a).length * (encStreamSlotIn a).length +
+      15 * (encStreamSlotIn a).length + 28
+  refine (((IndexFold.certificate_factorTimePolySpace
+    (NativeCertificate.ofPolyTime_isPolynomial computableInPolyTime_streamSlotCount)
+    (NativeCertificate.ofPolyTime_isPolynomial computableInPolyTime_streamSlotInit)
+    (.ofPolyTime computableInPolyTime_selectSlotStep)
+    (K := fun _ => 1) (B := bFull) (fun _ => le_rfl)
+    (PolyBounded.of_forall_le 51 2 fun a => by dsimp only [bFull]; nlinarith)
+    (fun _ _ _ => le_rfl) fun ⟨⟨⟨n, Q⟩, ⟨r, C⟩, edges⟩, ⟨slot, scheds⟩⟩ j hj => ?_).mono_const 1
+    fun ⟨⟨⟨_, _⟩, ⟨_, _⟩, _⟩, _⟩ => by dsimp only [streamSlotCount]; omega).comp_ofPolyTime
+    (fun _ => Nat.succ_pos _) computableInPolyTime_extractBestSlotWord).congr _
+  let L := (encStreamSlotIn (((n, Q), (r, C), edges), (slot, scheds))).length
+  have hed : edges.length ≤ (encList (encPair encNat encNat) edges).length := by
+    rw [length_encList]; generalize edges = l; induction l with
     | nil => simp only [List.length_nil, List.map_nil, List.sum_nil, le_rfl]
     | cons _ _ ih => simp only [List.length_cons, List.map_cons, List.sum_cons]; omega
-  simp only [encStreamSlotIn, encScoreParams, length_encPair, encUnary_apply, List.length_replicate]
-  exact ⟨by omega, by omega, by omega, by omega, by omega⟩
-
-private theorem hbFull_run_streamSlotInit_le (a : StreamSlotIn) {j : ℕ}
-    (hj : j ≤ streamSlotCount a) :
-    (encPair encNat encSlotSelectAcc (IndexFold.run selectSlotStep j (streamSlotInit a))).length ≤
-      8 * (encStreamSlotIn a).length * (encStreamSlotIn a).length +
-        15 * (encStreamSlotIn a).length + 28 := by
-  have hparts := streamSlotIn_parts_le a
-  rcases a with ⟨⟨⟨n, Q⟩, ⟨r, C⟩, edges⟩, ⟨slot, scheds⟩⟩
-  let L := (encStreamSlotIn (((n, Q), (r, C), edges), (slot, scheds))).length
+  have hL : n ≤ L ∧ Q ≤ L ∧ (encNat r).length ≤ L ∧ (encNat C).length ≤ L ∧ edges.length ≤ L := by
+    simp only [L, encStreamSlotIn, encScoreParams, length_encPair, encUnary_apply,
+      List.length_replicate]; exact ⟨by omega, by omega, by omega, by omega, by omega⟩
   have hsz {x : ℕ} (hx : x ≤ L) : (encNat x).length ≤ L := by
     rw [encNat_apply, Nat.size_eq_bits_len]; exact (Nat.size_le_self x).trans hx
-  have hnL := hsz hparts.1; have hQL := hsz hparts.2.1; have heL := hsz hparts.2.2.2.2
-  have hrL := hparts.2.2.1; have hCL := hparts.2.2.2.1
-  have hQr : 8 * Q * (encNat r).length ≤ 8 * L * L := by
-    simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 8 (Nat.mul_le_mul hparts.2.1 hrL)
+  have := hsz hL.1; have := hsz hL.2.1; have := hsz hL.2.2.2.2; have := hL.2.2.2.1
+  have := Nat.mul_le_mul_left 8 (Nat.mul_le_mul hL.2.1 hL.2.2.1)
   have hst := length_encSlotSelectState_run_le n Q r C edges scheds slot hj
-  change (encPair encNat encSlotSelectAcc
-    (IndexFold.run selectSlotStep j (((n, Q), (r, C), edges), (slot, (scheds, none))))).length ≤
-    8 * L * L + 15 * L + 28; linarith
-
-private theorem mkSlotCert_bounds
-    (cn : NativeCertificate streamSlotCount encStreamSlotIn encNat)
-    (ci : NativeCertificate streamSlotInit encStreamSlotIn encSlotSelectAcc)
-    (cb : NativeCertificate selectSlotStep (encPair encNat encSlotSelectAcc) encSlotSelectAcc)
-    (cEx : NativeCertificate extractBestSlotWord
-      (encPair encNat encSlotSelectAcc) (encList encNat))
-    {pCn pCi pCb pEx : ℕ → ℕ}
-    (hpCn : Cslib.PolynomiallyBounded pCn)
-    (hCn : ∀ a, cn.time a ≤ pCn (encStreamSlotIn a).length ∧
-      cn.space a ≤ pCn (encStreamSlotIn a).length)
-    (hpCi : Cslib.PolynomiallyBounded pCi)
-    (hCi : ∀ a, ci.time a ≤ pCi (encStreamSlotIn a).length ∧
-      ci.space a ≤ pCi (encStreamSlotIn a).length)
-    (hpCb : Cslib.PolynomiallyBounded pCb) (hmCb : Monotone pCb)
-    (hCb : ∀ s, cb.time s ≤ pCb (encPair encNat encSlotSelectAcc s).length ∧
-      cb.space s ≤ pCb (encPair encNat encSlotSelectAcc s).length)
-    (hpEx : Cslib.PolynomiallyBounded pEx) (hmEx : Monotone pEx)
-    (hEx : ∀ s, cEx.time s ≤ pEx (encPair encNat encSlotSelectAcc s).length ∧
-      cEx.space s ≤ pEx (encPair encNat encSlotSelectAcc s).length) :
-    ∃ poly : ℕ → ℕ, Cslib.PolynomiallyBounded poly ∧ Monotone poly ∧
-      ∀ a, (mkSlotCert cn ci cb cEx).time a ≤
-          (a.1.2.1.1 ^ a.1.1.2 + 1) * poly (encStreamSlotIn a).length ∧
-        (mkSlotCert cn ci cb cEx).space a ≤ poly (encStreamSlotIn a).length := by
-  let bFull (L : ℕ) := 8 * L * L + 15 * L + 28; let lIdx (L : ℕ) := L * L + 1
-  let roundOver (L : ℕ) := 3 * bFull L + 2 * (lIdx L + 1) ^ 2 + pCb (bFull L)
-  let initExt (L : ℕ) := pCn L + L + pCi L + pEx (bFull L) + lIdx L
-  have hraw : Cslib.PolynomiallyBounded (fun L => initExt L + roundOver L) := by
-    dsimp only [initExt, roundOver, bFull, lIdx]; fun_prop
-  obtain ⟨poly, hpoly, hmpoly, h0⟩ := exists_mono_poly (.of_polynomiallyBounded id hraw)
-  have h0 (n : ℕ) : initExt n + roundOver n ≤ poly n := h0 n
-  use poly, hpoly, hmpoly
-  intro a
-  let L := (encStreamSlotIn a).length; let K := streamSlotCount a
-  have hpolyL := h0 L; have hparts := streamSlotIn_parts_le a
-  have hlIdx : (encNat K).length ≤ lIdx L := (length_encNat_pow_le a.1.2.1.1 a.1.1.2).trans
-    (Nat.add_le_add_right (Nat.mul_le_mul hparts.2.1 hparts.2.2.1) 1)
-  let runAt (j : ℕ) := IndexFold.run selectSlotStep j (streamSlotInit a)
-  have hbFull (j : ℕ) (hj : j ≤ K) : (encPair encNat encSlotSelectAcc (runAt j)).length ≤ bFull L :=
-    hbFull_run_streamSlotInit_le a hj
-  let rstep := IndexFold.roundCertificate cb; let initPair := (0, streamSlotInit a)
-  let M := NativeCertificate.maxStateLength (encPair encNat encSlotSelectAcc)
-    (IndexFold.step selectSlotStep) K initPair
-  let RT := NativeCertificate.maxRoundTime rstep K initPair
-  let RS := NativeCertificate.maxRoundSpace rstep K initPair
-  have hmaxS : M ≤ bFull L :=
-    NativeCertificate.maxStateLength_le (encPair encNat encSlotSelectAcc)
-      (IndexFold.step selectSlotStep) K initPair hbFull
-  have hcn_a : cn.time a ≤ pCn L ∧ cn.space a ≤ pCn L := hCn a
-  have hci_a : ci.time a ≤ pCi L ∧ ci.space a ≤ pCi L := hCi a
-  have hexT : cEx.time (runAt K) ≤ pEx (bFull L) := (hEx _).1.trans (hmEx (hbFull K le_rfl))
-  have hexS : cEx.space (runAt K) ≤ pEx (bFull L) := (hEx _).2.trans (hmEx (hbFull K le_rfl))
-  constructor
-  · have hmaxRT : RT ≤ bFull L + (lIdx L + 1) ^ 2 + pCb (bFull L) := by
-      apply NativeCertificate.maxRoundTime_le rstep K initPair
-      intro j hj
-      have hj_len : (encNat (runAt j).1).length ≤ lIdx L := by
-        rw [IndexFold.run_index]; exact (length_encNat_mono hj).trans hlIdx
-      have hsq := Nat.pow_le_pow_left (Nat.add_le_add_right hj_len 1) 2
-      have hcbT : cb.time (runAt j) ≤ pCb (bFull L) := (hCb _).1.trans (hmCb (hbFull j hj))
-      have hst_len := hbFull j hj
-      change (encPair encNat encSlotSelectAcc (runAt j)).length +
-        ((encNat (runAt j).1).length + 1) ^ 2 + cb.time (runAt j) ≤ _; omega
-    have hsqK : ((encNat K).length + 1) ^ 2 ≤ (lIdx L + 1) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-    have hround : RT + M + ((encNat K).length + 1) ^ 2 ≤ roundOver L := by
-      dsimp only [roundOver]; omega
-    calc (mkSlotCert cn ci cb cEx).time a
-        = (cn.time a + (L + ci.time a) +
-            (K + 1) * (RT + M + ((encNat K).length + 1) ^ 2)) + cEx.time (runAt K) := rfl
-      _ ≤ initExt L + (K + 1) * roundOver L := by
-            have := Nat.mul_le_mul_left (K + 1) hround; dsimp only [initExt]; omega
-      _ ≤ (K + 1) * initExt L + (K + 1) * roundOver L :=
-            Nat.add_le_add_right (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)) _
-      _ = (K + 1) * (initExt L + roundOver L) := by ring
-      _ ≤ (K + 1) * poly L := Nat.mul_le_mul_left _ hpolyL
-  · have hmaxRS : RS ≤ bFull L + (lIdx L + 1) + pCb (bFull L) := by
-      apply NativeCertificate.maxRoundSpace_le rstep K initPair
-      intro j hj
-      have hj_len : (encNat (runAt j).1).length ≤ lIdx L := by
-        rw [IndexFold.run_index]; exact (length_encNat_mono hj).trans hlIdx
-      have hcbS : cb.space (runAt j) ≤ pCb (bFull L) := (hCb _).2.trans (hmCb (hbFull j hj))
-      have hst_len := hbFull j hj
-      change (encPair encNat encSlotSelectAcc (runAt j)).length +
-        ((encNat (runAt j).1).length + 1) + cb.space (runAt j) ≤ _; omega
-    have hlin_sq : lIdx L + 1 ≤ 2 * (lIdx L + 1) ^ 2 :=
-      (Nat.le_mul_self _).trans (by rw [sq]; omega)
-    calc (mkSlotCert cn ci cb cEx).space a
-        = (cn.space a + (L + ci.space a) + RS + M + (encNat K).length) + cEx.space (runAt K) := rfl
-      _ ≤ initExt L + roundOver L := by dsimp only [initExt, roundOver]; omega
-      _ ≤ poly L := hpolyL
+  rw [length_encPair] at hst; dsimp only [streamSlotInit, bFull]; nlinarith
 
 /-- Trajectory-maximum time and polynomial-workspace bounds for `streamBestSlotCertificate`. -/
 theorem streamBestSlotCertificate_bounds :
@@ -1215,12 +1129,8 @@ theorem streamBestSlotCertificate_bounds :
         let (((_, Q), (r, _), _), _) := a
         streamBestSlotCertificate.time a ≤
             (r ^ Q + 1) * poly (encStreamSlotIn a).length ∧
-          streamBestSlotCertificate.space a ≤ poly (encStreamSlotIn a).length := by
-  obtain ⟨pCn, hpCn, _, hCn⟩ := exists_mono_poly_cert computableInPolyTime_streamSlotCount
-  obtain ⟨pCi, hpCi, _, hCi⟩ := exists_mono_poly_cert computableInPolyTime_streamSlotInit
-  obtain ⟨pCb, hpCb, hmCb, hCb⟩ := exists_mono_poly_cert computableInPolyTime_selectSlotStep
-  obtain ⟨pEx, hpEx, hmEx, hEx⟩ := exists_mono_poly_cert computableInPolyTime_extractBestSlotWord
-  exact mkSlotCert_bounds _ _ _ _ hpCn hCn hpCi hCi hpCb hmCb hCb hpEx hmEx hEx
+          streamBestSlotCertificate.space a ≤ poly (encStreamSlotIn a).length :=
+  streamBestSlotCertificate_factorTimePolySpace.exists_mono_poly
 
 /-- `streamBestSlotLabel` runs in `O((r ^ Q + 1) * poly(|input|))` native time and polynomial
 workspace. -/
@@ -1233,10 +1143,8 @@ theorem computableInO_streamBestSlotLabel :
         (fun a =>
           let (((_, Q), (r, _), _), _) := a
           (r ^ Q + 1) * poly (encStreamSlotIn a).length)
-        (fun a => poly (encStreamSlotIn a).length) := by
-  obtain ⟨poly, hpoly, _, hB⟩ := streamBestSlotCertificate_bounds
-  exact ⟨poly, hpoly, streamBestSlotCertificate.computes.mono_le
-    (fun a => (hB a).1) (fun a => (hB a).2)⟩
+        (fun a => poly (encStreamSlotIn a).length) :=
+  streamBestSlotCertificate_factorTimePolySpace.exists_poly_computableInO
 
 /-- `streamBestSlotLabel` runs in polynomial workspace (`ComputableInPolySpace`) without
 materializing `r ^ Q` candidate words. -/
@@ -1244,9 +1152,8 @@ theorem computableInPolySpace_streamBestSlotLabel :
     ComputableInPolySpace
       (fun ((((n, Q), (r, C), edges), (slot, scheds)) : StreamSlotIn) =>
         streamBestSlotLabel n Q r C edges scheds slot)
-      encStreamSlotIn (encList encNat) := by
-  obtain ⟨poly, hpoly, c, hc, hl⟩ := computableInO_streamBestSlotLabel
-  exact ⟨_, fun n => c * (poly n + 1), by fun_prop, hc, hl⟩
+      encStreamSlotIn (encList encNat) :=
+  streamBestSlotCertificate_factorTimePolySpace.computableInPolySpace
 
 end Cslib.BalancedSchedules
 

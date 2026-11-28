@@ -58,10 +58,7 @@ open Turing.MultiTapeTM
 theorem digits_two_map_bne_zero (a : ℕ) :
     (Nat.digits 2 a).map (fun b => b != 0) = a.bits := by
   rw [Nat.digits_two_eq_bits, List.map_map]
-  have hfn : ((fun b : ℕ => b != 0) ∘ fun b : Bool => bif b then 1 else 0) = id := by
-    funext b
-    cases b <;> rfl
-  rw [hfn, List.map_id]
+  exact List.map_id'' (fun b => by cases b <;> rfl) _
 
 /-- `encodeNat a` is the unary length of `a.bits`, a `false` delimiter, and `a.bits`. -/
 theorem encodeNat_eq (a : ℕ) :

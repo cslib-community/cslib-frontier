@@ -73,22 +73,13 @@ open Cslib.DataStructure.Memory Cslib.DataStructure.PriorityQueue.BinaryHeap
 private theorem layout_fits {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K)
     {s : Memory.State} (hs : Memory.Inv L s) (hw : Memory.WellFormed w s) :
     ∀ i, Fits w (layoutWords ⟨n, L⟩ i) := by
-  intro i
-  fin_cases i
-  · exact hL.n_fits
-  · exact hw.fits_of_lt_frontier (hs.size_lt hL)
-  · change Fits w L.size.length
-    rw [hL.size_length]
-    apply hw.frontier_fits.of_le
-    have ha := hs.size_allocated
-    change L.size.base + L.size.length ≤ s.frontier at ha
-    rw [hL.size_length] at ha
-    omega
-  · change Fits w L.base
-    apply hw.frontier_fits.of_le
-    have ha := hs.arrays_allocated
-    change L.base + (3 * n + 1) ≤ s.frontier at ha
-    omega
+  have hsize : L.size.base + L.size.length ≤ s.frontier := hs.size_allocated
+  have harrays : L.base + (3 * n + 1) ≤ s.frontier := hs.arrays_allocated
+  exact fits_sigmaWords wordWords (fun _ => layoutBodyWords) (fun _ => hL.n_fits)
+    (layoutBodyWords_fits (a := L)
+      (blockWords_fits (hw.fits_of_lt_frontier (hs.size_lt hL))
+        (hw.frontier_fits.of_le (by rw [hL.size_length] at hsize ⊢; omega)))
+      (hw.frontier_fits.of_le (by omega)))
 
 /-- Each method preserves its exact source run and meets the native certificate entry domain. -/
 theorem implements {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K) :
@@ -156,14 +147,9 @@ one factor fixed before all runtime heap parameters. This excludes argument inst
 theorem bound {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K) :
     Bound (implementation L hL) id
       (fun _ o => Backend.factor certificates * (memoryBound o + 1)) := by
-  have hw : ∀ {s} o, (Memory.refinement hL).inv s →
-      (indexedMinPQSpec n K).valid ((Memory.refinement hL).abs s) o →
-      (certificates ((backend n K L).tag o)).work ((backend n K L).arg o) s ≤ 0 := by
-    intro s o _ _
-    cases o <;> exact Nat.le_refl 0
   intro s x o a y steps hr hv he
-  have h := Backend.bound (implements L hL) (source_amortized L hL) 0 hw hr hv he
-  simpa only [Nat.add_zero] using h
+  simpa only [Nat.add_zero] using Backend.bound (implements L hL) (source_amortized L hL) 0
+    (fun o _ _ => by cases o <;> exact Nat.le_refl 0) hr hv he
 
 /-- The same operation bounds after adding fixed initialization certificates to the bank.
 Only the selected method body is charged; extra tags do not install or execute arguments. -/
@@ -171,15 +157,9 @@ theorem bound_extend {ι : Type} [Fintype ι] (extra : ι → Certificate .exact
     {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K) :
     Bound (Backend.implementation ((implements L hL).extend extra)) id
       (fun _ o => Backend.factor (Sum.elim certificates extra) * (memoryBound o + 1)) := by
-  have hw : ∀ {s} o, (Memory.refinement hL).inv s →
-      (indexedMinPQSpec n K).valid ((Memory.refinement hL).abs s) o →
-      ((Sum.elim certificates extra) (((backend n K L).extend extra).tag o)).work
-        (((backend n K L).extend extra).arg o) s ≤ 0 := by
-    intro s o _ _
-    cases o <;> exact Nat.le_refl 0
   intro s x o a y steps hr hv he
-  have h := Backend.bound ((implements L hL).extend extra) (source_amortized L hL) 0 hw hr hv he
-  simpa only [Nat.add_zero] using h
+  simpa only [Nat.add_zero] using Backend.bound ((implements L hL).extend extra)
+    (source_amortized L hL) 0 (fun o _ _ => by cases o <;> exact Nat.le_refl 0) hr hv he
 
 /-- Every operation preserves all cells outside the existing heap layout, including inaccessible
 cells. The proof is the shared BackendFrame theorem specialized to a zero-room heap. -/
@@ -189,8 +169,7 @@ theorem modifies {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K)
     {a : o.Result} {steps : ℕ} (hr : (implementation L hL).rep s x)
     (hv : IndexedMinPQ.valid K s o) (he : (backend n K L).exec w x o a y steps) :
     Modifies L.footprint x.mem y.mem := by
-  have h := Backend.modifies (M := Memory.framed hL) (implements L hL) hr hv he
-  simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl,
-    Memory.framed_footprint] using h
+  simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl, Memory.framed_footprint]
+    using Backend.modifies (M := Memory.framed hL) (implements L hL) hr hv he
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native

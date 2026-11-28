@@ -8,10 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.ZModTwo
 public import Cslib.Foundations.Data.BitString
 public import Mathlib.RingTheory.AdjoinRoot
-import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Foundations.Data.BitString.Binary
 import Mathlib.Algebra.CharP.Algebra
 import Mathlib.FieldTheory.Finite.GaloisField
 import Mathlib.FieldTheory.Minpoly.Field
@@ -33,7 +34,7 @@ its elements by `w` bits via an additive equivalence (`Cslib.BinaryField.equivBi
 `b ≤ w` embed as the polynomials of degree less than `b` (`Cslib.BinaryField.embed`).
 
 The modulus is explicit: its code is the least code of an irreducible binary polynomial of degree
-`w`, which is computed by trial division (`Cslib.AffineDisperser.leastIrreducibleCode`), so the
+`w`, which is computed by trial division (`Cslib.leastIrreducibleCode`), so the
 field arithmetic is a computation on bit strings. This is why the field is the quotient
 `AdjoinRoot g` rather than Mathlib's `GaloisField 2 w`: the splitting field of `X ^ (2 ^ w) - X`
 comes with no basis. In `AdjoinRoot g` the power basis is the coefficient list itself, for every
@@ -50,6 +51,7 @@ need `w ≠ 0`.
 * `Cslib.BinaryField`: the explicit binary field of degree `w`.
 * `Cslib.BinaryField.basis`: its power basis over `𝔽₂`.
 * `Cslib.BinaryField.equivBits`: its additive equivalence with `BitString w`.
+* `Cslib.BinaryField.equivFin`: its numbering by `Fin (2 ^ w)`.
 * `Cslib.BinaryField.embed`: the embedding of bit strings of length `b ≤ w`.
 
 ## Main results
@@ -63,6 +65,8 @@ need `w ≠ 0`.
 * `Cslib.BinaryField.card`: the field has `2 ^ w` elements.
 * `Cslib.BinaryField.equivBits_mk`: the encoding of a polynomial of degree less than `w` is its list
   of coefficients.
+* `Cslib.BinaryField.val_equivFin_mk_polyOfCode`: a bounded polynomial code is unchanged by
+  `equivFin`.
 
 ## References
 
@@ -79,7 +83,6 @@ open BitString Module Polynomial
 `m`, least significant first. -/
 noncomputable def polyOfCode (m : ℕ) : (ZMod 2)[X] :=
   if m = 0 then 0 else C (m : ZMod 2) + X * polyOfCode (m / 2)
-decreasing_by omega
 
 /-- The code `0` gives the zero polynomial. -/
 @[simp]
@@ -91,12 +94,64 @@ theorem polyOfCode_two_mul_add (m : ℕ) (b : ZMod 2) :
     polyOfCode (2 * m + b.val) = C b + X * polyOfCode m := by
   have hb : b.val < 2 := ZMod.val_lt b
   rcases Nat.eq_zero_or_pos (2 * m + b.val) with h | h
-  · have hm : m = 0 := by omega
-    have hb0 : b = 0 := (ZMod.val_eq_zero b).1 (by omega)
-    subst hm hb0
+  · obtain ⟨rfl, rfl⟩ : m = 0 ∧ b = 0 := ⟨by omega, (ZMod.val_eq_zero b).1 (by omega)⟩
     simp [polyOfCode_zero]
-  · rw [polyOfCode, ite_eq_right h.ne', show (2 * m + b.val) / 2 = m by omega]
-    rw [Nat.cast_add, Nat.cast_mul, ZMod.natCast_self, zero_mul, zero_add, ZMod.natCast_zmod_val]
+  · rw [polyOfCode, ite_eq_right h.ne', show (2 * m + b.val) / 2 = m by omega, Nat.cast_add,
+      Nat.cast_mul, ZMod.natCast_self, zero_mul, zero_add, ZMod.natCast_zmod_val]
+
+/-- Appending a zero bit below a code multiplies its polynomial by `X`. -/
+theorem polyOfCode_two_mul (m : ℕ) : polyOfCode (2 * m) = X * polyOfCode m := by
+  simpa only [ZMod.val_zero, Nat.add_zero, map_zero, zero_add] using
+    polyOfCode_two_mul_add m 0
+
+/-- Appending a one bit below a code multiplies its polynomial by `X` and adds one. -/
+theorem polyOfCode_two_mul_add_one (m : ℕ) :
+    polyOfCode (2 * m + 1) = 1 + X * polyOfCode m := by
+  simpa only [ZMod.val_one, map_one] using polyOfCode_two_mul_add m 1
+
+/-- The code `1` gives the constant polynomial one. -/
+theorem polyOfCode_one : polyOfCode 1 = 1 := by
+  simpa only [Nat.mul_zero, Nat.zero_add, polyOfCode_zero, mul_zero, add_zero] using
+    polyOfCode_two_mul_add_one 0
+
+/-- The code `2` gives `X`. -/
+theorem polyOfCode_two : polyOfCode 2 = X := by
+  simpa only [Nat.mul_one, polyOfCode_one, mul_one] using polyOfCode_two_mul 1
+
+/-- The code `3` gives `1 + X`. -/
+theorem polyOfCode_three : polyOfCode 3 = 1 + X := by
+  simpa only [Nat.mul_one, polyOfCode_one, mul_one] using polyOfCode_two_mul_add_one 1
+
+/-- Unfolding `polyOfCode m` into its constant term `m : ZMod 2` and `X * polyOfCode (m / 2)`. -/
+theorem polyOfCode_eq_C_add_X_mul (m : ℕ) :
+    polyOfCode m = C (m : ZMod 2) + X * polyOfCode (m / 2) := by
+  rcases eq_or_ne m 0 with rfl | hm
+  · simp [polyOfCode_zero]
+  · rw [polyOfCode, ite_eq_right hm]
+
+/-- Casting a natural number to `ZMod 2` reads its least significant bit. -/
+theorem natCast_zmod_two_eq (m : ℕ) :
+    (m : ZMod 2) = if m % 2 = 1 then 1 else 0 := by
+  rw [← ZMod.natCast_mod]
+  rcases Nat.mod_two_eq_zero_or_one m with h | h <;> simp [h]
+
+/-- Coefficient `i` of `polyOfCode m` is bit `i` of `m` read in `ZMod 2`. -/
+theorem coeff_polyOfCode (m i : ℕ) :
+    (polyOfCode m).coeff i = bitEquiv.symm (m.testBit i) := by
+  induction i generalizing m with
+  | zero =>
+    rw [polyOfCode_eq_C_add_X_mul]
+    simp only [coeff_add, coeff_C_zero, coeff_X_mul_zero, add_zero, Nat.testBit_zero,
+      natCast_zmod_two_eq]
+    rcases Nat.mod_two_eq_zero_or_one m with h | h <;> simp [h]
+  | succ i ih =>
+    rw [polyOfCode_eq_C_add_X_mul, coeff_add, coeff_C_succ, zero_add, coeff_X_mul,
+      ih (m / 2), Nat.testBit_succ]
+
+/-- `polyOfCode` is injective: distinct natural numbers have distinct binary polynomials. -/
+theorem polyOfCode_injective : Function.Injective polyOfCode := fun _ _ hab =>
+  Nat.eq_of_testBit_eq fun i => by
+    simpa [coeff_polyOfCode] using congrArg (fun p => bitEquiv (p.coeff i)) hab
 
 /-- The code `m ≠ 0` gives a nonzero polynomial of degree `⌊log₂ m⌋`. -/
 theorem polyOfCode_ne_zero_and_natDegree {m : ℕ} (hm : m ≠ 0) :
@@ -105,23 +160,24 @@ theorem polyOfCode_ne_zero_and_natDegree {m : ℕ} (hm : m ≠ 0) :
   | _ m ih =>
     rcases lt_or_ge m 2 with h | h
     · obtain rfl : m = 1 := by omega
-      have h1 : polyOfCode 1 = 1 := by
-        simpa [polyOfCode_zero, ZMod.val_one] using polyOfCode_two_mul_add 0 1
-      rw [h1, Nat.log_one_right]
-      exact ⟨one_ne_zero, natDegree_one⟩
+      simp [polyOfCode_one]
     · obtain ⟨hne, hdeg⟩ := ih (m / 2) (by omega) (by omega)
-      have heq : polyOfCode m = X * polyOfCode (m / 2) + C (m : ZMod 2) := by
-        rw [polyOfCode, ite_eq_right hm, add_comm]
       have hd : (polyOfCode m).natDegree = Nat.log 2 m := by
-        rw [heq, natDegree_add_C, natDegree_X_mul hne, hdeg,
+        rw [polyOfCode, ite_eq_right hm, add_comm, natDegree_add_C, natDegree_X_mul hne, hdeg,
           ← Nat.log_of_one_lt_of_le one_lt_two h]
-      refine ⟨fun h0 => ?_, hd⟩
-      rw [h0, natDegree_zero, Nat.log_of_one_lt_of_le one_lt_two h] at hd
-      omega
+      exact ⟨fun h0 => (Nat.log_pos one_lt_two h).ne (by simpa [h0] using hd), hd⟩
 
 /-- The code `m ≠ 0` gives a polynomial of degree `⌊log₂ m⌋`. -/
 theorem natDegree_polyOfCode {m : ℕ} (hm : m ≠ 0) : (polyOfCode m).natDegree = Nat.log 2 m :=
   (polyOfCode_ne_zero_and_natDegree hm).2
+
+/-- If `m < 2 ^ k`, then `polyOfCode m` has degree strictly less than `k`. -/
+theorem degree_polyOfCode_lt {m k : ℕ} (hm : m < 2 ^ k) :
+    (polyOfCode m).degree < k := by
+  rcases eq_or_ne m 0 with rfl | hm0
+  · simp
+  · rw [degree_eq_natDegree (polyOfCode_ne_zero_and_natDegree hm0).1, natDegree_polyOfCode hm0]
+    exact_mod_cast Nat.log_lt_of_lt_pow hm0 hm
 
 /-- Every binary polynomial has a code. -/
 theorem polyOfCode_surjective : Function.Surjective polyOfCode := by
@@ -130,13 +186,12 @@ theorem polyOfCode_surjective : Function.Surjective polyOfCode := by
   | _ d ih =>
     rcases Nat.eq_zero_or_pos d with rfl | hd0
     · refine ⟨(g.coeff 0).val, ?_⟩
-      have := polyOfCode_two_mul_add 0 (g.coeff 0)
-      rw [mul_zero, zero_add, polyOfCode_zero, mul_zero, add_zero] at this
-      rw [this, ← eq_C_of_natDegree_eq_zero hd]
+      rw [eq_C_of_natDegree_eq_zero hd]
+      simpa using polyOfCode_two_mul_add 0 (g.coeff 0)
     · obtain ⟨m, hm⟩ := ih (d - 1) (by omega) g.divX
         (by rw [natDegree_divX_eq_natDegree_tsub_one, hd])
-      refine ⟨2 * m + (g.coeff 0).val, ?_⟩
-      rw [polyOfCode_two_mul_add, hm, add_comm, X_mul_divX_add]
+      exact ⟨2 * m + (g.coeff 0).val,
+        by rw [polyOfCode_two_mul_add, hm, add_comm, X_mul_divX_add]⟩
 
 /-- There is an irreducible binary polynomial of every positive degree `p`: the minimal polynomial
 of a primitive element of `𝔽_{2 ^ p}`. -/
@@ -173,27 +228,22 @@ theorem leastIrreducible_zero : leastIrreducible 0 = X := by
   classical
   rw [leastIrreducible, dite_eq_right]
   rintro ⟨m, hm, hdeg⟩
-  rw [natDegree_eq_zero] at hdeg
-  obtain ⟨c, hc⟩ := hdeg
-  rw [← hc] at hm
+  obtain ⟨c, hc⟩ := natDegree_eq_zero.1 hdeg
   rcases eq_or_ne c 0 with rfl | hc0
-  · exact hm.ne_zero (by simp)
-  · exact hm.not_isUnit (isUnit_C.2 (Ne.isUnit hc0))
+  · exact hm.ne_zero (by simp [← hc])
+  · exact hm.not_isUnit (hc ▸ isUnit_C.2 hc0.isUnit)
 
 /-- `leastIrreducible w` is irreducible for every degree `w`, including `w = 0`. -/
 theorem irreducible_leastIrreducible (w : ℕ) : Irreducible (leastIrreducible w) := by
   classical
   rcases eq_or_ne w 0 with rfl | hw
-  · rw [leastIrreducible_zero]
-    exact irreducible_X
-  · rw [leastIrreducible_eq hw]
-    exact (Nat.find_spec (exists_code_irreducible hw)).1
+  · exact leastIrreducible_zero ▸ irreducible_X
+  · exact leastIrreducible_eq hw ▸ (Nat.find_spec (exists_code_irreducible hw)).1
 
 /-- For `p ≠ 0`, `leastIrreducible p` has degree `p`. -/
 theorem natDegree_leastIrreducible {p : ℕ} (hp : p ≠ 0) : (leastIrreducible p).natDegree = p := by
   classical
-  rw [leastIrreducible_eq hp]
-  exact (Nat.find_spec (exists_code_irreducible hp)).2
+  exact leastIrreducible_eq hp ▸ (Nat.find_spec (exists_code_irreducible hp)).2
 
 /-- **The exhaustive search**: `leastIrreducible p` is `polyOfCode m` for a code
 `2 ^ p ≤ m < 2 ^ (p + 1)` such that no smaller code is irreducible of degree `p`. -/
@@ -203,14 +253,10 @@ theorem exists_code_leastIrreducible {p : ℕ} (hp : p ≠ 0) :
   classical
   have hspec := Nat.find_spec (exists_code_irreducible hp)
   set m := Nat.find (exists_code_irreducible hp)
-  have hm0 : m ≠ 0 := by
-    intro h
-    rw [h, polyOfCode_zero] at hspec
-    exact hspec.1.ne_zero rfl
+  have hm0 : m ≠ 0 := fun h => hspec.1.ne_zero (by simp [h])
   have hlog := (natDegree_polyOfCode hm0).symm.trans hspec.2
-  refine ⟨m, ?_, ?_, leastIrreducible_eq hp, fun m' hm' => Nat.find_min _ hm'⟩
-  · exact hlog ▸ Nat.pow_log_le_self 2 hm0
-  · exact hlog ▸ Nat.lt_pow_succ_log_self one_lt_two m
+  exact ⟨m, hlog ▸ Nat.pow_log_le_self 2 hm0, hlog ▸ Nat.lt_pow_succ_log_self one_lt_two m,
+    leastIrreducible_eq hp, fun _ => Nat.find_min _⟩
 
 /-- Every nonzero binary polynomial is monic. -/
 theorem monic_of_ne_zero {q : (ZMod 2)[X]} (hq : q ≠ 0) : q.Monic :=
@@ -284,13 +330,42 @@ coefficients. -/
 theorem equivBits_mk {w : ℕ} (hw : w ≠ 0) {p : (ZMod 2)[X]} (hp : p.degree < w) (j : Fin w) :
     equivBits hw (AdjoinRoot.mk (leastIrreducible w) p) j = bitEquiv (p.coeff j) := by
   have hdeg : p.degree < (leastIrreducible w).degree := by
-    rw [degree_eq_natDegree (irreducible_leastIrreducible w).ne_zero,
+    rwa [degree_eq_natDegree (irreducible_leastIrreducible w).ne_zero,
       natDegree_leastIrreducible hw]
-    exact hp
   rw [equivBits_apply, basis, Module.Basis.repr_reindex_apply,
     AdjoinRoot.powerBasisAux'_repr_apply_to_fun, AdjoinRoot.modByMonicHom_mk,
     (modByMonic_eq_self_iff (monic_leastIrreducible w)).2 hdeg]
   rfl
+
+/-- **Numbering of `BinaryField w` by `Fin (2 ^ w)`** via its power-basis bits. -/
+noncomputable def equivFin {w : ℕ} (hw : w ≠ 0) : BinaryField w ≃ Fin (2 ^ w) :=
+  (equivBits hw).toEquiv.trans (BitString.equivFin w)
+
+/-- For `c < 2 ^ w`, the `equivFin hw` coordinate of
+`AdjoinRoot.mk (leastIrreducible w) (polyOfCode c)` is `c`. -/
+theorem val_equivFin_mk_polyOfCode {w c : ℕ} (hw : w ≠ 0) (hc : c < 2 ^ w) :
+    (equivFin hw (AdjoinRoot.mk (leastIrreducible w) (polyOfCode c))).val = c := by
+  have hbits : equivBits hw (AdjoinRoot.mk (leastIrreducible w) (polyOfCode c)) =
+      (BitString.equivFin w).symm ⟨c, hc⟩ := by
+    ext j
+    rw [equivBits_mk hw (degree_polyOfCode_lt hc) j, coeff_polyOfCode,
+      RingEquiv.apply_symm_apply, BitString.equivFin_symm_apply]
+  change (BitString.equivFin w
+    (equivBits hw (AdjoinRoot.mk (leastIrreducible w) (polyOfCode c)))).val = c
+  rw [hbits, Equiv.apply_symm_apply]
+
+/-- The inverse of `equivFin hw` sends `m : Fin (2 ^ w)` to
+`AdjoinRoot.mk (leastIrreducible w) (polyOfCode m.val)`. -/
+theorem equivFin_symm_eq_mk_polyOfCode {w : ℕ} (hw : w ≠ 0) (m : Fin (2 ^ w)) :
+    (equivFin hw).symm m = AdjoinRoot.mk (leastIrreducible w) (polyOfCode m.val) := by
+  apply (equivFin hw).injective
+  rw [Equiv.apply_symm_apply]
+  exact Fin.ext (val_equivFin_mk_polyOfCode hw m.isLt).symm
+
+/-- Every `x : BinaryField w` is the class of `polyOfCode (equivFin hw x).val`. -/
+theorem mk_polyOfCode_val_equivFin {w : ℕ} (hw : w ≠ 0) (x : BinaryField w) :
+    AdjoinRoot.mk (leastIrreducible w) (polyOfCode (equivFin hw x).val) = x := by
+  rw [← equivFin_symm_eq_mk_polyOfCode hw, Equiv.symm_apply_apply]
 
 /-- **The embedding of bit strings of length `b ≤ w`**: a bit string is the polynomial with these
 coefficients, padded with zeros to length `w`. -/

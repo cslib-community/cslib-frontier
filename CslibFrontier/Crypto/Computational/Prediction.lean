@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Basic
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -65,17 +65,12 @@ theorem trialPredictor_gap (test : Bool → ProbComp Bool) (truth : Bool) :
     Pr[test truth] - (Pr[test false] + Pr[test true]) / 2 =
       (Pr[(fun guess => guess == truth) <$> trialPredictor test false] +
         Pr[(fun guess => guess == truth) <$> trialPredictor test true] - 1) / 2 := by
-  cases truth with
-  | false =>
-    simp only [trialPredictor, Bool.not_false, Bool.not_true, beq_false,
+  cases truth <;>
+    simp only [trialPredictor, Bool.not_false, Bool.not_true, beq_false, beq_true,
       Functor.map_map, Bool.ite_true_right, Bool.ite_false_right, Bool.decide_eq_true,
       Bool.or_false, Bool.and_true, Bool.not_not, id_map', ProbComp.probability_not]
-    ring
-  | true =>
-    simp only [beq_true, trialPredictor, Bool.not_false, Bool.ite_true_right,
-      Bool.decide_eq_true, Bool.or_false, Functor.map_map, Bool.not_true, Bool.ite_false_right,
-      Bool.and_true, id_map']
-    rw [show (fun accept => !accept) = Bool.not from rfl, ProbComp.probability_not]
+  · ring
+  · rw [show (fun accept => !accept) = Bool.not from rfl, ProbComp.probability_not]
     ring
 
 /-- Randomizing the trial averages the two fixed predictors' correctness probabilities. -/

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Fixed registers of the per-record witness controller
@@ -60,20 +61,6 @@ theorem Fixed.of_frame {n first length out queries count : ℕ} {x y : Data 400}
     (hx : Fixed n first length out queries count x)
     (he : ∀ i : Fin 400, i.val < 326 ∨ i = Reg.one ∨ i = Reg.zero ∨
       (345 ≤ i.val ∧ i.val ≤ 348) ∨ (351 ≤ i.val ∧ i.val ≤ 352) →
-      y.regs i = x.regs i) : Fixed n first length out queries count y where
-  output := (he _ (by decide)).trans hx.output
-  queries := (he _ (by decide)).trans hx.queries
-  count := (he _ (by decide)).trans hx.count
-  size := (he _ (by decide)).trans hx.size
-  first := (he _ (by decide)).trans hx.first
-  length := (he _ (by decide)).trans hx.length
-  one := (he _ (by decide)).trans hx.one
-  zero := (he _ (by decide)).trans hx.zero
-  ab := (he _ (by decide)).trans hx.ab
-  bc := (he _ (by decide)).trans hx.bc
-  ac := (he _ (by decide)).trans hx.ac
-  scanSize := (he _ (by decide)).trans hx.scanSize
-  scanFirst := (he _ (by decide)).trans hx.scanFirst
-  scanLength := (he _ (by decide)).trans hx.scanLength
+      y.regs i = x.regs i) : Fixed n first length out queries count y := by regs_frame
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

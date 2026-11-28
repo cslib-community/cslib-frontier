@@ -26,10 +26,15 @@ The simp set `supp_norm` does the rewriting, and `supp_cases h` does it and dest
 result. The set covers `PMF` and the possible results `OracleComp.supportWith` of oracle
 programs, including `OracleComp.support` and `ProbComp`. Membership in the support of
 
-* `p >>= f`, `PMF.bind p f`: `∃ a, a ∈ p.support ∧ x ∈ (f a).support`;
-* `f <$> p`, `PMF.map f p`: `∃ a, a ∈ p.support ∧ f a = x`;
+* `p >>= f`, `PFunctor.FreeM.bind p f`, `PMF.bind p f`:
+  `∃ a, a ∈ p.support ∧ x ∈ (f a).support`;
+* `f <$> p`, `PFunctor.FreeM.map f p`, `PMF.map f p`:
+  `∃ a, a ∈ p.support ∧ f a = x`;
 * `pure a`, `PMF.pure a`: `x = a`;
 * `if c then p else q`: `c ∧ x ∈ p.support ∨ ¬c ∧ x ∈ q.support`;
+* `if h : c then p h else q h` of `PMF`s:
+  `(∃ h, x ∈ (p h).support) ∨ ∃ h, x ∈ (q h).support`, keeping the condition proof that the
+  selected branch uses (a dependent `if` of oracle programs is not rewritten);
 * a uniform draw (`ProbComp.unifFin`, `ProbComp.uniform`, `PMF.uniformOfFintype`) or a query
   answered from `Set.univ`: `True`, so the drawn value has no membership hypothesis;
 * the law `ProbComp.eval m` of a program: as for `m`, through `PMF.bind`, `PMF.map` and
@@ -46,10 +51,11 @@ the existentials is the order of the program, so `rcases` patterns follow its bi
 * `supp_cases h with pat`: rewrite `h` with `supp_norm` and destructure it with the `rcases`
   pattern `pat`.
 
-## Main results
+## Support normalization lemmas
 
-* `Cslib.Probability.PMF.mem_support_ite_iff`, `Cslib.OracleComp.mem_supportWith_ite_iff`:
-  membership in the support of a conditional, as a disjunction over the condition.
+* `Cslib.Probability.PMF.mem_support_ite_iff`, `Cslib.Probability.PMF.mem_support_dite_iff`,
+  `Cslib.OracleComp.mem_supportWith_ite_iff`: membership in the support of a conditional, as a
+  disjunction over the condition.
 -/
 
 public section
@@ -61,6 +67,13 @@ the condition selects. -/
 theorem Probability.PMF.mem_support_ite_iff {α : Type*} (c : Prop) [Decidable c] (p q : PMF α)
     (x : α) : x ∈ (if c then p else q).support ↔ c ∧ x ∈ p.support ∨ ¬c ∧ x ∈ q.support := by
   by_cases hc : c <;> simp [hc]
+
+/-- Support membership in a dependent conditional keeps the proof selecting its branch. -/
+theorem Probability.PMF.mem_support_dite_iff {α : Type*} (c : Prop) [Decidable c]
+    (p : c → PMF α) (q : ¬c → PMF α) (x : α) :
+    x ∈ (if h : c then p h else q h).support ↔
+      (∃ h, x ∈ (p h).support) ∨ ∃ h, x ∈ (q h).support := by
+  rw [apply_dite (fun p : PMF α => x ∈ p.support), dite_prop_iff_or]
 
 /-- A possible result of a conditional program is a possible result of the branch the condition
 selects. -/
@@ -74,13 +87,15 @@ theorem OracleComp.mem_supportWith_ite_iff {ι : Type*} {spec : OracleSpec ι} {
 attribute [supp_norm]
   -- monad notation on `PMF`, and the law of a closed program
   Probability.PMF.monad_bind_eq_bind Probability.PMF.monad_pure_eq_pure PMF.monad_map_eq_map
-  ProbComp.eval_bind ProbComp.eval_pure ProbComp.eval_map ProbComp.eval_unifFin
-  ProbComp.eval_uniform
+  ProbComp.eval_bind ProbComp.eval_freeMBind ProbComp.eval_pure
+  ProbComp.eval_map ProbComp.eval_freeMMap ProbComp.eval_unifFin ProbComp.eval_uniform
   -- supports of `PMF`
   PMF.mem_support_bind_iff PMF.mem_support_map_iff PMF.mem_support_pure_iff
-  Probability.PMF.mem_support_ite_iff Probability.PMF.mem_support_uniformOfFintype
+  Probability.PMF.mem_support_ite_iff Probability.PMF.mem_support_dite_iff
+  Probability.PMF.mem_support_uniformOfFintype
   -- possible results of oracle programs
-  OracleComp.mem_supportWith_bind_iff OracleComp.mem_supportWith_map_iff
+  OracleComp.mem_supportWith_bind_iff OracleComp.mem_supportWith_freeMBind_iff
+  OracleComp.mem_supportWith_map_iff OracleComp.mem_supportWith_freeMMap_iff
   OracleComp.supportWith_pure OracleComp.supportWith_query OracleComp.mem_supportWith_ite_iff
   ProbComp.mem_support_unifFin
   -- the shape of the result
@@ -160,9 +175,9 @@ private partial def destruct (g : MVarId) : List Name → MetaM (List MVarId)
 
 /-- `supp_cases h` inverts a hypothesis `h : x ∈ m.support`, where `m` is a `PMF` or an
 `OracleComp` program (`OracleComp.supportWith`, `OracleComp.support`, `ProbComp`) built from
-`bind`, `map`, `pure`, `if` and uniform draws. It rewrites `h` with the simp set `supp_norm` into
-existentials over the supports of the parts of `m` and equations for its returned values, in the
-order of the program, then destructures it:
+`bind`, `map`, `pure`, `if` and uniform draws; between `PMF`s the `if` may be dependent. It
+rewrites `h` with the simp set `supp_norm` into existentials over the supports of the parts of
+`m` and equations for its returned values, in the order of the program, then destructures it:
 
 * `supp_cases h` destructures completely: each intermediate result and each support hypothesis
   is introduced with an inaccessible name, conditionals split into one goal per branch, and every
@@ -171,6 +186,9 @@ order of the program, then destructures it:
 * `supp_cases h with ⟨a, ha, b, hb, rfl⟩` destructures with an `rcases` pattern instead.
 * `supp_cases h [foo_def, hc]` first adds the given simp lemmas to the rewriting, to unfold a
   named program or decide a condition.
+* After importing `CslibFrontier.Languages.Probabilistic.Oracle.Norm`,
+  `supp_cases h [runWith_norm, foo_def]` also normalizes a stateful oracle run, retaining support
+  hypotheses for opaque subprograms.
 
 It fails when `h` does not state a membership in a support, and when the simp set does not apply
 to it, for instance because the program is a definition that must be unfolded first. -/

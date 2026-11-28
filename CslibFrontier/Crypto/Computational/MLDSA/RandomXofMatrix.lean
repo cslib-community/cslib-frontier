@@ -1,0 +1,260 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `runAtSetup`, `verified_programmedTrial`, `matrixTrial`, and `forgeryGame`.
+import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `Cell`, `address`, `cellAt_address`, and `Xofs.withMatrixPrefixes`.
+import all CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
+-- Reads private `Table`, `RawWord`, `install`, and `independent_tables`, plus `uniformPrefixes`.
+import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.UniformExtend
+
+/-!
+# Drawing the ML-DSA matrix inside the shared random-XOF game
+
+[FIPS 204][NISTFIPS204], Algorithm 6 derives the public seed through SHAKE256 and reads
+its matrix under SHAKE128. Conditional on that seed, the matrix addresses are distinct entries
+of the independent SHAKE128 table. Resampling the 894-byte prefixes there preserves the
+distribution of the entire pair of raw oracles, including every longer and overlapping read.
+-/
+
+public section
+
+namespace Cslib.Crypto.MLDSA.FIPS204
+
+open Cslib.Probability ExtendableOutput
+
+private abbrev MatrixByte (s : Level) := Cell s × Fin 894
+
+private def flatten (s : Level) : MatrixPrefixes s ≃ (MatrixByte s → Byte) where
+  toFun t p := t p.1.1 p.1.2 p.2
+  invFun f i j k := f ((i, j), k)
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+private theorem address_length (rho : List Byte) {s : Level} (p : Cell s) :
+    (address rho p).length = 8 * (rho.length + 2) := by
+  simp [address, Keccak.length_bytesToBitsLE]
+
+private def point {a b : ℕ} {s : Level} (rho : List Byte) (ha : 8 * (rho.length + 2) ≤ a)
+    (hb : 894 ≤ b) (p : MatrixByte s) : RawWord a × Fin b :=
+  (word (address rho p.1) ((address_length ..).le.trans ha), Fin.castLE hb p.2)
+
+private theorem point_injective {a b : ℕ} {s : Level} (rho : List Byte)
+    (ha : 8 * (rho.length + 2) ≤ a) (hb : 894 ≤ b) :
+    Function.Injective (point (s := s) rho ha hb) := by
+  intro p q h
+  have hc := congrArg (cellAt s rho) (word_inj (hx := (address_length rho p.1).le.trans ha)
+    (hy := (address_length rho q.1).le.trans ha) (congrArg Prod.fst h))
+  simp only [cellAt_address, Option.some.injEq] at hc
+  exact Prod.ext hc (Fin.ext (congrArg (fun v => v.2.val) h))
+
+private theorem overwrite {a b : ℕ} {s : Level} (base : Xofs) (t : Table a b)
+    (rho : List Byte) (ha : 8 * (rho.length + 2) ≤ a) (hb : 894 ≤ b) (g : MatrixPrefixes s) :
+    ({base with h128 := install base.h128 t} : Xofs).withMatrixPrefixes s rho g =
+      {base with
+        h128 := install base.h128 (Function.extend (point rho ha hb) (flatten s g) t)} := by
+  unfold Xofs.withMatrixPrefixes
+  apply congrArg (fun stream => Xofs.mk stream base.h256)
+  apply ext_byteAt
+  intro x i
+  change byteAt ((install base.h128 t).withPrefixes _) x i = _
+  rw [byteAt_withPrefixes]
+  simp only [byteAt_install]
+  by_cases h : x.length ≤ a ∧ i < b
+  · simp only [dite_eq_left h]
+    let z : RawWord a × Fin b := (word x h.1, ⟨i, h.2⟩)
+    by_cases hit : ∃ p : MatrixByte s, point rho ha hb p = z
+    · obtain ⟨p, hp⟩ := hit
+      obtain rfl := word_inj (hx := (address_length rho p.1).le.trans ha) (hy := h.1)
+        (congrArg Prod.fst hp)
+      obtain rfl : p.2.val = i := congrArg (fun z => z.2.val) hp
+      change _ = Function.extend (point rho ha hb) (flatten s g) t z
+      rw [← hp, (point_injective rho ha hb).extend_apply]
+      simp only [cellAt_address, Option.map_some, Option.bind_some, List.getElem?_ofFn,
+        dite_eq_left p.2.isLt, Option.getD_some, flatten, Equiv.coe_fn_mk, Fin.eta]
+    · change _ = Function.extend (point rho ha hb) (flatten s g) t z
+      rw [Function.extend_apply' _ _ _ hit]
+      cases hc : cellAt s rho x with
+      | none => rfl
+      | some cell =>
+        obtain rfl := address_of_cellAt hc
+        have hi : ¬ i < 894 := fun small => hit ⟨(cell, ⟨i, small⟩), rfl⟩
+        simp only [Option.map_some, Option.bind_some, List.getElem?_ofFn, dite_eq_right hi,
+          Option.getD_none, z]
+  · simp only [dite_eq_right h]
+    cases hc : cellAt s rho x with
+    | none => rfl
+    | some cell =>
+      obtain rfl := address_of_cellAt hc
+      have hi : ¬ i < 894 := fun small => h ⟨(address_length ..).le.trans ha, small.trans_le hb⟩
+      simp only [Option.map_some, Option.bind_some, List.getElem?_ofFn, dite_eq_right hi,
+        Option.getD_none]
+
+private theorem resample_at_seed {a b : ℕ} {s : Level} (base : Xofs) (rho : List Byte)
+    (ha : 8 * (rho.length + 2) ≤ a) (hb : 894 ≤ b) {α : Type} (k : Xofs → PMF α) :
+    ((PMF.uniformOfFintype (Table a b)).bind fun t =>
+      (PMF.uniformOfFintype (MatrixPrefixes s)).bind fun g =>
+        k (({base with h128 := install base.h128 t} : Xofs).withMatrixPrefixes s rho g)) =
+      (PMF.uniformOfFintype (Table a b)).bind fun t =>
+        k {base with h128 := install base.h128 t} := by
+  let finish (t : Table a b) := k {base with h128 := install base.h128 t}
+  have eq := PMF.uniformOfFintype_bind_bind_extend (κ := Byte)
+    (point (s := s) rho ha hb) finish
+  rw [← PMF.uniformOfFintype_map_equiv (flatten s)] at eq
+  simpa only [overwrite base _ rho ha hb, PMF.bind_map, finish, Function.comp_def] using eq
+
+/-- Resampling the SHAKE128 matrix rows at the public FIPS seed preserves every continuation
+of the joint XOFs and original 32-byte key seed, including later adaptive queries. -/
+theorem uniformPrefixes_resampleMatrix (base : Xofs) (s : Level) {a b : ℕ}
+    (ha : 272 ≤ a) (hb : 894 ≤ b) {α : Type} (run : Xofs → FixedBytes 32 → PMF α) :
+    let R := base.uniformPrefixes a b
+    let S := PMF.uniformOfFintype (FixedBytes 32)
+    (R.bind fun H => S.bind fun seed =>
+      (PMF.uniformOfFintype (MatrixPrefixes s)).bind fun t =>
+        run (H.withMatrixPrefixes s ((H.expandKeySeed s seed).take 32) t) seed) =
+      R.bind fun H => S.bind fun seed => run H seed := by
+  intro R S
+  let U := PMF.uniformOfFintype (Table a b)
+  simp only [R, independent_tables, PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  apply congrArg (PMF.bind U ·)
+  funext t
+  rw [PMF.bind_comm U S, PMF.bind_comm U S]
+  apply congrArg (PMF.bind S ·)
+  funext seed
+  let G : Xofs := {base with h256 := install base.h256 t}
+  let rho := (G.expandKeySeed s seed).take 32
+  have len : rho.length ≤ 32 := List.length_take_le ..
+  exact resample_at_seed (s := s) G rho (by lia) hb (fun H => run H seed)
+
+private def readSetup (s : Level) (H : Xofs) (seed : FixedBytes 32) :
+    Xofs × Option (PublicMatrix s × KeyPair) := (H, do
+  let keys ← H.keyGen s seed
+  let A ← H.expandA s (keys.publicKey.take 32)
+  return (A, keys))
+
+/-- Sampling the independent FIPS matrix prefixes inside an already sampled pair of random
+XOFs preserves their entire joint law with the honest public matrix and key pair. The table
+covers every 34-byte matrix input and its first 894 output bytes. -/
+theorem uniformPrefixes_matrixSetup (base : Xofs) (s : Level) {a b : ℕ}
+    (ha : 272 ≤ a) (hb : 894 ≤ b) :
+    ((base.uniformPrefixes a b).bind fun H => matrixSetup H s) =
+      (base.uniformPrefixes a b).bind (fun H =>
+        (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => (H, do
+          let keys ← H.keyGen s seed
+          let A ← H.expandA s (keys.publicKey.take 32)
+          return (A, keys))) := by
+  simpa only [matrixSetup, readSetup, PMF.map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    Function.comp_def] using
+    uniformPrefixes_resampleMatrix base s ha hb (fun H seed => PMF.pure (readSetup s H seed))
+
+/-- The mass of a successful Algorithm 6 setup at any particular matrix is at most its
+uniform mass. The comparison averages over the seed and raw XOFs and retains setup failure. -/
+theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 272 ≤ a) (hb : 894 ≤ b) (A : PublicMatrix s) :
+    let matrices := (base.uniformPrefixes a b).bind fun H =>
+      (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+        let keys ← H.keyGen s seed
+        H.expandA s (keys.publicKey.take 32)
+    matrices (some A) ≤ PMF.uniformOfFintype (PublicMatrix s) A := by
+  classical
+  intro matrices
+  let R := base.uniformPrefixes a b
+  let U := PMF.uniformOfFintype (PublicMatrix s)
+  let f (x : Xofs × Option (PublicMatrix s × KeyPair)) := x.2.map Prod.fst
+  have eq : (R.bind fun H => matrixSetup H s).map f = matrices := by
+    rw [uniformPrefixes_matrixSetup base s ha hb]
+    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, matrices]
+    refine congrArg (PMF.bind R ·) (funext fun H => congrArg (PMF.map · _) (funext fun seed => ?_))
+    cases H.keyGen s seed <;> simp [f]
+  rw [← eq]
+  have on (H : Xofs) : (matrixSetup H s).map f (some A) ≤ (U.map some) (some A) := by
+    rw [← uniform_programmedMatrixSetup, PMF.map_bind]
+    change _ ≤ U.bind (fun B => PMF.pure (some B)) (some A)
+    refine PMF.bind_apply_mono_on_support _ _ fun B _ => ?_
+    by_cases h : A = B
+    · subst B
+      simpa only [PMF.pure_apply_self] using
+        PMF.coe_le_one (((programmedMatrixSetup H s A).eval).map f) (some A)
+    · rw [PMF.pure_apply, ite_eq_right (mt Option.some.inj h)]
+      refine le_of_eq ((PMF.apply_eq_zero_iff _ _).mpr fun hit => ?_)
+      obtain ⟨⟨G, o⟩, mem, val⟩ := (PMF.mem_support_map_iff ..).mp hit
+      rcases o with _ | ⟨B', keys⟩
+      · cases val
+      · have same := (keyGen_of_mem_programmedMatrixSetup mem).2.1
+        exact h ((Option.some.inj val).symm.trans same)
+  simpa [PMF.map_bind, U, PMF.map_apply] using
+    PMF.bind_apply_mono_on_support R (some A) fun H _ => on H
+
+
+namespace QuantumSigningForger
+
+private theorem forgery_from_setup (C : QuantumSigningForger) (s : Level) (H : Xofs)
+    (seed : FixedBytes 32) :
+    ((C.runAtSetup s (readSetup s H seed)).map (·.any SignedMatrixTrial.wins)) =
+      match H.keyGen s seed with
+      | none => PMF.pure false
+      | some keys => (C.transcript H s keys).map fun (f, log) =>
+          H.winsForgery s keys.publicKey f log := by
+  cases hg : H.keyGen s seed with
+  | none => simp [readSetup, hg, runAtSetup]
+  | some keys =>
+    obtain ⟨rho, sk, hm, pk, _, _⟩ := privateKey_of_keyGen hg
+    have mat : H.expandA s (keys.publicKey.take 32) = some sk.A := by
+      rwa [pk, take_encodePublic]
+    simp [readSetup, hg, mat, runAtSetup, PMF.map_comp, SignedMatrixTrial.wins, Function.comp_def]
+
+/-- Equality of the strong-forgery game sampled before the seed with the averaged
+matrix-prefix game. The equality holds for the full adaptive quantum experiment. -/
+theorem randomPrefixGame_eq_matrixTrial (C : QuantumSigningForger) (s : Level)
+    (base : Xofs) {a b : ℕ} (ha : 272 ≤ a) (hb : 894 ≤ b) :
+    C.randomPrefixGame s base a b = (base.uniformPrefixes a b).bind fun H =>
+      (C.matrixTrial s H).map (·.any SignedMatrixTrial.wins) := by
+  unfold randomPrefixGame forgeryGame Xofs.keyExperiment
+  simp only [matrixTrial, PMF.monad_bind_eq_bind, PMF.map_bind, ← PMF.bind_bind,
+    uniformPrefixes_matrixSetup base s ha hb]
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  refine PMF.bind_congr_on_support _ _ _ fun H _ =>
+    PMF.bind_congr_on_support _ _ _ fun seed _ => ?_
+  change _ = (C.runAtSetup s (readSetup s H seed)).map (·.any SignedMatrixTrial.wins)
+  rw [forgery_from_setup C s H seed]
+  cases H.keyGen s seed <;> rfl
+
+/-- The strong-forgery probability in the finite random-XOF experiment is bounded by the
+fresh-digest and raw SHAKE256 collision events and by the success of the extracted vector on
+an independently supplied uniform Hermite MSIS matrix. The solver draws its own pair of
+tables and runs the quantum forger once. All three terms retain the original signing access. -/
+theorem randomPrefixGame_forgery_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
+    {a b : ℕ} (ha : 272 ≤ a) (hb : 894 ≤ b) :
+    let R := base.uniformPrefixes a b
+    let trial := R.bind (C.matrixTrial s)
+    Game.succProbability (C.randomPrefixGame s base a b) ≤
+      Game.succProbability (trial.map (·.any SignedMatrixTrial.newDigestWin)) +
+      (Game.succProbability (trial.map (·.any SignedMatrixTrial.hashCollision)) +
+        Game.succProbability ((PMF.uniformOfFintype (PublicMatrix s)).bind fun A =>
+          ((R.bind fun H => C.matrixSolver s H A).map fun v => decide (ModuleSIS.IsSolution
+            (ModuleSIS.hermiteMatrix A) (max (2 * (s.params.γ₁ - s.params.β))
+              (4 * s.params.γ₂ + 2)) v)))) := by
+  intro R trial
+  let run (A : PublicMatrix s) := R.bind fun H => C.programmedTrial s H A
+  have eq : (PMF.uniformOfFintype (PublicMatrix s)).bind run = trial := by
+    simpa only [run, trial, C.uniform_programmedTrial] using
+      PMF.bind_comm (PMF.uniformOfFintype (PublicMatrix s)) R fun A H => C.programmedTrial s H A
+  have bound := SignedMatrixTrial.bound_of_verifiedLog run (fun A u hu => by
+    obtain ⟨H, _, h⟩ := (PMF.mem_support_bind_iff ..).mp hu
+    exact (C.verified_programmedTrial h).2)
+  rw [randomPrefixGame_eq_matrixTrial C s base ha hb, ← PMF.map_bind]
+  simpa only [eq, run, trial, R, matrixSolver, PMF.map_bind, PMF.map_comp,
+    Function.comp_def] using bound
+
+end QuantumSigningForger
+
+end Cslib.Crypto.MLDSA.FIPS204

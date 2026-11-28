@@ -121,10 +121,9 @@ theorem tendsto_Q (hr : r ∈ Icc (0 : ℝ) 1) : Tendsto (fun d => Q k d r) atTo
   tendsto_atTop_ciSup (monotone_Q hr) (bddAbove_range_Q hr)
 
 /-- `R k r` is a fixed point of the recursion step. -/
-theorem R_eq (hr : r ∈ Icc (0 : ℝ) 1) : (r + (1 - r) * R k r) ^ (k - 1) = R k r := by
-  have hT := tendsto_Q (k := k) hr
-  refine tendsto_nhds_unique ?_ (hT.comp (tendsto_add_atTop_nat 1))
-  exact ((hT.const_mul (1 - r)).const_add r).pow (k - 1)
+theorem R_eq (hr : r ∈ Icc (0 : ℝ) 1) : (r + (1 - r) * R k r) ^ (k - 1) = R k r :=
+  tendsto_nhds_unique ((((tendsto_Q hr).const_mul (1 - r)).const_add r).pow (k - 1))
+    ((tendsto_Q hr).comp (tendsto_add_atTop_nat 1))
 
 /-- If `x ≥ 0` is mapped below itself by the recursion step, then `R k r ≤ x`. -/
 theorem R_le_of_le (hr : r ∈ Icc (0 : ℝ) 1) (hx : 0 ≤ x)
@@ -190,13 +189,11 @@ itself if and only if `r ≤ S k t`. -/
 theorem pow_add_one_sub_mul_le_self_iff (hk : 2 ≤ k) (hr : r ∈ Icc (0 : ℝ) 1)
     (ht : t ∈ Ico (0 : ℝ) 1) :
     (r + (1 - r) * t) ^ (k - 1) ≤ t ↔ r ≤ S k t := by
-  have hu0 : 0 ≤ t ^ (1 / ((k : ℝ) - 1)) := Real.rpow_nonneg ht.1 _
-  have hb : 0 ≤ r + (1 - r) * t := (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
-  have h1t : 0 < 1 - t := sub_pos.2 ht.2
-  rw [show (r + (1 - r) * t) ^ (k - 1) ≤ t ↔
-      (r + (1 - r) * t) ^ (k - 1) ≤ (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) by
-      rw [rpow_one_div_pow hk ht.1],
-    pow_le_pow_iff_left₀ hb hu0 (by omega), S, le_div_iff₀ h1t]
+  have hpow : (r + (1 - r) * t) ^ (k - 1) ≤ t ↔
+      (r + (1 - r) * t) ^ (k - 1) ≤ (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) := by
+    rw [rpow_one_div_pow hk ht.1]
+  rw [hpow, pow_le_pow_iff_left₀ (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
+      (Real.rpow_nonneg ht.1 _) (by omega), S, le_div_iff₀ (sub_pos.2 ht.2)]
   constructor <;> intro h <;> linarith
 
 /-- **The fixed-point equation solved for `r`** [Paturi, Pudlák, Saks, Zane, proof of Claim 1
@@ -205,13 +202,11 @@ if and only if `r = S k t`. -/
 theorem pow_add_one_sub_mul_eq_self_iff (hk : 2 ≤ k) (hr : r ∈ Icc (0 : ℝ) 1)
     (ht : t ∈ Ico (0 : ℝ) 1) :
     (r + (1 - r) * t) ^ (k - 1) = t ↔ r = S k t := by
-  have hu0 : 0 ≤ t ^ (1 / ((k : ℝ) - 1)) := Real.rpow_nonneg ht.1 _
-  have hb : 0 ≤ r + (1 - r) * t := (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
-  have h1t : 0 < 1 - t := sub_pos.2 ht.2
-  rw [show (r + (1 - r) * t) ^ (k - 1) = t ↔
-      (r + (1 - r) * t) ^ (k - 1) = (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) by
-      rw [rpow_one_div_pow hk ht.1],
-    pow_left_inj₀ hb hu0 (by omega), S, eq_div_iff h1t.ne']
+  have hpow : (r + (1 - r) * t) ^ (k - 1) = t ↔
+      (r + (1 - r) * t) ^ (k - 1) = (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) := by
+    rw [rpow_one_div_pow hk ht.1]
+  rw [hpow, pow_left_inj₀ (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
+      (Real.rpow_nonneg ht.1 _) (by omega), S, eq_div_iff (sub_pos.2 ht.2).ne']
   constructor <;> intro h <;> linarith
 
 private theorem one_le_geom_sum (hk : 2 ≤ k) {u : ℝ} (hu : 0 ≤ u) :
@@ -254,11 +249,8 @@ theorem monotoneOn_S (hk : 2 ≤ k) : MonotoneOn (S k) (Ico 0 1) := by
 
 /-- `S k t < 1` on `[0, 1)`. -/
 theorem S_lt_one (hk : 2 ≤ k) (ht : t ∈ Ico (0 : ℝ) 1) : S k t < 1 := by
-  have h := one_sub_S hk ht
   have hP := one_le_geom_sum hk (Real.rpow_nonneg ht.1 (1 / ((k : ℝ) - 1)))
-  have : 0 < 1 / ∑ i ∈ Finset.range (k - 1), (t ^ (1 / ((k : ℝ) - 1))) ^ i :=
-    one_div_pos.2 (by linarith)
-  linarith
+  linarith [one_sub_S hk ht, one_div_pos.2 (zero_lt_one.trans_le hP)]
 
 /-- `S k` is strictly monotone on `[0, 1)` for `k ≥ 3`. -/
 theorem strictMonoOn_S (hk : 3 ≤ k) : StrictMonoOn (S k) (Ico 0 1) := by
@@ -277,19 +269,16 @@ theorem strictMonoOn_S (hk : 3 ≤ k) : StrictMonoOn (S k) (Ico 0 1) := by
 
 /-- For `k ≥ 3`, `S k t < (k - 2) / (k - 1)` on `[0, 1)`. -/
 theorem S_lt (hk : 3 ≤ k) (ht : t ∈ Ico (0 : ℝ) 1) : S k t < ((k : ℝ) - 2) / ((k : ℝ) - 1) := by
-  have h := one_sub_S (k := k) (by omega) ht
   have hu0 : 0 ≤ t ^ (1 / ((k : ℝ) - 1)) := Real.rpow_nonneg ht.1 _
   have hu1 : t ^ (1 / ((k : ℝ) - 1)) < 1 := Real.rpow_lt_one ht.1 ht.2 (exponent_pos (by omega))
-  have hlt : ∑ i ∈ Finset.range (k - 1), (t ^ (1 / ((k : ℝ) - 1))) ^ i < (k : ℝ) - 1 := by
-    have : ∑ i ∈ Finset.range (k - 1), (1 : ℝ) = (k : ℝ) - 1 := by
-      rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one, Nat.cast_sub (by omega),
-        Nat.cast_one]
-    refine lt_of_lt_of_eq (Finset.sum_lt_sum (fun i _ => pow_le_one₀ hu0 hu1.le)
-      ⟨1, Finset.mem_range.2 (by omega), by rwa [pow_one]⟩) this
+  have hlt : ∑ i ∈ Finset.range (k - 1), (t ^ (1 / ((k : ℝ) - 1))) ^ i < (k : ℝ) - 1 :=
+    (Finset.sum_lt_sum (fun i _ => pow_le_one₀ hu0 hu1.le)
+      ⟨1, Finset.mem_range.2 (by omega), by rwa [pow_one]⟩).trans_eq
+      (by simp [Nat.cast_sub (by omega : 1 ≤ k)])
   have := one_div_lt_one_div_of_lt (by linarith [one_le_geom_sum (k := k) (by omega) hu0]) hlt
   have hk1 : (k : ℝ) - 1 ≠ 0 := by linarith [two_le_cast (k := k) (by omega)]
   rw [show ((k : ℝ) - 2) / ((k : ℝ) - 1) = 1 - 1 / ((k : ℝ) - 1) by field_simp; ring]
-  linarith
+  linarith [one_sub_S (k := k) (by omega) ht]
 
 /-- `S k` maps `[0, 1)` into `[0, (k - 2) / (k - 1))` for `k ≥ 3`. -/
 theorem S_mem_Ico (hk : 3 ≤ k) (ht : t ∈ Ico (0 : ℝ) 1) :
@@ -342,9 +331,8 @@ theorem R_eq_one (hk : 3 ≤ k) (hr : ((k : ℝ) - 2) / ((k : ℝ) - 1) ≤ r) (
     R k r = 1 := by
   have hrI : r ∈ Icc (0 : ℝ) 1 := ⟨(div_nonneg_of_three_le hk).trans hr, hr1⟩
   by_contra hne
-  have hlt : R k r < 1 := lt_of_le_of_ne (R_le_one hrI) hne
-  have := (R_le_iff_le_S (by omega) hrI ⟨R_nonneg hrI, hlt⟩).1 le_rfl
-  linarith [S_lt hk ⟨R_nonneg hrI, hlt⟩]
+  have hRI : R k r ∈ Ico (0 : ℝ) 1 := ⟨R_nonneg hrI, lt_of_le_of_ne (R_le_one hrI) hne⟩
+  linarith [(R_le_iff_le_S (by omega) hrI hRI).1 le_rfl, S_lt hk hRI]
 
 /-- **`R k < 1` on `[0, (k - 2) / (k - 1))`** [Paturi, Pudlák, Saks, Zane, Claim 1 (p. 352)]
 [PaturiPudlakSaksZane2005], for `k ≥ 3`: `S k t` tends to `(k - 2) / (k - 1)` as `t → 1`, so
@@ -352,31 +340,26 @@ some `t < 1` has `r ≤ S k t`, hence `R k r ≤ t`. -/
 theorem R_lt_one (hk : 3 ≤ k) (hr0 : 0 ≤ r) (hr : r < ((k : ℝ) - 2) / ((k : ℝ) - 1)) :
     R k r < 1 := by
   have hk2 : 2 ≤ k := by omega
-  have hrI : r ∈ Icc (0 : ℝ) 1 := ⟨hr0, (hr.trans (div_lt_one_of_three_le hk)).le⟩
-  set a := 1 / ((k : ℝ) - 1) with ha
+  set a := 1 / ((k : ℝ) - 1)
   have hP : ContinuousAt (fun t : ℝ => ∑ i ∈ Finset.range (k - 1), (t ^ a) ^ i) 1 :=
     (continuous_finsetSum (Finset.range (k - 1)) fun i _ =>
       continuous_pow (M := ℝ) i).continuousAt.comp
       (Real.continuousAt_rpow_const 1 a (Or.inl one_ne_zero))
   have hP1 : ∑ i ∈ Finset.range (k - 1), ((1 : ℝ) ^ a) ^ i = (k : ℝ) - 1 := by
-    rw [Real.one_rpow]
-    simp only [one_pow, Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one]
-    rw [Nat.cast_sub (by omega), Nat.cast_one]
+    simp [Real.one_rpow, Nat.cast_sub (by omega : 1 ≤ k)]
   have hk1 : (k : ℝ) - 1 ≠ 0 := by linarith [two_le_cast hk2]
   have hlim : Tendsto (fun t : ℝ => 1 - 1 / ∑ i ∈ Finset.range (k - 1), (t ^ a) ^ i) (𝓝 1)
       (𝓝 (((k : ℝ) - 2) / ((k : ℝ) - 1))) := by
     have h := (tendsto_const_nhds (x := (1 : ℝ))).div hP.tendsto (by rw [hP1]; exact hk1)
     rw [hP1] at h
     convert h.const_sub 1 using 2
-    field_simp
-    ring
+    field_simp; ring
   obtain ⟨t, htr, ht⟩ := (((tendsto_order.1 hlim).1 r hr).filter_mono nhdsWithin_le_nhds |>.and
     (Ioo_mem_nhdsLT (zero_lt_one' ℝ))).exists
   have htI : t ∈ Ico (0 : ℝ) 1 := ⟨ht.1.le, ht.2⟩
-  have hS : S k t = 1 - 1 / ∑ i ∈ Finset.range (k - 1), (t ^ a) ^ i := by
-    rw [← one_sub_S hk2 htI]
-    ring
-  exact ((R_le_iff_le_S hk2 hrI htI).2 (hS ▸ htr.le)).trans_lt ht.2
+  have hS : r ≤ S k t := by linarith [one_sub_S hk2 htI]
+  exact ((R_le_iff_le_S hk2 ⟨hr0, (hr.trans (div_lt_one_of_three_le hk)).le⟩ htI).2 hS).trans_lt
+    ht.2
 
 /-- **`R k` is strictly increasing on `[0, (k - 2) / (k - 1)]`**
 [Paturi, Pudlák, Saks, Zane, Claim 1 (p. 352)][PaturiPudlakSaksZane2005], for `k ≥ 3`. -/
@@ -428,33 +411,25 @@ theorem integral_R_eq_integral_one_sub_S (hk : 2 ≤ k) :
   have hmono : MonotoneOn (R k) (uIcc 0 1) := by
     rw [uIcc_of_le zero_le_one]
     exact monotoneOn_R
-  have hI : IntegrableOn (R k) (Ioc 0 1) := (hmono.intervalIntegrable (μ := volume)).1
   rw [intervalIntegral.integral_of_le zero_le_one, intervalIntegral.integral_of_le zero_le_one,
     integral_Ioc_eq_integral_Ioo (f := fun t => 1 - S k t),
-    Integrable.integral_eq_integral_meas_lt hI
+    Integrable.integral_eq_integral_meas_lt (hmono.intervalIntegrable (μ := volume)).1
       (ae_restrict_of_forall_mem measurableSet_Ioc fun r hr => R_nonneg (Ioc_subset_Icc_self hr)),
     ← Ioi_inter_Iio, ← setIntegral_indicator measurableSet_Iio]
   refine setIntegral_congr_fun measurableSet_Ioi fun t ht => ?_
   rw [measureReal_restrict_apply' measurableSet_Ioc]
   rcases lt_or_ge t 1 with ht1 | ht1
-  · rw [indicator_of_mem (show t ∈ Iio 1 from ht1)]
-    have htI : t ∈ Ico (0 : ℝ) 1 := ⟨le_of_lt ht, ht1⟩
+  · have htI : t ∈ Ico (0 : ℝ) 1 := ⟨le_of_lt ht, ht1⟩
     have hS0 := S_nonneg hk htI
-    have hS1 : S k t ≤ 1 := (S_lt_one hk htI).le
-    rw [show {a | t < R k a} ∩ Ioc 0 1 = Ioc (S k t) 1 from ?_, Real.volume_real_Ioc_of_le hS1]
-    ext r
-    simp only [mem_inter_iff, mem_ofPred_eq, mem_Ioc]
-    constructor
-    · rintro ⟨h, h0, h1⟩
-      exact ⟨(lt_R_iff hk ⟨h0.le, h1⟩ htI).1 h, h1⟩
-    · rintro ⟨h, h1⟩
-      exact ⟨(lt_R_iff hk ⟨hS0.trans h.le, h1⟩ htI).2 h, hS0.trans_lt h, h1⟩
-  · rw [indicator_of_notMem (show t ∉ Iio 1 from not_lt.2 ht1),
-      show {a | t < R k a} ∩ Ioc 0 1 = ∅ from ?_, measureReal_empty]
-    ext r
-    simp only [mem_inter_iff, mem_ofPred_eq, mem_Ioc, mem_empty_iff_false, iff_false]
-    rintro ⟨h, h0, h1⟩
-    linarith [R_le_one (k := k) ⟨h0.le, h1⟩]
+    have hset : {a | t < R k a} ∩ Ioc 0 1 = Ioc (S k t) 1 :=
+      Set.ext fun r => ⟨fun ⟨h, h0, h1⟩ => ⟨(lt_R_iff hk ⟨h0.le, h1⟩ htI).1 h, h1⟩,
+        fun ⟨h, h1⟩ => ⟨(lt_R_iff hk ⟨hS0.trans h.le, h1⟩ htI).2 h, hS0.trans_lt h, h1⟩⟩
+    rw [indicator_of_mem (show t ∈ Iio 1 from ht1), hset,
+      Real.volume_real_Ioc_of_le (S_lt_one hk htI).le]
+  · have hset : {a | t < R k a} ∩ Ioc 0 1 = ∅ :=
+      Set.ext fun r => iff_false_intro fun ⟨h, h0, h1⟩ => by
+        linarith [show t < R k r from h, R_le_one (k := k) ⟨h0.le, h1⟩]
+    rw [indicator_of_notMem (show t ∉ Iio 1 from not_lt.2 ht1), hset, measureReal_empty]
 
 /-- On `[0, 1]`, `∑_{i < N} (t ^ i - t ^ (i + a)) = (∑_{i < N} t ^ i) * (1 - t ^ a)`. -/
 private theorem sum_sub_rpow_eq {a : ℝ} (ha : 0 < a) (ht : 0 ≤ t) (N : ℕ) :
@@ -624,10 +599,8 @@ theorem round_success_unique_limit (hk : 2 ≤ k) :
         ((round φ w) fun x => some (σ x)).toReal := by
   intro ε hε
   obtain ⟨h, hh⟩ := exists_le_qbar hk hε
-  refine ⟨∑ i ∈ Finset.range h, (k - 1) ^ i, fun n φ σ hσ huniq hlen => ?_⟩
-  refine le_trans ?_ (round_success_of_unique hσ huniq hlen le_rfl)
-  exact Real.rpow_le_rpow_of_exponent_le one_le_two
-    (neg_le_neg (mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg n)))
+  exact ⟨∑ i ∈ Finset.range h, (k - 1) ^ i, fun n φ σ hσ huniq hlen =>
+    (two_rpow_neg_mul_le n (by linarith)).trans (round_success_of_unique hσ huniq hlen le_rfl)⟩
 
 /-! ### The case `k = 3` -/
 
@@ -645,13 +618,8 @@ theorem mu_three : mu 3 = 4 - 4 * Real.log 2 := by
 /-- `∑_{j ≥ 1} 1 / (j (2 j + 1)) = 2 - 2 log 2`, indexed from `j = 0` here. -/
 theorem tsum_three :
     ∑' j : ℕ, 1 / (((j : ℝ) + 1) * (2 * ((j : ℝ) + 1) + 1)) = 2 - 2 * Real.log 2 := by
-  calc ∑' j : ℕ, 1 / (((j : ℝ) + 1) * (2 * ((j : ℝ) + 1) + 1))
-      = mu 3 / (((3 : ℕ) : ℝ) - 1) := by
-        rw [mu_div_eq_tsum (by norm_num)]
-        norm_num
-    _ = 2 - 2 * Real.log 2 := by
-        rw [mu_three]
-        push_cast
-        ring
+  have h := mu_div_eq_tsum (k := 3) (by norm_num)
+  rw [show ((3 : ℕ) : ℝ) - 1 = 2 by norm_num, mu_three] at h
+  linarith
 
 end Cslib.Complexity.PPSZ

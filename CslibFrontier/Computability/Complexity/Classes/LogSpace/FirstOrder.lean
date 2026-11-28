@@ -377,8 +377,7 @@ private theorem reaches_tables {b F : ℕ}
   induction e with
   | zero =>
     intro m regs he hm hok h0 h1 hlen hB
-    have hm' : m = v.count := by omega
-    subst hm'
+    obtain rfl : m = v.count := by omega
     refine ⟨regs, ?_, rfl, h0, fun _ => h1, hB⟩
     rw [ite_eq_left hok]
     exact Reaches.refl _
@@ -404,8 +403,7 @@ private theorem reaches_tables {b F : ℕ}
       refine ⟨regs₂, ?_, hlen₂.trans hlen₁, h0₂, h1₂, hB₂⟩
       refine (show P.Reaches _ _ _ (b + 3 + 6 * m + 6, regs₁) by simpa [hokm] using hreach₁).trans
         ?_
-      rw [show b + 3 + 6 * m + 6 = b + 3 + 6 * (m + 1) by ring]
-      exact hreach₂
+      rwa [show b + 3 + 6 * m + 6 = b + 3 + 6 * (m + 1) by ring]
     · have hall : ¬ ∀ i < v.count, TableOk v a i := fun h => hokm (h m hmc)
       refine ⟨regs₁, ?_, hlen₁, h0₁, fun h => absurd h hall, hB₁⟩
       simpa [hokm, hall] using hreach₁
@@ -588,8 +586,7 @@ theorem reaches_formulaCode {P : CounterProgram} {a : EncodedStructure} (ha : v.
       ∃ (res : Bool) (regs' : List ℕ),
         (res = true ↔ (letI := v.decode a; φ.Realize val xs)) ∧
         P.Reaches (encStructure a) (P.Running B) (b, regs) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B := by
+        Kept B (base + k) regs regs' := by
   let _ := v.decode a
   intro k
   exact reaches_formulaCodeWith (P := P) hnB fv base hbase hfv val (atomicCompiler v fv base)
@@ -680,7 +677,6 @@ theorem FO.Definable.queryLanguage_mem_L {L : Language.{u, v}} [L.IsRelational]
     have : Finite (v.decoded a) := inferInstanceAs (Finite (Fin a.1))
     simp only [Vocabulary.mem_queryLanguage]
     exact and_congr_right fun _ => hφ (v.decoded a)
-  rw [this]
-  exact v.queryLanguage_mem_L φ
+  exact this ▸ v.queryLanguage_mem_L φ
 
 end Cslib.Logic

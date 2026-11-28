@@ -26,9 +26,10 @@ execution (`cuckoo_seq_expected_amortized`) of
 
 namespace CslibFrontierTests.WordRAMCuckooHashing
 
-open Cslib Cslib.WordRAM Cslib.WordRAM.Randomized
+open Cslib Cslib.WordRAM
 open Cslib.DataStructure Cslib.DataStructure.Dictionary Cslib.DataStructure.WordRAM
 open Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing
+open Cslib.DataStructure.Dictionary.CuckooHashing
 open scoped ENNReal
 
 /-! ## 1. Parameter scale, unconditional hash-family certificate, and eviction chain checks -/
@@ -160,5 +161,47 @@ hypotheses (`16 ≤ max 10 4 ^ 2` and `Fits 64 (0 + space 2 10)`) hold unconditi
 theorem inst_cuckoo_seq_expected_amortized_nonvacuous :
     ∃ c_exp : ℕ, 16 ≤ max 10 4 ^ c_exp ∧ Fits 64 (0 + space c_exp 10) :=
   ⟨2, by decide, hfit_end_64_2_10⟩
+
+/-! ## 3. Module-boundary interface reducibility checks (`@[expose]` client surface) -/
+
+example (c_exp U : ℕ) (s : Dictionary.State U) (u : Fin U) (v : ℕ) :
+    expectedOpCharge c_exp s (.query u) = queryChargeBound c_exp ∧
+      expectedOpCharge c_exp s (.insert u v) = insertChargeBound c_exp :=
+  ⟨rfl, rfl⟩
+
+example (c_exp n_max U : ℕ) :
+    spanSteps = 8 ∧ 46 ≤ setupSteps c_exp n_max U := by
+  refine ⟨rfl, ?_⟩
+  dsimp only [setupSteps]
+  omega
+
+example (c_exp : ℕ) :
+    queryChargeBound c_exp = queryStepsBound c_exp + 2 ∧
+      0 < queryStepsBound c_exp ∧
+      0 < insertChargeBound c_exp := by
+  refine ⟨rfl, ?_, ?_⟩
+  · dsimp only [queryStepsBound]; omega
+  · dsimp only [insertChargeBound]; omega
+
+example (c_exp n_max : ℕ) :
+    (cuckooCode c_exp n_max).baseReg = 0 ∧
+      (cuckooCode c_exp n_max).frontierReg = 1 ∧
+      (cuckooCode c_exp n_max).output = 2 ∧
+      (cuckooCode c_exp n_max).initParams = ![3, 4] :=
+  ⟨rfl, rfl, rfl, rfl⟩
+
+example (c_exp : ℕ) (hU : 16 ≤ max 10 4 ^ c_exp) (hfit_end : Fits 64 (0 + space c_exp 10))
+    (u : Fin 16) (v : ℕ) (regs : Fin 19 → ℕ) :
+    let C := instStateTransitionImpl c_exp hU hfit_end
+    C.initTime = (spanSteps : ℝ≥0∞) + (setupSteps c_exp 10 16 : ℝ≥0∞) ∧
+      C.argMatch (.insert u v) regs = (regs 2 = 1 ∧ regs 3 = u.val ∧ regs 4 = v) ∧
+      C.decode (.query u) (Function.update regs 2 (encodeOptionNat (some 42))) =
+        some (some 42) :=
+  ⟨rfl, rfl, rfl⟩
+
+example {w base c_exp n_max U V : ℕ} {ks : List (Fin U)} {s : Dictionary.State U}
+    {x₀ z : Data 19} (h : RehashLoopPost w base c_exp n_max U V ks s x₀ z) :
+    Modifies (Block.mk base (space c_exp n_max)).footprint x₀.mem z.mem :=
+  h.1.2.2.2.2.2
 
 end CslibFrontierTests.WordRAMCuckooHashing

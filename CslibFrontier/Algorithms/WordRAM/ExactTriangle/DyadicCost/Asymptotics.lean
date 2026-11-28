@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.DyadicCost
 public import CslibFrontier.Foundations.Data.Nat.LogRpow
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -57,10 +58,7 @@ private theorem logCoefficient_pos {κ : ℝ} (hκ : 1 ≤ κ) : 0 < logCoeffici
 private theorem coefficient_le_log_cube {n : ℕ} {κ : ℝ} (hn : 1 ≤ n) (hκ : 1 ≤ κ) :
     costCoefficient κ n ≤ logCoefficient κ * ((Nat.log 2 n : ℝ) + 1) ^ 3 := by
   let L : ℝ := (Nat.log 2 n : ℝ) + 1
-  have hL : 1 ≤ L := by
-    dsimp only [L]
-    have h := Nat.cast_nonneg (α := ℝ) (Nat.log 2 n)
-    linarith only [h]
+  have hL : 1 ≤ L := le_add_of_nonneg_left (Nat.cast_nonneg _)
   have hLcube : L ≤ L ^ 3 := le_self_pow₀ hL (by decide)
   have hunit : 1 ≤ L ^ 3 := one_le_pow₀ hL
   have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
@@ -68,26 +66,18 @@ private theorem coefficient_le_log_cube {n : ℕ} {κ : ℝ} (hn : 1 ≤ n) (hκ
     exact_mod_cast (Nat.lt_pow_succ_log_self (by decide : 1 < (2 : ℕ)) n).le
   have hl : Real.log (n : ℝ) ≤ L * Real.log 2 := by
     simpa only [Real.log_pow, Nat.cast_add, Nat.cast_one, L] using Real.log_le_log hn0 hpow
-  have htwo : Real.log (2 : ℝ) ≤ 1 := by
-    have h := Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)
-    linarith only [h]
   have hlog : Real.log (n : ℝ) ≤ L ^ 3 :=
-    (hl.trans ((mul_le_mul_of_nonneg_left htwo (by positivity)).trans_eq (mul_one L))).trans hLcube
+    (hl.trans ((mul_le_mul_of_nonneg_left Real.log_two_lt_one.le (by positivity)).trans_eq
+      (mul_one L))).trans hLcube
   have hlevel : (level n : ℝ) ≤ Nat.log 2 n := by exact_mod_cast level_le_log n
   have hleft : ((21 * level n + 1 : ℕ) : ℝ) ≤ 21 * L := by
-    push_cast
-    dsimp only [L]
-    linarith only [hlevel]
+    push_cast; dsimp only [L]; linarith only [hlevel]
   have hright : ((level n + 1 : ℕ) : ℝ) ≤ L := by
-    push_cast
-    dsimp only [L]
-    linarith only [hlevel]
+    push_cast; dsimp only [L]; linarith only [hlevel]
   have hdepth : ((21 * level n + 1 : ℕ) : ℝ) ^ 2 * ((level n + 1 : ℕ) : ℝ) ≤
-      441 * L ^ 3 := by
-    calc
-      _ ≤ (21 * L) ^ 2 * L :=
-        mul_le_mul (pow_le_pow_left₀ (by positivity) hleft 2) hright (by positivity) (by positivity)
-      _ = _ := by ring
+      441 * L ^ 3 :=
+    (mul_le_mul (pow_le_pow_left₀ (by positivity) hleft 2) hright (by positivity)
+      (by positivity)).trans_eq (by ring)
   have hprod := mul_le_mul_of_nonneg_left hdepth (by norm_num : (0 : ℝ) ≤ 125829120)
   have hconst := mul_le_mul_of_nonneg_left hunit (by norm_num : (0 : ℝ) ≤ 238169)
   have hlinear : 16 * (Nat.log 2 n : ℝ) ≤ 16 * L ^ 3 := by

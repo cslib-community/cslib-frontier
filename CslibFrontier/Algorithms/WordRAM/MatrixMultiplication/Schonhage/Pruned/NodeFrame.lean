@@ -40,14 +40,16 @@ theorem mem_nodeWrites_iff {L f d c : ℕ} (hd : d ≤ L) : c ∈ nodeWrites L f
   have hf : f + 4 * d + 4 * (L + 1 - d) = f + 4 * (L + 1) := by omega
   have hl : f + 4 * (L + 1) + (d + 1) * 10 ^ L + (L - d) * 10 ^ L =
       f + 4 * (L + 1) + (L + 1) * 10 ^ L := by
+    have hd1 : d + 1 + (L - d) = L + 1 := by omega
     calc
       _ = f + 4 * (L + 1) + (d + 1 + (L - d)) * 10 ^ L := by ring
-      _ = _ := by rw [show d + 1 + (L - d) = L + 1 by omega]
+      _ = _ := by rw [hd1]
   have hv : f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L +
       (L + 1 - d) * 10 ^ L = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L := by
+    have hd2 : d + (L + 1 - d) = L + 1 := by omega
     calc
       _ = f + 4 * (L + 1) + ((L + 1) + (d + (L + 1 - d))) * 10 ^ L := by ring
-      _ = _ := by rw [show d + (L + 1 - d) = L + 1 by omega]; ring
+      _ = _ := by rw [hd2]; ring
   simp only [nodeWrites, Finset.mem_union, Block.mem_footprint, Block.Owns, hf, hl, hv]
 
 /-- The recursive child's full writable frame is contained in the parent's frame. -/
@@ -60,72 +62,63 @@ theorem nodeWrites_child_subset {L f d : ℕ} (hd : d < L) :
   have hl := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 1 ≤ d + 1 + 1)
   omega
 
-/-- The scan-and-push transition changes only cells in the current node's frame. -/
-theorem childWrites_subset_nodeWrites {L f d : ℕ} (hd : d < L) :
-    childWrites L f d ⊆ nodeWrites L f d := by
+/-- A scan transition writes the child query row, the timestamps and one four-word frame at
+depth `e ∈ {d, d + 1}`; all of these lie in the current node's frame. -/
+private theorem scanWrites_subset_nodeWrites {L f d e : ℕ} (hd : d < L) (hde : d ≤ e)
+    (he : e ≤ d + 1) :
+    (Block.mk (f + 4 * (L + 1) + (d + 1) * 10 ^ L) (10 ^ L)).footprint ∪
+      (Block.mk (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L) (10 ^ L)).footprint ∪
+      (Block.mk (f + 4 * e) 4).footprint ⊆ nodeWrites L f d := by
   intro c hc
-  simp only [childWrites, Finset.mem_union, Block.mem_footprint, Block.Owns] at hc
+  simp only [Finset.mem_union, Block.mem_footprint, Block.Owns] at hc
   rw [mem_nodeWrites_iff hd.le]
   have hprod := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 2 ≤ L + 1)
   have hstep : (d + 1) * 10 ^ L + 10 ^ L = (d + 2) * 10 ^ L := by ring
   rcases hc with (hc | hc) | hc
-  · left; left; right
-    exact ⟨hc.1, by omega⟩
-  · right
-    exact hc
-  · left; left; left
-    omega
+  · exact Or.inl (Or.inl (Or.inr ⟨hc.1, by omega⟩))
+  · exact Or.inr hc
+  · exact Or.inl (Or.inl (Or.inl (by omega)))
+
+/-- The scan-and-push transition changes only cells in the current node's frame. -/
+theorem childWrites_subset_nodeWrites {L f d : ℕ} (hd : d < L) :
+    childWrites L f d ⊆ nodeWrites L f d :=
+  scanWrites_subset_nodeWrites hd (Nat.le_succ d) le_rfl
 
 /-- The scan-and-skip transition also stays inside the current node's frame. -/
 theorem emptyChildWrites_subset_nodeWrites {L f d : ℕ} (hd : d < L) :
-    emptyChildWrites L f d ⊆ nodeWrites L f d := by
-  intro c hc
-  simp only [emptyChildWrites, Finset.mem_union, Block.mem_footprint, Block.Owns] at hc
-  rw [mem_nodeWrites_iff hd.le]
-  have hprod := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 2 ≤ L + 1)
-  have hstep : (d + 1) * 10 ^ L + 10 ^ L = (d + 2) * 10 ^ L := by ring
-  rcases hc with (hc | hc) | hc
-  · left; left; right
-    exact ⟨hc.1, by omega⟩
-  · right
-    exact hc
-  · left; left; left
-    omega
+    emptyChildWrites L f d ⊆ nodeWrites L f d :=
+  scanWrites_subset_nodeWrites hd le_rfl (Nat.le_succ d)
 
 /-- No node changes the original input or any other cell below the workspace. -/
 theorem notMem_nodeWrites_before {L f d c : ℕ} (hc : c < f) :
     c ∉ nodeWrites L f d := by
-  simp only [nodeWrites, Finset.mem_union, Block.mem_footprint, Block.Owns]
-  omega
+  simp only [nodeWrites, Finset.mem_union, Block.mem_footprint, Block.Owns]; omega
 
 /-- A node preserves every occupied or unoccupied cell of its own request row. -/
 theorem notMem_nodeWrites_list {L f d q : ℕ} (hd : d ≤ L) (hq : q < 10 ^ L) :
     f + 4 * (L + 1) + d * 10 ^ L + q ∉ nodeWrites L f d := by
   rw [mem_nodeWrites_iff hd]
-  have hprod := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 1 ≤ L + 1)
   have hnext : d * 10 ^ L + q < (d + 1) * 10 ^ L := by nlinarith only [hq]
-  have hvals : d * 10 ^ L + q < (L + 1) * 10 ^ L := hnext.trans_le hprod
-  have hsplit : (L + 1) * 10 ^ L ≤ 2 * (L + 1) * 10 ^ L := by
-    rw [Nat.mul_assoc]
-    omega
+  have hvals : d * 10 ^ L + q < (L + 1) * 10 ^ L :=
+    hnext.trans_le (Nat.mul_le_mul_right (10 ^ L) (Nat.succ_le_succ hd))
+  have hsplit : (L + 1) * 10 ^ L ≤ 2 * (L + 1) * 10 ^ L := by rw [Nat.mul_assoc]; omega
   omega
 
 /-- Returning from a child preserves all four words of every ancestor frame. -/
 theorem notMem_nodeWrites_ancestor_frame {L f d e j : ℕ} (hd : d ≤ L) (he : e < d)
     (hj : j < 4) : f + 4 * e + j ∉ nodeWrites L f d := by
-  rw [mem_nodeWrites_iff hd]
-  omega
+  rw [mem_nodeWrites_iff hd]; omega
 
 /-- Returning from a child preserves every value-directory cell in an ancestor's row. -/
 theorem notMem_nodeWrites_ancestor_values {L f d e q : ℕ} (hd : d ≤ L) (he : e < d)
     (hq : q < 10 ^ L) :
     f + 4 * (L + 1) + (L + 1) * 10 ^ L + e * 10 ^ L + q ∉ nodeWrites L f d := by
   rw [mem_nodeWrites_iff hd]
-  have hprod := Nat.mul_le_mul_right (10 ^ L) (by omega : e + 1 ≤ d)
-  have hprodL := Nat.mul_le_mul_right (10 ^ L) (by omega : d ≤ L + 1)
-  have hnext : e * 10 ^ L + q < (e + 1) * 10 ^ L := by nlinarith only [hq]
-  have hlt : e * 10 ^ L + q < d * 10 ^ L := hnext.trans_le hprod
-  have hts : (L + 1) * 10 ^ L + e * 10 ^ L + q < 2 * (L + 1) * 10 ^ L := by
+  have hlt : e * 10 ^ L + q < d * 10 ^ L :=
+    (by nlinarith only [hq] : e * 10 ^ L + q < (e + 1) * 10 ^ L).trans_le
+      (Nat.mul_le_mul_right (10 ^ L) he)
+  have hprodL := Nat.mul_le_mul_right (10 ^ L) (Nat.le_succ_of_le hd)
+  have : (L + 1) * 10 ^ L + e * 10 ^ L + q < 2 * (L + 1) * 10 ^ L := by
     nlinarith only [hlt, hprodL]
   omega
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Oracle
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Routing a single oracle channel
@@ -62,8 +63,7 @@ theorem embedSingleConfig_initial (i₀ : ι) (machine : MultiTapePTM k Symbol S
     (input : List Symbol) :
     embedSingleConfig i₀ (machine.initialConfig input) =
       (machine.singleOracle i₀).initialConfig input := by
-  refine Config.ext rfl (funext fun j => ?_)
-  simp only [embedSingleConfig, initialConfig, ite_self]
+  tm_step [embedSingleConfig, initialConfig]
 
 @[simp]
 theorem embedSingleConfig_answerSymbols {input : List Symbol} (i₀ : ι)
@@ -78,22 +78,13 @@ theorem embedSingleConfig_step {input : List Symbol} (i₀ : ι)
       (fun j => if j = i₀ then qSym () else none)
       (fun j => if j = i₀ then aMove () else 0) =
       embedSingleConfig i₀ (cfg.step action qSym aMove) := by
-  refine Config.ext rfl (funext fun j => ?_)
-  by_cases hj : j = i₀
-  · subst hj
-    simp only [Config.step, embedSingleConfig, ↓reduceIte]
-  · simp only [Config.step, embedSingleConfig, hj, ↓reduceIte, Option.toList_none,
-      List.append_nil, SignType.coe_zero, add_zero]
+  tm_step [Config.step, embedSingleConfig]
 
 theorem embedSingleConfig_receive {input : List Symbol} (i₀ : ι)
     (cfg : Config k Symbol State Unit input) (next : State) (answer : List Symbol) :
     (embedSingleConfig i₀ cfg).receive i₀ next answer =
       embedSingleConfig i₀ (cfg.receive () next answer) := by
-  refine Config.ext rfl (funext fun j => ?_)
-  by_cases hj : j = i₀
-  · subst hj
-    simp only [Config.receive, embedSingleConfig, Function.update_self, ↓reduceIte]
-  · simp only [Config.receive, embedSingleConfig, Function.update_of_ne hj, hj, ↓reduceIte]
+  tm_step [Config.receive, embedSingleConfig]
 
 /-- Running `singleOracle i₀ machine` forwards every query `((), word)` to `(i₀, word)`. -/
 theorem runOracle_singleOracle (i₀ : ι) (machine : MultiTapePTM k Symbol State Unit)

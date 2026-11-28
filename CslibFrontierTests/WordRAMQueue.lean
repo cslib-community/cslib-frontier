@@ -25,6 +25,11 @@ open Cslib.DataStructure Cslib.DataStructure.Queue
 
 namespace WordRAMQueueTest
 
+-- A malformed option tag is rejected at the native queue's actual output boundary.
+example : (Queue.WordRAM.implementation 2 1).decode .dequeue (fun _ => 2) = none := by
+  rw [Queue.WordRAM.decode_dequeue]
+  decide
+
 /-- An adaptive FIFO client, with no access to either stack representation. -/
 def cycle {w capacity : ℕ} (a b : ℕ) :
     (Queue.WordRAM.spec w capacity).Client (Option ℕ × Option ℕ) :=
@@ -40,7 +45,7 @@ example {w capacity a b : ℕ} :
 
 theorem cycle_valid {w capacity a b : ℕ} (hc : 2 ≤ capacity) (ha : Fits w a) (hb : Fits w b) :
     (Queue.WordRAM.spec w capacity).ValidHistory []
-      ((Queue.WordRAM.spec w capacity).runClient [] (cycle a b)).2.2 := by
+      ((Queue.WordRAM.spec w capacity).clientHistory [] (cycle a b)) := by
   exact ⟨⟨by simpa using (show 0 < capacity by omega), ha⟩,
     ⟨⟨by simpa using (show 1 < capacity by omega), hb⟩,
     trivial, ⟨by simpa using (show 1 < capacity by omega), ha⟩, trivial, trivial⟩⟩
@@ -57,12 +62,11 @@ example {w base capacity a b : ℕ} (h1 : Fits w 1)
       DataStructure.total DynamicProgram.OperationTrace.instructions traces +
         Queue.WordRAM.potential y ≤
           5 * (4 * Backend.factor Queue.WordRAM.family + 6) + Queue.WordRAM.potential x := by
-  have hv : (Queue.WordRAM.spec w capacity).ValidHistory []
-      ((Queue.WordRAM.spec w capacity).runClient [] (cycle a b)).2.2 :=
-    ⟨⟨by simpa using (show 0 < capacity by omega), ha⟩,
-      ⟨⟨by simpa using (show 1 < capacity by omega), hb⟩,
-      trivial, ⟨by simpa using (show 1 < capacity by omega), ha⟩, trivial, trivial⟩⟩
-  simpa only [cycle, DataStructure.StateTransitionSpec.runClient_liftBind,
+  have hv := cycle_valid hsize ha hb
+  simpa only [cycle, DataStructure.StateTransitionSpec.clientResult,
+    DataStructure.StateTransitionSpec.clientState,
+    DataStructure.StateTransitionSpec.clientHistory,
+    DataStructure.StateTransitionSpec.runClient_liftBind,
     DataStructure.StateTransitionSpec.runClient_pure,
     Queue.WordRAM.spec, queue,
     List.nil_append, List.cons_append, List.tail_cons, List.head?_cons,
@@ -117,8 +121,8 @@ example {x y : Data Queue.WordRAM.registers} {a : Option ℕ}
 
 -- Empty and zero-valued observations are semantically distinct, and the footprint size is `2 * c`.
 example :
-    (Queue.WordRAM.pairStep ([], []) .dequeue).2 = none ∧
-    (Queue.WordRAM.pairStep ([], [0]) .dequeue).2 = some 0 ∧
+    (Queue.WordRAM.pairStep ⟨[], []⟩ .dequeue).2 = none ∧
+    (Queue.WordRAM.pairStep ⟨[], [0]⟩ .dequeue).2 = some 0 ∧
     (Queue.WordRAM.footprint 3 2).card = 4 :=
   ⟨rfl, rfl, Queue.WordRAM.footprint_card _ _⟩
 

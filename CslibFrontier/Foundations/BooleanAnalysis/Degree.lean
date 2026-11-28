@@ -24,9 +24,8 @@ multilinear representation. Its *total degree* `BitString.totalDegree f` is the 
 that agrees with `f` on the cube.
 
 Over a field `F` in which `2` is invertible, the characters `chi F S` and the monomials of at most
-`D` coordinates span the same functions (`BitString.chi_mem_lowDegree`,
-`BitString.lowDegree_le_signSpan`). Over `ℝ`, low degree is therefore the vanishing of the Fourier
-coefficients on sets of more than `D` coordinates
+`D` coordinates span the same functions (`BitString.lowDegree_eq_signSpan`). Over `ℝ`, low degree
+is therefore the vanishing of the Fourier coefficients on sets of more than `D` coordinates
 (`BitString.mem_lowDegree_iff_fourierCoeff_eq_zero`), and the total degree is the largest size of a
 set with a nonzero Fourier coefficient (`BitString.totalDegree_le_iff_fourierCoeff_eq_zero`,
 `BitString.exists_card_eq_totalDegree_fourierCoeff_ne_zero`) [NisanSzegedy1994], [ODonnell2014].
@@ -38,9 +37,9 @@ set with a nonzero Fourier coefficient (`BitString.totalDegree_le_iff_fourierCoe
 
 ## Main results
 
-* `Cslib.BitString.chi_mem_lowDegree`, `Cslib.BitString.lowDegree_le_signSpan`: characters of at
-  most `H` coordinates and monomials of at most `H` coordinates span the same space when `2` is
-  invertible.
+* `Cslib.BitString.chi_mem_lowDegree`, `Cslib.BitString.lowDegree_le_signSpan`,
+  `Cslib.BitString.lowDegree_eq_signSpan`: characters of at most `H` coordinates and monomials of
+  at most `H` coordinates span the same space when `2` is invertible.
 * `Cslib.BitString.totalDegree_le_iff_mem_lowDegree`: over finitely many coordinates, the total
   degree is the least `D` with `f ∈ lowDegree R ι D`.
 * `Cslib.BitString.mem_lowDegree_iff_fourierCoeff_eq_zero`: over `ℝ`, low degree is the vanishing
@@ -76,10 +75,10 @@ def signSpan (H : ℕ) : Submodule F ((ι → Bool) → F) :=
 
 /-- The character of `S` has degree at most `|S|`. -/
 theorem chi_mem_lowDegree (S : Finset ι) : chi F S ∈ lowDegree F ι #S := by
-  have hfun : chi F S = ∏ i ∈ S, (1 - 2 * fun x : ι → Bool => bitVal F (x i)) := by
-    funext x
-    simp [chi, Finset.prod_apply, neg_one_pow_toNat_eq_one_sub_two_mul_bitVal]
-  rw [hfun]
+  have hchi : chi F S = ∏ i ∈ S, (1 - 2 * fun x : ι → Bool => bitVal F (x i)) :=
+    funext fun x => by
+      simp [chi, Finset.prod_apply, neg_one_pow_toNat_eq_one_sub_two_mul_bitVal]
+  rw [hchi]
   simpa using prod_mem_lowDegree S (a := 1) fun i _ =>
     Submodule.sub_mem _ (one_mem_lowDegree 1) (by
       simpa [two_mul] using Submodule.add_mem _ (bitVal_mem_lowDegree (R := F) i)
@@ -92,21 +91,15 @@ theorem signSpan_mono {H K : ℕ} (hHK : H ≤ K) : signSpan F ι H ≤ signSpan
 /-- Each monomial expands into characters of its subsets. -/
 theorem monomial_mem_signSpan [Invertible (2 : F)] (S : Finset ι) :
     monomial F S ∈ signSpan F ι #S := by
-  classical
-  have hfun : monomial F S = ∑ T ∈ S.powerset,
-      (⅟2 ^ #S * (-1) ^ #T : F) • chi F T := by
-    funext x
-    simp only [monomial, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, chi,
-      neg_one_pow_toNat_eq_one_sub_two_mul_bitVal]
-    have hsplit : ∏ i ∈ S, bitVal F (x i) = ∏ i ∈ S, (⅟2 * (-(1 - 2 * bitVal F (x i)) + 1)) :=
-      Finset.prod_congr rfl fun i _ => by
-        rw [show -(1 - 2 * bitVal F (x i)) + 1 = 2 * bitVal F (x i) by ring, ← mul_assoc,
-          invOf_mul_self, one_mul]
-    rw [hsplit, Finset.prod_mul_distrib, Finset.prod_const, Finset.prod_add, Finset.mul_sum]
-    refine Finset.sum_congr rfl fun T hT => ?_
-    rw [Finset.prod_const_one, mul_one, Finset.prod_neg]
-    ring
-  rw [hfun]
+  have hmon : monomial F S = ∑ T ∈ S.powerset, (⅟2 ^ #S * (-1) ^ #T : F) • chi F T :=
+    funext fun x => by
+      have hc (T : Finset ι) : (-1 : F) ^ #T = chi F T (fun _ => true) := by simp [chi]
+      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, mul_assoc, ← Finset.mul_sum,
+        monomial_apply]
+      rw [Finset.sum_congr rfl fun T _ => by rw [hc, mul_comm],
+        sum_powerset_chi_mul_chi (R := F) S x fun _ => true]
+      split_ifs <;> simp
+  rw [hmon]
   exact Submodule.sum_mem _ fun T hT => Submodule.smul_mem _ _
     (Submodule.subset_span ⟨T, Finset.card_le_card (Finset.mem_powerset.mp hT), rfl⟩)
 
@@ -117,6 +110,15 @@ theorem lowDegree_le_signSpan [Invertible (2 : F)] (H : ℕ) :
   rw [lowDegree, Submodule.span_le]
   rintro _ ⟨S, hS, rfl⟩
   exact signSpan_mono hS (monomial_mem_signSpan S)
+
+/-- **Degree in the `±1` basis.** When `2` is invertible in `F`, the functions of degree at most
+`H` are exactly the linear combinations of the characters `chi F S = ∏ i ∈ S, (-1) ^ xᵢ` with
+`#S ≤ H`. -/
+theorem lowDegree_eq_signSpan [Invertible (2 : F)] (H : ℕ) :
+    lowDegree F ι H = signSpan F ι H :=
+  le_antisymm (lowDegree_le_signSpan H) <| Submodule.span_le.2 <| by
+    rintro _ ⟨S, hS, rfl⟩
+    exact lowDegree_mono hS (chi_mem_lowDegree S)
 
 end SignSpan
 
@@ -159,9 +161,7 @@ omit [Finite ι] in
 theorem totalDegree_comp_not (f : (ι → Bool) → R) :
     totalDegree (fun x => f fun i => !x i) = totalDegree f := by
   refine congrArg sInf (Set.ext fun D => ⟨fun h => ?_, comp_not_mem_lowDegree⟩)
-  have h' := comp_not_mem_lowDegree h
-  simp only [Bool.not_not] at h'
-  exact h'
+  simpa only [Set.mem_ofPred_eq, Bool.not_not] using comp_not_mem_lowDegree h
 
 end CommRing
 
@@ -175,11 +175,8 @@ private theorem signSpan_le_ker_fourierCoeffₗ {S : Finset ι} (hS : D < #S) :
     signSpan ℝ ι D ≤ LinearMap.ker (fourierCoeffₗ S) := by
   refine Submodule.span_le.2 ?_
   rintro _ ⟨T, hT, rfl⟩
-  have hTS : T ≠ S := by
-    rintro rfl
-    exact absurd hT (not_le.2 hS)
   change fourierCoeff (chi ℝ T) S = 0
-  simp only [fourierCoeff_chi, hTS, ↓reduceIte]
+  simp [fourierCoeff_chi, show T ≠ S from fun h => (h ▸ hT).not_gt hS]
 
 /-- A function of total degree at most `D` has no Fourier weight on sets of more than `D`
 coordinates. -/
@@ -193,16 +190,13 @@ coordinates exactly when its Fourier coefficients on sets of more than `D` coord
 theorem mem_lowDegree_iff_fourierCoeff_eq_zero :
     f ∈ lowDegree ℝ ι D ↔ ∀ S : Finset ι, D < #S → fourierCoeff f S = 0 := by
   refine ⟨fun hf S hS => fourierCoeff_eq_zero_of_mem_lowDegree hf hS, fun h => ?_⟩
-  have hf : f = ∑ S, fourierCoeff f S • chi ℝ S := by
-    funext x
-    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
-    exact (sum_fourierCoeff_mul_chi f x).symm
+  have hf : f = ∑ S, fourierCoeff f S • chi ℝ S := funext fun x => by
+    simpa [Finset.sum_apply] using (sum_fourierCoeff_mul_chi f x).symm
   rw [hf]
   refine Submodule.sum_mem _ fun S _ => ?_
   by_cases hS : #S ≤ D
   · exact Submodule.smul_mem _ _ (lowDegree_mono hS (chi_mem_lowDegree S))
-  · rw [h S (not_le.1 hS), zero_smul]
-    exact Submodule.zero_mem _
+  · simp [h S (not_le.1 hS)]
 
 /-- A nonzero Fourier coefficient bounds the total degree below. -/
 theorem card_le_totalDegree_of_fourierCoeff_ne_zero {S : Finset ι} (h : fourierCoeff f S ≠ 0) :
@@ -230,14 +224,10 @@ omit [Fintype ι] [DecidableEq ι] in
 low-degree membership: `signVal b = 1 - 2 bitVal ℝ b`. -/
 theorem signVal_comp_mem_lowDegree_iff {g : (ι → Bool) → Bool} :
     (fun x => signVal (g x)) ∈ lowDegree ℝ ι D ↔ (fun x => bitVal ℝ (g x)) ∈ lowDegree ℝ ι D := by
-  have hsign : (fun x => signVal (g x)) = 1 - (2 : ℝ) • fun x => bitVal ℝ (g x) := by
-    funext x
-    simp [signVal_eq_one_sub_two_mul_bitVal]
-  have hbit : (fun x => bitVal ℝ (g x)) = (2⁻¹ : ℝ) • (1 - fun x => signVal (g x)) := by
-    funext x
-    simp only [Pi.smul_apply, Pi.sub_apply, Pi.one_apply, smul_eq_mul,
-      signVal_eq_one_sub_two_mul_bitVal]
-    ring
+  have hsign : (fun x => signVal (g x)) = 1 - (2 : ℝ) • fun x => bitVal ℝ (g x) :=
+    funext fun x => by simp [signVal_eq_one_sub_two_mul_bitVal]
+  have hbit : (fun x => bitVal ℝ (g x)) = (2⁻¹ : ℝ) • (1 - fun x => signVal (g x)) :=
+    funext fun x => by simp [signVal_eq_one_sub_two_mul_bitVal]
   exact ⟨fun h => hbit ▸ Submodule.smul_mem _ _ (one_sub_mem_lowDegree h),
     fun h => hsign ▸ one_sub_mem_lowDegree (Submodule.smul_mem _ _ h)⟩
 

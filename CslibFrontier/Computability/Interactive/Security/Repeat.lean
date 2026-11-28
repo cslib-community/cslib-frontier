@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Interactive.Security
 public import CslibFrontier.Languages.Probabilistic.Repeat
+public import CslibFrontier.Probability.StatisticalDistance.Product
 
 /-!
 # Statistical error under independent repetition
@@ -34,14 +35,8 @@ open scoped ENNReal
 assumptions on the sample space. -/
 theorem iid {α : Type} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε) (k : ℕ) :
     CloseTo (PMF.iid μ k) (PMF.iid ν k) (k * ε) := by
-  induction k with
-  | zero =>
-    simp only [PMF.iid, Nat.cast_zero, zero_mul, CloseTo.refl]
-  | succ k ih =>
-    rw [PMF.iid, PMF.iid, PMF.monad_bind_eq_bind, PMF.monad_bind_eq_bind,
-      Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_comm (k * ε) ε]
-    refine CloseTo.bind h fun a _ => ?_
-    exact ih.map (@Fin.cons k (fun _ => α) a)
+  rw [← PMF.piFin_const, ← PMF.piFin_const]
+  exact CloseTo.piFin fun _ => h
 
 /-- `k` independent draws from `μ` collected as a list are `(k * ε)`-close to
 `OracleComp.replicate k prog` whenever `μ` is `ε`-close to `ProbComp.eval prog`. -/

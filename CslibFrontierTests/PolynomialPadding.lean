@@ -12,7 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolynomialPadding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 
-/-! Concrete padding, decoding, acceptance/rejection by the padding guard, the improved
+/-! Concrete padding, decoding, acceptance/rejection by the padding guard, the linear
 binary-to-unary resource bound, and instances of the translation lemma. -/
 
 public section
@@ -20,6 +20,17 @@ public section
 namespace CslibFrontierTests.PolynomialPadding
 
 open Turing.MultiTapeTM
+
+-- Guard costs depend on the full input word, including malformed and insufficient padding.
+example (k : ℕ) :
+    ComputableInO
+      (fun x : List Bool => decide (((unframe x).length + 1) ^ k ≤ x.length))
+      encBits encBool (fun x => (x.length + 1) ^ 2) (fun x => x.length + 1) :=
+  computableInO_polynomialPaddingGuard k
+
+-- Zero exponent is valid for the guard, but is not a writer's k ≥ 1 hypothesis.
+example : decide (((unframe ([] : List Bool)).length + 1) ^ 0 ≤ 0) = false ∧
+    ¬ (1 ≤ (0 : ℕ)) := by decide
 
 private def cubePad (x : List Bool) : List Bool :=
   frame x ++ List.replicate ((x.length + 1) ^ 3) true
@@ -73,7 +84,7 @@ example (h : DTIME encBits (fun n => (n + 1) ^ 2) ⊆ DTIME encBits (fun n => n 
     (fun n => by nlinarith) (fun n => by omega) (by fun_prop) (fun n => by omega) h
 
 open Cslib.Complexity in
-/-- Polynomial padding now also transfers collapses to the linear degree. -/
+/-- Polynomial padding transfers collapses whose smaller degree is linear. -/
 example (h : DTIME encBits (fun n => (n + 1) ^ 2) ⊆ DTIME encBits (fun n => (n + 1) ^ 1)) :
     DTIME encBits (fun n => (n + 1) ^ (2 * 3)) ⊆ DTIME encBits (fun n => (n + 1) ^ (1 * 3)) :=
   DTIME_pow_mul_subset_of_subset le_rfl (by omega) (by omega) h

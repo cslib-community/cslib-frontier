@@ -13,6 +13,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Data.Nat.Choose.Basic
 public import Mathlib.InformationTheory.Hamming
+import CslibFrontier.Foundations.Data.BitString.Neg
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Fintype.BigOperators
@@ -45,8 +46,8 @@ words of weight at most `e` form a Hamming ball of size `B(n, e) = ∑ j ∈ ran
   weight is the Hamming norm.
 * `Cslib.BitString.weight_le`, `Cslib.BitString.weight_le_length`: the weight is at most the number
   of coordinates.
-* `Cslib.BitString.count_true_ofFn`: `(List.ofFn x).count true = weight x`.
 * `Cslib.BitString.monotone_weight`: the weight is monotone.
+* `Cslib.BitString.weight_comp_equiv`: relabelling the coordinates preserves the weight.
 * `Cslib.BitString.card_weightLayer`: there are `n.choose k` strings of `n` bits of weight `k`.
 * `Cslib.BitString.card_filter_weight_le`, `Cslib.BitString.card_filter_weight_le_eq_ballSize`: the
   exact binomial-sum size of a Hamming ball.
@@ -83,7 +84,7 @@ theorem weight_eq_hammingNorm (x : ι → Bool) : weight x = hammingNorm x := by
 /-- The Hamming distance between two bit strings is the weight of their sum. -/
 theorem hammingDist_eq_weight_add (x y : ι → Bool) : hammingDist x y = weight (x + y) := by
   rw [hammingDist_eq_hammingNorm, weight_eq_hammingNorm]
-  exact congrArg hammingNorm (funext fun i => BooleanRing.sub_eq_add (x i) (y i))
+  exact congrArg hammingNorm (BitString.sub_eq_add x y)
 
 /-- The weight is at most the number of coordinates. -/
 theorem weight_le (x : ι → Bool) : weight x ≤ Fintype.card ι :=
@@ -126,14 +127,11 @@ theorem weight_cons_succ {q : ℕ} (z : Fin (q + 1) → Bool) :
     weight z = (z 0).toNat + weight (fun i : Fin q => z i.succ) := by
   simp only [weight_eq_sum_toNat, Fin.sum_univ_succ]
 
-/-- The number of `true` entries in `List.ofFn x` is the weight of `x`. -/
-@[simp] theorem count_true_ofFn {n : ℕ} (x : BitString n) :
-    (List.ofFn x).count true = weight x := by
-  induction n with
-  | zero => simp [weight]
-  | succ n ih =>
-    rw [List.ofFn_succ, List.count_cons, ih, weight_cons_succ]
-    cases x 0 <;> simp [Nat.add_comm]
+/-- The number of `true` entries in `List.ofFn x` is the weight of `x`. Use this for explicit
+rewrites; Mathlib's `List.count_ofFn` is the `simp` lemma for counts over `List.ofFn`. -/
+theorem count_true_ofFn {n : ℕ} (x : BitString n) :
+    (List.ofFn x).count true = weight x :=
+  List.count_ofFn x true
 
 /-- Setting a false coordinate to true adds one to the weight. -/
 theorem weight_update_true [DecidableEq ι] {x : ι → Bool} {i : ι} (hi : x i = false) :
@@ -157,6 +155,16 @@ theorem weight_update_false [DecidableEq ι] {x : ι → Bool} {i : ι} (hi : x 
     · simp [hj]
   rw [weight, he, weight]
   exact card_erase_add_one (by simp [hi])
+
+/-- The number of true bits outside `i` is the weight of the string with bit `i` cleared. -/
+theorem card_filter_erase_eq_weight_update_false [DecidableEq ι] (i : ι) (x : ι → Bool) :
+    #{j ∈ univ.erase i | x j = true} = weight (Function.update x i false) := by
+  rw [weight]
+  congr 1
+  ext j
+  by_cases hj : j = i
+  · subst hj; simp
+  · simp [hj]
 
 /-- The words `ι → Bool` of weight `r` number `|ι|.choose r`: they are the indicators of the
 `r`-element sets of coordinates. -/
@@ -237,6 +245,12 @@ theorem weight_comp_le {κ : Type*} [Fintype κ] (x : ι → Bool) {f : κ → �
   exact Fintype.card_le_of_injective
     (fun i : {i : κ // (x ∘ f) i = true} => (⟨f i, i.property⟩ : {j : ι // x j = true}))
     (fun _ _ h => Subtype.ext (hf (congrArg Subtype.val h)))
+
+/-- Relabelling the coordinates along a bijection preserves the weight. -/
+theorem weight_comp_equiv {κ : Type*} [Fintype κ] (x : ι → Bool) (e : κ ≃ ι) :
+    weight (x ∘ e) = weight x := by
+  simp only [weight_eq_sum_toNat]
+  exact Equiv.sum_comp e fun i => (x i).toNat
 
 /-- A finite family of words of weight at most `e` attains at most the Hamming-ball size.
 The map need not be injective, and the radius may exceed the number of coordinates. -/

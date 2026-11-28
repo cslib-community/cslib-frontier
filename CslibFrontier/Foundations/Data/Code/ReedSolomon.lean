@@ -39,9 +39,13 @@ meet the Singleton bound `Cslib.Code.finrank_add_le_card_add_one` with equality.
 
 * `Cslib.Code.mem_reedSolomon`: the codewords are the evaluations of polynomials of degree less
   than `k`.
+* `Cslib.Code.card_filter_eval_eq_zero_le`, `Cslib.Code.card_filter_eval_eq_eval_le`: a nonzero
+  polynomial vanishes at no more of the distinct points `α i` than its degree, and two distinct
+  polynomials of `natDegree ≤ d` agree at no more than `d` of them.
 * `Cslib.Code.le_hammingNorm_of_mem_reedSolomon`, `Cslib.Code.le_minDist_reedSolomon`: nonzero
   codewords have weight at least `n - k + 1`.
 * `Cslib.Code.minDist_reedSolomon`: the minimum distance is `n - k + 1`.
+* `Cslib.Code.eq_of_hammingDist_le_reedSolomon`: unique decoding within radius `2 * e + k ≤ n`.
 * `Cslib.Code.finrank_reedSolomon`: with distinct points and `k ≤ n`, the dimension is `k`.
 
 ## References
@@ -72,8 +76,7 @@ variable {α : ι → F} {k : ℕ}
 of degree less than `k`. -/
 theorem mem_reedSolomon {w : ι → F} :
     w ∈ reedSolomon α k ↔ ∃ p : F[X], p.degree < k ∧ (fun i => p.eval (α i)) = w := by
-  simp only [reedSolomon, Submodule.mem_map, mem_degreeLT]
-  rfl
+  simp only [reedSolomon, Submodule.mem_map, mem_degreeLT]; rfl
 
 /-- The values `i ↦ p (α i)` of a polynomial `p` of degree less than `k` form a codeword of
 `reedSolomon α k`. -/
@@ -84,28 +87,37 @@ theorem eval_mem_reedSolomon (α : ι → F) {p : F[X]} (hp : p.degree < k) :
 variable [Fintype ι] [DecidableEq F]
 
 /-- A nonzero polynomial vanishes at no more of the distinct points `α i` than its degree. -/
-private theorem card_filter_eval_eq_zero_le (hα : Function.Injective α) {p : F[X]} (hp : p ≠ 0) :
+theorem card_filter_eval_eq_zero_le (hα : Function.Injective α) {p : F[X]} (hp : p ≠ 0) :
     #{i | p.eval (α i) = 0} ≤ p.natDegree := by
   rw [← card_image_of_injective _ hα]
   refine card_le_degree_of_subset_roots fun a ha => ?_
   obtain ⟨i, hi, rfl⟩ := mem_image.1 ha
   exact (mem_roots hp).2 (mem_filter.1 hi).2
 
+/-- Two distinct polynomials of `natDegree` at most `d` agree at no more than `d` of the distinct
+points `α i`. -/
+theorem card_filter_eval_eq_eval_le (hα : Function.Injective α) {d : ℕ} {P Q : F[X]}
+    (hP : P.natDegree ≤ d) (hQ : Q.natDegree ≤ d) (hne : P ≠ Q) :
+    #{i | P.eval (α i) = Q.eval (α i)} ≤ d := by
+  have hsub : #{i | P.eval (α i) = Q.eval (α i)} = #{i | (P - Q).eval (α i) = 0} := by
+    congr 1
+    ext
+    simp [sub_eq_zero]
+  exact hsub ▸ (card_filter_eval_eq_zero_le hα (sub_ne_zero.2 hne)).trans
+    ((natDegree_sub_le P Q).trans (max_le hP hQ))
+
 /-- With distinct points, a nonzero codeword of the Reed–Solomon code with degree bound `k` has
 weight at least `n - k + 1`. -/
 theorem le_hammingNorm_of_mem_reedSolomon (hα : Function.Injective α) {w : ι → F}
     (hw : w ∈ reedSolomon α k) (hw0 : w ≠ 0) : Fintype.card ι - k + 1 ≤ hammingNorm w := by
   obtain ⟨p, hp, rfl⟩ := mem_reedSolomon.1 hw
-  have hp0 : p ≠ 0 := by
-    rintro rfl
-    exact hw0 (funext fun _ => eval_zero)
-  have hdeg : p.natDegree < k := (natDegree_lt_iff_degree_lt hp0).2 hp
-  have hzero := card_filter_eval_eq_zero_le hα hp0
-  have hsum : #{i | p.eval (α i) = 0} + hammingNorm (fun i => p.eval (α i)) =
-      Fintype.card ι := by
+  have hp0 : p ≠ 0 := fun hp0 => hw0 (hp0 ▸ funext fun _ => eval_zero)
+  have := (natDegree_lt_iff_degree_lt hp0).2 hp
+  have := card_filter_eval_eq_zero_le hα hp0
+  have : #{i | p.eval (α i) = 0} + hammingNorm (fun i => p.eval (α i)) = Fintype.card ι := by
     rw [hammingNorm, ← card_univ]
     exact card_filter_add_card_filter_not _
-  have hpos := hammingNorm_pos_iff.2 hw0
+  have := hammingNorm_pos_iff.2 hw0
   omega
 
 /-- With distinct points, the Reed–Solomon code with degree bound `k` has minimum distance at
@@ -125,25 +137,33 @@ theorem minDist_reedSolomon (hα : Function.Injective α) (hk : 1 ≤ k)
   -- the polynomial vanishing exactly at `k - 1` of the points
   obtain ⟨S, -, hS⟩ := exists_subset_card_eq (s := (univ : Finset ι)) (n := k - 1)
     (by rw [card_univ]; omega)
-  have hw : (fun i => (Lagrange.nodal S α).eval (α i)) ∈ reedSolomon α k := by
-    refine eval_mem_reedSolomon α ?_
-    rw [Lagrange.degree_nodal, hS]
-    exact_mod_cast (by omega : k - 1 < k)
-  have hne : ({i | (Lagrange.nodal S α).eval (α i) ≠ 0} : Finset ι) = univ \ S := by
-    ext i
-    simp only [mem_filter, mem_univ, true_and, mem_sdiff]
-    refine ⟨fun h hi => h (Lagrange.eval_nodal_at_node hi), fun hi => ?_⟩
-    exact Lagrange.eval_nodal_not_at_node fun j hj h => hi (hα h ▸ hj)
+  have hw : (fun i => (Lagrange.nodal S α).eval (α i)) ∈ reedSolomon α k :=
+    eval_mem_reedSolomon α <| (Lagrange.degree_nodal.trans (congrArg Nat.cast hS)).trans_lt
+      (by exact_mod_cast (by omega : k - 1 < k))
   have hnorm : hammingNorm (fun i => (Lagrange.nodal S α).eval (α i)) = Fintype.card ι - k + 1 := by
+    have hne : ({i | (Lagrange.nodal S α).eval (α i) ≠ 0} : Finset ι) = univ \ S := by
+      ext i
+      exact ⟨fun h => mem_sdiff.2 ⟨mem_univ _, fun hi => (mem_filter.1 h).2
+        (Lagrange.eval_nodal_at_node hi)⟩, fun hi => mem_filter.2 ⟨mem_univ _,
+        Lagrange.eval_nodal_not_at_node fun _ hj h => (mem_sdiff.1 hi).2 (hα h ▸ hj)⟩⟩
     rw [hammingNorm, hne, card_univ_sdiff, hS]
-    omega
-  have hw0 : (fun i => (Lagrange.nodal S α).eval (α i)) ≠ 0 := by
-    rw [← hammingNorm_pos_iff, hnorm]
     omega
   calc minDist (reedSolomon α k : Set (ι → F))
       ≤ hammingDist (fun i => (Lagrange.nodal S α).eval (α i)) 0 :=
-        minDist_le_hammingDist hw (Submodule.zero_mem _) hw0
+        minDist_le_hammingDist hw (Submodule.zero_mem _) (hammingNorm_pos_iff.1 (by omega))
     _ = (Fintype.card ι - k + 1 : ℕ) := by rw [hammingDist_zero_right, hnorm]
+
+/-- **Unique decoding for Reed–Solomon codes.** With distinct points, inside the unique-decoding
+radius `2 * e + k ≤ n`, a word is within Hamming distance `e` of at most one codeword. -/
+theorem eq_of_hammingDist_le_reedSolomon (hα : Function.Injective α) {e : ℕ}
+    (huniq : 2 * e + k ≤ Fintype.card ι) {f c₁ c₂ : ι → F}
+    (hc₁ : c₁ ∈ reedSolomon α k) (hc₂ : c₂ ∈ reedSolomon α k)
+    (hd₁ : hammingDist f c₁ ≤ e) (hd₂ : hammingDist f c₂ ≤ e) :
+    c₁ = c₂ :=
+  eq_of_hammingDist_le_of_two_mul_lt_minDist
+    (lt_of_lt_of_le (by exact_mod_cast (by omega : 2 * e < Fintype.card ι - k + 1))
+      (le_minDist_reedSolomon hα k))
+    hc₁ hc₂ (by rwa [hammingDist_comm]) (by rwa [hammingDist_comm])
 
 omit [DecidableEq F] in
 /-- With distinct points, the Reed–Solomon code with degree bound `k ≤ n` has dimension `k`. -/
@@ -152,13 +172,13 @@ theorem finrank_reedSolomon (hα : Function.Injective α) (hkn : k ≤ Fintype.c
   classical
   let f : F[X] →ₗ[F] ι → F := LinearMap.pi fun i => leval (α i)
   -- a polynomial of degree less than `k ≤ n` is determined by its values at the points
-  have hinj : Function.Injective (f.domRestrict (degreeLT F k)) := by
-    intro p q h
-    refine Subtype.ext (eq_of_degree_sub_lt_of_eval_finset_eq (univ.image α) ?_ fun x hx => ?_)
-    · rw [card_image_of_injective _ hα, card_univ]
-      exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.2 q.2)).trans_le (by exact_mod_cast hkn)
-    · obtain ⟨i, -, rfl⟩ := mem_image.1 hx
-      exact congrFun h i
+  have hinj : Function.Injective (f.domRestrict (degreeLT F k)) := fun p q h => Subtype.ext <|
+    eq_of_degree_sub_lt_of_eval_finset_eq (univ.image α)
+      (by rw [card_image_of_injective _ hα, card_univ]
+          exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.2 q.2)).trans_le (by exact_mod_cast hkn))
+      fun _ hx =>
+        let ⟨i, _, hi⟩ := mem_image.1 hx
+        hi ▸ congrFun h i
   rw [reedSolomon, ← LinearMap.range_domRestrict, LinearMap.finrank_range_of_inj hinj,
     (degreeLTEquiv F k).finrank_eq, Module.finrank_fin_fun]
 

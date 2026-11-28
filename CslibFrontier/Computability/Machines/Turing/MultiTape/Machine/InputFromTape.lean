@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Reading an effectful machine's input from work tapes
@@ -106,11 +107,8 @@ theorem step_config (a : Turing.Action k Symbol State) (symbol : Oracle → Opti
     (config mark cfg outerInput outerPosition).step
         (action a cfg.tapes.inputSymbol (if cfg.tapes.inputPos.val = 0 then some mark else none))
         symbol move = config mark (cfg.step a symbol move) outerInput outerPosition := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl (by simp [config, Config.step, action, Turing.Action.apply])
-    ?_ ?_ rfl <;> funext i <;> induction i using Fin.addCases <;>
-    simp [config, Config.step, action, Turing.Action.apply, MultiTapeTM.inCfg,
-      MultiTapeTM.val_moveInputPos_sub_one_eq_clampMove mark]
+  tm_step [config, Config.step, action, MultiTapeTM.inCfg,
+    MultiTapeTM.val_moveInputPos_sub_one_eq_clampMove mark]
 
 theorem receive_config [DecidableEq Oracle] (oracle : Oracle) (next : State)
     (answer : List Symbol) :
@@ -180,8 +178,9 @@ omit hchoose in
 /-- Effect-free deterministic input redirection is exactly upstream's compiler. -/
 theorem toTM_inputFromTape (machine : MultiTapeMachine k Symbol State Empty Id) :
     machine.inputFromTape.toTM = machine.toTM.inputFromTape := by
-  simp only [toTM, MultiTapeTM.inputFromTape, MultiTapeTM.tr_ofTr, inputFromTape]
+  simp only [toTM, MultiTapeTM.inputFromTape, MultiTapeTM.adapt, inputFromTape]
   congr 1 with state symbol work : 3
+  simp only [MultiTapeTM.adaptedTr, MultiTapeTM.tr_ofTr, Function.comp_def]
   cases machine.tr state (work (Fin.natAdd k 0)) (fun i => work (i.castAdd 2)) Empty.elim with
   | step a symbol move => rfl
   | query oracle next => exact oracle.elim

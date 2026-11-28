@@ -66,36 +66,13 @@ The certificate's intrinsic history supplies the root insertion's original memor
 
 private theorem realizes_gatherBody : Realizes .exact gatherBody (.refl _)
     (WordEncoding.encode (α := ℕ)) gatherStepSafe (fun _ _ => 0) := by
-  have hRoot := realizes_addRoot.reindex
-    (fun d : Fin 4 → ℕ => ![d 0, d 1, d 3]) (.refl _) ![0, 1, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  have hRet : Realizes .exact (fun d : (Fin 4 → ℕ) × Unit => pure (d.1 2 + 1))
-      (appendWords (.refl _) (WordEncoding.encode (α := Unit))) (WordEncoding.encode (α := ℕ))
-      (fun w d _ => Fits w (d.1 2 + 1)) (fun _ _ => 0) := by
-    realize
-    exact h
-  have hNext := (hRoot.bind₀ hRet).reindex
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => do
-      DataStructure.link (E := Memory.spec 0) ((layout d.1.1.1 d.1.1.2).methods 0) (addRoot d.2)
-      pure (d.1.2 + 1))
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-    (fun w d _ => (Fits w (d.1.1.2 + (9 * d.1.1.1 + 5)) ∧ d.2 < d.1.1.1) ∧
-      Fits w (d.1.2 + 1)) (fun _ _ => 0) at hNext
   unfold gatherBody
   -- The zero-capacity layout fits at width three, where the coefficient `8` does not.
   -- Repeated addition retains that domain without asking for a new fitting literal.
   have eight (n : ℕ) : n + n + n + n + n + n + n + n = 8 * n := by omega
-  conv =>
-    arg 2
-    ext d
-    rw [← eight]
-  realize
-  all_goals try simp only [eight] at *
-  all_goals try first
+  realize [realizes_addRoot] rewriting [← eight]
+  all_goals simp only [eight] at *
+  all_goals first
     | exact h.1.of_le (by have := h.2.1; omega)
     | exact h.2.2 (by assumption)
     | omega
@@ -122,21 +99,7 @@ theorem realizes_gather : Realizes .exact
     (fun d : Fin 4 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (gather (d 2) (d 3)))
     (.refl _) (WordEncoding.encode (α := Unit)) gatherSafe (fun _ _ => 0) := by
-  have hStep := realizes_gatherStep.reindex
-    (fun d : (ℕ × ℕ) × ℕ => ![d.1.1, d.1.2, d.2])
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) ![0, 1, 2]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : (ℕ × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1 d.1.2).methods 0) (gatherStep d.2))
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-    (fun w d mem => gatherStepSafe w ![d.1.1, d.1.2, d.2] mem)
-    (fun _ _ => 0) at hStep
-  conv =>
-    arg 2
-    ext d
-    rw [link_gather_eq_iterate]
-  realize
+  realize [realizes_gatherStep] rewriting [link_gather_eq_iterate]
   exact h.2
 
 private theorem gatherStep_progress {n sz w d md : ℕ} {g : Cell → ℕ}

@@ -102,22 +102,19 @@ at `u` and `v`. -/
 theorem eval_excludeClause_eq_true_iff (τ : ℕ → Bool) (u v : ℕ) (p : α × α) :
     (excludeClause e u v p).eval τ = true ↔ readLabel e τ u ≠ p.1 ∨ readLabel e τ v ≠ p.2 := by
   simp only [excludeClause, Clause.eval_eq_true_iff, List.mem_append, List.mem_map,
-    List.mem_finRange, true_and]
-  rw [← exists_eq_not_iff, ← exists_eq_not_iff]
-  constructor
-  · rintro ⟨l, (⟨i, rfl⟩ | ⟨i, rfl⟩), hl⟩
-    exacts [Or.inl ⟨i, hl⟩, Or.inr ⟨i, hl⟩]
-  · rintro (⟨i, hi⟩ | ⟨i, hi⟩)
-    exacts [⟨_, Or.inl ⟨i, rfl⟩, hi⟩, ⟨_, Or.inr ⟨i, rfl⟩, hi⟩]
+    List.mem_finRange, true_and, ← exists_eq_not_iff]
+  refine ⟨?_, fun h => h.elim (fun ⟨i, hi⟩ => ⟨_, Or.inl ⟨i, rfl⟩, hi⟩)
+    fun ⟨i, hi⟩ => ⟨_, Or.inr ⟨i, rfl⟩, hi⟩⟩
+  rintro ⟨_, ⟨i, rfl⟩ | ⟨i, rfl⟩, hl⟩
+  exacts [Or.inl ⟨i, hl⟩, Or.inr ⟨i, hl⟩]
 
 /-- Every clause of `toCNF` has width `2 k`. -/
-private theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
+theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
     (hc : c ∈ toCNF e pairs g) :
     c.length = 2 * k := by
   obtain ⟨d, -, hc⟩ := List.mem_flatMap.1 hc
   obtain ⟨p, -, rfl⟩ := List.mem_map.1 hc
-  simp only [excludeClause, List.length_append, List.length_map, List.length_finRange]
-  omega
+  simp only [excludeClause, List.length_append, List.length_map, List.length_finRange]; omega
 
 /-- Each edge produces at most `pairs.length` clauses. -/
 private theorem length_toCNF_le (g : Graph (α → α → Bool)) :
@@ -133,21 +130,15 @@ theorem satisfiable_toCNF {g : Graph (α → α → Bool)} (h : (g.toGraph id).S
   obtain ⟨σ, hσ⟩ := h
   let τ : ℕ → Bool := fun n =>
     if hn : n.unpair.2 < k then e (σ n.unpair.1) ⟨n.unpair.2, hn⟩ else false
-  have hτ (u : ℕ) : readLabel e τ u = σ u := by
-    rw [readLabel, Equiv.symm_apply_eq]
-    funext i
-    simp [τ, Nat.unpair_pair]
+  have hτ (u : ℕ) : readLabel e τ u = σ u :=
+    (Equiv.symm_apply_eq e).2 (funext fun i => by simp [τ, Nat.unpair_pair])
   refine ⟨τ, (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩
   obtain ⟨d, hd, hc⟩ := List.mem_flatMap.1 hc
   obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hc
   obtain ⟨i, rfl⟩ := List.get_of_mem hd
-  have hsat : (g.edges.get i).constraint (σ (g.edges.get i).src) (σ (g.edges.get i).dst) = true :=
-    hσ i
   have hp' : (g.edges.get i).constraint p.1 p.2 = false := by simpa using (List.mem_filter.1 hp).2
   rw [eval_excludeClause_eq_true_iff, hτ, hτ, ← not_and_or]
-  rintro ⟨h₁, h₂⟩
-  rw [h₁, h₂, hp'] at hsat
-  exact Bool.false_ne_true hsat
+  exact fun ⟨h₁, h₂⟩ => Bool.false_ne_true (hp' ▸ h₁ ▸ h₂ ▸ hσ i)
 
 /-- **Every violated edge leaves a falsified clause**: an assignment falsifies at least as many
 clauses of the formula as the labelling it writes violates edges, when `pairs` lists all pairs of
@@ -156,12 +147,20 @@ private theorem card_unsatEdges_le_countUnsat (hpairs : ∀ p, p ∈ pairs) (g :
     (τ : ℕ → Bool) :
     #((g.toGraph id).unsatEdges (readLabel e τ)) ≤ (toCNF e pairs g).countUnsat τ := by
   rw [card_unsatEdges_toGraph, CNF.countUnsat, toCNF, List.countP_flatMap]
-  simp only [id_eq]
   refine List.countP_le_sum_map fun d _ hd => List.countP_pos_iff.2
     ⟨excludeClause e d.src d.dst (readLabel e τ d.src, readLabel e τ d.dst),
-      List.mem_map.2 ⟨_, List.mem_filter.2 ⟨hpairs _, hd⟩, rfl⟩, ?_⟩
-  rw [Bool.not_eq_true', Bool.eq_false_iff, ne_eq, eval_excludeClause_eq_true_iff]
-  simp
+      List.mem_map.2 ⟨_, List.mem_filter.2 ⟨hpairs _, by simpa using hd⟩, rfl⟩, ?_⟩
+  simp [Bool.eq_false_iff, eval_excludeClause_eq_true_iff]
+
+/-- When `pairs` lists every pair of labels, the formula of a constraint graph is satisfiable
+exactly when the graph is. An assignment satisfying the formula writes a labelling that violates
+no edge. -/
+theorem satisfiable_toCNF_iff (hpairs : ∀ p, p ∈ pairs) {g : Graph (α → α → Bool)} :
+    (toCNF e pairs g).Satisfiable ↔ (g.toGraph id).Satisfiable := by
+  refine ⟨fun ⟨τ, hτ⟩ => ⟨readLabel e τ, ?_⟩, satisfiable_toCNF e pairs⟩
+  have h := card_unsatEdges_le_countUnsat e pairs hpairs g τ
+  rwa [CNF.countUnsat_eq_zero_iff.2 hτ, Nat.le_zero, Finset.card_eq_zero,
+    ConstraintGraph.unsatEdges_eq_empty_iff] at h
 
 /-- Splitting the clauses of `toCNF`, all of width `2 k`, gives `2 k - 2` clauses for each, and at
 least one. -/
@@ -191,25 +190,17 @@ theorem div_le_unsatVal_toThreeSAT_toCNF (hpairs : ∀ p, p ∈ pairs) (g : Grap
     simpa [ConstraintGraph.unsatFrac] using (g.toGraph id).unsatVal_le σ
   have hlen := length_toThreeSAT_toCNF e pairs g
   rcases Nat.eq_zero_or_pos (toThreeSAT φ).length with hL | hL
-  · have hC : (toThreeSAT φ).countUnsat τ = 0 :=
-      Nat.le_zero.1 (hL ▸ CNF.countUnsat_le_length _ _)
-    have hU : #((g.toGraph id).unsatEdges σ) = 0 := Nat.le_zero.1 (hC ▸ hcount)
-    have hnonpos : (g.toGraph id).unsatVal ≤ 0 := by simpa [hU] using hval
+  · have hU : #((g.toGraph id).unsatEdges σ) = 0 :=
+      Nat.le_zero.1 (hcount.trans (hL ▸ CNF.countUnsat_le_length _ _))
     rw [hL, Nat.cast_zero, div_zero]
-    exact div_nonpos_of_nonpos_of_nonneg hnonpos (Nat.cast_nonneg _)
-  · have hm : 0 < m := lt_max_of_lt_left Nat.one_pos
-    have hφ : 0 < φ.length := by
-      rw [hlen] at hL
-      exact Nat.pos_of_mul_pos_right hL
+    exact div_nonpos_of_nonpos_of_nonneg (by simpa [hU] using hval) (Nat.cast_nonneg _)
+  · have hφ : 0 < φ.length := Nat.pos_of_mul_pos_right (hlen ▸ hL)
     have hφle : φ.length ≤ g.edges.length * pairs.length := length_toCNF_le e pairs g
-    have hn : 0 < g.edges.length := Nat.pos_of_mul_pos_right (hφ.trans_le hφle)
-    have hp : 0 < pairs.length := Nat.pos_of_mul_pos_left (hφ.trans_le hφle)
     have hLle : ((toThreeSAT φ).length : ℝ) ≤ g.edges.length * (pairs.length * m : ℕ) := by
       rw [hlen, ← Nat.cast_mul, Nat.cast_le, ← Nat.mul_assoc]
       exact Nat.mul_le_mul_right m hφle
     calc (g.toGraph id).unsatVal / (pairs.length * m : ℕ)
-        ≤ #((g.toGraph id).unsatEdges σ) / g.edges.length / (pairs.length * m : ℕ) :=
-          div_le_div_of_nonneg_right hval (Nat.cast_nonneg _)
+        ≤ #((g.toGraph id).unsatEdges σ) / g.edges.length / (pairs.length * m : ℕ) := by gcongr
       _ = #((g.toGraph id).unsatEdges σ) / (g.edges.length * (pairs.length * m : ℕ)) := by
           rw [div_div]
       _ ≤ (toThreeSAT φ).countUnsat τ / (g.edges.length * (pairs.length * m : ℕ)) :=
@@ -228,11 +219,7 @@ theorem isPolyTime_toCNF :
     ComputableInPolyTime (toCNF e pairs) (encoding encConstraintTable) encCNF := by
   have hpair : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.pair p.1 p.2)
       (encPair encUnary encUnary) encUnary := by
-    have hleft : ComputableInPolyTime (fun p : ℕ × ℕ => p.2 * p.2 + p.1)
-        (encPair encUnary encUnary) encUnary := by fun_prop
-    have hright : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 * p.1 + p.1 + p.2)
-        (encPair encUnary encUnary) encUnary := by fun_prop
-    simpa [Nat.pair] using unary_lt.ite hleft hright
+    simpa [Nat.pair] using unary_lt.ite (by fun_prop) (by fun_prop)
   have hclause (p : α × α) : ComputableInPolyTime
       (fun d : Edge (α → α → Bool) => excludeClause e d.src d.dst p)
       (Edge.encoding (encPi (encPi encBool))) (encList (encPair encNat encBool)) := by
@@ -274,12 +261,8 @@ theorem yes_GapThreeSAT : (GapThreeSAT s).yes = ThreeSAT := by
   ext φ
   simp only [GapThreeSAT, PromiseProblem.yes_restrict, Set.mem_inter_iff,
     PromiseProblem.mem_yes_gapMax, Set.mem_ofPred_eq, ThreeSAT, ← CNF.unsatVal_eq_zero_iff]
-  have := φ.unsatVal_nonneg
-  constructor
-  · rintro ⟨h, h3⟩
-    exact ⟨h3, by linarith⟩
-  · rintro ⟨h3, h⟩
-    exact ⟨by linarith, h3⟩
+  exact ⟨fun ⟨h, h3⟩ => ⟨h3, by linarith [φ.unsatVal_nonneg]⟩,
+    fun ⟨h3, h⟩ => ⟨by linarith, h3⟩⟩
 
 /-- For `s < 1`, the no-instances of `GapThreeSAT` are the formulas of width at most three in
 which every assignment falsifies at least the proportion `1 - s` of the clauses. -/
@@ -288,11 +271,7 @@ theorem mem_no_GapThreeSAT (hs : s < 1) :
   simp only [GapThreeSAT, PromiseProblem.no_restrict, Set.mem_inter_iff,
     PromiseProblem.mem_no_gapMax_of_lt (c := fun _ => (1 : ℝ)) (s := fun _ => s) hs,
     Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨h, h3⟩
-    exact ⟨h3, by linarith⟩
-  · rintro ⟨h3, h⟩
-    exact ⟨by linarith, h3⟩
+  exact ⟨fun ⟨h, h3⟩ => ⟨h3, by linarith⟩, fun ⟨h3, h⟩ => ⟨by linarith, h3⟩⟩
 
 /-- **MAX-2CSP reduces to MAX-3SAT**: for labels written in `k` bits along an equivalence `e`, the
 gap problem of MAX-2CSP with soundness `s < 1` reduces in polynomial time to that of MAX-3SAT with
@@ -316,13 +295,12 @@ theorem polyTimeReducible_GapTwoCSP_GapThreeSAT {α : Type} [Fintype α] {k : �
   · have hK : (0 : ℝ) < (Fintype.card α ^ 2 * max 1 (2 * k - 2) : ℕ) := by
       have := Fintype.card_pos (α := α)
       positivity
-    refine (mem_no_GapThreeSAT ?_).2 ⟨fun c hc => ?_, ?_⟩
-    · have : 0 < 1 - s := by linarith
-      linarith [div_pos this hK]
+    have hs1 : 0 < 1 - s := by linarith
+    refine (mem_no_GapThreeSAT (by linarith [div_pos hs1 hK])).2 ⟨fun c hc => ?_, ?_⟩
     · obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hc
       simpa using CNF.length_le_three_of_mem_to3CNF hd
     · rw [sub_sub_cancel, ← hlen]
-      exact ((div_le_div_of_nonneg_right ((mem_no_GapTwoCSP hs).1 hg) (by rw [hlen]; positivity)))
+      exact (div_le_div_of_nonneg_right ((mem_no_GapTwoCSP hs).1 hg) (by rw [hlen]; positivity))
         |>.trans (Graph.div_le_unsatVal_toThreeSAT_toCNF e pairs hpairs g)
 
 /-- **MAX-3SAT is NP-hard to approximate** [AroraLundMotwaniSudanSzegedy1998], [Arora and Barak,
@@ -332,18 +310,12 @@ clause from those in which every assignment satisfies at most the proportion
 over `128 = 2 ^ 7` symbols (`GapTwoCSP_npHard`), divided by `128 ^ 2 * 12 = 3 * 2 ^ 16` clauses per
 edge. -/
 theorem GapThreeSAT_npHard : PromiseProblem.NPHard encCNF (GapThreeSAT (1 - 1 / (3 * 2 ^ 77))) := by
-  have hcard : Fintype.card (Bool × (Fin 6 → Bool)) = 128 := by
-    simp [Fintype.card_prod, Fintype.card_bool]
-  have hs : 1 - (1 - (1 - 1 / 2 ^ 61 : ℝ)) /
-      (Fintype.card (Bool × (Fin 6 → Bool)) ^ 2 * max 1 (2 * (6 + 1) - 2) : ℕ) =
-      1 - 1 / (3 * 2 ^ 77) := by
-    rw [hcard]
-    norm_num
   have hred := polyTimeReducible_GapTwoCSP_GapThreeSAT (Fin.consEquiv fun _ : Fin 7 => Bool)
     (by norm_num : (1 - 1 / 2 ^ 61 : ℝ) < 1)
-  rw [hs] at hred
-  intro _ enc A hA
-  exact (GapTwoCSP_npHard enc A hA).trans hred
+  rw [show Fintype.card (Bool × (Fin 6 → Bool)) = 128 by simp [Fintype.card_prod],
+    show 1 - (1 - (1 - 1 / 2 ^ 61 : ℝ)) / (128 ^ 2 * max 1 (2 * (6 + 1) - 2) : ℕ) =
+      1 - 1 / (3 * 2 ^ 77) by norm_num] at hred
+  exact fun _ enc A hA => (GapTwoCSP_npHard enc A hA).trans hred
 
 /-- Unless `P = NP`, no polynomial-time algorithm distinguishes satisfiable 3CNF formulas from
 those in which every assignment satisfies at most the proportion `1 - 1 / (3 * 2 ^ 77)` of the

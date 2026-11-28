@@ -153,10 +153,9 @@ theorem RecognizesInSpace.mem_P {c : ℕ}
     (h : atm.RecognizesInSpace enc A fun a => c * (Nat.log2 (enc a).length + 1)) :
     A ∈ P enc := by
   -- the number of reachable views is at most `N a`, a polynomial
-  set D := 2 * (8 + 2 * Nat.card (Option State) + 200 * k) * (c + 1)
-  set N : α → ℕ := fun a => 2 * (2 * ((enc a).length + 1)) ^ D
+  set N : α → ℕ := fun a => polyClock (MultiTapeNTM.logSpaceClockExponent k State c) (enc a).length
   have hN : ComputableInPolyTime N enc encUnary := by
-    simp only [N]
+    simp only [N, polyClock]
     fun_prop
   have hΨ := (computableInPolyTime_boundedAccepts (fun a => (h a).1)
     (polyBounded_log (fun a => (enc a).length) c)).comp (ComputableInPolyTime.id'.prod hN)
@@ -170,31 +169,18 @@ an alternating machine within polynomial space, whose branches need not halt, is
 marking the exponentially many reachable views. -/
 theorem RecognizesInSpace.mem_EXP {s : α → ℕ} (hs : PolyBounded (fun a => (enc a).length) s)
     (h : atm.RecognizesInSpace enc A s) : A ∈ EXP enc := by
-  obtain ⟨c, d, hcd⟩ := hs.exists_le
   -- the number of reachable views is at most `2 ^ L a`, with `L` a polynomial
-  set B := 8 + 2 * Nat.card (Option State) + 200 * k
-  set L : α → ℕ := fun a => 2 * B * (c + 2) * ((enc a).length + 1) ^ (d + 1) + 1
+  obtain ⟨c, d, hcd⟩ := (show PolyBounded (fun a => (enc a).length)
+    (fun a => 2 * MultiTapeNTM.coreLengthBound k State (enc a).length (s a) + 1) by
+      growth_poly).exists_le
+  set L : α → ℕ := fun a => c * ((enc a).length + 1) ^ d
   have hL : ComputableInPolyTime L enc encUnary := by
     simp only [L]
     fun_prop
-  have hbound (a : α) :
-      2 ^ (2 * MultiTapeNTM.coreLengthBound k State (enc a).length (s a) + 1) ≤ 2 ^ L a := by
-    refine Nat.pow_le_pow_right (by norm_num) ?_
-    have hlog := Nat.log2_le_self (enc a).length
-    have hsa := hcd a
-    have hpow : (enc a).length + 1 ≤ ((enc a).length + 1) ^ (d + 1) :=
-      Nat.le_self_pow (by omega) _
-    have hpow' : ((enc a).length + 1) ^ d ≤ ((enc a).length + 1) ^ (d + 1) :=
-      Nat.pow_le_pow_right (by omega) (by omega)
-    have hX : Nat.log2 (enc a).length + s a + 1 ≤ (c + 2) * ((enc a).length + 1) ^ (d + 1) := by
-      nlinarith
-    calc 2 * MultiTapeNTM.coreLengthBound k State (enc a).length (s a) + 1
-        = 2 * (B * (Nat.log2 (enc a).length + s a + 1)) + 1 := rfl
-      _ ≤ 2 * (B * ((c + 2) * ((enc a).length + 1) ^ (d + 1))) + 1 := by gcongr
-      _ = L a := by simp only [L]; ring
   have hA : A = {a | atm.boundedAccepts (enc a) (2 ^ L a) = true} := by
     ext a
-    exact (h a).2.trans (boundedAccepts_iff (h a).1 (hbound a)).symm
+    exact (h a).2.trans
+      (boundedAccepts_iff (h a).1 (Nat.pow_le_pow_right (by norm_num) (hcd a))).symm
   rw [hA]
   exact setOf_mem_EXP_of_computableInPolyTime_pad
     (computableInPolyTime_boundedAccepts (fun a => (h a).1) hs) hL

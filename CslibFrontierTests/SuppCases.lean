@@ -3,13 +3,22 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
-import CslibFrontier.Tactic.SuppCases
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 
 /-! # Inverting support memberships with `supp_cases` and `supp_norm` -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.SuppCases
 
 open Cslib
+
+universe u v w
 
 /-! ### `PMF` -/
 
@@ -53,6 +62,26 @@ example (c : Prop) [Decidable c] (hc : c) (μ ν : PMF ℕ) (x : ℕ)
     (h : x ∈ (if c then μ else ν).support) : x ∈ μ.support := by
   supp_cases h [hc]
   assumption
+
+-- A decided dependent conditional selects its branch too, directly under `.support`.
+example (c : Prop) [Decidable c] (hc : c) (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
+    (h : x ∈ (if hc' : c then μ hc' else ν hc').support) : x ∈ (μ hc).support := by
+  supp_cases h [hc]
+  assumption
+
+example (c : Prop) [Decidable c] (hc : ¬c) (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
+    (h : x ∈ (if hc' : c then μ hc' else ν hc').support) : x ∈ (ν hc).support := by
+  supp_cases h [hc]
+  assumption
+
+-- An undecided dependent conditional keeps the proof needed by its selected distribution.
+example (c : Prop) [Decidable c] (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
+    (hμ : ∀ hc a, a ∈ (μ hc).support → a < 5)
+    (hν : ∀ hc a, a ∈ (ν hc).support → a < 3)
+    (h : x ∈ (if hc : c then (μ hc).map (· + 1) else ν hc).support) : x < 6 := by
+  supp_cases h with ⟨hc, a, ha, rfl⟩ | ⟨hc, hx⟩
+  · exact Nat.add_lt_add_right (hμ hc a ha) 1
+  · exact (hν hc x hx).trans (by decide)
 
 -- An impossible returned value closes the goal.
 example (μ : PMF ℕ) (h : (0, 2) ∈ (μ.map fun a => (a, 1)).support) : False := by
@@ -114,12 +143,57 @@ example {ι : Type} {spec : OracleSpec ι} (possible : (q : ι) → Set (spec q)
   supp_cases h with ⟨a, ha, rfl⟩
   exact ⟨a, ha, rfl⟩
 
+-- Stateful normalization stops at an opaque subprogram and preserves its joint support witness.
+example {State : Type} (oracle : Unit → StateT State PMF ℕ)
+    (program : ProbOracleComp (fun _ : Unit => ℕ) ℕ) (initial final : State) (x : ℕ)
+    (h : (x, final) ∈ (ProbOracleComp.runWith oracle
+      (do let a ← program; pure (a + 1)) initial).support) :
+    ∃ a, (a, final) ∈ (ProbOracleComp.runWith oracle program initial).support ∧ x = a + 1 := by
+  supp_cases h [runWith_norm] with ⟨⟨a, next⟩, ha, rfl, rfl⟩
+  exact ⟨a, ha, rfl⟩
+
 -- The law of a closed program is inverted through its `PMF` normal form.
 example (p : ProbComp ℕ) (x : ℕ) (hp : ∀ a ∈ (ProbComp.eval p).support, a < 4)
     (h : x ∈ (ProbComp.eval (do let a ← p; pure (2 * a))).support) : x < 8 := by
   supp_cases h with ⟨a, ha, rfl⟩
   have := hp a ha
   omega
+
+-- Explicit heterogeneous bind and map have the same support decomposition.
+example {α : Type u} {β : Type v} {γ : Type w} (p : ProbComp α)
+    (next : α → ProbComp β) (f : β → γ) (x : γ)
+    (h : x ∈ (ProbComp.eval
+      (PFunctor.FreeM.bind p fun a => PFunctor.FreeM.map f (next a))).support) :
+    ∃ a ∈ (ProbComp.eval p).support,
+      ∃ b ∈ (ProbComp.eval (next a)).support, f b = x := by
+  supp_cases h with ⟨a, ha, b, hb, hbx⟩
+  exact ⟨a, ha, b, hb, hbx⟩
+
+-- The oracle-program support normalizer also follows explicit heterogeneous bind and map.
+example {ι : Type} {spec : OracleSpec ι} {α : Type u} {β : Type v} {γ : Type w}
+    (possible : (q : ι) → Set (spec q)) (p : OracleComp spec α)
+    (next : α → OracleComp spec β) (f : β → γ) (x : γ)
+    (h : x ∈ OracleComp.supportWith possible
+      (PFunctor.FreeM.bind p fun a => PFunctor.FreeM.map f (next a))) :
+    ∃ a ∈ OracleComp.supportWith possible p,
+      ∃ b ∈ OracleComp.supportWith possible (next a), f b = x := by
+  supp_cases h with ⟨a, ha, b, hb, hbx⟩
+  exact ⟨a, ha, b, hb, hbx⟩
+
+private abbrev lowReplySpec : Unit → Type := fun _ => Bool
+
+-- Ordinary bind sequences high-universe results while the underlying oracle replies stay low.
+example (possible : (q : Unit) → Set (lowReplySpec q))
+    (next : ULift.{u} Bool → OracleComp lowReplySpec (ULift.{u} Bool)) (x : ULift.{u} Bool)
+    (h : x ∈ OracleComp.supportWith possible (do
+      let reply ← PFunctor.FreeM.bind (OracleComp.query ()) fun answer =>
+        pure (ULift.up answer)
+      next reply)) :
+    ∃ reply ∈ possible (),
+      x ∈ OracleComp.supportWith possible (next (ULift.up reply)) := by
+  supp_cases h with ⟨lifted, hlifted, hx⟩
+  obtain ⟨reply, hreply, rfl⟩ := hlifted
+  exact ⟨reply, hreply, hx⟩
 
 -- A decided condition selects its branch even under `ProbComp.eval`, which does not split `if`.
 example (p : ProbComp ℕ) (n x : ℕ) (hn : n = 3) (hp : ∀ a ∈ (ProbComp.eval p).support, a < 4)

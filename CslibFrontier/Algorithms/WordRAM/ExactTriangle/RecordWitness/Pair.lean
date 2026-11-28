@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Kernel
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One actual product-selected original-weight verification
@@ -59,25 +60,18 @@ theorem exec_scanPair {w U n first length out queries count i scans a b : ℕ}
       hmag hU (hfit.of_le (by omega))
   obtain ⟨y, hy, yFixed, ym, yf, ya, yb, yc, ys, yi, -⟩ :=
     exec_receiveWitness s sFixed rfl sa sb rfl
-  have sIndex : s.regs Reg.index = i := (frame _ (by decide)).trans di
-  have sScans : s.regs Reg.scans = scans + 1 := (frame _ (by decide)).trans ds
-  have sFound : s.regs Reg.found = 0 := (frame _ (by decide)).trans (df.trans hf)
-  have hexe : ExecWithin (w + 2) scanPair x y (42 * length + 28) :=
-    (hd.seq (he.seq hy)).mono (by omega)
+  have sIndex : s.regs Reg.index = i := by regs_frame
+  have sScans : s.regs Reg.scans = scans + 1 := by regs_frame
+  have sFound : s.regs Reg.found = 0 := by regs_frame
   have yflag : y.regs Reg.found = s.regs (scanBank WitnessScan.Reg.found) := by
     rcases sf with sf | sf <;> simp only [yf, sf, sFound, Nat.zero_ne_one, ↓reduceIte]
-  refine ⟨y, hexe, yFixed, ym.trans (sm.trans dm), yi.trans sIndex, ys.trans sScans,
-    ?_, ?_, ?_⟩
+  refine ⟨y, (hd.seq (he.seq hy)).mono (by omega), yFixed, ym.trans (sm.trans dm),
+    yi.trans sIndex, ys.trans sScans, ?_, ?_, fun hfound => ?_⟩
   · simpa only [yflag] using sf
   · simpa only [yflag] using iffFound
-  · intro hfound
-    have hsfound : s.regs (scanBank WitnessScan.Reg.found) = 1 := yflag.symm.trans hfound
+  · have hsfound : s.regs (scanBank WitnessScan.Reg.found) = 1 := yflag.symm.trans hfound
     obtain ⟨lo, hi, hz⟩ := sw hsfound
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · simpa only [hsfound, ↓reduceIte] using ya
-    · simpa only [hsfound, ↓reduceIte] using yb
-    · simpa only [yc, hsfound, ↓reduceIte] using lo
-    · simpa only [yc, hsfound, ↓reduceIte] using hi
-    · simpa only [yc, hsfound, ↓reduceIte] using hz
+    simp only [hsfound, ↓reduceIte] at ya yb yc
+    exact ⟨ya, yb, yc ▸ lo, yc ▸ hi, yc ▸ hz⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

@@ -19,13 +19,20 @@ Checks concrete unconditional instances of:
    declaring the full fiber accessible collapses the gap to `0` (so `InaccessibleEntropyFamily`
    cannot be trivially satisfied by taking `accSet = fiberSet`).
 3. Concrete unconditional instantiations of `isPPT_rompelBaseInverter`,
-   `rompelBase_escape_le_four_mul_inversion`, and `rompelBase_accessible_le_conditionalEntropy_sub`
-   on `g = id` at security parameter `n = 2`, plus the explicit `bind_with` and
-   `IsPPT.preprocess` composition that certifies such inverters.
+   `rompelBase_escape_le_mul_inversion` (at `c = 0` and `c = 2`), and
+   `rompelBase_accessible_le_conditionalEntropy_sub` on `g = id` both at `c = 0, n = 2` (`1 / 192`
+   gap) and at `c = 1, n = 8` (`1 / 144` gap, four times the `c = 0` bound `1 / 576` via the four
+   separating truncation lengths), plus the explicit `bind_with` and `IsPPT.preprocess` composition
+   that certifies such inverters.
 4. Parallel repetition (`repHashFin`, `repAccessibleSet`, `repEscapeInverter`), two-universal
-   input/output entropy reduction (`shrunkHashOutLen_add_one`, `card_image_inputHashFin_le`,
-   `shrunkHashFin_false_positive_le`, `shrunkHash_randomCollision_le`), and the candidate-grid
-   amplification endpoints (`InaccessibleEntropyFamily.exists_shrinkingCollisionGrid`,
+   input/output entropy reduction (`shrunkHashOutLen_add_shrink`, `card_image_inputHashFin_le`,
+   `shrunkHashFin_false_positive_le`, `shrunkHash_randomCollision_le`), and the Theorem 4.5 /
+   candidate-grid endpoints (`OneWay.rompelBase_logGap`, `OneWay.exists_rompelBase_logGap`,
+   `OneWay.exists_inaccessibleEntropyFamily`,
+   `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log`,
+   `InaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log`,
+   `OneWay.exists_shrinkingCollisionGrid_log`,
+   `InaccessibleEntropyFamily.exists_shrinkingCollisionGrid`,
    `OneWay.exists_shrinkingCollisionGrid`).
 -/
 
@@ -160,35 +167,71 @@ example {A : ℕ → List Bool → ProbComp (List Bool)} (hA : IsPPT encBits A) 
       return raw.take n) := by
   apply IsPPTOn.isPPT
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 
 example (A : ℕ → List Bool → ProbComp (List Bool)) (n : ℕ) :
     (Game.succProbability (ProbComp.eval
       (accessibleEscapeGame (rompelBaseEvalWord id id)
-        (fun k => rompelBaseInLen k k) (rompelAccessibleSet id id) A n)) : ℝ) ≤
+        (fun k => rompelBaseInLen k k) (rompelAccessibleSet 0 id id) A n)) : ℝ) ≤
       4 * (Game.succProbability (ProbComp.eval
-        (inversionGame id (rompelBaseInverter id id A) n)) : ℝ) :=
-  rompelBase_escape_le_four_mul_inversion id id A n (fun _ hw => hw)
+        (inversionGame id (rompelBaseInverter id id A) n)) : ℝ) := by
+  simpa only [pow_zero, mul_one, id_eq] using
+    rompelBase_escape_le_mul_inversion 0 id id A n (fun _ hw => hw)
 
-/-- Unconditional concrete check of `rompelBase_accessible_le_conditionalEntropy_sub` on `g = id`
-at `n = 2`: since `collisionProbability (uniformList 2) = 1 / 4 ≤ 1 / 2`, the Rompel base hash has
-an unconditional real-vs-accessible entropy gap of at least `1 / 192` bits. -/
+example (A : ℕ → List Bool → ProbComp (List Bool)) (n : ℕ) :
+    (Game.succProbability (ProbComp.eval
+      (accessibleEscapeGame (rompelBaseEvalWord id id)
+        (fun k => rompelBaseInLen k k) (rompelAccessibleSet 2 id id) A n)) : ℝ) ≤
+      (4 * (n + 1 : ℝ) ^ 2) * (Game.succProbability (ProbComp.eval
+        (inversionGame id (rompelBaseInverter id id A) n)) : ℝ) :=
+  rompelBase_escape_le_mul_inversion 2 id id A n (fun _ hw => hw)
+
+/-- Unconditional concrete check of `rompelBase_accessible_le_conditionalEntropy_sub` at `c = 0` on
+`g = id` at `n = 2`: since `collisionProbability (uniformList 2) = 1 / 4 ≤ 1 / 2`, the Rompel base
+hash has an unconditional real-vs-accessible entropy gap of at least `1 / 192` bits. -/
 theorem rompelBase_id_two_entropy_gap :
-    accessibleSetExpectation (rompelAccessibleSet id id 2) ≤
+    accessibleSetExpectation (rompelAccessibleSet 0 id id 2) ≤
       PMF.conditionalEntropy
         ((PMF.uniformOfFintype (BitString (rompelBaseInLen 2 2))).map fun b =>
           (wordToFinMap (rompelBaseInLen 2 2) (rompelBaseOutLen 2 2)
             (rompelBaseEvalWord id id 2) b, b)) -
         1 / 192 := by
-  have hcoll : PMF.collisionProbability ((Cslib.BitString.uniformList 2).map id) ≤ 1 / 2 := by
+  have hcoll : (4 * (2 : ℝ) ^ (0 * Nat.log 2 2) - 3) *
+      PMF.collisionProbability ((Cslib.BitString.uniformList 2).map id) ≤ 1 / 2 := by
     rw [PMF.map_id, Cslib.BitString.uniformList,
       PMF.collisionProbability_map_of_injective _ _ List.ofFn_injective,
       PMF.collisionProbability_uniform]
     simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
     norm_num
-  have hgap := rompelBase_accessible_le_conditionalEntropy_sub id id 2 (fun _ hw => hw) hcoll
+  have hgap := rompelBase_accessible_le_conditionalEntropy_sub 0 id id 2 (by decide)
+    (fun _ hw => hw) hcoll
+  norm_num at hgap ⊢
+  exact hgap
+
+/-- Unconditional concrete check of `rompelBase_accessible_le_conditionalEntropy_sub` with
+polynomial light-image threshold `c = 1` on `g = id` at `n = 8`: since `Nat.log 2 8 = 3 ≤ 8` and
+`(4 * 2 ^ 3 - 3) * (1 / 256) = 29 / 256 ≤ 1 / 2`, all `4` separating truncation lengths contribute,
+giving an unconditional `(3 + 1) / (64 * 9) = 1 / 144`-bit entropy gap (`4` times the `c = 0`
+constant-threshold bound `1 / 576`). -/
+theorem rompelBase_id_eight_polyThreshold_entropy_gap :
+    accessibleSetExpectation (rompelAccessibleSet 1 id id 8) ≤
+      PMF.conditionalEntropy
+        ((PMF.uniformOfFintype (BitString (rompelBaseInLen 8 8))).map fun b =>
+          (wordToFinMap (rompelBaseInLen 8 8) (rompelBaseOutLen 8 8)
+            (rompelBaseEvalWord id id 8) b, b)) -
+        1 / 144 := by
+  have hlog : Nat.log 2 8 = 3 := by decide
+  have hcoll : (4 * (2 : ℝ) ^ (1 * Nat.log 2 8) - 3) *
+      PMF.collisionProbability ((Cslib.BitString.uniformList 8).map id) ≤ 1 / 2 := by
+    rw [hlog, PMF.map_id, Cslib.BitString.uniformList,
+      PMF.collisionProbability_map_of_injective _ _ List.ofFn_injective,
+      PMF.collisionProbability_uniform]
+    simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
+    norm_num
+  have hgap := rompelBase_accessible_le_conditionalEntropy_sub 1 id id 8
+    (by rw [hlog]; decide) (fun _ hw => hw) hcoll
+  rw [hlog] at hgap
   norm_num at hgap ⊢
   exact hgap
 
@@ -226,39 +269,48 @@ example (A : ℕ → List Bool → ProbComp (List Bool)) (n : ℕ) :
             (repEscapeInverter id id A) n)) : ℝ) :=
   repEscape_le_dyadicSize_mul_escape id id id (fun _ => id) (fun _ z => {z}) A n (fun _ hw => hw)
 
-/-- Concrete `1`-bit shrinkage check on `shrunkHashOutLen 4 2`: `4 + 16 = 20` inner input bits,
-`19` outer hash rows of width `2 + 16 + 4 = 22`, giving `19 * 22 + 19 = 437` output bits vs.
-`20 + 19 * 22 = 438` input bits. -/
-example : shrunkHashOutLen 4 2 + 1 = shrunkHashInLen 4 2 ∧ shrunkHashOutLen 4 2 = 437 :=
-  ⟨shrunkHashOutLen_add_one (by decide : 1 ≤ 4) 2, rfl⟩
+/-- Concrete `1`-bit and `3`-bit shrinkage checks on `shrunkHashOutLen 4 2 s`: `4 + 16 = 20` inner
+input bits and `19` or `17` outer hash rows of width `2 + 16 + 4 = 22` give `437 → 438` bits at
+`s = 1` and `391 → 394` bits at `s = 3`. -/
+example : shrunkHashOutLen 4 2 1 + 1 = shrunkHashInLen 4 2 1 ∧ shrunkHashOutLen 4 2 1 = 437 :=
+  ⟨shrunkHashOutLen_add_shrink (by decide : 1 ≤ inputHashInLen 4) 2, rfl⟩
+
+example : shrunkHashOutLen 4 2 3 + 3 = shrunkHashInLen 4 2 3 ∧ shrunkHashOutLen 4 2 3 = 391 :=
+  ⟨shrunkHashOutLen_add_shrink (by decide : 3 ≤ inputHashInLen 4) 2, rfl⟩
 
 example :
     IsPPT encBits
-      (shrunkHashEscapeInverter (fun n => n + 1) id (fun _ _ => pure [])) :=
-  isPPT_shrunkHashEscapeInverter (by fun_prop) .id' (by ppt)
+      (shrunkHashEscapeInverter (fun n => n + 1) id (fun _ => 1) (fun _ _ => pure [])) :=
+  isPPT_shrunkHashEscapeInverter (by fun_prop) .id' (.const 1) (by ppt)
 
 example (A : ℕ → List Bool → ProbComp (List Bool)) (n : ℕ) :
     let f₁ := wordToFinMap (n + 1) (n + 1) id
     (Game.succProbability (ProbComp.eval
       (randomCollisionGame
-        (fun k => shrunkHashEvalWord (k + 1) (k + 1) id 1)
-        (fun k => shrunkHashInLen (k + 1) (k + 1)) A n)) : ℝ) ≤
+        (fun k => shrunkHashEvalWord (k + 1) (k + 1) id 1 1)
+        (fun k => shrunkHashInLen (k + 1) (k + 1) 1) A n)) : ℝ) ≤
       (Game.succProbability (ProbComp.eval
         (accessibleEscapeGame (fun _ => id) (fun k => k + 1) (fun _ z => {z})
-          (shrunkHashEscapeInverter (fun k => k + 1) (fun k => k + 1) A) n)) : ℝ) +
+          (shrunkHashEscapeInverter (fun k => k + 1) (fun k => k + 1) (fun _ => 1) A) n)) : ℝ) +
       ((PMF.uniformOfFintype (BitString (n + 1))).toOuterMeasure
         {z | (0 : ℝ) ≤ Real.logb 2 #({z} : Finset (BitString (n + 1)))}).toReal +
       (2 : ℝ) ^ ((0 : ℝ) - min ((1 : ℕ) : ℝ) ((n + 1 : ℕ) : ℝ)) +
-      2 * (((PMF.uniformOfFintype (BitString (n + 1))).toOuterMeasure
+      (2 : ℝ) ^ (1 : ℕ) * (((PMF.uniformOfFintype (BitString (n + 1))).toOuterMeasure
           {z | realSampleEntropy f₁ z ≤ 0}).toReal +
         (2 : ℝ) ^ (min ((1 : ℕ) : ℝ) ((n + 1 : ℕ) : ℝ) - 0)) :=
-  shrunkHash_randomCollision_le (fun k => k + 1) (fun k => k + 1) (fun _ => 1)
-    (fun _ => id) (fun _ z => {z}) A n (by omega) (fun _ hw => hw) 0 0
+  shrunkHash_randomCollision_le (fun k => k + 1) (fun k => k + 1) (fun _ => 1) (fun _ => 1)
+    (fun _ => id) (fun _ z => {z}) A n (by dsimp only [inputHashInLen]; omega)
+    (fun _ hw => hw) 0 0
 
 example (G : ShrinkingCollisionGrid) (n q : ℕ) (raw : List Bool) :
-    G.outLen n + 1 = G.inLen n ∧ n + 1 ≤ G.outLen n ∧ 1 ≤ G.gridCount n ∧
-      (G.evalGrid n q raw).length = G.outLen n :=
-  ⟨G.outLen_add_one n, G.le_outLen n, G.gridCount_pos n, G.length_evalGrid n q raw⟩
+    G.outLen n + G.shrinkLen n = G.inLen n ∧ 1 ≤ G.shrinkLen n ∧ n + 1 ≤ G.outLen n ∧
+      1 ≤ G.gridCount n ∧ (G.evalGrid n q raw).length = G.outLen n :=
+  ⟨G.outLen_add_shrink n, G.shrinkLen_pos n, G.le_outLen n, G.gridCount_pos n,
+    G.length_evalGrid n q raw⟩
+
+example (F : AdversaryInaccessibleEntropyFamily) :
+    ∃ G : ShrinkingCollisionGrid, ∀ n, G.shrinkLen n = Nat.log 2 n + 1 :=
+  F.exists_shrinkingCollisionGrid_log
 
 example (F : InaccessibleEntropyFamily) : Nonempty ShrinkingCollisionGrid :=
   F.exists_shrinkingCollisionGrid
@@ -266,5 +318,141 @@ example (F : InaccessibleEntropyFamily) : Nonempty ShrinkingCollisionGrid :=
 example {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty InaccessibleEntropyFamily ∧ Nonempty ShrinkingCollisionGrid :=
   ⟨hf.exists_inaccessibleEntropyFamily, hf.exists_shrinkingCollisionGrid⟩
+
+/-- Client check of `OneWay.exists_rompelBase_logGap`: one fixed family `(inLen, outLen, evalWord)`
+simultaneously achieves eventual entropy gap `1 * log₂ n / n` and `(7 / 2) * log₂ n / n` via two
+accessible-set families against all uniform strict-PPT adversaries. -/
+example {f : List Bool → List Bool} (hf : OneWay f) :
+    ∃ (inLen outLen : ℕ → ℕ) (evalWord : ℕ → List Bool → List Bool),
+      ComputableInPolyTime inLen encUnary encUnary ∧
+      ComputableInPolyTime outLen encUnary encUnary ∧
+      (∃ accSet₁ : (n : ℕ) → BitString (inLen n) → Finset (BitString (inLen n)),
+        ∃ N₁ : ℕ, ∀ n, N₁ ≤ n →
+          accessibleSetExpectation (accSet₁ n) ≤
+            PMF.conditionalEntropy
+              ((PMF.uniformOfFintype (BitString (inLen n))).map fun z =>
+                (wordToFinMap (inLen n) (outLen n) (evalWord n) z, z)) -
+              Real.logb 2 n / n) ∧
+      (∃ accSet₂ : (n : ℕ) → BitString (inLen n) → Finset (BitString (inLen n)),
+        ∃ N₂ : ℕ, ∀ n, N₂ ≤ n →
+          accessibleSetExpectation (accSet₂ n) ≤
+            PMF.conditionalEntropy
+              ((PMF.uniformOfFintype (BitString (inLen n))).map fun z =>
+                (wordToFinMap (inLen n) (outLen n) (evalWord n) z, z)) -
+              (7 / 2 : ℝ) * Real.logb 2 n / n) := by
+  obtain ⟨inLen, outLen, evalWord, hIn, hOut, _, _, hall⟩ := hf.exists_rompelBase_logGap
+  obtain ⟨accSet₁, _, _, ⟨N₁, hN₁⟩, _⟩ := hall 1 one_pos
+  obtain ⟨accSet₂, _, _, ⟨N₂, hN₂⟩, _⟩ := hall (7 / 2) (by norm_num)
+  exact ⟨inLen, outLen, evalWord, hIn, hOut,
+    ⟨accSet₁, N₁, fun n hn => by simpa only [one_mul] using hN₁ n hn⟩,
+    ⟨accSet₂, N₂, hN₂⟩⟩
+
+/-- The input width of `F₀`: the `n`-bit preimage, the `n * m + n`-bit affine seed and the
+`(Nat.log 2 n + 1)`-bit prefix field. -/
+example (n m : ℕ) : rompelBaseInLen n m = n + (n * m + n) + (Nat.log 2 n + 1) := rfl
+
+/-- Client check of `OneWay.rompelBase_logGap` at `d = 3` on the concrete family: the
+accessible-set family at threshold exponent `Nat.ceil (256 * 3) + 1` has an eventual
+`3 * log₂ n / n` entropy gap on `rompelBaseInLen n (outLen n)`-bit inputs. -/
+example {g : List Bool → List Bool} {outLen : ℕ → ℕ} (hg : OneWay g)
+    (hlen : ∀ w : List Bool, (g w).length = outLen w.length)
+    (houtLen : ComputableInPolyTime outLen encUnary encUnary) :
+    ∃ N₀ : ℕ, ∀ n, N₀ ≤ n →
+      accessibleSetExpectation
+          (rompelAccessibleSet (Nat.ceil (256 * (3 : ℝ)) + 1) g outLen n) ≤
+        PMF.conditionalEntropy
+          ((PMF.uniformOfFintype (BitString (rompelBaseInLen n (outLen n)))).map fun b =>
+            (wordToFinMap (rompelBaseInLen n (outLen n)) (rompelBaseOutLen n (outLen n))
+              (rompelBaseEvalWord g outLen n) b, b)) -
+          3 * Real.logb 2 n / n :=
+  (hg.rompelBase_logGap hlen houtLen (by norm_num : (0 : ℝ) < 3)).1
+
+/-! ### 5. Definition 3.9: word sanitization and adversary-dependent accessible sets -/
+
+/-- `badEmptyAdv` outputs `[]` regardless of the `(n + 1)`-bit input, so it is not an
+`IsWordCollisionFinder`, yet `sanitizeWordCollisionFinder` turns it into one while preserving
+strict-PPT admissibility and `accessibleEscapeGame`. -/
+def badEmptyAdv : ℕ → List Bool → ProbComp (List Bool) := fun _ _ => pure []
+
+theorem not_isWordCollisionFinder_badEmptyAdv :
+    ¬ IsWordCollisionFinder (fun n => n + 1) (fun _ w => w) badEmptyAdv := by
+  intro h
+  have h0 := h 0 [false] rfl [] (by simp [badEmptyAdv])
+  exact absurd h0.1 (by decide)
+
+example (n : ℕ) :
+    IsWordCollisionFinder (fun k => k + 1) (fun _ w => w.take 1)
+      (sanitizeWordCollisionFinder (fun k => k + 1) (fun _ w => w.take 1) badEmptyAdv) ∧
+    IsCollisionFinder (wordToFinMap (n + 1) 1 (fun w => w.take 1))
+      (fun z => (ProbComp.eval
+        (sanitizeWordCollisionFinder (fun k => k + 1) (fun _ w => w.take 1) badEmptyAdv n
+          (List.ofFn z))).map (BitString.ofList (n + 1))) ∧
+    IsPPT encBits
+      (sanitizeWordCollisionFinder (fun k => k + 1) (fun _ w => w.take 1) badEmptyAdv) ∧
+    accessibleEscapeGame (fun _ w => w.take 1) (fun k => k + 1) (fun _ z => {z})
+      (sanitizeWordCollisionFinder (fun k => k + 1) (fun _ w => w.take 1) badEmptyAdv) n =
+      accessibleEscapeGame (fun _ w => w.take 1) (fun k => k + 1) (fun _ z => {z}) badEmptyAdv n :=
+  ⟨isWordCollisionFinder_sanitizeWordCollisionFinder _ _ _,
+    (isWordCollisionFinder_sanitizeWordCollisionFinder _ _ _).isCollisionFinder
+      (outLen := fun _ => 1) n,
+    isPPT_sanitizeWordCollisionFinder (by fun_prop)
+      ((ComputableInPolyTime.snd encUnary encBits).bitsTakeWithInput (.const 1))
+      (ComputableInPolyTime.const []).isPPT,
+    accessibleEscapeGame_sanitizeWordCollisionFinder _ _ _ _ n fun _ => mem_singleton_self _⟩
+
+/-- Two-bit conjunction `z 0 && z 1` has a `3`-element `false`-fiber, separating adversary-dependent
+accessible sets ($\forall f, \exists L_f$ of size $\le 2$ with zero escape) from fixed accessible
+sets ($\neg \exists L$ of size $\le 2$ with zero escape against all deterministic collision
+finders). -/
+def andTwoBits (z : BitString 2) : Bool := z 0 && z 1
+
+theorem adversary_dependent_vs_fixed_accSet_andTwoBits :
+    (∀ f : BitString 2 → BitString 2,
+      ∃ L : BitString 2 → Finset (BitString 2),
+        (∀ z, z ∈ L z) ∧ (∀ z, L z ⊆ fiberSet andTwoBits (andTwoBits z)) ∧
+        (∀ z, #(L z) ≤ 2) ∧ (∀ z, andTwoBits (f z) = andTwoBits z → f z ∈ L z)) ∧
+    ¬ ∃ L : BitString 2 → Finset (BitString 2),
+        (∀ z, #(L z) ≤ 2) ∧
+        ∀ f : BitString 2 → BitString 2,
+          (∀ z, andTwoBits (f z) = andTwoBits z) → ∀ z, f z ∈ L z := by
+  constructor
+  · intro f
+    refine ⟨fun z => insert z ((fiberSet andTwoBits (andTwoBits z)).filter (· = f z)),
+      fun z => mem_insert_self _ _, fun z x hx => ?_, fun z => ?_, fun z hcol => ?_⟩
+    · rcases mem_insert.mp hx with rfl | hmem
+      · exact self_mem_fiberSet andTwoBits x
+      · exact (mem_filter.mp hmem).1
+    · refine (card_insert_le _ _).trans (Nat.succ_le_succ ?_)
+      have hsub : (fiberSet andTwoBits (andTwoBits z)).filter (· = f z) ⊆ {f z} :=
+        fun u hu => mem_singleton.mpr (mem_filter.mp hu).2
+      exact (card_le_card hsub).trans (by simp)
+    · exact mem_insert_of_mem (mem_filter.mpr ⟨mem_fiberSet _ _ _ |>.mpr hcol, rfl⟩)
+  · rintro ⟨L, hcard, hall⟩
+    have hfib : #(fiberSet andTwoBits (andTwoBits 0)) = 3 := by decide
+    have hlt : #(L 0) < #(fiberSet andTwoBits (andTwoBits 0)) := by
+      have := hcard 0
+      omega
+    obtain ⟨w, hw_fib, hw_notMem⟩ := exists_mem_notMem_of_card_lt_card hlt
+    have hw_eq : andTwoBits w = andTwoBits 0 := (mem_fiberSet _ _ _).mp hw_fib
+    let f : BitString 2 → BitString 2 := fun z => if z = 0 then w else z
+    have hf_col : ∀ z, andTwoBits (f z) = andTwoBits z := fun z => by
+      dsimp only [f]
+      split_ifs with hz
+      · subst hz; exact hw_eq
+      · rfl
+    have hmem := hall f hf_col 0
+    simp only [f, ↓reduceIte] at hmem
+    exact hw_notMem hmem
+
+example (F : AdversaryInaccessibleEntropyFamily) : Nonempty ShrinkingCollisionGrid :=
+  F.exists_shrinkingCollisionGrid
+
+example (F : InaccessibleEntropyFamily) :
+    ∃ G : ShrinkingCollisionGrid, ∀ n, G.shrinkLen n = Nat.log 2 n + 1 :=
+  F.exists_shrinkingCollisionGrid_log
+
+example {f : List Bool → List Bool} (hf : OneWay f) :
+    ∃ G : ShrinkingCollisionGrid, ∀ n, G.shrinkLen n = Nat.log 2 n + 1 :=
+  hf.exists_shrinkingCollisionGrid_log
 
 end CslibFrontierTests.Crypto.InaccessibleEntropy

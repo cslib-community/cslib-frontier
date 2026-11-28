@@ -28,10 +28,21 @@ open Turing MultiTapeTM MultiTapePTM.BlockComputation
 open MultiTapePTM.BlockComputation.QueryReplay
 open NativeBlockCodec
 
+-- Named records retain the former binary field order and all framing exactly.
+example (a : Supplier.Args) : Supplier.encArgs a =
+    encPair encNat (encPair encNat (encPair encNat (encPair encNat
+      (encPair encNat (encPair encNat encNat)))))
+      (a.inputLength, a.blockWidth, a.schedule, a.interval, a.limit, a.counter, a.stride) := rfl
+
+example {k : ℕ} (a : Supplier.WordArgs k) : Supplier.encWordArgs a =
+    encPair encNat (encPair encNat (encPair encNat (encPair encNat
+      (Assignments.encWords (k := k)))))
+      (a.inputLength, a.blockWidth, a.schedule, a.interval, a.words) := rfl
+
 @[expose] def word := Encoding.NativeEncode.serialize code (1, true, QueryReplayGate.raw)
 @[expose] def counter := ofBits ((List.replicate 4 (word ++ [false])).flatten)
 @[expose] noncomputable def prepared (σ : ℕ) : CheckedGate.State 1 (Fin 1) :=
-  Supplier.prepare code (1, 1, σ, 0, 2 ^ 56, counter, 14)
+  Supplier.prepare code ⟨1, 1, σ, 0, 2 ^ 56, counter, 14⟩
 @[expose] noncomputable def supplier := CheckedGate.machine QueryReplayGate.reader code
 
 private def active (expected : Option (Fin 1) → SignType) : Gate.State 1 (Fin 1) :=
@@ -76,7 +87,7 @@ example : supplier.finish (supplier.runFrom [true] (prepared 1) 1) =
 @[expose] def badCounter := ofBits
   ([word ++ [false], fail ++ [false], word ++ [false], word ++ [false]].flatten)
 @[expose] noncomputable def rejected : CheckedGate.State 1 (Fin 1) :=
-  Supplier.prepare code (1, 1, 2, 0, 2 ^ 56, badCounter, 14)
+  Supplier.prepare code ⟨1, 1, 2, 0, 2 ^ 56, badCounter, 14⟩
 
 -- All provider ports are absent at interval zero, but the failed provider is still rejected.
 example : rejected.isLeft = true := by decide
@@ -84,19 +95,19 @@ example : supplier.halted rejected = true := by decide
 example : supplier.finish rejected = List.replicate 13 false := by decide
 
 -- A rejected malformed call cannot allocate a billion-cell FAIL buffer.
-example : (Supplier.prepare (k := 1) code (0, 1000000000, 0, 0, 1, 0, 14)).elim
+example : (Supplier.prepare (k := 1) code ⟨0, 1000000000, 0, 0, 1, 0, 14⟩).elim
     id (fun _ => []) = [false] := by decide
 
 -- The counter-based supplier is the explicit-word supplier on the counter's labels.
-example (σ : ℕ) : prepared σ = Supplier.prepareWords code (1, 1, σ, 0,
-    Assignments.labels 1 (2 ^ 56, counter, 14, Encoding.width 1 1 1)) := rfl
+example (σ : ℕ) : prepared σ = Supplier.prepareWords code ⟨1, 1, σ, 0,
+    Assignments.labels 1 ⟨2 ^ 56, counter, 14, Encoding.width 1 1 1⟩⟩ := rfl
 
 -- Stored encoded views need no parsing argument: a FAIL previous view gives the FAIL word.
 example (input : List Bool) (providers : Fin 1 → Fin 3 → Option (View 1 (Fin 1) 1)) :
     supplier.finish (supplier.runFrom input (Supplier.prepareWords code
-      (input.length, 1, 0, ((0 : Fin 1) : ℕ),
-        (List.ofFn (Encoding.encode (k := 1) (b := 1) code none),
-        fun h δ => List.ofFn (Encoding.encode code (providers h δ))))) 1) =
+      ⟨input.length, 1, 0, ((0 : Fin 1) : ℕ),
+        ⟨List.ofFn (Encoding.encode (k := 1) (b := 1) code none),
+        fun h δ => List.ofFn (Encoding.encode code (providers h δ))⟩⟩) 1) =
       List.replicate (Encoding.width 1 1 1) false := by
   rw [supplier, Supplier.finish_prepareWords_encode]
   simp [gate, Supplier.ofFn_encode_none]

@@ -7,12 +7,17 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Probabilistic.Parameter
+public import CslibFrontier.Crypto.Computational.Factoring
 public import CslibFrontier.Crypto.Game
+public import CslibFrontier.Foundations.Data.ZMod.CRTUnits
 public import Mathlib.Algebra.Group.Subgroup.Even
 public import Mathlib.Data.ZMod.Units
 public import Mathlib.NumberTheory.LegendreSymbol.JacobiSymbol
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -35,9 +40,13 @@ computational quadratic residuosity assumption.
   quadratic nonresidues with Jacobi symbol `+1`.
 * `Cslib.Crypto.IsBlumPrime`, `Cslib.Crypto.IsBlumModulus`, `Cslib.Crypto.blumSqrt`: Blum primes,
   Blum moduli, and principal square-root extraction.
-* `Cslib.Crypto.ModulusDesc`, `Cslib.Crypto.qrRealGame`, `Cslib.Crypto.qrIdealGame`,
-  `Cslib.Crypto.QuadraticResiduosityHard`: the computational quadratic residuosity experiment and
-  assumption.
+* `Cslib.Crypto.ModulusDesc`, `Cslib.Crypto.ModulusDesc.modulus`, `Cslib.Crypto.encModulusDesc`,
+  `Cslib.Crypto.encQRInput`, `Cslib.Crypto.qrRealGame`, `Cslib.Crypto.qrIdealGame`,
+  `Cslib.Crypto.QuadraticResiduosityHard`: modulus descriptions, their composite modulus
+  `N = p * q`, their binary encoding as `(p, q)`, the distinguisher input `(1ⁿ, (N, y))`, and the
+  computational quadratic residuosity experiment and assumption.
+* `Cslib.Crypto.qrEulerTest`, `Cslib.Crypto.factorToQR`: explicit PPT reduction from quadratic
+  residuosity distinguishing to integer factoring via Euler's criterion.
 
 ## Main results
 
@@ -46,9 +55,14 @@ computational quadratic residuosity assumption.
 * `Cslib.Crypto.jacobiPosSet_eq_disjoint_union`: `J_N^{+1} = QR_N ⊔ QNR_N^{+1}`.
 * `Cslib.Crypto.card_quadResidueSet_eq_card_positiveNonresidues`: `|QR_N| = |QNR_N^{+1}|` for
   distinct odd primes `p ≠ q`.
+* `Cslib.Crypto.isSquare_mul_of_mem_positiveNonresidues`: `QNR_N^{+1}` is one coset of `QR_N`,
+  so the product of two of its elements is a quadratic residue.
 * `Cslib.Crypto.neg_one_mem_positiveNonresidues`: `-1 ∈ QNR_N^{+1}` for any Blum modulus.
 * `Cslib.Crypto.blumSqrt_sq`, `Cslib.Crypto.sq_bijOn_quadResidueSet`: squaring is a bijection
   on `QR_N` for any Blum modulus, with inverse `blumSqrt p q`.
+* `Cslib.Crypto.advantage_qrGame_factorToQR`,
+  `Cslib.Crypto.QuadraticResiduosityHard.modulusFactoringHard`: quadratic residuosity hardness
+  implies integer factoring hardness.
 
 ## Implementation notes
 
@@ -58,7 +72,7 @@ and assumption `QuadraticResiduosityHard` are parameterized by an arbitrary gene
 `setup : ℕ → PMF ModulusDesc` over pairs of distinct odd primes `(p, q)` (efficient sampling of
 `(p, q)` and bit-length bounds in `n` are not bundled in `ModulusDesc`), and quantify over
 uniform native strict-PPT distinguishers (`IsPPTOn`) taking `(1^n, (N, y))` with binary `encNat`
-encodings.
+encodings (`encQRInput`).
 
 ## References
 
@@ -144,37 +158,12 @@ theorem jacobiPosSet_eq_disjoint_union (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
     jacobiPosSet p q = quadResidueSet p q ∪ positiveNonresidues p q ∧
       Disjoint (quadResidueSet p q) (positiveNonresidues p q) := by
   classical
-  refine ⟨?_, ?_⟩
-  · ext x
-    simp only [jacobiPosSet, quadResidueSet, positiveNonresidues, Finset.mem_union,
-      Finset.mem_filter, Finset.mem_univ, true_and]
-    constructor
-    · intro h
-      by_cases hsq : IsSquare x
-      · exact Or.inl hsq
-      · exact Or.inr ⟨hsq, h⟩
-    · rintro (hsq | ⟨_, h⟩)
-      · exact jacobiSymbol_eq_one_of_isSquare p q hsq
-      · exact h
-  · rw [Finset.disjoint_left]
-    intro x hx1 hx2
-    simp only [quadResidueSet, positiveNonresidues, Finset.mem_filter] at hx1 hx2
-    exact hx2.2.1 hx1.2
-
-private def crtUnitsEquiv (p q : ℕ) (hpq : Nat.Coprime p q) :
-    (ZMod (p * q))ˣ ≃* (ZMod p)ˣ × (ZMod q)ˣ :=
-  (Units.mapEquiv (ZMod.chineseRemainder hpq).toMulEquiv).trans MulEquiv.prodUnits
-
-private theorem isSquare_crt_iff (p q : ℕ) (hpq : Nat.Coprime p q) (x : (ZMod (p * q))ˣ) :
-    IsSquare x ↔
-      IsSquare (crtUnitsEquiv p q hpq x).1 ∧ IsSquare (crtUnitsEquiv p q hpq x).2 := by
-  constructor
-  · rintro ⟨r, rfl⟩
-    exact ⟨⟨(crtUnitsEquiv p q hpq r).1, by simp⟩, ⟨(crtUnitsEquiv p q hpq r).2, by simp⟩⟩
-  · rintro ⟨⟨a, ha⟩, ⟨b, hb⟩⟩
-    refine ⟨(crtUnitsEquiv p q hpq).symm (a, b), ?_⟩
-    apply (crtUnitsEquiv p q hpq).injective
-    ext <;> simp [ha, hb]
+  refine ⟨Finset.ext fun x => ?_, Finset.disjoint_left.mpr fun x hx1 hx2 =>
+    (Finset.mem_filter.mp hx2).2.1 (Finset.mem_filter.mp hx1).2⟩
+  simp only [jacobiPosSet, quadResidueSet, positiveNonresidues, Finset.mem_union,
+    Finset.mem_filter, Finset.mem_univ, true_and]
+  exact ⟨fun h => if hsq : IsSquare x then .inl hsq else .inr ⟨hsq, h⟩,
+    fun | .inl hsq => jacobiSymbol_eq_one_of_isSquare p q hsq | .inr ⟨_, h⟩ => h⟩
 
 /-- The Legendre symbol at `p` of a residue modulo `m` is that of its image under any ring map
 `ZMod m →+* ZMod p`. -/
@@ -188,62 +177,44 @@ private theorem legendreSym_val_map {m p : ℕ} [NeZero m] [Fact p.Prime] (f : Z
 private theorem legendreSym_crt_fst (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
     (hpq : Nat.Coprime p q) (x : (ZMod (p * q))ˣ) :
     legendreSym p (x.val.val : ℤ) =
-      legendreSym p (((crtUnitsEquiv p q hpq x).1 : ZMod p).val : ℤ) :=
+      legendreSym p (((ZMod.unitsChineseRemainder hpq x).1 : ZMod p).val : ℤ) :=
   legendreSym_val_map (p := p) ((RingHom.fst (ZMod p) (ZMod q)).comp
     (ZMod.chineseRemainder hpq : ZMod (p * q) →+* ZMod p × ZMod q)) x
 
 private theorem legendreSym_crt_snd (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
     (hpq : Nat.Coprime p q) (x : (ZMod (p * q))ˣ) :
     legendreSym q (x.val.val : ℤ) =
-      legendreSym q (((crtUnitsEquiv p q hpq x).2 : ZMod q).val : ℤ) :=
+      legendreSym q (((ZMod.unitsChineseRemainder hpq x).2 : ZMod q).val : ℤ) :=
   legendreSym_val_map (p := q) ((RingHom.snd (ZMod p) (ZMod q)).comp
     (ZMod.chineseRemainder hpq : ZMod (p * q) →+* ZMod p × ZMod q)) x
 
 private theorem isSquare_unit_iff_legendreSym (p : ℕ) [Fact p.Prime] (_hp : p ≠ 2)
     (u : (ZMod p)ˣ) :
     IsSquare u ↔ legendreSym p ((u : ZMod p).val : ℤ) = 1 := by
-  have hu0 : (((u : ZMod p).val : ℤ) : ZMod p) ≠ 0 := by
-    simp [u.ne_zero]
-  rw [legendreSym.eq_one_iff p hu0]
+  rw [legendreSym.eq_one_iff p (by simp [u.ne_zero])]
   simp only [Int.cast_natCast, ZMod.natCast_zmod_val]
-  constructor
-  · rintro ⟨r, rfl⟩
-    exact ⟨(r : ZMod p), by simp⟩
-  · rintro ⟨r, hr⟩
-    have hr0 : r ≠ 0 := by
-      intro h0
-      rw [h0, mul_zero] at hr
-      exact u.ne_zero hr
-    exact ⟨Units.mk0 r hr0, Units.ext hr⟩
+  exact ⟨fun ⟨r, hr⟩ => ⟨r, by simp [hr]⟩,
+    fun ⟨r, hr⟩ => ⟨Units.mk0 r fun h0 => by simp [h0] at hr, Units.ext hr⟩⟩
 
-private theorem card_squares_prime_units (p : ℕ) [Fact p.Prime] (hp : 2 < p) :
-    2 * (Finset.univ.filter fun u : (ZMod p)ˣ => IsSquare u).card = Fintype.card (ZMod p)ˣ := by
-  have hrange : (Finset.univ.filter fun u : (ZMod p)ˣ => IsSquare u).card =
-      Nat.card (powMonoidHom 2 : (ZMod p)ˣ →* (ZMod p)ˣ).range := by
-    rw [Nat.card_eq_fintype_card]
-    symm
-    apply Fintype.card_of_subtype
-    intro u
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, MonoidHom.mem_range,
-      powMonoidHom_apply, isSquare_iff_exists_sq, eq_comm]
-  have hcard : Fintype.card (ZMod p)ˣ = p - 1 := by
-    rw [ZMod.card_units_eq_totient, Nat.totient_prime Fact.out]
-  have hdvd : 2 ∣ p - 1 := by
-    have hodd : p % 2 = 1 := Nat.odd_iff.mp ((Fact.out : p.Prime).odd_of_ne_two (by omega))
-    omega
-  rw [hrange, IsCyclic.card_powMonoidHom_range, Nat.card_eq_fintype_card, hcard,
-    Nat.gcd_eq_right hdvd]
-  omega
-
-/-- Half of the units modulo an odd prime are nonsquares. -/
-private theorem card_nonsquares_prime_units (p : ℕ) [Fact p.Prime] (hp : 2 < p) :
-    (Finset.univ.filter fun u : (ZMod p)ˣ => ¬ IsSquare u).card =
-      (Finset.univ.filter fun u : (ZMod p)ˣ => IsSquare u).card := by
-  have h := Finset.card_filter_add_card_filter_not (s := Finset.univ)
-    (p := fun u : (ZMod p)ˣ => IsSquare u)
-  rw [Finset.card_univ] at h
-  have := card_squares_prime_units p hp
-  omega
+/-- For coprime odd primes `p` and `q`, a unit modulo `p * q` lies in `QNR_N^{+1}` iff neither of
+its Chinese remainder components is a square. -/
+theorem mem_positiveNonresidues_iff_unitsChineseRemainder (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
+    (hpq : p.Coprime q) (hp : 2 < p) (hq : 2 < q) (x : (ZMod (p * q))ˣ) :
+    x ∈ positiveNonresidues p q ↔
+      ¬ IsSquare (ZMod.unitsChineseRemainder hpq x).1 ∧
+        ¬ IsSquare (ZMod.unitsChineseRemainder hpq x).2 := by
+  -- Both sides speak about the Legendre symbols of the CRT components: a component is a
+  -- square iff its symbol is `1`, and the Jacobi symbol is their product.
+  simp only [positiveNonresidues, Finset.mem_filter, Finset.mem_univ, true_and]
+  rw [ZMod.isSquare_iff_unitsChineseRemainder hpq x, jacobiSymbol,
+    legendreSym_crt_fst p q hpq x, legendreSym_crt_snd p q hpq x]
+  simp only [isSquare_unit_iff_legendreSym p (by omega), isSquare_unit_iff_legendreSym q (by omega)]
+  -- Each symbol is `±1`.
+  rcases legendreSym.eq_one_or_neg_one p
+      (a := ((ZMod.unitsChineseRemainder hpq x).1 : ZMod p).val) (by simp) with h | h <;>
+    rcases legendreSym.eq_one_or_neg_one q
+      (a := ((ZMod.unitsChineseRemainder hpq x).2 : ZMod q).val) (by simp) with h' | h' <;>
+    simp only [h, h'] <;> norm_num
 
 /-- For distinct odd primes `p ≠ q`, `|QR_N| = |QNR_N^{+1}|`. -/
 theorem card_quadResidueSet_eq_card_positiveNonresidues (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
@@ -255,27 +226,28 @@ theorem card_quadResidueSet_eq_card_positiveNonresidues (p q : ℕ) [Fact p.Prim
   -- squares and `N` the nonsquares among the units modulo each prime.
   have hQR : (quadResidueSet p q).card = ((Finset.univ.filter fun u : (ZMod p)ˣ => IsSquare u) ×ˢ
       (Finset.univ.filter fun v : (ZMod q)ˣ => IsSquare v)).card :=
-    Finset.card_bijective _ (crtUnitsEquiv p q hcop).bijective fun x => by
-      simp [quadResidueSet, isSquare_crt_iff p q hcop x]
+    Finset.card_bijective _ (ZMod.unitsChineseRemainder hcop).bijective fun x => by
+      simp [quadResidueSet, ZMod.isSquare_iff_unitsChineseRemainder hcop x]
   have hQNR : (positiveNonresidues p q).card =
       ((Finset.univ.filter fun u : (ZMod p)ˣ => ¬ IsSquare u) ×ˢ
-        (Finset.univ.filter fun v : (ZMod q)ˣ => ¬ IsSquare v)).card := by
-    refine Finset.card_bijective _ (crtUnitsEquiv p q hcop).bijective fun x => ?_
-    -- Both sides speak about the Legendre symbols of the CRT components: a component is a
-    -- square iff its symbol is `1`, and the Jacobi symbol is their product.
-    simp only [positiveNonresidues, Finset.mem_filter, Finset.mem_univ, true_and]
-    rw [isSquare_crt_iff p q hcop x, jacobiSymbol, legendreSym_crt_fst p q hcop x,
-      legendreSym_crt_snd p q hcop x]
-    simp only [Finset.mem_product, Finset.mem_filter, Finset.mem_univ, true_and,
-      isSquare_unit_iff_legendreSym p (by omega), isSquare_unit_iff_legendreSym q (by omega)]
-    -- Each symbol is `±1`.
-    rcases legendreSym.eq_one_or_neg_one p
-        (a := ((crtUnitsEquiv p q hcop x).1 : ZMod p).val) (by simp) with h | h <;>
-      rcases legendreSym.eq_one_or_neg_one q
-        (a := ((crtUnitsEquiv p q hcop x).2 : ZMod q).val) (by simp) with h' | h' <;>
-      simp only [h, h'] <;> norm_num
-  rw [hQR, hQNR, Finset.card_product, Finset.card_product, card_nonsquares_prime_units p hp,
-    card_nonsquares_prime_units q hq]
+        (Finset.univ.filter fun v : (ZMod q)ˣ => ¬ IsSquare v)).card :=
+    Finset.card_bijective _ (ZMod.unitsChineseRemainder hcop).bijective fun x => by
+      simp only [Finset.mem_product, Finset.mem_filter, Finset.mem_univ, true_and]
+      exact mem_positiveNonresidues_iff_unitsChineseRemainder p q hcop hp hq x
+  rw [hQR, hQNR, Finset.card_product, Finset.card_product, ZMod.card_nonsquares_units p hp,
+    ZMod.card_nonsquares_units q hq]
+
+/-- For distinct odd primes `p ≠ q`, the product of two elements of `QNR_N^{+1}` is a quadratic
+residue: `QNR_N^{+1}` is a single coset of `QR_N`. -/
+theorem isSquare_mul_of_mem_positiveNonresidues (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
+    (hpq : p ≠ q) (hp : 2 < p) (hq : 2 < q) {x y : (ZMod (p * q))ˣ}
+    (hx : x ∈ positiveNonresidues p q) (hy : y ∈ positiveNonresidues p q) :
+    IsSquare (x * y) := by
+  have hcop : Nat.Coprime p q := (Nat.coprime_primes Fact.out Fact.out).mpr hpq
+  rw [mem_positiveNonresidues_iff_unitsChineseRemainder p q hcop hp hq] at hx hy
+  rw [ZMod.isSquare_iff_unitsChineseRemainder hcop, map_mul]
+  exact ⟨ZMod.isSquare_mul_of_not_isSquare_units hx.1 hy.1,
+    ZMod.isSquare_mul_of_not_isSquare_units hx.2 hy.2⟩
 
 /-! ### Blum integers and principal square roots -/
 
@@ -305,8 +277,9 @@ theorem neg_one_mem_positiveNonresidues (p q : ℕ) [Fact p.Prime] [Fact q.Prime
   refine ⟨?_, by unfold jacobiSymbol; rw [hp_neg, hq_neg]; norm_num⟩
   intro hsq
   have hcop : Nat.Coprime p q := (Nat.coprime_primes h.1.1 h.2.1.1).mpr h.2.2
-  have h1 := ((isSquare_crt_iff p q hcop (-1)).mp hsq).1
-  have hp_eq := (isSquare_unit_iff_legendreSym p hp2 (crtUnitsEquiv p q hcop (-1)).1).mp h1
+  have h1 := ((ZMod.isSquare_iff_unitsChineseRemainder hcop (-1)).mp hsq).1
+  have hp_eq :=
+    (isSquare_unit_iff_legendreSym p hp2 (ZMod.unitsChineseRemainder hcop (-1)).1).mp h1
   rw [← legendreSym_crt_fst p q hcop (-1)] at hp_eq
   omega
 
@@ -338,7 +311,7 @@ private theorem blum_sq_pow_eq_one (p q : ℕ) (h : IsBlumModulus p q) (u : (ZMo
       4 * ((2 * (r / 4) + 1) * (2 * (s / 4) + 1)) by ring, Nat.mul_div_cancel_left _ (by norm_num)]
     ring
   rw [← pow_mul]
-  apply (crtUnitsEquiv p q hcop).injective
+  apply (ZMod.unitsChineseRemainder hcop).injective
   rw [map_pow, map_one]
   refine Prod.ext ?_ ?_
   · rw [Prod.pow_fst, Prod.fst_one, hk p q hp1 hq1, pow_mul,
@@ -351,54 +324,30 @@ in `QR_N`. -/
 theorem blumSqrt_sq (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus p q) {y : (ZMod (p * q))ˣ}
     (hy : y ∈ quadResidueSet p q) :
     (blumSqrt p q y) ^ 2 = y ∧ blumSqrt p q y ∈ quadResidueSet p q := by
-  simp only [quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and] at hy
-  obtain ⟨x, rfl⟩ := hy
-  have hp4 : p % 4 = 3 := h.1.2
-  have hq4 : q % 4 = 3 := h.2.1.2
-  have hexp : 2 * (((p - 1) * (q - 1) + 4) / 8) = ((p - 1) * (q - 1)) / 4 + 1 :=
-    blum_exponent_eq p q hp4 hq4
-  have hsq_eq : (blumSqrt p q (x * x)) ^ 2 = x * x := by
-    unfold blumSqrt
-    rw [← pow_two, ← pow_mul, mul_comm (((p - 1) * (q - 1) + 4) / 8) 2, hexp, pow_add, pow_one,
-      blum_sq_pow_eq_one p q h x, one_mul]
-  refine ⟨hsq_eq, ?_⟩
-  simp only [quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and]
-  refine ⟨x ^ (((p - 1) * (q - 1) + 4) / 8), ?_⟩
-  unfold blumSqrt
-  exact mul_pow x x (((p - 1) * (q - 1) + 4) / 8)
+  obtain ⟨x, rfl⟩ := (Finset.mem_filter.mp hy).2
+  refine ⟨?_, Finset.mem_filter.mpr ⟨Finset.mem_univ _, x ^ _, mul_pow x x _⟩⟩
+  rw [blumSqrt, ← pow_two, ← pow_mul, mul_comm _ 2, blum_exponent_eq p q h.1.2 h.2.1.2,
+    pow_add, pow_one, blum_sq_pow_eq_one p q h x, one_mul]
 
 /-- For a Blum modulus, `blumSqrt p q (x ^ 2) = x` whenever `x ∈ QR_N`. -/
 theorem blumSqrt_sq_self (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus p q) {x : (ZMod (p * q))ˣ}
     (hx : x ∈ quadResidueSet p q) :
     blumSqrt p q (x ^ 2) = x := by
-  simp only [quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and] at hx
-  obtain ⟨u, rfl⟩ := hx
-  have hexp : 2 * (((p - 1) * (q - 1) + 4) / 8) = ((p - 1) * (q - 1)) / 4 + 1 :=
-    blum_exponent_eq p q h.1.2 h.2.1.2
-  unfold blumSqrt
-  rw [← pow_mul, hexp, pow_add, pow_one]
-  have hpow : (u * u) ^ (((p - 1) * (q - 1)) / 4) = 1 := by
-    rw [← pow_two]
-    exact blum_sq_pow_eq_one p q h u
-  rw [hpow, one_mul]
+  obtain ⟨u, rfl⟩ := (Finset.mem_filter.mp hx).2
+  rw [blumSqrt, ← pow_mul, blum_exponent_eq p q h.1.2 h.2.1.2, pow_add, pow_one,
+    ← pow_two u, blum_sq_pow_eq_one p q h u, one_mul]
 
 /-- For a Blum modulus, squaring `x ↦ x ^ 2` is a bijection from `QR_N` onto `QR_N`. -/
 theorem sq_bijOn_quadResidueSet (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus p q) :
     Set.BijOn (fun x : (ZMod (p * q))ˣ => x ^ 2)
       (quadResidueSet p q : Set (ZMod (p * q))ˣ)
-      (quadResidueSet p q : Set (ZMod (p * q))ˣ) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro x _
-    simp only [Finset.mem_coe, quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨x, pow_two x⟩
-  · intro x hx y hy hxy
-    change x ^ 2 = y ^ 2 at hxy
-    calc x = blumSqrt p q (x ^ 2) := (blumSqrt_sq_self p q h (Finset.mem_coe.mp hx)).symm
-      _ = blumSqrt p q (y ^ 2) := by rw [hxy]
-      _ = y := blumSqrt_sq_self p q h (Finset.mem_coe.mp hy)
-  · intro y hy
-    exact ⟨blumSqrt p q y, Finset.mem_coe.mpr (blumSqrt_sq p q h (Finset.mem_coe.mp hy)).2,
-      (blumSqrt_sq p q h (Finset.mem_coe.mp hy)).1⟩
+      (quadResidueSet p q : Set (ZMod (p * q))ˣ) :=
+  ⟨fun x _ => Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, x, pow_two x⟩),
+   fun x hx y hy (hxy : x ^ 2 = y ^ 2) => by
+     calc x = blumSqrt p q (x ^ 2) := (blumSqrt_sq_self p q h hx).symm
+       _ = blumSqrt p q (y ^ 2) := by rw [hxy]
+       _ = y := blumSqrt_sq_self p q h hy,
+   fun y hy => ⟨blumSqrt p q y, (blumSqrt_sq p q h hy).2, (blumSqrt_sq p q h hy).1⟩⟩
 
 /-! ### Computational quadratic residuosity assumption -/
 
@@ -422,6 +371,27 @@ structure ModulusDesc where
 instance (d : ModulusDesc) : Fact d.p.Prime := ⟨d.prime_p⟩
 instance (d : ModulusDesc) : Fact d.q.Prime := ⟨d.prime_q⟩
 
+/-- The composite modulus `N = p * q` of a `ModulusDesc`. -/
+abbrev ModulusDesc.modulus (d : ModulusDesc) : ℕ := d.p * d.q
+
+/-- Every valid modulus `N = p * q` exceeds `1`. -/
+theorem ModulusDesc.one_lt_mul (d : ModulusDesc) : 1 < d.p * d.q := by
+  have := d.two_lt_p; have := d.two_lt_q; nlinarith
+
+/-- The unit `-1` modulo `N = p * q` has canonical residue `N - 1`. -/
+theorem ModulusDesc.val_neg_one (d : ModulusDesc) :
+    (-1 : (ZMod (d.p * d.q))ˣ).val.val = d.p * d.q - 1 := by
+  have : Fact (1 < d.p * d.q) := ⟨d.one_lt_mul⟩
+  rw [Units.val_neg, Units.val_one, ZMod.val_neg_of_ne_zero, ZMod.val_one]
+
+/-- The prime factors `(p, q)` of a modulus description; the proof fields are determined by them. -/
+def ModulusDesc.toPair : ModulusDesc ↪ ℕ × ℕ :=
+  ⟨fun d => (d.p, d.q), by rintro ⟨p, q⟩ ⟨p', q'⟩ h; cases h; rfl⟩
+
+/-- Encoding of a `ModulusDesc` as the binary pair `(p, q)`; `p` is framed. -/
+def encModulusDesc : ModulusDesc ↪ List Bool :=
+  ModulusDesc.toPair.trans (encPair encNat encNat)
+
 noncomputable instance (d : ModulusDesc) : Nonempty (quadResidueSet d.p d.q) :=
   ⟨⟨1, Finset.mem_filter.mpr ⟨Finset.mem_univ 1, ⟨1, (one_mul 1).symm⟩⟩⟩⟩
 
@@ -432,6 +402,12 @@ noncomputable instance (d : ModulusDesc) : Nonempty (positiveNonresidues d.p d.q
       ⟨1, Finset.mem_filter.mpr ⟨Finset.mem_univ 1, ⟨1, (one_mul 1).symm⟩⟩⟩
   obtain ⟨x, hx⟩ := Finset.card_pos.mp hcard
   exact ⟨⟨x, hx⟩⟩
+
+/-- Input `(1ⁿ, (N, y))` of a quadratic residuosity distinguisher: the security parameter `n` in
+unary, then the modulus `N` and the challenge residue `y` in binary. The parameter and `N` are
+framed. -/
+abbrev encQRInput : ℕ × ℕ × ℕ ↪ List Bool :=
+  encModulusChallengeInput
 
 /-- Real quadratic residuosity experiment: sample `N = p * q` and a uniform quadratic residue
 `y ∈ QR_N`, and give `(N, y)` to the distinguisher. -/
@@ -449,15 +425,167 @@ noncomputable def qrIdealGame (setup : ℕ → PMF ModulusDesc)
   let y ← PMF.uniformOfFintype (positiveNonresidues d.p d.q)
   ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
 
-/-- The computational quadratic residuosity assumption: no uniform strict PPT distinguisher
+/-- The computational quadratic residuosity assumption ([KatzLindell2020], Section 15.4.3;
+locator not independently inspected in the 3rd-edition PDF): no uniform strict PPT distinguisher
 can distinguish a random quadratic residue in `QR_N` from a random quadratic nonresidue in
-`QNR_N^{+1}` given `N = p * q`. -/
+`QNR_N^{+1}` given `N = p * q`, relative to the arbitrary modulus law `setup`. -/
 def QuadraticResiduosityHard (setup : ℕ → PMF ModulusDesc) : Prop :=
   Game.Indistinguishable
     (fun adversary n => qrRealGame setup adversary n)
     (fun adversary n => qrIdealGame setup adversary n)
     (fun adversary =>
-      IsPPTOn (encPair encUnary (encPair encNat encNat)) encBool
-        (fun input => adversary input.1 input.2))
+      IsPPTOn encModulusChallengeInput encBool (fun input => adversary input.1 input.2))
+
+/-! ### Quadratic residuosity hardness implies integer factoring hardness -/
+
+/-- Euler-criterion test for quadratic residuosity modulo the factor `a` of `N = a * b`:
+returns `true` when `1 < a`, `1 < b`, `a * b = N`, and `y ^ (a / 2) % a = 1`. -/
+def qrEulerTest (N y a b : ℕ) : Bool :=
+  decide (1 < a ∧ 1 < b ∧ a * b = N ∧
+    y ^ (a / 2) % (if a = 0 then 1 else a) = 1)
+
+/-- Explicit PPT reduction from quadratic residuosity distinguishing to integer factoring
+([KatzLindell2020], Section 15.4): given `(N, y)`, run the factoring algorithm `F n N` to obtain
+`(a, b)` and test Euler's criterion modulo `a`. -/
+def factorToQR (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) (Ny : ℕ × ℕ) : ProbComp Bool := do
+  let ab ← F n Ny.1
+  return qrEulerTest Ny.1 Ny.2 ab.1 ab.2
+
+private theorem computableInPolyTime_qrEulerTest {α : Type} {enc : α ↪ List Bool}
+    {N y a b : α → ℕ}
+    (hN : ComputableInPolyTime N enc encNat)
+    (hy : ComputableInPolyTime y enc encNat)
+    (ha : ComputableInPolyTime a enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun x => qrEulerTest (N x) (y x) (a x) (b x)) enc encBool := by
+  unfold qrEulerTest
+  have ha_pos : ∀ x, 0 < (if a x = 0 then 1 else a x) := fun x => by
+    split_ifs <;> omega
+  have ha' : ComputableInPolyTime (fun x => if a x = 0 then 1 else a x) enc encNat := by fun_prop
+  have hpow : ComputableInPolyTime
+      (fun x => y x ^ (a x / 2) % (if a x = 0 then 1 else a x)) enc encNat :=
+    ComputableInPolyTime.binary_powMod hy (by fun_prop) ha' ha_pos
+  have hcheck : ∀ {r : α → ℕ}, ComputableInPolyTime r enc encNat →
+      ComputableInPolyTime
+        (fun x => decide (1 < a x ∧ 1 < b x ∧ a x * b x = N x ∧ r x = 1)) enc encBool := by
+    intro r hr
+    fun_prop
+  exact hcheck hpow
+
+/-- `factorToQR F` is uniform PPT whenever `F` is uniform PPT. -/
+theorem isPPTOn_factorToQR {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
+    (hF : IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
+      (fun input => F input.1 input.2)) :
+    IsPPTOn encModulusChallengeInput encBool (fun input => factorToQR F input.1 input.2) := by
+  unfold factorToQR
+  have htest := @computableInPolyTime_qrEulerTest
+  refine IsPPTOn.bind_with
+    (IsPPTOn.preprocess hF (prepare := fun input : ℕ × (ℕ × ℕ) => (input.1, input.2.1))
+      (by fun_prop)) ?_
+  ppt
+
+private theorem nat_pow_mod_eq_one_iff_zmod {m y t : ℕ} [Fact (1 < m)] :
+    y ^ t % m = 1 ↔ (y : ZMod m) ^ t = 1 := by
+  rw [← Nat.cast_pow, ← ZMod.natCast_mod]
+  constructor
+  · intro h
+    rw [h, Nat.cast_one]
+  · intro h
+    have hval := congrArg ZMod.val h
+    rwa [ZMod.val_natCast, Nat.mod_mod, ZMod.val_one] at hval
+
+private theorem pow_div_two_mod_eq_one_iff_isSquare {a y : ℕ} (ha : a.Prime) {u : (ZMod a)ˣ}
+    (hy : (y : ZMod a) = (u : ZMod a)) :
+    y ^ (a / 2) % a = 1 ↔ IsSquare u := by
+  have : Fact a.Prime := ⟨ha⟩
+  have : Fact (1 < a) := ⟨ha.one_lt⟩
+  rw [nat_pow_mod_eq_one_iff_zmod, hy, ← Units.val_pow_eq_pow_val, ← Units.val_one,
+    ← Units.ext_iff, ← ZMod.euler_criterion_units a u, isSquare_iff_exists_sq]
+  simp_rw [eq_comm]
+
+private theorem qrEulerTest_of_mem_quadResidueSet (d : ModulusDesc) {x : (ZMod (d.p * d.q))ˣ}
+    (hx : x ∈ quadResidueSet d.p d.q) (a b : ℕ) :
+    qrEulerTest (d.p * d.q) x.val.val a b = decide (1 < a ∧ 1 < b ∧ a * b = d.p * d.q) := by
+  have hcop : Nat.Coprime d.p d.q := (Nat.coprime_primes d.prime_p d.prime_q).mpr d.ne_pq
+  have hsq : IsSquare x := (Finset.mem_filter.mp hx).2
+  obtain ⟨hsq_p, hsq_q⟩ := (ZMod.isSquare_iff_unitsChineseRemainder hcop x).mp hsq
+  unfold qrEulerTest
+  by_cases hfac : 1 < a ∧ 1 < b ∧ a * b = d.p * d.q
+  · rcases hfac with ⟨ha, hb, hab⟩
+    have ha0 : a ≠ 0 := by omega
+    have heuler : x.val.val ^ (a / 2) % a = 1 := by
+      rcases mul_eq_mul_primes_cases d.prime_p d.prime_q ha hb hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+      · exact (pow_div_two_mod_eq_one_iff_isSquare d.prime_p
+          (ZMod.natCast_val_eq_unitsChineseRemainder_fst hcop x)).mpr hsq_p
+      · exact (pow_div_two_mod_eq_one_iff_isSquare d.prime_q
+          (ZMod.natCast_val_eq_unitsChineseRemainder_snd hcop x)).mpr hsq_q
+    simp [ha, hb, hab, ha0, heuler]
+  · have hf1 : decide (1 < a ∧ 1 < b ∧ a * b = d.p * d.q ∧
+        x.val.val ^ (a / 2) % (if a = 0 then 1 else a) = 1) = false :=
+      decide_eq_false fun h => hfac ⟨h.1, h.2.1, h.2.2.1⟩
+    have hf2 : decide (1 < a ∧ 1 < b ∧ a * b = d.p * d.q) = false :=
+      decide_eq_false hfac
+    rw [hf1, hf2]
+
+private theorem qrEulerTest_of_mem_positiveNonresidues (d : ModulusDesc) {x : (ZMod (d.p * d.q))ˣ}
+    (hx : x ∈ positiveNonresidues d.p d.q) (a b : ℕ) :
+    qrEulerTest (d.p * d.q) x.val.val a b = false := by
+  have hcop : Nat.Coprime d.p d.q := (Nat.coprime_primes d.prime_p d.prime_q).mpr d.ne_pq
+  obtain ⟨hnsq_p, hnsq_q⟩ :=
+    (mem_positiveNonresidues_iff_unitsChineseRemainder d.p d.q hcop d.two_lt_p d.two_lt_q x).mp hx
+  unfold qrEulerTest
+  rw [decide_eq_false_iff_not]
+  rintro ⟨ha, hb, hab, heuler⟩
+  have ha0 : a ≠ 0 := by omega
+  simp only [ha0, ↓reduceIte] at heuler
+  rcases mul_eq_mul_primes_cases d.prime_p d.prime_q ha hb hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact hnsq_p ((pow_div_two_mod_eq_one_iff_isSquare d.prime_p
+      (ZMod.natCast_val_eq_unitsChineseRemainder_fst hcop x)).mp heuler)
+  · exact hnsq_q ((pow_div_two_mod_eq_one_iff_isSquare d.prime_q
+      (ZMod.natCast_val_eq_unitsChineseRemainder_snd hcop x)).mp heuler)
+
+/-- In `qrRealGame`, `factorToQR F` succeeds with the exact distribution of `modulusFactoringGame`
+on the pushed-forward modulus distribution. -/
+theorem qrRealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
+    (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) :
+    qrRealGame setup (factorToQR F) n =
+      modulusFactoringGame (fun k => (setup k).map ModulusDesc.modulus) F n := by
+  unfold qrRealGame modulusFactoringGame factorToQR
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.bind_map,
+    fun (d : ModulusDesc) (y : quadResidueSet d.p d.q) a b =>
+      qrEulerTest_of_mem_quadResidueSet d y.2 a b,
+    PMF.bind_const]
+  rfl
+
+/-- In `qrIdealGame`, `factorToQR F` always outputs `false`. -/
+theorem qrIdealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
+    (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) :
+    qrIdealGame setup (factorToQR F) n = PMF.pure false := by
+  unfold qrIdealGame factorToQR
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+    fun (d : ModulusDesc) (y : positiveNonresidues d.p d.q) a b =>
+      qrEulerTest_of_mem_positiveNonresidues d y.2 a b,
+    PMF.bind_const]
+
+/-- The QR distinguishing advantage of `factorToQR F` equals the factoring success probability of
+`F`. -/
+theorem advantage_qrGame_factorToQR (setup : ℕ → PMF ModulusDesc)
+    (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) :
+    Game.advantage (qrRealGame setup (factorToQR F) n) (qrIdealGame setup (factorToQR F) n) =
+      Game.succProbability
+        (modulusFactoringGame (fun k => (setup k).map ModulusDesc.modulus) F n) := by
+  rw [qrRealGame_factorToQR, qrIdealGame_factorToQR]
+  simp [Game.advantage, Game.succProbability]
+
+/-- **Quadratic residuosity hardness implies integer factoring hardness**: if `setup` satisfies
+`QuadraticResiduosityHard`, then factoring `N = d.p * d.q` is hard for `(setup n).map
+ModulusDesc.modulus`. -/
+theorem QuadraticResiduosityHard.modulusFactoringHard {setup : ℕ → PMF ModulusDesc}
+    (h : QuadraticResiduosityHard setup) :
+    ModulusFactoringHard (fun n => (setup n).map ModulusDesc.modulus) := by
+  intro F hF
+  refine (h (factorToQR F) (isPPTOn_factorToQR hF)).congr fun n => ?_
+  exact advantage_qrGame_factorToQR setup F n
 
 end Cslib.Crypto

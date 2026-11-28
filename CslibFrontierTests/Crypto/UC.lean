@@ -54,37 +54,37 @@ theorem askParty_polyBounded {AdvQ AdvR : Type} :
 
 /-- With no corruptions, the environment sees the functionality's bit, whatever the adversary. -/
 theorem eval_exec_askParty (b : Bool) {AdvQ AdvR : Type}
-    (S : Adversary 1 AdvQ AdvR ((Fin 1 × Unit) ⊕ Unit) (Option Bool ⊕ Unit)) (κ : ℕ)
+    (S : ExecAdversary 1 Unit Bool Unit Unit AdvQ AdvR) (κ : ℕ)
     (z : List Bool) : (exec (bitFunc b).toProtocol S ∅ askParty κ z).eval = PMF.pure b := by
   simp only [exec, Machine.run, Machine.link, askParty, execMachine, Machine.comp,
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure]
-  simp only [liftAdversary, StateT.run, bitFunc, IdealFunctionality.toProtocol, StateT.run_pure,
-    ProbOracleComp.sample_pure, corruptRouter, Finset.notMem_empty, ↓dreduceIte, bind_pure_comp,
-    map_pure, Fin.isValue, StateT.lift, Machine.runFrom_map, Machine.runFrom_query, Prod.map_apply,
-    id_eq, Machine.closeProgram_pure, ProbComp.eval_map]
+  simp only [liftAdversary, Machine.liftRight, StateT.run, bitFunc, IdealFunctionality.toProtocol,
+    StateT.run_pure, ProbOracleComp.sample_pure, corruptRouter, Finset.notMem_empty, ↓dreduceIte,
+    bind_pure_comp, map_pure, Fin.isValue, StateT.lift, Machine.runFrom_map, Machine.runFrom_query,
+    Prod.map_apply, id_eq, Machine.closeProgram_pure, ProbComp.eval_map]
   calc _ = PMF.map (Function.const _ b) _ := by congr 1 with a : 1; cases b <;> rfl
     _ = PMF.pure b := PMF.map_const _ _
 
 /-- When party `0` is corrupted, the environment cannot reach it: the router answers `none`, so
 `askParty` outputs `false`, whatever the functionality and the adversary. -/
 theorem eval_exec_askParty_corrupt (b : Bool) {AdvQ AdvR : Type}
-    (S : Adversary 1 AdvQ AdvR ((Fin 1 × Unit) ⊕ Unit) (Option Bool ⊕ Unit)) (κ : ℕ)
+    (S : ExecAdversary 1 Unit Bool Unit Unit AdvQ AdvR) (κ : ℕ)
     (z : List Bool) : (exec (bitFunc b).toProtocol S {0} askParty κ z).eval = PMF.pure false := by
   simp only [exec, Machine.run, Machine.link, askParty, execMachine, Machine.comp,
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure]
-  simp only [Fin.isValue, liftAdversary, StateT.run, bitFunc, IdealFunctionality.toProtocol,
-    StateT.run_pure, ProbOracleComp.sample_pure, corruptRouter, Finset.mem_singleton,
-    bind_pure_comp, StateT.lift, Machine.runFrom_map, Machine.runFrom_query, ↓reduceIte,
-    Functor.map_map, Machine.closeProgram_map, Machine.closeProgram_pure,
+  simp only [Fin.isValue, liftAdversary, Machine.liftRight, StateT.run, bitFunc,
+    IdealFunctionality.toProtocol, StateT.run_pure, ProbOracleComp.sample_pure, corruptRouter,
+    Finset.mem_singleton, bind_pure_comp, StateT.lift, Machine.runFrom_map, Machine.runFrom_query,
+    ↓reduceIte, Functor.map_map, Machine.closeProgram_map, Machine.closeProgram_pure,
     ProbComp.eval_bind, ProbComp.eval_map]
   calc _ = PMF.bind _ (fun _ => PMF.pure false) := by congr 1 with a : 1; exact PMF.pure_map _ _
     _ = PMF.pure false := PMF.bind_const _ _
 
 /-- Every simulator loses: `askParty` tells `bitFunc true` from `bitFunc false` with certainty. -/
 theorem advantage_bitFunc {AdvQ AdvR : Type}
-    (A S : Adversary 1 AdvQ AdvR ((Fin 1 × Unit) ⊕ Unit) (Option Bool ⊕ Unit)) (κ : ℕ)
+    (A S : ExecAdversary 1 Unit Bool Unit Unit AdvQ AdvR) (κ : ℕ)
     (z : List Bool) :
     advantage (bitFunc true).toProtocol (bitFunc false).toProtocol A S ∅ askParty κ z = 1 := by
   rw [advantage, eval_exec_askParty, eval_exec_askParty, Game.advantage_pure_false]
@@ -130,7 +130,7 @@ example (b : Bool) (C : Finset (Fin 1)) (s : Unit) :
     rfl
 
 /-- Asymptotic emulation also fails for distinguishable functionalities. -/
-example : ¬ Emulates (bitFunc true).toProtocol (bitFunc false).toProtocol := by
+theorem not_emulates_bitFunc : ¬ Emulates (bitFunc true).toProtocol (bitFunc false).toProtocol := by
   intro h
   obtain ⟨S, _, _, hν⟩ := h _ _ (forward _ _) 1 (forward_polyBounded _ _)
   obtain ⟨ν, hν, hadv⟩ := hν 1

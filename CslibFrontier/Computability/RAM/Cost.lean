@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.RAM.Defs
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Data.Nat.Digits.Lemmas
 public import Mathlib.Data.Nat.Size
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 
 /-!
 # Cost measures for random-access machines
@@ -85,18 +86,13 @@ def bitLength (n : ℕ) : ℕ := Nat.log 2 n + 1
 
 /-- The length of a number is Mathlib's `Nat.size`, except that `0` has length `1`. -/
 theorem bitLength_eq_max_size (n : ℕ) : bitLength n = max n.size 1 := by
-  rcases Nat.eq_zero_or_pos n with rfl | hn
+  rcases eq_or_ne n 0 with rfl | hn
   · rfl
-  · have h₁ : Nat.log 2 n < n.size := Nat.lt_size.2 (Nat.pow_log_le_self 2 hn.ne')
-    have h₂ : n.size ≤ Nat.log 2 n + 1 :=
-      Nat.size_le.2 (Nat.lt_pow_succ_log_self Nat.one_lt_two n)
-    rw [bitLength]
+  · rw [bitLength, Nat.size_eq_log_two_add_one hn]
     omega
 
-theorem bitLength_eq_size {n : ℕ} (hn : n ≠ 0) : bitLength n = n.size := by
-  have := Nat.size_pos.2 (Nat.pos_of_ne_zero hn)
-  rw [bitLength_eq_max_size]
-  omega
+theorem bitLength_eq_size {n : ℕ} (hn : n ≠ 0) : bitLength n = n.size :=
+  (Nat.size_eq_log_two_add_one hn).symm
 
 @[simp]
 theorem bitLength_zero : bitLength 0 = 1 := rfl
@@ -123,14 +119,10 @@ theorem bitLength_le_iff {n k : ℕ} (hk : k ≠ 0) : bitLength n ≤ k ↔ n < 
   exact and_iff_left (Nat.one_le_iff_ne_zero.2 hk)
 
 theorem bitLength_add_le (m n : ℕ) : bitLength (m + n) ≤ bitLength m + bitLength n := by
-  have hm : 2 ≤ 2 ^ bitLength m := by
-    simpa using Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength m)
-  have hn : 2 ≤ 2 ^ bitLength n := by
-    simpa using Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength n)
+  have hm : 2 ≤ 2 ^ bitLength m := Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength m)
+  have hn : 2 ≤ 2 ^ bitLength n := Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength n)
   rw [bitLength_le_iff (by have := one_le_bitLength m; omega), pow_add]
-  have := lt_two_pow_bitLength m
-  have := lt_two_pow_bitLength n
-  nlinarith
+  nlinarith [lt_two_pow_bitLength m, lt_two_pow_bitLength n]
 
 theorem bitLength_mul_le (m n : ℕ) : bitLength (m * n) ≤ bitLength m + bitLength n := by
   rw [bitLength_le_iff (by have := one_le_bitLength m; omega), pow_add]
@@ -224,9 +216,8 @@ theorem stepCost_unitCost_le : stepCost unitCost p s ≤ 1 := by
   unfold stepCost
   split <;> simp [unitCost]
 
-theorem stepCost_unitCost (h : ¬s.isHalted p) : stepCost unitCost p s = 1 := by
-  have hlt : s.pc < p.length := by simpa using h
-  exact stepCost_of_getElem? (List.getElem?_eq_getElem hlt)
+theorem stepCost_unitCost (h : ¬s.isHalted p) : stepCost unitCost p s = 1 :=
+  stepCost_of_getElem? (List.getElem?_eq_getElem (by simpa using h))
 
 /-- Unit time is at most the number of steps. -/
 theorem time_unitCost_le : time unitCost p n s ≤ n :=

@@ -50,7 +50,8 @@ structures, is in `CslibFrontier.Logics.FirstOrder.FiniteVariable.CountingHintik
 ## Main results
 
 * `Cslib.Logic.FO.BijPebbleWins.mono`, `Cslib.Logic.FO.BijPebbleWins.of_subset`,
-  `Cslib.Logic.FO.bijPebbleWins_congr`: monotonicity and independence of unplaced pebbles.
+  `Cslib.Logic.FO.bijPebbleWins_congr`, `Cslib.Logic.FO.bijPebbleWins_comp_equiv_iff`: monotonicity,
+  independence of unplaced pebbles, and pebble reindexing.
 * `Cslib.Logic.FO.BijPebbleWins.refl`, `Cslib.Logic.FO.BijPebbleWins.symm`,
   `Cslib.Logic.FO.BijPebbleWins.trans`, `FirstOrder.Language.Equiv.bijPebbleWins`: the
   equivalence-relation laws and invariance under isomorphism.
@@ -154,6 +155,24 @@ theorem bijPebbleWins_congr :
       fun i => (h.move i).imp fun f hf c =>
         bijPebbleWins_congr (ha.update_insert i c) (hb.update_insert i (f c)) (hf c)⟩
 
+private theorem preimage_insert_equiv {k' : ℕ} (σ : Fin k' ≃ Fin k) (i : Fin k')
+    (S : Set (Fin k)) : insert i (σ ⁻¹' S) = σ ⁻¹' insert (σ i) S := by
+  ext j
+  simp only [Set.mem_insert_iff, Set.mem_preimage, σ.injective.eq_iff]
+
+/-- Reindexing pebble names along a bijection preserves winning positions of the bijective game. -/
+theorem bijPebbleWins_comp_equiv_iff {k' : ℕ} (σ : Fin k' ≃ Fin k) :
+    ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N},
+      BijPebbleWins L n (σ ⁻¹' S) (a ∘ σ) (b ∘ σ) ↔ BijPebbleWins L n S a b
+  | 0, _, _, _ => by
+    rw [bijPebbleWins_zero, bijPebbleWins_zero, partialIsoOn_comp_equiv_iff]
+  | _ + 1, _, _, _ => by
+    rw [bijPebbleWins_succ, bijPebbleWins_succ, partialIsoOn_comp_equiv_iff]
+    refine and_congr Iff.rfl (σ.forall_congr fun i => exists_congr fun f =>
+      forall_congr' fun c => ?_)
+    simp only [preimage_insert_equiv, ← Function.update_comp_eq_of_injective _ σ.injective,
+      bijPebbleWins_comp_equiv_iff σ]
+
 theorem BijPebbleWins.refl : ∀ (n : ℕ) (S : Set (Fin k)) (a : Fin k → M), BijPebbleWins L n S a a
   | 0, S, a => bijPebbleWins_zero.2 (PartialIsoOn.refl S a)
   | n + 1, S, a => bijPebbleWins_succ.2 ⟨PartialIsoOn.refl S a,
@@ -165,9 +184,7 @@ theorem BijPebbleWins.symm : ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {
   | _ + 1, _, a, b, h => by
     refine bijPebbleWins_succ.2 ⟨h.partialIsoOn.symm, fun i => ?_⟩
     obtain ⟨f, hf⟩ := h.move i
-    refine ⟨f.symm, fun d => ?_⟩
-    have := (hf (f.symm d)).symm
-    rwa [Equiv.apply_symm_apply] at this
+    exact ⟨f.symm, fun d => by simpa only [Equiv.apply_symm_apply] using (hf (f.symm d)).symm⟩
 
 theorem BijPebbleWins.trans :
     ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} {c : Fin k → P},
@@ -191,9 +208,7 @@ theorem BijPebbleWins.pebbleWins :
     · obtain ⟨f, hf⟩ := h.move i
       exact ⟨f c, (hf c).pebbleWins⟩
     · obtain ⟨f, hf⟩ := h.move i
-      refine ⟨f.symm d, ?_⟩
-      have := (hf (f.symm d)).pebbleWins
-      rwa [Equiv.apply_symm_apply] at this
+      exact ⟨f.symm d, by simpa only [Equiv.apply_symm_apply] using (hf (f.symm d)).pebbleWins⟩
 
 /-! ### Back-and-forth invariants and the infinite game -/
 
@@ -225,6 +240,15 @@ for `k > 0` when `M` or `N` is empty. -/
 def BijPebbleWinsForever (S : Set (Fin k)) (a : Fin k → M) (b : Fin k → N) : Prop :=
   ∃ I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop, IsBijPebbleBackAndForth L I ∧ I S a b
 
+/-- Unfolds `BijPebbleWinsForever` into existence of a bijective `k`-pebble back-and-forth
+invariant. -/
+theorem bijPebbleWinsForever_iff_exists_isBijPebbleBackAndForth {S : Set (Fin k)} {a : Fin k → M}
+    {b : Fin k → N} :
+    BijPebbleWinsForever L S a b ↔
+      ∃ I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop,
+        IsBijPebbleBackAndForth L I ∧ I S a b :=
+  Iff.rfl
+
 /-- Every position of a back-and-forth invariant is won by Duplicator in the infinite game. -/
 theorem IsBijPebbleBackAndForth.bijPebbleWinsForever
     {I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop} (hI : IsBijPebbleBackAndForth L I)
@@ -247,9 +271,7 @@ theorem BijPebbleWinsForever.pebbleWinsForever {S : Set (Fin k)} {a : Fin k → 
   · obtain ⟨f, hf⟩ := hI.move h i
     exact ⟨f c, hf c⟩
   · obtain ⟨f, hf⟩ := hI.move h i
-    refine ⟨f.symm d, ?_⟩
-    have := hf (f.symm d)
-    rwa [Equiv.apply_symm_apply] at this
+    exact ⟨f.symm d, by simpa only [Equiv.apply_symm_apply] using hf (f.symm d)⟩
 
 /-- **The infinite bijective game on finite structures.** When `M` is finite, Duplicator wins the
 bijective `k`-pebble game that continues forever exactly when she wins the `n`-round game for every
@@ -290,40 +312,12 @@ is needed: the bijection of each round carries the witnesses of a counting quant
 those in `N`. -/
 theorem BijPebbleWins.realize_iff {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : BijPebbleWins L n S a b) {φ : FiniteVariable.CountingFormula L k}
-    (hr : φ.quantifierRank ≤ n) (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b := by
-  induction φ generalizing n S a b with
-  | falsum => simp only [FiniteVariable.CountingFormula.realize_falsum]
-  | equal i j =>
-    simp only [FiniteVariable.CountingFormula.freeVars_equal, Finset.coe_insert,
-      Finset.coe_singleton, Set.insert_subset_iff, Set.singleton_subset_iff] at hS
-    simp only [FiniteVariable.CountingFormula.realize_equal]
-    exact h.partialIsoOn.eq_iff i hS.1 j hS.2
-  | rel R f =>
-    simp only [FiniteVariable.CountingFormula.realize_rel]
-    exact h.partialIsoOn.relMap_iff R f fun t => hS (by simp)
-  | imp φ ψ ihφ ihψ =>
-    simp only [FiniteVariable.CountingFormula.quantifierRank_imp, max_le_iff] at hr
-    simp only [FiniteVariable.CountingFormula.freeVars_imp, Finset.coe_union,
-      Set.union_subset_iff] at hS
-    simp only [FiniteVariable.CountingFormula.realize_imp]
-    exact imp_congr (ihφ h hr.1 hS.1) (ihψ h hr.2 hS.2)
-  | atLeast m i φ ih =>
-    simp only [FiniteVariable.CountingFormula.quantifierRank_atLeast] at hr
-    obtain ⟨n, rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by omega⟩
-    rw [FiniteVariable.CountingFormula.freeVars_atLeast, Finset.coe_erase, Set.sdiff_subset_iff,
-      ← Set.insert_eq] at hS
-    obtain ⟨f, hf⟩ := h.move i
-    have himage : f '' {c | φ.Realize (Function.update a i c)} =
-        {d | φ.Realize (Function.update b i d)} := by
-      ext d
-      constructor
-      · rintro ⟨c, hc, rfl⟩
-        exact (ih (hf c) (by omega) hS).1 hc
-      · intro hd
-        refine ⟨f.symm d, (ih (hf (f.symm d)) (by omega) hS).2 ?_, f.apply_symm_apply d⟩
-        rwa [f.apply_symm_apply]
-    rw [FiniteVariable.CountingFormula.realize_atLeast,
-      FiniteVariable.CountingFormula.realize_atLeast, ← himage, f.injective.encard_image]
+    (hr : φ.quantifierRank ≤ n) (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
+  FiniteVariable.GenFormula.realize_iff_of_step (BijPebbleWins L) BijPebbleWins.partialIsoOn
+    (fun q i _ _ hstep ih =>
+      let ⟨f, hf⟩ := hstep.move i
+      FiniteVariable.CountingQuant.eval_iff_of_equiv q f fun c => ih (hf c))
+    h hr hS
 
 /-- **Infinite bijective pebble games, easy direction.** If Duplicator wins the infinite bijective
 `k`-pebble game from `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable counting formulas

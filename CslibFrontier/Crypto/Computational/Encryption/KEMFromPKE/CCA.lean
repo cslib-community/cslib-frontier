@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEMFromPKE
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid.CCA
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PPT
 
 /-!
 # CCA security of encrypted-key encapsulation
@@ -26,6 +27,11 @@ phases; this reduction uses zero queries in its first phase. Correctness and hon
 efficiency are separate from indistinguishability. The security parameter remains `n`, while
 the sampled keys have length `keyLen n`, including length zero.
 
+The security theorem is a step toward Exercise 12.5(f), printed p. 514, not the exercise itself.
+Its premise `WordINDCCA2` admits every pair of equal-length bit strings as a challenge, where the
+exercise's scheme encrypts only KEM keys (#5293), and it decrypts every word other than the
+challenge, where Attack Game 12.1 takes queries in the ciphertext space (#5686).
+
 ## Main definitions
 
 * `Cslib.Crypto.Encryption.kemToCCAAdversary`: the exact-loss reduction.
@@ -37,7 +43,8 @@ the sampled keys have length `keyLen n`, including length zero.
 * `Cslib.Crypto.Encryption.isPPT_kemToCCAAdversary`: native oracle runtime certificate.
 * `Cslib.Crypto.Encryption.advantage_encryptKeyEncaps_cca_eq`: exact advantage preservation.
 * `Cslib.Crypto.Encryption.WordINDCCA2.indistinguishable_encryptKeyEncaps`:
-  CCA-secure PKE gives a KEM secure against adaptive decapsulation queries.
+  CCA-secure PKE gives a KEM secure against adaptive decapsulation queries (a step toward
+  Exercise 12.5(f)).
 
 ## References
 
@@ -70,13 +77,8 @@ in unary; the reduction does not execute key generation, encryption or decryptio
 theorem isPPT_kemToCCAAdversary {keyLen : ℕ → ℕ} {distinguisher : OracleDistinguisher}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     (hdist : IsOraclePPT encBool distinguisher) :
-    (kemToCCAAdversary keyLen distinguisher).IsPPT encBits := by
-  refine ⟨(isPPTOn_kemToPKEChoose hkeyLen).isOraclePPTOn.isOraclePPT, ?_⟩
-  let hg1 := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
-  let hg2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  exact hdist.on.preprocess'
-    (hg1.prod (((ComputableInPolyTime.unframe.comp' hg2.fst').prod
-      ((ComputableInPolyTime.dropFrame.comp' hg2.fst').prod hg2.snd')).encoding_comp))
+    (kemToCCAAdversary keyLen distinguisher).IsPPT encBits :=
+  ⟨(isPPTOn_kemToPKEChoose hkeyLen).isOraclePPTOn.isOraclePPT, by ppt [kemToCCAAdversary]⟩
 
 private theorem eval_cca2GameOn_kemToCCAAdversary (keyLen : ℕ → ℕ)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -151,9 +153,24 @@ theorem advantage_encryptKeyEncaps_cca_eq (keyLen : ℕ → ℕ)
       encrypt decrypt (kemToCCAAdversary keyLen distinguisher)) n := by
   rw [advantage, eval_cca2GameOn_kemToCCAAdversary_false, eval_cca2GameOn_kemToCCAAdversary_true]
 
-/-- **CCA-secure word PKE gives adaptive decapsulation security** ([BonehShoup2023],
-Exercise 12.5(f)). The KEM adversary receives one challenge and may query adaptively afterwards;
-the security assertion uses the existing indistinguishability and native oracle PPT predicates. -/
+/-- CCA-secure word PKE gives its encrypted-key KEM security against adaptive decapsulation
+queries: a step toward [BonehShoup2023], Exercise 12.5(f), not the cited result, because the
+premise `WordINDCCA2` covers every pair of equal-length messages and decrypts every word, where
+the exercise assumes 1CCA security of a scheme over `(K, C_a)` (#5293, #5686).
+
+The exercise's scheme `E_a` is defined over `(K, C_a)` (Exercise 11.9(e), printed p. 461), so its
+messages are only the KEM keys, and in Attack Game 12.1 (printed pp. 467–468) its decryption
+queries lie in `C_a`. `WordINDCCA2` admits every equal-length pair of bit strings as a challenge
+(#5293) and decrypts every word other than the challenge (#5686). A scheme that is 1CCA secure on
+`K` but leaks on messages of another length, or that decrypts a fixed malformed word to its secret
+key, meets the exercise's premise and not this one. The reduction `kemToCCAAdversary` challenges
+only with `keyLen n`-bit keys, and it forwards the KEM adversary's decapsulation queries
+unchanged.
+
+The KEM adversary receives one challenge and may query adaptively afterwards. The conclusion's KEM
+games give it `pk` and decapsulate every word other than the challenge, which only strengthens the
+conclusion. The security assertion uses the existing indistinguishability and native oracle PPT
+predicates. -/
 theorem WordINDCCA2.indistinguishable_encryptKeyEncaps {keyLen : ℕ → ℕ}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)}

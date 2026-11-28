@@ -50,18 +50,18 @@ theorem instance_adjacency {n D g p : ℕ} (values : ℕ → ℤ)
     let C := fun rho => Nat.count (fun q => (values q % (p : ℤ)).toNat = rho) N
     let H := numPieces n D g
     let B := pieceSize D g
-    let ord := ChunkCatalogue.before C (queryCap n D) idx.1.val + idx.2.1
+    let ord := ChunkCatalogue.before C (queryCap n D) idx.residue.val + idx.chunk
     let base := y.regs Instances.output +
-      (ord * H + idx.2.2) * (6 + 2 * (n * D))
+      (ord * H + idx.piece) * (6 + 2 * (n * D))
     let G := lopInstance wAB wBC wAC D g p idx
-    (∀ (a b c : Fin n) (hc : c ∈ piece n D g idx.2.2) (label : Fin p),
+    (∀ (a b c : Fin n) (hc : c ∈ piece n D g idx.piece) (label : Fin p),
       let middle := c.val % B * p + label.val
       (y.mem (base + 6 + (a.val * D + middle)) = 1 ↔
         G.adjA a (⟨c, hc⟩, label)) ∧
       (y.mem (base + 6 + n * D + (middle * n + b.val)) = 1 ↔
         G.adjB (⟨c, hc⟩, label) b)) ∧
     (∀ (a b : Fin n) (middle : Fin D),
-      min B (n - idx.2.2 * B) ≤ middle.val / p →
+      min B (n - idx.piece * B) ≤ middle.val / p →
         y.mem (base + 6 + (a.val * D + middle.val)) = 0 ∧
         y.mem (base + 6 + n * D + (middle.val * n + b.val)) = 0) := by
   let N := n * n
@@ -70,30 +70,33 @@ theorem instance_adjacency {n D g p : ℕ} (values : ℕ → ℤ)
   let H := numPieces n D g
   let B := pieceSize D g
   let K := ChunkCatalogue.before C (queryCap n D) p
-  let ord := ChunkCatalogue.before C (queryCap n D) idx.1.val + idx.2.1
+  let ord := ChunkCatalogue.before C (queryCap n D) idx.residue.val + idx.chunk
   let base := 5 + 6 * N + p + 2 * N * p + 3 * K +
-    (ord * H + idx.2.2) * (6 + 2 * (n * D))
+    (ord * H + idx.piece) * (6 + 2 * (n * D))
   let A : WriteMatrices.Args :=
-    ⟨5 + 5 * N, base + 6, n, D, p, idx.2.2 * B, min B (n - idx.2.2 * B), idx.1.val⟩
+    ⟨5 + 5 * N, base + 6, n, D, p, idx.piece * B, min B (n - idx.piece * B), idx.residue.val⟩
   let A' := { A with src := 5 + 4 * N, dst := base + 6 + n * D }
   have hp0 : p ≠ 0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
-  obtain ⟨-, hL, hR⟩ := instance_readback values wAB hp0 hAB hD hDn hg h idx hidx
+  obtain ⟨-, hL, hR, -⟩ := instance_readback values wAB hp0 hAB hD hDn hg h idx hidx
   change (Block.mk A.dst (n * D)).Realizes y.mem
     (fun j => WriteMatrices.entry false A (fun q => R (2 * N + q)) j) at hL
   change (Block.mk A'.dst (n * D)).Realizes y.mem
     (fun j => WriteMatrices.entry true A' (fun q => R (N + q)) j) at hR
   have hpad : A.length * A.p ≤ A.D := pieceLength_mul_le_of_mem_sqrtPrimeWindow hg hp
-  change min B (n - idx.2.2 * B) * p ≤ D at hpad
-  have hloadL (a c : Fin n) :
-      R (2 * N + (a.val * n + c.val)) = (wAC a c).natMod p := by
-    change (values (2 * (n * n) + pairIndex (a, c)) % (p : ℤ)).toNat = _
-    rw [hAC]
-    rfl
-  have hloadR (b c : Fin n) :
-      R (N + (b.val * n + c.val)) = (wBC b c).natMod p := by
-    change (values (n * n + pairIndex (b, c)) % (p : ℤ)).toNat = _
-    rw [hBC]
-    rfl
+  change min B (n - idx.piece * B) * p ≤ D at hpad
+  have hloadL (a c : Fin n) : R (2 * N + (a.val * n + c.val)) = (wAC a c).natMod p := by
+    change (values (2 * (n * n) + pairIndex (a, c)) % (p : ℤ)).toNat = _; rw [hAC]; rfl
+  have hloadR (b c : Fin n) : R (N + (b.val * n + c.val)) = (wBC b c).natMod p := by
+    change (values (n * n + pairIndex (b, c)) % (p : ℤ)).toNat = _; rw [hBC]; rfl
+  have hli (a : Fin n) {m : ℕ} (hm : m < D) : a.val * D + m < n * D := by
+    have hi := Nat.mul_le_mul_right D a.isLt
+    rw [Nat.succ_mul] at hi
+    omega
+  have hri (b : Fin n) {m : ℕ} (hm : m < D) : m * n + b.val < n * D := by
+    have hi := Nat.mul_le_mul_right n hm
+    rw [Nat.succ_mul, Nat.mul_comm D n] at hi
+    have hb := b.isLt
+    omega
   have hout : y.regs Instances.output = 5 + 6 * N + p + 2 * N * p + 3 * K := h.2.2.2.1
   dsimp only
   rw [hout]
@@ -104,50 +107,25 @@ theorem instance_adjacency {n D g p : ℕ} (values : ℕ → ℤ)
     have hm : v.val * p + label.val < D := by
       have hstep := Nat.mul_le_mul_right p v.isLt
       have hl := label.isLt
-      change (v.val + 1) * p ≤ min B (n - idx.2.2 * B) * p at hstep
+      change (v.val + 1) * p ≤ min B (n - idx.piece * B) * p at hstep
       rw [Nat.add_mul, Nat.one_mul] at hstep
       omega
-    have hli : a.val * D + (v.val * p + label.val) < n * D := by
-      have hi := Nat.mul_le_mul_right D a.isLt
-      rw [Nat.succ_mul] at hi
-      omega
-    have hri : (v.val * p + label.val) * n + b.val < n * D := by
-      have hi := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hm)
-      rw [Nat.succ_mul] at hi
-      have hb := b.isLt
-      rw [Nat.mul_comm n D]
-      omega
-    have hleft := hL ⟨a.val * D + (v.val * p + label.val), hli⟩
-    have hright := hR ⟨(v.val * p + label.val) * n + b.val, hri⟩
+    have hleft := hL ⟨_, hli a hm⟩
+    have hright := hR ⟨_, hri b hm⟩
     change y.mem (A.dst + (a.val * D + (v.val * p + label.val))) = _ at hleft
     change y.mem (A'.dst + ((v.val * p + label.val) * n + b.val)) = _ at hright
-    constructor
-    · rw [hleft]
-      exact MatrixSpec.left_lopInstance A (fun q => R (2 * N + q)) wAB wBC wAC
-        g idx.2.1 idx.2.2 idx.1 rfl a c v label hc hvertex hpad hloadL
-    · rw [hright]
-      exact MatrixSpec.right_lopInstance A' (fun q => R (N + q)) wAB wBC wAC
-        g idx.2.1 idx.2.2 idx.1 b c v label hc hvertex hloadR
+    rw [hleft, hright]
+    exact ⟨MatrixSpec.left_lopInstance A (fun q => R (2 * N + q)) wAB wBC wAC
+        g idx.chunk idx.piece idx.residue rfl a c v label hc hvertex hpad hloadL,
+      MatrixSpec.right_lopInstance A' (fun q => R (N + q)) wAB wBC wAC
+        g idx.chunk idx.piece idx.residue b c v label hc hvertex hloadR⟩
   · intro a b middle hmiddle
-    have hli : a.val * D + middle.val < n * D := by
-      have hi := Nat.mul_le_mul_right D a.isLt
-      rw [Nat.succ_mul] at hi
-      have hm := middle.isLt
-      omega
-    have hri : middle.val * n + b.val < n * D := by
-      have hi := Nat.mul_le_mul_right n (Nat.succ_le_of_lt middle.isLt)
-      rw [Nat.succ_mul] at hi
-      have hb := b.isLt
-      rw [Nat.mul_comm n D]
-      omega
-    have hleft := hL ⟨a.val * D + middle.val, hli⟩
-    have hright := hR ⟨middle.val * n + b.val, hri⟩
+    have hleft := hL ⟨_, hli a middle.isLt⟩
+    have hright := hR ⟨_, hri b middle.isLt⟩
     change y.mem (A.dst + (a.val * D + middle.val)) = _ at hleft
     change y.mem (A'.dst + (middle.val * n + b.val)) = _ at hright
-    constructor
-    · rw [hleft]
-      exact MatrixSpec.left_padding A (fun q => R (2 * N + q)) a middle hmiddle
-    · rw [hright]
-      exact MatrixSpec.right_padding A' (fun q => R (N + q)) b middle hmiddle
+    rw [hleft, hright]
+    exact ⟨MatrixSpec.left_padding A (fun q => R (2 * N + q)) a middle hmiddle,
+      MatrixSpec.right_padding A' (fun q => R (N + q)) b middle hmiddle⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PreparationSpec

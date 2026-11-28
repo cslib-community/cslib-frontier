@@ -16,7 +16,7 @@ integer certificates under `fun_prop`.
 
 namespace CslibFrontierTests.IntBinary
 
-open Turing MultiTapeTM ComputableTidilyInPolyTime
+open Turing MultiTapeTM
 
 /-! ### Concrete codes -/
 
@@ -60,14 +60,14 @@ example : ([3, -2, 1] : List ℤ).sum.natAbs.size ≤ 2 + Nat.size 3 :=
 
 /-! ### Certificates and composed clients -/
 
--- These remaining arithmetic operations still use the internal tidy certificates.
+-- Ring operations, magnitudes and comparisons compose over plain certificates.
 example : ComputableInPolyTime (fun p : ℤ × ℤ => p.1 * p.2 - p.2)
-    (encPair encIntBin encIntBin) encIntBin :=
-  .of_tidy (by fun_prop)
+    (encPair encIntBin encIntBin) encIntBin := by
+  fun_prop
 
 example : ComputableInPolyTime (fun p : ℤ × ℤ => -(p.1 + p.2) * p.1)
-    (encPair encIntBin encIntBin) encIntBin :=
-  .of_tidy (by fun_prop)
+    (encPair encIntBin encIntBin) encIntBin := by
+  fun_prop
 
 example : ComputableInPolyTime (fun p : ℤ × ℕ => (p.1 ^ p.2).natAbs)
     (encPair encIntBin encUnary) encNat := by
@@ -92,21 +92,25 @@ example : (if true then -(0 : ℤ) else 0) = 0 ∧
 example : ComputableInPolyTime
     (fun p : ℤ × ℕ => if decide (p.1 < 0) then -(p.2 : ℤ) else p.2)
     (encPair encIntBin encNat) encIntBin :=
-  ComputableInPolyTime.intBin_signMagnitude.comp
-    ((ComputableInPolyTime.intBin_isNeg.comp (.fst _ _)).prod (.snd _ _))
+  ComputableInPolyTime.intBin_signMagnitude' (by fun_prop) (by fun_prop)
+
+-- Cast unary counters directly into binary sign-magnitude integers under `fun_prop`.
+example : ComputableInPolyTime (fun p : ℕ × ℤ => (p.1 : ℤ) - 2 * p.2)
+    (encPair encUnary encIntBin) encIntBin := by
+  fun_prop
 
 example : ComputableInPolyTime (fun p : ℕ × ℕ => ((p.1 : ℤ) - p.2).natAbs)
-    (encPair encNat encNat) encNat :=
-  .of_tidy (by fun_prop)
+    (encPair encNat encNat) encNat := by
+  fun_prop
 
 example : ComputableInPolyTime
     (fun p : ℤ × ℤ => decide (p.1 * p.1 ≤ p.2) && !decide (p.2 = 0))
-    (encPair encIntBin encIntBin) encBool :=
-  .of_tidy (by fun_prop)
+    (encPair encIntBin encIntBin) encBool := by
+  fun_prop
 
 example : ComputableInPolyTime (fun p : List ℤ × ℤ => p.1.sum - p.2)
-    (encPair (encList encIntBin) encIntBin) encIntBin :=
-  .of_tidy (by fun_prop)
+    (encPair (encList encIntBin) encIntBin) encIntBin := by
+  fun_prop
 
 example : ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 - p.2) * p.1 ^ 3)
     (encPair encNat encNat) encNat := by

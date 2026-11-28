@@ -33,7 +33,7 @@ autoImplicit = false
 [[require]]
 name = "cslib"
 git = "https://github.com/leanprover/cslib"
-rev = "bbd24fa3168878912552ee490c57775f5013e52d"
+rev = "98f9a62ac1fafa0d5091bbd78bc24091c5923aab"
 
 [[lean_lib]]
 name = "CslibFrontier"
@@ -50,6 +50,30 @@ globs = ["CslibFrontierTests.+"]
 leanOptions = {weak.linter.style.header = false}
 # The test files do not use the module system, but they import Mathlib, whose package sets
 # `requiresModuleSystem`.
+allowNonModules = true
+
+# The verified CDCL solver on DIMACS files (`scripts/Cdcl.lean`); not a default target.
+[[lean_exe]]
+name = "cdcl"
+srcDir = "scripts"
+root = "Cdcl"
+allowNonModules = true
+
+# The VeriPB elaborator and kernel checker on files (`scripts/VeriPBElab.lean`); not a default
+# target.
+[[lean_exe]]
+name = "veripb_elab"
+srcDir = "scripts"
+root = "VeriPBElab"
+allowNonModules = true
+
+# The verified subgraph isomorphism and clique checkers on graph and proof files
+# (`scripts/PBGraph.lean`), the counterparts of CakePB's `cake_pb_iso` and `cake_pb_clique`; not a
+# default target.
+[[lean_exe]]
+name = "pb_graph"
+srcDir = "scripts"
+root = "PBGraph"
 allowNonModules = true
 
 [[lean_exe]]

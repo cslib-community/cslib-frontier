@@ -114,6 +114,7 @@ theorem length_output_eval_runClosed_le (machine : MultiTapePTM k Symbol State) 
         (fun q (s : Unit) => (fun a => (a, s)) <$> ProbComp.unifOracle q)
         (machine.runClosed fuel input)).run ()).support := by
     rw [OracleComp.run_interpret_stateless, PMF.monad_map_eq_map]
+    rw [← OracleComp.evalWith_eq_interpret]
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨output, h, rfl⟩
   have hbound := MultiTapeMachine.length_output_runFrom_le machine
     (fun choices => choices <$> ProbComp.uniform Bool) Empty.elim _ fuel

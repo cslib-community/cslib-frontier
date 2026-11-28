@@ -43,6 +43,8 @@ for it are not vacuous.
 -/
 public section
 
+open Cslib.BitString.Graph
+
 namespace Cslib.Circuits
 
 open Finset
@@ -62,9 +64,8 @@ theorem Separates.essentialAt (hk : 2 ≤ k) (hkn : k ≤ n) {f : BooleanFunctio
   obtain ⟨⟨e, he⟩, rfl⟩ := (edgeEquiv n).surjective i
   induction e using Sym2.ind with | h u v => ?_
   have huv : u ≠ v := by simpa using he
-  have hcard : (s(u, v) : Sym2 (Fin n)).toFinset.card ≤ k := by
-    rw [Sym2.card_toFinset_of_not_isDiag _ he]
-    exact hk
+  have hcard : (s(u, v) : Sym2 (Fin n)).toFinset.card ≤ k :=
+    (Sym2.card_toFinset_of_not_isDiag _ he).trans_le hk
   obtain ⟨t, hut, -, ht⟩ := exists_subsuperset_card_eq (subset_univ _) hcard (by simpa using hkn)
   have hv : v ∈ t := hut (by simp)
   have hu : u ∈ t.erase v := mem_erase.2 ⟨huv, hut (by simp)⟩

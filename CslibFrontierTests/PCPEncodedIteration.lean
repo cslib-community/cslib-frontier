@@ -30,10 +30,9 @@ example {C Input : Type} {enc : C ↪ List Bool} {input : Input ↪ List Bool}
       (step g).vertices + (step g).edges.length ≤ factor * (g.vertices + g.edges.length)) :
     ComputableInPolyTime
       (fun x => step^[Nat.clog 2 (graph x).edges.length] (graph x)) input (Graph.encoding enc) := by
-  refine .of_tidy ?_
   have hcount : ComputableInPolyTime (fun x => Nat.clog 2 (graph x).edges.length) input encUnary :=
     by fun_prop
-  apply ComputableTidilyInPolyTime.iterate hcount.tidy hgraph.tidy hstep.tidy
+  apply ComputableInPolyTime.iterate hcount hgraph hstep
     (Graph.polyBounded_iterationSize_clog hgraph factor descriptorBound)
   exact fun x _ hi => Graph.iterate_length_encoding_le factor descriptorBound
     hvalid hwellFormed hdescriptors hgrowth (hbase x) hi
@@ -62,10 +61,9 @@ example {Input : Type} {input : Input ↪ List Bool} {graph : Input → Graph Bo
     ComputableInPolyTime
       (fun x => doubleEdges^[Nat.clog 2 (graph x).edges.length] (graph x))
       input (Graph.encoding encBool) := by
-  refine .of_tidy ?_
   have hcount : ComputableInPolyTime (fun x => Nat.clog 2 (graph x).edges.length) input encUnary :=
     by fun_prop
-  apply ComputableTidilyInPolyTime.iterate hcount.tidy hgraph.tidy isPolyTime_doubleEdges.tidy
+  apply ComputableInPolyTime.iterate hcount hgraph isPolyTime_doubleEdges
     (Graph.polyBounded_iterationSize_clog hgraph 2 1)
   exact fun x _ hi => Graph.iterate_length_encoding_le (valid := Graph.WellFormed) 2 1
     (fun _ => wellFormed_doubleEdges) (fun _ h => h) (by intros; simp)

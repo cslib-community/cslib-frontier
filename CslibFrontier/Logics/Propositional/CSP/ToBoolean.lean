@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.BitString.Counter
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Logics.Propositional.CSP
 import CslibFrontier.Foundations.Data.List.Counting
+import CslibFrontier.Foundations.Data.Nat.Div
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Log
 
@@ -77,13 +78,8 @@ theorem CSP.one_le_bitWidth (q : ℕ) : 1 ≤ CSP.bitWidth q :=
   le_max_left 1 (Nat.clog 2 q)
 
 /-- `q` is at most `2 ^ bitWidth q`. -/
-theorem CSP.le_two_pow_bitWidth (q : ℕ) : q ≤ 2 ^ CSP.bitWidth q := by
-  dsimp only [CSP.bitWidth]
-  cases q with
-  | zero => decide
-  | succ q' =>
-    have hle : Nat.clog 2 (q' + 1) ≤ max 1 (Nat.clog 2 (q' + 1)) := le_max_right _ _
-    exact (Nat.le_pow_clog (by decide) (q' + 1)).trans (Nat.pow_le_pow_right (by decide) hle)
+theorem CSP.le_two_pow_bitWidth (q : ℕ) : q ≤ 2 ^ CSP.bitWidth q :=
+  (Nat.le_pow_clog one_lt_two q).trans (Nat.pow_le_pow_right two_pos (le_max_right _ _))
 
 /-- The `b` Boolean variables representing domain variable `v`. -/
 def CSP.bitScope (b : ℕ) (v : ℕ) : List ℕ :=
@@ -128,15 +124,10 @@ theorem CSP.decodeChunks_flatMap (b : ℕ) {α : Type*} (vs : List α) (f : α �
   induction vs with
   | nil => rfl
   | cons v vs ih =>
-    have hfv : (f v).length = b := hf v (List.mem_cons.mpr (Or.inl rfl))
-    have hrest : ∀ w ∈ vs, (f w).length = b := fun w hw => hf w (List.mem_cons.mpr (Or.inr hw))
+    have hfv : (f v).length = b := hf v List.mem_cons_self
     simp only [List.flatMap_cons, List.length_cons, CSP.decodeChunks, List.map_cons,
       Function.comp_apply]
-    rw [List.take_append_of_le_length (le_of_eq hfv.symm),
-      List.drop_append_of_le_length (le_of_eq hfv.symm)]
-    have htake : List.take b (f v) = f v := by rw [← hfv, List.take_length]
-    have hdrop : List.drop b (f v) = [] := by rw [← hfv, List.drop_length]
-    rw [htake, hdrop, List.nil_append, ih hrest]
+    rw [List.take_left' hfv, List.drop_left' hfv, ih fun w hw => hf w (List.mem_cons_of_mem _ hw)]
 
 /-- Clamped conversion from natural numbers into `Fin q`. -/
 def CSP.toFin (q : ℕ) (hq : 0 < q) (x : ℕ) : Fin q :=
@@ -170,29 +161,26 @@ def CSP.semBoolean (q : ℕ) (sem : Rel → List (Fin q) → Bool) :
     else false
 
 /-- Compile a finite-domain CSP on declared variables `0, …, N - 1` into an equivalent Boolean CSP.
-Emits a domain-validity constraint `(none, bitScope b v)` for every `v < N`, and translates each
-constraint `(R, vs)` to `(some R, vs.flatMap (bitScope b))`. -/
+Emits a domain-validity constraint `⟨none, bitScope b v⟩` for every `v < N`, and translates each
+constraint `⟨R, vs⟩` to `⟨some R, vs.flatMap (bitScope b)⟩`. -/
 def CSP.toBoolean (q : ℕ) (N : ℕ) (F : CSP Rel ℕ) : CSP (Option Rel) ℕ :=
   let b := CSP.bitWidth q
-  (List.range N).map (fun v => (none, CSP.bitScope b v)) ++
-  F.map (fun c => (some c.1, c.2.flatMap (CSP.bitScope b)))
+  (List.range N).map (fun v => ⟨none, CSP.bitScope b v⟩) ++
+  F.map (fun c => ⟨some c.rel, c.scope.flatMap (CSP.bitScope b)⟩)
 
 /-- The constraint scope length of every clause in the compiled Boolean CSP is bounded by
 `max 1 k * bitWidth q`. -/
 theorem CSP.all_length_le_toBoolean {k q N : ℕ} {F : CSP Rel ℕ}
-    (hF : ∀ c ∈ F, c.2.length ≤ k) :
-    ∀ c ∈ F.toBoolean q N, c.2.length ≤ max 1 k * CSP.bitWidth q := by
+    (hF : ∀ c ∈ F, c.scope.length ≤ k) :
+    ∀ c ∈ F.toBoolean q N, c.scope.length ≤ max 1 k * CSP.bitWidth q := by
   let b := CSP.bitWidth q
   intro c hc
   simp only [CSP.toBoolean, List.mem_append, List.mem_map] at hc
   rcases hc with ⟨v, _, rfl⟩ | ⟨c₀, hc₀, rfl⟩
-  · simp only [CSP.bitScope_length]
-    have : 1 * b ≤ max 1 k * b := Nat.mul_le_mul_right b (le_max_left 1 k)
-    simpa using this
+  · simpa using Nat.mul_le_mul_right b (le_max_left 1 k)
   · dsimp only
     rw [List.length_flatMap_of_forall_length_eq fun v _ => CSP.bitScope_length b v]
-    have hle : c₀.2.length ≤ max 1 k := (hF c₀ hc₀).trans (le_max_right 1 k)
-    exact Nat.mul_le_mul_right b hle
+    exact Nat.mul_le_mul_right b ((hF c₀ hc₀).trans (le_max_right 1 k))
 
 /-- All variables in the compiled Boolean CSP are strictly bounded by `N * bitWidth q`. -/
 theorem CSP.vars_toBoolean_subset {q N : ℕ} {F : CSP Rel ℕ}
@@ -203,26 +191,19 @@ theorem CSP.vars_toBoolean_subset {q N : ℕ} {F : CSP Rel ℕ}
   simp only [CSP.vars, CSP.toBoolean, List.flatMap_append, List.mem_append,
     List.mem_flatMap, List.mem_map] at hx
   rcases hx with ⟨c, ⟨v, hv, rfl⟩, hxc⟩ | ⟨c, ⟨c₀, hc₀, rfl⟩, hxc⟩
-  · rw [List.mem_range] at hv
-    exact CSP.bitScope_subset_range hv x hxc
-  · simp only [List.mem_flatMap] at hxc
-    obtain ⟨v, hv, hxv⟩ := hxc
-    have hv_vars : v ∈ F.vars := by
-      simp only [CSP.vars, List.mem_flatMap]
-      exact ⟨c₀, hc₀, hv⟩
-    exact CSP.bitScope_subset_range (hvars v hv_vars) x hxv
+  · exact CSP.bitScope_subset_range (List.mem_range.mp hv) x hxc
+  · obtain ⟨v, hv, hxv⟩ := List.mem_flatMap.mp hxc
+    exact CSP.bitScope_subset_range (hvars v (List.mem_flatMap.mpr ⟨c₀, hc₀, hv⟩)) x hxv
 
 /-- The compiled Boolean CSP satisfies `validDeclaredCSP` with width `max 1 k * bitWidth q`
 and variable bound `N * bitWidth q`. -/
 theorem CSP.validDeclaredCSP_toBoolean {k q N : ℕ} {F : CSP Rel ℕ}
-    (hw : ∀ c ∈ F, c.2.length ≤ k) (hvars : ∀ v ∈ F.vars, v < N) :
+    (hw : ∀ c ∈ F, c.scope.length ≤ k) (hvars : ∀ v ∈ F.vars, v < N) :
     CSP.validDeclaredCSP (max 1 k * CSP.bitWidth q) (N * CSP.bitWidth q)
       (F.toBoolean q N) = true := by
   rw [CSP.validDeclaredCSP_eq_true_iff]
-  refine ⟨CSP.all_length_le_toBoolean hw, ?_⟩
-  intro v hv
-  have : v ∈ (F.toBoolean q N).vars := List.mem_toFinset.mp hv
-  exact Finset.mem_range.mpr (CSP.vars_toBoolean_subset hvars v this)
+  exact ⟨CSP.all_length_le_toBoolean hw, fun v hv =>
+    Finset.mem_range.mpr (CSP.vars_toBoolean_subset hvars v (List.mem_toFinset.mp hv))⟩
 
 /-! ### Model count equivalence -/
 
@@ -243,10 +224,6 @@ private def decodeAssign (q N : ℕ) (hq : 0 < q) (σ : Finset.range (N * CSP.bi
   let bits := (List.range b).map fun j =>
     if h : v * b + j < N * b then σ ⟨v * b + j, Finset.mem_range.mpr h⟩ else false
   CSP.toFin q hq (lsbValue bits)
-
-private theorem div_mul_add (v b j : ℕ) (hj : j < b) : (v * b + j) / b = v := by
-  have hb : 0 < b := by omega
-  rw [Nat.add_comm, Nat.add_mul_div_right _ _ hb, Nat.div_eq_of_lt hj, Nat.zero_add]
 
 /-- Reading the bits of block `v` through the zero-extension of `σ` gives the bit list that
 `decodeAssign` decodes. -/
@@ -271,15 +248,12 @@ private theorem encodeAssign_block (q N : ℕ) (τ : Finset.range N → Fin q) {
     rw [List.length_map, List.length_range] at hj1
     simp only [List.getElem_map, List.getElem_range, mul_add_lt_mul hv hj1, dite_true]
     dsimp only [encodeAssign]
-    have hdiv : (v * b + j) / b = v := div_mul_add v b j hj1
+    have hdiv : (v * b + j) / b = v := Nat.mul_add_div_of_lt v hj1
     have hmod : (v * b + j) % b = j := Nat.mul_add_mod_of_lt hj1
     have hsub : (⟨(v * b + j) / b, Finset.mem_range.mpr (by rw [hdiv]; exact hv)⟩ :
         Finset.range N) = ⟨v, Finset.mem_range.mpr hv⟩ := Subtype.ext hdiv
     rw [hsub, hmod]
-    have hlen : j < (lowBits b (τ ⟨v, Finset.mem_range.mpr hv⟩).val).length := by
-      rw [length_lowBits]
-      exact hj1
-    exact (lowBits b (τ ⟨v, Finset.mem_range.mpr hv⟩).val).getD_eq_getElem false hlen
+    exact List.getD_eq_getElem _ false (by rw [length_lowBits]; exact hj1)
 
 private theorem decodeAssign_encodeAssign (q N : ℕ) (hq : 0 < q)
     (τ : Finset.range N → Fin q) :
@@ -304,7 +278,7 @@ private theorem eval_none_constraint_encodeAssign (q N : ℕ) (sem : Rel → Lis
     Constraint.eval (CSP.semBoolean q sem)
       (fun x => if h : x ∈ Finset.range (N * CSP.bitWidth q) then
         encodeAssign q N τ ⟨x, h⟩ else false)
-      (none, CSP.bitScope (CSP.bitWidth q) v) = true := by
+      ⟨none, CSP.bitScope (CSP.bitWidth q) v⟩ = true := by
   dsimp only [Constraint.eval, CSP.semBoolean]
   rw [map_extend_encodeAssign_bitScope q N τ hv]
   simp only [length_lowBits, decide_eq_true_eq]
@@ -321,69 +295,53 @@ private theorem map_extend_encodeAssign_flatMap_bitScope (q N : ℕ) (τ : Finse
       (τ ⟨v, Finset.mem_range.mpr h⟩).val else 0)) := by
   rw [List.map_flatMap]
   refine List.flatMap_congr fun v hv => ?_
-  have hv_lt := hvs v hv
-  simp only [hv_lt, dite_true]
-  exact map_extend_encodeAssign_bitScope q N τ hv_lt
+  simp only [hvs v hv, dite_true]
+  exact map_extend_encodeAssign_bitScope q N τ (hvs v hv)
 
 private theorem eval_some_constraint_encodeAssign (q N : ℕ) (hq : 0 < q)
     (sem : Rel → List (Fin q) → Bool) (τ : Finset.range N → Fin q)
-    (c : Constraint Rel ℕ) (hscope : ∀ v ∈ c.2, v < N) :
+    (c : Constraint Rel ℕ) (hscope : ∀ v ∈ c.scope, v < N) :
     Constraint.eval (CSP.semBoolean q sem)
       (fun x => if h : x ∈ Finset.range (N * CSP.bitWidth q) then
         encodeAssign q N τ ⟨x, h⟩ else false)
-      (some c.1, c.2.flatMap (CSP.bitScope (CSP.bitWidth q))) =
+      ⟨some c.rel, c.scope.flatMap (CSP.bitScope (CSP.bitWidth q))⟩ =
     Constraint.eval sem
       (fun v => if h : v ∈ Finset.range N then τ ⟨v, h⟩ else ⟨0, hq⟩) c := by
   let b := CSP.bitWidth q
   have hb : 0 < b := CSP.one_le_bitWidth q
   dsimp only [Constraint.eval, CSP.semBoolean]
   simp only [hq, ↓reduceDIte]
-  rw [map_extend_encodeAssign_flatMap_bitScope q N τ c.2 hscope]
+  rw [map_extend_encodeAssign_flatMap_bitScope q N τ c.scope hscope]
   let g := fun v : ℕ => lowBits b (if h : v < N then
     (τ ⟨v, Finset.mem_range.mpr h⟩).val else 0)
-  have hg_len : ∀ v ∈ c.2, (g v).length = b := fun _ _ => length_lowBits _ _
-  have hbs_len : (c.2.flatMap g).length = c.2.length * b :=
+  have hg_len : ∀ v ∈ c.scope, (g v).length = b := fun _ _ => length_lowBits _ _
+  have hbs_len : (c.scope.flatMap g).length = c.scope.length * b :=
     List.length_flatMap_of_forall_length_eq hg_len
-  have hr : (c.2.flatMap g).length / b = c.2.length := by
+  have hr : (c.scope.flatMap g).length / b = c.scope.length := by
     rw [hbs_len, Nat.mul_div_cancel _ hb]
-  have hmod : (c.2.flatMap g).length % b = 0 := by
-    rw [hbs_len]
-    exact Nat.dvd_iff_mod_eq_zero.mp (dvd_mul_left b c.2.length)
-  have hmod_b : ((c.2.flatMap g).length % b == 0) = true := by
-    rw [hmod]
-    rfl
-  have hdec : CSP.decodeChunks b ((c.2.flatMap g).length / b) (c.2.flatMap g) =
-      c.2.map (fun v => if h : v < N then (τ ⟨v, Finset.mem_range.mpr h⟩).val else 0) := by
-    rw [hr, CSP.decodeChunks_flatMap b c.2 g hg_len]
-    apply List.map_congr_left
-    intro v hv
+  have hmod_b : ((c.scope.flatMap g).length % b == 0) = true := by simp [hbs_len]
+  have hdec : CSP.decodeChunks b ((c.scope.flatMap g).length / b) (c.scope.flatMap g) =
+      c.scope.map (fun v => if h : v < N then (τ ⟨v, Finset.mem_range.mpr h⟩).val else 0) := by
+    rw [hr, CSP.decodeChunks_flatMap b c.scope g hg_len]
+    refine List.map_congr_left fun v hv => ?_
     dsimp only [Function.comp_apply, g]
-    have hv_lt := hscope v hv
-    simp only [hv_lt, dite_true]
-    have hlt : (τ ⟨v, Finset.mem_range.mpr hv_lt⟩).val < 2 ^ b :=
-      (τ ⟨v, Finset.mem_range.mpr hv_lt⟩).is_lt.trans_le (CSP.le_two_pow_bitWidth q)
-    exact lsbValue_lowBits hlt
-  have hall : (c.2.map (fun v => if h : v < N then
+    simp only [hscope v hv, dite_true]
+    exact lsbValue_lowBits ((τ _).is_lt.trans_le (CSP.le_two_pow_bitWidth q))
+  have hall : (c.scope.map (fun v => if h : v < N then
       (τ ⟨v, Finset.mem_range.mpr h⟩).val else 0)).all (fun x => decide (x < q)) = true := by
-    rw [List.all_eq_true]
-    intro x hx
-    simp only [List.mem_map] at hx
-    rcases hx with ⟨v, hv, rfl⟩
-    have hv_lt := hscope v hv
-    simp only [hv_lt, dite_true, decide_eq_true_eq]
-    exact (τ ⟨v, Finset.mem_range.mpr hv_lt⟩).is_lt
-  change (((c.2.flatMap g).length % b == 0 &&
-      (CSP.decodeChunks b ((c.2.flatMap g).length / b) (c.2.flatMap g)).all
+    refine List.all_eq_true.2 fun x hx => ?_
+    obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hx
+    simp only [hscope v hv, dite_true, decide_eq_true_eq, Fin.is_lt]
+  change (((c.scope.flatMap g).length % b == 0 &&
+      (CSP.decodeChunks b ((c.scope.flatMap g).length / b) (c.scope.flatMap g)).all
         (fun x => decide (x < q))) &&
-      sem c.1 ((CSP.decodeChunks b ((c.2.flatMap g).length / b) (c.2.flatMap g)).map
+      sem c.rel ((CSP.decodeChunks b ((c.scope.flatMap g).length / b) (c.scope.flatMap g)).map
         (CSP.toFin q hq))) =
-    sem c.1 (c.2.map (fun v => if h : v ∈ Finset.range N then τ ⟨v, h⟩ else ⟨0, hq⟩))
+    sem c.rel (c.scope.map (fun v => if h : v ∈ Finset.range N then τ ⟨v, h⟩ else ⟨0, hq⟩))
   rw [hmod_b, hdec, hall]
-  simp only [Bool.true_and]
+  simp only [Bool.true_and, List.map_map]
   congr 1
-  rw [List.map_map]
-  apply List.map_congr_left
-  intro v hv
+  refine List.map_congr_left fun v hv => ?_
   have hv_lt := hscope v hv
   simp only [Function.comp_apply, hv_lt, dite_true, Finset.mem_range.mpr hv_lt]
   exact CSP.toFin_of_val hq (τ ⟨v, Finset.mem_range.mpr hv_lt⟩)
@@ -400,27 +358,22 @@ private theorem eval_toBoolean_encodeAssign (q N : ℕ) (hq : 0 < q)
   let τ_ext := fun v => if h : v ∈ Finset.range N then τ ⟨v, h⟩ else ⟨0, hq⟩
   dsimp only [CSP.toBoolean, CSP.eval]
   rw [List.all_append]
-  have hnone : ((List.range N).map (fun v => (none, CSP.bitScope (CSP.bitWidth q) v))).all
+  have hnone : ((List.range N).map (fun v => ⟨none, CSP.bitScope (CSP.bitWidth q) v⟩)).all
       (Constraint.eval (CSP.semBoolean q sem) σ) = true := by
-    rw [List.all_eq_true]
-    intro c hc
-    simp only [List.mem_map, List.mem_range] at hc
-    rcases hc with ⟨v, hv, rfl⟩
-    exact eval_none_constraint_encodeAssign q N sem τ hv
-  have hsome : (F.map (fun c => (some c.1, c.2.flatMap (CSP.bitScope (CSP.bitWidth q))))).all
+    refine List.all_eq_true.2 fun c hc => ?_
+    obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hc
+    exact eval_none_constraint_encodeAssign q N sem τ (List.mem_range.1 hv)
+  have hsome : (F.map (fun c => ⟨some c.rel, c.scope.flatMap (CSP.bitScope (CSP.bitWidth q))⟩)).all
       (Constraint.eval (CSP.semBoolean q sem) σ) = F.all (Constraint.eval sem τ_ext) := by
-    have hscope (c) (hc : c ∈ F) : ∀ v ∈ c.2, v < N := fun v hv => hvars v (by
-      simp only [CSP.vars, List.mem_flatMap]
-      exact ⟨c, hc, hv⟩)
+    have hscope (c) (hc : c ∈ F) : ∀ v ∈ c.scope, v < N := fun v hv =>
+      hvars v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)
     apply Bool.eq_iff_iff.mpr
     simp only [List.all_eq_true, List.mem_map, forall_exists_index, and_imp]
-    constructor
-    · intro h c hc
-      have h1 := h (some c.1, c.2.flatMap (CSP.bitScope (CSP.bitWidth q))) c hc rfl
-      rwa [eval_some_constraint_encodeAssign q N hq sem τ c (hscope c hc)] at h1
-    · intro h _ c hc rfl
-      have h1 := h c hc
-      rwa [← eval_some_constraint_encodeAssign q N hq sem τ c (hscope c hc)] at h1
+    refine ⟨fun h c hc => ?_, fun h _ c hc hx => hx ▸ ?_⟩
+    · rw [← eval_some_constraint_encodeAssign q N hq sem τ c (hscope c hc)]
+      exact h _ c hc rfl
+    · rw [eval_some_constraint_encodeAssign q N hq sem τ c (hscope c hc)]
+      exact h c hc
   rw [hnone, Bool.true_and, hsome]
 
 private theorem encodeAssign_decodeAssign_of_eval (q N : ℕ) (hq : 0 < q)
@@ -432,14 +385,11 @@ private theorem encodeAssign_decodeAssign_of_eval (q N : ℕ) (hq : 0 < q)
   let b := CSP.bitWidth q
   let σ_ext := fun x => if h : x ∈ Finset.range (N * b) then σ ⟨x, h⟩ else false
   have hnone : ∀ v < N,
-      Constraint.eval (CSP.semBoolean q sem) σ_ext (none, CSP.bitScope b v) = true := by
+      Constraint.eval (CSP.semBoolean q sem) σ_ext ⟨none, CSP.bitScope b v⟩ = true := by
     intro v hv
-    have hmem : (none, CSP.bitScope b v) ∈ F.toBoolean q N := by
-      simp only [CSP.toBoolean, List.mem_append, List.mem_map]
-      left
-      exact ⟨v, List.mem_range.mpr hv, rfl⟩
-    have := List.all_eq_true.mp (by exact h_eval) (none, CSP.bitScope b v) hmem
-    exact this
+    have hmem : ⟨none, CSP.bitScope b v⟩ ∈ F.toBoolean q N :=
+      List.mem_append_left _ (List.mem_map.mpr ⟨v, List.mem_range.mpr hv, rfl⟩)
+    exact List.all_eq_true.mp (by exact h_eval) _ hmem
   have hbits_lt : ∀ v (hv : v < N),
       lsbValue ((List.range b).map (fun j =>
         if h : v * b + j < N * b then σ ⟨v * b + j, Finset.mem_range.mpr h⟩ else false)) < q := by
@@ -456,35 +406,25 @@ private theorem encodeAssign_decodeAssign_of_eval (q N : ℕ) (hq : 0 < q)
   dsimp only [decodeAssign]
   let chunk := (List.range b).map fun j =>
     if h : (x / b) * b + j < N * b then σ ⟨(x / b) * b + j, Finset.mem_range.mpr h⟩ else false
-  have hval : (CSP.toFin q hq (lsbValue chunk)).val = lsbValue chunk := by
-    apply CSP.toFin_val_of_lt
-    exact hbits_lt (x / b) hv
-  rw [hval]
+  rw [CSP.toFin_val_of_lt hq (hbits_lt (x / b) hv)]
   have hlen : chunk.length = b := by
     simp only [chunk, List.length_map, List.length_range]
   have hinv := lowBits_lsbValue chunk
   rw [hlen] at hinv
   rw [hinv]
-  have hj_lt : x % b < b := Nat.mod_lt x hb_pos
-  have hget := chunk.getD_eq_getElem false (by rw [hlen]; exact hj_lt)
+  have hget := chunk.getD_eq_getElem false (by rw [hlen]; exact Nat.mod_lt x hb_pos)
   rw [hget]
   simp only [chunk, List.getElem_map, List.getElem_range]
-  have hdivmod : (x / b) * b + x % b = x := by
-    rw [Nat.mul_comm]
-    exact Nat.div_add_mod x b
-  have hj_range : (x / b) * b + x % b < N * b := by rw [hdivmod]; exact hx_lt
+  have hj_range : (x / b) * b + x % b < N * b := by rw [Nat.div_add_mod']; exact hx_lt
   simp only [hj_range, dite_true]
-  congr 1
-  exact Subtype.ext hdivmod
+  exact congrArg σ (Subtype.ext (Nat.div_add_mod' x b))
 
 private theorem eval_congr_default {D Rel : Type*} [Inhabited D] (sem : Rel → List D → Bool)
     (F : CSP Rel ℕ) {N : ℕ} (hvars : ∀ v ∈ F.vars, v < N) (τ : Finset.range N → D) (d : D) :
     F.eval sem (fun v => if h : v ∈ Finset.range N then τ ⟨v, h⟩ else default) =
     F.eval sem (fun v => if h : v ∈ Finset.range N then τ ⟨v, h⟩ else d) := by
-  apply CSP.eval_congr
-  intro v hv
-  have hv_lt := hvars v hv
-  simp only [Finset.mem_range.mpr hv_lt, dite_true]
+  refine CSP.eval_congr fun v hv => ?_
+  simp only [Finset.mem_range.mpr (hvars v hv), dite_true]
 
 /-- **Count-preserving bijection for finite-domain CSP to Boolean CSP.**
 The declared-variable model count of a finite-domain CSP on `0, …, N - 1` equals the
@@ -494,38 +434,29 @@ theorem CSP.modelCountOn_toBoolean (q : ℕ) [Inhabited (Fin q)] (N : ℕ)
     (F.toBoolean q N).modelCountOn (CSP.semBoolean q sem)
       (Finset.range (N * CSP.bitWidth q)) =
     F.modelCountOn sem (Finset.range N) := by
-  have hq : 0 < q := by
-    have := (default : Fin q).is_lt
-    omega
+  have hq : 0 < q := (default : Fin q).pos
   dsimp only [CSP.modelCountOn]
   have hdef_bool : (default : Bool) = false := rfl
   refine (Finset.card_bij (fun τ _ => encodeAssign q N τ) (fun τ hτ => ?_)
     (fun τ₁ _ τ₂ _ h => ?_) (fun σ hσ => ?_)).symm
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hτ ⊢
-    have hdef := eval_congr_default sem F hvars τ ⟨0, hq⟩
-    rw [hdef] at hτ
-    have heval := eval_toBoolean_encodeAssign q N hq sem F hvars τ
-    rw [hdef_bool, heval, hτ]
-  · have h1 := congrArg (decodeAssign q N hq) h
-    rw [decodeAssign_encodeAssign q N hq τ₁, decodeAssign_encodeAssign q N hq τ₂] at h1
-    exact h1
+    rw [eval_congr_default sem F hvars τ ⟨0, hq⟩] at hτ
+    rw [hdef_bool, eval_toBoolean_encodeAssign q N hq sem F hvars τ, hτ]
+  · simpa only [decodeAssign_encodeAssign] using congrArg (decodeAssign q N hq) h
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
     rw [hdef_bool] at hσ
     have hinv := encodeAssign_decodeAssign_of_eval q N hq sem F σ hσ
     refine ⟨decodeAssign q N hq σ, ?_, hinv⟩
-    have heval := eval_toBoolean_encodeAssign q N hq sem F hvars (decodeAssign q N hq σ)
-    have hdef := eval_congr_default sem F hvars (decodeAssign q N hq σ) ⟨0, hq⟩
-    rw [hdef, ← heval, hinv]
-    exact hσ
+    rwa [eval_congr_default sem F hvars _ ⟨0, hq⟩,
+      ← eval_toBoolean_encodeAssign q N hq sem F hvars, hinv]
 
 /-- The number of distinct occurring variables in `F.toBoolean q N` is at most
 `N * CSP.bitWidth q`. -/
 theorem CSP.numVars_toBoolean_le {q N : ℕ} {F : CSP Rel ℕ}
     (hvars : ∀ v ∈ F.vars, v < N) :
     (F.toBoolean q N).numVars ≤ N * CSP.bitWidth q := by
-  have hsub : (F.toBoolean q N).vars.toFinset ⊆ Finset.range (N * CSP.bitWidth q) := by
-    intro x hx
-    exact Finset.mem_range.mpr (CSP.vars_toBoolean_subset hvars x (List.mem_toFinset.mp hx))
+  have hsub : (F.toBoolean q N).vars.toFinset ⊆ Finset.range (N * CSP.bitWidth q) := fun x hx =>
+    Finset.mem_range.mpr (CSP.vars_toBoolean_subset hvars x (List.mem_toFinset.mp hx))
   simpa only [CSP.numVars, Finset.card_range] using Finset.card_le_card hsub
 
 private theorem modelCountOn_range_pos_iff {D Rel' : Type*} [Fintype D] [Inhabited D]
@@ -533,14 +464,9 @@ private theorem modelCountOn_range_pos_iff {D Rel' : Type*} [Fintype D] [Inhabit
     (hG : ∀ v ∈ G.vars, v < M) :
     0 < G.modelCountOn sem' (Finset.range M) ↔ G.Satisfiable sem' := by
   rw [CSP.modelCountOn, Finset.card_pos, Finset.filter_nonempty_iff]
-  constructor
-  · rintro ⟨σ, -, hσ⟩
-    exact ⟨_, hσ⟩
-  · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩
-    refine (CSP.eval_congr fun v hv => ?_).trans hσ
-    have hv' : v ∈ Finset.range M := Finset.mem_range.mpr (hG v hv)
-    simp [hv']
+  refine ⟨fun ⟨σ, _, hσ⟩ => ⟨_, hσ⟩, fun ⟨σ, hσ⟩ => ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩⟩
+  refine (CSP.eval_congr fun v hv => ?_).trans hσ
+  simp [Finset.mem_range.mpr (hG v hv)]
 
 /-- `F.toBoolean q N` is satisfiable under `CSP.semBoolean q sem` if and only if `F` is
 satisfiable under `sem`, whenever all occurring variables of `F` are `< N`. -/

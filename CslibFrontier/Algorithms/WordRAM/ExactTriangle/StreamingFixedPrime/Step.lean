@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime.Readback
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime.Admission
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One-slot record construction, call, heap reset and return
@@ -90,13 +91,9 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
   have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
   have hp0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
   have hout' : x.regs (producerBank Instances.output) = a.regs Instances.output := by
-    have hc := cursor.output
-    rw [cursor.chunks] at hc
-    exact hc.trans hout.2.2.2.1.symm
+    rw [← Data.comap_regs, cursor.output, cursor.chunks, hout.2.2.2.1]
   have htotal : x.regs (producerBank Instances.total) = a.regs Instances.produced := by
-    have hc := cursor.total
-    rw [cursor.chunks, cursor.pieces] at hc
-    exact hc.trans hout.2.2.2.2.1.symm
+    rw [← Data.comap_regs, cursor.total, cursor.chunks, cursor.pieces, hout.2.2.2.2.1]
   have hprep : PreparationInput.width n (D m) g p A ≤ w + 2 := by
     have hr := FixedPrime.record_admitted hW
     unfold RecordWitness.admissionWidth RecordProduct.admissionWidth at hr
@@ -109,149 +106,87 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
   obtain ⟨c, hc, ccursor, ci, ch, cd, cL, cR, cm⟩ := exec_construct V
     (x.comap producerBank) hD hg hp0 cursor hslotHeap idx hidx
     (hproduced.trans hord.symm) residues descriptor
-    (budget.of_le (cursor.visit_budget_le hD hDn hg hslotHeap (by
-      change x.regs (producerBank Instances.produced) < x.regs (producerBank Instances.total)
-      rw [hproduced, htotal]
-      exact hiM)))
+    (budget.of_le (cursor.visit_budget_le hD hDn hg hslotHeap
+      (by simpa only [Data.comap_regs, hproduced, htotal] using hiM)))
   simp only [Data.comap_regs, Data.comap_mem] at ci ch cd cL cR cm
+  have haout := hout.2.2.2.1
+  have haprod := hout.2.2.2.2.1
+  have hcout : c.regs Instances.output = a.regs Instances.output := by
+    simpa only [ccursor.chunks, haout] using ccursor.output
+  have hcheap : c.regs Instances.heap = a.regs Instances.output + (6 + 2 * (n * D m)) :=
+    hout' ▸ ch
   let s := c.extend producerBank x
   have hs : ExecWithin (w + 2) construct x s (40 * (n * D m) + 66) := hc.rename hf
   have sr (j : Fin 64) : s.regs (producerBank j) = c.regs j := hf.extend_apply _ _ j
-  have scursor : Cursor n (D m) g p V (s.comap producerBank) := by
-    simpa only [s, Data.comap_extend hf] using ccursor
-  have scontrol (j : Fin 416) (hj : 400 ≤ j.val) : s.regs j = x.regs j :=
-    hs.regs_eq (Instances.visit.preserves_rename_of_offset
-      (offset := 0) producerBank (fun j => (Nat.zero_add j.val).symm) j
-      (Or.inr (by omega)))
-  have so : s.regs (producerBank Instances.output) = a.regs Instances.output := by
-    have h := hc.regs_eq (Instances.visit_preserves Instances.output (by decide))
-    exact (sr _).trans (h.trans hout')
-  have sh : s.regs (producerBank Instances.heap) = a.regs Instances.output +
-      (6 + 2 * (n * D m)) := by
-    rw [sr]
-    simpa only [hout'] using ch
+  have scontrol (j : Fin 416) (hj : 64 ≤ j.val) : s.regs j = x.regs j :=
+    Data.extend_castLE_regs_of_le (hrs := by decide) c x j hj
   let dst := recordBank (RecordWitness.productBank RecordProduct.Reg.ordinal)
   let z := s.set dst 0
   have hz : ExecWithin (w + 2) select s z 1 := ExecWithin.const (fits_zero _)
-  have zlow (j : Fin 64) : z.regs (producerBank j) = s.regs (producerBank j) := by
-    change Function.update s.regs dst 0 (producerBank j) = _
-    apply Function.update_of_ne
-    intro h
-    have hv := congrArg (fun k : Fin 416 => k.val) h
-    change j.val = 64 at hv
-    omega
-  have zcontrol (j : Fin 416) (hj : 400 ≤ j.val) : z.regs j = x.regs j := by
-    change Function.update s.regs dst 0 j = _
-    rw [Function.update_of_ne (by
-      intro h
-      have hv := congrArg (fun k : Fin 416 => k.val) h
-      change j.val = 64 at hv
-      omega)]
-    exact scontrol j hj
+  have zset (j : Fin 416) (hj : j ≠ dst) : z.regs j = s.regs j := Data.set_regs_of_ne hj _
+  have zdst : z.regs dst = 0 := Data.set_regs_self _ _ _
+  obtain ⟨zh, zo⟩ :
+      z.regs (producerBank Instances.heap) = a.regs Instances.output + (6 + 2 * (n * D m)) ∧
+      z.regs (producerBank Instances.output) = a.regs Instances.output := by
+    clear hc hs; regs_frame
   have zm : z.mem = c.mem := rfl
-  have zmem : Set.EqOn z.mem a.mem (Set.Iio (a.regs Instances.output)) := by
-    intro u hu
-    exact (cm u (Or.inl (by simpa only [hout', Set.mem_Iio] using hu))).trans (hmem hu)
-  have zh : z.regs (producerBank Instances.heap) = a.regs Instances.output +
-      (6 + 2 * (n * D m)) := (zlow _).trans sh
-  have zo : z.regs (producerBank Instances.output) = a.regs Instances.output := (zlow _).trans so
+  have zmem : Set.EqOn z.mem a.mem (Set.Iio (a.regs Instances.output)) := fun u hu =>
+    (cm u (Or.inl (by simpa only [hout', Set.mem_Iio] using hu))).trans (hmem hu)
   have slot_le : z.regs (producerBank Instances.heap) ≤ a.regs Instances.heap := by
-    have hh := hout.2.2.2.2.2.1
-    have ho := hout.2.2.2.1
-    have hc := hout.2.2.2.2.1
-    have hpositive : 1 ≤ a.regs Instances.produced := by omega
-    have hs := Nat.mul_le_mul_right (6 + 2 * (n * D m)) hpositive
-    rw [Nat.one_mul] at hs
-    rw [zh, hh, ← ho, ← hc]
+    have := Nat.mul_le_mul_right (6 + 2 * (n * D m)) (show 1 ≤ a.regs Instances.produced by omega)
+    rw [zh, hout.2.2.2.2.2.1, ← haout, ← haprod]
     omega
   obtain ⟨r, S, hr, rs, rf, hS, hcoarse, hit, wit, frame, bank, ctrl⟩ :=
-    exec_record values hlen hD hg hp hN hv hW a z hout zmem hheap idx hidx
-      (by change Function.update s.regs dst 0 dst = 0; simp)
-      zo zh slot_le (by
-        simpa only [Block.Realizes, Block.read, hout', Data.comap_mem, zm, V]
-          using And.intro cd (And.intro cL cR))
-  have rc (j : Fin 416) (hj : 400 ≤ j.val) : r.regs j = x.regs j :=
-    (ctrl j hj).trans (zcontrol j hj)
+    exec_record values hlen hD hg hp hN hv hW a z hout zmem hheap idx hidx zdst zo zh slot_le
+      (by simpa only [Block.Realizes, Block.read, hout', Data.comap_mem, zm, V]
+            using And.intro cd (And.intro cL cR))
+  have rlow (j : Fin 416) (hj : j.val < 64) : r.regs j = z.regs j := bank ⟨j.val, hj⟩
   let t := r.set (producerBank Instances.heap) (r.regs (producerBank Instances.output))
   have ht : ExecWithin (w + 2) reset r t 1 := exec_reset r
-  have tcontrol (j : Fin 416) (hj : 400 ≤ j.val) : t.regs j = x.regs j := by
-    change Function.update r.regs (producerBank Instances.heap)
-      (r.regs (producerBank Instances.output)) j = _
-    rw [Function.update_of_ne (by
-      intro h
-      have hv := congrArg (fun k : Fin 416 => k.val) h
-      change j.val = 42 at hv
-      omega)]
-    exact rc j hj
-  have tflag : t.regs (recordBank RecordWitness.Reg.found) =
-      r.regs (recordBank RecordWitness.Reg.found) := by
-    change Function.update r.regs (producerBank Instances.heap)
-      (r.regs (producerBank Instances.output)) (recordBank RecordWitness.Reg.found) = _
-    apply Function.update_of_ne
-    decide
-  have tscans : t.regs (recordBank RecordWitness.Reg.scans) = S := by
-    change Function.update r.regs (producerBank Instances.heap)
-      (r.regs (producerBank Instances.output)) (recordBank RecordWitness.Reg.scans) = S
-    rw [Function.update_of_ne (by decide)]
-    exact rs
+  have tset (j : Fin 416) (hj : j ≠ producerBank Instances.heap) : t.regs j = r.regs j :=
+    Data.set_regs_of_ne hj _
+  have theap : t.regs (producerBank Instances.heap) = r.regs (producerBank Instances.output) :=
+    Data.set_regs_self _ _ _
+  obtain ⟨ti, tl, ts_reg, tscans, tflag, t1⟩ :
+      t.regs Reg.index = i ∧ t.regs Reg.limit = a.regs Instances.produced ∧
+      t.regs Reg.scans = x.regs Reg.scans ∧ t.regs (recordBank RecordWitness.Reg.scans) = S ∧
+      t.regs (recordBank RecordWitness.Reg.found) = r.regs (recordBank RecordWitness.Reg.found) ∧
+      t.regs Reg.one = 1 := by clear hc hs hr; regs_frame
   have fits := FixedPrime.return_fits hW
     (FixedPrime.produced_le V hout hD hDn hg) hiM hscans hcoarse
-  obtain ⟨y, hy, ym, yi, yl, ys, yf, ypres⟩ := FixedPrime.exec_receive t
-    ((tcontrol _ (by decide)).trans hi) ((tcontrol _ (by decide)).trans hl)
-    (tcontrol _ (by decide)) tscans tflag ((tcontrol _ (by decide)).trans h1) fits.1 fits.2
-  have yflag : y.regs FixedPrime.Reg.found = r.regs (recordBank RecordWitness.Reg.found) := yf
-  have ylow (j : Fin 400) : y.regs (recordBank j) = t.regs (recordBank j) :=
-    ypres _ (Or.inl (by change j.val < 400; exact j.isLt))
-  have tr (j : Fin 400) (hj : recordBank j ≠ producerBank Instances.heap) :
-      t.regs (recordBank j) = r.regs (recordBank j) := Function.update_of_ne hj _ _
-  have zcursor : Cursor n (D m) g p V (z.comap producerBank) :=
-    scursor.transfer fun j _ _ _ _ => zlow j
-  have rcursor : Cursor n (D m) g p V (r.comap producerBank) :=
-    zcursor.transfer fun j _ _ _ _ => bank j
-  have tcursor : Cursor n (D m) g p V (t.comap producerBank) := by
-    apply rcursor.transfer
-    intro j _ _ _ hj
-    change Function.update r.regs (producerBank Instances.heap)
-      (r.regs (producerBank Instances.output)) (producerBank j) = _
-    exact Function.update_of_ne (fun he => hj (hf he)) _ _
+  obtain ⟨y, hy, ym, yi, yl, ys, yf, ypres⟩ :=
+    FixedPrime.exec_receive t ti tl ts_reg tscans tflag t1 fits.1 fits.2
+  obtain ⟨y1, yprod, yheap_eq, wA, wB, wC⟩ :
+      y.regs Reg.one = 1 ∧
+      y.regs (producerBank Instances.produced) = i + 1 ∧
+      y.regs (producerBank Instances.heap) = y.regs (producerBank Instances.output) ∧
+      y.regs (recordBank RecordWitness.Reg.witnessA) =
+        r.regs (recordBank RecordWitness.Reg.witnessA) ∧
+      y.regs (recordBank RecordWitness.Reg.witnessB) =
+        r.regs (recordBank RecordWitness.Reg.witnessB) ∧
+      y.regs (recordBank RecordWitness.Reg.witnessC) =
+        r.regs (recordBank RecordWitness.Reg.witnessC) := by clear hc hs hr hy; regs_frame
   have ycursor : Cursor n (D m) g p V (y.comap producerBank) :=
-    tcursor.transfer fun j _ _ _ _ => ypres _ (Or.inl (by change j.val < 400; omega))
+    ccursor.transfer fun j _ _ _ hheap =>
+      (ypres _ (Or.inl (j.isLt.trans (by decide)))).trans
+        ((Data.set_regs_of_ne (fun he => hheap (hf he)) _).trans
+          ((bank j).trans ((Data.set_regs_of_ne
+            (fun he => absurd (congrArg Fin.val he) (by change j.val ≠ 64; omega)) _).trans
+            (hf.extend_apply _ _ j))))
   let Q := RecordProduct.recordQueryCount n (D m) p V idx
   let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m) hDn
   let T := 40 * (n * D m) + 66 +
     (RecordBoxProduct.timeBound (m := m)
       (RecordProduct.decodedQueries hn a.mem (RecordProduct.recordQueries n (D m) p idx) Q) +
       5 * Nat.sqrt (D m) + 8 * Q + (42 * pieceSize (D m) g + 28) * S + 52) + 8
-  have he : ExecWithin (w + 2) step x y T := by
-    apply (hs.seq (hz.seq (hr.seq (ht.seq hy)))).mono
-    dsimp only [T, Q, V]
-    omega
-  refine ⟨y, S, T, he, ?_, yi, ?_, ?_, ys, ?_, ?_, hcoarse, ?_, ?_, ?_,
-    ycursor, ?_, ?_⟩
-  · dsimp only [T, Q, FixedPrime.recordBase, V]
-    omega
-  · rw [yflag]
-    exact yl
-  · exact (ypres _ (Or.inr rfl)).trans ((tcontrol _ (by decide)).trans h1)
-  · simpa only [yflag] using rf
-  · simpa only [yflag] using hS
-  · simpa only [yflag, FixedPrime.recordHit, weightSum] using hit
-  · intro hh
-    have hw := wit (yflag ▸ hh)
-    simpa only [ylow, tr RecordWitness.Reg.witnessA (by decide),
-      tr RecordWitness.Reg.witnessB (by decide), tr RecordWitness.Reg.witnessC (by decide)] using hw
-  · intro u hu
-    have slotframe : c.mem u = x.mem u := cm u (by
-      rw [hout']
-      omega)
-    have recordframe : r.mem u = z.mem u := frame u (by rw [zh]; omega)
-    exact (congrFun ym u).trans (recordframe.trans slotframe)
-  · have yo : y.regs (producerBank Instances.produced) = r.regs (producerBank Instances.produced) :=
-      (ypres _ (Or.inl (by decide))).trans (tr _ (by decide))
-    rw [yo, bank, zlow, sr, ci, hproduced]
-  · have yo : y.regs (producerBank Instances.output) = r.regs (producerBank Instances.output) :=
-      (ypres _ (Or.inl (by decide))).trans (tr _ (by decide))
-    rw [yo]
-    exact (ypres _ (Or.inl (by decide))).trans (by simp [t])
+  have he : ExecWithin (w + 2) step x y T :=
+    (hs.seq (hz.seq (hr.seq (ht.seq hy)))).mono (by dsimp only [T, Q, V]; omega)
+  refine ⟨y, S, T, he, by dsimp only [T, Q, FixedPrime.recordBase, V]; omega,
+    yi, yf ▸ yl, y1, ys, yf ▸ rf, yf ▸ hS, hcoarse,
+    by simpa only [yf, FixedPrime.recordHit, weightSum] using hit,
+    fun hh => by simpa only [wA, wB, wC] using wit (yf ▸ hh),
+    fun u hu => (congrFun ym u).trans
+      ((frame u (by rw [zh]; omega)).trans (cm u (by rw [hout']; omega))),
+    ycursor, yprod, yheap_eq⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

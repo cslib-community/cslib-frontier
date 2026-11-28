@@ -13,6 +13,7 @@ public import CslibFrontier.Probability.Uniform
 public import Mathlib.Algebra.Ring.BooleanRing
 public import Mathlib.Data.Fintype.Powerset
 public import Mathlib.Data.Matrix.Mul
+import CslibFrontier.Probability.PMF.Independence
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
@@ -125,8 +126,8 @@ private theorem query_uniform {n k : ℕ} (i : Fin n) (s : Finset (Fin k)) (hs :
         (fun masks => Pi.single i 1 + ∑ j ∈ s, masks j) =
       PMF.uniformOfFintype (BitString n) := by
   change (PMF.uniformOfFintype (Fin k → BitString n)).map
-    ((Equiv.addLeft (Pi.single i 1)) ∘ (fun masks => ∑ j ∈ s, masks j)) = _
-  rw [← PMF.map_comp, PMF.uniformOfFintype_map_sum s hs, PMF.uniformOfFintype_map_equiv]
+    ((Pi.single i 1 + ·) ∘ (fun masks => ∑ j ∈ s, masks j)) = _
+  rw [← PMF.map_comp, PMF.uniformOfFintype_map_sum s hs, PMF.uniformOfFintype_map_add_left]
 
 private theorem query_pair_uniform {n k : ℕ} (i : Fin n)
     (s t : Finset (Fin k)) (hs : s.Nonempty) (ht : t.Nonempty) (hst : s ≠ t) :
@@ -135,10 +136,10 @@ private theorem query_pair_uniform {n k : ℕ} (i : Fin n)
           Pi.single i 1 + ∑ j ∈ t, masks j)) =
       PMF.uniformOfFintype (BitString n × BitString n) := by
   change (PMF.uniformOfFintype (Fin k → BitString n)).map
-    ((Equiv.addLeft (Pi.single i 1, Pi.single i 1)) ∘
+    (((Pi.single i 1, Pi.single i 1) + ·) ∘
       (fun masks => (∑ j ∈ s, masks j, ∑ j ∈ t, masks j))) = _
   rw [← PMF.map_comp, PMF.uniformOfFintype_map_sum_pair s t hs ht hst,
-    PMF.uniformOfFintype_map_equiv]
+    PMF.uniformOfFintype_map_add_left]
 
 private theorem coordinate_error_le {n k : ℕ} (predictor : BitString n → Bool)
     (x : BitString n) (i : Fin n) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
@@ -149,48 +150,40 @@ private theorem coordinate_error_le {n k : ℕ} (predictor : BitString n → Boo
   let μ := (PMF.uniformOfFintype (Fin k → BitString n)).toMeasure
   let X : Finset (Fin k) → (Fin k → BitString n) → ℝ :=
     fun s masks => score predictor x (Pi.single i 1 + ∑ j ∈ s, masks j)
-  have hnonempty : (nonemptySubsets k).Nonempty := by
-    exact ⟨{⟨0, hk⟩}, by simp⟩
   have hmean (s : Finset (Fin k)) (hs : s ∈ nonemptySubsets k) :
       ∫ masks, X s masks ∂μ = agreement predictor x := by
-    have hmap : μ.map (fun masks => Pi.single i 1 + ∑ j ∈ s, masks j) =
-        (PMF.uniformOfFintype (BitString n)).toMeasure := by
-      rw [PMF.toMeasure_map _ _ (measurable_of_countable _),
-        query_uniform i s (mem_nonemptySubsets s |>.mp hs)]
     change (∫ masks, (score predictor x)
       ((fun masks => Pi.single i 1 + ∑ j ∈ s, masks j) masks) ∂μ) = _
     rw [← integral_map (measurable_of_countable _).aemeasurable
-      (measurable_of_countable _).aestronglyMeasurable, hmap]
+      (measurable_of_countable _).aestronglyMeasurable,
+      PMF.toMeasure_map _ _ (measurable_of_countable _),
+      query_uniform i s ((mem_nonemptySubsets s).mp hs)]
     rfl
   have hindep : Set.Pairwise (↑(nonemptySubsets k) : Set (Finset (Fin k)))
-      (fun s t => IndepFun (X s) (X t) μ) := by
-    intro s hs t ht hst
-    have hquery : IndepFun
-        (fun masks : Fin k → BitString n => Pi.single i 1 + ∑ j ∈ s, masks j)
-        (fun masks : Fin k → BitString n => Pi.single i 1 + ∑ j ∈ t, masks j) μ := by
-      apply PMF.indepFun_of_map_pair _ _ _ (measurable_of_countable _) (measurable_of_countable _)
-      rw [query_pair_uniform i s t (mem_nonemptySubsets s |>.mp hs)
-          (mem_nonemptySubsets t |>.mp ht) hst,
-        query_uniform i s (mem_nonemptySubsets s |>.mp hs),
-        query_uniform i t (mem_nonemptySubsets t |>.mp ht),
-        ← PMF.uniformOfFintype_prod]
-    exact hquery.comp (measurable_of_countable (score predictor x))
+      (fun s t => IndepFun (X s) (X t) μ) := fun s hs t ht hst =>
+    ((PMF.indepFun_iff_map_pair_eq_bind _ (measurable_of_countable _)
+      (measurable_of_countable _)).2 <| by
+      rw [query_pair_uniform i s t ((mem_nonemptySubsets s).mp hs)
+          ((mem_nonemptySubsets t).mp ht) hst,
+        query_uniform i s ((mem_nonemptySubsets s).mp hs),
+        query_uniform i t ((mem_nonemptySubsets t).mp ht),
+        ← PMF.uniformOfFintype_prod]).comp
       (measurable_of_countable (score predictor x))
-  have hbound := majority_error_bound μ (nonemptySubsets k) X ε hε hnonempty
-    (fun _ _ => (measurable_of_countable _).aemeasurable)
-    (fun s _ => Filter.Eventually.of_forall (fun masks => by
-      dsimp [X, score]
-      split <;> norm_num))
-    hindep (fun s hs => by rw [hmean s hs]; exact h)
-  apply le_trans (measure_mono ?_) hbound
-  intro masks herror
-  have hmajority := BitString.card_filter_eq_le_half_of_strictMajorityOn_ne
-    (nonemptySubsets k) (vote predictor masks (fun j => x ⬝ᵥ masks j) i) (x i) herror
-  have hcount := (Nat.mul_le_mul_left 2 hmajority).trans
-    (show 2 * ((nonemptySubsets k).card / 2) ≤ (nonemptySubsets k).card by lia)
-  have hreal := (Nat.cast_le (α := ℝ)).mpr hcount
+      (measurable_of_countable (score predictor x))
+  refine (measure_mono fun masks herror => ?_).trans <|
+    majority_error_bound μ (nonemptySubsets k) X ε hε ⟨{⟨0, hk⟩}, by simp⟩
+      (fun _ _ => (measurable_of_countable _).aemeasurable)
+      (fun _ _ => Filter.Eventually.of_forall fun _ => by
+        dsimp [X, score]
+        split <;> norm_num)
+      hindep fun s hs => (hmean s hs).symm ▸ h
+  have hcount := (Nat.mul_le_mul_left 2
+    (BitString.card_filter_eq_le_half_of_strictMajorityOn_ne
+      (nonemptySubsets k) (vote predictor masks (fun j => x ⬝ᵥ masks j) i) (x i) herror)).trans
+    (Nat.mul_div_le _ 2)
   simpa only [Set.mem_ofPred_eq, X, score, ← vote_correct_iff, Finset.sum_boole,
-    le_div_iff₀ (by norm_num : (0 : ℝ) < 2), Nat.cast_mul, Nat.cast_ofNat, mul_comm] using hreal
+    le_div_iff₀ (by norm_num : (0 : ℝ) < 2), Nat.cast_mul, Nat.cast_ofNat, mul_comm] using
+    (Nat.cast_le (α := ℝ)).mpr hcount
 
 
 private theorem failure_probability_le {n k : ℕ} (predictor : BitString n → Bool)
@@ -201,14 +194,11 @@ private theorem failure_probability_le {n k : ℕ} (predictor : BitString n → 
       ENNReal.ofReal ((n : ℝ) / (4 * ε ^ 2 * (nonemptySubsets k).card)) := by
   let μ := (PMF.uniformOfFintype (Fin k → BitString n)).toMeasure
   have hsubset : {masks : Fin k → BitString n | x ∉ candidates predictor masks} ⊆
-      ⋃ i, {masks | candidate predictor masks (fun j => x ⬝ᵥ masks j) i ≠ x i} := by
-    intro masks hmiss
-    apply Set.mem_iUnion.mpr
-    by_contra hnone
-    have heq : candidate predictor masks (fun j => x ⬝ᵥ masks j) = x := by
-      funext i
-      simpa using not_exists.mp hnone i
-    exact hmiss (Finset.mem_image.mpr ⟨_, Finset.mem_univ _, heq⟩)
+      ⋃ i, {masks | candidate predictor masks (fun j => x ⬝ᵥ masks j) i ≠ x i} :=
+    fun masks hmiss => Set.mem_iUnion.mpr <| by
+      by_contra hnone
+      exact hmiss <| Finset.mem_image.mpr
+        ⟨_, Finset.mem_univ _, funext fun i => by simpa using not_exists.mp hnone i⟩
   rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (Set.to_countable _).measurableSet]
   change μ _ ≤ _
   calc
@@ -216,15 +206,13 @@ private theorem failure_probability_le {n k : ℕ} (predictor : BitString n → 
       measure_mono hsubset
     _ ≤ ∑' i, μ {masks | candidate predictor masks (fun j => x ⬝ᵥ masks j) i ≠ x i} :=
       measure_iUnion_le _
-    _ ≤ ∑ i : Fin n, ENNReal.ofReal
-        (1 / (4 * ε ^ 2 * (nonemptySubsets k).card)) := by
+    _ ≤ ∑ _i : Fin n, ENNReal.ofReal (1 / (4 * ε ^ 2 * (nonemptySubsets k).card)) := by
       rw [tsum_fintype]
-      exact Finset.sum_le_sum (fun i _ => coordinate_error_le predictor x i ε hε hk h)
+      exact Finset.sum_le_sum fun i _ => coordinate_error_le predictor x i ε hε hk h
     _ = _ := by
-      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-      rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg n)]
-      congr 1
-      ring
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+        ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg n)]
+      exact congrArg ENNReal.ofReal (by ring)
 
 /-- Sample the base masks uniformly and return all candidates. This is a distributional
 specification; no machine-runtime certificate is asserted here. -/
@@ -251,15 +239,13 @@ theorem decode_failure_le_half {n k : ℕ} (predictor : BitString n → Bool)
     (h : 1 / 2 + ε ≤ agreement predictor x)
     (hsize : (n : ℝ) ≤ 2 * ε ^ 2 * (2 ^ k - 1 : ℕ)) :
     (decode predictor k).toOuterMeasure {list | x ∉ list} ≤ 1 / 2 := by
-  have hpow : 1 < 2 ^ k := Nat.one_lt_pow hk.ne' (by decide)
-  have hcount : (0 : ℝ) < (2 ^ k - 1 : ℕ) := by exact_mod_cast Nat.sub_pos_of_lt hpow
+  have hcount : (0 : ℝ) < (2 ^ k - 1 : ℕ) := by
+    exact_mod_cast Nat.sub_pos_of_lt (Nat.one_lt_pow hk.ne' (by decide))
   calc
     _ ≤ ENNReal.ofReal ((n : ℝ) / (4 * ε ^ 2 * (2 ^ k - 1 : ℕ))) :=
       decode_failure_le predictor x ε hε hk h
-    _ ≤ ENNReal.ofReal (1 / 2) := by
-      apply ENNReal.ofReal_le_ofReal
-      apply (div_le_iff₀ (by positivity)).2
-      nlinarith
+    _ ≤ ENNReal.ofReal (1 / 2) :=
+      ENNReal.ofReal_le_ofReal ((div_le_iff₀ (by positivity)).2 (by nlinarith))
     _ = _ := by simp
 
 /-- For a perfect predictor, the true guessed parities recover the target for every choice
@@ -268,12 +254,9 @@ theorem candidate_parity {n k : ℕ} (x : BitString n)
     (masks : Fin k → BitString n) (hk : 0 < k) :
     candidate (fun r => x ⬝ᵥ r) masks (fun j => x ⬝ᵥ masks j) = x := by
   funext i
-  have hv : vote (fun r => x ⬝ᵥ r) masks (fun j => x ⬝ᵥ masks j) i =
-      fun _ => x i := by
-    funext s
-    exact (vote_correct_iff _ _ _ _ _).mpr rfl
-  simp only [candidate, hv]
-  exact BitString.strictMajorityOn_const _ ⟨{⟨0, hk⟩}, by simp⟩ _
+  have hv : vote (fun r => x ⬝ᵥ r) masks (fun j => x ⬝ᵥ masks j) i = fun _ => x i :=
+    funext fun _ => (vote_correct_iff ..).mpr rfl
+  simpa only [candidate, hv] using BitString.strictMajorityOn_const _ ⟨{⟨0, hk⟩}, by simp⟩ _
 
 /-- Every run against a perfect parity predictor includes that parity's defining string. -/
 theorem mem_candidates_parity {n k : ℕ} (x : BitString n)
@@ -288,8 +271,7 @@ theorem agreement_eq_probability {n : ℕ} (predictor : BitString n → Bool) (x
         (fun r => predictor r == x ⬝ᵥ r) true).toReal := by
   rw [agreement, PMF.integral_eq_sum]
   simp only [PMF.map, PMF.bind_apply_toReal, Function.comp_def, smul_eq_mul]
-  apply Finset.sum_congr rfl
-  intro r _
+  refine Finset.sum_congr rfl fun r _ => ?_
   by_cases h : predictor r = x ⬝ᵥ r <;> simp [score, h, PMF.pure_apply]
 
 /-- Agreement with any fixed parity is a probability, hence at most one. -/

@@ -1,0 +1,370 @@
+/-
+Copyright (c) 2026 Christian Reitwiessner, Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Christian Reitwiessner, Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.BitString.Block
+public import CslibFrontier.MachineLearning.Replicable.Basic
+import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Probability.IID.Event
+import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.PMFSwap
+
+/-!
+# Sample splitting and composition of replicable algorithms
+
+This module provides independent sample splitting for `Probability.PMF.iid` over arbitrary
+(possibly infinite) sample spaces and proves composition theorems for shared-seed replicable
+algorithms:
+
+* **Sample padding** (`Algorithm.pad`): using only a prefix of a larger sample preserves both the
+  marginal output distribution and the disagreement probability.
+* **Two-stage adaptive composition** (`Algorithm.seqPair`, `Algorithm.seqBind`): running `A₁` on
+  the first `m₁` samples with seed `r₁`, then choosing a second algorithm `run₂ a` from its output
+  and running it on `m₂` fresh samples with an independent shared seed `r₂ ~ seed₂`, sums the
+  replicability parameters (`ρ₁ + ρ₂`).
+* **`k`-fold block composition** (`Algorithm.pi`, `Algorithm.replicate`): running `k` replicable
+  algorithms on disjoint blocks of `m` samples with independent shared seeds sums their
+  replicability parameters (`∑ j, ρ j`, or `k * ρ` for `replicate`), and its marginal is the
+  product/i.i.d. distribution of their marginals.
+
+## Main definitions
+
+* `Cslib.MachineLearning.Replicable.splitSample`: split `m₁ + m₂` samples into two blocks.
+* `Cslib.MachineLearning.Replicable.Algorithm.pad`: pad an algorithm to a larger sample size.
+* `Cslib.MachineLearning.Replicable.Algorithm.seqPair`,
+  `Cslib.MachineLearning.Replicable.Algorithm.seqBind`: adaptive two-stage composition.
+* `Cslib.MachineLearning.Replicable.Algorithm.pi`,
+  `Cslib.MachineLearning.Replicable.Algorithm.replicate`: parallel block composition.
+
+## Main results
+
+* `Cslib.MachineLearning.Replicable.iid_map_splitSample`,
+  `Cslib.MachineLearning.Replicable.iid_bind_splitSample`,
+  `Cslib.MachineLearning.Replicable.iid_map_block`,
+  `Cslib.MachineLearning.Replicable.iid_bind_piFin_block`: independent block decompositions of
+  `iid`.
+* `Cslib.MachineLearning.Replicable.IsReplicableFor.pad`,
+  `Cslib.MachineLearning.Replicable.IsAccurateFor.pad`: padding invariance.
+* `Cslib.MachineLearning.Replicable.IsReplicableFor.seqPair`,
+  `Cslib.MachineLearning.Replicable.IsReplicableFor.seqBind`: additive replicability under
+  two-stage adaptive composition.
+* `Cslib.MachineLearning.Replicable.Algorithm.marginal_replicate`: the marginal of `k` independent
+  repetitions is `Probability.PMF.iid (A.marginal D) k`.
+* `Cslib.MachineLearning.Replicable.IsReplicableFor.pi`,
+  `Cslib.MachineLearning.Replicable.IsReplicableFor.replicate`: additive replicability under
+  `k`-fold composition.
+
+## References
+
+* [ImpagliazzoLeiPitassiSorrell2022]
+-/
+
+public section
+
+namespace Cslib.MachineLearning.Replicable
+
+open Cslib.Probability
+open scoped ENNReal
+
+universe u v w z
+
+section SampleSplitting
+
+variable {X : Type u}
+
+/-- Split a sample of size `m₁ + m₂` into its prefix of size `m₁` and suffix of size `m₂`. -/
+@[expose] def splitSample (m₁ m₂ : ℕ) (S : Fin (m₁ + m₂) → X) : (Fin m₁ → X) × (Fin m₂ → X) :=
+  (fun i => S (Fin.castAdd m₂ i), fun j => S (Fin.natAdd m₁ j))
+
+/-- Equivalence between a sample of size `m₁ + m₂` and a pair of samples of sizes `m₁`, `m₂`. -/
+@[expose] def splitSampleEquiv (m₁ m₂ : ℕ) (X : Type u) :
+    (Fin (m₁ + m₂) → X) ≃ (Fin m₁ → X) × (Fin m₂ → X) where
+  toFun := splitSample m₁ m₂
+  invFun p := Fin.append p.1 p.2
+  left_inv S := by
+    ext k
+    refine Fin.addCases (m := m₁) (n := m₂) (fun i => ?_) (fun j => ?_) k <;>
+      simp [splitSample]
+  right_inv p := by
+    ext i <;> simp [splitSample]
+
+/-- Splitting `m₁ + m₂` i.i.d. draws into two blocks yields two independent i.i.d. draws. -/
+theorem iid_map_splitSample (D : PMF X) (m₁ m₂ : ℕ) :
+    (Probability.PMF.iid D (m₁ + m₂)).map (splitSample m₁ m₂) =
+      (Probability.PMF.iid D m₁).bind fun S₁ =>
+        (Probability.PMF.iid D m₂).map fun S₂ => (S₁, S₂) := by
+  ext ⟨S₁, S₂⟩
+  change ((Probability.PMF.iid D (m₁ + m₂)).map (splitSampleEquiv m₁ m₂ X)) (S₁, S₂) = _
+  rw [Probability.PMF.map_equiv_apply, Probability.PMF.iid_apply]
+  simp only [splitSampleEquiv, Equiv.coe_fn_symm_mk, Fin.prod_univ_add, Fin.append_left,
+    Fin.append_right]
+  rw [Probability.PMF.bind_map_prodMk_apply, Probability.PMF.iid_apply, Probability.PMF.iid_apply]
+
+/-- Binding `m₁ + m₂` i.i.d. draws along `splitSample m₁ m₂` factors into two independent
+i.i.d. draws of sizes `m₁` and `m₂`. -/
+theorem iid_bind_splitSample {β : Type*} (D : PMF X) (m₁ m₂ : ℕ)
+    (f : (Fin m₁ → X) → (Fin m₂ → X) → PMF β) :
+    ((Probability.PMF.iid D (m₁ + m₂)).bind fun S =>
+      f (splitSample m₁ m₂ S).1 (splitSample m₁ m₂ S).2) =
+      (Probability.PMF.iid D m₁).bind fun S₁ =>
+        (Probability.PMF.iid D m₂).bind fun S₂ => f S₁ S₂ := by
+  have hm := (PMF.bind_map (Probability.PMF.iid D (m₁ + m₂)) (splitSample m₁ m₂)
+    (fun p => f p.1 p.2)).symm
+  dsimp only [Function.comp_def] at hm
+  rw [hm, iid_map_splitSample]
+  simp only [pmf_norm]
+
+/-- Taking only the first `m` coordinates of `m'` i.i.d. draws (`m ≤ m'`) recovers `iid D m`. -/
+theorem iid_map_castLE (D : PMF X) {m m' : ℕ} (h : m ≤ m') :
+    (Probability.PMF.iid D m').map (fun S i => S (Fin.castLE h i)) = Probability.PMF.iid D m := by
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le h
+  have hsub : (fun S : Fin (m + k) → X => fun i => S (Fin.castLE h i)) =
+      Prod.fst ∘ splitSample m k := rfl
+  rw [hsub, ← PMF.map_comp, iid_map_splitSample, PMF.map_bind]
+  simp only [PMF.map_comp, Function.comp_def]
+  change (Probability.PMF.iid D m).bind (fun S₁ => (Probability.PMF.iid D k).map
+    (Function.const _ S₁)) = _
+  simp only [PMF.map_const, PMF.bind_pure]
+
+/-- Splitting `k * m` i.i.d. draws into `k` blocks of size `m` gives `k` i.i.d. draws of
+`iid D m`. -/
+theorem iid_map_block (D : PMF X) (k m : ℕ) :
+    (Probability.PMF.iid D (k * m)).map (BitString.block (α := X) (m := k) (k := m)) =
+      Probability.PMF.iid (Probability.PMF.iid D m) k := by
+  ext B
+  change ((Probability.PMF.iid D (k * m)).map
+    (BitString.blocksEquiv (α := X) (m := k) (k := m))) B = _
+  rw [Probability.PMF.map_equiv_apply, Probability.PMF.iid_apply, Probability.PMF.iid_apply]
+  have hprod :
+      ∏ p : Fin (k * m), D ((BitString.blocksEquiv (α := X) (m := k) (k := m)).symm B p) =
+        ∏ jl : Fin k × Fin m, D (B jl.1 jl.2) :=
+    Fintype.prod_equiv finProdFinEquiv.symm _ _ fun _ => rfl
+  rw [hprod, Fintype.prod_prod_type]
+  refine Finset.prod_congr rfl fun j _ => ?_
+  rw [Probability.PMF.iid_apply]
+
+/-- Binding `k * m` i.i.d. draws into a `PMF.piFin` product over `k` blocks of size `m` factors
+into the `PMF.piFin` product of `k` independent `iid D m` binds. -/
+theorem iid_bind_piFin_block {β : Type*} (D : PMF X) (k m : ℕ)
+    (f : Fin k → (Fin m → X) → PMF β) :
+    ((Probability.PMF.iid D (k * m)).bind fun S =>
+      PMF.piFin fun j => f j (BitString.block (m := k) (k := m) S j)) =
+      PMF.piFin fun j => (Probability.PMF.iid D m).bind (f j) := by
+  have hm := (PMF.bind_map (Probability.PMF.iid D (k * m))
+    (BitString.block (α := X) (m := k) (k := m))
+    (fun B => PMF.piFin fun j => f j (B j))).symm
+  dsimp only [Function.comp_def] at hm
+  rw [hm, iid_map_block, ← PMF.piFin_const, PMF.piFin_bind]
+
+end SampleSplitting
+
+/-! ### Padding, sequential composition, and parallel repetition -/
+
+namespace Algorithm
+
+variable {X : Type u} {Ω : Type v} {α : Type w} {γ : Type z}
+
+/-- Pad an `m`-sample algorithm to `m'` samples (`m ≤ m'`) by reading the first `m` samples. -/
+@[expose] noncomputable def pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') :
+    Algorithm X Ω α m' where
+  seed := A.seed
+  run S r := A.run (fun i => S (Fin.castLE h i)) r
+
+/-- The paired output draws the shared seed, then two independent single executions given it. -/
+private theorem pairedOutput_eq_seed_bind {m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
+    A.pairedOutput D = A.seed.bind fun r =>
+      ((Probability.PMF.iid D m).bind fun S => A.run S r).bind fun y₁ =>
+        ((Probability.PMF.iid D m).bind fun S => A.run S r).map fun y₂ => (y₁, y₂) := by
+  simp only [pairedOutput, pmf_norm]
+  pmf_swap
+
+/-- Given the seed, a single execution of `A.pad h` has the law of a single execution of `A`. -/
+private theorem iid_bind_run_pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') (D : PMF X)
+    (r : Ω) : ((Probability.PMF.iid D m').bind fun S => (A.pad h).run S r) =
+      (Probability.PMF.iid D m).bind fun S => A.run S r := by
+  rw [← iid_map_castLE D h, PMF.bind_map]
+  rfl
+
+theorem marginal_pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') (D : PMF X) :
+    (A.pad h).marginal D = A.marginal D := by
+  rw [marginal_eq_seed_bind, marginal_eq_seed_bind]
+  exact congrArg A.seed.bind (funext (iid_bind_run_pad A h D))
+
+theorem disagreeProb_pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') (D : PMF X) :
+    (A.pad h).disagreeProb D = A.disagreeProb D := by
+  simp only [disagreeProb, pairedOutput_eq_seed_bind, iid_bind_run_pad]
+  rfl
+
+/-- Two-stage adaptive sequential composition outputting both results `(a, b)`:
+run `A₁` on the first `m₁` samples with seed `r₁`, then run `run₂ a` on the remaining `m₂`
+samples with an independent shared seed `r₂ ~ seed₂`. -/
+@[expose] noncomputable def seqPair {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
+    (A₁ : Algorithm X Ω₁ α m₁) (seed₂ : PMF Ω₂)
+    (run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ) :
+    Algorithm X (Ω₁ × Ω₂) (α × γ) (m₁ + m₂) where
+  seed := A₁.seed.bind fun r₁ => seed₂.map fun r₂ => (r₁, r₂)
+  run S r :=
+    (A₁.run (splitSample m₁ m₂ S).1 r.1).bind fun a =>
+      (run₂ a (splitSample m₁ m₂ S).2 r.2).map fun b => (a, b)
+
+/-- Two-stage adaptive sequential composition returning only the second result `b`. -/
+@[expose] noncomputable def seqBind {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
+    (A₁ : Algorithm X Ω₁ α m₁) (seed₂ : PMF Ω₂)
+    (run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ) :
+    Algorithm X (Ω₁ × Ω₂) γ (m₁ + m₂) :=
+  (A₁.seqPair seed₂ run₂).map Prod.snd
+
+private theorem pairedOutput_seqPair {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
+    (A₁ : Algorithm X Ω₁ α m₁) (seed₂ : PMF Ω₂)
+    (run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ) (D : PMF X) :
+    (A₁.seqPair seed₂ run₂).pairedOutput D =
+      (A₁.pairedOutput D).bind fun aa =>
+        seed₂.bind fun r₂ =>
+          (Probability.PMF.iid D m₂).bind fun S₁' =>
+            (Probability.PMF.iid D m₂).bind fun S₂' =>
+              (run₂ aa.1 S₁' r₂).bind fun b₁ =>
+                (run₂ aa.2 S₂' r₂).map fun b₂ => ((aa.1, b₁), (aa.2, b₂)) := by
+  simp only [pairedOutput, seqPair, pmf_norm]
+  have hS₁ (r₁ : Ω₁) (r₂ : Ω₂) :=
+    iid_bind_splitSample D m₁ m₂ fun S₁pre S₁' =>
+      (Probability.PMF.iid D (m₁ + m₂)).bind fun S₂ =>
+        (A₁.run S₁pre r₁).bind fun a₁ =>
+          (run₂ a₁ S₁' r₂).bind fun b₁ =>
+            (A₁.run (splitSample m₁ m₂ S₂).1 r₁).bind fun a₂ =>
+              (run₂ a₂ (splitSample m₁ m₂ S₂).2 r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂))
+  have hS₂ (r₁ : Ω₁) (r₂ : Ω₂) (S₁pre : Fin m₁ → X) (S₁' : Fin m₂ → X) :=
+    iid_bind_splitSample D m₁ m₂ fun S₂pre S₂' =>
+      (A₁.run S₁pre r₁).bind fun a₁ =>
+        (run₂ a₁ S₁' r₂).bind fun b₁ =>
+          (A₁.run S₂pre r₁).bind fun a₂ =>
+            (run₂ a₂ S₂' r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂))
+  simp_rw [hS₁, hS₂]
+  pmf_swap
+
+theorem disagreeProb_seqPair_le {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
+    (A₁ : Algorithm X Ω₁ α m₁) (seed₂ : PMF Ω₂)
+    (run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ) (D : PMF X) {ρ₂ : ℝ} (hρ₂ : 0 ≤ ρ₂)
+    (h₂ : ∀ a, (Algorithm.mk seed₂ (run₂ a)).disagreeProb D ≤ ρ₂) :
+    (A₁.seqPair seed₂ run₂).disagreeProb D ≤ A₁.disagreeProb D + ρ₂ := by
+  rw [disagreeProb, pairedOutput_seqPair]
+  refine (Probability.PMF.toOuterMeasure_bind_failure_toReal_le _ _ {aa | aa.1 = aa.2}
+    {p : (α × γ) × (α × γ) | p.1 ≠ p.2} hρ₂ ?_).trans ?_
+  · rintro ⟨a₁, a₂⟩ _ (rfl : a₁ = a₂)
+    have hmap :
+        (seed₂.bind fun r₂ => (Probability.PMF.iid D m₂).bind fun S₁' =>
+          (Probability.PMF.iid D m₂).bind fun S₂' =>
+            (run₂ a₁ S₁' r₂).bind fun b₁ =>
+              (run₂ a₁ S₂' r₂).map fun b₂ => ((a₁, b₁), (a₁, b₂))) =
+        ((Algorithm.mk seed₂ (run₂ a₁)).pairedOutput D).map
+          (fun bb => ((a₁, bb.1), (a₁, bb.2))) := by
+      simp only [pairedOutput, PMF.map_bind, PMF.map_comp, Function.comp_def]
+    rw [hmap, PMF.toOuterMeasure_map_apply]
+    simpa [Set.preimage, disagreeProb] using h₂ a₁
+  · simp only [Set.compl_ofPred, disagreeProb]
+    exact le_rfl
+
+/-- Parallel `k`-fold block composition of `A : Fin k → Algorithm X Ω α m` on `k * m` samples
+and `k` independent shared seeds. -/
+@[expose] noncomputable def pi {k m : ℕ} (A : Fin k → Algorithm X Ω α m) :
+    Algorithm X (Fin k → Ω) (Fin k → α) (k * m) where
+  seed := PMF.piFin fun j => (A j).seed
+  run S r := PMF.piFin fun j => (A j).run (BitString.block (m := k) (k := m) S j) (r j)
+
+/-- Running the same algorithm `A` on `k` disjoint blocks of `m` samples with `k` independent
+shared seeds. -/
+@[expose] noncomputable def replicate {m : ℕ} (A : Algorithm X Ω α m) (k : ℕ) :
+    Algorithm X (Fin k → Ω) (Fin k → α) (k * m) :=
+  pi fun _ => A
+
+theorem marginal_pi {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF X) :
+    (pi A).marginal D = PMF.piFin fun j => (A j).marginal D := by
+  rw [marginal_eq_seed_bind]
+  simp only [pi]
+  have hblocks (r : Fin k → Ω) := iid_bind_piFin_block D k m fun j S => (A j).run S (r j)
+  simp_rw [hblocks]
+  rw [PMF.piFin_bind (fun j => (A j).seed)
+    (fun j rj => (Probability.PMF.iid D m).bind fun S => (A j).run S rj)]
+  exact congrArg PMF.piFin (funext fun j => (marginal_eq_seed_bind (A j) D).symm)
+
+theorem marginal_replicate {k m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
+    (replicate A k).marginal D = Probability.PMF.iid (A.marginal D) k := by
+  rw [replicate, marginal_pi, PMF.piFin_const]
+
+theorem pairedOutput_pi {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF X) :
+    (pi A).pairedOutput D =
+      (PMF.piFin fun j => (A j).pairedOutput D).map
+        (fun v => (fun j => (v j).1, fun j => (v j).2)) := by
+  have hblocks (r : Fin k → Ω) := iid_bind_piFin_block D k m fun j S => (A j).run S (r j)
+  rw [pairedOutput_eq_seed_bind]
+  simp only [pi, hblocks, PMF.piFin_pair, ← PMF.map_bind]
+  rw [PMF.piFin_bind (fun j => (A j).seed) fun j r =>
+    ((Probability.PMF.iid D m).bind fun S => (A j).run S r).bind fun y₁ =>
+      ((Probability.PMF.iid D m).bind fun S => (A j).run S r).map fun y₂ => (y₁, y₂)]
+  simp only [pairedOutput_eq_seed_bind]
+
+theorem disagreeProb_pi_le {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF X) :
+    (pi A).disagreeProb D ≤ ∑ j : Fin k, (A j).disagreeProb D := by
+  rw [disagreeProb, pairedOutput_pi, PMF.toOuterMeasure_map_apply]
+  simpa only [disagreeProb, Set.preimage, Set.mem_ofPred_eq, ne_eq, funext_iff, not_forall] using
+    PMF.toOuterMeasure_toReal_piFin_exists_le (fun j => (A j).pairedOutput D)
+      fun _ => {p : α × α | p.1 ≠ p.2}
+
+theorem disagreeProb_replicate_le {k m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
+    (replicate A k).disagreeProb D ≤ k * A.disagreeProb D := by
+  simpa only [replicate, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] using
+    disagreeProb_pi_le (fun _ : Fin k => A) D
+
+end Algorithm
+
+section Closure
+
+variable {X : Type u} {Ω : Type v} {α : Type w} {γ : Type z}
+
+theorem IsReplicableFor.pad {m m' : ℕ} {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)} {ρ : ℝ}
+    (h : IsReplicableFor A 𝒟 ρ) (hm : m ≤ m') :
+    IsReplicableFor (A.pad hm) 𝒟 ρ := fun D hD =>
+  (Algorithm.disagreeProb_pad A hm D).symm ▸ h D hD
+
+theorem IsAccurateFor.pad {m m' : ℕ} {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)}
+    {good : PMF X → Set α} {β : ℝ} (h : IsAccurateFor A 𝒟 good β) (hm : m ≤ m') :
+    IsAccurateFor (A.pad hm) 𝒟 good β := fun D hD =>
+  (Algorithm.marginal_pad A hm D).symm ▸ h D hD
+
+theorem IsReplicableFor.seqPair {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
+    {A₁ : Algorithm X Ω₁ α m₁} {seed₂ : PMF Ω₂} {run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ}
+    {𝒟 : Set (PMF X)} {ρ₁ ρ₂ : ℝ} (h₁ : IsReplicableFor A₁ 𝒟 ρ₁) (hρ₂ : 0 ≤ ρ₂)
+    (h₂ : ∀ a, IsReplicableFor (Algorithm.mk seed₂ (run₂ a)) 𝒟 ρ₂) :
+    IsReplicableFor (A₁.seqPair seed₂ run₂) 𝒟 (ρ₁ + ρ₂) := fun D hD =>
+  (Algorithm.disagreeProb_seqPair_le A₁ seed₂ run₂ D hρ₂ fun a => h₂ a D hD).trans
+    (add_le_add (h₁ D hD) le_rfl)
+
+theorem IsReplicableFor.seqBind {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
+    {A₁ : Algorithm X Ω₁ α m₁} {seed₂ : PMF Ω₂} {run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ}
+    {𝒟 : Set (PMF X)} {ρ₁ ρ₂ : ℝ} (h₁ : IsReplicableFor A₁ 𝒟 ρ₁) (hρ₂ : 0 ≤ ρ₂)
+    (h₂ : ∀ a, IsReplicableFor (Algorithm.mk seed₂ (run₂ a)) 𝒟 ρ₂) :
+    IsReplicableFor (A₁.seqBind seed₂ run₂) 𝒟 (ρ₁ + ρ₂) :=
+  (IsReplicableFor.seqPair h₁ hρ₂ h₂).map Prod.snd
+
+theorem IsReplicableFor.pi {k m : ℕ} {A : Fin k → Algorithm X Ω α m} {𝒟 : Set (PMF X)}
+    {ρ : Fin k → ℝ} (h : ∀ j, IsReplicableFor (A j) 𝒟 (ρ j)) :
+    IsReplicableFor (Algorithm.pi A) 𝒟 (∑ j, ρ j) := fun D hD =>
+  (Algorithm.disagreeProb_pi_le A D).trans (Finset.sum_le_sum fun j _ => h j D hD)
+
+theorem IsReplicableFor.replicate {k m : ℕ} {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)} {ρ : ℝ}
+    (h : IsReplicableFor A 𝒟 ρ) :
+    IsReplicableFor (A.replicate k) 𝒟 (k * ρ) := fun D hD =>
+  (Algorithm.disagreeProb_replicate_le A D).trans
+    (mul_le_mul_of_nonneg_left (h D hD) (Nat.cast_nonneg k))
+
+end Closure
+
+end Cslib.MachineLearning.Replicable

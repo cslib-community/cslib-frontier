@@ -1,0 +1,536 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Probability.IID.FirstAccepted
+public import CslibFrontier.Probability.TupleSampler
+public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
+import CslibFrontier.Foundations.Data.Finset.Markov
+
+/-!
+# Direct-product decoding
+
+The direct-product decoder of [Impagliazzo, Jaiswal, Kabanets and
+Wigderson][ImpagliazzoJaiswalKabanetsWigderson2010] (preprint of 2009-10-19, Theorem 1.2 and
+Algorithm 2; Carmosino, Impagliazzo, Kabanets and Kolokolova cite it as their Theorem 4.1) turns a
+map `C' : (Fin k → U) → Fin k → V` that agrees with the direct product `f ^ k` on a `δ` fraction
+of tuples into a hypothesis for `f`. It is stated here as a pure function: no circuits and no
+running time.
+
+**Library formulation.** Inputs are uniform `k`-tuples with a random position subset `P`, in place
+of IJKW's `k`-sets. This avoids their collision term; it does not prove the `k`-set version. A seed
+is a set `P` of positions, a tuple `b₀` and `m` trials `(j, r)`. On input `x`, a trial queries
+`trialTuple P b₀ x (j, r)`: `b₀` on `P`, `x` at `j` and `r` elsewhere. It is accepted when `j ∉ P`
+and `C'` gives it the values that `C' b₀` has on `P`. `dpDecode` outputs the value of `C'` at `j`
+for the first accepted trial, or a default.
+
+**Per-seed analysis.** `card_filter_dpDecode_err_le_ge` fixes `P` and `b₀` and shows that at
+least half of the trial vectors give a hypothesis with error at most `ε #U`. It assumes that the
+tuples consistent with the seed have density at least `δ / 2` and that at most an `ε / 64`
+fraction of them disagree with `f` in `ε k / 64` or more positions. The module
+`CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.DirectProduct.Density`
+discharges these hypotheses for a `δ / 4` fraction of seeds and proves the counting headline, and
+`DirectProduct.Complexity` bounds the decoder's circuit size. The analysis follows the shape of
+IJKW's Lemmas 3.8–3.10. Its constants (`ε / 64`, `(64 / ε) log (4 / δ)`,
+`(16 / δ) log (8 / ε)`) are ours, derived for the tuple formulation; they are not IJKW's. The
+parameter roles are swapped relative to IJKW's Theorem 1.2: `ε` here is their output error `δ`,
+and `δ` here is their agreement `ε`. The tuple form also omits their Algorithm 1 lookup that
+answers `x = aᵢ` with the corresponding output.
+
+## Main definitions
+
+* `trialTuple`, `accepts`, `dpDecode`: the decoder. Other modules unfold them with `trialTuple_eq`,
+  `accepts_eq`, `dpDecode_zero` and `dpDecode_cons`.
+* `consistent`, `acceptedPairs`, `badPairs`, `disagreements`: the counting objects.
+
+## Main results
+
+* `card_filter_trialTuple`: trials are counted by the tuples they produce.
+* `card_filter_dpDecode_ne_le`: the error at one input.
+* `card_filter_acceptedPairs_lt_mul_le`: few inputs are rarely accepted.
+* `sum_card_filter_dpDecode_ne_le`: the total error of a good seed.
+* `card_filter_dpDecode_err_le_ge`: a good seed decodes well for half of the trial vectors.
+
+## References
+
+* [ImpagliazzoJaiswalKabanetsWigderson2010]
+* [CarmosinoImpagliazzoKabanetsKolokolova2016]
+-/
+
+public section
+
+namespace Cslib.Circuits.Boolean.DirectProduct
+
+open Finset Cslib.Probability
+
+variable {U : Type*} [Fintype U] [DecidableEq U] {k : ℕ}
+
+/-- A trial: a free position `j` and a filler tuple `r`. -/
+abbrev Trial (U : Type*) (k : ℕ) := Fin k × (Fin k → U)
+
+/-- The tuple queried by a trial: `b₀` on `P`, the input `x` at the free position `t.1`, and the
+filler `t.2` elsewhere. -/
+def trialTuple (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U) (t : Trial U k) : Fin k → U :=
+  Function.update (P.piecewise b₀ t.2) t.1 x
+
+/-- **Counting trials**: the trials with free position outside `P` whose tuple satisfies `q`
+(which may depend on the free position) number `#U ^ (#P + 1)` for each pair `(y, j)` with
+`y = b₀` on `P`, `y j = x`, `j ∉ P` and `q j y`. -/
+theorem card_filter_trialTuple (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
+    (q : Fin k → (Fin k → U) → Prop) [∀ j y, Decidable (q j y)] :
+    #{t : Trial U k | t.1 ∉ P ∧ q t.1 (trialTuple P b₀ x t)} =
+      Fintype.card U ^ (#P + 1) *
+        #{p : Fin k × (Fin k → U) | p.1 ∉ P ∧ (∀ i ∈ P, p.2 i = b₀ i) ∧ p.2 p.1 = x ∧
+          q p.1 p.2} := by
+  classical
+  simp only [card_filter, Fintype.sum_prod_type, mul_sum]
+  refine sum_congr rfl fun j _ => ?_
+  by_cases hj : j ∈ P
+  · simp [hj]
+  have hpw (r : Fin k → U) : trialTuple P b₀ x (j, r) =
+      (insert j P).piecewise (Function.update b₀ j x) r := funext fun i => by
+    rcases eq_or_ne i j with rfl | hij
+    · simp [trialTuple]
+    · by_cases hi : i ∈ P <;> simp [trialTuple, hij, hi]
+  have h := sum_piecewise_eq_card_pow_nsmul_sum (insert j P) (Function.update b₀ j x)
+    (fun y => if q j y then 1 else 0)
+  simp only [hj, not_false_eq_true, true_and, hpw, h, card_insert_of_notMem hj, smul_eq_mul,
+    sum_boole, Nat.cast_id]
+  rw [← mul_sum, sum_boole, Nat.cast_id]
+  congr 2
+  ext y
+  simp only [mem_filter, mem_univ, true_and, mem_insert, forall_eq_or_imp,
+    Function.update_self]
+  have hupd (y : Fin k → U) : (∀ i ∈ P, y i = Function.update b₀ j x i) ↔ ∀ i ∈ P, y i = b₀ i :=
+    forall₂_congr fun i hi => by rw [Function.update_of_ne (ne_of_mem_of_not_mem hi hj)]
+  simp only [hupd]
+  tauto
+
+variable {V : Type*} [DecidableEq V]
+
+/-- A trial is **accepted** at `x` when its free position lies outside `P` and `C'` gives its
+tuple the same values on `P` as it gives `b₀`. -/
+def accepts (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
+    (t : Trial U k) : Bool :=
+  decide (t.1 ∉ P ∧ ∀ i ∈ P, C' (trialTuple P b₀ x t) i = C' b₀ i)
+
+/-- **The direct-product decoder**: on input `x`, the value of `C'` at the free position of the
+first accepted trial, or `dflt` if no trial is accepted. -/
+def dpDecode (C' : (Fin k → U) → Fin k → V) (dflt : V) (P : Finset (Fin k)) (b₀ : Fin k → U)
+    {m : ℕ} (v : Fin m → Trial U k) (x : U) : V :=
+  ((firstAccepted (accepts C' P b₀ x) v).map fun t => C' (trialTuple P b₀ x t) t.1).getD dflt
+
+omit [Fintype U] [DecidableEq U] in
+/-- The trial tuple overwrites the free position of `b₀` on `P` and the filler elsewhere. -/
+theorem trialTuple_eq (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U) (t : Trial U k) :
+    trialTuple P b₀ x t = Function.update (P.piecewise b₀ t.2) t.1 x := by
+  rfl
+
+omit [Fintype U] [DecidableEq U] in
+/-- Unfolding the acceptance test. -/
+theorem accepts_eq (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
+    (t : Trial U k) :
+    accepts C' P b₀ x t = decide (t.1 ∉ P ∧ ∀ i ∈ P, C' (trialTuple P b₀ x t) i = C' b₀ i) := by
+  rfl
+
+omit [Fintype U] [DecidableEq U] in
+/-- With no trials, the decoder outputs the default. -/
+@[simp] theorem dpDecode_zero (C' : (Fin k → U) → Fin k → V) (dflt : V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) (v : Fin 0 → Trial U k) (x : U) : dpDecode C' dflt P b₀ v x = dflt := by
+  simp [dpDecode]
+
+omit [Fintype U] [DecidableEq U] in
+/-- The decoder answers from the first trial if it is accepted, and otherwise from the rest. -/
+theorem dpDecode_cons (C' : (Fin k → U) → Fin k → V) (dflt : V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) {m : ℕ} (t : Trial U k) (w : Fin m → Trial U k) (x : U) :
+    dpDecode C' dflt P b₀ (Fin.cons t w : Fin (m + 1) → Trial U k) x =
+      if accepts C' P b₀ x t then C' (trialTuple P b₀ x t) t.1 else dpDecode C' dflt P b₀ w x := by
+  rw [dpDecode, firstAccepted_cons]
+  split_ifs <;> rfl
+
+/-- The pairs `(j, y)` that account for the trials accepted at `x`: `j ∉ P`, `y = b₀` on `P`,
+`y j = x` and `C' y = C' b₀` on `P`. -/
+def acceptedPairs (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k)) (b₀ : Fin k → U)
+    (x : U) : Finset (Fin k × (Fin k → U)) :=
+  {p | p.1 ∉ P ∧ (∀ i ∈ P, p.2 i = b₀ i) ∧ p.2 p.1 = x ∧ ∀ i ∈ P, C' p.2 i = C' b₀ i}
+
+/-- The accepted pairs at which `C'` disagrees with `f`. -/
+def badPairs (C' : (Fin k → U) → Fin k → V) (f : U → V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) (x : U) : Finset (Fin k × (Fin k → U)) :=
+  {p | p.1 ∉ P ∧ (∀ i ∈ P, p.2 i = b₀ i) ∧ p.2 p.1 = x ∧
+    ((∀ i ∈ P, C' p.2 i = C' b₀ i) ∧ C' p.2 p.1 ≠ f x)}
+
+/-- The trials accepted at `x` number `#U ^ (#P + 1)` per accepted pair. -/
+theorem card_filter_accepts (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) (x : U) :
+    #{t : Trial U k | accepts C' P b₀ x t = true} =
+      Fintype.card U ^ (#P + 1) * #(acceptedPairs C' P b₀ x) := by
+  simpa [accepts, acceptedPairs] using
+    card_filter_trialTuple P b₀ x fun _ y => ∀ i ∈ P, C' y i = C' b₀ i
+
+/-- **Error at one input**: weighted by the number `a` of accepted pairs at `x`, the trial vectors
+on which the decoder errs at `x` are at most the bad pairs times `N ^ m`, plus `a` times the
+vectors rejecting every trial. Here `N` is the number of trials. -/
+theorem card_filter_dpDecode_ne_mul_le (C' : (Fin k → U) → Fin k → V) (f : U → V) (dflt : V)
+    (P : Finset (Fin k)) (b₀ : Fin k → U) (m : ℕ) (x : U) :
+    #{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} * #(acceptedPairs C' P b₀ x) ≤
+      #(badPairs C' f P b₀ x) * Fintype.card (Trial U k) ^ m +
+        #(acceptedPairs C' P b₀ x) * (Fintype.card (Trial U k) -
+          Fintype.card U ^ (#P + 1) * #(acceptedPairs C' P b₀ x)) ^ m := by
+  classical
+  have : Nonempty U := ⟨x⟩
+  have hacc := card_filter_accepts C' P b₀ x
+  set acc := accepts C' P b₀ x
+  set bad : Trial U k → Bool := fun t => decide (C' (trialTuple P b₀ x t) t.1 ≠ f x)
+  have haccbad : #{t : Trial U k | acc t ∧ bad t} =
+      Fintype.card U ^ (#P + 1) * #(badPairs C' f P b₀ x) := by
+    simpa [acc, bad, accepts, badPairs, and_assoc] using
+      card_filter_trialTuple P b₀ x fun j y => (∀ i ∈ P, C' y i = C' b₀ i) ∧ C' y j ≠ f x
+  set a := #(acceptedPairs C' P b₀ x)
+  set c := Fintype.card U ^ (#P + 1)
+  have hfa := card_filter_firstAccepted_bad_mul_le acc bad m
+  rw [hacc, haccbad] at hfa
+  have hfa' : #{v : Fin m → Trial U k | (firstAccepted acc v).any bad} * a ≤
+      #(badPairs C' f P b₀ x) * Fintype.card (Trial U k) ^ m :=
+    Nat.le_of_mul_le_mul_left (c := c) (by linarith) (pow_pos Fintype.card_pos _)
+  have hnone : #{v : Fin m → Trial U k | ∀ i, acc (v i) = false} =
+      (Fintype.card (Trial U k) - c * a) ^ m := by
+    rw [card_filter_forall_not_acc, ← hacc]
+    congr 1
+    have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (Trial U k)))
+      (p := fun t => acc t = true)
+    simp only [Bool.not_eq_true, card_univ] at hsplit; omega
+  have hsub : #{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} ≤
+      #{v : Fin m → Trial U k | (firstAccepted acc v).any bad} +
+        #{v : Fin m → Trial U k | ∀ i, acc (v i) = false} := by
+    refine (card_le_card fun v hv => ?_).trans (card_union_le _ _)
+    simp only [mem_filter, mem_univ, true_and, mem_union] at hv ⊢
+    cases h : firstAccepted acc v with
+    | none => exact Or.inr ((firstAccepted_eq_none_iff acc v).1 h)
+    | some t => exact Or.inl (by simpa [dpDecode, acc, h, bad] using hv)
+  rw [← hnone]
+  nlinarith [Nat.mul_le_mul_right a hsub]
+
+/-- The tuples consistent with the seed: equal to `b₀` on `P`, with the same `C'` values there. -/
+def consistent (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k)) (b₀ : Fin k → U) :
+    Finset (Fin k → U) :=
+  {y | (∀ i ∈ P, y i = b₀ i) ∧ ∀ i ∈ P, C' y i = C' b₀ i}
+
+@[simp] theorem mem_consistent {C' : (Fin k → U) → Fin k → V} {P : Finset (Fin k)}
+    {b₀ y : Fin k → U} :
+    y ∈ consistent C' P b₀ ↔ (∀ i ∈ P, y i = b₀ i) ∧ ∀ i ∈ P, C' y i = C' b₀ i := by
+  simp [consistent]
+
+/-- The accepted pairs are the free positions of the consistent tuples that carry `x`. -/
+theorem acceptedPairs_eq_filter (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) (x : U) :
+    acceptedPairs C' P b₀ x = (Pᶜ ×ˢ consistent C' P b₀).filter fun p => p.2 p.1 = x := by
+  ext p
+  simp only [acceptedPairs, consistent, mem_filter, mem_univ, true_and, mem_product, mem_compl]
+  tauto
+
+/-- The bad pairs are the free disagreement positions of the consistent tuples that carry `x`. -/
+theorem badPairs_eq_filter (C' : (Fin k → U) → Fin k → V) (f : U → V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) (x : U) :
+    badPairs C' f P b₀ x =
+      ((Pᶜ ×ˢ consistent C' P b₀).filter fun p => C' p.2 p.1 ≠ f (p.2 p.1)).filter
+        fun p => p.2 p.1 = x := by
+  ext p
+  simp only [badPairs, consistent, mem_filter, mem_univ, true_and, mem_product, mem_compl]
+  grind
+
+/-- **Accepted pairs by input**: weighting the accepted pairs at `x` by `g x` and summing over
+`x` is summing `g (y j)` over the free positions `j` of the consistent tuples `y`. -/
+theorem sum_card_acceptedPairs_nsmul {M : Type*} [AddCommMonoid M]
+    (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k)) (b₀ : Fin k → U) (g : U → M) :
+    ∑ x, #(acceptedPairs C' P b₀ x) • g x = ∑ y ∈ consistent C' P b₀, ∑ j ∈ Pᶜ, g (y j) := by
+  rw [sum_sum_comp_eq_sum_nsmul g (consistent C' P b₀) Pᶜ]
+  refine sum_congr rfl fun x _ => ?_
+  congr 1
+  rw [acceptedPairs_eq_filter]
+  refine card_nbij' Prod.swap Prod.swap ?_ ?_ (fun p _ => Prod.swap_swap p)
+    (fun p _ => Prod.swap_swap p) <;>
+  · intro p hp
+    simp only [coe_filter, mem_product, Set.mem_ofPred_eq, Prod.fst_swap, Prod.snd_swap] at hp ⊢
+    tauto
+
+/-- **Bad pairs by tuple**: the bad pairs, summed over inputs, are the free positions at which a
+consistent tuple disagrees with `f`. -/
+theorem sum_card_badPairs (C' : (Fin k → U) → Fin k → V) (f : U → V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) :
+    ∑ x, #(badPairs C' f P b₀ x) =
+      ∑ y ∈ consistent C' P b₀, #{j ∈ Pᶜ | C' y j ≠ f (y j)} := by
+  classical
+  simp_rw [badPairs_eq_filter]
+  rw [← card_eq_sum_card_fiberwise (fun _ _ => mem_univ _), card_filter, sum_product, sum_comm]
+  exact sum_congr rfl fun _ _ => (card_filter _ _).symm
+
+/-- **Few inputs are rarely accepted**: if the consistent tuples have density at least `μ` among
+the tuples agreeing with `b₀` on `P`, the inputs with fewer than `#S w / (4 #U)` accepted pairs,
+where `S` is the consistent set and `w = #Pᶜ`, number at most `8 #U log (2 / μ) / w`. This is the
+tuple-formulation analogue of IJKW's Lemma 3.9, proved, as there, from the weight bound of their
+Lemma 2.13 (`Cslib.Probability.sub_mul_le_two_mul_sum_sum`). -/
+theorem card_filter_acceptedPairs_lt_mul_le (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k))
+    (b₀ : Fin k → U) {μ : ℝ} (hμ0 : 0 < μ) (hμ1 : μ ≤ 1)
+    (hS : μ * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀)) :
+    (#{x | (#(acceptedPairs C' P b₀ x) : ℝ) <
+        #(consistent C' P b₀) * #Pᶜ / (4 * Fintype.card U)} : ℝ) * #Pᶜ ≤
+      8 * Fintype.card U * Real.log (2 / μ) := by
+  classical
+  set S := consistent C' P b₀
+  set w : ℕ := #Pᶜ
+  set n : ℕ := Fintype.card U
+  set L := ({x | (#(acceptedPairs C' P b₀ x) : ℝ) < #S * w / (4 * n)} : Finset U)
+  have hlog : 0 ≤ Real.log (2 / μ) := Real.log_nonneg (by rw [le_div_iff₀ hμ0]; linarith)
+  rcases L.eq_empty_or_nonempty with hL | hL
+  · simpa [hL] using mul_nonneg (by positivity) hlog
+  have : Nonempty U := let ⟨x, _⟩ := hL; ⟨x⟩
+  have hn : (0 : ℝ) < n := by exact_mod_cast Fintype.card_pos
+  set F : U → ℝ := fun x => if x ∈ L then 1 else 0
+  have hF : ∀ x, F x ∈ Set.Icc 0 1 := fun x => by by_cases hx : x ∈ L <;> simp [F, hx]
+  set μL : ℝ := #L / n
+  have hμL : μL * n ≤ ∑ x, F x := by
+    simp [F, μL, div_mul_cancel₀ _ hn.ne']
+  have hrob := sub_mul_le_two_mul_sum_sum_compl F hF (by positivity) hμL P b₀ S
+    (fun y hy => (mem_filter.1 hy).2.1)
+  have hsum : ∑ y ∈ S, ∑ j ∈ Pᶜ, F (y j) = ∑ x, (#(acceptedPairs C' P b₀ x) : ℝ) * F x := by
+    simpa [nsmul_eq_mul] using (sum_card_acceptedPairs_nsmul C' P b₀ F).symm
+  have hlow : ∑ x, (#(acceptedPairs C' P b₀ x) : ℝ) * F x ≤ #L * (#S * w / (4 * n)) := by
+    rw [← sum_filter_add_sum_filter_not univ (· ∈ L),
+      sum_eq_zero (s := univ.filter (· ∉ L)) fun x hx => by simp [F, (mem_filter.1 hx).2],
+      add_zero, filter_mem_eq_inter, univ_inter, ← nsmul_eq_mul, ← sum_const]
+    exact sum_le_sum fun x hx => by
+      simpa only [F, hx, ite_true, mul_one] using (mem_filter.1 hx).2.le
+  rw [hsum] at hrob
+  have hkey : (#S : ℝ) / 2 * (μL * w) ≤ n ^ w * Real.exp (-(μL * w / 8)) * (μL * w) := by
+    have : 2 * (#L * (#S * w / (4 * n))) = #S / 2 * (μL * w) := by
+      simp only [μL]; field_simp; ring
+    nlinarith
+  rcases Nat.eq_zero_or_pos w with hw0 | hw0
+  · simpa [hw0] using mul_nonneg (by positivity) hlog
+  have hpos : 0 < μL * w := mul_pos (div_pos (Nat.cast_pos.2 hL.card_pos) hn) (Nat.cast_pos.2 hw0)
+  have h1 : (#S : ℝ) / 2 ≤ n ^ w * Real.exp (-(μL * w / 8)) := le_of_mul_le_mul_right hkey hpos
+  have h2 : μ / 2 ≤ Real.exp (-(μL * w / 8)) := by
+    rw [← mul_le_mul_iff_of_pos_left (by positivity : (0 : ℝ) < n ^ w)]
+    nlinarith
+  have h3 := Real.log_le_log (by positivity) h2
+  rw [Real.log_exp, Real.log_div hμ0.ne' (by norm_num)] at h3
+  have hLw : (#L : ℝ) * w = n * (μL * w) := by
+    simp only [μL, ← mul_assoc, mul_div_cancel₀ _ hn.ne']
+  rw [hLw, Real.log_div (by norm_num) hμ0.ne']
+  nlinarith
+
+/-- **Error at one input, real form**: if at least `θ > 0` pairs are accepted at `x`, the decoder
+errs at `x` on at most `#bad N ^ m / θ + N ^ m exp (-m #U ^ (#P + 1) θ / N)` trial vectors, where
+`N` is the number of trials. -/
+theorem card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f : U → V) (dflt : V)
+    (P : Finset (Fin k)) (b₀ : Fin k → U) (m : ℕ) (x : U) {θ : ℝ} (hθ : 0 < θ)
+    (ha : θ ≤ #(acceptedPairs C' P b₀ x)) :
+    (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤
+      #(badPairs C' f P b₀ x) * Fintype.card (Trial U k) ^ m / θ +
+        Fintype.card (Trial U k) ^ m *
+          Real.exp (-(m * (Fintype.card U ^ (#P + 1) * θ / Fintype.card (Trial U k)))) := by
+  classical
+  have h := card_filter_dpDecode_ne_mul_le C' f dflt P b₀ m x
+  set a := #(acceptedPairs C' P b₀ x)
+  set B := #(badPairs C' f P b₀ x)
+  set E := #{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x}
+  set N := Fintype.card (Trial U k)
+  set c := Fintype.card U ^ (#P + 1)
+  have hca : c * a ≤ N := by rw [← card_filter_accepts]; exact card_le_univ _
+  have ha0 : (0 : ℝ) < a := hθ.trans_le ha
+  have hc0 : (0 : ℝ) < c := by
+    have : Nonempty U := ⟨x⟩
+    exact_mod_cast pow_pos Fintype.card_pos _
+  have hN0 : (0 : ℝ) < N := (mul_pos hc0 ha0).trans_le (by exact_mod_cast hca)
+  have hR : (E : ℝ) * a ≤ B * N ^ m + a * ((N : ℝ) - c * a) ^ m := by
+    simpa [Nat.cast_sub hca] using (Nat.cast_le (α := ℝ)).2 h
+  have hpow : ((N : ℝ) - c * a) ^ m ≤ N ^ m * Real.exp (-(m * (c * θ / N))) := by
+    rw [show (N : ℝ) - c * a = N * (1 - c * a / N) by field_simp, mul_pow]
+    exact mul_le_mul_of_nonneg_left
+      (Real.one_sub_pow_le_exp ((div_le_one hN0).2 (by exact_mod_cast hca))
+        (mul_le_mul_of_nonneg_left
+          (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left ha hc0.le) hN0.le)
+          (Nat.cast_nonneg m)))
+      (by positivity)
+  have hE : (E : ℝ) ≤ B * N ^ m / a + N ^ m * Real.exp (-(m * (c * θ / N))) := by
+    rw [div_add' _ _ _ ha0.ne', le_div_iff₀ ha0]
+    nlinarith
+  simp only [c, Nat.cast_pow] at hE
+  linarith [div_le_div_of_nonneg_left (by positivity : (0 : ℝ) ≤ B * N ^ m) hθ ha]
+
+/-- The disagreement positions of a tuple: where `C'` differs from `f` coordinatewise. -/
+def disagreements (C' : (Fin k → U) → Fin k → V) (f : U → V) (y : Fin k → U) : Finset (Fin k) :=
+  {j | C' y j ≠ f (y j)}
+
+omit [Fintype U] [DecidableEq U] in
+@[simp] theorem mem_disagreements {C' : (Fin k → U) → Fin k → V} {f : U → V} {y : Fin k → U}
+    {j : Fin k} : j ∈ disagreements C' f y ↔ C' y j ≠ f (y j) := by
+  simp [disagreements]
+
+/-- **Total error of a good seed.** Suppose the consistent tuples have density at least `δ / 2`
+on the slice of `b₀` and at most an `ε / 64` fraction of them have `ε k / 64` or more
+disagreements. If `k ≤ 2 #Pᶜ`, `#Pᶜ ≥ (64 / ε) log (4 / δ)` and `m ≥ (16 / δ) log (8 / ε)`, then the
+errors of the decoder, summed over inputs and trial vectors, are at most `ε #U N ^ m / 2`.
+These constants are ours (derived for the tuple formulation), not IJKW's. The two seed hypotheses
+are discharged for a `δ / 4` fraction of seeds in the module `DirectProduct.Density`. -/
+theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f : U → V) (dflt : V)
+    (P : Finset (Fin k)) (b₀ : Fin k → U) (m : ℕ) {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
+    (hε1 : ε ≤ 1) (hδ1 : δ ≤ 1) (hk : k ≤ 2 * #Pᶜ) (hw : 64 / ε * Real.log (4 / δ) ≤ #Pᶜ)
+    (hm : 16 / δ * Real.log (8 / ε) ≤ m)
+    (hS : δ / 2 * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀))
+    (hH : (#{y ∈ consistent C' P b₀ | ε / 64 * k ≤ #(disagreements C' f y)} : ℝ) ≤
+      ε / 64 * #(consistent C' P b₀)) :
+    ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤
+      ε * Fintype.card U * Fintype.card (Trial U k) ^ m / 2 := by
+  classical
+  rcases isEmpty_or_nonempty U with hU | hU
+  · simp
+  set S := consistent C' P b₀
+  set w : ℕ := #Pᶜ
+  set n : ℕ := Fintype.card U
+  set N : ℕ := Fintype.card (Trial U k)
+  have hn : (0 : ℝ) < n := by exact_mod_cast Fintype.card_pos
+  have hSpos : (0 : ℝ) < #S := lt_of_lt_of_le (by positivity) hS
+  have hlog4 : 0 < Real.log (4 / δ) :=
+    Real.log_pos (by rw [lt_div_iff₀ hδ]; linarith)
+  have hw0 : (0 : ℝ) < w := lt_of_lt_of_le (by positivity) hw
+  set θ : ℝ := #S * w / (4 * n)
+  have hθ : 0 < θ := by positivity
+  set L := ({x | (#(acceptedPairs C' P b₀ x) : ℝ) < θ} : Finset U)
+  -- the rarely accepted inputs
+  have hL : (#L : ℝ) ≤ ε * n / 8 := by
+    have h := card_filter_acceptedPairs_lt_mul_le C' P b₀ (μ := δ / 2) (by positivity)
+      (by linarith) hS
+    have h2 : Real.log (2 / (δ / 2)) = Real.log (4 / δ) := by congr 1; field_simp; norm_num
+    rw [h2] at h
+    refine le_of_mul_le_mul_right ?_ hw0
+    calc (#L : ℝ) * w ≤ 8 * n * Real.log (4 / δ) := h
+      _ = ε * n / 8 * (64 / ε * Real.log (4 / δ)) := by field_simp; ring
+      _ ≤ ε * n / 8 * w := by gcongr
+  -- the timeout term
+  have hexp : Real.exp (-(m * (n ^ (#P + 1) * θ / N))) ≤ ε / 8 := by
+    have hk' : #P + w = k := (card_add_card_compl P).trans (Fintype.card_fin k)
+    have hN : (N : ℝ) = k * n ^ k := by
+      simp [N, n]
+    have hk0 : (0 : ℝ) < k := by
+      rw [← hk']; push_cast; linarith [(Nat.cast_nonneg #P : (0 : ℝ) ≤ _)]
+    have hratio : δ / 16 ≤ n ^ (#P + 1) * θ / N := by
+      rw [hN, le_div_iff₀ (by positivity)]
+      have hpow : (n : ℝ) ^ (#P + 1) * (n ^ w / n) = n ^ k := by
+        rw [← congrArg (fun e => (n : ℝ) ^ e) hk', pow_succ]; field_simp; ring
+      have hkw : (k : ℝ) ≤ 2 * w := by exact_mod_cast hk
+      calc δ / 16 * (k * n ^ k) ≤ δ / 2 * (w / 4) * n ^ k := by
+            have := mul_le_mul_of_nonneg_left hkw (by positivity : (0 : ℝ) ≤ δ / 16 * n ^ k)
+            linarith
+        _ = δ / 2 * n ^ w * (n ^ (#P + 1) * (w / (4 * n))) := by
+            rw [← hpow]; field_simp
+        _ ≤ #S * (n ^ (#P + 1) * (w / (4 * n))) :=
+            mul_le_mul_of_nonneg_right hS (by positivity)
+        _ = n ^ (#P + 1) * θ := by simp only [θ]; ring
+    have hmle : Real.log (8 / ε) ≤ m * (n ^ (#P + 1) * θ / N) := by
+      calc Real.log (8 / ε) = δ / 16 * (16 / δ * Real.log (8 / ε)) := by field_simp
+        _ ≤ (n ^ (#P + 1) * θ / N) * m := by
+            have : 0 ≤ Real.log (8 / ε) := Real.log_nonneg (by rw [le_div_iff₀ hε]; linarith)
+            refine mul_le_mul hratio hm (by positivity) (by positivity)
+        _ = _ := by ring
+    calc Real.exp (-(m * (n ^ (#P + 1) * θ / N))) ≤ Real.exp (-Real.log (8 / ε)) :=
+          Real.exp_le_exp.2 (by linarith)
+      _ = ε / 8 := by rw [Real.exp_neg, Real.exp_log (by positivity)]; field_simp
+  -- the bad pairs
+  have hbad : (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) ≤ ε / 32 * k * #S := by
+    rw [← Nat.cast_sum, sum_card_badPairs, Nat.cast_sum]
+    refine (sum_le_sum (g := fun y => (#(disagreements C' f y) : ℝ)) fun y _ =>
+      mod_cast card_le_card (filter_subset_filter _ (subset_univ _))).trans ?_
+    rw [← sum_filter_add_sum_filter_not S fun y => ε / 64 * k ≤ #(disagreements C' f y)]
+    have hheavy : ∑ y ∈ S with ε / 64 * k ≤ #(disagreements C' f y),
+        (#(disagreements C' f y) : ℝ) ≤ k * (ε / 64 * #S) := by
+      refine (sum_le_card_nsmul _ _ (k : ℝ) fun y _ => ?_).trans ?_
+      · exact_mod_cast (card_le_univ _).trans_eq (Fintype.card_fin k)
+      · rw [nsmul_eq_mul]; exact mul_le_mul_of_nonneg_left hH (Nat.cast_nonneg _) |>.trans_eq'
+          (by ring)
+    have hlight : ∑ y ∈ S with ¬ε / 64 * k ≤ #(disagreements C' f y),
+        (#(disagreements C' f y) : ℝ) ≤ ε / 64 * k * #S := by
+      refine (sum_le_card_nsmul _ _ (ε / 64 * k) fun y hy => (not_le.1 (mem_filter.1 hy).2).le
+        ).trans ?_
+      rw [nsmul_eq_mul, mul_comm]
+      exact mul_le_mul_of_nonneg_left (by exact_mod_cast card_filter_le _ _) (by positivity)
+    linarith
+  -- assemble
+  rw [← sum_filter_add_sum_filter_not univ (· ∈ L)]
+  have hLsum : ∑ x ∈ univ.filter (· ∈ L),
+      (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ #L * N ^ m := by
+    rw [filter_mem_eq_inter, univ_inter, ← nsmul_eq_mul]
+    refine sum_le_card_nsmul _ _ _ fun x _ => ?_
+    exact_mod_cast (card_le_univ _).trans_eq (by simp [N])
+  have hrest : ∑ x ∈ univ.filter (· ∉ L),
+      (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤
+        (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m / θ + n * (N ^ m * (ε / 8)) := by
+    calc _ ≤ ∑ x ∈ univ.filter (· ∉ L), ((#(badPairs C' f P b₀ x) : ℝ) * N ^ m / θ +
+          N ^ m * (ε / 8)) := by
+          refine sum_le_sum fun x hx => ?_
+          have hx' : θ ≤ #(acceptedPairs C' P b₀ x) := by
+            simpa [L] using (mem_filter.1 hx).2
+          refine (card_filter_dpDecode_ne_le C' f dflt P b₀ m x hθ hx').trans ?_
+          gcongr
+      _ ≤ ∑ x, ((#(badPairs C' f P b₀ x) : ℝ) * N ^ m / θ + N ^ m * (ε / 8)) :=
+          sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => by positivity
+      _ = _ := by
+          simp only [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, div_eq_mul_inv,
+            ← sum_mul, n]
+  have hNm : (0 : ℝ) ≤ N ^ m := by positivity
+  have hbadθ : (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m / θ ≤ ε * n / 4 * N ^ m := by
+    rw [div_le_iff₀ hθ]
+    have hkw : (k : ℝ) ≤ 2 * w := by exact_mod_cast hk
+    calc (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m ≤ ε / 32 * k * #S * N ^ m := by gcongr
+      _ ≤ ε / 32 * (2 * w) * #S * N ^ m := by gcongr
+      _ = ε * n / 4 * N ^ m * θ := by simp only [θ]; field_simp; ring
+  nlinarith
+
+/-- **A good seed decodes well for half of the trial vectors.** Under the hypotheses of
+`sum_card_filter_dpDecode_ne_le`, at least half of the trial vectors `v` give a hypothesis
+`dpDecode C' dflt P b₀ v` that differs from `f` on at most `ε #U` inputs. The two seed hypotheses
+are discharged for a `δ / 4` fraction of seeds in the module `DirectProduct.Density`. -/
+theorem card_filter_dpDecode_err_le_ge (C' : (Fin k → U) → Fin k → V) (f : U → V) (dflt : V)
+    (P : Finset (Fin k)) (b₀ : Fin k → U) (m : ℕ) {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
+    (hε1 : ε ≤ 1) (hδ1 : δ ≤ 1) (hk : k ≤ 2 * #Pᶜ) (hw : 64 / ε * Real.log (4 / δ) ≤ #Pᶜ)
+    (hm : 16 / δ * Real.log (8 / ε) ≤ m)
+    (hS : δ / 2 * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀))
+    (hH : (#{y ∈ consistent C' P b₀ | ε / 64 * k ≤ #(disagreements C' f y)} : ℝ) ≤
+      ε / 64 * #(consistent C' P b₀)) :
+    (Fintype.card (Trial U k) ^ m : ℝ) / 2 ≤
+      #{v : Fin m → Trial U k |
+        (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * Fintype.card U} := by
+  classical
+  rcases isEmpty_or_nonempty U with hU | hU
+  · simpa [Finset.univ_eq_empty, Fintype.card_fun] using
+      half_le_self (by positivity : (0 : ℝ) ≤ Fintype.card (Trial U k) ^ m)
+  set n : ℕ := Fintype.card U
+  set N : ℕ := Fintype.card (Trial U k)
+  have hn : (0 : ℝ) < n := by exact_mod_cast Fintype.card_pos
+  set bad := ({v : Fin m → Trial U k |
+    ¬(#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n} : Finset (Fin m → Trial U k))
+  have hsum := sum_card_filter_dpDecode_ne_le C' f dflt P b₀ m hε hδ hε1 hδ1 hk hw hm hS hH
+  have hmarkov : (#bad : ℝ) * (ε * n) ≤
+      ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) := by
+    refine (card_filter_mul_le_sum univ _ _ (fun _ _ => Nat.cast_nonneg _)
+      fun _ _ hv => (not_le.1 hv).le).trans_eq ?_
+    simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+    exact sum_comm
+  have hbad : (#bad : ℝ) * 2 ≤ N ^ m :=
+    le_of_mul_le_mul_right (by linarith [hmarkov.trans hsum]) (mul_pos hε hn)
+  have hcast : ((#{v : Fin m → Trial U k |
+      (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n} : ℕ) : ℝ) + #bad = N ^ m := by
+    simpa only [card_univ, Fintype.card_fun, Fintype.card_fin, Nat.cast_add, Nat.cast_pow] using
+      congrArg (Nat.cast (R := ℝ)) (card_filter_add_card_filter_not
+        (s := (univ : Finset (Fin m → Trial U k)))
+        (p := fun v => (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n))
+  linarith
+
+end Cslib.Circuits.Boolean.DirectProduct

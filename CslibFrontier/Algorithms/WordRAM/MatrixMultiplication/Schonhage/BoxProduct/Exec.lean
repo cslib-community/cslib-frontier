@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Geometry
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Tiles
 import CslibFrontier.Computability.WordRAM.Sequence
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native routed products using one shared box geometry
@@ -88,37 +89,31 @@ theorem exec_fromSnapshot {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : 
   have genc : QueriedProduct.EncodedBands hm X Y g.mem :=
     re.reframe (fun p hp => gf p (by omega))
   have gs (j : ℕ) (hj : j < QueriedProduct.inputEnd m N qs.length) :
-      g.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j := by
-    rw [gf _ (by omega)]
-    exact rs j hj
+      g.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j :=
+    (gf _ (by omega)).trans (rs j hj)
   obtain ⟨v, hv, vp, vb, vg, _, _, va, vf⟩ :=
     exec_evaluateTiles hw hm ht X Y qs old g gp gb gi ggroups genc gg
       (fun i => (rv i).1) ro hX hY hmag hfit
   have vs (j : ℕ) (hj : j < QueriedProduct.inputEnd m N qs.length) :
-      v.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j := by
-    rw [vf _ (by omega) (by omega)]
-    exact gs j hj
+      v.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j :=
+    (vf _ (by omega) (by omega)).trans (gs j hj)
   obtain ⟨o, ho, op, oa, oframe⟩ := QueriedProduct.exec_reconstruct X Y qs old v vp vg
     (fun i => (rv i).2) va (old_fits hfit)
-  have ot : o.regs BoxProduct.Reg.threshold = t := (ho.regs_eq (by decide)).trans vb.threshold
+  have ot : o.regs BoxProduct.Reg.threshold = t := by regs_frame
   have os (j : ℕ) (hj : j < QueriedProduct.inputEnd m N qs.length) :
-      o.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j := by
-    rw [oframe _ (Or.inl (by omega))]
-    exact vs j hj
+      o.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j :=
+    (oframe _ (Or.inl (by omega))).trans (vs j hj)
   obtain ⟨y, hy, yp, ym⟩ := exec_restoreInput o op ot hfit
-  refine ⟨y, ?_, yp, (hy.regs_eq (by decide)).trans ot, ?_, ?_, ?_, ?_⟩
-  · exact (hr.seq (hg.seq (hv.seq (ho.seq hy)))).mono (by unfold snapshotTimeBound; omega)
-  · intro i
-    rw [ym, Function.update_of_ne (by omega), ArrayCopy.copyPrefix_outside (by omega)]
+  refine ⟨y, (hr.seq (hg.seq (hv.seq (ho.seq hy)))).mono (by unfold snapshotTimeBound; omega),
+    yp, by regs_frame, fun i => ?_, fun a ha => ?_, by rw [ym, Function.update_self],
+    fun a ha => ?_⟩
+  · rw [ym, Function.update_of_ne (by omega), ArrayCopy.copyPrefix_outside (by omega)]
     exact oa i
-  · intro a ha
-    rw [ym, Function.update_of_ne (by omega)]
+  · rw [ym, Function.update_of_ne (by omega)]
     have hread := ArrayCopy.copyPrefix_read (mem := o.mem)
       (src := QueriedProduct.snapshotBase L m N qs.length) (dst := 0) ha
     simpa only [Nat.zero_add] using hread.trans (os a ha)
-  · rw [ym, Function.update_self]
-  · intro a ha
-    rw [ym, Function.update_of_ne (by omega), ArrayCopy.copyPrefix_outside (by omega),
+  · rw [ym, Function.update_of_ne (by omega), ArrayCopy.copyPrefix_outside (by omega),
       oframe _ (Or.inr (by unfold QueriedProduct.scratchBase; omega)),
       vf _ (by omega) (by omega), gf _ (by omega), rf _ (Or.inr (by omega))]
 
@@ -159,14 +154,10 @@ theorem exec {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t ≤ m) (bit
         QueriedProduct.snapshotTime QueriedProduct.routingFromSnapshotTime at *
       omega)
   · intro a ha
-    by_cases hi : a < QueriedProduct.inputEnd m N qs.length
+    rcases lt_trichotomy a (QueriedProduct.inputEnd m N qs.length) with hi | rfl | hi
     · exact yi a hi
-    · by_cases heq : a = QueriedProduct.inputEnd m N qs.length
-      · subst a
-        exact ythreshold.trans hthreshold.symm
-      · rw [yf a (by omega)]
-        exact sf a (Or.inr (by
-          have := buffer_order L m t N qs.length
-          omega))
+    · exact ythreshold.trans hthreshold.symm
+    · rw [yf a (by omega)]
+      exact sf a (Or.inr (by have := buffer_order L m t N qs.length; omega))
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

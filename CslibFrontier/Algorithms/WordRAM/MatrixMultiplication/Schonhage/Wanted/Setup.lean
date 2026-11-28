@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Memory
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.BandBounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual initialization of wanted-query parameters
@@ -57,73 +58,36 @@ theorem exec_setup {w L m N Q : ℕ} (x : Data 96)
   have h5 : Fits w 5 := hf _ (by omega)
   have h4 : Fits w 4 := hf _ (by omega)
   have hq2 : Fits w (Q * 2) := hf _ (by omega)
-  have hi : Fits w (inputLimit Q) := hf _ (by unfold inputLimit; omega)
-  have ht : Fits w (tableAddress L Q) := hf _ (by
-    unfold tableAddress inputLimit; omega)
-  have hc : Fits w (countAddress L Q) := hf _ (by
-    unfold countAddress tableAddress inputLimit; omega)
   have hb : Fits w (bandSize L m) := hf _ (by omega)
-  have ht2 : Fits w (numBands L m N * numBands L m N) := hf _ (by
-    rw [← sq]; omega)
-  have ho : Fits w (offsetAddress L m N Q) := hf _ (by
-    unfold offsetAddress countAddress tableAddress inputLimit; omega)
-  have hcur0 : Fits w (offsetAddress L m N Q + numBands L m N ^ 2) := hf _ (by
-    unfold offsetAddress countAddress tableAddress inputLimit; omega)
-  have hcur : Fits w (cursorAddressBase L m N Q) := hf _ (by
-    unfold cursorAddressBase offsetAddress countAddress tableAddress inputLimit; omega)
-  have hco : Fits w (codeAddress L m N Q) := hf _ (by
-    unfold codeAddress cursorAddressBase offsetAddress countAddress tableAddress inputLimit; omega)
-  have horig : Fits w (originalAddress L m N Q) := hf _ (by
-    unfold originalAddress codeAddress cursorAddressBase offsetAddress countAddress
-      tableAddress inputLimit
-    omega)
-  have hefit : Fits w (memoryLimit L m N Q) := hf _ (by omega)
-  let y := ((((((((((((((((x.set pointer 4).set queryCount Q).set queries 5).set
-    inputEnd (Q * 2)).set inputEnd (inputLimit Q)).set BandPreparation.inverse
-    (inputLimit Q)).set BandPreparation.table (tableAddress L Q)).set counts
-    (countAddress L Q)).set bandWidth (bandSize L m)).set tileCount
-    (numBands L m N * numBands L m N)).set offsets (offsetAddress L m N Q)).set
-    cursors (offsetAddress L m N Q + numBands L m N ^ 2)).set cursors
-    (cursorAddressBase L m N Q)).set codes (codeAddress L m N Q)).set originals
-    (originalAddress L m N Q)).set memoryEnd (memoryLimit L m N Q))
-  have he : ExecWithin w setup x y 16 := by
-    simp only [bandSize] at hb
-    simp only [inputLimit] at hi
-    simp only [tableAddress, inputLimit] at ht
-    simp only [countAddress, tableAddress, inputLimit] at hc
-    simp only [offsetAddress, countAddress, tableAddress, inputLimit] at ho hcur0
-    simp only [cursorAddressBase, offsetAddress, countAddress, tableAddress, inputLimit] at hcur
-    simp only [codeAddress, cursorAddressBase, offsetAddress, countAddress, tableAddress,
-      inputLimit] at hco
-    simp only [originalAddress, codeAddress, cursorAddressBase, offsetAddress, countAddress,
-      tableAddress, inputLimit] at horig
-    simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
-      countAddress, tableAddress, inputLimit] at hefit
-    simp only [pow_two] at ho hcur0 hcur hco horig hefit
-    ram_eval [setup, y, hQ, hx.fixed.two, hx.fixed.one, hx.masks, hx.root, hx.outerSize,
-      hx.bands, h4, h5, hq2, hi, ht, hc, hb, ht2, ho, hcur0, hcur, hco, horig, hefit,
-      memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
-      countAddress, tableAddress, inputLimit, bandSize, pow_two,
-      pointer, queryCount, queries, inputEnd, counts, bandWidth, tileCount, offsets,
-      cursors, codes, originals, memoryEnd, BandPreparation.inverse, BandPreparation.table,
-      BandPreparation.root, BandPreparation.outerSize, BandPreparation.bands,
-      BandPreparation.masks, BandPreparation.two, BandPreparation.one, Fin.mk.injEq]
-  refine ⟨y, he, ?_, rfl⟩
-  constructor
-  · constructor <;> simp [y, pointer, queryCount, queries, inputEnd, counts, bandWidth,
-      tileCount, offsets, cursors, codes, originals, memoryEnd, BandPreparation.levels,
-      BandPreparation.inner, BandPreparation.masks, BandPreparation.inverse,
-      BandPreparation.table, BandPreparation.square, BandPreparation.zero,
-      BandPreparation.one, BandPreparation.two, hx.fixed.levels, hx.fixed.inner, hx.masks,
-      hx.square, hx.fixed.zero, hx.fixed.one, hx.fixed.two]
-  · constructor <;> simp [y, pointer, queryCount, queries, inputEnd, counts, bandWidth,
-      tileCount, offsets, cursors, codes, originals, memoryEnd, BandPreparation.levels,
-      BandPreparation.outerSize, BandPreparation.root, BandPreparation.bands,
-      BandPreparation.inverse, BandPreparation.table, hx.fixed.levels, hx.outerSize,
-      hx.root, hx.bands]
-  all_goals simp [y, pointer, queryCount, queries, inputEnd, counts, bandWidth,
-    tileCount, offsets, cursors, codes, originals, memoryEnd, BandPreparation.inverse,
-    BandPreparation.table, pow_two]
+  have ht2 : Fits w (numBands L m N * numBands L m N) := hf _ (by rw [← sq]; omega)
+  simp only [bandSize] at hb
+  obtain ⟨hi, ht, hc, ho, hcur0, hcur, hco, horig, hefit⟩ :
+      Fits w (inputLimit Q) ∧ Fits w (tableAddress L Q) ∧ Fits w (countAddress L Q) ∧
+      Fits w (offsetAddress L m N Q) ∧ Fits w (offsetAddress L m N Q + numBands L m N ^ 2) ∧
+      Fits w (cursorAddressBase L m N Q) ∧ Fits w (codeAddress L m N Q) ∧
+      Fits w (originalAddress L m N Q) ∧ Fits w (memoryLimit L m N Q) := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> refine hf _ ?_ <;>
+      simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
+        countAddress, tableAddress, inputLimit] <;> omega
+  simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
+    countAddress, tableAddress, inputLimit, pow_two] at hi ht hc ho hcur0 hcur hco horig hefit
+  refine WP.exists_execWithin ?_
+  unfold setup
+  wram_exec * [hQ, h4, h5, hq2, hi, ht, hc, hb, ht2, ho, hcur0, hcur, hco, horig, hefit]
+  refine ⟨?_, rfl⟩
+  refine ⟨?_, ?_, by wram_simp, by wram_simp, by wram_simp; rfl,
+    by wram_simp; simp only [offsetAddress, countAddress, tableAddress, inputLimit, pow_two],
+    by wram_simp; simp only [cursorAddressBase, offsetAddress, countAddress, tableAddress,
+      inputLimit, pow_two],
+    by wram_simp; simp only [codeAddress, cursorAddressBase, offsetAddress, countAddress,
+      tableAddress, inputLimit, pow_two],
+    by wram_simp; simp only [originalAddress, codeAddress, cursorAddressBase, offsetAddress,
+      countAddress, tableAddress, inputLimit, pow_two],
+    by wram_simp [pow_two], by wram_simp; rfl,
+    by wram_simp; simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase,
+      offsetAddress, countAddress, tableAddress, inputLimit, pow_two]⟩
+  · constructor <;> solve | wram_simp * | (wram_simp *; rfl)
+  · constructor <;> solve | wram_simp * | (wram_simp *; rfl)
 
 /-- The initialized producer of the tables used by routing, without invoking any encoders.
 The only memory changes are the two relocated mask tables after the complete query input. -/
@@ -139,8 +103,8 @@ theorem exec_tables {w L m N Q : ℕ} (hm : m ≤ L) (x : Data 96)
       (∀ a, a < inputLimit Q ∨ tableAddress L Q + 2 ^ L ≤ a → y.mem a = x.mem a) := by
   have h10 := Nat.zero_le (10 ^ L)
   have h2 := Nat.zero_le (2 ^ L)
-  have hpfit : Fits w (BandPreparation.wordBudget L m N) := hfit.of_le (by
-    unfold wordBudget; omega)
+  have hpfit : Fits w (BandPreparation.wordBudget L m N) :=
+    hfit.of_le (by unfold wordBudget; omega)
   obtain ⟨h, hh, hparams, hmem⟩ := BandPreparation.exec_header hm x hL hmemory hN hpfit
   obtain ⟨c, hc, cp, cm⟩ := BandPreparation.exec_countCode h hparams hpfit
   obtain ⟨s, hs, sp, sm⟩ := exec_setup c cp (by rw [cm, hmem]; exact hQ) hfit
@@ -151,17 +115,11 @@ theorem exec_tables {w L m N Q : ℕ} (hm : m ≤ L) (x : Data 96)
     omega
   obtain ⟨y, hy, _, _, hforward, hf⟩ := BandPreparation.exec_tables L m
     (inputLimit Q) (tableAddress L Q) s sp.tables (by rfl) htfit
-  have yp : Parameters L m N Q y := sp.reframe (by
-    intro i hi
-    apply hy.regs_eq
-    have hp : ∀ i ∈ parameterRegisters, BandPreparation.tablesCode.Preserves i := by
-      decide +kernel
-    exact hp i hi)
-  refine ⟨y, ?_, yp, hforward, ?_⟩
-  · apply (hh.seq (hc.seq (hs.seq hy))).mono
-    nlinarith only [Nat.zero_le ((6 * L + 16) * 2 ^ L)]
+  refine ⟨y, ?_, by regs_frame, hforward, ?_⟩
+  · exact (hh.seq (hc.seq (hs.seq hy))).mono
+      (by nlinarith only [Nat.zero_le ((6 * L + 16) * 2 ^ L)])
   · intro a ha
-    rw [hf a (by rcases ha with ha | ha <;> unfold tableAddress at * <;> omega)
-      (by rcases ha with ha | ha <;> unfold tableAddress at * <;> omega), sm, cm, hmem]
+    unfold tableAddress at *
+    rw [hf a (by omega) (by omega), sm, cm, hmem]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

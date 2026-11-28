@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Register Wiring and Per-Operation Native Dispatch for the Succinct Dictionary
@@ -58,7 +59,7 @@ namespace Cslib.DataStructure.Dictionary.WordRAM.Succinct
 open Cslib.WordRAM Cslib.WordRAM.ExactLog Cslib.WordRAM.Realization
 open Cslib.DataStructure Cslib.DataStructure.Memory
 open Cslib.DataStructure.WordRAM Cslib.DataStructure.WordRAM.Randomized
-open Cslib.DataStructure.HashFamily.WordRAM
+open Cslib.DataStructure.HashFamily.WordRAM Cslib.DataStructure.HashFamily.WordRAM.ReducedKWise
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Cslib.DataStructure.Dictionary.SuccinctBucket
 open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
@@ -84,9 +85,8 @@ subroutine (`0..239` for `ReducedKWise`, `240..255` for fixed control/input/outp
 noncomputable def rSuccinct : ℕ :=
   292 + scratchSuccinct
 
-theorem le_rSuccinct : 292 ≤ rSuccinct := by
-  dsimp only [rSuccinct]
-  omega
+theorem le_rSuccinct : 292 ≤ rSuccinct :=
+  Nat.le_add_right _ _
 
 /-- Canonical embedding `Fin 292 → Fin rSuccinct` for fixed control, hash, and parameter
 registers. -/
@@ -166,9 +166,7 @@ theorem val_coreReg (i : Fin 240) :
 theorem notMem_range_coreReg {r : Fin rSuccinct}
     (hr : 240 ≤ r.val) : r ∉ Set.range coreReg := by
   rintro ⟨i, rfl⟩
-  have := i.isLt
-  dsimp only [coreReg, Fin.val_castLE] at hr
-  omega
+  fin_index [coreReg]
 
 /-- Persistent base-address register `0` (`sReg 0`). -/
 noncomputable abbrev baseReg : Fin rSuccinct := sReg 0
@@ -496,28 +494,18 @@ theorem append_paramReg_ne_tmp {k m : ℕ} (srcD : Fin k → Fin rSuccinct)
     (tmp : Fin m → Fin rSuccinct)
     (htmp_out : ∀ j : Fin m, (tmp j).val < 256 ∨ 292 ≤ (tmp j).val)
     (hd : ∀ (i : Fin k) (j : Fin m), srcD i ≠ tmp j) :
-    ∀ (i : Fin (36 + k)) (j : Fin m), Fin.append paramReg srcD i ≠ tmp j := by
-  intro i j
-  refine i.addCases (fun i₀ h => ?_) (fun i₁ => ?_)
-  · have hval := congrArg Fin.val h
-    rw [Fin.append_left, val_paramReg] at hval
-    have := htmp_out j
-    omega
-  · rw [Fin.append_right]
-    exact hd i₁ j
+    ∀ (i : Fin (36 + k)) (j : Fin m), Fin.append paramReg srcD i ≠ tmp j :=
+  fun i j => i.addCases
+    (fun i₀ => by have := htmp_out j; fin_index [val_paramReg])
+    (fun i₁ => by have := hd i₁ j; fin_index)
 
 /-- Generic disjointness between `Fin.append paramReg srcD` and `frontierReg` (`240`). -/
 theorem append_paramReg_ne_frontier {k : ℕ} (srcD : Fin k → Fin rSuccinct)
     (hf : ∀ i : Fin k, (srcD i).val ≠ 240) :
-    ∀ i : Fin (36 + k), Fin.append paramReg srcD i ≠ frontierReg := by
-  intro i
-  refine i.addCases (fun i₀ h => ?_) (fun i₁ h => ?_)
-  · have hval := congrArg Fin.val h
-    rw [Fin.append_left, val_paramReg] at hval
-    change 256 + i₀.val = 240 at hval
-    omega
-  · rw [Fin.append_right] at h
-    exact hf i₁ (congrArg Fin.val h)
+    ∀ i : Fin (36 + k), Fin.append paramReg srcD i ≠ frontierReg :=
+  fun i => i.addCases
+    (fun i₀ => by fin_index [val_paramReg, frontierReg, val_sReg])
+    (fun i₁ => by have := hf i₁; fin_index [frontierReg, val_sReg])
 
 /-- Composing `x.regs` with `Fin.append paramReg srcD` yields `WordEncoding.encode (dp, d)`. -/
 theorem regs_comp_append_paramReg {D : Type} [WordEncoding D]
@@ -526,154 +514,166 @@ theorem regs_comp_append_paramReg {D : Type} [WordEncoding D]
     (hp : ∀ i : Fin 36, x.regs (paramReg i) = dp i)
     (hd : ∀ i : Fin (WordEncoding.width D), x.regs (srcD i) = WordEncoding.encode d i) :
     x.regs ∘ Fin.append paramReg srcD =
-      WordEncoding.encode (α := DictParams × D) (dp, d) := by
-  funext i
-  refine i.addCases (fun j => ?_) (fun j => ?_)
-  · change x.regs (Fin.append paramReg srcD (Fin.castAdd (WordEncoding.width D) j)) =
-      Fin.append (WordEncoding.encode dp) (WordEncoding.encode d)
-        (Fin.castAdd (WordEncoding.width D) j)
-    rw [Fin.append_left, Fin.append_left]
-    exact hp j
-  · change x.regs (Fin.append paramReg srcD (Fin.natAdd 36 j)) =
-      WordEncoding.encode (α := DictParams × D) (dp, d) (Fin.natAdd 36 j)
-    rw [Fin.append_right]
-    change x.regs (srcD j) =
-      Fin.append (WordEncoding.encode dp) (WordEncoding.encode d)
-        (Fin.natAdd (WordEncoding.width DictParams) j)
-    rw [Fin.append_right]
-    exact hd j
+      WordEncoding.encode (α := DictParams × D) (dp, d) :=
+  funext fun i => i.addCases
+    (fun j => (congrArg x.regs (Fin.append_left _ _ j)).trans
+      ((hp j).trans (Fin.append_left (WordEncoding.encode dp) (WordEncoding.encode d) j).symm))
+    (fun j => (congrArg x.regs (Fin.append_right _ _ j)).trans
+      ((hd j).trans (Fin.append_right (WordEncoding.encode dp) (WordEncoding.encode d) j).symm))
 
-theorem tmpExt_injective : Function.Injective tmpExt := by
+/-- Layout characterization for `tmp*` scratch/output register wirings: outputs occupy distinct
+registers below `256` in `outs`, and remaining indices map to `292 + j.val`. -/
+private structure TmpLayout (outs : List ℕ) {m : ℕ} (tmp : Fin m → Fin rSuccinct) : Prop where
+  /-- Output register indices are pairwise distinct. -/
+  nodup : outs.Nodup
+  /-- Output register indices sit below the `paramReg` block `[256, 292)`. -/
+  lt_256 : ∀ x ∈ outs, x < 256
+  /-- Register-index formula for `tmp j`. -/
+  val : ∀ j : Fin m,
+    (tmp j).val = if h : j.val < outs.length then outs[j.val] else 292 + j.val
+
+private theorem injective_of_tmpLayout {outs : List ℕ} {m : ℕ} {tmp : Fin m → Fin rSuccinct}
+    (ht : TmpLayout outs tmp) : Function.Injective tmp := by
   intro a b h
-  have hval := congrArg Fin.val h
-  rw [val_tmpExt, val_tmpExt] at hval
-  split_ifs at hval <;> exact Fin.ext (by omega)
+  have hv := congrArg Fin.val h
+  rw [ht.val a, ht.val b] at hv
+  split_ifs at hv with ha hb hb
+  · exact Fin.ext ((ht.nodup.getElem_inj_iff).mp hv)
+  · have := ht.lt_256 outs[a.val] (List.getElem_mem ha); omega
+  · have := ht.lt_256 outs[b.val] (List.getElem_mem hb); omega
+  · exact Fin.ext (by omega)
+
+private theorem tmp_ne_sReg_of_tmpLayout {outs : List ℕ} {m : ℕ} {tmp : Fin m → Fin rSuccinct}
+    (ht : TmpLayout outs tmp) {i : Fin 292} (hi : i.val ∉ outs) (j : Fin m) :
+    tmp j ≠ sReg i := by
+  intro h
+  have hv := congrArg Fin.val h
+  rw [ht.val j, val_sReg] at hv
+  split_ifs at hv with hj
+  · exact hi (hv ▸ List.getElem_mem hj)
+  · have := i.isLt; omega
+
+private theorem append_paramReg_ne_tmp_of_layout {outs : List ℕ} {k m : ℕ}
+    {srcD : Fin k → Fin rSuccinct} {tmp : Fin m → Fin rSuccinct}
+    (ht : TmpLayout outs tmp)
+    (hsrc : ∀ i : Fin k, (srcD i).val < 292 ∧ (srcD i).val ∉ outs) :
+    ∀ (i : Fin (36 + k)) (j : Fin m), Fin.append paramReg srcD i ≠ tmp j := by
+  refine append_paramReg_ne_tmp srcD tmp (fun j => ?_) (fun i₁ j h => ?_)
+  · rw [ht.val j]
+    split_ifs with hj
+    · exact Or.inl (ht.lt_256 _ (List.getElem_mem hj))
+    · exact Or.inr (by omega)
+  · have hv := congrArg Fin.val h
+    rw [ht.val j] at hv
+    split_ifs at hv with hj
+    · exact (hsrc i₁).2 (hv ▸ List.getElem_mem hj)
+    · have := (hsrc i₁).1; omega
+
+private theorem regs_sReg_of_frame {outs : List ℕ} {m : ℕ} {tmp : Fin m → Fin rSuccinct}
+    (ht : TmpLayout outs tmp) {x y : Data rSuccinct}
+    (hframe : ∀ i, i ≠ frontierReg → (∀ j, tmp j ≠ i) → y.regs i = x.regs i)
+    {i : Fin 292} (hfr : i ≠ 240) (hout : i.val ∉ outs) :
+    y.regs (sReg i) = x.regs (sReg i) :=
+  hframe (sReg i) (sReg_ne hfr) (tmp_ne_sReg_of_tmpLayout ht hout)
+
+private theorem tmpLayout_tmpExt : TmpLayout [1] tmpExt :=
+  ⟨by decide, by decide, fun j => by
+    rw [val_tmpExt]; rcases j with ⟨_ | _, _⟩ <;> rfl⟩
+
+private theorem tmpLayout_tmpQry : TmpLayout [252, 253] tmpQry :=
+  ⟨by decide, by decide, fun j => by
+    rw [val_tmpQry]; rcases j with ⟨_ | _ | _, _⟩ <;> rfl⟩
+
+private theorem tmpLayout_tmpIns : TmpLayout [] tmpIns :=
+  ⟨by decide, by decide, fun j => by rw [val_tmpIns]; rfl⟩
+
+private theorem tmpLayout_tmpDelPrep : TmpLayout [249, 250, 251, 1] tmpDelPrep :=
+  ⟨by decide, by decide, fun j => by
+    rw [val_tmpDelPrep]; rcases j with ⟨_ | _ | _ | _ | _, _⟩ <;> rfl⟩
+
+private theorem tmpLayout_tmpDelFin : TmpLayout [] tmpDelFin :=
+  ⟨by decide, by decide, fun j => by rw [val_tmpDelFin]; rfl⟩
+
+theorem tmpExt_injective : Function.Injective tmpExt :=
+  injective_of_tmpLayout tmpLayout_tmpExt
 
 theorem srcExt_ne_tmpExt (i : Fin (36 + 1))
     (j : Fin (1 + realizes_extractQuotGen.scratchSize + 1)) :
-    srcExt i ≠ tmpExt j := by
-  refine append_paramReg_ne_tmp srcExtD tmpExt (fun j => ?_) (fun i₁ j h => ?_) i j
-  · rw [val_tmpExt]; split_ifs <;> omega
-  · have hval := congrArg Fin.val h
-    rw [val_srcExtD, val_tmpExt] at hval
-    split_ifs at hval <;> omega
+    srcExt i ≠ tmpExt j :=
+  append_paramReg_ne_tmp_of_layout tmpLayout_tmpExt
+    (fun i₁ => by rw [val_srcExtD]; decide) i j
 
 theorem tmpExt_ne_frontier (j : Fin (1 + realizes_extractQuotGen.scratchSize + 1)) :
-    tmpExt j ≠ frontierReg := by
-  intro h
-  have hval := congrArg Fin.val h
-  rw [val_tmpExt] at hval
-  change (if j.val = 0 then 1 else 292 + j.val) = 240 at hval
-  split_ifs at hval <;> omega
+    tmpExt j ≠ frontierReg :=
+  tmp_ne_sReg_of_tmpLayout tmpLayout_tmpExt (by decide) j
 
 theorem srcExt_ne_frontier (i : Fin (36 + 1)) :
     srcExt i ≠ frontierReg :=
   append_paramReg_ne_frontier srcExtD (fun i₁ => by rw [val_srcExtD]; decide) i
 
-theorem tmpQry_injective : Function.Injective tmpQry := by
-  intro a b h
-  have hval := congrArg Fin.val h
-  rw [val_tmpQry, val_tmpQry] at hval
-  split_ifs at hval <;> exact Fin.ext (by omega)
+theorem tmpQry_injective : Function.Injective tmpQry :=
+  injective_of_tmpLayout tmpLayout_tmpQry
 
 theorem srcQry_ne_tmpQry (i : Fin (36 + 3))
     (j : Fin (2 + realizes_queryWithHashGen.scratchSize + 1)) :
-    srcQry i ≠ tmpQry j := by
-  refine append_paramReg_ne_tmp srcQryD tmpQry (fun j => ?_) (fun i₁ j h => ?_) i j
-  · rw [val_tmpQry]; split_ifs <;> omega
-  · have hval := congrArg Fin.val h
-    rw [val_srcQryD, val_tmpQry] at hval
-    split_ifs at hval <;> omega
+    srcQry i ≠ tmpQry j :=
+  append_paramReg_ne_tmp_of_layout tmpLayout_tmpQry
+    (fun i₁ => by rw [val_srcQryD]; split_ifs <;> decide) i j
 
 theorem tmpQry_ne_frontier (j : Fin (2 + realizes_queryWithHashGen.scratchSize + 1)) :
-    tmpQry j ≠ frontierReg := by
-  intro h
-  have hval := congrArg Fin.val h
-  rw [val_tmpQry] at hval
-  change (if j.val = 0 then 252 else if j.val = 1 then 253 else 292 + j.val) = 240 at hval
-  split_ifs at hval <;> omega
+    tmpQry j ≠ frontierReg :=
+  tmp_ne_sReg_of_tmpLayout tmpLayout_tmpQry (by decide) j
 
 theorem srcQry_ne_frontier (i : Fin (36 + 3)) :
     srcQry i ≠ frontierReg :=
   append_paramReg_ne_frontier srcQryD (fun i₁ => by rw [val_srcQryD]; split_ifs <;> omega) i
 
-theorem tmpIns_injective : Function.Injective tmpIns := by
-  intro a b h
-  have hval := congrArg Fin.val h
-  rw [val_tmpIns, val_tmpIns] at hval
-  exact Fin.ext (by omega)
+theorem tmpIns_injective : Function.Injective tmpIns :=
+  injective_of_tmpLayout tmpLayout_tmpIns
 
 theorem srcIns_ne_tmpIns (i : Fin (36 + 4))
     (j : Fin (0 + realizes_insertWithHashGen.scratchSize + 1)) :
-    srcIns i ≠ tmpIns j := by
-  refine append_paramReg_ne_tmp srcInsD tmpIns (fun j => ?_) (fun i₁ j h => ?_) i j
-  · rw [val_tmpIns]; omega
-  · have hval := congrArg Fin.val h
-    rw [val_srcInsD, val_tmpIns] at hval
-    split_ifs at hval <;> omega
+    srcIns i ≠ tmpIns j :=
+  append_paramReg_ne_tmp_of_layout tmpLayout_tmpIns
+    (fun i₁ => by rw [val_srcInsD]; split_ifs <;> decide) i j
 
 theorem tmpIns_ne_frontier (j : Fin (0 + realizes_insertWithHashGen.scratchSize + 1)) :
-    tmpIns j ≠ frontierReg := by
-  intro h
-  have hval := congrArg Fin.val h
-  rw [val_tmpIns] at hval
-  change 292 + j.val = 240 at hval
-  omega
+    tmpIns j ≠ frontierReg :=
+  tmp_ne_sReg_of_tmpLayout tmpLayout_tmpIns (by decide) j
 
 theorem srcIns_ne_frontier (i : Fin (36 + 4)) :
     srcIns i ≠ frontierReg :=
   append_paramReg_ne_frontier srcInsD (fun i₁ => by rw [val_srcInsD]; split_ifs <;> omega) i
 
-theorem tmpDelPrep_injective : Function.Injective tmpDelPrep := by
-  intro a b h
-  have hval := congrArg Fin.val h
-  rw [val_tmpDelPrep, val_tmpDelPrep] at hval
-  split_ifs at hval <;> exact Fin.ext (by omega)
+theorem tmpDelPrep_injective : Function.Injective tmpDelPrep :=
+  injective_of_tmpLayout tmpLayout_tmpDelPrep
 
 theorem srcDelPrep_ne_tmpDelPrep (i : Fin (36 + 3))
     (j : Fin (4 + realizes_deletePrepWithHashGen.scratchSize + 1)) :
-    srcDelPrep i ≠ tmpDelPrep j := by
-  refine append_paramReg_ne_tmp srcDelPrepD tmpDelPrep (fun j => ?_) (fun i₁ j h => ?_) i j
-  · rw [val_tmpDelPrep]; split_ifs <;> omega
-  · have hval := congrArg Fin.val h
-    rw [val_srcDelPrepD, val_tmpDelPrep] at hval
-    split_ifs at hval <;> omega
+    srcDelPrep i ≠ tmpDelPrep j :=
+  append_paramReg_ne_tmp_of_layout tmpLayout_tmpDelPrep
+    (fun i₁ => by rw [val_srcDelPrepD]; split_ifs <;> decide) i j
 
 theorem tmpDelPrep_ne_frontier (j : Fin (4 + realizes_deletePrepWithHashGen.scratchSize + 1)) :
-    tmpDelPrep j ≠ frontierReg := by
-  intro h
-  have hval := congrArg Fin.val h
-  rw [val_tmpDelPrep] at hval
-  change (if j.val = 0 then 249 else if j.val = 1 then 250 else if j.val = 2 then 251
-    else if j.val = 3 then 1 else 292 + j.val) = 240 at hval
-  split_ifs at hval <;> omega
+    tmpDelPrep j ≠ frontierReg :=
+  tmp_ne_sReg_of_tmpLayout tmpLayout_tmpDelPrep (by decide) j
 
 theorem srcDelPrep_ne_frontier (i : Fin (36 + 3)) :
     srcDelPrep i ≠ frontierReg :=
   append_paramReg_ne_frontier srcDelPrepD (fun i₁ => by rw [val_srcDelPrepD]; split_ifs <;> omega) i
 
-theorem tmpDelFin_injective : Function.Injective tmpDelFin := by
-  intro a b h
-  have hval := congrArg Fin.val h
-  rw [val_tmpDelFin, val_tmpDelFin] at hval
-  exact Fin.ext (by omega)
+theorem tmpDelFin_injective : Function.Injective tmpDelFin :=
+  injective_of_tmpLayout tmpLayout_tmpDelFin
 
 theorem srcDelFin_ne_tmpDelFin (i : Fin (36 + 7))
     (j : Fin (0 + realizes_deleteFinishWithHashGen.scratchSize + 1)) :
-    srcDelFin i ≠ tmpDelFin j := by
-  refine append_paramReg_ne_tmp srcDelFinD tmpDelFin (fun j => ?_) (fun i₁ j h => ?_) i j
-  · rw [val_tmpDelFin]; omega
-  · have hval := congrArg Fin.val h
-    rw [val_srcDelFinD, val_tmpDelFin] at hval
-    split_ifs at hval <;> omega
+    srcDelFin i ≠ tmpDelFin j :=
+  append_paramReg_ne_tmp_of_layout tmpLayout_tmpDelFin
+    (fun i₁ => by rw [val_srcDelFinD]; split_ifs <;> decide) i j
 
 theorem tmpDelFin_ne_frontier (j : Fin (0 + realizes_deleteFinishWithHashGen.scratchSize + 1)) :
-    tmpDelFin j ≠ frontierReg := by
-  intro h
-  have hval := congrArg Fin.val h
-  rw [val_tmpDelFin] at hval
-  change 292 + j.val = 240 at hval
-  omega
+    tmpDelFin j ≠ frontierReg :=
+  tmp_ne_sReg_of_tmpLayout tmpLayout_tmpDelFin (by decide) j
 
 theorem srcDelFin_ne_frontier (i : Fin (36 + 7)) :
     srcDelFin i ≠ frontierReg :=
@@ -763,53 +763,6 @@ theorem decode_query_optionWords {U : ℕ} (u : Fin U) (res : Option ℕ)
 
 /-! ## Section 5: Memory footprint congruence lemmas for `TableRep`, `SeedRep`, `DictStateInv` -/
 
-theorem tableRep_congr {base w w₀ b b' k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
-    (heq : ∀ a, base ≤ a → a < base + ReducedKWise.space w w₀ b b' k → mem₁ a = mem₂ a)
-    (htab : ReducedKWise.TableRep base w w₀ b b' k mem₁) :
-    ReducedKWise.TableRep base w w₀ b b' k mem₂ := by
-  rcases htab with ⟨hword, hentry⟩
-  refine ⟨fun wIdx hwIdx => ?_, fun idx hidx => ?_⟩
-  · rw [← heq (ReducedKWise.tabBase base w₀ b b' k + wIdx)
-      (by dsimp only [ReducedKWise.tabBase]; omega)
-      (by dsimp only [ReducedKWise.tabBase, ReducedKWise.space]; omega)]
-    exact hword wIdx hwIdx
-  · have hsh : idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w <
-        ReducedKWise.tableWords w w₀ b b' :=
-      shiftRight_lt_reducedTableWords hidx
-    rw [← heq
-      (ReducedKWise.tabBase base w₀ b b' k +
-        idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w)
-      (by dsimp only [ReducedKWise.tabBase]; rw [Nat.add_assoc]; exact Nat.le_add_right base _)
-      (by dsimp only [ReducedKWise.tabBase, ReducedKWise.space]; omega)]
-    exact hentry idx hidx
-
-theorem seedRep_congr {base w w₀ b b' k : ℕ} {θ : ReducedPolySeed w₀ b b' k}
-    {mem₁ mem₂ : ℕ → ℕ}
-    (heq : ∀ a, base ≤ a → a < base + ReducedKWise.space w w₀ b b' k → mem₁ a = mem₂ a)
-    (hseed : ReducedKWise.SeedRep base w₀ b b' k θ mem₁) :
-    ReducedKWise.SeedRep base w₀ b b' k θ mem₂ := by
-  rcases hseed with ⟨h0, hlimb⟩
-  have hs_pos : 0 < ReducedKWise.seedWords w₀ b b' k := ReducedKWise.seedWords_pos w₀ b b' k
-  refine ⟨?_, fun j m => ?_⟩
-  · rw [← heq base (le_refl base) (by dsimp only [ReducedKWise.space]; omega)]
-    exact h0
-  · have hidx : m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val <
-        k * reducedLimbCount (reducedTrinomialStep w₀ b b') := by
-      calc m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val
-          < reducedLimbCount (reducedTrinomialStep w₀ b b') +
-              reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val :=
-            Nat.add_lt_add_right m.isLt _
-        _ = (j.val + 1) * reducedLimbCount (reducedTrinomialStep w₀ b b') := by ring
-        _ ≤ k * reducedLimbCount (reducedTrinomialStep w₀ b b') :=
-            Nat.mul_le_mul_right _ j.isLt
-    have hlt_sp : base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val) <
-        base + ReducedKWise.space w w₀ b b' k := by
-      dsimp only [ReducedKWise.space, ReducedKWise.seedWords]
-      omega
-    rw [← heq (base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val))
-      (by omega) hlt_sp]
-    exact hlimb j m
-
 theorem bucketStateInv_congr {U V w n_max h_space base : ℕ} (hw : 0 < w)
     {mOf : ℕ → ℕ} {L : ℕ → ℕ → List ℕ} {B : ℕ → ℕ → Option ℕ} {s₁ s₂ : Memory.State}
     (heq : ∀ a, base + h_space ≤ a → a < base + totalSpace U V w n_max h_space →
@@ -818,11 +771,9 @@ theorem bucketStateInv_congr {U V w n_max h_space base : ℕ} (hw : 0 < w)
     BucketStateInv U V w n_max h_space base mOf L B s₂ := by
   obtain ⟨hq, hv, hlm, hgm⟩ := arrays_congr_of_eq_on hw heq
   rcases hinv with ⟨hslot, hchains, hcm, hnodup, hsome, hdom⟩
-  refine ⟨hgm ▸ hslot, hlm ▸ hchains, ?_, ?_, ?_, ?_⟩
-  · simpa only [← hgm, ← hq] using hcm
-  · simpa only [← hgm, ← hq] using hnodup
-  · simpa only [← hgm, ← hq, ← hv] using hsome
-  · simpa only [← hgm, ← hq] using hdom
+  exact ⟨hgm ▸ hslot, hlm ▸ hchains, by simpa only [← hgm, ← hq] using hcm,
+    by simpa only [← hgm, ← hq] using hnodup, by simpa only [← hgm, ← hq, ← hv] using hsome,
+    by simpa only [← hgm, ← hq] using hdom⟩
 
 theorem dictStateInv_congr {U V w n_max base : ℕ} (hw : 0 < w)
     {θ : QuotHashSeed U n_max} {s_abs : Dictionary.State U} {s₁ s₂ : Memory.State}
@@ -840,11 +791,19 @@ theorem modifies_footprint_of_table {U V w n_max base : ℕ} {mem₁ mem₂ : �
     Modifies (Block.mk base (space U V w n_max)).footprint mem₁ mem₂ := by
   intro a ha
   rw [Block.mem_footprint, Block.Owns] at ha
-  dsimp only at ha
-  dsimp only [offQuot] at hout
-  exact hout a (fun ⟨h1, h2⟩ => ha ⟨by omega, h2⟩)
+  dsimp only [offQuot] at ha hout
+  exact hout a fun ⟨h1, h2⟩ => ha ⟨by omega, h2⟩
 
 /-! ## Section 6: `loadParamsCode` and common prefix execution helpers -/
+
+/-- Package well-formed layout parameters and their memory envelope for generic subroutines. -/
+private theorem dictEnvGen_mk {U V w n_max h_space base : ℕ}
+    (hwf : DictParamsWf U V w n_max)
+    (hfit : Fits w (base + totalSpace U V w n_max h_space)) :
+    DictEnvGen w (mkDictParams U V w n_max h_space) base := by
+  refine ⟨⟨U, V, w, n_max, h_space, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, ?_⟩
+  simpa only [p_U_mk, p_V_mk, p_w_mk, p_nMax_mk, p_hSpace_mk] using
+    (show DictEnv U V w n_max h_space w base from ⟨rfl, hfit⟩)
 
 /-- Every entry of `mkDictParams U V w n_max (hashSpace U w n_max)` fits in a `w`-bit word under
 `DictParamsWf U V w n_max`, `Fits w V`, and `Fits w (base + space U V w n_max)`. -/
@@ -857,117 +816,72 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
   rcases hwf with ⟨hw, hnU, hU, hV⟩
   let h_space := hashSpace U w n_max
   have henv : DictEnvGen w (mkDictParams U V w n_max h_space) base :=
-    ⟨⟨U, V, w, n_max, h_space, hw, hnU, hU, hV, rfl⟩, rfl, hfit⟩
+    dictEnvGen_mk ⟨hw, hnU, hU, hV⟩ hfit
   have hspace : Fits w (totalSpace U V w n_max h_space) := hfit.of_le (Nat.le_add_left _ _)
   have hw_fit : Fits w w := Nat.lt_two_pow_self
   have hmax_fit : Fits w (max n_max 1) := max_n_one_lt_two_pow_w hw hnU hU
   have hb_mask := fits_bucketBits_and_mask henv hw hnU hU
   have hslab_fit : Fits w (slabSize n_max) := hmax_fit.of_le (slabSize_le_max_n_one n_max)
-  have h2slab_fit : Fits w (2 * slabSize n_max) := by
-    rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
-    · have h1 : slabSize n_max = 1 := by simp [slabSize, slabBits, hb0]
-      rw [h1]
-      exact fits_const_of_dictEnv henv (by decide)
-    · have hcube := numBuckets_mul_slabScale_cubed_le hb_pos
-      have hK := (slabSize_eq_sq_of_pos hb_pos).1
-      have hB := numBuckets_pos n_max
-      have hS := two_le_slabScale n_max
-      have hle : 2 * slabSize n_max ≤ numBuckets n_max * (slabScale n_max) ^ 3 := by
-        rw [hK]
-        calc 2 * (slabScale n_max) ^ 2 = 1 * ((slabScale n_max) ^ 2 * 2) := by ring
-          _ ≤ numBuckets n_max * ((slabScale n_max) ^ 2 * slabScale n_max) :=
-            Nat.mul_le_mul hB (Nat.mul_le_mul_left _ hS)
-          _ = numBuckets n_max * (slabScale n_max) ^ 3 := by ring
-      exact hmax_fit.of_le (by omega)
-  have hdir_fit : Fits w (dirSlabsPerBucket n_max) := by
-    rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
-    · simp only [dirSlabsPerBucket, hb0, ↓reduceIte]
-      exact fits_const_of_dictEnv henv (by decide)
-    · exact fits_of_le_globalMetaLen henv hb_pos hw hnU hU
-        (dirSlabsPerBucket_le_globalMetaLen hb_pos)
-  have htail_fit : Fits w (tailCapPerBucket n_max) := by
-    rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
-    · simp only [tailCapPerBucket, hb0, ↓reduceIte]
-      exact fits_const_of_dictEnv henv (by decide)
-    · exact fits_of_le_globalMetaLen henv hb_pos hw hnU hU
-        (tailCapPerBucket_le_globalMetaLen hb_pos)
-  have hgm_fit : Fits w (gmSlabDirBase n_max) ∧ Fits w (gmTailPtrBase n_max) ∧
-      Fits w (gmTailOwnerBase n_max) ∧ Fits w (gmSlabMetaBase n_max) := by
+  obtain ⟨h2s, hdir, htail, hgd, hgp, hgo, hgm⟩ :
+      Fits w (2 * slabSize n_max) ∧ Fits w (dirSlabsPerBucket n_max) ∧
+      Fits w (tailCapPerBucket n_max) ∧ Fits w (gmSlabDirBase n_max) ∧
+      Fits w (gmTailPtrBase n_max) ∧ Fits w (gmTailOwnerBase n_max) ∧
+      Fits w (gmSlabMetaBase n_max) := by
     rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
     · have h7 : Fits w 7 := fits_const_of_dictEnv henv (by decide)
-      simp only [gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase, gmSlabDirBase, maxTailItems,
-        tailCapPerBucket, dirSlabsPerBucket, numBuckets, hb0, ↓reduceIte, Nat.pow_zero,
-        Nat.mul_one, Nat.mul_zero, Nat.add_zero]
-      exact ⟨h7, h7, h7, h7⟩
-    · have hlen := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
-      have hd_le : gmSlabDirBase n_max ≤ globalMetaLen n_max := by
-        unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase at hlen; omega
-      have hp_le : gmTailPtrBase n_max ≤ globalMetaLen n_max := by
-        unfold gmSlabMetaBase gmTailOwnerBase at hlen; omega
-      have ho_le : gmTailOwnerBase n_max ≤ globalMetaLen n_max := by
-        unfold gmSlabMetaBase at hlen; omega
-      have hm_le : gmSlabMetaBase n_max ≤ globalMetaLen n_max := by omega
-      exact ⟨fits_of_le_globalMetaLen henv hb_pos hw hnU hU hd_le,
-        fits_of_le_globalMetaLen henv hb_pos hw hnU hU hp_le,
-        fits_of_le_globalMetaLen henv hb_pos hw hnU hU ho_le,
-        fits_of_le_globalMetaLen henv hb_pos hw hnU hU hm_le⟩
-  have hmicro_fit : Fits w (numMicroPerBucket n_max) := by
-    have h1 : numMicroPerBucket n_max ≤ totalMicroBuckets n_max := by
-      rw [totalMicroBuckets_eq_mul]
-      exact Nat.le_mul_of_pos_left _ (numBuckets_pos n_max)
-    exact hmax_fit.of_le (h1.trans (totalMicroBuckets_le n_max))
+      have h1 : slabSize n_max = 1 := by simp only [slabSize, slabBits, hb0, ↓reduceIte, pow_zero]
+      simp only [h1, mul_one, gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase, gmSlabDirBase,
+        maxTailItems, tailCapPerBucket, dirSlabsPerBucket, numBuckets, hb0, ↓reduceIte,
+        Nat.pow_zero, Nat.mul_zero, Nat.add_zero]
+      exact ⟨fits_const_of_dictEnv henv (by decide), fits_zero w, fits_zero w, h7, h7, h7, h7⟩
+    · have hgm {x : ℕ} (hx : x ≤ globalMetaLen n_max) : Fits w x :=
+        fits_of_le_globalMetaLen henv hb_pos hw hnU hU hx
+      have h2slab : 2 * slabSize n_max ≤ numBuckets n_max * (slabScale n_max) ^ 3 := by
+        rw [(slabSize_eq_sq_of_pos hb_pos).1]
+        have := Nat.mul_le_mul (numBuckets_pos n_max)
+          (Nat.mul_le_mul_left ((slabScale n_max) ^ 2) (two_le_slabScale n_max))
+        linarith
+      have hlen := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
+      unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase at hlen
+      refine ⟨hmax_fit.of_le ((h2slab.trans (numBuckets_mul_slabScale_cubed_le hb_pos)).trans
+          (le_max_left _ _)),
+        hgm (dirSlabsPerBucket_le_globalMetaLen hb_pos),
+        hgm (tailCapPerBucket_le_globalMetaLen hb_pos),
+        hgm (by omega),
+        hgm (by simp only [gmTailPtrBase]; omega),
+        hgm (by simp only [gmTailOwnerBase, gmTailPtrBase]; omega),
+        hgm (by simp only [gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase]; omega)⟩
+  have hmicro_fit : Fits w (numMicroPerBucket n_max) :=
+    hmax_fit.of_le ((totalMicroBuckets_eq_mul n_max ▸
+      Nat.le_mul_of_pos_left _ (numBuckets_pos n_max)).trans (totalMicroBuckets_le n_max))
   have hU_fit : Fits w U := hU
-  have hn_sub_fit : Fits w (n_max - 1) := hU_fit.of_le (by omega)
-  have hoffQ_fit : Fits w (offQuot h_space) :=
+  have hoffQ : Fits w (offQuot h_space) :=
     hspace.of_le (by unfold totalSpace offGM offLM offVal offQuot; omega)
-  have hoffV_fit : Fits w (offVal U w n_max h_space) :=
+  have hoffV : Fits w (offVal U w n_max h_space) :=
     hspace.of_le (by unfold totalSpace offGM offLM offVal; omega)
-  have hoffLM_fit : ∀ c ≤ 9, Fits w (offLMSub U V w n_max h_space c) := fun c hc => by
-    have hmul : c * lmSubWords n_max w ≤ 9 * lmSubWords n_max w := Nat.mul_le_mul_right _ hc
-    exact hspace.of_le (by unfold totalSpace offGM offLMSub offLM; omega)
-  have hoffGM_fit : Fits w (offGM U V w n_max h_space) :=
+  have hoffGM : Fits w (offGM U V w n_max h_space) :=
     hspace.of_le (by unfold totalSpace; omega)
-  have hhs_fit : Fits w h_space :=
-    hspace.of_le (by unfold totalSpace offGM offLM offVal offQuot; omega)
+  have hoffLM (c : ℕ) (hc : c ≤ 8) : Fits w (offLMSub U V w n_max h_space c) :=
+    hspace.of_le (by
+      have := Nat.mul_le_mul_right (lmSubWords n_max w) hc
+      unfold totalSpace offGM offLMSub offLM
+      omega)
   rcases i with ⟨_ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ |
     _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | k, hi⟩
-  · exact hw_fit
-  · exact hU_fit.of_le hnU
-  · exact hn_sub_fit
-  · exact hoffQ_fit
-  · exact hw_fit.of_le (quotientBits_le_of_le_pow (le_of_lt hU))
-  · exact hoffV_fit
-  · exact hw_fit.of_le (Nat.clog_le_of_le_pow hV)
-  · exact hoffLM_fit 0 (by decide)
-  · exact hoffLM_fit 1 (by decide)
-  · exact hoffLM_fit 2 (by decide)
-  · exact hoffLM_fit 3 (by decide)
-  · exact hoffLM_fit 4 (by decide)
-  · exact hoffLM_fit 5 (by decide)
-  · exact hoffLM_fit 6 (by decide)
-  · exact hoffLM_fit 7 (by decide)
-  · exact hoffLM_fit 8 (by decide)
-  · exact hw_fit.of_le (effBucketPosBits_le_of_lt_pow hnU hU)
-  · exact hoffGM_fit
-  · exact hw_fit.of_le (globalPtrBits_le_of_lt_pow hnU hU)
-  · exact hb_mask.1
-  · exact hb_mask.2
-  · exact hslab_fit
-  · exact hslab_fit.of_le (Nat.sub_le _ _)
-  · exact h2slab_fit
-  · exact hdir_fit
-  · exact hdir_fit.of_le (Nat.sub_le _ _)
-  · exact htail_fit
-  · exact hgm_fit.1
-  · exact hgm_fit.2.1
-  · exact hgm_fit.2.2.1
-  · exact hgm_fit.2.2.2
-  · exact hmicro_fit
-  · exact hU_fit.of_le ((Nat.min_le_left _ _).trans hnU)
-  · exact hU_fit
-  · exact hV_fit
-  · exact hhs_fit
-  · omega
+  exacts [hw_fit, hU_fit.of_le hnU, hU_fit.of_le (show n_max - 1 ≤ U by omega), hoffQ,
+    hw_fit.of_le (quotientBits_le_of_le_pow (le_of_lt hU)), hoffV,
+    hw_fit.of_le (Nat.clog_le_of_le_pow hV), hoffLM 0 (by decide), hoffLM 1 (by decide),
+    hoffLM 2 (by decide), hoffLM 3 (by decide), hoffLM 4 (by decide), hoffLM 5 (by decide),
+    hoffLM 6 (by decide), hoffLM 7 (by decide), hoffLM 8 (by decide),
+    hw_fit.of_le (effBucketPosBits_le_of_lt_pow hnU hU), hoffGM,
+    hw_fit.of_le (globalPtrBits_le_of_lt_pow hnU hU), hb_mask.1, hb_mask.2, hslab_fit,
+    hslab_fit.of_le (Nat.sub_le _ _), h2s, hdir, hdir.of_le (Nat.sub_le _ _), htail, hgd, hgp,
+    hgo, hgm, hmicro_fit, hU_fit.of_le ((Nat.min_le_left _ _).trans hnU), hU_fit, hV_fit, hoffQ,
+    by omega]
+
+/-- Any register below `256` is disjoint from the `paramReg` block `[256, 292)`. -/
+private theorem ne_paramReg_of_lt {r : Fin rSuccinct} (hr : r.val < 256) (j : Fin 36) :
+    r ≠ paramReg j := by fin_index [val_paramReg]
 
 private theorem exec_loadParamsUpTo {w : ℕ} {dp : DictParams}
     (hfits : ∀ i : Fin 36, Fits w (dp i))
@@ -980,48 +894,24 @@ private theorem exec_loadParamsUpTo {w : ℕ} {dp : DictParams}
       (∀ r : Fin rSuccinct, r.val < 256 → y.regs r = x.regs r) := by
   induction k with
   | zero =>
-    let y := x.set (paramReg ⟨0, hk⟩) (dp ⟨0, hk⟩)
-    have hex : ExecWithin (B := .exact) w (.op (.const (paramReg ⟨0, hk⟩) (dp ⟨0, hk⟩))) x y 1 :=
+    have hex : ExecWithin (B := .exact) w (.op (.const (paramReg ⟨0, hk⟩) (dp ⟨0, hk⟩)))
+        x (x.set (paramReg ⟨0, hk⟩) (dp ⟨0, hk⟩)) 1 :=
       ExecWithin.const (hfits ⟨0, hk⟩)
-    refine ⟨y, hex, hex.bounded hx_bdd, rfl, fun j hj => ?_, fun r hr => ?_⟩
-    · have hj0 : j = ⟨0, hk⟩ := Fin.ext (by dsimp; omega)
-      subst hj0
-      simp [y, Data.set_regs]
-    · have hne : r ≠ paramReg ⟨0, hk⟩ := by
-        intro heq
-        have := congrArg Fin.val heq
-        rw [val_paramReg] at this
-        dsimp at this
-        omega
-      rw [Data.set_regs, Function.update_of_ne hne]
+    refine ⟨_, hex, hex.bounded hx_bdd, rfl, fun j hj => ?_, fun r hr => ?_⟩
+    · obtain rfl : j = ⟨0, hk⟩ := by fin_index
+      rw [Data.set_regs, Function.update_self]
+    · rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hr _)]
   | succ k ih =>
     obtain ⟨y₀, hex₀, hy₀_bdd, hmem₀, hparam₀, hlow₀⟩ := ih (by omega)
-    let y := y₀.set (paramReg ⟨k + 1, hk⟩) (dp ⟨k + 1, hk⟩)
-    have hex₁ : ExecWithin (B := .exact) w
-        (.op (.const (paramReg ⟨k + 1, hk⟩) (dp ⟨k + 1, hk⟩))) y₀ y 1 :=
+    have hex₁ : ExecWithin (B := .exact) w (.op (.const (paramReg ⟨k + 1, hk⟩) (dp ⟨k + 1, hk⟩)))
+        y₀ (y₀.set (paramReg ⟨k + 1, hk⟩) (dp ⟨k + 1, hk⟩)) 1 :=
       ExecWithin.const (hfits ⟨k + 1, hk⟩)
-    have hex : ExecWithin w (loadParamsUpTo dp (k + 1) hk) x y ((k + 1) + 1) :=
-      hex₀.seq hex₁
-    refine ⟨y, hex, hex₁.bounded hy₀_bdd, hmem₀, fun j hj => ?_, fun r hr => ?_⟩
-    · by_cases hjk : j.val = k + 1
-      · have hjeq : j = ⟨k + 1, hk⟩ := Fin.ext hjk
-        subst hjeq
-        simp [y, Data.set_regs]
-      · have hne : paramReg j ≠ paramReg ⟨k + 1, hk⟩ := by
-          intro heq
-          have := congrArg Fin.val heq
-          rw [val_paramReg, val_paramReg] at this
-          dsimp at this
-          omega
-        rw [Data.set_regs, Function.update_of_ne hne]
-        exact hparam₀ j (by omega)
-    · have hne : r ≠ paramReg ⟨k + 1, hk⟩ := by
-        intro heq
-        have := congrArg Fin.val heq
-        rw [val_paramReg] at this
-        dsimp at this
-        omega
-      rw [Data.set_regs, Function.update_of_ne hne]
+    refine ⟨_, hex₀.seq hex₁, hex₁.bounded hy₀_bdd, hmem₀, fun j hj => ?_, fun r hr => ?_⟩
+    · obtain rfl | hne := eq_or_ne j ⟨k + 1, hk⟩
+      · rw [Data.set_regs, Function.update_self]
+      · rw [Data.set_regs, Function.update_of_ne (by fin_index [val_paramReg])]
+        exact hparam₀ j (by fin_index)
+    · rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hr _)]
       exact hlow₀ r hr
 
 private theorem exec_loadParamsCode {U V w n_max base : ℕ}
@@ -1055,49 +945,26 @@ private theorem exec_extCode {U V w n_max base : ℕ}
       ∀ i : Fin 292, i ≠ 1 →
         x₁.regs (sReg i) = x.regs (sReg i) := by
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
-  have hspec := (realizes_extractQuotGen.code_spec
-    frontierReg srcExt tmpExt
-    tmpExt_injective srcExt_ne_tmpExt
-    tmpExt_ne_frontier srcExt_ne_frontier).2
   have hin : x.regs ∘ srcExt = WordEncoding.encode (α := DictParams × ℕ) (dp, u.val) :=
     regs_comp_append_paramReg u.val srcExtD hparam (fun i => by fin_cases i; exact hu_reg)
   have hsafe : ExtractQuotGenPre w (dp, u.val) (memoryState frontierReg x) :=
-    ⟨u.isLt.trans hwf.2.2.1,
-      (fits_bucketBits_and_mask henv hwf.1 hwf.2.1 hwf.2.2.1).1⟩
-  obtain ⟨x₁, hex, hm, hout, hframe⟩ := hspec w (dp, u.val) x hx_bdd hin hsafe trivial
-  have hmem : x₁.mem = x.mem := congrArg Memory.State.mem hm
+    ⟨u.isLt.trans hwf.2.2.1, (fits_bucketBits_and_mask henv hwf.1 hwf.2.1 hwf.2.2.1).1⟩
+  obtain ⟨x₁, hex, hm, hout, hframe⟩ :=
+    (realizes_extractQuotGen.code_spec frontierReg srcExt tmpExt
+      tmpExt_injective srcExt_ne_tmpExt tmpExt_ne_frontier srcExt_ne_frontier).2
+      w (dp, u.val) x hx_bdd hin hsafe trivial
   have hfr₁ : x₁.regs frontierReg = base + space U V w n_max :=
     (congrArg Memory.State.frontier hm).trans hfr
-  have hout0 := hout 0
-  have htmp0 : tmpExt (Fin.castAdd (realizes_extractQuotGen.scratchSize + 1) 0) =
-      hashKeyReg := rfl
-  rw [htmp0] at hout0
-  have hres : WordEncoding.encode (α := ℕ)
-      ((Memory.spec w).clientResult (memoryState frontierReg x)
-        (extractQuotGenProg (dp, u.val))) 0 = (quotientFin U n_max u).val := by
-    rw [clientResult_width]
-    change u.val >>> bucketBits n_max = (quotientFin U n_max u).val
+  have hkey₁ : x₁.regs hashKeyReg = (quotientFin U n_max u).val := by
+    have h0 := hout 0
+    rw [clientResult_width] at h0
+    refine h0.trans (show u.val >>> bucketBits n_max = _ from ?_)
     rw [quotientFin_val_eq hwf.2.1 u, keyQuotient, Nat.shiftRight_eq_div_pow]
-  rw [hres] at hout0
-  refine ⟨x₁, hex, hmem, hfr₁, hout0, fun i hi1 => ?_⟩
-  by_cases hif : i = 240
-  · subst hif; exact hfr₁.trans hfr.symm
-  · refine hframe (sReg i) (sReg_ne hif) (fun j => ?_)
-    intro hj
-    have hval := congrArg Fin.val hj
-    rw [val_tmpExt, val_sReg] at hval
-    have hi_lt := i.isLt
-    have hi1_val : i.val ≠ 1 := fun h => hi1 (Fin.ext h)
-    split_ifs at hval <;> omega
-
-private theorem hValOfSeed_eq_val_reducedPolyHash (U n_max : ℕ) (θ : QuotHashSeed U n_max)
-    (q : Fin (2 ^ quotientBits U n_max)) :
-    hValOfSeed U n_max θ q.val =
-      (reducedPolyHash (2 ^ quotientBits U n_max) (qBits U n_max) (hashB n_max)
-        (totalMicroBits n_max) 3 θ q).val := by
-  unfold hValOfSeed evalQuotHash
-  congr 2
-  exact Fin.ext (Nat.mod_eq_of_lt q.isLt)
+  refine ⟨x₁, hex, congrArg Memory.State.mem hm, hfr₁, hkey₁, fun i hi1 => ?_⟩
+  obtain rfl | hif := eq_or_ne i 240
+  · exact hfr₁.trans hfr.symm
+  · exact regs_sReg_of_frame tmpLayout_tmpExt hframe hif
+      (fun h => hi1 (Fin.ext (List.mem_singleton.mp h)))
 
 private theorem exec_hashEvalCode {U V w n_max base : ℕ}
     (hwf : DictParamsWf U V w n_max)
@@ -1118,44 +985,68 @@ private theorem exec_hashEvalCode {U V w n_max base : ℕ}
       y.regs hashOutReg = hValOfSeed U n_max θ q.val ∧
       ∀ i : Fin 292, 240 ≤ i.val →
         y.regs (sReg i) = x.regs (sReg i) := by
-  have hfit_hash : Fits w (base + hashSpace U w n_max) := by
-    refine hfit.of_le ?_
-    unfold space totalSpace offGM offLM offVal offQuot
-    omega
-  have hc_lt := two_mul_reducedChunkBits_hash_lt hwf.2.1 (le_of_lt hwf.2.2.1) hfit
-  obtain ⟨y_core, hex_core, hymem, hy0, hy2⟩ :=
-    ReducedKWise.evalCode_execWithin
-      (qBits_pos U n_max)
-      (qBits_le_of_le_pow hwf.1 (le_of_lt hwf.2.2.1))
-      (two_pow_quotientBits_le_two_pow_qBits U n_max)
-      (totalMicroBits_le_of_le_pow hwf.2.1 (le_of_lt hwf.2.2.1))
-      hc_lt hfit_hash θ q (x.comap coreReg)
-      hbase hkey htab hseed
-  let y := y_core.extend coreReg x
-  have hex_ren : ExecWithin w (hashEvalCode U w n_max) x y
-      (ReducedKWise.evalSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3) :=
-    hex_core.rename coreReg_injective
-  have hy_base : y.regs baseReg = base := by
-    change (y.comap coreReg).regs 0 = base
-    rw [Data.comap_extend coreReg_injective]
-    exact hy0
-  have hy_out : y.regs hashOutReg = hValOfSeed U n_max θ q.val := by
-    change (y.comap coreReg).regs 2 = hValOfSeed U n_max θ q.val
+  have hfit_hash : Fits w (base + hashSpace U w n_max) :=
+    hfit.of_le (by unfold space totalSpace offGM offLM offVal offQuot; omega)
+  obtain ⟨y_core, hex_core, hymem, hy0, hy2⟩ := ReducedKWise.evalCode_execWithin
+    (qBits_pos U n_max) (qBits_le_of_le_pow hwf.1 (le_of_lt hwf.2.2.1))
+    (two_pow_quotientBits_le_two_pow_qBits U n_max)
+    (totalMicroBits_le_of_le_pow hwf.2.1 (le_of_lt hwf.2.2.1))
+    (two_mul_reducedChunkBits_hash_lt hwf.2.1 (le_of_lt hwf.2.2.1) hfit)
+    hfit_hash θ q (x.comap coreReg) hbase hkey htab hseed
+  refine ⟨y_core.extend coreReg x, hex_core.rename coreReg_injective, hymem, ?_, ?_,
+    fun i hi => Data.extend_regs_of_notMem _ _ (notMem_range_coreReg (r := sReg i) hi)⟩
+  · change ((y_core.extend coreReg x).comap coreReg).regs 0 = base
+    rwa [Data.comap_extend coreReg_injective]
+  · change ((y_core.extend coreReg x).comap coreReg).regs 2 = hValOfSeed U n_max θ q.val
     rw [Data.comap_extend coreReg_injective, hy2]
-    exact (hValOfSeed_eq_val_reducedPolyHash U n_max θ q).symm
-  refine ⟨y, hex_ren, hymem, hy_base, hy_out, fun i hi => ?_⟩
-  exact Data.extend_regs_of_notMem _ _ (notMem_range_coreReg (r := sReg i) hi)
+    unfold hValOfSeed evalQuotHash
+    congr 2; exact (Fin.ext (Nat.mod_eq_of_lt q.isLt)).symm
+
+/-- Live machine state invariant maintained along the `opCode` dispatch prefix (`loadParams`,
+`extCode`, `hashEvalCode`, scratch constant loads, and saving `h_q`). -/
+private structure OpState (U V w n_max base : ℕ) (θ : QuotHashSeed U n_max)
+    (u : Fin U) (x x' : Data rSuccinct) : Prop where
+  bdd : x'.Bounded w
+  mem : x'.mem = x.mem
+  frontier : x'.regs frontierReg = base + space U V w n_max
+  base_reg : x'.regs baseReg = base
+  tag : x'.regs tagReg = x.regs tagReg
+  argU : x'.regs argUReg = u.val
+  argV : x'.regs argVReg = x.regs argVReg
+  hashOut : x'.regs hashOutReg = hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val)
+  params : ∀ j : Fin 36,
+    x'.regs (paramReg j) = mkDictParams U V w n_max (hashSpace U w n_max) j
+
+private theorem OpState.memoryState_eq {U V w n_max base : ℕ} {θ : QuotHashSeed U n_max}
+    {u : Fin U} {x x' : Data rSuccinct} (hs : OpState U V w n_max base θ u x x')
+    (hfr : x.regs frontierReg = base + space U V w n_max) :
+    memoryState frontierReg x' = memoryState frontierReg x :=
+  Memory.State.ext hs.mem (hs.frontier.trans hfr.symm)
+
+private theorem OpState.set_sReg {U V w n_max base : ℕ} {θ : QuotHashSeed U n_max}
+    {u : Fin U} {x x' : Data rSuccinct} (hs : OpState U V w n_max base θ u x x')
+    {k : Fin 292} {v : ℕ} (hbdd : (x'.set (sReg k) v).Bounded w)
+    (hlt : k.val < 256) (hne : k ∉ ([0, 2, 240, 244, 245, 246] : List (Fin 292))) :
+    OpState U V w n_max base θ u x (x'.set (sReg k) v) := by
+  have hkeep {i : Fin 292} (hi : i ∈ ([0, 2, 240, 244, 245, 246] : List (Fin 292))) :
+      (x'.set (sReg k) v).regs (sReg i) = x'.regs (sReg i) := by
+    rw [Data.set_regs, update_sReg, ite_eq_right_iff]
+    exact fun heq => (hne (heq ▸ hi)).elim
+  refine ⟨hbdd, hs.mem,
+    (hkeep (by decide)).trans hs.frontier, (hkeep (by decide)).trans hs.base_reg,
+    (hkeep (by decide)).trans hs.tag, (hkeep (by decide)).trans hs.argU,
+    (hkeep (by decide)).trans hs.argV, (hkeep (by decide)).trans hs.hashOut, fun j => ?_⟩
+  rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hlt j).symm]
+  exact hs.params j
 
 /-- Shared prefix execution helper for `opCode`: executes `loadParamsCode U V w n_max`, `extCode`,
 `hashEvalCode U w n_max`, and `zeroReg := 0`, producing the state `x₃` at the entry of the
 operation-tag branch. -/
 private theorem exec_opPrefix {U V w n_max base : ℕ}
-    (hwf : DictParamsWf U V w n_max)
-    (hV_fit : Fits w V)
+    (hwf : DictParamsWf U V w n_max) (hV_fit : Fits w V)
     (hfit : Fits w (base + space U V w n_max))
     (θ : QuotHashSeed U n_max) {s_abs : Dictionary.State U} (u : Fin U)
-    {x : Data rSuccinct}
-    (hrep : Rep U V w n_max base θ s_abs x)
+    {x : Data rSuccinct} (hrep : Rep U V w n_max base θ s_abs x)
     (hu_reg : x.regs argUReg = u.val) :
     ∃ x₃ : Data rSuccinct,
       (∀ {y : Data rSuccinct} {t : ℕ},
@@ -1163,83 +1054,124 @@ private theorem exec_opPrefix {U V w n_max base : ℕ}
           (.branch (.eq tagReg zeroReg)
             qryCode
             (.seq (.op (.const oneReg 1))
-              (.branch (.eq tagReg oneReg)
-                insCode
-                (delCode U w n_max)))) x₃ y t →
+              (.branch (.eq tagReg oneReg) insCode (delCode U w n_max)))) x₃ y t →
         ExecWithin w (opCode U V w n_max) x y
           (36 + (realizes_extractQuotGen.factor * 1 +
             (ReducedKWise.evalSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3 +
               (1 + t))))) ∧
-      x₃.Bounded w ∧
-      x₃.mem = x.mem ∧
-      x₃.regs frontierReg = base + space U V w n_max ∧
-      x₃.regs baseReg = base ∧
       x₃.regs zeroReg = 0 ∧
-      x₃.regs tagReg = x.regs tagReg ∧
-      x₃.regs argUReg = u.val ∧
-      x₃.regs argVReg = x.regs argVReg ∧
-      x₃.regs hashOutReg = hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val) ∧
-      (∀ j : Fin 36,
-        x₃.regs (paramReg j) = mkDictParams U V w n_max (hashSpace U w n_max) j) := by
+      OpState U V w n_max base θ u x x₃ := by
   rcases hrep with ⟨hx_bdd, hbase, hfr, htab, hseed, _⟩
-  have henv : DictEnvGen w (mkDictParams U V w n_max (hashSpace U w n_max)) base :=
-    ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
   obtain ⟨x₀, hex_lp, hx₀_bdd, hmem₀, hparam₀, hlow₀⟩ :=
     exec_loadParamsCode hwf hV_fit hfit hx_bdd
-  have hfr₀ : x₀.regs frontierReg = base + space U V w n_max :=
-    (hlow₀ 240 (by decide)).trans hfr
-  have hu₀ : x₀.regs argUReg = u.val :=
-    (hlow₀ 245 (by decide)).trans hu_reg
   obtain ⟨x₁, hex_ext, hmem₁, hfr₁, hkey₁, hframe₁⟩ :=
-    exec_extCode hwf henv u hx₀_bdd hfr₀ hparam₀ hu₀
-  have hx₁_bdd : x₁.Bounded w := hex_ext.bounded hx₀_bdd
-  have hbase₁ : x₁.regs baseReg = base :=
-    (hframe₁ 0 (by decide)).trans ((hlow₀ 0 (by decide)).trans hbase)
+    exec_extCode hwf (dictEnvGen_mk hwf hfit) u hx₀_bdd
+      ((hlow₀ 240 (by decide)).trans hfr) hparam₀ ((hlow₀ 245 (by decide)).trans hu_reg)
   have hmem₁_x : x₁.mem = x.mem := hmem₁.trans hmem₀
   obtain ⟨x₂, hex_h1, hmem₂, hbase₂, hout₂, hhigh₂⟩ :=
-    exec_hashEvalCode hwf hfit θ (quotientFin U n_max u) hbase₁ hkey₁
-      (hmem₁_x ▸ htab) (hmem₁_x ▸ hseed)
+    exec_hashEvalCode hwf hfit θ (quotientFin U n_max u)
+      ((hframe₁ 0 (by decide)).trans ((hlow₀ 0 (by decide)).trans hbase))
+      hkey₁ (hmem₁_x ▸ htab) (hmem₁_x ▸ hseed)
   rw [quotientFin_val_eq hwf.2.1 u] at hout₂
-  have hx₂_bdd : x₂.Bounded w := hex_h1.bounded hx₁_bdd
-  have hfr₂ : x₂.regs frontierReg = base + space U V w n_max :=
-    (hhigh₂ 240 (by decide)).trans hfr₁
-  have htag₂ : x₂.regs tagReg = x.regs tagReg :=
-    (hhigh₂ 244 (by decide)).trans
-      ((hframe₁ 244 (by decide)).trans (hlow₀ 244 (by decide)))
-  have hu₂ : x₂.regs argUReg = u.val :=
-    (hhigh₂ 245 (by decide)).trans ((hframe₁ 245 (by decide)).trans hu₀)
-  have hv₂ : x₂.regs argVReg = x.regs argVReg :=
-    (hhigh₂ 246 (by decide)).trans
-      ((hframe₁ 246 (by decide)).trans (hlow₀ 246 (by decide)))
-  have hparam₂ : ∀ j : Fin 36,
-      x₂.regs (paramReg j) = mkDictParams U V w n_max (hashSpace U w n_max) j := by
-    intro j
-    have h2 : x₂.regs (paramReg j) = x₁.regs (paramReg j) :=
-      hhigh₂ ⟨256 + j.val, by omega⟩ (by dsimp; omega)
-    have h1 : x₁.regs (paramReg j) = x₀.regs (paramReg j) :=
-      hframe₁ ⟨256 + j.val, by omega⟩ (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
-    exact h2.trans (h1.trans (hparam₀ j))
-  let x₃ := x₂.set zeroReg 0
-  have hex_z : ExecWithin (B := .exact) w (.op (.const zeroReg 0)) x₂ x₃ 1 :=
+  have hs₂ : OpState U V w n_max base θ u x x₂ :=
+    ⟨hex_h1.bounded (hex_ext.bounded hx₀_bdd), hmem₂.trans hmem₁_x,
+      (hhigh₂ 240 (by decide)).trans hfr₁, hbase₂,
+      (hhigh₂ 244 (by decide)).trans ((hframe₁ 244 (by decide)).trans (hlow₀ 244 (by decide))),
+      (hhigh₂ 245 (by decide)).trans
+        ((hframe₁ 245 (by decide)).trans ((hlow₀ 245 (by decide)).trans hu_reg)),
+      (hhigh₂ 246 (by decide)).trans ((hframe₁ 246 (by decide)).trans (hlow₀ 246 (by decide))),
+      hout₂, fun j =>
+        (hhigh₂ ⟨256 + j.val, by omega⟩ (by dsimp; omega)).trans
+          ((hframe₁ ⟨256 + j.val, by omega⟩ (by fin_index)).trans (hparam₀ j))⟩
+  have hex_z : ExecWithin (B := .exact) w (.op (.const zeroReg 0)) x₂ (x₂.set zeroReg 0) 1 :=
     ExecWithin.const (Nat.two_pow_pos w)
-  have hx₃_bdd : x₃.Bounded w := hex_z.bounded hx₂_bdd
-  have hmem₃ : x₃.mem = x.mem := hmem₂.trans hmem₁_x
-  refine ⟨x₃, fun hex_br => hex_lp.seq (hex_ext.seq (hex_h1.seq (hex_z.seq hex_br))),
-    hx₃_bdd, hmem₃, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [x₃, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr₂]
-  · simp only [x₃, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase₂]
-  · simp only [x₃, Data.set_regs, update_sReg, ↓reduceIte]
-  · simp only [x₃, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, htag₂]
-  · simp only [x₃, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hu₂]
-  · simp only [x₃, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hv₂]
-  · simp only [x₃, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hout₂]
-  · intro j
-    have hne : paramReg j ≠ zeroReg := by
-      intro h; have := congrArg Fin.val h; rw [val_paramReg] at this
-      change 256 + j.val = 242 at this; omega
-    simp only [x₃, Data.set_regs, Function.update_of_ne hne, hparam₂ j]
+  exact ⟨_, fun hex_br => hex_lp.seq (hex_ext.seq (hex_h1.seq (hex_z.seq hex_br))),
+    by rw [Data.set_regs, Function.update_self],
+    hs₂.set_sReg (hex_z.bounded hs₂.bdd) (by decide) (by decide)⟩
+
+/-- Shared post-prefix execution helper for the `tagReg ≠ 0` branches (`insert` and `delete`):
+takes the negative branch of `tagReg = zeroReg` and executes `oneReg := 1`, producing state `x₄`
+at the entry of the `tagReg = oneReg` branch. -/
+private theorem exec_opPrefix_ne_zero {U V w n_max base : ℕ}
+    (hwf : DictParamsWf U V w n_max) (hV_fit : Fits w V)
+    (hfit : Fits w (base + space U V w n_max))
+    (θ : QuotHashSeed U n_max) {s_abs : Dictionary.State U} (u : Fin U)
+    {x : Data rSuccinct} (hrep : Rep U V w n_max base θ s_abs x)
+    (hu_reg : x.regs argUReg = u.val) (htag_ne : x.regs tagReg ≠ 0) :
+    ∃ x₄ : Data rSuccinct,
+      (∀ {y : Data rSuccinct} {t : ℕ},
+        ExecWithin w
+          (.branch (.eq tagReg oneReg) insCode (delCode U w n_max)) x₄ y t →
+        ExecWithin w (opCode U V w n_max) x y
+          (36 + (realizes_extractQuotGen.factor * 1 +
+            (ReducedKWise.evalSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3 +
+              (1 + (1 + t + 2)))))) ∧
+      x₄.regs oneReg = 1 ∧
+      OpState U V w n_max base θ u x x₄ := by
+  obtain ⟨x₃, hex_pre, hzero₃, hs₃⟩ := exec_opPrefix hwf hV_fit hfit θ u hrep hu_reg
+  have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ :=
+    fun h => htag_ne (hs₃.tag.symm.trans (h.trans hzero₃))
+  have hex_o : ExecWithin (B := .exact) w (.op (.const oneReg 1)) x₃ (x₃.set oneReg 1) 1 :=
+    ExecWithin.const (fits_one (Nat.ne_of_gt hwf.1))
+  exact ⟨_, fun hex_br => hex_pre (ExecWithin.branch_neg hcond_neg0 (hex_o.seq hex_br)),
+    by rw [Data.set_regs, Function.update_self],
+    hs₃.set_sReg (hex_o.bounded hs₃.bdd) (by decide) (by decide)⟩
 
 /-! ## Section 7: Per-operation deterministic execution of `opCode` -/
+
+section
+
+-- Register wiring uses the named parameter projections, not the packed layout body.
+attribute [local irreducible] mkDictParams
+
+/-- Package `Rep` and `Modifies` after a table-modifying `insert` or `deleteFinish` realization
+call whose memory writes stay within `[base + offQuot (hashSpace ...), base + space ...)`. -/
+private theorem rep_and_modifies_of_table_post {U V w n_max base : ℕ}
+    {θ : QuotHashSeed U n_max} {s_abs' : Dictionary.State U}
+    {x y : Data rSuccinct} {s_ref s_out : Memory.State}
+    (htab : ReducedKWise.TableRep base w (qBits U n_max) (hashB n_max)
+      (totalMicroBits n_max) 3 x.mem)
+    (hseed : ReducedKWise.SeedRep base (qBits U n_max) (hashB n_max)
+      (totalMicroBits n_max) 3 θ x.mem)
+    (hy_bdd : y.Bounded w)
+    (hybase : y.regs baseReg = base)
+    (hmem_ref : s_ref.mem = x.mem)
+    (hfr_ref : s_ref.frontier = base + space U V w n_max)
+    (hm : memoryState frontierReg y = s_out)
+    (hfr_out : s_out.frontier = s_ref.frontier)
+    (hout_mem : ∀ a, ¬(base + offQuot (hashSpace U w n_max) ≤ a ∧
+      a < base + space U V w n_max) → s_out.mem a = s_ref.mem a)
+    (hdict_out : DictStateInv U V w n_max base θ s_abs' s_out) :
+    Rep U V w n_max base θ s_abs' y ∧
+    Modifies (Block.mk base (space U V w n_max)).footprint x.mem y.mem := by
+  have hyfr : y.regs frontierReg = base + space U V w n_max :=
+    ((congrArg Memory.State.frontier hm).trans hfr_out).trans hfr_ref
+  have hmem_out : ∀ a, ¬(base + offQuot (hashSpace U w n_max) ≤ a ∧
+      a < base + space U V w n_max) → y.mem a = x.mem a := by
+    intro a ha
+    change (memoryState frontierReg y).mem a = _
+    rw [hm, hout_mem a ha, hmem_ref]
+  have hhash_eq : ∀ a, base ≤ a → a < base + hashSpace U w n_max → x.mem a = y.mem a :=
+    fun a ha1 ha2 => (hmem_out a (by dsimp [offQuot]; omega)).symm
+  exact ⟨⟨hy_bdd, hybase, hyfr, tableRep_congr htab hhash_eq, seedRep_congr hseed hhash_eq,
+    hm ▸ hdict_out⟩, modifies_footprint_of_table hmem_out⟩
+
+/-- Scale a `Realizes` step bound `f * (c + 0 + 1)` by `f ≤ opFactor`. -/
+private theorem factor_mul_cost_add_one_le {f c : ℕ} (hf : f ≤ opFactor) :
+    f * (c + 0 + 1) ≤ opFactor * c + opFactor := by
+  calc f * (c + 0 + 1) ≤ opFactor * (c + 1) := Nat.mul_le_mul hf (by omega)
+    _ = opFactor * c + opFactor := by ring
+
+/-- Scale an amortized `Memory.Prog` bound (`cost + 66 * pot_y ≤ 66 * pot_x + k + 8 * pe`) by
+`opFactor`. -/
+private theorem opFactor_mul_amortized_le {cost pot_y pot_x k pe : ℕ}
+    (h : cost + 66 * pot_y ≤ 66 * pot_x + k + 8 * pe) :
+    opFactor * cost + (66 * opFactor) * pot_y ≤
+      (66 * opFactor) * pot_x + k * opFactor + (8 * opFactor) * pe := by
+  calc opFactor * cost + (66 * opFactor) * pot_y
+      = opFactor * (cost + 66 * pot_y) := by ring
+    _ ≤ opFactor * (66 * pot_x + k + 8 * pe) := Nat.mul_le_mul_left _ h
+    _ = (66 * opFactor) * pot_x + k * opFactor + (8 * opFactor) * pe := by ring
 
 private theorem exec_opCode_query {U V w n_max base : ℕ}
     (hwf : DictParamsWf U V w n_max)
@@ -1260,98 +1192,48 @@ private theorem exec_opCode_query {U V w n_max base : ℕ}
             probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
               (Dictionary.dom s_abs) u := by
   rcases harg with ⟨htag, hu_reg⟩
-  obtain ⟨x₃, hex_pre, hx₃_bdd, hmem₃, hfr₃, hbase₃, hzero₃, htag₃, hu₃, _, hout₃, hparam₃⟩ :=
-    exec_opPrefix hwf hV_fit hfit θ u hrep hu_reg
+  obtain ⟨x₃, hex_pre, hzero₃, hs₃⟩ := exec_opPrefix hwf hV_fit hfit θ u hrep hu_reg
   rcases hrep with ⟨hx_bdd, _, hfr, htab, hseed, hdict⟩
+  have hms₃ := hs₃.memoryState_eq hfr
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
-  have henv : DictEnvGen w dp base :=
-    ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
-  have hcond_pos : (Cond.eq tagReg zeroReg).Holds x₃ := by
-    change x₃.regs tagReg = x₃.regs zeroReg
-    rw [htag₃, htag, hzero₃]
-  have hms₃ : memoryState frontierReg x₃ = memoryState frontierReg x :=
-    Memory.State.ext hmem₃ (hfr₃.trans hfr.symm)
-  let h_q := hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val)
-  let d_qry := ((base, u.val), h_q)
-  have hdict₃ : DictStateInv U V w n_max base θ s_abs (memoryState frontierReg x₃) :=
-    hms₃.symm ▸ hdict
+  let d_qry := ((base, u.val), hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val))
   obtain ⟨hpre_qry, hst_qry, hres_qry, hcost_qry⟩ :=
-    queryWithHashProg_dict_spec hwf henv θ hdict₃ u
+    queryWithHashProg_dict_spec hwf (dictEnvGen_mk hwf hfit) θ (hms₃.symm ▸ hdict) u
   have hin_qry : x₃.regs ∘ srcQry =
       WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ)) (dp, d_qry) :=
-    regs_comp_append_paramReg d_qry srcQryD hparam₃ (fun i => by
-      fin_cases i
-      · exact hbase₃
-      · exact hu₃
-      · exact hout₃)
-  have hv_qry : (Memory.spec w).ValidHistory (memoryState frontierReg x₃)
-      ((Memory.spec w).clientHistory (memoryState frontierReg x₃)
-        (queryWithHashGenProg (dp, d_qry))) := by
-    rw [queryWithHashGenProg_mk]
-    exact validProg_queryWithHash hpre_qry ⟨wellFormed_memoryState hx₃_bdd, le_of_eq hfr₃.symm⟩
+    regs_comp_append_paramReg d_qry srcQryD hs₃.params
+      (fun | 0 => hs₃.base_reg | 1 => hs₃.argU | 2 => hs₃.hashOut)
   obtain ⟨y, hex_qry, hm_qry, hout_qry, hframe_qry⟩ :=
-    (realizes_queryWithHashGen.code_spec
-      frontierReg srcQry tmpQry
-      tmpQry_injective srcQry_ne_tmpQry
-      tmpQry_ne_frontier srcQry_ne_frontier).2
-      w (dp, d_qry) x₃ hx₃_bdd hin_qry hpre_qry hv_qry
-  change ExecWithin w qryCode x₃ y _ at hex_qry
+    (realizes_queryWithHashGen.code_spec frontierReg srcQry tmpQry
+      tmpQry_injective srcQry_ne_tmpQry tmpQry_ne_frontier srcQry_ne_frontier).2
+      w (dp, d_qry) x₃ hs₃.bdd hin_qry
+      ((queryWithHashGenPre_mk U V w n_max w d_qry _).2 hpre_qry)
+      (by
+        rw [queryWithHashGenProg_mk]
+        exact validProg_queryWithHash hpre_qry
+          ⟨wellFormed_memoryState hs₃.bdd, le_of_eq hs₃.frontier.symm⟩)
   rw [clientState_width, queryWithHashGenProg_mk, hst_qry] at hm_qry
   rw [clientResult_width, queryWithHashGenProg_mk, hres_qry] at hout_qry
-  have hymem : y.mem = x.mem := (congrArg Memory.State.mem hm_qry).trans hmem₃
-  have hyfr : y.regs frontierReg = base + space U V w n_max :=
-    (congrArg Memory.State.frontier hm_qry).trans hfr₃
-  have hybase : y.regs baseReg = base := by
-    rw [hframe_qry baseReg (sReg_ne (by decide)) (fun j => ?_)]
-    · exact hbase₃
-    · intro hj
-      have hval := congrArg Fin.val hj
-      rw [val_tmpQry] at hval
-      change (if j.val = 0 then 252 else if j.val = 1 then 253 else 292 + j.val) = 0 at hval
-      (split_ifs at hval; omega)
-  have hy_dec : decode (.query u) y.regs = some (s_abs u) :=
-    decode_query_optionWords u (s_abs u) y.regs (hout_qry 0) (hout_qry 1)
-  have hex_all := hex_pre (ExecWithin.branch_pos hcond_pos hex_qry)
-  have hy_bdd : y.Bounded w := hex_all.bounded hx_bdd
-  have hy_rep : Rep U V w n_max base θ s_abs y :=
-    ⟨hy_bdd, hybase, hyfr, hymem ▸ htab, hymem ▸ hseed,
-      (hm_qry.trans hms₃).symm ▸ hdict⟩
-  have hmod : Modifies (Block.mk base (space U V w n_max)).footprint x.mem y.mem := by
-    rw [hymem]; exact fun _ _ => rfl
-  have hpot_eq : potential U V w n_max base θ y = potential U V w n_max base θ x := by
-    unfold potential
-    rw [hymem]
+  have hymem : y.mem = x.mem := (congrArg Memory.State.mem hm_qry).trans hs₃.mem
+  have hex_all := hex_pre (ExecWithin.branch_pos (hs₃.tag.trans (htag.trans hzero₃.symm)) hex_qry)
+  refine ⟨y, _, hex_all, decode_query_optionWords u (s_abs u) y.regs (hout_qry 0) (hout_qry 1),
+    ⟨hex_all.bounded hx_bdd,
+      (regs_sReg_of_frame tmpLayout_tmpQry hframe_qry (by decide) (by decide)).trans hs₃.base_reg,
+      (congrArg Memory.State.frontier hm_qry).trans hs₃.frontier,
+      hymem ▸ htab, hymem ▸ hseed, (hm_qry.trans hms₃).symm ▸ hdict⟩,
+    by rw [hymem]; exact fun _ _ => rfl, ?_⟩
   have hF_ext := factor_extractQuot_le
-  have hF_qry := factor_queryWithHash_le
   have hH_le := ReducedKWise.evalSteps_le (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
   dsimp only [ReducedKWise.evalBound] at hH_le
-  have hcost_qry' :
-      memoryCost (queryWithHashGenProg (dp, d_qry)) (memoryState frontierReg x₃) + 0 + 1 ≤
-      26 + 8 * probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-        (Dictionary.dom s_abs) u + 1 := by
-    rw [queryWithHashGenProg_mk]
-    exact Nat.add_le_add_right hcost_qry 1
-  have hmul_qry :
-      realizes_queryWithHashGen.factor *
-        (memoryCost (queryWithHashGenProg (dp, d_qry))
-          (memoryState frontierReg x₃) + 0 + 1) ≤
-      27 * opFactor +
-        (8 * opFactor) *
-          probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-            (Dictionary.dom s_abs) u := by
-    calc realizes_queryWithHashGen.factor *
-          (memoryCost (queryWithHashGenProg (dp, d_qry))
-            (memoryState frontierReg x₃) + 0 + 1)
-        ≤ opFactor *
-            (26 + 8 * probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-              (Dictionary.dom s_abs) u + 1) :=
-          Nat.mul_le_mul hF_qry hcost_qry'
-      _ = 27 * opFactor +
-            (8 * opFactor) *
-              probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-                (Dictionary.dom s_abs) u := by ring
-  refine ⟨y, _, hex_all, hy_dec, hy_rep, hmod, ?_⟩
-  rw [hpot_eq]
+  rw [queryWithHashGenProg_mk]
+  have hmul_qry := factor_mul_cost_add_one_le
+    (c := memoryCost (queryWithHashProg U V w n_max d_qry) (memoryState frontierReg x₃))
+    factor_queryWithHash_le
+  have hcost_scaled := Nat.mul_le_mul_left opFactor hcost_qry
+  rw [Nat.mul_add, ← mul_assoc, mul_comm opFactor 26, mul_comm opFactor 8] at hcost_scaled
+  unfold potential
+  rw [hymem]
+  dsimp only [d_qry] at hmul_qry ⊢
   omega
 
 private theorem exec_opCode_insert {U V w n_max base : ℕ}
@@ -1374,189 +1256,100 @@ private theorem exec_opCode_insert {U V w n_max base : ℕ}
             probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
               (Dictionary.dom s_abs) u := by
   rcases harg with ⟨htag, hu_reg, hv_reg⟩
-  obtain ⟨x₃, hex_pre, hx₃_bdd, hmem₃, hfr₃, hbase₃, hzero₃, htag₃, hu₃, hv₃, hout₃, hparam₃⟩ :=
-    exec_opPrefix hwf hV_fit hfit θ u hrep hu_reg
+  obtain ⟨x₄, hex_pre, hone₄, hs₄⟩ :=
+    exec_opPrefix_ne_zero hwf hV_fit hfit θ u hrep hu_reg (by rw [htag]; exact one_ne_zero)
   rcases hrep with ⟨hx_bdd, _, hfr, htab, hseed, hdict⟩
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
-  have henv : DictEnvGen w dp base :=
-    ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
-  have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ := by
-    change x₃.regs tagReg ≠ x₃.regs zeroReg
-    rw [htag₃, htag, hzero₃]
-    exact one_ne_zero
-  let x₄ := x₃.set oneReg 1
-  have hfit1 : Fits w 1 :=
-    Nat.lt_of_le_of_lt Nat.one_le_two_pow (Nat.pow_lt_pow_right one_lt_two
-      (lt_of_lt_of_le one_lt_two (two_le_w_of_fits_space hfit)))
-  have hex_o : ExecWithin (B := .exact) w (.op (.const oneReg 1)) x₃ x₄ 1 :=
-    ExecWithin.const hfit1
-  have hx₄_bdd : x₄.Bounded w := hex_o.bounded hx₃_bdd
-  have hcond_pos1 : (Cond.eq tagReg oneReg).Holds x₄ := by
-    change x₄.regs tagReg = x₄.regs oneReg
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, htag₃, htag]
-  have hmem₄ : x₄.mem = x.mem := hmem₃
-  have hfr₄ : x₄.regs frontierReg = base + space U V w n_max := by
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr₃]
-  have hbase₄ : x₄.regs baseReg = base := by
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase₃]
-  have hu₄ : x₄.regs argUReg = u.val := by
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hu₃]
-  have hv₄ : x₄.regs argVReg = v := by
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hv₃, hv_reg]
-  have hout₄ : x₄.regs hashOutReg =
-      hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val) := by
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hout₃]
-  have hparam₄ : ∀ j : Fin 36, x₄.regs (paramReg j) = dp j := by
-    intro j
-    have hne : paramReg j ≠ oneReg := by
-      intro h; have := congrArg Fin.val h; rw [val_paramReg] at this
-      change 256 + j.val = 243 at this; omega
-    rw [Data.set_regs, Function.update_of_ne hne, hparam₃ j]
-  have hms₄ : memoryState frontierReg x₄ = memoryState frontierReg x :=
-    Memory.State.ext hmem₄ (hfr₄.trans hfr.symm)
-  let h_q := hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val)
-  let d_ins := (((base, u.val), v), h_q)
-  have hdict₄ : DictStateInv U V w n_max base θ s_abs (memoryState frontierReg x₄) :=
-    hms₄.symm ▸ hdict
+  let d_ins := (((base, u.val), v), hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val))
   obtain ⟨hpre_ins, hfr_ins, hout_ins, hdict_ins, hcost_ins⟩ :=
-    insertWithHashProg_dict_spec hwf henv θ hdict₄ u v hval
+    insertWithHashProg_dict_spec hwf (dictEnvGen_mk hwf hfit) θ
+      ((hs₄.memoryState_eq hfr).symm ▸ hdict) u v hval
   have hin_ins : x₄.regs ∘ srcIns =
       WordEncoding.encode (α := DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) (dp, d_ins) :=
-    regs_comp_append_paramReg d_ins srcInsD hparam₄ (fun i => by
-      fin_cases i
-      · exact hbase₄
-      · exact hu₄
-      · exact hv₄
-      · exact hout₄)
-  have hv_ins : (Memory.spec w).ValidHistory (memoryState frontierReg x₄)
-      ((Memory.spec w).clientHistory (memoryState frontierReg x₄)
-        (insertWithHashGenProg (dp, d_ins))) := by
-    rw [insertWithHashGenProg_mk]
-    exact validProg_insertWithHash hpre_ins ⟨wellFormed_memoryState hx₄_bdd, le_of_eq hfr₄.symm⟩
+    regs_comp_append_paramReg d_ins srcInsD hs₄.params
+      (fun | 0 => hs₄.base_reg | 1 => hs₄.argU | 2 => hs₄.argV.trans hv_reg | 3 => hs₄.hashOut)
   obtain ⟨y, hex_ins, hm_ins, _, hframe_ins⟩ :=
-    (realizes_insertWithHashGen.code_spec
-      frontierReg srcIns tmpIns
-      tmpIns_injective srcIns_ne_tmpIns
-      tmpIns_ne_frontier srcIns_ne_frontier).2
-      w (dp, d_ins) x₄ hx₄_bdd hin_ins hpre_ins hv_ins
-  change ExecWithin w insCode x₄ y _ at hex_ins
+    (realizes_insertWithHashGen.code_spec frontierReg srcIns tmpIns
+      tmpIns_injective srcIns_ne_tmpIns tmpIns_ne_frontier srcIns_ne_frontier).2
+      w (dp, d_ins) x₄ hs₄.bdd hin_ins
+      ((insertWithHashGenPre_mk U V w n_max w d_ins _).2 hpre_ins)
+      (by
+        rw [insertWithHashGenProg_mk]
+        exact validProg_insertWithHash hpre_ins
+          ⟨wellFormed_memoryState hs₄.bdd, le_of_eq hs₄.frontier.symm⟩)
   rw [clientState_width, insertWithHashGenProg_mk] at hm_ins
-  have hyfr : y.regs frontierReg = base + space U V w n_max :=
-    ((congrArg Memory.State.frontier hm_ins).trans hfr_ins).trans hfr₄
-  have hybase : y.regs baseReg = base := by
-    rw [hframe_ins baseReg (sReg_ne (by decide)) (fun j => ?_)]
-    · exact hbase₄
-    · intro hj
-      have hval := congrArg Fin.val hj
-      rw [val_tmpIns] at hval
-      change 292 + j.val = 0 at hval
-      omega
-  have hhash_eq : ∀ a, base ≤ a → a < base + hashSpace U w n_max → x.mem a = y.mem a := by
-    intro a ha1 ha2
-    have hmy : y.mem a = (memoryState frontierReg x₄).mem a := by
-      change (memoryState frontierReg y).mem a = _
-      rw [hm_ins]
-      exact hout_ins a (by dsimp [offQuot]; omega)
-    rw [hmy]
-    exact hmem₄.symm ▸ rfl
-  have hex_br1 : ExecWithin w
-      (.branch (.eq tagReg oneReg) insCode (delCode U w n_max)) x₄ y _ :=
-    ExecWithin.branch_pos hcond_pos1 hex_ins
-  have hex_all := hex_pre (ExecWithin.branch_neg hcond_neg0 (hex_o.seq hex_br1))
-  have hy_bdd : y.Bounded w := hex_all.bounded hx_bdd
-  have hy_rep : Rep U V w n_max base θ (Function.update s_abs u (some v)) y :=
-    ⟨hy_bdd, hybase, hyfr,
-      tableRep_congr hhash_eq htab,
-      seedRep_congr hhash_eq hseed,
-      by rw [hm_ins]; exact hdict_ins⟩
-  have hmod : Modifies (Block.mk base (space U V w n_max)).footprint x.mem y.mem := by
-    refine modifies_footprint_of_table (fun a ha => ?_)
-    have hmy : y.mem a = x₄.mem a := by
-      change (memoryState frontierReg y).mem a = _
-      rw [hm_ins]
-      exact hout_ins a ha
-    rw [hmy, hmem₄]
-  have hgm_y : gmAt base U V w n_max (hashSpace U w n_max) y.mem =
-      gmAt base U V w n_max (hashSpace U w n_max)
-        ((Memory.spec 0).clientState (memoryState frontierReg x₄)
-          (insertWithHashProg U V w n_max d_ins)).mem :=
-    congrArg (fun s : Memory.State => gmAt base U V w n_max (hashSpace U w n_max) s.mem) hm_ins
-  have hgm_x4 : gmAt base U V w n_max (hashSpace U w n_max)
-      (memoryState frontierReg x₄).mem =
-      gmAt base U V w n_max (hashSpace U w n_max) x.mem := by
-    change gmAt base U V w n_max (hashSpace U w n_max) x₄.mem = _
-    rw [hmem₄]
+  have hex_all := hex_pre (ExecWithin.branch_pos (hs₄.tag.trans (htag.trans hone₄.symm)) hex_ins)
+  obtain ⟨hy_rep, hmod⟩ := rep_and_modifies_of_table_post htab hseed (hex_all.bounded hx_bdd)
+    ((regs_sReg_of_frame tmpLayout_tmpIns hframe_ins (by decide) (by decide)).trans hs₄.base_reg)
+    hs₄.mem hs₄.frontier hm_ins hfr_ins hout_ins hdict_ins
+  refine ⟨y, _, hex_all, rfl, hy_rep, hmod, ?_⟩
+  rw [show (memoryState frontierReg x₄).mem = x.mem from hs₄.mem] at hcost_ins
   have hF_ext := factor_extractQuot_le
-  have hF_ins := factor_insertWithHash_le
   have hH_le := ReducedKWise.evalSteps_le (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
   dsimp only [ReducedKWise.evalBound] at hH_le
-  have hmul_ins :
-      realizes_insertWithHashGen.factor *
-        (memoryCost (insertWithHashGenProg (dp, d_ins))
-          (memoryState frontierReg x₄) + 0 + 1) ≤
-      opFactor *
-        memoryCost (insertWithHashProg U V w n_max d_ins)
-          (memoryState frontierReg x₄) +
-        opFactor := by
-    rw [insertWithHashGenProg_mk]
-    calc realizes_insertWithHashGen.factor *
-          (memoryCost (insertWithHashProg U V w n_max d_ins)
-            (memoryState frontierReg x₄) + 0 + 1)
-        ≤ opFactor *
-            (memoryCost (insertWithHashProg U V w n_max d_ins)
-              (memoryState frontierReg x₄) + 1) :=
-          Nat.mul_le_mul hF_ins (by omega)
-      _ = opFactor *
-            memoryCost (insertWithHashProg U V w n_max d_ins)
-              (memoryState frontierReg x₄) +
-            opFactor := by ring
-  rw [hgm_x4] at hcost_ins
-  have hcost_scaled :
-      opFactor *
-        memoryCost (insertWithHashProg U V w n_max d_ins)
-          (memoryState frontierReg x₄) +
-      (66 * opFactor) *
-        slotPotential n_max
-          (gmAt base U V w n_max (hashSpace U w n_max)
-            ((Memory.spec 0).clientState (memoryState frontierReg x₄)
-              (insertWithHashProg U V w n_max d_ins)).mem) ≤
-      (66 * opFactor) *
-        slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) x.mem) +
-      184 * opFactor +
-      (8 * opFactor) *
-        probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-          (Dictionary.dom s_abs) u := by
-    calc opFactor *
-          memoryCost (insertWithHashProg U V w n_max d_ins)
-            (memoryState frontierReg x₄) +
-        (66 * opFactor) *
-          slotPotential n_max
-            (gmAt base U V w n_max (hashSpace U w n_max)
-              ((Memory.spec 0).clientState (memoryState frontierReg x₄)
-                (insertWithHashProg U V w n_max d_ins)).mem)
-        = opFactor *
-            (memoryCost (insertWithHashProg U V w n_max d_ins)
-              (memoryState frontierReg x₄) +
-              66 * slotPotential n_max
-                (gmAt base U V w n_max (hashSpace U w n_max)
-                  ((Memory.spec 0).clientState (memoryState frontierReg x₄)
-                    (insertWithHashProg U V w n_max d_ins)).mem)) := by ring
-      _ ≤ opFactor *
-            (66 * slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) x.mem) +
-              184 +
-              8 * probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-                (Dictionary.dom s_abs) u) :=
-          Nat.mul_le_mul_left _ hcost_ins
-      _ = (66 * opFactor) *
-            slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) x.mem) +
-          184 * opFactor +
-          (8 * opFactor) *
-            probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-              (Dictionary.dom s_abs) u := by ring
-  refine ⟨y, _, hex_all, rfl, hy_rep, hmod, ?_⟩
+  rw [insertWithHashGenProg_mk]
+  have hmul_ins := factor_mul_cost_add_one_le
+    (c := memoryCost (insertWithHashProg U V w n_max d_ins) (memoryState frontierReg x₄))
+    factor_insertWithHash_le
+  have hcost_scaled := opFactor_mul_amortized_le hcost_ins
   unfold potential
-  rw [hgm_y]
+  rw [show y.mem = _ from congrArg Memory.State.mem hm_ins]
+  dsimp only [d_ins] at hmul_ins ⊢
   omega
+
+/-- Execute `delPrepCode` on state `x₅` holding `(base, u, h_q)` and `paramReg`, returning `x₆`
+with preserved memory/params/`baseReg`/`argUReg`/`hqReg` and the four extracted outputs. -/
+private theorem exec_delPrepCode {U V w n_max base : ℕ}
+    {θ : QuotHashSeed U n_max} {u : Fin U} {x x₅ : Data rSuccinct}
+    (hs₅ : OpState U V w n_max base θ u x x₅)
+    (h_q found j_del phys_del q_last : ℕ) (hhq : x₅.regs hqReg = h_q)
+    (hpre : QueryWithHashPre U V w n_max w ((base, u.val), h_q) (memoryState frontierReg x₅))
+    (hst : (Memory.spec 0).clientState (memoryState frontierReg x₅)
+      (deletePrepWithHashProg U V w n_max ((base, u.val), h_q)) = memoryState frontierReg x₅)
+    (hres : (Memory.spec 0).clientResult (memoryState frontierReg x₅)
+      (deletePrepWithHashProg U V w n_max ((base, u.val), h_q)) =
+      (((found, j_del), phys_del), q_last)) :
+    ∃ x₆ : Data rSuccinct,
+      ExecWithin w delPrepCode x₅ x₆
+        (realizes_deletePrepWithHashGen.factor *
+          (memoryCost (deletePrepWithHashGenProg
+            (mkDictParams U V w n_max (hashSpace U w n_max), ((base, u.val), h_q)))
+            (memoryState frontierReg x₅) + 0 + 1)) ∧
+      x₆.Bounded w ∧ x₆.mem = x.mem ∧
+      x₆.regs frontierReg = base + space U V w n_max ∧
+      x₆.regs baseReg = base ∧ x₆.regs argUReg = u.val ∧ x₆.regs hqReg = h_q ∧
+      (∀ j : Fin 36,
+        x₆.regs (paramReg j) = mkDictParams U V w n_max (hashSpace U w n_max) j) ∧
+      x₆.regs foundReg = found ∧ x₆.regs jDelReg = j_del ∧
+      x₆.regs physDelReg = phys_del ∧ x₆.regs hashKeyReg = q_last := by
+  let dp := mkDictParams U V w n_max (hashSpace U w n_max)
+  let d_prep := ((base, u.val), h_q)
+  have hin : x₅.regs ∘ srcDelPrep =
+      WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ)) (dp, d_prep) :=
+    regs_comp_append_paramReg d_prep srcDelPrepD hs₅.params
+      (fun | 0 => hs₅.base_reg | 1 => hs₅.argU | 2 => hhq)
+  obtain ⟨x₆, hex, hm, hout, hframe⟩ :=
+    (realizes_deletePrepWithHashGen.code_spec frontierReg srcDelPrep tmpDelPrep
+      tmpDelPrep_injective srcDelPrep_ne_tmpDelPrep
+      tmpDelPrep_ne_frontier srcDelPrep_ne_frontier).2
+      w (dp, d_prep) x₅ hs₅.bdd hin ((queryWithHashGenPre_mk U V w n_max w d_prep _).2 hpre)
+      (by
+        rw [deletePrepWithHashGenProg_mk]
+        exact validProg_deletePrepWithHash hpre
+          ⟨wellFormed_memoryState hs₅.bdd, le_of_eq hs₅.frontier.symm⟩)
+  rw [clientState_width, deletePrepWithHashGenProg_mk, hst] at hm
+  rw [clientResult_width, deletePrepWithHashGenProg_mk, hres] at hout
+  have hkeep := fun {i : Fin 292} (h1 : i ≠ 240) (h2 : i.val ∉ [249, 250, 251, 1]) =>
+    regs_sReg_of_frame tmpLayout_tmpDelPrep hframe h1 h2
+  exact ⟨x₆, hex, hex.bounded hs₅.bdd, (congrArg Memory.State.mem hm).trans hs₅.mem,
+    (congrArg Memory.State.frontier hm).trans hs₅.frontier,
+    (hkeep (by decide) (by decide)).trans hs₅.base_reg,
+    (hkeep (by decide) (by decide)).trans hs₅.argU,
+    (hkeep (by decide) (by decide)).trans hhq,
+    fun j => (hkeep (by fin_index)
+      (fun hm => by have := tmpLayout_tmpDelPrep.lt_256 _ hm; dsimp at this; omega)).trans
+      (hs₅.params j),
+    hout 0, hout 1, hout 2, hout 3⟩
 
 private theorem exec_opCode_delete {U V w n_max base : ℕ}
     (hwf : DictParamsWf U V w n_max)
@@ -1577,287 +1370,74 @@ private theorem exec_opCode_delete {U V w n_max base : ℕ}
             probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
               (Dictionary.dom s_abs) u := by
   rcases harg with ⟨htag, hu_reg⟩
-  obtain ⟨x₃, hex_pre, hx₃_bdd, hmem₃, hfr₃, hbase₃, hzero₃, htag₃, hu₃, _, hout₃, hparam₃⟩ :=
-    exec_opPrefix hwf hV_fit hfit θ u hrep hu_reg
+  obtain ⟨x₄, hex_pre, hone₄, hs₄⟩ :=
+    exec_opPrefix_ne_zero hwf hV_fit hfit θ u hrep hu_reg
+      (by rw [htag]; exact OfNat.ofNat_ne_zero 2)
   rcases hrep with ⟨hx_bdd, _, hfr, htab, hseed, hdict⟩
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
-  have henv : DictEnvGen w dp base :=
-    ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
-  have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ := by
-    change x₃.regs tagReg ≠ x₃.regs zeroReg
-    rw [htag₃, htag, hzero₃]
-    exact OfNat.ofNat_ne_zero 2
-  let x₄ := x₃.set oneReg 1
-  have hfit1 : Fits w 1 :=
-    Nat.lt_of_le_of_lt Nat.one_le_two_pow (Nat.pow_lt_pow_right one_lt_two
-      (lt_of_lt_of_le one_lt_two (two_le_w_of_fits_space hfit)))
-  have hex_o : ExecWithin (B := .exact) w (.op (.const oneReg 1)) x₃ x₄ 1 :=
-    ExecWithin.const hfit1
-  have hx₄_bdd : x₄.Bounded w := hex_o.bounded hx₃_bdd
-  have hcond_neg1 : ¬(Cond.eq tagReg oneReg).Holds x₄ := by
-    change x₄.regs tagReg ≠ x₄.regs oneReg
-    simp only [x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, htag₃, htag, ne_eq,
-      Nat.reduceEqDiff, not_false_eq_true]
+  let h_q := hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val)
   let x₅ := x₄.set hqReg (x₄.regs hashOutReg)
   have hex_cp : ExecWithin (B := .exact) w (.op (.copy hqReg hashOutReg)) x₄ x₅ 1 :=
     ExecWithin.copy
-  have hx₅_bdd : x₅.Bounded w := hex_cp.bounded hx₄_bdd
-  have hmem₅ : x₅.mem = x.mem := hmem₃
-  have hfr₅ : x₅.regs frontierReg = base + space U V w n_max := by
-    simp only [x₅, x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr₃]
-  have hbase₅ : x₅.regs baseReg = base := by
-    simp only [x₅, x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase₃]
-  have hu₅ : x₅.regs argUReg = u.val := by
-    simp only [x₅, x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hu₃]
-  have hhq₅ : x₅.regs hqReg =
-      hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val) := by
-    simp only [x₅, x₄, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hout₃]
-  have hparam₅ : ∀ j : Fin 36, x₅.regs (paramReg j) = dp j := by
-    intro j
-    have hne1 : paramReg j ≠ hqReg := by
-      intro h; have := congrArg Fin.val h; rw [val_paramReg] at this
-      change 256 + j.val = 248 at this; omega
-    have hne2 : paramReg j ≠ oneReg := by
-      intro h; have := congrArg Fin.val h; rw [val_paramReg] at this
-      change 256 + j.val = 243 at this; omega
-    rw [Data.set_regs, Function.update_of_ne hne1, Data.set_regs, Function.update_of_ne hne2,
-      hparam₃ j]
-  have hms₅ : memoryState frontierReg x₅ = memoryState frontierReg x :=
-    Memory.State.ext hmem₅ (hfr₅.trans hfr.symm)
+  have hs₅ := hs₄.set_sReg (hex_cp.bounded hs₄.bdd) (by decide) (by decide)
+  have hhq₅ : x₅.regs hqReg = h_q := by rw [Data.set_regs, Function.update_self]; exact hs₄.hashOut
   let s₅ := memoryState frontierReg x₅
-  let h_q := hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val)
-  let d_prep := ((base, u.val), h_q)
-  let prog_prep := deletePrepWithHashProg U V w n_max d_prep
-  have hdict₅ : DictStateInv U V w n_max base θ s_abs s₅ := by
-    dsimp only [s₅]
-    rw [hms₅]
-    exact hdict
   obtain ⟨found, j_del, phys_del, q_last, hprep_eq, hpre_prep, hst_prep, hqlast_lt,
       hpre_fin, hfr_fin, hout_fin, hdict_fin, hcost_del⟩ :=
-    deleteWithHashProg_dict_spec hwf henv θ hdict₅ u
-  let h_q_last := hValOfSeed U n_max θ q_last
-  let d_fin := ((((base, u.val), h_q), ((found, j_del), phys_del)), h_q_last)
-  let prog_fin := deleteFinishWithHashProg U V w n_max d_fin
-  have hin_prep : x₅.regs ∘ srcDelPrep =
-      WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ)) (dp, d_prep) :=
-    regs_comp_append_paramReg d_prep srcDelPrepD hparam₅ (fun i => by
-      fin_cases i
-      · exact hbase₅
-      · exact hu₅
-      · exact hhq₅)
-  have hv_prep : (Memory.spec w).ValidHistory s₅
-      ((Memory.spec w).clientHistory s₅ (deletePrepWithHashGenProg (dp, d_prep))) := by
-    rw [deletePrepWithHashGenProg_mk]
-    exact validProg_deletePrepWithHash hpre_prep
-      ⟨wellFormed_memoryState hx₅_bdd, le_of_eq hfr₅.symm⟩
-  obtain ⟨x₆, hex_prep, hm_prep, hout_prep, hframe_prep⟩ :=
-    (realizes_deletePrepWithHashGen.code_spec
-      frontierReg srcDelPrep tmpDelPrep
-      tmpDelPrep_injective srcDelPrep_ne_tmpDelPrep
-      tmpDelPrep_ne_frontier srcDelPrep_ne_frontier).2
-      w (dp, d_prep) x₅ hx₅_bdd hin_prep hpre_prep hv_prep
-  change ExecWithin w delPrepCode x₅ x₆ _ at hex_prep
-  rw [clientState_width, deletePrepWithHashGenProg_mk, hst_prep] at hm_prep
-  rw [clientResult_width, deletePrepWithHashGenProg_mk, hprep_eq] at hout_prep
-  have hx₆_bdd : x₆.Bounded w := hex_prep.bounded hx₅_bdd
-  have hmem₆ : x₆.mem = x.mem := (congrArg Memory.State.mem hm_prep).trans hmem₅
-  have hfr₆ : x₆.regs frontierReg = base + space U V w n_max :=
-    (congrArg Memory.State.frontier hm_prep).trans hfr₅
-  have hframe6_of : ∀ i : Fin 292,
-      i ≠ 240 → i ≠ 249 → i ≠ 250 → i ≠ 251 → i ≠ 1 →
-        x₆.regs (sReg i) = x₅.regs (sReg i) := by
-    intro i hi240 hi249 hi250 hi251 hi1
-    refine hframe_prep (sReg i) (sReg_ne hi240) (fun j => ?_)
-    intro hj
-    have hval := congrArg Fin.val hj
-    rw [val_tmpDelPrep, val_sReg] at hval
-    have hi_lt := i.isLt
-    have h249 : i.val ≠ 249 := fun h => hi249 (Fin.ext h)
-    have h250 : i.val ≠ 250 := fun h => hi250 (Fin.ext h)
-    have h251 : i.val ≠ 251 := fun h => hi251 (Fin.ext h)
-    have h1 : i.val ≠ 1 := fun h => hi1 (Fin.ext h)
-    split_ifs at hval <;> omega
-  have hbase₆ : x₆.regs baseReg = base :=
-    (hframe6_of 0 (by decide) (by decide) (by decide) (by decide) (by decide)).trans hbase₅
-  have hu₆ : x₆.regs argUReg = u.val :=
-    (hframe6_of 245 (by decide) (by decide) (by decide) (by decide) (by decide)).trans hu₅
-  have hhq₆ : x₆.regs hqReg = h_q :=
-    (hframe6_of 248 (by decide) (by decide) (by decide) (by decide) (by decide)).trans hhq₅
-  have hfound₆ : x₆.regs foundReg = found := hout_prep 0
-  have hjdel₆ : x₆.regs jDelReg = j_del := hout_prep 1
-  have hphys₆ : x₆.regs physDelReg = phys_del := hout_prep 2
-  have hkey₆ : x₆.regs hashKeyReg = q_last := hout_prep 3
-  have hparam₆ : ∀ j : Fin 36, x₆.regs (paramReg j) = dp j := by
-    intro j
-    refine (hframe6_of ⟨256 + j.val, by omega⟩
-      (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
-      (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
-      (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
-      (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
-      (by intro h; have := congrArg Fin.val h; dsimp at this; omega)).trans (hparam₅ j)
+    deleteWithHashProg_dict_spec hwf (dictEnvGen_mk hwf hfit) θ
+      ((hs₅.memoryState_eq hfr).symm ▸ hdict) u
+  obtain ⟨x₆, hex_prep, hx₆_bdd, hmem₆, hfr₆, hbase₆, hu₆, hhq₆, hparam₆,
+      hfound₆, hj₆, hphys₆, hq₆⟩ :=
+    exec_delPrepCode hs₅ h_q found j_del phys_del q_last hhq₅ hpre_prep hst_prep hprep_eq
   obtain ⟨x₇, hex_h2, hmem₇, hbase₇, hout₇, hhigh₇⟩ :=
-    exec_hashEvalCode hwf hfit θ ⟨q_last, hqlast_lt⟩ hbase₆ hkey₆
+    exec_hashEvalCode hwf hfit θ ⟨q_last, hqlast_lt⟩ hbase₆ hq₆
       (hmem₆ ▸ htab) (hmem₆ ▸ hseed)
-  have hx₇_bdd : x₇.Bounded w := hex_h2.bounded hx₆_bdd
-  have hmem₇_x : x₇.mem = x.mem := hmem₇.trans hmem₆
-  have hfr₇ : x₇.regs frontierReg = base + space U V w n_max :=
-    (hhigh₇ 240 (by decide)).trans hfr₆
-  have hu₇ : x₇.regs argUReg = u.val :=
-    (hhigh₇ 245 (by decide)).trans hu₆
-  have hhq₇ : x₇.regs hqReg = h_q :=
-    (hhigh₇ 248 (by decide)).trans hhq₆
-  have hfound₇ : x₇.regs foundReg = found :=
-    (hhigh₇ 249 (by decide)).trans hfound₆
-  have hjdel₇ : x₇.regs jDelReg = j_del :=
-    (hhigh₇ 250 (by decide)).trans hjdel₆
-  have hphys₇ : x₇.regs physDelReg = phys_del :=
-    (hhigh₇ 251 (by decide)).trans hphys₆
-  have hparam₇ : ∀ j : Fin 36, x₇.regs (paramReg j) = dp j :=
-    fun j => (hhigh₇ ⟨256 + j.val, by omega⟩ (by dsimp; omega)).trans (hparam₆ j)
   have hms₇ : memoryState frontierReg x₇ = s₅ :=
-    Memory.State.ext (hmem₇_x.trans hmem₅.symm) (hfr₇.trans hfr₅.symm)
+    Memory.State.ext ((hmem₇.trans hmem₆).trans hs₅.mem.symm)
+      (((hhigh₇ 240 (by decide)).trans hfr₆).trans hs₅.frontier.symm)
+  let d_fin := ((((base, u.val), h_q), ((found, j_del), phys_del)), hValOfSeed U n_max θ q_last)
   have hin_fin : x₇.regs ∘ srcDelFin =
-      WordEncoding.encode (α := DictParams × ((((ℕ × ℕ) × ℕ) × ((ℕ × ℕ) × ℕ)) × ℕ))
-        (dp, d_fin) :=
-    regs_comp_append_paramReg d_fin srcDelFinD hparam₇ (fun i => by
-      fin_cases i
-      · exact hbase₇
-      · exact hu₇
-      · exact hhq₇
-      · exact hfound₇
-      · exact hjdel₇
-      · exact hphys₇
-      · exact hout₇)
-  have hv_fin : (Memory.spec w).ValidHistory (memoryState frontierReg x₇)
-      ((Memory.spec w).clientHistory (memoryState frontierReg x₇)
-        (deleteFinishWithHashGenProg (dp, d_fin))) := by
-    rw [deleteFinishWithHashGenProg_mk, hms₇]
-    exact validProg_deleteFinishWithHash hpre_fin
-      ⟨wellFormed_memoryState hx₅_bdd, le_of_eq hfr₅.symm⟩
-  have hpre_fin₇ : DeleteFinishWithHashGenPre w (dp, d_fin) (memoryState frontierReg x₇) := by
-    rw [deleteFinishWithHashGenPre_mk, hms₇]
-    exact hpre_fin
+      WordEncoding.encode (α := DictParams × ((((ℕ × ℕ) × ℕ) × ((ℕ × ℕ) × ℕ)) × ℕ)) (dp, d_fin) :=
+    regs_comp_append_paramReg d_fin srcDelFinD
+      (fun j => (hhigh₇ ⟨256 + j.val, by omega⟩ (by dsimp; omega)).trans (hparam₆ j))
+      (fun
+        | 0 => hbase₇ | 1 => (hhigh₇ 245 (by decide)).trans hu₆
+        | 2 => (hhigh₇ 248 (by decide)).trans hhq₆ | 3 => (hhigh₇ 249 (by decide)).trans hfound₆
+        | 4 => (hhigh₇ 250 (by decide)).trans hj₆ | 5 => (hhigh₇ 251 (by decide)).trans hphys₆
+        | 6 => hout₇)
   obtain ⟨y, hex_fin, hm_fin, _, hframe_fin⟩ :=
-    (realizes_deleteFinishWithHashGen.code_spec
-      frontierReg srcDelFin tmpDelFin
-      tmpDelFin_injective srcDelFin_ne_tmpDelFin
-      tmpDelFin_ne_frontier srcDelFin_ne_frontier).2
-      w (dp, d_fin) x₇ hx₇_bdd hin_fin hpre_fin₇ hv_fin
-  change ExecWithin w delFinCode x₇ y _ at hex_fin
+    (realizes_deleteFinishWithHashGen.code_spec frontierReg srcDelFin tmpDelFin
+      tmpDelFin_injective srcDelFin_ne_tmpDelFin tmpDelFin_ne_frontier srcDelFin_ne_frontier).2
+      w (dp, d_fin) x₇ (hex_h2.bounded hx₆_bdd) hin_fin
+      (by rw [deleteFinishWithHashGenPre_mk, hms₇]; exact hpre_fin)
+      (by
+        rw [deleteFinishWithHashGenProg_mk, hms₇]
+        exact validProg_deleteFinishWithHash hpre_fin
+          ⟨wellFormed_memoryState hs₅.bdd, le_of_eq hs₅.frontier.symm⟩)
   rw [clientState_width, deleteFinishWithHashGenProg_mk, hms₇] at hm_fin
-  have hyfr : y.regs frontierReg = base + space U V w n_max :=
-    ((congrArg Memory.State.frontier hm_fin).trans hfr_fin).trans hfr₅
-  have hybase : y.regs baseReg = base := by
-    rw [hframe_fin baseReg (sReg_ne (by decide)) (fun j => ?_)]
-    · exact hbase₇
-    · intro hj
-      have hval := congrArg Fin.val hj
-      rw [val_tmpDelFin] at hval
-      change 292 + j.val = 0 at hval
-      omega
-  have hhash_eq : ∀ a, base ≤ a → a < base + hashSpace U w n_max → x.mem a = y.mem a := by
-    intro a ha1 ha2
-    have hmy : y.mem a = s₅.mem a := by
-      change (memoryState frontierReg y).mem a = _
-      rw [hm_fin]
-      exact hout_fin a (by dsimp [offQuot]; omega)
-    rw [hmy]
-    exact hmem₅.symm ▸ rfl
-  have hex_del : ExecWithin w (delCode U w n_max) x₄ y _ :=
-    hex_cp.seq (hex_prep.seq (hex_h2.seq hex_fin))
-  have hex_br1 : ExecWithin w
-      (.branch (.eq tagReg oneReg) insCode (delCode U w n_max)) x₄ y _ :=
-    ExecWithin.branch_neg hcond_neg1 hex_del
-  have hex_all := hex_pre (ExecWithin.branch_neg hcond_neg0 (hex_o.seq hex_br1))
-  have hy_bdd : y.Bounded w := hex_all.bounded hx_bdd
-  have hy_rep : Rep U V w n_max base θ (Function.update s_abs u none) y :=
-    ⟨hy_bdd, hybase, hyfr,
-      tableRep_congr hhash_eq htab,
-      seedRep_congr hhash_eq hseed,
-      by rw [hm_fin]; exact hdict_fin⟩
-  have hmod : Modifies (Block.mk base (space U V w n_max)).footprint x.mem y.mem := by
-    refine modifies_footprint_of_table (fun a ha => ?_)
-    have hmy : y.mem a = s₅.mem a := by
-      change (memoryState frontierReg y).mem a = _
-      rw [hm_fin]
-      exact hout_fin a ha
-    rw [hmy]
-    exact congrFun hmem₅ a
-  have hgm_y : gmAt base U V w n_max (hashSpace U w n_max) y.mem =
-      gmAt base U V w n_max (hashSpace U w n_max)
-        ((Memory.spec 0).clientState s₅ prog_fin).mem :=
-    congrArg (fun s : Memory.State => gmAt base U V w n_max (hashSpace U w n_max) s.mem) hm_fin
-  have hgm_s5 : gmAt base U V w n_max (hashSpace U w n_max) s₅.mem =
-      gmAt base U V w n_max (hashSpace U w n_max) x.mem := by
-    change gmAt base U V w n_max (hashSpace U w n_max) x₅.mem = _
-    rw [hmem₅]
+  have hex_all := hex_pre (ExecWithin.branch_neg
+    (by change x₄.regs tagReg ≠ x₄.regs oneReg; rw [hs₄.tag, htag, hone₄]; decide)
+    (hex_cp.seq (hex_prep.seq (hex_h2.seq hex_fin))))
+  obtain ⟨hy_rep, hmod⟩ := rep_and_modifies_of_table_post htab hseed (hex_all.bounded hx_bdd)
+    ((regs_sReg_of_frame tmpLayout_tmpDelFin hframe_fin (by decide) (by decide)).trans hbase₇)
+    hs₅.mem hs₅.frontier hm_fin hfr_fin hout_fin hdict_fin
+  refine ⟨y, _, hex_all, rfl, hy_rep, hmod, ?_⟩
+  rw [show s₅.mem = x.mem from hs₅.mem] at hcost_del
   have hF_ext := factor_extractQuot_le
-  have hF_prep := factor_deletePrepWithHash_le
-  have hF_fin := factor_deleteFinishWithHash_le
   have hH_le := ReducedKWise.evalSteps_le (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
   dsimp only [ReducedKWise.evalBound] at hH_le
-  have hmul_prep :
-      realizes_deletePrepWithHashGen.factor *
-        (memoryCost (deletePrepWithHashGenProg (dp, d_prep))
-          (memoryState frontierReg x₅) + 0 + 1) ≤
-      opFactor * memoryCost prog_prep s₅ + opFactor := by
-    rw [deletePrepWithHashGenProg_mk]
-    calc realizes_deletePrepWithHashGen.factor *
-          (memoryCost prog_prep s₅ + 0 + 1)
-        ≤ opFactor * (memoryCost prog_prep s₅ + 1) :=
-          Nat.mul_le_mul hF_prep (by omega)
-      _ = opFactor * memoryCost prog_prep s₅ + opFactor := by ring
-  have hmul_fin :
-      realizes_deleteFinishWithHashGen.factor *
-        (memoryCost (deleteFinishWithHashGenProg (dp, d_fin))
-          (memoryState frontierReg x₇) + 0 + 1) ≤
-      opFactor * memoryCost prog_fin s₅ + opFactor := by
-    rw [deleteFinishWithHashGenProg_mk, hms₇]
-    calc realizes_deleteFinishWithHashGen.factor *
-          (memoryCost prog_fin s₅ + 0 + 1)
-        ≤ opFactor * (memoryCost prog_fin s₅ + 1) :=
-          Nat.mul_le_mul hF_fin (by omega)
-      _ = opFactor * memoryCost prog_fin s₅ + opFactor := by ring
-  rw [hgm_s5] at hcost_del
-  have hcost_scaled :
-      opFactor * memoryCost prog_prep s₅ +
-      opFactor * memoryCost prog_fin s₅ +
-      (66 * opFactor) *
-        slotPotential n_max
-          (gmAt base U V w n_max (hashSpace U w n_max)
-            ((Memory.spec 0).clientState s₅ prog_fin).mem) ≤
-      (66 * opFactor) *
-        slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) x.mem) +
-      270 * opFactor +
-      (8 * opFactor) *
-        probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-          (Dictionary.dom s_abs) u := by
-    calc opFactor * memoryCost prog_prep s₅ +
-        opFactor * memoryCost prog_fin s₅ +
-        (66 * opFactor) *
-          slotPotential n_max
-            (gmAt base U V w n_max (hashSpace U w n_max)
-              ((Memory.spec 0).clientState s₅ prog_fin).mem)
-        = opFactor *
-            (memoryCost prog_prep s₅ + memoryCost prog_fin s₅ +
-              66 * slotPotential n_max
-                (gmAt base U V w n_max (hashSpace U w n_max)
-                  ((Memory.spec 0).clientState s₅ prog_fin).mem)) := by ring
-      _ ≤ opFactor *
-            (66 * slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) x.mem) +
-              270 +
-              8 * probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-                (Dictionary.dom s_abs) u) :=
-          Nat.mul_le_mul_left _ hcost_del
-      _ = (66 * opFactor) *
-            slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) x.mem) +
-          270 * opFactor +
-          (8 * opFactor) *
-            probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
-              (Dictionary.dom s_abs) u := by ring
-  refine ⟨y, _, hex_all, rfl, hy_rep, hmod, ?_⟩
+  rw [deletePrepWithHashGenProg_mk, deleteFinishWithHashGenProg_mk, hms₇]
+  have hmul_prep := factor_mul_cost_add_one_le
+    (c := memoryCost (deletePrepWithHashProg U V w n_max ((base, u.val), h_q)) s₅)
+    factor_deletePrepWithHash_le
+  have hmul_fin := factor_mul_cost_add_one_le
+    (c := memoryCost (deleteFinishWithHashProg U V w n_max d_fin) s₅)
+    factor_deleteFinishWithHash_le
+  have hcost_scaled := opFactor_mul_amortized_le hcost_del
+  rw [Nat.mul_add] at hcost_scaled
   unfold potential
-  rw [hgm_y]
+  rw [show y.mem = _ from congrArg Memory.State.mem hm_fin]
+  dsimp only [s₅, x₅, hqReg, dp, d_fin, h_q] at hmul_prep hmul_fin ⊢
   omega
 
 /-- Extract the target key `u : Fin U` of a dynamic dictionary operation `o : Dynamic.Op U`. -/
@@ -1891,5 +1471,7 @@ theorem exec_opCode {U V w n_max base : ℕ}
   | query u => exact exec_opCode_query hwf hV_fit hfit θ s_abs u hrep harg
   | insert u v => exact exec_opCode_insert hwf hV_fit hfit θ s_abs u v hval hrep harg
   | delete u => exact exec_opCode_delete hwf hV_fit hfit θ s_abs u hrep harg
+
+end
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

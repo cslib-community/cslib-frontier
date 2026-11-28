@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Program
 public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged native cyclic-coefficient multiplication and accumulation
@@ -33,31 +34,12 @@ theorem exec_selectPartner {w : ℕ} (x : Data 32)
     ExecWithin w selectPartner x
       (x.set Reg.partner (subIndex (x.regs Reg.length)
         (x.regs Reg.coefficient) (x.regs Reg.index))) 3 := by
-  by_cases h : x.regs Reg.coefficient < x.regs Reg.index
-  · have hs : Fits w (x.regs Reg.coefficient + x.regs Reg.length -
-        x.regs Reg.index) := hfit.of_le (Nat.sub_le ..)
-    have he : ExecWithin w
-        (ram[ Reg.partner ← Reg.coefficient + Reg.length;
-          Reg.partner ← Reg.partner - Reg.index ]) x
-        (x.set Reg.partner (x.regs Reg.coefficient + x.regs Reg.length -
-          x.regs Reg.index)) 2 := by
-      refine ⟨2, le_rfl, ?_⟩
-      ram_eval [hfit, hs, Reg.partner, Reg.coefficient, Reg.length, Reg.index, Fin.mk.injEq,
-        Data.set, Function.update_idem]
-    simpa only [selectPartner, subIndex, show ¬x.regs Reg.index ≤
-      x.regs Reg.coefficient from by omega, ↓reduceIte] using
-        ExecWithin.branch_pos (cond := .lt Reg.coefficient Reg.index)
-          (by simpa only [Cond.holds_lt] using h) he
-  · have hs : Fits w (x.regs Reg.coefficient - x.regs Reg.index) :=
-      hfit.of_le (by omega)
-    have he : ExecWithin w
-        (ram[ Reg.partner ← Reg.coefficient - Reg.index ]) x
-        (x.set Reg.partner (x.regs Reg.coefficient - x.regs Reg.index)) 1 := by
-      ram_eval [hs]
-    simpa only [selectPartner, subIndex, show x.regs Reg.index ≤
-      x.regs Reg.coefficient from by omega, ↓reduceIte] using
-        ExecWithin.branch_neg (cond := .lt Reg.coefficient Reg.index)
-          (by simpa only [Cond.holds_lt] using h) he
+  unfold selectPartner subIndex
+  wram_exec
+  all_goals
+    simp only [show x.regs Reg.index ≤ x.regs Reg.coefficient ↔
+      ¬x.regs Reg.coefficient < x.regs Reg.index by omega, hc, not_true_eq_false,
+      not_false_eq_true, ↓reduceIte, Data.set, Function.update_idem]
 
 /-- Exactly the arithmetic scratch, cyclic partner, partial sum, address and inner counter. -/
 def TermLocal (i : Fin 32) : Prop :=
@@ -88,41 +70,23 @@ theorem exec_term {w : ℕ} (x : Data 32) (a b s : ℤ)
       y.regs Reg.accumulator = encode (s + a * b) ∧
       y.regs Reg.index = x.regs Reg.index + 1 ∧ y.mem = x.mem ∧
       ∀ i, ¬TermLocal i → y.regs i = x.regs i := by
-  let j := subIndex (x.regs Reg.length) (x.regs Reg.coefficient) (x.regs Reg.index)
-  let z := x.set Reg.partner j
-  have hz : ExecWithin (w + 2) selectPartner x z 3 := exec_selectPartner x hwrap
-  let u := (((z.set Reg.address (x.regs Reg.inputA + x.regs Reg.index)).set left
-    (encode a)).set Reg.address (x.regs Reg.inputB + j)).set right (encode b)
-  have hu : ExecWithin (w + 2) loadOperands z u 4 := by
-    ram_eval [loadOperands, u, z, j, haddrA, haddrB, hreadA, hreadB,
-      Reg.inputA, Reg.inputB, Reg.partner, Reg.address, Reg.index, left, right, Fin.mk.injEq]
-  obtain ⟨v, hv, hvresult, hvframe⟩ := Signed.exec_multiply (r := 23) ha hb hp u
-    (by simp +decide [u, left, right, Reg.address]) (by simp [u])
-  have hprod : ExecWithin (w + 2) productTerm x v 21 := hz.seq (hu.seq hv)
-  have hvs : v.regs Reg.accumulator = encode s :=
-    (hprod.regs_eq (by decide : productTerm.Preserves Reg.accumulator)).trans hacc
-  change v.regs result = encode (a * b) at hvresult
-  let q := (v.set right (encode (a * b))).set left (encode s)
-  have hq : ExecWithin (w + 2) addArguments v q 2 := by
-    ram_eval [addArguments, q, hvresult, hvs, left, right, result, Reg.accumulator,
-      Fin.mk.injEq]
-  obtain ⟨t, ht, htresult, htframe⟩ := Signed.exec_add (r := 23) hs hp q
-    (by simp [q]) (by simp +decide [q, left, right])
-  have he : ExecWithin (w + 2) (.seq productTerm (.seq addArguments Signed.add)) x t 38 :=
-    hprod.seq (hq.seq ht)
-  have hti : t.regs Reg.index = x.regs Reg.index :=
-    he.regs_eq (by decide)
-  have hto : t.regs Reg.one = 1 := (he.regs_eq (by decide)).trans hone
-  change t.regs result = encode (s + a * b) at htresult
-  let y := (t.set Reg.accumulator (encode (s + a * b))).set Reg.index
-    (x.regs Reg.index + 1)
-  have hy : ExecWithin (w + 2) finishTerm t y 2 := by
-    ram_eval [finishTerm, y, htresult, hti, hto, hnext, Reg.accumulator, Reg.index,
-      Reg.one, result, Fin.mk.injEq]
-  have hall : ExecWithin (w + 2) term x y 40 := hprod.seq (hq.seq (ht.seq hy))
-  refine ⟨y, hall, ?_, ?_, ?_, fun i hi => hall.regs_eq (term_preserves i hi)⟩
-  · simp +decide [y, Reg.accumulator, Reg.index]
-  · simp [y]
-  · exact htframe.1.trans hvframe.1
+  suffices ∃ y, ExecWithin (w + 2) term x y 40 ∧
+      y.regs Reg.accumulator = encode (s + a * b) ∧
+      y.regs Reg.index = x.regs Reg.index + 1 ∧ y.mem = x.mem by
+    obtain ⟨y, hall, hacc', hidx', hmem'⟩ := this
+    exact ⟨y, hall, hacc', hidx', hmem', fun i hi => hall.regs_eq (term_preserves i hi)⟩
+  apply WP.exists_execWithin
+  unfold term productTerm loadOperands addArguments finishTerm
+  wram_call (exec_selectPartner x hwrap)
+  wram_exec * [hreadA, hreadB]
+  wram_call (Signed.exec_multiply (r := 23) ha hb hp _ (by wram_simp) (by wram_simp))
+    with v ⟨hvresult, hvmem, _⟩
+  have hvres : v.regs Signed.result = encode (a * b) := hvresult
+  wram_exec *
+  wram_call (Signed.exec_add (r := 23) hs hp _ (by wram_simp) (by wram_simp))
+    with t ⟨htresult, htmem, _⟩
+  have htres : t.regs Signed.result = encode (s + a * b) := htresult
+  wram_exec *
+  wram_simp * [htmem, hvmem]
 
 end Cslib.Algorithms.WordRAM.CyclicConvolution

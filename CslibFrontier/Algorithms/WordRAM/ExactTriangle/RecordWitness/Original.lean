@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Program
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationInput
+import CslibFrontier.Foundations.Data.List.GetD
 
 /-!
 # Original signed arrays after real preparation
@@ -24,23 +25,43 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
 
 open Cslib.WordRAM
 
-/-- Each original payload word survives preparation in the unchanged caller prefix. -/
-theorem original_word {n D g p q : ℕ} (values : List ℤ) (a : Data 64) (z : Data 400)
-    (hout : Instances.Output n D g p (fun q => values.getD q 0)
-      (.init (PreparationInput.input n D g p values)) a)
-    (hmap : (z.comap productBank).comap RecordProduct.producerBank = a)
-    (hq : q < 3 * (n * n)) : z.mem (5 + q) = Signed.encode (values.getD q 0) := by
-  have hm : z.mem = a.mem := congrArg (fun d : Data 64 => d.mem) hmap
-  rw [hm, hout.2.2.2.2.2.2.2.2.2.2.2 (5 + q) (Or.inl (by omega))]
-  exact PreparationInput.input_word n D g p values q
+/-- A preserved original payload supplies the three signed row-major weight arrays. -/
+theorem original_matrices {n D g p : ℕ} (values : List ℤ) {mem : ℕ → ℕ}
+    (hprefix : ∀ j < 5 + 3 * (n * n), mem j =
+      (Data.init (PreparationInput.input n D g p values) : Data 64).mem j) :
+    ∀ a < n, ∀ b < n,
+      mem (5 + (a * n + b)) = Signed.encode (values.getD (a * n + b) 0) ∧
+      mem (5 + n * n + (a * n + b)) = Signed.encode (values.getD (n * n + (a * n + b)) 0) ∧
+      mem (5 + n * n + n * n + (a * n + b)) =
+        Signed.encode (values.getD (2 * (n * n) + (a * n + b)) 0) := by
+  intro a ha b hb
+  have hcell : a * n + b < n * n := by
+    simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt ha hb
+  have word (j : ℕ) (hj : j < 3 * (n * n)) :
+      mem (5 + j) = Signed.encode (values.getD j 0) :=
+    (hprefix _ (Nat.add_lt_add_left hj _)).trans (PreparationInput.input_word n D g p values j)
+  exact ⟨word _ (by lia),
+    by simpa only [Nat.add_assoc] using word (n * n + (a * n + b)) (by lia),
+    by simpa only [Nat.add_assoc, two_mul] using word (2 * (n * n) + (a * n + b)) (by lia)⟩
 
 /-- Original magnitude bounds supply every original array entry, not merely a fitting
 intermediate machine state. The implicit index equation is the producer's existing layout. -/
 theorem original_magnitude {n A q : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ A)
-    (hq : q < 3 * (n * n)) : (values.getD q 0).natAbs ≤ A := by
-  have hi : q < values.length := by omega
-  rw [List.getD_eq_getElem _ _ hi]
-  exact hv _ (List.getElem_mem hi)
+    (hq : q < 3 * (n * n)) : (values.getD q 0).natAbs ≤ A :=
+  hv (values.getD q 0) (List.getD_mem 0 (by omega))
+
+/-- One input magnitude bound applies to the entries of all three weight arrays. -/
+theorem original_magnitudes {n A : ℕ} (values : List ℤ)
+    (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ A) :
+    ∀ a < n, ∀ b < n,
+      (values.getD (a * n + b) 0).natAbs ≤ A ∧
+      (values.getD (n * n + (a * n + b)) 0).natAbs ≤ A ∧
+      (values.getD (2 * (n * n) + (a * n + b)) 0).natAbs ≤ A := by
+  intro a ha b hb
+  have hcell : a * n + b < n * n := by
+    simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt ha hb
+  exact ⟨original_magnitude values hlen hv (by lia), original_magnitude values hlen hv (by lia),
+    original_magnitude values hlen hv (by lia)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

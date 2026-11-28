@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.CatalogueWrite
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native shared-catalogue scan
@@ -57,13 +58,7 @@ private def parameterRegisters : Finset (Fin registers) :=
 private theorem CatalogueParameters.of_eq {L H D R : ℕ} {x y : Data registers}
     (hx : CatalogueParameters L H D R x)
     (h : ∀ i ∈ parameterRegisters, y.regs i = x.regs i) :
-    CatalogueParameters L H D R y :=
-  ⟨(h _ (by decide)).trans hx.levels, (h _ (by decide)).trans hx.height,
-    (h _ (by decide)).trans hx.span, (h _ (by decide)).trans hx.directory,
-    (h _ (by decide)).trans hx.records, (h _ (by decide)).trans hx.slots,
-    (h _ (by decide)).trans hx.one, (h _ (by decide)).trans hx.ten,
-    (h _ (by decide)).trans hx.nine, (h _ (by decide)).trans hx.three,
-    (h _ (by decide)).trans hx.nil⟩
+    CatalogueParameters L H D R y := by regs_frame
 
 /-- Scalar registers changed by a complete catalogue iteration. -/
 @[expose] def CatalogueLocal (i : Fin registers) : Prop := InspectLocal i ∨ WriteLocal i
@@ -88,27 +83,23 @@ theorem exec_catalogueStep {w L H D R s : ℕ} (x : Data registers)
       y.regs Reg.count = Nat.count (Eligible L H) (s + 1) ∧
       CatalogueParameters L H D R y ∧
       (∀ i, ¬CatalogueLocal i → y.regs i = x.regs i) := by
-  have hscan : Fits w (s + 10 ^ L + L + 12) := hfit.of_le (by omega)
-  have hwrite : Fits w (D + R + 6 * (s + 1) + 12) := hfit.of_le
-    (Nat.add_le_add_right ((Nat.add_le_add_left
-      (Nat.mul_le_mul_left 6 (Nat.succ_le_of_lt hslt)) (D + R)).trans
-        ((Nat.le_add_right _ (10 ^ L)).trans (Nat.le_add_right _ L))) 12)
   obtain ⟨u, hu, he, hcode, hpop, hstride, hmem, hframe⟩ :=
-    exec_inspect x hx.levels hx.span hs hx.one hx.ten hx.nine hscan
-  have hf (i : Fin registers) (hi : ¬InspectLocal i) : u.regs i = x.regs i := hframe i hi
+    exec_inspect x hx.levels hx.span hs hx.one hx.ten hx.nine (hfit.of_le (by omega))
   obtain ⟨y, hy, hym, hys, hyc, _⟩ := exec_writeSlot u
-    ((hf _ (by decide)).trans hx.directory) ((hf _ (by decide)).trans hx.records)
-    ((hf _ (by decide)).trans hs) ((hf _ (by decide)).trans hx.height)
-    ((hf _ (by decide)).trans hc) hcode he hpop hstride
-    ((hf _ (by decide)).trans hx.one) ((hf _ (by decide)).trans hx.three)
-    ((hf _ (by decide)).trans hx.nil) hwrite
-  have hwhole : ExecWithin w catalogueStep x y (11 * L + 26) :=
-    (hu.seq hy).mono (by omega)
+    (by regs_frame)
+    (by regs_frame)
+    (by regs_frame)
+    (by regs_frame)
+    (by regs_frame) hcode he hpop hstride
+    (by regs_frame)
+    (by regs_frame)
+    (by regs_frame)
+    (hfit.of_le (by omega))
+  have hwhole : ExecWithin w catalogueStep x y (11 * L + 26) := (hu.seq hy).mono (by omega)
   have hregs (i : Fin registers) (hi : ¬CatalogueLocal i) : y.regs i = x.regs i :=
     hwhole.regs_eq (catalogueStep_preserves i hi)
-  refine ⟨y, hwhole, ?_, hys, hyc, hx.of_eq (fun i hi =>
-    hregs i (parameter_not_local i hi)), hregs⟩
-  simpa only [hmem] using hym
+  exact ⟨y, hwhole, hmem ▸ hym, hys, hyc,
+    hx.of_eq fun i hi => hregs i (parameter_not_local i hi), hregs⟩
 
 /-- The actual scan fills every directory word and emits every eligible compact record once. -/
 theorem exec_catalogueLoop {w L H D R : ℕ} (x : Data registers)
@@ -126,20 +117,15 @@ theorem exec_catalogueLoop {w L H D R : ℕ} (x : Data registers)
     CatalogueParameters L H D R y ∧
       y.regs Reg.count = Nat.count (Eligible L H) j ∧
       CataloguePrefix L H D R j x.mem y.mem
-  have hi : P (x.regs Reg.slot) x := by
-    refine ⟨hx, by simp [hslot, hcount], ?_⟩
-    simpa only [hslot] using CataloguePrefix.zero L H D R x.mem
   have hb (y : Data registers) (hy : P (y.regs Reg.slot) y) (hlt : y.regs Reg.slot < S) :
       ∃ z, ExecWithin w catalogueStep y z (11 * L + 26) ∧ P (y.regs Reg.slot + 1) z ∧
         z.regs Reg.slot = y.regs Reg.slot + 1 := by
     obtain ⟨hp, hc, hprefix⟩ := hy
-    obtain ⟨z, hz, hzm, hzs, hzc, hzp, _⟩ :=
-      exec_catalogueStep y hp rfl hc hlt hfit
-    refine ⟨z, hz, ⟨hzp, hzc, ?_⟩, hzs⟩
-    rw [hzm]
-    exact hprefix.step hlt hsep
-  obtain ⟨y, hy, ⟨hp, hc, hprefix⟩, hdone⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.1.slots) hb (by simp [hslot]) hi
+    obtain ⟨z, hz, hzm, hzs, hzc, hzp, _⟩ := exec_catalogueStep y hp rfl hc hlt hfit
+    exact ⟨z, hz, ⟨hzp, hzc, hzm ▸ hprefix.step hlt hsep⟩, hzs⟩
+  obtain ⟨y, hy, ⟨hp, hc, hprefix⟩, hdone⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.slots) hb
+    (by simp [hslot]) ⟨hx, by simp [hslot, hcount],
+      by simpa only [hslot] using CataloguePrefix.zero L H D R x.mem⟩
   exact ⟨y, by simpa only [hslot, Nat.sub_zero, S, Nat.mul_comm, Nat.add_assoc] using hy,
     hp, hdone, hc, hprefix⟩
 

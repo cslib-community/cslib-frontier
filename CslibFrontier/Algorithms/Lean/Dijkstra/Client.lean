@@ -7,11 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.WordRAM.Dijkstra.HeapStatement
+public import CslibFrontier.Algorithms.Dijkstra.ListInstance
 public import CslibFrontier.DataStructure.AdjacencyList.Spec
 public import CslibFrontier.DataStructure.Dictionary.Spec
 public import CslibFrontier.DataStructure.PriorityQueue.Spec
-import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Ring
 
 /-!
 # Dijkstra's algorithm as a client of abstract interfaces
@@ -36,9 +38,9 @@ visited vertex never improves. The main loop runs at most `n` rounds, one per vi
 Running the client against the transition functions of the specifications
 (`Cslib.DataStructure.StateTransitionSpec.runClient`) is a pure Lean computation. Its correctness
 (`Cslib.Algorithms.Lean.Dijkstra.dijkstra_correct`) rests on the machine-free invariant
-`Cslib.Algorithms.WordRAM.Dijkstra.Instance.Inv` and on the relaxation of parallel edges
-`Cslib.Algorithms.WordRAM.Dijkstra.decode_edgesWord`, both used unchanged. The same induction
-counts the operations by kind (`Cslib.Algorithms.Lean.Dijkstra.countP_kind_dijkstra_le`):
+`Cslib.Algorithms.Dijkstra.Instance.Inv` and on the relaxation of parallel edges
+`Cslib.Algorithms.Dijkstra.ListInstance.relaxEdges_eq_relax`, both used unchanged. The same
+induction counts the operations by kind (`Cslib.Algorithms.Lean.Dijkstra.countP_kind_dijkstra_le`):
 at most `min n (m + 1)` insertions, `min n (m + 2)` extractions, `m` key decreases, `2 m + 1`
 distance-map queries and `min (n + m) (2 m + 1)` graph queries. Only reached vertices are
 inserted, and each insertion after the source's is caused by an edge, so the counts need not grow
@@ -79,7 +81,7 @@ computation is not charged.
 namespace Cslib.Algorithms.Lean.Dijkstra
 
 open Cslib.DataStructure Cslib.DataStructure.PriorityQueue
-open Cslib.Algorithms.WordRAM.Dijkstra (ListInstance)
+open Cslib.Algorithms.Dijkstra (ListInstance)
 
 /-- The interfaces of Dijkstra's algorithm on `Fin n`: an indexed min-priority queue with keys
 at most `K`, a map of tentative distances with values below `V`, and the adjacency lists of the
@@ -270,22 +272,17 @@ private theorem runClient_edge_bind {α : Type} (s : (spec n K V).State) (u : Fi
 private theorem Runs.bind {s s₁ s₂ : (spec n K V).State} {p q : (spec n K V).Client Unit}
     {b₁ b₂ : ℕ} (h₁ : Runs rate pU pQ s p s₁ b₁) (h₂ : Runs rate pU pQ s₁ q s₂ b₂) :
     Runs rate pU pQ s (p >>= fun _ => q) s₂ (b₁ + b₂) := by
-  obtain ⟨hv₁, hs₁, hw₁⟩ := h₁
-  obtain ⟨hv₂, hs₂, hw₂⟩ := h₂
-  have hrun := runClient_bind' s p (fun _ => q)
-  simp only [hs₁] at hrun
+  obtain ⟨hv₁, rfl, hw₁⟩ := h₁
+  obtain ⟨hv₂, rfl, hw₂⟩ := h₂
   refine ⟨?_, ?_, ?_⟩
-  · rw [StateTransitionSpec.clientHistory, hrun, StateTransitionSpec.validHistory_append,
-      StateTransitionSpec.run_runClient, hs₁]
+  · simp only [StateTransitionSpec.clientHistory, runClient_bind',
+      StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient]
     exact ⟨hv₁, hv₂⟩
-  · rw [StateTransitionSpec.clientState, hrun, hs₂]
-  · rw [StateTransitionSpec.clientHistory, hrun, weight_append]
-    omega
+  · simp only [StateTransitionSpec.clientState, runClient_bind']
+  · rw [StateTransitionSpec.clientHistory, runClient_bind', weight_append]; omega
 
-private theorem Runs.pure (s : (spec n K V).State) : Runs rate pU pQ s (pure ()) s 0 := by
-  refine ⟨trivial, rfl, ?_⟩
-  change weight rate [] + _ ≤ _
-  rw [weight_nil, Nat.zero_add]
+private theorem Runs.pure (s : (spec n K V).State) : Runs rate pU pQ s (pure ()) s 0 :=
+  ⟨trivial, rfl, le_rfl⟩
 
 /-- The relaxation of a tentative distance through a path of length `x`. -/
 private def relaxOpt (x : ℕ) : Option ℕ → Option ℕ
@@ -299,56 +296,40 @@ private def syncQ (T : Finset (Fin n)) (dm : Dictionary.State n) : IndexedMinPQ.
 
 private theorem unreached_update_of_none {dm : Dictionary.State n} {v : Fin n} (hv : dm v = none)
     (x : ℕ) : unreached (Function.update dm v (some x)) + 1 = unreached dm := by
-  have : (Finset.univ.filter fun w => Function.update dm v (some x) w = none) =
+  have hsub : (Finset.univ.filter fun w => Function.update dm v (some x) w = none) =
       (Finset.univ.filter fun w => dm w = none).erase v := by
     ext w
-    by_cases hw : w = v
-    · subst hw; simp
-    · simp [hw]
-  rw [unreached, this, Finset.card_erase_of_mem (by simpa using hv), unreached]
-  have : 0 < (Finset.univ.filter fun w => dm w = none).card :=
-    Finset.card_pos.mpr ⟨v, by simpa using hv⟩
-  omega
+    rcases eq_or_ne w v with rfl | hw <;> simp [*]
+  rw [unreached, hsub, unreached]
+  exact Finset.card_erase_add_one (by simpa using hv)
 
 private theorem unreached_update_of_some {dm : Dictionary.State n} {v : Fin n} {d : ℕ}
     (hv : dm v = some d) (x : ℕ) : unreached (Function.update dm v (some x)) = unreached dm := by
   unfold unreached
   congr 1
   ext w
-  by_cases hw : w = v
-  · subst hw; simp [hv]
-  · simp [hw]
+  rcases eq_or_ne w v with rfl | hw <;> simp [*]
 
 private theorem syncQ_update {T : Finset (Fin n)} {dm : Dictionary.State n} {v : Fin n}
     (hv : v ∉ T) (x : Option ℕ) :
     Function.update (syncQ T dm) v x = syncQ T (Function.update dm v x) := by
   funext w
-  by_cases hw : w = v
-  · subst hw; simp [syncQ, hv]
-  · simp [syncQ, hw]
+  rcases eq_or_ne w v with rfl | hw <;> simp [syncQ, *]
 
 private theorem card_dom_lt {dm : Dictionary.State n} {v : Fin n} (hv : dm v = none) :
     (Dictionary.dom dm).card < n := by
-  have hsub : Dictionary.dom dm ⊆ Finset.univ.erase v := by
-    intro w hw
-    rw [Finset.mem_erase]
-    refine ⟨?_, Finset.mem_univ w⟩
-    rintro rfl
-    simp [Dictionary.dom, hv] at hw
-  have := Finset.card_le_card hsub
-  rw [Finset.card_erase_of_mem (Finset.mem_univ v), Finset.card_univ, Fintype.card_fin] at this
-  have := v.pos
-  omega
+  have := Finset.card_lt_univ_of_notMem (s := Dictionary.dom dm) (x := v)
+    (by simp [Dictionary.dom, hv])
+  rwa [Fintype.card_fin] at this
 
 private theorem Runs.of_runClient {s s' : (spec n K V).State} {p : (spec n K V).Client Unit}
     {hist : List (spec n K V).Op} {b : ℕ} (h : (spec n K V).runClient s p = ((), s', hist))
     (hv : (spec n K V).ValidHistory s hist)
     (hw : weight rate hist + pot pU pQ s' ≤ b + pot pU pQ s) :
     Runs rate pU pQ s p s' b := by
-  refine ⟨?_, ?_, ?_⟩
-  · rwa [StateTransitionSpec.clientHistory, h]
-  · rw [StateTransitionSpec.clientState, h]
-  · rwa [StateTransitionSpec.clientHistory, h]
+  exact ⟨by rwa [StateTransitionSpec.clientHistory, h],
+    by rw [StateTransitionSpec.clientState, h],
+    by rwa [StateTransitionSpec.clientHistory, h]⟩
 
 /-- **One edge.** Relaxing the edge `(v, c)` out of `u` updates the tentative distance of `v` and,
 unless `v` is visited, its key. A visited target must not improve. -/
@@ -376,11 +357,8 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
     · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
         IndexedMinPQ.valid, hi, hvc, hdm, card_dom_lt hdm, hV, hK, syncQ, hvT]
     · have := unreached_update_of_none hdm (du + c)
-      dsimp only [relaxOpt]
-      rw [weight_cons, weight_cons, weight_cons, weight_cons, weight_nil, pot, pot]
-      dsimp only
-      rw [hq, ← this, Nat.mul_succ, Nat.mul_succ]
-      dsimp only [kind, edgeRate]
+      simp only [relaxOpt, weight_cons rate, weight_nil rate, pot, hq, ← this, Nat.mul_succ,
+        kind, edgeRate]
       omega
   · by_cases hlt : du + c < dv
     · have hvT : v ∉ T := fun h => by
@@ -400,30 +378,22 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
         rw [← syncQ_update hvT, IndexedMinPQ.dom_decreaseKey]
         exact IndexedMinPQ.mem_dom_iff.mpr ⟨dv, by simp [syncQ, hvT, hdm]⟩
       rw [syncQ_update hvT] at hrun
-      have hmin : relaxOpt (du + c) (some dv) = some (du + c) := by
-        simp only [relaxOpt, Option.some_inj]
-        omega
-      rw [hmin]
+      rw [relaxOpt, min_eq_left hlt.le]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
           IndexedMinPQ.valid, hi, hvc, hdm, hV, hK, syncQ, hvT, hlt.le]
-      · rw [weight_cons, weight_cons, weight_cons, weight_cons, weight_nil, pot, pot]
-        dsimp only
-        rw [hq, unreached_update_of_some hdm]
-        dsimp only [kind, edgeRate]
+      · simp only [weight_cons rate, weight_nil rate, pot, hq, unreached_update_of_some hdm,
+          kind, edgeRate]
         omega
     · have hrun : (spec n K V).runClient (syncQ T dm, dm, adj) (relaxEdge u du i) =
           ((), (syncQ T dm, dm, adj), [.inr (.inr (.edge u i)), .inr (.inl (.query v))]) := by
         simp only [relaxEdge, runClient_edge_bind, AdjacencyList.step_edge _ _ hi, hvc,
           runClient_getDist_bind, hdm, hlt, ite_false]
         rfl
-      have hmin : Function.update dm v (relaxOpt (du + c) (some dv)) = dm := by
-        rw [relaxOpt, min_eq_right (Nat.le_of_not_lt hlt), ← hdm, Function.update_eq_self]
-      rw [hmin]
+      rw [relaxOpt, min_eq_right (Nat.le_of_not_lt hlt), ← hdm, Function.update_eq_self]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, hi]
-      · rw [weight_cons, weight_cons, weight_nil]
-        dsimp only [kind, edgeRate]
+      · simp only [weight_cons rate, weight_nil rate, kind, edgeRate]
         omega
 
 private theorem Runs.mono {s s' : (spec n K V).State} {p : (spec n K V).Client Unit} {b b' : ℕ}
@@ -442,9 +412,8 @@ private theorem Runs.lift_bind {s s' : (spec n K V).State} (o : (spec n K V).Op)
       StateTransitionSpec.validHistory_cons]
     exact ⟨hv, hv'⟩
   · simpa only [StateTransitionSpec.clientState, StateTransitionSpec.runClient_lift_bind'] using hs'
-  · simp only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind']
+  · simp only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind'] at hw' ⊢
     rw [weight_cons]
-    simp only [StateTransitionSpec.clientHistory] at hw'
     omega
 
 /-- A call that leaves the state alone, followed by a continuation. -/
@@ -508,8 +477,7 @@ private theorem forM_relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State 
       obtain ⟨dv, hdv, hle⟩ := hset v c hmem hvT
       refine ⟨dv, scanMap_of_le _ hdv fun c' hc' => ?_, hle⟩
       obtain ⟨dv', hdv', hle'⟩ := hset v c' (List.mem_of_mem_take hc') hvT
-      rw [hdv, Option.some_inj] at hdv'
-      exact hdv' ▸ hle'
+      exact (Option.some.inj (hdv.symm.trans hdv')).trans_le hle'
     have hedge := relaxEdge_runs rate T (scanMap du ((adj u).take k) dm) adj hk' hvc hT
       (hbound v c hmem).1 (hbound v c hmem).2 (pU := pU) (pQ := pQ)
     rw [List.range_succ]
@@ -533,56 +501,50 @@ private theorem scan_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
 
 /-! ### Tentative distances -/
 
-/-- A tentative distance as a word: `0` while unreached and `d + 1` at distance `d`. -/
-private def word : Option ℕ → ℕ
-  | none => 0
-  | some d => d + 1
-
 /-- The tentative distances of a distance map: `⊤` while unreached. -/
 private def tentative (dm : Dictionary.State n) (v : Fin n) : ℕ∞ :=
-  WordRAM.Dijkstra.decodeDist (word (dm v))
+  (dm v).elim ⊤ (↑)
 
 private theorem tentative_of_none {dm : Dictionary.State n} {v : Fin n} (h : dm v = none) :
     tentative dm v = ⊤ := by
-  simp [tentative, h, word, WordRAM.Dijkstra.decodeDist]
+  simp only [tentative, h, Option.elim_none]
 
 private theorem tentative_of_some {dm : Dictionary.State n} {v : Fin n} {d : ℕ}
     (h : dm v = some d) : tentative dm v = d := by
-  simp [tentative, h, word, WordRAM.Dijkstra.decodeDist]
+  simp only [tentative, h, Option.elim_some]
 
-private theorem word_relaxOpt (du c : ℕ) (o : Option ℕ) :
-    word (relaxOpt (du + c) o) = WordRAM.Dijkstra.edgeWord (du + 1) c (word o) := by
+/-- Relaxing one edge lowers the tentative distance to the distance through the edge. -/
+private theorem elim_relaxOpt (du c : ℕ) (o : Option ℕ) :
+    (relaxOpt (du + c) o).elim (⊤ : ℕ∞) (↑) = min (o.elim ⊤ (↑)) ((du : ℕ∞) + c) := by
   cases o with
-  | none => simp only [relaxOpt, word, WordRAM.Dijkstra.edgeWord, ite_true]; omega
-  | some d =>
-    change min (du + c) d + 1 = WordRAM.Dijkstra.edgeWord (du + 1) c (d + 1)
-    unfold WordRAM.Dijkstra.edgeWord
-    split_ifs <;> (try contradiction) <;> omega
+  | none => simp [relaxOpt]
+  | some d => simp [relaxOpt, Nat.mono_cast.map_min, min_comm]
 
-private theorem word_scanMap (du : ℕ) (es : List (Fin n × ℕ)) (dm : Dictionary.State n)
-    (v : Fin n) :
-    word (scanMap du es dm v) = WordRAM.Dijkstra.edgesWord (du + 1) es v (word (dm v)) := by
+/-- The tentative distance of `v` after scanning `es` is the machine-free scan of `es`. -/
+private theorem tentative_scanMap_apply (du : ℕ) (es : List (Fin n × ℕ))
+    (dm : Dictionary.State n) (v : Fin n) :
+    tentative (scanMap du es dm) v = ListInstance.relaxEdges du es v (tentative dm v) := by
   induction es generalizing dm with
   | nil => rfl
   | cons e es ih =>
     obtain ⟨w, c⟩ := e
-    rw [WordRAM.Dijkstra.edgesWord, List.foldl_cons, ← WordRAM.Dijkstra.edgesWord]
-    refine (ih _).trans ?_
+    rw [scanMap, List.foldl_cons, ← scanMap, ih]
+    change ListInstance.relaxEdges du es v
+        (tentative (Function.update dm w (relaxOpt (du + c) (dm w))) v) =
+      ListInstance.relaxEdges du es v
+        (if w = v then min (tentative dm v) (du + c) else tentative dm v)
     congr 1
-    by_cases hw : w = v
-    · subst hw
-      simp [word_relaxOpt]
-    · simp [Function.update_of_ne (Ne.symm hw), hw]
+    rcases eq_or_ne w v with rfl | hw
+    · simp only [tentative, Function.update_self, elim_relaxOpt, ↓reduceIte]
+    · simp only [tentative, Function.update_of_ne hw.symm, hw, ↓reduceIte]
 
 /-- Scanning the edges out of `u` relaxes the tentative distances. -/
 private theorem tentative_scanMap (G : ListInstance) {dm : Dictionary.State G.n} {u : Fin G.n}
     {du : ℕ} (hu : dm u = some du) :
     tentative (scanMap du (G.adj u) dm) = G.toInstance.relax (tentative dm) u := by
   funext v
-  change WordRAM.Dijkstra.decodeDist (word (scanMap du (G.adj u) dm v)) = _
-  rw [word_scanMap]
-  exact WordRAM.Dijkstra.decode_edgesWord G (Nat.add_one_ne_zero du)
-    (by simp only [tentative, hu, word]) rfl
+  rw [tentative_scanMap_apply, ← tentative_of_some hu]
+  exact ListInstance.relaxEdges_eq_relax G (tentative dm) u v
 
 /-! ### The main loop -/
 
@@ -610,14 +572,11 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
   have hmin : ∀ v ∉ T, tentative dm u ≤ tentative dm v := by
     intro v hv
     rcases hdv : dm v with _ | dv
-    · rw [tentative_of_none hdv]
-      exact le_top
+    · exact tentative_of_none hdv ▸ le_top
     · rw [tentative_of_some hdv, hDu]
       exact_mod_cast IndexedMinPQ.findMin_key_le hf (v := v) (k' := dv)
         (by simp [syncQ, hv, hdv])
-  have hfin : tentative dm u ≠ ⊤ := by
-    rw [hDu]
-    exact ENat.natCast_ne_top du
+  have hfin : tentative dm u ≠ ⊤ := hDu ▸ ENat.natCast_ne_top du
   -- Every edge out of `u` into `u` or a visited vertex is already relaxed.
   have hset : ∀ v c, (v, c) ∈ G.adj u → v ∈ insert u T →
       ∃ dv, dm v = some dv ∧ dv ≤ du + c := by
@@ -629,28 +588,20 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
     obtain ⟨c', hc'⟩ := Option.ne_none_iff_exists'.mp
       fun h => G.lightest_eq_none_iff.mp h c hvc
     have hc'c : c' ≤ c := (G.lightest_eq_some_iff.mp hc').2 c hvc
-    have hv' : (dv : ℕ∞) = G.toInstance.dist G.source v := by
-      rw [← tentative_of_some hdv]
-      exact hgood.inv.eq_of_mem v hvT
-    have hu' : G.toInstance.dist G.source u ≤ du := hDu ▸ hgood.inv.dist_le u
-    have : (dv : ℕ∞) ≤ ((du + c : ℕ) : ℕ∞) :=
-      calc (dv : ℕ∞) = G.toInstance.dist G.source v := hv'
+    exact_mod_cast calc (dv : ℕ∞) = G.toInstance.dist G.source v :=
+          tentative_of_some hdv ▸ hgood.inv.eq_of_mem v hvT
         _ ≤ G.toInstance.dist G.source u + c' :=
           G.toInstance.dist_le_edge (a := u) (b := v) (c := c') hc'
         _ ≤ ((du + c : ℕ) : ℕ∞) := by
           push_cast
-          exact add_le_add hu' (by exact_mod_cast hc'c)
-    exact_mod_cast this
+          exact add_le_add (hDu ▸ hgood.inv.dist_le u) (by exact_mod_cast hc'c)
   -- Keys stay at most `n` times the largest weight.
   have hcard : T.card + 1 ≤ G.n := by
-    have := Finset.card_le_univ (insert u T)
-    rwa [Finset.card_insert_of_notMem huT, Fintype.card_fin] at this
+    simpa [Finset.card_insert_of_notMem huT] using Finset.card_le_univ (insert u T)
   have hduW : du ≤ T.card * G.maxWeight := by
-    have h : tentative dm u ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞) :=
-      hgood.inv.bound u hfin
-    rw [hDu] at h
-    have h' : du ≤ T.card * G.toInstance.maxWeight := by exact_mod_cast h
-    exact h'.trans (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
+    refine (ENat.natCast_le_natCast.mp ?_).trans (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
+    rw [Nat.cast_mul, ← hDu]
+    exact hgood.inv.bound u hfin
   have hbound : ∀ v c, (v, c) ∈ G.adj u → du + c ≤ K ∧ du + c < V := by
     intro v c hvc
     have hc : c ≤ G.maxWeight := G.le_maxWeight hvc
@@ -660,21 +611,14 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
         _ ≤ G.n * G.maxWeight := Nat.mul_le_mul_right _ hcard
     omega
   -- After the scan, the invariant holds with `u` visited.
-  have hgood' : Good G (insert u T) (scanMap du (G.adj u) dm) := by
-    refine ⟨fun v hv => ?_, ?_⟩
-    · have hv0 : dm v ≠ none := by
-        rcases Finset.mem_insert.mp hv with rfl | hvT
-        · simp [hdu]
-        · exact hgood.reached v hvT
-      obtain ⟨dv, hdv⟩ := Option.ne_none_iff_exists'.mp hv0
-      rw [scanMap_of_le _ hdv fun c hvc => by
-        obtain ⟨dv', hdv', hle⟩ := hset v c hvc hv
-        rw [hdv, Option.some_inj] at hdv'
-        exact hdv' ▸ hle]
-      simp
-    · have h := WordRAM.Dijkstra.Instance.Inv.step _ hgood.inv huT hmin hfin
-      rwa [← tentative_scanMap G hdu] at h
-  exact ⟨huT, hset, hbound, hgood'⟩
+  refine ⟨huT, hset, hbound, fun v hv => ?_,
+    tentative_scanMap G hdu ▸ Dijkstra.Instance.Inv.step _ hgood.inv huT hmin hfin⟩
+  obtain ⟨dv, hdv⟩ := Option.ne_none_iff_exists'.mp
+    ((Finset.mem_insert.mp hv).elim (· ▸ by simp [hdu]) (hgood.reached v))
+  rw [scanMap_of_le _ hdv fun c hvc => by
+    obtain ⟨dv', hdv', hle⟩ := hset v c hvc hv
+    exact (Option.some.inj (hdv.symm.trans hdv')).trans_le hle]
+  simp
 
 /-- **The main loop.** From a state satisfying the invariant with visited set `T`, enough rounds
 leave an empty queue and the distances in the distance map, at amortized rate
@@ -691,35 +635,28 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
   induction k with
   | zero =>
     intro T dm hgood hk
-    have hcard := Finset.card_le_univ T
-    rw [Fintype.card_fin] at hcard
-    have hT : T = Finset.univ := Finset.eq_univ_of_card T (by rw [Fintype.card_fin]; omega)
-    subst hT
-    refine ⟨dm, fun v => WordRAM.Dijkstra.Instance.Inv.eq_dist _ hgood.inv
-      (fun v hv => absurd (Finset.mem_univ v) hv) v, ?_⟩
-    have hq : syncQ Finset.univ dm = IndexedMinPQ.empty G.n := by
-      funext v
-      simp [syncQ, IndexedMinPQ.empty]
-    rw [hq]
-    exact (Runs.pure rate _).mono rate (Nat.zero_le _)
+    have hcard : T.card ≤ G.n := by simpa using Finset.card_le_univ T
+    obtain rfl : T = Finset.univ := Finset.eq_univ_of_card T (by simp; omega)
+    have hq : syncQ Finset.univ dm = IndexedMinPQ.empty G.n :=
+      funext fun _ => by simp [syncQ, IndexedMinPQ.empty]
+    exact ⟨dm, fun v => Dijkstra.Instance.Inv.eq_dist _ hgood.inv
+      (fun v hv => absurd (Finset.mem_univ v) hv) v,
+      hq ▸ (Runs.pure rate _).mono rate (Nat.zero_le _)⟩
   | succ k ih =>
     intro T dm hgood hk
     rw [loop]
     rcases hf : IndexedMinPQ.findMin (syncQ T dm) with _ | ⟨u, du⟩
     · -- The queue is empty: every unvisited vertex is unreached.
-      have hdom := IndexedMinPQ.findMin_eq_none_iff.mp hf
       have hq : ∀ v, syncQ T dm v = none := fun v =>
-        IndexedMinPQ.notMem_dom_iff.mp (by rw [hdom]; exact Finset.notMem_empty v)
-      have hempty : syncQ T dm = IndexedMinPQ.empty G.n := funext hq
+        IndexedMinPQ.notMem_dom_iff.mp
+          (IndexedMinPQ.findMin_eq_none_iff.mp hf ▸ Finset.notMem_empty v)
       have hdone : ∀ v ∉ T, tentative dm v = ⊤ := fun v hv =>
         tentative_of_none (by simpa [syncQ, hv] using hq v)
-      refine ⟨dm, WordRAM.Dijkstra.Instance.Inv.eq_dist _ hgood.inv hdone, ?_⟩
-      refine Runs.lift_bind rate (b := 0) (.inl .extractMin) trivial ?_ ?_
+      refine ⟨dm, Dijkstra.Instance.Inv.eq_dist _ hgood.inv hdone,
+        Runs.lift_bind rate (b := 0) (.inl .extractMin) trivial ?_ ?_⟩
       · simp only [IndexedMinPQ.step, hf]
-        rw [hempty]
-        exact Runs.pure rate _
-      · simp only [IndexedMinPQ.step, hf, kind]
-        rw [add_one_mul]
+        exact funext hq ▸ Runs.pure rate _
+      · simp only [IndexedMinPQ.step, hf, kind, add_one_mul]
         omega
     · -- Visit `u`, an unvisited vertex of least tentative distance `du`.
       obtain ⟨huT, hset, hbound, hgood'⟩ := hgood.visit hK hV hf
@@ -728,10 +665,7 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       refine ⟨dist, hdist, ?_⟩
       have hsync : Function.update (syncQ T dm) u none = syncQ (insert u T) dm := by
         funext v
-        by_cases hv : v = u
-        · subst hv
-          simp [syncQ]
-        · simp [syncQ, hv]
+        rcases eq_or_ne v u with rfl | hv <;> simp [syncQ, *]
       have hcard : (IndexedMinPQ.dom (syncQ (insert u T) dm)).card + 1 =
           (IndexedMinPQ.dom (syncQ T dm)).card := by
         rw [← hsync, IndexedMinPQ.dom_erase_update]
@@ -746,15 +680,11 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       · have hsum : (∑ v ∈ Tᶜ, (G.adj v).length) * edgeRate rate pU pQ =
             (G.adj u).length * edgeRate rate pU pQ +
               (∑ v ∈ (insert u T)ᶜ, (G.adj v).length) * edgeRate rate pU pQ := by
-          rw [← add_mul, Finset.compl_insert]
-          rw [Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
-        have hpot : pot (K := K) (V := V) pU pQ (syncQ T dm, dm, G.adj) =
-            pot (K := K) (V := V) pU pQ (syncQ (insert u T) dm, dm, G.adj) + pQ := by
-          simp only [pot]
-          rw [← hcard, Nat.mul_succ]
-          omega
+          rw [← add_mul, Finset.compl_insert,
+            Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
         simp only [IndexedMinPQ.step, hf, kind]
-        rw [hsync, hsum, hpot, add_one_mul]
+        rw [hsync, hsum, add_one_mul]
+        simp only [pot, ← hcard, Nat.mul_succ]
         omega
 
 /-- **The whole run.** From the initial state, Dijkstra's algorithm leaves an empty queue and the
@@ -771,22 +701,19 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
   set dm₀ := Function.update (Dictionary.empty G.n) G.source (some 0) with hdm₀
   have htent : tentative dm₀ = Function.update (fun _ => ⊤) G.source 0 := by
     funext v
-    by_cases hv : v = G.source
-    · subst hv
-      simp [dm₀, tentative_of_some]
+    rcases eq_or_ne v G.source with rfl | hv
+    · simp [dm₀, tentative_of_some]
     · rw [Function.update_of_ne hv, tentative_of_none (by simp [dm₀, hv, Dictionary.empty])]
   have hgood : Good G ∅ dm₀ :=
     ⟨fun v hv => absurd hv (Finset.notMem_empty v),
-      htent ▸ WordRAM.Dijkstra.Instance.Inv.init G.toInstance⟩
+      htent ▸ Dijkstra.Instance.Inv.init G.toInstance⟩
   obtain ⟨dist, hdist, hv, hs, hw⟩ :=
     loop_runs rate G hK hV G.n ∅ dm₀ hgood (by simp)
   refine ⟨dist, hdist, ?_⟩
   have hq₀ : Function.update (IndexedMinPQ.empty G.n) G.source (some 0) = syncQ ∅ dm₀ := by
     funext v
-    by_cases hv : v = G.source
-    · subst hv
-      simp [syncQ, dm₀]
-    · simp [syncQ, dm₀, hv, IndexedMinPQ.empty, Dictionary.empty]
+    rcases eq_or_ne v G.source with rfl | hv <;>
+      simp [syncQ, dm₀, IndexedMinPQ.empty, Dictionary.empty, *]
   have hrun : (spec G.n K V).runClient (init G) (dijkstra G.source) =
       ((spec G.n K V).clientResult (syncQ ∅ dm₀, dm₀, G.adj) (loop G.n),
         (spec G.n K V).clientState (syncQ ∅ dm₀, dm₀, G.adj) (loop G.n),
@@ -797,8 +724,6 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
     rfl
   have hunr : unreached dm₀ + 1 = unreached (Dictionary.empty G.n) :=
     unreached_update_of_none rfl 0
-  have hunr₀ : unreached (Dictionary.empty G.n) = G.n := by
-    simp [unreached, Dictionary.empty]
   have hsum : ∑ v ∈ (∅ : Finset (Fin G.n))ᶜ, (G.adj v).length = G.m := by
     simp [ListInstance.m]
   refine Runs.of_runClient rate (hrun.trans (by rw [hs])) ?_ ?_
@@ -810,13 +735,9 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       simp [pot, init, hunr, IndexedMinPQ.dom_empty]
     have hpot₁ : pot (K := K) (V := V) pU pQ (syncQ ∅ dm₀, dm₀, G.adj) =
         pU * unreached dm₀ + pQ := by
-      simp only [pot]
-      rw [← hq₀, IndexedMinPQ.dom_insert, IndexedMinPQ.dom_empty]
-      simp
-    rw [weight_append, weight_cons, weight_cons, weight_nil, hpot₀]
+      simp [pot, ← hq₀, IndexedMinPQ.dom_insert, IndexedMinPQ.dom_empty]
+    simp only [weight_append rate, weight_cons rate, weight_nil rate, hpot₀, kind, Nat.mul_succ]
     rw [hsum, hpot₁] at hw
-    dsimp only [kind]
-    rw [Nat.mul_succ]
     omega
 
 end Proof
@@ -841,10 +762,7 @@ theorem dijkstra_correct (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
     HasDistances G ((spec G.n K V).clientState (init G) (dijkstra G.source)) := by
   obtain ⟨dist, hdist, hv, hs, _⟩ := dijkstra_runs (fun _ => 0) (pU := 0) (pQ := 0) G hK hV
   refine ⟨hv, dist, hs, fun v d => ?_⟩
-  rw [← hdist v]
-  rcases h : dist v with _ | d'
-  · simp [tentative_of_none h]
-  · simp [tentative_of_some h]
+  rcases h : dist v with _ | d' <;> simp [← hdist v, tentative, h]
 
 /-! ### Operation counts -/
 
@@ -866,23 +784,18 @@ theorem sum_rate_dijkstra_le (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       fun o => rate (kind o)).sum ≤ rateBound rate G.n G.m := by
   change weight rate _ ≤ _
   refine le_min ?_ ?_
-  · obtain ⟨dist, _, _, _, hw⟩ :=
-      dijkstra_runs rate (pU := rate .insert) (pQ := 0) G hK hV
-    have hpot : pot (rate .insert) 0 (init (K := K) (V := V) G) = rate .insert * G.n := by
-      simp [pot, unreached, init, Dictionary.empty, IndexedMinPQ.dom_empty]
-    rw [hpot] at hw
-    simp only [edgeRate, Nat.add_zero, Nat.sub_self, Nat.sub_zero, Nat.zero_sub] at hw
-    nlinarith [Nat.zero_le (pot (K := K) (V := V) (rate .insert) 0
-      (IndexedMinPQ.empty G.n, dist, G.adj))]
+  · obtain ⟨dist, _, _, _, hw⟩ := dijkstra_runs rate (pU := rate .insert) (pQ := 0) G hK hV
+    unfold init at hw ⊢
+    simp only [pot, unreached, Dictionary.empty, Finset.filter_true, Finset.card_univ,
+      Fintype.card_fin, zero_mul, add_zero, edgeRate, Nat.sub_self, Nat.sub_zero,
+      Nat.zero_sub] at hw
+    nlinarith [Nat.zero_le (rate .insert * (Finset.univ.filter fun v => dist v = none).card)]
   · obtain ⟨dist, _, _, _, hw⟩ :=
       dijkstra_runs rate (pU := 0) (pQ := rate .extractMin + rate .graph) G hK hV
-    have hpot : pot 0 (rate .extractMin + rate .graph) (init (K := K) (V := V) G) = 0 := by
-      simp [pot, init, IndexedMinPQ.dom_empty]
-    rw [hpot] at hw
-    simp only [edgeRate, Nat.sub_zero, Nat.sub_self, Nat.add_sub_cancel, mul_zero,
-      Nat.add_zero, Nat.zero_add] at hw
-    nlinarith [Nat.zero_le (pot (K := K) (V := V) 0 (rate .extractMin + rate .graph)
-      (IndexedMinPQ.empty G.n, dist, G.adj))]
+    unfold init at hw ⊢
+    simp only [pot, IndexedMinPQ.dom_empty, Finset.card_empty, zero_mul, mul_zero, add_zero,
+      edgeRate, Nat.sub_zero, Nat.sub_self, Nat.add_sub_cancel, Nat.zero_add] at hw
+    nlinarith
 
 /-- The number of operations of each kind that Dijkstra's algorithm issues on a graph with `n`
 vertices and `m` edges, at most. -/

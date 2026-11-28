@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Out
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
@@ -55,12 +57,12 @@ theorem exists_guess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ) :
         ((machine.runList (clock.eval (enc a).length)
           (machine.initialConfig (enc a)).tapes).map Cfg.output).Perm
           (BitString.enumList (p.eval (enc a).length)) := by
-  have hprepare : ComputableTidilyInPolyTime
+  have hprepare : ComputableInPolyTime
       (fun a => p.eval (enc a).length) enc encUnary :=
-    (ComputableTidilyInPolyTime.unary_eval p).comp
-      (ComputableTidilyInPolyTime.encoding_length enc)
-  obtain ⟨t, s, ht, _, k, State, hfinite, initializer, hi⟩ := hprepare
-  obtain ⟨c, d, ht⟩ := ht.exists_le
+    (ComputableInPolyTime.unary_eval p).comp
+      (ComputableInPolyTime.encoding_length enc)
+  obtain ⟨c, d, k, State, hfinite, initializer, hi⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hprepare
   let prepareClock : Polynomial ℕ := C c * (X + 1) ^ d
   let source := ofDeterministic initializer
   let compiled := guessMachine.comp source true
@@ -71,7 +73,7 @@ theorem exists_guess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ) :
       (prepareClock.eval (enc a).length) =
       wordsCfg (enc a) none (fun _ => []) (encUnary (p.eval (enc a).length)) := by
     simpa only [prepareClock, eval_mul, eval_C, eval_pow, eval_add, eval_X, eval_one,
-      encUnary_apply] using ((hi a).mono (ht a) le_rfl).runFrom_initCfg_eq
+      encUnary_apply] using (hi a).runFrom_initCfg_eq
   have hfirst : source.HaltsWithin (prepareClock.eval (enc a).length)
       (source.initialConfig (enc a)).tapes := by
     rw [haltsWithin_ofDeterministic_iff]
@@ -87,10 +89,7 @@ theorem exists_guess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ) :
       (source.initialConfig (enc a)).tapes,
       guessMachine.HaltsWithin (p.eval (enc a).length + 1)
         (guessMachine.initialConfig result.output).tapes := by
-    intro result hresult
-    have hr : result = wordsCfg (enc a) none (fun _ => [])
-        (encUnary (p.eval (enc a).length)) := by simpa [hrun] using hresult
-    subst result
+    rw [hrun, List.forall_mem_singleton]
     simpa only [wordsCfg, encUnary_apply, List.length_replicate, initialConfig] using
       GuessMachine.haltsWithin (encUnary (p.eval (enc a).length))
   have hhalt := HaltsWithin.comp source guessMachine (nonblocking_ofDeterministic initializer)
@@ -119,10 +118,11 @@ theorem exists_framedGuess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
           ((BitString.enumList (p.eval (enc a).length)).map
             (fun word => encPair enc encBits (a, word))) := by
   obtain ⟨ks, State, hfinite, source, sourceClock, hnon, hs⟩ := exists_guess_machine enc p
-  have hframe : ComputableTidilyInPolyTime (fun a => frame (enc a)) enc encBits :=
-    .of_linear (.of_frame fun _ => rfl)
-  obtain ⟨t, s, ht, _, ki, InitState, hfinite', initializer, hi⟩ := hframe
-  obtain ⟨c, d, ht⟩ := ht.exists_le
+  have hframe : ComputableInPolyTime (fun a => frame (enc a)) enc encBits :=
+    (ComputableInDegree.of_frame (f := fun a => frame (enc a))
+      (encIn := enc) (encMid := encBits) fun _ => rfl).computableInPolyTime
+  obtain ⟨c, d, ki, InitState, hfinite', initializer, hi⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hframe
   let prepare := initializer.extendTapes (Fin.castAddEmb ks)
   let runner := source.extendTapes (Fin.natAddEmb ki)
   let compiled := (ofDeterministic prepare).seq runner
@@ -134,7 +134,7 @@ theorem exists_framedGuess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
       wordsCfg (enc a) none (fun _ => []) (frame (enc a)) := by
     simpa only [prepareClock, eval_mul, eval_C, eval_pow, eval_add, eval_X, eval_one,
       encBits_apply] using
-      (((hi a).mono (ht a) le_rfl).extendTapes (Fin.castAddEmb ks)).runFrom_initCfg_eq
+      ((hi a).extendTapes (Fin.castAddEmb ks)).runFrom_initCfg_eq
   have hrunner : MultiTapeCTM.HaltsWithin runner (sourceClock.eval (enc a).length)
       (runner.initialConfig (enc a)).tapes := by
     rw [initialConfig_extendTapes]
@@ -183,9 +183,7 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
         (encBool (verifier (a, word))) := by
     have htime : c * ((encPair enc encBits (a, word)).length + 1) ^ d ≤
         verifyClock.eval (enc a).length := by
-      simp only [verifyClock, eval_mul, eval_C, eval_pow, eval_add, eval_X, eval_one,
-        eval_ofNat, length_encPair, encBits_apply, hword]
-      exact le_rfl
+      simp [verifyClock, hword]
     exact ((hv (a, word)).mono htime le_rfl).runFrom_initCfg_eq
   have hsecond : ∀ result ∈ source.runList (sourceClock.eval (enc a).length)
       (source.initialConfig (enc a)).tapes,
@@ -221,10 +219,7 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
       unfold compiled
       rw [runList_comp source consumer hnon hnonconsumer true (enc a) _ _ (hs a).1 hsecond]
       dsimp only [Config.emptyOracleEquiv]
-      rw [List.map_flatMap, List.flatMap_map]
-      apply List.flatMap_congr
-      intro result _
-      rw [List.map_map]
+      simp only [List.map_flatMap, List.flatMap_map, List.map_map]
       rfl
     rw [hout]
     refine ((hs a).2.flatMap_right finish).trans ?_

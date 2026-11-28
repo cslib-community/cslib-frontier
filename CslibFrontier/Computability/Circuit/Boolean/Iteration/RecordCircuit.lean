@@ -129,13 +129,13 @@ private theorem synthesis_collision (s : Set (BooleanFunction n)) (a b : BitStri
     (ha : wireSet a ⊆ s) (hb : wireSet b ⊆ s) :
     Synthesis interpretation s {fun x => collision (a x) (b x)} (20 * (width n w + 1)) := by
   have hs := synthesis_bits_eq s (fun x => (a x).state) (fun x => (b x).state)
-    (by rintro _ ⟨i, rfl⟩; exact state_mem ha i) (by rintro _ ⟨i, rfl⟩; exact state_mem hb i)
-  have he := synthesis_bits_eq s (fun x => encode (a x)) (fun x => encode (b x)) ha hb
+    (fun _ ⟨i, h⟩ => h ▸ state_mem ha i) (fun _ ⟨i, h⟩ => h ▸ state_mem hb i)
   have hne : Synthesis interpretation s {fun x => decide (a x ≠ b x)} (6 * width n w + 1 + 1) := by
-    simpa only [encode_injective.eq_iff, decide_not] using he.not
-  have h := (((Synthesis.of_mem (padding_mem ha)).not.and
-    (Synthesis.of_mem (padding_mem hb)).not).and hs).and hne
-  exact h.mono Set.Subset.rfl Set.Subset.rfl (by unfold width; omega)
+    simpa only [encode_injective.eq_iff, decide_not] using
+      (synthesis_bits_eq s (fun x => encode (a x)) (fun x => encode (b x)) ha hb).not
+  exact ((((Synthesis.of_mem (padding_mem ha)).not.and
+    (Synthesis.of_mem (padding_mem hb)).not).and hs).and hne).mono
+    Set.Subset.rfl Set.Subset.rfl (by simp only [width]; omega)
 
 /-- The bits of a pair of records, the first record first. -/
 def pairEncode (pair : Record n w × Record n w) : BitString (width n w + width n w) :=
@@ -183,13 +183,9 @@ theorem synthesis_detect (s : Set (BooleanFunction n)) (records : BitString n �
     apply (hf.trans hs).mono Set.Subset.rfl Set.Subset.rfl
     simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
     nlinarith [Nat.sub_le R 1, Nat.mul_le_mul_right (width n w + 1) (Nat.sub_le R 1)]
-  · induction bit using Fin.addCases with
-    | left bit =>
-      refine Or.inl ?_
-      simpa only [pairEncode, Fin.append_left, adjacentPair] using hr _ ⟨bit, rfl⟩
-    | right bit =>
-      refine Or.inl ?_
-      simpa only [pairEncode, Fin.append_right, adjacentPair] using hr _ ⟨bit, rfl⟩
+  · refine Fin.addCases (fun bit => Or.inl ?_) (fun bit => Or.inl ?_) bit
+    · simpa only [pairEncode, Fin.append_left, adjacentPair] using hr _ ⟨bit, rfl⟩
+    · simpa only [pairEncode, Fin.append_right, adjacentPair] using hr _ ⟨bit, rfl⟩
 
 /-- The bits of every record of an available array. -/
 def recordsWires (records : BitString n → Fin R → Record n w) : Set (BooleanFunction n) :=
@@ -218,13 +214,13 @@ theorem synthesis_sorted (s : Set (BooleanFunction n)) (d : ℕ)
     (hr : recordsWires records ⊆ s) :
     Synthesis interpretation s (recordsWires fun x => sorted d (records x))
       (18 * d ^ 2 * 2 ^ d * (width n w + 1)) := by
-  have h := Synthesis.circuit (I := interpretation) (s := s)
+  refine (Synthesis.circuit (I := interpretation) (s := s)
     (bitonicSortCircuit (keyBits (n := n) (w := w)) d true) (fun bit x => pack (records x) bit)
-    fun bit => hr (wireSet_subset_recordsWires records _ ⟨_, rfl⟩)
-  apply h.mono Set.Subset.rfl ?_ (size_sortCircuit_le d)
-  intro fn hfn
+    fun _ => hr (wireSet_subset_recordsWires records _ ⟨_, rfl⟩)).mono
+    Set.Subset.rfl ?_ (size_sortCircuit_le d)
+  rintro _ hfn
   obtain ⟨j, bit, rfl⟩ := Set.mem_iUnion.mp hfn
-  exact ⟨finProdFinEquiv (j, bit), by simp [sorted, directProductInput]⟩
+  exact ⟨finProdFinEquiv (j, bit), by simp [sorted, BitString.block]⟩
 
 end Record
 

@@ -11,7 +11,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.N
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Correct
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
 public import Mathlib.Logic.Relation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Space
+import Mathlib.Data.List.GetD
 
 /-!
 # Descriptions of nondeterministic machines
@@ -25,6 +28,11 @@ A nondeterministic machine with finitely many states and symbols, renamed into `
 description listing every permitted transition (`Turing.MultiTapeTM.Universal.descN`). Its steps
 are the renamed steps of the machine, in both directions, so the machine accepts exactly when its
 description reaches a halted configuration with the output `[1]`.
+
+Along a computation path of the machine within `S` cells, the description's run stays within
+`cfgSpaceBound (descLen d) n k S` bits, for inputs of length `n` and `k` work tapes. The zippers
+of the run hold only cells that the machine's heads have visited, so this bound holds at every
+configuration the run steps to.
 
 ## Main definitions
 
@@ -41,8 +49,12 @@ description reaches a halted configuration with the output `[1]`.
 * `Turing.MultiTapeTM.Universal.exists_computationPath_of_reflTransGen`,
   `Turing.MultiTapeTM.Universal.exists_reflTransGen_of_computationPath`: so do computation paths
   of the machine and runs of its description.
+* `Turing.MultiTapeTM.Universal.exists_reflTransGen_fits_of_computationPath`: a computation path
+  within `S` cells is represented by a run of the description within the space bound.
 * `Turing.MultiTapeTM.Universal.accepts_iff_reflTransGen_nStep`: the machine accepts exactly when
   its description reaches a halted configuration with the output `[1]`.
+* `Turing.MultiTapeTM.Universal.accepts_iff_reflTransGen_nStep_fits`: for a machine within `S`
+  cells, the same within the space bound.
 -/
 
 namespace Turing.MultiTapeTM.Universal
@@ -64,9 +76,10 @@ variable {Symbol State : Type} [Finite State] [Finite Symbol]
 into `ℕ` by `eS` and `eY`: an entry for every permitted transition. -/
 public noncomputable def descN : Desc :=
   ⟨k, eS ntm.q₀, (Set.toFinite {e : State × Option Symbol × (Fin k → Option Symbol) ×
-      Action k Symbol State | ntm.Tr e.1 e.2.1 e.2.2.1 e.2.2.2}).toFinset.toList.map
-    fun e => (key (eS e.1) (e.2.1.map eY) (Option.map eY ∘ e.2.2.1),
-      .ofAction (e.2.2.2.map eS eY))⟩
+      Action k Symbol State |
+      let ⟨q, i, w, a⟩ := e; ntm.Tr q i w a}).toFinset.toList.map
+    fun ⟨q, i, w, a⟩ => (key (eS q) (i.map eY) (Option.map eY ∘ w),
+      .ofAction (a.map eS eY))⟩
 
 @[simp]
 public lemma descN_tapes : (descN eS eY ntm).tapes = k := by
@@ -82,11 +95,7 @@ public theorem mem_descN {e : Key × Act} :
       e = (key (eS q) (i.map eY) (Option.map eY ∘ w), .ofAction (a.map eS eY)) := by
   simp only [descN, List.mem_map, Finset.mem_toList, Set.Finite.mem_toFinset, Set.mem_ofPred_eq,
     Prod.exists]
-  constructor
-  · rintro ⟨q, i, w, a, h, rfl⟩
-    exact ⟨q, i, w, a, h, rfl⟩
-  · rintro ⟨q, i, w, a, h, rfl⟩
-    exact ⟨q, i, w, a, h, rfl⟩
+  constructor <;> rintro ⟨q, i, w, a, h, rfl⟩ <;> exact ⟨q, i, w, a, h, rfl⟩
 
 /-- **A step of the machine is a step of its description**: from a well-shaped configuration of
 the simulation representing a running configuration, the description can take the renamed step. -/
@@ -104,14 +113,9 @@ public theorem exists_nStep_of_step {input : List Symbol} {c c' : Cfg k Symbol S
   obtain ⟨happ, hshape⟩ := toCfg_apply hs hstate out (a.map eS eY)
   have hout' : ((a.apply c).map eS eY).output = out ++ (a.map eS eY).output.toList := by
     simp [hout, Action.apply, Option.toList_map]
-  refine ⟨_, ⟨eS q, hstate, _, (mem_descN eS eY ntm).mpr ⟨q, _, _, a, ha, rfl⟩, ?_, ?_⟩,
-    hshape, ?_⟩
-  · rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]
-    rfl
-  · rw [hout']
-    rfl
-  · rw [hout']
-    exact happ.trans (by rw [hsc, Action.apply_map])
+  refine ⟨_, ⟨eS q, hstate, _, (mem_descN eS eY ntm).mpr ⟨q, _, _, a, ha, rfl⟩, ?_,
+    congrArg (Prod.mk _) hout'⟩, hshape, by rw [hout', happ, hsc, Action.apply_map]⟩
+  rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]; rfl
 
 /-- **A step of the description is a step of the machine**: from a well-shaped configuration of the
 simulation representing a configuration of the machine, a step of the description represents a
@@ -124,18 +128,13 @@ public theorem exists_step_of_nStep {input : List Symbol} {c : Cfg k Symbol Stat
       s'.toCfg k (input.map eY) out' = c'.map eS eY := by
   obtain ⟨q', hq', e, he, hkey, heq⟩ := h
   obtain ⟨p, i, w, a, ha, rfl⟩ := (mem_descN eS eY ntm).mp he
-  simp only [Prod.mk.injEq] at heq
-  obtain ⟨rfl, rfl⟩ := heq
-  have hstate : (c.map eS eY).state = some q' := by
-    rw [← hsc]
-    exact hq'
-  obtain ⟨q, hq, rfl⟩ := Option.map_eq_some_iff.mp hstate
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
+  obtain ⟨q, hq, rfl⟩ := Option.map_eq_some_iff.mp ((congrArg Cfg.state hsc).symm.trans hq')
   rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map] at hkey
   cases key_injective eS eY (a₁ := (p, i, w)) (a₂ := (q, c.inputSymbol, c.workTapeSymbols)) hkey
   obtain ⟨happ, hshape⟩ := toCfg_apply hs hq' out (a.map eS eY)
   refine ⟨a.apply c, ?_, hshape, happ.trans (by rw [hsc, Action.apply_map])⟩
-  simp only [MultiTapeNTM.Step, hq]
-  exact ⟨a, ha, rfl⟩
+  simpa only [MultiTapeNTM.Step, hq] using ⟨a, ha, rfl⟩
 
 /-! ### Computations -/
 
@@ -149,14 +148,119 @@ public theorem exists_computationPath_of_reflTransGen {input : List Symbol} {p :
   induction h with
   | refl =>
     obtain ⟨hinit, hshape⟩ := toCfg_init (x := input.map eY) (descN_tapes eS eY ntm)
-    refine ⟨⟨RelSeries.singleton _ (ntm.initCfg input), rfl⟩, hshape, ?_⟩
-    rw [hinit, descN_q₀]
-    exact (Cfg.map_init eS eY ntm.q₀).symm
+    exact ⟨⟨RelSeries.singleton _ (ntm.initCfg input), rfl⟩, hshape,
+      hinit.trans (descN_q₀ eS eY ntm ▸ (Cfg.map_init eS eY ntm.q₀).symm)⟩
   | tail _ hstep ih =>
     obtain ⟨π, hshape, hπ⟩ := ih
     obtain ⟨c', hc', hshape', hc''⟩ := exists_step_of_nStep eS eY ntm hshape hπ hstep
     obtain ⟨π', -, hlast⟩ := π.exists_snoc hc'
     exact ⟨π', hshape', hlast ▸ hc''⟩
+
+/-! ### Runs within the space of the machine -/
+
+omit [Finite State] [Finite Symbol] in
+lemma workTapePos_toCfg {input : List Symbol} {s : SCfg} {out : List ℕ}
+    {c : Cfg k Symbol State input} (hsc : s.toCfg k (input.map eY) out = c.map eS eY) (i : Fin k) :
+    (s.workTapes.getD i .blank).head = c.workTapePos i :=
+  congrArg (·.workTapePos i) hsc
+
+omit [Finite State] [Finite Symbol] in
+/-- A configuration of the simulation that represents the end of a run path from the initial
+configuration, and whose zippers hold only cells the heads of the path visited, is within the
+space bound of the path. -/
+lemma length_eCfg_le_of_toCfg {input : List Symbol} {π : ntm.RunPath input}
+    (hπ : π.head = ntm.initCfg input) {s : SCfg} {out : List ℕ} {D j : ℕ}
+    (hs : s.WellShaped k (input.map eY)) (hsc : s.toCfg k (input.map eY) out = π.last.map eS eY)
+    (hinv : Inv D (input.map eY).length j s)
+    (hcov : ∀ i : Fin k, (s.workTapes.getD i .blank).Covered (π.visitedByTapeHead i)) :
+    (eCfg s).length ≤ cfgSpaceBound D input.length k π.space := by
+  let V : ℕ → Finset ℤ := fun i => if hi : i < k then π.visitedByTapeHead ⟨i, hi⟩ else ∅
+  have hV (i : Fin k) : V i = π.visitedByTapeHead i := by simp [V]
+  have hS : ∑ i ∈ Finset.range k, (V i).card ≤ π.space := by
+    rw [Finset.sum_range (fun i => (V i).card)]
+    simp only [hV, MultiTapeNTM.RunPath.space, MultiTapeNTM.RunPath.spaceUsedByTape, le_refl]
+  have := length_eCfg_le_of_covered (V := V) hinv hs.length_workTapes
+    (fun i hi => hV ⟨i, hi⟩ ▸ hcov ⟨i, hi⟩) (fun i hi => ?_) hS
+  · rwa [List.length_map] at this
+  · rw [hV ⟨i, hi⟩, workTapePos_toCfg eS eY hsc ⟨i, hi⟩]
+    exact (π.natAbs_lt_spaceUsedByTape (by simp [hπ]) (by simp [hπ]) ⟨i, hi⟩).1
+
+omit [Finite State] [Finite Symbol] in
+lemma getD_workTapes_init (d : Desc) (i : ℕ) : (init d).workTapes.getD i .blank = .blank := by
+  rcases Nat.lt_or_ge i d.tapes with h | h <;>
+    simp [init, List.getD_eq_getElem?_getD, h, Tape.blank]
+
+/-- The run of the description that represents a run path from the initial configuration, along
+with the invariants that bound its configurations. -/
+lemma exists_reflTransGen_fits_aux {input : List Symbol} (π : ntm.RunPath input)
+    (hπ : π.head = ntm.initCfg input) {S : ℕ} (hS : π.space ≤ S) :
+    ∃ s, Relation.ReflTransGen (fun p p' => NStep (descN eS eY ntm) (input.map eY) p p' ∧
+        (eCfg p'.1).length ≤ cfgSpaceBound (descLen (descN eS eY ntm)) input.length k S)
+        (init (descN eS eY ntm), []) (s, π.last.output.map eY) ∧
+      s.WellShaped k (input.map eY) ∧
+      s.toCfg k (input.map eY) (π.last.output.map eY) = π.last.map eS eY ∧
+      (∃ j, Inv (descLen (descN eS eY ntm)) (input.map eY).length j s) ∧
+      ∀ i : Fin k, (s.workTapes.getD i .blank).Covered (π.visitedByTapeHead i) := by
+  induction π using RelSeries.inductionOn' with
+  | singleton c =>
+    obtain ⟨hinit, hshape⟩ := toCfg_init (x := input.map eY) (descN_tapes eS eY ntm)
+    obtain rfl : c = ntm.initCfg input := hπ
+    refine ⟨_, .refl, hshape, hinit.trans (descN_q₀ eS eY ntm ▸ (Cfg.map_init eS eY ntm.q₀).symm),
+      ⟨0, inv_init _ _⟩, fun i => ?_⟩
+    rw [getD_workTapes_init]
+    constructor <;> simp [Tape.blank]
+  | snoc π c hc ih =>
+    simp only [RelSeries.head_snoc] at hπ
+    have hsub : ∀ c' ∈ π, c' ∈ π.snoc c hc := fun c' h => RelSeries.mem_snoc.mpr (.inl h)
+    obtain ⟨s, hreach, hshape, hs, ⟨j, hinv⟩, hcov⟩ :=
+      ih hπ ((MultiTapeNTM.RunPath.space_le_of_subset hsub).trans hS)
+    have hvis (i : Fin k) : MultiTapeNTM.RunPath.visitedByTapeHead π i ⊆
+        MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i :=
+      MultiTapeNTM.RunPath.visitedByTapeHead_snoc .. ▸ Finset.subset_insert _ _
+    have hlast (i : Fin k) :
+        π.last.workTapePos i ∈ MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i :=
+      hvis i ((MultiTapeNTM.RunPath.mem_visitedByTapeHead π).mpr ⟨π.last, π.last_mem, rfl⟩)
+    have hnew (i : Fin k) :
+        c.workTapePos i ∈ MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i :=
+      MultiTapeNTM.RunPath.visitedByTapeHead_snoc .. ▸ Finset.mem_insert_self _ _
+    change ntm.Step π.last c at hc
+    simp only [RelSeries.last_snoc]
+    by_cases hhalt : π.last.Halted
+    · obtain rfl := (MultiTapeNTM.step_of_halt hhalt).mp hc
+      exact ⟨s, hreach, hshape, hs, ⟨j, hinv⟩,
+        fun i => (hcov i).mono (Finset.coe_subset.mpr (hvis i))⟩
+    obtain ⟨s', hstep, hshape', hs'⟩ := exists_nStep_of_step eS eY ntm hhalt hc hshape hs
+    obtain ⟨q, hq, e, he, hkey, heq⟩ := hstep
+    have hs'eq : s' = e.2.apply (input.map eY) s := congrArg Prod.fst heq
+    have hcov' (i : Fin k) :
+        (s'.workTapes.getD i .blank).Covered
+          (MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i) := by
+      obtain ⟨ta, hta⟩ := Act.apply_tape e.2 (input.map eY) s i
+      have hhead := workTapePos_toCfg eS eY hs' i
+      rw [hs'eq, hta] at hhead ⊢
+      exact ((hcov i).mono (Finset.coe_subset.mpr (hvis i))).apply
+        (workTapePos_toCfg eS eY hs i ▸ hlast i) ta (hhead ▸ hnew i)
+    have hfits := length_eCfg_le_of_toCfg eS eY ntm (π := π.snoc c hc)
+      (by rw [RelSeries.head_snoc]; exact hπ) hshape' (by rw [RelSeries.last_snoc]; exact hs')
+      (hs'eq ▸ hinv.apply he) hcov'
+    refine ⟨s', hreach.tail ⟨⟨q, hq, e, he, hkey, heq⟩, hfits.trans ?_⟩, hshape', hs',
+      ⟨j + 1, hs'eq ▸ hinv.apply he⟩, hcov'⟩
+    simp only [cfgSpaceBound]
+    have := Nat.mul_le_mul_left (3 * (2 * descLen (descN eS eY ntm) + 5) * 2) hS
+    omega
+
+/-- **A computation path of the machine within `S` cells is represented by a run of its
+description within the space bound**: every configuration the run steps to is at most
+`cfgSpaceBound (descLen d) n k S` bits long. -/
+public theorem exists_reflTransGen_fits_of_computationPath {input : List Symbol}
+    (π : ntm.ComputationPath input) {S : ℕ} (hS : π.space ≤ S) :
+    ∃ s, Relation.ReflTransGen (fun p p' => NStep (descN eS eY ntm) (input.map eY) p p' ∧
+        (eCfg p'.1).length ≤ cfgSpaceBound (descLen (descN eS eY ntm)) input.length k S)
+        (init (descN eS eY ntm), []) (s, π.last.output.map eY) ∧
+      s.WellShaped k (input.map eY) ∧
+      s.toCfg k (input.map eY) (π.last.output.map eY) = π.last.map eS eY :=
+  (exists_reflTransGen_fits_aux eS eY ntm π.toRunPath π.head_eq hS).imp
+    fun _ ⟨hreach, hshape, hs, _⟩ => ⟨hreach, hshape, hs⟩
 
 /-- **The last configuration of every computation path of the machine** is represented by a
 configuration the description reaches. -/
@@ -166,25 +270,8 @@ public theorem exists_reflTransGen_of_computationPath {input : List Symbol}
         (init (descN eS eY ntm), []) (s, π.last.output.map eY) ∧
       s.WellShaped k (input.map eY) ∧
       s.toCfg k (input.map eY) (π.last.output.map eY) = π.last.map eS eY := by
-  obtain ⟨π, hπ⟩ := π
-  induction π using RelSeries.inductionOn' with
-  | singleton c =>
-    obtain ⟨hinit, hshape⟩ := toCfg_init (x := input.map eY) (descN_tapes eS eY ntm)
-    simp only [RelSeries.head_singleton] at hπ
-    subst hπ
-    refine ⟨_, .refl, hshape, hinit.trans ?_⟩
-    rw [descN_q₀]
-    exact (Cfg.map_init eS eY ntm.q₀).symm
-  | snoc π c hc ih =>
-    obtain ⟨s, hreach, hshape, hs⟩ := ih (by simpa using hπ)
-    simp only [RelSeries.last_snoc]
-    change ntm.Step π.last c at hc
-    by_cases hhalt : π.last.Halted
-    · rw [(MultiTapeNTM.step_of_halt hhalt).mp hc]
-      exact ⟨s, hreach, hshape, hs⟩
-    · obtain ⟨s', hstep, hshape', hs'⟩ :=
-        exists_nStep_of_step eS eY ntm hhalt hc hshape hs
-      exact ⟨s', hreach.tail hstep, hshape', hs'⟩
+  obtain ⟨s, hreach, hshape, hs⟩ := exists_reflTransGen_fits_of_computationPath eS eY ntm π le_rfl
+  exact ⟨s, hreach.lift id fun _ _ h => h.1, hshape, hs⟩
 
 /-- **A machine accepts exactly when its description reaches a halted configuration with the output
 `[1]`.** -/
@@ -196,14 +283,29 @@ public theorem accepts_iff_reflTransGen_nStep (ntm : MultiTapeNTM k Bool State)
   constructor
   · rintro ⟨π, hhalt, hout⟩
     obtain ⟨s, hreach, -, hs⟩ := exists_reflTransGen_of_computationPath eS eBit ntm π
+    exact ⟨s, by simpa [SCfg.toCfg, hhalt] using congrArg Cfg.state hs,
+      by simpa [hout] using hreach⟩
+  · rintro ⟨s, hs, hreach⟩
+    obtain ⟨π, -, hπ⟩ := exists_computationPath_of_reflTransGen eS eBit ntm hreach
+    refine ⟨π, by simpa [SCfg.toCfg, hs] using (congrArg Cfg.state hπ).symm, ?_⟩
+    exact List.map_injective_iff.mpr eBit.injective
+      (by simpa [SCfg.toCfg] using (congrArg Cfg.output hπ).symm)
+
+/-- **A machine within `S` cells accepts exactly when its description reaches a halted
+configuration with the output `[1]` within the space bound.** -/
+public theorem accepts_iff_reflTransGen_nStep_fits (ntm : MultiTapeNTM k Bool State)
+    (input : List Bool) {S : ℕ} (hS : ntm.RunsInSpace input S) :
+    ntm.Accepts input ↔ ∃ s, s.state = none ∧
+      Relation.ReflTransGen (fun p p' => NStep (descN eS eBit ntm) (input.map eBit) p p' ∧
+          (eCfg p'.1).length ≤ cfgSpaceBound (descLen (descN eS eBit ntm)) input.length k S)
+        (init (descN eS eBit ntm), []) (s, [eBit true]) := by
+  constructor
+  · rintro ⟨π, hhalt, hout⟩
+    obtain ⟨s, hreach, -, hs⟩ := exists_reflTransGen_fits_of_computationPath eS eBit ntm π (hS π)
     refine ⟨s, ?_, by simpa [hout] using hreach⟩
     simpa [SCfg.toCfg, hhalt] using congrArg Cfg.state hs
   · rintro ⟨s, hs, hreach⟩
-    obtain ⟨π, -, hπ⟩ := exists_computationPath_of_reflTransGen eS eBit ntm hreach
-    refine ⟨π, ?_, ?_⟩
-    · simpa [SCfg.toCfg, hs] using (congrArg Cfg.state hπ).symm
-    · have := congrArg Cfg.output hπ
-      simp only [SCfg.toCfg, Cfg.map_output] at this
-      exact List.map_injective_iff.mpr eBit.injective (by simpa using this.symm)
+    exact (accepts_iff_reflTransGen_nStep eS ntm input).mpr
+      ⟨s, hs, hreach.lift id fun _ _ h => h.1⟩
 
 end Turing.MultiTapeTM.Universal

@@ -29,6 +29,9 @@ cannot be decided in time $2^{o(n \log n)}$ [LokshtanovMarxSaurabh2018, Theorem 
 Ilango's reduction to partial-function MCSP [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183,
 Section 3, Theorem 10, p. 20].
 
+The same threshold-table reduction gives SH lower bounds for both encodings, using a fixed
+power bound on the number of threshold bits.
+
 ## Formulations and faithfulness
 
 Two equivalent presentations appear in the literature:
@@ -303,33 +306,36 @@ theorem BipartitePermutationIndependentSet.mem_iff_exists_satisfiesUndirected
 /-- Membership in `ThreeColoring` is equivalent to a proper 3-coloring of the vertex positions
 `Fin G.1.length` with respect to `G.adjBool`. -/
 theorem mem_ThreeColoring_iff_fin (G : Graph) :
-    G ∈ ThreeColoring ↔ ∃ f : Fin G.1.length → Fin 3,
-      ∀ p q : Fin G.1.length, G.adjBool G.1[p] G.1[q] = true → f p ≠ f q := by
+    G ∈ ThreeColoring ↔ ∃ f : Fin G.vertices.length → Fin 3,
+      ∀ p q : Fin G.vertices.length, G.adjBool G.vertices[p] G.vertices[q] = true → f p ≠ f q := by
   classical
   rw [ThreeColoring, mem_KColoring_iff]
   constructor
   · rintro ⟨c, hc, hadj⟩
-    refine ⟨fun p => ⟨c G.1[p], hc G.1[p] (List.getElem_mem p.isLt)⟩, fun p q hpq h => ?_⟩
+    refine ⟨fun p => ⟨c G.vertices[p], hc G.vertices[p] (List.getElem_mem p.isLt)⟩,
+      fun p q hpq h => ?_⟩
     rw [Graph.adjBool_eq_true_iff] at hpq
-    exact hadj G.1[p] (List.getElem_mem p.isLt) G.1[q] (List.getElem_mem q.isLt) hpq
+    exact hadj G.vertices[p] (List.getElem_mem p.isLt) G.vertices[q] (List.getElem_mem q.isLt) hpq
       (congrArg Fin.val h)
   · rintro ⟨f, hf⟩
     refine ⟨fun u =>
-        if hu : u ∈ G.1 then (f ⟨G.1.idxOf u, List.idxOf_lt_length_iff.2 hu⟩).val else 0,
+        if hu : u ∈ G.vertices then
+          (f ⟨G.vertices.idxOf u, List.idxOf_lt_length_iff.2 hu⟩).val
+        else 0,
       fun v hv => by simp only [hv, ↓reduceDIte]; exact (f _).isLt,
       fun u hu v hv huv h => ?_⟩
     simp only [hu, hv, ↓reduceDIte] at h
     have hu' := List.idxOf_lt_length_iff.2 hu
     have hv' := List.idxOf_lt_length_iff.2 hv
-    have hpq : G.adjBool G.1[G.1.idxOf u] G.1[G.1.idxOf v] = true := by
+    have hpq : G.adjBool G.vertices[G.vertices.idxOf u] G.vertices[G.vertices.idxOf v] = true := by
       simpa only [List.getElem_idxOf, Graph.adjBool_eq_true_iff] using huv
-    exact hf ⟨G.1.idxOf u, hu'⟩ ⟨G.1.idxOf v, hv'⟩ hpq (Fin.ext h)
+    exact hf ⟨G.vertices.idxOf u, hu'⟩ ⟨G.vertices.idxOf v, hv'⟩ hpq (Fin.ext h)
 
 /-- **No $2^{o(|V|)}$ algorithm for 3-coloring under ETH** [CyganEtAl2015, Chapter 14]:
 for some $\delta > 0$, `ThreeColoring` is not decidable within time $2^{\delta |V|}$ times any
 polynomial in the length of the encoded graph, for graphs with $|V|$ declared vertices. -/
 theorem ETH.not_decidableInSubexpTime_ThreeColoring_vertices (h : ETH) :
-    ¬DecidableInSubexpTime ThreeColoring encGraph fun G => G.1.length :=
+    ¬DecidableInSubexpTime ThreeColoring encGraph fun G => G.vertices.length :=
   h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toThreeColoring
     (fun φ _ => SAT.toThreeColoring_mem_iff φ) (k := 93) fun φ hφ => by
       have := SAT.length_toThreeColoring_le hφ
@@ -422,10 +428,8 @@ private theorem wordLen_le (N : ℕ) : wordLen N ≤ 6 * blockSize N := by
   unfold wordLen
   omega
 
-/-- **Sublinear search-exponent bound**: for every $M \ge 1$, the number of threshold bits is at
-most $N / M + 48 \cdot (48 M)^3$. -/
-theorem searchBits_le_div_add (N : ℕ) {M : ℕ} (hM : 0 < M) :
-    searchBits N ≤ N / M + 48 * (48 * M) ^ 3 := by
+private theorem searchBits_le_block_power (N : ℕ) :
+    searchBits N ≤ 48 * (2 ^ (Nat.log 2 N / 4)) ^ 3 := by
   set k := Nat.log 2 N / 4
   have hA : numAssignments N = 4 * (2 ^ k) ^ 2 := by
     unfold numAssignments blockSize
@@ -437,23 +441,49 @@ theorem searchBits_le_div_add (N : ℕ) {M : ℕ} (hM : 0 < M) :
     calc wordLen N ≤ 6 * (k + 1) := h1
       _ ≤ 6 * 2 ^ (k + 1) := Nat.mul_le_mul_left 6 h2
       _ = 12 * 2 ^ k := by rw [pow_succ]; ring
-  have hSB : searchBits N ≤ 48 * (2 ^ k) ^ 3 := by
-    calc searchBits N = numAssignments N * wordLen N := rfl
-      _ ≤ 4 * (2 ^ k) ^ 2 * (12 * 2 ^ k) := by rw [hA]; exact Nat.mul_le_mul_left _ hW
-      _ = 48 * (2 ^ k) ^ 3 := by ring
+  calc
+    searchBits N = numAssignments N * wordLen N := rfl
+    _ ≤ 4 * (2 ^ k) ^ 2 * (12 * 2 ^ k) := by rw [hA]; exact Nat.mul_le_mul_left _ hW
+    _ = 48 * (2 ^ k) ^ 3 := by ring
+
+private theorem block_fourth_power_le (N : ℕ) (hN : N ≠ 0) :
+    (2 ^ (Nat.log 2 N / 4)) ^ 4 ≤ N := by
+  rw [← pow_mul, Nat.mul_comm]
+  exact (Nat.pow_le_pow_right two_pos (by omega)).trans (Nat.pow_log_le_self 2 hN)
+
+/-- **Sublinear search-exponent bound**: for every $M \ge 1$, the number of threshold bits is at
+most $N / M + 48 \cdot (48 M)^3$. -/
+theorem searchBits_le_div_add (N : ℕ) {M : ℕ} (hM : 0 < M) :
+    searchBits N ≤ N / M + 48 * (48 * M) ^ 3 := by
+  set k := Nat.log 2 N / 4
+  have hSB : searchBits N ≤ 48 * (2 ^ k) ^ 3 := searchBits_le_block_power N
   by_cases hk : 2 ^ k ≤ 48 * M
   · exact (hSB.trans (Nat.mul_le_mul_left 48 (Nat.pow_le_pow_left hk 3))).trans
       (Nat.le_add_left _ _)
   · have hN0 : N ≠ 0 := by rintro rfl; simp [k] at hk; omega
-    have h4k : 4 * k ≤ Nat.log 2 N := by omega
-    have hpow4 : (2 ^ k) ^ 4 ≤ N := by
-      rw [← pow_mul, Nat.mul_comm]
-      exact (Nat.pow_le_pow_right two_pos h4k).trans (Nat.pow_log_le_self 2 hN0)
+    have hpow4 : (2 ^ k) ^ 4 ≤ N := block_fourth_power_le N hN0
     have hmul : 48 * (2 ^ k) ^ 3 * M ≤ N := by
       rw [Nat.mul_right_comm]
       exact (Nat.mul_le_mul_right _ (Nat.le_of_not_le hk)).trans
         ((pow_succ' (2 ^ k) 3).symm.trans_le hpow4)
     exact (hSB.trans ((Nat.le_div_iff_mul_le hM).2 hmul)).trans (Nat.le_add_right _ _)
+
+private theorem searchBits_le_three_quarters (N : ℕ) :
+    (searchBits N : ℝ) ≤ ((48 : ℕ) : ℝ) * (N + 1 : ℝ) ^ (3 / 4 : ℝ) := by
+  let s : ℕ := 2 ^ (Nat.log 2 N / 4)
+  have hs : s ^ 4 ≤ N + 1 := by
+    rcases eq_or_ne N 0 with rfl | hN
+    · decide
+    · exact (block_fourth_power_le N hN).trans (Nat.le_succ N)
+  have hpow : (s : ℝ) ^ 3 ≤ (N + 1 : ℝ) ^ (3 / 4 : ℝ) := by
+    calc
+      (s : ℝ) ^ 3 = ((s : ℝ) ^ 4) ^ (3 / 4 : ℝ) := by
+        rw [← Real.rpow_natCast (s : ℝ) 4, ← Real.rpow_mul (by positivity)]
+        rw [show ((4 : ℕ) : ℝ) * (3 / 4) = (3 : ℕ) by norm_num, Real.rpow_natCast]
+      _ ≤ _ := Real.rpow_le_rpow (by positivity) (by exact_mod_cast hs) (by norm_num)
+  have hsize : (searchBits N : ℝ) ≤ ((48 : ℕ) : ℝ) * (s : ℝ) ^ 3 := by
+    exact_mod_cast searchBits_le_block_power N
+  exact hsize.trans (mul_le_mul_of_nonneg_left hpow (by norm_num))
 
 /-! ### Block-coloring extraction, threshold decoding, and `bpisOfColoring` -/
 
@@ -526,29 +556,30 @@ private def pairConflictEdges (N r p q : ℕ) : List ((ℕ × ℕ) × (ℕ × �
 
 /-- Conflict edges incident to vertex position $p$ across all adjacent vertex positions $q$. -/
 private def vertexConflictEdges (H : Graph) (r p : ℕ) : List ((ℕ × ℕ) × (ℕ × ℕ)) :=
-  let N := H.1.length
-  ((List.range N).filter fun q => H.adjBool (H.1.getD p 0) (H.1.getD q 0)).flatMap fun q =>
+  let N := H.vertices.length
+  ((List.range N).filter fun q =>
+      H.adjBool (H.vertices.getD p 0) (H.vertices.getD q 0)).flatMap fun q =>
     pairConflictEdges N r p q
 
 /-- Edges forbidding adjacent vertices $p, q < N$ of $H$ from receiving the same color under the
 block assignments selected by $\pi_1(p / b) = j_1$ and $\pi_2(q / b) = j_2$. -/
 private def conflictEdges (H : Graph) (r : ℕ) : List ((ℕ × ℕ) × (ℕ × ℕ)) :=
-  (List.range H.1.length).flatMap fun p => vertexConflictEdges H r p
+  (List.range H.vertices.length).flatMap fun p => vertexConflictEdges H r p
 
 /-- The instance of `BipartitePermutationIndependentSet` corresponding to a graph $H$ and a
 threshold-table number $r$. -/
 def bpisOfColoring (x : Graph × ℕ) : BipartitePermutationGraph :=
-  let N := x.1.1.length
+  let N := x.1.vertices.length
   (numBlocks N, consistencyEdges (numBlocks N) ++ invalidBucketEdges N x.2 ++ conflictEdges x.1 x.2)
 
 /-- **Parameter bound**: the output parameter $n = (\mathrm{bpisOfColoring}\,(H, r)).1$ satisfies
 $n \log_2 n \le 10 |V| + 5$. -/
 theorem fst_bpisOfColoring_mul_log_le (H : Graph) (r : ℕ) :
-    (bpisOfColoring (H, r)).1 * Nat.log 2 (bpisOfColoring (H, r)).1 ≤ 10 * H.1.length + 5 :=
-  numBlocks_mul_log_le H.1.length
+    (bpisOfColoring (H, r)).1 * Nat.log 2 (bpisOfColoring (H, r)).1 ≤ 10 * H.vertices.length + 5 :=
+  numBlocks_mul_log_le H.vertices.length
 
 @[simp] theorem bpisOfColoring_empty_zero :
-    bpisOfColoring (([], []), 0) = (1, [((0, 0), (0, 0))]) := by
+    bpisOfColoring (⟨[], []⟩, 0) = (1, [((0, 0), (0, 0))]) := by
   decide
 
 /-! ### Correctness of the reduction -/
@@ -685,9 +716,9 @@ if and only if some $r < 2^{\mathrm{searchBits}\, |V|}$ yields a satisfiable ins
 `bpisOfColoring (H, r)`. -/
 theorem mem_ThreeColoring_iff_exists_bpisOfColoring (H : Graph) :
     H ∈ ThreeColoring ↔
-      ∃ r < 2 ^ searchBits H.1.length,
+      ∃ r < 2 ^ searchBits H.vertices.length,
         bpisOfColoring (H, r) ∈ BipartitePermutationIndependentSet := by
-  set N := H.1.length
+  set N := H.vertices.length
   set b := blockSize N
   set B := numAssignments N
   set n := numBlocks N
@@ -985,9 +1016,9 @@ private theorem computableInPolyTime_vertexConflictEdges
     ComputableInPolyTime
       (fun x => vertexConflictEdges (H x) (r x) (p x))
       encIn (encList (encPair (encPair encUnary encUnary) (encPair encUnary encUnary))) := by
-  have hverts : ComputableInPolyTime (fun x => (H x).1) encIn (encList encNat) :=
-    (fst (encList encNat) (encList (encPair encNat encNat))).comp hH
-  have hlen : ComputableInPolyTime (fun x => (H x).1.length) encIn encUnary :=
+  have hverts : ComputableInPolyTime (fun x => (H x).vertices) encIn (encList encNat) :=
+    encGraph_vertices_polyTime hH
+  have hlen : ComputableInPolyTime (fun x => (H x).vertices.length) encIn encUnary :=
     (length_list encNat).comp hverts
   unfold vertexConflictEdges
   fun_prop
@@ -997,9 +1028,9 @@ private theorem computableInPolyTime_conflictEdges :
       (encPair encGraph encNat)
       (encList (encPair (encPair encUnary encUnary) (encPair encUnary encUnary))) := by
   have hH := fst encGraph encNat
-  have hlen : ComputableInPolyTime (fun p : Graph × ℕ => p.1.1.length)
+  have hlen : ComputableInPolyTime (fun p : Graph × ℕ => p.1.vertices.length)
       (encPair encGraph encNat) encUnary :=
-    (length_list encNat).comp ((fst (encList encNat) (encList (encPair encNat encNat))).comp hH)
+    (length_list encNat).comp (encGraph_vertices_polyTime hH)
   exact flatMapWithInput (range.comp hlen)
     (computableInPolyTime_vertexConflictEdges (hH.comp (fst _ _))
       ((snd encGraph encNat).comp (fst _ _)) (snd _ _))
@@ -1009,10 +1040,9 @@ private theorem computableInPolyTime_conflictEdges :
 theorem computableInPolyTime_bpisOfColoring :
     ComputableInPolyTime bpisOfColoring (encPair encGraph encNat)
       encBipartitePermutationGraph := by
-  have hN : ComputableInPolyTime (fun x : Graph × ℕ => x.1.1.length)
+  have hN : ComputableInPolyTime (fun x : Graph × ℕ => x.1.vertices.length)
       (encPair encGraph encNat) encUnary :=
-    (length_list encNat).comp
-      ((fst (encList encNat) (encList (encPair encNat encNat))).comp (fst encGraph encNat))
+    (length_list encNat).comp (encGraph_vertices_polyTime (fst encGraph encNat))
   have hn := computableInPolyTime_numBlocks.comp hN
   have hc1 := computableInPolyTime_consistencyEdges.comp hn
   have hc2 := computableInPolyTime_invalidBucketEdges.comp (hN.prod (snd encGraph encNat))
@@ -1040,13 +1070,12 @@ theorem computableInPolyTime_bpisOfColoring_binary :
       encBipartitePermutationGraphBinary :=
   computableInPolyTime_toBinary.comp computableInPolyTime_bpisOfColoring
 
-/-- Computing `searchBits H.1.length` from a graph `H` is polynomial-time in the plain machine
-model. -/
+/-- Computing `searchBits H.vertices.length` from a graph `H` is polynomial-time in the plain
+machine model. -/
 @[fun_prop]
 theorem computableInPolyTime_searchBits_length :
-    ComputableInPolyTime (fun H : Graph => searchBits H.1.length) encGraph encUnary := by
+    ComputableInPolyTime (fun H : Graph => searchBits H.vertices.length) encGraph encUnary := by
   refine computableInPolyTime_searchBits.comp ?_
-  unfold encGraph
   fun_prop
 
 /-! ### Exhaustive search over threshold tables and the ETH lower bound -/
@@ -1058,13 +1087,48 @@ $2^{(1 / M + 10 \delta) |V|} \cdot \mathrm{poly}(|H|)$. -/
 theorem decidableInExpTime_ThreeColoring_of_bpis {M : ℕ} (hM : 0 < M) {δ : ℝ} (hδ : 0 ≤ δ)
     (h : DecidableInExpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
       (fun G => G.1 * Nat.log 2 G.1) δ) :
-    DecidableInExpTime ThreeColoring encGraph (fun H => H.1.length) (1 / M + 10 * δ) := by
+    DecidableInExpTime ThreeColoring encGraph (fun H => H.vertices.length) (1 / M + 10 * δ) := by
   simpa using h.of_exhaustiveSearch computableInPolyTime_bpisOfColoring
     computableInPolyTime_searchBits_length mem_ThreeColoring_iff_exists_bpisOfColoring (c := 10)
     (fun H r => by have := fst_bpisOfColoring_mul_log_le H r; omega)
-    (fun H => searchBits_le_div_add H.1.length hM) hδ
+    (fun H => searchBits_le_div_add H.vertices.length hM) hδ
+
+private theorem not_decidableInPowerExpTime_of_SH (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) {enc : BipartitePermutationGraph ↪ List Bool}
+    (hf : ComputableInPolyTime bpisOfColoring (encPair encGraph encNat) enc) :
+    ¬DecidableInPowerExpTime BipartitePermutationIndependentSet enc (fun G => G.1) p := by
+  intro hFast
+  apply h.not_decidableInPowerExpTime_ThreeColoring_vertices
+    (hp.trans_le (le_max_right (3 / 4 : ℝ) p)) (max_lt_iff.mpr ⟨by norm_num, hp1⟩)
+  simpa only [one_mul] using hFast.of_exhaustiveSearch hf computableInPolyTime_searchBits_length
+    mem_ThreeColoring_iff_exists_bpisOfColoring (C := 48) (K := 1) (q := 3 / 4) (b := 1)
+    (fun H => searchBits_le_three_quarters H.vertices.length) (fun H r => by
+      rw [Real.rpow_one]
+      norm_num only [Nat.cast_one, one_add_one_eq_two]
+      have hN := numBlocks_le H.vertices.length
+      exact_mod_cast (show (bpisOfColoring (H, r)).1 + 1 ≤ 2 * (H.vertices.length + 1) by
+        change numBlocks H.vertices.length + 1 ≤ _
+        omega)) hp.le
 
 end BipartitePermutationIndependentSet
+
+/-- Under SH, the unary-encoded Bipartite Permutation Independent Set problem admits no fixed
+power saving in the exponent measured in the size of one permutation block. The reduction from
+3-coloring enumerates threshold tables with `O((|V| + 1) ^ (3/4))` bits. -/
+theorem SH.not_decidableInPowerExpTime_BipartitePermutationIndependentSet (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      (fun G => G.1) p :=
+  BipartitePermutationIndependentSet.not_decidableInPowerExpTime_of_SH h hp hp1
+    BipartitePermutationIndependentSet.computableInPolyTime_bpisOfColoring
+
+/-- Under SH, the same block-size lower bound holds with binary coordinates. -/
+theorem SH.not_decidableInPowerExpTime_BipartitePermutationIndependentSet_binary (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime BipartitePermutationIndependentSet encBipartitePermutationGraphBinary
+      (fun G => G.1) p :=
+  BipartitePermutationIndependentSet.not_decidableInPowerExpTime_of_SH h hp hp1
+    BipartitePermutationIndependentSet.computableInPolyTime_bpisOfColoring_binary
 
 open BipartitePermutationIndependentSet in
 /-- **Subexponential-time transfer from `BipartitePermutationIndependentSet` to `ThreeColoring`**:
@@ -1073,11 +1137,11 @@ if `BipartitePermutationIndependentSet` is decidable in time $2^{o(n \log n)}$, 
 theorem DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet
     (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
       fun G => G.1 * Nat.log 2 G.1) :
-    DecidableInSubexpTime ThreeColoring encGraph fun H => H.1.length :=
+    DecidableInSubexpTime ThreeColoring encGraph fun H => H.vertices.length :=
   h.of_exhaustiveSearch computableInPolyTime_bpisOfColoring computableInPolyTime_searchBits_length
     mem_ThreeColoring_iff_exists_bpisOfColoring (c := 10)
     (fun H r => by have := fst_bpisOfColoring_mul_log_le H r; omega)
-    (fun M hM => ⟨48 * (48 * M) ^ 3, fun H => searchBits_le_div_add H.1.length hM⟩)
+    (fun M hM => ⟨48 * (48 * M) ^ 3, fun H => searchBits_le_div_add H.vertices.length hM⟩)
 
 /-- **Lokshtanov–Marx–Saurabh ETH Lower Bound for $2n \times 2n$ Bipartite Permutation Independent
 Set** [LokshtanovMarxSaurabh2018, Theorem 2.11] [Ilango2020FOCS, Section III.B, p. 427; ECCC

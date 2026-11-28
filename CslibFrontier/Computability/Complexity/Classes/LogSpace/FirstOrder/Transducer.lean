@@ -207,10 +207,8 @@ private theorem tupleReg_le_base {m : ℕ} (hm : m ≤ maxArity v') : tupleReg d
 
 private theorem tupleReg_lt_base {m i : ℕ} (hm : m ≤ maxArity v') (hi : i < d) :
     tupleReg d m i < base v' d := by
-  unfold tupleReg base
-  have : d * m + d ≤ d * (maxArity v' + 1) := by
-    rw [Nat.mul_add, Nat.mul_one]
-    exact Nat.add_le_add_right (Nat.mul_le_mul_left d hm) d
+  have := tupleReg_le_base v' (d := d) hm
+  unfold tupleReg at this ⊢
   omega
 
 private theorem le_base : 8 ≤ base v' d := Nat.le_add_right _ _
@@ -519,21 +517,21 @@ private theorem reaches_unrankCode_step (hC : Correct n C w) {m A r u₀ u : ℕ
   cases res with
   | false =>
     have hnot : ¬ I.InDomain e n u := fun h => Bool.false_ne_true (hres'.mpr h)
-    refine ⟨regs₂.set 4 (u + 1), hreach₁₂.trans (Reaches.assign hc₂ hB₂ ?_),
+    rw [ite_eq_right Bool.false_ne_true] at hreach₁₂
+    exact ⟨regs₂.set 4 (u + 1), hreach₁₂.trans (by cp_step [h4₂]),
       List.getD_set_self (by omega),
       by rw [List.getD_set_ne (by omega), h5₂, domainRank_succ, ite_eq_right hnot]; rfl,
       by rw [List.getD_set_ne (by omega), h7₂], by rw [List.length_set, hlen₂'],
       fun x hx h4' h5' h7' hxm => by
         rw [List.getD_set_ne (Ne.symm h4'), hkeep₂ x hx h4' h5' h7' hxm],
       List.forall_mem_set_of_forall_mem hB₂ (by omega)⟩
-    simpa only [eval_add, eval_reg, eval_const, h4₂] using Reaches.refl _
   | true =>
     have hin : I.InDomain e n u := hres'.mp rfl
     have hlt : I.domainRank e n u < r := hru₀ ▸ domainRank_lt_of_inDomain hin hu
     have hB₃ : ∀ x ∈ regs₂.set 5 (I.domainRank e n u + 1), x ≤ B :=
       List.forall_mem_set_of_forall_mem hB₂ (by omega)
-    refine ⟨(regs₂.set 5 (I.domainRank e n u + 1)).set 4 (u + 1),
-      hreach₁₂.trans (Reaches.lt hc₀ hB₂ ?_),
+    rw [ite_eq_left rfl] at hreach₁₂
+    refine ⟨(regs₂.set 5 (I.domainRank e n u + 1)).set 4 (u + 1), hreach₁₂.trans ?_,
       List.getD_set_self (by simp only [List.length_set]; omega),
       by rw [List.getD_set_ne (by omega), List.getD_set_self (by omega), domainRank_succ,
         ite_eq_left hin],
@@ -543,12 +541,9 @@ private theorem reaches_unrankCode_step (hC : Correct n C w) {m A r u₀ u : ℕ
         rw [List.getD_set_ne (Ne.symm h4'), List.getD_set_ne (Ne.symm h5'),
           hkeep₂ x hx h4' h5' h7' hxm],
       List.forall_mem_set_of_forall_mem hB₃ (by omega)⟩
-    simp only [eval_reg, h5₂, h7₂, hlt, ↓reduceIte]
-    refine Reaches.assign hc₁ hB₂ ?_
-    simp only [eval_add, eval_reg, eval_const, h5₂]
-    refine Reaches.assign hc₂ hB₃ ?_
-    simpa only [eval_add, eval_reg, eval_const, List.getD_set_ne (show 5 ≠ 4 by omega),
-      h4₂] using Reaches.refl _
+    cp_step [h5₂, h7₂, hlt]
+    cp_step [h5₂]
+    cp_step [List.getD_set_ne (by decide : 5 ≠ 4), h4₂]
 
 private theorem reaches_unrankCode_loop (hC : Correct n C w) {m A r u₀ : ℕ} (hm : m ≤ maxArity v')
     (hcoords : P.CodeAt (A + 3) (coordinatesCode d m (A + 3)))
@@ -587,10 +582,8 @@ private theorem reaches_unrankCode_loop (hC : Correct n C w) {m A r u₀ : ℕ} 
   | succ u ih =>
     intro hu
     obtain ⟨rs, hreach, h4, h5, h7, hl, hkeep, hB'⟩ := ih (by omega)
-    obtain ⟨rs', hstep, h4', h5', h7', hl', hkeep', hB''⟩ :=
-      reaches_unrankCode_step hC hm hcoords hdom hc₀ hc₁ hc₂ hnB hNB hrB regs h0 hlen
-        hu₀ hru₀ (by omega) rs h4 h5 h7 hl hkeep hB'
-    exact ⟨rs', hreach.trans hstep, h4', h5', h7', hl', hkeep', hB''⟩
+    exact (reaches_unrankCode_step hC hm hcoords hdom hc₀ hc₁ hc₂ hnB hNB hrB regs h0 hlen
+      hu₀ hru₀ (by omega) rs h4 h5 h7 hl hkeep hB').imp fun _ h => ⟨hreach.trans h.1, h.2⟩
 
 /-- **Finding the element of a given rank**: from the unranking code for block `m`, with the
 cardinality of a well-formed input in register `0`, the number `n' > 0` of elements of the
@@ -618,29 +611,25 @@ private theorem reaches_unrankCode (hC : Correct n C w) {m A t : ℕ} (hm : m �
   have hn'N : n' ≤ n ^ d := modelCard_le_pow (I := I) (e := e) (n := n)
   have hbase := le_base v' (d := d)
   obtain ⟨u₀, hu₀, hru₀⟩ := exists_inDomain_of_lt (I := I) (e := e) (n := n) hrn
-  have hB₇ : ∀ x ∈ regs.set 7 r, x ≤ B := List.forall_mem_set_of_forall_mem hB (by omega)
-  have hB₄ : ∀ x ∈ (regs.set 7 r).set 4 0, x ≤ B :=
-    List.forall_mem_set_of_forall_mem hB₇ (Nat.zero_le _)
   have hB₅ : ∀ x ∈ ((regs.set 7 r).set 4 0).set 5 0, x ≤ B :=
-    List.forall_mem_set_of_forall_mem hB₄ (Nat.zero_le _)
+    List.forall_mem_set_of_forall_mem
+      (List.forall_mem_set_of_forall_mem
+        (List.forall_mem_set_of_forall_mem hB (by omega)) (Nat.zero_le _))
+      (Nat.zero_le _)
   obtain ⟨rs, hreach, h4, h5, h7, hl, hkeep, hB'⟩ :=
     reaches_unrankCode_loop hC hm hcoords hdom hc₀ hc₁ hc₂ hnB hNB (by omega) regs h0 hlen
       hB₅ hu₀ hru₀ u₀ le_rfl
   obtain ⟨res, regs', hres, hdomRun, hlen', -, h5', h7', hset', hkeep', hB''⟩ :=
     reaches_unrankCode_dom hC hm hcoords hdom hnB regs h0 hlen hu₀.1 rs h4 h5 h7 hl hkeep hB'
-  have hresT : res = true := hres.mpr hu₀
-  subst hresT
-  refine ⟨regs', Reaches.assign hi₀ hB ?_, hlen', fun i => by
+  obtain rfl : res = true := hres.mpr hu₀
+  rw [ite_eq_left rfl] at hdomRun
+  refine ⟨regs', ?_, hlen', fun i => by
     rw [hset' i, rankEquiv_symm_val (r := ⟨r, hrn⟩) hu₀ hru₀], hkeep', hB''⟩
-  simp only [eval_mod, eval_div, eval_pow, eval_reg, h6, h3]
-  refine Reaches.assign hi₁ hB₇ ?_
-  simp only [eval_const]
-  refine Reaches.assign hi₂ hB₄ ?_
-  simp only [eval_const, ↓reduceIte] at hdomRun ⊢
+  cp_step [h6, h3]
+  cp_step
+  cp_step
   rw [show A + d + codeLength I.domain + 6 = A + 3 + d + codeLength I.domain + 3 by omega]
-  refine hreach.trans (hdomRun.trans (Reaches.lt hc₀ hB'' ?_))
-  simp only [eval_reg, h5', h7', hru₀, lt_irrefl, ↓reduceIte]
-  exact Reaches.refl _
+  exact hreach.trans (hdomRun.trans (by cp_step [h5', h7', hru₀]))
 
 variable (v' I) in
 /-- The number of instructions of the code of the defining formula of the symbol `j`. -/
@@ -751,27 +740,21 @@ private theorem reaches_unranks (hC : Correct n C w) (j : Fin v'.count) {b t : �
   | succ m ih =>
     intro hm
     obtain ⟨rs₁, hreach₁, hl₁, h0₁, h3₁, h6₁, hB₁, htupleReg₁⟩ := ih (by omega)
-    have hpos : 0 < modelCard I e n := by
-      rcases Nat.eq_zero_or_pos (modelCard I e n) with h | h
-      · rw [h, zero_pow (by omega)] at ht; omega
-      · exact h
+    have hpos : 0 < modelCard I e n := Nat.pos_of_ne_zero fun h => by
+      rw [h, zero_pow (by omega)] at ht; omega
     have hcode := CodeAt.flatMap_range
       (f := fun m => unrankCode C v' e I m (b + 3 + (d + codeLength I.domain + 6) * m))
       (fun i => length_unrankCode (C := C) (v' := v') (e := e) (I := I) i _) hunr m (by omega)
     obtain ⟨rs₂, hreach₂, hl₂, htupleReg₂, hkeep₂, hB₂⟩ :=
       reaches_unrankCode hC (show m ≤ maxArity v' by omega) hcode hnB hNB rs₁ h0₁ h3₁
         h6₁ hpos (by rw [hl₁]; exact hlenD) hB₁
+    have hlow (x : ℕ) (_ : x = 0 ∨ x = 3 ∨ x = 6) : rs₂.getD x 0 = rs₁.getD x 0 :=
+      hkeep₂ x (by omega) (by omega) (by omega) (by omega) fun _ _ => by unfold tupleReg; omega
     refine ⟨rs₂, hreach₁.trans ?_, hl₂.trans hl₁,
-      by rw [hkeep₂ 0 (by omega) (by omega) (by omega) (by omega)
-        (fun i _ => by unfold tupleReg; omega), h0₁],
-      by rw [hkeep₂ 3 (by omega) (by omega) (by omega) (by omega)
-        (fun i _ => by unfold tupleReg; omega), h3₁],
-      by rw [hkeep₂ 6 (by omega) (by omega) (by omega) (by omega)
-        (fun i _ => by unfold tupleReg; omega), h6₁],
-      hB₂, fun m' hm' i => ?_⟩
-    · rw [show b + 3 + (d + codeLength I.domain + 6) * m + d + codeLength I.domain + 6 =
+      (hlow 0 (.inl rfl)).trans h0₁, (hlow 3 (.inr (.inl rfl))).trans h3₁,
+      (hlow 6 (.inr (.inr rfl))).trans h6₁, hB₂, fun m' hm' i => ?_⟩
+    · rwa [show b + 3 + (d + codeLength I.domain + 6) * m + d + codeLength I.domain + 6 =
         b + 3 + (d + codeLength I.domain + 6) * (m + 1) by rw [Nat.mul_succ]; omega] at hreach₂
-      exact hreach₂
     · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hm') with hlt | rfl
       · rw [hkeep₂ _ (tupleReg_lt_base v' (by omega) (e i).2) (by unfold tupleReg; omega)
           (by unfold tupleReg; omega) (by unfold tupleReg; omega)
@@ -841,8 +824,8 @@ private theorem reachesOut_relTableCode_step (hC : Correct n C w) (j : Fin v'.co
   refine hreach₁.reachesOut.trans (hreach₂.reachesOut.trans ?_)
   rw [hbit]
   cases res
-  · exact ReachesOut.emit hn₀ hB₂ (ReachesOut.emit hn₁ hB₂ (ReachesOut.refl _))
-  · exact ReachesOut.emit hy₀ hB₂ (ReachesOut.emit hy₁ hB₂ (ReachesOut.refl _))
+  exacts [ReachesOut.emit hn₀ hB₂ (ReachesOut.emit hn₁ hB₂ (ReachesOut.refl _)),
+    ReachesOut.emit hy₀ hB₂ (ReachesOut.emit hy₁ hB₂ (ReachesOut.refl _))]
 
 /-- **Emitting the truth table of a symbol of the interpreted structure**: from the table code
 for the symbol `j`, with the cardinality of a well-formed input in register `0` and the number `n'`
@@ -1059,8 +1042,8 @@ theorem computableInLogSpace_encodedMapWith :
     (length_le_pow_maxArity v a).trans (Nat.pow_le_pow_right (Nat.succ_pos _) hE)
   have hnB : a.1 ≤ B := (card_le_length_encStructure a).trans hwB
   have hdE : d ≤ exponent v v' d := by
-    have := Nat.mul_le_mul_left d (show 1 ≤ maxArity v' + 1 by omega)
-    simp only [Nat.mul_one] at this; unfold exponent; omega
+    have := Nat.le_mul_of_pos_right d (show 0 < maxArity v' + 1 by omega)
+    unfold exponent; omega
   obtain ⟨hshape, hguard', -, -, -, hreject⟩ := codeAt_program I C v' e
   have hlenD : base v' d + boundDepth I.domain ≤ P.registers :=
     Nat.add_le_add_left (le_max_left _ _) _
@@ -1069,22 +1052,20 @@ theorem computableInLogSpace_encodedMapWith :
     (fun i => (pow_arityAt_le v a i).trans (Nat.pow_le_pow_right (Nat.succ_pos _) hE))
     hwB (List.replicate P.registers 0) (by simp) (by simp only [List.length_replicate]; omega)
     (by simp)
-  by_cases ha : v.WellFormed a
-  · rw [ite_eq_left ha] at hshapeRun
-    by_cases hn : C.minCard ≤ a.1
-    · exact reachesOut_program_admissible I C v' e a ha hn hpow hnB (hpow d hdE) rs hshapeRun
-        (by rw [hlen, List.length_replicate]) (h0 ha) hB
-    · obtain ⟨hrun, hhalt⟩ := reachesOut_rejectCode (w := encStructure a) hreject rs hB
-      refine ⟨(_, rs), List.replicate (v'.count + 2) false, [],
-        hshapeRun.reachesOut.trans (ReachesOut.lt hguard' hB ?_), hhalt, ?_, hB⟩
-      · simpa only [eval_reg, eval_const, h0 ha, Nat.lt_of_not_ge hn, ↓reduceIte,
-          List.replicate_succ] using hrun
-      · rw [I.encodedMapWith_of_not_admissible C v' e (fun h => hn h.2)]
-        simpa only [List.nil_append, List.append_nil] using encStructure_reject (v' := v')
-  · rw [ite_eq_right ha] at hshapeRun
+  by_cases h : v.WellFormed a ∧ C.minCard ≤ a.1
+  · rw [ite_eq_left h.1] at hshapeRun
+    exact reachesOut_program_admissible I C v' e a h.1 h.2 hpow hnB (hpow d hdE) rs hshapeRun
+      (by rw [hlen, List.length_replicate]) (h0 h.1) hB
+  · have hrej : P.Reaches (encStructure a) (P.Running B)
+        (0, List.replicate P.registers 0) (haltLabel v v' d I + 1, rs) := by
+      by_cases ha : v.WellFormed a
+      · have hn : ¬ C.minCard ≤ a.1 := fun hn => h ⟨ha, hn⟩
+        rw [ite_eq_left ha] at hshapeRun
+        exact hshapeRun.trans (by cp_step [h0 ha])
+      · rwa [ite_eq_right ha] at hshapeRun
     obtain ⟨hrun, hhalt⟩ := reachesOut_rejectCode (w := encStructure a) hreject rs hB
-    refine ⟨(_, rs), _, [], hshapeRun.reachesOut.trans hrun, hhalt, ?_, hB⟩
-    rw [I.encodedMapWith_of_not_admissible C v' e (fun h => ha h.1)]
+    refine ⟨(_, rs), _, [], hrej.reachesOut.trans hrun, hhalt, ?_, hB⟩
+    rw [I.encodedMapWith_of_not_admissible C v' e h]
     simpa only [List.nil_append, List.append_nil] using encStructure_reject (v' := v')
 
 end FO.Interpretation

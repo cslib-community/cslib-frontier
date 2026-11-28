@@ -31,6 +31,14 @@ theorem callableBank_injective : Function.Injective callableBank := by
   intro i j h
   exact Fin.ext (congrArg (fun k : Fin 173 => k.val) h)
 
+/-- Registers at or above `163` lie outside the `163`-register callable bank. -/
+theorem callableBank_ne_of_le {i : Fin 173} (hi : 163 ≤ i.val) (j : Fin 163) :
+    callableBank j ≠ i := by
+  intro hj
+  have hv := congrArg Fin.val hj
+  change j.val = i.val at hv
+  omega
+
 /-- The original source data represented in the native pointer front. -/
 @[expose] def view (w b : ℕ) (x : Data 173) : Data 160 :=
   MemoryWindow.view w b (x.comap callableBank)
@@ -46,13 +54,7 @@ theorem exec_source {w W b T : ℕ} {c : Code .standard 160} {v v' : Data 160}
       ∀ i : Fin 173, 163 ≤ i.val → y.regs i = x.regs i := by
   obtain ⟨y, hy, ⟨ym, yf⟩, yr⟩ := ExecWithin.rename_post callableBank_injective
     (MemoryWindow.execWithin he hc hv hmatch hw hfit)
-  refine ⟨y, hy, ym, yf, ?_⟩
-  intro i hi
-  apply yr i
-  intro j hj
-  have hv := congrArg Fin.val hj
-  change j.val = i.val at hv
-  omega
+  exact ⟨y, hy, ym, yf, fun i hi => yr i (callableBank_ne_of_le hi)⟩
 
 private def noStores {r : ℕ} : Code .standard r → Prop
   | .op (.store _ _) => False
@@ -108,36 +110,24 @@ theorem exec_setupLayout {W b m t N Q : ℕ} (x : Data 173)
   change s.mem = x.mem at sm
   obtain ⟨_, _, hbudget⟩ := CallableBoxProduct.source_admission (Q := Q) htm hgeom
   let v := view (CallableProduct.sourceWidth N Q) b s
-  have vread (a : ℕ) (ha : Fits (CallableProduct.sourceWidth N Q) (x.mem (b + a))) :
-      v.mem a = x.mem (b + a) := by
-    change s.mem (b + a) % _ = _
-    rw [sm, Nat.mod_eq_of_lt ha]
-  obtain ⟨p, hp, pp, pt, pm⟩ := PointerInput.exec_setupLayout (show m ≤ 21 * m by omega) v
-    ((vread 1 (by rw [hL]; exact hbudget.of_le (by
-      unfold BoxProduct.wordBudget QueriedProduct.wordBudget; omega))).trans hL)
-    ((vread 2 (by rw [hm]; exact hbudget.of_le (by
-      unfold BoxProduct.wordBudget QueriedProduct.wordBudget; omega))).trans hm)
-    ((vread 3 (by rw [hN]; exact hbudget.of_le (by
-      unfold BoxProduct.wordBudget QueriedProduct.wordBudget; omega))).trans hN)
-    ((vread 4 (by rw [hQ]; exact hbudget.of_le (by
-      unfold BoxProduct.wordBudget QueriedProduct.wordBudget; omega))).trans hQ)
-    ((vread _ (by rw [ht]; exact hbudget.of_le (by unfold BoxProduct.wordBudget; omega))).trans ht)
-    hbudget
+  have vread {a k : ℕ} (hk : x.mem (b + a) = k)
+      (hle : k ≤ BoxProduct.wordBudget (21 * m) m t N Q) : v.mem a = k := by
+    change s.mem (b + a) % _ = k
+    rw [sm, hk, Nat.mod_eq_of_lt (hbudget.of_le hle)]
+  have hwb : 21 * m + N + Q + t ≤ BoxProduct.wordBudget (21 * m) m t N Q := by
+    unfold BoxProduct.wordBudget QueriedProduct.wordBudget
+    omega
+  obtain ⟨p, hp, pp, pt, pm⟩ := PointerInput.exec_setupLayout (by omega) v
+    (vread hL (by omega)) (vread hm (by omega)) (vread hN (by omega))
+    (vread hQ (by omega)) (vread ht (by omega)) hbudget
   obtain ⟨y, hy, ym, _, yf⟩ := exec_source hp (by decide) sbound s smatch
     (CallableProduct.setup_fits hfit).1 (hfit.of_le (by
       change b + CallableProduct.windowSize N Q ≤ _; omega))
   have yview : view (CallableProduct.sourceWidth N Q) b y = p := ym.view_eq
-  refine ⟨y, hs.seq hy, ?_, ?_, ym.base_eq, ym.modulus_eq, ?_, ?_, ?_⟩
-  · rw [yview]; exact pp
-  · rw [yview]; exact pt
-  · rw [yview]; exact hp.bounded sbound
-  · obtain ⟨k, _, he⟩ := hs.seq hy
-    exact noStores_mem he (by decide)
-  · intro i hi
-    exact (yf i hi).trans (sf i (by
-      intro j hj
-      have hv := congrArg Fin.val hj
-      change j.val = i.val at hv
-      omega))
+  refine ⟨y, hs.seq hy, yview.symm ▸ pp, yview.symm ▸ pt, ym.base_eq, ym.modulus_eq,
+    yview.symm ▸ hp.bounded sbound, ?_,
+    fun i hi => (yf i hi).trans (sf i (callableBank_ne_of_le hi))⟩
+  obtain ⟨_, _, he⟩ := hs.seq hy
+  exact noStores_mem he (by decide)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PointerBoxProduct

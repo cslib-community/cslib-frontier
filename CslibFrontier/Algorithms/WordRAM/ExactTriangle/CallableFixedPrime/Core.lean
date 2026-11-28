@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Program
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime.Source
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Parameters
-public import CslibFrontier.Computability.WordRAM.MemoryWindow
+public import CslibFrontier.Computability.WordRAM.MemoryWindow.Dynamic
 
 /-!
 # Actual translated box-backed fixed-prime solver execution
@@ -83,12 +83,8 @@ theorem exec_compiled {W b m n g p total : ℕ} (values : List ℤ)
         ∀ q, q < b ∨ b + windowSize n (D m) g p total ≤ q → y.mem q = x.mem q := by
   let v := MemoryWindow.view (sourceWidth n (D m) g p total) b x
   have vb := MemoryWindow.view_bounded (sourceWidth n (D m) g p total) b x hregs
-  have hi := Data.Bounded.init (r := 64)
-    (input_fits_source (m := m) (g := g) (p := p) values hlen hv)
-  have vi (q : ℕ) (hq : q < 5 + 3 * (n * n)) : v.mem q =
-      (Data.init (PreparationInput.input n (D m) g p values) : Data 64).mem q := by
-    change x.mem (b + q) % 2 ^ sourceWidth n (D m) g p total = _
-    rw [hinput q hq, Nat.mod_eq_of_lt (hi.2 q)]
+  have vi := MemoryWindow.view_mem_init_of_inputFits
+    (input_fits_source (m := m) (g := g) (p := p) values hlen hv) x hinput
   have htwo : sourceWidth n (D m) g p total - 2 + 2 = sourceWidth n (D m) g p total :=
     Nat.sub_add_cancel (by have := sourceWidth_two_lt n (D m) g p total; omega)
   have hs := StreamingFixedPrime.exec_source (w := sourceWidth n (D m) g p total - 2) values hlen
@@ -97,8 +93,7 @@ theorem exec_compiled {W b m n g p total : ℕ} (values : List ℤ)
   obtain ⟨a, hout, z, hz, zf, zs, ziff, zw, -⟩ := hs
   obtain ⟨y, hy, hm', hf⟩ := MemoryWindow.execWithin (hz.mono (Nat.sub_le _ _))
     StreamingFixedPrime.program_not_readsWidth
-    vb (show MemoryWindow.Matches (sourceWidth n (D m) g p total) b v x from
-      ⟨rfl, hb, hm⟩) hw hfit
+    vb ⟨rfl, hb, hm⟩ hw hfit
   refine ⟨a, hout, y, hy, ?_, ?_, ?_, ?_, hf⟩
   · simpa only [hm'.regs] using zf
   · simpa only [hm'.regs] using zs

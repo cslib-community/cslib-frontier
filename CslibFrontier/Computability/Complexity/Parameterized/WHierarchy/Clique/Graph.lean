@@ -109,19 +109,28 @@ def refutes (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (cl : List (�
   (cl.flatMap (WeftOne.claimChecks n gates)).any fun e =>
     (kleeneEval (knowList n kk P) gates).getD e.1 none == some (!e.2)
 
-/-- A vertex: a list of claims tagged `true`, or a bracket tagged `false`. -/
-abbrev Vertex : Type := Bool × (List (ℕ × Bool) × List (ℕ × ℕ))
+/-- A vertex: a certificate (`isCert = true`) with wire-value claims, or a bracket
+(`isCert = false`) with `(index, position)` pairs. -/
+structure Vertex where
+  /-- `true` for a certificate vertex, `false` for a bracket vertex. -/
+  isCert : Bool
+  /-- The certificate's wire-value claims (empty for a bracket vertex). -/
+  claims : List (ℕ × Bool)
+  /-- The bracket's `(index, position)` pairs (empty for a certificate vertex). -/
+  bracket : List (ℕ × ℕ)
+  deriving DecidableEq
 
 /-- The vertices: the certificates, then the brackets. -/
 def vertices (d n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (o : ℕ) : List Vertex :=
-  (certs d n gates o).map (fun cl => (true, cl, [])) ++
-    (brackets d n kk).map (fun P => (false, [], P))
+  (certs d n gates o).map (fun cl => ⟨true, cl, []⟩) ++
+    (brackets d n kk).map (fun P => ⟨false, [], P⟩)
 
 /-- Adjacency: a certificate and a bracket that does not refute it, or two consistent brackets
 with different lists of indices. -/
 def vadj (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (v w : Vertex) : Bool :=
-  if v.1 then !w.1 && !refutes n kk gates v.2.1 w.2.2
-  else !w.1 && (v.2.2.map Prod.fst != w.2.2.map Prod.fst) && consistent v.2.2 w.2.2
+  if v.isCert then !w.isCert && !refutes n kk gates v.claims w.bracket
+  else !w.isCert && (v.bracket.map Prod.fst != w.bracket.map Prod.fst) &&
+    consistent v.bracket w.bracket
 
 /-- The graph of a gate list from `n` inputs with output `o`, for depth `d` and weight `k`. -/
 def graph (d n : ℕ) (gates : List (Unbounded.Op × List ℕ)) (o k : ℕ) : Graph :=
@@ -136,8 +145,9 @@ end ToClique
 open ToClique
 
 /-- **The graph of a circuit of weft one and a weight**, with its clique size. -/
-def toClique {d : ℕ} (x : WeftCircuit 1 d × ℕ) : Graph × ℕ :=
-  (graph d x.1.1.1 x.1.1.2.code.1 (x.1.1.2.outputs 0).toNat x.2, size d x.1.1.1 x.2)
+def toClique {d : ℕ} (x : WCSInstance 1 d) : CliqueInstance :=
+  ⟨graph d x.circuit.toCircuit.1 x.circuit.toCircuit.2.code.1
+    (x.circuit.toCircuit.2.outputs 0).toNat x.weight, size d x.circuit.toCircuit.1 x.weight⟩
 
 namespace ToClique
 
@@ -169,10 +179,11 @@ theorem nodup_indexLists (d kk : ℕ) : (indexLists d kk).Nodup :=
   List.nodup_listsUpTo List.nodup_range _
 
 theorem mem_vertices {d n kk : ℕ} {gates : List (Unbounded.Op × List ℕ)} {o : ℕ} {v : Vertex} :
-    v ∈ vertices d n kk gates o ↔ (v.1 = true ∧ v.2.2 = [] ∧ v.2.1 ∈ certs d n gates o) ∨
-      (v.1 = false ∧ v.2.1 = [] ∧ v.2.2 ∈ brackets d n kk) := by
+    v ∈ vertices d n kk gates o ↔
+      (v.isCert = true ∧ v.bracket = [] ∧ v.claims ∈ certs d n gates o) ∨
+      (v.isCert = false ∧ v.claims = [] ∧ v.bracket ∈ brackets d n kk) := by
   obtain ⟨b, cl, P⟩ := v
-  simp only [vertices, List.mem_append, List.mem_map, Prod.mk.injEq]
+  simp only [vertices, List.mem_append, List.mem_map, Vertex.mk.injEq]
   constructor
   · rintro (⟨cl', h, rfl, rfl, rfl⟩ | ⟨P', h, rfl, rfl, rfl⟩)
     · exact Or.inl ⟨rfl, rfl, h⟩
@@ -187,29 +198,24 @@ theorem vadj_self (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (v : Ve
   cases b <;> simp [vadj]
 
 theorem vadj_certs (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (cl cl' : List (ℕ × Bool))
-    (P P' : List (ℕ × ℕ)) : vadj n kk gates (true, cl, P) (true, cl', P') = false := by
+    (P P' : List (ℕ × ℕ)) : vadj n kk gates ⟨true, cl, P⟩ ⟨true, cl', P'⟩ = false := by
   simp [vadj]
 
 theorem vadj_cert_bracket (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ))
     (cl : List (ℕ × Bool)) (P : List (ℕ × ℕ)) :
-    (vadj n kk gates (true, cl, []) (false, [], P) ||
-      vadj n kk gates (false, [], P) (true, cl, [])) = !refutes n kk gates cl P := by
+    (vadj n kk gates ⟨true, cl, []⟩ ⟨false, [], P⟩ ||
+      vadj n kk gates ⟨false, [], P⟩ ⟨true, cl, []⟩) = !refutes n kk gates cl P := by
   simp [vadj]
 
 theorem vadj_brackets_iff (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ))
     (P Q : List (ℕ × ℕ)) :
-    (vadj n kk gates (false, [], P) (false, [], Q) ||
-      vadj n kk gates (false, [], Q) (false, [], P)) = true ↔
+    (vadj n kk gates ⟨false, [], P⟩ ⟨false, [], Q⟩ ||
+      vadj n kk gates ⟨false, [], Q⟩ ⟨false, [], P⟩) = true ↔
       P.map Prod.fst ≠ Q.map Prod.fst ∧ consistent P Q = true := by
   simp only [vadj, Bool.false_eq_true, ↓reduceIte, Bool.not_false, Bool.true_and,
     Bool.or_eq_true, Bool.and_eq_true, bne_iff_ne, ne_eq]
   rw [consistent_comm Q P]
-  constructor
-  · rintro (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩)
-    · exact ⟨h₁, h₂⟩
-    · exact ⟨fun h => h₁ h.symm, h₂⟩
-  · rintro ⟨h₁, h₂⟩
-    exact Or.inl ⟨h₁, h₂⟩
+  exact ⟨fun h => h.elim id fun ⟨h₁, h₂⟩ => ⟨fun h => h₁ h.symm, h₂⟩, Or.inl⟩
 
 /-! ### Refutation -/
 
@@ -231,8 +237,7 @@ theorem refutes_eq_false {n kk : ℕ} {gates : List (Unbounded.Op × List ℕ)}
   rw [refutes, List.any_eq_false]
   intro e he hbad
   have happ := approx_kleeneEval hx (length_eq_arity_of_isCodeFrom h) e.1
-  rw [beq_iff_eq] at hbad
-  rw [hbad] at happ
+  rw [beq_iff_eq.1 hbad] at happ
   have := happ _ rfl
   rw [hchecks e he] at this
   cases e.2 <;> simp at this
@@ -242,8 +247,7 @@ theorem forall₂_knowList {n kk : ℕ} {P : List (ℕ × ℕ)} {x : List Bool} 
     (h : ∀ s < n, ∀ b, know kk P s = some b → b = x.getD s false) :
     List.Forall₂ Approx (knowList n kk P) x := by
   rw [List.forall₂_iff_get]
-  refine ⟨by simp [knowList, hx], fun i h₁ h₂ => ?_⟩
-  intro b hb
+  refine ⟨by simp [knowList, hx], fun i h₁ h₂ b hb => ?_⟩
   simp only [knowList, List.get_eq_getElem, List.getElem_map, List.getElem_range] at hb
   have hi : i < n := by simpa [knowList] using h₁
   rw [h i hi b hb, List.get_eq_getElem, List.getD_eq_getElem _ _ (by omega)]
@@ -287,9 +291,7 @@ private theorem weight_selected {n kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoO
       exact ⟨j, hj, hji⟩
     · rintro ⟨j, hj, rfl⟩
       exact ⟨⟨u j, hun j hj⟩, ⟨j, hj, rfl⟩, rfl⟩
-  have hinj : Set.InjOn u ↑(Finset.range kk) := by
-    rw [Finset.coe_range]
-    exact hu.injOn
+  have hinj : Set.InjOn u ↑(Finset.range kk) := Finset.coe_range kk ▸ hu.injOn
   rw [BitString.weight, ← Finset.card_map Fin.valEmbedding, himg,
     Finset.card_image_of_injOn hinj, Finset.card_range]
 
@@ -328,19 +330,17 @@ private theorem getD_ofFn_selected {n kk : ℕ} (u : ℕ → ℕ) {s : ℕ} (hs 
 
 /-- The indices of the bracket `C.map (j, u j)` are `C`. -/
 private theorem map_fst_map_pair (u : ℕ → ℕ) (C : List ℕ) :
-    (C.map fun j => (j, u j)).map Prod.fst = C := by
-  simp only [List.map_map]
-  exact List.map_id C
+    (C.map fun j => (j, u j)).map Prod.fst = C := List.map_map.trans (List.map_id C)
 
 /-- The correct brackets `C.map (j, u j)` of two different lists of indices below `kk` are
 adjacent when `u` increases. -/
 private theorem vadj_correct_brackets {n kk : ℕ} {gates : List (Unbounded.Op × List ℕ)}
     {u : ℕ → ℕ} (hu : StrictMonoOn u (Set.Iio kk)) {C C' : List ℕ} (hC : ∀ j ∈ C, j < kk)
     (hC' : ∀ j ∈ C', j < kk) (hCC : C ≠ C') :
-    (vadj n kk gates (false, [], C.map fun j => (j, u j))
-        (false, [], C'.map fun j => (j, u j)) ||
-      vadj n kk gates (false, [], C'.map fun j => (j, u j))
-        (false, [], C.map fun j => (j, u j))) = true := by
+    (vadj n kk gates ⟨false, [], C.map fun j => (j, u j)⟩
+        ⟨false, [], C'.map fun j => (j, u j)⟩ ||
+      vadj n kk gates ⟨false, [], C'.map fun j => (j, u j)⟩
+        ⟨false, [], C.map fun j => (j, u j)⟩) = true := by
   rw [vadj_brackets_iff, map_fst_map_pair, map_fst_map_pair]
   refine ⟨hCC, consistent_iff.2 fun p hp q hq => ?_⟩
   obtain ⟨i, hi, rfl⟩ := List.mem_map.1 hp
@@ -354,7 +354,7 @@ private theorem vadj_correct_brackets {n kk : ℕ} {gates : List (Unbounded.Op �
 theorem mem_Clique_of_eval {d n : ℕ} (c : Circuit Unbounded.signature n 1) (hw : c.weft ≤ 1)
     (hd : c.depth ≤ d) {k : ℕ} (x : BitString n) (hk : BitString.weight x = k)
     (hx : c.eval Unbounded.interpretation x 0 = true) :
-    (graph d n c.code.1 (c.outputs 0).toNat k, size d n k) ∈ Clique := by
+    (⟨graph d n c.code.1 (c.outputs 0).toNat k, size d n k⟩ : CliqueInstance) ∈ Clique := by
   classical
   have hkn : k ≤ n := hk ▸ BitString.weight_le_length x
   -- The ones of `x`, enumerated in increasing order.
@@ -382,14 +382,15 @@ theorem mem_Clique_of_eval {d n : ℕ} (c : Circuit Unbounded.signature n 1) (hw
       exact ⟨(mem_indexLists.1 hC).2 j hj, rfl⟩
     rw [know_sound hu hPu hb, getD_ofFn_selected u hs]
   -- The clique: the certificate and the correct bracket of every list of indices.
-  rw [graph, size, min_eq_right (by omega : k ≤ n + 1),
+  rw [ToClique.graph, size, min_eq_right (by omega : k ≤ n + 1),
     Graph.mem_Clique_ofAdj_iff_entries (vadj_self _ _ _)]
-  refine ⟨insert (true, cl, []) ((indexLists d k).toFinset.image fun C => (false, [], B C)),
+  refine ⟨insert (⟨true, cl, []⟩ : Vertex)
+      ((indexLists d k).toFinset.image fun C => (⟨false, [], B C⟩ : Vertex)),
     ?_, ?_, ?_⟩
   · rw [Finset.card_insert_of_notMem (by simp), Finset.card_image_of_injective,
       List.toFinset_card_of_nodup (nodup_indexLists d k)]
     intro C C' h
-    simp only [Prod.mk.injEq, true_and, B] at h
+    simp only [Vertex.mk.injEq, true_and, B] at h
     rw [← map_fst_map_pair u C, ← map_fst_map_pair u C', h]
   · intro v hv
     simp only [Finset.mem_insert, Finset.mem_image, List.mem_toFinset] at hv
@@ -409,7 +410,7 @@ theorem mem_Clique_of_eval {d n : ℕ} (c : Circuit Unbounded.signature n 1) (hw
 
 /-- The index list of a bracket vertex, and `none` for a certificate vertex. -/
 private def label (v : Vertex) : Option (List ℕ) :=
-  if v.1 then none else some (v.2.2.map Prod.fst)
+  if v.isCert then none else some (v.bracket.map Prod.fst)
 
 /-- Adjacent vertices have different labels: certificates are never adjacent to each other, and
 adjacent brackets have different lists of indices. -/
@@ -434,12 +435,11 @@ private theorem clique_shape {d n kk : ℕ} {gates : List (Unbounded.Op × List 
     {T : Finset Vertex} (hTcard : T.card = (indexLists d kk).length + 1)
     (hTv : ∀ v ∈ T, v ∈ vertices d n kk gates o)
     (hTadj : ∀ v ∈ T, ∀ w ∈ T, v ≠ w → (vadj n kk gates v w || vadj n kk gates w v) = true) :
-    (∃ cl, ((true, cl, []) : Vertex) ∈ T ∧ cl ∈ certs d n gates o) ∧
-      ∀ C ∈ indexLists d kk, ∃ P, ((false, [], P) : Vertex) ∈ T ∧ P.map Prod.fst = C := by
+    (∃ cl, (⟨true, cl, []⟩ : Vertex) ∈ T ∧ cl ∈ certs d n gates o) ∧
+      ∀ C ∈ indexLists d kk, ∃ P, (⟨false, [], P⟩ : Vertex) ∈ T ∧ P.map Prod.fst = C := by
   classical
-  have hinj : Set.InjOn label T := fun v hv w hw hvw => by
-    by_contra hne
-    exact label_ne_of_adj (hTadj v hv w hw hne) hvw
+  have hinj : Set.InjOn label T := fun v hv w hw hvw =>
+    of_not_not fun hne => label_ne_of_adj (hTadj v hv w hw hne) hvw
   have hsub : T.image label ⊆ insert none ((indexLists d kk).toFinset.image some) := by
     intro l hl
     obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hl
@@ -448,9 +448,8 @@ private theorem clique_shape {d n kk : ℕ} {gates : List (Unbounded.Op × List 
     · obtain ⟨hlen, hlt⟩ := mem_brackets.1 hP
       simp only [label, h1, Bool.false_eq_true, ↓reduceIte, Finset.mem_insert, reduceCtorEq,
         Finset.mem_image, List.mem_toFinset, Option.some.injEq, exists_eq_right, false_or]
-      exact mem_indexLists.2 ⟨by simpa using hlen, fun j hj => by
-        obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hj
-        exact (hlt p hp).1⟩
+      exact mem_indexLists.2 ⟨by simpa using hlen, fun j hj =>
+        let ⟨p, hp, h⟩ := List.mem_map.1 hj; h ▸ (hlt p hp).1⟩
   have himg : T.image label = insert none ((indexLists d kk).toFinset.image some) := by
     refine Finset.eq_of_subset_of_card_le hsub ?_
     rw [Finset.card_image_of_injOn hinj, hTcard, Finset.card_insert_of_notMem (by simp),
@@ -475,8 +474,9 @@ private theorem clique_shape {d n kk : ℕ} {gates : List (Unbounded.Op × List 
 private theorem pairOk_of_mem_clique {n kk : ℕ} {gates : List (Unbounded.Op × List ℕ)}
     {T : Finset Vertex}
     (hTadj : ∀ v ∈ T, ∀ w ∈ T, v ≠ w → (vadj n kk gates v w || vadj n kk gates w v) = true)
-    {P Q : List (ℕ × ℕ)} (hP : ((false, [], P) : Vertex) ∈ T) (hQ : ((false, [], Q) : Vertex) ∈ T)
-    (hPQ : P ≠ Q) : ∀ p ∈ P, ∀ q ∈ Q, pairOk p q = true := by
+    {P Q : List (ℕ × ℕ)} (hP : (⟨false, [], P⟩ : Vertex) ∈ T)
+    (hQ : (⟨false, [], Q⟩ : Vertex) ∈ T) (hPQ : P ≠ Q) :
+    ∀ p ∈ P, ∀ q ∈ Q, pairOk p q = true := by
   have hadj := hTadj _ hP _ hQ fun h => hPQ (by simpa using h)
   rw [vadj_brackets_iff] at hadj
   exact consistent_iff.1 hadj.2
@@ -510,8 +510,7 @@ private theorem checks_of_not_refutes {d n kk : ℕ} (c : Circuit Unbounded.sign
     intro j hj
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (hPC ▸ Finset.mem_toList.2 hj :
       j ∈ P.map Prod.fst)
-    rw [← (hPu p hp).2]
-    exact hp
+    rwa [← (hPu p hp).2]
   have hdet := hSdet (List.ofFn (selected n kk u)) (knowList n kk P) List.length_ofFn
       (length_knowList n kk P) fun s hs => by
     rw [getD_knowList P (hSlt s hs), getD_ofFn_selected u (hSlt s hs)]
@@ -530,15 +529,16 @@ private theorem checks_of_not_refutes {d n kk : ℕ} (c : Circuit Unbounded.sign
 /-- **Soundness of the graph.** If the graph of a circuit has a clique of the size, the circuit
 has a satisfying input with `k` ones. -/
 theorem satisfiableWithWeight_of_mem_Clique {d n : ℕ} (c : Circuit Unbounded.signature n 1)
-    {k : ℕ} (h : (graph d n c.code.1 (c.outputs 0).toNat k, size d n k) ∈ Clique) :
+    {k : ℕ}
+    (h : (⟨graph d n c.code.1 (c.outputs 0).toNat k, size d n k⟩ : CliqueInstance) ∈ Clique) :
     c.SatisfiableWithWeight Unbounded.interpretation k := by
   classical
   set kk := min (n + 1) k with hkk
-  rw [graph, size, ← hkk, Graph.mem_Clique_ofAdj_iff_entries (vadj_self _ _ _)] at h
+  rw [ToClique.graph, size, ← hkk, Graph.mem_Clique_ofAdj_iff_entries (vadj_self _ _ _)] at h
   obtain ⟨T, hTcard, hTv, hTadj⟩ := h
   obtain ⟨⟨cl, hclT, hcl⟩, hcover⟩ := clique_shape hTcard hTv hTadj
   -- The selection, read off the brackets of the one-index lists.
-  have hsing : ∀ j < kk, ∃ s, ((false, [], [(j, s)]) : Vertex) ∈ T ∧ s < n := by
+  have hsing : ∀ j < kk, ∃ s, (⟨false, [], [(j, s)]⟩ : Vertex) ∈ T ∧ s < n := by
     intro j hj
     obtain ⟨P, hPT, hPC⟩ := hcover [j]
       (mem_indexLists.2 ⟨by simp [Nat.one_le_two_pow], by simpa using hj⟩)
@@ -548,7 +548,7 @@ theorem satisfiableWithWeight_of_mem_Clique {d n : ℕ} (c : Circuit Unbounded.s
     · exact ⟨s, hPT, ((mem_brackets.1 hP).2 _ (List.mem_singleton_self _)).2⟩
   choose! u hu hun using hsing
   -- Every bracket of the clique is correct for `u`, and `u` increases.
-  have hpairs : ∀ P, ((false, [], P) : Vertex) ∈ T → ∀ p ∈ P, p.1 < kk ∧ p.2 = u p.1 := by
+  have hpairs : ∀ P, (⟨false, [], P⟩ : Vertex) ∈ T → ∀ p ∈ P, p.1 < kk ∧ p.2 = u p.1 := by
     intro P hPT p hp
     have hp1 : p.1 < kk := by
       rcases mem_vertices.1 (hTv _ hPT) with ⟨h1, -, -⟩ | ⟨-, -, hP⟩
@@ -584,7 +584,7 @@ end ToClique
 /-- **Correctness of the graph construction.** The graph of a circuit of weft at most `1` and
 depth at most `d` has a clique of the size exactly when the circuit has a satisfying input with
 `k` ones. -/
-theorem toClique_mem_Clique_iff {d : ℕ} (x : WeftCircuit 1 d × ℕ) :
+theorem toClique_mem_Clique_iff {d : ℕ} (x : WCSInstance 1 d) :
     toClique x ∈ Clique ↔ x ∈ WCS 1 d := by
   obtain ⟨⟨⟨n, c⟩, hw, hd⟩, k⟩ := x
   rw [mem_WCS]

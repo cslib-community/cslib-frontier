@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalConstruct
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Local Chan–He node delivery without catalogue publication
@@ -109,10 +110,10 @@ theorem localDeliveryState_count (x : Data 128) :
 theorem localDeliveryState_heavy_length (x : Data 128) (j : Fin 3) :
     (localDeliveryState x).regs (heavyLength j) =
       x.mem ((NodePacking.layout ((nodeState x).comap kernel)).descriptor j) := by
-  fin_cases j
-  · rfl
-  · rfl
-  · change x.mem (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4)) =
+  match j with
+  | 0 | 1 => rfl
+  | 2 =>
+    change x.mem (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4)) =
       x.mem (x.regs heap + 2 + (x.regs (slot 2) + x.regs (slot 4)))
     congr 1
     omega
@@ -121,10 +122,10 @@ theorem localDeliveryState_heavy_length (x : Data 128) (j : Fin 3) :
 theorem localDeliveryState_heavy_base (x : Data 128) (j : Fin 3) :
     (localDeliveryState x).regs (heavyBase j) =
       (NodePacking.layout ((nodeState x).comap kernel)).heavy j := by
-  fin_cases j
-  · rfl
-  · rfl
-  · change x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) + 1 =
+  match j with
+  | 0 | 1 => rfl
+  | 2 =>
+    change x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) + 1 =
       x.regs heap + 2 + (x.regs (slot 2) + x.regs (slot 4)) + 1
     omega
 
@@ -134,23 +135,13 @@ theorem localDeliveryState_preserves (x : Data 128) (i : Fin 128)
     (hi : i.val < 88 ∨ 96 ≤ i.val) : (localDeliveryState x).regs i = x.regs i := by
   have hp : i ≠ packed := by intro he; subst i; norm_num [packed] at hi
   have he : i ≠ endpoint := by intro he; subst i; norm_num [endpoint] at hi
-  have hl (j : Fin 3) : i ≠ heavyLength j := by
-    intro hj
-    have hv := congrArg Fin.val hj
-    dsimp only [heavyLength] at hv
-    have := j.isLt
-    omega
-  have hb (j : Fin 3) : i ≠ heavyBase j := by
-    intro hj
-    have hv := congrArg Fin.val hj
-    dsimp only [heavyBase] at hv
-    have := j.isLt
-    omega
+  have hl (j : Fin 3) : i ≠ heavyLength j :=
+    Fin.ne_of_val_ne (by dsimp only [heavyLength]; omega)
+  have hb (j : Fin 3) : i ≠ heavyBase j :=
+    Fin.ne_of_val_ne (by dsimp only [heavyBase]; omega)
   simp only [localDeliveryState, Data.set_regs, Function.update_of_ne hh,
-    Function.update_of_ne ht, Function.update_of_ne hp,
-    Function.update_of_ne he, Function.update_of_ne (hl 0), Function.update_of_ne (hl 1),
-    Function.update_of_ne (hl 2), Function.update_of_ne (hb 0), Function.update_of_ne (hb 1),
-    Function.update_of_ne (hb 2)]
+    Function.update_of_ne ht, Function.update_of_ne hp, Function.update_of_ne he,
+    Function.update_of_ne (hl _), Function.update_of_ne (hb _)]
 
 /-- Every arithmetic result fits below the actual allocation endpoint. -/
 theorem deliverLocal_exec {w : ℕ} (x : Data 128)
@@ -159,40 +150,10 @@ theorem deliverLocal_exec {w : ℕ} (x : Data 128)
       (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
       4 * x.regs groups + x.regs selected)) :
     Exec w deliverLocal x (localDeliveryState x) 21 := by
-  have hbound (v : ℕ) (hv : v ≤ x.regs heap + 3 + 2 *
-      (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
-      4 * x.regs groups + x.regs selected) : Fits w v := hfit.of_le hv
-  have h3 : Fits w 3 := hbound _ (by omega)
-  have hp₀ := hbound (x.regs heap + 3) (by omega)
-  have hp₁ := hbound (x.regs heap + 3 + x.regs (slot 2)) (by omega)
-  have hp₂ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4)) (by omega)
-  have hp := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6)) (by omega)
-  have hd₀ := hbound (x.regs heap + 1) (by omega)
-  have hd₁ := hbound (x.regs heap + 1 + x.regs (slot 2)) (by omega)
-  have hd₁' := hbound (x.regs heap + 1 + x.regs (slot 2) + 1) (by omega)
-  have hd₂ := hbound (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4)) (by omega)
-  have hd₂' := hbound (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) + 1) (by omega)
-  have he₀ := hbound (x.regs groups + x.regs groups) (by omega)
-  have he₁ := hbound (4 * x.regs groups) (by omega)
-  have he₂ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups) (by omega)
-  have he₃ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2)) (by omega)
-  have he₄ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4)) (by omega)
-  have he₅ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6)) (by omega)
-  have he := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + x.regs selected) (by omega)
-  dsimp only [heap, slot, groups, selected, outputs, outputCount, one] at *
-  ram_eval [deliverLocal, localDeliveryState, heavyBase, heavyLength, heap, slot, groups, selected,
-    outputs, outputCount, packed, temporary, endpoint, one, hone, h3, hp₀, hp₁, hp₂, hp,
-    hd₀, hd₁, hd₁', hd₂, hd₂', he₀, he₁, he₂, he₃, he₄, he₅, he,
-    Function.update_of_ne, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc,
-    show ∀ n : ℕ, n + n + (n + n) = 4 * n by omega]
+  unfold deliverLocal localDeliveryState
+  wram_exec [hone]
+  simp only [show x.regs groups + x.regs groups + (x.regs groups + x.regs groups) =
+    4 * x.regs groups by omega]
 
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

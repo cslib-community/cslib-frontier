@@ -176,12 +176,10 @@ theorem eventually_exists_isHard (k : ℕ) : ∀ᶠ n in atTop, ∃ T, IsHard k 
   obtain ⟨f, hf⟩ := hN (arity k n) (le_of_max_le_left hm)
   refine ⟨List.ofFn (MCSP.truthTable _ f), by simp, ?_⟩
   rw [MCSP.tableFunction_ofFn_truthTable]
-  have hm0 : (0 : ℝ) < arity k n := by exact_mod_cast (le_of_max_le_right hm)
-  have hlt : (threshold k n : ℝ) * arity k n < 2 ^ arity k n := by
-    exact_mod_cast threshold_mul_arity_lt (by omega)
-  have : (threshold k n : ℝ) < 2 ^ arity k n / arity k n := by
-    rwa [lt_div_iff₀ hm0]
-  exact_mod_cast this.trans hf
+  have hm0 : (0 : ℝ) < arity k n := by exact_mod_cast le_of_max_le_right hm
+  have hdiv : (threshold k n : ℝ) < 2 ^ arity k n / arity k n :=
+    (lt_div_iff₀ hm0).mpr (by exact_mod_cast threshold_mul_arity_lt (by omega))
+  exact_mod_cast hdiv.trans hf
 
 /-! ### The circuit lower bound -/
 
@@ -404,13 +402,13 @@ private theorem isAlternatingVerifier_verifier (k : ℕ) :
 
 /-! ### Polynomial time -/
 
+attribute [local irreducible] ComputableInPolyTime
+
 open ComputableInPolyTime in
 /-- The verifier for Kannan's language is polynomial-time. -/
 private theorem computableInPolyTime_verifier (k : ℕ) :
     ComputableInPolyTime (verifier k) (encPair encBits encBits) encBool := by
-  have hn : ComputableInPolyTime (fun p : List Bool × List Bool => p.1.length)
-      (encPair encBits encBits) encUnary :=
-    length_bits.comp (fst _ _)
+  have hn := length_bits.comp (fst encBits encBits)
   have hm : ComputableInPolyTime (fun p : List Bool × List Bool => arity k p.1.length)
       (encPair encBits encBits) encUnary := by
     unfold arity
@@ -424,39 +422,26 @@ private theorem computableInPolyTime_verifier (k : ℕ) :
     unfold certBound certLength
     fun_prop
   have hs : ComputableInPolyTime (fun p : List Bool × List Bool => threshold k p.1.length)
-      (encPair encBits encBits) encNat := by
-    refine unary_to_binary.comp ?_
-    fun_prop
-  have hM : ComputableInPolyTime (fun p : List Bool × List Bool => 2 ^ arity k p.1.length)
-      (encPair encBits encBits) encUnary :=
-    binary_to_unary_bounded (binary_two_pow.comp hm) htb fun p => two_pow_arity_le k _
-  have hT : ComputableInPolyTime (fun p : List Bool × List Bool => table k p.1.length p.2)
-      (encPair encBits encBits) encBits :=
-    bitsTakeWithInput (snd _ _) hM
-  have hT' : ComputableInPolyTime (fun p : List Bool × List Bool =>
-      table k p.1.length (p.2.drop (tableBound k p.1.length))) (encPair encBits encBits) encBits :=
-    bitsTakeWithInput (bitsDropWithInput (snd _ _) htb) hM
-  have hc : ComputableInPolyTime (fun p : List Bool × List Bool =>
-      p.2.drop (2 * tableBound k p.1.length)) (encPair encBits encBits) encBits :=
-    bitsDropWithInput (snd _ _) (by fun_prop)
-  have hc' : ComputableInPolyTime (fun p : List Bool × List Bool =>
-      p.2.drop (2 * tableBound k p.1.length + certBound k p.1.length))
-      (encPair encBits encBits) encBits :=
-    bitsDropWithInput (snd _ _) (by fun_prop)
-  have hval : ComputableInPolyTime (fun p : List Bool × List Bool =>
-      MCSP.tableValue (table k p.1.length p.2) (p.1.take (arity k p.1.length)))
-      (encPair encBits encBits) encBool :=
-    MCSP.computableInPolyTime_tableValue.comp
-      (hT.prod (bitsTakeWithInput (fst _ _) hm))
+      (encPair encBits encBits) encNat :=
+    unary_to_binary.comp (by fun_prop)
+  have hM := binary_to_unary_bounded (binary_two_pow.comp hm) htb fun _ => two_pow_arity_le k _
+  have hT := bitsTakeWithInput (snd encBits encBits) hM
+  have hT' := bitsTakeWithInput (bitsDropWithInput (snd encBits encBits) htb) hM
+  have hc := bitsDropWithInput (snd encBits encBits)
+    (show ComputableInPolyTime (fun p : List Bool × List Bool => 2 * tableBound k p.1.length)
+      (encPair encBits encBits) encUnary by fun_prop)
+  have hc' := bitsDropWithInput (snd encBits encBits)
+    (show ComputableInPolyTime
+      (fun p : List Bool × List Bool => 2 * tableBound k p.1.length + certBound k p.1.length)
+      (encPair encBits encBits) encUnary by fun_prop)
+  have hval := MCSP.computableInPolyTime_tableValue.comp
+    (hT.prod (bitsTakeWithInput (fst encBits encBits) hm))
   unfold verifier
-  have hnotVerifier := bool_not.comp (MCSP.computableInPolyTime_tableVerifier.comp
+  have hnotVerifier := bool_not.comp' (MCSP.computableInPolyTime_tableVerifier.comp'
     ((hT.prod hs).prod hc))
-  have hlt := bool_not.comp (binary_lt.comp ((bitsBinaryValue.comp hT').prod
-    (bitsBinaryValue.comp hT)))
-  have hverifier' := MCSP.computableInPolyTime_tableVerifier.comp ((hT'.prod hs).prod hc')
-  have hor := bool_or.comp (hlt.prod hverifier')
-  have h := bool_and.comp ((bool_and.comp (hnotVerifier.prod hor)).prod hval)
-  exact h
+  have hlt := bool_not.comp' (binary_lt' (bitsBinaryValue.comp' hT') (bitsBinaryValue.comp' hT))
+  have hverifier' := MCSP.computableInPolyTime_tableVerifier.comp' ((hT'.prod hs).prod hc')
+  exact bool_and' (bool_and' hnotVerifier (bool_or' hlt hverifier')) hval
 
 /-- **Kannan's language is in `Σ₃`.** -/
 theorem language_mem_SigmaP_three (k : ℕ) :
@@ -484,8 +469,7 @@ theorem exists_mem_SigmaP_two_inter_PiP_two_notMem_SIZE (k : ℕ) :
     have hcompl : (language k : Set (List Bool))ᶜ ∈ SigmaP 2 encBits := by
       rw [← hPH]
       exact PiP_subset_PH 3 (compl_mem_PiP_of_mem_SigmaP h₃)
-    refine ⟨language k, ⟨?_, compl_compl (language k : Set (List Bool)) ▸
-      compl_mem_PiP_of_mem_SigmaP hcompl⟩, language_notMem_SIZE k⟩
+    refine ⟨language k, ⟨?_, compl_mem_SigmaP_iff.mp hcompl⟩, language_notMem_SIZE k⟩
     rw [← hPH]
     exact SigmaP_subset_PH 3 h₃
   · have hNP : encCNF '' SAT ∈ SigmaP 1 encBits := SigmaP_one ▸ image_SAT_mem_NP

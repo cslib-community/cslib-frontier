@@ -11,7 +11,9 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler
 public import CslibFrontier.Computability.Circuit.Frontier.Demand
 public import CslibFrontier.Computability.Circuit.Linearize
 public import CslibFrontier.Foundations.Data.Matrix.TotallyRegular
+import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.Data.Nat.IntermediateValue
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The frontier lower bound for linear maps
@@ -57,11 +59,19 @@ computing a totally regular map `F^N → F^N` has `s` inner gates with
 ## Main definitions
 
 * `Cslib.Circuits.Circuit.LinearCapacity`: wires carry at most one coordinate each.
+* `Cslib.Circuits.Frontier.Multigraph.inCut`, `Cslib.Circuits.Frontier.Multigraph.outCut`:
+  the entering and leaving directed edge cuts of a vertex set.
 
 ## Main results
 
 * `Cslib.Circuits.Frontier.Compiler.exists_injective_frontier`: some frontier of every layout
   determines the input.
+* `Cslib.Circuits.Frontier.Compiler.eval_eq_of_eqOn_inCut`: outputs inside `P` depend only on
+  inputs read in `P` and wires carried by edges entering `P`.
+* `Cslib.Circuits.Frontier.Compiler.min_le_ncard_inCut`,
+  `Cslib.Circuits.Frontier.Compiler.min_le_ncard_outCut`,
+  `Cslib.Circuits.Frontier.Compiler.min_le_ncard_edgeCut`: one-way and unbalanced cut demands for
+  totally regular linear maps.
 * `Cslib.Circuits.Frontier.exists_graph_of_isTotallyRegular`: the reduction theorem for linear
   maps.
 * `Cslib.Circuits.Frontier.eventually_lt_mul_innerSize_of_isTotallyRegular`: the lower bound, for
@@ -126,12 +136,61 @@ end Capacity
 
 namespace Frontier
 
+/-! ### Directed edge cuts -/
+
+namespace Multigraph
+
+variable {V E : Type*} (G : Multigraph V E)
+
+/-- The *entering* (backward) edge cut of `P`: edges with source outside `P` and target in `P`. -/
+def inCut (P : Set V) : Set E :=
+  {e | G.src e ∉ P ∧ G.tgt e ∈ P}
+
+/-- The *leaving* (forward) edge cut of `P`: edges with source in `P` and target outside `P`. -/
+def outCut (P : Set V) : Set E :=
+  {e | G.src e ∈ P ∧ G.tgt e ∉ P}
+
+@[simp] theorem mem_inCut {P : Set V} {e : E} :
+    e ∈ G.inCut P ↔ G.src e ∉ P ∧ G.tgt e ∈ P :=
+  Iff.rfl
+
+@[simp] theorem mem_outCut {P : Set V} {e : E} :
+    e ∈ G.outCut P ↔ G.src e ∈ P ∧ G.tgt e ∉ P :=
+  Iff.rfl
+
+/-- The entering cut of the complement is the leaving cut. -/
+theorem inCut_compl (P : Set V) : G.inCut Pᶜ = G.outCut P := by
+  ext e
+  simp only [mem_inCut, mem_outCut, mem_compl_iff, not_not]
+
+/-- The undirected edge cut splits into the entering and leaving cuts. -/
+theorem edgeCut_eq_inCut_union_outCut (P : Set V) :
+    G.edgeCut P = G.inCut P ∪ G.outCut P := by
+  ext e
+  simp only [mem_edgeCut, mem_union, mem_inCut, mem_outCut]
+  tauto
+
+/-- The entering and leaving cuts are disjoint. -/
+theorem disjoint_inCut_outCut (P : Set V) : Disjoint (G.inCut P) (G.outCut P) :=
+  disjoint_left.mpr fun _ he₁ he₂ => he₁.1 he₂.1
+
+/-- The size of the undirected edge cut is the sum of the entering and leaving cut sizes. -/
+theorem ncard_edgeCut_eq_add [Finite E] (P : Set V) :
+    (G.edgeCut P).ncard = (G.inCut P).ncard + (G.outCut P).ncard := by
+  rw [G.edgeCut_eq_inCut_union_outCut P, ncard_union_eq (G.disjoint_inCut_outCut P)]
+
+end Multigraph
+
 /-! ### The graph of a circuit for a totally regular map -/
 
 namespace Compiler
 
 variable {F : Type u} [Field F] {σ : Signature.{v}} {I : Interpretation σ F} {N : ℕ}
   {M : Matrix (Fin N) (Fin N) F} {c : Circuit σ N N}
+
+/-- A set of coordinates and its complement together have `N` elements. -/
+private theorem ncard_add_ncard_compl_fin (S : Set (Fin N)) : S.ncard + Sᶜ.ncard = N := by
+  rw [ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
 
 /-- The outputs of a circuit computing `x ↦ M x`. -/
 private theorem eval_eq_mulVec (hc : c.Computes I fun x => M *ᵥ x) (x : Fin N → F) (o : Fin N) :
@@ -140,7 +199,7 @@ private theorem eval_eq_mulVec (hc : c.Computes I fun x => M *ᵥ x) (x : Fin N 
 
 /-- **Every output of a totally regular map depends on every input**, so in the graph of a
 circuit computing it the vertex of every input is joined to every output vertex. -/
-private theorem exists_reachable_of_isTotallyRegular (hM : M.IsTotallyRegular)
+theorem exists_reachable_of_isTotallyRegular (hM : M.IsTotallyRegular)
     (hc : c.Computes I fun x => M *ᵥ x) (i o : Fin N) :
     ∃ hi : Reach c (.input i),
       (graph c).toSimpleGraph.Reachable (.signal ⟨.input i, hi⟩) (.output o) := by
@@ -152,14 +211,14 @@ private theorem exists_reachable_of_isTotallyRegular (hM : M.IsTotallyRegular)
 
 /-- The graph of a circuit computing a totally regular map with at least one input is
 connected. -/
-private theorem connected_of_isTotallyRegular (hN : 0 < N) (hM : M.IsTotallyRegular)
+theorem connected_of_isTotallyRegular (hN : 0 < N) (hM : M.IsTotallyRegular)
     (hc : c.Computes I fun x => M *ᵥ x) : (graph c).toSimpleGraph.Connected := by
   obtain ⟨hi, -⟩ := exists_reachable_of_isTotallyRegular hM hc ⟨0, hN⟩ ⟨0, hN⟩
   exact connected_of_reachable (v₀ := .signal ⟨.input ⟨0, hN⟩, hi⟩) fun o =>
     (exists_reachable_of_isTotallyRegular hM hc ⟨0, hN⟩ o).2
 
 /-- A circuit computing a totally regular map reads all of its inputs. -/
-private theorem read_eq_univ_of_isTotallyRegular (hM : M.IsTotallyRegular)
+theorem read_eq_univ_of_isTotallyRegular (hM : M.IsTotallyRegular)
     (hc : c.Computes I fun x => M *ᵥ x) (Acc : Fin N → Set F) :
     (network c I Acc).read = univ := by
   rw [read_network]
@@ -168,7 +227,7 @@ private theorem read_eq_univ_of_isTotallyRegular (hM : M.IsTotallyRegular)
 omit [Field F] in
 /-- In the network of a circuit computing a function, a vertex reads one input or holds one
 output, or neither. -/
-private theorem ncard_readAt_add_ncard_le (v : Vertex c) :
+theorem ncard_readAt_add_ncard_le (v : Vertex c) :
     ((network c I fun _ => univ).readAt v).ncard + {o | Vertex.output o = v}.ncard ≤ 1 := by
   rcases v with w | j | o
   · have h : {o | (Vertex.output o : Vertex c) = .signal w} = ∅ :=
@@ -237,9 +296,7 @@ theorem exists_injective_frontier (hM : M.IsTotallyRegular) (hc : c.Computes I f
       c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1 :=
     fun e he => congrFun hxx' ⟨e, he⟩
   have hcompl : ∀ S : Set (Fin N), Sᶜ.ncard = N - S.ncard := fun S => by
-    have := ncard_add_ncard_compl S
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
+    have := ncard_add_ncard_compl_fin S; omega
   -- Two inputs that agree on a set `B` of coordinates, and whose outputs agree on a set `R` of at
   -- least `|Bᶜ|` outputs, are equal: the matrix is totally regular.
   have key (B R : Set (Fin N)) (z y : Fin N → F) (hBR : Bᶜ.ncard ≤ R.ncard) (hzy : EqOn z y B)
@@ -276,6 +333,153 @@ private theorem le_width_of_isTotallyRegular (hM : M.IsTotallyRegular)
     fun x x' h => ht (funext fun e => congrFun h ⟨_, mem_image_of_mem _ e.2⟩)
   exact (hcap W hW).trans ((ncard_image_le (toFinite _)).trans
     ((graph c).ncard_frontier_le_width π t))
+
+/-! ### One-way and unbalanced cut demands -/
+
+section DirectedDemand
+
+/-- **One-way wire determinism across an entering cut.** In `Compiler.graph c`, if two inputs `x`
+and `x'` agree on the inputs read in `P` and produce equal values on every signal carried by an
+edge entering `P` from `Pᶜ`, then `c` produces equal outputs on `x` and `x'` at every output vertex
+in `P`. -/
+theorem eval_eq_of_eqOn_inCut {U : Type*} {n m : ℕ} {c : Circuit σ n m} (I : Interpretation σ U)
+    {P : Set (Vertex c)} {x x' : Fin n → U}
+    (hin : EqOn x x' ((network c I fun _ => univ).readIn P))
+    (hcut : ∀ e ∈ (graph c).inCut P,
+      c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1)
+    {o : Fin m} (ho : Vertex.output o ∈ P) :
+    c.eval I x o = c.eval I x' o := by
+  have hjunc : ∀ (w : Signal c),
+      (Vertex.signal w ∈ P → c.program.trace I x w.1 = c.program.trace I x' w.1) →
+        ∀ (k : ℕ) (hk : k < fanout c w), Vertex.junction ⟨w, ⟨k, hk⟩⟩ ∈ P →
+          c.program.trace I x w.1 = c.program.trace I x' w.1 := by
+    intro w hw k
+    induction k with
+    | zero => exact fun hk hj => (em _).elim hw fun hs => hcut (.feed ⟨w, ⟨0, hk⟩⟩) ⟨hs, hj⟩
+    | succ k ih => exact fun hk hj =>
+        (em _).elim (ih (Nat.lt_of_succ_lt hk)) fun hs => hcut (.feed ⟨w, ⟨k + 1, hk⟩⟩) ⟨hs, hj⟩
+  have hwire : ∀ (w : Wire n c.size) (hw : Reach c w),
+      Vertex.signal ⟨w, hw⟩ ∈ P → c.program.trace I x w = c.program.trace I x' w := by
+    refine c.program.wire_induction (fun i hi hP => hin ⟨_, hP, site_of_reach hi⟩) ?_
+    intro g ih hg hP
+    rw [c.program.trace_gate, c.program.trace_gate]
+    refine congrArg _ (funext fun a => ?_)
+    set e := argEdge hg a
+    have htgt : (graph c).tgt e = Vertex.signal ⟨.gate g, hg⟩ := tgt_deliverEdge (.inl ⟨⟨g, a⟩, hg⟩)
+    have hsig : e.signal.1 = (c.program.lines g).wires a :=
+      congrArg Subtype.val (signal_deliverEdge (.inl ⟨⟨g, a⟩, hg⟩))
+    by_cases hs : (graph c).src e ∈ P
+    · set j := (junctionEquiv c).symm (.inl ⟨⟨g, a⟩, hg⟩)
+      have hjP : Vertex.junction j ∈ P := hs
+      have hj1 : j.1 = ⟨(c.program.lines g).wires a, .arg a hg⟩ :=
+        fst_junctionEquiv_symm (.inl ⟨⟨g, a⟩, hg⟩)
+      have hval := hjunc j.1 (fun hsigP => by
+        rw [hj1] at hsigP ⊢
+        exact ih a (.arg a hg) hsigP) j.2.1 j.2.isLt hjP
+      rwa [hj1] at hval
+    · exact hsig ▸ hcut e ⟨hs, htgt ▸ hP⟩
+  have htgt : (graph c).tgt (outEdge c o) = Vertex.output o := tgt_deliverEdge (.inr o)
+  have hsig : (outEdge c o).signal.1 = c.outputs o :=
+    congrArg Subtype.val (signal_deliverEdge (.inr o))
+  change c.program.trace I x (c.outputs o) = c.program.trace I x' (c.outputs o)
+  by_cases hs : (graph c).src (outEdge c o) ∈ P
+  · set j := (junctionEquiv c).symm (.inr o)
+    have hjP : Vertex.junction j ∈ P := hs
+    have hjw : j.1.1 = c.outputs o :=
+      congrArg Subtype.val (fst_junctionEquiv_symm (.inr o))
+    exact hjw ▸ hjunc j.1 (hwire j.1.1 j.1.2) j.2.1 j.2.isLt hjP
+  · exact hsig ▸ hcut (outEdge c o) ⟨hs, htgt ▸ ho⟩
+
+/-- **Entering cut demand for totally regular maps.** For every set `P` of vertices in the graph of
+a circuit with linear capacity computing `x ↦ M x` for a totally regular `N × N` matrix `M`, at
+least `min (N - |X(P)|) |Y(P)|` edges enter `P` from outside `P`. -/
+theorem min_le_ncard_inCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x => M *ᵥ x)
+    (hcap : c.LinearCapacity I) (P : Set (Vertex c)) :
+    min (N - ((network c I fun _ => univ).readIn P).ncard)
+      {o : Fin N | Vertex.output o ∈ P}.ncard ≤ ((graph c).inCut P).ncard := by
+  classical
+  set X := (network c I fun _ => univ).readIn P
+  set Y : Set (Fin N) := {o | Vertex.output o ∈ P}
+  set k := min (N - X.ncard) Y.ncard
+  have hXcompl : Xᶜ.toFinset.card = N - X.ncard := by
+    rw [← ncard_eq_toFinset_card']; have := ncard_add_ncard_compl_fin X; omega
+  obtain ⟨C₀, hC₀X, hC₀k⟩ := Finset.exists_subset_card_eq
+    (s := Xᶜ.toFinset) (n := k) (by omega)
+  set B : Set (Fin N) := (C₀ : Set (Fin N))ᶜ
+  have hXB : X ⊆ B := fun i hi hiC => (mem_toFinset.mp (hC₀X hiC)) hi
+  have hBc : Bᶜ.toFinset.card = k := by
+    rw [← ncard_eq_toFinset_card', compl_compl, ncard_coe_finset, hC₀k]
+  have hBcard : B.ncard = N - k := by
+    have := ncard_add_ncard_compl_fin B
+    rw [compl_compl, ncard_coe_finset, hC₀k] at this
+    omega
+  set Win : Set (Wire N c.size) := (fun e : Edge c => e.signal.1) '' (graph c).inCut P
+  set W' : Set (Wire N c.size) := Win ∪ (Wire.input '' B)
+  have hinj : Function.Injective fun (x : Fin N → F) (w : W') => c.program.trace I x w := by
+    intro x x' hxx'
+    have hB : EqOn x x' B := fun i hi => congrFun hxx' ⟨.input i, Or.inr ⟨i, hi, rfl⟩⟩
+    have hcut : ∀ e ∈ (graph c).inCut P,
+        c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1 :=
+      fun e he => congrFun hxx' ⟨e.signal.1, Or.inl ⟨e, he, rfl⟩⟩
+    have hout : ∀ o ∈ Y, c.eval I x o = c.eval I x' o :=
+      fun o ho => eval_eq_of_eqOn_inCut I (hB.mono hXB) hcut ho
+    refine sub_eq_zero.mp (hM.eq_zero_of_mulVec_eq_zero (rows := Y.toFinset)
+      (cols := Bᶜ.toFinset) ?_ (fun j hj => ?_) fun o ho => ?_)
+    · rw [hBc, ← ncard_eq_toFinset_card']
+      exact min_le_right _ _
+    · simp [hB (by simpa [B] using hj)]
+    · rw [mulVec_sub, Pi.sub_apply, ← eval_eq_mulVec hc, ← eval_eq_mulVec hc,
+        hout o (by simpa using ho), sub_self]
+  have hNle : N ≤ W'.ncard := hcap W' hinj
+  have hWle : W'.ncard ≤ ((graph c).inCut P).ncard + (N - k) := by
+    calc W'.ncard ≤ Win.ncard + (Wire.input '' B).ncard := ncard_union_le _ _
+      _ ≤ ((graph c).inCut P).ncard + B.ncard :=
+          Nat.add_le_add (ncard_image_le (toFinite _)) (ncard_image_le (toFinite _))
+      _ = ((graph c).inCut P).ncard + (N - k) := by rw [hBcard]
+  have hkN : k ≤ N := (min_le_left _ _).trans (Nat.sub_le _ _)
+  omega
+
+/-- **Leaving cut demand for totally regular maps.** Dual to `min_le_ncard_inCut`: at least
+`min |X(P)| (N - |Y(P)|)` edges leave `P` to `Pᶜ`. -/
+theorem min_le_ncard_outCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x => M *ᵥ x)
+    (hcap : c.LinearCapacity I) (P : Set (Vertex c)) :
+    min ((network c I fun _ => univ).readIn P).ncard
+      (N - {o : Fin N | Vertex.output o ∈ P}.ncard) ≤ ((graph c).outCut P).ncard := by
+  have h := min_le_ncard_inCut hM hc hcap Pᶜ
+  rw [(graph c).inCut_compl] at h
+  set G := network c I fun _ => univ
+  have hread_compl : G.readIn Pᶜ = (G.readIn P)ᶜ := by
+    ext i
+    obtain ⟨hi, -⟩ := exists_reachable_of_isTotallyRegular hM hc i i
+    constructor
+    · rintro ⟨v, hvP, hsite⟩ ⟨u, huP, hsite'⟩
+      exact hvP (Option.some.inj (hsite.symm.trans hsite') ▸ huP)
+    · exact fun hiP =>
+        ⟨.signal ⟨.input i, hi⟩, fun hP => hiP ⟨_, hP, site_of_reach hi⟩, site_of_reach hi⟩
+  have hX := ncard_add_ncard_compl_fin (G.readIn P)
+  have hY := ncard_add_ncard_compl_fin {o : Fin N | Vertex.output o ∈ P}
+  rw [hread_compl] at h
+  change min (N - (G.readIn P)ᶜ.ncard) {o : Fin N | Vertex.output o ∈ P}ᶜ.ncard ≤ _ at h
+  omega
+
+/-- **Unbalanced cut demand for totally regular maps.** For *every* set `P` of vertices in the
+graph of a circuit with linear capacity computing `x ↦ M x` for a totally regular `N × N` matrix
+`M`, writing `w(P) = |X(P)| + |Y(P)|`, at least `min (w(P)) (2 N - w(P))` edges cross `edgeCut P`.
+When `w(P) = N`, this recovers the balanced demand `N`. -/
+theorem min_le_ncard_edgeCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x => M *ᵥ x)
+    (hcap : c.LinearCapacity I) (P : Set (Vertex c)) :
+    min (((network c I fun _ => univ).readIn P).ncard + {o : Fin N | Vertex.output o ∈ P}.ncard)
+      (2 * N - (((network c I fun _ => univ).readIn P).ncard +
+        {o : Fin N | Vertex.output o ∈ P}.ncard)) ≤
+      ((graph c).edgeCut P).ncard := by
+  have hin := min_le_ncard_inCut hM hc hcap P
+  have hout := min_le_ncard_outCut hM hc hcap P
+  have hX := ncard_add_ncard_compl_fin ((network c I fun _ => univ).readIn P)
+  have hY := ncard_add_ncard_compl_fin {o : Fin N | Vertex.output o ∈ P}
+  rw [(graph c).ncard_edgeCut_eq_add P]
+  omega
+
+end DirectedDemand
 
 end Compiler
 
@@ -344,9 +548,7 @@ theorem eventually_lt_mul_innerSize_of_isTotallyRegular (hr : 2 ≤ r) {A : ℝ}
       Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.card V)])
     linarith
   · -- The supply: the layout hypothesis, with the cycle rank of the reduction.
-    have hrank' : (G.cycleRank : ℝ) ≤ s - N + 1 := by
-      have : (G.cycleRank : ℝ) + N ≤ ((r - 1) * c.innerSize : ℕ) + 1 := by exact_mod_cast hrank
-      linarith
+    have hrank' : (G.cycleRank : ℝ) ≤ s - N + 1 := by cast_linarith [hrank]
     have := mul_le_mul_of_nonneg_left hrank' (by linarith : 0 ≤ A + η)
     linarith
 

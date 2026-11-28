@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Interactive.AuxZK
 public import CslibFrontier.Computability.Interactive.Bundle
 public import CslibFrontier.Computability.Interactive.Efficient
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Round-by-round knowledge soundness of interactive reductions
@@ -225,12 +225,9 @@ theorem Verifier.RbrSound.rbrKnowledgeSound
   refine ⟨fun x p => x ∉ language relIn ∧ S x p,
     fun x hS => hinit x hS.1 hS.2, fun x => ?_⟩
   by_cases hx : x ∈ language relIn
-  · refine RbrFrom.congr (fun _ => ?_) (fun τ => ?_) (rbrFrom_false s V.samplers ε)
-    · simp [hx]
-    · constructor
-      · exact False.elim
-      · rintro ⟨x', w, -, -, hnot⟩
-        exact hnot (hE x hx τ w)
+  · exact RbrFrom.congr (fun _ => by simp [hx])
+      (fun τ => ⟨False.elim, fun ⟨_, w, _, _, hnot⟩ => hnot (hE x hx τ w)⟩)
+      (rbrFrom_false s V.samplers ε)
   · refine RbrFrom.congr (fun p => ⟨fun hS => ⟨hx, hS⟩, And.right⟩)
       (fun _ => Iff.rfl) (RbrFrom.mono_wins ?_ (hround x))
     rintro τ ⟨x', w, hout, hrel, -⟩
@@ -262,10 +259,8 @@ theorem Verifier.RbrKnowledgeSound.append
     fun x τ₁ => ∃ y w₂, V₁.outputOn x τ₁ = some y ∧ rel₂ y w₂ ∧ ¬ rel₁ x (E₁ x τ₁ w₂)
   let next : S₁ → Transcript s₁ → Prefix s₂ → Prop :=
     fun x τ₁ p => wins₁ x τ₁ ∨ ∃ y, V₁.outputOn x τ₁ = some y ∧ T₂ y p
-  have hjunc : ∀ x τ₁, ¬ wins₁ x τ₁ → ¬ next x τ₁ (Prefix.empty s₂) := by
-    rintro x τ₁ hw (hw' | ⟨y, _, hT⟩)
-    · exact hw hw'
-    · exact hinit₂ y hT
+  have hjunc : ∀ x τ₁, ¬ wins₁ x τ₁ → ¬ next x τ₁ (Prefix.empty s₂) :=
+    fun _ _ hw h => h.elim hw fun ⟨y, _, hT⟩ => hinit₂ y hT
   have hsecond : ∀ x τ₁, RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
       (fun τ₂ => ∃ z w₃,
         (V₁.outputOn x τ₁).bind (fun y => V₂.outputOn y τ₂) = some z ∧
@@ -277,18 +272,15 @@ theorem Verifier.RbrKnowledgeSound.append
         (fun _ => Iff.rfl) (rbrFrom_true s₂ V₂.samplers ε₂ _)
     · cases hout : V₁.outputOn x τ₁ with
       | none =>
-        refine RbrFrom.congr (fun p => ?_) (fun τ₂ => ?_) (rbrFrom_false s₂ V₂.samplers ε₂)
-        · simp [next, hw₁, hout]
-        · simp
+        exact RbrFrom.congr (fun _ => by simp [next, hw₁, hout]) (fun _ => by simp)
+          (rbrFrom_false s₂ V₂.samplers ε₂)
       | some y =>
-        refine RbrFrom.congr (fun p => ?_) (fun _ => Iff.rfl)
+        refine RbrFrom.congr (fun _ => by simp [next, hw₁, hout]) (fun _ => Iff.rfl)
           (RbrFrom.mono_wins ?_ (hr₂ y))
-        · simp [next, hw₁, hout]
-        · rintro τ₂ ⟨z, w₃, hz, hrel₃, hnot₁⟩
-          simp only [Option.bind_some, Option.getD_some] at hz hnot₁
-          refine ⟨z, w₃, hz, hrel₃, fun hrel₂ => hnot₁ ?_⟩
-          by_contra hnot
-          exact hw₁ ⟨y, E₂ y τ₂ w₃, hout, hrel₂, hnot⟩
+        rintro τ₂ ⟨z, w₃, hz, hrel₃, hnot₁⟩
+        simp only [Option.bind_some, Option.getD_some] at hz hnot₁
+        exact ⟨z, w₃, hz, hrel₃, fun hrel₂ =>
+          hnot₁ (by_contra fun hnot => hw₁ ⟨y, E₂ y τ₂ w₃, hout, hrel₂, hnot⟩)⟩
   refine ⟨fun x => compState s₁ s₂ (T₁ x) (next x),
     fun x => not_compState_empty (hr₁ x) (hjunc x) (hinit₁ x), fun x => ?_⟩
   refine RbrFrom.congr (fun _ => Iff.rfl) (fun τ => ?_)
@@ -328,10 +320,8 @@ theorem Verifier.RbrKnowledgeSound.seqProd
     fun x₁ τ₁ => ∃ y₁ w₂, V₁.outputOn x₁ τ₁ = some y₁ ∧ rel₁' y₁ w₂ ∧ ¬ rel₁ x₁ (E₁ x₁ τ₁ w₂)
   let next : S₁ × T₁ → Transcript s₁ → Prefix s₂ → Prop :=
     fun x τ₁ p₂ => wins₁ x.1 τ₁ ∨ St₂ x.2 p₂
-  have hjunc : ∀ x τ₁, ¬ wins₁ x.1 τ₁ → ¬ next x τ₁ (Prefix.empty s₂) := by
-    rintro x τ₁ hw (hw' | hSt₂)
-    · exact hw hw'
-    · exact hinit₂ x.2 hSt₂
+  have hjunc : ∀ x τ₁, ¬ wins₁ x.1 τ₁ → ¬ next x τ₁ (Prefix.empty s₂) :=
+    fun x _ hw h => h.elim hw (hinit₂ x.2)
   have hsecond : ∀ x τ₁, RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
       (fun τ₂ => ∃ y w,
         ((V₁.outputOn x.1 τ₁).bind fun y₁ =>
@@ -344,19 +334,11 @@ theorem Verifier.RbrKnowledgeSound.seqProd
         (fun _ => Iff.rfl) (rbrFrom_true s₂ V₂.samplers ε₂ _)
     · refine RbrFrom.congr (fun p₂ => ⟨Or.inr, fun h => h.resolve_left hw₁⟩)
         (fun _ => Iff.rfl) (RbrFrom.mono_wins ?_ (hr₂ x.2))
-      rintro τ₂ ⟨⟨y₁, y₂⟩, ⟨w₂, u₂⟩, hout, ⟨hrel₁', hrel₂'⟩, hnot⟩
-      cases hout₁ : V₁.outputOn x.1 τ₁ with
-      | none => simp [hout₁] at hout
-      | some y₁' =>
-        cases hout₂ : V₂.outputOn x.2 τ₂ with
-        | none => simp [hout₁, hout₂] at hout
-        | some y₂' =>
-          simp only [hout₁, hout₂, Option.bind_some, Option.map_some, Option.some.injEq,
-            Prod.mk.injEq] at hout
-          obtain ⟨rfl, rfl⟩ := hout
-          refine ⟨y₂', u₂, rfl, hrel₂', fun hrel₂ => hnot ⟨?_, hrel₂⟩⟩
-          by_contra hnot₁
-          exact hw₁ ⟨y₁', w₂, hout₁, hrel₁', hnot₁⟩
+      rintro τ₂ ⟨⟨_, _⟩, ⟨w₂, u₂⟩, hout, ⟨hrel₁', hrel₂'⟩, hnot⟩
+      simp only [Option.bind_eq_some_iff, Option.map_eq_some_iff, Prod.mk.injEq] at hout
+      obtain ⟨y₁, hout₁, y₂, hout₂, rfl, rfl⟩ := hout
+      exact ⟨y₂, u₂, hout₂, hrel₂', fun hrel₂ =>
+        hnot ⟨by_contra fun hnot₁ => hw₁ ⟨y₁, w₂, hout₁, hrel₁', hnot₁⟩, hrel₂⟩⟩
   refine ⟨fun x => compState s₁ s₂ (St₁ x.1) (next x),
     fun x => not_compState_empty (hr₁ x.1) (hjunc x) (hinit₁ x.1), fun x => ?_⟩
   refine RbrFrom.congr (fun _ => Iff.rfl) (fun τ => ?_)
@@ -374,80 +356,15 @@ theorem Verifier.RbrSound.seqProd
     {ε₁ : PerChallenge (fun _ => ℝ≥0∞) s₁} {ε₂ : PerChallenge (fun _ => ℝ≥0∞) s₂}
     (h₁ : V₁.RbrSound L₁ L₁' ε₁) (h₂ : V₂.RbrSound L₂ L₂' ε₂) :
     (V₁.seqProd V₂).RbrSound (L₁ ×ˢ L₂) (L₁' ×ˢ L₂') (PerChallenge.append s₁ s₂ ε₁ ε₂) := by
-  obtain ⟨St₁, hinit₁, hr₁⟩ := h₁
-  obtain ⟨St₂, hinit₂, hr₂⟩ := h₂
-  let wins₁ : S₁ → Transcript s₁ → Prop :=
-    fun x₁ τ₁ => ∃ y₁ ∈ L₁', V₁.outputOn x₁ τ₁ = some y₁
-  let S₁' : S₁ × T₁ → Prefix s₁ → Prop :=
-    fun x p₁ => x.1 ∉ L₁ ∧ St₁ x.1 p₁
-  let wins₁' : S₁ × T₁ → Transcript s₁ → Prop :=
-    fun x τ₁ => x.1 ∉ L₁ ∧ wins₁ x.1 τ₁
-  let next : S₁ × T₁ → Transcript s₁ → Prefix s₂ → Prop :=
-    fun x τ₁ p₂ => wins₁' x τ₁ ∨ (x.1 ∈ L₁ ∧ St₂ x.2 p₂)
-  have hr₁' : ∀ x : S₁ × T₁, RbrFrom s₁ V₁.samplers ε₁ (S₁' x) (wins₁' x) := by
-    intro x
-    by_cases hx₁ : x.1 ∈ L₁
-    · refine RbrFrom.congr (fun _ => ?_) (fun _ => ?_) (rbrFrom_false s₁ V₁.samplers ε₁)
-      · simp [S₁', hx₁]
-      · simp [wins₁', hx₁]
-    · exact RbrFrom.congr (fun _ => ⟨fun h => ⟨hx₁, h⟩, And.right⟩)
-        (fun _ => ⟨fun h => ⟨hx₁, h⟩, And.right⟩) (hr₁ x.1)
-  have hjunc : ∀ x : S₁ × T₁, x ∉ L₁ ×ˢ L₂ → ∀ τ₁, ¬ wins₁' x τ₁ →
-      ¬ next x τ₁ (Prefix.empty s₂) := by
-    rintro x hx τ₁ hw (hw' | ⟨hx₁, hSt₂⟩)
-    · exact hw hw'
-    · have hx₂ : x.2 ∉ L₂ := fun hx₂ => hx ⟨hx₁, hx₂⟩
-      exact hinit₂ x.2 hx₂ hSt₂
-  have hsecond : ∀ x : S₁ × T₁, x ∉ L₁ ×ˢ L₂ → ∀ τ₁,
-      RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
-        (fun τ₂ => ∃ y ∈ L₁' ×ˢ L₂',
-          ((V₁.outputOn x.1 τ₁).bind fun y₁ =>
-              (V₂.outputOn x.2 τ₂).map fun y₂ => (y₁, y₂)) = some y) := by
-    intro x hx τ₁
-    by_cases hw₁ : wins₁' x τ₁
-    · refine RbrFrom.congr (fun _ => ⟨fun _ => Or.inl hw₁, fun _ => trivial⟩)
-        (fun _ => Iff.rfl) (rbrFrom_true s₂ V₂.samplers ε₂ _)
-    · by_cases hx₁ : x.1 ∈ L₁
-      · refine RbrFrom.congr (fun p₂ => ?_) (fun _ => Iff.rfl)
-          (RbrFrom.mono_wins ?_ (hr₂ x.2))
-        · simp [next, hw₁, hx₁]
-        · rintro τ₂ ⟨⟨y₁, y₂⟩, ⟨_, hy₂⟩, hout⟩
-          cases hout₁ : V₁.outputOn x.1 τ₁ with
-          | none => simp [hout₁] at hout
-          | some y₁' =>
-            cases hout₂ : V₂.outputOn x.2 τ₂ with
-            | none => simp [hout₁, hout₂] at hout
-            | some y₂' =>
-              simp only [hout₁, hout₂, Option.bind_some, Option.map_some, Option.some.injEq,
-                Prod.mk.injEq] at hout
-              obtain ⟨rfl, rfl⟩ := hout
-              exact ⟨y₂', hy₂, rfl⟩
-      · refine RbrFrom.congr (fun _ => ?_) (fun τ₂ => ?_) (rbrFrom_false s₂ V₂.samplers ε₂)
-        · simp [next, hw₁, hx₁]
-        · constructor
-          · exact False.elim
-          · rintro ⟨⟨y₁, y₂⟩, ⟨hy₁, _⟩, hout⟩
-            cases hout₁ : V₁.outputOn x.1 τ₁ with
-            | none => simp [hout₁] at hout
-            | some y₁' =>
-              cases hout₂ : V₂.outputOn x.2 τ₂ with
-              | none => simp [hout₁, hout₂] at hout
-              | some y₂' =>
-                simp only [hout₁, hout₂, Option.bind_some, Option.map_some, Option.some.injEq,
-                  Prod.mk.injEq] at hout
-                obtain ⟨rfl, rfl⟩ := hout
-                exact hw₁ ⟨hx₁, y₁', hy₁, hout₁⟩
-  refine ⟨fun x p => x ∈ L₁ ×ˢ L₂ ∨ compState s₁ s₂ (S₁' x) (next x) p,
-    fun x hx hS => hS.elim hx
-      (not_compState_empty (hr₁' x) (hjunc x hx) fun h => hinit₁ x.1 h.1 h.2),
-    fun x => ?_⟩
-  by_cases hx : x ∈ L₁ ×ˢ L₂
-  · refine RbrFrom.congr (fun _ => ⟨fun _ => Or.inl hx, fun _ => trivial⟩)
-      (fun _ => Iff.rfl) (rbrFrom_true (s₁ ++ s₂) (V₁.seqProd V₂).samplers _ _)
-  · refine RbrFrom.congr (fun _ => ⟨Or.inr, fun h => h.resolve_left hx⟩) (fun τ => ?_)
-      (rbrFrom_append s₁ s₂ V₁.samplers V₂.samplers ε₁ ε₂ (S₁' x) (wins₁' x) (next x) _
-        (hr₁' x) (hjunc x hx) (hsecond x hx))
-    rw [Verifier.outputOn_seqProd]
+  have hlang {α : Type} (L : Set α) : language (fun x (_ : Unit) => x ∈ L) = L :=
+    Set.ext fun _ => exists_const _
+  have hk₁ := Verifier.RbrSound.rbrKnowledgeSound (relIn := fun x (_ : Unit) => x ∈ L₁)
+    (relOut := fun y (_ : Unit) => y ∈ L₁') (fun _ _ _ => ()) (fun _ ⟨_, hx⟩ _ _ => hx)
+    (by rwa [hlang, hlang])
+  have hk₂ := Verifier.RbrSound.rbrKnowledgeSound (relIn := fun x (_ : Unit) => x ∈ L₂)
+    (relOut := fun y (_ : Unit) => y ∈ L₂') (fun _ _ _ => ()) (fun _ ⟨_, hx⟩ _ _ => hx)
+    (by rwa [hlang, hlang])
+  simpa only [language_relProd, hlang] using (hk₁.seqProd hk₂).toRbrSound
 
 end SeqProd
 
@@ -508,16 +425,8 @@ theorem Verifier.RbrKnowledgeSound.bundle {Θ : Type} {S₁ S₂ : Θ → Type} 
   have hθ := hR x.1 x.2
   rw [hsmp] at hθ
   refine RbrFrom.congr (fun _ => Iff.rfl) (fun τ => ?_) hθ
-  rw [Verifier.outputOn_bundle]
-  constructor
-  · rintro ⟨y, w, hout, hrel, hnot⟩
-    exact ⟨⟨x.1, y⟩, w, by rw [hout]; rfl, hrel, hnot⟩
-  · rintro ⟨⟨θ, y⟩, w, hout, hrel, hnot⟩
-    cases hτ : (V x.1).outputOn x.2 τ with
-    | none => rw [hτ] at hout; cases hout
-    | some y' =>
-      rw [hτ] at hout
-      cases hout
-      exact ⟨y', w, rfl, hrel, hnot⟩
+  simp only [Verifier.outputOn_bundle, Option.map_eq_some_iff]
+  exact ⟨fun ⟨y, w, hout, hrel, hnot⟩ => ⟨⟨x.1, y⟩, w, ⟨y, hout, rfl⟩, hrel, hnot⟩,
+    fun ⟨_, w, ⟨y, hout, rfl⟩, hrel, hnot⟩ => ⟨y, w, hout, hrel, hnot⟩⟩
 
 end Cslib.Interactive

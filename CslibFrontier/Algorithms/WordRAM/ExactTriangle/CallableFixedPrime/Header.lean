@@ -8,12 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Program
+import CslibFrontier.Computability.WordRAM.Record
 
 /-!
 # Real scalar-header stores for the caller adapter
 
-The five stores create the existing preparation input convention in caller workspace. This
-is only a fixed-size header, with no array/table initialization hidden in its specification.
+The five stores create the existing preparation input convention in caller workspace via
+`Cslib.WordRAM.storeRecord_exec`. This is only a fixed-size header, with no array/table
+initialization hidden in its specification.
 -/
 
 public section
@@ -27,6 +29,14 @@ open Cslib.WordRAM
   Function.update (Function.update (Function.update (Function.update (Function.update mem
     base (n * n * 3 + 4)) (base + 1) D) (base + 2) g) (base + 3) n) (base + 4) p
 
+/-- Source field registers of `header`. -/
+private abbrev headerFields : Fin 5 → Fin 640 :=
+  ![Reg.length, Reg.dimension, Reg.groups, Reg.n, Reg.prime]
+
+private theorem header_preserves {j : Fin 640} (hj : j.val < 609) : header.Preserves j := by
+  revert hj j
+  decide +kernel
+
 /-- The unchanged original scalar registers supply every header store and length computation. -/
 theorem exec_header {W : ℕ} (x : Data 640)
     (hfit : Fits W (x.regs Reg.base + 4 * (x.regs Reg.n * x.regs Reg.n) + 1024)) :
@@ -35,37 +45,37 @@ theorem exec_header {W : ℕ} (x : Data 640)
       y.mem = headerMemory x.mem (x.regs Reg.base) (x.regs Reg.n)
         (x.regs Reg.dimension) (x.regs Reg.groups) (x.regs Reg.prime) ∧
       ∀ j : Fin 640, j.val < 609 → y.regs j = x.regs j := by
-  let n := x.regs Reg.n
-  let b := x.regs Reg.base
-  have h1 : Fits W 1 := hfit.of_le (by omega)
-  have h3 : Fits W 3 := hfit.of_le (by omega)
-  have h4 : Fits W 4 := hfit.of_le (by omega)
-  have h5 : Fits W 5 := hfit.of_le (by omega)
-  have ha : Fits W (n * n) := hfit.of_le (by dsimp only [n]; omega)
-  have hat : Fits W (n * n * 3) := hfit.of_le (by dsimp only [n]; omega)
-  have hal : Fits W (n * n * 3 + 4) := hfit.of_le (by dsimp only [n]; omega)
-  have hb1 : Fits W (b + 1) := hfit.of_le (by dsimp only [b]; omega)
-  have hb2 : Fits W (b + 2) := hfit.of_le (by dsimp only [b]; omega)
-  have hb3 : Fits W (b + 3) := hfit.of_le (by dsimp only [b]; omega)
-  have hb4 : Fits W (b + 4) := hfit.of_le (by dsimp only [b]; omega)
-  refine ⟨?y, ?run, ?area, ?constant, ?memory, ?regs⟩
-  case run => ram_eval [header, n, b, h1, h3, h4, h5, ha, hat, hal, hb1, hb2, hb3, hb4,
-    Reg.n, Reg.dimension, Reg.groups, Reg.prime, Reg.base, Reg.area, Reg.length,
-    Reg.address, Reg.one, Reg.constant, Fin.mk.injEq]
-  case area => simp +decide
-  case constant => simp +decide
-  case memory => rfl
-  case regs =>
-    intro j hj
-    have hn (i : Fin 640) (hi : 609 ≤ i.val) : j ≠ i := by
-      intro he
-      have hv := congrArg Fin.val he
-      omega
-    simp only [Data.set_regs, Data.write_regs,
-      Function.update_of_ne (hn Reg.area (by decide)),
-      Function.update_of_ne (hn Reg.length (by decide)),
-      Function.update_of_ne (hn Reg.address (by decide)),
-      Function.update_of_ne (hn Reg.one (by decide)),
-      Function.update_of_ne (hn Reg.constant (by decide))]
+  have hcode : header = ram[
+      Reg.one ← #1; Reg.area ← Reg.n * Reg.n; Reg.constant ← #3;
+      Reg.length ← Reg.area * Reg.constant;
+      Reg.constant ← #4; Reg.length ← Reg.length + Reg.constant;
+      ⟪appendCode (storeRecord Reg.base Reg.address Reg.one headerFields)
+        (ram[ Reg.constant ← #5 ])⟫ ] := rfl
+  refine WP.exists_execWithin_preserves (fun j hj => header_preserves hj) ?_
+  rw [hcode]
+  wram_exec [show Fits W (x.regs Reg.n * x.regs Reg.n) from hfit.of_le (by omega),
+    show Fits W (x.regs Reg.n * x.regs Reg.n * 3) from hfit.of_le (by omega),
+    show Fits W (x.regs Reg.n * x.regs Reg.n * 3 + 4) from hfit.of_le (by omega)]
+  refine WP.of_append_exec
+    (storeRecord_exec Reg.base Reg.address Reg.one headerFields _
+      (by decide) (by decide) (by wram_simp)
+      (by wram_simp; exact hfit.of_le (by omega))) ?_
+  rintro u ⟨humem, _, _, huregs⟩
+  wram_simp at humem
+  have humem' : u.mem = writeWords x.mem (x.regs Reg.base)
+      ![x.regs Reg.n * x.regs Reg.n * 3 + 4, x.regs Reg.dimension,
+        x.regs Reg.groups, x.regs Reg.n, x.regs Reg.prime] := by
+    rw [humem]
+    congr 1
+    funext i
+    match i with
+    | 0 | 1 => wram_simp
+    | 2 | 3 | 4 => wram_simp; rfl
+  have uarea : u.regs Reg.area = x.regs Reg.n * x.regs Reg.n :=
+    (huregs Reg.area (by decide)).trans (by wram_simp)
+  wram_exec
+  intro hregs
+  wram_simp [uarea]
+  exact ⟨humem', hregs⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

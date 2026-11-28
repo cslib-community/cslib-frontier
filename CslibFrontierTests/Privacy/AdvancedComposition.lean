@@ -75,14 +75,15 @@ noncomputable def leak (δ : ℝ≥0∞) (hδ : δ ≤ 1) (b : Bool) : PMF Bool 
 
 theorem differentiallyPrivate_leak (δ : ℝ≥0∞) (hδ : δ ≤ 1) :
     DifferentiallyPrivate (fun _ _ => True) (leak δ hδ) 0 δ := by
-  rw [DifferentiallyPrivate.iff_tsum_tsub_le]
+  rw [DifferentiallyPrivate.iff_hockeyStick_le]
   intro x y _
+  rw [Probability.PMF.hockeyStick_eq_sum]
   cases x <;> cases y <;>
-    simp only [leak, coin, tsum_bool, PMF.ofFintype_apply, PMF.pure_apply, Real.exp_zero,
+    simp only [leak, coin, Fintype.sum_bool, PMF.ofFintype_apply, PMF.pure_apply, Real.exp_zero,
       ENNReal.ofReal_one, one_mul, ite_true, ite_false, Bool.false_eq_true, Bool.true_eq_false,
       tsub_self, add_zero, tsub_zero, zero_tsub, zero_le]
-  · rw [ENNReal.sub_sub_cancel ENNReal.one_ne_top hδ]
-  · rw [tsub_eq_zero_of_le tsub_le_self, zero_add]
+  · rw [ENNReal.sub_sub_cancel ENNReal.one_ne_top hδ, zero_add]
+  · rw [tsub_eq_zero_of_le tsub_le_self, add_zero]
 
 /-- Randomized response released together with the `δ`-leak of the same bit. -/
 noncomputable def leakyRR (δ : ℝ≥0∞) (hδ : δ ≤ 1) (b : Bool) : PMF (Bool × Bool) := do

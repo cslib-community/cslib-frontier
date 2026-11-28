@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.DiscreteLog
+public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 public import Mathlib.Data.Nat.ChineseRemainder
 public import Mathlib.Data.Nat.Factorization.Basic
 public import Mathlib.Data.Nat.ModEq
@@ -60,7 +61,9 @@ Schnorr transcripts in a composite-order group.
    transcripts $(r_1, s_1), (r_2, s_2)$ without a collision modulo any prime factor $p > T$ of $q$,
    the challenge difference is coprime to the $(T + 1)$-rough cofactor $L$
    (`coprime_challenge_diff`), so `extractModRough` recovers $x \bmod L$ and `crtCombine`
-   reconstructs the full discrete logarithm $x < q$.
+   reconstructs the full discrete logarithm $x < q$. `crtCombine` and its correctness
+   `crtCombine_eq` are in `CslibFrontier/Foundations/Data/Nat/ChineseRemainder.lean`, which this
+   module imports publicly.
 
 ## Main definitions
 
@@ -69,8 +72,6 @@ Schnorr transcripts in a composite-order group.
   modulo any prime factor `p > T` of `q`.
 * `Cslib.Crypto.extractModRough`: recovers `x % L` from a linear transcript relation modulo `q`
   using an inverse of the challenge difference modulo `L`.
-* `Cslib.Crypto.crtCombine`: Chinese Remainder Theorem reconstruction of `x < D * L` from
-  `a = x % D` and `xL = x % L`.
 
 ## Main results
 
@@ -83,8 +84,8 @@ Schnorr transcripts in a composite-order group.
   `Cslib.Crypto.prime_gt_of_dvd_div_smoothDivisorSeq`: correctness, $(T + 1)$-smoothness, cofactor
   roughness, and coprimality of the trial-division schedule (original).
 * `Cslib.Crypto.coprime_challenge_diff`, `Cslib.Crypto.extractModRough_eq_mod`,
-  `Cslib.Crypto.crtCombine_eq`, `Cslib.Crypto.crtCombine_extractModRough_eq`: Chinese Remainder
-  Theorem combination and composite-order discrete-logarithm extraction (original).
+  `Cslib.Crypto.crtCombine_extractModRough_eq`: Chinese Remainder Theorem combination and
+  composite-order discrete-logarithm extraction (original).
 * `Cslib.Crypto.schnorr_transcript_relation`, `Cslib.Crypto.schnorr_nsmul_transcript_relation`:
   two accepting Schnorr transcripts with the same commitment satisfy
   `s₁ - s₂ = x * (r₁ - r₂)` in `ZMod q` for `g` of arbitrary order `q` (original).
@@ -111,12 +112,9 @@ and `xi • ((q / qi) • g) = (q / qi) • (x • g)`, then `xi ≡ x [MOD qi]`
 theorem pohligHellman_subgroup_modEq {M : Type*} [Group M] (g : M) {q qi : ℕ}
     (hg : orderOf g = q) (hq : 0 < q) (hqi : qi ∣ q) (x xi : ℕ)
     (h : (g ^ (q / qi)) ^ xi = (g ^ x) ^ (q / qi)) : xi ≡ x [MOD qi] := by
-  have hord : orderOf (g ^ (q / qi)) = qi := by
-    have := orderOf_pow_orderOf_div (x := g) (n := qi) (by rw [hg]; omega) (by rw [hg]; exact hqi)
-    rwa [hg] at this
-  have hswap : (g ^ x) ^ (q / qi) = (g ^ (q / qi)) ^ x := by
-    rw [← pow_mul, ← pow_mul, mul_comm]
-  rwa [hswap, pow_eq_pow_iff_modEq, hord] at h
+  have hord : orderOf (g ^ (q / qi)) = qi :=
+    hg ▸ orderOf_pow_orderOf_div (x := g) (n := qi) (hg ▸ hq.ne') (hg.symm ▸ hqi)
+  rwa [pow_right_comm g x, pow_eq_pow_iff_modEq, hord] at h
 
 /-- **Pohlig–Hellman CRT uniqueness** ([KatzLindell2020], Section 10.2.1, p. 375): let `g` have
 order `q = ∏ qs` with pairwise coprime `qs`, let `h = g ^ x`, and let `sol qi` solve each subgroup
@@ -153,45 +151,24 @@ a divisor `D * p ∣ q`, and a candidate digit `t < p`, the subgroup projection
 theorem pohligHellman_step {M : Type*} [Group M] (g : M) {q : ℕ} (hg : orderOf g = q) (hq : 0 < q)
     {D p : ℕ} (hDp : D * p ∣ q) (x t : ℕ) (ht : t < p) :
     (g ^ x * g ^ (q - x % D)) ^ (q / (D * p)) = (g ^ (q / p)) ^ t ↔ t = x / D % p := by
-  obtain ⟨m, hm⟩ := hDp
-  have hD : 0 < D := by
-    rcases Nat.eq_zero_or_pos D with h | h
-    · rw [h] at hm; simp at hm; omega
-    · exact h
-  have hp : 0 < p := by omega
-  have hm0 : 0 < m := by
-    rcases Nat.eq_zero_or_pos m with h | h
-    · rw [h] at hm; simp at hm; omega
-    · exact h
-  have hqm : q / (D * p) = m := by rw [hm, Nat.mul_div_cancel_left _ (Nat.mul_pos hD hp)]
-  have hqp : q / p = D * m := by
-    rw [hm, show D * p * m = p * (D * m) by ring, Nat.mul_div_cancel_left _ hp]
-  have hxle : x % D ≤ q :=
-    le_trans (Nat.mod_lt _ hD).le (Nat.le_of_dvd hq ⟨p * m, by rw [hm]; ring⟩)
-  have e1 : (x + (q - x % D)) * m = D * m * (x / D) + q * m := by
+  obtain ⟨m, rfl⟩ := hDp
+  have hD : 0 < D := Nat.pos_of_ne_zero fun h => by simp [h] at hq
+  have hp : 0 < p := Nat.pos_of_ne_zero fun h => by simp [h] at hq
+  have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by simp [h] at hq
+  have hqm : D * p * m / (D * p) = m := Nat.mul_div_cancel_left _ (Nat.mul_pos hD hp)
+  have hqp : D * p * m / p = D * m := by
+    rw [Nat.mul_right_comm D p m, Nat.mul_div_cancel _ hp]
+  have e1 : (x + (D * p * m - x % D)) * m = D * m * (x / D) + D * p * m * m := by
     have h0 := Nat.div_add_mod x D
-    have h2 : x + (q - x % D) = D * (x / D) + q := by omega
+    have hxle : x % D ≤ D * p * m :=
+      (Nat.mod_lt _ hD).le.trans (Nat.le_of_dvd hq ⟨p * m, Nat.mul_assoc D p m⟩)
+    have h2 : x + (D * p * m - x % D) = D * (x / D) + D * p * m := by omega
     rw [h2]; ring
-  have e2 : q / p * t = D * m * t := by rw [hqp]
-  rw [← pow_add, ← pow_mul, ← pow_mul, hqm, e1, e2, pow_eq_pow_iff_modEq, hg]
+  rw [← pow_add, ← pow_mul, ← pow_mul, hqm, e1, hqp, pow_eq_pow_iff_modEq, hg]
   unfold Nat.ModEq
-  rw [Nat.add_mul_mod_self_left]
-  have hDm : D * m ≠ 0 := Nat.mul_ne_zero hD.ne' hm0.ne'
-  have hq' : q = D * m * p := by rw [hm]; ring
-  constructor
-  · intro h
-    have h' : D * m * (x / D) ≡ D * m * t [MOD D * m * p] := by
-      unfold Nat.ModEq; rw [← hq']; exact h
-    have := Nat.ModEq.mul_left_cancel' hDm h'
-    unfold Nat.ModEq at this
-    rw [Nat.mod_eq_of_lt ht] at this
-    exact this.symm
-  · intro h
-    have h' : x / D ≡ t [MOD p] := by
-      unfold Nat.ModEq; rw [Nat.mod_eq_of_lt ht, h]
-    have := Nat.ModEq.mul_left' (D * m) h'
-    unfold Nat.ModEq at this
-    rw [hq']; exact this
+  rw [Nat.add_mul_mod_self_left, Nat.mul_right_comm D p m, Nat.mul_mod_mul_left,
+    Nat.mul_mod_mul_left, Nat.mul_left_cancel_iff (Nat.mul_pos hD hm0), Nat.mod_eq_of_lt ht,
+    eq_comm]
 
 /-! ### Smooth/rough trial-division decomposition (original, not from [KatzLindell2020]) -/
 
@@ -238,20 +215,15 @@ theorem smoothDivisorSeq_mono (q T : ℕ) {k k' : ℕ} (h : k ≤ k') :
 `smoothDivisorSeq q T k` satisfies `ℓ ≤ T + 1`. -/
 theorem smoothDivisorSeq_prime_le {q T : ℕ} (hT : 0 < T) {ℓ : ℕ} (hℓ : ℓ.Prime) (k : ℕ)
     (h : ℓ ∣ smoothDivisorSeq q T k) : ℓ ≤ T + 1 := by
-  induction k with
-  | zero =>
-    simp only [smoothDivisorSeq, Nat.dvd_one] at h
-    have := hℓ.one_lt
-    omega
-  | succ k ih =>
-    rw [smoothDivisorSeq] at h
-    split_ifs at h
-    · rcases (Nat.Prime.dvd_mul hℓ).1 h with h | h
-      · exact ih h
-      · have h1 := Nat.le_of_dvd (by omega) h
-        have h2 := Nat.mod_lt k hT
-        omega
+  fun_induction smoothDivisorSeq q T k with
+  | case1 => exact absurd (Nat.dvd_one.mp h) hℓ.ne_one -- k = 0
+  | case2 k _ ih => -- k + 1, product divides q: multiply by `k % T + 2`
+    rcases (Nat.Prime.dvd_mul hℓ).1 h with h | h
     · exact ih h
+    · have h1 := Nat.le_of_dvd (by omega) h
+      have h2 := Nat.mod_lt k hT
+      omega
+  | case3 k _ ih => exact ih h -- k + 1, product does not divide q: unchanged
 
 /-- **Exhaustion of small prime factors**: after `m` passes of length `T` (`q < 2 ^ m`), no prime
 `ℓ ≤ T + 1` divides the cofactor `q / smoothDivisorSeq q T (m * T)`. -/
@@ -266,43 +238,25 @@ theorem smoothDivisorSeq_not_dvd_div {q T m : ℕ} (hq : 0 < q) (hqm : q < 2 ^ m
     | zero => intro _; simp [smoothDivisorSeq]
     | succ j ih =>
       intro hj
-      have ih' := ih (by omega)
       have hr : ℓ - 2 < T := by omega
-      have hkmod : (j * T + (ℓ - 2)) % T = ℓ - 2 := Nat.mul_add_mod_of_lt hr
       have hkN : j * T + (ℓ - 2) + 1 ≤ (j + 1) * T := by rw [Nat.succ_mul]; omega
-      have hjm : (j + 1) * T ≤ m * T := Nat.mul_le_mul_right T hj
-      have hDk :
-          smoothDivisorSeq q T (j * T + (ℓ - 2)) ∣ smoothDivisorSeq q T (m * T) :=
-        smoothDivisorSeq_mono q T (by omega)
-      have hdiv' : ℓ ∣ q / smoothDivisorSeq q T (j * T + (ℓ - 2)) := by
-        obtain ⟨u, hu⟩ := hDk
-        obtain ⟨w, hw⟩ := hdiv
-        have e1 :
-            smoothDivisorSeq q T (m * T) * (q / smoothDivisorSeq q T (m * T)) = q :=
-          Nat.mul_div_cancel' hN
-        rw [hw, hu] at e1
-        have e2 : q / smoothDivisorSeq q T (j * T + (ℓ - 2)) = u * (ℓ * w) := by
-          apply Nat.div_eq_of_eq_mul_left (smoothDivisorSeq_pos hq T _)
-          rw [show u * (ℓ * w) * smoothDivisorSeq q T (j * T + (ℓ - 2)) =
-            smoothDivisorSeq q T (j * T + (ℓ - 2)) * u * (ℓ * w) by ring]
-          exact e1.symm
-        rw [e2]
-        exact ⟨u * w, by ring⟩
-      have hstep :
-          smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) =
-            smoothDivisorSeq q T (j * T + (ℓ - 2)) * ℓ := by
-        rw [smoothDivisorSeq, hkmod, show ℓ - 2 + 2 = ℓ by omega,
+      have hDk : smoothDivisorSeq q T (j * T + (ℓ - 2)) ∣ smoothDivisorSeq q T (m * T) :=
+        smoothDivisorSeq_mono q T (by have := Nat.mul_le_mul_right T hj; omega)
+      have hdiv' : ℓ ∣ q / smoothDivisorSeq q T (j * T + (ℓ - 2)) :=
+        hdiv.trans (Nat.div_dvd_div_left hN hDk)
+      have hstep : smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) =
+          smoothDivisorSeq q T (j * T + (ℓ - 2)) * ℓ := by
+        rw [smoothDivisorSeq, Nat.mul_add_mod_of_lt hr, Nat.sub_add_cancel hℓ2,
           ite_eq_left_iff.mpr fun h =>
             absurd (Nat.mul_dvd_of_dvd_div (smoothDivisorSeq_dvd q T _) hdiv') h]
       calc ℓ ^ (j + 1) = ℓ ^ j * ℓ := pow_succ _ _
         _ ∣ smoothDivisorSeq q T (j * T + (ℓ - 2)) * ℓ :=
-          Nat.mul_dvd_mul_right (ih'.trans (smoothDivisorSeq_mono q T (by omega))) ℓ
+          Nat.mul_dvd_mul_right
+            ((ih (by omega)).trans (smoothDivisorSeq_mono q T (by omega))) ℓ
         _ = smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) := hstep.symm
         _ ∣ smoothDivisorSeq q T ((j + 1) * T) := smoothDivisorSeq_mono q T hkN
-  have h1 : ℓ ^ m ∣ q := (key m le_rfl).trans hN
-  have h2 : ℓ ^ m ≤ q := Nat.le_of_dvd hq h1
-  have h3 : 2 ^ m ≤ ℓ ^ m := Nat.pow_le_pow_left hℓ2 m
-  omega
+  exact absurd (Nat.le_of_dvd hq ((key m le_rfl).trans hN))
+    (not_le_of_gt (hqm.trans_le (Nat.pow_le_pow_left hℓ2 m)))
 
 /-- **Coprimality of the smooth divisor and its cofactor**: for `0 < q < 2 ^ m` and `0 < T`,
 `smoothDivisorSeq q T (m * T)` and `q / smoothDivisorSeq q T (m * T)` are coprime. -/
@@ -369,51 +323,18 @@ theorem extractModRough_eq_mod {q L x r₁ s₁ r₂ s₂ : ℕ} (hL : L ∣ q) 
   rw [ZMod.natCast_mod, Nat.cast_add, Nat.cast_sub hs₂, hq0, add_sub, add_zero, hrelL, mul_assoc,
     mul_comm _ (inv : ZMod L), hinv, mul_one]
 
-/-- Chinese Remainder Theorem combination of `a = x % D` and `xL = x % L` using an inverse `inv` of
-`D` modulo `L`; the summand `L - a % L` represents `-a` modulo `L` without ℕ-subtraction
-underflow. -/
-def crtCombine (D L a xL inv : ℕ) : ℕ :=
-  a + D * ((xL + (L - a % L)) * inv % L)
-
-/-- **Chinese Remainder Theorem reconstruction** (the two-modulus case of the CRT used in
-[KatzLindell2020], Section 10.2.1, p. 374): for coprime `D` and `L` with `x < D * L`,
-`a = x % D`, `xL = x % L`, and `inv * D ≡ 1 (mod L)`, `crtCombine D L a xL inv = x`. -/
-theorem crtCombine_eq {D L x a xL : ℕ} (hD : 0 < D) (hL : 0 < L) (hcop : Nat.Coprime D L)
-    (hx : x < D * L) (ha : a = x % D) (hxL : xL = x % L) (inv : ℕ)
-    (hinv : (inv : ZMod L) * D = 1) :
-    crtCombine D L a xL inv = x := by
-  unfold crtCombine
-  set u := (xL + (L - a % L)) * inv % L with hu
-  have hult : u < L := Nat.mod_lt _ hL
-  have halt : a < D := by rw [ha]; exact Nat.mod_lt _ hD
-  have hmD : a + D * u ≡ x [MOD D] := by
-    change (a + D * u) % D = x % D
-    rw [Nat.add_mul_mod_self_left, ha, Nat.mod_mod]
-  have hmL : a + D * u ≡ x [MOD L] := by
-    rw [← ZMod.natCast_eq_natCast_iff]
-    have hxL' : (xL : ZMod L) = x := by rw [hxL, ZMod.natCast_mod]
-    have haL : ((L - a % L : ℕ) : ZMod L) = -a := by
-      rw [Nat.cast_sub (Nat.mod_lt a hL).le, ZMod.natCast_self, ZMod.natCast_mod, zero_sub]
-    rw [Nat.cast_add, Nat.cast_mul, hu, ZMod.natCast_mod, Nat.cast_mul, Nat.cast_add, haL, hxL']
-    linear_combination (↑x - ↑a) * hinv
-  have hlt : a + D * u < D * L := by nlinarith
-  have := (Nat.modEq_and_modEq_iff_modEq_mul hcop).1 ⟨hmD, hmL⟩
-  unfold Nat.ModEq at this
-  rwa [Nat.mod_eq_of_lt hlt, Nat.mod_eq_of_lt hx] at this
-
 /-- **Composite-order discrete-logarithm recovery** (original): combining a residue
-`a = x % D` on the smooth divisor `D` with `extractModRough` on the coprime cofactor `L` (where
-`D * L = q`) recovers the exact discrete logarithm `x < q`. -/
+`a = x % D` on the smooth divisor `D` with `extractModRough` on the cofactor `L` (where
+`D * L = q`) recovers the exact discrete logarithm `x < q`, given an inverse of `D` modulo `L`. -/
 theorem crtCombine_extractModRough_eq {q D L x r₁ s₁ r₂ s₂ invDiff invD : ℕ}
-    (hD : 0 < D) (hL : 0 < L) (hq : D * L = q) (hcop : Nat.Coprime D L)
-    (hx : x < q) (hr₂ : r₂ ≤ q) (hs₂ : s₂ ≤ q)
+    (hq : D * L = q) (hx : x < q) (hr₂ : r₂ ≤ q) (hs₂ : s₂ ≤ q)
     (hrel : ((s₁ : ZMod q) - s₂) = (x : ZMod q) * ((r₁ : ZMod q) - r₂))
     (hinvDiff : (invDiff : ZMod L) * (((r₁ + (q - r₂)) % L : ℕ) : ZMod L) = 1)
     (hinvD : (invD : ZMod L) * D = 1) :
     crtCombine D L (x % D) (extractModRough q L s₁ s₂ invDiff) invD = x := by
   have hL_dvd : L ∣ q := ⟨D, by rw [← hq, mul_comm]⟩
   have hxL := extractModRough_eq_mod hL_dvd hr₂ hs₂ hrel invDiff hinvDiff
-  exact crtCombine_eq hD hL hcop (hq.symm ▸ hx) rfl hxL invD hinvD
+  exact crtCombine_eq (hq.symm ▸ hx) rfl hxL invD hinvD
 
 /-- **Schnorr transcript congruence in a cyclic group** (original): if `g` has order `q` and two
 transcripts `(r₁, s₁)` and `(r₂, s₂)` share the same commitment

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Expansion
 public import CslibFrontier.Crypto.Computational.Hybrid.Sequence
 public import CslibFrontier.Computability.Probabilistic.Presample
@@ -75,13 +76,10 @@ theorem sampleGame_replicate (generator : List Bool → List Bool) (sample : Pro
     (hqueries : (adversary n []).IsQueryBounded count) :
     ProbComp.eval (OracleComp.replicate count sample >>= sampleGame generator adversary n depth) =
       ProbComp.eval (expansionGame generator sample adversary n depth) := by
-  have h := hqueries.eval_presample sample []
-    (fun expansion request => expansionOracle generator (pure expansion) n depth request.2) []
-  have hout := congrArg (PMF.map Prod.fst) h
-  have hstep := fun query cache => expansionOracle_sample generator sample n depth query cache
   simpa only [sampleGame, expansionGame, ProbComp.eval_bind, ProbComp.eval_map,
     ProbOracleComp.eval_run_interpret_eq_runWith, PMF.map_bind, PMF.map_comp, Function.comp_def,
-    hstep] using hout
+    expansionOracle_sample] using congrArg (PMF.map Prod.fst) (hqueries.eval_presample sample []
+      (fun expansion request => expansionOracle generator (pure expansion) n depth request.2) [])
 
 /-- The saved-sample game is uniformly PPT, including arbitrary and short challenge lists.
 The shared interpreter accounts for list consumption, cache lookup and tree evaluation. -/
@@ -95,26 +93,16 @@ theorem isPPTOn_sampleGame {Caller : Type} {input : Caller ↪ List Bool}
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsPPTOn input encBool
       (fun a => sampleGame generator adversary (width a) (depth a) (values a)) := by
-  have hgenerator := hgenerator.tidy
-  have hwidth := hwidth.tidy
-  have hdepth := hdepth.tidy
-  have hvalues := hvalues.tidy
-  have hrun : IsPPTOn input
-      (encPair encBool (encPair cacheEncoding (encList encBits))) (fun a =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (OracleComp.withSampleList [] (fun expansion request =>
-              expansionOracle generator (pure expansion) (width a) (depth a) request.2)))
-                (adversary (width a) [])).run ([], values a)) := by
-    refine hadversary.run_interpret_withSampleList (operationEncoding := encFinEnum Unit) []
-      (prepare := fun a => (width a, [])) (by fun_prop) (by fun_prop) (by fun_prop) hvalues
-      (fun a cache => ∀ entry ∈ cache, entry.2.length ≤ 2 * width a) (by simp)
-      (resources := fun a query => 4 * query.length + 4 * width a + 3) (by fun_prop) ?_
-    intro a expansion request cache hcache result hresult
-    obtain ⟨hcache', hreply, hgrowth⟩ := expansionOracle_bounds generator
-      (pure expansion) (width a) (depth a) request.2 cache hcache result hresult
-    exact ⟨hcache', by lia, by lia⟩
-  exact hrun.map (ComputableInPolyTime.fst _ _)
+  refine (hadversary.run_interpret_withSampleList (operationEncoding := encFinEnum Unit)
+    (stateEncoding := cacheEncoding) []
+    (prepare := fun a => (width a, [])) (by fun_prop) (by fun_prop) (by fun_prop) hvalues
+    (fun a cache => ∀ entry ∈ cache, entry.2.length ≤ 2 * width a) (by simp)
+    (resources := fun a query => 4 * query.length + 4 * width a + 3) (by fun_prop) ?_).map
+    (ComputableInPolyTime.fst _ _)
+  intro a expansion request cache hcache result hresult
+  obtain ⟨hcache', hreply, hgrowth⟩ := expansionOracle_bounds generator
+    (pure expansion) (width a) (depth a) request.2 cache hcache result hresult
+  exact ⟨hcache', by lia, by lia⟩
 
 /-- Insert one challenge among simulated uniform and generated expansions at a chosen level. -/
 noncomputable def levelTest (generator : List Bool → List Bool) (adversary : OracleDistinguisher)
@@ -153,11 +141,11 @@ theorem levelTest_gap (generator : List Bool → List Bool) (adversary : OracleD
         (Game.succProbability (ProbComp.eval (BitString.sampleList (2 * n) >>=
           levelTest generator adversary n depth count)) : ℝ)) := by
   unfold levelTest
-  have h := sequenceTest_gap (BitString.sampleList (2 * n))
-    (generator <$> BitString.sampleList n) count (sampleGame generator adversary n depth)
-  simpa only [sampleGame_replicate generator _ adversary n depth count
-    hqueries, expansionGame_generated generator adversary n depth hdepth,
-    expansionGame_uniform generator adversary n depth hdepth] using h
+  simpa only [sampleGame_replicate generator _ adversary n depth count hqueries,
+    expansionGame_generated generator adversary n depth hdepth,
+    expansionGame_uniform generator adversary n depth hdepth, Game.coe_succProbability] using
+    sequenceTest_gap (BitString.sampleList (2 * n)) (generator <$> BitString.sampleList n) count
+      (sampleGame generator adversary n depth)
 
 /-- Choose a level uniformly and run its single-challenge reduction. Both random choices use
 dyadic ranges, and unused indices reject. The query budget is a fixed function of the parameter. -/
@@ -183,32 +171,30 @@ theorem isPPT_reduction {generator : List Bool → List Bool}
 dyadic sampling ranges. This statement is exact, including the zero-width game. -/
 theorem reduction_gap (generator : List Bool → List Bool) (adversary : OracleDistinguisher)
     (count : ℕ → ℕ) (n : ℕ) (hqueries : (adversary n []).IsQueryBounded (count n)) :
-    (Game.succProbability (ProbComp.eval (prfRealGame (eval generator) adversary n)) : ℝ) -
-        (Game.succProbability (ProbComp.eval (prfIdealGame adversary n)) : ℝ) =
+    (Game.succProbability (ProbComp.eval (prfRealGame id (eval generator) adversary n)) : ℝ) -
+        (Game.succProbability (ProbComp.eval (prfIdealGame id id adversary n)) : ℝ) =
       (dyadicSize n : ℝ) * dyadicSize (count n) *
         ((Game.succProbability (ProbComp.eval ((generator <$> BitString.sampleList n) >>=
           reduction generator adversary count n)) : ℝ) -
         (Game.succProbability (ProbComp.eval (BitString.sampleList (2 * n) >>=
           reduction generator adversary count n)) : ℝ)) := by
   unfold reduction
-  have h := Game.succProbability_hybrid_reduction
-    (fun depth => ProbComp.eval (hybridGame generator adversary n depth))
-    (fun depth => ProbComp.eval ((generator <$> BitString.sampleList n) >>=
-      levelTest generator adversary n depth (count n)))
-    (fun depth => ProbComp.eval (BitString.sampleList (2 * n) >>=
-      levelTest generator adversary n depth (count n))) n (dyadicSize n)
-    (lt_dyadicSize n).le (dyadicSize (count n))
-    (fun depth hdepth =>
-      levelTest_gap generator adversary n depth (count n) hdepth hqueries)
   simpa only [ProbComp.eval_bind_sampleDyadicIndex_guard, PMF.monad_bind_eq_bind,
-    hybridGame_zero, hybridGame_self] using h
+    hybridGame_zero, hybridGame_self] using Game.succProbability_hybrid_reduction
+      (fun depth => ProbComp.eval (hybridGame generator adversary n depth))
+      (fun depth => ProbComp.eval ((generator <$> BitString.sampleList n) >>=
+        levelTest generator adversary n depth (count n)))
+      (fun depth => ProbComp.eval (BitString.sampleList (2 * n) >>=
+        levelTest generator adversary n depth (count n))) n (dyadicSize n)
+      (lt_dyadicSize n).le (dyadicSize (count n))
+      fun depth hdepth => levelTest_gap generator adversary n depth (count n) hdepth hqueries
 
 /-- The real/ideal PRF advantage is the reduction's generator advantage times the two sampling
 ranges. The loss is polynomial whenever the query budget is polynomial. -/
 theorem reduction_advantage (generator : List Bool → List Bool) (adversary : OracleDistinguisher)
     (count : ℕ → ℕ) (n : ℕ) (hqueries : (adversary n []).IsQueryBounded (count n)) :
-    Game.advantage (ProbComp.eval (prfRealGame (eval generator) adversary n))
-        (ProbComp.eval (prfIdealGame adversary n)) =
+    Game.advantage (ProbComp.eval (prfRealGame id (eval generator) adversary n))
+        (ProbComp.eval (prfIdealGame id id adversary n)) =
       dyadicSize n * dyadicSize (count n) *
         Game.advantage
           (ProbComp.eval ((generator <$> BitString.sampleList n) >>=

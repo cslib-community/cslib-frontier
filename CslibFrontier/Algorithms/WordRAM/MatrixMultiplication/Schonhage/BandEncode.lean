@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPrepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCollect
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual native encoder calls on the prepared bands
@@ -29,9 +30,6 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
 
--- The persistent-register checks reduce the fixed 96-register parameter bank.
-set_option maxRecDepth 4096
-
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
@@ -48,10 +46,8 @@ theorem abs_bandValue_le {L m N β : ℕ} (side : Bool) (matrix : ℕ → ℕ �
     (a : Fin (7 ^ L)) : |bandValue L m N β side matrix a.val| ≤ A := by
   cases side <;> unfold bandValue <;> simp only [Bool.false_eq_true, ↓reduceIte]
   all_goals
-    split_ifs with hq hr
-    · simpa only [abs_zero] using hA
-    · exact hmat _ hr _ (selected_parts_bounds a hq).2
-    · simpa only [abs_zero] using hA
+    split_ifs with hq hr <;>
+      first | simpa only [abs_zero] using hA | exact hmat _ hr _ (selected_parts_bounds a hq).2
 
 /-- A real call of the unchanged encoder in its low 32-register bank. Parameters in the
 other registers, arbitrary input headers and arbitrary outside memory are preserved. -/
@@ -71,10 +67,8 @@ theorem exec_encoderKernel {w L m N : ℕ} (hw : 0 < w) (side : Bool)
   obtain ⟨y, hy, ⟨hv, hf, _, _⟩, hframe⟩ := ExecWithin.rename_post encoderRegisters_injective
     (Encoding.exec hw side arr (x.comap encoderRegisters) hheader hinput A hA ha hmag
       (encoder_fits hfit))
-  refine ⟨y, hy, hv, hf, fun i hi => hframe i ?_⟩
-  intro j hj
-  have hv := congrArg Fin.val hj
-  change j.val = i.val at hv
+  refine ⟨y, hy, hv, hf, fun i hi => hframe i fun j hj => ?_⟩
+  have hv : j.val = i.val := congrArg Fin.val hj
   omega
 
 /-- Native cost of preparing, encoding and collecting one shared band. -/
@@ -107,20 +101,15 @@ theorem exec_band {w L m N : ℕ} (hw : 0 < w) (side : Bool) (β : ℕ) (x : Dat
   obtain ⟨e, hee, hev, hef, her⟩ := exec_encoderKernel hw side
     (bandValue L m N β side matrix) p hheader hinput A hA
     (fun i hi => abs_bandValue_le side matrix A hA ha ⟨i, hi⟩) hmag hfit
-  have hep' : BandParameters L m N e := parameters_reframe hpp (by
-    intro i hi
-    apply her
-    have hp : ∀ i ∈ parameterRegisters, 32 ≤ i.val := by decide
-    exact hp i hi)
-  have heb : e.regs band = β := (her band (by decide)).trans hpb
+  have hep' : BandParameters L m N e := by regs_frame
+  have heb : e.regs band = β := by regs_frame
   obtain ⟨y, hec, hmem, hyp, hyb⟩ := exec_collectBand side β e hep' hβ heb hfit
   refine ⟨y, ?_, hyp, hyb, ?_, ?_⟩
   · simpa only [bandTime, Nat.add_assoc] using hep.seq (hee.seq hec)
   · intro p hp
-    have heq : catalogueAddress L m N side β p =
-        catalogueAddress L m N side β 0 + p := by simp [catalogueAddress]
-    rw [heq, hmem, ArrayCopy.copyPrefix_read hp]
-    exact hev p hp
+    have heq : catalogueAddress L m N side β p = catalogueAddress L m N side β 0 + p := by
+      simp [catalogueAddress]
+    simpa only [heq, hmem, ArrayCopy.copyPrefix_read hp, catalogueValue] using hev p hp
   · intro b hb hc
     rw [hmem, ArrayCopy.copyPrefix_outside hc]
     calc

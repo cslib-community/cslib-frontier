@@ -11,6 +11,8 @@ public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Ba
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Cut
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Consolidate
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.MinPQ
+public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Decode
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Static-array Word-RAM Fibonacci heap
@@ -95,54 +97,50 @@ theorem dispatchCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x :
       FibInv n K_max w base ((indexedMinPQSpec n K_max).stepFn s o).1 y ∧
       Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
       m + potential y ≤ charge n s o + potential x := by
-  have hz0 : x.regs zeroP = 0 := hinv.2.1.regs_zeroP
+  have hcond (r : Fin rFib) : (Cond.eq r zeroP).Holds x ↔ x.regs r = 0 := by
+    simp [Cond.Holds, hinv.2.1.regs_zeroP]
   cases o with
   | isEmpty =>
     obtain ⟨ht2, ht1, ht0⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := isEmptyCode_exec hinv
     refine ⟨y, m + 1 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_pos c0 he)), hdec, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_pos ((hcond tag1).2 ht1) (Exec.branch_pos ((hcond tag0).2 ht0) he)),
+      hdec, hinv_y, hmod, ?_⟩
     simp only [charge, tEmpty]
     omega
   | getKey v =>
     obtain ⟨ht2, ht1, ht0, hv_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := getKeyCode_exec v hinv hv_reg
     refine ⟨y, m + 2 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_neg c0 he)), hdec, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_pos ((hcond tag1).2 ht1) (Exec.branch_neg (mt (hcond tag0).1 ht0) he)),
+      hdec, hinv_y, hmod, ?_⟩
     simp only [charge, tGet]
     omega
   | insert v k =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
       insertCode_exec v k hinv hval hv_reg hk_reg
     refine ⟨y, m + 1 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_pos c0 he)), rfl, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_neg (mt (hcond tag1).1 ht1) (Exec.branch_pos ((hcond tag0).2 ht0) he)),
+      rfl, hinv_y, hmod, ?_⟩
     simp only [charge, tIns]
     omega
   | decreaseKey v k =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
       decreaseKeyCode_exec v k hinv hval hv_reg hk_reg
     refine ⟨y, m + 2 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_neg c0 he)), rfl, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_neg (mt (hcond tag1).1 ht1) (Exec.branch_neg (mt (hcond tag0).1 ht0) he)),
+      rfl, hinv_y, hmod, ?_⟩
     simp only [charge, tDec]
     omega
   | extractMin =>
-    have c2 : ¬(Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact harg
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := extractMinCode_exec hinv
-    refine ⟨y, m + 2, Exec.branch_neg c2 he, hdec, hinv_y, hmod, ?_⟩
+    refine ⟨y, m + 2, Exec.branch_neg (mt (hcond tag2).1 harg) he, hdec, hinv_y, hmod, ?_⟩
     simp only [charge, tExt]
     omega
 
@@ -206,24 +204,50 @@ abbrev pkgStd : PQPackage .standard rFib := pkg.toStandard
 
 /-! ## Standalone `Basis.standard` `DynamicProgram` and `Amortized` implementations -/
 
+/-- Native conversion normalizes the presence flag and copies lookup keys to the canonical
+payload slot. Its eight-instruction allowance is charged on every standalone call. -/
+def resultRecoding {n K_max w base : ℕ} (hS : Fits w (base + space n)) (hK : Fits w K_max) :
+    NativeResultRecoding (indexedMinPQSpec n K_max).Result .standard rFib w
+      (impl hS hK).toStandard.decode (impl hS hK).toStandard.rep
+      (impl hS hK).toStandard.potential :=
+  code.toStandard.nativeResultRecoding (impl hS hK).toStandard zeroP
+    (hS.of_le (by unfold space; lia)) (fun ⟨_, hregs, _⟩ => hregs.regs_zeroP)
+    (by decide) (by decide) (by decide) (by decide) (by decide) rfl
+
+/-- The source body preserves the opcode bits consumed by native result conversion. -/
+theorem resultRecoding_ready {n K_max w base : ℕ}
+    (hS : Fits w (base + space n)) (hK : Fits w K_max)
+    {s x o y m} (_hr : (impl hS hK).toStandard.rep s x)
+    (_hv : (indexedMinPQSpec n K_max).valid s o)
+    (harg : (impl hS hK).toStandard.argMatch o x.regs)
+    (he : Exec w code.toStandard.code x y m) : (resultRecoding hS hK).ready o y := by
+  change code.argMatch o x.regs at harg
+  have h2 : y.regs tag2 = x.regs tag2 := he.regs_eq (by decide)
+  have h1 : y.regs tag1 = x.regs tag1 := he.regs_eq (by decide)
+  have h0 : y.regs tag0 = x.regs tag0 := he.regs_eq (by decide)
+  change code.toStandard.nativeResultReady o y
+  cases o <;>
+    simp_all only [PQCode.nativeResultReady, PQCode.argMatch, PQCode.toStandard,
+      PQCode.mapSimulates, code] <;> tauto
+
 /-- Standalone `DynamicProgram` implementation of `FibonacciHeap` over `Basis.standard`. -/
 def dynamicProgram {n K_max w base : ℕ} (hS : Fits w (base + space n)) (hK : Fits w K_max) :
     DynamicProgram (indexedMinPQSpec n K_max) rFib :=
-  (impl (n := n) (K_max := K_max) hS hK).toStandard.toDynamicProgram
+  (impl (n := n) (K_max := K_max) hS hK).toStandard.toDynamicProgram (resultRecoding hS hK)
 
 /-- Standalone `DynamicCertificate` for `FibonacciHeap` over `Basis.standard`. -/
 def certificate {n K_max w base : ℕ} (hS : Fits w (base + space n)) (hK : Fits w K_max) :
     DynamicCertificate (dynamicProgram hS hK) w :=
-  (impl hS hK).toStandard.toCertificate
+  (impl hS hK).toStandard.toCertificate (resultRecoding hS hK) (resultRecoding_ready hS hK)
 
 /-- Standalone `Amortized` certificate for `FibonacciHeap` over `Basis.standard`, charging
-`+ 1` per operation for the trailing `halt` instruction. -/
+eight conversion instructions and one trailing `halt` per operation. -/
 theorem amortized {n K_max w base : ℕ} (hS : Fits w (base + space n)) (hK : Fits w K_max) :
     Amortized (certificate hS hK).impl
       DynamicProgram.OperationTrace.instructions
       (fun _ x => potential x)
-      (fun s o => charge n s o + 1) :=
-  (impl hS hK).toStandard.toAmortized
+      (fun s o => charge n s o + 9) :=
+  (impl hS hK).toStandard.toAmortized (resultRecoding hS hK) (resultRecoding_ready hS hK)
 
 /-- Adaptive-client amortized execution bound for any admissible `IndexedMinPQ` client `p` over
 `Basis.standard`. -/
@@ -237,9 +261,10 @@ theorem run_client_amortized {n K_max w base : ℕ} (hS : Fits w (base + space n
         ((indexedMinPQSpec n K_max).runClient s p).1 y traces ∧
       FibInv n K_max w base ((indexedMinPQSpec n K_max).runClient s p).2.1 y ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces + potential y ≤
-        (indexedMinPQSpec n K_max).totalCost (fun s o => charge n s o + 1) s
+        (indexedMinPQSpec n K_max).totalCost (fun s o => charge n s o + 9) s
           ((indexedMinPQSpec n K_max).runClient s p).2.2 + potential x :=
-  (impl hS hK).toStandard.run_client_amortized p hr hv
+  (impl hS hK).toStandard.run_client_amortized
+    (resultRecoding hS hK) (resultRecoding_ready hS hK) p hr hv
 
 /-! ## Standalone end-to-end `Basis.exact` flat-program operation-sequence theorems -/
 
@@ -363,7 +388,7 @@ private theorem initRegs_bounded {n base w : ℕ} (hS : Fits w (base + space n))
   refine ⟨fun i => ?_, hmem⟩
   simp only [initRegs]
   split_ifs
-  · exact hS.of_le (by simp only [space]; omega)
+  · exact hS.of_le (by wram_omega)
   · exact hS.of_le (Nat.le_add_right base _)
   · exact hS.of_le (Nat.zero_le _)
 
@@ -383,22 +408,13 @@ theorem run_ops_exact_fresh {n K_max w base : ℕ} (hS : Fits w (base + space n)
       t_ops ≤
         421 * (numQueries ops + numInserts ops + numDecreaseKeys ops +
           numExtractMins ops * (Nat.log 2 n + 1)) := by
-  let d₀ : Data rFib := ⟨initRegs n base, mem₀⟩
-  have hfr_eq : d₀.regs frontierReg = base := by
-    simp only [d₀, initRegs, show frontierReg ≠ nReg by decide, ↓reduceIte]
-  have hpar : ∀ j : Fin 1, d₀.regs (![nReg] j) = ![n] j := fun j => by
-    fin_cases j; rfl
   obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hinv₀, hpot₀, hmod₀⟩ :=
-    (impl (K_max := K_max) hS hK).initFresh_exec (initRegs_bounded hS hmem) hfr_eq hpar
-      hzero
-  have hruns₀ : Runs w initFreshProg ⟨0, d₀⟩
-      ⟨0 + code.toSubroutineCode.initFresh.size, x₀⟩ t_init :=
-    he_init.runs (pc := 0) (p := initFreshProg) (Program.Contains.self _).append_left
-  have hhalt₀ : step w initFreshProg ⟨0 + code.toSubroutineCode.initFresh.size, x₀⟩ =
-      .halt (x₀.regs outFlag) :=
-    step_program_halt code.toSubroutineCode.initFresh outFlag x₀
+    (impl (K_max := K_max) hS hK).initFresh_exec (initRegs_bounded hS hmem) rfl
+      (Fin.forall_fin_one.2 rfl) hzero
   obtain ⟨z, t_ops, hruns_ops, _, hbound⟩ := seq_runsOps hS hK ops hinv₀ hv
-  refine ⟨_, x₀, t_init, z, t_ops, hruns₀, ⟨_, hhalt₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
+  refine ⟨_, x₀, t_init, z, t_ops,
+    he_init.runs (pc := 0) (p := initFreshProg) (Program.Contains.self _).append_left,
+    ⟨_, step_program_halt code.toSubroutineCode.initFresh outFlag x₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
   · change t_init ≤ 26 at ht_init
     omega
   · change potential x₀ ≤ 0 at hpot₀
@@ -419,21 +435,13 @@ theorem run_ops_exact_reusable {n K_max w base : ℕ} (hS : Fits w (base + space
       t_ops ≤
         421 * (numQueries ops + numInserts ops + numDecreaseKeys ops +
           numExtractMins ops * (Nat.log 2 n + 1)) := by
-  let d₀ : Data rFib := ⟨initRegs n base, mem₀⟩
-  have hfr_eq : d₀.regs frontierReg = base := by
-    simp only [d₀, initRegs, show frontierReg ≠ nReg by decide, ↓reduceIte]
-  have hpar : ∀ j : Fin 1, d₀.regs (![nReg] j) = ![n] j := fun j => by
-    fin_cases j; rfl
   obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hinv₀, hpot₀, hmod₀⟩ :=
-    (impl (K_max := K_max) hS hK).initClear_exec (initRegs_bounded hS hmem) hfr_eq hpar
-  have hruns₀ : Runs w initClearProg ⟨0, d₀⟩
-      ⟨0 + code.toSubroutineCode.initClear.size, x₀⟩ t_init :=
-    he_init.runs (pc := 0) (p := initClearProg) (Program.Contains.self _).append_left
-  have hhalt₀ : step w initClearProg ⟨0 + code.toSubroutineCode.initClear.size, x₀⟩ =
-      .halt (x₀.regs outFlag) :=
-    step_program_halt code.toSubroutineCode.initClear outFlag x₀
+    (impl (K_max := K_max) hS hK).initClear_exec (initRegs_bounded hS hmem) rfl
+      (Fin.forall_fin_one.2 rfl)
   obtain ⟨z, t_ops, hruns_ops, _, hbound⟩ := seq_runsOps hS hK ops hinv₀ hv
-  refine ⟨_, x₀, t_init, z, t_ops, hruns₀, ⟨_, hhalt₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
+  refine ⟨_, x₀, t_init, z, t_ops,
+    he_init.runs (pc := 0) (p := initClearProg) (Program.Contains.self _).append_left,
+    ⟨_, step_program_halt code.toSubroutineCode.initClear outFlag x₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
   · change t_init ≤ 26 + 4 * (9 * n + 1) + 6 at ht_init
     omega
   · change potential x₀ ≤ 0 at hpot₀

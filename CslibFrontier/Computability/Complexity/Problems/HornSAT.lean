@@ -65,13 +65,10 @@ variable {V : Type*} [DecidableEq V]
 theorem enabled_eq_true_iff (s : List V) (c : Clause V) :
     enabled s c = true ↔ ∀ l ∈ c, l.2 = false → l.1 ∈ s := by
   simp only [enabled, List.all_eq_true, Bool.or_eq_true, List.contains_iff_mem]
-  constructor
-  · intro h l hl hn
-    simpa [hn] using h l hl
-  · intro h l hl
-    cases hs : l.2
-    · exact Or.inr (h l hl hs)
-    · exact Or.inl rfl
+  refine ⟨fun h l hl hn => by simpa [hn] using h l hl, fun h l hl => ?_⟩
+  cases hs : l.2
+  · exact Or.inr (h l hl hs)
+  · exact Or.inl rfl
 
 theorem mem_step (φ : CNF V) (s : List V) (v : V) :
     v ∈ step φ s ↔ v ∈ φ.vars ∧
@@ -112,12 +109,9 @@ theorem forced_le_model {φ : CNF V} (hφ : φ.IsHorn) {σ : V → Bool}
         ((CNF.eval_eq_true_iff _ _).mp hσ c hc)
       cases hs : l.2 with
       | false =>
-        have hmem := (enabled_eq_true_iff _ _).mp hen l hl hs
-        have ht := ih l.1 hmem
+        have ht := ih l.1 ((enabled_eq_true_iff _ _).mp hen l hl hs)
         simp_all
-      | true =>
-        have heq := (hφ c hc).positive_unique hl hvc hs rfl
-        simpa [heq] using hsl
+      | true => simpa [(hφ c hc).positive_unique hl hvc hs rfl] using hsl
 
 /-- The loop reaches a fixed point within the number of distinct occurring variables plus one
 passes. The bound is independent of their numerical labels and repeated occurrences. -/
@@ -125,59 +119,55 @@ theorem forced_fixed (φ : CNF V) :
     step φ (forced φ (φ.numVars + 1)) = forced φ (φ.numVars + 1) := by
   classical
   let s (n : ℕ) := (forced φ n).toFinset
-  have hincl (n : ℕ) : s n ⊆ s (n + 1) := by
-    intro v hv
-    exact List.mem_toFinset.mpr (forced_subset_succ φ n (List.mem_toFinset.mp hv))
-  have hmono : Monotone (fun n => (s n).card) :=
-    monotone_nat_of_le_succ fun n => Finset.card_le_card (hincl n)
-  have hbound (n : ℕ) : (s n).card ≤ φ.numVars := by
-    have hsub : s n ⊆ φ.vars.toFinset := by
-      intro v hv
-      exact List.mem_toFinset.mpr ((forced_sublist φ n).subset (List.mem_toFinset.mp hv))
-    exact Finset.card_le_card hsub
-  have heq (n : ℕ) (h : (s n).card = (s (n + 1)).card) : s n = s (n + 1) :=
-    Finset.eq_of_subset_of_card_le (hincl n) h.ge
-  have hnext (n : ℕ) (h : (s n).card = (s (n + 1)).card) :
-      forced φ (n + 1) = forced φ (n + 2) := by
-    have hm (v : V) : v ∈ forced φ n ↔ v ∈ forced φ (n + 1) := by
-      have hm := Finset.ext_iff.mp (heq n h) v
-      simpa only [s, List.mem_toFinset] using hm
+  have hincl (n) : s n ⊆ s (n + 1) := fun v hv =>
+    List.mem_toFinset.mpr (forced_subset_succ φ n (List.mem_toFinset.mp hv))
+  have hbound (n) : (s n).card ≤ φ.numVars := Finset.card_le_card fun v hv =>
+    List.mem_toFinset.mpr ((forced_sublist φ n).subset (List.mem_toFinset.mp hv))
+  have hnext (n) (h : (s n).card = (s (n + 1)).card) : forced φ (n + 1) = forced φ (n + 2) := by
+    have heq := Finset.eq_of_subset_of_card_le (hincl n) h.ge
+    have hm (v) : v ∈ forced φ n ↔ v ∈ forced φ (n + 1) := by
+      simpa only [s, List.mem_toFinset] using Finset.ext_iff.mp heq v
     simpa only [forced, Function.iterate_succ_apply'] using step_congr φ hm
-  have hstab (n : ℕ) (h : (s n).card = (s (n + 1)).card) :
-      (s (n + 1)).card = (s (n + 2)).card := by
-    simp only [s, hnext n h]
-  have hc := Nat.stabilises_of_monotone hmono hbound hstab
-    (n := φ.numVars + 1) (by omega)
-  have hl := hnext φ.numVars hc.symm
-  simpa only [forced, Function.iterate_succ_apply'] using hl.symm
+  have hc := Nat.stabilises_of_monotone
+    (monotone_nat_of_le_succ fun n => Finset.card_le_card (hincl n)) hbound
+    (fun n h => by simp only [s, hnext n h]) (n := φ.numVars + 1) (by omega)
+  simpa only [forced, Function.iterate_succ_apply'] using (hnext φ.numVars hc.symm).symm
 
 /-- If a model exists, the closed forced assignment satisfies every clause. -/
 theorem eval_assignment_of_satisfiable {φ : CNF V} (hφ : φ.IsHorn)
     (hsat : φ.Satisfiable) : φ.eval (assignment φ) = true := by
   obtain ⟨σ, hσ⟩ := hsat
-  apply (CNF.eval_eq_true_iff _ _).mpr
-  intro c hc
-  obtain ⟨l, hl, hsl⟩ := (Clause.eval_eq_true_iff _ _).mp
-    ((CNF.eval_eq_true_iff _ _).mp hσ c hc)
+  refine (CNF.eval_eq_true_iff _ _).mpr fun c hc => (Clause.eval_eq_true_iff _ _).mpr ?_
   by_cases hen : enabled (forced φ (φ.numVars + 1)) c = true
-  · have hs : l.2 = true := by
+  · obtain ⟨l, hl, hsl⟩ := (Clause.eval_eq_true_iff _ _).mp
+      ((CNF.eval_eq_true_iff _ _).mp hσ c hc)
+    have hs : l.2 = true := by
       cases hs : l.2
-      · have hm := (enabled_eq_true_iff _ _).mp hen l hl hs
-        have ht := forced_le_model hφ hσ _ l.1 hm
+      · have ht := forced_le_model hφ hσ _ l.1 ((enabled_eq_true_iff _ _).mp hen l hl hs)
         simp_all
       · rfl
     have hm : l.1 ∈ step φ (forced φ (φ.numVars + 1)) :=
       (mem_step φ _ _).mpr ⟨CNF.mem_vars.mpr ⟨c, hc, l.2, hl⟩,
         Or.inr ⟨c, hc, by simpa only [← hs, Prod.eta] using hl, hen⟩⟩
     rw [forced_fixed] at hm
-    exact (Clause.eval_eq_true_iff _ _).mpr
-      ⟨l, hl, by simpa [assignment, hs] using hm⟩
-  · have hn : ∃ l ∈ c, l.2 = false ∧ l.1 ∉ forced φ (φ.numVars + 1) := by
-      have hn := mt (enabled_eq_true_iff _ _).mpr hen
-      push Not at hn
-      exact hn
+    exact ⟨l, hl, by simpa [assignment, hs] using hm⟩
+  · have hn := mt (enabled_eq_true_iff _ _).mpr hen
+    push Not at hn
     obtain ⟨k, hk, hs, hm⟩ := hn
-    exact (Clause.eval_eq_true_iff _ _).mpr ⟨k, hk, by simp [assignment, hs, hm]⟩
+    exact ⟨k, hk, by simp [assignment, hs, hm]⟩
+
+/-- The forward-chaining candidate is pointwise at most every satisfying assignment. -/
+theorem assignment_le_of_eval {φ : CNF V} (hφ : φ.IsHorn) {σ : V → Bool}
+    (hσ : φ.eval σ = true) (v : V) : assignment φ v ≤ σ v := by
+  cases h : assignment φ v
+  · exact Bool.false_le _
+  · exact (forced_le_model hφ hσ _ v (List.contains_iff_mem.mp h)).ge
+
+/-- Among all satisfying assignments of a satisfiable Horn formula, `assignment φ` is the
+pointwise-least model. -/
+theorem isLeast_assignment {φ : CNF V} (hφ : φ.IsHorn) (hsat : φ.Satisfiable) :
+    IsLeast {σ : V → Bool | φ.eval σ = true} (assignment φ) :=
+  ⟨eval_assignment_of_satisfiable hφ hsat, fun _ hσ v => assignment_le_of_eval hφ hσ v⟩
 
 /-- Correctness of the executable decider for ordinary HornSAT. -/
 theorem solve_eq_true_iff (φ : CNF V) : solve φ = true ↔ φ.IsHorn ∧ φ.Satisfiable := by
@@ -226,6 +216,15 @@ theorem computableInPolyTime_solve :
 /-- Ordinary HornSAT is in native multi-tape polynomial time under `encCNF`. -/
 theorem mem_P : HornSAT ∈ P encCNF :=
   ⟨solve, computableInPolyTime_solve, fun φ => (solve_eq_true_iff φ).symm⟩
+
+/-- **The least Horn model need not be the only model**: `[[(0, false), (1, true)]]` (`x₀ → x₁`) is
+in `HornSAT`, its least model `assignment` sets every variable to `false`, yet `v ↦ (v == 1)` is a
+second satisfying model differing on the occurring variable `1`. -/
+theorem exists_multiple_models :
+    ∃ (φ : CNF ℕ) (σ : ℕ → Bool),
+      φ ∈ HornSAT ∧ φ.eval σ = true ∧ (∃ v ∈ φ.vars, σ v ≠ assignment φ v) :=
+  ⟨[[(0, false), (1, true)]], fun v => v == 1, (solve_eq_true_iff _).mp (by decide), by decide,
+    1, by decide, by decide⟩
 
 end HornSAT
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.AuxiliaryTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Saved-coin replay with external oracle channels
@@ -95,9 +96,7 @@ theorem run_two [DecidableEq Oracle] {Query : Type} {spec : OracleSpec Query}
   cases hs : cfg.tapes.state with
   | none =>
     simp only [map_pure]
-    congr 1
-    simpa [hs] using
-      step_move cfg tape (position + 1) (some bit) none 0
+    exact congrArg pure (by simpa [hs] using step_move cfg tape (position + 1) (some bit) none 0)
   | some state =>
     dsimp only
     cases ht : machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
@@ -139,14 +138,13 @@ theorem run_coins [DecidableEq Oracle] {Query : Type} {spec : OracleSpec Query}
     simpa using run_stop machine query cfg tape position (by simpa using hstop)
   | cons bit coins ih =>
     have hcell : tape position = some bit := by simpa using hcoins 0 (by simp)
-    have htail (i : ℕ) (hi : i < coins.length) :
-        tape (position + 1 + i) = coins[i]? := by
-      have h := hcoins (i + 1) (by simp only [List.length_cons]; omega)
-      simpa [Int.natCast_add, add_assoc, add_comm, add_left_comm] using h
+    have htail (i : ℕ) (hi : i < coins.length) : tape (position + 1 + i) = coins[i]? := by
+      simpa [Int.natCast_add, add_assoc, add_comm, add_left_comm] using
+        hcoins (i + 1) (Nat.succ_lt_succ hi)
     have hend : tape (position + 1 + coins.length) = none := by
       simpa [add_assoc, add_comm, add_left_comm] using hstop
-    rw [List.length_cons, show 2 * (coins.length + 1) + 1 = 2 + (2 * coins.length + 1) by omega]
-    rw [runConfigFrom, MultiTapeMachine.runConfigFrom_add]
+    rw [List.length_cons, show 2 * (coins.length + 1) + 1 = 2 + (2 * coins.length + 1) by omega,
+      runConfigFrom, MultiTapeMachine.runConfigFrom_add]
     change (machine.replayWithOracle.runConfigFrom (pure false) query 2
       (config cfg tape position none) >>= _) = _
     rw [run_two machine query cfg tape position bit hcell]
@@ -197,14 +195,10 @@ theorem run_interpret_coin_independent [DecidableEq Oracle]
       cases hs : cfg.tapes.state with
       | none => simp [MultiTapeMachine.runConfigFrom, hs]
       | some state =>
-        simp only [MultiTapeMachine.runConfigFrom, hs, replayWithOracle, bind_map_left,
-          OracleComp.interpret_bind, StateT.run_bind, hcoin,
-          PMF.bind_map, PMF.bind_const, Function.comp_def, map_pure, pure_bind,
-          Probability.PMF.monad_bind_eq_bind, id_eq]
+        simp only [MultiTapeMachine.runConfigFrom, hs, replayWithOracle, bind_map_left, interp_norm,
+          pmf_norm, hcoin, PMF.bind_const, map_pure, pure_bind, id_eq]
         exact (PMF.map_id _).symm) fuel cfg s
-  have hmap := PMF.map_id ((OracleComp.interpret oracle
-    (machine.replayWithOracle.runConfigFrom (pure false) query fuel cfg)).run s)
-  simpa only [one_mul, runConfigFrom, id_eq] using h.trans hmap
+  simpa only [one_mul, runConfigFrom, id_eq] using h.trans (PMF.map_id _)
 
 end ReplayWithOracle
 

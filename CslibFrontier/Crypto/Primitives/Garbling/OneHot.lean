@@ -66,14 +66,17 @@ def bitOffset [Zero L] (Δ : L) (b : Bool) : L := if b then Δ else 0
 
 @[simp] theorem bitOffset_false [Zero L] (Δ : L) : bitOffset Δ false = 0 := rfl
 
+/-- For an element `Δ` of order at most two, the offset selected by a sum of bits is the sum of
+the offsets. -/
+theorem bitOffset_add_of_add_self [AddCommMonoid L] {Δ : L} (hΔ : Δ + Δ = 0) (a b : Bool) :
+    bitOffset Δ (a + b) = bitOffset Δ a + bitOffset Δ b := by
+  cases a <;> cases b <;>
+    first | exact (add_zero _).symm | exact (zero_add _).symm | exact hΔ.symm
+
 /-- In characteristic two, the offset selected by a sum of bits is the sum of the offsets. -/
 theorem bitOffset_add [AddCommGroup L] [Module (ZMod 2) L] (Δ : L) (a b : Bool) :
-    bitOffset Δ (a + b) = bitOffset Δ a + bitOffset Δ b := by
-  cases a <;> cases b
-  · exact (add_zero _).symm
-  · exact (zero_add _).symm
-  · exact (add_zero _).symm
-  · exact (ZModModule.add_self Δ).symm
+    bitOffset Δ (a + b) = bitOffset Δ a + bitOffset Δ b :=
+  bitOffset_add_of_add_self (ZModModule.add_self Δ) a b
 
 /-- In characteristic two, `bitOffset Δ` is an additive map from `Bool` with `+ = xor`. -/
 def bitOffsetHom [AddCommGroup L] [Module (ZMod 2) L] (Δ : L) : Bool →+ L where
@@ -113,10 +116,7 @@ theorem tableMul_add [Fintype ι] [AddCommMonoid L] (T : ι → κ → Bool) (X 
     tableMul T (X + Y) = tableMul T X + tableMul T Y := by
   funext u
   simp only [tableMul, Pi.add_apply, ← Finset.sum_add_distrib]
-  refine Finset.sum_congr rfl fun j _ => ?_
-  split_ifs
-  · rfl
-  · exact (add_zero 0).symm
+  exact Finset.sum_congr rfl fun j _ => by cases T j u <;> first | rfl | exact (add_zero 0).symm
 
 /-- **Free-XOR linearity**: in characteristic two, the product of a table with the offsets of a
 bit vector `v` is the offset of the product of the table with `v`. -/
@@ -137,9 +137,8 @@ theorem tableMul_oneHotLabels [Fintype ι] [DecidableEq ι] [AddCommGroup L] (T 
     (G : ι → L) (Δ : L) (x : ι) :
     tableMul T (fun j => G j + bitOffset Δ (oneHot x j)) =
       fun u => tableMul T G u + bitOffset Δ (T x u) := by
-  have hsplit : (fun j => G j + bitOffset Δ (oneHot x j)) =
-      G + fun j => bitOffset Δ (oneHot x j) := rfl
-  rw [hsplit, tableMul_add]
+  change tableMul T (G + fun j => bitOffset Δ (oneHot x j)) = _
+  rw [tableMul_add]
   funext u
   refine congrArg (tableMul T G u + ·) ?_
   simp only [tableMul]

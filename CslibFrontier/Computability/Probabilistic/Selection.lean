@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Strict PPT empirical selection
@@ -55,32 +56,23 @@ theorem IsPPTOn.selectBest {α : Type} {input : α ↪ List Bool}
       (fun pair => test pair.1 pair.2.1) :=
     htest.preprocess (prepare := fun pair : α × (ℕ × ℕ × ℕ) => (pair.1, pair.2.1))
       (by dsimp only [stateEncoding]; fun_prop)
-  have htrials' : ComputableInPolyTime (fun pair : α × (ℕ × ℕ × ℕ) => trials pair.1)
-      (encPair input stateEncoding) encUnary := by fun_prop
   have hstep : IsPPTOn (encPair input stateEncoding) stateEncoding
       (fun pair => OracleComp.selectStep (trials pair.1) (test pair.1) pair.2) := by
     unfold OracleComp.selectStep
-    apply (htest'.countTrue htrials').map_with
+    apply (htest'.countTrue (by fun_prop)).map_with
     have hupd : ComputableInPolyTime
         (fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ =>
           (pair.1.2.1 + 1,
             if pair.1.2.2.2 ≤ pair.2 then (pair.1.2.1, pair.2) else pair.1.2.2))
         (encPair (encPair input stateEncoding) encUnary) stateEncoding := by
       dsimp only [stateEncoding]
-      apply ComputableInPolyTime.prod
-      · exact ComputableInPolyTime.unary_succ.comp (by fun_prop)
-      · have hc := ComputableInPolyTime.unary_le'
-          (by fun_prop : ComputableInPolyTime
-            (fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ => pair.1.2.2.2)
-            (encPair (encPair input (encPair encUnary (encPair encUnary encUnary))) encUnary)
-            encUnary)
-          (by fun_prop : ComputableInPolyTime
-            (fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ => pair.2)
-            (encPair (encPair input (encPair encUnary (encPair encUnary encUnary))) encUnary)
-            encUnary)
-        simpa only [decide_eq_true_eq] using hc.ite (by fun_prop) (by fun_prop)
+      refine ComputableInPolyTime.prod (ComputableInPolyTime.unary_succ.comp (by fun_prop)) ?_
+      exact ComputableInPolyTime.ite_decide
+        (ComputableInPolyTime.unary_le' (left := fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ => pair.1.2.2.2)
+          (right := fun pair => pair.2) (by fun_prop) (by fun_prop))
+        (by fun_prop) (by fun_prop)
     exact hupd.of_enc_eq fun ⟨⟨_, ⟨_, _, _⟩⟩, _⟩ => rfl
-  have hloop := (IsPPTOn.iterateWith_spec'
+  have hloop := (IsPPTOn.iterateWith_spec
     (stateEncoding := stateEncoding) (initial := fun _ => (0, 0, 0))
     (step := fun a s => OracleComp.selectStep (trials a) (test a) s)
     hcount (by dsimp only [stateEncoding]; fun_prop) hstep
@@ -92,8 +84,7 @@ theorem IsPPTOn.selectBest {α : Type} {input : α ↪ List Bool}
     (ComputableInPolyTime.polyBounded (by fun_prop)) (by
       intro a i state hi hstate
       dsimp only [stateEncoding]
-      simp only [length_encPair, encUnary_apply, List.length_replicate]
-      lia)).1
+      enc_len)).1
   have hproj : ComputableInPolyTime (fun s : ℕ × ℕ × ℕ => s.2.1) stateEncoding encUnary := by
     dsimp only [stateEncoding]; fun_prop
   exact hloop.map (hproj.of_enc_eq fun ⟨_, _, _⟩ => rfl)
@@ -114,11 +105,9 @@ theorem IsPPTOn.selectFrom {α β : Type} {input : α ↪ List Bool} {output : �
       (ComputableInPolyTime.listGetD (encA := output) fallback).comp
         ((hvalues.comp (ComputableInPolyTime.fst input encUnary)).prod
           (ComputableInPolyTime.snd input encUnary))
-  have htest' := htest.preprocess
-    ((ComputableInPolyTime.fst input encUnary).prod hget)
-  have hlength := (ComputableInPolyTime.length_list output).comp hvalues
   simpa only [OracleComp.selectFrom, bind_pure_comp, Function.comp_def] using
-    (IsPPTOn.selectBest htest' hlength htrials).map_with hget
+    (IsPPTOn.selectBest (htest.preprocess ((ComputableInPolyTime.fst input encUnary).prod hget))
+      ((ComputableInPolyTime.length_list output).comp hvalues) htrials).map_with hget
 
 /-- Sampling a polynomial candidate pool and selecting empirically is a uniform strict PPT
 program. Both the generator and the validation test may capture the original input. -/
@@ -134,9 +123,9 @@ theorem IsPPTOn.sampleBest {α β : Type} {input : α ↪ List Bool} {output : �
   have htest' : IsPPTOn (encPair (encPair input (encList output)) output) encBool
       (fun p => test p.1.1 p.2) := htest.preprocess
     (prepare := fun p : (α × List β) × β => (p.1.1, p.2)) (by fun_prop)
-  have hselect := IsPPTOn.selectFrom (test := fun p : α × List β => test p.1) fallback
-    (ComputableInPolyTime.snd input (encList output))
-    (htrials.comp (ComputableInPolyTime.fst input (encList output))) htest'
-  exact (hsource.replicate hcount).bind_with hselect
+  exact (hsource.replicate hcount).bind_with <|
+    IsPPTOn.selectFrom (test := fun p : α × List β => test p.1) fallback
+      (ComputableInPolyTime.snd input (encList output))
+      (htrials.comp (ComputableInPolyTime.fst input (encList output))) htest'
 
 end Cslib.Probability

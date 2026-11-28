@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.PRG.NextBit
 public import Mathlib.Data.Finset.Sort
 public import Mathlib.Logic.Function.DependsOn
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PMFSwap
@@ -140,7 +141,7 @@ theorem Design.extend_apply_of_notMem (i : Fin m) (x : Fin n → α) (w : Fin �
 @[simp]
 theorem Design.restrict_extend (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α) :
     D.restrict i (D.extend i x w) = x := by
-  ext k
+  ext
   simp
 
 /-- Overwriting the `i`-th block of `z` by its own bits gives `z`. -/
@@ -156,9 +157,7 @@ theorem Design.extend_restrict (i : Fin m) (z : Fin ℓ → α) : D.extend i (D.
 theorem Design.extend_extend (i : Fin m) (x y : Fin n → α) (w : Fin ℓ → α) :
     D.extend i y (D.extend i x w) = D.extend i y w := by
   ext k
-  by_cases hk : k ∈ D.block i
-  · simp only [Design.extend, dite_eq_left hk]
-  · simp only [Design.extend, dite_eq_right hk]
+  by_cases hk : k ∈ D.block i <;> simp [Design.extend, hk]
 
 /-- The positions of the `i`-th block lying in the `j`-th block are as many as the elements the
 two blocks share. -/
@@ -188,9 +187,9 @@ theorem Design.dependsOn_restrict_extend (i j : Fin m) (w : Fin ℓ → α) :
   ext k
   simp only [Design.restrict_apply, Design.extend]
   split_ifs with h
-  · refine hxy _ ?_
-    simp only [Design.overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
-      orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem]
+  · exact hxy _ (by
+      simp only [Design.overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
+        orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem])
   · rfl
 
 /-- The map `(w, x) ↦ (D.extend i x w, D.restrict i w)`, swapping the `i`-th block of `w` with
@@ -215,13 +214,6 @@ private theorem Design.uniformOfFintype_bind_eq {β : Type*} (D : Design ℓ n a
       (uniformOfFintype (Fin n → α)).bind fun x => F (D.extend i x w) :=
   (uniformOfFintype_bind_bind_fst_equiv
     (Function.Involutive.toPerm _ (D.involutive_extend_restrict (α := α) i)) F).symm
-
-private theorem toReal_uniformOfFintype_map_decide_apply_true {β : Type*} [Fintype β]
-    [Nonempty β] (p : β → Prop) [DecidablePred p] :
-    (((uniformOfFintype β).map fun b => decide (p b)) true).toReal =
-      (#{b | p b} : ℝ) / Fintype.card β := by
-  rw [PMF.map_apply, tsum_fintype]
-  simp [sum_ite, div_eq_mul_inv]
 
 end Uniform
 
@@ -263,7 +255,8 @@ theorem predictionExperiment_generator (D : Design ℓ n a m) (f : (Fin n → Bo
       (do
         let w ← uniformOfFintype (Fin ℓ → Bool)
         hardwiredExperiment D f i w predictor) := by
-  simp only [Generator.predictionExperiment, Generator.outputDist, monad_bind_eq_bind, PMF.bind_map]
+  simp only [Generator.predictionExperiment_eq_bind, Generator.outputDist, monad_bind_eq_bind,
+    PMF.bind_map]
   rw [D.uniformOfFintype_bind_eq i]
   simp only [Function.comp_apply, generator_apply, Design.restrict_extend]
   rfl
@@ -331,7 +324,7 @@ theorem exists_half_add_div_le_card_nextBitGuess_eq (D : Design ℓ n a m)
   refine ⟨i, w, r, u, h.trans ?_⟩
   calc _ ≤ _ := ENNReal.toReal_mono (PMF.apply_ne_top _ _) (hr.trans hu)
     _ = _ := by
-      rw [toReal_uniformOfFintype_map_decide_apply_true]
+      rw [toReal_uniformOfFintype_map_apply_true, dens_eq_card_div_card]
       simp
 
 /-- **The Nisan–Wigderson reconstruction for deterministic tests**, as a statement about

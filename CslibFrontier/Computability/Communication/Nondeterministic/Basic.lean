@@ -177,7 +177,7 @@ theorem isCover_fun_iff {κ : Type*} {C : κ → Set X × Set Y} :
 
 /-- A cover by `2 ^ k` rectangles bounds the complexity by `k`. -/
 theorem HasCover.ecomplexity_le (h : HasCover z R A B k) : ecomplexity z R A B ≤ k :=
-  iInf_le (fun k : {k : ℕ // HasCover z R A B k} => (k.1 : ℕ∞)) ⟨k, h⟩
+  ENat.iInf_subtype_natCast_le (d := id) h
 
 /-- A cover by `2 ^ j` rectangles gives one by `2 ^ k` rectangles for `j ≤ k`: ignore the extra
 guessed bits. -/
@@ -191,15 +191,14 @@ theorem HasCover.mono_bits (hjk : j ≤ k) (h : HasCover z R A B j) : HasCover z
 /-- Lower bounds on nondeterministic complexity are lower bounds on the number of guessed bits of
 every cover. -/
 theorem le_ecomplexity_iff {c : ℕ∞} :
-    c ≤ ecomplexity z R A B ↔ ∀ k, HasCover z R A B k → c ≤ k := by
-  simp [ecomplexity, le_iInf_iff, Subtype.forall]
+    c ≤ ecomplexity z R A B ↔ ∀ k, HasCover z R A B k → c ≤ k :=
+  ENat.le_iInf_subtype_natCast_iff (d := id)
 
 /-- `R` has nondeterministic complexity at most `k` exactly when it has a `z`-cover by `2 ^ k`
 rectangles. -/
-theorem ecomplexity_le_iff : ecomplexity z R A B ≤ k ↔ HasCover z R A B k := by
-  refine ⟨fun h => ?_, HasCover.ecomplexity_le⟩
-  obtain ⟨⟨j, hj⟩, hjk⟩ := ENat.iInf_natCast_le_natCast_iff.mp h
-  exact hj.mono_bits hjk
+theorem ecomplexity_le_iff : ecomplexity z R A B ≤ k ↔ HasCover z R A B k :=
+  (ENat.iInf_subtype_natCast_le_natCast_iff (d := id)).trans
+    ⟨fun ⟨_, hj, hjk⟩ => hj.mono_bits hjk, fun h => ⟨k, h, le_rfl⟩⟩
 
 /-- `ecomplexity_le_iff` for functions. -/
 theorem ecomplexityFun_le_iff :
@@ -215,22 +214,22 @@ theorem le_ecomplexityFun_iff {c : ℕ∞} :
 
 /-- A cover on `A × B` is a cover on any smaller domain. -/
 theorem HasCover.mono (hA : A' ⊆ A) (hB : B' ⊆ B) (h : HasCover z R A B k) :
-    HasCover z R A' B' k := by
-  obtain ⟨C, hmem, hcov⟩ := h
-  exact ⟨C, fun w x hx hxC y hy hyC => hmem w x (hA hx) hxC y (hB hy) hyC,
+    HasCover z R A' B' k :=
+  let ⟨C, hmem, hcov⟩ := h
+  ⟨C, fun w x hx hxC y hy hyC => hmem w x (hA hx) hxC y (hB hy) hyC,
     fun x hx y hy hR => hcov x (hA hx) y (hB hy) hR⟩
 
 /-- A cover of `R` is a cover of every weaker relation. -/
 theorem HasCover.of_imp (hR : ∀ x y b, R x y b → R' x y b) (h : HasCover z R A B k) :
-    HasCover z R' A B k := by
-  obtain ⟨C, hmem, hcov⟩ := h
-  exact ⟨C, fun w x hx hxC y hy hyC => hR x y z (hmem w x hx hxC y hy hyC),
+    HasCover z R' A B k :=
+  let ⟨C, hmem, hcov⟩ := h
+  ⟨C, fun w x hx hxC y hy hyC => hR x y z (hmem w x hx hxC y hy hyC),
     fun x hx y hy hR' => hcov x hx y hy fun h => hR' (hR x y _ h)⟩
 
 /-- Nondeterministic complexity is monotone in the domain. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
     ecomplexity z R A' B' ≤ ecomplexity z R A B :=
-  le_ecomplexity_iff.mpr fun _ hk => (hk.mono hA hB).ecomplexity_le
+  ENat.iInf_subtype_natCast_mono (d := id) fun _ hk => hk.mono hA hB
 
 /-- `ecomplexity_mono` for functions. -/
 theorem ecomplexityFun_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
@@ -240,14 +239,14 @@ theorem ecomplexityFun_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
 /-- A weaker relation is no harder. -/
 theorem ecomplexity_le_of_imp (hR : ∀ x y b, R x y b → R' x y b) :
     ecomplexity z R' A B ≤ ecomplexity z R A B :=
-  le_ecomplexity_iff.mpr fun _ hk => (hk.of_imp hR).ecomplexity_le
+  ENat.iInf_subtype_natCast_mono (d := id) fun _ hk => hk.of_imp hR
 
 /-! ### Negation -/
 
 /-- Exchanging the answers exchanges `N⁰` and `N¹`. -/
 theorem ecomplexity_not :
     ecomplexity z (fun x y b => R x y (!b)) A B = ecomplexity (!z) R A B := by
-  have hiff : ∀ k, HasCover z (fun x y b => R x y (!b)) A B k ↔ HasCover (!z) R A B k := fun k => by
+  have hiff (k) : HasCover z (fun x y b => R x y (!b)) A B k ↔ HasCover (!z) R A B k := by
     simp only [HasCover, IsCover, Bool.not_not]
   exact le_antisymm (le_ecomplexity_iff.mpr fun k hk => ((hiff k).mpr hk).ecomplexity_le)
     (le_ecomplexity_iff.mpr fun k hk => ((hiff k).mp hk).ecomplexity_le)
@@ -269,30 +268,19 @@ theorem IsCover.card_le {κ : Type*} [Fintype κ] {C : κ → Set X × Set Y} {S
     #S ≤ Fintype.card κ := by
   classical
   obtain ⟨hmem, hcov⟩ := isCover_fun_iff.mp hC
-  have hw : ∀ q ∈ S, ∃ w, q.1 ∈ (C w).1 ∧ q.2 ∈ (C w).2 := fun q hq =>
-    hcov _ (hSAB q hq).1 _ (hSAB q hq).2 (hS.1 q hq)
-  rcases isEmpty_or_nonempty κ with hκ | hκ
-  · rw [card_eq_zero.2 (eq_empty_of_forall_notMem fun q hq => (hw q hq).elim fun w _ =>
-      hκ.elim w)]
-    exact Nat.zero_le _
-  choose! g hg using hw
-  rw [← card_univ]
-  refine card_le_card_of_injOn g (by intro _ _; exact mem_univ _) ?_
-  intro q hq q' hq' hqq
-  refine hS.2 q hq q' hq' ?_ ?_
-  · exact hmem (g q) _ (hSAB q hq).1 (hg q hq).1 _ (hSAB q' hq').2
-      (by rw [hqq]; exact (hg q' hq').2)
-  · exact hmem (g q) _ (hSAB q' hq').1 (by rw [hqq]; exact (hg q' hq').1) _
-      (hSAB q hq).2 (hg q hq).2
+  exact hS.card_le_cover (fun w => A ∩ (C w).1) (fun w => B ∩ (C w).2)
+    (fun w x hx y hy => hmem w x hx.1 hx.2 y hy.1 hy.2) fun q hq =>
+      let ⟨w, hw⟩ := hcov _ (hSAB q hq).1 _ (hSAB q hq).2 (hS.1 q hq)
+      ⟨w, ⟨(hSAB q hq).1, hw.1⟩, (hSAB q hq).2, hw.2⟩
 
 /-- **The fooling-set bound, for covers.** A fooling set for `f` with value `z` inside `A × B`
 has at most `2 ^ k` pairs if `f` has a `z`-cover on `A × B` by `2 ^ k` rectangles: no rectangle
 contains two of its pairs. -/
 theorem HasCover.card_le {S : Finset (X × Y)} (hS : IsFoolingSet f z S)
     (hSAB : ∀ q ∈ S, q.1 ∈ A ∧ q.2 ∈ B) (h : HasCover z (fun x y b => f x y = b) A B k) :
-    #S ≤ 2 ^ k := by
-  obtain ⟨C, hC⟩ := h
-  exact (hC.card_le hS hSAB).trans_eq BitString.card
+    #S ≤ 2 ^ k :=
+  let ⟨_, hC⟩ := h
+  (hC.card_le hS hSAB).trans_eq BitString.card
 
 /-- **The fooling-set bound on nondeterministic complexity.** A fooling set of at least `2 ^ n`
 pairs for `f` with value `z` inside `A × B` forces `n`. -/
@@ -314,22 +302,18 @@ theorem HasCover.card_le_two_pow_mul {s : Finset X} {t : Finset Y} {K : ℕ}
   classical
   obtain ⟨C, hC⟩ := h
   obtain ⟨hmem, hcov⟩ := isCover_fun_iff.mp hC
-  let S : BitString k → Finset X := fun w => {x ∈ s | x ∈ (C w).1}
-  let T : BitString k → Finset Y := fun w => {y ∈ t | y ∈ (C w).2}
-  have hsub : {q ∈ s ×ˢ t | f q.1 q.2 = z} ⊆ univ.biUnion fun w => S w ×ˢ T w := by
-    intro q hq
-    simp only [mem_filter, mem_product] at hq
-    obtain ⟨w, hx, hy⟩ := hcov q.1 hq.1.1 q.2 hq.1.2 hq.2
-    simp only [mem_biUnion, mem_univ, true_and, mem_product, mem_filter, S, T]
-    exact ⟨w, ⟨hq.1.1, hx⟩, hq.1.2, hy⟩
-  calc #{q ∈ s ×ˢ t | f q.1 q.2 = z} ≤ #(univ.biUnion fun w => S w ×ˢ T w) := card_le_card hsub
+  let S (w : BitString k) : Finset X := {x ∈ s | x ∈ (C w).1}
+  let T (w : BitString k) : Finset Y := {y ∈ t | y ∈ (C w).2}
+  calc #{q ∈ s ×ˢ t | f q.1 q.2 = z}
+      ≤ #(univ.biUnion fun w => S w ×ˢ T w) := card_le_card fun q hq => by
+        simp only [mem_filter, mem_product, mem_biUnion, mem_univ, true_and, S, T] at hq ⊢
+        obtain ⟨w, hx, hy⟩ := hcov q.1 hq.1.1 q.2 hq.1.2 hq.2
+        exact ⟨w, ⟨hq.1.1, hx⟩, hq.1.2, hy⟩
     _ ≤ ∑ w, #(S w ×ˢ T w) := card_biUnion_le
-    _ ≤ ∑ _w : BitString k, K := by
-        refine sum_le_sum fun w _ => ?_
-        rw [card_product]
-        refine hK _ (filter_subset _ _) _ (filter_subset _ _) fun x hx y hy => ?_
-        simp only [mem_filter, T] at hx hy
-        exact hmem w x hx.1 hx.2 y hy.1 hy.2
+    _ ≤ ∑ _w : BitString k, K := sum_le_sum fun w _ => (card_product _ _).trans_le <|
+        hK _ (filter_subset _ _) _ (filter_subset _ _) fun x hx y hy => by
+          simp only [mem_filter, T] at hx hy
+          exact hmem w x hx.1 hx.2 y hy.1 hy.2
     _ = 2 ^ k * K := by rw [sum_const, card_univ, BitString.card, smul_eq_mul]
 
 /-! ### Comparison with deterministic complexity -/
@@ -344,27 +328,23 @@ theorem _root_.Cslib.Communication.Protocol.Solves.hasCover {p : Protocol X Y Bo
   refine ⟨fun w => if h : (e w : ℕ) < p.leafCount then
       if p.leafOutput ⟨e w, h⟩ = z then (p.leafAlice ⟨e w, h⟩, p.leafBob ⟨e w, h⟩) else (∅, ∅)
     else (∅, ∅), fun w x hxA hx y hyB hy => ?_, fun x hxA y hyB hR => ?_⟩
-  · by_cases h : (e w : ℕ) < p.leafCount
-    · by_cases hz : p.leafOutput ⟨e w, h⟩ = z
-      · simp only [h, hz, dite_true, ite_true] at hx hy
-        have := hp x hxA y hyB
-        rwa [Protocol.run_eq_leafOutput hx hy, hz] at this
-      · simp [h, hz] at hx
-    · simp [h] at hx
-  · have hlt : (p.leaf x y : ℕ) < 2 ^ p.depth :=
-      (p.leaf x y).2.trans_le p.leafCount_le_two_pow_depth
-    refine ⟨e.symm ⟨p.leaf x y, hlt⟩, ?_⟩
-    have hrun : p.run x y = z := by
+  · by_cases h : (e w : ℕ) < p.leafCount <;> simp only [h, dite_true, dite_false] at hx hy
+    · by_cases hz : p.leafOutput ⟨e w, h⟩ = z <;> simp only [hz, ite_true, ite_false] at hx hy
+      · simpa only [Protocol.run_eq_leafOutput hx hy, hz] using hp x hxA y hyB
+      · cases hx
+    · cases hx
+  · have hrun : p.run x y = z := by
       have := hp x hxA y hyB
       cases hb : p.run x y <;> cases z <;> simp_all
-    have hz : p.leafOutput (p.leaf x y) = z := by rw [← Protocol.run_eq_leafOutput_leaf, hrun]
-    simp only [Equiv.apply_symm_apply, (p.leaf x y).2, dite_true, Fin.eta, hz, ite_true]
+    refine ⟨e.symm ⟨p.leaf x y, (p.leaf x y).2.trans_le p.leafCount_le_two_pow_depth⟩, ?_⟩
+    simp only [Equiv.apply_symm_apply, (p.leaf x y).2, dite_true, Fin.eta,
+      ← Protocol.run_eq_leafOutput_leaf, hrun, ite_true]
     exact ⟨Protocol.mem_leafAlice_leaf, Protocol.mem_leafBob_leaf⟩
 
 /-- **Nondeterministic complexity is at most deterministic complexity.** -/
 theorem ecomplexity_le_protocol (z : Bool) :
     ecomplexity z R A B ≤ Protocol.ecomplexity R A B :=
-  le_iInf fun p => (p.2.hasCover z).ecomplexity_le
+  Protocol.le_ecomplexity_iff.mpr fun _ hp => (hp.hasCover z).ecomplexity_le
 
 /-- `ecomplexity_le_protocol` for functions on all inputs. -/
 theorem ecomplexityFun_le_protocol (z : Bool) :

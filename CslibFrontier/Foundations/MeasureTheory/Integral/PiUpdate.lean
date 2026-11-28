@@ -38,8 +38,12 @@ Lindeberg's replacement method.
 * `MeasureTheory.integral_integral_update_measure`, `MeasureTheory.integral_integral_update`: the
   integral forms, for integrable `F`; for instance
   `∫ v, ∫ z, F (update v i z) ∂μ i ∂Measure.pi μ = ∫ v, F v ∂Measure.pi μ`.
+* `MeasureTheory.ae_integrable_update`: for integrable `F`, almost every line along coordinate `i`
+  carries an integrable restriction of `F`.
 * `MeasureTheory.integral_integral_update_swap`: the same with the coordinate `i` integrated last,
   `∫ z, ∫ v, F (update v i z) ∂Measure.pi μ ∂μ i = ∫ v, F v ∂Measure.pi μ`.
+* `MeasureTheory.integral_apply_eval_eq_integral_integral`: if `Φ v` ignores coordinate `i`, then
+  `∫ v, Φ v (v i) ∂Measure.pi μ = ∫ v, ∫ z, Φ v z ∂μ i ∂Measure.pi μ`.
 * `MeasureTheory.integral_pi_piecewise_insert_sub`: one step of the hybrid argument.
 * `MeasureTheory.abs_integral_pi_sub_le_sum`: the hybrid argument, bounding
   `|∫ F ∂Measure.pi ν - ∫ F ∂Measure.pi μ|` by a sum of one-coordinate bounds.
@@ -71,25 +75,20 @@ theorem measurePreserving_update_measure (i : ι) (ν : Measure (X i)) [IsProbab
         (Set.univ.pi (Function.update s i Set.univ)) ×ˢ s i := by
       ext ⟨v, z⟩
       simp only [Set.mem_preimage, Set.mem_univ_pi, Set.mem_prod]
-      constructor
-      · intro h
-        refine ⟨fun j => ?_, by simpa using h i⟩
-        by_cases hj : j = i
-        · subst hj; simp
-        · simpa [Function.update_of_ne hj] using h j
-      · rintro ⟨h1, h2⟩ j
-        by_cases hj : j = i
-        · subst hj; simpa using h2
-        · simpa [Function.update_of_ne hj] using h1 j
+      refine ⟨fun h => ⟨fun j => ?_, by simpa using h i⟩, fun ⟨h1, h2⟩ j => ?_⟩ <;>
+        rcases eq_or_ne j i with rfl | hj
+      · simp
+      · simpa [Function.update_of_ne hj] using h j
+      · simpa using h2
+      · simpa [Function.update_of_ne hj] using h1 j
     rw [hpre, Measure.prod_prod, Measure.pi_pi,
       ← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
       ← Finset.mul_prod_erase (s := Finset.univ) (fun j => Function.update μ i ν j (s j))
         (Finset.mem_univ i),
       Function.update_self, Function.update_self, measure_univ, one_mul, mul_comm]
-    congr 1
-    refine Finset.prod_congr rfl fun j hj => ?_
-    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj),
-      Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+    exact congrArg (_ * ·) <| Finset.prod_congr rfl fun j hj => by
+      rw [Function.update_of_ne (Finset.ne_of_mem_erase hj),
+        Function.update_of_ne (Finset.ne_of_mem_erase hj)]
 
 /-- Resampling coordinate `i` of a product of probability measures preserves the product:
 `(v, z) ↦ Function.update v i z` maps `(Measure.pi μ).prod (μ i)` to `Measure.pi μ`. -/
@@ -128,6 +127,14 @@ theorem integral_integral_update {E : Type*} [NormedAddCommGroup E] [NormedSpace
     ∫ v, ∫ z, F (Function.update v i z) ∂μ i ∂Measure.pi μ = ∫ v, F v ∂Measure.pi μ := by
   simpa using integral_integral_update_measure μ i (μ i) (F := F) (by simpa using hF)
 
+/-- For integrable `F` on a product of probability measures, the restriction
+`z ↦ F (Function.update v i z)` of `F` to the line through `v` along coordinate `i` is
+`μ i`-integrable for almost every `v`. -/
+theorem ae_integrable_update {E : Type*} [NormedAddCommGroup E] {F : (∀ j, X j) → E}
+    (hF : Integrable F (Measure.pi μ)) (i : ι) :
+    ∀ᵐ v ∂Measure.pi μ, Integrable (fun z => F (Function.update v i z)) (μ i) :=
+  ((measurePreserving_update μ i).integrable_comp_of_integrable hF).prod_right_ae
+
 /-- **Fubini over one coordinate, outer form.** Integrating `F` against a product of probability
 measures is the same as first fixing coordinate `i` to `z`, averaging over the other coordinates,
 and then integrating over `z ∼ μ i`. -/
@@ -138,6 +145,18 @@ theorem integral_integral_update_swap {E : Type*} [NormedAddCommGroup E] [Normed
       F (Function.update v i z)) ((Measure.pi μ).prod (μ i)) :=
     (measurePreserving_update μ i).integrable_comp_of_integrable hF
   rw [← integral_integral_swap hint, integral_integral_update μ hF i]
+
+/-- **Evaluating at a fresh coordinate.** If `Φ v` does not depend on coordinate `i` of `v`, then
+evaluating it at `v i` has the same integral as evaluating it at an independent draw from `μ i`:
+`∫ v, Φ v (v i) ∂Measure.pi μ = ∫ v, ∫ z, Φ v z ∂μ i ∂Measure.pi μ`. In online-to-batch arguments,
+`Φ v` is the loss of the hypothesis played before example `i` was seen. -/
+theorem integral_apply_eval_eq_integral_integral {E : Type*} [NormedAddCommGroup E]
+    [NormedSpace ℝ E] {i : ι} {Φ : (∀ j, X j) → X i → E}
+    (hΦ : ∀ v z, Φ (Function.update v i z) = Φ v)
+    (hint : Integrable (fun v => Φ v (v i)) (Measure.pi μ)) :
+    ∫ v, Φ v (v i) ∂Measure.pi μ = ∫ v, ∫ z, Φ v z ∂μ i ∂Measure.pi μ := by
+  rw [← integral_integral_update μ hint i]
+  simp only [hΦ, Function.update_self]
 
 /-! ### Hybrids of two product measures -/
 

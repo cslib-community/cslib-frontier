@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Pending
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Next
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Finish
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Real parent resumption after a native Strassen child
@@ -50,8 +51,6 @@ theorem exec_step_resume_next {w p k A B a b out scratch frames frame : ℕ}
   let current : Fin 7 := ⟨phase.val, by omega⟩
   let next : Fin 7 := ⟨phase.val + 1, by omega⟩
   let selected : Fin 8 := ⟨phase.val + 1, by omega⟩
-  have ha := hl.left_before
-  have hb := hl.right_before
   have ho := hl.output_before
   have hs := hl.scratch_before
   have hf := hl.frames_before
@@ -63,39 +62,28 @@ theorem exec_step_resume_next {w p k A B a b out scratch frames frame : ℕ}
   let z := dispatchState selected r
   have zm : z.mem = returned.mem := (dispatchState_mem selected r).trans (rm.trans sm)
   have zh : NodeHeader p (k + 1) a b out scratch frames frame z :=
-    rh.of_regs_eq (fun i _ hi => dispatchState_regs selected r i (by
-      intro he; subst i; contradiction))
+    rh.of_regs_eq (fun i _ hi => dispatchState_regs selected r i (by rintro rfl; contradiction))
   have zc : ChildBuffers p k scratch z :=
-    rc.of_regs_eq (fun i _ hi => dispatchState_regs selected r i (by
-      intro he; subst i; contradiction))
+    rc.of_regs_eq (fun i _ hi => dispatchState_regs selected r i (by rintro rfl; contradiction))
   obtain ⟨y, stageRun, ready, leftValues, rightValues, outputs, parentPhase, memory⟩ :=
     exec_stage_next phase z u v zh zc hl hu hv
       (by simpa only [zm] using originalA) (by simpa only [zm] using originalB)
       (by simpa only [zm] using partialWords) (by simpa only [zm] using productWords) hmag haddr
-  have rphase : r.regs Reg.phase = selected.val :=
-    (rr Reg.phase (by decide)).trans sphase
+  have rphase : r.regs Reg.phase = selected.val := by regs_frame
   have dispatched := exec_dispatch selected r y rh.zero_eq rphase
     (haddr.of_le (by unfold addressBound; omega)) stageRun
   have depthTest : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by
-    simp only [Cond.holds_eq, sh.depth_eq, sh.zero_eq]
-    omega
-  have dispatch_le : dispatchBudget selected ≤ 20 := by
-    unfold dispatchBudget
-    split <;> omega
+    simp only [Cond.holds_eq, sh.depth_eq, sh.zero_eq]; omega
+  have dispatch_le : dispatchBudget selected ≤ 20 := by unfold dispatchBudget; split <;> omega
   have he : ExecWithin (w + 2) step returned y
       (receiveBudget current (4 ^ k * p) + 52 * (4 ^ k * p) + 92) :=
-    (load.seq (ExecWithin.branch_neg depthTest (locate.seq dispatched))).mono (by
-      dsimp only [current] at *
-      omega)
-  refine ⟨y, he, ⟨ready, leftValues, rightValues, ?_, ?_, outputs, ?_⟩, ?_⟩
-  · intro j hj
-    rw [memory _ ?_ (Or.inl (by omega)) (Or.inl (by omega)), zm]
-    · exact originalA j hj
-    · rcases hl.left_disjoint with h | h <;> omega
-  · intro j hj
-    rw [memory _ ?_ (Or.inl (by omega)) (Or.inl (by omega)), zm]
-    · exact originalB j hj
-    · rcases hl.right_disjoint with h | h <;> omega
+    (load.seq (ExecWithin.branch_neg depthTest (locate.seq dispatched))).mono
+      (by dsimp only [current] at *; omega)
+  obtain ⟨hleft', hright'⟩ := hl.inputs_of_stage memory
+  refine ⟨y, he, ⟨ready, leftValues, rightValues,
+    fun j hj => (hleft' j hj).trans ((congrFun zm _).trans (originalA j hj)),
+    fun j hj => (hright' j hj).trans ((congrFun zm _).trans (originalB j hj)),
+    outputs, ?_⟩, ?_⟩
   · intro j
     by_cases heq : j.val = 6
     · have hj : j = 6 := Fin.ext heq
@@ -132,25 +120,20 @@ theorem exec_step_resume_finish {w p k A B a b out scratch frames frame : ℕ}
   let z := dispatchState 7 r
   have zm : z.mem = returned.mem := (dispatchState_mem 7 r).trans (rm.trans sm)
   have zh : NodeHeader p (k + 1) a b out scratch frames frame z :=
-    rh.of_regs_eq (fun i _ hi => dispatchState_regs 7 r i (by
-      intro he; subst i; contradiction))
+    rh.of_regs_eq (fun i _ hi => dispatchState_regs 7 r i (by rintro rfl; contradiction))
   have zc : ChildBuffers p k scratch z :=
-    rc.of_regs_eq (fun i _ hi => dispatchState_regs 7 r i (by
-      intro he; subst i; contradiction))
+    rc.of_regs_eq (fun i _ hi => dispatchState_regs 7 r i (by rintro rfl; contradiction))
   obtain ⟨y, stageRun, result⟩ := exec_stage_finish z u v zh zc hl hu hv
     (by simpa [zm] using partialWords) (by simpa only [zm] using productWords) hmag haddr
-  have rphase : r.regs Reg.phase = 7 := (rr Reg.phase (by decide)).trans sphase
+  have rphase : r.regs Reg.phase = 7 := by regs_frame
   have dispatched := exec_dispatch 7 r y rh.zero_eq rphase
     (haddr.of_le (by unfold addressBound; omega)) stageRun
   have depthTest : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by
-    simp only [Cond.holds_eq, sh.depth_eq, sh.zero_eq]
-    omega
+    simp only [Cond.holds_eq, sh.depth_eq, sh.zero_eq]; omega
   have he : ExecWithin (w + 2) step returned y (26 * (4 ^ k * p) + 55) :=
-    (load.seq (ExecWithin.branch_neg depthTest (locate.seq dispatched))).mono (by
-      norm_num [dispatchBudget]
-      omega)
-  refine ⟨y, he, { result with outside := ?_ }⟩
-  intro d hd
-  simpa only [zm] using result.outside d hd
+    (load.seq (ExecWithin.branch_neg depthTest (locate.seq dispatched))).mono
+      (by norm_num [dispatchBudget]; omega)
+  exact ⟨y, he, { result with
+    outside := fun d hd => by simpa only [zm] using result.outside d hd }⟩
 
 end Cslib.Algorithms.WordRAM.Strassen

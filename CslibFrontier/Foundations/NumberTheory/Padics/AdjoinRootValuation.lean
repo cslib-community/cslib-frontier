@@ -81,10 +81,9 @@ variable {p}
 
 /-- The reduced representative has degree below `deg g`. -/
 private theorem degree_modByMonicHom_lt {R : Type*} [CommRing R] [Nontrivial R] {g : R[X]}
-    (hg : g.Monic) (x : AdjoinRoot g) : (modByMonicHom hg x).degree < g.degree := by
-  obtain ⟨Q, rfl⟩ := mk_surjective x
-  rw [modByMonicHom_mk]
-  exact degree_modByMonic_lt _ hg
+    (hg : g.Monic) (x : AdjoinRoot g) : (modByMonicHom hg x).degree < g.degree :=
+  let ⟨Q, hQ⟩ := mk_surjective x
+  hQ ▸ modByMonicHom_mk hg Q ▸ degree_modByMonic_lt Q hg
 
 variable (p) in
 /-- The largest `p`-adic valuation of a coordinate of `x` in the basis `1, X, …, X ^ (deg f - 1)`.
@@ -98,7 +97,7 @@ private theorem coordVal_smul_le (hf : f.Monic) (r : ℚ)
     (x : AdjoinRoot (f.map (Int.castRingHom ℚ))) :
     coordVal p hf (r • x) ≤ Rat.padicValuation p r * coordVal p hf x := by
   refine Finset.sup_le fun i hi => ?_
-  rw [LinearMap.map_smul_of_tower, coeff_smul, smul_eq_mul, map_mul]
+  rw [LinearMap.map_smul_of_tower, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul, map_mul]
   exact mul_le_mul_right (Finset.le_sup (f := fun i => Rat.padicValuation p
     ((modByMonicHom (hf.map (Int.castRingHom ℚ)) x).coeff i)) hi) _
 
@@ -109,14 +108,9 @@ private theorem coordVal_smul (hf : f.Monic) (r : ℚ)
   refine le_antisymm (coordVal_smul_le hf r x) ?_
   rcases eq_or_ne r 0 with rfl | hr
   · simp
-  have h := coordVal_smul_le (p := p) hf r⁻¹ (r • x)
-  rw [inv_smul_smul₀ hr, map_inv₀] at h
-  calc
-    Rat.padicValuation p r * coordVal p hf x
-        ≤ Rat.padicValuation p r * ((Rat.padicValuation p r)⁻¹ * coordVal p hf (r • x)) :=
-      mul_le_mul_right h _
-    _ = coordVal p hf (r • x) := by
-      rw [← mul_assoc, mul_inv_cancel₀ ((Rat.padicValuation p).ne_zero_iff.mpr hr), one_mul]
+  have h := mul_le_mul_right (coordVal_smul_le (p := p) hf r⁻¹ (r • x)) (Rat.padicValuation p r)
+  rwa [inv_smul_smul₀ hr, map_inv₀, ← mul_assoc,
+    mul_inv_cancel₀ ((Rat.padicValuation p).ne_zero_iff.mpr hr), one_mul] at h
 
 /-- The image of `ℤ[X] / (f)` in `ℚ[X] / (f)`. -/
 private noncomputable abbrev toRat (f : ℤ[X]) :
@@ -141,33 +135,25 @@ private theorem coordVal_toRat_eq_one_iff (hf : f.Monic) (o : AdjoinRoot f) :
     coordVal p hf (toRat f o) ≤ 1 ∧
       (coordVal p hf (toRat f o) = 1 ↔ toZMod p f o ≠ 0) := by
   set Q := modByMonicHom hf o
-  have hQdeg : ∀ i, f.natDegree ≤ i → Q.coeff i = 0 := fun i hi =>
-    coeff_eq_zero_of_degree_lt ((degree_modByMonicHom_lt hf o).trans_le
-      ((degree_le_natDegree).trans (by exact_mod_cast hi)))
-  have hval : ∀ i, Rat.padicValuation p ((modByMonicHom (hf.map (Int.castRingHom ℚ))
-      (toRat f o)).coeff i) = Int.padicValuation p (Q.coeff i) := fun i => by
+  have hval (i : ℕ) : Rat.padicValuation p ((modByMonicHom (hf.map (Int.castRingHom ℚ))
+      (toRat f o)).coeff i) = Int.padicValuation p (Q.coeff i) := by
     rw [modByMonicHom_toRat, coeff_map, eq_intCast, Rat.padicValuation_cast]
   have hle : coordVal p hf (toRat f o) ≤ 1 :=
     Finset.sup_le fun i _ => (hval i).trans_le (Int.padicValuation_le_one p _)
   refine ⟨hle, ?_⟩
   rw [Ne, toZMod, map_eq_zero_iff _ hf dvd_rfl rfl]
   simp only [eq_intCast, ZMod.intCast_zmod_eq_zero_iff_dvd]
-  constructor
-  · intro h1 hdvd
-    have hlt : coordVal p hf (toRat f o) < 1 := by
-      refine (Finset.sup_lt_iff (bot_lt_iff_ne_bot.mpr (by simp))).mpr fun i _ => ?_
-      rw [hval]
-      exact Int.padicValuation_lt_one_iff.mpr (hdvd i)
-    exact hlt.ne h1
-  · intro hndvd
-    obtain ⟨i, hi⟩ := not_forall.mp hndvd
-    have hie : i < f.natDegree := by
-      by_contra hie
-      exact hi (by rw [hQdeg i (not_lt.mp hie)]; exact dvd_zero _)
-    refine le_antisymm hle ?_
-    rw [← Int.padicValuation_eq_one_iff.mpr hi, ← hval]
-    exact Finset.le_sup (f := fun i => Rat.padicValuation p
-      ((modByMonicHom (hf.map (Int.castRingHom ℚ)) (toRat f o)).coeff i)) (Finset.mem_range.mpr hie)
+  refine ⟨fun h1 hdvd => ((Finset.sup_lt_iff (bot_lt_iff_ne_bot.mpr one_ne_zero)).mpr fun i _ =>
+      (hval i).trans_lt (Int.padicValuation_lt_one_iff.mpr (hdvd i))).ne h1, fun hndvd => ?_⟩
+  obtain ⟨i, hi⟩ := not_forall.mp hndvd
+  have hie : i < f.natDegree := by_contra fun h => hi <| by
+    rw [coeff_eq_zero_of_degree_lt ((degree_modByMonicHom_lt hf o).trans_le
+      (degree_le_natDegree.trans (by exact_mod_cast not_lt.mp h)))]
+    exact dvd_zero _
+  refine le_antisymm hle ?_
+  rw [← Int.padicValuation_eq_one_iff.mpr hi, ← hval]
+  exact Finset.le_sup (f := fun i => Rat.padicValuation p
+    ((modByMonicHom (hf.map (Int.castRingHom ℚ)) (toRat f o)).coeff i)) (Finset.mem_range.mpr hie)
 
 /-- **Every element is a rational multiple of an integral element that is nonzero modulo `p`.**
 Clear the denominators of the coordinates and divide by the content. -/
@@ -179,38 +165,30 @@ private theorem exists_eq_smul_toRat (hf : f.Monic)
   set P := modByMonicHom (hf.map (Int.castRingHom ℚ)) x
   have hx : mk _ P = x := mk_leftInverse _ x
   rcases eq_or_ne P 0 with hP | hP
-  · refine ⟨0, 1, by rw [map_one]; exact one_ne_zero, ?_⟩
-    rw [zero_smul, ← hx, hP, map_zero]
+  · exact ⟨0, 1, by simp, by rw [zero_smul, ← hx, hP, map_zero]⟩
   obtain ⟨b, hb, hQ₀'⟩ := IsLocalization.integerNormalization_spec (nonZeroDivisors ℤ) P
   set Q₀ := IsLocalization.integerNormalization (nonZeroDivisors ℤ) P
   have hb0 : (b : ℚ) ≠ 0 := by exact_mod_cast nonZeroDivisors.ne_zero hb
   have hQ₀ : Q₀.map (Int.castRingHom ℚ) = C (b : ℚ) * P := by
     rw [← algebraMap_int_eq, hQ₀', ← Int.cast_smul_eq_zsmul ℚ, smul_eq_C_mul]
-  have hQ₀ne : Q₀ ≠ 0 := by
-    rintro h
-    rw [h, Polynomial.map_zero] at hQ₀
-    exact mul_ne_zero (C_ne_zero.mpr hb0) hP hQ₀.symm
+  have hQ₀ne : Q₀ ≠ 0 := fun h =>
+    mul_ne_zero (C_ne_zero.mpr hb0) hP (by simpa [h] using hQ₀.symm)
   set Q₁ := Q₀.primPart
   have hdeg : Q₁.degree < (f.map (Int.castRingHom (ZMod p))).degree := by
-    rw [hf.degree_map, degree_eq_natDegree (primPart_ne_zero Q₀), natDegree_primPart]
-    have hPdeg : P.degree < f.degree :=
-      (hf.degree_map (Int.castRingHom ℚ)) ▸ degree_modByMonicHom_lt (hf.map _) x
-    have : Q₀.degree < f.degree := by
-      refine lt_of_le_of_lt ?_ hPdeg
-      rw [← degree_map_eq_of_injective (RingHom.injective_int (Int.castRingHom ℚ)) Q₀, hQ₀]
-      exact degree_mul_le_of_le (degree_C_le) le_rfl |>.trans (by simp)
-    rwa [degree_eq_natDegree hQ₀ne] at this
-  have hred : (Q₁.map (Int.castRingHom (ZMod p))) ≠ 0 := by
-    intro h0
-    have hdvd : C (p : ℤ) ∣ Q₁ := (C_dvd_iff_dvd_coeff _ _).mpr fun i => by
-      rw [← ZMod.intCast_zmod_eq_zero_iff_dvd, ← eq_intCast (Int.castRingHom (ZMod p)), ← coeff_map,
-        h0, coeff_zero]
-    have hu := isPrimitive_primPart Q₀ (p : ℤ) hdvd
-    rw [Int.isUnit_iff_natAbs_eq, Int.natAbs_natCast] at hu
-    exact hp.out.one_lt.ne' hu
+    rw [hf.degree_map, degree_eq_natDegree (primPart_ne_zero Q₀), natDegree_primPart,
+      ← degree_eq_natDegree hQ₀ne,
+      ← degree_map_eq_of_injective (RingHom.injective_int (Int.castRingHom ℚ)) Q₀, hQ₀]
+    exact (degree_mul_le_of_le degree_C_le le_rfl).trans_lt <| by
+      simpa [hf.degree_map] using degree_modByMonicHom_lt (hf.map (Int.castRingHom ℚ)) x
+  have hred : Q₁.map (Int.castRingHom (ZMod p)) ≠ 0 := fun h0 =>
+    hp.out.one_lt.ne' <| by
+      simpa [Int.isUnit_iff_natAbs_eq] using isPrimitive_primPart Q₀ (p : ℤ) <|
+        (C_dvd_iff_dvd_coeff _ _).mpr fun i => by
+          rw [← ZMod.intCast_zmod_eq_zero_iff_dvd, ← eq_intCast (Int.castRingHom (ZMod p)),
+            ← coeff_map, h0, coeff_zero]
   refine ⟨Q₀.content / b, mk f Q₁, ?_, ?_⟩
   · rw [toZMod, map_mk, Ne, mk_eq_zero]
-    exact (hf.map _).not_dvd_of_degree_lt hred ((degree_map_le).trans_lt hdeg)
+    exact (hf.map _).not_dvd_of_degree_lt hred (degree_map_le.trans_lt hdeg)
   · rw [toRat, map_mk, ← hx, Algebra.smul_def, algebraMap_eq, ← mk_C, ← map_mul]
     congr 1
     have h := congrArg (Polynomial.map (Int.castRingHom ℚ)) (eq_C_content_mul_primPart Q₀)
@@ -256,9 +234,7 @@ variable (hf : f.Monic) (hirr : Irreducible (f.map (Int.castRingHom (ZMod p))))
 /-- The valuation is the largest `p`-adic valuation of a coordinate. -/
 theorem padicValuation_apply (x : AdjoinRoot (f.map (Int.castRingHom ℚ))) :
     padicValuation p hf hirr x = (Finset.range f.natDegree).sup fun i =>
-      Rat.padicValuation p ((modByMonicHom (hf.map (Int.castRingHom ℚ)) x).coeff i) := by
-  simp only [padicValuation]
-  rfl
+      Rat.padicValuation p ((modByMonicHom (hf.map (Int.castRingHom ℚ)) x).coeff i) := by rfl
 
 /-- **The valuation extends the `p`-adic valuation of `ℚ`.** -/
 theorem padicValuation_algebraMap (r : ℚ) :
@@ -287,11 +263,10 @@ theorem mem_integer_padicValuation_iff (x : AdjoinRoot (f.map (Int.castRingHom �
   refine ⟨fun h i => ?_, fun h i _ => h i⟩
   rcases lt_or_ge i f.natDegree with hi | hi
   · exact h i (Finset.mem_range.mpr hi)
-  · rw [coeff_eq_zero_of_degree_lt, map_zero]
-    · exact zero_le
-    refine (degree_modByMonicHom_lt (hf.map _) x).trans_le ?_
-    rw [hf.degree_map]
-    exact (degree_le_natDegree).trans (by exact_mod_cast hi)
+  · rw [coeff_eq_zero_of_degree_lt ((degree_modByMonicHom_lt (hf.map _) x).trans_le <| by
+      rw [hf.degree_map]
+      exact degree_le_natDegree.trans (by exact_mod_cast hi)), map_zero]
+    exact zero_le
 
 /-- **Elements of the valuation ring that are nonzero modulo `p` are units of it**: an element of
 valuation one has an inverse of valuation one. -/

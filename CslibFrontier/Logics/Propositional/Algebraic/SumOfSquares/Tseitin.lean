@@ -77,31 +77,26 @@ of `U`. -/
 private theorem exists_of_derives {d : ℕ} (hd : d < Multigraph.minBalancedCut ends) {T : Finset E}
     {c : Bool} (h : (tseitin ends χ).Derives d T c) :
     ∃ U, Multigraph.edgeCut ends U = T ∧ parityOn U χ = c ∧ 3 * #U < Fintype.card V := by
-  have hV : 2 ≤ Fintype.card V := by
-    by_contra hV
-    have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.1 (by omega)
-    rw [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at hd
-    omega
+  have hV : 2 ≤ Fintype.card V := by_contra fun hV => by
+    have := Fintype.card_le_one_iff_subsingleton.1 (by omega : Fintype.card V ≤ 1)
+    rw [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at hd; omega
   induction h with
   | empty => exact ⟨∅, Multigraph.edgeCut_empty ends, parityOn_empty χ, by simp; omega⟩
   | mem he hS =>
     obtain ⟨v, hv⟩ := mem_tseitin.1 he
-    simp only [Prod.mk.injEq] at hv
-    obtain ⟨rfl, rfl⟩ := hv
-    refine ⟨{v}, Multigraph.edgeCut_singleton ends v, parityOn_singleton v χ, ?_⟩
-    refine Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends) (S := {v}) ?_
-      (by rw [Finset.card_singleton]; omega)
-    rw [Multigraph.edgeCut_singleton]
-    omega
+    obtain ⟨rfl, rfl⟩ := ParityEquation.mk.inj hv
+    refine ⟨{v}, Multigraph.edgeCut_singleton ends v, parityOn_singleton v χ,
+      Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends) ?_ ?_⟩
+    · rw [Multigraph.edgeCut_singleton]; omega
+    · rw [Finset.card_singleton]; omega
   | symmDiff _ _ hST ih₁ ih₂ =>
     obtain ⟨U₁, rfl, rfl, h₁⟩ := ih₁
     obtain ⟨U₂, rfl, rfl, h₂⟩ := ih₂
-    refine ⟨U₁ ∆ U₂, Multigraph.edgeCut_symmDiff ends U₁ U₂, parityOn_symmDiff U₁ U₂ χ, ?_⟩
-    refine Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends) ?_ ?_
-    · rw [Multigraph.edgeCut_symmDiff]
-      omega
-    · have := card_symmDiff_le U₁ U₂
-      omega
+    refine ⟨U₁ ∆ U₂, Multigraph.edgeCut_symmDiff ends U₁ U₂, parityOn_symmDiff U₁ U₂ χ,
+      Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends)
+        (by rw [Multigraph.edgeCut_symmDiff]; omega) ?_⟩
+    have := card_symmDiff_le U₁ U₂
+    omega
 
 /-- **Width-`d` derivations from Tseitin parity systems do not reach `0 = 1` below `e(G)`**: on a
 connected multigraph, if `d < e(G)` then `0 = 1` is not derivable in width `d` from the Tseitin
@@ -111,10 +106,8 @@ theorem not_derives_tseitin_empty_true (hG : (Multigraph.toSimpleGraph ends).Con
   intro h
   obtain ⟨U, hU, hc, hcard⟩ := exists_of_derives hd h
   rcases Multigraph.eq_empty_or_eq_univ_of_edgeCut_eq_empty hG hU with rfl | rfl
-  · rw [parityOn_empty] at hc
-    exact Bool.false_ne_true hc
-  · rw [card_univ] at hcard
-    omega
+  · exact Bool.false_ne_true (parityOn_empty χ ▸ hc)
+  · rw [card_univ] at hcard; omega
 
 end ParitySystem
 

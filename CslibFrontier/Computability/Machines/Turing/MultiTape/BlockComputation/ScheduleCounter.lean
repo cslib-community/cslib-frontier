@@ -73,7 +73,7 @@ theorem exists_valid_schedule {k q : ℕ} (schedule : Schedule k q) :
 theorem remaining_inSpace (k : ℕ) :
     ComputableInSpace (remaining k) encArgs encNat (fun a => (encArgs a).length) := by
   have hinit := budget_prod (fst encNat encNat)
-    (budget_const (encB := encNat) 0 (.refl _))
+    (budget_const (encB := encNat) 0)
   have hstates (a : ℕ × ℕ) (j : ℕ) (hj : j ≤ a.2) :
       (ScheduleRead.encState ((ScheduleRead.step k 0 0)^[j] (a.1, 0))).length ≤
         (ScheduleRead.encState a).length := by
@@ -91,6 +91,6 @@ theorem remaining_inSpace (k : ℕ) :
 theorem valid_inSpace (k : ℕ) :
     ComputableInSpace (valid k) encArgs encBool (fun a => (encArgs a).length) :=
   (budget_natEq (remaining_inSpace k)
-    (budget_const (encB := encNat) 0 (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const (encB := encNat) 0)).of_enc_eq fun _ => rfl
 
 end Turing.MultiTapePTM.BlockComputation.ScheduleCounter

@@ -14,7 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 # Native initialized serialization of the clocked coin matrix
 
 `clockedCoinTable` stores two threshold bits for every ordered pair of numeric clock/base IDs.
-At horizon `T = 2 * (2 * (n + 1)) ^ d`, the dimension is `(T + 1) * N`, where `N` is the
+At horizon `T = Turing.polyClock d n`, the dimension is `(T + 1) * N`, where `N` is the
 ordinary compact box. The count is the existing base count on remainders exactly when the
 target quotient is one greater than the source quotient. Thus terminal rows are zero.
 
@@ -98,8 +98,7 @@ theorem clockedCoinTable_count (u v : Fin (clockedVertexBound (k := k) D d w.len
 /-- Both encoded bits are zero throughout a terminal row, for every bounded target ID. -/
 theorem getD_clockedCoinTable_terminal
     (u v : Fin (clockedVertexBound (k := k) D d w.length)) (b : Fin 2)
-    (hu : u.val / vertexBound (k := k) (radix D w.length) =
-      2 * (2 * (w.length + 1)) ^ d) :
+    (hu : u.val / vertexBound (k := k) (radix D w.length) = polyClock d w.length) :
     (clockedCoinTable machine D d w).getD
       (2 * (u.val * clockedVertexBound (k := k) D d w.length + v.val) + b.val) false = false := by
   rw [getD_clockedCoinTable, clockedCoinCountWithSymbol_terminal machine u v hu]
@@ -122,12 +121,11 @@ theorem reachesOut_clockedCoinTableProgram (hinput : (frame w).length ≤ S)
     ∃ regs, (clockedCoinTableProgram machine D d).ReachesOut (frame w)
       ((clockedCoinTableProgram machine D d).Active S) (clockedCoinTableProgram machine D d).init
       (22, regs) (clockedCoinTable machine D d w) ∧ ∀ r ∈ regs, r ≤ S := by
-  apply reachesOut_inputCountTableProgram
+  refine reachesOut_inputCountTableProgram
     (count := fun u v => clockedCoinCountWithSymbol machine (radix D w.length) w.length u v
-      w[queryIndex (k := k) (radix D w.length)
-        (u % vertexBound (k := k) (radix D w.length))]?)
-    (fun u v y => by simp) ?_ (fun u v => clockedCoinCountWithSymbol_le_two ..) hinput hN h2
-  intro u v y
+      w[queryIndex (k := k) (radix D w.length) (u % vertexBound (k := k) (radix D w.length))]?)
+    (fun _ _ _ => by simp) (fun u v _ => ?_) (fun _ _ => clockedCoinCountWithSymbol_le_two ..)
+    hinput hN h2
   simpa only [eval_queryIndexExpr, eval_radixExpr, eval_reg, eval_mod, eval_vertexBoundExpr,
     List.getD_cons_zero, List.getD_cons_succ] using
       eval_clockedCoinCountExpr machine (B := radixExpr D (reg 0))
@@ -151,7 +149,7 @@ theorem computableInLogSpace_clockedCoinTable :
       ((frame w).length + 1) ^ (D * Fintype.card (Register k) + d + 2) :=
     le_self_pow (by omega) (by omega)
   have h2 : 2 ≤ ((frame w).length + 1) ^ (D * Fintype.card (Register k) + d + 2) :=
-    (by rw [hframe]; omega : 2 ≤ (frame w).length + 1).trans hF
+    (show 2 ≤ (frame w).length + 1 by omega).trans hF
   obtain ⟨regs, hr, hregs⟩ := reachesOut_clockedCoinTableProgram machine D d w
     ((Nat.le_succ _).trans hF) (by omega) h2
   exact ⟨(22, regs), _, [], hr, rfl, by simp, hregs⟩

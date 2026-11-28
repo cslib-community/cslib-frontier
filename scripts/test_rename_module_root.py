@@ -13,6 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rename_module_root as r  # noqa: E402
+from aggregate_order import import_key  # noqa: E402
 
 PATHS = [
     "Complexity.lean",
@@ -198,9 +199,10 @@ class TextRules(unittest.TestCase):
         self.assertEqual(rewrite("scripts/cache/publish.py", scope), scope)
         history = ("path.startswith('Complexity/') "
                    "# https://github.com/cslib-community/complexitylib/pull/1\n")
-        self.assertEqual(rewrite("manual/development-history/data/x.py", history),
-                         "path.startswith('Complexity/') "
-                         "# https://github.com/cslib-community/cslib-frontier/pull/1\n")
+        for path in ("manual/development-history/data/x.py", "manual/history/data/x.py"):
+            self.assertEqual(rewrite(path, history),
+                             "path.startswith('Complexity/') "
+                             "# https://github.com/cslib-community/cslib-frontier/pull/1\n")
         kept = f'x = "Complexity/"  # {r.PRAGMA}\ny = "Complexity/"\n'
         self.assertEqual(rewrite("scripts/x.py", kept),
                          f'x = "Complexity/"  # {r.PRAGMA}\ny = "CslibFrontier/"\n')
@@ -278,7 +280,8 @@ def lean(*imports: str, body: str = "") -> str:
 
 
 def aggregate(*modules: str) -> str:
-    return r.MODULE_PREAMBLE + "".join(f"public import {m}\n" for m in modules)
+    """A module-style aggregate importing `modules` in `mk_all`'s order."""
+    return r.MODULE_PREAMBLE + "".join(f"public import {m}\n" for m in sorted(modules, key=import_key))
 
 
 class GitRepo(unittest.TestCase):

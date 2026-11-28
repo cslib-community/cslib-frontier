@@ -56,11 +56,9 @@ theorem exec_product_count {w n p k scratch a b c : ℕ} (x : Data 128)
   have hPQ : x.regs Reg.matrixP + 4 ^ k * p ≤ x.regs Reg.matrixQ := by
     rw [ready.layout.matrixP_eq, ready.layout.matrixQ_eq]
   have hQR : x.regs Reg.matrixQ + 4 ^ k * p ≤ x.regs Reg.matrixR := by
-    rw [ready.layout.matrixQ_eq, ready.layout.matrixR_eq]
-    omega
+    rw [ready.layout.matrixQ_eq, ready.layout.matrixR_eq]; omega
   have hRS : x.regs Reg.matrixR + 4 ^ k * p ≤ x.regs Reg.productScratch := by
-    rw [ready.layout.matrixR_eq, ready.layout.productScratch_eq]
-    omega
+    rw [ready.layout.matrixR_eq, ready.layout.productScratch_eq]; omega
   obtain ⟨s, productRun, productValues, productFrame, productRegs⟩ := exec_product x
     (Cslib.Algorithms.ExactTriangle.CountPrime.pCoefficients p wAC)
     (Cslib.Algorithms.ExactTriangle.CountPrime.qCoefficients p wBC)
@@ -74,30 +72,24 @@ theorem exec_product_count {w n p k scratch a b c : ℕ} (x : Data 128)
   have keep1 (j : Fin 128) (hj : MetadataRegister j) : s.regs j = x.regs j :=
     productRegs j hj.1
   have ready1 := ready.congr keep1
-  have before (d : ℕ) (hd : d < x.regs Reg.matrixR) : s.mem d = x.mem d := by
-    apply productFrame d
-    unfold Strassen.NodeWrites
-    omega
+  have before (d : ℕ) (hd : d < x.regs Reg.matrixR) : s.mem d = x.mem d :=
+    productFrame d (by unfold Strassen.NodeWrites; omega)
   have pair_lt (u v : Fin n) : u.val * n + v.val < n * n := by
     have h := (finProdFinEquiv (u, v)).isLt
     change v.val + n * u.val < n * n at h
     simpa only [Nat.add_comm, Nat.mul_comm] using h
   obtain ⟨y, scanRun, scanMemory, result, scanRegs⟩ := exec_count_coefficients s
     wAB wBC wAC hp hn ready1.layout.side_eq ready1.layout.modulus_eq ready1.layout.cells_eq
-    (by
-      intro u v
+    (fun u v => by
+      have := pair_lt u v
       rw [keep1 Reg.residueAB (by decide), before _ (by
-        rw [ready.layout.residueAB_eq, ready.layout.matrixR_eq]
-        have := pair_lt u v
-        omega)]
+        rw [ready.layout.residueAB_eq, ready.layout.matrixR_eq]; omega)]
       exact hAB u v)
     (by simpa only [keep1 Reg.matrixR (by decide)] using productValues)
     ready1.zero ready1.one ready1.two
-    (by
-      intro j hj
+    (fun j hj => by
       rw [keep1 Reg.spread (by decide), before _ (by
-        rw [ready.layout.spread_eq, ready.layout.matrixR_eq]
-        omega)]
+        rw [ready.layout.spread_eq, ready.layout.matrixR_eq]; omega)]
       exact htable j hj)
     (by
       rw [keep1 Reg.spread (by decide), keep1 Reg.residueAB (by decide),
@@ -108,8 +100,6 @@ theorem exec_product_count {w n p k scratch a b c : ℕ} (x : Data 128)
     ready1.congr (fun j hj => scanRegs j (metadata_not_scan j hj)), result, ?_⟩
   intro d hd
   rw [scanMemory]
-  apply productFrame d
-  unfold Strassen.NodeWrites
-  omega
+  exact productFrame d (by unfold Strassen.NodeWrites; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

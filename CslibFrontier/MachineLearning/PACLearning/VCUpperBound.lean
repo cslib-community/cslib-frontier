@@ -35,8 +35,8 @@ with every example, so if `error D h > ε` the sample is not an ε-net for the l
 The domain is assumed countable with measurable singletons and the labels are `Bool`; the
 learners are arbitrary semantic maps from samples to hypotheses, and no running time is claimed.
 General domains need a measurability hypothesis on the class and are not formalized here. The
-matching `Ω(d / ε)` lower bound of Ehrenfeucht, Haussler, Kearns and Valiant is being developed
-upstream in CSLib.
+matching `Ω(d / ε)` lower bound of Ehrenfeucht, Haussler, Kearns and Valiant is in `VCLowerBound`,
+and `FundamentalTheorem` combines the two into the realizable characterization of learnability.
 
 ## Main definitions
 
@@ -46,6 +46,7 @@ upstream in CSLib.
 
 - `mem_lossClass`: membership in the loss class.
 - `growthFunction_lossClass_le`: the loss class has at most the growth function of `C`.
+- `card_le_of_setShatters_lossClass`: the loss class shatters no larger finite sets than `C`.
 - `IsConsistent.ae_not_isEpsNet_of_lt_error`: a consistent learner with error above `ε` on a
   realizable sample witnesses that the sample is not an ε-net for the loss class.
 - `IsConsistent.measure_pi_lt_error_mul_two_pow_le`: the tail bound
@@ -74,15 +75,15 @@ open scoped ENNReal NNReal
 
 namespace Cslib.MachineLearning.PACLearning
 
-variable {α : Type*}
+variable {α β : Type*}
 
-/-- The *loss class* of a binary concept class `C`: for each `h ∈ C`, the indicator of the labeled
-examples `(x, y)` that `h` misclassifies. -/
-def lossClass (C : ConceptClass α Bool) : ConceptClass (α × Bool) Bool :=
+/-- The *loss class* of a concept class `C` with decidable label equality: for each `h ∈ C`, the
+indicator of the labeled examples `(x, y)` that `h` misclassifies. -/
+def lossClass [DecidableEq β] (C : ConceptClass α β) : ConceptClass (α × β) Bool :=
   (fun h p => decide (h p.1 ≠ p.2)) '' C
 
-theorem mem_lossClass {C : ConceptClass α Bool} {f : α × Bool → Bool} :
-    f ∈ lossClass C ↔ ∃ h ∈ C, (fun p : α × Bool => decide (h p.1 ≠ p.2)) = f := by
+theorem mem_lossClass [DecidableEq β] {C : ConceptClass α β} {f : α × β → Bool} :
+    f ∈ lossClass C ↔ ∃ h ∈ C, (fun p : α × β => decide (h p.1 ≠ p.2)) = f := by
   rw [lossClass, Set.mem_image]
 
 /-- Passing to the loss class does not increase the growth function: the misclassification
@@ -101,22 +102,68 @@ theorem growthFunction_lossClass_le (C : ConceptClass α Bool) (m : ℕ) :
     _ ≤ (restriction C (fun i => (x i).1)).ncard := Set.ncard_image_le (Set.toFinite _)
     _ ≤ growthFunction C m := ncard_restriction_le_growthFunction C _
 
+/-- The loss class shatters no larger finite sets than `C`: two labeled points of a set shattered
+by `lossClass C` have distinct domain points, and their domain points are shattered by `C`. -/
+theorem card_le_of_setShatters_lossClass {C : ConceptClass α Bool} {d : ℕ}
+    (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d) (W : Finset (α × Bool))
+    (hW : SetShatters (lossClass C) ↑W) : W.card ≤ d := by
+  classical
+  -- Two points of `W` with the same domain point would have to be misclassified together.
+  have hinj : Set.InjOn Prod.fst (W : Set (α × Bool)) := by
+    rintro ⟨x, y⟩ hp ⟨x', y'⟩ hq (rfl : x = x')
+    by_contra hne
+    have hyy : y ≠ y' := fun h => hne (by rw [h])
+    obtain ⟨f, hf, hfW⟩ := hW {(x, y), (x, y')}
+      (Set.insert_subset_iff.2 ⟨hp, Set.singleton_subset_iff.2 hq⟩)
+    obtain ⟨h, -, rfl⟩ := mem_lossClass.1 hf
+    have h1 : (x, y) ∈ ({(x, y), (x, y')} : Set (α × Bool)) := Set.mem_insert _ _
+    have h2 : (x, y') ∈ ({(x, y), (x, y')} : Set (α × Bool)) := Set.mem_insert_of_mem _ rfl
+    rw [← hfW] at h1 h2
+    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff,
+      decide_eq_true_eq] at h1 h2
+    have ha : h x ≠ y := h1.1
+    have hb : h x ≠ y' := h2.1
+    cases hx : h x <;> cases y <;> cases y' <;> simp_all
+  -- The domain points of `W` are shattered by `C`.
+  have hsh : SetShatters C ↑(W.image Prod.fst) := by
+    intro U hU
+    obtain ⟨f, hf, hfW⟩ := hW {p | p ∈ W ∧ decide (p.1 ∈ U) ≠ p.2} fun p hp => hp.1
+    obtain ⟨h, hh, rfl⟩ := mem_lossClass.1 hf
+    have hlab : ∀ p ∈ W, h p.1 = decide (p.1 ∈ U) := by
+      rintro ⟨a, y⟩ hp
+      have key : h a ≠ y ↔ decide (a ∈ U) ≠ y := by
+        have := congrArg ((a, y) ∈ ·) hfW
+        simp only [eq_iff_iff, Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff,
+          decide_eq_true_eq, Finset.mem_coe, Set.mem_ofPred_eq] at this
+        simpa [hp] using this
+      revert key
+      cases h a <;> cases y <;> cases decide (a ∈ U) <;> simp
+    refine ⟨h, hh, ?_⟩
+    ext a
+    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, Finset.coe_image,
+      Set.mem_image, Finset.mem_coe]
+    constructor
+    · rintro ⟨hha, p, hp, rfl⟩
+      rwa [hlab p hp, decide_eq_true_eq] at hha
+    · intro ha
+      obtain ⟨p, hp, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 (hU ha))
+      exact ⟨by rw [hlab p hp, decide_eq_true_eq]; exact ha, p, hp, rfl⟩
+  calc W.card = (W.image Prod.fst).card := (Finset.card_image_of_injOn hinj).symm
+    _ ≤ d := hC _ hsh
+
 variable [MeasurableSpace α]
 
 /-- Under a distribution realizable by `C`, a consistent learner whose output has error greater
 than `ε` almost surely witnesses that the sample is not an ε-net for the loss class of `C`. -/
-theorem IsConsistent.ae_not_isEpsNet_of_lt_error {C : ConceptClass α Bool} {m : ℕ}
-    {A : Learner α Bool m} (hA : IsConsistent A C) {D : Measure (α × Bool)} [SigmaFinite D]
-    (hD : IsRealizableBy D C) (ε : ℝ) :
+theorem IsConsistent.ae_not_isEpsNet_of_lt_error [MeasurableSpace β] [DecidableEq β]
+    {C : ConceptClass α β} {m : ℕ} {A : Learner α β m} (hA : IsConsistent A C)
+    {D : Measure (α × β)} [SigmaFinite D] (hD : IsRealizableBy D C) (ε : ℝ) :
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D),
       ENNReal.ofReal ε < error D (A S) → ¬ IsEpsNet D (lossClass C) ε S := by
-  filter_upwards [hA.ae_mem_versionSpace hD] with S hS hlt hnet
-  obtain ⟨hAC, hAS⟩ := hS
-  have hset : {z : α × Bool | decide (A S z.1 ≠ z.2) = true} = {p | A S p.1 ≠ p.2} := by
-    ext z
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq]
-  obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩ (by rw [hset]; exact le_of_lt hlt)
-  simp only [hAS i, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true] at hi
+  filter_upwards [hA.ae_mem_versionSpace hD] with S ⟨hAC, hAS⟩ hlt hnet
+  obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩
+    (by simpa only [error, decide_eq_true_eq] using le_of_lt hlt)
+  simp [hAS i] at hi
 
 variable [MeasurableSingletonClass α] [Countable α]
 
@@ -174,11 +221,9 @@ theorem isPACLearnerFor_realizableDistributions_of_vcSampleSize_le {C : ConceptC
   · exact isPACLearnerFor_realizableDistributions_empty (fun _ _ => false) ε δ
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) hne
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
-    (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
-  rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
-  rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
-  exact h
+  simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
+    hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
+      (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
 
 /-- The realizable sample complexity of a class of finite VC dimension on a countable domain is at
 most `⌈(8 / ε) (vcDim C log (48 / ε) + log (4 / δ))⌉`. -/

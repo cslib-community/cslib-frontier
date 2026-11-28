@@ -18,8 +18,10 @@ inline Word-RAM subroutine implementation and resource certificate for a relatio
 specification `D : Cslib.DataStructure.StateTransitionSpec`.
 
 A data structure is packaged once as a `Cslib.WordRAM.SubroutineCode B r_ds k_init` and certified by
-a `StateTransitionImpl` bundle extending `Cslib.WordRAM.SubroutineBase`. From that single proof,
-this file derives:
+a `StateTransitionImpl` bundle extending `Cslib.WordRAM.SubroutineBase`. Inline and flat-operation
+certificates use an explicit representation-relative observation function. Native standalone
+projections additionally require a checked `NativeResultRecoding` and a proof that the source run
+establishes its runtime precondition. This file provides:
 
 1. **Defined-evaluation basis lifting (`StateTransitionImpl.mapSimulates`,
    `StateTransitionImpl.toStandard`):** Non-faulting executions over `Basis.exact` lift
@@ -41,7 +43,7 @@ this file derives:
 * `Cslib.DataStructure.WordRAM.StateTransitionImpl.ofFn`: constructor for deterministic
   specifications (`[D.HasStepFn f]`).
 * `Cslib.DataStructure.WordRAM.StateTransitionImpl.toCertificate`: standalone `.standard`-basis
-  `DynamicCertificate` projection.
+  `DynamicCertificate` projection with paid canonical result conversion.
 * `Cslib.DataStructure.WordRAM.StateTransitionImpl.RunsOps`: sequential flat-program operation
   execution relation.
 
@@ -195,116 +197,120 @@ abbrev toStandard {P : SubroutineCode .exact r_ds k_init}
 
 section Standard
 
-variable {P_std : SubroutineCode .standard r_ds k_init}
+variable {D : StateTransitionSpec.{u, v, 0}} {s₀ : D.State}
+  {P_std : SubroutineCode .standard r_ds k_init}
   (C : StateTransitionImpl P_std D w base params s₀)
+  (R : NativeResultRecoding D.Result .standard r_ds w C.decode C.rep C.potential)
+  (hready : ∀ {s x o y n}, C.rep s x → D.valid s o → C.argMatch o x.regs →
+    Exec w P_std.code x y n → R.ready o y)
 
-/-- Project a `.standard`-basis `StateTransitionImpl` to a standalone `DynamicCertificate`. -/
-def toCertificate : DynamicCertificate (D := D) C.toDynamicProgram w where
+include hready
+
+/-- Execute the source body and its paid native conversion, preserving the original potential
+accounting. The runtime conversion precondition follows from the source execution. -/
+theorem native_execute {s : D.State} {x : Data r_ds} (o : D.Op)
+    (hr : C.rep s x) (hv : D.valid s o) :
+    ∃ y s' a n, Exec w (C.toDynamicProgram R).code ((C.toDynamicProgram R).prepare o x) y n ∧
+      D.step s o s' a ∧ (C.toDynamicProgram R).decode o y.regs = some a ∧ C.rep s' y ∧
+      n + C.potential y ≤ C.charge s o + R.time + C.potential x := by
+  have hreg (i : Fin r_ds) (hi : P_std.input i = false) :
+      ((C.toDynamicProgram R).prepare o x).regs i = x.regs i :=
+    (C.toDynamicProgram R).prepare_regs_of_not_input hi o x
+  have hr' : C.rep s ((C.toDynamicProgram R).prepare o x) :=
+    C.rep_supported hreg (fun _ _ => rfl)
+      ((C.toDynamicProgram R).prepare_bounded (C.bounded hr) (C.arguments_fit o hv)) hr
+  have hp_eq : C.potential ((C.toDynamicProgram R).prepare o x) = C.potential x :=
+    C.potential_supported hreg (fun _ _ => rfl) hr
+  have harg : C.argMatch o ((C.toDynamicProgram R).prepare o x).regs :=
+    C.encode_matches o x.regs
+  obtain ⟨y, s', a, n, he, hstep, hdec, hrep, _, hpot⟩ := C.step_exec o hr' hv harg
+  obtain ⟨z, ⟨k, hk, hex⟩, hz, hrepz, hpotential, _⟩ :=
+    R.execute o a hrep (C.bounded hrep) (hready hr' hv harg he) hdec
+  refine ⟨z, s', a, n + k, he.seq hex, hstep, ?_, hrepz, ?_⟩
+  · simp only [DynamicProgram.decode, SubroutineBase.toDynamicProgram,
+      SubroutineCode.toDynamicProgram, hz, Option.map_some, Option.some.injEq]
+    exact cast_cast ..
+  · rw [hpotential, ← hp_eq]
+    lia
+
+/-- Project a representation-relative subroutine to native typed calls through a checked,
+paid conversion. The conversion's runtime precondition must follow from the actual body run. -/
+def toCertificate : DynamicCertificate (D := D) (C.toDynamicProgram R) w where
   rep := C.rep
   bounded := C.bounded
   arguments_fit := C.arguments_fit
-  execute {s x} o hr hv := by
-    have hb' : (C.toDynamicProgram.prepare o x).Bounded w :=
-      C.toDynamicProgram.prepare_bounded (C.bounded hr) (C.arguments_fit o hv)
-    have hr' : C.rep s (C.toDynamicProgram.prepare o x) :=
-      C.rep_supported
-        (fun i hi => C.toDynamicProgram.prepare_regs_of_not_input hi o x)
-        (fun _ _ => rfl) hb' hr
-    have harg : C.argMatch o (C.toDynamicProgram.prepare o x).regs :=
-      C.encode_matches o x.regs
-    obtain ⟨y, s', a, n, he, hstep, hdec, hrep, _, _⟩ := C.step_exec o hr' hv harg
+  execute o hr hv := by
+    obtain ⟨y, s', a, n, he, hstep, hdec, hrep, _⟩ := C.native_execute R hready o hr hv
     exact ⟨y, s', a, n, he, hstep, hdec, hrep⟩
 
-/-- Project a `.standard`-basis `StateTransitionImpl` to a standalone `DataStructure.Amortized`
-certificate, charging `+ 1` per operation for `DynamicProgram`'s trailing `halt` instruction. -/
+/-- Native instruction accounting includes the conversion's uniform budget and the final halt. -/
 theorem toAmortized :
-    DataStructure.Amortized C.toCertificate.impl
+    DataStructure.Amortized (C.toCertificate R hready).impl
       DynamicProgram.OperationTrace.instructions
       (fun _ x => C.potential x)
-      (fun s o => C.charge s o + 1) where
+      (fun s o => C.charge s o + R.time + 1) where
   step {s x o a y trace} hr hv he := by
-    have hb' : (C.toDynamicProgram.prepare o x).Bounded w :=
-      C.toDynamicProgram.prepare_bounded (C.bounded hr) (C.arguments_fit o hv)
-    have hr' : C.rep s (C.toDynamicProgram.prepare o x) :=
-      C.rep_supported
-        (fun i hi => C.toDynamicProgram.prepare_regs_of_not_input hi o x)
-        (fun _ _ => rfl) hb' hr
-    have hp_eq : C.potential (C.toDynamicProgram.prepare o x) = C.potential x :=
-      C.potential_supported
-        (fun i hi => C.toDynamicProgram.prepare_regs_of_not_input hi o x)
-        (fun _ _ => rfl) hr
-    have harg : C.argMatch o (C.toDynamicProgram.prepare o x).regs :=
-      C.encode_matches o x.regs
-    obtain ⟨z, s', a', m, hz, hstep, hdec, hrep, _, hpot⟩ := C.step_exec o hr' hv harg
+    obtain ⟨z, s', a', m, hz, hstep, hdec, hrep, hpot⟩ := C.native_execute R hready o hr hv
     obtain ⟨rfl, hinst⟩ := he.eq_of_exec hz
     obtain ⟨_, _, _, ha_trace, _⟩ := he
-    have ha_eq : a = a' := Option.some.inj (ha_trace.symm.trans hdec)
-    subst ha_eq
-    refine ⟨s', hstep, hrep, ?_⟩
-    rw [hinst]
-    rw [hp_eq] at hpot
-    omega
+    obtain rfl : a = a' := Option.some.inj (ha_trace.symm.trans hdec)
+    exact ⟨s', hstep, hrep, by rw [hinst]; omega⟩
 
-/-- When `C.potential` is identically zero, `StateTransitionImpl` projects directly to a worst-case
-`DataStructure.Bound` certificate. -/
+/-- Zero potential gives a worst-case native bound, including paid output conversion. -/
 theorem toBound (hpot : ∀ x, C.potential x = 0) :
-    DataStructure.Bound C.toCertificate.impl
+    DataStructure.Bound (C.toCertificate R hready).impl
       DynamicProgram.OperationTrace.instructions
-      (fun s o => C.charge s o + 1) := by
+      (fun s o => C.charge s o + R.time + 1) := by
   intro s x o a y trace hr hv he
-  obtain ⟨_, _, _, h⟩ := C.toAmortized.step hr hv he
+  obtain ⟨_, _, _, h⟩ := (C.toAmortized R hready).step hr hv he
   simp only [hpot] at h
-  omega
+  lia
 
-/-- Standalone adaptive-client amortized bound for any demonically admissible client `p`. -/
+/-- Standalone adaptive-client amortized execution with native result conversion charged. -/
 theorem run_client_demonic_amortized {α : Type*} (p : D.Client α) {s : D.State} {x : Data r_ds}
     (hr : C.rep s x) (hv : D.DemonicValid s p) :
     ∃ a y traces s' tr,
-      DataStructure.Executes (C.toDynamicProgram.ExecOp w) p x a y traces ∧
-      D.ClientRun s p a s' tr ∧
-      C.rep s' y ∧
-      traces.length = tr.length ∧
+      DataStructure.Executes ((C.toDynamicProgram R).ExecOp w) p x a y traces ∧
+      D.ClientRun s p a s' tr ∧ C.rep s' y ∧ traces.length = tr.length ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces + C.potential y ≤
-        D.totalCostTranscript (fun s o => C.charge s o + 1) s tr + C.potential x :=
-  C.toAmortized.exists_demonic p hr hv
+        D.totalCostTranscript (fun s o => C.charge s o + R.time + 1) s tr + C.potential x :=
+  (C.toAmortized R hready).exists_demonic p hr hv
 
-/-- Standalone adaptive-client worst-case bound when `C.potential` is identically zero. -/
+/-- Standalone adaptive-client worst-case bound when the potential is zero. -/
 theorem run_client_demonic_bound (hpot : ∀ x, C.potential x = 0) {α : Type*} (p : D.Client α)
     {s : D.State} {x : Data r_ds} (hr : C.rep s x) (hv : D.DemonicValid s p) :
     ∃ a y traces s' tr,
-      DataStructure.Executes (C.toDynamicProgram.ExecOp w) p x a y traces ∧
-      D.ClientRun s p a s' tr ∧
-      C.rep s' y ∧
-      traces.length = tr.length ∧
+      DataStructure.Executes ((C.toDynamicProgram R).ExecOp w) p x a y traces ∧
+      D.ClientRun s p a s' tr ∧ C.rep s' y ∧ traces.length = tr.length ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces ≤
-        D.totalCostTranscript (fun s o => C.charge s o + 1) s tr :=
-  DataStructure.Bound.exists_demonic (C.toBound hpot) p hr hv
+        D.totalCostTranscript (fun s o => C.charge s o + R.time + 1) s tr :=
+  DataStructure.Bound.exists_demonic (C.toBound R hready hpot) p hr hv
 
-/-- Standalone adaptive-client amortized bound on a deterministic specification. -/
+/-- Standalone deterministic-client amortized bound with the output conversion included. -/
 theorem run_client_amortized
     {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     {α : Type*} (p : D.Client α) {s : D.State} {x : Data r_ds}
     (hr : C.rep s x) (hv : D.ValidHistory s (D.clientHistory s p)) :
     ∃ y traces,
-      DataStructure.Executes (C.toDynamicProgram.ExecOp w) p x (D.clientResult s p) y traces ∧
+      DataStructure.Executes ((C.toDynamicProgram R).ExecOp w) p x (D.clientResult s p) y traces ∧
       C.rep (D.clientState s p) y ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces + C.potential y ≤
-        D.totalCost (fun s o => C.charge s o + 1) s (D.clientHistory s p) + C.potential x :=
-  C.toAmortized.exists_executes p hr hv
+        D.totalCost (fun s o => C.charge s o + R.time + 1) s (D.clientHistory s p) +
+          C.potential x :=
+  (C.toAmortized R hready).exists_executes p hr hv
 
-/-- Standalone adaptive-client worst-case bound on a deterministic specification when
-`C.potential` is identically zero. -/
+/-- Standalone deterministic-client worst-case bound with zero potential. -/
 theorem run_client_bound
     {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (hpot : ∀ x, C.potential x = 0) {α : Type*} (p : D.Client α)
     {s : D.State} {x : Data r_ds} (hr : C.rep s x)
     (hv : D.ValidHistory s (D.clientHistory s p)) :
     ∃ y traces,
-      DataStructure.Executes (C.toDynamicProgram.ExecOp w) p x (D.clientResult s p) y traces ∧
+      DataStructure.Executes ((C.toDynamicProgram R).ExecOp w) p x (D.clientResult s p) y traces ∧
       C.rep (D.clientState s p) y ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces ≤
-        D.totalCost (fun s o => C.charge s o + 1) s (D.clientHistory s p) :=
-  DataStructure.Bound.exists_executes (C.toBound hpot) p hr hv
+        D.totalCost (fun s o => C.charge s o + R.time + 1) s (D.clientHistory s p) :=
+  DataStructure.Bound.exists_executes (C.toBound R hready hpot) p hr hv
 
 end Standard
 
@@ -325,13 +331,7 @@ theorem code_rename (C : StateTransitionImpl P D w base params s₀)
       t + C.potential (z.comap f) ≤ C.charge s o + C.potential (x.comap f) := by
   obtain ⟨y, s', a, n, he, hstep, hdec, hrep, hmod, hpot⟩ := C.step_exec o hr hv harg
   refine ⟨y.extend f x, s', a, n, (he.rename hf).within, hstep, ?_, ?_, hmod,
-    fun j hj => Data.extend_regs_of_notMem y x hj, ?_⟩
-  · rw [Data.comap_extend hf]
-    exact hdec
-  · rw [Data.comap_extend hf]
-    exact hrep
-  · rw [Data.comap_extend hf]
-    exact hpot
+    fun j hj => Data.extend_regs_of_notMem y x hj, ?_⟩ <;> rwa [Data.comap_extend hf]
 
 /-- Execute `.seq prep (P.code.rename f)` inline after a caller argument-preparation block `prep`
 that preserves persistent DS registers and memory in `[base, base + C.space)`. -/
@@ -351,12 +351,11 @@ theorem call_rename (C : StateTransitionImpl P D w base params s₀)
       Modifies (Block.mk base C.space).footprint x'.mem z.mem ∧
       (∀ j ∉ Set.range f, z.regs j = x'.regs j) ∧
       t + C.potential (z.comap f) ≤ t_prep + C.charge s o + C.potential (x.comap f) := by
-  have hr' : C.rep s (x'.comap f) :=
-    C.rep_supported (x := x.comap f) (x' := x'.comap f) hreg hmem hb' hr
   have hp_eq : C.potential (x'.comap f) = C.potential (x.comap f) :=
     C.potential_supported (x := x.comap f) (x' := x'.comap f) hreg hmem hr
   obtain ⟨z, s', a, t_op, he_op, hstep, hdec, hrep_z, hmod_z, hregs_z, hpot_z⟩ :=
-    C.code_rename hf o hr' hv harg
+    C.code_rename hf o (C.rep_supported (x := x.comap f) (x' := x'.comap f) hreg hmem hb' hr)
+      hv harg
   exact ⟨z, s', a, t_prep + t_op, hprep.seq he_op, hstep, hdec, hrep_z, hmod_z, hregs_z,
     by rw [hp_eq] at hpot_z; omega⟩
 
@@ -375,10 +374,7 @@ theorem code_rename_ofFn
       t + C.potential (z.comap f) ≤ C.charge s o + C.potential (x.comap f) := by
   obtain ⟨z, s', a, t, he, hstep, hdec, hrep, hmod, hregs, hpot⟩ :=
     C.code_rename hf o hr hv harg
-  have heq := (D.step_iff_stepFn s o s' a).mp hstep
-  have hs' : s' = (D.stepFn s o).1 := congrArg Prod.fst heq
-  have ha : a = (D.stepFn s o).2 := congrArg Prod.snd heq
-  subst hs'; subst ha
+  obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp ((D.step_iff_stepFn s o s' a).mp hstep)
   exact ⟨z, t, he, hdec, hrep, hmod, hregs, hpot⟩
 
 /-- Deterministic specialization of `call_rename` for `[D.HasStepFn g]`. -/
@@ -401,10 +397,7 @@ theorem call_rename_ofFn
       t + C.potential (z.comap f) ≤ t_prep + C.charge s o + C.potential (x.comap f) := by
   obtain ⟨z, s', a, t, he, hstep, hdec, hrep, hmod, hregs, hpot⟩ :=
     C.call_rename hf o hr hv hprep hb' hreg hmem harg
-  have heq := (D.step_iff_stepFn s o s' a).mp hstep
-  have hs' : s' = (D.stepFn s o).1 := congrArg Prod.fst heq
-  have ha : a = (D.stepFn s o).2 := congrArg Prod.snd heq
-  subst hs'; subst ha
+  obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp ((D.step_iff_stepFn s o s' a).mp hstep)
   exact ⟨z, t, he, hdec, hrep, hmod, hregs, hpot⟩
 
 /-! ### Projection 3: Flat-program operation-sequence execution (`RunsOps`, `run_ops_exact_*`) -/
@@ -455,24 +448,17 @@ theorem seq_runsOps_of_prep (C : StateTransitionImpl P D w base params s₀)
     ⟨[], s, x, 0, .nil, rfl, .nil s, hr, Nat.zero_add (C.potential x) ▸ le_rfl⟩
   | o :: ops, s, x, hr, ⟨hv_o, hv_rest⟩ => by
     let x' : Data r_ds := ⟨prepRegs o x.regs, x.mem⟩
-    have hbx := C.bounded hr
-    have hb' : x'.Bounded w := ⟨hfit o x.regs hv_o hbx.1, hbx.2⟩
-    have hreg' : ∀ i, P.input i = false → x'.regs i = x.regs i :=
-      fun i hi => hnot_in o x.regs i hi
-    have hr' : C.rep s x' := C.rep_supported hreg' (fun _ _ => rfl) hb' hr
-    have hpot' : C.potential x' = C.potential x :=
-      C.potential_supported hreg' (fun _ _ => rfl) hr
+    have hreg' : ∀ i, P.input i = false → x'.regs i = x.regs i := hnot_in o x.regs
+    have hr' : C.rep s x' := C.rep_supported hreg' (fun _ _ => rfl)
+      ⟨hfit o x.regs hv_o (C.bounded hr).1, (C.bounded hr).2⟩ hr
     obtain ⟨y, s₁, a, m, he_op, hstep, hdec, hr_y, hmod, hpot_m⟩ :=
       C.step_exec o hr' hv_o (harg o x.regs)
-    rw [hpot'] at hpot_m
-    have hruns : Runs w P.opProg ⟨0, x'⟩ ⟨0 + P.code.size, y⟩ m :=
-      he_op.runs (pc := 0) (p := P.opProg) (Program.Contains.self _).append_left
-    have hhalt : step w P.opProg ⟨0 + P.code.size, y⟩ = .halt (y.regs P.output) :=
-      step_program_halt P.code P.output y
+    rw [C.potential_supported hreg' (fun _ _ => rfl) hr] at hpot_m
     obtain ⟨tr, s_fin, z, rest, hrest, hops, htr, hr_z, hpot_rest⟩ :=
       seq_runsOps_of_prep C prepRegs hfit hnot_in harg ops hr_y (hv_rest s₁ a hstep)
     refine ⟨⟨o, a, s₁⟩ :: tr, s_fin, z, (m + 1) + rest,
-      .cons hruns ⟨_, hhalt⟩ hstep hdec hmod hrest,
+      .cons (he_op.runs (pc := 0) (p := P.opProg) (Program.Contains.self _).append_left)
+        ⟨_, step_program_halt P.code P.output y⟩ hstep hdec hmod hrest,
       congrArg (o :: ·) hops, .cons _ hv_o hstep htr, hr_z, ?_⟩
     simp only [StateTransitionSpec.totalCostTranscript_cons]
     omega
@@ -518,14 +504,11 @@ theorem run_ops_exact_fresh (C : StateTransitionImpl P D w base params s₀)
         D.totalCostTranscript (fun st o => C.charge st o + 1) s₀ tr + C.initPotential := by
   obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hr₀, hpot₀, hmod₀⟩ :=
     C.initFresh_exec hd₀ hfr hpar hzero
-  have hruns₀ : Runs w P.initFreshProg ⟨0, d₀⟩ ⟨0 + P.initFresh.size, x₀⟩ t_init :=
-    he_init.runs (pc := 0) (p := P.initFreshProg) (Program.Contains.self _).append_left
-  have hhalt₀ : step w P.initFreshProg ⟨0 + P.initFresh.size, x₀⟩ = .halt (x₀.regs P.output) :=
-    step_program_halt P.initFresh P.output x₀
-  obtain ⟨tr, s_fin, z, t_ops, hruns_ops, hops, htr, hr_z, hbound⟩ :=
-    C.seq_runsOps ops hr₀ hv
-  exact ⟨_, x₀, t_init, tr, s_fin, z, t_ops, hruns₀, ⟨_, hhalt₀⟩, hmod₀, hruns_ops,
-    hops, htr, hr_z, ht_init, by omega⟩
+  obtain ⟨tr, s_fin, z, t_ops, hruns_ops, hops, htr, hr_z, hbound⟩ := C.seq_runsOps ops hr₀ hv
+  exact ⟨_, x₀, t_init, tr, s_fin, z, t_ops,
+    he_init.runs (pc := 0) (p := P.initFreshProg) (Program.Contains.self _).append_left,
+    ⟨_, step_program_halt P.initFresh P.output x₀⟩, hmod₀, hruns_ops, hops, htr, hr_z, ht_init,
+    by omega⟩
 
 /-- Standalone flat-program operation-sequence theorem with reusable initialization on arbitrary
 `w`-bounded memory: `P.initClearProg` runs at most `C.initTime + 4 * C.space + 6` steps before its
@@ -546,16 +529,12 @@ theorem run_ops_exact_reusable (C : StateTransitionImpl P D w base params s₀)
       t_init ≤ C.initTime + 4 * C.space + 6 ∧
       t_ops + C.potential z ≤
         D.totalCostTranscript (fun st o => C.charge st o + 1) s₀ tr + C.initPotential := by
-  obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hr₀, hpot₀, hmod₀⟩ :=
-    C.initClear_exec hd₀ hfr hpar
-  have hruns₀ : Runs w P.initClearProg ⟨0, d₀⟩ ⟨0 + P.initClear.size, x₀⟩ t_init :=
-    he_init.runs (pc := 0) (p := P.initClearProg) (Program.Contains.self _).append_left
-  have hhalt₀ : step w P.initClearProg ⟨0 + P.initClear.size, x₀⟩ = .halt (x₀.regs P.output) :=
-    step_program_halt P.initClear P.output x₀
-  obtain ⟨tr, s_fin, z, t_ops, hruns_ops, hops, htr, hr_z, hbound⟩ :=
-    C.seq_runsOps ops hr₀ hv
-  exact ⟨_, x₀, t_init, tr, s_fin, z, t_ops, hruns₀, ⟨_, hhalt₀⟩, hmod₀, hruns_ops,
-    hops, htr, hr_z, ht_init, by omega⟩
+  obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hr₀, hpot₀, hmod₀⟩ := C.initClear_exec hd₀ hfr hpar
+  obtain ⟨tr, s_fin, z, t_ops, hruns_ops, hops, htr, hr_z, hbound⟩ := C.seq_runsOps ops hr₀ hv
+  exact ⟨_, x₀, t_init, tr, s_fin, z, t_ops,
+    he_init.runs (pc := 0) (p := P.initClearProg) (Program.Contains.self _).append_left,
+    ⟨_, step_program_halt P.initClear P.output x₀⟩, hmod₀, hruns_ops, hops, htr, hr_z, ht_init,
+    by omega⟩
 
 /-- Deterministic specialization of `run_ops_exact_fresh` for `[D.HasStepFn g]`, executing the
 canonical transcript `D.canonicalTranscript s₀ ops` to `(D.run s₀ ops).1`. -/
@@ -582,9 +561,9 @@ theorem run_ops_exact_fresh_ofFn
     C.run_ops_exact_fresh hd₀ hfr hpar hzero ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
   obtain ⟨_, hs_fin, htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s_fin).mp htr
   rw [hops] at hs_fin htr_eq
-  subst hs_fin; subst htr_eq
-  rw [D.totalCostTranscript_canonicalTranscript] at hbound
-  exact ⟨pc₀, x₀, t_init, z, t_ops, hruns₀, hhalt₀, hmod₀, hruns_ops, hr_z, ht_init, hbound⟩
+  subst hs_fin htr_eq
+  exact ⟨pc₀, x₀, t_init, z, t_ops, hruns₀, hhalt₀, hmod₀, hruns_ops, hr_z, ht_init,
+    by rwa [D.totalCostTranscript_canonicalTranscript] at hbound⟩
 
 /-- Deterministic specialization of `run_ops_exact_reusable` for `[D.HasStepFn g]`, executing the
 canonical transcript `D.canonicalTranscript s₀ ops` to `(D.run s₀ ops).1`. -/
@@ -610,9 +589,9 @@ theorem run_ops_exact_reusable_ofFn
     C.run_ops_exact_reusable hd₀ hfr hpar ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
   obtain ⟨_, hs_fin, htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s_fin).mp htr
   rw [hops] at hs_fin htr_eq
-  subst hs_fin; subst htr_eq
-  rw [D.totalCostTranscript_canonicalTranscript] at hbound
-  exact ⟨pc₀, x₀, t_init, z, t_ops, hruns₀, hhalt₀, hmod₀, hruns_ops, hr_z, ht_init, hbound⟩
+  subst hs_fin htr_eq
+  exact ⟨pc₀, x₀, t_init, z, t_ops, hruns₀, hhalt₀, hmod₀, hruns_ops, hr_z, ht_init,
+    by rwa [D.totalCostTranscript_canonicalTranscript] at hbound⟩
 
 end StateTransitionImpl
 

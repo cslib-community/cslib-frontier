@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Paddable
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
+import CslibFrontier.Computability.Complexity.Reduction.Nontrivial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 
 /-!
@@ -43,8 +44,6 @@ of arguments in the report.
 
 ## Main results
 
-* `Cslib.Complexity.polyTimeReducible_of_mem_P`: every language in `P` reduces to every language
-  with a member and a nonmember.
 * `Cslib.Complexity.bermanHartmanisConjecture_iff_paddable`: the conjecture holds exactly when
   every `NP`-complete language of bit strings is paddable.
 * `Cslib.Complexity.BermanHartmanisConjecture.SAT_notMem_P`,
@@ -73,18 +72,6 @@ so that clients can apply the hypothesis to particular languages. -/
   ∀ A B : Set (List Bool), NPComplete encBits A → NPComplete encBits B →
     PolyTimeIsomorphic encBits encBits A B
 
-/-- Every language in `P` reduces to every language with a member `b₁` and a nonmember `b₀`:
-decide membership and output `b₁` or `b₀`. -/
-theorem polyTimeReducible_of_mem_P {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
-    {A : Set α} {B : Set β} (hA : A ∈ P encA) {b₁ b₀ : β} (h₁ : b₁ ∈ B) (h₀ : b₀ ∉ B) :
-    PolyTimeReducible encA encB A B := by
-  obtain ⟨f, hf, hfA⟩ := hA
-  refine ⟨fun a => if f a then b₁ else b₀, hf.ite (.const b₁) (.const b₀), fun a => ?_⟩
-  rw [hfA a]
-  cases hfa : f a
-  · simp only [hfa, Bool.false_eq_true, ↓reduceIte, h₀]
-  · simp only [hfa, ↓reduceIte, h₁]
-
 /-- **The conjecture is paddability of every `NP`-complete language** of bit strings. The words
 that decode to satisfiable formulas form a paddable `NP`-complete language, and paddable
 `NP`-complete languages are isomorphic ([Berman and Hartmanis][BermanHartmanis1975], §III,
@@ -108,26 +95,19 @@ isomorphism would send the two distinct nonempty words `[true]` and `[false]` to
 theorem SAT_notMem_P (h : BermanHartmanisConjecture) : SAT ∉ P encCNF := by
   intro hSAT
   have hPNP : P encBits = NP encBits := CookLevin.SAT_npComplete.P_eq_NP_of_mem_P hSAT encBits
-  have hdec : ComputableInPolyTime (fun w : List Bool => decide (w = [])) encBits encBool :=
-    ComputableInPolyTime.decide_eq' .id' (.const [])
   have h₀ : ({[]} : Set (List Bool)) ∈ P encBits :=
-    ⟨fun w => decide (w = []), hdec, fun w => by
-      simp only [Set.mem_singleton_iff, decide_eq_true_eq]⟩
+    ⟨fun w => decide (w = []), .decide_eq' .id' (.const []), fun w => by simp⟩
   have hc : ∀ {L : Set (List Bool)}, L ∈ P encBits → ∀ {b₁ b₀ : List Bool}, b₁ ∈ L → b₀ ∉ L →
       NPComplete encBits L := fun hL _ _ hb₁ hb₀ =>
     ⟨hPNP ▸ hL, fun _ enc _ hA' =>
       polyTimeReducible_of_mem_P (CookLevin.SAT_npComplete.P_eq_NP_of_mem_P hSAT enc ▸ hA')
         hb₁ hb₀⟩
   have hnil : ([] : List Bool) ∈ ({[]} : Set (List Bool)) := rfl
-  have htrue : [true] ∉ ({[]} : Set (List Bool)) := by
-    rw [Set.mem_singleton_iff]
-    decide
+  have htrue : [true] ∉ ({[]} : Set (List Bool)) := by simp
   obtain ⟨e, -, he⟩ := h _ _ (hc h₀ hnil htrue) (hc (compl_mem_P h₀) htrue (not_not.2 hnil))
-  have key : ∀ b : List Bool, b ≠ [] → e.symm b = [] := fun b hb => by
-    have := he (e.symm b)
-    rw [Equiv.apply_symm_apply, Set.mem_singleton_iff, Set.mem_compl_iff,
-      Set.mem_singleton_iff] at this
-    exact this.2 hb
+  have key (b : List Bool) (hb : b ≠ []) : e.symm b = [] := by
+    have hiff : e.symm b = [] ↔ b ≠ [] := by simpa [Equiv.apply_symm_apply] using he (e.symm b)
+    exact hiff.2 hb
   have := e.symm.injective ((key [true] (by decide)).trans (key [false] (by decide)).symm)
   exact absurd this (by decide)
 
@@ -137,9 +117,9 @@ theorem P_ne_NP (h : BermanHartmanisConjecture) :
     P encCNF ≠ NP encCNF ∧ P encBits ≠ NP encBits := by
   refine ⟨fun hP => h.SAT_notMem_P (hP ▸ CookLevin.SAT_npComplete.1), fun hP => h.SAT_notMem_P ?_⟩
   have hS := CookLevin.SAT_npComplete.preimage_decode cnfDecoder
-  have hmem : cnfDecoder.decode ⁻¹' SAT ∈ P encBits := hP ▸ hS.1
-  refine PolyTimeReducible.mem_P ⟨fun φ => encCNF φ, ComputableInPolyTime.id'.of_enc_eq
-    fun _ => rfl, fun φ => ?_⟩ hmem
+  refine PolyTimeReducible.mem_P ⟨encCNF, ComputableInPolyTime.id'.of_enc_eq fun _ => rfl, ?_⟩
+    (hP ▸ hS.1)
+  intro φ
   simp only [Set.mem_preimage, cnfDecoder.decode_enc]
 
 end BermanHartmanisConjecture

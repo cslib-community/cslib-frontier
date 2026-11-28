@@ -78,14 +78,11 @@ noncomputable def coeffWeight (k : ℕ) (s : F) : F :=
 `∑ s, coeffWeight k s * R(s)` at `X ^ k`. -/
 theorem sum_coeffWeight_mul_eval {R : F[X]} (hR : R.natDegree < Fintype.card F) (k : ℕ) :
     ∑ s, coeffWeight k s * R.eval s = R.coeff k := by
-  have hdeg : R.degree < #(univ : Finset F) := by
-    rw [card_univ]
-    exact degree_le_natDegree.trans_lt (by exact_mod_cast hR)
+  have hdeg : R.degree < #(univ : Finset F) :=
+    degree_le_natDegree.trans_lt (by simpa only [card_univ] using Nat.cast_lt.2 hR)
   conv_rhs => rw [Lagrange.eq_interpolate (s := univ) (v := id) (Set.injOn_id _) hdeg]
   rw [Lagrange.interpolate_apply, finsetSum_coeff]
-  refine sum_congr rfl fun s _ => ?_
-  rw [coeff_C_mul, coeffWeight, mul_comm]
-  rfl
+  exact sum_congr rfl fun s _ => by rw [coeff_C_mul, coeffWeight, mul_comm]; rfl
 
 /-! ### Newton iteration -/
 
@@ -97,10 +94,10 @@ omit [Fintype F] [DecidableEq F] in
 /-- The value of `Q(X + τ, A(X))` at `s` is `Q(s + τ, A(s))`. -/
 private theorem eval_shiftEval (Q : F[X][Y]) (τ : F) (A : F[X]) (s : F) :
     (shiftEval Q τ A).eval s = Q.evalEval (s + τ) (A.eval s) := by
-  rw [shiftEval, eval_map, ← coe_evalRingHom, hom_eval₂, coe_evalRingHom]
-  have : (evalRingHom s).comp (taylorAlgHom τ : F[X] →+* F[X]) = evalRingHom (s + τ) :=
+  have hcomp : (evalRingHom s).comp (taylorAlgHom τ : F[X] →+* F[X]) = evalRingHom (s + τ) :=
     RingHom.ext fun p => by simp [taylor_eval]
-  rw [this, ← eval₂_evalRingHom]
+  rw [shiftEval, eval_map, ← coe_evalRingHom, hom_eval₂, coe_evalRingHom, hcomp,
+    ← eval₂_evalRingHom]
 
 /-- The coefficient chosen by one Newton step: `-[X ^ k] Q(X + τ, A(X)) / λ`, computed from the
 values of `Q(X + τ, A(X))` on `F`. -/
@@ -143,15 +140,12 @@ when `Q` has `(1, d)`-weighted degree at most `D`. -/
 private theorem natDegree_shiftEval_le {d D : ℕ} {Q : F[X][Y]}
     (hQ : Sudan.WeightedDegreeLE d D Q) (τ : F) {A : F[X]}
     (hA : A.natDegree ≤ d) : (shiftEval Q τ A).natDegree ≤ D := by
-  refine (Sudan.WeightedDegreeLE.natDegree_eval_le ?_ hA)
-  intro a b hab
+  refine Sudan.WeightedDegreeLE.natDegree_eval_le (fun a b hab => ?_) hA
   rw [coeff_map] at hab
-  have hQb : Q.coeff b ≠ 0 := fun h => hab (by simp [h])
   have ha : a ≤ (Q.coeff b).natDegree := by
-    have := le_natDegree_of_ne_zero hab
-    rwa [show ((taylorAlgHom τ : F[X] →+* F[X]) (Q.coeff b)) = taylor τ (Q.coeff b) from rfl,
-      natDegree_taylor] at this
-  have := hQ _ b (leadingCoeff_ne_zero.2 hQb)
+    simpa only [show ((taylorAlgHom τ : F[X] →+* F[X]) (Q.coeff b)) = taylor τ (Q.coeff b) from rfl,
+      natDegree_taylor] using le_natDegree_of_ne_zero hab
+  have := hQ _ b (leadingCoeff_ne_zero.2 fun h => hab (by simp [h]))
   omega
 
 omit [Fintype F] [DecidableEq F] in
@@ -173,7 +167,7 @@ private theorem coeff_derivative_eval_mul_X_pow_mul (Q : F[X][Y]) {P A R : F[X]}
     rw [derivative_map, show (Q.derivative.map φ).eval A = shiftEval Q.derivative τ A from rfl,
       eval_shiftEval, zero_add, ← coeff_zero_eq_eval_zero, hAP0, taylor_coeff_zero]
   have h2 : R.coeff 0 = (taylor τ P).coeff (k + 1) := by
-    have := congrArg (coeff · (k + 1)) hPA
+    have := congrArg (·.coeff (k + 1)) hPA
     simp only [coeff_add, coeff_X_pow_mul', ite_eq_left le_rfl, Nat.sub_self] at this
     rw [this, coeff_eq_zero_of_natDegree_lt (p := A) (by omega), zero_add]
   rw [h1, h2]
@@ -201,7 +195,7 @@ theorem henselCoeff_eq {d D : ℕ} {Q : F[X][Y]}
     rw [eval_map, eval₂_hom, hQP, map_zero]
   obtain ⟨c, hc⟩ := exists_mul_sq_add_linear_part_eq_eval_add G A (X ^ (k + 1) * R)
   rw [← hPA, hG] at hc
-  have hcoeff := congrArg (coeff · (k + 1)) hc
+  have hcoeff := congrArg (·.coeff (k + 1)) hc
   simp only [coeff_add, coeff_zero] at hcoeff
   -- the quadratic term vanishes at degree `k + 1`
   have hsq : (c * (X ^ (k + 1) * R) ^ 2).coeff (k + 1) = 0 := by
@@ -240,22 +234,20 @@ theorem henselValue_eq {d D : ℕ} {Q : F[X][Y]}
       rw [Nat.le_zero.1 hi, henselTrunc, coeff_C_zero, taylor_coeff_zero]
     | succ k ih =>
       obtain ⟨hdeg, hcoeff⟩ := ih (Nat.le_of_succ_le hk)
-      have hstep := henselCoeff_eq hQ hD hQP hlam (Nat.lt_of_succ_le hk) hdeg hcoeff
-      refine ⟨?_, fun i hi => ?_⟩
-      · rw [henselTrunc]
-        refine natDegree_add_le_of_degree_le (hdeg.trans (Nat.le_succ k)) ?_
-        exact natDegree_C_mul_X_pow_le _ _
-      · rw [henselTrunc, coeff_add, coeff_C_mul_X_pow, hstep]
-        rcases Nat.lt_succ_iff_lt_or_eq.1 (Nat.lt_succ_of_le hi) with hi | rfl
-        · rw [ite_eq_right (by omega), add_zero, hcoeff i (Nat.lt_succ_iff.1 hi)]
-        · rw [ite_eq_left rfl, coeff_eq_zero_of_natDegree_lt (by omega), zero_add]
+      refine ⟨natDegree_add_le_of_degree_le (hdeg.trans (Nat.le_succ k))
+        (natDegree_C_mul_X_pow_le _ _), fun i hi => ?_⟩
+      rw [henselTrunc, coeff_add, coeff_C_mul_X_pow,
+        henselCoeff_eq hQ hD hQP hlam (Nat.lt_of_succ_le hk) hdeg hcoeff]
+      rcases eq_or_lt_of_le hi with rfl | hlt
+      · rw [ite_eq_left rfl, coeff_eq_zero_of_natDegree_lt (by omega), zero_add]
+      · rw [ite_eq_right (by omega), add_zero, hcoeff i (Nat.lt_succ_iff.1 hlt)]
   obtain ⟨hdeg, hcoeff⟩ := key d le_rfl
   have heq : henselTrunc Q τ (P.eval τ) lam d = taylor τ P := by
     ext i
     by_cases hi : i ≤ d
     · exact hcoeff i hi
-    · rw [coeff_eq_zero_of_natDegree_lt (by omega), coeff_eq_zero_of_natDegree_lt
-        (by rw [natDegree_taylor]; omega)]
+    · rw [coeff_eq_zero_of_natDegree_lt (by omega),
+        coeff_eq_zero_of_natDegree_lt (by rw [natDegree_taylor]; omega)]
   rw [henselValue, heq, taylor_eval, neg_add_cancel]
 
 omit [Fintype F] [DecidableEq F] in
@@ -291,17 +283,13 @@ theorem card_hintDecode_ne_le {α w : ι → F} {d D : ℕ} (hα : Function.Inje
     (fun Q' hQ' => Sudan.natDegree_interpolant_le α w hd hn hQ') hP hagree
   have hQP : (Sudan.interpolant α w d D).eval P = 0 := by
     rw [hQS, eval_mul, eval_sub, eval_X, eval_C, sub_self, zero_mul]
-  have hsub : ({τ | hintDecode α w d D τ (P.eval τ) ≠ P.eval 0} : Finset F) ⊆
-      (S.eval P).roots.toFinset := by
-    intro τ hτ
-    rw [Multiset.mem_toFinset, mem_roots hS0, IsRoot.def]
-    by_contra hne
-    refine (mem_filter.1 hτ).2 (henselValue_eq hQ.weightedDegree_le hD hP hQP ?_)
-    rw [hQS, derivative_mul, derivative_sub, derivative_X, derivative_C, sub_zero, one_mul,
-      evalEval_add, evalEval_mul, evalEval_sub, evalEval_X, evalEval_C, sub_self, zero_mul,
-      add_zero, ← eval_eval_eq_evalEval]
-    exact hne
-  exact (card_le_card hsub).trans ((Multiset.toFinset_card_le _).trans
-    ((card_roots' _).trans hSdeg))
+  refine (card_le_card (t := (S.eval P).roots.toFinset) fun τ hτ => ?_).trans
+    ((Multiset.toFinset_card_le _).trans ((card_roots' _).trans hSdeg))
+  rw [Multiset.mem_toFinset, mem_roots hS0, IsRoot.def]
+  by_contra hne
+  refine (mem_filter.1 hτ).2 (henselValue_eq hQ.weightedDegree_le hD hP hQP ?_)
+  simpa only [hQS, derivative_mul, derivative_sub, derivative_X, derivative_C, sub_zero, one_mul,
+    evalEval_add, evalEval_mul, evalEval_sub, evalEval_X, evalEval_C, sub_self, zero_mul, add_zero,
+    ← eval_eval_eq_evalEval] using hne
 
 end Cslib.Code

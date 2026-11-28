@@ -44,8 +44,8 @@ pure state") from unitaries on pure states to Kraus families on mixed states.
 ## Main results
 
 * `Cslib.Quantum.isDensityMatrix_pureState`: `|ψ⟩⟨ψ|` is a density matrix for a unit vector `ψ`.
-* `Cslib.Quantum.IsDensityMatrix.conj_unitary`: unitary evolution `UρUᴴ` preserves density
-  matrices.
+* `Cslib.Quantum.IsDensityMatrix.conj_isometry`, `.conj_unitary`: rectangular isometries and
+  unitary evolution preserve density matrices.
 * `Cslib.Quantum.IsDensityMatrix.partialTraceLeft`,
   `Cslib.Quantum.IsDensityMatrix.partialTraceRight`: reduced states are density matrices.
 * `Cslib.Quantum.partialTraceLeft_kronecker`, `Cslib.Quantum.partialTraceRight_kronecker`: the
@@ -70,7 +70,7 @@ namespace Cslib.Quantum
 open Matrix Finset
 open scoped Kronecker ComplexOrder
 
-variable {ι κ : Type*}
+variable {ι ι' κ : Type*}
 
 /-! ### Density matrices -/
 
@@ -89,7 +89,7 @@ noncomputable def pureState (ψ : EuclideanSpace ℂ ι) : Matrix ι ι ℂ :=
     pureState ψ i j = ψ.ofLp i * star (ψ.ofLp j) := by
   rfl
 
-theorem posSemidef_pureState [Finite ι] (ψ : EuclideanSpace ℂ ι) : (pureState ψ).PosSemidef :=
+theorem posSemidef_pureState (ψ : EuclideanSpace ℂ ι) : (pureState ψ).PosSemidef :=
   posSemidef_vecMulVec_self_star _
 
 theorem trace_pureState [Fintype ι] (ψ : EuclideanSpace ℂ ι) :
@@ -106,13 +106,18 @@ theorem isDensityMatrix_pureState [Fintype ι] {ψ : EuclideanSpace ℂ ι} (hψ
     IsDensityMatrix (pureState ψ) :=
   ⟨posSemidef_pureState ψ, by rw [trace_pureState, hψ]; norm_num⟩
 
+/-- Conjugation by a possibly rectangular isometry preserves density matrices. -/
+theorem IsDensityMatrix.conj_isometry [Fintype ι] [Fintype ι'] [DecidableEq ι]
+    {ρ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ) {V : Matrix ι' ι ℂ}
+    (hV : Vᴴ * V = 1) : IsDensityMatrix (V * ρ * Vᴴ) :=
+  ⟨hρ.posSemidef.mul_mul_conjTranspose_same V,
+    by rw [trace_mul_cycle, hV, one_mul, hρ.trace_eq_one]⟩
+
 /-- **Unitary evolution** `ρ ↦ U ρ Uᴴ` preserves density matrices. -/
 theorem IsDensityMatrix.conj_unitary [Fintype ι] [DecidableEq ι] {ρ : Matrix ι ι ℂ}
     (hρ : IsDensityMatrix ρ) {U : Matrix ι ι ℂ} (hU : U ∈ unitaryGroup ι ℂ) :
-    IsDensityMatrix (U * ρ * Uᴴ) := by
-  refine ⟨hρ.posSemidef.mul_mul_conjTranspose_same U, ?_⟩
-  rw [trace_mul_cycle, ← star_eq_conjTranspose, (mem_unitaryGroup_iff'.mp hU), one_mul,
-    hρ.trace_eq_one]
+    IsDensityMatrix (U * ρ * Uᴴ) :=
+  hρ.conj_isometry (by simpa only [star_eq_conjTranspose] using mem_unitaryGroup_iff'.mp hU)
 
 /-! ### The partial trace -/
 
@@ -200,15 +205,13 @@ theorem partialTraceRight_eq_sum_submatrix [Fintype κ] [AddCommMonoid R]
 
 /-- The partial trace over the first system preserves positive semidefiniteness. -/
 theorem posSemidef_partialTraceLeft [Fintype ι] {ρ : Matrix (ι × κ) (ι × κ) ℂ}
-    (hρ : ρ.PosSemidef) : (partialTraceLeft ρ).PosSemidef := by
-  rw [partialTraceLeft_eq_sum_submatrix]
-  exact posSemidef_sum _ fun i _ => hρ.submatrix _
+    (hρ : ρ.PosSemidef) : (partialTraceLeft ρ).PosSemidef :=
+  partialTraceLeft_eq_sum_submatrix ρ ▸ posSemidef_sum _ fun _ _ => hρ.submatrix _
 
 /-- The partial trace over the second system preserves positive semidefiniteness. -/
 theorem posSemidef_partialTraceRight [Fintype κ] {ρ : Matrix (ι × κ) (ι × κ) ℂ}
-    (hρ : ρ.PosSemidef) : (partialTraceRight ρ).PosSemidef := by
-  rw [partialTraceRight_eq_sum_submatrix]
-  exact posSemidef_sum _ fun k _ => hρ.submatrix _
+    (hρ : ρ.PosSemidef) : (partialTraceRight ρ).PosSemidef :=
+  partialTraceRight_eq_sum_submatrix ρ ▸ posSemidef_sum _ fun _ _ => hρ.submatrix _
 
 /-- The reduced state `Tr_A ρ` of a density matrix is a density matrix. -/
 theorem IsDensityMatrix.partialTraceLeft [Fintype ι] [Fintype κ] {ρ : Matrix (ι × κ) (ι × κ) ℂ}
@@ -238,11 +241,8 @@ theorem partialTraceLeft_pureState_maxEntangled [Fintype ι] [DecidableEq ι] :
   · subst h
     rw [sum_eq_single k (fun i _ hi => by simp [hi]) (by simp)]
     simp [inv_sqrt_card_mul_inv_sqrt_card]
-  · rw [ite_eq_right_iff.mpr fun h' => absurd h' h]
-    exact sum_eq_zero fun i _ => by
-      by_cases hi : i = k
-      · subst hi; simp [h]
-      · simp [hi]
+  · rw [ite_eq_right h]
+    exact sum_eq_zero fun i _ => by by_cases hi : i = k <;> simp [hi, h]
 
 /-- `Tr_B |Φ⟩⟨Φ| = 1 / |ι|` for the maximally entangled state. -/
 theorem partialTraceRight_pureState_maxEntangled [Fintype ι] [DecidableEq ι] :
@@ -251,15 +251,16 @@ theorem partialTraceRight_pureState_maxEntangled [Fintype ι] [DecidableEq ι] :
   rw [← partialTraceLeft_pureState_maxEntangled]
   ext i i'
   simp only [partialTraceRight_apply, partialTraceLeft_apply, pureState_apply, maxEntangled_apply]
-  refine sum_congr rfl fun k _ => ?_
-  by_cases h : i = k <;> by_cases h' : i' = k <;> simp [h, h', eq_comm]
+  exact sum_congr rfl fun k _ => by
+    by_cases h : i = k <;> by_cases h' : i' = k <;> simp [h, h', eq_comm]
 
 /-! ### No-signalling -/
 
-/-- An operator `A` on the traced-out first system moves cyclically under `Tr_A`:
-`Tr_A ((A ⊗ₖ 1) ρ) = Tr_A (ρ (A ⊗ₖ 1))`. -/
-theorem partialTraceLeft_kronecker_one_mul [Fintype ι] [Fintype κ] [DecidableEq κ] [CommSemiring R]
-    (A : Matrix ι ι R) (ρ : Matrix (ι × κ) (ι × κ) R) :
+/-- A possibly rectangular operator on the traced-out first system moves cyclically under the
+partial trace. The two sides trace out the respective output and input systems. -/
+theorem partialTraceLeft_kronecker_one_mul [Fintype ι] [Fintype ι'] [Fintype κ]
+    [DecidableEq κ] [CommSemiring R]
+    (A : Matrix ι' ι R) (ρ : Matrix (ι × κ) (ι' × κ) R) :
     partialTraceLeft ((A ⊗ₖ (1 : Matrix κ κ R)) * ρ) =
       partialTraceLeft (ρ * (A ⊗ₖ (1 : Matrix κ κ R))) := by
   ext k k'
@@ -269,12 +270,13 @@ theorem partialTraceLeft_kronecker_one_mul [Fintype ι] [Fintype κ] [DecidableE
   rw [sum_comm]
   exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => mul_comm _ _
 
-/-- **No-signalling** for a Kraus family on the first system: if Alice applies the operation
+/-- **No-signalling** for a Kraus family on the first system, with possibly different input and
+output dimensions: if Alice applies the operation
 `ρ ↦ ∑ⱼ (Kⱼ ⊗ 1) ρ (Kⱼ ⊗ 1)ᴴ` with `∑ⱼ Kⱼᴴ Kⱼ = 1`, Bob's reduced state `Tr_A ρ` is unchanged.
 This generalizes [de Wolf][deWolf2019], Chapter 18, Exercise 7, from a unitary on a pure state to
 a Kraus family on a mixed state. -/
-theorem partialTraceLeft_kraus [Fintype ι] [Fintype κ] [DecidableEq ι] [DecidableEq κ]
-    {α : Type*} (s : Finset α) (K : α → Matrix ι ι ℂ) (hK : ∑ j ∈ s, (K j)ᴴ * K j = 1)
+theorem partialTraceLeft_kraus [Fintype ι] [Fintype ι'] [Fintype κ] [DecidableEq ι] [DecidableEq κ]
+    {α : Type*} (s : Finset α) (K : α → Matrix ι' ι ℂ) (hK : ∑ j ∈ s, (K j)ᴴ * K j = 1)
     (ρ : Matrix (ι × κ) (ι × κ) ℂ) :
     partialTraceLeft (∑ j ∈ s, (K j ⊗ₖ (1 : Matrix κ κ ℂ)) * ρ * (K j ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ) =
       partialTraceLeft ρ := by
@@ -296,9 +298,8 @@ theorem partialTraceLeft_conj_unitary [Fintype ι] [Fintype κ] [DecidableEq ι]
     {U : Matrix ι ι ℂ} (hU : U ∈ unitaryGroup ι ℂ) (ρ : Matrix (ι × κ) (ι × κ) ℂ) :
     partialTraceLeft ((U ⊗ₖ (1 : Matrix κ κ ℂ)) * ρ * (U ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ) =
       partialTraceLeft ρ := by
-  have h := partialTraceLeft_kraus {()} (fun _ => U)
+  simpa only [sum_singleton] using partialTraceLeft_kraus {()} (fun _ => U)
     (by rw [sum_singleton, ← star_eq_conjTranspose, mem_unitaryGroup_iff'.mp hU]) ρ
-  rwa [sum_singleton] at h
 
 /-- **No-signalling for a measurement**: if Alice measures her system in the computational basis
 and the outcome is discarded, `ρ ↦ ∑ᵢ (|i⟩⟨i| ⊗ 1) ρ (|i⟩⟨i| ⊗ 1)`, Bob's reduced state is

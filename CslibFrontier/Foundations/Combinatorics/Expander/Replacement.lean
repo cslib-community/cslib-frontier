@@ -150,17 +150,13 @@ private theorem expect_mul_walk_balancedReplacement_pow_three_le [Nonempty E] (h
         smul_eq_mul, ← expect_add_distrib, mul_expect]
       exact expect_congr rfl fun p _ ↦ by ring
     _ ≤ _ := by
-      have h₁ := expect_mul_three_word_le h f hB hB hB
-      have h₂ := expect_mul_three_word_le h f hB hB hA
-      have h₄ := expect_mul_three_word_le h f hB hA hA
-      have h₅ := expect_mul_three_word_le h f hA hB hB
-      have h₆ := expect_mul_three_word_le h f hA hB hA
-      have h₇ := expect_mul_three_word_le h f hA hA hB
-      have h₈ := expect_mul_three_word_le h f hA hA hA
       have h₃ : 𝔼 p, h p * (B * A * B) f p ≤
           (G.zigzag H).spectralExpansion * (√(𝔼 p, h p ^ 2) * √(𝔼 p, f p ^ 2)) := hZ
       rw [show (2⁻¹ : ℝ) ^ 3 = 8⁻¹ by norm_num]
-      linarith
+      linarith [expect_mul_three_word_le h f hB hB hB, expect_mul_three_word_le h f hB hB hA, h₃,
+        expect_mul_three_word_le h f hB hA hA, expect_mul_three_word_le h f hA hB hB,
+        expect_mul_three_word_le h f hA hB hA, expect_mul_three_word_le h f hA hA hB,
+        expect_mul_three_word_le h f hA hA hA]
 
 /-- The cube of the spectral expansion of the balanced replacement product is at most
 `7 / 8 + λ(G ⓩ H) / 8` [Reingold, Vadhan and Wigderson, Theorem 6.7][ReingoldVadhanWigderson2002]:
@@ -169,7 +165,6 @@ theorem spectralExpansion_balancedReplacement_pow_three_le :
     (G.balancedReplacement H).spectralExpansion ^ 3 ≤
       7 / 8 + (G.zigzag H).spectralExpansion / 8 := by
   rw [← spectralExpansion_pow _ three_ne_zero]
-  have hZ := (G.zigzag H).spectralExpansion_nonneg
   refine spectralExpansion_le (by positivity) fun f hf ↦ ?_
   rcases isEmpty_or_nonempty E with hE | hE
   · have : (G.balancedReplacement H).walk = 0 :=
@@ -187,19 +182,17 @@ expander. -/
 theorem spectralExpansion_balancedReplacement_le :
     (G.balancedReplacement H).spectralExpansion ≤
       1 - (1 - G.spectralExpansion) * (1 - H.spectralExpansion) ^ 2 / 24 := by
-  have hμ := G.spectralExpansion_nonneg
-  have hν := H.spectralExpansion_nonneg
-  have hμ₁ := G.spectralExpansion_le_one
-  have hν₁ := H.spectralExpansion_le_one
   have hZ := G.spectralExpansion_zigzag_le_one_sub H
   have h3 := G.spectralExpansion_balancedReplacement_pow_three_le H
   set x := (1 - G.spectralExpansion) * (1 - H.spectralExpansion) ^ 2
-  have hx₀ : 0 ≤ x := mul_nonneg (by linarith) (sq_nonneg _)
+  have hx₀ : 0 ≤ x := mul_nonneg (sub_nonneg.2 G.spectralExpansion_le_one) (sq_nonneg _)
   have hx₁ : x ≤ 1 :=
-    (mul_le_mul (by linarith) (pow_le_one₀ (by linarith) (by linarith)) (sq_nonneg _)
-      zero_le_one).trans_eq (one_mul 1)
+    (mul_le_mul (by linarith [G.spectralExpansion_nonneg])
+      (pow_le_one₀ (sub_nonneg.2 H.spectralExpansion_le_one)
+        (by linarith [H.spectralExpansion_nonneg])) (sq_nonneg _) zero_le_one).trans_eq (one_mul 1)
   refine (pow_le_pow_iff_left₀ (spectralExpansion_nonneg _) (by linarith) three_ne_zero).1 ?_
-  nlinarith [mul_nonneg (sq_nonneg x) (by linarith : (0 : ℝ) ≤ 72 - x)]
+  have hq : 0 ≤ x ^ 2 * (72 - x) := mul_nonneg (sq_nonneg x) (by linarith)
+  linarith [show (1 - x / 24) ^ 3 - (7 / 8 + (1 - x) / 8) = x ^ 2 * (72 - x) / 13824 by ring]
 
 /-- The balanced replacement product of two graphs of spectral expansion less than `1` has spectral
 expansion less than `1` [Reingold, Vadhan and Wigderson, Theorem 6.7][ReingoldVadhanWigderson2002].

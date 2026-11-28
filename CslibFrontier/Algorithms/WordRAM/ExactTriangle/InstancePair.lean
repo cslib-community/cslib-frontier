@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WriteMatrices
+import CslibFrontier.Computability.WordRAM.Record
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Tactic.UpdateSimp
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -147,10 +150,7 @@ private theorem bank_injective : Function.Injective bank := by
   exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
 
 private theorem header_preserves : ∀ i : Fin 32,
-    17 ≤ i.val → i.val < 29 → (Code.seq setup writeHeader).Preserves i := by decide
-
-private theorem matrix_preserves (side : Bool) : ∀ i : Fin 32,
-    17 ≤ i.val → (matrix side).Preserves i := by cases side <;> decide
+    17 ≤ i.val → i.val < 29 → (Code.seq setup writeHeader).Preserves i := by decide +kernel
 
 /-- Six raw unsigned record words: residue, piece index, shared query pointer/count, then the
 two computed matrix pointers. Matrix entries themselves are raw zero/one words. -/
@@ -165,44 +165,18 @@ private theorem exec_header {w : ℕ} (x : Data 32)
       (∀ i : Fin 32, 17 ≤ i.val → i.val < 29 → y.regs i = x.regs i) ∧
       (Block.mk (x.regs base) 6).Realizes y.mem (recordWords x) ∧
       (∀ a, ¬(x.regs base ≤ a ∧ a < x.regs base + 6) → y.mem a = x.mem a) := by
-  let b := x.regs base
-  let M := x.regs size * x.regs dimension
-  let a := x.set one 1 |>.set addr 6 |>.set 1 (b + 6) |>.set area M
-  have h1 : Fits w 1 := hfit.of_le (by omega)
-  have h6 : Fits w 6 := hfit.of_le (by omega)
-  have hb6 : Fits w (x.regs base + 6) := hfit.of_le (by omega)
-  have hM : Fits w (x.regs size * x.regs dimension) := hfit.of_le (by omega)
-  have hsetup : ExecWithin w setup x a 4 := by
-    ram_eval [setup, a, b, M, one, addr, base, area, size, dimension, h1, h6, hb6, hM,
-      Fin.mk.injEq]
-  let y := a.set addr b |>.write b (x.regs rho)
-    |>.set addr (b + 1) |>.write (b + 1) (x.regs piece)
-    |>.set addr (b + 2) |>.write (b + 2) (x.regs queries)
-    |>.set addr (b + 3) |>.write (b + 3) (x.regs count)
-    |>.set addr (b + 4) |>.write (b + 4) (b + 6)
-    |>.set addr (b + 5) |>.set 0 (b + 6 + M) |>.write (b + 5) (b + 6 + M)
-  have hb1 : Fits w (b + 1) := hfit.of_le (by dsimp [b]; omega)
-  have hb2 : Fits w (b + 1 + 1) := hfit.of_le (by dsimp [b]; omega)
-  have hb3 : Fits w (b + 1 + 1 + 1) := hfit.of_le (by dsimp [b]; omega)
-  have hb4 : Fits w (b + 1 + 1 + 1 + 1) := hfit.of_le (by dsimp [b]; omega)
-  have hb5 : Fits w (b + 1 + 1 + 1 + 1 + 1) := hfit.of_le (by dsimp [b]; omega)
-  have hbM : Fits w (b + 6 + M) := hfit.of_le (by dsimp [b, M]; omega)
-  have hheader : ExecWithin w writeHeader a y 13 := by
-    ram_eval [writeHeader, y, a, b, M, one, addr, base, area, rho, piece, queries, count,
-      hb1, hb2, hb3, hb4, hb5, hbM, Fin.mk.injEq]
-  refine ⟨y, hsetup.seq hheader, ?_, ?_, ?_, ?_, ?_⟩
-  · simp +decide [y, a, b, addr, area, one]
-  · simp +decide [y, a, M, addr, area]
-  · intro i hi hi'
-    exact (hsetup.seq hheader).regs_eq (header_preserves i hi hi')
+  refine WP.exists_execWithin_preserves
+    (P := fun i => 17 ≤ i.val ∧ i.val < 29) (fun i hi => header_preserves i hi.1 hi.2) ?_
+  unfold setup writeHeader
+  wram_exec
+  intro hpres
+  refine ⟨by wram_simp, by wram_simp, fun i hi hi' => hpres i ⟨hi, hi'⟩, ?_, ?_⟩
   · intro i
     fin_cases i <;>
-      simp [Block.read, recordWords, leftArgs, rightArgs, y, a, b, M]
+      (simp only [Block.read, recordWords, leftArgs, rightArgs]; wram_simp; rfl)
   · intro j hj
-    simp only [y, a, Data.set_mem, Data.write_mem]
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    simp only [Data.set_mem, Data.write_mem]
+    update_simp
 
 /-- Write both actual matrices and their shared-query instance record. The source arrays are
 ordinary residue words before the output region. Existing `WriteMatrices.entry` supplies the
@@ -230,113 +204,66 @@ theorem exec {w : ℕ} (x : Data 32) (L R : ℕ → ℕ)
   let M := x.regs size * x.regs dimension
   let A := leftArgs x
   let B := rightArgs x
-  obtain ⟨a, ha, ha1, haM, hameta, harecord, haframe⟩ := exec_header x
-    (hfit.of_le (by omega))
+  refine WP.exists_execWithin ?_
+  unfold program deliverLeft deliverRight matrix
+  refine WP.seq ?_
+  wram_call (exec_header x (hfit.of_le (by omega))) with a ⟨ha1, haM, hameta, harecord, haframe⟩
   have har (i : Fin 32) (hi : 17 ≤ i.val ∧ i.val < 29) : a.regs i = x.regs i :=
     hameta i hi.1 hi.2
-  let b := a.set 0 (x.regs srcLeft) |>.set 2 (x.regs size) |>.set 3 (x.regs dimension)
-    |>.set 4 (x.regs modulus) |>.set 5 (x.regs first) |>.set 6 (x.regs length)
-    |>.set 7 (x.regs rho)
-  have hb : ExecWithin w deliverLeft a b 7 := by
-    have hsrc := har srcLeft (by decide)
-    have hn := har size (by decide)
-    have hD := har dimension (by decide)
-    have hp := har modulus (by decide)
-    have hfirst := har first (by decide)
-    have hlen := har length (by decide)
-    have hr := har rho (by decide)
-    ram_eval [deliverLeft, b, hsrc, hn, hD, hp, hfirst, hlen, hr, srcLeft, size,
-      dimension, modulus, first, length, rho, Fin.mk.injEq]
-  have hbEntry : WriteMatrices.Entry A (b.comap bank) := by
-    constructor <;>
-      simp +decide [A, leftArgs, b, bank, WriteMatrices.src, WriteMatrices.dst,
-        WriteMatrices.size, WriteMatrices.dimension, WriteMatrices.modulus, WriteMatrices.first,
-        WriteMatrices.length, WriteMatrices.rho, ha1]
-  obtain ⟨v, hv, hvEntry, -, hvleft, hvframe⟩ := WriteMatrices.exec false A L (b.comap bank)
-    hbEntry hrho hpiece hL
-    (by
-      intro i hi
-      change a.mem (x.regs srcLeft + i) = L i
-      rw [haframe _ (by dsimp [A, leftArgs] at hi; omega)]
+  wram_exec [har srcLeft (by decide), har size (by decide), har dimension (by decide),
+    har modulus (by decide), har first (by decide), har length (by decide), har rho (by decide)]
+  wram_call (WriteMatrices.exec false A L _
+    ⟨by wram_simp; rfl, by wram_simp; exact ha1, by wram_simp; rfl, by wram_simp; rfl,
+     by wram_simp; rfl, by wram_simp; rfl, by wram_simp; rfl, by wram_simp; rfl⟩
+    hrho hpiece hL
+    (fun i hi => by
+      wram_simp
+      rw [haframe _ (by dsimp [A, leftArgs] at hi ⊢; omega)]
       exact hleft i hi)
     (hfit.of_le (by dsimp [A, leftArgs]; omega))
     (hfit.of_le (by dsimp [A, leftArgs]; omega))
     (hfit.of_le (by dsimp [A, leftArgs]; omega))
-    (by dsimp [A, leftArgs]; omega)
-  let c := v.extend bank b
-  have hc : ExecWithin w (matrix false) b c (20 * M + 6) := by
-    simpa only [matrix, c, A, leftArgs, M] using hv.rename bank_injective
-  have hcEntry : WriteMatrices.Entry A (c.comap bank) := by
-    simpa only [c, Data.comap_extend bank_injective] using hvEntry
-  have hc1 : c.regs 1 = A.dst := hcEntry.dst
-  have hcM : c.regs area = M :=
-    (hc.regs_eq (matrix_preserves false area (by decide))).trans (by
-      simpa +decide [b, area, M] using haM)
-  have hcRight : c.regs srcRight = x.regs srcRight :=
-    (hc.regs_eq (matrix_preserves false srcRight (by decide))).trans (by
-      simpa +decide [b, srcRight] using har srcRight (by decide))
-  have hcframe (j : ℕ) (hj : ¬(Block.mk A.dst M).Owns j) : c.mem j = a.mem j :=
-    hvframe j hj
-  let d := c.set 0 (x.regs srcRight) |>.set 1 (A.dst + M)
+    (by dsimp [A, leftArgs]; omega))
+    canonical bank_injective with v ⟨hvEntry, -, hvleft, hvframe⟩
+  wram_simp at hvframe
+  have hv1 : v.regs WriteMatrices.dst = A.dst := hvEntry.dst
   have hrightDst : Fits w (A.dst + M) := hfit.of_le (by dsimp [A, leftArgs, M]; omega)
-  have hd : ExecWithin w deliverRight c d 2 := by
-    ram_eval [deliverRight, d, hcRight, hc1, hcM, hrightDst, srcRight, area, Fin.mk.injEq]
-  have hdEntry : WriteMatrices.Entry B (d.comap bank) := by
-    constructor
-    · simp +decide [d, B, rightArgs, bank, WriteMatrices.src]
-    · simp +decide [d, B, rightArgs, A, leftArgs, M, bank, WriteMatrices.dst]
-    · simpa +decide [d, B, rightArgs, bank, WriteMatrices.size] using hcEntry.size
-    · simpa +decide [d, B, rightArgs, bank, WriteMatrices.dimension] using hcEntry.dimension
-    · simpa +decide [d, B, rightArgs, bank, WriteMatrices.modulus] using hcEntry.modulus
-    · simpa +decide [d, B, rightArgs, bank, WriteMatrices.first] using hcEntry.first
-    · simpa +decide [d, B, rightArgs, bank, WriteMatrices.length] using hcEntry.length
-    · simpa +decide [d, B, rightArgs, bank, WriteMatrices.rho] using hcEntry.rho
-  obtain ⟨z, hz, -, -, hzright, hzframe⟩ := WriteMatrices.exec true B R (d.comap bank)
-    hdEntry hrho hpiece hR
-    (by
-      intro i hi
-      change c.mem (x.regs srcRight + i) = R i
-      rw [hcframe _ (by
-        dsimp [Block.Owns, A, leftArgs, M]
-        dsimp [B, rightArgs, leftArgs] at hi
-        omega),
-        haframe _ (by dsimp [B, rightArgs, leftArgs] at hi; omega)]
+  wram_exec [har srcRight (by decide), hv1, haM]
+  wram_call (WriteMatrices.exec true B R _
+    ⟨by wram_simp; rfl, by wram_simp; rfl, by wram_simp; exact hvEntry.size,
+     by wram_simp; exact hvEntry.dimension, by wram_simp; exact hvEntry.modulus,
+     by wram_simp; exact hvEntry.first, by wram_simp; exact hvEntry.length,
+     by wram_simp; exact hvEntry.rho⟩
+    hrho hpiece hR
+    (fun i hi => by
+      wram_simp
+      rw [hvframe _ (by dsimp [Block.Owns, B, rightArgs, leftArgs, A, M] at hi ⊢; omega),
+          haframe _ (by dsimp [B, rightArgs, leftArgs] at hi ⊢; omega)]
       exact hright i hi)
     (hfit.of_le (by dsimp [B, rightArgs, leftArgs]; omega))
     (hfit.of_le (by dsimp [B, rightArgs, leftArgs]; omega))
     (hfit.of_le (by dsimp [B, rightArgs, leftArgs]; omega))
-    (by dsimp [B, rightArgs, leftArgs]; omega)
-  let y := z.extend bank d
-  have hy : ExecWithin w (matrix true) d y (20 * M + 6) := by
-    simpa only [matrix, y, B, rightArgs, leftArgs, M] using hz.rename bank_injective
-  have hyframe (j : ℕ) (hj : ¬(Block.mk B.dst M).Owns j) : y.mem j = c.mem j :=
-    hzframe j hj
-  refine ⟨y, ?_, ?_, ?_, hzright, ?_⟩
-  · convert ha.seq (hb.seq (hc.seq (hd.seq hy))) using 1
-    · rfl
-    · dsimp [M]
-      omega
+    (by dsimp [B, rightArgs, leftArgs]; omega))
+    canonical bank_injective with z ⟨-, -, hzright, hzframe⟩
+  wram_simp at hzframe
+  refine ⟨by wram_simp; dsimp [A, B, rightArgs, leftArgs, M]; omega, ?_, ?_, hzright, ?_⟩
   · intro i
-    change y.mem (x.regs base + i.val) = recordWords x i
-    rw [hyframe _ (by
-        dsimp [Block.Owns, B, rightArgs, leftArgs]
-        have hi : i.val < 6 := i.isLt
-        omega),
-      hcframe _ (by
-        dsimp [Block.Owns, A, leftArgs]
-        have hi : i.val < 6 := i.isLt
-        omega)]
+    wram_simp
+    change z.mem (x.regs base + i.val) = recordWords x i
+    have hi : i.val < 6 := i.isLt
+    rw [hzframe _ (by dsimp [Block.Owns, B, rightArgs, leftArgs]; omega),
+        hvframe _ (by dsimp [Block.Owns, A, leftArgs]; omega)]
     exact harecord i
   · intro i
-    change y.mem (A.dst + i.val) = WriteMatrices.entry false A L i
-    rw [hyframe _ (by
-      dsimp [Block.Owns, B, rightArgs, leftArgs, A]
-      have hi := i.isLt
-      dsimp [M] at hi
-      omega)]
+    wram_simp
+    change z.mem (A.dst + i.val) = WriteMatrices.entry false A L i
+    have hi : i.val < M := i.isLt
+    rw [hzframe _ (by dsimp [Block.Owns, B, rightArgs, leftArgs, A, M] at hi ⊢; omega)]
     exact hvleft i
   · intro j hj
-    rw [hyframe _ (by dsimp [Block.Owns, B, rightArgs, leftArgs, M]; omega),
-      hcframe _ (by dsimp [Block.Owns, A, leftArgs, M]; omega), haframe _ (by omega)]
+    wram_simp
+    rw [hzframe _ (by dsimp [Block.Owns, B, rightArgs, leftArgs, M]; omega),
+        hvframe _ (by dsimp [Block.Owns, A, leftArgs, M]; omega),
+        haframe _ (by omega)]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.InstancePair

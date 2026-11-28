@@ -8,11 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.DecisionTree.Cost
+public import CslibFrontier.Computability.DecisionTree.FreeM
+public import Mathlib.Basic.Finite.Sigma
 
 /-!
 # Composition of decision trees
 
-`bind` replaces each output leaf by a continuation. `substitute` replaces each query by a
+`bind` replaces each output leaf by a continuation; `seqFin` runs finitely many trees one after
+another and outputs all their outputs. `substitute` replaces each query by a
 Boolean-valued decision tree and continues according to its answer. These are executable tree
 constructions, with exact evaluation and per-input cost laws. The input variables of different
 subroutines may overlap, and repeated queries are charged each time; substitution does not cache
@@ -27,10 +30,13 @@ including empty blocks. No multiplicative lower bound is asserted.
 ## Main definitions
 
 * `Cslib.DecisionTree.bind`: replace output leaves by continuations.
+* `Cslib.DecisionTree.seqFin`: run `k` trees in sequence and output all their outputs.
 * `Cslib.DecisionTree.substitute`: replace queries by Boolean-valued subroutines.
 
 ## Main results
 
+* `Cslib.DecisionTree.eval_seqFin`, `Cslib.DecisionTree.depth_seqFin_le`: the outputs and the
+  depth of a sequence of trees.
 * `Cslib.DecisionTree.eval_substitute`: query substitution computes function composition.
 * `Cslib.DecisionTree.weightedCost_substitute`: exact input-dependent composition cost.
 * `Cslib.DecisionTree.weightedDepth_substitute_le`: composition with heterogeneous query costs.
@@ -56,25 +62,34 @@ variable {ι κ μ β γ δ : Type*}
     (k : β → DecisionTree ι γ) :
     (node i left right).bind k = node i (left.bind k) (right.bind k) := rfl
 
+/-- Translating a tree into a free program preserves leaf substitution. -/
+theorem toFreeM_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ) :
+    (t.bind k).toFreeM = PFunctor.FreeM.bind t.toFreeM (fun a => (k a).toFreeM) := by
+  induction t with
+  | leaf => rfl
+  | node i _ _ il ir =>
+    exact congrArg (PFunctor.FreeM.liftBind (P := PFunctor.monomial ι Bool) i)
+      (funext fun | false => il | true => ir)
+
 /-- Replacing each leaf by itself preserves the tree. -/
 @[simp] theorem bind_leaf (t : DecisionTree ι β) : t.bind leaf = t := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr => simp [ihl, ihr]
+  | node i _ _ ihl ihr => exact congrArg₂ (node i) ihl ihr
 
 /-- Successive leaf substitutions associate. -/
 theorem bind_assoc (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
     (l : γ → DecisionTree ι δ) : (t.bind k).bind l = t.bind (fun b => (k b).bind l) := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr => simp [ihl, ihr]
+  | node i _ _ ihl ihr => exact congrArg₂ (node i) ihl ihr
 
 /-- Evaluate the first tree, then its selected continuation on the same input. -/
 @[simp] theorem eval_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ) (x : ι → Bool) :
     (t.bind k).eval x = (k (t.eval x)).eval x := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr => cases h : x i <;> simp [h, ihl, ihr]
+  | node i _ _ ihl ihr => cases h : x i <;> simp [h, ihl, ihr]
 
 /-- Leaf substitution adds exactly the costs of the two executed computations. -/
 theorem weightedCost_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
@@ -101,6 +116,33 @@ theorem depth_bind_le (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
     {d : ℕ} (hk : ∀ b, (k b).depth ≤ d) : (t.bind k).depth ≤ t.depth + d := by
   simpa only [weightedDepth_const, Nat.mul_one] using
     t.weightedDepth_bind_le k (fun _ => 1) (fun b => by simpa using hk b)
+
+/-- Run the trees `t 0, …, t (k - 1)` one after another on the same input and output all their
+outputs. -/
+@[expose] def seqFin : {k : ℕ} → (Fin k → DecisionTree ι β) → DecisionTree ι (Fin k → β)
+  | 0, _ => leaf Fin.elim0
+  | _ + 1, t => (t 0).bind fun b => (seqFin fun j => t j.succ).bind fun bs => leaf (Fin.cons b bs)
+
+/-- Running trees in sequence outputs each tree's output. -/
+@[simp] theorem eval_seqFin {k : ℕ} (t : Fin k → DecisionTree ι β) (x : ι → Bool) :
+    (seqFin t).eval x = fun j => (t j).eval x := by
+  induction k with
+  | zero => exact funext fun j => j.elim0
+  | succ k ih =>
+    simp only [seqFin, eval_bind, ih, eval_leaf]
+    exact funext (Fin.cases rfl fun _ => rfl)
+
+/-- Running `k` trees of depth at most `d` in sequence has depth at most `k * d`. -/
+theorem depth_seqFin_le {k d : ℕ} (t : Fin k → DecisionTree ι β) (ht : ∀ j, (t j).depth ≤ d) :
+    (seqFin t).depth ≤ k * d := by
+  induction k with
+  | zero => simp [seqFin]
+  | succ k ih =>
+    refine (depth_bind_le _ _ fun b => (depth_bind_le _ _ fun _ => (depth_leaf _).le).trans
+      (ih _ fun j => ht j.succ)).trans ?_
+    have := ht 0
+    rw [Nat.succ_mul]
+    omega
 
 /-- Replace a query of `i` by the Boolean subroutine `s i`, then follow its answer.
 Every occurrence is replaced independently; answers are not memoized. -/
@@ -151,7 +193,7 @@ theorem substitute_assoc (t : DecisionTree ι β) (s : ι → DecisionTree κ Bo
     (x : κ → Bool) : (t.substitute s).eval x = t.eval (fun i => (s i).eval x) := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr =>
+  | node i _ _ ihl ihr =>
     rw [substitute_node, eval_bind, eval_node]
     cases (s i).eval x <;> simp [ihl, ihr]
 
@@ -173,7 +215,7 @@ theorem weightedCost_substitute (t : DecisionTree ι β) (s : ι → DecisionTre
       t.weightedCost (fun i => (s i).weightedCost w x) (fun i => (s i).eval x) := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr =>
+  | node i _ _ ihl ihr =>
     rw [substitute_node, weightedCost_bind, weightedCost_node]
     cases (s i).eval x <;> simp [ihl, ihr, Nat.add_comm]
 
@@ -192,14 +234,10 @@ theorem weightedDepth_substitute_le (t : DecisionTree ι β) (s : ι → Decisio
   induction t with
   | leaf => exact le_rfl
   | node i left right ihl ihr =>
-    rw [substitute_node, weightedDepth_node]
-    refine ((s i).weightedDepth_bind_le _ w (d := max
-      (left.weightedDepth (fun j => (s j).weightedDepth w))
-      (right.weightedDepth (fun j => (s j).weightedDepth w))) ?_).trans_eq (Nat.add_comm _ _)
-    intro b
-    cases b
-    · exact ihl.trans (le_max_left _ _)
-    · exact ihr.trans (le_max_right _ _)
+    refine ((s i).weightedDepth_bind_le _ w fun
+      | false => ihl.trans (le_max_left _ _)
+      | true => ihr.trans (le_max_right _ _)).trans_eq ?_
+    exact (Nat.add_comm _ _).trans (weightedDepth_node _ _ _ _).symm
 
 /-- Substitution depth is bounded by charging each outer query the depth of its subroutine. -/
 theorem depth_substitute_le (t : DecisionTree ι β) (s : ι → DecisionTree κ Bool) :
@@ -226,20 +264,28 @@ theorem complexity_substitute_le_mul [Finite ι] [Finite κ] (f : (ι → Bool) 
   exact (complexity_substitute_le ht g).trans
     ((t.weightedDepth_le_depth_mul hg).trans_eq (congrArg (· * d) hd))
 
-/-- A weighted bound for composition on disjoint, possibly differently sized finite blocks. -/
-theorem complexity_blockCompose_le {κ : ι → Type*} [∀ i, Finite (κ i)]
+/-- An outer tree can be implemented over disjoint finite blocks with the optimal inner query
+costs. The block index type may be infinite: the conclusion supplies an actual finite tree. -/
+theorem exists_computes_depth_le_blockCompose {κ : ι → Type*} [∀ i, Finite (κ i)]
+    {t : DecisionTree ι β} {f : (ι → Bool) → β} (ht : t.Computes f)
+    (g : (i : ι) → (κ i → Bool) → Bool) :
+    ∃ u : DecisionTree (Σ i, κ i) β,
+      u.Computes (fun x => f (fun i => g i (fun j => x ⟨i, j⟩))) ∧
+        u.depth ≤ t.weightedDepth (fun i => complexity (g i)) := by
+  classical
+  choose s hs hd using fun i => exists_computes_depth_eq_complexity (g i)
+  refine ⟨t.substitute fun i => (s i).mapQueries (Sigma.mk i),
+    ht.substitute fun i x => (eval_mapQueries _ _ _).trans (hs i _), ?_⟩
+  exact (t.depth_substitute_le _).trans_eq (by simp only [depth_mapQueries, hd])
+
+/-- A weighted complexity bound for composition with a finite total coordinate domain. -/
+theorem complexity_blockCompose_le {κ : ι → Type*} [Finite (Σ i, κ i)] [∀ i, Finite (κ i)]
     {t : DecisionTree ι β} {f : (ι → Bool) → β} (ht : t.Computes f)
     (g : (i : ι) → (κ i → Bool) → Bool) :
     complexity (fun x : (Σ i, κ i) → Bool => f (fun i => g i (fun j => x ⟨i, j⟩))) ≤
       t.weightedDepth (fun i => complexity (g i)) := by
-  classical
-  choose s hs hd using fun i => exists_computes_depth_eq_complexity (g i)
-  let lifted (i : ι) : DecisionTree (Σ i, κ i) Bool := (s i).mapQueries (Sigma.mk i)
-  have hlifted (i : ι) : (lifted i).Computes (fun x => g i (fun j => x ⟨i, j⟩)) := by
-    intro x
-    exact (eval_mapQueries (Sigma.mk i) (s i) x).trans (hs i _)
-  exact (complexity_le_depth (ht.substitute hlifted)).trans
-    ((t.depth_substitute_le lifted).trans_eq (by simp only [lifted, depth_mapQueries, hd]))
+  obtain ⟨u, hu, hd⟩ := exists_computes_depth_le_blockCompose ht g
+  exact (complexity_le_depth hu).trans hd
 
 /-- Uniform-cost composition on disjoint finite blocks; empty blocks and constant functions
 are included. The construction proves an upper bound only. -/

@@ -13,7 +13,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Foundations.Data.BitString.WordCount
-import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # The class ZPP
@@ -44,6 +43,8 @@ the random strings, and on a non-member the second does.
 ## Main results
 
 * `Cslib.Complexity.ZPP_subset_RP`, `Cslib.Complexity.ZPP_subset_coRP`.
+* `Cslib.Complexity.exists_zeroError_errorExponent_of_mem_RP_inter_coRP`: a problem in
+  `RP ∩ coRP` has zero-error deciders answering `none` with probability at most `2 ^ (-q(n))`.
 * `Cslib.Complexity.RP_inter_coRP_subset_ZPP`.
 * `Cslib.Complexity.ZPP_eq_RP_inter_coRP`: `ZPP = RP ∩ coRP`.
 * `Cslib.Complexity.compl_mem_ZPP`: `ZPP` is closed under complement.
@@ -70,8 +71,7 @@ def DecidesWithZeroError (enc : α ↪ List Bool) (p : Polynomial ℕ)
   ∀ a, (∀ r : Fin (p.eval (enc a).length) → Bool, ∀ b, V (a, List.ofFn r) = some b →
       (b = true ↔ a ∈ A)) ∧
     2 ^ p.eval (enc a).length ≤
-      2 * (Finset.univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
-        (V (a, List.ofFn r)).isSome = true).card
+      2 * acceptCount (fun x => (V x).isSome) a (p.eval (enc a).length)
 
 /-- The problems decided with zero error by polynomial-time machines reading polynomially long
 random strings, with respect to the encoding `enc` of instances [Gill][Gill1977],
@@ -89,34 +89,56 @@ theorem mem_ZPP {A : Set α} : A ∈ ZPP enc ↔ ∃ (p : Polynomial ℕ)
       DecidesWithZeroError enc p V A :=
   Iff.rfl
 
+section Answers
+
+variable {V : α × List Bool → Option Bool} {A : Set α} {a : α} {m : ℕ}
+
+/-- On a member, a verifier whose answers are never wrong accepts with `getD false` wherever it
+answers. -/
+theorem acceptCount_isSome_le_acceptCount_getD
+    (hright : ∀ r : Fin m → Bool, ∀ b, V (a, List.ofFn r) = some b → (b = true ↔ a ∈ A))
+    (ha : a ∈ A) :
+    acceptCount (fun x => (V x).isSome) a m ≤ acceptCount (fun x => (V x).getD false) a m :=
+  Finset.card_le_card fun r => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Option.isSome_iff_exists]
+    rintro ⟨b, hb⟩
+    rw [hb, Option.getD_some, (hright r b hb).mpr ha]
+
+/-- On a non-member, a verifier whose answers are never wrong never accepts with `getD false`. -/
+theorem getD_false_eq_false
+    (hright : ∀ r : Fin m → Bool, ∀ b, V (a, List.ofFn r) = some b → (b = true ↔ a ∈ A))
+    (ha : a ∉ A) (r : Fin m → Bool) : (V (a, List.ofFn r)).getD false = false := by
+  cases hV : V (a, List.ofFn r) with
+  | none => rfl
+  | some b => simpa using (hright r b hV).not.mpr ha
+
+/-- Negating the answers of a verifier whose answers are never wrong for `A` gives answers that are
+never wrong for `Aᶜ`. -/
+theorem map_not_eq_some_iff_mem_compl
+    (hright : ∀ r : Fin m → Bool, ∀ b, V (a, List.ofFn r) = some b → (b = true ↔ a ∈ A)) :
+    ∀ r : Fin m → Bool, ∀ b, (V (a, List.ofFn r)).map Bool.not = some b → (b = true ↔ a ∈ Aᶜ) :=
+  fun r b hb => by
+    obtain ⟨b', hb', rfl⟩ := Option.map_eq_some_iff.mp hb
+    have := hright r b' hb'
+    cases b' <;> simp_all
+
+end Answers
+
 namespace DecidesWithZeroError
 
 variable {p : Polynomial ℕ} {V : α × List Bool → Option Bool} {A : Set α}
 
 /-- Accepting exactly on the answer `some true` decides the problem with one-sided error. -/
 theorem decidesWithOneSidedError (h : DecidesWithZeroError enc p V A) :
-    DecidesWithOneSidedError enc p (fun x => (V x).getD false) A := fun a => by
-  obtain ⟨hright, hhalf⟩ := h a
-  refine ⟨fun ha => hhalf.trans (Nat.mul_le_mul_left 2 (Finset.card_le_card fun r => ?_)),
-    fun ha r => ?_⟩
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Option.isSome_iff_exists]
-    rintro ⟨b, hb⟩
-    rw [hb, Option.getD_some, (hright r b hb).mpr ha]
-  · change (V (a, List.ofFn r)).getD false = false
-    cases hV : V (a, List.ofFn r) with
-    | none => rfl
-    | some b =>
-      have := (hright r b hV).not.mpr ha
-      simpa using this
+    DecidesWithOneSidedError enc p (fun x => (V x).getD false) A := fun a =>
+  ⟨fun ha => (h a).2.trans
+      (Nat.mul_le_mul_left 2 (acceptCount_isSome_le_acceptCount_getD (h a).1 ha)),
+    getD_false_eq_false (h a).1⟩
 
 /-- Negating the answers decides the complement with zero error. -/
 theorem compl (h : DecidesWithZeroError enc p V A) :
-    DecidesWithZeroError enc p (fun x => (V x).map Bool.not) Aᶜ := fun a => by
-  obtain ⟨hright, hhalf⟩ := h a
-  refine ⟨fun r b hb => ?_, by simpa only [Option.isSome_map] using hhalf⟩
-  obtain ⟨b', hb', rfl⟩ := Option.map_eq_some_iff.mp hb
-  have := hright r b' hb'
-  cases b' <;> simp_all
+    DecidesWithZeroError enc p (fun x => (V x).map Bool.not) Aᶜ := fun a =>
+  ⟨map_not_eq_some_iff_mem_compl (h a).1, by simpa only [Option.isSome_map] using (h a).2⟩
 
 end DecidesWithZeroError
 
@@ -136,23 +158,13 @@ theorem ZPP_subset_coRP : ZPP enc ⊆ coRP enc := fun _ hA => ZPP_subset_RP (com
 
 /-! ### Splitting random strings -/
 
-/-- Counting the random strings of length `m + k` by their first `m` and last `k` bits. -/
-private theorem card_filter_take_drop (m k : ℕ) (P : List Bool → List Bool → Prop)
-    [∀ u v, Decidable (P u v)] :
-    (Finset.univ.filter fun r : Fin (m + k) → Bool =>
-      P ((List.ofFn r).take m) ((List.ofFn r).drop m)).card =
-      (Finset.univ.filter fun x : (Fin m → Bool) × (Fin k → Bool) =>
-        P (List.ofFn x.1) (List.ofFn x.2)).card := by
-  rw [BitString.card_filter_ofFn_add m k P, Finset.card_filter, Fintype.sum_prod_type]
-  simp only [Finset.card_filter]
-
 /-- The random strings of length `m + k` whose last `k` bits satisfy `P`. -/
 private theorem card_filter_drop (m k : ℕ) (P : List Bool → Prop) [DecidablePred P] :
     (Finset.univ.filter fun r : Fin (m + k) → Bool => P ((List.ofFn r).drop m)).card =
       2 ^ m * (Finset.univ.filter fun v : Fin k → Bool => P (List.ofFn v)).card := by
-  rw [card_filter_take_drop m k fun _ v => P v, ← Finset.univ_product_univ,
-    Finset.filter_product_right (fun v : Fin k → Bool => P (List.ofFn v)), Finset.card_product]
-  simp
+  have h := BitString.card_filter_take_drop (Nat.le_add_right m k) (fun _ => True) P
+  rw [Nat.add_sub_cancel_left] at h
+  simpa using h
 
 /-- A prefix of the right length is a random string of that length. -/
 private theorem exists_ofFn_eq_take {m k : ℕ} (r : Fin (m + k) → Bool) :
@@ -164,96 +176,92 @@ private theorem exists_ofFn_eq_drop {m k : ℕ} (r : Fin (m + k) → Bool) :
     ∃ v : Fin k → Bool, List.ofFn v = (List.ofFn r).drop m :=
   ⟨_, by rw [List.ofFn_add, List.drop_left' List.length_ofFn]⟩
 
+/-- Scaling an acceptance-count error bound from `m₁` random bits to `m₁ + m₂` random bits. -/
+private theorem errorExponent_scale {q m₁ m₂ c ans : ℕ}
+    (he : 2 ^ q * (2 ^ m₁ - c) ≤ 2 ^ m₁) (hge : c * 2 ^ m₂ ≤ ans) :
+    2 ^ q * (2 ^ (m₁ + m₂) - ans) ≤ 2 ^ (m₁ + m₂) :=
+  calc 2 ^ q * (2 ^ (m₁ + m₂) - ans)
+      ≤ 2 ^ q * ((2 ^ m₁ - c) * 2 ^ m₂) := by
+        gcongr
+        rw [Nat.sub_mul, pow_add]
+        exact Nat.sub_le_sub_left hge _
+    _ = 2 ^ q * (2 ^ m₁ - c) * 2 ^ m₂ := by ring
+    _ ≤ 2 ^ m₁ * 2 ^ m₂ := Nat.mul_le_mul_right _ he
+    _ = 2 ^ (m₁ + m₂) := (pow_add _ _ _).symm
+
 /-! ### `RP ∩ coRP ⊆ ZPP` -/
 
-/-- **`RP ∩ coRP ⊆ ZPP`**: with one-sided-error deciders `V₁` of `A` and `V₂` of its complement,
-reading the first and the last part of the random string, answer `some true` when `V₁` accepts,
+/-- **Zero-error deciders with error exponent `q` from `RP ∩ coRP`**: for every polynomial `q`, a
+problem in `RP ∩ coRP` has a polynomial-time verifier that never gives a wrong answer and answers
+`none` on at most a `2 ^ (-q(n))` fraction of the random strings. Reduce the error of
+one-sided-error deciders `V₁` of `A` and `V₂` of its complement to `2 ^ (-q(n))`, run them on the
+first and the last part of the random string, and answer `some true` when `V₁` accepts,
 `some false` when `V₂` does, and `none` otherwise. -/
-theorem RP_inter_coRP_subset_ZPP : RP enc ∩ coRP enc ⊆ ZPP enc := by
-  rintro A ⟨hA₁, hA₂⟩
-  obtain ⟨p₁, V₁, hV₁, h₁⟩ := mem_RP.mp hA₁
-  obtain ⟨p₂, V₂, hV₂, h₂⟩ := mem_RP.mp (mem_coRP.mp hA₂)
+theorem exists_zeroError_errorExponent_of_mem_RP_inter_coRP {A : Set α}
+    (hA : A ∈ RP enc ∩ coRP enc) (q : Polynomial ℕ) :
+    ∃ (p : Polynomial ℕ) (V : α × List Bool → Option Bool),
+      ComputableInPolyTime V (encPair enc encBits) (encOption encBool) ∧
+      ∀ a, (∀ r : Fin (p.eval (enc a).length) → Bool, ∀ b, V (a, List.ofFn r) = some b →
+          (b = true ↔ a ∈ A)) ∧
+        ErrorExponentAt enc q p (fun x => (V x).isSome) a true := by
+  obtain ⟨p₁, V₁, hV₁, h₁⟩ := mem_RP_iff_forall_decidesWithOneSidedErrorExponent.mp hA.1 q
+  obtain ⟨p₂, V₂, hV₂, h₂⟩ :=
+    mem_RP_iff_forall_decidesWithOneSidedErrorExponent.mp (mem_coRP.mp hA.2) q
   let len (a : α) : ℕ := p₁.eval (enc a).length
   let V (x : α × List Bool) : Option Bool :=
     if V₁ (x.1, x.2.take (len x.1)) then some true
     else if V₂ (x.1, x.2.drop (len x.1)) then some false else none
-  have hlen : ComputableInPolyTime (fun x : α × List Bool => len x.1) (encPair enc encBits)
-      encUnary :=
-    ((ComputableInPolyTime.unary_eval p₁).comp
-      (ComputableInPolyTime.encoding_length enc)).comp (.fst _ _)
-  have hpoly : ComputableInPolyTime V (encPair enc encBits) (encOption encBool) :=
-    ComputableInPolyTime.ite'
-      (hV₁.comp ((ComputableInPolyTime.fst _ _).prod
-        (ComputableInPolyTime.bitsTakeWithInput (.snd _ _) hlen)))
-      (.const _)
-      (ComputableInPolyTime.ite'
-        (hV₂.comp ((ComputableInPolyTime.fst _ _).prod
-          (ComputableInPolyTime.bitsDropWithInput (.snd _ _) hlen)))
-        (.const _) (.const _))
+  have hpoly : ComputableInPolyTime V (encPair enc encBits) (encOption encBool) := by
+    dsimp [V, len]
+    fun_prop
   refine ⟨p₁ + p₂, V, hpoly, fun a => ?_⟩
-  have heval : (p₁ + p₂).eval (enc a).length = len a + p₂.eval (enc a).length :=
-    Polynomial.eval_add
-  rw [heval]
+  set m₂ := p₂.eval (enc a).length
+  have heval : (p₁ + p₂).eval (enc a).length = len a + m₂ := Polynomial.eval_add
   -- `V₁` never accepts a non-member, and `V₂` never accepts a member
-  have hV₁ (ha : a ∉ A) (r : Fin (len a + p₂.eval (enc a).length) → Bool) :
+  have hV₁ (ha : a ∉ A) (r : Fin (len a + m₂) → Bool) :
       V₁ (a, (List.ofFn r).take (len a)) = false := by
     obtain ⟨u, hu⟩ := exists_ofFn_eq_take r
-    rw [← hu]
-    exact (h₁ a).2 ha u
-  have hV₂ (ha : a ∈ A) (r : Fin (len a + p₂.eval (enc a).length) → Bool) :
+    exact hu ▸ (h₁ a).2 ha u
+  have hV₂ (ha : a ∈ A) (r : Fin (len a + m₂) → Bool) :
       V₂ (a, (List.ofFn r).drop (len a)) = false := by
     obtain ⟨v, hv⟩ := exists_ofFn_eq_drop r
-    rw [← hv]
-    exact (h₂ a).2 (not_not.mpr ha) v
-  refine ⟨fun r b hb => ?_, ?_⟩
-  · simp only [V] at hb
+    exact hv ▸ (h₂ a).2 (not_not.mpr ha) v
+  refine ⟨?_, errorExponentAt_true_iff.2 ?_⟩
+  · rw [heval]
+    intro r b hb
+    simp only [V] at hb
     split_ifs at hb with hacc hrej <;> cases hb
-    · simp only [true_iff]
-      by_contra ha
-      rw [hV₁ ha r] at hacc
-      exact Bool.false_ne_true hacc
-    · simp only [Bool.false_eq_true, false_iff]
-      intro ha
-      rw [hV₂ ha r] at hrej
-      exact Bool.false_ne_true hrej
-  · by_cases ha : a ∈ A
-    · -- on a member, `V₁` accepts on at least half of its random strings
-      have hcount : (Finset.univ.filter fun r : Fin (len a + p₂.eval (enc a).length) → Bool =>
-            V₁ (a, (List.ofFn r).take (len a)) = true).card =
-          (Finset.univ.filter fun u : Fin (len a) → Bool => V₁ (a, List.ofFn u) = true).card *
-            2 ^ p₂.eval (enc a).length := by
-        rw [BitString.card_filter_take (Nat.le_add_right _ _) fun u => V₁ (a, u) = true,
-          Nat.add_sub_cancel_left, Nat.mul_comm]
-      have hhalf := (h₁ a).1 ha
-      calc 2 ^ (len a + p₂.eval (enc a).length)
-          = 2 ^ len a * 2 ^ p₂.eval (enc a).length := pow_add _ _ _
-        _ ≤ 2 * (Finset.univ.filter fun u : Fin (len a) → Bool =>
-              V₁ (a, List.ofFn u) = true).card * 2 ^ p₂.eval (enc a).length :=
-            Nat.mul_le_mul_right _ hhalf
-        _ = 2 * (Finset.univ.filter fun r : Fin (len a + p₂.eval (enc a).length) → Bool =>
-              V₁ (a, (List.ofFn r).take (len a)) = true).card := by
-            rw [hcount, Nat.mul_assoc]
-        _ ≤ _ := Nat.mul_le_mul_left 2 (Finset.card_le_card fun r => by
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, V]
-            intro hr
-            simp [hr])
-    · -- on a non-member, `V₂` accepts on at least half of its random strings
-      have hcount := card_filter_drop (len a) (p₂.eval (enc a).length)
-        fun v => V₂ (a, v) = true
-      have hhalf := (h₂ a).1 ha
-      calc 2 ^ (len a + p₂.eval (enc a).length)
-          = 2 ^ len a * 2 ^ p₂.eval (enc a).length := pow_add _ _ _
-        _ ≤ 2 ^ len a * (2 * (Finset.univ.filter fun v : Fin (p₂.eval (enc a).length) → Bool =>
-              V₂ (a, List.ofFn v) = true).card) :=
-            Nat.mul_le_mul_left _ hhalf
-        _ = 2 * (Finset.univ.filter fun r : Fin (len a + p₂.eval (enc a).length) → Bool =>
-              V₂ (a, (List.ofFn r).drop (len a)) = true).card := by
-            rw [hcount]
-            ring
-        _ ≤ _ := Nat.mul_le_mul_left 2 (Finset.card_le_card fun r => by
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, V]
-            intro hr
-            simp [hr, hV₁ ha r])
+    · exact iff_of_true rfl (by_contra fun ha => Bool.false_ne_true (hV₁ ha r ▸ hacc))
+    · exact iff_of_false Bool.false_ne_true fun ha => Bool.false_ne_true (hV₂ ha r ▸ hrej)
+  rw [heval]
+  set ans := acceptCount (fun x => (V x).isSome) a (len a + m₂)
+  by_cases ha : a ∈ A
+  · -- on a member, `V₁` rejects on at most a `2 ^ (-q(n))` fraction of its random strings
+    have hcount : (Finset.univ.filter fun r : Fin (len a + m₂) → Bool =>
+          V₁ (a, (List.ofFn r).take (len a)) = true).card = acceptCount V₁ a (len a) * 2 ^ m₂ := by
+      rw [BitString.card_filter_take (Nat.le_add_right _ _) fun u => V₁ (a, u) = true,
+        Nat.add_sub_cancel_left, Nat.mul_comm]
+      rfl
+    have hge : acceptCount V₁ a (len a) * 2 ^ m₂ ≤ ans :=
+      hcount ▸ Finset.card_le_card fun r hr => by simp [V, (Finset.mem_filter.mp hr).2]
+    exact errorExponent_scale (errorExponentAt_true_iff.1 ((h₁ a).1 ha)) hge
+  · -- on a non-member, `V₂` rejects on at most a `2 ^ (-q(n))` fraction of its random strings
+    have hge : 2 ^ len a * acceptCount V₂ a m₂ ≤ ans :=
+      card_filter_drop (len a) m₂ (fun v => V₂ (a, v) = true) ▸
+        Finset.card_le_card fun r hr => by simp [V, (Finset.mem_filter.mp hr).2, hV₁ ha r]
+    rw [Nat.add_comm]
+    exact errorExponent_scale (errorExponentAt_true_iff.1 ((h₂ a).1 ha)) (by rwa [Nat.mul_comm])
+
+/-- **`RP ∩ coRP ⊆ ZPP`**: the zero-error decider of
+`Cslib.Complexity.exists_zeroError_errorExponent_of_mem_RP_inter_coRP` with error exponent `1`
+answers on at least half of the random strings. -/
+theorem RP_inter_coRP_subset_ZPP : RP enc ∩ coRP enc ⊆ ZPP enc := fun A hA => by
+  obtain ⟨p, V, hV, h⟩ := exists_zeroError_errorExponent_of_mem_RP_inter_coRP hA 1
+  refine ⟨p, V, hV, fun a => ⟨(h a).1, ?_⟩⟩
+  have e := errorExponentAt_true_iff.1 (h a).2
+  have := acceptCount_le_two_pow (V := fun x => (V x).isSome) (a := a) (n := p.eval (enc a).length)
+  simp only [Polynomial.eval_one, pow_one] at e
+  omega
 
 /-- **`ZPP = RP ∩ coRP`** [Arora and Barak, Section 7.3][AroraBarak09]. -/
 theorem ZPP_eq_RP_inter_coRP : ZPP enc = RP enc ∩ coRP enc :=

@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Bitwise
@@ -23,15 +25,18 @@ Counter programs (`Turing.CounterProgram`) that read a pair of unary numbers `a,
 registers with `Turing.CounterProgram.Words.headerCode` and evaluate an arithmetic expression
 (`Turing.CounterProgram.Expr`) in them. The value is emitted in unary (a counting loop), in binary
 (a loop over the powers of two up to the value), or compared with the value of a second
-expression. A value bounded by a polynomial in `a + b` keeps the registers polynomially bounded,
-so the function is computable in logarithmic space by
-`Turing.CounterProgram.computableInLogSpace_of_reachesOut`; a comparison stores no value and needs
-no bound.
+expression. Because every expression grows at most polynomially in the register values
+(`Turing.CounterProgram.Expr.exists_eval_le_pow`), the registers stay polynomially bounded in the
+input length, so any function given by an expression is computable in logarithmic space by
+`Turing.CounterProgram.computableInLogSpace_of_reachesOut`.
 
 The instances are unary multiplication, truncated subtraction, quotient, remainder, minimum and
 maximum, the comparisons `<`, `≤` and `=`, and the conversion from unary to binary, stated for
 functions computed in logarithmic space from a common input; all but the conversion are
-registered with `fun_prop`.
+registered with `fun_prop`. Counting the digits of the binary form gives the binary length
+`Nat.size` and `⌊log₂⌋` of a unary number, and the length of a bit word in unary is a
+finite-state transduction. Conversion to binary gives `computableInLogSpace_bitsLength`;
+`length_bitsLength_log` bounds its encoded output.
 
 ## Main definitions
 
@@ -40,12 +45,17 @@ registered with `fun_prop`.
 
 ## Main results
 
+* `Turing.CounterProgram.Expr.exists_eval_le_pow`: every expression grows at most polynomially
+  in the register values.
 * `Turing.CounterProgram.Unary.computableInLogSpace_unary`,
-  `Turing.CounterProgram.Unary.computableInLogSpace_binary`: a polynomially bounded function of
-  two unary numbers given by an expression, with unary or binary output, in logarithmic space.
+  `Turing.CounterProgram.Unary.computableInLogSpace_binary`: a function of two unary numbers
+  given by an expression, with unary or binary output, in logarithmic space.
 * `Turing.CounterProgram.Unary.computableInLogSpace_lt`: comparing two such functions.
-* `Turing.MultiTapeTM.ComputableInLogSpace.unaryMul`, `.unarySub`, `.unaryDiv`, `.unaryMod`,
-  `.unaryMin`, `.unaryMax`, `.unaryLt`, `.unaryLe`, `.unaryEq`, `.unaryToBinary`: the instances.
+* `Turing.MultiTapeTM.ComputableInLogSpace.unaryMul`, `.unaryPowConst`, `.unarySub`, `.unaryDiv`,
+  `.unaryMod`, `.unaryMin`, `.unaryMax`, `.unaryLt`, `.unaryLe`, `.unaryEq`, `.unaryToBinary`:
+  the instances.
+* `Turing.MultiTapeTM.ComputableInLogSpace.bitsLength`, `.unarySize`, `.unaryLog2`: lengths and
+  logarithms in unary.
 
 ## References
 
@@ -204,6 +214,50 @@ private theorem reachesOut_binaryProgram (e : Expr) {v : ℕ} (hv : e.eval [a, b
 
 end Runs
 
+/-- Every counter-program expression grows at most polynomially in a bound `m ≥ 2` on the
+register values. -/
+theorem _root_.Turing.CounterProgram.Expr.exists_eval_le_pow (e : Expr) :
+    ∃ d : ℕ, ∀ {regs : List ℕ} {m : ℕ}, 2 ≤ m → (∀ x ∈ regs, x ≤ m) → e.eval regs ≤ m ^ d := by
+  induction e with
+  | const k =>
+    exact ⟨k, fun hm _ => Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left hm k)⟩
+  | reg i =>
+    refine ⟨1, fun {regs m} _ hregs => ?_⟩
+    rw [eval_reg, pow_one]
+    by_cases hi : i < regs.length
+    · rw [List.getD_eq_getElem _ _ hi]
+      exact hregs _ (List.getElem_mem hi)
+    · rw [List.getD_eq_default _ _ (Nat.le_of_not_lt hi)]
+      exact Nat.zero_le m
+  | add a b iha ihb =>
+    obtain ⟨d₁, hd₁⟩ := iha
+    obtain ⟨d₂, hd₂⟩ := ihb
+    refine ⟨max d₁ d₂ + 1, fun {regs m} hm hregs => ?_⟩
+    have h₁ := (hd₁ hm hregs).trans (Nat.pow_le_pow_right (by omega) (le_max_left d₁ d₂))
+    have h₂ := (hd₂ hm hregs).trans (Nat.pow_le_pow_right (by omega) (le_max_right d₁ d₂))
+    calc (add a b).eval regs
+        = a.eval regs + b.eval regs := rfl
+      _ ≤ m ^ max d₁ d₂ * 2 := by omega
+      _ ≤ m ^ max d₁ d₂ * m := Nat.mul_le_mul_left _ hm
+      _ = m ^ (max d₁ d₂ + 1) := (pow_succ m (max d₁ d₂)).symm
+  | sub a _ iha _ =>
+    obtain ⟨d, hd⟩ := iha
+    exact ⟨d, fun hm hregs => (Nat.sub_le _ _).trans (hd hm hregs)⟩
+  | bit _ _ _ _ =>
+    exact ⟨0, fun _ _ => Bool.toNat_le _⟩
+  | mul a b iha ihb =>
+    obtain ⟨d₁, hd₁⟩ := iha
+    obtain ⟨d₂, hd₂⟩ := ihb
+    refine ⟨d₁ + d₂, fun hm hregs => ?_⟩
+    rw [eval_mul, pow_add]
+    exact Nat.mul_le_mul (hd₁ hm hregs) (hd₂ hm hregs)
+  | div a _ iha _ =>
+    obtain ⟨d, hd⟩ := iha
+    exact ⟨d, fun hm hregs => (Nat.div_le_self _ _).trans (hd hm hregs)⟩
+  | mod a _ iha _ =>
+    obtain ⟨d, hd⟩ := iha
+    exact ⟨d, fun hm hregs => (Nat.mod_le _ _).trans (hd hm hregs)⟩
+
 /-- A bound `X ≤ (n + 1) ^ d` on an input of length `n ≥ 1` leaves room for `n + 1` and `2X + 1`
 below `(n + 1) ^ (d + 2)`. -/
 private theorem le_pow_add_two {n X d : ℕ} (hn : 1 ≤ n) (hX : X ≤ (n + 1) ^ d) :
@@ -220,43 +274,49 @@ private theorem le_pow_add_two {n X d : ℕ} (hn : 1 ≤ n) (hX : X ≤ (n + 1) 
   · calc 2 * X + 1 ≤ (n + 1) ^ d * 4 := by omega
       _ ≤ (n + 1) ^ d * ((n + 1) * (n + 1)) := Nat.mul_le_mul le_rfl h4
 
+private theorem exists_activeBound (e : Expr) :
+    ∃ d : ℕ, ∀ a b, 2 * a + 1 + b + 1 ≤ (2 * a + 1 + b + 1) ^ d ∧
+      2 * e.eval [a, b, 0, 0] + 1 ≤ (2 * a + 1 + b + 1) ^ d := by
+  obtain ⟨d, hd⟩ := e.exists_eval_le_pow
+  exact ⟨d + 2, fun a b => le_pow_add_two (by omega)
+    (hd (by omega) (bounded4 (by omega) (by omega) (by omega) (by omega)))⟩
+
 /-! ### Logarithmic space -/
 
 variable {F F₁ F₂ : ℕ → ℕ → ℕ}
 
-/-- **A polynomially bounded function of two unary numbers given by an expression, with unary
-output, is computable in logarithmic space.** The expression `e` is evaluated with `a` in
-register `0`, `b` in register `1`, and the other registers zero. -/
-theorem computableInLogSpace_unary (e : Expr) (d : ℕ) (he : ∀ a b, e.eval [a, b, 0, 0] = F a b)
-    (hF : ∀ a b, F a b ≤ (a + b + 1) ^ d) :
+/-- **A function of two unary numbers given by an expression, with unary output, is computable in
+logarithmic space.** The expression `e` is evaluated with `a` in register `0`, `b` in register
+`1`, and the other registers zero. -/
+theorem computableInLogSpace_unary (e : Expr) (he : ∀ a b, e.eval [a, b, 0, 0] = F a b) :
     ComputableInLogSpace (fun p : ℕ × ℕ => F p.1 p.2) (encPair encUnary encUnary) encUnary := by
-  refine (unaryProgram e).computableInLogSpace_of_reachesOut (d + 2) fun ⟨a, b⟩ => ?_
+  obtain ⟨d, hd⟩ := exists_activeBound e
+  refine (unaryProgram e).computableInLogSpace_of_reachesOut d fun ⟨a, b⟩ => ?_
   rw [length_input]
-  obtain ⟨h₁, h₂⟩ := le_pow_add_two (n := 2 * a + 1 + b) (by omega)
-    ((hF a b).trans (Nat.pow_le_pow_left (by omega) d))
-  obtain ⟨regs, h, hregs⟩ := reachesOut_unaryProgram (B := (2 * a + 1 + b + 1) ^ (d + 2)) e
-    (he a b) (by omega) (by omega)
+  obtain ⟨h₁, h₂⟩ := hd a b
+  have hv : F a b ≤ (2 * a + 1 + b + 1) ^ d := by have := he a b; omega
+  obtain ⟨regs, h, hregs⟩ := reachesOut_unaryProgram e (he a b) (by omega) hv
   refine ⟨(9, regs), _, [], h, rfl, ?_, hregs⟩
   rw [List.flatMap_def, List.map_const', List.length_range, List.flatten_replicate_singleton,
     List.append_nil]
   rfl
 
-/-- **A polynomially bounded function of two unary numbers given by an expression, with binary
-output, is computable in logarithmic space.** The expression `e` is evaluated with `a` in
-register `0`, `b` in register `1`, and the other registers zero. -/
-theorem computableInLogSpace_binary (e : Expr) (d : ℕ) (he : ∀ a b, e.eval [a, b, 0, 0] = F a b)
-    (hF : ∀ a b, F a b ≤ (a + b + 1) ^ d) :
+/-- **A function of two unary numbers given by an expression, with binary output, is computable in
+logarithmic space.** The expression `e` is evaluated with `a` in register `0`, `b` in register
+`1`, and the other registers zero. -/
+theorem computableInLogSpace_binary (e : Expr) (he : ∀ a b, e.eval [a, b, 0, 0] = F a b) :
     ComputableInLogSpace (fun p : ℕ × ℕ => F p.1 p.2) (encPair encUnary encUnary) encNat := by
-  refine (binaryProgram e).computableInLogSpace_of_reachesOut (d + 2) fun ⟨a, b⟩ => ?_
+  obtain ⟨d, hd⟩ := exists_activeBound e
+  refine (binaryProgram e).computableInLogSpace_of_reachesOut d fun ⟨a, b⟩ => ?_
   rw [length_input]
-  obtain ⟨h₁, h₂⟩ := le_pow_add_two (n := 2 * a + 1 + b) (by omega)
-    ((hF a b).trans (Nat.pow_le_pow_left (by omega) d))
+  obtain ⟨h₁, h₂⟩ := hd a b
+  have hv : 2 * F a b + 1 ≤ (2 * a + 1 + b + 1) ^ d := he a b ▸ h₂
   have hsize := Nat.two_pow_size_le (F a b)
-  refine ⟨_, _, [], reachesOut_binaryProgram e (he a b) (by omega) h₂, rfl,
+  refine ⟨_, _, [], reachesOut_binaryProgram e (he a b) (by omega) hv, rfl,
     by simp [encNat_apply], bounded4 (by omega) (by omega) (by omega) (by omega)⟩
 
 /-- **Comparing two functions of two unary numbers given by expressions is computable in
-logarithmic space.** No bound is needed: the values are compared, not stored. -/
+logarithmic space.** -/
 theorem computableInLogSpace_lt (e₁ e₂ : Expr) (h₁ : ∀ a b, e₁.eval [a, b, 0, 0] = F₁ a b)
     (h₂ : ∀ a b, e₂.eval [a, b, 0, 0] = F₂ a b) :
     ComputableInLogSpace (fun p : ℕ × ℕ => decide (F₁ p.1 p.2 < F₂ p.1 p.2))
@@ -294,8 +354,16 @@ variable {γ : Type} {encIn : γ ↪ List Bool} {f₁ f₂ : γ → ℕ}
 theorem unaryMul (h₁ : ComputableInLogSpace f₁ encIn encUnary)
     (h₂ : ComputableInLogSpace f₂ encIn encUnary) :
     ComputableInLogSpace (fun a => f₁ a * f₂ a) encIn encUnary :=
-  (computableInLogSpace_unary (F := (· * ·)) (mul (reg 0) (reg 1)) 2 (fun _ _ => rfl)
-    fun a b => by nlinarith).comp' (pair h₁ h₂)
+  (computableInLogSpace_unary (F := (· * ·)) (mul (reg 0) (reg 1)) fun _ _ => rfl).comp'
+    (pair h₁ h₂)
+
+/-- **Fixed powers of a unary number** computed in logarithmic space. -/
+@[fun_prop]
+theorem unaryPowConst (k : ℕ) {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInLogSpace (fun a => f a ^ k) encIn encUnary := by
+  induction k with
+  | zero => exact const 1
+  | succ k ih => simpa only [pow_succ] using unaryMul ih hf
 
 /-- **Truncated subtraction of unary numbers** computed in logarithmic space from a common
 input. -/
@@ -303,40 +371,40 @@ input. -/
 theorem unarySub (h₁ : ComputableInLogSpace f₁ encIn encUnary)
     (h₂ : ComputableInLogSpace f₂ encIn encUnary) :
     ComputableInLogSpace (fun a => f₁ a - f₂ a) encIn encUnary :=
-  (computableInLogSpace_unary (F := (· - ·)) (sub (reg 0) (reg 1)) 1 (fun _ _ => rfl)
-    fun a b => by simp; omega).comp' (pair h₁ h₂)
+  (computableInLogSpace_unary (F := (· - ·)) (sub (reg 0) (reg 1)) fun _ _ => rfl).comp'
+    (pair h₁ h₂)
 
 /-- **The quotient of unary numbers** computed in logarithmic space from a common input. -/
 @[fun_prop]
 theorem unaryDiv (h₁ : ComputableInLogSpace f₁ encIn encUnary)
     (h₂ : ComputableInLogSpace f₂ encIn encUnary) :
     ComputableInLogSpace (fun a => f₁ a / f₂ a) encIn encUnary :=
-  (computableInLogSpace_unary (F := (· / ·)) (div (reg 0) (reg 1)) 1 (fun _ _ => rfl)
-    fun a b => by simp only [pow_one]; have := Nat.div_le_self a b; omega).comp' (pair h₁ h₂)
+  (computableInLogSpace_unary (F := (· / ·)) (div (reg 0) (reg 1)) fun _ _ => rfl).comp'
+    (pair h₁ h₂)
 
 /-- **The remainder of unary numbers** computed in logarithmic space from a common input. -/
 @[fun_prop]
 theorem unaryMod (h₁ : ComputableInLogSpace f₁ encIn encUnary)
     (h₂ : ComputableInLogSpace f₂ encIn encUnary) :
     ComputableInLogSpace (fun a => f₁ a % f₂ a) encIn encUnary :=
-  (computableInLogSpace_unary (F := (· % ·)) (mod (reg 0) (reg 1)) 1 (fun _ _ => rfl)
-    fun a b => by simp only [pow_one]; have := Nat.mod_le a b; omega).comp' (pair h₁ h₂)
+  (computableInLogSpace_unary (F := (· % ·)) (mod (reg 0) (reg 1)) fun _ _ => rfl).comp'
+    (pair h₁ h₂)
 
 /-- **The minimum of unary numbers** computed in logarithmic space from a common input. -/
 @[fun_prop]
 theorem unaryMin (h₁ : ComputableInLogSpace f₁ encIn encUnary)
     (h₂ : ComputableInLogSpace f₂ encIn encUnary) :
     ComputableInLogSpace (fun a => min (f₁ a) (f₂ a)) encIn encUnary :=
-  (computableInLogSpace_unary (F := min) (sub (reg 0) (sub (reg 0) (reg 1))) 1
-    (fun _ _ => by simp; omega) fun a b => by simp; omega).comp' (pair h₁ h₂)
+  (computableInLogSpace_unary (F := min) (sub (reg 0) (sub (reg 0) (reg 1)))
+    fun _ _ => by simp; omega).comp' (pair h₁ h₂)
 
 /-- **The maximum of unary numbers** computed in logarithmic space from a common input. -/
 @[fun_prop]
 theorem unaryMax (h₁ : ComputableInLogSpace f₁ encIn encUnary)
     (h₂ : ComputableInLogSpace f₂ encIn encUnary) :
     ComputableInLogSpace (fun a => max (f₁ a) (f₂ a)) encIn encUnary :=
-  (computableInLogSpace_unary (F := max) (add (reg 0) (sub (reg 1) (reg 0))) 1
-    (fun _ _ => by simp; omega) fun a b => by simp; omega).comp' (pair h₁ h₂)
+  (computableInLogSpace_unary (F := max) (add (reg 0) (sub (reg 1) (reg 0)))
+    fun _ _ => by simp; omega).comp' (pair h₁ h₂)
 
 /-- **Comparing unary numbers with `<`**, computed in logarithmic space from a common input. -/
 @[fun_prop]
@@ -370,7 +438,52 @@ theorem unaryEq (h₁ : ComputableInLogSpace f₁ encIn encUnary)
 output encoding, so it is not registered with `fun_prop`. -/
 theorem unaryToBinary {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
     ComputableInLogSpace f encIn encNat :=
-  (computableInLogSpace_binary (F := fun a _ => a) (reg 0) 1 (fun _ _ => rfl)
-    fun a b => by simp only [pow_one]; omega).comp' (pair hf (ComputableInLogSpace.const 0))
+  (computableInLogSpace_binary (F := fun a _ => a) (reg 0) fun _ _ => rfl).comp'
+    (pair hf (ComputableInLogSpace.const 0))
+
+/-- A logspace-computed unary natural can be stored in binary within logarithmic workspace,
+including its encoded output. Its unary length is polynomial in the encoded input length. -/
+theorem unaryToBinary_inSpace {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInSpace f encIn encNat (fun a => Nat.log2 (encIn a).length) := by
+  obtain ⟨A, D, h⟩ := hf.polyBounded_length.exists_le
+  apply (unaryToBinary hf).inSpace_of_length_log
+  refine ⟨Nat.size A + 2 * D + 1, fun a => length_encNat_le_of_le_mul_pow ?_⟩
+  simpa only [encUnary_apply, List.length_replicate] using h a
+
+/-- **The length of a bit word, in unary**, by a finite-state transducer that replaces every bit by
+`true`. -/
+@[fun_prop]
+theorem bitsLength : ComputableInLogSpace List.length encBits encUnary :=
+  (bitsMap fun _ => true).congr fun x => by
+    simp only [encUnary_apply, encBits_apply, List.map_const']
+
+/-- **The binary length of a unary number**, in unary: convert it to binary and count the
+digits. -/
+@[fun_prop]
+theorem unarySize {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInLogSpace (fun a => (f a).size) encIn encUnary :=
+  (bitsLength.comp (unaryToBinary hf).encoding_comp).congr fun a => by
+    simp only [Function.comp_apply, encUnary_apply, encNat_apply, Nat.size_eq_bits_len]
+
+/-- **`⌊log₂⌋` of a unary number**, in unary: one less than its binary length. -/
+@[fun_prop]
+theorem unaryLog2 {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInLogSpace (fun a => Nat.log2 (f a)) encIn encUnary :=
+  (unarySub (unarySize hf) (const 1)).congr_fun fun _ => Nat.log2_eq_size_sub_one _
 
 end Turing.MultiTapeTM.ComputableInLogSpace
+
+namespace Turing.MultiTapeTM
+
+/-- Length of a raw bit word in binary, computed in logarithmic space. -/
+theorem computableInLogSpace_bitsLength :
+    ComputableInLogSpace List.length encBits encNat :=
+  ComputableInLogSpace.unaryToBinary ComputableInLogSpace.bitsLength
+
+/-- Counting a raw bit word produces a binary word of logarithmic length. -/
+theorem length_bitsLength_log :
+    ∃ C, ∀ w : List Bool, (encNat w.length).length ≤ C * (Nat.log2 (encBits w).length + 1) :=
+  ⟨1, fun w => by simpa only [one_mul, encBits_apply] using
+    length_encNat_le_log2 (j := w.length) le_rfl⟩
+
+end Turing.MultiTapeTM

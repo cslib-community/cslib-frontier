@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Quantum.Code
+import Mathlib.Data.List.GetD
 
 /-!
 # Classical gate codes on basis states
@@ -27,6 +28,8 @@ Bits of a basis string are read by their number (`Cslib.Quantum.readBit`), as in
 ## Main definitions
 
 * `Cslib.Quantum.readBit`: bit `c` of a basis string, `false` past its end.
+* `Cslib.Quantum.GateCode.target`, `Cslib.Quantum.GateCode.controls`: target wire and control wires
+  of a gate code.
 * `Cslib.Quantum.GateCode.classicalStep`: the action of a classical gate code on basis strings, a
   permutation when the target is not a control.
 * `Cslib.Quantum.GateCode.IsClassical`: a list of well-formed classical gate codes.
@@ -66,47 +69,71 @@ theorem readBit_of_le (x : Fin m → Bool) {c : ℕ} (h : m ≤ c) : readBit x c
 theorem funext_readBit {x y : Fin m → Bool} (h : ∀ c, readBit x c = readBit y c) : x = y :=
   funext fun i => by simpa using h i
 
+/-- The bits of the input state past the end of the input are zero. -/
+theorem readBit_inputState_of_le {x : List Bool} {c : ℕ} (hc : x.length ≤ c) :
+    readBit (inputState m x) c = false := by
+  by_cases h : c < m
+  · rw [readBit_of_lt _ h]
+    exact List.getD_eq_default x false hc
+  · exact readBit_of_le _ (not_lt.mp h)
+
+/-- The bits of the input state are those of the input, when the input fits in the register. -/
+theorem readBit_inputState {x : List Bool} (hx : x.length ≤ m) (c : ℕ) :
+    readBit (inputState m x) c = x.getD c false := by
+  by_cases hc : c < m
+  · rw [readBit_of_lt _ hc]
+    rfl
+  · rw [readBit_inputState_of_le (by omega), List.getD_eq_default x false (by omega)]
+
 namespace GateCode
+
+/-- The target wire `t` of a gate code `(h, t, cs)`. -/
+abbrev target (g : GateCode) : ℕ := g.2.1
+
+/-- The control wire list `cs` of a gate code `(h, t, cs)`. -/
+abbrev controls (g : GateCode) : List ℕ := g.2.2
+
+@[simp] theorem target_mk (h : Bool) (t : ℕ) (cs : List ℕ) : target (h, t, cs) = t := rfl
+
+@[simp] theorem controls_mk (h : Bool) (t : ℕ) (cs : List ℕ) : controls (h, t, cs) = cs := rfl
 
 /-- The action on basis strings of the classical gate code `(false, t, cs)`: bit `t` flips when
 every bit of `cs` is one. It is the identity when `t` is out of range, and a permutation when `t`
 is not in `cs` (`classicalStep_classicalStep`). -/
 def classicalStep (g : GateCode) (x : Fin m → Bool) : Fin m → Bool :=
-  if h : g.2.1 < m then Function.update x ⟨g.2.1, h⟩ (x ⟨g.2.1, h⟩ ^^ g.2.2.all (readBit x))
+  if h : target g < m then
+    Function.update x ⟨target g, h⟩ (x ⟨target g, h⟩ ^^ (controls g).all (readBit x))
   else x
 
 /-- **A classical code changes only its target bit**, flipping it when all its controls are one. -/
 theorem readBit_classicalStep (g : GateCode) (x : Fin m → Bool) (c : ℕ) :
     readBit (classicalStep g x) c =
-      (readBit x c ^^ (decide (c = g.2.1 ∧ g.2.1 < m) && g.2.2.all (readBit x))) := by
+      (readBit x c ^^ (decide (c = target g ∧ target g < m) && (controls g).all (readBit x))) := by
   unfold classicalStep
   split_ifs with h
   · by_cases hc : c < m
     · rw [readBit_of_lt _ hc, readBit_of_lt _ hc]
-      by_cases hct : c = g.2.1
-      · subst hct
-        simp [h]
-      · rw [Function.update_of_ne (fun h' => hct (congrArg Fin.val h'))]
-        simp [hct]
-    · rw [readBit_of_le _ (not_lt.mp hc), readBit_of_le _ (not_lt.mp hc)]
-      have : c ≠ g.2.1 := fun h' => hc (h' ▸ h)
-      simp [this]
+      rcases eq_or_ne c (target g) with rfl | hct
+      · simp [h]
+      · simp [Fin.ext_iff, hct]
+    · simp [readBit_of_le _ (not_lt.mp hc), show c ≠ target g from fun h' => hc (h' ▸ h)]
   · simp [h]
 
 /-- Bits other than the target of a classical code read the same after it acts. -/
 theorem all_readBit_classicalStep {g : GateCode} (x : Fin m → Bool)
-    (cs : List ℕ) (hcs : g.2.1 ∉ cs) :
+    (cs : List ℕ) (hcs : target g ∉ cs) :
     cs.all (readBit (classicalStep g x)) = cs.all (readBit x) := by
   induction cs with
   | nil => rfl
   | cons c cs ih =>
     rw [List.all_cons, List.all_cons, ih (fun h => hcs (List.mem_cons_of_mem _ h)),
       readBit_classicalStep]
-    have : c ≠ g.2.1 := fun h => hcs (h ▸ List.mem_cons_self ..)
+    have : c ≠ target g := fun h => hcs (h ▸ List.mem_cons_self ..)
     simp [this]
 
 /-- **A classical code is an involution** when its target is not one of its controls. -/
-theorem classicalStep_classicalStep {g : GateCode} (hg : g.2.1 ∉ g.2.2) (x : Fin m → Bool) :
+theorem classicalStep_classicalStep {g : GateCode} (hg : target g ∉ controls g)
+    (x : Fin m → Bool) :
     classicalStep g (classicalStep g x) = x := by
   refine funext_readBit fun c => ?_
   rw [readBit_classicalStep, all_readBit_classicalStep x _ hg, readBit_classicalStep,
@@ -132,7 +159,7 @@ theorem IsClassical.flatMap {β : Type*} {l : List β} {f : β → List GateCode
 
 /-- The target of a well-formed classical code is not one of its controls. -/
 theorem target_notMem_of_wellFormed {g : GateCode} (h₁ : g.1 = false) (h₂ : WellFormed m g) :
-    g.2.1 ∉ g.2.2 := by
+    target g ∉ controls g := by
   obtain ⟨b, t, cs⟩ := g
   subst h₁
   exact (List.nodup_cons.mp h₂.2.1).1
@@ -186,14 +213,15 @@ theorem classicalRun_flatMap {β : Type*} (l : List β) (f : β → List GateCod
 /-- **Classical codes that never read a written bit** add to each bit the controls' values on the
 initial string, one for each code writing that bit. -/
 theorem readBit_classicalRun_of_forall_notMem {gs : List GateCode} (h : IsClassical m gs)
-    (hread : ∀ g ∈ gs, ∀ g' ∈ gs, g.2.1 ∉ g'.2.2) (x : Fin m → Bool) (p : ℕ) :
+    (hread : ∀ g ∈ gs, ∀ g' ∈ gs, target g ∉ controls g') (x : Fin m → Bool) (p : ℕ) :
     readBit (classicalRun gs x) p =
-      gs.foldl (fun b g => b ^^ (decide (p = g.2.1) && g.2.2.all (readBit x))) (readBit x p) := by
+      gs.foldl (fun b g => b ^^ (decide (p = target g) && (controls g).all (readBit x)))
+        (readBit x p) := by
   induction gs generalizing x with
   | nil => rfl
   | cons g gs ih =>
     obtain ⟨⟨h₁, h₂⟩, h⟩ := IsClassical.cons.mp h
-    have ht : g.2.1 < m := by
+    have ht : target g < m := by
       obtain ⟨b, t, cs⟩ := g
       subst h₁
       exact h₂.2.2 t (List.mem_cons_self ..)
@@ -206,7 +234,7 @@ theorem readBit_classicalRun_of_forall_notMem {gs : List GateCode} (h : IsClassi
 
 /-- Classical codes none of which targets `q` leave bit `q` unchanged. -/
 theorem readBit_classicalRun_of_forall_ne {gs : List GateCode} {q : ℕ}
-    (h : ∀ g ∈ gs, g.2.1 ≠ q) (x : Fin m → Bool) :
+    (h : ∀ g ∈ gs, target g ≠ q) (x : Fin m → Bool) :
     readBit (classicalRun gs x) q = readBit x q := by
   induction gs generalizing x with
   | nil => rfl
@@ -217,10 +245,11 @@ theorem readBit_classicalRun_of_forall_ne {gs : List GateCode} {q : ℕ}
 
 /-- **Classical codes with distinct targets that no code reads** flip each target exactly when the
 controls of its code are one on the initial string. -/
-theorem readBit_classicalRun_of_mem {gs : List GateCode} (hlt : ∀ g ∈ gs, g.2.1 < m)
-    (hnd : (gs.map fun g => g.2.1).Nodup) (hread : ∀ g ∈ gs, ∀ g' ∈ gs, g.2.1 ∉ g'.2.2)
+theorem readBit_classicalRun_of_mem {gs : List GateCode} (hlt : ∀ g ∈ gs, target g < m)
+    (hnd : (gs.map target).Nodup) (hread : ∀ g ∈ gs, ∀ g' ∈ gs, target g ∉ controls g')
     (x : Fin m → Bool) {g : GateCode} (hg : g ∈ gs) :
-    readBit (classicalRun gs x) g.2.1 = (readBit x g.2.1 ^^ g.2.2.all (readBit x)) := by
+    readBit (classicalRun gs x) (target g) =
+      (readBit x (target g) ^^ (controls g).all (readBit x)) := by
   induction gs generalizing x with
   | nil => simp at hg
   | cons g₀ gs ih =>
@@ -235,7 +264,7 @@ theorem readBit_classicalRun_of_mem {gs : List GateCode} (hlt : ∀ g ∈ gs, g.
         _ hg, readBit_classicalStep,
         all_readBit_classicalStep x _ (hread g₀ (List.mem_cons_self ..) g
           (List.mem_cons_of_mem _ hg))]
-      have hne : g.2.1 ≠ g₀.2.1 := fun h => hnd.1 (List.mem_map.mpr ⟨g, hg, h⟩)
+      have hne : target g ≠ target g₀ := fun h => hnd.1 (List.mem_map.mpr ⟨g, hg, h⟩)
       simp [hne]
 
 /-- An exclusive or over a range in which only the term `i₀` can be nonzero. -/
@@ -244,15 +273,11 @@ theorem foldl_xor_range (T i₀ : ℕ) (f : ℕ → Bool) (b : Bool) (hf : ∀ i
   induction T with
   | zero => simp
   | succ T ih =>
-    rw [List.range_succ, List.foldl_append, ih fun i hi hne => hf i (by omega) hne]
-    simp only [List.foldl_cons, List.foldl_nil]
-    by_cases hT : T = i₀
-    · subst hT
-      simp
-    · rw [hf T (by omega) hT]
-      by_cases hlt : i₀ < T
-      · simp [hlt, show i₀ < T + 1 by omega]
-      · simp [hlt, show ¬i₀ < T + 1 by omega]
+    rw [List.range_succ, List.foldl_append, ih fun i hi => hf i (by omega)]
+    rcases eq_or_ne T i₀ with rfl | hT
+    · simp
+    · by_cases hlt : i₀ < T <;>
+        simp [hf T (by omega) hT, hlt, show (i₀ < T + 1) ↔ i₀ < T by omega]
 
 /-- A well-formed classical code denotes a gate that maps `|x⟩` to `|classicalStep g x⟩`. -/
 theorem exists_toPlacedGate?_eval_ket {g : GateCode} (h₁ : g.1 = false) (h₂ : WellFormed m g) :
@@ -275,31 +300,55 @@ theorem exists_toPlacedGate?_eval_apply {g : GateCode} (h₁ : g.1 = false) (h�
     (classicalStep_classicalStep (target_notMem_of_wellFormed h₁ h₂)) hket⟩
 
 
-/-! ### Swapping a qubit into qubit `0` -/
+/-! ### Swapping two qubits -/
 
-/-- For `a ≠ 0`, three CNOT gates swapping qubit `a` into qubit `0`. -/
-def swapCodes (a : ℕ) : List GateCode := [(false, 0, [a]), (false, a, [0]), (false, 0, [a])]
+/-- Three CNOT gates swapping wires `left` and `right`. -/
+def swapWireCodes (left right : ℕ) : List GateCode :=
+  [(false, left, [right]), (false, right, [left]), (false, left, [right])]
+
+@[simp] theorem length_swapWireCodes (left right : ℕ) :
+    (swapWireCodes left right).length = 3 := rfl
+
+/-- Swapping two distinct valid wires is a well-formed classical circuit. -/
+theorem isClassical_swapWireCodes {left right width : ℕ} (hne : left ≠ right)
+    (hleft : left < width) (hright : right < width) :
+    IsClassical width (swapWireCodes left right) := by
+  intro g hg
+  rcases List.mem_cons.1 hg with rfl | hg
+  · exact ⟨rfl, by simp [WellFormed, hne, hleft, hright]⟩
+  · rcases List.mem_cons.1 hg with rfl | hg
+    · exact ⟨rfl, by simp [WellFormed, hne.symm, hleft, hright]⟩
+    · obtain rfl := List.mem_singleton.1 hg
+      exact ⟨rfl, by simp [WellFormed, hne, hleft, hright]⟩
+
+/-- The left wire after a swap contains the former right-wire bit. -/
+theorem readBit_classicalRun_swapWireCodes {left right width : ℕ} (hne : left ≠ right)
+    (hleft : left < width) (hright : right < width) (x : Fin width → Bool) :
+    readBit (classicalRun (swapWireCodes left right) x) left = readBit x right := by
+  simp [swapWireCodes, readBit_classicalStep, hleft, hright, hne, hne.symm]
+
+/-- A wire outside a swapped pair is unchanged. -/
+theorem readBit_classicalRun_swapWireCodes_of_ne {left right q width : ℕ}
+    (hql : q ≠ left) (hqr : q ≠ right) (x : Fin width → Bool) :
+    readBit (classicalRun (swapWireCodes left right) x) q = readBit x q := by
+  refine readBit_classicalRun_of_forall_ne (fun g hg => ?_) x
+  simp only [swapWireCodes, List.mem_cons, List.not_mem_nil, or_false] at hg
+  rcases hg with rfl | rfl | rfl <;> simp [hql.symm, hqr.symm]
+
+/-- For `a ≠ 0`, swap qubit `a` into qubit `0`. -/
+def swapCodes (a : ℕ) : List GateCode :=
+  swapWireCodes 0 a
 
 theorem isClassical_swapCodes {N a : ℕ} (ha : 0 < a) (hN : a < N) :
     IsClassical N (swapCodes a) := by
-  have h₀ : WellFormed N ((false, 0, [a]) : GateCode) :=
-    ⟨by simp, by simp; omega, by simp; omega⟩
-  have h₁ : WellFormed N ((false, a, [0]) : GateCode) :=
-    ⟨by simp, by simp; omega, by simp; omega⟩
-  intro g hg
-  simp only [swapCodes, List.mem_cons, List.not_mem_nil, or_false] at hg
-  rcases hg with rfl | rfl | rfl
-  · exact ⟨rfl, h₀⟩
-  · exact ⟨rfl, h₁⟩
-  · exact ⟨rfl, h₀⟩
+  simpa [swapCodes, swapWireCodes] using
+    isClassical_swapWireCodes (left := 0) (right := a) (by omega) (by omega) hN
 
 /-- **The swap moves qubit `a` into qubit `0`.** -/
 theorem readBit_classicalRun_swapCodes {N a : ℕ} (ha : 0 < a) (hN : a < N) (X : Fin N → Bool) :
     readBit (classicalRun (swapCodes a) X) 0 = readBit X a := by
-  simp only [swapCodes, classicalRun_cons, classicalRun_nil, readBit_classicalStep,
-    List.all_cons, List.all_nil, Bool.and_true]
-  have h0 : (0 : ℕ) < N := by omega
-  simp [h0, hN, show a ≠ 0 by omega, show (0 : ℕ) ≠ a by omega]
+  simpa [swapCodes, swapWireCodes] using
+    readBit_classicalRun_swapWireCodes (left := 0) (right := a) (by omega) (by omega) hN X
 
 end GateCode
 

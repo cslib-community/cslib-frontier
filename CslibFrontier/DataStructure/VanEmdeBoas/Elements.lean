@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.DataStructure.OrderedSet.Basic
 public import CslibFrontier.DataStructure.VanEmdeBoas.Erase
 public import CslibFrontier.DataStructure.VanEmdeBoas.Insert
 public import CslibFrontier.DataStructure.VanEmdeBoas.Predecessor
@@ -35,6 +36,8 @@ the observation.
   its absence are characterized by the finite set.
 * `Tree.predecessor_elements_some_iff`, `Tree.predecessor_elements_none_iff`: strict predecessor
   and its absence are characterized by the finite set.
+* `Tree.predecessor_eq_predecessor_elements`: strict predecessor lookup computes the shared
+  `OrderedSet.predecessor` of the finite set.
 
 ## References
 
@@ -74,14 +77,12 @@ theorem elements_insert {t : Tree d} (ht : t.Valid) {x : ℕ} (hx : x < universe
 theorem successor_elements_some_iff {t : Tree d} (ht : t.Valid) (x y : ℕ) :
     t.successor x = some y ↔ y ∈ t.elements ∧ x < y ∧
       ∀ z, z ∈ t.elements → x < z → y ≤ z := by
-  simp only [mem_elements_iff ht]
-  exact successor_eq_some_iff ht x y
+  simpa only [mem_elements_iff ht] using successor_eq_some_iff ht x y
 
 /-- An absent successor means that every finite-set element is at most the query. -/
 theorem successor_elements_none_iff {t : Tree d} (ht : t.Valid) (x : ℕ) :
     t.successor x = none ↔ ∀ z, z ∈ t.elements → z ≤ x := by
-  simp only [mem_elements_iff ht]
-  exact successor_eq_none_iff ht x
+  simpa only [mem_elements_iff ht] using successor_eq_none_iff ht x
 
 /-- The finite-set observation commutes with deletion of any key `x : ℕ`. -/
 theorem elements_erase {t : Tree d} (ht : t.Valid) (x : ℕ) :
@@ -94,13 +95,23 @@ theorem elements_erase {t : Tree d} (ht : t.Valid) (x : ℕ) :
 theorem predecessor_elements_some_iff {t : Tree d} (ht : t.Valid) (x y : ℕ) :
     t.predecessor x = some y ↔ y ∈ t.elements ∧ y < x ∧
       ∀ z, z ∈ t.elements → z < x → z ≤ y := by
-  simp only [mem_elements_iff ht]
-  exact predecessor_eq_some_iff ht x y
+  simpa only [mem_elements_iff ht] using predecessor_eq_some_iff ht x y
 
 /-- An absent predecessor means that every finite-set element is at least the query. -/
 theorem predecessor_elements_none_iff {t : Tree d} (ht : t.Valid) (x : ℕ) :
     t.predecessor x = none ↔ ∀ z, z ∈ t.elements → x ≤ z := by
-  simp only [mem_elements_iff ht]
-  exact predecessor_eq_none_iff ht x
+  simpa only [mem_elements_iff ht] using predecessor_eq_none_iff ht x
+
+/-- On a valid tree, strict predecessor lookup computes `OrderedSet.predecessor` of the stored
+finite set. -/
+theorem predecessor_eq_predecessor_elements {t : Tree d} (ht : t.Valid) (x : ℕ) :
+    t.predecessor x = OrderedSet.predecessor t.elements x := by
+  cases h : t.predecessor x with
+  | none =>
+    exact (OrderedSet.predecessor_eq_none_iff.mpr
+      ((predecessor_elements_none_iff ht x).mp h)).symm
+  | some y =>
+    exact (OrderedSet.predecessor_eq_some_iff.mpr
+      ((predecessor_elements_some_iff ht x y).mp h)).symm
 
 end Cslib.DataStructure.VanEmdeBoas.Tree

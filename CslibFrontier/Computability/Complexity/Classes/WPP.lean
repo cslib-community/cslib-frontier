@@ -155,25 +155,31 @@ theorem WPP_subset_coCeqP : WPP enc ⊆ coCeqP enc := by
   rw [hA a]
   rcases hr a with h | h <;> simp [h, hn a, (hn a).symm]
 
+private theorem gap_compl_spec {g f : ℤ} {P : Prop} (hn : f ≠ 0) (hr : g = 0 ∨ g = f)
+    (hP : P ↔ g = f) : (f - g = 0 ∨ f - g = f) ∧ (¬P ↔ f - g = f) := by
+  rcases hr with rfl | rfl <;> simp [hP, hn.symm]
+
+private theorem gap_inter_spec {g f g' f' : ℤ} {P Q : Prop} (hn : f ≠ 0) (hn' : f' ≠ 0)
+    (hr : g = 0 ∨ g = f) (hr' : g' = 0 ∨ g' = f') (hP : P ↔ g = f) (hQ : Q ↔ g' = f') :
+    (g * g' = 0 ∨ g * g' = f * f') ∧ (P ∧ Q ↔ g * g' = f * f') := by
+  rcases hr with rfl | rfl <;> rcases hr' with rfl | rfl <;>
+    simp [hP, hQ, hn, hn', hn.symm, hn'.symm]
+
 /-- Complement exchanges the zero and target values. -/
 theorem compl_mem_WPP (hA : A ∈ WPP enc) : Aᶜ ∈ WPP enc := by
-  rw [mem_WPP] at hA ⊢
   obtain ⟨g, hg, f, hf, hn, hr, hA⟩ := hA
-  refine ⟨f - g, GapP.sub_mem' (mem_GapP_of_polyTime hf) hg, f, hf, hn,
-    fun a => ?_, fun a => ?_⟩
-  · rcases hr a with h | h <;> simp [h]
-  · rcases hr a with h | h <;> simp [hA a, h, (hn a).symm]
+  exact ⟨f - g, GapP.sub_mem' (mem_GapP_of_polyTime hf) hg, f, hf, hn,
+    fun a => (gap_compl_spec (hn a) (hr a) (hA a)).1,
+    fun a => (gap_compl_spec (hn a) (hr a) (hA a)).2⟩
 
 /-- Products preserve the zero-or-target condition and the target is still nonzero. -/
 theorem inter_mem_WPP (hA : A ∈ WPP enc) (hB : B ∈ WPP enc) : A ∩ B ∈ WPP enc := by
-  rw [mem_WPP] at hA hB ⊢
   obtain ⟨g, hg, f, hf, hn, hr, hA⟩ := hA
   obtain ⟨g', hg', f', hf', hn', hr', hB⟩ := hB
-  refine ⟨g * g', GapP.mul_mem hg hg', f * f', hf.intBin_mul' hf',
-    fun a => mul_ne_zero (hn a) (hn' a), fun a => ?_, fun a => ?_⟩
-  · rcases hr a with h | h <;> rcases hr' a with h' | h' <;> simp [h, h']
-  · rcases hr a with h | h <;> rcases hr' a with h' | h' <;>
-      simp [hA a, hB a, h, h', hn a, hn' a, (hn a).symm, (hn' a).symm]
+  exact ⟨g * g', GapP.mul_mem hg hg', f * f', hf.intBin_mul' hf',
+    fun a => mul_ne_zero (hn a) (hn' a),
+    fun a => (gap_inter_spec (hn a) (hn' a) (hr a) (hr' a) (hA a) (hB a)).1,
+    fun a => (gap_inter_spec (hn a) (hn' a) (hr a) (hr' a) (hA a) (hB a)).2⟩
 
 /-- `WPP` as a Boolean subalgebra of `Set α`. -/
 def WPP.booleanSubalgebra (enc : α ↪ List Bool) : BooleanSubalgebra (Set α) :=
@@ -208,24 +214,20 @@ theorem PolyTimeReducible.mem_WPP {encB : β ↪ List Bool} {B : Set β}
 
 /-- The complementary gap uses the same length-dependent target. -/
 theorem compl_mem_LWPP (hA : A ∈ LWPP enc) : Aᶜ ∈ LWPP enc := by
-  rw [mem_LWPP] at hA ⊢
   obtain ⟨g, hg, f, hf, hn, hr, hA⟩ := hA
   have htarget := mem_GapP_of_polyTime (hf.comp (.encoding_length enc))
-  refine ⟨(fun a => f (enc a).length) - g, GapP.sub_mem' htarget hg,
-    f, hf, hn, fun a => ?_, fun a => ?_⟩
-  · rcases hr a with h | h <;> simp [h]
-  · rcases hr a with h | h <;> simp [hA a, h, (hn _).symm]
+  exact ⟨(fun a => f (enc a).length) - g, GapP.sub_mem' htarget hg, f, hf, hn,
+    fun a => (gap_compl_spec (hn _) (hr a) (hA a)).1,
+    fun a => (gap_compl_spec (hn _) (hr a) (hA a)).2⟩
 
 /-- Multiplying length-dependent targets preserves length dependence. -/
 theorem inter_mem_LWPP (hA : A ∈ LWPP enc) (hB : B ∈ LWPP enc) : A ∩ B ∈ LWPP enc := by
-  rw [mem_LWPP] at hA hB ⊢
   obtain ⟨g, hg, f, hf, hn, hr, hA⟩ := hA
   obtain ⟨g', hg', f', hf', hn', hr', hB⟩ := hB
-  refine ⟨g * g', GapP.mul_mem hg hg', f * f', hf.intBin_mul' hf',
-    fun n => mul_ne_zero (hn n) (hn' n), fun a => ?_, fun a => ?_⟩
-  · rcases hr a with h | h <;> rcases hr' a with h' | h' <;> simp [h, h']
-  · rcases hr a with h | h <;> rcases hr' a with h' | h' <;>
-      simp [hA a, hB a, h, h', hn _, hn' _, (hn _).symm, (hn' _).symm]
+  exact ⟨g * g', GapP.mul_mem hg hg', f * f', hf.intBin_mul' hf',
+    fun n => mul_ne_zero (hn n) (hn' n),
+    fun a => (gap_inter_spec (hn _) (hn' _) (hr a) (hr' a) (hA a) (hB a)).1,
+    fun a => (gap_inter_spec (hn _) (hn' _) (hr a) (hr' a) (hA a) (hB a)).2⟩
 
 /-- `LWPP` as a Boolean subalgebra of `Set α`. -/
 def LWPP.booleanSubalgebra (enc : α ↪ List Bool) : BooleanSubalgebra (Set α) :=
@@ -252,31 +254,6 @@ theorem symmDiff_mem_LWPP (hA : A ∈ LWPP enc) (hB : B ∈ LWPP enc) : A ∆ B 
 
 /-! ### Finite multiple-target robustness -/
 
-private theorem finset_prod_intBin {ι : Type*} (s : Finset ι) {f : ι → α → ℤ}
-    (hf : ∀ i ∈ s, ComputableInPolyTime (f i) enc encIntBin) :
-    ComputableInPolyTime (fun a => ∏ i ∈ s, f i a) enc encIntBin := by
-  classical
-  induction s using Finset.induction_on with
-  | empty =>
-    exact (ComputableInPolyTime.const 1).of_enc_eq fun _ => congrArg encIntBin (by simp)
-  | insert i s hi ih =>
-    have hmul := (hf i (Finset.mem_insert_self i s)).intBin_mul'
-      (ih fun j hj => hf j (Finset.mem_insert_of_mem hj))
-    exact hmul.of_enc_eq fun a => congrArg encIntBin (Finset.prod_insert hi)
-
-private theorem finset_prod_mem_GapP {ι : Type*} (s : Finset ι) {f : ι → α → ℤ}
-    (hf : ∀ i ∈ s, f i ∈ GapP enc) : (fun a => ∏ i ∈ s, f i a) ∈ GapP enc := by
-  classical
-  induction s using Finset.induction_on with
-  | empty =>
-    exact GapP.one_mem
-  | insert i s hi ih =>
-    have hmul := GapP.mul_mem (hf i (Finset.mem_insert_self i s))
-      (ih fun j hj => hf j (Finset.mem_insert_of_mem hj))
-    convert hmul using 1
-    ext a
-    exact Finset.prod_insert hi
-
 private theorem finsetTargetWitness {ι : Type*} (s : Finset ι) {g : α → ℤ} {f : ι → α → ℤ}
     (hg : g ∈ GapP enc)
     (hf : ∀ i ∈ s, ComputableInPolyTime (f i) enc encIntBin)
@@ -287,31 +264,25 @@ private theorem finsetTargetWitness {ι : Type*} (s : Finset ι) {g : α → ℤ
       ∀ a, a ∈ A ↔ G a = ∏ i ∈ s, f i a := by
   let F : α → ℤ := fun a => ∏ i ∈ s, f i a
   let P : α → ℤ := fun a => ∏ i ∈ s, (f i a - g a)
-  have hF : ComputableInPolyTime F enc encIntBin := finset_prod_intBin s hf
+  have hF : ComputableInPolyTime F enc encIntBin := ComputableInPolyTime.intBin_finset_prod s hf
   have hFn (a : α) : F a ≠ 0 := Finset.prod_ne_zero_iff.mpr fun i hi => hn i hi a
-  have hP : P ∈ GapP enc :=
-    finset_prod_mem_GapP s fun i hi => GapP.sub_mem' (mem_GapP_of_polyTime (hf i hi)) hg
+  have hP : P ∈ GapP enc := by
+    simpa only [P, Finset.prod_fn, Pi.sub_apply] using
+      GapP.prod_mem s fun i hi => GapP.sub_mem' (mem_GapP_of_polyTime (hf i hi)) hg
   have hP_zero {a : α} (hz : g a = 0) : P a = F a := by
     simp [P, F, hz]
   have hP_mem {a : α} (hmem : ∃ i ∈ s, g a = f i a) : P a = 0 := by
     obtain ⟨i, hi, hgi⟩ := hmem
-    exact Finset.prod_eq_zero hi (by lia)
+    exact Finset.prod_eq_zero hi (sub_eq_zero.mpr hgi.symm)
   refine ⟨F - P, GapP.sub_mem' (mem_GapP_of_polyTime hF) hP, fun a => ?_, fun a => ?_⟩
   · rcases hr a with hz | hmem
     · exact Or.inl (by simp [F, hP_zero hz])
     · exact Or.inr (by simp [F, hP_mem hmem])
   · rw [hA a]
-    constructor
-    · intro hmem
-      simp [F, hP_mem hmem]
-    · intro hFP
-      rcases hr a with hz | hmem
-      · exfalso
-        apply hFn a
-        have : F a - P a = 0 := by simp [hP_zero hz]
-        have hEq : F a - P a = F a := hFP
-        lia
-      · exact hmem
+    refine ⟨fun hmem => by simp [F, hP_mem hmem], fun hFP => ?_⟩
+    rcases hr a with hz | hmem
+    · exact absurd (by simpa [hP_zero hz] using hFP.symm) (hFn a)
+    · exact hmem
 
 /-- **Finite multiple-target robustness for `WPP`:** a `GapP` function that takes `0` outside `A`
 and one of a fixed finite family of nonzero polynomial-time targets on `A` witnesses `A ∈ WPP`
@@ -324,7 +295,7 @@ theorem mem_WPP_of_finset_targets {ι : Type*} (s : Finset ι) {g : α → ℤ} 
     (hr : ∀ a, g a = 0 ∨ ∃ i ∈ s, g a = f i a)
     (hA : ∀ a, a ∈ A ↔ ∃ i ∈ s, g a = f i a) : A ∈ WPP enc := by
   obtain ⟨G, hG, hR, hGA⟩ := finsetTargetWitness s hg hf hn hr hA
-  exact ⟨G, hG, _, finset_prod_intBin s hf,
+  exact ⟨G, hG, _, ComputableInPolyTime.intBin_finset_prod s hf,
     fun a => Finset.prod_ne_zero_iff.mpr fun i hi => hn i hi a, hR, hGA⟩
 
 /-- **Finite multiple-target robustness for `LWPP`:** a `GapP` function that takes `0` outside `A`
@@ -340,7 +311,7 @@ theorem mem_LWPP_of_finset_targets {ι : Type*} (s : Finset ι) {g : α → ℤ}
   obtain ⟨G, hG, hR, hGA⟩ := finsetTargetWitness s hg
     (fun i hi => (hf i hi).comp (.encoding_length enc))
     (fun i hi a => hn i hi (enc a).length) hr hA
-  exact ⟨G, hG, fun n => ∏ i ∈ s, f i n, finset_prod_intBin s hf,
+  exact ⟨G, hG, fun n => ∏ i ∈ s, f i n, ComputableInPolyTime.intBin_finset_prod s hf,
     fun n => Finset.prod_ne_zero_iff.mpr fun i hi => hn i hi n, hR, hGA⟩
 
 /-! ### Unary-indexed target normalization and `LWPP` reduction closure -/
@@ -362,29 +333,24 @@ theorem mem_LWPP_of_polyTime_index {g : α → ℤ} {f : ℕ → ℤ} {k : α �
   obtain ⟨p, hp⟩ := hk.polyBounded.exists_polynomial
   have hlt (a : α) : k a < p.eval (enc a).length + 1 := Nat.lt_succ_of_le (hp a)
   let bound (n : ℕ) : ℕ := p.eval n + 1
-  have hbound : ComputableInPolyTime bound encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_eval p).prod (.const 1))
+  have hbound : ComputableInPolyTime bound encUnary encUnary := by
+    dsimp only [bound]
+    fun_prop
   let F (n : ℕ) : ℤ := ((List.range (bound n)).map f).prod
   have hF : ComputableInPolyTime F encUnary encIntBin :=
     ComputableInPolyTime.intBin_prod.comp
-      ((ComputableInPolyTime.map hf).comp
-        (ComputableInPolyTime.range.comp hbound))
+      ((ComputableInPolyTime.map hf).comp (ComputableInPolyTime.range.comp hbound))
   have hFn (n : ℕ) : F n ≠ 0 := List.prod_ne_zero (by simp [hn])
   let h (a : α) : ℤ :=
     (((List.range (bound (enc a).length)).filter (fun i => decide (i ≠ k a))).map f).prod
-  have hlist : ComputableInPolyTime
-      (fun a : α => List.range (bound (enc a).length)) enc (encList encUnary) :=
-    (ComputableInPolyTime.range.comp hbound).comp (.encoding_length enc)
   have htest : ComputableInPolyTime
-      (fun x : α × ℕ => decide (x.2 ≠ k x.1)) (encPair enc encUnary) encBool :=
-    (ComputableInPolyTime.bool_not.comp
-      (ComputableInPolyTime.decide_eq' (.snd enc encUnary) (hk.comp (.fst enc encUnary)))).of_enc_eq
-      fun x => congrArg encBool (by simp)
+      (fun x : α × ℕ => decide (x.2 ≠ k x.1)) (encPair enc encUnary) encBool := by
+    simp only [ne_eq, decide_not]
+    fun_prop
   have hh : ComputableInPolyTime h enc encIntBin :=
     ComputableInPolyTime.intBin_prod.comp
       ((ComputableInPolyTime.map hf).comp
-        (ComputableInPolyTime.filterWithInput hlist htest))
+        (ComputableInPolyTime.filterWithInput (by fun_prop) htest))
   have hmul (a : α) : f (k a) * h a = F (enc a).length := by
     have herase :
         (List.range (bound (enc a).length)).filter (fun i => decide (i ≠ k a)) =

@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PrepareReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Foundations.Data.Fin.Tuple
 import Mathlib.Data.Fin.Tuple.Embedding
 import Mathlib.Tactic.Linarith
@@ -61,26 +62,19 @@ private def tapes (k r : ℕ) : Fin (k + 1) ↪ Fin (k + r + 1) :=
 private theorem embed_initial (machine : MultiTapePTM k Bool State) (coins input : List Bool) :
     embed (tapes k r) (config (machine.initialConfig input) (tapeOfList coins) 0)
       (fun _ _ => none) (fun _ => 0) = initial k r coins input (some (some machine.initial)) := by
-  have hc : config (machine.initialConfig input) (tapeOfList coins) 0 =
+  have hcfg : config (machine.initialConfig input) (tapeOfList coins) 0 =
       wordsCfg input (some (some machine.initial)) (Fin.snoc (fun _ => []) coins) [] := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
-      induction i using Fin.lastCases <;> simp [config, MultiTapeMachine.initialConfig, wordsCfg]
-  rw [hc]
-  simp only [initial]
-  have he := embed_wordsCfg (input := input) (tapes k r) (ws := fun _ => [])
-    (q := some (some machine.initial)) (out := [])
+    tm_step [config, MultiTapeMachine.initialConfig]
+  rw [hcfg]
+  simpa only [initial, tapeOfList_nil] using embed_wordsCfg (input := input) (tapes k r)
+    (ws := fun _ => []) (q := some (some machine.initial)) (out := [])
     (v := Fin.snoc (fun _ => []) coins) (ws' := Fin.snoc (fun _ => []) coins)
-    (by
-      intro j
-      induction j using Fin.lastCases <;>
-        simp [tapes, Fin.Embedding.snoc_last, Fin.Embedding.snoc_castSucc,
-          Function.Embedding.trans_apply, Fin.castAddEmb_apply])
-    (by
-      intro i hi
-      induction i using Fin.lastCases with
+    (fun j => by induction j using Fin.lastCases <;>
+      simp [tapes, Fin.Embedding.snoc_last, Fin.Embedding.snoc_castSucc,
+        Function.Embedding.trans_apply, Fin.castAddEmb_apply])
+    (fun i hi => by induction i using Fin.lastCases with
       | last => exact (hi ⟨Fin.last k, by simp [tapes, Fin.Embedding.snoc_last]⟩).elim
-      | cast i => simp)
-  simpa only [tapeOfList_nil] using he
+      | cast => simp)
 
 private theorem runFrom_initial (machine : MultiTapePTM k Bool State) (coins input : List Bool) :
     (machine.replay.extendTapes (tapes k r)).runFrom
@@ -100,10 +94,11 @@ private noncomputable def compile (machine : MultiTapePTM k Bool State)
 
 private def finish (machine : MultiTapePTM k Bool State) (coins input outer : List Bool) :
     Cfg (k + r + 3) Bool (PrepareState ⊕ MarkWorkState ⊕ Option State) outer :=
-  Sequential.rightCfg (Sequential.rightCfg (inCfg true
+  ((inCfg true
     (embed (tapes k r)
       (stopped (machine.runClosedConfigFromCoins coins (machine.initialConfig input))
-        (tapeOfList coins) coins.length) (fun _ _ => none) (fun _ => 0)) outer))
+        (tapeOfList coins) coins.length) (fun _ _ => none) (fun _ => 0)) outer).mapState
+    (Option.map .inr)).mapState (Option.map .inr)
 
 private theorem runFrom_compile (machine : MultiTapePTM k Bool State)
     (prepare : MultiTapeTM (r + 2) Bool PrepareState) (coins input outer : List Bool) (t s : ℕ)
@@ -116,31 +111,31 @@ private theorem runFrom_compile (machine : MultiTapePTM k Bool State)
     (initial k r coins input (some (some machine.initial))) (coins.length + 1)
   simp only [inCfgHom_apply, runFrom_initial] at hr
   have hq : (machine.replay.extendTapes (tapes k r)).inputFromTape.q₀ = some machine.initial := by
-    simp [inputFromTape, q₀_ofTr, replay]
-  have hm := runFrom_mark (k := k) (r := r) coins input outer
-  have hs := runFrom_seq (tm₁ := (machine.replay.extendTapes (tapes k r)).inputFromTape) hm rfl
+    simp [inputFromTape, MultiTapeTM.adapt, q₀_ofTr, replay]
+  have hs := runFrom_seq (tm₁ := (machine.replay.extendTapes (tapes k r)).inputFromTape)
+    (runFrom_mark (k := k) (r := r) coins input outer) rfl
     (by simpa only [hq, Cfg.withState, initial, wordsCfg, inCfg] using hr) rfl
-  have hp := runFrom_prepare (k := k) prepare coins input outer t s h
   have hqseq : ((markFlag (k + r + 1) (some true)).seq
       (machine.replay.extendTapes (tapes k r)).inputFromTape).q₀ =
         Sum.inl (markWork Bool (some true)).q₀ := by
-    simp [MultiTapeTM.seq, q₀_ofTr, markFlag]
+    simp [MultiTapeTM.seq, MultiTapeTM.combine, q₀_ofTr, markFlag]
   have hc := runFrom_seq (tm₁ := (markFlag (k + r + 1) (some true)).seq
-      (machine.replay.extendTapes (tapes k r)).inputFromTape) hp rfl
-    (by simpa [hqseq, Cfg.withState, Sequential.leftCfg, wordsCfg, Cfg.mapState] using hs) rfl
-  simpa [compile, initCfg_eq_wordsCfg, Sequential.leftCfg, wordsCfg, Cfg.mapState,
-    MultiTapeTM.seq, q₀_ofTr, finish, inCfg] using hc
+      (machine.replay.extendTapes (tapes k r)).inputFromTape)
+    (runFrom_prepare (k := k) prepare coins input outer t s h) rfl
+    (by simpa [hqseq, Cfg.withState, Cfg.mapState, wordsCfg] using hs) rfl
+  simpa [compile, initCfg_eq_wordsCfg, Cfg.mapState, wordsCfg, MultiTapeTM.seq,
+    MultiTapeTM.combine, q₀_ofTr, finish, inCfg] using hc
 
 end Replay
 
-/-- Running a fixed machine on a supplied pair of coins and input is tidily computable in linear
+/-- Running a fixed machine on a supplied pair of coins and input is computable in linear
 time and space. The bound charges input preparation, every supplied coin, and final cleanup;
 it does not assume that the source machine halts. -/
-private theorem computableTidilyInLinearTimeAndSpace_runClosedCoins [Finite State]
+theorem computableInDegree_runClosedCoins [Finite State]
     (machine : MultiTapePTM k Bool State) :
-    ComputableTidilyInLinearTimeAndSpace
+    ComputableInDegree
       (fun p : List Bool × List Bool => machine.runClosedCoins p.1 p.2)
-      (encPair encBits encBits) encBits := by
+      (encPair encBits encBits) encBits 1 1 := by
   obtain ⟨r, PrepareState, _, prepare, c, hp⟩ :=
     PairEncoding.exists_prepare encBits encBits (encPair encBits encBits)
   let size (p : List Bool × List Bool) := (encPair encBits encBits p).length + 1
@@ -181,28 +176,7 @@ private theorem computableTidilyInLinearTimeAndSpace_runClosedCoins [Finite Stat
     · exact (MultiTapeNTM.RunPath.ofDeterministic (Replay.compile machine prepare)
         ((Replay.compile machine prepare).initCfg (encPair encBits encBits p))
         (time p)).space_le_mul_time_add_one.trans hs
-  obtain ⟨d, htidy⟩ := hraw.exists_computableTidilyInTimeAndSpace
-  refine ⟨(d + 5) * (b + 1), htidy.mono (fun p => ?_) (fun p => ?_)⟩ <;>
-    dsimp only [size] <;>
-    nlinarith [Nat.zero_le (d * b * (encPair encBits encBits p).length)]
-
-/-- Saved-coin replay retains linear time and linear workspace in the encoded coins/input pair. -/
-theorem computableInDegree_runClosedCoins [Finite State]
-    (machine : MultiTapePTM k Bool State) :
-    ComputableInDegree
-      (fun p : List Bool × List Bool => machine.runClosedCoins p.1 p.2)
-      (encPair encBits encBits) encBits 1 1 := by
-  obtain ⟨c, h⟩ := computableTidilyInLinearTimeAndSpace_runClosedCoins machine
-  exact ComputableInDegree.of_bounds ⟨c, fun _ => by simp⟩ ⟨c, fun _ => by simp⟩
-    h.computableInTimeAndSpace
-
-/-- The ordinary functional polynomial-time API can invoke saved-coin replay directly. -/
-@[local fun_prop] private theorem computableTidilyInPolyTime_runClosedCoins [Finite State]
-    (machine : MultiTapePTM k Bool State) :
-    ComputableTidilyInPolyTime
-      (fun p : List Bool × List Bool => machine.runClosedCoins p.1 p.2)
-      (encPair encBits encBits) encBits :=
-  .of_linear (computableTidilyInLinearTimeAndSpace_runClosedCoins machine)
+  exact ComputableInDegree.one_one_iff.mpr ⟨b, hraw⟩
 
 /-- Running a fixed machine on a supplied pair of coins and input is computable in polynomial
 time. -/
@@ -211,6 +185,6 @@ time. -/
     ComputableInPolyTime
       (fun p : List Bool × List Bool => machine.runClosedCoins p.1 p.2)
       (encPair encBits encBits) encBits :=
-  (computableTidilyInPolyTime_runClosedCoins machine).computableInPolyTime
+  (computableInDegree_runClosedCoins machine).computableInPolyTime
 
 end Turing.MultiTapePTM

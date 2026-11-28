@@ -119,14 +119,23 @@ noncomputable def nextFormula (lengthFormula : (language L).Formula (Fin 1))
     Formula.iInf fun i : Fin k => tapeFormula L (a.workTapes i)
       (X (.head i)) (X (.left i)) (X (.right i)) (Y (.head i)) (Y (.left i)) (Y (.right i))
 
+/-- Scanned input symbol `t.2.1` of a transition table entry `t`. -/
+abbrev instrInputSym (t : Instruction k State) : Option Bool := t.2.1
+
+/-- Scanned work-tape symbols `t.2.2.1` of a transition table entry `t`. -/
+abbrev instrWorkSyms (t : Instruction k State) : Fin k → Option Bool := t.2.2.1
+
+/-- Transition action `t.2.2.2` of a transition table entry `t`. -/
+abbrev instrAction (t : Instruction k State) : Action k Bool State := t.2.2.2
+
 /-- The registers `X` have the observations of the transition table entry `t`: its control
 state, the input symbol under the input head and the work-tape head symbols. -/
 noncomputable def matchFormula (inputFormula : Option Bool → (language L).Formula (Fin 1))
     (t : Instruction k State) (X : Register k → (language L).Term α) :
     (language L).Formula α :=
   natEq L (stateCode (some t.1)) (X .control) ⊓
-    (inputFormula t.2.1).subst (fun _ => X .inputPos) ⊓
-    Formula.iInf fun i : Fin k => natEq L (symbolCode (t.2.2.1 i)) (X (.head i))
+    (inputFormula (instrInputSym t)).subst (fun _ => X .inputPos) ⊓
+    Formula.iInf fun i : Fin k => natEq L (symbolCode (instrWorkSyms t i)) (X (.head i))
 
 /-- **One step of the configuration graph on register tuples**: either `X` is halted and
 `Y = X`, or `X` has the observations of some transition table entry and `Y` is its successor. -/
@@ -137,7 +146,7 @@ noncomputable def stepFormula (inputFormula : Option Bool → (language L).Formu
       Formula.iInf fun i => (Y i).equal (X i)) ⊔
     Formula.iSup fun j : Fin (instructions ntm).length =>
       matchFormula L inputFormula ((instructions ntm).get j) X ⊓
-        nextFormula L lengthFormula ((instructions ntm).get j).2.2.2 X Y
+        nextFormula L lengthFormula (instrAction ((instructions ntm).get j)) X Y
 
 /-- The registers `X` are the start registers of `ntm`. -/
 noncomputable def startFormula (ntm : MultiTapeNTM k Bool State)
@@ -181,7 +190,7 @@ theorem realize_inputMoveFormula {lengthFormula : (language L).Formula (Fin 1)} 
       Term.realize_var, Term.realize_relabel, Sum.elim_comp_inl, Sum.elim_inr, Fin.le_def,
       Nat.min_def]
     constructor
-    · rintro ⟨l, hl, h⟩
+    · rintro ⟨_, _, h⟩
       split_ifs <;> omega
     · intro h
       refine ⟨fun _ => ⟨n, hn⟩, rfl, ?_⟩
@@ -197,19 +206,12 @@ theorem realize_tapeFormula (a : Option (Option Bool) × SignType)
   obtain ⟨o, d⟩ := a
   have hh := (h.realize v).isLt
   have hh' := (h'.realize v).isLt
-  have hl := (l.realize v).isLt
   have hl' := (l'.realize v).isLt
-  have hr := (r.realize v).isLt
   have hr' := (r'.realize v).isLt
   -- the written head symbol, as a natural number
   have hwrite (c : Unit → Fin N) : (writeFormula L o (h.relabel Sum.inl) (.var (.inr ()))).Realize
       (Sum.elim v c) ↔ (c ()).val = o.elim (h.realize v).val symbolCode := by
-    cases o with
-    | none =>
-      simp only [writeFormula, Formula.realize_equal, Term.realize_var, Term.realize_relabel,
-        Sum.elim_comp_inl, Sum.elim_inr, Fin.ext_iff, Option.elim_none]
-    | some b =>
-      simp only [writeFormula, realize_natEq, Term.realize_var, Sum.elim_inr, Option.elim_some]
+    cases o <;> simp [writeFormula, Fin.ext_iff]
   have h3 : (0 : ℕ) < 3 := by decide
   -- the witness is the written symbol; it fits because some successor register contains it
   cases d <;>
@@ -218,8 +220,9 @@ theorem realize_tapeFormula (a : Option (Option Bool) × SignType)
     Term.realize_relabel, Term.realize_var, Sum.elim_comp_inl, Sum.elim_inr, Fin.ext_iff,
     Prod.mk.injEq] <;>
   generalize o.elim (h.realize v).val symbolCode = w <;>
-  exact ⟨fun ⟨c, hc, hrest⟩ => by omega,
-    fun hs => ⟨fun _ => ⟨w, by omega⟩, rfl, by dsimp only; omega⟩⟩
+  exact ⟨fun ⟨_, _, _⟩ => by omega, fun _ =>
+    ⟨fun _ => ⟨w, by omega⟩, rfl,
+      by dsimp only; omega⟩⟩
 
 /-- The output formula has the exact semantics of `outputStep`. -/
 theorem realize_outputFormula (b : Option Bool) (o o' : (language L).Term α) (v : α → Fin N) :
@@ -239,20 +242,16 @@ theorem realize_nextFormula {lengthFormula : (language L).Formula (Fin 1)} {n : 
       (fun i => (Y i).realize v |>.val) = nextRegisters n (fun i => (X i).realize v |>.val) a := by
   simp only [nextFormula, Formula.realize_inf, Formula.realize_iInf,
     realize_inputMoveFormula hlen hn, realize_natEq, realize_outputFormula, realize_tapeFormula]
-  constructor
-  · rintro ⟨⟨⟨hi, hc⟩, ho⟩, ht⟩
-    funext r
-    cases r with
-    | inputPos => exact hi
-    | control => exact hc
-    | output => exact ho
-    | head i => exact (congrArg Prod.fst (ht i)).symm
-    | left i => exact (congrArg (fun t => t.2.1) (ht i)).symm
-    | right i => exact (congrArg (fun t => t.2.2) (ht i)).symm
-  · intro h
-    exact ⟨⟨⟨congrFun h .inputPos, congrFun h .control⟩, congrFun h .output⟩, fun i =>
+  refine ⟨fun ⟨⟨⟨hi, hc⟩, ho⟩, ht⟩ => funext fun
+    | .inputPos => hi
+    | .control => hc
+    | .output => ho
+    | .head i => (congrArg Prod.fst (ht i)).symm
+    | .left i => (congrArg (·.2.1) (ht i)).symm
+    | .right i => (congrArg (·.2.2) (ht i)).symm, fun h =>
+    ⟨⟨⟨congrFun h .inputPos, congrFun h .control⟩, congrFun h .output⟩, fun i =>
       Prod.ext (congrFun h (.head i)).symm
-        (Prod.ext (congrFun h (.left i)).symm (congrFun h (.right i)).symm)⟩
+        (Prod.ext (congrFun h (.left i)).symm (congrFun h (.right i)).symm)⟩⟩
 
 /-- The matching formula has the exact semantics of a transition table lookup. -/
 theorem realize_matchFormula {inputFormula : Option Bool → (language L).Formula (Fin 1)}
@@ -260,14 +259,13 @@ theorem realize_matchFormula {inputFormula : Option Bool → (language L).Formul
     (t : Instruction k State) (X : Register k → (language L).Term α) (v : α → Fin N) :
     (matchFormula L inputFormula t X).Realize v ↔
       ((X .control).realize v).val = stateCode (some t.1) ∧
-        inputAt w ((X .inputPos).realize v).val = t.2.1 ∧
-        ∀ i, ((X (.head i)).realize v).val = symbolCode (t.2.2.1 i) := by
+        inputAt w ((X .inputPos).realize v).val = instrInputSym t ∧
+        ∀ i, ((X (.head i)).realize v).val = symbolCode (instrWorkSyms t i) := by
   have hsubst : Formula.Realize ((inputFormula t.2.1).subst fun _ => X .inputPos) v ↔
-      (inputFormula t.2.1).Realize ![(X .inputPos).realize v] := by
-    change BoundedFormula.Realize _ _ _ ↔ _
-    rw [BoundedFormula.realize_subst]
-    exact iff_of_eq (congrArg (fun f => BoundedFormula.Realize _ f default)
-      (funext fun i => by rw [Fin.fin_one_eq_zero i]; rfl))
+      (inputFormula t.2.1).Realize ![(X .inputPos).realize v] :=
+    (BoundedFormula.realize_subst (tf := fun _ => X .inputPos)).trans
+      (iff_of_eq (congrArg (BoundedFormula.Realize _ · default)
+        (funext fun i => by rw [Fin.fin_one_eq_zero i]; rfl)))
   simp only [matchFormula, Formula.realize_inf, Formula.realize_iInf, realize_natEq, hsubst,
     hinput, and_assoc]
 
@@ -283,7 +281,7 @@ theorem realize_stepFormula {inputFormula : Option Bool → (language L).Formula
       RegisterStep ntm w (fun i => (X i).realize v |>.val) (fun i => (Y i).realize v |>.val) := by
   simp only [stepFormula, Formula.realize_sup, Formula.realize_inf, Formula.realize_iInf,
     Formula.realize_iSup, Formula.realize_equal, realize_natEq, realize_matchFormula hinput,
-    realize_nextFormula hlen hn, RegisterStep]
+    realize_nextFormula hlen hn, RegisterStep, RegisterStepWith]
   refine or_congr ⟨fun ⟨hc, hy⟩ => ⟨hc, funext fun i => congrArg Fin.val (hy i)⟩,
     fun ⟨hc, hy⟩ => ⟨hc, fun i => Fin.ext (congrFun hy i)⟩⟩ ⟨?_, ?_⟩
   · rintro ⟨j, ⟨hc, hs, hh⟩, hY⟩

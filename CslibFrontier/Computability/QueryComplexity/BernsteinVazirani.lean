@@ -68,6 +68,8 @@ formulated here.
 
 public section
 
+open scoped NNReal
+
 namespace Cslib.QueryComplexity
 
 open Finset BitString
@@ -179,14 +181,11 @@ theorem card_le_depth_of_linearTable_randomized (e : Fin N ≃ (K → Bool))
     (μ : RandomizedDecisionTree (Fin N) (K → Bool)) {F : (Fin N → Bool) → K → Bool}
     (hF : ∀ s, F (linearTable e s) = s) {ε : ℝ} (hε : ε < 1 / 2)
     (hμ : ∀ s, μ.errorProb F (linearTable e s) ≤ ε) : Fintype.card K ≤ μ.depth := by
-  by_contra hlt
-  push Not at hlt
-  have h := linearTable_randomized_lower_bound e μ hF hμ
-  have hpow : (2 : ℝ) ^ μ.depth * 2 ≤ 2 ^ Fintype.card K := by
-    rw [← pow_succ]
-    exact pow_le_pow_right₀ (by norm_num) hlt
-  have hpos : (0 : ℝ) < 2 ^ μ.depth := by positivity
-  nlinarith
+  by_contra! hlt
+  have hpow : (2 : ℝ) ^ μ.depth * 2 ≤ 2 ^ Fintype.card K :=
+    pow_succ (2 : ℝ) μ.depth ▸ pow_le_pow_right₀ (by norm_num) hlt
+  nlinarith [linearTable_randomized_lower_bound e μ hF hμ,
+    (by positivity : (0 : ℝ) < 2 ^ μ.depth)]
 
 /-- **The deterministic query complexity of Bernstein–Vazirani is `n`.** -/
 theorem complexity_linearDecode (e : Fin N ≃ (K → Bool)) :
@@ -199,11 +198,11 @@ theorem complexity_linearDecode (e : Fin N ≃ (K → Bool)) :
 
 /-- **The bounded-error randomized query complexity of Bernstein–Vazirani is `n`**, for every error
 `0 ≤ ε < 1/2`. -/
-theorem randomizedComplexity_linearDecode (e : Fin N ≃ (K → Bool)) {ε : ℝ} (hε₀ : 0 ≤ ε)
-    (hε : ε < 1 / 2) : randomizedComplexity ε (linearDecode e) = Fintype.card K := by
-  refine le_antisymm ((DecisionTree.randomizedComplexity_le_complexity hε₀ _).trans
+theorem randomizedComplexity_linearDecode (e : Fin N ≃ (K → Bool)) {ε : ℝ≥0}
+    (hε : (ε : ℝ) < 1 / 2) : randomizedComplexity ε (linearDecode e) = Fintype.card K := by
+  refine le_antisymm ((DecisionTree.randomizedComplexity_le_complexity _).trans
     (complexity_linearDecode e).le) ?_
-  obtain ⟨μ, hμ, hd⟩ := exists_computes_depth_eq_randomizedComplexity hε₀ (linearDecode e)
+  obtain ⟨μ, hμ, hd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := ε) (linearDecode e)
   rw [← hd]
   exact card_le_depth_of_linearTable_randomized e μ (linearDecode_linearTable e) hε
     fun s => hμ _

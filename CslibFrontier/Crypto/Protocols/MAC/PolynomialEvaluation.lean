@@ -50,6 +50,9 @@ Every evaluation is computed by Horner's rule.
 
 ## Main results
 
+* `Cslib.Crypto.PolynomialEvaluation.isDeltaUniversalHash_ascendingEval`: an injective family of
+  coefficient lists of length at most `ℓ` whose linear coefficient determines the length is
+  `ℓ / |F|`-difference universal. Theorem 4.17 is the case of a message followed by its length code.
 * `Cslib.Crypto.PolynomialEvaluation.isDeltaUniversalHash_hash`: [KatzLindell2020], Theorem 4.17.
 * `Cslib.Crypto.PolynomialEvaluation.isDeltaUniversalHash_fixedTopHash`,
   `Cslib.Crypto.PolynomialEvaluation.not_isDeltaUniversalHash_fixedTopHash`: Exercise 4.22(a).
@@ -122,13 +125,10 @@ theorem isDeltaUniversalHash_of_polynomial [Fintype F] {X : Type*}
   classical
   refine IsDeltaUniversalHash.of_card_le fun x x' hx d => ?_
   have hD : P x - P x' - C d ≠ 0 := fun h0 => by
-    have hc := congrArg (coeff · 0) h0
-    simp only [coeff_sub, coeff_C_zero, hcoeff, sub_zero, zero_sub, coeff_zero, neg_eq_zero] at hc
-    subst hc
+    obtain rfl : d = 0 := by simpa [hcoeff] using (congrArg (·.coeff 0) h0).symm
     exact sub_ne_zero.mpr (hinj.ne hx) (by simpa using h0)
   calc (Finset.univ.filter fun k => (P x).eval k - (P x').eval k = d).card
-      ≤ (P x - P x' - C d).roots.toFinset.card := by
-        refine Finset.card_le_card fun k hk => ?_
+      ≤ (P x - P x' - C d).roots.toFinset.card := Finset.card_le_card fun k hk => by
         rw [Multiset.mem_toFinset, mem_roots hD, IsRoot.def, eval_sub, eval_sub, eval_C,
           sub_eq_zero]
         exact (Finset.mem_filter.mp hk).2
@@ -136,17 +136,7 @@ theorem isDeltaUniversalHash_of_polynomial [Fintype F] {X : Type*}
     _ ≤ (P x - P x' - C d).natDegree := card_roots' _
     _ ≤ ℓ := (natDegree_sub_le _ _).trans <| max_le
         ((natDegree_sub_le _ _).trans (max_le (hdeg x) (hdeg x')))
-        (by rw [natDegree_C]; exact Nat.zero_le _)
-
-/-- A family that sends two distinct inputs to evaluations with a key-independent difference is
-not `ε`-difference universal for any `ε < 1`. -/
-theorem not_isDeltaUniversalHash_of_sub_const [Fintype F] {X : Type*} {h : F → X → F}
-    {x x' : X} (hx : x ≠ x') (d : F) (hd : ∀ k, h k x - h k x' = d) {ε : ℝ≥0∞} (hε : ε < 1) :
-    ¬ IsDeltaUniversalHash (PMF.uniformOfFintype F) h ε := fun hh => by
-  have hset : {k | h k x - h k x' = d} = Set.univ := Set.eq_univ_of_forall hd
-  have := hh x x' hx d
-  rw [hset, (PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr (Set.subset_univ _)] at this
-  exact absurd (this.trans_lt hε) (lt_irrefl 1)
+        ((natDegree_C d).trans_le (Nat.zero_le _))
 
 /-! ### The coefficient polynomial -/
 
@@ -164,21 +154,19 @@ private theorem eval_ascendingPoly (k : F) (cs : List F) :
 private theorem coeff_zero_ascendingPoly (cs : List F) : (ascendingPoly cs).coeff 0 = 0 := by
   cases cs <;> simp [ascendingPoly]
 
-private theorem coeff_one_ascendingPoly (c : F) (cs : List F) :
-    (ascendingPoly (c :: cs)).coeff 1 = c := by
-  simp [ascendingPoly, coeff_zero_ascendingPoly]
+private theorem coeff_one_ascendingPoly (cs : List F) :
+    (ascendingPoly cs).coeff 1 = cs.headD 0 := by
+  cases cs <;> simp [ascendingPoly, coeff_zero_ascendingPoly]
 
 private theorem natDegree_ascendingPoly_le (cs : List F) :
     (ascendingPoly cs).natDegree ≤ cs.length := by
   induction cs with
   | nil => simp [ascendingPoly]
   | cons c cs ih =>
-    refine (natDegree_mul_le (p := X)).trans ?_
     have hsum := (natDegree_add_le (C c) (ascendingPoly cs)).trans
       (max_le (by rw [natDegree_C]; exact Nat.zero_le _) ih)
     have hX := natDegree_X_le (R := F)
-    simp only [List.length_cons]
-    omega
+    exact (natDegree_mul_le (p := X)).trans (by simp only [List.length_cons]; omega)
 
 private theorem ascendingPoly_append_singleton (cs : List F) (a : F) :
     ascendingPoly (cs ++ [a]) = ascendingPoly cs + C a * X ^ (cs.length + 1) := by
@@ -197,9 +185,7 @@ private theorem ascendingPoly_inj {cs cs' : List F} (hlen : cs.length = cs'.leng
     obtain _ | ⟨c', cs'⟩ := cs'
     · simp at hlen
     have hsum := mul_left_cancel₀ X_ne_zero h
-    have hc : c = c' := by
-      simpa [coeff_zero_ascendingPoly] using congrArg (coeff · 0) hsum
-    subst hc
+    obtain rfl : c = c' := by simpa [coeff_zero_ascendingPoly] using congrArg (·.coeff 0) hsum
     rw [ih (by simpa using hlen) (add_left_cancel hsum)]
 
 omit [Field F] in
@@ -219,6 +205,31 @@ private theorem length_coefficients (encodeLength : Fin ℓ → F) (m : Message 
     (coefficients encodeLength m).length = m.1.length + 1 := by
   simp [coefficients]
 
+/-! ### Layouts whose linear coefficient fixes the length -/
+
+/-- Appending a coefficient adds the next power of the key. -/
+theorem ascendingEval_concat (k : F) (cs : List F) (a : F) :
+    ascendingEval k (cs ++ [a]) = ascendingEval k cs + a * k ^ (cs.length + 1) := by
+  simp only [← eval_ascendingPoly, ascendingPoly_append_singleton, eval_add, eval_mul, eval_C,
+    eval_pow, eval_X]
+
+/-- An injective family of coefficient lists `c₁ X + ⋯ + c_t X ^ t` of length at most `ℓ`, whose
+linear coefficient `c₁` determines the number of coefficients, is `ℓ / |F|`-difference universal.
+An empty list counts as having linear coefficient `0`. -/
+theorem isDeltaUniversalHash_ascendingEval [Fintype F] {X : Type*} (coeffs : X → List F)
+    (hinj : Function.Injective coeffs)
+    (hhead : ∀ x x', (coeffs x).headD 0 = (coeffs x').headD 0 →
+      (coeffs x).length = (coeffs x').length)
+    (hlen : ∀ x, (coeffs x).length ≤ ℓ) :
+    IsDeltaUniversalHash (PMF.uniformOfFintype F) (fun k x => ascendingEval k (coeffs x))
+      (ℓ / Fintype.card F) := by
+  have h := isDeltaUniversalHash_of_polynomial (fun x => ascendingPoly (coeffs x))
+    (fun x x' hxx' => hinj (ascendingPoly_inj
+      (hhead x x' (by simpa only [coeff_one_ascendingPoly] using congrArg (·.coeff 1) hxx')) hxx'))
+    (fun x => coeff_zero_ascendingPoly _)
+    (fun x => (natDegree_ascendingPoly_le _).trans (hlen x))
+  simpa only [eval_ascendingPoly] using h
+
 /-! ### Theorem 4.17 -/
 
 /-- The polynomial of [KatzLindell2020], Theorem 4.17. -/
@@ -227,7 +238,7 @@ private noncomputable def hashPoly (encodeLength : Fin ℓ → F) (m : Message F
 
 private theorem coeff_one_hashPoly (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
     (hashPoly encodeLength m).coeff 1 = encodeLength ⟨m.1.length, m.2⟩ := by
-  rw [hashPoly, reverse_coefficients, coeff_one_ascendingPoly]
+  rw [hashPoly, reverse_coefficients, coeff_one_ascendingPoly, List.headD_cons]
 
 private theorem natDegree_hashPoly_le (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
     (hashPoly encodeLength m).natDegree ≤ m.1.length + 1 := by
@@ -241,27 +252,18 @@ private theorem eq_of_hashPoly_eq (encodeLength : Fin ℓ → F) {m m' : Message
   refine message_eq_of_coefficients encodeLength (List.reverse_injective ?_)
   exact ascendingPoly_inj (by simp [length_coefficients, hlen]) h
 
-private theorem hashPoly_injective {encodeLength : Fin ℓ → F}
-    (hencode : Function.Injective encodeLength) :
-    Function.Injective (hashPoly encodeLength) := fun m m' h => by
-  have hlen : m.1.length = m'.1.length := by
-    have hc := congrArg (coeff · 1) h
-    simp only [coeff_one_hashPoly] at hc
-    exact congrArg Fin.val (hencode hc)
-  exact eq_of_hashPoly_eq encodeLength hlen h
-
 /-- **[KatzLindell2020], Theorem 4.17.** For an injective length encoding, the polynomial hash
 `m₁ k ^ ℓ' + ⋯ + m_{ℓ'} k` on `F^{<ℓ}` is `ℓ / |F|`-difference universal. -/
 theorem isDeltaUniversalHash_hash [Fintype F] {encodeLength : Fin ℓ → F}
     (hencode : Function.Injective encodeLength) :
-    IsDeltaUniversalHash (PMF.uniformOfFintype F) (hash encodeLength) (ℓ / Fintype.card F) := by
-  have h := isDeltaUniversalHash_of_polynomial (hashPoly encodeLength)
-    (hashPoly_injective hencode) (fun _ => coeff_zero_ascendingPoly _)
-    (fun m => (natDegree_hashPoly_le encodeLength m).trans m.2)
-  have heq : hash encodeLength = fun k m => (hashPoly encodeLength m).eval k := by
-    funext k m
-    rw [hashPoly, eval_ascendingPoly, hash]
-  rwa [heq]
+    IsDeltaUniversalHash (PMF.uniformOfFintype F) (hash encodeLength) (ℓ / Fintype.card F) :=
+  isDeltaUniversalHash_ascendingEval (fun m : Message F ℓ => (coefficients encodeLength m).reverse)
+    (fun _ _ h => message_eq_of_coefficients encodeLength (List.reverse_injective h))
+    (fun m m' h => by
+      rw [reverse_coefficients, reverse_coefficients, List.headD_cons, List.headD_cons] at h
+      have h2 : m.1.length = m'.1.length := congrArg Fin.val (hencode h)
+      simp only [List.length_reverse, length_coefficients, h2])
+    (fun m => by rw [List.length_reverse, length_coefficients]; exact m.2)
 
 /-! ### Exercise 4.22(a) -/
 
@@ -289,7 +291,7 @@ private theorem fixedTopPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
     (hlt : m.1.length < m'.1.length) : fixedTopPoly encodeLength m ≠ fixedTopPoly encodeLength m' :=
   fun h => by
-    have hc := congrArg (coeff · (ℓ - m'.1.length)) h
+    have hc := congrArg (·.coeff (ℓ - m'.1.length)) h
     have hm' := m'.2
     simp only [coeff_fixedTopPoly_length,
       coeff_fixedTopPoly encodeLength m (ℓ - m'.1.length) (by omega)] at hc
@@ -300,10 +302,9 @@ private theorem fixedTopPoly_injective {encodeLength : Fin ℓ → F}
     Function.Injective (fixedTopPoly encodeLength) := fun m m' h => by
   rcases lt_trichotomy m.1.length m'.1.length with hlt | hlen | hgt
   · exact absurd h (fixedTopPoly_ne_of_lt hpos hlt)
-  · refine eq_of_hashPoly_eq encodeLength hlen
-      (mul_left_cancel₀ (pow_ne_zero (ℓ - (m.1.length + 1)) X_ne_zero) ?_)
-    rw [fixedTopPoly, fixedTopPoly, ← hlen] at h
-    exact h
+  · exact eq_of_hashPoly_eq encodeLength hlen
+      (mul_left_cancel₀ (pow_ne_zero (ℓ - (m.1.length + 1)) X_ne_zero)
+        (by rwa [fixedTopPoly, fixedTopPoly, ← hlen] at h))
   · exact absurd h.symm (fixedTopPoly_ne_of_lt hpos hgt)
 
 /-- **[KatzLindell2020], Exercise 4.22(a), positive part.** If the length encoding sends no
@@ -313,18 +314,18 @@ theorem isDeltaUniversalHash_fixedTopHash [Fintype F]
     {encodeLength : Fin ℓ → F} (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) :
     IsDeltaUniversalHash (PMF.uniformOfFintype F) (fixedTopHash encodeLength)
       (ℓ / Fintype.card F) := by
-  have hdeg (m : Message F ℓ) : (fixedTopPoly encodeLength m).natDegree ≤ ℓ := by
-    have hm := m.2
-    have h1 := natDegree_hashPoly_le encodeLength m
-    have h2 := natDegree_X_pow_le (R := F) (ℓ - (m.1.length + 1))
-    exact natDegree_mul_le.trans (by omega)
-  have h := isDeltaUniversalHash_of_polynomial (fixedTopPoly encodeLength)
-    (fixedTopPoly_injective hpos) (fun m => coeff_fixedTopPoly encodeLength m 0 (Nat.zero_le _))
-    hdeg
-  have heq : fixedTopHash encodeLength = fun k m => (fixedTopPoly encodeLength m).eval k := by
-    funext k m
-    rw [fixedTopPoly, hashPoly, eval_mul, eval_pow, eval_X, eval_ascendingPoly, fixedTopHash, hash]
-  rwa [heq]
+  have heq : fixedTopHash encodeLength = fun k m => (fixedTopPoly encodeLength m).eval k :=
+    funext₂ fun k m => by
+      rw [fixedTopPoly, hashPoly, eval_mul, eval_pow, eval_X, eval_ascendingPoly, fixedTopHash,
+        hash]
+  rw [heq]
+  exact isDeltaUniversalHash_of_polynomial (fixedTopPoly encodeLength) (fixedTopPoly_injective hpos)
+    (fun m => coeff_fixedTopPoly encodeLength m 0 (Nat.zero_le _)) fun m =>
+      natDegree_mul_le.trans <| by
+        have := m.2
+        have := natDegree_hashPoly_le encodeLength m
+        have := natDegree_X_pow_le (R := F) (ℓ - (m.1.length + 1))
+        omega
 
 /-- The empty message, available when `0 < ℓ`. -/
 private def emptyMessage (h : 1 < ℓ) : Message F ℓ := ⟨[], by simp only [List.length_nil]; omega⟩
@@ -391,7 +392,7 @@ private theorem ascendingHashPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
     (hlt : m.1.length < m'.1.length) :
     ascendingHashPoly encodeLength m ≠ ascendingHashPoly encodeLength m' := fun h => by
-  have hc := congrArg (coeff · (m'.1.length + 1)) h
+  have hc := congrArg (·.coeff (m'.1.length + 1)) h
   simp only [coeff_ascendingHashPoly_of_lt encodeLength m (j := m'.1.length + 1) (by omega),
     coeff_ascendingHashPoly_length] at hc
   exact hpos _ (by simp only; omega) hc.symm
@@ -412,17 +413,13 @@ theorem isDeltaUniversalHash_ascendingHash [Fintype F]
     {encodeLength : Fin ℓ → F} (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) :
     IsDeltaUniversalHash (PMF.uniformOfFintype F) (ascendingHash encodeLength)
       (ℓ / Fintype.card F) := by
-  have hdeg (m : Message F ℓ) : (ascendingHashPoly encodeLength m).natDegree ≤ ℓ := by
-    have h := natDegree_ascendingPoly_le (coefficients encodeLength m)
-    rw [length_coefficients] at h
-    exact h.trans m.2
-  have h := isDeltaUniversalHash_of_polynomial (ascendingHashPoly encodeLength)
-    (ascendingHashPoly_injective hpos) (fun _ => coeff_zero_ascendingPoly _) hdeg
-  have heq : ascendingHash encodeLength =
-      fun k m => (ascendingHashPoly encodeLength m).eval k := by
-    funext k m
-    rw [ascendingHashPoly, eval_ascendingPoly, ascendingHash]
-  rwa [heq]
+  have heq : ascendingHash encodeLength = fun k m => (ascendingHashPoly encodeLength m).eval k :=
+    funext₂ fun k m => by rw [ascendingHashPoly, eval_ascendingPoly, ascendingHash]
+  rw [heq]
+  exact isDeltaUniversalHash_of_polynomial (ascendingHashPoly encodeLength)
+    (ascendingHashPoly_injective hpos) (fun _ => coeff_zero_ascendingPoly _) fun m => by
+      have h := natDegree_ascendingPoly_le (coefficients encodeLength m)
+      exact (length_coefficients encodeLength m ▸ h).trans m.2
 
 /-- **[KatzLindell2020], Exercise 4.22(c), negative part.** If the length `1` is encoded as zero
 and `ℓ ≥ 2`, the messages `[]` and `[e 0]` collide under every key. -/

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Matrix
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
 
 /-!
@@ -84,12 +85,11 @@ variable (I : USTCONInstance)
 theorem n_pos : 0 < I.n :=
   Fin.pos I.s
 
-/-- The simple graph of an instance: `a` and `b` are adjacent when the entry of the row `a` and the
-column `b` of the adjacency matrix is set. -/
-def graph : SimpleGraph (Fin I.n) where
-  Adj a b := I.adj a b = true
-  symm.symm a b h := (I.symm b a).trans h
-  loopless.irrefl a h := by simp [I.loopless] at h
+/-- Forget the terminals, retaining the same matrix and vertex numbering. -/
+def toUGraphInstance : UGraphInstance := ⟨I.n, I.adj, I.symm, I.loopless⟩
+
+/-- The simple graph of the underlying terminal-free matrix. -/
+def graph : SimpleGraph (Fin I.n) := I.toUGraphInstance.graph
 
 /-- Adjacency in the graph of an instance is decidable. -/
 instance : DecidableRel I.graph.Adj :=
@@ -107,11 +107,7 @@ def toSTCONInstance : STCONInstance := ⟨I.n, I.adj, I.s, I.t⟩
 /-- Distinct instances have distinct directed graphs, since the adjacency matrix determines the
 proofs of symmetry and looplessness. -/
 theorem toSTCONInstance_injective : Function.Injective toSTCONInstance := by
-  rintro ⟨n, adj, symm, loopless, s, t⟩ ⟨n', adj', symm', loopless', s', t'⟩ h
-  simp only [toSTCONInstance, STCONInstance.mk.injEq] at h
-  obtain ⟨rfl, h⟩ := h
-  simp only [heq_eq_eq] at h
-  obtain ⟨rfl, rfl, rfl⟩ := h
+  rintro ⟨_, _, _, _, _, _⟩ ⟨_, _, _, _, _, _⟩ ⟨⟩
   rfl
 
 /-- The encoding of an instance, that of its directed graph (`Cslib.Complexity.encSTCON`): the
@@ -190,16 +186,13 @@ theorem edgeTwo_mem_USTCON : edgeTwo ∈ USTCON :=
 
 /-- The edgeless graph on two vertices does not belong to `USTCON`. -/
 theorem emptyTwo_notMem_USTCON : emptyTwo ∉ USTCON := by
-  rintro ⟨p⟩
-  cases p with
-  | cons hadj _ => exact absurd hadj (by simp [emptyTwo, graph])
+  rintro ⟨_ | ⟨hadj, _⟩⟩
+  cases hadj
 
 /-- `USTCONInstance.ofBool b` belongs to `USTCON` if and only if `b = true`. -/
 @[simp]
 theorem ofBool_mem_USTCON {b : Bool} : ofBool b ∈ USTCON ↔ b = true := by
-  cases b
-  · simp [ofBool, emptyTwo_notMem_USTCON]
-  · simp [ofBool, edgeTwo_mem_USTCON]
+  cases b <;> simp [ofBool, emptyTwo_notMem_USTCON, edgeTwo_mem_USTCON]
 
 end USTCONInstance
 

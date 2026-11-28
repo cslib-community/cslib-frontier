@@ -91,30 +91,19 @@ theorem mem_PPWithOracle_iff_exists_GapPWithOracle {L : Set α} :
     dsimp only [f₁, f₂]
     lia
   · rintro ⟨g, ⟨f₁, ⟨p, V₁, h₁, hf₁⟩, f₂, ⟨q, V₂, h₂, hf₂⟩, hg⟩, hL⟩
-    let W₁ := andVerifier (fun a => p.eval (enc a).length) V₁ allFalseVerifier
-    let W₂ := andVerifier (fun a => q.eval (enc a).length) V₂ allFalseVerifier
-    have hfalse : ComputableInPolyTimeWithOracle A (allFalseVerifier (α := α))
-        (encPair enc encBits) encBool :=
-      computableInPolyTime_allFalseVerifier.computableInPolyTimeWithOracle A
-    have hW₁ : ComputableInPolyTimeWithOracle A W₁ (encPair enc encBits) encBool :=
-      computableInPolyTimeWithOracle_andVerifier (by fun_prop) h₁ hfalse
-    have hW₂ : ComputableInPolyTimeWithOracle A W₂ (encPair enc encBits) encBool :=
-      computableInPolyTimeWithOracle_andVerifier (by fun_prop) h₂ hfalse
+    let W₁ := padVerifier (fun a => p.eval (enc a).length) V₁
+    let W₂ := padVerifier (fun a => q.eval (enc a).length) V₂
     refine ⟨p + q + 1, selectVerifier W₁ (fun x => !W₂ x),
-      computableInPolyTimeWithOracle_selectVerifier hW₁
-        (hW₂.map (ComputableInPolyTime.bool_not)), fun a => ?_⟩
-    have hc₁ : acceptCount W₁ a ((p + q).eval (enc a).length) = f₁ a := by
-      simpa only [W₁, Polynomial.eval_add, hf₁ a] using
-        acceptCount_andVerifier_allFalseVerifier (fun a => p.eval (enc a).length)
-          V₁ a (q.eval (enc a).length)
-    have hc₂ : acceptCount W₂ a ((p + q).eval (enc a).length) = f₂ a := by
-      simpa only [W₂, Polynomial.eval_add, Nat.add_comm, hf₂ a] using
-        acceptCount_andVerifier_allFalseVerifier (fun a => q.eval (enc a).length)
-          V₂ a (p.eval (enc a).length)
+      computableInPolyTimeWithOracle_selectVerifier
+        (computableInPolyTimeWithOracle_padVerifier (by fun_prop) h₁)
+        ((computableInPolyTimeWithOracle_padVerifier (by fun_prop) h₂).map
+          ComputableInPolyTime.bool_not), fun a => ?_⟩
     have htotal := acceptCount_add_acceptCount_not W₂ a ((p + q).eval (enc a).length)
-    rw [hc₂] at htotal
-    rw [hL a, hg a, Polynomial.eval_add, Polynomial.eval_one,
-      acceptCount_selectVerifier, hc₁, pow_succ]
+    rw [Polynomial.eval_add, acceptCount_padVerifier_of_le _ _ (Nat.le_add_left _ _), ← hf₂]
+      at htotal
+    rw [hL a, hg a, Polynomial.eval_add, Polynomial.eval_one, acceptCount_selectVerifier,
+      Polynomial.eval_add, acceptCount_padVerifier_of_le _ _ (Nat.le_add_right _ _), ← hf₁,
+      pow_succ]
     lia
 
 end Cslib.Complexity

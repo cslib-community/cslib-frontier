@@ -151,10 +151,11 @@ noncomputable def countingHintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n : ℕ}, Set (Fin k) → CountingType L k n → FiniteVariable.CountingFormula L k
   | 0, S, T => (pebbleAtomicDiagram S T).toCounting
   | _ + 1, S, T =>
-    (pebbleAtomicDiagram S T.1).toCounting ⊓ FiniteVariable.CountingFormula.iInf fun j : Fin k =>
-      FiniteVariable.CountingFormula.iInf (fun τ : (T.2 j).toFinset =>
-          .exactly ((T.2 j).count τ.1) j (countingHintikka (insert j S) τ.1)) ⊓
-        .all j (FiniteVariable.CountingFormula.iSup fun τ : (T.2 j).toFinset =>
+    (pebbleAtomicDiagram S T.1).toCounting ⊓ FiniteVariable.GenFormula.iInf fun j : Fin k =>
+      FiniteVariable.GenFormula.iInf (fun τ : (T.2 j).toFinset =>
+          FiniteVariable.CountingFormula.exactly ((T.2 j).count τ.1) j
+            (countingHintikka (insert j S) τ.1)) ⊓
+        .all j (FiniteVariable.GenFormula.iSup fun τ : (T.2 j).toFinset =>
           countingHintikka (insert j S) τ.1)
 
 theorem realize_countingHintikka [Finite (Σ l, L.Relations l)] [Fintype M] :
@@ -166,10 +167,10 @@ theorem realize_countingHintikka [Finite (Σ l, L.Relations l)] [Fintype M] :
   | n + 1, S, T, a => by
     classical
     rw [CountingType.succ_ext_iff, countingType_succ, countingHintikka]
-    simp only [FiniteVariable.CountingFormula.realize_inf,
+    simp only [FiniteVariable.GenFormula.realize_inf,
       FiniteVariable.Formula.realize_toCounting, realize_pebbleAtomicDiagram,
-      FiniteVariable.CountingFormula.realize_iInf, FiniteVariable.CountingFormula.realize_exactly,
-      FiniteVariable.CountingFormula.realize_all, FiniteVariable.CountingFormula.realize_iSup,
+      FiniteVariable.GenFormula.realize_iInf, FiniteVariable.CountingFormula.realize_exactly,
+      FiniteVariable.GenFormula.realize_all, FiniteVariable.GenFormula.realize_iSup,
       realize_countingHintikka, encard_setOf_eq_iff, Subtype.forall, Subtype.exists,
       Multiset.mem_toFinset, exists_prop, exists_eq_right']
     refine and_congr Iff.rfl (forall_congr' fun j => ?_)
@@ -182,14 +183,14 @@ theorem quantifierRank_countingHintikka_le [Finite (Σ l, L.Relations l)] :
     rw [countingHintikka, FiniteVariable.Formula.quantifierRank_toCounting]
     exact (quantifierRank_pebbleAtomicDiagram S T).le
   | n + 1, S, T => by
-    rw [countingHintikka, FiniteVariable.CountingFormula.quantifierRank_inf,
+    rw [countingHintikka, FiniteVariable.GenFormula.quantifierRank_inf,
       FiniteVariable.Formula.quantifierRank_toCounting, quantifierRank_pebbleAtomicDiagram,
       max_le_iff]
-    refine ⟨Nat.zero_le _, FiniteVariable.CountingFormula.quantifierRank_iInf_le fun j => ?_⟩
-    rw [FiniteVariable.CountingFormula.quantifierRank_inf, max_le_iff,
-      FiniteVariable.CountingFormula.quantifierRank_all]
-    refine ⟨FiniteVariable.CountingFormula.quantifierRank_iInf_le fun τ => ?_,
-      Nat.succ_le_succ (FiniteVariable.CountingFormula.quantifierRank_iSup_le fun τ =>
+    refine ⟨Nat.zero_le _, FiniteVariable.GenFormula.quantifierRank_iInf_le fun j => ?_⟩
+    rw [FiniteVariable.GenFormula.quantifierRank_inf, max_le_iff,
+      FiniteVariable.GenFormula.quantifierRank_all]
+    refine ⟨FiniteVariable.GenFormula.quantifierRank_iInf_le fun τ => ?_,
+      Nat.succ_le_succ (FiniteVariable.GenFormula.quantifierRank_iSup_le fun τ =>
         quantifierRank_countingHintikka_le _ τ.1)⟩
     rw [FiniteVariable.CountingFormula.quantifierRank_exactly]
     exact Nat.succ_le_succ (quantifierRank_countingHintikka_le _ τ.1)
@@ -200,15 +201,15 @@ theorem freeVars_countingHintikka_subset [Finite (Σ l, L.Relations l)] :
     rw [countingHintikka, FiniteVariable.Formula.freeVars_toCounting]
     exact freeVars_pebbleAtomicDiagram_subset S T
   | n + 1, S, T => by
-    rw [countingHintikka, FiniteVariable.CountingFormula.freeVars_inf, Finset.coe_union,
+    rw [countingHintikka, FiniteVariable.GenFormula.freeVars_inf, Finset.coe_union,
       Set.union_subset_iff, FiniteVariable.Formula.freeVars_toCounting]
     refine ⟨freeVars_pebbleAtomicDiagram_subset S T.1,
-      FiniteVariable.CountingFormula.freeVars_iInf_subset fun j => ?_⟩
-    rw [FiniteVariable.CountingFormula.freeVars_inf, Finset.coe_union, Set.union_subset_iff,
-      FiniteVariable.CountingFormula.freeVars_all, Finset.coe_erase, Set.sdiff_subset_iff,
+      FiniteVariable.GenFormula.freeVars_iInf_subset fun j => ?_⟩
+    rw [FiniteVariable.GenFormula.freeVars_inf, Finset.coe_union, Set.union_subset_iff,
+      FiniteVariable.GenFormula.freeVars_all, Finset.coe_erase, Set.sdiff_subset_iff,
       ← Set.insert_eq]
-    refine ⟨FiniteVariable.CountingFormula.freeVars_iInf_subset fun τ => ?_,
-      FiniteVariable.CountingFormula.freeVars_iSup_subset fun τ =>
+    refine ⟨FiniteVariable.GenFormula.freeVars_iInf_subset fun τ => ?_,
+      FiniteVariable.GenFormula.freeVars_iSup_subset fun τ =>
         freeVars_countingHintikka_subset _ τ.1⟩
     rw [FiniteVariable.CountingFormula.freeVars_exactly, Finset.coe_erase, Set.sdiff_subset_iff,
       ← Set.insert_eq]

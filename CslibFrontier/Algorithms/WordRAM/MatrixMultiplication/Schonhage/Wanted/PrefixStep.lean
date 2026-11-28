@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Setup
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One native tile-prefix update
@@ -58,36 +59,18 @@ theorem exec_prefixStep {w L m N Q t : ℕ} (key : ℕ → ℕ)
     have := Nat.count_le (fun i => key i < t + 1) (n := Q)
     omega)
   have hnext : Fits w (t + 1) := hf _ (by omega)
-  let s := Nat.count (fun k => key k < t) Q
-  let c := Nat.count (fun k => key k = t) Q
-  let y := ((((((((x.set pointer (countAddress L Q + t)).set count c).set
-    pointer (offsetAddress L m N Q + t)).write (offsetAddress L m N Q + t) s).set
-    pointer (cursorAddressBase L m N Q + t)).write (cursorAddressBase L m N Q + t) s).set
-    total (s + c)).set index (t + 1))
-  have he : ExecWithin w prefixStep x y 8 := by
-    ram_eval [prefixStep, y, hx.counts, hx.offsets, hx.cursors, hx.tables.one,
-      hi, hs, hc, hcount, hoff, hcursor, hadd, hnext, s, c,
-      pointer, count, counts, offsets, cursors, total, index, BandPreparation.one,
-      Fin.mk.injEq]
-  have hp : Parameters L m N Q y := hx.reframe (by
-    intro i hi
-    apply he.regs_eq
-    have h : ∀ i ∈ parameterRegisters, prefixStep.Preserves i := by decide +kernel
-    exact h i hi)
   have hsep : offsetAddress L m N Q + t ≠ cursorAddressBase L m N Q + t := by
     unfold cursorAddressBase
     omega
-  refine ⟨y, he, hp, by simp [y, index], ?_, ?_, ?_, ?_⟩
-  · simpa only [y, Data.set_regs, Data.write_regs, total, index,
-      Function.update_of_ne (by decide : (30 : Fin 96) ≠ 23), Function.update_self,
-      s, c] using (CountingSort.count_lt_succ key Q t).symm
-  · change Function.update (Function.update x.mem (offsetAddress L m N Q + t) s)
-      (cursorAddressBase L m N Q + t) s (offsetAddress L m N Q + t) = s
-    rw [Function.update_of_ne hsep, Function.update_self]
-  · exact Function.update_self _ _ _
-  · intro a ho hc
-    change Function.update (Function.update x.mem (offsetAddress L m N Q + t) s)
-      (cursorAddressBase L m N Q + t) s a = x.mem a
-    rw [Function.update_of_ne hc, Function.update_of_ne ho]
+  refine WP.exists_execWithin ?_
+  unfold prefixStep
+  wram_exec * [hcount, hoff, hcursor, hadd, hnext]
+  refine ⟨by regs_frame, by wram_simp, ?_, ?_, ?_, ?_⟩
+  · wram_simp
+    exact (CountingSort.count_lt_succ key Q t).symm
+  · wram_simp [hsep]
+  · wram_simp
+  · intro a ho hcur
+    wram_simp [ho, hcur]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

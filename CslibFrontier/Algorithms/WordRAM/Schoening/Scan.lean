@@ -7,10 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained.Schoening
 public import CslibFrontier.Computability.WordRAM.ListArray
 public import CslibFrontier.Computability.WordRAM.Notation
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 
 /-!
 # Finding the first falsified clause on the word RAM
@@ -65,11 +67,16 @@ open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.Schoening
 
 variable {n : ℕ}
 
-/-- The word code `2 v + b` of the literal `(v, b)`. -/
-def litCode (l : Literal (Fin n)) : ℕ := 2 * l.1.val + l.2.toNat
+/-- The word code `2 v + b` of the literal `(v, b)`
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy` through the value of the variable). -/
+def litCode (l : Literal (Fin n)) : ℕ := ClauseCode.litCodeBy Fin.val l
 
-/-- A clause is stored as its length followed by the codes of its literals. -/
-def encodeClause (c : Clause (Fin n)) : List ℕ := c.length :: c.map litCode
+/-- A clause is stored as its length followed by the codes of its literals
+(`Cslib.Algorithms.WordRAM.ClauseCode.encodeClauseBy`). -/
+def encodeClause (c : Clause (Fin n)) : List ℕ := ClauseCode.encodeClauseBy Fin.val c
+
+/-- The words of a clause: its length, then the codes of its literals. -/
+theorem encodeClause_eq (c : Clause (Fin n)) : encodeClause c = c.length :: c.map litCode := rfl
 
 /-- The clauses of a formula, stored one after another. -/
 def encodeClauses (φ : CNF (Fin n)) : List ℕ := φ.flatMap encodeClause
@@ -79,7 +86,7 @@ def encode (φ : CNF (Fin n)) : List ℕ := n :: encodeClauses φ
 
 @[simp]
 theorem length_encodeClause (c : Clause (Fin n)) : (encodeClause c).length = c.length + 1 := by
-  simp [encodeClause]
+  simp [encodeClause_eq]
 
 @[simp]
 theorem encodeClauses_nil : encodeClauses ([] : CNF (Fin n)) = [] := rfl
@@ -93,19 +100,16 @@ theorem encodeClauses_cons (c : Clause (Fin n)) (φ : CNF (Fin n)) :
 theorem litCode_lt (l : Literal (Fin n)) : litCode l < 2 * n := by
   obtain ⟨v, b⟩ := l
   have := v.isLt
-  cases b <;> simp only [litCode, Bool.toNat_false, Bool.toNat_true] <;> omega
+  cases b <;> simp only [litCode, ClauseCode.litCodeBy, Bool.toNat_false,
+    Bool.toNat_true] <;> omega
 
 /-- Shifting a literal code right recovers its variable. -/
-theorem litCode_shiftRight (l : Literal (Fin n)) : litCode l >>> 1 = l.1.val := by
-  obtain ⟨v, b⟩ := l
-  rw [Nat.shiftRight_eq_div_pow]
-  cases b <;> simp only [litCode, Bool.toNat_false, Bool.toNat_true] <;> omega
+theorem litCode_shiftRight (l : Literal (Fin n)) : litCode l >>> 1 = l.1.val :=
+  ClauseCode.litCodeBy_shiftRight _ _
 
 /-- The low bit of a literal code is its sign. -/
-theorem litCode_and_one (l : Literal (Fin n)) : litCode l &&& 1 = l.2.toNat := by
-  obtain ⟨v, b⟩ := l
-  rw [Nat.and_one_is_mod]
-  cases b <;> simp only [litCode, Bool.toNat_false, Bool.toNat_true] <;> omega
+theorem litCode_and_one (l : Literal (Fin n)) : litCode l &&& 1 = l.2.toNat :=
+  ClauseCode.litCodeBy_and_one _ _
 
 /-- The assignment `σ` is stored as the words `(σ i).toNat` from address `base`. -/
 def AssignAt (mem : ℕ → ℕ) (base : ℕ) (σ : Fin n → Bool) : Prop :=
@@ -245,67 +249,39 @@ section Specs
 
 variable {w : ℕ}
 
-/-- **The literal loop.** Starting from `sat = s`, the loop over the literals `ls` ends with
-`sat = s || ls.eval σ`, `lptr = lend`, and unchanged memory. -/
-theorem litLoop_spec (σ : Fin n → Bool) (ls : Clause (Fin n)) (x : Data 24) (s : Bool)
+/-- **The literal loop.** From `sat = 0`, the loop over the literals `ls` ends with `sat` the value
+of the clause `ls` under `σ`, `lptr = lend`, and unchanged memory. -/
+theorem litLoop_spec (σ : Fin n → Bool) (ls : Clause (Fin n)) (x : Data 24)
     (hone : x.regs one = 1) (hl : HoldsList (x.regs lptr) (ls.map litCode) x.mem)
-    (hend : x.regs lend = x.regs lptr + ls.length) (hs : x.regs sat = s.toNat)
+    (hend : x.regs lend = x.regs lptr + ls.length) (hs : x.regs sat = 0)
     (hσ : AssignAt x.mem (x.regs aBase) σ) (hle : x.regs lend ≤ x.regs aBase + 2 * n)
-    (hw : Fits w (x.regs aBase + 2 * n)) (hpos : 1 ≤ x.regs aBase + 2 * n) :
+    (hw : Fits w (x.regs aBase + 2 * n)) :
     ∃ y, ExecWithin w litLoop x y (11 * ls.length + 2) ∧ y.mem = x.mem ∧
-      y.regs sat = (s || Clause.eval σ ls).toNat ∧ y.regs lptr = x.regs lend ∧
-      y.regs aBase = x.regs aBase ∧ y.regs one = 1 := by
-  induction ls generalizing x s with
-  | nil =>
-    refine ⟨x, (ExecWithin.loop_exit ?_).mono (by omega), rfl, ?_, ?_, rfl, hone⟩
-    · simp only [Cond.holds_lt, hend, List.length_nil, Nat.add_zero, lt_irrefl, not_false_eq_true]
-    · simp [hs]
-    · simp [hend]
-  | cons l ls ih =>
-    have hc : (Cond.lt lptr lend).Holds x := by
-      simp only [Cond.holds_lt, hend, List.length_cons]; omega
-    have hlit : x.mem (x.regs lptr) = litCode l := by
-      simpa using hl.get 0 (by simp)
-    have hrest : HoldsList (x.regs lptr + 1) (ls.map litCode) x.mem := by
-      have := (holdsList_append_iff (xs := [litCode l]) (ys := ls.map litCode)).mp
-        (by simpa using hl)
-      simpa using this.2
-    have hval : x.mem (x.regs aBase + l.1.val) = (σ l.1).toNat := hσ l.1
-    have hf1 : Fits w l.1.val := hw.of_le (by omega)
-    have hf2 : Fits w l.2.toNat := hw.of_le (by have := Bool.toNat_le l.2; omega)
-    have hf3 : Fits w (x.regs aBase + l.1.val) := hw.of_le (by omega)
-    have hf4 : Fits w ((σ l.1).toNat ^^^ l.2.toNat) := hw.of_le (by
-      have := toNat_xor_le_one (σ l.1) l.2; omega)
-    have hf5 : Fits w (1 - ((σ l.1).toNat ^^^ l.2.toNat)) := hw.of_le (by omega)
-    have hf6 : Fits w (s.toNat ||| (1 - ((σ l.1).toNat ^^^ l.2.toNat))) := hw.of_le (by
-      rw [one_sub_toNat_xor, toNat_or]; have := Bool.toNat_le (s || (σ l.1 == l.2)); omega)
-    have hf7 : Fits w (x.regs lptr + 1) := hw.of_le (by simp only [List.length_cons] at hend; omega)
-    obtain ⟨y, hy, hym, hys, hyp, hya, hyo⟩ := ih (((((((((x.set lit (litCode l)).set var
-        l.1.val).set sgn l.2.toNat).set addr (x.regs aBase + l.1.val)).set val
-        (σ l.1).toNat).set addr ((σ l.1).toNat ^^^ l.2.toNat)).set addr
-        (1 - ((σ l.1).toNat ^^^ l.2.toNat))).set sat
-        (s.toNat ||| (1 - ((σ l.1).toNat ^^^ l.2.toNat)))).set lptr (x.regs lptr + 1))
-      (s || (σ l.1 == l.2))
-      (by simp +decide [hone])
-      (by simpa +decide [Function.update_apply] using hrest)
-      (by simp only [List.length_cons] at hend; simp +decide [hend]; omega)
-      (by simp +decide [one_sub_toNat_xor, toNat_or])
-      (by simpa +decide [Function.update_apply] using hσ)
-      (by simp only [List.length_cons] at hend; simp +decide; omega)
-      (by simpa +decide [Function.update_apply] using hw)
-      (by simpa +decide [Function.update_apply] using hpos)
-    have hbody : ExecWithin w litBody x (((((((((x.set lit (litCode l)).set var
-        l.1.val).set sgn l.2.toNat).set addr (x.regs aBase + l.1.val)).set val
-        (σ l.1).toNat).set addr ((σ l.1).toNat ^^^ l.2.toNat)).set addr
-        (1 - ((σ l.1).toNat ^^^ l.2.toNat))).set sat
-        (s.toNat ||| (1 - ((σ l.1).toNat ^^^ l.2.toNat)))).set lptr (x.regs lptr + 1)) 9 := by
-      ram_eval [litBody, hone, hlit, hval, hs, litCode_shiftRight, litCode_and_one, hf1, hf2, hf3,
-        hf4, hf5, hf6, hf7]
-    refine ⟨y, (ExecWithin.loop_iter hc hbody hy).mono (by simp; omega), ?_, ?_, ?_, ?_, hyo⟩
-    · simpa using hym
-    · rw [hys, Clause.eval_cons, Literal.eval, Bool.or_assoc]
-    · simpa +decide [Function.update_apply] using hyp
-    · simpa +decide [Function.update_apply] using hya
+      y.regs sat = (Clause.eval σ ls).toNat ∧ y.regs lptr = x.regs lend := by
+  wram_fold (fun rest y => ∃ s : Bool, y.mem = x.mem ∧ y.regs lptr + rest.length = x.regs lend ∧
+      HoldsList (y.regs lptr) (rest.map litCode) x.mem ∧ y.regs sat = s.toNat ∧
+      (s || Clause.eval σ rest) = Clause.eval σ ls)
+    over ls cost (fun _ => 9)
+  case init => exact ⟨false, rfl, hend.symm, hl, hs, rfl⟩
+  case exit => rintro v m ⟨s, -, he, -⟩; omega
+  case step =>
+    rintro l rest v m ⟨s, rfl, he, hl', hs', hrem⟩
+    obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp (by simpa using hl')
+    have hlv : l.1.val < n := l.1.isLt
+    have := Bool.toNat_le l.2
+    have := toNat_xor_le_one (σ l.1) l.2
+    have := Bool.toNat_le (σ l.1 == l.2)
+    have := Bool.toNat_le (s || (σ l.1 == l.2))
+    refine ⟨by omega, ?_⟩
+    unfold litBody
+    wram_exec [hone, hlit, litCode_shiftRight, litCode_and_one, hσ l.1, hs', one_sub_toNat_xor,
+      toNat_or]
+    wram_simp
+    exact ⟨s || (σ l.1 == l.2), by omega, hrest, rfl,
+      by rw [← hrem, Clause.eval_cons, Literal.eval, Bool.or_assoc]⟩
+  case post =>
+    rintro v m ⟨s, rfl, he, -, hs', hrem⟩
+    exact ⟨by simp; omega, rfl, by simpa [hs'] using congrArg Bool.toNat hrem, he⟩
 
 /-- **The clause loop.** From `ptr` at the encoding of the clauses `ψ`, which end at `aBase`, and
 `found = 0`, the loop ends with the scan result for `ψ` and unchanged memory. -/
@@ -319,78 +295,37 @@ theorem clauseLoop_spec (σ : Fin n → Bool) (ψ : CNF (Fin n)) (x : Data 24)
       ScanResult σ ψ x.mem (x.regs aBase) (y.regs found) (y.regs cPtr) := by
   induction ψ generalizing x with
   | nil =>
-    refine ⟨x, (ExecWithin.loop_exit ?_).mono le_rfl, rfl, ?_⟩
-    · simp only [encodeClauses_nil, List.length_nil, Nat.add_zero] at hend
-      simp [Cond.holds_lt, hend]
-    · simp [ScanResult, firstUnsat, hfound]
+    refine ⟨x, (ExecWithin.loop_exit ?_).mono le_rfl, rfl, by simp [ScanResult, firstUnsat, hfound]⟩
+    simp only [encodeClauses_nil, List.length_nil, Nat.add_zero] at hend
+    simp [Cond.holds_lt, hend]
   | cons c ψ ih =>
     rw [encodeClauses_cons] at hp hend
     obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hp
     simp only [List.length_append, length_encodeClause] at hend hpψ
-    have hlen : x.mem (x.regs ptr) = c.length := by
-      simpa [encodeClause] using hpc.get 0 (by simp)
-    have hlits : HoldsList (x.regs ptr + 1) (c.map litCode) x.mem := by
-      have := (holdsList_append_iff (xs := [c.length]) (ys := c.map litCode)).mp
-        (by simpa [encodeClause] using hpc)
-      simpa using this.2
+    obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp (encodeClause_eq c ▸ hpc)
+    replace hpψ : HoldsList (x.regs ptr + 1 + c.length) (encodeClauses ψ) x.mem := by
+      rwa [show x.regs ptr + 1 + c.length = x.regs ptr + (c.length + 1) by omega]
     have hc : (Cond.lt ptr aBase).Holds x := by simp only [Cond.holds_lt]; omega
-    have hf1 : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-    have hf2 : Fits w (x.regs ptr + 1 + c.length) := hw.of_le (by omega)
-    have hinit : ExecWithin w clauseInit x
-        ((((x.set len c.length).set lptr (x.regs ptr + 1)).set lend
-          (x.regs ptr + 1 + c.length)).set sat 0) 4 := by
-      ram_eval [clauseInit, hlen, hone, hzero, hf1, hf2]
-    obtain ⟨x₂, hlit, hm₂, hs₂, hp₂, ha₂, ho₂⟩ := litLoop_spec (w := w) σ c
-      ((((x.set len c.length).set lptr (x.regs ptr + 1)).set lend
-          (x.regs ptr + 1 + c.length)).set sat 0) false
-      (by simp +decide [hone]) (by simpa +decide [Function.update_apply] using hlits)
-      (by simp +decide)
-      (by simp +decide) (by simpa +decide [Function.update_apply] using hσ)
-      (by simp +decide; omega)
-      (by simpa +decide [Function.update_apply] using hw)
-      (by simpa +decide [Function.update_apply] using hpos)
-    have hz₂ : x₂.regs zero = 0 := by
-      rw [ExecWithin.regs_eq hlit (by decide)]; simpa +decide [Function.update_apply] using hzero
-    have hptr₂ : x₂.regs ptr = x.regs ptr := by
-      rw [ExecWithin.regs_eq hlit (by decide)]; simp +decide
-    have hlend₂ : x₂.regs lend = x.regs ptr + 1 + c.length := by
-      rw [ExecWithin.regs_eq hlit (by decide)]; simp +decide
-    simp +decide only [Data.set_mem, Data.set_regs, Function.update_apply, Bool.false_or,
-      ↓reduceIte] at hm₂ hs₂ hp₂ ha₂
+    refine WP.exists_execWithin (WP.loop_iter hc ?_)
+    unfold clauseBody clauseInit
+    wram_exec [hlen, hone, hzero]
+    wram_call (litLoop_spec (w := w) σ c _ ..) framed with v₂ m₂ ⟨rfl, hs₂, -⟩
+    unfold clauseDone
     cases hce : c.eval σ with
     | false =>
-      have hdone : ExecWithin w clauseDone x₂
-          (((x₂.set found 1).set cPtr (x.regs ptr)).set ptr (x.regs aBase)) 4 := by
-        have hfit : Fits w 1 := hw.of_le hpos
-        ram_eval [clauseDone, hs₂, hce, hz₂, ho₂, hptr₂, ha₂, hfit]
-      refine ⟨_, (ExecWithin.loop_iter hc (hinit.seq (hlit.seq hdone))
-        (ExecWithin.loop_exit ?_)).mono ?_, ?_, ?_⟩
-      · simp +decide [Cond.holds_lt, ha₂]
-      · simp only [encodeClauses_cons, List.length_append, length_encodeClause]; omega
-      · simpa using hm₂
-      · simp +decide only [ScanResult, firstUnsat_cons, hce, Bool.false_eq_true, ↓reduceIte,
-          Data.set_regs, Function.update_apply]
-        exact ⟨trivial, hpc, by omega⟩
+      simp only [hce, Bool.toNat_false] at hs₂
+      wram_exec [hs₂, hzero, hone]
+      refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt])) ?_
+      wram_simp [ScanResult, firstUnsat_cons, hce]
+      exact ⟨by simp only [encodeClauses_cons, List.length_append, length_encodeClause]; omega,
+        hpc, by omega⟩
     | true =>
-      have hdone : ExecWithin w clauseDone x₂ (x₂.set ptr (x.regs ptr + 1 + c.length)) 3 := by
-        ram_eval [clauseDone, hs₂, hce, hz₂, hlend₂]
-      obtain ⟨y, hy, hym, hyr⟩ := ih (x₂.set ptr (x.regs ptr + 1 + c.length))
-        (by simpa +decide using hz₂) (by simpa +decide using ho₂)
-        (by
-          simp only [Data.set_regs, Function.update_self, Data.set_mem, hm₂]
-          rw [show x.regs ptr + 1 + c.length = x.regs ptr + (c.length + 1) by omega]
-          exact hpψ)
-        (by simp +decide [ha₂]; omega)
-        (by rw [Data.set_regs, Function.update_of_ne (by decide),
-          ExecWithin.regs_eq hlit (by decide)]; simpa +decide [Function.update_apply] using hfound)
-        (by simpa +decide [Function.update_apply, hm₂, ha₂] using hσ)
-        (by simpa +decide [ha₂] using hw)
-        (by simpa +decide [ha₂] using hpos)
-      refine ⟨y, (ExecWithin.loop_iter hc (hinit.seq (hlit.seq hdone)) hy).mono ?_, ?_, ?_⟩
-      · simp only [encodeClauses_cons, List.length_append, length_encodeClause]; omega
-      · simpa [hm₂] using hym
-      · rw [scanResult_cons_of_eval hce]
-        simpa +decide [hm₂, ha₂] using hyr
+      simp only [hce, Bool.toNat_true] at hs₂
+      wram_exec [hs₂, hzero]
+      wram_call (ih _ ..) framed with v₃ m₃ ⟨rfl, hyr⟩
+      rw [scanResult_cons_of_eval hce]
+      exact ⟨by simp only [encodeClauses_cons, List.length_append, length_encodeClause]; omega,
+        rfl, hyr⟩
 
 /-- **The scan.** From the clauses of `φ` stored in `[cBeg, aBase)` and the assignment `σ` stored at
 `aBase`, the scan reports `firstUnsat φ σ` within `12 E + 4` instructions, where `E` is the length
@@ -403,18 +338,11 @@ theorem scan_spec (σ : Fin n → Bool) (φ : CNF (Fin n)) (x : Data 24)
     (hw : Fits w (x.regs aBase + 2 * n)) (hpos : 1 ≤ x.regs aBase + 2 * n) :
     ∃ y, ExecWithin w scan x y (12 * (encodeClauses φ).length + 4) ∧ y.mem = x.mem ∧
       ScanResult σ φ x.mem (x.regs aBase) (y.regs found) (y.regs cPtr) := by
-  obtain ⟨y, hy, hym, hyr⟩ := clauseLoop_spec (w := w) σ φ ((x.set ptr (x.regs cBeg)).set found 0)
-    (by simpa +decide [Function.update_apply] using hzero)
-    (by simpa +decide [Function.update_apply] using hone)
-    (by simpa +decide [Function.update_apply] using hcl)
-    (by simpa +decide [Function.update_apply] using hend) (by simp)
-    (by simpa +decide [Function.update_apply] using hσ)
-    (by simpa +decide [Function.update_apply] using hw)
-    (by simpa +decide [Function.update_apply] using hpos)
-  have hz : (x.set ptr (x.regs cBeg)).regs zero = 0 := by simpa +decide using hzero
-  have hrun := ExecWithin.seq (ExecWithin.copy (w := w) (d := ptr) (s := cBeg) (x := x))
-    (ExecWithin.seq (ExecWithin.copy (d := found) (s := zero)) (by rw [hz]; exact hy))
-  refine ⟨y, hrun.mono (by omega), by simpa using hym, by simpa +decide using hyr⟩
+  refine WP.exists_execWithin ?_
+  unfold scan
+  wram_exec [hzero]
+  wram_call (clauseLoop_spec (w := w) σ φ _ ..) framed with v m ⟨rfl, hyr⟩
+  exact ⟨by omega, rfl, hyr⟩
 
 end Specs
 

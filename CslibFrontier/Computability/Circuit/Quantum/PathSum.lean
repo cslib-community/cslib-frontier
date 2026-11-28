@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Quantum.Code
+public import CslibFrontier.Computability.Circuit.Quantum.Input
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
@@ -49,7 +49,6 @@ the acceptance operator of a quantum verifier on its witness space.
 
 ## Main results
 
-* `Cslib.Quantum.ofFn_inputState`: the input basis state is the input word padded with zeros.
 * `Cslib.Quantum.run_ofCodes_apply`: amplitudes are path sums.
 * `Cslib.Quantum.onesProb_eq_onesGap`, `Cslib.Quantum.acceptProb_eq_acceptGap`: probabilities are
   projected gaps over `2^h`.
@@ -70,16 +69,6 @@ namespace Cslib.Quantum
 open Finset
 
 variable {m : ℕ}
-
-/-- The input basis state as a bit string: the input word padded with zeros. -/
-theorem ofFn_inputState {x : List Bool} (hx : x.length ≤ m) :
-    List.ofFn (inputState m x) = x ++ List.replicate (m - x.length) false := by
-  apply List.ext_getElem (by simp; omega)
-  intro i h₁ h₂
-  simp only [List.getElem_ofFn, inputState, List.getElem_append, List.getElem_replicate]
-  split_ifs with h
-  · simp [List.getD_eq_getElem?_getD, h]
-  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (Nat.le_of_not_lt h)]
 
 /-! ### The path simulation -/
 
@@ -175,9 +164,7 @@ theorem onesTerm_zero (gs : List GateCode) (x π π' : List Bool) :
       if (pathRun gs x π).1 = (pathRun gs x π').1 ∧ (pathRun gs x π).1.headD false = true then
         (if (pathRun gs x π).2 ^^ (pathRun gs x π').2 then -1 else 1) else 0 := by
   simp only [onesTerm, List.all_cons, List.all_nil, Bool.and_true]
-  generalize pathRun gs x π = r
-  obtain ⟨s, σ⟩ := r
-  cases s <;> rfl
+  rcases pathRun gs x π with ⟨_ | _, _⟩ <;> rfl
 
 /-- The contribution of a pair of paths from two registers to the acceptance overlap: the product
 of their signs when both end in the same register with qubit `0` equal to one, and `0`
@@ -187,9 +174,7 @@ theorem onesPairTerm_zero (gs : List GateCode) (x x' π π' : List Bool) :
       if (pathRun gs x π).1 = (pathRun gs x' π').1 ∧ (pathRun gs x π).1.headD false = true then
         (if (pathRun gs x π).2 ^^ (pathRun gs x' π').2 then -1 else 1) else 0 := by
   simp only [onesPairTerm, List.all_cons, List.all_nil, Bool.and_true]
-  generalize pathRun gs x π = r
-  obtain ⟨s, σ⟩ := r
-  cases s <;> rfl
+  rcases pathRun gs x π with ⟨_ | _, _⟩ <;> rfl
 
 /-- The acceptance gap of the empty circuit is the bit of qubit `0`. -/
 theorem acceptGap_nil (x : List Bool) : acceptGap [] x = if x.headD false then 1 else 0 := by
@@ -209,14 +194,6 @@ private def term (gs : List GateCode) (x y : List Bool) (σ : Bool) (π : List B
   if (gs.foldl pathStep (x, π, σ)).1 = y then
     (if (gs.foldl pathStep (x, π, σ)).2.2 then -1 else 1) else 0
 
-private theorem pathRun_eq (gs : List GateCode) (x π : List Bool) :
-    pathRun gs x π = ((gs.foldl pathStep (x, π, false)).1, (gs.foldl pathStep (x, π, false)).2.2) :=
-  rfl
-
-private theorem pathTerm_eq_term (gs : List GateCode) (x y π : List Bool) :
-    pathTerm gs x y π = term gs x y false π :=
-  rfl
-
 /-- **Amplitudes are path sums** (generalized over the initial sign). -/
 private theorem sgn_mul_run_ofCodes_apply (gs : List GateCode)
     (hgs : ∀ g ∈ gs, g.WellFormed m) (x y : Fin m → Bool) (σ : Bool) :
@@ -226,49 +203,41 @@ private theorem sgn_mul_run_ofCodes_apply (gs : List GateCode)
         (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ hadamardCount gs := by
   induction gs generalizing x σ with
   | nil =>
-    have hterm (π : List Bool) : term [] (List.ofFn x) (List.ofFn y) σ π =
+    have hterm (π) : term [] (List.ofFn x) (List.ofFn y) σ π =
         if x = y then (if σ then -1 else 1) else 0 := by
       by_cases h : x = y <;> simp [term, h]
     simp only [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, ket_apply, hterm]
     rw [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
     simp only [hadamardCount_nil, pow_zero, one_smul, mul_one]
-    by_cases h : x = y
-    · subst h
-      cases σ <;> simp [sgn]
+    rcases eq_or_ne x y with rfl | h
+    · cases σ <;> simp [sgn]
     · simp [h, Ne.symm h]
   | cons g gs ih =>
     have hgs' : ∀ g ∈ gs, g.WellFormed m := fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg')
     obtain ⟨pg, hpg⟩ := Option.isSome_iff_exists.mp
       (GateCode.isSome_toPlacedGate?_iff.mpr (hgs g List.mem_cons_self))
-    have hofCodes : Circuit.ofCodes m (g :: gs) = pg :: Circuit.ofCodes m gs := by
-      simp [Circuit.ofCodes, hpg]
     have hrun (z : Fin m → Bool) : Circuit.run (Circuit.ofCodes m (g :: gs)) z =
         Circuit.eval (Circuit.ofCodes m gs) (pg.eval (ket z)) := by
-      rw [hofCodes, Circuit.run, Circuit.eval_cons]
+      simp [Circuit.ofCodes, hpg, Circuit.run, Circuit.eval_cons]
     obtain ⟨h, t, cs⟩ := g
     cases h
     · -- a classical gate moves the basis state
       have ht : t < m := (hgs _ List.mem_cons_self).2.2 t List.mem_cons_self
-      have hget : (List.ofFn x).getD t false = x ⟨t, ht⟩ := List.getD_ofFn_of_lt x ht false
-      have hset (b : Bool) : (List.ofFn x).set t b = List.ofFn (Function.update x ⟨t, ht⟩ b) :=
-        List.set_ofFn x ⟨t, ht⟩ b
       rw [hrun, GateCode.eval_toPlacedGate_ket hpg ht, ← Circuit.run, ih hgs']
-      simp only [term, List.foldl_cons, pathStep, hget, hset]
+      simp only [term, List.foldl_cons, pathStep, List.getD_ofFn_of_lt x ht false,
+        List.set_ofFn x ⟨t, ht⟩]
       rfl
     · -- a Hadamard gate branches over the next path bit
       have ht : t < m := (hgs _ List.mem_cons_self).1
-      have hcs : cs = [] := (hgs _ List.mem_cons_self).2
-      subst hcs
-      have hget : (List.ofFn x).getD t false = x ⟨t, ht⟩ := List.getD_ofFn_of_lt x ht false
-      have hset (b : Bool) : (List.ofFn x).set t b = List.ofFn (Function.update x ⟨t, ht⟩ b) :=
-        List.set_ofFn x ⟨t, ht⟩ b
+      cases (hgs _ List.mem_cons_self).2
       have hterm (c : Bool) (π' : Fin (hadamardCount gs) → Bool) :
           term ((true, t, []) :: gs) (List.ofFn x) (List.ofFn y) σ
             (List.ofFn (Fin.cons c π' : Fin (hadamardCount gs + 1) → Bool)) =
           term gs (List.ofFn (Function.update x ⟨t, ht⟩ c)) (List.ofFn y)
             (σ ^^ (x ⟨t, ht⟩ && c)) (List.ofFn π') := by
         simp only [term, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, List.foldl_cons, pathStep,
-          List.headD_cons, List.tail_cons, hget, hset]
+          List.headD_cons, List.tail_cons, List.getD_ofFn_of_lt x ht false,
+          List.set_ofFn x ⟨t, ht⟩]
       rw [hrun, GateCode.eval_toPlacedGate_hadamard_ket hpg ht, map_sum, hadamardCount_cons_true,
         ← (Fin.consEquiv fun _ => Bool).sum_comp, Fintype.sum_prod_type, Finset.sum_mul,
         WithLp.ofLp_sum, Finset.sum_apply, Finset.mul_sum]
@@ -288,10 +257,8 @@ theorem run_ofCodes_apply (gs : List GateCode) (hgs : ∀ g ∈ gs, g.WellFormed
     (Circuit.run (Circuit.ofCodes m gs) x).ofLp y =
       (pathGap gs (List.ofFn x) (List.ofFn y) : ℂ) *
         (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ hadamardCount gs := by
-  have h := sgn_mul_run_ofCodes_apply gs hgs x y false
-  simp only [sgn, Bool.false_eq_true, ite_false, one_mul] at h
-  rw [h, pathGap, Int.cast_sum]
-  rfl
+  simpa only [sgn, Bool.false_eq_true, ↓reduceIte, one_mul] using
+    (sgn_mul_run_ofCodes_apply gs hgs x y false).trans (by rw [pathGap, Int.cast_sum]; rfl)
 
 /-- The simulation keeps the register length. -/
 theorem length_foldl_pathStep (gs : List GateCode) (s π : List Bool) (σ : Bool) :
@@ -301,18 +268,6 @@ theorem length_foldl_pathStep (gs : List GateCode) (s π : List Bool) (σ : Bool
   | cons g gs ih =>
     obtain ⟨_ | _, t, cs⟩ := g <;> simp only [List.foldl_cons, pathStep, ih, List.length_set]
 
-private theorem pathTerm_eq (gs : List GateCode) (x y π : List Bool) :
-    pathTerm gs x y π =
-      if (pathRun gs x π).1 = y then (if (pathRun gs x π).2 then -1 else 1) else 0 :=
-  rfl
-
-private theorem onesPairTerm_eq (S : List ℕ) (gs : List GateCode) (x x' π π' : List Bool) :
-    onesPairTerm S gs x x' π π' =
-      if (pathRun gs x π).1 = (pathRun gs x' π').1 ∧
-          (S.all fun j => (pathRun gs x π).1.getD j false) = true then
-        (if (pathRun gs x π).2 ^^ (pathRun gs x' π').2 then -1 else 1) else 0 :=
-  rfl
-
 /-- Summing the products of two path contributions over the outcomes in which every qubit of `S`
 reads `1` gives the contribution of the pair. -/
 private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x' π π' : List Bool)
@@ -320,17 +275,14 @@ private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x
     ∑ y ∈ onesAt m S, pathTerm gs x (List.ofFn y) π * pathTerm gs x' (List.ofFn y) π' =
       onesPairTerm S gs x x' π π' := by
   have hs : (pathRun gs x π).1.length = m := (length_foldl_pathStep gs x π false).trans hx
-  simp only [pathTerm_eq, onesPairTerm_eq]
-  generalize pathRun gs x π = r at hs ⊢
-  generalize pathRun gs x' π' = r'
-  obtain ⟨s, σ⟩ := r
-  obtain ⟨s', σ'⟩ := r'
+  simp only [pathTerm, onesPairTerm]
+  rcases hr : pathRun gs x π with ⟨s, σ⟩
+  rcases pathRun gs x' π' with ⟨s', σ'⟩
+  rw [hr] at hs
   dsimp only at hs ⊢
   let y₀ : Fin m → Bool := fun i => s.getD i false
-  have hs₀ : s = List.ofFn y₀ := by
-    apply List.ext_getElem (by simp [hs])
-    intro i h₁ h₂
-    simp [y₀, List.getD_eq_getElem?_getD, h₁]
+  have hs₀ : s = List.ofFn y₀ := List.ext_getElem (by simp [hs])
+    fun i h₁ _ => by simp [y₀, List.getD_eq_getElem?_getD, h₁]
   have hiff (y : Fin m → Bool) : s = List.ofFn y ↔ y = y₀ := by
     rw [hs₀, List.ofFn_inj, eq_comm]
   simp only [hiff, ite_mul, zero_mul]
@@ -342,9 +294,8 @@ private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x
     simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (show s.length ≤ j by omega)] at h
   by_cases h₀ : y₀ ∈ onesAt m S
   · simp only [h₀, ite_true, ← hs₀, hacc.mp h₀, and_true]
-    by_cases hss : s = s'
-    · subst hss
-      cases σ <;> cases σ' <;> simp
+    rcases eq_or_ne s s' with rfl | hss
+    · cases σ <;> cases σ' <;> simp
     · simp [hss, Ne.symm hss]
   · simp only [h₀, ite_false, mt hacc.mpr h₀, Bool.false_eq_true, and_false]
 
@@ -365,8 +316,7 @@ projected gap of `S`. -/
 private theorem sum_onesAt_pathGap_sq (S : List ℕ) (gs : List GateCode) (x : List Bool)
     (hx : x.length = m) :
     ∑ y ∈ onesAt m S, pathGap gs x (List.ofFn y) ^ 2 = onesGap S gs x := by
-  simp only [sq]
-  exact sum_onesAt_pathGap_mul S gs x x hx
+  simpa only [sq, onesGap_eq_onesPairGap] using sum_onesAt_pathGap_mul S gs x x hx
 
 /-- **Probabilities are projected gaps over `2^h`**: for well-formed codes, the probability that
 every qubit of `S` reads `1` is `onesGap S` divided by `2^h`, where `h` counts the Hadamard
@@ -411,9 +361,7 @@ theorem sum_onesAt_star_run_mul_run (gs : List GateCode) (hgs : ∀ g ∈ gs, g.
   simp only [run_ofCodes_apply gs hgs, star_mul', star_pow, Complex.star_def, Complex.conj_ofReal,
     map_intCast]
   rw [← sum_onesAt_pathGap_mul S gs _ _ (List.length_ofFn), Int.cast_sum, Finset.sum_div]
-  refine Finset.sum_congr rfl fun y _ => ?_
-  rw [Int.cast_mul, div_eq_mul_one_div, ← hr]
-  ring
+  refine Finset.sum_congr rfl fun y _ => by rw [Int.cast_mul, div_eq_mul_one_div, ← hr]; ring
 
 /-- **A projected gap is a count between `0` and `2 ^ h`** for well-formed codes on the register
 `X`, since it is `2 ^ h` times a probability. -/
@@ -422,14 +370,12 @@ theorem onesGap_nonneg_and_le (S : List ℕ) {X : List Bool} (gs : List GateCode
     0 ≤ onesGap S gs X ∧ onesGap S gs X ≤ 2 ^ hadamardCount gs := by
   have h := onesProb_eq_onesGap gs hgs S X
   rw [ofFn_inputState le_rfl, Nat.sub_self, List.replicate_zero, List.append_nil] at h
-  have h0 := onesProb_nonneg X.length gs S X
-  have h1 := onesProb_le_one X.length gs S X
-  have hpos : (0 : ℝ) < 2 ^ hadamardCount gs := by positivity
-  rw [h] at h0 h1
-  constructor
-  · exact_mod_cast (div_nonneg_iff.mp h0).elim (fun h => h.1) fun h => absurd h.2 (not_le.mpr hpos)
-  · rw [div_le_one hpos] at h1
-    exact_mod_cast h1
+  have h0 : (0 : ℝ) ≤ onesGap S gs X :=
+    ((div_nonneg_iff.mp (h ▸ onesProb_nonneg X.length gs S X)).resolve_right
+      fun hc => hc.2.not_gt (by positivity)).1
+  have h1 : (onesGap S gs X : ℝ) ≤ 2 ^ hadamardCount gs :=
+    (div_le_one (by positivity)).mp (h ▸ onesProb_le_one X.length gs S X)
+  exact ⟨by exact_mod_cast h0, by exact_mod_cast h1⟩
 
 /-- **The projected gap of no condition is `2 ^ h`**, the squared norm of the final state. -/
 theorem onesGap_nil_eq_two_pow {X : List Bool} (gs : List GateCode)

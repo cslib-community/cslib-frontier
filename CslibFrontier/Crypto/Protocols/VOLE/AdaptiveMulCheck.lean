@@ -106,35 +106,30 @@ private theorem uniform_maskedReply {α : Type} (left right output : ι → Fin 
   let zero := (maskedPrefixEquiv w delta).symm (q, d, 0)
   let cross := (maskedMulCheckReply left right output w zero.1 zero.2 r).1
   have hslope (b : F) :
-      let uv := (maskedPrefixEquiv w delta).symm (q, d, b)
-      (maskedMulCheckReply left right output w uv.1 uv.2 r).1 = cross + b := by
+      (maskedMulCheckReply left right output w
+        ((maskedPrefixEquiv w delta).symm (q, d, b)).1
+        ((maskedPrefixEquiv w delta).symm (q, d, b)).2 r).1 = cross + b := by
     simp [maskedPrefixEquiv, maskedMulCheckReply, cross, zero]
   have hreply (b : F) :
-      let uv := (maskedPrefixEquiv w delta).symm (q, d, b)
-      maskedMulCheckReply left right output w uv.1 uv.2 r =
-        (cross + b, maskedMulCheckValue left right output delta q d r - (cross + b) * delta) := by
+      maskedMulCheckReply left right output w
+        ((maskedPrefixEquiv w delta).symm (q, d, b)).1
+        ((maskedPrefixEquiv w delta).symm (q, d, b)).2 r =
+      (cross + b, maskedMulCheckValue left right output delta q d r - (cross + b) * delta) := by
     let uv := (maskedPrefixEquiv w delta).symm (q, d, b)
     have hp := (maskedPrefixEquiv w delta).apply_symm_apply (q, d, b)
-    change ((voleSample uv.1 uv.2 delta).w,
-      voleCommitWitness w (Fin.init uv.1), uv.1 (Fin.last n)) = (q, d, b) at hp
-    have hc := maskedMulCheckReply_correct left right output w (voleSample uv.1 uv.2 delta)
-      (valid_voleSample _ _ _) r h
-    have hq := congrArg Prod.fst hp
-    have hd := congrArg (fun x => x.2.1) hp
-    dsimp only at hq hd
-    change maskedMulCheckValue left right output delta (voleSample uv.1 uv.2 delta).w
-      (voleCommitWitness w (Fin.init uv.1)) r =
+    have hc : maskedMulCheckValue left right output delta (voleSample uv.1 uv.2 delta).w
+        (voleCommitWitness w (Fin.init uv.1)) r =
         (maskedMulCheckReply left right output w uv.1 uv.2 r).1 * delta +
-          (maskedMulCheckReply left right output w uv.1 uv.2 r).2 at hc
-    rw [hq, hd, hslope b] at hc
-    apply Prod.ext
-    · exact hslope b
-    · rw [hc]
-      ring
+          (maskedMulCheckReply left right output w uv.1 uv.2 r).2 :=
+      maskedMulCheckReply_correct left right output w (voleSample uv.1 uv.2 delta)
+        (valid_voleSample _ _ _) r h
+    rw [show (voleSample uv.1 uv.2 delta).w = q from congrArg Prod.fst hp,
+      show voleCommitWitness w (Fin.init uv.1) = d from congrArg (·.2.1) hp, hslope b] at hc
+    exact Prod.ext (hslope b) (by rw [hc]; ring)
   have he := congrArg
     (fun p => p.bind fun a => f (a, maskedMulCheckValue left right output delta q d r - a * delta))
-    (PMF.uniformOfFintype_map_equiv (Equiv.addLeft cross))
-  simpa only [pmf_norm, Equiv.coe_addLeft, hreply] using he
+    (PMF.uniformOfFintype_map_add_left cross)
+  simpa only [pmf_norm, hreply] using he
 
 /-- The full receiver view in one actual interaction. Receiver initialization runs after its
 setup share has been cached and before prover initialization; later effects run in protocol order.
@@ -150,9 +145,9 @@ noncomputable def maskedMulCheckReceiverView (left right output : ι → Fin n)
     let share ← ProbOracleComp.query (.inr ())
     let v ← liftVerifier (V z)
     let p ← liftProver ((maskedMulCheck left right output).prover () w)
-    let result ← runAgainst (maskedMulCheckSpec F ι n)
+    let (transcript, _, view) ← runAgainst (maskedMulCheckSpec F ι n)
       (ProverStrategy.hoist liftProver _ p) (VerifierStrategy.hoist liftVerifier _ v)
-    return (share, result.1, result.2.2)
+    return (share, transcript, view)
 
 /-- Simulate the private share and full public transcript, retaining all receiver effects and
 captured continuations. The constant share handler answers every later query identically; its
@@ -183,19 +178,6 @@ private noncomputable def receiverLaw (share : F × (Fin (n + 1) → F)) {α : T
   OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
     (fun _ => PMF.pure share)) program
 
-omit [CommRing F] [Fintype F] [DecidableEq F] in
-private theorem interpret_liftVerifier {α : Type} (c : VOLECorrelation F (n + 1))
-    (program : ProbOracleComp (voleReceiverSpec F (n + 1)) α) :
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-      (OracleComp.sumHandler (fun _ => PMF.pure (c.u, c.v))
-        (fun _ => PMF.pure c.receiverView)))
-      (liftVerifier (oP := voleSenderSpec F (n + 1)) program) =
-        receiverLaw c.receiverView program := by
-  rw [liftVerifier, OracleComp.interpret_interpret]
-  unfold receiverLaw
-  congr 1 with query : 1
-  cases query <;> simp [OracleComp.sumHandler, ProbOracleComp.query]
-
 private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
     (V : Aux → ProbOracleComp (voleReceiverSpec F (n + 1))
       (VerifierStrategy (ProbOracleComp (voleReceiverSpec F (n + 1)))
@@ -211,7 +193,7 @@ private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
       let view ← receiverLaw c.receiverView terminal
       return (c.receiverView, (d, r, reply, ()), view)) := by
   have hinit : (voleWorld F (n + 1)).impl (.inr ()) none =
-      (voleIdealDist F (n + 1)).map (fun c => (c.receiverView, some c)) := by
+      (voleIdealDist F (n + 1)).map fun c => (c.receiverView, some c) := by
     simp [voleWorld, PMF.map, Function.comp_def]
   unfold maskedMulCheckReceiverView World.eval
   change (ProbOracleComp.runWith (State := Option (VOLECorrelation F (n + 1)))
@@ -226,10 +208,9 @@ private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
   dsimp only [voleWorld]
   simp only [pmf_norm]
   congr 1 with c : 1
-  simp [OracleComp.interpret_bind, OracleComp.interpret_pure, interpret_liftVerifier,
-    maskedMulCheck, liftProver, ProbOracleComp.query, OracleComp.sumHandler,
-    runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist, maskedMulCheckSpec,
-    SigmaProtocol.sigmaSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
+  simp [interpret_liftVerifier, receiverLaw, maskedMulCheck, liftProver, ProbOracleComp.query,
+    OracleComp.sumHandler, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
+    maskedMulCheckSpec, threeMoveSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
 
 omit [DecidableEq F] [DecidableEq ι] in
 private theorem maskedMulCheckReceiverSimulate_eq (left right output : ι → Fin n)
@@ -288,17 +269,13 @@ theorem maskedMulCheckReceiverView_eq_simulate (left right output : ι → Fin n
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure] at hprefix
   rw [hprefix]
   have hshare (q : Fin (n + 1) → F) (d : Fin n → F) (b : F) :
-      let uv := (maskedPrefixEquiv w delta).symm (q, d, b)
-      (voleSample uv.1 uv.2 delta).receiverView = (delta, q) := by
-    have hp := congrArg Prod.fst ((maskedPrefixEquiv w delta).apply_symm_apply (q, d, b))
-    exact congrArg (delta, ·) hp
+      (voleSample ((maskedPrefixEquiv w delta).symm (q, d, b)).1
+        ((maskedPrefixEquiv w delta).symm (q, d, b)).2 delta).receiverView = (delta, q) :=
+    congrArg (delta, ·) (congrArg Prod.fst ((maskedPrefixEquiv w delta).apply_symm_apply (q, d, b)))
   have hcorr (q : Fin (n + 1) → F) (d : Fin n → F) (b : F) :
-      let uv := (maskedPrefixEquiv w delta).symm (q, d, b)
-      voleCommitWitness w (Fin.init uv.1) = d :=
-    congrArg (fun x => x.2.1) ((maskedPrefixEquiv w delta).apply_symm_apply (q, d, b))
-  simp_rw [hshare]
-  dsimp only [voleSample]
-  simp_rw [hcorr]
+      voleCommitWitness w (Fin.init ((maskedPrefixEquiv w delta).symm (q, d, b)).1) = d :=
+    congrArg (·.2.1) ((maskedPrefixEquiv w delta).apply_symm_apply (q, d, b))
+  simp_rw [hshare, voleSample, hcorr]
   pmf_swap with q v d challenge pair
   rcases pair with ⟨r, continuation⟩
   simpa only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure] using
@@ -314,17 +291,15 @@ theorem maskedMulCheckReceiverSimulate_accepts (left right output : ι → Fin n
     (V : Aux → ProbOracleComp (voleReceiverSpec F (n + 1))
       (VerifierStrategy (ProbOracleComp (voleReceiverSpec F (n + 1)))
         (maskedMulCheckSpec F ι n) View)) (z : Aux)
-    {result : (F × (Fin (n + 1) → F)) × Transcript (maskedMulCheckSpec F ι n) × View}
-    (hv : result ∈ (ProbComp.eval (maskedMulCheckReceiverSimulate left right output V z)).support) :
-    maskedMulCheckValue left right output result.1.1 result.1.2
-        result.2.1.1 result.2.1.2.1 =
-      result.2.1.2.2.1.1 * result.1.1 + result.2.1.2.2.1.2 := by
+    {share : F × (Fin (n + 1) → F)} {transcript : Transcript (maskedMulCheckSpec F ι n)}
+    {view : View}
+    (hv : (share, transcript, view) ∈
+      (ProbComp.eval (maskedMulCheckReceiverSimulate left right output V z)).support) :
+    MaskedMulCheckAccepts left right output share transcript := by
   rw [maskedMulCheckReceiverSimulate_eq] at hv
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hv
-  rcases hv with ⟨delta, _, q, _, v, _, d, _, challenge, _, ⟨r, continuation⟩, _,
-    a, _, terminal, _, view, _, rfl⟩
-  dsimp
-  ring
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hv
+  rcases hv with ⟨_, _, _, _, _, _, _, _, _, _, ⟨_, _⟩, _, _, _, _, _, _, _, rfl, rfl, -⟩
+  dsimp only [MaskedMulCheckAccepts]; ring
 
 end Cslib.Crypto.Protocols.VOLE

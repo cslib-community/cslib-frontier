@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Resources of one step of a stack search with a leaf oracle
@@ -80,21 +81,14 @@ theorem exists_computableInO_searchStep {σ ν γ : Type} {encS : σ ↪ List Bo
         4 ^ D * ((encS x).length + (encG c).length + 1) ^ D := by
     rw [← mul_pow]
     refine Nat.pow_le_pow_left ?_ D
-    simp only [length_encPair]
-    omega
+    enc_len
   refine ⟨D, h.mono (4 ^ D + 5) (fun x => ?_) (fun x => ?_)⟩ <;>
   · simp only [Function.comp_apply]
     have hp := hpair_le x (g (top x))
     have h4D : 1 ≤ 4 ^ D := Nat.one_le_pow _ _ (by decide)
-    generalize 4 ^ D = F at hp h4D ⊢
-    generalize ((encS x).length + 1) ^ D = P
-    generalize t (top x) = T
-    generalize s (top x) = U
-    generalize ((encS x).length + (encG (g (top x))).length + 1) ^ D = Q at hp ⊢
-    generalize ((encPair encS encG (x, g (top x))).length + 1) ^ D = R at hp ⊢
-    have hFP := Nat.le_mul_of_pos_left P h4D
-    have hFT := Nat.le_mul_of_pos_left T h4D
-    have hFU := Nat.le_mul_of_pos_left U h4D
+    have := Nat.le_mul_of_pos_left (((encS x).length + 1) ^ D) h4D
+    have := Nat.le_mul_of_pos_left (t (top x)) h4D
+    have := Nat.le_mul_of_pos_left (s (top x)) h4D
     cases done x <;> cases isLeaf x <;>
       simp only [Bool.false_eq_true, ite_false, ite_true, and_true, and_false,
         Bool.true_eq_false, Nat.add_mul, Nat.mul_add] <;> omega

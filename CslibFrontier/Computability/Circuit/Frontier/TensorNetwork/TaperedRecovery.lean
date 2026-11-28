@@ -72,9 +72,7 @@ public section
 namespace Cslib.Circuits.Frontier
 
 open Polynomial Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-! ### Nodes and multiplicities -/
 
@@ -84,7 +82,7 @@ local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
 
 /-- The tapered multiplicity `q_t = h max(0, u - v₂ t)` of Lemma D.5, with natural
 subtraction. -/
-@[expose] def taperMult (u h : ℕ) (t : ℤ) : ℕ :=
+@[expose] noncomputable def taperMult (u h : ℕ) (t : ℤ) : ℕ :=
   h * (u - padicValInt 2 t)
 
 /-- The grid of `2 ^ a` slots is `[-2 ^ a, 2 ^ a)`. -/
@@ -227,7 +225,7 @@ theorem hermiteBasis_comp_eq_map (a u h : ℕ) {t : ℤ} (ht : t ∈ recoveryNod
     rw [hE, hermiteBasis_comp_rat]
   refine ⟨E, ?_, ?_⟩
   · apply Subtype.val_injective
-    have h0 := congrArg (fun P => Polynomial.coeff P 0) hEq
+    have h0 := congrArg (fun P => P.coeff 0) hEq
     simp only [coeff_map, Subring.coe_subtype] at h0
     rw [h0, coeff_zero_eq_eval_zero, eval_comp, eval_add, eval_C, eval_mul, eval_C, eval_X,
       mul_zero, add_zero, eval_hermiteBasis_self (pairwise_isUnit_sub _) ht]
@@ -417,8 +415,7 @@ theorem exists_taperedRecovery_eq_add (B : Subring K) (hB : ∀ c ∈ ℤ₍₂�
   have hE0 : -(6 * (h : ℤ) * 2 ^ (a - padicValInt 2 t)) ≤ padicValRat 2 E0 := by
     have := neg_le_padicValRat_eval_zero_hermiteBasis_taper (a := a) u h
       (mem_of_mem_erase (by rw [← recoveryNodes_eq]; exact ht)) (ne_of_mem_erase ht)
-    rw [← recoveryNodes_eq] at this
-    exact this
+    rwa [← recoveryNodes_eq] at this
   have hxv : -((a : ℤ) + 1) ≤ padicValRat 2 (-(t : ℚ) / 2 ^ (a + 1)) := by
     rw [padicValRat.div (neg_ne_zero.mpr ht0) (by positivity), padicValRat.neg,
       padicValRat.of_int, padicValRat.pow, padicValRat_two]

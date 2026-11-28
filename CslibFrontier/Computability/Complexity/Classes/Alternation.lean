@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Space
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Foundations.Data.Nat.AffineBound
 
 /-!
 # Alternating time and space classes
@@ -28,9 +29,13 @@ instances, with a bound of the length `n` of the encoded instance, up to constan
   (`Turing.MultiTapeATM.DecidesInSpace`): every computation path visits at most that many
   work-tape cells, and every branch halts.
 
-Chandra, Kozen and Stockmeyer bound the space of an alternating machine without asking it to
-halt; that is recognition within space (`Turing.MultiTapeATM.RecognizesInSpace`). The classes use
-the deciding form of Sipser instead, in which every branch also halts. The deterministic
+Chandra, Kozen and Stockmeyer bound only the space of the accepting computations of accepted
+instances [Chandra, Kozen and Stockmeyer, Definition 2.5][ChandraKozenStockmeyer1981]. Bounding
+every reachable configuration without asking for halting is recognition within space
+(`Turing.MultiTapeATM.RecognizesInSpace`). The classes use the deciding form of Sipser instead, in
+which every reachable configuration obeys the bound and every branch halts. For bounds
+`S(n) ≥ log n` constructible in space `S(n)` these give the same problems
+[Chandra, Kozen and Stockmeyer, Theorem 2.6(b)][ChandraKozenStockmeyer1981]. The deterministic
 simulation `ASPACE s ⊆ DTIME (2 ^ O(log₂ n + s))`
 (`Cslib.Complexity.exists_mem_DTIME_of_mem_ASPACE`, in
 `CslibFrontier.Computability.Complexity.Classes.Alternation.DeterministicTime`) is proved for
@@ -56,9 +61,11 @@ in `CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch`). The sp
 
 ## Main results
 
-* `Cslib.Complexity.ATIME_subset_of_le_mul_add`, `Cslib.Complexity.ASPACE_subset_of_le_mul_add`:
-  constant factors and additive constants are absorbed.
-* `Cslib.Complexity.ATIME_mono`, `Cslib.Complexity.ASPACE_mono`: monotonicity.
+* `Cslib.Complexity.ATIME_mono_of_le_mul_add`, `Cslib.Complexity.ASPACE_mono_of_le_mul_add`:
+  the classes absorb constant factors.
+* `Cslib.Complexity.ATIME_mono`, `Cslib.Complexity.ASPACE_mono`,
+  `Cslib.Complexity.ATIME_mono_of_eventually_le`, `Cslib.Complexity.ASPACE_mono_of_eventually_le`:
+  monotonicity; only the eventual values of the bound matter.
 * `Cslib.Complexity.ATIME_subset_ASPACE`: alternating time is within alternating space.
 * `Cslib.Complexity.mem_AP_iff_exists_mem_ATIME`: `AP` is the union of the classes
   `ATIME (n ^ k)`.
@@ -96,40 +103,48 @@ def ATIME (enc : α ↪ List Bool) (t : ℕ → ℕ) : Set (Set α) :=
 [Sipser, Section 10.3][Sipser2013]: the problems decided within space `O(s n)`, that is
 `c₁ * s n + c₂`, by one alternating machine with a binary alphabet and finitely many states, along
 every computation path, on instances whose encoding under `enc` has length `n`. Following Sipser's
-deciders, every branch also halts; Chandra, Kozen and Stockmeyer do not ask for halting, which is
-`Turing.MultiTapeATM.RecognizesInSpace`. -/
+deciders, every branch also halts. Chandra, Kozen and Stockmeyer bound only the accepting
+computations of accepted instances
+[Chandra, Kozen and Stockmeyer, Definition 2.5][ChandraKozenStockmeyer1981]. -/
 def ASPACE (enc : α ↪ List Bool) (s : ℕ → ℕ) : Set (Set α) :=
   {A | ∃ (k : ℕ) (State : Type) (_ : Finite State) (atm : MultiTapeATM k Bool State)
     (c₁ c₂ : ℕ), atm.DecidesInSpace enc A fun a => c₁ * s (enc a).length + c₂}
 
-/-- A bound `t₁ ≤ c * t₂ + d` turns `c₁ * t₁ + c₂` into a bound of the same shape in `t₂`. -/
-private theorem mul_add_le_mul_add {t₁ t₂ c d : ℕ} (h : t₁ ≤ c * t₂ + d) (c₁ c₂ : ℕ) :
-    c₁ * t₁ + c₂ ≤ c₁ * c * t₂ + (c₁ * d + c₂) := by
-  have := Nat.mul_le_mul_left c₁ h
-  rw [Nat.mul_add, ← Nat.mul_assoc] at this
-  omega
-
-/-- `ATIME` depends on the time bound only up to a constant factor and an additive constant. -/
-theorem ATIME_subset_of_le_mul_add {t₁ t₂ : ℕ → ℕ} (c d : ℕ) (h : ∀ n, t₁ n ≤ c * t₂ n + d) :
+/-- `ATIME` absorbs constant factors: a bound `t₁ n ≤ C * t₂ n + C` puts `ATIME enc t₁` inside
+`ATIME enc t₂`. -/
+theorem ATIME_mono_of_le_mul_add {t₁ t₂ : ℕ → ℕ} {C : ℕ} (h : ∀ n, t₁ n ≤ C * t₂ n + C) :
     ATIME enc t₁ ⊆ ATIME enc t₂ := by
   rintro A ⟨c₁, c₂, k, State, hfin, atm, hA⟩
-  exact ⟨c₁ * c, c₁ * d + c₂, k, State, hfin, atm,
-    hA.mono fun a => mul_add_le_mul_add (h _) c₁ c₂⟩
+  exact ⟨c₁ * C, c₁ * C + c₂, k, State, hfin, atm,
+    hA.mono fun _ => Nat.mul_add_le_mul_add_of_le_mul_add (h _) c₁ c₂⟩
 
-/-- `ASPACE` depends on the space bound only up to a constant factor and an additive constant. -/
-theorem ASPACE_subset_of_le_mul_add {s₁ s₂ : ℕ → ℕ} (c d : ℕ) (h : ∀ n, s₁ n ≤ c * s₂ n + d) :
+/-- `ASPACE` absorbs constant factors: a bound `s₁ n ≤ C * s₂ n + C` puts `ASPACE enc s₁` inside
+`ASPACE enc s₂`. -/
+theorem ASPACE_mono_of_le_mul_add {s₁ s₂ : ℕ → ℕ} {C : ℕ} (h : ∀ n, s₁ n ≤ C * s₂ n + C) :
     ASPACE enc s₁ ⊆ ASPACE enc s₂ := by
   rintro A ⟨k, State, hfin, atm, c₁, c₂, hA⟩
-  exact ⟨k, State, hfin, atm, c₁ * c, c₁ * d + c₂,
-    hA.mono fun a => mul_add_le_mul_add (h _) c₁ c₂⟩
+  exact ⟨k, State, hfin, atm, c₁ * C, c₁ * C + c₂,
+    hA.mono fun _ => Nat.mul_add_le_mul_add_of_le_mul_add (h _) c₁ c₂⟩
 
 /-- `ATIME` is monotone in the time bound. -/
 theorem ATIME_mono {t₁ t₂ : ℕ → ℕ} (h : ∀ n, t₁ n ≤ t₂ n) : ATIME enc t₁ ⊆ ATIME enc t₂ :=
-  ATIME_subset_of_le_mul_add 1 0 fun n => by simpa using h n
+  ATIME_mono_of_le_mul_add (C := 1) fun n => by have := h n; omega
 
 /-- `ASPACE` is monotone in the space bound. -/
 theorem ASPACE_mono {s₁ s₂ : ℕ → ℕ} (h : ∀ n, s₁ n ≤ s₂ n) : ASPACE enc s₁ ⊆ ASPACE enc s₂ :=
-  ASPACE_subset_of_le_mul_add 1 0 fun n => by simpa using h n
+  ASPACE_mono_of_le_mul_add (C := 1) fun n => by have := h n; omega
+
+/-- `ATIME` only depends on the time bound eventually. -/
+theorem ATIME_mono_of_eventually_le {t₁ t₂ : ℕ → ℕ} (h : ∀ᶠ n in Filter.atTop, t₁ n ≤ t₂ n) :
+    ATIME enc t₁ ⊆ ATIME enc t₂ :=
+  let ⟨_, hC⟩ := Nat.exists_le_mul_add_of_eventually_le h
+  ATIME_mono_of_le_mul_add hC
+
+/-- `ASPACE` only depends on the space bound eventually. -/
+theorem ASPACE_mono_of_eventually_le {s₁ s₂ : ℕ → ℕ} (h : ∀ᶠ n in Filter.atTop, s₁ n ≤ s₂ n) :
+    ASPACE enc s₁ ⊆ ASPACE enc s₂ :=
+  let ⟨_, hC⟩ := Nat.exists_le_mul_add_of_eventually_le h
+  ASPACE_mono_of_le_mul_add hC
 
 /-- **Alternating time is within alternating space**: a decider within time `c₁ * t n + c₂` with
 `k` work tapes decides within space `k * (c₁ * t n + c₂ + 1)`. -/

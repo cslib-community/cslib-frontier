@@ -25,10 +25,15 @@ inductive FrameState
   | marker
   | bit
   | done
+  deriving DecidableEq
 
 instance : Finite FrameState :=
   Finite.of_surjective (fun b : Option Bool => b.elim .done fun b => if b then .marker else .bit)
     fun q => by cases q; exacts [⟨some true, rfl⟩, ⟨some false, rfl⟩, ⟨none, rfl⟩]
+
+/-- Constructive enumeration of the three frame-parser states. -/
+instance : Fintype FrameState :=
+  ⟨{FrameState.marker, FrameState.bit, FrameState.done}, fun state => by cases state <;> simp⟩
 
 /-- Emits the word framed at the start of its input (`keep = true`), or what follows the frame
 (`keep = false`). -/

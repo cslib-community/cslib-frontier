@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Lists
 import CslibFrontier.Computability.GenericRAM.Native.Certificate
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Polynomially many queries with a common running-time factor
@@ -74,10 +75,6 @@ theorem polynomial_queries {answer : α × β → γ} {queries : α → List β}
   let Q := fun x => (encList eq (queries x)).length
   let B := fun x => 2 * L x + Q x + 2
   let O := fun x => (encList eo ((queries x).map fun q => answer (x, q))).length
-  have hL : PolyBounded L L := .self
-  have hQ : PolyBounded L Q := hq.polyBounded_length
-  have hB : PolyBounded L B :=
-    (((PolyBounded.const 2).mul hL).add hQ).add (PolyBounded.const 2)
   have hquery (x : α) (q : β) (h : q ∈ queries x) :
       (encPair ei eq (x, q)).length + 1 ≤ B x := by
     have := length_le_encList_of_mem eq h
@@ -86,8 +83,8 @@ theorem polynomial_queries {answer : α × β → γ} {queries : α → List β}
     omega
   obtain ⟨c, hc⟩ := ha.length_le
   have hO : PolyBounded L O := by
-    refine (hQ.mul (((PolyBounded.const 2).mul ((PolyBounded.const c).mul
-      ((hB.pow b).add (PolyBounded.const 1)))).add (PolyBounded.const 1))).mono fun x => ?_
+    refine (by growth_poly : PolyBounded L
+        fun x => Q x * (2 * (c * (B x ^ b + 1)) + 1)).mono fun x => ?_
     have hlen := length_encList_le eo ((queries x).map fun q => answer (x, q))
       (b := c * (B x ^ b + 1)) fun a ha => by
         obtain ⟨q, hq, rfl⟩ := List.mem_map.mp ha
@@ -98,14 +95,10 @@ theorem polynomial_queries {answer : α × β → γ} {queries : α → List β}
   let U := fun x => L x + L x + cq.time x +
     (Q x + 1) * (L x + Q x + O x + B x ^ e)
   let V := fun x => L x + L x + cq.space x + L x + Q x + O x + B x ^ b
-  have hU : PolyBounded L U :=
-    ((hL.add hL).add hcq.1).add
-      ((hQ.add (PolyBounded.const 1)).mul (((hL.add hQ).add hO).add (hB.pow e)))
-  have hV : PolyBounded L V :=
-    (((((hL.add hL).add hcq.2).add hL).add hQ).add hO).add (hB.pow b)
   have hmap := ha.mapWith
     (ComputableInO.of_eq (encIn := ei) (encMid := ei) fun _ => rfl) cq.computes
-  refine exists_of_common_factor hmap (U := U) (V := V) (fun x => ?_) (fun x => ?_) hU hV
+  refine exists_of_common_factor hmap (U := U) (V := V) (fun x => ?_) (fun x => ?_)
+    (by growth_poly) (by growth_poly)
   · have hmax : listMax (fun q => T x * ((encPair ei eq (x, q)).length + 1) ^ e)
         (queries x) ≤ T x * B x ^ e :=
       listMax_le fun q hq => Nat.mul_le_mul_left _
@@ -115,8 +108,8 @@ theorem polynomial_queries {answer : α × β → γ} {queries : α → List β}
       Nat.le_mul_of_pos_left _ (hT x)
     have hbody : L x + Q x + O x + T x * B x ^ e ≤
         T x * (L x + Q x + O x + B x ^ e) := by
-      have := Nat.le_mul_of_pos_left (L x + Q x + O x) (hT x)
-      nlinarith
+      rw [Nat.mul_add]
+      exact Nat.add_le_add_right (Nat.le_mul_of_pos_left _ (hT x)) _
     calc _ ≤ L x + L x + cq.time x +
           (Q x + 1) * (L x + Q x + O x + T x * B x ^ e) := by
             gcongr
@@ -141,16 +134,12 @@ theorem polynomial_postprocessing {f : α → β} {g : β → γ} {T : α → �
   let cg := NativeCertificate.ofPolyTime hg
   have hcg := NativeCertificate.ofPolyTime_isPolynomial hg
   let L := fun x => (ei x).length
-  have hL : PolyBounded L L := .self
-  have hLp : PolyBounded L (fun x => (L x + 1)) := hL.add (PolyBounded.const 1)
   have hlen : PolyBounded L (fun x => (eq (f x)).length) := by
     obtain ⟨c, hc⟩ := hf.length_le
-    exact ((PolyBounded.const c).mul ((hLp.pow b).add (PolyBounded.const 1))).mono hc
-  have htime : PolyBounded L (fun x => cg.time (f x)) := hcg.1.comp hlen
-  have hspace : PolyBounded L (fun x => cg.space (f x)) := hcg.2.comp hlen
+    exact (by growth_poly : PolyBounded L fun x => c * ((L x + 1) ^ b + 1)).mono hc
   refine exists_of_common_factor (cg.computes.comp hf)
     (U := fun x => (L x + 1) ^ e + cg.time (f x)) (fun x => ?_) (fun _ => le_rfl)
-    ((hLp.pow e).add htime) ((hLp.pow b).add hspace)
+    (by growth_poly) (by growth_poly)
   rw [Nat.mul_add]
   exact Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (hT x)) _
 

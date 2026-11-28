@@ -258,26 +258,18 @@ theorem step {p : GenericRAM.Program B.genericModel r} (h : WordBounded w s)
 theorem step_halt {p : GenericRAM.Program B.genericModel r} {v : ℕ} (h : WordBounded w s)
     (hs : FiniteState.step w p s = some (.inr v)) : v < 2 ^ w := by
   unfold FiniteState.step at hs
-  simp only [Basis.genericModel, ite_true] at hs
-  rw [dispatch_eq_getElem? w p 0 s (Nat.zero_le _), Nat.sub_zero] at hs
-  simp only [bind, Option.bind_eq_some_iff] at hs
+  simp only [Basis.genericModel, ite_true, dispatch_eq_getElem? w p 0 s (Nat.zero_le _),
+    Nat.sub_zero, bind, Option.bind_eq_some_iff] at hs
   obtain ⟨i, -, hs⟩ := hs
   cases i with
-  | op o =>
-    simp only [evalInstr, bind, Option.bind_eq_some_iff] at hs
-    obtain ⟨u, -, hr⟩ := hs
-    simp [resume, Basis.genericModel] at hr
-  | jump target => simp [evalInstr, resume, Basis.genericModel] at hs
+  | op o => simp [evalInstr, bind, Option.bind_eq_some_iff, resume] at hs
+  | jump target => simp [evalInstr, resume] at hs
   | branch c target =>
-    cases c with
-    | test f args =>
-      simp only [evalInstr, bind, Option.bind_eq_some_iff] at hs
-      obtain ⟨b, -, hr⟩ := hs
-      simp [resume, Basis.genericModel] at hr
+    cases c
+    simp [evalInstr, bind, Option.bind_eq_some_iff, resume] at hs
   | halt idx =>
-    simp only [evalInstr, Basis.genericModel, ite_true, Option.some.injEq, Sum.inr.injEq] at hs
-    subst hs
-    exact h.regs_lt idx
+    simp only [evalInstr, ite_true, Option.some.injEq, Sum.inr.injEq] at hs
+    exact hs ▸ h.regs_lt idx
 
 /-- Every outcome of a clocked run from a word-bounded state below the label bound is
 word-bounded: continuing states keep their words and labels, and halted values are words. -/
@@ -287,10 +279,7 @@ theorem run {p : GenericRAM.Program B.genericModel r} (h : WordBounded w s)
       (∀ v, FiniteState.run w p n s = some (.inr v) → v < 2 ^ w) := by
   induction n generalizing s with
   | zero =>
-    refine ⟨fun t ht => ?_, fun v hv => by simp at hv⟩
-    simp only [FiniteState.run_zero, Option.some.injEq, Sum.inl.injEq] at ht
-    subst ht
-    exact ⟨h, hpc⟩
+    simp +contextual [FiniteState.run_zero, h, hpc]
   | succ n ih =>
     rw [FiniteState.run_succ]
     cases hs : FiniteState.step w p s with
@@ -301,10 +290,7 @@ theorem run {p : GenericRAM.Program B.genericModel r} (h : WordBounded w s)
         obtain ⟨hu, hupc⟩ := h.step hs
         exact ih hu hupc
       | inr v =>
-        refine ⟨fun t ht => by simp at ht, fun v' hv => ?_⟩
-        simp only [Option.some.injEq, Sum.inr.injEq] at hv
-        subst hv
-        exact h.step_halt hs
+        simp +contextual [h.step_halt hs]
 
 /-- Encoded outcomes along a clocked run from a word-bounded state are bounded by `stateBound`,
 with at most one new stored cell per step. -/
@@ -542,14 +528,8 @@ theorem exists_polyBounded_resultEncoding_run_le (p : GenericRAM.Program B.gener
     ∃ bound : α → ℕ, PolyBounded (fun a => (encIn a).length) bound ∧
       ∀ a, ∀ j ≤ steps a, (FiniteState.resultEncoding B.encoding
         (FiniteState.run (width a) p j (initState B r (words a)))).length ≤ bound a := by
-  refine ⟨fun a => stateBound r (labelBound p) (width a) ((words a).length + 1 + steps a), ?_,
-    fun a j hj => length_resultEncoding_run_initState_le (hfits a) p hj⟩
-  have hw := hwidth.polyBounded
-  have hE : PolyBounded (fun a => (encIn a).length) (fun a => (words a).length + 1 + steps a) :=
-    ((hwords.polyBounded_length.mono fun a => length_le_length_encList encNat (words a)).add
-      (.const 1)).add hsteps
-  dsimp only [stateBound]
-  growth_poly
+  refine ⟨fun a => stateBound r (labelBound p) (width a) ((words a).length + 1 + steps a),
+    by growth_poly, fun a j hj => length_resultEncoding_run_initState_le (hfits a) p hj⟩
 
 /-- **Word-RAM time at a polynomial-time width schedule gives Turing-machine polynomial time.**
 
@@ -562,7 +542,7 @@ output. The simulating machine computes the width, the input words and a step bu
 initial memory and runs the finite-state simulator; all of this is charged. -/
 theorem Program.ComputesInTime.turingComputableInPolyTime_of_width
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat))
+      encWidthOperands (encOption encNat))
     {p : Program B r} {encode : ℕ → α → List ℕ} {time : α → ℕ → ℕ}
     {allowed : α → ℕ → Prop} {f : α → ℕ}
     (h : p.ComputesInTime encode time allowed f) {width : α → ℕ}
@@ -605,33 +585,30 @@ The simulating machine chooses a word size polynomial in `|encIn a|`, at least
 `logWidth k (size a)` and the encoded length of the input words, so the input fits. -/
 theorem Program.ComputesInTime.turingComputableInPolyTime
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat))
+      encWidthOperands (encOption encNat))
     {p : Program B r} {encode : α → List ℕ} {size f : α → ℕ} {T : ℕ → ℕ} {k : ℕ}
     (hT : PolynomiallyBounded T) (hsize : PolyBounded (fun a => (encIn a).length) size)
     (hencode : Turing.MultiTapeTM.ComputableInPolyTime encode encIn (encList encNat))
     (h : p.ComputesInTime (fun _ => encode) (fun a _ => T (size a))
       (fun a w => logWidth k (size a) ≤ w) f) :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn encNat := by
-  have hlog : PolyBounded (fun a => (encIn a).length) (fun a => logWidth k (size a)) := by
-    growth_poly
   obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant
-    (hlog.add (hencode.polyBounded_length (encMid := encList encNat)))
+    (u := fun a => logWidth k (size a) + (encList encNat (encode a)).length) (by growth_poly)
   exact h.turingComputableInPolyTime_of_width hop hwidth (fun a => by have := hge a; omega)
-    (fun a => inputFits_of_length_encList_le (by have := hge a; omega)) hencode
-    ((PolyBounded.of_polynomiallyBounded id hT).comp hsize)
+    (fun a => inputFits_of_length_encList_le (by have := hge a; omega)) hencode (by growth_poly)
 
 /-- **Uniform polynomial word-RAM time gives Turing-machine polynomial time**, for a
 width-independent word encoding computable in polynomial time and a size measure polynomially
 bounded in the encoded input length. -/
 theorem UniformComputableInPolyTime.turingComputableInPolyTime
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat))
+      encWidthOperands (encOption encNat))
     {encode : α → List ℕ} {size f : α → ℕ}
     (h : UniformComputableInPolyTime B f (fun _ => encode) size)
     (hsize : PolyBounded (fun a => (encIn a).length) size)
     (hencode : Turing.MultiTapeTM.ComputableInPolyTime encode encIn (encList encNat)) :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn encNat := by
-  obtain ⟨T, hT, k, -, r, p, hp⟩ := h
+  obtain ⟨T, hT, k, -, r, p, hp, _⟩ := h
   exact hp.turingComputableInPolyTime hop hT hsize hencode
 
 end Main

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.Selection
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Comparing and selecting words
@@ -86,19 +87,16 @@ def muxCircuit (w : ℕ) : Circuit signature (1 + (w + w)) w :=
     (muxCircuit w).eval interpretation (Fin.append (fun _ : Fin 1 => c) (Fin.append a b)) =
       if c then a else b := by
   funext i
-  simp only [muxCircuit, muxBit, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_pi,
-    Formula.eval_toCircuit, Formula.eval_or, Formula.eval_and, Formula.eval_input, Fin.append_left,
-    Fin.append_right, Circuit.eval_wiring, Circuit.eval_oneGate, Function.comp_apply, id]
+  simp only [circuit_simps, muxCircuit, muxBit, id]
   cases c <;> simp [interpretation]
 
 @[simp] theorem size_muxCircuit (w : ℕ) : (muxCircuit w).size = 3 * w + 1 := by
   rw [show 3 * w + 1 = 1 + w * 3 by ring]
   simp [muxCircuit, muxBit]
 
-theorem depth_muxCircuit_le (w : ℕ) : (muxCircuit w).depth ≤ 3 :=
-  (Circuit.depth_comp_le _ _).trans <| Nat.add_le_add (b := 2) (d := 1)
-    (Circuit.depth_pi_le _ fun i => (Formula.depth_toCircuit_le _).trans (by simp [muxBit]))
-    ((Circuit.depth_append_le _ _).trans (by simp))
+@[circuit_bound]
+theorem depth_muxCircuit_le (w : ℕ) : (muxCircuit w).depth ≤ 3 := by
+  circuit_bound [muxCircuit, muxBit]
 
 /-! ### The comparator -/
 
@@ -119,18 +117,15 @@ theorem eval_leStep (b c d : Bool) :
     leStep.eval interpretation (Fin.append (fun _ : Fin 1 => b) ![c, d]) =
       fun _ => ((!c && d) || (b && (!c || d))) := by
   funext j
-  simp only [leStep, leStepFormula, Circuit.eval_comp, Circuit.eval_append,
-    Formula.eval_toCircuit, Formula.eval_or, Formula.eval_and, Formula.eval_input, Fin.append_left,
-    Fin.append_right, Circuit.eval_wiring, Circuit.eval_oneGate, Function.comp_apply, id]
+  simp only [circuit_simps, leStep, leStepFormula, id]
   cases b <;> cases c <;> cases d <;> rfl
 
 @[simp] theorem size_leStep : leStep.size = 5 :=
   rfl
 
-theorem depth_leStep_le : leStep.depth ≤ 4 :=
-  (Circuit.depth_comp_le _ _).trans <| Nat.add_le_add (b := 3) (d := 1)
-    ((Formula.depth_toCircuit_le _).trans (by simp [leStepFormula]))
-    ((Circuit.depth_append_le _ _).trans (by simp))
+@[circuit_bound]
+theorem depth_leStep_le : leStep.depth ≤ 4 := by
+  circuit_bound [leStep, leStepFormula]
 
 /-- The first `w` bits of each of two words of `w + 1` bits. -/
 def lowBits (w : ℕ) : Fin (w + w) → Fin (w + 1 + (w + 1)) :=
@@ -171,8 +166,7 @@ def leCircuit : (w : ℕ) → Circuit signature (w + w) 1
     have hy : (BitString.equivFin 0 y : ℕ) < 1 := (BitString.equivFin 0 y).isLt
     exact (decide_eq_true (Fin.le_iff_val_le_val.2 (by omega))).symm
   | succ w ih =>
-    rw [leCircuit, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring,
-      append_comp_lowBits, ih, Circuit.eval_wiring, BitString.decide_equivFin_le_succ,
+    simp only [circuit_simps, leCircuit, append_comp_lowBits, ih, BitString.decide_equivFin_le_succ,
       append_comp_topBits, eval_leStep]
     funext j
     cases decide (BitString.equivFin w (Fin.init x) ≤ BitString.equivFin w (Fin.init y)) <;>
@@ -186,18 +180,11 @@ def leCircuit : (w : ℕ) → Circuit signature (w + w) 1
     simp only [Circuit.size_wiring, size_leStep]
     ring
 
+@[circuit_bound]
 theorem depth_leCircuit_le (w : ℕ) : (leCircuit w).depth ≤ 4 * w + 1 := by
   induction w with
   | zero => simp [leCircuit]
-  | succ w ih =>
-    rw [leCircuit]
-    refine (Circuit.depth_comp_le _ _).trans ?_
-    have h : (((leCircuit w).comp (Circuit.wiring signature (lowBits w))).append
-        (Circuit.wiring signature (topBits w))).depth ≤ 4 * w + 1 :=
-      (Circuit.depth_append_le _ _).trans (max_le ((Circuit.depth_comp_le _ _).trans (by simpa
-        using ih)) (by simp))
-    have := depth_leStep_le
-    omega
+  | succ w ih => circuit_bound [leCircuit]
 
 /-! ### The minimum and the keyed minimum -/
 
@@ -208,19 +195,15 @@ def minCircuit (w : ℕ) : Circuit signature (w + w) w :=
 @[simp] theorem eval_minCircuit (x y : BitString w) :
     (minCircuit w).eval interpretation (Fin.append x y) =
       if BitString.equivFin w x ≤ BitString.equivFin w y then x else y := by
-  rw [minCircuit, Circuit.eval_comp, Circuit.eval_append, eval_leCircuit, Circuit.eval_wiring,
-    Function.comp_id, eval_muxCircuit]
+  simp only [circuit_simps, minCircuit, eval_leCircuit, Function.comp_id, eval_muxCircuit]
   simp only [decide_eq_true_eq]
 
 @[simp] theorem size_minCircuit (w : ℕ) : (minCircuit w).size = 8 * w + 2 := by
-  rw [minCircuit, Circuit.size_comp, Circuit.size_append, size_leCircuit, size_muxCircuit,
-    Circuit.size_wiring]
+  simp only [circuit_simps, minCircuit, size_leCircuit, size_muxCircuit]
   ring
 
-theorem depth_minCircuit_le (w : ℕ) : (minCircuit w).depth ≤ 4 * w + 4 :=
-  (Circuit.depth_comp_le _ _).trans <| (Nat.add_le_add (depth_muxCircuit_le w)
-    ((Circuit.depth_append_le _ _).trans (max_le (depth_leCircuit_le w) (by simp)))).trans_eq
-      (by ring)
+theorem depth_minCircuit_le (w : ℕ) : (minCircuit w).depth ≤ 4 * w + 4 := by
+  circuit_bound [minCircuit]
 
 /-- The keys of two records. -/
 def keyBits (k p : ℕ) : Fin (k + k) → Fin (k + p + (k + p)) :=
@@ -243,20 +226,17 @@ def keyedMinCircuit (k p : ℕ) : Circuit signature (k + p + (k + p)) (k + p) :=
 
 @[simp] theorem eval_keyedMinCircuit (r s : BitString (k + p)) :
     (keyedMinCircuit k p).eval interpretation (Fin.append r s) = keyedMinFn r s := by
-  rw [keyedMinCircuit, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_comp,
-    Circuit.eval_wiring, append_comp_keyBits, eval_leCircuit, Circuit.eval_wiring,
-    Function.comp_id, eval_muxCircuit, keyedMinFn]
+  simp only [circuit_simps, keyedMinCircuit, append_comp_keyBits, eval_leCircuit, Function.comp_id,
+    eval_muxCircuit, keyedMinFn]
   simp only [decide_eq_true_eq]
 
 @[simp] theorem size_keyedMinCircuit (k p : ℕ) :
     (keyedMinCircuit k p).size = 8 * k + 3 * p + 2 := by
-  rw [keyedMinCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_comp, size_leCircuit,
-    size_muxCircuit, Circuit.size_wiring, Circuit.size_wiring]
+  simp only [circuit_simps, keyedMinCircuit, size_leCircuit, size_muxCircuit]
   ring
 
-theorem depth_keyedMinCircuit_le (k p : ℕ) : (keyedMinCircuit k p).depth ≤ 4 * k + 4 :=
-  (Circuit.depth_comp_le _ _).trans <| (Nat.add_le_add (depth_muxCircuit_le (k + p))
-    ((Circuit.depth_append_le _ _).trans (max_le ((Circuit.depth_comp_le _ _).trans
-      (by simpa using depth_leCircuit_le k)) (by simp)))).trans_eq (by ring)
+@[circuit_bound]
+theorem depth_keyedMinCircuit_le (k p : ℕ) : (keyedMinCircuit k p).depth ≤ 4 * k + 4 := by
+  circuit_bound [keyedMinCircuit]
 
 end Cslib.Circuits.Boolean

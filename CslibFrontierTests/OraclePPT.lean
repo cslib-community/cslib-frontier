@@ -163,7 +163,7 @@ private theorem requestHead_isOraclePPTOn : IsOraclePPTOn encBits encBits reques
 
 -- Parameterization retains the concrete client's external call and its entire private-state law.
 private theorem requestHead_isOraclePPT : IsOraclePPT encBits (fun _ word => requestHead word) :=
-  IsOraclePPTOn.isOraclePPT (IsOraclePPTOn.query_take' () (.const []) (.const 1))
+  IsOraclePPTOn.isOraclePPT (IsOraclePPTOn.query_take () (.const []) (.const 1))
 
 -- The resource contracts derive uniform query budgets for `requestHead` on the empty input.
 example :
@@ -218,7 +218,7 @@ example : IsPPTOn (encList encBool) (encPair encBits encBits) (fun word =>
         (requestHead word.reverse)).run word) := by
   apply requestHead_isOraclePPTOn.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
     (resources := fun caller _ => caller.length + 1)
-    (ComputableTidilyInPolyTime.bitsReverse.comp ComputableTidilyInPolyTime.listToBits)
+    (ComputableInPolyTime.bitsReverse.comp ComputableInPolyTime.listToBits)
     (by
       have h : IsPPTOn
           (encPair encBits (encPair (encPair (encFinEnum Unit) encBits) encBits))

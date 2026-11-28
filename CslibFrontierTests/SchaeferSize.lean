@@ -4,7 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+import CslibFrontier.Computability.Complexity.FineGrained.Schaefer
 import CslibFrontier.Computability.Complexity.Problems.CSP.Hardness
+-- The malformed-input size regression computes the unexposed body of ofExactThreeSAT.
+import all CslibFrontier.Computability.Complexity.Problems.CSP.SelfDualThreeSAT
 
 /-!
 # Linear-size Schaefer hardness regression tests
@@ -14,14 +19,16 @@ effect on the combinatorial bounds. The native reduction witness is exercised on
 NAE language and on the zero-size input; malformed inputs are also covered.
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.SchaeferSize
 
 open Cslib.Logic Cslib.Logic.PL Cslib.Complexity Turing.MultiTapeTM
 
 private def template (_ : Unit) : CSP Unit (Bool × ℕ) :=
-  [((), [(false, 0), (false, 1), (true, 0)])]
+  [⟨(), [(false, 0), (false, 1), (true, 0)]⟩]
 
-private def input : CSP Unit ℕ := [((), [2 ^ 100, 2 ^ 100]), ((), [0, 1])]
+private def input : CSP Unit ℕ := [⟨(), [2 ^ 100, 2 ^ 100]⟩, ⟨(), [0, 1]⟩]
 
 example : (CSP.replaceGadgets 1 template input).length = 2 := by decide
 example : (CSP.replaceGadgets 1 template input).vars.length = 6 := by decide
@@ -36,16 +43,16 @@ example : (CSP.replaceGadgets 1 template input).numVars +
 
 -- The general guarded bound includes malformed source scopes and arbitrary fixed rejection.
 example : ∃ C : ℕ, ∀ F : CSP Unit ℕ,
-    (CSP.replaceGadgetsGuarded (fun _ => 2) 1 template [((), [])] F).numVars +
-      (CSP.replaceGadgetsGuarded (fun _ => 2) 1 template [((), [])] F).length ≤
+    (CSP.replaceGadgetsGuarded (fun _ => 2) 1 template [⟨(), []⟩] F).numVars +
+      (CSP.replaceGadgetsGuarded (fun _ => 2) 1 template [⟨(), []⟩] F).length ≤
         C * F.length :=
   CSP.exists_linear_bound_replaceGadgetsGuarded _ _ _ _
 
-example : CSP.replaceGadgetsGuarded (fun _ => 2) 1 template [((), [])]
-    [((), [2 ^ 100])] = [((), [])] := by decide
+example : CSP.replaceGadgetsGuarded (fun _ => 2) 1 template [⟨(), []⟩]
+    [⟨(), [2 ^ 100]⟩] = [⟨(), []⟩] := by decide
 
 -- Even a nonempty reject instance cannot introduce an additive constant on empty input.
-example : CSP.replaceGadgetsGuarded (fun _ : Unit => 2) 1 template [((), [])] [] = [] := by
+example : CSP.replaceGadgetsGuarded (fun _ : Unit => 2) 1 template [⟨(), []⟩] [] = [] := by
   rfl
 
 example : (CSP.replaceGadgets 0 (fun _ : Unit => ([] : CSP Unit (Bool × ℕ))) input).numVars +
@@ -70,6 +77,16 @@ private theorem nae_missing : ¬ CSP.HasSchaeferPolymorphism naeArity naeSem := 
 
 private def encUnit : Unit ↪ List Bool :=
   ⟨fun _ => [], fun _ _ _ => Subsingleton.elim _ _⟩
+
+example (hSH : SH) :
+    ¬DecidableInPowerExpTime (CSPSAT naeArity naeSem) (encCSP encUnit encNat) CSP.numVars
+      (1 / 2 : ℝ) :=
+  (SH_iff_CSPSAT_numVars encUnit naeArity naeSem nae_missing).mp hSH _
+    (by norm_num) (by norm_num)
+
+example (h : ∀ p : ℝ, 0 < p → p < 1 →
+    ¬DecidableInPowerExpTime (CSPSAT naeArity naeSem) (encCSP encUnit encNat) CSP.numVars p) : SH :=
+  (SH_iff_CSPSAT_numVars encUnit naeArity naeSem nae_missing).mpr h
 
 -- A single witness has native polynomial time, correctness, and a uniform clause-linear bound.
 example : ∃ (f : CNF ℕ → CSP Unit ℕ) (C : ℕ),

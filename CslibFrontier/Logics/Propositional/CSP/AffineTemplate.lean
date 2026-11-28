@@ -44,7 +44,7 @@ variable {Rel V W : Type*}
 
 /-- Rename the variables of an affine equation, retaining all occurrences. -/
 @[expose] def AffineEquation.relabel (f : V → W) (e : AffineEquation V) : AffineEquation W :=
-  (e.1.map f, e.2)
+  ⟨e.vars.map f, e.rhs⟩
 
 /-- Substitution composes assignments; the variable map need not be injective. -/
 @[simp] theorem AffineEquation.holds_relabel (f : V → W) (e : AffineEquation V)
@@ -59,12 +59,8 @@ variable {Rel V W : Type*}
 images of distinct variables. -/
 @[simp] theorem AffineSystem.holds_relabel (f : V → W) (F : AffineSystem V)
     (a : W → Bool) : (F.relabel f).Holds a ↔ F.Holds (a ∘ f) := by
-  constructor
-  · intro h e he
-    exact (AffineEquation.holds_relabel f e a).mp (h _ (List.mem_map.mpr ⟨e, he, rfl⟩))
-  · intro h e he
-    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp he
-    exact (AffineEquation.holds_relabel f q a).mpr (h q hq)
+  simp only [relabel, Holds, List.mem_map, forall_exists_index, and_imp,
+    forall_apply_eq_imp_iff₂, AffineEquation.holds_relabel]
 
 /-- Correct natural-position templates, evaluated at the declared finite tuple. -/
 @[expose] def CSP.AffineTemplates (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
@@ -84,23 +80,17 @@ theorem CSP.affineTemplates_relabel_fin {arity : Rel → ℕ} {sem : Rel → Lis
 sized scopes for correct templates. -/
 @[expose] def Constraint.instantiateAffine (fallback : V) (template : Rel → AffineSystem ℕ)
     (c : Constraint Rel V) : AffineSystem V :=
-  (template c.1).relabel (fun i => c.2.getD i fallback)
+  (template c.rel).relabel (fun i => c.scope.getD i fallback)
 
 /-- Correctness of an instantiated constraint under every assignment. -/
 theorem Constraint.holds_instantiateAffine {arity : Rel → ℕ} {sem : Rel → List Bool → Bool}
     {template : Rel → AffineSystem ℕ} (h : CSP.AffineTemplates arity sem template)
-    (fallback : V) {c : Constraint Rel V} (hc : c.2.length = arity c.1) (σ : V → Bool) :
+    (fallback : V) {c : Constraint Rel V} (hc : c.scope.length = arity c.rel) (σ : V → Bool) :
     (c.instantiateAffine fallback template).Holds σ ↔ c.eval sem σ = true := by
   obtain ⟨R, vs⟩ := c
-  rw [instantiateAffine, AffineSystem.holds_relabel, h R]
-  change sem R (List.ofFn (fun i : Fin (arity R) => σ (vs.getD i fallback))) = true ↔
-    sem R (vs.map σ) = true
-  have heq : List.ofFn (fun i : Fin (arity R) => σ (vs.getD i fallback)) = vs.map σ := by
-    rw [← hc]
-    convert List.ofFn_getElem_eq_map vs σ using 1
-    congr 1 with i : 1
-    rw [List.getD_eq_getElem vs fallback i.isLt]
-  rw [heq]
+  dsimp only [Constraint.eval] at hc ⊢
+  rw [instantiateAffine, AffineSystem.holds_relabel, h R, ← hc]
+  simp only [Function.comp_apply, List.getD_eq_getElem, Fin.is_lt, List.ofFn_getElem_eq_map]
 
 /-- Instantiate each constraint and concatenate the resulting systems. -/
 @[expose] def CSP.instantiateAffine (fallback : V) (template : Rel → AffineSystem ℕ)

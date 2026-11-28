@@ -113,7 +113,6 @@ The result has `2 n - 1` coefficients. -/
     let w ← subList w₁ z₂
     addAt m (z₀ ++ 0 :: z₂) w
 termination_by n _ _ => n
-decreasing_by all_goals omega
 
 /-- The number of multiplication queries of `mulFit n`:
 `M(0) = 0`, `M(1) = 1` and `M(n) = M(⌊n/2⌋) + 2 M(⌈n/2⌉)`. -/
@@ -122,7 +121,6 @@ decreasing_by all_goals omega
   | 1 => 1
   | n + 2 => mulCount ((n + 2) / 2) + 2 * mulCount (n + 2 - (n + 2) / 2)
 termination_by n => n
-decreasing_by all_goals omega
 
 /-- The number of addition and subtraction queries of `mulFit n`:
 `A(0) = A(1) = 0` and `A(n) = A(⌊n/2⌋) + 2 A(⌈n/2⌉) + 4 n - 3`. -/
@@ -131,7 +129,6 @@ decreasing_by all_goals omega
   | 1 => 0
   | n + 2 => addCount ((n + 2) / 2) + 2 * addCount (n + 2 - (n + 2) / 2) + (4 * n + 5)
 termination_by n => n
-decreasing_by all_goals omega
 
 end Karatsuba
 
@@ -147,12 +144,7 @@ variable (o : {ι : Type} → ArithQuery α ι → ι)
 /-- `addList p q` has the length of the longer list. -/
 theorem length_eval_addList (p q : List α) :
     ((addList p q).eval o).length = max p.length q.length := by
-  induction p generalizing q with
-  | nil => simp [addList]
-  | cons a p ih =>
-    cases q with
-    | nil => simp [addList]
-    | cons b q => simp [addList, ih]
+  fun_induction addList p q <;> simp_all
 
 /-- `subList p q` has the length of the longer list. -/
 theorem length_eval_subList [Zero α] (p q : List α) :
@@ -167,17 +159,14 @@ theorem length_eval_subList [Zero α] (p q : List α) :
 /-- `mulFit n` returns `2 n - 1` coefficients under every oracle. -/
 theorem length_eval_mulFit [Zero α] (n : ℕ) (p q : List α) :
     ((mulFit n p q).eval o).length = 2 * n - 1 := by
-  induction n using Nat.strong_induction_on generalizing p q with
-  | _ n ih =>
-    match n with
-    | 0 => simp [mulFit]
-    | 1 => simp [mulFit]
-    | n + 2 =>
-      rw [mulFit]
-      simp only [addAt, FreeM.eval_bind, FreeM.eval_pure, List.length_append, List.length_take,
-        List.length_drop, length_eval_addList, length_eval_subList, List.length_cons]
-      rw [ih _ (by omega), ih _ (by omega), ih _ (by omega)]
-      omega
+  fun_induction mulFit n p q with
+  | case1 | case2 => rfl
+  | case3 n p q m k p₀ p₁ q₀ q₁ ih₀ ih₁ ih₂ =>
+    simp only [addAt, FreeM.eval_bind, FreeM.eval_pure, List.length_append, List.length_take,
+      List.length_drop, length_eval_addList, length_eval_subList, List.length_cons]
+    rw [ih₀, ih₂, ih₁]
+    clear ih₀ ih₁ ih₂
+    omega
 
 end Karatsuba
 

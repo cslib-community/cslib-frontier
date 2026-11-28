@@ -14,11 +14,12 @@ import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 /-!
 # Intervals and tails of real Gaussian distributions
 
-Three estimates for the real Gaussian distribution `gaussianReal μ v`:
+Three estimates and a density formula for the real Gaussian distribution `gaussianReal μ v`:
 
 * **Peak density.** The density is largest at the mean, where it is `1 / √(2πv)`
   (`gaussianPDFReal_le`), so a nondegenerate Gaussian gives each set at most `1 / √(2πv)` times
-  its Lebesgue measure (`gaussianReal_le_ofReal_mul_volume`).
+  its Lebesgue measure (`gaussianReal_le_ofReal_mul_volume`); in particular an interval of length
+  `ε` has mass at most `ε / √(2πv)` (`gaussianReal_real_Iic_add_le`).
 * **Anderson's inequality on the line.** Among the intervals of a given length, the one centered
   at the mean has the largest mass (`gaussianReal_Icc_le`). For an interval `[c - w, c + w]` with
   `c ≥ μ`, the two intervals share `[c - w, μ + w]`, and translation by `2 w` carries the rest
@@ -26,14 +27,24 @@ Three estimates for the real Gaussian distribution `gaussianReal μ v`:
   without increasing the density there.
 * **Chebyshev's inequality.** The deviation from the mean is at least `c` with probability at
   most `v / c ^ 2` (`gaussianReal_meas_ge_le`).
+* **Density with respect to the standard Gaussian.** For `v ≠ 0`, `gaussianReal μ v` has density
+  `t ↦ φ_{μ,v} t / φ_{0,1} t` with respect to `gaussianReal 0 1`
+  (`gaussianReal_eq_withDensity_div`).
 
 ## Main results
 
+* `ProbabilityTheory.continuous_gaussianPDFReal`, `ProbabilityTheory.contDiff_gaussianPDFReal`:
+  the Gaussian density is continuous and smooth.
 * `ProbabilityTheory.gaussianPDFReal_le`: the Gaussian density is at most `1 / √(2πv)`.
 * `ProbabilityTheory.gaussianReal_le_ofReal_mul_volume`: the Gaussian measure of a set is at most
   `1 / √(2πv)` times its Lebesgue measure.
+* `ProbabilityTheory.gaussianReal_real_Iic_add_le`: anticoncentration of a Gaussian,
+  `Pr[Z ≤ x + ε] ≤ Pr[Z ≤ x] + ε / √(2πv)`.
 * `ProbabilityTheory.gaussianReal_Icc_le`: Anderson's inequality on the line.
 * `ProbabilityTheory.gaussianReal_meas_ge_le`: Chebyshev's inequality for a Gaussian.
+* `ProbabilityTheory.gaussianReal_zero_map_neg`: a centered Gaussian is symmetric.
+* `ProbabilityTheory.gaussianReal_eq_withDensity_div`: the density of a nondegenerate Gaussian
+  with respect to the standard Gaussian.
 -/
 
 public section
@@ -43,12 +54,23 @@ open scoped NNReal ENNReal
 
 namespace ProbabilityTheory
 
+/-- The Gaussian density is continuous. -/
+@[fun_prop]
+theorem continuous_gaussianPDFReal (μ : ℝ) (v : ℝ≥0) : Continuous (gaussianPDFReal μ v) := by
+  rw [gaussianPDFReal_def]; fun_prop
+
+/-- The Gaussian density is smooth. -/
+@[fun_prop]
+theorem contDiff_gaussianPDFReal {n : WithTop ℕ∞} (μ : ℝ) (v : ℝ≥0) :
+    ContDiff ℝ n (gaussianPDFReal μ v) := by
+  rw [gaussianPDFReal_def]; fun_prop
+
 /-- The Gaussian density is at most its value `1 / √(2πv)` at the mean. -/
 theorem gaussianPDFReal_le (μ : ℝ) (v : ℝ≥0) (x : ℝ) :
     gaussianPDFReal μ v x ≤ (√(2 * π * v))⁻¹ := by
   rw [gaussianPDFReal]
-  refine mul_le_of_le_one_right (by positivity) (exp_le_one_iff.2 ?_)
-  exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.2 (sq_nonneg _)) (by positivity)
+  exact mul_le_of_le_one_right (by positivity)
+    (exp_le_one_iff.2 (div_nonpos_of_nonpos_of_nonneg (neg_nonpos.2 (sq_nonneg _)) (by positivity)))
 
 /-- A nondegenerate Gaussian gives each set at most the peak density `1 / √(2πv)` times its
 Lebesgue measure. -/
@@ -56,6 +78,16 @@ theorem gaussianReal_le_ofReal_mul_volume (μ : ℝ) {v : ℝ≥0} (hv : v ≠ 0
     gaussianReal μ v s ≤ ENNReal.ofReal (√(2 * π * v))⁻¹ * volume s := by
   rw [gaussianReal_apply μ hv, ← setLIntegral_const]
   exact lintegral_mono fun x => ENNReal.ofReal_le_ofReal (gaussianPDFReal_le μ v x)
+
+/-- **Anticoncentration of a Gaussian**: if `Z ∼ N(μ, v)` with `v ≠ 0` and `ε ≥ 0`, then
+`Pr[Z ≤ x + ε] ≤ Pr[Z ≤ x] + ε / √(2πv)`, since the density is at most `1 / √(2πv)`. -/
+theorem gaussianReal_real_Iic_add_le (μ x : ℝ) {v : ℝ≥0} (hv : v ≠ 0) {ε : ℝ} (hε : 0 ≤ ε) :
+    (gaussianReal μ v).real (Iic (x + ε)) ≤ (gaussianReal μ v).real (Iic x) + ε / √(2 * π * v) := by
+  rw [← Iic_union_Ioc_eq_Iic (le_add_of_nonneg_right hε),
+    measureReal_union (Iic_disjoint_Ioc le_rfl) measurableSet_Ioc]
+  refine add_le_add le_rfl (ENNReal.toReal_le_of_le_ofReal (by positivity)
+    ((gaussianReal_le_ofReal_mul_volume μ hv _).trans ?_))
+  rw [Real.volume_Ioc, add_sub_cancel_left, ← ENNReal.ofReal_mul (by positivity), inv_mul_eq_div]
 
 /-- If translating by `2 w` does not increase `f` to the right of `-w`, then the interval of
 radius `w` around `c ≥ 0` carries at most the mass of the centered one: the two intervals share
@@ -89,35 +121,27 @@ private theorem gaussianPDFReal_add_two_mul_le (v : ℝ≥0) {w x : ℝ} (hw : 0
 private theorem gaussianReal_zero_Icc_le (v : ℝ≥0) (c w : ℝ) :
     gaussianReal 0 v (Icc (c - w) (c + w)) ≤ gaussianReal 0 v (Icc (-w) w) := by
   rcases lt_or_ge w 0 with hw | hw
-  · rw [Icc_eq_empty (by linarith), measure_empty]
-    exact bot_le
+  · simp [Icc_eq_empty (by linarith : ¬ c - w ≤ c + w)]
   rcases eq_or_ne v 0 with rfl | hv
-  · rw [gaussianReal_zero_var, Measure.dirac_apply_of_mem (show (0 : ℝ) ∈ Icc (-w) w from
-      ⟨by linarith, hw⟩)]
+  · rw [gaussianReal_zero_var, Measure.dirac_apply_of_mem (mem_Icc.mpr ⟨by linarith, hw⟩)]
     exact prob_le_one
   rw [gaussianReal_apply_eq_integral _ hv, gaussianReal_apply_eq_integral _ hv,
     integral_Icc_eq_integral_Ioc, integral_Icc_eq_integral_Ioc,
     ← intervalIntegral.integral_of_le (by linarith),
     ← intervalIntegral.integral_of_le (by linarith)]
   refine ENNReal.ofReal_le_ofReal ?_
-  have hcont : Continuous (gaussianPDFReal 0 v) := by
-    rw [gaussianPDFReal_def]
-    fun_prop
-  have hmono : ∀ x, -w ≤ x → gaussianPDFReal 0 v (x + 2 * w) ≤ gaussianPDFReal 0 v x :=
-    fun x hx => gaussianPDFReal_add_two_mul_le v hw hx
+  have hcont := continuous_gaussianPDFReal 0 v
+  have hmono := fun x => gaussianPDFReal_add_two_mul_le v hw (x := x)
   rcases le_total 0 c with hc | hc
   · exact intervalIntegral_shift_le hcont hc hmono
   -- Reflect through the mean, using that the density is even.
-  have hrefl : ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v x =
-      ∫ x in (-c - w)..(-c + w), gaussianPDFReal 0 v x := by
-    calc ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v x
-        = ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v (-x) := by
-          simp [gaussianPDFReal_def]
-      _ = _ := by
-          rw [intervalIntegral.integral_comp_neg]
-          congr 1 <;> ring
-  rw [hrefl]
-  exact intervalIntegral_shift_le hcont (by linarith) hmono
+  calc ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v x
+      = ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v (-x) := by simp [gaussianPDFReal_def]
+    _ = ∫ x in (-c - w)..(-c + w), gaussianPDFReal 0 v x := by
+        rw [intervalIntegral.integral_comp_neg]
+        congr 1 <;> ring
+    _ ≤ ∫ x in (-w)..w, gaussianPDFReal 0 v x :=
+        intervalIntegral_shift_le hcont (by linarith) hmono
 
 /-- **Anderson's inequality on the line.** A Gaussian gives an interval of radius `w` the most
 mass when it is centered at the mean. -/
@@ -130,11 +154,31 @@ theorem gaussianReal_Icc_le (μ : ℝ) (v : ℝ≥0) (c w : ℝ) :
     preimage_add_const_Icc]
   convert gaussianReal_zero_Icc_le v (c - μ) w using 3 <;> ring
 
+/-- A centered real Gaussian is symmetric: negation preserves `gaussianReal 0 v`. -/
+theorem gaussianReal_zero_map_neg (v : ℝ≥0) :
+    (gaussianReal 0 v).map (fun x => -x) = gaussianReal 0 v := by
+  rw [gaussianReal_map_neg, neg_zero]
+
 /-- **Chebyshev's inequality for a Gaussian.** A Gaussian deviates from its mean by at least
 `c > 0` with probability at most `v / c ^ 2`. -/
 theorem gaussianReal_meas_ge_le (μ : ℝ) (v : ℝ≥0) {c : ℝ} (hc : 0 < c) :
     gaussianReal μ v {x | c ≤ |x - μ|} ≤ ENNReal.ofReal (v / c ^ 2) := by
   simpa [integral_id_gaussianReal, variance_id_gaussianReal] using
     meas_ge_le_variance_div_sq (μ := gaussianReal μ v) (memLp_id_gaussianReal 2) hc
+
+/-- **The density of a Gaussian with respect to the standard Gaussian**: for `v ≠ 0`,
+`gaussianReal m v` has density `t ↦ φ_{m,v} t / φ_{0,1} t` with respect to `gaussianReal 0 1`. -/
+theorem gaussianReal_eq_withDensity_div (m : ℝ) {v : ℝ≥0} (hv : v ≠ 0) :
+    gaussianReal m v = (gaussianReal 0 1).withDensity
+      fun t => ENNReal.ofReal (gaussianPDFReal m v t / gaussianPDFReal 0 1 t) := by
+  rw [gaussianReal_of_var_ne_zero m hv, gaussianReal_of_var_ne_zero 0 one_ne_zero,
+    ← withDensity_mul _ (f := gaussianPDF 0 1)
+      (g := fun t => ENNReal.ofReal (gaussianPDFReal m v t / gaussianPDFReal 0 1 t))
+      (measurable_gaussianPDF 0 1)
+      ((measurable_gaussianPDFReal _ _).div (measurable_gaussianPDFReal _ _)).ennreal_ofReal]
+  congr 1
+  funext t
+  simp only [Pi.mul_apply, gaussianPDF, ← ENNReal.ofReal_mul (gaussianPDFReal_nonneg _ _ _)]
+  rw [mul_div_cancel₀ _ (gaussianPDFReal_pos _ _ _ one_ne_zero).ne']
 
 end ProbabilityTheory

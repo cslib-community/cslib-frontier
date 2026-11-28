@@ -76,6 +76,14 @@ example : (fkSketch (α := Fin 2) 2 3 1 1 fun _ _ => 0).run [0, 1, 0] = 9 := by
   simp only [Fin.val_zero, h]
   norm_num
 
+/-- Named `FkState` fields record the sampled positions, step count, and per-copy item/count. -/
+example :
+    let q := (fkSketch (α := Fin 2) 2 3 1 1 fun _ _ => 0).state [0, 1, 0]
+    q.positions 0 0 = 0 ∧ q.step = 3 ∧ q.cells 0 0 = (some 0, 2) := by
+  dsimp only
+  rw [state_fkSketch]
+  exact ⟨rfl, rfl, by decide⟩
+
 /-! ## 4. Explicit parameters for the error and memory bounds -/
 
 /-- `F₂` over `Fin 4` within `F₂` (`η = 1`) with error `8 / 9`, from one pair of groups of `12`

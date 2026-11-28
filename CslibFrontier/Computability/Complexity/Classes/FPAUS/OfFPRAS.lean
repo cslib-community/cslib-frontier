@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Sampler
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Computability.Complexity.Classes.FPAUS.FPRAS
@@ -24,23 +25,24 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Approximate counting gives almost uniform sampling for self-reducible families
 
 For a one-bit self-reducible witness family (`Cslib.Complexity.SelfReducible`), the
 counting-to-sampling sampler `Cslib.Complexity.SelfReducible.sampler` is a strict probabilistic
-polynomial-time program whenever its approximate counter is. Together with its output law
-(`Cslib.Complexity.SelfReducible.closeTo_sampler_of_isFPRAS`), a fully polynomial randomized
-approximation scheme for the witness counts therefore yields a fully polynomial almost uniform
-sampler [Jerrum, Valiant and Vazirani][JerrumValiantVazirani1986],
+polynomial-time program whenever its approximate counter is. One extra bit of precision per
+witness bit turns its additive error into relative error for every witness. An approximate
+counter thus yields a fully polynomial almost uniform generator
+[Jerrum, Valiant and Vazirani][JerrumValiantVazirani1986],
 [Sinclair, Lecture 4, Section 4.2.3][Sinclair2025].
 
 ## The certificate
 
 The recursive walk down the self-reduction tree
 (`Cslib.Complexity.SelfReducible.walk`) is run as a bounded loop of `len x` steps
-(`Cslib.Probability.IsPPTOn.iterateWith_spec'`) whose state is the current node, its estimate in
+(`Cslib.Probability.IsPPTOn.iterateWith_spec`) whose state is the current node, its estimate in
 binary, the bits chosen so far, and a running flag. A rejected walk stops and keeps its state.
 The loop invariant: the current node is no longer than `x`, at most `i` bits are recorded after
 `i` steps, and the estimate is the root estimate or one returned at a node no longer than `x`.
@@ -113,14 +115,11 @@ private noncomputable def walkStep (p t m extra : ℕ) (s : WalkState α) :
 private def walkFinish (W : α → Finset (List Bool)) (s : WalkState α) : Option (List Bool) :=
   if s.2.2.2 && decide ([] ∈ W s.1) then some s.2.2.1.reverse else none
 
-private theorem walkStep_stopped (p t m extra : ℕ) (y : α) (e : ℕ × ℕ) (acc : List Bool) :
-    R.walkStep A p t m extra (y, e, acc, false) = pure (y, e, acc, false) := rfl
-
 private theorem iterate_walkStep_stopped (p t m extra n : ℕ) (y : α) (e : ℕ × ℕ)
     (acc : List Bool) :
     OracleComp.iterate n (R.walkStep A p t m extra) (y, e, acc, false) =
       pure (y, e, acc, false) :=
-  OracleComp.iterate_eq_pure n _ _ (R.walkStep_stopped A p t m extra y e acc)
+  OracleComp.iterate_eq_pure n _ _ rfl
 
 /-- **The walk as a loop**: `n` loop steps from a running state at `y` with recorded bits `acc`
 give the walk's result, prefixed by the recorded bits. -/
@@ -244,7 +243,7 @@ private theorem isPPTOn_nodeEstimate
     ComputableInPolyTime.isPPTOn (by fun_prop)
   have hcall : IsPPTOn input (encPair encNat encNat) (fun b => A (node b) (p b) (t b)) :=
     hA.preprocess (prepare := fun b => (node b, p b, t b)) (hnode.prod (hp.prod ht))
-  refine (IsPPTOn.cond' hzero hbase hcall).congr fun b => ?_
+  refine (IsPPTOn.cond hzero hbase hcall).congr fun b => ?_
   simp only [nodeEstimate, decide_eq_true_eq]
 
 /-- The walk state encoding: node, estimate in binary, recorded bits, running flag. -/
@@ -345,7 +344,7 @@ private theorem isPPTOn_walkStep
     IsPPTOn.bind_with h₀ h₁₂
   have hno : IsPPTOn (encPair input (encState enc)) (encState enc)
       (fun r : β × WalkState α => pure r.2) := hsnd.isPPTOn
-  exact (IsPPTOn.cond' hsnd.snd'.snd'.snd' hyes hno).congr fun r => rfl
+  exact (IsPPTOn.cond hsnd.snd'.snd'.snd' hyes hno).congr fun r => rfl
 
 /-! ### The loop -/
 
@@ -406,14 +405,12 @@ private theorem length_estimate_le {c d : ℕ}
   · simp only [h0, ↓reduceIte, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at he
     subst he
     have h1 := length_encNat_mono (show (if [] ∈ W y then 1 else 0) ≤ 1 by split_ifs <;> omega)
-    simp only [length_encPair] at h1 ⊢
-    omega
+    enc_len at h1 ⊢
   · simp only [h0, ↓reduceIte] at he
     have h := hcd (y, p, t) e he
     have hle : (encPair enc (encPair encUnary encUnary) (y, p, t)).length ≤
         (encPair enc (encPair encUnary encUnary) (x, p, t)).length := by
-      simp only [length_encPair]
-      omega
+      enc_len
     have := Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right hle 1) d)
     omega
 
@@ -463,7 +460,7 @@ private theorem isPPTOn_trial
       ((((PolyBounded.const 2).mul (h2.add hK)).add (PolyBounded.const 1)).add
         (((PolyBounded.const 2).mul h4).add (PolyBounded.const 2)))
   have hstep := R.isPPTOn_walkStep A hA hP hT hM hT
-  have hloop := IsPPTOn.iterateWith_spec' (input := encLoop enc) (stateEncoding := encState enc)
+  have hloop := IsPPTOn.iterateWith_spec (input := encLoop enc) (stateEncoding := encState enc)
     (step := fun a => R.walkStep A (counterAccuracy (R.len a.1.1)) (precision (R.len a.1.1) a.1.2)
       (damping (R.len a.1.1)) (precision (R.len a.1.1) a.1.2))
     hlen hinitial hstep
@@ -504,9 +501,7 @@ private theorem isPPTOn_trial
           omega
         · omega
       unfold estBound at hE
-      simp only [encState, length_encPair, encBits_apply, encBool_apply, List.length_singleton,
-        encUnary_apply, List.length_replicate] at hE ⊢
-      omega)
+      enc_len [encState, List.length_singleton] at hE ⊢)
   have hfinish : ComputableInPolyTime (walkFinish W) (encState enc) (encOption encBits) := by
     unfold walkFinish
     have hnil : ComputableInPolyTime (fun s : WalkState α => decide ([] ∈ W s.1)) (encState enc)
@@ -566,17 +561,19 @@ theorem isPPTOn_sampler
 /-- **Approximate counting gives almost uniform sampling** [Jerrum, Valiant and
 Vazirani][JerrumValiantVazirani1986]: for a one-bit self-reducible witness family, a fully
 polynomial randomized approximation scheme `A` for the number of witnesses yields a fully
-polynomial almost uniform sampler `R.sampler A`. -/
+polynomial almost uniform generator (the one-bit case of Theorem 6.3). The
+extra precision bits account for the maximum possible number of witnesses. -/
 theorem isFPAUS_of_isFPRAS (hA : IsFPRAS enc (fun x => (W x).card) A) :
-    IsFPAUS enc W (R.sampler A) :=
-  ⟨R.isPPTOn_sampler A hA.1, R.closeTo_sampler_of_isFPRAS hA⟩
+    IsFPAUS enc W (R.atWitnessPrecision (R.sampler A)) :=
+  R.isFPAUS_atWitnessPrecision (R.isPPTOn_sampler A hA.1)
+    (fun x q _ => R.sampler_eq_zero_of_notMem A x q) (R.closeTo_sampler_of_isFPRAS hA)
 
 include R in
 /-- **The class form**: a one-bit self-reducible witness family whose witness counts have a fully
 polynomial randomized approximation scheme has a fully polynomial almost uniform sampler. -/
 theorem mem_FPAUS_of_mem_FPRAS (hW : (fun x => (W x).card) ∈ FPRAS enc) : W ∈ FPAUS enc :=
   let ⟨A, hA⟩ := hW
-  ⟨R.sampler A, R.isFPAUS_of_isFPRAS A hA⟩
+  ⟨R.atWitnessPrecision (R.sampler A), R.isFPAUS_of_isFPRAS A hA⟩
 
 include R in
 /-- **Sampling and counting are equivalent** for one-bit self-reducible witness families [Jerrum,

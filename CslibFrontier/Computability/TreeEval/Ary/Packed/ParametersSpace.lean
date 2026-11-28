@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPrime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Uniform native initialization of packed field parameters
@@ -52,14 +53,13 @@ theorem chunkCount_inSpace :
 theorem alphabetSize_inSpace :
     ComputableInSpace (fun q : ℕ × ℕ => 2 ^ chunkWidth q.1 q.2)
       (encPair encNat encNat) encNat (fun q => (encPair encNat encNat q).length) := by
-  refine budget_natPow_variable (budget_const (encB := encNat) 2 (.refl _))
+  refine budget_natPow_variable (budget_const (encB := encNat) 2)
     chunkWidth_inSpace ?_
   refine .of_le_linear 8 8 fun q => ?_
   have hm := Nat.size_mul_le q.1 q.2
   have hlen := length_encNat_le_self (chunkWidth q.1 q.2)
   have htwo : (encNat 2).length = 2 := rfl
-  simp only [length_encPair, length_encNat_eq_size, chunkWidth, htwo] at *
-  omega
+  enc_len [length_encNat_eq_size, chunkWidth, htwo] at *
 
 /-- The corrected strict degree threshold is computed from the runtime packed parameters. -/
 theorem gateDegree_inSpace :

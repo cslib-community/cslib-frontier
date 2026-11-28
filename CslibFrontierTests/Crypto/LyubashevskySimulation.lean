@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Signature.Simulation
 public import CslibFrontierTests.Crypto.LyubashevskyRandomOracle
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 
 @[expose] public section
@@ -159,8 +160,7 @@ theorem hit_visible_eq :
       PMF.pure (A, h, resp.map fun _ => c) := by
     cases resp with
     | none =>
-      simp only [Option.map_none, hitCont, interpret_pure, StateT.run_pure,
-        PMF.monad_pure_eq_pure, PMF.pure_map]
+      simp only [Option.map_none, hitCont, interp_norm, pmf_norm]
     | some z =>
       rw [Option.map_some, hitCont, interpret_map, StateT.run_map, hit_returns_c]
       simp only [PMF.monad_map_eq_map, PMF.pure_map, Option.map_some]
@@ -171,8 +171,7 @@ theorem hit_visible_eq :
         (lyubashevskySimCache () c ([] : Cache) view)).map (fun out => (A, h, out.1)) =
       PMF.pure (A, h, view.map fun _ => c) := by
     rcases view with _ | ⟨t, z⟩
-    · simp only [Option.map_none, hitCont, lyubashevskySimCache_none, interpret_pure,
-        StateT.run_pure, PMF.monad_pure_eq_pure, PMF.pure_map]
+    · simp only [Option.map_none, hitCont, lyubashevskySimCache_none, interp_norm, pmf_norm]
     · rw [Option.map_some, hitCont, lyubashevskySimCache_some, interpret_map,
         StateT.run_map, hit_returns_c]
       simp only [PMF.monad_map_eq_map, PMF.pure_map]

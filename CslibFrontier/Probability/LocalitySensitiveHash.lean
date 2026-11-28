@@ -132,19 +132,17 @@ theorem collisionProb_triangle (seed : PMF ι) (hash : ι → X → Y) (x y z : 
   have hcompl (a b : X) : 1 - collisionProb seed hash a b =
       (seed.toOuterMeasure {i | hash i a ≠ hash i b}).toReal := by
     have h := PMF.toOuterMeasure_toReal_add_compl seed {i | hash i a = hash i b}
+    change _ + (seed.toOuterMeasure {i | hash i a ≠ hash i b}).toReal = 1 at h
     rw [collisionProb]
-    have hset : {i | hash i a = hash i b}ᶜ = {i | hash i a ≠ hash i b} := rfl
-    rw [hset] at h
     linarith
   rw [hcompl, hcompl, hcompl]
-  refine ENNReal.toReal_le_add ?_ (PMF.toOuterMeasure_ne_top _ _) (PMF.toOuterMeasure_ne_top _ _)
-  have hsub : {i | hash i x ≠ hash i z} ⊆
-      {i | hash i x ≠ hash i y} ∪ {i | hash i y ≠ hash i z} := by
-    intro i hi
-    by_contra hno
-    simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, not_not] at hi hno
-    exact hi (hno.1.trans hno.2)
-  exact (MeasureTheory.measure_mono hsub).trans (MeasureTheory.measure_union_le _ _)
+  refine ENNReal.toReal_le_add ((MeasureTheory.measure_mono ?_).trans
+    (MeasureTheory.measure_union_le _ _))
+    (PMF.toOuterMeasure_ne_top _ _) (PMF.toOuterMeasure_ne_top _ _)
+  intro i hi
+  by_contra hno
+  simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, not_not] at hi hno
+  exact hi (hno.1.trans hno.2)
 
 /-! ### Locality-sensitive families -/
 
@@ -179,7 +177,7 @@ theorem IsLocalitySensitive.not_far {prob : X → X → ℝ} {near far : X → X
 /-! ### The AND construction -/
 
 /-- The AND construction: concatenate `k` hashes keyed by independent seeds. -/
-def andHash (hash : ι → X → Y) (k : ℕ) (seeds : Fin k → ι) (x : X) : Fin k → Y :=
+@[expose] def andHash (hash : ι → X → Y) (k : ℕ) (seeds : Fin k → ι) (x : X) : Fin k → Y :=
   fun j => hash (seeds j) x
 
 /-- `k` independently keyed hashes all collide with probability `p ^ k`. -/
@@ -217,15 +215,13 @@ theorem orCollisionProb_eq (seed : PMF ι) (hash : ι → X → Y) (L : ℕ) (x 
     orCollisionProb seed hash L x x' = 1 - (1 - collisionProb seed hash x x') ^ L := by
   have h := PMF.toOuterMeasure_iid_exists seed {i | hash i x = hash i x'} L
   simp only [Set.mem_ofPred_eq] at h
-  rw [orCollisionProb, h, ENNReal.toReal_sub_of_le, ENNReal.toReal_pow,
-    ENNReal.toReal_sub_of_le, ENNReal.toReal_one, collisionProb]
-  · exact PMF.toOuterMeasure_le_one _ _
-  · exact ENNReal.one_ne_top
-  · exact pow_le_one₀ (by positivity) tsub_le_self
-  · exact ENNReal.one_ne_top
+  rw [orCollisionProb, h, ENNReal.toReal_sub_of_le (pow_le_one₀ (by positivity) tsub_le_self)
+    ENNReal.one_ne_top, ENNReal.toReal_pow,
+    ENNReal.toReal_sub_of_le (PMF.toOuterMeasure_le_one _ _) ENNReal.one_ne_top,
+    ENNReal.toReal_one, collisionProb]
 
 /-- `p ↦ 1 - (1 - p) ^ L` is monotone on probabilities. -/
-private theorem one_sub_one_sub_pow_le_one_sub_one_sub_pow {p q : ℝ} (hpq : p ≤ q) (hq : q ≤ 1)
+theorem one_sub_one_sub_pow_le_one_sub_one_sub_pow {p q : ℝ} (hpq : p ≤ q) (hq : q ≤ 1)
     (L : ℕ) : 1 - (1 - p) ^ L ≤ 1 - (1 - q) ^ L :=
   sub_le_sub_left (pow_le_pow_left₀ (by linarith) (by linarith) L) 1
 
@@ -283,29 +279,24 @@ at most `δ`: `(1 - p ^ k) ^ L ≤ exp (-L p ^ k) ≤ δ`. -/
 theorem le_sCurve {k L : ℕ} {p p₁ δ : ℝ} (hp₁ : 0 ≤ p₁) (hp₁p : p₁ ≤ p) (hp : p ≤ 1)
     (hδ : 0 < δ) (hL : Real.log δ⁻¹ ≤ L * p₁ ^ k) :
     1 - δ ≤ sCurve k L p := by
-  have hpk : p₁ ^ k ≤ p ^ k := pow_le_pow_left₀ hp₁ hp₁p k
-  have hpk1 : p ^ k ≤ 1 := pow_le_one₀ (hp₁.trans hp₁p) hp
-  have hmiss : (1 - p ^ k) ^ L ≤ δ := by
-    calc (1 - p ^ k) ^ L ≤ Real.exp (-p ^ k) ^ L :=
-          pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg _) L
-      _ = Real.exp (-(L * p ^ k)) := by rw [← Real.exp_nat_mul]; ring_nf
-      _ ≤ Real.exp (-Real.log δ⁻¹) := by
-          gcongr
-          exact hL.trans (mul_le_mul_of_nonneg_left hpk (Nat.cast_nonneg L))
-      _ = δ := by rw [Real.log_inv, neg_neg, Real.exp_log hδ]
-  rw [sCurve]
-  linarith
+  rw [sCurve, sub_le_sub_iff_left]
+  calc (1 - p ^ k) ^ L ≤ Real.exp (-p ^ k) ^ L :=
+        pow_le_pow_left₀ (sub_nonneg.2 (pow_le_one₀ (hp₁.trans hp₁p) hp))
+          (Real.one_sub_le_exp_neg _) L
+    _ = Real.exp (-(L * p ^ k)) := by rw [← Real.exp_nat_mul]; ring_nf
+    _ ≤ Real.exp (-Real.log δ⁻¹) := Real.exp_le_exp.2 (neg_le_neg
+        (hL.trans (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hp₁ hp₁p k) (Nat.cast_nonneg L))))
+    _ = δ := by rw [Real.log_inv, neg_neg, Real.exp_log hδ]
 
 /-- **Far pairs.** If `0 ≤ p ≤ p₂ ≤ 1`, banding collides with probability at most `L p₂ ^ k`, by
 Bernoulli's inequality `1 - L p ^ k ≤ (1 - p ^ k) ^ L`. -/
 theorem sCurve_le {k L : ℕ} {p p₂ : ℝ} (hp : 0 ≤ p) (hpp₂ : p ≤ p₂) (hp₂ : p₂ ≤ 1) :
     sCurve k L p ≤ L * p₂ ^ k := by
-  have hpk1 : p ^ k ≤ 1 := pow_le_one₀ hp (hpp₂.trans hp₂)
-  have hb := one_add_mul_le_pow (a := -p ^ k) (by linarith) L
-  have hpk : p ^ k ≤ p₂ ^ k := pow_le_pow_left₀ hp hpp₂ k
+  have hb := one_add_mul_le_pow (a := -p ^ k)
+    (by linarith [pow_le_one₀ (n := k) hp (hpp₂.trans hp₂)]) L
   rw [← sub_eq_add_neg, mul_neg, ← sub_eq_add_neg] at hb
   rw [sCurve]
-  nlinarith [Nat.cast_nonneg (α := ℝ) L]
+  nlinarith [pow_le_pow_left₀ hp hpp₂ k, Nat.cast_nonneg (α := ℝ) L]
 
 /-- **The S-curve gap.** If `0 ≤ p₂ < p₁ ≤ 1`, then for all `δ > 0` and `δ' > 0` there is a
 number of rows `k` such that `L = ⌈log (1/δ) / p₁ ^ k⌉₊` bands give `1 - δ ≤ sCurve k L p` for
@@ -330,26 +321,21 @@ theorem exists_sCurve_gap {p₁ p₂ δ δ' : ℝ} (hp₂ : 0 ≤ p₂) (hp₁�
   have hp₂k : p₂ ^ k ≤ δ' / 2 :=
     (pow_le_pow_of_le_one hp₂ hp₂1.le (le_max_right _ _)).trans hk₂.le
   have hp₁k : 0 < p₁ ^ k := pow_pos hp₁0 k
-  refine ⟨k, ⌈Real.log δ⁻¹ / p₁ ^ k⌉₊, rfl, fun p hp hp1 => ?_, fun p hp hp2 => ?_⟩
-  · refine le_sCurve hp₁0.le hp hp1 hδ ?_
-    rw [← div_le_iff₀ hp₁k]
-    exact Nat.le_ceil _
-  · refine (sCurve_le hp hp2 hp₂1.le).trans ?_
-    have hL : (⌈Real.log δ⁻¹ / p₁ ^ k⌉₊ : ℝ) ≤ c / p₁ ^ k + 1 := by
-      have h1 : ⌈Real.log δ⁻¹ / p₁ ^ k⌉₊ ≤ ⌈c / p₁ ^ k⌉₊ :=
-        Nat.ceil_le_ceil (div_le_div_of_nonneg_right (le_max_right _ _) hp₁k.le)
-      exact (Nat.cast_le.2 h1).trans (Nat.ceil_lt_add_one (div_nonneg hc hp₁k.le)).le
-    have hdiv : c / p₁ ^ k * p₂ ^ k = c * (p₂ / p₁) ^ k := by
-      rw [div_pow]
-      field_simp
-    calc (⌈Real.log δ⁻¹ / p₁ ^ k⌉₊ : ℝ) * p₂ ^ k ≤ (c / p₁ ^ k + 1) * p₂ ^ k := by gcongr
-      _ = c * (p₂ / p₁) ^ k + p₂ ^ k := by rw [add_mul, one_mul, hdiv]
-      _ ≤ c * (δ' / (2 * (c + 1))) + δ' / 2 := by gcongr
-      _ ≤ δ' / 2 + δ' / 2 := by
-          gcongr
-          rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by positivity)]
-          nlinarith
-      _ = δ' := by ring
+  refine ⟨k, ⌈Real.log δ⁻¹ / p₁ ^ k⌉₊, rfl,
+    fun p hp hp1 => le_sCurve hp₁0.le hp hp1 hδ ((div_le_iff₀ hp₁k).mp (Nat.le_ceil _)),
+    fun p hp hp2 => (sCurve_le hp hp2 hp₂1.le).trans ?_⟩
+  have hL : (⌈Real.log δ⁻¹ / p₁ ^ k⌉₊ : ℝ) ≤ c / p₁ ^ k + 1 :=
+    (Nat.cast_le.2 (Nat.ceil_le_ceil
+      (div_le_div_of_nonneg_right (le_max_right _ _) hp₁k.le))).trans
+      (Nat.ceil_lt_add_one (div_nonneg hc hp₁k.le)).le
+  calc (⌈Real.log δ⁻¹ / p₁ ^ k⌉₊ : ℝ) * p₂ ^ k ≤ (c / p₁ ^ k + 1) * p₂ ^ k := by gcongr
+    _ = c * (p₂ / p₁) ^ k + p₂ ^ k := by rw [div_pow]; field_simp
+    _ ≤ c * (δ' / (2 * (c + 1))) + δ' / 2 := by gcongr
+    _ ≤ δ' / 2 + δ' / 2 := by
+        gcongr
+        rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by positivity)]
+        nlinarith
+    _ = δ' := add_halves δ'
 
 /-- **Banded amplification.** A `(near, far, p₁, p₂)`-sensitive family with `0 ≤ p₂ < p₁ ≤ 1`
 can be amplified by banding with `k` rows and `L = ⌈log (1/δ) / p₁ ^ k⌉₊` bands so that near
@@ -362,10 +348,12 @@ theorem IsLocalitySensitive.exists_banded {seed : PMF ι} {hash : ι → X → Y
       IsLocalitySensitive (orCollisionProb (PMF.iid seed k) (andHash hash k) L) near far
         (1 - δ) δ' := by
   obtain ⟨k, L, hL, hnear, hfar⟩ := exists_sCurve_gap hp₂ hp₁₂ hp₁ hδ hδ'
-  refine ⟨k, L, hL, fun x x' hx => ?_, fun x x' hx => ?_⟩
-  · rw [orCollisionProb_andHash]
-    exact hnear _ (h.le_of_near x x' hx) (collisionProb_le_one _ _ _ _)
-  · rw [orCollisionProb_andHash]
-    exact hfar _ (collisionProb_nonneg _ _ _ _) (h.le_of_far x x' hx)
+  exact ⟨k, L, hL,
+    fun x x' hx => by
+      rw [orCollisionProb_andHash]
+      exact hnear _ (h.le_of_near x x' hx) (collisionProb_le_one _ _ _ _),
+    fun x x' hx => by
+      rw [orCollisionProb_andHash]
+      exact hfar _ (collisionProb_nonneg _ _ _ _) (h.le_of_far x x' hx)⟩
 
 end Cslib.Probability

@@ -5,7 +5,8 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-! Decoding descriptions from malformed, empty and padded words, the binary clock, the diagonal
 on the padded descriptions of concrete accepting and rejecting machines, and the exponential
@@ -56,8 +57,7 @@ example :
     (encNat (2 ^ 5)).length = 6 ∧
     ComputableInPolyTime (fun x : List Bool => 2 ^ x.length) encBits encNat :=
   ⟨by rw [encNat_two_pow]; decide,
-   (ComputableTidilyInDegree.two_pow_length
-     encBits).computableTidilyInPolyTime.computableInPolyTime⟩
+   (ComputableInDegree.two_pow_length encBits).computableInPolyTime⟩
 
 /-! ### The diagonal on concrete machines -/
 
@@ -98,7 +98,7 @@ example (c d : ℕ) (s : List Bool → ℕ) :
       (fun x => c₀ * (2 ^ (4 * x.length) + 1)) fun x => c₀ * (2 ^ (2 * x.length) + 1)) ∧
     ¬ComputableInPolyTime diagonal encBits encBool ∧
     ¬ComputableInTimeAndSpace diagonal encBits encBool (fun x => c * (x.length + 1) ^ d) s := by
-  obtain ⟨c₀, h, -⟩ := computableInO_diagonal.tidy
+  obtain ⟨c₀, h, -⟩ := Internal.NormalForm.inO computableInO_diagonal
   exact ⟨⟨c₀, h⟩,
     fun hp => diagonal_notMem_P ⟨diagonal, hp, fun _ => Iff.rfl⟩,
     not_computableInTimeAndSpace_diagonal (.of_forall_le c d fun _ => le_rfl)⟩

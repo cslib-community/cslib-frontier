@@ -33,6 +33,7 @@ adaptive oracle-verifier model in
 
 ## Main results
 
+* `mem_AWPP`: unfolding the definition.
 * `BPP_subset_AWPP`, `SPP_subset_AWPP`, `AWPP_subset_PP`.
 * `compl_mem_AWPP`, `PolyTimeReducible.mem_AWPP`: complement and reduction closure.
 * `mem_AWPP_of_polyTime_exponent`: padding input-dependent dyadic denominators.
@@ -58,23 +59,23 @@ def AWPP (enc : α ↪ List Bool) : Set (Set α) :=
     (a ∈ A → 2 * (2 : ℤ) ^ p.eval (enc a).length ≤ 3 * g a) ∧
     (a ∉ A → 3 * g a ≤ (2 : ℤ) ^ p.eval (enc a).length)}
 
+theorem mem_AWPP : A ∈ AWPP enc ↔ ∃ g ∈ GapP enc, ∃ p : Polynomial ℕ, ∀ a,
+    (0 ≤ g a ∧ g a ≤ (2 : ℤ) ^ p.eval (enc a).length) ∧
+    (a ∈ A → 2 * (2 : ℤ) ^ p.eval (enc a).length ≤ 3 * g a) ∧
+    (a ∉ A → 3 * g a ≤ (2 : ℤ) ^ p.eval (enc a).length) :=
+  Iff.rfl
+
 /-- Acceptance counts are GapP functions, so bounded-error computation gives an AWPP ratio. -/
 theorem BPP_subset_AWPP : BPP enc ⊆ AWPP enc := by
   rintro A ⟨p, V, hV, hA⟩
   have hf : (fun a => acceptCount V a (p.eval (enc a).length)) ∈ SharpP enc :=
     ⟨p, V, hV, fun _ => rfl⟩
-  refine ⟨_, SharpP.natCast_mem_GapP hf, p, fun a => ⟨⟨by positivity, ?_⟩, ?_, ?_⟩⟩
-  · exact_mod_cast (acceptCount_le_two_pow (V := V) (a := a)
-      (n := p.eval (enc a).length))
-  · intro ha
-    exact_mod_cast (hA a).1 ha
-  · intro ha
-    have hs := acceptCount_add_card_filter_eq_false (V := V) (a := a)
-      (n := p.eval (enc a).length)
-    have hn := (hA a).2 ha
-    have : 3 * acceptCount V a (p.eval (enc a).length) ≤ 2 ^ p.eval (enc a).length := by
-      lia
-    exact_mod_cast this
+  refine ⟨_, SharpP.natCast_mem_GapP hf, p, fun a =>
+    ⟨⟨by positivity, mod_cast acceptCount_le_two_pow⟩,
+      fun ha => mod_cast (hA a).1 ha, fun ha => ?_⟩⟩
+  have hs := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
+  have hn := (hA a).2 ha
+  exact_mod_cast (show 3 * acceptCount V a _ ≤ 2 ^ _ by lia)
 
 /-- The characteristic GapP function has denominator one. -/
 theorem SPP_subset_AWPP : SPP enc ⊆ AWPP enc := by
@@ -85,34 +86,23 @@ theorem SPP_subset_AWPP : SPP enc ⊆ AWPP enc := by
 /-- Subtracting the gap from its dyadic denominator exchanges yes and no instances. -/
 theorem compl_mem_AWPP (hA : A ∈ AWPP enc) : Aᶜ ∈ AWPP enc := by
   obtain ⟨g, hg, p, hA⟩ := hA
-  have hd := GapP.two_pow_mem (enc := enc) p
-  refine ⟨_, GapP.sub_mem' hd hg, p, fun a => ?_⟩
+  refine ⟨_, GapP.sub_mem' (GapP.two_pow_mem p) hg, p, fun a => ?_⟩
   obtain ⟨⟨h0, h1⟩, hy, hn⟩ := hA a
-  change (0 ≤ (2 : ℤ) ^ p.eval (enc a).length - g a ∧ _) ∧ _
   simp only [Set.mem_compl_iff, not_not, Pi.sub_apply]
-  constructor
-  · constructor <;> lia
-  · constructor <;> intro ha
-    · have := hn ha
-      lia
-    · have := hy ha
-      lia
+  refine ⟨⟨sub_nonneg.mpr h1, sub_le_self _ h0⟩,
+    fun ha => by linarith [hn ha],
+    fun ha => by linarith [hy ha]⟩
 
 /-- The sign of twice the gap minus the denominator recognizes the language in PP. -/
 theorem AWPP_subset_PP : AWPP enc ⊆ PP enc := by
   rintro A ⟨g, hg, p, hA⟩
-  have hd := GapP.two_pow_mem (enc := enc) p
   refine mem_PP_iff_exists_GapP.mpr
-    ⟨_, GapP.sub_mem' (GapP.add_mem hg hg) hd, fun a => ?_⟩
+    ⟨_, GapP.sub_mem' (GapP.add_mem hg hg) (GapP.two_pow_mem p), fun a => ?_⟩
   have hp : 0 < (2 : ℤ) ^ p.eval (enc a).length := by positivity
-  change a ∈ A ↔ 0 < g a + g a - (2 : ℤ) ^ p.eval (enc a).length
+  simp only [Pi.sub_apply, Pi.add_apply]
   by_cases ha : a ∈ A
-  · have := (hA a).2.1 ha
-    simp only [ha, true_iff]
-    lia
-  · have := (hA a).2.2 ha
-    simp only [ha, false_iff]
-    lia
+  · exact iff_of_true ha (by linarith [(hA a).2.1 ha])
+  · exact iff_of_false ha (by linarith [(hA a).2.2 ha])
 
 /-- An efficiently computed unary exponent can be padded to a polynomial in input length.
 Multiplying numerator and denominator by the same power of two preserves the ratio. -/
@@ -132,11 +122,9 @@ theorem mem_AWPP_of_polyTime_exponent {g : α → ℤ} {r : α → ℕ}
   have hp : 0 ≤ (2 : ℤ) ^ (p.eval (enc a).length - r a) := by positivity
   obtain ⟨⟨h0, h1⟩, hy, hn⟩ := hA a
   simp only [Pi.mul_apply, Nat.cast_pow, Nat.cast_ofNat, he]
-  refine ⟨⟨mul_nonneg h0 hp, mul_le_mul_of_nonneg_right h1 hp⟩, ?_, ?_⟩
-  · intro ha
-    nlinarith only [mul_le_mul_of_nonneg_right (hy ha) hp]
-  · intro ha
-    nlinarith only [mul_le_mul_of_nonneg_right (hn ha) hp]
+  refine ⟨⟨mul_nonneg h0 hp, mul_le_mul_of_nonneg_right h1 hp⟩,
+    fun ha => by nlinarith only [mul_le_mul_of_nonneg_right (hy ha) hp],
+    fun ha => by nlinarith only [mul_le_mul_of_nonneg_right (hn ha) hp]⟩
 
 /-- Polynomial-time many-one reductions preserve AWPP after dyadic denominator padding. -/
 theorem PolyTimeReducible.mem_AWPP {β : Type} {encB : β ↪ List Bool} {B : Set β}
@@ -144,8 +132,7 @@ theorem PolyTimeReducible.mem_AWPP {β : Type} {encB : β ↪ List Bool} {B : Se
   obtain ⟨r, hr, hAB⟩ := h
   obtain ⟨g, hg, p, hB⟩ := hB
   refine mem_AWPP_of_polyTime_exponent (GapP.comp_mem hg hr)
-    (r := fun a => p.eval (encB (r a)).length) (by fun_prop)
-    (fun a => ?_)
+    (r := fun a => p.eval (encB (r a)).length) (by fun_prop) fun a => ?_
   simpa only [Function.comp_apply, ← hAB a] using hB (r a)
 
 end Cslib.Complexity

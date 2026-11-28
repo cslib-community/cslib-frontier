@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.TreeEval.Ary.Packed.QueryGate
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.GateInterpolationSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.CallSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.CallBounds
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Native components of the same-input packed interpolation loop
@@ -45,22 +46,22 @@ abbrev encMachineState (encG : γ ↪ List Bool) (encT : τ ↪ List Bool) :
 /-- A completed-call prefix stores only its parameters and binary counters. In particular,
 the number of table assignments does not multiply the retained point or context. -/
 theorem sumState_encoding_le (encG : γ ↪ List Bool) (q : Params γ)
-    (table : ℕ → ℕ) (j : ℕ) (hj : j ≤ q.2.2.2) (hp : 0 < q.2.1.1) :
+    (table : ℕ → ℕ) (j : ℕ) (hj : j ≤ q.limit) (hp : 0 < q.modulus) :
     (encState encG (sumState q table j)).length ≤
       8 * ((encParams encG q).length + 1) := by
   have hk := length_encNat_mono hj
   have ha := length_encNat_mono (sumState_acc_lt q table j hp).le
-  change (encNat (sumState q table j).2.2).length ≤ (encNat q.2.1.1).length at ha
+  have hc : (sumState q table j).2.1 = j := sumState_counter q table j
   have hpar : (sumState q table j).1 = q := rfl
-  simp only [encState, encParams, encNat3, length_encPair, hpar, sumState_counter]
-  omega
+  dsimp only [Params.limit, Params.modulus, State.acc] at hk ha
+  enc_len [encState, encParams, encNat3, hpar, hc]
 
 /-- Every physical prefix of one returned table call pays for one caller and the actual
 callee state. The retained point and context are not multiplied by the number of assignments. -/
 theorem runFrom_one_encoding_le (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
     (q : Params γ) (N : QueryMachine τ) (start : State γ → τ) (answer : τ → ℕ)
-    (w : List Bool) (table : ℕ → ℕ) (j T B : ℕ) (hj : j < q.2.2.2)
-    (hp : 0 < q.2.1.1)
+    (w : List Bool) (table : ℕ → ℕ) (j T B : ℕ) (hj : j < q.limit)
+    (hp : 0 < q.modulus)
     (hpre : ∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false)
     (hhalt : N.halted (N.runFrom w (start (sumState q table j)) T) = true)
     (hanswer : answer (N.runFrom w (start (sumState q table j)) T) = table j)
@@ -76,10 +77,10 @@ theorem runFrom_one_encoding_le (encG : γ ↪ List Bool) (encT : τ ↪ List Bo
   refine (QueryMachine.withCalls_runFrom_call_encoding_le (controller q) N (request start)
     (resume answer) w (encState encG) encT ?_ ?_ hpre hhalt hcaller hnext hsize i hi).trans
     (by omega)
-  · change decide (q.2.2.2 ≤ (sumState q table j).2.1) = false
+  · change decide (q.limit ≤ (sumState q table j).counter) = false
     rw [sumState_counter]
     exact decide_eq_false (by omega)
-  · change (if (sumState q table j).2.1 < q.2.2.2 then
+  · change (if (sumState q table j).counter < q.limit then
       some (start (sumState q table j)) else none) = _
     rw [sumState_counter]
     simp only [hj, ↓reduceIte]
@@ -89,13 +90,13 @@ assignment loop, including all callee steps rather than only completed-call boun
 theorem exists_runFrom_sumState_encoding_le (encG : γ ↪ List Bool)
     (encT : τ ↪ List Bool) (q : Params γ) (N : QueryMachine τ)
     (start : State γ → τ) (answer : τ → ℕ) (w : List Bool) (table : ℕ → ℕ)
-    (B : ℕ) (hp : 0 < q.2.1.1)
-    (hsupplier : ∀ j < q.2.2.2, ∃ T,
+    (B : ℕ) (hp : 0 < q.modulus)
+    (hsupplier : ∀ j < q.limit, ∃ T,
       (∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false) ∧
       N.halted (N.runFrom w (start (sumState q table j)) T) = true ∧
       answer (N.runFrom w (start (sumState q table j)) T) = table j ∧
       (∀ i ≤ T, (encT (N.runFrom w (start (sumState q table j)) i)).length ≤ B))
-    (j : ℕ) (hj : j ≤ q.2.2.2) :
+    (j : ℕ) (hj : j ≤ q.limit) :
     ∃ T, (machine q N start answer).runFrom w (.inl (initial q)) T =
       .inl (sumState q table j) ∧
       ∀ i ≤ T, (encMachineState encG encT
@@ -125,7 +126,7 @@ theorem request_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
   have hsome := budget_comp_linear
     (of_inO (ComputableInDegree.optionSome (enc₁ := encT) (enc := encOption encT)).inO_one) hstart
   refine (budget_ite (budget_natLt hk hlimit) hsome
-    (budget_const (encB := encOption encT) none (.refl _))).of_enc_eq ?_
+    (budget_const (encB := encOption encT) none)).of_enc_eq ?_
   intro q
   by_cases h : q.2.1 < q.1.2.2.2 <;> simp [request, h]
 
@@ -158,7 +159,7 @@ theorem resume_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
   have hsum := budget_comp_linear addMod_inSpace
     (budget_prod hp (budget_prod hacc hmul))
   have hnew := budget_ite (budget_natIsZero hp)
-    (budget_const (encB := encNat) 0 (.refl _)) hsum
+    (budget_const (encB := encNat) 0) hsum
   refine (budget_prod hpar (budget_prod (budget_natSucc hk) hnew)).of_enc_eq ?_
   intro q
   by_cases h : q.1.1.2.1.1 = 0 <;> simp [resume, gridSumStep, h]
@@ -186,7 +187,7 @@ theorem machine_query_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool
     ComputableInSpace (machine q N start answer).query (encMachineState encG encT) encNat
       (fun st => (encMachineState encG encT st).length) :=
   QueryMachine.withCalls_query_inSpace _ _ _ _ _ _
-    (budget_const 0 (.refl _)) hquery (request_inSpace encG encT start hstart)
+    (budget_const 0) hquery (request_inSpace encG encT start hstart)
 
 /-- The complete returned-table update has a native linear local-space certificate. -/
 theorem machine_next_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
@@ -214,7 +215,7 @@ theorem machine_emit_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
       (encPair (encMachineState encG encT) (encOption encBool)) encBits
       (fun st => (encPair (encMachineState encG encT) (encOption encBool) st).length) :=
   QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _
-    (budget_const [] (.refl _)) (request_inSpace encG encT start hstart)
+    (budget_const []) (request_inSpace encG encT start hstart)
 
 /-- The composite halts exactly when the assignment caller reaches its supplied limit. -/
 theorem machine_halted_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
@@ -228,6 +229,6 @@ theorem machine_finish_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Boo
     (q : Params γ) (N : QueryMachine τ) (start : State γ → τ) (answer : τ → ℕ) :
     ComputableInSpace (machine q N start answer).finish (encMachineState encG encT) encBits
       (fun st => (encMachineState encG encT st).length) :=
-  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [])
 
 end Cslib.TreeEval.Ary.Packed.QueryGate

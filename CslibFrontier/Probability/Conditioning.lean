@@ -85,6 +85,23 @@ theorem marginal_mul_conditionalSnd (joint : PMF (α × β)) (a : α) (b : β) :
   · rw [conditionalSnd_apply joint a ((PMF.mem_support_iff _ _).mpr ha)]
     rw [mul_comm, ENNReal.div_mul_cancel ha (PMF.apply_ne_top _ _)]
 
+/-- Proportional slices give the same conditional distribution. The first slice
+must have positive mass, and its scale must be finite and nonzero. -/
+theorem conditionalSnd_eq_of_scaled_slices {γ : Type*} (P : PMF (α × β)) (Q : PMF (γ × β))
+    (a : α) (b : γ) (d c : ℝ≥0∞) (ha : a ∈ (P.map Prod.fst).support)
+    (hd₀ : d ≠ 0) (hd : d ≠ ⊤)
+    (hscale : ∀ y, d * P (a, y) = c * Q (b, y)) :
+    conditionalSnd P a = conditionalSnd Q b := by
+  have hmarg : d * (P.map Prod.fst) a = c * (Q.map Prod.fst) b := by
+    rw [map_fst_apply, map_fst_apply, ← ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_left]
+    exact tsum_congr hscale
+  have h₀ : d * (P.map Prod.fst) a ≠ 0 := mul_ne_zero hd₀ ((PMF.mem_support_iff _ _).mp ha)
+  have hf : d * (P.map Prod.fst) a ≠ ⊤ := ENNReal.mul_ne_top hd (PMF.apply_ne_top _ _)
+  ext y
+  apply (ENNReal.mul_right_inj h₀ hf).mp
+  rw [mul_assoc, marginal_mul_conditionalSnd, hmarg, mul_assoc, marginal_mul_conditionalSnd]
+  exact hscale y
+
 /-- Removing the probability of the observation can only increase the joint outcome's mass. -/
 theorem apply_le_conditionalSnd (joint : PMF (α × β)) (a : α) (b : β) :
     joint (a, b) ≤ conditionalSnd joint a b := by

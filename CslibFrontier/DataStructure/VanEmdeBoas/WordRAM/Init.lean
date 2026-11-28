@@ -9,6 +9,10 @@ module
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Init.Table
 public import CslibFrontier.Computability.WordRAM.Defs
+import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 import Mathlib.Tactic.Ring
 
 /-!
@@ -59,17 +63,6 @@ open Cslib.DataStructure.VanEmdeBoas
 
 /-! ## Phase 3: depth-first empty-header initialization -/
 
-/-- State after `dfsSetup`. -/
-private def dfsSetupData (s : Data 32) (base d : ℕ) : Data 32 :=
-  let lw := base + span d + 2 * (d + 1)
-  ((((s.set low lw).set p base).set x d).set kind 0).set runFlag 1
-
-private theorem dfsSetup_exec {w base d : ℕ} {s : Data 32}
-    (h0 : s.regs zero = 0) (h1 : s.regs one = 1) (hroot : s.regs root = base)
-    (hdepth : s.regs depth = d) (hsp : s.regs sp = base + span d + 2 * (d + 1)) :
-    Exec w dfsSetup s (dfsSetupData s base d) 5 := by
-  ram_eval [dfsSetup, dfsSetupData, h0, h1, hroot, hdepth, hsp]
-
 /-- Constant registers and lookup-table invariant preserved throughout the Phase 3 DFS loop. -/
 def DfsConst (base d : ℕ) (s : Data 32) : Prop :=
   s.regs zero = 0 ∧ s.regs one = 1 ∧ s.regs two = 2 ∧
@@ -81,158 +74,129 @@ def DfsConst (base d : ℕ) (s : Data 32) : Prop :=
     s.regs low = base + span d + 2 * (d + 1) ∧
     TableInv (base + span d) d s.mem
 
-/-- Extract the lookup-table invariant from `DfsConst`. -/
-private theorem DfsConst.tableInv {base d : ℕ} {s : Data 32} (hc : DfsConst base d s) :
-    TableInv (base + span d) d s.mem :=
-  hc.2.2.2.2.2.2.2.2.2.2.2.2
-
-/-- Transfer `DfsConst` across a state update that preserves the twelve constant registers and
-establishes the lookup-table invariant on the new memory. -/
-private theorem DfsConst.of_regs_eq {base d : ℕ} {s s' : Data 32} (hc : DfsConst base d s)
-    (hregs : ∀ r ∈ ([zero, one, two, three, four, five, root, depth, payload,
-      tableBase, stackBase, low] : List (Fin 32)), s'.regs r = s.regs r)
-    (hinv : TableInv (base + span d) d s'.mem) :
-    DfsConst base d s' := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at hregs
-  obtain ⟨r0, r1, r2, r3, r4, r5, rr, rd, rp, rt, rs, rl⟩ := hregs
-  exact ⟨r0.trans hc.1, r1.trans hc.2.1, r2.trans hc.2.2.1, r3.trans hc.2.2.2.1,
-    r4.trans hc.2.2.2.2.1, r5.trans hc.2.2.2.2.2.1, rr.trans hc.2.2.2.2.2.2.1,
-    rd.trans hc.2.2.2.2.2.2.2.1, rp.trans hc.2.2.2.2.2.2.2.2.1,
-    rt.trans hc.2.2.2.2.2.2.2.2.2.1, rs.trans hc.2.2.2.2.2.2.2.2.2.2.1,
-    rl.trans hc.2.2.2.2.2.2.2.2.2.2.2.1, hinv⟩
-
 /-- Active DFS state at pointer `ptr`, subtree depth `k`, and phase `kindVal` (`0` = enter,
 `1` = exit). -/
 def DfsState (base d ptr k kindVal : ℕ) (s : Data 32) : Prop :=
   DfsConst base d s ∧
     s.regs p = ptr ∧ s.regs x = k ∧ s.regs kind = kindVal ∧ s.regs runFlag = 1
 
-/-- State after `dfsBody` at a leaf (`kind = 0`, `x = 0`). -/
-private def dfsLeafData (s : Data 32) (base d ptr : ℕ) : Data 32 :=
-  let tbl := base + span d
-  (((((((((((s.write ptr 0).set tmp (0 * 2)).set addr (tbl + 0 * 2)).set q 0).set
-    addr (tbl + 0 * 2 + 1)).set t 0).set child (ptr + 3)).write (ptr + 3) 0).set
-    child (ptr + 3 + 1)).write (ptr + 3 + 1) 0).set p (ptr + 5)).set kind 1
+/-- Every active `DfsState` satisfies the `dfsLoop` continuation condition `0 < runFlag`. -/
+private theorem dfsState_cond_holds {base d ptr k kindVal : ℕ} {s : Data 32}
+    (hs : DfsState base d ptr k kindVal s) : (Cond.lt zero runFlag).Holds s := by
+  obtain ⟨⟨h0, _⟩, _, _, _, hrun⟩ := hs
+  simp [Cond.holds_lt, h0, hrun]
 
-private theorem dfsBody_leaf_exec {w base d ptr : ℕ} {s : Data 32}
+/-- One `dfsBody` step entering a leaf (`kind = 0`, `x = 0`): writes the five-word empty leaf
+header at `ptr` and switches to exit mode at `ptr + span 0`. -/
+private theorem dfsBody_leaf_spec {w base d ptr : ℕ} {s : Data 32}
     (hs : DfsState base d ptr 0 0 s) (ha : Fits w (base + span d + 4 * (d + 1)))
     (hptr_end : ptr + 5 ≤ base + span d) :
-    ExecWithin w dfsBody s (dfsLeafData s base d ptr) 14 := by
-  obtain ⟨⟨h0, h1, h2, h3, _, h5, _, _, _, htbl, _, _, hinv⟩, hp, hx, hkind, _⟩ := hs
-  have htbl0 := (hinv 0 (by omega)).1
-  have htbl1 := (hinv 0 (by omega)).2
-  dsimp only [splitSize, childSpan] at htbl0 htbl1
-  have hm0 : (s.write ptr 0).mem (base + span d + 0 * 2) = 0 := by
-    rw [Data.write_mem, Function.update_of_ne (by omega)]
-    exact htbl0
-  have hm1 : (s.write ptr 0).mem (base + span d + 0 * 2 + 1) = 0 := by
-    rw [Data.write_mem, Function.update_of_ne (by omega)]
-    exact htbl1
-  -- `ram_eval` derives the table-address bounds from `ha` and the child-header bounds from
-  -- `hf_p5`, which needs `hptr_end`.
+    ∃ s', ExecWithin w dfsBody s s' 14 ∧
+      DfsState base d (ptr + span 0) 0 1 s' ∧
+      Rep (Tree.empty 0) ptr s'.mem ∧
+      (∀ a, a < ptr ∨ ptr + 5 ≤ a → s'.mem a = s.mem a) := by
+  have ⟨hc, hp, hx, hkind, hrun⟩ := hs
+  have ⟨h0, h1, h2, h3, _, h5, _, _, _, htbl, _, _, hinv⟩ := hc
+  have htbl0 : s.mem (base + span d) = 0 := by
+    simpa only [Nat.mul_zero, Nat.add_zero, splitSize] using (hinv 0 (by omega)).1
+  have htbl1 : s.mem (base + span d + 1) = 0 := by
+    simpa only [Nat.mul_zero, Nat.add_zero, childSpan] using (hinv 0 (by omega)).2
   have hf_p5 : Fits w (ptr + 5) := ha.of_le (by omega)
-  ram_eval [dfsBody, dfsEnterBody, dfsExitBody, dfsLeafData,
-    h0, h1, h2, h3, h5, htbl, hp, hx, hkind, hm0, hm1]
+  apply WP.exists_execWithin
+  unfold dfsBody dfsEnterBody
+  wram_exec [h0, h1, h2, h3, h5, htbl, hp, hx, hkind, htbl0, htbl1]
+  refine ⟨⟨by struct_frame hc, by wram_simp [span], by wram_simp [hx], by wram_simp,
+    by wram_simp [hrun]⟩, ?_, by mem_frame⟩
+  change Header 0 none ptr _
+  simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
+  exact ⟨by wram_simp, trivial, by wram_simp, by wram_simp [Nat.add_assoc]⟩
 
-/-- State after `dfsBody` entering an internal node (`kind = 0`, `x = k + 1`). -/
-private def dfsEnterSuccData (s : Data 32) (base d ptr k : ℕ) : Data 32 :=
-  let tbl := base + span d
-  let lw := base + span d + 2 * (d + 1)
-  (((((((((((((s.write ptr 0).set tmp ((k + 1) * 2)).set
-    addr (tbl + (k + 1) * 2)).set q (universeSize k)).set
-    addr (tbl + (k + 1) * 2 + 1)).set t (span k)).set
-    child (ptr + 3)).write (ptr + 3) (universeSize k)).set
-    child (ptr + 3 + 1)).write (ptr + 3 + 1) (span k)).set
-    p (ptr + 5)).set addr (lw + (k + 1))).write (lw + (k + 1)) (universeSize k)).set
-    x (k + 1 - 1)
-
-private theorem dfsBody_enter_succ_exec {w base d ptr k : ℕ} {s : Data 32}
+/-- One `dfsBody` step entering an internal node (`kind = 0`, `x = k + 1`): writes the empty depth
+`k + 1` header at `ptr`, initializes the cluster counter at `low + (k + 1)` to `universeSize k`,
+and moves to the summary at `ptr + 5` with depth `k`. -/
+private theorem dfsBody_enter_succ_spec {w base d ptr k : ℕ} {s : Data 32}
     (hs : DfsState base d ptr (k + 1) 0 s) (hk : k + 1 ≤ d)
     (ha : Fits w (base + span d + 4 * (d + 1))) (hptr_end : ptr + span (k + 1) ≤ base + span d) :
-    ExecWithin w dfsBody s (dfsEnterSuccData s base d ptr k) 17 := by
-  obtain ⟨⟨h0, h1, h2, h3, _, h5, _, _, _, htbl, _, hlow, hinv⟩, hp, hx, hkind, _⟩ := hs
+    ∃ s₀, ExecWithin w dfsBody s s₀ 17 ∧
+      DfsState base d (ptr + 5) k 0 s₀ ∧
+      Header (k + 1) none ptr s₀.mem ∧
+      s₀.mem (base + span d + 2 * (d + 1) + (k + 1)) = universeSize k ∧
+      (∀ a, (a < ptr ∨ ptr + 5 ≤ a) →
+        a ≠ base + span d + 2 * (d + 1) + (k + 1) → s₀.mem a = s.mem a) := by
+  have ⟨hc, hp, hx, hkind, hrun⟩ := hs
+  have ⟨h0, h1, h2, h3, _, h5, _, _, _, htbl, _, hlow, hinv⟩ := hc
   have h5_le := five_le_span (k + 1)
-  have htbl0 := (hinv (k + 1) hk).1
-  have htbl1 := (hinv (k + 1) hk).2
-  dsimp only [splitSize, childSpan] at htbl0 htbl1
-  have hm0 : (s.write ptr 0).mem (base + span d + (k + 1) * 2) = universeSize k := by
-    rw [Data.write_mem, Function.update_of_ne (by omega), Nat.mul_comm (k + 1) 2]
-    exact htbl0
-  have hm1 : (s.write ptr 0).mem (base + span d + (k + 1) * 2 + 1) = span k := by
-    rw [Data.write_mem, Function.update_of_ne (by omega), Nat.mul_comm (k + 1) 2]
-    exact htbl1
-  -- Bounds that need `hk` or `hptr_end`; `ram_eval` reads them from context.
+  have htbl0 : s.mem (base + span d + (k + 1) * 2) = universeSize k := by
+    rw [Nat.mul_comm]; exact (hinv (k + 1) hk).1
+  have htbl1 : s.mem (base + span d + (k + 1) * 2 + 1) = span k := by
+    rw [Nat.mul_comm]; exact (hinv (k + 1) hk).2
   have hf_a1 : Fits w (base + span d + (k + 1) * 2 + 1) := ha.of_le (by omega)
   have hf_p5 : Fits w (ptr + 5) := ha.of_le (by omega)
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hne : k + 1 ≠ 0 := by omega
-  ram_eval [dfsBody, dfsEnterBody, dfsExitBody, dfsEnterSuccData,
-    h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, hm0, hm1, hne]
+  apply WP.exists_execWithin
+  unfold dfsBody dfsEnterBody
+  wram_exec [h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, htbl0, htbl1, hne]
+  refine ⟨⟨by struct_frame hc, by wram_simp, by wram_simp, by wram_simp [hkind],
+    by wram_simp [hrun]⟩, ?_, by wram_simp, by mem_frame⟩
+  simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
+  exact ⟨by wram_simp, trivial, by wram_simp, by wram_simp [Nat.add_assoc]⟩
 
-/-- State after `dfsBody` advancing from one child to the next cluster (`kind = 1`, `x = k`,
-`mem (low + k + 1) = cnt + 1`). -/
-private def dfsNextClusterData (s : Data 32) (base d k cnt : ℕ) : Data 32 :=
-  let lw := base + span d + 2 * (d + 1)
-  s.set x (k + 1) |>.set addr (lw + (k + 1)) |>.set present (cnt + 1)
-    |>.set present (cnt + 1 - 1) |>.write (lw + (k + 1)) (cnt + 1 - 1)
-    |>.set x (k + 1 - 1) |>.set kind 0
-
-private theorem dfsBody_next_cluster_exec {w base d ptr k cnt : ℕ} {s : Data 32}
+/-- One `dfsBody` step advancing from a completed child to the next cluster (`kind = 1`, `x = k`,
+`mem (low + k + 1) = cnt + 1`): decrements the counter and re-enters at depth `k`. -/
+private theorem dfsBody_next_cluster_spec {w base d ptr k cnt : ℕ} {s : Data 32}
     (hs : DfsState base d ptr k 1 s) (hk : k + 1 ≤ d)
     (hcnt : s.mem (base + span d + 2 * (d + 1) + (k + 1)) = cnt + 1)
-    (ha : Fits w (base + span d + 4 * (d + 1)))
-    (hcnt_fit : Fits w (cnt + 1 - 1)) :
-    ExecWithin w dfsBody s (dfsNextClusterData s base d k cnt) 13 := by
-  obtain ⟨⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, _⟩, _, hx, hkind, _⟩ := hs
-  -- `ram_eval` derives the `k`-valued bounds from `hf_lw`, which needs `hk`.
+    (ha : Fits w (base + span d + 4 * (d + 1))) (hcnt_fit : Fits w cnt) :
+    ∃ s₁, ExecWithin w dfsBody s s₁ 13 ∧
+      DfsState base d ptr k 0 s₁ ∧
+      s₁.mem (base + span d + 2 * (d + 1) + (k + 1)) = cnt ∧
+      (∀ a, a ≠ base + span d + 2 * (d + 1) + (k + 1) → s₁.mem a = s.mem a) := by
+  have ⟨hc, hp, hx, hkind, hrun⟩ := hs
+  have ⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, _⟩ := hc
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hnot_lt : ¬d < k + 1 := by omega
   have hne : cnt + 1 ≠ 0 := by omega
-  ram_eval [dfsBody, dfsEnterBody, dfsExitBody, dfsNextClusterData,
-    h0, h1, hdepth, hlow, hx, hkind, hcnt, hnot_lt, hne]
+  apply WP.exists_execWithin
+  unfold dfsBody dfsExitBody
+  wram_exec [h0, h1, hdepth, hlow, hx, hkind, hcnt, hnot_lt, hne]
+  exact ⟨⟨by struct_frame hc, by wram_simp [hp], by wram_simp, by wram_simp,
+    by wram_simp [hrun]⟩, by wram_simp, by mem_frame⟩
 
-/-- State after `dfsBody` finishing all clusters of a depth-`k + 1` node (`kind = 1`, `x = k`,
+/-- One `dfsBody` step finishing all clusters of a depth `k + 1` node (`kind = 1`, `x = k`,
 `mem (low + k + 1) = 0`). -/
-private def dfsExitNodeData (s : Data 32) (base d k : ℕ) : Data 32 :=
-  let lw := base + span d + 2 * (d + 1)
-  (((s.set x (k + 1)).set addr (lw + (k + 1))).set present 0).set kind 1
-
-private theorem dfsBody_exit_node_exec {w base d ptr k : ℕ} {s : Data 32}
+private theorem dfsBody_exit_node_spec {w base d ptr k : ℕ} {s : Data 32}
     (hs : DfsState base d ptr k 1 s) (hk : k + 1 ≤ d)
     (hrem : s.mem (base + span d + 2 * (d + 1) + (k + 1)) = 0)
     (ha : Fits w (base + span d + 4 * (d + 1))) :
-    ExecWithin w dfsBody s (dfsExitNodeData s base d k) 9 := by
-  obtain ⟨⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, _⟩, _, hx, hkind, _⟩ := hs
-  -- `ram_eval` derives the bound of `k + 1` from `hf_lw`, which needs `hk`.
+    ∃ s', ExecWithin w dfsBody s s' 9 ∧
+      DfsState base d ptr (k + 1) 1 s' ∧ s'.mem = s.mem := by
+  have ⟨hc, hp, hx, hkind, hrun⟩ := hs
+  have ⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, _⟩ := hc
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hnot_lt : ¬d < k + 1 := by omega
-  ram_eval [dfsBody, dfsEnterBody, dfsExitBody, dfsExitNodeData,
-    h0, h1, hdepth, hlow, hx, hkind, hrem, hnot_lt]
+  apply WP.exists_execWithin
+  unfold dfsBody dfsExitBody
+  wram_exec [h0, h1, hdepth, hlow, hx, hkind, hrem, hnot_lt]
+  exact ⟨⟨by struct_frame hc, by wram_simp [hp], by wram_simp, by wram_simp,
+    by wram_simp [hrun]⟩, by wram_simp⟩
 
-/-- State after `dfsBody` exiting the root (`kind = 1`, `x = d`). -/
-private def dfsFinishData (s : Data 32) (d : ℕ) : Data 32 :=
-  (s.set x (d + 1)).set runFlag 0
-
-private theorem dfsBody_finish_exec {w base d ptr : ℕ} {s : Data 32}
+/-- Final `dfsBody` step exiting the root (`kind = 1`, `x = d`): clears `runFlag` and preserves
+`zero`, `root`, `payload`, `stackBase`, and memory. -/
+private theorem dfsBody_finish_spec {w base d ptr : ℕ} {s : Data 32}
     (hs : DfsState base d ptr d 1 s) (ha : Fits w (base + span d + 4 * (d + 1))) :
-    ExecWithin w dfsBody s (dfsFinishData s d) 5 := by
-  obtain ⟨⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, _, _⟩, _, hx, hkind, _⟩ := hs
+    ∃ z, ExecWithin w dfsBody s z 5 ∧
+      z.regs zero = 0 ∧ z.regs runFlag = 0 ∧
+      z.regs root = base ∧ z.regs payload = base + span d ∧ z.regs stackBase = base + span d ∧
+      z.mem = s.mem := by
+  obtain ⟨hc, _, hx, hkind, _⟩ := hs
+  obtain ⟨h0, h1, _, _, _, _, hroot, hdepth, hpay, _, hstk, _, _⟩ := hc
   have hlt : d < d + 1 := by omega
-  ram_eval [dfsBody, dfsEnterBody, dfsExitBody, dfsFinishData,
-    h0, h1, hdepth, hx, hkind, hlt]
-
-private theorem dfsState_cond_holds {base d ptr k kindVal : ℕ} {s : Data 32}
-    (hs : DfsState base d ptr k kindVal s) : (Cond.lt zero runFlag).Holds s := by
-  obtain ⟨⟨h0, _⟩, _, _, _, hrun⟩ := hs
-  simp +decide [Cond.holds_lt, h0, hrun]
-
-private theorem tableInv_congr {tbl d : ℕ} {m m' : ℕ → ℕ}
-    (hinv : TableInv tbl d m)
-    (h : ∀ a, tbl ≤ a → a < tbl + 2 * (d + 1) → m' a = m a) :
-    TableInv tbl d m' := by
-  intro j hj
-  rw [h (tbl + 2 * j) (by omega) (by omega), h (tbl + 2 * j + 1) (by omega) (by omega)]
-  exact hinv j hj
+  apply WP.exists_execWithin
+  unfold dfsBody dfsExitBody
+  wram_exec [h0, h1, hdepth, hx, hkind, hlt]
+  exact ⟨by wram_simp [h0], by wram_simp, by wram_simp [hroot],
+    by wram_simp [hpay], by wram_simp [hstk], by wram_simp⟩
 
 /-- Cluster-iteration helper for `dfs_subtree_spec` at depth `k + 1`: given the induction
 hypothesis `ih` at depth `k`, initializes the remaining `cnt` clusters starting at index `m`
@@ -277,37 +241,23 @@ private theorem dfs_clusters_spec {w base d ptr k : ℕ}
     have hm_lt : m < universeSize k := by omega
     have hu_le : universeSize k ≤ span d :=
       (universeSize_le_span k).trans (span_mono (by omega))
-    have hcnt_fit : Fits w (cnt + 1 - 1) := ha.of_le (by omega)
-    have hstep := dfsBody_next_cluster_exec hs hk hcnt ha hcnt_fit
+    have hcnt_fit : Fits w cnt := ha.of_le (by omega)
     let p_m := ptr + 5 + (m + 1) * span k
     let lw := base + span d + 2 * (d + 1)
-    let s₁ := dfsNextClusterData s base d k cnt
-    have hs₁_away : ∀ a, a ≠ lw + (k + 1) → s₁.mem a = s.mem a := by
-      intro a ha_ne
-      simp only [s₁, dfsNextClusterData, Data.set_mem, Data.write_mem]
-      exact Function.update_of_ne ha_ne _ _
+    obtain ⟨s₁, hstep, hs₁_state, hs₁_cnt, hs₁_away⟩ :=
+      dfsBody_next_cluster_spec hs hk hcnt ha hcnt_fit
     have hp_m_end : p_m + span k ≤ ptr + span (k + 1) := by
       have : p_m = ptr + clusterOffset k m := by dsimp only [p_m, clusterOffset]; omega
       have hce := cluster_end_le_span k hm_lt
       omega
-    have hs₁_state : DfsState base d p_m k 0 s₁ := by
-      refine ⟨hs.1.of_regs_eq (by simp +decide [s₁, dfsNextClusterData]) ?_,
-        by simpa +decide [s₁, dfsNextClusterData] using hs.2.1,
-        by change k + 1 - 1 = k; omega, rfl,
-        by simpa +decide [s₁, dfsNextClusterData] using hs.2.2.2.2⟩
-      apply tableInv_congr hs.1.tableInv
-      intro a _ ha_hi
-      exact hs₁_away a (by dsimp only [lw]; omega)
     obtain ⟨s₂, hs₂_state, hs₂_rep, hs₂_frame, hs₂_cps⟩ :=
       ih hs₁_state (hp_m_end.trans hptr_end)
     have hs₂_p_eq : p_m + span k = ptr + 5 + (m + 1 + 1) * span k := by
       dsimp only [p_m]; ring
     have hs₂_cnt : s₂.mem (lw + (k + 1)) = cnt := by
-      rw [hs₂_frame (lw + (k + 1))
-        (Or.inr (by have := hp_m_end.trans hptr_end; dsimp only [lw]; omega))
-        (Or.inr (by dsimp only [lw]; omega))]
-      simp only [s₁, lw, dfsNextClusterData, Data.set_mem, Data.write_mem, Function.update_self]
-      omega
+      have := hp_m_end.trans hptr_end
+      dsimp only [lw]
+      mem_frame
     have hs₂_prev : ∀ i : Fin (universeSize k), i.val < m + 1 →
         Rep (Tree.empty k) (ptr + clusterOffset k i.val) s₂.mem := by
       intro i hi
@@ -317,8 +267,7 @@ private theorem dfs_clusters_spec {w base d ptr k : ℕ}
         have hce := cluster_end_le_clusterOffset k him
         have hce_span := cluster_end_le_span k i.isLt
         have hp_m_eq : p_m = ptr + clusterOffset k m := by dsimp only [p_m, clusterOffset]; omega
-        rw [hs₂_frame a (Or.inl (by omega)) (Or.inl (by omega))]
-        exact hs₁_away a (by omega)
+        rw [hs₂_frame a (by omega) (by omega), hs₁_away a (by omega)]
       · have hi_eq : i.val = m := by omega
         have hp_eq : ptr + clusterOffset k i.val = p_m := by
           dsimp only [p_m, clusterOffset]; rw [hi_eq]; omega
@@ -327,19 +276,9 @@ private theorem dfs_clusters_spec {w base d ptr k : ℕ}
       ih_cnt (m := m + 1) (s := s₂) (by omega)
         (hs₂_p_eq ▸ hs₂_state) hs₂_cnt hs₂_prev
     refine ⟨s', hs'_state, hs'_cnt, hs'_all, ?_, ?_⟩
-    · intro a ha_tree ha_cnt
-      have ha_tree₂ : a < ptr + 5 + (m + 1 + 1) * span k ∨ ptr + span (k + 1) ≤ a := by
-        rcases ha_tree with hlt | hge
-        · exact Or.inl (by omega)
-        · exact Or.inr hge
-      rw [hs'_frame a ha_tree₂ ha_cnt]
-      have ha_tree₁ : a < p_m ∨ p_m + span k ≤ a := by
-        rcases ha_tree with hlt | hge
-        · exact Or.inl hlt
-        · exact Or.inr (hp_m_end.trans hge)
-      have ha_cnt₁ : a < lw + 1 ∨ lw + k < a := by omega
-      rw [hs₂_frame a ha_tree₁ ha_cnt₁]
-      exact hs₁_away a (by omega)
+    · have := hp_m_end.trans hptr_end
+      dsimp only [p_m, lw] at *
+      mem_frame
     · intro z T_cont hcont
       have h1 := hs'_cps z T_cont hcont
       have h2 := hs₂_cps z (cnt * (8 * span k) + T_cont) h1
@@ -368,29 +307,7 @@ private theorem dfs_subtree_spec {w base d : ℕ} (k : ℕ) (hk : k ≤ d)
   induction k with
   | zero =>
     intro ptr s hs hptr_end
-    have hstep := dfsBody_leaf_exec hs ha hptr_end
-    let s' := dfsLeafData s base d ptr
-    have hs'_away : ∀ a, a < ptr ∨ ptr + 5 ≤ a → s'.mem a = s.mem a := by
-      intro a ha_out
-      simp only [s', dfsLeafData, Data.set_mem, Data.write_mem]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega)]
-    have hs'_state : DfsState base d (ptr + span 0) 0 1 s' := by
-      refine ⟨hs.1.of_regs_eq (by simp +decide [s', dfsLeafData]) ?_, rfl,
-        by simpa +decide [s', dfsLeafData] using hs.2.2.1, rfl,
-        by simpa +decide [s', dfsLeafData] using hs.2.2.2.2⟩
-      apply tableInv_congr hs.1.tableInv
-      intro a ha_lo _
-      exact hs'_away a (Or.inr (by dsimp only [span] at hptr_end; omega))
-    have hs'_rep : Rep (Tree.empty 0) ptr s'.mem := by
-      change Header 0 none ptr s'.mem
-      simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan,
-        s', dfsLeafData, Data.set_mem, Data.write_mem]
-      refine ⟨?_, trivial, ?_, ?_⟩
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_self]
-      · rw [Function.update_of_ne (by omega), Function.update_self]
-      · rw [Function.update_self]
+    obtain ⟨s', hstep, hs'_state, hs'_rep, hs'_away⟩ := dfsBody_leaf_spec hs ha hptr_end
     refine ⟨s', hs'_state, hs'_rep, fun a ha_tree _ => hs'_away a ha_tree, ?_⟩
     intro z T_cont hcont
     exact (ExecWithin.loop_iter (dfsState_cond_holds hs) hstep hcont).mono
@@ -398,36 +315,9 @@ private theorem dfs_subtree_spec {w base d : ℕ} (k : ℕ) (hk : k ≤ d)
   | succ k ih =>
     intro ptr s hs hptr_end
     have ih' {p₀ : ℕ} {s₀ : Data 32} := ih (by omega) (ptr := p₀) (s := s₀)
-    have hstep_enter := dfsBody_enter_succ_exec hs hk ha hptr_end
     let lw := base + span d + 2 * (d + 1)
-    let s₀ := dfsEnterSuccData s base d ptr k
-    have hs₀_away : ∀ a, (a < ptr ∨ ptr + 5 ≤ a) → a ≠ lw + (k + 1) → s₀.mem a = s.mem a := by
-      intro a ha_ptr ha_lw
-      simp only [s₀, dfsEnterSuccData, Data.set_mem, Data.write_mem]
-      rw [Function.update_of_ne ha_lw, Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    have hs₀_hdr : Header (k + 1) none ptr s₀.mem := by
-      simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan,
-        s₀, dfsEnterSuccData, Data.set_mem, Data.write_mem]
-      have h5_le := five_le_span (k + 1)
-      refine ⟨?_, trivial, ?_, ?_⟩
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_self]
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_self]
-      · rw [Function.update_of_ne (by omega), Function.update_self]
-    have hs₀_cnt : s₀.mem (lw + (k + 1)) = universeSize k := by
-      simp only [s₀, dfsEnterSuccData, Data.set_mem, Data.write_mem]
-      rw [Function.update_self]
-    have hs₀_state : DfsState base d (ptr + 5) k 0 s₀ := by
-      have h5_le := five_le_span (k + 1)
-      refine ⟨hs.1.of_regs_eq (by simp +decide [s₀, dfsEnterSuccData]) ?_, rfl,
-        by change k + 1 - 1 = k; omega,
-        by simpa +decide [s₀, dfsEnterSuccData] using hs.2.2.2.1,
-        by simpa +decide [s₀, dfsEnterSuccData] using hs.2.2.2.2⟩
-      apply tableInv_congr hs.1.tableInv
-      intro a ha_lo ha_hi
-      exact hs₀_away a (Or.inr (by omega)) (by omega)
+    obtain ⟨s₀, hstep_enter, hs₀_state, hs₀_hdr, hs₀_cnt, hs₀_away⟩ :=
+      dfsBody_enter_succ_spec hs hk ha hptr_end
     have hsum_end : (ptr + 5) + span k ≤ base + span d := by
       have := summary_end_le_span k
       dsimp only [summaryOffset] at this
@@ -435,41 +325,27 @@ private theorem dfs_subtree_spec {w base d : ℕ} (k : ℕ) (hk : k ≤ d)
     obtain ⟨s₁, hs₁_state, hs₁_sum_rep, hs₁_frame, hs₁_cps⟩ := ih' hs₀_state hsum_end
     have hs₁_p_eq : ptr + 5 + span k = ptr + 5 + (0 + 1) * span k := by ring
     have hs₁_cnt : s₁.mem (lw + (k + 1)) = universeSize k := by
-      rw [hs₁_frame (lw + (k + 1)) (Or.inr (by omega)) (Or.inr (by omega))]
-      exact hs₀_cnt
+      dsimp only [lw]
+      mem_frame
     obtain ⟨s₂, hs₂_state, hs₂_cnt, hs₂_clusters, hs₂_frame, hs₂_cps⟩ :=
       dfs_clusters_spec hk ha hptr_end ih' (universeSize k) (m := 0) (s := s₁)
         (by omega) (hs₁_p_eq ▸ hs₁_state) hs₁_cnt (fun i hi => by omega)
-    have hstep_exit := dfsBody_exit_node_exec hs₂_state hk hs₂_cnt ha
-    let s' := dfsExitNodeData s₂ base d k
-    have hs'_mem : s'.mem = s₂.mem := rfl
-    have hs'_state : DfsState base d (ptr + span (k + 1)) (k + 1) 1 s' :=
-      ⟨hs₂_state.1.of_regs_eq (by simp +decide [s', dfsExitNodeData]) hs₂_state.1.tableInv,
-        by simpa +decide [s', dfsExitNodeData] using hs₂_state.2.1, rfl, rfl,
-        by simpa +decide [s', dfsExitNodeData] using hs₂_state.2.2.2.2⟩
+    obtain ⟨s', hstep_exit, hs'_state, hs'_mem⟩ :=
+      dfsBody_exit_node_spec hs₂_state hk hs₂_cnt ha
     have hs'_hdr : Header (k + 1) none ptr s'.mem := by
-      have h5_le := five_le_span (k + 1)
-      apply (header_congr ?_).mp hs₀_hdr
-      intro a ha_lt5
-      rw [hs'_mem,
-        hs₂_frame (ptr + a) (Or.inl (by omega)) (Or.inl (by omega)),
-        hs₁_frame (ptr + a) (Or.inl (by omega)) (Or.inl (by omega))]
+      have := five_le_span (k + 1); have := five_le_span k
+      refine (header_congr fun a ha_lt5 => ?_).mp hs₀_hdr
+      rw [hs'_mem, hs₂_frame (ptr + a) (by omega) (by omega),
+        hs₁_frame (ptr + a) (by omega) (by omega)]
     have hs'_sum : Rep (Tree.empty k) (ptr + summaryOffset) s'.mem := by
       have hsum_le := summary_end_le_span k
-      have hso : summaryOffset = 5 := rfl
-      apply rep_frame hs₁_sum_rep
-      intro a ha_lo ha_hi
-      rw [hs'_mem]
-      exact hs₂_frame a (Or.inl (by omega)) (Or.inl (by omega))
-    refine ⟨s', hs'_state, ⟨hs'_hdr, hs'_sum, hs₂_clusters⟩, ?_, ?_⟩
-    · intro a ha_tree ha_cnt
-      have h5_le := five_le_span k
+      dsimp only [summaryOffset] at hsum_le ⊢
+      exact rep_frame hs₁_sum_rep fun a ha_lo ha_hi => by mem_frame
+    refine ⟨s', hs'_state, ⟨hs'_hdr, hs'_sum, hs'_mem.symm ▸ hs₂_clusters⟩, ?_, ?_⟩
+    · have := five_le_span k
       have hsum_le := summary_end_le_span k
       dsimp only [summaryOffset] at hsum_le
-      rw [hs'_mem,
-        hs₂_frame a (by omega) ha_cnt,
-        hs₁_frame a (by omega) (by omega),
-        hs₀_away a (by omega) (by omega)]
+      mem_frame
     · intro z T_cont hcont
       have h_exit := ExecWithin.loop_iter (dfsState_cond_holds hs₂_state) hstep_exit hcont
       have h_clus := hs₂_cps z (9 + T_cont + 2) h_exit
@@ -499,19 +375,16 @@ private theorem dfsLoop_spec {w base d : ℕ} {s : Data 32}
         z.mem a = s.mem a) := by
   obtain ⟨s', hs'_state, hs'_rep, hs'_frame, hs'_cps⟩ :=
     dfs_subtree_spec d le_rfl ha hs le_rfl
-  have hfinish := dfsBody_finish_exec hs'_state ha
-  let z := dfsFinishData s' d
+  obtain ⟨z, hfinish, hz0, hz_run, hzr, hzp, hzstk, hzm⟩ := dfsBody_finish_spec hs'_state ha
   have hc_exit : ¬(Cond.lt zero runFlag).Holds z := by
-    simp +decide [z, dfsFinishData, Cond.holds_lt]
+    simp [Cond.holds_lt, hz0, hz_run]
   have hcont := ExecWithin.loop_iter (dfsState_cond_holds hs'_state) hfinish
     (ExecWithin.loop_exit hc_exit)
   have h5_le := five_le_span d
   have hrun : ExecWithin w dfsLoop s z (8 * span d - 6) :=
     (hs'_cps z (5 + 2 + 2) hcont).mono (by omega)
-  refine ⟨z, hrun, hs'_rep, ?_, ?_, ?_, hs'_frame⟩
-  · simpa +decide [z, dfsFinishData] using hs'_state.1.2.2.2.2.2.2.1
-  · simpa +decide [z, dfsFinishData] using hs'_state.1.2.2.2.2.2.2.2.2.1
-  · simpa +decide [z, dfsFinishData] using hs'_state.1.2.2.2.2.2.2.2.2.2.2.1
+  exact ⟨z, hrun, hzm ▸ hs'_rep, hzr, hzp, hzstk,
+    fun a ha_tree ha_cnt => (congrFun hzm a).trans (hs'_frame a ha_tree ha_cnt)⟩
 
 /-! ## Complete initializer specifications -/
 
@@ -534,97 +407,35 @@ theorem init_dispatch_spec {w base d : ℕ} {s : Data 32}
   have hw5 : Fits w 5 := ha.of_le (by omega)
   have hspan : Fits w (span d) := ha.of_le (by omega)
   have hd : Fits w d := ha.of_le (by omega)
-  have h1 := (initSetup_exec (s := s) hw5).within
-  let s₁ := initSetupData s
-  obtain ⟨s₂, h2, hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, hs₂r, hs₂d, hs₂q, hs₂t, hs₂m⟩ :=
-    sizeLoop_spec d (k := 0) (s := s₁) (by omega) hspan hd
-      (by simp +decide [s₁, initSetupData])
-      (by simp +decide [s₁, initSetupData])
-      (by simp +decide [s₁, initSetupData])
-      (by simp +decide [s₁, initSetupData])
-      (by simp +decide [s₁, initSetupData])
-      (by simp +decide [s₁, initSetupData])
-      (by simpa +decide [s₁, initSetupData] using hdepth)
-      (by simp +decide [s₁, initSetupData, universeSize])
-      (by simp +decide [s₁, initSetupData, span])
-      (by simp +decide [s₁, initSetupData])
-  have hs₂_root : s₂.regs root = base := by
-    simpa +decide [s₁, initSetupData, hroot] using hs₂r
-  have h3 := (tableSetup_exec ha hs₂0 hs₂1 hs₂2 hs₂5 hs₂_root hs₂t).within
-  let s₃ := tableSetupData s₂ base d
-  have hs₃_sp : s₃.regs sp = base + span d + 2 * (0 + 1) := by
-    change base + span d + 1 + 1 = base + span d + 2 * (0 + 1)
-    omega
-  have hs₃_inv : TableInv (base + span d) 0 s₃.mem := by
-    intro j hj
-    have hj0 : j = 0 := by omega
-    subst hj0
-    simp only [s₃, tableSetupData, Data.set_mem, Data.write_mem, splitSize, childSpan,
-      Nat.mul_zero, Nat.add_zero]
-    constructor
-    · rw [Function.update_of_ne (by omega), Function.update_self]
-    · rw [Function.update_self]
-  have hs₃_away : ∀ a, a < base + span d ∨ base + span d + 2 ≤ a → s₃.mem a = s.mem a := by
-    intro a ha_out
-    simp only [s₃, tableSetupData, Data.set_mem, Data.write_mem]
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), hs₂m]
-    rfl
-  obtain ⟨s₄, h4, hs₄0, hs₄1, hs₄2, hs₄3, hs₄4, hs₄5, hs₄r, hs₄d, hs₄p, hs₄tbl, hs₄stk,
-      hs₄sp, hs₄inv, hs₄frame⟩ :=
-    tableLoop_spec d (k := 0) (s := s₃) (by omega) ha
-      (by simpa +decide [s₃, tableSetupData] using hs₂0)
-      (by simpa +decide [s₃, tableSetupData] using hs₂1)
-      (by simpa +decide [s₃, tableSetupData] using hs₂2)
-      (by simpa +decide [s₃, tableSetupData] using hs₂3)
-      (by simpa +decide [s₃, tableSetupData] using hs₂4)
-      (by simpa +decide [s₃, tableSetupData] using hs₂5)
-      (by simpa +decide [s₃, tableSetupData] using hs₂_root)
-      (by simpa +decide [s₃, tableSetupData] using hs₂d)
-      (by simp +decide [s₃, tableSetupData])
-      (by simp +decide [s₃, tableSetupData])
-      (by simp +decide [s₃, tableSetupData])
-      hs₃_sp
-      (by simp +decide [s₃, tableSetupData, universeSize])
-      (by simp +decide [s₃, tableSetupData, span])
-      (by simp +decide [s₃, tableSetupData])
-      hs₃_inv
-  have h5 := (dfsSetup_exec (w := w) hs₄0 hs₄1 hs₄r hs₄d hs₄sp).within
-  let s₅ := dfsSetupData s₄ base d
-  have hs₅_state : DfsState base d base d 0 s₅ := by
-    refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_⟩
-    · simpa +decide [s₅, dfsSetupData] using hs₄0
-    · simpa +decide [s₅, dfsSetupData] using hs₄1
-    · simpa +decide [s₅, dfsSetupData] using hs₄2
-    · simpa +decide [s₅, dfsSetupData] using hs₄3
-    · simpa +decide [s₅, dfsSetupData] using hs₄4
-    · simpa +decide [s₅, dfsSetupData] using hs₄5
-    · simpa +decide [s₅, dfsSetupData] using hs₄r
-    · simpa +decide [s₅, dfsSetupData] using hs₄d
-    · simpa +decide [s₅, dfsSetupData] using hs₄p
-    · simpa +decide [s₅, dfsSetupData] using hs₄tbl
-    · simpa +decide [s₅, dfsSetupData] using hs₄stk
-    · rfl
-    · exact hs₄inv
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-  obtain ⟨s₆, h6, hs₆_rep, hs₆r, hs₆p, hs₆stk, hs₆frame⟩ := dfsLoop_spec hs₅_state ha
-  have h7 : ExecWithin w (ram[out ← payload] : Code .standard 32) s₆
-      (s₆.set out (s₆.regs payload)) 1 := ExecWithin.copy
-  let z := s₆.set out (s₆.regs payload)
-  have hrun : ExecWithin w initProgram s z (8 * span d + 20 * d + 24) :=
-    (h1.seq (h2.seq (h3.seq (h4.seq (h5.seq (h6.seq h7)))))).mono (by omega)
-  refine ⟨z, hrun, hs₆_rep, ?_, ?_, ?_, ?_⟩
-  · simpa +decide [z] using hs₆r
-  · simpa +decide [z] using hs₆stk
-  · simpa +decide [z] using hs₆p
-  · intro a ha_out
-    change s₆.mem a = s.mem a
-    rw [hs₆frame a (by omega) (by omega)]
-    change s₄.mem a = s.mem a
-    rw [hs₄frame a (by omega)]
-    exact hs₃_away a (by omega)
+  apply WP.exists_execWithin
+  unfold initProgram initSetup
+  wram_exec
+  wram_call (sizeLoop_spec (w := w) (d := d) d (k := 0) (by omega) hspan hd)
+    [hdepth, universeSize, span]
+    with s₂ ⟨hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, _, hs₂d, _, hs₂t, hs₂m⟩
+  have hs₂_root : s₂.regs root = base := by regs_frame
+  unfold tableSetup
+  wram_exec [hs₂0, hs₂1, hs₂2, hs₂5, hs₂_root, hs₂t]
+  wram_call (tableLoop_spec (w := w) (base := base) (d := d) d (k := 0) (by omega) ha)
+    [hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, hs₂_root, hs₂d, universeSize, span]
+    with s₄ ⟨hs₄0, hs₄1, hs₄2, hs₄3, hs₄4, hs₄5, hs₄r, hs₄d, hs₄p, hs₄tbl, hs₄stk,
+      hs₄sp, hs₄inv, hs₄frame⟩
+  · unfold dfsSetup
+    wram_exec [hs₄0, hs₄1, hs₄r, hs₄d, hs₄sp]
+    wram_call (dfsLoop_spec ⟨⟨by wram_simp [hs₄0], by wram_simp [hs₄1], by wram_simp [hs₄2],
+        by wram_simp [hs₄3], by wram_simp [hs₄4], by wram_simp [hs₄5],
+        by wram_simp [hs₄r], by wram_simp [hs₄d], by wram_simp [hs₄p],
+        by wram_simp [hs₄tbl], by wram_simp [hs₄stk], by wram_simp, hs₄inv⟩,
+        by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩ ha)
+      with s₆ ⟨hs₆_rep, hs₆r, hs₆p, hs₆stk, hs₆frame⟩
+    wram_exec [hs₆p]
+    refine ⟨by simpa only [Data.set_mem] using hs₆_rep, by wram_simp [hs₆r],
+      by wram_simp [hs₆stk], by wram_simp, fun a ha => ?_⟩
+    clear *- ha hs₆frame hs₄frame hs₂m
+    wram_simp [hs₆frame a (by omega) (by omega), hs₄frame a (by omega), hs₂m]
+  · intro j hj
+    obtain rfl : j = 0 := by omega
+    exact ⟨by wram_simp [splitSize], by wram_simp [childSpan]⟩
 
 /-- Bounded-caller initialization certificate: from any bounded state with `s.regs root = base`
 and `s.regs depth = d`, `initProgram` executes in at most `8 * span d + 20 * d + 25` instructions

@@ -9,7 +9,8 @@ module
 
 import CslibFrontier.Computability.WordRAM.MemoryView
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Forced
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
@@ -178,20 +179,8 @@ theorem RoundFrame.congr {φ : CNF (Fin n)} {C Tb : ℕ} {M : ℕ → ℕ} {x y 
     (ht : y.regs two = x.regs two) (hc : y.regs cBeg = x.regs cBeg)
     (he : y.regs cEnd = x.regs cEnd) (hb : y.regs tBase = x.regs tBase)
     (hn : y.regs nReg = x.regs nReg) (hp : y.regs pBase = x.regs pBase)
-    (hmem : ∀ a, a < Tb ∨ Tb + 2 * n ≤ a → y.mem a = x.mem a) : RoundFrame φ C Tb M y where
-  zero_eq := hz.trans h.zero_eq
-  one_eq := ho.trans h.one_eq
-  two_eq := ht.trans h.two_eq
-  cBeg_eq := hc.trans h.cBeg_eq
-  cEnd_eq := he.trans h.cEnd_eq
-  tBase_eq := hb.trans h.tBase_eq
-  nReg_eq := hn.trans h.nReg_eq
-  pBase_eq := hp.trans h.pBase_eq
-  clauses := by
-    have hs := h.span
-    ram_keep h.clauses using hmem
-  span := h.span
-  rest a ha := (hmem a (Or.inr ha)).trans (h.rest a ha)
+    (hmem : ∀ a, a < Tb ∨ Tb + 2 * n ≤ a → y.mem a = x.mem a) : RoundFrame φ C Tb M y := by
+  struct_frame h
 
 /-- The frame with the memory after the order array taken as it is. -/
 theorem RoundFrame.self {φ : CNF (Fin n)} {C Tb : ℕ} {M : ℕ → ℕ} {x : Data 32}
@@ -222,12 +211,8 @@ theorem RoundFrame.set {φ : CNF (Fin n)} {C Tb : ℕ} {M : ℕ → ℕ} {x : Da
     (hi : i ∉ ({zero, one, two, cBeg, cEnd, tBase, nReg, pBase} : Finset (Fin 32))) (v : ℕ) :
     RoundFrame φ C Tb M (x.set i v) := by
   simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hi
-  obtain ⟨h0, h1, h2, h3, h4, h5, h6, h7⟩ := hi
-  exact h.congr (by simp [Function.update_of_ne (Ne.symm h0)])
-    (by simp [Function.update_of_ne (Ne.symm h1)]) (by simp [Function.update_of_ne (Ne.symm h2)])
-    (by simp [Function.update_of_ne (Ne.symm h3)]) (by simp [Function.update_of_ne (Ne.symm h4)])
-    (by simp [Function.update_of_ne (Ne.symm h5)]) (by simp [Function.update_of_ne (Ne.symm h6)])
-    (by simp [Function.update_of_ne (Ne.symm h7)]) fun _ _ => rfl
+  obtain ⟨_, _, _, _, _, _, _, _⟩ := hi
+  struct_frame h
 
 /-! ### The initial arrays -/
 
@@ -249,30 +234,22 @@ theorem initLoop_spec {φ : CNF (Fin n)} {C Tb w : ℕ} {M : ℕ → ℕ} (hw : 
     have hc : ¬(Cond.lt iReg nReg).Holds x := by simp [Cond.holds_lt, hx.nReg_eq]; omega
     exact ⟨x, (ExecWithin.loop_exit hc).mono (by omega), hx, fun v hv' => hv v (by omega)⟩
   | d + 1, x, hx, hd, hv => by
-    obtain ⟨i, hi⟩ : ∃ i, x.regs iReg = i := ⟨_, rfl⟩
-    rw [hi] at hd hv
-    have hc : (Cond.lt iReg nReg).Holds x := by simp [Cond.holds_lt, hx.nReg_eq, hi]; omega
-    have hf1 : Fits w (Tb + i) := hw.of_le (by omega)
-    have hf2 : Fits w (Tb + n + i) := hw.of_le (by omega)
-    have hf3 : Fits w (i + 1) := hw.of_le (by omega)
-    let y := (((((x.set addr (Tb + i)).write (Tb + i) 2).set addr (Tb + n + i)).write
-      (Tb + n + i) i).set iReg (i + 1))
-    have hrun : ExecWithin w initBody x y 5 := by
-      ram_eval [y, initBody, hx.tBase_eq, hx.pBase_eq, hx.two_eq, hx.one_eq, hi, hf1, hf2, hf3]
-    have hym : y.mem = Function.update (Function.update x.mem (Tb + i) 2) (Tb + n + i) i := rfl
-    have hy : RoundFrame φ C Tb M y := hx.of_execWithin (by decide) hrun fun a ha => by
-      rw [hym, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    obtain ⟨z, hz, hzf, hzv⟩ := initLoop_spec hw d y hy (by simp [y]; omega) (fun v hv' => by
-      simp only [y, Data.set_regs, Function.update_self] at hv'
-      rw [hym]
-      by_cases hvi : v = i
-      · subst hvi
-        refine ⟨?_, by simp⟩
-        rw [Function.update_of_ne (by omega), Function.update_self]
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact hv v (by omega))
-    exact ⟨z, (ExecWithin.loop_iter hc hrun hz).mono (by omega), hzf, hzv⟩
+    set i := x.regs iReg with hi
+    have : Fits w (Tb + i) := hw.of_le (by omega)
+    have : Fits w (Tb + n + i) := hw.of_le (by omega)
+    have : Fits w (i + 1) := hw.of_le (by omega)
+    refine WP.exists_execWithin
+      (WP.loop_iter (by simp [Cond.holds_lt, hx.nReg_eq, ← hi]; omega) ?_)
+    unfold initBody
+    wram_exec [hx.tBase_eq, hx.pBase_eq, hx.two_eq, hx.one_eq, ← hi]
+    wram_call (initLoop_spec hw d _ (by struct_frame hx) (by wram_simp; omega)
+      (fun v hv' => by
+        wram_simp at hv'
+        rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp hv') with rfl | hvi
+        · exact ⟨by mem_frame, by mem_frame⟩
+        · have := hv v hvi; exact ⟨by mem_frame, by mem_frame⟩))
+      with z ⟨hzf, hzv⟩
+    exact ⟨by omega, hzf, hzv⟩
 
 /-! ### One step of the round -/
 
@@ -387,11 +364,10 @@ theorem forcedCode_isOracleCode {φ : CNF (Fin n)} {C Tb w : ℕ} {M : ℕ → �
   preserves_x := by decide
   preserves_i := by decide
   preserves_j := by decide
-  exec τ v y hf hv hs := by
-    obtain ⟨z, hz, hzm, hzr, -⟩ := forcedCode_spec φ τ v y (hf.scanFrame hv hs hw hT)
+  exec τ v y hf hv hs :=
+    forcedCode_spec φ τ v y (hf.scanFrame hv hs hw hT)
       (by rw [hf.cBeg_eq]; exact hf.clauses) (by rw [hf.cBeg_eq, hf.cEnd_eq]; exact hf.span)
       (by rw [hf.cEnd_eq]; exact hw.of_le (by omega))
-    exact ⟨z, hz, hzm, hzr⟩
 
 /-- The postcondition of the step from step `i`:for the drawn position `p` and the value `b` set,
 `jReg = i + p`, `res = b`, and the loop state at step `i + 1` after processing `g p`. -/
@@ -414,16 +390,14 @@ theorem roundBodyWith_law {φ : CNF (Fin n)} {C Tb w T : ℕ} {M : ℕ → ℕ}
       ((Probability.PMF.uniformOfFintype (Fin (m + 1))).bind fun p =>
         (stepWith O τ (g p)).map fun b => (p.val, b)) := by
   have hf := hx.frame
-  have hf1 : Fits w (n - i) := hw.of_le (by omega)
-  have hf2 : Fits w (n - i - 1) := hw.of_le (by omega)
+  have : Fits w (n - i) := hw.of_le (by omega)
+  have : Fits w (n - i - 1) := hw.of_le (by omega)
   let x₂ := (x.set jReg (n - i)).set jReg (n - i - 1)
   have h₁ : ExecWithin w (ram[ jReg ← nReg - iReg ] : Code .standard 32) x (x.set jReg (n - i))
-      1 := by
-    ram_eval [hf.nReg_eq, hx.i_eq, hf1]
+      1 := WP.execWithin (by wram_exec [hf.nReg_eq, hx.i_eq]; rfl)
   have h₂ : ExecWithin w (ram[ jReg ← jReg - one ] : Code .standard 32) (x.set jReg (n - i)) x₂
-      1 := by
-    ram_eval [x₂, hf.one_eq, hf2]
-  have hx₂j : x₂.regs jReg = m := by simp [x₂]; omega
+      1 := WP.execWithin (by wram_exec [hf.one_eq]; rfl)
+  have hx₂j : x₂.regs jReg = m := by wram_simp [x₂]; omega
   let F : Data 32 → ℕ × Bool := fun y => (y.regs jReg - i, decide (y.regs res = 1))
   let κ : ℕ → PMF (ℕ × Bool) := fun v =>
     if hv : v < m + 1 then (stepWith O τ (g ⟨v, hv⟩)).map fun b => (v, b)
@@ -434,63 +408,47 @@ theorem roundBodyWith_law {φ : CNF (Fin n)} {C Tb w T : ℕ} {M : ℕ → ℕ}
         (StepPost φ C Tb M i τ g) (T + 13) 1 F (κ (y.regs jReg)) := by
     rintro y ⟨k', rfl⟩
     have hk : k'.val < m + 1 := by have := k'.isLt; omega
-    set k : Fin (m + 1) := ⟨k'.val, hk⟩ with hkdef
+    set k : Fin (m + 1) := ⟨k'.val, hk⟩
     have hkv : (k : ℕ) = k'.val := rfl
     -- the swap
     have hm0 : x.mem (Tb + n + i) = (g 0 : ℕ) := by simpa using hx.order 0
     have hmk : x.mem (Tb + n + (k'.val + i)) = (g k : ℕ) := by
       rw [show Tb + n + (k'.val + i) = Tb + n + i + (k : ℕ) by omega]
       exact hx.order k
-    have hfa : Fits w (k'.val + i) := hw.of_le (by omega)
-    have hfb : Fits w (Tb + n + i) := hw.of_le (by omega)
-    have hfc : Fits w (Tb + n + (k'.val + i)) := hw.of_le (by omega)
+    have : Fits w (k'.val + i) := hw.of_le (by omega)
+    have : Fits w (Tb + n + i) := hw.of_le (by omega)
+    have : Fits w (Tb + n + (k'.val + i)) := hw.of_le (by omega)
     let y₁ := ((((((((x₂.set jReg k'.val).set jReg (k'.val + i)).set aI (Tb + n + i)).set aJ
       (Tb + n + (k'.val + i))).set val (g 0 : ℕ)).set xReg (g k : ℕ)).write (Tb + n + i)
       (g k : ℕ)).write (Tb + n + (k'.val + i)) (g 0 : ℕ))
-    have hswap : ExecWithin w swapCode (x₂.set jReg k'.val) y₁ 7 := by
-      ram_eval [y₁, x₂, swapCode, hx.i_eq, hf.pBase_eq, hm0, hmk, hfa, hfb, hfc]
+    have hswap : ExecWithin w swapCode (x₂.set jReg k'.val) y₁ 7 :=
+      WP.execWithin (by unfold swapCode y₁ x₂; wram_exec [hx.i_eq, hf.pBase_eq, hm0, hmk]; rfl)
     have hy₁m : y₁.mem = Function.update (Function.update x.mem (Tb + n + i) (g k : ℕ))
         (Tb + n + i + (k : ℕ)) (g 0 : ℕ) := by
       simp only [y₁, Data.write_mem, Data.set_mem, x₂]
       rw [show Tb + n + (k'.val + i) = Tb + n + i + (k : ℕ) by omega]
-    have hy₁far : ∀ a, a < Tb + n → y₁.mem a = x.mem a := fun a ha => by
-      rw [hy₁m, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    have hfy₁ : RoundFrame φ C Tb M y₁ :=
-      hf.congr (by simp +decide [y₁, x₂]) (by simp +decide [y₁, x₂]) (by simp +decide [y₁, x₂])
-        (by simp +decide [y₁, x₂]) (by simp +decide [y₁, x₂]) (by simp +decide [y₁, x₂])
-        (by simp +decide [y₁, x₂]) (by simp +decide [y₁, x₂]) fun a ha => by
-          rw [hy₁m, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    have hst₁ : PartialAt y₁.mem Tb τ := fun v => by
-      rw [hy₁far _ (by omega)]
-      exact hx.stored v
-    have hxr₁ : y₁.regs xReg = (g k : ℕ) := by simp [y₁]
-    have hj₁ : y₁.regs jReg = k'.val + i := by simp +decide [y₁]
-    have hi₁ : y₁.regs iReg = i := by simp +decide [y₁, x₂, hx.i_eq]
+    have hy₁far : ∀ a, a < Tb + n → y₁.mem a = x.mem a := by dsimp only [y₁, x₂]; mem_frame
+    have hfy₁ : RoundFrame φ C Tb M y₁ := by dsimp only [y₁, x₂]; struct_frame hf
+    have hst₁ : PartialAt y₁.mem Tb τ := fun v => by rw [hy₁far _ (by omega)]; exact hx.stored v
     -- the oracle's value
-    obtain ⟨z, hz, hzm, hzr⟩ := hoc.exec τ (g k) y₁ hfy₁ hxr₁ hst₁
+    obtain ⟨z, hz, hzm, hzr⟩ := hoc.exec τ (g k) y₁ hfy₁ (by wram_simp [y₁]) hst₁
     have hfz : RoundFrame φ C Tb M z := hfy₁.of_execWithin hoc.preserves hz fun a _ => by rw [hzm]
-    have hjz : z.regs jReg = k'.val + i := (hz.regs_eq hoc.preserves_j).trans hj₁
-    have hiz : z.regs iReg = i := (hz.regs_eq hoc.preserves_i).trans hi₁
-    have hxz : z.regs xReg = (g k : ℕ) := (hz.regs_eq hoc.preserves_x).trans hxr₁
+    have hjz : z.regs jReg = k'.val + i := (hz.regs_eq hoc.preserves_j).trans (by wram_simp [y₁])
+    have hiz : z.regs iReg = i :=
+      (hz.regs_eq hoc.preserves_i).trans (by wram_simp [y₁, x₂, hx.i_eq])
+    have hxz : z.regs xReg = (g k : ℕ) := (hz.regs_eq hoc.preserves_x).trans (by wram_simp [y₁])
     -- the value set, and the store
-    have hfs : Fits w (Tb + (g k : ℕ)) := hw.of_le (by omega)
-    have hfi : Fits w (i + 1) := hw.of_le (by omega)
+    have : Fits w (Tb + (g k : ℕ)) := hw.of_le (by omega)
+    have : Fits w (i + 1) := hw.of_le (by omega)
     have hstore : ∀ b : Bool, ∃ Y, ExecWithin w storeCode (z.set res b.toNat) Y 3 ∧
-        StepPost φ C Tb M i τ g Y ∧ F Y = F (z.set res b.toNat) := by
-      intro b
-      let Y := (((z.set res b.toNat).set addr (Tb + (g k : ℕ))).write (Tb + (g k : ℕ))
-        b.toNat).set iReg (i + 1)
-      have hrun : ExecWithin w storeCode (z.set res b.toNat) Y 3 := by
-        ram_eval [Y, storeCode, hfz.tBase_eq, hxz, hiz, hfz.one_eq, hfs, hfi]
-      have hYm : Y.mem = Function.update z.mem (Tb + (g k : ℕ)) b.toNat := rfl
-      refine ⟨Y, hrun, ⟨k, b, by simp +decide [Y, hjz]; omega, by simp +decide [Y], ?_⟩,
-        by simp +decide [Y, F]⟩
-      refine ⟨hfz.congr (by simp +decide [Y]) (by simp +decide [Y]) (by simp +decide [Y])
-        (by simp +decide [Y]) (by simp +decide [Y]) (by simp +decide [Y]) (by simp +decide [Y])
-        (by simp +decide [Y]) fun a ha => ?_, by simp +decide [Y], ?_, ?_, cover_succ hx.cover k b⟩
-      · rw [hYm, Function.update_of_ne (by omega)]
+        StepPost φ C Tb M i τ g Y ∧ F Y = F (z.set res b.toNat) := fun b => by
+      refine WP.exists_execWithin ?_
+      unfold storeCode
+      wram_exec [hfz.tBase_eq, hxz, hiz, hfz.one_eq]
+      refine ⟨⟨k, b, by wram_simp [hjz]; omega, by wram_simp, ?_⟩, by wram_simp [F]⟩
+      refine ⟨by struct_frame hfz, by wram_simp, ?_, ?_, cover_succ hx.cover k b⟩
       · intro v
-        rw [hYm, hzm]
+        simp only [Data.set_mem, Data.write_mem, hzm]
         by_cases hv : v = g k
         · subst hv
           simp [optCode]
@@ -498,7 +456,8 @@ theorem roundBodyWith_law {φ : CNF (Fin n)} {C Tb w T : ℕ} {M : ℕ → ℕ}
             Function.update_of_ne hv, hy₁far _ (by omega)]
           exact hx.stored v
       · intro t
-        rw [hYm, hzm, Function.update_of_ne (by omega), hy₁m,
+        simp only [Data.set_mem, Data.write_mem, hzm]
+        rw [Function.update_of_ne (by omega), hy₁m,
           show Tb + n + (i + 1) + (t : ℕ) = Tb + n + i + (t.succ : ℕ) by simp; omega]
         exact swap_order g k x.mem (Tb + n + i) (fun t => by simpa using hx.order t) t.succ
     -- the law of the value set
@@ -706,27 +665,20 @@ theorem roundCheck_exec {φ : CNF (Fin n)} {C Tb w : ℕ} {M : ℕ → ℕ} (hw 
       RoundFrame φ C Tb M y ∧
       y.regs out = (if φ.eval (assignmentAt x.mem Tb n) then 1 else 0) := by
   set σ := assignmentAt x.mem Tb n
-  have hσ : AssignAt x.mem Tb σ := assignAt_assignmentAt hbits
   obtain ⟨y₁, hrun, ⟨hm₀, hr₀⟩, -⟩ :=
     ExecWithin.rename_post embed_injective (Schoening.scan_spec (w := w) σ φ (x.comap embed)
-      hx.zero_eq hx.one_eq (by simpa [embed] using hx.cBeg_eq ▸ hx.clauses)
-      (by simp only [Data.comap_regs]; rw [show embed Schoening.Reg.cBeg = cBeg by decide,
-        show embed Schoening.Reg.aBase = tBase by decide, hx.cBeg_eq, hx.tBase_eq]; exact hx.span)
-      (by simp only [Data.comap_regs]; rw [show embed Schoening.Reg.aBase = tBase by decide,
-        hx.tBase_eq]; exact hσ)
-      (by simp only [Data.comap_regs]; rw [show embed Schoening.Reg.aBase = tBase by decide,
-        hx.tBase_eq]; exact hw)
-      (by simp only [Data.comap_regs]; rw [show embed Schoening.Reg.aBase = tBase by decide,
-        hx.tBase_eq]; omega))
+      hx.zero_eq hx.one_eq (by simpa [embed, hx.cBeg_eq] using hx.clauses)
+      (by simpa +decide [embed, hx.cBeg_eq, hx.tBase_eq] using hx.span)
+      (by simpa +decide [embed, hx.tBase_eq] using assignAt_assignmentAt hbits)
+      (by simpa +decide [embed, hx.tBase_eq] using hw)
+      (by simp +decide [embed, hx.tBase_eq]; omega))
+  replace hm₀ : y₁.mem = x.mem := hm₀
   have hfnd : y₁.regs sFound = if φ.eval σ then 0 else 1 := hr₀.found_eq
-  have hm₁ : y₁.mem = x.mem := hm₀
-  have hf₁ : RoundFrame φ C Tb M y₁ := hx.of_execWithin (by decide) hrun fun a _ => by rw [hm₁]
-  have hfo : Fits w (1 - y₁.regs sFound) := hw.of_le (by omega)
-  have hout := ExecWithin.bin (w := w) (f := .sub) (d := out) (i := one) (j := sFound) (x := y₁)
-    (by rw [hf₁.one_eq]; exact hfo)
-  refine ⟨_, hrun.seq hout, by simpa using hm₁, hf₁.set (by decide) _, ?_⟩
-  simp only [Data.set_regs, Function.update_self, BinOp.eval, hf₁.one_eq, hfnd]
-  split_ifs <;> rfl
+  have hf₁ : RoundFrame φ C Tb M y₁ := hx.of_execWithin (by decide) hrun fun a _ => congrFun hm₀ a
+  have : Fits w (1 - y₁.regs sFound) := hw.of_le (by omega)
+  refine WP.exists_execWithin (WP.seq (WP.of_execWithin hrun ?_))
+  wram_exec [hf₁.one_eq, hfnd]
+  exact ⟨hm₀, hf₁.set (by decide) _, by wram_simp; split_ifs <;> rfl⟩
 
 /-! ### The program -/
 
@@ -760,22 +712,17 @@ def roundSetupData (φ : CNF (Fin n)) : Data 32 :=
 theorem roundSetup_exec (φ : CNF (Fin n)) {w : ℕ} (hw : Fits w ((encode φ).length + 2 * n + 1)) :
     ExecWithin w roundSetup (Data.init (encode φ)) (roundSetupData φ) 8 ∧
       RoundFrame φ 2 ((encode φ).length + 1) (roundSetupData φ).mem (roundSetupData φ) := by
-  have hf1 : Fits w 1 := hw.of_le (by omega)
-  have hf2 : Fits w 2 := hw.of_le (by simp [encode]; omega)
-  have hf3 : Fits w ((encode φ).length + 1) := hw.of_le (by omega)
-  have hf4 : Fits w ((encode φ).length + 1 + n) := hw.of_le (by omega)
+  have : Fits w 1 := hw.of_le (by omega)
+  have : Fits w 2 := hw.of_le (by simp [encode]; omega)
+  have : Fits w ((encode φ).length + 1 + n) := hw.of_le (by omega)
   have hm0 : (Data.init (encode φ) : Data 32).mem 0 = (encode φ).length := rfl
   have hm1 : (Data.init (encode φ) : Data 32).mem 1 = n := rfl
-  refine ⟨?run, ?frame⟩
-  case run =>
-    ram_eval [roundSetup, roundSetupData, Data.init_regs, hm0, hm1, hf1, hf2, hf3, hf4]
-  case frame =>
-    refine ⟨by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      holdsList_encodeClauses_init (r := 32) φ, ?_, fun _ _ => rfl⟩
-    simp [length_encode]; omega
+  refine ⟨WP.execWithin (by
+      unfold roundSetup roundSetupData; wram_exec [Data.init_regs, hm0, hm1]; rfl),
+    ⟨by wram_simp [roundSetupData, Data.init_regs], by wram_simp [roundSetupData],
+      by wram_simp [roundSetupData], by wram_simp [roundSetupData], by wram_simp [roundSetupData],
+      by wram_simp [roundSetupData], by wram_simp [roundSetupData], by wram_simp [roundSetupData],
+      holdsList_encodeClauses_init (r := 32) φ, by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
 
 /-- **One round of PPZ on the randomized word RAM.** On the input `encode φ` of length `L`, at any
 word size `w` with `L + 2 n + 1 < 2 ^ w`, the program

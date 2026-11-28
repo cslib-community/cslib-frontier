@@ -109,53 +109,38 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
             ((2 ^ m) ^ ((k * 3 + 1) * r), m, r)) else _ else _) : State k Q) = _
         rw [ite_eq_left htag, ite_eq_left hz]
       refine ⟨0, InitialVector.values M e ((2 ^ m) ^ ((k * 3 + 1) * r), m, r),
-        ?_, ?_, ?_, ?_⟩
-      · change (machine M e).halted (initial M e (address, params)) = true
-        rw [hstart]
-        rfl
-      · change answer (initial M e (address, params)) = _
-        rw [hstart]
-        rfl
-      · intro j
-        rw [hnode]
+        hstart ▸ rfl, hstart ▸ rfl, fun j => ?_, fun t ht => ?_⟩
+      · rw [hnode]
         change _ = Packed.gateExtension h (Packed.packBits hb) (Packed.unpackBits hb)
           (codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
             (Encoding.encode e) (Encoding.decode e) index) x j
         rw [hz]
         exact InitialVector.values_gateExtension_zero M e w _ b
           (scheduleOfNat k q σ) hcapacity hb h hh x j
-      · intro t ht
-        have htzero : t = 0 := by omega
-        subst t
+      · obtain rfl : t = 0 := by omega
         have hsource := source_encoding_le M e ((2 ^ m) ^ ((k * 3 + 1) * r)) b
           hcapacity hb hsp
         change (encState ((machine M e).runFrom w (initial M e (address, params)) 0)).length ≤ _
-        rw [QueryMachine.runFrom_zero, hstart]
-        rw [allowance, hprepare]
+        rw [QueryMachine.runFrom_zero, hstart, allowance, hprepare]
         dsimp only [GateVector.callerSpace, QueryGate.gateParams]
         omega
     · have hle : index ≤ q := ImplicitPath.walk_le k σ q (path.map Fin.val)
       let i : Fin q := ⟨index - 1, by omega⟩
       have hi : i.val + 1 = index := by dsimp only [i]; omega
       obtain ⟨T, values, hrun, hlength, hcanonical, hvalues, hhalt, hsize⟩ :=
-        GateVector.exists_runFrom_gateExtension_bounded M e w b σ i x hb hm hsp h hh
+        GateVector.exists_runFrom_gateExtension_bounded M e w b σ i x hb hm h hh
       have hstart : initial M e (address, params) =
           .inr (GateVector.initial
             (QueryGate.gateParams (s := 2 ^ m)
                 (⟨w.length, b, σ, i.val, m, 0, r * m⟩ : Interpolation.Context) x, r)) := by
         simp only [initial, htag, show ImplicitPath.walk k address ≠ 0 from hz,
           ↓reduceIte, hprepare, i]
-      refine ⟨T, values, ?_, ?_, ?_, ?_⟩
+      refine ⟨T, values, ?_, ?_, fun j => ?_, fun t ht => ?_⟩
       · rw [hstart, runFrom_inr]
         exact hhalt
-      · rw [hstart, runFrom_inr, hrun]
-        rfl
-      · intro j
-        rw [hnode]
-        rw [hi] at hvalues
-        exact hvalues j
-      · intro t ht
-        change (encState ((machine M e).runFrom w (initial M e (address, params)) t)).length ≤ _
+      · rw [hstart, runFrom_inr, hrun]; rfl
+      · simpa only [hnode, hi] using hvalues j
+      · change (encState ((machine M e).runFrom w (initial M e (address, params)) t)).length ≤ _
         rw [hstart, runFrom_inr]
         have hlocal := hsize t ht
         change (GateVector.encState ((GateVector.machine M e).runFrom w
@@ -174,24 +159,14 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
     have hstart : initial M e (address, params) = .inl (0, []) := by
       change ((if ImplicitNode.classify k address = 2 then _ else .inl (0, [])) : State k Q) = _
       rw [ite_eq_right htag]
-    refine ⟨0, [], ?_, ?_, ?_, ?_⟩
-    · change (machine M e).halted (initial M e (address, params)) = true
-      rw [hstart]
-      rfl
-    · change answer (initial M e (address, params)) = _
-      rw [hstart]
-      rfl
-    · intro j
-      rw [encodedTree, tree, Descending.nodeAt_tree]
+    refine ⟨0, [], hstart ▸ rfl, hstart ▸ rfl, fun j => ?_, fun t ht => ?_⟩
+    · rw [encodedTree, tree, Descending.nodeAt_tree]
       simp only [Descending.lookup, hdepth, ↓reduceIte]
       by_cases heq : path.length = q <;> simp [heq]
-    · intro t ht
-      have htzero : t = 0 := by omega
-      subst t
+    · obtain rfl : t = 0 := by omega
       change (encState ((machine M e).runFrom w (initial M e (address, params)) 0)).length ≤ _
-      rw [QueryMachine.runFrom_zero, hstart]
-      have hempty : (encState (.inl (0, []) : State k Q)).length = 2 := rfl
-      rw [hempty]
+      rw [QueryMachine.runFrom_zero, hstart,
+        show (encState (.inl (0, []) : State k Q)).length = 2 from rfl]
       dsimp only [allowance]
       omega
 

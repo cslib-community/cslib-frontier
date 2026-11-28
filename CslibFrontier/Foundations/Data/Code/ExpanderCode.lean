@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Combinatorics.Expander.Bipartite
 public import CslibFrontier.Foundations.Data.Code.Basic
 public import CslibFrontier.Foundations.Data.BitString.Parity
+public import CslibFrontier.Foundations.Data.Code.ParityCheck
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.LinearAlgebra.Matrix.ToLin
 import CslibFrontier.Foundations.Data.BitString.Parity.DotProduct
@@ -85,7 +86,7 @@ def checkMatrix : Matrix κ ι Bool :=
 [GuruswamiRudraSudan2025, Definition 11.3.1]: the words on which every check, the sum of the
 bits of its neighbours, vanishes. -/
 def code : Submodule Bool (ι → Bool) :=
-  LinearMap.ker (checkMatrix G).mulVecLin
+  Code.parityCheckCode (checkMatrix G)
 
 /-- The syndrome of a word: the value of every check. -/
 def syndrome (x : ι → Bool) : κ → Bool :=
@@ -121,9 +122,8 @@ theorem syndrome_add_of_mem {x w : ι → Bool} (hw : w ∈ code G) :
 /-- A word is a codeword iff it violates no check. -/
 theorem mem_code_iff_unsat_eq_empty {x : ι → Bool} : x ∈ code G ↔ unsat G x = ∅ := by
   rw [mem_code, unsat, filter_eq_empty_iff, funext_iff]
-  refine forall_congr' fun j => ?_
-  simp only [Pi.zero_apply, mem_univ, true_implies, Bool.not_eq_true]
-  rfl
+  exact forall_congr' fun _ => by
+    simp only [Pi.zero_apply, mem_univ, true_implies, Bool.not_eq_true]; rfl
 
 /-- A check is violated by `y` iff it sees an odd number of errors, the positions where `y`
 differs from a codeword `w`. -/
@@ -135,23 +135,18 @@ theorem mem_unsat_iff {y w : ι → Bool} (hw : w ∈ code G) {j : κ} :
   congr! 2
   ext i
   simp only [mem_filter, mem_univ, true_and, mem_bipartiteBelow, Pi.add_apply, Bool.add_eq_xor,
-    Bool.xor_iff_ne]
-  exact and_comm
+    Bool.xor_iff_ne, and_comm]
 
 /-- The unique neighbours of the errors are violated checks. -/
 theorem uniqueNeighbors_subset_unsat {y w : ι → Bool} (hw : w ∈ code G) :
-    uniqueNeighbors G {i | y i ≠ w i} ⊆ unsat G y := by
-  intro j hj
-  rw [mem_unsat_iff hw, mem_uniqueNeighbors.1 hj]
-  exact odd_one
+    uniqueNeighbors G {i | y i ≠ w i} ⊆ unsat G y :=
+  fun _ hj => (mem_unsat_iff hw).2 (mem_uniqueNeighbors.1 hj ▸ odd_one)
 
 /-- Violated checks are neighbours of the errors. -/
 theorem unsat_subset_neighbors {y w : ι → Bool} (hw : w ∈ code G) :
-    unsat G y ⊆ neighbors G {i | y i ≠ w i} := by
-  intro j hj
-  obtain ⟨i, hi⟩ := card_pos.1 (mem_unsat_iff hw |>.1 hj).pos
-  rw [mem_bipartiteBelow] at hi
-  exact mem_neighbors.2 ⟨i, hi⟩
+    unsat G y ⊆ neighbors G {i | y i ≠ w i} :=
+  fun _ hj => let ⟨i, hi⟩ := card_pos.1 ((mem_unsat_iff hw).1 hj).pos
+    mem_neighbors.2 ⟨i, (mem_bipartiteBelow G).1 hi⟩
 
 /-- If left degrees are at most `c`, a word at distance `e` from a codeword violates at most
 `c e` checks. -/
@@ -164,72 +159,39 @@ theorem card_unsat_le {c : ℕ} (hG : IsLeftBounded G c) {y w : ι → Bool} (hw
 /-- `2 ^ n ≤ |C(G)| · 2 ^ m`: the code is the kernel of a linear map into `2 ^ m` words. -/
 theorem two_pow_card_le :
     2 ^ Fintype.card ι ≤ Nat.card (code G) * 2 ^ Fintype.card κ := by
-  have h := AddSubgroup.card_ker_mul_card_range (checkMatrix G).mulVecLin.toAddMonoidHom
-  have hker : Nat.card ((checkMatrix G).mulVecLin.toAddMonoidHom.ker) = Nat.card (code G) := rfl
-  have hrange : Nat.card ((checkMatrix G).mulVecLin.toAddMonoidHom.range) ≤
-      2 ^ Fintype.card κ := by
-    refine (Nat.card_le_card_of_injective _ Subtype.val_injective).trans ?_
-    rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
-      Nat.card_eq_fintype_card (α := κ)]
-  rw [hker, Nat.card_fun, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
-    Nat.card_eq_fintype_card (α := ι)] at h
-  rw [← h]
-  exact Nat.mul_le_mul_left _ hrange
+  simpa only [code, Fintype.card_bool] using Code.pow_card_le_card_parityCheckCode (checkMatrix G)
 
 /-- **Rate** [GuruswamiRudraSudan2025, proof of Theorem 11.3.6] [GuruswamiSharma2010, §1]: with
 `n` variables and `m` checks the code, the solution space of `m` homogeneous linear equations, has
 dimension at least `n - m`, i.e. at least `2 ^ (n - m)` codewords. -/
 theorem two_pow_sub_le_card_code :
     2 ^ (Fintype.card ι - Fintype.card κ) ≤ Nat.card (code G) := by
-  rcases le_total (Fintype.card κ) (Fintype.card ι) with hle | hle
-  · have h2 : 2 ^ (Fintype.card ι - Fintype.card κ) * 2 ^ Fintype.card κ =
-        2 ^ Fintype.card ι := by
-      rw [← pow_add, Nat.sub_add_cancel hle]
-    exact le_of_mul_le_mul_right (h2.le.trans two_pow_card_le) (by positivity)
-  · rw [Nat.sub_eq_zero_of_le hle, pow_zero]
-    exact Nat.card_pos
+  simpa only [code, Fintype.card_bool] using Code.pow_sub_le_card_parityCheckCode (checkMatrix G)
 
 /-- **Rate** in real form: `log₂ |C(G)| / n ≥ 1 - m / n`. -/
 theorem one_sub_card_div_card_le_rate (hι : 0 < Fintype.card ι) :
     1 - (Fintype.card κ : ℝ) / Fintype.card ι ≤
       Real.logb 2 (Nat.card (code G)) / Fintype.card ι := by
-  have hpos : (0 : ℝ) < Nat.card (code G) := by
-    exact_mod_cast Nat.card_pos (α := code G)
-  have h : (2 : ℝ) ^ (Fintype.card ι : ℝ) ≤
-      (Nat.card (code G) : ℝ) * (2 : ℝ) ^ (Fintype.card κ : ℝ) := by
-    rw [Real.rpow_natCast, Real.rpow_natCast]
-    exact_mod_cast two_pow_card_le (G := G)
-  have hlog : (Fintype.card ι : ℝ) ≤ Real.logb 2 (Nat.card (code G)) + Fintype.card κ := by
-    have := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) h
-    rwa [Real.logb_mul hpos.ne' (by positivity), Real.logb_rpow (by norm_num) (by norm_num),
-      Real.logb_rpow (by norm_num) (by norm_num)] at this
-  have hι' : (0 : ℝ) < Fintype.card ι := by exact_mod_cast hι
-  rw [sub_le_iff_le_add, ← add_div, le_div_iff₀ hι', one_mul]
-  linarith
+  have h := Code.one_sub_card_div_card_le_rate_parityCheckCode hι (checkMatrix G)
+  rwa [Code.rate, Fintype.card_bool, Nat.cast_ofNat] at h
 
 /-- **Rate of a biregular expander code**: if `G` is `(c, d)`-biregular, the rate
 `log₂ |C(G)| / n` is at least `1 - c / d`. -/
 theorem one_sub_div_le_rate_of_isBiregular {c d : ℕ} (hG : IsBiregular G c d) (hd : 0 < d)
     (hι : 0 < Fintype.card ι) :
     1 - (c : ℝ) / d ≤ Real.logb 2 (Nat.card (code G)) / Fintype.card ι := by
-  have h : c * Fintype.card ι = Fintype.card κ * d := (Nat.mul_comm _ _).trans hG.card_mul_eq
   have hcd : (c : ℝ) / d = Fintype.card κ / Fintype.card ι := by
-    have hι' : (Fintype.card ι : ℝ) ≠ 0 := by exact_mod_cast hι.ne'
-    have hd' : (d : ℝ) ≠ 0 := by exact_mod_cast hd.ne'
-    rw [div_eq_div_iff hd' hι']
-    exact_mod_cast h
-  rw [hcd]
-  exact one_sub_card_div_card_le_rate hι
+    rw [div_eq_div_iff (Nat.cast_ne_zero.2 hd.ne') (Nat.cast_ne_zero.2 hι.ne')]
+    exact_mod_cast (Nat.mul_comm _ _).trans hG.card_mul_eq
+  exact hcd ▸ one_sub_card_div_card_le_rate hι
 
 /-! ### Distance -/
 
 /-- The set where two codewords differ has no unique neighbour. -/
 theorem uniqueNeighbors_eq_empty {x w : ι → Bool} (hx : x ∈ code G) (hw : w ∈ code G) :
-    uniqueNeighbors G {i | x i ≠ w i} = ∅ := by
-  refine eq_empty_of_forall_notMem fun j hj => ?_
-  have := uniqueNeighbors_subset_unsat hw hj
-  rw [mem_code_iff_unsat_eq_empty.1 hx] at this
-  exact notMem_empty j this
+    uniqueNeighbors G {i | x i ≠ w i} = ∅ :=
+  eq_empty_of_forall_notMem fun j hj =>
+    notMem_empty j (mem_code_iff_unsat_eq_empty.1 hx ▸ uniqueNeighbors_subset_unsat hw hj)
 
 /-- **Distance of expander codes** [GuruswamiRudraSudan2025, Theorem 11.3.6]. If left degrees are
 at most `c` and sets of at most `k` variables expand by a factor `α > c / 2`, distinct codewords
@@ -237,14 +199,11 @@ differ in more than `k` positions. -/
 theorem lt_hammingDist {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c) (hE : IsVertexExpander G k α)
     (hα : c < 2 * α) {x w : ι → Bool} (hx : x ∈ code G) (hw : w ∈ code G) (hxw : x ≠ w) :
     k < hammingDist x w := by
-  by_contra hk
-  push Not at hk
+  by_contra! hk
   have h := hE.le_card_uniqueNeighbors hG hk
   rw [uniqueNeighbors_eq_empty hx hw, card_empty, Nat.cast_zero] at h
-  have hpos : 0 < #({i | x i ≠ w i} : Finset ι) := hammingDist_pos.2 hxw
-  have hpos' : (0 : ℝ) < #({i | x i ≠ w i} : Finset ι) := by exact_mod_cast hpos
-  have : (0 : ℝ) < (2 * α - c) * #({i | x i ≠ w i} : Finset ι) := mul_pos (by linarith) hpos'
-  linarith
+  have hpos : (0 : ℝ) < #({i | x i ≠ w i} : Finset ι) := by exact_mod_cast hammingDist_pos.2 hxw
+  linarith [mul_pos (by linarith : 0 < 2 * α - c) hpos]
 
 /-- The minimum distance of the expander code exceeds `k`. -/
 theorem lt_minDist {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c) (hE : IsVertexExpander G k α)
@@ -263,28 +222,23 @@ theorem two_mul_mul_le_hammingDist {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G 
   set E : Finset ι := {i | x i ≠ w i}
   have hEk : k ≤ #E := (lt_hammingDist hG hE hα hx hw hxw).le
   obtain ⟨T, hTE, hT⟩ := exists_subset_card_eq hEk
-  have hsub : uniqueNeighbors G T ⊆ neighbors G (E \ T) := by
-    intro j hj
-    by_contra hj'
+  have hsub : uniqueNeighbors G T ⊆ neighbors G (E \ T) := fun j hj => by_contra fun hj' => by
     have hU : j ∈ uniqueNeighbors G E := by
       rw [mem_uniqueNeighbors, ← mem_uniqueNeighbors.1 hj]
       congr 1
       ext i
       simp only [mem_bipartiteBelow]
-      refine ⟨fun h => ⟨?_, h.2⟩, fun h => ⟨hTE h.1, h.2⟩⟩
-      by_contra hiT
-      exact hj' (mem_neighbors.2 ⟨i, mem_sdiff.2 ⟨h.1, hiT⟩, h.2⟩)
-    rw [uniqueNeighbors_eq_empty hx hw] at hU
-    exact notMem_empty j hU
-  have h1 := hE.le_card_uniqueNeighbors hG hT.le
-  have h2 : #(uniqueNeighbors G T) ≤ c * (#E - k) := by
-    refine (card_le_card hsub).trans ((card_neighbors_le hG _).trans ?_)
-    rw [card_sdiff_of_subset hTE, hT]
+      exact ⟨fun h => ⟨by_contra fun hiT =>
+        hj' (mem_neighbors.2 ⟨i, mem_sdiff.2 ⟨h.1, hiT⟩, h.2⟩), h.2⟩, fun h => ⟨hTE h.1, h.2⟩⟩
+    exact notMem_empty j (uniqueNeighbors_eq_empty hx hw ▸ hU)
+  have h1 := hT ▸ hE.le_card_uniqueNeighbors hG hT.le
+  have h2 : #(uniqueNeighbors G T) ≤ c * (#E - k) :=
+    (card_le_card hsub).trans ((card_neighbors_le hG _).trans
+      (by rw [card_sdiff_of_subset hTE, hT]))
+  have hsub_cast : ((#E - k : ℕ) : ℝ) = #E - k := by push_cast [hEk]; ring
   have h3 : (#(uniqueNeighbors G T) : ℝ) ≤ c * (#E - k) := by
-    have : ((#E - k : ℕ) : ℝ) = #E - k := by push_cast [hEk]; ring
-    rw [← this]
+    rw [← hsub_cast]
     exact_mod_cast h2
-  rw [hT] at h1
   change 2 * α * k ≤ c * (#E : ℝ)
   nlinarith
 

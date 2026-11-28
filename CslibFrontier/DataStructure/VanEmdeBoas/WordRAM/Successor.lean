@@ -10,6 +10,9 @@ module
 public import CslibFrontier.DataStructure.VanEmdeBoas.Successor
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 
 /-!
 # Native van Emde Boas strict-successor certification
@@ -26,16 +29,10 @@ reconstruct the universe key in `out` while restoring `sp = stackBase₀`.
 ## Main definitions
 
 * `SuccessorEntry`: register invariant at entry to `successorDescent`.
-* `pushFrameData`, `successorDescentNext`: mathematical descriptions of pushing a continuation
-  frame and one `successorDescentBody` iteration.
 * `UnwindState`: register and memory invariant during `successorUnwind`.
-* `successorUnwindNext`: mathematical description of one `successorUnwindBody` iteration.
 
 ## Main results
 
-* `successorDescentBody_exec`: one descent iteration executes in at most 42 instructions.
-* `successorUnwindBody_cluster_exec`, `successorUnwindBody_summary_exec`: one unwind iteration
-  executes in at most 19 instructions.
 * `successor_loop_spec`: `successorDescent; successorUnwind` executes in at most
   `65 * (d + 1) + 4` instructions, computes `tree.successor query`, restores `sp = stackBase₀`,
   preserves `Rep tree base z.mem`, and leaves all memory outside `[stackBase₀, stackBase₀ + 4 * d)`
@@ -67,142 +64,6 @@ structure SuccessorEntry (stackBase₀ sp₀ base query : ℕ) (s : Data 32) : P
   x_eq : s.regs x = query
   runFlag_eq : s.regs runFlag = 1
 
-/-- Effect of pushing a four-word continuation frame `(k, pay, qv, tv)` at `sp₀`. -/
-def pushFrameData (s : Data 32) (sp₀ k pay qv tv : ℕ) : Data 32 :=
-  let a := (s.set kind k).set payload pay
-  let b := ((a.write sp₀ k).set sp (sp₀ + 1)).write (sp₀ + 1) pay
-  let c := ((b.set sp (sp₀ + 2)).write (sp₀ + 2) qv).set sp (sp₀ + 3)
-  (c.write (sp₀ + 3) tv).set sp (sp₀ + 4)
-
-/-- Mathematical description of one `successorDescentBody` iteration. -/
-def successorDescentNext (s : Data 32) (sp₀ base query : ℕ) : Data 32 :=
-  let a := s.set present (s.mem base)
-  if s.mem base = 0 then
-    ((a.set out 0).set found 0).set runFlag 0
-  else
-    let b := (a.set addr (base + 1)).set mn (s.mem (base + 1))
-    if query < s.mem (base + 1) then
-      ((b.set out (s.mem (base + 1))).set found 1).set runFlag 0
-    else
-      let c := (b.set addr (base + 2)).set mx (s.mem (base + 2))
-      if query < s.mem (base + 2) then
-        let e := (c.set addr (base + 3)).set q (s.mem (base + 3))
-        if s.mem (base + 3) = 0 then
-          ((e.set out (s.mem (base + 2))).set found 1).set runFlag 0
-        else
-          let f := (e.set addr (base + 4)).set t (s.mem (base + 4))
-          let hi := query / s.mem (base + 3)
-          let lo := query % s.mem (base + 3)
-          let g := (((f.set high hi).set low lo).set tmp (hi + 1)).set tmp
-            ((hi + 1) * s.mem (base + 4))
-          let ch := base + 5 + (hi + 1) * s.mem (base + 4)
-          let h := ((g.set child (base + 5)).set child ch).set present (s.mem ch)
-          if s.mem ch = 0 then
-            ((pushFrameData h sp₀ 1 base (s.mem (base + 3)) (s.mem (base + 4))).set p
-              (base + 5)).set x hi
-          else
-            let h₁ := (h.set addr (ch + 2)).set mx (s.mem (ch + 2))
-            if lo < s.mem (ch + 2) then
-              ((pushFrameData h₁ sp₀ 0 (hi * s.mem (base + 3)) (s.mem (base + 3))
-                (s.mem (base + 4))).set p ch).set x lo
-            else
-              ((pushFrameData h₁ sp₀ 1 base (s.mem (base + 3)) (s.mem (base + 4))).set p
-                (base + 5)).set x hi
-      else
-        ((c.set out 0).set found 0).set runFlag 0
-
-/-- Constant and `stackBase` registers are preserved by `successorDescentNext`. -/
-private theorem successorDescentNext_constants {stackBase₀ sp₀ base query : ℕ} {s : Data 32}
-    (hs : SuccessorEntry stackBase₀ sp₀ base query s) :
-    (successorDescentNext s sp₀ base query).regs zero = 0 ∧
-    (successorDescentNext s sp₀ base query).regs one = 1 ∧
-    (successorDescentNext s sp₀ base query).regs two = 2 ∧
-    (successorDescentNext s sp₀ base query).regs three = 3 ∧
-    (successorDescentNext s sp₀ base query).regs four = 4 ∧
-    (successorDescentNext s sp₀ base query).regs five = 5 ∧
-    (successorDescentNext s sp₀ base query).regs stackBase = stackBase₀ := by
-  obtain ⟨hz, ho, ht, hthree, hfour, hfive, hsb, _⟩ := hs
-  simp only [successorDescentNext, pushFrameData]
-  split_ifs <;> simp +decide [hz, ho, ht, hthree, hfour, hfive, hsb]
-
-/-- Pushing a four-word frame modifies memory only in `[sp₀, sp₀ + 4)`. -/
-private theorem pushFrameData_mem_away (s : Data 32) (sp₀ k pay qv tv a : ℕ)
-    (ha : a < sp₀ ∨ sp₀ + 4 ≤ a) :
-    (pushFrameData s sp₀ k pay qv tv).mem a = s.mem a := by
-  have h0 : a ≠ sp₀ := by omega
-  have h1 : a ≠ sp₀ + 1 := by omega
-  have h2 : a ≠ sp₀ + 2 := by omega
-  have h3 : a ≠ sp₀ + 3 := by omega
-  simp [pushFrameData, Data.write_mem, Data.set_mem, Function.update_of_ne, h0, h1, h2, h3]
-
-/-- One native successor-descent iteration executes in at most 42 instructions. -/
-theorem successorDescentBody_exec {d w stackBase₀ sp₀ base query : ℕ} {tree : Tree d} {s : Data 32}
-    (hs : SuccessorEntry stackBase₀ sp₀ base query s) (ht : tree.Valid) (hr : Rep tree base s.mem)
-    (ha : Fits w (base + span d)) (hsp : Fits w (sp₀ + 4 * d)) :
-    ExecWithin w successorDescentBody s (successorDescentNext s sp₀ base query) 42 := by
-  obtain ⟨hz, ho, htwo, hthree, hfour, hfive, _, hsp_eq, hp, hx, _⟩ := hs
-  -- `ram_eval` derives the smaller header bounds `Fits w (base + k)` from this one.
-  have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
-  -- The early exits read only the header, so split on the cached bounds before the shape.
-  have hheader := hr.header
-  rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
-  · have hempty : s.mem base = 0 := hheader.1
-    ram_eval [successorDescentBody, finishNone, successorDescentNext,
-      hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx, hempty]
-  obtain ⟨hpres, ⟨hm, hM⟩, hq, hspan⟩ := hheader
-  by_cases hlt_m : query < m
-  · ram_eval [successorDescentBody, readAt, finishMin, successorDescentNext,
-      hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx, hpres, hm, hlt_m]
-  by_cases hlt_M : query < M
-  · -- Below the maximum, a leaf answers its maximum and a node descends.
-    cases tree with
-    | leaf =>
-      ram_eval [successorDescentBody, readAt, finishMax, successorDescentNext,
-        hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-        hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
-    | @node d b _ _ =>
-      obtain rfl : b = some (m, M) := hb
-      have hsafe := member_descent_safe ht hr (by simpa only [hM] using hlt_M)
-      have hi : query / universeSize d < universeSize d := hsafe.1
-      have hlo : query % universeSize d < universeSize d := hsafe.2.1
-      have hend : base + clusterOffset d (query / universeSize d) + span d ≤
-          base + span (d + 1) := hsafe.2.2
-      have hu_le : universeSize d ≤ span (d + 1) :=
-        (universeSize_le_span d).trans (span_le_succ d)
-      have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
-      -- `ram_eval` derives the other written values' bounds (the high coordinate, the
-      -- product, `base + 5`, the child header, the frame words) from these and `hsp`.
-      have hw_lo : Fits w (query % universeSize d) := ha.of_le (by omega)
-      have hw_hi1 : Fits w (query / universeSize d + 1) := ha.of_le (by omega)
-      have hw_ch2 : Fits w (base + 5 + (query / universeSize d + 1) * span d + 2) :=
-        ha.of_le (by have := five_le_span d; dsimp only [clusterOffset] at hend; omega)
-      let ch := base + 5 + (query / universeSize d + 1) * span d
-      by_cases hch0 : s.mem ch = 0
-      · ram_eval [successorDescentBody, readAt, coordinates, descendSummary, pushFrame,
-          successorDescentNext, pushFrameData,
-          hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-          hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0, ch]
-      · by_cases hlo_mx : query % universeSize d < s.mem (ch + 2)
-        · have hw_pay : Fits w (query / universeSize d * universeSize d) := by
-            have hle : query / universeSize d * universeSize d ≤ query :=
-              Nat.div_mul_le_self query (universeSize d)
-            have hM_lt : M < universeSize (d + 1) := (maximum_lt_universe ht hr rfl).2
-            have hu1_le : universeSize (d + 1) ≤ span (d + 1) := universeSize_le_span (d + 1)
-            exact ha.of_le (by omega)
-          ram_eval [successorDescentBody, readAt, coordinates, descendCluster, pushFrame,
-            successorDescentNext, pushFrameData,
-            hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-            hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0, hlo_mx,
-            ch]
-        · ram_eval [successorDescentBody, readAt, coordinates, descendSummary, pushFrame,
-            successorDescentNext, pushFrameData,
-            hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-            hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0, hlo_mx,
-            ch]
-  · ram_eval [successorDescentBody, readAt, finishNone, successorDescentNext,
-      hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-      hpres, hm, hM, hlt_m, hlt_M]
-
 /-- Register and memory invariant at the start of an unwind stage at stack pointer `sp₀`. -/
 structure UnwindState (stackBase₀ sp₀ ans : ℕ) (mem : ℕ → ℕ) (s : Data 32) : Prop where
   zero_eq : s.regs zero = 0
@@ -214,53 +75,24 @@ structure UnwindState (stackBase₀ sp₀ ans : ℕ) (mem : ℕ → ℕ) (s : Da
   out_eq : s.regs out = ans
   mem_eq : s.mem = mem
 
-/-- Mathematical description of one `successorUnwindBody` iteration popping at `sp₀`. -/
-def successorUnwindNext (s : Data 32) (sp₀ : ℕ) : Data 32 :=
-  let tv := s.mem (sp₀ + 3)
-  let qv := s.mem (sp₀ + 2)
-  let pay := s.mem (sp₀ + 1)
-  let k := s.mem sp₀
-  let a := (((((((s.set sp (sp₀ + 3)).set frameT tv).set sp (sp₀ + 2)).set frameQ qv).set sp
-    (sp₀ + 1)).set payload pay).set sp sp₀).set kind k
-  if k = 0 then
-    a.set out (pay + s.regs out)
-  else
-    let hi := s.regs out
-    let ch := pay + 5 + (hi + 1) * tv
-    let lo := s.mem (ch + 1)
-    let b := ((((((a.set high hi).set tmp (hi + 1)).set tmp ((hi + 1) * tv)).set child
-      (pay + 5)).set child ch).set addr (ch + 1)).set low lo
-    (b.set out (hi * qv)).set out (hi * qv + lo)
-
-/-- Invariant registers and memory preserved across `successorUnwindNext`. -/
-private theorem successorUnwindNext_preserved {stackBase₀ sp₀ childAns : ℕ} {mem : ℕ → ℕ}
-    {s : Data 32} (hs : UnwindState stackBase₀ (sp₀ + 4) childAns mem s) :
-    (successorUnwindNext s sp₀).regs zero = 0 ∧
-    (successorUnwindNext s sp₀).regs one = 1 ∧
-    (successorUnwindNext s sp₀).regs five = 5 ∧
-    (successorUnwindNext s sp₀).regs stackBase = stackBase₀ ∧
-    (successorUnwindNext s sp₀).regs sp = sp₀ ∧
-    (successorUnwindNext s sp₀).regs found = 1 ∧
-    (successorUnwindNext s sp₀).mem = mem := by
-  obtain ⟨hz, ho, hfive, hsb, _, hfound, _, hmem⟩ := hs
-  simp only [successorUnwindNext]
-  split_ifs <;> simp +decide [hz, ho, hfive, hsb, hfound, hmem]
-
-/-- One cluster-return unwind step (`kind = 0`) executes in at most 19 instructions. -/
-theorem successorUnwindBody_cluster_exec {w stackBase₀ sp₀ pay qv tv childAns : ℕ}
+/-- One cluster-return unwind step (`kind = 0`) executes in at most 19 instructions and reconstructs
+`pay + childAns` in `out` at stack pointer `sp₀`. -/
+private theorem successorUnwindBody_cluster_spec {w stackBase₀ sp₀ pay childAns : ℕ}
     {mem : ℕ → ℕ} {s : Data 32}
     (hs : UnwindState stackBase₀ (sp₀ + 4) childAns mem s)
     (hk : mem sp₀ = 0) (hpay : mem (sp₀ + 1) = pay)
-    (hqv : mem (sp₀ + 2) = qv) (htv : mem (sp₀ + 3) = tv)
     (hsp : Fits w (sp₀ + 4)) (hout : Fits w (pay + childAns)) :
-    ExecWithin w successorUnwindBody s (successorUnwindNext s sp₀) 19 := by
-  obtain ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
-  -- `ram_eval` derives the frame-word bounds `Fits w (sp₀ + k)` from `hsp`.
-  ram_eval [successorUnwindBody, popFrame, successorUnwindNext,
-    hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, hqv, htv, Nat.add_sub_assoc, Nat.add_zero]
+    ∃ s', ExecWithin w successorUnwindBody s s' 19 ∧
+      UnwindState stackBase₀ sp₀ (pay + childAns) mem s' := by
+  have ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
+  apply WP.exists_execWithin
+  unfold successorUnwindBody popFrame
+  wram_exec [hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, Nat.add_sub_assoc, Nat.add_zero]
+  struct_frame hs
 
-/-- One summary-return unwind step (`kind = 1`) executes in at most 19 instructions. -/
-theorem successorUnwindBody_summary_exec {d w stackBase₀ sp₀ base j cm : ℕ}
+/-- One summary-return unwind step (`kind = 1`) executes in at most 19 instructions and reconstructs
+`j * universeSize d + cm` in `out` at stack pointer `sp₀`. -/
+private theorem successorUnwindBody_summary_spec {d w stackBase₀ sp₀ base j cm : ℕ}
     {mem : ℕ → ℕ} {s : Data 32}
     (hs : UnwindState stackBase₀ (sp₀ + 4) j mem s)
     (hk : mem sp₀ = 1) (hpay : mem (sp₀ + 1) = base)
@@ -268,64 +100,96 @@ theorem successorUnwindBody_summary_exec {d w stackBase₀ sp₀ base j cm : ℕ
     (hj : j < universeSize d)
     (hcm : mem (base + 5 + (j + 1) * span d + 1) = cm) (hcm_lt : cm < universeSize d)
     (ha : Fits w (base + span (d + 1))) (hsp : Fits w (sp₀ + 4)) :
-    ExecWithin w successorUnwindBody s (successorUnwindNext s sp₀) 19 := by
-  obtain ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
+    ∃ s', ExecWithin w successorUnwindBody s s' 19 ∧
+      UnwindState stackBase₀ sp₀ (j * universeSize d + cm) mem s' := by
+  have ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
   have hend := cluster_end_le_span d hj
   dsimp only [clusterOffset] at hend
-  -- `ram_eval` derives the remaining bounds (the frame words from `hsp`, the product,
-  -- `base + 5` and the child address from `hch1`, the partial answer from `hans`).
   have hj1 : Fits w (j + 1) :=
     ha.of_le (by have := (universeSize_le_span d).trans (span_le_succ d); omega)
   have hch1 : Fits w (base + 5 + (j + 1) * span d + 1) :=
     ha.of_le (by have := five_le_span d; omega)
-  have hmul_lt : j * universeSize d + cm < universeSize (d + 1) := by
-    rw [universeSize_succ]
-    have h := Nat.mul_le_mul_right (universeSize d) (show j + 1 ≤ universeSize d by omega)
-    rw [Nat.succ_mul] at h
-    omega
-  have hu1_le : universeSize (d + 1) ≤ span (d + 1) := universeSize_le_span (d + 1)
-  have hans : Fits w (j * universeSize d + cm) := ha.of_le (by omega)
-  ram_eval [successorUnwindBody, popFrame, readAt, successorUnwindNext,
-    hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, hqv, htv, hcm,
+  have hmul_lt : j * universeSize d + cm < universeSize (d + 1) :=
+    ((Nat.add_lt_add_left hcm_lt _).trans_le
+      ((Nat.succ_mul j _).symm.trans_le (Nat.mul_le_mul_right _ hj))).trans_eq
+      (universeSize_succ d).symm
+  have hans : Fits w (j * universeSize d + cm) :=
+    ha.of_le ((hmul_lt.le.trans (universeSize_le_span (d + 1))).trans (Nat.le_add_left _ base))
+  apply WP.exists_execWithin
+  unfold successorUnwindBody popFrame readAt
+  wram_exec [hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, hqv, htv, hcm,
     Nat.add_sub_assoc, Nat.add_zero]
+  struct_frame hs
 
-/-- Closing one frame-pushing descent step: the body run `he` from `s` to `next`, the recursive
-descent `hs₁` from `next` with its frame `hframe₁`, the push step's frame `hnext_away`, and the
-unwind step `hbody` popping the pushed frame into `successorUnwindNext s₂ sp₀`, whose `out`
-register holds `ans` by `hout`, combine into the descent/unwind certificate at `sp₀`. -/
-private theorem successor_push_close {d w stackBase₀ sp₀ base query ans childAns : ℕ}
-    {s next s₁ s₂ : Data 32} (hs : SuccessorEntry stackBase₀ sp₀ base query s)
-    (hsp_le : stackBase₀ ≤ sp₀)
-    (he : ExecWithin w successorDescentBody s next 42)
-    (hs₁ : ExecWithin w successorDescent next s₁ (44 * (d + 1) + 2))
-    (hframe₁ : ∀ a, a < sp₀ + 4 ∨ sp₀ + 4 + 4 * d ≤ a → s₁.mem a = next.mem a)
-    (hnext_away : ∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a)
-    (hs₂ : UnwindState stackBase₀ (sp₀ + 4) childAns s₁.mem s₂)
-    (hunwind₁ : ∀ z T, ExecWithin w successorUnwind s₂ z T →
-      ExecWithin w successorUnwind s₁ z (21 * d + T))
-    (hbody : ExecWithin w successorUnwindBody s₂ (successorUnwindNext s₂ sp₀) 19)
-    (hout : (successorUnwindNext s₂ sp₀).regs out = ans) :
+/-- One frame-pushing descent step: a `successorDescentBody` step to `next` that pushes `(k, pay,
+qv, tv)` at `sp₀` and enters child `child` at `(P, X)` combines with the child's recursive
+descent/unwind certificate `hrec` and the single-frame pop `hclose` into the certificate at `sp₀`.
+-/
+private theorem successor_push_step
+    {d w stackBase₀ sp₀ base query ans childAns P X k pay qv tv : ℕ}
+    {child : Tree d} {s : Data 32} (hs : SuccessorEntry stackBase₀ sp₀ base query s)
+    (hsp_le : stackBase₀ ≤ sp₀) (hdisj : base + span (d + 1) ≤ sp₀)
+    (hfit : Fits w (sp₀ + 4 * (d + 1)))
+    (hstep : ∃ next, ExecWithin w successorDescentBody s next 42 ∧
+      SuccessorEntry stackBase₀ (sp₀ + 4) P X next ∧
+      (next.mem sp₀ = k ∧ next.mem (sp₀ + 1) = pay ∧
+        next.mem (sp₀ + 2) = qv ∧ next.mem (sp₀ + 3) = tv) ∧
+      (∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a))
+    (hrc : Rep child P s.mem) (hend : P + span d ≤ base + span (d + 1))
+    (hrec : ∀ {next : Data 32},
+      SuccessorEntry stackBase₀ (sp₀ + 4) P X next →
+      Rep child P next.mem → stackBase₀ ≤ sp₀ + 4 →
+      P + span d ≤ sp₀ + 4 → Fits w (sp₀ + 4 + 4 * d) →
+      ∃ s₁ s₂, ExecWithin w successorDescent next s₁ (44 * (d + 1) + 2) ∧
+        (∀ a, a < sp₀ + 4 ∨ sp₀ + 4 + 4 * d ≤ a → s₁.mem a = next.mem a) ∧
+        UnwindState stackBase₀ (sp₀ + 4) childAns s₁.mem s₂ ∧
+        ∀ z T, ExecWithin w successorUnwind s₂ z T →
+          ExecWithin w successorUnwind s₁ z (21 * d + T))
+    (hclose : ∀ s₁ s₂ : Data 32, UnwindState stackBase₀ (sp₀ + 4) childAns s₁.mem s₂ →
+      s₁.mem sp₀ = k → s₁.mem (sp₀ + 1) = pay → s₁.mem (sp₀ + 2) = qv →
+      s₁.mem (sp₀ + 3) = tv → (∀ a < sp₀, s₁.mem a = s.mem a) →
+      ∃ s₃, ExecWithin w successorUnwindBody s₂ s₃ 19 ∧
+        UnwindState stackBase₀ sp₀ ans s₁.mem s₃) :
     ∃ s₁ s₃, ExecWithin w successorDescent s s₁ (44 * (d + 1 + 1) + 2) ∧
       (∀ a, a < sp₀ ∨ sp₀ + 4 * (d + 1) ≤ a → s₁.mem a = s.mem a) ∧
       UnwindState stackBase₀ sp₀ ans s₁.mem s₃ ∧
       ∀ z T, ExecWithin w successorUnwind s₃ z T →
         ExecWithin w successorUnwind s₁ z (21 * (d + 1) + T) := by
-  obtain ⟨hz, ho, hfive, hsb, hsp, hfound, hmem⟩ := successorUnwindNext_preserved hs₂
-  refine ⟨s₁, _, (he.loop_iter (cond := .lt zero runFlag) ?_ hs₁).mono (by omega), ?_,
-    ⟨hz, ho, hfive, hsb, hsp, hfound, hout, hmem⟩, ?_⟩
-  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-    decide
-  · intro a ha'
-    by_cases ha4 : a < sp₀
-    · exact (hframe₁ a (Or.inl (by omega))).trans (hnext_away a (Or.inl ha4))
-    · have ha_ge : sp₀ + 4 + 4 * d ≤ a := by omega
-      exact (hframe₁ a (Or.inr ha_ge)).trans (hnext_away a (Or.inr (by omega)))
+  obtain ⟨next, he, hentry, ⟨hw0, hw1, hw2, hw3⟩, hnext_away⟩ := hstep
+  have hrc_next : Rep child P next.mem :=
+    rep_frame hrc fun a _ _ => hnext_away a (Or.inl (by omega))
+  have hfit' : Fits w (sp₀ + 4 + 4 * d) := by
+    simpa only [Nat.mul_succ, ← Nat.add_assoc, Nat.add_right_comm sp₀ (4 * d) 4] using hfit
+  obtain ⟨s₁, s₂, hs₁, hframe₁, hs₂, hunwind₁⟩ :=
+    hrec hentry hrc_next (by omega) (by omega) hfit'
+  obtain ⟨s₃, hbody, hs₃⟩ := hclose s₁ s₂ hs₂
+    (by mem_frame) (by mem_frame) (by mem_frame) (by mem_frame) (by mem_frame)
+  refine ⟨s₁, s₃, (he.loop_iter (cond := .lt zero runFlag) ?_ hs₁).mono (by omega),
+    by mem_frame, hs₃, ?_⟩
+  · simp [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
   · intro z T hcont
     have hiter : ExecWithin w successorUnwind s₂ z (21 + T) := by
       refine (hbody.loop_iter (cond := .lt stackBase sp) ?_ hcont).mono (by omega)
       simp only [Cond.holds_lt, hs₂.stackBase_eq, hs₂.sp_eq]
       omega
     exact (hunwind₁ z (21 + T) hiter).mono (by omega)
+
+/-- Terminate `successorDescent` in one body pass when `successorDescentBody` clears `runFlag`
+without pushing any stack frames. -/
+private theorem successor_some_finish {d w stackBase₀ sp₀ base query ans : ℕ} {s : Data 32}
+    (hs : SuccessorEntry stackBase₀ sp₀ base query s)
+    (hstep : ∃ s₁, ExecWithin w successorDescentBody s s₁ 42 ∧
+      s₁.regs runFlag = 0 ∧ UnwindState stackBase₀ sp₀ ans s.mem s₁) :
+    ∃ s₁ s₃, ExecWithin w successorDescent s s₁ (44 * (d + 1) + 2) ∧
+      (∀ a, a < sp₀ ∨ sp₀ + 4 * d ≤ a → s₁.mem a = s.mem a) ∧
+      UnwindState stackBase₀ sp₀ ans s₁.mem s₃ ∧
+      ∀ z T, ExecWithin w successorUnwind s₃ z T →
+        ExecWithin w successorUnwind s₁ z (21 * d + T) := by
+  obtain ⟨s₁, he, hk, hu⟩ := hstep
+  refine ⟨s₁, s₁, (he.loop_once (cond := .lt zero runFlag) ?_ ?_).mono (by omega),
+    fun a _ => congrFun hu.mem_eq a, hu.mem_eq ▸ hu, fun _ _ hcont => hcont.mono (by omega)⟩
+  · simp [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
+  · simp [Cond.holds_lt, hu.zero_eq, hk]
 
 /-- Combined inductive certification of `successorDescent` and CPS `successorUnwind` whenever
 `tree.successor query = some ans`. -/
@@ -338,324 +202,164 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       UnwindState stackBase₀ sp₀ ans s₁.mem s₃ ∧
       ∀ z T, ExecWithin w successorUnwind s₃ z T →
         ExecWithin w successorUnwind s₁ z (21 * d + T) := by
-  induction d generalizing sp₀ base query ans s with
-  | zero =>
-    have ha : Fits w (base + span 0) := hfit.of_le (by omega)
-    have he := successorDescentBody_exec hs ht hr ha hfit
-    have hheader := hr.header
-    cases tree with
-    | leaf b =>
-      cases b with
-      | none => simp [Tree.successor] at hans
-      | some bounds =>
-        obtain ⟨m, M⟩ := bounds
-        obtain ⟨hpres_raw, ⟨hm, hM⟩, hq, _⟩ := hheader
-        have hpres : s.mem base = 1 := by simpa [Tree.bounds] using hpres_raw
-        let s₁ := successorDescentNext s sp₀ base query
-        have hconst := successorDescentNext_constants hs
-        have hmem₁ : s₁.mem = s.mem := by
-          simp only [s₁, successorDescentNext, hpres, hm, hM, hq, splitSize]
-          split_ifs <;> rfl
-        have hk : (successorDescentNext s sp₀ base query).regs runFlag = 0 := by
-          simp only [successorDescentNext, hpres, hm, hM, hq, splitSize, ↓reduceIte]
-          split_ifs <;> rfl
-        have hfound₁ : s₁.regs found = 1 ∧ s₁.regs out = ans := by
-          simp only [Tree.successor] at hans
-          simp only [s₁, successorDescentNext, hpres, hm, hM, hq, splitSize, ↓reduceIte]
-          split_ifs with h1 h2 <;> simp_all +decide
-        have hsp₁ : s₁.regs sp = sp₀ := by
-          simp only [s₁, successorDescentNext, hpres, hm, hM, hq, splitSize, ↓reduceIte]
-          split_ifs <;> exact hs.sp_eq
-        refine ⟨s₁, s₁, ?_, ?_, ⟨hconst.1, hconst.2.1, hconst.2.2.2.2.2.1, hconst.2.2.2.2.2.2,
-          hsp₁, hfound₁.1, hfound₁.2, rfl⟩, ?_⟩
-        · refine (he.loop_once (cond := .lt zero runFlag) ?_ ?_).mono
-            (by omega)
-          · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-            decide
-          · simp only [Cond.holds_lt, hconst.1, hk, lt_self_iff_false, not_false_eq_true]
-        · intro a _
-          rw [hmem₁]
-        · intro z T hcont
-          simpa only [Nat.mul_zero, Nat.zero_add] using hcont
-  | succ d ih =>
-    have ha : Fits w (base + span (d + 1)) := hfit.of_le (by omega)
-    have he := successorDescentBody_exec hs ht hr ha hfit
-    have hheader := hr.header
-    cases tree with
-    | node bounds summary cluster =>
-      cases bounds with
-      | none => simp [Tree.successor] at hans
-      | some bounds =>
-        obtain ⟨m, M⟩ := bounds
-        obtain ⟨hpres_raw, ⟨hm, hM⟩, hq, hspan⟩ := hheader
-        have hpres : s.mem base = 1 := by simpa [Tree.bounds] using hpres_raw
-        let next := successorDescentNext s sp₀ base query
-        have hconst := successorDescentNext_constants hs
-        by_cases hlt_m : query < m
-        · have hans_eq : ans = m := by
-            have := hans
-            simp only [Tree.successor, hlt_m, ↓reduceIte, Option.some.injEq] at this
-            exact this.symm
-          have hmem₁ : next.mem = s.mem := by
-            simp [next, successorDescentNext, hpres, hm, hlt_m]
-          have hk : (successorDescentNext s sp₀ base query).regs runFlag = 0 := by
-            simp +decide [successorDescentNext, hpres, hm, hlt_m]
-          have hfound₁ : next.regs found = 1 ∧ next.regs out = ans := by
-            simp +decide [next, successorDescentNext, hpres, hm, hlt_m, hans_eq]
-          have hsp₁ : next.regs sp = sp₀ := by
-            simp +decide [next, successorDescentNext, hpres, hm, hlt_m, hs.sp_eq]
-          refine ⟨next, next, ?_, ?_, ⟨hconst.1, hconst.2.1, hconst.2.2.2.2.2.1,
-            hconst.2.2.2.2.2.2, hsp₁, hfound₁.1, hfound₁.2, rfl⟩, ?_⟩
-          · refine (he.loop_once (cond := .lt zero runFlag) ?_ ?_).mono
-              (by omega)
-            · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-              decide
-            · simp only [Cond.holds_lt, hconst.1, hk, lt_self_iff_false, not_false_eq_true]
-          · intro a _
-            rw [hmem₁]
-          · intro z T hcont
-            exact hcont.mono (by omega)
-        · have hlt_M : query < M := by
-            by_contra hge
-            have hle : M ≤ query := Nat.le_of_not_lt hge
-            simp [Tree.successor, hlt_m, hle] at hans
-          have hnot_le : ¬M ≤ query := not_le.mpr hlt_M
-          have hsafe := member_descent_safe ht hr (by simpa only [hM] using hlt_M)
-          have hi : query / universeSize d < universeSize d := hsafe.1
-          have hlo : query % universeSize d < universeSize d := hsafe.2.1
-          have hend : base + clusterOffset d (query / universeSize d) + span d ≤
-              base + span (d + 1) := hsafe.2.2
-          have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
-          let i : Fin (universeSize d) := ⟨query / universeSize d, hi⟩
-          let lo := query % universeSize d
-          let ch := base + clusterOffset d i.val
-          have hch_eq : base + 5 + (query / universeSize d + 1) * span d = ch := by
-            dsimp only [ch, clusterOffset, i]
-            omega
-          -- Helper for the summary-descent branch (used both when `cluster i` is empty
-          -- and when `cluster i` has maximum `≤ lo`).
-          have summary_branch
-              (hc_max : (cluster i).maximum.any (lo < ·) = false)
-              (hnext_eq : next =
-                ((pushFrameData
-                  (if s.mem ch = 0 then
-                    (((((s.set present 1).set addr (base + 1)).set mn m).set addr
-                      (base + 2)).set mx M).set addr (base + 3) |>.set q (universeSize d)
-                      |>.set addr (base + 4) |>.set t (span d) |>.set high i.val |>.set low lo
-                      |>.set tmp (i.val + 1) |>.set tmp ((i.val + 1) * span d)
-                      |>.set child (base + 5) |>.set child ch |>.set present (s.mem ch)
-                  else
-                    (((((s.set present 1).set addr (base + 1)).set mn m).set addr
-                      (base + 2)).set mx M).set addr (base + 3) |>.set q (universeSize d)
-                      |>.set addr (base + 4) |>.set t (span d) |>.set high i.val |>.set low lo
-                      |>.set tmp (i.val + 1) |>.set tmp ((i.val + 1) * span d)
-                      |>.set child (base + 5) |>.set child ch |>.set present (s.mem ch)
-                      |>.set addr (ch + 2) |>.set mx (s.mem (ch + 2)))
-                  sp₀ 1 base (universeSize d) (span d)).set p (base + 5)).set x i.val) :
-              ∃ s₁ s₃, ExecWithin w successorDescent s s₁ (44 * (d + 1 + 1) + 2) ∧
-                (∀ a, a < sp₀ ∨ sp₀ + 4 * (d + 1) ≤ a → s₁.mem a = s.mem a) ∧
-                UnwindState stackBase₀ sp₀ ans s₁.mem s₃ ∧
-                ∀ z T, ExecWithin w successorUnwind s₃ z T →
-                  ExecWithin w successorUnwind s₁ z (21 * (d + 1) + T) := by
-            have hans' :
-                (summary.successor i.val).bind (fun j =>
-                  if hj : j < universeSize d then
-                    (cluster ⟨j, hj⟩).minimum.map (j * universeSize d + ·)
-                  else none) = some ans := by
-              simpa only [Tree.successor, hlt_m, hnot_le, hi, ↓reduceDIte, ↓reduceIte,
-                i, lo, hc_max, Bool.false_eq_true, bind] using hans
-            cases hsuc : summary.successor i.val with
-            | none => simp [hsuc] at hans'
-            | some j =>
-              simp only [hsuc, Option.bind_some] at hans'
-              by_cases hj : j < universeSize d
-              · simp only [hj, ↓reduceDIte] at hans'
-                let k : Fin (universeSize d) := ⟨j, hj⟩
-                change (cluster k).minimum.map (j * universeSize d + ·) = some ans at hans'
-                cases hck : (cluster k).bounds with
-                | none => simp [Tree.minimum, hck] at hans'
-                | some cbounds =>
-                  obtain ⟨cm, cM⟩ := cbounds
-                  have hans_eq : j * universeSize d + cm = ans := by
-                    simpa [Tree.minimum, hck] using hans'
-                  have hce := (ht.2.2.1 k).extrema_of_bounds hck
-                  have hcm_lt : cm < universeSize d := hce.1.trans_lt hce.2.1
-                  have hcm_mem : s.mem (base + 5 + (j + 1) * span d + 1) = cm := by
-                    have hh := (hr.2.2 k).header
-                    simp only [Header, hck] at hh
-                    simpa only [clusterOffset, k, Nat.add_assoc] using hh.2.1.1
-                  have hnext_away : ∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a := by
-                    intro a ha'
-                    rw [hnext_eq]
-                    simp only [Data.set_mem]
-                    rw [pushFrameData_mem_away _ _ _ _ _ _ _ ha']
-                    split_ifs <;> rfl
-                  have hentry : SuccessorEntry stackBase₀ (sp₀ + 4) (base + summaryOffset) i.val
-                      next := by
-                    refine ⟨hconst.1, hconst.2.1, hconst.2.2.1, hconst.2.2.2.1, hconst.2.2.2.2.1,
-                      hconst.2.2.2.2.2.1, hconst.2.2.2.2.2.2, ?_, ?_, ?_, ?_⟩
-                    · rw [hnext_eq]; rfl
-                    · rw [hnext_eq]; rfl
-                    · rw [hnext_eq]; rfl
-                    · rw [hnext_eq]
-                      simp only [pushFrameData]
-                      split_ifs <;> simp +decide [hs.runFlag_eq]
-                  have hrs_next : Rep summary (base + summaryOffset) next.mem := by
-                    apply rep_frame hr.2.1
-                    intro a hlo_a hhi_a
-                    have hsum_end := summary_end_le_span d
-                    dsimp only [summaryOffset] at hlo_a hhi_a hsum_end
-                    exact hnext_away a (Or.inl (by omega))
-                  have hsp_le' : stackBase₀ ≤ sp₀ + 4 := by omega
-                  have hdisj' : base + summaryOffset + span d ≤ sp₀ + 4 := by
-                    have hsum_end := summary_end_le_span d
-                    omega
-                  have hfit' : Fits w (sp₀ + 4 + 4 * d) := by
-                    simpa only [Nat.mul_succ, ← Nat.add_assoc, Nat.add_right_comm sp₀ (4 * d) 4]
-                      using hfit
-                  obtain ⟨s₁, s₂, hs₁, hframe₁, hs₂, hunwind₁⟩ :=
-                    ih hentry ht.2.1 hrs_next hsuc hsp_le' hdisj' hfit'
-                  have hframe_sp : ∀ a < sp₀ + 4, s₁.mem a = next.mem a :=
-                    fun a ha' => hframe₁ a (Or.inl ha')
-                  have hk_mem : s₁.mem sp₀ = 1 := by
-                    rw [hframe_sp sp₀ (by omega), hnext_eq]
-                    simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-                  have hpay_mem : s₁.mem (sp₀ + 1) = base := by
-                    rw [hframe_sp (sp₀ + 1) (by omega), hnext_eq]
-                    simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-                  have hqv_mem : s₁.mem (sp₀ + 2) = universeSize d := by
-                    rw [hframe_sp (sp₀ + 2) (by omega), hnext_eq]
-                    simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-                  have htv_mem : s₁.mem (sp₀ + 3) = span d := by
-                    rw [hframe_sp (sp₀ + 3) (by omega), hnext_eq]
-                    simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-                  have hcm_s₁ : s₁.mem (base + 5 + (j + 1) * span d + 1) = cm := by
-                    have hlt_sp : base + 5 + (j + 1) * span d + 1 < sp₀ := by
-                      have hend_j := cluster_end_le_span d hj
-                      have := five_le_span d
-                      dsimp only [clusterOffset] at hend_j
-                      omega
-                    rw [hframe_sp _ (by omega), hnext_away _ (Or.inl hlt_sp), hcm_mem]
-                  have hsp4_fit : Fits w (sp₀ + 4) := hfit.of_le (by omega)
-                  have hbody := successorUnwindBody_summary_exec hs₂ hk_mem hpay_mem hqv_mem
-                    htv_mem hj hcm_s₁ hcm_lt ha hsp4_fit
-                  refine successor_push_close hs hsp_le he hs₁ hframe₁ hnext_away hs₂ hunwind₁
-                    hbody ?_
-                  simp +decide [successorUnwindNext, hs₂.mem_eq, hs₂.out_eq,
-                    hk_mem, hpay_mem, hqv_mem, htv_mem, hcm_s₁, hans_eq]
-              · simp [hj] at hans'
-          cases hcb : (cluster i).bounds with
-          | none =>
-            have hch0 : s.mem ch = 0 := by
-              have hh := (hr.2.2 i).header.1
-              simpa only [ch, hcb, Option.isSome_none, Bool.false_eq_true, ↓reduceIte] using hh
-            have hc_max : (cluster i).maximum.any (lo < ·) = false := by
-              simp [Tree.maximum, hcb]
-            apply summary_branch hc_max
-            simp +decide only [next, successorDescentNext, hpres, hm, hM, hq, hspan, splitSize,
-              childSpan, ↓reduceIte, hlt_m, hlt_M, hqne, hch_eq, hch0, i, lo]
-          | some cbounds =>
-            obtain ⟨cm, cM⟩ := cbounds
-            have hch1 : s.mem ch = 1 := by
-              have hh := (hr.2.2 i).header.1
-              simpa only [ch, hcb, Option.isSome_some, ↓reduceIte] using hh
-            have hch_ne0 : s.mem ch ≠ 0 := by
-              rw [hch1]
-              decide
-            have hcM : s.mem (ch + 2) = cM := by
-              have hh := (hr.2.2 i).header
-              simp only [Header, hcb] at hh
-              exact hh.2.1.2
-            by_cases hlo_cM : lo < cM
-            · -- Cluster descent branch
-              have hlo_mx : query % universeSize d < s.mem (ch + 2) := by
-                simpa only [hcM, lo] using hlo_cM
-              have hc_max : (cluster i).maximum.any (lo < ·) = true := by
-                simp [Tree.maximum, hcb, hlo_cM]
-              have hans' : ((cluster i).successor lo).map (i.val * universeSize d + ·) =
-                  some ans := by
-                simpa only [Tree.successor, hlt_m, hnot_le, hi, ↓reduceDIte, ↓reduceIte,
-                  i, lo, hc_max] using hans
-              obtain ⟨y, hy_lt, hy_suc⟩ :=
-                Tree.successor_isSome_of_lt_max (ht.2.2.1 i) hcb hlo_cM
-              have hans_eq : i.val * universeSize d + y = ans := by
-                simpa only [hy_suc, Option.map_some, Option.some.injEq] using hans'
-              have hnext_eq : next =
-                  ((pushFrameData
-                    ((((((s.set present 1).set addr (base + 1)).set mn m).set addr
-                      (base + 2)).set mx M).set addr (base + 3) |>.set q (universeSize d)
-                      |>.set addr (base + 4) |>.set t (span d) |>.set high i.val |>.set low lo
-                      |>.set tmp (i.val + 1) |>.set tmp ((i.val + 1) * span d)
-                      |>.set child (base + 5) |>.set child ch |>.set present (s.mem ch)
-                      |>.set addr (ch + 2) |>.set mx (s.mem (ch + 2)))
-                    sp₀ 0 (i.val * universeSize d) (universeSize d) (span d)).set p ch).set x lo :=
-                by
-                simp +decide only [next, successorDescentNext, hpres, hm, hM, hq, hspan,
-                  splitSize, childSpan, ↓reduceIte, hlt_m, hlt_M, hqne, hch_eq, hch_ne0, hlo_mx,
-                  i, lo]
-              have hnext_away : ∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a := by
-                intro a ha'
-                rw [hnext_eq]
-                simp only [Data.set_mem]
-                exact pushFrameData_mem_away _ _ _ _ _ _ _ ha'
-              have hentry : SuccessorEntry stackBase₀ (sp₀ + 4) ch lo next := by
-                refine ⟨hconst.1, hconst.2.1, hconst.2.2.1, hconst.2.2.2.1, hconst.2.2.2.2.1,
-                  hconst.2.2.2.2.2.1, hconst.2.2.2.2.2.2, ?_, ?_, ?_, ?_⟩
-                · rw [hnext_eq]; rfl
-                · rw [hnext_eq]; rfl
-                · rw [hnext_eq]; rfl
-                · rw [hnext_eq]
-                  simp +decide [pushFrameData, hs.runFlag_eq]
-              have hrc_next : Rep (cluster i) ch next.mem := by
-                apply rep_frame (hr.2.2 i)
-                intro a hlo_a hhi_a
-                dsimp only [ch, i] at hlo_a hhi_a
-                exact hnext_away a (Or.inl (by omega))
-              have hsp_le' : stackBase₀ ≤ sp₀ + 4 := by omega
-              have hdisj' : ch + span d ≤ sp₀ + 4 := by
-                dsimp only [ch, i]
-                omega
-              have hfit' : Fits w (sp₀ + 4 + 4 * d) := by
-                simpa only [Nat.mul_succ, ← Nat.add_assoc, Nat.add_right_comm sp₀ (4 * d) 4]
-                  using hfit
-              obtain ⟨s₁, s₂, hs₁, hframe₁, hs₂, hunwind₁⟩ :=
-                ih hentry (ht.2.2.1 i) hrc_next hy_suc hsp_le' hdisj' hfit'
-              have hframe_sp : ∀ a < sp₀ + 4, s₁.mem a = next.mem a :=
-                fun a ha' => hframe₁ a (Or.inl ha')
-              have hk_mem : s₁.mem sp₀ = 0 := by
-                rw [hframe_sp sp₀ (by omega), hnext_eq]
-                simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-              have hpay_mem : s₁.mem (sp₀ + 1) = i.val * universeSize d := by
-                rw [hframe_sp (sp₀ + 1) (by omega), hnext_eq]
-                simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-              have hqv_mem : s₁.mem (sp₀ + 2) = universeSize d := by
-                rw [hframe_sp (sp₀ + 2) (by omega), hnext_eq]
-                simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-              have htv_mem : s₁.mem (sp₀ + 3) = span d := by
-                rw [hframe_sp (sp₀ + 3) (by omega), hnext_eq]
-                simp +decide [pushFrameData, Data.write_mem, Data.set_mem]
-              have hsp4_fit : Fits w (sp₀ + 4) := hfit.of_le (by omega)
-              have hout_fit : Fits w (i.val * universeSize d + y) := by
-                have hmul_lt : i.val * universeSize d + y < universeSize (d + 1) := by
-                  rw [universeSize_succ]
-                  have h := Nat.mul_le_mul_right (universeSize d)
-                    (show i.val + 1 ≤ universeSize d by exact hi)
-                  rw [Nat.succ_mul] at h
-                  omega
-                have hu1_le := universeSize_le_span (d + 1)
-                exact ha.of_le (by omega)
-              have hbody := successorUnwindBody_cluster_exec hs₂ hk_mem hpay_mem hqv_mem
-                htv_mem hsp4_fit hout_fit
-              refine successor_push_close hs hsp_le he hs₁ hframe₁ hnext_away hs₂ hunwind₁ hbody ?_
-              simp +decide [successorUnwindNext, hs₂.mem_eq, hs₂.out_eq, hk_mem, hpay_mem, hans_eq]
-            · -- Summary descent branch when `cM ≤ lo`
-              have hlo_mx : ¬query % universeSize d < s.mem (ch + 2) := by
-                simpa only [hcM, lo] using hlo_cM
-              have hc_max : (cluster i).maximum.any (lo < ·) = false := by
-                simp [Tree.maximum, hcb, hlo_cM]
-              apply summary_branch hc_max
-              simp +decide only [next, successorDescentNext, hpres, hm, hM, hq, hspan, splitSize,
-                childSpan, ↓reduceIte, hlt_m, hlt_M, hqne, hch_eq, hch_ne0, hlo_mx, i, lo]
+  have ha : Fits w (base + span d) := hfit.of_le (by omega)
+  have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
+  have hheader := hr.header
+  rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
+  · cases tree <;> simp_all [Tree.bounds, Tree.successor]
+  obtain ⟨hpres : s.mem base = 1, ⟨hm, hM⟩, hq, hspan⟩ := hheader
+  by_cases hlt_m : query < m
+  · have hans_eq : ans = m := by
+      cases tree <;> simp_all [Tree.bounds, Tree.successor]
+    apply successor_some_finish hs
+    apply WP.exists_execWithin
+    unfold successorDescentBody readAt finishMin
+    wram_exec* [hpres, hm, hlt_m]
+    exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
+  cases tree with
+  | leaf b =>
+    obtain rfl : b = some (m, M) := hb
+    have hlt_M : query < M :=
+      Decidable.byContradiction fun hge => by simp [Tree.successor, hlt_m, hge] at hans
+    have hans_eq : ans = M := by
+      simpa [Tree.successor, hlt_m, hlt_M] using hans.symm
+    apply successor_some_finish hs
+    apply WP.exists_execWithin
+    unfold successorDescentBody readAt finishMax
+    wram_exec* [hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
+    exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
+  | @node d b summary cluster =>
+    obtain rfl : b = some (m, M) := hb
+    have hlt_M : query < M :=
+      not_le.mp fun hge => by simp [Tree.successor, hlt_m, hge] at hans
+    have hnot_le : ¬M ≤ query := not_le.mpr hlt_M
+    obtain ⟨hi, hlo, hend⟩ := member_descent_safe ht hr (by simpa only [hM] using hlt_M)
+    have hu_le : universeSize d ≤ span (d + 1) :=
+      (universeSize_le_span d).trans (span_le_succ d)
+    have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
+    have hw_lo : Fits w (query % universeSize d) := ha.of_le (by omega)
+    have hw_hi1 : Fits w (query / universeSize d + 1) := ha.of_le (by omega)
+    have hw_ch2 : Fits w (base + 5 + (query / universeSize d + 1) * span d + 2) :=
+      ha.of_le (by have := five_le_span d; dsimp only [clusterOffset] at hend; omega)
+    let i : Fin (universeSize d) := ⟨query / universeSize d, hi⟩
+    let lo := query % universeSize d
+    let ch := base + clusterOffset d i.val
+    have hch_eq : base + 5 + (query / universeSize d + 1) * span d = ch := Nat.add_assoc base 5 _
+    have summary_branch
+        (hc_max : (cluster i).maximum.any (lo < ·) = false)
+        (hstep : ∃ next, ExecWithin w successorDescentBody s next 42 ∧
+          SuccessorEntry stackBase₀ (sp₀ + 4) (base + 5) i.val next ∧
+          (next.mem sp₀ = 1 ∧ next.mem (sp₀ + 1) = base ∧
+            next.mem (sp₀ + 2) = universeSize d ∧ next.mem (sp₀ + 3) = span d) ∧
+          (∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a)) :
+        ∃ s₁ s₃, ExecWithin w successorDescent s s₁ (44 * (d + 1 + 1) + 2) ∧
+          (∀ a, a < sp₀ ∨ sp₀ + 4 * (d + 1) ≤ a → s₁.mem a = s.mem a) ∧
+          UnwindState stackBase₀ sp₀ ans s₁.mem s₃ ∧
+          ∀ z T, ExecWithin w successorUnwind s₃ z T →
+            ExecWithin w successorUnwind s₁ z (21 * (d + 1) + T) := by
+      have hans' :
+          (summary.successor i.val).bind (fun j =>
+            if hj : j < universeSize d then
+              (cluster ⟨j, hj⟩).minimum.map (j * universeSize d + ·)
+            else none) = some ans := by
+        simpa only [Tree.successor, hlt_m, hnot_le, hi, ↓reduceDIte, ↓reduceIte,
+          i, lo, hc_max, Bool.false_eq_true, bind] using hans
+      obtain ⟨j, hsuc, hans'⟩ := Option.bind_eq_some_iff.mp hans'
+      have hj : j < universeSize d := Decidable.byContradiction fun h => by simp [h] at hans'
+      simp only [hj, ↓reduceDIte] at hans'
+      set k : Fin (universeSize d) := ⟨j, hj⟩
+      rcases hck : (cluster k).bounds with _ | ⟨cm, cM⟩
+      · simp [Tree.minimum, hck] at hans'
+      · have hans_eq : j * universeSize d + cm = ans := by simpa [Tree.minimum, hck] using hans'
+        have hce := (ht.2.2.1 k).extrema_of_bounds hck
+        have hcm_lt : cm < universeSize d := hce.1.trans_lt hce.2.1
+        have hcm_mem : s.mem (base + 5 + (j + 1) * span d + 1) = cm := by
+          have hh := (hr.2.2 k).header
+          simp only [Header, hck] at hh
+          simpa only [clusterOffset, k, Nat.add_assoc] using hh.2.1.1
+        have hsum_end := summary_end_le_span d
+        dsimp only [summaryOffset] at hsum_end
+        refine successor_push_step hs hsp_le hdisj hfit hstep hr.2.1 (by omega)
+          (fun hentry' hrc' hsp' hdisj' hfit' =>
+            successor_some_spec hentry' ht.2.1 hrc' hsuc hsp' hdisj' hfit') ?_
+        intro s₁ s₂ hs₂ hk_mem hpay_mem hqv_mem htv_mem hlow
+        have hcm_s₁ : s₁.mem (base + 5 + (j + 1) * span d + 1) = cm := by
+          have hend_j := cluster_end_le_span d hj
+          have := five_le_span d
+          dsimp only [clusterOffset] at hend_j
+          mem_frame
+        exact hans_eq ▸ successorUnwindBody_summary_spec hs₂ hk_mem hpay_mem hqv_mem htv_mem
+          hj hcm_s₁ hcm_lt ha (hfit.of_le (by omega))
+    rcases hcb : (cluster i).bounds with _ | ⟨cm, cM⟩
+    · have hch0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) = 0 := by
+        rw [hch_eq]
+        simpa only [ch, hcb, Option.isSome_none, Bool.false_eq_true, ↓reduceIte] using
+          (hr.2.2 i).header.1
+      have hc_max : (cluster i).maximum.any (lo < ·) = false := by simp [Tree.maximum, hcb]
+      apply summary_branch hc_max
+      apply WP.exists_execWithin
+      unfold successorDescentBody readAt coordinates descendSummary pushFrame
+      wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
+      exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
+        by mem_frame⟩
+    · have hch1 : s.mem ch = 1 := by
+        simpa only [ch, hcb, Option.isSome_some, ↓reduceIte] using (hr.2.2 i).header.1
+      have hch_ne0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) ≠ 0 := by
+        simp [hch_eq, hch1]
+      have hcM : s.mem (base + 5 + (query / universeSize d + 1) * span d + 2) = cM := by
+        have hh := (hr.2.2 i).header
+        simp only [Header, hcb] at hh
+        simpa only [hch_eq] using hh.2.1.2
+      by_cases hlo_cM : lo < cM
+      · have hlo_mx : query % universeSize d < cM := hlo_cM
+        have hc_max : (cluster i).maximum.any (lo < ·) = true := by
+          simp [Tree.maximum, hcb, hlo_cM]
+        have hans' : ((cluster i).successor lo).map (i.val * universeSize d + ·) = some ans := by
+          simpa only [Tree.successor, hlt_m, hnot_le, hi, ↓reduceDIte, ↓reduceIte,
+            i, lo, hc_max] using hans
+        obtain ⟨y, hy_lt, hy_suc⟩ := Tree.successor_isSome_of_lt_max (ht.2.2.1 i) hcb hlo_cM
+        have hans_eq : i.val * universeSize d + y = ans := by
+          simpa only [hy_suc, Option.map_some, Option.some.injEq] using hans'
+        have hw_pay : Fits w (query / universeSize d * universeSize d) := by
+          have hle : query / universeSize d * universeSize d ≤ query :=
+            Nat.div_mul_le_self query (universeSize d)
+          have hM_lt : M < universeSize (d + 1) := (maximum_lt_universe ht hr rfl).2
+          have hu1_le : universeSize (d + 1) ≤ span (d + 1) := universeSize_le_span (d + 1)
+          exact ha.of_le (by omega)
+        have hstep : ∃ next, ExecWithin w successorDescentBody s next 42 ∧
+            SuccessorEntry stackBase₀ (sp₀ + 4) ch lo next ∧
+            (next.mem sp₀ = 0 ∧ next.mem (sp₀ + 1) = i.val * universeSize d ∧
+              next.mem (sp₀ + 2) = universeSize d ∧ next.mem (sp₀ + 3) = span d) ∧
+            (∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a) := by
+          apply WP.exists_execWithin
+          unfold successorDescentBody readAt coordinates descendCluster pushFrame
+          wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+            hch_ne0, hcM, hlo_mx]
+          exact ⟨by struct_frame hs,
+            ⟨by wram_simp, by wram_simp [i], by wram_simp, by wram_simp⟩, by mem_frame⟩
+        refine successor_push_step hs hsp_le hdisj hfit hstep (hr.2.2 i) hend
+          (fun hentry' hrc' hsp' hdisj' hfit' =>
+            successor_some_spec hentry' (ht.2.2.1 i) hrc' hy_suc hsp' hdisj' hfit') ?_
+        intro s₁ s₂ hs₂ hk_mem hpay_mem _ _ _
+        have hout_fit : Fits w (i.val * universeSize d + y) := by
+          have hmul_lt : i.val * universeSize d + y < universeSize (d + 1) :=
+            ((Nat.add_lt_add_left hy_lt _).trans_le
+              ((Nat.succ_mul i.val _).symm.trans_le (Nat.mul_le_mul_right _ i.2))).trans_eq
+              (universeSize_succ d).symm
+          exact ha.of_le
+            ((hmul_lt.le.trans (universeSize_le_span (d + 1))).trans (Nat.le_add_left _ base))
+        exact hans_eq ▸ successorUnwindBody_cluster_spec hs₂ hk_mem hpay_mem
+          (hfit.of_le (by omega)) hout_fit
+      · have hlo_mx : ¬query % universeSize d < cM := hlo_cM
+        have hc_max : (cluster i).maximum.any (lo < ·) = false := by
+          simp [Tree.maximum, hcb, hlo_cM]
+        apply summary_branch hc_max
+        apply WP.exists_execWithin
+        unfold successorDescentBody readAt coordinates descendSummary pushFrame
+        wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+          hch_ne0, hcM, hlo_mx]
+        exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
+          by mem_frame⟩
 
 /-- When `tree.successor query = none`, `successorDescent` terminates in one iteration (46
 instructions) with `found = 0`, `out = 0`, `sp = sp₀`, and unchanged memory. -/
@@ -667,51 +371,28 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
       s₁.regs stackBase = stackBase₀ ∧ s₁.regs sp = sp₀ ∧
       s₁.regs found = 0 ∧ s₁.regs out = 0 ∧ s₁.mem = s.mem := by
   have ha : Fits w (base + span d) := hfit.of_le (by omega)
-  have he := successorDescentBody_exec hs ht hr ha hfit
-  let s₁ := successorDescentNext s sp₀ base query
-  have hconst := successorDescentNext_constants hs
+  have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
   have hheader := hr.header
-  have hprops : (successorDescentNext s sp₀ base query).regs runFlag = 0 ∧
+  have hstep : ∃ s₁, ExecWithin w successorDescentBody s s₁ 42 ∧
+      s₁.regs zero = 0 ∧ s₁.regs runFlag = 0 ∧ s₁.regs stackBase = stackBase₀ ∧
       s₁.regs sp = sp₀ ∧ s₁.regs found = 0 ∧ s₁.regs out = 0 ∧ s₁.mem = s.mem := by
-    cases tree with
-    | leaf b =>
-      cases b with
-      | none =>
-        have hempty : s.mem base = 0 := hheader.1
-        simp +decide [s₁, successorDescentNext, hempty, hs.sp_eq]
-      | some bounds =>
-        obtain ⟨m, M⟩ := bounds
-        obtain ⟨hpres_raw, ⟨hm, hM⟩, _⟩ := hheader
-        have hpres : s.mem base = 1 := by simpa [Tree.bounds] using hpres_raw
-        have hnot_m : ¬query < m := by
-          intro hlt
-          simp [Tree.successor, hlt] at hnone
-        have hnot_M : ¬query < M := by
-          intro hlt
-          simp [Tree.successor, hnot_m, hlt] at hnone
-        simp +decide [s₁, successorDescentNext, hpres, hm, hM, hnot_m, hnot_M, hs.sp_eq]
-    | node bounds summary cluster =>
-      cases bounds with
-      | none =>
-        have hempty : s.mem base = 0 := hheader.1
-        simp +decide [s₁, successorDescentNext, hempty, hs.sp_eq]
-      | some bounds =>
-        obtain ⟨m, M⟩ := bounds
-        obtain ⟨hpres_raw, ⟨hm, hM⟩, _⟩ := hheader
-        have hpres : s.mem base = 1 := by simpa [Tree.bounds] using hpres_raw
-        have hnot_M : ¬query < M := by
-          intro hlt
-          obtain ⟨ans, _, hans⟩ := Tree.successor_isSome_of_lt_max ht rfl hlt
-          simp [hans] at hnone
-        have hnot_m : ¬query < m := by
-          have := (ht.extrema_of_bounds rfl).1
-          omega
-        simp +decide [s₁, successorDescentNext, hpres, hm, hM, hnot_m, hnot_M, hs.sp_eq]
-  refine ⟨s₁, ?_, hconst.2.2.2.2.2.2, hprops.2.1, hprops.2.2.1, hprops.2.2.2.1, hprops.2.2.2.2⟩
-  refine he.loop_once (cond := .lt zero runFlag) ?_ ?_
-  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-    decide
-  · simp only [Cond.holds_lt, hconst.1, hprops.1, lt_self_iff_false, not_false_eq_true]
+    apply WP.exists_execWithin
+    unfold successorDescentBody readAt finishNone
+    rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
+    · have hempty : s.mem base = 0 := hheader.1
+      wram_exec* [hempty]
+      and_intros <;> wram_simp *
+    · obtain ⟨hpres : s.mem base = 1, ⟨hm, hM⟩, _⟩ := hheader
+      have hnot_M : ¬query < M := fun hlt => by
+        obtain ⟨ans, _, hans⟩ := Tree.successor_isSome_of_lt_max ht hb hlt
+        simp [hans] at hnone
+      have hnot_m : ¬query < m := not_lt.mpr ((ht.extrema_of_bounds hb).1.trans (not_lt.mp hnot_M))
+      wram_exec* [hpres, hm, hM, hnot_m, hnot_M]
+      and_intros <;> wram_simp *
+  obtain ⟨s₁, he, hz₁, hk₁, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩ := hstep
+  refine ⟨s₁, he.loop_once (cond := .lt zero runFlag) ?_ ?_, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩
+  · simp [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
+  · simp [Cond.holds_lt, hz₁, hk₁]
 
 /-- Complete certification of `successorDescent; successorUnwind` from `sp = stackBase₀`:
 executes in at most `65 * (d + 1) + 4` instructions, computes `tree.successor query`,
@@ -728,31 +409,18 @@ theorem successor_loop_spec {d w stackBase₀ base query : ℕ} {tree : Tree d} 
       (∀ a, a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a → z.mem a = s.mem a) := by
   cases hsuc : tree.successor query with
   | none =>
-    obtain ⟨s₁, hs₁, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩ :=
+    obtain ⟨s₁, hs₁, hsb₁, hsp₁, hfound₁, _, hmem₁⟩ :=
       successor_none_spec hs ht hr hsuc hdisj hfit
-    have hexit : ExecWithin w successorUnwind s₁ s₁ 2 := by
-      apply ExecWithin.loop_exit
-      simp only [Cond.holds_lt, hsb₁, hsp₁, lt_self_iff_false, not_false_eq_true]
-    refine ⟨s₁, (hs₁.seq hexit).mono (by omega), ?_, hsp₁, ?_, ?_⟩
-    · simp [hfound₁]
-    · simpa only [hmem₁] using hr
-    · intro a _
-      rw [hmem₁]
+    have hexit : ExecWithin w successorUnwind s₁ s₁ 2 :=
+      ExecWithin.loop_exit (by simp [Cond.holds_lt, hsb₁, hsp₁])
+    exact ⟨s₁, (hs₁.seq hexit).mono (by omega), by simp [hfound₁], hsp₁, hmem₁ ▸ hr,
+      fun a _ => by rw [hmem₁]⟩
   | some ans =>
     obtain ⟨s₁, z, hs₁, hframe₁, hz, hunwind₁⟩ :=
       successor_some_spec hs ht hr hsuc le_rfl hdisj hfit
-    have hexit : ExecWithin w successorUnwind z z 2 := by
-      apply ExecWithin.loop_exit
-      simp only [Cond.holds_lt, hz.stackBase_eq, hz.sp_eq, lt_self_iff_false, not_false_eq_true]
-    have hunwind := hunwind₁ z 2 hexit
-    refine ⟨z, (hs₁.seq hunwind).mono (by omega), ?_, hz.sp_eq, ?_, ?_⟩
-    · simp [hz.found_eq, hz.out_eq]
-    · apply rep_frame hr
-      intro a hlo hhi
-      rw [hz.mem_eq]
-      exact hframe₁ a (Or.inl (by omega))
-    · intro a ha
-      rw [hz.mem_eq]
-      exact hframe₁ a ha
+    have hunwind := hunwind₁ z 2
+      (ExecWithin.loop_exit (by simp [Cond.holds_lt, hz.stackBase_eq, hz.sp_eq]))
+    exact ⟨z, (hs₁.seq hunwind).mono (by omega), by simp [hz.found_eq, hz.out_eq], hz.sp_eq,
+      rep_frame hr fun a _ _ => by mem_frame, by mem_frame⟩
 
 end Cslib.DataStructure.VanEmdeBoas.WordRAM

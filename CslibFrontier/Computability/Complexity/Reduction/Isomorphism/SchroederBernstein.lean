@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Reduction.Isomorphism
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Polynomial-time Cantor–Schröder–Bernstein
@@ -104,39 +105,21 @@ variable {f : α → β} {f' : β → α} {g : β → α} {g' : α → β}
 include hf hg in
 /-- Fuel beyond the encoded length does not change the outcome of the walk. -/
 private theorem chain_eq_of_le : ∀ (n m : ℕ) (a : α), (encA a).length ≤ n → (encA a).length ≤ m →
-    chain f f' g g' n a = chain f f' g g' m a := by
-  -- An instance of empty encoding cannot step back (`g (g' a) = a` would make `encA a` longer
-  -- than `encB (g' a)`), so any amount of fuel gives the same outcome as none.
-  have hzero : ∀ m a, (encA a).length ≤ 0 → chain f f' g g' 0 a = chain f f' g g' m a := by
-    intro m a h0
-    cases m with
-    | zero => rfl
-    | succ m =>
-      have ha : g (g' a) ≠ a := by
-        intro h
-        have := hg (g' a)
-        rw [h] at this
-        omega
-      simp only [chain_zero, chain_succ, ha, ↓reduceIte]
-  intro n
-  induction n with
-  | zero => exact fun m a hn _ => hzero m a hn
-  | succ n ih =>
-    intro m a hn hm
-    cases m with
-    | zero => exact (hzero (n + 1) a hm).symm
-    | succ m =>
-      simp only [chain_succ]
-      by_cases ha : g (g' a) = a
-      · by_cases hb : f (f' (g' a)) = g' a
-        · simp only [ha, hb, ↓reduceIte]
-          have h1 := hg (g' a)
-          have h2 := hf (f' (g' a))
-          rw [ha] at h1
-          rw [hb] at h2
-          exact ih m _ (by omega) (by omega)
-        · simp only [ha, hb, ↓reduceIte]
-      · simp only [ha, ↓reduceIte]
+    chain f f' g g' n a = chain f f' g g' m a
+  | 0, 0, _, _, _ => rfl
+  | 0, m + 1, a, h0, _ => by
+    have ha : g (g' a) ≠ a := fun h => by have := hg (g' a); rw [h] at this; omega
+    simp only [chain_zero, chain_succ, ha, ↓reduceIte]
+  | n + 1, 0, a, _, h0 => by
+    have ha : g (g' a) ≠ a := fun h => by have := hg (g' a); rw [h] at this; omega
+    simp only [chain_zero, chain_succ, ha, ↓reduceIte]
+  | n + 1, m + 1, a, hn, hm => by
+    simp only [chain_succ]
+    split_ifs with ha hb
+    · have h1 := ha ▸ hg (g' a)
+      have h2 := hb ▸ hf (f' (g' a))
+      exact chain_eq_of_le n m _ (by omega) (by omega)
+    all_goals rfl
 
 end
 
@@ -159,48 +142,37 @@ private theorem stop_eq (a : α) : stop encA f f' g g' a =
   unfold stop
   by_cases ha : g (g' a) = a
   · by_cases hb : f (f' (g' a)) = g' a
-    · have h1 := hg (g' a)
-      have h2 := hf (f' (g' a))
-      rw [ha] at h1
-      rw [hb] at h2
+    · have h1 := ha ▸ hg (g' a)
+      have h2 := hb ▸ hf (f' (g' a))
       obtain ⟨n, hn⟩ : ∃ n, (encA a).length = n + 1 := ⟨(encA a).length - 1, by omega⟩
-      rw [hn, chain_succ, ite_eq_left ha, ite_eq_left hb, ite_eq_left ha, ite_eq_left hb]
+      rw [hn, chain_succ]
+      simp only [ha, hb, ↓reduceIte]
       exact chain_eq_of_le hf hg _ _ _ (by omega) le_rfl
-    · cases h : (encA a).length with
-      | zero =>
-        exfalso
-        have := hg (g' a)
-        rw [ha] at this
-        omega
-      | succ n => simp only [chain_succ, ha, hb, ↓reduceIte]
-  · cases h : (encA a).length with
-    | zero => simp only [chain_zero, ha, ↓reduceIte]
-    | succ n => simp only [chain_succ, ha, ↓reduceIte]
+    · obtain ⟨n, hn⟩ : ∃ n, (encA a).length = n + 1 :=
+        ⟨(encA a).length - 1, by have := ha ▸ hg (g' a); omega⟩
+      rw [hn, chain_succ]
+      simp only [ha, hb, ↓reduceIte]
+  · cases (encA a).length <;> simp only [chain_zero, chain_succ, ha, ↓reduceIte]
 
 include hf hg in
 /-- Swapping the roles of the two sides negates the side on which a chain stops. -/
-private theorem stop_swap : ∀ (n : ℕ) (b : β), (encB b).length ≤ n → f (f' b) = b →
+private theorem stop_swap (b : β) (hb : f (f' b) = b) :
     stop encB g g' f f' b = !stop encA f f' g g' (f' b) := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    intro b hn hb
-    rw [stop_eq hg hf b, stop_eq hf hg (f' b)]
-    simp only [ite_eq_left hb]
-    by_cases hc : g (g' (f' b)) = f' b
-    · simp only [ite_eq_left hc]
-      by_cases hd : f (f' (g' (f' b))) = g' (f' b)
-      · simp only [ite_eq_left hd]
-        have h1 := hg (g' (f' b))
-        have h2 := hf (f' b)
-        rw [hc] at h1
-        rw [hb] at h2
-        exact ih _ (by omega) _ le_rfl hd
-      · simp only [ite_eq_right hd]
-        rw [stop_eq hg hf _, ite_eq_right hd]
-        rfl
-    · simp only [ite_eq_right hc]
+  rw [stop_eq hg hf b, stop_eq hf hg (f' b)]
+  simp only [ite_eq_left hb]
+  by_cases hc : g (g' (f' b)) = f' b
+  · simp only [ite_eq_left hc]
+    by_cases hd : f (f' (g' (f' b))) = g' (f' b)
+    · simp only [ite_eq_left hd]
+      exact stop_swap (g' (f' b)) hd
+    · simp only [ite_eq_right hd]
+      rw [stop_eq hg hf _, ite_eq_right hd]
       rfl
+  · simp only [ite_eq_right hc]
+    rfl
+termination_by (encB b).length
+decreasing_by
+  simpa only [hb] using (lt_of_lt_of_eq (hg (g' (f' b))) (by rw [hc])).trans (hf (f' b))
 
 end
 
@@ -217,12 +189,12 @@ private def fwd (encA : α ↪ List Bool) (f : α → β) (f' : β → α) (g : 
 
 include hf hg hff in
 private theorem stop_f (a : α) : stop encB g g' f f' (f a) = !stop encA f f' g g' a := by
-  have h := stop_swap (f' := f') (g' := g') hf hg _ (f a) le_rfl (by rw [hff a])
+  have h := stop_swap (f' := f') (g' := g') hf hg (f a) (by rw [hff a])
   rwa [hff a] at h
 
 include hf hg hgg in
 private theorem stop_g (b : β) : stop encA f f' g g' (g b) = !stop encB g g' f f' b := by
-  have h := stop_swap (f' := g') (g' := f') hg hf _ (g b) le_rfl (by rw [hgg b])
+  have h := stop_swap (f' := g') (g' := f') hg hf (g b) (by rw [hgg b])
   rwa [hgg b] at h
 
 include hf hg in
@@ -241,8 +213,7 @@ private theorem fwd_bwd_left (a : α) : fwd encB g g' f f' (fwd encA f f' g g' a
     have hs : stop encB g g' f f' (g' a) = true := by
       have := stop_g (f' := f') hf hg hgg (g' a)
       rw [hga, h] at this
-      revert this
-      cases stop encB g g' f f' (g' a) <;> decide
+      simpa using (congrArg Bool.not this).symm
     simp only [Bool.false_eq_true, ↓reduceIte, hs, hga]
   · simp only [↓reduceIte, stop_f (g' := g') hf hg hff a, h, Bool.not_true, Bool.false_eq_true,
       hff a]
@@ -271,12 +242,8 @@ private theorem step_iterate (f : α → β) (f' : β → α) (g : β → α) (g
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply, chain_succ]
-    by_cases ha : g (g' a) = a
-    · by_cases hb : f (f' (g' a)) = g' a
-      · simp only [step, ha, hb, ↓reduceIte, Bool.false_eq_true]
-        exact ih _
-      · simp only [step, ha, hb, ↓reduceIte, Bool.false_eq_true, step_iterate_done]
-    · simp only [step, ha, ↓reduceIte, Bool.false_eq_true, step_iterate_done]
+    by_cases ha : g (g' a) = a <;> by_cases hb : f (f' (g' a)) = g' a <;>
+      simp only [step, ha, hb, ↓reduceIte, Bool.false_eq_true, step_iterate_done, ih]
 
 section Loop
 variable {f : α → β} {f' : β → α} {g : β → α} {g' : α → β}
@@ -289,14 +256,8 @@ private theorem length_step_le (s : α × Bool × Bool) :
   unfold step
   split_ifs with h1 h2 h3
   · exact le_rfl
-  · have := hg (g' s.1)
-    have := hf (f' (g' s.1))
-    rw [h2] at *
-    rw [h3] at *
-    simp only
-    omega
-  · exact le_rfl
-  · exact le_rfl
+  · exact ((h3 ▸ hf (f' (g' s.1))).trans (h2 ▸ hg (g' s.1))).le
+  all_goals exact le_rfl
 
 include hf hg in
 private theorem length_step_iterate_le (n : ℕ) (s : α × Bool × Bool) :
@@ -332,10 +293,9 @@ private theorem computableInPolyTime_stop :
     refine ComputableInPolyTime.iterate (bound := fun a => 2 * (encA a).length + 5)
       (ComputableInPolyTime.encoding_length encA) (by fun_prop)
       (computableInPolyTime_step pf pf' pg pg')
-      (PolyBounded.of_forall_le 5 1 fun a => by nlinarith) fun a i _ => ?_
+      (PolyBounded.of_forall_le 5 1 fun a => by simp; omega) fun a i _ => ?_
     have := length_step_iterate_le (f' := f') (g' := g') hf hg i (a, false, true)
-    simp only [length_encPair, encBool_apply, List.length_singleton] at this ⊢
-    omega
+    enc_len [List.length_singleton] at this ⊢
   have h := ComputableInPolyTime.snd' (ComputableInPolyTime.snd' hloop)
   refine h.of_enc_eq fun a => ?_
   rw [stop, ← step_iterate]

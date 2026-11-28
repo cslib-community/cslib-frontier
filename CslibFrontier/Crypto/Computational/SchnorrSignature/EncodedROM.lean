@@ -23,6 +23,7 @@ is processed by the existing total pair decoder, without a framing rejection.
 ## Main definitions
 
 * `schnorrEncodedROMScheme`: the existing scheme model with word keys and signatures.
+* `schnorrNativeROMScheme`: that scheme with the actual key generator and nonce sampler.
 * `schnorrDecodedForger`: canonical public-key input and total signature-output decoding.
 
 ## Main results
@@ -69,6 +70,16 @@ noncomputable def schnorrEncodedROMScheme (d : F.Desc) (m : ℕ)
     (fun c => F.schnorrSigVerifyBits (d, pk, msg, tz, List.ofFn c)) <$>
       query (encPair encBits encBits (msg, tz.1))
 
+/-- **The Schnorr signature scheme in the random-oracle model, as the native algorithms run it**,
+at security parameter `n`, group description `d` and challenge width `m`: keys come from the actual
+key generator `schnorrSigKeyGen` and nonces from the actual sampler `sampleExp`, whose laws are only
+statistically close to uniform. Public keys, messages, signatures and hash points are words, and
+challenges are `m`-bit strings. -/
+noncomputable def schnorrNativeROMScheme (n : ℕ) (d : F.Desc) (m : ℕ) :
+    Scheme (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) (BitString m) :=
+  F.schnorrEncodedROMScheme d m (ProbComp.eval (F.schnorrSigKeyGen n d))
+    ((ProbComp.eval (F.sampleExp n d)).map Nat.cast)
+
 /-- Adapt an existing word forger without changing its coins or hash queries. Signing replies
 are encoded, the public key is encoded, and the final outer signature is total-decoded. -/
 def schnorrDecodedForger (d : F.Desc) {Digest : Type}
@@ -88,21 +99,18 @@ theorem callBounded_schnorrDecodedForger (d : F.Desc) {Digest : Type}
     {A : Forger (List Bool) (List Bool) (List Bool) (List Bool) Digest} {Qs Qro : ℕ}
     (hA : A.CallBounded Qs Qro) : (F.schnorrDecodedForger d A).CallBounded Qs Qro := by
   intro u coins
-  let route : (q : List Bool ⊕ List Bool) →
-      OracleComp (ForgerSpec (List Bool) (List Bool) (List Bool × List Bool) Digest)
-        (ForgerSpec (List Bool) (List Bool) (List Bool) Digest q) :=
-    sumHandler (fun msg => encPair encBits encBits <$> query (Sum.inl msg))
-      (fun word => query (Sum.inr word))
   have hroute (cost : List Bool ⊕ List Bool → ℕ) (q : List Bool ⊕ List Bool) :
-      IsCostBounded cost (route q) (cost q) := by
+      IsCostBounded cost (sumHandler
+        (fun msg => encPair encBits encBits <$>
+          query (spec := ForgerSpec _ _ _ Digest) (Sum.inl msg))
+        (fun word => query (spec := ForgerSpec _ _ _ Digest) (Sum.inr word)) q) (cost q) := by
     cases q with
-    | inl msg => exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.query _)
-    | inr word => exact IsCostBounded.query _
-  constructor
-  · exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.interpret (hroute signingCost)
-      (hA (F.encode d u) coins).1)
-  · exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.interpret (hroute hashCost)
-      (hA (F.encode d u) coins).2)
+    | inl _ => exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.query _)
+    | inr _ => exact IsCostBounded.query _
+  exact ⟨(isCostBounded_map_iff _ _ _).mpr
+      (IsCostBounded.interpret (hroute signingCost) (hA (F.encode d u) coins).1),
+    (isCostBounded_map_iff _ _ _).mpr
+      (IsCostBounded.interpret (hroute hashCost) (hA (F.encode d u) coins).2)⟩
 
 variable (d : F.Desc) {m : ℕ} (hm : 2 ^ m ≤ F.order d)
   (keyLaw : PMF (List Bool × List Bool)) (nonceLaw : PMF (ZMod (F.order d)))
@@ -161,7 +169,7 @@ native key law remains separate and is compared by `closeTo_schnorrSigKeyGen`. -
 theorem schnorrEncodedROMScheme_keyGen_ideal :
     (F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d) nonceLaw).keyGen =
       ((F.schnorrWordROMScheme d hm).keyGen).map
-        (fun keys => (F.encode d keys.1, F.encScalar d keys.2.1)) := by
+        (fun (pk, sk, _) => (F.encode d pk, F.encScalar d sk)) := by
   simp only [schnorrEncodedROMScheme, schnorrIdealKeyGen, schnorrWordROMScheme, fiatShamir,
     schnorrKeyGen, PMF.map_comp]
   rfl
@@ -178,15 +186,12 @@ theorem runWith_schnorrEncodedROMScheme_sign_ideal (x : ZMod (F.order d)) (u : F
       (((F.schnorrWordROMScheme d hm).signCoins (x, u) msg).bind fun coins =>
         runWith reply ((F.schnorrWordROMScheme d hm).sign (x, u) msg coins) state).map
           (Prod.map (encPair encBits encBits) id) := by
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind (fun r => runWith reply
-    ((F.schnorrEncodedROMScheme d m keyLaw (PMF.uniformOfFintype (ZMod (F.order d)))).sign
-      (F.encScalar d x) msg r) state) = _
+  change (PMF.uniformOfFintype (ZMod (F.order d))).bind _ = _
   simp only [pmf_norm, schnorrWordROMScheme, fiatShamir, schnorrWordSigma, schnorrBitSigma, schnorr,
     linear]
   apply PMF.bind_congr_on_support
   intro r _
-  rw [F.schnorrEncodedROMScheme_sign_encScalar d hm keyLaw _ x r u msg, runWith_map]
-  rfl
+  rw [F.schnorrEncodedROMScheme_sign_encScalar d hm keyLaw _ x r u msg, runWith_map]; rfl
 
 /-- In the ideal specialization the adapted forger preserves the complete shared cache and
 message log. Every final signature word is decoded, with no image or canonicality premise. -/
@@ -203,21 +208,20 @@ theorem runWith_schnorrDecodedForger
   unfold schnorrDecodedForger
   rw [runWith_map]
   congr 1
-  unfold runWith
-  rw [interpret_interpret]
+  rw [← OracleComp.substitute_eq_interpret, OracleComp.runWith_substitute]
   congr 2 with q : 1
   cases q with
   | inl msg =>
     funext st
-    simp only [sumHandler, interpret_map, interpret_query]
     change ((encPair encBits encBits <$>
       handler (F.schnorrWordROMScheme d hm) (x, u) (Sum.inl msg)).run st) = _
     rw [StateT.run_map]
-    have h := F.runWith_schnorrEncodedROMScheme_sign_ideal d hm keyLaw x u
-      (oracle (BitString m)) msg st.1
-    have hlog := congrArg (PMF.map (fun out => (out.1, (out.2, msg :: st.2)))) h.symm
-    simpa only [pmf_norm, StateT.run, handler, PMF.map, Prod.map, id_eq, runWith] using hlog
-  | inr word => simp [sumHandler, interpret_query, handler]
+    simpa only [pmf_norm, StateT.run, handler, PMF.map, Prod.map, id_eq,
+      OracleComp.runWith_eq_run_interpret] using
+      congrArg (PMF.map fun out => (out.1, (out.2, msg :: st.2)))
+        (F.runWith_schnorrEncodedROMScheme_sign_ideal d hm keyLaw x u
+          (oracle (BitString m)) msg st.1).symm
+  | inr word => simp [sumHandler, handler]
 
 /-- Exact equality of the existing ideal EUF-CMA games after changing key and signature
 representations. All outer signature words are total-decoded, every hash word remains distinct,
@@ -235,8 +239,13 @@ theorem eufCmaGame_schnorrEncodedROMScheme_eq
   intro keys _
   apply PMF.bind_congr_on_support
   intro coins _
-  change (runWith _ (A.forge (F.encode d keys.1) coins) ([], [])).bind _ =
-    (runWith _ ((F.schnorrDecodedForger d A).forge keys.1 coins) ([], [])).bind _
+  rw [← OracleComp.runWith_eq_run_interpret
+    (handler (F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d)
+      (PMF.uniformOfFintype (ZMod (F.order d)))) (F.encScalar d keys.2.1))
+    (A.forge (F.encode d keys.1) coins) ([], [])]
+  rw [← OracleComp.runWith_eq_run_interpret
+    (handler (F.schnorrWordROMScheme d hm) keys.2)
+    ((F.schnorrDecodedForger d A).forge keys.1 coins) ([], [])]
   rw [F.runWith_schnorrDecodedForger d hm (F.schnorrIdealKeyGen d) A
     keys.2.1 keys.2.2 keys.1 coins ([], []), PMF.bind_map]
   apply PMF.bind_congr_on_support

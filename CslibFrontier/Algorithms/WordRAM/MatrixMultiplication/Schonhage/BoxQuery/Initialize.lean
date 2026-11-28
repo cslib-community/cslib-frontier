@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.StackMemory
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Parameters
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual root-task initialization
@@ -35,86 +36,28 @@ theorem exec_setup {w L t Q AA BB D V K : ℕ} (x : Data registers) (η : OutStr
       y.regs Reg.top = 1 ∧ y.regs Reg.answer = Signed.encode 0 ∧
       StackMemory η (V + K) [[]] y.mem ∧
       y.mem = writeTask (V + K) 0 0 0 0 0 1 x.mem := by
-  obtain ⟨u, hu, u0, u1, u10, u9, _, um, uf⟩ := BoxTable.exec_constants x
-    (hfit.of_le ((by decide : 10 ≤ 20).trans (Nat.le_add_left _ _)))
-  have uV : u.regs BoxTable.Reg.values = V :=
-    (uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hV
-  have uK : u.regs BoxTable.Reg.count = K :=
-    (uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hK
-  have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-  have hf1 : Fits w 1 := hfit.of_le (by omega)
-  have hf5 : Fits w 5 := hfit.of_le (by omega)
-  have hfF : Fits w (V + K) := hfit.of_le (by omega)
-  let v0 := ((u.set Reg.five 5).set Reg.answer 0).set Reg.stack (V + K)
-  let v1 := ((v0.set Reg.top 0).set Reg.depth 0).set Reg.childCode 0
-  let v := ((v1.set Reg.childUsed 0).set Reg.childStars 0).set Reg.childPower 1
-  have hv : ExecWithin w setupScalars u v 9 := by
-    ram_eval [setupScalars, v, v1, v0, uV, uK, hf0, hf1, hf5, hfF,
-      Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
-      Reg.childUsed, Reg.childStars, Reg.childPower, BoxTable.Reg.values,
-      BoxTable.Reg.count, Fin.mk.injEq]
-  have vframe (i : Fin registers) (hi : setupScalars.Preserves i) : v.regs i = u.regs i :=
-    hv.regs_eq hi
-  have vu (i : Fin registers) (hi : setupScalars.Preserves i)
-      (h0 : i ≠ BoxTable.Reg.nil) (h1 : i ≠ BoxTable.Reg.one)
-      (h10 : i ≠ BoxTable.Reg.ten) (h9 : i ≠ BoxTable.Reg.nine)
-      (h3 : i ≠ BoxTable.Reg.three) : v.regs i = x.regs i :=
-    (vframe i hi).trans (uf i h0 h1 h10 h9 h3)
-  obtain ⟨y, hy, hyt, hym, hyf⟩ :=
-    exec_push (F := V + K) (n := 0) (k := 0) (c := 0) (u := 0) (e := 0) (p := 1) v
-    (by simp [v, v1, v0, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
-      Reg.childUsed, Reg.childStars, Reg.childPower, Reg.five, Reg.answer])
-    (by simp [v, v1, Reg.top, Reg.depth, Reg.childCode,
-      Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, v1, Reg.depth, Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, v1, Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, Reg.childStars, Reg.childPower]) (by simp [v])
-    (by simp [v, v1, v0, Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth,
-      Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    ((vframe _ (by decide)).trans u1) (hfit.of_le (by omega))
-  have he : ExecWithin w setup x y 26 := hu.seq (hv.seq hy)
-  have yp (i : Fin registers) (hi : ¬PushLocal i) (hi' : setupScalars.Preserves i)
-      (h0 : i ≠ BoxTable.Reg.nil) (h1 : i ≠ BoxTable.Reg.one)
-      (h10 : i ≠ BoxTable.Reg.ten) (h9 : i ≠ BoxTable.Reg.nine)
-      (h3 : i ≠ BoxTable.Reg.three) : y.regs i = x.regs i :=
-    (hyf i hi).trans (vu i hi' h0 h1 h10 h9 h3)
-  refine ⟨y, he, ?_, hyt, ?_, ?_, ?_⟩
-  · constructor
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hL
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans ht
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hT
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hQ
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hA
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hB
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hD
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hV
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hK
-    · rw [hyf _ (by decide)]
-      simp [v, v1, v0, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
-        Reg.childUsed, Reg.childStars, Reg.childPower, Reg.five, Reg.answer]
-    · rw [hyf _ (by decide)]
-      simp [v, v1, v0, Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth,
-        Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower]
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u1)
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u10)
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u9)
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u0)
-  · rw [hyf _ (by decide)]
-    simp [v, v1, v0, Reg.answer, Reg.stack, Reg.five, Reg.top, Reg.depth,
-      Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower, Signed.encode]
-  · rw [hym]
-    simpa only [List.length_nil, prefixCode_nil, usedFrom, starsFrom, pow_zero] using
-      (show StackMemory η (V + K) [] v.mem from trivial).push []
-  · simpa only [v, v1, v0, Data.set_mem, um] using hym
+  refine WP.exists_execWithin ?_
+  unfold setup setupScalars
+  wram_call (BoxTable.exec_constants x (hfit.of_le (by omega)))
+    with u ⟨u0, u1, u10, u9, _, um, uf⟩
+  have uV : u.regs BoxTable.Reg.values = V := by regs_frame
+  have uK : u.regs BoxTable.Reg.count = K := by regs_frame
+  wram_exec [*]
+  wram_call ((WordStack.push_exec (baseAddr := V + K) (cap := 1) (prefixTaskSpec η)
+    Reg.stack Reg.top Reg.cursor Reg.five BoxTable.Reg.one pushFields [] [] _
+    (by decide) (by decide) (by decide) (by decide)
+    (by wram_simp) (by wram_simp; rfl) (by wram_simp) (by regs_frame)
+    (fun i => by
+      match i with
+      | 0 | 2 | 3 | 4 => simp +decide [pushFields, usedFrom, starsFrom]
+      | 1 => simp +decide [pushFields, prefixCode_nil])
+    trivial (by decide) (hfit.of_le (by omega))).imp fun y h => ⟨h.1.within, h.2⟩)
+    with y ⟨hyt, hstack, hym, _, hyf⟩
+  refine ⟨by omega, by regs_frame, hyt, ?_, hstack, ?_⟩
+  · rw [show Signed.encode 0 = 0 from rfl]
+    regs_frame
+  · dsimp only [RecordSpec.write, prefixTaskSpec] at hym
+    simpa only [writeTask, List.length_nil, prefixCode_nil, usedFrom, starsFrom, pow_zero,
+      Data.set_mem, um] using hym
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

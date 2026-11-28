@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Model
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Native selection of canonical signed keys
@@ -129,29 +131,11 @@ theorem labels_exec {w : ℕ} (x : Data 48)
       y.regs bitA = (Math.label (x.regs magnitude) (x.regs key) >>> x.regs beta) % 2 ∧
       y.regs bitB = (Math.label (x.regs magnitude) (x.regs key) >>> x.regs beta') % 2 ∧
       y.mem = x.mem := by
-  have fm := hkey.of_le (Nat.div_le_self _ 2)
-  have fs := hfit.of_le (show x.regs key % 2 ≤ 4 * x.regs magnitude + 2 by omega)
-  have fd := hfit.of_le (show x.regs magnitude + x.regs magnitude ≤
-    4 * x.regs magnitude + 2 by omega)
-  have fa := hfit.of_le (show x.regs magnitude + x.regs magnitude + x.regs key / 2 ≤
-    4 * x.regs magnitude + 2 by omega)
-  have fb := hfit.of_le (show x.regs magnitude + x.regs magnitude - x.regs key / 2 ≤
-    4 * x.regs magnitude + 2 by omega)
-  by_cases he : x.regs key % 2 = 0
-  · have fsa := fa.of_le (Nat.shiftRight_le _ (x.regs beta))
-    have fsb := fa.of_le (Nat.shiftRight_le _ (x.regs beta'))
-    have fra := fsa.of_le (Nat.mod_le _ 2)
-    have frb := fsb.of_le (Nat.mod_le _ 2)
-    refine ⟨?_, ?run, ?_, ?_, ?_, ?_, ?_⟩
-    case run => ram_eval [labels, hz, h2, hkey, fm, fs, fd, fa, fsa, fsb, fra, frb, he]
-    all_goals simp +decide [Data.set_regs, Math.label, he, two_mul]
-  · have fsa := fb.of_le (Nat.shiftRight_le _ (x.regs beta))
-    have fsb := fb.of_le (Nat.shiftRight_le _ (x.regs beta'))
-    have fra := fsa.of_le (Nat.mod_le _ 2)
-    have frb := fsb.of_le (Nat.mod_le _ 2)
-    refine ⟨?_, ?run, ?_, ?_, ?_, ?_, ?_⟩
-    case run => ram_eval [labels, hz, h2, hkey, fm, fs, fd, fb, fsa, fsb, fra, frb, he]
-    all_goals simp +decide [Data.set_regs, Math.label, he, two_mul]
+  unfold labels
+  wram_exec (disch := first | fits | exact Fits.of_le (by fits) (Nat.shiftRight_le _ _) | omega)
+    [hz, h2] <;>
+  · wram_simp
+    simp [Math.label, *, two_mul]
 
 /-- Selection from already computed digits, with the full repeated-value count. -/
 theorem choose_exec {w : ℕ} (x : Data 48)
@@ -163,63 +147,10 @@ theorem choose_exec {w : ℕ} (x : Data 48)
       y.regs take = (Math.flag (x.regs bitA) (x.regs bitB) (x.regs digit)
         (x.regs mode) (x.regs key, x.regs count)).toNat ∧
       y.regs key = Math.value (x.regs mode) (x.regs key) ∧ y.mem = x.mem := by
-  have f1 := hsmall.of_le (show 1 ≤ 5 by decide)
-  have fd : Fits w (x.regs key + x.regs key) := by simpa only [two_mul] using hfit
-  have fs : Fits w (x.regs key + x.regs key - x.regs key % 2) := fd.of_le (Nat.sub_le _ _)
-  rcases (show x.regs mode = 0 ∨ x.regs mode = 1 ∨ x.regs mode = 2 ∨
-      x.regs mode = 3 ∨ x.regs mode = 4 ∨ x.regs mode = 5 ∨ 6 ≤ x.regs mode by omega) with
-    hm | hm | hm | hm | hm | hm | hm
-  · by_cases ha : x.regs bitA = x.regs digit
-    all_goals refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    all_goals try ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, ha, f1]
-    all_goals simp +decide [Data.set_regs, hm, ha, Math.value, Math.flag]
-  · by_cases ha : x.regs bitA = x.regs digit
-    · refine ⟨?_, ?run, ?_, ?_, ?_⟩
-      case run => ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, ha, f1]
-      all_goals simp +decide [Data.set_regs, hm, ha, Math.value, Math.flag]
-    · by_cases hb : x.regs bitB = 0
-      all_goals refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      all_goals try ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, ha, hb, f1]
-      all_goals simp +decide [Data.set_regs, hm, ha, hb, Math.value, Math.flag]
-  · by_cases ha : x.regs bitA = x.regs digit
-    · refine ⟨?_, ?run, ?_, ?_, ?_⟩
-      case run => ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, ha, f1]
-      all_goals simp +decide [Data.set_regs, hm, ha, Math.value, Math.flag]
-    · by_cases hb : x.regs bitB = 1
-      all_goals refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      all_goals try ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, ha, hb, f1]
-      all_goals simp +decide [Data.set_regs, hm, ha, hb, Math.value, Math.flag]
-  · by_cases hk : x.regs key = 0
-    · refine ⟨?_, ?run, ?_, ?_, ?_⟩
-      case run => ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, hk, hs, fd, fs]
-      all_goals simp +decide [Data.set_regs, hm, hk, Math.value, Math.flag, Math.twice]
-    · by_cases hc : x.regs count < 2
-      all_goals refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      all_goals try ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, hk, hc, hs,
-        fd, fs, f1]
-      all_goals simp +decide [Data.set_regs, hm, hk, Math.value, Math.flag, Math.twice, hc,
-        show (2 ≤ x.regs count) ↔ ¬x.regs count < 2 from by omega, two_mul]
-  · by_cases hk : x.regs key = 0
-    · by_cases hc : x.regs count < 3
-      all_goals refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      all_goals try ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, hk, hc, f1]
-      all_goals simp +decide [Data.set_regs, hm, hk, Math.value, Math.flag, hc,
-        show (3 ≤ x.regs count) ↔ ¬x.regs count < 3 from by omega]
-    · refine ⟨?_, ?run, ?_, ?_, ?_⟩
-      case run => ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, hk, f1]
-      all_goals simp +decide [Data.set_regs, hm, hk, Math.value, Math.flag]
-  · refine ⟨?_, ?run, ?_, ?_, ?_⟩
-    case run => ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hm, f1]
-    all_goals simp +decide [Data.set_regs, hm, Math.value, Math.flag]
-  · have hn0 : x.regs mode ≠ 0 := by omega
-    have hn1 : x.regs mode ≠ 1 := by omega
-    have hn2 : x.regs mode ≠ 2 := by omega
-    have hn3 : x.regs mode ≠ 3 := by omega
-    have hn4 : x.regs mode ≠ 4 := by omega
-    have hn5 : x.regs mode ≠ 5 := by omega
-    refine ⟨?_, ?run, ?_, ?_, ?_⟩
-    case run => ram_eval [choose, skip, hz, h1, h2, h3, h4, h5, hn0, hn1, hn2, hn3, hn4, hn5]
-    all_goals simp +decide [Data.set_regs, Math.value, Math.flag, hn3]
+  unfold choose skip
+  wram_exec [hz, h1, h2, h3, h4, h5, hs] <;>
+  · wram_simp
+    simp [Math.flag, Math.value, Math.twice, two_mul, Bool.toNat, *]
 
 /-- Complete native scalar selection. Its cost includes decoding, both label bits and doubling. -/
 theorem exec {w : ℕ} (x : Data 48)
@@ -232,19 +163,12 @@ theorem exec {w : ℕ} (x : Data 48)
       y.regs take = (Math.keep (x.regs magnitude) (x.regs beta) (x.regs beta')
         (x.regs digit) (x.regs mode) (x.regs key, x.regs count)).toNat ∧
       y.regs key = Math.value (x.regs mode) (x.regs key) ∧ y.mem = x.mem := by
-  obtain ⟨u, hu, hus, _, hua, hub, hum⟩ := labels_exec x hz h2 hkey habs hfit
-  have hr (j : Fin 48) (hj : j.val ≤ 12) : u.regs j = x.regs j :=
-    hu.regs_eq (labels_preserves j hj)
-  obtain ⟨y, hy, hyt, hyk, hym⟩ := choose_exec u
-    ((hr zero (by decide)).trans hz) ((hr one (by decide)).trans h1)
-    ((hr two (by decide)).trans h2) ((hr three (by decide)).trans h3)
-    ((hr four (by decide)).trans h4) ((hr five (by decide)).trans h5)
-    (by simpa only [hr key (by decide)] using hus)
-    (by simpa only [hr key (by decide)] using hdouble) hsmall
-  refine ⟨y, hu.seq hy, ?_, ?_, hym.trans hum⟩
-  · simpa only [Math.keep, hr mode (by decide), hr digit (by decide), hr key (by decide),
-      hr count (by decide), hua, hub] using hyt
-  · simpa only [hr mode (by decide), hr key (by decide)] using hyk
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec
+  wram_call (labels_exec x hz h2 hkey habs hfit) framed with v m ⟨hus, _, hua, hub, hum⟩
+  wram_call (choose_exec _ ..) framed [hz, h1, h2, h3, h4, h5, hus] with v₁ m₁ ⟨hyt, hyk, hym⟩
+  exact ⟨by simpa only [Math.keep, hua, hub] using hyt, hyk, hym.trans hum⟩
 
 end Select
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend

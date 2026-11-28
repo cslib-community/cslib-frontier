@@ -92,10 +92,9 @@ theorem AllowanceBound.mono_ac {Op : Type u} {Struct : Type v} {d a₀ a b c₀ 
   have had : ((a₀ * d : ℕ) : ℤ) ≤ ((a * d : ℕ) : ℤ) :=
     Int.ofNat_le.mpr (Nat.mul_le_mul_right d ha)
   cases ev with
-  | digit op j L =>
-    exact ⟨h.1.trans (Nat.add_le_add_left (Nat.mul_le_mul_right d hc) t),
+  | digit _ _ _ => exact ⟨h.1.trans (Nat.add_le_add_left (Nat.mul_le_mul_right d hc) t),
       h.2.trans (add_le_add_left had _)⟩
-  | struct sOp L => exact h.trans (add_le_add_left had _)
+  | struct _ _ => exact h.trans (add_le_add_left had _)
 
 /-- Increasing the clock-drop coefficient from `b₀` to `b ≥ b₀` is paid for by increasing `a₀` to
 `a₀ + (b - b₀) * c₀` [OpenAI2026LogSpace, Theorem 10.9 proof]. -/
@@ -105,19 +104,22 @@ theorem AllowanceBound.mono_coeff {Op : Type u} {Struct : Type v} {d a₀ b₀ b
     AllowanceBound d (a₀ + (b - b₀) * c₀) b c₀ t ev := by
   cases ev with
   | digit op j L =>
-    obtain ⟨hj, hL⟩ := h
-    refine ⟨hj, ?_⟩
-    have hmul : (0 : ℤ) ≤ ((b : ℤ) - (b₀ : ℤ)) * ((t : ℤ) + ((c₀ * d : ℕ) : ℤ) - (j : ℤ)) :=
-      mul_nonneg (by omega) (by zify [hj]; omega)
-    have hcast : (((a₀ + (b - b₀) * c₀) * d : ℕ) : ℤ) =
-        ((a₀ * d : ℕ) : ℤ) + ((b : ℤ) - (b₀ : ℤ)) * ((c₀ * d : ℕ) : ℤ) := by
-      push_cast [Nat.add_mul, Nat.mul_assoc, Int.ofNat_sub hb]; ring
-    rw [hcast]
-    linarith
+    refine ⟨h.1, ?_⟩
+    have h1 : (b₀ : ℤ) ≤ b := Int.ofNat_le.mpr hb
+    have h2 : (j : ℤ) ≤ (t : ℤ) + (c₀ * d : ℕ) := by exact_mod_cast h.1
+    have hL := h.2
+    push_cast [Nat.add_mul, Nat.mul_assoc, Int.ofNat_sub hb] at h2 hL ⊢
+    linarith [mul_nonneg (sub_nonneg.mpr h1) (sub_nonneg.mpr h2)]
   | struct sOp L =>
-    refine h.trans (add_le_add
-      (Int.ofNat_le.mpr (Nat.mul_le_mul_right d (Nat.le_add_right _ _)))
+    exact h.trans (add_le_add (Int.ofNat_le.mpr (Nat.mul_le_mul_right d (Nat.le_add_right _ _)))
       (mul_le_mul_of_nonneg_right (Int.ofNat_le.mpr hb) (Nat.cast_nonneg t)))
+
+private theorem AllowanceBound.mono_abc {Op : Type u} {Struct : Type v}
+    {d a₀ a b₀ b c₀ c t : ℕ} (ha : a₀ ≤ a) (hb : b₀ ≤ b) (hc : c₀ ≤ c)
+    {ev : QueryEvent Op Struct} (h : AllowanceBound d a₀ b₀ c₀ t ev) :
+    AllowanceBound d (a + b * c) b c t ev :=
+  ((h.mono_ac ha hc).mono_coeff hb).mono_ac
+    (Nat.add_le_add_left (Nat.mul_le_mul_right c (Nat.sub_le b b₀)) a) le_rfl
 
 theorem AllowanceBound.mono_clock {Op : Type u} {Struct : Type v} {d a b c t₁ t₂ : ℕ}
     (ht : t₁ ≤ t₂) {ev : QueryEvent Op Struct}
@@ -135,33 +137,31 @@ theorem AllowanceBound.shift_clock_up {Op : Type u} {Struct : Type v} {d a b c t
     (hd : 1 ≤ d) {ev : QueryEvent Op Struct}
     (h : AllowanceBound d a b c (t + k) ev) :
     AllowanceBound d (a + b * k) b (c + k) t ev := by
-  have had : ((a * d : ℕ) : ℤ) + (b : ℤ) * (k : ℤ) ≤ (((a + b * k) * d : ℕ) : ℤ) := by
-    rw [Nat.add_mul, Nat.cast_add, ← Nat.cast_mul b k]
-    exact add_le_add_right (Int.ofNat_le.mpr (Nat.le_mul_of_pos_right (b * k) hd)) _
+  have had : (b * k : ℕ) ≤ b * k * d := Nat.le_mul_of_pos_right (b * k) hd
   cases ev with
   | digit op j L =>
-    have := Nat.le_mul_of_pos_right k hd
-    exact ⟨by rw [Nat.add_mul]; have := h.1; omega,
-      h.2.trans <| le_trans (le_of_eq (by push_cast; ring))
-        (add_le_add_left had ((b : ℤ) * ((t : ℤ) - (j : ℤ))))⟩
+    refine ⟨by linarith [h.1, Nat.add_mul c k d, Nat.le_mul_of_pos_right k hd], ?_⟩
+    have h2 := h.2
+    push_cast [Nat.add_mul, Nat.mul_assoc] at had h2 ⊢
+    linarith
   | struct sOp L =>
-    exact h.trans <| le_trans (le_of_eq (by push_cast; ring)) (add_le_add_left had ((b : ℤ) * t))
+    dsimp only [AllowanceBound] at h ⊢
+    push_cast [Nat.add_mul, Nat.mul_assoc] at had h ⊢
+    linarith
 
 theorem AllowanceBound.addBits_const {Op : Type u} {Struct : Type v} {d a b c t : ℕ}
     (hd : 1 ≤ d) (extra : ℕ) {ev : QueryEvent Op Struct}
     (h : AllowanceBound d a b c t ev) :
     AllowanceBound d (a + extra) b c t (ev.addBits extra) := by
-  have hex : (extra : ℤ) ≤ ((extra * d : ℕ) : ℤ) :=
-    Int.ofNat_le.mpr (Nat.le_mul_of_pos_right extra hd)
+  have hex : extra ≤ extra * d := Nat.le_mul_of_pos_right extra hd
   cases ev with
-  | digit op j L =>
-    obtain ⟨hj, hL⟩ := h
-    refine ⟨hj, ?_⟩
-    push_cast at hex hL ⊢; linarith
-  | struct sOp L =>
-    have hL : (L : ℤ) ≤ ((a * d : ℕ) : ℤ) + (b : ℤ) * (t : ℤ) := h
-    change ((extra + L : ℕ) : ℤ) ≤ (((a + extra) * d : ℕ) : ℤ) + (b : ℤ) * (t : ℤ)
-    push_cast at hex hL ⊢; linarith
+  | digit _ _ _ =>
+    refine ⟨h.1, ?_⟩
+    have h2 := h.2
+    push_cast at hex h2 ⊢; linarith
+  | struct _ L =>
+    dsimp only [AllowanceBound, QueryEvent.addBits] at h ⊢
+    push_cast at hex h ⊢; linarith
 
 /-- Clock-difference telescoping along a parent-to-child digit substitution
 [OpenAI2026LogSpace, Theorem 10.9]. -/
@@ -172,18 +172,17 @@ theorem AllowanceBound.comp_child {Op₂ : Type u'} {Struct : Type v} {d a₁ a�
     {evChild : QueryEvent Op₂ Struct}
     (hChild : AllowanceBound d a₂ b c₂ u evChild) :
     AllowanceBound d (a₁ + a₂ + retBits) b (c₁ + c₂) t (evChild.addBits (w + retBits)) := by
-  have hret : (retBits : ℤ) ≤ ((retBits * d : ℕ) : ℤ) :=
-    Int.ofNat_le.mpr (Nat.le_mul_of_pos_right retBits hd)
+  have hret : retBits ≤ retBits * d := Nat.le_mul_of_pos_right retBits hd
   cases evChild with
-  | digit op₂ j L =>
-    obtain ⟨hj, hL⟩ := hChild
-    refine ⟨by rw [Nat.add_mul]; omega, ?_⟩
-    push_cast at hw hL hret ⊢; linarith
-  | struct sOp L =>
-    have hL : (L : ℤ) ≤ ((a₂ * d : ℕ) : ℤ) + (b : ℤ) * (u : ℤ) := hChild
-    change ((w + retBits + L : ℕ) : ℤ) ≤
-      (((a₁ + a₂ + retBits) * d : ℕ) : ℤ) + (b : ℤ) * (t : ℤ)
-    push_cast at hw hL hret ⊢; linarith
+  | digit _ _ _ =>
+    refine ⟨by linarith [hu, hChild.1, Nat.add_mul c₁ c₂ d], ?_⟩
+    have h2 := hChild.2
+    push_cast at hw h2 hret ⊢
+    linarith
+  | struct _ L =>
+    dsimp only [AllowanceBound, QueryEvent.addBits] at hChild ⊢
+    push_cast at hw hChild hret ⊢
+    linarith
 
 end AllowanceAccounting
 
@@ -228,6 +227,14 @@ structure UniformStreamRecipe (Op : Type u) (Struct : Type v) where
       (digitProg t).maxIntrinsicBits env sEnv ≤ intrinsicCoeff * (slack + t)
 
 namespace UniformStreamRecipe
+
+/-- Emitted digits of a `UniformStreamRecipe` form a normalized signed stream in `[-1, 1]`
+whenever `R.ValidEnv env sEnv`. -/
+theorem emits_norm {Op : Type u} {Struct : Type v}
+    (R : UniformStreamRecipe Op Struct) {env : Op → ℕ → ℤ} {sEnv : Struct → Bool}
+    (hV : R.ValidEnv env sEnv) :
+    IsNormSignedStream (fun t => (R.digitProg t).eval env sEnv) :=
+  ⟨R.emits_signed hV, by rw [R.emits_exact hV]; exact R.abs_targetVal_le_one hV⟩
 
 /-- Strengthen the environment precondition of a `UniformStreamRecipe`. -/
 @[expose] noncomputable def weakenValid {Op : Type u} {Struct : Type v}
@@ -304,58 +311,32 @@ stages and telescoped annotated allowance/intrinsic constants. -/
     abs_targetVal_le_one := by
       rintro env₂ sEnv ⟨hCh, hPar⟩
       have heq : (fun op => (child op).targetVal (fun op₂ => streamVal (env₂ op₂)) sEnv) =
-          fun op => streamVal (fun u => ((child op).digitProg u).eval env₂ sEnv) := by
-        ext op
-        exact ((child op).emits_exact (hCh op)).symm
+          fun op => streamVal (fun u => ((child op).digitProg u).eval env₂ sEnv) :=
+        funext fun op => ((child op).emits_exact (hCh op)).symm
       rw [heq]
       exact parent.abs_targetVal_le_one hPar
     emits_signed := by
       rintro env₂ sEnv ⟨_, hPar⟩
-      have heval : (fun t =>
-          ((parent.digitProg t).substDigits 4 (fun op u => (child op).digitProg u)).eval
-            env₂ sEnv) =
-          fun t => (parent.digitProg t).eval
-            (fun op u => ((child op).digitProg u).eval env₂ sEnv) sEnv := by
-        ext t
-        exact QueryProg.eval_substDigits 4 _ _ _ _
-      rw [heval]
+      simp_rw [QueryProg.eval_substDigits]
       exact parent.emits_signed hPar
     emits_exact := by
       rintro env₂ sEnv ⟨hCh, hPar⟩
-      have heval : (fun t =>
-          ((parent.digitProg t).substDigits 4 (fun op u => (child op).digitProg u)).eval
-            env₂ sEnv) =
-          fun t => (parent.digitProg t).eval
-            (fun op u => ((child op).digitProg u).eval env₂ sEnv) sEnv := by
-        ext t
-        exact QueryProg.eval_substDigits 4 _ _ _ _
-      rw [heval, parent.emits_exact hPar]
-      congr 1
-      ext op
-      exact (child op).emits_exact (hCh op)
+      simp_rw [QueryProg.eval_substDigits]
+      rw [parent.emits_exact hPar]
+      exact congrArg (parent.targetVal · sEnv)
+        (funext fun op => (child op).emits_exact (hCh op))
     allowance := by
       intro t env₂ sEnv ev hev
       have hB_par : parent.coeffB ≤ B := le_max_left _ _
       have hB_ch : cB ≤ B := (le_max_left _ _).trans (le_max_right _ _)
       rcases QueryProg.mem_activeQueries_substDigits 4 _ _ _ _ hev with
         ⟨sOp, w, hs, rfl⟩ | ⟨op, u, w, evC, hd, hevC, rfl⟩
-      · have h1 := (parent.allowance t _ sEnv hs).mono_coeff hB_par
-        change (w : ℤ) ≤ ((a₁ * parent.slack : ℕ) : ℤ) + (B : ℤ) * (t : ℤ) at h1
-        change (w : ℤ) ≤ (((a₁ + a₂ + 4) * parent.slack : ℕ) : ℤ) + (B : ℤ) * (t : ℤ)
-        have had : a₁ * parent.slack ≤ (a₁ + a₂ + 4) * parent.slack :=
-          Nat.mul_le_mul_right _ (by omega)
-        have hadZ : ((a₁ * parent.slack : ℕ) : ℤ) ≤ (((a₁ + a₂ + 4) * parent.slack : ℕ) : ℤ) := by
-          exact_mod_cast had
-        linarith
-      · have hParB := (parent.allowance t _ sEnv hd).mono_coeff hB_par
-        obtain ⟨hu, hw⟩ := hParB
+      · exact ((parent.allowance t _ sEnv hs).mono_coeff hB_par).mono_ac (by omega) le_rfl
+      · obtain ⟨hu, hw⟩ := (parent.allowance t _ sEnv hd).mono_coeff hB_par
         have hChRaw := (child op).allowance u env₂ sEnv hevC
         rw [hSlack op] at hChRaw
-        have hChMono := (hChRaw.mono_ac (a := cA) (c := cC) (hA op) (hC op)).mono_coeff
-          (b := B) ((hB op).trans hB_ch)
-        have hChA₂ := hChMono.mono_ac (a := a₂) (c := cC)
-          (Nat.add_le_add_left (Nat.mul_le_mul_right cC (Nat.sub_le B _)) cA) le_rfl
-        exact AllowanceBound.comp_child parent.slack_pos 4 hu hw hChA₂
+        exact AllowanceBound.comp_child parent.slack_pos 4 hu hw
+          (by exact hChRaw.mono_abc (hA op) ((hB op).trans hB_ch) (hC op))
     intrinsic_bound := by
       intro t env₂ sEnv
       set K := max parent.intrinsicCoeff (max (a₁ + 4 + cInt) B)
@@ -363,31 +344,30 @@ stages and telescoped annotated allowance/intrinsic constants. -/
       · exact (parent.intrinsic_bound t _ sEnv).trans
           (Nat.mul_le_mul_right _ (le_max_left _ _))
       · intro op u w hd
-        have hB_par : parent.coeffB ≤ B := le_max_left _ _
         have hB_int : cInt ≤ B := (le_max_right _ _).trans (le_max_right _ _)
-        have hParB := (parent.allowance t _ sEnv hd).mono_coeff hB_par
-        obtain ⟨_, hw⟩ := hParB
+        obtain ⟨_, hw⟩ := (parent.allowance t _ sEnv hd).mono_coeff (le_max_left _ _)
         have hChInt := (child op).intrinsic_bound u env₂ sEnv
         rw [hSlack op] at hChInt
         have hChLe : ((child op).digitProg u).maxIntrinsicBits env₂ sEnv ≤
             cInt * (parent.slack + u) :=
           hChInt.trans (Nat.mul_le_mul_right _ (hInt op))
+        have hChZ : ((((child op).digitProg u).maxIntrinsicBits env₂ sEnv : ℕ) : ℤ) ≤
+            (cInt : ℤ) * (parent.slack : ℤ) + (B : ℤ) * (u : ℤ) := by
+          have h1 : ((((child op).digitProg u).maxIntrinsicBits env₂ sEnv : ℕ) : ℤ) ≤
+              (cInt : ℤ) * ((parent.slack : ℤ) + (u : ℤ)) := by exact_mod_cast hChLe
+          have h2 : (cInt : ℤ) * (u : ℤ) ≤ (B : ℤ) * (u : ℤ) :=
+            mul_le_mul_of_nonneg_right (Int.ofNat_le.mpr hB_int) (Nat.cast_nonneg u)
+          linarith
         have hret : (4 : ℤ) ≤ ((4 * parent.slack : ℕ) : ℤ) := by
           exact_mod_cast Nat.le_mul_of_pos_right 4 parent.slack_pos
-        have hChZ : ((((child op).digitProg u).maxIntrinsicBits env₂ sEnv : ℕ) : ℤ) ≤
-            (cInt : ℤ) * ((parent.slack : ℤ) + (u : ℤ)) := by
-          exact_mod_cast hChLe
-        have hB_ge_cInt : (cInt : ℤ) ≤ (B : ℤ) := by exact_mod_cast hB_int
-        have hu_nonneg : (0 : ℤ) ≤ ((B : ℤ) - (cInt : ℤ)) * (u : ℤ) :=
-          mul_nonneg (by linarith) (Nat.cast_nonneg u)
         have hsumNat : w + 4 + ((child op).digitProg u).maxIntrinsicBits env₂ sEnv ≤
             (a₁ + 4 + cInt) * parent.slack + B * t := by
-          have hsumZ : ((w + 4 + ((child op).digitProg u).maxIntrinsicBits env₂ sEnv : ℕ) : ℤ) ≤
-              (((a₁ + 4 + cInt) * parent.slack + B * t : ℕ) : ℤ) := by
-            dsimp only [a₁]
-            push_cast at hw hret ⊢
-            linarith
-          exact_mod_cast hsumZ
+          exact_mod_cast (by
+            dsimp only [B, a₁] at hw hChZ ⊢
+            push_cast [Nat.add_mul] at hw hret hChZ ⊢
+            linarith : ((w + 4 +
+              ((child op).digitProg u).maxIntrinsicBits env₂ sEnv : ℕ) : ℤ) ≤
+              (((a₁ + 4 + cInt) * parent.slack + B * t : ℕ) : ℤ))
         have hK_left : a₁ + 4 + cInt ≤ K := (le_max_left _ _).trans (le_max_right _ _)
         have hK_right : B ≤ K := (le_max_right _ _).trans (le_max_right _ _)
         calc w + 4 + ((child op).digitProg u).maxIntrinsicBits env₂ sEnv
@@ -418,58 +398,42 @@ evaluated or required to satisfy `ValidEnv`. -/
   intrinsicCoeff := max onTrue.intrinsicCoeff onFalse.intrinsicCoeff
   abs_targetVal_le_one := by
     rintro env sEnv ⟨hT, hF⟩
-    cases hs : sEnv sOp
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact onFalse.abs_targetVal_le_one (hF hs)
-    · simp only [↓reduceIte]
-      exact onTrue.abs_targetVal_le_one (hT hs)
+    cases hs : sEnv sOp <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · exact onFalse.abs_targetVal_le_one (hF hs)
+    · exact onTrue.abs_targetVal_le_one (hT hs)
   emits_signed := by
     rintro env sEnv ⟨hT, hF⟩
-    cases hs : sEnv sOp
-    · simpa only [QueryProg.eval, hs, Bool.false_eq_true, ↓reduceIte] using
-        onFalse.emits_signed (hF hs)
-    · simpa only [QueryProg.eval, hs, ↓reduceIte] using
-        onTrue.emits_signed (hT hs)
+    cases hs : sEnv sOp <;>
+      simpa only [QueryProg.eval, hs, Bool.false_eq_true, ↓reduceIte] using
+        (by first | exact onFalse.emits_signed (hF hs)
+                  | exact onTrue.emits_signed (hT hs))
   emits_exact := by
     rintro env sEnv ⟨hT, hF⟩
-    cases hs : sEnv sOp
-    · simpa only [QueryProg.eval, hs, Bool.false_eq_true, ↓reduceIte] using
-        onFalse.emits_exact (hF hs)
-    · simpa only [QueryProg.eval, hs, ↓reduceIte] using
-        onTrue.emits_exact (hT hs)
+    cases hs : sEnv sOp <;>
+      simpa only [QueryProg.eval, hs, Bool.false_eq_true, ↓reduceIte] using
+        (by first | exact onFalse.emits_exact (hF hs)
+                  | exact onTrue.emits_exact (hT hs))
   allowance := by
     intro t env sEnv ev hev
     simp only [QueryProg.activeQueries, List.mem_cons] at hev
-    set A := max onTrue.coeffA onFalse.coeffA
-    set B := max onTrue.coeffB onFalse.coeffB
-    set C := max onTrue.coeffC onFalse.coeffC
     rcases hev with rfl | hevRest
-    · simp only [AllowanceBound, Int.ofNat_zero]
-      positivity
-    · cases hs : sEnv sOp
-      · simp only [hs, Bool.false_eq_true, ↓reduceIte] at hevRest
-        have hF := onFalse.allowance t env sEnv hevRest
+    · simp only [AllowanceBound, Int.ofNat_zero]; positivity
+    · cases hs : sEnv sOp <;> simp only [hs, Bool.false_eq_true, ↓reduceIte] at hevRest
+      · have hF := onFalse.allowance t env sEnv hevRest
         rw [hSlack] at hF
-        have h1 := (hF.mono_ac (a := A) (c := C) (le_max_right _ _) (le_max_right _ _)).mono_coeff
-          (b := B) (le_max_right _ _)
-        exact h1.mono_ac (a := A + B * C) (c := C) (Nat.add_le_add_left
-          (Nat.mul_le_mul_right C (Nat.sub_le B _)) A) le_rfl
-      · simp only [hs, ↓reduceIte] at hevRest
-        have hT := onTrue.allowance t env sEnv hevRest
-        have h1 := (hT.mono_ac (a := A) (c := C) (le_max_left _ _) (le_max_left _ _)).mono_coeff
-          (b := B) (le_max_left _ _)
-        exact h1.mono_ac (a := A + B * C) (c := C) (Nat.add_le_add_left
-          (Nat.mul_le_mul_right C (Nat.sub_le B _)) A) le_rfl
+        exact AllowanceBound.mono_abc
+          (le_max_right _ _) (le_max_right _ _) (le_max_right _ _) hF
+      · exact AllowanceBound.mono_abc
+          (le_max_left _ _) (le_max_left _ _) (le_max_left _ _)
+          (onTrue.allowance t env sEnv hevRest)
   intrinsic_bound := by
     intro t env sEnv
     simp only [QueryProg.maxIntrinsicBits, Nat.zero_max]
-    cases hs : sEnv sOp
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      have hF := onFalse.intrinsic_bound t env sEnv
+    cases hs : sEnv sOp <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · have hF := onFalse.intrinsic_bound t env sEnv
       rw [hSlack] at hF
       exact hF.trans (Nat.mul_le_mul_right _ (le_max_right _ _))
-    · simp only [↓reduceIte]
-      exact (onTrue.intrinsic_bound t env sEnv).trans
+    · exact (onTrue.intrinsic_bound t env sEnv).trans
         (Nat.mul_le_mul_right _ (le_max_left _ _))
 
 end UniformStreamRecipe
@@ -566,8 +530,7 @@ theorem maxIntrinsicBits_diffDigitProg_le {Op : Type u} {Struct : Type v} {d C :
     · rw [Nat.add_mul]; omega
     · refine (QueryProg.maxIntrinsicBits_bindOverhead_le _ _ _ _ _).trans (max_le ?_ ?_)
       · rw [Nat.add_mul]; omega
-      · simp only [QueryProg.maxIntrinsicBits, Nat.max_zero]
-        rw [Nat.add_mul]; omega
+      · simp only [QueryProg.maxIntrinsicBits, Nat.max_zero, Nat.add_mul]; omega
 
 /-- Package any mod-16 scaled-approximation residue program into a certified
 `UniformStreamRecipe`. -/
@@ -599,19 +562,11 @@ theorem maxIntrinsicBits_diffDigitProg_le {Op : Type u} {Struct : Type v} {d C :
   coeffC := c
   intrinsicCoeff := C + 8
   abs_targetVal_le_one := hBound
-  emits_signed := by
-    intro env sEnv hV
-    have heq : (fun t => (diffDigitProg resProg t).eval env sEnv) = diffDigit (N env sEnv) := by
-      ext t
-      exact eval_diffDigitProg resProg (N env sEnv) (hBound hV) (hApprox hV) (hEval hV) t
-    rw [heq]
+  emits_signed hV := by
+    simp_rw [eval_diffDigitProg resProg (N _ _) (hBound hV) (hApprox hV) (hEval hV)]
     exact diffDigit_isSignedStream (hBound hV) (hApprox hV)
-  emits_exact := by
-    intro env sEnv hV
-    have heq : (fun t => (diffDigitProg resProg t).eval env sEnv) = diffDigit (N env sEnv) := by
-      ext t
-      exact eval_diffDigitProg resProg (N env sEnv) (hBound hV) (hApprox hV) (hEval hV) t
-    rw [heq]
+  emits_exact hV := by
+    simp_rw [eval_diffDigitProg resProg (N _ _) (hBound hV) (hApprox hV) (hEval hV)]
     exact streamVal_diffDigit (hBound hV) (hApprox hV)
   allowance t env sEnv _ hev := allowance_diffDigitProg hd resProg hAllow t env sEnv hev
   intrinsic_bound t env sEnv := maxIntrinsicBits_diffDigitProg_le hd resProg hInt t env sEnv
@@ -905,18 +860,12 @@ at starting clock `0` and `M + R ≤ κ * d`, `bufferedTestProg` queries at most
         · obtain ⟨op, j, L, hj, hL, rfl⟩ := ih (idx + 1) _ h
           exact ⟨op, j, L, by omega, hL, rfl⟩
     obtain ⟨op, j, L, hj, hL, rfl⟩ := haux (M + R + 8) 0 ((M + R + 7) + 1) 0 hev
+    have h7 : 7 ≤ 7 * d := Nat.le_mul_of_pos_right 7 hd
+    have h18 : 18 ≤ 18 * d := Nat.le_mul_of_pos_right 18 hd
     refine ⟨?_, ?_⟩
-    · have h7 : 7 ≤ 7 * d := Nat.le_mul_of_pos_right 7 hd
-      calc j ≤ M + R + 7 := by omega
-        _ ≤ κ * d + 7 * d := by omega
-        _ = 0 + (κ + 7) * d := by rw [Nat.add_mul, Nat.zero_add]
-    · have h18 : 18 ≤ 18 * d := Nat.le_mul_of_pos_right 18 hd
-      have hLn : L ≤ (κ + 18) * d := by
-        calc L ≤ M + R + 18 := by omega
-          _ ≤ κ * d + 18 * d := by omega
-          _ = (κ + 18) * d := (Nat.add_mul κ 18 d).symm
-      have hLZ : (L : ℤ) ≤ (((κ + 18) * d : ℕ) : ℤ) := by exact_mod_cast hLn
-      simpa only [Nat.cast_zero, zero_mul, add_zero] using hLZ
+    · rw [Nat.zero_add, Nat.add_mul]; omega
+    · simp only [Nat.cast_zero, zero_mul, add_zero]
+      rw [Nat.add_mul]; omega
   intrinsic_bound := by
     intro env sEnv
     rw [bufferedTestProg, QueryProg.maxIntrinsicBits_map, cmpBufferedProg]
@@ -934,10 +883,8 @@ at starting clock `0` and `M + R ≤ κ * d`, `bufferedTestProg` queries at most
         simp only [cmpBufferedAux, QueryProg.maxIntrinsicBits]
         exact max_le (by omega) (max_le le_rfl (ih (idx + 1) _))
     have h18 : 18 ≤ 18 * d := Nat.le_mul_of_pos_right 18 hd
-    calc (cmpBufferedAux opS opU (M + R + 7 + 1) 0 (M + R + 7 + 1) 0).maxIntrinsicBits env sEnv
-        ≤ (M + R + 7 + 1) + 10 := haux _ 0 _ 0
-      _ ≤ κ * d + 18 * d := by omega
-      _ = (κ + 18) * d := (Nat.add_mul κ 18 d).symm
+    rw [Nat.add_mul]
+    exact (haux _ 0 _ 0).trans (by omega)
 
 theorem bufferedTestRecipe_true_of_two_mul_lt {Op : Type u} {Struct : Type v}
     (d : ℕ) (hd : 1 ≤ d) (opS opU : Op) {M R κ : ℕ} (hMR : M + R ≤ κ * d)

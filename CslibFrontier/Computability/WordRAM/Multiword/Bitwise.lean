@@ -8,10 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Workspace
-import Mathlib.Data.Nat.Bitwise
--- `import all` only so that `Nat.land`, `Nat.lor` and `Nat.xor` unfold to `Nat.bitwise`, as in
--- `Mathlib.Data.Nat.Bitwise`; core does not expose their bodies.
-import all Init.Data.Nat.Bitwise.Basic
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Checked limbwise Boolean operations
@@ -46,34 +43,30 @@ variable {r : ℕ}
 /-- The binary Boolean operations supported by the limbwise routine. -/
 def Supported (f : BinOp) : Prop := f = .and ∨ f = .or ∨ f = .xor
 
-private theorem exists_truthTable {f : BinOp} (hf : Supported f) :
-    ∃ g : Bool → Bool → Bool, g false false = false ∧ f.eval = Nat.bitwise g := by
-  rcases hf with rfl | rfl | rfl
-  · exact ⟨(· && ·), rfl, rfl⟩
-  · exact ⟨(· || ·), rfl, rfl⟩
-  · exact ⟨(· != ·), rfl, rfl⟩
-
 /-- Boolean operations preserve a power-of-two digit bound. -/
 theorem eval_lt {f : BinOp} (hf : Supported f) {k a b : ℕ}
     (ha : a < 2 ^ k) (hb : b < 2 ^ k) : f.eval a b < 2 ^ k := by
-  obtain ⟨g, _, hg⟩ := exists_truthTable hf
-  rw [hg]
-  exact Nat.bitwise_lt_two_pow ha hb
+  rcases hf with rfl | rfl | rfl
+  · exact Nat.and_lt_two_pow a hb
+  · exact Nat.or_lt_two_pow ha hb
+  · exact Nat.xor_lt_two_pow ha hb
 
 /-- A Boolean operation commutes with adjoining one low power-of-two digit. -/
 theorem eval_cons {f : BinOp} (hf : Supported f) {k a b : ℕ}
     (ha : a < 2 ^ k) (hb : b < 2 ^ k) (A B : ℕ) :
     f.eval (a + 2 ^ k * A) (b + 2 ^ k * B) =
       f.eval a b + 2 ^ k * f.eval A B := by
-  obtain ⟨g, hg, he⟩ := exists_truthTable hf
-  rw [he]
+  have hlt := eval_lt hf ha hb
+  rw [Nat.add_comm a, Nat.add_comm b, Nat.add_comm (f.eval a b)]
   apply Nat.eq_of_testBit_eq
   intro j
-  simp only [Nat.add_comm a, Nat.add_comm b, Nat.add_comm (Nat.bitwise g a b),
-    Nat.testBit_two_pow_mul_add A ha, Nat.testBit_two_pow_mul_add B hb,
-    Nat.testBit_two_pow_mul_add _ (Nat.bitwise_lt_two_pow ha hb),
-    Nat.testBit_bitwise hg]
-  split <;> rfl
+  rcases hf with rfl | rfl | rfl
+  all_goals
+    simp only [BinOp.eval] at hlt ⊢
+    simp only [Nat.testBit_two_pow_mul_add _ ha, Nat.testBit_two_pow_mul_add _ hb,
+      Nat.testBit_two_pow_mul_add _ hlt,
+      Nat.testBit_and, Nat.testBit_or, Nat.testBit_xor]
+    split <;> rfl
 
 /-- Unrolled limbwise code. A final workspace self-copy makes the empty program executable. -/
 def program (f : BinOp) : List (Fin (r + 4)) → List (Fin (r + 4)) →
@@ -105,76 +98,53 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) {f : BinOp} (hf : Supported f)
       Frame x y ds ∧ ∀ i ∉ ds, y.regs i = x.regs i := by
   induction as generalizing bs ds x with
   | nil =>
-    cases bs with
-    | cons => simp only [List.length_cons, List.length_nil] at hab; omega
-    | nil =>
-      cases ds with
-      | cons => simp only [List.length_cons, List.length_nil] at had; omega
-      | nil =>
-        refine ⟨x.set carry (x.regs carry), ?_, by simp [Bounded], ?_, ?_, ?_⟩
-        · ram_eval [program]
-        · obtain ⟨g, _, hg⟩ := exists_truthTable hf
-          change 0 = f.eval 0 0
-          rw [hg, Nat.bitwise_zero]
-        · exact ⟨rfl, fun i _ _ _ => by simp⟩
-        · intro i _
-          simp
+    obtain rfl := List.eq_nil_of_length_eq_zero hab.symm
+    obtain rfl := List.eq_nil_of_length_eq_zero had.symm
+    refine WP.Exact.exists_exec ?_
+    unfold program
+    wram_exec [List.length_nil]
+    rcases hf with rfl | rfl | rfl <;>
+      exact ⟨by simp [Bounded], by simp [value, BinOp.eval], frame_set_carry _ _ [], by simp⟩
   | cons a as ih =>
-    cases bs with
-    | nil => simp only [List.length_cons, List.length_nil] at hab; omega
-    | cons b bs =>
-      cases ds with
-      | nil => simp only [List.length_cons, List.length_nil] at had; omega
-      | cons d ds =>
-        have hab' : as.length = bs.length := by simpa using hab
-        have had' : as.length = ds.length := by simpa using had
-        have hdis' : List.Disjoint ds (as ++ bs) := by
-          apply List.disjoint_left.mpr
-          intro i hi hj
-          exact List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (by
-            simp only [List.mem_append, List.mem_cons] at hj ⊢
-            tauto)
-        have hdinputs (i : Fin (r + 4)) (hi : i ∈ a :: as ++ b :: bs) : i ≠ d := by
-          rintro rfl
-          exact List.disjoint_left.mp hdis (by simp) hi
-        let z := x.set d (f.eval (x.regs a) (x.regs b))
-        have hza (i : Fin (r + 4)) (hi : i ∈ a :: as ++ b :: bs) :
-            z.regs i = x.regs i := by simp [z, hdinputs i hi]
-        have hzlt := eval_lt hf (ha a (by simp)) (hb b (by simp))
-        have hzfit : Fits w (f.eval (x.regs a) (x.regs b)) :=
-          hzlt.trans (radix_fits hw)
-        have hez : Exec w (.op (.bin f d a b)) x z 1 := by
-          apply Exec.op
-          simpa only [Op.eval_bin] using (Data.put_of_fits hzfit)
-        obtain ⟨y, hey, hyb, hyv, hyf, hyp⟩ := ih bs ds hab' had'
-          (fun i hi => hin i (by
-            simp only [List.mem_append, List.mem_cons] at hi ⊢
-            tauto)) (fun i hi => hout i (by simp [hi]))
-          (List.nodup_cons.mp hnd).2 hdis' z
-          (fun i hi => by rw [hza i (by simp [hi])]; exact ha i (by simp [hi]))
-          (fun i hi => by rw [hza i (by simp [hi])]; exact hb i (by simp [hi]))
-        have hyd : y.regs d = f.eval (x.regs a) (x.regs b) := by
-          rw [hyp d (List.nodup_cons.mp hnd).1]
-          simp [z]
-        have hva : value (radix w) z as = value (radix w) x as :=
-          value_congr fun i hi => hza i (by simp [hi])
-        have hvb : value (radix w) z bs = value (radix w) x bs :=
-          value_congr fun i hi => hza i (by simp [hi])
-        have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := by
-          intro i hi
-          rw [hyp i (fun hm => hi (by simp [hm]))]
-          simp [z, show i ≠ d by intro h; exact hi (by simp [h])]
-        refine ⟨y, ?_, ?_, ?_, ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
-        · simpa only [program, List.length_cons, Nat.add_comm 1] using hez.seq hey
-        · intro i hi
-          rcases List.mem_cons.mp hi with rfl | hi
-          · rw [hyd]; exact hzlt
-          · exact hyb i hi
-        · change y.regs d + radix w * value (radix w) y ds =
-            f.eval (x.regs a + radix w * value (radix w) x as)
-              (x.regs b + radix w * value (radix w) x bs)
-          rw [hyd, hyv, hva, hvb]
-          exact (eval_cons hf (ha a (by simp)) (hb b (by simp)) _ _).symm
+    obtain ⟨b, bs, rfl⟩ := List.exists_cons_of_length_eq_add_one hab.symm
+    obtain ⟨d, ds, rfl⟩ := List.exists_cons_of_length_eq_add_one had.symm
+    have sub_in {i : Fin (r + 4)} (hi : i ∈ as ++ bs) : i ∈ a :: as ++ b :: bs := by
+      simp only [List.mem_append, List.mem_cons] at hi ⊢; tauto
+    have hdis' : List.Disjoint ds (as ++ bs) :=
+      List.disjoint_left.mpr fun i hi hj =>
+        List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (sub_in hj)
+    have hne (i : Fin (r + 4)) (hi : i ∈ as ++ bs) : i ≠ d := by
+      rintro rfl
+      exact List.disjoint_left.mp hdis List.mem_cons_self (sub_in hi)
+    have hzlt := eval_lt hf (ha a List.mem_cons_self) (hb b List.mem_cons_self)
+    have hzfit : Fits w (f.eval (x.regs a) (x.regs b)) := hzlt.trans (radix_fits hw)
+    refine WP.Exact.exists_exec ?_
+    unfold program
+    refine WP.Exact.seq (WP.Exact.bin rfl rfl rfl hzfit ?_)
+    have hza (i : Fin (r + 4)) (hi : i ∈ as ++ bs) :
+        (x.set d (f.eval (x.regs a) (x.regs b))).regs i = x.regs i := by
+      have := hne i hi; wram_simp
+    wram_call (ih bs ds (by simpa using hab) (by simpa using had)
+      (fun i hi => hin i (sub_in hi)) (fun i hi => hout i (List.mem_cons_of_mem d hi))
+      (List.nodup_cons.mp hnd).2 hdis' _
+      (fun i hi => hza i (List.mem_append_left _ hi) ▸ ha i (List.mem_cons_of_mem a hi))
+      (fun i hi => hza i (List.mem_append_right _ hi) ▸ hb i (List.mem_cons_of_mem b hi))) with
+      y ⟨hyb, hyv, hyf, hyp⟩
+    have hyd : y.regs d = f.eval (x.regs a) (x.regs b) := by
+      rw [hyp d (List.nodup_cons.mp hnd).1]; wram_simp
+    have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := fun i hi => by
+      rw [hyp i (fun hm => hi (List.mem_cons_of_mem d hm))]
+      have : i ≠ d := fun h => hi (h ▸ List.mem_cons_self)
+      wram_simp
+    refine ⟨by simp only [List.length_cons], fun i hi => ?_, ?_,
+      ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
+    · rcases List.mem_cons.mp hi with rfl | hi
+      · exact hyd ▸ hzlt
+      · exact hyb i hi
+    · rw [value_cons, value_cons, value_cons, hyd, hyv,
+        value_congr fun i hi => hza i (List.mem_append_left _ hi),
+        value_congr fun i hi => hza i (List.mem_append_right _ hi)]
+      exact (eval_cons hf (ha a List.mem_cons_self) (hb b List.mem_cons_self) _ _).symm
 
 end Cslib.WordRAM.Multiword.Bitwise
 

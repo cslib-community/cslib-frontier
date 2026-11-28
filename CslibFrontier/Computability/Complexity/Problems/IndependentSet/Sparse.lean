@@ -107,8 +107,8 @@ open SparseIndependentSet in
 /-- The reduction from `SAT` to `IndependentSet` with variable edges [Garey and Johnson,
 Theorem 3.3][GareyJohnson1979]: the graph of `φ` with the target `n + m`, for `n` distinct
 variables and `m` clauses. -/
-def toSparseIndependentSet (φ : CNF ℕ) : Graph × ℕ :=
-  ((vertices φ, edges φ), φ.distinctVars.length + φ.length)
+def toSparseIndependentSet (φ : CNF ℕ) : IndependentSetInstance :=
+  ⟨⟨vertices φ, edges φ⟩, φ.distinctVars.length + φ.length⟩
 
 namespace SparseIndependentSet
 
@@ -256,7 +256,7 @@ private theorem satisfiable_of_mem (h : toSparseIndependentSet φ ∈ Independen
     · obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hb
       exact hblock v hv
     · rw [Finset.card_image_of_injOn hinj, hS.card_eq, Finset.card_disjSum, Finset.card_range,
-        Finset.card_range]
+        Finset.card_range, toSparseIndependentSet]
   have hhit : ∀ b ∈ B, ∃ v ∈ S, block v = b := fun b hb => by
     rw [← himage] at hb
     exact Finset.mem_image.1 hb
@@ -321,6 +321,15 @@ private theorem mem_of_satisfiable (h : φ.Satisfiable) :
     intro v
     simp only [O, Finset.mem_image, Finset.mem_univ, true_and]
     exact ⟨fun ⟨i, he⟩ => ⟨i, he.symm⟩, fun ⟨i, he⟩ => ⟨i, he.symm⟩⟩
+  -- the set holds only the chosen occurrence of each clause
+  have hocc : ∀ {i k} (hi : i < φ.length), occurrenceVertex i k ∈ L ∪ O → k = J ⟨i, hi⟩ :=
+    fun _ hk => by
+      rcases Finset.mem_union.1 hk with hk | hk
+      · obtain ⟨x, -, hx⟩ := hL.1 hk
+        exact (literalVertex_ne_occurrenceVertex _ _ _ hx.symm).elim
+      · obtain ⟨i', hi'⟩ := hO.1 hk
+        obtain ⟨rfl, rfl⟩ := occurrenceVertex_inj.1 hi'
+        rfl
   rw [mem_IndependentSet_iff]
   refine ⟨L ∪ O, fun v hv => ?_, ⟨fun u hu v hv huv hadj => ?_, ?_⟩⟩
   · change v ∈ vertices φ
@@ -352,27 +361,13 @@ private theorem mem_of_satisfiable (h : φ.Satisfiable) :
       · obtain ⟨i, hi, j, hj, j', hj', he⟩ := mem_cliqueEdges.1 he
         simp only [Prod.mk.injEq] at he
         obtain ⟨rfl, rfl⟩ := he
-        have hocc : ∀ {k}, occurrenceVertex i k ∈ L ∪ O → k = J ⟨i, hi⟩ := fun hk => by
-          rcases Finset.mem_union.1 hk with hk | hk
-          · obtain ⟨x, -, hx⟩ := hL.1 hk
-            exact (literalVertex_ne_occurrenceVertex _ _ _ hx.symm).elim
-          · obtain ⟨i', hi'⟩ := hO.1 hk
-            obtain ⟨rfl, rfl⟩ := occurrenceVertex_inj.1 hi'
-            rfl
-        exact huv (by rw [hocc hu, hocc hv])
+        exact huv (by rw [hocc hi hu, hocc hi hv])
       · obtain ⟨i, hi, j, hj, he⟩ := mem_conflictEdges.1 he
         simp only [Prod.mk.injEq] at he
         obtain ⟨rfl, rfl⟩ := he
         have hx := mem_vars hi hj
-        have hj₀ : j = J ⟨i, hi⟩ := by
-          rcases Finset.mem_union.1 hu with hu | hu
-          · obtain ⟨x, -, hx⟩ := hL.1 hu
-            exact (literalVertex_ne_occurrenceVertex _ _ _ hx.symm).elim
-          · obtain ⟨i', hi'⟩ := hO.1 hu
-            obtain ⟨rfl, rfl⟩ := occurrenceVertex_inj.1 hi'
-            rfl
         have hσj : σ φ[i][j].1 = φ[i][j].2 := by
-          subst hj₀
+          obtain rfl := hocc hi hu
           exact hJ ⟨i, hi⟩
         rcases Finset.mem_union.1 hv with hv | hv
         · obtain ⟨y, -, hy⟩ := hL.1 hv
@@ -413,7 +408,8 @@ open SparseIndependentSet in
 of `toSparseIndependentSet` has at most `(k ^ 2 + 5 k) m` vertices and edges in total, counted as
 listed. -/
 theorem length_toSparseIndependentSet_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k) :
-    (toSparseIndependentSet φ).1.1.length + (toSparseIndependentSet φ).1.2.length ≤
+    (toSparseIndependentSet φ).graph.vertices.length +
+        (toSparseIndependentSet φ).graph.edges.length ≤
       (k * k + 5 * k) * φ.length := by
   have hzip : ∀ c ∈ φ.zipIdx, c.1.length ≤ k := fun c hc => by
     obtain ⟨cl, i⟩ := c
@@ -450,7 +446,7 @@ open SparseIndependentSet in
 computed in unary from clause, position and variable indices, then converted to binary. -/
 @[fun_prop]
 theorem computableInPolyTime_toSparseIndependentSet :
-    ComputableInPolyTime toSparseIndependentSet encCNF (encPair encGraph encNat) := by
+    ComputableInPolyTime toSparseIndependentSet encCNF encIndependentSetInstance := by
   have hdv : ComputableInPolyTime CNF.distinctVars
       (encList (encList (encPair encNat encBool))) (encList encNat) :=
     CNF.computableInPolyTime_distinctVars encNat
@@ -486,7 +482,10 @@ theorem computableInPolyTime_toSparseIndependentSet :
       (encList (encPair encNat encNat)) := by
     unfold edges
     fun_prop
-  exact (hV.prod hE).prod hk
+  have hG : ComputableInPolyTime (fun φ => (⟨vertices φ, edges φ⟩ : Graph))
+      (encList (encList (encPair encNat encBool))) encGraph := by
+    fun_prop
+  exact encIndependentSetInstance_mk_polyTime hG hk
 
 end SAT
 

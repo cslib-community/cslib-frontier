@@ -65,12 +65,10 @@ theorem isPPTOn_chooseLinkAt {n beforeCount afterCount bitIndex : α → ℕ}
       (fun a => E.chooseLinkAt (n a) (beforeCount a) (afterCount a) (bitIndex a)
         (challengePk a)) := by
   have hkey := hkeyGen.preprocess hn
-  have hfront := hkey.replicate hbefore
-  have hback := hkey.replicate hafter
   unfold chooseLinkAt
-  apply hfront.bind_with
+  apply (hkey.replicate hbefore).bind_with
   apply (hkey.preprocess (ComputableInPolyTime.fst _ _)).bind_with
-  apply (hback.preprocess (ComputableInPolyTime.fst _ _).fst').bind_with
+  apply ((hkey.replicate hafter).preprocess (ComputableInPolyTime.fst _ _).fst').bind_with
   have hstate : ComputableInPolyTime
       (fun p : ((α × List (List Bool × List Bool)) × (List Bool × List Bool)) ×
         List (List Bool × List Bool) =>
@@ -81,10 +79,8 @@ theorem isPPTOn_chooseLinkAt {n beforeCount afterCount bitIndex : α → ℕ}
     fun_prop
   apply IsPPTOn.ite
   · polytime
-  · apply ComputableInPolyTime.isPPTOn
-    apply ComputableInPolyTime.prod
-    · fun_prop
-    · exact hstate.of_enc_eq fun _ => rfl
+  · exact ComputableInPolyTime.isPPTOn <|
+      ComputableInPolyTime.prod (by fun_prop) (hstate.of_enc_eq fun _ => rfl)
   · ppt
 
 include hencrypt htest in
@@ -96,33 +92,27 @@ theorem isPPTOn_guessLink {n : α → ℕ} {state challengeCiphertext : α → L
     (hchallenge : ComputableInPolyTime challengeCiphertext input encBits) :
     IsPPTOn input encBool
       (fun a => E.guessLink test (n a) (state a) (challengeCiphertext a)) := by
-  have hcontext := linkStateDecoder.computableInPolyTime.comp hstate
-  dsimp only [encLinkState] at hcontext
-  have hbefore := hcontext.snd'.fst'
-  have hpredecessor := hcontext.snd'.snd'.fst'
-  have hpk := hcontext.snd'.snd'.snd'.fst'
-  have hafter := hcontext.snd'.snd'.snd'.snd'.fst'
-  have hindex := hcontext.snd'.snd'.snd'.snd'.snd'
-  have htarget := hpk.prod ((ComputableInPolyTime.bitsReplicate false).comp
-    (ComputableInPolyTime.length_bits.comp hpredecessor.snd'))
-  have hlinks := isPPTOn_spliceEncryptedKeyLink hencrypt hn hbefore
-    hpredecessor htarget hafter hindex hchallenge
+  have hctx := linkStateDecoder.computableInPolyTime.comp hstate
+  dsimp only [encLinkState] at hctx
+  have htarget := hctx.snd'.snd'.snd'.fst'.prod ((ComputableInPolyTime.bitsReplicate false).comp
+    (ComputableInPolyTime.length_bits.comp hctx.snd'.snd'.fst'.snd'))
   have hpublic : ComputableInPolyTime
       (fun a => ((linkStateDecoder.decode (state a)).2.1 ++
         (linkStateDecoder.decode (state a)).2.2.1 ::
         ((linkStateDecoder.decode (state a)).2.2.2.1,
           List.replicate (linkStateDecoder.decode (state a)).2.2.1.2.length false) ::
         (linkStateDecoder.decode (state a)).2.2.2.2.1).map Prod.fst)
-      input (encList encBits) := by fun_prop
+      input (encList encBits) :=
+    (ComputableInPolyTime.map (ComputableInPolyTime.fst encBits encBits)).comp
+      ((ComputableInPolyTime.listAppend (encPair encBits encBits)).comp
+        (hctx.snd'.fst'.prod (ComputableInPolyTime.cons' hctx.snd'.snd'.fst'
+          (ComputableInPolyTime.cons' htarget hctx.snd'.snd'.snd'.snd'.fst'))))
   unfold guessLink
-  have hcond := hcontext.fst'
-  apply IsPPTOn.cond (by polytime)
-  · apply hlinks.bind_with
-    exact htest.preprocess
-      ((hn.comp (ComputableInPolyTime.fst _ _)).prod
-        ((hpublic.comp (ComputableInPolyTime.fst _ _)).prod
-          (ComputableInPolyTime.snd _ _)))
-  · ppt
+  refine IsPPTOn.cond hctx.fst' ((isPPTOn_spliceEncryptedKeyLink hencrypt hn hctx.snd'.fst'
+    hctx.snd'.snd'.fst' htarget hctx.snd'.snd'.snd'.snd'.fst'
+    hctx.snd'.snd'.snd'.snd'.snd' hchallenge).bind_with ?_) (by ppt)
+  exact htest.preprocess ((hn.comp (ComputableInPolyTime.fst _ _)).prod
+    ((hpublic.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)))
 
 include hkeyGen hencrypt htest
 

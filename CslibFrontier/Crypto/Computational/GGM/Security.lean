@@ -64,15 +64,16 @@ theorem GGM.pseudorandomFunction_of_indistinguishable {generator : List Bool →
     (fun _ _ => negligible_zero)
     fun adversary count n hquery => ?_
   have h := reduction_advantage generator adversary count n hquery
-  simpa only [distinguishingGame, PMF.monad_bind_eq_bind, ProbComp.eval_bind, ProbComp.eval_map,
-    BitString.eval_sampleList, generatorEnsemble, Nat.cast_mul, add_zero] using h.le
+  simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, ProbComp.eval_bind,
+    ProbComp.eval_map, BitString.eval_sampleList, generatorEnsemble, Nat.cast_mul,
+    add_zero] using h.le
 
 /-- A secure generator providing at least two full labels gives the GGM pseudorandom function.
 Surplus bits are ignored; the hypothesis accommodates seed length zero. -/
 theorem PseudorandomGenerator.ggm {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hgenerator : PseudorandomGenerator generator length) (hdouble : ∀ n, 2 * n ≤ length n) :
     PseudorandomFunction (GGM.eval generator) := by
-  have hpoly := hgenerator.polyTime.tidy
+  have hpoly := hgenerator.polyTime
   have hsecure := hgenerator.indistinguishable.map
     (f := fun n word => word.take (2 * n)) (by polytime)
   have htruncated : ComputationallyIndistinguishable
@@ -81,7 +82,7 @@ theorem PseudorandomGenerator.ggm {generator : List Bool → List Bool} {length 
     simpa only [← generatorEnsemble_postprocess generator (fun n word => word.take (2 * n)),
       BitString.uniformList_take (hdouble _)] using hsecure
   have h := GGM.pseudorandomFunction_of_indistinguishable
-    (generator := fun seed => (generator seed).take (2 * seed.length)) (.of_tidy (by polytime))
+    (generator := fun seed => (generator seed).take (2 * seed.length)) (by polytime)
     (fun seed => by simp [hgenerator.length_eq, Nat.min_eq_left (hdouble _)]) htruncated
   simpa only [GGM.eval_truncate] using h
 

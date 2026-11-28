@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.TreeEval.Ary.Packed
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Native decoding of a raw packed register
@@ -82,9 +83,7 @@ private theorem decode_eq_loop (q : Args) :
   rw [iterate_step]
   by_cases hq : valid q = true
   · simp only [decode, count, hq, ↓reduceIte, Nat.zero_add, List.nil_append]
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simp
+    exact List.ext_getElem (by simp) fun _ _ _ => by simp
   · simp [decode, count, hq]
 
 /-- The guard charges every output bit to the actual encoded padded cells. -/
@@ -122,11 +121,8 @@ private theorem valid_inSpace :
   have hcapacity := hnot (budget_natLt (budget_natMul hr hm) hb)
   have hrows := hnot (budget_natLt (budget_length hbank) hr)
   have hpad := budget_comp_linear bankPadding_inSpace (budget_prod hp hbank)
-  refine (hand (hand (hand (hand hpos hwidth) hcapacity) hrows) hpad).of_enc_eq ?_
-  intro q
-  have hle (a b : ℕ) : (!decide (a < b)) = decide (b ≤ a) := by grind
-  have hpos' : (!decide (q.1.2.1 = 0)) = decide (0 < q.1.2.1) := by grind
-  simp only [valid, hle, hpos']
+  refine (hand (hand (hand (hand hpos hwidth) hcapacity) hrows) hpad).of_enc_eq fun q => ?_
+  simp only [valid, ← decide_not, not_lt, ← ne_eq, ← Nat.pos_iff_ne_zero]
 
 private theorem step_inSpace :
     ComputableInSpace step encWork encWork (fun s => (encWork s).length) := by
@@ -141,7 +137,7 @@ private theorem step_inSpace :
   have ht := snd' (snd' (snd' (snd' hpar)))
   have hbank := snd' hq
   have hindex := budget_natAdd (budget_natMul ht hr) (budget_natDiv hj hm)
-  have hcell := budget_comp_lin getD (linear_mul 8) (budget_prod hbank hindex)
+  have hcell := budget_getD hbank hindex
   have hbit := budget_comp_lin natTestBit (linear_mul 32)
     (budget_prod (budget_natMod hcell hp) (budget_natMod hj hm))
   exact (budget_prod hq (budget_prod (budget_natSucc hj) (budget_snoc hout hbit))).of_enc_eq
@@ -155,12 +151,12 @@ theorem decode_inSpace :
     (encPair encNat (encPair encNat (encPair encNat (encPair encNat encNat))))
     (encList encNat))
   have hn := budget_ite valid_inSpace hb
-    (budget_const (encB := encNat) 0 (.refl _))
+    (budget_const (encB := encNat) 0)
   have hid : ComputableInSpace (fun q : Args => q) encArgs encArgs
       (fun q => (encArgs q).length) := of_inO ComputableInDegree.id'.inO_one
   have hinit := budget_prod hid (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encList encBool) [] (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encList encBool) []))
   have hstate (q : Args) (i : ℕ) (hi : i ≤ count q) :
       (encWork (step^[i] (q, 0, []))).length ≤ 16 * ((encArgs q).length + 1) := by
     rw [iterate_step]
@@ -174,20 +170,17 @@ theorem decode_inSpace :
       simp [length_encList, List.map_map, Function.comp_def, encBool_apply, Nat.mul_comm]
     simp only [encWork, length_encPair, Nat.zero_add, List.nil_append] at ⊢
     rw [hout]
-    simp only [length_encPair] at hl
-    omega
+    enc_len at hl
   have hloop := ComputableInSpace.iterate (hn.of_enc_eq fun _ => rfl) hinit step_inSpace
     (Q := fun q => 16 * ((encArgs q).length + 1))
     (B := fun q => 16 * ((encArgs q).length + 1)) hstate hstate
   refine (snd' (snd' hloop)).weaken ?_ |>.of_enc_eq ?_
   · refine .of_le_linear 128 128 fun q => ?_
     -- The iteration combinator separately charges only the binary loop bound.
-    have hb' := length_encNat_mono (count_le_encoding q)
-    have hb'' := length_encNat_le_self (encList encNat q.2).length
-    have hl := length_le_encPair_right
-      (encPair encNat (encPair encNat (encPair encNat (encPair encNat encNat))))
-      (encList encNat) q
-    change (encList encNat q.2).length ≤ (encArgs q).length at hl
+    have hb' := (length_encNat_mono (count_le_encoding q)).trans
+      (length_encNat_le_self (encList encNat q.2).length)
+    have hl : (encList encNat q.2).length ≤ (encArgs q).length :=
+      length_le_encPair_right _ (encList encNat) q
     dsimp only [count] at hb' ⊢
     omega
   · intro q
@@ -237,13 +230,10 @@ theorem decode_ofRegs {b m p d r : ℕ} [NeZero p] (hb : b ≤ r * m) (hm : 0 < 
     simp
   apply decode_packBits hb hm (ofRegs S) v hvalid
   intro i
-  have he := congrFun (congrFun (toRegs_ofRegs S) t) i
-  change ((ofRegs S).getD (index r t i) 0 : ZMod p) = S t i at he
-  rw [htarget] at he
-  have hv := congrArg ZMod.val he
+  have hv := congrArg ZMod.val (congrFun (congrFun (toRegs_ofRegs S) t) i)
   have hlt := (packBits hb v i).isLt.trans_le halphabet
-  simpa only [ZMod.val_natCast, Nat.mod_eq_of_lt hlt, index, Nat.mul_comm r t.val,
-    Nat.add_comm i.val (t.val * r)] using hv
+  simpa only [toRegs, htarget, ZMod.val_natCast, Nat.mod_eq_of_lt hlt, index,
+    Nat.mul_comm r t.val, Nat.add_comm i.val (t.val * r)] using hv
 
 /-- After a coefficient-one masking computation with an initially zero target, the actual
 padded target decodes to the root word. Other registers may start dirty. The zero-target

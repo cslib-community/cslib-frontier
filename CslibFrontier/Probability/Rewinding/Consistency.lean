@@ -12,6 +12,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Rewinding against a committed table
@@ -103,7 +104,7 @@ private theorem toOuterMeasure_accept_le (μ : PMF R) (acc : R → Bool)
         · exact Or.inl ⟨hacc, hc⟩
         · simp only [not_forall, exists_prop] at hc
           obtain ⟨j, b, hj, hb⟩ := hc
-          have hb' : b = !π j := by cases b <;> cases h : π j <;> simp_all
+          have hb' : b = !π j := by revert hb; cases b <;> cases π j <;> decide
           refine Or.inr (Set.mem_biUnion (Finset.mem_range.mpr (hpos r hr j b hacc hj)) ?_)
           exact ⟨hacc, hb' ▸ hj⟩
     _ ≤ _ := (MeasureTheory.measure_union_le _ _).trans
@@ -179,12 +180,8 @@ theorem le_add_mul_sqrt_disagreement {ε : ℝ}
   set p : S → ℝ := fun s => ((run s).toOuterMeasure {r | acc s r = true}).toReal
   set d : S → ℝ := fun s =>
     (((run s).bind fun r => (run s).bind fun r' => PMF.pure (E s r r')) true).toReal
-  have hp (s : S) : 0 ≤ p s ∧ p s ≤ 1 :=
-    ⟨ENNReal.toReal_nonneg, Probability.PMF.toOuterMeasure_toReal_le_one _ _⟩
   have hd (s : S) : 0 ≤ d s ∧ d s ≤ 1 :=
     ⟨ENNReal.toReal_nonneg, Probability.PMF.toReal_apply_le_one _ _⟩
-  obtain ⟨s₀, hs₀⟩ := first.support_nonempty
-  have hε : 0 ≤ ε := ENNReal.toReal_nonneg.trans (hcons s₀ hs₀ fun _ => false)
   have hpoint (s : S) (hs : s ∈ first.support) : p s ≤ ε + M * √(d s) := by
     set μ := run s
     set a : ℕ → Bool → ℝ≥0∞ := fun j b =>
@@ -192,20 +189,17 @@ theorem le_add_mul_sqrt_disagreement {ε : ℝ}
     set π : ℕ → Bool := fun j => decide (a j false ≤ a j true)
     have hsplit := toOuterMeasure_accept_le μ (acc s) (opens s) M (hpos s hs) π
     have hmin (j : ℕ) (hj : j ∈ Finset.range M) : (a j (!π j)).toReal ≤ √(d s) := by
-      refine le_trans (le_abs_self _) (Real.abs_le_sqrt ?_)
+      refine Real.le_sqrt_of_sq_le ?_
       rw [← ENNReal.toReal_pow]
       refine ENNReal.toReal_mono (PMF.apply_ne_top _ _) ?_
       refine (sq_le_mul_of_choose (a j)).trans (mul_le_bind_bind μ _ _ (E s) ?_)
       rintro r r' ⟨hr, hrj⟩ ⟨hr', hrj'⟩
       simp only [E, hr, hr', Bool.true_and, List.any_eq_true, List.mem_range, Bool.and_eq_true]
       exact ⟨j, Finset.mem_range.mp hj, hrj, hrj'⟩
-    have hfin (t : Set R) : μ.toOuterMeasure t ≠ ⊤ :=
-      ne_top_of_le_ne_top ENNReal.one_ne_top (Probability.PMF.toOuterMeasure_le_one _ _)
     calc p s ≤ (μ.toOuterMeasure
           {r | acc s r = true ∧ ∀ j b, opens s r j b = true → b = π j}).toReal +
           ∑ j ∈ Finset.range M, (a j (!π j)).toReal := by
-          rw [← ENNReal.toReal_sum fun j _ => hfin _]
-          exact ENNReal.toReal_le_add hsplit (hfin _) (ENNReal.sum_ne_top.mpr fun j _ => hfin _)
+          ennreal_to_real using hsplit
       _ ≤ ε + ∑ _j ∈ Finset.range M, √(d s) :=
           add_le_add (hcons s hs π) (Finset.sum_le_sum hmin)
       _ = ε + M * √(d s) := by simp
@@ -221,15 +215,18 @@ theorem le_add_mul_sqrt_disagreement {ε : ℝ}
       (fun s => Real.sqrt_nonneg _)
       fun s => Real.sqrt_le_one.mpr (hd s).2
     simp only [Real.sq_sqrt (hd _).1] at h
-    exact le_trans (le_abs_self _) (Real.abs_le_sqrt h)
+    exact Real.le_sqrt_of_sq_le h
   rw [toReal_acceptance, toReal_disagreement]
-  change ∑' s, (first s).toReal * p s ≤ ε + M * √(∑' s, (first s).toReal * d s)
   calc ∑' s, (first s).toReal * p s
       ≤ ∑' s, ((first s).toReal * ε + M * ((first s).toReal * √(d s))) := by
-        refine (hsum (fun s => (hp s).1) fun s => (hp s).2).tsum_le_tsum (fun s => ?_)
+        refine (hsum (fun _ => ENNReal.toReal_nonneg)
+          (fun _ => Probability.PMF.toOuterMeasure_toReal_le_one _ _)).tsum_le_tsum (fun s => ?_)
           ((hm.mul_right ε).add (hsqrt.mul_left (M : ℝ)))
         by_cases hs : s ∈ first.support
-        · nlinarith [hpoint s hs, (ENNReal.toReal_nonneg : 0 ≤ (first s).toReal)]
+        · calc (first s).toReal * p s
+              ≤ (first s).toReal * (ε + M * √(d s)) :=
+                mul_le_mul_of_nonneg_left (hpoint s hs) ENNReal.toReal_nonneg
+            _ = (first s).toReal * ε + M * ((first s).toReal * √(d s)) := by ring
         · simp [(PMF.apply_eq_zero_iff first s).mpr hs]
     _ = ε + M * ∑' s, (first s).toReal * √(d s) := by
         rw [(hm.mul_right ε).tsum_add (hsqrt.mul_left (M : ℝ)), tsum_mul_right, tsum_mul_left,

@@ -7,12 +7,15 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 public import Mathlib.Logic.Equiv.Nat
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearCodecPrimitives
+
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
 
 /-!
 # Polynomial-time operations on signed unary integers
@@ -30,8 +33,10 @@ indices in a computation tableau.
   the signed difference of unary naturals.
 * `Turing.MultiTapeTM.ComputableInPolyTime.int_succ`, `.int_pred`, `.int_pos`, `.int_neg`:
   unit shifts and sign tests.
-* `Turing.MultiTapeTM.ComputableInPolyTime.int_toNat`, `.int_natAbs`, `.int_equivNat`:
-  nonnegative truncation, absolute value and the standard numbering of integers, in unary.
+* `Turing.MultiTapeTM.ComputableInPolyTime.int_toNat`, `.int_neg_toNat`, `.int_neg_toNat'`,
+  `.int_natAbs`, `.int_equivNat`:
+  nonnegative truncation, negative part, absolute value and the standard numbering of integers, in
+  unary.
 * `Turing.MultiTapeTM.ComputableInPolyTime.int_sub`: subtraction of signed unary integers.
 * `Turing.MultiTapeTM.ComputableInPolyTime.int_sub_sign`, `.int_abs_le_nat`:
   fixed tape moves and membership in a unary-bounded window.
@@ -62,16 +67,16 @@ theorem int_negSucc : ComputableInPolyTime Int.negSucc encUnary encIntUnary :=
 theorem int_natCast_sub :
     ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 : ℤ) - p.2)
       (encPair encUnary encUnary) encIntUnary := by
-  have hle := unary_le.comp ((snd encUnary encUnary).prod (fst encUnary encUnary))
-  have hpos : ComputableInPolyTime (fun p : ℕ × ℕ => ((p.1 - p.2 : ℕ) : ℤ))
-      (encPair encUnary encUnary) encIntUnary := by fun_prop
-  have hneg : ComputableInPolyTime (fun p : ℕ × ℕ => Int.negSucc (p.2 - p.1 - 1))
-      (encPair encUnary encUnary) encIntUnary := by fun_prop
   have heq (p : ℕ × ℕ) :
       (p.1 : ℤ) - p.2 = if decide (p.2 ≤ p.1) then ((p.1 - p.2 : ℕ) : ℤ)
         else Int.negSucc (p.2 - p.1 - 1) := by
     split_ifs with hp <;> simp_all only [decide_eq_true_eq] <;> lia
-  simpa only [Function.comp_def, ← heq] using hle.ite' hpos hneg
+  simpa only [Function.comp_def, ← heq] using
+    (unary_le.comp ((snd encUnary encUnary).prod (fst encUnary encUnary))).ite'
+      (show ComputableInPolyTime (fun p : ℕ × ℕ => ((p.1 - p.2 : ℕ) : ℤ))
+        (encPair encUnary encUnary) encIntUnary by fun_prop)
+      (show ComputableInPolyTime (fun p : ℕ × ℕ => Int.negSucc (p.2 - p.1 - 1))
+        (encPair encUnary encUnary) encIntUnary by fun_prop)
 
 /-- Shift a signed unary integer one cell to the right. -/
 @[fun_prop]
@@ -119,37 +124,41 @@ private theorem int_tail : ComputableInPolyTime intTail encIntUnary encUnary :=
 /-- Truncate a signed integer at zero and return the result in unary. -/
 @[fun_prop]
 theorem int_toNat : ComputableInPolyTime Int.toNat encIntUnary encUnary := by
-  have h := int_neg.ite' (const 0) int_tail
-  convert h using 1
+  convert int_neg.ite' (const 0) int_tail using 1
   funext z
   cases z <;> simp [intTail]
 
 /-- Return the magnitude in unary, accounting for the offset in negative encodings. -/
 @[fun_prop]
 theorem int_natAbs : ComputableInPolyTime Int.natAbs encIntUnary encUnary := by
-  have h := int_neg.ite' (unary_add.comp (int_tail.prod (const 1))) int_tail
-  convert h using 1
+  convert int_neg.ite' (unary_add.comp (int_tail.prod (const 1))) int_tail using 1
   funext z
   cases z <;> simp [intTail]
 
 /-- The negative part of a signed unary integer, in unary. -/
-private theorem int_neg_toNat :
+@[fun_prop]
+theorem int_neg_toNat :
     ComputableInPolyTime (fun z : ℤ => (-z).toNat) encIntUnary encUnary := by
-  have h := int_neg.ite' int_natAbs (const 0)
-  convert h using 1
+  convert int_neg.ite' int_natAbs (const 0) using 1
   funext z
   split_ifs with hz <;> simp_all only [decide_eq_true_eq] <;> lia
+
+/-- The negative part of a computed signed unary integer, in unary. -/
+@[fun_prop]
+theorem int_neg_toNat' {α : Type} {input : α ↪ List Bool} {f : α → ℤ}
+    (hf : ComputableInPolyTime f input encIntUnary) :
+    ComputableInPolyTime (fun a => (-f a).toNat) input encUnary :=
+  int_neg_toNat.comp hf
 
 /-- Subtract two signed unary integers. -/
 @[fun_prop]
 theorem int_sub : ComputableInPolyTime (fun p : ℤ × ℤ => p.1 - p.2)
     (encPair encIntUnary encIntUnary) encIntUnary := by
-  have h := int_natCast_sub.comp
+  convert int_natCast_sub.comp
     ((unary_add.comp ((int_toNat.comp (fst encIntUnary encIntUnary)).prod
         (int_neg_toNat.comp (snd encIntUnary encIntUnary)))).prod
       (unary_add.comp ((int_toNat.comp (snd encIntUnary encIntUnary)).prod
-        (int_neg_toNat.comp (fst encIntUnary encIntUnary)))))
-  convert h using 1
+        (int_neg_toNat.comp (fst encIntUnary encIntUnary))))) using 1
   funext p
   simp only [Function.comp_apply]
   push_cast
@@ -182,8 +191,7 @@ theorem int_abs_le_nat' {α : Type} {input : α ↪ List Bool} {position : α �
 @[fun_prop]
 theorem int_equivNat : ComputableInPolyTime Equiv.intEquivNat encIntUnary encUnary := by
   have hpos := unary_mul.comp ((const 2).prod int_tail)
-  have h := int_neg.ite' (unary_add.comp (hpos.prod (const 1))) hpos
-  convert h using 1
+  convert int_neg.ite' (unary_add.comp (hpos.prod (const 1))) hpos using 1
   funext z
   cases z with
   | ofNat n => rfl

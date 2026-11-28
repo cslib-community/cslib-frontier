@@ -95,21 +95,22 @@ theorem IsCover.of_embedding {C : κ → Set X × Set Y} (hC : IsCover z R A B C
 theorem IsCover.coverNumber_le [Fintype κ] {C : κ → Set X × Set Y} (hC : IsCover z R A B C) :
     coverNumber z R A B ≤ Fintype.card κ := by
   classical
-  refine iInf_le (fun r : {r : ℕ // ∃ C : Fin r → Set X × Set Y, IsCover z R A B C} =>
-    (r.1 : ℕ∞)) ⟨Fintype.card κ, _, hC.of_embedding (Fintype.equivFin κ).toEmbedding⟩
+  exact ENat.iInf_subtype_natCast_le (d := id)
+    ⟨_, hC.of_embedding (Fintype.equivFin κ).toEmbedding⟩
 
 /-- Lower bounds on the cover number are lower bounds on the size of every cover. -/
 theorem le_coverNumber_iff {c : ℕ∞} :
-    c ≤ coverNumber z R A B ↔ ∀ r (C : Fin r → Set X × Set Y), IsCover z R A B C → c ≤ r := by
-  simp only [coverNumber, le_iInf_iff, Subtype.forall, forall_exists_index]
+    c ≤ coverNumber z R A B ↔ ∀ r (C : Fin r → Set X × Set Y), IsCover z R A B C → c ≤ r :=
+  (ENat.le_iInf_subtype_natCast_iff (d := id)).trans
+    ⟨fun h r C hC => h r ⟨C, hC⟩, fun h r ⟨C, hC⟩ => h r C hC⟩
 
 /-- `R` has `z`-cover number at most `r` exactly when it has a `z`-cover by `r` rectangles. -/
 theorem coverNumber_le_iff {r : ℕ} :
     coverNumber z R A B ≤ r ↔ ∃ C : Fin r → Set X × Set Y, IsCover z R A B C := by
   classical
-  refine ⟨fun h => ?_, fun ⟨C, hC⟩ => by simpa using hC.coverNumber_le⟩
-  obtain ⟨⟨s, C, hC⟩, hsr⟩ := ENat.iInf_natCast_le_natCast_iff.mp h
-  exact ⟨_, hC.of_embedding (Fin.castLEEmb hsr)⟩
+  exact (ENat.iInf_subtype_natCast_le_natCast_iff (d := id)).trans
+    ⟨fun ⟨_, ⟨C, hC⟩, hsr⟩ => ⟨_, hC.of_embedding (Fin.castLEEmb hsr)⟩,
+      fun ⟨C, hC⟩ => ⟨r, ⟨C, hC⟩, le_rfl⟩⟩
 
 /-- A cover by `2 ^ k` rectangles indexed by `k`-bit guesses is a cover by at most `2 ^ k`
 rectangles. -/

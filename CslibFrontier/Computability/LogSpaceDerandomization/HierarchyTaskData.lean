@@ -80,7 +80,7 @@ theorem isCorrectionSeq_correctionIter (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y) 
     (fun y t => mul_nonneg (P.cutoff_nonneg hf t) (P.γ_nonneg _))
     (fun y t => (mul_le_of_le_one_right (P.cutoff_nonneg hf t)
       (P.γ_le_one _)).trans (P.cutoff_le hf t))
-  exact mul_nonneg P.θ_pos.le hf.le
+  positivity
 
 /-- The actual raw input is nonnegative, has bounded row mass and has the expected entry cap. -/
 theorem correctionInput_bounds (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)

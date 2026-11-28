@@ -10,9 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhile
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Basic
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Encoding
 import CslibFrontier.Tactic.Degree
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
@@ -64,23 +62,7 @@ copied each round; this bound does not implement the buffered Hennie–Stearns s
 
 namespace Turing.MultiTapeTM.Universal
 
-/-! ### Encodings -/
-
-/-- Symbols and blanks. -/
-public abbrev eSym : Option ℕ ↪ List Bool := encOption encUnary
-
-/-- Keys of transitions, as their fields. -/
-enc_structure eKey : Key where state : encUnary, input : eSym, work : (encList eSym)
-
-/-- An action on a work tape. -/
-public abbrev TapeAct := Option (Option ℕ) × SignType
-
-/-- Actions on a work tape. -/
-public abbrev eTA : Option (Option ℕ) × SignType ↪ List Bool := encPair (encOption eSym) encSign
-
-/-- Actions, as their fields. -/
-enc_structure eAct : Act where
-  inputTape : encSign, workTapes : (encList eTA), output : eSym, state : eSym
+/-! ### Description and configuration encodings -/
 
 /-- Descriptions, as their fields. -/
 enc_structure eDesc : Desc where
@@ -106,8 +88,7 @@ open ComputableInDegree
 /-- The symbol under the head. -/
 @[local fun_prop]
 public lemma read_deg : ComputableInDegree Tape.read eTape eSym 1 1 := by
-  unfold Tape.read
-  degree
+  degree [Tape.read]
 
 /-- A right move. -/
 @[local fun_prop]
@@ -141,8 +122,7 @@ lemma move_deg : ComputableInDegree (fun p : Tape × SignType => p.1.move p.2)
 @[local fun_prop]
 lemma apply_deg : ComputableInDegree (fun p : Tape × TapeAct =>
     p.1.apply p.2) (encPair eTape eTA) eTape 1 1 := by
-  unfold Tape.apply Tape.write
-  degree
+  degree [Tape.apply, Tape.write]
 
 /-! ### Applying actions to all work tapes -/
 
@@ -165,8 +145,7 @@ lemma zipFold_applyOne (ts : List Tape) (as : List TapeAct) :
 lemma applyOne_deg : ComputableInDegree (fun q : Unit × Tape × Option TapeAct =>
     applyOne q.1 q.2.1 q.2.2) (encPair encUnit (encPair eTape (encOption eTA)))
     (encOption eTape) 1 1 := by
-  unfold applyOne
-  degree
+  degree [applyOne]
 
 end Tape
 

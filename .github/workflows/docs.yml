@@ -10,8 +10,10 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # the codebase views read pull request metadata
 
 env:
+  CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
   DISABLE_CACHE_RESTORE: ${{ vars.DISABLE_CACHE_RESTORE }}
   COMPLEXITYLIB_CACHE_URLS: ${{ vars.COMPLEXITYLIB_CACHE_URLS }}
   LAKE_NO_CACHE: ${{ vars.DISABLE_CACHE_RESTORE == 'true' || vars.DISABLE_CACHE_RESTORE == '1' }}
@@ -26,7 +28,10 @@ jobs:
   docs:
     # ubuntu-latest moved to Ubuntu 26.04 on 2026-10-30, and doc-gen4 has run out of memory there
     # ("resource exhausted (error code: 12)") on every run since; upstream cslib#1191 pins the same.
-    runs-on: ubuntu-24.04
+    # Scheduled and manual runs on `main` use the runner named by DOCS_BUILD_RUNNER when set; larger
+    # runners are billed even in public repositories. Other branches and unset runs use the standard
+    # `ubuntu-24.04` runner. Delete the variable to fall back without a commit (scripts/cache/README.md).
+    runs-on: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DOCS_BUILD_RUNNER || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,18 +46,22 @@ jobs:
         run: bash tools/stats/install-tokei.sh "$RUNNER_TEMP/tokei-bin"
       - name: Build source history dashboard
         run: python3 tools/stats/build.py --tokei "$RUNNER_TEMP/tokei-bin/tokei"
+      - uses: actions/cache@v4
+        with:
+          path: tools/viz/.cache
+          key: codebase-viz-v1-${{ hashFiles('tools/viz/history.py') }}-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: |
+            codebase-viz-v1-${{ hashFiles('tools/viz/history.py') }}-
+      - name: Install visualization dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends graphviz ffmpeg
+          python3 -m venv "$RUNNER_TEMP/viz-venv"
+          "$RUNNER_TEMP/viz-venv/bin/pip" install -q -r tools/viz/requirements.txt
       - name: Check documentation pins
         run: python3 scripts/check_docs.py --config-only
       # Restores or installs the toolchain with retries (.github/actions/install-lean, #1426).
       - uses: ./.github/actions/install-lean
-      - uses: leanprover/lean-action@v1
-        with:
-          auto-config: "false"
-          build: "false"
-          test: "false"
-          lint: "false"
-          use-mathlib-cache: "false"
-          use-github-cache: "false"
       - name: Restore Mathlib cache with retries
         continue-on-error: true
         timeout-minutes: 10
@@ -61,17 +70,135 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         run: scripts/cache/get-missing.sh
+      # doc-gen4 keeps every module's documentation in one SQLite database and writes a marker per
+      # module whose trace covers its compiled files, its imports' markers and the doc-gen4 build.
+      # With the database and markers of the last run restored, Lake redoes only the modules whose
+      # compiled files changed, and the modules that import them (#7988). The key changes with
+      # `CACHE_RECOVERY_GENERATION`, the toolchain, and every root/`docbuild` lockfile or
+      # configuration file, so a bump or recovery increment starts from an empty database. Because
+      # `doc-gen4`'s `fromDb` loads `tactics` and `linkingContext` across the entire database and
+      # `scripts/check_docs.py` rejects obsolete local modules, `check_docs.py --prepare-cache`
+      # deletes non-module-marker files in `doc-data/` (bibliography, final pass, per-module search
+      # data), removes obsolete `CslibFrontier*` markers, and cascades obsolete `CslibFrontier*`
+      # rows from `api-docs.db` with `PRAGMA foreign_keys = ON`. After generation,
+      # `--checkpoint-cache` runs `PRAGMA wal_checkpoint(TRUNCATE)` so saving `api-docs.db` alone
+      # preserves all committed WAL rows. Only `main` writes to the Actions cache.
+      - name: Restore the documentation database
+        id: docgen-db
+        if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            docbuild/.lake/build/api-docs.db
+            docbuild/.lake/build/doc-data
+          key: docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', 'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: |
+            docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', 'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}-
+      - name: Discard an incomplete documentation cache restore
+        env:
+          DOCGEN_RESTORE_OUTCOME: ${{ steps.docgen-db.outcome }}
+          DOCGEN_MATCHED_KEY: ${{ steps.docgen-db.outputs.cache-matched-key }}
+        run: |
+          if [ "$DOCGEN_RESTORE_OUTCOME" != "success" ] || [ -z "$DOCGEN_MATCHED_KEY" ]; then
+            rm -rf -- docbuild/.lake/build/api-docs.db* docbuild/.lake/build/doc-data
+          fi
       - name: Generate API documentation
-        run: DISABLE_EQUATIONS=1 lake -d docbuild build CslibFrontier:docs
+        run: |
+          python3 -B scripts/check_docs.py --prepare-cache --discard-corrupt
+          DISABLE_EQUATIONS=1 lake -d docbuild build CslibFrontier:docs
+          python3 -B scripts/check_docs.py --checkpoint-cache
+      # Saved straight after generation on `main` only (excluding exact hits and cache opt-out), so
+      # a later failing step does not lose the work and branch runs cannot evict repo caches.
+      - name: Save the documentation database
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          steps.docgen-db.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            docbuild/.lake/build/api-docs.db
+            docbuild/.lake/build/doc-data
+          key: docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', 'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}-${{ github.sha }}-${{ github.run_id }}
+      # Built from this run's checkout and its library build, so the views describe the same commit
+      # as the API docs. The Lean census extends the series published by the previous run. The
+      # results registry is exported from the built CslibFrontierResults.
+      - name: Build codebase visualizations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          lake build CslibFrontierResults
+          "$RUNNER_TEMP/viz-venv/bin/python" -m unittest discover -s tools/viz -p 'test_*.py'
+          "$RUNNER_TEMP/viz-venv/bin/python" tools/viz/build.py \
+            --lean-lib .lake/build/lib/lean \
+            --require-registry \
+            --fetch-prs \
+            --prs-previous https://www.cslib.io/cslib-frontier/viz/prs.json \
+            --lean-history https://www.cslib.io/cslib-frontier/viz/lean-history.json
+      - name: Restore Guide dependencies
+        id: guide-deps
+        if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: ./.github/actions/cache-guide-deps
+        with:
+          generation: ${{ env.CACHE_RECOVERY_GENERATION }}
       # Also catches library changes that break one of the guide's examples.
       - name: Build the guide
         run: scripts/guide.sh
       - name: Check generated documentation and the guide's links into it
         run: python3 scripts/check_docs.py --trim --guide
+      # One entry per compatible toolchain/pins/image, not per commit or PR. A failed optional
+      # restore/save never replaces the normal Guide and generated-link checks above.
+      - name: Save Guide dependency builds
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          steps.guide-deps.outcome == 'success' &&
+          steps.guide-deps.outputs.key != '' && steps.guide-deps.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.guide-deps.outputs.paths }}
+          key: ${{ steps.guide-deps.outputs.key }}
+      - name: Pack Guide dependencies for daytime cache misses
+        id: guide-backup
+        if: >-
+          github.event_name == 'schedule' && github.ref == 'refs/heads/main' &&
+          vars.DISABLE_GUIDE_ARTIFACT != 'true' && vars.DISABLE_GUIDE_ARTIFACT != '1' &&
+          steps.guide-deps.outcome == 'success' && steps.guide-deps.outputs.key != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python3 .github/actions/cache-guide-deps/artifact.py pack "$RUNNER_TEMP/guide-builds.tar.gz"
+      - name: Retain Guide dependencies outside the Actions cache
+        if: steps.guide-backup.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.guide-deps.outputs.key }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/guide-builds.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 7
       - name: Add the guide to the site
         run: cp -R guide/.lake/build/site/html-multi docbuild/.lake/build/doc/guide
       - name: Add source history dashboard to the site
         run: cp -R tools/stats/_site docbuild/.lake/build/doc/stats
+      - name: Add codebase visualizations to the site
+        run: cp -R tools/viz/_site docbuild/.lake/build/doc/viz
+      # Built from this run's trimmed declaration index, so the tables match the published API.
+      - name: Add class inclusion tables to the site
+        run: |
+          python3 -m unittest discover -s tools/class_inclusions -p 'test_*.py'
+          python3 tools/class_inclusions/build.py \
+            --index docbuild/.lake/build/doc/declarations/declaration-data.bmp \
+            --output docbuild/.lake/build/doc/class-inclusions
       # GitHub Pages serves 404.html for missing paths. It sends API pages that the
       # module-root rename moved to their new addresses.
       - name: Add the not-found page

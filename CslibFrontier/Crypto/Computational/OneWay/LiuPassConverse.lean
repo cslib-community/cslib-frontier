@@ -19,9 +19,10 @@ import CslibFrontier.Computability.Probabilistic.CoinTape
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Converse of Liu–Pass: Average-Case Hardness of $K^t$ Implies One-Way Functions
@@ -199,70 +200,67 @@ theorem liuPassCore_eq_targetImage_iff {t : ℕ → ℕ} {n i : ℕ} {x y : List
 
 /-! ### Polynomial-time computability of schedule and core -/
 
-private theorem computableTidily_maxComplexity :
-    ComputableTidilyInPolyTime maxComplexity encUnary encUnary :=
-  ComputableTidilyInPolyTime.unary_add.comp
-    (ComputableTidilyInPolyTime.id'.prod (ComputableTidilyInPolyTime.const _))
+private theorem computableInPolyTime_maxComplexity :
+    ComputableInPolyTime maxComplexity encUnary encUnary :=
+  ComputableInPolyTime.unary_add.comp
+    (ComputableInPolyTime.id'.prod (ComputableInPolyTime.const _))
 
-private theorem computableTidily_lenWidth :
-    ComputableTidilyInPolyTime lenWidth encUnary encUnary :=
-  ComputableTidilyInPolyTime.unary_add.comp
-    ((ComputableTidilyInPolyTime.unary_log_two.comp computableTidily_maxComplexity).prod
-      (ComputableTidilyInPolyTime.const 1))
-
-private theorem computableTidily_inputSchedule :
-    ComputableTidilyInPolyTime inputSchedule encUnary encUnary :=
-  ComputableTidilyInPolyTime.unary_add.comp
-    (computableTidily_lenWidth.prod computableTidily_maxComplexity)
+private theorem computableInPolyTime_lenWidth :
+    ComputableInPolyTime lenWidth encUnary encUnary :=
+  ComputableInPolyTime.unary_add.comp
+    (((ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp
+      computableInPolyTime_maxComplexity).prod
+      (ComputableInPolyTime.const 1))
 
 theorem computableInPolyTime_inputSchedule :
     ComputableInPolyTime inputSchedule encUnary encUnary :=
-  .of_tidy computableTidily_inputSchedule
+  ComputableInPolyTime.unary_add.comp
+    (computableInPolyTime_lenWidth.prod computableInPolyTime_maxComplexity)
 
-private theorem computableTidily_decodeLen {α : Type} {input : α ↪ List Bool}
+private theorem computableInPolyTime_decodeLen {α : Type} {input : α ↪ List Bool}
     {n : α → ℕ} {x : α → List Bool}
-    (hn : ComputableTidilyInPolyTime n input encUnary)
-    (hx : ComputableTidilyInPolyTime x input encBits) :
-    ComputableTidilyInPolyTime (fun a => decodeLen (n a) (x a)) input encUnary := by
+    (hn : ComputableInPolyTime n input encUnary)
+    (hx : ComputableInPolyTime x input encBits) :
+    ComputableInPolyTime (fun a => decodeLen (n a) (x a)) input encUnary := by
   unfold decodeLen
-  exact ComputableTidilyInPolyTime.bitsBoundedBinaryValueWithInput
-    (computableTidily_maxComplexity.comp hn)
-    (ComputableTidilyInPolyTime.bitsTakeWithInput hx (computableTidily_lenWidth.comp hn))
+  exact ComputableInPolyTime.bitsBoundedBinaryValueWithInput
+    (computableInPolyTime_maxComplexity.comp hn)
+    (ComputableInPolyTime.bitsTakeWithInput hx (computableInPolyTime_lenWidth.comp hn))
 
-private theorem computableTidily_decodeProg {α : Type} {input : α ↪ List Bool}
+private theorem computableInPolyTime_decodeProg {α : Type} {input : α ↪ List Bool}
     {n : α → ℕ} {x : α → List Bool}
-    (hn : ComputableTidilyInPolyTime n input encUnary)
-    (hx : ComputableTidilyInPolyTime x input encBits) :
-    ComputableTidilyInPolyTime (fun a => decodeProg (n a) (x a)) input encBits := by
+    (hn : ComputableInPolyTime n input encUnary)
+    (hx : ComputableInPolyTime x input encBits) :
+    ComputableInPolyTime (fun a => decodeProg (n a) (x a)) input encBits := by
   unfold decodeProg
-  exact ComputableTidilyInPolyTime.bitsTakeWithInput
-    (ComputableTidilyInPolyTime.bitsDropWithInput hx (computableTidily_lenWidth.comp hn))
-    (computableTidily_decodeLen hn hx)
+  exact ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.bitsDropWithInput hx (computableInPolyTime_lenWidth.comp hn))
+    (computableInPolyTime_decodeLen hn hx)
 
-private theorem computableTidily_liuPassCore {α : Type} {input : α ↪ List Bool}
+private theorem computableInPolyTime_liuPassCoreWithInput {α : Type} {input : α ↪ List Bool}
     {t : ℕ → ℕ} {n : α → ℕ} {x : α → List Bool}
-    (ht : ComputableTidilyInPolyTime t encUnary encUnary)
-    (hn : ComputableTidilyInPolyTime n input encUnary)
-    (hx : ComputableTidilyInPolyTime x input encBits) :
-    ComputableTidilyInPolyTime (fun a => liuPassCore t (n a) (x a)) input encBits := by
-  have hrun := DescriptionMethod.computableInPolyTime_universalTMRunFor.tidy.comp
-    ((computableTidily_decodeProg hn hx).prod (ht.comp hn))
-  exact ((computableTidily_decodeLen hn hx).prod hrun).of_enc_eq fun _ => rfl
+    (ht : ComputableInPolyTime t encUnary encUnary)
+    (hn : ComputableInPolyTime n input encUnary)
+    (hx : ComputableInPolyTime x input encBits) :
+    ComputableInPolyTime (fun a => liuPassCore t (n a) (x a)) input encBits := by
+  have hrun := DescriptionMethod.computableInPolyTime_universalTMRunFor.comp
+    ((computableInPolyTime_decodeProg hn hx).prod (ht.comp hn))
+  exact ((computableInPolyTime_decodeLen hn hx).prod hrun).of_enc_eq fun _ => rfl
 
-private theorem computableTidily_targetImage {α : Type} {input : α ↪ List Bool}
+private theorem computableInPolyTime_targetImage {α : Type} {input : α ↪ List Bool}
     {i : α → ℕ} {y : α → List Bool}
-    (hi : ComputableTidilyInPolyTime i input encUnary)
-    (hy : ComputableTidilyInPolyTime y input encBits) :
-    ComputableTidilyInPolyTime (fun a => targetImage (i a) (y a)) input encBits :=
-  (hi.prod ((ComputableTidilyInPolyTime.optionSome encBits).comp hy)).of_enc_eq fun _ => rfl
+    (hi : ComputableInPolyTime i input encUnary)
+    (hy : ComputableInPolyTime y input encBits) :
+    ComputableInPolyTime (fun a => targetImage (i a) (y a)) input encBits :=
+  (hi.prod ((ComputableInPolyTime.optionSome encBits).comp hy)).of_enc_eq fun _ => rfl
 
 theorem computableInPolyTime_liuPassCore {t : ℕ → ℕ}
     (ht : ComputableInPolyTime t encUnary encUnary) :
     ComputableInPolyTime (fun p : ℕ × List Bool => liuPassCore t p.1 p.2)
       (encPair encUnary encBits) encBits :=
-  .of_tidy (computableTidily_liuPassCore ht.tidy
-    (ComputableTidilyInPolyTime.fst encUnary encBits)
-    (ComputableTidilyInPolyTime.snd encUnary encBits))
+  computableInPolyTime_liuPassCoreWithInput ht
+    (ComputableInPolyTime.fst encUnary encBits)
+    (ComputableInPolyTime.snd encUnary encBits)
 
 /-! ### Preimage soundness and canonical planting -/
 
@@ -329,12 +327,10 @@ private theorem liuPassCore_plant {t : ℕ → ℕ} (ht : ∀ n, n + 1 ≤ t n) 
   have hdec : decodeLen y.length (plant t ht y.length y) = i := by
     rw [decodeLen, hplant_eq, List.take_left' hbw_len, BitString.boundedBinaryValue_eq,
       BitString.binaryValue_binaryWord, Nat.min_eq_right hi_le]
-  have hprog : decodeProg y.length (plant t ht y.length y) = prog := by
-    rw [decodeProg, hdec, hplant_eq, List.drop_left' hbw_len, List.take_left' hprog_spec.2]
   refine ⟨hdec, ?_⟩
-  rw [hprog]
-  have hmem := hprog_spec.1
-  rwa [DescriptionMethod.universalTM_runFor, Option.mem_def] at hmem
+  rw [decodeProg, hdec, hplant_eq, List.drop_left' hbw_len, List.take_left' hprog_spec.2,
+    ← Option.mem_def, ← DescriptionMethod.universalTM_runFor]
+  exact hprog_spec.1
 
 /-- Every $n$-bit string $y$ has a canonical `inputSchedule n`-bit preimage under `liuPassCore t n`
 for the framed output `targetImage (timeBoundedNat t y) y` whenever $t(n) \ge n + 1$. -/
@@ -388,28 +384,17 @@ private theorem heuristicCand_eq_of_tryComplexity {t : ℕ → ℕ}
   set k₀ := maxComplexity n - timeBoundedNat t y
   have hk₀_le : k₀ ≤ maxComplexity n := Nat.sub_le _ _
   have hsub_k₀ : maxComplexity n - k₀ = timeBoundedNat t y := Nat.sub_sub_self hi_le
-  have hk₀_try : tryComplexity t evalA n y coins (maxComplexity n - k₀) = true := by
-    simpa [hsub_k₀] using htry
-  have hk₀_best : k₀ ≤ bestSlack t evalA n y coins :=
-    Nat.le_findGreatest hk₀_le hk₀_try
-  have hbest_le : bestSlack t evalA n y coins ≤ k₀ := by
-    have hprop :
-        tryComplexity t evalA n y coins
-          (maxComplexity n - bestSlack t evalA n y coins) = true :=
-      Nat.findGreatest_spec
-        (P := fun k => tryComplexity t evalA n y coins (maxComplexity n - k) = true)
-        hk₀_le hk₀_try
-    have heq :
-        liuPassCore t n
-          ((evalA (n, targetImage (maxComplexity n - bestSlack t evalA n y coins) y) coins).take
-            (inputSchedule n)) =
-          targetImage (maxComplexity n - bestSlack t evalA n y coins) y :=
-      beq_iff_eq.mp hprop
-    have hle := timeBoundedNat_le_of_liuPassCore_eq_targetImage hy ht heq
-    have hbest_max : bestSlack t evalA n y coins ≤ maxComplexity n :=
-      Nat.findGreatest_le (maxComplexity n)
-    omega
-  have hbest_eq : bestSlack t evalA n y coins = k₀ := le_antisymm hbest_le hk₀_best
+  have hk₀_try : tryComplexity t evalA n y coins (maxComplexity n - k₀) = true :=
+    hsub_k₀.symm ▸ htry
+  have hprop : tryComplexity t evalA n y coins
+      (maxComplexity n - bestSlack t evalA n y coins) = true :=
+    Nat.findGreatest_spec
+      (P := fun k => tryComplexity t evalA n y coins (maxComplexity n - k) = true) hk₀_le hk₀_try
+  have hle := timeBoundedNat_le_of_liuPassCore_eq_targetImage hy ht (beq_iff_eq.mp hprop)
+  have hk₀_best : k₀ ≤ bestSlack t evalA n y coins := Nat.le_findGreatest hk₀_le hk₀_try
+  have hbest_max : bestSlack t evalA n y coins ≤ maxComplexity n :=
+    Nat.findGreatest_le (maxComplexity n)
+  have hbest_eq : bestSlack t evalA n y coins = k₀ := by omega
   rw [heuristicCand, hy, hbest_eq, hsub_k₀]
 
 private noncomputable def coinBudget (cA dA n : ℕ) : ℕ :=
@@ -425,34 +410,32 @@ private theorem le_coinBudget (cA dA : ℕ) {n i : ℕ} {y : List Bool}
   exact Nat.mul_le_mul_left cA (Nat.pow_le_pow_left (by omega) dA)
 
 private theorem isPPTOn_heuristic {t : ℕ → ℕ}
-    (ht : ComputableTidilyInPolyTime t encUnary encUnary)
+    (ht : ComputableInPolyTime t encUnary encUnary)
     {cA dA : ℕ} {evalA : (ℕ × List Bool) → List Bool → List Bool}
-    (hevalA : ComputableTidilyInPolyTime (fun p : (ℕ × List Bool) × List Bool => evalA p.1 p.2)
+    (hevalA : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => evalA p.1 p.2)
       (encPair (encPair encUnary encBits) encBits) encBits) :
     IsPPTOn encBits encNat
       (fun y : List Bool =>
         heuristicCand t evalA y <$> BitString.sampleList (coinBudget cA dA y.length)) := by
   let E2 := encPair encBits encBits
   let E3 := encPair E2 encUnary
-  have hlen_y : ComputableTidilyInPolyTime (fun y : List Bool => y.length) encBits encUnary :=
-    ComputableTidilyInPolyTime.encoding_length encBits
-  have hmax_y : ComputableTidilyInPolyTime
+  have hlen_y : ComputableInPolyTime (fun y : List Bool => y.length) encBits encUnary :=
+    ComputableInPolyTime.encoding_length encBits
+  have hmax_y : ComputableInPolyTime
       (fun y : List Bool => maxComplexity y.length) encBits encUnary :=
-    computableTidily_maxComplexity.comp hlen_y
-  have hlen_c := hlen_y.computableInPolyTime
-  have hmax_c := hmax_y.computableInPolyTime
+    computableInPolyTime_maxComplexity.comp hlen_y
   have hbudget : ComputableInPolyTime
       (fun y : List Bool => coinBudget cA dA y.length) encBits encUnary :=
     ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const cA)
       ((ComputableInPolyTime.unary_pow dA).comp
         (ComputableInPolyTime.unary_add'
           (ComputableInPolyTime.unary_add'
-            (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 3) hlen_c)
-            (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hmax_c))
+            (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 3) hlen_y)
+            (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hmax_y))
           (ComputableInPolyTime.const 5)))
-  have hsched := computableTidily_inputSchedule
-  have hmax := computableTidily_maxComplexity
-  have htry : ComputableTidilyInPolyTime
+  have hsched := computableInPolyTime_inputSchedule
+  have hmax := computableInPolyTime_maxComplexity
+  have htry : ComputableInPolyTime
       (fun q : (List Bool × List Bool) × ℕ =>
         decide (tryComplexity t evalA q.1.1.length q.1.1 q.1.2
           (maxComplexity q.1.1.length - q.2) = true))
@@ -469,42 +452,42 @@ private theorem isPPTOn_heuristic {t : ℕ → ℕ}
       have hdecide (b : Bool) : decide (b = true) = b := by cases b <;> rfl
       exact hdecide _
     rw [hsimp_eq]
-    have hy : ComputableTidilyInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.1.1)
-        E3 encBits := (ComputableTidilyInPolyTime.fst _ _).fst'
-    have hcoins : ComputableTidilyInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.1.2)
-        E3 encBits := (ComputableTidilyInPolyTime.fst _ _).snd'
-    have hk : ComputableTidilyInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.2)
-        E3 encUnary := ComputableTidilyInPolyTime.snd _ _
-    have hn : ComputableTidilyInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.1.1.length)
+    have hy : ComputableInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.1.1)
+        E3 encBits := (ComputableInPolyTime.fst _ _).fst'
+    have hcoins : ComputableInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.1.2)
+        E3 encBits := (ComputableInPolyTime.fst _ _).snd'
+    have hk : ComputableInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.2)
+        E3 encUnary := ComputableInPolyTime.snd _ _
+    have hn : ComputableInPolyTime (fun q : (List Bool × List Bool) × ℕ => q.1.1.length)
         E3 encUnary := hlen_y.comp hy
-    have hi : ComputableTidilyInPolyTime
+    have hi : ComputableInPolyTime
         (fun q : (List Bool × List Bool) × ℕ => maxComplexity q.1.1.length - q.2)
-        E3 encUnary := ComputableTidilyInPolyTime.unary_sub.comp ((hmax.comp hn).prod hk)
-    have htarget := computableTidily_targetImage hi hy
-    have hev : ComputableTidilyInPolyTime
+        E3 encUnary := ComputableInPolyTime.unary_sub.comp ((hmax.comp hn).prod hk)
+    have htarget := computableInPolyTime_targetImage hi hy
+    have hev : ComputableInPolyTime
         (fun q : (List Bool × List Bool) × ℕ =>
           evalA (q.1.1.length, targetImage (maxComplexity q.1.1.length - q.2) q.1.1) q.1.2)
         E3 encBits := hevalA.comp ((hn.prod htarget).prod hcoins)
-    have htk := ComputableTidilyInPolyTime.bitsTakeWithInput hev (hsched.comp hn)
-    have hcr := computableTidily_liuPassCore ht hn htk
+    have htk := ComputableInPolyTime.bitsTakeWithInput hev (hsched.comp hn)
+    have hcr := computableInPolyTime_liuPassCoreWithInput ht hn htk
     exact hcr.beq htarget
-  have hbest : ComputableTidilyInPolyTime
+  have hbest : ComputableInPolyTime
       (fun p : List Bool × List Bool => bestSlack t evalA p.1.length p.1 p.2)
       E2 encUnary :=
-    (ComputableInPolyTime.findGreatest
-      (hmax_y.comp (ComputableTidilyInPolyTime.fst _ _)).computableInPolyTime
-      htry.computableInPolyTime).tidy
-  have hcand_unary : ComputableTidilyInPolyTime
+    ComputableInPolyTime.findGreatest
+      (hmax_y.comp (ComputableInPolyTime.fst _ _))
+      htry
+  have hcand_unary : ComputableInPolyTime
       (fun p : List Bool × List Bool => heuristicCand t evalA p.1 p.2)
       E2 encUnary := by
     unfold heuristicCand
-    exact ComputableTidilyInPolyTime.unary_sub.comp
-      ((hmax_y.comp (ComputableTidilyInPolyTime.fst _ _)).prod hbest)
-  have hcand : ComputableTidilyInPolyTime
+    exact ComputableInPolyTime.unary_sub.comp
+      ((hmax_y.comp (ComputableInPolyTime.fst _ _)).prod hbest)
+  have hcand : ComputableInPolyTime
       (fun p : List Bool × List Bool => heuristicCand t evalA p.1 p.2)
       E2 encNat :=
-    ComputableTidilyInPolyTime.unary_to_binary.comp hcand_unary
-  exact IsPPTOn.map_with (ComputableInPolyTime.sampleList hbudget) (.of_tidy hcand)
+    ComputableInPolyTime.unary_to_binary.comp hcand_unary
+  exact IsPPTOn.map_with (ComputableInPolyTime.sampleList hbudget) hcand
 
 /-! ### Uniform distribution and failure probability bounds -/
 
@@ -603,14 +586,9 @@ private theorem heuristic_fail_mul_le_family_fail {t : ℕ → ℕ} (ht : ∀ n,
     refine tsum_le_tsum fun coins => ?_
     split_ifs with h1 h2
     · rfl
-    · exfalso
-      have h2' :
-          tryComplexity t evalA n (List.ofFn y) coins (timeBoundedNat t (List.ofFn y)) = true := by
-        cases hb : tryComplexity t evalA n (List.ofFn y) coins (timeBoundedNat t (List.ofFn y))
-        · exact False.elim (h2 hb.symm)
-        · rfl
-      have hcand := heuristicCand_eq_of_tryComplexity hy (ht n) h2'
-      simp [hcand] at h1
+    · cases hb : tryComplexity t evalA n (List.ofFn y) coins (timeBoundedNat t (List.ofFn y))
+      · exact (h2 hb.symm).elim
+      · exact absurd (heuristicCand_eq_of_tryComplexity hy (ht n) hb) (by simpa using h1)
     · exact zero_le
     · rfl
   calc
@@ -665,7 +643,7 @@ theorem weakOneWay_reindex_liuPassCore
   obtain ⟨cA, dA, evalA, hevalA, _, hlawA⟩ := hA.on.exists_total_seeded_evaluator
   let H (y : List Bool) : ProbComp ℕ :=
     heuristicCand t evalA y <$> BitString.sampleList (coinBudget cA dA y.length)
-  have hH_ppt : IsPPTOn encBits encNat H := isPPTOn_heuristic ht_comp.tidy hevalA.tidy
+  have hH_ppt : IsPPTOn encBits encNat H := isPPTOn_heuristic ht_comp hevalA
   filter_upwards [hK_hard H hH_ppt] with n hn_H
   let B := coinBudget cA dA n
   let distH : PMF Bool :=
@@ -687,32 +665,17 @@ theorem weakOneWay_reindex_liuPassCore
   have hsumH := PMF.toReal_true_add_toReal_false distH
   have hsumA := PMF.toReal_true_add_toReal_false distA
   have hfailH_ge : 1 / ((p.eval n : ℕ) : ℝ) ≤ (distH false).toReal := by linarith
-  have hpow_ne_zero : (2 ^ (lenWidth n + Kolmogorov.copyOverhead) : ENNReal) ≠ 0 := by positivity
-  have hpow_ne_top : (2 ^ (lenWidth n + Kolmogorov.copyOverhead) : ENNReal) ≠ ⊤ :=
-    ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-  have hinv_ne_top : (2 ^ (lenWidth n + Kolmogorov.copyOverhead) : ENNReal)⁻¹ ≠ ⊤ :=
-    ENNReal.inv_ne_top.mpr hpow_ne_zero
-  have hfail_le := heuristic_fail_mul_le_family_fail ht hlawA n
-  have hfail_real := ENNReal.toReal_mono (PMF.apply_ne_top distA false) hfail_le
-  rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow,
-    ENNReal.toReal_ofNat] at hfail_real
-  have hpow_le :
-      (2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
-        (C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ) := by
-    have h1 : 2 ^ (lenWidth n + Kolmogorov.copyOverhead) =
-        2 ^ lenWidth n * 2 ^ Kolmogorov.copyOverhead := pow_add 2 _ _
-    have h2 : 2 ^ lenWidth n ≤ 2 * (maxComplexity n + 1) := two_pow_lenWidth_le n
-    have h3 : 2 ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
-        C * (n + (Kolmogorov.copyOverhead + 1)) := by
-      have hmul := Nat.mul_le_mul_right (2 ^ Kolmogorov.copyOverhead) h2
-      have heq : 2 * (maxComplexity n + 1) * 2 ^ Kolmogorov.copyOverhead =
-          C * (n + (Kolmogorov.copyOverhead + 1)) := by
-        dsimp [C, maxComplexity]
-        rw [pow_succ']
-        ring
-      rw [h1, ← heq]
-      exact hmul
-    exact_mod_cast h3
+  have hfail_real := heuristic_fail_mul_le_family_fail ht hlawA n
+  ennreal_to_real at hfail_real
+  have hpow_nat : 2 ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
+      C * (n + (Kolmogorov.copyOverhead + 1)) := by
+    rw [pow_add]
+    refine (Nat.mul_le_mul_right _ (two_pow_lenWidth_le n)).trans_eq ?_
+    dsimp [C, maxComplexity]
+    rw [pow_succ']
+    ring
+  have hpow_le : (2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
+      (C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ) := by exact_mod_cast hpow_nat
   have hinv_ge :
       1 / ((C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ)) ≤
         ((2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead))⁻¹ := by
@@ -726,11 +689,7 @@ theorem weakOneWay_reindex_liuPassCore
       ring
     rw [hq_cast, ← one_div_mul_one_div]
     exact (mul_le_mul hinv_ge hfailH_ge (by positivity) (by positivity)).trans hfail_real
-  have htrueA :
-      (Game.succProbability
-        (ProbComp.eval
-          (OneWayReindex.familyInversionGame inputSchedule (liuPassCore t) A n)) : ℝ) =
-        (distA true).toReal := rfl
+  change (distA true).toReal ≤ _
   linarith
 
 /-- **[Liu and Pass, Theorem 4.1, §4, p. 10 of `arXiv:2009.11514v1`][LiuPass2020]
@@ -802,7 +761,7 @@ theorem exists_oneWay_of_exists_mildlyHardOnAverage_timeBoundedNat
     ∃ F : List Bool → List Bool, OneWay F :=
   let ⟨t, ht, hK⟩ := h
   exists_oneWay_of_mildlyHardOnAverage_timeBoundedNat
-    (.of_tidy (ComputableTidilyInPolyTime.unary_eval t)) ht hK
+    (ComputableInPolyTime.unary_eval t) ht hK
 
 /-- **`ℕ∞`-valued `Kolmogorov.timeBounded` existential form of Theorem 3.1 (b) $\Rightarrow$
 (a).** -/
@@ -812,6 +771,6 @@ theorem exists_oneWay_of_exists_mildlyHardOnAverageENat_timeBounded
     ∃ F : List Bool → List Bool, OneWay F :=
   let ⟨t, ht, hK⟩ := h
   exists_oneWay_of_mildlyHardOnAverageENat_timeBounded
-    (.of_tidy (ComputableTidilyInPolyTime.unary_eval t)) ht hK
+    (ComputableInPolyTime.unary_eval t) ht hK
 
 end Cslib.Crypto

@@ -71,10 +71,7 @@ variable {P : MonoidProgram ι α M} {S : Set M} {f : (ι → α) → Bool}
 /-- A program that `σ`-computes `f`, with `σ ≠ 1`, decides `f` with the accepting set `{σ}`. -/
 theorem MonoidProgram.Computes.decides {σ : M} (h : P.Computes σ f) (hσ : σ ≠ 1) :
     P.Decides {σ} f := fun x => by
-  rw [h x, Set.mem_singleton_iff]
-  cases f x
-  · simpa using hσ.symm
-  · simp
+  cases hf : f x <;> simp [h x, hf, hσ.symm]
 
 /-- Pushing a program along an injective homomorphism keeps what it decides, with the image of the
 accepting set. -/
@@ -85,9 +82,8 @@ theorem MonoidProgram.Decides.map (h : P.Decides S f) {φ : M →* N} (hφ : Fun
 /-- On inputs with no positions, the empty program decides every function, accepting everything
 when the function is true and nothing when it is false. -/
 theorem MonoidProgram.decides_one [IsEmpty ι] (f : (ι → α) → Bool) :
-    (1 : MonoidProgram ι α M).Decides {_m | f isEmptyElim = true} f := fun x => by
-  rw [Subsingleton.elim x isEmptyElim]
-  rfl
+    (1 : MonoidProgram ι α M).Decides {_m | f isEmptyElim = true} f :=
+  fun x => Subsingleton.elim x isEmptyElim ▸ Iff.rfl
 
 end Decides
 
@@ -99,14 +95,12 @@ can contain every language: in the free monoid on `ℕ × α`, the program of le
 the generator `(i, x i)` at each position `i` sends different inputs to different elements. -/
 def PolyLength (α M : Type*) [Monoid M] : Set (Language α) :=
   {L | ∃ s : ℕ → ℕ, PolynomiallyBounded s ∧ ∀ n,
-    ∃ (P : MonoidProgram (Fin n) α M) (S : Set M), P.Decides S (L.slice n) ∧ P.length ≤ s n}
+    ∃ (P : MonoidProgram (Fin n) α M) (S : Set M), P.Decides S (L.slice n) ∧ P.toList.length ≤ s n}
 
 /-- **An injective homomorphism of monoids embeds the classes**: push the programs along it. -/
 theorem PolyLength.subset_of_injective {φ : M →* N} (hφ : Function.Injective φ) :
-    PolyLength α M ⊆ PolyLength α N := by
-  rintro L ⟨s, hs, hP⟩
-  refine ⟨s, hs, fun n => ?_⟩
-  obtain ⟨P, S, hPS, hlen⟩ := hP n
-  exact ⟨P.map φ, φ '' S, hPS.map hφ, (MonoidProgram.length_map φ P).trans_le hlen⟩
+    PolyLength α M ⊆ PolyLength α N :=
+  fun _ ⟨s, hs, hP⟩ => ⟨s, hs, fun n => let ⟨P, S, hPS, hlen⟩ := hP n
+    ⟨P.map φ, φ '' S, hPS.map hφ, (MonoidProgram.length_map φ P).trans_le hlen⟩⟩
 
 end Cslib.BranchingPrograms

@@ -47,6 +47,8 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM Finset
 
+attribute [local irreducible] ComputableInPolyTime
+
 variable {α : Type} {enc : α ↪ List Bool}
 
 namespace SharpP
@@ -72,19 +74,12 @@ theorem acceptCount_indexedProductVerifier (r k : α → ℕ)
     acceptCount (indexedProductVerifier r k V) a (r a * k a) =
       ∏ i ∈ range (r a), acceptCount V (a, i) (k a) := by
   rw [← Fin.prod_univ_eq_prod_range]
-  simp only [acceptCount]
-  rw [← Fintype.card_piFinset]
-  apply card_equiv BitString.blocksEquiv
-  intro x
+  simp only [acceptCount, ← Fintype.card_piFinset]
+  refine card_equiv BitString.blocksEquiv fun x => ?_
   simp only [mem_filter, mem_univ, true_and, indexedProductVerifier, List.all_eq_true,
     List.mem_range, Fintype.mem_piFinset]
-  constructor
-  · intro h i
-    simpa only [BitString.listRow_eq_ofFn (k a) i, BitString.ofList_ofFn,
-      BitString.blocksEquiv_apply] using h i i.2
-  · intro h i hi
-    simpa only [BitString.listRow_eq_ofFn (k a) ⟨i, hi⟩, BitString.ofList_ofFn,
-      BitString.blocksEquiv_apply] using h ⟨i, hi⟩
+  exact ⟨fun h i => by simpa [BitString.listRow_eq_ofFn] using h i i.2,
+    fun h i hi => by simpa [BitString.listRow_eq_ofFn (k a) ⟨i, hi⟩] using h ⟨i, hi⟩⟩
 
 /-- A jointly uniform #P family on an instance and unary index may be multiplied over a
 polynomial-time unary range. If the original certificate polynomial is `p`, a common row width
@@ -96,7 +91,7 @@ theorem prod_range_mem {f : α × ℕ → ℕ} {r : α → ℕ}
   obtain ⟨p, V, hV, hf⟩ := mem_SharpP.mp hf
   let width : α × ℕ → ℕ := fun x => p.eval ((encPair enc encUnary) x).length
   let k : α → ℕ := fun a => p.eval (2 * (enc a).length + 1 + r a)
-  let W := andVerifier width V allFalseVerifier
+  let W := padVerifier width V
   have hk : ComputableInPolyTime k enc encUnary := by dsimp [k]; fun_prop
   have hW : ComputableInPolyTime W
       (encPair (encPair enc encUnary) encBits) encBool := by dsimp [W, width]; fun_prop
@@ -111,8 +106,7 @@ theorem prod_range_mem {f : α × ℕ → ℕ} {r : α → ℕ}
   have hle : width (a, i) ≤ k a := by
     simp only [width, k, length_encPair, encUnary_apply, List.length_replicate]
     exact p.eval_mono (by lia [mem_range.mp hi])
-  obtain ⟨n, hn⟩ := Nat.exists_eq_add_of_le hle
-  rw [hn, acceptCount_andVerifier_allFalseVerifier, hf]
+  rw [acceptCount_padVerifier_of_le width V hle, hf]
 
 end SharpP
 

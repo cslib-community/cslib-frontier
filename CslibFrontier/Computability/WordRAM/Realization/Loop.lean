@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.Computability.WordRAM.RegisterCopy
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.DataStructure.Memory.Frame
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Bounded memory-client loops
@@ -33,14 +34,17 @@ uses one fixed body emitter and static registers for the mutable state and count
 * `loopEmit_entry`, `loopBody_tail`: the native loop's entry prologue and the control tail of one
   iteration, shared by the deterministic and randomized loop realizations.
 * `bodyBank_layout`, `bodySlot_injective`, `stateSlot_ne_bodySlot`,
-  `regs_comp_append_eq_appendWords`, `loopEmit_not_readsWidth`: the body bank's register premises,
-  the state words read back as appended words, and width-freedom of the loop.
+  `regs_comp_append_eq_appendWords`, `loopEmit_not_readsWidth`, `loopEmit_instantiate`: the body
+  bank's register premises, the state words read back as appended words, width-freedom of the loop,
+  and instantiating a body contract at `loopEmit`'s sub-banks.
+* `iterationWork_zero`: evaluate local work when the body has no local-work charge.
 * `Realizes.Witness.loopEmit_spec`: the loop emitter with additive per-iteration overhead.
 * `Realizes.Witness.iterateRuntime`, `Realizes.iterateRuntime`: one uniform body witness or
   certificate realizes a runtime-bounded loop.
 
 The iteration grading and realization are original infrastructure over the existing free monad
 and structured Word-RAM code. No additional program syntax or memory model is introduced.
+Fixed-environment transport laws are provided by the `LoopCongr` module.
 -/
 
 @[expose] public section
@@ -66,6 +70,13 @@ def iterationWork (body : δ × σ → Memory.Prog σ) (work : (δ × σ) → Me
       work (d, a) s + iterationWork body work d n
         ((Memory.spec 0).clientResult s (body (d, a)))
         ((Memory.spec 0).clientState s (body (d, a))) + 1
+
+/-- With no body-local work, the local grade is exactly one control unit per iteration. -/
+@[simp] theorem iterationWork_zero (body : δ × σ → Memory.Prog σ) (d : δ) (n : ℕ) (a : σ)
+    (s : Memory.State) : iterationWork body (fun _ _ => 0) d n a s = n := by
+  induction n generalizing a s with
+  | zero => rfl
+  | succ n ih => simp only [iterationWork, ih, Nat.zero_add]
 
 /-- Every executed body must satisfy its explicit domain at the reached state. -/
 def iterationSafe (body : δ × σ → Memory.Prog σ)
@@ -208,13 +219,36 @@ theorem loopEmit_not_readsWidth {n : ℕ} (emit : ∀ {r : ℕ}, Fin r → (Fin 
     copyBank_not_readsWidth] using hnw
 
 /-- The loop's body bank does not repeat a register. -/
-theorem bodySlot_injective {n : ℕ} : Function.Injective (bodySlot (l := l) (n := n)) :=
-  fun i j h => Fin.ext (by have := congrArg Fin.val h; dsimp only [bodySlot] at this; omega)
+theorem bodySlot_injective {n : ℕ} : Function.Injective (bodySlot (l := l) (n := n)) := by
+  fin_index [bodySlot]
 
 /-- The loop's state words lie outside its body bank. -/
 theorem stateSlot_ne_bodySlot {n : ℕ} (i : Fin l) (j : Fin (l + n + 1)) :
-    stateSlot (n := n) i ≠ bodySlot j :=
-  Fin.ne_of_val_ne (by simp only [stateSlot, bodySlot]; omega)
+    stateSlot (n := n) i ≠ bodySlot j := by
+  fin_index [stateSlot, bodySlot]
+
+/-- Instantiate a body emitter's register-bank contract at the sub-banks of `loopEmit`, pairing
+width-freedom of `loopEmit` with the instantiated body contract. -/
+theorem loopEmit_instantiate {n : ℕ}
+    (emit : ∀ {r : ℕ}, Fin r → (Fin (k + l) → Fin r) →
+      (Fin (l + n + 1) → Fin r) → Code .exact r)
+    {P : ∀ {r : ℕ}, Fin r → (Fin (k + l) → Fin r) → (Fin (l + n + 1) → Fin r) → Prop}
+    (he : ∀ {r : ℕ} (frontier : Fin r) (bs : Fin (k + l) → Fin r)
+      (bt : Fin (l + n + 1) → Fin r),
+      Function.Injective bt → (∀ i j, bs i ≠ bt j) → (∀ j, bt j ≠ frontier) →
+      (∀ i, bs i ≠ frontier) → ¬(emit frontier bs bt).ReadsWidth ∧ P frontier bs bt)
+    {frontier : Fin r} {src : Fin (k + l + 1) → Fin r}
+    {tmp : Fin (l + (l + n + 3) + 1) → Fin r}
+    (hi : Function.Injective tmp) (hd : ∀ i j, src i ≠ tmp j)
+    (hf : ∀ j, tmp j ≠ frontier) (hs : ∀ i, src i ≠ frontier) :
+    ¬(loopEmit emit frontier src tmp).ReadsWidth ∧
+      P frontier (Fin.append (fun i : Fin k => src ⟨i.val, by omega⟩)
+        (fun i => tmp (stateSlot i))) (fun i => tmp (bodySlot i)) := by
+  obtain ⟨hbt, hbdis, hbf, hbs⟩ := bodyBank_layout
+    (env := fun i : Fin k => src ⟨i.val, by omega⟩) hi bodySlot_injective
+    stateSlot_ne_bodySlot (fun _ _ => hd _ _) hf (fun _ => hs _)
+  obtain ⟨hnw, hrun⟩ := he frontier _ _ hbt hbdis hbf hbs
+  exact ⟨loopEmit_not_readsWidth emit hnw, hrun⟩
 
 /-- Entering the native loop of `loopEmit`: copy the state words into the bank, install the
 counter and clear the zero register. Memory, the frontier and every register outside the scratch
@@ -241,41 +275,29 @@ theorem loopEmit_entry (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   let ctr := tmp (counterSlot l n)
   let zero := tmp (zeroSlot l n)
   let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
-  have hct : ctr ≠ zero := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, zeroSlot]))
-  have henv (i : Fin k) : x.regs (env i) = input d i := by
-    have hh : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d i := by
-      simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
-    exact hh
-  have hstate (i : Fin l) : x.regs (src ⟨k + i.val, by omega⟩) = output a i := by
-    have hh : x.regs (src (Fin.castAdd 1 (Fin.natAdd k i))) = output a i := by
-      simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.natAdd k i))
-    exact hh
-  have hfuel : x.regs (src ⟨k + l, by omega⟩) = fuel := by
-    have hh : x.regs (src (Fin.natAdd (k + l) 0)) = fuel := by
-      simpa [Fin.appendEquiv] using congrFun hin (Fin.natAdd (k + l) 0)
-    exact hh
+  have hct : ctr ≠ zero := hi.ne (by fin_index [counterSlot, zeroSlot])
+  have henv (i : Fin k) : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d i := by
+    simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
+  have hstate (i : Fin l) : x.regs (src (Fin.castAdd 1 (Fin.natAdd k i))) = output a i := by
+    simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.natAdd k i))
+  have hfuel : x.regs (src (Fin.natAdd (k + l) 0)) = fuel := by
+    simpa [Fin.appendEquiv] using congrFun hin (Fin.natAdd (k + l) 0)
   obtain ⟨x₁, h₁, h₁m, h₁s, h₁f⟩ := copyBank_exec (fun i : Fin l => src ⟨k + i.val, by omega⟩)
     st zero (fun i j h => Fin.ext (congrArg Fin.val (hi h) :)) (fun _ _ => hd _ _) w x
   let x₂ := x₁.set ctr fuel
   let z := x₂.set zero 0
-  have h₁fuel : x₁.regs (src ⟨k + l, by omega⟩) = fuel := by
-    rw [h₁f _ (fun _ => (hd _ _).symm)]
-    exact hfuel
+  have h₁fuel : x₁.regs (src ⟨k + l, by omega⟩) = fuel := (h₁f _ fun _ => (hd _ _).symm).trans hfuel
   have h₂ : ExecWithin (B := .exact) w (.op (.copy ctr (src ⟨k + l, by omega⟩))) x₁ x₂ 1 := by
     wram_exec [h₁fuel]
-  have h₃ : ExecWithin (B := .exact) w (.op (.const zero 0)) x₂ z 1 :=
-    ExecWithin.const (fits_zero w)
+  have h₃ : ExecWithin (B := .exact) w (.op (.const zero 0)) x₂ z 1 := .const (fits_zero w)
   refine ⟨x₁, x₂, z, h₁, h₂, h₃, (h₁.seq (h₂.seq h₃)).bounded hx, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · apply Memory.State.ext
-    · exact h₁m
-    · change (x₂.set zero 0).regs frontier = x.regs frontier
-      wram_simp [x₂]
-      exact h₁f frontier fun i => hf _
+  · refine Memory.State.ext h₁m ?_
+    change (x₂.set zero 0).regs frontier = x.regs frontier
+    wram_simp [x₂]
+    exact h₁f frontier fun i => hf _
   · intro i
-    change z.regs (env i) = _
     wram_simp [z, x₂]
-    rw [h₁f _ fun _ => (hd _ _).symm]
-    exact henv i
+    exact (h₁f _ fun _ => (hd _ _).symm).trans (henv i)
   · intro i
     change z.regs (st i) = _
     wram_simp [z, x₂, st, zero, ctr]
@@ -310,31 +332,27 @@ theorem loopBody_tail {n : ℕ} (frontier : Fin r) (tmp : Fin (l + (l + n + 3) +
   let ctr := tmp (counterSlot l n)
   let zero := tmp (zeroSlot l n)
   let one := tmp (oneSlot l n)
-  have hco : ctr ≠ one := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, oneSlot]))
-  have hzc : zero ≠ ctr := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, zeroSlot]))
-  have hzo : zero ≠ one := hi.ne (Fin.ne_of_val_ne (by simp [zeroSlot, oneSlot]))
+  have hco : ctr ≠ one := hi.ne (by fin_index [counterSlot, oneSlot])
+  have hzc : zero ≠ ctr := hi.ne (by fin_index [counterSlot, zeroSlot])
+  have hzo : zero ≠ one := hi.ne (by fin_index [zeroSlot, oneSlot])
   have hregbt (a : Fin (l + (l + n + 3) + 1)) (ha : a.val < l + 3) :
       ∀ j, tmp (bodySlot j) ≠ tmp a :=
-    fun j => hi.ne (Fin.ne_of_val_ne (by simp only [bodySlot]; omega))
+    fun j => hi.ne (by fin_index [bodySlot])
   have hregst (a : Fin (l + (l + n + 3) + 1)) (ha : l ≤ a.val) : ∀ i, st i ≠ tmp a :=
-    fun i => hi.ne (Fin.ne_of_val_ne (by simp only [stateSlot]; omega))
+    fun i => hi.ne (by fin_index [stateSlot])
   obtain ⟨v, hv, hvm, hvs, hvf⟩ := copyBank_exec
     (fun i : Fin l => tmp (bodySlot (Fin.castAdd (n + 1) i))) st zero
     (fun i j h => Fin.ext (congrArg Fin.val (hi h) :))
     (fun i j => hi.ne (stateSlot_ne_bodySlot j _).symm) w u
-  have huc : u.regs ctr = j + 1 := by
-    rw [huf _ (hf _) (hregbt _ (by simp [counterSlot]))]
-    exact hyc
-  have hvctr : v.regs ctr = j + 1 := by
-    rw [hvf _ (hregst _ (by simp [counterSlot]))]
-    exact huc
+  have huc : u.regs ctr = j + 1 := (huf _ (hf _) (hregbt _ (by simp [counterSlot]))).trans hyc
+  have hvctr : v.regs ctr = j + 1 := (hvf _ (hregst _ (by simp [counterSlot]))).trans huc
   have hvzero : v.regs zero = y.regs zero := by
     rw [hvf _ (hregst _ (by simp [zeroSlot])), huf _ (hf _) (hregbt _ (by simp [zeroSlot]))]
-  have h1 : Fits w 1 := (hub.1 ctr).of_le (by omega)
   have hjfit : Fits w j := (hub.1 ctr).of_le (by omega)
   let t := v.set one 1
   let y' := t.set ctr j
-  have ht : ExecWithin (B := .exact) w (.op (.const one 1)) v t 1 := ExecWithin.const h1
+  have ht : ExecWithin (B := .exact) w (.op (.const one 1)) v t 1 :=
+    .const ((hub.1 ctr).of_le (by omega))
   have htc : t.regs ctr = j + 1 := by wram_simp [t, hvctr]
   have htone : t.regs one = 1 := by simp [t, Data.set]
   have hdec : ExecWithin w (.op (.exactBin .sub ctr ctr one)) t y' 1 := by
@@ -355,6 +373,67 @@ theorem loopBody_tail {n : ℕ} (frontier : Fin r) (tmp : Fin (l + (l + n + 3) +
   · intro i hif htmp
     wram_simp [y', t]
     rw [hvf _ fun _ => htmp _, huf _ hif fun _ => htmp _]
+
+private def LoopInv (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ))
+    (body : δ × σ → Memory.Prog σ) (safe : ℕ → (δ × σ) → Memory.State → Prop)
+    {n : ℕ} (frontier : Fin r) (src : Fin (k + l + 1) → Fin r)
+    (tmp : Fin (l + (l + n + 3) + 1) → Fin r) (w : ℕ) (d₀ : δ) (x : Data r)
+    (j : ℕ) (q : σ × Memory.State) (y : Data r) : Prop :=
+  y.Bounded w ∧ memoryState frontier y = q.2 ∧
+  (∀ i : Fin k, y.regs (src ⟨i.val, by omega⟩) = input d₀ i) ∧
+  (∀ i, y.regs (tmp (stateSlot i)) = output q.1 i) ∧
+  y.regs (tmp (counterSlot l n)) = j ∧ y.regs (tmp (zeroSlot l n)) = 0 ∧
+  iterationSafe body safe w d₀ j q.1 q.2 ∧
+  (Memory.spec w).ValidHistory q.2 ((Memory.spec w).clientHistory q.2 (iterate body d₀ j q.1)) ∧
+  ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i
+
+private theorem loopBody_tail_inv {input : δ ↪ (Fin k → ℕ)} {output : σ ↪ (Fin l → ℕ)}
+    {body : δ × σ → Memory.Prog σ} {safe : ℕ → (δ × σ) → Memory.State → Prop}
+    {n : ℕ} {frontier : Fin r} {src : Fin (k + l + 1) → Fin r}
+    {tmp : Fin (l + (l + n + 3) + 1) → Fin r}
+    (hi : Function.Injective tmp) (hd : ∀ i j, src i ≠ tmp j)
+    (hf : ∀ j, tmp j ≠ frontier) (hs : ∀ i, src i ≠ frontier)
+    {w j : ℕ} {d₀ : δ} {q : σ × Memory.State} {x y u : Data r}
+    (hIy : LoopInv input output body safe frontier src tmp w d₀ x (j + 1) q y)
+    (hub : u.Bounded w)
+    (hum : memoryState frontier u = (Memory.spec w).clientState q.2 (body (d₀, q.1)))
+    (huo : ∀ i : Fin l, u.regs (tmp (bodySlot (Fin.castAdd (n + 1) i))) =
+      output ((Memory.spec w).clientResult q.2 (body (d₀, q.1))) i)
+    (huf : ∀ i, i ≠ frontier → (∀ b, tmp (bodySlot b) ≠ i) → u.regs i = y.regs i) :
+    ∃ y', ExecWithin (B := .exact) w
+        (.seq (copyBank (fun i : Fin l => tmp (bodySlot (Fin.castAdd (n + 1) i)))
+          (fun i => tmp (stateSlot i)) (tmp (zeroSlot l n))) <|
+          .seq (.op (.const (tmp (oneSlot l n)) 1))
+            (.op (.exactBin .sub (tmp (counterSlot l n)) (tmp (counterSlot l n))
+              (tmp (oneSlot l n))))) u y' (l + 3) ∧
+      LoopInv input output body safe frontier src tmp w d₀ x j (iterationStep body d₀ q) y' := by
+  obtain ⟨_, _, hye, _, hyc, hyz, hysafe, hyv, hyframe⟩ := hIy
+  have hvparts := (validHistory_bind w (body (d₀, q.1)) (iterate body d₀ j) q.2).mp hyv
+  rw [clientState_width] at hum
+  simp only [clientResult_width] at huo
+  obtain ⟨y', ht, htm, hts, htc, htz, htf⟩ :=
+    loopBody_tail frontier tmp hi hf w j hub hyc huf
+  exact ⟨y', ht, ht.bounded hub, htm.trans hum,
+    fun i => (htf _ (hs _) fun _ => (hd _ _).symm).trans (hye i),
+    fun i => (hts i).trans (huo i), htc, htz.trans hyz, hysafe.2,
+    by simpa only [clientState_width w, clientResult_width w, iterationStep] using hvparts.2,
+    fun i hif htmp => (htf i hif htmp).trans (hyframe i hif htmp)⟩
+
+private theorem LoopInv.finish {input : δ ↪ (Fin k → ℕ)} {output : σ ↪ (Fin l → ℕ)}
+    {body : δ × σ → Memory.Prog σ} {safe : ℕ → (δ × σ) → Memory.State → Prop}
+    {n : ℕ} {frontier : Fin r} {src : Fin (k + l + 1) → Fin r}
+    {tmp : Fin (l + (l + n + 3) + 1) → Fin r} {w fuel : ℕ} {d₀ : δ} {a₀ : σ}
+    {s₀ : Memory.State} {x y : Data r}
+    (hIy : LoopInv input output body safe frontier src tmp w d₀ x 0
+      ((iterationStep body d₀)^[fuel] (a₀, s₀)) y) :
+    memoryState frontier y = (Memory.spec w).clientState s₀ (iterate body d₀ fuel a₀) ∧
+      (∀ i : Fin l, y.regs (tmp (stateSlot i)) =
+        output ((Memory.spec w).clientResult s₀ (iterate body d₀ fuel a₀)) i) ∧
+      ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
+  rw [← iterate_result_state body d₀ fuel a₀ s₀] at hIy
+  obtain ⟨_, hym, _, hys, _, _, _, _, hyf⟩ := hIy
+  exact ⟨hym.trans (clientState_width w _ _).symm,
+    fun i => (hys i).trans (congrArg (output · i) (clientResult_width w _ _).symm), hyf⟩
 
 namespace Realizes
 
@@ -389,79 +468,36 @@ theorem Witness.loopEmit_spec (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ 
             output ((Memory.spec w).clientResult (memoryState frontier x)
               (iterate body d.1.1 d.2 d.1.2)) i) ∧
           ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
-  let n := h.scratchSize
-  let C := h.factor
-  let emit : ∀ {r : ℕ}, Fin r → (Fin (k + l) → Fin r) →
-      (Fin (l + n + 1) → Fin r) → Code .exact r := h.code
-  have he : Realizes.Spec .exact body (appendWords input output) output safe work n C emit :=
-    h.code_spec
   intro r frontier src tmp hi hd hf hs
-  let st : Fin l → Fin r := fun i => tmp (stateSlot i)
-  let ctr := tmp (counterSlot l n)
-  let zero := tmp (zeroSlot l n)
-  let bt : Fin (l + n + 1) → Fin r := fun i => tmp (bodySlot i)
-  let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
-  let bs := Fin.append env st
-  obtain ⟨hbt, hbdis, hbf, hbs⟩ := bodyBank_layout (env := env) hi bodySlot_injective
-    stateSlot_ne_bodySlot (fun _ _ => hd _ _) hf (fun _ => hs _)
-  obtain ⟨hnw, hrun⟩ := he frontier bs bt hbt hbdis hbf hbs
-  refine ⟨loopEmit_not_readsWidth emit hnw, ?_⟩
-  · intro w d x hx hin hsafe hv
-    let a₀ := d.1.2
-    let d₀ := d.1.1
-    let fuel := d.2
-    let s₀ := memoryState frontier x
-    obtain ⟨x₁, x₂, z, h₁, h₂, h₃, hzb, hzm, hze, hzs, hzc, hzz, hzf⟩ :=
-      loopEmit_entry input output hi hd hf hx hin
-    let I : ℕ → (σ × Memory.State) → Data r → Prop := fun j q y =>
-      y.Bounded w ∧ memoryState frontier y = q.2 ∧
-      (∀ i, y.regs (env i) = input d₀ i) ∧ (∀ i, y.regs (st i) = output q.1 i) ∧
-      y.regs ctr = j ∧ y.regs zero = 0 ∧ iterationSafe body safe w d₀ j q.1 q.2 ∧
-      (Memory.spec w).ValidHistory q.2
-        ((Memory.spec w).clientHistory q.2 (iterate body d₀ j q.1)) ∧
-      ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i
-    have hIz : I fuel (a₀, s₀) z := ⟨hzb, hzm, hze, hzs, hzc, hzz, hsafe, hv, hzf⟩
-    have hbody : ∀ j q y, I (j + 1) q y →
-        (Cond.lt zero ctr).Holds y ∧ ∃ y',
-          ExecWithin w (loopBody emit frontier src tmp) y y'
-            (C * (memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2 + 1) + (l + 3)) ∧
-          I j (iterationStep body d₀ q) y' := by
-      intro j q y hIy
-      obtain ⟨hyb, hym, hye, hys, hyc, hyz, hysafe, hyv, hyframe⟩ := hIy
-      refine ⟨by simp [Cond.Holds, hyz, hyc], ?_⟩
-      have hvparts := (validHistory_bind w (body (d₀, q.1))
-        (iterate body d₀ j) q.2).mp hyv
-      obtain ⟨u, hu, hum, huo, huf⟩ := hrun w (d₀, q.1) y hyb
-        (regs_comp_append_eq_appendWords input output hye hys)
-        (hym ▸ hysafe.1) (hym ▸ hvparts.1)
-      rw [hym] at hu hum huo
-      rw [clientState_width] at hum
-      simp only [clientResult_width] at huo
-      obtain ⟨y', ht, htm, hts, htc, htz, htf⟩ :=
-        loopBody_tail frontier tmp hi hf w j (hu.bounded hyb) hyc huf
-      have hrest := hvparts.2
-      rw [clientState_width w, clientResult_width w] at hrest
-      exact ⟨y', (hu.seq ht).mono (by omega), (hu.seq ht).bounded hyb, htm.trans hum,
-        fun i => (htf (env i) (hs _) fun _ => (hd _ _).symm).trans (hye i),
-        fun i => (hts i).trans (huo i), htc, htz.trans hyz, hysafe.2, hrest,
-        fun i hif htmp => (htf i hif htmp).trans (hyframe i hif htmp)⟩
-    obtain ⟨y, hy, hIy⟩ := ExecWithin.loop_invariant_state_additive I (iterationStep body d₀)
-      (fun q => memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2)
-      (fun q y hI => by simp [Cond.Holds, hI.2.2.2.2.1, hI.2.2.2.2.2.1]) hbody hIz
-    have hsum := iterationSum_eq body work d₀ fuel a₀ s₀
-    have hsumC := congrArg (C * ·) hsum
-    have hfinal := iterate_result_state body d₀ fuel a₀ s₀
-    rw [← hfinal] at hIy
-    obtain ⟨_, hym, _, hys, _, _, _, _, hyf⟩ := hIy
-    refine ⟨y, (h₁.seq (h₂.seq (h₃.seq hy))).mono ?_, ?_, ?_, hyf⟩
-    · nlinarith [hsumC]
-    · change memoryState frontier y = (Memory.spec w).clientState s₀ (iterate body d₀ fuel a₀)
-      rw [clientState_width w]
-      exact hym
-    · intro i
-      change y.regs (st i) = output ((Memory.spec w).clientResult s₀ (iterate body d₀ fuel a₀)) i
-      rw [clientResult_width w]
-      exact hys i
+  obtain ⟨hnw, hrun⟩ := loopEmit_instantiate h.code h.code_spec hi hd hf hs
+  refine ⟨hnw, ?_⟩
+  intro w ⟨⟨d₀, a₀⟩, fuel⟩ x hx hin hsafe hv
+  let s₀ := memoryState frontier x
+  obtain ⟨x₁, x₂, z, h₁, h₂, h₃, hzb, hzm, hze, hzs, hzc, hzz, hzf⟩ :=
+    loopEmit_entry input output hi hd hf hx hin
+  let I := LoopInv input output body safe frontier src tmp w d₀ x
+  have hIz : I fuel (a₀, s₀) z := ⟨hzb, hzm, hze, hzs, hzc, hzz, hsafe, hv, hzf⟩
+  have hbody : ∀ j q y, I (j + 1) q y →
+      (Cond.lt (tmp (zeroSlot l h.scratchSize)) (tmp (counterSlot l h.scratchSize))).Holds y ∧ ∃ y',
+        ExecWithin w (loopBody h.code frontier src tmp) y y'
+          (h.factor * (memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2 + 1) + (l + 3)) ∧
+        I j (iterationStep body d₀ q) y' := by
+    intro j q y hIy
+    have ⟨hyb, hym, hye, hys, hyc, hyz, hysafe, hyv, _⟩ := hIy
+    refine ⟨by simp [Cond.Holds, hyz, hyc], ?_⟩
+    have hvparts := (validHistory_bind w (body (d₀, q.1)) (iterate body d₀ j) q.2).mp hyv
+    obtain ⟨u, hu, hum, huo, huf⟩ := hrun w (d₀, q.1) y hyb
+      (regs_comp_append_eq_appendWords input output hye hys)
+      (hym ▸ hysafe.1) (hym ▸ hvparts.1)
+    rw [hym] at hu hum huo
+    obtain ⟨y', ht, hIy'⟩ := loopBody_tail_inv hi hd hf hs hIy (hu.bounded hyb) hum huo huf
+    exact ⟨y', (hu.seq ht).mono (by omega), hIy'⟩
+  obtain ⟨y, hy, hIy⟩ := ExecWithin.loop_invariant_state_additive I (iterationStep body d₀)
+    (fun q => memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2)
+    (fun _ _ hI => by simp [Cond.Holds, hI.2.2.2.2.1, hI.2.2.2.2.2.1]) hbody hIz
+  have hsumC := congrArg (h.factor * ·) (iterationSum_eq body work d₀ fuel a₀ s₀)
+  obtain ⟨hym, hys, hyf⟩ := hIy.finish
+  exact ⟨y, (h₁.seq (h₂.seq (h₃.seq hy))).mono (by nlinarith [hsumC]), hym, hys, hyf⟩
 
 /-- Retain the supplied body and the existing loop emitter as data. Its original coarse
 realization contract follows from the sharper same-emitter `loopEmit_spec`. -/
@@ -487,9 +523,9 @@ def Witness.iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fi
     intro w d x hx hin hsafe hv
     obtain ⟨y, hy, hm, hout, hframe⟩ := hrun w d x hx hin hsafe hv
     refine ⟨y, hy.mono ?_, hm, hout, hframe⟩
-    have hsum := iterationSum_eq body work d.1.1 d.2 d.1.2 (memoryState frontier x)
     have hcount : d.2 ≤ memoryCost (iterate body d.1.1 d.2 d.1.2) (memoryState frontier x) +
-        iterationWork body work d.1.1 d.2 d.1.2 (memoryState frontier x) := by omega
+        iterationWork body work d.1.1 d.2 d.1.2 (memoryState frontier x) := by
+      have := iterationSum_eq body work d.1.1 d.2 d.1.2 (memoryState frontier x); omega
     have hscaled := Nat.mul_le_mul_left (l + 5) (Nat.add_le_add_right hcount 1)
     nlinarith [hscaled]
 
@@ -512,6 +548,10 @@ end Realizes
 
 namespace RealizesBounded
 
+private theorem lift_regOnly {L w T : ℕ} {c : Code B r} {x y : Data r}
+    (h : ExecWithin w c x y T) (hc : IsRegOnlyCode c) : ExecBounded w L c x y T :=
+  .of_execWithin_regOnly hc h
+
 /-- Frontier-bounded realization of runtime-bounded `iterate`. -/
 theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ))
     {body : δ × σ → Memory.Prog σ}
@@ -527,256 +567,59 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   obtain ⟨n, C, emit, he⟩ := h
   refine ⟨l + n + 3, C + 2 * l + 8, loopEmit emit, ?_⟩
   intro r frontier src tmp hi hd hf hs
-  let st : Fin l → Fin r := fun i => tmp (stateSlot i)
-  let ctr := tmp (counterSlot l n)
-  let zero := tmp (zeroSlot l n)
-  let one := tmp (oneSlot l n)
-  let bt : Fin (l + n + 1) → Fin r := fun i => tmp (bodySlot i)
-  let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
-  let bs := Fin.append env st
-  have hst : Function.Injective st := fun i j hij =>
-    Fin.ext (congrArg (fun j : Fin (l + (l + n + 3) + 1) => j.val) (hi hij))
-  have hbt : Function.Injective bt := by
-    intro i j hij
-    apply Fin.ext
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [bodySlot] at hh
-    omega
-  have hbdis : ∀ i j, bs i ≠ bt j := by
-    intro i j
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-    · simpa only [bs, Fin.append_left] using hd (⟨i.val, by omega⟩ : Fin (k + l + 1)) (bodySlot j)
-    · simp only [bs, Fin.append_right]
-      intro hij
-      have hh := congrArg Fin.val (hi hij)
-      dsimp only [stateSlot, bodySlot] at hh
-      omega
-  have hbf : ∀ j, bt j ≠ frontier := fun j => hf _
-  have hbs : ∀ i, bs i ≠ frontier := by
-    intro i
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-    · simpa only [bs, Fin.append_left] using hs (⟨i.val, by omega⟩ : Fin (k + l + 1))
-    · simpa only [bs, Fin.append_right] using hf (stateSlot i)
-  obtain ⟨hnw, hrun⟩ := he frontier bs bt hbt hbdis hbf hbs
-  have houtdis : ∀ i j : Fin l, bt (Fin.castAdd (n + 1) i) ≠ st j := by
-    intro i j hij
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [bodySlot, stateSlot] at hh
-    omega
-  have hct : ctr ≠ zero := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [counterSlot, zeroSlot] at this
-  have hco : ctr ≠ one := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [counterSlot, oneSlot] at this
-  have hzo : zero ≠ one := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [zeroSlot, oneSlot] at this
-  have hregbt (a : Fin (l + (l + n + 3) + 1)) (ha : a.val < l + 3) :
-      ∀ j, bt j ≠ tmp a := by
-    intro j hij
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [bodySlot] at hh
-    omega
-  have hregst (a : Fin (l + (l + n + 3) + 1)) (ha : l ≤ a.val) :
-      ∀ i, st i ≠ tmp a := by
-    intro i hij
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [stateSlot] at hh
-    omega
-  refine ⟨by simpa [loopEmit, loopBody, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin,
-    copyBank_not_readsWidth] using hnw, ?_⟩
+  obtain ⟨hnw, hrun⟩ := loopEmit_instantiate emit he hi hd hf hs
+  refine ⟨hnw, ?_⟩
   rintro w ⟨⟨d₀, a₀⟩, fuel⟩ x hx hin hsafe hv
   let s₀ := memoryState frontier x
   let L_end := ((Memory.spec 0).clientState s₀ (iterate body d₀ fuel a₀)).frontier
-  have henv (i : Fin k) : x.regs (env i) = input d₀ i := by
-    have hh : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d₀ i := by
-      simpa [appendWords, Fin.appendEquiv] using
-        congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
-    have hidx : Fin.castAdd 1 (Fin.castAdd l i) = (⟨i.val, by omega⟩ : Fin (k + l + 1)) :=
-      Fin.ext rfl
-    rw [hidx] at hh
-    exact hh
-  have hstate (i : Fin l) : x.regs (src ⟨k + i.val, by omega⟩) = output a₀ i := by
-    have hh : x.regs (src (Fin.castAdd 1 (Fin.natAdd k i))) = output a₀ i := by
-      simpa [appendWords, Fin.appendEquiv] using
-        congrFun hin (Fin.castAdd 1 (Fin.natAdd k i))
-    have hidx : Fin.castAdd 1 (Fin.natAdd k i) = (⟨k + i.val, by omega⟩ : Fin (k + l + 1)) :=
-      Fin.ext rfl
-    rw [hidx] at hh
-    exact hh
-  have hfuel : x.regs (src ⟨k + l, by omega⟩) = fuel := by
-    have hh : x.regs (src (Fin.natAdd (k + l) 0)) = fuel := by
-      simpa [Fin.appendEquiv] using congrFun hin (Fin.natAdd (k + l) 0)
-    have hidx : Fin.natAdd (k + l) 0 = (⟨k + l, by omega⟩ : Fin (k + l + 1)) := by
-      apply Fin.ext; simp
-    rw [hidx] at hh
-    exact hh
-  obtain ⟨a, ha, ham, has, haf⟩ := copyBank_execBounded
-    (fun i : Fin l => src ⟨k + i.val, by omega⟩) st zero hst
-    (fun _ _ => hd _ _) w L_end x
-  let b := a.set ctr fuel
-  let z := b.set zero 0
-  have hafuel : a.regs (src ⟨k + l, by omega⟩) = fuel := by
-    rw [haf _ (fun _ => (hd _ _).symm)]
-    exact hfuel
-  have hc : ExecBounded (B := .exact) w L_end (.op (.copy ctr (src ⟨k + l, by omega⟩))) a b 1 := by
-    simpa only [hafuel] using
-      (ExecBounded.copy (B := .exact) (w := w) (L := L_end) (d := ctr)
-        (s := src ⟨k + l, by omega⟩) (x := a))
-  have hz : ExecBounded (B := .exact) w L_end (.op (.const zero 0)) b z 1 :=
-    ExecBounded.const (fits_zero w)
+  obtain ⟨x₁, x₂, z, h₁, h₂, h₃, hzb, hzm, hze, hzs, hzc, hzz, hzf⟩ :=
+    loopEmit_entry input output hi hd hf hx hin
   let I : ℕ → (σ × Memory.State) → Data r → Prop := fun j q y =>
-    y.Bounded w ∧ memoryState frontier y = q.2 ∧
-    ((Memory.spec 0).clientState q.2 (iterate body d₀ j q.1)).frontier ≤ L_end ∧
-    (∀ i, y.regs (env i) = input d₀ i) ∧ (∀ i, y.regs (st i) = output q.1 i) ∧
-    y.regs ctr = j ∧ y.regs zero = 0 ∧ iterationSafe body safe w d₀ j q.1 q.2 ∧
-    (Memory.spec w).ValidHistory q.2
-      ((Memory.spec w).clientHistory q.2 (iterate body d₀ j q.1)) ∧
-    ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i
-  have hIz : I fuel (a₀, s₀) z := by
-    refine ⟨(ha.seq (hc.seq hz)).bounded hx, ?_, le_rfl, ?_, ?_, ?_, ?_, hsafe, hv, ?_⟩
-    · apply Memory.State.ext
-      · exact ham
-      · change (b.set zero 0).regs frontier = x.regs frontier
-        rw [show (b.set zero 0).regs frontier = b.regs frontier from
-          Function.update_of_ne (hf (zeroSlot l n)).symm _ _,
-          show b.regs frontier = a.regs frontier from
-            Function.update_of_ne (hf (counterSlot l n)).symm _ _,
-          haf frontier (fun i => hf _)]
-    · intro i
-      simp only [z, b, Data.set]
-      rw [Function.update_of_ne (hd _ _), Function.update_of_ne (hd _ _),
-        haf _ (fun _ => (hd _ _).symm)]
-      exact henv i
-    · intro i
-      simp only [z, b, Data.set]
-      rw [Function.update_of_ne (hregst _ (by simp [zeroSlot]) i),
-        Function.update_of_ne (hregst _ (by simp [counterSlot]) i), has]
-      exact hstate i
-    · simp [z, b, Data.set, hct]
-    · simp [z, Data.set]
-    · intro i hif htmp
-      simp only [z, b, Data.set]
-      rw [Function.update_of_ne (htmp _).symm,
-        Function.update_of_ne (htmp _).symm, haf _ (fun _ => htmp _)]
+    LoopInv input output body safe frontier src tmp w d₀ x j q y ∧
+      ((Memory.spec 0).clientState q.2 (iterate body d₀ j q.1)).frontier ≤ L_end
+  have hIz : I fuel (a₀, s₀) z :=
+    ⟨⟨hzb, hzm, hze, hzs, hzc, hzz, hsafe, hv, hzf⟩, le_rfl⟩
   have hbody : ∀ j q y, I (j + 1) q y →
-      (Cond.lt zero ctr).Holds y ∧ ∃ y',
+      (Cond.lt (tmp (zeroSlot l n)) (tmp (counterSlot l n))).Holds y ∧ ∃ y',
         ExecBounded w L_end (loopBody emit frontier src tmp) y y'
           (C * (memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2 + 1) + (l + 3)) ∧
         I j (iterationStep body d₀ q) y' := by
-    intro j q y hIy
-    obtain ⟨hyb, hym, hL, hye, hys, hyc, hyz, hysafe, hyv, hyframe⟩ := hIy
+    rintro j q y ⟨hIy, hL⟩
+    have ⟨hyb, hym, hye, hys, hyc, hyz, hysafe, hyv, _⟩ := hIy
     refine ⟨by simp [Cond.Holds, hyz, hyc], ?_⟩
     have hvparts := (validHistory_bind w (body (d₀, q.1)) (iterate body d₀ j) q.2).mp hyv
-    have hinbody : y.regs ∘ bs = (appendWords input output) (d₀, q.1) := by
-      funext i
-      refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-      · simpa [bs, appendWords, Fin.appendEquiv] using hye i
-      · simpa [bs, appendWords, Fin.appendEquiv] using hys i
-    obtain ⟨u, hu, hum, huo, huf⟩ := hrun w (d₀, q.1) y hyb hinbody
+    obtain ⟨u, hu, hum, huo, huf⟩ := hrun w (d₀, q.1) y hyb
+      (regs_comp_append_eq_appendWords input output hye hys)
       (hym ▸ hysafe.1) (hym ▸ hvparts.1)
     rw [hym] at hu hum huo
-    rw [clientState_width] at hum
-    simp only [clientResult_width] at huo
-    have hstep_eq :
-        ((Memory.spec 0).clientState q.2 (iterate body d₀ (j + 1) q.1)) =
-        ((Memory.spec 0).clientState ((Memory.spec 0).clientState q.2 (body (d₀, q.1)))
-          (iterate body d₀ j ((Memory.spec 0).clientResult q.2 (body (d₀, q.1))))) := by
-      simp only [iterate, StateTransitionSpec.clientState, StateTransitionSpec.clientResult,
-        ← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind]
     have hL' : ((Memory.spec 0).clientState (iterationStep body d₀ q).2
         (iterate body d₀ j (iterationStep body d₀ q).1)).frontier ≤ L_end := by
-      dsimp only [iterationStep]
-      rw [← hstep_eq]
-      exact hL
-    have hu_le : u.regs frontier ≤ L_end := by
-      have hum_fr := congrArg Memory.State.frontier hum
-      change u.regs frontier = ((Memory.spec 0).clientState q.2 (body (d₀, q.1))).frontier at hum_fr
-      rw [hum_fr]
-      exact (Memory.frontier_le_clientState (w := 0)
-        ((Memory.spec 0).clientState q.2 (body (d₀, q.1)))
-        (iterate body d₀ j ((Memory.spec 0).clientResult q.2 (body (d₀, q.1))))).trans hL'
-    obtain ⟨v, hv', hvm, hvs, hvf⟩ := copyBank_execBounded
-      (fun i : Fin l => bt (Fin.castAdd (n + 1) i)) st zero hst houtdis w L_end u
-    have hvctr : v.regs ctr = j + 1 := by
-      rw [hvf _ (hregst _ (by simp [counterSlot])),
-        huf _ (hf _) (hregbt _ (by simp [counterSlot]))]
-      exact hyc
-    have hvzero : v.regs zero = 0 := by
-      rw [hvf _ (hregst _ (by simp [zeroSlot])),
-        huf _ (hf _) (hregbt _ (by simp [zeroSlot]))]
-      exact hyz
-    have h1 : Fits w 1 := (hyb.1 ctr).of_le (by omega)
-    let t := v.set one 1
-    let y' := t.set ctr j
-    have ht : ExecBounded (B := .exact) w L_end (.op (.const one 1)) v t 1 :=
-      ExecBounded.const h1
-    have htc : t.regs ctr = j + 1 := by
-      rw [show t.regs ctr = v.regs ctr from Function.update_of_ne hco _ _]
-      exact hvctr
-    have htone : t.regs one = 1 := by simp [t, Data.set]
-    have hjfit : Fits w j := (hyb.1 ctr).of_le (by omega)
-    have hdec : ExecBounded w L_end (.op (.exactBin .sub ctr ctr one)) t y' 1 := by
-      refine ExecBounded.op trivial ?_
-      rw [Op.eval_exactBin, htc, htone]
-      simp only [BinOp.evalExact, Nat.le_add_left, ↓reduceIte, Nat.add_sub_cancel,
-        Option.bind_some]
-      exact Data.put_of_fits hjfit
-    refine ⟨y', ((hu.mono_bound hu_le).seq (hv'.seq (ht.seq hdec))).mono (by omega), ?_⟩
-    refine ⟨((hu.mono_bound hu_le).seq (hv'.seq (ht.seq hdec))).bounded hyb, ?_, hL',
-      ?_, ?_, ?_, ?_, hysafe.2, ?_, ?_⟩
-    · apply Memory.State.ext
-      · exact hvm.trans (congrArg Memory.State.mem hum)
-      · change (t.set ctr j).regs frontier = _
-        rw [show (t.set ctr j).regs frontier = t.regs frontier from
-          Function.update_of_ne (hf (counterSlot l n)).symm _ _,
-          show t.regs frontier = v.regs frontier from
-            Function.update_of_ne (hf (oneSlot l n)).symm _ _,
-          hvf frontier (fun i => hf _)]
-        exact congrArg Memory.State.frontier hum
-    · intro i
-      simp only [y', t, Data.set]
-      rw [Function.update_of_ne (hd _ _), Function.update_of_ne (hd _ _),
-        hvf _ (fun _ => (hd _ _).symm), huf _ (hs _) (fun _ => (hd _ _).symm)]
-      exact hye i
-    · intro i
-      simp only [y', t, Data.set]
-      rw [Function.update_of_ne (hregst _ (by simp [counterSlot]) i),
-        Function.update_of_ne (hregst _ (by simp [oneSlot]) i), hvs, huo]
-      rfl
-    · simp [y', Data.set]
-    · simp [y', t, Data.set, hct.symm, hzo, hvzero]
-    · have hrest := hvparts.2
-      rw [clientState_width w, clientResult_width w] at hrest
-      exact hrest
-    · intro i hif htmp
-      simp only [y', t, Data.set]
-      rw [Function.update_of_ne (htmp _).symm, Function.update_of_ne (htmp _).symm,
-        hvf _ (fun _ => htmp _), huf _ hif (fun _ => htmp _)]
-      exact hyframe i hif htmp
-  obtain ⟨y, hy, hIy⟩ := ExecBounded.loop_invariant_state_additive I (iterationStep body d₀)
+      simpa only [iterationStep, iterate, StateTransitionSpec.clientState,
+        StateTransitionSpec.clientResult, ← PFunctor.FreeM.bind_eq_bind,
+        StateTransitionSpec.runClient_bind] using hL
+    have hu_le : u.regs frontier ≤ L_end :=
+      (congrArg Memory.State.frontier (hum.trans (clientState_width w _ _))).trans_le
+        ((Memory.frontier_le_clientState (w := 0) _ _).trans hL')
+    obtain ⟨y', ht, hIy'⟩ := loopBody_tail_inv hi hd hf hs hIy (hu.bounded hyb) hum huo huf
+    have htb := lift_regOnly (L := L_end) ht ⟨copyBank_isRegOnlyCode _ _ _, trivial, trivial⟩
+    exact ⟨y', ((hu.mono_bound hu_le).seq htb).mono (by omega), hIy', hL'⟩
+  obtain ⟨y, hy, hIy, _⟩ := ExecBounded.loop_invariant_state_additive I (iterationStep body d₀)
     (fun q => memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2)
-    (fun q y hI => by simp [Cond.Holds, hI.2.2.2.2.2.1, hI.2.2.2.2.2.2.1]) hbody hIz
-  have hsum := iterationSum_eq body work d₀ fuel a₀ s₀
-  have hsumC := congrArg (C * ·) hsum
-  have hfinal := iterate_result_state body d₀ fuel a₀ s₀
-  rw [← hfinal] at hIy
-  obtain ⟨_, hym, _, _, hys, _, _, _, _, hyf⟩ := hIy
-  have hy_fr : y.regs frontier = L_end := congrArg Memory.State.frontier hym
-  have hwhole := ha.seq (hc.seq (hz.seq hy))
+    (fun _ _ hI => by simp [Cond.Holds, hI.1.2.2.2.2.1, hI.1.2.2.2.2.2.1]) hbody hIz
+  obtain ⟨hym, hys, hyf⟩ := hIy.finish
+  have hy_fr : y.regs frontier = L_end :=
+    congrArg Memory.State.frontier (hym.trans (clientState_width w _ _))
+  have hwhole := (lift_regOnly h₁ (copyBank_isRegOnlyCode _ _ _)).seq
+    ((lift_regOnly h₂ trivial).seq ((lift_regOnly h₃ trivial).seq hy))
   rw [← hy_fr] at hwhole
-  have hcount : fuel ≤ memoryCost (iterate body d₀ fuel a₀) s₀ +
-      iterationWork body work d₀ fuel a₀ s₀ := by omega
-  have hscaled := Nat.mul_le_mul_left (l + 5) (Nat.add_le_add_right hcount 1)
-  refine ⟨y, hwhole.mono ?_, ?_, ?_, hyf⟩
-  · change _ ≤ (C + 2 * l + 8) *
-      (memoryCost (iterate body d₀ fuel a₀) s₀ + iterationWork body work d₀ fuel a₀ s₀ + 1)
-    nlinarith [hsumC, hscaled]
-  · change memoryState frontier y = (Memory.spec w).clientState s₀ (iterate body d₀ fuel a₀)
-    rw [clientState_width w]
-    exact hym
-  · intro i
-    change y.regs (st i) = output ((Memory.spec w).clientResult s₀ (iterate body d₀ fuel a₀)) i
-    rw [clientResult_width w]
-    exact hys i
+  have hsum := iterationSum_eq body work d₀ fuel a₀ s₀
+  have hscaled := Nat.mul_le_mul_left (l + 5)
+    (by omega : fuel + 1 ≤ memoryCost (iterate body d₀ fuel a₀) s₀ +
+      iterationWork body work d₀ fuel a₀ s₀ + 1)
+  refine ⟨y, hwhole.mono ?_, hym, hys, hyf⟩
+  change _ ≤ (C + 2 * l + 8) *
+    (memoryCost (iterate body d₀ fuel a₀) s₀ + iterationWork body work d₀ fuel a₀ s₀ + 1)
+  nlinarith [congrArg (C * ·) hsum, hscaled]
 
 end RealizesBounded
 end Cslib.WordRAM.Realization

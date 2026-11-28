@@ -8,8 +8,10 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/Probability/Combinatorics/BinomialRandomGraph/`)
 
 public import CslibFrontier.Foundations.MeasureTheory.Constructions.SimpleGraph
+public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.Basic
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
 public import Mathlib.Probability.Combinatorics.BinomialRandomGraph.Defs
+import CslibFrontier.Foundations.Data.Nat.Choose.Real
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.Connected
 import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.EdgePattern
@@ -46,9 +48,10 @@ vertices. The asymptotic forms are `SimpleGraph.tendsto_binomialRandom_real_not_
 
 The source proof bounds the number of components of each order through their spanning trees;
 the cut-based union bound used here is a standard simplification, and the constants `1 / 64` and
-`35` are ours. The lower half of the threshold (`n p - log n → -∞` implies disconnected w.h.p.,
-through the second moment of the number of isolated vertices) and the limit `e ^ (-e ^ (-c))` at
-`p = (log n + c) / n` are not formalized here.
+`35` are ours. The lower half (`n p - log n → -∞`) is in
+`CslibFrontier/Foundations/Probability/Combinatorics/BinomialRandomGraph/IsolatedVertices.lean`,
+and the threshold limit `e ^ (-e ^ (-c))` at `p = (log n + c) / n` is in the sibling module
+`BinomialRandomGraph.ConnectivityThreshold`.
 
 Measurability comes from `CslibFrontier/Foundations/MeasureTheory/Constructions/SimpleGraph.lean`:
 for finite `V` the measurable space on `SimpleGraph V` is discrete, so every event about a random
@@ -56,8 +59,6 @@ graph on finitely many vertices is measurable.
 
 ## Main results
 
-* `SimpleGraph.binomialRandom_real_disjoint_edgeSet`: a fixed set of non-diagonal edges is absent
-  with probability `(1 - p) ^ |t|`.
 * `SimpleGraph.binomialRandom_real_forall_not_adj`: a fixed vertex cut is empty with probability
   `(1 - p) ^ (|S| (|V| - |S|))`.
 * `SimpleGraph.binomialRandom_real_not_connected_le_sum`: the union bound over cuts.
@@ -81,56 +82,32 @@ namespace SimpleGraph
 
 variable {V : Type*}
 
-/-- `G(V, p)` has no edge in a fixed finite set `t` of non-diagonal edges with probability
-`(1 - p) ^ |t|`: the constant pattern `false` in `SimpleGraph.binomialRandom_edgePattern`. -/
-theorem binomialRandom_disjoint_edgeSet [Countable V] (p : I) (t : Finset (Sym2 V))
-    (ht : ∀ e ∈ t, ¬e.IsDiag) :
-    G(V, p) {G | Disjoint (t : Set (Sym2 V)) G.edgeSet} = toNNReal (σ p) ^ #t := by
-  have h := binomialRandom_edgePattern p t ht fun _ => false
-  simp only [Bool.false_eq_true, iff_false, ↓reduceIte, Finset.prod_const] at h
-  rw [← h]
-  congr 1
-  ext G
-  simp [Set.disjoint_left]
-
-/-- `G(V, p)` has no edge in a fixed finite set `t` of non-diagonal edges with probability
-`(1 - p) ^ |t|`. -/
-theorem binomialRandom_real_disjoint_edgeSet [Countable V] (p : I) (t : Finset (Sym2 V))
-    (ht : ∀ e ∈ t, ¬e.IsDiag) :
-    G(V, p).real {G | Disjoint (t : Set (Sym2 V)) G.edgeSet} = (1 - p : ℝ) ^ #t := by
-  rw [measureReal_def, binomialRandom_disjoint_edgeSet p t ht]
-  simp
-
 /-- `G(V, p)` has no edge between a vertex set `S` and its complement with probability
 `(1 - p) ^ (|S| (|V| - |S|))`. -/
 theorem binomialRandom_real_forall_not_adj [Fintype V] (p : I) (S : Finset V) :
     G(V, p).real {G | ∀ u ∈ S, ∀ v ∉ S, ¬G.Adj u v} =
       (1 - p : ℝ) ^ (#S * (Fintype.card V - #S)) := by
   classical
-  set t : Finset (Sym2 V) := (S ×ˢ Sᶜ).image fun x => s(x.1, x.2) with ht
-  have hinj : Set.InjOn (fun x : V × V => s(x.1, x.2)) (S ×ˢ Sᶜ : Finset (V × V)) := by
-    rintro ⟨u, v⟩ huv ⟨u', v'⟩ huv' h
-    simp only at h
-    simp only [coe_product, coe_compl, Set.mem_prod, mem_coe, Set.mem_compl_iff] at huv huv'
-    rcases Sym2.eq_iff.1 h with ⟨h1, h2⟩ | ⟨h1, h2⟩
-    · simp [h1, h2]
-    · exact absurd (h1 ▸ huv.1) huv'.2
-  have hcard : #t = #S * (Fintype.card V - #S) := by
-    rw [ht, card_image_of_injOn hinj, card_product, card_compl]
-  have hdiag : ∀ e ∈ t, ¬e.IsDiag := by
-    simp only [ht, mem_image, mem_product, mem_compl]
-    rintro _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩ huv
-    exact hv (Sym2.mk_isDiag_iff.1 huv ▸ hu)
+  let t : Finset (Sym2 V) := (S ×ˢ Sᶜ).image Sym2.mk.uncurry
   have hset : {G : SimpleGraph V | ∀ u ∈ S, ∀ v ∉ S, ¬G.Adj u v} =
       {G | Disjoint (t : Set (Sym2 V)) G.edgeSet} := by
     ext G
-    simp only [Set.mem_ofPred_eq, Set.disjoint_left, ht, coe_image, coe_product, coe_compl,
-      Set.mem_image, Set.mem_prod, mem_coe, Set.mem_compl_iff]
-    constructor
-    · rintro h _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩ huv
-      exact h u hu v hv huv
-    · intro h u hu v hv huv
-      exact h ⟨(u, v), ⟨hu, hv⟩, rfl⟩ huv
+    simp only [Set.mem_ofPred_eq, Set.disjoint_left, Finset.mem_coe, t, Finset.mem_image,
+      Finset.mem_product, Finset.mem_compl]
+    exact ⟨by rintro h _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩; exact h u hu v hv,
+      fun h u hu v hv => h ⟨(u, v), ⟨hu, hv⟩, rfl⟩⟩
+  have hdiag : ∀ e ∈ t, ¬e.IsDiag := by
+    simp only [t, Finset.mem_image, Finset.mem_product, Finset.mem_compl]
+    rintro _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩ huv
+    exact hv (Sym2.mk_isDiag_iff.1 huv ▸ hu)
+  have hcard : #t = #S * (Fintype.card V - #S) := by
+    have hinj : Set.InjOn Sym2.mk.uncurry (↑(S ×ˢ Sᶜ) : Set (V × V)) := by
+      rintro ⟨u, v⟩ huv ⟨u', v'⟩ huv' h
+      simp only [Finset.mem_coe, Finset.mem_product, Finset.mem_compl] at huv huv'
+      have heq : s(u, v) = s(u', v') := h
+      rcases Sym2.eq_iff.1 heq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+      exacts [rfl, absurd huv.1 huv'.2]
+    rw [Finset.card_image_of_injOn hinj, Finset.card_product, Finset.card_compl]
   rw [hset, binomialRandom_real_disjoint_edgeSet p t hdiag, hcard]
 
 /-- **Union bound over cuts**: `G(V, p)` on `n ≥ 1` vertices is disconnected with probability at
@@ -171,24 +148,16 @@ private theorem choose_mul_pow_le {n k : ℕ} (hkn : k ≤ n) (p : I) :
     have := one_sub_pow_le_exp p (n - k)
     rwa [Nat.cast_sub hkn] at this
   have hp0 : (0 : ℝ) ≤ 1 - p := by linarith [unitInterval.le_one p]
-  have hfact : (k : ℝ) ^ k / k.factorial ≤ Real.exp 1 ^ k := by
-    rw [← Real.exp_nat_mul, mul_one]
-    exact Real.pow_div_factorial_le_exp (x := (k : ℝ)) (hx := by positivity) (n := k)
-  rcases Nat.eq_zero_or_pos k with rfl | hk
-  · simp
-  have hk0 : (0 : ℝ) < k := by exact_mod_cast hk
   calc (n.choose k : ℝ) * (1 - p : ℝ) ^ (k * (n - k))
-      ≤ ((n : ℝ) ^ k / k.factorial) * ((1 - p : ℝ) ^ (n - k)) ^ k := by
+      ≤ ((n : ℝ) * Real.exp 1 / k) ^ k * ((1 - p : ℝ) ^ (n - k)) ^ k := by
         rw [← pow_mul, mul_comm (n - k) k]
-        exact mul_le_mul_of_nonneg_right (Nat.choose_le_pow_div k n) (by positivity)
-    _ ≤ ((n : ℝ) ^ k / k.factorial) * Real.exp (-(p * ((n : ℝ) - k))) ^ k := by
+        exact mul_le_mul_of_nonneg_right
+          (by simpa only [mul_comm (n : ℝ)] using Nat.choose_le_exp_mul_div_pow n k)
+          (by positivity)
+    _ ≤ ((n : ℝ) * Real.exp 1 / k) ^ k * Real.exp (-(p * ((n : ℝ) - k))) ^ k := by
         gcongr
-    _ = (n : ℝ) ^ k * ((k : ℝ) ^ k / k.factorial) * Real.exp (-(p * ((n : ℝ) - k))) ^ k /
-          (k : ℝ) ^ k := by
-        field_simp
-    _ ≤ (n : ℝ) ^ k * Real.exp 1 ^ k * Real.exp (-(p * ((n : ℝ) - k))) ^ k / (k : ℝ) ^ k := by
-        gcongr
-    _ = _ := by rw [div_pow, mul_pow, mul_pow]
+    _ = ((n : ℝ) * Real.exp 1 * Real.exp (-(p * ((n : ℝ) - k))) / k) ^ k := by
+        rw [← mul_pow, div_mul_eq_mul_div]
 
 /-- The numerical inequality behind the explicit bound: for `1 ≤ K`, `2 K ≤ N` and
 `log N ≤ N p`, `N e ^ 2 exp (-(p (N - 2 K))) ≤ 16 K ^ 2`. -/
@@ -268,18 +237,13 @@ theorem binomialRandom_real_not_connected_le {n : ℕ} (hn : 0 < n) (p : I)
       rw [← Real.exp_nat_mul, ← Real.exp_add]; congr 1; push_cast; ring
     change ((n : ℝ) * Real.exp 1 * Real.exp (-(p * ((n : ℝ) - k))) / k) ^ 2 ≤ 16 * y
     rw [div_pow, div_le_iff₀ (by positivity)]
-    calc ((n : ℝ) * Real.exp 1 * Real.exp (-(p * ((n : ℝ) - k)))) ^ 2
-        = y * (n * Real.exp 2 * Real.exp (-(p * (n - 2 * k)))) := by
+    calc _ = y * (n * Real.exp 2 * Real.exp (-(p * (n - 2 * k)))) := by
           rw [mul_pow, mul_pow, e1, e2, hydef]; ring
-      _ ≤ y * (16 * k ^ 2) := mul_le_mul_of_nonneg_left key hy0
-      _ = 16 * y * k ^ 2 := by ring
+      _ ≤ 16 * y * k ^ 2 := by linarith [mul_le_mul_of_nonneg_left key hy0]
   rcases Nat.eq_zero_or_pos m with hm0 | hm0
   · rw [hm0, Icc_eq_empty (by norm_num), sum_empty]; positivity
   have h1mem : 1 ∈ Icc 1 m := mem_Icc.2 ⟨le_rfl, hm0⟩
-  have hrest : (Icc 1 m).erase 1 = Icc 2 m := by
-    ext k
-    simp only [mem_erase, mem_Icc]
-    omega
+  have hrest : (Icc 1 m).erase 1 = Icc 2 m := by ext k; simp only [mem_erase, mem_Icc]; omega
   rw [← add_sum_erase _ _ h1mem, hrest]
   -- the term `k = 1`
   have hone : (n.choose 1 : ℝ) * (1 - p : ℝ) ^ (1 * (n - 1)) ≤ Real.exp 1 * y := by
@@ -287,8 +251,7 @@ theorem binomialRandom_real_not_connected_le {n : ℕ} (hn : 0 < n) (p : I)
     have h := one_sub_pow_le_exp p (n - 1)
     rw [Nat.cast_sub (by omega : 1 ≤ n), Nat.cast_one] at h
     have hp1 : (p : ℝ) ≤ 1 := unitInterval.le_one p
-    calc (n : ℝ) * (1 - p : ℝ) ^ (n - 1) ≤ n * Real.exp (-(p * ((n : ℝ) - 1))) :=
-          mul_le_mul_of_nonneg_left h hn0.le
+    calc (n : ℝ) * (1 - p : ℝ) ^ (n - 1) ≤ n * Real.exp (-(p * ((n : ℝ) - 1))) := by gcongr
       _ = Real.exp p * y := by
           rw [hydef, ← mul_assoc, mul_comm (Real.exp _) (n : ℝ), mul_assoc, ← Real.exp_add]
           congr 2; ring

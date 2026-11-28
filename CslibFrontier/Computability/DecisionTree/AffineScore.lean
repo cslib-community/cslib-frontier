@@ -79,26 +79,19 @@ theorem length_paths (t : DecisionTree ι β) : t.paths.length = t.leafCount := 
 /-- The path followed by any input belongs to `t.paths`. -/
 theorem path_mem_paths (t : DecisionTree ι β) (x : ι → Bool) : t.path x ∈ t.paths := by
   induction t with
-  | leaf _ => simp [path, paths]
-  | node i left right ihl ihr =>
-    rw [path, paths, List.mem_append, List.mem_map, List.mem_map]
-    cases hx : x i
-    · left
-      exact ⟨left.path x, ihl, by simp⟩
-    · right
-      exact ⟨right.path x, ihr, by simp⟩
+  | leaf => simp [path, paths]
+  | node i _ _ ihl ihr => cases hx : x i <;> simp [path, paths, hx, ihl, ihr]
 
 /-- The structural paths of a decision tree are pairwise distinct. -/
 theorem nodup_paths (t : DecisionTree ι β) : t.paths.Nodup := by
   induction t with
-  | leaf _ => simp [paths]
-  | node _ left right ihl ihr =>
+  | leaf => simp [paths]
+  | node _ _ _ ihl ihr =>
     rw [paths, List.nodup_append]
     refine ⟨ihl.map List.cons_injective, ihr.map List.cons_injective, ?_⟩
-    rintro p hp₁ _ hp₂ rfl
-    obtain ⟨p₁, _, rfl⟩ := List.mem_map.mp hp₁
-    obtain ⟨p₂, _, h⟩ := List.mem_map.mp hp₂
-    exact Bool.noConfusion (List.cons.inj h).1
+    rintro _ hp₁ _ hp₂ rfl
+    obtain ⟨_, _, rfl⟩ := List.mem_map.mp hp₁
+    simp at hp₂
 
 /-- Relabelling queries preserves the structural path list. -/
 @[simp]
@@ -119,43 +112,30 @@ def leafScore (B : ℝ) : ℕ → (ι → ℝ) → DecisionTree ι β → List B
   | d, q, .node _ left _, false :: p => leafScore B (d - 1) q left p
   | d, q, .node i _ right, true :: p => B ^ (d - 1) * q i + leafScore B (d - 1) q right p
 
+/-- `leafScore` is linear in the query margins. -/
+private theorem leafScore_linear (B a b : ℝ) (d : ℕ) (q₁ q₂ : ι → ℝ) (t : DecisionTree ι β)
+    (p : List Bool) :
+    leafScore B d (a • q₁ + b • q₂) t p = a * leafScore B d q₁ t p + b * leafScore B d q₂ t p := by
+  induction t generalizing d p with
+  | leaf => simp [leafScore]
+  | node _ _ _ ihl ihr =>
+    rcases p with _ | ⟨_ | _, p⟩
+    · simp [leafScore]
+    · exact ihl (d - 1) p
+    · simp only [leafScore, Pi.add_apply, Pi.smul_apply, smul_eq_mul, ihr (d - 1) p]; ring
+
 @[simp]
 theorem leafScore_zero (B : ℝ) (d : ℕ) (t : DecisionTree ι β) (p : List Bool) :
     leafScore B d 0 t p = 0 := by
-  induction t generalizing d p with
-  | leaf _ => rfl
-  | node _ left right ihl ihr =>
-    cases p with
-    | nil => rfl
-    | cons b p => cases b <;> simp [leafScore, ihl, ihr]
+  simpa using leafScore_linear B 0 0 d 0 0 t p
 
 theorem leafScore_add (B : ℝ) (d : ℕ) (q₁ q₂ : ι → ℝ) (t : DecisionTree ι β) (p : List Bool) :
     leafScore B d (q₁ + q₂) t p = leafScore B d q₁ t p + leafScore B d q₂ t p := by
-  induction t generalizing d p with
-  | leaf _ => simp [leafScore]
-  | node i left right ihl ihr =>
-    cases p with
-    | nil => simp [leafScore]
-    | cons b p =>
-      cases b with
-      | false => exact ihl (d - 1) p
-      | true =>
-        simp only [leafScore, Pi.add_apply, ihr (d - 1) p]
-        ring
+  simpa using leafScore_linear B 1 1 d q₁ q₂ t p
 
 theorem leafScore_smul (B c : ℝ) (d : ℕ) (q : ι → ℝ) (t : DecisionTree ι β) (p : List Bool) :
     leafScore B d (c • q) t p = c * leafScore B d q t p := by
-  induction t generalizing d p with
-  | leaf _ => simp [leafScore]
-  | node i left right ihl ihr =>
-    cases p with
-    | nil => simp [leafScore]
-    | cons b p =>
-      cases b with
-      | false => exact ihl (d - 1) p
-      | true =>
-        simp only [leafScore, Pi.smul_apply, smul_eq_mul, ihr (d - 1) p]
-        ring
+  simpa using leafScore_linear B c 0 d q q t p
 
 theorem leafScore_mapQueries {κ : Type*} (f : ι → κ) (B : ℝ) (d : ℕ) (q : κ → ℝ)
     (t : DecisionTree ι β) (p : List Bool) :
@@ -173,38 +153,26 @@ theorem two_mul_abs_leafScore_le {M : ℝ} {d : ℕ} {q : ι → ℝ} (t : Decis
     (p : List Bool) (ht : t.depth ≤ d) (hM : 0 ≤ M) (hq : ∀ i, |q i| ≤ M) :
     2 * |leafScore (2 * M + 1) d q t p| ≤ (2 * M + 1) ^ d - 1 := by
   induction t generalizing d p with
-  | leaf _ =>
-    have hpow : (1 : ℝ) ≤ (2 * M + 1) ^ d := one_le_pow₀ (by linarith)
+  | leaf =>
     simp only [leafScore, abs_zero, mul_zero]
-    linarith
+    linarith [one_le_pow₀ (by linarith : (1 : ℝ) ≤ 2 * M + 1) (n := d)]
   | node i left right ihl ihr =>
-    have hd : 1 ≤ d := by rw [depth_node] at ht; omega
-    have hleft : left.depth ≤ d - 1 := by rw [depth_node] at ht; omega
-    have hright : right.depth ≤ d - 1 := by rw [depth_node] at ht; omega
+    rw [depth_node] at ht
     have hpow_pos : (0 : ℝ) ≤ (2 * M + 1) ^ (d - 1) := pow_nonneg (by linarith) _
     have hpow_eq : (2 * M + 1) ^ d = (2 * M + 1) ^ (d - 1) * (2 * M + 1) := by
-      conv_lhs => rw [← Nat.sub_add_cancel hd, pow_succ]
-    cases p with
-    | nil =>
-      have hpow : (1 : ℝ) ≤ (2 * M + 1) ^ d := one_le_pow₀ (by linarith)
-      simp only [leafScore, abs_zero, mul_zero]
-      linarith
-    | cons b p =>
-      cases b with
-      | false =>
-        have hrec := ihl p hleft
-        have hmul : 0 ≤ (2 * M + 1) ^ (d - 1) * (2 * M) := mul_nonneg hpow_pos (by linarith)
-        simp only [leafScore]
-        linarith
-      | true =>
-        have hrec := ihr p hright
-        have hterm : |(2 * M + 1) ^ (d - 1) * q i| ≤ (2 * M + 1) ^ (d - 1) * M := by
-          rw [abs_mul, abs_of_nonneg hpow_pos]
-          exact mul_le_mul_of_nonneg_left (hq i) hpow_pos
-        have htri := abs_add_le ((2 * M + 1) ^ (d - 1) * q i)
-          (leafScore (2 * M + 1) (d - 1) q right p)
-        simp only [leafScore]
-        linarith
+      conv_lhs => rw [← Nat.sub_add_cancel (show 1 ≤ d by omega), pow_succ]
+    rcases p with _ | ⟨_ | _, p⟩
+    · simp only [leafScore, abs_zero, mul_zero]
+      linarith [one_le_pow₀ (by linarith : (1 : ℝ) ≤ 2 * M + 1) (n := d)]
+    · simp only [leafScore]
+      linarith [ihl (d := d - 1) p (by omega),
+        mul_nonneg hpow_pos (by linarith : (0 : ℝ) ≤ 2 * M)]
+    · have hterm : |(2 * M + 1) ^ (d - 1) * q i| ≤ (2 * M + 1) ^ (d - 1) * M := by
+        rw [abs_mul, abs_of_nonneg hpow_pos]
+        exact mul_le_mul_of_nonneg_left (hq i) hpow_pos
+      simp only [leafScore]
+      linarith [ihr (d := d - 1) p (by omega),
+        abs_add_le ((2 * M + 1) ^ (d - 1) * q i) (leafScore (2 * M + 1) (d - 1) q right p)]
 
 /-- When two subtrees `t₀` and `t₁` have depth at most `d - 1` and all query margins have magnitude
 at most `M` (`1 ≤ M`), a root shift of at least `(2 * M + 1) ^ (d - 1)` dominates the difference of
@@ -214,13 +182,11 @@ private theorem leafScore_add_one_le_add_of_le {M δ : ℝ} {d : ℕ} {q : ι �
     (ht₁ : t₁.depth ≤ d - 1) (hM : 1 ≤ M) (hq : ∀ i, |q i| ≤ M) (hδ : 1 ≤ δ) :
     leafScore (2 * M + 1) (d - 1) q t₀ p₀ + 1 ≤
       (2 * M + 1) ^ (d - 1) * δ + leafScore (2 * M + 1) (d - 1) q t₁ p₁ := by
-  have hp₀ := two_mul_abs_leafScore_le t₀ p₀ ht₀ (by linarith) hq
-  have hp₁ := two_mul_abs_leafScore_le t₁ p₁ ht₁ (by linarith) hq
-  have hle_abs := le_abs_self (leafScore (2 * M + 1) (d - 1) q t₀ p₀)
-  have hneg_abs := neg_le_abs (leafScore (2 * M + 1) (d - 1) q t₁ p₁)
-  have hpow : (2 * M + 1) ^ (d - 1) * 1 ≤ (2 * M + 1) ^ (d - 1) * δ :=
-    mul_le_mul_of_nonneg_left hδ (pow_nonneg (by linarith) _)
-  linarith
+  linarith [two_mul_abs_leafScore_le t₀ p₀ ht₀ (by linarith) hq,
+    two_mul_abs_leafScore_le t₁ p₁ ht₁ (by linarith) hq,
+    le_abs_self (leafScore (2 * M + 1) (d - 1) q t₀ p₀),
+    neg_le_abs (leafScore (2 * M + 1) (d - 1) q t₁ p₁),
+    mul_le_mul_of_nonneg_left hδ (pow_nonneg (by linarith : (0 : ℝ) ≤ 2 * M + 1) (d - 1))]
 
 /-- **Affine leaf scores** (Theorem 2.9): if `t` has depth at most `d`, every query margin `q i`
 has magnitude at most `M` (`1 ≤ M`), and `x : ι → Bool` agrees with the sign of `q` with margin at
@@ -233,33 +199,23 @@ theorem leafScore_add_one_le_leafScore_path {M : ℝ} {d : ℕ} {q : ι → ℝ}
     (hfalse : ∀ i, x i = false → q i ≤ -1) (hp : p ∈ t.paths) (hne : p ≠ t.path x) :
     leafScore (2 * M + 1) d q t p + 1 ≤ leafScore (2 * M + 1) d q t (t.path x) := by
   induction t generalizing d p with
-  | leaf _ =>
+  | leaf =>
     rw [paths_leaf, List.mem_singleton] at hp
     exact (hne (hp.trans rfl)).elim
   | node i left right ihl ihr =>
     have hleft : left.depth ≤ d - 1 := by grind [depth_node]
     have hright : right.depth ≤ d - 1 := by grind [depth_node]
-    rw [paths_node, List.mem_append, List.mem_map, List.mem_map] at hp
-    rcases hp with ⟨p', hp', rfl⟩ | ⟨p', hp', rfl⟩
-    · cases hx : x i with
-      | false =>
-        have hp'ne : p' ≠ left.path x := fun h => hne (by simp [path, hx, h])
-        simpa [path, hx, leafScore] using ihl hleft hp' hp'ne
-      | true =>
-        simpa only [path, hx, Bool.cond_true, leafScore] using
-          leafScore_add_one_le_add_of_le left right p' (right.path x) hleft hright hM hq
-            (htrue i hx)
-    · cases hx : x i with
-      | false =>
-        have hcross := leafScore_add_one_le_add_of_le right left p' (left.path x) hright hleft hM
-          hq (show 1 ≤ -q i by linarith [hfalse i hx])
-        simp only [path, hx, Bool.cond_false, leafScore]
-        linarith
-      | true =>
-        have hp'ne : p' ≠ right.path x := fun h => hne (by simp [path, hx, h])
-        have hrec := ihr hright hp' hp'ne
-        simp only [path, hx, Bool.cond_true, leafScore]
-        linarith
+    rcases (by simpa [paths_node] using hp :
+        (∃ p' ∈ left.paths, false :: p' = p) ∨ ∃ p' ∈ right.paths, true :: p' = p) with
+      ⟨p', hp', rfl⟩ | ⟨p', hp', rfl⟩ <;> cases hx : x i
+    · simpa [path, hx, leafScore] using ihl hleft hp' fun h => hne (by simp [path, hx, h])
+    · simpa only [path, hx, Bool.cond_true, leafScore] using
+        leafScore_add_one_le_add_of_le left right p' (right.path x) hleft hright hM hq (htrue i hx)
+    · simp only [path, hx, Bool.cond_false, leafScore]
+      linarith [leafScore_add_one_le_add_of_le right left p' (left.path x) hright hleft hM hq
+        (show 1 ≤ -q i by linarith [hfalse i hx])]
+    · simp only [path, hx, Bool.cond_true, leafScore]
+      linarith [ihr hright hp' fun h => hne (by simp [path, hx, h])]
 
 /-- Specialization of `leafScore_add_one_le_leafScore_path` to the threshold query oracle
 `fun i => decide (0 ≤ q i)` when every query margin has magnitude between `1` and `M`. -/
@@ -268,16 +224,10 @@ theorem leafScore_add_one_le_leafScore_path_decide {M : ℝ} {d : ℕ} {q : ι �
     (hq_min : ∀ i, 1 ≤ |q i|) (hq_max : ∀ i, |q i| ≤ M) (hp : p ∈ t.paths)
     (hne : p ≠ t.path (fun i => decide (0 ≤ q i))) :
     leafScore (2 * M + 1) d q t p + 1 ≤
-      leafScore (2 * M + 1) d q t (t.path (fun i => decide (0 ≤ q i))) := by
-  refine leafScore_add_one_le_leafScore_path t ht hM hq_max ?_ ?_ hp hne
-  · intro i hi
-    have h0 : 0 ≤ q i := of_decide_eq_true hi
-    have habs := hq_min i
-    rwa [abs_of_nonneg h0] at habs
-  · intro i hi
-    have h0 : ¬ 0 ≤ q i := of_decide_eq_false hi
-    have habs := hq_min i
-    rw [abs_of_neg (lt_of_not_ge h0)] at habs
-    linarith
+      leafScore (2 * M + 1) d q t (t.path (fun i => decide (0 ≤ q i))) :=
+  leafScore_add_one_le_leafScore_path t ht hM hq_max
+    (fun i hi => by simpa [abs_of_nonneg (of_decide_eq_true hi)] using hq_min i)
+    (fun i hi => by linarith [abs_of_neg (not_le.mp (of_decide_eq_false hi)) ▸ hq_min i])
+    hp hne
 
 end Cslib.DecisionTree

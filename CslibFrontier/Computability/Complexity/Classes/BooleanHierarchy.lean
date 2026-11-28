@@ -74,12 +74,8 @@ theorem differenceHierarchy_subset {C D : Set (Set α)} (hC : C ⊆ D) (h0 : ∅
     (hD : ∀ A ∈ D, ∀ B ∈ D, A \ B ∈ D) (n : ℕ) :
     differenceHierarchy C n ⊆ D := by
   induction n with
-  | zero =>
-    rintro A (rfl : A = ∅)
-    exact h0
-  | succ n ih =>
-    rintro A ⟨B, hB, E, hE, rfl⟩
-    exact hD B (hC hB) E (ih hE)
+  | zero => exact Set.singleton_subset_iff.mpr h0
+  | succ n ih => exact fun _ ⟨B, hB, E, hE, hA⟩ => hA ▸ hD B (hC hB) E (ih hE)
 
 /-- Inverse images preserve every level whenever they preserve the base classes. -/
 theorem preimage_mem_differenceHierarchy {C : Set (Set α)} {D : Set (Set β)}
@@ -87,8 +83,7 @@ theorem preimage_mem_differenceHierarchy {C : Set (Set α)} {D : Set (Set β)}
     (hA : A ∈ differenceHierarchy D n) : f ⁻¹' A ∈ differenceHierarchy C n := by
   induction n generalizing A with
   | zero =>
-    have h : A = ∅ := hA
-    subst h
+    rw [Set.mem_singleton_iff.mp hA]
     exact Set.preimage_empty
   | succ n ih =>
     obtain ⟨B, hB, E, hE, rfl⟩ := hA
@@ -98,14 +93,8 @@ theorem preimage_mem_differenceHierarchy {C : Set (Set α)} {D : Set (Set β)}
 theorem differenceHierarchy_subset_succ {C : Set (Set α)} (hC : ∅ ∈ C) (n : ℕ) :
     differenceHierarchy C n ⊆ differenceHierarchy C (n + 1) := by
   induction n with
-  | zero =>
-    intro A hA
-    have h : A = ∅ := hA
-    subst h
-    exact ⟨∅, hC, ∅, rfl, by simp⟩
-  | succ n ih =>
-    rintro A ⟨B, hB, D, hD, rfl⟩
-    exact ⟨B, hB, D, ih hD, rfl⟩
+  | zero => exact Set.singleton_subset_iff.mpr ⟨∅, hC, ∅, rfl, by simp⟩
+  | succ n ih => exact fun _ ⟨B, hB, D, hD, hA⟩ => hA ▸ ⟨B, hB, D, ih hD, rfl⟩
 
 /-- If the universe belongs to the base class, complementation costs one level. -/
 theorem compl_mem_differenceHierarchy_succ {C : Set (Set α)} (hC : Set.univ ∈ C)
@@ -121,20 +110,20 @@ theorem inter_mem_differenceHierarchy_right {C : Set (Set α)}
     A ∩ B ∈ differenceHierarchy C n := by
   cases n with
   | zero =>
-    have h : A = ∅ := hA
-    subst h
+    rw [Set.mem_singleton_iff.mp hA]
     simp [differenceHierarchy]
   | succ n =>
     obtain ⟨E, hE, D, hD, rfl⟩ := hA
-    exact ⟨E ∩ B, hC E hE B hB, D, hD, by ext a; simp [and_right_comm]⟩
+    refine ⟨E ∩ B, hC E hE B hB, D, hD, ?_⟩
+    ext a
+    simp [and_right_comm]
 
 private theorem diff_and_union_mem_differenceHierarchy_right {C : Set (Set α)} (h0 : ∅ ∈ C)
     (hU : ∀ B₁ ∈ C, ∀ B₂ ∈ C, B₁ ∪ B₂ ∈ C) :
     ∀ {n : ℕ} {A B : Set α}, A ∈ differenceHierarchy C n → B ∈ C →
       A \ B ∈ differenceHierarchy C (n + 1) ∧ A ∪ B ∈ differenceHierarchy C (n + 1)
-  | 0, A, B, hA, hB => by
-    have h : A = ∅ := hA
-    subst h
+  | 0, _, B, hA, hB => by
+    rw [Set.mem_singleton_iff.mp hA]
     exact ⟨⟨∅, h0, ∅, rfl, by simp⟩, ⟨B, hB, ∅, rfl, by simp⟩⟩
   | n + 1, _, B, ⟨E, hE, D, hD, rfl⟩, hB => by
     obtain ⟨hdiff, hunion⟩ := diff_and_union_mem_differenceHierarchy_right h0 hU hD hB
@@ -169,10 +158,7 @@ theorem differenceHierarchy_succ_subset_of_compl {C : Set (Set α)}
     (hcompl : ∀ D ∈ differenceHierarchy C k, Dᶜ ∈ differenceHierarchy C k) :
     differenceHierarchy C (k + 1) ⊆ differenceHierarchy C k := by
   rintro A ⟨B, hB, D, hD, rfl⟩
-  have h : B \ D = Dᶜ ∩ B := by
-    ext a
-    simp [Set.mem_inter_iff, and_comm]
-  rw [h]
+  rw [Set.sdiff_eq, Set.inter_comm]
   exact inter_mem_differenceHierarchy_right hI (hcompl D hD) hB
 
 /-- Once a successor level is contained in the previous level, all higher levels coincide with
@@ -183,20 +169,11 @@ theorem differenceHierarchy_eq_of_succ_subset {C : Set (Set α)} (h0 : ∅ ∈ C
   induction m, hm using Nat.le_induction with
   | base => rfl
   | succ m _ ih =>
-    apply Set.Subset.antisymm
-    · rintro A ⟨B, hB, D, hD, rfl⟩
-      rw [ih] at hD
-      exact h ⟨B, hB, D, hD, rfl⟩
-    · rw [← ih]
-      exact differenceHierarchy_subset_succ h0 m
+    refine Set.Subset.antisymm ?_ (ih ▸ differenceHierarchy_subset_succ h0 m)
+    rintro A ⟨B, hB, D, hD, rfl⟩
+    exact h ⟨B, hB, D, ih ▸ hD, rfl⟩
 
 variable {α β : Type} {enc : α ↪ List Bool} {A : Set α}
-
-private theorem empty_mem_NP : (∅ : Set α) ∈ NP enc :=
-  P_subset_NP empty_mem_P
-
-private theorem univ_mem_NP : (Set.univ : Set α) ∈ NP enc :=
-  P_subset_NP univ_mem_P
 
 /-- The `n`th level of the Boolean hierarchy over NP, with level zero containing only `∅`
 [Cai et al.][CaiEtAl1988]. -/
@@ -229,7 +206,7 @@ theorem BooleanHierarchy_subset_iff {D : Set (Set α)}
   ⟨NP_subset_BooleanHierarchy.trans, fun h => BooleanHierarchy_subset h hD⟩
 
 @[simp]
-theorem mem_coBH_iff {n : ℕ} : A ∈ coBH enc n ↔ Aᶜ ∈ BH enc n := Iff.rfl
+theorem mem_coBH {n : ℕ} : A ∈ coBH enc n ↔ Aᶜ ∈ BH enc n := Iff.rfl
 
 theorem compl_mem_coBH_iff {n : ℕ} : Aᶜ ∈ coBH enc n ↔ A ∈ BH enc n := by
   simp [coBH]
@@ -263,12 +240,11 @@ theorem BH_two : BH enc 2 = DP enc := by
 /-- The second dual level is precisely coDP. -/
 theorem coBH_two : coBH enc 2 = coDP enc := by
   ext A
-  simp [coBH, coDP, BH_two]
+  rw [mem_coBH, mem_coDP, BH_two]
 
 /-- The levels of the Boolean hierarchy are increasing. -/
-theorem BH_mono : Monotone (BH enc) := by
-  apply monotone_nat_of_le_succ
-  exact differenceHierarchy_subset_succ empty_mem_NP
+theorem BH_mono : Monotone (BH enc) :=
+  monotone_nat_of_le_succ (differenceHierarchy_subset_succ empty_mem_NP)
 
 /-- The dual levels of the Boolean hierarchy are increasing. -/
 theorem coBH_mono : Monotone (coBH enc) :=
@@ -298,9 +274,9 @@ theorem iUnion_coBH_eq_BooleanHierarchy : (⋃ n, coBH enc n) = BooleanHierarchy
 
 /-- The union of the finite levels is closed under complement. -/
 theorem compl_mem_BooleanHierarchy (hA : A ∈ BooleanHierarchy enc) :
-    Aᶜ ∈ BooleanHierarchy enc := by
-  obtain ⟨n, hn⟩ := Set.mem_iUnion.mp hA
-  exact Set.mem_iUnion.mpr ⟨n + 1, compl_mem_BH_succ hn⟩
+    Aᶜ ∈ BooleanHierarchy enc :=
+  let ⟨n, hn⟩ := Set.mem_iUnion.mp hA
+  Set.mem_iUnion.mpr ⟨n + 1, compl_mem_BH_succ hn⟩
 
 /-- Intersecting a `BH enc n` language with an `NP` language stays in `BH enc n`. -/
 theorem inter_mem_BH_of_mem_NP {n : ℕ} {B : Set α}
@@ -321,9 +297,8 @@ theorem union_mem_BH_of_mem_NP {n : ℕ} {B : Set α}
 theorem PolyTimeReducible.mem_BH {encB : β ↪ List Bool} {B : Set β} {n : ℕ}
     (h : PolyTimeReducible enc encB A B) (hB : B ∈ BH encB n) : A ∈ BH enc n := by
   obtain ⟨f, hf, hAB⟩ := h
-  have h := preimage_mem_differenceHierarchy
-    (fun D hD => PolyTimeReducible.mem_NP ⟨f, hf, fun _ => Iff.rfl⟩ hD) hB
-  rwa [show f ⁻¹' B = A from Set.ext fun a => (hAB a).symm] at h
+  simpa only [BH, show f ⁻¹' B = A from Set.ext fun a => (hAB a).symm] using
+    preimage_mem_differenceHierarchy (fun _ => PolyTimeReducible.mem_NP ⟨f, hf, fun _ => .rfl⟩) hB
 
 /-- Many-one reductions preserve each finite dual level. -/
 theorem PolyTimeReducible.mem_coBH {encB : β ↪ List Bool} {B : Set β} {n : ℕ}
@@ -333,9 +308,9 @@ theorem PolyTimeReducible.mem_coBH {encB : β ↪ List Bool} {B : Set β} {n : �
 /-- Many-one reductions preserve `BooleanHierarchy`. -/
 theorem PolyTimeReducible.mem_BooleanHierarchy {encB : β ↪ List Bool} {B : Set β}
     (h : PolyTimeReducible enc encB A B) (hB : B ∈ BooleanHierarchy encB) :
-    A ∈ BooleanHierarchy enc := by
-  obtain ⟨n, hn⟩ := Set.mem_iUnion.mp hB
-  exact Set.mem_iUnion.mpr ⟨n, h.mem_BH hn⟩
+    A ∈ BooleanHierarchy enc :=
+  let ⟨n, hn⟩ := Set.mem_iUnion.mp hB
+  Set.mem_iUnion.mpr ⟨n, h.mem_BH hn⟩
 
 /-- **Boolean-hierarchy step collapse** [Cai et al., Section 2][CaiEtAl1988]: level `k + 1` is
 contained in level `k` if and only if `coBH enc k ⊆ BH enc k`. -/
@@ -375,28 +350,22 @@ theorem BH_eq_of_coBH_subset {k m : ℕ} (h : coBH enc k ⊆ BH enc k) (hm : k �
 `coBH enc k ⊆ BH enc k`, then `coBH enc m = BH enc k` for every `m ≥ k`. -/
 theorem coBH_eq_BH_of_coBH_subset {k m : ℕ} (h : coBH enc k ⊆ BH enc k) (hm : k ≤ m) :
     coBH enc m = BH enc k := by
-  have hm_eq : coBH enc m = coBH enc k := by
-    ext A
-    simp only [mem_coBH_iff, BH_eq_of_coBH_subset h hm]
-  rw [hm_eq, ← BH_eq_coBH_iff_BH_succ_eq.mpr (BH_succ_eq_iff_coBH_subset.mpr h)]
+  ext A
+  rw [mem_coBH, BH_eq_of_coBH_subset h hm, ← mem_coBH,
+    BH_eq_coBH_iff_BH_succ_eq.mpr (BH_succ_eq_iff_coBH_subset.mpr h)]
 
 /-- **Full Boolean-hierarchy collapse** [Cai et al., Section 2][CaiEtAl1988]; [Kadin][Kadin1988]:
 if `coBH enc k ⊆ BH enc k`, then the entire Boolean hierarchy collapses to `BH enc k`. -/
 theorem BooleanHierarchy_eq_BH_of_coBH_subset {k : ℕ} (h : coBH enc k ⊆ BH enc k) :
-    BooleanHierarchy enc = BH enc k := by
-  apply Set.Subset.antisymm
-  · refine Set.iUnion_subset fun m => ?_
-    rcases le_total m k with hmk | hkm
-    · exact BH_mono hmk
-    · exact (BH_eq_of_coBH_subset h hkm).subset
-  · exact Set.subset_iUnion (BH enc) k
+    BooleanHierarchy enc = BH enc k :=
+  Set.Subset.antisymm
+    (Set.iUnion_subset fun m =>
+      (le_total m k).elim (fun hmk => BH_mono hmk) fun hkm => (BH_eq_of_coBH_subset h hkm).subset)
+    (Set.subset_iUnion (BH enc) k)
 
 /-- If `NP = coNP`, the entire Boolean hierarchy collapses to `NP`. -/
 theorem BooleanHierarchy_eq_NP_of_NP_eq_coNP (h : NP enc = coNP enc) :
-    BooleanHierarchy enc = NP enc := by
-  rw [← BH_one]
-  refine BooleanHierarchy_eq_BH_of_coBH_subset ?_
-  rw [coBH_one, BH_one]
-  exact h.symm.subset
+    BooleanHierarchy enc = NP enc :=
+  BH_one (enc := enc) ▸ BooleanHierarchy_eq_BH_of_coBH_subset (k := 1) (by simp [h])
 
 end Cslib.Complexity

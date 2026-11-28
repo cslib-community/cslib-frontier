@@ -4,19 +4,25 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.GraphNonIsomorphism
+public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.PerfectCompleteness
+public import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
+
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Collapse
-import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.GraphNonIsomorphism
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.PH
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Classes.BPP
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
-import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Factorial
 
 /-! Concrete clients for the Arthur–Merlin classes: nonempty classes, satisfiable error-exponent
 conditions and reductions. -/
+
+public section
 
 namespace CslibFrontierTests.ArthurMerlin
 
@@ -59,7 +65,7 @@ example :
     ({w : List Bool | w.tail.headD false = true} ∈ MA encBits ∧
       {w : List Bool | w.tail.headD false = true} ∈ AM encBits) ∧
     ({w : List Bool | w.headD false = true} ∈ AM encBits ∧
-      GraphNonIsomorphism ∈ PiP 2 (encPair encGraph encGraph)) :=
+      GraphNonIsomorphism ∈ PiP 2 encGraphIsomorphism) :=
   ⟨⟨MA_subset_AM head_mem_MA_direct,
     MA_subset_SBP head_mem_MA,
     MA_subset_SigmaP_two_inter_PiP_two head_mem_MA,
@@ -98,11 +104,19 @@ example : ComputableInPolyTime (fun n : ℕ => 2 * n.factorial) encUnary encNat 
 
 /-- The hypothesis of the graph-isomorphism collapse follows from a reduction of `SAT` to graph
 isomorphism, placing `GraphNonIsomorphism` in `Σ₂`. -/
-example (h : PolyTimeReducible encCNF (encPair encGraph encGraph) SAT GraphIsomorphism) :
-    GraphNonIsomorphism ∈ SigmaP 2 (encPair encGraph encGraph) :=
+example (h : PolyTimeReducible encCNF encGraphIsomorphism SAT GraphIsomorphism) :
+    GraphNonIsomorphism ∈ SigmaP 2 encGraphIsomorphism :=
   PH_eq_SigmaP_two_of_npComplete_GraphIsomorphism
     ⟨GraphIsomorphism.mem_NP, CookLevin.SAT_npHard.trans h⟩ ▸
     PiP_subset_PH 2 (AM_subset_PiP_two GraphNonIsomorphism.mem_AM)
+
+/-- The draft's form of the collapse: under the same hypothesis, `GraphNonIsomorphism`, which is in
+`Π₂`, is also in `Σ₂` by the level-two equality. -/
+example (h : PolyTimeReducible encCNF encGraphIsomorphism SAT GraphIsomorphism) :
+    GraphNonIsomorphism ∈ SigmaP 2 encGraphIsomorphism :=
+  SigmaP_two_eq_PiP_two_of_npComplete_GraphIsomorphism
+    ⟨GraphIsomorphism.mem_NP, CookLevin.SAT_npHard.trans h⟩ ▸
+    AM_subset_PiP_two GraphNonIsomorphism.mem_AM
 
 /-- `IsArthurMerlinVerifier` and `IsArthurMerlinVerifierWithErrorExponent` reduce to `BPP`'s
 bounded-error and error-exponent predicates on `arthurMerlinSlice`. -/
@@ -118,5 +132,62 @@ example (e : Polynomial ℕ) : ∃ (p q : Polynomial ℕ) (V : _ × List Bool �
   obtain ⟨p, q, V, hV, hAM⟩ :=
     mem_AM_iff_forall_errorExponent.mp (NP_subset_AM SAT.mem_NP) e
   exact ⟨p, q, V, hV, isArthurMerlinVerifierWithErrorExponent_iff_decidesWithErrorExponent.mp hAM⟩
+
+/-- A concrete randomized (`p = 1`) Merlin–Arthur verifier with perfect completeness (`1`) and
+tight soundness error (`1 / 2`), reduced to standard `(2 / 3, 1 / 3)` bounded error by
+`IsMerlinArthurOneVerifier.merlinArthurRepeat_one`. -/
+theorem head_isMerlinArthurOneVerifier :
+    IsMerlinArthurOneVerifier encBits 1 1
+      (fun (w, yr) => w.headD false || (yr.drop 1).headD false)
+      {w : List Bool | w.headD false = true} := by
+  intro w
+  generalize hm : (1 : Polynomial ℕ).eval (encBits w).length = m
+  obtain rfl : m = 1 := hm.symm.trans Polynomial.eval_one
+  refine ⟨fun hw => ⟨fun _ => true, fun r => ?_⟩, fun hw y => ?_⟩
+  · have hw' : w.headD false = true := hw
+    simp only [hw', Bool.true_or]
+  · have hwfalse : w.headD false = false := Bool.eq_false_iff.mpr hw
+    simp only [hwfalse, Bool.false_or]
+    revert y
+    decide
+
+example : IsMerlinArthurVerifier encBits 1 (2 * 1 * 1)
+    (merlinArthurRepeat encBits 1 1 1 (fun (w, yr) => w.headD false || (yr.drop 1).headD false))
+    {w : List Bool | w.headD false = true} :=
+  head_isMerlinArthurOneVerifier.merlinArthurRepeat_one
+
+/-- A concrete randomized (`p = 1`) Merlin–Arthur verifier with completeness `1 / 2` and perfect
+soundness (`0`), turned into a deterministic `NP` verifier of certificate length `1 + 1` by
+`IsMerlinArthurZeroVerifier.isVerifier`. -/
+theorem head_isMerlinArthurZeroVerifier :
+    IsMerlinArthurZeroVerifier encBits 1 1
+      (fun (w, yr) => w.headD false && (yr.drop 1).headD false)
+      {w : List Bool | w.headD false = true} := by
+  intro w
+  generalize hm : (1 : Polynomial ℕ).eval (encBits w).length = m
+  obtain rfl : m = 1 := hm.symm.trans Polynomial.eval_one
+  refine ⟨fun hw => ⟨fun _ => true, ?_⟩, fun hw y r => ?_⟩
+  · have hw' : w.headD false = true := hw
+    simp only [hw', Bool.true_and]
+    decide
+  · have hwfalse : w.headD false = false := Bool.eq_false_iff.mpr hw
+    simp only [hwfalse, Bool.false_and]
+
+example : IsVerifier encBits (1 + 1)
+    (fun (w, yr) => w.headD false && (yr.drop 1).headD false)
+    {w : List Bool | w.headD false = true} :=
+  head_isMerlinArthurZeroVerifier.isVerifier
+
+/-- Perfect soundness (`MAZero = NP`) and perfect completeness (`MA = MAOne`, `AM = AMOne`) for
+concrete problems. -/
+theorem perfectCompleteness_and_perfectSoundness_examples :
+    SAT ∈ MAZero encCNF ∧
+    {w : List Bool | w.headD false = true} ∈ MAOne encBits ∧
+    SAT ∈ AMOne encCNF ∧
+    GraphNonIsomorphism ∈ AMOne encGraphIsomorphism :=
+  ⟨MAZero_eq_NP.symm ▸ SAT.mem_NP,
+   MA_eq_MAOne ▸ head_mem_MA_direct,
+   MAOne_subset_AMOne (MA_eq_MAOne ▸ NP_subset_MA SAT.mem_NP),
+   AM_eq_AMOne ▸ GraphNonIsomorphism.mem_AM⟩
 
 end CslibFrontierTests.ArthurMerlin

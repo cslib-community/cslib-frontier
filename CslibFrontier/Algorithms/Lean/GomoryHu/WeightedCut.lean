@@ -35,7 +35,8 @@ tree also encodes all pairwise maximum flow values.
 The results are existence statements for natural-number weights. Gusfield's construction of the
 tree with `|V| - 1` maximum flow computations, without the contractions of Gomory and Hu
 ([Gusfield1990]), is in `CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield` (abstract cut oracle) and
-`CslibFrontier.Algorithms.Lean.GomoryHu.Construction` (Edmonds–Karp, with running time).
+`CslibFrontier.Algorithms.Lean.GomoryHu.Construction` (Edmonds–Karp; its Word-RAM running time is
+`CslibFrontier.Algorithms.WordRAM.GomoryHu`).
 
 ## Main results
 
@@ -66,9 +67,15 @@ open Cslib.Algorithms.Lean.Submodular Cslib.Algorithms.Lean.GomoryHu
 
 variable {V : Type*} [Fintype V] [DecidableEq V]
 
+/-- The cut function of a non-negative weight matrix over an ordered additive monoid is
+submodular. -/
+theorem isSubmodular_cutWeight_of_nonneg {M : Type*} [AddCommMonoid M] [PartialOrder M]
+    [IsOrderedAddMonoid M] (W : V → V → M) (hW : ∀ u v, 0 ≤ W u v) : IsSubmodular (cutWeight W) :=
+  cutWeight_union_add_cutWeight_inter_le_of_nonneg W hW
+
 /-- The cut function of a weight matrix is submodular. -/
 theorem isSubmodular_cutWeight (W : V → V → ℕ) : IsSubmodular (cutWeight W) :=
-  cutWeight_union_add_cutWeight_inter_le W
+  isSubmodular_cutWeight_of_nonneg W fun _ _ => Nat.zero_le _
 
 /-- The minimum `s`–`t` cuts of the cut function are the sets containing `s` and missing `t`
 whose weight is `λ(s, t)`. -/

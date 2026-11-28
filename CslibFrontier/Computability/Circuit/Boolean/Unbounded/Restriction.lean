@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Substitution
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Restrictions in the unbounded fan-in basis
@@ -61,8 +62,7 @@ def restrictCircuit (ρ : PartialAssignment (Fin n)) : Circuit signature n n :=
 /-- `restrictCircuit ρ` has depth at most one. -/
 theorem depth_restrictCircuit_le (ρ : PartialAssignment (Fin n)) :
     (restrictCircuit ρ).depth ≤ 1 := by
-  rw [restrictCircuit, Circuit.depth_mapOp]
-  exact depth_substituteCircuit_le _
+  circuit_bound [restrictCircuit]
 
 /-- `restrictCircuit ρ` has fan-in at most two. -/
 theorem fanInAtMost_restrictCircuit (ρ : PartialAssignment (Fin n)) :

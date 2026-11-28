@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.SIS.ModulusSwitch.Correctness
 public import CslibFrontier.Probability.Product.Event
 public import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Randomized correctness after Module-LWE modulus switching
@@ -38,21 +39,17 @@ theorem moduleLWEDecrypt_modulusSwitch_encrypt_eq_of_bounds
     {s r e e₁ : Fin k → Fin n → ZMod q} {e₂ : Fin n → ZMod q}
     (hs : ModuleSIS.inInfNormBound Bs s) (hr : ModuleSIS.inInfNormBound Br r)
     (he : ModuleSIS.inInfNormBound Be e) (he₁ : ModuleSIS.inInfNormBound Be e₁)
-    (he₂ : GeneralSIS.inInfNormBound Be e₂) (m : Fin n → Bool)
+    (he₂ : SIS.inInfNormBound Be e₂) (m : Fin n → Bool)
     (hbudget : (p : ℚ) / q * (k * n * Be * Br + k * n * Be * Bs + Be : ℕ) +
       (1 + k * n * Bs) / 2 + |(p : ℚ) / q * (q / 2 : ℕ) - (p / 2 : ℕ)| ≤ Bp) :
-    moduleLWEDecrypt (fun j i => (GeneralSIS.liftCentered (s j) i : ZMod p))
+    moduleLWEDecrypt (fun j i => (SIS.liftCentered (s j) i : ZMod p))
       (moduleLWEModulusSwitch p (moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ m)) = m := by
   apply moduleLWEDecrypt_modulusSwitch_encrypt_eq hq hp A s r e e₁ e₂ m
     (abs_moduleLWEErrorPoly_le hs hr he he₁ he₂)
-  have hsum : (∑ j, ∑ i, |(GeneralSIS.liftCentered (s j) i : ℚ)|) ≤ k * n * Bs := by
+  have hsum : (∑ j, ∑ i, |(SIS.liftCentered (s j) i : ℚ)|) ≤ k * n * Bs :=
     calc
-      _ ≤ ∑ _j : Fin k, ∑ _i : Fin n, (Bs : ℚ) := by
-        apply Finset.sum_le_sum
-        intro j _
-        apply Finset.sum_le_sum
-        intro i _
-        exact_mod_cast hs j i
+      _ ≤ ∑ _j : Fin k, ∑ _i : Fin n, (Bs : ℚ) :=
+        Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun i _ => by exact_mod_cast hs j i
       _ = _ := by simp [mul_assoc]
   linarith
 
@@ -72,23 +69,23 @@ theorem toOuterMeasure_moduleLWEModulusSwitch_failure_le
       let view ← encryptionViewOfKeyLaw (moduleLWEPublicKeyLaw k n q noise (PMF.pure s))
         noise m ephemeralLaw
       pure (s, view)).toOuterMeasure
-        {out | moduleLWEDecrypt
-          (fun j i => (GeneralSIS.liftCentered (out.1 j) i : ZMod p))
-          (moduleLWEModulusSwitch p out.2.2) ≠ m} ≤
-      (2 * k + 1) * noise.toOuterMeasure {e | ¬ GeneralSIS.inInfNormBound Be e} := by
+        {(s, _, ct) | moduleLWEDecrypt
+          (fun j i => (SIS.liftCentered (s j) i : ZMod p))
+          (moduleLWEModulusSwitch p ct) ≠ m} ≤
+      (2 * k + 1) * noise.toOuterMeasure {e | ¬ SIS.inInfNormBound Be e} := by
   classical
-  let δ := noise.toOuterMeasure {e | ¬ GeneralSIS.inInfNormBound Be e}
+  let δ := noise.toOuterMeasure {e | ¬ SIS.inInfNormBound Be e}
   let μ := PMF.pi (fun _ : Fin k => noise)
   let bad : Set ((Fin k → Fin n → ZMod q) ×
       (ModuleLWEPublicKey k n q × ModuleLWECiphertext k n q)) :=
-    {out | moduleLWEDecrypt
-      (fun j i => (GeneralSIS.liftCentered (out.1 j) i : ZMod p))
-      (moduleLWEModulusSwitch p out.2.2) ≠ m}
+    {(s, _, ct) | moduleLWEDecrypt
+      (fun j i => (SIS.liftCentered (s j) i : ZMod p))
+      (moduleLWEModulusSwitch p ct) ≠ m}
   have hμ : μ.toOuterMeasure {e | ¬ ModuleSIS.inInfNormBound Be e} ≤ k * δ := by
-    simpa [μ, ModuleSIS.inInfNormBound, δ, GeneralSIS.inInfNormBound, not_forall,
+    simpa [μ, ModuleSIS.inInfNormBound, δ, SIS.inInfNormBound, not_forall,
       Finset.sum_const, nsmul_eq_mul] using
       PMF.toOuterMeasure_pi_exists_le (fun _ : Fin k => noise)
-        (fun _ => {e | ¬ GeneralSIS.inInfNormBound Be e})
+        (fun _ => {e | ¬ SIS.inInfNormBound Be e})
   have hlast (s r e : Fin k → Fin n → ZMod q)
       (A : Matrix (Fin k) (Fin k) (Fin n → ZMod q))
       (hs' : ModuleSIS.inInfNormBound Bs s) (hr' : ModuleSIS.inInfNormBound Br r)
@@ -100,40 +97,29 @@ theorem toOuterMeasure_moduleLWEModulusSwitch_failure_le
           moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ m))).toOuterMeasure bad ≤
         δ + k * δ := by
     refine (PMF.toOuterMeasure_bind_failure_le noise _
-      {e₂ | GeneralSIS.inInfNormBound Be e₂} bad (k * δ) ?_).trans ?_
-    · intro e₂ _ he₂
-      refine (PMF.toOuterMeasure_bind_failure_le μ _
-        {e₁ | ModuleSIS.inInfNormBound Be e₁} bad 0 ?_).trans ?_
-      · intro e₁ _ he₁
-        have hcorrect := moduleLWEDecrypt_modulusSwitch_encrypt_eq_of_bounds
-          (NeZero.pos q) hp A hs' hr' he he₁ he₂ m hbudget
-        rw [nonpos_iff_eq_zero, PMF.toOuterMeasure_apply_eq_zero_iff]
-        change Disjoint (PMF.pure _).support bad
-        rw [PMF.support_pure, Set.disjoint_singleton_left]
-        exact fun h => h hcorrect
-      · simpa only [Set.compl_ofPred, add_zero] using hμ
-    · exact le_rfl
+      {e₂ | SIS.inInfNormBound Be e₂} bad (k * δ) ?_).trans le_rfl
+    intro e₂ _ he₂
+    refine (PMF.toOuterMeasure_bind_failure_le μ _
+      {e₁ | ModuleSIS.inInfNormBound Be e₁} bad 0 (fun e₁ _ he₁ => ?_) ).trans
+      (by simpa only [Set.compl_ofPred, add_zero] using hμ)
+    rw [nonpos_iff_eq_zero, PMF.toOuterMeasure_apply_eq_zero_iff]
+    change Disjoint (PMF.pure _).support bad
+    rw [PMF.support_pure, Set.disjoint_singleton_left]
+    exact fun h => h (moduleLWEDecrypt_modulusSwitch_encrypt_eq_of_bounds
+      (NeZero.pos q) hp A hs' hr' he he₁ he₂ m hbudget)
   simp only [encryptionViewOfKeyLaw, moduleLWEPublicKeyLaw, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.bind_bind]
   change (secretLaw.bind _).toOuterMeasure bad ≤ (2 * k + 1) * δ
-  refine (PMF.toOuterMeasure_bind_failure_le secretLaw _ Set.univ bad
-    ((2 * k + 1) * δ) ?_).trans ?_
-  · intro s hss _
-    refine (PMF.toOuterMeasure_bind_failure_le (PMF.uniformOfFintype _) _ Set.univ bad
-      ((2 * k + 1) * δ) ?_).trans ?_
-    · intro A _ _
-      refine (PMF.toOuterMeasure_bind_failure_le μ _
-        {e | ModuleSIS.inInfNormBound Be e} bad (δ + k * δ) ?_).trans ?_
-      · intro e _ he
-        refine (PMF.toOuterMeasure_bind_failure_le ephemeralLaw _ Set.univ bad
-          (δ + k * δ) ?_).trans ?_
-        · intro r hrr _
-          exact hlast s r e A (hs s hss) (hr r hrr) he
-        · simp
-      · calc
-          _ ≤ k * δ + (δ + k * δ) := add_le_add hμ le_rfl
-          _ = _ := by ring
-    · simp
-  · simp
+  refine (PMF.toOuterMeasure_bind_failure_le secretLaw _ Set.univ bad ((2 * k + 1) * δ)
+    fun s hss _ => ?_).trans (by simp)
+  refine (PMF.toOuterMeasure_bind_failure_le (PMF.uniformOfFintype _) _ Set.univ bad
+    ((2 * k + 1) * δ) fun A _ _ => ?_).trans (by simp)
+  refine (PMF.toOuterMeasure_bind_failure_le μ _ {e | ModuleSIS.inInfNormBound Be e} bad
+    (δ + k * δ) fun e _ he => ?_).trans <|
+      calc
+        _ ≤ k * δ + (δ + k * δ) := add_le_add hμ le_rfl
+        _ = _ := by ring
+  exact (PMF.toOuterMeasure_bind_failure_le ephemeralLaw _ Set.univ bad (δ + k * δ)
+    fun r hrr _ => hlast s r e A (hs s hss) (hr r hrr) he).trans (by simp)
 
 end Cslib.Crypto

@@ -119,8 +119,7 @@ theorem isStandardizedInconsistent_iff (R : Set (Fin 4 → Bool)) :
       generalize x 0 = a, x 1 = b, x 2 = c, x 3 = d
       cases a <;> cases b <;> cases c <;> cases d <;>
         simp [standardizedRelation, cross]
-    · intro x hx
-      exact Or.inl hx
+    · exact fun _ => Or.inl
     · intro x hx
       rcases hx with hx | ⟨h, _⟩
       · by_cases h : x 0 = x 1
@@ -154,13 +153,24 @@ inductive Symbol where
   | .disequality, [a, b] => decide (a ≠ b)
   | _, _ => false
 
+/-- The ordered relation symbol reads its canonical tuple without changing any coordinate. -/
+theorem sem_relation (R : Set (Fin 4 → Bool)) [DecidablePred (· ∈ R)]
+    (x : Fin 4 → Bool) : sem R .relation (List.ofFn x) = true ↔ x ∈ R := by
+  rw [tuple_eq x]
+  simp [sem, List.ofFn_succ]
+
+/-- The binary symbol has exactly disequality semantics in its original argument order. -/
+theorem sem_disequality (R : Set (Fin 4 → Bool)) [DecidablePred (· ∈ R)]
+    (x : Fin 2 → Bool) : sem R .disequality (List.ofFn x) = true ↔ x 0 ≠ x 1 := by
+  simp [sem, List.ofFn_succ]
+
 /-- Figure 1(a)'s four constraints. Auxiliary indices `0,1,2` are `m,m̄,v̄₂`.
 The order inside each scope is the numbered order in the figure. -/
 @[expose] def figureOneABody : CSP Symbol (Fin 4 ⊕ Fin 3) :=
-  [(.relation, [.inr 0, .inl 2, .inl 3, .inl 0]),
-   (.relation, [.inl 2, .inr 1, .inl 0, .inr 2]),
-   (.disequality, [.inr 0, .inr 1]),
-   (.disequality, [.inr 2, .inl 1])]
+  [⟨.relation, [.inr 0, .inl 2, .inl 3, .inl 0]⟩,
+   ⟨.relation, [.inl 2, .inr 1, .inl 0, .inr 2]⟩,
+   ⟨.disequality, [.inr 0, .inr 1]⟩,
+   ⟨.disequality, [.inr 2, .inl 1]⟩]
 
 /-- Figure 1(a)'s existential boundary relation, using the existing CSP evaluator. -/
 @[expose] def figureOneARelation (R : Set (Fin 4 → Bool)) [DecidablePred (· ∈ R)] :
@@ -197,14 +207,9 @@ theorem figureOneA_target (R : Set (Fin 4 → Bool)) [inst : DecidablePred (· �
     (h : IsStandardizedInconsistent R) :
     figureOneARelation R = cross ∨ figureOneARelation R = nearCross := by
   obtain ⟨p, q, r, rfl⟩ := (isStandardizedInconsistent_iff R).mp h
-  have hi : inst = instDecidableStandardizedRelation p q r := Subsingleton.elim _ _
-  have he := congrArg (@figureOneARelation (standardizedRelation p q r)) hi
-  have ht := he.trans (figureOneARelation_standardized p q r)
-  cases p <;> cases q
-  · exact Or.inl ht
-  · exact Or.inr ht
-  · exact Or.inr ht
-  · exact Or.inr ht
+  cases Subsingleton.elim inst (instDecidableStandardizedRelation p q r)
+  rw [figureOneARelation_standardized]
+  cases p || q <;> simp
 
 /-- The exact first target can be selected by inspecting only `0001` and `0010` in `R`. -/
 theorem figureOneARelation_eq (R : Set (Fin 4 → Bool)) [inst : DecidablePred (· ∈ R)]
@@ -213,9 +218,8 @@ theorem figureOneARelation_eq (R : Set (Fin 4 → Bool)) [inst : DecidablePred (
       if decide (![false, false, false, true] ∈ R ∨ ![false, false, true, false] ∈ R)
       then nearCross else cross := by
   obtain ⟨p, q, r, rfl⟩ := (isStandardizedInconsistent_iff R).mp h
-  have hi : inst = instDecidableStandardizedRelation p q r := Subsingleton.elim _ _
-  have he := congrArg (@figureOneARelation (standardizedRelation p q r)) hi
-  rw [he.trans (figureOneARelation_standardized p q r)]
+  cases Subsingleton.elim inst (instDecidableStandardizedRelation p q r)
+  rw [figureOneARelation_standardized]
   cases p <;> cases q <;> simp [standardizedRelation, cross]
 
 /-- Figure 1(a) with its explicitly identified CROSS or NEAR-CROSS target.
@@ -237,10 +241,16 @@ The body still has exactly the four constraints displayed in the source. -/
   | _, [a, b, c, d] => decide (![a, b, c, d] ∈ nearCross)
   | _, _ => false
 
+/-- Figure 1(b)'s symbol reads NEAR-CROSS at precisely the canonical ordered tuple. -/
+theorem nearSem_relation (x : Fin 4 → Bool) :
+    nearSem () (List.ofFn x) = true ↔ x ∈ nearCross := by
+  rw [tuple_eq x]
+  simp [nearSem, List.ofFn_succ]
+
 /-- Figure 1(b)'s two constraints; its one auxiliary is `m`. -/
 @[expose] def figureOneBBody : CSP Unit (Fin 4 ⊕ Fin 1) :=
-  [((), [.inl 0, .inl 1, .inr 0, .inl 3]),
-   ((), [.inl 2, .inl 3, .inr 0, .inl 1])]
+  [⟨(), [.inl 0, .inl 1, .inr 0, .inl 3]⟩,
+   ⟨(), [.inl 2, .inl 3, .inr 0, .inl 1]⟩]
 
 /-- Figure 1(b) defines precisely CROSS, with existential `m`. -/
 theorem figureOneB_correct (a : Fin 4 → Bool) :

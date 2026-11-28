@@ -12,6 +12,8 @@ import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Em
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Finish
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Return
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Ready
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 -- Full controller regressions evaluate the actual native interpreter at elaboration time.
 set_option linter.hashCommand false

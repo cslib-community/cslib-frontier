@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.FiniteLinearOrd
 public import CslibFrontier.Logics.FirstOrder.Interpretation
 public import Mathlib.Combinatorics.SimpleGraph.Maps
 public import Mathlib.ModelTheory.Graph
+import CslibFrontier.Tactic.FinIndex
 import CslibFrontier.Tactic.FirstOrder.Simp
 import Mathlib.Data.Finset.Sort
 import Mathlib.Tactic.FinCases
@@ -109,19 +110,19 @@ variable {M : Type*} [LinearOrder M] [Language.order.Structure M]
 @[simp]
 theorem realize_covByFormula (v : α → M) (x y : α) :
     (covByFormula x y).Realize v ↔ v x ⋖ v y := by
-  simp [covByFormula, Formula.Realize, Fin.snoc, CovBy]
+  fo_simp [covByFormula, Formula.Realize, Term.realize_lt, not_and, CovBy]
 
 /-- `isBotFormula x` holds iff the value of `x` is the least element. -/
 @[simp]
 theorem realize_isBotFormula (v : α → M) (x : α) :
     (isBotFormula x).Realize v ↔ ∀ t, v x ≤ t := by
-  simp [isBotFormula, Formula.Realize, Fin.snoc]
+  fo_simp [isBotFormula, Term.realize_le]
 
 /-- `isTopFormula x` holds iff the value of `x` is the greatest element. -/
 @[simp]
 theorem realize_isTopFormula (v : α → M) (x : α) :
     (isTopFormula x).Realize v ↔ ∀ t, t ≤ v x := by
-  simp [isTopFormula, Formula.Realize, Fin.snoc]
+  fo_simp [isTopFormula, Term.realize_le]
 
 omit [LinearOrder M] [Language.order.Structure M] [Language.order.OrderedStructure M] in
 private theorem exists_fin_one {p : M → Prop} : (∃ i : Fin 1 → M, p (i 0)) ↔ ∃ z, p z :=
@@ -131,26 +132,21 @@ private theorem exists_fin_one {p : M → Prop} : (∃ i : Fin 1 → M, p (i 0))
 @[simp]
 theorem realize_twoAboveFormula (v : α → M) (x y : α) :
     (twoAboveFormula x y).Realize v ↔ ∃ z, v x ⋖ z ∧ z ⋖ v y := by
-  rw [twoAboveFormula, Formula.realize_iExs]
-  simp only [Formula.realize_inf, realize_covByFormula, Sum.elim_inl, Sum.elim_inr]
+  fo_simp [twoAboveFormula, realize_covByFormula]
   exact exists_fin_one (p := fun z => v x ⋖ z ∧ z ⋖ v y)
 
 /-- `isSecondFormula x` holds iff the value of `x` covers the least element. -/
 @[simp]
 theorem realize_isSecondFormula (v : α → M) (x : α) :
     (isSecondFormula x).Realize v ↔ ∃ z, (∀ t, z ≤ t) ∧ z ⋖ v x := by
-  rw [isSecondFormula, Formula.realize_iExs]
-  simp only [Formula.realize_inf, realize_covByFormula, realize_isBotFormula, Sum.elim_inl,
-    Sum.elim_inr]
+  fo_simp [isSecondFormula, realize_covByFormula, realize_isBotFormula]
   exact exists_fin_one (p := fun z => (∀ t, z ≤ t) ∧ z ⋖ v x)
 
 /-- `isPenultimateFormula x` holds iff the greatest element covers the value of `x`. -/
 @[simp]
 theorem realize_isPenultimateFormula (v : α → M) (x : α) :
     (isPenultimateFormula x).Realize v ↔ ∃ z, (∀ t, t ≤ z) ∧ v x ⋖ z := by
-  rw [isPenultimateFormula, Formula.realize_iExs]
-  simp only [Formula.realize_inf, realize_covByFormula, realize_isTopFormula, Sum.elim_inl,
-    Sum.elim_inr]
+  fo_simp [isPenultimateFormula, realize_covByFormula, realize_isTopFormula]
   exact exists_fin_one (p := fun z => (∀ t, t ≤ z) ∧ v x ⋖ z)
 
 end Realize
@@ -171,30 +167,18 @@ theorem realize_isTopFormula_fin (v : α → Fin m) (x : α) :
     (isTopFormula x).Realize v ↔ (v x : ℕ) + 1 = m := by
   have := (v x).2
   rw [realize_isTopFormula]
-  constructor
-  · intro h
-    have := h ⟨m - 1, by omega⟩
-    rw [Fin.le_def] at this
-    simp only at this
-    omega
-  · intro h t
-    rw [Fin.le_def]
-    omega
+  refine ⟨fun h => ?_, fun _ => by omega⟩
+  have := h ⟨m - 1, by omega⟩
+  fin_index
 
 /-- `isBotFormula` on `Fin m`, in terms of values. -/
 theorem realize_isBotFormula_fin (v : α → Fin m) (x : α) :
     (isBotFormula x).Realize v ↔ (v x : ℕ) = 0 := by
   have := (v x).2
   rw [realize_isBotFormula]
-  constructor
-  · intro h
-    have := h ⟨0, by omega⟩
-    rw [Fin.le_def] at this
-    simp only at this
-    omega
-  · intro h t
-    rw [Fin.le_def]
-    omega
+  refine ⟨fun h => ?_, fun _ => by omega⟩
+  have := h ⟨0, by omega⟩
+  fin_index
 
 /-- `twoAboveFormula` on `Fin m`, in terms of values. -/
 theorem realize_twoAboveFormula_fin (v : α → Fin m) (x y : α) :
@@ -306,26 +290,24 @@ theorem not_exists_sentence_of_even (P : ∀ V : Type u, SimpleGraph V → Prop)
     ¬ ∃ φ : Language.graph.Sentence, ∀ (V : Type u) [Finite V] (G : SimpleGraph V),
       t ≤ Nat.card V → ((letI := G.structure; V ⊨ φ) ↔ P V G) := by
   rintro ⟨φ, hφ⟩
-  obtain ⟨n, hn, htn⟩ : ∃ n, quantifierRank ((graphInterp δ).onSentence φ) ≤ n ∧ max t t₀ ≤ n :=
-    ⟨max (quantifierRank ((graphInterp δ).onSentence φ)) (max t t₀), le_max_left _ _,
-      le_max_right _ _⟩
-  have ht : max t t₀ ≤ 2 ^ n := htn.trans Nat.lt_two_pow_self.le
+  let n := max (quantifierRank ((graphInterp δ).onSentence φ)) (max t t₀)
+  have ht : max t t₀ ≤ 2 ^ n := (le_max_right _ _).trans Nat.lt_two_pow_self.le
   have key : ∀ (M : Type u) [LinearOrder M] [Finite M] [Language.order.Structure M]
       [Language.order.OrderedStructure M], max t t₀ ≤ Nat.card M →
-      (M ⊨ (graphInterp δ).onSentence φ ↔ Even (Nat.card M)) := by
-    intro M _ _ _ _ hM
+      (M ⊨ (graphInterp δ).onSentence φ ↔ Even (Nat.card M)) := fun M _ _ _ _ hM => by
     rw [realize_onSentence_graphInterp, hφ _ _ (le_of_max_le_left hM),
       hP M (le_of_max_le_right hM)]
   let := orderStructure (ULift.{u} (Fin (2 ^ n)))
   let := orderStructure (ULift.{u} (Fin (2 ^ n + 1)))
   have : Language.order.OrderedStructure (ULift.{u} (Fin (2 ^ n))) := ⟨fun _ => Iff.rfl⟩
   have : Language.order.OrderedStructure (ULift.{u} (Fin (2 ^ n + 1))) := ⟨fun _ => Iff.rfl⟩
+  have hc₀ : Nat.card (ULift.{u} (Fin (2 ^ n))) = 2 ^ n :=
+    (Nat.card_ulift _).trans (Nat.card_fin _)
+  have hc₁ : Nat.card (ULift.{u} (Fin (2 ^ n + 1))) = 2 ^ n + 1 :=
+    (Nat.card_ulift _).trans (Nat.card_fin _)
   have h := FiniteLinearOrder.realize_iff_of_two_pow_le_card (M := ULift.{u} (Fin (2 ^ n)))
-    (N := ULift.{u} (Fin (2 ^ n + 1))) (by rw [Nat.card_ulift, Nat.card_fin]; omega)
-    (by rw [Nat.card_ulift, Nat.card_fin]; omega) hn
-  rw [key _ (by rw [Nat.card_ulift, Nat.card_fin]; omega),
-    key _ (by rw [Nat.card_ulift, Nat.card_fin]; omega), Nat.card_ulift, Nat.card_ulift,
-    Nat.card_fin, Nat.card_fin, Nat.even_add_one] at h
+    (N := ULift.{u} (Fin (2 ^ n + 1))) (n := n) (by omega) (by omega) (le_max_left _ _)
+  rw [key _ (by omega), key _ (by omega), hc₀, hc₁, Nat.even_add_one] at h
   exact iff_not_self h
 
 /-- **Parity transfer, odd sizes.** Let `δ` define, in every finite linear order with at least `t₀`

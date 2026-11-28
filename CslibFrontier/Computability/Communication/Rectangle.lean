@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.Protocol
+public import CslibFrontier.Computability.Communication.Partition
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Algebra.Ring.Defs
 public import Mathlib.Data.Fin.Tuple.Basic
@@ -45,6 +46,7 @@ when `f` is constantly `z` only on rectangles with at most `K` entries
 
 ## Main definitions
 
+* `Cslib.Communication.Protocol.toRectanglePartition`: the arbitrary-partition interface.
 * `Cslib.Communication.Protocol.leaf`: the leaf a protocol reaches.
 * `Cslib.Communication.Protocol.leafOutput`: the labels of the leaves.
 * `Cslib.Communication.Protocol.leafAlice`, `Cslib.Communication.Protocol.leafBob`: the sides of
@@ -53,6 +55,8 @@ when `f` is constantly `z` only on rectangles with at most `K` entries
 ## Main results
 
 * `Cslib.Communication.Protocol.leaf_eq_iff`: the inputs reaching a leaf form a rectangle.
+* `Cslib.Communication.Protocol.leaf_aliceSend_output`: when only Alice sends, the leaf does not
+  depend on Bob's input.
 * `Cslib.Communication.Protocol.run_eq_leafOutput`: the output is constant on each rectangle.
 * `Cslib.Communication.Protocol.exists_rectangle_partition`: a protocol sending `d` bits
   partitions the inputs into at most `2 ^ d` monochromatic rectangles.
@@ -188,29 +192,37 @@ variable (z : Z) (send : X → Bool) (send' : Y → Bool) (p₀ p₁ : Protocol 
 
 end Simp
 
+/-- In a protocol in which only Alice sends, the leaf does not depend on Bob's input. -/
+theorem leaf_aliceSend_output (n : ℕ) (msg : X → BitString n) (out : BitString n → Z) (x : X)
+    (y y' : Y) :
+    (aliceSend n msg fun m => output (out m)).leaf x y =
+      (aliceSend n msg fun m => output (out m)).leaf x y' := by
+  induction n generalizing Z with
+  | zero => rfl
+  | succ n ih =>
+    simp only [aliceSend, leaf_alice]
+    rw [ih (fun x => Fin.tail (msg x)) fun m => out (Fin.cons false m),
+      ih (fun x => Fin.tail (msg x)) fun m => out (Fin.cons true m)]
+
 /-- **The inputs reaching a leaf form a rectangle**: the protocol reaches leaf `i` on `x` and `y`
 exactly when `x` is on Alice's side and `y` on Bob's side of its rectangle. -/
 theorem leaf_eq_iff {p : Protocol X Y Z} {x : X} {y : Y} {i : Fin p.leafCount} :
     p.leaf x y = i ↔ x ∈ p.leafAlice i ∧ y ∈ p.leafBob i := by
   induction p with
-  | output z =>
+  | output =>
     simp only [leaf, leafAlice, leafBob, Set.mem_univ, and_self, iff_true]
     exact Subsingleton.elim (α := Fin 1) _ _
-  | alice send p₀ p₁ ih₀ ih₁ =>
-    induction i using Fin.addCases with
-    | left i =>
-      cases h : send x <;>
+  | alice send _ _ ih₀ ih₁ =>
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
+    · cases h : send x <;>
         simp [leaf, leafAlice, leafBob, h, ih₀, Fin.castAdd_inj, (Fin.castAdd_ne_natAdd _ _).symm]
-    | right i =>
-      cases h : send x <;>
+    · cases h : send x <;>
         simp [leaf, leafAlice, leafBob, h, ih₁, Fin.natAdd_inj, Fin.castAdd_ne_natAdd]
-  | bob send p₀ p₁ ih₀ ih₁ =>
-    induction i using Fin.addCases with
-    | left i =>
-      cases h : send y <;>
+  | bob send _ _ ih₀ ih₁ =>
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
+    · cases h : send y <;>
         simp [leaf, leafAlice, leafBob, h, ih₀, Fin.castAdd_inj, (Fin.castAdd_ne_natAdd _ _).symm]
-    | right i =>
-      cases h : send y <;>
+    · cases h : send y <;>
         simp [leaf, leafAlice, leafBob, h, ih₁, Fin.natAdd_inj, Fin.castAdd_ne_natAdd]
 
 variable {p : Protocol X Y Z} {x : X} {y : Y}
@@ -236,6 +248,22 @@ theorem run_eq_leafOutput {i : Fin p.leafCount} (hx : x ∈ p.leafAlice i) (hy :
     p.run x y = p.leafOutput i := by
   rw [run_eq_leafOutput_leaf, leaf_eq_iff.mpr ⟨hx, hy⟩]
 
+/-- The labelled rectangle partition induced by the leaves of a protocol. -/
+def toRectanglePartition (p : Protocol X Y Z) : RectanglePartition X Y Z where
+  size := p.leafCount
+  alice := p.leafAlice
+  bob := p.leafBob
+  output := p.leafOutput
+  partition x y :=
+    ⟨p.leaf x y, leaf_eq_iff.mp rfl, fun _ hi => (leaf_eq_iff.mpr hi).symm⟩
+
+/-- The leaf partition has the same input/output function as its protocol. -/
+@[simp] theorem run_toRectanglePartition (p : Protocol X Y Z) :
+    p.toRectanglePartition.run = p.run := by
+  funext x y
+  rw [RectanglePartition.run_eq_output (i := p.leaf x y) mem_leafAlice_leaf mem_leafBob_leaf]
+  exact (run_eq_leafOutput_leaf p x y).symm
+
 /-- **A protocol sending `d` bits partitions `X × Y` into at most `2 ^ d` monochromatic
 rectangles**: there are at most `2 ^ d` rectangles `A i ×ˢ B i`, possibly empty, such that every
 pair of inputs lies in exactly one of them and the output of the protocol is constant on each. -/
@@ -243,8 +271,11 @@ theorem exists_rectangle_partition (p : Protocol X Y Z) :
     ∃ (n : ℕ) (A : Fin n → Set X) (B : Fin n → Set Y) (z : Fin n → Z), n ≤ 2 ^ p.depth ∧
       (∀ x y, ∃! i, x ∈ A i ∧ y ∈ B i) ∧ ∀ i, ∀ x ∈ A i, ∀ y ∈ B i, p.run x y = z i :=
   ⟨p.leafCount, p.leafAlice, p.leafBob, p.leafOutput, p.leafCount_le_two_pow_depth,
-    fun x y => ⟨p.leaf x y, leaf_eq_iff.mp rfl, fun _ hi => (leaf_eq_iff.mpr hi).symm⟩,
-    fun _ _ hx _ hy => run_eq_leafOutput hx hy⟩
+    p.toRectanglePartition.partition, fun _ _ hx _ hy => run_eq_leafOutput hx hy⟩
+
+/-- The minimum arbitrary tiling size is at most the protocol's number of leaves. -/
+theorem tilingNumber_le_leafCount (p : Protocol X Y Z) : tilingNumber p.run ≤ p.leafCount :=
+  p.toRectanglePartition.tilingNumber_le p.run_toRectanglePartition
 
 variable {R : X → Y → Z → Prop} {A : Set X} {B : Set Y}
 
@@ -265,13 +296,8 @@ open Classical in
 protocol, of the sums over their rectangles. -/
 theorem sum_eq_sum_leaves {M : Type*} [AddCommMonoid M] (p : Protocol X Y Z) (g : X → Y → M) :
     ∑ x, ∑ y, g x y =
-      ∑ i, ∑ x with x ∈ p.leafAlice i, ∑ y with y ∈ p.leafBob i, g x y := by
-  rw [← Fintype.sum_prod_type', ← sum_fiberwise univ (fun q : X × Y => p.leaf q.1 q.2)]
-  refine sum_congr rfl fun i _ => ?_
-  rw [← sum_product']
-  refine sum_congr ?_ fun _ _ => rfl
-  ext q
-  simp [leaf_eq_iff]
+      ∑ i, ∑ x with x ∈ p.leafAlice i, ∑ y with y ∈ p.leafBob i, g x y :=
+  p.toRectanglePartition.sum_eq_sum_rectangles g
 
 open Classical in
 /-- **Weights of the leaves with a given label.** If every leaf rectangle labelled `z` has weight
@@ -286,15 +312,11 @@ theorem sum_filter_run_le_mul {M : Type*} [Semiring M] [PartialOrder M] [IsOrder
   rw [sum_filter, Fintype.sum_prod_type' (fun x y => if p.run x y = z then w x y else 0),
     p.sum_eq_sum_leaves, card_eq_sum_ones, Nat.cast_sum, sum_mul, sum_filter]
   refine sum_le_sum fun i _ => ?_
-  have hrect : ∀ x ∈ ({x | x ∈ p.leafAlice i} : Finset X),
-      ∀ y ∈ ({y | y ∈ p.leafBob i} : Finset Y), p.run x y = p.leafOutput i := fun x hx y hy =>
-    run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2
+  rw [sum_congr rfl fun x hx => sum_congr rfl fun y hy => by
+    rw [run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2]]
   split_ifs with hi
-  · rw [Nat.cast_one, one_mul]
-    refine le_of_eq_of_le (sum_congr rfl fun x hx => sum_congr rfl fun y hy => ?_) (hK i hi)
-    simp [hrect x hx y hy, hi]
-  · refine (sum_eq_zero fun x hx => sum_eq_zero fun y hy => ?_).le
-    simp [hrect x hx y hy, hi]
+  · simpa only [Nat.cast_one, one_mul] using hK i hi
+  · simp
 
 /-- **The weighted area bound.** If `f` is constantly `z` only on rectangles of weight at most `K`
 under `w`, then for every protocol computing `f` the inputs where `f` is `z` have weight at most
@@ -307,17 +329,18 @@ theorem sum_filter_le_mul {M : Type*} [Semiring M] [PartialOrder M] [IsOrderedAd
     ∑ q : X × Y with f q.1 q.2 = z, w q.1 q.2 ≤ #{i | p.leafOutput i = z} * K := by
   subst hp
   classical
-  exact p.sum_filter_run_le_mul z w fun i hi => hK _ _ fun x hx y hy => by
-    rw [run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2, hi]
+  exact p.sum_filter_run_le_mul z w fun i hi => hK _ _ fun _ hx _ hy =>
+    (run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2).trans hi
 
 /-- **The area bound.** If `f` is constantly `z` only on rectangles with at most `K` entries, every
 protocol computing `f` has at least `|f⁻¹(z)| / K` leaves labelled `z`. -/
 theorem card_filter_le_mul [DecidableEq Z] {f : X → Y → Z} (hp : p.run = f) (z : Z) {K : ℕ}
     (hK : ∀ (A : Finset X) (B : Finset Y), (∀ x ∈ A, ∀ y ∈ B, f x y = z) → #A * #B ≤ K) :
     #{q : X × Y | f q.1 q.2 = z} ≤ #{i | p.leafOutput i = z} * K := by
-  have h := sum_filter_le_mul hp z (fun _ _ => 1) fun A B hAB => by
+  have h := sum_filter_le_mul (M := ℕ) hp z (fun _ _ => 1) fun A B hAB => by
     simpa only [sum_const, smul_eq_mul, mul_one] using hK A B hAB
-  simpa only [sum_const, smul_eq_mul, mul_one, Nat.cast_id] using h
+  simp only [sum_const, smul_eq_mul, mul_one, Nat.cast_id] at h
+  exact h
 
 end Sums
 

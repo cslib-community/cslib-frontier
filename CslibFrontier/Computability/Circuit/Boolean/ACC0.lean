@@ -12,7 +12,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Simulation
 public import CslibFrontier.Computability.Complexity.Classes.P
 public import CslibFrontier.Computability.Complexity.Classes.PH.Kannan
-import CslibFrontier.Computability.Circuit.Boolean.Smolensky.Majority
+import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice.P
+import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 
 /-!
@@ -25,8 +26,8 @@ re-exported here:
 
 * `CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic`: the definition of `ACC0`, the degenerate
   moduli `q = 0, 1`, divisibility monotonicity `AC0Mod q ⊆ AC0Mod q'` for `q ∣ q'`, Boolean closure,
-  `ACC0 ⊆ TC0`, and the strict inclusions `AC0 ⊂ ACC0` and `AC0Mod p ⊂ ACC0` (`p` an odd prime)
-  obtained from Håstad's and Razborov–Smolensky's lower bounds for parity.
+  `ACC0 ⊆ TC0`, and the strict inclusions `AC0 ⊂ ACC0` and `AC0Mod p ⊂ ACC0` (for every prime
+  `p`) obtained from Håstad's and Razborov–Smolensky's lower bounds for parity and `MOD_3`.
 * `CslibFrontier.Computability.Circuit.Boolean.ACC0.Simulation`: logarithmic-depth simulation of
   `MOD_q` gates by unbounded fan-in circuits, giving `ACMod q i ⊆ AC (i + 1)` and
   `ACC0 ⊆ AC 1 ⊆ NC 2 ⊆ PPoly`, and the polynomial-size simulation of unbounded-depth `MOD_q`
@@ -36,7 +37,9 @@ This module adds the resulting separations:
 
 * **`P ⊄ AC⁰` and `P ⊄ AC⁰[p]`**: parity lies in `P` (`parity_mem_P`), so it witnesses languages in
   `P` outside `AC0` (`exists_mem_P_notMem_AC0`) [Hastad1986] and outside `AC0Mod p` for every odd
-  prime `p` (`exists_mem_P_notMem_AC0Mod`) [Razborov1987], [Smolensky1987].
+  prime `p` [Smolensky1987]. For `p = 2`, where parity is a single gate, the middle slice
+  `Razborov.middleSlice` is in `P` and outside `AC0Mod 2` [Razborov1987]; together they give
+  `P ⊄ AC⁰[p]` for every prime `p` (`exists_mem_P_notMem_AC0Mod`).
 * **Fixed-exponent `MOD_q` circuit lower bounds in `Σ₂`**: for every modulus `q` (prime or
   composite) and every exponent `k`, combining `SIZEMod_subset_SIZE` with Kannan's theorem gives a
   language in `Σ₂` with no `MOD_q` circuits of size `O(n ^ k)` of any depth
@@ -48,7 +51,7 @@ This module adds the resulting separations:
 
 * `Cslib.Circuits.Boolean.parity_mem_P`: parity is in `P`.
 * `Cslib.Circuits.Boolean.exists_mem_P_notMem_AC0`,
-  `Cslib.Circuits.Boolean.exists_mem_P_notMem_AC0Mod`: `P ⊄ AC⁰` and `P ⊄ AC⁰[p]` for odd primes
+  `Cslib.Circuits.Boolean.exists_mem_P_notMem_AC0Mod`: `P ⊄ AC⁰` and `P ⊄ AC⁰[p]` for every prime
   `p`.
 * `Cslib.Circuits.Boolean.Kannan.language_notMem_SIZEMod`: Kannan's language
   `Kannan.language (8 * (k + 1))`, which is in `Σ₃`, has no `MOD_q` circuits of size `O(n ^ k)`,
@@ -89,11 +92,14 @@ theorem exists_mem_P_notMem_AC0 :
     ∃ L : Language Bool, (L : Set (List Bool)) ∈ P encBits ∧ L ∉ AC0 :=
   ⟨Language.ofSlices parity, parity_mem_P, parity_notMem_AC0⟩
 
-/-- **Unconditional separation `P ⊄ AC⁰[p]`** for every odd prime `p`: parity is in `P` and not in
-`AC⁰[p]` [Razborov1987], [Smolensky1987]. -/
-theorem exists_mem_P_notMem_AC0Mod {p : ℕ} [Fact p.Prime] (hp2 : p ≠ 2) :
-    ∃ L : Language Bool, (L : Set (List Bool)) ∈ P encBits ∧ L ∉ AC0Mod p :=
-  ⟨Language.ofSlices parity, parity_mem_P, Smolensky.parity_notMem_AC0Mod hp2⟩
+/-- **Unconditional separation `P ⊄ AC⁰[p]`** for every prime `p`: for odd `p`, parity is in `P`
+and not in `AC⁰[p]` [Smolensky1987]; for `p = 2`, the middle slice is
+(`Razborov.exists_mem_P_notMem_AC0Mod_two`) [Razborov1987]. -/
+theorem exists_mem_P_notMem_AC0Mod {p : ℕ} [Fact p.Prime] :
+    ∃ L : Language Bool, (L : Set (List Bool)) ∈ P encBits ∧ L ∉ AC0Mod p := by
+  rcases eq_or_ne p 2 with rfl | hp2
+  · exact Razborov.exists_mem_P_notMem_AC0Mod_two
+  · exact ⟨Language.ofSlices parity, parity_mem_P, Smolensky.parity_notMem_AC0Mod hp2⟩
 
 /-- **Kannan's language escapes `SIZEMod q`**: for every `q, k, c : ℕ`,
 `Kannan.language (8 * (k + 1))` has no circuits over the `AC⁰[q]` basis of size

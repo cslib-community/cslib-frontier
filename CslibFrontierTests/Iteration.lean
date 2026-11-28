@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.CircuitCounting
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.CounterBatch
+import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
+import CslibFrontier.Computability.Circuit.Boolean.Iteration.EndpointPower
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.InPlace
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.ModulusCounter
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
@@ -23,7 +27,10 @@ Exercise the word circuits on a two-bit adder and table selection, the residue c
 concrete repeat, record collisions, and the fixed-power theorems on a bit-flip circuit, on
 zero-width states, on an empty and a singleton invariant set, through an encoding of a type in
 a higher universe, and for permutation inversion and periodicity.
+The optimized clients also exercise the zero-table rounding boundary and the endpoint bound.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Iteration
 
@@ -34,14 +41,17 @@ open Cslib Cslib.Circuits Cslib.Circuits.Boolean Cslib.Circuits.Boolean.Iteratio
 -- A two-bit ripple-carry adder on the first two and last two inputs, from the shared carries.
 example : ∃ c : Circuit signature 4 2,
     c.Computes interpretation (fun x i =>
-      (word (fun j : Fin 2 => x ⟨j, by omega⟩) +
-        word (fun j : Fin 2 => x ⟨j + 2, by omega⟩)).getLsbD i.val) ∧ c.size ≤ 25 :=
-  (Synthesis.word_add (s := inputs 4) (fun x => word fun j : Fin 2 => x ⟨j, by omega⟩)
-    (fun x => word fun j : Fin 2 => x ⟨j + 2, by omega⟩)
+      (BitString.equivBitVec (fun j : Fin 2 => x ⟨j, by omega⟩) +
+        BitString.equivBitVec (fun j : Fin 2 => x ⟨j + 2, by omega⟩)).getLsbD i.val) ∧
+      c.size ≤ 25 :=
+  (Synthesis.word_add (s := inputs 4)
+    (fun x => BitString.equivBitVec fun j : Fin 2 => x ⟨j, by omega⟩)
+    (fun x => BitString.equivBitVec fun j : Fin 2 => x ⟨j + 2, by omega⟩)
     (fun i => ⟨⟨i, by omega⟩, funext fun x =>
-      (getLsbD_word (fun j : Fin 2 => x ⟨j, by omega⟩) i).symm⟩)
+      (BitString.getLsbD_equivBitVec (fun j : Fin 2 => x ⟨j, by omega⟩) i).symm⟩)
     (fun i => ⟨⟨i + 2, by omega⟩, funext fun x =>
-      (getLsbD_word (fun j : Fin 2 => x ⟨j + 2, by omega⟩) i).symm⟩)).exists_circuit_outputs
+      (BitString.getLsbD_equivBitVec
+        (fun j : Fin 2 => x ⟨j + 2, by omega⟩) i).symm⟩)).exists_circuit_outputs
 
 -- Table selection is exact in range, all-false out of range, and never selects positions beyond
 -- the index range.
@@ -137,6 +147,26 @@ example (c : Circuit signature 3 3) (T : ℕ) : ∃ out : Circuit signature 3 3,
       out.size ≤ 120000 * (c.size + 64) * 4 := by
   simpa using fixed_power_half_exponent c T
 
+-- A zero-size table still admits a positive checkpoint, with exactly the additive allowance.
+example : ∃ L : ℕ, 0 < L ∧ L ≤ 1 ∧
+    ((7 * L + 3 * (0 / L + 1) : ℕ) : ℝ) ≤ 10 := by
+  convert exists_le_add_add_two_mul_sqrt 7 3 0 1 (by decide) (by decide)
+    (by decide) (by decide) using 1
+  norm_num
+
+-- At width six, the endpoint's square-root term is 56, strictly below the dense bound 64.
+example (T : ℕ) : ∃ out : Circuit signature 6 6,
+    out.Computes interpretation ((Circuit.id signature 6).eval interpretation)^[T] ∧
+      (out.size : ℝ) ≤ 448000 := by
+  obtain ⟨out, hcorrect, hsize⟩ := fixed_power_endpoint (Circuit.id signature 6) T
+  refine ⟨out, hcorrect, ?_⟩
+  change (out.size : ℝ) ≤ 8000 * min ((2 : ℝ) ^ 6) (Real.sqrt ((2 : ℝ) ^ 6 * 49)) at hsize
+  have hsqrt : Real.sqrt ((2 : ℝ) ^ 6 * 49) = 56 := by
+    rw [show (2 : ℝ) ^ 6 * 49 = 56 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
+  rw [hsqrt] at hsize
+  norm_num at hsize
+  exact_mod_cast hsize
+
 /-! ### Universal step map, in-place machines, and sequential squaring -/
 
 -- Zero-gate (`G = 0`), exact (`G = 1`), and padded (`G = 3 > flip.size`) rounds of the universal
@@ -182,19 +212,19 @@ example (z : InPlace.Config Unit Bool 2 1) :
   ((InPlace.iterate_card_halting idleMachine idleMachine_absorbing z).2 0 trivial)
 
 private theorem injOn_config_one {h : ℕ} (M : InPlace.Machine Unit Bool h) :
-    Set.InjOn (fun z : InPlace.Config Unit Bool 1 h => z.1) (InPlace.reach M 1) := by
+    Set.InjOn (fun z : InPlace.Config Unit Bool 1 h => z.tape) (InPlace.reach M 1) := by
   intro z₁ _ z₂ _ h1
-  exact Prod.ext h1 (Prod.ext (Subsingleton.elim _ _) (Subsingleton.elim _ _))
+  exact InPlace.Config.ext h1 (Subsingleton.elim _ _) (Subsingleton.elim _ _)
 
 -- Concrete instantiation of `InPlace.inplace_halting` on `idleMachine`.
 example : ∃ (out : Circuit signature 1 1) (final : BitString 1 → InPlace.Config Unit Bool 1 1),
-    (∀ x, out.eval interpretation x = (final x).1 ∧
-      (idleMachine.halting (final x).2.2 ↔
-        ∃ t, idleMachine.halting (idleMachine.step^[t] (idleMachine.init x)).2.2) ∧
-      ∀ t, idleMachine.halting (idleMachine.step^[t] (idleMachine.init x)).2.2 →
+    (∀ x, out.eval interpretation x = (final x).tape ∧
+      (idleMachine.halting (final x).state ↔
+        ∃ t, idleMachine.halting (idleMachine.step^[t] (idleMachine.init x)).state) ∧
+      ∀ t, idleMachine.halting (idleMachine.step^[t] (idleMachine.init x)).state →
         final x = idleMachine.step^[t] (idleMachine.init x)) ∧
-    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 120000 * optimizedBudget 1 0 2 := by
-  simpa using InPlace.inplace_halting idleMachine idleMachine_absorbing (fun z => z.1)
+    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 80000 * optimizedBudget 1 0 2 := by
+  simpa using InPlace.inplace_halting idleMachine idleMachine_absorbing (fun z => z.tape)
     (injOn_config_one idleMachine) (Circuit.id signature 1)
     (fun z _ => by rw [InPlace.Machine.step_of_halting idleMachine_absorbing z trivial]; rfl)
     (Circuit.id signature 1) (fun _ => rfl)
@@ -208,12 +238,10 @@ private def collideMachine : InPlace.Machine Unit Bool 2 where
   embed := id
 
 private theorem collideMachine_step (z : InPlace.Config Unit Bool 1 2) :
-    collideMachine.step z = (fun _ => !z.1 0, fun _ => 0, ()) := by
-  refine Prod.ext ?_ (Prod.ext (Subsingleton.elim _ _) (Subsingleton.elim _ _))
-  funext i
+    collideMachine.step z = ⟨fun _ => !z.tape 0, fun _ => 0, ()⟩ := by
+  refine InPlace.Config.ext (funext fun i => ?_) (Subsingleton.elim _ _) (Subsingleton.elim _ _)
   fin_cases i
-  have hp0 : z.2.1 0 = 0 := Subsingleton.elim _ _
-  have hp1 : z.2.1 1 = 0 := Subsingleton.elim _ _
+  have hp1 : z.heads 1 = 0 := Subsingleton.elim _ _
   simp [collideMachine, InPlace.Machine.step, InPlace.writeHeads, Fin.foldl_succ_last,
     Fin.foldl_zero, hp1]
 
@@ -226,9 +254,9 @@ private theorem collideMachine_round (x : BitString 1) :
 -- Concrete instantiation of `InPlace.inplace_configs_optimized` and `InPlace.round_bounds_of_hard`
 -- on the 2-head colliding/clamping machine `collideMachine`.
 example (T : ℕ) : ∃ out : Circuit signature 1 1,
-    (∀ x, out.eval interpretation x = (collideMachine.step^[T] (collideMachine.init x)).1) ∧
-    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 120000 * optimizedBudget 1 flip.size 2 := by
-  simpa using InPlace.inplace_configs_optimized collideMachine (fun z => z.1)
+    (∀ x, out.eval interpretation x = (collideMachine.step^[T] (collideMachine.init x)).tape) ∧
+    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 80000 * optimizedBudget 1 flip.size 2 := by
+  simpa using InPlace.inplace_configs_optimized collideMachine (fun z => z.tape)
     (injOn_config_one collideMachine) flip
     (fun z _ => by rw [collideMachine_step, eval_flip])
     (Circuit.id signature 1) (fun _ => rfl) T
@@ -237,14 +265,59 @@ example (q : ℕ)
     (hhard : ∀ d : Circuit signature 1 1,
       d.Computes interpretation (flip.eval interpretation)^[1] → q < d.size) :
     (∀ out : Circuit signature 1 1,
-      (∀ x, out.eval interpretation x = (collideMachine.step^[1 * 1] (collideMachine.init x)).1) →
+      (∀ x, out.eval interpretation x =
+        (collideMachine.step^[1 * 1] (collideMachine.init x)).tape) →
       q < out.size) ∧
     ∀ T', ∃ out : Circuit signature 1 1,
-      (∀ x, out.eval interpretation x = (collideMachine.step^[T'] (collideMachine.init x)).1) ∧
-      (out.size : ℝ) ≤ (Circuit.id signature 1).size + 120000 * optimizedBudget 1 flip.size 2 := by
+      (∀ x, out.eval interpretation x = (collideMachine.step^[T'] (collideMachine.init x)).tape) ∧
+      (out.size : ℝ) ≤ (Circuit.id signature 1).size + 80000 * optimizedBudget 1 flip.size 2 := by
   simpa using InPlace.round_bounds_of_hard collideMachine 1 1 q one_pos (flip.eval interpretation)
-    collideMachine_round (fun z => z.1) (injOn_config_one collideMachine) id (fun _ => rfl) hhard
-    flip (fun z _ => by rw [collideMachine_step, eval_flip]) (Circuit.id signature 1) (fun _ => rfl)
+    collideMachine_round (fun z => z.tape) (injOn_config_one collideMachine) id (fun _ => rfl)
+    hhard flip (fun z _ => by rw [collideMachine_step, eval_flip])
+    (Circuit.id signature 1) (fun _ => rfl)
+
+/-- A 2-head machine on `{false, true}` states (`true` halting): while running (`false`), head 0
+writes `false` and moves `.left`, while head 1 writes `true`, moves `.right`, and transitions to
+the halting state `true` once it observes the right-boundary flag `last 1 = true`. -/
+private def boundaryTieMachine : InPlace.Machine Bool Bool 2 where
+  δ q r _ last :=
+    if q then (true, r, fun _ => .stay)
+    else (last 1, ![false, true], ![.left, .right])
+  start := false
+  halting q := q = true
+  embed := id
+
+private theorem boundaryTieMachine_absorbing : boundaryTieMachine.HaltingAbsorbing := by
+  intro q hq r _ _
+  subst hq
+  rfl
+
+-- Multi-cell 2-head run under `module` encapsulation: step 1 breaks the simultaneous write tie at
+-- cell 0 in favor of head 1 (`true`) while clamping head 0's `.left` at 0; step 2 separates the
+-- heads so head 0 overwrites cell 0 with `false` while head 1 writes `true` to cell 1; step 3
+-- clamps head 1's `.right` at cell 2, preserves unwritten cell 1, and enters the absorbing halting
+-- state `true`; step 4 remains fixed.
+example :
+    let z0 := boundaryTieMachine.init ![false, false, false]
+    boundaryTieMachine.step^[1] z0 =
+      { tape := ![true, false, false], heads := ![0, 1], state := false } ∧
+    boundaryTieMachine.step^[2] z0 =
+      { tape := ![false, true, false], heads := ![0, 2], state := false } ∧
+    boundaryTieMachine.step^[3] z0 =
+      { tape := ![false, true, true], heads := ![0, 2], state := true } ∧
+    boundaryTieMachine.step^[4] z0 =
+      { tape := ![false, true, true], heads := ![0, 2], state := true } := by
+  decide
+
+-- Halting-time bound `2 ^ 3 * (3 + 1) = 32` strictly beats `|Γ|^3 * 3^2 * |Q| = 144`.
+example :
+    Fintype.card (InPlace.Config Bool Bool 3 2) = 144 ∧
+    (InPlace.reach boundaryTieMachine 3).card ≤ 32 :=
+  ⟨by rw [InPlace.card_config]; decide,
+    InPlace.reach_card_le_time boundaryTieMachine boundaryTieMachine_absorbing 3 fun x =>
+      ⟨3, le_rfl,
+        show (boundaryTieMachine.step^[3] (boundaryTieMachine.init x)).state = true by
+          revert x; decide⟩⟩
 
 -- Sequential squaring modulo `M = 1`, at `T = 0`, and on a non-unit residue modulo `M = 15`.
 private theorem squarefree_15 : Squarefree (15 : ℕ) := by
@@ -314,7 +387,7 @@ example : ∃ out : Circuit signature 2 3,
 
 -- Minimal period circuit for `flip` at `L = 1`.
 example : ∃ out : Circuit signature 1 2,
-    (∀ x, (word (out.eval interpretation x)).toNat =
+    (∀ x, (BitString.equivBitVec (out.eval interpretation x)).toNat =
       Function.minimalPeriod (flip.eval interpretation) x) ∧
     out.size ≤ 110000 * powerBudget 1 1 2 1 := by
   simpa [flip] using minimal_period_circuit flip 1 one_pos (by decide)

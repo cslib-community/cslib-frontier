@@ -62,11 +62,9 @@ theorem positiveFormulaDrawing_occurrence_injective (φ : CNF ℕ)
     {o t : Occurrence (CNF.PositiveExactOneCompile.Variable ℕ)}
     (ho : o ∈ Cslib.Logic.PL.occurrences (CNF.PositiveExactOneCompile.rawFormula φ))
     (ht : t ∈ Cslib.Logic.PL.occurrences (CNF.PositiveExactOneCompile.rawFormula φ))
-    (hclause : o.1 = t.1) (hvar : o.2.2.1 = t.2.2.1) : o = t := by
-  rcases o with ⟨i, j, l⟩
-  rcases t with ⟨i', j', l'⟩
-  change i = i' at hclause
-  subst i'
+    (hclause : o.clause = t.clause) (hvar : o.lit.1 = t.lit.1) : o = t := by
+  rcases o, t with ⟨⟨i, j, l⟩, ⟨i', j', l'⟩⟩
+  obtain rfl : i = i' := hclause
   obtain ⟨hi, hj, hl⟩ := Cslib.Logic.PL.mem_occurrences.mp ho
   obtain ⟨_, hj', hl'⟩ := Cslib.Logic.PL.mem_occurrences.mp ht
   have hnd := CNF.PositiveExactOneCompile.nodup_rawFormula φ _ (List.getElem_mem hi)
@@ -74,11 +72,8 @@ theorem positiveFormulaDrawing_occurrence_injective (φ : CNF ℕ)
       simpa using hj) =
       (((CNF.PositiveExactOneCompile.rawFormula φ)[i]).map Prod.fst)[j']'(by simpa using hj') := by
     simpa only [List.getElem_map, ← hl, ← hl'] using hvar
-  have hji : j = j' := hnd.getElem_inj_iff.mp he
-  subst j'
-  have hli : l = l' := hl.trans hl'.symm
-  subst l'
-  rfl
+  obtain rfl := hnd.getElem_inj_iff.mp he
+  exact congrArg (Occurrence.mk i j) (hl.trans hl'.symm)
 
 /-- Every actual route begins at its actual output clause and ends at its actual output variable. -/
 theorem positiveFormulaDrawing_endpoints {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -86,13 +81,12 @@ theorem positiveFormulaDrawing_endpoints {φ : CNF ℕ} {d : Graph.OrthogonalDra
     {o : Occurrence (CNF.PositiveExactOneCompile.Variable ℕ)}
     (ho : o ∈ Cslib.Logic.PL.occurrences (CNF.PositiveExactOneCompile.rawFormula φ)) :
     ((positiveFormulaDrawing φ d).incidenceRoute o).head? =
-        some ((positiveFormulaDrawing φ d).clausePoints.getD o.1 (0, 0)) ∧
+        some ((positiveFormulaDrawing φ d).clausePoints.getD o.clause (0, 0)) ∧
       ((positiveFormulaDrawing φ d).incidenceRoute o).getLast? =
-        some ((positiveFormulaDrawing φ d).variablePoint o.2.2.1) := by
+        some ((positiveFormulaDrawing φ d).variablePoint o.lit.1) := by
   obtain ⟨i, hi, e, he, hr, hc, hv⟩ := positiveFormulaDrawing_incidence φ d ho
-  rw [hr, hc]
-  change _ ∧ _ = some (positiveVariablePoint φ d o.2.2.1)
-  rw [hv]
+  rw [hr, hc, show (positiveFormulaDrawing φ d).variablePoint o.lit.1 =
+    positiveVariablePoint φ d o.lit.1 from rfl, hv]
   exact positiveIncidenceRoute_endpoints hd hi (profilePrefixGeometry_check _) he
 
 /-- Every actual output route is proper, orthogonal and continuously simple. -/
@@ -115,35 +109,28 @@ theorem positiveFormulaDrawing_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDraw
     (hot : o ≠ t) {p : ℝ × ℝ}
     (hp : p ∈ support ((positiveFormulaDrawing φ d).incidenceRoute o))
     (hq : p ∈ support ((positiveFormulaDrawing φ d).incidenceRoute t)) :
-    (o.2.2.1 = t.2.2.1 ∧ p = realPoint ((positiveFormulaDrawing φ d).variablePoint o.2.2.1)) ∨
-      (o.1 = t.1 ∧ p = realPoint ((positiveFormulaDrawing φ d).clausePoints.getD o.1 (0, 0))) := by
+    (o.lit.1 = t.lit.1 ∧ p = realPoint ((positiveFormulaDrawing φ d).variablePoint o.lit.1)) ∨
+      (o.clause = t.clause ∧
+        p = realPoint ((positiveFormulaDrawing φ d).clausePoints.getD o.clause (0, 0))) := by
   obtain ⟨i, hi, e, he, hr, hc, hv⟩ := positiveFormulaDrawing_incidence φ d ho
   obtain ⟨j, hj, f, hf, hs, hd', hw⟩ := positiveFormulaDrawing_incidence φ d ht
   have hne : (i, e) ≠ (j, f) := by
-    intro hij
-    have hij' : i = j := congrArg Prod.fst hij
-    have hef : e = f := congrArg Prod.snd hij
-    subst j
-    subst f
-    have hci := positiveFormulaDrawing_clausePoint_injective hd
-      (Cslib.Logic.PL.mem_occurrences.mp ho).choose
-      (Cslib.Logic.PL.mem_occurrences.mp ht).choose (hc.trans hd'.symm)
-    exact hot (positiveFormulaDrawing_occurrence_injective φ ho ht hci (hv.trans hw.symm))
+    rintro ⟨rfl, rfl⟩
+    exact hot (positiveFormulaDrawing_occurrence_injective φ ho ht
+      (positiveFormulaDrawing_clausePoint_injective hd
+        (Cslib.Logic.PL.mem_occurrences.mp ho).choose
+        (Cslib.Logic.PL.mem_occurrences.mp ht).choose (hc.trans hd'.symm))
+      (hv.trans hw.symm))
   rw [hr] at hp
   rw [hs] at hq
   rcases positiveIncidenceRoute_contacts hd hi hj (fun _ _ => profilePrefixGeometry_check _)
-    he hf hne hp hq with h | h
-  · obtain ⟨hij, hef, hp⟩ := h
-    subst j
-    have hpoints : (positiveFormulaDrawing φ d).clausePoints.getD o.1 (0, 0) =
-        (positiveFormulaDrawing φ d).clausePoints.getD t.1 (0, 0) := by
-      rw [hc, hd', hef]
-    exact Or.inr ⟨positiveFormulaDrawing_clausePoint_injective hd
+    he hf hne hp hq with ⟨rfl, hef, hp⟩ | h
+  · exact Or.inr ⟨positiveFormulaDrawing_clausePoint_injective hd
       (Cslib.Logic.PL.mem_occurrences.mp ho).choose
-      (Cslib.Logic.PL.mem_occurrences.mp ht).choose hpoints, hc ▸ hp⟩
+      (Cslib.Logic.PL.mem_occurrences.mp ht).choose (by rw [hc, hd', hef]), hc ▸ hp⟩
   · change profileVariableMap _ _ _ _ = profileVariableMap _ _ _ _ ∧ _ at h
     refine Or.inl ⟨hv.trans (h.1.trans hw.symm), ?_⟩
-    change p = realPoint (positiveVariablePoint φ d o.2.2.1)
+    change p = realPoint (positiveVariablePoint φ d o.lit.1)
     rw [hv]
     exact h.2
 
@@ -160,13 +147,12 @@ theorem positiveFormulaDrawing_valid {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
   have hcontacts := fun o ho t ht hot p hp hq =>
     positiveFormulaDrawing_contacts hd (o := o) (t := t) ho ht hot (p := p) hp hq
   refine ⟨hc, hnd, he, (fun o ho => (positiveFormulaDrawing_regular hd ho).1),
-    (fun o ho => (positiveFormulaDrawing_regular hd ho).2), ?_, ?_, hcontacts⟩
-  · exact FormulaDrawing.avoidsVariables_of_contacts hc hnd (fun o ho => (he o ho).2) hcontacts
-  · apply FormulaDrawing.avoidsClauses_of_contacts hc hnd ?_ (fun o ho => (he o ho).1) hcontacts
-    intro c hmem hnil
-    have hlen := CNF.PositiveExactOneCompile.width_rawFormula φ c hmem
-    rw [hnil] at hlen
-    contradiction
+    (fun o ho => (positiveFormulaDrawing_regular hd ho).2),
+    FormulaDrawing.avoidsVariables_of_contacts hc hnd (fun o ho => (he o ho).2) hcontacts,
+    FormulaDrawing.avoidsClauses_of_contacts hc hnd (fun c hmem hnil => ?_)
+      (fun o ho => (he o ho).1) hcontacts, hcontacts⟩
+  have hlen := CNF.PositiveExactOneCompile.width_rawFormula φ c hmem
+  simp [hnil] at hlen
 
 /-- The emitted drawing realizes the incidence graph of the actual compact positive formula. -/
 theorem positiveDrawing_isPlanarOrthogonalDrawing {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}

@@ -67,11 +67,10 @@ Tseitin parity system on `G`, over a strictly ordered commutative ring, has
 theorem edgeExpansion_mul_card_div_three_le_of_sos_refutableInDegree {R : Type*} [CommRing R]
     [LinearOrder R] [IsStrictOrderedRing R] (hG : 0 < G.edgeExpansion) {χ : V → Bool} {d : ℕ}
     (h : SOS.RefutableInDegree ((ParitySystem.tseitin G.edgeEnds χ).toPolys R) d) :
-    G.edgeExpansion * Fintype.card V / 3 ≤ d := by
-  have hc := G.connected_toSimpleGraph_of_edgeExpansion_pos hG
-  rw [← G.toSimpleGraph_edgeEnds] at hc
-  exact G.edgeExpansion_mul_card_div_three_le_minBalancedCut.trans
-    (by exact_mod_cast minBalancedCut_le_of_sos_refutableInDegree hc h)
+    G.edgeExpansion * Fintype.card V / 3 ≤ d :=
+  G.edgeExpansion_mul_card_div_three_le_minBalancedCut.trans <| Nat.cast_le.2 <|
+    minBalancedCut_le_of_sos_refutableInDegree
+      (G.toSimpleGraph_edgeEnds ▸ G.connected_toSimpleGraph_of_edgeExpansion_pos hG) h
 
 end Tseitin
 
@@ -91,21 +90,17 @@ which have `120` labels and edge expansion at least `1 / 6000`
 (`Cslib.RotationMap.le_edgeExpansion_expander`), together with `h(G) |V| / 3 ≤ e(G)`. -/
 theorem exists_forall_sos_refutableInDegree_le :
     ∀ n ≥ 2, ∃ m ≤ 120 * n, ∃ P : ParitySystem (Fin m),
-      P.length = n ∧ (∀ e ∈ P, #e.1 ≤ 120) ∧ (∀ a, ¬ P.Holds a) ∧
+      P.length = n ∧ (∀ e ∈ P, #e.vars ≤ 120) ∧ (∀ a, ¬ P.Holds a) ∧
       ∀ (R : Type u) [CommRing R] [LinearOrder R] [IsStrictOrderedRing R] (d : ℕ),
         SOS.RefutableInDegree (P.toPolys R) d → n ≤ 18000 * d := by
   intro n hn
   have : NeZero n := ⟨by omega⟩
   obtain ⟨m, hm, ends, hdeg, hG, hcut⟩ := Multigraph.exists_expander n hn
-  let χ : Fin n → Bool := fun v => decide (v = 0)
-  refine ⟨m, hm, tseitin ends χ, by simp, fun e he => ?_,
-    not_holds_tseitin (by simp [χ, parityOn, filter_eq']), fun R _ _ _ d hd => ?_⟩
-  · obtain ⟨v, rfl⟩ := mem_tseitin.1 he
-    exact hdeg v
-  have h' : (Multigraph.minBalancedCut ends : ℝ) ≤ d := by
-    exact_mod_cast Tseitin.minBalancedCut_le_of_sos_refutableInDegree hG hd
-  have : (n : ℝ) ≤ 18000 * d := by linarith
-  exact_mod_cast this
+  refine ⟨m, hm, tseitin ends fun v : Fin n => decide (v = 0), by simp,
+    fun e he => (mem_tseitin.1 he).elim fun v hv => hv ▸ hdeg v,
+    not_holds_tseitin (by simp [parityOn, filter_eq']), fun R _ _ _ d hd => ?_⟩
+  have h' := (Nat.cast_le (α := ℝ)).2 (Tseitin.minBalancedCut_le_of_sos_refutableInDegree hG hd)
+  exact_mod_cast (by linarith : (n : ℝ) ≤ 18000 * d)
 
 end ParitySystem
 

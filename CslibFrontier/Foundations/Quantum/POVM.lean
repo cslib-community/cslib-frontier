@@ -41,6 +41,7 @@ which is a contraction even when `M` is not projective
 * `Cslib.Quantum.POVM.kronecker`: the product of two POVMs on a bipartite system.
 * `Cslib.Quantum.POVM.const`: the trivial measurement with a fixed outcome.
 * `Cslib.Quantum.POVM.reindex`: relabelling the basis of the system.
+* `Cslib.Quantum.POVM.comap`: measuring after a unitary (`Cslib.Quantum.POVM.prob_comap`).
 * `Cslib.Quantum.POVM.ofObservable`: the projective measurement of a `±1` observable.
 * `Cslib.Quantum.POVM.observable`: the observable `E_false - E_true` of a two-outcome POVM.
 
@@ -97,6 +98,14 @@ namespace POVM
 section Basic
 
 variable [Fintype A] [Fintype ι] [DecidableEq ι]
+
+@[ext]
+theorem ext {M N : POVM A ι} (h : ∀ a, M.effect a = N.effect a) : M = N := by
+  have he := funext h
+  cases M
+  cases N
+  cases he
+  rfl
 
 /-- The probability `⟨ψ|E_a|ψ⟩` of the outcome `a` when measuring `ψ` with `M`. -/
 @[expose] noncomputable def prob (M : POVM A ι) (ψ : EuclideanSpace ℂ ι) (a : A) : ℝ :=
@@ -161,9 +170,13 @@ noncomputable def basis : POVM ι ι where
     exact posSemidef_conjTranspose_mul_self _
   sum_effect := sum_single_one
 
+/-- Each basis effect is the projector onto its basis vector. -/
+@[simp] theorem basis_effect (x : ι) : (basis : POVM ι ι).effect x = single x x 1 := by
+  rfl
+
 theorem prob_basis (ψ : EuclideanSpace ℂ ι) (x : ι) : basis.prob ψ x = ‖ψ.ofLp x‖ ^ 2 := by
-  simp only [prob, basis, single_mulVec_eq, one_mul, dotProduct_smul, dotProduct_single, mul_one,
-    Pi.star_apply, smul_eq_mul]
+  simp only [prob, basis_effect, single_mulVec_eq, one_mul, dotProduct_smul, dotProduct_single,
+    mul_one, Pi.star_apply, smul_eq_mul]
   rw [Complex.star_def, Complex.mul_conj', ← Complex.ofReal_pow, Complex.ofReal_re]
 
 /-- Measuring with the basis POVM is the computational-basis measurement. -/
@@ -205,6 +218,27 @@ variable [Fintype A] [Fintype ι] [DecidableEq ι] [Fintype ι'] [DecidableEq ι
     rwa [map_sum, map_one] at h
 
 end Reindex
+
+section Comap
+
+variable [Fintype A] [Fintype ι] [DecidableEq ι]
+
+/-- Measuring with `M` **after applying the unitary `U`**: the POVM with effects `U† E_a U`. -/
+@[expose] noncomputable def comap (M : POVM A ι) (U : Matrix ι ι ℂ) (hU : U ∈ unitaryGroup ι ℂ) :
+    POVM A ι where
+  effect a := Uᴴ * M.effect a * U
+  posSemidef a := (M.posSemidef a).conjTranspose_mul_mul_same U
+  sum_effect := by
+    rw [← Finset.sum_mul, ← Finset.mul_sum, M.sum_effect, Matrix.mul_one]
+    exact (mem_unitaryGroup_iff').1 hU
+
+/-- Measuring `ψ` with `M.comap U` is measuring `Uψ` with `M`. -/
+theorem prob_comap (M : POVM A ι) (U : Matrix ι ι ℂ) (hU : U ∈ unitaryGroup ι ℂ)
+    (ψ : EuclideanSpace ℂ ι) (a : A) :
+    (M.comap U hU).prob ψ a = M.prob (WithLp.toLp 2 (U *ᵥ ψ.ofLp)) a := by
+  simp only [prob, comap, ← mulVec_mulVec, dotProduct_mulVec, star_mulVec]
+
+end Comap
 
 section Observable
 

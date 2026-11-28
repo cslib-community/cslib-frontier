@@ -80,29 +80,20 @@ private theorem core_hasDerivAt {t : ℝ} (ht : 0 ≤ t) :
     field_simp
     ring
 
-private theorem core_deriv_nonneg {t : ℝ} (ht : 0 ≤ t) :
-    0 ≤ t ^ 3 * (t + 4) / (1 + t) ^ 4 := by positivity
-
-private theorem core_deriv_le_one {t : ℝ} (ht : 0 ≤ t) :
-    t ^ 3 * (t + 4) / (1 + t) ^ 4 ≤ 1 := by
-  apply (div_le_one (by positivity : 0 < (1 + t) ^ 4)).2
-  nlinarith [sq_nonneg t]
-
 private theorem core_monotoneOn :
-    MonotoneOn (fun t : ℝ => t ^ 4 / (1 + t) ^ 3) (Set.Ici 0) := by
-  refine monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-    (fun t ht => (core_hasDerivAt ht).continuousAt.continuousWithinAt)
-    (fun t ht => (core_hasDerivAt (interior_subset ht)).hasDerivWithinAt) ?_
-  exact fun t ht => core_deriv_nonneg (interior_subset ht)
+    MonotoneOn (fun t : ℝ => t ^ 4 / (1 + t) ^ 3) (Set.Ici 0) :=
+  monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
+    (fun _ ht => (core_hasDerivAt ht).continuousAt.continuousWithinAt)
+    (fun _ ht => (core_hasDerivAt (interior_subset ht)).hasDerivWithinAt)
+    fun t ht => by have : 0 ≤ t := interior_subset ht; positivity
 
 private theorem core_lipschitzOnWith :
-    LipschitzOnWith 1 (fun t : ℝ => t ^ 4 / (1 + t) ^ 3) (Set.Ici 0) := by
-  refine (convex_Ici 0).lipschitzOnWith_of_nnnorm_hasDerivWithin_le
-    (fun t ht => (core_hasDerivAt ht).hasDerivWithinAt) ?_
-  intro t ht
-  change |t ^ 3 * (t + 4) / (1 + t) ^ 4| ≤ (1 : ℝ)
-  rw [abs_of_nonneg (core_deriv_nonneg ht)]
-  exact core_deriv_le_one ht
+    LipschitzOnWith 1 (fun t : ℝ => t ^ 4 / (1 + t) ^ 3) (Set.Ici 0) :=
+  (convex_Ici 0).lipschitzOnWith_of_nnNorm_hasDerivWithin_le
+    (fun _ ht => (core_hasDerivAt ht).hasDerivWithinAt) fun t (ht : 0 ≤ t) => by
+    change |t ^ 3 * (t + 4) / (1 + t) ^ 4| ≤ (1 : ℝ)
+    rw [abs_of_nonneg (by positivity), div_le_one (by positivity)]
+    nlinarith [sq_nonneg t]
 
 theorem rationalRamp4Unit_nonneg (t : ℝ) : 0 ≤ rationalRamp4Unit t := by
   unfold rationalRamp4Unit
@@ -110,15 +101,14 @@ theorem rationalRamp4Unit_nonneg (t : ℝ) : 0 ≤ rationalRamp4Unit t := by
 
 theorem rationalRamp4Unit_le (t : ℝ) : rationalRamp4Unit t ≤ max 0 t := by
   have hu : 0 ≤ max 0 t := le_max_left _ _
-  have hpow : 0 ≤ (max 0 t) ^ 3 := by positivity
-  apply (div_le_iff₀ (by positivity : 0 < (1 + max 0 t) ^ 3)).2
-  nlinarith [sq_nonneg (max 0 t)]
+  rw [rationalRamp4Unit, div_le_iff₀ (by positivity)]
+  nlinarith [sq_nonneg (max 0 t), pow_nonneg hu 3]
 
 theorem sub_three_le_rationalRamp4Unit (t : ℝ) : t - 3 ≤ rationalRamp4Unit t := by
   have hu : 0 ≤ max 0 t := le_max_left _ _
-  apply (le_div_iff₀ (by positivity : 0 < (1 + max 0 t) ^ 3)).2
-  have h := mul_le_mul_of_nonneg_right (sub_le_sub_right (le_max_right 0 t) 3)
-    (show 0 ≤ (1 + max 0 t) ^ 3 by positivity)
+  rw [rationalRamp4Unit, le_div_iff₀ (by positivity)]
+  have := mul_le_mul_of_nonneg_right (sub_le_sub_right (le_max_right 0 t) 3)
+    (by positivity : 0 ≤ (1 + max 0 t) ^ 3)
   nlinarith [sq_nonneg (max 0 t)]
 
 theorem rationalRamp4Unit_of_nonpos {t : ℝ} (ht : t ≤ 0) : rationalRamp4Unit t = 0 := by
@@ -161,36 +151,29 @@ private theorem root_hasDerivAt {t : ℝ} (ht : 0 ≤ t) :
     norm_num
     ring
 
-private theorem root_deriv_nonneg {t : ℝ} (ht : 0 ≤ t) :
-    0 ≤ (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4) := by positivity
-
-private theorem root_deriv_le_one {t : ℝ} (ht : 0 ≤ t) :
-    (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4) ≤ 1 := by
-  have hp : 0 < 1 + t := by positivity
-  calc (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4) ≤
-      (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t) :=
-        mul_le_mul_of_nonneg_left (by linarith) (Real.rpow_nonneg hp.le _)
-    _ = (1 + t) ^ (-(3 / 4 : ℝ)) := by rw [← Real.rpow_add_one hp.ne']; norm_num
-    _ ≤ 1 := Real.rpow_le_one_of_one_le_of_nonpos (by linarith) (by norm_num)
-
 private theorem root_lipschitzOnWith :
-    LipschitzOnWith 1 (fun t : ℝ => t * (1 + t) ^ (-(3 / 4 : ℝ))) (Set.Ici 0) := by
-  refine (convex_Ici 0).lipschitzOnWith_of_nnnorm_hasDerivWithin_le
-    (fun t ht => (root_hasDerivAt ht).hasDerivWithinAt) ?_
-  intro t ht
-  change |(1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)| ≤ (1 : ℝ)
-  rw [abs_of_nonneg (root_deriv_nonneg ht)]
-  exact root_deriv_le_one ht
+    LipschitzOnWith 1 (fun t : ℝ => t * (1 + t) ^ (-(3 / 4 : ℝ))) (Set.Ici 0) :=
+  (convex_Ici 0).lipschitzOnWith_of_nnNorm_hasDerivWithin_le
+    (fun _ ht => (root_hasDerivAt ht).hasDerivWithinAt) fun t (ht : 0 ≤ t) => by
+    have hp : 0 < 1 + t := by positivity
+    change |(1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)| ≤ (1 : ℝ)
+    rw [abs_of_nonneg (by positivity)]
+    calc (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)
+        ≤ (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t) :=
+          mul_le_mul_of_nonneg_left (by linarith) (Real.rpow_nonneg hp.le _)
+      _ = (1 + t) ^ (-(3 / 4 : ℝ)) := by
+          rw [← Real.rpow_add_one hp.ne']
+          norm_num
+      _ ≤ 1 := Real.rpow_le_one_of_one_le_of_nonpos (by linarith) (by norm_num)
 
 /-- The normalized ramp's fourth root has global Lipschitz constant one. -/
 theorem lipschitzWith_rationalRamp4Unit_root :
-    LipschitzWith 1 fun t : ℝ => rationalRamp4Unit t ^ (4⁻¹ : ℝ) := by
-  refine LipschitzWith.of_dist_le_mul fun x y => ?_
-  have h := root_lipschitzOnWith.dist_le_mul (max 0 x) (le_max_left _ _)
-    (max 0 y) (le_max_left _ _)
-  rw [← core_root_eq (le_max_left _ _), ← core_root_eq (le_max_left _ _)] at h
-  simp only [NNReal.coe_one, one_mul] at h
-  exact h.trans ((LipschitzWith.id.const_max (0 : ℝ)).dist_le_mul x y)
+    LipschitzWith 1 fun t : ℝ => rationalRamp4Unit t ^ (4⁻¹ : ℝ) :=
+  LipschitzWith.of_dist_le_mul fun x y => by
+    have h := root_lipschitzOnWith.dist_le_mul _ (le_max_left 0 x) _ (le_max_left 0 y)
+    rw [← core_root_eq (le_max_left _ _), ← core_root_eq (le_max_left _ _)] at h
+    simp only [NNReal.coe_one, one_mul] at h
+    exact h.trans ((LipschitzWith.id.const_max 0).dist_le_mul x y)
 
 /-! ## Translation and rescaling -/
 
@@ -227,7 +210,7 @@ theorem lipschitzWith_rationalRamp4 (ha : 0 < a) (θ : ℝ) :
   change LipschitzWith 1 (fun t : ℝ => a * rationalRamp4Unit ((t - θ) / a))
   have h := (lipschitzWith_smul a).comp (lipschitzWith_rationalRamp4Unit.comp
     ((lipschitzWith_smul a⁻¹).comp (isometry_add_right (-θ)).lipschitzWith))
-  simpa only [mul_one, one_mul, ← nnnorm_mul, mul_inv_cancel₀ ha.ne', nnnorm_one,
+  simpa only [mul_one, one_mul, ← nnNorm_mul, mul_inv_cancel₀ ha.ne', nnNorm_one,
     Function.comp_def, smul_eq_mul, sub_eq_add_neg, div_eq_mul_inv, mul_comm]
     using h
 

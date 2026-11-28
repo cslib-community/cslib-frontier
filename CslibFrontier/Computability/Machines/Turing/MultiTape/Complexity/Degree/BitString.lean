@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BitListCodec
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 
 /-!
@@ -28,22 +29,7 @@ Both directions have linear time, workspace and output length, without a fold ov
 
 namespace Turing.MultiTapeTM.ComputableInDegree
 
-/-- Convert one framed word into a list of framed one-bit words. -/
-private def frameBitsT : Transducer Bool Bool where
-  q₀ := false
-  step q b := if q then (false, [b, false]) else (b, if b then [true] else [])
-  final _ := []
-  length_step_le q b := by cases q <;> cases b <;> decide
-  length_final_le _ := by decide
-
-private theorem frameBitsT_run (word : List Bool) :
-    frameBitsT.run false (frame word) = encList encBool word := by
-  induction word with
-  | nil => rfl
-  | cons b word ih =>
-    change true :: b :: false :: frameBitsT.run false (frame word) = _
-    rw [ih]
-    rfl
+open Internal
 
 /-- Read the payload of each three-symbol Boolean element. -/
 private def listBitsT : Transducer Bool (Fin 3) where
@@ -68,7 +54,7 @@ public theorem bitsToList : ComputableInDegree (fun word => word)
       encBits (encFramed encBits) 1 1 := of_frame fun _ => rfl
   have hconvert : ComputableInDegree (fun word : List Bool => word)
       (encFramed encBits) (encList encBool) 1 1 :=
-    of_transducer frameBitsT fun word => (frameBitsT_run word).symm
+    of_transducer bitsToBoolListT fun word => (bitsToBoolListT_run word).symm
   exact hconvert.comp hframe
 
 /-- Remove Boolean-element framing in linear time and space, leaving the list unchanged. -/

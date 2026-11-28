@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.Basic
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Recursive van Emde Boas memory representation
@@ -82,24 +83,19 @@ theorem universeSize_le_span (d : ℕ) : universeSize d ≤ span d := by
   | zero => decide
   | succ d ih =>
     rw [universeSize_succ, span_succ]
-    have h₁ := Nat.mul_le_mul_left (universeSize d) ih
-    have h₂ : universeSize d * span d ≤ (universeSize d + 1) * span d :=
-      Nat.mul_le_mul_right (span d) (by omega)
+    have := (Nat.mul_le_mul_left (universeSize d) ih).trans
+      (Nat.mul_le_mul_right (span d) (by omega : universeSize d ≤ universeSize d + 1))
     omega
 
 /-- Every smaller record size is bounded by its parent record size. -/
 theorem span_le_succ (d : ℕ) : span d ≤ span (d + 1) := by
-  have h := summary_end_le_span d
-  dsimp only [summaryOffset] at h
-  omega
+  wram_omega [summary_end_le_span d]
 
 /-- Every split size is bounded by its record span. -/
 theorem splitSize_le_span (d : ℕ) : splitSize d ≤ span d := by
   cases d with
   | zero => decide
-  | succ d =>
-    dsimp only [splitSize]
-    exact Nat.le_trans (universeSize_le_span d) (span_le_succ d)
+  | succ d => exact (universeSize_le_span d).trans (span_le_succ d)
 
 /-- Every child span is bounded by its parent record span. -/
 theorem childSpan_le_span (d : ℕ) : childSpan d ≤ span d := by
@@ -111,10 +107,9 @@ theorem childSpan_le_span (d : ℕ) : childSpan d ≤ span d := by
 theorem maximum_lt_universe {d p m M : ℕ} {t : Tree d} {mem : ℕ → ℕ}
     (ht : t.Valid) (hr : Rep t p mem) (hb : t.bounds = some (m, M)) :
     mem (p + 2) = M ∧ M < universeSize d := by
-  have he := ht.extrema_of_bounds hb
   have hh := hr.header
   simp only [Header, hb] at hh
-  exact ⟨hh.2.1.2, he.2.1⟩
+  exact ⟨hh.2.1.2, (ht.extrema_of_bounds hb).2.1⟩
 
 /-- The cached-maximum guard makes every computed cluster index valid, even for a query
 initially outside the universe. No hypothesis constrains memory outside the represented tree. -/
@@ -127,12 +122,10 @@ theorem member_descent_safe {d p m M x : ℕ} {s : Tree d}
       x % universeSize d < universeSize d ∧
       p + clusterOffset d (x / universeSize d) + span d ≤ p + span (d + 1) := by
   obtain ⟨hm, hM⟩ := maximum_lt_universe ht hr rfl
-  rw [hm] at hx
-  have hxu : x < universeSize d * universeSize d := Nat.lt_trans hx hM
   have hi : x / universeSize d < universeSize d :=
-    (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr hxu
-  refine ⟨hi, Nat.mod_lt _ (universeSize_pos d), ?_⟩
-  simpa only [Nat.add_assoc] using Nat.add_le_add_left (cluster_end_le_span d hi) p
+    (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr ((hm ▸ hx).trans hM)
+  exact ⟨hi, Nat.mod_lt _ (universeSize_pos d),
+    by simpa only [Nat.add_assoc] using Nat.add_le_add_left (cluster_end_le_span d hi) p⟩
 
 /-- Every header word of a cluster reached through the maximum guard lies in its parent
 interval. This statement applies before reading that cluster, not only after it is represented. -/
@@ -143,8 +136,7 @@ theorem member_descendant_read_safe {d p m M x a : ℕ} {s : Tree d}
     (hx : x < mem (p + 2)) (ha : a < 5) :
     p ≤ p + clusterOffset d (x / universeSize d) + a ∧
       p + clusterOffset d (x / universeSize d) + a < p + span (d + 1) := by
-  have h := member_descent_safe ht hr hx
-  have hw := cluster_word_lt_span d h.1 (header_word_lt_span d ha)
+  have := cluster_word_lt_span d (member_descent_safe ht hr hx).1 (header_word_lt_span d ha)
   omega
 
 /-- A header depends only on its five words. -/
@@ -152,13 +144,8 @@ theorem header_congr {d p : ℕ} {b : Option (ℕ × ℕ)} {m m' : ℕ → ℕ}
     (h : ∀ a < 5, m (p + a) = m' (p + a)) :
     Header d b p m ↔ Header d b p m' := by
   have h0 : m p = m' p := by simpa only [Nat.add_zero] using h 0 (by decide)
-  have h1 := h 1 (by decide)
-  have h2 := h 2 (by decide)
-  have h3 := h 3 (by decide)
-  have h4 := h 4 (by decide)
-  cases b with
-  | none => simp only [Header, h0, h3, h4]
-  | some b => cases b; simp only [Header, h0, h1, h2, h3, h4]
+  rcases b with _ | ⟨_, _⟩ <;>
+    simp only [Header, h0, h 1 (by decide), h 2 (by decide), h 3 (by decide), h 4 (by decide)]
 
 /-- Representation depends only on the allocated recursive interval. -/
 theorem rep_congr {d p : ℕ} {t : Tree d} {m m' : ℕ → ℕ}
@@ -171,27 +158,19 @@ theorem rep_congr {d p : ℕ} {t : Tree d} {m m' : ℕ → ℕ}
   | succ d ih =>
     cases t with
     | node b s c =>
-      have hh := header_congr (b := b) (d := d + 1)
-        (fun a ha => h a (header_word_lt_span _ ha))
-      have hs : Rep s (p + summaryOffset) m ↔ Rep s (p + summaryOffset) m' := by
-        apply ih
-        intro a ha
+      have hh := header_congr (b := b) (d := d + 1) fun a ha => h a (header_word_lt_span _ ha)
+      have hs := ih (t := s) (p := p + summaryOffset) fun a ha => by
         simpa only [Nat.add_assoc] using h (summaryOffset + a) (summary_word_lt_span d ha)
-      have hc : ∀ i, Rep (c i) (p + clusterOffset d i.val) m ↔
-          Rep (c i) (p + clusterOffset d i.val) m' := by
-        intro i
-        apply ih
-        intro a ha
-        simpa only [Nat.add_assoc] using
-          h (clusterOffset d i.val + a) (cluster_word_lt_span d i.isLt ha)
+      have hc (i : Fin (universeSize d)) := ih (t := c i) (p := p + clusterOffset d i.val)
+        fun a ha => by
+          simpa only [Nat.add_assoc] using
+            h (clusterOffset d i.val + a) (cluster_word_lt_span d i.isLt ha)
       simp only [Rep, hh, hs, hc]
 
 /-- Arbitrary changes outside a tree interval preserve its representation. -/
 theorem rep_frame {d p : ℕ} {t : Tree d} {m m' : ℕ → ℕ} (hr : Rep t p m)
-    (h : ∀ a, p ≤ a → a < p + span d → m' a = m a) : Rep t p m' := by
-  apply (rep_congr (t := t) (m := m) (m' := m') ?_).mp hr
-  intro a ha
-  exact (h (p + a) (by omega) (by omega)).symm
+    (h : ∀ a, p ≤ a → a < p + span d → m' a = m a) : Rep t p m' :=
+  (rep_congr fun a _ => (h (p + a) (by omega) (by omega)).symm).mp hr
 
 /-- Write presence and, only for a nonempty record, the two extrema. -/
 def writeBounds (mem : ℕ → ℕ) (p : ℕ) : Option (ℕ × ℕ) → (ℕ → ℕ)
@@ -202,20 +181,14 @@ def writeBounds (mem : ℕ → ℕ) (p : ℕ) : Option (ℕ × ℕ) → (ℕ →
 /-- Updating extrema leaves every cell outside the three-word bounds area unchanged. -/
 theorem writeBounds_away {mem : ℕ → ℕ} {p a : ℕ} (b : Option (ℕ × ℕ))
     (ha : a < p ∨ p + 3 ≤ a) : writeBounds mem p b a = mem a := by
-  have h0 : a ≠ p := by omega
-  have h1 : a ≠ p + 1 := by omega
-  have h2 : a ≠ p + 2 := by omega
-  cases b <;> simp [writeBounds, Function.update_of_ne, h0, h1, h2]
+  cases b <;> simp [writeBounds, Function.update_of_ne,
+    show a ≠ p by omega, show a ≠ p + 1 by omega, show a ≠ p + 2 by omega]
 
 /-- Concrete extrema writes preserve static header fields. -/
 theorem header_writeBounds {d p : ℕ} {old : Option (ℕ × ℕ)} {mem : ℕ → ℕ}
     (hr : Header d old p mem) (b : Option (ℕ × ℕ)) :
     Header d b p (writeBounds mem p b) := by
-  cases b with
-  | none => simp [Header, writeBounds, hr.2.2]
-  | some b =>
-    obtain ⟨lo, hi⟩ := b
-    simp [Header, writeBounds, hr.2.2]
+  rcases b with _ | ⟨lo, hi⟩ <;> simp [Header, writeBounds, hr.2.2]
 
 /-- Concrete extrema writes change precisely the represented root bounds. -/
 theorem rep_writeBounds {d p : ℕ} {t : Tree d} {mem : ℕ → ℕ}
@@ -224,14 +197,10 @@ theorem rep_writeBounds {d p : ℕ} {t : Tree d} {mem : ℕ → ℕ}
   cases t with
   | leaf old => exact header_writeBounds hr b
   | node old s c =>
-    refine ⟨header_writeBounds hr.1 b, ?_, ?_⟩
-    · apply rep_frame hr.2.1
-      intro a ha _
-      exact writeBounds_away b (Or.inr (by dsimp only [summaryOffset] at ha; omega))
-    · intro i
-      apply rep_frame (hr.2.2 i)
-      intro a ha _
-      exact writeBounds_away b (Or.inr (by dsimp only [clusterOffset] at ha; omega))
+    exact ⟨header_writeBounds hr.1 b,
+      rep_frame hr.2.1 fun a ha _ => writeBounds_away b (Or.inr (by wram_omega [ha])),
+      fun i => rep_frame (hr.2.2 i) fun a ha _ =>
+        writeBounds_away b (Or.inr (by wram_omega [ha]))⟩
 
 /-- Replacing one cluster interval preserves its parent, summary and sibling clusters. -/
 theorem rep_replace_cluster {d p : ℕ} {b : Option (ℕ × ℕ)} {s : Tree d}
@@ -241,43 +210,32 @@ theorem rep_replace_cluster {d p : ℕ} {b : Option (ℕ × ℕ)} {s : Tree d}
     (hf : ∀ a, a < p + clusterOffset d i.val ∨
       p + clusterOffset d i.val + span d ≤ a → mem' a = mem a) :
     Rep (.node b s (Function.update c i t)) p mem' := by
-  refine ⟨(header_congr ?_).mp hr.1, ?_, ?_⟩
-  · intro a ha
-    have hstart : 5 ≤ clusterOffset d i.val := by dsimp only [clusterOffset]; omega
+  refine ⟨(header_congr fun a ha => ?_).mp hr.1,
+    rep_frame hr.2.1 fun a _ ha => ?_, fun j => ?_⟩
+  · have : 5 ≤ clusterOffset d i.val := by wram_omega
     exact (hf (p + a) (Or.inl (by omega))).symm
-  · apply rep_frame hr.2.1
-    intro a _ ha
-    have hend := summary_end_le_clusterOffset d i.val
+  · have := summary_end_le_clusterOffset d i.val
     exact hf a (Or.inl (by omega))
-  · intro j
-    by_cases hji : j = i
+  · by_cases hji : j = i
     · subst j
       simpa only [Function.update_self] using ht
     · rw [Function.update_of_ne hji]
-      apply rep_frame (hr.2.2 j)
-      intro a hlo hhi
-      have hne : j.val ≠ i.val := fun h => hji (Fin.ext h)
-      by_cases hlt : j.val < i.val
-      · have hend := cluster_end_le_clusterOffset d hlt
-        exact hf a (Or.inl (by omega))
-      · have hlt' : i.val < j.val := by omega
-        have hend := cluster_end_le_clusterOffset d hlt'
-        exact hf a (Or.inr (by omega))
+      refine rep_frame (hr.2.2 j) fun a hlo hhi => ?_
+      rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hji) with hlt | hlt <;>
+        have := cluster_end_le_clusterOffset d hlt
+      · exact hf a (Or.inl (by omega))
+      · exact hf a (Or.inr (by omega))
 
 /-- Replacing the summary interval preserves the parent header and every cluster. -/
 theorem rep_replace_summary {d p : ℕ} {b : Option (ℕ × ℕ)} {s s' : Tree d}
     {c : Fin (universeSize d) → Tree d} {mem mem' : ℕ → ℕ}
     (hr : Rep (.node b s c) p mem) (hs : Rep s' (p + summaryOffset) mem')
     (hf : ∀ a, a < p + summaryOffset ∨ p + summaryOffset + span d ≤ a →
-      mem' a = mem a) : Rep (.node b s' c) p mem' := by
-  refine ⟨(header_congr ?_).mp hr.1, hs, ?_⟩
-  · intro a ha
-    exact (hf (p + a) (Or.inl (by dsimp only [summaryOffset]; omega))).symm
-  · intro i
-    apply rep_frame (hr.2.2 i)
-    intro a hlo _
-    have hend := summary_end_le_clusterOffset d i.val
-    exact hf a (Or.inr (by omega))
+      mem' a = mem a) : Rep (.node b s' c) p mem' :=
+  ⟨(header_congr fun a _ => (hf (p + a) (Or.inl (by wram_omega))).symm).mp hr.1, hs,
+    fun i => rep_frame (hr.2.2 i) fun a hlo _ => by
+      have := summary_end_le_clusterOffset d i.val
+      exact hf a (Or.inr (by omega))⟩
 
 end Cslib.DataStructure.VanEmdeBoas.WordRAM
 

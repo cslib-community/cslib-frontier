@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.UP
 public import CslibFrontier.Foundations.Order.BooleanSubalgebra
 public import Mathlib.Data.Nat.Prime.Defs
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -34,6 +35,7 @@ composite moduli.
 
 ## Main results
 
+* `Cslib.Complexity.mem_ModP`, `Cslib.Complexity.mem_coModP`: unfolding the definitions.
 * `Cslib.Complexity.ModP_two`, `Cslib.Complexity.P_subset_ModP`.
 * `Cslib.Complexity.PolyTimeReducible.mem_ModP`.
 * `Cslib.Complexity.inter_mem_ModP`, `Cslib.Complexity.compl_mem_ModP`,
@@ -59,33 +61,33 @@ variable {α : Type} {enc : α ↪ List Bool} {A B : Set α} {k : ℕ}
 def ModP (k : ℕ) (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ f ∈ SharpP enc, ∀ a, a ∈ A ↔ f a % k ≠ 0}
 
+theorem mem_ModP : A ∈ ModP k enc ↔ ∃ f ∈ SharpP enc, ∀ a, a ∈ A ↔ f a % k ≠ 0 :=
+  Iff.rfl
+
 /-- Modulo two, nonzero residue is oddness [Fortnow, after Classification 4.7][Fortnow1997]. -/
 theorem ModP_two : ModP 2 enc = ParityP enc := by
   ext A
-  simp only [ModP, Set.mem_ofPred_eq, mem_ParityP_iff_exists_SharpP]
+  rw [mem_ModP, mem_ParityP_iff_exists_SharpP]
   congr! 3
   simp [← Nat.not_odd_iff]
 
 /-- Modulus zero specializes to the positive-count characterization of NP. -/
 theorem ModP_zero : ModP 0 enc = NP enc := by
   ext A
-  simp [ModP, mem_NP_iff_exists_SharpP, Nat.pos_iff_ne_zero]
+  simp [mem_ModP, mem_NP_iff_exists_SharpP, Nat.pos_iff_ne_zero]
 
 /-- Modulus one recognizes only the empty language. -/
 theorem mem_ModP_one : A ∈ ModP 1 enc ↔ A = ∅ := by
-  constructor
-  · rintro ⟨f, -, hA⟩
-    ext a
-    simpa [Nat.mod_one] using hA a
-  · rintro rfl
-    exact ⟨0, SharpP.zero_mem, fun _ => by simp⟩
+  refine ⟨fun ⟨_, _, hA⟩ => Set.ext fun a => by simpa [Nat.mod_one] using hA a, ?_⟩
+  rintro rfl
+  exact ⟨0, SharpP.zero_mem, fun _ => by simp⟩
 
 /-- Unambiguous counts are zero or one, so any modulus at least two recognizes them. -/
 theorem UP_subset_ModP (hk : 2 ≤ k) : UP enc ⊆ ModP k enc := by
   rintro A ⟨f, hf, hle, hA⟩
   refine ⟨f, hf, fun a => ?_⟩
-  rw [hA a, Nat.mod_eq_of_lt (by have := hle a; omega)]
   have := hle a
+  rw [hA a, Nat.mod_eq_of_lt (by omega)]
   omega
 
 /-- `P ⊆ ModP k` for every fixed `k ≥ 2`. -/
@@ -114,20 +116,14 @@ theorem compl_mem_ModP (hk : k.Prime) (hA : A ∈ ModP k enc) : Aᶜ ∈ ModP k 
   refine ⟨1 + (fun _ => k - 1) * f ^ (k - 1),
     SharpP.add_mem SharpP.one_mem
       (SharpP.mul_mem (SharpP.natCast_mem (k - 1)) (SharpP.pow_mem hf (k - 1))), fun a => ?_⟩
-  have hcast : ((k - 1 : ℕ) : ZMod k) = -1 := by
-    rw [Nat.cast_sub hk.one_le, ZMod.natCast_self, Nat.cast_one, zero_sub]
-  have hc : ((1 + (k - 1) * f a ^ (k - 1) : ℕ) : ZMod k) =
-      1 - (f a : ZMod k) ^ (k - 1) := by
-    push_cast
-    rw [hcast]
-    ring
   simp only [Set.mem_compl_iff, hA a, not_not, Pi.add_apply, Pi.one_apply, Pi.mul_apply,
-    Pi.pow_apply]
-  simp only [ne_eq, ← Nat.dvd_iff_mod_eq_zero, ← ZMod.natCast_eq_zero_iff]
-  rw [hc, ZMod.pow_card_sub_one]
-  split_ifs with h
-  · simp [h]
-  · simp [of_not_not h]
+    Pi.pow_apply, ne_eq, ← Nat.dvd_iff_mod_eq_zero, ← ZMod.natCast_eq_zero_iff]
+  have hcast : ((1 + (k - 1) * f a ^ (k - 1) : ℕ) : ZMod k) = 1 - (f a : ZMod k) ^ (k - 1) := by
+    push_cast
+    rw [ZMod.natCast_self_sub_one]
+    ring
+  rw [hcast, ZMod.pow_card_sub_one]
+  by_cases h : (f a : ZMod k) = 0 <;> simp [h]
 
 open scoped symmDiff
 
@@ -162,6 +158,11 @@ theorem symmDiff_mem_ModP (hk : k.Prime) (hA : A ∈ ModP k enc) (hB : B ∈ Mod
 /-- The complementary modular class: a #P count is divisible by the fixed modulus. -/
 def coModP (k : ℕ) (enc : α ↪ List Bool) : Set (Set α) := {A | Aᶜ ∈ ModP k enc}
 
+theorem mem_coModP : A ∈ coModP k enc ↔ Aᶜ ∈ ModP k enc := Iff.rfl
+
+@[simp]
+theorem compl_mem_coModP : Aᶜ ∈ coModP k enc ↔ A ∈ ModP k enc := by simp [coModP]
+
 /-- Zero residues characterize the complementary modular class. -/
 theorem mem_coModP_iff_exists_SharpP :
     A ∈ coModP k enc ↔ ∃ f ∈ SharpP enc, ∀ a, a ∈ A ↔ f a % k = 0 :=
@@ -173,11 +174,7 @@ theorem PolyTimeReducible.mem_coModP {β : Type} {encB : β ↪ List Bool} {B : 
   h.mem_compl PolyTimeReducible.mem_ModP hB
 
 /-- For prime moduli, complement closure identifies the two modular classes. -/
-theorem coModP_eq_ModP (hk : k.Prime) : coModP k enc = ModP k enc := by
-  ext A
-  constructor
-  · intro h
-    simpa using compl_mem_ModP hk h
-  · exact compl_mem_ModP hk
+theorem coModP_eq_ModP (hk : k.Prime) : coModP k enc = ModP k enc :=
+  Set.ext fun _ => ⟨fun h => by simpa using compl_mem_ModP hk h, compl_mem_ModP hk⟩
 
 end Cslib.Complexity

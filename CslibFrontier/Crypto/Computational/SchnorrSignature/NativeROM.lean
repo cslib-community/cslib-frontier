@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.WordROM
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.PPT
 
@@ -80,37 +79,7 @@ theorem isOraclePPTOn_schnorrROMSign :
       (encPair encUnary (encPair F.encDesc (encPair encUnary (encPair encBits encBits)))) encBits
       (fun p : ℕ × F.Desc × ℕ × List Bool × List Bool =>
         F.schnorrROMSign p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) := by
-  let E := encPair encUnary (encPair F.encDesc (encPair encUnary (encPair encBits encBits)))
-  have hn : ComputableInPolyTime
-      (fun p : ℕ × F.Desc × ℕ × List Bool × List Bool => p.1) E encUnary := by fun_prop
-  have hd : ComputableInPolyTime
-      (fun p : ℕ × F.Desc × ℕ × List Bool × List Bool => p.2.1) E F.encDesc := by fun_prop
-  unfold schnorrROMSign
-  apply (F.isPPTOn_sampleExp hn hd).isOraclePPTOn.bind_with
-  let EM := encPair E encNat
-  have hinput := ComputableInPolyTime.fst E encNat
-  have hd' := hd.comp hinput
-  have hr := ComputableInPolyTime.snd E encNat
-  have hq := F.computableInPolyTime_order.comp hd'
-  have hnonce := (ComputableInPolyTime.binary_mod.comp (hr.prod hq)).encoding_comp
-  have ht := F.computableInPolyTime_schnorrCommitBits.comp (hd'.prod hnonce)
-  have hm : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc × ℕ × List Bool × List Bool) × ℕ => p.1.2.2.1) EM encUnary := by
-    fun_prop
-  have hsk : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc × ℕ × List Bool × List Bool) × ℕ => p.1.2.2.2.1) EM encBits := by
-    fun_prop
-  have hmsg : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc × ℕ × List Bool × List Bool) × ℕ => p.1.2.2.2.2) EM encBits := by
-    fun_prop
-  have hquery := IsOraclePPTOn.query_take' () (hmsg.prod ht).encoding_comp hm
-  simp only [bind_pure_comp]
-  apply hquery.map_with'
-  have hfst := ComputableInPolyTime.fst EM encBits
-  have hc := ComputableInPolyTime.snd EM encBits
-  have hz := F.computableInPolyTime_schnorrRespondBits.comp
-    ((hd'.comp hfst).prod ((hsk.comp hfst).prod ((hnonce.comp hfst).prod hc)))
-  exact ((ht.comp hfst).prod hz).encoding_comp
+  ppt [PrimeOrderGroupFamily.schnorrROMSign]
 
 /-- The native verifier is uniformly strict oracle-PPT in the full description, unary challenge
 width, public key, message and signature word, for every external oracle reply. -/
@@ -119,29 +88,8 @@ theorem isOraclePPTOn_schnorrROMVerify :
       (encPair F.encDesc (encPair encUnary (encPair encBits (encPair encBits encBits)))) encBool
       (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool =>
         F.schnorrROMVerify p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) := by
-  let E := encPair F.encDesc (encPair encUnary (encPair encBits (encPair encBits encBits)))
-  have hd : ComputableInPolyTime
-      (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool => p.1) E F.encDesc := by fun_prop
-  have hm : ComputableInPolyTime
-      (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool => p.2.1) E encUnary := by fun_prop
-  have hpk : ComputableInPolyTime
-      (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool => p.2.2.1) E encBits := by fun_prop
-  have hmsg : ComputableInPolyTime
-      (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool => p.2.2.2.1) E encBits := by
-    fun_prop
-  have hsig : ComputableInPolyTime
-      (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool => p.2.2.2.2) E encBits := by
-    fun_prop
-  have htz := (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp hsig
-  have hquery := IsOraclePPTOn.query_take' () (hmsg.prod htz.fst').encoding_comp hm
-  unfold schnorrROMVerify
-  simp only [bind_pure_comp]
-  apply hquery.map_with'
-  have hfst := ComputableInPolyTime.fst E encBits
-  have hc := ComputableInPolyTime.snd E encBits
-  exact F.computableInPolyTime_schnorrSigVerifyBits.comp
-    ((hd.comp hfst).prod ((hpk.comp hfst).prod ((hmsg.comp hfst).prod
-      ((htz.comp hfst).prod hc))))
+  have := (Decoder.bits.pair Decoder.bits).computableInPolyTime
+  ppt [PrimeOrderGroupFamily.schnorrROMVerify]
 
 variable (d : F.Desc) {m : ℕ} (hm : 2 ^ m ≤ F.order d)
   {Store : Type} (reply : List Bool → StateT Store PMF (BitString m))

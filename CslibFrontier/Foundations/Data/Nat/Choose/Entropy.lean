@@ -30,11 +30,22 @@ term of weight `j ≤ α n` satisfies `(q - 1) ^ j exp (-n H_q(α)) ≤ α ^ j (
 `q` this reads `Vol_q(n, α n) ≤ q ^ (H_q(α) n)` with `H_q` measured in base `q`, the form in the
 source. The binary case `q = 2` is `Cslib.sum_choose_le_exp_mul_binEntropy`.
 
+Conversely, a single binomial coefficient is within a factor `n + 1` of the entropy bound:
+`exp (n h(w / n)) ≤ (n + 1) C(n, w)` (`Cslib.exp_mul_binEntropy_le_succ_mul_choose`), because the
+term `C(n, w) p ^ w (1 - p) ^ (n - w)` with `p = w / n` is the largest of the `n + 1` terms of the
+binomial expansion of `(p + (1 - p)) ^ n = 1` (`Cslib.choose_mul_pow_le_mode`).
+
 ## Main results
 
 * `Cslib.sum_choose_mul_pow_le_exp_mul_qaryEntropy`: the `q`-ary entropy bound.
 * `Cslib.sum_choose_le_exp_mul_binEntropy`: the binary entropy bound
   `∑_{j ≤ r} C(n, j) ≤ exp (n h(α))` for `α ≤ 1 / 2`.
+* `Cslib.exp_mul_binEntropy_le_succ_mul_choose`: the lower bound
+  `exp (n h(w / n)) ≤ (n + 1) C(n, w)`.
+* `Cslib.exp_mul_qaryEntropy_le_succ_mul_choose_mul_pow`: the `q`-ary lower bound
+  `exp (n H_q(e / n)) ≤ (n + 1) C(n, e) (q - 1) ^ e`.
+* `Cslib.qaryEntropy_le_log`: `H_q(p) ≤ log q` for `q ≥ 2` and `0 ≤ p ≤ 1`.
+* `Cslib.binEntropy_le_mul_log_exp_one_div`: `h(y) ≤ y log (e / y)`.
 
 ## References
 
@@ -125,5 +136,121 @@ theorem sum_choose_le_exp_mul_binEntropy {n r : ℕ} {α : ℝ} (hα₀ : 0 ≤ 
   have h := sum_choose_mul_pow_le_exp_mul_qaryEntropy (q := 2) le_rfl hα₀ (by norm_num [hα]) hr
   simpa only [qaryEntropy_two, Nat.cast_sum, Nat.cast_mul, Nat.reduceSub, one_pow, Nat.cast_one,
     mul_one] using h
+
+/-- **The entropy lower bound on a binomial coefficient**: for `w ≤ n`,
+`exp (n h(w / n)) ≤ (n + 1) C(n, w)`, where `h = Real.binEntropy` is the binary entropy in nats.
+The weight `C(n, w) p ^ w (1 - p) ^ (n - w)` with `p = w / n` is the largest of the `n + 1` terms of
+the binomial expansion of `(p + (1 - p)) ^ n = 1`, and `p ^ w (1 - p) ^ (n - w) = exp (-n h(p))`. -/
+theorem exp_mul_binEntropy_le_succ_mul_choose {n w : ℕ} (hw : w ≤ n) :
+    exp (n * binEntropy (w / n)) ≤ (n + 1) * n.choose w := by
+  rcases Nat.eq_zero_or_pos w with rfl | hw0
+  · simp only [CharP.cast_eq_zero, zero_div, binEntropy_zero, mul_zero, exp_zero,
+      Nat.choose_zero_right, Nat.cast_one, mul_one]
+    linarith [(n.cast_nonneg : (0 : ℝ) ≤ n)]
+  rcases hw.eq_or_lt with rfl | hwn
+  · have : (w : ℝ) ≠ 0 := by positivity
+    simp only [div_self this, binEntropy_one, mul_zero, exp_zero, Nat.choose_self, Nat.cast_one,
+      mul_one]
+    linarith [(w.cast_nonneg : (0 : ℝ) ≤ w)]
+  have hn' : (0 : ℝ) < n := by exact_mod_cast hw0.trans hwn
+  set p : ℝ := w / n with hp
+  have hnp : (n : ℝ) * p = w := by rw [hp]; field_simp
+  have hp0 : 0 < p := by positivity
+  have hp1 : p < 1 := by rw [hp, div_lt_one hn']; exact_mod_cast hwn
+  have hmode : 1 ≤ (n + 1) * ((n.choose w : ℝ) * p ^ w * (1 - p) ^ (n - w)) := by
+    calc (1 : ℝ) = ∑ k ∈ range (n + 1), (n.choose k : ℝ) * p ^ k * (1 - p) ^ (n - k) :=
+          (sum_choose_mul_pow_eq_one n p).symm
+      _ ≤ ∑ _k ∈ range (n + 1), (n.choose w : ℝ) * p ^ w * (1 - p) ^ (n - w) :=
+          sum_le_sum fun k hk => choose_mul_pow_le_mode hw hnp hp0.le hp1.le
+            (Nat.lt_succ_iff.mp (mem_range.mp hk))
+      _ = _ := by rw [sum_const, card_range, nsmul_eq_mul]; push_cast; ring
+  have hent : p ^ w * (1 - p) ^ (n - w) = exp (-(n * binEntropy p)) := by
+    have h1p : 0 < 1 - p := by linarith
+    rw [← exp_log (by positivity : 0 < p ^ w * (1 - p) ^ (n - w)), log_mul (by positivity)
+      (by positivity), log_pow, log_pow, Nat.cast_sub hw, binEntropy, log_inv, log_inv, ← hnp]
+    congr 1
+    ring
+  rw [mul_assoc, hent, exp_neg, ← mul_assoc] at hmode
+  calc exp (n * binEntropy p) = 1 * exp (n * binEntropy p) := (one_mul _).symm
+    _ ≤ ((n + 1) * n.choose w * (exp (n * binEntropy p))⁻¹) * exp (n * binEntropy p) :=
+        mul_le_mul_of_nonneg_right hmode (exp_pos _).le
+    _ = _ := by rw [mul_assoc, inv_mul_cancel₀ (exp_pos _).ne', mul_one]
+
+/-- **A simple upper bound on the binary entropy**: `h(y) ≤ y log (e / y)` for `0 < y < 1`, because
+`-(1 - y) log (1 - y) ≤ y`. -/
+theorem binEntropy_le_mul_log_exp_one_div {y : ℝ} (h0 : 0 < y) (h1 : y < 1) :
+    binEntropy y ≤ y * log (exp 1 / y) := by
+  have h1y : 0 < 1 - y := by linarith
+  have hl := one_sub_inv_le_log_of_pos h1y
+  have e : (1 - y) * (1 - (1 - y)⁻¹) = -y := by rw [mul_sub, mul_inv_cancel₀ h1y.ne']; ring
+  rw [binEntropy, log_inv, log_inv, log_div (exp_pos 1).ne' h0.ne', log_exp]
+  nlinarith [mul_le_mul_of_nonneg_left hl h1y.le]
+
+/-- **The `q`-ary entropy lower bound on a single weighted binomial coefficient**: for `q ≥ 2` and
+`e ≤ n`, `exp (n * H_q(e / n)) ≤ (n + 1) * (C(n, e) * (q - 1) ^ e)`, where
+`H_q = Real.qaryEntropy q` is the `q`-ary entropy in nats. Combines
+`Cslib.exp_mul_binEntropy_le_succ_mul_choose` with `H_q(p) = h(p) + p * log (q - 1)`. -/
+theorem exp_mul_qaryEntropy_le_succ_mul_choose_mul_pow {q n e : ℕ}
+    (hq : 2 ≤ q) (hen : e ≤ n) :
+    exp (n * qaryEntropy q ((e : ℝ) / n)) ≤
+      (n + 1 : ℝ) * ((n.choose e : ℝ) * ((q : ℝ) - 1) ^ e) := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn0
+  · obtain rfl : e = 0 := by omega
+    simp
+  have hq1 : (0 : ℝ) < (q : ℝ) - 1 := by
+    have : (2 : ℝ) ≤ q := by exact_mod_cast hq
+    linarith
+  have hnR : (0 : ℝ) < n := Nat.cast_pos.2 hn0
+  have hqeq : (((q : ℤ) - 1 : ℤ) : ℝ) = (q : ℝ) - 1 := by push_cast; ring
+  have hbin := exp_mul_binEntropy_le_succ_mul_choose hen
+  have hpow : exp ((e : ℝ) * log ((q : ℝ) - 1)) = ((q : ℝ) - 1) ^ e := by
+    rw [exp_nat_mul, exp_log hq1]
+  have hqent :
+      (n : ℝ) * qaryEntropy q ((e : ℝ) / n) =
+        (n : ℝ) * binEntropy ((e : ℝ) / n) + (e : ℝ) * log ((q : ℝ) - 1) := by
+    rw [qaryEntropy, hqeq]
+    field_simp [hnR.ne']
+    ring
+  rw [hqent, exp_add, hpow]
+  calc exp ((n : ℝ) * binEntropy ((e : ℝ) / n)) * ((q : ℝ) - 1) ^ e
+      ≤ ((n + 1 : ℝ) * n.choose e) * ((q : ℝ) - 1) ^ e :=
+        mul_le_mul_of_nonneg_right hbin (pow_nonneg hq1.le _)
+    _ = (n + 1 : ℝ) * ((n.choose e : ℝ) * ((q : ℝ) - 1) ^ e) := by ring
+
+/-- **Upper bound on the `q`-ary entropy**: for `q ≥ 2` and `0 ≤ p ≤ 1`,
+`H_q(p) ≤ log q` (in nats), via Gibbs' inequality `log x ≤ x - 1`. -/
+theorem qaryEntropy_le_log {q : ℕ} (hq : 2 ≤ q) {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) :
+    qaryEntropy q p ≤ log q := by
+  have hqR : (2 : ℝ) ≤ q := by exact_mod_cast hq
+  have hq0 : (0 : ℝ) < q := by linarith
+  have hq1 : (0 : ℝ) < q - 1 := by linarith
+  rcases hp0.eq_or_lt with rfl | hp0'
+  · simp [log_nonneg (by linarith : (1 : ℝ) ≤ q)]
+  rcases hp1.eq_or_lt with rfl | hp1'
+  · simp only [qaryEntropy_one]
+    have hcast : (((q : ℤ) - 1 : ℤ) : ℝ) = (q : ℝ) - 1 := by push_cast; ring
+    rw [hcast]
+    exact log_le_log hq1 (by linarith)
+  have h1p : 0 < 1 - p := sub_pos.2 hp1'
+  have hl1 : log (((q : ℝ) - 1) / (q * p)) ≤ ((q : ℝ) - 1) / (q * p) - 1 :=
+    log_le_sub_one_of_pos (by positivity)
+  have hl2 : log (1 / (q * (1 - p))) ≤ 1 / (q * (1 - p)) - 1 :=
+    log_le_sub_one_of_pos (by positivity)
+  have hcomb : p * log (((q : ℝ) - 1) / (q * p)) +
+      (1 - p) * log (1 / (q * (1 - p))) ≤ 0 := by
+    have hmul1 := mul_le_mul_of_nonneg_left hl1 hp0'.le
+    have hmul2 := mul_le_mul_of_nonneg_left hl2 h1p.le
+    have hsum : p * (((q : ℝ) - 1) / (q * p) - 1) + (1 - p) * (1 / (q * (1 - p)) - 1) = 0 := by
+      field_simp [hp0'.ne', h1p.ne', hq0.ne']
+      ring
+    linarith
+  have hcast : (((q : ℤ) - 1 : ℤ) : ℝ) = (q : ℝ) - 1 := by push_cast; ring
+  have hrewrite : qaryEntropy q p - log q =
+      p * log (((q : ℝ) - 1) / (q * p)) + (1 - p) * log (1 / (q * (1 - p))) := by
+    rw [qaryEntropy, hcast, binEntropy, log_inv, log_inv,
+      log_div hq1.ne' (by positivity), log_mul hq0.ne' hp0'.ne',
+      log_div one_ne_zero (by positivity), log_mul hq0.ne' h1p.ne', log_one]
+    ring
+  linarith
 
 end Cslib

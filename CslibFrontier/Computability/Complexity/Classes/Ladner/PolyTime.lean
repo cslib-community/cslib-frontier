@@ -13,7 +13,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.CourseOfValues
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
@@ -180,12 +180,9 @@ def padCheck (e : ℕ → ℕ) (y : List Bool) : Option (CNF ℕ) :=
 theorem padCheck_eq_some_iff {e : ℕ → ℕ} {y : List Bool} {φ : CNF ℕ} :
     padCheck e y = some φ ↔ y = pad (encCNF φ) ((encCNF φ).length ^ e (encCNF φ).length) := by
   rw [padCheck, padCheckAt_eq_some_iff]
-  constructor
-  · intro h
-    have hu : (unpad y).1 = encCNF φ := by rw [h, unpad_pad]
-    rwa [hu] at h
-  · intro h
-    rw [h, unpad_pad]
+  refine ⟨fun h => ?_, fun h => by rw [h, unpad_pad]⟩
+  have hu : (unpad y).1 = encCNF φ := by rw [h, unpad_pad]
+  rwa [hu] at h
 
 /-- **Membership in a padded language through `padCheck`.** -/
 theorem mem_padSAT_iff {e : ℕ → ℕ} {y : List Bool} :
@@ -238,12 +235,10 @@ def bruteSAT (n : ℕ) (φ : CNF ℕ) : Bool := (List.range n).any fun j => SAT.
 the length of the encoded formula has a smaller index than `n`. -/
 theorem bruteSAT_iff {n : ℕ} {φ : CNF ℕ} (h : 2 ^ ((encCNF φ).length + 1) ≤ n + 1) :
     bruteSAT n φ = true ↔ φ ∈ SAT := by
-  constructor
-  · intro hb
-    obtain ⟨j, -, hj⟩ := List.any_eq_true.mp hb
+  refine ⟨fun hb => ?_, fun hφ => ?_⟩
+  · obtain ⟨j, -, hj⟩ := List.any_eq_true.mp hb
     exact ⟨_, hj⟩
-  · intro hφ
-    obtain ⟨w, hw, hv⟩ := (SAT.isVerifier φ).mp hφ
+  · obtain ⟨w, hw, hv⟩ := (SAT.isVerifier φ).mp hφ
     rw [Polynomial.eval_X] at hw
     have hi := index_add_two_le w
     rw [hw] at hi
@@ -287,13 +282,10 @@ def agreesB (T : List ℕ) (i j : ℕ) : Bool :=
 theorem agreesB_iff {T : List ℕ} {i j : ℕ} (hj : j < T.length) :
     agreesB T i j = true ↔ Agrees (fun m => T.getD m 0) T.length i j := by
   rw [agreesB, decide_eq_true_iff, Agrees, ← memB_word_iff hj]
-  constructor
-  · intro h
-    exact ⟨_, h, Iff.rfl⟩
-  · rintro ⟨b, hb, hiff⟩
-    have : memB T (word j) = b := by
-      cases b <;> cases hm : memB T (word j) <;> simp_all
-    rwa [this]
+  refine ⟨fun h => ⟨_, h, Iff.rfl⟩, fun ⟨b, hb, hiff⟩ => ?_⟩
+  have hm : memB T (word j) = b := by
+    cases b <;> cases hmem : memB T (word j) <;> simp_all
+  rwa [hm]
 
 /-- The step of the exponent function as a search over machine indices and words. -/
 def hstepB (T : List ℕ) : ℕ :=
@@ -345,35 +337,21 @@ private theorem computableInPolyTime_hstepB :
 
 /-! ### The exponent function -/
 
-theorem Htable_eq_iterate (n : ℕ) : Htable n = (fun T => T ++ [hstepB T])^[n] [] := by
-  induction n with
-  | zero => rfl
-  | succ n ih => rw [Htable, Function.iterate_succ_apply', ← ih, hstepB_eq]
-
 /-- The tables of `H` are polynomial-time in their length, in unary. -/
 theorem computableInPolyTime_Htable :
     ComputableInPolyTime Htable encUnary (encList encUnary) := by
-  have hs := computableInPolyTime_hstepB
-  have h := iterate (encIn := encUnary) (encState := encList encUnary) (count := fun n => n)
-    (init := fun _ => []) (step := fun T => T ++ [hstepB T]) (by fun_prop) (by fun_prop)
-    (by fun_prop) (bound := fun n => n * (2 * n + 1))
-    (.of_forall_le 2 2 fun n => by simp only [encUnary_apply, List.length_replicate]; nlinarith)
-    (fun n i hi => by
-      rw [← Htable_eq_iterate]
-      calc (encList encUnary (Htable i)).length ≤ (Htable i).length * (2 * n + 1) :=
-            length_encList_le encUnary _ fun a ha => by
-              rw [Htable_eq] at ha
-              obtain ⟨m, hm, rfl⟩ := List.mem_map.mp ha
-              simpa using (H_le_self m).trans (by have := List.mem_range.mp hm; omega)
-        _ ≤ n * (2 * n + 1) := by rw [length_Htable]; exact Nat.mul_le_mul_right _ hi)
-  simpa only [← Htable_eq_iterate] using h
+  have hstep : hstepB = Hstep := funext hstepB_eq
+  change ComputableInPolyTime (List.courseOfValues Hstep) encUnary (encList encUnary)
+  rw [← hstep]
+  exact .courseOfValues computableInPolyTime_hstepB .id fun n i hi => by
+    simpa only [encUnary_apply, List.length_replicate, List.courseOfValuesVal, hstep, H, Htable]
+      using (H_le_self i).trans hi.le
 
 /-- **`H` is polynomial-time** on unary numbers. -/
 @[fun_prop]
-theorem computableInPolyTime_H : ComputableInPolyTime H encUnary encUnary := by
-  have h := computableInPolyTime_hstepB.comp computableInPolyTime_Htable
-  have heq : hstepB ∘ Htable = H := funext fun n => hstepB_eq _
-  exact heq ▸ h
+theorem computableInPolyTime_H : ComputableInPolyTime H encUnary encUnary :=
+  (funext fun _ => hstepB_eq _ : hstepB ∘ Htable = H) ▸
+    computableInPolyTime_hstepB.comp computableInPolyTime_Htable
 
 /-! ### Ladner's language is in NP -/
 
@@ -439,12 +417,6 @@ theorem exists_index_of_mem_P {A : Set (List Bool)} (h : A ∈ P encBits) (B : �
   obtain ⟨i, hi, hrun⟩ := exists_index_runIndexed_eq tm (t := fun x => t x.length)
     (fun x => (htm x).runFrom_of_le le_rfl) (B + c + e)
   -- the clock of the index exceeds the time bound
-  have hclock (x : List Bool) : t x.length ≤ clock i x.length := by
-    calc t x.length ≤ c * (x.length + 1) ^ e := hle x
-      _ ≤ 2 ^ i * (x.length + 1) ^ i :=
-          Nat.mul_le_mul ((Nat.lt_two_pow_self (n := i)).le.trans' (by omega))
-            (Nat.pow_le_pow_right (by omega) (by omega))
-      _ = clock i x.length := by rw [clock, ← mul_pow]; ring_nf
-  exact ⟨f, hf, i, by omega, fun w => hrun w _ (hclock _)⟩
+  exact ⟨f, hf, i, by omega, fun w => hrun w _ ((hle w).trans (le_clock (by omega) w.length))⟩
 
 end Cslib.Complexity.Ladner

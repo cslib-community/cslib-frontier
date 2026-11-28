@@ -1,0 +1,142 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Probability.HashFamily.Polynomial
+public import Mathlib.Algebra.Field.ZMod
+
+/-!
+# Polynomial hash clients
+
+These ordinary-module clients exercise the public coefficient-order bridges, a nonvacuous
+restricted seed-space bound, the empty vector, both full-field bounds, and the power-of-two
+modulus counterexample.
+-/
+
+public section
+
+namespace CslibFrontierTests.HashFamilyPolynomial
+
+open Cslib Cslib.Probability
+open scoped ENNReal
+
+instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+
+private def finThreeToZModFive : Fin 3 ↪ ZMod 5 := Fin.castLEEmb (by decide : 3 ≤ 5)
+
+private def restrictedX : Fin 2 → ZMod 5 := ![1, 0]
+
+private def restrictedY : Fin 2 → ZMod 5 := ![0, 0]
+
+/-- The two distinct messages collide at exactly the embedded point zero. -/
+example :
+    restrictedX ≠ restrictedY ∧
+    (Finset.univ.filter fun s : Fin 3 =>
+      coeffPolyHash (finThreeToZModFive s) restrictedX =
+        coeffPolyHash (finThreeToZModFive s) restrictedY).card = 1 := by
+  decide
+
+/-- Source-order Horner evaluation agrees with both existing polynomial-evaluation APIs. -/
+example :
+    coeffPolyHash (3 : ZMod 5) restrictedX =
+        polynomialHash (restrictedX ∘ Fin.rev) 3 ∧
+      polyHash (3 : ZMod 5) (List.ofFn restrictedX) =
+        3 ^ 2 + coeffPolyHash 3 restrictedX :=
+  ⟨coeffPolyHash_eq_polynomialHash_rev 3 restrictedX, polyHash_ofFn_eq 3 restrictedX⟩
+
+/-- The three-point embedding gives the nontrivial theorem bound `1 / 3 < 1`. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (Fin 3))
+        (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (finThreeToZModFive s) x) (1 / 3) ∧
+      (1 / 3 : ℝ≥0∞) < 1 := by
+  constructor
+  · simpa using isUniversalHash_coeffPolyHash_of_embedding finThreeToZModFive 2
+  · rw [ENNReal.div_lt_iff (by norm_num) (by norm_num)]
+    norm_num
+
+/-- The empty coefficient vector evaluates to zero. -/
+example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by
+  simp [coeffPolyHash]
+
+/-- Allowing the zero-block and one-block messages defeats universality. -/
+example : ¬ IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+    (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) =>
+      coeffPolyHash k (fun i : Fin m.val.length => m.val[i])) (1 / 5) :=
+  not_isUniversalHash_coeffPolyHash_variableLength _ le_rfl (by norm_num)
+
+/-- Sampling the point from all of `ZMod 5` gives the full-field specialization. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (x : Fin 2 → ZMod 5) => coeffPolyHash k x)
+      (1 / Fintype.card (ZMod 5)) := by
+  simpa using isUniversalHash_coeffPolyHash (F := ZMod 5) 2
+
+/-- The one-block family is `1 / 5`-universal, while a fixed difference occurs at every key. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => polyHash k m) (1 / 5) ∧
+    ¬ IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => polyHash k m) (1 / 5) := by
+  exact ⟨by simpa using isUniversalHash_polyHash (F := ZMod 5) 1,
+    not_isDeltaUniversalHash_polyHash _ le_rfl (by norm_num)⟩
+
+/-- A one-coefficient hash never collides. After multiplication by the key, each
+specified difference has probability at most one over the field size. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+        (fun k (x : Fin 1 → ZMod 5) => coeffPolyHash k x) 0 ∧
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 5))
+        (fun k (x : Fin 1 → ZMod 5) => k * coeffPolyHash k x)
+          (1 / Fintype.card (ZMod 5)) := by
+  exact ⟨by simpa using isUniversalHash_coeffPolyHash (F := ZMod 5) 1,
+    by simpa using isDeltaUniversalHash_mul_coeffPolyHash (F := ZMod 5) 1⟩
+
+/-- A nonzero difference is attained at two keys for these length-two messages. -/
+example :
+    (Finset.univ.filter fun k : ZMod 5 =>
+      k * coeffPolyHash k restrictedX - k * coeffPolyHash k restrictedY = 1).card = 2 := by
+  decide
+
+/-- The two-block messages with these same leading coefficients are separated by some key. -/
+example : ¬ ∀ k : ZMod 8, polyHash k [4, 4] = polyHash k [0, 0] :=
+  fun h => (by decide : (4 : ZMod 8) ≠ 0) (polyHash_two_blocks_eq_iff.mp h).1
+
+/-- In a composite modulus, the three-block witness collides at all eight keys. -/
+example : ∀ k : ZMod 8, polyHash k [4, 4, 0] = polyHash k [0, 0, 0] := by decide
+
+/-- The obstruction applies even to a seed distribution concentrated on one key. -/
+example : ¬ IsUniversalHash (PMF.pure (1 : ZMod 8))
+    (fun k (m : {m : List (ZMod 8) // m.length ≤ 3}) => polyHash k m) (1 / 2) :=
+  not_isUniversalHash_polyHash_zmod_pow_two 2 (by omega) _ (by norm_num)
+
+local instance : Fact (Nat.Prime 11) := ⟨by decide⟩
+
+/-- The one-block hash reduces 20 modulo 11 and then modulo 9, and its difference
+bound is `8/9`. -/
+example :
+    xpolyHashMod (p := 11) (N := 9) 2 [8] = 0 ∧
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 1}) => xpolyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, ?_⟩
+  have h := isDeltaUniversalHash_xpolyHashMod (p := 11) (N := 9) (by decide) 1
+  norm_num at h
+  exact h
+
+/-- The empty digest is zero, and the last block is added after reducing the prefix hash.
+The two-block family has collision bound `8/9`. -/
+example :
+    polyHashMod (p := 11) (N := 9) 2 [] = 0 ∧
+    polyHashMod (p := 11) (N := 9) 2 [8, 8] = 8 ∧
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 2}) => polyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, by decide, ?_⟩
+  have h := isUniversalHash_polyHashMod (p := 11) (N := 9) (by decide) 2
+  norm_num at h
+  exact h
+
+end CslibFrontierTests.HashFamilyPolynomial

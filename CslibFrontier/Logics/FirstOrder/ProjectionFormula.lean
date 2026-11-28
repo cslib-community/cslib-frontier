@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.QuantifierFree
 import CslibFrontier.Tactic.FirstOrder.Simp
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # First-order projection formulas
@@ -49,7 +50,8 @@ machine resource bound, is implicit in this definition.
   structures.
 * `Cslib.Logic.FO.ProjectionFormula.existsUnique_case`: the numeric cases partition assignments.
 * `Cslib.Logic.FO.ProjectionFormula.realize_iff_exists_case`: disjoint-case normal form.
-* `Cslib.Logic.FO.ProjectionFormula.realize_subst`: truth-preserving substitution.
+* `Cslib.Logic.FO.ProjectionFormula.realize_subst`,
+  `Cslib.Logic.FO.ProjectionFormula.realize_subst_of_isQF`: truth-preserving substitution.
 * `Cslib.Logic.FO.ProjectionFormula.realize_relabel`: variable renaming preserves realization.
 
 ## References
@@ -141,15 +143,11 @@ theorem realize_toFormula (l : InputLiteral L α) (x : α → M) :
 /-- Every input literal is quantifier-free. -/
 @[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_toFormula (l : InputLiteral L α) : l.toFormula.IsQF := by
-  cases l with
-  | const b =>
-    cases b with
-    | false => exact BoundedFormula.isQF_bot
-    | true => exact BoundedFormula.IsQF.top
-  | rel R args neg =>
-    cases neg
-    · exact (BoundedFormula.IsAtomic.rel _ _).isQF
-    · exact (BoundedFormula.IsAtomic.rel _ _).isQF.not
+  rcases l with (_ | _) | ⟨R, args, _ | _⟩
+  · exact BoundedFormula.isQF_bot
+  · exact BoundedFormula.IsQF.top
+  · exact (BoundedFormula.IsAtomic.rel _ _).isQF
+  · exact (BoundedFormula.IsAtomic.rel _ _).isQF.not
 
 end InputLiteral
 
@@ -188,7 +186,7 @@ theorem realize_toFormula [N.Structure M] [L.Structure M] (p : ProjectionFormula
   | leaf l => simp [toFormula, select]
   | branch guard yes no ihy ihn =>
     fo_simp [toFormula, ihy, ihn, select]
-    split_ifs <;> tauto
+    split_ifs <;> lrat_tauto
 
 /-- A leaf is realized as its literal. -/
 @[fo_realize]
@@ -330,6 +328,23 @@ theorem IsQF.subst {N' L' : Language} {p : ProjectionFormula N L α} (h : p.IsQF
   | leaf l => exact hliteral l
   | branch g _ _ ihy ihn => exact ⟨hguard g h.1, ihy h.2.1, ihn h.2.2⟩
 
+/-- Correct substitutions of quantifier-free numeric tests and input literals preserve truth on
+quantifier-free projection formulas. -/
+theorem realize_subst_of_isQF {N' L' : Language} {M' : Type*}
+    [N.Structure M] [L.Structure M] [N'.Structure M'] [L'.Structure M']
+    {p : ProjectionFormula N L α} (hp : p.IsQF)
+    (guard : N.Formula α → N'.Formula β)
+    (literal : InputLiteral L α → ProjectionFormula N' L' β)
+    (x : α → M) (y : β → M')
+    (hguard : ∀ g, g.IsQF → ((guard g).Realize y ↔ g.Realize x))
+    (hliteral : ∀ l, (literal l).toFormula.Realize y ↔ l.Realize x) :
+    (p.subst guard literal).toFormula.Realize y ↔ p.toFormula.Realize x := by
+  induction p with
+  | leaf l => simpa [subst, toFormula] using hliteral l
+  | branch g yes no ihy ihn =>
+    rcases hp with ⟨hg, hyes, hno⟩
+    fo_simp [subst, toFormula, hguard g hg, ihy hyes, ihn hno]
+
 /-- The finitely many leaf occurrences of a projection formula. Distinct occurrences remain
 distinct even when they carry the same literal. -/
 def Case : ProjectionFormula N L α → Type
@@ -365,16 +380,14 @@ theorem existsUnique_case [N.Structure M] (p : ProjectionFormula N L α) (x : α
     by_cases h : guard.Realize x
     · obtain ⟨c, hc, unique⟩ := ihy
       refine ⟨Sum.inl c, by simpa [caseGuard, h] using hc, ?_⟩
-      intro d hd
-      cases d with
-      | inl d => exact congrArg Sum.inl (unique d (by simpa [caseGuard, h] using hd))
-      | inr d => simp [caseGuard, h] at hd
+      rintro (d | d) hd
+      · exact congrArg Sum.inl (unique d (by simpa [caseGuard, h] using hd))
+      · simp [caseGuard, h] at hd
     · obtain ⟨c, hc, unique⟩ := ihn
       refine ⟨Sum.inr c, by simpa [caseGuard, h] using hc, ?_⟩
-      intro d hd
-      cases d with
-      | inl d => simp [caseGuard, h] at hd
-      | inr d => exact congrArg Sum.inr (unique d (by simpa [caseGuard, h] using hd))
+      rintro (d | d) hd
+      · simp [caseGuard, h] at hd
+      · exact congrArg Sum.inr (unique d (by simpa [caseGuard, h] using hd))
 
 /-- A projection is the disjunction of its mutually exclusive numeric cases, each conjoined
 with one constant or signed input literal. -/

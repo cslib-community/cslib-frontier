@@ -98,7 +98,7 @@ def decode (bits : BitString (width n w)) : Record n w where
   padding := bits (Fin.castAdd (w + n + 1) 0)
   state i := bits (Fin.castAdd (w + n + 1) i.succ)
   checkpoint := bits (Fin.natAdd (n + 1) 0)
-  index := word fun i => bits (Fin.natAdd (n + 1) (Fin.castAdd n i).succ)
+  index := BitString.equivBitVec fun i => bits (Fin.natAdd (n + 1) (Fin.castAdd n i).succ)
   payload i := bits (Fin.natAdd (n + 1) (Fin.natAdd w i).succ)
 
 /-- Decoding the bit encoding of a record recovers the record. -/
@@ -109,17 +109,11 @@ def decode (bits : BitString (width n w)) : Record n w where
 @[simp] theorem encode_decode (bits : BitString (width n w)) : encode (decode bits) = bits := by
   funext i
   induction i using Fin.addCases with
-  | left i =>
-    induction i using Fin.cases with
-    | zero => simp [encode, decode]
-    | succ i => simp [encode, decode]
+  | left i => induction i using Fin.cases <;> simp [encode, decode]
   | right i =>
     induction i using Fin.cases with
     | zero => simp [encode, decode]
-    | succ i =>
-      induction i using Fin.addCases with
-      | left i => simp [encode, decode]
-      | right i => simp [encode, decode]
+    | succ i => induction i using Fin.addCases <;> simp [encode, decode]
 
 /-- Record bit encoding `encode` is injective. -/
 theorem encode_injective : Function.Injective (encode : Record n w → BitString (width n w)) :=
@@ -134,12 +128,9 @@ private theorem key_decode (bits : BitString (width n w)) :
 
 /-- Two records have equal sort keys iff they have the same padding flag and state. -/
 theorem key_eq_iff (a b : Record n w) :
-    a.key = b.key ↔ a.padding = b.padding ∧ a.state = b.state := by
-  constructor
-  · intro h
-    exact ⟨congrFun h 0, funext fun i => congrFun h i.succ⟩
-  · rintro ⟨hpad, hstate⟩
-    simp [key, hpad, hstate]
+    a.key = b.key ↔ a.padding = b.padding ∧ a.state = b.state :=
+  ⟨fun h => ⟨congrFun h 0, funext fun i => congrFun h i.succ⟩,
+    fun ⟨hp, hs⟩ => by simp [key, hp, hs]⟩
 
 /-- A query for the state at time `index` of the orbit prefix. -/
 def query (state : BitString n) (index : ℕ) : Record n w :=
@@ -196,10 +187,8 @@ private theorem valid_initial (f : BitString n → BitString n) (T K : ℕ)
     (checkpoints : Fin M → BitString n) (x : BitString n) (j : Fin R) :
     Valid f T K checkpoints x (initial (w := w) f T K checkpoints x j) := by
   unfold initial
-  split_ifs with h1 h2
-  · exact Or.inr (Or.inl ⟨_, rfl⟩)
-  · exact Or.inr (Or.inr ⟨_, h2, rfl⟩)
-  · exact Or.inl rfl
+  split_ifs with _ h2
+  exacts [.inr (.inl ⟨_, rfl⟩), .inr (.inr ⟨_, h2, rfl⟩), .inl rfl]
 
 /-- What a collision certifies: the prefix reaches a checkpoint, or it repeats. -/
 inductive Witness (f : BitString n → BitString n) (T K : ℕ) (checkpoints : Fin M → BitString n)
@@ -226,42 +215,41 @@ private theorem collision_witness (f : BitString n → BitString n) (T K : ℕ)
   · simp [pad] at hpa
   · rcases hb with rfl | ⟨h', rfl⟩ | ⟨j, hj, rfl⟩
     · simp [pad] at hpb
-    · have he : checkpoints h = checkpoints h' := hstate
-      exact (hne (by rw [he])).elim
-    · exact Witness.hitLeft h j hj hstate.symm
+    · exact (hne ((show checkpoints h = checkpoints h' from hstate) ▸ rfl)).elim
+    · exact .hitLeft h j hj hstate.symm
   · rcases hb with rfl | ⟨h', rfl⟩ | ⟨j, hj, rfl⟩
     · simp [pad] at hpb
-    · exact Witness.hitRight h' i hi hstate
-    · exact Witness.repeated i j hi hj (by rintro rfl; exact hne rfl) hstate
+    · exact .hitRight h' i hi hstate
+    · exact .repeated i j hi hj (fun e => hne (e ▸ rfl)) hstate
 
 /-! ### Sorting and detection -/
 
-/-- Records stored in consecutive blocks of bits. -/
+/-- Records stored in consecutive blocks of bits: the encodings joined by
+`BitString.blocksEquiv.symm`. -/
 def pack (records : Fin R → Record n w) : BitString (R * width n w) :=
-  fun bit => encode (records (finProdFinEquiv.symm bit).1) (finProdFinEquiv.symm bit).2
+  BitString.blocksEquiv.symm (encode ∘ records)
 
 /-- Extracting the `j`-th block of `pack records` gives `encode (records j)`. -/
-@[simp] theorem directProductInput_pack (records : Fin R → Record n w) (j : Fin R) :
-    directProductInput (pack records) j = encode (records j) := by
-  funext bit
-  simp [directProductInput, pack]
+@[simp] theorem block_pack (records : Fin R → Record n w) (j : Fin R) :
+    BitString.block (pack records) j = encode (records j) :=
+  congrFun (BitString.block_blocksEquiv_symm _) j
 
 /-- Sort records by padding flag and state with the native Batcher circuit. -/
 def sorted (d : ℕ) (records : Fin (BitonicSort.arity d) → Record n w) :
     Fin (BitonicSort.arity d) → Record n w :=
-  fun j => decode (directProductInput
+  fun j => decode (BitString.block
     ((bitonicSortCircuit keyBits d true).eval interpretation (pack records)) j)
 
 private theorem sorted_perm (d : ℕ) (records : Fin (BitonicSort.arity d) → Record n w) :
     (List.ofFn (sorted d records)).Perm (List.ofFn records) := by
-  have h := (bitonicSortCircuit_perm (keyBits (n := n) (w := w)) d true (pack records)).map decode
   unfold sorted
-  simpa only [List.map_ofFn, Function.comp_def, directProductInput_pack, decode_encode] using h
+  simpa only [List.map_ofFn, Function.comp_def, block_pack, decode_encode] using
+    (bitonicSortCircuit_perm (keyBits (n := n) (w := w)) d true (pack records)).map decode
 
 private theorem monotone_key_sorted (d : ℕ) (records : Fin (BitonicSort.arity d) → Record n w) :
     Monotone (key ∘ sorted d records) := by
-  have h := monotone_bitonicSortCircuit (keyBits (n := n) (w := w)) d (pack records)
-  simpa only [Function.comp_def, sorted, key_decode] using h
+  simpa only [Function.comp_def, sorted, key_decode] using
+    monotone_bitonicSortCircuit (keyBits (n := n) (w := w)) d (pack records)
 
 /-- Two adjacent records of an array. -/
 def adjacentPair (records : Fin R → Record n w) (j : Fin (R - 1)) : Record n w × Record n w :=
@@ -287,14 +275,14 @@ private theorem initial_collision (f : BitString n → BitString n) (T K : ℕ)
   · refine ⟨⟨h.val, by have := h.isLt; omega⟩, ⟨M + d, by omega⟩, ?_⟩
     rw [initial_stored f T K checkpoints x hR h,
       initial_query f T K checkpoints x hR ⟨d, by omega⟩]
-    refine ⟨fun hbad => ?_, by simp [key, stored, query, heq], rfl⟩
-    simpa [stored, query] using congrArg checkpoint hbad
+    exact ⟨fun hb => by simpa [stored, query] using congrArg checkpoint hb,
+      by simp [key, stored, query, heq], rfl⟩
   · refine ⟨⟨M + i, by omega⟩, ⟨M + j, by omega⟩, ?_⟩
     rw [initial_query f T K checkpoints x hR ⟨i, by omega⟩,
       initial_query f T K checkpoints x hR ⟨j, by omega⟩]
-    refine ⟨fun hbad => ?_, by simp [key, query, heq], rfl⟩
-    have hidx := congrArg (fun r : Record n w => r.index.toNat) hbad
-    simp only [query, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ((by omega : i ≤ K).trans_lt hK),
+    refine ⟨fun hb => ?_, by simp [key, query, heq], rfl⟩
+    have hidx := congrArg (·.index.toNat) hb
+    simp only [query, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ((hij.le.trans hj).trans_lt hK),
       Nat.mod_eq_of_lt (hj.trans_lt hK)] at hidx
     omega
 
@@ -308,10 +296,10 @@ private theorem sorted_has_collision (d : ℕ) (records : Fin (BitonicSort.arity
   obtain ⟨a, b, hne, heq, hpad⟩ := hex
   obtain ⟨p, hp, hdiff, hkey, horig⟩ := adjacent_distinct_collision records (sorted d records)
     key (sorted_perm d records) (monotone_key_sorted d records) a b hne heq
-  refine ⟨⟨p, by omega⟩, (collision_iff _ _).mpr ?_⟩
   obtain ⟨hpad', hstate⟩ := (key_eq_iff _ _).mp hkey
-  have hfirst := (key_eq_iff _ _).mp horig
-  exact ⟨hfirst.1.trans hpad, hpad'.symm.trans (hfirst.1.trans hpad), hstate, hdiff⟩
+  have hfirst := ((key_eq_iff _ _).mp horig).1.trans hpad
+  exact ⟨⟨p, by omega⟩, (collision_iff _ _).mpr
+    ⟨hfirst, hpad'.symm.trans hfirst, hstate, hdiff⟩⟩
 
 /-- If the prefix up to time `K` reaches a checkpoint or repeats, the detected pair of the
 sorted initial array is a witness. -/
@@ -326,16 +314,13 @@ theorem detect_sorted_witness (f : BitString n → BitString n) (T K d : ℕ)
   obtain ⟨j, hj⟩ := sorted_has_collision d records
     (initial_collision f T K checkpoints x hR hK hcover)
   obtain ⟨j, _, hj, hchosen⟩ := chooseRecord_spec
-    (fun j => collision (adjacentPair (sorted d records) j).1
-      (adjacentPair (sorted d records) j).2)
+    (fun j => (adjacentPair (sorted d records) j).1.collision (adjacentPair (sorted d records) j).2)
     (adjacentPair (sorted d records)) (pad, pad) (BitonicSort.arity d - 1) ⟨j, j.isLt, hj⟩
+  have hvalid (i) : Valid f T K checkpoints x (sorted d records i) :=
+    let ⟨s, hs⟩ := ((sorted_perm d records).exists_ofFn_iff (· = sorted d records i)).mp ⟨i, rfl⟩
+    hs ▸ valid_initial f T K checkpoints x s
   change Witness f T K checkpoints x (detect (sorted d records)).1 (detect (sorted d records)).2
   change detect (sorted d records) = _ at hchosen
-  have hvalid (i : Fin (BitonicSort.arity d)) :
-      Valid f T K checkpoints x (sorted d records i) := by
-    obtain ⟨source, heq⟩ :=
-      ((sorted_perm d records).exists_ofFn_iff (· = sorted d records i)).mp ⟨i, rfl⟩
-    exact heq ▸ valid_initial f T K checkpoints x source
   rw [hchosen]
   exact collision_witness f T K checkpoints x _ _ (hvalid _) (hvalid _) hj
 

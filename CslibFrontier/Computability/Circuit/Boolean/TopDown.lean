@@ -102,11 +102,8 @@ theorem wireDepths_firstArg_lt (p : Program signature n g) (i₀ : Fin n) (k : F
 
 /-- When gate `k` is a negation, `firstArg p i₀ k` is its sole argument wire. -/
 theorem firstArg_of_op_eq_not {p : Program signature n g} {k : Fin g} (i₀ : Fin n)
-    (h : (p.lines k).op = .not) : firstArg p i₀ k = (p.lines k).wires ⟨0, by simp [h]⟩ := by
-  unfold firstArg
-  split_ifs with h'
-  · rfl
-  · exact absurd (by simp [h]) h'
+    (h : (p.lines k).op = .not) : firstArg p i₀ k = (p.lines k).wires ⟨0, by simp [h]⟩ :=
+  dite_eq_left (by simp [h])
 
 /-- The Karchmer–Wigderson protocol of the wire `w` with at most `d` messages: Alice holds an input
 where `w` is `s`, Bob one where it is `!s`. At a conjunction the player whose input makes it false
@@ -135,6 +132,31 @@ decreasing_by
     exact wireDepths_firstArg_lt p i₀ k
   all_goals exact Prod.Lex.left _ _ (Nat.lt_succ_self _)
 
+/-- When gate `k` evaluates to `b` on an input iff one of its arguments evaluates to `b`, the
+player whose input makes gate `k` evaluate to `b` (`y` if `s != b`, `x` otherwise) selects via
+`argWith p k b` an argument wire that evaluates to `s` on `x` and `!s` on `y`. -/
+private theorem exists_argWith_witness {p : Program signature n g} {k : Fin g} {b s : Bool}
+    (hiff : ∀ u, p.trace interpretation u (.gate k) = b ↔
+      ∃ a, p.trace interpretation u ((p.lines k).wires a) = b)
+    {x y : BitString n}
+    (hx : p.trace interpretation x (.gate k) = s)
+    (hy : p.trace interpretation y (.gate k) = !s) :
+    ∃ a, argWith p k b (if s != b then y else x) = (p.lines k).wires a ∧
+      p.trace interpretation x ((p.lines k).wires a) = s ∧
+      p.trace interpretation y ((p.lines k).wires a) = !s := by
+  have hstep {z z' : BitString n} (hz : p.trace interpretation z (.gate k) = b)
+      (hz' : p.trace interpretation z' (.gate k) = !b) :
+      ∃ a, argWith p k b z = (p.lines k).wires a ∧
+        p.trace interpretation z ((p.lines k).wires a) = b ∧
+        p.trace interpretation z' ((p.lines k).wires a) = !b := by
+    obtain ⟨a, ha, hza⟩ := argWith_spec ((hiff z).mp hz)
+    refine ⟨a, ha, hza, Bool.eq_not_iff.mpr fun h => ?_⟩
+    simp [(hiff z').mpr ⟨a, h⟩] at hz'
+  obtain rfl | rfl : s = b ∨ s = !b := by cases s <;> cases b <;> simp
+  · simpa using hstep hx hy
+  · obtain ⟨a, ha, hya, hxa⟩ := hstep (by simpa using hy) hx
+    exact ⟨a, by simpa using ha, hxa, by simpa using hya⟩
+
 /-- **The protocol of a wire solves its game**: if the wire `w` has AND/OR depth at most `d`,
 Alice's input makes it `s` and Bob's makes it `!s`, the two inputs differ at the named
 coordinate. -/
@@ -142,93 +164,46 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
     (s : Bool) (hw : p.wireDepthsWith andOrCost w ≤ d) (x y : BitString n)
     (hx : p.trace interpretation x w = s) (hy : p.trace interpretation y w = !s) :
     x ((kwProtocol p i₀ d w s).run x y) ≠ y ((kwProtocol p i₀ d w s).run x y) := by
-  match w with
-  | .input i =>
-    rw [kwProtocol.eq_def]
-    dsimp only [RoundProtocol.run]
-    simp only [Program.trace_input] at hx hy
+  have hval (k : Fin g) (z : BitString n) : p.trace interpretation z (.gate k) =
+      interpretation (p.lines k).op fun a => p.trace interpretation z ((p.lines k).wires a) :=
+    (p.lines_eval interpretation z k).symm
+  have hle (k : Fin g) (a : Fin (signature.Arity (p.lines k).op)) :
+      p.wireDepthsWith andOrCost ((p.lines k).wires a) + andOrCost (p.lines k).op ≤
+        p.depthsWith andOrCost k :=
+    p.wireDepthsWith_lines_add_le _ k a
+  fun_induction kwProtocol p i₀ d w s with
+  | case1 d s i => -- input wire: output it
+    simp only [RoundProtocol.run, Program.trace_input] at hx hy ⊢
     rw [hx, hy]
     cases s <;> decide
-  | .gate k =>
-    have hval (z : BitString n) : p.trace interpretation z (.gate k) =
-        interpretation (p.lines k).op fun a => p.trace interpretation z ((p.lines k).wires a) :=
-      (p.lines_eval interpretation z k).symm
+  | case2 d s k hop ih => -- not gate: recurse on its argument
+    have hx' := (hval k x).symm.trans hx
+    have hy' := (hval k y).symm.trans hy
+    rw [interpretation_of_op_eq_not hop] at hx' hy'
+    have hfirst := firstArg_of_op_eq_not i₀ hop
     have hdk : p.depthsWith andOrCost k ≤ d := hw
-    have hle (a : Fin (signature.Arity (p.lines k).op)) :
-        p.wireDepthsWith andOrCost ((p.lines k).wires a) + andOrCost (p.lines k).op ≤
-          p.depthsWith andOrCost k :=
-      p.wireDepthsWith_lines_add_le _ k a
-    have hcost := p.cost_le_depthsWith andOrCost k
-    rw [kwProtocol.eq_def]
-    dsimp only
-    split
-    · rename_i hop
-      have hx' := (hval x).symm.trans hx
-      have hy' := (hval y).symm.trans hy
-      rw [interpretation_of_op_eq_not hop] at hx' hy'
-      have hfirst := firstArg_of_op_eq_not i₀ hop
-      have hd : p.wireDepthsWith andOrCost (firstArg p i₀ k) ≤ d := by grind
-      refine kwProtocol_solves p i₀ d _ (!s) hd x y ?_ ?_
-      · rw [hfirst, ← hx', Bool.not_not]
-      · rw [hfirst, ← hy', Bool.not_not]
-    · rename_i m hop
-      have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
-      split
-      · omega
-      rename_i d
-      -- the player whose input makes the conjunction false names a false argument
-      have hfalse : ∀ {z z' : BitString n}, p.trace interpretation z (.gate k) = false →
-          p.trace interpretation z' (.gate k) = true →
-          ∃ a, argWith p k false z = (p.lines k).wires a ∧
-            p.trace interpretation z ((p.lines k).wires a) = false ∧
-            p.trace interpretation z' ((p.lines k).wires a) = true := by
-        intro z z' hz hz'
-        rw [hval, ← Bool.not_eq_true, interpretation_of_op_eq_and hop] at hz
-        push Not at hz
-        obtain ⟨a, ha, hza⟩ := argWith_spec (b := false) (by simpa using hz)
-        rw [hval, interpretation_of_op_eq_and hop] at hz'
-        exact ⟨a, ha, hza, hz' a⟩
-      rw [RoundProtocol.run_speak]
-      cases s
-      · obtain ⟨a, ha, hxa, hya⟩ := hfalse hx (by simpa using hy)
-        simp only [Bool.false_eq_true, ↓reduceIte, ha]
-        exact kwProtocol_solves p i₀ d _ false (by have := hle a; omega) x y hxa hya
-      · obtain ⟨a, ha, hya, hxa⟩ := hfalse (by simpa using hy) hx
-        simp only [↓reduceIte, ha]
-        exact kwProtocol_solves p i₀ d _ true (by have := hle a; omega) x y hxa
-          (by simpa using hya)
-    · rename_i m hop
-      have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
-      split
-      · omega
-      rename_i d
-      -- the player whose input makes the disjunction true names a true argument
-      have htrue : ∀ {z z' : BitString n}, p.trace interpretation z (.gate k) = true →
-          p.trace interpretation z' (.gate k) = false →
-          ∃ a, argWith p k true z = (p.lines k).wires a ∧
-            p.trace interpretation z ((p.lines k).wires a) = true ∧
-            p.trace interpretation z' ((p.lines k).wires a) = false := by
-        intro z z' hz hz'
-        rw [hval, interpretation_of_op_eq_or hop] at hz
-        obtain ⟨a, ha, hza⟩ := argWith_spec (b := true) hz
-        rw [hval, ← Bool.not_eq_true, interpretation_of_op_eq_or hop] at hz'
-        push Not at hz'
-        exact ⟨a, ha, hza, by simpa using hz' a⟩
-      rw [RoundProtocol.run_speak]
-      cases s
-      · obtain ⟨a, ha, hya, hxa⟩ := htrue (by simpa using hy) hx
-        simp only [Bool.not_false, ↓reduceIte, ha]
-        exact kwProtocol_solves p i₀ d _ false (by have := hle a; omega) x y hxa
-          (by simpa using hya)
-      · obtain ⟨a, ha, hxa, hya⟩ := htrue hx (by simpa using hy)
-        simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ha]
-        exact kwProtocol_solves p i₀ d _ true (by have := hle a; omega) x y hxa
-          (by simpa using hya)
-termination_by (d, p.wireDepths w)
-decreasing_by
-  all_goals simp_wf
-  · exact Prod.Lex.right _ (wireDepths_firstArg_lt p i₀ k)
-  all_goals exact Prod.Lex.left _ _ (by omega)
+    have := p.cost_le_depthsWith andOrCost k
+    exact ih (by grind) (by rw [hfirst, ← hx', Bool.not_not]) (by rw [hfirst, ← hy', Bool.not_not])
+  | case3 s k m hop | case5 s k m hop => -- and/or gate, no messages left
+    have hdk : p.depthsWith andOrCost k ≤ 0 := hw
+    have := p.cost_le_depthsWith andOrCost k
+    simp only [hop, andOrCost] at this; omega
+  | case4 s k m hop d ih => -- and gate: speak, then recurse
+    have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
+    obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := false)
+      (fun u => by simp [hval, ← Bool.not_eq_true, interpretation_of_op_eq_and hop]) hx hy
+    simp only [Bool.bne_false] at ha
+    rw [RoundProtocol.run_speak, ha]
+    have hc := hle k a
+    exact ih _ (by simp only [hop, andOrCost] at hc; omega) hxa hya
+  | case6 s k m hop d ih => -- or gate: speak, then recurse
+    have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
+    obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := true)
+      (fun u => by rw [hval, interpretation_of_op_eq_or hop]) hx hy
+    simp only [Bool.bne_true] at ha
+    rw [RoundProtocol.run_speak, ha]
+    have hc := hle k a
+    exact ih _ (by simp only [hop, andOrCost] at hc; omega) hxa hya
 
 /-- **A circuit gives a protocol**: a circuit of AND/OR depth at most `d` computing `f` on `n ≥ 1`
 inputs gives a Karchmer–Wigderson protocol for `f` with at most `d` messages from its wires. -/
@@ -297,29 +272,29 @@ theorem two_rpow_lt_add_size_of_computes_majority {d : ℕ} (hd : 2 ≤ d) :
 private theorem exists_add_pow_le_two_rpow {r ε : ℝ} (hr : 0 < r) (hε : 0 < ε) (k : ℕ) :
     ∃ N : ℕ, ∀ n : ℕ, N ≤ n → (n : ℝ) + n ^ k ≤ 2 ^ (ε * (n : ℝ) ^ r) := by
   have hD : (0 : ℝ) < ((k + 2 : ℕ) : ℝ) := by positivity
-  have hlog2 : (0 : ℝ) < Real.log 2 := Real.log_pos one_lt_two
-  have hc : 0 < ε * Real.log 2 / ((k + 2 : ℕ) : ℝ) := by positivity
   -- `log n = o(n ^ r)`
-  obtain ⟨N, hN⟩ := Filter.eventually_atTop.1 (tendsto_natCast_atTop_atTop.eventually
-    ((isLittleO_log_rpow_atTop hr).def hc))
+  obtain ⟨N, hN⟩ := Filter.eventually_atTop.1 <| tendsto_natCast_atTop_atTop.eventually <|
+    (isLittleO_log_rpow_atTop hr).def
+      (div_pos (mul_pos hε (Real.log_pos one_lt_two)) hD)
   refine ⟨max N 2, fun n hn => ?_⟩
   have hn2 : 2 ≤ n := le_of_max_le_right hn
   have hnpos : (0 : ℝ) < n := by positivity
-  have hbound := hN n (le_of_max_le_left hn)
-  rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (Real.rpow_nonneg hnpos.le _)] at hbound
   have hlog : ((k + 2 : ℕ) : ℝ) * Real.log n ≤ Real.log 2 * (ε * (n : ℝ) ^ r) := by
-    have h := (le_abs_self _).trans hbound
-    rw [div_mul_eq_mul_div, le_div_iff₀ hD] at h
+    have h := (le_abs_self _).trans (hN n (le_of_max_le_left hn))
+    rw [Real.norm_eq_abs, abs_of_nonneg (Real.rpow_nonneg hnpos.le _), div_mul_eq_mul_div,
+      le_div_iff₀ hD] at h
     linarith
   -- `n + n ^ k ≤ 2 n ^ (k + 1) ≤ n ^ (k + 2)`
-  have hnat : n + n ^ k ≤ n ^ (k + 2) := by
-    have h1 : n ≤ n ^ (k + 1) := by
-      simpa using Nat.pow_le_pow_right (by omega : 0 < n) (show 1 ≤ k + 1 by omega)
-    have h2 : n ^ k ≤ n ^ (k + 1) := Nat.pow_le_pow_right (by omega) (Nat.le_succ k)
-    calc n + n ^ k ≤ 2 * n ^ (k + 1) := by omega
+  have hnat : n + n ^ k ≤ n ^ (k + 2) :=
+    calc n + n ^ k ≤ 2 * n ^ (k + 1) := by
+          have h1 : n ≤ n ^ (k + 1) := by
+            simpa using Nat.pow_le_pow_right (zero_lt_two.trans_le hn2) (Nat.le_add_left 1 k)
+          have h2 : n ^ k ≤ n ^ (k + 1) :=
+            Nat.pow_le_pow_right (zero_lt_two.trans_le hn2) (Nat.le_succ k)
+          omega
       _ ≤ n * n ^ (k + 1) := Nat.mul_le_mul_right _ hn2
       _ = n ^ (k + 2) := by ring
-  calc (n : ℝ) + n ^ k ≤ ((n ^ (k + 2) : ℕ) : ℝ) := by exact_mod_cast hnat
+  calc (n : ℝ) + n ^ k ≤ ((n ^ (k + 2) : ℕ) : ℝ) := mod_cast hnat
     _ = Real.exp (((k + 2 : ℕ) : ℝ) * Real.log n) := by
         rw [Real.exp_nat_mul, Real.exp_log hnpos]
         norm_cast
@@ -334,10 +309,7 @@ theorem pow_lt_size_of_two_rpow_lt {σ : Signature} {Q : ∀ n, Circuit σ n 1 �
     (k : ℕ) : ∀ᶠ n : ℕ in Filter.atTop, ∀ C, Q n C → n ^ k < C.size := by
   obtain ⟨N, hN⟩ := exists_add_pow_le_two_rpow hr hε k
   filter_upwards [h, Filter.eventually_ge_atTop N] with n hn hnN C hC
-  have h₁ := hn C hC
-  have h₂ := hN n hnN
-  have : (n : ℝ) ^ k < C.size := by linarith
-  exact_mod_cast this
+  exact_mod_cast show (n : ℝ) ^ k < C.size by linarith [hn C hC, hN n hnN]
 
 /-- At every depth `d`, bounds `n + g > 2 ^ (ε n ^ (1 / (d - 1)))` at depth `max d 2` give more than
 `n ^ k` gates for large `n`. -/

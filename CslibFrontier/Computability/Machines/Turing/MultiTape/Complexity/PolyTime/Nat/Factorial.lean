@@ -45,7 +45,7 @@ theorem binary_factorial : ComputableInPolyTime Nat.factorial encUnary encNat :=
     (init := fun _ => 1) (step := fun (_ : ℕ) acc i => acc * (i + 1))
     id' range (const 1)
     (binary_mul' ((snd _ _).comp (fst _ _))
-      (computableTidilyInPolyTime_succ.computableInPolyTime.comp (unary_to_binary.comp (snd _ _))))
+      (ComputableInDegree.natSucc.computableInPolyTime.comp (unary_to_binary.comp (snd _ _))))
     (growth := id)
     (PolyBounded.of_forall_le 1 1 fun n => by simp)
     (fun n acc i hi => by

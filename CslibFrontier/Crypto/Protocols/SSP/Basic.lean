@@ -7,9 +7,11 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Game.Experiment
 public import CslibFrontier.Crypto.Game.Hybrid
 public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.Oracle.Vector
 import CslibFrontier.Languages.Probabilistic.Simulation
 
 /-!
@@ -83,6 +85,14 @@ theorem parFin_handle {m : ℕ} (M : Fin m → Machine I E) (j : Fin m) (e : ιE
         ((M j).handle e).run (s j) :=
   rfl
 
+/-- Running `m` packages with per-activation call budget `t` side by side gives a package with
+call budget `m * t`. -/
+theorem isBounded_parFin {m : ℕ} {M : Fin m → Machine I E} {t : ℕ}
+    (hM : ∀ j, (M j).IsBounded t) : (parFin M).IsBounded (m * t) := by
+  refine ⟨OracleComp.isCostBounded_pi fun j => (hM j).1, fun q s => ?_⟩
+  exact ((OracleComp.isCostBounded_map_iff _ _ _).mpr ((hM q.1).2 q.2 (s q.1))).mono
+    (Nat.le_mul_of_pos_left t q.1.pos)
+
 /-- Two packages importing the same interface, run side by side behind the sum of their exported
 interfaces: each query is answered by the corresponding package, on its own state. -/
 @[expose] def par (M₁ : Machine I E₁) (M₂ : Machine I E₂) : Machine I (E₁ ⊕ₒ E₂) where
@@ -116,10 +126,10 @@ theorem par_handle_inr (M₁ : Machine I E₁) (M₂ : Machine I E₂) (q : ιE�
 section Advantage
 
 /-- The advantage of the adversary `A` in distinguishing the closed packages `M₀` and `M₁`: the
-advantage between the games of running `A` against each of them. -/
+advantage between the experiments of running `A` against each of them. -/
 @[expose] noncomputable def advantage (A : ProbOracleComp E Bool)
     (M₀ M₁ : Machine OracleSpec.empty E) : ℝ≥0 :=
-  Game.advantage (M₀.run A).eval (M₁.run A).eval
+  Experiment.advantage (M₀.run A) (M₁.run A)
 
 @[simp] theorem advantage_self (A : ProbOracleComp E Bool) (M : Machine OracleSpec.empty E) :
     advantage A M M = 0 :=
@@ -142,8 +152,7 @@ the adversary. -/
 theorem advantage_congr {A : ProbOracleComp E Bool} {M₀ M₀' M₁ M₁' : Machine OracleSpec.empty E}
     (h₀ : (M₀.run A).eval = (M₀'.run A).eval) (h₁ : (M₁.run A).eval = (M₁'.run A).eval) :
     advantage A M₀ M₁ = advantage A M₀' M₁' := by
-  unfold advantage
-  rw [h₀, h₁]
+  simp only [advantage, Experiment.advantage, h₀, h₁]
 
 /-- **Reduction.** Distinguishing `R.comp M₀` from `R.comp M₁` is distinguishing `M₀` from `M₁`
 by the adversary `R.link A`, which runs `A` against the reduction package `R`. -/
@@ -173,7 +182,7 @@ private theorem isMonadHom_closeProgram :
 
 /-- The output distribution of a program run against a closed package: sample the initial state,
 then interpret the program with each activation read as a distribution. -/
-private theorem eval_run (N : Machine OracleSpec.empty E) (program : ProbOracleComp E α) :
+theorem eval_run (N : Machine OracleSpec.empty E) (program : ProbOracleComp E α) :
     (N.run program).eval = N.init.eval.bind fun s =>
       ((OracleComp.interpret (m := StateT N.State PMF)
         (fun q state => (Machine.closeProgram (N.handler q state)).eval) program).run s).map

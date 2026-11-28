@@ -10,12 +10,13 @@ module
 public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Computational.InaccessibleEntropy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.ReplaceRow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
@@ -110,11 +111,9 @@ theorem fiberSet_repHashFin (t : ℕ) {α β : Type*} [Fintype α] [DecidableEq 
 theorem repAccessibleSet_subset_fiber {t : ℕ} {α β : Type*} [Fintype α]
     [DecidableEq β] {f₀ : α → β} {L₀ : α → Finset α}
     (hsub : ∀ x, L₀ x ⊆ fiberSet f₀ (f₀ x)) (z : Fin t → α) :
-    repAccessibleSet t L₀ z ⊆ fiberSet (repHashFin t f₀) (repHashFin t f₀ z) := by
-  intro z' hz'
-  rw [fiberSet_repHashFin, Fintype.mem_piFinset]
-  intro i
-  exact hsub (z i) ((mem_repAccessibleSet L₀ z z').mp hz' i)
+    repAccessibleSet t L₀ z ⊆ fiberSet (repHashFin t f₀) (repHashFin t f₀ z) := fun _ hz' => by
+  simpa only [fiberSet_repHashFin, Fintype.mem_piFinset, repHashFin] using
+    fun i => hsub (z i) ((mem_repAccessibleSet L₀ z _).mp hz' i)
 
 theorem card_fiberSet_repHashFin (t : ℕ) {α β : Type*} [Fintype α] [DecidableEq β]
     (f₀ : α → β) (y : Fin t → β) :
@@ -153,25 +152,12 @@ theorem repHashFin_realSampleEntropy_le_prob (t : ℕ) {α β : Type*}
       {z | realSampleEntropy (repHashFin t f₀) z ≤
         t * PMF.conditionalEntropy ((PMF.uniformOfFintype α).map fun x => (f₀ x, x)) - Δ}).toReal ≤
       Real.exp (-2 * Δ ^ 2 / (t * B ^ 2)) := by
-  have hconc := PMF.pi_sum_le_mean_sub
-    (fun _ : Fin t => PMF.uniformOfFintype α)
-    (fun _ (x : α) => realSampleEntropy f₀ x) hB_nonneg
-    (fun _ x _ => ⟨realSampleEntropy_nonneg f₀ x, (realSampleEntropy_le_log_card f₀ x).trans hB⟩)
-    hΔ
-  rw [PMF.pi_uniformOfFintype, Fintype.card_fin] at hconc
-  have hmean : (∑ _i : Fin t, ∑ x : α,
-      ((PMF.uniformOfFintype α) x).toReal * realSampleEntropy f₀ x) =
-      t * PMF.conditionalEntropy ((PMF.uniformOfFintype α).map fun x => (f₀ x, x)) := by
-    simp only [expected_realSampleEntropy_eq_conditionalEntropy f₀, sum_const, card_univ,
-      Fintype.card_fin, nsmul_eq_mul]
-  have hevent : {z : Fin t → α | realSampleEntropy (repHashFin t f₀) z ≤
-      t * PMF.conditionalEntropy ((PMF.uniformOfFintype α).map fun x => (f₀ x, x)) - Δ} =
-      {z : Fin t → α | ∑ i : Fin t, realSampleEntropy f₀ (z i) ≤
-        (∑ _i : Fin t, ∑ x : α, ((PMF.uniformOfFintype α) x).toReal * realSampleEntropy f₀ x) -
-          Δ} := by
-    ext z
-    simp only [Set.mem_ofPred_eq, realSampleEntropy_repHashFin, hmean]
-  rwa [hevent]
+  simpa only [PMF.pi_uniformOfFintype, Fintype.card_fin, realSampleEntropy_repHashFin,
+    expected_realSampleEntropy_eq_conditionalEntropy f₀, sum_const, card_univ, nsmul_eq_mul] using
+    PMF.pi_sum_le_mean_sub (fun _ : Fin t => PMF.uniformOfFintype α)
+      (fun _ (x : α) => realSampleEntropy f₀ x) hB_nonneg
+      (fun _ x _ => ⟨realSampleEntropy_nonneg f₀ x, (realSampleEntropy_le_log_card f₀ x).trans hB⟩)
+      hΔ
 
 /-- **`[HHRVW2020]`, Section 5.1.1, Lemma 5.3(ii), Equation (5.1) (p. 27)**: when
 $x \in L_0(x) \subseteq \alpha$ for all $x$, $\log_2 |L_0^t(z)|$ exceeds
@@ -184,28 +170,14 @@ theorem repAccessibleSet_logb_card_ge_prob (t : ℕ) {α : Type*}
     ((PMF.uniformOfFintype (Fin t → α)).toOuterMeasure
       {z | t * accessibleSetExpectation L₀ + Δ ≤ Real.logb 2 #(repAccessibleSet t L₀ z)}).toReal ≤
       Real.exp (-2 * Δ ^ 2 / (t * B ^ 2)) := by
-  have hne : ∀ x, (L₀ x).Nonempty := fun x => ⟨x, hself x⟩
-  have hscore (x : α) : Real.logb 2 #(L₀ x) ∈ Set.Icc 0 B := by
-    refine ⟨Real.logb_nonneg (by norm_num) (by exact_mod_cast card_pos.mpr (hne x)), ?_⟩
-    exact (Real.logb_le_logb_of_le (by norm_num)
-      (by exact_mod_cast card_pos.mpr (hne x))
-      (by exact_mod_cast card_le_univ (L₀ x))).trans hB
-  have hconc := PMF.pi_sum_ge_mean_add
-    (fun _ : Fin t => PMF.uniformOfFintype α)
-    (fun _ (x : α) => Real.logb 2 #(L₀ x)) hB_nonneg (fun _ x _ => hscore x) hΔ
-  rw [PMF.pi_uniformOfFintype, Fintype.card_fin] at hconc
-  have hmean : (∑ _i : Fin t, ∑ x : α,
-      ((PMF.uniformOfFintype α) x).toReal * Real.logb 2 #(L₀ x)) =
-      t * accessibleSetExpectation L₀ := by
-    simp only [accessibleSetExpectation, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-  have hevent : {z : Fin t → α |
-      t * accessibleSetExpectation L₀ + Δ ≤ Real.logb 2 #(repAccessibleSet t L₀ z)} =
-      {z : Fin t → α |
-        (∑ _i : Fin t, ∑ x : α, ((PMF.uniformOfFintype α) x).toReal * Real.logb 2 #(L₀ x)) + Δ ≤
-          ∑ i : Fin t, Real.logb 2 #(L₀ (z i))} := by
-    ext z
-    simp only [Set.mem_ofPred_eq, logb_card_repAccessibleSet t hne, hmean]
-  rwa [hevent]
+  have hne (x : α) : (L₀ x).Nonempty := ⟨x, hself x⟩
+  simpa only [PMF.pi_uniformOfFintype, Fintype.card_fin, logb_card_repAccessibleSet t hne,
+    accessibleSetExpectation, sum_const, card_univ, nsmul_eq_mul] using
+    PMF.pi_sum_ge_mean_add (fun _ : Fin t => PMF.uniformOfFintype α)
+      (fun _ (x : α) => Real.logb 2 #(L₀ x)) hB_nonneg
+      (fun _ x _ => ⟨Real.logb_nonneg (by norm_num) (by exact_mod_cast card_pos.mpr (hne x)),
+        (Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast card_pos.mpr (hne x))
+          (by exact_mod_cast card_le_univ (L₀ x))).trans hB⟩) hΔ
 
 /-! ### Word-level evaluator and flat `BitString` bridge -/
 
@@ -230,36 +202,31 @@ theorem computableInPolyTime_repEvalWord {α : Type} {encode : α ↪ List Bool}
       (fun a => repEvalWord (t a) (inLen₀ a) (evalWord₀ (n a)) (w a))
       encode encBits := by
   unfold repEvalWord
-  apply ComputableInPolyTime.flatMapToBitsWithInput
-    (ComputableInPolyTime.unary_range' ht)
   have hfst := ComputableInPolyTime.fst encode encUnary
-  have hsnd := ComputableInPolyTime.snd encode encUnary
-  have hrow := ComputableInPolyTime.bitsRowWithInput (hin₀.comp hfst) hsnd (hw.comp hfst)
-  exact heval₀.comp ((hn.comp hfst).prod hrow)
+  exact ComputableInPolyTime.flatMapToBitsWithInput (ComputableInPolyTime.unary_range' ht)
+    (heval₀.comp ((hn.comp hfst).prod (ComputableInPolyTime.bitsRowWithInput (hin₀.comp hfst)
+      (ComputableInPolyTime.snd encode encUnary) (hw.comp hfst))))
 
 theorem length_repEvalWord {t inLen₀ outLen₀ : ℕ} {evalWord₀ : List Bool → List Bool}
     (hlen : ∀ u, u.length = inLen₀ → (evalWord₀ u).length = outLen₀) (w : List Bool) :
     (repEvalWord t inLen₀ evalWord₀ w).length = t * outLen₀ := by
-  have hmap : List.map (fun i => (evalWord₀ (Cslib.BitString.listRow inLen₀ i w)).length)
-      (List.range t) = List.replicate t outLen₀ := by
-    rw [List.eq_replicate_iff]
-    refine ⟨by simp, fun len hmem => ?_⟩
-    obtain ⟨i, _, rfl⟩ := List.mem_map.mp hmem
-    exact hlen _ (Cslib.BitString.length_listRow inLen₀ i w)
-  rw [repEvalWord, List.length_flatMap, hmap, List.sum_replicate, smul_eq_mul]
+  simp [repEvalWord, List.length_flatMap, hlen _ (Cslib.BitString.length_listRow _ _ _)]
 
 theorem listRow_repEvalWord {t inLen₀ outLen₀ : ℕ} {evalWord₀ : List Bool → List Bool}
     (hlen : ∀ u, u.length = inLen₀ → (evalWord₀ u).length = outLen₀) (w : List Bool)
     {j : ℕ} (hj : j < t) :
     Cslib.BitString.listRow outLen₀ j (repEvalWord t inLen₀ evalWord₀ w) =
       evalWord₀ (Cslib.BitString.listRow inLen₀ j w) := by
-  have h := Cslib.BitString.listRow_flatMap_append
-    (width := outLen₀)
-    (fun i => evalWord₀ (Cslib.BitString.listRow inLen₀ i w))
-    (List.range t)
-    (fun i _ => hlen _ (Cslib.BitString.length_listRow inLen₀ i w))
-    [] j (by simpa using hj)
+  have h := Cslib.BitString.listRow_flatMap_append (width := outLen₀)
+    (fun i => evalWord₀ (Cslib.BitString.listRow inLen₀ i w)) (List.range t)
+    (fun i _ => hlen _ (Cslib.BitString.length_listRow inLen₀ i w)) [] j (by simpa using hj)
   simpa [repEvalWord] using h
+
+private theorem blocksEquiv_ofList {t w : ℕ} (u : List Bool) (i : Fin t) :
+    Cslib.BitString.blocksEquiv (Cslib.BitString.ofList (t * w) u) i =
+      Cslib.BitString.ofList w (Cslib.BitString.listRow w i.val u) := by
+  rw [Cslib.BitString.listRow_eq_ofFn w i u, Cslib.BitString.ofList_ofFn,
+    Cslib.BitString.blocksEquiv_apply]
 
 /-- Exact agreement between `wordToFinMap` of `repEvalWord` and `repHashFin` conjugated by
 `BitString.blocksEquiv`. -/
@@ -270,24 +237,11 @@ theorem wordToFinMap_repEvalWord {t inLen₀ outLen₀ : ℕ} {evalWord₀ : Lis
       Cslib.BitString.blocksEquiv.symm
         (repHashFin t (wordToFinMap inLen₀ outLen₀ evalWord₀)
           (Cslib.BitString.blocksEquiv z)) := by
-  have hwords : repEvalWord t inLen₀ evalWord₀ (List.ofFn z) =
-      List.ofFn (Cslib.BitString.blocksEquiv.symm
-        (repHashFin t (wordToFinMap inLen₀ outLen₀ evalWord₀)
-          (Cslib.BitString.blocksEquiv z))) := by
-    rw [Cslib.BitString.ofFn_blocksEquiv_symm, repEvalWord, List.flatMap_def]
-    congr 1
-    apply List.ext_getElem (by simp)
-    intro i hi₁ hi₂
-    simp only [List.length_map, List.length_range] at hi₁
-    let idx : Fin t := ⟨i, hi₁⟩
-    simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn]
-    have hrow : Cslib.BitString.listRow inLen₀ i (List.ofFn z) =
-        List.ofFn (Cslib.BitString.blocksEquiv z idx) := by
-      simpa only [Cslib.BitString.ofList_ofFn, Cslib.BitString.blocksEquiv_apply] using
-        Cslib.BitString.listRow_eq_ofFn inLen₀ idx (List.ofFn z)
-    rw [hrow, repHashFin, wordToFinMap,
-      Cslib.BitString.ofFn_ofList (hlen _ List.length_ofFn)]
-  rw [wordToFinMap, hwords, Cslib.BitString.ofList_ofFn]
+  refine Cslib.BitString.blocksEquiv.injective (funext fun i => ?_)
+  rw [Equiv.apply_symm_apply, wordToFinMap, blocksEquiv_ofList,
+    listRow_repEvalWord hlen _ i.isLt, Cslib.BitString.listRow_eq_ofFn inLen₀ i (List.ofFn z),
+    Cslib.BitString.ofList_ofFn, ← Cslib.BitString.blocksEquiv_apply]
+  rfl
 
 /-- Flat `BitString (t * inLen₀)` view of `repAccessibleSet t L₀`. -/
 @[expose] def repBitAccessibleSet (t inLen₀ : ℕ)
@@ -301,8 +255,7 @@ theorem wordToFinMap_repEvalWord {t inLen₀ outLen₀ : ℕ} {evalWord₀ : Lis
     (z z' : BitString (t * inLen₀)) :
     z' ∈ repBitAccessibleSet t inLen₀ L₀ z ↔
       ∀ i : Fin t, Cslib.BitString.blocksEquiv z' i ∈ L₀ (Cslib.BitString.blocksEquiv z i) := by
-  rw [repBitAccessibleSet, mem_map_equiv]
-  simp only [Equiv.symm_symm, mem_repAccessibleSet]
+  simp only [repBitAccessibleSet, mem_map_equiv, Equiv.symm_symm, mem_repAccessibleSet]
 
 @[simp] theorem card_repBitAccessibleSet (t inLen₀ : ℕ)
     (L₀ : BitString inLen₀ → Finset (BitString inLen₀))
@@ -329,9 +282,9 @@ theorem repBitAccessibleSet_subset_fiber {t inLen₀ outLen₀ : ℕ}
         (wordToFinMap (t * inLen₀) (t * outLen₀) (repEvalWord t inLen₀ evalWord₀) z) := by
   intro z' hz'
   rw [mem_fiberSet, wordToFinMap_repEvalWord hlen, wordToFinMap_repEvalWord hlen]
-  congr 1 with i : 1
-  dsimp only [repHashFin]
-  exact (mem_fiberSet _ _ _).mp (hsub _ ((mem_repBitAccessibleSet L₀ z z').mp hz' i))
+  exact congrArg Cslib.BitString.blocksEquiv.symm (funext fun i =>
+    (mem_fiberSet (wordToFinMap inLen₀ outLen₀ evalWord₀) _ _).mp
+      (hsub _ ((mem_repBitAccessibleSet L₀ z z').mp hz' i)))
 
 theorem realSampleEntropy_wordToFinMap_repEvalWord {t inLen₀ outLen₀ : ℕ}
     {evalWord₀ : List Bool → List Bool}
@@ -344,27 +297,13 @@ theorem realSampleEntropy_wordToFinMap_repEvalWord {t inLen₀ outLen₀ : ℕ}
         (Cslib.BitString.blocksEquiv z) := by
   let f₀ := wordToFinMap inLen₀ outLen₀ evalWord₀
   let f₁ := wordToFinMap (t * inLen₀) (t * outLen₀) (repEvalWord t inLen₀ evalWord₀)
-  have hcard : #(fiberSet f₁ (f₁ z)) =
-      #(fiberSet (repHashFin t f₀) (repHashFin t f₀ (Cslib.BitString.blocksEquiv z))) := by
-    refine Finset.card_bij (fun z' _ => Cslib.BitString.blocksEquiv z') ?_ ?_ ?_
-    · intro z' hz'
-      rw [mem_fiberSet] at hz' ⊢
-      exact Cslib.BitString.blocksEquiv.symm.injective
-        (by simpa only [f₁, f₀, wordToFinMap_repEvalWord hlen] using hz')
-    · intro z₁ _ z₂ _ heq
-      exact Cslib.BitString.blocksEquiv.injective heq
-    · intro u hu
-      refine ⟨Cslib.BitString.blocksEquiv.symm u, ?_,
-        Cslib.BitString.blocksEquiv.apply_symm_apply u⟩
-      rw [mem_fiberSet] at hu ⊢
-      simp only [f₁, f₀, wordToFinMap_repEvalWord hlen, Equiv.apply_symm_apply, hu]
-  simp only [realSampleEntropy, f₁, f₀, hcard]
-
-private theorem logb_two_card_bitString (n₀ : ℕ) :
-    Real.logb 2 (Fintype.card (BitString n₀)) ≤ (n₀ : ℝ) := by
-  have hcard : Fintype.card (BitString n₀) = 2 ^ n₀ := by simp [BitString]
-  rw [hcard, Nat.cast_pow, Nat.cast_ofNat,
-    Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one]
+  have hfib : fiberSet f₁ (f₁ z) =
+      (fiberSet (repHashFin t f₀) (repHashFin t f₀ (Cslib.BitString.blocksEquiv z))).map
+        Cslib.BitString.blocksEquiv.symm.toEmbedding :=
+    Finset.ext fun _ => by
+      simp only [mem_fiberSet, mem_map_equiv, Equiv.symm_symm, f₁, f₀,
+        wordToFinMap_repEvalWord hlen, EmbeddingLike.apply_eq_iff_eq]
+  simp only [realSampleEntropy, f₁, f₀, hfib, card_map]
 
 /-- Flat `BitString` lower-tail Hoeffding bound for `repEvalWord` (`[HHRVW2020]`, Lemma 5.3(i),
 p. 26). -/
@@ -380,21 +319,10 @@ theorem repEvalWord_realSampleEntropy_le_prob {t inLen₀ outLen₀ : ℕ}
           (f₀ x, x)) - Δ}).toReal ≤
       Real.exp (-2 * Δ ^ 2 / (t * (inLen₀ : ℝ) ^ 2)) := by
   intro f₀ f₁
-  have h := repHashFin_realSampleEntropy_le_prob t f₀ (Nat.cast_nonneg inLen₀)
-    (logb_two_card_bitString inLen₀) hΔ
-  rw [← PMF.uniformOfFintype_map_equiv Cslib.BitString.blocksEquiv,
-    PMF.toOuterMeasure_map_apply] at h
-  have hevent : (Cslib.BitString.blocksEquiv ⁻¹'
-      {u : Fin t → BitString inLen₀ | realSampleEntropy (repHashFin t f₀) u ≤
-        t * PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString inLen₀)).map fun x =>
-          (f₀ x, x)) - Δ}) =
-      {z : BitString (t * inLen₀) | realSampleEntropy f₁ z ≤
-        t * PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString inLen₀)).map fun x =>
-          (f₀ x, x)) - Δ} := by
-    ext z
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, f₁, f₀,
-      realSampleEntropy_wordToFinMap_repEvalWord hlen]
-  rwa [hevent] at h
+  simpa only [← PMF.uniformOfFintype_map_equiv Cslib.BitString.blocksEquiv,
+    PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq, f₁, f₀,
+    realSampleEntropy_wordToFinMap_repEvalWord hlen] using
+    repHashFin_realSampleEntropy_le_prob t f₀ (Nat.cast_nonneg inLen₀) (by simp [Real.logb_pow]) hΔ
 
 /-- Flat `BitString` upper-tail Hoeffding bound for `repBitAccessibleSet` (`[HHRVW2020]`,
 Lemma 5.3(ii), Equation (5.1), p. 27). -/
@@ -405,41 +333,11 @@ theorem repBitAccessibleSet_logb_card_ge_prob (t inLen₀ : ℕ)
       {z | t * accessibleSetExpectation L₀ + Δ ≤
         Real.logb 2 #(repBitAccessibleSet t inLen₀ L₀ z)}).toReal ≤
       Real.exp (-2 * Δ ^ 2 / (t * (inLen₀ : ℝ) ^ 2)) := by
-  have h := repAccessibleSet_logb_card_ge_prob t L₀ hself (Nat.cast_nonneg inLen₀)
-    (logb_two_card_bitString inLen₀) hΔ
-  rw [← PMF.uniformOfFintype_map_equiv Cslib.BitString.blocksEquiv,
-    PMF.toOuterMeasure_map_apply] at h
-  have hevent : (Cslib.BitString.blocksEquiv ⁻¹'
-      {u : Fin t → BitString inLen₀ |
-        t * accessibleSetExpectation L₀ + Δ ≤ Real.logb 2 #(repAccessibleSet t L₀ u)}) =
-      {z : BitString (t * inLen₀) |
-        t * accessibleSetExpectation L₀ + Δ ≤
-          Real.logb 2 #(repBitAccessibleSet t inLen₀ L₀ z)} := by
-    ext z
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, card_repBitAccessibleSet]
-  rwa [hevent] at h
+  simpa only [← PMF.uniformOfFintype_map_equiv Cslib.BitString.blocksEquiv,
+    PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq, card_repBitAccessibleSet] using
+    repAccessibleSet_logb_card_ge_prob t L₀ hself (Nat.cast_nonneg _) (by simp [Real.logb_pow]) hΔ
 
 /-! ### Planted-coordinate escape reduction (Lemma 5.3(ii)) -/
-
-private theorem computableInPolyTime_replaceRow {α : Type} {encode : α ↪ List Bool}
-    {width count j : α → ℕ} {x word : α → List Bool}
-    (hwidth : ComputableInPolyTime width encode encUnary)
-    (hcount : ComputableInPolyTime count encode encUnary)
-    (hj : ComputableInPolyTime j encode encUnary)
-    (hx : ComputableInPolyTime x encode encBits)
-    (hword : ComputableInPolyTime word encode encBits) :
-    ComputableInPolyTime
-      (fun a => Cslib.BitString.replaceRow (width a) (count a) (j a) (x a) (word a))
-      encode encBits := by
-  unfold Cslib.BitString.replaceRow
-  apply ComputableInPolyTime.flatMapToBitsWithInput
-    (ComputableInPolyTime.unary_range' hcount)
-  have hfst := ComputableInPolyTime.fst encode encUnary
-  have hsnd := ComputableInPolyTime.snd encode encUnary
-  exact ComputableInPolyTime.ite_decide
-    (ComputableInPolyTime.unary_eq' hsnd (hj.comp hfst))
-    (hx.comp hfst)
-    (ComputableInPolyTime.bitsRowWithInput (hwidth.comp hfst) hsnd (hword.comp hfst))
 
 /-- Planted-coordinate escape reduction (`[HHRVW2020]`, Section 5.1.1, Lemma 5.3(ii), pp. 26–27):
 sample an exact dyadic index `idx < dyadicSize (t n)`, plant the single-coordinate challenge
@@ -461,74 +359,18 @@ theorem isPPT_repEscapeInverter {t inLen₀ : ℕ → ℕ}
     (hin₀ : ComputableInPolyTime inLen₀ encUnary encUnary)
     (hA : IsPPT encBits A) :
     IsPPT encBits (repEscapeInverter t inLen₀ A) := by
-  let enc0 := encPair encUnary encBits
-  let enc1 := encPair enc0 encUnary
-  let enc2 := encPair enc1 encBits
-  have h0_n := ComputableInPolyTime.fst encUnary encBits
-  have h0_x := ComputableInPolyTime.snd encUnary encBits
-  have h1_p := ComputableInPolyTime.fst enc0 encUnary
-  have h1_idx := ComputableInPolyTime.snd enc0 encUnary
-  have h1_n := h0_n.comp h1_p
-  have h2_q := ComputableInPolyTime.fst enc1 encBits
-  have h2_p := h1_p.comp h2_q
-  have h2_n := h0_n.comp h2_p
-  have h2_idx := h1_idx.comp h2_q
-  have h2_in₀ := hin₀.comp h2_n
-  have hzWord := computableInPolyTime_replaceRow h2_in₀ (ht.comp h2_n) h2_idx
-    (ComputableInPolyTime.bitsTakeWithInput (h0_x.comp h2_p) h2_in₀)
-    (ComputableInPolyTime.snd enc1 encBits)
-  have h3_r := ComputableInPolyTime.fst enc2 encBits
-  exact ((isPPTOn_sampleDyadicIndex (ht.comp h0_n)).bind_with
-    (((ComputableInPolyTime.unary_mul' (ht.comp h1_n) (hin₀.comp h1_n)).sampleList).bind_with
-      ((hA.on.preprocess (h2_n.prod hzWord)).bind_with
-        (ComputableInPolyTime.isPPTOn
-          (ComputableInPolyTime.bitsRowWithInput (h2_in₀.comp h3_r) (h2_idx.comp h3_r)
-            (ComputableInPolyTime.snd enc2 encBits)))))).isPPT
-
-private noncomputable def repEscapeIdxTerm (t inLen₀ : ℕ → ℕ)
-    (evalWord₀ : ℕ → List Bool → List Bool)
-    (L₀ : (n : ℕ) → BitString (inLen₀ n) → Finset (BitString (inLen₀ n)))
-    (A : ℕ → List Bool → ProbComp (List Bool)) (n idx : ℕ) : ℝ :=
-  let w₀ := inLen₀ n
-  let rCount := t n
-  (((do
-    let xWord ← Cslib.BitString.uniformList w₀
-    let dummy ← Cslib.BitString.uniformList (rCount * w₀)
-    let zWord := Cslib.BitString.replaceRow w₀ rCount idx (xWord.take w₀) dummy
-    let raw ← ProbComp.eval (A n zWord)
-    let xRaw := Cslib.BitString.listRow w₀ idx raw
-    return decide (xRaw.length = w₀ ∧ evalWord₀ n xRaw = evalWord₀ n xWord ∧
-      Cslib.BitString.ofList w₀ xRaw ∉ L₀ n (Cslib.BitString.ofList w₀ xWord))) : PMF Bool)
-    true).toReal
-
-private theorem repEscapeInverter_succProbability_eq (t inLen₀ : ℕ → ℕ)
-    (evalWord₀ : ℕ → List Bool → List Bool)
-    (L₀ : (n : ℕ) → BitString (inLen₀ n) → Finset (BitString (inLen₀ n)))
-    (A : ℕ → List Bool → ProbComp (List Bool)) (n : ℕ) :
-    (Game.succProbability (ProbComp.eval
-      (accessibleEscapeGame evalWord₀ inLen₀ L₀ (repEscapeInverter t inLen₀ A) n)) : ℝ) =
-      ∑ k : Fin (dyadicSize (t n)),
-        (dyadicSize (t n) : ℝ)⁻¹ * repEscapeIdxTerm t inLen₀ evalWord₀ L₀ A n k.val := by
-  have heval :
-      ProbComp.eval (accessibleEscapeGame evalWord₀ inLen₀ L₀
-        (repEscapeInverter t inLen₀ A) n) =
-      (PMF.uniformOfFintype (Fin (dyadicSize (t n)))).bind fun k =>
-        (Cslib.BitString.uniformList (inLen₀ n)).bind fun xWord =>
-          (Cslib.BitString.uniformList (t n * inLen₀ n)).bind fun dummy =>
-            let zWord := Cslib.BitString.replaceRow (inLen₀ n) (t n) k.val
-              (xWord.take (inLen₀ n)) dummy
-            ProbComp.eval (A n zWord) >>= fun raw =>
-              let xRaw := Cslib.BitString.listRow (inLen₀ n) k.val raw
-              PMF.pure (decide (xRaw.length = inLen₀ n ∧ evalWord₀ n xRaw = evalWord₀ n xWord ∧
-                Cslib.BitString.ofList (inLen₀ n) xRaw ∉
-                  L₀ n (Cslib.BitString.ofList (inLen₀ n) xWord))) := by
-    simp only [accessibleEscapeGame, repEscapeInverter, ProbComp.eval_bind,
-      Cslib.BitString.eval_sampleList, ProbComp.eval_sampleDyadicIndex, ProbComp.eval_pure,
-      PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind, Function.comp_def]
-    rw [PMF.bind_comm]
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, heval, PMF.bind_apply_toReal,
-    PMF.uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    repEscapeIdxTerm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  refine IsPPTOn.isPPT <| (isPPTOn_sampleDyadicIndex (by fun_prop)).bind_with <|
+    (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair encUnary encBits) encUnary) encBits)
+  have hidx := hp.fst'.snd'
+  have hin := hin₀.comp hp.fst'.fst'.fst'
+  have hzWord := ComputableInPolyTime.bitsReplaceRowWithInput hin (ht.comp hp.fst'.fst'.fst') hidx
+    (ComputableInPolyTime.bitsTakeWithInput hp.fst'.fst'.snd' hin) hp.snd'
+  simpa only [bind_pure_comp, Function.comp_def] using
+    (hA.preprocess hp.fst'.fst'.fst' hzWord).map_with
+      (ComputableInPolyTime.bitsRowWithInput (hin.comp (.fst _ encBits))
+        (hidx.comp (.fst _ encBits)) (ComputableInPolyTime.snd _ encBits))
 
 /-- **`[HHRVW2020]`, Section 5.1.1, Lemma 5.3(ii) (pp. 26–27)**: for any adversary `A`, escaping
 `repBitAccessibleSet (t n)` in `accessibleEscapeGame` occurs with probability at most
@@ -555,99 +397,77 @@ theorem repEscape_le_dyadicSize_mul_escape (t inLen₀ outLen₀ : ℕ → ℕ)
       repEvalWord rCount w₀ (evalWord₀ n) raw = repEvalWord rCount w₀ (evalWord₀ n) zWord ∧
       Cslib.BitString.ofList (rCount * w₀) raw ∉
         repBitAccessibleSet rCount w₀ (L₀ n) (Cslib.BitString.ofList (rCount * w₀) zWord)
-  let rowPred (idx : ℕ) (zWord raw : List Bool) : Prop :=
-    let xWord := Cslib.BitString.listRow w₀ idx zWord
-    let xRaw := Cslib.BitString.listRow w₀ idx raw
+  let cellPred (xWord xRaw : List Bool) : Prop :=
     xRaw.length = w₀ ∧ evalWord₀ n xRaw = evalWord₀ n xWord ∧
       Cslib.BitString.ofList w₀ xRaw ∉ L₀ n (Cslib.BitString.ofList w₀ xWord)
+  let rowPred (idx : ℕ) (zWord raw : List Bool) : Prop :=
+    cellPred (Cslib.BitString.listRow w₀ idx zWord) (Cslib.BitString.listRow w₀ idx raw)
+  let idxGame (idx : ℕ) : PMF Bool :=
+    (Cslib.BitString.uniformList w₀).bind fun xWord =>
+      (Cslib.BitString.uniformList (rCount * w₀)).bind fun dummy =>
+        let zWord := Cslib.BitString.replaceRow w₀ rCount idx (xWord.take w₀) dummy
+        (ProbComp.eval (A n zWord)).map fun raw =>
+          decide (cellPred xWord (Cslib.BitString.listRow w₀ idx raw))
   have hrow_witness (zWord raw : List Bool) (hesc : repPred zWord raw) :
       ∃ j : Fin rCount, rowPred j.val zWord raw := by
-    rcases hesc with ⟨_, heval_raw, hnot_acc⟩
-    rw [mem_repBitAccessibleSet, not_forall] at hnot_acc
-    obtain ⟨j, hj_not⟩ := hnot_acc
-    refine ⟨j, Cslib.BitString.length_listRow w₀ j.val raw, ?_, ?_⟩
-    · rw [← listRow_repEvalWord hlen raw j.isLt, ← listRow_repEvalWord hlen zWord j.isLt,
-        heval_raw]
-    · have hblk (u : List Bool) :
-          Cslib.BitString.blocksEquiv (Cslib.BitString.ofList (rCount * w₀) u) j =
-            Cslib.BitString.ofList w₀ (Cslib.BitString.listRow w₀ j.val u) := by
-        rw [Cslib.BitString.listRow_eq_ofFn w₀ j u, Cslib.BitString.ofList_ofFn,
-          Cslib.BitString.blocksEquiv_apply]
-      rwa [← hblk zWord, ← hblk raw]
+    obtain ⟨j, hj_not⟩ := not_forall.mp (mt (mem_repBitAccessibleSet _ _ _).mpr hesc.2.2)
+    exact ⟨j, Cslib.BitString.length_listRow w₀ j.val raw,
+      by rw [← listRow_repEvalWord hlen raw j.isLt, ← listRow_repEvalWord hlen zWord j.isLt,
+        hesc.2.1],
+      by rwa [blocksEquiv_ofList, blocksEquiv_ofList] at hj_not⟩
   let μ : PMF (List Bool × List Bool) :=
     (Cslib.BitString.uniformList (rCount * w₀)).bind fun zWord =>
       (ProbComp.eval (A n zWord)).map fun raw => (zWord, raw)
-  have hle_ennreal :
-      (μ.map (fun p => decide (repPred p.1 p.2))) true ≤
-        ∑ j ∈ range rCount, (μ.map (fun p => decide (rowPred j p.1 p.2))) true := by
-    refine (PMF.map_true_mono μ (F := fun p => (List.range rCount).any
-      (fun j => decide (rowPred j p.1 p.2))) fun p _ h => ?_).trans
-      (PMF.map_any_range_true_le_sum μ rCount fun j p => decide (rowPred j p.1 p.2))
-    obtain ⟨j, hj⟩ := hrow_witness p.1 p.2 (of_decide_eq_true h)
-    exact List.any_eq_true.mpr ⟨j.val, List.mem_range.mpr j.isLt, decide_eq_true hj⟩
-  have hlhs_eq :
-      ProbComp.eval
-        (accessibleEscapeGame
-          (fun k => repEvalWord (t k) (inLen₀ k) (evalWord₀ k))
-          (fun k => t k * inLen₀ k)
-          (fun k => repBitAccessibleSet (t k) (inLen₀ k) (L₀ k)) A n) =
-        μ.map (fun p => decide (repPred p.1 p.2)) := by
-    simp only [accessibleEscapeGame, μ, repPred, rCount, w₀, ProbComp.eval_bind,
+  have hj_eq (j : Fin rCount) :
+      μ.map (fun p => decide (rowPred j.val p.1 p.2)) = idxGame j.val := by
+    simp only [μ, idxGame, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    conv_lhs => rw [← Cslib.BitString.uniformList_replaceRow w₀ rCount j, PMF.bind_bind]
+    refine PMF.bind_congr_on_support _ _ _ fun xWord hx => ?_
+    have hx_len := Cslib.BitString.length_of_mem_support_uniformList hx
+    rw [PMF.bind_map, List.take_of_length_le hx_len.le]
+    refine PMF.bind_congr_on_support _ _ _ fun dummy _ => ?_
+    simp only [Function.comp_def, rowPred,
+      Cslib.BitString.listRow_replaceRow hx_len dummy j.isLt, ↓reduceIte]
+  let lhsGame := ProbComp.eval
+    (accessibleEscapeGame
+      (fun k => repEvalWord (t k) (inLen₀ k) (evalWord₀ k))
+      (fun k => t k * inLen₀ k)
+      (fun k => repBitAccessibleSet (t k) (inLen₀ k) (L₀ k)) A n)
+  let rhsGame := ProbComp.eval
+    (accessibleEscapeGame evalWord₀ inLen₀ L₀ (repEscapeInverter t inLen₀ A) n)
+  have hlhs_eq : lhsGame = μ.map (fun p => decide (repPred p.1 p.2)) := by
+    simp only [lhsGame, accessibleEscapeGame, μ, repPred, rCount, w₀, ProbComp.eval_bind,
       Cslib.BitString.eval_sampleList, ProbComp.eval_pure, PMF.map,
       PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-  have hj_eq (j : Fin rCount) :
-      ((μ.map (fun p => decide (rowPred j.val p.1 p.2))) true).toReal =
-        repEscapeIdxTerm t inLen₀ evalWord₀ L₀ A n j.val := by
-    have hmap : μ.map (fun p => decide (rowPred j.val p.1 p.2)) =
-        (Cslib.BitString.uniformList (rCount * w₀)).bind fun zWord =>
-          ProbComp.eval (A n zWord) >>= fun raw =>
-            PMF.pure (decide (rowPred j.val zWord raw)) := by
-      simp only [μ, PMF.map, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind,
-        Function.comp_def]
-    rw [hmap]
-    dsimp only [repEscapeIdxTerm, rCount, w₀]
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-    conv_lhs => rw [← Cslib.BitString.uniformList_replaceRow w₀ rCount j, PMF.bind_bind]
-    congr 2
-    refine PMF.bind_congr_on_support _ _ _ fun xWord hx => ?_
-    have hx_len : xWord.length = w₀ := Cslib.BitString.length_of_mem_support_uniformList hx
-    have htake : xWord.take (inLen₀ n) = xWord := List.take_of_length_le hx_len.le
-    rw [PMF.bind_map]
-    refine PMF.bind_congr_on_support _ _ _ fun dummy _ => ?_
-    simp only [Function.comp_def, htake, rowPred,
-      Cslib.BitString.listRow_replaceRow hx_len dummy j.isLt, ↓reduceIte]
-    rfl
-  have hlhs_le :
-      (Game.succProbability (ProbComp.eval
-        (accessibleEscapeGame
-          (fun k => repEvalWord (t k) (inLen₀ k) (evalWord₀ k))
-          (fun k => t k * inLen₀ k)
-          (fun k => repBitAccessibleSet (t k) (inLen₀ k) (L₀ k)) A n)) : ℝ) ≤
-        ∑ j : Fin rCount, repEscapeIdxTerm t inLen₀ evalWord₀ L₀ A n j.val := by
-    rw [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, hlhs_eq]
-    have htr := ENNReal.toReal_mono
-      (ENNReal.sum_ne_top.mpr fun _ _ => PMF.apply_ne_top _ _) hle_ennreal
-    rw [ENNReal.toReal_sum (fun _ _ => PMF.apply_ne_top _ _), ← Fin.sum_univ_eq_sum_range] at htr
-    simpa only [hj_eq] using htr
-  have hsub_sum :
-      (∑ j : Fin rCount, repEscapeIdxTerm t inLen₀ evalWord₀ L₀ A n j.val) ≤
-        ∑ k : Fin (dyadicSize rCount), repEscapeIdxTerm t inLen₀ evalWord₀ L₀ A n k.val := by
-    rw [Fin.sum_univ_eq_sum_range, Fin.sum_univ_eq_sum_range]
-    exact sum_le_sum_of_subset_of_nonneg (range_mono (lt_dyadicSize rCount).le)
-      fun _ _ _ => ENNReal.toReal_nonneg
-  have hdyad_pos : (0 : ℝ) < dyadicSize rCount := by exact_mod_cast dyadicSize_pos rCount
-  calc
-    (Game.succProbability (ProbComp.eval
-      (accessibleEscapeGame
-        (fun k => repEvalWord (t k) (inLen₀ k) (evalWord₀ k))
-        (fun k => t k * inLen₀ k)
-        (fun k => repBitAccessibleSet (t k) (inLen₀ k) (L₀ k)) A n)) : ℝ)
-      ≤ ∑ k : Fin (dyadicSize rCount), repEscapeIdxTerm t inLen₀ evalWord₀ L₀ A n k.val :=
-        hlhs_le.trans hsub_sum
-    _ = (dyadicSize (t n) : ℝ) *
-        (Game.succProbability (ProbComp.eval
-          (accessibleEscapeGame evalWord₀ inLen₀ L₀ (repEscapeInverter t inLen₀ A) n)) : ℝ) := by
-        rw [repEscapeInverter_succProbability_eq, ← mul_sum, ← mul_assoc,
-          mul_inv_cancel₀ hdyad_pos.ne', one_mul]
+  have hrhs_eq : rhsGame =
+      (PMF.uniformOfFintype (Fin (dyadicSize rCount))).bind fun k => idxGame k.val := by
+    simp only [rhsGame, accessibleEscapeGame, repEscapeInverter, idxGame, cellPred, rCount, w₀,
+      ProbComp.eval_bind, Cslib.BitString.eval_sampleList, ProbComp.eval_sampleDyadicIndex,
+      ProbComp.eval_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    rw [PMF.bind_comm]
+  have hle_ennreal : lhsGame true ≤ (dyadicSize rCount : ℝ≥0∞) * rhsGame true := calc
+    lhsGame true
+      ≤ ∑ j ∈ range rCount, (μ.map (fun p => decide (rowPred j p.1 p.2))) true := by
+        rw [hlhs_eq]
+        refine (PMF.map_true_mono μ (F := fun p => (List.range rCount).any
+          (fun j => decide (rowPred j p.1 p.2))) fun p _ h => ?_).trans
+          (PMF.map_any_range_true_le_sum μ rCount fun j p => decide (rowPred j p.1 p.2))
+        obtain ⟨j, hj⟩ := hrow_witness p.1 p.2 (of_decide_eq_true h)
+        exact List.any_eq_true.mpr ⟨j.val, List.mem_range.mpr j.isLt, decide_eq_true hj⟩
+    _ = ∑ j ∈ range rCount, idxGame j true := by
+        simp_rw [← Fin.sum_univ_eq_sum_range, hj_eq]
+    _ ≤ ∑ k ∈ range (dyadicSize rCount), idxGame k true :=
+        sum_le_sum_of_subset (range_mono (lt_dyadicSize rCount).le)
+    _ = (dyadicSize rCount : ℝ≥0∞) * rhsGame true := by
+        simp only [hrhs_eq, PMF.bind_apply, tsum_fintype, PMF.uniformOfFintype_apply,
+          Fintype.card_fin]
+        rw [← mul_sum, ← mul_assoc,
+          ENNReal.mul_inv_cancel (Nat.cast_ne_zero.mpr (dyadicSize_pos rCount).ne')
+            (ENNReal.natCast_ne_top _),
+          one_mul, Fin.sum_univ_eq_sum_range (fun k => idxGame k true)]
+  simpa only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, ENNReal.toReal_mul,
+    ENNReal.toReal_natCast] using
+    ENNReal.toReal_mono (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (PMF.apply_ne_top _ _))
+      hle_ennreal
 
 end Cslib.Crypto

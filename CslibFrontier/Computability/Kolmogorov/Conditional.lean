@@ -169,7 +169,13 @@ theorem computableInPolyTime_condUniversalTMProgram :
     funext ⟨p, y⟩
     simp [condUniversalTMProgram, encPair_apply]
   rw [heq]
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.frame.comp
+      (ComputableInPolyTime.unframe.comp (ComputableInPolyTime.fst encBits encBits)))
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.frame.comp
+        (ComputableInPolyTime.dropFrame.comp (ComputableInPolyTime.fst encBits encBits)))
+      (ComputableInPolyTime.snd encBits encBits))
 
 /-- Evaluating `condUniversalTMRunFor` on `(p, (y, t))` is computable in polynomial time when `t` is
 given in unary. -/
@@ -183,30 +189,6 @@ theorem computableInPolyTime_condUniversalTMRunFor :
 
 /-! ### Clock-preserving conditional simulation of every binary `MultiTapeTM` -/
 
-private noncomputable def condMachineHeader {k : ℕ} {State : Type} [Fintype State]
-    (eS : State ↪ ℕ) (tm : MultiTapeTM k Bool State) : List Bool :=
-  frame (eDesc (desc eS eBit tm))
-
-private theorem condUniversalTM_runFor_condMachineHeader_append {k : ℕ} {State : Type}
-    [Fintype State] (eS : State ↪ ℕ) (tm : MultiTapeTM k Bool State)
-    (w y : List Bool) (t : ℕ) :
-    ((condUniversalTM y).run (condMachineHeader eS tm ++ w)).runFor t =
-      ((ofMultiTapeTM tm).run (encPair encBits encBits (w, y))).runFor t := by
-  have hprog : condUniversalTMProgram (condMachineHeader eS tm ++ w) y =
-      condMachineHeader eS tm ++ encPair encBits encBits (w, y) := by
-    simp [condUniversalTMProgram, condMachineHeader]
-  rw [condUniversalTM_runFor, condUniversalTMRunFor, hprog, condMachineHeader,
-    universalTMRunFor, Desc.runFor, unframe_frame_append, decodeDesc_eDesc,
-    dropFrame_frame_append]
-  have hsim : ((ofMultiTapeTM tm).run (encPair encBits encBits (w, y))).runFor t =
-      let r := simulate (desc eS eBit tm) ((encPair encBits encBits (w, y)).map eBit) t
-      if r.2 then some (r.1.map (· != 0)) else none :=
-    tm.runFor_eq_simulate eS (encPair encBits encBits (w, y)) t
-  rw [hsim]
-  dsimp only
-  rcases simulate (desc eS eBit tm) ((encPair encBits encBits (w, y)).map eBit) t with
-    ⟨out, _ | _⟩ <;> rfl
-
 /-- **Clock-preserving conditional simulation of `MultiTapeTM`:** for every finite-state binary
 `MultiTapeTM`, there is a constant `c` such that whenever `tm` on input
 `encPair encBits encBits (w, y)` halts within `t` steps and outputs `x`, `condUniversalTM y`
@@ -219,10 +201,18 @@ theorem exists_etimeBoundedComplexity_condUniversalTM_le_ofMultiTapeTM {k : ℕ}
           (condUniversalTM y).etimeBoundedComplexity t x ≤ (w.length + c : ℕ) := by
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
-  refine ⟨(condMachineHeader eS tm).length, fun t w y x htime hcomp => ?_⟩
+  let hdr := frame (eDesc (desc eS eBit tm))
+  refine ⟨hdr.length, fun t w y x htime hcomp => ?_⟩
   have hmem : x ∈ ((ofMultiTapeTM tm).run (encPair encBits encBits (w, y))).runFor t :=
     mem_ofMultiTapeTM_runFor_iff.mpr ⟨htime, hcomp⟩
-  rw [← condUniversalTM_runFor_condMachineHeader_append eS tm w y t] at hmem
+  have hrun : ((condUniversalTM y).run (hdr ++ w)).runFor t =
+      ((ofMultiTapeTM tm).run (encPair encBits encBits (w, y))).runFor t := by
+    have hprog : condUniversalTMProgram (hdr ++ w) y = hdr ++ encPair encBits encBits (w, y) := by
+      simp [condUniversalTMProgram, hdr]
+    rw [condUniversalTM_runFor, condUniversalTMRunFor, hprog,
+      universalTMRunFor_frame_eDesc_append]
+    rfl
+  rw [← hrun] at hmem
   refine (etimeBoundedComplexity_le_length hmem).trans ?_
   rw [List.length_append, Nat.add_comm]
 
@@ -465,11 +455,9 @@ theorem natCast_condPlainNat (x y : List Bool) :
 theorem condLevinKt_ne_top (x y : List Bool) : condLevinKt x y ≠ ⊤ := by
   obtain ⟨q, c, _, _, hbound, _⟩ := exists_condTimeBoundedAt_le_length_add
   set T := q.eval (2 * x.length + 1 + y.length)
-  have hle : condLevinKt x y ≤ ((x.length + c + Nat.clog 2 T : ℕ) : ℕ∞) := by
-    refine (condLevinKt_le_condTimeBoundedAt_add T x y).trans ?_
-    rw [Nat.cast_add]
-    exact add_le_add_left (hbound x y le_rfl) _
-  exact ne_top_of_le_ne_top (ENat.natCast_ne_top _) hle
+  refine ne_top_of_le_ne_top (ENat.natCast_ne_top (x.length + c + Nat.clog 2 T)) ?_
+  simpa only [Nat.cast_add] using
+    (condLevinKt_le_condTimeBoundedAt_add T x y).trans (add_le_add_left (hbound x y le_rfl) _)
 
 /-- Casting `condLevinKtNat x y` to `ℕ∞` yields `condLevinKt x y`. -/
 @[simp]
@@ -487,11 +475,9 @@ theorem condLevinKtNat_le_iff {x y : List Bool} {k : ℕ} :
 /-- For every condition string `y`, step bound `t`, length `n`, and threshold `r`, fewer than
 `2 ^ r` strings `x` of length `n` have `condTimeBoundedAt t x y < r`. -/
 theorem encard_setOf_condTimeBoundedAt_lt (y : List Bool) (t n r : ℕ) :
-    {x : List Bool | x.length = n ∧ condTimeBoundedAt t x y < r}.encard < 2 ^ r := by
-  refine (Set.encard_le_encard ?_).trans_lt
+    {x : List Bool | x.length = n ∧ condTimeBoundedAt t x y < r}.encard < 2 ^ r :=
+  lt_of_le_of_lt (Set.encard_le_encard fun _ hx => hx.2)
     ((condUniversalTM y).encard_setOf_etimeBoundedComplexity_lt t r)
-  rintro x ⟨_, hx⟩
-  exact hx
 
 /-- **Existence of conditionally incompressible strings:** for every condition string `y` and length
 `n`, some string `x` of length `n` satisfies `n ≤ condPlain x y` (and hence

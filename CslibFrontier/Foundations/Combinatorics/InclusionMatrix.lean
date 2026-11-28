@@ -25,13 +25,14 @@ subsets `A` of `U`, its columns by the `s`-element subsets `B`, and the entry `1
 row rank over `ℚ`: a weighting `a` of the `t`-subsets whose sums `∑_{A ⊆ B, #A = t} a A` vanish for
 every `s`-subset `B` is zero (`Finset.eq_zero_of_sum_powersetCard_eq_zero`).
 
-The theorem is proved here over any field in which the integers `1, …, #U` are nonzero, so in
-characteristic zero and in every characteristic larger than `#U`. Gottlieb states the rational
+The theorem is proved here over any field in which the integers `1, …, s` are nonzero, so in
+characteristic zero and in every characteristic larger than `s`. Gottlieb states the rational
 case. The proof here, by induction on `U`, divides only by integers between `2` and `s`, so this
-mild generalization costs nothing. The induction splits the subsets by an element `x`: double
-counting (`Finset.sum_sum_powersetCard_erase`) turns the hypothesis for `s`-subsets of `U` into the
-hypothesis for the `(s-1)`-subsets, with the factor `s - t`, and the subsets containing `x`
-(`Finset.sum_powersetCard_succ_insert`) reduce to a weighting of `U` with smaller parameters.
+mild generalization costs nothing. The induction splits the subsets by an element `x`
+(`Finset.sum_powersetCard_succ_insert`). Double counting (`Finset.sum_sum_powersetCard_erase`)
+gives the hypothesis for the weights `A ↦ a (insert x A)` of the `(t-1)`-subsets, up to the
+factor `s - t + 1`, which is the only division. Both halves then reduce to weightings of the
+smaller set with smaller parameters.
 Impagliazzo, Pudlák and Sgall use the theorem to bound polynomial-calculus degree
 [ImpagliazzoPudlakSgall1999].
 
@@ -41,7 +42,7 @@ Impagliazzo, Pudlák and Sgall use the theorem to bound polynomial-calculus degr
 * `Finset.sum_powersetCard_succ_insert`: the `(t+1)`-subsets of `insert x B` split by whether they
   contain `x`.
 * `Finset.eq_zero_of_sum_powersetCard_eq_zero`: Gottlieb's theorem, over a field in which
-  `1, …, #U` are nonzero.
+  `1, …, s` are nonzero.
 
 ## References
 
@@ -84,18 +85,12 @@ theorem sum_powersetCard_succ_insert {M : Type*} [AddCommMonoid M] (a : Finset �
     {B : Finset α} (hxB : x ∉ B) (t : ℕ) :
     ∑ A ∈ (insert x B).powersetCard (t + 1), a A =
       ∑ A ∈ B.powersetCard (t + 1), a A + ∑ A ∈ B.powersetCard t, a (insert x A) := by
-  have hdisj : Disjoint (B.powersetCard (t + 1)) ((B.powersetCard t).image (insert x)) := by
-    rw [disjoint_left]
-    intro A h₁ h₂
-    obtain ⟨A', _, rfl⟩ := mem_image.1 h₂
-    exact hxB ((mem_powersetCard.1 h₁).1 (mem_insert_self x A'))
-  have hinj : Set.InjOn (insert x) (B.powersetCard t : Set (Finset α)) := by
-    intro A₁ h₁ A₂ h₂ h
-    have hx₁ : x ∉ A₁ := fun h' => hxB ((mem_powersetCard.1 (mem_coe.1 h₁)).1 h')
-    have hx₂ : x ∉ A₂ := fun h' => hxB ((mem_powersetCard.1 (mem_coe.1 h₂)).1 h')
-    rw [← erase_insert hx₁, ← erase_insert hx₂]
-    exact congrArg (·.erase x) h
-  rw [powersetCard_succ_insert hxB, sum_union hdisj, sum_image hinj]
+  rw [powersetCard_succ_insert hxB, sum_union (disjoint_left.2 fun A h₁ h₂ => by
+      obtain ⟨A', _, rfl⟩ := mem_image.1 h₂
+      exact hxB ((mem_powersetCard.1 h₁).1 (mem_insert_self x A'))),
+    sum_image fun A₁ h₁ A₂ h₂ h => by
+      rw [← erase_insert fun h' => hxB ((mem_powersetCard.1 (mem_coe.1 h₁)).1 h'),
+        ← erase_insert fun h' => hxB ((mem_powersetCard.1 (mem_coe.1 h₂)).1 h'), h]]
 
 variable {F : Type*} [Field F]
 
@@ -104,87 +99,61 @@ omit [DecidableEq α] in
 the `t`-subsets against the `s`-subsets of `U` has full row rank. If the weights `a A` of the
 `t`-subsets sum to zero inside every `s`-subset `B` of `U`, then every weight is zero.
 
-Gottlieb proves this over `ℚ`; here the field may be any field in which the integers `1, …, #U`
+Gottlieb proves this over `ℚ`; here the field may be any field in which the integers `1, …, s`
 are nonzero. -/
 theorem eq_zero_of_sum_powersetCard_eq_zero {U : Finset α} {t s : ℕ} (hts : t ≤ s)
-    (hsum : t + s ≤ #U) (hU : ∀ j : ℕ, 0 < j → j ≤ #U → (j : F) ≠ 0) {a : Finset α → F}
+    (hsum : t + s ≤ #U) (hU : ∀ j : ℕ, 0 < j → j ≤ s → (j : F) ≠ 0) {a : Finset α → F}
     (ha : ∀ B ∈ U.powersetCard s, ∑ A ∈ B.powersetCard t, a A = 0) :
     ∀ A ∈ U.powersetCard t, a A = 0 := by
   classical
   induction U using Finset.induction_on generalizing t s a with
   | empty =>
     intro A hA
-    rw [card_empty] at hsum
-    obtain ⟨rfl, rfl⟩ : t = 0 ∧ s = 0 := by omega
-    rw [powersetCard_zero, mem_singleton] at hA
-    subst hA
-    have h := ha ∅ (by rw [powersetCard_zero]; exact mem_singleton_self _)
-    rwa [powersetCard_zero, sum_singleton] at h
+    obtain ⟨rfl, rfl⟩ : t = 0 ∧ s = 0 := by simp at hsum; omega
+    simpa [mem_singleton.1 (by simpa using hA)] using ha ∅ (by simp)
   | insert x U hx ih =>
     intro A hA
     have hcard : #(insert x U) = #U + 1 := card_insert_of_notMem hx
     rcases Nat.eq_or_lt_of_le hts with rfl | hlt
-    · have h := ha A hA
-      rw [mem_powersetCard] at hA
-      rwa [← hA.2, powersetCard_self, sum_singleton] at h
-    rcases Nat.eq_zero_or_pos t with rfl | ht
-    · rw [mem_powersetCard, card_eq_zero] at hA
-      obtain ⟨B, hB⟩ := (powersetCard_nonempty (s := insert x U) (n := s)).2 (by omega)
-      have h := ha B hB
-      rw [powersetCard_zero, sum_singleton] at h
-      rw [hA.2]
-      exact h
+    · simpa [← (mem_powersetCard.1 hA).2] using ha A hA
+    rcases t.eq_zero_or_pos with rfl | ht
+    · obtain ⟨B, hB⟩ := (powersetCard_nonempty (s := insert x U) (n := s)).2 (by omega)
+      simpa [card_eq_zero.1 (mem_powersetCard.1 hA).2] using ha B hB
     obtain ⟨t', rfl⟩ : ∃ t', t = t' + 1 := ⟨t - 1, by omega⟩
     obtain ⟨s', rfl⟩ : ∃ s', s = s' + 1 := ⟨s - 1, by omega⟩
-    have hU' : ∀ j : ℕ, 0 < j → j ≤ #U → (j : F) ≠ 0 := fun j hj hjU =>
-      hU j hj (by omega)
     -- the `s`-subsets avoiding `x`
     have eq1 : ∀ B ∈ U.powersetCard (s' + 1), ∑ A ∈ B.powersetCard (t' + 1), a A = 0 :=
       fun B hB => ha B (powersetCard_mono (subset_insert x U) hB)
     -- the `s`-subsets containing `x`
     have eq2 : ∀ B ∈ U.powersetCard s', ∑ A ∈ B.powersetCard (t' + 1), a A +
-        ∑ A ∈ B.powersetCard t', a (insert x A) = 0 := by
-      intro B hB
-      rw [mem_powersetCard] at hB
-      have hxB : x ∉ B := fun h => hx (hB.1 h)
+        ∑ A ∈ B.powersetCard t', a (insert x A) = 0 := fun B hB => by
+      obtain ⟨hBU, hBc⟩ := mem_powersetCard.1 hB
+      have hxB : x ∉ B := fun h => hx (hBU h)
       rw [← sum_powersetCard_succ_insert a hxB]
-      exact ha _ (mem_powersetCard.2 ⟨insert_subset_insert x hB.1, by
-        rw [card_insert_of_notMem hxB, hB.2]⟩)
+      exact ha _ (mem_powersetCard.2 ⟨insert_subset_insert x hBU, by simp [hxB, hBc]⟩)
     -- double counting gives the hypothesis for the weights `A ↦ a (insert x A)`
     have eq3 : ∀ B ∈ U.powersetCard (s' + 1), ∑ A ∈ B.powersetCard t', a (insert x A) = 0 := by
       intro B hB
-      have hB' := mem_powersetCard.1 hB
+      obtain ⟨hBU, hBc⟩ := mem_powersetCard.1 hB
       have h1 := sum_sum_powersetCard_erase a (t' + 1) B
       rw [eq1 B hB, smul_zero] at h1
       have h2 : ∑ i ∈ B, ∑ A ∈ (B.erase i).powersetCard t', a (insert x A) = 0 := by
-        have : ∀ i ∈ B, ∑ A ∈ (B.erase i).powersetCard t', a (insert x A) =
-            -∑ A ∈ (B.erase i).powersetCard (t' + 1), a A := by
-          intro i hi
-          have h := eq2 (B.erase i) (mem_powersetCard.2 ⟨(erase_subset i B).trans hB'.1, by
-            rw [card_erase_of_mem hi, hB'.2]; rfl⟩)
-          linear_combination h
-        rw [sum_congr rfl this, sum_neg_distrib, h1, neg_zero]
-      rw [sum_sum_powersetCard_erase (fun A => a (insert x A)) t' B, hB'.2, nsmul_eq_mul] at h2
-      refine (mul_eq_zero.1 h2).resolve_left ?_
-      exact hU (s' + 1 - t') (by omega) (by omega)
+        rw [sum_congr rfl fun i hi => eq_neg_of_add_eq_zero_right <| eq2 (B.erase i) <|
+          mem_powersetCard.2 ⟨(erase_subset i B).trans hBU, by rw [card_erase_of_mem hi, hBc]; rfl⟩,
+          sum_neg_distrib, h1, neg_zero]
+      rw [sum_sum_powersetCard_erase (fun A => a (insert x A)) t' B, hBc, nsmul_eq_mul] at h2
+      exact (mul_eq_zero.1 h2).resolve_left (hU (s' + 1 - t') (by omega) (by omega))
     have ha'' : ∀ A ∈ U.powersetCard t', a (insert x A) = 0 :=
-      ih (t := t') (s := s' + 1) (a := fun A => a (insert x A)) (by omega) (by omega) hU' eq3
-    have eq5 : ∀ B ∈ U.powersetCard s', ∑ A ∈ B.powersetCard (t' + 1), a A = 0 := by
-      intro B hB
-      have h := eq2 B hB
-      rwa [sum_eq_zero (fun A hA => ha'' A (powersetCard_mono (mem_powersetCard.1 hB).1 hA)),
-        add_zero] at h
+      ih (by omega) (by omega) hU eq3
+    have eq5 : ∀ B ∈ U.powersetCard s', ∑ A ∈ B.powersetCard (t' + 1), a A = 0 := fun B hB => by
+      simpa [sum_eq_zero fun A hA => ha'' A (powersetCard_mono (mem_powersetCard.1 hB).1 hA)]
+        using eq2 B hB
     have ha' : ∀ A ∈ U.powersetCard (t' + 1), a A = 0 :=
-      ih (t := t' + 1) (s := s') (by omega) (by omega) hU' eq5
-    rw [mem_powersetCard] at hA
+      ih (by omega) (by omega) (fun j hj hjs => hU j hj (by omega)) eq5
+    obtain ⟨hAU, hAc⟩ := mem_powersetCard.1 hA
     by_cases hxA : x ∈ A
-    · have hA' : A.erase x ∈ U.powersetCard t' := by
-        rw [mem_powersetCard]
-        refine ⟨fun y hy => ?_, by rw [card_erase_of_mem hxA, hA.2]; rfl⟩
-        exact (mem_insert.1 (hA.1 (mem_of_mem_erase hy))).resolve_left (ne_of_mem_erase hy)
-      have h := ha'' _ hA'
-      rwa [insert_erase hxA] at h
-    · refine ha' A (mem_powersetCard.2 ⟨fun y hy => ?_, hA.2⟩)
-      exact (mem_insert.1 (hA.1 hy)).resolve_left fun h => hxA (h ▸ hy)
+    · simpa [insert_erase hxA] using ha'' (A.erase x) (mem_powersetCard.2
+        ⟨subset_insert_iff.1 (by simpa [insert_erase hxA] using hAU), by simp [hxA, hAc]⟩)
+    · exact ha' A (mem_powersetCard.2 ⟨(subset_insert_iff_of_notMem hxA).1 hAU, hAc⟩)
 
 end Finset

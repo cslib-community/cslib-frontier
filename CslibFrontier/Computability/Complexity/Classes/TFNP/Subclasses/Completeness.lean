@@ -60,22 +60,16 @@ theorem exists_uniformCircuitCodes {n m : α → ℕ} {F : α × List Bool → L
   obtain ⟨circuits, hcode, hsem⟩ := CircuitValue.exists_uniformCircuitFamily hn hm hF
   refine ⟨fun a => (circuits a).code, hcode, fun a u hu => ?_⟩
   let x (i : Fin (n a)) := u.getD i.val false
-  have hx : List.ofFn x = u := by
-    apply List.ext_getElem (by simp [hu])
-    intro i hi hj
-    simp only [List.getElem_ofFn]
-    exact List.getD_eq_getElem _ _ hj
+  have hx : List.ofFn x = u := List.ext_getElem (by simp [hu])
+    fun i _ hj => by simp only [List.getElem_ofFn, x, List.getD_eq_getElem _ _ hj]
   rw [← hx, evalCircuitOutputs_code]
-  apply List.ext_getElem (by simp [hlen a _ (List.length_ofFn)])
-  intro i hi hj
-  simp only [List.getElem_ofFn]
-  rw [hsem a x]
-  exact List.getD_eq_getElem _ _ hj
+  refine List.ext_getElem (by simp [hlen a _ List.length_ofFn]) fun i _ hj => ?_
+  simp only [List.getElem_ofFn, hsem a x, List.getD_eq_getElem _ _ hj]
 
 private theorem exists_endomorphismCodes {n : α → ℕ} {F : α × List Bool → List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
     (hF : ComputableInPolyTime F (encPair enc encBits) encBits)
-    (hlen : ∀ a u, u.length = n a → (F (a, u)).length = n a) :
+    (hlen : PreservesWidth n F) :
     ∃ code : α → CircuitCode, ComputableInPolyTime code enc encCode ∧
       ∀ a u, u.length = n a → evalCircuitCode (n a) (code a) u = F (a, u) := by
   obtain ⟨code, hcode, hsem⟩ := exists_uniformCircuitCodes hn hn
@@ -87,8 +81,7 @@ private theorem exists_endomorphismCodes {n : α → ℕ} {F : α × List Bool �
 theorem pigeonRel_searchReducible_Pigeon {n : α → ℕ} {F : α × List Bool → List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
     (hF : ComputableInPolyTime F (encPair enc encBits) encBits)
-    (hlen : ∀ a u, u.length = n a → (F (a, u)).length = n a) :
-    SearchReducible enc encPigeon (pigeonRel n F) Pigeon := by
+    (hlen : PreservesWidth n F) : SearchReducible enc encPigeon (pigeonRel n F) Pigeon := by
   obtain ⟨code, hcode, hsem⟩ := exists_endomorphismCodes hn hF hlen
   apply SearchReducible.of_isTotalSearch isTotalSearch_Pigeon ((hn.prod hcode))
     ((snd enc encBits))
@@ -110,8 +103,7 @@ theorem endOfLineRel_searchReducible_EndOfLine {n : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary)
     (hP : ComputableInPolyTime P (encPair enc encBits) encBits)
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
-    (hP_len : ∀ a u, u.length = n a → (P (a, u)).length = n a)
-    (hS_len : ∀ a u, u.length = n a → (S (a, u)).length = n a) :
+    (hP_len : PreservesWidth n P) (hS_len : PreservesWidth n S) :
     SearchReducible enc encEndOfLine (endOfLineRel n P S) EndOfLine := by
   obtain ⟨cP, hcP, hPs⟩ := exists_endomorphismCodes hn hP hP_len
   obtain ⟨cS, hcS, hSs⟩ := exists_endomorphismCodes hn hS hS_len
@@ -133,8 +125,7 @@ theorem leafRel_searchReducible_Leaf {n : α → ℕ} {N₁ N₂ : α × List Bo
     (hn : ComputableInPolyTime n enc encUnary)
     (hN₁ : ComputableInPolyTime N₁ (encPair enc encBits) encBits)
     (hN₂ : ComputableInPolyTime N₂ (encPair enc encBits) encBits)
-    (hN₁_len : ∀ a u, u.length = n a → (N₁ (a, u)).length = n a)
-    (hN₂_len : ∀ a u, u.length = n a → (N₂ (a, u)).length = n a) :
+    (hN₁_len : PreservesWidth n N₁) (hN₂_len : PreservesWidth n N₂) :
     SearchReducible enc encLeaf (leafRel n N₁ N₂) Leaf := by
   obtain ⟨c₁, hc₁, h₁⟩ := exists_endomorphismCodes hn hN₁ hN₁_len
   obtain ⟨c₂, hc₂, h₂⟩ := exists_endomorphismCodes hn hN₂ hN₂_len
@@ -165,14 +156,13 @@ private theorem exists_costCodes {n : α → ℕ} {C : α × List Bool → ℕ}
       (fun p : α × List Bool => binaryWord (m p.1) (C p)) (encPair enc encBits) encBits := by
     have hbits := (ComputableInPolyTime.of_eq (f := Nat.bits)
       (encIn := encNat) (encOut := encBits) fun _ => rfl).comp hC
-    have hwidth := (hm).comp
-      (ComputableInPolyTime.fst enc encBits)
     have hpadding := ComputableInPolyTime.unary_sub.comp
-      (hwidth.prod (ComputableInPolyTime.length_bits.comp hbits))
-    have hplain := ComputableInPolyTime.bitsAppend
-      ((ComputableInPolyTime.bitsReplicate false).comp hpadding)
-      (ComputableInPolyTime.bitsReverse.comp hbits)
-    simpa only [binaryWord, Function.comp_def] using hplain
+      ((hm.comp (ComputableInPolyTime.fst enc encBits)).prod
+        (ComputableInPolyTime.length_bits.comp hbits))
+    simpa only [binaryWord, Function.comp_def] using
+      ComputableInPolyTime.bitsAppend
+        ((ComputableInPolyTime.bitsReplicate false).comp hpadding)
+        (ComputableInPolyTime.bitsReverse.comp hbits)
   have hword_len (a : α) (u : List Bool) (hu : u.length = n a) :
       (binaryWord (m a) (C (a, u))).length = m a := by
     have := hbits a u hu
@@ -190,8 +180,7 @@ theorem localOptRel_searchReducible_LocalOpt {n : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary)
     (hN : ComputableInPolyTime N (encPair enc encBits) encBits)
     (hC : ComputableInPolyTime C (encPair enc encBits) encNat)
-    (hlen : ∀ a u, u.length = n a → (N (a, u)).length = n a) :
-    SearchReducible enc encLocalOpt (localOptRel n N C) LocalOpt := by
+    (hlen : PreservesWidth n N) : SearchReducible enc encLocalOpt (localOptRel n N C) LocalOpt := by
   obtain ⟨cN, hcN, hNs⟩ := exists_endomorphismCodes hn hN hlen
   obtain ⟨cC, hcC, hCs⟩ := exists_costCodes hn hC
   apply SearchReducible.of_isTotalSearch isTotalSearch_LocalOpt

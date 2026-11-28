@@ -16,7 +16,8 @@ public import Mathlib.Combinatorics.SimpleGraph.Maps
 
 General facts about Mathlib's `SimpleGraph.indepNum` that are not yet in Mathlib: monotonicity
 under embeddings, invariance under isomorphisms, and its range on finite vertex types. The
-cardinality bounds come from the corresponding `cliqueNum` facts via `cliqueNum_compl`.
+cardinality bounds come from the corresponding `cliqueNum` facts via `cliqueNum_compl`. A clique
+and an independent set share at most one vertex.
 
 ## Main results
 
@@ -25,6 +26,8 @@ cardinality bounds come from the corresponding `cliqueNum` facts via `cliqueNum_
 * `SimpleGraph.indepNum_le_natCard`, `SimpleGraph.one_le_indepNum`,
   `SimpleGraph.indepNum_eq_zero_of_isEmpty`: `1 ≤ α(G) ≤ |V|` for nonempty finite `V`, and
   `α(G) = 0` for empty `V`.
+* `SimpleGraph.card_inter_le_one_of_isClique_of_isIndepSet`: a clique and an independent set
+  share at most one vertex.
 -/
 
 public section
@@ -64,5 +67,13 @@ theorem one_le_indepNum [Finite V] [Nonempty V] : 1 ≤ G.indepNum := by
 theorem indepNum_eq_zero_of_isEmpty [IsEmpty V] : G.indepNum = 0 := by
   rw [← cliqueNum_compl]
   exact Gᶜ.cliqueNum_of_isEmpty
+
+/-- A clique and an independent set share at most one vertex: two common vertices would be both
+adjacent and non-adjacent. -/
+theorem card_inter_le_one_of_isClique_of_isIndepSet [DecidableEq V] {C I : Finset V}
+    (hC : G.IsClique (C : Set V)) (hI : G.IsIndepSet (I : Set V)) : #(C ∩ I) ≤ 1 := by
+  refine card_le_one.mpr fun v hv w hw => by_contra fun hne => ?_
+  rw [mem_inter] at hv hw
+  exact hI hv.2 hw.2 hne (hC hv.1 hw.1 hne)
 
 end SimpleGraph

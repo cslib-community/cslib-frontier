@@ -28,7 +28,8 @@ into the vocabulary of `Finset.expect` (`𝔼`) and `Finset.dens`.
 ## Main results
 
 * `Cslib.Probability.PMF.sum_le_affine`: average pointwise affine bounds.
-* `Cslib.Probability.PMF.sum_map_mul`, `.sum_bind_mul`: average deterministic and random scores.
+* `Cslib.Probability.PMF.sum_map_mul`, `.sum_bind_mul`, `.tsum_toReal_map_mul_natCast`: average
+  deterministic and random scores (including finite-source pushforwards onto arbitrary codomains).
 * `Cslib.Probability.PMF.tsum_map_mul`, `.tsum_bind_mul`: the same laws for extended
   nonnegative scores over arbitrary types.
 * `Cslib.Probability.PMF.sq_tsum_le_tsum_sq`: Jensen's inequality `E[g]² ≤ E[g²]` for a
@@ -36,6 +37,8 @@ into the vocabulary of `Finset.expect` (`𝔼`) and `Finset.dens`.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_bind_apply`: a uniform first stage averages the
   second stages.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_map_apply`: output probabilities are densities.
+* `Cslib.Probability.PMF.sum_uniformOfFintype_map_mul`: an expectation under the image of a
+  uniform sample is an average.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_map_apply_true`: the probability that a Boolean
   function of a uniform sample is `true` is a density.
 -/
@@ -74,6 +77,20 @@ theorem sum_map_mul {α β : Type*} [Fintype α] [Fintype β]
   rw [Finset.sum_comm]
   simp [ite_mul]
 
+/-- Real-valued expectation pushforward for `ℕ`-valued scores from a finite distribution `p` onto
+an arbitrary codomain `β`. -/
+theorem tsum_toReal_map_mul_natCast {α β : Type*} [Fintype α]
+    (p : PMF α) (f : α → β) (c : β → ℕ) :
+    (∑' b, ((p.map f) b).toReal * (c b : ℝ)) = ∑ a, (p a).toReal * (c (f a) : ℝ) := by
+  have htsum := tsum_map_mul p f (fun b => (c b : ℝ≥0∞))
+  conv_rhs at htsum => rw [tsum_fintype]
+  have h1 := ENNReal.tsum_toReal_eq (f := fun b => (p.map f) b * (c b : ℝ≥0∞))
+    fun b => ENNReal.mul_ne_top (PMF.apply_ne_top _ b) (ENNReal.natCast_ne_top _)
+  have h2 := ENNReal.toReal_sum (s := Finset.univ) (f := fun a => p a * (c (f a) : ℝ≥0∞))
+    fun a _ => ENNReal.mul_ne_top (PMF.apply_ne_top p a) (ENNReal.natCast_ne_top _)
+  simp only [ENNReal.toReal_mul, ENNReal.toReal_natCast] at h1 h2
+  exact h1.symm.trans ((congrArg ENNReal.toReal htsum).trans h2)
+
 /-- Averaging a score after a random choice averages its conditional scores.
 Adapted from the cslib `crypto` branch at `5ff69ca`. -/
 theorem sum_bind_mul {α β : Type*} [Fintype α] [Fintype β]
@@ -104,6 +121,45 @@ theorem sum_mul_le {α : Type*} [Fintype α] (p : PMF α) (score : α → ℝ) (
   (Finset.sum_le_sum fun a _ =>
     mul_le_mul_of_nonneg_left (hscore a) ENNReal.toReal_nonneg).trans_eq
     (by rw [← Finset.sum_mul, sum_toReal, one_mul])
+
+/-- Expected absolute difference between two conditional output probabilities at `b`, when both
+kernels receive the same finite random input. -/
+@[expose] noncomputable def meanAbsDiffAt {ι β : Type*} [Fintype ι] (μ : PMF ι) (b : β)
+    (p q : ι → PMF β) : ℝ := ∑ y, (μ y).toReal * |(p y b).toReal - (q y b).toReal|
+
+/-- The probability gap after mixing is bounded by the mean conditional gap. -/
+theorem abs_bind_sub_le_meanAbsDiffAt {ι β : Type*} [Fintype ι] (μ : PMF ι) (b : β)
+    (p q : ι → PMF β) :
+    |(μ.bind p b).toReal - (μ.bind q b).toReal| ≤ meanAbsDiffAt μ b p q := by
+  simp only [bind_apply_toReal, meanAbsDiffAt, ← Finset.sum_sub_distrib, ← mul_sub]
+  simpa only [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg] using
+    Finset.abs_sum_le_sum_abs (fun y => (μ y).toReal * ((p y b).toReal - (q y b).toReal))
+      Finset.univ
+
+/-- Triangle inequality for the mean conditional probability gap. -/
+theorem meanAbsDiffAt_triangle {ι β : Type*} [Fintype ι] (μ : PMF ι) (b : β)
+    (p q r : ι → PMF β) :
+    meanAbsDiffAt μ b p r ≤ meanAbsDiffAt μ b p q + meanAbsDiffAt μ b q r := by
+  unfold meanAbsDiffAt
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_le_sum fun y _ => ?_
+  rw [← mul_add]
+  exact mul_le_mul_of_nonneg_left (abs_sub_le ..) ENNReal.toReal_nonneg
+
+/-- A bound uniform in an independent random choice survives mixing the two kernels. -/
+theorem meanAbsDiffAt_bind_le {ι α β : Type*} [Fintype ι] [Finite α] (μ : PMF ι) (ν : PMF α)
+    (b : β) (p q : α → ι → PMF β) {B : ℝ} (bound : ∀ j, meanAbsDiffAt μ b (p j) (q j) ≤ B) :
+    meanAbsDiffAt μ b (fun y => ν.bind fun j => p j y) (fun y => ν.bind fun j => q j y) ≤ B := by
+  let _ := Fintype.ofFinite α
+  calc
+    _ ≤ ∑ y, (μ y).toReal * meanAbsDiffAt ν b (fun j => p j y) (fun j => q j y) :=
+      Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left
+        (abs_bind_sub_le_meanAbsDiffAt ν b _ _) ENNReal.toReal_nonneg
+    _ = ∑ j, (ν j).toReal * meanAbsDiffAt μ b (p j) (q j) := by
+      simp only [meanAbsDiffAt, Finset.mul_sum]
+      rw [Finset.sum_comm]
+      exact Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun y _ => mul_left_comm ..
+    _ ≤ B := sum_mul_le ν _ _ bound
 
 /-- Jensen's inequality `E[g]² ≤ E[g²]` for a function with values in `[0, 1]`. -/
 theorem sq_tsum_le_tsum_sq {α : Type*} (μ : PMF α) {g : α → ℝ} (h0 : ∀ a, 0 ≤ g a)
@@ -150,6 +206,13 @@ theorem toReal_uniformOfFintype_map_apply [DecidableEq β] (f : α → β) (b : 
     split_ifs <;> rfl
   simp only [h]
   exact Fintype.expect_boole _
+
+/-- The expectation of `F` under the image of a uniform sample by `g` is the average of `F ∘ g`. -/
+theorem sum_uniformOfFintype_map_mul [Fintype β] (g : α → β) (F : β → ℝ) :
+    ∑ b, ((uniformOfFintype α).map g b).toReal * F b = 𝔼 a, F (g a) := by
+  rw [sum_map_mul]
+  simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+    Fintype.expect_eq_sum_div_card, inv_mul_eq_div, sum_div]
 
 /-- A Boolean function `g` of a uniform sample is `true` with probability the density of the set
 where `g` is `true`. -/

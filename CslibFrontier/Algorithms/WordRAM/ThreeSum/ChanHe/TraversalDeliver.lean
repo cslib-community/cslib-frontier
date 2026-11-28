@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalCall
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalLocalDelivery
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged native output delivery for one traversal node
@@ -71,9 +72,7 @@ private theorem deliveryState_regs_eq_local (x : Data 128) (i : Fin 128) (hc : i
     (deliveryState x).regs i = (localDeliveryState x).regs i := by
   simp only [deliveryState, localDeliveryState, Data.set_regs, Data.write_regs,
     Function.update_apply, hc, ↓reduceIte]
-  by_cases ht : i = temporary
-  · simp only [eq_true ht, ↓reduceIte]
-  · simp only [ht, ↓reduceIte]
+  by_cases ht : i = temporary <;> simp only [ht, ↓reduceIte]
 
 /-- The appended pointer is the existing node layout's packed base. -/
 theorem deliveryState_packed (x : Data 128) : (deliveryState x).regs packed =
@@ -113,39 +112,25 @@ theorem delivery_output (x : Data 128) (values : Fin 3 → ℕ → ℤ) (before 
     NodePacking.Output L values
       (Function.update before (x.regs outputs + x.regs outputCount) L.packed)
       (deliveryState x).mem := by
-  let L := NodePacking.layout ((nodeState x).comap kernel)
-  let o := x.regs outputs + x.regs outputCount
-  change NodePacking.Output L values before x.mem at h
-  change NodePacking.Output L values (Function.update before o L.packed) (deliveryState x).mem
-  have hm := deliveryState_mem x
-  change (deliveryState x).mem = Function.update x.mem o ((deliveryState x).regs packed) at hm
-  rw [deliveryState_packed] at hm
+  intro L
+  set o := x.regs outputs + x.regs outputCount
+  have hm : (deliveryState x).mem = Function.update x.mem o L.packed := by
+    rw [← deliveryState_packed]
+    exact deliveryState_mem x
   have ho : o < L.base := htable
   have hkeep (a : ℕ) (ha : L.base ≤ a) : (deliveryState x).mem a = x.mem a := by
-    rw [hm, Function.update_of_ne (show a ≠ o by omega)]
-  refine ⟨?_, ?_, ?_⟩
-  · intro j
-    obtain ⟨zs, hnd, hs, hc, hd⟩ := h.heavy j
-    refine ⟨zs, hnd, hs, (hkeep _ (L.base_le_descriptor j)).trans hc, ?_⟩
-    intro k hk
+    rw [hm, Function.update_of_ne (by omega)]
+  refine ⟨fun j => ?_, fun a ha => ?_, fun a ha => ?_⟩
+  · obtain ⟨zs, hnd, hs, hc, hd⟩ := h.heavy j
     have hb := L.base_le_descriptor j
-    have hbase : L.base ≤ L.heavy j + k := by
-      dsimp only [NodePacking.Layout.heavy]
-      omega
-    exact (hkeep _ hbase).trans (hd k hk)
-  · intro a ha
-    have hbase : L.base ≤ L.packed + a := by
-      dsimp only [NodePacking.Layout.packed]
-      omega
-    exact (hkeep _ hbase).trans (h.packed a ha)
-  · intro a ha
-    rw [hm]
+    exact ⟨zs, hnd, hs, (hkeep _ hb).trans hc, fun k hk =>
+      (hkeep _ (by dsimp only [NodePacking.Layout.heavy]; omega)).trans (hd k hk)⟩
+  · exact (hkeep _ (by dsimp only [NodePacking.Layout.packed]; omega)).trans (h.packed a ha)
+  · rw [hm]
     by_cases he : a = o
-    · subst a
-      simp only [Function.update_self]
-      rfl
-    · simp only [Function.update_of_ne he]
-      exact h.frame a ha
+    · subst he
+      simp
+    · simpa only [Function.update_of_ne he] using h.frame a ha
 
 /-- The delivered register is the existing heavy-set cardinality, not a capacity or pair count. -/
 theorem delivery_heavy_card (x : Data 128) (values : Fin 3 → ℕ → ℤ) (before : ℕ → ℕ)
@@ -154,13 +139,12 @@ theorem delivery_heavy_card (x : Data 128) (values : Fin 3 → ℕ → ℤ) (bef
     (deliveryState x).regs (heavyLength j) =
       (Cslib.Algorithms.ThreeSum.ChanHe.heavy
         ((Finset.range ((NodePacking.layout ((nodeState x).comap kernel)).n j)).image (values j))
-        (NodePacking.layout ((nodeState x).comap kernel)).M).card := by
-  rw [deliveryState_heavy_length]
-  exact h.heavy_card j
+        (NodePacking.layout ((nodeState x).comap kernel)).M).card :=
+  deliveryState_heavy_length x j ▸ h.heavy_card j
 
 /-- All non-output controller parameters and the entire stack workspace survive delivery. -/
 theorem deliver_preserves : ∀ i : Fin 128, i ≠ heap → i ≠ outputCount → i ≠ temporary →
-    (i.val < 88 ∨ 96 ≤ i.val) → deliver.Preserves i := by decide
+    (i.val < 88 ∨ 96 ≤ i.val) → deliver.Preserves i := by decide +kernel
 
 /-- The explicit delivered state retains every non-output controller and stack register. -/
 theorem deliveryState_preserves (x : Data 128) (i : Fin 128)
@@ -177,46 +161,9 @@ theorem deliver_exec {w : ℕ} (x : Data 128)
       (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
       4 * x.regs groups + x.regs selected)) :
     Exec w deliver x (deliveryState x) 24 := by
-  have hbound (v : ℕ) (hv : v ≤ x.regs heap + 3 + 2 *
-      (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
-      4 * x.regs groups + x.regs selected) : Fits w v := hfit.of_le hv
-  have h3 : Fits w 3 := hbound _ (by omega)
-  have hp₀ := hbound (x.regs heap + 3) (by omega)
-  have hp₁ := hbound (x.regs heap + 3 + x.regs (slot 2)) (by omega)
-  have hp₂ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4)) (by omega)
-  have hp := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6)) (by omega)
-  have ho := hbound (x.regs outputs + x.regs outputCount) (by omega)
-  have hc := hbound (x.regs outputCount + 1) (by omega)
-  have hd₀ := hbound (x.regs heap + 1) (by omega)
-  have hd₁ := hbound (x.regs heap + 1 + x.regs (slot 2)) (by omega)
-  have hd₁' := hbound (x.regs heap + 1 + x.regs (slot 2) + 1) (by omega)
-  have hd₂ := hbound (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4)) (by omega)
-  have hd₂' := hbound (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) + 1) (by omega)
-  have he₀ := hbound (x.regs groups + x.regs groups) (by omega)
-  have he₁ := hbound (4 * x.regs groups) (by omega)
-  have he₂ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups) (by omega)
-  have he₃ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2)) (by omega)
-  have he₄ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4)) (by omega)
-  have he₅ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6)) (by omega)
-  have he := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + x.regs selected) (by omega)
-  have hne₀ : x.regs heap ≠ x.regs outputs + x.regs outputCount := by omega
-  have hne₁ : x.regs heap + 1 + x.regs (slot 2) ≠
-      x.regs outputs + x.regs outputCount := by omega
-  have hne₂ : x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) ≠
-      x.regs outputs + x.regs outputCount := by omega
-  dsimp only [heap, slot, groups, selected, outputs, outputCount, one] at *
-  ram_eval [deliver, deliveryState, heavyBase, heavyLength, heap, slot, groups, selected,
-    outputs, outputCount, packed, temporary, endpoint, one, hone, h3, hp₀, hp₁, hp₂, hp, ho,
-    hc, hd₀, hd₁, hd₁', hd₂, hd₂', he₀, he₁, he₂, he₃, he₄, he₅, he,
-    hne₀, hne₁, hne₂, Function.update_of_ne, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc,
-    show ∀ n : ℕ, n + n + (n + n) = 4 * n by omega]
+  unfold deliver deliveryState
+  wram_exec [hone]
+  simp only [show x.regs groups + x.regs groups + (x.regs groups + x.regs groups) =
+    4 * x.regs groups by omega]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

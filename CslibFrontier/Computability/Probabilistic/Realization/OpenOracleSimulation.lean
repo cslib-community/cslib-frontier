@@ -7,8 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Tactic.Linarith
@@ -125,7 +128,7 @@ theorem isOraclePPTOn_step [Fintype Operation] {input : α ↪ List Bool}
     cases control with
     | none => fun_prop
     | some control =>
-      apply ((IsTidyOraclePPTOn.uniform_bool _).isOraclePPTOn).bind_with
+      apply (isPPTOn_uniform_bool _).isOraclePPTOn.bind_with
       apply IsOraclePPTOn.finite_cases
         (tag := fun pair : (α × (FiniteConfig k Bool Control Operation × State)) × Bool =>
           (pair.1.2.1.tapes.inputSymbol, pair.1.2.1.tapes.workTapeSymbols,
@@ -146,9 +149,7 @@ theorem isOraclePPTOn_step [Fintype Operation] {input : α ↪ List Bool}
         cases machine.tr control inputSymbol workSymbols answerSymbols coin with
         | step action symbol move => fun_prop
         | query channel next =>
-          apply IsOraclePPTOn.bind_with (middle := encPair encBits stateEncoding)
-          · fun_prop
-          · fun_prop
+          apply IsOraclePPTOn.bind_with (middle := encPair encBits stateEncoding) <;> fun_prop
 
 /-- A bounded native run with an open stateful handler is strict oracle PPT. A local invariant,
 over every possible handler result under every external oracle, bounds reply length and
@@ -178,9 +179,6 @@ theorem isOraclePPTOn_run [Finite Operation] {input : α ↪ List Bool}
         (OracleComp.sumHandler
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
         (machine.runOracle (count a) (word a))).run (initial a)) := by
-  have hword := hword.tidy
-  have hcount := hcount.tidy
-  have hinitial := hinitial.tidy
   let _ := Fintype.ofFinite Operation
   obtain ⟨cr, dr, hresourceSize⟩ := polynomiallyBounded_iff_le.mp hresources
   obtain ⟨cf, hconfigurationSize⟩ :=
@@ -196,7 +194,7 @@ theorem isOraclePPTOn_run [Finite Operation] {input : α ↪ List Bool}
       resources ((input a).length + word.length) ≤ budget a :=
     (hresourceSize _).trans (Nat.mul_le_mul_left cr (Nat.pow_le_pow_left
       (by lia) dr))
-  have hstart : ComputableTidilyInPolyTime start input (encPair encFiniteConfig stateEncoding) := by
+  have hstart : ComputableInPolyTime start input (encPair encFiniteConfig stateEncoding) := by
     dsimp only [start]
     fun_prop
   have hloop := (IsOraclePPTOn.iterateWith_spec hcount hstart (isOraclePPTOn_step machine hhandler)
@@ -225,14 +223,14 @@ theorem isOraclePPTOn_run [Finite Operation] {input : α ↪ List Bool}
             nlinarith⟩)
     (size := fun a => 2 * cf * ((word a).length + count a + budget a + 1) +
       (stateEncoding (initial a)).length + count a * budget a + 1)
-    (ComputableTidilyInPolyTime.polyBounded (by dsimp only [budget]; fun_prop))
+    (ComputableInPolyTime.polyBounded (by dsimp only [budget]; fun_prop))
     (by
       rintro a i ⟨cfg, state⟩ hi ⟨hcfg, _, hstate⟩
       have hf := hconfigurationSize _ _ _ cfg hcfg
       simp only [length_encPair]
       dsimp only at hstate ⊢
       nlinarith)).1
-  have hproject : ComputableTidilyInPolyTime
+  have hproject : ComputableInPolyTime
       (fun pair : FiniteConfig k Bool Control Operation × State =>
         (pair.1.tapes.output, pair.2))
       (encPair encFiniteConfig stateEncoding) (encPair encBits stateEncoding) := by fun_prop

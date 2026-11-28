@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitialChunk
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeEncode
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 import Mathlib.Data.List.OfFn
@@ -60,14 +61,10 @@ theorem values_eq_ofFn (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (limit m r :
 /-- Source coordinates have bounded encoded size independently of runtime chunk metadata. -/
 theorem length_chunk_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (m j : ℕ) :
     (encNat (InitialChunk.chunk M e (m, j))).length ≤ (InitialChunk.headerWord M e).length := by
-  have h := length_encNat_ofBits_le
-    (((InitialChunk.headerWord M e).drop (j * m)).take m)
-  change (encNat (InitialChunk.chunk M e (m, j))).length ≤ _ at h
-  have hl : (((InitialChunk.headerWord M e).drop (j * m)).take m).length ≤
-      (InitialChunk.headerWord M e).length := by
-    simp only [List.length_take, List.length_drop]
-    omega
-  exact h.trans hl
+  refine (length_encNat_ofBits_le
+    (((InitialChunk.headerWord M e).drop (j * m)).take m)).trans ?_
+  simp only [List.length_take, List.length_drop]
+  omega
 
 private abbrev BuildState := ℕ × ℕ × List ℕ
 private noncomputable def encBuildState : BuildState ↪ List Bool :=
@@ -92,10 +89,9 @@ private theorem buildStep_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
       (fun a => (encBuildState a).length) := by
   have hm := fst encNat (encPair encNat (encList encNat))
   have hr := snd encNat (encPair encNat (encList encNat))
-  have hj := hr.fst'
-  have hout := hr.snd'
-  have hchunk := budget_comp_linear (InitialChunk.chunk_inSpace M e) (budget_prod hm hj)
-  exact budget_prod hm (budget_prod (budget_natSucc hj) (budget_snoc hout hchunk))
+  exact budget_prod hm (budget_prod (budget_natSucc hr.fst')
+    (budget_snoc hr.snd' (budget_comp_linear (InitialChunk.chunk_inSpace M e)
+      (budget_prod hm hr.fst'))))
 
 /-- Initial vector construction is native and linear in actual binary capacity storage.
 The constant may depend on the fixed machine/control prefix, never on runtime lengths. -/
@@ -105,13 +101,9 @@ theorem values_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   let H := (InitialChunk.headerWord M e).length
   have hlimit := fst encNat (encPair encNat encNat)
   have hr := snd encNat (encPair encNat encNat)
-  have hm := hr.fst'
-  have hrequested := hr.snd'
-  have hsize := budget_comp_linear natSize hlimit
-  have hn := budget_ite (budget_natLt hrequested hsize) hrequested hsize
-  have hinit := budget_prod hm (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encList encNat) [] (.refl _)))
+  have hn := budget_natMin hr.snd' (budget_comp_linear natSize hlimit)
+  have hinit := budget_prod hr.fst' (budget_prod (budget_const (encB := encNat) 0)
+    (budget_const (encB := encList encNat) []))
   have hstates (a : Args) (i : ℕ) (hi : i ≤ min a.2.2 a.1.size) :
       (encBuildState ((buildStep M e)^[i] (a.2.1, 0, []))).length ≤
         8 * (H + 2) * ((encArgs a).length + 1) := by
@@ -128,11 +120,7 @@ theorem values_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hrun := ComputableInSpace.iterate
     (n := fun a : Args => min a.2.2 a.1.size)
     (init := fun a : Args => (a.2.1, 0, [])) (step := buildStep M e)
-    (hn.of_enc_eq fun a => by
-      by_cases h : a.2.2 < a.1.size
-      · simp [h, Nat.min_eq_left h.le]
-      · simp [h, Nat.min_eq_right (Nat.le_of_not_gt h)])
-    hinit (buildStep_inSpace M e) hstates hstates
+    hn hinit (buildStep_inSpace M e) hstates hstates
   refine hrun.snd'.snd'.weaken
     (.of_le_linear (100 * (H + 2)) (100 * (H + 2)) fun a => by
       have hpaid : min a.2.2 a.1.size ≤ (encNat a.1).length := by

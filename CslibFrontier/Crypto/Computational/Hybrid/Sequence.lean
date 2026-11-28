@@ -129,13 +129,11 @@ noncomputable def sequenceTest (replacement original : ProbComp α) (count : ℕ
 dyadic-range loss. The identity also covers zero repetitions. -/
 theorem sequenceTest_gap (replacement original : ProbComp α) (count : ℕ)
     (test : List α → ProbComp Bool) :
-    (Game.succProbability (ProbComp.eval (OracleComp.replicate count original >>= test)) : ℝ) -
-        Game.succProbability (ProbComp.eval (OracleComp.replicate count replacement >>= test)) =
+    Pr[OracleComp.replicate count original >>= test] -
+        Pr[OracleComp.replicate count replacement >>= test] =
       (dyadicSize count : ℝ) *
-        (Game.succProbability
-            (ProbComp.eval (original >>= sequenceTest replacement original count test)) -
-          Game.succProbability
-            (ProbComp.eval (replacement >>= sequenceTest replacement original count test))) := by
+        (Pr[original >>= sequenceTest replacement original count test] -
+          Pr[replacement >>= sequenceTest replacement original count test]) := by
   unfold sequenceTest
   have horiginal := eval_bind_sampleDyadicIndex_guard original count
     (fun split => spliceTest replacement original split (count - split - 1) test) false
@@ -147,18 +145,18 @@ theorem sequenceTest_gap (replacement original : ProbComp α) (count : ℕ)
     (fun i => ProbComp.eval (sequenceHybrid replacement original count i >>= test))
     count (dyadicSize count) (lt_dyadicSize count).le
   simpa only [sequenceHybrid_zero, sequenceHybrid_self, PMF.monad_bind_eq_bind,
-    horiginal, hreplacement] using h
+    horiginal, hreplacement, Game.coe_succProbability] using h
 
 /-- The exact unsigned sequence-hybrid loss, including the empty sequence. -/
 theorem sequenceTest_advantage (replacement original : ProbComp α) (count : ℕ)
     (test : List α → ProbComp Bool) :
-    Game.advantage (ProbComp.eval (OracleComp.replicate count original >>= test))
-        (ProbComp.eval (OracleComp.replicate count replacement >>= test)) =
+    Experiment.advantage (OracleComp.replicate count original >>= test)
+        (OracleComp.replicate count replacement >>= test) =
       (dyadicSize count : ℝ≥0) *
-        Game.advantage (ProbComp.eval (original >>= sequenceTest replacement original count test))
-          (ProbComp.eval (replacement >>= sequenceTest replacement original count test)) := by
+        Experiment.advantage (original >>= sequenceTest replacement original count test)
+          (replacement >>= sequenceTest replacement original count test) := by
   apply NNReal.eq
-  rw [NNReal.coe_mul, NNReal.coe_natCast, Game.coe_advantage, Game.coe_advantage,
+  rw [NNReal.coe_mul, NNReal.coe_natCast, Experiment.coe_advantage, Experiment.coe_advantage,
     sequenceTest_gap, abs_mul, Nat.abs_cast]
 
 /-- Efficient source programs and counts give an efficient independent hybrid sequence. -/
@@ -170,15 +168,14 @@ theorem isPPTOn_sequenceHybrid {Param : Type} {input : Param ↪ List Bool} {sam
     (hsplit : ComputableInPolyTime split input encUnary) :
     IsPPTOn input (encList sample)
       (fun a => sequenceHybrid (replacement a) (original a) (count a) (split a)) := by
-  have hfront := hreplacement.replicate hsplit
-  have hremain := ComputableInPolyTime.unary_sub.comp (hcount.prod hsplit)
-  have hback := (horiginal.replicate hremain).preprocess
+  have hback := (horiginal.replicate
+    (ComputableInPolyTime.unary_sub.comp (hcount.prod hsplit))).preprocess
     (ComputableInPolyTime.fst input (encList sample))
   have houter := ComputableInPolyTime.fst (encPair input (encList sample)) (encList sample)
-  have hlast := ComputableInPolyTime.snd (encPair input (encList sample)) (encList sample)
-  have hjoin := ComputableInPolyTime.listAppend' houter.snd' hlast
   simpa only [sequenceHybrid, bind_pure_comp, Function.comp_def] using
-    hfront.bind_with (hback.map_with hjoin)
+    (hreplacement.replicate hsplit).bind_with (hback.map_with
+      (ComputableInPolyTime.listAppend' houter.snd'
+        (ComputableInPolyTime.snd (encPair input (encList sample)) (encList sample))))
 
 /-- The inserted challenge and every simulated coordinate are charged by the strict PPT
 certificate. The test may capture the complete original input. -/
@@ -195,20 +192,19 @@ theorem isPPTOn_spliceTest {Param : Type} {input : Param ↪ List Bool} {sample 
     IsPPTOn input encBool
       (fun a => spliceTest (replacement a) (original a) (before a) (after a)
         (test a) (challenge a)) := by
-  have hfront := hreplacement.replicate hbefore
   have hback := (horiginal.replicate hafter).preprocess
     (ComputableInPolyTime.fst input (encList sample))
   have houter := ComputableInPolyTime.fst (encPair input (encList sample)) (encList sample)
-  have hlast := ComputableInPolyTime.snd (encPair input (encList sample)) (encList sample)
   have harg := houter.fst'.prod (ComputableInPolyTime.listAppend' houter.snd'
-    (ComputableInPolyTime.cons' (hchallenge.comp houter.fst') hlast))
+    (ComputableInPolyTime.cons' (hchallenge.comp houter.fst')
+      (ComputableInPolyTime.snd (encPair input (encList sample)) (encList sample))))
   have hpost : IsPPTOn (encPair (encPair input (encList sample)) (encList sample)) encBool
       (fun p => test p.1.1 (p.1.2 ++ challenge p.1.1 :: p.2)) := by
     simpa only [Function.comp_def] using htest.preprocess harg
   have hbody := hback.bind_with
     (second := fun p back => test p.1 (p.2 ++ challenge p.1 :: back)) hpost
   simpa only [spliceTest, Function.comp_def] using
-    hfront.bind_with (second := fun a front => do
+    (hreplacement.replicate hbefore).bind_with (second := fun a front => do
       let back ← OracleComp.replicate (after a) (original a)
       test a (front ++ challenge a :: back)) hbody
 
@@ -227,7 +223,6 @@ theorem isPPTOn_sequenceTest {Param : Type} {input : Param ↪ List Bool} {sampl
     (hchallenge : ComputableInPolyTime challenge input sample) :
     IsPPTOn input encBool
       (fun a => sequenceTest (replacement a) (original a) (count a) (test a) (challenge a)) := by
-  have hfirst := isPPTOn_sampleDyadicIndex hcount
   have ha := ComputableInPolyTime.fst input encUnary
   have hi := ComputableInPolyTime.snd input encUnary
   have htest' : IsPPTOn (encPair (encPair input encUnary) (encList sample)) encBool
@@ -238,13 +233,12 @@ theorem isPPTOn_sequenceTest {Param : Type} {input : Param ↪ List Bool} {sampl
     ((ComputableInPolyTime.unary_sub.comp ((hcount.comp ha).prod hi)).prod
       (ComputableInPolyTime.const 1))
   have hsplice := isPPTOn_spliceTest (test := fun p : Param × ℕ => test p.1)
-    (hreplacement.preprocess ha) (horiginal.preprocess ha)
-    hi hafter htest' (hchallenge.comp ha)
-  have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
-  have hfalse : IsPPTOn (encPair input encUnary) encBool (fun _ => pure false) :=
-    (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond.tidy hsplice hfalse
-  simpa only [sequenceTest, Function.comp_def] using hfirst.bind_with hbranch
+    (hreplacement.preprocess ha) (horiginal.preprocess ha) hi hafter htest' (hchallenge.comp ha)
+  have hbranch := IsPPTOn.ite (ComputableInPolyTime.unary_lt' hi (hcount.comp ha)) hsplice
+    (show IsPPTOn (encPair input encUnary) encBool fun _ => pure false from
+      (ComputableInPolyTime.const false).isPPTOn)
+  simpa only [sequenceTest, Function.comp_def] using
+    (isPPTOn_sampleDyadicIndex hcount).bind_with hbranch
 
 attribute [program_certificate] isPPTOn_sequenceTest
 
@@ -261,7 +255,6 @@ theorem ComputationallyIndistinguishable.replicate_bind {orig repl : ℕ → Pro
     ComputationallyIndistinguishable
       (fun n => ProbComp.eval (OracleComp.replicate (count n) (orig n) >>= process n))
       (fun n => ProbComp.eval (OracleComp.replicate (count n) (repl n) >>= process n)) := by
-  have hcount := hcount.tidy
   intro adversary hadversary
   let test (n : ℕ) (xs : List (List Bool)) : ProbComp Bool := process n xs >>= adversary n
   have htest : IsPPTOn (encPair encUnary (encList encBits)) encBool
@@ -275,29 +268,14 @@ theorem ComputationallyIndistinguishable.replicate_bind {orig repl : ℕ → Pro
     dsimp only [red]
     ppt
   have hpoly : PolynomiallyBounded (fun n => dyadicSize (count n)) := by
-    have hc : PolynomiallyBounded count := hcount.polynomiallyBounded
+    have := hcount.polynomiallyBounded
     fun_prop
-  have hneg := (h red hred).polynomiallyBounded_mul hpoly
-  refine negligible_of_le hneg (fun n => ?_)
-  apply le_of_eq
-  apply NNReal.eq
+  have hgame (p : ProbComp (List Bool)) (d : List Bool → ProbComp Bool) :
+      distinguishingGame (ProbComp.eval p) d = ProbComp.eval (p >>= d) := by
+    simp only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, ProbComp.eval_bind]
+  refine negligible_of_le ((h red hred).polynomiallyBounded_mul hpoly) fun n => le_of_eq ?_
   dsimp only
-  have hgap := sequenceTest_gap (repl n) (orig n) (count n) (test n)
-  have horig_eq : distinguishingGame
-      (ProbComp.eval (OracleComp.replicate (count n) (orig n) >>= process n)) (adversary n) =
-      ProbComp.eval (OracleComp.replicate (count n) (orig n) >>= test n) := by
-    simp only [pmf_norm, distinguishingGame, test]
-  have hrepl_eq : distinguishingGame
-      (ProbComp.eval (OracleComp.replicate (count n) (repl n) >>= process n)) (adversary n) =
-      ProbComp.eval (OracleComp.replicate (count n) (repl n) >>= test n) := by
-    simp only [pmf_norm, distinguishingGame, test]
-  have hred_orig : distinguishingGame (ProbComp.eval (orig n)) (red n) =
-      ProbComp.eval (orig n >>= sequenceTest (repl n) (orig n) (count n) (test n)) := by
-    simp only [distinguishingGame, PMF.monad_bind_eq_bind, red, ProbComp.eval_bind]
-  have hred_repl : distinguishingGame (ProbComp.eval (repl n)) (red n) =
-      ProbComp.eval (repl n >>= sequenceTest (repl n) (orig n) (count n) (test n)) := by
-    simp only [distinguishingGame, PMF.monad_bind_eq_bind, red, ProbComp.eval_bind]
-  rw [horig_eq, hrepl_eq, hred_orig, hred_repl, NNReal.coe_mul, NNReal.coe_natCast,
-    Game.coe_advantage, Game.coe_advantage, hgap, abs_mul, Nat.abs_cast]
+  rw [hgame, hgame, hgame, hgame, bind_assoc, bind_assoc]
+  exact sequenceTest_advantage (repl n) (orig n) (count n) (test n)
 
 end Cslib.Crypto

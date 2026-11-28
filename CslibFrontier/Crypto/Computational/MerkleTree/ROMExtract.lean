@@ -11,9 +11,13 @@ public import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Probability.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -84,6 +88,7 @@ For a lazy random oracle sampling uniform `m`-bit digests
   `Cslib.Crypto.extractTableFromTrace`: straight-line Merkle node, leaf, and table extractors.
 * `Cslib.Crypto.extractTraceCollision`: deterministic collision extractor when trace extraction
   disagrees with an accepted opening.
+* `Cslib.Crypto.encMerkleTrace`: encoding of a Merkle hash query-answer trace.
 
 ## Main results
 
@@ -102,6 +107,15 @@ For a lazy random oracle sampling uniform `m`-bit digests
   `Cslib.Crypto.toOuterMeasure_run_memoize_not_traceCollisionFree_le`,
   `Cslib.Crypto.mem_support_memoize_nodup`: union bounds and trace-support invariants for lazy
   random oracles.
+* `Cslib.Crypto.computableInPolyTime_findQueryInTrace`,
+  `Cslib.Crypto.computableInPolyTime_findPreimageInTrace`,
+  `Cslib.Crypto.computableInPolyTime_extractNodeFromTrace`,
+  `Cslib.Crypto.computableInPolyTime_extractLeafFromTrace`,
+  `Cslib.Crypto.computableInPolyTime_extractTableFromTrace`,
+  `Cslib.Crypto.computableInPolyTime_extractTraceCollision`,
+  `Cslib.Crypto.computableInPolyTime_decide_traceConsistentWith`,
+  `Cslib.Crypto.computableInPolyTime_decide_pathQueriedInTrace`: plain polynomial-time
+  certificates for straight-line trace extraction, collision extraction, and trace predicates.
 
 ## References
 
@@ -188,11 +202,8 @@ theorem mem_of_findQueryInTrace_eq_some {tr : List (Query × Digest)} {digest : 
     (h : findQueryInTrace tr digest = some q) : (q, digest) ∈ tr := by
   unfold findQueryInTrace at h
   obtain ⟨⟨q, d'⟩, hfind, rfl⟩ := Option.map_eq_some_iff.mp h
-  have hmem := List.mem_of_find?_eq_some hfind
-  have hd := List.find?_some hfind
-  simp only [beq_iff_eq] at hd
-  subst hd
-  exact hmem
+  obtain rfl : d' = digest := by simpa using List.find?_some hfind
+  exact List.mem_of_find?_eq_some hfind
 
 /-- In a trace consistent with `h`, any query returned by `findQueryInTrace tr digest` hashes to
 `digest` under `h`. -/
@@ -206,14 +217,11 @@ recorded with `digest` in `tr`. -/
 theorem exists_findQueryInTrace_eq_some_of_mem {tr : List (Query × Digest)} {q : Query}
     {digest : Digest} (hmem : (q, digest) ∈ tr) :
     ∃ q', findQueryInTrace tr digest = some q' ∧ (q', digest) ∈ tr := by
-  have hsome : (tr.find? fun p => p.2 == digest).isSome = true :=
-    List.find?_isSome.mpr ⟨(q, digest), hmem, by simp⟩
-  obtain ⟨⟨q', d'⟩, hfind⟩ := Option.isSome_iff_exists.mp hsome
-  have hmem' := List.mem_of_find?_eq_some hfind
-  have hd := List.find?_some hfind
-  simp only [beq_iff_eq] at hd
-  subst hd
-  exact ⟨q', by simp [findQueryInTrace, hfind], hmem'⟩
+  obtain ⟨⟨q', d'⟩, hfind⟩ := Option.isSome_iff_exists.mp
+    (List.find?_isSome (p := fun p => p.2 == digest) |>.mpr
+      ⟨(q, digest), hmem, beq_self_eq_true digest⟩)
+  obtain rfl : d' = digest := by simpa using List.find?_some hfind
+  exact ⟨q', by simp [findQueryInTrace, hfind], List.mem_of_find?_eq_some hfind⟩
 
 /-- In a collision-free trace, `findQueryInTrace tr digest` recovers the unique query `q` recorded
 with `digest`. -/
@@ -497,21 +505,15 @@ theorem extractNodeFromTrace_eq_some_of_findQueryInTrace {tr : List (List Bool �
         encPair encBits encBits (merkleRootOfPath H k leaf i path, sibling)
       else
         encPair encBits encBits (sibling, merkleRootOfPath H k leaf i path)
-    have hq_mem : q ∈ merkleInputs H k leaf i (path ++ [sibling]) := by
-      rw [merkleInputs_concat]
-      exact List.mem_cons_self
-    have hq_find : findQueryInTrace tr (H k q) = some q := hfind q hq_mem
+    have hq_find : findQueryInTrace tr (H k q) = some q :=
+      hfind q (merkleInputs_concat leaf i path sibling ▸ List.mem_cons_self)
+    have hrec := ih fun q' hq' =>
+      hfind q' (merkleInputs_concat leaf i path sibling ▸ List.mem_cons_of_mem _ hq')
     rcases Nat.mod_two_eq_zero_or_one (i / 2 ^ path.length) with hbit | hbit
     · simp only [q, hbit, ↓reduceIte] at hq_find ⊢
-      rw [findPreimageInTrace_eq_some_of_findQueryInTrace hq_find, Option.bind_some]
-      refine ih fun q' hq' => hfind q' ?_
-      rw [merkleInputs_concat]
-      exact List.mem_cons_of_mem _ hq'
+      rwa [findPreimageInTrace_eq_some_of_findQueryInTrace hq_find, Option.bind_some]
     · simp only [q, hbit, one_ne_zero, ↓reduceIte] at hq_find ⊢
-      rw [findPreimageInTrace_eq_some_of_findQueryInTrace hq_find, Option.bind_some]
-      refine ih fun q' hq' => hfind q' ?_
-      rw [merkleInputs_concat]
-      exact List.mem_cons_of_mem _ hq'
+      rwa [findPreimageInTrace_eq_some_of_findQueryInTrace hq_find, Option.bind_some]
 
 /-- If `findQueryInTrace tr (H k q) = some q` for every hash input `q` along `(leaf, i, path)`,
 then `extractLeafFromTrace` from the recomputed root recovers `some leaf`. -/
@@ -541,8 +543,7 @@ theorem extractLeafFromTrace_eq_some_of_merkleVerify {tr : List (List Bool × Li
     (hfree : TraceCollisionFree tr) (hpath : PathQueriedInTrace H k tr i leaf path)
     (hver : merkleVerify H k d rt i leaf path = true) :
     extractLeafFromTrace tr d rt i = some leaf := by
-  simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hver
-  obtain ⟨⟨hlen, -⟩, hroot⟩ := hver
+  obtain ⟨hlen, -, -, hroot⟩ := merkleVerify_eq_true_iff.mp hver
   rw [← hlen, ← hroot]
   exact extractLeafFromTrace_eq_some_of_merkleRootOfPath hfree hpath
 
@@ -553,9 +554,7 @@ theorem getD_extractTableFromTrace_eq_of_merkleVerify {tr : List (List Bool × L
     (hfree : TraceCollisionFree tr) (hpath : PathQueriedInTrace H k tr i leaf path)
     (hver : merkleVerify H k d rt i leaf path = true) :
     (extractTableFromTrace tr d rt defaultLeaf).getD i defaultLeaf = leaf := by
-  have hi : i < 2 ^ d := by
-    simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hver
-    exact hver.1.2
+  have hi : i < 2 ^ d := (merkleVerify_eq_true_iff.mp hver).2.1
   rw [getD_extractTableFromTrace hi,
     extractLeafFromTrace_eq_some_of_merkleVerify hfree hpath hver, Option.getD_some]
 
@@ -607,35 +606,22 @@ theorem extractTraceCollision_spec {tr : List (List Bool × List Bool)} {d : ℕ
     (hne : extractLeafFromTrace tr d rt i ≠ some leaf) :
     let col := extractTraceCollision H k tr i leaf path
     (col.1, H k col.1) ∈ tr ∧ (col.2, H k col.1) ∈ tr ∧ col.1 ≠ col.2 ∧ H k col.1 = H k col.2 := by
-  simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hver
-  obtain ⟨⟨hlen, -⟩, hroot⟩ := hver
-  have hnot_all : ¬ ∀ q ∈ merkleInputs H k leaf i path, findQueryInTrace tr (H k q) = some q := by
-    intro hall
-    apply hne
-    rw [← hlen, ← hroot]
-    exact extractLeafFromTrace_eq_some_of_findQueryInTrace hall
-  push Not at hnot_all
+  obtain ⟨hlen, -, -, hroot⟩ := merkleVerify_eq_true_iff.mp hver
+  have hnot_all : ∃ q ∈ merkleInputs H k leaf i path, findQueryInTrace tr (H k q) ≠ some q := by
+    by_contra! hall
+    exact hne (hlen ▸ hroot ▸ extractLeafFromTrace_eq_some_of_findQueryInTrace hall)
   obtain ⟨q₀, hq₀_mem, hq₀_ne⟩ := hnot_all
-  have hsome :
-      ((merkleInputs H k leaf i path).find? fun q =>
-        findQueryInTrace tr (H k q) != some q).isSome = true :=
-    List.find?_isSome.mpr ⟨q₀, hq₀_mem, bne_iff_ne.mpr hq₀_ne⟩
-  obtain ⟨q₁, hfind⟩ := Option.isSome_iff_exists.mp hsome
-  have hq₁_mem : q₁ ∈ merkleInputs H k leaf i path := List.mem_of_find?_eq_some hfind
-  have hq₁_ne : findQueryInTrace tr (H k q₁) ≠ some q₁ := by
-    have h := List.find?_some hfind
-    simpa using h
-  have hq₁_tr : (q₁, H k q₁) ∈ tr := hpath q₁ hq₁_mem
+  obtain ⟨q₁, hfind⟩ := Option.isSome_iff_exists.mp
+    (List.find?_isSome (p := fun q => findQueryInTrace tr (H k q) != some q) |>.mpr
+      ⟨q₀, hq₀_mem, bne_iff_ne.mpr hq₀_ne⟩)
+  have hq₁_ne : findQueryInTrace tr (H k q₁) ≠ some q₁ := by simpa using List.find?_some hfind
+  have hq₁_tr : (q₁, H k q₁) ∈ tr := hpath q₁ (List.mem_of_find?_eq_some hfind)
   obtain ⟨q₂, hq₂_find, hq₂_tr⟩ := exists_findQueryInTrace_eq_some_of_mem hq₁_tr
-  have hne_q : q₁ ≠ q₂ := by
-    intro heq
-    subst heq
-    exact hq₁_ne hq₂_find
-  have hhash_eq : H k q₁ = H k q₂ := (hcons (q₂, H k q₁) hq₂_tr).symm
   have hcol : extractTraceCollision H k tr i leaf path = (q₁, q₂) := by
     simp [extractTraceCollision, hfind, hq₂_find]
   rw [hcol]
-  exact ⟨hq₁_tr, hq₂_tr, hne_q, hhash_eq⟩
+  exact ⟨hq₁_tr, hq₂_tr, fun h : q₁ = q₂ => hq₁_ne (h ▸ hq₂_find),
+    (hcons (q₂, H k q₁) hq₂_tr).symm⟩
 
 /-- **Collision-game form of `extractTraceCollision_spec`**: when an accepted opening whose path is
 in `tr` disagrees with `extractLeafFromTrace`, `extractTraceCollision` produces a valid collision
@@ -777,19 +763,12 @@ theorem traceConsistentWith_lookup_of_nodup {Digest : Type*} (tr : List (Query �
   | nil => exact traceConsistentWith_nil _
   | cons entry rest ih =>
     rcases entry with ⟨q, ans⟩
-    rw [List.map_cons, List.nodup_cons] at hnodup
-    obtain ⟨hq_not_mem, hnodup_rest⟩ := hnodup
+    obtain ⟨hq_not_mem, hnodup_rest⟩ := List.nodup_cons.mp hnodup
     intro p hp
     rcases List.mem_cons.mp hp with rfl | hp
     · simp
-    · have hne : p.1 ≠ q := by
-        intro heq
-        apply hq_not_mem
-        rw [← heq]
-        exact List.mem_map.mpr ⟨p, hp, rfl⟩
-      dsimp only
-      rw [List.lookup_cons, beq_false_of_ne hne]
-      exact ih hnodup_rest p hp
+    · have hne : p.1 ≠ q := fun heq => hq_not_mem (List.mem_map.mpr ⟨p, hp, heq⟩)
+      simpa [List.lookup_cons, beq_false_of_ne hne] using ih hnodup_rest p hp
 
 private theorem lookup_ne_none_of_mem {Value : Type}
     {tr : List (Query × Value)} {q : Query} {v : Value} (h : (q, v) ∈ tr) :
@@ -836,5 +815,228 @@ theorem mem_support_memoize_nodup {Value : Type}
       · exact hsupp e he
 
 end ProbabilityBounds
+
+/-! ### Polynomial-time certificates for straight-line trace extraction -/
+
+/-- The encoding of a Merkle hash query-answer trace `List (List Bool × List Bool)`. -/
+abbrev encMerkleTrace : List (List Bool × List Bool) ↪ List Bool :=
+  encList (encPair encBits encBits)
+
+section PolyTime
+
+variable {γ : Type} {encIn : γ ↪ List Bool}
+
+/-- Searching a Merkle trace for a digest takes polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_findQueryInTrace
+    {tr : γ → List (List Bool × List Bool)} {digest : γ → List Bool}
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hdigest : ComputableInPolyTime digest encIn encBits) :
+    ComputableInPolyTime (fun a => findQueryInTrace (tr a) (digest a)) encIn
+      (encOption encBits) := by
+  have hfind := ComputableInPolyTime.findWithInput
+    (test := fun a (p : List Bool × List Bool) => p.2 == digest a) htr
+    (ComputableInPolyTime.beq
+      ((ComputableInPolyTime.snd encBits encBits).comp
+        (ComputableInPolyTime.snd encIn (encPair encBits encBits)))
+      (hdigest.comp (ComputableInPolyTime.fst encIn (encPair encBits encBits))))
+  exact hfind.optionMapWithInput (f := fun _ p => p.1)
+    ((ComputableInPolyTime.fst encBits encBits).comp
+      (ComputableInPolyTime.snd encIn (encPair encBits encBits)))
+
+/-- Inverting an internal-node digest in a Merkle trace takes polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_findPreimageInTrace
+    {tr : γ → List (List Bool × List Bool)} {digest : γ → List Bool}
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hdigest : ComputableInPolyTime digest encIn encBits) :
+    ComputableInPolyTime (fun a => findPreimageInTrace (tr a) (digest a)) encIn
+      (encOption (encPair encBits encBits)) := by
+  have hq := ComputableInPolyTime.snd encIn encBits
+  exact (computableInPolyTime_findQueryInTrace htr hdigest).optionMapWithInput
+    (f := fun _ q => (unframe q, dropFrame q))
+    ((ComputableInPolyTime.unframe.comp hq).prod (ComputableInPolyTime.dropFrame.comp hq))
+
+/-- Walking a fixed number of levels `d` down from `rt` in a Merkle trace takes polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_extractNodeFromTrace (d : ℕ)
+    {tr : γ → List (List Bool × List Bool)} {rt : γ → List Bool} {i : γ → ℕ}
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hrt : ComputableInPolyTime rt encIn encBits)
+    (hi : ComputableInPolyTime i encIn encUnary) :
+    ComputableInPolyTime (fun a => extractNodeFromTrace (tr a) d (rt a) (i a)) encIn
+      (encOption encBits) := by
+  induction d generalizing γ rt i with
+  | zero =>
+    exact (ComputableInPolyTime.optionSome encBits).comp hrt
+  | succ d ih =>
+    have hpre := computableInPolyTime_findPreimageInTrace htr hrt
+    have hfst := ComputableInPolyTime.fst encIn (encPair encBits encBits)
+    have hsnd := ComputableInPolyTime.snd encIn (encPair encBits encBits)
+    have hleft := (ComputableInPolyTime.fst encBits encBits).comp hsnd
+    have hright := (ComputableInPolyTime.snd encBits encBits).comp hsnd
+    have hbit : ComputableInPolyTime
+        (fun p : γ × (List Bool × List Bool) => decide ((i p.1 / 2 ^ d) % 2 = 0))
+        (encPair encIn (encPair encBits encBits)) encBool := by
+      have hi' := hi.comp hfst
+      polytime
+    have hchild := ComputableInPolyTime.ite hbit hleft hright
+    have hstep := ih (htr.comp hfst) hchild (hi.comp hfst)
+    convert hpre.optionElimWithInput (body := fun a (p : List Bool × List Bool) =>
+      extractNodeFromTrace (tr a) d (if decide ((i a / 2 ^ d) % 2 = 0) then p.1 else p.2) (i a))
+      (ComputableInPolyTime.const none) hstep using 1
+    funext a
+    simp only [extractNodeFromTrace_succ]
+    cases findPreimageInTrace (tr a) (rt a) <;> simp
+
+/-- Extracting a leaf at a fixed depth `d` from a Merkle trace takes polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_extractLeafFromTrace (d : ℕ)
+    {tr : γ → List (List Bool × List Bool)} {rt : γ → List Bool} {i : γ → ℕ}
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hrt : ComputableInPolyTime rt encIn encBits)
+    (hi : ComputableInPolyTime i encIn encUnary) :
+    ComputableInPolyTime (fun a => extractLeafFromTrace (tr a) d (rt a) (i a)) encIn
+      (encOption encBits) := by
+  have hnode := computableInPolyTime_extractNodeFromTrace d htr hrt hi
+  have hstep := computableInPolyTime_findQueryInTrace
+    (htr.comp (ComputableInPolyTime.fst encIn encBits))
+    (ComputableInPolyTime.snd encIn encBits)
+  convert hnode.optionElimWithInput (body := fun a leafDigest => findQueryInTrace (tr a) leafDigest)
+    (ComputableInPolyTime.const none) hstep using 1
+  funext a
+  unfold extractLeafFromTrace
+  cases extractNodeFromTrace (tr a) d (rt a) (i a) <;> rfl
+
+/-- Extracting the full `2 ^ d`-entry leaf table at a fixed depth `d` from a Merkle trace takes
+polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_extractTableFromTrace (d : ℕ)
+    {tr : γ → List (List Bool × List Bool)} {rt defaultLeaf : γ → List Bool}
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hrt : ComputableInPolyTime rt encIn encBits)
+    (hdef : ComputableInPolyTime defaultLeaf encIn encBits) :
+    ComputableInPolyTime (fun a => extractTableFromTrace (tr a) d (rt a) (defaultLeaf a)) encIn
+      (encList encBits) := by
+  have hrange : ComputableInPolyTime (fun _ : γ => List.range (2 ^ d)) encIn
+      (encList encUnary) :=
+    ComputableInPolyTime.range.comp (ComputableInPolyTime.const (2 ^ d))
+  have hfst := ComputableInPolyTime.fst encIn encUnary
+  have hi := ComputableInPolyTime.snd encIn encUnary
+  exact ComputableInPolyTime.mapWithInput hrange
+    ((computableInPolyTime_extractLeafFromTrace d (htr.comp hfst) (hrt.comp hfst)
+      hi).optionGetDWithInput (hdef.comp hfst))
+
+/-- Extracting a collision from a Merkle trace when an opening disagrees with trace extraction takes
+polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_extractTraceCollision
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    {k : γ → List Bool} {tr : γ → List (List Bool × List Bool)} {i : γ → ℕ}
+    {leaf : γ → List Bool} {path : γ → List (List Bool)}
+    (hk : ComputableInPolyTime k encIn encBits)
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hi : ComputableInPolyTime i encIn encUnary)
+    (hleaf : ComputableInPolyTime leaf encIn encBits)
+    (hpath : ComputableInPolyTime path encIn (encList encBits)) :
+    ComputableInPolyTime (fun a => extractTraceCollision H (k a) (tr a) (i a) (leaf a) (path a))
+      encIn (encPair encBits encBits) := by
+  have hinputs := computableInPolyTime_merkleInputs hH hlen hk hleaf hi hpath
+  have hfst := ComputableInPolyTime.fst encIn encBits
+  have hq := ComputableInPolyTime.snd encIn encBits
+  have hhash := hH.comp ((hk.comp hfst).prod hq)
+  have hlookup := computableInPolyTime_findQueryInTrace (htr.comp hfst) hhash
+  have htest : ComputableInPolyTime
+      (fun p : γ × List Bool => findQueryInTrace (tr p.1) (H (k p.1) p.2) != some p.2)
+      (encPair encIn encBits) encBool := by
+    convert hlookup.optionElimWithInput (body := fun (p : γ × List Bool) q' => !(q' == p.2))
+      (ComputableInPolyTime.const true)
+      (ComputableInPolyTime.bool_not.comp
+        (ComputableInPolyTime.beq (ComputableInPolyTime.snd (encPair encIn encBits) encBits)
+          (hq.comp (ComputableInPolyTime.fst (encPair encIn encBits) encBits)))) using 1
+    funext p
+    dsimp only [Function.comp_def]
+    cases findQueryInTrace (tr p.1) (H (k p.1) p.2) <;> rfl
+  have hfind := ComputableInPolyTime.findWithInput
+    (test := fun a q => findQueryInTrace (tr a) (H (k a) q) != some q) hinputs htest
+  have hbody := hq.prod (hlookup.optionGetDWithInput (ComputableInPolyTime.const []))
+  convert hfind.optionElimWithInput
+    (body := fun a q => (q, (findQueryInTrace (tr a) (H (k a) q)).getD []))
+    (ComputableInPolyTime.const ([], [])) hbody using 1
+  funext a
+  unfold extractTraceCollision
+  cases (merkleInputs H (k a) (leaf a) (i a) (path a)).find?
+    (fun q => findQueryInTrace (tr a) (H (k a) q) != some q) <;> rfl
+
+/-- Checking `TraceConsistentWith (H (k a)) (tr a)` takes polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_decide_traceConsistentWith
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    {k : γ → List Bool} {tr : γ → List (List Bool × List Bool)}
+    (hk : ComputableInPolyTime k encIn encBits)
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace) :
+    ComputableInPolyTime (fun a => decide (TraceConsistentWith (H (k a)) (tr a)))
+      encIn encBool := by
+  have hfst := ComputableInPolyTime.fst encIn (encPair encBits encBits)
+  have hsnd := ComputableInPolyTime.snd encIn (encPair encBits encBits)
+  have hq := (ComputableInPolyTime.fst encBits encBits).comp hsnd
+  have hans := (ComputableInPolyTime.snd encBits encBits).comp hsnd
+  have hhash := hH.comp ((hk.comp hfst).prod hq)
+  convert ComputableInPolyTime.allWithInput
+    (test := fun a (p : List Bool × List Bool) => H (k a) p.1 == p.2)
+    htr (ComputableInPolyTime.beq hhash hans) using 1
+  funext a
+  change decide (∀ p ∈ tr a, H (k a) p.1 = p.2) = (tr a).all fun p => H (k a) p.1 == p.2
+  rw [Bool.eq_iff_iff, decide_eq_true_eq]
+  simp only [List.all_eq_true, beq_iff_eq, Prod.forall]
+
+/-- Checking `PathQueriedInTrace H (k a) (tr a) (i a) (leaf a) (path a)` takes polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_decide_pathQueriedInTrace
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    {k : γ → List Bool} {tr : γ → List (List Bool × List Bool)} {i : γ → ℕ}
+    {leaf : γ → List Bool} {path : γ → List (List Bool)}
+    (hk : ComputableInPolyTime k encIn encBits)
+    (htr : ComputableInPolyTime tr encIn encMerkleTrace)
+    (hi : ComputableInPolyTime i encIn encUnary)
+    (hleaf : ComputableInPolyTime leaf encIn encBits)
+    (hpath : ComputableInPolyTime path encIn (encList encBits)) :
+    ComputableInPolyTime
+      (fun a => decide (PathQueriedInTrace H (k a) (tr a) (i a) (leaf a) (path a)))
+      encIn encBool := by
+  have hinputs := computableInPolyTime_merkleInputs hH hlen hk hleaf hi hpath
+  have hfst := ComputableInPolyTime.fst encIn encBits
+  have hq := ComputableInPolyTime.snd encIn encBits
+  have hhash := hH.comp ((hk.comp hfst).prod hq)
+  have hpair := hq.prod hhash
+  have houter := ComputableInPolyTime.fst (encPair encIn encBits) (encPair encBits encBits)
+  have hinner := ComputableInPolyTime.snd (encPair encIn encBits) (encPair encBits encBits)
+  have hmem := ComputableInPolyTime.anyWithInput
+    (test := fun (p : γ × List Bool) (entry : List Bool × List Bool) =>
+      entry == (p.2, H (k p.1) p.2))
+    (htr.comp hfst)
+    (ComputableInPolyTime.beq hinner (hpair.comp houter))
+  convert ComputableInPolyTime.allWithInput
+    (test := fun a q => (tr a).any (fun entry => entry == (q, H (k a) q)))
+    hinputs hmem using 1
+  funext a
+  change decide (∀ q ∈ merkleInputs H (k a) (leaf a) (i a) (path a), (q, H (k a) q) ∈ tr a) =
+    (merkleInputs H (k a) (leaf a) (i a) (path a)).all fun q =>
+      (tr a).any fun entry => entry == (q, H (k a) q)
+  rw [Bool.eq_iff_iff, decide_eq_true_eq]
+  simp only [List.all_eq_true, List.any_eq_true, beq_iff_eq]
+  refine ⟨fun h q hq => ⟨(q, H (k a) q), h q hq, rfl⟩, fun h q hq => ?_⟩
+  obtain ⟨p, hp, rfl⟩ := h q hq
+  exact hp
+
+end PolyTime
 
 end Cslib.Crypto

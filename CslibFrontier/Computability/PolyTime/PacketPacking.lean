@@ -11,7 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.PacketPacking
 import CslibFrontier.Computability.PolyTime.GreedyLabelSchedule
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
@@ -232,6 +232,15 @@ theorem labelStep_toWords (hK : r ^ a ≤ m)
       (length_decodeLabelWord r a k) (fun _ hx => mem_decodeLabelWord_lt hr hx)
   have hlen : (decodeLabelWord r a jStar).length = a := length_decodeLabelWord r a jStar
   have hdig : ∀ x ∈ decodeLabelWord r a jStar, x < r := fun _ hx => mem_decodeLabelWord_lt hr hx
+  have harg (f : (Fin a → Fin r) → ℚ)
+      (hscore : ∀ k, (candidateSlotScore 0 a r 1 edges (toWords assigned) (slotPair s) k : ℚ) =
+        ((r : ℚ) * ((r ^ a : ℕ) : ℚ) ^ 2) * f (wordToSchedule hr a (decodeLabelWord r a k))) :
+      (labelCandidates a r).argmin f =
+        some (wordToSchedule hr a (decodeLabelWord r a jStar)) := by
+    rw [labelCandidates_eq hr]
+    exact argmin_map_range _ _
+      (fun j hj' => (cast_le_lt_iff hc (hscore jStar) (hscore j)).1.mp (hle j hj'))
+      (fun j hj' => (cast_le_lt_iff hc (hscore jStar) (hscore j)).2.mp (hlt j hj')) hj
   rcases s with v | w
   · have hread : readSlotSchedule (false, v) (toWords assigned) =
         (assigned.1 v).map scheduleToWord := by
@@ -241,26 +250,15 @@ theorem labelStep_toWords (hK : r ^ a ≤ m)
     | some x => simp only [labelStep, slotPair, hread, hv, Option.map_some, Option.isSome_some,
         ↓reduceIte, greedyLabelStepBy]
     | none =>
-      have harg : (labelCandidates a r).argmin (fun word => partialIncidencePotential
-          (fun e => (colOf e, rowOf e)) (Function.update assigned.1 v (some word)) assigned.2) =
-          some (wordToSchedule hr a (decodeLabelWord r a jStar)) := by
-        rw [labelCandidates_eq hr]
-        have hscore (k : ℕ) :
-            (candidateSlotScore 0 a r 1 edges (toWords assigned) (false, v) k : ℚ) =
-              ((r : ℚ) * ((r ^ a : ℕ) : ℚ) ^ 2) *
-                partialIncidencePotential (fun e => (colOf e, rowOf e))
-                  (Function.update assigned.1 v
-                    (some (wordToSchedule hr a (decodeLabelWord r a k))))
-                  assigned.2 := by
-          simp only [candidateSlotScore, toWords, updateSlotSchedules, Bool.false_eq_true,
+      have harg_v := harg (fun word => partialIncidencePotential
+        (fun e => (colOf e, rowOf e)) (Function.update assigned.1 v (some word)) assigned.2)
+        fun k => by
+          simp only [slotPair, candidateSlotScore, toWords, updateSlotSchedules, Bool.false_eq_true,
             ↓reduceIte, hset k assigned.1 v]
           exact clearedJointScore_zero_one hr hm _ _ _
-        have hiff (i j : ℕ) := cast_le_lt_iff hc (hscore i) (hscore j)
-        exact argmin_map_range _ _ (fun j hj' => (hiff jStar j).1.mp (hle j hj'))
-          (fun j hj' => (hiff jStar j).2.mp (hlt j hj')) hj
       simp only [slotPair] at hw
       simp only [labelStep, slotPair, hread, hv, Option.map_none, Option.isSome_none,
-        Bool.false_eq_true, ↓reduceIte, greedyLabelStepBy, harg, bestLabel, hcap, hw]
+        Bool.false_eq_true, ↓reduceIte, greedyLabelStepBy, harg_v, bestLabel, hcap, hw]
       simp only [updateSlotSchedules, toWords, Bool.false_eq_true, ↓reduceIte,
         set_partialScheduleListOfFin (hr := hr) assigned.1 v _ hlen hdig]
   · have hread : readSlotSchedule (true, w) (toWords assigned) =
@@ -270,25 +268,15 @@ theorem labelStep_toWords (hK : r ^ a ≤ m)
     | some x => simp only [labelStep, slotPair, hread, hw', Option.map_some, Option.isSome_some,
         ↓reduceIte, greedyLabelStepBy]
     | none =>
-      have harg : (labelCandidates a r).argmin (fun word => partialIncidencePotential
-          (fun e => (colOf e, rowOf e)) assigned.1 (Function.update assigned.2 w (some word))) =
-          some (wordToSchedule hr a (decodeLabelWord r a jStar)) := by
-        rw [labelCandidates_eq hr]
-        have hscore (k : ℕ) :
-            (candidateSlotScore 0 a r 1 edges (toWords assigned) (true, w) k : ℚ) =
-              ((r : ℚ) * ((r ^ a : ℕ) : ℚ) ^ 2) *
-                partialIncidencePotential (fun e => (colOf e, rowOf e)) assigned.1
-                  (Function.update assigned.2 w
-                    (some (wordToSchedule hr a (decodeLabelWord r a k)))) := by
-          simp only [candidateSlotScore, toWords, updateSlotSchedules, ↓reduceIte,
+      have harg_w := harg (fun word => partialIncidencePotential
+        (fun e => (colOf e, rowOf e)) assigned.1 (Function.update assigned.2 w (some word)))
+        fun k => by
+          simp only [slotPair, candidateSlotScore, toWords, updateSlotSchedules, ↓reduceIte,
             hset k assigned.2 w]
           exact clearedJointScore_zero_one hr hm _ _ _
-        have hiff (i j : ℕ) := cast_le_lt_iff hc (hscore i) (hscore j)
-        exact argmin_map_range _ _ (fun j hj' => (hiff jStar j).1.mp (hle j hj'))
-          (fun j hj' => (hiff jStar j).2.mp (hlt j hj')) hj
       simp only [slotPair] at hw
       simp only [labelStep, slotPair, hread, hw', Option.map_none, Option.isSome_none,
-        Bool.false_eq_true, ↓reduceIte, greedyLabelStepBy, harg, bestLabel, hcap, hw]
+        Bool.false_eq_true, ↓reduceIte, greedyLabelStepBy, harg_w, bestLabel, hcap, hw]
       simp only [updateSlotSchedules, toWords, ↓reduceIte,
         set_partialScheduleListOfFin (hr := hr) assigned.2 w _ hlen hdig]
 
@@ -761,22 +749,6 @@ in binary. -/
 @[expose] def encPlacements : ℕ × List (ℕ × ℕ) ↪ List Bool :=
   encPair encNat (encList (encPair encNat encNat))
 
-private theorem binary_max' {α : Type} {input : α ↪ List Bool} {f g : α → ℕ}
-    (hf : ComputableInPolyTime f input encNat) (hg : ComputableInPolyTime g input encNat) :
-    ComputableInPolyTime (fun x => max (f x) (g x)) input encNat :=
-  ((ComputableInPolyTime.binary_lt' hf hg).ite' hg hf).of_enc_eq fun x => by
-    by_cases h : f x < g x
-    · simp [h, max_eq_right h.le]
-    · simp [h, max_eq_left (not_lt.mp h)]
-
-private theorem binary_min' {α : Type} {input : α ↪ List Bool} {f g : α → ℕ}
-    (hf : ComputableInPolyTime f input encNat) (hg : ComputableInPolyTime g input encNat) :
-    ComputableInPolyTime (fun x => min (f x) (g x)) input encNat :=
-  ((ComputableInPolyTime.binary_lt' hf hg).ite' hf hg).of_enc_eq fun x => by
-    by_cases h : f x < g x
-    · simp [h, min_eq_left h.le]
-    · simp [h, min_eq_right (not_lt.mp h)]
-
 /-- The inputs `((a, r), (ρ, κ), c)` of `slotOf` and `packetOf`, with `c` in unary. -/
 private abbrev encEdgeIn : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ ↪ List Bool :=
   encPair (encPair (encPair encUnary encNat) (encPair (encList encNat) (encList encNat))) encUnary
@@ -825,8 +797,8 @@ private theorem computableInPolyTime_packetOf :
       p.1.1.2.2.getD p.2 0) encI encNat := by fun_prop
   have hr' : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.1.1.1.2)
       encI encNat := by fun_prop
-  have hmin := binary_min' hx hy
-  have hmax := binary_max' hx hy
+  have hmin := ComputableInPolyTime.binary_min' hx hy
+  have hmax := ComputableInPolyTime.binary_max' hx hy
   have hi : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.2)
       encI encUnary := by fun_prop
   have hc' : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.1.2)
@@ -966,9 +938,8 @@ theorem computableInPolyTime_nativePacking :
       encPackingInput encWordsInput := by
     unfold encWordsInput
     exact (har.prod hW).prod hedges
-  have h := computableInPolyTime_packingOfWords.comp hin
-  have h' := hW.prod h
-  exact h'
+  exact (hW.prod (computableInPolyTime_packingOfWords.comp hin)).of_enc_eq
+    fun ⟨⟨_, _, _⟩, _, _⟩ => rfl
 
 /-- **The symbols of a packet are polynomial-time**, with `a` and `i` in unary. -/
 theorem computableInPolyTime_packetSymbols {γ : Type} {encIn : γ ↪ List Bool}
@@ -985,7 +956,7 @@ theorem computableInPolyTime_packetSymbols {γ : Type} {encIn : γ ↪ List Bool
       (ComputableInPolyTime.binary_pow' hrr hi)).prod hrr)
   have hq := ComputableInPolyTime.binary_div' hd hr
   have hm := ComputableInPolyTime.binary_mod.comp (hd.prod hr)
-  have h := (binary_min' hq hm).prod (binary_max' hq hm)
-  exact h
+  exact (ComputableInPolyTime.binary_min' hq hm).prod
+    (ComputableInPolyTime.binary_max' hq hm)
 
 end Cslib.PacketPacking

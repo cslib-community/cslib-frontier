@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.LinearAlgebra.ReplacementDesign
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -127,10 +129,7 @@ theorem nodeInt_ne_zero {Q : ℕ} (t : Fin Q) : nodeInt t ≠ 0 :=
 
 /-- `nodeInt : Fin Q → ℤ` is injective. -/
 theorem nodeInt_injective (Q : ℕ) : Function.Injective (nodeInt (Q := Q)) := by
-  intro t₁ t₂ h
-  apply Fin.ext
-  unfold nodeInt at h
-  omega
+  fin_index [nodeInt]
 
 /-- Canonical equivalence indexing the `h * #(measurementIndices Q r A₀ R)` rows of the
 pulled-back measurement matrix `varMeasurementMatrix` by
@@ -422,49 +421,26 @@ theorem subsetPairCount_le_exp_mul_log_ratio {R Q n q : ℕ} {c : ℝ}
   have hR_pos : (0 : ℝ) < R := by exact_mod_cast hR
   have hQ_pos : (0 : ℝ) < Q := by exact_mod_cast hR.trans hRQ
   have hRQ_real : (R : ℝ) ≤ Q := by exact_mod_cast hRQ
-  have hratio_pos : 0 < 2 * (Q : ℝ) / R := by positivity
-  have hlog_nonneg : 0 ≤ Real.log (2 * (Q : ℝ) / R) := by
-    refine Real.log_nonneg ((one_le_div hR_pos).mpr ?_)
+  set L := Real.log (2 * (Q : ℝ) / R)
+  have hlog_one : 1 ≤ 2 * L := one_le_two_mul_log_two_mul_div hR hRQ
+  have hpow_q : ((Q : ℝ) / R) ^ q ≤ Real.exp (q * L) := by
+    rw [Real.exp_nat_mul, Real.exp_log (by positivity)]
+    gcongr
     linarith
-  have hpow_q : ((Q : ℝ) / R) ^ q ≤ Real.exp (c * (n : ℝ) * ((R : ℝ) / Q *
-      Real.log (2 * (Q : ℝ) / R))) := by
-    have hle_two : (Q : ℝ) / R ≤ 2 * (Q : ℝ) / R := by
-      refine div_le_div_of_nonneg_right ?_ hR_pos.le
-      linarith
-    calc ((Q : ℝ) / R) ^ q
-        ≤ (2 * (Q : ℝ) / R) ^ q := pow_le_pow_left₀ (by positivity) hle_two q
-      _ = Real.exp ((q : ℝ) * Real.log (2 * (Q : ℝ) / R)) := by
-          rw [← Real.rpow_natCast, Real.rpow_def_of_pos hratio_pos, mul_comm]
-      _ ≤ Real.exp (c * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) := by
-          refine Real.exp_le_exp.mpr ?_
-          calc (q : ℝ) * Real.log (2 * (Q : ℝ) / R)
-              ≤ (c * (n : ℝ) * ((R : ℝ) / Q)) * Real.log (2 * (Q : ℝ) / R) :=
-                mul_le_mul_of_nonneg_right hq hlog_nonneg
-            _ = c * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R)) := by ring
-  have hpow_n : (1 + 2 * ((R : ℝ) / Q)) ^ n ≤
-      Real.exp (4 * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) := by
-    have h1 : 1 + 2 * ((R : ℝ) / Q) ≤ Real.exp (2 * ((R : ℝ) / Q)) := by
-      linarith [Real.add_one_le_exp (2 * ((R : ℝ) / Q))]
-    have hlog_one := one_le_two_mul_log_two_mul_div hR hRQ
-    calc (1 + 2 * ((R : ℝ) / Q)) ^ n
-        ≤ Real.exp (2 * ((R : ℝ) / Q)) ^ n := pow_le_pow_left₀ (by positivity) h1 n
-      _ = Real.exp ((n : ℝ) * (2 * ((R : ℝ) / Q))) := by
-          rw [← Real.exp_nat_mul]
-      _ ≤ Real.exp (4 * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) := by
-          refine Real.exp_le_exp.mpr ?_
-          have hmul := mul_le_mul_of_nonneg_left hlog_one
-            (show 0 ≤ 2 * (n : ℝ) * ((R : ℝ) / Q) by positivity)
-          linarith
+  have hpow_n : (1 + 2 * ((R : ℝ) / Q)) ^ n ≤ Real.exp (n * (2 * ((R : ℝ) / Q))) := by
+    rw [Real.exp_nat_mul]
+    gcongr
+    linarith [Real.add_one_le_exp (2 * ((R : ℝ) / Q))]
+  have hqL : (q : ℝ) * L ≤ c * n * ((R : ℝ) / Q) * L := by gcongr; linarith
+  have hnL := mul_le_mul_of_nonneg_left hlog_one
+    (show 0 ≤ 2 * (n : ℝ) * ((R : ℝ) / Q) by positivity)
   calc (subsetPairCount n q : ℝ)
       ≤ ((Q : ℝ) / R) ^ q * (1 + 2 * ((R : ℝ) / Q)) ^ n :=
         subsetPairCount_le_ratio_pow hR hRQ n q
-    _ ≤ Real.exp (c * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) *
-          Real.exp (4 * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) :=
-        mul_le_mul hpow_q hpow_n (by positivity) (by positivity)
-    _ = Real.exp ((c + 4) * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) := by
+    _ ≤ Real.exp (q * L) * Real.exp (n * (2 * ((R : ℝ) / Q))) := by gcongr
+    _ ≤ _ := by
         rw [← Real.exp_add]
-        congr 1
-        ring
+        exact Real.exp_le_exp.2 (by linarith)
 
 namespace Design
 
@@ -512,51 +488,31 @@ theorem domainExaminationBound_le_mul_exp_threeTermExponent {q : ℕ} {c : ℝ}
       (2 * (D : ℝ) + 1) ^ (2 * τ * (n : ℝ)) ≤
         Real.exp ((c + 4) * (n : ℝ) * (τ * Real.log (2 * (D : ℝ) + 1))) := by
     rw [Real.rpow_def_of_pos hD_pos]
-    refine Real.exp_le_exp.mpr ?_
-    have hle : (2 : ℝ) ≤ c + 4 := by linarith
     have hnn : 0 ≤ (n : ℝ) * (τ * Real.log (2 * (D : ℝ) + 1)) := by positivity
-    calc Real.log (2 * (D : ℝ) + 1) * (2 * τ * (n : ℝ))
-        = 2 * ((n : ℝ) * (τ * Real.log (2 * (D : ℝ) + 1))) := by ring
-      _ ≤ (c + 4) * ((n : ℝ) * (τ * Real.log (2 * (D : ℝ) + 1))) := by gcongr
-      _ = (c + 4) * (n : ℝ) * (τ * Real.log (2 * (D : ℝ) + 1)) := by ring
+    exact Real.exp_le_exp.2 (by nlinarith)
   have hgroup_exp :
       (2 : ℝ) ^ (2 * (n : ℝ) / r) ≤
         Real.exp ((c + 4) * (n : ℝ) * (1 / (r : ℝ))) := by
     rw [Real.rpow_def_of_pos zero_lt_two]
-    refine Real.exp_le_exp.mpr ?_
-    have hlog2_le : Real.log 2 ≤ 1 := by
-      linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
-    have hle : 2 * Real.log 2 ≤ c + 4 := by linarith
-    have hnn : 0 ≤ (n : ℝ) * (1 / (r : ℝ)) := by positivity
-    calc Real.log 2 * (2 * (n : ℝ) / r)
-        = (2 * Real.log 2) * ((n : ℝ) * (1 / (r : ℝ))) := by ring
-      _ ≤ (c + 4) * ((n : ℝ) * (1 / (r : ℝ))) := by gcongr
-      _ = (c + 4) * (n : ℝ) * (1 / (r : ℝ)) := by ring
+    refine Real.exp_le_exp.2 ?_
+    calc Real.log 2 * (2 * (n : ℝ) / r) = 2 * Real.log 2 * ((n : ℝ) * (1 / (r : ℝ))) := by ring
+      _ ≤ (c + 4) * ((n : ℝ) * (1 / (r : ℝ))) := by
+        gcongr
+        linarith [Real.log_two_lt_one]
+      _ = _ := by ring
   have hprod :
       (subsetPairCount n q : ℝ) * (2 * (D : ℝ) + 1) ^ (2 * τ * (n : ℝ)) *
           (2 : ℝ) ^ (2 * (n : ℝ) / r) ≤
         Real.exp ((c + 4) * (n : ℝ) * threeTermExponent r Q R D τ) := by
-    calc (subsetPairCount n q : ℝ) * (2 * (D : ℝ) + 1) ^ (2 * τ * (n : ℝ)) *
-            (2 : ℝ) ^ (2 * (n : ℝ) / r)
-        ≤ Real.exp ((c + 4) * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) *
-            Real.exp ((c + 4) * (n : ℝ) * (τ * Real.log (2 * (D : ℝ) + 1))) *
-            Real.exp ((c + 4) * (n : ℝ) * (1 / (r : ℝ))) := by
-          refine mul_le_mul (mul_le_mul hC hmeas_exp (by positivity) (by positivity))
-            hgroup_exp (by positivity) (by positivity)
-      _ = Real.exp ((c + 4) * (n : ℝ) * threeTermExponent r Q R D τ) := by
-          rw [← Real.exp_add, ← Real.exp_add]
-          congr 1
-          unfold threeTermExponent
-          ring
+    rw [threeTermExponent, mul_add, mul_add, Real.exp_add, Real.exp_add]
+    gcongr
   refine (M.domainExaminationBound_real q).trans ?_
   calc 2 * (Q : ℝ) * (r : ℝ) * (subsetPairCount n q : ℝ) *
           (2 * (D : ℝ) + 1) ^ (2 * τ * (n : ℝ)) * (2 : ℝ) ^ (2 * (n : ℝ) / r)
       = 2 * (Q : ℝ) * (r : ℝ) *
           ((subsetPairCount n q : ℝ) * (2 * (D : ℝ) + 1) ^ (2 * τ * (n : ℝ)) *
             (2 : ℝ) ^ (2 * (n : ℝ) / r)) := by ring
-    _ ≤ 2 * (Q : ℝ) * (r : ℝ) *
-          Real.exp ((c + 4) * (n : ℝ) * threeTermExponent r Q R D τ) :=
-        mul_le_mul_of_nonneg_left hprod (by positivity)
+    _ ≤ _ := by gcongr
 
 /-- Specialization of `domainExaminationBound_le_mul_exp_threeTermExponent` to the canonical
 truncation order `q = (d * R) / Q = jetOrder (d * R) Q - 1` (equation (3.5), p. 24) when

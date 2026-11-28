@@ -26,13 +26,25 @@ holds on tuples of type `Register k → Fin B` (`accepts_iff_registerStep_fin`).
 used by logical descriptions of configuration graphs, in which a configuration is a fixed tuple
 of universe elements.
 
+`RegisterStep` is `RegisterStepWith` for the read `inputAt w`. The packed graph reads one
+supplied symbol with blanks forced at the boundaries, another read function; its target
+uniqueness for deterministic machines (`edgeWithSymbol_target_unique`) is derived from
+`rightUnique_registerStepWith`.
+
 ## Main definitions
 
 * `Turing.MultiTapeNTM.ConfigurationGraph.startRegisters`: the initial register tuple.
-* `Turing.MultiTapeNTM.ConfigurationGraph.RegisterStep`: one step on register tuples.
+* `Turing.MultiTapeNTM.ConfigurationGraph.RegisterStepWith`: one step on register tuples, reading
+  the input through a supplied function.
+* `Turing.MultiTapeNTM.ConfigurationGraph.RegisterStep`: one step on the register tuples of an
+  input word.
 
 ## Main results
 
+* `Turing.MultiTapeNTM.ConfigurationGraph.rightUnique_registerStepWith`,
+  `Turing.MultiTapeNTM.ConfigurationGraph.rightUnique_registerStep`,
+  `Turing.MultiTapeNTM.ConfigurationGraph.rightUnique_registerStep_fin`: a deterministic machine
+  has at most one successor at every register tuple, with no validity premise.
 * `Turing.MultiTapeNTM.ConfigurationGraph.reflTransGen_registerStep_iff`: reachable tuples are the
   registers of reachable views.
 * `Turing.MultiTapeNTM.ConfigurationGraph.accepts_iff_registerStep`: acceptance on ℕ-valued tuples.
@@ -54,22 +66,63 @@ variable {k : ℕ} {State : Type} [Fintype State]
 
 /-- The registers of the initial view: input head on the first cell, the initial control and
 blank work tapes. -/
-@[expose] noncomputable def startRegisters (ntm : MultiTapeNTM k Bool State) : Register k → ℕ
+noncomputable def startRegisters (ntm : MultiTapeNTM k Bool State) : Register k → ℕ
   | .inputPos => 1
   | .control => stateCode (some ntm.q₀)
   | _ => 0
 
-/-- One step on register tuples over the input `w`. A tuple whose control is the halting tag
-steps to itself. Otherwise some permitted transition observes the control, the input symbol
-under the input head and the work-tape head symbols, and the successor is `nextRegisters`. -/
-@[expose] def RegisterStep (ntm : MultiTapeNTM k Bool State) (w : List Bool)
-    (r r' : Register k → ℕ) : Prop :=
+/-- One step on register tuples of a machine whose input has length `n` and whose input symbol
+at head position `p` is `read p`. A tuple whose control is the halting tag steps to itself.
+Otherwise some permitted transition observes the control, the input symbol under the input head
+and the work-tape head symbols, and the successor is `nextRegisters`. -/
+@[expose] def RegisterStepWith (ntm : MultiTapeNTM k Bool State) (n : ℕ)
+    (read : ℕ → Option Bool) (r r' : Register k → ℕ) : Prop :=
   (r .control = stateCode (none : Option State) ∧ r' = r) ∨
     ∃ (q : State) (s : Option Bool) (heads : Fin k → Option Bool) (a : Action k Bool State),
-      ntm.Tr q s heads a ∧ r .control = stateCode (some q) ∧ inputAt w (r .inputPos) = s ∧
-        (∀ i, r (.head i) = symbolCode (heads i)) ∧ r' = nextRegisters w.length r a
+      ntm.Tr q s heads a ∧ r .control = stateCode (some q) ∧ read (r .inputPos) = s ∧
+        (∀ i, r (.head i) = symbolCode (heads i)) ∧ r' = nextRegisters n r a
+
+/-- One step on register tuples over the input `w`: `RegisterStepWith` reading `w` through
+`inputAt`. -/
+@[expose] def RegisterStep (ntm : MultiTapeNTM k Bool State) (w : List Bool) :
+    (Register k → ℕ) → (Register k → ℕ) → Prop :=
+  RegisterStepWith ntm w.length (inputAt w)
 
 variable {ntm : MultiTapeNTM k Bool State} {w : List Bool}
+
+/-- **A deterministic machine steps uniquely on register tuples**, for every input length and
+input read, on every tuple of naturals.
+
+There is no validity or reachability premise. The successor is computed from the tuple alone: the
+halting tag allows only the tuple itself; otherwise the injective codes fix the observed state and
+head symbols, determinism fixes the action, and the successor is `nextRegisters` of the tuple. So
+several tuples describing one configuration, or tuples describing none, are harmless: each still
+has at most one successor. Restricting to tuples with bounded entries (`Register k → Fin B`) keeps
+uniqueness: a successor that overflows the bound is absent, not wrapped. -/
+theorem rightUnique_registerStepWith (hdet : ntm.IsDeterministic) (n : ℕ)
+    (read : ℕ → Option Bool) : Relator.RightUnique (RegisterStepWith ntm n read) := by
+  rintro r y z (⟨hr, rfl⟩ | ⟨q, s, heads, a, ha, hq, hs, hh, rfl⟩)
+    (⟨hr', rfl⟩ | ⟨q', s', heads', a', ha', hq', hs', hh', rfl⟩)
+  · rfl
+  · cases stateCode_injective (hr.symm.trans hq')
+  · cases stateCode_injective (hr'.symm.trans hq)
+  · obtain rfl : q = q' := Option.some.inj (stateCode_injective (hq.symm.trans hq'))
+    obtain rfl : s = s' := hs.symm.trans hs'
+    obtain rfl : heads = heads' := funext fun i => symbolCode_injective ((hh i).symm.trans (hh' i))
+    rw [(hdet q s heads).unique ha ha']
+
+/-- A deterministic machine steps uniquely on the register tuples of an input. -/
+theorem rightUnique_registerStep (hdet : ntm.IsDeterministic) :
+    Relator.RightUnique (RegisterStep ntm w) :=
+  rightUnique_registerStepWith hdet w.length (inputAt w)
+
+/-- A deterministic machine steps uniquely on bounded register tuples `Register k → Fin B`. A
+successor whose entries overflow `B` is not a bounded tuple, so it is absent rather than wrapped,
+and uniqueness needs no bound on the source. -/
+theorem rightUnique_registerStep_fin (hdet : ntm.IsDeterministic) {B : ℕ} :
+    Relator.RightUnique fun x y : Register k → Fin B =>
+      RegisterStep ntm w (fun i => (x i).val) (fun i => (y i).val) :=
+  fun _ _ _ hy hz => funext fun i => Fin.ext (congrFun (rightUnique_registerStep hdet hy hz) i)
 
 /-- The initial view has the start registers. -/
 theorem registers_initView (w : List Bool) :
@@ -82,50 +135,41 @@ theorem registerStep_of_viewStep {v v' : FiniteCfg k Bool State} (h : ntm.ViewSt
     RegisterStep ntm v.input (registers v) (registers v') := by
   cases hs : v.state with
   | none =>
-    have hv : v' = v := by simpa [ViewStep, hs] using h
-    subst hv
+    obtain rfl : v' = v := by simpa [ViewStep, hs] using h
     exact .inl ⟨by simp [registers, hs], rfl⟩
   | some q =>
     obtain ⟨a, ha, rfl⟩ : ∃ a, ntm.Tr q v.inputSymbol v.workTapeSymbols a ∧
         v' = (v.step a).summarizeOutput := by simpa [ViewStep, hs] using h
-    refine .inr ⟨q, v.inputSymbol, v.workTapeSymbols, a, ha, by simp [registers, hs], ?_,
-      fun _ => rfl, registers_step v a⟩
-    exact (Cfg.inputSymbol_eq_inputAt v.toCfg).symm
+    exact .inr ⟨q, _, _, a, ha, by simp [registers, hs],
+      (Cfg.inputSymbol_eq_inputAt v.toCfg).symm, fun _ => rfl, registers_step v a⟩
 
 /-- Every register step out of the registers of a view is the registers of a view step. -/
 theorem exists_viewStep_of_registerStep {v : FiniteCfg k Bool State} {r : Register k → ℕ}
     (h : RegisterStep ntm v.input (registers v) r) :
     ∃ v', ntm.ViewStep v v' ∧ v'.input = v.input ∧ registers v' = r := by
   rcases h with ⟨hc, rfl⟩ | ⟨q, s, heads, a, ha, hc, hin, hh, rfl⟩
-  · have hs : v.state = none := stateCode_injective hc
-    exact ⟨v, by simp [ViewStep, hs], rfl, rfl⟩
-  · have hs : v.state = some q := stateCode_injective hc
-    have hin' : v.inputSymbol = s := (Cfg.inputSymbol_eq_inputAt v.toCfg).trans hin
+  · exact ⟨v, by simp [ViewStep, stateCode_injective hc], rfl, rfl⟩
+  · have hin' : v.inputSymbol = s := (Cfg.inputSymbol_eq_inputAt v.toCfg).trans hin
     have hw : v.workTapeSymbols = heads := funext fun i => symbolCode_injective (hh i)
     refine ⟨(v.step a).summarizeOutput, ?_, rfl, registers_step v a⟩
-    simp only [ViewStep, hs]
+    simp only [ViewStep, stateCode_injective hc]
     exact ⟨a, by rwa [hin', hw], rfl⟩
 
 /-- **Reachable register tuples are the registers of reachable views.** -/
 theorem reflTransGen_registerStep_iff (r : Register k → ℕ) :
     Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r ↔
       ∃ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v ∧ registers v = r := by
-  constructor
-  · intro h
-    induction h with
+  refine ⟨fun h => ?_, ?_⟩
+  · induction h with
     | refl => exact ⟨_, .refl, registers_initView w⟩
-    | @tail a b _ hab ih =>
+    | tail _ hab ih =>
       obtain ⟨v, hv, rfl⟩ := ih
-      rw [← input_of_reachable hv] at hab
-      obtain ⟨v', hstep, _, rfl⟩ := exists_viewStep_of_registerStep hab
+      obtain ⟨v', hstep, _, rfl⟩ := exists_viewStep_of_registerStep (input_of_reachable hv ▸ hab)
       exact ⟨v', hv.tail hstep, rfl⟩
   · rintro ⟨v, hv, rfl⟩
     induction hv with
     | refl => rw [registers_initView]
-    | @tail a b hab hstep ih =>
-      have hstep' := registerStep_of_viewStep hstep
-      rw [input_of_reachable hab] at hstep'
-      exact ih.tail hstep'
+    | tail hab hstep ih => exact ih.tail (input_of_reachable hab ▸ registerStep_of_viewStep hstep)
 
 /-- **Acceptance is register-tuple reachability**: a machine accepts exactly when a tuple with the
 halting control tag and output tag `1` is reachable from the start registers. -/

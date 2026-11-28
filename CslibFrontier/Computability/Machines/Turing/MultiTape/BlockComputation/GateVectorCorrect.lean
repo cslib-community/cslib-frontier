@@ -40,8 +40,7 @@ variable {k s : ℕ} {Q : Type}
 theorem resume_prefix (params : Params) (values : ℕ → ℕ) (j : ℕ)
     (returned : Interpolation.State k Q) (hanswer : answer returned = values j) :
     resume (prefixState params values j) returned = prefixState params values (j + 1) := by
-  rcases params with ⟨params, count⟩
-  rcases params with ⟨context, ⟨p, alphabet, coordinates⟩, point, limit⟩
+  rcases params with ⟨⟨context, ⟨p, alphabet, coordinates⟩, point, limit⟩, count⟩
   change (((context, (p, alphabet, coordinates), point, limit), count), j + 1,
       (List.ofFn fun i : Fin j => values i % p) ++ [answer returned % p]) = _
   rw [hanswer]
@@ -60,10 +59,8 @@ theorem runFrom_one (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (params : Param
       .inl (prefixState params values (j + 1)) := by
   rw [← resume_prefix params values j _ hanswer]
   apply QueryMachine.withCalls_runFrom_call
-  · change decide (params.2 ≤ j) = false
-    exact decide_eq_false (by omega)
-  · change (if j < params.2 then some (start (prefixState params values j)) else none) = _
-    simp only [hj, ↓reduceIte]
+  · exact decide_eq_false (show ¬ params.2 ≤ j by omega)
+  · exact ite_eq_left hj
   · exact hpre
   · exact hhalt
 
@@ -102,7 +99,7 @@ theorem coordinate_supplier_bounded {p q r m : ℕ} [Fact p.Prime] [Finite Q]
     (b : ℕ) [NeZero b] (σ : ℕ) (i : Fin q)
     (x : Fin (k * 3 + 1) → Fin r → ZMod p)
     (hb : Encoding.width k s b ≤ r * m) (hm : 0 < m) (chunk : Fin r)
-    (hsp : 2 ^ m ≤ p) (h : Fin (2 ^ m) ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p)) :
+    (h : Fin (2 ^ m) ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p)) :
     let f := codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
       (Encoding.encode e) (Encoding.decode e) (i.val + 1)
     let context : Interpolation.Context :=
@@ -122,13 +119,10 @@ theorem coordinate_supplier_bounded {p q r m : ℕ} [Fact p.Prime] [Finite Q]
           Interpolation.calleeSpace k s Q context + 2 := by
   dsimp only
   obtain ⟨U, z, hrun, hz, hhalt, hsize⟩ :=
-    Interpolation.exists_runFrom_gateExtension_bounded M e w b σ i x hb hm chunk hsp h hh
+    Interpolation.exists_runFrom_gateExtension_bounded M e w b σ i x hb hm chunk h hh
   obtain ⟨T, hle, hT, hpre, hstate⟩ := QueryMachine.exists_first_halt_le
     (Interpolation.machine M e) w _ U hhalt
-  refine ⟨T, z, hpre, hT, ?_, hz, ?_⟩
-  · rw [hstate, hrun]
-    rfl
-  · intro t ht
-    exact hsize t (ht.trans hle)
+  exact ⟨T, z, hpre, hT, congrArg answer (hstate.trans hrun), hz,
+    fun t ht => hsize t (ht.trans hle)⟩
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.GateVector

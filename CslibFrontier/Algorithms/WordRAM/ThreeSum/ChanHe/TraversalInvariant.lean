@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalPending
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalOutput
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalResources
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalTime
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Concrete worklist invariant for the native Chan–He traversal
@@ -81,17 +82,26 @@ theorem Arena.Controls.congr {a : Arena} {x y : Data 128} (h : a.Controls x)
     (hp : ∀ i : Fin 128, i.val ∈ [71, 72, 73, 74, 75, 76, 78, 80, 81, 82, 83] →
       y.regs i = x.regs i) : a.Controls y := by
   rcases h with ⟨hm, hΛ, hU, hN, hb, hc, ht, hs, hcap, hz, ho⟩
-  exact ⟨(hp _ (by decide)).trans hm, (hp _ (by decide)).trans hΛ,
-    (hp _ (by decide)).trans hU, (hp _ (by decide)).trans hN,
-    (hp _ (by decide)).trans hb, (hp _ (by decide)).trans hc,
-    (hp _ (by decide)).trans ht, (hp _ (by decide)).trans hs,
-    (hp _ (by decide)).trans hcap, (hp _ (by decide)).trans hz,
-    (hp _ (by decide)).trans ho⟩
+  exact ⟨by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame⟩
+
+/-- Preserving registers `71`–`95` preserves all persistent caller parameters. -/
+theorem Arena.Controls.of_regs_71_96 {a : Arena} {x y : Data 128} (h : a.Controls x)
+    (hr : ∀ i : Fin 128, 71 ≤ i.val → i.val < 96 → y.regs i = x.regs i) : a.Controls y :=
+  h.congr fun i hi => by
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    exact hr i (by omega) (by omega)
 
 /-- Concrete non-overlap and capacity obligations for the reserved native layout. -/
 def Arena.Separated (a : Arena) : Prop :=
   a.primes + a.m < a.stack ∧ a.stack + a.capacity ≤ a.table ∧
     a.table + a.outputCapacity ≤ a.floor ∧ 7 * (2 * a.fuel + 1) ≤ a.capacity
+
+/-- The reserved stack fits inside the gap between `a.stack` and `a.floor`. -/
+theorem Arena.Separated.capacity_le_gap {a : Arena} (ha : a.Separated) :
+    a.capacity ≤ a.floor - a.stack :=
+  Nat.le_sub_of_add_le' (ha.2.1.trans ((Nat.le_add_right _ _).trans ha.2.2.1))
 
 /-- A single signed envelope covers both actual native kernels at every worklist transition. -/
 def Arena.Ready (a : Arena) (w : ℕ) : Prop :=
@@ -158,11 +168,9 @@ theorem Cursor.Invariant.nonempty {a : Arena} {w : ℕ} {target : List Node}
     {s : Cursor} {x : Data 128} (h : s.Invariant a w target x)
     (hc : (Cond.lt zero (registers WordStack.len)).Holds x) : s.pending ≠ [] := by
   intro he
-  have hz := h.controls.2.2.2.2.2.2.2.2.2.1
   have hl := h.stack.length_eq
-  change x.regs zero < x.regs (registers WordStack.len) at hc
   simp only [he, List.flatMap_nil, List.length_nil, Data.comap_regs] at hl
-  omega
+  simp only [Cond.holds_lt, hl, h.controls.2.2.2.2.2.2.2.2.2.1, lt_self_iff_false] at hc
 
 /-- A finished actual loop has emitted the complete target, with every array already read back. -/
 theorem Cursor.Invariant.finished {a : Arena} {w : ℕ} {target : List Node}

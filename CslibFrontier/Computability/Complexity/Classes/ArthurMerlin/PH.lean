@@ -73,6 +73,8 @@ namespace Cslib.Complexity
 
 open Finset Turing.MultiTapeTM
 
+attribute [local irreducible] ComputableInPolyTime
+
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
 
 namespace ArthurMerlin
@@ -99,11 +101,13 @@ theorem computableInPolyTime_sigmaTwoVerifier {W : α × List Bool → Bool}
     (hW : ComputableInPolyTime W (encPair enc encBits) encBool) (q k p : Polynomial ℕ) :
     ComputableInPolyTime (sigmaTwoVerifier enc q k p W) (encPair enc encBits) encBool := by
   unfold sigmaTwoVerifier
+  refine ComputableInPolyTime.anyWithInput (encA := encUnary) (by fun_prop) ?_
+  refine hW.comp (((ComputableInPolyTime.fst _ _).fst').prod ?_)
   fun_prop
 
 /-- On a proof followed by the shifts and then a random string `r`, the `Σ₂` verifier accepts iff
 `W` accepts the proof with `r` xor some shift. -/
-private theorem sigmaTwoVerifier_append_ofFn {q k p : Polynomial ℕ} {W : α × List Bool → Bool}
+theorem sigmaTwoVerifier_append_ofFn {q k p : Polynomial ℕ} {W : α × List Bool → Bool}
     {a : α}
     {w : List Bool}
     (hw : w.length = q.eval (enc a).length + k.eval (enc a).length * p.eval (enc a).length)
@@ -115,18 +119,11 @@ private theorem sigmaTwoVerifier_append_ofFn {q k p : Polynomial ℕ} {W : α ×
           true := by
   simp only [sigmaTwoVerifier, List.any_eq_true, List.mem_range]
   rw [List.take_append_of_le_length (by omega), List.drop_left' hw,
-    List.drop_append_of_le_length (by omega)]
-  constructor
-  · rintro ⟨i, hi, h⟩
-    refine ⟨⟨i, hi⟩, ?_⟩
-    rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
-      BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
-      ← BitString.ofFn_add] at h
-  · rintro ⟨i, h⟩
-    refine ⟨i, i.2, ?_⟩
-    rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
-      BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
-      ← BitString.ofFn_add]
+    List.drop_append_of_le_length (by omega), Fin.exists_iff]
+  refine exists_congr fun i => exists_prop.symm.trans (exists_congr fun hi => ?_)
+  rw [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
+    BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
+    ← BitString.ofFn_add]
 
 /-- **Merlin–Arthur verifiers in `Σ₂`.** If `W` is a Merlin–Arthur verifier for `A` with error at
 most `2 ^ (-e(n))` and random strings of `p(n)` bits, and `k(n)` shifts satisfy `p(n) < e(n) k(n)`
@@ -190,12 +187,14 @@ theorem computableInPolyTime_piTwoVerifier {W : α × List Bool → Bool}
     (hW : ComputableInPolyTime W (encPair enc encBits) encBool) (k p q : Polynomial ℕ) :
     ComputableInPolyTime (piTwoVerifier enc k p q W) (encPair enc encBits) encBool := by
   unfold piTwoVerifier
+  refine ComputableInPolyTime.allWithInput (encA := encUnary) (by fun_prop) ?_
+  refine hW.comp (((ComputableInPolyTime.fst _ _).fst').prod ?_)
   fun_prop
 
 /-- On the shifts followed by any word `v`, the `Π₂` verifier accepts iff `W` accepts, for each
 shift, the first `p(n)` bits of `v` xor the shift with the corresponding reply read from the rest
 of `v`. -/
-private theorem piTwoVerifier_append {k p q : Polynomial ℕ} {W : α × List Bool → Bool} {a : α}
+theorem piTwoVerifier_append {k p q : Polynomial ℕ} {W : α × List Bool → Bool} {a : α}
     {u : List Bool} (hu : u.length = k.eval (enc a).length * p.eval (enc a).length)
     (v : List Bool) :
     piTwoVerifier enc k p q W (a, u ++ v) = true ↔
@@ -205,19 +204,11 @@ private theorem piTwoVerifier_append {k p q : Polynomial ℕ} {W : α × List Bo
             (k.eval (enc a).length * q.eval (enc a).length) (v.drop (p.eval (enc a).length))) i)) =
           true := by
   simp only [piTwoVerifier, List.all_eq_true, List.mem_range]
-  rw [List.drop_left' hu, ← List.drop_drop, List.drop_left' hu]
-  constructor
-  · intro h i
-    have h := h i i.2
-    rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
-      BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
-      BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero,
-      ← BitString.ofFn_add] at h
-  · intro h i hi
-    rw [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
-      BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
-      BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero, ← BitString.ofFn_add]
-    exact h ⟨i, hi⟩
+  rw [List.drop_left' hu, ← List.drop_drop, List.drop_left' hu, Fin.forall_iff]
+  refine forall_congr' fun i => forall_congr' fun hi => ?_
+  rw [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
+    BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
+    BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero, ← BitString.ofFn_add]
 
 /-- **Arthur–Merlin verifiers in `Π₂`.** If `W` is an Arthur–Merlin verifier for `A` with error at
 most `2 ^ (-e(n))`, random strings of `p(n)` bits and replies of `q(n)` bits, and `k(n)` shifts
@@ -268,7 +259,7 @@ theorem isAlternatingVerifier_piTwoVerifier {e k p q : Polynomial ℕ} {W : α �
 
 /-- The number of shifts and the error exponent `12 p + 1` cover random strings of
 `12 (12 p + 1) p` bits. -/
-private theorem eval_lt_mul (p : Polynomial ℕ) (n : ℕ) :
+theorem eval_lt_mul (p : Polynomial ℕ) (n : ℕ) :
     (12 * (12 * p + 1) * p).eval n < (12 * p + 1).eval n * (12 * p + 1).eval n := by
   simp only [Polynomial.eval_mul, Polynomial.eval_add, Polynomial.eval_ofNat,
     Polynomial.eval_one]

@@ -156,9 +156,9 @@ def Witness.toRand (h : Witness B p input output safe work) :
 /-- The existential randomized entry supplied by the deterministic witness construction. -/
 theorem toRand (h : Realizes B p input output safe work) :
     RealizesRand B (fun d => OracleComp.liftRight (p d)) input output safe
-      (fun d s => memoryCost (p d) s + work d s) (fun _ _ => 0) := by
-  obtain ⟨n, C, emit, he⟩ := h
-  exact (Witness.toRand ⟨n, C, emit, he⟩).toRealizesRand
+      (fun d s => memoryCost (p d) s + work d s) (fun _ _ => 0) :=
+  let ⟨n, C, emit, he⟩ := h
+  (Witness.toRand ⟨n, C, emit, he⟩).toRealizesRand
 
 end Realizes
 
@@ -179,8 +179,8 @@ theorem consequence {safe' : ℕ → δ → Memory.State → Prop} {time' calls'
   refine ⟨n, C, emit, fun frontier src tmp hi hd hf hs => ?_⟩
   obtain ⟨hnw, hrun⟩ := he frontier src tmp hi hd hf hs
   refine ⟨hnw, fun w d x hx hin hsafe' hv => ?_⟩
-  have hwords (i : Fin k) : Fits w (input d i) := congrFun hin i ▸ hx.1 (src i)
-  obtain ⟨hsafe, htime, hcalls⟩ := hsafe w d _ hwords (wellFormed_memoryState hx) hsafe'
+  obtain ⟨hsafe, htime, hcalls⟩ := hsafe w d _
+    (fun i => congrFun hin i ▸ hx.1 (src i)) (wellFormed_memoryState hx) hsafe'
   exact (hrun w d x hx hin hsafe hv).mono (fun _ h => h)
     (Nat.mul_le_mul_left C (Nat.add_le_add_right htime 1)) hcalls
 
@@ -285,17 +285,8 @@ def Witness.bind (hP : Witness B p input answer safeP timeP callsP)
       have hzout : (fun i : Fin l => z.regs ((tmp ∘ right) (Fin.castAdd (n₁ + 1) i))) = answer a :=
         (congrArg Prod.fst hz).symm
       have hzs : memoryState frontier z = s' := (congrArg Prod.snd hz).symm
-      have hinQ : z.regs ∘ nextSrc = (appendWords input answer) (d, a) := by
-        funext i
-        refine Fin.addCases (fun j => ?_) (fun j => ?_) i
-        · change z.regs (nextSrc (Fin.castAdd l j)) =
-            Fin.append (input d) (answer a) (Fin.castAdd l j)
-          simp only [nextSrc, Fin.append_left]
-          exact (hframe (src j) (hs j) (fun t => (hd j (right t)).symm)).trans (congrFun hin j)
-        · change z.regs (nextSrc (Fin.natAdd k j)) =
-            Fin.append (input d) (answer a) (Fin.natAdd k j)
-          simp only [nextSrc, Fin.append_right]
-          exact congrFun hzout j
+      have hinQ : z.regs ∘ nextSrc = (appendWords input answer) (d, a) :=
+        bindShared_appendWords hin hframe hd hs (congrFun hzout)
       obtain ⟨hsafeQ, htime, hcalls⟩ := hsafe.2 a s' hmem
       obtain ⟨tr, hrun⟩ := D.exists_clientRun_of_mem_support hvP hmem
       have hQ := hrunQ w (d, a) z hzb hinQ (hzs ▸ hsafeQ) (hzs ▸ hvQ a s' tr hrun)
@@ -309,19 +300,13 @@ def Witness.bind (hP : Witness B p input answer safeP timeP callsP)
       exact hQ.mono (fun y hy i hif htmp => (hy i hif fun j => htmp (left j)).trans
         (hframe i hif fun j => htmp (right j)))
         (Nat.mul_le_mul_left C₂ (Nat.add_le_add_right htime 1)) hcalls
-    refine (h.mono (fun _ h => h) ?_ le_rfl).congr_law ?_
-    · change C₁ * (timeP d s + 1) + C₂ * (T d s + 1) ≤ max C₁ C₂ * (timeP d s + T d s + 1 + 1)
-      calc
-        _ ≤ max C₁ C₂ * (timeP d s + 1) + max C₁ C₂ * (T d s + 1) :=
-          Nat.add_le_add (Nat.mul_le_mul_right _ (Nat.le_max_left _ _))
-            (Nat.mul_le_mul_right _ (Nat.le_max_right _ _))
-        _ = _ := by ring
-    · change ((D.run (p d) s).map fun (a, s') => (answer a, s')).bind κ =
-        (D.run (p d >>= fun a => q (d, a)) s).map fun (b, s'') => (output b, s'')
-      rw [PMF.bind_map, RandomizedSpec.run_bind, PMF.map_bind]
-      congr 1
-      funext ⟨a, s'⟩
-      simp only [Function.comp_apply, κ, hdecode]⟩
+    refine (h.mono (fun _ h => h) (bind_cost_le le_rfl) le_rfl).congr_law ?_
+    change ((D.run (p d) s).map fun (a, s') => (answer a, s')).bind κ =
+      (D.run (p d >>= fun a => q (d, a)) s).map fun (b, s'') => (output b, s'')
+    rw [PMF.bind_map, RandomizedSpec.run_bind, PMF.map_bind]
+    congr 1
+    funext ⟨a, s'⟩
+    simp only [Function.comp_apply, κ, hdecode]⟩
 
 /-- The existential sequential realization supplied by the shared-bank constructor. -/
 theorem bind (hP : RealizesRand B p input answer safeP timeP callsP)
@@ -331,10 +316,10 @@ theorem bind (hP : RealizesRand B p input answer safeP timeP callsP)
       (fun w d s => safeP w d s ∧ ∀ a s',
         (a, s') ∈ ((Memory.spec w).toRandomized.withCoins.run (p d) s).support →
           safeQ w (d, a) s' ∧ timeQ (d, a) s' ≤ T d s ∧ callsQ (d, a) s' ≤ R d s)
-      (fun d s => timeP d s + T d s + 1) (fun d s => callsP d s + R d s) := by
-  obtain ⟨n₁, C₁, emitP, heP⟩ := hP
-  obtain ⟨n₂, C₂, emitQ, heQ⟩ := hQ
-  exact (Witness.bind ⟨n₁, C₁, emitP, heP⟩ ⟨n₂, C₂, emitQ, heQ⟩ T R).toRealizesRand
+      (fun d s => timeP d s + T d s + 1) (fun d s => callsP d s + R d s) :=
+  let ⟨n₁, C₁, emitP, heP⟩ := hP
+  let ⟨n₂, C₂, emitQ, heQ⟩ := hQ
+  (Witness.bind ⟨n₁, C₁, emitP, heP⟩ ⟨n₂, C₂, emitQ, heQ⟩ T R).toRealizesRand
 
 end Bind
 
@@ -354,34 +339,22 @@ theorem branch (c : Cond k) (hp : RealizesRand B pos input output safePos timePo
       (fun d s => if test c (input d) then callsPos d s else callsNeg d s) := by
   obtain ⟨np, Cp, ep, hep⟩ := hp
   obtain ⟨nn, Cn, en, hen⟩ := hn
-  let ip : Fin (l + np + 1) → Fin (l + (np + nn) + 1) := Fin.castLE (by omega)
-  let ineg : Fin (l + nn + 1) → Fin (l + (np + nn) + 1) := Fin.castLE (by omega)
   refine ⟨np + nn, max Cp Cn + 2, fun frontier src tmp =>
-    .branch (c.rename src) (ep frontier src (tmp ∘ ip)) (en frontier src (tmp ∘ ineg)), ?_⟩
-  intro r frontier src tmp hi hd hf hs
-  have hip : Function.Injective (tmp ∘ ip) := fun a b hab =>
-    Fin.ext (congrArg (fun z : Fin (l + (np + nn) + 1) => z.val) (hi hab))
-  have hin : Function.Injective (tmp ∘ ineg) := fun a b hab =>
-    Fin.ext (congrArg (fun z : Fin (l + (np + nn) + 1) => z.val) (hi hab))
-  obtain ⟨hnp, hrp⟩ := hep frontier src (tmp ∘ ip) hip
-    (fun i j => hd i (ip j)) (fun j => hf (ip j)) hs
-  obtain ⟨hnn, hrn⟩ := hen frontier src (tmp ∘ ineg) hin
-    (fun i j => hd i (ineg j)) (fun j => hf (ineg j)) hs
+    .branch (c.rename src) (ep frontier src (tmp ∘ Fin.castLE (by omega)))
+      (en frontier src (tmp ∘ Fin.castLE (by omega))), fun frontier src tmp hi hd hf hs => ?_⟩
+  obtain ⟨hip, hdp, hfp, hframep⟩ := branchPrefix_layout (m := l + np + 1) (by omega) hi hd hf
+  obtain ⟨hin, hdn, hfn, hframen⟩ := branchPrefix_layout (m := l + nn + 1) (by omega) hi hd hf
+  obtain ⟨hnp, hrp⟩ := hep frontier src _ hip hdp hfp hs
+  obtain ⟨hnn, hrn⟩ := hen frontier src _ hin hdn hfn hs
   refine ⟨fun h => h.elim hnp hnn, fun w d x hx hinput hsafe hv => ?_⟩
   have hc := test_rename c src x (input d) hinput
-  have hle (C t : ℕ) (hC : C ≤ max Cp Cn) (e : ℕ) (he : e ≤ 2) :
-      C * (t + 1) + e ≤ (max Cp Cn + 2) * (t + 1) := by
-    have := Nat.mul_le_mul_right (t + 1) hC
-    nlinarith
   by_cases ht : test c (input d)
   · simp only [ite_eq_left ht] at hsafe hv ⊢
-    exact ((hrp w d x hx hinput hsafe hv).branch_pos (hc.mpr ht)).mono
-      (fun y hy i hif htmp => hy i hif fun j => htmp (ip j))
-      (hle Cp _ (Nat.le_max_left _ _) 1 (by omega)) le_rfl
+    exact ((hrp w d x hx hinput hsafe hv).branch_pos (hc.mpr ht)).mono (fun _ => hframep)
+      (branch_cost_le (Nat.le_max_left _ _) le_rfl (by omega)) le_rfl
   · simp only [ite_eq_right ht] at hsafe hv ⊢
-    exact ((hrn w d x hx hinput hsafe hv).branch_neg (fun h => ht (hc.mp h))).mono
-      (fun y hy i hif htmp => hy i hif fun j => htmp (ineg j))
-      (hle Cn _ (Nat.le_max_right _ _) 2 le_rfl) le_rfl
+    exact ((hrn w d x hx hinput hsafe hv).branch_neg (mt hc.mp ht)).mono
+      (fun _ => hframen) (branch_cost_le (Nat.le_max_right _ _) le_rfl le_rfl) le_rfl
 
 end Branch
 
@@ -419,26 +392,21 @@ theorem exists_init_program (h : RealizesRand .exact p input output safe time ca
             ((Memory.spec w).toRandomized.withCoins.run (p d) (Memory.State.init xs)).map
               fun (a, s) => (output a i, s) := by
   obtain ⟨n, C, emit, he⟩ := h
-  refine ⟨n, C + (2 * k + 5), emit, ?_⟩
-  intro r frontier src tmp hsrc htmp hd hf hs i w d xs hlayout hk hw hin hsafe hv F hF
-  obtain ⟨x, ex, hx, hm, hwords, -⟩ :=
-    inputPrefix_exec frontier (tmp (Fin.last (l + n))) src xs hsrc
-      (hf _) (fun j => hd j _) hs hk hw hin
-  have harg : x.regs ∘ src = input d := funext fun j => (hwords j).trans (hlayout j)
-  have h₁ := (he frontier src tmp htmp hd hf hs).2 w d x hx harg (hm.symm ▸ hsafe)
-    (hm.symm ▸ hv)
+  refine ⟨n, C + (2 * k + 5), emit,
+    fun frontier src tmp hsrc htmp hd hf hs i w d xs hlayout hk hw hin hsafe hv F hF => ?_⟩
+  obtain ⟨x, ex, hx, hm, hwords, -⟩ := inputPrefix_exec frontier (tmp (Fin.last (l + n))) src xs
+    hsrc (hf _) (fun j => hd j _) hs hk hw hin
+  have h₁ := (he frontier src tmp htmp hd hf hs).2 w d x hx
+    (funext fun j => (hwords j).trans (hlayout j)) (hm.symm ▸ hsafe) (hm.symm ▸ hv)
   rw [hm] at h₁
-  have h₂ := ExecRandLaw.seq_det ex (h₁.map fun (v, s) => (v i, s))
   have hT : 2 * k + 5 + C * (time d (Memory.State.init xs) + 1) + 1 ≤
       (C + (2 * k + 5)) * (time d (Memory.State.init xs) + 1) + 1 := by
-    rw [Nat.add_mul]
     have := Nat.mul_le_mul_left (2 * k + 5) (Nat.le_add_left 1 (time d (Memory.State.init xs)))
-    omega
-  obtain ⟨hhalt, hcalls, -, hlaw⟩ := h₂.program (tmp (Fin.castAdd (n + 1) i)) hT F
-    fun y _ => hF _ y
-  refine ⟨hhalt, hcalls, hlaw.trans ?_⟩
-  rw [PMF.map_comp]
-  rfl
+    rw [Nat.add_mul]; omega
+  obtain ⟨hhalt, hcalls, -, hlaw⟩ :=
+    (ExecRandLaw.seq_det ex (h₁.map fun (v, s) => (v i, s))).program
+      (tmp (Fin.castAdd (n + 1) i)) hT F fun y _ => hF _ y
+  exact ⟨hhalt, hcalls, hlaw.trans (by rw [PMF.map_comp]; rfl)⟩
 
 end RealizesRand
 

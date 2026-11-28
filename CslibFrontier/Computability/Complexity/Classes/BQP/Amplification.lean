@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BQP
 public import CslibFrontier.Computability.Circuit.Quantum.Counter
 public import CslibFrontier.Computability.Circuit.Quantum.Parallel
 import CslibFrontier.Foundations.Combinatorics.MajorityVote.Weighted
+import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
@@ -56,6 +57,9 @@ away from `1 / 2` (`Cslib.Complexity.mem_BQP_of_gap`).
 
 * `Cslib.Quantum.UniformCircuitFamily.acceptProb_threshold`: the acceptance probability of the
   threshold vote is that of more than `t` successes among `k` independent copies.
+* `Cslib.Quantum.Amplify.sum_accepting_counter_swap`: the counter and the swap accept exactly the
+  outcomes with more than `t` ones among the blocks' first qubits; the error reduction for `QMA`
+  uses it too.
 * `Cslib.Quantum.UniformCircuitFamily.acceptProb_amplify`: the acceptance probability of the
   amplified family is that of a strict majority of independent copies.
 * `Cslib.Complexity.mem_BQP_iff_forall_errorExponent`: error reduction for `BQP`.
@@ -129,22 +133,19 @@ theorem base_le_answer : base w k ≤ answer w k t := by
 
 theorem le_base : w ≤ base w k := Nat.le_mul_of_pos_left w (Nat.succ_pos k)
 
-/-- The blocks `1, …, k` of the threshold register. -/
-def blocks (w k t : ℕ) : Fin k × Fin w ↪ Fin (width w k t) where
-  toFun p := ⟨p.2 + (p.1 + 1) * w, (block_lt p.1.2 p.2.2).trans base_lt_width⟩
+variable {m : ℕ}
+
+/-- The first `m ≤ w` qubits of each of the blocks `1, …, k` of the threshold register. -/
+def blocks (w k t : ℕ) (hm : m ≤ w) : Fin k × Fin m ↪ Fin (width w k t) where
+  toFun p := ⟨p.2 + (p.1 + 1) * w,
+    (block_lt p.1.2 (lt_of_lt_of_le p.2.2 hm)).trans base_lt_width⟩
   inj' p p' h := by
     have h' : (p.2 : ℕ) + (p.1 + 1) * w = p'.2 + (p'.1 + 1) * w := congrArg Fin.val h
-    have hw : 0 < w := Nat.lt_of_le_of_lt (Nat.zero_le _) p.2.2
-    have hmod := congrArg (· % w) h'
-    have hdiv := congrArg (· / w) h'
-    simp only [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt p.2.2,
-      Nat.mod_eq_of_lt p'.2.2] at hmod
-    simp only [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt p.2.2,
-      Nat.div_eq_of_lt p'.2.2] at hdiv
-    exact Prod.ext (Fin.ext (by omega)) (Fin.ext hmod)
+    have := Nat.eq_of_add_mul_eq (lt_of_lt_of_le p.2.2 hm) (lt_of_lt_of_le p'.2.2 hm) h'
+    exact Prod.ext (Fin.ext (by omega)) (Fin.ext this.1)
 
-@[simp] theorem blocks_apply_val (p : Fin k × Fin w) :
-    (blocks w k t p : ℕ) = p.2 + (p.1 + 1) * w := rfl
+@[simp] theorem blocks_apply_val (hm : m ≤ w) (p : Fin k × Fin m) :
+    (blocks w k t hm p : ℕ) = p.2 + (p.1 + 1) * w := rfl
 
 theorem block_le_width {j : ℕ} (hj : j < k) : (j + 1) * w + w ≤ width w k t := by
   have := Nat.mul_le_mul_right w (show j + 1 ≤ k by omega)
@@ -152,22 +153,24 @@ theorem block_le_width {j : ℕ} (hj : j < k) : (j + 1) * w + w ≤ width w k t 
   rw [base_eq] at this
   omega
 
-/-- Block `j` of the threshold register. -/
-def block (j : Fin k) : Fin w ↪ Fin (width w k t) :=
-  blockEmb ((j + 1) * w) (block_le_width j.2)
+/-- The first `m ≤ w` qubits of block `j` of the threshold register. -/
+def block (hm : m ≤ w) (j : Fin k) : Fin m ↪ Fin (width w k t) :=
+  blockEmb ((j + 1) * w) (by have := block_le_width (w := w) (t := t) j.2; omega)
 
-theorem block_apply (j : Fin k) (i : Fin w) : block (t := t) j i = blocks w k t (j, i) := rfl
+theorem block_apply (hm : m ≤ w) (j : Fin k) (i : Fin m) :
+    block (t := t) hm j i = blocks w k t hm (j, i) := rfl
 
 /-! ### The classical steps -/
 
-theorem isClassical_copyCodes (hn : n ≤ w) (hw : 0 < w) :
-    IsClassical (width w k t) (copyCodes n w k) := by
+/-- The CNOT layer is well formed on any register that contains all the copy blocks. -/
+theorem isClassical_copyCodes {N : ℕ} (hn : n ≤ w) (hN : base w k ≤ N) :
+    IsClassical N (copyCodes n w k) := by
   refine IsClassical.flatMap fun j hj => fun g hg => ?_
   obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hg
   have hj : j < k := List.mem_range.mp hj
   have hi : i < n := List.mem_range.mp hi
-  have hlt := (block_lt (k := k) hj (show i < w by omega)).trans (base_lt_width (t := t))
-  have : 0 < (j + 1) * w := Nat.mul_pos (by omega) hw
+  have hlt := (block_lt (k := k) hj (show i < w by omega)).trans_le hN
+  have : 0 < (j + 1) * w := Nat.mul_pos (by omega) (by omega)
   refine ⟨rfl, by simp, ?_, ?_⟩
   · simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, List.nodup_nil,
       not_false_eq_true, and_true]
@@ -175,11 +178,13 @@ theorem isClassical_copyCodes (hn : n ≤ w) (hw : 0 < w) :
   · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
     omega
 
-/-- **The copy step puts the input in every block**, and leaves the other qubits unchanged. -/
-theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (width w k t) → Bool)
-    (hX : ∀ p, n ≤ p → readBit X p = false) (p : ℕ) :
+/-- In each copy block the CNOT gates XOR the first `n` source bits into the destination.
+All other bits retain their initial values. The destination may contain arbitrary data. -/
+theorem readBit_classicalRun_copyCodes {N : ℕ} (hn : n ≤ w) (hN : base w k ≤ N)
+    (X : Fin N → Bool) (p : ℕ) :
     readBit (classicalRun (copyCodes n w k) X) p =
-      if ∃ j < k, ∃ i < w, p = i + (j + 1) * w then readBit X (p % w) else readBit X p := by
+      if ∃ j < k, ∃ i < n, p = i + (j + 1) * w then
+        readBit X p ^^ readBit X (p % w) else readBit X p := by
   have hread : ∀ g ∈ copyCodes n w k, ∀ g' ∈ copyCodes n w k, g.2.1 ∉ g'.2.2 := by
     intro g hg g' hg'
     simp only [copyCodes, List.mem_flatMap, List.mem_map, List.mem_range] at hg hg'
@@ -188,7 +193,7 @@ theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (wid
     have : w ≤ (j + 1) * w := Nat.le_mul_of_pos_left w (by omega)
     simp only [List.mem_cons, List.not_mem_nil, or_false]
     omega
-  rw [readBit_classicalRun_of_forall_notMem (isClassical_copyCodes hn hw) hread, copyCodes,
+  rw [readBit_classicalRun_of_forall_notMem (isClassical_copyCodes hn hN) hread, copyCodes,
     List.foldl_flatMap]
   -- each block contributes the exclusive or of its copies of the input bits
   have hinner (b : Bool) (j : ℕ) :
@@ -204,25 +209,56 @@ theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (wid
       rw [foldl_xor_range n n _ _ fun i hi _ => by simp [hp' i hi]]
       simp [hp]
   simp only [hinner]
-  by_cases hp : ∃ j < k, ∃ i < w, p = i + (j + 1) * w
+  by_cases hp : ∃ j < k, ∃ i < n, p = i + (j + 1) * w
   · obtain ⟨j₀, hj₀, i₀, hi₀, rfl⟩ := hp
     rw [ite_eq_left ⟨j₀, hj₀, i₀, hi₀, rfl⟩, foldl_xor_range k j₀ _ _ fun j _ hne => ?_]
-    · have hw' : w ≤ (j₀ + 1) * w := Nat.le_mul_of_pos_left w (by omega)
-      rw [hX _ (by omega), Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hi₀]
-      by_cases hi : i₀ < n
-      · simp [hj₀, hi]
-      · simp [hj₀, hi, hX i₀ (by omega)]
-    · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]
-      left
-      rintro ⟨i, hi, h⟩
+    · simp [hj₀, hi₀]
+    · refine Bool.and_eq_false_iff.mpr (Or.inl (decide_eq_false fun ⟨i, hi, h⟩ => ?_))
       have hmod := congrArg (· / w) h
-      simp only [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt hi₀,
-        Nat.div_eq_of_lt (show i < w by omega)] at hmod
+      simp only [Nat.add_mul_div_right _ _ (by omega : 0 < w), Nat.div_eq_of_lt (hi₀.trans_le hn),
+        Nat.div_eq_of_lt (hi.trans_le hn)] at hmod
       omega
   · rw [ite_eq_right hp, foldl_xor_range k k _ _ fun j hj _ => ?_]
     · simp
-    · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]
-      exact Or.inl fun ⟨i, hi, h⟩ => hp ⟨j, hj, i, by omega, h⟩
+    · exact Bool.and_eq_false_iff.mpr
+        (Or.inl (decide_eq_false fun ⟨i, hi, h⟩ => hp ⟨j, hj, i, by omega, h⟩))
+
+/-- **After the copy step every block holds the input**: started from the input `x` of length
+`n ≤ m ≤ w`, the first `m` qubits of each block read `x`. -/
+theorem classicalRun_copyCodes_comp_block (hn : n ≤ m) (hm : m ≤ w) {x : List Bool}
+    (hx : x.length ≤ n) (j : Fin k) :
+    classicalRun (copyCodes n w k) (inputState (width w k t) x) ∘ block hm j =
+      inputState m x := by
+  funext i
+  have hiw := i.isLt.trans_le hm
+  have hbase : w ≤ (j + 1) * w := Nat.le_mul_of_pos_left _ (by omega)
+  have hz : readBit (inputState (width w k t) x) (i + (j + 1) * w) = false :=
+    readBit_inputState_of_le (by omega)
+  rw [Function.comp_apply, ← readBit_fin (classicalRun _ _), block_apply, blocks_apply_val,
+    readBit_classicalRun_copyCodes (hn.trans hm) base_lt_width.le, hz]
+  by_cases hi : (i : ℕ) < n
+  · rw [ite_eq_left ⟨j, j.isLt, i, hi, rfl⟩, Bool.false_xor, Nat.add_mul_mod_self_right,
+      Nat.mod_eq_of_lt hiw, readBit_inputState (hx.trans (hn.trans (hm.trans
+        (le_base.trans base_lt_width.le))))]
+    rfl
+  · rw [ite_eq_right]
+    · rw [← readBit_fin (inputState m x) i, readBit_inputState_of_le (by omega)]
+    · rintro ⟨j', _, i', hi', he⟩
+      have hmod := congrArg (· % w) he
+      simp only [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hiw,
+        Nat.mod_eq_of_lt (hi'.trans_le (hn.trans hm))] at hmod
+      omega
+
+/-- **The copy step keeps the counter's ancillas zero**: started from the input `x` of length
+`n ≤ w`, the qubits from `base w k` on read zero. -/
+theorem readBit_classicalRun_copyCodes_of_base_le (hn : n ≤ w) {x : List Bool}
+    (hx : x.length ≤ n) {c : ℕ} (hc : base w k ≤ c) :
+    readBit (classicalRun (copyCodes n w k) (inputState (width w k t) x)) c = false := by
+  have : w ≤ base w k := le_base
+  rw [readBit_classicalRun_copyCodes hn base_lt_width.le,
+    ite_eq_right, readBit_inputState_of_le (show x.length ≤ c by omega)]
+  rintro ⟨j, hj, i, hi, rfl⟩
+  exact absurd hc (not_le.mpr (block_lt hj (hi.trans_le hn)))
 
 theorem isClassical_counter_swap (hw : 0 < w) :
     IsClassical (width w k t) (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
@@ -252,21 +288,74 @@ theorem readBit_classicalRun_counter_swap (hw : 0 < w) (Y : Fin (width w k t) �
 
 /-! ### The parallel copies -/
 
-theorem ofCodes_copiesCodes {gs : List GateCode} (hgs : ∀ g ∈ gs, WellFormed w g) :
+theorem ofCodes_copiesCodes (hm : m ≤ w) {gs : List GateCode} (hgs : ∀ g ∈ gs, WellFormed m g) :
     Circuit.ofCodes (width w k t) (copiesCodes w k gs) =
-      ((List.finRange k).map block).flatMap (Circuit.mapWires · (Circuit.ofCodes w gs)) := by
+      ((List.finRange k).map (block hm)).flatMap (Circuit.mapWires · (Circuit.ofCodes m gs)) := by
   rw [copiesCodes, Circuit.ofCodes_flatMap, ← List.map_coe_finRange_eq_range, List.flatMap_map,
     List.flatMap_map]
   congr 1 with j : 1
   exact Circuit.ofCodes_map_shift _ hgs
 
-theorem pairwise_block :
-    ((List.finRange k).map (block (w := w) (t := t))).Pairwise
+theorem pairwise_block (hm : m ≤ w) :
+    ((List.finRange k).map (block (t := t) hm)).Pairwise
       fun e e' => ∀ i i', e i ≠ e' i' := by
   rw [List.pairwise_map]
   refine (List.nodup_finRange _).imp fun {j j'} hjj' i i' h => hjj' ?_
   rw [block_apply, block_apply] at h
-  exact congrArg Prod.fst ((blocks w k t).injective h)
+  exact congrArg Prod.fst ((blocks w k t hm).injective h)
+
+/-! ### The threshold measurement -/
+
+/-- **The threshold measurement**: on a register that is zero from the counter on, the counter and
+the swap accept exactly when more than `t` of the blocks' first qubits are one. So summing a
+function of the blocks' contents over the accepted outcomes that agree with `X` off the blocks is
+summing it over the blocks' contents with more than `t` ones among their first qubits. -/
+theorem sum_accepting_counter_swap (hm : m ≤ w) (hm0 : 0 < m) {X : Fin (width w k t) → Bool}
+    (hX : ∀ c, base w k ≤ c → readBit X c = false) {M : Type*} [AddCommMonoid M]
+    (F : (Fin k → Fin m → Bool) → M) :
+    ∑ Y, (if classicalRun (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
+        swapCodes (answer w k t)) Y ∈ accepting (width w k t) then
+        (if AgreeOff (blocks w k t hm) Y X then F (fun j => Y ∘ block (t := t) hm j) else 0)
+        else 0) =
+      ∑ u : Fin k → Fin m → Bool with t < (univ.filter fun j => u j ⟨0, hm0⟩ = true).card,
+        F u := by
+  have hw : 0 < w := lt_of_lt_of_le hm0 hm
+  rw [sum_filter]
+  refine Eq.trans ?_ (Fintype.sum_equiv (Equiv.curry (Fin k) (Fin m) Bool) _ _ fun z => rfl)
+  refine Eq.trans (sum_congr rfl fun Y _ => ?_) (sum_agreeOff_comp (blocks w k t hm) X _)
+  by_cases hY : AgreeOff (blocks w k t hm) Y X
+  · have hYhigh (c : ℕ) (hc : base w k ≤ c) : readBit Y c = false := by
+      rw [← hX c hc]
+      by_cases hcN : c < width w k t
+      · rw [readBit_of_lt _ hcN, readBit_of_lt _ hcN]
+        refine hY _ fun q h => ?_
+        have h' : (q.2 : ℕ) + (q.1 + 1) * w = c := congrArg Fin.val h
+        have := block_lt (k := k) q.1.2 (lt_of_lt_of_le q.2.2 hm)
+        omega
+      · rw [readBit_of_le _ (not_lt.mp hcN), readBit_of_le _ (not_lt.mp hcN)]
+    have hbit (j : Fin k) : readBit Y ((j + 1) * w) = (Y ∘ blocks w k t hm) (j, ⟨0, hm0⟩) := by
+      rw [Function.comp_apply, ← readBit_fin Y (blocks w k t hm (j, ⟨0, hm0⟩)), blocks_apply_val]
+      simp only [Nat.zero_add]
+    have hcount : Counter.count Y (fun s => (s + 1) * w) k =
+        (univ.filter fun j : Fin k => (Y ∘ blocks w k t hm) (j, ⟨0, hm0⟩) = true).card := by
+      unfold Counter.count
+      rw [← card_map Fin.valEmbedding]
+      congr 1
+      ext s
+      simp only [mem_filter, mem_range, mem_map, mem_univ, true_and, Fin.valEmbedding_apply,
+        Function.comp_apply]
+      exact ⟨fun ⟨hs, h⟩ => ⟨⟨s, hs⟩, (hbit ⟨s, hs⟩).symm.trans h, rfl⟩,
+        fun ⟨j, h, hj⟩ => hj ▸ ⟨j.2, (hbit j).trans h⟩⟩
+    have hacc : (classicalRun (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
+        swapCodes (answer w k t)) Y ∈ accepting (width w k t)) ↔
+        t < (univ.filter fun j : Fin k => (Y ∘ blocks w k t hm) (j, ⟨0, hm0⟩) = true).card := by
+      have h0 : 0 < width w k t := (lt_of_lt_of_le hw le_base).trans base_lt_width
+      rw [mem_accepting h0, ← readBit_fin (classicalRun _ Y) (⟨0, h0⟩ : Fin (width w k t))]
+      change readBit _ 0 = true ↔ _
+      rw [readBit_classicalRun_counter_swap hw Y hYhigh, hcount, decide_eq_true_iff]
+    simp only [hY, ite_true]
+    exact if_congr hacc rfl rfl
+  · simp [hY]
 
 end Amplify
 
@@ -300,44 +389,20 @@ theorem acceptProb_threshold_codes {n w k t : ℕ} {gs : List GateCode} (hw : 0 
   set C := Circuit.ofCodes w gs
   set a : (Fin w → Bool) → ℂ := fun z => (Circuit.run C (inputState w x)).ofLp z
   set X := classicalRun (copyCodes n w k) (inputState N x) with hXdef
-  have hgetD (p : ℕ) (hp : n ≤ p) : x.getD p false = false := by
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
-    rfl
-  have hwN : w ≤ N := by
-    have := base_lt_width (w := w) (k := k) (t := t)
-    have : w ≤ base w k := le_base
-    omega
-  have hX₀ (p : ℕ) : readBit (inputState N x) p = x.getD p false := by
-    by_cases hp : p < N
-    · rw [readBit_of_lt _ hp]
-      rfl
-    · rw [readBit_of_le _ (not_lt.mp hp), hgetD]
-      omega
-  have hXbit (p : ℕ) := readBit_classicalRun_copyCodes (k := k) (t := t) hn hw (inputState N x)
-    (fun p hp => by rw [hX₀, hgetD p hp]) p
   -- the copy step puts the input in every block and keeps zeros from the counter on
-  have hXblock (j : Fin k) : X ∘ block (t := t) j = inputState w x := by
-    funext i
-    have h := hXbit (i + (j + 1) * w)
-    rw [ite_eq_left ⟨j, j.2, i, i.2, rfl⟩, Nat.add_mul_mod_self_right,
-      Nat.mod_eq_of_lt i.2, hX₀] at h
-    rw [Function.comp_apply, show X (block j i) = readBit X (block j i) from
-      (readBit_fin _ _).symm, block_apply, blocks_apply_val, h]
-    rfl
-  have hXhigh (p : ℕ) (hp : base w k ≤ p) : readBit X p = false := by
-    rw [hXbit, ite_eq_right, hX₀, hgetD]
-    · have : w ≤ base w k := le_base
-      omega
-    · rintro ⟨j, hj, i, hi, rfl⟩
-      exact absurd hp (not_le.mpr (block_lt hj hi))
+  have hXblock (j : Fin k) : X ∘ block (t := t) (le_refl w) j = inputState w x :=
+    classicalRun_copyCodes_comp_block hn le_rfl hx.le j
+  have hXhigh (p : ℕ) (hp : base w k ≤ p) : readBit X p = false :=
+    readBit_classicalRun_copyCodes_of_base_le hn hx.le hp
   -- the amplitudes of the copies are products
   have hamp (Y : Fin N → Bool) :
       (Circuit.eval (Circuit.ofCodes N (copiesCodes w k gs)) (ket X)).ofLp Y =
-        if AgreeOff (blocks w k t) Y X then ∏ j, a (Y ∘ block (t := t) j) else 0 := by
-    rw [Circuit.eval_ket_apply, ofCodes_copiesCodes hgs,
-      Circuit.matrix_flatMap_mapWires _ _ pairwise_block]
-    have hcond : (∀ p, (∀ e ∈ (List.finRange k).map (block (t := t)), ∀ i, e i ≠ p) →
-        Y p = X p) ↔ AgreeOff (blocks w k t) Y X := by
+        if AgreeOff (blocks w k t le_rfl) Y X then
+          ∏ j, a (Y ∘ block (t := t) (le_refl w) j) else 0 := by
+    rw [Circuit.eval_ket_apply, ofCodes_copiesCodes le_rfl hgs,
+      Circuit.matrix_flatMap_mapWires _ _ (pairwise_block le_rfl)]
+    have hcond : (∀ p, (∀ e ∈ (List.finRange k).map (block (t := t) (le_refl w)),
+        ∀ i, e i ≠ p) → Y p = X p) ↔ AgreeOff (blocks w k t le_rfl) Y X := by
       simp only [List.mem_map, List.mem_finRange, true_and, forall_exists_index,
         forall_apply_eq_imp_iff, AgreeOff, Prod.forall, block_apply]
     rw [if_congr hcond rfl rfl, List.map_map, ← Fin.prod_univ_def]
@@ -347,65 +412,16 @@ theorem acceptProb_threshold_codes {n w k t : ℕ} {gs : List GateCode} (hw : 0 
   -- the acceptance probability as a sum over the blocks' outcomes
   unfold acceptProb
   rw [codes, Circuit.ofCodes_append, Circuit.ofCodes_append, Circuit.run, Circuit.eval_append,
-    Circuit.eval_append, Circuit.eval_ofCodes_ket (isClassical_copyCodes hn hw),
+    Circuit.eval_append, Circuit.eval_ofCodes_ket (isClassical_copyCodes hn base_lt_width.le),
     Circuit.measureProb_eval_ofCodes (isClassical_counter_swap hw), ← hXdef]
-  simp only [hamp]
-  have hterm (Y : Fin N → Bool) :
-      (if classicalRun (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
-          swapCodes (answer w k t)) Y ∈ accepting N then
-        ‖(if AgreeOff (blocks w k t) Y X then ∏ j, a (Y ∘ block (t := t) j) else 0)‖ ^ 2
-        else 0) =
-      if AgreeOff (blocks w k t) Y X then
-        (if t < (univ.filter fun j : Fin k => (Y ∘ blocks w k t) (j, ⟨0, hw⟩) = true).card
-          then (1 : ℝ) else 0) * ∏ j, ‖a (fun i => (Y ∘ blocks w k t) (j, i))‖ ^ 2
-      else 0 := by
-    by_cases hY : AgreeOff (blocks w k t) Y X
-    · have hYhigh (p : ℕ) (hp : base w k ≤ p) : readBit Y p = false := by
-        rw [← hXhigh p hp]
-        by_cases hpN : p < N
-        · rw [readBit_of_lt _ hpN, readBit_of_lt _ hpN]
-          refine hY _ fun q h => ?_
-          have := congrArg Fin.val h
-          simp only [blocks_apply_val] at this
-          exact absurd hp (not_le.mpr (this ▸ block_lt q.1.2 q.2.2))
-        · rw [readBit_of_le _ (not_lt.mp hpN), readBit_of_le _ (not_lt.mp hpN)]
-      have hbit (j : Fin k) : readBit Y ((j + 1) * w) = (Y ∘ blocks w k t) (j, ⟨0, hw⟩) := by
-        rw [Function.comp_apply, ← readBit_fin Y (blocks w k t (j, ⟨0, hw⟩)), blocks_apply_val]
-        simp only [Nat.zero_add]
-      have hcount : Counter.count Y (fun s => (s + 1) * w) k =
-          (univ.filter fun j : Fin k => (Y ∘ blocks w k t) (j, ⟨0, hw⟩) = true).card := by
-        unfold Counter.count
-        rw [← card_map Fin.valEmbedding]
-        congr 1
-        ext s
-        simp only [mem_filter, mem_range, mem_map, mem_univ, true_and, Fin.valEmbedding_apply,
-          Function.comp_apply]
-        constructor
-        · rintro ⟨hs, h⟩
-          exact ⟨⟨s, hs⟩, (hbit ⟨s, hs⟩).symm.trans h, rfl⟩
-        · rintro ⟨j, h, rfl⟩
-          exact ⟨j.2, (hbit j).trans h⟩
-      have hacc : (classicalRun (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
-          swapCodes (answer w k t)) Y ∈ accepting N) ↔
-          t < (univ.filter fun j : Fin k => (Y ∘ blocks w k t) (j, ⟨0, hw⟩) = true).card := by
-        have h0 : 0 < N := by have := base_lt_width (w := w) (k := k) (t := t); omega
-        rw [mem_accepting h0, ← readBit_fin (classicalRun _ Y) (⟨0, h0⟩ : Fin N)]
-        change readBit _ 0 = true ↔ _
-        rw [readBit_classicalRun_counter_swap hw Y hYhigh, hcount, decide_eq_true_iff]
-      simp only [hY, ite_true, hacc, norm_prod, ← prod_pow]
-      split_ifs <;> simp [block_apply, Function.comp_def]
-    · simp [hY]
-  simp only [hterm]
-  rw [sum_agreeOff_comp (blocks w k t) X fun z =>
-    (if t < (univ.filter fun j : Fin k => z (j, ⟨0, hw⟩) = true).card then (1 : ℝ) else 0) *
-      ∏ j, ‖a (fun i => z (j, i))‖ ^ 2]
-  rw [Fintype.sum_equiv (Equiv.curry (Fin k) (Fin w) Bool) (fun z =>
-    (if t < (univ.filter fun j => z (j, ⟨0, hw⟩) = true).card then (1 : ℝ) else 0) *
-      ∏ j, ‖a (fun i => z (j, i))‖ ^ 2) (fun y =>
-    (if t < (univ.filter fun j => y j ⟨0, hw⟩ = true).card then (1 : ℝ) else 0) *
-      ∏ j, ‖a (y j)‖ ^ 2) fun z => rfl]
-  refine (sum_mul_prod_fiberwise (fun z : Fin w → Bool => z ⟨0, hw⟩) (fun z => ‖a z‖ ^ 2)
-    fun b => if t < (univ.filter fun j => b j = true).card then (1 : ℝ) else 0).trans ?_
+  have hnorm (Y : Fin N → Bool) :
+      ‖(if AgreeOff (blocks w k t le_rfl) Y X then
+        ∏ j, a (Y ∘ block (t := t) (le_refl w) j) else 0)‖ ^ 2 =
+      if AgreeOff (blocks w k t le_rfl) Y X then
+        ∏ j, ‖a (Y ∘ block (t := t) (le_refl w) j)‖ ^ 2 else 0 := by
+    split_ifs <;> simp [norm_prod, ← prod_pow]
+  simp only [hamp, hnorm]
+  rw [sum_accepting_counter_swap le_rfl hw hXhigh fun u => ∏ j, ‖a (u j)‖ ^ 2]
   -- the outcome probabilities of one copy
   have hone : ∑ z, ‖a z‖ ^ 2 = 1 := by
     rw [← measureProb, measureProb_univ, Circuit.norm_run, one_pow]
@@ -420,13 +436,12 @@ theorem acceptProb_threshold_codes {n w k t : ℕ} {gs : List GateCode} (hw : 0 
     rw [← hone, ← htrue, ← sum_filter_add_sum_filter_not univ (fun z : Fin w → Bool =>
       z ⟨0, hw⟩ = true)]
     simp
-  rw [sum_filter]
-  refine sum_congr rfl fun b _ => ?_
-  rw [ite_mul, one_mul, zero_mul]
-  refine if_congr Iff.rfl (prod_congr rfl fun j _ => ?_) rfl
+  have h := sum_mul_prod_fiberwise (k := k) (fun z : Fin w → Bool => z ⟨0, hw⟩)
+    (fun z => ‖a z‖ ^ 2) fun b => if t < (univ.filter fun j => b j = true).card then (1 : ℝ) else 0
+  simp only [boole_mul, ← sum_filter] at h
+  refine h.trans (sum_congr rfl fun b _ => prod_congr rfl fun j _ => ?_)
   cases b j
-  · exact hfalse
-  · exact htrue
+  exacts [hfalse, htrue]
 
 namespace Amplify
 
@@ -483,7 +498,7 @@ theorem computableInPolyTime_codes {n w k t : γ → ℕ} {gs : γ → List Gate
   have h₃ := computableInPolyTime_counter hw hk ht
   have h₄ : ComputableInPolyTime (fun c => swapCodes (answer (w c) (k c) (t c))) enc
       (encList encGateCode) := by
-    simp only [swapCodes, answer, Counter.level, base]
+    simp only [swapCodes, swapWireCodes, answer, Counter.level, base]
     fun_prop
   unfold codes
   fun_prop
@@ -518,7 +533,7 @@ def threshold (F : UniformCircuitFamily) (k t : ℕ → ℕ)
   wellFormed n g hg := by
     have hw := F.width_pos n
     rcases List.mem_append.mp hg with hg | hg
-    · exact (isClassical_copyCodes (F.le_width n) hw g hg).2
+    · exact (isClassical_copyCodes (F.le_width n) base_lt_width.le g hg).2
     rcases List.mem_append.mp hg with hg | hg
     · obtain ⟨j, hj, hg⟩ := List.mem_flatMap.mp hg
       obtain ⟨g, hg', rfl⟩ := List.mem_map.mp hg

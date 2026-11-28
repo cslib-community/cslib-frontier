@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.Permanent
+import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 
 /-!
 # The permanent of a 0/1 matrix
@@ -17,9 +18,17 @@ The permanent of a matrix `A : Matrix n n ℕ` whose entries are all at most `1`
 permutations `σ` with `A i (σ i) = 1` for every `i`, that is, the number of perfect matchings of
 the bipartite graph whose edges are the one-entries of `A`.
 
+Boolean permutation matrices supported in an arbitrary relation are counted by the permutations
+respecting that relation (`Matrix.card_filter_isPermMatrix`).
+
 ## Main results
 
 * `Matrix.permanent_eq_card_filter_of_le_one`: the permanent of a 0/1 matrix counts permutations.
+* `Matrix.card_filter_isPermMatrix`: Boolean permutation matrices supported in a relation are as
+  many as the permutations along it.
+* `Matrix.permanent_ne_zero_iff_of_nonneg`: a matrix with nonnegative entries has a nonzero
+  permanent exactly when some permutation runs along nonzero entries, that is, when the bipartite
+  graph of its support has a perfect matching.
 -/
 
 public section
@@ -27,6 +36,44 @@ public section
 open Finset
 
 namespace Matrix
+
+section
+
+variable {n : ℕ}
+
+/-- **Boolean permutation matrices count permutations.** The Boolean `n × n` matrices with a
+`true` entry in every row, at most one in every row and column, and `true` entries only where
+`r` holds, are as many as the permutations `σ` with `r i (σ i)` for every `i`. -/
+theorem card_filter_isPermMatrix (r : Fin n → Fin n → Prop) [∀ i j, Decidable (r i j)] :
+    (Finset.univ.filter fun M : Fin n → Fin n → Bool =>
+        (∀ i, ∃ j, M i j = true) ∧ (∀ i j k, M i j = true → M i k = true → j = k) ∧
+          (∀ i k j, M i j = true → M k j = true → i = k) ∧
+            ∀ i j, M i j = true → r i j).card =
+      (Finset.univ.filter fun σ : Equiv.Perm (Fin n) => ∀ i, r i (σ i)).card := by
+  classical
+  symm
+  refine Finset.card_bij (fun σ _ i j => decide (σ i = j)) (fun σ hσ => ?_)
+    (fun σ _ τ _ h => ?_) (fun M hM => ?_)
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hσ ⊢
+    refine ⟨fun i => ⟨σ i, rfl⟩, fun i j k hj hk => hj ▸ hk, fun i k j hi hk => ?_,
+      fun i j h => h ▸ hσ i⟩
+    exact σ.injective (hi.trans hk.symm)
+  · exact Equiv.ext fun i => by simpa [eq_comm] using congrFun (congrFun h i) (σ i)
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hM
+    obtain ⟨hrow, huniq, hcol, hsupp⟩ := hM
+    choose f hf using hrow
+    have hinj : Function.Injective f := fun i k h => hcol i k (f i) (hf i) (h ▸ hf k)
+    let σ : Equiv.Perm (Fin n) := Equiv.ofBijective f (Finite.injective_iff_bijective.mp hinj)
+    refine ⟨σ, ?_, ?_⟩
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact fun i => hsupp i (f i) (hf i)
+    funext i j
+    change decide (f i = j) = M i j
+    cases h : M i j
+    · exact decide_eq_false fun hfj => by simp [← hfj, hf i] at h
+    · exact decide_eq_true (huniq i (f i) j (hf i) h)
+
+end
 
 variable {n : Type*} [Fintype n] [DecidableEq n]
 
@@ -39,5 +86,16 @@ theorem permanent_eq_card_filter_of_le_one {A : Matrix n n ℕ} (hA : ∀ i j, A
   · exact prod_eq_one fun i _ => h i
   · obtain ⟨i, hi⟩ := not_forall.1 h
     exact prod_eq_zero (mem_univ i) (by have := hA i (σ i); simp only [transpose_apply]; omega)
+
+/-- **The permanent of a nonnegative matrix is nonzero exactly on its support's matchings.** Over
+an ordered semiring without zero divisors, a matrix with nonnegative entries has a nonzero
+permanent exactly when some permutation `σ` has `A i (σ i) ≠ 0` for every `i`. -/
+theorem permanent_ne_zero_iff_of_nonneg {R : Type*} [CommSemiring R] [PartialOrder R]
+    [IsOrderedRing R] [NoZeroDivisors R] [Nontrivial R] {A : Matrix n n R}
+    (hA : ∀ i j, 0 ≤ A i j) : A.permanent ≠ 0 ↔ ∃ σ : Equiv.Perm n, ∀ i, A i (σ i) ≠ 0 := by
+  rw [← permanent_transpose, permanent]
+  simp only [transpose_apply]
+  rw [Ne, sum_eq_zero_iff_of_nonneg fun σ _ => prod_nonneg fun i _ => hA _ _]
+  simp [prod_eq_zero_iff]
 
 end Matrix

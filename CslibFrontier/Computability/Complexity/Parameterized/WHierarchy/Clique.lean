@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -63,23 +64,27 @@ open Circuits Circuits.Boolean Circuits.Boolean.Unbounded Turing.MultiTapeTM
 
 /-! ### Polynomial time -/
 
-/-- The data of an instance: the number of inputs, the code of the circuit, and the weight. -/
-private abbrev RawIn : Type := (ℕ × (List (Unbounded.Op × List ℕ) × List ℕ)) × ℕ
+/-- Binary encoding of wire-value claim lists, with wires in unary. -/
+abbrev encClaimList : List (ℕ × Bool) ↪ List Bool :=
+  encList (encPair encUnary encBool)
 
-/-- The encoding of the data of an instance, which is that of the instance. -/
-private abbrev encRaw : RawIn ↪ List Bool :=
-  encPair (encPair encUnary (Circuit.encCode Unbounded.encOp)) encNat
+/-- Binary encoding of bracket pair lists, with indices and positions in unary. -/
+abbrev encBracket : List (ℕ × ℕ) ↪ List Bool :=
+  encList (encPair encUnary encUnary)
 
 /-- The encoding of vertices, with wires, indices and positions in unary. -/
-private abbrev encVertex : Vertex ↪ List Bool :=
-  encPair encBool (encPair (encList (encPair encUnary encBool))
-    (encList (encPair encUnary encUnary)))
+enc_structure encVertex : Vertex where
+  isCert : encBool, claims : encClaimList, bracket : encBracket
 
 section
 
 variable {γ : Type} {encIn : γ ↪ List Bool}
 
+attribute [local fun_prop] computableInPolyTime_know computableInPolyTime_consistent
+  WeftOne.computableInPolyTime_claimsValid
+
 /-- Listing the wire-value pairs is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_claimUniverse {n L : γ → ℕ}
     (hn : ComputableInPolyTime n encIn encUnary) (hL : ComputableInPolyTime L encIn encUnary) :
     ComputableInPolyTime (fun a => claimUniverse (n a) (L a)) encIn
@@ -103,13 +108,10 @@ private theorem computableInPolyTime_certs (d : ℕ) {n o : γ → ℕ}
     (ho : ComputableInPolyTime o encIn encNat) :
     ComputableInPolyTime (fun a => certs d (n a) (gates a) (o a)) encIn
       (encList (encList (encPair encUnary encBool))) := by
-  have hL : ComputableInPolyTime (fun a => (gates a).length) encIn encUnary := by fun_prop
-  have hU := ComputableInPolyTime.listsUpTo (computableInPolyTime_claimUniverse hn hL) (2 ^ d)
+  have hU := ComputableInPolyTime.listsUpTo
+    (computableInPolyTime_claimUniverse (L := fun a => (gates a).length) hn (by fun_prop)) (2 ^ d)
   unfold certs
-  refine ComputableInPolyTime.filterWithInput hU ?_
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encList (encPair encUnary encBool)))
-  exact WeftOne.computableInPolyTime_claimsValid d (hn.comp hp.fst') (hg.comp hp.fst')
-    (ho.comp hp.fst') hp.snd'
+  polytime
 
 /-- Listing the brackets is polynomial-time for a fixed depth. -/
 private theorem computableInPolyTime_brackets (d : ℕ) {n kk : γ → ℕ}
@@ -125,15 +127,13 @@ private theorem computableInPolyTime_indexLists (d : ℕ) {kk : γ → ℕ}
   ComputableInPolyTime.listsUpTo (by fun_prop) _
 
 /-- The partial input of a bracket is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_knowList {n kk : γ → ℕ} {P : γ → List (ℕ × ℕ)}
     (hn : ComputableInPolyTime n encIn encUnary) (hkk : ComputableInPolyTime kk encIn encUnary)
     (hP : ComputableInPolyTime P encIn (encList (encPair encUnary encUnary))) :
     ComputableInPolyTime (fun a => knowList (n a) (kk a) (P a)) encIn
       (encList (encOption encBool)) := by
-  unfold knowList
-  refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn encUnary)
-  exact computableInPolyTime_know (hkk.comp hp.fst') (hP.comp hp.fst') hp.snd'
+  polytime [knowList]
 
 /-- Comparing with a negated value, as a decidable equality. -/
 private theorem beq_some_not_eq (v : Option Bool) (b : Bool) :
@@ -141,6 +141,7 @@ private theorem beq_some_not_eq (v : Option Bool) (b : Bool) :
   cases b <;> exact Bool.beq_eq_decide_eq _ _
 
 /-- Refutation is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_refutes {n kk : γ → ℕ}
     {gates : γ → List (Unbounded.Op × List ℕ)}
     {cl : γ → List (ℕ × Bool)} {P : γ → List (ℕ × ℕ)}
@@ -152,24 +153,19 @@ private theorem computableInPolyTime_refutes {n kk : γ → ℕ}
       encBool := by
   unfold refutes
   simp only [beq_some_not_eq]
-  have hchecks := WeftOne.computableInPolyTime_checks hn hg hcl
-  have hK := computableInPolyTime_kleeneEval (computableInPolyTime_knowList hn hkk hP) hg
-  refine ComputableInPolyTime.anyWithInput hchecks ?_
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encNat encBool))
-  have hval := ComputableInPolyTime.listGetD_binary (encA := encOption encBool) none
-    (hK.comp hp.fst') hp.snd'.fst'
-  have hrhs : ComputableInPolyTime
-      (fun q : γ × (ℕ × Bool) => if q.2.2 then some false else some true) _
-      (encOption encBool) :=
-    ComputableInPolyTime.ite' hp.snd'.snd' (ComputableInPolyTime.const _)
-      (ComputableInPolyTime.const _)
-  exact ComputableInPolyTime.decide_eq' hval hrhs
+  refine ComputableInPolyTime.anyWithInput (WeftOne.computableInPolyTime_checks hn hg hcl) ?_
+  have hval := ComputableInPolyTime.listGetD_binary
+    (encIn := encPair encIn (encPair encNat encBool)) (encA := encOption encBool)
+    (encL := encList (encOption encBool)) (i := fun p => p.2.1) none
+    ((computableInPolyTime_kleeneEval (computableInPolyTime_knowList hn hkk hP) hg).comp
+      (ComputableInPolyTime.fst _ _)) (by fun_prop)
+  polytime
 
 /-- The adjacency, with the list inequality as a decidable equality. -/
 private theorem vadj_eq (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (v w : Vertex) :
-    vadj n kk gates v w = if v.1 then !w.1 && !refutes n kk gates v.2.1 w.2.2
-      else !w.1 && !decide (v.2.2.map Prod.fst = w.2.2.map Prod.fst) &&
-        consistent v.2.2 w.2.2 := by
+    vadj n kk gates v w = if v.isCert then !w.isCert && !refutes n kk gates v.claims w.bracket
+      else !w.isCert && !decide (v.bracket.map Prod.fst = w.bracket.map Prod.fst) &&
+        consistent v.bracket w.bracket := by
   unfold vadj bne
   rw [Bool.beq_eq_decide_eq]
 
@@ -179,21 +175,9 @@ private theorem computableInPolyTime_vadj {n kk : γ → ℕ} {gates : γ → Li
     (hg : ComputableInPolyTime gates encIn (encList (Circuit.encGate encOp))) :
     ComputableInPolyTime (fun p : γ × (Vertex × Vertex) => vadj (n p.1) (kk p.1) (gates p.1)
       p.2.1 p.2.2) (encPair encIn (encPair encVertex encVertex)) encBool := by
+  open scoped Vertex in
   simp only [vadj_eq]
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encVertex encVertex))
-  have hv := hp.snd'.fst'
-  have hw := hp.snd'.snd'
-  have href := computableInPolyTime_refutes (hn.comp hp.fst') (hkk.comp hp.fst')
-    (hg.comp hp.fst') hv.snd'.fst' hw.snd'.snd'
-  have hcons := computableInPolyTime_consistent hv.snd'.snd' hw.snd'.snd'
-  have hfst : ∀ {f : γ × (Vertex × Vertex) → List (ℕ × ℕ)},
-      ComputableInPolyTime f (encPair encIn (encPair encVertex encVertex))
-        (encList (encPair encUnary encUnary)) →
-      ComputableInPolyTime (fun q => (f q).map Prod.fst)
-        (encPair encIn (encPair encVertex encVertex)) (encList encUnary) := fun hf => by
-    fun_prop
-  have heq := ComputableInPolyTime.decide_eq' (hfst hv.snd'.snd') (hfst hw.snd'.snd')
-  fun_prop
+  polytime
 
 /-- Listing the vertices is polynomial-time for a fixed depth. -/
 private theorem computableInPolyTime_vertices (d : ℕ) {n kk o : γ → ℕ}
@@ -239,15 +223,9 @@ end
 theorem size_le (d n k : ℕ) : size d n k ≤ (k + 1) ^ 2 ^ (d + 1) + 1 := by
   have hlen := List.length_listsUpTo_le (List.range (min (n + 1) k)) (2 ^ (d + 1))
   rw [List.length_range] at hlen
-  have hpow : (min (n + 1) k + 1) ^ 2 ^ (d + 1) ≤ (k + 1) ^ 2 ^ (d + 1) :=
-    Nat.pow_le_pow_left (by omega) _
+  have := Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.min_le_right (n + 1) k) 1) (2 ^ (d + 1))
   unfold size indexLists
   omega
-
-/-- The output wire of a one-output circuit is the first entry of the outputs of its code. -/
-private theorem getD_code_outputs {n : ℕ} (c : Circuit Unbounded.signature n 1) :
-    c.code.2.getD 0 0 = (c.outputs 0).toNat := by
-  simp [Circuit.code]
 
 end Cslib.Complexity.WCS.ToClique
 
@@ -257,58 +235,48 @@ open Circuits Circuits.Boolean Circuits.Boolean.Unbounded Turing.MultiTapeTM WCS
 
 /-- **The graph construction is polynomial-time** for every fixed depth `d`. -/
 theorem WCS.computableInPolyTime_toClique (d : ℕ) :
-    ComputableInPolyTime (toClique (d := d)) (encWCS 1 d) (encPair encGraph encNat) := by
-  have hn : ComputableInPolyTime (fun x : RawIn => x.1.1) encRaw encUnary := by fun_prop
-  have hg : ComputableInPolyTime (fun x : RawIn => x.1.2.1) encRaw
-      (encList (Circuit.encGate encOp)) := by fun_prop
-  have ho : ComputableInPolyTime (fun x : RawIn => x.1.2.2.getD 0 0) encRaw encNat := by
-    fun_prop
-  have hk : ComputableInPolyTime (fun x : RawIn => x.2) encRaw encNat := by fun_prop
-  have hraw : ComputableInPolyTime
-      (fun x : RawIn => (graph d x.1.1 x.1.2.1 (x.1.2.2.getD 0 0) x.2, size d x.1.1 x.2))
-      encRaw (encPair encGraph encNat) :=
-    (computableInPolyTime_graph d hn hg ho hk).prod (computableInPolyTime_size d hn hk)
-  have hpre : ComputableInPolyTime
-      (fun x : WeftCircuit 1 d × ℕ => (((x.1.1.1, x.1.1.2.code), x.2) : RawIn))
-      (encWCS 1 d) encRaw :=
-    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
-  have heq : (toClique (d := d)) = fun x : WeftCircuit 1 d × ℕ =>
-      (graph d x.1.1.1 x.1.1.2.code.1 (x.1.1.2.code.2.getD 0 0) x.2, size d x.1.1.1 x.2) := by
+    ComputableInPolyTime (toClique (d := d)) (encWCS 1 d) encCliqueInstance := by
+  have hwc := encWCS_circuit_polyTime (t := 1) (d := d) .id'
+  have hn := WeftCircuit.computableInPolyTime_numInputs hwc
+  have hg := WeftCircuit.computableInPolyTime_gates hwc
+  have houts := WeftCircuit.computableInPolyTime_outputs hwc
+  have hk := encWCS_weight_polyTime (t := 1) (d := d) .id'
+  have heq : (toClique (d := d)) = fun x : WCSInstance 1 d =>
+      ⟨graph d x.circuit.toCircuit.1 x.circuit.toCircuit.2.code.1
+        (x.circuit.toCircuit.2.code.2.getD 0 0) x.weight,
+        size d x.circuit.toCircuit.1 x.weight⟩ := by
     funext x
-    rw [getD_code_outputs]
-    rfl
-  have h := hraw.comp hpre
+    simp [WCS.toClique, Circuit.code]
   rw [heq]
-  exact h
+  exact encCliqueInstance_mk_polyTime
+    (computableInPolyTime_graph d hn hg (by fun_prop) hk)
+    (computableInPolyTime_size d hn hk)
 
 /-- **Weighted satisfiability of circuits of weft at most `1` and depth at most `d` fpt-reduces to
 `Clique`**, by a polynomial-time reduction that bounds the clique size by
 `(k + 1) ^ 2 ^ (d + 1) + 1`. -/
 theorem WCS.fptReducible_Clique (d : ℕ) :
-    FPTReducible (encWCS 1 d) (encPair encGraph encNat) Prod.snd Prod.snd (WCS 1 d) Clique :=
+    FPTReducible (encWCS 1 d) encCliqueInstance WCSInstance.weight (·.m)
+      (WCS 1 d) Clique :=
   FPTReducible.of_computableInPolyTime (computableInPolyTime_toClique d)
     (h := fun k => (k + 1) ^ 2 ^ (d + 1) + 1) (fun _ => size_le d _ _)
     fun x => (toClique_mem_Clique_iff x).symm
 
 /-- **`Clique` is `W[1]`-hard** [Cygan et al., Chapter 13][CyganEtAl2015] [DowneyFellows1999]. -/
-theorem Clique_wHard : WHard 1 (encPair encGraph encNat) Prod.snd Clique :=
+theorem Clique_wHard : WHard 1 encCliqueInstance (·.m) Clique :=
   wHard_iff.2 WCS.fptReducible_Clique
 
 /-- **`IndependentSet` is `W[1]`-hard** [Cygan et al., Chapter 13][CyganEtAl2015], by
 complementing the graph. -/
-theorem IndependentSet_wHard : WHard 1 (encPair encGraph encNat) Prod.snd IndependentSet :=
-  Clique_wHard.fptReducible fptReducible_Clique_IndependentSet
+theorem IndependentSet_wHard : WHard 1 encIndependentSetInstance (·.m) IndependentSet :=
+  Clique_wHard.trans fptReducible_Clique_IndependentSet
 
 /-- **`W[1] = FPT` exactly when `Clique` is in `FPT`**, for every problem type, encoding and
 parameter. -/
 theorem W_one_eq_FPT_iff :
     (∀ ⦃α : Type⦄ (enc : α ↪ List Bool) (κ : α → ℕ), W 1 enc κ = FPT enc κ) ↔
-      Clique ∈ FPT (encPair encGraph encNat) Prod.snd := by
-  constructor
-  · intro h
-    rw [← h]
-    exact Clique_mem_W
-  · intro h α enc κ
-    exact Set.Subset.antisymm (Clique_wHard.subset_FPT h) (FPT_subset_W 1)
+      Clique ∈ FPT encCliqueInstance (·.m) :=
+  ⟨fun h => h _ _ ▸ Clique_mem_W,
+    fun h _ _ _ => Set.Subset.antisymm (Clique_wHard.subset_FPT h) (FPT_subset_W 1)⟩
 
 end Cslib.Complexity

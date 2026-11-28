@@ -97,7 +97,7 @@ theorem walk_pow_sliceGraph_lazy_ofPerms_eq [Nonempty K] [NeZero L] (hL : L ≤ 
   | succ t ih =>
     have hfun : ((sliceGraph L hL y (ofPerms fun k ↦ coordMove (σ k).1 (σ k).2).lazy).walk ^ t)
         (fun B ↦ f B.1) = fun B ↦ (validatedStep L σ Z y)^[t] f B.1 := funext ih
-    rw [pow_succ', Module.End.mul_apply, hfun, Function.iterate_succ_apply']
+    rw [pow_succ', mul_apply_eq_comp, hfun, Function.iterate_succ_apply']
     set h := (validatedStep L σ Z y)^[t] f
     have hstep := walk_sliceGraph_ofPerms_eq hL σ hZ h A
     simp only [sliceGraph, walk_reindex] at hstep ⊢
@@ -131,33 +131,27 @@ theorem wrap_affineGenerator_mem (k : {p : Fin H × Fin H // p.1 ≠ p.2} ⊕ Fi
   intro i
   rw [mem_Icc, ← abs_le]
   refine (abs_wrap_le _ _ hw i).trans ?_
-  rcases k with p | j <;> cases b
-  · have := sum_abs_transvection_le p.2 1 i
-    simp only [signedMove, affineGenerator, Sum.elim_inl, Bool.cond_false, Pi.zero_apply, abs_zero,
-      add_zero]
-    norm_num at this
-    linarith
-  · have := sum_abs_transvection_le p.2 (-1) i
-    simp only [signedMove, affineGenerator, Sum.elim_inl, Bool.cond_true,
-      Matrix.SpecialLinearGroup.transvection_inv, Matrix.mulVec_zero, neg_zero, Pi.zero_apply,
-      abs_zero, add_zero]
-    norm_num at this
-    linarith
-  · simp only [signedMove, affineGenerator, Sum.elim_inr, Bool.cond_false,
-      Matrix.SpecialLinearGroup.coe_one, Matrix.one_apply]
-    have : |(Pi.single j 1 : Fin H → ℤ) i| ≤ 1 := by
+  rcases k with p | j
+  · cases b
+    · have := sum_abs_transvection_le p.2 1 i
+      simp only [signedMove, affineGenerator, Sum.elim_inl, Bool.cond_false, Pi.zero_apply,
+        abs_zero, add_zero]
+      norm_num at this
+      linarith
+    · have := sum_abs_transvection_le p.2 (-1) i
+      simp only [signedMove, affineGenerator, Sum.elim_inl, Bool.cond_true,
+        Matrix.SpecialLinearGroup.transvection_inv, Matrix.mulVec_zero, neg_zero, Pi.zero_apply,
+        abs_zero, add_zero]
+      norm_num at this
+      linarith
+  · have hsingle : |(Pi.single j 1 : Fin H → ℤ) i| ≤ 1 := by
       rw [Pi.single_apply]
       split_ifs <;> simp
-    simp only [apply_ite, abs_one, abs_zero, sum_ite_eq, mem_univ, ite_true]
-    linarith
-  · simp only [signedMove, affineGenerator, Sum.elim_inr, Bool.cond_true, inv_one,
-      Matrix.SpecialLinearGroup.coe_one, Matrix.one_apply, Matrix.one_mulVec, Pi.neg_apply,
-      abs_neg]
-    have : |(Pi.single j 1 : Fin H → ℤ) i| ≤ 1 := by
-      rw [Pi.single_apply]
-      split_ifs <;> simp
-    simp only [apply_ite, abs_one, abs_zero, sum_ite_eq, mem_univ, ite_true]
-    linarith
+    cases b <;>
+      simp only [signedMove, affineGenerator, Sum.elim_inr, Bool.cond_false, Bool.cond_true,
+        inv_one, Matrix.SpecialLinearGroup.coe_one, Matrix.one_apply, Matrix.one_mulVec,
+        Pi.neg_apply, abs_neg, apply_ite, abs_one, abs_zero, sum_ite_eq, mem_univ, ite_true] <;>
+      linarith
 
 /-- **Validated words of the affine walk**: `t` steps of the lazy affine walk on the retention slice
 of `y` equal `t` iterations of the validated step of the affine generators, with the candidate
