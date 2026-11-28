@@ -38,9 +38,13 @@ and its union.
   of one language and of a class.
 * `Cslib.MachineLearning.InductiveInference.IsTelltale`: a finite telltale of a language within a
   class.
+* `Cslib.MachineLearning.InductiveInference.IsLockingSequence`: a finite sequence on which a
+  learner is locked on a language.
 
 ## Main results
 
+* `Cslib.MachineLearning.InductiveInference.Identifies.exists_isLockingSequence`: the
+  locking-sequence lemma of Blum and Blum.
 * `Cslib.MachineLearning.InductiveInference.identifiable_iff`: over a countable set of strings, a
   class is identifiable from text iff it is countable and each of its languages has a telltale.
 * `Cslib.MachineLearning.InductiveInference.identifiable_of_finite`: every finite class is
@@ -74,6 +78,7 @@ development into the `Cslib.MachineLearning.InductiveInference` namespace and re
 
 * [Gold1967]
 * [Angluin1980]
+* [BlumBlum1975]
 -/
 
 public section
@@ -241,32 +246,46 @@ theorem exists_frequently {L : Set α} {P : List (Option α) → Prop} {e : Text
 
 end Text
 
-/-! ### The characterization -/
-
 theorem Identifiable.mono {𝓛 𝓜 : Set (Set α)} (h : 𝓛 ⊆ 𝓜) (hm : Identifiable 𝓜) :
     Identifiable 𝓛 :=
   hm.imp fun _ hφ L hL ↦ hφ L (h hL)
 
-/-- A learner identifying each language of `𝓛` gives each of them a telltale, the content of a
-finite sequence after which it can no longer be moved off `L`. -/
+/-! ### Locking sequences -/
+
+/-- `σ` is a **locking sequence** for the learner `φ` on `L`: it presents only strings of `L`, and
+`φ` conjectures `L` on `σ` followed by any further strings of `L` (in particular on `σ` itself). -/
+def IsLockingSequence (φ : Learner α) (L : Set α) (σ : List (Option α)) : Prop :=
+  content σ ⊆ L ∧ ∀ τ, content τ ⊆ L → φ (σ ++ τ) = L
+
+/-- The **locking-sequence lemma** of Blum and Blum [BlumBlum1975] (locator not verified): a
+learner that identifies `L` from text has a locking sequence on `L`. Otherwise every finite
+sequence inside `L` extends inside `L` to one on which the learner leaves `L`, and some text for
+`L` does so infinitely often. -/
+theorem Identifies.exists_isLockingSequence [Countable α] {φ : Learner α} {L : Set α}
+    (h : Identifies φ L) : ∃ σ, IsLockingSequence φ L σ := by
+  by_contra hno
+  simp only [IsLockingSequence, not_exists, not_and, not_forall] at hno
+  obtain ⟨e, he⟩ := Text.exists_content_eq L
+  obtain ⟨t, ht, hfreq⟩ := Text.exists_frequently (P := fun σ ↦ φ σ ≠ L) he
+    fun σ hσ ↦ (hno σ hσ).imp fun _ ⟨hτ, hne⟩ ↦ ⟨hτ, hne⟩
+  exact hfreq (h t ht |>.mono fun _ h hne ↦ hne h)
+
+/-! ### The characterization -/
+
+/-- A learner identifying each language of `𝓛` gives each of them a telltale: the content of a
+locking sequence, since a language of `𝓛` properly inside `L` containing it would have a text on
+which the learner stays locked on `L`. -/
 theorem exists_isTelltale [Countable α] {𝓛 : Set (Set α)} {φ : Learner α}
     (hφ : ∀ L ∈ 𝓛, Identifies φ L) {L : Set α} (hL : L ∈ 𝓛) : ∃ T, IsTelltale 𝓛 L T := by
-  by_contra hno
-  have hno' : ∀ T : Set α, T.Finite → T ⊆ L → ∃ L' ∈ 𝓛, T ⊆ L' ∧ L' ⊂ L := fun T hT hTL ↦ by
-    by_contra h
-    exact hno ⟨T, hT, hTL, fun L' hL' hTL' hss ↦ h ⟨L', hL', hTL', hss⟩⟩
-  obtain ⟨e, he⟩ := Text.exists_content_eq L
-  obtain ⟨t, ht, hfreq⟩ := Text.exists_frequently (P := fun σ ↦ φ σ ≠ L) he fun σ hσ ↦ by
-    obtain ⟨L', hL', hσL', hssub⟩ := hno' _ (content_finite σ) hσ
-    obtain ⟨t', ht'⟩ := Text.exists_content_eq L'
-    have htext : Text.content (σ ++ω t') = L' := by
-      rw [Text.content_append, ht', union_eq_right.mpr hσL']
-    obtain ⟨n, hφn, hn⟩ := ((hφ L' hL' _ htext).and (eventually_ge_atTop σ.length)).exists
-    obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
-    refine ⟨t'.take m, (Text.content_take_subset t' m).trans (ht' ▸ hssub.subset), ?_⟩
-    rw [← Text.take_append, hφn]
-    exact hssub.ne
-  exact hfreq (hφ L hL t ht |>.mono fun _ h hne ↦ hne h)
+  obtain ⟨σ, hσL, hlock⟩ := (hφ L hL).exists_isLockingSequence
+  refine ⟨content σ, content_finite σ, hσL, fun L' hL' hσL' hss ↦ ?_⟩
+  obtain ⟨t', ht'⟩ := Text.exists_content_eq L'
+  have htext : Text.content (σ ++ω t') = L' := by
+    rw [Text.content_append, ht', union_eq_right.mpr hσL']
+  obtain ⟨n, hφn, hn⟩ := ((hφ L' hL' _ htext).and (eventually_ge_atTop σ.length)).exists
+  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
+  rw [Text.take_append, hlock _ ((Text.content_take_subset t' m).trans (ht' ▸ hss.subset))] at hφn
+  exact hss.ne hφn.symm
 
 /-- A countable class whose languages have telltales is identifiable, by conjecturing the first
 language in an enumeration whose telltale has appeared and which contains the data. -/
