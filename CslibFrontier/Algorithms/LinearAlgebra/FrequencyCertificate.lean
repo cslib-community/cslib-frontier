@@ -247,8 +247,8 @@ theorem resolventCheck_inv {K : Type*} [Field K] [Algebra ℚ K]
     inv_mul_cancel₀ hs, one_smul])
 
 /-- Two monic polynomials of the same degree over a field of characteristic zero with
-`g f' = f g'` are equal: their difference `h` satisfies `g h' = h g'`, and comparing the
-coefficients of degree `deg g + deg h - 1` forces `h = 0`. -/
+`g f' = f g'` are equal: their difference `h` satisfies `g h' = h g'`. If `h ≠ 0`,
+comparing leading coefficients forces `h` and `g` to have the same degree. -/
 private theorem eq_of_monic_of_mul_derivative_eq {K : Type*} [Field K] [CharZero K]
     {f g : K[X]} {N : ℕ} (hf : f.Monic) (hg : g.Monic) (hfN : f.natDegree = N)
     (hgN : g.natDegree = N) (h : g * derivative f = f * derivative g) : f = g := by
@@ -261,36 +261,13 @@ private theorem eq_of_monic_of_mul_derivative_eq {K : Type*} [Field K] [CharZero
     rw [← hfN]
     exact natDegree_lt_natDegree hh0 hlt
   have key : g * derivative (f - g) = (f - g) * derivative g := by
-    rw [derivative_sub]; linear_combination h
-  set d := (f - g).natDegree
-  have hlc : (f - g).coeff d ≠ 0 := leadingCoeff_ne_zero.2 hh0
-  have hN : 1 ≤ N := by omega
-  rcases Nat.eq_zero_or_pos d with hd | hd
-  · have hc := eq_C_of_natDegree_eq_zero hd
-    rw [hc, derivative_C, mul_zero, eq_comm, mul_eq_zero, C_eq_zero] at key
-    rcases key with key | key
-    · exact hlc (by rw [hd]; exact key)
-    · have := congrArg (fun q : K[X] => q.coeff (N - 1)) key
-      simp only [coeff_derivative, coeff_zero] at this
-      rw [Nat.sub_add_cancel hN, ← hgN, hg.coeff_natDegree, one_mul] at this
-      have hne' : ((g.natDegree - 1 : ℕ) : K) + 1 ≠ 0 := by
-        exact_mod_cast Nat.succ_ne_zero (g.natDegree - 1)
-      exact hne' this
-  · have h1 : (g * derivative (f - g)).coeff (N + (d - 1)) =
-        ((f - g) * derivative g).coeff (N + (d - 1)) := by rw [key]
-    rw [coeff_mul_add_eq_of_natDegree_le hgN.le ((natDegree_derivative_le _).trans le_rfl),
-      show N + (d - 1) = d + (N - 1) by omega,
-      coeff_mul_add_eq_of_natDegree_le le_rfl ((natDegree_derivative_le _).trans (by omega)),
-      coeff_derivative, coeff_derivative, Nat.sub_add_cancel hd, Nat.sub_add_cancel hN,
-      ← hgN, show g.coeff g.natDegree = 1 from hg, hgN] at h1
-    change 1 * ((f - g).coeff d * (((d - 1 : ℕ) : K) + 1)) =
-      (f - g).coeff d * (1 * (((N - 1 : ℕ) : K) + 1)) at h1
-    rw [one_mul, one_mul] at h1
-    have : ((d - 1 : ℕ) : K) + 1 = ((N - 1 : ℕ) : K) + 1 := mul_left_cancel₀ hlc h1
-    have : d = N := by
-      have := (by exact_mod_cast this : (d - 1) + 1 = (N - 1) + 1)
-      omega
-    omega
+    rw [derivative_sub, mul_sub, sub_mul, h]
+  have hlc : (f - g).leadingCoeff * ((f - g).natDegree : K) =
+      (f - g).leadingCoeff * (N : K) := by
+    simpa only [leadingCoeff_mul, leadingCoeff_derivative, hg.leadingCoeff, one_mul, hgN]
+      using congrArg leadingCoeff key
+  have hcast := mul_left_cancel₀ (leadingCoeff_ne_zero.2 hh0) hlc
+  exact (Nat.ne_of_lt hdeg) (Nat.cast_injective hcast)
 
 /-- `(charmatrix M)' = 1` entrywise. -/
 private theorem charmatrix_map_derivative {k : ℕ} (M : Matrix (Fin k) (Fin k) ℚ) :
