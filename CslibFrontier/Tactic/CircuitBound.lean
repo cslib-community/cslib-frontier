@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Tactic.CircuitBound.Init
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
+public import Mathlib.Tactic.Linarith
 public meta import Lean.Elab.Tactic.Simp
 
 /-!
@@ -34,8 +35,10 @@ by `circuit_bound [step, generateFormula, propagateFormula]`.
 ## How it works
 
 The tactic computes an upper bound of `m` and leaves the comparison of that bound with `b` to
-`omega`. It bounds sums, products, maxima, finite sums and conditionals from bounds of their parts.
-At any other term `t` it tries, in this order:
+`omega`, falling back to splitting top-level `max`s and `nlinarith` / `grind` when the comparison is
+polynomial rather than linear. It bounds sums, products, powers with a fixed exponent, maxima,
+finite sums, mapped list sums, finite suprema and conditionals from bounds of their parts. At any
+other term `t` it tries, in this order:
 
 1. If `t` occurs in `b`, it keeps `t`.
 2. A local hypothesis `t ≤ c` or `t = c`, possibly under quantifiers: an induction hypothesis, or a
@@ -54,7 +57,8 @@ circuit-specific parts, and they are attached in `CslibFrontier.Computability.Ci
 
 * For an equation `m = b`, use `simp only [circuit_simps, …]` and `omega`: no bound has to be
   chosen.
-* When the arithmetic after the structural bound is not linear, state the structural bound as a
+* When the arithmetic after the structural bound is beyond `omega`, `nlinarith` and `grind` (for
+  instance, higher-degree monotonicity or exponent arithmetic), state the structural bound as a
   `have` proved by `circuit_bound` and finish by hand, or rewrite with `grw [Circuit.depth_comp_le,
   h]` and continue with the goal it leaves.
 
@@ -64,8 +68,9 @@ circuit-specific parts, and they are attached in `CslibFrontier.Computability.Ci
 
 ## Implementation notes
 
-`dite_le_max` is used in the proofs the tactic builds, so it is public. The other monotonicity
-steps use `Nat.add_le_add`, `Nat.mul_le_mul`, `max_le_max`, `ite_le_sup` and `Finset.sum_le_sum`.
+`dite_le_max`, `forall_mem_ofFn` and `sum_map_le_length_mul` are used in the proofs the tactic
+builds, so they are public. The other monotonicity steps use `Nat.add_le_add`, `Nat.mul_le_mul`,
+`Nat.pow_le_pow_left`, `max_le_max`, `ite_le_sup`, `Finset.sum_le_sum` and `Finset.sup_le`.
 -/
 
 public section
@@ -78,6 +83,24 @@ theorem dite_le_max {p : Prop} [Decidable p] {a : p → ℕ} {b : ¬p → ℕ} {
   split
   · exact (ha _).trans (le_max_left A B)
   · exact (hb _).trans (le_max_right A B)
+
+/-- A predicate holding at every `f j` holds for every member of `List.ofFn f`. -/
+theorem forall_mem_ofFn {α : Type*} {n : ℕ} {f : Fin n → α} {P : α → Prop}
+    (h : ∀ j, P (f j)) : ∀ a ∈ List.ofFn f, P a := by
+  intro a ha
+  obtain ⟨j, rfl⟩ := List.mem_ofFn.1 ha
+  exact h j
+
+/-- The sum of `l.map f` is at most `l.length * B` when every member of `l` satisfies `f a ≤ B`. -/
+theorem sum_map_le_length_mul {α : Type*} {l : List α} {f : α → ℕ} {B : ℕ}
+    (h : ∀ a ∈ l, f a ≤ B) : (l.map f).sum ≤ l.length * B := by
+  induction l with
+  | nil => simp
+  | cons a l ih =>
+    simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.succ_mul]
+    have ha := h a List.mem_cons_self
+    have hl := ih fun x hx => h x (List.mem_cons_of_mem a hx)
+    omega
 
 end Cslib.Tactic.CircuitBound
 
@@ -174,6 +197,12 @@ private partial def bound (e : Expr) : BoundM Bound := do
     if α.isConstOf ``Nat then combine ``Nat.add_le_add e a b else boundTerm e
   | HMul.hMul α _ _ _ a b =>
     if α.isConstOf ``Nat then combine ``Nat.mul_le_mul e a b else boundTerm e
+  | HPow.hPow α β γ _ a b =>
+    if α.isConstOf ``Nat && β.isConstOf ``Nat && γ.isConstOf ``Nat then
+      let A ← bound a
+      if A.proof?.isNone then boundTerm e
+      else Bound.ofProof (← mkAppM ``Nat.pow_le_pow_left #[A.proof, b])
+    else boundTerm e
   | Max.max _ _ a b =>
     let A ← bound a
     let B ← bound b
@@ -208,6 +237,33 @@ private partial def bound (e : Expr) : BoundM Bound := do
       let proof ← mkAppOptM ``Finset.sum_le_sum #[ι, mkConst ``Nat, ← natInst ``AddCommMonoid,
         ← natInst ``Preorder, f, g, s, none, h]
       return ⟨val, some (← mkExpectedTypeHint proof (natLE e val))⟩
+  | Finset.sup α ι instSup instBot s f =>
+    let b ← boundTerm e
+    if b.proof?.isSome || !α.isConstOf ``Nat || e.occurs (← read).target then return b
+    let supBound ← attempt do
+      let (val, h) ← boundUnder `j ι fun j => f.beta #[j]
+      let hmem ← withLocalDeclD `j ι fun j => do
+        withLocalDeclD `hj (← mkAppM ``Membership.mem #[s, j]) fun hj =>
+          mkLambdaFVars #[j, hj] (h.beta #[j])
+      let proof ← mkAppOptM ``Finset.sup_le #[α, ι, instSup, instBot, s, f, val, hmem]
+      return (val, ← mkExpectedTypeHint proof (natLE e val))
+    return match supBound with
+      | some (val, proof) => ⟨val, some proof⟩
+      | none => b
+  | List.sum α _ _ xs =>
+    let b ← boundTerm e
+    if b.proof?.isSome || !α.isConstOf ``Nat || e.occurs (← read).target then return b
+    let_expr List.map β _ f l := xs | return b
+    let listBound ← attempt do
+      withLocalDeclD `a β fun a => do
+        withLocalDeclD `ha (← mkAppM ``Membership.mem #[l, a]) fun ha => do
+          let e' := f.beta #[a]
+          let ba ← bound e'
+          if ba.val.containsFVar ha.fvarId! then throwError "depends on membership proof"
+          checkUniform #[a] e' ba.val
+          let h ← mkLambdaFVars #[a, ha] ba.proof
+          Bound.ofProof (← mkAppOptM ``sum_map_le_length_mul #[β, l, f, ba.val, h])
+    return listBound.getD b
   | _ => boundTerm e
 
 /-- Bound an operation by the same operation on bounds of its arguments `a` and `b`, by the
@@ -280,8 +336,9 @@ private partial def pushConditional? (e : Expr) : BoundM (Option Bound) := do
   return none
 
 /-- Use `proof` of `∀ xs, lhs ≤ rhs` or `∀ xs, lhs = rhs` on `e` if `lhs` matches it. A hypothesis
-`∀ j, m j ≤ ?D` whose bound `?D` the match leaves open is proved by bounding `m j` uniformly in
-`j`; any other hypothesis must be a local hypothesis. Returns `rhs` and a proof of `e ≤ rhs`. -/
+`∀ j, m j ≤ ?D` or `∀ x ∈ List.ofFn f, m x ≤ ?D` whose bound `?D` the match leaves open is proved
+by bounding `m` uniformly in the index; any other hypothesis must be a local hypothesis. Returns
+`rhs` and a proof of `e ≤ rhs`. -/
 private partial def applyBound (proof e : Expr) : BoundM (Expr × Expr) := do
   let (xs, binders, body) ← forallMetaTelescope (← instantiateMVars (← inferType proof))
   let some (lhs, rhs, isEq) := boundSides? body | throwError "not a bound"
@@ -296,6 +353,30 @@ private partial def applyBound (proof e : Expr) : BoundM (Expr × Expr) := do
       let uniform ← forallTelescope type fun js body => do
         let some (lhs, rhs, false) := boundSides? body | return false
         unless rhs.isMVar do return false
+        -- `∀ a ∈ List.ofFn f, m a ≤ ?D`: substitute `a := f j` and bound uniformly in `j`.
+        if js.size == 2 then
+          let a := js[0]!
+          let ha := js[1]!
+          let haType ← instantiateMVars (← inferType ha)
+          if let some (_, _, _, list, elem) :=
+              (match_expr haType with
+              | Membership.mem α γ inst list elem => some (α, γ, inst, list, elem)
+              | _ => none) then
+            if elem == a then
+              let list ← instantiateMVars list
+              if let some (_, n, f) :=
+                  (match_expr list with
+                  | List.ofFn α n f => some (α, n, f)
+                  | _ => none) then
+                let (val, hfin) ← withLocalDeclD `j (mkApp (mkConst ``Fin) n) fun j => do
+                  let lhs' := lhs.replaceFVar a (f.beta #[j])
+                  let b ← bound lhs'
+                  checkUniform #[j] lhs' b.val
+                  return (b.val, ← mkLambdaFVars #[j] b.proof)
+                rhs.mvarId!.assign val
+                let P ← mkLambdaFVars #[a] (natLE lhs val)
+                goal.assign (← mkAppOptM ``forall_mem_ofFn #[none, n, f, P, hfin])
+                return true
         let b ← bound lhs
         checkUniform js lhs b.val
         rhs.mvarId!.assign b.val
@@ -311,7 +392,8 @@ end
 
 /-- `circuit_bound` proves a goal `m ≤ b` between natural numbers by bounding `m` along the
 structure of the term it measures, typically the depth, size or cost of a circuit, and comparing
-the bound with `b` by `omega`.
+the bound with `b` by `omega` (falling back to splitting top-level `max`s and `nlinarith` / `grind`
+for polynomial comparisons).
 
 * `circuit_bound [step, generateFormula]` also unfolds the definitions `step` and
   `generateFormula` and uses any other simp lemma in the list; the simp set `circuit_simps` is
@@ -319,22 +401,22 @@ the bound with `b` by `omega`.
 * A named sub-circuit is bounded by a theorem tagged `@[circuit_bound]`, such as
   `(adder w).depth ≤ 6`, or by a local hypothesis, such as an induction hypothesis. Without either
   its measure stays in the bound, which suits a goal `(wrap M).depth ≤ M.depth + 1`.
-* A family, as in `Circuit.pi fun j => cs j`, needs a bound that does not depend on `j`. The tactic
-  finds it when every `cs j` has the same structural bound, also through `if … then … else`.
-  Otherwise state it first: `have h : ∀ j, (cs j).depth ≤ D := …`.
+* A family, as in `Circuit.pi fun j => cs j` or `List.ofFn fun j => cs j`, needs a bound that does
+  not depend on `j`. The tactic finds it when every `cs j` has the same structural bound, also
+  through `if … then … else`. Otherwise state it first: `have h : ∀ j, (cs j).depth ≤ D := …`.
 
-When it fails, the error shows the comparison `omega` could not prove, the sub-terms for which a
-bound was expected but none is registered or assumed, and the families whose bound depends on the
-index. `set_option trace.circuit_bound true` shows the bounds it used.
+When it fails, the error shows the comparison `omega`/`nlinarith`/`grind` could not prove, the
+sub-terms for which a bound was expected but none is registered or assumed, and the families whose
+bound depends on the index. `set_option trace.circuit_bound true` shows the bounds it used.
 
 Use `grw [Circuit.depth_comp_le, h]` instead when one step is wanted inside a larger inequality,
-when the goal is not of the form `m ≤ b`, or when the arithmetic that remains is not linear (a
-product of two variables is beyond `omega`); a structural bound stated as a `have` and proved by
-`circuit_bound` also serves the last case. For an equation `m = b` use
-`simp only [circuit_simps, …]`. -/
+when the goal is not of the form `m ≤ b`, or when the arithmetic that remains is beyond `omega`,
+`nlinarith` and `grind`; a structural bound stated as a `have` and proved by `circuit_bound` also
+serves the last case. For an equation `m = b` use `simp only [circuit_simps, …]`. -/
 syntax (name := circuitBound) "circuit_bound" (" [" Parser.Tactic.simpLemma,* "]")? : tactic
 
-/-- Elaborate `circuit_bound`: bound the left-hand side, then compare with `omega`. -/
+/-- Elaborate `circuit_bound`: bound the left-hand side, then compare with `omega` (falling back to
+splitting top-level `max`s and `nlinarith` / `grind`). -/
 @[tactic circuitBound] def evalCircuitBound : Tactic := fun stx => do
   let args : Syntax.TSepArray ``Parser.Tactic.simpLemma "," := ⟨stx[1][1].getArgs⟩
   let simpStx ← `(tactic| simp only [circuit_simps, $args,*])
@@ -350,17 +432,25 @@ syntax (name := circuitBound) "circuit_bound" (" [" Parser.Tactic.simpLemma,* "]
   goal.assign (← mkAppM ``Nat.le_trans #[b.proof, rest])
   let (rest?, _) ← simpTarget rest.mvarId! ctx simprocs
   let some rest := rest? | replaceMainGoal []
-  -- `omega` closes the main goal only, so the other open goals stay
+  -- Close only `rest` so any other open goals stay untouched.
   replaceMainGoal [rest]
   try
     evalTactic (← `(tactic| omega))
   catch _ =>
-    let mut msg := m!"circuit_bound could not prove{indentExpr (← rest.getType)}"
-    unless state.unbounded.isEmpty do
-      msg := msg ++ m!"\nNo bound is registered or assumed for{indentD (MessageData.joinSep
-        (state.unbounded.toList.map (·.2)) Format.line)}"
-    for note in state.notes do
-      msg := msg ++ m!"\n{note}"
-    throwError msg
+    let saved ← saveState
+    try
+      let remaining ← evalTacticAt (← `(tactic|
+        (repeat apply max_le) <;> (first | omega | nlinarith | grind))) rest
+      unless remaining.isEmpty do throwError "unsolved goals"
+      replaceMainGoal []
+    catch _ =>
+      saved.restore
+      let mut msg := m!"circuit_bound could not prove{indentExpr (← rest.getType)}"
+      unless state.unbounded.isEmpty do
+        msg := msg ++ m!"\nNo bound is registered or assumed for{indentD (MessageData.joinSep
+          (state.unbounded.toList.map (·.2)) Format.line)}"
+      for note in state.notes do
+        msg := msg ++ m!"\n{note}"
+      throwError msg
 
 end Cslib.Tactic.CircuitBound

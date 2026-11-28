@@ -61,27 +61,19 @@ theorem partialCollision_eq_expect [Fintype I] [Nonempty L]
   by_cases hij : i = j
   · subst j
     simp only [partialCollision, ↓reduceIte, Fintype.expect_const]
-  · cases hi : assigned i with
-    | none =>
-      cases hj : assigned j with
-      | none =>
-        simpa only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels,
-          Option.getD_none] using (expect_schedule_collision (L := L) i j).symm
-      | some y =>
-        simp only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels,
-          Option.getD_none, Option.getD_some]
-        rw [expect_schedule_apply i (fun x : L => if x = y then (1 : ℚ) else 0)]
-        simp [NNRat.smul_def]
-    | some x =>
-      cases hj : assigned j with
-      | none =>
-        simp only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels,
-          Option.getD_none, Option.getD_some]
-        rw [expect_schedule_apply j (fun y : L => if x = y then (1 : ℚ) else 0)]
-        simp [NNRat.smul_def]
-      | some y =>
-        simp only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels,
-          Option.getD_some, Fintype.expect_const]
+  · cases hi : assigned i <;> cases hj : assigned j
+    · simpa only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels, Option.getD_none]
+        using (expect_schedule_collision (L := L) i j).symm
+    · simp only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels, Option.getD_none,
+        Option.getD_some]
+      rw [expect_schedule_apply i (fun x : L => if x = _ then (1 : ℚ) else 0)]
+      simp [NNRat.smul_def]
+    · simp only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels, Option.getD_none,
+        Option.getD_some]
+      rw [expect_schedule_apply j (fun y : L => if _ = y then (1 : ℚ) else 0)]
+      simp [NNRat.smul_def]
+    · simp only [partialCollision, hij, ↓reduceIte, hi, hj, completeLabels, Option.getD_some,
+        Fintype.expect_const]
 
 /-- Averaging the candidate values of one unassigned whole label preserves the pair score. -/
 theorem expect_partialCollision_update [Nonempty L] (assigned : I → Option L)
@@ -93,15 +85,14 @@ theorem expect_partialCollision_update [Nonempty L] (assigned : I → Option L)
     simp only [partialCollision, ↓reduceIte, Fintype.expect_const]
   by_cases hki : k = i
   · subst k
-    cases hj : assigned j with
-    | none => simp [partialCollision, hij, hk, hj, Function.update, Ne.symm hij]
-    | some y => simp [partialCollision, hij, hk, hj, Function.update, Ne.symm hij,
-        NNRat.smul_def]
+    cases hj : assigned j
+    · simp [partialCollision, hij, hk, hj, Function.update, Ne.symm hij]
+    · simp [partialCollision, hij, hk, hj, Function.update, Ne.symm hij, NNRat.smul_def]
   by_cases hkj : k = j
   · subst k
-    cases hi : assigned i with
-    | none => simp [partialCollision, hij, hk, hi, Function.update]
-    | some x => simp [partialCollision, hij, hk, hi, Function.update, NNRat.smul_def]
+    cases hi : assigned i
+    · simp [partialCollision, hij, hk, hi, Function.update]
+    · simp [partialCollision, hij, hk, hi, Function.update, NNRat.smul_def]
   simp only [partialCollision, hij, ↓reduceIte, Function.update_of_ne (Ne.symm hki),
     Function.update_of_ne (Ne.symm hkj), Fintype.expect_const]
 
@@ -127,20 +118,21 @@ theorem partialCoordinateCollision_eq_expect {T G : Type*} [Fintype T] [Decidabl
       𝔼 filler : I → T → G,
         if completeLabels assigned filler i t = completeLabels assigned filler j t
         then (1 : ℚ) else 0 := by
-  symm
   calc
-    _ = 𝔼 filler : T → I → G,
-        if completeLabels (fun k => (assigned k).map (fun word => word t)) (filler t) i =
-          completeLabels (fun k => (assigned k).map (fun word => word t)) (filler t) j
-        then (1 : ℚ) else 0 :=
-      Fintype.expect_equiv (Equiv.piComm (fun _ : I => fun _ : T => G)) _ _
-        (fun filler => by simp only [completeLabels_apply]; rfl)
-    _ = _ := by
-      rw [expect_schedule_apply t (fun filler : I → G =>
-        if completeLabels (fun k => (assigned k).map (fun word => word t)) filler i =
-          completeLabels (fun k => (assigned k).map (fun word => word t)) filler j
-        then (1 : ℚ) else 0)]
-      exact (partialCollision_eq_expect _ i j).symm
+    partialCoordinateCollision assigned t i j =
+        𝔼 filler : T → I → G,
+          if completeLabels (fun k => (assigned k).map (fun word => word t)) (filler t) i =
+            completeLabels (fun k => (assigned k).map (fun word => word t)) (filler t) j
+          then (1 : ℚ) else 0 := by
+      rw [partialCoordinateCollision, partialCollision_eq_expect,
+        ← expect_schedule_apply t (fun filler : I → G =>
+          if completeLabels (fun k => (assigned k).map (fun word => word t)) filler i =
+            completeLabels (fun k => (assigned k).map (fun word => word t)) filler j
+          then (1 : ℚ) else 0)]
+    _ = _ :=
+      Fintype.expect_equiv (Equiv.piComm (fun _ : I => fun _ : T => G)).symm _ _ fun filler => by
+        simp only [completeLabels_apply]
+        rfl
 
 /-- Fixing one whole schedule preserves the average of every coordinate-collision score. -/
 theorem expect_partialCoordinateCollision_update {T G : Type*} [Fintype T] [DecidableEq T]
@@ -151,17 +143,13 @@ theorem expect_partialCoordinateCollision_update {T G : Type*} [Fintype T] [Deci
       partialCoordinateCollision assigned t i j := by
   have hmap (word : T → G) :
       (fun l => (Function.update assigned k (some word) l).map (fun v => v t)) =
-        Function.update (fun l => (assigned l).map (fun v => v t)) k (some (word t)) := by
-    funext l
-    by_cases h : l = k
-    · subst l
-      simp only [Function.update_self, Option.map_some]
-    · simp only [Function.update_of_ne h]
+        Function.update (fun l => (assigned l).map (fun v => v t)) k (some (word t)) :=
+    funext fun l => by by_cases h : l = k <;> simp [h]
   simp only [partialCoordinateCollision, hmap]
   rw [expect_schedule_apply t (fun value : G =>
     partialCollision (Function.update (fun l => (assigned l).map (fun v => v t)) k
       (some value)) i j)]
-  exact expect_partialCollision_update _ k i j (by simp only [hk, Option.map_none])
+  exact expect_partialCollision_update _ k i j (by simp [hk])
 
 /-- Incidence collisions factor only across the independent variable-label and factor-label
 families. Repeated endpoints within either family are retained in `partialCollision`. -/
@@ -179,11 +167,7 @@ theorem partialIncidenceCollision_eq_expect {V F : Type*} [Fintype V] [Decidable
           (completeLabels varLabels a v', completeLabels factors d f') then (1 : ℚ) else 0 := by
   rw [partialIncidenceCollision, partialCollision_eq_expect, partialCollision_eq_expect,
     Fintype.expect_mul_expect]
-  apply Finset.expect_congr rfl
-  intro a _
-  apply Finset.expect_congr rfl
-  intro d _
-  simp only [Prod.mk.injEq]
+  refine Finset.expect_congr rfl fun a _ => Finset.expect_congr rfl fun d _ => ?_
   split_ifs <;> simp_all
 
 /-- Closed rational incidence potential of a partial assignment. The summation is over
@@ -339,12 +323,10 @@ theorem argmin_le_expect {α : Type*} [Fintype α] [Nonempty α] (score : α →
     ∃ chosen, values.argmin score = some chosen ∧ score chosen ≤ 𝔼 a, score a := by
   cases harg : values.argmin score with
   | none =>
-    have hnil : values = [] := List.argmin_eq_none.mp harg
-    obtain ⟨a⟩ := (inferInstance : Nonempty α)
-    simpa only [hnil, List.not_mem_nil] using hcover a
+    exact (List.not_mem_nil (List.argmin_eq_none.mp harg ▸ hcover (Classical.arbitrary α))).elim
   | some chosen =>
-    refine ⟨chosen, rfl, Finset.le_expect Finset.univ_nonempty fun a _ => ?_⟩
-    exact List.le_of_mem_argmin (hcover a) (by simp only [harg, Option.mem_some])
+    exact ⟨chosen, rfl, Finset.le_expect Finset.univ_nonempty fun a _ =>
+      List.le_of_mem_argmin (hcover a) (Option.mem_def.mpr harg)⟩
 
 /-- Deterministic candidate selection for one variable: enumerate the supplied whole labels
 and retain the first minimum. Empty candidate lists return `none`. -/

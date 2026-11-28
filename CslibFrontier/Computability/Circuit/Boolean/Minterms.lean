@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Evaluation
 public import CslibFrontier.Foundations.Data.BitString.Basic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
@@ -96,12 +95,7 @@ theorem size_mintermCircuit_add_three_le (n : ℕ) :
   induction n with
   | zero => decide
   | succ n ih =>
-    have hsum : (∑ a : Fin (2 ^ (n + 1)), (mintermExtension n a).size) ≤ 2 * 2 ^ (n + 1) := by
-      simpa [Nat.mul_comm] using Finset.sum_le_sum
-        (s := Finset.univ) (f := fun a => (mintermExtension n a).size) (g := fun _ => 2)
-        (fun a _ => size_mintermExtension_le n a)
-    simp only [circuit_simps, mintermCircuit]
-    have hpow : 2 ^ (n + 1) = 2 ^ n * 2 := pow_succ _ _
-    lia
+    have := size_mintermExtension_le n
+    circuit_bound [mintermCircuit, pow_succ]
 
 end Cslib.Circuits.Boolean

@@ -92,13 +92,9 @@ omit [Fintype X] [DecidableEq X] in
 private theorem mix_succ (x z : Fin n → X) (c : Fin n) :
     mix ((c : ℕ) + 1) x z = update (mix c x z) c (z c) := by
   funext j
-  by_cases hj : j = c
-  · subst hj
-    simp [mix]
-  · have hne : (j : ℕ) ≠ c := fun h => hj (Fin.ext h)
-    have hiff : (j : ℕ) < c + 1 ↔ (j : ℕ) < c := by omega
-    rw [update_of_ne hj]
-    simp only [mix, hiff]
+  rcases eq_or_ne j c with rfl | hj
+  · simp [mix]
+  · simp [mix, hj, Nat.lt_succ_iff_lt_or_eq, Fin.val_ne_of_ne hj]
 
 omit [Fintype X] [DecidableEq X] in
 /-- **The canonical path leaves `S`**: from `x ∈ S` to `z ∉ S`, some step of the canonical path
@@ -144,19 +140,14 @@ private theorem card_filter_update_apply (S : Finset (Fin n → X)) (c : Fin n) 
     #{p : (Fin n → X) × (Fin n → X) | p.1 ∈ S ∧ update p.1 c (p.2 c) ∉ S} =
       Fintype.card X ^ (n - 1) * #{q : (Fin n → X) × X | q.1 ∈ S ∧ update q.1 c q.2 ∉ S} := by
   have hfib (t : X) : #{w : Fin n → X | w c = t} = Fintype.card X ^ (n - 1) := by
-    have := Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset X) c (mem_univ t)
-    simpa [Fintype.piFinset_univ] using this
-  simp only [card_filter, Fintype.sum_prod_type]
-  rw [mul_sum]
+    simpa [Fintype.piFinset_univ] using
+      Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset X) c (mem_univ t)
+  simp only [card_filter, Fintype.sum_prod_type, mul_sum]
   refine sum_congr rfl fun u _ => ?_
-  have : (∑ w : Fin n → X, if u ∈ S ∧ update u c (w c) ∉ S then (1 : ℕ) else 0) =
-      ∑ t : X, ∑ w : Fin n → X, if w c = t then (if u ∈ S ∧ update u c t ∉ S then (1 : ℕ) else 0)
-        else 0 := by
-    rw [sum_comm]
-    refine sum_congr rfl fun w _ => ?_
-    rw [sum_ite_eq]
-    simp
-  rw [this, mul_sum]
+  conv_lhs =>
+    enter [2, w]
+    rw [← Fintype.sum_ite_eq (w c) (fun t => if u ∈ S ∧ update u c t ∉ S then (1 : ℕ) else 0)]
+  rw [sum_comm]
   refine sum_congr rfl fun t _ => ?_
   rw [← sum_filter, sum_const, smul_eq_mul, hfib, mul_comm]
 
@@ -178,12 +169,8 @@ private theorem card_edges_le (S : Finset (Fin n → X)) (c : Fin n) :
       by_cases hj : j = c
       · subst hj
         exact h
-      · have := congrFun (hq.2.trans hq'.2.symm) j
-        simpa [update_of_ne hj] using this
-    have h2 : q.2 = q'.2 := by
-      have := congrFun (hq.2.trans hq'.2.symm) c
-      simpa using this
-    exact Prod.ext h1 h2
+      · simpa [update_of_ne hj] using congrFun (hq.2.trans hq'.2.symm) j
+    exact Prod.ext h1 (by simpa using congrFun (hq.2.trans hq'.2.symm) c)
 
 /-- **Edge counting for the line closure**: `|S| |Sᶜ| ≤ n |X| ^ n |S̄ \ S|`. -/
 theorem card_mul_card_compl_le (S : Finset (Fin n → X)) :

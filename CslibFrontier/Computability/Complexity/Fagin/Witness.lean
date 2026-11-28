@@ -95,14 +95,10 @@ Short certificates supply false bits to the missing positions. -/
 theorem wellFormed_witnessTables (a : EncodedStructure) (w : List Bool) :
     (varLanguage.vocabulary Φ.arity e).WellFormed
       (a.1, List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)) := by
-  constructor
-  · exact List.length_ofFn
-  · intro j
-    change Fin m at j
-    change ((List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)).getD j []).length =
-      a.1 ^ Φ.arity (e j)
-    rw [List.getD_eq_getElem _ _ (by simp)]
-    simp only [List.getElem_ofFn, length_witnessTable]
+  refine ⟨List.length_ofFn, fun (j : Fin m) => ?_⟩
+  change ((List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)).getD j []).length =
+    a.1 ^ Φ.arity (e j)
+  simp
 
 variable {K : Language.{u', v'}} (v : Vocabulary K)
 
@@ -141,13 +137,7 @@ theorem decode_witnessInput [K.IsRelational] (a : EncodedStructure) (w : List Bo
         a.1 a.2 _ ha.1 ⟨Φ.arity i, ⟨i, rfl⟩⟩]
       change ((List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)).getD
         (e.symm i : ℕ) []).getD (tupleIndex x) false = true ↔ _
-      rw [List.getD_eq_getElem
-        (List.ofFn fun j : Fin m => ℓ.witnessTable a w (e j)) []
-        (by simp)]
-      simp only [List.getElem_ofFn]
-      change (ℓ.witnessTable a w (e (e.symm i))).getD (tupleIndex x) false = true ↔
-        x ∈ ℓ.certRel a.1 (encStructure a).length w i
-      rw [Equiv.apply_symm_apply]
+      rw [List.getD_eq_getElem _ [] (by simp), List.getElem_ofFn, Equiv.apply_symm_apply]
       erw [getD_witnessTable ℓ a w i x]
       rfl
 

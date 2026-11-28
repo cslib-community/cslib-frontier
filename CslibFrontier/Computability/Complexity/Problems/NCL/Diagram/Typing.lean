@@ -57,32 +57,20 @@ theorem Word.typeRun_append (w₁ w₂ : Word) (cs : List Color) :
 private theorem Slice.typeRun_gen (P a b S : List Color) (k : ℕ) (hP : P.length = k)
     (vs : List (Vertex (Fin a.length ⊕ Fin b.length))) :
     (Slice.gen k a b vs).typeRun (P ++ a ++ S) = some (P ++ b ++ S) := by
-  have ht : (P ++ a ++ S).take k = P := by
-    rw [List.append_assoc]
-    exact List.take_left' hP
-  have hd : (P ++ a ++ S).drop (k + a.length) = S :=
-    List.drop_left' (by simp [hP])
   have ha : ((P ++ a ++ S).drop k).take a.length = a := by
     rw [List.append_assoc]
     simp [← hP]
-  have hb : k + a.length ≤ (P ++ a ++ S).length := by
-    simp only [List.length_append, hP]
-    omega
-  rw [Slice.typeRun, ite_eq_left ⟨hb, ha⟩, ht, hd]
+  rw [Slice.typeRun, ite_eq_left ⟨by simp only [List.length_append, hP]; omega, ha⟩,
+    show (P ++ a ++ S).take k = P from List.append_assoc P a S ▸ List.take_left' hP,
+    List.drop_left' (by simp [hP])]
 
 private theorem Slice.typeRun_swap (P S : List Color) (x y : Color) (k : ℕ)
     (hP : P.length = k) :
     (Slice.swap k).typeRun (P ++ [x, y] ++ S) = some (P ++ [y, x] ++ S) := by
-  have ht : (P ++ [x, y] ++ S).take k = P := by
-    rw [List.append_assoc]
-    exact List.take_left' hP
-  have hd : (P ++ [x, y] ++ S).drop (k + 2) = S :=
-    List.drop_left' (by simp [hP])
-  have h₀ : (P ++ [x, y] ++ S)[k]? = some x := by
-    simp [hP]
-  have h₁ : (P ++ [x, y] ++ S)[k + 1]? = some y := by
-    simp [hP]
-  simp only [Slice.typeRun, h₀, h₁, ht, hd]
+  simp only [Slice.typeRun, show (P ++ [x, y] ++ S)[k]? = some x by simp [hP],
+    show (P ++ [x, y] ++ S)[k + 1]? = some y by simp [hP],
+    show (P ++ [x, y] ++ S).take k = P from List.append_assoc P [x, y] S ▸ List.take_left' hP,
+    show (P ++ [x, y] ++ S).drop (k + 2) = S from List.drop_left' (by simp [hP])]
 
 namespace Diagram
 
@@ -109,8 +97,8 @@ theorem typeRun_toWord {a b : List Color} (D : Diagram Γ a b) (k : ℕ) (P S : 
 /-- The word emitted from a diagram has its declared input and output types. -/
 theorem wellTyped_toWord {a b : List Color} (D : Diagram Γ a b) :
     (D.toWord I 0).WellTyped a b := by
-  unfold Word.WellTyped
-  simpa only [List.nil_append, List.append_nil] using typeRun_toWord I D 0 [] [] rfl
+  simpa only [Word.WellTyped, List.nil_append, List.append_nil] using
+    typeRun_toWord I D 0 [] [] rfl
 
 end Diagram
 

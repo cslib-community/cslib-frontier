@@ -138,14 +138,12 @@ theorem totalStep (h : d.Represents cfg) (tm : MultiTapeTM k Bool State) :
     (Data.totalStep tm d).Represents (tm.step cfg) := by
   cases hs : d.state with
   | none =>
-    rw [Data.totalStep_of_halt tm hs, tm.step_of_halt (h.state.symm.trans hs)]
-    exact h
+    rwa [Data.totalStep_of_halt tm hs, tm.step_of_halt (h.state.symm.trans hs)]
   | some q =>
-    rw [Data.totalStep_of_state tm hs, tm.step_of_state (h.state.symm.trans hs)]
-    have hi : d.input.read = cfg.inputSymbol := h.input.read_eq_inputSymbol
-    have hw : (fun i => (d.work i).head) = cfg.workTapeSymbols :=
+    have hheads : (fun i => (d.work i).head) = cfg.workTapeSymbols :=
       funext fun i => (h.work i).head
-    rw [hi, hw]
+    rw [Data.totalStep_of_state tm hs, tm.step_of_state (h.state.symm.trans hs),
+      h.input.read_eq_inputSymbol, hheads]
     exact h.step _
 
 /-- Any number of raw total steps represents the same number of native total steps. -/
@@ -197,9 +195,7 @@ theorem output_prefix_run (tm : MultiTapeTM k Bool State) (input : List Bool)
     {t u : ℕ} (h : t ≤ u) : (run tm input t).output <+: (run tm input u).output := by
   induction u, h using Nat.le_induction with
   | base => exact ⟨[], by simp⟩
-  | succ u _ ih =>
-    rw [run_succ]
-    exact ih.trans (output_prefix_totalStep tm _)
+  | succ u _ ih => exact run_succ tm input u ▸ ih.trans (output_prefix_totalStep tm _)
 
 /-- The amount of output never decreases. -/
 theorem output_length_run_mono (tm : MultiTapeTM k Bool State) (input : List Bool) :
@@ -244,16 +240,13 @@ theorem Represents.work_totalStep {d : Data k State} {sourceInput : List Bool}
     (tm : MultiTapeTM k Bool State) (i : Fin k) :
     (Data.totalStep tm d).work i = (d.work i).step (RawTape.nativeAction tm cfg i) := by
   cases hs : d.state with
-  | none =>
-    rw [totalStep_of_halt tm hs, RawTape.nativeAction, h.state.symm.trans hs]
-    rfl
+  | none => rw [totalStep_of_halt tm hs, RawTape.nativeAction, h.state.symm.trans hs]; rfl
   | some q =>
+    have hheads : (fun j => (d.work j).head) = cfg.workTapeSymbols :=
+      funext fun j => (h.work j).head
     rw [totalStep_of_state tm hs, RawTape.nativeAction, h.state.symm.trans hs]
     change (d.work i).step _ = (d.work i).step _
-    have hi : d.input.read = cfg.inputSymbol := h.input.read_eq_inputSymbol
-    have hw : (fun i => (d.work i).head) = cfg.workTapeSymbols :=
-      funext fun i => (h.work i).head
-    rw [hi, hw]
+    rw [h.input.read_eq_inputSymbol, hheads]
 
 /-- The work tapes coincide with the raw tapes used by the exact visited-space theorem. -/
 theorem work_run_eq_tape_run (tm : MultiTapeTM k Bool State) (input : List Bool)
@@ -268,8 +261,7 @@ theorem sum_work_span_run_eq_space (tm : MultiTapeTM k Bool State) (input : List
     (t : ℕ) :
     ∑ i, ((run tm input t).work i).span =
       (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg input) t).space := by
-  simp only [work_run_eq_tape_run]
-  exact RawTape.sum_span_run_eq_space tm input t
+  simpa only [work_run_eq_tape_run] using RawTape.sum_span_run_eq_space tm input t
 
 /-- Side-stack storage omits exactly the one current cell held in control for each work tape. -/
 theorem sum_work_sides_run_add_eq_space (tm : MultiTapeTM k Bool State) (input : List Bool)
@@ -282,8 +274,7 @@ theorem sum_work_sides_run_add_eq_space (tm : MultiTapeTM k Bool State) (input :
 /-- A native space certificate bounds all raw work storage, independently of runtime. -/
 theorem sum_work_span_run_le {tm : MultiTapeTM k Bool State} {input : List Bool} {s : ℕ}
     (hs : tm.RunsInSpace input s) (t : ℕ) : ∑ i, ((run tm input t).work i).span ≤ s := by
-  simp only [work_run_eq_tape_run]
-  exact RawTape.sum_span_run_le hs t
+  simpa only [work_run_eq_tape_run] using RawTape.sum_span_run_le hs t
 
 /-- The sum of raw side-stack lengths is bounded by native space. -/
 theorem sum_work_sides_run_le {tm : MultiTapeTM k Bool State} {input : List Bool} {s : ℕ}

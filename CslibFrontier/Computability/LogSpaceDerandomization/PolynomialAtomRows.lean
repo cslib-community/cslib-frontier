@@ -122,16 +122,16 @@ theorem scale_lt_gateThreshold (hθ : 0 < θ) (hη : η ≤ θ / 10000) :
 theorem eval_eq_zero_of_entry_le (hθ : 0 < θ) (hv : v ≤ kind.entryThreshold θ) :
     kind.eval θ v r = 0 := by
   cases kind
-  · exact polynomialPrepRow4_eq_zero_of_entry_le hθ hv
-  · exact polynomialAuxCutoff4_eq_zero_of_entry_le hθ hv
-  · exact polynomialWitnessCutoff4_eq_zero_of_entry_le hθ hv
+  exacts [polynomialPrepRow4_eq_zero_of_entry_le hθ hv,
+    polynomialAuxCutoff4_eq_zero_of_entry_le hθ hv,
+    polynomialWitnessCutoff4_eq_zero_of_entry_le hθ hv]
 
 theorem eval_eq_zero_of_rank_ge (hθ : 0 < θ) (hr : kind.gateThreshold θ ≤ r) :
     kind.eval θ v r = 0 := by
   cases kind
-  · exact polynomialPrepRow4_eq_zero_of_rank_ge hθ hr
-  · exact polynomialAuxCutoff4_eq_zero_of_rank_ge hθ hr
-  · exact polynomialWitnessCutoff4_eq_zero_of_rank_ge hθ hr
+  exacts [polynomialPrepRow4_eq_zero_of_rank_ge hθ hr,
+    polynomialAuxCutoff4_eq_zero_of_rank_ge hθ hr,
+    polynomialWitnessCutoff4_eq_zero_of_rank_ge hθ hr]
 
 /-- All three actual rank factors are constant throughout the common flat region. -/
 theorem eval_eq_of_rank_le (hθ : 0 < θ) (hη : η ≤ θ / 10000) (hr : r ≤ η) (hr' : r' ≤ η) :
@@ -149,9 +149,9 @@ theorem exists_abs_eval_root_sub_le (θ : ℝ) :
       |kind.eval θ v r ^ (4⁻¹ : ℝ) - kind.eval θ v' r' ^ (4⁻¹ : ℝ)| ≤
         C * (|v - v'| + |r - r'|) := by
   cases kind
-  · exact exists_abs_polynomialPrepRow4_root_sub_le θ
-  · exact exists_abs_polynomialAuxCutoff4_root_sub_le θ
-  · exact exists_abs_polynomialWitnessCutoff4_root_sub_le θ
+  exacts [exists_abs_polynomialPrepRow4_root_sub_le θ,
+    exists_abs_polynomialAuxCutoff4_root_sub_le θ,
+    exists_abs_polynomialWitnessCutoff4_root_sub_le θ]
 
 variable {ι : Type*} {s : Finset ι} {K : ℕ} {z : ℝ} {w : ι → Fin 2 → ℝ}
 
@@ -175,14 +175,11 @@ theorem card_filter_eval_ne_zero_lt (hθ : 0 < θ) (hK : 0 < K) :
     #{y ∈ s | kind.eval θ (w y 0) (firstRank s K z w) ≠ 0} < K := by
   classical
   by_contra hlt
-  have hle : K ≤ #{y ∈ s | kind.eval θ (w y 0) (firstRank s K z w) ≠ 0} := not_lt.mp hlt
-  have hsub : ({y ∈ s | kind.eval θ (w y 0) (firstRank s K z w) ≠ 0} : Finset ι) ⊆
-      {y ∈ s | kind.entryThreshold θ < w y 0} := by
-    intro y hy
-    obtain ⟨hys, hy⟩ := mem_filter.mp hy
-    exact mem_filter.mpr ⟨hys, not_le.mp fun h => hy (kind.eval_eq_zero_of_entry_le hθ h)⟩
+  have hle := not_lt.mp hlt
   have hrank : kind.entryThreshold θ < kthLargest K s (fun y => w y 0) :=
-    (lt_kthLargest_iff hK (kind.entryThreshold_pos hθ).le).mpr (hle.trans (card_le_card hsub))
+    (lt_kthLargest_iff hK (kind.entryThreshold_pos hθ).le).mpr (hle.trans (card_le_card
+      fun y hy => let ⟨hys, hy⟩ := mem_filter.mp hy
+        mem_filter.mpr ⟨hys, not_le.mp fun h => hy (kind.eval_eq_zero_of_entry_le hθ h)⟩))
   obtain ⟨y, hy⟩ := card_pos.mp (hK.trans_le hle)
   exact (mem_filter.mp hy).2 (kind.eval_eq_zero_of_rank_ge hθ
     ((kind.gateThreshold_lt_entryThreshold hθ).le.trans (hrank.le.trans kthLargest_le_firstRank)))
@@ -229,22 +226,19 @@ theorem exists_stationaryContinuation_root_bound (hθ : 0 < θ) (hη : 0 < η)
           kind.eval θ (truth y 0) (firstRank s K 0 truth) ^ (4⁻¹ : ℝ)| ≤
         C * ∑ i ∈ range j, dyadicFloor η m i * ε i := by
   obtain ⟨L, hL, hroot⟩ := kind.exists_abs_eval_root_sub_le θ
-  refine ⟨3 * L * (12 * (1 + η / 2) / (η / 2)), by positivity, ?_⟩
-  intro ι s n Δ a truth K hK ha haη m j r hr hno hfirst hsecond hn ε hε herr y hy
-  have hentry : ∀ (x v q : ℝ), x ≤ η → (fun x (_ : ℝ) q => kind.eval θ x q) x v q = 0 := by
-    intro x _ q hx
-    exact kind.eval_eq_zero_of_entry_le hθ (hx.trans
-      ((kind.scale_lt_gateThreshold hθ hmargin).le.trans
-        (kind.gateThreshold_lt_entryThreshold hθ).le))
-  have hbound := abs_stationaryState_root_sub_le_weighted_dyadic
+  refine ⟨3 * L * (12 * (1 + η / 2) / (η / 2)), by positivity,
+    fun s n Δ a truth K hK ha haη m j r hr hno hfirst hsecond hn ε hε herr y hy => ?_⟩
+  dsimp only
+  rw [kind.stationaryContinuation_eval_eq hθ hmargin hK m j r hr hno hfirst hsecond hn y hy]
+  simpa only [mul_assoc] using abs_stationaryState_root_sub_le_weighted_dyadic
     (H := fun x _ q => kind.eval θ x q) (p := (4⁻¹ : ℝ)) (C := L)
-    hη hK hL ha haη m j ((Nat.le_add_right j r).trans hr) hno hε herr hentry
+    hη hK hL ha haη m j ((Nat.le_add_right j r).trans hr) hno hε herr
+    (fun x _ q hx => kind.eval_eq_zero_of_entry_le hθ (hx.trans
+      ((kind.scale_lt_gateThreshold hθ hmargin).le.trans
+        (kind.gateThreshold_lt_entryThreshold hθ).le)))
     (fun _ _ _ _ hq hq' => kind.eval_eq_of_rank_le hθ hmargin hq.2 hq'.2)
     (fun x v q x' v' q' _ _ _ _ => (hroot x q x' q').trans
       (mul_le_mul_of_nonneg_left (by linarith [abs_nonneg (v - v')]) hL)) y hy
-  dsimp only
-  rw [kind.stationaryContinuation_eval_eq hθ hmargin hK m j r hr hno hfirst hsecond hn y hy]
-  simpa only [mul_assoc] using hbound
 
 end PolynomialAtomRow
 end Cslib

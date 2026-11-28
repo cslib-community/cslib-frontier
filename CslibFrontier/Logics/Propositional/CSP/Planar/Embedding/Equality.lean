@@ -37,20 +37,12 @@ private theorem foldFirstTwo_kernel (n a : ℕ) (x y : Fin (n + 2) ⊕ Fin a) :
       Sum.map (Fin.cases (0 : Fin (n + 1)) id) id y ↔
     Function.update id (Sum.inl (1 : Fin (n + 2))) (Sum.inl (0 : Fin (n + 2))) x =
       Function.update id (Sum.inl (1 : Fin (n + 2))) (Sum.inl (0 : Fin (n + 2))) y := by
-  have hk (i j : Fin (n + 2)) :
-      (Fin.cases 0 id : Fin (n + 2) → Fin (n + 1)) i =
-        (Fin.cases 0 id : Fin (n + 2) → Fin (n + 1)) j ↔
-      i = j ∨ (i = 0 ∧ j = 1) ∨ (i = 1 ∧ j = 0) := by
-    change _ ↔ i = j ∨ (i = 0 ∧ j = Fin.succ 0) ∨ (i = Fin.succ 0 ∧ j = 0)
-    cases i using Fin.cases <;> cases j using Fin.cases <;>
-      simp only [Fin.cases_zero, Fin.cases_succ, id_eq, Fin.succ_inj] <;> simp [eq_comm]
   rw [Function.update_id_apply_eq_iff]
-  cases x with
-  | inl x =>
-    cases y with
-    | inl y => simpa only [Sum.map_inl, Sum.inl.injEq] using hk x y
-    | inr y => simp
-  | inr x => cases y <;> simp
+  rcases x with x | x <;> rcases y with y | y <;> simp only [Sum.map_inl, Sum.map_inr,
+    Sum.inl.injEq, Sum.inr.injEq, reduceCtorEq, id_eq, false_and, and_false, or_false, or_self]
+  change _ ↔ x = y ∨ (x = 0 ∧ y = Fin.succ 0) ∨ (x = Fin.succ 0 ∧ y = 0)
+  cases x using Fin.cases <;> cases y using Fin.cases <;>
+    simp only [Fin.cases_zero, Fin.cases_succ, id_eq, Fin.succ_inj] <;> simp [eq_comm]
 
 /-- Identify the first two free ports on exactly `PPGadget.equalDrop`. Their structural
 probe arguments internally supply cofacial corners; the first duplicate marker is removed

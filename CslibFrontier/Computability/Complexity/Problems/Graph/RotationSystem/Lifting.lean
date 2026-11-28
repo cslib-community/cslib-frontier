@@ -77,27 +77,22 @@ private theorem component_constant (G : Graph)
       extend G d.vertex s (Dart.vertex (G := G) (i, false)) =
         extend G d.vertex s (Dart.vertex (G := G) (i, true)) := by
     by_cases hi : i ∈ G.componentEdgeSet d.vertex
-    · rw [extend_endpoint G d.vertex hG s ⟨i, hi⟩ false,
-        extend_endpoint G d.vertex hG s ⟨i, hi⟩ true]
-      exact hs ⟨i, hi⟩
-    · have hl := mt (mem_componentEdgeSet_iff d.vertex hG i false).mpr hi
-      have hr := mt (mem_componentEdgeSet_iff d.vertex hG i true).mpr hi
-      simp only [extend, dite_eq_right hl, dite_eq_right hr]
+    · simpa only [extend_endpoint G d.vertex hG s ⟨i, hi⟩] using hs ⟨i, hi⟩
+    · simp only [extend, dite_eq_right (mt (mem_componentEdgeSet_iff d.vertex hG i false).mpr hi),
+        dite_eq_right (mt (mem_componentEdgeSet_iff d.vertex hG i true).mpr hi)]
   intro a b
   have hda := (Finset.mem_filter.mp a.property).2
   have hdb := (Finset.mem_filter.mp b.property).2
   obtain ⟨p, hp⟩ := Dart.exists_of_sameComponent d a.val hda
   obtain ⟨q, hq⟩ := Dart.exists_of_sameComponent d b.val hdb
-  have heq := Dart.eq_of_sameComponent
-    (fun p : Dart G => extend G d.vertex s p.vertex)
-    (fun p q h => congrArg (extend G d.vertex s) h)
-    (fun p => by
-      rcases p with ⟨i, side⟩
-      cases side
-      · exact hedge i
-      · exact (hedge i).symm)
-    (d := p) (e := q) (by simpa only [hp, hq] using hda.symm.trans hdb)
-  simpa only [hp, hq, extend, dite_eq_left a.property, dite_eq_left b.property] using heq
+  simpa only [hp, hq, extend, dite_eq_left a.property, dite_eq_left b.property] using
+    Dart.eq_of_sameComponent (fun p : Dart G => extend G d.vertex s p.vertex)
+      (fun _ _ => congrArg (extend G d.vertex s))
+      (fun ⟨i, side⟩ => by
+        cases side
+        · exact hedge i
+        · exact (hedge i).symm)
+      (d := p) (e := q) (by simpa only [hp, hq] using hda.symm.trans hdb)
 
 private noncomputable def primalMatrix (G : Graph)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
@@ -121,9 +116,8 @@ private noncomputable def dualEndpoint {G : Graph} (r : RotationSystem G)
 private theorem dualEndpoint_val {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G)
     (i : Edge G d.vertex) (b : Bool) :
-    (dualEndpoint r hG d i b).val = r.faceId (i.val, b) := by
-  change (r.dualDartEquiv (i.val, b)).vertex = _
-  exact r.vertex_dualDartEquiv _
+    (dualEndpoint r hG d i b).val = r.faceId (i.val, b) :=
+  r.vertex_dualDartEquiv (i.val, b)
 
 private noncomputable def dualMatrix {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
@@ -135,11 +129,9 @@ private theorem rank_dualMatrix {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
     (dualMatrix r hG d).rank + 1 =
       Fintype.card (Vertex r.dualGraph (r.dualDartEquiv d).vertex) := by
-  apply Matrix.rank_endpointIncidence_add_one _ _
-    (rootVertex r.dualGraph r.dualGraph_endpoints_declared (r.dualDartEquiv d))
-  intro s hs
-  apply component_constant r.dualGraph r.dualGraph_endpoints_declared (r.dualDartEquiv d) s
-  intro i
+  refine Matrix.rank_endpointIncidence_add_one _ _
+    (rootVertex r.dualGraph r.dualGraph_endpoints_declared (r.dualDartEquiv d)) fun s hs =>
+    component_constant r.dualGraph r.dualGraph_endpoints_declared (r.dualDartEquiv d) s fun i => ?_
   obtain ⟨i, rfl⟩ := (r.componentEdgeDualEquiv hG d).surjective i
   exact hs i
 
@@ -149,46 +141,28 @@ private theorem dualMatrix_mulVec_sum {G : Graph} (r : RotationSystem G)
     (v : Vertex r.dualGraph (r.dualDartEquiv d).vertex) :
     (dualMatrix r hG d).mulVec (fun i => x i.val) v =
       ∑ a : Dart G, if r.faceId a = v.val then x a.1 else 0 := by
-  have hmem (i : Fin G.edges.length) (b : Bool) (h : r.faceId (i, b) = v.val) :
-      i ∈ G.componentEdgeSet d.vertex := by
-    apply (mem_componentEdgeSet_iff d.vertex hG i b).mpr
-    apply (mem_componentVertexSet_dart _ hG _).mpr
-    apply (r.sameComponent_dual_iff hG d (i, b)).mp
-    apply (mem_componentVertexSet_dart _ r.dualGraph_endpoints_declared _).mp
+  have hsum (b : Bool) :
+      (∑ i : Edge G d.vertex, if r.faceId (i.val, b) = v.val then x i.val else 0) =
+        ∑ i : Fin G.edges.length, if r.faceId (i, b) = v.val then x i else 0 := by
+    rw [Finset.sum_coe_sort (G.componentEdgeSet d.vertex)
+      (fun i => if r.faceId (i, b) = v.val then x i else 0)]
+    refine Finset.sum_subset (Finset.subset_univ _) fun i _ hi => ite_eq_right fun h => hi ?_
+    refine (mem_componentEdgeSet_iff d.vertex hG i b).mpr ((mem_componentVertexSet_dart _ hG _).mpr
+      ((r.sameComponent_dual_iff hG d (i, b)).mp
+        ((mem_componentVertexSet_dart _ r.dualGraph_endpoints_declared _).mp ?_)))
     rw [r.vertex_dualDartEquiv (i, b), h]
     exact v.property
-  have hsum (b : Bool) :
-      (∑ i ∈ G.componentEdgeSet d.vertex,
-        if r.faceId (i, b) = v.val then x i else 0) =
-        ∑ i : Fin G.edges.length, if r.faceId (i, b) = v.val then x i else 0 := by
-    apply Finset.sum_subset (Finset.subset_univ _)
-    intro i _ hi
-    have hn : r.faceId (i, b) ≠ v.val := fun h => hi (hmem i b h)
-    simp only [hn, ite_false]
   have heq (i : Edge G d.vertex) (b : Bool) :
       v = dualEndpoint r hG d i b ↔ r.faceId (i.val, b) = v.val := by
     rw [Subtype.ext_iff, dualEndpoint_val, eq_comm]
-  calc
-    (dualMatrix r hG d).mulVec (fun i => x i.val) v =
-        (∑ i : Edge G d.vertex, if r.faceId (i.val, false) = v.val then x i.val else 0) +
-        ∑ i : Edge G d.vertex, if r.faceId (i.val, true) = v.val then x i.val else 0 := by
-      simp only [dualMatrix, Matrix.endpointIncidence, Matrix.mulVec, dotProduct,
-        add_mul, ite_mul, one_mul, zero_mul, Finset.sum_add_distrib, heq]
-    _ = (∑ i ∈ G.componentEdgeSet d.vertex,
-          if r.faceId (i, false) = v.val then x i else 0) +
-        ∑ i ∈ G.componentEdgeSet d.vertex,
-          if r.faceId (i, true) = v.val then x i else 0 := by
-      exact congrArg₂ (· + ·)
-        (Finset.sum_coe_sort (G.componentEdgeSet d.vertex)
-          (fun i => if r.faceId (i, false) = v.val then x i else 0))
-        (Finset.sum_coe_sort (G.componentEdgeSet d.vertex)
-          (fun i => if r.faceId (i, true) = v.val then x i else 0))
-    _ = (∑ i : Fin G.edges.length, if r.faceId (i, false) = v.val then x i else 0) +
-        ∑ i : Fin G.edges.length, if r.faceId (i, true) = v.val then x i else 0 := by
-      rw [hsum false, hsum true]
+  calc (dualMatrix r hG d).mulVec (fun i => x i.val) v
+      = (∑ i : Fin G.edges.length, if r.faceId (i, false) = v.val then x i else 0) +
+          ∑ i : Fin G.edges.length, if r.faceId (i, true) = v.val then x i else 0 := by
+        simp only [dualMatrix, Matrix.endpointIncidence, Matrix.mulVec, dotProduct, add_mul,
+          ite_mul, one_mul, zero_mul, Finset.sum_add_distrib, heq, hsum false, hsum true]
     _ = ∑ a : Dart G, if r.faceId a = v.val then x a.1 else 0 := by
-      simp only [Dart, Fintype.sum_prod_type, Fintype.sum_bool, Finset.sum_add_distrib]
-      exact add_comm _ _
+        simp only [Dart, Fintype.sum_prod_type, Fintype.sum_bool, Finset.sum_add_distrib]
+        exact add_comm _ _
 
 private theorem dualMatrix_mulVec_bit {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G)
@@ -216,16 +190,14 @@ private theorem matrix_product_zero {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
     dualMatrix r hG d * (primalMatrix G hG d).transpose = 0 := by
   classical
-  apply Matrix.mulVec_injective
-  funext s v
-  rw [← Matrix.mulVec_mulVec, Matrix.zero_mulVec, Pi.zero_apply]
-  have hv := List.mem_toFinset.mp (Finset.mem_filter.mp v.property).1
-  obtain ⟨a, ha⟩ := r.dualGraph_no_isolates v.val hv
+  refine Matrix.mulVec_injective (funext fun s => funext fun v => ?_)
+  obtain ⟨a, ha⟩ :=
+    r.dualGraph_no_isolates v.val (List.mem_toFinset.mp (Finset.mem_filter.mp v.property).1)
   obtain ⟨a, rfl⟩ := r.dualDartEquiv.surjective a
-  have hvec := funext (primalMatrix_gradient G hG d s)
-  rw [hvec, dualMatrix_mulVec_bit r hG d _ v a
-    (by simpa only [vertex_dualDartEquiv] using ha)]
-  rw [r.faceEven_edgeGradient]
+  rw [← Matrix.mulVec_mulVec, Matrix.zero_mulVec, Pi.zero_apply,
+    funext (primalMatrix_gradient G hG d s),
+    dualMatrix_mulVec_bit r hG d _ v a (by simpa only [vertex_dualDartEquiv] using ha),
+    r.faceEven_edgeGradient]
   rfl
 
 /-- The actual vertices and face cycles of an incident component satisfy the Euler bound.
@@ -238,12 +210,11 @@ theorem component_euler_le {G : Graph} (r : RotationSystem G)
       (G.componentEdgeSet d.vertex).card + 2 := by
   classical
   have h := Matrix.rank_add_rank_le_card_of_mul_eq_zero (matrix_product_zero r hG d)
-  rw [Matrix.rank_transpose] at h
   have hp := rank_primalMatrix G hG d
   have hd := rank_dualMatrix r hG d
+  rw [Matrix.rank_transpose] at h
   rw [r.card_component_faces_eq_dual_vertices hG]
-  simp only [Vertex, Edge, Fintype.card_coe] at h hp hd
-  omega
+  simp only [Vertex, Edge, Fintype.card_coe] at h hp hd; omega
 
 /-- Every face-even assignment lifts on each edge component, with all rank and dimension
 ingredients discharged internally from existing reachability and componentwise Euler. -/
@@ -261,19 +232,17 @@ theorem exists_vertexSpins_on_component {G : Graph} (r : RotationSystem G)
   have hk : (fun i : Edge G d.vertex => BitString.bitEquiv.symm (x i.val)) ∈
       (dualMatrix r hG d).mulVecLin.ker := by
     rw [LinearMap.mem_ker]
-    funext v
-    have hv := List.mem_toFinset.mp (Finset.mem_filter.mp v.property).1
-    obtain ⟨a, ha⟩ := r.dualGraph_no_isolates v.val hv
+    ext v
+    obtain ⟨a, ha⟩ := r.dualGraph_no_isolates v.val
+      (List.mem_toFinset.mp (Finset.mem_filter.mp v.property).1)
     obtain ⟨a, rfl⟩ := r.dualDartEquiv.surjective a
     rw [Matrix.mulVecLin_apply, dualMatrix_mulVec_bit r hG d x v a
       (by simpa only [vertex_dualDartEquiv] using ha), hx]
     rfl
-  rw [← heq] at hk
-  obtain ⟨s, hs⟩ := hk
-  refine ⟨fun v => BitString.bitEquiv (extend G d.vertex s v), ?_⟩
-  intro i hi
-  apply BitString.bitEquiv.symm.injective
-  exact (primalMatrix_gradient G hG d s ⟨i, hi⟩).symm.trans (congrFun hs ⟨i, hi⟩)
+  obtain ⟨s, hs⟩ := heq ▸ hk
+  exact ⟨fun v => BitString.bitEquiv (extend G d.vertex s v), fun i hi =>
+    BitString.bitEquiv.symm.injective
+      ((primalMatrix_gradient G hG d s ⟨i, hi⟩).symm.trans (congrFun hs ⟨i, hi⟩))⟩
 
 private theorem range_transpose_eq_ker_of_faceEven_lifts {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
@@ -282,52 +251,36 @@ private theorem range_transpose_eq_ker_of_faceEven_lifts {G : Graph} (r : Rotati
     LinearMap.range (primalMatrix G hG d).transpose.mulVecLin =
       LinearMap.ker (dualMatrix r hG d).mulVecLin := by
   classical
-  apply le_antisymm
+  refine le_antisymm ?_ fun y hy => ?_
   · rw [LinearMap.range_le_ker_iff, ← Matrix.mulVecLin_mul, matrix_product_zero,
       Matrix.mulVecLin_zero]
-  · intro y hy
-    let x (i : Fin G.2.length) : Bool :=
+  · let x (i : Fin G.2.length) : Bool :=
       if h : i ∈ G.componentEdgeSet d.vertex then BitString.bitEquiv (y ⟨i, h⟩) else false
-    have hrestrict (i : Edge G d.vertex) : BitString.bitEquiv.symm (x i.val) = y i := by
-      simp only [x, dite_eq_left i.property, RingEquiv.symm_apply_apply]
-    have hx : r.FaceEven x := by
-      apply (r.faceEven_iff_dart x).mpr
-      intro a
+    have hrestrict : (fun i : Edge G d.vertex => BitString.bitEquiv.symm (x i.val)) = y :=
+      funext fun i => by simp only [x, dite_eq_left i.property, RingEquiv.symm_apply_apply]
+    have hx : r.FaceEven x := (r.faceEven_iff_dart x).mpr fun a => by
       by_cases ha : RotationCertificate.SameComponent G d.vertex a.vertex
-      · have hs := (r.sameComponent_dual_iff hG d a).mpr ha
-        let v : Vertex r.dualGraph (r.dualDartEquiv d).vertex :=
-          ⟨(r.dualDartEquiv a).vertex,
-            (mem_componentVertexSet_dart _ r.dualGraph_endpoints_declared _).mpr hs⟩
+      · let v : Vertex r.dualGraph (r.dualDartEquiv d).vertex :=
+          ⟨(r.dualDartEquiv a).vertex, (mem_componentVertexSet_dart _
+            r.dualGraph_endpoints_declared _).mpr ((r.sameComponent_dual_iff hG d a).mpr ha)⟩
         have hcalc := dualMatrix_mulVec_bit r hG d x v a (r.vertex_dualDartEquiv a).symm
-        have hz := congrFun (LinearMap.mem_ker.mp hy) v
-        change (dualMatrix r hG d).mulVec y v = 0 at hz
-        apply BitString.bitEquiv.symm.injective
-        change BitString.bitEquiv.symm (r.faceParity x (Quotient.mk _ a)) = 0
-        rw [← hcalc, funext hrestrict]
-        exact hz
+        rw [hrestrict] at hcalc
+        exact BitString.bitEquiv.symm.injective
+          (hcalc.symm.trans (congrFun (LinearMap.mem_ker.mp hy) v))
       · rw [r.faceParity_mk, parityOn_eq_sum]
-        apply Finset.sum_eq_zero
-        intro e he
-        have hface := r.sameComponent_of_sameFace hG (Finset.mem_filter.mp he).2
-        have hn : e.1 ∉ G.componentEdgeSet d.vertex := by
-          intro hm
-          have hv := (mem_componentEdgeSet_iff d.vertex hG e.1 e.2).mp hm
-          exact ha (((mem_componentVertexSet_dart _ hG e).mp hv).trans hface.symm)
+        refine Finset.sum_eq_zero fun e he => ?_
+        have hn : e.1 ∉ G.componentEdgeSet d.vertex := fun hm => ha
+          (((mem_componentVertexSet_dart _ hG e).mp
+            ((mem_componentEdgeSet_iff d.vertex hG e.1 e.2).mp hm)).trans
+            (r.sameComponent_of_sameFace hG (Finset.mem_filter.mp he).2).symm)
         simp only [x, dite_eq_right hn, Bool.zero_eq_false]
     obtain ⟨spin, hspin⟩ := hlift x hx
-    refine ⟨fun v => BitString.bitEquiv.symm (spin v.val), ?_⟩
-    ext i
-    change (primalMatrix G hG d).transpose.mulVec
-      (fun v => BitString.bitEquiv.symm (spin v.val)) i = y i
+    refine ⟨fun v => BitString.bitEquiv.symm (spin v.val), funext fun i => ?_⟩
+    change (primalMatrix G hG d).transpose.mulVec _ i = y i
     rw [primalMatrix, Matrix.endpointIncidence_transpose_mulVec]
     apply BitString.bitEquiv.injective
-    simp only [map_add, RingEquiv.apply_symm_apply]
-    change (spin (Dart.vertex (G := G) (i.val, false)) +
-      spin (Dart.vertex (G := G) (i.val, true))) = BitString.bitEquiv (y i)
-    rw [Bool.add_eq_xor]
-    change G.edgeGradient spin i.val = BitString.bitEquiv (y i)
-    rw [hspin]
-    simp only [x, dite_eq_left i.property]
+    simp only [map_add, RingEquiv.apply_symm_apply, Bool.add_eq_xor]
+    simpa only [endpoint, edgeGradient, x, dite_eq_left i.property] using congrFun hspin i.val
 
 /-- Algebraic converse to face-even lifting: if every face-even edge labeling is a vertex
 gradient, the existing componentwise numerical Euler predicate holds. The component proof
@@ -339,19 +292,15 @@ theorem numericalGenusZero_of_faceEven_lifts {G : Graph} (r : RotationSystem G)
     (hlift : ∀ x : Fin G.2.length → Bool, r.FaceEven x →
       ∃ spin : ℕ → Bool, G.edgeGradient spin = x) : r.NumericalGenusZero := by
   classical
-  apply (r.numericalGenusZero_iff_component_cards hG).mpr
-  intro d
-  have hker := range_transpose_eq_ker_of_faceEven_lifts r hG hlift d
+  refine (r.numericalGenusZero_iff_component_cards hG).mpr fun d => ?_
   have hnull := (dualMatrix r hG d).mulVecLin.finrank_range_add_finrank_ker
-  rw [← hker] at hnull
+  rw [← range_transpose_eq_ker_of_faceEven_lifts r hG hlift d] at hnull
   change (dualMatrix r hG d).rank + (primalMatrix G hG d).transpose.rank = _ at hnull
-  rw [Matrix.rank_transpose] at hnull
-  simp only [Module.finrank_pi] at hnull
+  rw [Matrix.rank_transpose, Module.finrank_pi] at hnull
   have hp := rank_primalMatrix G hG d
   have hd := rank_dualMatrix r hG d
   rw [r.card_component_faces_eq_dual_vertices hG]
-  simp only [Vertex, Edge, Fintype.card_coe] at hnull hp hd
-  omega
+  simp only [Vertex, Edge, Fintype.card_coe] at hnull hp hd; omega
 
 private noncomputable def chosenVertex (G : Graph) (c : G.induced.ConnectedComponent) :
     {v // v ∈ G.vertices} :=
@@ -376,8 +325,8 @@ private theorem componentSpin_correct {G : Graph} (r : RotationSystem G)
     (i : Fin G.edges.length) (hi : i ∈ G.componentEdgeSet (chosenVertex G c).val) :
     G.edgeGradient (componentSpin r hG hgenus x hx c) i = x i := by
   rw [componentSpin, dite_eq_left h]
-  apply (r.exists_vertexSpins_on_component hG hgenus x hx h.choose).choose_spec
-  rwa [h.choose_spec]
+  exact (r.exists_vertexSpins_on_component hG hgenus x hx h.choose).choose_spec _
+    (h.choose_spec.symm ▸ hi)
 
 /-- Every face-even assignment on a componentwise numerically genus-zero indexed rotation
 lifts to spins on the original natural-number names. Components are solved independently;
@@ -386,35 +335,23 @@ theorem exists_vertexSpins_of_faceEven {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hgenus : r.NumericalGenusZero)
     (x : Fin G.edges.length → Bool) (hx : r.FaceEven x) :
     ∃ spin : ℕ → Bool, G.edgeGradient spin = x := by
-  let spin (v : ℕ) : Bool :=
-    if hv : v ∈ G.vertices then
-      componentSpin r hG hgenus x hx (G.induced.connectedComponentMk ⟨v, hv⟩) v
-    else false
-  refine ⟨spin, funext fun i => ?_⟩
-  let u := Dart.vertex (G := G) (i, false)
-  let v := Dart.vertex (G := G) (i, true)
-  have hu : u ∈ G.vertices := vertex_mem hG (i, false)
-  have hv : v ∈ G.vertices := vertex_mem hG (i, true)
-  let c := G.induced.connectedComponentMk ⟨u, hu⟩
-  have hcomp : RotationCertificate.SameComponent G u v := sameComponent_reverse hG (i, false)
-  have hcc : c = G.induced.connectedComponentMk ⟨v, hv⟩ :=
-    SimpleGraph.ConnectedComponent.sound hcomp.2.2
-  have hroot : RotationCertificate.SameComponent G u (chosenVertex G c).val :=
+  refine ⟨fun v => if hv : v ∈ G.vertices then
+    componentSpin r hG hgenus x hx (G.induced.connectedComponentMk ⟨v, hv⟩) v else false,
+    funext fun i => ?_⟩
+  have hu : Dart.vertex (G := G) (i, false) ∈ G.vertices := vertex_mem hG (i, false)
+  have hv : Dart.vertex (G := G) (i, true) ∈ G.vertices := vertex_mem hG (i, true)
+  let c := G.induced.connectedComponentMk ⟨_, hu⟩
+  have hcc : c = G.induced.connectedComponentMk ⟨_, hv⟩ :=
+    SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hG (i, false)).2.2
+  have hroot : RotationCertificate.SameComponent G (Dart.vertex (G := G) (i, false))
+      (chosenVertex G c).val :=
     ⟨hu, (chosenVertex G c).property,
       SimpleGraph.ConnectedComponent.exact (chosenVertex_spec G c).symm⟩
-  have hinc := Dart.exists_of_sameComponent ((i, false) : Dart G)
-    (chosenVertex G c).val hroot
-  have hi : i ∈ G.componentEdgeSet (chosenVertex G c).val := by
-    apply (mem_componentEdgeSet_iff _ hG i false).mpr
-    exact (mem_componentVertexSet_dart _ hG _).mpr hroot.symm
-  have he := componentSpin_correct r hG hgenus x hx c hinc i hi
-  have hsU : spin u = componentSpin r hG hgenus x hx c u := by
-    simp only [spin, dite_eq_left hu, c]
-  have hsV : spin v = componentSpin r hG hgenus x hx c v := by
-    simp only [spin, dite_eq_left hv, ← hcc]
-  change (spin u ^^ spin v) = x i
-  rw [hsU, hsV]
-  exact he
+  simpa only [edgeGradient, dite_eq_left hu, dite_eq_left hv, ← hcc] using
+    componentSpin_correct r hG hgenus x hx c
+      (Dart.exists_of_sameComponent ((i, false) : Dart G) _ hroot) i
+      ((mem_componentEdgeSet_iff _ hG i false).mpr
+        ((mem_componentVertexSet_dart _ hG _).mpr hroot.symm))
 
 /-- Face parity characterizes vertex gradients for arbitrary finite listed graphs under the
 existing componentwise numerical genus-zero predicate. The endpoint-declaration hypothesis
@@ -424,10 +361,7 @@ assumption; see `faceEven_edgeGradient`. -/
 theorem faceEven_iff_exists_vertexSpins {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hgenus : r.NumericalGenusZero)
     (x : Fin G.edges.length → Bool) :
-    r.FaceEven x ↔ ∃ spin : ℕ → Bool, G.edgeGradient spin = x := by
-  constructor
-  · exact r.exists_vertexSpins_of_faceEven hG hgenus x
-  · rintro ⟨spin, rfl⟩
-    exact r.faceEven_edgeGradient spin
+    r.FaceEven x ↔ ∃ spin : ℕ → Bool, G.edgeGradient spin = x :=
+  ⟨r.exists_vertexSpins_of_faceEven hG hgenus x, fun ⟨spin, h⟩ => h ▸ r.faceEven_edgeGradient spin⟩
 
 end Cslib.Complexity.Graph.RotationSystem

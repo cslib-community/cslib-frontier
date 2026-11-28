@@ -71,16 +71,13 @@ private theorem taggedBlocks_injective :
     Function.Injective (taggedBlocks (X := X) (ℓ := ℓ)) := by
   intro m m' h
   have hlen : m.val.length = m'.val.length := by
-    simpa only [taggedBlocks, Finset.card_map, Finset.card_univ, Fintype.card_fin] using
-      congrArg Finset.card h
+    simpa [taggedBlocks] using congrArg Finset.card h
   refine Subtype.ext (List.ext_getElem hlen fun i hi _ => ?_)
   have hm : xorHashQueryAt m ⟨i, hi⟩ ∈ taggedBlocks m :=
     Finset.mem_map.mpr ⟨_, Finset.mem_univ _, rfl⟩
-  rw [h] at hm
-  obtain ⟨j, _, hj⟩ := Finset.mem_map.mp hm
-  have hjval : j.val = i := congrArg (fun block => block.2.val) hj
-  have hblock : m'.val[j] = m.val[i] := congrArg Prod.fst hj
-  simpa only [Fin.getElem_fin, hjval] using hblock.symm
+  obtain ⟨j, _, hj⟩ := Finset.mem_map.mp (h ▸ hm)
+  have hjval : j.val = i := congrArg (fun b : X × Fin ℓ => b.2.val) hj
+  exact hjval ▸ (congrArg Prod.fst hj).symm
 
 /-- A step in the ideal-game analysis of Theorem 7.6 ([BonehShoup2023], v0.6, pp. 261–262).
 With an independent uniform value at every tagged position, two distinct messages have a
@@ -91,25 +88,20 @@ theorem uniform_xorHash_sub [Fintype X] [DecidableEq X] [Fintype Y] [AddCommGrou
       (fun f => xorHash f m - xorHash f m') = PMF.uniformOfFintype Y := by
   let s := taggedBlocks m
   let t := taggedBlocks m'
-  have hst : s ≠ t := taggedBlocks_injective.ne hne
   have hsum (f : X × Fin ℓ → Y) (msg : {xs : List X // xs.length ≤ ℓ}) :
-      xorHash f msg = ∑ i ∈ taggedBlocks msg, f i := by
-    rw [taggedBlocks, Finset.sum_map]
-    rfl
+      xorHash f msg = ∑ i ∈ taggedBlocks msg, f i := (Finset.sum_map ..).symm
   let difference : (X × Fin ℓ → Y) →+ Y :=
     { toFun := fun f => (∑ i ∈ s, f i) - ∑ i ∈ t, f i
       map_zero' := by simp
-      map_add' := by
-        intro f g
+      map_add' := fun f g => by
         simp only [Pi.add_apply, Finset.sum_add_distrib]
         abel }
   simp only [hsum]
-  apply PMF.uniformOfFintype_map_addHom difference
-  intro c
-  obtain ⟨i, hi⟩ := Finset.symmDiff_nonempty.mpr hst
+  refine PMF.uniformOfFintype_map_addHom difference fun c => ?_
+  obtain ⟨i, hi⟩ := Finset.symmDiff_nonempty.mpr (taggedBlocks_injective.ne hne)
   refine ⟨Pi.single i (if i ∈ s then c else -c), ?_⟩
   rcases Finset.mem_symmDiff.mp hi with ⟨his, hit⟩ | ⟨hit, his⟩ <;>
-    simp [difference, Finset.sum_pi_single', his, hit]
+    simp [difference, s, t, Finset.sum_pi_single', his, hit]
 
 /-- An ideal uniform table gives XOR-hash difference universality with bound `1 / |Y|`. -/
 theorem isDeltaUniversalHash_xorHash [Fintype X] [DecidableEq X] [Fintype Y] [AddCommGroup Y] :

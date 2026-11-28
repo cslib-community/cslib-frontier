@@ -68,19 +68,9 @@ theorem support_reverse (r : Route) : support r.reverse = support r := by
   ext p
   simp only [support, Set.mem_ofPred_eq, consecutivePairs_reverse, List.mem_reverse,
     List.mem_map, exists_exists_and_eq_and, Prod.swap]
-  constructor
-  · rintro (h | ⟨e, he, hp⟩)
-    · exact Or.inl h
-    · refine Or.inr ⟨e, he, ?_⟩
-      change p ∈ _root_.segment ℝ (realPoint e.1) (realPoint e.2)
-      rw [_root_.segment_symm]
-      exact hp
-  · rintro (h | ⟨e, he, hp⟩)
-    · exact Or.inl h
-    · refine Or.inr ⟨e, he, ?_⟩
-      change p ∈ _root_.segment ℝ (realPoint e.2) (realPoint e.1)
-      rw [_root_.segment_symm]
-      exact hp
+  exact or_congr_right (exists_congr fun e => and_congr_right fun _ => by
+    change p ∈ _root_.segment ℝ _ _ ↔ p ∈ _root_.segment ℝ _ _
+    rw [_root_.segment_symm])
 
 private theorem axisAligned_swap_iff (a b : Point) : AxisAligned b a ↔ AxisAligned a b := by
   simp [AxisAligned, eq_comm]
@@ -91,13 +81,11 @@ theorem isOrthogonal_reverse_iff (r : Route) : IsOrthogonal r.reverse ↔ IsOrth
     forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, Prod.swap, axisAligned_swap_iff]
 
 private theorem isSimple_reverse {r : Route} (h : IsSimple r) : IsSimple r.reverse := by
-  refine ⟨by simpa only [List.nodup_reverse] using h.1, ?_⟩
-  intro e he f hf hne
+  refine ⟨by simpa only [List.nodup_reverse] using h.1, fun e he f hf hne => ?_⟩
   simp only [consecutivePairs_reverse, List.mem_map, List.mem_reverse] at he hf
   obtain ⟨e, he, rfl⟩ := he
   obtain ⟨f, hf, rfl⟩ := hf
-  have hne' : e ≠ f := fun heq => hne (congrArg Prod.swap heq)
-  exact (h.2 e he f hf hne').reverse_left.reverse_right
+  exact (h.2 e he f hf fun heq => hne (congrArg Prod.swap heq)).reverse_left.reverse_right
 
 /-- Reversal preserves continuous simplicity. -/
 theorem isSimple_reverse_iff (r : Route) : IsSimple r.reverse ↔ IsSimple r :=
@@ -105,9 +93,7 @@ theorem isSimple_reverse_iff (r : Route) : IsSimple r.reverse ↔ IsSimple r :=
 
 private theorem length_swap (a b : Point) : length b a = length a b := by
   unfold length
-  congr 1
-  · rw [← Int.natAbs_neg (a.1 - b.1), neg_sub]
-  · rw [← Int.natAbs_neg (a.2 - b.2), neg_sub]
+  rw [← Int.natAbs_neg (a.1 - b.1), ← Int.natAbs_neg (a.2 - b.2), neg_sub, neg_sub]
 
 /-- Reversal preserves total Manhattan wire length. -/
 theorem wireLength_reverse (r : Route) : wireLength r.reverse = wireLength r := by

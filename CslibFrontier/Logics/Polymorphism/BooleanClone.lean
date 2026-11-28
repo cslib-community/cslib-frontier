@@ -83,28 +83,23 @@ theorem projection_or_negation_of_not_hasSchaeferPolymorphism {Rel : Type*}
     (hf : HasPolymorphism arity sem f) :
     ∃ i : Fin n, f = (fun a => a i) ∨ f = (fun a => !(a i)) := by
   let C := polymorphismClone arity sem
-  have hand : BooleanClone.andOp ∉ C.operations 2 := fun he =>
-    h (Or.inr (Or.inr (Or.inl he.2)))
-  have hor : BooleanClone.orOp ∉ C.operations 2 := fun he =>
-    h (Or.inr (Or.inr (Or.inr (Or.inl he.2))))
-  have hmaj : (Cslib.majority 3) ∉ C.operations 3 := fun he =>
-    h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl he.2)))))
-  have hmin : (Cslib.parity 3) ∉ C.operations 3 := fun he =>
-    h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr he.2)))))
-  obtain ⟨i, u, hu⟩ := C.essentiallyUnary_of_missing_generators hand hor hmaj hmin hn ⟨hn, hf⟩
+  obtain ⟨i, u, hu⟩ := C.essentiallyUnary_of_missing_generators
+    (fun he => h (Or.inr (Or.inr (Or.inl he.2))))
+    (fun he => h (Or.inr (Or.inr (Or.inr (Or.inl he.2)))))
+    (fun he => h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl he.2))))))
+    (fun he => h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr he.2)))))) hn ⟨hn, hf⟩
   have hc (b : Bool) (hb : ∀ c, u c = b) :
       HasPolymorphism arity sem (fun _ : Fin 1 → Bool => b) := by
-    have hd := (C.diagonal hn ⟨hn, hf⟩).2
-    simpa only [hu, hb, HasPolymorphism] using hd
+    simpa only [hu, hb, HasPolymorphism] using (C.diagonal hn ⟨hn, hf⟩).2
   cases h₀ : u false <;> cases h₁ : u true
-  · exact False.elim (h (Or.inl (hc false (fun c => by cases c <;> assumption))))
+  · exact (h (Or.inl (hc false fun c => by cases c <;> assumption))).elim
   · refine ⟨i, Or.inl (funext fun a => ?_)⟩
     rw [hu]
-    cases ha : a i <;> assumption
+    cases a i <;> assumption
   · refine ⟨i, Or.inr (funext fun a => ?_)⟩
     rw [hu]
-    cases ha : a i <;> assumption
-  · exact False.elim (h (Or.inr (Or.inl (hc true (fun c => by cases c <;> assumption)))))
+    cases a i <;> assumption
+  · exact (h (Or.inr (Or.inl (hc true fun c => by cases c <;> assumption)))).elim
 
 /-- Every polymorphism of a language missing the six operations preserves every relation
 closed under simultaneous Boolean negation. This includes empty and nullary relations. -/
@@ -114,11 +109,9 @@ theorem isPolymorphism_selfDual_of_not_hasSchaeferPolymorphism {Rel I : Type*}
     {n : ℕ} (hn : 0 < n) {f : (Fin n → Bool) → Bool}
     (hf : HasPolymorphism arity sem f) (R : Set (I → Bool))
     (hR : ∀ a ∈ R, (fun i => !(a i)) ∈ R) : IsPolymorphism f R := by
-  obtain ⟨i, hi | hi⟩ := projection_or_negation_of_not_hasSchaeferPolymorphism arity sem h hn hf
-  · rw [hi]
-    exact isPolymorphism_projection i R
-  · rw [hi]
-    exact fun a ha => hR (a i) (ha i)
+  obtain ⟨i, rfl | rfl⟩ := projection_or_negation_of_not_hasSchaeferPolymorphism arity sem h hn hf
+  · exact isPolymorphism_projection i R
+  · exact fun a ha => hR (a i) (ha i)
 
 end PL.CSP
 end Cslib.Logic

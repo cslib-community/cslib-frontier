@@ -185,16 +185,11 @@ equation `c y² = x³ + a₂ x² + a₄ x + a₆`. -/
 theorem quadraticTwist_equation_iff {c : F} (hc : c ≠ 0) (x y : F) :
     (W.quadraticTwist c).toAffine.Equation (c * x) (c ^ 2 * y) ↔
       c * y ^ 2 = x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆ := by
-  have hc3 : c ^ 3 ≠ 0 := pow_ne_zero 3 hc
   rw [Affine.equation_iff]
   simp only [quadraticTwist_a₁, quadraticTwist_a₂, quadraticTwist_a₃, quadraticTwist_a₄,
     quadraticTwist_a₆, zero_mul, add_zero]
-  constructor
-  · intro h
-    apply mul_left_cancel₀ hc3
-    linear_combination h
-  · intro h
-    linear_combination c ^ 3 * h
+  exact ⟨fun h => mul_left_cancel₀ (pow_ne_zero 3 hc) (by linear_combination h),
+    fun h => by linear_combination c ^ 3 * h⟩
 
 /-- Scaling coordinates by `(x, y) ↦ (c x, c² y)` identifies the solutions of the twisted
 equation `c y² = x³ + a₂ x² + a₄ x + a₆` with the affine solutions of `W.quadraticTwist c`. -/
@@ -316,7 +311,7 @@ private lemma cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF [DecidableEq F] (hF :
     (W : WeierstrassCurve F) [W.IsCharNeTwoNF] :
     cubicCharSum (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4) = cubicCharSum W.a₂ W.a₄ W.a₆ := by
   have h2 : (2 : F) ≠ 0 := Ring.two_ne_zero hF
-  have h4 : (4 : F) ≠ 0 := by rw [show (4 : F) = 2 * 2 by norm_num]; exact mul_ne_zero h2 h2
+  have h4 : (4 : F) ≠ 0 := by simpa only [show (4 : F) = 2 * 2 by norm_num] using mul_ne_zero h2 h2
   rw [W.b₂_of_isCharNeTwoNF, W.b₄_of_isCharNeTwoNF, W.b₆_of_isCharNeTwoNF,
     mul_div_cancel_left₀ _ h4, mul_div_cancel_left₀ _ h2, mul_div_cancel_left₀ _ h4]
 
@@ -347,12 +342,10 @@ theorem natCard_point_quadraticTwist_of_isSquare [Finite F]
     Nat.card (W.quadraticTwist c).toAffine.Point = Nat.card W.toAffine.Point := by
   classical
   let _ : Fintype F := Fintype.ofFinite F
-  have : (W.quadraticTwist c).IsElliptic := W.isElliptic_quadraticTwist hc0.isUnit
-  have h1 := natCard_point_eq_of_isCharNeTwoNF W
-  have h2 := natCard_point_eq_of_isCharNeTwoNF (W.quadraticTwist c)
-  rw [quadraticTwist_a₂, quadraticTwist_a₄, quadraticTwist_a₆,
-    cubicCharSum_mul_of_isSquare _ _ _ hc hc0, ← h1] at h2
-  exact_mod_cast h2
+  suffices (Nat.card (W.quadraticTwist c).toAffine.Point : ℤ) = Nat.card W.toAffine.Point from
+    by exact_mod_cast this
+  rw [W.natCard_point_quadraticTwist hc0, (quadraticChar_one_iff_isSquare hc0).mpr hc, one_mul,
+    ← natCard_point_eq_of_isCharNeTwoNF W]
 
 /-- Even without nonsingularity (`IsElliptic`), the affine solution sets of `W` (in
 `IsCharNeTwoNF` form) and of its quadratic twist by a non-square `c` have `2 #F` points in
@@ -392,7 +385,7 @@ theorem natCard_point_quadraticTwist_eq_of_eq_sub (W : WeierstrassCurve F)
     [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : ¬ IsSquare c) {t : ℤ}
     (ht : (Nat.card W.toAffine.Point : ℤ) = Fintype.card F + 1 - t) :
     (Nat.card (W.quadraticTwist c).toAffine.Point : ℤ) = Fintype.card F + 1 + t := by
-  have h := natCard_point_add_quadraticTwist W hc
+  have := natCard_point_add_quadraticTwist W hc
   omega
 
 /-- Over `ZMod p`, an elliptic curve `W` in `IsCharNeTwoNF` form and its quadratic twist by a

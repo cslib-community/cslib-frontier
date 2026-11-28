@@ -51,8 +51,9 @@ finite-state transduction. Conversion to binary gives `computableInLogSpace_bits
   `Turing.CounterProgram.Unary.computableInLogSpace_binary`: a function of two unary numbers
   given by an expression, with unary or binary output, in logarithmic space.
 * `Turing.CounterProgram.Unary.computableInLogSpace_lt`: comparing two such functions.
-* `Turing.MultiTapeTM.ComputableInLogSpace.unaryMul`, `.unarySub`, `.unaryDiv`, `.unaryMod`,
-  `.unaryMin`, `.unaryMax`, `.unaryLt`, `.unaryLe`, `.unaryEq`, `.unaryToBinary`: the instances.
+* `Turing.MultiTapeTM.ComputableInLogSpace.unaryMul`, `.unaryPowConst`, `.unarySub`, `.unaryDiv`,
+  `.unaryMod`, `.unaryMin`, `.unaryMax`, `.unaryLt`, `.unaryLe`, `.unaryEq`, `.unaryToBinary`:
+  the instances.
 * `Turing.MultiTapeTM.ComputableInLogSpace.bitsLength`, `.unarySize`, `.unaryLog2`: lengths and
   logarithms in unary.
 
@@ -356,6 +357,14 @@ theorem unaryMul (h₁ : ComputableInLogSpace f₁ encIn encUnary)
   (computableInLogSpace_unary (F := (· * ·)) (mul (reg 0) (reg 1)) fun _ _ => rfl).comp'
     (pair h₁ h₂)
 
+/-- **Fixed powers of a unary number** computed in logarithmic space. -/
+@[fun_prop]
+theorem unaryPowConst (k : ℕ) {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInLogSpace (fun a => f a ^ k) encIn encUnary := by
+  induction k with
+  | zero => exact const 1
+  | succ k ih => simpa only [pow_succ] using unaryMul ih hf
+
 /-- **Truncated subtraction of unary numbers** computed in logarithmic space from a common
 input. -/
 @[fun_prop]
@@ -432,8 +441,18 @@ theorem unaryToBinary {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUna
   (computableInLogSpace_binary (F := fun a _ => a) (reg 0) fun _ _ => rfl).comp'
     (pair hf (ComputableInLogSpace.const 0))
 
+/-- A logspace-computed unary natural can be stored in binary within logarithmic workspace,
+including its encoded output. Its unary length is polynomial in the encoded input length. -/
+theorem unaryToBinary_inSpace {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInSpace f encIn encNat (fun a => Nat.log2 (encIn a).length) := by
+  obtain ⟨A, D, h⟩ := hf.polyBounded_length.exists_le
+  apply (unaryToBinary hf).inSpace_of_length_log
+  refine ⟨Nat.size A + 2 * D + 1, fun a => length_encNat_le_of_le_mul_pow ?_⟩
+  simpa only [encUnary_apply, List.length_replicate] using h a
+
 /-- **The length of a bit word, in unary**, by a finite-state transducer that replaces every bit by
 `true`. -/
+@[fun_prop]
 theorem bitsLength : ComputableInLogSpace List.length encBits encUnary :=
   (bitsMap fun _ => true).congr fun x => by
     simp only [encUnary_apply, encBits_apply, List.map_const']
@@ -443,9 +462,8 @@ digits. -/
 @[fun_prop]
 theorem unarySize {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
     ComputableInLogSpace (fun a => (f a).size) encIn encUnary :=
-  (bitsLength.comp ((of_eq (encIn := encNat) (encMid := encBits) (f := Nat.bits)
-    fun _ => rfl).comp (unaryToBinary hf))).congr fun a => by
-      simp only [Function.comp_apply, encUnary_apply, Nat.size_eq_bits_len]
+  (bitsLength.comp (unaryToBinary hf).encoding_comp).congr fun a => by
+    simp only [Function.comp_apply, encUnary_apply, encNat_apply, Nat.size_eq_bits_len]
 
 /-- **`⌊log₂⌋` of a unary number**, in unary: one less than its binary length. -/
 @[fun_prop]

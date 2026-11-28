@@ -126,11 +126,9 @@ theorem continuous_tsum_translate (f : C(E, F)) {b : ℝ}
     (hb : (Module.finrank ℤ L : ℝ) < b)
     (hf : f =O[cocompact E] (fun x ↦ ‖x‖ ^ (-b))) :
     Continuous (fun x : E ↦ ∑' z : L, f (x + z)) := by
-  have hs := summable_translate L f hb hf
   have heq : (fun x : E ↦ ∑' z : L, f (x + z)) =
-      ⇑(∑' z : L, f.comp (ContinuousMap.addRight (z : E))) := by
-    funext x
-    exact ContinuousMap.tsum_apply hs x
+      ⇑(∑' z : L, f.comp (ContinuousMap.addRight (z : E))) :=
+    funext (ContinuousMap.tsum_apply (summable_translate L f hb hf))
   rw [heq]
   exact ContinuousMap.continuous _
 

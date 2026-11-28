@@ -154,24 +154,14 @@ theorem gadgetAt_emb (a b : Fin 8) :
   congr 2 <;> rw [gadgetEmb_val] <;> omega
 
 theorem gadgetAt_row (u : Fin (size φ)) (hu : ∀ a, u ≠ gadgetEmb φ k hk a) (v : Fin (size φ)) :
-    gadgetMat φ k u v = 0 := by
-  unfold gadgetMat gadgetAt
-  rw [ite_eq_right]
-  intro h
-  refine hu ⟨(u.val - numAux φ) % 8, by omega⟩ (Fin.ext ?_)
-  rw [gadgetEmb_val]
-  simp only
-  omega
+    gadgetMat φ k u v = 0 :=
+  ite_eq_right_iff.2 fun h => (hu ⟨(u.val - numAux φ) % 8, by omega⟩ (Fin.ext (by
+    simp only [gadgetEmb_val]; omega))).elim
 
 theorem gadgetAt_col (v : Fin (size φ)) (hv : ∀ b, v ≠ gadgetEmb φ k hk b) (u : Fin (size φ)) :
-    gadgetMat φ k u v = 0 := by
-  unfold gadgetMat gadgetAt
-  rw [ite_eq_right]
-  intro h
-  refine hv ⟨(v.val - numAux φ) % 8, by omega⟩ (Fin.ext ?_)
-  rw [gadgetEmb_val]
-  simp only
-  omega
+    gadgetMat φ k u v = 0 :=
+  ite_eq_right_iff.2 fun h => (hv ⟨(v.val - numAux φ) % 8, by omega⟩ (Fin.ext (by
+    simp only [gadgetEmb_val]; omega))).elim
 
 theorem stageMatrix_succ_row (a : Fin 8) (ha : ∀ p, a ≠ exitE p) (v : Fin (size φ)) :
     stageMatrix φ (k + 1) (gadgetEmb φ k hk a) v = 0 := by
@@ -212,36 +202,22 @@ theorem mem_gadget (u : Fin (size φ)) :
 theorem mem_gadgetExits (Q : Finset (Fin 3)) (u : Fin (size φ)) :
     u ∈ (Q.map exitE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = exitIdx φ (3 * k + p.val) := by
   simp only [mem_map]
+  have hE (p : Fin 3) : (exitE p).val = p.val + 3 := rfl
   constructor
   · rintro ⟨b, ⟨p, hp, rfl⟩, rfl⟩
-    refine ⟨p, hp, ?_⟩
-    rw [gadgetEmb_val]
-    change numAux φ + 8 * k + (p.val + 3) = _
-    unfold exitIdx
-    omega
+    exact ⟨p, hp, by simp only [gadgetEmb_val, hE, exitIdx]; omega⟩
   · rintro ⟨p, hp, he⟩
-    refine ⟨exitE p, ⟨p, hp, rfl⟩, Fin.ext ?_⟩
-    rw [gadgetEmb_val, he]
-    change numAux φ + 8 * k + (p.val + 3) = _
-    unfold exitIdx
-    omega
+    exact ⟨exitE p, ⟨p, hp, rfl⟩, Fin.ext (by simp only [gadgetEmb_val, he, hE, exitIdx]; omega)⟩
 
 theorem mem_gadgetEntries (Q : Finset (Fin 3)) (u : Fin (size φ)) :
     u ∈ (Q.map entryE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = entryIdx φ (3 * k + p.val) := by
   simp only [mem_map]
+  have hE (p : Fin 3) : (entryE p).val = p.val := rfl
   constructor
   · rintro ⟨b, ⟨p, hp, rfl⟩, rfl⟩
-    refine ⟨p, hp, ?_⟩
-    rw [gadgetEmb_val]
-    change numAux φ + 8 * k + p.val = _
-    unfold entryIdx
-    omega
+    exact ⟨p, hp, by simp only [gadgetEmb_val, hE, entryIdx]; omega⟩
   · rintro ⟨p, hp, he⟩
-    refine ⟨entryE p, ⟨p, hp, rfl⟩, Fin.ext ?_⟩
-    rw [gadgetEmb_val, he]
-    change numAux φ + 8 * k + p.val = _
-    unfold entryIdx
-    omega
+    exact ⟨entryE p, ⟨p, hp, rfl⟩, Fin.ext (by simp only [gadgetEmb_val, he, hE, entryIdx]; omega)⟩
 
 /-- The kept vertices after eliminating the gadgets before `k`, keeping the vertices `idx o` of the
 occurrences `o ∈ P`; `stageRows` and `stageCols` are the instances `idx = exitIdx φ` and

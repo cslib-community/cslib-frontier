@@ -115,18 +115,11 @@ theorem isCornerFree_leaf {N : ℕ} (p : Protocol (fun _ : Fin 3 => Fin (N + 1))
     ![Fin.ofNat (N + 1) x₁, Fin.ofNat (N + 1) y₁, Fin.ofNat (N + 1) (N - x₂ - y₁)]
   let y : Fin 3 → Fin 3 → Fin (N + 1) :=
     ![cornerPoint N x₂ y₁, cornerPoint N x₁ y₂, cornerPoint N x₁ y₁]
-  have hview : ∀ i, view i (y i) = view i q := by
-    intro i
-    funext ⟨j, hj⟩
-    fin_cases i <;> fin_cases j <;> first
-      | exact absurd rfl hj
-      | simp [y, q, cornerPoint, hc]
-  have hleaf : ∀ i, p.leaf (y i) = l := by
-    intro i
+  have hview (i) : view i (y i) = view i q := funext fun ⟨j, hj⟩ => by
+    fin_cases i <;> fin_cases j <;> first | exact absurd rfl hj | simp [y, q, cornerPoint, hc]
+  have hleaf (i) : p.leaf (y i) = l := by
     fin_cases i
-    · exact l21
-    · exact l12
-    · exact l11
+    exacts [l21, l12, l11]
   have hq := p.leaf_eq_of_view_eq hview (fun i j => (hleaf i).trans (hleaf j).symm) 2
   have hrun : exactlyN N q = true := by
     rw [← hp, p.run_eq_of_leaf_eq hq, hp]

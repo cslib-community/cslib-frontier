@@ -57,24 +57,20 @@ theorem exec_highest {w d : ℕ} (hw : 3 ≤ w) (x : Data registers)
       ∀ i : Fin registers, i.val < 40 → i ≠ position → y.regs i = x.regs i := by
   let u := x.set (msbBank Bank.inputReg) d
   have hexu : Exec (B := .standard) w (.op (.copy (msbBank Bank.inputReg) divergence)) x u 1 := by
-    simpa only [hxd] using (Exec.copy (B := .standard) (w := w)
-      (d := msbBank Bank.inputReg) (s := divergence) (x := x))
+    simpa only [hxd] using Exec.copy (B := .standard) (w := w)
+      (d := msbBank Bank.inputReg) (s := divergence) (x := x)
   have hu : (u.comap msbBank).regs Bank.inputReg = d := by simp [u]
   obtain ⟨v, hev, hv, hm⟩ := MSB.Program.exec_scalarCode hw (u.comap msbBank) (hu ▸ hd)
   let z := v.extend msbBank u
-  have hz : z.regs (msbBank MSB.Program.output) = d.log2 := by
-    exact (regs_extend_bank _ v u _).trans (hv.trans (congrArg Nat.log2 hu))
-  let y := z.set position (d.log2)
-  have hezy : Exec (B := .standard) w
-      (.op (.copy position (msbBank MSB.Program.output))) z y 1 := by
-    simpa only [hz] using (Exec.copy (B := .standard) (w := w)
-      (d := position) (s := msbBank MSB.Program.output) (x := z))
-  have hf : Frame x z := (frame_set x _ _ (by decide)).trans
-    (frame_extend _ (by decide) u v hm)
-  refine ⟨y, hexu.within.seq ((hev.rename (bank_injective _)).seq hezy.within),
-    by simp [y], hf.1, ?_⟩
-  intro i hi hn
-  exact (Function.update_of_ne hn _ _).trans (hf.2 i hi)
+  have hz : z.regs (msbBank MSB.Program.output) = d.log2 :=
+    (regs_extend_bank _ v u _).trans (hv.trans (congrArg Nat.log2 hu))
+  have hezy : Exec (B := .standard) w (.op (.copy position (msbBank MSB.Program.output))) z
+      (z.set position d.log2) 1 := by
+    simpa only [hz] using Exec.copy (B := .standard) (w := w)
+      (d := position) (s := msbBank MSB.Program.output) (x := z)
+  have hf : Frame x z := (frame_set x _ _ (by decide)).trans (frame_extend _ (by decide) u v hm)
+  exact ⟨z.set position d.log2, hexu.within.seq ((hev.rename (bank_injective _)).seq hezy.within),
+    by simp, hf.1, fun i hi hn => (Function.update_of_ne hn _ _).trans (hf.2 i hi)⟩
 
 /-- The two transfers into the boundary workspace. -/
 def boundaryInputs : List (Fin registers × Fin registers) :=
@@ -91,10 +87,8 @@ theorem exec_boundaries {w q d : ℕ} (x : Data registers) (hq : Fits w q) (hd :
       y.regs (boundaryBank 7) = lowerBoundary q d ∧
       y.regs (boundaryBank 8) = upperBoundary q d ∧
       y.regs (boundaryBank 9) = ((q >>> d) &&& 1) := by
-  let u := moved boundaryInputs x
-  have huq : (u.comap boundaryBank).regs BoundaryProgram.query = q := hxq
-  have hud : (u.comap boundaryBank).regs BoundaryProgram.position = d := hxd
-  obtain ⟨he, hl, hu, hb, hm⟩ := BoundaryProgram.exec (u.comap boundaryBank) hq hd huq hud
+  obtain ⟨he, hl, hu, hb, hm⟩ :=
+    BoundaryProgram.exec ((moved boundaryInputs x).comap boundaryBank) hq hd hxq hxd
   obtain ⟨hexec, hframe⟩ := exec_bankCall _ (by decide)
     (by simp [boundaryInputs, boundaryBank, bank]) he hm
   exact ⟨_, hexec, hframe, (regs_extend_bank _ _ _ _).trans hl,
@@ -115,16 +109,14 @@ theorem exec_secondQuery {w n q a z : ℕ} {keys : Fin n → ℕ} (p : NodeParam
       y.regs out = sketchCut strict w keys z ∧ Ready p q a y ∧ y.mem = x.mem := by
   let u := x.set argument z
   have heu : Exec (B := .standard) w (.op (.copy argument src)) x u 1 := by
-    simpa only [hxz] using (Exec.copy (B := .standard) (w := w)
-      (d := argument) (s := src) (x := x))
+    simpa only [hxz] using Exec.copy (B := .standard) (w := w) (d := argument) (s := src) (x := x)
   have hru : Ready p q a u := hx.set_scratch argument z (by decide) (by decide)
   obtain ⟨v, hev, hv, hfv⟩ := exec_sketchQuery p strict hw hn hs hk hnB hlarge u hru.prepared
     hz (by simp [u])
-  let y := v.set out (sketchCut strict w keys z)
-  have hey : Exec (B := .standard) w (.op (.copy out (rankBank 9))) v y 1 := by
-    simpa only [hv] using (Exec.copy (B := .standard) (w := w)
-      (d := out) (s := rankBank 9) (x := v))
-  exact ⟨y, heu.seq (hev.seq hey), by simp [y],
+  have hey : Exec (B := .standard) w (.op (.copy out (rankBank 9))) v
+      (v.set out (sketchCut strict w keys z)) 1 := by
+    simpa only [hv] using Exec.copy (B := .standard) (w := w) (d := out) (s := rankBank 9) (x := v)
+  exact ⟨_, heu.seq (hev.seq hey), by simp,
     (hru.frame hfv).set_scratch out _ (by decide) (by decide), hfv.1⟩
 
 /-- The numeric bit tested by RAM is zero precisely when the Boolean query bit is false. -/

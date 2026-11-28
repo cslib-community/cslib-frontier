@@ -174,51 +174,10 @@ private theorem decryptSecretCoeffs_polyTime :
       (encList encNat) := by
   unfold decryptSecretCoeffs
   apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-  · exact ComputableInPolyTime.range.comp (by fun_prop)
-  · have hs : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.1.2)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        (encList encIntBin) := by fun_prop
-    have hj : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.2)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encUnary := by fun_prop
-    have hn : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.1.1.1)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encUnary := by fun_prop
-    have hl : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.2)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encUnary := by fun_prop
-    have hmul : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.2 * p.1.1.1.1)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encUnary :=
-      ComputableInPolyTime.unary_mul.comp (hj.prod hn)
-    have hidx : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.2 * p.1.1.1.1 + p.2)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encUnary :=
-      ComputableInPolyTime.unary_add.comp (hmul.prod hl)
-    have hget : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.1.2.getD (p.1.2 * p.1.1.1.1 + p.2) 0)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encIntBin :=
-      (ComputableInPolyTime.listGetD (encA := encIntBin) 0).comp (hs.prod hidx)
-    have hq : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × List ℤ) × ℕ) × ℕ => p.1.1.1.2)
-        (encPair (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary)
-          encUnary)
-        encNat := by fun_prop
-    exact ComputableInPolyTime.intBin_emodNat' hget hq
+  · fun_prop
+  · apply ComputableInPolyTime.intBin_emodNat'
+    · fun_prop
+    · fun_prop
 
 private def decryptProducts (k n q : ℕ) (ct_rows : List (List ℕ)) (s_ints : List ℤ) :
     List (List ℕ) :=
@@ -233,72 +192,28 @@ private theorem decryptProducts_polyTime :
         (encPair (encList (encList encNat)) (encList encIntBin)))
       (encList (encList encNat)) := by
   unfold decryptProducts
+  have hmul := computableInPolyTime_negacyclicMulResidues
+  have hsec := decryptSecretCoeffs_polyTime
   apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-  · exact ComputableInPolyTime.range.comp (by fun_prop)
-  · have hmul := computableInPolyTime_negacyclicMulResidues
-    have hsec := decryptSecretCoeffs_polyTime
-    have hn : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ => p.1.1.1.2)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        encUnary := by fun_prop
-    have hq : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ => p.1.1.2)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        encNat := by fun_prop
-    have hj : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ => p.2)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        encUnary := by fun_prop
-    have hj1 : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ => p.2 + 1)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        encUnary :=
-      ComputableInPolyTime.unary_add.comp (hj.prod (ComputableInPolyTime.const 1))
-    have hrows : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ => p.1.2.1)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        (encList (encList encNat)) := by fun_prop
-    have hu : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ =>
-          p.1.2.1.getD (p.2 + 1) [])
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        (encList encNat) :=
-      (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp (hrows.prod hj1)
-    have hs_ints : ComputableInPolyTime
-        (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ => p.1.2.2)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        (encList encIntBin) := by fun_prop
+  · fun_prop
+  · let encP := encPair (encPair (encPair (encPair encUnary encUnary) encNat)
+      (encPair (encList (encList encNat)) (encList encIntBin))) encUnary
     have hsec_in : ComputableInPolyTime
         (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ =>
           (((p.1.1.1.2, p.1.1.2), p.1.2.2), p.2))
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary) :=
-      ((hn.prod hq).prod hs_ints).prod hj
+        encP (encPair (encPair (encPair encUnary encNat) (encList encIntBin)) encUnary) := by
+      fun_prop
     have hs : ComputableInPolyTime
         (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ =>
           decryptSecretCoeffs p.1.1.1.2 p.1.1.2 p.1.2.2 p.2)
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        (encList encNat) :=
-      hsec.comp hsec_in
+        encP (encList encNat) := hsec.comp hsec_in
     have hmul_in : ComputableInPolyTime
         (fun p : (((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ) × ℕ =>
           ((p.1.1.1.2, p.1.1.2),
             (p.1.2.1.getD (p.2 + 1) [], decryptSecretCoeffs p.1.1.1.2 p.1.1.2 p.1.2.2 p.2)))
-        (encPair (encPair (encPair (encPair encUnary encUnary) encNat)
-          (encPair (encList (encList encNat)) (encList encIntBin))) encUnary)
-        (encPair (encPair encUnary encNat) (encPair (encList encNat) (encList encNat))) :=
-      (hn.prod hq).prod (hu.prod hs)
-    have hres := hmul.comp hmul_in
-    simpa only [Function.comp_def] using hres
+        encP (encPair (encPair encUnary encNat) (encPair (encList encNat) (encList encNat))) := by
+      fun_prop
+    simpa only [Function.comp_def] using hmul.comp hmul_in
 
 private def columnSum (prods : List (List ℕ)) (i : ℕ) : ℕ :=
   (prods.map fun row => row.getD i 0).sum
@@ -307,19 +222,9 @@ private theorem columnSum_polyTime :
     ComputableInPolyTime (fun p : List (List ℕ) × ℕ => columnSum p.1 p.2)
       (encPair (encList (encList encNat)) encUnary) encNat := by
   unfold columnSum
-  have hsum : ComputableInPolyTime List.sum (encList encNat) encNat :=
-    Turing.MultiTapeTM.ComputableInPolyTime.binary_sum
-  apply hsum.comp
-  have hlist : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.1)
-      (encPair (encList (encList encNat)) encUnary) (encList (encList encNat)) := by fun_prop
-  apply ComputableInPolyTime.mapWithInput hlist
-  have hrow : ComputableInPolyTime (fun p : (List (List ℕ) × ℕ) × List ℕ => p.2)
-      (encPair (encPair (encList (encList encNat)) encUnary) (encList encNat))
-      (encList encNat) := by fun_prop
-  have hi : ComputableInPolyTime (fun p : (List (List ℕ) × ℕ) × List ℕ => p.1.2)
-      (encPair (encPair (encList (encList encNat)) encUnary) (encList encNat))
-      encUnary := by fun_prop
-  exact (ComputableInPolyTime.listGetD (encA := encNat) 0).comp (hrow.prod hi)
+  apply Turing.MultiTapeTM.ComputableInPolyTime.binary_sum.comp
+  apply ComputableInPolyTime.mapWithInput (by fun_prop)
+  fun_prop
 
 private def decryptedBit (q v_i sum_i : ℕ) : Bool :=
   let diff := (((v_i : ℤ) - (sum_i : ℤ)) % (q : ℤ)).toNat
@@ -329,52 +234,24 @@ private theorem decryptedBit_polyTime :
     ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => decryptedBit p.1.1 p.1.2 p.2)
       (encPair (encPair encNat encNat) encNat) encBool := by
   unfold decryptedBit
-  have hdiff : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × ℕ => (((p.1.2 : ℤ) - (p.2 : ℤ)) % (p.1.1 : ℤ)).toNat)
-      (encPair (encPair encNat encNat) encNat) encNat := by
-    have hcast := ComputableInPolyTime.intBin_natCast
-    have hv : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => (p.1.2 : ℤ))
-        (encPair (encPair encNat encNat) encNat) encIntBin :=
-      hcast.comp (by fun_prop)
-    have hsum : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => (p.2 : ℤ))
-        (encPair (encPair encNat encNat) encNat) encIntBin :=
-      hcast.comp (by fun_prop)
-    have hsub : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => (p.1.2 : ℤ) - (p.2 : ℤ))
-        (encPair (encPair encNat encNat) encNat) encIntBin :=
-      ComputableInPolyTime.intBin_sub.comp (hv.prod hsum)
-    have hq : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1)
-        (encPair (encPair encNat encNat) encNat) encNat := by fun_prop
-    exact ComputableInPolyTime.intBin_emodNat' hsub hq
+  have hcast := ComputableInPolyTime.intBin_natCast
+  have hdiv := Turing.MultiTapeTM.ComputableInPolyTime.binary_div
+  have hsub := Turing.MultiTapeTM.ComputableInPolyTime.binary_sub
   have hq : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1)
       (encPair (encPair encNat encNat) encNat) encNat := by fun_prop
-  have hdiv : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 / p.2)
-      (encPair encNat encNat) encNat :=
-    Turing.MultiTapeTM.ComputableInPolyTime.binary_div
-  have hq4 : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1 / 4)
+  have hdiff : ComputableInPolyTime
+      (fun p : (ℕ × ℕ) × ℕ => (((p.1.2 : ℤ) - (p.2 : ℤ)) % (p.1.1 : ℤ)).toNat)
       (encPair (encPair encNat encNat) encNat) encNat :=
-    hdiv.comp (hq.prod (ComputableInPolyTime.const 4))
-  have hq2 : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1 / 2)
-      (encPair (encPair encNat encNat) encNat) encNat :=
-    hdiv.comp (hq.prod (ComputableInPolyTime.const 2))
-  have hle : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × ℕ =>
-        decide ((((p.1.2 : ℤ) - (p.2 : ℤ)) % (p.1.1 : ℤ)).toNat ≤ p.1.1 / 2))
-      (encPair (encPair encNat encNat) encNat) encBool :=
-    ComputableInPolyTime.binary_le.comp (hdiff.prod hq2)
-  have hsub_nat : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 - p.2)
-      (encPair encNat encNat) encNat :=
-    Turing.MultiTapeTM.ComputableInPolyTime.binary_sub
-  have hqsub : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × ℕ => p.1.1 - (((p.1.2 : ℤ) - (p.2 : ℤ)) % (p.1.1 : ℤ)).toNat)
-      (encPair (encPair encNat encNat) encNat) encNat :=
-    hsub_nat.comp (hq.prod hdiff)
+    ComputableInPolyTime.intBin_emodNat' (by fun_prop) hq
   have hbound : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℕ =>
         let diff := (((p.1.2 : ℤ) - (p.2 : ℤ)) % (p.1.1 : ℤ)).toNat
         if diff ≤ p.1.1 / 2 then diff else p.1.1 - diff)
       (encPair (encPair encNat encNat) encNat) encNat :=
-    ComputableInPolyTime.ite_decide hle hdiff hqsub
-  exact ComputableInPolyTime.binary_lt.comp (hq4.prod hbound)
+    ComputableInPolyTime.ite_decide
+      (ComputableInPolyTime.binary_le.comp (hdiff.prod (hdiv.comp (hq.prod (.const 2)))))
+      hdiff (hsub.comp (hq.prod hdiff))
+  exact ComputableInPolyTime.binary_lt.comp ((hdiv.comp (hq.prod (.const 4))).prod hbound)
 
 private abbrev DecryptEnv := ((ℕ × ℕ) × List ℕ) × List (List ℕ)
 
@@ -390,30 +267,8 @@ private theorem makeDecryptEnv_polyTime :
         (encPair (encList (encList encNat)) (encList encIntBin)))
       decryptEnvEncoding := by
   unfold makeDecryptEnv decryptEnvEncoding
-  have hn : ComputableInPolyTime
-      (fun a : ((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ => a.1.1.2)
-      (encPair (encPair (encPair encUnary encUnary) encNat)
-        (encPair (encList (encList encNat)) (encList encIntBin)))
-      encUnary := by fun_prop
-  have hq : ComputableInPolyTime
-      (fun a : ((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ => a.1.2)
-      (encPair (encPair (encPair encUnary encUnary) encNat)
-        (encPair (encList (encList encNat)) (encList encIntBin)))
-      encNat := by fun_prop
-  have hrows : ComputableInPolyTime
-      (fun a : ((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ => a.2.1)
-      (encPair (encPair (encPair encUnary encUnary) encNat)
-        (encPair (encList (encList encNat)) (encList encIntBin)))
-      (encList (encList encNat)) := by fun_prop
-  have hv : ComputableInPolyTime
-      (fun a : ((ℕ × ℕ) × ℕ) × List (List ℕ) × List ℤ => a.2.1.getD 0 [])
-      (encPair (encPair (encPair encUnary encUnary) encNat)
-        (encPair (encList (encList encNat)) (encList encIntBin)))
-      (encList encNat) :=
-    (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
-      (hrows.prod (ComputableInPolyTime.const 0))
   have hprods := decryptProducts_polyTime
-  exact ((hn.prod hq).prod hv).prod hprods
+  fun_prop
 
 private def decryptBitsFromEnv (e : DecryptEnv) : List Bool :=
   (List.range e.1.1.1).map fun i =>
@@ -421,38 +276,21 @@ private def decryptBitsFromEnv (e : DecryptEnv) : List Bool :=
 
 private theorem decryptBitsFromEnv_polyTime :
     ComputableInPolyTime decryptBitsFromEnv decryptEnvEncoding encBits := by
-  unfold decryptBitsFromEnv
+  unfold decryptBitsFromEnv decryptEnvEncoding
+  have hbit := decryptedBit_polyTime
+  have hcol := columnSum_polyTime
   apply ComputableInPolyTime.mapToBitsWithInput (enc := encUnary)
-  · have hn : ComputableInPolyTime (fun e : DecryptEnv => e.1.1.1)
-        decryptEnvEncoding encUnary := by
-      unfold decryptEnvEncoding; fun_prop
-    exact ComputableInPolyTime.range.comp hn
-  · have hbit := decryptedBit_polyTime
-    have hcol := columnSum_polyTime
-    have hq : ComputableInPolyTime (fun p : DecryptEnv × ℕ => p.1.1.1.2)
-        (encPair decryptEnvEncoding encUnary) encNat := by
-      unfold decryptEnvEncoding; fun_prop
-    have hv : ComputableInPolyTime (fun p : DecryptEnv × ℕ => p.1.1.2)
-        (encPair decryptEnvEncoding encUnary) (encList encNat) := by
-      unfold decryptEnvEncoding; fun_prop
-    have hi : ComputableInPolyTime (fun p : DecryptEnv × ℕ => p.2)
-        (encPair decryptEnvEncoding encUnary) encUnary := by fun_prop
-    have hvi : ComputableInPolyTime (fun p : DecryptEnv × ℕ => p.1.1.2.getD p.2 0)
-        (encPair decryptEnvEncoding encUnary) encNat :=
-      (ComputableInPolyTime.listGetD (encA := encNat) 0).comp (hv.prod hi)
-    have hprods : ComputableInPolyTime (fun p : DecryptEnv × ℕ => p.1.2)
-        (encPair decryptEnvEncoding encUnary) (encList (encList encNat)) := by
-      unfold decryptEnvEncoding; fun_prop
+  · fun_prop
+  · let encP := encPair (encPair (encPair (encPair encUnary encNat) (encList encNat))
+      (encList (encList encNat))) encUnary
+    have hsum_in : ComputableInPolyTime (fun p : DecryptEnv × ℕ => (p.1.2, p.2))
+        encP (encPair (encList (encList encNat)) encUnary) := by fun_prop
     have hsum : ComputableInPolyTime (fun p : DecryptEnv × ℕ => columnSum p.1.2 p.2)
-        (encPair decryptEnvEncoding encUnary) encNat :=
-      hcol.comp (hprods.prod hi)
-    have hbit_in : ComputableInPolyTime (fun p : DecryptEnv × ℕ =>
-        ((p.1.1.1.2, p.1.1.2.getD p.2 0), columnSum p.1.2 p.2))
-        (encPair decryptEnvEncoding encUnary)
-        (encPair (encPair encNat encNat) encNat) :=
-      (hq.prod hvi).prod hsum
-    have hres := hbit.comp hbit_in
-    simpa only [Function.comp_def] using hres
+        encP encNat := hcol.comp hsum_in
+    have hbit_in : ComputableInPolyTime
+        (fun p : DecryptEnv × ℕ => ((p.1.1.1.2, p.1.1.2.getD p.2 0), columnSum p.1.2 p.2))
+        encP (encPair (encPair encNat encNat) encNat) := by fun_prop
+    simpa only [Function.comp_def] using hbit.comp hbit_in
 
 private def decryptBits (k n q : ℕ) (ct_rows : List (List ℕ)) (s_ints : List ℤ) : List Bool :=
   decryptBitsFromEnv (makeDecryptEnv (((k, n), q), ct_rows, s_ints))
@@ -524,18 +362,7 @@ private theorem decryptSecretCoeffs_ofFn {k n q : ℕ} (hq : 0 < q)
   congr 1 with l : 1
   have hidx : (finProdFinEquiv (j, l)).val = j.val * n + l.val := by
     simp [finProdFinEquiv, mul_comm, add_comm]
-  have hlen : j.val * n + l.val < k * n := by
-    rw [← hidx]
-    exact (finProdFinEquiv (j, l)).isLt
-  have hget : (List.ofFn (flattenPolyVec s)).getD (j.val * n + l.val) 0 = s j l := by
-    rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-    simp only [hlen, dite_true]
-    have hfin : (⟨j.val * n + l.val, hlen⟩ : Fin (k * n)) = finProdFinEquiv (j, l) := by
-      ext
-      exact hidx.symm
-    rw [hfin, flattenPolyVec_apply]
-    rfl
-  rw [hget, zmod_val_intCast hq]
+  rw [← hidx, List.getD_ofFn, flattenPolyVec_apply, zmod_val_intCast hq]
 
 private theorem decryptProducts_ofFn {k n q : ℕ} (hq : 0 < q)
     (s : Fin k → Fin n → ℤ) (ct : ModuleLWECiphertext k n q) :
@@ -550,12 +377,7 @@ private theorem decryptProducts_ofFn {k n q : ℕ} (hq : 0 < q)
   have hu : (List.ofFn fun i : Fin (k + 1) => List.ofFn fun j : Fin n =>
       (extendCiphertext ct i j).val).getD (j.val + 1) [] =
       List.ofFn fun l : Fin n => (ct.1 j l).val := by
-    have hlt : j.val + 1 < k + 1 := Nat.add_lt_add_right j.isLt 1
-    rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-    simp only [hlt, dite_true]
-    have hsucc : (⟨j.val + 1, hlt⟩ : Fin (k + 1)) = j.succ := by
-      ext; rfl
-    rw [hsucc]
+    rw [← Fin.val_succ, List.getD_ofFn]
     rfl
   rw [hu, decryptSecretCoeffs_ofFn hq s j]
   exact negacyclicMulResidues_ofFn hq (ct.1 j) (fun l => (s j l : ZMod q))
@@ -568,13 +390,9 @@ private theorem columnSum_decryptProducts_ofFn {k n q : ℕ} (hq : 0 < q)
       (innerPoly ct.1 (fun j l => (s j l : ZMod q))) i := by
   let : NeZero q := ⟨hq.ne'⟩
   rw [decryptProducts_ofFn hq s ct]
-  unfold columnSum
-  simp only [List.map_ofFn, Function.comp_def, List.getD_ofFn]
-  rw [List.sum_ofFn]
-  push_cast
-  simp only [ZMod.natCast_zmod_val]
-  unfold innerPoly
-  rw [Finset.sum_apply]
+  unfold columnSum innerPoly
+  simp only [List.map_ofFn, Function.comp_def, List.getD_ofFn, List.sum_ofFn, Nat.cast_sum,
+    ZMod.natCast_zmod_val, Finset.sum_apply]
 
 private theorem decryptBits_ofFn {k n q : ℕ} (hq : 0 < q)
     (s : Fin k → Fin n → ℤ) (ct : ModuleLWECiphertext k n q) :
@@ -583,14 +401,13 @@ private theorem decryptBits_ofFn {k n q : ℕ} (hq : 0 < q)
       (List.ofFn (flattenPolyVec s)) =
       List.ofFn (moduleLWEDecrypt (fun j i => (s j i : ZMod q)) ct) := by
   let : NeZero q := ⟨hq.ne'⟩
-  rw [decryptBits_def]
-  rw [List.map_range_eq_ofFn]
+  rw [decryptBits_def, List.map_range_eq_ofFn]
   congr 1 with i : 1
   have hv : (List.ofFn fun i : Fin (k + 1) => List.ofFn fun j : Fin n =>
       (extendCiphertext ct i j).val).getD 0 [] =
       List.ofFn fun l : Fin n => (ct.2 l).val := by
-    rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-    simp only [Nat.zero_lt_succ, dite_true]
+    change (List.ofFn _).getD (0 : Fin (k + 1)).val [] = _
+    rw [List.getD_ofFn]
     rfl
   simp only [hv, List.getD_ofFn]
   unfold decryptedBit
@@ -605,8 +422,7 @@ private theorem decryptBits_ofFn {k n q : ℕ} (hq : 0 < q)
   have hdiff_nat : ((((ct.2 i).val : ℤ) - (sum_i : ℤ)) % (q : ℤ)).toNat = (w i).val := by
     rw [← zmod_val_intCast hq, Int.cast_sub, hdiff_cast]
   dsimp only
-  rw [hdiff_nat]
-  rw [← valMinAbs_natAbs hq (w i)]
+  rw [hdiff_nat, ← valMinAbs_natAbs hq (w i)]
   rfl
 
 private theorem decryptWords_encode {k n q : ℕ} (hq : 0 < q)

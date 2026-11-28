@@ -171,26 +171,19 @@ private theorem fin_add_one_eq {n : ℕ} [NeZero n] (i : Fin n) :
       ⟨0, NeZero.pos n⟩
     else
       ⟨i.val + 1, Nat.lt_of_le_of_ne (Nat.succ_le_of_lt i.isLt) h⟩ := by
-  rcases n with _ | _ | m
-  · exact absurd rfl (NeZero.ne 0)
-  · ext; simp
-  · ext
-    simp only [Fin.add_def, Fin.val_one]
-    split_ifs with h
-    · simp [h]
-    · exact Nat.mod_eq_of_lt (Nat.lt_of_le_of_ne (Nat.succ_le_of_lt i.isLt) h)
+  ext
+  rw [Fin.val_add, Fin.val_one', Nat.add_mod_mod]
+  split_ifs with h
+  · simp [h]
+  · exact Nat.mod_eq_of_lt (by omega)
 
 private theorem fin_add_one_mod {K : ℕ} [NeZero K] (x : Fin K) :
-    x + 1 = ⟨(x.val + 1) % K, Nat.mod_lt _ (NeZero.pos K)⟩ := by
-  rcases K with _ | _ | m
-  · exact absurd rfl (NeZero.ne 0)
-  · ext; simp
-  · ext; simp [Fin.add_def]
+    x + 1 = ⟨(x.val + 1) % K, Nat.mod_lt _ (NeZero.pos K)⟩ :=
+  Fin.ext (by simp [Fin.val_add])
 
 private theorem fin_add_sub_one {n : ℕ} [NeZero n] (i : Fin n) :
     i + 1 - 1 = i := by
   rw [fin_add_one_eq]
-  have hi_lt := i.isLt
   split_ifs with hlast
   · rw [fin_sub_one_eq]; simp [← hlast]
   · rw [fin_sub_one_eq]; simp
@@ -201,12 +194,9 @@ private theorem fin_add_one_ne_self {K : ℕ} [NeZero K] (hK : 2 ≤ K) (x : Fin
   have hval := congrArg Fin.val h
   rw [fin_add_one_mod] at hval
   dsimp only at hval
-  by_cases hx : x.val + 1 < K
-  · rw [Nat.mod_eq_of_lt hx] at hval
-    omega
-  · have hx' : x.val + 1 = K := by omega
-    rw [hx', Nat.mod_self] at hval
-    omega
+  rcases Nat.lt_or_ge (x.val + 1) K with hx | hx
+  · rw [Nat.mod_eq_of_lt hx] at hval; omega
+  · rw [show x.val + 1 = K by omega, Nat.mod_self] at hval; omega
 
 /-- Machine `i` is privileged in configuration `s` iff `s 0 = s (0 - 1)` when `i = 0`, and
 `s i ≠ s (i - 1)` when `i > 0` ([Dijkstra][Dijkstra1974], p. 644, "Solution with K-state
@@ -530,6 +520,11 @@ theorem dijkstraPrivilegedSet_step_of_eq_singleton {n K : ℕ} [NeZero n] [NeZer
       · intro j hj
         rw [hs'_gt j (by omega), hs'_gt (p + 1) (by omega)]
 
+private theorem eq_of_privileged_of_eq_singleton {n K : ℕ} [NeZero n] {s : Fin n → Fin K}
+    {p i : Fin n} (hs : dijkstraPrivilegedSet s = {p}) (hi : dijkstraPrivileged s i) : i = p := by
+  rw [← Finset.mem_singleton, ← hs]
+  exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi⟩
+
 /-- Closure of `DijkstraLegitimate n K` under central-daemon transitions (`2 ≤ K`). -/
 theorem dijkstraRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK : 2 ≤ K)
     {s s' : Fin n → Fin K} {i : Fin n}
@@ -537,10 +532,7 @@ theorem dijkstraRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK : 2
     s' ∈ DijkstraLegitimate n K := by
   obtain ⟨p, hp⟩ := Finset.card_eq_one.mp hs
   obtain ⟨hpriv, rfl⟩ := htr
-  have hip : i = p := by
-    have : i ∈ dijkstraPrivilegedSet s := by simp [dijkstraPrivilegedSet, hpriv]
-    simpa [hp] using this
-  subst hip
+  obtain rfl := eq_of_privileged_of_eq_singleton hp hpriv
   simp [DijkstraLegitimate, dijkstraPrivilegedSet_step_of_eq_singleton hK hp]
 
 /-- On `DijkstraLegitimate n K`, simultaneous atomic-subset transitions (`dijkstraDistRing`)
@@ -551,16 +543,8 @@ theorem dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate {n K : ℕ} [NeZero n
   obtain ⟨p, hp⟩ := Finset.card_eq_one.mp hs
   constructor
   · rintro ⟨hne, hpriv, rfl⟩
-    have hsub : S ⊆ {p} := by
-      intro i hi
-      have : i ∈ dijkstraPrivilegedSet s := by simp [dijkstraPrivilegedSet, hpriv i hi]
-      rwa [hp] at this
-    have hSp : S = {p} :=
-      Finset.Subset.antisymm hsub (by
-        obtain ⟨x, hx⟩ := hne
-        have hxp : x = p := Finset.mem_singleton.mp (hsub hx)
-        rwa [← hxp, Finset.singleton_subset_iff])
-    subst hSp
+    obtain rfl : S = {p} := hne.subset_singleton_iff.mp fun i hi =>
+      Finset.mem_singleton.mpr (eq_of_privileged_of_eq_singleton hp (hpriv i hi))
     exact ⟨p, rfl, hpriv p (Finset.mem_singleton_self p), dijkstraDistStep_singleton s p⟩
   · rintro ⟨i, rfl, htr⟩
     exact (dijkstraRing_tr_iff_distRing_singleton s i s').mp htr
@@ -573,13 +557,6 @@ theorem dijkstraDistRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK
     s' ∈ DijkstraLegitimate n K := by
   obtain ⟨i, _, htr'⟩ := (dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate hs S).mp htr
   exact dijkstraRing_legitimate_closed hK hs htr'
-
-private theorem fin_add_one_val_mod {n : ℕ} [NeZero n] (p : Fin n) :
-    (p + 1).val = (p.val + 1) % n := by
-  simp only [fin_add_one_eq]
-  split_ifs with hlast
-  · rw [hlast, Nat.mod_self]
-  · exact (Nat.mod_eq_of_lt (Nat.lt_of_le_of_ne (Nat.succ_le_of_lt p.isLt) hlast)).symm
 
 /-- Round-robin token circulation: along any multistep execution from a legitimate configuration
 with unique privilege at `p`, the `k`-th step fires `(p + k) mod n` and the final configuration has
@@ -598,31 +575,15 @@ theorem dijkstraRing_token_circulates {n K : ℕ} [NeZero n] [NeZero K] (hK : 2 
     simpa [Nat.mod_eq_of_lt p.isLt] using hs
   | @stepL s₁ i s₂ μs s₃ htr _ ih =>
     obtain ⟨hpriv, rfl⟩ := htr
-    have hip : i = p := by
-      have : i ∈ dijkstraPrivilegedSet s₁ := by simp [dijkstraPrivilegedSet, hpriv]
-      simpa [hs] using this
-    subst hip
-    have hs₂ := dijkstraPrivilegedSet_step_of_eq_singleton hK hs
-    obtain ⟨hfinal, hsteps⟩ := ih hs₂
-    have hr_mod : ∀ m, ((i + 1).val + m) % n = (i.val + (m + 1)) % n := by
-      intro m
-      calc
-        ((i + 1).val + m) % n = ((i.val + 1) % n + m) % n := by rw [fin_add_one_val_mod]
-        _ = (i.val + 1 + m) % n := Nat.mod_add_mod _ _ _
-        _ = (i.val + (m + 1)) % n := by ring_nf
-    refine ⟨?_, ?_⟩
-    · rw [hfinal]
-      congr 1
-      ext
-      simp only [List.length_cons]
-      exact hr_mod μs.length
-    · intro k hk
-      rcases k with _ | k
+    obtain rfl := eq_of_privileged_of_eq_singleton hs hpriv
+    obtain ⟨hfinal, hsteps⟩ := ih (dijkstraPrivilegedSet_step_of_eq_singleton hK hs)
+    have hr_mod : ∀ m, ((i + 1).val + m) % n = (i.val + (m + 1)) % n := fun m => by
+      simp only [fin_add_one_mod, Nat.mod_add_mod]; ring_nf
+    refine ⟨?_, fun k hk => ?_⟩
+    · rw [hfinal]; congr 1; ext; exact hr_mod μs.length
+    · rcases k with _ | k
       · simp [Nat.mod_eq_of_lt i.isLt]
-      · simp only [List.getElem_cons_succ]
-        rw [hsteps k (Nat.succ_lt_succ_iff.mp hk)]
-        ext
-        exact hr_mod k
+      · rw [List.getElem_cons_succ, hsteps k (Nat.succ_lt_succ_iff.mp hk)]; ext; exact hr_mod k
 
 /-! ### Discrepancy potential and worst-case finite stabilization -/
 
@@ -674,10 +635,10 @@ private theorem dijkstraPotential_distStep_le {n K : ℕ} [NeZero n] [NeZero K]
   have hinS0 : inS 0 = 0 := by
     have h0eq : (⟨0, NeZero.pos n⟩ : Fin n) = 0 := rfl
     simp [inS, NeZero.pos n, h0eq, h0]
-  have hpt : ∀ k, 1 ≤ k → k < n →
-      d (dijkstraDistStep s S) k + inS k ≤ d s k + inS (k - 1) := by
-    intro k hk1 hkn
-    have hk_pos : 0 < k := by omega
+  have hpt : ∀ k < n, d (dijkstraDistStep s S) k + inS k ≤ d s k + inS (k - 1) := by
+    intro k hkn
+    rcases Nat.eq_zero_or_pos k with rfl | hk_pos
+    · simp [d]
     have hk_sub : k - 1 < n := by omega
     let ik : Fin n := ⟨k, hkn⟩
     let ik_prev : Fin n := ⟨k - 1, hk_sub⟩
@@ -714,92 +675,32 @@ private theorem dijkstraPotential_distStep_le {n K : ℕ} [NeZero n] [NeZero K]
           simp [dijkstraDistStep, hprev]
         simp [hik, hprev, hstep_ik, hstep_prev]
   have hphi_eq : ∀ u : Fin n → Fin K,
-      dijkstraPotential u = ∑ k ∈ Finset.Ico 1 n, (n - k) * d u k := by
+      dijkstraPotential u = ∑ k ∈ Finset.range n, (n - k) * d u k := by
     intro u
-    have hn_pos := NeZero.pos n
-    have hrew : dijkstraPotential u = ∑ i : Fin n, (n - i.val) * d u i.val := by
-      rw [dijkstraPotential]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      by_cases hi0 : 0 < i.val
-      · by_cases hne : u i = u (i - 1) <;> simp [d, hi0, i.isLt, hne]
-      · simp [d, hi0]
-    rw [hrew, Fin.sum_univ_eq_sum_range (fun k => (n - k) * d u k) n]
-    have hr : Finset.range n = insert 0 (Finset.Ico 1 n) := by
-      ext k
-      simp only [Finset.mem_range, Finset.mem_insert, Finset.mem_Ico]
-      omega
-    rw [hr, Finset.sum_insert (by simp)]
-    have hd0 : d u 0 = 0 := by simp [d]
-    rw [hd0, mul_zero, zero_add]
-  have hcard_eq : S.card = ∑ k ∈ Finset.Ico 1 n, inS k := by
-    have hn_pos := NeZero.pos n
-    have huniv : S.card = ∑ i : Fin n, inS i.val := by
-      have hc : S.card = ∑ i : Fin n, if i ∈ S then 1 else 0 := by simp
-      rw [hc]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      simp [inS, i.isLt]
-    rw [huniv, Fin.sum_univ_eq_sum_range inS n]
-    have hr : Finset.range n = insert 0 (Finset.Ico 1 n) := by
-      ext k
-      simp only [Finset.mem_range, Finset.mem_insert, Finset.mem_Ico]
-      omega
-    rw [hr, Finset.sum_insert (by simp), hinS0, zero_add]
-  have hwsum : ∑ k ∈ Finset.Ico 1 n, (n - k) * (d (dijkstraDistStep s S) k + inS k) ≤
-      ∑ k ∈ Finset.Ico 1 n, (n - k) * (d s k + inS (k - 1)) := by
-    refine Finset.sum_le_sum fun k hk => ?_
-    simp only [Finset.mem_Ico] at hk
-    exact Nat.mul_le_mul_left (n - k) (hpt k hk.1 hk.2)
-  have htele : ∑ k ∈ Finset.Ico 1 n, (n - k) * inS (k - 1) + S.card =
-      ∑ k ∈ Finset.Ico 1 n, (n - k) * inS k := by
-    rw [hcard_eq]
-    by_cases hn2 : n ≤ 1
-    · have hemp : Finset.Ico 1 n = ∅ := by
-        ext k
-        simp only [Finset.mem_Ico, Finset.notMem_empty, iff_false]
-        omega
-      simp [hemp]
-    · have hshift : ∑ k ∈ Finset.Ico 1 n, (n - k) * inS (k - 1) =
-          ∑ j ∈ Finset.Ico 0 (n - 1), (n - 1 - j) * inS j := by
-        refine Finset.sum_bij (fun k _ => k - 1) ?_ ?_ ?_ ?_
-        · intro k hk
-          simp only [Finset.mem_Ico] at hk ⊢
-          omega
-        · intro k₁ hk₁ k₂ hk₂ h
-          simp only [Finset.mem_Ico] at hk₁ hk₂
-          omega
-        · intro j hj
-          simp only [Finset.mem_Ico] at hj
-          exact ⟨j + 1, Finset.mem_Ico.mpr ⟨by omega, by omega⟩, by omega⟩
-        · intro k hk
-          simp only [Finset.mem_Ico] at hk
-          have : n - k = n - 1 - (k - 1) := by omega
-          rw [this]
-      have h0split : Finset.Ico 0 (n - 1) = insert 0 (Finset.Ico 1 (n - 1)) := by
-        ext j
-        simp only [Finset.mem_Ico, Finset.mem_insert]
-        omega
-      have hnsplit : Finset.Ico 1 n = insert (n - 1) (Finset.Ico 1 (n - 1)) := by
-        ext j
-        simp only [Finset.mem_Ico, Finset.mem_insert]
-        omega
-      rw [hshift, h0split, Finset.sum_insert (by simp), hinS0, mul_zero, zero_add]
-      rw [hnsplit, Finset.sum_insert (by simp), Finset.sum_insert (by simp)]
-      have hcomb : ∑ x ∈ Finset.Ico 1 (n - 1), (n - 1 - x) * inS x +
-          ∑ x ∈ Finset.Ico 1 (n - 1), inS x =
-          ∑ x ∈ Finset.Ico 1 (n - 1), (n - x) * inS x := by
-        rw [← Finset.sum_add_distrib]
-        refine Finset.sum_congr rfl fun x hx => ?_
-        simp only [Finset.mem_Ico] at hx
-        have : n - 1 - x + 1 = n - x := by omega
-        calc
-          (n - 1 - x) * inS x + inS x = (n - 1 - x + 1) * inS x := by ring
-          _ = (n - x) * inS x := by rw [this]
-      have hlast : (n - (n - 1)) * inS (n - 1) = inS (n - 1) := by
-        have : n - (n - 1) = 1 := by omega
-        rw [this, one_mul]
-      omega
-  simp only [mul_add, Finset.sum_add_distrib] at hwsum
-  rw [← hphi_eq, ← hphi_eq] at hwsum
+    rw [dijkstraPotential, ← Fin.sum_univ_eq_sum_range (fun k => (n - k) * d u k) n]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    by_cases hi0 : 0 < i.val
+    · by_cases hne : u i = u (i - 1) <;> simp [d, hi0, i.isLt, hne]
+    · simp [d, hi0]
+  have hcard_eq : S.card = ∑ k ∈ Finset.range n, inS k := by
+    rw [← Fin.sum_univ_eq_sum_range inS n]
+    simp [inS]
+  have htele : ∀ (N : ℕ) (f : ℕ → ℕ), f 0 = 0 →
+      ∑ k ∈ Finset.range N, (N - k) * f (k - 1) + ∑ k ∈ Finset.range N, f k =
+        ∑ k ∈ Finset.range N, (N - k) * f k := by
+    rintro (_ | m) f hf
+    · simp
+    rw [Finset.sum_range_succ', Finset.sum_range_succ _ m, Finset.sum_range_succ _ m]
+    simp only [Nat.add_sub_add_right, Nat.add_sub_cancel, Nat.zero_sub, hf, mul_zero, add_zero,
+      show m + 1 - m = 1 by omega, one_mul, ← add_assoc, ← Finset.sum_add_distrib]
+    congr 1
+    refine Finset.sum_congr rfl fun k hk => ?_
+    rw [show m + 1 - k = m - k + 1 by have := Finset.mem_range.mp hk; omega]
+    ring
+  have hwsum := Finset.sum_le_sum fun k (hk : k ∈ Finset.range n) =>
+    Nat.mul_le_mul_left (n - k) (hpt k (Finset.mem_range.mp hk))
+  simp only [mul_add, Finset.sum_add_distrib, ← hphi_eq] at hwsum
+  have := htele n inS hinS0
   omega
 
 private def bottomSteps {n : ℕ} [NeZero n] (μs : List (Finset (Fin n))) : ℕ :=
@@ -1104,16 +1005,8 @@ theorem dijkstraDistRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
   have hphi_ub := dijkstraPotential_le s₀
   have hb_ge_K : K ≤ bottomSteps μs := by
     by_contra hlt
-    have hle : bottomSteps μs ≤ K - 1 := by omega
-    have hmul : bottomSteps μs * (n * (n - 1) / 2 + 1) ≤
-        (K - 1) * (n * (n - 1) / 2 + 1) := Nat.mul_le_mul_right _ hle
-    have hprod : (K - 1) * (n * (n - 1) / 2 + 1) + n * (n - 1) / 2 =
-        K * (n * (n - 1) / 2) + (K - 1) := by
-      rcases K with _ | k
-      · omega
-      · simp only [Nat.add_sub_cancel]
-        ring
-    omega
+    have := Nat.mul_le_mul_right (n * (n - 1) / 2 + 1) (Nat.succ_le_of_lt (not_le.mp hlt))
+    nlinarith
   obtain ⟨s₁, S₁, s₂, μs₁, μs₂, rfl, hb₁, h0₁, _, htr₁, hmtr₂⟩ :=
     mTr_split_first_bottom hmtr (by omega)
   have hb_tail : bottomSteps (S₁ :: μs₂) = bottomSteps (μs₁ ++ S₁ :: μs₂) := by
@@ -1170,13 +1063,9 @@ theorem dijkstraRing_selfStabilizing_of_pred_le {n K : ℕ} [NeZero n] [NeZero K
     have hphi_ub := dijkstraPotential_le s₀
     have hb_ge : K + 1 ≤ bottomSteps (μs.map fun i => {i}) := by
       by_contra hlt
-      have hle' : bottomSteps (μs.map fun i => {i}) ≤ K := by omega
-      have hmul : bottomSteps (μs.map fun i => {i}) * (n * (n - 1) / 2 + 1) ≤
-          K * (n * (n - 1) / 2 + 1) := Nat.mul_le_mul_right _ hle'
-      have hprod : K * (n * (n - 1) / 2 + 1) + n * (n - 1) / 2 =
-          (K + 1) * (n * (n - 1) / 2) + K := by ring
+      have := Nat.mul_le_mul_right (n * (n - 1) / 2 + 1) (Nat.succ_le_of_lt (not_le.mp hlt))
       simp only [List.length_map] at hlen_ub
-      omega
+      nlinarith
     obtain ⟨s₁, S₁, s₂, μs₁, μs₂, hmap_eq, hb₁, h0₁, _, htr₁, hmtr₂⟩ :=
       mTr_split_first_bottom hdist (by omega)
     have hS₁ : S₁ = {0} := by
@@ -1425,7 +1314,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         centralCycleState]
       ext
       have hnot : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
-      simp [hnot]
+      simp only [Nat.zero_le, hnot, ↓reduceIte, Nat.sub_self, Nat.zero_mod]
     have hplast : dijkstraPrivileged (centralCycleState n K 0) ⟨n - 1, by omega⟩ := by
       have hnz : n - 1 ≠ 0 := by omega
       simp only [dijkstraPrivileged, hnz, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
@@ -1442,21 +1331,21 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
       funext i
       have h1le : 1 ≤ K := by omega
       by_cases hi0 : i.val = 0
-      · have hieq : i = 0 := Fin.ext hi0
-        subst hieq
+      · obtain rfl : i = 0 := Fin.ext hi0
         ext
-        simp [centralCycleState, h1le, dijkstraStep, dijkstraNextVal, fin_add_one_mod]
+        simp only [centralCycleState, Nat.one_ne_zero, h1le, ↓reduceIte, Fin.val_zero,
+          dijkstraStep, Function.update_self, dijkstraNextVal, fin_add_one_mod, Nat.zero_le,
+          zero_add]
       · have hine : i ≠ 0 := fun h => hi0 (by rw [h]; rfl)
         have hil : i.val ≤ n - 1 := by have := i.isLt; omega
         rw [dijkstraStep, Function.update_of_ne hine]
         simp only [centralCycleState, Nat.one_ne_zero, h1le, ↓reduceIte, hi0, hil]
-    refine ⟨⟨hp0, hstep_eq⟩, not_legit_of_two hp0 hplast (fun h => by
-      have hv := congrArg Fin.val h
-      change 0 = n - 1 at hv
-      omega)⟩
+    refine ⟨⟨hp0, hstep_eq⟩, not_legit_of_two hp0 hplast (fun h => ?_)⟩
+    have hv : 0 = n - 1 := congrArg Fin.val h
+    omega
   · by_cases hrK : r ≤ K
     · have hsched_val : (centralCycleSched n K hn r).val = n - r := by
-        simp [centralCycleSched, hr0, hrK]
+        simp only [centralCycleSched, hr0, hrK, ↓reduceDIte]
       let p := centralCycleSched n K hn r
       have hp_nz : p.val ≠ 0 := by rw [hsched_val]; omega
       have hleft_val : (p - 1).val = n - r - 1 := by
@@ -1499,12 +1388,12 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             by_cases hrrK : r = K
             · have hl_le_d : (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
               have hnp : n - p.val = K := by rw [hsched_val]; omega
-              simp [hl_le_d, hnp]
+              simp only [hl_le_d, ↓reduceIte, hnp, Nat.mod_self]
             · have hl_gt_d : ¬ (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
               have hl_le_nr : (p - 1).val ≤ n - r := by rw [hleft_val]; omega
               have hs2 : n - 1 - (p - 1).val = n - p.val := by
                 rw [hleft_val, hsched_val]; omega
-              simp [hl_gt_d, hl_le_nr, hs2]
+              simp only [hl_gt_d, hl_le_nr, ↓reduceIte, hs2]
           rw [hnext_val]
           have hp_gt_d : ¬ p.val ≤ n - (K + 2) + 1 := by rw [hsched_val]; omega
           by_cases hrrK : r = K
@@ -1523,7 +1412,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             have hsub0 : r + 1 - (K + 1) = 0 := by omega
             simp only [centralCycleState, hr1_nz, hnotK, ↓reduceIte, hsub0, hr0, hrK]
             by_cases hi0 : i.val = 0
-            · simp [hi0]
+            · simp only [hi0, Nat.zero_le, ↓reduceIte]
             · have hnot0 : ¬ i.val ≤ 0 := by omega
               simp only [hi0, hnot0, ↓reduceIte]
               split_ifs with hd hnr
@@ -1533,13 +1422,13 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
           · have hr1K : r + 1 ≤ K := by omega
             simp only [centralCycleState, hr1_nz, hr1K, ↓reduceIte, hr0, hrK]
             by_cases hi0 : i.val = 0
-            · simp [hi0]
+            · simp only [hi0, ↓reduceIte]
             · simp only [hi0, ↓reduceIte]
               by_cases hd : i.val ≤ n - (K + 2) + 1
-              · simp [hd]
+              · simp only [hd, ↓reduceIte]
               · simp only [hd, ↓reduceIte]
                 have hiff : (i.val ≤ n - (r + 1)) ↔ (i.val ≤ n - r) := by omega
-                simp [hiff]
+                simp only [hiff]
       have hnot_leg : centralCycleState n K r ∉ DijkstraLegitimate n K := by
         by_cases hr1 : r = 1
         · subst hr1
@@ -1548,26 +1437,23 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             have h1d : 1 ≤ n - (K + 2) + 1 := by omega
             simp only [dijkstraPrivileged, Nat.one_ne_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
               Nat.sub_self, centralCycleState, h1le, h1d]
-            intro heq
-            have hv := congrArg Fin.val heq
-            simp [h1mod] at hv
-          exact not_legit_of_two hp1 hp_priv (fun h => by
-            have hv := congrArg Fin.val h
-            rw [hsched_val] at hv
-            change 1 = n - 1 at hv
-            omega)
+            exact fun heq => Nat.zero_ne_one ((congrArg Fin.val heq).trans h1mod)
+          refine not_legit_of_two hp1 hp_priv (fun h => ?_)
+          have hv : 1 = p.val := congrArg Fin.val h
+          rw [hsched_val] at hv; omega
         · have hp0 : dijkstraPrivileged (centralCycleState n K r) 0 := by
             have hnot_d : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
             have hnot_nr : ¬ n - 1 ≤ n - r := by omega
             have hsub1 : n - (n - 1) = 1 := by omega
-            simp [dijkstraPrivileged, fin_sub_one_eq, centralCycleState, hr0, hrK,
-              Nat.sub_ne_zero_of_lt (by omega : 1 < n), hnot_d, hnot_nr, hsub1]
+            simp only [dijkstraPrivileged, Fin.val_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
+              centralCycleState, hr0, hrK, Nat.sub_ne_zero_of_lt (by omega : 1 < n), hnot_d,
+              hnot_nr, hsub1]
           exact not_legit_of_two hp0 hp_priv (Ne.symm (fun h => hp_nz (by rw [h]; rfl)))
       exact ⟨⟨hp_priv, hstep_eq⟩, hnot_leg⟩
     · have hgtK : K + 1 ≤ r := by omega
       have hnot_leK : ¬ r ≤ K := hrK
       have hsched_val : (centralCycleSched n K hn r).val = r - K := by
-        simp [centralCycleSched, hr0, hrK, hr]
+        simp only [centralCycleSched, hr0, hrK, hr, ↓reduceDIte]
       let p := centralCycleSched n K hn r
       have hp_nz : p.val ≠ 0 := by rw [hsched_val]; omega
       have hleft_val : (p - 1).val = r - (K + 1) := by
@@ -1588,8 +1474,8 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         have hnot1 : ¬ n - 1 ≤ r - (K + 1) := by omega
         have hnotd : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
         have hsub1 : n - (n - 1) = 1 := by omega
-        simp [dijkstraPrivileged, fin_sub_one_eq, centralCycleState, hr0, hnot_leK, hnot1,
-          hnotd, hsub1]
+        simp only [dijkstraPrivileged, Fin.val_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
+          centralCycleState, hr0, hnot_leK, Nat.zero_le, hnot1, hnotd, hsub1]
       have hstep_eq : centralCycleState n K (r + 1) =
           dijkstraStep (centralCycleState n K r) p := by
         funext i
@@ -1780,6 +1666,19 @@ congruent modulo `a` carry equal states. -/
 @[expose] def IsRingPeriodic (a : ℕ) {n : ℕ} {State : Type*} (s : Fin n → State) : Prop :=
   ∀ i j : Fin n, i.val % a = j.val % a → s i = s j
 
+private theorem mul_add_lt_mul {a b k r : ℕ} (hr : r < a) (hk : k < b) : a * k + r < a * b :=
+  (Nat.add_lt_add_left hr _).trans_le
+    ((Nat.mul_succ a k).symm.trans_le (Nat.mul_le_mul_left a hk))
+
+private theorem fin_sub_one_val_mod {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) [NeZero (a * b)]
+    (x : Fin (a * b)) : (x - 1).val % a = (x.val + (a - 1)) % a := by
+  rw [fin_sub_one_eq]
+  split_ifs with hx0 <;> dsimp only
+  · have := Nat.le_mul_of_pos_right a hb
+    rw [hx0, zero_add, show a * b - 1 = a - 1 + a * (b - 1) by rw [Nat.mul_sub_one]; omega,
+      Nat.add_mul_mod_self_left]
+  · rw [← Nat.add_mod_right, show x.val - 1 + a = x.val + (a - 1) by omega]
+
 namespace UniformRingProtocol
 
 section Ring
@@ -1817,25 +1716,7 @@ transition updates a nonempty set of privileged nodes atomically from the pre-st
 private theorem sub_one_mod_eq {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) [NeZero (a * b)]
     {i j : Fin (a * b)} (hij : i.val % a = j.val % a) :
     (i - 1).val % a = (j - 1).val % a := by
-  have hmod : ∀ x : Fin (a * b), (x - 1).val % a = (x.val + (a - 1)) % a := by
-    intro x
-    simp only [fin_sub_one_eq]
-    split_ifs with hx0
-    · dsimp only
-      rw [hx0, zero_add, Nat.mod_eq_of_lt (by omega : a - 1 < a)]
-      have hsplit : a * b - 1 = a * (b - 1) + (a - 1) := by
-        rcases b with _ | b'
-        · omega
-        · simp only [Nat.add_sub_cancel]
-          have : a * (b' + 1) = a * b' + a := by ring
-          omega
-      rw [hsplit, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt (by omega : a - 1 < a)]
-    · dsimp only
-      have hpos : 1 ≤ x.val := Nat.pos_of_ne_zero hx0
-      calc
-        (x.val - 1) % a = ((x.val - 1) + a) % a := (Nat.add_mod_right _ _).symm
-        _ = (x.val + (a - 1)) % a := by congr 1; omega
-  rw [hmod i, hmod j, ← Nat.mod_add_mod, hij, Nat.mod_add_mod]
+  rw [fin_sub_one_val_mod ha hb, fin_sub_one_val_mod ha hb, ← Nat.mod_add_mod, hij, Nat.mod_add_mod]
 
 private theorem add_one_mod_eq {a b : ℕ} [NeZero (a * b)]
     {i j : Fin (a * b)} (hij : i.val % a = j.val % a) :
@@ -1870,11 +1751,8 @@ theorem card_privilegedSet_dvd_of_isRingPeriodic {a b : ℕ} (ha : 1 ≤ a) (hb 
     [NeZero (a * b)] {s : Fin (a * b) → State} (hper : IsRingPeriodic a s) :
     b ∣ (π.privilegedSet s).card := by
   let eqv : Fin a × Fin b ≃ Fin (a * b) :=
-    { toFun := fun rq => ⟨a * rq.2.val + rq.1.val, by
-        have := rq.1.isLt; have := rq.2.isLt; nlinarith⟩
-      invFun := fun i =>
-        (⟨i.val % a, Nat.mod_lt _ ha⟩,
-          ⟨i.val / a, Nat.div_lt_of_lt_mul (by linarith [i.isLt, mul_comm a b])⟩)
+    { toFun := fun rq => ⟨a * rq.2.val + rq.1.val, mul_add_lt_mul rq.1.isLt rq.2.isLt⟩
+      invFun := fun i => (⟨i.val % a, Nat.mod_lt _ ha⟩, ⟨i.val / a, Nat.div_lt_of_lt_mul i.isLt⟩)
       left_inv := fun ⟨r, q⟩ => by
         ext
         · dsimp only
@@ -1955,55 +1833,13 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
     omega
   -- Independent-set property: distinct elements of a mod-`a` coset are non-adjacent in `C_{a*b}`.
   have coset_ne_sub_one : ∀ {r : ℕ} (hr : r < a) {k₁ k₂ : ℕ} (hk₁ : k₁ < b) (hk₂ : k₂ < b),
-      k₁ ≠ k₂ →
-      (⟨a * k₁ + r, by nlinarith⟩ : Fin (a * b)) ≠
-        (⟨a * k₂ + r, by nlinarith⟩ : Fin (a * b)) - 1 := by
-    intro r hr k₁ k₂ hk₁ hk₂ hne h
-    have hv := congrArg Fin.val h
-    simp only [fin_sub_one_eq] at hv
-    split_ifs at hv with hz
-    · dsimp only at hv
-      have hk₂0 : k₂ = 0 := by nlinarith
-      have hr0 : r = 0 := by nlinarith
-      subst hk₂0 hr0
-      have hk₁_le : k₁ ≤ b - 1 := by omega
-      have hmul_le : a * k₁ ≤ a * (b - 1) := Nat.mul_le_mul_left a hk₁_le
-      have hprod : a * (b - 1) + a = a * b := by
-        rcases b with _ | b'
-        · omega
-        · simp only [Nat.add_sub_cancel]; ring
-      omega
-    · dsimp only at hv
-      have hmod1 : (a * k₁ + r) % a = r := by
-        rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr]
-      have hmod2 : (a * k₂ + r - 1) % a = (r + (a - 1)) % a := by
-        have hpos : 1 ≤ a * k₂ + r := Nat.pos_of_ne_zero hz
-        calc
-          (a * k₂ + r - 1) % a = (a * k₂ + r - 1 + a) % a := (Nat.add_mod_right _ _).symm
-          _ = (a * k₂ + (r + (a - 1))) % a := by congr 1; omega
-          _ = (r + (a - 1)) % a := Nat.mul_add_mod _ _ _
-      rw [hv] at hmod1
-      rw [hmod1] at hmod2
-      by_cases hr0 : r = 0
-      · rw [hr0, zero_add, Nat.mod_eq_of_lt (by omega : a - 1 < a)] at hmod2
-        omega
-      · have hlt : r + (a - 1) = a + (r - 1) := by omega
-        rw [hlt, Nat.add_mod_left, Nat.mod_eq_of_lt (by omega : r - 1 < a)] at hmod2
-        omega
-  have hcoset_indep : ∀ {r : ℕ} (hr : r < a) {k₁ k₂ : ℕ} (hk₁ : k₁ < b) (hk₂ : k₂ < b)
-      (hne : k₁ ≠ k₂),
-      let p₁ : Fin (a * b) := ⟨a * k₁ + r, by nlinarith⟩
-      let p₂ : Fin (a * b) := ⟨a * k₂ + r, by nlinarith⟩
-      p₁ ≠ p₂ ∧ p₁ ≠ p₂ - 1 ∧ p₁ ≠ p₂ + 1 := by
-    intro r hr k₁ k₂ hk₁ hk₂ hne p₁ p₂
-    have hp_ne : p₁ ≠ p₂ := by
-      intro h
-      have hv : a * k₁ + r = a * k₂ + r := congrArg Fin.val h
-      have hmul : a * k₁ = a * k₂ := by omega
-      exact hne (Nat.eq_of_mul_eq_mul_left (by omega) hmul)
-    refine ⟨hp_ne, coset_ne_sub_one hr hk₁ hk₂ hne, fun h => ?_⟩
-    exact coset_ne_sub_one hr hk₂ hk₁ hne.symm
-      ((fin_add_sub_one p₂).symm.trans (congrArg (· - 1) h.symm))
+      (⟨a * k₁ + r, mul_add_lt_mul hr hk₁⟩ : Fin (a * b)) ≠
+        (⟨a * k₂ + r, mul_add_lt_mul hr hk₂⟩ : Fin (a * b)) - 1 := by
+    intro r hr k₁ k₂ hk₁ hk₂ h
+    have hv := congrArg (fun x : Fin (a * b) => x.val % a) h
+    simp only [fin_sub_one_val_mod ha1 hb1, add_assoc, Nat.mul_add_mod, Nat.mod_eq_of_lt hr] at hv
+    rw [Nat.add_mod_eq_ite, Nat.mod_eq_of_lt hr, Nat.mod_eq_of_lt (by omega : a - 1 < a)] at hv
+    split_ifs at hv <;> omega
   -- For any `a`-periodic configuration `u`, construct its `b`-step coset sweep.
   have hcoset_sweep : ∀ u : Fin (a * b) → State, IsRingPeriodic a u →
       ∃ (st : ℕ → Fin (a * b) → State) (lbl : ℕ → Fin (a * b)),
@@ -2018,34 +1854,31 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
     have hr_lt : r < a := Nat.mod_lt _ ha1
     let v_new := π.nextVal u i₀
     let cosetNode : ℕ → Fin (a * b) := fun k =>
-      if hk : k < b then ⟨a * k + r, by nlinarith⟩ else ⟨0, NeZero.pos (a * b)⟩
+      if hk : k < b then ⟨a * k + r, mul_add_lt_mul hr_lt hk⟩ else ⟨0, NeZero.pos (a * b)⟩
     let st : ℕ → Fin (a * b) → State := fun k j =>
       if j.val % a = r ∧ j.val / a < min k b then v_new else u j
     have hst0 : st 0 = u := by funext j; simp [st]
     have hstb_per : IsRingPeriodic a (st b) := by
       intro i j hij
-      have hdiv_i : i.val / a < b := Nat.div_lt_of_lt_mul (by linarith [i.isLt, mul_comm a b])
-      have hdiv_j : j.val / a < b := Nat.div_lt_of_lt_mul (by linarith [j.isLt, mul_comm a b])
-      simp only [st, min_self, hdiv_i, hdiv_j, and_true, hij]
+      simp only [st, min_self, Nat.div_lt_of_lt_mul i.isLt, Nat.div_lt_of_lt_mul j.isLt, and_true,
+        hij]
       split_ifs
       · rfl
       · exact hper i j hij
     have hstep_k : ∀ k, k < b →
         (π.centralLTS (a * b)).Tr (st k) (cosetNode k) (st (k + 1)) := by
       intro k hk
-      let pk : Fin (a * b) := ⟨a * k + r, by nlinarith⟩
+      let pk : Fin (a * b) := ⟨a * k + r, mul_add_lt_mul hr_lt hk⟩
       have hcn : cosetNode k = pk := by simp [cosetNode, hk, pk]
       rw [hcn]
       have hpk_mod : pk.val % a = r := by
-        dsimp only [pk]
-        rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr_lt]
+        dsimp only [pk]; rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr_lt]
       have hpk_div : pk.val / a = k := by
-        dsimp only [pk]
-        rw [Nat.mul_add_div ha1, Nat.div_eq_of_lt hr_lt, add_zero]
+        dsimp only [pk]; rw [Nat.mul_add_div ha1, Nat.div_eq_of_lt hr_lt, add_zero]
       have hmin_k : min k b = k := Nat.min_eq_left (Nat.le_of_lt hk)
       have hmin_k1 : min (k + 1) b = k + 1 := Nat.min_eq_left hk
       have hpk_same : st k pk = u pk := by
-        simp [st, hpk_div]
+        simp only [st, hpk_div, hmin_k, lt_irrefl, and_false, ↓reduceIte]
       have hnbor_same : ∀ x : Fin (a * b),
           (x = pk - 1 ∨ x = pk + 1) → st k x = u x := by
         intro x hx
@@ -2055,16 +1888,14 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
           obtain ⟨hx_mod, hx_div⟩ := hcond
           let k' := x.val / a
           have hk'_lt : k' < b := lt_trans hx_div hk
-          have hk'_ne : k' ≠ k := Nat.ne_of_lt hx_div
-          have hx_eq : x = ⟨a * k' + r, by nlinarith⟩ := by
+          have hx_eq : x = ⟨a * k' + r, mul_add_lt_mul hr_lt hk'_lt⟩ := by
             ext
             dsimp only [k']
             rw [← hx_mod]
             exact (Nat.div_add_mod x.val a).symm
-          obtain ⟨_, hnl, hnr⟩ := hcoset_indep hr_lt hk'_lt hk hk'_ne
           rcases hx with rfl | rfl
-          · exact hnl hx_eq.symm
-          · exact hnr hx_eq.symm
+          · exact coset_ne_sub_one hr_lt hk'_lt hk hx_eq.symm
+          · exact coset_ne_sub_one hr_lt hk hk'_lt (by rw [← hx_eq, fin_add_sub_one])
         · rfl
       have hleft_same : st k (pk - 1) = u (pk - 1) :=
         hnbor_same _ (Or.inl rfl)

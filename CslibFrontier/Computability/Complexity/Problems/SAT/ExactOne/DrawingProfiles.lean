@@ -84,10 +84,7 @@ theorem rawFormula_eq_profiles (φ : CNF ℕ) :
         (profileVariableMap c.2 (CNF.PositiveExactOneCompile.signedOffset φ c.2) c.1) := by
   rw [CNF.PositiveExactOneCompile.rawFormula_eq_flatMap]
   simp only [List.flatMap_def]
-  apply congrArg List.flatten
-  apply List.map_congr_left
-  intro c _
-  exact (profileFormula_relabel _ _ _).symm
+  exact congrArg List.flatten (List.map_congr_left fun _ _ => (profileFormula_relabel _ _ _).symm)
 
 /-- Every actual positive replacement profile has at most twenty-two clauses. -/
 theorem profileFormula_length_le (p : ClauseProfile) : (profileFormula p).length ≤ 22 := by
@@ -126,14 +123,8 @@ theorem profileVariables_scope (p : ClauseProfile) :
       | .inr ((i, _), _) =>
         decide (i < (CNF.FromSAT.clause 0 (profileSource p)).length)) = true := by
     fin_cases p <;> decide +kernel
-  intro v hv
-  have h := List.all_eq_true.mp hall v hv
-  cases v with
-  | inl v =>
-    cases v with
-    | inl j => simpa only [decide_eq_true_eq] using h
-    | inr a => rcases a with ⟨i, k⟩; simpa only [decide_eq_true_eq] using h
-  | inr a => rcases a with ⟨⟨i, k⟩, s⟩; simpa only [decide_eq_true_eq] using h
+  rintro ((j | ⟨i, k⟩) | ⟨⟨i, k⟩, s⟩) hv <;>
+    simpa only [decide_eq_true_eq] using List.all_eq_true.mp hall _ hv
 
 /-- Every present source placeholder has a valid local variable index and its prescribed
 position in the ordered terminal list. -/
@@ -143,13 +134,8 @@ theorem profileSource_terminal_index (p : ClauseProfile) (j : Fin 3)
     v < (profileGeometry p).variablePositions.length ∧
       v ∈ (profileGeometry p).terminalVariables ∧
       (profileGeometry p).terminalVariables.idxOf v = j.val := by
-  have hall : ∀ (p : ClauseProfile) (j : Fin 3), j.val < (profileSource p).length →
-      let v := (profileVariables p).idxOf (Sum.inl (Sum.inl j.val))
-      v < (profileGeometry p).variablePositions.length ∧
-        v ∈ (profileGeometry p).terminalVariables ∧
-        (profileGeometry p).terminalVariables.idxOf v = j.val := by
-    decide +kernel
-  exact hall p j hj
+  revert p j hj
+  decide +kernel
 
 /-- Selecting a profile preserves the source width when the source has width at most three. -/
 theorem profileSource_length (c : Clause ℕ) (hc : c.length ≤ 3) :
@@ -158,8 +144,7 @@ theorem profileSource_length (c : Clause ℕ) (hc : c.length ≤ 3) :
   · rfl
   · cases bp <;> rfl
   · cases bp <;> cases bq <;> rfl
-  · have hr : rest = [] := by simpa using hc
-    subst rest
+  · obtain rfl : rest = [] := by simpa using hc
     cases bp <;> cases bq <;> cases br <;> rfl
 
 /-- Profiles retain at most the first three original positions. -/

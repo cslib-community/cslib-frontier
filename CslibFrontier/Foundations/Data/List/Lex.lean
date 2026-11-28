@@ -44,28 +44,24 @@ variable {α : Type u} [LinearOrder α]
 theorem cons_le_cons_iff' {a b : α} {l l' : List α} :
     a :: l ≤ b :: l' ↔ a < b ∨ a = b ∧ l ≤ l' := by
   rw [le_iff_lt_or_eq, le_iff_lt_or_eq, show a :: l < b :: l' ↔ Lex (· < ·) (a :: l) (b :: l')
-    from Iff.rfl, cons_lex_cons_iff]
-  constructor
-  · rintro ((h | ⟨rfl, h⟩) | h)
-    · exact .inl h
-    · exact .inr ⟨rfl, .inl h⟩
-    · obtain ⟨rfl, rfl⟩ := List.cons.inj h
-      exact .inr ⟨rfl, .inr rfl⟩
-  · rintro (h | ⟨rfl, h | rfl⟩)
-    · exact .inl (.inl h)
-    · exact .inl (.inr ⟨rfl, h⟩)
-    · exact .inr rfl
+    from Iff.rfl, cons_lex_cons_iff, List.cons.injEq]
+  exact ⟨fun
+    | .inl (.inl h) => .inl h
+    | .inl (.inr ⟨rfl, h⟩) => .inr ⟨rfl, .inl h⟩
+    | .inr ⟨rfl, rfl⟩ => .inr ⟨rfl, .inr rfl⟩, fun
+    | .inl h => .inl (.inl h)
+    | .inr ⟨rfl, .inl h⟩ => .inl (.inr ⟨rfl, h⟩)
+    | .inr ⟨rfl, .inr rfl⟩ => .inr ⟨rfl, rfl⟩⟩
 
 /-- A strict comparison between lists of the same length survives appending anything to them:
 it is decided at a position inside both. -/
 theorem append_lt_append_of_lt_of_length_eq {a b : List α} (h : a < b)
     (hlen : a.length = b.length) (c d : List α) : a ++ c < b ++ d := by
   change Lex (· < ·) a b at h
-  change Lex (· < ·) (a ++ c) (b ++ d)
   induction h with
   | nil => simp at hlen
-  | cons _ ih => exact .cons (ih (by simpa using hlen))
-  | rel h => exact .rel h
+  | cons _ ih => exact List.Lex.cons (ih (by simpa using hlen))
+  | rel h => exact List.Lex.rel h
 
 /-- A list is lexicographically at most every list it is a prefix of. -/
 theorem isPrefix_le {a b : List α} (h : a <+: b) : a ≤ b := by
@@ -75,7 +71,7 @@ theorem isPrefix_le {a b : List α} (h : a <+: b) : a ≤ b := by
     cases tail with
     | nil => exact le_rfl
     | cons _ _ => exact le_of_lt (show ([] : List α) < _ from List.Lex.nil)
-  | cons a as ih => exact List.cons_le_cons a ih
+  | cons a _ ih => exact List.cons_le_cons a ih
 
 /-- A list lexicographically between a prefix `p` of `b` and `b` itself also has `p` as a prefix. -/
 theorem IsPrefix.of_le_of_le {p b c : List α}
@@ -85,20 +81,13 @@ theorem IsPrefix.of_le_of_le {p b c : List α}
   | cons h p ih =>
     obtain ⟨bs, rfl⟩ := hb
     cases c with
-    | nil =>
-      have hlt : ([] : List α) < h :: p := List.Lex.nil
-      exact (not_lt_of_ge hpc hlt).elim
+    | nil => exact (not_lt_of_ge hpc (show ([] : List α) < h :: p from List.Lex.nil)).elim
     | cons k cs =>
-      have head_le {a b : α} {as bs : List α} (hh : a :: as ≤ b :: bs) : a ≤ b := by
-        rcases lt_or_eq_of_le hh with hh | hh
-        · exact List.head_le_of_lt hh
-        · exact (List.cons.inj hh).1.le
-      have hk : h = k := le_antisymm (head_le hpc) (head_le hcb)
-      subst k
-      have tail_le {as bs : List α} (hh : h :: as ≤ h :: bs) : as ≤ bs := by
-        rcases lt_or_eq_of_le hh with hh | hh
-        · exact le_of_lt (show as < bs from List.lex_cons_iff.mp hh)
-        · exact (List.cons.inj hh).2.le
+      have head_le {a b : α} {as bs : List α} (hh : a :: as ≤ b :: bs) : a ≤ b :=
+        (cons_le_cons_iff'.mp hh).elim le_of_lt (·.1.le)
+      obtain rfl : h = k := le_antisymm (head_le hpc) (head_le hcb)
+      have tail_le {as bs : List α} (hh : h :: as ≤ h :: bs) : as ≤ bs :=
+        (cons_le_cons_iff'.mp hh).elim (fun hlt => (lt_irrefl h hlt).elim) (·.2)
       obtain ⟨ds, he⟩ := ih ⟨bs, rfl⟩ (tail_le hpc) (tail_le hcb)
       exact ⟨ds, congrArg (List.cons h) he⟩
 
@@ -110,16 +99,15 @@ theorem IsPrefix.of_prefix_of_le_of_le {p a b c : List α}
 /-- Truncating two lists to a common length preserves their lexicographic order. -/
 theorem take_le_take_of_le {a b : List α} (h : a ≤ b) (n : ℕ) : a.take n ≤ b.take n := by
   induction n generalizing a b with
-  | zero => simp only [take_zero, le_refl]
+  | zero => simp
   | succ n ih =>
     cases a with
-    | nil => rw [take_nil]; exact isPrefix_le nil_prefix
+    | nil => simp [isPrefix_le nil_prefix]
     | cons x a =>
       cases b with
       | nil =>
         exact absurd h (not_le_of_gt (show ([] : List α) < x :: a from List.Lex.nil))
       | cons y b =>
-        rw [take_succ_cons, take_succ_cons]
         rcases cons_le_cons_iff'.mp h with hxy | ⟨rfl, hab⟩
         · exact le_of_lt (show x :: a.take n < y :: b.take n from List.Lex.rel hxy)
         · exact cons_le_cons x (ih hab)

@@ -67,11 +67,7 @@ theorem advantage_modNat_le {N : ℕ} [NeZero N] (G : Generator Seed (Fin N)) (m
       G.advantage (fun y => adversary (y.val : ZMod m)) + m / N := by
   have hreal : (G.modNat m).realExperiment adversary =
       G.realExperiment fun y => adversary (y.val : ZMod m) := by
-    simp only [realExperiment, outputDist]
-    rw [show (PMF.uniformOfFintype Seed).map (G.modNat m) =
-      ((PMF.uniformOfFintype Seed).map G).map fun y : Fin N => (y.val : ZMod m) from by
-        rw [PMF.map_comp]; rfl, PMF.bind_map]
-    rfl
+    simp only [realExperiment, outputDist, PMF.bind_map]; rfl
   have hmid := PMF.abs_bind_apply_toReal_sub_le_dist
     ((PMF.uniformOfFintype (Fin N)).map fun x => (x.val : ZMod m))
     (PMF.uniformOfFintype (ZMod m)) adversary true

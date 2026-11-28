@@ -17,6 +17,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Conditiona
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Foundations.Data.List.Fold
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
+
 /-!
 # Word operations and pairing in logarithmic space
 
@@ -49,15 +51,15 @@ unary numbers, as well as bounded-count batch evaluation (`map_range_const`, `ma
 * `Turing.MultiTapeTM.ComputableInLogSpace.listSingleton`, `.listCons`, `.listAppend`,
   `.listHeadD`, `.listLength`: framed-list operations.
 * `Turing.MultiTapeTM.ComputableInLogSpace.bitsAppend`, `.bitsHeadD`, `.bitsMap`, `.bitsFoldl`,
-  `.bitsAll`, `.bitsAny`: bit-word operations.
+  `.bitsAll`, `.bitsAny`, `.bitsReplicate`: bit-word operations.
 * `Turing.MultiTapeTM.ComputableInLogSpace.unaryAdd`, `.unaryMulConst`, `.unaryLeConst`,
   `.unaryBoundedMap`: unary-number operations.
 * `Turing.MultiTapeTM.ComputableInLogSpace.map_range_const`, `.map_range_of_le`,
   `.mapToBits_range_const`, `.mapToBits_range_of_le`: bounded-count batch evaluation.
-* `Turing.MultiTapeTM.ComputableInLogSpace.fst'`, `.snd'`, `.bool_and`, `.bool_or`,
-  `.ite_decide`: projections of a computed pair, Boolean connectives and case distinctions on
-  decidable propositions, in the form used by `fun_prop`, with which the closure rules and word
-  operations above are registered.
+* `Turing.MultiTapeTM.ComputableInLogSpace.encoding_comp`, `.frame`, `.unframe`, `.fst'`, `.snd'`,
+  `.bool_and`, `.bool_or`, `.ite_decide`: raw encoding views, framing, projections of a computed
+  pair, Boolean connectives and case distinctions on decidable propositions, in the form used by
+  `fun_prop`, with which the closure rules and word operations above are registered.
 
 ## References
 
@@ -204,19 +206,14 @@ theorem append {f₁ : α → β₁} {f₂ : α → β₂} {g : α → β}
     ComputableInLogSpace g encIn encOut := by
   obtain ⟨t₁, c₁, h₁⟩ := h₁
   obtain ⟨t₂, c₂, h₂⟩ := h₂
-  obtain ⟨d₁, _, k₁, Q₁, hfin₁, tm₁, h₁⟩ := Internal.NormalForm.exactBounds h₁
-  obtain ⟨d₂, _, k₂, Q₂, hfin₂, tm₂, h₂⟩ := Internal.NormalForm.exactBounds h₂
-  let := hfin₁
-  let := hfin₂
-  refine ⟨(fun a => d₁ * (t₁ a + 1) + d₂ * (t₂ a + 1)),
-    d₁ * (c₁ + 1) + d₂ * (c₂ + 1) + 2 * max k₁ k₂,
-    max k₁ k₂, Q₁ ⊕ Q₂, inferInstance, appendTM tm₁ tm₂, ?_⟩
-  have h a := ((h₁ a).append (h₂ a)).computesInTimeAndSpace
-  simp only [← hg] at h
-  refine ComputesFunInTimeAndSpace.mono h (fun _ => le_rfl) ?_
-  intro a
-  generalize Nat.log2 (encIn a).length = l
-  simp only [Nat.mul_add, Nat.add_mul, Nat.mul_one, Nat.mul_assoc]
+  have hc₁ := ComputableInBigO.of_bounds h₁ (.refl t₁) (BigOLe.refl _)
+  have hc₂ := ComputableInBigO.of_bounds h₂ (.refl t₂) (BigOLe.refl _)
+  obtain ⟨c, h⟩ := hc₁.append hc₂ hg
+  refine ⟨_, c * (c₁ + c₂ + 1), h.mono (fun _ => le_rfl) fun a => ?_⟩
+  dsimp only
+  rw [Nat.mul_assoc]
+  apply Nat.mul_le_mul_left
+  rw [Nat.add_mul, Nat.add_mul, Nat.one_mul]
   omega
 
 /-- The first component of a pair. -/
@@ -274,6 +271,34 @@ theorem listAppend {f₁ f₂ : α → List β}
     change (f₁ a ++ f₂ a).flatMap (frame ∘ encOut) =
       (f₁ a).flatMap (frame ∘ encOut) ++ (f₂ a).flatMap (frame ∘ encOut)
     exact List.flatMap_append
+
+/-- Copy the payload bits of a sequence of frames. A true marker introduces the next payload
+bit; a false marker ends the current frame. -/
+private def framePayloadsT : Transducer Bool Bool where
+  q₀ := false
+  step
+    | false, b => (b, [])
+    | true, b => (false, [b])
+  final _ := []
+  length_step_le q b := by cases q <;> simp
+  length_final_le _ := by simp
+
+private theorem framePayloadsT_run_frame (w rest : List Bool) :
+    framePayloadsT.run false (frame w ++ rest) = w ++ framePayloadsT.run false rest := by
+  induction w with
+  | nil => rfl
+  | cons b w ih => simpa [frame_cons, Transducer.run_cons, framePayloadsT] using ih
+
+/-- Removing the outer framing of a list of framed lists concatenates their contents in
+logarithmic space. The transducer reads once from left to right. -/
+theorem listFlatten (enc : β ↪ List Bool) :
+    ComputableInLogSpace List.flatten (encList (encList enc)) (encList enc) :=
+  framePayloadsT.computableInLogSpace fun l => by
+    induction l with
+    | nil => rfl
+    | cons a l ih =>
+      change _ = framePayloadsT.run false _ at ih ⊢
+      rw [encList_cons, framePayloadsT_run_frame, ← ih, List.flatten_cons, encList_append]
 
 /-- Reading the head of a framed list with a default value `d` in logarithmic space. -/
 theorem listHeadD (d : β) :
@@ -489,6 +514,33 @@ theorem mapToBits_range_of_le (k : ℕ) {r : α → ℕ} {f : α × ℕ → Bool
 The closure rules for pairing, projections and case distinctions, and the word operations, are
 registered with `fun_prop`. Projections are stated for a computed pair, so the pair certificate
 fixes the encodings of the components. -/
+
+/-- Return the encoded word of an already computed value. -/
+@[fun_prop]
+theorem encoding_comp {f : α → β} (hf : ComputableInLogSpace f encIn encOut) :
+    ComputableInLogSpace (fun a => encOut (f a)) encIn encBits :=
+  hf.congr fun _ => rfl
+
+/-- Frame a raw bit word in logarithmic space. -/
+@[fun_prop]
+theorem frame : ComputableInLogSpace Turing.MultiTapeTM.frame encBits encBits :=
+  of_frame fun _ => rfl
+
+/-- Read the first framed word of a raw bit word in logarithmic space. -/
+@[fun_prop]
+theorem unframe : ComputableInLogSpace Turing.MultiTapeTM.unframe encBits encBits :=
+  of_unframe fun _ => rfl
+
+/-- Repeat a computed bit a computed unary number of times in logarithmic space. -/
+@[fun_prop]
+theorem bitsReplicate {n : α → ℕ} {b : α → Bool}
+    (hn : ComputableInLogSpace n encIn encUnary) (hb : ComputableInLogSpace b encIn encBool) :
+    ComputableInLogSpace (fun a => List.replicate (n a) (b a)) encIn encBits := by
+  refine (ite hb ((of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl).comp hn)
+    (((bitsMap fun _ => false).comp
+      (of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl)).comp hn)).congr_fun
+    fun a => ?_
+  cases b a <;> simp [Function.comp_apply]
 
 /-- The first component of a computed pair, in the form used by `fun_prop`. -/
 @[fun_prop]

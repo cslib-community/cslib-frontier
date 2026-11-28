@@ -252,46 +252,30 @@ theorem dependency_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
     (h : child ∈ parent.children) : Dependency child parent := by
   cases parent with
   | nextMatrix l =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl
-    · exact .matrixResidual l
-    · exact .matrixWeights l
-  | basePreparation l i =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    exact .bin (.basePreparation l i)
+    rcases List.mem_pair.mp h with rfl | rfl
+    exacts [.matrixResidual l, .matrixWeights l]
+  | basePreparation l i | residualPreparation l i =>
+    exact (List.mem_singleton.mp h).symm ▸ .bin (by constructor)
   | baseNormalized l i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl
-    · exact .bin (.baseRaw l i)
-    · exact .bin (.baseNormalized l i)
+    rcases List.mem_pair.mp h with rfl | rfl
+    exacts [.bin (.baseRaw l i), .bin (.baseNormalized l i)]
   | residual l =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl <;> exact .bin (.residualRow l _)
-  | residualPreparation l i =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    exact .bin (.residualPreparation l i)
+    rcases List.mem_pair.mp h with rfl | rfl <;> exact .bin (.residualRow l _)
   | residualNormalized l i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl
-    · exact .bin (.residualRaw l i)
-    · exact .bin (.residualNormalized l i)
+    rcases List.mem_pair.mp h with rfl | rfl
+    exacts [.bin (.residualRaw l i), .bin (.residualNormalized l i)]
   | row l t =>
     cases t with
     | base | previousReward =>
       cases l with
       | zero => simp [children] at h
       | succ l =>
-        simp only [children, List.mem_singleton] at h
-        subst child
+        cases List.mem_singleton.mp h
         first | exact .base l | exact .previousReward l
     | _ =>
       simp only [children] at h
       obtain ⟨c, hc, rfl⟩ := List.mem_map.mp h
-      apply Dependency.rowChild
-      rw [← BoundedRowTask.children_localTask]
-      exact List.mem_map.mpr ⟨c, hc, rfl⟩
+      exact .rowChild (BoundedRowTask.children_localTask _ ▸ List.mem_map.mpr ⟨c, hc, rfl⟩)
 
 /-- The concrete global call graph decreases, including both former local leaves. -/
 theorem rank_lt_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
@@ -301,12 +285,9 @@ theorem rank_lt_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
 /-- Induction follows bounded calls to original inputs or local zero-iteration constants.
 This is structural task induction, not the estimator's statistical-budget induction. -/
 theorem induction {k : ℕ} {motive : HierarchyTask k → Prop}
-    (step : ∀ t, (∀ c ∈ t.children, motive c) → motive t) (t : HierarchyTask k) : motive t := by
-  induction h : t.rank using Nat.strong_induction_on generalizing t with
-  | ind r ih =>
-    apply step
-    intro c hc
-    exact ih c.rank (h ▸ rank_lt_of_mem_children hc) c rfl
+    (step : ∀ t, (∀ c ∈ t.children, motive c) → motive t) (t : HierarchyTask k) : motive t :=
+  (InvImage.wf HierarchyTask.rank Nat.lt_wfRel.wf).induction t fun _ ih =>
+    step _ fun c hc => ih c (rank_lt_of_mem_children hc)
 
 end HierarchyTask
 end Matrix.HierarchyParams
@@ -499,12 +480,9 @@ theorem hierarchyTask_previousReward_succ (l : ℕ) :
     hierarchyTaskValue P e X Y S e₀ Xs Z Zt A (.row (l + 1) .previousReward) =
       fun a => hierarchyTaskValue P e X Y S e₀ Xs Z Zt A
         (.row l (.projectedReward (Fin.last P.k))) (e l a) := by
-  change rewardTransport _ _ (l + 1) *ᵥ e₀ = _
-  rw [rewardTransport_succ_mulVec]
   ext a
-  rw [hierarchyProj_mulVec]
-  simp only [hierarchyTaskValue, CorrectionSampling.value,
-    Fin.val_last, P.correctionIter_last, hierarchyCorrection_eq]
+  simp only [hierarchyTaskValue, CorrectionSampling.value, rewardTransport_succ_mulVec,
+    hierarchyProj_mulVec, Fin.val_last, P.correctionIter_last, hierarchyCorrection_eq]
 
 /-- The matrix output reads exactly its earlier base, final actual correction and copy
 weights. This is the existing residual and copy recipe, including all copy symbols. -/

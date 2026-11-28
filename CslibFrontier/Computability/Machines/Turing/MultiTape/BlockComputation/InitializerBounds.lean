@@ -39,12 +39,8 @@ theorem prefixState_encoding_le (k : ℕ) (metadata : Metadata) (j : ℕ)
   rcases metadata with ⟨args, m, r, alphabet, p⟩
   dsimp only [bankCells] at hj
   have hcursor := length_encNat_le_self j
-  have hlist := length_encList_le encNat (List.replicate j p)
-    (b := (encNat p).length) (by
-      intro value hvalue
-      have he : value = p := List.eq_of_mem_replicate hvalue
-      subst value
-      exact le_rfl)
+  have hlist := length_encList_le encNat (List.replicate j p) (b := (encNat p).length)
+    (fun _ h => List.eq_of_mem_replicate h ▸ le_rfl)
   simp only [List.length_replicate] at hlist
   have hbank := hlist.trans (Nat.mul_le_mul_right (2 * (encNat p).length + 1) hj)
   have hpower := Nat.size_pow_le alphabet (min j ((k * 3 + 1) * r))
@@ -63,14 +59,14 @@ theorem length_runFrom_le (k : ℕ) (metadata : Metadata) (w : List Bool) (j : �
   · rw [runFrom_prefix k metadata w j hj]
     exact prefixState_encoding_le k metadata j hj
   obtain ⟨n, rfl⟩ := Nat.exists_eq_add_of_le (by omega : bankCells k metadata ≤ j)
-  have hhalt : (machine k).halted
-      ((machine k).runFrom w (metadata, 0, [], 1) (bankCells k metadata)) = true := by
-    rcases metadata with ⟨args, m, r, alphabet, p⟩
-    exact halted_complete k args m r alphabet p w
-  have hfix : ∀ s, (machine k).halted s = true → ∀ n, (machine k).runFrom w s n = s :=
-    fun s hs n => Function.iterate_fixed (by simp [QueryMachine.step, hs]) n
-  rw [QueryMachine.runFrom_add, hfix _ hhalt n, runFrom_prefix k metadata w _ le_rfl]
-  exact prefixState_encoding_le k metadata _ le_rfl
+  have hfix {s} (hs : (machine k).halted s = true) : (machine k).runFrom w s n = s :=
+    Function.iterate_fixed (by simp [QueryMachine.step, hs]) n
+  rcases metadata with ⟨args, m, r, alphabet, p⟩
+  rw [QueryMachine.runFrom_add]
+  dsimp only [bankCells]
+  rw [hfix (halted_complete k args m r alphabet p w),
+    runFrom_prefix k (args, m, r, alphabet, p) w ((k * 3 + 1 + 1) * r) le_rfl]
+  exact prefixState_encoding_le _ _ _ le_rfl
 
 /-- In particular, the runtime-selected initialization has a bound at every clock. -/
 theorem length_runFrom_prepare_le (k s : ℕ) (args : Args) (w : List Bool) (j : ℕ) :
@@ -85,17 +81,14 @@ theorem space_prepare_le (k s N b σ q : ℕ) :
     space k ((prepare k s (N, b, σ, q)).1) ≤
       16 * ((encMetadata ((prepare k s (N, b, σ, q)).1)).length + 1) +
         192 * (d + 1) * (2 * B + d.size) := by
-  let d := k * 3 + 1
-  let B := Encoding.width k s b
-  have hd : 0 < d := by omega
-  have hB : 0 < B := Encoding.width_pos k s b
-  have hcells := chunkCount_mul_parameter_sizes_le hd hB
+  intro d B
+  have htotal := Nat.mul_le_mul_left (16 * (d + 1))
+    (chunkCount_mul_parameter_sizes_le (by omega : 0 < d) (Encoding.width_pos k s b))
   have hm := chunkWidth_le d B
-  have hwidth : B + chunkWidth d B ≤ 2 * B + d.size := by omega
-  have htotal := Nat.mul_le_mul_left (16 * (d + 1)) hcells
-  have hfinal := Nat.mul_le_mul_left (192 * (d + 1)) hwidth
+  have hfinal := Nat.mul_le_mul_left (192 * (d + 1))
+    (by omega : B + chunkWidth d B ≤ 2 * B + d.size)
   simp only [space, prepare, parameters, bankCells, length_encNat_eq_size]
-  dsimp only [d, B] at htotal hfinal
+  dsimp only [d, B] at htotal hfinal ⊢
   nlinarith
 
 end Turing.MultiTapePTM.BlockComputation.Initializer

@@ -65,10 +65,8 @@ theorem canonical_combine (b : ℕ) (ports : PortMap k) (previous : RawResult k 
     omega
   · intro h n hn
     simp only [List.mem_append] at hn
-    rcases hn with (hn | hn) | hn
-    · exact code_block b ports previous providers hproviders h 0 n hn
-    · exact code_block b ports previous providers hproviders h 1 n hn
-    · exact code_block b ports previous providers hproviders h 2 n hn
+    rcases hn with (hn | hn) | hn <;>
+      exact code_block b ports previous providers hproviders h _ n hn
 
 private theorem getD_block (b : ℕ) (ports : PortMap k) (previous : RawResult k Q)
     (providers : ProviderValues k Q) (h : Fin k) (d : Fin 3) (r : ℕ) (hr : r < b) :
@@ -112,11 +110,8 @@ theorem toView_combine (b : ℕ) [NeZero b] (ports : PortMap k) (previous : RawR
         simp only [List.length_append, hl]
         congr 1
         omega
-    change cellOfCode ((block b ports previous providers h 0 ++
-      block b ports previous providers h 1 ++ block b ports previous providers h 2).getD
-        (d.val * b + r.val) 0) = _
-    rw [hread, getD_block b ports previous providers h d r.val hr]
-    cases ht : ports h d <;> simp [ht, RawResult.toView]
+    exact (congrArg cellOfCode hread).trans
+      (getD_block b ports previous providers h d r.val hr)
 
 /-- Successful checked parsing of every supplied label gives the assembled raw windows.
 The condition includes provider words whose selected port is absent. -/

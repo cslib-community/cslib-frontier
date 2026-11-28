@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
@@ -107,14 +108,12 @@ private theorem computableInO_two_pow_le :
 framed description are written in unary, and the first is halved once per bit of the second. -/
 theorem computableInO_shortDesc :
     ComputableInO shortDesc encBits encBool (fun x => x.length) fun x => x.length := by
-  have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
-    (ComputableInO.of_linear (.of_unframe fun _ => rfl))
-  have hl := ComputableInO.lengthUnary
-  have h := computableInO_two_pow_le.comp (hl.prod (hl.comp hu))
-  refine h.mono 8 (fun x => ?_) fun x => ?_
+  refine (computableInO_two_pow_le.comp
+    (by fun_prop : ComputableInO (fun x : List Bool => (x.length, (unframe x).length))
+      encBits (encPair encUnary encUnary) _ _)).mono 8 (fun x => ?_) fun x => ?_
   all_goals
     have h₁ := length_unframe_le x
-    simp only [Function.comp_apply] at h₁ ⊢
+    simp only [encBits_apply]
     omega
 
 end Cslib.Complexity.Diagonal

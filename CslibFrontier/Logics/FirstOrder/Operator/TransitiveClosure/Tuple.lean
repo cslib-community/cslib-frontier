@@ -59,27 +59,16 @@ theorem blockEquiv_pair {M N : Type*} (e : (Fin d → M) ≃ N) {k : ℕ}
     blockEquiv e (2 * k) (fun i => pair xs ys (Fin.cast (Nat.mul_assoc 2 k d) i)) =
       pair (blockEquiv e k xs) (blockEquiv e k ys) := by
   rw [← pair_left_right (blockEquiv e (2 * k) _)]
-  congr 1
-  · funext i
-    simp only [left, blockEquiv_apply]
-    congr 1
-    funext j
-    have h : Fin.cast (Nat.mul_assoc 2 k d)
+  congr 1 <;> funext i <;> simp only [left, right, blockEquiv_apply] <;> congr 1 <;> funext j
+  · have h : Fin.cast (Nat.mul_assoc 2 k d)
         (finProdFinEquiv (Fin.cast (Nat.two_mul k).symm (Fin.castAdd k i), j)) =
         Fin.cast (Nat.two_mul (k * d)).symm (Fin.castAdd (k * d) (finProdFinEquiv (i, j))) :=
       Fin.ext (by simp)
     rw [h, pair, Fin.cast_cast, Fin.cast_eq_self, Fin.append_left]
-  · funext i
-    simp only [right, blockEquiv_apply]
-    congr 1
-    funext j
-    have h : Fin.cast (Nat.mul_assoc 2 k d)
+  · have h : Fin.cast (Nat.mul_assoc 2 k d)
         (finProdFinEquiv (Fin.cast (Nat.two_mul k).symm (Fin.natAdd k i), j)) =
         Fin.cast (Nat.two_mul (k * d)).symm (Fin.natAdd (k * d) (finProdFinEquiv (i, j))) :=
-      Fin.ext (by
-        simp only [Fin.val_cast, finProdFinEquiv_apply_val, Fin.val_natAdd]
-        rw [Nat.mul_add, Nat.mul_comm d k]
-        omega)
+      Fin.ext (by simp only [Fin.val_cast, finProdFinEquiv_apply_val, Fin.val_natAdd]; grind)
     rw [h, pair, Fin.cast_cast, Fin.cast_eq_self, Fin.append_right]
 
 /-- Lay out the flattened coordinates of two endpoint tuples as one closure tuple. -/
@@ -172,9 +161,9 @@ private theorem endpoint_valuation {β : Type} (v : β × Fin d → M) {k : ℕ}
         (endpointMap ∘ Sum.map Sum.inl id ∘ scopeMap)) (a, i))) =
       Sum.elim (fun b => e (fun i => v (b, i))) (pair (blockEquiv e k us) (blockEquiv e k ws)) := by
   funext a
-  cases a with
-  | inl b => rfl
-  | inr j => exact congrFun (blockEquiv_pair e us ws) j
+  rcases a with b | j
+  · rfl
+  · exact congrFun (blockEquiv_pair e us ws) j
 
 variable {T : ∀ {β : Type}, (β → β → Prop) → β → β → Prop} (hT : Transports T)
 
@@ -198,27 +187,21 @@ private theorem realize_applyTerms_tc {k : ℕ} (args : Fin (2 * k) → L'.Term 
   set Y : Fin (2 * k) → N := fun i => (args i).realize (fun a => e (fun j => v (a, j)))
   set P := (blockEquiv e k).symm (left Y)
   set Q := (blockEquiv e k).symm (right Y)
-  have hXS : (blockEquiv e (2 * k)).symm Y =
-      fun i => pair P Q (Fin.cast (Nat.mul_assoc 2 k d) i) := by
+  let XS : Fin (2 * k * d) → M := fun i => pair P Q (Fin.cast (Nat.mul_assoc 2 k d) i)
+  have hXS : (blockEquiv e (2 * k)).symm Y = XS := by
     rw [Equiv.symm_apply_eq, blockEquiv_pair, Equiv.apply_symm_apply, Equiv.apply_symm_apply,
       pair_left_right]
   have key := Relation.reflTransGen_equiv_iff (blockEquiv e k)
-    (r := T fun xs ys => φs.Realize (closureBy T) ρs
-      (Sum.elim (Sum.elim v (fun i => pair P Q (Fin.cast (Nat.mul_assoc 2 k d) i))) (pair xs ys)))
+    (r := T fun xs ys => φs.Realize (closureBy T) ρs (Sum.elim (Sum.elim v XS) (pair xs ys)))
     (s := T fun xs ys => φt.Realize (closureBy T) ρt
       (Sum.elim (fun a => e (fun i => v (a, i))) (pair xs ys)))
-    (hT (blockEquiv e k) (hφ _)) P Q
+    (hT (blockEquiv e k) (hφ XS)) P Q
   rw [Equiv.apply_symm_apply, Equiv.apply_symm_apply] at key
   rw [hXS]
-  have hends : ∀ {R : (Fin (k * d) → M) → (Fin (k * d) → M) → Prop} {a b a' b'},
-      a = a' → b = b' → (Relation.ReflTransGen R a b ↔ Relation.ReflTransGen R a' b') := by
-    rintro R a b _ _ rfl rfl
-    rfl
-  refine (hends ?_ ?_).trans key
-  · funext i
-    exact congrFun (left_pair P Q) i
-  · funext i
-    exact congrFun (right_pair P Q) i
+  refine (iff_of_eq ?_).trans key
+  congr 1
+  · exact funext (congrFun (left_pair P Q))
+  · exact funext (congrFun (right_pair P Q))
 
 include hf hT in
 /-- Full-tuple pullback preserves truth under every transported closure semantics, for arbitrary
@@ -231,29 +214,16 @@ theorem realize_onFormula_closureBy (φ : Operator.Formula L' shape Γ α) :
         (onFormula f φ).Realize (closureBy T) ρs v ↔
           φ.Realize (closureBy T) ρt (fun a => e (fun i => v (a, i))) := by
   induction φ with
-  | ofFO φ =>
-    intro ρs ρt hρ v
-    exact hf φ v
-  | rel r args =>
-    intro ρs ρt hρ v
-    exact realize_applyTerms_rel f e hf _ _ r args ρs ρt (hρ r) v
-  | neg φ ih =>
-    intro ρs ρt hρ v
-    exact not_congr (ih ρs ρt hρ v)
-  | conj φ ψ ihφ ihψ =>
-    intro ρs ρt hρ v
-    exact and_congr (ihφ ρs ρt hρ v) (ihψ ρs ρt hρ v)
-  | ex φ ih =>
-    intro ρs ρt hρ v
-    exact realize_exBlock e _ _ ρs v _ (ih ρs ρt hρ)
+  | ofFO φ => exact fun _ _ _ v => hf φ v
+  | rel r args => exact fun ρs ρt hρ v => realize_applyTerms_rel f e hf _ _ r args ρs ρt (hρ r) v
+  | neg φ ih => exact fun ρs ρt hρ v => not_congr (ih ρs ρt hρ v)
+  | conj φ ψ ihφ ihψ => exact fun ρs ρt hρ v => and_congr (ihφ ρs ρt hρ v) (ihψ ρs ρt hρ v)
+  | ex φ ih => exact fun ρs ρt hρ v => realize_exBlock e _ _ ρs v _ (ih ρs ρt hρ)
   | op k body args ih =>
-    intro ρs ρt hρ v
-    exact realize_applyTerms_tc f e hf hT args
-      ((onFormula f (body ⟨0, Nat.one_pos⟩)).relabel (endpointMap ∘ Sum.map Sum.inl id ∘ scopeMap))
-      (body ⟨0, Nat.one_pos⟩) ρs ρt v
-      (fun XS us ws => (Operator.Formula.realize_relabel _ _ _ _ _).trans
+    exact fun ρs ρt hρ v => realize_applyTerms_tc f e hf hT args _ (body ⟨0, Nat.one_pos⟩) ρs ρt v
+      fun XS us ws => (Operator.Formula.realize_relabel _ _ _ _ _).trans
         ((ih ⟨0, Nat.one_pos⟩ ρs ρt hρ _).trans
-          (iff_of_eq (congrArg _ (endpoint_valuation e v XS us ws)))))
+          (iff_of_eq (congrArg _ (endpoint_valuation e v XS us ws))))
 
 include hf in
 /-- Full-tuple pullback preserves truth for arbitrary scoped relation valuations, including

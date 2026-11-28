@@ -76,6 +76,11 @@ on her half and Bob's decoding. -/
 noncomputable def superdenseState (a b : Bool) : EuclideanSpace ℂ (Bool × Bool) :=
   unitaryEquiv superdenseDecoding (unitaryEquiv (onFirst (superdenseEncoding a b)) bell)
 
+theorem superdenseState_def (a b : Bool) :
+    superdenseState a b =
+      unitaryEquiv superdenseDecoding (unitaryEquiv (onFirst (superdenseEncoding a b)) bell) := by
+  rfl
+
 theorem norm_superdenseState (a b : Bool) : ‖superdenseState a b‖ = 1 := by
   rw [superdenseState, LinearIsometryEquiv.norm_map, LinearIsometryEquiv.norm_map, norm_bell]
 

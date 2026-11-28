@@ -58,8 +58,7 @@ theorem skip_transition {r w κ n : ℕ} {a : Arena} {target : List Node}
   have hremaining : (Cursor.mk es ns).remaining a =
       (Cursor.mk (e :: es) ns).remaining a := by
     have he := Math.output_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
-    rw [hstep] at he
-    simp only [Option.toList_none, List.nil_append] at he
+    simp only [hstep, Option.toList_none, List.nil_append] at he
     exact he.symm
   have hcredit (T : ℕ) :
       109 + (Cursor.mk es ns).credit a T ≤ (Cursor.mk (e :: es) ns).credit a T := by
@@ -80,24 +79,17 @@ theorem skip_transition {r w κ n : ℕ} {a : Arena} {target : List Node}
     ends := fun d hd => hends d (List.mem_cons_of_mem e hd)
     floor := hfloor
     heapBudget := ?_
-    packedLength := ?_
+    packedLength := (hp _ (Or.inr (by decide)) (Or.inr (by decide))).trans h.packedLength
     envelopeValue := (hm _).trans h.envelopeValue
     unit := (hm _).trans h.unit
     boolean := (hm _).symm ▸ h.boolean
-    verdict := ?_
-    exactOutput := ?_
-    protectedMemory := ?_ }
-  · rw [hheap]
-    have hb := h.heapBudget
-    have hd := Nat.mul_le_mul_right (ChanHe.Traversal.allocationSize a.n a.m a.N)
-      (show (Cursor.mk es ns).work ≤ (Cursor.mk (e :: es) ns).work by omega)
-    omega
-  · exact (hp _ (Or.inr (by decide)) (Or.inr (by decide))).trans h.packedLength
-  · rw [hm]
-    exact h.verdict
-  · rw [hremaining]
-    exact h.exactOutput
-  · intro p hp
-    exact (hmem p (Or.inl hp)).trans (h.protectedMemory p hp)
+    verdict := by rw [hm]; exact h.verdict
+    exactOutput := by rw [hremaining]; exact h.exactOutput
+    protectedMemory := fun p hp => (hmem p (Or.inl hp)).trans (h.protectedMemory p hp) }
+  rw [hheap]
+  have hb := h.heapBudget
+  have hd := Nat.mul_le_mul_right (ChanHe.Traversal.allocationSize a.n a.m a.N)
+    (show (Cursor.mk es ns).work ≤ (Cursor.mk (e :: es) ns).work by omega)
+  omega
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

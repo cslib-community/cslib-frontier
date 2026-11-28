@@ -88,6 +88,8 @@ public section
 
 namespace Cslib.Complexity
 
+attribute [local irreducible] ComputableInPolyTime
+
 /-! ### Closure under finite variations -/
 
 /-- **Each level `Σₖᵖ` is closed under finite variations.** -/
@@ -249,11 +251,10 @@ private theorem iterate_foldPair_enumList_add (pol : Bool) (m : ℕ) :
     simp only [List.map_cons, List.map_nil]
     rw [foldPair_flatMap_pair, iterate_foldPair_enumList_add pol m n]
     refine List.map_congr_left fun u _ => ?_
-    cases pol
-    · simp only [Bool.false_eq_true, ↓reduceIte, Cslib.BitString.enumList_succ, List.all_flatMap,
-        List.all_cons, List.all_nil, Bool.and_true, List.cons_append]
-    · simp only [↓reduceIte, Cslib.BitString.enumList_succ, List.any_flatMap,
-        List.any_cons, List.any_nil, Bool.or_false, List.cons_append]
+    cases pol <;>
+      simp only [Bool.false_eq_true, ↓reduceIte, Cslib.BitString.enumList_succ, List.all_flatMap,
+        List.all_cons, List.all_nil, Bool.and_true, List.any_flatMap, List.any_cons, List.any_nil,
+        Bool.or_false, List.cons_append]
 
 private def initPol (q : Bool) (k : ℕ) : Bool := (!·)^[k + 1] q
 
@@ -337,18 +338,6 @@ private theorem foldl_stepPair (pol : Bool) :
 private theorem computableInPolyTime_foldPair :
     ComputableInPolyTime (fun p : Bool × List Bool => foldPair p.1 p.2)
       (encPair encBool encBits) encBits := by
-  have hcomb : ComputableInPolyTime
-      (fun q : (Bool × ((Bool × Bool) × List Bool)) × Bool =>
-        if q.1.1 then q.1.2.1.2 || q.2 else q.1.2.1.2 && q.2)
-      (encPair (encPair encBool (encPair (encPair encBool encBool) encBits)) encBool) encBool := by
-    have hfin := ComputableInPolyTime.of_finite
-      (encIn := encPair encBool (encPair encBool encBool)) (encOut := encBool)
-      fun t : Bool × Bool × Bool => if t.1 then t.2.1 || t.2.2 else t.2.1 && t.2.2
-    have harg : ComputableInPolyTime
-        (fun q : (Bool × ((Bool × Bool) × List Bool)) × Bool => (q.1.1, q.1.2.1.2, q.2))
-        (encPair (encPair encBool (encPair (encPair encBool encBool) encBits)) encBool)
-        (encPair encBool (encPair encBool encBool)) := by fun_prop
-    exact hfin.comp harg
   have hstep : ComputableInPolyTime
       (fun q : (Bool × ((Bool × Bool) × List Bool)) × Bool => stepPair q.1.1 q.1.2 q.2)
       (encPair (encPair encBool (encPair (encPair encBool encBool) encBits)) encBool)
@@ -361,12 +350,9 @@ private theorem computableInPolyTime_foldPair :
     (par := Prod.fst) (list := Prod.snd) (init := fun _ => ((false, false), []))
     (step := stepPair) (.fst encBool encBits) (.snd encBool encBits) (.const ((false, false), []))
     hstep (.const 1) fun _ state b _ => by
-      by_cases h : state.1.1
-      · simp only [stepPair, h, ↓reduceIte, length_encPair, encBool_apply, List.length_singleton,
-          encBits_apply, List.length_append]
-        omega
-      · simp only [stepPair, h, Bool.false_eq_true, ↓reduceIte, length_encPair, encBool_apply,
-          List.length_singleton, encBits_apply]
+      by_cases h : state.1.1 <;>
+        simp only [stepPair, h, Bool.false_eq_true, ↓reduceIte, length_encPair, encBool_apply,
+          List.length_singleton, encBits_apply, List.length_append] <;>
         omega
   have heq : (fun p : Bool × List Bool => foldPair p.1 p.2) =
       Prod.snd ∘ fun p : Bool × List Bool => p.2.foldl (stepPair p.1) ((false, false), []) := by
@@ -433,12 +419,8 @@ private theorem two_pow_capWidth_budget (s : CapInput) :
   have hN : s.2 ≤ (encCapInput s).length := by
     enc_len [encCapInput]
   rcases Nat.eq_zero_or_pos s.2 with hs | hs
-  · have hlog0 : Nat.log 2 s.2 = 0 := by rw [hs]; simp
-    have hcw : capWidth s = 0 := by
-      have := capWidth_le_log s
-      omega
-    rw [hcw]
-    simp only [Nat.pow_zero, Nat.mul_zero, Nat.zero_add, one_mul]
+  · simp only [capWidth, hs, Nat.log_zero_right, Nat.sub_zero, Nat.sub_self, Nat.pow_zero,
+      Nat.mul_zero, Nat.zero_add, one_mul]
     exact Nat.mul_pos (by omega) (by omega)
   · have hpow : 2 ^ capWidth s ≤ s.2 :=
       (Nat.pow_le_pow_right (by decide) hle).trans (Nat.pow_log_le_self 2 (by omega))
@@ -602,12 +584,10 @@ private theorem isComputable_phPresent :
     have hflen : (frame p.2 ++ u.reverse).length = 2 * p.2.length + 1 + p.1.1 * M := by
       rw [List.length_append, length_frame, List.length_reverse, hulen]
     have hclk : Ladner.clock p.1.2.unpair.2 (frame p.2 ++ u.reverse).length ≤ 2 ^ E := by
-      have hexp_le : ((frame p.2 ++ u.reverse).length + 1) * p.1.2.unpair.2 ≤ E := by
-        rw [hflen]
-        have heq : 2 * p.2.length + 1 + p.1.1 * M + 1 = 2 * p.2.length + 2 + p.1.1 * M := by omega
-        rw [heq]
-        simp only [E, exp₂]
-        omega
+      have hexp_le : ((frame p.2 ++ u.reverse).length + 1) * p.1.2.unpair.2 ≤ E :=
+        (Nat.mul_le_mul_right _
+          (show _ ≤ 2 * p.2.length + 2 + p.1.1 * M by rw [hflen]; omega)).trans
+          (by simp only [E, exp₂]; omega)
       exact (Ladner.clock_le_two_pow _ _).trans
         (Nat.pow_le_pow_right (by decide) hexp_le)
     exact UniformDiagonalization.pIndexedCap_eq_pIndexed_of_le hclk

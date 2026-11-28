@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
@@ -202,22 +203,16 @@ theorem exists_computableInO_lazyTests
         decide (Nat.size p.1.length ≤ H (2 * (unframe p.1).length + 1)))
         (encPair encBits encBits) encBool C S₂ := by
   have hx := ComputableInO.fst encBits encBits
-  have hun : ComputableInO unframe encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_unframe fun _ => rfl)
-  have hsnoc : ComputableInO (fun p : List Bool × List Bool => p.1 ++ [false])
-      (encPair encBits encBits) encBits
-      (fun p => (encPair encBits encBits p).length + (encPair encBits encBits p).length)
-      (fun p => (encPair encBits encBits p).length + (encPair encBits encBits p).length) :=
-    hx.append (ComputableInO.const (encMid := encBits) [false]) fun _ => rfl
-  have hc₀ := (computableInO_shortDesc.comp (hun.comp hx)).mono_time (T' := C) 3 fun p => by
+  have hc₀ := (computableInO_shortDesc.comp
+      (by fun_prop : ComputableInO (fun p : List Bool × List Bool => unframe p.1)
+        (encPair encBits encBits) encBits _ _)).mono_time (T' := C) 3 fun p => by
     have hu := length_unframe_le p.1
     have hn : p.1.length ≤ (encPair encBits encBits p).length := by
       simpa only [encBits_apply] using length_le_encPair_left encBits encBits p
-    have hc := hC p
-    simp only [Function.comp_apply]
-    omega
+    have := hC p; omega
   obtain ⟨S₁, hc₁⟩ := exists_computableInO_sizeLength_le
-    (hsnoc.mono_le (fun p => by omega) (fun p => le_rfl)) hE
+    (ComputableInO.mono_le (f := fun p : List Bool × List Bool => p.1 ++ [false]) (by fun_prop)
+      (fun p => by omega) (fun p => le_rfl)) hE
     (fun p => by simp) hC hQ (K := 1) (fun p => by omega)
   obtain ⟨S₂, hc₂⟩ := exists_computableInO_sizeLength_le
     (hx.mono_le (fun p => by omega) (fun p => le_rfl)) hE
@@ -256,45 +251,21 @@ theorem exists_computableInO_lazyVerifier
           C p + R (unframe (unframe p.1), frame (unframe p.1))
           else C p))
         else C p) S := by
-  have hx := ComputableInO.fst encBits encBits
-  have hun : ComputableInO unframe encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_unframe fun _ => rfl)
-  have hfr : ComputableInO frame encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_frame fun _ => rfl)
-  have hw := hun.comp hx
-  have hcode := hun.comp hw
-  have hbase := hfr.comp hw
-  have hsnoc : ComputableInO (fun p : List Bool × List Bool => p.1 ++ [false])
-      (encPair encBits encBits) encBits
-      (fun p => (encPair encBits encBits p).length + (encPair encBits encBits p).length)
-      (fun p => (encPair encBits encBits p).length + (encPair encBits encBits p).length) :=
-    hx.append (ComputableInO.const (encMid := encBits) [false]) fun _ => rfl
   have hf₁ := ComputableInO.mono_time
-      (hacc.comp (hcode.prod (hsnoc.prod (ComputableInO.snd encBits encBits))))
+      (hacc.comp
+        (by fun_prop : ComputableInO
+          (fun p : List Bool × List Bool => (unframe (unframe p.1), p.1 ++ [false], p.2))
+          (encPair encBits encBits) (encPair encBits (encPair encBits encBits)) _ _))
       (T' := fun p => C p + B (unframe (unframe p.1), p.1 ++ [false], p.2)) 7
       fun p => by
-    have h₁ := hC p
-    have hu := length_unframe_le p.1
-    have hp : p.1.length ≤ (encPair encBits encBits p).length := by
-      simpa only [encBits_apply] using length_le_encPair_left encBits encBits p
-    simp only [Function.comp_apply] at ⊢
-    have : 7 * (C p + B (unframe (unframe p.1), p.1 ++ [false], p.2) + 1) =
-        7 * C p + 7 * B (unframe (unframe p.1), p.1 ++ [false], p.2) + 7 := by ring
-    omega
-  have hf₂ := ComputableInO.mono_time ((ComputableInDegree.of_finite (encIn := encBool)
-    (encMid := encBool) (fun b : Bool => !b)).inO_one.comp (hbrute.comp (hcode.prod hbase)))
+    have := hC p; omega
+  have hf₂ := ComputableInO.mono_time (ComputableInO.not' (hbrute.comp
+    (by fun_prop : ComputableInO
+      (fun p : List Bool × List Bool => (unframe (unframe p.1), frame (unframe p.1)))
+      (encPair encBits encBits) (encPair encBits encBits) _ _)))
       (T' := fun p => C p + R (unframe (unframe p.1), frame (unframe p.1))) 7
       fun p => by
-    have h₁ := hC p
-    have hu := length_unframe_le p.1
-    have hp : p.1.length ≤ (encPair encBits encBits p).length := by
-      simpa only [encBits_apply] using length_le_encPair_left encBits encBits p
-    have hb : (encBool ((Cslib.BitString.enumList (L (frame (unframe p.1)).length)).any
-        (Diagonal.lazyAccepts β (unframe (unframe p.1)) (frame (unframe p.1))))).length = 1 := rfl
-    simp only [Function.comp_apply, hb] at ⊢
-    set cost := R (unframe (unframe p.1), frame (unframe p.1))
-    have : 7 * (C p + cost + 1) = 7 * C p + 7 * cost + 7 := by ring
-    omega
+    have := hC p; omega
   have hfalse := ComputableInO.mono_time (ComputableInO.const (encIn := encPair encBits encBits)
     (encMid := encBool) false) (T' := C) 1 fun p => by
     have h₁ := hC p; omega

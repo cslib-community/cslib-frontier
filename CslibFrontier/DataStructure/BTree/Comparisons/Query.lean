@@ -35,10 +35,11 @@ per-node bound of `rest.length + 1` into `2 * t * height` on a tree whose root h
 `2 * t - 1` keys and whose children are occupied, which is every well-formed tree. The
 resulting bounds, `countQueries_lookupQ_le` and its siblings, hold for every oracle, since the
 shape of the tree does not depend on the answers; `lookupQ_upperBound` and its siblings restate
-them as `Cslib.Query.UpperBound` over well-formed inputs. The
-minimum and maximum make no comparisons at all. `countQueries_slotM_le` bounds the within-node
-linear search by one comparison per key. The bound is the comparison analysis of B-TREE-SEARCH
-in [CLRS2009], Section 18.2.
+them as `Cslib.Query.UpperBound` over well-formed inputs; `lookupQ_upperBound_size` and
+`rankQ_upperBound_size` bound the cost in the number of entries instead, a bound monotone in
+that number by `monotone_mul_log_size`. The minimum and maximum make no comparisons at all.
+`countQueries_slotM_le` bounds the within-node linear search by one comparison per key. The bound
+is the comparison analysis of B-TREE-SEARCH in [CLRS2009], Section 18.2.
 
 ## Main definitions
 
@@ -49,6 +50,8 @@ in [CLRS2009], Section 18.2.
 
 * `countQueries_lookupQ_le`: the number of comparisons made by `lookupQ` is at most
   `2 * t * height`.
+* `lookupQ_upperBound_size`, `rankQ_upperBound_size`: the bound
+  `2 * t * (log_t ((n + 1) / 2) + 1)` in the number `n` of entries.
 * `eval_lookupQ`: the value of `lookupQ` evaluated at the order oracle matches
   `lookup`.
 * (and similarly for the other queries)
@@ -175,13 +178,12 @@ variable (oracle : {ι : Type} → LEQuery α ι → ι)
 theorem countQueries_slotM_le (k : α) (rest : List (α × β × BTree α β)) :
     (slotM LEQuery.ask k rest).countQueries oracle ≤ rest.length := by
   induction rest with
-  | nil => simp only [slotM, FreeM.countQueries_pure, List.length_nil, Std.le_refl]
+  | nil => simp [slotM]
   | cons e rest ih =>
     obtain ⟨k', v, c⟩ := e
-    simp only [slotM, bind_pure_comp, FreeM.countQueries_bind, FreeM.countQueries_lift,
-      ↓FreeM.countQueries_ite, FreeM.eval_lift, FreeM.countQueries_pure, FreeM.countQueries_map,
-      List.length_cons]
-    split <;> omega
+    by_cases h : oracle (.le k k') = true
+    · simp [slotM, h]
+    · simp [slotM, h]; omega
 
 /-- The minimum search makes no comparison. -/
 @[simp] theorem countQueries_minQ (tr : BTree α β) : (minQ tr).countQueries oracle = 0 := by
@@ -196,12 +198,10 @@ theorem countQueries_slotM_le (k : α) (rest : List (α × β × BTree α β)) :
 @[simp] theorem countQueries_maxQ (tr : BTree α β) : (maxQ tr).countQueries oracle = 0 := by
   match tr with
   | .leaf => simp [maxQ, maxM_leaf]
-  | .node first [] =>
-    simpa [maxQ, maxM_node_nil] using countQueries_maxQ first
+  | .node first [] => simpa [maxQ, maxM_node_nil] using countQueries_maxQ first
   | .node first [(k, v, c)] =>
-    have := countQueries_maxQ c
-    rw [maxQ] at this
-    simp only [maxQ, maxM_node_singleton, FreeM.countQueries_bind, FreeM.countQueries_pure, this]
+    have hc := countQueries_maxQ c; rw [maxQ] at hc
+    simp only [maxQ, maxM_node_singleton, FreeM.countQueries_bind, hc, zero_add]
     split <;> simp
   | .node first ((k, v, c) :: e :: rest) =>
     simpa [maxQ, maxM_node_cons_cons] using countQueries_maxQ (.node c (e :: rest))
@@ -227,90 +227,71 @@ termination_by sizeOf tr
     (rankQ k (.leaf : BTree α β)).countQueries oracle = 0 := by
   simp [rankQ, rankM_leaf]
 
+private theorem countQueries_node_le_of_step {f : BTree α β → ℕ}
+    (hnil : ∀ first, f (node first []) = f first)
+    (hcons : ∀ first k' v c rest,
+      f (node first ((k', v, c) :: rest)) ≤ max (2 + f first) (1 + f (node c rest)))
+    (first : BTree α β) (rest : List (α × β × BTree α β)) {B : ℕ}
+    (hB : ∀ c ∈ (node first rest).children, f c ≤ B) :
+    f (node first rest) ≤ rest.length + 1 + B := by
+  induction rest generalizing first with
+  | nil => have := hB first List.mem_cons_self; rw [hnil]; omega
+  | cons e rest ih =>
+    obtain ⟨k', v, c⟩ := e
+    have := hcons first k' v c rest
+    have := hB first List.mem_cons_self
+    have := ih c fun c' hc' => hB c' (children_node_subset_children_node_cons hc')
+    simp only [List.length_cons] at this ⊢
+    omega
+
 /-- Lookup at a node makes at most one comparison per key and one more beyond what it makes in
 the child it descends into. -/
 theorem countQueries_lookupQ_node_le (k : α) (first : BTree α β)
     (rest : List (α × β × BTree α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (lookupQ k c).countQueries oracle ≤ B) :
-    (lookupQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B := by
-  simp only [lookupQ] at hB ⊢
-  induction rest generalizing first with
-  | nil =>
-    have := hB first List.mem_cons_self
-    rw [lookupM]
-    simp
-    omega
-  | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
-    have h₁ := hB first List.mem_cons_self
-    have h₂ := ih c fun c' hc' => hB c' (children_node_subset_children_node_cons hc')
-    rw [lookupM]
-    simp only [FreeM.countQueries_bind, FreeM.countQueries_lift, FreeM.eval_lift]
-    by_cases h₃ : oracle (LEQuery.le k k') = true <;>
-      by_cases h₄ : oracle (LEQuery.le k' k) = true <;> simp [h₃, h₄] <;> omega
+    (lookupQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B :=
+  countQueries_node_le_of_step (fun _ => by simp [lookupQ, lookupM])
+    (fun _ k' _ _ _ => by
+      simp only [lookupQ]; rw [lookupM]
+      by_cases h₁ : oracle (.le k k') = true
+      · by_cases h₂ : oracle (.le k' k) = true
+        · simp [h₁, h₂]
+        · simp [h₁, h₂]; omega
+      · simp [h₁])
+    first rest hB
 
 /-- Predecessor search at a node makes at most one more comparison than the node has keys, beyond
 what it makes in the child it descends into. -/
 theorem countQueries_predQ_node_le (k : α) (first : BTree α β)
     (rest : List (α × β × BTree α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (predQ k c).countQueries oracle ≤ B) :
-    (predQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B := by
-  simp only [predQ] at hB ⊢
-  induction rest generalizing first with
-  | nil =>
-    have := hB first List.mem_cons_self
-    simp [predM_node_nil]
-    omega
-  | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
-    have h₁ := hB first List.mem_cons_self
-    have h₂ := ih c fun c' hc' => hB c' (children_node_subset_children_node_cons hc')
-    simp only [predM_node_cons, pure_bind, Option.or_some, bind_pure_comp,
-      FreeM.countQueries_bind, FreeM.countQueries_lift, ↓FreeM.countQueries_ite, FreeM.eval_lift,
-      FreeM.countQueries_map, List.length_cons, ge_iff_le]
-    split_ifs <;> omega
+    (predQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B :=
+  countQueries_node_le_of_step (fun _ => by simp [predQ, predM_node_nil])
+    (fun _ k' _ _ _ => by
+      by_cases h : oracle (.le k k') = true <;> simp [predQ, predM_node_cons, h])
+    first rest hB
 
 /-- Successor search at a node makes at most one more comparison than the node has keys, beyond
 what it makes in the child it descends into. -/
 theorem countQueries_succQ_node_le (k : α) (first : BTree α β)
     (rest : List (α × β × BTree α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (succQ k c).countQueries oracle ≤ B) :
-    (succQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B := by
-  simp only [succQ] at hB ⊢
-  induction rest generalizing first with
-  | nil =>
-    have := hB first List.mem_cons_self
-    simp [succM_node_nil]
-    omega
-  | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
-    have h₁ := hB first List.mem_cons_self
-    have h₂ := ih c fun c' hc' => hB c' (children_node_subset_children_node_cons hc')
-    simp only [succM_node_cons, Option.or_some, bind_pure_comp, pure_bind,
-      FreeM.countQueries_bind, FreeM.countQueries_lift, ↓FreeM.countQueries_ite, FreeM.eval_lift,
-      FreeM.countQueries_map, List.length_cons, ge_iff_le]
-    split_ifs <;> omega
+    (succQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B :=
+  countQueries_node_le_of_step (fun _ => by simp [succQ, succM_node_nil])
+    (fun _ k' _ _ _ => by
+      by_cases h : oracle (.le k' k) = true <;> simp [succQ, succM_node_cons, h])
+    first rest hB
 
 /-- Rank at a node makes at most one more comparison than the node has keys, beyond what it
 makes in the child it descends into. -/
 theorem countQueries_rankQ_node_le (k : α) (first : BTree α β)
     (rest : List (α × β × BTree α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (rankQ k c).countQueries oracle ≤ B) :
-    (rankQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B := by
-  simp only [rankQ] at hB ⊢
-  induction rest generalizing first with
-  | nil =>
-    have := hB first List.mem_cons_self
-    simp [rankM_node_nil]
-    omega
-  | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
-    have h₁ := hB first List.mem_cons_self
-    have h₂ := ih c fun c' hc' => hB c' (children_node_subset_children_node_cons hc')
-    simp only [rankM_node_cons, pure_bind, bind_pure_comp, FreeM.countQueries_bind,
-      FreeM.countQueries_lift, ↓FreeM.countQueries_ite, FreeM.eval_lift, FreeM.countQueries_map,
-      List.length_cons, ge_iff_le]
-    split_ifs <;> omega
+    (rankQ k (node first rest)).countQueries oracle ≤ rest.length + 1 + B :=
+  countQueries_node_le_of_step (fun _ => by simp [rankQ, rankM_node_nil])
+    (fun _ k' _ _ _ => by
+      by_cases h : oracle (.le k k') = true <;> simp [rankQ, rankM_node_cons, h])
+    first rest hB
 
 /-- The membership test makes as many comparisons as lookup. -/
 @[simp] theorem countQueries_containsQ (k : α) :
@@ -323,13 +304,20 @@ section Bounds
 
 variable [LinearOrder α]
 
+private theorem le_mul_height_of_isWF (h : IsWF t tr) {f : BTree α β → ℕ}
+    (hleaf : f .leaf = 0)
+    (hnode : ∀ first rest B, (∀ c ∈ (node first rest).children, f c ≤ B) →
+      f (node first rest) ≤ rest.length + 1 + B) :
+    f tr ≤ 2 * t * tr.height :=
+  le_mul_height_of_scan (by have := h.two_le; omega) hleaf hnode h.rootKeys_le
+    h.occupied_of_mem_children
+
 /-- Lookup in a well-formed tree makes at most `2 * t` comparisons per level, under every
 oracle. -/
 theorem countQueries_lookupQ_le (h : IsWF t tr) (k : α) :
     (lookupQ k tr).countQueries oracle ≤ 2 * t * tr.height :=
-  le_mul_height_of_scan (by have := h.two_le; omega) (countQueries_lookupQ_leaf oracle k)
-    (fun first rest _ hB => countQueries_lookupQ_node_le oracle k first rest hB)
-    h.rootKeys_le h.occupied_of_mem_children
+  le_mul_height_of_isWF h (countQueries_lookupQ_leaf oracle k) fun _ _ _ =>
+    countQueries_lookupQ_node_le oracle k _ _
 
 /-- The membership test in a well-formed tree makes at most `2 * t` comparisons per level,
 under every oracle. -/
@@ -342,25 +330,22 @@ theorem countQueries_containsQ_le (h : IsWF t tr) (k : α) :
 under every oracle. -/
 theorem countQueries_predQ_le (h : IsWF t tr) (k : α) :
     (predQ k tr).countQueries oracle ≤ 2 * t * tr.height :=
-  le_mul_height_of_scan (by have := h.two_le; omega) (countQueries_predQ_leaf oracle k)
-    (fun first rest _ hB => countQueries_predQ_node_le oracle k first rest hB)
-    h.rootKeys_le h.occupied_of_mem_children
+  le_mul_height_of_isWF h (countQueries_predQ_leaf oracle k) fun _ _ _ =>
+    countQueries_predQ_node_le oracle k _ _
 
 /-- Successor search in a well-formed tree makes at most `2 * t` comparisons per level, under
 every oracle. -/
 theorem countQueries_succQ_le (h : IsWF t tr) (k : α) :
     (succQ k tr).countQueries oracle ≤ 2 * t * tr.height :=
-  le_mul_height_of_scan (by have := h.two_le; omega) (countQueries_succQ_leaf oracle k)
-    (fun first rest _ hB => countQueries_succQ_node_le oracle k first rest hB)
-    h.rootKeys_le h.occupied_of_mem_children
+  le_mul_height_of_isWF h (countQueries_succQ_leaf oracle k) fun _ _ _ =>
+    countQueries_succQ_node_le oracle k _ _
 
 /-- Rank in a well-formed tree makes at most `2 * t` comparisons per level, under every
 oracle. -/
 theorem countQueries_rankQ_le (h : IsWF t tr) (k : α) :
     (rankQ k tr).countQueries oracle ≤ 2 * t * tr.height :=
-  le_mul_height_of_scan (by have := h.two_le; omega) (countQueries_rankQ_leaf oracle k)
-    (fun first rest _ hB => countQueries_rankQ_node_le oracle k first rest hB)
-    h.rootKeys_le h.occupied_of_mem_children
+  le_mul_height_of_isWF h (countQueries_rankQ_leaf oracle k) fun _ _ _ =>
+    countQueries_rankQ_node_le oracle k _ _
 
 /-- Lookup in a well-formed tree makes logarithmically many comparisons. -/
 theorem countQueries_lookupQ_le_log (h : IsWF t tr) (k : α) :
@@ -401,6 +386,12 @@ variable {α β : Type} [LinearOrder α] {t : ℕ}
 point queries. -/
 abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BTree α β × α // IsWF t p.1}
 
+/-- A bound `c * (log_t ((n + 1) / 2) + 1)` in the number `n` of entries is monotone in `n`, as
+`UpperBound.of_pointwise` requires. -/
+theorem monotone_mul_log_size (c t : ℕ) :
+    Monotone fun n => c * (Nat.log t ((n + 1) / 2) + 1) :=
+  fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega)))
+
 /-- Lookup makes at most `2 * t` comparisons at each of at most `height` nodes. -/
 theorem lookupQ_upperBound :
     UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.height)
@@ -435,6 +426,22 @@ theorem rankQ_upperBound :
       (fun h => 2 * t * h) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
     fun oracle p => countQueries_rankQ_le oracle p.property p.val.2
+
+/-- Lookup in a well-formed tree of at most `n` entries makes at most
+`2 * t * (log_t ((n + 1) / 2) + 1)` comparisons. -/
+theorem lookupQ_upperBound_size :
+    UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.size)
+      (fun n => 2 * t * (Nat.log t ((n + 1) / 2) + 1)) :=
+  UpperBound.of_pointwise (monotone_mul_log_size _ t)
+    fun oracle p => countQueries_lookupQ_le_log oracle p.property p.val.2
+
+/-- Rank in a well-formed tree of at most `n` entries makes at most
+`2 * t * (log_t ((n + 1) / 2) + 1)` comparisons. -/
+theorem rankQ_upperBound_size :
+    UpperBound (fun p : WFInput α β t => rankQ p.val.2 p.val.1) (fun p => p.val.1.size)
+      (fun n => 2 * t * (Nat.log t ((n + 1) / 2) + 1)) :=
+  UpperBound.of_pointwise (monotone_mul_log_size _ t)
+    fun oracle p => countQueries_rankQ_le_log oracle p.property p.val.2
 
 end UpperBounds
 

@@ -114,19 +114,13 @@ all diagram edges bijectively. -/
 theorem bijective_of_bottom {D : Diagram Γ a b} {x y : List Label} (L : Labeling D x y)
     (hb : Function.Surjective D.bottom) (hn : y.Nodup) (hm : ∀ tag, tag ∈ y) :
     Function.Bijective L.label := by
-  have hinj : Function.Injective (L.label ∘ D.bottom) := by
-    apply List.nodup_ofFn.1
-    change (D.botList L.label).Nodup
-    rw [L.bot_eq]
-    exact hn
-  refine ⟨?_, ?_⟩
-  · intro e f hef
-    obtain ⟨i, rfl⟩ := hb e
+  have hbot : List.ofFn (L.label ∘ D.bottom) = y := L.bot_eq
+  have hinj : Function.Injective (L.label ∘ D.bottom) := List.nodup_ofFn.1 (hbot.symm ▸ hn)
+  refine ⟨fun e f hef => ?_, fun tag => ?_⟩
+  · obtain ⟨i, rfl⟩ := hb e
     obtain ⟨j, rfl⟩ := hb f
     exact congrArg D.bottom (hinj hef)
-  · intro tag
-    have hmem : tag ∈ D.botList L.label := by rw [L.bot_eq]; exact hm tag
-    obtain ⟨i, hi⟩ := List.mem_ofFn.1 hmem
+  · obtain ⟨i, hi⟩ := List.mem_ofFn.1 (hbot.symm ▸ hm tag)
     exact ⟨D.bottom i, hi⟩
 
 /-- Straight wires preserve their labels. -/

@@ -131,25 +131,23 @@ theorem expectedMatchingCost_empty [Fintype E] (q : ℝ) (R : ℕ) (t : ℝ) :
 
 variable {G}
 
-private theorem measurableSet_unmatchedStraddleEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ)
+theorem measurableSet_unmatchedStraddleEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ)
     (t : ℝ) (v : V) : MeasurableSet (unmatchedStraddleEvent G M q R t v) := by
   classical
   unfold unmatchedStraddleEvent
-  by_cases hv : v ∈ G.matchedVertices M
-  · simp [hv]
-  · simp only [hv, not_false_eq_true, ↓reduceIte]
-    exact measurableSet_straddleEvent q R t v
+  split_ifs
+  · exact MeasurableSet.empty
+  · exact measurableSet_straddleEvent q R t v
 
-private theorem dependsOn_unmatchedStraddleEvent (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (v : V) :
+theorem dependsOn_unmatchedStraddleEvent (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (v : V) :
     DependsOn (· ∈ unmatchedStraddleEvent G M q R t v)
       (closedBall G.toSimpleGraph v (R + 1)) := by
   classical
   intro ω ω' hω
   unfold unmatchedStraddleEvent
-  by_cases hv : v ∈ G.matchedVertices M
-  · simp [hv]
-  · simp only [hv, not_false_eq_true, ↓reduceIte]
-    exact dependsOn_straddleEvent q R t v hω
+  split_ifs
+  · rfl
+  · exact dependsOn_straddleEvent q R t v hω
 
 omit [Fintype V] in
 private theorem closedBall_tgt_subset_src (hloop : G.Loopless) (e : E) (R : ℕ) :
@@ -168,7 +166,7 @@ private theorem closedBall_tgt_subset_src (hloop : G.Loopless) (e : E) (R : ℕ)
     _ ≤ 1 + ((R + 1 : ℕ) : ℕ∞) := add_le_add h1 hz'
     _ = ((R + 2 : ℕ) : ℕ∞) := by push_cast; ring
 
-private theorem edgeScore_congr_of_outer (hloop : G.Loopless) (q : ℝ) (R : ℕ) {e f : E}
+theorem edgeScore_congr_of_outer (hloop : G.Loopless) (q : ℝ) (R : ℕ) {e f : E}
     (hf : f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}))
     {ω ω' : V → ℝ} (hω : ∀ z ∈ closedBall G.toSimpleGraph (G.src e) (R + 2), ω z = ω' z) :
     edgeScore G q R ω f = edgeScore G q R ω' f := by
@@ -178,7 +176,7 @@ private theorem edgeScore_congr_of_outer (hloop : G.Loopless) (q : ℝ) (R : ℕ
       (by exact_mod_cast Nat.le_succ (R + 1))
   · exact edgeScore_congr hf.1 fun z hz => hω z (closedBall_tgt_subset_src hloop e R hz)
 
-private theorem measurableSet_pairAnyEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
+theorem measurableSet_pairAnyEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
     (e : E) : MeasurableSet (pairAnyEvent G M q R t e) := by
   classical
   unfold pairAnyEvent
@@ -186,7 +184,7 @@ private theorem measurableSet_pairAnyEvent [Finite E] (M : Set E) (q : ℝ) (R :
   · exact measurableSet_straddlesOn q R t _
   · exact MeasurableSet.empty
 
-private theorem measurableSet_pairBothEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
+theorem measurableSet_pairBothEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
     (e : E) : MeasurableSet (pairBothEvent G M q R t e) := by
   classical
   unfold pairBothEvent
@@ -194,7 +192,7 @@ private theorem measurableSet_pairBothEvent [Finite E] (M : Set E) (q : ℝ) (R 
   · exact (measurableSet_straddlesOn q R t _).inter (measurableSet_straddlesOn q R t _)
   · exact MeasurableSet.empty
 
-private theorem dependsOn_pairAnyEvent (hloop : G.Loopless) (M : Set E) (q : ℝ) (R : ℕ)
+theorem dependsOn_pairAnyEvent (hloop : G.Loopless) (M : Set E) (q : ℝ) (R : ℕ)
     (t : ℝ) (e : E) :
     DependsOn (· ∈ pairAnyEvent G M q R t e)
       (closedBall G.toSimpleGraph (G.src e) (R + 2)) := by
@@ -206,7 +204,7 @@ private theorem dependsOn_pairAnyEvent (hloop : G.Loopless) (M : Set E) (q : ℝ
     exact G.pairStraddlesAny_congr fun f hf => edgeScore_congr_of_outer hloop q R hf hω
   · rfl
 
-private theorem dependsOn_pairBothEvent (hloop : G.Loopless) (M : Set E) (q : ℝ) (R : ℕ)
+theorem dependsOn_pairBothEvent (hloop : G.Loopless) (M : Set E) (q : ℝ) (R : ℕ)
     (t : ℝ) (e : E) :
     DependsOn (· ∈ pairBothEvent G M q R t e)
       (closedBall G.toSimpleGraph (G.src e) (R + 2)) := by
@@ -217,6 +215,76 @@ private theorem dependsOn_pairBothEvent (hloop : G.Loopless) (M : Set E) (q : �
   · simp only [mem_ofPred_eq, eq_iff_iff]
     exact G.pairStraddlesBoth_congr fun f hf => edgeScore_congr_of_outer hloop q R hf hω
   · rfl
+
+private theorem vertexOverlap_three_le_succ (R : ℕ) :
+    (vertexOverlap 3 R : ℝ) ≤ (vertexOverlap 3 (R + 1) : ℕ) := by
+  refine Nat.cast_le.mpr ?_
+  unfold vertexOverlap
+  gcongr
+  omega
+
+/-- Concentration bound for `unmatchedStraddleEvent` on a `MaxDegreeLE 3` multigraph. -/
+theorem measureReal_deviation_unmatchedStraddleEvent_le [Finite E] (hdeg : G.MaxDegreeLE 3)
+    (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) {c : ℝ} (hc : 0 < c) :
+    (Measure.pi fun _ : V => gaussianReal 0 1).real
+      (deviation (unmatchedStraddleEvent G M q R t) c) ≤
+      Fintype.card V * ((vertexOverlap 3 (R + 1) : ℕ) : ℝ) / c ^ 2 := by
+  have := Fintype.ofFinite E
+  refine (measureReal_deviation_le (fun v => measurableSet_unmatchedStraddleEvent M q R t v)
+    (fun v => closedBall G.toSimpleGraph v (R + 1))
+    (fun v => dependsOn_unmatchedStraddleEvent M q R t v)
+    (fun v => card_not_disjoint_closedBall_le hdeg (by norm_num) R v) hc).trans ?_
+  have hmono := vertexOverlap_three_le_succ R
+  gcongr
+
+/-- Concentration bound for any edge-indexed event family supported on radius `R + 2` around
+`G.src e` in a loopless cubic multigraph. -/
+theorem measureReal_deviation_closedBall_src_le [Fintype E] (hloop : G.Loopless)
+    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) (R : ℕ) {A : E → Set (V → ℝ)}
+    (hm : ∀ e, MeasurableSet (A e))
+    (hd : ∀ e, DependsOn (· ∈ A e) (closedBall G.toSimpleGraph (G.src e) (R + 2)))
+    {c : ℝ} (hc : 0 < c) :
+    (Measure.pi fun _ : V => gaussianReal 0 1).real (deviation A c) ≤
+      3 / 2 * Fintype.card V * ((vertexOverlap 3 (R + 1) : ℕ) : ℝ) / c ^ 2 := by
+  have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
+  refine (measureReal_deviation_le hm (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2)) hd
+    (fun e => card_not_disjoint_closedBall_src_le hdeg (R + 1) e) hc).trans_eq ?_
+  rw [card_edges_eq hloop h3]
+
+/-- Concentration bound for `edgeScoreEvent G q R p` in a loopless cubic multigraph. -/
+theorem measureReal_deviation_edgeScoreEvent_le [Fintype E] (hloop : G.Loopless)
+    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) (q : ℝ) (R : ℕ) {p : ℝ → Prop}
+    (hp : MeasurableSet {x | p x}) {c : ℝ} (hc : 0 < c) :
+    (Measure.pi fun _ : V => gaussianReal 0 1).real (deviation (edgeScoreEvent G q R p) c) ≤
+      3 / 2 * Fintype.card V * ((vertexOverlap 3 (R + 1) : ℕ) : ℝ) / c ^ 2 := by
+  have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
+  refine (measureReal_deviation_le (fun e => measurable_edgeScore q R e hp)
+    (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) (dependsOn_edgeScoreEvent q R p)
+    (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hc).trans ?_
+  rw [card_edges_eq hloop h3]
+  have hmono := vertexOverlap_three_le_succ R
+  gcongr
+
+/-- Sample-wise tail edge bound `12 |{e | p (edgeScore e)}| ≤ |V| · (18 / T ^ 2) + 12 c` outside
+`deviation (edgeScoreEvent G q R p) c`. -/
+theorem twelve_mul_ncard_edgeScore_tail_le [Fintype E] (hloop : G.Loopless)
+    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {q : ℝ} {R : ℕ}
+    (hunit : ∀ e, ‖edgeVector G q R e‖ = 1) {T c : ℝ} (hT : 0 < T) {p : ℝ → Prop}
+    (hp : ∀ x, p x → T ≤ |x|) {ω : V → ℝ}
+    (hdev : ω ∉ deviation (edgeScoreEvent G q R p) c) :
+    12 * ({e | p (edgeScore G q R ω e)}.ncard : ℝ) ≤
+      Fintype.card V * (18 / T ^ 2) + 12 * c := by
+  set P := Measure.pi fun _ : V => gaussianReal 0 1
+  set h : ℝ := (Fintype.card V : ℝ)
+  have hcount := ncard_lt_of_notMem_deviation hdev
+  have hmean_t : ∑ e, P.real (edgeScoreEvent G q R p e) ≤ 3 / 2 * h * (1 / T ^ 2) := by
+    refine (Finset.sum_le_sum fun e _ => (measureReal_mono (μ := P) fun ω' hω' =>
+      hp _ hω').trans (measureReal_le_abs_le (hunit e) hT)).trans_eq ?_
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, card_edges_eq hloop h3]
+  have hmul : 12 * (3 / 2 * h * (1 / T ^ 2)) = h * (18 / T ^ 2) := by field_simp; ring
+  have hset : {e | ω ∈ edgeScoreEvent G q R p e} = {e | p (edgeScore G q R ω e)} := rfl
+  rw [hset] at hcount
+  linarith
 
 /-- **A good matching sample from a mean bound.** Let `G` be a loopless cubic multigraph
 (parallel edges allowed) with a matching `M : Set E`. Suppose the expected `matchingCost` of
@@ -242,43 +310,7 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   set c : ℝ := ε * h
   have hcpos : 0 < c := mul_pos hε hhpos
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
-  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := by
-    have hsum := G.sum_ncard_incidenceSet hloop
-    simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
-    have : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
-    rw [← Nat.card_eq_fintype_card (α := E)]
-    push_cast at this
-    linarith
-  have hDmono : (vertexOverlap 3 R : ℝ) ≤ D := by
-    have hnat : vertexOverlap 3 R ≤ vertexOverlap 3 (R + 1) := by
-      unfold vertexOverlap
-      gcongr
-      omega
-    exact Nat.cast_le.mpr hnat
-  have devSingle (t : ℝ) :
-      P.real (deviation (unmatchedStraddleEvent G M q R t) c) ≤ h * D / c ^ 2 := by
-    refine (measureReal_deviation_le (fun v => measurableSet_unmatchedStraddleEvent M q R t v)
-      (fun v => closedBall G.toSimpleGraph v (R + 1))
-      (fun v => dependsOn_unmatchedStraddleEvent M q R t v)
-      (fun v => card_not_disjoint_closedBall_le hdeg (by norm_num) R v) hcpos).trans ?_
-    gcongr
-  have devPair (A : E → Set (V → ℝ)) (hm : ∀ e, MeasurableSet (A e))
-      (hd : ∀ e, DependsOn (· ∈ A e) (closedBall G.toSimpleGraph (G.src e) (R + 2))) :
-      P.real (deviation A c) ≤ 3 / 2 * h * D / c ^ 2 := by
-    refine (measureReal_deviation_le hm
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2)) hd
-      (fun e => card_not_disjoint_closedBall_src_le hdeg (R + 1) e) hcpos).trans_eq ?_
-    rw [hE]
-  have devEdge {p : ℝ → Prop} (hp : MeasurableSet {x | p x}) :
-      P.real (deviation (edgeScoreEvent G q R p) c) ≤ 3 / 2 * h * D / c ^ 2 := by
-    have hdep : ∀ e, DependsOn (· ∈ edgeScoreEvent G q R p e)
-        (closedBall G.toSimpleGraph (G.src e) (R + 1)) := fun e ω ω' hω => by
-      simp only [edgeScoreEvent, mem_ofPred_eq, edgeScore_congr (Or.inl rfl) hω]
-    refine (measureReal_deviation_le (fun e => measurable_edgeScore q R e hp)
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) hdep
-      (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hcpos).trans ?_
-    rw [hE]
-    gcongr
+  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq hloop h3
   let grid (i : ℕ) : ℝ := -T + i * δ
   let winEv (i : ℕ) : E → Set (V → ℝ) :=
     edgeScoreEvent G q R fun x => grid i ≤ x ∧ x < grid i + δ
@@ -290,24 +322,25 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   let badLo : Set (V → ℝ) := deviation (edgeScoreEvent G q R (· < -T)) c
   let badHi : Set (V → ℝ) := deviation (edgeScoreEvent G q R (T ≤ ·)) c
   have hCost_le (i : ℕ) (_ : i < K) : P.real (badCost i) ≤ 4 * h * D / c ^ 2 := by
-    have hA := devPair (pairAnyEvent G M q R (grid i))
-      (fun e => measurableSet_pairAnyEvent M q R (grid i) e)
-      (fun e => dependsOn_pairAnyEvent hloop M q R (grid i) e)
-    have hB := devPair (pairBothEvent G M q R (grid i))
-      (fun e => measurableSet_pairBothEvent M q R (grid i) e)
-      (fun e => dependsOn_pairBothEvent hloop M q R (grid i) e)
-    refine (measureReal_union_le _ _).trans ?_
-    refine (add_le_add (measureReal_union_le _ _) hB).trans ?_
-    have hsum := add_le_add (add_le_add (devSingle (grid i)) hA)
-      (le_refl (3 / 2 * h * D / c ^ 2))
-    refine hsum.trans_eq ?_
+    have hS := measureReal_deviation_unmatchedStraddleEvent_le hdeg M q R (grid i) hcpos
+    have hA := measureReal_deviation_closedBall_src_le hloop h3 R
+      (measurableSet_pairAnyEvent M q R (grid i))
+      (dependsOn_pairAnyEvent hloop M q R (grid i)) hcpos
+    have hB := measureReal_deviation_closedBall_src_le hloop h3 R
+      (measurableSet_pairBothEvent M q R (grid i))
+      (dependsOn_pairBothEvent hloop M q R (grid i)) hcpos
+    refine ((measureReal_union_le _ _).trans
+      (add_le_add ((measureReal_union_le _ _).trans (add_le_add hS hA)) hB)).trans_eq ?_
     ring
   have hWin_le (i : ℕ) (_ : i < K) : P.real (badWin i) ≤ 3 / 2 * h * D / c ^ 2 :=
-    devEdge (measurableSet_Ico : MeasurableSet (Ico (grid i) (grid i + δ)))
+    measureReal_deviation_edgeScoreEvent_le hloop h3 q R
+      (measurableSet_Ico : MeasurableSet (Ico (grid i) (grid i + δ))) hcpos
   have hLo_le : P.real badLo ≤ 3 / 2 * h * D / c ^ 2 :=
-    devEdge (measurableSet_Iio : MeasurableSet (Iio (-T)))
+    measureReal_deviation_edgeScoreEvent_le hloop h3 q R
+      (measurableSet_Iio : MeasurableSet (Iio (-T))) hcpos
   have hHi_le : P.real badHi ≤ 3 / 2 * h * D / c ^ 2 :=
-    devEdge (measurableSet_Ici : MeasurableSet (Ici T))
+    measureReal_deviation_edgeScoreEvent_le hloop h3 q R
+      (measurableSet_Ici : MeasurableSet (Ici T)) hcpos
   have hsmall : K * (4 * h * D / c ^ 2 + 3 / 2 * h * D / c ^ 2) +
       3 / 2 * h * D / c ^ 2 + 3 / 2 * h * D / c ^ 2 < 1 := by
     have hlt : (6 * (K : ℝ) + 3) * D < ε ^ 2 * h := by
@@ -332,16 +365,9 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   have tail (p : ℝ → Prop) (hp : ∀ x, p x → T ≤ |x|)
       (hdev : ω ∉ deviation (edgeScoreEvent G q R p) c) :
       12 * ({e | p (edgeScore G q R ω e)}.ncard : ℝ) ≤ B := by
-    have hcount := ncard_lt_of_notMem_deviation hdev
-    have hmean_t : ∑ e, P.real (edgeScoreEvent G q R p e) ≤ 3 / 2 * h * (1 / T ^ 2) := by
-      refine (Finset.sum_le_sum fun e _ => (measureReal_mono (μ := P) fun ω' hω' =>
-        hp _ hω').trans (measureReal_le_abs_le (unit e) hT)).trans_eq ?_
-      rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hE]
-    have hmul : 12 * (3 / 2 * h * (1 / T ^ 2)) = h * (18 / T ^ 2) := by field_simp; ring
-    have hset : {e | ω ∈ edgeScoreEvent G q R p e} = {e | p (edgeScore G q R ω e)} := rfl
-    rw [hset] at hcount
-    refine le_trans ?_ hB1
-    nlinarith
+    refine (twelve_mul_ncard_edgeScore_tail_le hloop h3 unit hT hp hdev).trans ?_
+    dsimp [c, h] at hB1 ⊢
+    linarith
   have htop_eq : -T + K * δ = T := by
     dsimp [δ]; field_simp; ring
   refine Multigraph.exists_width_le_of_matching_edgeScore hloop h3 hM (edgeScore G q R ω)
@@ -351,29 +377,27 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   intro i hi
   have hthr : -T + ((i : ℝ) + 1) * δ = grid i + δ := by dsimp [grid]; ring
   rw [hthr]
-  have hnm := hmid i hi
-  have hS_nm : ω ∉ deviation (unmatchedStraddleEvent G M q R (grid i)) c :=
-    fun h => hnm.1 (Or.inl (Or.inl h))
-  have hA_nm : ω ∉ deviation (pairAnyEvent G M q R (grid i)) c :=
-    fun h => hnm.1 (Or.inl (Or.inr h))
-  have hB_nm : ω ∉ deviation (pairBothEvent G M q R (grid i)) c :=
-    fun h => hnm.1 (Or.inr h)
-  have hS := ncard_lt_of_notMem_deviation hS_nm
-  have hA := ncard_lt_of_notMem_deviation hA_nm
-  have hB := ncard_lt_of_notMem_deviation hB_nm
-  have hW := ncard_lt_of_notMem_deviation hnm.2
+  have hS := ncard_lt_of_notMem_deviation fun h => (hmid i hi).1 (Or.inl (Or.inl h))
+  have hA := ncard_lt_of_notMem_deviation fun h => (hmid i hi).1 (Or.inl (Or.inr h))
+  have hB := ncard_lt_of_notMem_deviation fun h => (hmid i hi).1 (Or.inr h)
+  have hW := ncard_lt_of_notMem_deviation (hmid i hi).2
   have hS_eq : {v | ω ∈ unmatchedStraddleEvent G M q R (grid i) v} =
       {v | v ∉ G.matchedVertices M ∧ G.EdgeStraddles (edgeScore G q R ω) (grid i) v} := by
-    ext v; simp [unmatchedStraddleEvent, straddleEvent]
+    ext v
+    simp [unmatchedStraddleEvent, straddleEvent]
   have hA_eq : {e | ω ∈ pairAnyEvent G M q R (grid i) e} =
       {e | e ∈ M ∧ G.PairStraddlesAny (edgeScore G q R ω) (grid i) e} := by
-    ext e; simp [pairAnyEvent]
+    ext e
+    simp [pairAnyEvent]
   have hB_eq : {e | ω ∈ pairBothEvent G M q R (grid i) e} =
       {e | e ∈ M ∧ G.PairStraddlesBoth (edgeScore G q R ω) (grid i) e} := by
-    ext e; simp [pairBothEvent]
-  have hW_eq : {e | ω ∈ winEv i e} =
-      {e | grid i ≤ edgeScore G q R ω e ∧ edgeScore G q R ω e < grid i + δ} := rfl
-  rw [hS_eq] at hS; rw [hA_eq] at hA; rw [hB_eq] at hB; rw [hW_eq] at hW
+    ext e
+    simp [pairBothEvent]
+  rw [hS_eq] at hS
+  rw [hA_eq] at hA
+  rw [hB_eq] at hB
+  change ∑ e, P.real (winEv i e) + c >
+    ({e | grid i ≤ edgeScore G q R ω e ∧ edgeScore G q R ω e < grid i + δ}.ncard : ℝ) at hW
   have hWmean : ∑ e, P.real (winEv i e) ≤ 3 / 2 * h * (δ / √(2 * π)) := by
     refine (Finset.sum_le_sum fun e _ =>
       measureReal_window_le (unit e) (grid i) hδpos.le).trans_eq ?_
@@ -388,14 +412,13 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   refine le_trans ?_ hB2
   nlinarith
 
-/-- For every `μ ≥ 0` and `ξ > 0`, explicit cutoff/grid parameters keep `matchingBoundOfMean μ T ε
-K` within `μ + ξ`. -/
-theorem exists_matching_grid_parameters {μ ξ : ℝ} (hμ : 0 ≤ μ) (hξ : 0 < ξ) :
-    ∃ (T ε : ℝ) (K : ℕ), 0 < T ∧ 0 < ε ∧ 0 < K ∧ matchingBoundOfMean μ T ε K ≤ μ + ξ := by
-  let ε := ξ / 30
+/-- Explicit cutoff `T > 0` and grid subdivision `K > 0` keeping both the Gaussian tail contribution
+`18 / T ^ 2` and the window contribution `18 (2 T / K) / √(2 π)` within `ξ / 2`. -/
+theorem exists_tail_window_grid {ξ : ℝ} (hξ : 0 < ξ) :
+    ∃ (T : ℝ) (K : ℕ), 0 < T ∧ 0 < K ∧ 18 / T ^ 2 ≤ ξ / 2 ∧
+      18 * (2 * T / K) / √(2 * π) ≤ ξ / 2 := by
   let T := √(36 / ξ) + 1
   let K : ℕ := ⌈72 * T / (ξ * √(2 * π))⌉₊ + 1
-  have hε : 0 < ε := by positivity
   have hT : 0 < T := by positivity
   have hK : 0 < K := Nat.succ_pos _
   have hT_sq : 36 / ξ ≤ T ^ 2 := by
@@ -415,13 +438,19 @@ theorem exists_matching_grid_parameters {μ ξ : ℝ} (hμ : 0 ≤ μ) (hξ : 0 
     have hKpos : (0 : ℝ) < K := Nat.cast_pos.mpr hK
     have hstep := mul_le_mul_of_nonneg_left hK_le (by positivity : 0 ≤ ξ * √(2 * π))
     rw [mul_div_cancel₀ _ (by positivity)] at hstep
-    have hle : 36 * T ≤ (ξ / 2) * (K * √(2 * π)) := by linarith
     have heq : 18 * (2 * T / K) / √(2 * π) = (36 * T) / (K * √(2 * π)) := by ring
     rw [heq, div_le_iff₀ (by positivity)]
-    exact hle
-  refine ⟨T, ε, K, hT, hε, hK, max_le ?_ ?_⟩
-  · dsimp [ε]; linarith
-  · dsimp [ε]; linarith
+    linarith
+  exact ⟨T, K, hT, hK, htail, hwin⟩
+
+/-- For every `μ ≥ 0` and `ξ > 0`, explicit cutoff/grid parameters keep `matchingBoundOfMean μ T ε
+K` within `μ + ξ`. -/
+theorem exists_matching_grid_parameters {μ ξ : ℝ} (hμ : 0 ≤ μ) (hξ : 0 < ξ) :
+    ∃ (T ε : ℝ) (K : ℕ), 0 < T ∧ 0 < ε ∧ 0 < K ∧ matchingBoundOfMean μ T ε K ≤ μ + ξ := by
+  obtain ⟨T, K, hT, hK, htail, hwin⟩ := exists_tail_window_grid hξ
+  refine ⟨T, ξ / 30, K, hT, by positivity, hK, max_le ?_ ?_⟩
+  · linarith
+  · linarith
 
 /-- **Conditional cubic layout reduction.** Any uniform bound `μ ≥ 0` on the per-vertex expected
 `matchingCost` of cubic graphs under Gaussian edge scores `edgeScore G q R` gives

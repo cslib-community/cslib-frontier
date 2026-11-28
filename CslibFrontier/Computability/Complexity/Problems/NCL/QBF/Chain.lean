@@ -84,48 +84,38 @@ namespace Quantifier
 private theorem tryIn_of_tryOut (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (h : t (q.gadget.bottom 1) = true) :
     t (.inl 1) = true := by
-  cases q with
-  | ex => exact ExistsGadget.tryIn_of_tryOut ht h
-  | all => exact ForallGadget.tryIn_of_tryOut ht h
+  cases q
+  exacts [ExistsGadget.tryIn_of_tryOut ht h, ForallGadget.tryIn_of_tryOut ht h]
 
 private theorem satIn_of_satOut (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (h : t (.inl 0) = false) :
     t (q.gadget.bottom 0) = false := by
-  cases q with
-  | ex => exact h
-  | all => exact ForallGadget.satIn_of_satOut ht h
+  cases q
+  exacts [h, ForallGadget.satIn_of_satOut ht h]
 
 private theorem mem_eq_of_step (q : Quantifier) {a b : List Color} {D : Diagram Gate a b}
     (o : Occurrence q.gadget D) {s t : D.Edge → Bool} (h : (D.graph Gate.interp).Step s t)
     (htry : s (o.emb (q.gadget.bottom 1)) = true) : s (o.emb q.mem) = t (o.emb q.mem) := by
-  cases q with
-  | ex => exact ExistsGadget.mem_eq_of_step o h htry
-  | all => exact ForallGadget.mem_eq_of_step o h htry
+  cases q
+  exacts [ExistsGadget.mem_eq_of_step o h htry, ForallGadget.mem_eq_of_step o h htry]
 
 private theorem mem_of_pos (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true)
     (hp : t (q.gadget.bottom 2) = true) : t q.mem = true := by
-  cases q with
-  | ex => exact ExistsGadget.mem_of_pos ht htry hp
-  | all => exact ForallGadget.mem_of_pos ht htry hp
+  cases q
+  exacts [ExistsGadget.mem_of_pos ht htry hp, ForallGadget.mem_of_pos ht htry hp]
 
 private theorem mem_of_neg (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true)
     (hn : t (q.gadget.bottom 3) = true) : t q.mem = false := by
-  cases q with
-  | ex => exact ExistsGadget.mem_of_neg ht htry hn
-  | all => exact ForallGadget.mem_of_neg ht htry hn
+  cases q
+  exacts [ExistsGadget.mem_of_neg ht htry hn, ForallGadget.mem_of_neg ht htry hn]
 
 private theorem literals_le (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true) :
-    List.Forall₂ (· ≤ ·) [t (q.gadget.bottom 2), t (q.gadget.bottom 3)] [t q.mem, !t q.mem] := by
-  refine .cons ?_ (.cons ?_ .nil)
-  · cases hp : t (q.gadget.bottom 2) with
-    | false => exact Bool.false_le _
-    | true => rw [q.mem_of_pos ht htry hp]
-  · cases hn : t (q.gadget.bottom 3) with
-    | false => exact Bool.false_le _
-    | true => rw [q.mem_of_neg ht htry hn]; exact le_rfl
+    List.Forall₂ (· ≤ ·) [t (q.gadget.bottom 2), t (q.gadget.bottom 3)] [t q.mem, !t q.mem] :=
+  .cons (Bool.le_iff_imp.2 (q.mem_of_pos ht htry))
+    (.cons (Bool.le_iff_imp.2 fun hn => by rw [q.mem_of_neg ht htry hn]; rfl) .nil)
 
 end Quantifier
 
@@ -160,8 +150,8 @@ private theorem head_top (r : List Color) (q : Quantifier) (qs : List Quantifier
 private theorem head_bottom (r : List Color) (q : Quantifier) (qs : List Quantifier) (j : Fin 2) :
     (headOcc r q qs).emb
         (q.gadget.bottom ⟨j, by simp only [List.length_cons, List.length_nil]; omega⟩) =
-      (tailOcc r q qs).emb (input ([R, R] ++ r) qs j) := by
-  exact congrArg (compLeft (q.gadget.tensor (.id r)) (diagram ([R, R] ++ r) qs))
+      (tailOcc r q qs).emb (input ([R, R] ++ r) qs j) :=
+  congrArg (compLeft (q.gadget.tensor (.id r)) (diagram ([R, R] ++ r) qs))
     (bottom_tensor_left q.gadget (.id r)
       ⟨j, by simp only [List.length_cons, List.length_nil]; omega⟩).symm
 
@@ -224,9 +214,9 @@ private theorem head_mem_eq_of_step (r : List Color) (q : Quantifier) (qs : List
     s (o.emb ((headOcc r q qs).emb q.mem)) = t (o.emb ((headOcc r q qs).emb q.mem)) := by
   have hhead : s (o.emb ((headOcc r q qs).emb (q.gadget.bottom 1))) = true :=
     (congrArg (s ∘ o.emb) (head_bottom r q qs 1)).trans htry
-  have hm := q.mem_eq_of_step (o.trans (headOcc r q qs)) h
-    (by simpa only [Occurrence.emb_trans, Function.comp_def] using hhead)
-  simpa only [Occurrence.emb_trans, Function.comp_def] using hm
+  simpa only [Occurrence.emb_trans, Function.comp_def] using
+    q.mem_eq_of_step (o.trans (headOcc r q qs)) h
+      (by simpa only [Occurrence.emb_trans, Function.comp_def] using hhead)
 
 /-- Trying at any cut requires trying at the start of the chain. -/
 private theorem try_input_of_control : ∀ (qs : List Quantifier) (r : List Color) (n : ℕ)
@@ -242,10 +232,9 @@ private theorem try_control_of_output : ∀ (qs : List Quantifier) (r : List Col
     {t : (diagram r qs).Edge → Bool}, ((diagram r qs).graph Gate.interp).Legal t →
     t (control r qs qs.length 1) = true → t (control r qs n 1) = true
   | [], _, n, _, _, h => by cases n <;> exact h
-  | q :: qs, r, 0, _, ht, h => by
-    apply first_try r q qs ht
-    simpa only [control_zero, Function.comp_def]
-      using try_control_of_output qs _ 0 ((tailOcc r q qs).legal ht) h
+  | q :: qs, r, 0, _, ht, h => first_try r q qs ht (by
+    simpa only [control_zero, Function.comp_def] using
+      try_control_of_output qs _ 0 ((tailOcc r q qs).legal ht) h)
   | q :: qs, r, n + 1, _, ht, h =>
     try_control_of_output qs _ n ((tailOcc r q qs).legal ht) h
 
@@ -331,11 +320,10 @@ theorem botList_controls : ∀ (qs : List Quantifier) (r : List Color)
     (t : (diagram r qs).Edge → Bool), ∃ ls, (diagram r qs).botList t =
       t (control r qs qs.length 0) :: t (control r qs qs.length 1) :: ls
   | [], r, t => ⟨_, topList_controls r [] t⟩
-  | q :: qs, r, t => by
-    obtain ⟨ls, hls⟩ := botList_controls qs ([R, R] ++ r) (t ∘ (tailOcc r q qs).emb)
-    refine ⟨ls, ?_⟩
-    simpa only [control_cons_succ, List.length_cons, Function.comp_def]
-      using (tail_botList r q qs t).symm.trans hls
+  | q :: qs, r, t =>
+    let ⟨ls, hls⟩ := botList_controls qs ([R, R] ++ r) (t ∘ (tailOcc r q qs).emb)
+    ⟨ls, by simpa only [control_cons_succ, List.length_cons, Function.comp_def] using
+      (tail_botList r q qs t).symm.trans hls⟩
 
 private theorem literals_le_of_tail : ∀ (qs : List Quantifier) (r : List Color)
     {t : (diagram r qs).Edge → Bool}, ((diagram r qs).graph Gate.interp).Legal t →
@@ -351,17 +339,13 @@ private theorem literals_le_of_tail : ∀ (qs : List Quantifier) (r : List Color
     have hpair := q.literals_le ((headOcc r q qs).legal ht)
       ((congrArg t (head_bottom r q qs 1)).trans
         (by simpa only [control_cons_succ, control_zero] using hhead))
-    have hb' : List.Forall₂ (· ≤ ·)
-        (((diagram ([R, R] ++ r) qs).topList (t ∘ (tailOcc r q qs).emb)).drop 2)
-        ([t ((headOcc r q qs).emb q.mem), !t ((headOcc r q qs).emb q.mem)] ++ bounds) := by
-      rw [tail_topList]
-      exact List.rel_append hpair hb
     obtain ⟨ls, hls, hf⟩ := literals_le_of_tail qs ([R, R] ++ r) ((tailOcc r q qs).legal ht) htry
-      _ hb'
-    refine ⟨ls, ?_, ?_⟩
-    · simpa only [control_cons_succ, List.length_cons, Function.comp_def]
-        using (tail_botList r q qs t).symm.trans hls
-    · simpa only [memories, literalValues_cons, List.append_assoc] using hf
+      _ (by
+        rw [tail_topList]
+        exact List.rel_append hpair hb)
+    exact ⟨ls, by simpa only [control_cons_succ, List.length_cons, Function.comp_def] using
+        (tail_botList r q qs t).symm.trans hls,
+      by simpa only [memories, literalValues_cons, List.append_assoc, Function.comp_def] using hf⟩
 
 /-- **Static consistency of the literal bundle.** While the final try wire is active, the bottom
 tail is bounded by the canonical literals of the current latches followed by the incoming
@@ -387,12 +371,10 @@ private theorem tail_inactive (r : List Color) (q : Quantifier) (qs : List Quant
     {a b : List Color} {D : Diagram Gate a b} (o : Occurrence (diagram r (q :: qs)) D)
     {s : D.Edge → Bool} (hs : (D.graph Gate.interp).Legal s)
     (hstart : s (o.emb (input r (q :: qs) 1)) = false) :
-    s ((o.trans (tailOcc r q qs)).emb (input ([R, R] ++ r) qs 1)) = false := by
-  apply Bool.eq_false_iff.2
-  intro htry
-  have hfirst := first_try r q qs (o.legal hs)
-    (by simpa only [Occurrence.emb_trans, Function.comp_def] using htry)
-  exact Bool.noConfusion (hstart.symm.trans hfirst)
+    s ((o.trans (tailOcc r q qs)).emb (input ([R, R] ++ r) qs 1)) = false :=
+  Bool.eq_false_iff.2 fun htry => Bool.noConfusion <| hstart.symm.trans <|
+    first_try r q qs (o.legal hs)
+      (by simpa only [Occurrence.emb_trans, Function.comp_def] using htry)
 
 private theorem tail_context_eq (r : List Color) (q : Quantifier) (qs : List Quantifier)
     {a b : List Color} {D : Diagram Gate a b} (o : Occurrence (diagram r (q :: qs)) D)
@@ -414,14 +396,11 @@ private theorem head_try_of_sat (r : List Color) (q : Quantifier) (qs : List Qua
       u (o.emb (control r (q :: qs) (q :: qs).length 1)) = true)
     (hsat : u ((o.trans (headOcc r q qs)).emb (q.gadget.bottom 0)) = false) :
     u ((o.trans (headOcc r q qs)).emb (q.gadget.bottom 1)) = true := by
-  have hsat' := (congrArg u (head_bottom_trans r q qs o 0)).symm.trans hsat
-  have ht := (o.trans (tailOcc r q qs)).legal hu
-  have ha : (u ∘ (o.trans (tailOcc r q qs)).emb) (control ([R, R] ++ r) qs qs.length 0) = false →
-      (u ∘ (o.trans (tailOcc r q qs)).emb) (control ([R, R] ++ r) qs qs.length 1) = true := by
-    simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans, Function.comp_def]
-      using hadm
-  have htry := try_of_sat qs ([R, R] ++ r) 0 ht ha
-    (by simpa only [control_zero, Function.comp_def] using hsat')
+  have htry := try_of_sat qs ([R, R] ++ r) 0 ((o.trans (tailOcc r q qs)).legal hu)
+    (by simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans, Function.comp_def]
+      using hadm)
+    (by simpa only [control_zero, Function.comp_def] using
+      (congrArg u (head_bottom_trans r q qs o 0)).symm.trans hsat)
   exact (congrArg u (head_bottom_trans r q qs o 1)).trans
     (by simpa only [control_zero, Function.comp_def] using htry)
 
@@ -439,24 +418,20 @@ private theorem truth_cons (r : List Color) (q : Quantifier) (qs : List Quantifi
         Truth matrix qs (context u ++ [u (o.emb ((headOcc r q qs).emb q.mem))]))
     (h : (D.graph Gate.interp).Reachable s t) (hsat : t (o.emb (input r (q :: qs) 0)) = false) :
     Truth matrix (q :: qs) (context t) := by
-  cases q with
-  | ex =>
-    refine ⟨_, htail t h ?_⟩
-    simpa only [Occurrence.emb_trans, Function.comp_def]
-      using first_sat r .ex qs (o.legal (h.legal hs)) hsat
-  | all =>
-    refine ForallGadget.forall_of_reachable (o.trans (headOcc r .all qs)) context
-      (fun values value => Truth matrix qs (values ++ [value])) ?_ ?_ ?_ hs ?_ h ?_
-    · intro u hu hlocal
-      exact head_try_of_sat r .all qs o (hu.legal hs) (hadm u hu) hlocal
-    · intro u v hu huv htry
-      exact hfreeze u v hu huv ((congrArg u (head_top_trans r .all qs o 1)).symm.trans htry)
-    · intro u hu hlocal
-      have hm := congrArg u (congrFun (o.emb_trans (headOcc r .all qs)) ForallGadget.mem)
-      exact (congrArg (fun value => Truth matrix qs (context u ++ [value])) hm).mpr
-        (htail u hu ((congrArg u (head_bottom_trans r .all qs o 0)).symm.trans hlocal))
-    · exact (congrArg s (head_top_trans r .all qs o 1)).trans hstart
-    · exact (congrArg t (head_top_trans r .all qs o 0)).trans hsat
+  cases q
+  · refine ⟨_, htail t h ?_⟩
+    simpa only [Occurrence.emb_trans, Function.comp_def] using
+      first_sat r .ex qs (o.legal (h.legal hs)) hsat
+  · refine ForallGadget.forall_of_reachable (o.trans (headOcc r .all qs)) context
+      (fun values value => Truth matrix qs (values ++ [value]))
+      (fun u hu => head_try_of_sat r .all qs o (hu.legal hs) (hadm u hu))
+      (fun u v hu huv htry => hfreeze u v hu huv
+        ((congrArg u (head_top_trans r .all qs o 1)).symm.trans htry))
+      (fun u hu hlocal => ?_) hs ((congrArg s (head_top_trans r .all qs o 1)).trans hstart) h
+      ((congrArg t (head_top_trans r .all qs o 0)).trans hsat)
+    have hm := congrArg u (congrFun (o.emb_trans (headOcc r .all qs)) ForallGadget.mem)
+    exact (congrArg (fun value => Truth matrix qs (context u ++ [value])) hm).mpr
+      (htail u hu ((congrArg u (head_bottom_trans r .all qs o 0)).symm.trans hlocal))
 
 /-- **Soundness of the whole chain**, relative to its terminal matrix contract. The context
 is the current assignment of any preceding variables and need only be frozen while this chain
@@ -475,22 +450,21 @@ theorem truth_of_reachable : ∀ (qs : List Quantifier) (r : List Color)
     Truth matrix qs (context t)
   | [], _, _, _, _, _, _, _, _, t, _, _, _, _, hm, h, hsat => by
     simpa only [Truth, memories, List.append_nil] using hm t h hsat
-  | q :: qs, r, _, _, _, o, context, matrix, _, _, hs, hstart, hadm, hf, hm, h, hsat => by
-    refine truth_cons r q qs o context matrix hs hstart hadm hf (fun u hu hsat' => ?_) h hsat
-    refine truth_of_reachable qs ([R, R] ++ r) (o.trans (tailOcc r q qs))
-      (fun u => context u ++ [u (o.emb ((headOcc r q qs).emb q.mem))]) matrix hs
-      (tail_inactive r q qs o hs hstart) ?_ ?_ ?_ hu hsat'
-    · intro v hv
-      simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans, Function.comp_def]
-        using hadm v hv
-    · intro v w hv hvw htry
-      exact tail_context_eq r q qs o context hvw (hf v w hv hvw) htry
-    · intro v hv hfinal
-      have hm' := hm v hv
-        (by simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans,
-          Function.comp_def] using hfinal)
-      simpa only [memories, Occurrence.emb_trans, Function.comp_def, List.append_assoc,
-        List.cons_append, List.nil_append] using hm'
+  | q :: qs, r, _, _, _, o, context, matrix, _, _, hs, hstart, hadm, hf, hm, h, hsat =>
+    truth_cons r q qs o context matrix hs hstart hadm hf (fun u hu hsat' =>
+      truth_of_reachable qs ([R, R] ++ r) (o.trans (tailOcc r q qs))
+        (fun u => context u ++ [u (o.emb ((headOcc r q qs).emb q.mem))]) matrix hs
+        (tail_inactive r q qs o hs hstart)
+        (fun v hv => by
+          simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans,
+            Function.comp_def] using hadm v hv)
+        (fun v w hv hvw => tail_context_eq r q qs o context hvw (hf v w hv hvw))
+        (fun v hv hfinal => by
+          simpa only [memories, Occurrence.emb_trans, Function.comp_def, List.append_assoc,
+            List.cons_append, List.nil_append] using hm v hv (by
+              simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans,
+                Function.comp_def] using hfinal))
+        hu hsat') h hsat
 
 end Chain
 

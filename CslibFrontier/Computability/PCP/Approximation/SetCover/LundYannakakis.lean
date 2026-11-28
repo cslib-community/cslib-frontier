@@ -112,14 +112,8 @@ private theorem card_pi_update_eq {U : Type*} [Fintype U] [DecidableEq U]
   let φ : {f : ∀ u, T u // f u₀ = y₀} × T u₀ ≃ ∀ u, T u :=
     { toFun := fun p => Function.update p.1.1 u₀ p.2
       invFun := fun g => (⟨Function.update g u₀ y₀, Function.update_self ..⟩, g u₀)
-      left_inv := fun ⟨⟨f, hf⟩, _⟩ => Prod.ext (Subtype.ext (funext fun u => by
-        by_cases hu : u = u₀
-        · subst hu; simp [hf]
-        · simp [hu])) (by simp)
-      right_inv := fun g => funext fun u => by
-        by_cases hu : u = u₀
-        · subst hu; simp
-        · simp [hu] }
+      left_inv := fun ⟨⟨f, hf⟩, _⟩ => by simp [Function.update_idem, ← hf]
+      right_inv := fun g => by simp [Function.update_idem] }
   rw [← Fintype.card_prod, Fintype.card_congr φ]
 
 /-- **Core Lund–Yannakakis label-extraction lemma**: given candidate label sets `L u : Finset β`
@@ -138,29 +132,27 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
     (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) ≤ 1 - (g.toGraph projectionEval).unsatVal := by
   classical
   let m := g.edges.length
+  let edge (i : Fin g.edges.length) := g.edges[i.1]'i.2
   let a₀ := Classical.arbitrary β
   let b₀ := Classical.arbitrary γ
   have ht0 : (0 : ℝ) < t := by exact_mod_cast ht
   have hm0 : (0 : ℝ) < m := by exact_mod_cast hm
-  let goodPred (i : Fin m) := (L g.edges[i].src).card + (R g.edges[i].dst).card ≤ t
+  let goodPred (i : Fin g.edges.length) := (L (edge i).src).card + (R (edge i).dst).card ≤ t
   let goodEdges := Finset.univ.filter goodPred
   let badEdges := Finset.univ.filter (fun i => ¬goodPred i)
   -- Markov's inequality bounds the fraction of oversized edges `badEdges`.
   have hbad_bound : (badEdges.card : ℝ) * t ≤ ρ * (2 * m) :=
     calc (badEdges.card : ℝ) * t
         = ∑ _i ∈ badEdges, (t : ℝ) := by simp
-      _ ≤ ∑ i ∈ badEdges, (((L g.edges[i].src).card + (R g.edges[i].dst).card : ℕ) : ℝ) :=
+      _ ≤ ∑ i ∈ badEdges, (((L (edge i).src).card + (R (edge i).dst).card : ℕ) : ℝ) :=
           Finset.sum_le_sum fun i hi => by
             exact_mod_cast Nat.le_of_lt (Nat.lt_of_not_le (Finset.mem_filter.1 hi).2)
-      _ ≤ ∑ i : Fin m, (((L g.edges[i].src).card + (R g.edges[i].dst).card : ℕ) : ℝ) :=
+      _ ≤ ∑ i : Fin g.edges.length, (((L (edge i).src).card + (R (edge i).dst).card : ℕ) : ℝ) :=
           Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.cast_nonneg _
       _ ≤ ρ * (2 * m) := hsum
   have hgood_card : (1 - 2 * ρ / t) * m ≤ goodEdges.card := by
-    have hsplit_nat : goodEdges.card + badEdges.card = m := by
-      have h := Finset.sum_filter_add_sum_filter_not (Finset.univ : Finset (Fin m)) goodPred
-        (fun _ => 1)
-      simp only [Finset.sum_const, smul_eq_mul, mul_one, Finset.card_univ, Fintype.card_fin] at h
-      exact h
+    have hsplit_nat : goodEdges.card + badEdges.card = m :=
+      (Finset.card_filter_add_card_filter_not goodPred).trans (by simp [m])
     have hsplit : (goodEdges.card : ℝ) + badEdges.card = m := by exact_mod_cast hsplit_nat
     have hdiv : (badEdges.card : ℝ) ≤ (2 * ρ / t) * m := by
       rw [div_mul_eq_mul_div, le_div_iff₀ ht0]; linarith
@@ -179,22 +171,20 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
     fun v => ⟨_, (hneR v.1).choose_spec⟩⟩
   let σ_of (c : Choice) (x : ℕ) : β × γ :=
     (if hx : x ∈ VL then (c.1 ⟨x, hx⟩).1 else a₀, if hy : x ∈ VR then (c.2 ⟨x, hy⟩).1 else b₀)
-  let sat (c : Choice) (i : Fin m) : Prop := (g.toGraph projectionEval).Satisfies (σ_of c) i
-  let hitSet (i : Fin m) := Finset.univ.filter fun c : Choice => sat c i
+  let sat (c : Choice) (i : Fin g.edges.length) : Prop :=
+    (g.toGraph projectionEval).Satisfies (σ_of c) i
+  let hitSet (i : Fin g.edges.length) := Finset.univ.filter fun c : Choice => sat c i
   -- Each good edge is satisfied with probability ≥ 1 / (|L u| * |R v|) ≥ 4 / t^2.
   have hhit_edge : ∀ i ∈ goodEdges,
       (4 / (t : ℝ) ^ 2) * Fintype.card Choice ≤ (hitSet i).card := by
     intro i hi
+    let d := edge i
     have hle := (Finset.mem_filter.1 hi).2
     obtain ⟨a_star, haL, b_star, hbR, heq⟩ := hmatch i hle
-    have hLeq : L' g.edges[i].src = L g.edges[i].src := by
-      simp only [L', show (L g.edges[i].src).Nonempty from ⟨a_star, haL⟩, ↓reduceIte]
-    have hReq : R' g.edges[i].dst = R g.edges[i].dst := by
-      simp only [R', show (R g.edges[i].dst).Nonempty from ⟨b_star, hbR⟩, ↓reduceIte]
-    let u₀ : VL := ⟨g.edges[i].src, List.mem_toFinset.2 (List.mem_map.2
-      ⟨g.edges[i], List.getElem_mem _, rfl⟩)⟩
-    let v₀ : VR := ⟨g.edges[i].dst, List.mem_toFinset.2 (List.mem_map.2
-      ⟨g.edges[i], List.getElem_mem _, rfl⟩)⟩
+    have hLeq : L' d.src = L d.src := ite_eq_left ⟨a_star, haL⟩
+    have hReq : R' d.dst = R d.dst := ite_eq_left ⟨b_star, hbR⟩
+    let u₀ : VL := ⟨d.src, List.mem_toFinset.2 (List.mem_map.2 ⟨d, List.getElem_mem i.2, rfl⟩)⟩
+    let v₀ : VR := ⟨d.dst, List.mem_toFinset.2 (List.mem_map.2 ⟨d, List.getElem_mem i.2, rfl⟩)⟩
     let yL₀ : L' u₀.1 := ⟨a_star, hLeq ▸ haL⟩
     let yR₀ : R' v₀.1 := ⟨b_star, hReq ▸ hbR⟩
     let hitPair := {fL : ∀ u : VL, L' u.1 // fL u₀ = yL₀} ×
@@ -204,12 +194,8 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       have hL := card_pi_update_eq (T := fun u : VL => L' u.1) u₀ yL₀
       have hR := card_pi_update_eq (T := fun v : VR => R' v.1) v₀ yR₀
       simp only [hitPair, Choice, Fintype.card_prod]
-      calc (Fintype.card {fL : ∀ u : VL, L' u.1 // fL u₀ = yL₀} *
-              Fintype.card {fR : ∀ v : VR, R' v.1 // fR v₀ = yR₀}) *
-            ((L' u₀.1).card * (R' v₀.1).card)
-          = (Fintype.card {fL : ∀ u : VL, L' u.1 // fL u₀ = yL₀} * (L' u₀.1).card) *
-              (Fintype.card {fR : ∀ v : VR, R' v.1 // fR v₀ = yR₀} * (R' v₀.1).card) := by ring
-        _ = _ := by rw [← Fintype.card_coe (L' u₀.1), ← Fintype.card_coe (R' v₀.1), hL, hR]
+      rw [← hL, ← hR, Fintype.card_coe, Fintype.card_coe]
+      ring
     have hsub_hit : Fintype.card hitPair ≤ (hitSet i).card := by
       rw [← Fintype.card_coe (hitSet i)]
       refine Fintype.card_le_of_injective (fun p : hitPair => (⟨(p.1.1, p.2.1), ?_⟩ : hitSet i))
@@ -218,45 +204,39 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       refine Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩
       change (g.toGraph projectionEval).Satisfies (σ_of (p.1.1, p.2.1)) i
       rw [satisfies_toGraph_projectionEval_iff, List.get_eq_getElem]
-      have hu' : g.edges[i.1].src ∈ VL := u₀.2
-      have hv' : g.edges[i.1].dst ∈ VR := v₀.2
-      have hL : (p.1.1 ⟨g.edges[i.1].src, hu'⟩).1 = a_star := congrArg Subtype.val p.1.2
-      have hR : (p.2.1 ⟨g.edges[i.1].dst, hv'⟩).1 = b_star := congrArg Subtype.val p.2.2
-      simp only [σ_of, hu', hv', ↓reduceDIte, hL, hR]
+      have hu' : d.src ∈ VL := u₀.2
+      have hv' : d.dst ∈ VR := v₀.2
+      have hL : (p.1.1 ⟨d.src, hu'⟩).1 = a_star := congrArg Subtype.val p.1.2
+      have hR : (p.2.1 ⟨d.dst, hv'⟩).1 = b_star := congrArg Subtype.val p.2.2
+      simp only [σ_of, d, edge, hu', hv', ↓reduceDIte, hL, hR]
       exact heq
     have hprod_le : 4 * ((L' u₀.1).card * (R' v₀.1).card) ≤ t ^ 2 := by
       rw [hLeq, hReq, ← mul_assoc]
       exact (_root_.four_mul_le_sq_add _ _).trans (Nat.pow_le_pow_left hle 2)
-    have hnat : 4 * Fintype.card Choice ≤ t ^ 2 * (hitSet i).card := by
-      rw [← hcard_mul, show 4 * (Fintype.card hitPair * ((L' u₀.1).card * (R' v₀.1).card)) =
-        4 * ((L' u₀.1).card * (R' v₀.1).card) * Fintype.card hitPair by ring]
-      exact Nat.mul_le_mul hprod_le hsub_hit
+    have hnat : 4 * Fintype.card Choice ≤ (hitSet i).card * t ^ 2 := by
+      rw [← hcard_mul, mul_left_comm]
+      exact Nat.mul_le_mul hsub_hit hprod_le
     rw [div_mul_eq_mul_div, div_le_iff₀ (sq_pos_of_pos ht0)]
-    have : (4 : ℝ) * Fintype.card Choice ≤ (t : ℝ) ^ 2 * (hitSet i).card := by exact_mod_cast hnat
-    linarith
+    exact_mod_cast hnat
   -- Double counting and averaging yield a concrete assignment `c_star`.
   have hsum_sat : ∑ _c : Choice, (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) ≤
-      ∑ c : Choice, ((Finset.univ.filter fun i : Fin m => sat c i).card : ℝ) := by
-    have hswap : (∑ i : Fin m, ((hitSet i).card : ℝ)) =
-        ∑ c : Choice, ((Finset.univ.filter fun i : Fin m => sat c i).card : ℝ) := by
+      ∑ c : Choice, ((Finset.univ.filter fun i : Fin g.edges.length => sat c i).card : ℝ) := by
+    have hswap : (∑ i : Fin g.edges.length, ((hitSet i).card : ℝ)) =
+        ∑ c : Choice, ((Finset.univ.filter fun i : Fin g.edges.length => sat c i).card : ℝ) := by
       exact_mod_cast (by simp only [hitSet, Finset.card_filter]; exact Finset.sum_comm :
-        ∑ i : Fin m, (hitSet i).card =
-          ∑ c : Choice, (Finset.univ.filter fun i : Fin m => sat c i).card)
+        ∑ i : Fin g.edges.length, (hitSet i).card =
+          ∑ c : Choice, (Finset.univ.filter fun i : Fin g.edges.length => sat c i).card)
     calc ∑ _c : Choice, (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2)
         = ∑ _i ∈ goodEdges, (4 / (t : ℝ) ^ 2) * Fintype.card Choice := by simp; ring
       _ ≤ ∑ i ∈ goodEdges, ((hitSet i).card : ℝ) := Finset.sum_le_sum hhit_edge
-      _ ≤ ∑ i : Fin m, ((hitSet i).card : ℝ) :=
+      _ ≤ ∑ i : Fin g.edges.length, ((hitSet i).card : ℝ) :=
           Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.cast_nonneg _
       _ = _ := hswap
   obtain ⟨c_star, -, hc_star⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty hsum_sat
   have hcompl_nat : ((g.toGraph projectionEval).unsatEdges (σ_of c_star)).card +
       (Finset.univ.filter fun i : Fin m => sat c_star i).card = m := by
-    have := Finset.sum_filter_add_sum_filter_not (Finset.univ : Finset (Fin m))
-      (fun i : Fin m => sat c_star i) (fun _ => 1)
-    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one] at this
-    change (Finset.univ.filter fun i : Fin m => ¬sat c_star i).card +
-      (Finset.univ.filter fun i : Fin m => sat c_star i).card = m
-    omega
+    rw [add_comm]
+    exact (Finset.card_filter_add_card_filter_not _).trans (by simp)
   have hcompl : (((g.toGraph projectionEval).unsatEdges (σ_of c_star)).card : ℝ) +
       ((Finset.univ.filter fun i : Fin m => sat c_star i).card : ℝ) = m := by
     exact_mod_cast hcompl_nat
@@ -269,14 +249,11 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       change (1 - _ / (m : ℝ)) * m = _
       field_simp [hm0.ne']; linarith
     exact hc_star.trans (h2 ▸ mul_le_mul_of_nonneg_right (by linarith) hm0.le)
-  have hmain : (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m ≤
-      (1 - (g.toGraph projectionEval).unsatVal) * m := by
-    calc (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m
-        = (1 - 2 * ρ / t) * m * (4 / (t : ℝ) ^ 2) := by ring
-      _ ≤ (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) :=
-          mul_le_mul_of_nonneg_right hgood_card (by positivity)
-      _ ≤ _ := hfrac
-  exact le_of_mul_le_mul_right hmain hm0
+  refine le_of_mul_le_mul_right ?_ hm0
+  calc (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m
+      = (1 - 2 * ρ / t) * m * (4 / (t : ℝ) ^ 2) := by ring
+    _ ≤ (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) := by gcongr
+    _ ≤ _ := hfrac
 
 end LabelExtraction
 
@@ -1166,14 +1143,13 @@ private theorem computableInPolyTime_twoMulEdgesLength {β γ : Type} (encC : (�
   binary_mul' (const 2) (unary_to_binary.comp ((length_list _).comp (Graph.isPolyTime_edges id')))
 
 private theorem computableInPolyTime_edgeGetD {β γ π : Type} {encC : (β → γ) ↪ List Bool}
-    {encP : π ↪ List Bool} (fallback : γ)
-    {graph : π → Graph (β → γ)} {idx : π → ℕ}
+    {encP : π ↪ List Bool} (fallback : γ) {graph : π → Graph (β → γ)} {idx : π → ℕ}
     (hgraph : ComputableInPolyTime graph encP (Graph.encoding encC))
     (hidx : ComputableInPolyTime idx encP encUnary) :
     ComputableInPolyTime (fun p => (graph p).edges.getD (idx p) ⟨0, 0, fun _ => fallback⟩)
-      encP (Edge.encoding encC) :=
-  (listGetD (encA := Edge.encoding encC) ⟨0, 0, fun _ => fallback⟩).comp
-    ((Graph.isPolyTime_edges hgraph).prod hidx)
+      encP (Edge.encoding encC) := by
+  have h := listGetDWithInput (Graph.isPolyTime_edges hgraph) hidx ⟨0, 0, fun _ => fallback⟩
+  exact h
 
 private theorem computableInPolyTime_leftGadgetFilter {β γ π : Type} [Finite β] [Finite γ]
     {encC : (β → γ) ↪ List Bool} {encP : π ↪ List Bool}
@@ -1330,26 +1306,30 @@ private theorem computableInPolyTime_unweightedLeftSet {β γ : Type} [Finite β
     (encC : (β → γ) ↪ List Bool) (fallback : γ) (G : PartitionGadget γ) (a : β) :
     ComputableInPolyTime
       (fun q : (Graph (β → γ) × ℕ) × ℕ => unweightedLeftSet fallback G q.1.1 q.1.2 q.2 a)
-      (encPair (encPair (Graph.encoding encC) encUnary) encUnary) (encList encNat) :=
-  computableInPolyTime_edgeFilterFlatMap fallback ((fst _ _).comp (fst _ _))
-    ((snd _ _).comp (fst _ _)) (Edge.isPolyTime_src id')
+      (encPair (encPair (Graph.encoding encC) encUnary) encUnary) (encList encNat) := by
+  have h := computableInPolyTime_edgeFilterFlatMap (encC := encC)
+    (encP := encPair (encPair (Graph.encoding encC) encUnary) encUnary) fallback
+    ((fst _ _).comp (fst _ _)) ((snd _ _).comp (fst _ _)) (Edge.isPolyTime_src id')
     (computableInPolyTime_unweightedEdgeBranch encC fallback
       (computableInPolyTime_leftGadgetFilter G a
         (computableInPolyTime_edgeGetD fallback ((fst _ _).comp ((fst _ _).comp (fst _ _)))
           (snd _ _)))
       (computableInPolyTime_degR encC) (Edge.isPolyTime_dst id') binary_pair)
+  exact h
 
 private theorem computableInPolyTime_unweightedRightSet {β γ : Type}
     (encC : (β → γ) ↪ List Bool) (fallback : γ) (G : PartitionGadget γ) (b : γ) :
     ComputableInPolyTime
       (fun q : (Graph (β → γ) × ℕ) × ℕ => unweightedRightSet fallback G q.1.1 q.1.2 q.2 b)
-      (encPair (encPair (Graph.encoding encC) encUnary) encUnary) (encList encNat) :=
-  computableInPolyTime_edgeFilterFlatMap fallback ((fst _ _).comp (fst _ _))
-    ((snd _ _).comp (fst _ _)) (Edge.isPolyTime_dst id')
+      (encPair (encPair (Graph.encoding encC) encUnary) encUnary) (encList encNat) := by
+  have h := computableInPolyTime_edgeFilterFlatMap (encC := encC)
+    (encP := encPair (encPair (Graph.encoding encC) encUnary) encUnary) fallback
+    ((fst _ _).comp (fst _ _)) ((snd _ _).comp (fst _ _)) (Edge.isPolyTime_dst id')
     (computableInPolyTime_unweightedEdgeBranch encC fallback
       (const (encOut := encList encNat) ((List.range G.size).filter fun x => G.mem x b))
       (computableInPolyTime_degL encC) (Edge.isPolyTime_src id')
       (binary_pair' (snd _ _) (fst _ _)))
+  exact h
 
 theorem computableInPolyTime_toSetCoverOf {β γ : Type} [Finite β] [Finite γ]
     (encC : (β → γ) ↪ List Bool) (bs : List β) (gs : List γ) (fallback : γ)
@@ -1613,10 +1593,10 @@ private theorem log_gap_ratio_bounds {c : ℝ} (hc0 : 0 < c) {t m len p A₀ : �
   have hlog_ge : t * Real.log 2 ≤ Real.log len :=
     (Real.log_pow 2 t).symm ▸ Real.log_le_log (by positivity) hlow_real
   have hup_nat : len ≤ m ^ p * (2 ^ t * ((t + 1) * (A₀ + 1))) :=
-    hup_len.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (by nlinarith)))
-  have hup_real : (len : ℝ) ≤
-      (m : ℝ) ^ p * ((2 : ℝ) ^ t * (((t : ℝ) + 1) * ((A₀ + 1 : ℕ) : ℝ))) := by
-    exact_mod_cast hup_nat
+    hup_len.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _
+      (by rw [add_mul, mul_add, one_mul, mul_one]; omega)))
+  have hup_real : (len : ℝ) ≤ (m : ℝ) ^ p * ((2 : ℝ) ^ t * (((t : ℝ) + 1) * ((A₀ + 1 : ℕ) : ℝ))) :=
+    by exact_mod_cast hup_nat
   have hm_pos : (0 : ℝ) < m := by exact_mod_cast hm
   have hA_pos : (0 : ℝ) < ((A₀ + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_pos A₀
   have hlog_le : Real.log len ≤ ((p : ℝ) * Real.log m + Real.log ((A₀ + 1 : ℕ) : ℝ)) +

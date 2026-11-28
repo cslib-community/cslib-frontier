@@ -53,29 +53,20 @@ theorem hammingNorm_single_true {ι : Type*} [Fintype ι] [DecidableEq ι] (i : 
   refine ⟨i, ?_⟩
   ext j
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-  change ((Pi.single i true : ι → Bool) j ≠ false ↔ j = i)
+  change (Pi.single i true : ι → Bool) j ≠ false ↔ j = i
   simp [Pi.single_apply]
 
 /-- A Boolean vector has Hamming weight one exactly when it is a unit vector. -/
 theorem hammingNorm_eq_one_iff_isSingle {ι : Type*} [Fintype ι] [DecidableEq ι]
     (c : ι → Bool) : hammingNorm c = 1 ↔ IsSingle c := by
-  constructor
+  refine ⟨?_, ?_⟩
   · rw [hammingNorm, Finset.card_eq_one]
     rintro ⟨i, hi⟩
     refine ⟨i, funext fun j => ?_⟩
-    by_cases hj : j = i
-    · subst j
-      have hi_mem := (Finset.ext_iff.mp hi i).mpr
-        (by simp : i ∈ ({i} : Finset ι))
-      have hcne : c i ≠ 0 := by simpa using hi_mem
-      have hctrue : c i = true := by cases h : c i <;> simp_all
-      rw [Pi.single_eq_same]
-      exact hctrue
-    · have hczero : c j = 0 := not_ne_iff.mp fun hcne => hj <| by
-        have hright := (Finset.ext_iff.mp hi j).mp (by simpa using hcne)
-        simpa using hright
-      rw [Pi.single_eq_of_ne hj]
-      exact hczero
+    have hmem := Finset.ext_iff.mp hi j
+    have h0 : (0 : Bool) = false := rfl
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton] at hmem
+    by_cases hj : j = i <;> cases h : c j <;> simp_all
   · rintro ⟨i, rfl⟩
     exact hammingNorm_single_true i
 

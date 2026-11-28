@@ -109,8 +109,7 @@ theorem differentiallyPrivate_exponentialMechanism {Adj : D → D → Prop} {u :
     rw [← Real.exp_add, add_halves]
   rw [div_le_iff₀ hZx, mul_div_assoc', div_mul_eq_mul_div, le_div_iff₀ hZy, hεsplit]
   calc Real.exp (ε * u x r / (2 * Δ)) * Zy
-      ≤ (Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ))) * (Real.exp (ε / 2) * Zx) :=
-        mul_le_mul hw hZ hZy.le (by positivity)
+      ≤ (Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ))) * (Real.exp (ε / 2) * Zx) := by gcongr
     _ = Real.exp (ε / 2) * Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ)) * Zx := by ring
 
 /-- The optimal utility `OPT_u(x) = max_r u(x, r)`. -/
@@ -202,9 +201,9 @@ theorem exponentialMechanism_toOuterMeasure_utility_le_opt_sub_log_card {u : D �
     (exponentialMechanism u Δ ε x).toOuterMeasure
         {r | u x r ≤ optUtility u x - 2 * Δ / ε * (Real.log (Fintype.card R) + t)} ≤
       ENNReal.ofReal (Real.exp (-t)) := by
-  refine le_trans (MeasureTheory.measure_mono fun r hr => ?_)
+  refine (MeasureTheory.measure_mono fun r hr => ?_).trans
     (exponentialMechanism_toOuterMeasure_utility_le_opt_sub hΔ hε x t)
-  simp only [Set.mem_ofPred_eq] at hr ⊢
+  change u x r ≤ _ at hr ⊢
   refine hr.trans (sub_le_sub_left (mul_le_mul_of_nonneg_left ?_ (by positivity)) _)
   have hcard : (1 : ℝ) ≤ (optSet u x).card := by exact_mod_cast card_optSet_pos u x
   have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos

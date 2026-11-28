@@ -58,19 +58,17 @@ theorem criticalShiftedObjectiveResidue_mem {α : Type} {enc : α ↪ List Bool}
   have hu := criticalParameterResidue_polyTime hp hn hell hb
   have hobjective := criticalObjectiveValue_mem hp hn hell hu hz hv
   have hf := fst enc encNat
-  have hy := snd enc encNat
   have hlabel := criticalRootLabelResidue_mem (Decoder.pair E Decoder.nat)
-    (hp.comp hf) (hn.comp hf) (hd.comp hf) (hb.comp hf) hy (hdata.comp hf)
+    (hp.comp hf) (hn.comp hf) (hd.comp hf) (hb.comp hf) (snd enc encNat) (hdata.comp hf)
     (CountingFunction.preprocess hv
       ((fst (encPair enc encNat) (encList encNat)).fst'.prod (snd _ _)))
   have hcomp := CountingFunction.comp_with hlabel
     (CountingFunction.mono (by omega : a ≤ a + 13) hobjective)
   have hD := binary_pow' (hbase := hell) (hexponent := hn)
-  have hshift := binary_mod.comp (he.prod (binary_add' hD (.const 1)))
-  have hscale := binary_mul' (.const 4) hD
   simpa only [criticalShiftedObjectiveResidue, Function.comp_apply] using
-    modularSub_mem (CountingFunction.of_polyTime hp) (CountingFunction.of_polyTime hshift)
-      (CountingFunction.nat_mul (CountingFunction.of_polyTime hscale) hcomp)
+    modularSub_mem (CountingFunction.of_polyTime hp)
+      (CountingFunction.of_polyTime (binary_mod.comp (he.prod (binary_add' hD (.const 1)))))
+      (CountingFunction.nat_mul (CountingFunction.of_polyTime (binary_mul' (.const 4) hD)) hcomp)
 
 /-- At the coefficient evaluator's prime cutoffs, the computed residue equals the evaluation
 of the integer multivariate objective used in the final quotient determinant. -/
@@ -96,14 +94,12 @@ theorem criticalShiftedObjectiveResidue_cast {p n : ℕ} [Fact p.Prime]
   let y := criticalObjectiveValue p n ell (criticalParameterResidue p n ell b) z value
   have hp : p.Prime := Fact.out
   have hobjective : (y : ZMod p) = eval point (objective.map φ) := by
-    dsimp only [objective]
-    rw [deformedPolynomial_map]
     have hu : φ ((2 : ℤ) ^ criticalParameterExponent n ell b) =
         (criticalParameterResidue p n ell b : ZMod p) := by
       simpa only [φ, Int.coe_castRingHom, Int.cast_pow, Int.cast_ofNat] using
         (criticalParameterResidue_cast hp.ne_zero n ell b).symm
-    rw [hu]
-    simpa only [y, point, φ, Int.coe_castRingHom, Int.cast_natCast] using
+    simpa only [objective, deformedPolynomial_map, hu, y, point, φ, Int.coe_castRingHom,
+      Int.cast_natCast] using
       criticalObjectiveValue_cast (F.map φ) ell (criticalParameterResidue p n ell b) z value hv
   let ψ := MvPolynomial.eval₂Hom φ point
   have hcompose :
@@ -112,8 +108,8 @@ theorem criticalShiftedObjectiveResidue_cast {p n : ℕ} [Fact p.Prime]
     rw [MvPolynomial.eval_map]
     change ψ (Polynomial.aeval objective label) = _
     rw [Polynomial.map_aeval_eq_aeval_map (φ := φ) (ψ := ψ) (by ext t; simp [ψ]),
-      Polynomial.coe_aeval_eq_eval, Polynomial.eval_map, MvPolynomial.eval_map]
-    rfl
+      Polynomial.coe_aeval_eq_eval, Polynomial.eval_map, MvPolynomial.eval_map,
+      MvPolynomial.coe_eval₂Hom]
   have hlabel := criticalRootLabelResidue_cast d hd b y F hF hcut hdegree data value hv
   dsimp only at hlabel
   rw [hcompose, ← hobjective, criticalShiftedObjectiveResidue, modularSub_cast hp.pos,

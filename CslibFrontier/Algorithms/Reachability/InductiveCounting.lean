@@ -301,15 +301,11 @@ theorem halted_replay_of_rank_le (bs : List Bool) (h : rank N width s ≤ bs.len
   | nil =>
     cases hp : s.phase <;> simp_all [rank, halted, replay]
   | cons b bs ih =>
-    by_cases hh : halted s = true
-    · rw [replay_halted hh]
-      exact hh
-    · have hh' : halted s = false := Bool.eq_false_iff.mpr hh
-      have hr := rank_advance_lt (N := N) (width := width) (source := source)
-        (answer edge bad s) b hh'
-      apply ih
-      change rank N width (advance N width source s (answer edge bad s) b) ≤ bs.length
+    cases hh : halted s
+    · have hr := rank_advance_lt (N := N) (width := width) (source := source)
+        (answer edge bad s) b hh
       simp only [List.length_cons] at h
-      omega
+      exact ih (by dsimp only [step]; omega)
+    · rwa [replay_halted hh]
 
 end Cslib.InductiveCounting

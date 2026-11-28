@@ -139,13 +139,11 @@ exactly four of its seven equations, and one that falsifies it satisfies none. -
 theorem countSat_clauseEquations (σ : ℕ → Bool) (a b c : Literal ℕ) :
     (clauseEquations [a, b, c]).countSat σ = if Clause.eval σ [a, b, c] then 4 else 0 := by
   have hpred : (fun e : AffineEquation ℕ => decide (e.Holds σ)) ∘ oddEquation =
-      (fun l : List Bool => l.sum) ∘ List.map (Literal.eval σ) := by
-    funext ls
-    simp only [Function.comp_apply, holds_oddEquation, Bool.decide_eq_true]
+      (fun l : List Bool => l.sum) ∘ List.map (Literal.eval σ) :=
+    funext fun _ => by simp only [Function.comp_apply, holds_oddEquation, Bool.decide_eq_true]
   simp only [clauseEquations, List.headD_cons, List.tail_cons]
   rw [AffineSystem.countSat, List.countP_map, hpred, ← List.countP_map]
-  simp only [List.map_cons, List.map_nil]
-  rw [countP_sum_seven]
+  simp only [List.map_cons, List.map_nil, countP_sum_seven]
   simp [Clause.eval, Bool.or_assoc]
 
 /-- On formulas with clauses of exactly three literals, the equations satisfied are four per
@@ -158,11 +156,10 @@ theorem countSat_flatMap_clauseEquations (σ : ℕ → Bool) {φ : CNF ℕ}
   | cons c φ ih =>
     obtain ⟨a, b, d, rfl⟩ := List.length_eq_three.1 (h3 c List.mem_cons_self)
     have ih := ih fun c hc => h3 c (List.mem_cons_of_mem _ hc)
-    simp only [AffineSystem.countSat, List.flatMap_cons, List.countP_append] at ih ⊢
-    rw [ih]
-    have := countSat_clauseEquations σ a b d
-    simp only [AffineSystem.countSat] at this
-    rw [this, List.countP_cons]
+    have hsat := countSat_clauseEquations σ a b d
+    simp only [AffineSystem.countSat, List.flatMap_cons, List.countP_append,
+      List.countP_cons] at ih hsat ⊢
+    rw [ih, hsat]
     split <;> omega
 
 /-- A formula yields seven equations per clause. -/
@@ -201,10 +198,9 @@ private theorem nonempty_spec {φ : CNF ℕ} (h3 : ∀ c ∈ φ, c.length = 3) :
   unfold nonempty
   split_ifs with he
   · refine ⟨fun c hc => ?_, by simp, fun _ => ⟨fun _ => true, rfl⟩⟩
-    rw [List.mem_singleton] at hc
-    rw [hc]
+    rw [List.mem_singleton.1 hc]
     rfl
-  · refine ⟨h3, List.length_pos_iff.2 fun h0 => he (by simp [h0]), id⟩
+  · exact ⟨h3, List.length_pos_iff.2 fun h0 => he (by simp [h0]), id⟩
 
 /-- A satisfiable formula with clauses of exactly three literals is mapped to a system in which
 some assignment satisfies `4 / 7` of the equations. -/
@@ -213,10 +209,9 @@ theorem exists_countSat_reduce {φ : CNF ℕ} (hφ : φ ∈ ExactThreeSAT) :
   obtain ⟨h3, hpos, hsat⟩ := nonempty_spec hφ.1
   obtain ⟨σ, hσ⟩ := hsat hφ.2
   refine ⟨σ, ?_⟩
-  rw [reduce, countSat_div_length σ h3]
-  have hall : (nonempty φ).countP (Clause.eval σ) = (nonempty φ).length :=
-    List.countP_eq_length.2 fun c hc => (CNF.eval_eq_true_iff σ _).1 hσ c hc
-  rw [hall, div_self (by exact_mod_cast hpos.ne'), mul_one]
+  rw [reduce, countSat_div_length σ h3,
+    List.countP_eq_length.2 fun c hc => (CNF.eval_eq_true_iff σ _).1 hσ c hc,
+    div_self (by exact_mod_cast hpos.ne'), mul_one]
 
 /-- If every assignment falsifies at least the proportion `1 - s₀` of the clauses, then every
 assignment satisfies at most `4 / 7 · s₀` of the equations. -/
@@ -224,21 +219,17 @@ theorem countSat_reduce_le {φ : CNF ℕ} {s₀ : ℝ} (h3 : ∀ c ∈ φ, c.len
     (hφ : 1 - s₀ ≤ φ.unsatVal) (σ : ℕ → Bool) :
     ((reduce φ).countSat σ : ℝ) / (reduce φ).length ≤ 4 / 7 * s₀ := by
   have hpos : 0 < φ.length := CNF.length_pos_of_unsatVal_pos (by linarith)
-  have hne : nonempty φ = φ := by
-    have he : φ.isEmpty = false := by
-      simpa [List.isEmpty_iff] using List.ne_nil_of_length_pos hpos
-    simp [nonempty, he]
+  have hne : nonempty φ = φ :=
+    ite_eq_right (by simpa [List.isEmpty_iff] using List.ne_nil_of_length_pos hpos)
   rw [reduce, hne, countSat_div_length σ h3]
   have hunsat := (CNF.le_unsatVal_iff φ).1 hφ σ
   have hsplit : (φ.countP (Clause.eval σ) : ℝ) + φ.countUnsat σ = φ.length := by
     have := List.length_eq_countP_add_countP (Clause.eval σ) (l := φ)
     simp only [CNF.countUnsat]
     exact_mod_cast (by simpa using this.symm)
-  have hlen : (0 : ℝ) < φ.length := by exact_mod_cast hpos
-  have hfrac : (φ.countP (Clause.eval σ) : ℝ) / φ.length ≤ s₀ := by
-    rw [div_le_iff₀ hlen]
-    rw [le_div_iff₀ hlen] at hunsat
-    linarith
+  have hlen : (0 : ℝ) < φ.length := mod_cast hpos
+  rw [le_div_iff₀ hlen] at hunsat
+  have := (div_le_iff₀ hlen).2 (by linarith : (φ.countP (Clause.eval σ) : ℝ) ≤ s₀ * φ.length)
   linarith
 
 end GapLin
@@ -248,7 +239,7 @@ open GapLin
 /-- The reduction is polynomial-time. -/
 theorem GapLin.computableInPolyTime_reduce :
     ComputableInPolyTime reduce encCNF XORSAT.encoding := by
-  have hsum := XORSAT.computableInPolyTime_sum
+  have := XORSAT.computableInPolyTime_sum
   have hodd : ComputableInPolyTime oddEquation (encList (encPair encNat encBool))
       (encAffineEquation encNat) := by
     unfold oddEquation
@@ -257,12 +248,13 @@ theorem GapLin.computableInPolyTime_reduce :
       XORSAT.encoding := by
     unfold clauseEquations XORSAT.encoding
     fun_prop
-  have hempty : ComputableInPolyTime (fun φ : CNF ℕ => φ.isEmpty) encCNF encBool := by
-    unfold encCNF
-    exact (ListEncoding.isEmpty (enc₁ := encList (encPair encNat encBool))
-      (enc := encList (encList (encPair encNat encBool)))).computableInPolyTime
   have hne : ComputableInPolyTime nonempty encCNF encCNF :=
-    ComputableInPolyTime.ite hempty (.const _) (ComputableInPolyTime.id' (encIn := encCNF))
+    ComputableInPolyTime.ite
+      (by
+        unfold encCNF
+        exact (ListEncoding.isEmpty (enc₁ := encList (encPair encNat encBool))
+          (enc := encList (encList (encPair encNat encBool)))).computableInPolyTime)
+      (.const _) (ComputableInPolyTime.id' (encIn := encCNF))
   unfold reduce XORSAT.encoding
   unfold encCNF at hne
   unfold XORSAT.encoding at hclause
@@ -278,11 +270,10 @@ theorem polyTimeReducible_GapExactThreeSAT_GapLin {s₀ : ℝ} (hs₀ : s₀ < 1
     PromiseProblem.PolyTimeReducible encCNF XORSAT.encoding (GapExactThreeSAT s₀)
       (GapLin (4 / 7) s) := by
   refine ⟨reduce, computableInPolyTime_reduce, fun φ hφ => ?_, fun φ hφ => ?_⟩
-  · rw [yes_GapExactThreeSAT] at hφ
-    obtain ⟨σ, hσ⟩ := exists_countSat_reduce hφ
+  · obtain ⟨σ, hσ⟩ := exists_countSat_reduce (by rwa [yes_GapExactThreeSAT] at hφ)
     exact ⟨σ, hσ.ge⟩
-  · rw [mem_no_GapExactThreeSAT hs₀] at hφ
-    exact ⟨hsL, fun σ => (countSat_reduce_le hφ.1 hs₀ hφ.2 σ).trans_lt hs⟩
+  · obtain ⟨h3, hunsat⟩ := (mem_no_GapExactThreeSAT hs₀).1 hφ
+    exact ⟨hsL, fun σ => (countSat_reduce_le h3 hs₀ hunsat σ).trans_lt hs⟩
 
 /-- **`gapLin` is NP-hard** [Goldreich2007DraftR5], Exercise 10.5: distinguishing systems of
 linear equations over GF(2) in which some assignment satisfies `4 / 7` of the equations from those

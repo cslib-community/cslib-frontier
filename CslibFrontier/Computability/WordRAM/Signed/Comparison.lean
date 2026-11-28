@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Comparing encoded signed words
@@ -61,26 +62,18 @@ theorem exec_less {w : ℕ} (h2 : Fits w 2) (x : Data (r + 9)) {a b : ℤ}
     (hxa : x.regs left = encode a) (hxb : x.regs right = encode b) :
     ∃ y, ExecWithin w less x y 11 ∧
       y.regs result = (if a < b then 1 else 0) ∧ Frame x y := by
-  let y := ((((x.set two 2).set zero 0).set signA (if a < 0 then 1 else 0)).set
-    signB (if b < 0 then 1 else 0)).set result (if a < b then 1 else 0)
-  have h1 := h2.of_le (by omega : 1 ≤ 2)
-  have hp : ∀ i : Fin (r + 9), i.val < 2 ∨ 9 ≤ i.val → less.Preserves i := by
-    intro i hi
-    simp only [less, Code.Preserves, Op.bin, Op.dest, ne_eq, Option.some.injEq,
-      result, two, zero, signA, signB, Fin.ext_iff]
-    omega
-  have he : ExecWithin w less x y 11 := by
-    have hcmp := lt_encoded a b
-    by_cases hna : a < 0 <;> by_cases hnb : b < 0 <;>
-      by_cases hab : encode a < encode b <;> by_cases hba : encode b < encode a <;>
-      by_cases hlt : a < b
-    all_goals
-      simp only [hna, hnb, hab, hba, ↓reduceIte, Nat.reduceEqDiff] at hcmp
-      try (exfalso; tauto)
-    all_goals
-      ram_eval [less, y, left, right, two, zero, result, signA, signB, Fin.mk.injEq,
-        hxa, hxb, encode_mod_two, hna, hnb, hab, hba, hlt, h2, h1]
-  obtain ⟨n, hn, hex⟩ := he
-  exact ⟨y, ⟨n, hn, hex⟩, by simp [y], rfl, fun i hi => hex.regs_eq (hp i hi)⟩
+  have hcmp := lt_encoded a b
+  have : Fits w (if a < 0 then 1 else 0) := by split_ifs <;> fits
+  have : Fits w (if b < 0 then 1 else 0) := by split_ifs <;> fits
+  have hrun : ∃ y, ExecWithin w less x y 11 ∧
+      y.regs result = (if a < b then 1 else 0) ∧ y.mem = x.mem := by
+    unfold less
+    wram_exec [hxa, hxb, encode_mod_two] <;> wram_simp <;>
+      split_ifs at * <;> first | rfl | omega
+  obtain ⟨y, he, hyr, hym⟩ := hrun
+  refine ⟨y, he, hyr, hym, fun i hi => he.regs_eq ?_⟩
+  simp only [less, Code.Preserves, Op.bin, Op.dest, ne_eq, Option.some.injEq,
+    result, two, zero, signA, signB, Fin.ext_iff]
+  omega
 
 end Cslib.WordRAM.Signed

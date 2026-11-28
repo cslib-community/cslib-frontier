@@ -58,12 +58,12 @@ theorem criticalLabelDeterminantSign_mem {α : Type} {n : α → ℕ} {enc : α 
         (hdegree w) label (e w % (D + 1))).sign) ∈ CountingFunction (a + 24) enc encIntBin := by
   let ell (w : α) := d w + 1
   let D (w : α) := ell w ^ n w
-  let label (w : α) := decodeRootLabel (D := D w) (by dsimp only [D, ell]; positivity)
-    (n w * (ell w).size) (data w)
   let determinant (w : α) := criticalLabelDeterminant (by dsimp only [ell]; omega : 1 ≤ ell w)
-    (C.massExponent w) (P w) (hdegree w) (label w) (e w % (D w + 1))
-  let cutoff (w : α) := max (C.cutoff w) (criticalLabelDeterminantPrimeCutoff (n w) (d w)
-    (C.massExponent w))
+    (C.massExponent w) (P w) (hdegree w)
+    (decodeRootLabel (D := D w) (by dsimp only [D, ell]; positivity) (n w * (ell w).size) (data w))
+    (e w % (D w + 1))
+  let cutoff (w : α) := max (C.cutoff w)
+    (criticalLabelDeterminantPrimeCutoff (n w) (d w) (C.massExponent w))
   let R : IntegerResidueAccess determinant := {
     magnitudeExponent := fun w => criticalLabelDeterminantExponent (n w) (ell w) (C.massExponent w)
     admissible := fun w p => p.Prime ∧ cutoff w < p
@@ -77,39 +77,32 @@ theorem criticalLabelDeterminantSign_mem {α : Type} {n : α → ℕ} {enc : α 
       intro w p ⟨hp, hcut⟩
       let : Fact p.Prime := ⟨hp⟩
       let : NeZero p := ⟨hp.ne_zero⟩
-      have hsource := (le_max_left _ _).trans_lt hcut
-      have hdet := (le_max_right _ _).trans_lt hcut
-      have hvalue (z : List ℕ) :
-          (C.evaluate (w, p, z) : ZMod p) =
-            eval (fun i : Fin (n w) => ((z[i.val]?.getD 0 : ℕ) : ZMod p))
-              ((P w).map (Int.castRingHom (ZMod p))) := by
-        rw [C.evaluate_eq w p z hp hsource, evaluation, ZMod.natCast_zmod_val, eval_map]
       have hcast := criticalLabelDeterminantResidue_cast (d w) (hdpos w) (C.massExponent w)
-        (e w) (P w) (hdegree w) (C.mass_le w) hdet (data w) (fun z => C.evaluate (w, p, z))
-        hvalue
+        (e w) (P w) (hdegree w) (C.mass_le w) ((le_max_right _ _).trans_lt hcut) (data w)
+        (fun z => C.evaluate (w, p, z)) fun z => by
+          rw [C.evaluate_eq w p z hp ((le_max_left _ _).trans_lt hcut),
+            evaluation, ZMod.natCast_zmod_val, eval_map]
       have hval := congrArg ZMod.val hcast
       rw [ZMod.val_natCast_of_lt (criticalLabelDeterminantResidue_lt hp.pos _ _ _ _ _ _)] at hval
       exact hval.trans (by
         simpa only [Int.toNat_natCast] using
           congrArg Int.toNat (ZMod.val_intCast (n := p) (determinant w)))
   }
-  have hcutoff : ComputableInPolyTime cutoff enc encNat :=
-    binary_max' C.cutoff_computable
-      (criticalLabelDeterminantPrimeCutoff_polyTime C.arity_computable hd C.mass_computable)
   have hR : R.InCountingFunction (a + 21) enc := by
     refine ⟨criticalLabelDeterminantExponent_polyTime C.arity_computable
       (binary_add' hd (.const 1)) C.mass_computable, ?_⟩
     have hf := fst enc encNat
-    have hvalue := CountingFunction.preprocess C.evaluate_mem
-      (input := encPair (encPair enc encNat) (encList encNat))
-      (g := fun ((w, p), z) => (w, p, z)) (by fun_prop)
     exact criticalLabelDeterminantResidue_mem (Decoder.pair E Decoder.nat) (snd enc encNat)
       (C.arity_computable.comp hf) (hd.comp hf) (C.mass_computable.comp hf)
-      (he.comp hf) (hdata.comp hf) hvalue
-  have hsign := R.sign_mem_CountingFunction E hR hcutoff (fun _ _ hp =>
-    let h := Nat.mem_primesLE_sdiff_primesLE_iff.mp hp
-    ⟨h.1, h.2.1⟩)
-  have hmax : max (a + 21) 5 = a + 21 := max_eq_left (by omega)
-  simpa only [hmax, Nat.add_assoc] using hsign
+      (he.comp hf) (hdata.comp hf)
+      (CountingFunction.preprocess C.evaluate_mem
+        (input := encPair (encPair enc encNat) (encList encNat))
+        (g := fun ((w, p), z) => (w, p, z)) (by fun_prop))
+  simpa only [show max (a + 21) 5 = a + 21 by omega, Nat.add_assoc] using
+    R.sign_mem_CountingFunction E hR
+      (binary_max' C.cutoff_computable
+        (criticalLabelDeterminantPrimeCutoff_polyTime C.arity_computable hd C.mass_computable))
+      fun _ _ hp => ⟨(Nat.mem_primesLE_sdiff_primesLE_iff.mp hp).1,
+        (Nat.mem_primesLE_sdiff_primesLE_iff.mp hp).2.1⟩
 
 end Cslib.Complexity.RealAlgebraic.Controlled

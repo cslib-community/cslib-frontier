@@ -95,8 +95,7 @@ theorem eval_supportIndicatorCircuit {bits n count : ℕ} (hn : n ≤ 2 ^ bits)
           (Formula.literal (fun _ => i.val.testBit k.val)
             (finProdFinEquiv (j, k))).toCircuit)).eval interpretation x 0 =
         decide ((equivFin bits (block x j) : ℕ) = i.val) := by
-    rw [Circuit.eval_balanced]
-    rw [List.balancedFold_hom (g := fun y : Fin 1 → Bool => y 0)
+    rw [Circuit.eval_balanced, List.balancedFold_hom (g := fun y : Fin 1 → Bool => y 0)
       (op' := (· && ·)) (fun _ _ => rfl)]
     simp only [Fin.isValue, Circuit.eval_oneGate, Boolean.interpretation]
     rw [List.balancedFold_eq_foldr, foldr_and_eq_all]
@@ -105,8 +104,7 @@ theorem eval_supportIndicatorCircuit {bits n count : ℕ} (hn : n ≤ 2 ^ bits)
           fun k : Fin bits => (Formula.literal (fun _ => i.val.testBit k.val)
             (finProdFinEquiv (j, k))).toCircuit) k) =
           (x (finProdFinEquiv (j, k)) == i.val.testBit k.val) := by
-      simp only [Function.comp_apply]
-      rw [Formula.eval_toCircuit, Formula.eval_literal]
+      simp only [Function.comp_apply, Formula.eval_toCircuit, Formula.eval_literal]
     rw [Bool.eq_iff_iff]
     simp only [List.map_ofFn, List.all_eq_true, List.forall_mem_ofFn_iff, id_eq,
       decide_eq_true_eq]
@@ -116,49 +114,23 @@ theorem eval_supportIndicatorCircuit {bits n count : ℕ} (hn : n ≤ 2 ^ bits)
       have hx : block x j = (equivFin bits).symm valueFin := by
         funext k
         rw [BitString.equivFin_symm_apply]
-        have hk := h k
-        rw [hleaf] at hk
-        exact beq_iff_eq.mp hk
-      have := congrArg (equivFin bits) hx
-      simpa only [Equiv.apply_symm_apply, valueFin] using congrArg Fin.val this
+        exact beq_iff_eq.mp ((hleaf k).symm.trans (h k))
+      simpa only [Equiv.apply_symm_apply, valueFin] using
+        congrArg (fun y => (equivFin bits y : ℕ)) hx
     · intro h
-      have hx : block x j = (equivFin bits).symm valueFin := by
-        apply (equivFin bits).injective
-        rw [Equiv.apply_symm_apply]
-        exact Fin.ext h
+      have hx : block x j = (equivFin bits).symm valueFin :=
+        (equivFin bits).eq_symm_apply.mpr (Fin.ext h)
       intro k
       rw [hleaf]
       change (block x j k == i.val.testBit k.val) = true
       rw [hx, BitString.equivFin_symm_apply]
       simp [valueFin]
-  rw [Circuit.eval_balanced]
-  rw [List.balancedFold_hom (g := fun y : Fin 1 → Bool => y 0)
+  rw [Circuit.eval_balanced, List.balancedFold_hom (g := fun y : Fin 1 → Bool => y 0)
     (op' := (· || ·)) (fun _ _ => rfl)]
   simp only [Fin.isValue, Circuit.eval_oneGate, Boolean.interpretation, Nat.reduceAdd,
     indicatorVector_apply, List.mem_toFinset, List.mem_ofFn]
   rw [List.balancedFold_eq_foldr, foldr_or_eq_any]
-  have hvalue (j : Fin count) :
-      ((((fun y : Fin 1 → Bool => y 0) ∘ fun C => C.eval interpretation x) ∘
-        fun j : Fin count =>
-          Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-            (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-            (List.ofFn fun k : Fin bits =>
-              (Formula.literal (fun _ => i.val.testBit k.val)
-                (finProdFinEquiv (j, k))).toCircuit)) j) =
-        decide ((equivFin bits (block x j) : ℕ) = i.val) := by
-    simpa only [Function.comp_apply] using hword j
-  have hvalues :
-      List.ofFn ((((fun y : Fin 1 → Bool => y 0) ∘ fun C => C.eval interpretation x) ∘
-        fun j : Fin count =>
-          Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-            (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-            (List.ofFn fun k : Fin bits =>
-              (Formula.literal (fun _ => i.val.testBit k.val)
-                (finProdFinEquiv (j, k))).toCircuit))) =
-        List.ofFn (fun j : Fin count =>
-          decide ((equivFin bits (block x j) : ℕ) = i.val)) := by
-    exact congrArg List.ofFn (funext hvalue)
-  rw [List.map_ofFn, hvalues]
+  simp only [List.map_ofFn, Function.comp_def, hword]
   rw [Bool.eq_iff_iff]
   simp
 
@@ -175,13 +147,9 @@ theorem val_block_eval_supportCandidateCircuit {width bits n count : ℕ}
       fun j => j.val + (equivFin width (block x j) : ℕ) * (n - j.val) / 2 ^ width := by
   funext j
   have hblock :
-      block ((supportCandidateCircuit width bits n count).eval interpretation x) j =
-        (candidateCircuit width bits n j.val).eval interpretation (block x j) := by
-    funext i
-    exact Circuit.eval_parallelFamily_apply
-      (fun j => candidateCircuit width bits n j.val) interpretation x j i
-  rw [hblock]
-  exact val_eval_candidateCircuit (j.isLt.trans_le hcount) hn (block x j)
+      block ((supportCandidateCircuit width bits n count).eval interpretation x) j = _ :=
+    funext fun i => Circuit.eval_parallelFamily_apply _ _ x j i
+  exact hblock ▸ val_eval_candidateCircuit (j.isLt.trans_le hcount) hn (block x j)
 
 /-- The complete Boolean sampler: multiply-high candidates, descending collision correction, and
 the `n`-bit indicator of the corrected support. -/
