@@ -1335,6 +1335,7 @@ public import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.GraphProperties
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 public import CslibFrontier.Computability.Complexity.Problems.HittingSet
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.PostTuringMachine
+public import CslibFrontier.Crypto.Protocols.UC.SFE
 public import CslibFrontier.Computability.Complexity.FineGrained.Reduction
 public import CslibFrontier.MachineLearning.OnlineLearning.OCOLowerBound
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.VertexParityWords
@@ -10404,6 +10405,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Exac
 public import CslibFrontier.Foundations.Data.Code.Singleton
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Operations
 public import CslibFrontier.Algorithms.WordRAM.ZFunction
+public import CslibFrontier.Crypto.Protocols.UC.ObliviousTransfer
 public import CslibFrontier.Computability.Circuit.Boolean.Braverman.AlmostResilience
 public import CslibFrontier.GameTheory.Mechanism.Approximation.Wrapper
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser.Reduction
