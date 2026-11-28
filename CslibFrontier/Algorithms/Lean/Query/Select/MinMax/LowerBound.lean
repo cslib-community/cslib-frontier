@@ -10,10 +10,10 @@ module
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.Basic
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Fooling
 public import Mathlib.Data.Finset.Card
+import CslibFrontier.Algorithms.Lean.Query.Bounds
 import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Fintype.EquivFin
 import Mathlib.SetTheory.Cardinal.Order
 
 /-!
@@ -132,22 +132,16 @@ theorem IsMinAlg.length_sub_one_le_countQueries {alg : List α → FreeM (LEQuer
   rw [← List.toFinset_card_of_nodup hxs]
   exact halg.card_toFinset_sub_one_le_countQueries r oracle horacle xs
 
-/-- Some list of `n` distinct elements of an infinite type. -/
-private theorem exists_nodup_length (α : Type) [Infinite α] (n : ℕ) :
-    ∃ xs : List α, xs.Nodup ∧ xs.length = n := by
-  obtain ⟨s, hs⟩ := Infinite.exists_subset_card_eq α n
-  exact ⟨s.toList, s.nodup_toList, by rw [Finset.length_toList, hs]⟩
-
 /-- **Lower bound for the minimum**, as a query lower bound: on an infinite type, every correct
 algorithm for the minimum makes at least `n - 1` comparisons on some list of length `n`. -/
 theorem IsMinAlg.lowerBound_infinite [Infinite α] {alg : List α → FreeM (LEQuery α) (Option α)}
     (halg : IsMinAlg alg) : LowerBound alg List.length (· - 1) := by
   classical
-  intro n
-  obtain ⟨xs, hnodup, hlen⟩ := exists_nodup_length α n
+  apply LowerBound.of_nodup
+  intro xs hnodup
   let := (exists_wellFoundedLT α).choose
-  exact ⟨xs, hlen.le, LEQuery.oracleOf fun a b => decide (a ≤ b),
-    hlen ▸ halg.length_sub_one_le_countQueries (· ≤ ·) _ (fun _ _ => rfl) hnodup⟩
+  exact ⟨LEQuery.oracleOf fun a b => decide (a ≤ b),
+    halg.length_sub_one_le_countQueries (· ≤ ·) _ (fun _ _ => rfl) hnodup⟩
 
 /-- The linear scan is optimal on every input: on a list of distinct elements, a correct algorithm
 for the minimum makes, against every oracle implementing a linear order, at least as many
@@ -348,10 +342,10 @@ some list of length `n`. -/
 theorem IsMinMaxAlg.lowerBound_infinite [Infinite α]
     {alg : List α → FreeM (LEQuery α) (Option (α × α))} (halg : IsMinMaxAlg alg) :
     LowerBound alg List.length (fun n => (3 * n + 1) / 2 - 2) := by
-  intro n
-  obtain ⟨xs, hnodup, hlen⟩ := exists_nodup_length α n
+  apply LowerBound.of_nodup
+  intro xs hnodup
   obtain ⟨f, -, h⟩ := halg.exists_le_countQueries hnodup
-  exact ⟨xs, hlen.le, LEQuery.oracleOf f, hlen ▸ h⟩
+  exact ⟨LEQuery.oracleOf f, h⟩
 
 /-- Pairwise comparison is optimal on every input: on a list of distinct elements, a correct
 algorithm for the minimum and maximum makes, against some oracle implementing a linear order, at

@@ -43,11 +43,17 @@ example (xs : List ℕ) (h : 2 ≤ xs.length) :
   obtain ⟨m, hm, hrank⟩ := findSecondMin_correct (· ≤ ·) leOracle (fun _ _ => rfl) h
   exact hm.trans (List.isOrderStatistic_iff_mergeSort.mp hrank).symm
 
--- The universal lower bound rules out even an algorithm that hard-codes a possible answer.
-example : ¬ IsSecondMinAlg (fun _ : List ℕ => pure (some 1)) := by
+-- Even outsider and self comparisons count toward the lower bound.
+private def outsiderSelf (_ : List ℕ) : FreeM (LEQuery ℕ) (Option ℕ) := do
+  let _ ← LEQuery.ask 99 0
+  let _ ← LEQuery.ask 99 99
+  return some 1
+
+example : ¬ IsSecondMinAlg outsiderSelf := by
   intro h
-  obtain ⟨_, _, hcount⟩ := h.exists_le_countQueries (xs := [0, 1]) (by decide) (by decide)
-  simpa [FreeM.countQueries_pure, Nat.clog] using hcount
+  obtain ⟨f, -, hc⟩ := h.exists_le_countQueries (xs := [0, 1, 2]) (by decide) (by decide)
+  change 3 ≤ (outsiderSelf [0, 1, 2]).countQueries _ at hc
+  simp [outsiderSelf, LEQuery.ask] at hc
 
 -- On any fixed list of five distinct keys a genuine linear order realizes the tournament bound.
 example : ∃ f : ℕ → ℕ → Bool, IsLinearOrder ℕ (fun a b => f a b = true) ∧

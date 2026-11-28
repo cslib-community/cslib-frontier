@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Spec
-public import Mathlib.Data.Nat.Log
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Tournament
+import CslibFrontier.Algorithms.Lean.Query.Bounds
 import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Certificate
 import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Trace
 import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary
@@ -18,7 +18,9 @@ import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary
 
 For every list of `n ≥ 2` distinct keys and every correct second-minimum algorithm, some linear
 order forces at least `n + ⌈log₂ n⌉ − 2` comparisons. The program can compare arbitrary keys of
-the ambient type, including keys outside the input.
+the ambient type, including keys outside the input. This is the order-dual of the unnumbered
+corollary concluding §2, p. 562 of [Kislitsyn][Kislitsyn1964]. The paper's
+`n - 1 + ⌊log₂(n - 1)⌋` equals `n + ⌈log₂ n⌉ - 2` for `n ≥ 2`.
 
 Whenever two undefeated input keys meet, the adversary favors the one with more wins over
 previously undefeated keys. Moving the chosen winner to the bottom of the current order preserves
@@ -121,5 +123,28 @@ theorem IsSecondMinAlg.exists_le_countQueries {alg : List α → FreeM (LEQuery 
     obtain ⟨w, hwm, hw⟩ := hother x (List.mem_toFinset.mp hx) hxm hxy
     exact ⟨w, hwm, hw.1, mem_orient_of_observed hw⟩)
   simpa only [hcard, List.length_map, Q, LEQuery.length_queriedPairs] using hcount
+
+/-- On an infinite alphabet the second-smallest comparison lower bound holds at every input
+size. The bound is zero at sizes zero and one. -/
+theorem IsSecondMinAlg.lowerBound_infinite [Infinite α]
+    {alg : List α → FreeM (LEQuery α) (Option α)}
+    (halg : IsSecondMinAlg alg) : LowerBound alg List.length (fun n => n + Nat.clog 2 n - 2) := by
+  apply LowerBound.of_nodup
+  intro xs hxs
+  by_cases hn : 2 ≤ xs.length
+  · obtain ⟨f, _, h⟩ := halg.exists_le_countQueries hxs hn
+    exact ⟨LEQuery.oracleOf f, h⟩
+  · refine ⟨LEQuery.oracleOf fun _ _ => true, ?_⟩
+    have : xs.length = 0 ∨ xs.length = 1 := by omega
+    rcases this with h | h <;> simp [h]
+
+/-- On every fixed list of at least two distinct keys there is a linear order against which
+Schreier's tournament attains its upper bound. -/
+theorem exists_countQueries_findSecondMin_eq {xs : List α} (hxs : xs.Nodup) (hn : 2 ≤ xs.length) :
+    ∃ f : α → α → Bool, IsLinearOrder α (fun a b => f a b = true) ∧
+      (findSecondMin xs).countQueries (LEQuery.oracleOf f) =
+        xs.length + Nat.clog 2 xs.length - 2 := by
+  obtain ⟨f, hf, hlo⟩ := findSecondMin_isSecondMinAlg.exists_le_countQueries hxs hn
+  exact ⟨f, hf, (findSecondMin_upperBound (LEQuery.oracleOf f) _ xs le_rfl).antisymm hlo⟩
 
 end Cslib.Query
