@@ -2033,6 +2033,17 @@ private theorem oneCaStep_eq (σ : N → OneCaStrategy N M) (past : List (Wrappe
   dsimp only [oneCaStep]
   split_ifs <;> rfl
 
+omit [Fintype N] in
+private theorem oneCaStep_set_bounds (σ : N → OneCaStrategy N M)
+    (past : List (WrapperState N M)) (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) :
+    let next := oneCaStep σ past st acc i
+    (acc.wSet ⊆ next.wSet ∧ next.wSet ⊆ insert i acc.wSet) ∧
+      (acc.mSet ⊆ next.mSet ∧ next.mSet ⊆ insert i acc.mSet) ∧
+      (acc.gSet ⊆ next.gSet ∧ next.gSet ⊆ insert i acc.gSet) := by
+  simp only [oneCaStep_eq]
+  refine ⟨⟨?_, ?_⟩, ⟨?_, ?_⟩, ⟨?_, ?_⟩⟩ <;> split_ifs <;>
+    first | exact Finset.subset_insert _ _ | exact Subset.rfl
+
 /-- Choose the highest-value allocation among `W_j`, `M_j`, `GREEDY_j`. -/
 private def oneCaSelectBest (v : N → ℕ) (acc : OneCaAcc N M) : Finset N :=
   let sumW := ∑ k ∈ acc.wSet, v k
@@ -2277,17 +2288,14 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
   have hg_pw0 : (acc.gSet : Set N).PairwiseDisjoint sNext := fun a ha b hb hne => by
     change Disjoint (sNext a) (sNext b)
     rw [hsNext_g a ha, hsNext_g b hb]; exact hinv.g_pw ha hb hne
-  have hm_pw0 : (acc.mSet : Set N).PairwiseDisjoint sNext := by
-    intro a ha b hb hne
-    have hsub_a : sNext a ⊆ acc.bundles a := by
-      by_cases hai : a = i
-      · subst hai; rw [hsNext_self]; exact hb_sub
-      · rw [hsNext_ne a hai]
-    have hsub_b : sNext b ⊆ acc.bundles b := by
-      by_cases hbi : b = i
-      · subst hbi; rw [hsNext_self]; exact hb_sub
-      · rw [hsNext_ne b hbi]
-    exact (hinv.m_pw ha hb hne).mono hsub_a hsub_b
+  have hsNext_sub (k : N) : sNext k ⊆ acc.bundles k := by
+    by_cases hki : k = i
+    · subst hki
+      rw [hsNext_self]
+      exact hb_sub
+    · rw [hsNext_ne k hki]
+  have hm_pw0 : (acc.mSet : Set N).PairwiseDisjoint sNext := fun a ha b hb hne =>
+    (hinv.m_pw ha hb hne).mono (hsNext_sub a) (hsNext_sub b)
   have hstep := oneCaStep_eq σ past st acc i
   have hW_eq := congrArg OneCaAcc.wSet hstep
   have hM_eq := congrArg OneCaAcc.mSet hstep
@@ -2295,22 +2303,19 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
   dsimp only at hW_eq hM_eq hG_eq
   have hbundles_eq : (oneCaStep σ past st acc i).bundles = sNext :=
     congrArg OneCaAcc.bundles hstep
-  have hsubW : acc.wSet ⊆ (oneCaStep σ past st acc i).wSet := by
-    rw [hW_eq]; split_ifs <;> [exact Finset.subset_insert _ _; exact Subset.rfl; exact Subset.rfl]
-  have hsubM : acc.mSet ⊆ (oneCaStep σ past st acc i).mSet := by
-    rw [hM_eq]; split_ifs <;> [exact Finset.subset_insert _ _; exact Subset.rfl; exact Subset.rfl]
-  have hsubG : acc.gSet ⊆ (oneCaStep σ past st acc i).gSet := by
-    rw [hG_eq]; split_ifs <;> [exact Finset.subset_insert _ _; exact Subset.rfl; exact Subset.rfl]
-  have hpw_insert : ∀ (S : Finset N), (S : Set N).PairwiseDisjoint sNext →
-      ((if bNew ⊆ freeItems S sNext then insert i S else S : Finset N) : Set N).PairwiseDisjoint
-        sNext := by
-    intro S hS
-    split_ifs with hfree
+  obtain ⟨⟨hsubW, hupperW⟩, ⟨hsubM, hupperM⟩, ⟨hsubG, hupperG⟩⟩ :=
+    oneCaStep_set_bounds σ past st acc i
+  have hpw_update (A : Finset N) (hA : (A : Set N).PairwiseDisjoint sNext) :
+      ((if bNew.card ≤ Nat.sqrt (Fintype.card M) then
+          if bNew ⊆ freeItems A sNext then insert i A else A
+        else A : Finset N) : Set N).PairwiseDisjoint sNext := by
+    split_ifs with hsmall hfree
     · rw [Finset.coe_insert]
-      exact hS.insert fun k hk _ => by
+      exact hA.insert fun k hk _ => by
         rw [hsNext_self]
-        exact (subset_freeItems_iff S sNext bNew).1 hfree k hk
-    · exact hS
+        exact (subset_freeItems_iff A sNext bNew).1 hfree k hk
+    · exact hA
+    · exact hA
   have hpareto_step : ∀ (S : Finset N),
       (∀ k ∈ visited, k ∉ S → (acc.bundles k).card ≤ Nat.sqrt (Fintype.card M) →
         ∃ l ∈ S, ¬ Disjoint (acc.bundles k) (acc.bundles l)) →
@@ -2318,12 +2323,11 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
         S' = (if bNew.card ≤ Nat.sqrt (Fintype.card M) then
                 if bNew ⊆ freeItems S sNext then insert i S else S
               else S) →
+        S ⊆ S' →
         (∀ l ∈ S, sNext l = acc.bundles l) →
         ∀ k ∈ i :: visited, k ∉ S' → (sNext k).card ≤ Nat.sqrt (Fintype.card M) →
           ∃ l ∈ S', ¬ Disjoint (sNext k) (sNext l) := by
-    intro S hpar S' hS' hseq k hk hkNotS' hkCard
-    have hSS' : S ⊆ S' := by
-      rw [hS']; split_ifs <;> [exact Finset.subset_insert _ _; exact Subset.rfl; exact Subset.rfl]
+    intro S hpar S' hS' hSS' hseq k hk hkNotS' hkCard
     rcases List.mem_cons.1 hk with rfl | hkvis
     · rw [hsNext_self] at hkCard ⊢
       have hnotFree : ¬ bNew ⊆ freeItems S sNext := by
@@ -2344,43 +2348,24 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
   refine ⟨⟨?_, ?_, ?_, hinv.stW_sub_w.trans hsubW, hsubM hinv.iMax_mem_m, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, hsubW, hsubM, hsubG, fun k hk => by
     rw [hbundles_eq]; exact hsNext_ne k hk⟩
-  · rw [hW_eq]
-    split_ifs <;> [exact Finset.insert_subset_iff.2 ⟨hi_act, hinv.w_sub_active⟩;
-      exact hinv.w_sub_active; exact hinv.w_sub_active]
-  · rw [hM_eq]
-    split_ifs <;> [exact Finset.insert_subset_iff.2 ⟨hi_act, hinv.m_sub_active⟩;
-      exact hinv.m_sub_active; exact hinv.m_sub_active]
-  · rw [hG_eq]
-    split_ifs <;> [exact Finset.insert_subset_iff.2 ⟨hi_act, hinv.g_sub_active⟩;
-      exact hinv.g_sub_active; exact hinv.g_sub_active]
+  · exact hupperW.trans (Finset.insert_subset_iff.2 ⟨hi_act, hinv.w_sub_active⟩)
+  · exact hupperM.trans (Finset.insert_subset_iff.2 ⟨hi_act, hinv.m_sub_active⟩)
+  · exact hupperG.trans (Finset.insert_subset_iff.2 ⟨hi_act, hinv.g_sub_active⟩)
   · intro k hk
-    rw [hW_eq] at hk
-    split_ifs at hk
-    · rcases Finset.mem_insert.1 hk with rfl | hk'
-      · exact Or.inr List.mem_cons_self
-      · exact (hinv.w_diff_visited k hk').imp_right (List.mem_cons_of_mem i)
-    · exact (hinv.w_diff_visited k hk).imp_right (List.mem_cons_of_mem i)
-    · exact (hinv.w_diff_visited k hk).imp_right (List.mem_cons_of_mem i)
+    rcases Finset.mem_insert.1 (hupperW hk) with rfl | hk'
+    · exact Or.inr List.mem_cons_self
+    · exact (hinv.w_diff_visited k hk').imp_right (List.mem_cons_of_mem i)
   · intro k hk
-    rw [hM_eq] at hk
-    split_ifs at hk
-    · rcases Finset.mem_insert.1 hk with rfl | hk'
-      · exact Or.inr List.mem_cons_self
-      · exact (hinv.m_diff_visited k hk').imp_right (List.mem_cons_of_mem i)
-    · exact (hinv.m_diff_visited k hk).imp_right (List.mem_cons_of_mem i)
-    · exact (hinv.m_diff_visited k hk).imp_right (List.mem_cons_of_mem i)
+    rcases Finset.mem_insert.1 (hupperM hk) with rfl | hk'
+    · exact Or.inr List.mem_cons_self
+    · exact (hinv.m_diff_visited k hk').imp_right (List.mem_cons_of_mem i)
   · intro k hk
-    rw [hG_eq] at hk
-    split_ifs at hk
-    · rcases Finset.mem_insert.1 hk with rfl | hk'
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem i (hinv.g_sub_visited k hk')
-    · exact List.mem_cons_of_mem i (hinv.g_sub_visited k hk)
-    · exact List.mem_cons_of_mem i (hinv.g_sub_visited k hk)
-  · intro k; rw [hbundles_eq]
-    by_cases hki : k = i
-    · subst hki; rw [hsNext_self]; exact hb_sub.trans (hinv.bundle_sub k)
-    · rw [hsNext_ne k hki]; exact hinv.bundle_sub k
+    rcases Finset.mem_insert.1 (hupperG hk) with rfl | hk'
+    · exact List.mem_cons_self
+    · exact List.mem_cons_of_mem i (hinv.g_sub_visited k hk')
+  · intro k
+    rw [hbundles_eq]
+    exact (hsNext_sub k).trans (hinv.bundle_sub k)
   · intro k hk; rw [hbundles_eq]
     rw [List.mem_cons, not_or] at hk
     rw [hsNext_ne k hk.1]; exact hinv.bundle_unvisited k hk.2
@@ -2395,17 +2380,11 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
     · subst hki; rw [hsNext_self]; exact hb_dich
     · rw [hsNext_ne k hki]; exact hinv.bundle_dichotomy k
   · rw [hbundles_eq, hW_eq]
-    split
-    · exact hpw_insert acc.wSet hw_pw0
-    · exact hw_pw0
+    exact hpw_update acc.wSet hw_pw0
   · rw [hbundles_eq, hM_eq]
-    split
-    · exact hpw_insert acc.mSet hm_pw0
-    · exact hm_pw0
+    exact hpw_update acc.mSet hm_pw0
   · rw [hbundles_eq, hG_eq]
-    split
-    · exact hpw_insert acc.gSet hg_pw0
-    · exact hg_pw0
+    exact hpw_update acc.gSet hg_pw0
   · intro k hk; rw [hbundles_eq]
     rw [hG_eq] at hk
     split_ifs at hk with hc hf
@@ -2436,7 +2415,7 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
       rw [hsNext_ne k hkne] at hltM
       exact hsubG (hinv.g_first_shrink k hkvis hcardM hltM)
   · rw [hbundles_eq]
-    exact hpareto_step acc.wSet hinv.w_pareto _ hW_eq hsNext_w
+    exact hpareto_step acc.wSet hinv.w_pareto _ hW_eq hsubW hsNext_w
   · intro k hk hkNotM hkCard
     rw [hbundles_eq] at hkCard ⊢
     by_cases hiM : i ∈ acc.mSet
@@ -2445,9 +2424,9 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
       have hiEqMax : i = iMax := (hinv.m_diff_visited i hiM).resolve_right hi_fresh
       rw [hiMax_first hiEqMax] at hkvis
       exact absurd hkvis List.not_mem_nil
-    · exact hpareto_step acc.mSet hinv.m_pareto _ hM_eq (hseq_m hiM) k hk hkNotM hkCard
+    · exact hpareto_step acc.mSet hinv.m_pareto _ hM_eq hsubM (hseq_m hiM) k hk hkNotM hkCard
   · rw [hbundles_eq]
-    exact hpareto_step acc.gSet hinv.g_pareto _ hG_eq hsNext_g
+    exact hpareto_step acc.gSet hinv.g_pareto _ hG_eq hsubG hsNext_g
 
 omit [Fintype N] in
 private theorem oneCaFold_preserves_inv (σ : N → OneCaStrategy N M)
@@ -2491,12 +2470,10 @@ private theorem oneCaFold_preserves_inv (σ : N → OneCaStrategy N M)
         htl_first
     have hrev : (a :: tl).reverse ++ visited = tl.reverse ++ (a :: visited) := by
       simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
-    have hnot_step : ∀ (S : Finset N) (k : N), k ≠ a → k ∉ S →
-        ∀ (S' : Finset N), (∀ y ∈ S', y = a ∨ y ∈ S) → k ∉ S' := by
-      intro S k hka hkS S' hS' hkS'
-      rcases hS' k hkS' with rfl | hk
-      · exact hka rfl
-      · exact hkS hk
+    obtain ⟨⟨_, hupperW⟩, ⟨_, hupperM⟩, ⟨_, hupperG⟩⟩ := oneCaStep_set_bounds σ past st acc a
+    have hnot_step {A A' : Finset N} (hupper : A' ⊆ insert a A) {k : N}
+        (hka : k ≠ a) (hkA : k ∉ A) : k ∉ A' := fun hk =>
+      (Finset.mem_insert.1 (hupper hk)).elim hka hkA
     refine ⟨hrev ▸ hinv2, hsubW1.trans hsubW2, hsubM1.trans hsubM2, hsubG1.trans hsubG2,
       ?_, ?_, ?_, ?_⟩
     · intro k hk
@@ -2504,28 +2481,13 @@ private theorem oneCaFold_preserves_inv (σ : N → OneCaStrategy N M)
       rw [List.foldl_cons, hbun2 k hk.2, hbun1 k hk.1]
     · intro k hk hkW
       rw [List.mem_cons, not_or] at hk
-      refine hnotW2 k hk.2 (hnot_step acc.wSet k hk.1 hkW _ fun y hy => ?_)
-      simp only [oneCaStep_eq] at hy
-      split_ifs at hy
-      · exact Finset.mem_insert.1 hy
-      · exact Or.inr hy
-      · exact Or.inr hy
+      exact hnotW2 k hk.2 (hnot_step hupperW hk.1 hkW)
     · intro k hk hkM
       rw [List.mem_cons, not_or] at hk
-      refine hnotM2 k hk.2 (hnot_step acc.mSet k hk.1 hkM _ fun y hy => ?_)
-      simp only [oneCaStep_eq] at hy
-      split_ifs at hy
-      · exact Finset.mem_insert.1 hy
-      · exact Or.inr hy
-      · exact Or.inr hy
+      exact hnotM2 k hk.2 (hnot_step hupperM hk.1 hkM)
     · intro k hk hkG
       rw [List.mem_cons, not_or] at hk
-      refine hnotG2 k hk.2 (hnot_step acc.gSet k hk.1 hkG _ fun y hy => ?_)
-      simp only [oneCaStep_eq] at hy
-      split_ifs at hy
-      · exact Finset.mem_insert.1 hy
-      · exact Or.inr hy
-      · exact Or.inr hy
+      exact hnotG2 k hk.2 (hnot_step hupperG hk.1 hkG)
 
 omit [Fintype N] [LinearOrder N] [Fintype M] [DecidableEq M] in
 private theorem oneCaSelectBest_props (v : N → ℕ) (acc : OneCaAcc N M) :
