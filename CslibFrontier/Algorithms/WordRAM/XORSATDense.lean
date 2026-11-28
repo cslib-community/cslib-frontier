@@ -165,9 +165,6 @@ private theorem getD_zipWith_xor (a b : List Bool) (j : ℕ) (ha : j < a.length)
   simp [List.getD_eq_getElem?_getD, List.getElem?_zipWith, List.getElem?_eq_getElem ha,
     List.getElem?_eq_getElem hb]
 
-private theorem getD_tail (l : List Bool) (j : ℕ) : l.tail.getD j false = l.getD (j + 1) false := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_tail]
-
 /-- A non-pivot row with bit `c` clear just drops coefficient `c`. -/
 private theorem rowRel_drop {n c x : ℕ} {e : Row} (h : RowRel n c x e) (hc : c < n) :
     RowRel n (c + 1) x ⟨e.coeffs.tail, e.rhs⟩ where
@@ -175,7 +172,7 @@ private theorem rowRel_drop {n c x : ℕ} {e : Row} (h : RowRel n c x e) (hc : c
   coeff j hj := by
     have := h.coeff (j + 1) (by omega)
     rw [show c + (j + 1) = c + 1 + j by omega] at this
-    rw [this, getD_tail]
+    simpa only [List.getD_eq_getElem?_getD, List.getElem?_tail] using this
   rhs := h.rhs
   lt := h.lt
 
@@ -189,7 +186,8 @@ private theorem rowRel_xor {n c x y : ℕ} {e p : Row} (hx : RowRel n c x e)
     have h2 := hy.coeff (j + 1) (by omega)
     rw [show c + (j + 1) = c + 1 + j by omega] at h1 h2
     rw [Nat.testBit_xor, h1, h2, getD_zipWith_xor _ _ _ (by simp [hx.len]; omega)
-      (by simp [hy.len]; omega), getD_tail, getD_tail]
+      (by simp [hy.len]; omega)]
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_tail]
   rhs := by rw [Nat.testBit_xor, hx.rhs, hy.rhs]
   lt := Nat.xor_lt_two_pow hx.lt hy.lt
 
