@@ -1351,6 +1351,7 @@ public import CslibFrontier.Algorithms.Lean.Karger.Contraction
 public import CslibFrontier.Foundations.Data.Nat.Clog
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Progress
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCopy
+public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Layered
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Ramsey.FranklWilson
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Append
