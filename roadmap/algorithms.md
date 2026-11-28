@@ -63,7 +63,7 @@ Coordinate native graph-algorithm work with [CSLib's graph-algorithm directions]
 
 ### Sorting and selection
 
-- **Comparison selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): sharper constants for median-of-medians selection in CSLib's comparison-query model (a six-comparison median of five, reusing the group comparisons in the partition) and group sizes such as three or seven.
+- **Comparison selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): sharper constants for median-of-medians selection in CSLib's comparison-query model by reusing the group comparisons during partitioning and group sizes such as three or seven.
   Also the `5.4305 n` bound for the refined `PICK` of Blum, Floyd, Pratt, Rivest and Tarjan, Dor and Zwick's `2.95 n` median bound, and a word-RAM implementation with charged instruction counts.
 - **Comparison lower bounds for selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): lower bounds for the median and for general ranks in CSLib's comparison-query model, such as Bent and John's `2n − o(n)`.
 
