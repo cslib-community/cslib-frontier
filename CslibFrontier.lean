@@ -2949,6 +2949,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogCFL
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSATThree.Size
 public import CslibFrontier.Computability.PCP.Encoded.Witness
 public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
+public import CslibFrontier.Algorithms.WordRAM.MergeSort.Local
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Computability.WordRAM.Randomized.Expected
@@ -10787,6 +10788,7 @@ public import CslibFrontier.Languages.SQL.QueryLaws
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevTwoBlocks
 public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko
 public import CslibFrontier.Computability.Circuit.Rational.Deformation
+public import CslibFrontier.Algorithms.PointerMachine.MergeSort
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Line
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Request
 public import CslibFrontier.Probability.HoeffdingStep
