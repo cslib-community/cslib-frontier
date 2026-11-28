@@ -31,6 +31,13 @@ example (h : SH) :
 example (h : SH) : ¬ DecidableInPowerExpTime ThreeSAT encCNF CNF.numVars (1 / 2) :=
   (SH_iff_WeakETH.mp h) _ (by norm_num) (by norm_num)
 
+example (h : SolvesWithErrorInPowerExpTime (PromiseProblem.ofSet ThreeSAT) encCNF ErrorModel.bounded
+    (fun φ => φ.numVars + φ.length) (1 / 2)) :
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ SolvesWithErrorInPowerExpTime (PromiseProblem.ofSet ThreeSAT)
+      encCNF ErrorModel.bounded CNF.numVars q :=
+  SolvesWithErrorInPowerExpTime.KSAT_numVars_of_size (k := 3) (by decide)
+    (by norm_num) (by norm_num) h
+
 example {k : ℕ} (hk : 3 ≤ k) : WeakETH ↔ WeakKETH k :=
   SH_iff_WeakETH.symm.trans (SH_iff_WeakKETH hk)
 

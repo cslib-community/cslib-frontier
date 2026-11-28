@@ -50,6 +50,13 @@ example (h : ∀ p : ℝ, 0 < p → p < 1 →
       (fun φ => φ.numVars + φ.length) p) : rSH :=
   (rSH_iff_KSAT (k := 3) le_rfl).mpr h
 
+example (h : rSH) :
+    ¬SolvesWithErrorInPowerExpTime (ofSet ThreeSAT) encCNF ErrorModel.bounded CNF.numVars (1 / 2) :=
+  rSH_iff_WeakRETH.mp h _ (by norm_num) (by norm_num)
+
+example {k : ℕ} (hk : 3 ≤ k) : WeakRETH ↔ WeakRKETH k :=
+  rSH_iff_WeakRETH.symm.trans (rSH_iff_WeakRKETH hk)
+
 -- The general transfer applies at a fixed exponent to a concrete deterministic reduction.
 example (h : rSH) :
     ¬SolvesWithErrorInPowerExpTime (ofSet ThreeSAT) encCNF ErrorModel.bounded
