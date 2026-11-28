@@ -438,9 +438,8 @@ theorem loop_potential (I : Data r → Prop) (Φ Ψ : Data r → ℕ)
         (fun y => I y ∧ T_b + 2 + Φ y ≤ Φ x ∧ R_b + Ψ y ≤ Ψ x) T_b R_b)
     (hx : I x) :
     ExecRandWithin w (.loop cond body) x (fun y => I y ∧ ¬cond.Holds y) (Φ x + 2) (Ψ x) := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
+  induction x using (_root_.measure Φ).wf.induction with
+  | h x ih =>
     by_cases hc : cond.Holds x
     · obtain ⟨T_b, R_b, hb⟩ := hbody x hx hc
       obtain ⟨mb, -, -, hsupb⟩ := id hb
@@ -449,7 +448,7 @@ theorem loop_potential (I : Data r → Prop) (Φ Ψ : Data r → ℕ)
       refine (loop_iter (T₂ := Φ x - T_b) (R₂ := Ψ x - R_b) hc hb ?_).mono
         (fun _ h => h) (by omega) (by omega)
       rintro y ⟨hIy, hΦy, hΨy⟩
-      exact (ih (Φ y) (by omega) hIy rfl).mono (fun _ h => h) (by omega) (by omega)
+      exact (ih y (show Φ y < Φ x by omega) hIy).mono (fun _ h => h) (by omega) (by omega)
     · exact (loop_exit hc ⟨hx, hc⟩).mono (fun _ h => h) (by omega) (Nat.zero_le _)
 
 /-- Renaming a `ExecRandWithin` specification along an injective register map `f`. -/

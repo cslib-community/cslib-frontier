@@ -79,13 +79,13 @@ apply Lemma 4.2 until `a ≤ d`, adding up `ΔW ≤ 14 Δa`. -/
 theorem State.Valid.fourteen_mul_a_le {d : ℕ} (hf : IsAffineDisperser f d) :
     ∀ S : State n, S.Valid f → 14 * S.a ≤ S.W + 14 * d := by
   intro S
-  induction h : S.m + S.s using Nat.strong_induction_on generalizing S with
-  | _ k ih =>
+  induction S using (_root_.measure (fun S : State n => S.m + S.s)).wf.induction with
+  | h S ih =>
     intro hS
     by_cases ha : S.a ≤ d
     · omega
     · obtain ⟨S', hstep⟩ := State.Valid.exists_step hS hf (lt_of_not_ge ha)
-      have := ih _ (h ▸ hstep.lt) S' rfl hstep.valid
+      have := ih S' hstep.lt hstep.valid
       have := hstep.potential
       rw [config_ca] at this
       omega

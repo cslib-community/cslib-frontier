@@ -491,9 +491,9 @@ theorem IsFDAG.valid_flip_of_pairedCopies (h : T.IsFDAG sem f)
     (hM : EdgeInstance.EvenConstraints sem F) (hp : T.PairedCopies) :
     ValidLabeling sem (T.flip f) := by
   classical
-  generalize hn : T.copies.card = n
-  induction n using Nat.strong_induction_on generalizing T f with
-  | ind n ih =>
+  induction T using (_root_.measure fun T : DAG F => T.copies.card).wf.induction
+      generalizing f with
+  | h T ih =>
     by_cases ht : T.copies.Nonempty
     · have hex : ∃ t, ∃ c ∈ T.copies, c.2 = t := ht.elim fun c hc => ⟨c.2, c, hc, rfl⟩
       obtain ⟨c, hc, hct⟩ := Nat.find_spec hex
@@ -502,13 +502,13 @@ theorem IsFDAG.valid_flip_of_pairedCopies (h : T.IsFDAG sem f)
       have hcopies : a.copy = b.copy := hac.trans hbc.symm
       have hne : a.occurrence ≠ b.occurrence := fun hh => hab (h.unique a ha b hb hh)
       have hs := h.removeCopy hM ha hb hai hne hcopies (hac ▸ he)
-      have hsmall : (T.removeCopy a.copy).copies.card < n := by
-        change (T.copies ∩ T.copies.erase a.copy).card < n
-        simpa only [inter_eq_right.mpr (erase_subset _ _), ← hn] using
+      have hsmall : (T.removeCopy a.copy).copies.card < T.copies.card := by
+        change (T.copies ∩ T.copies.erase a.copy).card < T.copies.card
+        simpa only [inter_eq_right.mpr (erase_subset _ _)] using
           card_erase_lt_of_mem (hac ▸ hc)
       simpa only [h.flip_removeCopy ha hb hcopies hne
           fun e hem hec => hpair e hem (hec.trans hac)] using
-        ih _ hsmall hs (hp.removeCopy h.supported a.copy) rfl
+        ih (T.removeCopy a.copy) hsmall hs (hp.removeCopy h.supported a.copy)
     · simp only [not_nonempty_iff_eq_empty] at ht
       have ha : T.arcs = ∅ := eq_empty_iff_forall_notMem.mpr fun a ham =>
         notMem_empty _ (ht ▸ (h.supported a ham).2)

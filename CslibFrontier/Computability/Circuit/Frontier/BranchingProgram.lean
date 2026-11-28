@@ -319,7 +319,9 @@ theorem isAcceptingPath_eraseNode_iff (hL : 0 < P.length) {t : ℕ} (ht : t ≤ 
   · exact (h.edge (P.length - 1) (Nat.sub_lt hL one_pos)).2.2
       ⟨by omega, by rwa [show P.length - 1 + 1 = P.length by omega]⟩
 
-private theorem Unambiguous.eraseNode (hP : P.Unambiguous) (t : ℕ) (m : M) :
+/-- Deleting a state preserves unambiguity, since every remaining path was already a path of
+the original program. -/
+theorem Unambiguous.eraseNode (hP : P.Unambiguous) (t : ℕ) (m : M) :
     (P.eraseNode t m).Unambiguous :=
   fun x γ δ hγ hδ s hs => hP x γ δ hγ.of_eraseNode hδ.of_eraseNode s hs
 
@@ -333,6 +335,22 @@ theorem accepted_eraseNode (hP : P.Unambiguous) (hL : 0 < P.length) {t : ℕ} (h
     ⟨⟨γ, hγ'⟩, fun h => hγt ((hP x γ _ hγ' (P.isAcceptingPath_path ⟨γ, hγ'⟩) t ht).trans h)⟩,
     fun ⟨hx, hxt⟩ =>
       ⟨_, (isAcceptingPath_eraseNode_iff hL ht).mpr ⟨P.isAcceptingPath_path hx, hxt⟩⟩⟩
+
+/-- Deleting the chosen state of `x` at layer `t` removes exactly its sweep peers. -/
+theorem Unambiguous.accepted_eraseNode_path (hP : P.Unambiguous) (hL : 0 < P.length)
+    {t : ℕ} (ht : t ≤ P.length) (x : ι → U) :
+    (P.eraseNode t (P.path x t)).accepted = P.accepted \ P.sweep.peers t x := by
+  rw [accepted_eraseNode hP hL ht]
+  ext y
+  simp only [mem_peers_sweep, mem_ofPred_eq, mem_sdiff]
+  tauto
+
+/-- Deleting a state on an accepting path strictly shrinks the accepted set. -/
+theorem Unambiguous.accepted_eraseNode_path_ssubset (hP : P.Unambiguous) (hL : 0 < P.length)
+    {t : ℕ} (ht : t ≤ P.length) {x : ι → U} (hx : x ∈ P.accepted) :
+    (P.eraseNode t (P.path x t)).accepted ⊂ P.accepted := by
+  rw [hP.accepted_eraseNode_path hL ht]
+  exact sdiff_ssubset_left_iff.mpr ⟨x, hx, (P.mem_peers_sweep).mpr ⟨hx, rfl⟩⟩
 
 /-- Deleting a state does not increase the number of edges of the program. -/
 theorem size_eraseNode_le [Finite ι] [Finite U] [Finite M] (t : ℕ) (m : M) :
@@ -367,22 +385,18 @@ theorem abs_signedCount_accepted_le [Finite ι] [Finite U] [Finite M] (hP : P.Un
     (hL : 0 < P.length) {S : Set (ι → U)} {K : ℕ} {b : ℝ} (hb : 0 ≤ b)
     (hS : RectangleBias S K b) :
     |signedCount S P.accepted| ≤ 2 * b * P.accepted.ncard + ((K - 1) ^ 2 * P.size : ℕ) := by
-  induction hn : P.accepted.ncard using Nat.strong_induction_on generalizing P with
-  | ind n ih =>
-    subst hn
+  induction P using
+      (_root_.measure fun P : ReadOnceNBP ι U M => P.accepted.ncard).wf.induction with
+  | h P ih =>
     by_cases hthick : ∃ t ≤ P.length, ∃ x ∈ P.accepted,
         K ≤ (P.sweep.pastSide t x).ncard ∧ K ≤ (P.sweep.futureSide t x).ncard
     · obtain ⟨t, ht, x, hx, hA, hB⟩ := hthick
       -- The peers of `x` form a large rectangle; delete their state.
       have hR : P.sweep.peers t x ⊆ P.accepted := fun _ hy => hy.1
-      have hacc : (P.eraseNode t (P.path x t)).accepted = P.accepted \ P.sweep.peers t x := by
-        rw [accepted_eraseNode hP hL ht]
-        ext
-        simp only [mem_peers_sweep, mem_ofPred_eq, mem_sdiff]; tauto
+      have hacc := hP.accepted_eraseNode_path hL ht x
       have hcard := ncard_sdiff_add_ncard_of_subset hR
-      have hpos : 0 < (P.sweep.peers t x).ncard := (ncard_pos (toFinite _)).mpr ⟨x, hx, rfl⟩
-      have hrest := hacc ▸ ih _ (by rw [hacc]; omega) (P.eraseNode t (P.path x t))
-        (hP.eraseNode _ _) hL rfl
+      have hlt := ncard_lt_ncard (hP.accepted_eraseNode_path_ssubset hL ht hx)
+      have hrest := hacc ▸ ih (P.eraseNode t (P.path x t)) hlt (hP.eraseNode _ _) hL
       have hrect : |signedCount S (P.sweep.peers t x)| ≤ 2 * b * (P.sweep.peers t x).ncard :=
         hP.peers_eq_rectangle ht x ▸ hS.abs_signedCount_rectangle_le hA hB
       have hsize : (((K - 1) ^ 2 * (P.eraseNode t (P.path x t)).size : ℕ) : ℝ) ≤

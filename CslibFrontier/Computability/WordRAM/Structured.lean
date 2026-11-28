@@ -383,12 +383,11 @@ theorem loop_invariant (I : Data r → Prop) (μ : Data r → ℕ) {T : ℕ}
     (hbody : ∀ x, I x → cond.Holds x → ∃ y, ExecWithin w body x y T ∧ I y ∧ μ y < μ x)
     (hx : I x) :
     ∃ y, ExecWithin w (.loop cond body) x y (μ x * (T + 2) + 2) ∧ I y ∧ ¬cond.Holds y := by
-  induction hm : μ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
+  induction x using (_root_.measure μ).wf.induction with
+  | h x ih =>
     by_cases hc : cond.Holds x
     · obtain ⟨y, hy, hIy, hμ⟩ := hbody x hx hc
-      obtain ⟨z, hz, hIz, hcz⟩ := ih (μ y) hμ hIy rfl
+      obtain ⟨z, hz, hIz, hcz⟩ := ih y hμ hIy
       refine ⟨z, (loop_iter hc hy hz).mono ?_, hIz, hcz⟩
       have := Nat.mul_le_mul_right (T + 2) (Nat.succ_le_of_lt hμ)
       rw [Nat.succ_mul] at this
@@ -406,12 +405,11 @@ theorem loop_potential (I : Data r → Prop) (Φ : Data r → ℕ)
       ∃ y T, ExecWithin w body x y T ∧ I y ∧ T + 2 + Φ y ≤ Φ x)
     (hx : I x) :
     ∃ y, ExecWithin w (.loop cond body) x y (Φ x + 2) ∧ I y ∧ ¬cond.Holds y := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
+  induction x using (_root_.measure Φ).wf.induction with
+  | h x ih =>
     by_cases hc : cond.Holds x
     · obtain ⟨y, T, hy, hIy, hΦ⟩ := hbody x hx hc
-      obtain ⟨z, hz, hIz, hcz⟩ := ih (Φ y) (by omega) hIy rfl
+      obtain ⟨z, hz, hIz, hcz⟩ := ih y (show Φ y < Φ x by omega) hIy
       exact ⟨z, (loop_iter hc hy hz).mono (by omega), hIz, hcz⟩
     · exact ⟨x, (loop_exit hc).mono (by omega), hx, hc⟩
 

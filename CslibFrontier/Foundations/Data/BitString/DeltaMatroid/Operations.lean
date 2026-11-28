@@ -164,14 +164,13 @@ theorem IsEvenDeltaMatroid.connected (hR : IsEvenDeltaMatroid R)
     (hx : x ∈ R) (hy : y ∈ R) :
     Relation.ReflTransGen (fun u v => u ∈ R ∧ v ∈ R ∧
       ∃ i j, i ≠ j ∧ v = flipOn {i, j} u) x y := by
-  generalize hn : hammingDist x y = n
-  induction n using Nat.strong_induction_on generalizing x with
-  | ind n ih =>
-    by_cases hxy : x = y
-    · exact hxy ▸ .refl
-    · obtain ⟨i, j, hij, _, _, hf, hd⟩ := hR.exists_exchange_hammingDist hx hy hxy
-      exact (Relation.ReflTransGen.single ⟨hx, hf, i, j, hij, rfl⟩).trans
-        (ih _ (by omega) hf rfl)
+  induction x using (_root_.measure fun x => hammingDist x y).wf.induction
+  rename_i x ih
+  by_cases hxy : x = y
+  · exact hxy ▸ .refl
+  · obtain ⟨i, j, hij, _, _, hf, hd⟩ := hR.exists_exchange_hammingDist hx hy hxy
+    exact (Relation.ReflTransGen.single ⟨hx, hf, i, j, hij, rfl⟩).trans
+      (ih _ ((Nat.lt_add_of_pos_right (by decide : 0 < 2)).trans_eq hd) hf)
 
 /-- The four-coordinate exchange consequence used for property (5) in the proof of
 Lemma 35 of [KazdaKolmogorovRolinek2018], p. 17, and reused in Lemma 37.

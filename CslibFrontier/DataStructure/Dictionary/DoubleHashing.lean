@@ -442,15 +442,15 @@ private theorem rank_le_and_depSet_subset_of_mem_depSet {U m : ℕ} (T : Table U
     (π : Fin U → Equiv.Perm (Fin m)) (r_ext : Fin U → ℕ) (x : Fin U) :
     ∀ {z : Fin U}, z ∈ depSet T π r_ext x →
       r_ext z ≤ r_ext x ∧ depSet T π r_ext z ⊆ depSet T π r_ext x := by
-  induction hx : r_ext x using Nat.strong_induction_on generalizing x with
-  | _ n ih =>
+  induction x using (_root_.measure r_ext).wf.induction with
+  | h x ih =>
     intro z hz
     rw [depSet_eq, Finset.mem_insert, partialDepSet, Finset.mem_biUnion] at hz
     obtain rfl | ⟨y, hy_dir, hzy⟩ := hz
-    · exact ⟨hx.le, subset_rfl⟩
-    · have hy_lt : r_ext y < n := hx ▸ (Finset.mem_filter.mp hy_dir).2.1
-      obtain ⟨hzy_le, hsub_zy⟩ := ih (r_ext y) hy_lt y rfl hzy
-      exact ⟨by omega, hsub_zy.trans fun w hw => depSet_eq T π r_ext x ▸
+    · exact ⟨le_rfl, subset_rfl⟩
+    · have hy_lt := (Finset.mem_filter.mp hy_dir).2.1
+      obtain ⟨hzy_le, hsub_zy⟩ := ih y hy_lt hzy
+      exact ⟨hzy_le.trans hy_lt.le, hsub_zy.trans fun w hw => depSet_eq T π r_ext x ▸
         Finset.mem_insert_of_mem (Finset.mem_biUnion.mpr ⟨y, hy_dir, hw⟩)⟩
 
 private theorem rank_lt_and_depSet_subset_of_mem_partialDepSet {U m : ℕ} (T : Table U m)
@@ -478,13 +478,13 @@ private theorem depSet_subset_of_directBlockers_closed {U m : ℕ} (T : Table U 
     (π : Fin U → Equiv.Perm (Fin m)) (r_ext : Fin U → ℕ) {C : Finset (Fin U)}
     (hclosed : ∀ z ∈ C, directBlockers T π r_ext z m ⊆ C) {y : Fin U} (hy : y ∈ C) :
     depSet T π r_ext y ⊆ C := by
-  induction hn : r_ext y using Nat.strong_induction_on generalizing y with
-  | _ n ih =>
+  induction y using (_root_.measure r_ext).wf.induction with
+  | h y ih =>
     intro w hw
     rw [depSet_eq, Finset.mem_insert, partialDepSet, Finset.mem_biUnion] at hw
     obtain rfl | ⟨z, hz_dir, hwz⟩ := hw
     · exact hy
-    · exact ih (r_ext z) (hn ▸ (Finset.mem_filter.mp hz_dir).2.1) (hclosed y hy hz_dir) rfl hwz
+    · exact ih z (Finset.mem_filter.mp hz_dir).2.1 (hclosed y hy hz_dir) hwz
 
 private theorem mem_dom_of_mem_directBlockers {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
     {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T)
@@ -1383,13 +1383,13 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
           congrArg Fin.val (congrFun hg_eq ⟨b, hlt_b⟩)
     -- Equal prefix sums give equal entries, by strong induction on the index.
     refine funext fun a => ?_
-    induction hn : a.val using Nat.strong_induction_on generalizing a with
-    | _ n ih =>
-      have hmem : a ∈ Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ n) := by simp [hn]
-      have h := hpref_eq n (hn ▸ Nat.le_of_lt_succ a.isLt)
+    induction a using (_root_.measure fun a : Fin (w + 1) => a.val).wf.induction with
+    | h a ih =>
+      have hmem : a ∈ Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ a.val) := by simp
+      have h := hpref_eq a.val (Nat.le_of_lt_succ a.isLt)
       have hrest := Finset.sum_congr
-        (rfl : (Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ n)).erase a = _)
-        fun c hc => congrArg Fin.val (ih c.val (by simp [Fin.ext_iff] at hc; omega) c rfl)
+        (rfl : (Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ a.val)).erase a = _)
+        fun c hc => congrArg Fin.val (ih c (show c.val < a.val by simp [Fin.ext_iff] at hc; omega))
       rw [← Finset.add_sum_erase _ _ hmem, ← Finset.add_sum_erase _ _ hmem, hrest] at h
       exact Fin.ext (Nat.add_right_cancel h)
   calc (degSeqFinset w).card ≤ (Finset.univ : Finset (Fin (2 * w))).powerset.card :=

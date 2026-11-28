@@ -143,8 +143,8 @@ theorem CNF.satisfiable_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ, c.lengt
       Relation.ReflTransGen φ.Implies (v, false) (v, true))) :
     φ.Satisfiable := by
   -- induction on the number of variables
-  induction hn : φ.vars.toFinset.card using Nat.strong_induction_on generalizing φ with
-  | _ n ih =>
+  induction φ using (_root_.measure fun φ : CNF V => φ.vars.toFinset.card).wf.induction
+  rename_i φ ih
   by_cases hvars : φ.vars = []
   · -- without variables every clause is empty, so there is none
     refine ⟨fun _ => true, (CNF.eval_eq_true_iff _ φ).mpr fun c hc => ?_⟩
@@ -177,11 +177,11 @@ theorem CNF.satisfiable_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ, c.lengt
     · intro y hy
       obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hy)
       exact List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨c, hψφ c hc, b, hb⟩)
-  obtain ⟨σ', hσ'⟩ := ih _ (hn ▸ Finset.card_lt_card hψvars)
+  obtain ⟨σ', hσ'⟩ := ih ψ (Finset.card_lt_card hψvars)
     (fun c hc => hw c (hψφ c hc)) (fun h => hnil (hψφ _ h))
     (fun v ⟨h₁, h₂⟩ => hreach v
       ⟨Relation.ReflTransGen.mono (fun _ _ (h : ψ.Implies _ _) => h.mono hψφ) _ _ h₁,
-        Relation.ReflTransGen.mono (fun _ _ (h : ψ.Implies _ _) => h.mono hψφ) _ _ h₂⟩) rfl
+        Relation.ReflTransGen.mono (fun _ _ (h : ψ.Implies _ _) => h.mono hψφ) _ _ h₂⟩)
   -- the combined assignment
   let σ : V → Bool := fun v => if R (v, true) then true else if R (v, false) then false else σ' v
   have hR : ∀ m, R m → σ m.1 = m.2 := by

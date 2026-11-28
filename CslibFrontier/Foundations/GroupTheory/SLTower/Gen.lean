@@ -105,12 +105,9 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
   set H := closure (Set.range (x h))
   let D : U h → Finset (Fin h × Fin h) := fun A => Finset.univ.filter fun p =>
     ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) p.1 p.2 ≠ (1 : Matrix _ _ (ZMod 2)) p.1 p.2
-  suffices key : ∀ n (A : U h), (D A).card = n → A ∈ H from
-    eq_top_iff.2 fun A _ => key _ A rfl
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro A hA
+  refine eq_top_iff.2 fun A _ => ?_
+  refine (_root_.measure fun A => (D A).card).wf.induction A ?_
+  intro A ih
   rcases (D A).eq_empty_or_nonempty with h0 | hne
   · convert H.one_mem
     exact Subtype.ext <| Subtype.ext <| Matrix.ext fun a b =>
@@ -146,7 +143,7 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
           using hp'⟩
   have hlt := (Finset.card_le_card hsub).trans_lt (Finset.card_erase_lt_of_mem hp)
   rw [show A = el hij * (el hij * A) by rw [← mul_assoc, el_mul_el, one_mul]]
-  exact mul_mem (el_mem hij) (ih _ (hA ▸ hlt) _ rfl)
+  exact mul_mem (el_mem hij) (ih _ hlt)
 
 /-- A function on `U h` that does not change under left multiplication by the simple root
 elements is constant. -/

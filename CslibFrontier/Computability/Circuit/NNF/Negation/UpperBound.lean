@@ -515,8 +515,8 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
         M.mate γ p.1 = p.2 ∧ (p = (v, M.mate γ v) ∨ p = (M.mate γ v, v)) := by
   classical
   intro W
-  induction hW : #W using Nat.strong_induction_on generalizing W with
-  | _ m ih =>
+  induction W using (_root_.measure Finset.card).wf.induction with
+  | h W ih =>
     intro hclosed
     rcases W.eq_empty_or_nonempty with rfl | ⟨x, hx⟩
     · exact ⟨[], by simp, by simp, by simp⟩
@@ -530,14 +530,14 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
       obtain ⟨j, -, rfl⟩ := mem_cycleBlock.mp hv
       by_cases hj : j % 2 = 0 <;> simp [cycleVertex, hj, hσ, fun i => (hclosed _ (hσ i)).1]
     set W' := W.filter (· ∉ b)
-    have hlt : #W' < m := hW ▸ card_lt_card (filter_ssubset.mpr ⟨x, hx, by
+    have hlt : #W' < #W := card_lt_card (filter_ssubset.mpr ⟨x, hx, by
       simpa using self_mem_cycleBlock x⟩)
     have hclosed' : ∀ v ∈ W', M.mate α v ∈ W' ∧ M.mate β v ∈ W' := fun v hv => by
       simp only [W', mem_filter] at hv ⊢
       refine ⟨⟨(hclosed v hv.1).1, fun h => hv.2 ?_⟩, ⟨(hclosed v hv.1).2, fun h => hv.2 ?_⟩⟩
       · simpa [M.mate_mate] using mate_mem_cycleBlock h (γ := α) (.inl rfl)
       · simpa [M.mate_mate] using mate_mem_cycleBlock h (γ := β) (.inr rfl)
-    obtain ⟨blocks, hnd, hmem, hpairs⟩ := ih _ hlt W' rfl hclosed'
+    obtain ⟨blocks, hnd, hmem, hpairs⟩ := ih W' hlt hclosed'
     refine ⟨b :: blocks, ?_, fun v => ?_, ?_⟩
     · refine List.nodup_append.mpr ⟨nodup_cycleBlock x, hnd, fun a ha _ ha' h => ?_⟩
       exact (mem_filter.mp ((hmem a).mp (h ▸ ha'))).2 ha

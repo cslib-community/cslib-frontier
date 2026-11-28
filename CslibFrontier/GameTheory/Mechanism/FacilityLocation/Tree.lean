@@ -996,8 +996,8 @@ private lemma branchInvOn_all
     (S : Finset V) (hS : IsSubtreeVertexSet W S) :
     BranchInvOn W f S := by
   classical
-  induction hcard : S.card using Nat.strong_induction_on generalizing S with
-  | ind n ih =>
+  induction S using (_root_.measure Finset.card).wf.induction with
+  | h S ih =>
     by_cases hdeg : ∀ v ∈ S, (S.filter fun u => W.graph.Adj v u).card ≤ 2
     · obtain ⟨a, _, b, _, hsub⟩ := hS.exists_subtree_eq_interval hT fun v hv T hTm =>
         (Finset.card_le_card fun u hu => Finset.mem_filter.mpr (hTm u hu)).trans (hdeg v hv)
@@ -1008,8 +1008,7 @@ private lemma branchInvOn_all
       have hdeg3' : ∃ T : Finset V, 3 ≤ T.card ∧ ∀ u ∈ T, u ∈ S ∧ W.graph.Adj c u :=
         ⟨nb, hdeg3, fun u hu => Finset.mem_filter.mp hu⟩
       have hinv_rem : ∀ w ∈ S, W.graph.Adj c w → BranchInvOn W f (removeBranch W S c w) :=
-        fun w hw hadj => ih _ (hcard ▸ card_removeBranch_lt hT hw hadj) _
-          (hS.removeBranch hT hc hadj) rfl
+        fun w hw hadj => ih _ (card_removeBranch_lt hT hw hadj) (hS.removeBranch hT hc hadj)
       intro y q hy hq hqy x₁ x₂ hx₁ hx₂ hiff
       have hnb_ex : ∃ w ∈ nb, y ∉ branch (vertex c) (vertex w) ∧
           q ∉ branch (vertex c) (vertex w) := by

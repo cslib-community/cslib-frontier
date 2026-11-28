@@ -270,14 +270,12 @@ theorem unitPropagate_ind {motive : CNF V → Prop}
     (base : ∀ φ, φ.findUnit? = none → motive φ)
     (step : ∀ φ l, φ.findUnit? = some l → motive (φ.restrict l.1 l.2) → motive φ)
     (φ : CNF V) : motive φ := by
-  induction hn : φ.numVars using Nat.strong_induction_on generalizing φ with
-  | ind n ih =>
+  induction φ using (_root_.measure fun φ : CNF V => φ.numVars).wf.induction with
+  | h φ ih =>
     cases h : φ.findUnit? with
     | none => exact base φ h
     | some l =>
-      have hlt : (φ.restrict l.1 l.2).numVars < n :=
-        hn ▸ numVars_restrict_lt (mem_vars_of_findUnit?_eq_some h)
-      exact step φ l h (ih _ hlt (φ.restrict l.1 l.2) rfl)
+      exact step φ l h (ih _ (numVars_restrict_lt (mem_vars_of_findUnit?_eq_some h)))
 
 /-- Iterated unit propagation equals sequential restriction along `φ.unitTrail`. -/
 theorem unitPropagate_eq_restrictList (φ : CNF V) :

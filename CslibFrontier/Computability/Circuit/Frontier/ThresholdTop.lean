@@ -824,26 +824,15 @@ private theorem abs_signedCount_le_of_root_peers {ι U M : Type*} [Finite ι] [F
             2 * b * (rectangle (B₀.revealed s) A C).ncard) :
     |signedCount D B.accepted| ≤
       2 * b * B.accepted.ncard + ((K - 1) ^ 2 * realizedSize B : ℕ) := by
-  induction hn : B.accepted.ncard using Nat.strong_induction_on generalizing B with
-  | ind k ih =>
-    subst hn
+  induction B using
+      (_root_.measure fun B : ReadOnceNBP ι U M => B.accepted.ncard).wf.induction with
+  | h B ih =>
     by_cases hthick : ∃ s ≤ B.length, ∃ x ∈ B.accepted,
         K ≤ (B.sweep.pastSide s x).ncard ∧ K ≤ (B.sweep.futureSide s x).ncard
     · obtain ⟨s, hs, x, hx, hA, hC⟩ := hthick
       have hR : B.sweep.peers s x ⊆ B.accepted := fun _ hy => hy.1
-      have hacc : (B.eraseNode s (B.path x s)).accepted = B.accepted \ B.sweep.peers s x := by
-        rw [B.accepted_eraseNode hB hL hs]
-        ext y
-        simp only [mem_ofPred_eq, Set.mem_sdiff]
-        change y ∈ B.accepted ∧ B.path y s ≠ B.path x s ↔
-          y ∈ B.accepted ∧ ¬(y ∈ B.accepted ∧ B.path y s = B.path x s)
-        tauto
+      have hacc := hB.accepted_eraseNode_path hL hs x
       have hcard := ncard_sdiff_add_ncard_of_subset hR
-      have hpos : 0 < (B.sweep.peers s x).ncard := (ncard_pos (toFinite _)).mpr ⟨x, hx, rfl⟩
-      have hB' : (B.eraseNode s (B.path x s)).Unambiguous :=
-        fun y γ δ hγ hδ u hu =>
-          hB y γ δ ((B.isAcceptingPath_eraseNode_iff hL hs).mp hγ).1
-            ((B.isAcceptingPath_eraseNode_iff hL hs).mp hδ).1 u hu
       have hsub' : ∀ y ∈ (B.eraseNode s (B.path x s)).accepted,
           y ∈ B₀.accepted ∧ ∀ u ≤ B₀.length,
             (B.eraseNode s (B.path x s)).path y u = B₀.path y u := by
@@ -854,7 +843,8 @@ private theorem abs_signedCount_le_of_root_peers {ι U M : Type*} [Finite ι] [F
         refine ⟨(hsub y hyB).1, fun u hu => ?_⟩
         rw [hB y _ _ hpy (B.isAcceptingPath_path hyB) u (hLen ▸ hu)]
         exact (hsub y hyB).2 u hu
-      have hrest := ih _ (by rw [hacc]; omega) hB' hLen hRev hL hsub' rfl
+      have hlt := ncard_lt_ncard (hB.accepted_eraseNode_path_ssubset hL hs hx)
+      have hrest := ih _ hlt (hB.eraseNode _ _) hLen hRev hL hsub'
       rw [hacc] at hrest
       have hrect : |signedCount D (B.sweep.peers s x)| ≤ 2 * b * (B.sweep.peers s x).ncard := by
         rw [hB.peers_eq_rectangle hs x]

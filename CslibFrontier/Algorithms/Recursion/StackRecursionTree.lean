@@ -103,12 +103,12 @@ theorem exists_eval_of_measure (μ : X → ℕ) (value : X → Y)
         value x = R.finish x (acc cnt))
     (hvalue : ∀ x, I.node x → I.value (value x)) (x : X) (hx : I.node x) :
     ∃ n h, R.Eval I x (value x) n h := by
-  induction hμ : μ x using Nat.strong_induction_on generalizing x with
-  | _ k ih =>
+  induction x using (_root_.measure μ).wf.induction
+  rename_i x ih
   cases hl : R.isLeaf x
   · obtain ⟨cnt, acc, child, h0, hnext, hdone, habs, hkids, hfin⟩ := hcall x hx hl
     have hev : ∀ c < cnt, ∃ n h, R.Eval I (child c) (value (child c)) n h := fun c hc =>
-      ih (μ (child c)) (hμ ▸ (hkids c hc).2.2) (child c) (hkids c hc).2.1 rfl
+      ih (child c) (hkids c hc).2.2 (hkids c hc).2.1
     choose! nodes height hev using hev
     obtain ⟨h, -, hloop⟩ := Loop.counted (I := I) (val := fun c => value (child c)) cnt
       (∑ c ∈ range cnt, height c) hnext hdone habs hev (fun c hc => (hkids c hc).1)
@@ -138,14 +138,14 @@ private theorem exists_eval_of_depth (μ depth : X → ℕ) (value : X → Y) (D
         value x = R.finish x (acc cnt))
     (hvalue : ∀ x, I.node x → I.value (value x)) (x : X) (hx : I.node x) :
     ∃ n h, R.Eval I x (value x) n h ∧ P (depth x) n ∧ h ≤ D - depth x := by
-  induction hμ : μ x using Nat.strong_induction_on generalizing x with
-  | _ k ih =>
+  induction x using (_root_.measure μ).wf.induction
+  rename_i x ih
   cases hl : R.isLeaf x
   · obtain ⟨hd, cnt, acc, child, hQ, h0, hnext, hdone, habs, hkids, hfin⟩ := hcall x hx hl
     have hev : ∀ c < cnt, ∃ n h, R.Eval I (child c) (value (child c)) n h ∧
         P (depth x + 1) n ∧ h ≤ D - (depth x + 1) := fun c hc => by
       obtain ⟨-, hn, hμc, hdc⟩ := hkids c hc
-      simpa only [hdc] using ih (μ (child c)) (hμ ▸ hμc) (child c) hn rfl
+      simpa only [hdc] using ih (child c) hμc hn
     choose! nodes height hev using hev
     obtain ⟨h, hh, hloop⟩ := Loop.counted (I := I) (val := fun c => value (child c)) cnt
       (D - (depth x + 1)) hnext hdone habs (fun c hc => (hev c hc).1)

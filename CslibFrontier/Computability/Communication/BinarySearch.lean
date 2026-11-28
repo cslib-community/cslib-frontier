@@ -52,20 +52,22 @@ theorem exists_search_lt (f : X → ι → ℤ) (g : Y → ι → ℤ) (L c : �
     (l : List ι) (hl : l.length ≤ L) :
     ∃ p : Protocol X Y (Option ι), p.depth ≤ Nat.clog 2 l.length * c ∧
       ∀ x y, (l.map (g y)).sum < (l.map (f x)).sum → ∃ i ∈ p.run x y, g y i < f x i := by
-  induction h : l.length using Nat.strong_induction_on generalizing l with
-  | _ m ih =>
-    obtain rfl | rfl | hm2 : m = 0 ∨ m = 1 ∨ 2 ≤ m := by omega
-    · rw [List.length_eq_zero_iff] at h
-      subst h
+  induction l using (_root_.measure List.length).wf.induction with
+  | h l ih =>
+    obtain hzero | hone | hm2 : l.length = 0 ∨ l.length = 1 ∨ 2 ≤ l.length := by omega
+    · obtain rfl := List.length_eq_zero_iff.mp hzero
       exact ⟨.output none, by simp, fun x y h => by simp at h⟩
-    · obtain ⟨i, rfl⟩ := List.length_eq_one_iff.1 h
+    · obtain ⟨i, rfl⟩ := List.length_eq_one_iff.1 hone
       exact ⟨.output (some i), by simp, fun x y h => ⟨i, rfl, by simpa using h⟩⟩
     · -- Compare the sums over the first half, then search in the half where Bob's sum is
       -- smaller; both halves have `⌈log₂⌉` of their length at most `⌈log₂ m⌉ - 1`.
+      set m := l.length
       have hlen₁ : (l.take (m / 2)).length = m / 2 := by rw [List.length_take]; omega
-      have hlen₂ : (l.drop (m / 2)).length = m - m / 2 := by rw [List.length_drop]; omega
-      obtain ⟨p₁, hp₁d, hp₁⟩ := ih _ (by omega) (l.take (m / 2)) (by omega) rfl
-      obtain ⟨p₂, hp₂d, hp₂⟩ := ih _ (by omega) (l.drop (m / 2)) (by omega) rfl
+      have hlen₂ : (l.drop (m / 2)).length = m - m / 2 := List.length_drop
+      obtain ⟨p₁, hp₁d, hp₁⟩ := ih (l.take (m / 2))
+        (show (l.take (m / 2)).length < m by omega) (by omega)
+      obtain ⟨p₂, hp₂d, hp₂⟩ := ih (l.drop (m / 2))
+        (show (l.drop (m / 2)).length < m by omega) (by omega)
       obtain ⟨q, hqd, hq⟩ := hcmp (l.take (m / 2)) (by omega)
       have hc₁ := Nat.clog_two_lt_clog_two_of_le_half hm2 (k := (l.take (m / 2)).length) (by omega)
       have hc₂ := Nat.clog_two_lt_clog_two_of_le_half hm2 (k := (l.drop (m / 2)).length) (by omega)

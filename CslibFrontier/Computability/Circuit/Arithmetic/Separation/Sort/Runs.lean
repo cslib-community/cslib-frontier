@@ -127,14 +127,15 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
       (fun l => (l.map wt).prod) := by
   classical
   intro v
-  induction hn : ∑ z, (v z).length using Nat.strong_induction_on generalizing v with
-  | _ n ih =>
+  let totalLength (v : Z → List Γ) := ∑ z, (v z).length
+  induction v using (_root_.measure totalLength).wf.induction with
+  | h v ih =>
     choose Rf hf1 hf2 using hf
     have hlt : ∀ p ∈ (anti v).filter (fun p => p.1 ≠ fun _ => []),
-        ∑ z, (p.2 z).length < n := fun p hp => by
+        totalLength p.2 < totalLength v := fun p hp => by
       rw [Finset.mem_filter, mem_anti] at hp
-      have he : n = ∑ z, (p.1 z).length + ∑ z, (p.2 z).length := by
-        rw [← hn, ← Finset.sum_add_distrib]
+      have he : totalLength v = (∑ z, (p.1 z).length) + totalLength p.2 := by
+        simp only [totalLength, ← Finset.sum_add_distrib]
         exact Finset.sum_congr rfl fun z _ => by rw [← hp.1 z, List.length_append]
       have hpos : 0 < ∑ z, (p.1 z).length := Nat.pos_iff_ne_zero.2 fun h0 => hp.2 <| funext fun z =>
         List.length_eq_zero_iff.1 (Finset.sum_eq_zero_iff.1 h0 z (Finset.mem_univ z))
@@ -143,7 +144,7 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
     have ih' (p : (Z → List Γ) × (Z → List Γ)) : ∃ R : Finset (List X), p ∈ A →
         (∀ l, l ∈ R ↔ (fun z => l.flatMap fun x => em x z) = p.2) ∧
           hat (Series.kstar f) p.2 = ∑ l ∈ R, (l.map wt).prod :=
-      if hp : p ∈ A then (ih _ (hlt p hp) p.2 rfl).imp fun _ h _ => h
+      if hp : p ∈ A then (ih p.2 (hlt p hp)).imp fun _ h _ => h
       else ⟨∅, fun h => absurd h hp⟩
     choose Rs hRs using ih'
     let B : Finset (X × List X) := A.biUnion fun p => Rf p.1 ×ˢ Rs p

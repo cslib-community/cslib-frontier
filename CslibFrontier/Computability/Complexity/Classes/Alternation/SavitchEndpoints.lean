@@ -303,17 +303,18 @@ private theorem computableInO_levelMarks :
 /-- A zip transducer emits at most two symbols per pair of digits, and two at the end. -/
 private theorem length_run_le {Q : Type} (τ : ZipTransducer Q) (q : Q) (u v : List Bool) :
     (τ.run q u v).length ≤ 2 * (u.length + v.length) + 2 := by
-  induction hn : u.length + v.length using Nat.strong_induction_on generalizing q u v with
-  | _ n ih =>
-    rcases u with _ | ⟨a, u⟩ <;> rcases v with _ | ⟨b, v⟩
-    · simpa only [ZipTransducer.run_nil_nil] using (τ.length_final_le q).trans (Nat.le_add_left _ _)
-    all_goals
-      simp only [ZipTransducer.run_nil_cons, ZipTransducer.run_cons_nil,
-        ZipTransducer.run_cons_cons, List.length_append]
-      refine (Nat.add_le_add (τ.length_step_le _ _) (ih _ ?_ _ _ _ rfl)).trans ?_
-      all_goals
-        simp only [List.length_cons, List.length_nil] at hn ⊢
-        omega
+  by_cases h : u = [] ∧ v = []
+  · obtain ⟨rfl, rfl⟩ := h
+    simpa using τ.length_final_le q
+  have hpos : 0 < u.length ∨ 0 < v.length := by
+    simpa only [List.length_pos_iff] using not_and_or.mp h
+  rw [τ.run_of_ne h, List.length_append]
+  have hrec := length_run_le τ (τ.step q (u.head?, v.head?)).1 u.tail v.tail
+  have hstep := τ.length_step_le q (u.head?, v.head?)
+  simp only [List.length_tail] at hrec
+  omega
+termination_by u.length + v.length
+decreasing_by simp only [List.length_tail]; omega
 
 /-- The word computed by the endpoint machine for the half `d`, on the width `w`, the number `i`
 of levels and the moves `z`: the endpoint scan of the level marks and the reversed moves, reversed.

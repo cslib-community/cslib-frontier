@@ -166,14 +166,14 @@ theorem exists_good (Q : Finset α) (P : Finset β) (ends : β → Finset α)
     (hsub : ∀ p ∈ P, ends p ⊆ Q) (hne : ∀ p ∈ P, (ends p).Nonempty)
     (htwo : ∀ p ∈ P, (ends p).card ≤ 2) : ∃ l, Good Q P ends l := by
   classical
-  induction hN : Q.card using Nat.strong_induction_on generalizing Q P with
-  | _ N ih =>
+  induction Q using (_root_.measure Finset.card).wf.induction generalizing P
+  rename_i Q ih
   by_cases hA : ∃ Y ⊆ Q, Y.Nonempty ∧ Y ≠ Q ∧ Closed P ends Q Y
   · obtain ⟨Y, hYQ, hYne, hYQne, hYc⟩ := hA
     set Z := Q \ Y with hZ
-    have hYlt : Y.card < N :=
-      hN ▸ Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨hYQ, hYQne⟩)
-    have hZlt : Z.card < N := hN ▸ Finset.card_lt_card (Finset.sdiff_ssubset hYQ hYne)
+    have hYlt : Y.card < Q.card :=
+      Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨hYQ, hYQne⟩)
+    have hZlt : Z.card < Q.card := Finset.card_lt_card (Finset.sdiff_ssubset hYQ hYne)
     have hdisj : Disjoint Y Z := disjoint_sdiff_self_right
     have hunion : Y ∪ Z = Q := Finset.union_sdiff_of_subset hYQ
     -- for nonempty closed items, `⊆ Z` and `¬ ⊆ Y` agree
@@ -184,14 +184,14 @@ theorem exists_good (Q : Finset α) (P : Finset β) (ends : β → Finset α)
       Finset.filter_congr hiff
     have hfZ' : (P.filter fun p => ¬ ends p ⊆ Z) = P.filter fun p => ends p ⊆ Y :=
       Finset.filter_congr fun p hp => by rw [hiff p hp, not_not]
-    obtain ⟨lY, hlY⟩ := ih Y.card hYlt Y (P.filter fun p => ends p ⊆ Y)
+    obtain ⟨lY, hlY⟩ := ih Y hYlt (P.filter fun p => ends p ⊆ Y)
       (fun p hp => (Finset.mem_filter.mp hp).2)
       (fun p hp => hne p (Finset.mem_filter.mp hp).1)
-      (fun p hp => htwo p (Finset.mem_filter.mp hp).1) rfl
-    obtain ⟨lZ, hlZ⟩ := ih Z.card hZlt Z (P.filter fun p => ¬ ends p ⊆ Y)
+      (fun p hp => htwo p (Finset.mem_filter.mp hp).1)
+    obtain ⟨lZ, hlZ⟩ := ih Z hZlt (P.filter fun p => ¬ ends p ⊆ Y)
       (fun p hp => (hiff p (Finset.mem_filter.mp hp).1).mpr (Finset.mem_filter.mp hp).2)
       (fun p hp => hne p (Finset.mem_filter.mp hp).1)
-      (fun p hp => htwo p (Finset.mem_filter.mp hp).1) rfl
+      (fun p hp => htwo p (Finset.mem_filter.mp hp).1)
     rcases le_total ((Y.card : ℤ) - (P.filter fun p => ends p ⊆ Y).card)
         ((Z.card : ℤ) - (P.filter fun p => ¬ ends p ⊆ Y).card) with hle | hle
     · exact ⟨lY ++ lZ, combine Q Y Z P ends hdisj hunion lY lZ hlY hlZ hle⟩

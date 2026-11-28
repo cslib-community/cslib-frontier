@@ -977,9 +977,9 @@ theorem filterLock_exists_cs_execution {n : ℕ} {s : FilterState n} (hr : s.Rea
     ∃ μs s', (filterLock n).MTr s μs s' ∧
       (∀ μ ∈ μs, ∀ p, μ ≠ .requestCS p ∧ μ ≠ .exitCS p) ∧
       (∃ p, s'.inCS p) := by
-  obtain ⟨B, hB⟩ : ∃ B, n * (n * (n + 2)) - s.potential = B := ⟨_, rfl⟩
-  induction B using Nat.strong_induction_on generalizing s with
-  | _ B ih =>
+  let remaining (s : FilterState n) := n * (n * (n + 2)) - s.potential
+  induction s using (_root_.measure remaining).wf.induction
+  rename_i s ih
   by_cases hex_cs : ∃ p, s.inCS p
   · exact ⟨[], s, .refl, fun _ h => (List.not_mem_nil h).elim, hex_cs⟩
   push Not at hex_cs
@@ -991,7 +991,8 @@ theorem filterLock_exists_cs_execution {n : ℕ} {s : FilterState n} (hr : s.Rea
   rcases trying_step_leads_to_trying_or_cs htry_act htr with htry' | hcs'
   · have hbound := potential_le s'
     obtain ⟨μs, s'', hmtr, hclean, hcs''⟩ :=
-      ih _ (by omega) (hr.step htr) ⟨μ.actor, htry'⟩ rfl
+      ih s' (show remaining s' < remaining s by dsimp only [remaining]; omega)
+        (hr.step htr) ⟨μ.actor, htry'⟩
     exact ⟨μ :: μs, s'', .stepL htr hmtr, List.forall_mem_cons.mpr ⟨hμ_clean, hclean⟩, hcs''⟩
   · exact ⟨[μ], s', .single (filterLock n) htr, List.forall_mem_singleton.mpr hμ_clean,
       ⟨μ.actor, hcs'⟩⟩
