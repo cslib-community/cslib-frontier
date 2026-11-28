@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.BitString
 public import Mathlib.Order.Filter.AtTopBot.Basic
 public import Mathlib.Topology.Algebra.InfiniteSum.ENNReal
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Probability.PMF.Bind
 import Mathlib.Algebra.Order.Antidiag.Prod
 import Mathlib.Topology.Instances.ENNReal.Lemmas
@@ -342,15 +343,6 @@ private theorem label_lt (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) {k y : ℕ
       rw [Finset.sum_map_toList] at this
       omega
 
-private theorem sum_range_two_mul_div (f : ℕ → ℕ) (M : ℕ) :
-    ∑ i ∈ Finset.range (2 * M), f (i / 2) = 2 * ∑ i ∈ Finset.range M, f i := by
-  induction M with
-  | zero => simp
-  | succ M ih =>
-    rw [show 2 * (M + 1) = 2 * M + 1 + 1 by ring, Finset.sum_range_succ, Finset.sum_range_succ,
-      ih, Finset.sum_range_succ, show (2 * M + 1) / 2 = M by omega, Nat.mul_div_right _ zero_lt_two]
-    ring
-
 private theorem label_succ_add (k i : ℕ) :
     label t (k + 1) (2 * total t k + i) =
       pick (fun a => t (k + 1) a - 2 * t k a) Finset.univ.toList i := by
@@ -372,8 +364,9 @@ private theorem sum_label [DecidableEq α] (hmono : ∀ k a, 2 * t k a ≤ t (k 
   | succ k ih =>
     have h1 : ∑ y ∈ Finset.range (2 * total t k), (if label t (k + 1) y = some a then 1 else 0) =
         2 * t k a := by
-      rw [← ih, ← sum_range_two_mul_div]
-      exact Finset.sum_congr rfl fun y hy => by rw [label_succ_of_lt (Finset.mem_range.mp hy)]
+      rw [Finset.sum_congr rfl fun y hy => by rw [label_succ_of_lt (Finset.mem_range.mp hy)],
+        Finset.sum_range_mul_div (fun y => if label t k y = some a then (1 : ℕ) else 0),
+        Nat.nsmul_eq_mul, ih]
     rw [total_succ hmono, Finset.sum_range_add, h1]
     simp only [label_succ_add]
     rw [sum_pick (fun a => t (k + 1) a - 2 * t k a) (Finset.nodup_toList _) a

@@ -160,11 +160,10 @@ theorem pow_mul_meixnerC_of_mul_eq_one {y z : R} (h : y * z = 1) (r n : ℕ) : y
 /-- A telescoping sum. -/
 private theorem sum_range_pow_mul_sub (y : R) (u v : ℕ → R) (N : ℕ) (h : ∀ r, v (r + 1) = u r) :
     ∑ r ∈ Finset.range N, y ^ r * (v r - y * u r) = v 0 - y ^ N * v N := by
-  induction N with
-  | zero => simp
-  | succ N ih =>
-    rw [Finset.sum_range_succ, ih, h]
-    ring
+  calc
+    _ = ∑ r ∈ Finset.range N, (y ^ r * v r - y ^ (r + 1) * v (r + 1)) :=
+      Finset.sum_congr rfl fun r _ => by rw [h, pow_succ, mul_sub, mul_assoc]
+    _ = _ := by rw [Finset.sum_range_sub', pow_zero, one_mul]
 
 /-- The first family against `1`: `(1 - y) ∑_{r<N} y^r B(r, k + 1) ≡ 0` modulo `y^N`. -/
 private theorem pow_dvd_sum_meixnerB_succ (y : R) (N k : ℕ) :

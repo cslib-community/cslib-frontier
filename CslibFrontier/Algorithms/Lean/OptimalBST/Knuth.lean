@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Yao
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.SplitIfs
@@ -315,14 +316,13 @@ theorem knuthBST_eq {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w) (hmono : M
     (n : ℕ) : knuthBST w n = ⟨optCost w 0 n, optTree w 0 n⟩ :=
   solve_eq (Window.valid_knuth hqi hmono n)
 
-private theorem sum_telescope (a : ℕ → ℕ) : ∀ m, (∀ i < m, a i ≤ a (i + 1)) →
-    (∑ i ∈ range m, (a (i + 1) - a i + 1)) + a 0 = a m + m
-  | 0, _ => by rw [sum_range_zero, zero_add, add_zero]
-  | m + 1, h => by
-    have ih := sum_telescope a m fun i hi => h i (by omega)
-    have := h m (by omega)
-    rw [sum_range_succ]
-    omega
+private theorem sum_telescope (a : ℕ → ℕ) (m : ℕ) (h : ∀ i < m, a i ≤ a (i + 1)) :
+    (∑ i ∈ range m, (a (i + 1) - a i + 1)) + a 0 = a m + m := by
+  have hle := sum_le_sum (s := range m) fun i hi => h i (mem_range.mp hi)
+  have hsum := (sum_range_succ a m).symm.trans (sum_range_succ' a m)
+  simp only [sum_add_distrib, sum_const, card_range, Nat.nsmul_eq_mul, mul_one]
+  rw [sum_tsub_distrib _ fun i hi => h i (mem_range.mp hi)]
+  omega
 
 /-- **Knuth's telescoping bound**: under the quadrangle inequality and interval monotonicity, the
 lengths of Knuth's candidate-root windows along diagonal `d + 1` sum to at most `2 n`. -/

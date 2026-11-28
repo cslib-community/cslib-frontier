@@ -20,6 +20,7 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # The local connection game
@@ -819,14 +820,16 @@ private theorem getVert_one_and_dist_deleteEdges_of_lt {V : Type*} {G : SimpleGr
     simp only [Walk.length_cons] at hp
     exact ⟨by simp only [Walk.getVert_cons_succ, Walk.getVert_zero], by omega⟩
 
-private theorem sum_range_shortcut_savings :
-    ∀ (k d : ℕ), 2 * k ≤ d → (∑ j ∈ range k, (d - 1 - 2 * j)) = k * (d - k)
-  | 0, _, _ => by simp only [range_zero, sum_empty, zero_mul]
-  | k + 1, d, hkd => by
-    rw [sum_range_succ, sum_range_shortcut_savings k d (by omega)]
-    zify [show 2 * k + 1 ≤ d by omega, show 2 * k ≤ d - 1 by omega, show 1 ≤ d by omega,
-      show k ≤ d by omega, show k + 1 ≤ d by omega]
-    ring
+private theorem sum_range_shortcut_savings (k d : ℕ) (hkd : 2 * k ≤ d) :
+    (∑ j ∈ range k, (d - 1 - 2 * j)) = k * (d - k) := by
+  by_cases hk : k = 0
+  · simp [hk]
+  rw [sum_tsub_distrib _ (fun j hj => by have := mem_range.mp hj; omega),
+    sum_const, card_range, smul_eq_mul, ← mul_sum, mul_comm 2, sum_range_id_mul_two,
+    ← Nat.mul_sub]
+  congr 1
+  omega
+
 
 private theorem sum_ge_of_subset {α : Type*} [DecidableEq α] {S T : Finset α} (hT : T ⊆ S)
     (f : α → ℕ) (c₁ c₂ : ℕ) (h₁ : ∀ x ∈ T, c₁ ≤ f x) (h₂ : ∀ x ∈ S \ T, c₂ ≤ f x) :

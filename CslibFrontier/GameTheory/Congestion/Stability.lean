@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Congestion.Affine
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.GameTheory.Strategic.Stability
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -83,12 +84,10 @@ theorem socialCost_le_two_mul_rosenthalPotential [Fintype E] (h : C.HasAffineLat
   have hsum : ∀ n : ℕ, 2 * ∑ k ∈ Finset.range n, C.latency e (k + 1)
       = a e * n * (n + 1) + 2 * b e * n := by
     intro n
-    induction n with
-    | zero => simp
-    | succ n ih =>
-      rw [Finset.sum_range_succ, mul_add, ih, hl]
-      push_cast
-      ring
+    simp_rw [hl, Nat.cast_add, Nat.cast_one, Finset.sum_add_distrib,
+      ← Finset.mul_sum, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+    rw [mul_add, mul_left_comm 2 (a e), Finset.two_mul_sum_range_natCast_succ]
+    ring
   rw [hsum, hl]
   have hn : (0 : ℝ) ≤ C.load s e := Nat.cast_nonneg _
   nlinarith [mul_nonneg (ha e) hn, mul_nonneg (hb e) hn]

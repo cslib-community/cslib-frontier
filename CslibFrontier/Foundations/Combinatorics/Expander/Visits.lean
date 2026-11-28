@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Combinatorics.Expander.SimpleGraph
 public import CslibFrontier.Foundations.Combinatorics.Expander.Walk
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Combinatorics.Expander.Harmonic
 import CslibFrontier.Foundations.Combinatorics.Expander.Spectrum
 import CslibFrontier.Foundations.Data.Finset.Expect
@@ -230,9 +231,11 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
   have hq := expect_visitSum_sq_le f hf1 _ hM
   have hsum_eq (m : ℕ) : ∑ s ∈ range m, (1 + 2 * (η * (s + 1) + (N₀ + 1))) =
       m * (3 + 2 * N₀) + η * m * (m + 1) := by
-    induction m with
-    | zero => simp
-    | succ m ih => rw [sum_range_succ, ih]; push_cast; ring
+    simp_rw [show ∀ s : ℕ, (1 + 2 * (η * (s + 1) + (N₀ + 1))) =
+        (3 + 2 * N₀) + (2 * η) * ((s : ℝ) + 1) from fun s => by ring,
+      sum_add_distrib, ← mul_sum, sum_const, card_range, nsmul_eq_mul]
+    rw [mul_comm 2 η, mul_assoc, Finset.two_mul_sum_range_natCast_succ]
+    ring
   -- the bound on the second moment is eventually small
   set T₀ := ⌈2 * n ^ 2 * (3 + 2 * N₀) / ε ^ 3⌉₊ + 1
   filter_upwards [eventually_ge_atTop T₀] with t ht

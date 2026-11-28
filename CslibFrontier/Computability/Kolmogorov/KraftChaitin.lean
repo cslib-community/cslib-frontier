@@ -12,6 +12,7 @@ public import Mathlib.InformationTheory.Coding.Kraft
 public import Mathlib.Topology.Algebra.InfiniteSum.Real
 import CslibFrontier.Foundations.Data.List.Primrec
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.Order.Ring.GeomSum
 import Mathlib.Computability.Primrec.List
 import Mathlib.Data.Rat.Cast.Order
 
@@ -616,13 +617,6 @@ private theorem splitAtLen_spec {ℓ b : ℕ} {avail : List (List Bool)}
         · exact Or.inl List.mem_cons_self
         · exact (hmem' x hx').imp_left (List.mem_cons_of_mem u)
 
-private theorem two_pow_sum_range_lt (m : ℕ) : ∑ k ∈ Finset.range m, 2 ^ k < 2 ^ m := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    rw [Finset.sum_range_succ, pow_succ]
-    omega
-
 private theorem inv_two_pow_mul_two_pow {k M : ℕ} (hk : k ≤ M) :
     (2 : ℚ)⁻¹ ^ k * (2 : ℚ) ^ M = ((2 ^ (M - k) : ℕ) : ℚ) := by
   have hM : k + (M - k) = M := Nat.add_sub_of_le hk
@@ -696,8 +690,8 @@ private theorem exists_length_le_of_inv_pow_le_listWeight {avail : List (List Bo
     calc ∑ u ∈ avail.toFinset, 2 ^ (M - u.length)
       _ = ∑ k ∈ avail.toFinset.image (fun u => M - u.length), 2 ^ k := by
           rw [Finset.sum_image (fun u hu v hv => hinj hu hv)]
-      _ ≤ ∑ k ∈ Finset.range (M - ℓ), 2 ^ k := Finset.sum_le_sum_of_subset himg_sub
-      _ < 2 ^ (M - ℓ) := two_pow_sum_range_lt (M - ℓ)
+      _ < 2 ^ (M - ℓ) := Nat.geomSum_lt (by decide) fun _ hk =>
+        Finset.mem_range.mp (himg_sub hk)
   have hscaled_avail :
       listWeight avail * (2 : ℚ) ^ M =
         ((∑ u ∈ avail.toFinset, 2 ^ (M - u.length) : ℕ) : ℚ) := by

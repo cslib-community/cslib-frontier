@@ -12,8 +12,9 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Analysis.Convex.Extreme
 public import Mathlib.Analysis.Convex.Hull
 public import Mathlib.Basic.Real.Basic
-import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Analysis.Convex.Combination
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Finset.Sort
@@ -336,26 +337,22 @@ private theorem sum_fin_sub_telescope :
       (∑ k : Fin m, if ia.val ≤ k.val ∧ k.val < ib.val then f k.succ - f k.castSucc else 0) =
         f ib - f ia := by
   intro m f ia ib hle
-  obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le (Fin.le_def.1 hle)
-  induction d generalizing ib with
-  | zero =>
-    obtain rfl : ib = ia := Fin.ext (by omega)
-    rw [Finset.sum_eq_zero fun k _ => ite_eq_right (by omega), sub_self]
-  | succ d ih =>
-    let ib' : Fin (m + 1) := ⟨ia.val + d, by omega⟩
-    let k₀ : Fin m := ⟨ia.val + d, by omega⟩
-    have hsplit (k : Fin m) :
-        (if ia.val ≤ k.val ∧ k.val < ib.val then f k.succ - f k.castSucc else 0) =
-          (if ia.val ≤ k.val ∧ k.val < ib'.val then f k.succ - f k.castSucc else 0) +
-            (if k = k₀ then f k.succ - f k.castSucc else 0) := by
-      simp only [Fin.ext_iff, ib', k₀]
-      split_ifs <;> first | ring1 | exact False.elim (by omega)
-    simp_rw [hsplit, Finset.sum_add_distrib]
-    rw [ih ib' (Nat.le_add_right ia.val d) rfl, Finset.sum_ite_eq']
-    have hk_succ : k₀.succ = ib := Fin.ext (by simp only [k₀, Fin.val_succ]; omega)
-    have hk_cast : k₀.castSucc = ib' := rfl
-    simp only [Finset.mem_univ, ↓reduceIte, hk_succ, hk_cast]
-    ring
+  let g (i : ℕ) := f (Fin.ofNat (m + 1) i)
+  have hg (i : Fin (m + 1)) : g i.val = f i := congrArg f (Fin.natCast_eq_mk i.isLt)
+  have hsum : (∑ k : Fin m,
+      if ia.val ≤ k.val ∧ k.val < ib.val then f k.succ - f k.castSucc else 0) =
+      ∑ k ∈ Finset.Ico ia.val ib.val, (g (k + 1) - g k) := by
+    conv_lhs =>
+      rw [Finset.sum_congr rfl fun k _ => by rw [← hg k.succ, ← hg k.castSucc]]
+    simp only [Fin.val_succ, Fin.val_castSucc]
+    rw [Fin.sum_univ_eq_sum_range (fun k => if ia.val ≤ k ∧ k < ib.val then g (k + 1) - g k else 0),
+      ← Finset.sum_filter]
+    congr 1
+    ext k
+    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_Ico]
+    have := ib.isLt
+    omega
+  rw [hsum, Finset.sum_Ico_sub g (Fin.le_def.mp hle), hg, hg]
 
 /-- **Theorem 10.15** ([SchummerVohra2007], Section 10.4.2, p. 261; [VandeVate1989]; [Rothblum1992];
 [TeoSethuraman1998]): the fractional stable matching polytope `I.stablePolytope` equals the convex

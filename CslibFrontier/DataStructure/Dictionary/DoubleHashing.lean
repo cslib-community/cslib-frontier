@@ -10,10 +10,12 @@ module
 public import CslibFrontier.DataStructure.Dictionary.UniformProbing
 public import CslibFrontier.Foundations.Data.Nat.OddMulMod
 public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
+import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation.Parameters
 import CslibFrontier.Probability.KWiseIndependent.Restriction
 import CslibFrontier.Probability.PMF.UniformBound
+import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Fintype.Pi
@@ -1478,28 +1480,22 @@ private theorem mul_two_pow_succ_le_four_pow : ∀ w : ℕ, w * 2 ^ (w + 1) ≤ 
       rw [pow_succ 4, pow_succ 2 (w + 2)]
       nlinarith [Nat.zero_le (w * 2 ^ (w + 2))]
 
-/-- Geometric-decay summation with the slack kept explicit: if `2 ^ (w - a + 1) * f w ≤ B` on
-`[a, a + n)`, then `2 ^ n * ∑ f + B ≤ 2 ^ n * B`. -/
-private theorem two_pow_mul_sum_Ico_add_le {a B : ℕ} {f : ℕ → ℕ} : ∀ n : ℕ,
-    (∀ w ∈ Finset.Ico a (a + n), 2 ^ (w - a + 1) * f w ≤ B) →
-      2 ^ n * ∑ w ∈ Finset.Ico a (a + n), f w + B ≤ 2 ^ n * B
-  | 0, _ => by simp
-  | n + 1, h => by
-      have ih := two_pow_mul_sum_Ico_add_le n fun w hw =>
-        h w (Finset.Ico_subset_Ico_right (by omega) hw)
-      have hn := h (a + n) (by simp)
-      rw [Nat.add_sub_cancel_left, pow_succ] at hn
-      rw [← Nat.add_assoc, Finset.sum_Ico_succ_top (Nat.le_add_right a n), pow_succ]
-      linarith
-
 /-- If `f w ≤ B / 2 ^ (w - a + 1)` on `[a, b)`, then `∑ w ∈ [a, b), f w ≤ B`. -/
 private theorem sum_Ico_le_of_two_pow_mul_le {a b B : ℕ} {f : ℕ → ℕ}
     (h : ∀ w ∈ Finset.Ico a b, 2 ^ (w - a + 1) * f w ≤ B) : ∑ w ∈ Finset.Ico a b, f w ≤ B := by
   rcases le_total b a with hba | hab
   · simp [Finset.Ico_eq_empty_of_le hba]
   · obtain ⟨n, rfl⟩ := Nat.exists_eq_add_of_le hab
-    exact Nat.le_of_mul_le_mul_left ((Nat.le_add_right _ B).trans
-      (two_pow_mul_sum_Ico_add_le n h)) (Nat.two_pow_pos n)
+    have hsum : ∑ i ∈ Finset.range n, f (a + i) = ∑ w ∈ Finset.Ico a (a + n), f w := by
+      simpa only [Nat.Ico_zero_eq_range, zero_add, Nat.add_comm n a] using
+        Finset.sum_Ico_add f 0 n a
+    rw [← hsum]
+    refine (Nat.sum_range_le_of_pow_mul_le (b := 2) (c := B) (d := 1)
+      (by decide) ?_).trans (by
+        simpa only [pow_one, Nat.reduceSub, Nat.div_one] using Nat.div_mul_le_self B 2)
+    intro i hi
+    simpa only [Nat.add_sub_cancel_left] using
+      h (a + i) (Finset.mem_Ico.mpr ⟨Nat.le_add_right a i, Nat.add_lt_add_left hi a⟩)
 
 private theorem four_mul_n_max_sq_le_four_pow_maxProbeCutoff (n_max : ℕ) :
     4 * n_max * (n_max + 1) ≤ 4 ^ maxProbeCutoff n_max := by

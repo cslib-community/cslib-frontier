@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.LogSpaceDerandomization.CopyStage
 public import CslibFrontier.Computability.LogSpaceDerandomization.PilotCorrection
 public import CslibFrontier.Computability.LogSpaceDerandomization.ColumnDetector
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.Floor.Semiring
 
@@ -92,9 +93,7 @@ variable {V ι ι' : Type*} [Fintype V] [Fintype ι] [Fintype ι'] {X : ι → V
 
 private theorem sum_fin_succ_cast (k : ℕ) : ∑ i : Fin k, ((i : ℝ) + 1) = k * (k + 1) / 2 := by
   rw [Fin.sum_univ_eq_sum_range (fun i => (i : ℝ) + 1)]
-  induction k with
-  | zero => simp
-  | succ k ih => rw [sum_range_succ, ih]; push_cast; ring
+  linarith [Finset.two_mul_sum_range_natCast_succ (R := ℝ) k]
 
 /-- **Few overloaded vertices** [OpenAI2026LogSpace, Proposition 4.5]: after `k` pilot steps with
 the column detector, if `A` covers the support of `C` and `2 C_π m k (k + 1) ≤ δ₀ J`, then

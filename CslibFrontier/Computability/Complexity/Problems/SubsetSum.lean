@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.GetD
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import Mathlib.Data.List.GetD
 
@@ -360,12 +361,12 @@ theorem lt_of_mem_digitNumbers {a : ℕ} (ha : a ∈ digitNumbers φ) :
         simp only [ite_mul, one_mul, zero_mul]
         rw [← sum_filter, filter_mem_eq_inter, inter_eq_right.2 (itemCol_subset hx'),
           octal_itemDigits hx']
-    _ < _ := Nat.sum_range_mul_pow_lt fun p _ => by split <;> lia
+    _ < _ := BitString.packRadix_lt _ fun p _ => by split <;> lia
 
 /-- The target has at most `φ.distinctVars.length + φ.length` base-8 digits. -/
 theorem digitTarget_lt : digitTarget φ < 8 ^ (φ.distinctVars.length + φ.length) := by
   rw [digitTarget_eq]
-  exact Nat.sum_range_mul_pow_lt fun p _ => by split <;> lia
+  exact BitString.packRadix_lt _ fun p _ => by split <;> lia
 
 /-- The count at a variable position. -/
 private theorem card_filter_var {A B : Finset (ℕ × Bool)} {i : ℕ}

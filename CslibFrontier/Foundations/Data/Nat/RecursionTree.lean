@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.Nat.SqrtLog
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Algebra.Order.Ring.GeomSum
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -88,15 +89,8 @@ theorem recursionBound_le (b : ℕ → ℕ) (k d : ℕ) :
 
 /-- **Halving excess exponents**: `∑ j < D, x / 2 ^ j ≤ 2 x`. -/
 theorem sum_div_two_pow_le (x D : ℕ) : ∑ j ∈ range D, x / 2 ^ j ≤ 2 * x := by
-  induction D generalizing x with
-  | zero => simp
-  | succ D ih =>
-    have h : ∑ j ∈ range D, x / 2 ^ (j + 1) = ∑ j ∈ range D, x / 2 / 2 ^ j :=
-      sum_congr rfl fun j _ => by rw [pow_succ, Nat.mul_comm, Nat.div_div_eq_div_mul]
-    rw [sum_range_succ', h, pow_zero, Nat.div_one]
-    have := ih (x / 2)
-    have := Nat.div_mul_le_self x 2
-    omega
+  simpa only [Nat.reduceSub, Nat.div_one, mul_comm x 2] using
+    Nat.geom_sum_le (b := 2) (by decide) x D
 
 /-- `L ^ 3 ≤ 8 * 2 ^ L`. -/
 private theorem cube_le_eight_mul_two_pow (L : ℕ) : L ^ 3 ≤ 8 * 2 ^ L := by

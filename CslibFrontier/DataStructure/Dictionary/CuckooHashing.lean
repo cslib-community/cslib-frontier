@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
 public import CslibFrontier.Probability.KWiseIndependent.Trinomial
 public import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation.Parameters
 import CslibFrontier.Probability.KWiseIndependent.Restriction
@@ -1269,25 +1270,11 @@ private theorem not_goodForSet_imp_exists_walkBadAt {U m maxLoop : ℕ} {h₁ h�
       · exact Or.inr ⟨L, hL, p, s, j, y, hidx, hinj, hy0, fun i => hsub_erase _ (hymem i), heq⟩
     · exact ih hnodup.2 hsub_ks hrep
 
-/-- Elementary dyadic sum bound in `ℕ`: if `2 ^ (r + 1) * f r ≤ M` for all `r < K`, then
-`2 ^ K * (∑ r ∈ Finset.range K, f r) + M ≤ 2 ^ K * M`, and in particular
-`∑ r ∈ Finset.range K, f r ≤ M`. -/
-private theorem two_pow_mul_sum_range_add_le {f : ℕ → ℕ} {M : ℕ} :
-    ∀ (K : ℕ), (∀ r < K, 2 ^ (r + 1) * f r ≤ M) →
-      2 ^ K * (∑ r ∈ Finset.range K, f r) + M ≤ 2 ^ K * M
-  | 0, _ => by simp
-  | K + 1, hle => by
-    have ih := two_pow_mul_sum_range_add_le K fun r hr => hle r (by omega)
-    have hK := hle K (by omega)
-    rw [Finset.sum_range_succ]
-    rw [pow_succ'] at hK ⊢
-    linarith
-
 private theorem sum_range_le_of_two_pow_mul_le {f : ℕ → ℕ} {M K : ℕ}
     (hle : ∀ r < K, 2 ^ (r + 1) * f r ≤ M) :
-    ∑ r ∈ Finset.range K, f r ≤ M := by
-  have h1 := two_pow_mul_sum_range_add_le K hle
-  exact Nat.le_of_mul_le_mul_left (by omega) (Nat.two_pow_pos K)
+    ∑ r ∈ Finset.range K, f r ≤ M :=
+  (Nat.sum_range_le_of_pow_mul_le (by decide) hle).trans (by
+    simpa only [pow_one, Nat.reduceSub, Nat.div_one] using Nat.div_mul_le_self M 2)
 
 private theorem two_pow_le_thirty_two_pow {e ℓ : ℕ} (h : e ≤ 5 * ℓ) : 2 ^ e ≤ 32 ^ ℓ :=
   (Nat.pow_le_pow_right two_pos h).trans_eq (pow_mul 2 5 ℓ)

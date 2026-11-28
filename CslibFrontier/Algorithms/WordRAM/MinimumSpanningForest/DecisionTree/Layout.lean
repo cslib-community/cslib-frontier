@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.DecisionTree.Canonical
 public import CslibFrontier.Foundations.Data.Nat.IterLog
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
+import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Data.Nat.Log
@@ -703,45 +705,6 @@ theorem walkCompleteTree_eval {e dInit intBase leafBase : ℕ} {mem : ℕ → �
         simp only [hc, Bool.false_eq_true, ↓reduceIte, hlt]
         exact ih hr
 
-private theorem sum_range_shift_mul (B N : ℕ) (g : ℕ → ℕ) :
-    ∑ k ∈ Finset.range N, g k * B ^ (k + 1) = B * ∑ k ∈ Finset.range N, g k * B ^ k := by
-  induction N with
-  | zero => simp
-  | succ N ih =>
-    rw [Finset.sum_range_succ, Finset.sum_range_succ, ih]
-    ring
-
-private theorem baseB_digit_decode (B N : ℕ) (f : ℕ → ℕ) (hf : ∀ k < N, f k < B) :
-    ∀ m < N, ((∑ k ∈ Finset.range N, f k * B ^ k) / B ^ m) % B = f m := by
-  induction N generalizing f with
-  | zero => intro m hm; omega
-  | succ N ih =>
-    intro m hm
-    have hB : 0 < B := by have := hf 0 (Nat.zero_lt_succ N); omega
-    rw [Finset.sum_range_succ', sum_range_shift_mul]
-    cases m with
-    | zero =>
-      simp only [pow_zero, mul_one, Nat.div_one]
-      rw [Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt (hf 0 (Nat.zero_lt_succ N))]
-    | succ m =>
-      simp only [pow_zero, mul_one]
-      rw [pow_succ', ← Nat.div_div_eq_div_mul,
-        Nat.mul_add_div hB, Nat.div_eq_of_lt (hf 0 (Nat.zero_lt_succ N))]
-      simpa only [Nat.add_zero] using
-        ih (fun k => f (k + 1)) (fun k hk => hf (k + 1) (Nat.succ_lt_succ hk))
-          m (Nat.lt_of_succ_lt_succ hm)
-
-private theorem baseB_sum_lt (B N : ℕ) (f : ℕ → ℕ) (hf : ∀ k < N, f k < B) :
-    ∑ k ∈ Finset.range N, f k * B ^ k < B ^ N := by
-  induction N generalizing f with
-  | zero => simp
-  | succ N ih =>
-    rw [Finset.sum_range_succ', pow_succ', sum_range_shift_mul]
-    have hrec := ih (fun k => f (k + 1)) (fun k hk => hf (k + 1) (Nat.succ_lt_succ hk))
-    have hf0 := hf 0 (Nat.zero_lt_succ N)
-    simp only [pow_zero, mul_one]
-    nlinarith
-
 /-- Decode a base-`e.choose 2` skeleton integer `skelCode` and leaf bitmask table
 `leafMask` into a complete `MSFDT e` of uniform depth `d`, rooted at `node`. -/
 @[expose] def skelToTree (e : ℕ) (he : 2 ≤ e) (dInit skelCode : ℕ)
@@ -1037,9 +1000,9 @@ theorem exists_skelCode_of_complete_correct {e n d : ℕ} (he : 2 ≤ e)
       · rw [hdp] at hsub
         obtain ⟨hij, _, _⟩ := MSFTree.isComplete_node.mp hsub
         exact pairIdx_lt_choose_two hij j.isLt
-  let skelCode := ∑ k ∈ Finset.range (2 ^ d - 1), f k * numPairs ^ k
+  let skelCode := BitString.packRadix numPairs (2 ^ d - 1) f
   have hcode_lt : skelCode < numPairs ^ (2 ^ d - 1) :=
-    baseB_sum_lt numPairs (2 ^ d - 1) f hf_lt
+    BitString.packRadix_lt f hf_lt
   have hwalk_eval : ∀ rem node (p : Equiv.Perm (Fin e)),
       1 ≤ node → (pathFromRoot node).length + rem = d →
       ∃ ans, subtreeAtPath T (pathFromRoot (walkSkelNode e he skelCode rem node p)) = .leaf ans ∧
@@ -1068,7 +1031,7 @@ theorem exists_skelCode_of_complete_correct {e n d : ℕ} (he : 2 ≤ e)
         rw [heq] at hsub
         obtain ⟨hij, _, _⟩ := MSFTree.isComplete_node.mp hsub
         have hdec : (skelCode / numPairs ^ (node - 1)) % numPairs = f (node - 1) :=
-          baseB_digit_decode numPairs (2 ^ d - 1) f hf_lt (node - 1) (by omega)
+          BitString.packRadix_field hnp_pos f hf_lt (by omega)
         have hf_eq : f (node - 1) = pairIdx i.val j.val := by
           have hkb : node - 1 < 2 ^ d - 1 := by omega
           dsimp only [f]

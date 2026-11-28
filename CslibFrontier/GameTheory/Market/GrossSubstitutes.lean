@@ -469,13 +469,6 @@ theorem expenditure_hybridPrice_step_nonneg {Z : (G → ℝ) → G → ℝ}
       (sub_nonneg.2 (excessDemand_hybridPrice_le_succ_of_le hWGS heq.1 hp hss' (mem_filter.1 ht).2))
   exact le_trans (mul_nonneg h1 h2) (expenditure_hybridPrice_step_ge hH hW hWGS heq hp hsucc)
 
-private theorem telescope_nat_diff (f : ℕ → ℝ) :
-    ∀ m : ℕ, (∑ k ∈ range m, (f (k + 1) - f k)) = f m - f 0
-  | 0 => by simp
-  | m + 1 => by
-    rw [sum_range_succ, telescope_nat_diff f m]
-    ring
-
 /-- Telescoping decomposition of `expenditure pHat (Z p)` along the sorted hybrid chain `q^0, …,
 q^{n-1}` ([CodenottiVaradarajan2007], Lemma 6.7 proof, p. 146). -/
 theorem expenditure_eq_sum_hybridPrice_steps {Z : (G → ℝ) → G → ℝ}
@@ -500,7 +493,7 @@ theorem expenditure_eq_sum_hybridPrice_steps {Z : (G → ℝ) → G → ℝ}
     refine sum_congr rfl fun k _ => ?_
     have hk1 : k.val + 1 < Fintype.card G := by omega
     simp [F, hk1, Nat.lt_of_succ_lt hk1]
-  rw [hsum, telescope_nat_diff F (Fintype.card G - 1)]
+  rw [hsum, sum_range_sub F (Fintype.card G - 1)]
   have hF0 : F 0 = 0 := by
     simp only [F, q, α, σ, h0, ↓reduceDIte, hybridPrice_zero_eq_smul heq.1 h0]
     rw [hH (div_pos (hp _) (heq.1 _)) heq.1, hW.eq_zero_of_isWalrasianEquilibrium heq,

@@ -13,6 +13,7 @@ import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # Stochastic atoms
@@ -295,9 +296,9 @@ variable {χ : ℝ → ℝ} {b : ℕ → ℝ}
 /-- **The bin weights telescope**: `∑_{k ≤ n} ω_k(w) = χ (w / b_n)`. -/
 theorem sum_range_binWeight (n : ℕ) (w : ℝ) :
     ∑ k ∈ range (n + 1), binWeight χ b k w = χ (w / b n) := by
-  induction n with
-  | zero => simp [binWeight]
-  | succ n ih => rw [sum_range_succ, ih, binWeight]; ring
+  rw [sum_range_succ']
+  change (∑ k ∈ range n, (χ (w / b (k + 1)) - χ (w / b k))) + χ (w / b 0) = _
+  rw [sum_range_sub (fun k => χ (w / b k)) n, sub_add_cancel]
 
 /-- **Bin decomposition** [OpenAI2026LogSpace, (5.7)]: if `χ` is one from `1` on and
 `0 < b_n ≤ w`, then `w = ∑_{k ≤ n} w ω_k(w)`. -/

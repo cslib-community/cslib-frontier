@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Algebra.Order.Group.PosPart
 public import Mathlib.Data.Matrix.Basic
+import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
@@ -49,13 +50,15 @@ def bit {m n : Type*} (X : Matrix m n ℤ) (i : ℕ) : Matrix m n ℤ :=
 /-- `x mod 2^β` is the sum of the last `β` binary digits of `x`, with their weights. -/
 private theorem emod_two_pow_eq_sum_digits (x : ℤ) (β : ℕ) :
     x % 2 ^ β = ∑ i ∈ Finset.range β, 2 ^ i * (x / 2 ^ i % 2) := by
-  induction β with
-  | zero => simp
-  | succ β ih =>
-    have h : x / (2 ^ β * 2) = x / 2 ^ β / 2 := (Int.ediv_ediv_of_nonneg (by positivity)).symm
-    rw [Finset.sum_range_succ, ← ih, pow_succ, Int.emod_def, Int.emod_def x (2 ^ β),
-      Int.emod_def (x / 2 ^ β), h]
-    ring
+  let quotient (i : ℕ) := (2 : ℤ) ^ i * (x / 2 ^ i)
+  calc
+    _ = quotient 0 - quotient β := by simp [quotient, Int.emod_def, mul_comm]
+    _ = ∑ i ∈ Finset.range β, (quotient i - quotient (i + 1)) :=
+      (Finset.sum_range_sub' quotient β).symm
+    _ = _ := Finset.sum_congr rfl fun i _ => by
+      simp only [quotient, pow_succ,
+        ← Int.ediv_ediv_of_nonneg (pow_nonneg (by decide : (0 : ℤ) ≤ 2) i), Int.emod_def]
+      ring
 
 /-- A matrix with entries in `[0, 2^β)` is the weighted sum of its first `β` digit matrices. -/
 theorem eq_sum_two_pow_smul_bit {m n : Type*} (X : Matrix m n ℤ) (β : ℕ)

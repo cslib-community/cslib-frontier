@@ -260,13 +260,10 @@ theorem runTrials_some (spec : BlockRejectionSpec α) (t : ℕ) (a : α) :
 
 private theorem mul_geom_sum_eq_one_sub_pow {r : ℝ≥0∞} (hr : r ≤ 1) (t : ℕ) :
     (1 - r) * ∑ j ∈ Finset.range t, r ^ j = 1 - r ^ t := by
-  induction t with
-  | zero => simp
-  | succ t ih =>
-    have hpow : r ^ t ≤ 1 := pow_le_one₀ zero_le hr
-    rw [Finset.sum_range_succ, mul_add, ih, ENNReal.sub_mul fun _ _ =>
-      ne_top_of_le_ne_top ENNReal.one_ne_top hpow, one_mul, ← pow_succ']
-    exact tsub_add_tsub_cancel hpow (pow_le_pow_of_le_one zero_le hr t.le_succ)
+  lift r to NNReal using ne_top_of_le_ne_top ENNReal.one_ne_top hr
+  norm_cast at hr ⊢
+  rw [mul_comm]
+  exact geom_sum_mul_of_le_one hr t
 
 /-- When a single trial outputs `some a` with probability `acceptProb * target a`, `t` trials
 output `some a` with probability `(1 - rejectProb ^ t) * target a`. -/

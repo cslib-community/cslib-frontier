@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.DecisionTree.Layout
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.DecisionTree.PrecompKruskal
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Tactic.UpdateSimp
@@ -246,57 +247,18 @@ word_enc_structure dtSkelEnvWords : DTSkelEnv where
 
 instance : WordEncoding DTSkelEnv := ⟨28, dtSkelEnvWords⟩
 
-private theorem geom_sum_pred_lt (B N : ℕ) (hB : 1 ≤ B) :
-    ∑ k ∈ Finset.range N, (B - 1) * B ^ k < B ^ N := by
-  induction N with
-  | zero => simp
-  | succ N ih =>
-    rw [Finset.sum_range_succ, pow_succ]
-    calc ∑ k ∈ Finset.range N, (B - 1) * B ^ k + (B - 1) * B ^ N
-        < B ^ N + (B - 1) * B ^ N := Nat.add_lt_add_right ih _
-      _ = (1 + (B - 1)) * B ^ N := by ring
-      _ = B ^ N * B := by rw [Nat.add_sub_cancel' hB, mul_comm]
-
 private def permCode {e : ℕ} (p : Equiv.Perm (Fin e)) : ℕ :=
-  ∑ i ∈ Finset.range e, (if h : i < e then (p ⟨i, h⟩).val else 0) * e ^ i
+  BitString.packRadix e e (fun i => if h : i < e then (p ⟨i, h⟩).val else 0)
 
-private theorem permCode_lt {e : ℕ} (p : Equiv.Perm (Fin e)) : permCode p < e ^ e := by
-  by_cases he : e = 0
-  · subst he; simp only [permCode, Finset.range_zero, Finset.sum_empty, pow_zero, zero_lt_one]
-  · refine Nat.lt_of_le_of_lt (Finset.sum_le_sum fun k _ => Nat.mul_le_mul_right _ ?_)
-      (geom_sum_pred_lt e e (Nat.one_le_iff_ne_zero.mpr he))
-    split_ifs with hk
-    · exact Nat.le_pred_of_lt (p ⟨k, hk⟩).isLt
-    · exact Nat.zero_le _
+private theorem permCode_lt {e : ℕ} (p : Equiv.Perm (Fin e)) : permCode p < e ^ e :=
+  BitString.packRadix_lt _ fun j hj => by simpa only [dite_eq_left hj] using (p ⟨j, hj⟩).isLt
 
 private theorem permCode_digit {e : ℕ} (p : Equiv.Perm (Fin e)) {i : ℕ} (hi : i < e) :
     (permCode p / e ^ i) % e = (p ⟨i, hi⟩).val := by
-  have he : 1 ≤ e := by omega
-  let f : ℕ → ℕ := fun k => if h : k < e then (p ⟨k, h⟩).val else 0
-  let low : ℕ := ∑ k ∈ Finset.range i, f k * e ^ k
-  let high : ℕ := ∑ k ∈ Finset.Ico (i + 1) e, f k * e ^ (k - (i + 1))
-  have hlow : low < e ^ i := by
-    refine Nat.lt_of_le_of_lt (Finset.sum_le_sum fun k hk => Nat.mul_le_mul_right _ ?_)
-      (geom_sum_pred_lt e i he)
-    have hke : k < e := (Finset.mem_range.mp hk).trans hi
-    simpa only [f, hke, ↓reduceDIte] using Nat.le_sub_one_of_lt (p ⟨k, hke⟩).isLt
-  have hhigh : ∑ k ∈ Finset.Ico (i + 1) e, f k * e ^ k = e * high * e ^ i := by
-    simp only [high, Finset.mul_sum, Finset.sum_mul]
-    refine Finset.sum_congr rfl fun k hk => ?_
-    have hki : i + 1 ≤ k := (Finset.mem_Ico.mp hk).1
-    calc f k * e ^ k = f k * e ^ (k - (i + 1) + 1 + i) := by
-          rw [show k - (i + 1) + 1 + i = k by omega]
-      _ = e * (f k * e ^ (k - (i + 1))) * e ^ i := by
-          rw [pow_add, pow_add, pow_one]; ring
-  have hsplit : permCode p = low + ((p ⟨i, hi⟩).val + e * high) * e ^ i := by
-    have h1 : permCode p = ∑ k ∈ Finset.range (i + 1), f k * e ^ k +
-        ∑ k ∈ Finset.Ico (i + 1) e, f k * e ^ k :=
-      (Finset.sum_range_add_sum_Ico (fun k => f k * e ^ k) (by omega : i + 1 ≤ e)).symm
-    rw [h1, Finset.sum_range_succ, hhigh]
-    have hfi : f i = (p ⟨i, hi⟩).val := by simp only [f, hi, ↓reduceDIte]
-    dsimp only [low]; rw [hfi]; ring
-  rw [hsplit, Nat.add_mul_div_right _ _ (pow_pos he i), Nat.div_eq_of_lt hlow, Nat.zero_add,
-    Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (p ⟨i, hi⟩).isLt]
+  have h := BitString.packRadix_field (Nat.zero_lt_of_lt hi)
+    (fun j => if hj : j < e then (p ⟨j, hj⟩).val else 0)
+    (fun j hj => by simpa only [dite_eq_left hj] using (p ⟨j, hj⟩).isLt) hi
+  simpa only [permCode, dite_eq_left hi] using h
 
 /-- Predicate characterizing base-`e` integers whose `e` digits are pairwise distinct. -/
 @[expose] def CodeIsPerm (e code : ℕ) : Prop :=

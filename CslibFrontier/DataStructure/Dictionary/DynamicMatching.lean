@@ -14,6 +14,7 @@ public import Mathlib.Data.Finset.Max
 public import Mathlib.Data.Finset.SymmDiff
 public import Mathlib.Data.Fintype.Perm
 public import Mathlib.Data.Nat.Log
+import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.GroupTheory.Perm.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -874,16 +875,14 @@ theorem expect_roundsOn_le {U' n' : ℕ} {A : Finset (Fin U')} {B : Finset (Fin 
               rw [← pow_add, Nat.add_sub_of_le hLi], div_mul_eq_div_div,
               div_self (by positivity), one_div_pow, one_div]
   refine (sum_le_sum hterm).trans ?_
-  have hgeom : ∑ j ∈ Finset.range U', (1 / 2 : ℝ) ^ j = 2 - 2 * (1 / 2 : ℝ) ^ U' := by
-    rw [geom_sum_eq (by norm_num)]; ring
   calc ∑ i ∈ Finset.range U', bound i ≤ ∑ i ∈ Finset.range (L + U'), bound i :=
         sum_le_sum_of_subset_of_nonneg (range_mono (by omega)) fun i _ _ => by
           dsimp only [bound]; split_ifs <;> positivity
-    _ = L + (2 - 2 * (1 / 2 : ℝ) ^ U') := by
-        rw [sum_range_add, ← hgeom, sum_congr rfl fun i hi => show bound i = 1 by
+    _ = (L : ℝ) + ∑ j ∈ Finset.range U', (1 / 2 : ℝ) ^ j := by
+        rw [sum_range_add, sum_congr rfl fun i hi => show bound i = 1 by
           simp [bound, mem_range.mp hi]]
         simp [bound]
-    _ ≤ L + 2 := by linarith [show (0 : ℝ) ≤ 2 * (1 / 2 : ℝ) ^ U' by positivity]
+    _ ≤ L + 2 := add_le_add (le_refl _) (sum_geometric_two_le U')
 
 /-- Specialization of **Claim 3.3** to all `n'` slots (`B = Finset.univ`): for `A.card ≤ n'`,
 `𝔼[rounds h A] ≤ ⌈log₂ |A|⌉ + 2 ≤ 3 * ⌈log₂ (max |A| 2)⌉`. -/

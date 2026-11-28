@@ -9,9 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Nat.Bitwise
-import Mathlib.Tactic.Ring
 
 /-!
 # Fixed-width packed `W`-bit word lanes
@@ -77,57 +77,18 @@ theorem eq_of_forall_laneGet_eq {W a b : ℕ} (hW : 0 < W)
   simpa only [testBit_laneGet, Nat.mod_lt t hW, decide_true, Bool.true_and,
     Nat.mul_comm _ W, Nat.div_add_mod] using h1
 
-private theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) :
-    ∑ j ∈ range n, f j * 2 ^ (j * W) < 2 ^ (n * W) := by
-  induction n with
-  | zero => simp
-  | succ m ih =>
-    rw [sum_range_succ]
-    have hm_lt := ih (fun j hj => hf j (Nat.lt_succ_of_lt hj))
-    have hfm : f m + 1 ≤ 2 ^ W := hf m (Nat.lt_succ_self m)
-    calc ∑ j ∈ range m, f j * 2 ^ (j * W) + f m * 2 ^ (m * W)
-        < 2 ^ (m * W) + f m * 2 ^ (m * W) := by omega
-      _ = (f m + 1) * 2 ^ (m * W) := by ring
-      _ ≤ 2 ^ W * 2 ^ (m * W) := Nat.mul_le_mul_right _ hfm
-      _ = 2 ^ ((m + 1) * W) := by rw [← Nat.pow_add, Nat.add_mul, one_mul, Nat.add_comm]
-
 /-- Extracting lane `k` from a sum of `n` bounded `W`-bit lanes recovers `f k` for `k < n` and `0`
 otherwise. -/
 theorem laneGet_sum_mul_pow {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) (k : ℕ) :
     laneGet W (∑ j ∈ range n, f j * 2 ^ (j * W)) k = if k < n then f k else 0 := by
-  induction n with
-  | zero =>
-    simp [laneGet]
-  | succ m ih =>
-    have hT := sum_mul_pow_lt hf
-    rw [sum_range_succ] at hT ⊢
-    set S := ∑ j ∈ range m, f j * 2 ^ (j * W)
-    have hS_lt : S < 2 ^ (m * W) := sum_mul_pow_lt (fun j hj => hf j (Nat.lt_succ_of_lt hj))
-    rcases lt_or_ge m k with hgt | hkm
-    · rw [ite_eq_right (by omega), laneGet_eq_div_mod, Nat.div_eq_of_lt (hT.trans_le
-        (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right W hgt))), Nat.zero_mod]
-    have hor : S + f m * 2 ^ (m * W) = S ||| (f m <<< (m * W)) := by
-      rw [← Nat.shiftLeft_eq, Nat.add_comm, Nat.shiftLeft_add_eq_or_of_lt hS_lt, Nat.or_comm]
-    apply Nat.eq_of_testBit_eq
-    intro b
-    rw [hor, testBit_laneGet, ite_eq_left (by omega)]
-    by_cases hb : b < W
-    · simp only [hb, decide_true, Bool.true_and, Nat.testBit_or, Nat.testBit_shiftLeft]
-      rcases hkm.lt_or_eq with hlt | rfl
-      · have hnge : ¬(m * W ≤ k * W + b) := by
-          have : (k + 1) * W ≤ m * W := Nat.mul_le_mul_right W hlt
-          rw [Nat.add_mul, one_mul] at this
-          omega
-        have hih := congrArg (fun x => x.testBit b)
-          (ih (fun j hj => hf j (Nat.lt_succ_of_lt hj)))
-        rw [testBit_laneGet] at hih
-        simpa [hlt, hnge, hb] using hih
-      · have hS0 : S.testBit (k * W + b) = false := Nat.testBit_lt_two_pow
-          (hS_lt.trans_le (Nat.pow_le_pow_right (by decide) (Nat.le_add_right _ _)))
-        simp [hS0]
-    · simp only [hb, decide_false, Bool.false_and]
-      exact (Nat.testBit_lt_two_pow ((hf k (by omega)).trans_le
-        (Nat.pow_le_pow_right (by decide) (Nat.le_of_not_lt hb)))).symm
+  rw [laneGet_eq_div_mod]
+  simp_rw [Nat.pow_mul']
+  change BitString.packRadix (2 ^ W) n f / (2 ^ W) ^ k % 2 ^ W = _
+  split_ifs with hk
+  · exact BitString.packRadix_field (Nat.two_pow_pos W) f hf hk
+  · have hfit := (BitString.packRadix_lt f hf).trans_le
+      (Nat.pow_le_pow_right (Nat.two_pow_pos W) (Nat.le_of_not_gt hk))
+    rw [Nat.div_eq_of_lt hfit, Nat.zero_mod]
 
 /-- Base-`2 ^ W` expansion of any word `< 2 ^ (n * W)` into its first `n` lanes. -/
 theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * W)) :

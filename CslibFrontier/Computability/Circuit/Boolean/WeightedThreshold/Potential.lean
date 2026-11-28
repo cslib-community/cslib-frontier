@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold
+import Mathlib.Algebra.Ring.GeomSum
 
 /-!
 # Unambiguous transcript cells and quadratic-potential unique-sink representations
@@ -524,14 +525,6 @@ private theorem abs_sum_later_le_priority_sub_one (z : Fin g → Bool) (i : Fin 
     · simp
   linarith [P.priority_eq i]
 
-private theorem one_add_mul_sum_geom (W : ℝ) (m : ℕ) :
-    1 + W * (∑ k ∈ range m, (W + 1) ^ k) = (W + 1) ^ m := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    rw [sum_range_succ, mul_add, ← add_assoc, ih, pow_succ]
-    ring
-
 /-- If `|b_{j, i}| ≤ W` for all `i < j`, then `P.priority i ≤ (W + 1) ^ (g - 1 - i)`. -/
 theorem priority_le_pow {W : ℝ} (hW0 : 0 ≤ W)
     (hW : ∀ j i : Fin g, i < j → |P.gateWeight j i| ≤ W) (i : Fin g) :
@@ -540,9 +533,9 @@ theorem priority_le_pow {W : ℝ} (hW0 : 0 ≤ W)
   | case1 i ih =>
     simp only [dite_eq_ite]
     rw [sum_attach univ fun j => if i < j then P.priority j * |P.gateWeight j i| else 0,
-      ← sum_filter, ← one_add_mul_sum_geom W, mul_sum]
-    refine add_le_add_right (sum_le_sum_of_injOn (fun j : Fin g => g - 1 - j.val) ?_ ?_ ?_
-      fun _ _ _ => mul_nonneg hW0 (pow_nonneg (by linarith) _)) 1
+      ← sum_filter, ← geom_sum_mul_add W, sum_mul, add_comm 1]
+    refine add_le_add_left (sum_le_sum_of_injOn (fun j : Fin g => g - 1 - j.val) ?_ ?_ ?_
+      fun _ _ _ => mul_nonneg (pow_nonneg (add_nonneg hW0 zero_le_one) _) hW0) 1
     · intro j₁ _ j₂ _ heq
       have h₁ := j₁.isLt
       have h₂ := j₂.isLt
@@ -555,7 +548,6 @@ theorem priority_le_pow {W : ℝ} (hW0 : 0 ≤ W)
       omega
     · intro j hj
       have hij : i < j := (mem_filter.mp hj).2
-      rw [mul_comm W]
       exact mul_le_mul (ih ⟨j, mem_univ j⟩ hij) (hW j i hij) (abs_nonneg _)
         (pow_nonneg (by linarith) _)
 

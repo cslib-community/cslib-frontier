@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Communication.Functions
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import Mathlib.NumberTheory.Harmonic.Defs
+import CslibFrontier.Foundations.Data.Nat.Radix.Unique
 import CslibFrontier.Foundations.NumberTheory.Harmonic
 import Mathlib.Data.Finset.Max
 import Mathlib.Tactic.FieldSimp
@@ -2109,59 +2110,6 @@ noncomputable def pathBidProfile (k : ℕ) (x y : Cslib.BitString k) : Fin k ⊕
     if x t = true then 1 + ∑ v : Fin (k + 2), (pathMulticast k).edgeCost v else 0
   | Sum.inr () => pathBottomShare k y
 
-private theorem sum_digits_lt_pow {B : ℕ} (hB : 1 ≤ B) (f : ℕ → ℕ) :
-    ∀ m : ℕ, (∀ i < m, f i < B) → ∑ i ∈ Finset.range m, f i * B ^ i < B ^ m := by
-  intro m
-  induction m with
-  | zero => intro _; simp
-  | succ m ih =>
-    intro hf
-    rw [Finset.sum_range_succ, pow_succ']
-    have ihm := ih fun i hi => hf i (by omega)
-    have hmul : f m * B ^ m ≤ (B - 1) * B ^ m :=
-      Nat.mul_le_mul_right _ (Nat.le_sub_one_of_lt (hf m (by omega)))
-    have hsub : (B - 1) * B ^ m + B ^ m = B * B ^ m := by
-      cases B with
-      | zero => omega
-      | succ b => simp [Nat.succ_mul]
-    omega
-
-private theorem digits_eq_of_sum_eq {B : ℕ} (hB : 1 ≤ B) (f g : ℕ → ℕ) :
-    ∀ m : ℕ, (∀ i < m, f i < B) → (∀ i < m, g i < B) →
-      ∑ i ∈ Finset.range m, f i * B ^ i = ∑ i ∈ Finset.range m, g i * B ^ i →
-      ∀ i < m, f i = g i := by
-  intro m
-  induction m with
-  | zero => intro _ _ _ i hi; omega
-  | succ m ih =>
-    intro hf hg hsum
-    rw [Finset.sum_range_succ, Finset.sum_range_succ] at hsum
-    have htop : f m = g m := by
-      by_contra hne
-      rcases lt_or_gt_of_ne hne with hlt | hgt
-      · refine (?_ : ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m <
-            ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m).ne hsum
-        calc ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m
-            < B ^ m + f m * B ^ m :=
-              Nat.add_lt_add_right (sum_digits_lt_pow hB f m fun i hi => hf i (by omega)) _
-          _ = f m * B ^ m + B ^ m := Nat.add_comm _ _
-          _ ≤ g m * B ^ m := by simpa [add_mul, one_mul] using Nat.mul_le_mul_right (B ^ m) hlt
-          _ ≤ ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m := Nat.le_add_left _ _
-      · refine (?_ : ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m <
-            ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m).ne' hsum
-        calc ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m
-            < B ^ m + g m * B ^ m :=
-              Nat.add_lt_add_right (sum_digits_lt_pow hB g m fun i hi => hg i (by omega)) _
-          _ = g m * B ^ m + B ^ m := Nat.add_comm _ _
-          _ ≤ f m * B ^ m := by simpa [add_mul, one_mul] using Nat.mul_le_mul_right (B ^ m) hgt
-          _ ≤ ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m := Nat.le_add_left _ _
-    have hrest : ∑ i ∈ Finset.range m, f i * B ^ i = ∑ i ∈ Finset.range m, g i * B ^ i := by
-      rw [htop] at hsum; omega
-    intro i hi
-    rcases eq_or_lt_of_le (Nat.le_sub_one_of_lt hi) with rfl | hlt
-    · exact htop
-    · exact ih (fun j hj => hf j (by omega)) (fun j hj => hg j (by omega)) hrest i hlt
-
 /-- `pathBottomShare k` is injective on `BitString k`: distinct active receiver subsets along the
 spine induce distinct Shapley shares at the bottom node. -/
 theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShare k) := by
@@ -2257,10 +2205,12 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
       exact_mod_cast Nat.div_mul_cancel (hcnt_dvd z ⟨n, hnk⟩)
     rw [← hcast]; ring
   rw [heval x, heval x'] at heq
-  have hdig_eq := digits_eq_of_sum_eq (Nat.le_add_left 1 L) (dig x) (dig x') k
-    (hdig_lt x) (hdig_lt x') (Nat.cast_injective heq)
+  have hdig_eq : ∀ i ∈ Finset.range k, dig x i = dig x' i :=
+    Nat.eq_of_sum_mul_pow_eq (e := id) Function.injective_id.injOn
+      (fun i hi => hdig_lt x i (Finset.mem_range.mp hi))
+      (fun i hi => hdig_lt x' i (Finset.mem_range.mp hi)) (Nat.cast_injective heq)
   have hcnt_eq : ∀ t : Fin k, cnt x t = cnt x' t := fun t => by
-    have hd := hdig_eq t.val t.isLt
+    have hd := hdig_eq t.val (Finset.mem_range.mpr t.isLt)
     simp only [dig, t.isLt, ↓reduceDIte] at hd
     have h1 := Nat.div_mul_cancel (hcnt_dvd x t)
     rw [hd] at h1

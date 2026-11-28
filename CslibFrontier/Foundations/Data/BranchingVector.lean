@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.Forall2
+import Mathlib.Algebra.Ring.GeomSum
 
 /-!
 # Search-tree recurrences and branching-vector bounds
@@ -580,18 +581,12 @@ theorem prefixBranchFactor_lt_two (k : ℕ) : prefixBranchFactor k < 2 := by
 
 private theorem geom_inv_sum_mul_sub_one (r : ℝ) (hr : r ≠ 0) (k : ℕ) :
     (r - 1) * ((List.range' 1 k).map fun d : ℕ => (r⁻¹) ^ d).sum = 1 - (r⁻¹) ^ k := by
-  induction k with
-  | zero => simp
-  | succ k ih =>
-    rw [List.range'_1_concat, List.map_append, List.sum_append, List.map_singleton,
-      List.sum_singleton, Nat.add_comm 1 k, mul_add, ih]
-    calc 1 - (r⁻¹) ^ k + (r - 1) * (r⁻¹) ^ (k + 1)
-        = 1 - (r⁻¹) ^ k + (r * r⁻¹ * (r⁻¹) ^ k - (r⁻¹) ^ (k + 1)) := by
-          rw [pow_succ (r⁻¹) k]
-          ring
-      _ = 1 - (r⁻¹) ^ (k + 1) := by
-          rw [mul_inv_cancel₀ hr]
-          ring
+  have hfactor : (r - 1) * r⁻¹ = 1 - r⁻¹ := by rw [sub_mul, mul_inv_cancel₀ hr, one_mul]
+  rw [List.range'_eq_map_range, List.map_map, List.sum_map_range_eq_sum_range, Finset.mul_sum,
+    ← geom_sum_mul_neg (r⁻¹) k, Finset.sum_mul]
+  refine Finset.sum_congr rfl fun d _ => ?_
+  simp only [Function.comp_apply, Nat.add_comm 1 d, pow_succ']
+  rw [← mul_assoc, hfactor, mul_comm]
 
 /-- **Closed-form `k`-clause branching bound.** For every `k ≥ 1`,
 `charSum (prefixSteps k) (prefixBranchFactor k) ≤ 1`. -/
