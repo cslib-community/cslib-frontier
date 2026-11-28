@@ -28,7 +28,10 @@ cutoff. It has at most `478 * (literal occurrences + clauses + 1)` gates. This b
 the formula's actual occurrence count: a variable-count bound requires a density hypothesis.
 
 Variable references outside the declared range read false. This convention makes the compiler
-total; for well-formed instances all references are below the declared variable count.
+total; for well-formed instances all references are below the declared variable count. See
+`Cslib.Logic.PL.MaxSAT` (`CslibFrontier.Logics.Propositional.MaxSAT`) for the underlying
+propositional weighted partial MaxSAT definition, bridged in
+`CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram`.
 
 ## Main results
 

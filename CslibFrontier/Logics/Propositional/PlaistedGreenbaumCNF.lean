@@ -135,6 +135,16 @@ theorem mem_tseitinCNF_of_mem_plaistedGreenbaumCNF {A : Proposition Atom}
   · exact List.mem_cons_self
   · exact List.mem_cons_of_mem _ (mem_tseitinDefs_of_mem_plaistedGreenbaumDefs hc)
 
+/-- Positive-polarity Plaisted–Greenbaum definitional clauses of a list of propositions are
+Tseitin definitional clauses of those propositions. -/
+theorem mem_tseitinDefs_flatMap_of_mem_plaistedGreenbaumDefs_flatMap
+    {fs : List (Proposition Atom)} {c : Clause (Atom ⊕ Proposition Atom)}
+    (hc : c ∈ fs.flatMap (Proposition.plaistedGreenbaumDefs true)) :
+    c ∈ fs.flatMap Proposition.tseitinDefs := by
+  rw [List.mem_flatMap] at hc ⊢
+  obtain ⟨A, hA, hcA⟩ := hc
+  exact ⟨A, hA, mem_tseitinDefs_of_mem_plaistedGreenbaumDefs hcA⟩
+
 /-! ### Semantics -/
 
 /-- **Every model of `A` extends to a model of the Plaisted–Greenbaum transformation**, by the
@@ -148,6 +158,17 @@ theorem eval_plaistedGreenbaumCNF_tseitinExtend (v : Atom → Bool) (A : Proposi
     have := (eval_tseitinCNF_tseitinExtend v A).trans h
     rw [CNF.eval_eq_true_iff] at this
     exact this c (mem_tseitinCNF_of_mem_plaistedGreenbaumCNF hc)
+
+/-- The positive-polarity Plaisted–Greenbaum definitional clauses of a list of propositions hold
+under the Tseitin extension of any atom assignment. -/
+theorem eval_plaistedGreenbaumDefs_flatMap_tseitinExtend (v : Atom → Bool)
+    (fs : List (Proposition Atom)) :
+    CNF.eval (tseitinExtend v) (fs.flatMap (Proposition.plaistedGreenbaumDefs true)) = true := by
+  rw [CNF.eval_eq_true_iff]
+  intro c hc
+  have hts := eval_tseitinDefs_flatMap_tseitinExtend v fs
+  rw [CNF.eval_eq_true_iff] at hts
+  exact hts c (mem_tseitinDefs_flatMap_of_mem_plaistedGreenbaumDefs_flatMap hc)
 
 /-- Under an assignment satisfying the definitional clauses needed at polarity `pol`, if the
 variable of `A` has the value `pol` then so does `A` at the atoms. -/
@@ -221,5 +242,23 @@ theorem length_plaistedGreenbaumDefs_le (pol : Bool) (A : Proposition Atom) :
 theorem length_plaistedGreenbaumCNF_le (A : Proposition Atom) :
     A.plaistedGreenbaumCNF.length ≤ 2 * A.size + 1 := by
   simpa [plaistedGreenbaumCNF, Nat.add_comm] using length_plaistedGreenbaumDefs_le true A
+
+/-- The positive-polarity Plaisted–Greenbaum definitional clauses of a list of propositions have
+at most `2 * totalSize` clauses. -/
+theorem length_plaistedGreenbaumDefs_flatMap_le (fs : List (Proposition Atom)) :
+    (fs.flatMap (Proposition.plaistedGreenbaumDefs true)).length ≤
+      2 * (fs.map Proposition.size).sum := by
+  induction fs with
+  | nil => simp
+  | cons A fs ih =>
+    simp only [List.flatMap_cons, List.length_append, List.map_cons, List.sum_cons]
+    have hA := length_plaistedGreenbaumDefs_le true A
+    omega
+
+/-- Every Plaisted–Greenbaum definitional clause of `A` has at most three literals. -/
+theorem length_le_three_of_mem_plaistedGreenbaumDefs {pol : Bool} {A : Proposition Atom}
+    {c : Clause (Atom ⊕ Proposition Atom)} (hc : c ∈ A.plaistedGreenbaumDefs pol) :
+    c.length ≤ 3 :=
+  length_le_three_of_mem_tseitinDefs (mem_tseitinDefs_of_mem_plaistedGreenbaumDefs hc)
 
 end Cslib.Logic.PL.Proposition

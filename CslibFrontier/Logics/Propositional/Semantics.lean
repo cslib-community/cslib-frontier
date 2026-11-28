@@ -27,9 +27,12 @@ transformation (`Cslib.Logic.PL.Proposition.tseitinCNF`) are stated with the `Bo
 ## Main definitions
 
 * `Cslib.Logic.PL.Proposition.eval`: the value of a proposition under a valuation of its atoms.
+* `Cslib.Logic.PL.Proposition.atoms`: all atom occurrences appearing in a proposition.
 
 ## Main results
 
+* `Cslib.Logic.PL.Proposition.eval_congr`: evaluation depends only on the atoms appearing in the
+  proposition.
 * `Cslib.Logic.PL.Proposition.eval_prop_of_forall_eval_bool`: a truth-table tautology holds
   under every valuation in `Prop`.
 -/
@@ -47,6 +50,23 @@ def eval [HeytingAlgebra α] (v : Atom → α) : Proposition Atom → α
   | and A B => A.eval v ⊓ B.eval v
   | or A B => A.eval v ⊔ B.eval v
   | imp A B => A.eval v ⇨ B.eval v
+
+/-- All atom occurrences appearing in a proposition. -/
+def atoms : Proposition Atom → List Atom
+  | atom x => [x]
+  | falsum => []
+  | and A B | or A B | imp A B => A.atoms ++ B.atoms
+
+/-- Evaluating a proposition depends only on the values assigned to its atoms. -/
+theorem eval_congr [HeytingAlgebra α] {v w : Atom → α} {A : Proposition Atom}
+    (h : ∀ x ∈ A.atoms, v x = w x) : A.eval v = A.eval w := by
+  induction A with
+  | atom x => exact h x List.mem_cons_self
+  | falsum => rfl
+  | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
+    simp only [eval]
+    rw [ihA fun x hx => h x (List.mem_append_left _ hx),
+      ihB fun x hx => h x (List.mem_append_right _ hx)]
 
 /-! ### Truth tables -/
 

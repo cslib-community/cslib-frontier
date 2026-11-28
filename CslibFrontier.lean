@@ -2446,6 +2446,7 @@ public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Corre
 public import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
 public import CslibFrontier.Foundations.Combinatorics.Expander.Tower
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Relays
+public import CslibFrontier.Logics.Propositional.MaxSAT
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteSlab
 public import CslibFrontier.Crypto.Protocols.UOV.Games
 public import CslibFrontier.Computability.Complexity.Fagin.SAT

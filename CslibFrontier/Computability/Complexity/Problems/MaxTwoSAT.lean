@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.ExactThreeSAT
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Logics.Propositional.MaxSAT
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Logics.Propositional.CNF.Eval
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -22,7 +23,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 `MaxTwoSAT` consists of instances `x : MaxTwoSATInstance` (`Cslib.Complexity.encMaxTwoSAT`) pairing
 a formula `x.formula` in conjunctive normal form with at most two literals per clause and a target
 `x.target` such that some assignment satisfies at least `x.target` clauses of `x.formula`, counted
-with multiplicity. Garey, Johnson and Stockmeyer proved it `NP`-complete
+with multiplicity (for the propositional MaxSAT definition, see `Cslib.Logic.PL.MaxSAT`,
+bridged in `mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast`). Garey, Johnson and Stockmeyer proved it
+`NP`-complete
 [Garey, Johnson and Stockmeyer][GareyJohnsonStockmeyer1976] (attribution from secondary sources;
 the theorem number is not checked against the paper), although 2-satisfiability itself is in `NL`
 (`Cslib.Complexity.TwoSAT.mem_NL`).
@@ -59,6 +62,10 @@ formula with a clause of another width becomes a fixed no-instance. Composed wit
   `Cslib.Complexity.polyTimeReducible_ThreeSAT_MaxTwoSAT`: `ExactThreeSAT` and `ThreeSAT` reduce
   to `MaxTwoSAT`.
 * `Cslib.Complexity.MaxTwoSAT_npComplete`: `MaxTwoSAT` is `NP`-complete.
+* `Cslib.Complexity.mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast`,
+  `Cslib.Complexity.mem_maxTwoSAT_iff_maxSatisfiedWeight`,
+  `Cslib.Complexity.mem_maxTwoSAT_iff_optimum`: bridges to propositional MaxSAT
+  (`Cslib.Logic.PL.MaxSAT`).
 
 ## References
 
@@ -374,5 +381,39 @@ theorem MaxTwoSAT_npHard : NPHard encMaxTwoSAT MaxTwoSAT :=
 allowed. -/
 theorem MaxTwoSAT_npComplete : NPComplete encMaxTwoSAT MaxTwoSAT :=
   ⟨MaxTwoSAT.mem_NP, MaxTwoSAT_npHard⟩
+
+/-! ### Bridge to propositional MaxSAT -/
+
+/-- `x ∈ MaxTwoSAT` iff every clause has width at most `2` and the unweighted logic MaxSAT
+instance of `x.formula` admits an assignment with satisfied weight at least `x.target`. -/
+theorem mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast (x : MaxTwoSATInstance) :
+    x ∈ MaxTwoSAT ↔
+      (∀ c ∈ x.formula, c.length ≤ 2) ∧
+        (Cslib.Logic.PL.MaxSAT.unweighted x.formula).HasSatisfiedWeightAtLeast x.target := by
+  simp only [MaxTwoSAT, Set.mem_ofPred_eq, Cslib.Logic.PL.MaxSAT.HasSatisfiedWeightAtLeast,
+    Cslib.Logic.PL.MaxSAT.feasible_unweighted, Cslib.Logic.PL.MaxSAT.satisfiedWeight_unweighted,
+    true_and]
+
+/-- `x ∈ MaxTwoSAT` iff every clause has width at most `2` and `x.target` is at most the
+maximum satisfied weight of `Cslib.Logic.PL.MaxSAT.unweighted x.formula`. -/
+theorem mem_maxTwoSAT_iff_maxSatisfiedWeight (x : MaxTwoSATInstance) :
+    x ∈ MaxTwoSAT ↔
+      (∀ c ∈ x.formula, c.length ≤ 2) ∧
+        (x.target : WithBot ℕ) ≤
+          (Cslib.Logic.PL.MaxSAT.unweighted x.formula).maxSatisfiedWeight := by
+  rw [mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast,
+    ← Cslib.Logic.PL.MaxSAT.le_maxSatisfiedWeight_iff]
+
+/-- `x ∈ MaxTwoSAT` in cost-optimum form via `Cslib.Logic.PL.MaxSAT.unweighted`. -/
+theorem mem_maxTwoSAT_iff_optimum (x : MaxTwoSATInstance) :
+    x ∈ MaxTwoSAT ↔
+      (∀ c ∈ x.formula, c.length ≤ 2) ∧
+        x.target ≤ x.formula.length ∧
+          (Cslib.Logic.PL.MaxSAT.unweighted x.formula).optimum ≤
+            ((x.formula.length - x.target : ℕ) : WithTop ℕ) := by
+  rw [mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast,
+    Cslib.Logic.PL.MaxSAT.hasSatisfiedWeightAtLeast_iff,
+    Cslib.Logic.PL.MaxSAT.totalWeight_unweighted,
+    Cslib.Logic.PL.MaxSAT.hasCostAtMost_iff_optimum_le]
 
 end Cslib.Complexity
