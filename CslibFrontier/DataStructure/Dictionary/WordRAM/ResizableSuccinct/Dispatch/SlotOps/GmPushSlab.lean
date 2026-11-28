@@ -202,7 +202,7 @@ theorem compGmPushSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
   rw [StateTransitionSpec.clientState_bind, clientState_compGmPushReadProg,
     clientResult_compGmPushReadProg hb_pos hb]
   dsimp only [compGmPushApplyProg, compGmPushWriteOwnerProg, compGmPushWriteLinksProg,
-    compGmPushFinishProg, cpGmSlabMetaBase_mk, cpDirSlabs_mk, cpGmSlabDirBase_mk]
+    compGmPushFinishProg, succinct_param_simps]
   rw [hp4, ht4, hq_eq, htop_eq]
   repeat rw [StateTransitionSpec.clientState_bind]
   obtain ⟨hf1, hg1⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hownB_lt
@@ -273,8 +273,7 @@ private theorem realizesBounded_compGmPushWriteLinks :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, ⟨b, q_b⟩⟩, ⟨p_new, top_old⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, _, hp_lt, htop_lt⟩ := h
-    simp only [cpGmSlabMetaBase_mk, cpDirSlabs_mk, cpGmSlabDirBase_mk,
-      StateTransitionSpec.clientState] at *)
+    simp only [succinct_param_simps, StateTransitionSpec.clientState] at *)
   all_goals try (
     have hc_pos : 0 < q_b := by assumption
     have habv_lt := gmSlabAboveIdx_lt hb_pos (htop_lt hc_pos)
@@ -411,7 +410,7 @@ theorem validProg_compGmPushSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
   have ht4 : gmSlabMetaBase N + (top_old + top_old + (top_old + top_old)) + 3 =
       gmSlabAboveIdx N top_old := by unfold gmSlabAboveIdx; omega
   dsimp only [compGmPushApplyProg, compGmPushWriteOwnerProg, compGmPushWriteLinksProg,
-    compGmPushFinishProg, cpGmSlabMetaBase_mk, cpDirSlabs_mk, cpGmSlabDirBase_mk]
+    compGmPushFinishProg, succinct_param_simps]
   simp only [bind_assoc, hp4, ht4, hq_eq, htop_eq]
   refine validProg_writeCompGM_bind ⟨mkEnv s rfl, gmSlabOwnerBIdx_lt hb_pos hp_lt⟩ fun s1 hs1 =>
     validProg_writeCompGM_bind ⟨mkEnv s1 hs1, gmSlabOwnerSIdx_lt hb_pos hp_lt⟩ fun s2 hs2 =>

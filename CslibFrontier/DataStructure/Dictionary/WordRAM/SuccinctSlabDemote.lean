@@ -306,33 +306,28 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   have hr_vl := clientResult_readValProg (U := U) (V := V) (w := w) (h_space := h_space)
     (base := base) s hg_last_lt
   dsimp only [g_del, p_del, gmSlabTopIdx, gm, g_last, p_last, u] at hr_qd hr_vd hr_ql hr_vl
-  have hres_eq : (Memory.spec 0).clientResult s
-      (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 := by
-    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
-      writeValGenProg_mk, appendTailItemGenProg_mk]
-    rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg, hr_top,
-      StateTransitionSpec.clientResult_bind, clientState_readGMProg, hr_0,
-      StateTransitionSpec.clientResult_bind, clientState_readQuotProg, hr_qd,
-      StateTransitionSpec.clientResult_bind, clientState_readValProg, hr_vd,
-      StateTransitionSpec.clientResult_bind, clientState_readQuotProg, hr_ql,
-      StateTransitionSpec.clientResult_bind, clientState_readValProg, hr_vl]
-    simp only [StateTransitionSpec.clientResult_bind]
+  let outcome (state : Memory.State) (p : Memory.Prog ℕ) :=
+    ((Memory.spec 0).clientResult state p, (Memory.spec 0).clientState state p)
+  have outcome_bind {α : Type} (state : Memory.State) (p : Memory.Prog α)
+      (next : α → Memory.Prog ℕ) :
+      outcome state (p >>= next) =
+        outcome ((Memory.spec 0).clientState state p)
+          (next ((Memory.spec 0).clientResult state p)) :=
+    Prod.ext ((Memory.spec 0).clientResult_bind p next state)
+      ((Memory.spec 0).clientState_bind p next state)
+  have hrun : outcome s (demoteStepProg U V w n_max h_space ((base, b), k)) =
+      (k + 1, s₅) := by
+    simp only [demoteStepProg, demoteStepGenProg, succinct_param_simps, readGMGenProg_mk,
+      readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
+      appendTailItemGenProg_mk]
+    rw [outcome_bind, clientState_readGMProg, hr_top, outcome_bind, clientState_readGMProg, hr_0,
+      outcome_bind, clientState_readQuotProg, hr_qd, outcome_bind, clientState_readValProg, hr_vd,
+      outcome_bind, clientState_readQuotProg, hr_ql, outcome_bind, clientState_readValProg, hr_vl,
+      outcome_bind, hres_app]
+    repeat rw [outcome_bind]
     rfl
-  have hst : s' = s₅ := by
-    dsimp only [s']
-    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
-      writeValGenProg_mk, appendTailItemGenProg_mk]
-    rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hr_top,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg, hr_0,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hr_qd,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hr_vd,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hr_ql,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hr_vl,
-      StateTransitionSpec.clientState_bind, hres_app]
-    repeat rw [StateTransitionSpec.clientState_bind]
-    rfl
+  have hres_eq := congrArg Prod.fst hrun
+  have hst : s' = s₅ := congrArg Prod.snd hrun
   rw [hst]
   refine ⟨hres_eq, by rw [hf5, hf4, hf3, hf2, hf1], fun a ha => ?_,
     by rw [hq5, hq4, hq3, hq2, hq1], by rw [hv5, hv4, hv3, hv2, hv1],

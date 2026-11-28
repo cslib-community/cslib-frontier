@@ -208,7 +208,7 @@ private theorem compRemoveTailLocate_spec {metaBase itemBase U V w N m_cap b : �
           (compTDAt metaBase U w N s.mem (compGmAt metaBase U w N s.mem 1 - 1)))) := by
     dsimp only [compRemoveTailLocateProg, compRemoveTailReadGM1Prog, compRemoveTailReadGM2Prog,
       compRemoveTailReadTDProg, compRemoveTailCalcDenseProg]
-    simp only [bind_assoc, pure_bind, cpGmTailPtrBase_mk, cpTailCap_mk, cpSlabSize_mk]
+    simp only [bind_assoc, pure_bind, succinct_param_simps]
     rw [hr_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h0_lt,
       clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
       clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
@@ -227,7 +227,7 @@ private theorem compRemoveTailLocate_spec {metaBase itemBase U V w N m_cap b : �
   have hv : ValidProg w 0 s (compRemoveTailLocateProg ((mkCompParams U V w N, metaBase), b)) := by
     dsimp only [compRemoveTailLocateProg, compRemoveTailReadGM1Prog, compRemoveTailReadGM2Prog,
       compRemoveTailReadTDProg, compRemoveTailCalcDenseProg]
-    simp only [bind_assoc, pure_bind, cpGmTailPtrBase_mk, cpTailCap_mk, cpSlabSize_mk, hr_eq]
+    simp only [bind_assoc, pure_bind, succinct_param_simps, hr_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h0_lt⟩) ?_
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg h0_lt]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, hr_idx_lt⟩) ?_
@@ -597,7 +597,7 @@ private theorem realizesBounded_compRemoveTailLocate :
         ((compGmAt metaBase U w N s.mem 0 * slabSize N, compGmAt metaBase U w N s.mem 1 - 1),
          compGmAt metaBase U w N s.mem
            (gmTailPtrIdx N b (compGmAt metaBase U w N s.mem (gmRIdx b) - 1))) := by
-      dsimp only [compRemoveTailReadGM2Prog, cpGmTailPtrBase_mk, cpTailCap_mk, cpSlabSize_mk]
+      dsimp only [compRemoveTailReadGM2Prog, succinct_param_simps]
       rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hptr_del_lt,
         clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
         clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg]; rfl)

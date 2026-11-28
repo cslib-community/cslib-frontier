@@ -300,8 +300,8 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
       have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState s_fix₁
           (promoteSlabProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
         dsimp only [s_fix', pushBackSlotProg, pushBackSlotGenProg]
-        simp only [p_bucketBits_mk, hb0, ↓reduceIte, pushBackTailWriteGenProg_mk,
-          p_twoSlabSize_mk, promoteSlabGenProg_mk]
+        simp only [succinct_param_simps, hb0, ↓reduceIte, pushBackTailWriteGenProg_mk,
+          promoteSlabGenProg_mk]
         rw [StateTransitionSpec.clientState_bind, hres_f1, ite_eq_left hprom]
       obtain ⟨hpre_prom, hm_cap1⟩ :
           PromoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix₁ ∧
@@ -340,8 +340,8 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
           StateTransitionSpec.clientState_pure]
       have hs_fix'_eq : s_fix' = s_fix₁ := by
         dsimp only [s_fix', pushBackSlotProg, pushBackSlotGenProg]
-        simp only [p_bucketBits_mk, hb0, ↓reduceIte, pushBackTailWriteGenProg_mk,
-          p_twoSlabSize_mk, promoteSlabGenProg_mk]
+        simp only [succinct_param_simps, hb0, ↓reduceIte, pushBackTailWriteGenProg_mk,
+          promoteSlabGenProg_mk]
         rw [StateTransitionSpec.clientState_bind, hres_f1, ite_eq_right hprom,
           StateTransitionSpec.clientState_pure]
       have hcost_tot : memoryCost (compPushBackSlotGenProg d) s = 42 := by
@@ -447,7 +447,7 @@ theorem validProg_compPushBackSlotGen {w : ℕ}
   obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hcpl, hslot, hb, htot, hm_cap, hq_lt, hv_lt⟩ := h
   have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
   dsimp only [compPushBackSlotGenProg, compPushBackSingleGenProg, compPushBackMultiGenProg]
-  simp only [cpBucketBits_mk, cpTwoSlabSize_mk]
+  simp only [succinct_param_simps]
   refine validProg_ite (fun hb0 => ?_) (fun hb0 => ?_)
   · unfold totalSlots at hm_cap; rw [ite_eq_left hb0] at hm_cap
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h0_lt⟩) ?_

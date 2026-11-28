@@ -107,7 +107,7 @@ private theorem clientResult_compRemoveTailReadGMProg {U V w N metaBase b : ℕ}
   obtain ⟨hr_idx_lt, hptr_del_lt, h1_lt, hown_last_lt⟩ :=
     compRemoveTailReadGM_idx_lt hb_pos hb htail hr_pos
   have hr_eq : 4 + (b + b + b) + 1 = gmRIdx b := by unfold gmRIdx; omega
-  dsimp only [compRemoveTailReadGMProg, cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
+  dsimp only [compRemoveTailReadGMProg, succinct_param_simps]
   rw [hr_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hr_idx_lt,
     clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
     clientResult_readCompGMGenProg hptr_del_lt, clientState_readCompGMGenProg,
@@ -197,7 +197,7 @@ theorem compRemoveTailGMOnlyGenProg_effect {metaBase itemBase U V w N m_items b 
     change (Memory.spec 0).clientState s _ = _
     dsimp only [compRemoveTailGMOnlyGenProg]
     rw [StateTransitionSpec.clientState_bind, hread_st, hread_res]
-    dsimp only [compRemoveTailWriteGMProg, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
+    dsimp only [compRemoveTailWriteGMProg, succinct_param_simps]
     rw [hr_eq]
     repeat rw [StateTransitionSpec.clientState_bind]
   obtain ⟨hf1, hg1⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hptr_last_lt
@@ -241,8 +241,8 @@ private theorem realizesBounded_compRemoveTailReadGM :
     obtain ⟨hr_idx_lt, hptr_del_lt, h1_lt, hown_last_lt⟩ :=
       compRemoveTailReadGM_idx_lt hb_pos hb htail hr_pos
     have hr_eq : 4 + (b + b + b) + 1 = gmRIdx b := by unfold gmRIdx; omega
-    simp only [cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk, hr_eq,
-      StateTransitionSpec.clientState, runClient_state_readCompGMGenProg] at *
+    simp only [succinct_param_simps, hr_eq, StateTransitionSpec.clientState,
+      runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg hr_idx_lt] at *
     try rw [clientResult_readCompGMGenProg h1_lt] at *)
   all_goals try (
@@ -336,7 +336,7 @@ theorem validProg_compRemoveTailGMOnlyGen {w : ℕ} {d : (CompParams × ℕ) × 
     gmTailOwnerIdx_lt hb_pos (lt_of_lt_of_le (htail.ptr_lt b hb _ hr_del_lt) htail.ntails_le)
   have hrd_v : ValidProg w 0 s
       (compRemoveTailReadGMProg ((mkCompParams U V w N, metaBase), b)) := by
-    dsimp only [compRemoveTailReadGMProg, cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
+    dsimp only [compRemoveTailReadGMProg, succinct_param_simps]
     rw [hr_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hr_idx_lt⟩) ?_
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg hr_idx_lt]
@@ -349,7 +349,7 @@ theorem validProg_compRemoveTailGMOnlyGen {w : ℕ} {d : (CompParams × ℕ) × 
   refine validProg_bind hrd_v ?_
   rw [clientState_compRemoveTailReadGMProg,
     clientResult_compRemoveTailReadGMProg hb_pos hb htail hr_pos]
-  dsimp only [compRemoveTailWriteGMProg, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
+  dsimp only [compRemoveTailWriteGMProg, succinct_param_simps]
   rw [hr_eq]
   exact validProg_writeCompGM_bind ⟨mkEnv s rfl, hptr_last_lt⟩ fun s1 hs1 =>
     validProg_writeCompGM_bind ⟨mkEnv s1 hs1, hown_del_lt⟩ fun s2 hs2 =>

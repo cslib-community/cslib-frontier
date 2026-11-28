@@ -201,8 +201,7 @@ private theorem packedCompPre_of_metaEnv {w metaBase idx : ℕ} {cp : CompParams
         packedWords (len (mkCompParams U V w N)) (k (mkCompParams U V w N)) w ≤
       offCompItems U w N := by
         intro U V N
-        simp only [cpOffLMSub_mk, cpLmBits_mk, cpOffGM_mk, cpGmBits_mk, cpOffTD_mk, cpOffDT_mk,
-          cpMaxTail_mk, cpN_mk]
+        simp only [succinct_param_simps]
         wram_omega) :
     ReadPackedCompPre w (((metaBase, off cp), (k cp, cpW cp)), idx) s := by
   obtain ⟨⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr⟩, hidx⟩ := h
@@ -684,7 +683,7 @@ theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.S
     (Memory.spec 0).clientResult s
         (denseOfPhysGenProg ((mkCompParams U V w N, metaBase), g)) =
       denseOfPhys N (compGmAt metaBase U w N s.mem) (compTDAt metaBase U w N s.mem) g := by
-  dsimp only [denseOfPhysGenProg, denseOfPhys, cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk]
+  dsimp only [denseOfPhysGenProg, denseOfPhys, succinct_param_simps]
   simp only [pure_bind]
   by_cases hb0 : bucketBits N = 0
   · simp [hb0]
@@ -738,7 +737,7 @@ theorem realizesBounded_denseOfPhysGen :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, g⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hg_lt, hb_cond⟩ := h
-    simp only [cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk] at *
+    simp only [succinct_param_simps] at *
     have hb_pos : 0 < bucketBits N := by omega
     have h0_lt : 0 < globalMetaLen N := by wram_omega
     obtain ⟨hb_tail_le, htail_cond⟩ := hb_cond hb_pos
@@ -783,7 +782,7 @@ theorem realizesBounded_winGrowRightGen :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
     obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, hbn_le⟩ := h
-    simp only [cpMaxTail_mk, cpN_mk, StateTransitionSpec.clientState,
+    simp only [succinct_param_simps, StateTransitionSpec.clientState,
       runClient_state_writeCompTDGenProg] at *
     have hM_pos : 0 < maxTailItems N := by omega)
   all_goals try omega
@@ -832,7 +831,7 @@ theorem realizesBounded_winGrowLeftGen :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
     obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, hb_le⟩ := h
-    simp only [cpMaxTail_mk, cpN_mk, StateTransitionSpec.clientState,
+    simp only [succinct_param_simps, StateTransitionSpec.clientState,
       runClient_state_writeCompTDGenProg] at *
     have hM_pos : 0 < maxTailItems N := by omega)
   all_goals try omega

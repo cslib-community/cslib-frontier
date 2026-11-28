@@ -79,7 +79,7 @@ theorem ghostDictEnvGen {U V w N : ℕ} (hw : 0 < w) (hnU : N ≤ U) (hU : U < 2
   have hwf := ghostDictParamsWf hw hnU hU hV
   refine ⟨⟨U, V, ghostW w, N, hashSpace U (ghostW w) N, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2,
     rfl⟩, rfl, ?_⟩
-  simp only [p_U_mk, p_V_mk, p_w_mk, p_nMax_mk, p_hSpace_mk, Nat.zero_add]
+  simp only [succinct_param_simps, Nat.zero_add]
   set wg := ghostW w
   have hwg : 0 < wg := hwf.1
   have hh := hashSpace_le hwg hnU hwf.2.2.1.le

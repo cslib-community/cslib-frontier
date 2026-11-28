@@ -217,7 +217,7 @@ theorem clientResult_compFeistelCoordsProg (U V w N u h_q : ℕ) (s : Memory.Sta
         (compFeistelCoordsProg (mkCompParams U V w N, (u, h_q))) =
       ((feistelBucket (bucketBits N) (fun _ => h_q) u, keyQuotient (bucketBits N) u),
         h_q >>> bucketBits N) := by
-  dsimp only [compFeistelCoordsProg, cpBucketBits_mk, cpBucketMask_mk]
+  dsimp only [compFeistelCoordsProg, succinct_param_simps]
   simp only [pure_bind, prog_clientResult_pure]
   rw [and_mask_xor_eq_feistelBucket (bucketBits N) u h_q, Nat.shiftRight_eq_div_pow]
   rfl

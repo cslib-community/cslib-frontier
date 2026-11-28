@@ -257,8 +257,7 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
   · unfold StateTransitionSpec.clientState
     simp [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
   · dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
-    simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
-      cpTailCap_mk]
+    simp only [bind_assoc, pure_bind, succinct_param_simps]
     rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hptr_u_lt,
       clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
       clientResult_readCompGMGenProg hptr_top_lt, clientState_readCompGMGenProg,
@@ -283,8 +282,7 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
       clientState_denseOfCircGenProg]
     rfl
   · dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
-    simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
-      cpTailCap_mk]
+    simp only [bind_assoc, pure_bind, succinct_param_simps]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, hptr_u_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, hptr_top_lt⟩) ?_

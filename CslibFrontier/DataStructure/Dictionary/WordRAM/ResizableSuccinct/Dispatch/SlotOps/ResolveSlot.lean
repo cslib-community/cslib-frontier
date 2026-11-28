@@ -105,8 +105,7 @@ theorem clientResult_compLastSlotOfGenProg {U V w N metaBase b : ℕ} {s : Memor
       slotOf N (compGmAt metaBase U w N s.mem) b
         (bCount N (compGmAt metaBase U w N s.mem) b - 1) := by
   set gm := compGmAt metaBase U w N s.mem
-  simp only [compLastSlotOfGenProg, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk,
-    cpNSubOne_mk, pure_bind]
+  simp only [compLastSlotOfGenProg, succinct_param_simps, pure_bind]
   by_cases hb0 : bucketBits N = 0
   · have hb_eq : b = 0 := by simp only [numBuckets, hb0, pow_zero] at hb; omega
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
@@ -142,9 +141,8 @@ theorem realizesBounded_compLastSlotOfGen :
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, hbc⟩ := h
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
-    simp only [cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk, cpNSubOne_mk,
-      StateTransitionSpec.clientState, clientResult_readCompGMGenProg h0_lt,
-      runClient_state_readCompGMGenProg] at *)
+    simp only [succinct_param_simps, StateTransitionSpec.clientState,
+      clientResult_readCompGMGenProg h0_lt, runClient_state_readCompGMGenProg] at *)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, h0_lt⟩
   · have hb_eq : b = 0 := by simp only [numBuckets, hc, pow_zero] at hb; omega
     unfold bCount at hbc; simp only [hc, ↓reduceIte, hb_eq] at hbc; exact hbc
@@ -174,7 +172,7 @@ theorem validProg_compLastSlotOfGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, _hbc⟩ := h
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  simp only [compLastSlotOfGenProg, pure_bind, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk]
+  simp only [compLastSlotOfGenProg, pure_bind, succinct_param_simps]
   refine validProg_ite
     (fun _ => validProg_bind
       (validProg_readCompGMGen ⟨henv, by simp only [globalMetaLen]; omega⟩) (validProg_pure _))
@@ -264,9 +262,8 @@ theorem clientResult_compResolveIndexedSlotGenProg {U V w N metaBase b j : ℕ} 
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by simp only [gmQIdx]; omega
-    simp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg, cpBucketBits_mk,
-      cpSlabSize_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpSlabSizeSubOne_mk, cpGmTailPtrBase_mk,
-      cpTailCap_mk, cpNSubOne_mk, hb0, ↓reduceIte, hq_eq]
+    simp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg, succinct_param_simps,
+      hb0, ↓reduceIte, hq_eq]
     rw [prog_clientResult_bind, clientResult_readCompGMGenProg hq_idx_lt,
       clientState_readCompGMGenProg]
     by_cases hj_slab : j < compGmAt metaBase U w N s.mem (gmQIdx b) * slabSize N
@@ -310,8 +307,7 @@ private theorem realizesBounded_compResolveMultiSlotGen :
     obtain ⟨-, hdir_lt⟩ := slabDir_read_bounds hb_pos hb hj_cap
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b
     unfold bCount at hbc_le; simp only [hb_ne, ↓reduceIte, hb] at hbc_le
-    simp only [cpSlabSize_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpSlabSizeSubOne_mk,
-      cpGmTailPtrBase_mk, cpTailCap_mk, cpNSubOne_mk, hq_eq, StateTransitionSpec.clientState,
+    simp only [succinct_param_simps, hq_eq, StateTransitionSpec.clientState,
       clientResult_readCompGMGenProg hq_idx_lt, runClient_state_readCompGMGenProg] at *)
   all_goals try exact hK.ne'
   all_goals try exact ⟨henv, hq_idx_lt⟩
@@ -367,8 +363,7 @@ theorem validProg_compResolveIndexedSlotGen {w : ℕ} {d : ((CompParams × ℕ) 
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, hj_bc, hj_cap⟩ := h
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  simp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg, cpBucketBits_mk,
-    cpSlabSize_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpGmTailPtrBase_mk, cpTailCap_mk]
+  simp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg, succinct_param_simps]
   refine validProg_ite (fun _ => validProg_pure j) (fun hb0 => ?_)
   have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
   have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
