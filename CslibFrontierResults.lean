@@ -11,6 +11,7 @@ import CslibFrontierResults.Entries.KellyMechanism
 import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
+import CslibFrontierResults.Entries.Frugality
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellBribery

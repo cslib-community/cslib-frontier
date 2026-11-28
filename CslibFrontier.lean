@@ -9946,6 +9946,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.IKNP
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 public import CslibFrontier.Probability.PMF.Finiteness
 public import CslibFrontier.Computability.Circuit.Basic
+public import CslibFrontier.GameTheory.Mechanism.Frugality
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.FirstMoment
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticFiniteClass
