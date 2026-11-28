@@ -325,6 +325,19 @@ private theorem symm_eq_of_bid_eq {ι : Type*} {M : Mechanism ι}
   have h := hSym (Equiv.swap i j) b i hb
   simpa only [hcomp, Equiv.swap_apply_left] using h
 
+/-- Number of indices in `Fin n` with value strictly below `k ≤ n`. -/
+private theorem card_filter_val_lt {n k : ℕ} (hkn : k ≤ n) :
+    (univ.filter fun i : Fin n => i.val < k).card = k := by
+  have heq : (univ.filter fun i : Fin n => i.val < k) =
+      (Finset.range k).attach.image
+        fun x => ⟨x.1, lt_of_lt_of_le (Finset.mem_range.1 x.2) hkn⟩ := by
+    ext i
+    simp only [mem_filter, mem_univ, true_and, mem_image, mem_attach, Subtype.exists]
+    exact ⟨fun hi => ⟨i.val, Finset.mem_range.2 hi, Fin.ext rfl⟩,
+      fun ⟨_, hx, h⟩ => h ▸ Finset.mem_range.1 hx⟩
+  rw [heq, Finset.card_image_of_injective _ fun _ _ hab => Subtype.ext (congrArg Fin.val hab),
+    Finset.card_attach, Finset.card_range]
+
 /-- Inductive dichotomy for symmetric deterministic DSIC, IR mechanisms on `twoValProfile n k h`:
 for any `m ≤ n` and `1 ≤ h`, either at some stage `k < m` every `1`-bidder loses and total profit
 is at most `k`, or at stage `m` every bidder pays at most `1` and total profit is at most `n`. -/
@@ -367,24 +380,7 @@ private theorem symmetric_twoVal_dichotomy {n m : ℕ} (hmn : m ≤ n) {h : ℝ}
                   Finset.sum_le_sum fun i _ => hbound i
               _ = ((univ.filter fun i : Fin n => i.val < k).card : ℝ) := by
                   simp only [Finset.sum_boole]
-              _ = (k : ℝ) := by
-                  have hcard : (univ.filter fun i : Fin n => i.val < k).card = k := by
-                    have heq : (univ.filter fun i : Fin n => i.val < k) =
-                        (Finset.range k).attach.image
-                          fun x => ⟨x.1, lt_trans (Finset.mem_range.1 x.2) hkn⟩ := by
-                      ext i
-                      simp only [mem_filter, mem_univ, true_and, mem_image, mem_attach,
-                        Subtype.exists]
-                      constructor
-                      · intro hi
-                        exact ⟨i.val, Finset.mem_range.2 hi, Fin.ext rfl⟩
-                      · rintro ⟨x, hx, rfl⟩
-                        exact Finset.mem_range.1 hx
-                    rw [heq, Finset.card_image_of_injective]
-                    · rw [Finset.card_attach, Finset.card_range]
-                    · intro a b hab
-                      exact Subtype.ext (congrArg Fin.val hab)
-                  rw [hcard]
+              _ = (k : ℝ) := by rw [card_filter_val_lt hkn.le]
           · right
             have hpay_ik : M.payment (twoValProfile n (k + 1) h) ik ≤ 1 := by
               rw [← twoValProfile_update_succ n hkn h, ← hbik]
@@ -425,17 +421,7 @@ private theorem mul_le_singlePriceProfitOn_twoVal {n m r : ℕ} (hrm : r ≤ m) 
     {h : ℝ} (hh : 1 ≤ h) :
     (m : ℝ) * h ≤ singlePriceProfitOn r (univ : Finset (Fin n)) (twoValProfile n m h) := by
   let W : Finset (Fin n) := univ.filter fun i => i.val < m
-  have hWcard : W.card = m := by
-    have heq : W = (Finset.range m).attach.image
-        fun x => ⟨x.1, lt_of_lt_of_le (Finset.mem_range.1 x.2) hmn⟩ := by
-      ext i
-      simp only [W, mem_filter, mem_univ, true_and, mem_image, mem_attach, Subtype.exists]
-      constructor
-      · intro hi; exact ⟨i.val, Finset.mem_range.2 hi, Fin.ext rfl⟩
-      · rintro ⟨x, hx, rfl⟩; exact Finset.mem_range.1 hx
-    rw [heq, Finset.card_image_of_injective]
-    · rw [Finset.card_attach, Finset.card_range]
-    · intro a b hab; exact Subtype.ext (congrArg Fin.val hab)
+  have hWcard : W.card = m := card_filter_val_lt hmn
   have hle := mul_card_le_singlePriceProfitOn (m := r) (s := univ) (W := W)
     (b := twoValProfile n m h) (p := h)
     (fun i _ => twoValProfile_nonneg n m hh i) (subset_univ _) (hWcard ▸ hrm)
@@ -956,26 +942,105 @@ private theorem expected_sum_payment_equalRevGrid_le {ι : Type*} [Fintype ι] [
     _ = 1 := by
         simp only [mul_one, ← Fintype.prod_sum, sum_equalRevWeight hm N, Finset.prod_const_one]
 
+/-- Telescoping sum `∑_{s ∈ Icc a b} (f s - f (s + 1)) = f a - f (b + 1)` for `a ≤ b`. -/
+private theorem sum_Icc_sub_succ (f : ℕ → ℝ) {a b : ℕ} (hab : a ≤ b) :
+    ∑ s ∈ Finset.Icc a b, (f s - f (s + 1)) = f a - f (b + 1) := by
+  obtain ⟨d, rfl⟩ : ∃ d, b = a + d := ⟨b - a, (Nat.add_sub_of_le hab).symm⟩
+  induction d generalizing a with
+  | zero => simp only [add_zero, Finset.Icc_self, Finset.sum_singleton]
+  | succ d ih =>
+      have hsplit : Finset.Icc a (a + (d + 1)) = insert a (Finset.Icc (a + 1) (a + (d + 1))) := by
+        ext x; simp only [mem_Icc, mem_insert]; omega
+      have hnm : a ∉ Finset.Icc (a + 1) (a + (d + 1)) := by simp only [mem_Icc]; omega
+      have hrew : a + (d + 1) = (a + 1) + d := by omega
+      rw [hsplit, Finset.sum_insert hnm, hrew, ih (by omega)]
+      ring
+
+/-- Index shift `∑ r ∈ Icc a b, f (r + d) = ∑ s ∈ Icc (a + d) (b + d), f s`. -/
+private theorem sum_Icc_shift_add (a b d : ℕ) (f : ℕ → ℝ) :
+    ∑ r ∈ Finset.Icc a b, f (r + d) = ∑ s ∈ Finset.Icc (a + d) (b + d), f s :=
+  Finset.sum_bij (fun r _ => r + d)
+    (fun r hr => mem_Icc.2 ⟨by have := (mem_Icc.1 hr).1; omega,
+      by have := (mem_Icc.1 hr).2; omega⟩)
+    (fun _ _ _ _ h => by omega)
+    (fun s hs => ⟨s - d, mem_Icc.2 ⟨by have := (mem_Icc.1 hs).1; omega,
+      by have := (mem_Icc.1 hs).2; omega⟩, by have := (mem_Icc.1 hs).1; omega⟩)
+    fun _ _ => rfl
+
+/-- Product equal-revenue weights sum to `1`. -/
+private theorem sum_prod_equalRevWeight {n m N : ℕ} (hm : 0 < m) :
+    ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) = 1 := by
+  rw [← Fintype.prod_sum]
+  simp only [sum_equalRevWeight hm N, Finset.prod_const_one]
+
+/-- Pointwise lower bound by an affine sum of indicators lifts to an expectation lower bound over
+the product equal-revenue grid. -/
+private theorem expected_add_sum_indicator_le {n m N : ℕ} (hm : 0 < m) (a d : ℝ) (S : Finset ℕ)
+    (P : ℕ → (Fin n → Fin (N + 1)) → Prop) [∀ r c, Decidable (P r c)]
+    {f : (Fin n → Fin (N + 1)) → ℝ}
+    (hf : ∀ c, a + d * ∑ r ∈ S, (if P r c then (1 : ℝ) else 0) ≤ f c) :
+    a + d * ∑ r ∈ S, ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+        (if P r c then (1 : ℝ) else 0) ≤
+      ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) * f c := by
+  have hexp : ∀ c : Fin n → Fin (N + 1),
+      (∏ j : Fin n, equalRevWeight m N (c j)) *
+        (a + d * ∑ r ∈ S, if P r c then (1 : ℝ) else 0) =
+      a * (∏ j : Fin n, equalRevWeight m N (c j)) +
+        d * ∑ r ∈ S, (∏ j : Fin n, equalRevWeight m N (c j)) *
+          (if P r c then (1 : ℝ) else 0) := fun c => by
+    rw [← Finset.mul_sum]; ring
+  calc a + d * ∑ r ∈ S, ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+          (if P r c then (1 : ℝ) else 0)
+      = ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+          (a + d * ∑ r ∈ S, if P r c then (1 : ℝ) else 0) := by
+        simp_rw [hexp, Finset.sum_add_distrib]
+        rw [← Finset.mul_sum, sum_prod_equalRevWeight hm, mul_one, ← Finset.mul_sum,
+          Finset.sum_comm]
+    _ ≤ ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) * f c :=
+        Finset.sum_le_sum fun c _ =>
+          mul_le_mul_of_nonneg_left (hf c)
+            (Finset.prod_nonneg fun j _ => equalRevWeight_nonneg hm N (c j))
+
+/-- For any `β`-competitive truthful IR `[0, 1]`-allocated auction on `n` bidders, the expected
+benchmark `ℱ⁽²⁾` under the product equal-revenue grid is at most `n * β`. -/
+private theorem expected_optimalProfitTwo_equalRevGrid_le {ι : Type*} [Fintype ι] [DecidableEq ι]
+    {n : ℕ} (hcard : Fintype.card ι = n) {M : Mechanism ι} (hDSIC : M.IsDSIC) (hIR : M.IsIR)
+    (hUnit : IsUnitAlloc M.allocation) {β : ℝ}
+    (hComp : IsCompetitive optimalProfitTwo (fun b => ∑ i, M.payment b i) β)
+    {m : ℕ} (hm : 0 < m) (N : ℕ) :
+    ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+        optimalProfitTwo (fun j => gridVal m (c j).val) ≤
+      (n : ℝ) * β := by
+  let e : Fin n ≃ ι := (Fintype.equivFinOfCardEq hcard).symm
+  let M' : Mechanism (Fin n) := reindexMechanism e M
+  have hDSIC' := reindexMechanism_isDSIC e hDSIC
+  have hIR' := reindexMechanism_isIR e hIR
+  have hUnit' := reindexMechanism_isUnitAlloc e hUnit
+  have hComp' := reindexMechanism_isCompetitive e hComp
+  have hexp_pay : ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+      (∑ i : Fin n, M'.payment (fun j => gridVal m (c j).val) i) ≤ (n : ℝ) := by
+    simpa only [Fintype.card_fin] using
+      expected_sum_payment_equalRevGrid_le hDSIC' hIR' hUnit' hm N
+  calc ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+          optimalProfitTwo (fun j => gridVal m (c j).val)
+      ≤ ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+          (β * ∑ i : Fin n, M'.payment (fun j => gridVal m (c j).val) i) :=
+        Finset.sum_le_sum fun c _ =>
+          mul_le_mul_of_nonneg_left
+            (hComp'.2 (fun j => gridVal m (c j).val) fun j => (gridVal_pos hm _).le)
+            (Finset.prod_nonneg fun j _ => equalRevWeight_nonneg hm N (c j))
+    _ = β * ∑ c : Fin n → Fin (N + 1), (∏ j : Fin n, equalRevWeight m N (c j)) *
+          (∑ i : Fin n, M'.payment (fun j => gridVal m (c j).val) i) := by
+        rw [Finset.mul_sum]
+        refine Finset.sum_congr rfl fun c _ => by ring
+    _ ≤ β * (n : ℝ) := mul_le_mul_of_nonneg_left hexp_pay hComp'.1
+    _ = (n : ℝ) * β := mul_comm β _
+
 /-- Telescoping lower bound `∑_{s ∈ Icc a b} 1 / s² ≥ 1 / a - 1 / (b + 1)` for `1 ≤ a ≤ b`. -/
 private theorem sum_inv_sq_ge {a b : ℕ} (ha : 1 ≤ a) (hab : a ≤ b) :
     (1 : ℝ) / (a : ℝ) - 1 / ((b + 1 : ℕ) : ℝ) ≤
       ∑ s ∈ Finset.Icc a b, (1 : ℝ) / ((s : ℝ) ^ 2) := by
-  have htele : ∑ s ∈ Finset.Icc a b,
-      ((1 : ℝ) / (s : ℝ) - 1 / ((s + 1 : ℕ) : ℝ)) =
-      1 / (a : ℝ) - 1 / ((b + 1 : ℕ) : ℝ) := by
-    obtain ⟨d, rfl⟩ : ∃ d, b = a + d := ⟨b - a, (Nat.add_sub_of_le hab).symm⟩
-    induction d generalizing a with
-    | zero =>
-        simp only [add_zero, Finset.Icc_self, Finset.sum_singleton]
-    | succ d ih =>
-        have hsplit : Finset.Icc a (a + (d + 1)) = insert a (Finset.Icc (a + 1) (a + (d + 1))) := by
-          ext x; simp only [mem_Icc, mem_insert]; omega
-        have hnm : a ∉ Finset.Icc (a + 1) (a + (d + 1)) := by simp only [mem_Icc]; omega
-        rw [hsplit, Finset.sum_insert hnm]
-        have hrew : a + (d + 1) = (a + 1) + d := by omega
-        rw [hrew, ih (by omega) (by omega)]
-        ring
-  rw [← htele]
+  rw [← sum_Icc_sub_succ (fun s => (1 : ℝ) / (s : ℝ)) hab]
   refine Finset.sum_le_sum fun s hs => ?_
   have hs1 : 1 ≤ s := ha.trans (mem_Icc.1 hs).1
   have hspos : (0 : ℝ) < (s : ℝ) := by exact_mod_cast hs1
@@ -997,19 +1062,8 @@ private theorem sum_inv_cube_le {a b : ℕ} (ha : 2 ≤ a) (hab : a ≤ b) :
       ((1 : ℝ) / (2 * ((s - 1 : ℕ) : ℝ) * (s : ℝ)) -
         1 / (2 * (s : ℝ) * ((s + 1 : ℕ) : ℝ))) =
       1 / (2 * ((a - 1 : ℕ) : ℝ) * (a : ℝ)) - 1 / (2 * (b : ℝ) * ((b + 1 : ℕ) : ℝ)) := by
-    obtain ⟨d, rfl⟩ : ∃ d, b = a + d := ⟨b - a, (Nat.add_sub_of_le hab).symm⟩
-    induction d generalizing a with
-    | zero =>
-        simp only [add_zero, Finset.Icc_self, Finset.sum_singleton]
-    | succ d ih =>
-        have hsplit : Finset.Icc a (a + (d + 1)) = insert a (Finset.Icc (a + 1) (a + (d + 1))) := by
-          ext x; simp only [mem_Icc, mem_insert]; omega
-        have hnm : a ∉ Finset.Icc (a + 1) (a + (d + 1)) := by simp only [mem_Icc]; omega
-        rw [hsplit, Finset.sum_insert hnm]
-        have hrew : a + (d + 1) = (a + 1) + d := by omega
-        have hsub : a + 1 - 1 = a := Nat.add_sub_cancel a 1
-        rw [hrew, ih (by omega) (by omega), hsub]
-        ring
+    simpa only [Nat.add_sub_cancel] using
+      sum_Icc_sub_succ (fun s => (1 : ℝ) / (2 * ((s - 1 : ℕ) : ℝ) * (s : ℝ))) hab
   have hterm : ∀ s ∈ Finset.Icc a b,
       (1 : ℝ) / ((s : ℝ) ^ 3) ≤
         1 / (2 * ((s - 1 : ℕ) : ℝ) * (s : ℝ)) - 1 / (2 * (s : ℝ) * ((s + 1 : ℕ) : ℝ)) := by
@@ -1048,13 +1102,6 @@ theorem two_le_of_isCompetitive_two {ι : Type*} [Fintype ι] [DecidableEq ι]
     (hUnit : IsUnitAlloc M.allocation) {β : ℝ}
     (hComp : IsCompetitive optimalProfitTwo (fun b => ∑ i, M.payment b i) β) :
     2 ≤ β := by
-  let e : Fin 2 ≃ ι := (Fintype.equivFinOfCardEq hcard).symm
-  let M' : Mechanism (Fin 2) := reindexMechanism e M
-  have hDSIC' : M'.IsDSIC := reindexMechanism_isDSIC e hDSIC
-  have hIR' : M'.IsIR := reindexMechanism_isIR e hIR
-  have hUnit' : IsUnitAlloc M'.allocation := reindexMechanism_isUnitAlloc e hUnit
-  have hComp' : IsCompetitive optimalProfitTwo (fun b => ∑ i, M'.payment b i) β :=
-    reindexMechanism_isCompetitive e hComp
   by_contra hlt
   push Not at hlt
   set ε : ℝ := 4 - 2 * β with hε_def
@@ -1081,10 +1128,10 @@ theorem two_le_of_isCompetitive_two {ι : Type*} [Fintype ι] [DecidableEq ι]
     rw [div_lt_iff₀ hHpos]
     have := (div_lt_iff₀ hε).1 h1
     linarith
-  have hexp_pay : ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-      (∑ i : Fin 2, M'.payment (fun j => gridVal m (c j).val) i) ≤ 2 := by
-    simpa only [Fintype.card_fin, Nat.cast_ofNat] using
-      expected_sum_payment_equalRevGrid_le hDSIC' hIR' hUnit' hm N
+  have hexp_le : ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
+      optimalProfitTwo (fun j => gridVal m (c j).val) ≤ 2 * β := by
+    simpa only [Nat.cast_ofNat] using
+      expected_optimalProfitTwo_equalRevGrid_le hcard hDSIC hIR hUnit hComp hm N
   -- Lower bound `E[F^{(2)}(c)] ≥ 4 - 2 / (m + 1) - 2 / H` via tail sum of `min(c 0, c 1)`.
   have hF2_ge : ∀ c : Fin 2 → Fin (N + 1),
       2 * (1 + (∑ r ∈ Finset.Icc 1 N,
@@ -1139,63 +1186,36 @@ theorem two_le_of_isCompetitive_two {ι : Type*} [Fintype ι] [DecidableEq ι]
         simp only [le_min_iff, ha, hb, and_self, and_false, false_and, ↓reduceIte,
           mul_one, mul_zero, zero_mul]
     rw [hfactor, ← Finset.sum_filter, sum_equalRevWeight_tail N r hrN, sq]
-  have hsum_w : ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) = 1 := by
-    rw [← Fintype.prod_sum]
-    simp only [sum_equalRevWeight hm N, Finset.prod_const_one]
   have hexp_F2_ge : 4 - 2 / ((m + 1 : ℕ) : ℝ) - 2 / (H : ℝ) ≤
       ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
         optimalProfitTwo (fun j => gridVal m (c j).val) := by
-    have hstep1 :
+    have hstep : 2 + (2 / (m : ℝ)) * ∑ r ∈ Finset.Icc 1 N, (1 / gridVal m r) ^ 2 ≤
         ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-          (2 * (1 + (∑ r ∈ Finset.Icc 1 N,
-            if r ≤ min (c 0).val (c 1).val then (1 : ℝ) else 0) / (m : ℝ))) ≤
-        ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-          optimalProfitTwo (fun j => gridVal m (c j).val) :=
-      Finset.sum_le_sum fun c _ =>
-        mul_le_mul_of_nonneg_left (hF2_ge c)
-          (Finset.prod_nonneg fun j _ => equalRevWeight_nonneg hm N (c j))
-    have hstep2 :
-        ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-          (2 * (1 + (∑ r ∈ Finset.Icc 1 N,
-            if r ≤ min (c 0).val (c 1).val then (1 : ℝ) else 0) / (m : ℝ))) =
-        2 + (2 / (m : ℝ)) * ∑ r ∈ Finset.Icc 1 N, (1 / gridVal m r) ^ 2 := by
-      have hexp : ∀ c : Fin 2 → Fin (N + 1),
-          (∏ j : Fin 2, equalRevWeight m N (c j)) *
-            (2 * (1 + (∑ r ∈ Finset.Icc 1 N,
-              if r ≤ min (c 0).val (c 1).val then (1 : ℝ) else 0) / (m : ℝ))) =
-          2 * (∏ j : Fin 2, equalRevWeight m N (c j)) +
-            (2 / (m : ℝ)) * ∑ r ∈ Finset.Icc 1 N,
-              (∏ j : Fin 2, equalRevWeight m N (c j)) *
-                (if r ≤ min (c 0).val (c 1).val then (1 : ℝ) else 0) := by
-        intro c
-        rw [← Finset.mul_sum]
-        ring
-      simp_rw [hexp, Finset.sum_add_distrib]
-      rw [← Finset.mul_sum, hsum_w, mul_one, ← Finset.mul_sum, Finset.sum_comm]
-      congr 2
-      exact Finset.sum_congr rfl htail_prob
+          optimalProfitTwo (fun j => gridVal m (c j).val) := by
+      have hle := expected_add_sum_indicator_le hm 2 (2 / (m : ℝ)) (Finset.Icc 1 N)
+        (fun r c => r ≤ min (c 0).val (c 1).val)
+        (f := fun c => optimalProfitTwo (fun j => gridVal m (c j).val))
+        fun c => (by ring : 2 + (2 / (m : ℝ)) * _ = 2 * (1 + _ / (m : ℝ))).trans_le (hF2_ge c)
+      rwa [Finset.sum_congr rfl htail_prob] at hle
     have hsum_sq : (m : ℝ) * (1 / ((m + 1 : ℕ) : ℝ) - 1 / ((m * H + 1 : ℕ) : ℝ)) ≤
         (1 / (m : ℝ)) * ∑ r ∈ Finset.Icc 1 N, (1 / gridVal m r) ^ 2 := by
-      have hmN : m + N = m * H := by
+      have hmN : N + m = m * H := by
         dsimp only [N]
         have : 1 ≤ H := by omega
-        calc m + m * (H - 1) = m * 1 + m * (H - 1) := by ring
-          _ = m * (1 + (H - 1)) := by rw [← mul_add]
-          _ = m * H := by rw [Nat.add_sub_cancel' this]
+        calc m * (H - 1) + m = m * (H - 1) + m * 1 := by ring
+          _ = m * (H - 1 + 1) := by rw [← mul_add]
+          _ = m * H := by rw [Nat.sub_add_cancel this]
       have hshift : ∑ r ∈ Finset.Icc 1 N, (1 / gridVal m r) ^ 2 =
           (m : ℝ) ^ 2 * ∑ s ∈ Finset.Icc (m + 1) (m * H), (1 : ℝ) / ((s : ℝ) ^ 2) := by
-        rw [Finset.mul_sum]
-        refine Finset.sum_bij (fun r _ => m + r)
-          (fun r hr => mem_Icc.2
-            ⟨by have := (mem_Icc.1 hr).1; omega, by have := (mem_Icc.1 hr).2; omega⟩)
-          (fun _ _ _ _ h => by omega)
-          (fun s hs => ⟨s - m, mem_Icc.2 ⟨by have := (mem_Icc.1 hs).1; omega,
-            by have := (mem_Icc.1 hs).2; omega⟩, by have := (mem_Icc.1 hs).1; omega⟩)
-          fun r _ => by
-            unfold gridVal
-            have hm0 : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
-            have hr0 : ((m + r : ℕ) : ℝ) ≠ 0 := by positivity
-            field_simp
+        have hterm : ∀ r : ℕ, (1 / gridVal m r) ^ 2 =
+            (m : ℝ) ^ 2 * ((1 : ℝ) / (((r + m : ℕ) : ℝ) ^ 2)) := fun r => by
+          unfold gridVal
+          have hm0 : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
+          have hr0 : ((m + r : ℕ) : ℝ) ≠ 0 := by positivity
+          rw [Nat.add_comm r m]
+          field_simp
+        simp_rw [hterm, ← Finset.mul_sum]
+        rw [sum_Icc_shift_add 1 N m (fun s => (1 : ℝ) / ((s : ℝ) ^ 2)), Nat.add_comm 1 m, hmN]
       rw [hshift]
       have hbound := sum_inv_sq_ge (a := m + 1) (b := m * H) (by omega)
         (by nlinarith : m + 1 ≤ m * H)
@@ -1233,23 +1253,7 @@ theorem two_le_of_isCompetitive_two {ι : Type*} [Fintype ι] [DecidableEq ι]
         have hmul2 : 2 * (1 / (H : ℝ)) = 2 / (H : ℝ) := by ring
         linarith [hmH_le]
       exact h2.trans h1
-    linarith [hstep1, hstep2]
-  have hcomp_sum :
-      ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-        optimalProfitTwo (fun j => gridVal m (c j).val) ≤
-      β * ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-        (∑ i : Fin 2, M'.payment (fun j => gridVal m (c j).val) i) := by
-    rw [Finset.mul_sum]
-    refine Finset.sum_le_sum fun c _ => ?_
-    have hw0 : 0 ≤ ∏ j : Fin 2, equalRevWeight m N (c j) :=
-      Finset.prod_nonneg fun j _ => equalRevWeight_nonneg hm N (c j)
-    have hcompc := hComp'.2 (fun j => gridVal m (c j).val) fun j => (gridVal_pos hm _).le
-    have := mul_le_mul_of_nonneg_left hcompc hw0
-    linarith
-  have hbeta_bound : β * ∑ c : Fin 2 → Fin (N + 1), (∏ j : Fin 2, equalRevWeight m N (c j)) *
-      (∑ i : Fin 2, M'.payment (fun j => gridVal m (c j).val) i) ≤ 2 * β := by
-    have := mul_le_mul_of_nonneg_left hexp_pay hComp'.1
-    linarith
+    linarith [hstep]
   linarith
 
 /-- Lower bound on `Pr[X ≥ t]` for the equal-revenue grid when `1 ≤ t ≤ H`:
@@ -1402,13 +1406,6 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
     (hUnit : IsUnitAlloc M.allocation) {β : ℝ}
     (hComp : IsCompetitive optimalProfitTwo (fun b => ∑ i, M.payment b i) β) :
     (13 : ℝ) / 6 ≤ β := by
-  let e : Fin 3 ≃ ι := (Fintype.equivFinOfCardEq hcard).symm
-  let M' : Mechanism (Fin 3) := reindexMechanism e M
-  have hDSIC' : M'.IsDSIC := reindexMechanism_isDSIC e hDSIC
-  have hIR' : M'.IsIR := reindexMechanism_isIR e hIR
-  have hUnit' : IsUnitAlloc M'.allocation := reindexMechanism_isUnitAlloc e hUnit
-  have hComp' : IsCompetitive optimalProfitTwo (fun b => ∑ i, M'.payment b i) β :=
-    reindexMechanism_isCompetitive e hComp
   by_contra hlt
   push Not at hlt
   set ε : ℝ := 13 / 2 - 3 * β with hε_def
@@ -1438,10 +1435,10 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
     rw [div_lt_iff₀ hHpos]
     have := (div_lt_iff₀ hε).1 h1
     linarith
-  have hexp_pay : ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-      (∑ i : Fin 3, M'.payment (fun j => gridVal m (c j).val) i) ≤ 3 := by
-    simpa only [Fintype.card_fin, Nat.cast_ofNat] using
-      expected_sum_payment_equalRevGrid_le hDSIC' hIR' hUnit' hm N
+  have hexp_le : ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
+      optimalProfitTwo (fun j => gridVal m (c j).val) ≤ 3 * β := by
+    simpa only [Nat.cast_ofNat] using
+      expected_optimalProfitTwo_equalRevGrid_le hcard hDSIC hIR hUnit hComp hm N
   let ev (r : ℕ) (c : Fin 3 → Fin (N + 1)) : Prop :=
     let A : Fin (N + 1) → Prop := fun a => (r : ℝ) / (2 * (m : ℝ)) ≤ gridVal m a.val
     let B : Fin (N + 1) → Prop := fun a => (r : ℝ) / (3 * (m : ℝ)) ≤ gridVal m a.val
@@ -1526,24 +1523,17 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
       rcases hr with (⟨h0, h1⟩ | ⟨h0, h2⟩ | ⟨h1, h2⟩) | ⟨h0, h1, h2⟩
       · have h0' := hmul 2 (c 0) (by decide) (by simpa only [Nat.cast_ofNat] using h0)
         have h1' := hmul 2 (c 1) (by decide) (by simpa only [Nat.cast_ofNat] using h1)
-        exact (le_min h0' h1').trans <| (by rw [← Nat.mul_min_mul_left] :
-          min (2 * a0) (2 * a1) ≤ 2 * min a0 a1).trans
-            ((le_max_left _ _).trans (le_max_left _ _))
+        dsimp only [K, a0, a1] at *; omega
       · have h0' := hmul 2 (c 0) (by decide) (by simpa only [Nat.cast_ofNat] using h0)
         have h2' := hmul 2 (c 2) (by decide) (by simpa only [Nat.cast_ofNat] using h2)
-        exact (le_min h0' h2').trans <| (by rw [← Nat.mul_min_mul_left] :
-          min (2 * a0) (2 * a2) ≤ 2 * min a0 a2).trans
-            (((le_max_left _ _).trans (le_max_right _ _)).trans (le_max_left _ _))
+        dsimp only [K, a0, a2] at *; omega
       · have h1' := hmul 2 (c 1) (by decide) (by simpa only [Nat.cast_ofNat] using h1)
         have h2' := hmul 2 (c 2) (by decide) (by simpa only [Nat.cast_ofNat] using h2)
-        exact (le_min h1' h2').trans <| (by rw [← Nat.mul_min_mul_left] :
-          min (2 * a1) (2 * a2) ≤ 2 * min a1 a2).trans
-            (((le_max_right _ _).trans (le_max_right _ _)).trans (le_max_left _ _))
+        dsimp only [K, a1, a2] at *; omega
       · have h0' := hmul 3 (c 0) (by decide) (by simpa only [Nat.cast_ofNat] using h0)
         have h1' := hmul 3 (c 1) (by decide) (by simpa only [Nat.cast_ofNat] using h1)
         have h2' := hmul 3 (c 2) (by decide) (by simpa only [Nat.cast_ofNat] using h2)
-        have hmin : r ≤ 3 * min a0 (min a1 a2) := by omega
-        exact hmin.trans (le_max_right _ _)
+        dsimp only [K, a0, a1, a2] at *; omega
     have hcount : ((Finset.Icc (3 * m + 1) (2 * m * H)).filter (fun r => ev r c)).card ≤
         K - 3 * m := by
       have hsub : (Finset.Icc (3 * m + 1) (2 * m * H)).filter (fun r => ev r c) ⊆
@@ -1601,37 +1591,36 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
     have hspos : 0 < s := by linarith
     set p0 : ℝ := 2 * (m : ℝ) / s
     set q0 : ℝ := 3 * (m : ℝ) / s
-    have hp0_ge : p0 ≤ p := by
-      have h1 : 1 ≤ (r : ℝ) / (2 * (m : ℝ)) := by
+    have htail_k : ∀ k : ℕ, 2 ≤ k → k ≤ 3 →
+        (k : ℝ) * (m : ℝ) / s ≤
+          ∑ a : Fin (N + 1), if (r : ℝ) / ((k : ℝ) * (m : ℝ)) ≤ gridVal m a.val then
+            equalRevWeight m N a else 0 := by
+      intro k hk2 hk3
+      have hk_pos : (0 : ℝ) < (k : ℝ) := by positivity
+      have hk_le3 : (k : ℝ) ≤ 3 := by exact_mod_cast hk3
+      have hk_ge2 : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk2
+      have h1 : 1 ≤ (r : ℝ) / ((k : ℝ) * (m : ℝ)) := by
         rw [le_div_iff₀ (by positivity)]
         have : (3 * m + 1 : ℝ) ≤ (r : ℝ) := by exact_mod_cast hr1
-        linarith
-      have h2 : (r : ℝ) / (2 * (m : ℝ)) ≤ (H : ℝ) := by
-        rw [div_le_iff₀ (by positivity)]
-        have : (r : ℝ) ≤ ((2 * m * H : ℕ) : ℝ) := by exact_mod_cast hr2
-        push_cast at this; linarith
-      have htail := equalRev_tail_ge hm hH1 h1 h2
-      have hsub : p0 ≤ 1 / ((r : ℝ) / (2 * (m : ℝ)) + 1 / (m : ℝ)) := by
-        have hrhs : 1 / ((r : ℝ) / (2 * (m : ℝ)) + 1 / (m : ℝ)) =
-            2 * (m : ℝ) / ((r : ℝ) + 2) := by
-          field_simp [hmpos.ne']
-        rw [hrhs]
-        refine div_le_div_of_nonneg_left (by positivity) (by positivity) ?_
-        dsimp only [s]; push_cast; linarith
-      simpa only [p, ← Finset.sum_filter, A] using hsub.trans htail
-    have hq0_ge : q0 ≤ q := by
-      have h1 : 1 ≤ (r : ℝ) / (3 * (m : ℝ)) := by
-        rw [le_div_iff₀ (by positivity)]
-        have : (3 * m + 1 : ℝ) ≤ (r : ℝ) := by exact_mod_cast hr1
-        linarith
-      have h2 : (r : ℝ) / (3 * (m : ℝ)) ≤ (H : ℝ) := by
+        nlinarith
+      have h2 : (r : ℝ) / ((k : ℝ) * (m : ℝ)) ≤ (H : ℝ) := by
         rw [div_le_iff₀ (by positivity)]
         have : (r : ℝ) ≤ ((2 * m * H : ℕ) : ℝ) := by exact_mod_cast hr2
         push_cast at this; nlinarith
       have htail := equalRev_tail_ge hm hH1 h1 h2
-      have heq_q0 : q0 = 1 / ((r : ℝ) / (3 * (m : ℝ)) + 1 / (m : ℝ)) := by
-        dsimp only [q0, s]; push_cast; field_simp [hmpos.ne']
-      simpa only [q, ← Finset.sum_filter, B, ← heq_q0] using htail
+      have hsub : (k : ℝ) * (m : ℝ) / s ≤
+          1 / ((r : ℝ) / ((k : ℝ) * (m : ℝ)) + 1 / (m : ℝ)) := by
+        have hrhs : 1 / ((r : ℝ) / ((k : ℝ) * (m : ℝ)) + 1 / (m : ℝ)) =
+            (k : ℝ) * (m : ℝ) / ((r : ℝ) + (k : ℝ)) := by
+          field_simp [hmpos.ne', hk_pos.ne']
+        rw [hrhs]
+        refine div_le_div_of_nonneg_left (by positivity) (by positivity) ?_
+        dsimp only [s]; push_cast; linarith
+      simpa only [← Finset.sum_filter] using hsub.trans htail
+    have hp0_ge : p0 ≤ p := by
+      simpa only [p0, p, A, Nat.cast_ofNat] using htail_k 2 (by decide) (by decide)
+    have hq0_ge : q0 ≤ q := by
+      simpa only [q0, q, B, Nat.cast_ofNat] using htail_k 3 (by decide) (by decide)
     have hmono : 3 * p0 ^ 2 * (1 - q0) + q0 ^ 3 ≤ 3 * p ^ 2 * (1 - q) + q ^ 3 := by
       have hp0_nn : 0 ≤ p0 := by positivity
       have hp0_le_q0 : p0 ≤ q0 := div_le_div_of_nonneg_right (by linarith) hspos.le
@@ -1649,41 +1638,17 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
         12 * (m : ℝ) ^ 2 / s ^ 2 - 9 * (m : ℝ) ^ 3 / s ^ 3 := by
       dsimp only [p0, q0]; field_simp [hspos.ne']; ring
     linarith [hmono, hid]
-  have hsum_w : ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) = 1 := by
-    rw [← Fintype.prod_sum]
-    simp only [sum_equalRevWeight hm N, Finset.prod_const_one]
   -- Combine expectation lower bound with telescoping sums.
   have hexp_F2_ge : 13 / 2 - 16 / ((3 * m + 4 : ℕ) : ℝ) - 6 / (H : ℝ) ≤
       ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
         optimalProfitTwo (fun j => gridVal m (c j).val) := by
-    have hstep1 :
-        ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-          (3 + (∑ r ∈ Finset.Icc (3 * m + 1) (2 * m * H),
-            if ev r c then (1 : ℝ) else 0) / (m : ℝ)) ≤
+    have hstep : 3 + (1 / (m : ℝ)) * ∑ r ∈ Finset.Icc (3 * m + 1) (2 * m * H),
+          ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
+            (if ev r c then (1 : ℝ) else 0) ≤
         ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
           optimalProfitTwo (fun j => gridVal m (c j).val) :=
-      Finset.sum_le_sum fun c _ =>
-        mul_le_mul_of_nonneg_left (hF2_ge_step c)
-          (Finset.prod_nonneg fun j _ => equalRevWeight_nonneg hm N (c j))
-    have hstep2 :
-        ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-          (3 + (∑ r ∈ Finset.Icc (3 * m + 1) (2 * m * H),
-            if ev r c then (1 : ℝ) else 0) / (m : ℝ)) =
-        3 + (1 / (m : ℝ)) * ∑ r ∈ Finset.Icc (3 * m + 1) (2 * m * H),
-          ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-            (if ev r c then (1 : ℝ) else 0) := by
-      have hexp : ∀ c : Fin 3 → Fin (N + 1),
-          (∏ j : Fin 3, equalRevWeight m N (c j)) *
-            (3 + (∑ r ∈ Finset.Icc (3 * m + 1) (2 * m * H),
-              if ev r c then (1 : ℝ) else 0) / (m : ℝ)) =
-          3 * (∏ j : Fin 3, equalRevWeight m N (c j)) +
-            (1 / (m : ℝ)) * ∑ r ∈ Finset.Icc (3 * m + 1) (2 * m * H),
-              (∏ j : Fin 3, equalRevWeight m N (c j)) * (if ev r c then (1 : ℝ) else 0) := by
-        intro c
-        rw [← Finset.mul_sum]
-        ring
-      simp_rw [hexp, Finset.sum_add_distrib]
-      rw [← Finset.mul_sum, hsum_w, mul_one, ← Finset.mul_sum, Finset.sum_comm]
+      expected_add_sum_indicator_le hm 3 (1 / (m : ℝ)) (Finset.Icc (3 * m + 1) (2 * m * H)) ev
+        fun c => (by ring : 3 + (1 / (m : ℝ)) * _ = 3 + _ / (m : ℝ)).trans_le (hF2_ge_step c)
     have hstep3 :
         12 * (m : ℝ) * ∑ s ∈ Finset.Icc (3 * m + 4) (2 * m * H + 3), (1 : ℝ) / ((s : ℝ) ^ 2) -
           9 * (m : ℝ) ^ 2 *
@@ -1698,24 +1663,12 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
           12 * (m : ℝ) * ∑ s ∈ Finset.Icc (3 * m + 4) (2 * m * H + 3), (1 : ℝ) / ((s : ℝ) ^ 2) -
             9 * (m : ℝ) ^ 2 *
               ∑ s ∈ Finset.Icc (3 * m + 4) (2 * m * H + 3), (1 : ℝ) / ((s : ℝ) ^ 3) := by
-        rw [Finset.sum_sub_distrib, mul_sub]
-        congr 1
-        · rw [Finset.mul_sum, Finset.mul_sum]
-          refine Finset.sum_bij (fun r _ => r + 3)
-            (fun r hr => mem_Icc.2 ⟨by have := (mem_Icc.1 hr).1; omega,
-              by have := (mem_Icc.1 hr).2; omega⟩)
-            (fun _ _ _ _ h => by omega)
-            (fun s hs => ⟨s - 3, mem_Icc.2 ⟨by have := (mem_Icc.1 hs).1; omega,
-              by have := (mem_Icc.1 hs).2; omega⟩, by have := (mem_Icc.1 hs).1; omega⟩)
-            fun r _ => by field_simp [hmpos.ne']
-        · rw [Finset.mul_sum, Finset.mul_sum]
-          refine Finset.sum_bij (fun r _ => r + 3)
-            (fun r hr => mem_Icc.2 ⟨by have := (mem_Icc.1 hr).1; omega,
-              by have := (mem_Icc.1 hr).2; omega⟩)
-            (fun _ _ _ _ h => by omega)
-            (fun s hs => ⟨s - 3, mem_Icc.2 ⟨by have := (mem_Icc.1 hs).1; omega,
-              by have := (mem_Icc.1 hs).2; omega⟩, by have := (mem_Icc.1 hs).1; omega⟩)
-            fun r _ => by field_simp [hmpos.ne']
+        rw [sum_Icc_shift_add (3 * m + 1) (2 * m * H) 3
+          (fun s => 12 * (m : ℝ) ^ 2 / ((s : ℝ) ^ 2) - 9 * (m : ℝ) ^ 3 / ((s : ℝ) ^ 3))]
+        have hlo : 3 * m + 1 + 3 = 3 * m + 4 := by omega
+        rw [hlo, Finset.sum_sub_distrib, mul_sub, Finset.mul_sum, Finset.mul_sum, Finset.mul_sum,
+          Finset.mul_sum]
+        congr 1 <;> exact Finset.sum_congr rfl fun s _ => by field_simp [hmpos.ne']
       rw [← hshift]
       exact mul_le_mul_of_nonneg_left (Finset.sum_le_sum hprob_ge) (by positivity)
     have hAB : 3 * m + 4 ≤ 2 * m * H + 3 := by nlinarith
@@ -1758,23 +1711,7 @@ theorem thirteen_div_six_le_of_isCompetitive_three {ι : Type*} [Fintype ι] [De
             ∑ s ∈ Finset.Icc (3 * m + 4) (2 * m * H + 3), (1 : ℝ) / ((s : ℝ) ^ 3) ≤
           9 * (m : ℝ) ^ 2 * (1 / (2 * ((3 * m + 4 - 1 : ℕ) : ℝ) * ((3 * m + 4 : ℕ) : ℝ))) :=
       mul_le_mul_of_nonneg_left hcu (by positivity)
-    linarith [hstep1, hstep2, hstep3]
-  have hcomp_sum :
-      ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-        optimalProfitTwo (fun j => gridVal m (c j).val) ≤
-      β * ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-        (∑ i : Fin 3, M'.payment (fun j => gridVal m (c j).val) i) := by
-    rw [Finset.mul_sum]
-    refine Finset.sum_le_sum fun c _ => ?_
-    have hw0 : 0 ≤ ∏ j : Fin 3, equalRevWeight m N (c j) :=
-      Finset.prod_nonneg fun j _ => equalRevWeight_nonneg hm N (c j)
-    have hcompc := hComp'.2 (fun j => gridVal m (c j).val) fun j => (gridVal_pos hm _).le
-    have := mul_le_mul_of_nonneg_left hcompc hw0
-    linarith
-  have hbeta_bound : β * ∑ c : Fin 3 → Fin (N + 1), (∏ j : Fin 3, equalRevWeight m N (c j)) *
-      (∑ i : Fin 3, M'.payment (fun j => gridVal m (c j).val) i) ≤ 3 * β := by
-    have := mul_le_mul_of_nonneg_left hexp_pay hComp'.1
-    linarith
+    linarith [hstep, hstep3]
   linarith [hε_def]
 
 /-- Fixed posted-price digital goods auction offering bidder `i` the price `p i`. -/
@@ -1991,29 +1928,59 @@ private theorem optimalProfitTwo_topKBids (k : ℕ) {b : ι → ℝ} (hb : 0 ≤
     have hrstar_bid : topKBids k b rstar = b istar := by
       dsimp only [topKBids, rstar]
       rw [(topKOrderIso k b).apply_symm_apply]
+    have hcard_full : ∀ c : ℕ, c ≤ n →
+        (univ.filter fun j : ι => c ≤ MultiUnit.rank b j).card = n - c := by
+      intro c hc
+      have hinj : Set.InjOn (MultiUnit.rank b)
+          ↑(univ.filter fun j : ι => c ≤ MultiUnit.rank b j) :=
+        (MultiUnit.rank_injective b).injOn
+      rw [← Finset.card_image_of_injOn hinj]
+      have himg :
+          (univ.filter fun j : ι => c ≤ MultiUnit.rank b j).image (MultiUnit.rank b) =
+            Finset.Ico c n := by
+        ext r
+        simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
+        constructor
+        · rintro ⟨j, hj, rfl⟩; exact ⟨hj, MultiUnit.rank_lt_card b j⟩
+        · rintro ⟨hrc, hrn⟩
+          obtain ⟨j, hj⟩ := MultiUnit.exists_rank_eq (b := b) hrn
+          exact ⟨j, by omega, hj⟩
+      rw [himg, Nat.card_Ico]
+    have hcard_top : ∀ c : ℕ, c ≤ m →
+        (univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).1).card =
+          m - c := by
+      intro c hc
+      have hinj : Set.InjOn (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1)
+          ↑(univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).1) :=
+        fun _ _ _ _ h => (topKOrderIso k b).injective (Subtype.ext (MultiUnit.rank_injective b h))
+      rw [← Finset.card_image_of_injOn hinj]
+      have himg :
+          (univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).1).image
+            (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1) = Finset.Ico c m := by
+        ext s
+        simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
+        constructor
+        · rintro ⟨r, hr, rfl⟩
+          have hlt_k : MultiUnit.rank b (topKOrderIso k b r).1 < k :=
+            (mem_filter.1 (topKOrderIso k b r).2).2
+          exact ⟨hr, lt_min hlt_k (MultiUnit.rank_lt_card b _)⟩
+        · rintro ⟨hsc, hsm⟩
+          obtain ⟨j, hj⟩ :=
+            MultiUnit.exists_rank_eq (b := b) (lt_of_lt_of_le hsm (min_le_right _ _))
+          have hj_top : j ∈ topKSet k b := mem_filter.2
+            ⟨mem_univ _, by rw [MultiUnit.Wins, hj]; exact lt_of_lt_of_le hsm (min_le_left _ _)⟩
+          refine ⟨(topKOrderIso k b).symm ⟨j, hj_top⟩, ?_, ?_⟩
+          · rw [(topKOrderIso k b).apply_symm_apply]; dsimp only; omega
+          · rw [(topKOrderIso k b).apply_symm_apply]; exact hj
+      rw [himg, Nat.card_Ico]
     have hos_full : Fintype.IsOrderStatistic b (n - t) (b istar) := by
       refine ⟨⟨istar, rfl⟩, ?_, ?_⟩
       · have hsub : (univ.filter fun j : ι => b j < b istar) ⊆
-            univ.filter fun j : ι => t - 1 < MultiUnit.rank b j := fun j hj =>
-          mem_filter.2
-            ⟨mem_univ _, histar ▸ MultiUnit.rank_lt_of_beats (Or.inl (mem_filter.1 hj).2)⟩
-        have hcard_gt : (univ.filter fun j : ι => t - 1 < MultiUnit.rank b j).card = n - t := by
-          have hinj : Set.InjOn (MultiUnit.rank b)
-              ↑(univ.filter fun j : ι => t - 1 < MultiUnit.rank b j) :=
-            (MultiUnit.rank_injective b).injOn
-          rw [← Finset.card_image_of_injOn hinj]
-          have himg :
-              (univ.filter fun j : ι => t - 1 < MultiUnit.rank b j).image (MultiUnit.rank b) =
-                Finset.Ico t n := by
-            ext r
-            simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
-            constructor
-            · rintro ⟨j, hj, rfl⟩; exact ⟨by omega, MultiUnit.rank_lt_card b j⟩
-            · rintro ⟨hrt, hrn⟩
-              obtain ⟨j, hj⟩ := MultiUnit.exists_rank_eq (b := b) hrn
-              exact ⟨j, by omega, hj⟩
-          rw [himg, Nat.card_Ico]
-        exact (card_le_card hsub).trans_eq hcard_gt
+            univ.filter fun j : ι => t ≤ MultiUnit.rank b j := fun j hj =>
+          mem_filter.2 ⟨mem_univ _, by
+            have := MultiUnit.rank_lt_of_beats (Or.inl (mem_filter.1 hj).2)
+            omega⟩
+        exact (card_le_card hsub).trans_eq (hcard_full t (by omega))
       · have hsup : (univ.filter fun j : ι => t - 1 ≤ MultiUnit.rank b j) ⊆
             univ.filter fun j : ι => b j ≤ b istar := fun j hj =>
           mem_filter.2 ⟨mem_univ _, by
@@ -2021,59 +1988,17 @@ private theorem optimalProfitTwo_topKBids (k : ℕ) {b : ι → ℝ} (hb : 0 ≤
             have := MultiUnit.rank_lt_of_beats (Or.inl hlt)
             have := (mem_filter.1 hj).2
             omega⟩
-        have hcard_ge :
-            (univ.filter fun j : ι => t - 1 ≤ MultiUnit.rank b j).card = n - (t - 1) := by
-          have hinj : Set.InjOn (MultiUnit.rank b)
-              ↑(univ.filter fun j : ι => t - 1 ≤ MultiUnit.rank b j) :=
-            (MultiUnit.rank_injective b).injOn
-          rw [← Finset.card_image_of_injOn hinj]
-          have himg :
-              (univ.filter fun j : ι => t - 1 ≤ MultiUnit.rank b j).image (MultiUnit.rank b) =
-                Finset.Ico (t - 1) n := by
-            ext r
-            simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
-            constructor
-            · rintro ⟨j, hj, rfl⟩; exact ⟨hj, MultiUnit.rank_lt_card b j⟩
-            · rintro ⟨hrt, hrn⟩
-              obtain ⟨j, hj⟩ := MultiUnit.exists_rank_eq (b := b) hrn
-              exact ⟨j, by omega, hj⟩
-          rw [himg, Nat.card_Ico]
         have hlt_card : n - t < n - (t - 1) := by omega
-        exact hlt_card.trans_le (hcard_ge ▸ card_le_card hsup)
+        exact hlt_card.trans_le (hcard_full (t - 1) (by omega) ▸ card_le_card hsup)
     have hos_top : Fintype.IsOrderStatistic (topKBids k b) (m - t) (b istar) := by
       refine ⟨⟨rstar, hrstar_bid⟩, ?_, ?_⟩
       · have hsub : (univ.filter fun r : Fin m => topKBids k b r < b istar) ⊆
-            univ.filter fun r : Fin m => t - 1 < MultiUnit.rank b (topKOrderIso k b r).1 :=
-          fun r hr => mem_filter.2 ⟨mem_univ _,
-            histar ▸ MultiUnit.rank_lt_of_beats (Or.inl (mem_filter.1 hr).2)⟩
-        have hcard_gt :
-            (univ.filter fun r : Fin m => t - 1 < MultiUnit.rank b (topKOrderIso k b r).1).card =
-              m - t := by
-          have hinj : Set.InjOn (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1)
-              ↑(univ.filter fun r : Fin m => t - 1 < MultiUnit.rank b (topKOrderIso k b r).1) :=
-            fun r₁ _ r₂ _ h =>
-              (topKOrderIso k b).injective (Subtype.ext (MultiUnit.rank_injective b h))
-          rw [← Finset.card_image_of_injOn hinj]
-          have himg :
-              (univ.filter fun r : Fin m => t - 1 < MultiUnit.rank b (topKOrderIso k b r).1).image
-                (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1) = Finset.Ico t m := by
-            ext s
-            simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
-            constructor
-            · rintro ⟨r, hr, rfl⟩
-              have hlt_k : MultiUnit.rank b (topKOrderIso k b r).1 < k :=
-                (mem_filter.1 (topKOrderIso k b r).2).2
-              exact ⟨by omega, lt_min hlt_k (MultiUnit.rank_lt_card b _)⟩
-            · rintro ⟨hst, hsm⟩
-              obtain ⟨j, hj⟩ :=
-                MultiUnit.exists_rank_eq (b := b) (lt_of_lt_of_le hsm (min_le_right _ _))
-              have hj_top : j ∈ topKSet k b := mem_filter.2
-                ⟨mem_univ _, by rw [MultiUnit.Wins, hj]; exact lt_of_lt_of_le hsm (min_le_left _ _)⟩
-              refine ⟨(topKOrderIso k b).symm ⟨j, hj_top⟩, ?_, ?_⟩
-              · rw [(topKOrderIso k b).apply_symm_apply]; dsimp only; omega
-              · rw [(topKOrderIso k b).apply_symm_apply]; exact hj
-          rw [himg, Nat.card_Ico]
-        exact (card_le_card hsub).trans_eq hcard_gt
+            univ.filter fun r : Fin m => t ≤ MultiUnit.rank b (topKOrderIso k b r).1 :=
+          fun r hr => mem_filter.2 ⟨mem_univ _, by
+            have hlt : b (topKOrderIso k b r).1 < b istar := (mem_filter.1 hr).2
+            have := MultiUnit.rank_lt_of_beats (Or.inl hlt)
+            omega⟩
+        exact (card_le_card hsub).trans_eq (hcard_top t (by omega))
       · have hsup :
             (univ.filter fun r : Fin m => t - 1 ≤ MultiUnit.rank b (topKOrderIso k b r).1) ⊆
               univ.filter fun r : Fin m => topKBids k b r ≤ b istar := fun r hr =>
@@ -2082,36 +2007,8 @@ private theorem optimalProfitTwo_topKBids (k : ℕ) {b : ι → ℝ} (hb : 0 ≤
             have := MultiUnit.rank_lt_of_beats (Or.inl hlt)
             have := (mem_filter.1 hr).2
             omega⟩
-        have hcard_ge :
-            (univ.filter fun r : Fin m => t - 1 ≤ MultiUnit.rank b (topKOrderIso k b r).1).card =
-              m - (t - 1) := by
-          have hinj : Set.InjOn (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1)
-              ↑(univ.filter fun r : Fin m => t - 1 ≤ MultiUnit.rank b (topKOrderIso k b r).1) :=
-            fun r₁ _ r₂ _ h =>
-              (topKOrderIso k b).injective (Subtype.ext (MultiUnit.rank_injective b h))
-          rw [← Finset.card_image_of_injOn hinj]
-          have himg :
-              (univ.filter fun r : Fin m => t - 1 ≤ MultiUnit.rank b (topKOrderIso k b r).1).image
-                (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1) =
-                Finset.Ico (t - 1) m := by
-            ext s
-            simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
-            constructor
-            · rintro ⟨r, hr, rfl⟩
-              have hlt_k : MultiUnit.rank b (topKOrderIso k b r).1 < k :=
-                (mem_filter.1 (topKOrderIso k b r).2).2
-              exact ⟨hr, lt_min hlt_k (MultiUnit.rank_lt_card b _)⟩
-            · rintro ⟨hst, hsm⟩
-              obtain ⟨j, hj⟩ :=
-                MultiUnit.exists_rank_eq (b := b) (lt_of_lt_of_le hsm (min_le_right _ _))
-              have hj_top : j ∈ topKSet k b := mem_filter.2
-                ⟨mem_univ _, by rw [MultiUnit.Wins, hj]; exact lt_of_lt_of_le hsm (min_le_left _ _)⟩
-              refine ⟨(topKOrderIso k b).symm ⟨j, hj_top⟩, ?_, ?_⟩
-              · rw [(topKOrderIso k b).apply_symm_apply]; dsimp only; omega
-              · rw [(topKOrderIso k b).apply_symm_apply]; exact hj
-          rw [himg, Nat.card_Ico]
         have hlt_card : m - t < m - (t - 1) := by omega
-        exact hlt_card.trans_le (hcard_ge ▸ card_le_card hsup)
+        exact hlt_card.trans_le (hcard_top (t - 1) (by omega) ▸ card_le_card hsup)
     have hmt : m - t < Fintype.card (Fin m) := by
       simpa only [Fintype.card_fin] using (by omega : m - t < m)
     rw [Fintype.orderStatistic_eq_of_isOrderStatistic hmt hos_top,

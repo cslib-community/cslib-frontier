@@ -26,12 +26,12 @@ This module formalizes the Consensus Estimation Profit Extraction (`CEPE`) frame
 
 * **Solution concepts (`Definitions 13.43–13.45`, pp. 349–350):** for mechanisms and functions
   randomized by a uniform draw `U ∈ [0, 1]` (modeled via Lebesgue outer measure `volume.real` and
-  interval integrals `∫ u in (0 : ℝ)..1, …`), we define truthfulness with high probability
-  (`IsTruthfulWithHighProbAt`, `IsTruthfulWithHighProb`), `ρ`-consensus (`IsRhoConsensus`), and
-  `β`-estimation (`IsBetaEstimate`). Following Definition 13.43 verbatim,
-  `IsTruthfulWithHighProbAt` and `IsRhoConsensus` upper-bound the outer measure of the *failure*
-  event by `ε` rather than lower-bounding the outer measure of the good event, avoiding
-  non-measurable outer-measure loopholes.
+  interval integrals `∫ u in (0 : ℝ)..1, …`), we define pointwise truthfulness with high probability
+  (`IsTruthfulWithHighProbAt`), `ρ`-consensus (`IsRhoConsensus`), and `β`-estimation
+  (`IsBetaEstimate`). Following Definition 13.43 verbatim, `IsTruthfulWithHighProbAt` and
+  `IsRhoConsensus` upper-bound the outer measure of the *failure* event by `ε` rather than
+  lower-bounding the outer measure of the good event, avoiding non-measurable outer-measure
+  loopholes.
 * **Random geometric rounding `r_α` (`Definition 13.46`, `Lemmas 13.47–13.48`, p. 350):**
   `roundDown α u V := if 0 < V then α ^ (⌊Real.logb α V - u⌋ + u) else 0` rounds `V > 0` down to
   the nearest `α ^ (i + u)` (`i : ℤ`). For `1 < α`:
@@ -72,7 +72,7 @@ No running-time claim is made.
 
 ## Main definitions
 
-* `IsTruthfulWithHighProbAt`, `IsTruthfulWithHighProb`: truthfulness with high probability
+* `IsTruthfulWithHighProbAt`: pointwise truthfulness with high probability
   ([HartlineKarlin2007], Definition 13.43, p. 349).
 * `IsRhoConsensus`: `ρ`-consensus ([HartlineKarlin2007], Definition 13.44, p. 349).
 * `IsBetaEstimate`: `β`-estimate ([HartlineKarlin2007], Definition 13.45, p. 350).
@@ -116,24 +116,17 @@ section Definitions
 
 variable {ι : Type*}
 
-/-- Pointwise truthfulness with probability at least `1 - ε` for bidder `i` at nonnegative profile
-`v`, for a mechanism randomized over `U ~ Uniform[0, 1]` ([HartlineKarlin2007], Definition 13.43,
-p. 349, localized to a given profile and bidder as used in Theorem 13.49, p. 350): for every
-nonnegative deviation `bᵢ`, the outer Lebesgue measure of draws `u ∈ [0, 1]` for which bidder `i`
-strictly benefits from bidding `bᵢ` is at most `ε`. -/
+/-- **Truthfulness with high probability `1 - ε`** at nonnegative profile `v` and bidder `i`
+([HartlineKarlin2007], Definition 13.43, p. 349, localized to `(v, i)` as used in Theorem 13.49,
+p. 350; global truthfulness with high probability is quantification over all `0 ≤ v` and `i`):
+for every nonnegative deviation `bᵢ`, the outer Lebesgue measure of draws `u ∈ [0, 1]` for which
+bidder `i` strictly benefits from bidding `bᵢ` is at most `ε`. -/
 @[expose] def IsTruthfulWithHighProbAt [DecidableEq ι] (M : ℝ → Mechanism ι) (v : ι → ℝ)
     (i : ι) (ε : ℝ) : Prop :=
   ∀ b_i : ℝ, 0 ≤ b_i →
     volume.real
       {u ∈ Set.Icc (0 : ℝ) 1 |
         (M u).utility i (v i) v < (M u).utility i (v i) (Function.update v i b_i)} ≤ ε
-
-/-- **Truthfulness with high probability `1 - ε`** ([HartlineKarlin2007], Definition 13.43,
-p. 349): for every nonnegative profile `v`, bidder `i`, and nonnegative deviation `bᵢ`, the outer
-measure over `U ~ Uniform[0, 1]` of draws where bidder `i` strictly benefits by bidding `bᵢ` is at
-most `ε`. -/
-@[expose] def IsTruthfulWithHighProb [DecidableEq ι] (M : ℝ → Mechanism ι) (ε : ℝ) : Prop :=
-  ∀ v : ι → ℝ, 0 ≤ v → ∀ i : ι, IsTruthfulWithHighProbAt M v i ε
 
 /-- **Consensus function** ([HartlineKarlin2007], Definition 13.44, p. 349): a function `r`
 randomized over `U ~ Uniform[0, 1]` is a `ρ`-consensus with probability at least `1 - ε` if for
@@ -322,15 +315,12 @@ theorem volume_real_roundDown_consensus {α ρ V : ℝ} (hα : 1 < α) (hρ1 : 1
   rw [roundDown_consensus_set_eq hα hρ1 hρα hV]
   set f : ℝ := Int.fract (Real.logb α V)
   set d : ℝ := Real.logb α ρ
-  have hd0 : 0 ≤ d := Real.logb_nonneg hα hρ1
-  have hd1 : d ≤ 1 := by
-    have hlogα : Real.logb α α = 1 := Real.logb_self_eq_one hα
-    exact (Real.logb_le_logb_of_le hα (by linarith) hρα).trans_eq hlogα
-  have hf0 : 0 ≤ f := Int.fract_nonneg _
+  have hd1 : d ≤ 1 :=
+    (Real.logb_le_logb_of_le hα (by linarith) hρα).trans_eq (Real.logb_self_eq_one hα)
   have hf1 : f < 1 := Int.fract_lt_one _
   split_ifs with hdf
   · have hdisj : Disjoint (Set.Icc (0 : ℝ) (f - d)) (Set.Ioc f 1) :=
-      Set.disjoint_left.2 fun u h1 h2 => by linarith [h1.2, h2.1]
+      Set.disjoint_left.2 fun u h1 h2 => by linarith [h1.2, h2.1, Real.logb_nonneg hα hρ1]
     rw [measureReal_union hdisj measurableSet_Ioc (by simp [Real.volume_Icc])
         (by simp [Real.volume_Ioc]),
       Real.volume_real_Icc_of_le (by linarith), Real.volume_real_Ioc_of_le hf1.le]
