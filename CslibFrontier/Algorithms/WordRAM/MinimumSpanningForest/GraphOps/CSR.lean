@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.GraphOps.IndexedEdges
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Tactic.UpdateSimp
@@ -252,114 +253,39 @@ private theorem csrCount_framed {w n edgeBase offBase : ℕ} {es : List (Indexed
         s₁.frontier = s₀.frontier ∧ Memory.WellFormed w s₁ ∧
         (∀ u : Fin n, s₁.mem (offBase + u.val) = edgeDegPrefix es es.length u) ∧
         s₁.mem (offBase + n) = 0 := by
-  let S := Set.Ico offBase (offBase + n)
-  let inv (k a : ℕ) (t : Memory.State) : Prop :=
-    k ≤ es.length ∧ a = k ∧ t.frontier = s₀.frontier ∧ Memory.WellFormed w t ∧
-    (∀ x, x ∉ S → t.mem x = s₀.mem x) ∧
-    (∀ u : Fin n, t.mem (offBase + u.val) = edgeDegPrefix es k u) ∧
-    t.mem (offBase + n) = 0
-  have hstep : ∀ k < es.length, ∀ a t, inv k a t →
-      csrCountStepSafe w (⟨edgeBase, offBase⟩, a) t ∧
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (csrCountStep (⟨edgeBase, offBase⟩, a))) ∧
-      let a' := (Memory.spec 0).clientResult t (csrCountStep (⟨edgeBase, offBase⟩, a))
-      let t' := (Memory.spec 0).clientState t (csrCountStep (⟨edgeBase, offBase⟩, a))
-      memoryCost (csrCountStep (⟨edgeBase, offBase⟩, a)) t + 0 ≤ 0 + 6 ∧
-      Memory.Modifies S t t' ∧
-      inv (k + 1) a' t' := by
-    intro k hk a t ⟨hk_le, ha, htfr, hwt, hframe, hdeg, hend⟩
-    subst a
-    have hin_t : HoldsIndexedEdges edgeBase es t.mem :=
-      hin₀.congr fun x hx1 hx2 => hframe x (by simp only [S, Set.mem_Ico, not_and, not_lt]; omega)
-    obtain ⟨hu, hv, _, _⟩ := hin_t k hk
-    let eu := es[k].u
-    let ev := es[k].v
-    have hcu_val : t.mem (offBase + eu.val) = edgeDegPrefix es k eu := hdeg eu
-    have hcv_val : t.mem (offBase + ev.val) = edgeDegPrefix es k ev := hdeg ev
-    have hcu_le : edgeDegPrefix es k eu ≤ 2 * k := edgeDegPrefix_le es k hk_le eu
-    have hcv_le : edgeDegPrefix es k ev ≤ 2 * k := edgeDegPrefix_le es k hk_le ev
-    have hfit_2k2 : Fits w (2 * k + 2) := hfit_2m.of_le (by omega)
-    have hv_mid : Function.update t.mem (offBase + eu.val)
-        (t.mem (offBase + eu.val) + 1) (edgeBase + 4 * k + 1) = ev.val := by
-      rw [Function.update_of_ne (by omega), hv]
-    have hvh : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (csrCountStep (⟨edgeBase, offBase⟩, k))) := by
-      dsimp only [csrCountStep]
-      refine validHistory_read_bind (by omega) ?_
-      rw [hu]
-      refine validHistory_read_bind (by have := eu.isLt; omega) ?_
-      refine validHistory_write_bind (by have := eu.isLt; omega)
-        (by rw [hcu_val]; exact hfit_2k2.of_le (by omega)) ?_
-      refine validHistory_read_bind (by dsimp only; omega) ?_
-      rw [show (⟨Function.update t.mem (offBase + eu.val)
-        (t.mem (offBase + eu.val) + 1), t.frontier⟩ :
-        Memory.State).mem (edgeBase + 4 * k + 1) = ev.val from hv_mid]
-      refine validHistory_read_bind (by have := ev.isLt; dsimp only; omega) ?_
-      refine validHistory_write_bind (by have := ev.isLt; dsimp only; omega) ?_
-        (validHistory_pure w _ _)
-      dsimp only; simp only [Function.update_apply]; split_ifs
-      · rw [hcu_val]; exact hfit_2k2.of_le (by omega)
-      · rw [hcv_val]; exact hfit_2k2.of_le (by omega)
-    have hcost : memoryCost (csrCountStep (⟨edgeBase, offBase⟩, k)) t ≤ 6 := by
-      dsimp only [csrCountStep]
-      prog_cost
-    have hres : (Memory.spec 0).clientResult t (csrCountStep (⟨edgeBase, offBase⟩, k)) = k + 1 := by
-      dsimp only [csrCountStep]
-      simp only [clientResult_bind_read, clientResult_bind_write,
-        StateTransitionSpec.clientResult_pure]
-    let memMid := Function.update t.mem (offBase + eu.val) (t.mem (offBase + eu.val) + 1)
-    let t' : Memory.State :=
-      ⟨Function.update memMid (offBase + ev.val) (memMid (offBase + ev.val) + 1), t.frontier⟩
-    have hst : (Memory.spec 0).clientState t (csrCountStep (⟨edgeBase, offBase⟩, k)) = t' := by
-      dsimp only [csrCountStep]
-      rw [clientState_bind_read, hu, clientState_bind_read, clientState_bind_write]
-      change (Memory.spec 0).clientState ⟨memMid, t.frontier⟩ _ = t'
-      have hv_mid : memMid (edgeBase + 4 * k + 1) = ev.val := by
-        dsimp only [memMid]
+  have ⟨hsafe, h⟩ := Memory.FramedTriple.iterate (w := w) (body := csrCountStep)
+    (safe := csrCountStepSafe) (d := ⟨edgeBase, offBase⟩) (c := 6)
+    (S := Set.Ico offBase (offBase + n))
+    (fun k a t => a = k ∧ t.frontier = s₀.frontier ∧
+      (∀ u : Fin n, t.mem (offBase + u.val) = edgeDegPrefix es k u) ∧ t.mem (offBase + n) = 0)
+    ⟨rfl, rfl, fun u => (hzero u (by omega)).trans (edgeDegPrefix_zero es u).symm,
+      hzero n (by omega)⟩
+    (fun k hk a t ⟨ha, htfr, hdeg, hend⟩ ⟨hfr, hframe⟩ => by
+      subst a
+      obtain ⟨hu, hv, _, _⟩ :=
+        hin₀.congr (fun x _ hx => hframe x (by omega) (by region_omega)) k hk
+      have hu_lt := es[k].u.isLt
+      have hv_lt := es[k].v.isLt
+      have hcu : t.mem (offBase + t.mem (edgeBase + 4 * k)) = edgeDegPrefix es k es[k].u :=
+        hu ▸ hdeg _
+      have hcu_le := edgeDegPrefix_le es k hk.le es[k].u
+      have hcv_le := edgeDegPrefix_le es k hk.le es[k].v
+      have hv_mid : Function.update t.mem (offBase + t.mem (edgeBase + 4 * k))
+          (t.mem (offBase + t.mem (edgeBase + 4 * k)) + 1) (edgeBase + 4 * k + 1) = es[k].v := by
         rw [Function.update_of_ne (by omega), hv]
-      rw [clientState_bind_read]; dsimp only
-      rw [hv_mid, clientState_bind_read, clientState_bind_write]
-      rfl
-    have hupd_out : ∀ x, x ∉ S → t'.mem x = t.mem x := fun x hx => by
-      have hu_lt := eu.isLt
-      have hv_lt := ev.isLt
-      dsimp only [t', memMid]
-      simp only [S, Set.mem_Ico, not_and_or, not_le, not_lt] at hx
-      update_simp
-    refine ⟨⟨h16, hfit_m1.of_le (by omega)⟩, hvh, by omega,
-      ⟨by rw [hst], fun x _ hx => by rw [hst]; exact hupd_out x hx⟩,
-      by omega, hres, by rw [hst]; exact htfr, wellFormed_clientState hwt hvh,
-      fun x hx => by rw [hst]; exact (hupd_out x hx).trans (hframe x hx), fun u => ?_, ?_⟩
-    · rw [hst]
-      dsimp only [t', memMid]
-      rw [edgeDegPrefix_succ es hk u, ← hdeg u]
-      by_cases h1 : u = eu <;> by_cases h2 : u = ev
-      · subst h1; have hee : eu = ev := h2
-        rw [hee, Function.update_self, Function.update_self]
-        dsimp only [eu, ev] at hee ⊢
-        simp only [hee, ↓reduceIte]
-      · subst u
-        dsimp only [eu, ev] at h2 ⊢
-        rw [Function.update_of_ne (fun h => h2 (Fin.ext (by omega))), Function.update_self]
-        simp only [Ne.symm h2, ↓reduceIte]
-      · subst u
-        dsimp only [eu, ev] at h1 ⊢
-        rw [Function.update_self, Function.update_of_ne (fun h => h1 (Fin.ext (by omega)))]
-        simp only [Ne.symm h1, ↓reduceIte]
-      · dsimp only [eu, ev] at h1 h2 ⊢
-        rw [Function.update_of_ne (fun h => h2 (Fin.ext (by omega))),
-          Function.update_of_ne (fun h => h1 (Fin.ext (by omega)))]
-        simp only [Ne.symm h1, Ne.symm h2, ↓reduceIte]; omega
-    · rw [hst]
-      exact (hupd_out (offBase + n) (by simp only [S, Set.mem_Ico, not_and, not_lt]; omega)).trans
-        hend
-  obtain ⟨hsafe, hv_it, hm_it, hmod_it, _, _, hfr_it, hwf_it, _, hdeg_it, hend_it⟩ :=
-    iterate_potential_spec csrCountStep csrCountStepSafe w ⟨edgeBase, offBase⟩ 6 es.length inv
-      (fun _ _ _ => 0) S hstep 0 s₀
-      ⟨Nat.zero_le _, rfl, rfl, hwf₀, fun _ _ => rfl,
-        fun u => by rw [edgeDegPrefix_zero]; exact hzero u.val (by omega), hzero n (by omega)⟩
-  exact ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv_it, by simpa using hm_it, hmod_it,
-    hfr_it, hwf_it, hdeg_it, hend_it⟩⟩
+      refine ⟨⟨h16, hfit_m1.of_le (by omega)⟩, ?_⟩
+      unfold csrCountStep
+      framed_triple
+      · dsimp only; rw [hv_mid, hu, Function.update_apply]
+        split_ifs <;> fits [hdeg es[k].u, hdeg es[k].v]
+      · dsimp only; rw [hv_mid, hu]
+        refine ⟨rfl, htfr, fun u => ?_, ?_⟩
+        · rw [edgeDegPrefix_succ es hk u, ← hdeg u]
+          simp only [Function.update_apply, add_right_inj, Fin.val_inj]
+          split_ifs <;> subst_vars <;> first | omega | simp only [‹es[k].v = es[k].u›]
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), hend])
+    (n := es.length) fun _ _ h _ => h
+  exact ⟨hsafe, (h.wellFormed hwf₀).mono le_rfl fun _ _ ⟨⟨_, h1, h2, h3⟩, h4⟩ => ⟨h1, h4, h2, h3⟩⟩
 
 private structure CSRScatterEnv where
   edgeBase : ℕ
@@ -517,70 +443,54 @@ private theorem csrScatter_framed {w n edgeBase adj cur fEnd : ℕ}
             (fun i => (es[i.val].v.val, i.val)) ++
            ((List.finRange es.length).filter fun i => decide (es[i.val].v = u)).map
             (fun i => (es[i.val].u.val, i.val))) := by
-  let m := es.length
-  let S₃ : Set ℕ := Set.Ico cur (cur + n) ∪ Set.Ico adj (adj + 4 * m)
   let inv₃ (k a : ℕ) (t : Memory.State) : Prop :=
-    k ≤ m ∧ a = k ∧ t.frontier = fEnd ∧ Memory.WellFormed w t ∧
-    (∀ x, x ∉ S₃ → t.mem x = t₂.mem x) ∧
+    a = k ∧ t.frontier = fEnd ∧
     (∀ u : Fin n, t.mem (cur + u.val) = offFn u.castSucc + edgeDegPrefix es k u) ∧
     ∀ u : Fin n, ((List.range (edgeDegPrefix es k u)).map fun j =>
       let p := offFn u.castSucc + j
       (t.mem (adj + 2 * p), t.mem (adj + 2 * p + 1))).Perm
-      ((((List.finRange m).take k).filter fun i => decide (es[i.val].u = u)).map
+      ((((List.finRange es.length).take k).filter fun i => decide (es[i.val].u = u)).map
         (fun i => (es[i.val].v.val, i.val)) ++
-       (((List.finRange m).take k).filter fun i => decide (es[i.val].v = u)).map
+       (((List.finRange es.length).take k).filter fun i => decide (es[i.val].v = u)).map
         (fun i => (es[i.val].u.val, i.val)))
-  have hstep₃ : ∀ k < m, ∀ a t, inv₃ k a t →
+  have hstep : ∀ k < es.length, ∀ a t, inv₃ k a t →
+      Memory.Modifies (Set.Ico cur (cur + n) ∪ Set.Ico adj (adj + 4 * es.length)) t₂ t →
       csrScatterStepSafe w (⟨edgeBase, cur, adj⟩, a) t ∧
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (csrScatterStep (⟨edgeBase, cur, adj⟩, a))) ∧
-      let a' := (Memory.spec 0).clientResult t (csrScatterStep (⟨edgeBase, cur, adj⟩, a))
-      let t' := (Memory.spec 0).clientState t (csrScatterStep (⟨edgeBase, cur, adj⟩, a))
-      memoryCost (csrScatterStep (⟨edgeBase, cur, adj⟩, a)) t + 0 ≤ 0 + 10 ∧
-      Memory.Modifies S₃ t t' ∧
-      inv₃ (k + 1) a' t' := by
-    intro k hk a t ⟨hk_le, ha, htfr, hwt, hframe, hcur_k, hperm_k⟩
+      Memory.FramedTriple w t (csrScatterStep (⟨edgeBase, cur, adj⟩, a)) 10
+        (Set.Ico cur (cur + n) ∪ Set.Ico adj (adj + 4 * es.length)) (inv₃ (k + 1)) := by
+    rintro k hk a t ⟨ha, htfr, hcur_k, hperm_k⟩ ⟨hfr, hframe⟩
     subst a
-    have hk_in : HoldsIndexedEdges edgeBase es t.mem :=
-      ht₂_in.congr fun x _ hx => hframe x (by simp only [S₃, Set.mem_union, Set.mem_Ico]; omega)
-    obtain ⟨hu, hv, _, _⟩ := hk_in k hk
+    obtain ⟨hu, hv, _, _⟩ :=
+      ht₂_in.congr (fun x _ hx => hframe x (by omega) (by region_omega)) k hk
     let eu := es[k].u
     let ev := es[k].v
+    have hu' : t.mem (edgeBase + 4 * k) = eu.val := hu
+    have hv' : t.mem (edgeBase + 4 * k + 1) = ev.val := hv
+    have heu := eu.isLt
+    have hev := ev.isLt
     let len₁ : Fin n → ℕ := fun u => edgeDegPrefix es k u
     have hsep₁ : ∀ u : Fin n, offFn u.castSucc + len₁ u ≤ offFn u.succ := fun u => by
-      have hm := edgeDegPrefix_mono es hk_le (le_refl m) u
+      have hm := edgeDegPrefix_mono es hk.le le_rfl u
       have hd := hoffFn_diff u
       have hmo := hoffFn_mono u
-      dsimp only [len₁, m] at *
+      dsimp only [len₁] at *
       omega
     have hle₁ : len₁ eu < offFn eu.succ - offFn eu.castSucc := by
-      have hm := edgeDegPrefix_mono es (show k + 1 ≤ m by omega) (le_refl m) eu
+      have hm := edgeDegPrefix_mono es (show k + 1 ≤ es.length by omega) le_rfl eu
       have hs := edgeDegPrefix_succ es hk eu
       have hd := hoffFn_diff eu
-      dsimp only [len₁, m] at hs hm ⊢
+      dsimp only [len₁]
       simp only [show es[k].u = eu from rfl, ↓reduceIte] at hs
       omega
-    have hadj_cur : adj + 2 * offFn ⟨n, Nat.lt_succ_self n⟩ ≤ cur := by
-      rw [hoffVal_n]; omega
-    have hsc₁ := csrScatterOne_mem_slice t.mem offFn hoffFn_mono len₁ eu ev.val k
-      hadj_cur hcur_k hle₁ hsep₁
-    rcases hsc₁ with ⟨hcur₁, hother₁, hsame₁, hnew₁, hmod_sc₁, hpos₁_lt'⟩
+    have hadj_cur : adj + 2 * offFn ⟨n, Nat.lt_succ_self n⟩ ≤ cur := by rw [hoffVal_n]; omega
+    obtain ⟨hcur₁, hother₁, hsame₁, hnew₁, -, hpos₁_lt⟩ :=
+      csrScatterOne_mem_slice t.mem offFn hoffFn_mono len₁ eu ev.val k hadj_cur hcur_k hle₁ hsep₁
     let pos₁ := t.mem (cur + eu.val)
-    have hpos₁_eq : pos₁ = offFn eu.castSucc + len₁ eu := hcur_k eu
-    have hpos₁_lt : pos₁ < 2 * m := hoffVal_n ▸ hpos₁_lt'
-    have hpos₁1_fit : Fits w (pos₁ + 1) := hfit_2m.of_le (by omega)
-    have hfv_fit : Fits w ev.val := hfit_n1.of_le (by have := ev.isLt; omega)
-    have hfu_fit : Fits w eu.val := hfit_n1.of_le (by have := eu.isLt; omega)
-    have hfk_fit : Fits w k := hfit_m1.of_le (by omega)
     let tMid : Memory.State :=
       ⟨Function.update (Function.update (Function.update t.mem (cur + eu.val) (pos₁ + 1))
         (adj + 2 * pos₁) ev.val) (adj + 2 * pos₁ + 1) k, t.frontier⟩
     have htMid_new : tMid.mem (adj + 2 * (offFn eu.castSucc + len₁ eu)) = ev.val ∧
         tMid.mem (adj + 2 * (offFn eu.castSucc + len₁ eu) + 1) = k := hnew₁
-    have hv_mid : tMid.mem (edgeBase + 4 * k + 1) = ev.val := by
-      dsimp only [tMid]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), hv]
     let len₂ : Fin n → ℕ := fun u => if u = eu then len₁ u + 1 else len₁ u
     have hsep₂ : ∀ u : Fin n, offFn u.castSucc + len₂ u ≤ offFn u.succ := fun u => by
       dsimp only [len₂]
@@ -588,85 +498,38 @@ private theorem csrScatter_framed {w n edgeBase adj cur fEnd : ℕ}
       · rw [hue]; have := hle₁; omega
       · exact hsep₁ u
     have hle₂ : len₂ ev < offFn ev.succ - offFn ev.castSucc := by
-      have hm := edgeDegPrefix_mono es (show k + 1 ≤ m by omega) (le_refl m) ev
+      have hm := edgeDegPrefix_mono es (show k + 1 ≤ es.length by omega) le_rfl ev
       have hs := edgeDegPrefix_succ es hk ev
       have hd := hoffFn_diff ev
-      dsimp only [len₂, len₁, eu, ev, m] at hs hm hd ⊢
+      dsimp only [len₂, len₁, eu, ev] at hs hm hd ⊢
       by_cases hee : es[k].v = es[k].u
       · simp only [hee, ↓reduceIte] at hs hm hd ⊢; omega
       · simp only [hee, Ne.symm hee, ↓reduceIte] at hs hm hd ⊢; omega
-    have hsc₂ := csrScatterOne_mem_slice tMid.mem offFn hoffFn_mono len₂ ev eu.val k
-      hadj_cur hcur₁ hle₂ hsep₂
-    rcases hsc₂ with ⟨hcur₂, hother₂, hsame₂, hnew₂, hmod_sc₂, hpos₂_lt'⟩
+    obtain ⟨hcur₂, hother₂, hsame₂, hnew₂, -, hpos₂_lt⟩ :=
+      csrScatterOne_mem_slice _ offFn hoffFn_mono len₂ ev eu.val k hadj_cur hcur₁ hle₂ hsep₂
+    rw [hoffVal_n] at hpos₁_lt hpos₂_lt
+    refine ⟨⟨h16, hfit_m1.of_le (by omega)⟩, ?_⟩
+    unfold csrScatterStep
+    eapply Memory.FramedTriple.mono (hQ := fun _ _ => id)
+    on_goal 1 =>
+      dsimp only
+      framed_triple_step; framed_triple_step
+      rw [hu', hv']
+      repeat' framed_triple_step
+    on_goal 2 => omega
     let pos₂ := tMid.mem (cur + ev.val)
-    have hpos₂_eq : pos₂ = offFn ev.castSucc + len₂ ev := hcur₁ ev
-    have hpos₂_lt : pos₂ < 2 * m := hoffVal_n ▸ hpos₂_lt'
-    have hpos₂1_fit : Fits w (pos₂ + 1) := hfit_2m.of_le (by omega)
-    have hadj₁_lt : adj + 2 * pos₁ + 1 < t.frontier := by
-      dsimp only [m] at hpos₁_lt; rw [htfr]; omega
-    have hadj₂_lt : adj + 2 * pos₂ + 1 < t.frontier := by
-      dsimp only [m] at hpos₂_lt; rw [htfr]; omega
-    have hvh : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (csrScatterStep (⟨edgeBase, cur, adj⟩, k))) := by
-      dsimp only [csrScatterStep]
-      refine validHistory_read_bind (by rw [htfr]; omega) ?_
-      rw [hu]
-      refine validHistory_read_bind (by rw [htfr]; omega) ?_
-      rw [hv]
-      refine validHistory_read_bind (by have := es[k].u.isLt; rw [htfr]; omega) ?_
-      refine validHistory_write_bind (by have := es[k].u.isLt; rw [htfr]; omega) hpos₁1_fit ?_
-      refine validHistory_write_bind (Nat.lt_trans (Nat.lt_succ_self _) hadj₁_lt)
-        hfv_fit ?_
-      refine validHistory_write_bind hadj₁_lt hfk_fit ?_
-      change (Memory.spec w).ValidHistory tMid ((Memory.spec w).clientHistory tMid _)
-      refine validHistory_read_bind (by have := es[k].v.isLt; rw [htfr]; omega) ?_
-      refine validHistory_write_bind (by have := es[k].v.isLt; rw [htfr]; omega) hpos₂1_fit ?_
-      refine validHistory_write_bind (Nat.lt_trans (Nat.lt_succ_self _) hadj₂_lt)
-        hfu_fit ?_
-      exact validHistory_write_bind hadj₂_lt hfk_fit (validHistory_pure w _ _)
-    have hcost : memoryCost (csrScatterStep (⟨edgeBase, cur, adj⟩, k)) t ≤ 10 := by
-      dsimp only [csrScatterStep]
-      prog_cost
-    have hres : (Memory.spec 0).clientResult t (csrScatterStep (⟨edgeBase, cur, adj⟩, k)) =
-        k + 1 := by
-      dsimp only [csrScatterStep]
-      simp only [clientResult_bind_read, clientResult_bind_write,
-        StateTransitionSpec.clientResult_pure]
     let tEnd : Memory.State :=
       ⟨Function.update (Function.update (Function.update tMid.mem (cur + ev.val) (pos₂ + 1))
         (adj + 2 * pos₂) eu.val) (adj + 2 * pos₂ + 1) k, t.frontier⟩
     have htEnd_new : tEnd.mem (adj + 2 * (offFn ev.castSucc + len₂ ev)) = eu.val ∧
         tEnd.mem (adj + 2 * (offFn ev.castSucc + len₂ ev) + 1) = k := hnew₂
-    have hst : (Memory.spec 0).clientState t (csrScatterStep (⟨edgeBase, cur, adj⟩, k)) = tEnd := by
-      dsimp only [csrScatterStep]
-      rw [clientState_bind_read, hu, clientState_bind_read, hv,
-        clientState_bind_read, clientState_bind_write, clientState_bind_write,
-        clientState_bind_write]
-      change (Memory.spec 0).clientState tMid _ = tEnd
-      rw [clientState_bind_read, clientState_bind_write, clientState_bind_write,
-        clientState_bind_write]
-      rfl
-    have hmod_step : ∀ x, x ∉ S₃ → tEnd.mem x = t.mem x := fun x hx => by
-      simp only [S₃, Set.mem_union, Set.mem_Ico, not_or, not_and, not_lt] at hx
-      have hm' : ¬(adj ≤ x ∧ x < adj + 2 * offFn ⟨n, Nat.lt_succ_self n⟩) := by
-        rw [hoffVal_n]; omega
-      exact (hmod_sc₂ x (by omega) hm').trans (hmod_sc₁ x (by omega) hm')
-    refine ⟨⟨h16, hfit_m1.of_le (by omega)⟩, hvh, by omega,
-      ⟨by rw [hst], fun x _ hx => by rw [hst]; exact hmod_step x hx⟩,
-      by omega, hres, by rw [hst]; exact htfr, wellFormed_clientState hwt hvh,
-      fun x hx => by rw [hst]; exact (hmod_step x hx).trans (hframe x hx),
-      fun u => ?_, fun u => ?_⟩
-    · rw [hst]
-      dsimp only [tEnd]
+    show inv₃ (k + 1) (k + 1) tEnd
+    refine ⟨rfl, htfr, fun u => ?_, fun u => ?_⟩
+    · dsimp only [tEnd]
       rw [hcur₂ u, edgeDegPrefix_succ es hk u]
       dsimp only [len₂, len₁, eu, ev]
-      by_cases hu1 : u = es[k].u <;> by_cases hu2 : u = es[k].v
-      · subst u; simp only [← hu2, ↓reduceIte]
-      · subst u; simp only [↓reduceIte, hu2, Ne.symm hu2]
-      · subst u; simp only [hu1, Ne.symm hu1, ↓reduceIte]
-      · simp only [hu1, Ne.symm hu1, hu2, Ne.symm hu2, ↓reduceIte]; omega
-    · rw [hst]
-      have hs₁_u : ∀ j < len₁ u,
+      split_ifs <;> subst_vars <;> omega
+    · have hs₁_u : ∀ j < len₁ u,
           tMid.mem (adj + 2 * (offFn u.castSucc + j)) = t.mem (adj + 2 * (offFn u.castSucc + j)) ∧
           tMid.mem (adj + 2 * (offFn u.castSucc + j) + 1) =
             t.mem (adj + 2 * (offFn u.castSucc + j) + 1) := fun j hj => by
@@ -695,18 +558,21 @@ private theorem csrScatter_framed {w n edgeBase adj cur fEnd : ℕ}
         obtain ⟨a2, b2⟩ := hs₁_u j hj
         exact Prod.ext (a1.trans a2) (b1.trans b2)
       have hperm_prev := hperm_k u
-      have htake_succ : (List.finRange m).take (k + 1) = (List.finRange m).take k ++ [⟨k, hk⟩] := by
+      have htake_succ : (List.finRange es.length).take (k + 1) =
+          (List.finRange es.length).take k ++ [⟨k, hk⟩] := by
         rw [List.take_add_one,
           List.getElem?_eq_getElem (by simp only [List.length_finRange]; exact hk),
           Option.toList_some]
         simp only [List.getElem_finRange, Fin.cast_mk]
-      have hsucc_u : ((List.finRange m).take (k + 1)).filter (fun i => decide (es[i.val].u = u)) =
-          ((List.finRange m).take k).filter (fun i => decide (es[i.val].u = u)) ++
+      have hsucc_u :
+          ((List.finRange es.length).take (k + 1)).filter (fun i => decide (es[i.val].u = u)) =
+          ((List.finRange es.length).take k).filter (fun i => decide (es[i.val].u = u)) ++
             if eu = u then [⟨k, hk⟩] else [] := by
         rw [htake_succ, List.filter_append]
         split_ifs with h <;> simp [eu, h]
-      have hsucc_v : ((List.finRange m).take (k + 1)).filter (fun i => decide (es[i.val].v = u)) =
-          ((List.finRange m).take k).filter (fun i => decide (es[i.val].v = u)) ++
+      have hsucc_v :
+          ((List.finRange es.length).take (k + 1)).filter (fun i => decide (es[i.val].v = u)) =
+          ((List.finRange es.length).take k).filter (fun i => decide (es[i.val].v = u)) ++
             if ev = u then [⟨k, hk⟩] else [] := by
         rw [htake_succ, List.filter_append]
         split_ifs with h <;> simp [ev, h]
@@ -773,16 +639,14 @@ private theorem csrScatter_framed {w n edgeBase adj cur fEnd : ℕ}
           Ne.symm hu1, Ne.symm hu2, ↓reduceIte, Nat.add_zero, List.map_nil, List.append_nil]
         rw [hpref_keep]
         exact hperm_prev
-  obtain ⟨hsafe₃, hv₃, hm₃, hmod₃, _, _, hfr₃, hwt₃, _, _, hperm₃⟩ :=
-    iterate_potential_spec csrScatterStep csrScatterStepSafe w ⟨edgeBase, cur, adj⟩ 10 m inv₃
-      (fun _ _ _ => 0) S₃ hstep₃ 0 t₂
-      ⟨Nat.zero_le m, rfl, ht₂_fr, hwt₂, fun _ _ => rfl,
-        fun u => by rw [edgeDegPrefix_zero, Nat.add_zero]; exact ht₂_cur u,
-        fun u => by simp only [edgeDegPrefix_zero, List.range_zero, List.map_nil, List.take_zero,
-          List.filter_nil, List.append_nil, List.Perm.refl]⟩
-  refine ⟨hsafe₃, framedTriple_iff_realization.mpr ⟨hv₃, by simpa using hm₃, hmod₃,
-    hfr₃, hwt₃, fun u => ?_⟩⟩
-  have htake_full : (List.finRange m).take m = List.finRange m := List.take_of_length_le (by simp)
+  obtain ⟨hsafe₃, h₃⟩ := Memory.FramedTriple.iterate inv₃
+    ⟨rfl, ht₂_fr, fun u => by rw [edgeDegPrefix_zero, Nat.add_zero]; exact ht₂_cur u,
+      fun u => by simp only [edgeDegPrefix_zero, List.range_zero, List.map_nil, List.take_zero,
+        List.filter_nil, List.append_nil, List.Perm.refl]⟩ hstep fun _ _ h _ => h
+  refine ⟨hsafe₃, (h₃.wellFormed hwt₂).mono le_rfl
+    fun _ _ ⟨⟨_, hfr₃, _, hperm₃⟩, hwt₃⟩ => ⟨hfr₃, hwt₃, fun u => ?_⟩⟩
+  have htake_full : (List.finRange es.length).take es.length = List.finRange es.length :=
+    List.take_of_length_le (by simp)
   simpa only [htake_full] using hperm₃ u
 
 /-! ## `buildUndirCSR`: Program, Realization, and Framed Specification -/
@@ -829,20 +693,15 @@ private theorem buildUndirCSR_word_spec {w n edgeBase : ℕ} {es : List (Indexed
   let adj := off + (n + 1)
   let cur := adj + 4 * m
   let fEnd := cur + n
-  let S_all := Set.Ico off fEnd
   have hfit_n1 : Fits w (n + 1) := hfit.of_le (by omega)
-  have hfit_m1 : Fits w (m + 1) := by
-    rcases Nat.eq_zero_or_pos m with hm0 | hmpos
-    · rw [hm0]; exact h16.of_le (by decide)
-    · exact hfit.of_le (by omega)
+  have hfit_m1 : Fits w (m + 1) := hfit.of_le (by omega)
   have hfit_2m : Fits w (2 * m) := hfit.of_le (by omega)
   have hfit_off : Fits w (off + (n + 1)) := hfit.of_le (by omega)
   have hfit_adj : Fits w (off + (n + 1) + 4 * m) := hfit.of_le (by omega)
   let s₀ : Memory.State := ⟨clear s.mem off (n + 1), off + (n + 1)⟩
   have hwf₀ : Memory.WellFormed w s₀ := hwf.step (o := .alloc (n + 1)) hfit_off
   have hin₀ : HoldsIndexedEdges edgeBase es s₀.mem :=
-    hin.congr fun x hx1 hx2 => clear_of_not_owns (by
-      dsimp only [Block.Owns]; omega)
+    hin.congr fun x hx1 hx2 => clear_of_not_owns (by dsimp only [Block.Owns]; omega)
   have hzero₀ : ∀ j < n + 1, s₀.mem (off + j) = 0 := fun j hj =>
     clear_of_owns (Block.owns_add (b := ⟨off, n + 1⟩) hj)
   obtain ⟨hsafe₁, hft_cnt⟩ := csrCount_framed h16 hwf₀ hfit_m1 hfit_2m hin₀
@@ -850,11 +709,7 @@ private theorem buildUndirCSR_word_spec {w n edgeBase : ℕ} {es : List (Indexed
   let s₁ := (Memory.spec 0).clientState s₀ (iterate csrCountStep ⟨edgeBase, off⟩ m 0)
   obtain ⟨hv₁, hm₁, hmod₁, hs₁_fr, hwf₁, hdeg₁, hend₁⟩ := framedTriple_iff_realization.mp hft_cnt
   let degAt (i : ℕ) : ℕ := if h : i < n then edgeDegPrefix es m ⟨i, h⟩ else 0
-  have hdegAt_val : ∀ u : Fin n, degAt u.val = edgeDegPrefix es m u := fun u => by
-    dsimp only [degAt]
-    split_ifs with h
-    · rfl
-    · exact absurd u.isLt h
+  have hdegAt_val : ∀ u : Fin n, degAt u.val = edgeDegPrefix es m u := fun u => dite_eq_left u.isLt
   have hs₁_sum : ∀ j ≤ n + 1, ∑ i ∈ Finset.range j, s₁.mem (off + i) =
       ∑ i ∈ Finset.range j, degAt i := fun j hj => by
     refine Finset.sum_congr rfl fun i hi => ?_
@@ -862,20 +717,13 @@ private theorem buildUndirCSR_word_spec {w n edgeBase : ℕ} {es : List (Indexed
     dsimp only [degAt]
     split_ifs with hlt
     · exact hdeg₁ ⟨i, hlt⟩
-    · have hin_eq : i = n := by omega
-      rw [hin_eq, hend₁]
+    · rw [show i = n by omega, hend₁]
   have hsum_deg : ∑ i ∈ Finset.range n, degAt i = 2 * m := by
-    rw [← Fin.sum_univ_eq_sum_range degAt n]
-    rw [Finset.sum_congr rfl (fun u _ => hdegAt_val u)]
+    rw [← Fin.sum_univ_eq_sum_range degAt n, Finset.sum_congr rfl fun u _ => hdegAt_val u]
     exact sum_edgeDegPrefix es m (le_refl m)
   have hsum_n1 : ∑ i ∈ Finset.range (n + 1), s₁.mem (off + i) = 2 * m := by
     rw [hs₁_sum (n + 1) (le_refl (n + 1)), Finset.sum_range_succ]
-    have hdn : degAt n = 0 := by
-      dsimp only [degAt]
-      split_ifs with h
-      · exact absurd h (Nat.lt_irrefl n)
-      · rfl
-    rw [hdn, Nat.add_zero, hsum_deg]
+    rw [show degAt n = 0 from dite_eq_right (Nat.lt_irrefl n), Nat.add_zero, hsum_deg]
   have hsum_fit : Fits w (∑ i ∈ Finset.range (n + 1), s₁.mem (off + i)) :=
     hsum_n1 ▸ hfit_2m
   have hft_ps := prefixSumProg_spec hwf₁ hfit_n1 (by rw [hs₁_fr]) hsum_fit
@@ -894,235 +742,53 @@ private theorem buildUndirCSR_word_spec {w n edgeBase : ℕ} {es : List (Indexed
   have hoffVal_n : offFn ⟨n, Nat.lt_succ_self n⟩ = 2 * m := hsum_deg
   have hs₂_in_pre : HoldsIndexedEdges edgeBase es s₂_pre.mem :=
     hin₀.congr fun x hx1 hx2 =>
-      ((hmod_ps.mem_eq_of_not_mem (by rw [hs₁_fr]; dsimp only [s₀, off, m] at *; omega)
-          (by simp only [Set.mem_Ico]; dsimp only [off, m] at *; omega)).trans
-        (hmod₁.mem_eq_of_not_mem (by dsimp only [s₀, off, m] at *; omega)
-          (by simp only [Set.mem_Ico]; dsimp only [off, m] at *; omega)))
+      ((hmod_ps.mem_eq_of_not_mem (by rw [hs₁_fr]; dsimp only [s₀]; omega) (by region_omega)).trans
+        (hmod₁.mem_eq_of_not_mem (by dsimp only [s₀]; omega) (by region_omega)))
   let s₂_cur : Memory.State := ⟨s₂_pre.mem, fEnd⟩
   have hwf₂_cur : Memory.WellFormed w s₂_cur :=
     ⟨hfit.of_le (by dsimp only [s₂_cur, fEnd, cur, adj, off, m]; omega), hwf₂_pre.mem_fits⟩
   have hs₂_copy_fit : ∀ i < n, Fits w (s₂_cur.mem (off + i)) := fun i hi => hwf₂_pre.mem_fits _
   let s₂ := (Memory.spec 0).clientState s₂_cur (Memory.copy off cur n)
-  have hs₂_mem_eq : s₂.mem = Cslib.WordRAM.ArrayCopy.copyPrefix s₂_cur.mem off cur n := by
-    dsimp only [s₂]
-    rw [clientState_copy off cur n s₂_cur (Or.inl (by dsimp only [cur, adj, off, m]; omega))]
-  have hs₂_fr_eq : s₂.frontier = fEnd := by
-    dsimp only [s₂]
-    rw [clientState_copy off cur n s₂_cur (Or.inl (by dsimp only [cur, adj, off, m]; omega))]
-  have hwf₂ : Memory.WellFormed w s₂ := by
-    refine ⟨by rw [hs₂_fr_eq]; exact hfit.of_le (by dsimp only [fEnd, cur, adj, off, m]; omega),
-      fun a => ?_⟩
-    rw [hs₂_mem_eq]
-    by_cases ha : cur ≤ a ∧ a < cur + n
-    · obtain ⟨i, hi, rfl⟩ : ∃ i < n, a = cur + i := ⟨a - cur, by omega, by omega⟩
-      rw [Cslib.WordRAM.ArrayCopy.copyPrefix_read hi]
-      exact hs₂_copy_fit i hi
-    · rw [Cslib.WordRAM.ArrayCopy.copyPrefix_outside ha]
-      exact hwf₂_cur.mem_fits a
-  have hs₂_in : HoldsIndexedEdges edgeBase es s₂.mem :=
-    hs₂_in_pre.congr fun x hx1 hx2 => by
-      rw [hs₂_mem_eq,
-        Cslib.WordRAM.ArrayCopy.copyPrefix_outside (by dsimp only [cur, adj, off, m] at *; omega)]
+  have hcp := Memory.FramedTriple.copy (s := s₂_cur) (src := off) (dst := cur) (n := n)
+    (Q := fun _ t => t = ⟨Cslib.WordRAM.ArrayCopy.copyPrefix s₂_cur.mem off cur n, fEnd⟩)
+    (Or.inl (by omega)) (show off + n ≤ fEnd by omega) (show cur + n ≤ fEnd by omega)
+    hs₂_copy_fit rfl
+  obtain ⟨-, -, -, hs₂_eq, hwf₂⟩ := framedTriple_iff_realization.mp (hcp.wellFormed hwf₂_cur)
+  have hs₂_mem_eq : s₂.mem = Cslib.WordRAM.ArrayCopy.copyPrefix s₂_cur.mem off cur n :=
+    congrArg Memory.State.mem hs₂_eq
+  have hs₂_fr_eq : s₂.frontier = fEnd := congrArg Memory.State.frontier hs₂_eq
+  have hs₂_in : HoldsIndexedEdges edgeBase es s₂.mem := hs₂_in_pre.congr fun x hx1 hx2 => by
+    rw [hs₂_mem_eq, Cslib.WordRAM.ArrayCopy.copyPrefix_outside (by omega)]
   have hs₂_cur_eq : ∀ u : Fin n, s₂.mem (cur + u.val) = offFn u.castSucc := fun u => by
     rw [hs₂_mem_eq, Cslib.WordRAM.ArrayCopy.copyPrefix_read u.isLt]
     exact hoffFn_eq u.val (by omega)
   obtain ⟨hsafe₃, hft_sc⟩ := csrScatter_framed offFn h16 hfit_m1 hfit_n1 hfit_2m
     ⟨rfl, rfl, by omega⟩ hs₂_fr_eq hwf₂ hs₂_in hoffFn_mono hoffFn_diff hoffVal_n hs₂_cur_eq
   refine ⟨hsafe₁, hs₁_fr, hs₂_fr.trans hs₁_fr, hsum_fit, hsafe₃, ?_⟩
-  have hprog : buildUndirCSR ⟨n, m, edgeBase⟩ =
-      (Memory.allocBlock (n + 1) >>= fun offB =>
-        iterate csrCountStep ⟨edgeBase, offB.base⟩ m 0 >>= fun _ =>
-          prefixSumProg offB.base (n + 1) >>= fun _ =>
-            Memory.allocBlockDirty (4 * m) >>= fun adjB =>
-              Memory.allocBlockDirty n >>= fun curB =>
-                Memory.copy offB.base curB.base n >>= fun _ =>
-                  iterate csrScatterStep ⟨edgeBase, curB.base, adjB.base⟩ m 0 >>= fun _ =>
-                    pure ⟨offB.base, adjB.base⟩) := rfl
-  rw [hprog]
-  let S₃ : Set ℕ := Set.Ico cur (cur + n) ∪ Set.Ico adj (adj + 4 * m)
-  have hpost_sc : ∀ (t₂ : Memory.State),
-      t₂.frontier = fEnd → Memory.WellFormed w t₂ → HoldsIndexedEdges edgeBase es t₂.mem →
-      (∀ u : Fin n, t₂.mem (cur + u.val) = offFn u.castSucc) →
-      (∀ j (hj : j < n + 1), t₂.mem (off + j) = offFn ⟨j, hj⟩) →
-      Memory.FramedTriple w t₂
-        (iterate csrScatterStep ⟨edgeBase, cur, adj⟩ m 0 >>= fun _ => pure (⟨off, adj⟩ : UndirCSR))
-        (10 * m) S_all fun (csr : UndirCSR) s' =>
-          csr.offBase = off ∧ csr.adjBase = adj ∧
-          s'.frontier = s.frontier + (2 * n + 4 * m + 1) ∧ Memory.WellFormed w s' ∧
-          HoldsUndirCSR csr.offBase csr.adjBase es s'.mem := by
-    intro t₂ ht₂_fr' hwt₂' ht₂_in' ht₂_cur' ht₂_off'
-    have hsc' := (csrScatter_framed offFn h16 hfit_m1 hfit_n1 hfit_2m ⟨rfl, rfl, by omega⟩
-      ht₂_fr' hwt₂' ht₂_in' hoffFn_mono hoffFn_diff hoffVal_n ht₂_cur').2
-    refine ((Memory.FramedTriple.bind_same
-      (Memory.Triple.mono hsc' le_rfl fun _ t₃ ⟨hm₃, hfr₃, hwt₃, hperm₃⟩ => by
-        refine ⟨hm₃, Memory.FramedTriple.pure (c := 0) ⟨rfl, rfl,
-          by rw [hfr₃]; dsimp only [fEnd, cur, adj, off, m]; omega, hwt₃, ?_⟩⟩
-        have hoff_stay : ∀ a, off ≤ a → a < off + n + 1 → t₃.mem a = t₂.mem a :=
-          fun a ha1 ha2 => hm₃.mem_eq_of_not_mem
-            (by rw [ht₂_fr']; dsimp only [fEnd, cur, adj, off, m]; omega)
-            (by simp only [Set.mem_union, Set.mem_Ico]; dsimp only [cur, adj, off, m] at *; omega)
-        have hoff_eq' : ∀ j (hj : j < n + 1), t₃.mem (off + j) = offFn ⟨j, hj⟩ :=
-          fun j hj => (hoff_stay (off + j) (by omega) (by omega)).trans (ht₂_off' j hj)
-        refine ⟨by dsimp only; rw [← Nat.add_zero off, hoff_eq' 0 (Nat.zero_lt_succ n)]; rfl,
-          fun u => ?_,
-          by dsimp only; rw [hoff_eq' n (Nat.lt_succ_self n)]; exact hoffVal_n, fun u => ?_⟩
-        · have h1 : t₃.mem (off + u.val) = offFn u.castSucc := hoff_eq' u.val (by omega)
-          have h2 : t₃.mem (off + (u.val + 1)) = offFn u.succ := hoff_eq' (u.val + 1) (by omega)
-          dsimp only
-          rw [h1, Nat.add_assoc, h2]
-          exact hoffFn_mono u
-        · have h1 : t₃.mem (off + u.val) = offFn u.castSucc := hoff_eq' u.val (by omega)
-          have h2 : t₃.mem (off + (u.val + 1)) = offFn u.succ := hoff_eq' (u.val + 1) (by omega)
-          dsimp only
-          rw [h1, Nat.add_assoc, h2, hoffFn_diff u]
-          exact hperm₃ u)).frame_mono
-      (fun x hx => by
-        simp only [Set.mem_union, Set.mem_Ico] at hx
-        simp only [S_all, Set.mem_Ico]
-        dsimp only [fEnd, cur, adj, off, m] at *; omega)).mono
-      (by omega) fun _ _ h => h
-  have hpost_copy : ∀ (t_cur : Memory.State),
-      t_cur.frontier = fEnd → Memory.WellFormed w t_cur → HoldsIndexedEdges edgeBase es t_cur.mem →
-      (∀ j (hj : j < n + 1), t_cur.mem (off + j) = offFn ⟨j, hj⟩) →
-      Memory.FramedTriple w t_cur
-        (Memory.copy off cur n >>= fun _ =>
-          iterate csrScatterStep ⟨edgeBase, cur, adj⟩ m 0 >>= fun _ =>
-            pure (⟨off, adj⟩ : UndirCSR))
-        (2 * n + 10 * m) S_all fun (csr : UndirCSR) s' =>
-          csr.offBase = off ∧ csr.adjBase = adj ∧
-          s'.frontier = s.frontier + (2 * n + 4 * m + 1) ∧ Memory.WellFormed w s' ∧
-          HoldsUndirCSR csr.offBase csr.adjBase es s'.mem := by
-    intro t_cur htc_fr htc_wf htc_in htc_off
-    have hcopy_fit : ∀ i < n, Fits w (t_cur.mem (off + i)) := fun i hi => htc_wf.mem_fits _
-    let t_next : Memory.State :=
-      ⟨Cslib.WordRAM.ArrayCopy.copyPrefix t_cur.mem off cur n, t_cur.frontier⟩
-    have htn_wf : Memory.WellFormed w t_next := by
-      refine ⟨htc_wf.frontier_fits, fun a => ?_⟩
-      dsimp only [t_next]
-      by_cases ha : cur ≤ a ∧ a < cur + n
-      · obtain ⟨i, hi, rfl⟩ : ∃ i < n, a = cur + i := ⟨a - cur, by omega, by omega⟩
-        rw [Cslib.WordRAM.ArrayCopy.copyPrefix_read hi]
-        exact hcopy_fit i hi
-      · rw [Cslib.WordRAM.ArrayCopy.copyPrefix_outside ha]
-        exact htc_wf.mem_fits a
-    have htn_in : HoldsIndexedEdges edgeBase es t_next.mem :=
-      htc_in.congr fun x hx1 hx2 =>
-        Cslib.WordRAM.ArrayCopy.copyPrefix_outside (by dsimp only [cur, adj, off, m] at *; omega)
-    have htn_cur : ∀ u : Fin n, t_next.mem (cur + u.val) = offFn u.castSucc := fun u => by
-      dsimp only [t_next]
-      rw [Cslib.WordRAM.ArrayCopy.copyPrefix_read u.isLt]
-      exact htc_off u.val (by omega)
-    have htn_off : ∀ j (hj : j < n + 1), t_next.mem (off + j) = offFn ⟨j, hj⟩ := fun j hj => by
-      dsimp only [t_next]
-      rw [Cslib.WordRAM.ArrayCopy.copyPrefix_outside (by dsimp only [cur, adj, off, m]; omega)]
-      exact htc_off j hj
-    exact (Memory.FramedTriple.bind_same
-      ((Memory.FramedTriple.copy (Or.inl (by dsimp only [cur, adj, off, m]; omega))
-        (by rw [htc_fr]; dsimp only [fEnd, cur, adj, off, m]; omega)
-        (by rw [htc_fr]) hcopy_fit
-        (hpost_sc t_next htc_fr htn_wf htn_in htn_cur htn_off)).frame_mono
-        (fun x hx => by
-          simp only [Set.mem_Ico] at hx
-          simp only [S_all, Set.mem_Ico]
-          dsimp only [fEnd, cur, adj, off, m] at *; omega))).mono
-      (by omega) fun _ _ h => h
-  have hpost_ps : ∀ (t₁ : Memory.State),
-      t₁.frontier = adj → Memory.WellFormed w t₁ → HoldsIndexedEdges edgeBase es t₁.mem →
-      (∀ u : Fin n, t₁.mem (off + u.val) = edgeDegPrefix es m u) →
-      t₁.mem (off + n) = 0 →
-      Memory.FramedTriple w t₁
-        (prefixSumProg off (n + 1) >>= fun _ =>
-          Memory.allocBlockDirty (4 * m) >>= fun adjB =>
-            Memory.allocBlockDirty n >>= fun curB =>
-              Memory.copy off curB.base n >>= fun _ =>
-                iterate csrScatterStep ⟨edgeBase, curB.base, adjB.base⟩ m 0 >>= fun _ =>
-                  pure (⟨off, adjB.base⟩ : UndirCSR))
-        (2 * (n + 1) + (10 * m + 2 * n + 1 + 1)) S_all fun (csr : UndirCSR) s' =>
-          csr.offBase = off ∧ csr.adjBase = adj ∧
-          s'.frontier = s.frontier + (2 * n + 4 * m + 1) ∧ Memory.WellFormed w s' ∧
-          HoldsUndirCSR csr.offBase csr.adjBase es s'.mem := by
-    intro t₁ ht₁_fr hwt₁' ht₁_in ht₁_deg ht₁_end
-    have ht₁_sum : ∀ j ≤ n + 1, ∑ i ∈ Finset.range j, t₁.mem (off + i) =
-        ∑ i ∈ Finset.range j, degAt i := fun j hj => by
-      refine Finset.sum_congr rfl fun i hi => ?_
-      rw [Finset.mem_range] at hi
-      dsimp only [degAt]
-      split_ifs with hlt
-      · exact ht₁_deg ⟨i, hlt⟩
-      · have hin_eq : i = n := by omega
-        rw [hin_eq, ht₁_end]
-    have ht₁_sum_n1 : ∑ i ∈ Finset.range (n + 1), t₁.mem (off + i) = 2 * m := by
-      rw [ht₁_sum (n + 1) (le_refl (n + 1)), Finset.sum_range_succ]
-      have hdn : degAt n = 0 := by
-        dsimp only [degAt]
-        split_ifs with h
-        · exact absurd h (Nat.lt_irrefl n)
-        · rfl
-      rw [hdn, Nat.add_zero, hsum_deg]
-    have hps_t₁ := (prefixSumProg_spec hwt₁' hfit_n1 (by rw [ht₁_fr])
-      (ht₁_sum_n1 ▸ hfit_2m)).frame_mono (S' := S_all) (fun x hx => by
-        simp only [Set.mem_Ico] at hx
-        simp only [S_all, Set.mem_Ico]
-        dsimp only [fEnd, cur, adj, off, m] at *; omega)
-    have hpost_adj : ∀ (t₂_p : Memory.State),
-        t₂_p.frontier = adj → Memory.WellFormed w t₂_p → HoldsIndexedEdges edgeBase es t₂_p.mem →
-        (∀ j (hj : j < n + 1), t₂_p.mem (off + j) = offFn ⟨j, hj⟩) →
-        Memory.FramedTriple w t₂_p
-          (Memory.allocBlockDirty (4 * m) >>= fun adjB =>
-            Memory.allocBlockDirty n >>= fun curB =>
-              Memory.copy off curB.base n >>= fun _ =>
-                iterate csrScatterStep ⟨edgeBase, curB.base, adjB.base⟩ m 0 >>= fun _ =>
-                  pure (⟨off, adjB.base⟩ : UndirCSR))
-          (10 * m + 2 * n + 1 + 1) S_all fun (csr : UndirCSR) s' =>
-            csr.offBase = off ∧ csr.adjBase = adj ∧
-            s'.frontier = s.frontier + (2 * n + 4 * m + 1) ∧ Memory.WellFormed w s' ∧
-            HoldsUndirCSR csr.offBase csr.adjBase es s'.mem := by
-      intro t₂_p hfr_p' hwf_p htp_in htp_off
-      have hfit_adj' : Fits w (t₂_p.frontier + 4 * m) := by rw [hfr_p']; exact hfit_adj
-      refine (Memory.FramedTriple.allocBlockDirty_bind (c := 10 * m + 2 * n + 1)
-        hfit_adj' ?_).mono (by omega) fun _ _ h => h
-      rw [hfr_p']
-      have hfit_cur' : Fits w (adj + 4 * m + n) :=
-        hfit.of_le (by dsimp only [adj, off]; omega)
-      refine (Memory.FramedTriple.allocBlockDirty_bind (c := 2 * n + 10 * m)
-        hfit_cur' ?_).mono (by omega) fun _ _ h => h
-      exact hpost_copy ⟨t₂_p.mem, adj + 4 * m + n⟩ rfl
-        ⟨hfit.of_le (by dsimp only [adj, off]; omega), hwf_p.mem_fits⟩ htp_in htp_off
-    refine (Memory.FramedTriple.bind_same
-      (Memory.Triple.mono hps_t₁ le_rfl fun _ t₂_p ⟨hm_ps, _, hfr_p, hwf_p, hvals_p⟩ => by
-        refine ⟨hm_ps, hpost_adj t₂_p (hfr_p.trans ht₁_fr) hwf_p ?_ ?_⟩
-        · exact ht₁_in.congr fun x hx1 hx2 =>
-            hm_ps.mem_eq_of_not_mem (by rw [ht₁_fr]; dsimp only [adj, off, m] at *; omega)
-              (by simp only [S_all, Set.mem_Ico]; dsimp only [fEnd, cur, adj, off, m] at *; omega)
-        · exact fun j hj => (hvals_p j hj).trans (ht₁_sum j (le_of_lt hj))
-      )).mono (by omega) fun _ _ h => h
-  have hft_cnt_all := hft_cnt.frame_mono (S' := S_all) (fun x hx => by
-    simp only [Set.mem_Ico] at hx
-    simp only [S_all, Set.mem_Ico]
-    dsimp only [fEnd, cur, adj, off, m] at *; omega)
-  have hft_cnt_cont : Memory.FramedTriple w s₀
-      (iterate csrCountStep ⟨edgeBase, off⟩ m 0 >>= fun _ =>
-        prefixSumProg off (n + 1) >>= fun _ =>
-          Memory.allocBlockDirty (4 * m) >>= fun adjB =>
-            Memory.allocBlockDirty n >>= fun curB =>
-              Memory.copy off curB.base n >>= fun _ =>
-                iterate csrScatterStep ⟨edgeBase, curB.base, adjB.base⟩ m 0 >>= fun _ =>
-                  pure (⟨off, adjB.base⟩ : UndirCSR))
-      (6 * m + (2 * (n + 1) + (10 * m + 2 * n + 1 + 1))) S_all fun (csr : UndirCSR) s' =>
-        csr.offBase = off ∧ csr.adjBase = adj ∧
-        s'.frontier = s.frontier + (2 * n + 4 * m + 1) ∧ Memory.WellFormed w s' ∧
-        HoldsUndirCSR csr.offBase csr.adjBase es s'.mem :=
-    (Memory.FramedTriple.bind_same
-      (Memory.Triple.mono hft_cnt_all le_rfl fun _ t₁ ⟨hm₁', hfr₁', hwt₁', hdeg₁', hend₁'⟩ => by
-        refine ⟨hm₁', hpost_ps t₁ hfr₁' hwt₁' ?_ hdeg₁' hend₁'⟩
-        exact hin₀.congr fun x hx1 hx2 =>
-          hm₁'.mem_eq_of_not_mem (by dsimp only [s₀, off, m] at *; omega)
-            (by simp only [S_all, Set.mem_Ico]; dsimp only [fEnd, cur, adj, off, m] at *; omega)
-      )).mono (by omega) fun _ _ h => h
-  exact ((Memory.FramedTriple.allocBlock_bind hfit_off hft_cnt_cont).frame_empty_of_ge_frontier
-    (S := S_all) fun _ ha => (Set.mem_Ico.mp ha).1).mono
-    (by omega : 6 * m + (2 * (n + 1) + (10 * m + 2 * n + 1 + 1)) + (n + 1 + 1) ≤
-      16 * m + 5 * n + 6) fun _ _ h => h
+  exact Memory.FramedTriple.mono
+    (Memory.FramedTriple.frame_empty_of_ge_frontier (S := Set.Ico off fEnd)
+    (Memory.FramedTriple.allocBlock_bind hfit_off
+    (Memory.FramedTriple.seq hft_cnt (by region_omega)
+    (Memory.FramedTriple.seq hft_ps (by region_omega)
+    (Memory.FramedTriple.allocBlockDirty_bind_at (hs₂_fr.trans hs₁_fr) hfit_adj
+    (Memory.FramedTriple.allocBlockDirty_bind (hfit.of_le (by omega) : Fits w (cur + n))
+    (Memory.FramedTriple.seq hcp (by region_omega)
+    (Memory.FramedTriple.call hft_sc (by region_omega)
+      fun _ t₃ ⟨hfr₃, hwt₃, hperm₃⟩ (hm₃ : Memory.Modifies _ s₂ t₃) => by
+      have hoff : ∀ j (hj : j < n + 1), t₃.mem (off + j) = offFn ⟨j, hj⟩ := fun j hj => by
+        rw [hm₃.mem_eq_of_not_mem (by omega) (by region_omega), hs₂_mem_eq,
+          Cslib.WordRAM.ArrayCopy.copyPrefix_outside (by omega)]
+        exact hoffFn_eq j hj
+      refine Memory.FramedTriple.pure (c := 0) ⟨rfl, rfl, by omega, hwt₃,
+        show HoldsUndirCSR off adj es t₃.mem from
+        ⟨by rw [← Nat.add_zero off, hoff 0 (Nat.zero_lt_succ n)]; rfl, fun u => ?_,
+          by rw [hoff n (Nat.lt_succ_self n)]; exact hoffVal_n, fun u => ?_⟩⟩
+      all_goals
+        rw [show t₃.mem (off + u.val) = offFn u.castSucc from hoff u.val (by omega),
+          show t₃.mem (off + u.val + 1) = offFn u.succ from hoff (u.val + 1) (by omega)]
+      · exact hoffFn_mono u
+      · rw [hoffFn_diff u]; exact hperm₃ u)))))))
+    fun _ ha => (Set.mem_Ico.mp ha).1) (by dsimp only; omega) fun _ _ h => h
 
 /-- Uniform `Realizes .exact` certificate for `buildUndirCSR` with `work = 0`. -/
 theorem realizes_buildUndirCSR :
