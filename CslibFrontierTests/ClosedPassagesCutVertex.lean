@@ -125,4 +125,34 @@ example {D : PolygonalDrawing threeArms} {r : RotationSystem threeArms}
   · exact SimpleGraph.Adj.reachable (Graph.toSimpleGraph_adj.mpr (by decide))
   · exact SimpleGraph.Adj.reachable (Graph.toSimpleGraph_adj.mpr (by decide))
 
+private abbrev twoTriangles : Graph :=
+  ⟨[0, 1, 2, 3, 4], [(0, 1), (1, 2), (2, 0), (0, 3), (3, 4), (4, 0)]⟩
+
+open Classical in
+open scoped BigOperators in
+-- The induced paths use edges (1, 2) and (3, 4). Only the four spokes contribute.
+example {D : PolygonalDrawing twoTriangles} {r : RotationSystem twoTriangles}
+    (hr : D.Realizes r) (hreg : D.HasRegularContacts) (hsimple : ∀ e, (D.route e).IsSimple)
+    (hvertices : Set.InjOn D.vertex {v | v ∈ twoTriangles.vertices})
+    (heven : D.EvenCrossings (fun _ => False)) :
+    decide (r.Alternates (0, false) (2, true) (3, false) (5, true)) =
+      ∑ f ∈ ({3, 5} : Finset (Fin 6)), ∑ e ∈ ({0, 2} : Finset (Fin 6)),
+        (D.route e).intersectionParity (D.route f) := by
+  let left : Set ℕ := {v | v = 1 ∨ v = 2}
+  let right : Set ℕ := {v | v = 3 ∨ v = 4}
+  have hdisj : Disjoint left right := by
+    apply Set.disjoint_left.mpr
+    intro v hv hw
+    change v = 1 ∨ v = 2 at hv
+    change v = 3 ∨ v = 4 at hw
+    omega
+  have hl : 0 ∉ left := (by decide : ¬ (0 = (1 : ℕ) ∨ 0 = 2))
+  have hr' : 0 ∉ right := (by decide : ¬ (0 = (3 : ℕ) ∨ 0 = 4))
+  apply ClosedPassages.decide_alternates_eq_sum_crossings_of_disjoint_induced_paths
+    (v := 0) (S := left) (T := right) hr hreg hsimple hvertices (by decide) heven
+    hl hr' hdisj rfl rfl rfl rfl (by decide) (by decide)
+    (Or.inl rfl) (Or.inr rfl) (Or.inl rfl) (Or.inr rfl)
+  · exact SimpleGraph.Adj.reachable (Graph.toSimpleGraph_adj.mpr (by decide))
+  · exact SimpleGraph.Adj.reachable (Graph.toSimpleGraph_adj.mpr (by decide))
+
 end CslibFrontierTests.ClosedPassagesCutVertex

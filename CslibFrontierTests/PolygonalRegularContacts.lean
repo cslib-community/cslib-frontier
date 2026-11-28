@@ -255,4 +255,25 @@ example {A : PolygonalDrawing bowtie} {r : RotationSystem bowtie}
     leftTriangle.not_alternates_of_unique_shared_passages rightTriangle
       hr hregular hsimple hvertices hdeclared hdisjoint heven leftShared rightShared (by decide)⟩
 
+open Classical in
+-- The two triangles share only vertex zero. Their edges away from zero drop out of the sum.
+example {A : PolygonalDrawing bowtie} {r : RotationSystem bowtie}
+    (hr : A.Realizes r) (hregular : A.HasRegularContacts)
+    (hsimple : ∀ e, (A.route e).IsSimple)
+    (hvertices : Set.InjOn A.vertex {v | v ∈ bowtie.vertices})
+    (heven : A.EvenCrossings (fun _ => False)) :
+    decide (r.Alternates (leftTriangle.dart leftShared false) (leftTriangle.dart leftShared true)
+      (rightTriangle.dart rightShared false) (rightTriangle.dart rightShared true)) =
+      ((A.route 0).intersectionParity (A.route 3) + (A.route 2).intersectionParity (A.route 3)) +
+      ((A.route 0).intersectionParity (A.route 5) +
+        (A.route 2).intersectionParity (A.route 5)) := by
+  have hdeclared : ∀ d : Dart bowtie, d.vertex ∈ bowtie.vertices := by decide
+  have hdisjoint : ∀ e, leftSupport e = true → rightSupport e = true → False := by decide
+  have h := leftTriangle.decide_alternates_eq_sum_crossings_of_unique_shared_passages rightTriangle
+    hr hregular hsimple hvertices hdeclared hdisjoint heven leftShared rightShared (by decide)
+  change _ = ∑ f ∈ ({3, 5} : Finset (Fin 6)), ∑ e ∈ ({0, 2} : Finset (Fin 6)),
+    (A.route e).intersectionParity (A.route f) at h
+  simpa only [Finset.sum_pair (by decide : (3 : Fin 6) ≠ 5),
+    Finset.sum_pair (by decide : (0 : Fin 6) ≠ 2)] using h
+
 end CslibFrontierTests.PolygonalRegularContacts
