@@ -288,12 +288,10 @@ def amplifiedVerifier (enc : α ↪ List Bool) (G : List (AMMove × Polynomial �
 theorem computableInPolyTime_amplifiedVerifier {enc : α ↪ List Bool}
     (G : List (AMMove × Polynomial ℕ)) (k : Polynomial ℕ) {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
-    ComputableInPolyTime (amplifiedVerifier enc G k V) (encPair enc encBits) encBool :=
-  computableInPolyTime_majority G
-    ((ComputableInPolyTime.encoding_length enc).comp (.fst _ _))
-    ((ComputableInPolyTime.unary_eval k).comp
-      ((ComputableInPolyTime.encoding_length enc).comp (.fst _ _)))
-    (hV.comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod (.snd _ _))) (.snd _ _)
+    ComputableInPolyTime (amplifiedVerifier enc G k V) (encPair enc encBits) encBool := by
+  have hlen := (ComputableInPolyTime.encoding_length enc).comp (.fst enc encBits)
+  exact computableInPolyTime_majority G hlen ((ComputableInPolyTime.unary_eval k).comp hlen)
+    (hV.comp ((ComputableInPolyTime.fst _ _).fst'.prod (.snd _ _))) (.snd _ _)
 
 theorem eight_ninths_pow_le (e : ℕ) : (8 / 9 : ℚ) ^ (6 * e) ≤ (1 / 2) ^ e := by
   rw [pow_mul]

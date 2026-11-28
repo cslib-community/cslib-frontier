@@ -235,10 +235,9 @@ theorem computableInPolyTime_moveLength_dyn {γ : Type} {encIn : γ ↪ List Boo
     (hg : ComputableInPolyTime g encIn encIPShape)
     (hj : ComputableInPolyTime j encIn encUnary) :
     ComputableInPolyTime (fun x => moveLength (g x) (j x)) encIn encUnary := by
-  refine ((ComputableInPolyTime.snd encIPMove encUnary).comp
-    (ComputableInPolyTime.listGetDWithInput hg hj (.prover, 0))).of_enc_eq fun x =>
+  refine (ComputableInPolyTime.listGetDWithInput hg hj (.prover, 0)).snd'.of_enc_eq fun x =>
       congrArg encUnary ?_
-  simp only [Function.comp_apply, moveLength, List.getD_eq_getElem?_getD, List.getElem?_map]
+  simp only [moveLength, List.getD_eq_getElem?_getD, List.getElem?_map]
   cases (g x)[j x]? <;> simp
 
 /-! ### Dropping a trailing verifier move -/
@@ -1144,10 +1143,9 @@ private theorem computableInPolyTime_truncDec {enc : α ↪ List Bool} {g₀ : �
   have hsub := hlen.unary_sub' (.const 1)
   have hlast : ComputableInPolyTime (fun x : α × List Bool × List Bool =>
       ((g₀ (enc x.1).length).getLastD (.verifier, 0)).2) (encDecInput enc) encUnary :=
-    ((ComputableInPolyTime.snd encIPMove encUnary).comp
-      (ComputableInPolyTime.listGetDWithInput hg₀n hsub (.verifier, 0))).of_enc_eq fun x =>
+    (ComputableInPolyTime.listGetDWithInput hg₀n hsub (.verifier, 0)).snd'.of_enc_eq fun x =>
         congrArg encUnary <| by
-          rw [Function.comp_apply, List.getLastD_eq_getLast?, List.getLast?_eq_getElem?]; rfl
+          rw [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?]; rfl
   exact ((computableInPolyTime_unaryOdd hlen).ite
     (computableInPolyTime_appendMsgDec hlast hsub hmsg₀ hdec₀) hdec₀).of_enc_eq fun x => by
     simp only [truncDec, decide_eq_true_eq, Function.comp_apply]

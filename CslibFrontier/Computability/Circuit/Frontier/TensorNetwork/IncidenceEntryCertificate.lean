@@ -102,10 +102,9 @@ private theorem branch_comp_ofPolyTime_bounds_of_two_pow {α β γ : Type}
 
 /-- The number of selected incidences of a context, in unary. -/
 theorem rowDim_polyTime :
-    ComputableInPolyTime (fun ((_, _, _, sel) : RowCtx) => sel.length) encRowCtx encUnary :=
-  ((ComputableInPolyTime.length_list (encPair encNat encNat)).comp
-    ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      (ComputableInPolyTime.snd _ _)))).of_enc_eq fun (_, _, _, _) => rfl
+    ComputableInPolyTime (fun ((_, _, _, sel) : RowCtx) => sel.length) encRowCtx encUnary := by
+  change ComputableInPolyTime (fun p : RowCtx => p.2.2.2.length) encRowCtx encUnary
+  fun_prop
 
 /-- The initial state of the sum of a row: the context and zero. -/
 theorem rowInit_polyTime :

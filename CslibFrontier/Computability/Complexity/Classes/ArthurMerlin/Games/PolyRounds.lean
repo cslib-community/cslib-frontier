@@ -179,8 +179,8 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
       calc 2 * st.1.length + 1 + st.2.length
           ≤ 2 * (c₁ * P) + P + 2 * (c₂ * P) := by have := hst.1; have := hst.2; omega
         _ = (2 * c₁ + 1 + 2 * c₂) * P := by ring)
-  exact ((ComputableInPolyTime.snd encBits encBits).comp hspec.1).of_enc_eq fun x => by
-    simp only [Function.comp_apply, foldl_copyStep, List.nil_append]
+  exact hspec.1.snd'.of_enc_eq fun x => by
+    simp only [foldl_copyStep, List.nil_append]
 
 /-- Merging consecutive Merlin moves preserves `AMGame.value true` and `AMGame.arthurBits`. -/
 @[expose] def mergeMerlin : List (AMMove × ℕ) → List (AMMove × ℕ)

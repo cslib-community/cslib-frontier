@@ -142,7 +142,7 @@ private theorem computableInPolyTime_natBitWords (encB : β ↪ List Bool) :
       (encPair encUnary encB) (encList encBits) :=
   ComputableInPolyTime.mapWithInput (by fun_prop) <|
     ComputableInPolyTime.encoding_comp <|
-      ((ComputableInPolyTime.snd encUnary encB).comp (ComputableInPolyTime.fst _ _)).prod
+      (ComputableInPolyTime.fst _ _).snd'.prod
         (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _))
 
 private theorem computableInPolyTime_batchNatBitWords (encB : β ↪ List Bool) :
@@ -157,15 +157,13 @@ private theorem computableInPolyTime_decodeNatBatch :
       (encPair (encPair encUnary encUnary) encBits) (encList encNat) := by
   have hk : ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × List Bool) × ℕ => q.1.1.2)
-      (encPair (encPair (encPair encUnary encUnary) encBits) encUnary) encUnary :=
-    (ComputableInPolyTime.snd _ _).comp
-      ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _))
+      (encPair (encPair (encPair encUnary encUnary) encBits) encUnary) encUnary := by fun_prop
+  have hstart := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.snd _ _) hk
   exact ComputableInPolyTime.mapWithInput (by fun_prop) <|
     ComputableInPolyTime.bitsToNat.comp <|
       ComputableInPolyTime.bitsTakeWithInput
         (ComputableInPolyTime.bitsDropWithInput
-          ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
-          (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.snd _ _).prod hk))) hk
+          (ComputableInPolyTime.fst _ _).snd' hstart) hk
 
 private theorem drop_take_flatMap_eq {γ δ : Type*} (l : List γ) (f : γ → List δ) (K : ℕ)
     (hlen : ∀ x ∈ l, (f x).length = K) {j : ℕ} (hj : j < l.length) :

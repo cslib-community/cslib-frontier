@@ -136,8 +136,7 @@ theorem TruncatedContractionAlgorithm.bound {entry : T → List Bool → List �
 private theorem network_polyTime :
     ComputableInPolyTime (fun ((_, _, _, G) : ℕ × ℕ × ℕ × DescribedNetwork T) => G)
       (encTrunc encT) (DescribedNetwork.encDescribed encT) :=
-  (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-    (ComputableInPolyTime.snd _ _))
+  (ComputableInPolyTime.snd _ _).snd'.snd'
 
 /-- **The guard is polynomial-time.** -/
 theorem truncGuard_polyTime :

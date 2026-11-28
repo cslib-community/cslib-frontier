@@ -556,10 +556,10 @@ private theorem computableInPolyTime_simMsg {enc : α ↪ List Bool} {k : ℕ} {
   have halive := (Interaction.computableInPolyTime_aliveRun (fun _ _ => true) id MUnit
       (encEntry := encPair encBits encBits) (fun _ => .const true) .id').comp
     (hxa.prod (hc.prod (computableInPolyTime_extractHistory htn hp)))
-  have hchan := ((ComputableInPolyTime.fst _ _).comp
-    ((ComputableInPolyTime.pi_apply (encPair encBits (encBiTape encBool)) ()).comp
-      (ComputableInPolyTime.finiteConfig_channels (k := k) (State := Control)
-        (Oracle := Unit)))).comp halive.fst'
+  have hchannels := (ComputableInPolyTime.finiteConfig_channels (k := k) (State := Control)
+    (Oracle := Unit)).comp halive.fst'
+  have hchan := ((ComputableInPolyTime.pi_apply (encPair encBits (encBiTape encBool)) ()).comp
+    hchannels).fst'
   have hpad := (ComputableInPolyTime.bitsReplicate false).comp (htn.unary_add' (.const 2))
   have hmsg := (ComputableInPolyTime.const [true]).bitsAppend
     (computableInPolyTime_encodeWord.comp (htn.prod hchan))
@@ -1128,10 +1128,9 @@ private theorem isOraclePPTOn_oracleStep {enc : α ↪ List Bool} {g : ℕ → L
   have hj := encSimState_round_polyTime hst
   have hp := encSimState_transcript_polyTime hst
   have hgn := hg.comp ((ComputableInPolyTime.encoding_length enc).comp ha)
-  have hnv := (ComputableInPolyTime.snd encIPMove encUnary).comp
-    (ComputableInPolyTime.listGetDWithInput hgn hj (.verifier, 0))
-  have hnp := (ComputableInPolyTime.snd encIPMove encUnary).comp
-    (ComputableInPolyTime.listGetDWithInput hgn (hj.unary_add' (.const 1)) (.prover, 0))
+  have hnv := (ComputableInPolyTime.listGetDWithInput hgn hj (.verifier, 0)).snd'
+  have hnp := (ComputableInPolyTime.listGetDWithInput hgn
+    (hj.unary_add' (.const 1)) (.prover, 0)).snd'
   have hm := hnv.bitsRowWithInput (.const 0) (hmsg.comp (ha.prod (hc.prod (hj.prod hp))))
   have ha1 : ComputableInPolyTime (fun p : ((α × List Bool) × SimState) × List Bool => p.1)
       (encPair encArg encBits) encArg := .fst _ _

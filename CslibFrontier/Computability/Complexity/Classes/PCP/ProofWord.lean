@@ -66,7 +66,7 @@ theorem isOraclePPTOn_readBits {α : Type} {enc : α ↪ List Bool}
   let req (p : List Bool × ℕ) (i : ℕ) := encPair encBits encNat (p.1, i)
   have hreq : ComputableInPolyTime (fun p : (List Bool × ℕ) × ℕ => req p.1 p.2)
       (encPair e encUnary) encBits :=
-    .encoding_comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod
+    .encoding_comp ((ComputableInPolyTime.fst _ _).fst'.prod
       (ComputableInPolyTime.unary_to_binary.comp (.snd _ _)))
   exact (isOraclePPTOn_readBitsProgram (req := req) hreq (ComputableInPolyTime.snd _ _)).preprocess
     (hk.prod hw)

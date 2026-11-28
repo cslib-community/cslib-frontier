@@ -401,14 +401,7 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
   obtain ⟨cS, -, hcS⟩ := (specEntryCertificate entry ce).computes
   obtain ⟨K₂, hK₂⟩ := DescribedNetwork.contractionCertificate_le (eval := specEntry entry)
     SumOps.galois_polyTime (specEntryCertificate entry ce)
-  have hcR : ComputableInPolyTime
-      (fun ((P, fl, _, G') : ℕ × List ℕ × ℕ × DescribedNetwork (SpecDesc T)) => ((P, fl), G'))
-      (encCore encT)
-      (DescribedNetwork.encInput (encPair encUnary (encList encNat)) (encSpecDesc encT)) :=
-    ((ComputableInPolyTime.fst _ _).prod
-      ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))).prod
-      ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-        (ComputableInPolyTime.snd _ _)))
+  have hcR := EntryContraction.sumInput_polyTime (encT := encSpecDesc encT)
   obtain ⟨pS, hpS, mS, bS⟩ := exists_mono_poly_cert hcR
   -- The overheads, as polynomials in `Z = n + ES`.
   let Af : ℕ → ℕ := fun Z => 3 * Z + 1 + cE * (Z + 1) + 1
@@ -480,8 +473,7 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
   have hR := (bS (P, fl, r, G')).imp (·.trans (mS hnZ)) (·.trans (mS hnZ))
   have h1 : Tf Z + Sf Z ≤ K * (Z + 1) ^ K := hK _ le_rfl Z
   refine ⟨?_, ?_⟩
-  · simp only [directCoreCertificate, NativeCertificate.congr, NativeCertificate.comp_time,
-      Function.comp_apply]
+  · simp only [directCoreCertificate, EntryContraction.directCore_time]
     -- `pS Z + X (Z + 2) (B + 2 (E + U)) ≤ T X (E + 1)`.
     have e : X * (Z + 2) * (Bf Z + 2 * (E + Uf Z)) =
         X * ((Z + 2) * (Bf Z + 2 * Uf Z) + (Z + 2) * 2 * E) := by ring
@@ -490,8 +482,7 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
       ((Nat.le_add_right _ _).trans hTf) ((Nat.le_add_left _ _).trans hTf)
     have hpS : (NativeCertificate.ofPolyTime hcR).time (P, fl, r, G') ≤ pS Z := hR.1
     omega
-  · simp only [directCoreCertificate, NativeCertificate.congr, NativeCertificate.comp_space,
-      Function.comp_apply]
+  · simp only [directCoreCertificate, EntryContraction.directCore_space]
     simp only [Sf] at h1
     omega
 
