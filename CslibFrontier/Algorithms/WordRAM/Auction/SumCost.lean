@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.Auction.Instance
 public import CslibFrontier.Algorithms.WordRAM.Auction.Workspace
 public import CslibFrontier.Computability.WordRAM.ListOutput
-import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Matrix.PairChunks
 import CslibFrontier.Tactic.Realize
@@ -42,7 +42,6 @@ open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 open Cslib.DataStructure
 open Cslib.Algorithms.Lean.Assignment
-open StateTransitionSpec (clientResult_bind clientResult_pure clientState_pure)
 
 private structure SumState where
   idx : ℕ
@@ -148,13 +147,15 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         = (outputList s₀.mem ws.outBase)[i.val]'hi := (getElem_outputList _ _ _ hi).symm
       _ = inst.assignment[i.val]'(by simp) := by simp [hout]
       _ = (π i).val := by simp [Instance.assignment, π]
-  have hit := iterate_spec sumScaledStep SumScaledStepSafe w ws 2 ws.n
-    (fun k st s => s = s₀ ∧ st.idx = k ∧
+  obtain ⟨hsafe_it, hloop⟩ := Memory.FramedTriple.iterate (w := w) (s := s₀) (S := ∅)
+    (body := sumScaledStep) (safe := SumScaledStepSafe) (d := ws) (n := ws.n) (a₀ := ⟨0, 0⟩)
+    (c := 2)
+    (fun k st t => t = s₀ ∧ st.idx = k ∧
       st.acc = (((List.finRange inst.n).take k).map fun i => C_unsc (i, π i)).sum ∧
       st.acc ≤ k * (2 * ws.M))
-    (fun _ => False)
-    (fun k hk st s ⟨hs, hidx, hacc_sum, hacc_le⟩ => by
-      subst s; subst hidx
+    ⟨rfl, rfl, by simp, by simp⟩
+    (fun k hk st t ⟨ht, hidx, hacc_sum, hacc_le⟩ _ => by
+      subst t hidx
       have hk' : st.idx < inst.n := hn ▸ hk
       let i₀ : Fin inst.n := ⟨st.idx, hk'⟩
       let j₀ : Fin inst.n := π i₀
@@ -175,34 +176,17 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         have hle_max : st.acc + C_unsc (i₀, j₀) ≤ 2 * (inst.n * inst.maxMag) :=
           hacc_next_le.trans ((Nat.mul_le_mul hk' (Nat.mul_le_mul_left 2 hM_le)).trans_eq (by ring))
         exact hw.of_le (by omega)
-      have hsafe : SumScaledStepSafe w (ws, st) s₀ := by
-        dsimp only [SumScaledStepSafe]
-        exact ⟨by omega,
-          hfit_ws.of_le (by omega),
-          hfit_ws.of_le (by omega),
-          hfit_ws.of_le (by rw [hj_mem]; omega),
-          hfit_ws.of_le (by omega),
-          by simpa only [hc_mem, hdiv] using hacc_fit⟩
-      have hv : (Memory.spec w).ValidHistory s₀
-          ((Memory.spec w).clientHistory s₀ (sumScaledStep (ws, st))) := by
-        unfold sumScaledStep
-        dsimp only
-        exact validHistory_read_bind (by omega)
-          (validHistory_read_bind (by rw [hj_mem]; omega) (validHistory_pure w _ _))
-      have hmc : memoryCost (sumScaledStep (ws, st)) s₀ ≤ 2 :=
-        memoryCost_read_bind_le fun _ _ => memoryCost_read_bind_le fun _ _ => le_rfl
-      have hst_eq : (Memory.spec 0).clientState s₀ (sumScaledStep (ws, st)) = s₀ := by
-        rw [sumScaledStep, clientState_bind_read, clientState_bind_read, clientState_pure]
-      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+      refine ⟨⟨by region_omega, by region_omega, by region_omega, by rw [hj_mem]; region_omega,
+        by region_omega, by simpa only [hc_mem, hdiv] using hacc_fit⟩, ?_⟩
       unfold sumScaledStep
-      rw [clientResult_bind_read, clientResult_bind_read, clientResult_pure]
+      framed_walk
       dsimp only
       rw [hc_mem, hdiv]
-      refine ⟨rfl, ?_, hacc_next_le⟩
+      refine ⟨rfl, rfl, ?_, hacc_next_le⟩
       rw [hacc_sum, List.take_succ_finRange hk', List.map_append, List.sum_append,
         List.map_singleton, List.sum_singleton])
-    ⟨0, 0⟩ s₀ ⟨rfl, rfl, by simp, by simp⟩
-  obtain ⟨hsafe_it, hv_it, hmc_it, _, _, hs_it, _, hacc_full, hacc_le_n⟩ := hit
+    fun _ _ h _ => h
+  obtain ⟨hv_it, hmc_it, -, hs_it, -, hacc_full, hacc_le_n⟩ := framedTriple_iff_realization.mp hloop
   set res := (Memory.spec 0).clientResult s₀ (iterate sumScaledStep ws ws.n ⟨0, 0⟩) with hres
   rw [Nat.mul_left_comm] at hacc_le_n
   have hsum_z : (res.acc : ℤ) = inst.minCost + ((inst.n * ws.M : ℕ) : ℤ) := by
@@ -222,18 +206,13 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
     exact ⟨hsafe_it, hf2.of_le (by decide), hf2, hw.of_le (by omega),
       fun hlt => ⟨hlt.le, hw.of_le (by omega), hw.of_le (by omega)⟩,
       fun hlt => ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩⟩
-  unfold sumScaledCostProg
-  refine ⟨hsafe_prog,
-    validHistory_bind_step hv_it
-      (validHistory_ite (fun _ => validHistory_pure w _ _) (fun _ => validHistory_pure w _ _)),
-    ?_, ?_⟩
-  · rw [memoryCost_bind', memoryCost_ite]
-    split_ifs <;> simpa [memoryCost_pure, hn] using hmc_it
-  · rw [clientResult_bind, hs_it, ← hres]
-    dsimp only
-    rw [apply_ite ((Memory.spec 0).clientResult s₀), clientResult_pure, clientResult_pure, hn]
-    unfold Instance.encodedMinCost Signed.encode
-    split_ifs <;> omega
+  have hft : Memory.FramedTriple w s₀ (sumScaledCostProg ws) (2 * inst.n) ∅
+      fun r _ => r = inst.encodedMinCost := by
+    unfold sumScaledCostProg
+    framed_triple <;> rename_i h <;> rw [← hres, hn] at h ⊢ <;>
+      unfold Instance.encodedMinCost Signed.encode <;> split_ifs <;> omega
+  obtain ⟨hv, hc, -, hr⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hsafe_prog, hv, hc, hr⟩
 
 end
 
