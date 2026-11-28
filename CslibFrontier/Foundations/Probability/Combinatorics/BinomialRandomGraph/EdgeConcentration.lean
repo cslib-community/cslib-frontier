@@ -138,17 +138,21 @@ private theorem binomialRandom_real_edgeEvent_eq_pi [Finite V] (p : I) (S : Fins
     by_cases hb : P b <;> simp [hb]
   rw [houter, ENNReal.toReal_sum fun b _ => PMF.apply_ne_top μ b]
 
+private theorem ncard_inter_edgeSet_eq_card_filter (S : Finset (Sym2 V)) (G : SimpleGraph V)
+    [DecidablePred (· ∈ G.edgeSet)] :
+    ((S : Set (Sym2 V)) ∩ G.edgeSet).ncard = #(S.filter (· ∈ G.edgeSet)) := by
+  rw [← Set.ncard_coe_finset]
+  congr 1
+  ext e
+  simp
+
 /-- Express the edge count `((S : Set (Sym2 V)) ∩ G.edgeSet).ncard` as a sum of `0`/`1` edge
 indicators over `S`. -/
 private theorem ncard_inter_edgeSet_eq_sum (S : Finset (Sym2 V)) (G : SimpleGraph V) :
     (((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ) =
       ∑ e : {e : Sym2 V // e ∈ S}, if edgeIndicator S G e then (1 : ℝ) else 0 := by
   classical
-  have hcoe : ((S : Set (Sym2 V)) ∩ G.edgeSet) =
-      ((S.filter (· ∈ G.edgeSet) : Finset (Sym2 V)) : Set (Sym2 V)) := by
-    ext e
-    simp
-  rw [hcoe, Set.ncard_coe_finset, Finset.card_filter, Nat.cast_sum, ← Finset.sum_attach S]
+  rw [ncard_inter_edgeSet_eq_card_filter, Finset.card_filter, Nat.cast_sum, ← Finset.sum_attach S]
   refine Finset.sum_congr rfl fun e _ => ?_
   by_cases he : e.1 ∈ G.edgeSet
   · simp [he, (edgeIndicator_eq_true_iff S G e).2 he]
@@ -265,34 +269,34 @@ private theorem card_bipartitePairs [DecidableEq V] {A B : Finset V} (hAB : Disj
     #(bipartitePairs A B) = #A * #B := by
   rw [bipartitePairs, Finset.card_image_of_injOn (injOn_bipartitePairs hAB), Finset.card_product]
 
+private theorem card_filter_adj_product (A B : Finset V) (G : SimpleGraph V)
+    [DecidableRel G.Adj] :
+    #((A ×ˢ B).filter fun q => G.Adj q.1 q.2) =
+      ∑ u ∈ A, ((B : Set V) ∩ G.neighborSet u).ncard := by
+  simp only [ncard_inter_neighborSet_eq_card_filter, Finset.card_filter, Finset.sum_product]
+
 private theorem ncard_bipartitePairs_inter_edgeSet [DecidableEq V] {A B : Finset V}
     (hAB : Disjoint A B) (G : SimpleGraph V) :
     ((bipartitePairs A B : Set (Sym2 V)) ∩ G.edgeSet).ncard =
       ∑ u ∈ A, ((B : Set V) ∩ G.neighborSet u).ncard := by
   classical
-  have h1 : ((bipartitePairs A B : Set (Sym2 V)) ∩ G.edgeSet) =
-      (((bipartitePairs A B).filter (· ∈ G.edgeSet) : Finset (Sym2 V)) : Set (Sym2 V)) := by
-    ext e; simp
   have h2 : (bipartitePairs A B).filter (· ∈ G.edgeSet) =
       ((A ×ˢ B).filter fun q => G.Adj q.1 q.2).image Sym2.mk.uncurry := by
-    ext e
-    simp only [bipartitePairs, Finset.mem_filter, Finset.mem_image, Finset.mem_product]
-    constructor
-    · rintro ⟨⟨⟨u, v⟩, huv, rfl⟩, hadj⟩
-      exact ⟨(u, v), ⟨huv, hadj⟩, rfl⟩
-    · rintro ⟨⟨u, v⟩, ⟨huv, hadj⟩, rfl⟩
-      exact ⟨⟨(u, v), huv, rfl⟩, hadj⟩
+    rw [bipartitePairs, Finset.filter_image]
+    rfl
   have hinj : Set.InjOn Sym2.mk.uncurry
       (↑((A ×ˢ B).filter fun q => G.Adj q.1 q.2) : Set (V × V)) :=
     (injOn_bipartitePairs hAB).mono (by intro q hq; exact (Finset.mem_filter.1 hq).1)
-  rw [h1, Set.ncard_coe_finset, h2, Finset.card_image_of_injOn hinj]
-  have hprod : #((A ×ˢ B).filter fun q => G.Adj q.1 q.2) =
-      ∑ u ∈ A, #(B.filter (G.Adj u)) := by
-    rw [Finset.card_filter, Finset.sum_product]
-    refine Finset.sum_congr rfl fun u _ => ?_
-    rw [Finset.card_filter]
-  rw [hprod]
-  exact Finset.sum_congr rfl fun u _ => (ncard_inter_neighborSet_eq_card_filter B G u).symm
+  rw [ncard_inter_edgeSet_eq_card_filter, h2, Finset.card_image_of_injOn hinj]
+  exact card_filter_adj_product A B G
+
+private theorem binomialRandom_real_bipartiteEdgeCount_eq [Finite V] [DecidableEq V]
+    (p : I) {A B : Finset V} (hAB : Disjoint A B) (P : ℝ → Prop) :
+    G(V, p).real {G | P (∑ u ∈ A, (((B : Set V) ∩ G.neighborSet u).ncard : ℝ))} =
+      G(V, p).real {G | P (((bipartitePairs A B : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ)} := by
+  congr 1
+  ext G
+  simp only [Set.mem_ofPred_eq, ncard_bipartitePairs_inter_edgeSet hAB, Nat.cast_sum]
 
 /-- **Multiplicative Chernoff upper tail for bipartite edge counts**: for disjoint vertex sets
 `A, B` with `#A * #B * p ≤ μ` and `0 ≤ δ ≤ 1`, the number of edges between `A` and `B` is at
@@ -303,15 +307,10 @@ theorem binomialRandom_real_bipartiteEdgeCount_ge_one_add_mul_of_le_one [Finite 
     G(V, p).real {G | (1 + δ) * μ ≤ ∑ u ∈ A, (((B : Set V) ∩ G.neighborSet u).ncard : ℝ)} ≤
       Real.exp (-(δ ^ 2 * μ / 3)) := by
   classical
-  have hμ' : (#(bipartitePairs A B) : ℝ) * (p : ℝ) ≤ μ := by
-    rw [card_bipartitePairs hAB, Nat.cast_mul]
-    exact hμ
-  have h := binomialRandom_real_edgeCount_ge_one_add_mul_of_le_one p (bipartitePairs A B)
-    (fun _ => not_isDiag_of_mem_bipartitePairs hAB) hμ' hδ hδ₁
-  refine le_trans (le_of_eq ?_) h
-  congr 1
-  ext G
-  simp only [Set.mem_ofPred_eq, ncard_bipartitePairs_inter_edgeSet hAB, Nat.cast_sum]
+  rw [binomialRandom_real_bipartiteEdgeCount_eq p hAB (fun x => (1 + δ) * μ ≤ x)]
+  exact binomialRandom_real_edgeCount_ge_one_add_mul_of_le_one p (bipartitePairs A B)
+    (fun _ => not_isDiag_of_mem_bipartitePairs hAB)
+    (by simpa only [card_bipartitePairs hAB, Nat.cast_mul] using hμ) hδ hδ₁
 
 /-- **Multiplicative Chernoff lower tail for bipartite edge counts**: for disjoint vertex sets
 `A, B` with `μ ≤ #A * #B * p` and `0 ≤ δ`, the number of edges between `A` and `B` is at most
@@ -322,15 +321,10 @@ theorem binomialRandom_real_bipartiteEdgeCount_le_one_sub_mul [Finite V] (p : I)
     G(V, p).real {G | ∑ u ∈ A, (((B : Set V) ∩ G.neighborSet u).ncard : ℝ) ≤ (1 - δ) * μ} ≤
       Real.exp (-(δ ^ 2 * μ / 2)) := by
   classical
-  have hμ' : μ ≤ (#(bipartitePairs A B) : ℝ) * (p : ℝ) := by
-    rw [card_bipartitePairs hAB, Nat.cast_mul]
-    exact hμ
-  have h := binomialRandom_real_edgeCount_le_one_sub_mul p (bipartitePairs A B)
-    (fun _ => not_isDiag_of_mem_bipartitePairs hAB) hμ' hδ
-  refine le_trans (le_of_eq ?_) h
-  congr 1
-  ext G
-  simp only [Set.mem_ofPred_eq, ncard_bipartitePairs_inter_edgeSet hAB, Nat.cast_sum]
+  rw [binomialRandom_real_bipartiteEdgeCount_eq p hAB (fun x => x ≤ (1 - δ) * μ)]
+  exact binomialRandom_real_edgeCount_le_one_sub_mul p (bipartitePairs A B)
+    (fun _ => not_isDiag_of_mem_bipartitePairs hAB)
+    (by simpa only [card_bipartitePairs hAB, Nat.cast_mul] using hμ) hδ
 
 /-- **Multiplicative Chernoff upper tail for vertex degrees**: for any vertex `u` with
 `(Fintype.card V - 1) * p ≤ μ` and `0 ≤ δ ≤ 1`, the degree of `u` in `G(V, p)` is at least
@@ -380,25 +374,16 @@ private theorem sum_ncard_inter_self_eq_two_mul [DecidableEq V] (K : Finset V) (
   classical
   let E : Finset (V × V) := K.offDiag.filter fun q => G.Adj q.1 q.2
   have hE_lhs : ∑ u ∈ K, ((K : Set V) ∩ G.neighborSet u).ncard = #E := by
-    have hsum : ∑ u ∈ K, ((K : Set V) ∩ G.neighborSet u).ncard =
-        ∑ u ∈ K, #(K.filter (G.Adj u)) :=
-      Finset.sum_congr rfl fun u _ => ncard_inter_neighborSet_eq_card_filter K G u
-    rw [hsum]
     have hE_eq : E = (K ×ˢ K).filter fun q => G.Adj q.1 q.2 := by
       ext ⟨u, v⟩
       simp only [E, Finset.mem_filter, Finset.mem_offDiag, Finset.mem_product]
       exact ⟨fun ⟨⟨hu, hv, _⟩, hadj⟩ => ⟨⟨hu, hv⟩, hadj⟩,
         fun ⟨⟨hu, hv⟩, hadj⟩ => ⟨⟨hu, hv, hadj.ne⟩, hadj⟩⟩
-    rw [hE_eq, Finset.card_filter, Finset.sum_product]
-    exact Finset.sum_congr rfl fun u _ => Finset.card_filter _ _
+    rw [hE_eq]
+    exact (card_filter_adj_product K K G).symm
   have hE_img : E.image Sym2.mk.uncurry = (internalPairs K).filter (· ∈ G.edgeSet) := by
-    ext e
-    simp only [E, internalPairs, Finset.mem_image, Finset.mem_filter, Finset.mem_offDiag]
-    constructor
-    · rintro ⟨⟨u, v⟩, ⟨huv, hadj⟩, rfl⟩
-      exact ⟨⟨(u, v), huv, rfl⟩, hadj⟩
-    · rintro ⟨⟨⟨u, v⟩, huv, rfl⟩, hadj⟩
-      exact ⟨(u, v), ⟨huv, hadj⟩, rfl⟩
+    rw [internalPairs, Finset.filter_image]
+    rfl
   have hfib : ∀ e ∈ E.image Sym2.mk.uncurry, #(E.filter fun q => Sym2.mk.uncurry q = e) = 2 := by
     intro e he
     obtain ⟨⟨u, v⟩, huv, rfl⟩ := Finset.mem_image.1 he
@@ -419,13 +404,7 @@ private theorem sum_ncard_inter_self_eq_two_mul [DecidableEq V] (K : Finset V) (
   have hcardE : #E = 2 * #(E.image Sym2.mk.uncurry) := by
     rw [Finset.card_eq_sum_card_image Sym2.mk.uncurry E, Finset.sum_congr rfl hfib,
       Finset.sum_const, smul_eq_mul, mul_comm]
-  have hncard : ((internalPairs K : Set (Sym2 V)) ∩ G.edgeSet).ncard =
-      #((internalPairs K).filter (· ∈ G.edgeSet)) := by
-    have hcoe : ((internalPairs K : Set (Sym2 V)) ∩ G.edgeSet) =
-        (((internalPairs K).filter (· ∈ G.edgeSet) : Finset (Sym2 V)) : Set (Sym2 V)) := by
-      ext e; simp
-    rw [hcoe, Set.ncard_coe_finset]
-  rw [hE_lhs, hcardE, hE_img, hncard]
+  rw [hE_lhs, hcardE, hE_img, ncard_inter_edgeSet_eq_card_filter]
 
 /-- Decompose `∑ u ∈ K, |N(u) ∩ A|` into bipartite edges `e(K, A \ K)` plus internal edges inside
 `K`. -/
@@ -477,11 +456,8 @@ private theorem binomialRandom_real_sum_degreeInto_bad_le [Finite V] (p : I)
   have hcard_le : (#(A \ K) : ℝ) ≤ (#A : ℝ) := by
     exact_mod_cast Finset.card_le_card Finset.sdiff_subset
   have hcard_ge : (1 - η / 4) * (#A : ℝ) ≤ (#(A \ K) : ℝ) := by
-    have hnat : #A ≤ #(A \ K) + #K := by
-      have := Finset.card_sdiff_add_card_inter A K
-      have := Finset.card_le_card (Finset.inter_subset_right (s₁ := A) (s₂ := K))
-      omega
-    have hreal : (#A : ℝ) ≤ (#(A \ K) : ℝ) + (#K : ℝ) := by exact_mod_cast hnat
+    have hreal : (#A : ℝ) ≤ (#(A \ K) : ℝ) + (#K : ℝ) := by
+      exact_mod_cast Finset.card_le_card_sdiff_add_card (s := A) (t := K)
     linarith
   -- Lower tail via `e(K, A \ K)`.
   have hlow : G(V, p).real {G | ∑ u ∈ K, (((A : Set V) ∩ G.neighborSet u).ncard : ℝ) ≤
