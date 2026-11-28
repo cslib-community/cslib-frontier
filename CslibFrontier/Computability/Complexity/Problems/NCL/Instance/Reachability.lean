@@ -20,7 +20,7 @@ within that many moves, so Savitch's recursion at width and depth `m` decides NC
 
 ## Main results
 
-* `Cslib.Complexity.NCL.AndOrGraph.savitch_eq_true_iff`: the generic bit-string procedure
+* `Cslib.Complexity.NCL.AndOrGraph.reach_eq_true_iff`: the generic bit-string procedure
   decides finite NCL configuration reachability.
 
 ## References
@@ -32,12 +32,13 @@ public section
 
 namespace Cslib.Complexity.NCL.AndOrGraph
 
-/-- Savitch's procedure at depth equal to the edge count decides configuration reachability. -/
-theorem savitch_eq_true_iff (g : AndOrGraph) (hb : g.Bounded)
+/-- Savitch's midpoint recursion at depth equal to the edge count decides configuration
+reachability. -/
+theorem reach_eq_true_iff (g : AndOrGraph) (hb : g.Bounded)
     (s t : List Bool) (hs : s.length = g.edgeCount) (ht : t.length = g.edgeCount) :
-    Cslib.Reachability.savitch g.checkStep g.edgeCount g.edgeCount s t = true ↔
+    Cslib.Reachability.reach g.checkStep g.edgeCount g.edgeCount s t = true ↔
       g.graph.Reachable (g.config s) (g.config t) := by
-  rw [Cslib.Reachability.savitch_iff hs ht]
+  rw [Cslib.Reachability.reach_iff hs ht]
   constructor
   · intro h
     exact Relation.ReflTransGen.lift g.config (fun a b hab =>

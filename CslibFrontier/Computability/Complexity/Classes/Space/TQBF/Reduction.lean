@@ -270,7 +270,7 @@ theorem reduce_mem_TQBF_iff {kV : ℕ} {StateV : Type} [Fintype StateV] [Decidab
   have hdst : (MultiTapeNTM.acceptCode W).length = w := List.length_replicate ..
   rw [reduce, ← hw_def, mem_TQBF_iff_of_closed (closed_savitchFormula
     (mem_freeVars_baseFormula _ _) _ _ _) (fun _ => false), eval_savitchFormula hbase _ hsrc hdst,
-    ← savitch_eq, ← MultiTapeNTM.savitchDecide_eq_true_iff hs hsc]
+    ← MultiTapeNTM.savitchDecide_eq_true_iff hs hsc]
   rfl
 
 end Reduction

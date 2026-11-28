@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.SavitchWalk
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Foundations.Data.BitString.Counter
 
 /-!
 # Tests: following a walk by Savitch's midpoint recursion
@@ -25,7 +26,8 @@ open Cslib Cslib.Reachability Cslib.Reachability.Walk Turing.MultiTapeTM
 /-! ### A directed path -/
 
 /-- The path `00 → 10 → 01 → 11` through the words of width two, in counter order. -/
-private def path (u v : List Bool) : Bool := decide (Savitch.next u = some v)
+private def path (u v : List Bool) : Bool :=
+  !u.all id && decide (BitString.increment u = v)
 
 -- The first midpoint of `00` and `11` at level `1` is `10`; of `10` and `11` at level `0`, `01`.
 example :

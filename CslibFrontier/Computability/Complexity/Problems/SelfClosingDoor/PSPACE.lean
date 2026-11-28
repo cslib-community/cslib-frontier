@@ -152,7 +152,7 @@ private theorem accepts_iff_code_reachable (I : Instance) : I ∈ Reachability �
   · exact ⟨s, hs, hgoal⟩
 
 private def solve (I : Instance) : Bool :=
-  Cslib.Reachability.savitch (wordEdge I) (width I) (width I)
+  Cslib.Reachability.reach (wordEdge I) (width I) (width I)
     (stateWord I I.initial) (accept I)
 
 private theorem solve_eq_true_iff (I : Instance) : solve I = true ↔ I ∈ Reachability := by
@@ -162,7 +162,7 @@ private theorem solve_eq_true_iff (I : Instance) : solve I = true ↔ I ∈ Reac
     (Set.encard_le_encard fun word hword => by
       induction hword with | refl => exact hsrc | tail _ hstep _ => exact hstep.2.1).trans
       ((BitString.encard_setOf_length_eq _).le.trans le_self_add)
-  rw [solve, Cslib.Reachability.savitch_iff hsrc (length_accept I)]
+  rw [solve, Cslib.Reachability.reach_iff hsrc (length_accept I)]
   exact (Relation.reflTransGen_iff_relatesWithinSteps_of_encard_le hcard).symm.trans
     (accepts_iff_code_reachable I).symm
 
@@ -188,20 +188,12 @@ private theorem accept_polyTime : ComputableInPolyTime accept encInstance encBit
     (.unary_add' (.unary_mul' (.const 2) budget_polyTime) (.const 1)))
 
 private theorem wordEdge_polyTime :
-    ComputableInPolyTime (fun q : Instance × List Bool × List Bool =>
-      wordEdge q.1 q.2.1 q.2.2) (Cslib.Reachability.encEdgeArgs encInstance) encBool := by
-  have hi : ComputableInPolyTime Prod.fst
-      (Cslib.Reachability.encEdgeArgs encInstance) encInstance := by
-    unfold Cslib.Reachability.encEdgeArgs
-    fun_prop
-  have ha : ComputableInPolyTime (fun q : Instance × List Bool × List Bool => q.2.1)
-      (Cslib.Reachability.encEdgeArgs encInstance) encBits := by
-    unfold Cslib.Reachability.encEdgeArgs
-    fun_prop
-  have hb : ComputableInPolyTime (fun q : Instance × List Bool × List Bool => q.2.2)
-      (Cslib.Reachability.encEdgeArgs encInstance) encBits := by
-    unfold Cslib.Reachability.encEdgeArgs
-    fun_prop
+    ComputableInPolyTime (fun q : (List Bool × List Bool) × Instance =>
+      wordEdge q.2 q.1.1 q.1.2) (encPair (encPair encBits encBits) encInstance) encBool := by
+  have hi := ComputableInPolyTime.snd (encPair encBits encBits) encInstance
+  have hwords := ComputableInPolyTime.fst (encPair encBits encBits) encInstance
+  have ha := (ComputableInPolyTime.fst encBits encBits).comp hwords
+  have hb := (ComputableInPolyTime.snd encBits encBits).comp hwords
   have hsa := decode_polyTime.comp ha
   have hsb := decode_polyTime.comp hb
   exact (ha.decide_eq' (code_polyTime.comp (hi.prod hsa))).bool_and'
@@ -210,21 +202,15 @@ private theorem wordEdge_polyTime :
       ((hb.decide_eq' (code_polyTime.comp (hi.prod hsb))).bool_and'
         (computableInPolyTime_checkStep (encInstance_doors_polyTime hi) hsa hsb)))
 
-private theorem arguments_polyTime :
-    ComputableInPolyTime (fun I : Instance =>
-      (I, width I, width I, stateWord I I.initial, accept I))
-      encInstance (Cslib.Reachability.encArgs encInstance) := by
-  have := width_polyTime
-  have := accept_polyTime
-  have := code_polyTime.comp (ComputableInPolyTime.id'.prod Instance.computableInPolyTime_initial)
-  unfold Cslib.Reachability.encArgs
-  fun_prop
-
 /-- Single-player target-location reachability for directed symmetric self-closing doors
 is in PSPACE under the explicit door-list encoding with binary location labels. -/
 theorem Reachability_mem_PSPACE : Reachability ∈ PSPACE encInstance := by
-  obtain ⟨_, _, hspace, hc⟩ := Cslib.Reachability.exists_polyBounded_space_savitch
-    wordEdge_polyTime arguments_polyTime (fun _ => length_stateWord .refl) length_accept
-  exact mem_PSPACE_of_computableInTimeAndSpace hspace hc fun I => (solve_eq_true_iff I).symm
+  have hsrc := code_polyTime.comp
+    (ComputableInPolyTime.id'.prod Instance.computableInPolyTime_initial)
+  have hsolve : ComputableInPolySpace solve encInstance encBool :=
+    ComputableInPolySpace.reach (.of_polyTime width_polyTime) (.of_polyTime width_polyTime)
+      (.of_polyTime hsrc) (.of_polyTime accept_polyTime) (.of_polyTime wordEdge_polyTime)
+      fun I => ⟨length_stateWord .refl, length_accept I⟩
+  exact ⟨solve, hsolve, fun I => (solve_eq_true_iff I).symm⟩
 
 end Cslib.Complexity.SelfClosingDoor

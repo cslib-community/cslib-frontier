@@ -9,7 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.SavitchWalk
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitWord
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Midpoint
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeUnaryPrimitives
@@ -27,8 +28,8 @@ plain space calculus (`Turing.MultiTapeTM.ComputableInSpace`).
 
 The midpoint of a call at level `i + 1` between words of width `w`
 (`Cslib.Reachability.Walk.midpoint`) streams the candidates through a binary counter, `2 ^ w`
-rounds from the word of zeros, and runs Savitch's algorithm twice on each candidate
-(`Cslib.Reachability.computableInO_savitch`); it never writes down the list of the words of width
+rounds from the word of zeros, and runs Savitch's midpoint recursion twice on each candidate
+(`Turing.MultiTapeTM.ComputableInSpace.reach`); it never writes down the list of the words of width
 `w`. Its work space is that of the arguments, the counter and one run of Savitch's algorithm:
 `O(|args| + (i + 1) * (i + w + 1) + |p| + edgeMax Se p w)`, where `p` is the parameter of the edge
 test and `Se` its space (`Cslib.Reachability.Walk.computableInSpace_midpoint`).
@@ -50,6 +51,9 @@ costs the same work space, plus that of the inputs and `O(log n)` for the counte
 
 ## Main definitions
 
+* `Cslib.Reachability.encArgs`, `Cslib.Reachability.encEdgeArgs`: the encodings of the
+  midpoint recursion arguments and the edge test arguments.
+* `Cslib.Reachability.edgeMax`: the largest edge test budget at the given width.
 * `Cslib.Reachability.Walk.encEntry`, `Cslib.Reachability.Walk.encState`: the encoded states.
 * `Cslib.Reachability.Walk.roundStep`, `Cslib.Reachability.Walk.encRound`: a step carrying the
   parameter of the edge test and the width, and its encoding.
@@ -57,6 +61,7 @@ costs the same work space, plus that of the inputs and `O(log n)` for the counte
 
 ## Main results
 
+* `Cslib.Reachability.le_edgeMax`: the maximum bounds the budget of every edge test at that width.
 * `Cslib.Reachability.Walk.computableInSpace_midpoint`: the work space of a midpoint.
 * `Cslib.Reachability.Walk.computableInSpace_roundStep`: the work space of a round.
 * `Cslib.Reachability.Walk.roundStep_iterate`: rounds run the walk.
@@ -71,6 +76,37 @@ costs the same work space, plus that of the inputs and `O(log n)` for the counte
 -/
 
 public section
+
+namespace Cslib.Reachability
+
+open Turing.MultiTapeTM
+open Cslib.BitString (enumList mem_enumList)
+
+variable {π : Type}
+
+/-! ### The inputs and the cost of the edge test -/
+
+/-- The encoding of the inputs of the midpoint recursion: the parameter of the edge test, the
+width and the level in unary, and the endpoints. -/
+abbrev encArgs (encP : π ↪ List Bool) : π × ℕ × ℕ × List Bool × List Bool ↪ List Bool :=
+  encPair encP (encPair encUnary (encPair encUnary (encPair encBits encBits)))
+
+/-- The encoding of the inputs `(p, u, v)` of the edge test: the parameter `p`, framed, then the
+endpoints `u`, framed, and `v`, as themselves. -/
+abbrev encEdgeArgs (encP : π ↪ List Bool) : π × List Bool × List Bool ↪ List Bool :=
+  encPair encP (encPair encBits encBits)
+
+/-- The largest value of `T` on the parameter `p` and two words of width `w`. -/
+@[expose] def edgeMax (T : π × List Bool × List Bool → ℕ) (p : π) (w : ℕ) : ℕ :=
+  listMax (fun u => listMax (fun v => T (p, u, v)) (enumList w)) (enumList w)
+
+/-- `edgeMax` bounds `T` on all words of width `w`. -/
+theorem le_edgeMax (T : π × List Bool × List Bool → ℕ) (p : π) {w : ℕ} {u v : List Bool}
+    (hu : u.length = w) (hv : v.length = w) : T (p, u, v) ≤ edgeMax T p w :=
+  (le_listMax (f := fun v => T (p, u, v)) (mem_enumList.mpr hv)).trans
+    (le_listMax (f := fun u => listMax (fun v => T (p, u, v)) (enumList w)) (mem_enumList.mpr hu))
+
+end Cslib.Reachability
 
 namespace Cslib.Reachability.Walk
 
@@ -208,8 +244,8 @@ private abbrev Args (π : Type) : Type := π × ℕ × ℕ × List Bool × List 
 first endpoint reaches it and it reaches the second endpoint. -/
 private def loopTest (edge : π → List Bool → List Bool → Bool) (a : Args π) (m : List Bool) :
     Bool :=
-  savitch (edge a.1) a.2.1 a.2.2.1 (a.2.2.2.1.takeD a.2.1 false) (m.takeD a.2.1 false) &&
-    savitch (edge a.1) a.2.1 a.2.2.1 (m.takeD a.2.1 false) (a.2.2.2.2.takeD a.2.1 false)
+  reach (edge a.1) a.2.1 a.2.2.1 (a.2.2.2.1.takeD a.2.1 false) (m.takeD a.2.1 false) &&
+    reach (edge a.1) a.2.1 a.2.2.1 (m.takeD a.2.1 false) (a.2.2.2.2.takeD a.2.1 false)
 
 /-- A round of the search for a midpoint, keeping the arguments. -/
 private def loopStep (edge : π → List Bool → List Bool → Bool) (s : Args π × List Bool) :
@@ -241,8 +277,7 @@ private theorem midLoop_eq (edge : π → List Bool → List Bool → Bool) (p :
     simp only [midLoop, midpoint, hu, hv, decide_true, Bool.and_self, and_self, ↓reduceIte,
       iterate_loopStep]
     refine search_congr fun m hm => ?_
-    simp only [loopTest, takeD_of_length_eq hu, takeD_of_length_eq hv, takeD_of_length_eq hm,
-      savitch_eq]
+    simp only [loopTest, takeD_of_length_eq hu, takeD_of_length_eq hv, takeD_of_length_eq hm]
   · have hf : (decide (u.length = w) && decide (v.length = w)) = false := by
       simpa only [Bool.and_eq_false_iff, decide_eq_false_iff_not, ← not_and_or] using h
     rw [midLoop, midpoint, ite_eq_right h]
@@ -281,19 +316,36 @@ private theorem midLoop_inSpace [Inhabited π] {edge : π → List Bool → List
       (hg : ComputableInSpace g (encLoop encP) encBits Bl) :
       ComputableInSpace (fun s => (g s).takeD s.1.2.1 false) (encLoop encP) encBits Bl :=
     budget_comp_linear fit_inSpace (budget_prod hw hg)
+  -- the edge test with the endpoints in front of the round, in context form
+  let encQ := encPair (encPair encBits encBits) (encLoop encP)
+  have hidQ : ComputableInSpace (fun q : (List Bool × List Bool) × (Args π × List Bool) => q) encQ
+      encQ fun q => (encQ q).length := id_inSpace
+  have hctx := (of_inO hedge).comp
+    (budget_prod (fst' (fst' (snd' hidQ))) (budget_prod (fst' (fst' hidQ)) (snd' (fst' hidQ))))
   have hsav {g₁ g₂ : Args π × List Bool → List Bool}
       (h₁ : ComputableInSpace g₁ (encLoop encP) encBits Bl)
       (h₂ : ComputableInSpace g₂ (encLoop encP) encBits Bl) :
-      ComputableInSpace (fun s => savitch (edge s.1.1) s.1.2.1 s.1.2.2.1
+      ComputableInSpace (fun s => reach (edge s.1.1) s.1.2.1 s.1.2.2.1
         ((g₁ s).takeD s.1.2.1 false) ((g₂ s).takeD s.1.2.1 false)) (encLoop encP) encBool Bl := by
-    have hin := budget_prod hp (budget_prod hw (budget_prod hi (budget_prod (hfit h₁) (hfit h₂))))
-    obtain ⟨Tin, hinO⟩ := hin.exists_inO
-    refine (of_inO (computableInO_savitch (edge := edge) hedge hinO
-      (fun _ => List.takeD_length ..) fun _ => List.takeD_length ..)).weaken
-      (.of_le_linear 2 0 fun s => ?_)
-    have h₁ : (encP s.1.1).length ≤ (encArgs encP s.1).length := length_le_encPair_left _ _ _
+    have h := ComputableInSpace.reach (edge := fun s => edge s.1.1) (S := Bl)
+      (E := fun s => 6 * s.1.2.1 + 3 + (encLoop encP s).length + edgeMax Se s.1.1 s.1.2.1)
+      hw (budget_unaryToNat hi) (hfit h₁) (hfit h₂) hctx
+      (fun s x y hx hy => by
+        have := le_edgeMax Se s.1.1 hx hy
+        simp only [encQ, length_encPair, encBits_apply, hx, hy]
+        omega)
+      fun _ => ⟨List.takeD_length .., List.takeD_length ..⟩
+    refine h.weaken (.of_le_linear 12 3 fun s => ?_)
+    have h₁ : s.1.2.1 + (encP s.1.1).length ≤ (encArgs encP s.1).length := by
+      simp only [encArgs, length_encPair, encUnary_apply, List.length_replicate]
+      omega
     have h₂ : (encArgs encP s.1).length ≤ (encLoop encP s).length := length_le_encPair_left _ _ _
-    simp only [Bl, loopSpace]
+    have h₃ := Nat.mul_le_mul_left (s.1.2.2.1 + 1)
+      (show s.1.2.1 + Nat.log2 s.1.2.2.1 + 1 ≤ s.1.2.2.1 + s.1.2.1 + 1 by
+        have := Nat.log2_le_self s.1.2.2.1
+        omega)
+    have h₄ := Nat.log2_le_self (encLoop encP s).length
+    simp only [Bl, loopSpace] at h₃ ⊢
     omega
   have htest : ComputableInSpace (fun s => loopTest edge s.1 s.2) (encLoop encP) encBool Bl :=
     budget_finite (fun b : Bool × Bool => b.1 && b.2) (budget_prod (hsav hu hm) (hsav hm hv))

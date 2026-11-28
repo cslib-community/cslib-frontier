@@ -28,8 +28,8 @@ certificates it is given for the child map and the pebble bound, which may depen
 
 Each operation comes in two forms. A `budget_` form computes the operation on arguments computed
 within a common budget, and stays within it; these compose. An `_inSpace` form states the space on
-the encoded arguments. Through `ComputableInSpace.exists_inO`, `wordStep_inSpace` gives an edge
-test for Savitch's algorithm, `Cslib.Reachability.computableInO_savitch`.
+the encoded arguments. Composed with the endpoints of a frame, `wordStep_inSpace` is an edge test
+for Savitch's midpoint recursion, `Turing.MultiTapeTM.ComputableInSpace.reach`.
 
 Inserting an entry into a table and comparing its length with a bound are compositions of
 existing certificates: `budget_cons (budget_prod hi hx) ht` and

@@ -109,7 +109,7 @@ public section
 
 namespace Turing.MultiTapeNTM.SquareSavitch
 
-open MultiTapeTM ConfigurationGraph Cslib.Reachability Cslib.Reachability.Savitch
+open MultiTapeTM ConfigurationGraph Cslib.Reachability
 open Cslib.BitString (lowBits length_lowBits lsbValue_replicate_true)
 
 /-! ### The graph on words -/

@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Algorithms.Reachability.Savitch
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -20,8 +21,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 
 A nondeterministic machine with finitely many states, all of whose computation paths on an input
 of length `n` visit at most `c * (n + 1) ^ d` work cells, is decided by the deterministic
-`Turing.MultiTapeNTM.savitchDecide`: Savitch's midpoint recursion with an explicit stack
-(`Cslib.Reachability.savitch`) on the codes of the finite views of the machine, asking whether
+`Turing.MultiTapeNTM.savitchDecide`: Savitch's midpoint recursion
+(`Cslib.Reachability.reach`) on the codes of the finite views of the machine, asking whether
 the accepting code is reachable from the code of the initial view.
 
 Every view reachable from the initial view has an encoding of length at most
@@ -31,8 +32,8 @@ polynomial in `n`. Acceptance is reachability of the accepting code along the ed
 of `2 * W + 2` bits (`Turing.MultiTapeNTM.accepts_iff_reflTransGen_codeStep`). There are
 `2 ^ (2 * W + 2)` such words, so it is reachability within as many steps, which the recursion
 decides at depth `2 * W + 2`. The edge test, the codes and the width are polynomial-time, so the
-decider runs in space polynomial in `n`, charging the stack of frames, the counters and the edge
-test (`Cslib.Reachability.exists_polyBounded_space_savitch`); its time is exponential.
+decider runs in space polynomial in `n`, charging the frames of the recursion and one edge test
+(`Turing.MultiTapeTM.ComputableInPolySpace.reach`).
 
 The decider retains the whole input, so this is the polynomial-space consequence of Savitch's
 theorem. The quadratic bound `NSPACE(s) ⊆ DSPACE(s ^ 2)`, including sublinear `s`, is
@@ -86,7 +87,7 @@ noncomputable def viewCodeWidth (c d : ℕ) (input : List Bool) : ℕ :=
 view, by Savitch's midpoint recursion on words of `ntm.viewCodeWidth c d input` bits at depth
 `ntm.viewCodeWidth c d input`. -/
 noncomputable def savitchDecide (c d : ℕ) (input : List Bool) : Bool :=
-  Cslib.Reachability.savitch ntm.codeEdge (ntm.viewCodeWidth c d input)
+  Cslib.Reachability.reach ntm.codeEdge (ntm.viewCodeWidth c d input)
     (ntm.viewCodeWidth c d input) (viewCode (ntm.codeWidth c d input) (ntm.initView input))
     (acceptCode (ntm.codeWidth c d input))
 
@@ -120,7 +121,7 @@ visit at most `c * (input.length + 1) ^ d` work cells. -/
 theorem savitchDecide_eq_true_iff {c d s : ℕ} {input : List Bool} (hs : ntm.RunsInSpace input s)
     (hsc : s ≤ c * (input.length + 1) ^ d) :
     ntm.savitchDecide c d input = true ↔ ntm.Accepts input := by
-  rw [savitchDecide, Cslib.Reachability.savitch_eq, viewCodeWidth]
+  rw [savitchDecide, viewCodeWidth]
   exact (accepts_iff_reach fun finite h =>
     ((length_encFiniteCfg_le hs h).trans (viewLengthBound_mono k State _ hsc)).trans
       (Nat.le_add_left _ _)).symm
@@ -145,22 +146,19 @@ theorem exists_polyBounded_space_savitchDecide {α : Type} (enc : α ↪ List Bo
     ∃ t s, PolyBounded (fun a => (enc a).length) s ∧
       ComputableInTimeAndSpace (fun a => ntm.savitchDecide c d (enc a)) enc encBool t s := by
   have hwidth := computableInPolyTime_codeWidth (ntm := ntm) (enc := enc) c d
-  have hedge : ComputableInPolyTime
-      (fun q : Unit × List Bool × List Bool => (fun _ => ntm.codeEdge) q.1 q.2.1 q.2.2)
-      (encPair (encFinEnum Unit) (encPair encBits encBits)) encBool :=
-    ntm.computableInPolyTime_codeEdge (by fun_prop) (by fun_prop)
-  have hin : ComputableInPolyTime
-      (fun a => ((), ntm.viewCodeWidth c d (enc a), ntm.viewCodeWidth c d (enc a),
-        viewCode (ntm.codeWidth c d (enc a)) (ntm.initView (enc a)),
-        acceptCode (ntm.codeWidth c d (enc a)))) enc
-      (Cslib.Reachability.encArgs (encFinEnum Unit)) := by
-    have := computableInPolyTime_viewCode_initView (ntm := ntm) hwidth
-      (ComputableInPolyTime.of_eq (encIn := enc) (encOut := encBits) fun _ => rfl)
-    have := computableInPolyTime_acceptCode hwidth
-    unfold viewCodeWidth Cslib.Reachability.encArgs
+  have hcw : ComputableInPolyTime (fun a => ntm.viewCodeWidth c d (enc a)) enc encUnary := by
+    unfold viewCodeWidth
     fun_prop
-  exact Cslib.Reachability.exists_polyBounded_space_savitch (edge := fun _ => ntm.codeEdge)
-    (par := fun _ => ()) hedge hin
-    (fun _ => length_viewCode (Nat.le_add_right _ _)) fun _ => List.length_replicate ..
+  have hedge : ComputableInPolyTime
+      (fun q : (List Bool × List Bool) × α => ntm.codeEdge q.1.1 q.1.2)
+      (encPair (encPair encBits encBits) enc) encBool :=
+    ntm.computableInPolyTime_codeEdge (by fun_prop) (by fun_prop)
+  have hsrc := computableInPolyTime_viewCode_initView (ntm := ntm) hwidth
+    (ComputableInPolyTime.of_eq (encIn := enc) (encOut := encBits) fun _ => rfl)
+  obtain ⟨t, s, hs, h, -⟩ := ComputableInPolySpace.reach (edge := fun _ => ntm.codeEdge)
+    (.of_polyTime hcw) (.of_polyTime hcw) (.of_polyTime hsrc)
+    (.of_polyTime (computableInPolyTime_acceptCode hwidth)) (.of_polyTime hedge)
+    fun _ => ⟨length_viewCode (Nat.le_add_right _ _), List.length_replicate ..⟩
+  exact ⟨t, _, .of_polynomiallyBounded _ hs, h⟩
 
 end Turing.MultiTapeNTM

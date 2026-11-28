@@ -15,8 +15,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.S
 
 Every problem decided by a nondeterministic machine within polynomial space is decided by a
 deterministic machine within polynomial space: Savitch's decider
-(`Turing.MultiTapeNTM.savitchDecide`), which runs his midpoint recursion with an explicit stack on
-the codes of the finite views of the nondeterministic machine. With the converse inclusion,
+(`Turing.MultiTapeNTM.savitchDecide`), which runs his midpoint recursion on the codes of the finite
+views of the nondeterministic machine. With the converse inclusion,
 `NPSPACE = PSPACE` [Sipser, remark after Definition 8.6][Sipser2013]. Both classes are
 machine-defined: the deterministic class by plain total decision within polynomial space, the
 nondeterministic class by accepting computation paths, with every computation path within the

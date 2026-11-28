@@ -57,9 +57,9 @@ example : ⟨graphData, ⟨0, true⟩, ⟨0, true⟩⟩ ∈ AndOrNCLEdgeToEdge :
     graphData.config [true, false, false], one_move.legal_left, rfl, rfl, .refl⟩
 
 -- Use a checked move to establish search correctness without evaluating the search procedure.
-example : Cslib.Reachability.savitch graphData.checkStep 3 3
+example : Cslib.Reachability.reach graphData.checkStep 3 3
     [true, false, false] [true, true, false] = true :=
-  (AndOrGraph.savitch_eq_true_iff _ valid.1 _ _ rfl rfl).2 (.single one_move)
+  (AndOrGraph.reach_eq_true_iff _ valid.1 _ _ rfl rfl).2 (.single one_move)
 
 -- Reflexive reachability still requires a legal initial configuration in the language.
 example : ⟨graphData, [false, false, false], [false, false, false]⟩ ∉ AndOrNCL := by
