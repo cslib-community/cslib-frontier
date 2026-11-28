@@ -452,8 +452,7 @@ theorem SigmaP_two_subset_PNPLog_of_sparse (hsparse : S ∈ SPARSE encBits) (hS 
   have hreqb (b : Bool) : ComputableInPolyTime (fun x : α × ℕ => encCNF (red (x.1, x.2, b)))
       (encPair enc encUnary) encBits :=
     (hred.comp ((ComputableInPolyTime.fst enc encUnary).prod
-      ((ComputableInPolyTime.snd enc encUnary).prod (ComputableInPolyTime.const b)))).of_enc_eq
-      fun _ => rfl
+      ((ComputableInPolyTime.snd enc encUnary).prod (ComputableInPolyTime.const b)))).encoding_comp
   have hmemA (x : α × ℕ × Bool) :
       encCNF (red x) ∈ encCNF '' SAT ↔ x ∈ KadinCensus.language S enc m p G := by
     rw [hDred x]

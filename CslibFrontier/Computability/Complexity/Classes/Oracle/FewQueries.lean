@@ -14,7 +14,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
@@ -299,8 +298,7 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
   let cand : α × ℕ → Option (List Bool) := fun x => D.decode (sim (x.1, Nat.bits x.2))
   have hcand : ComputableInPolyTime cand (encPair enc encUnary) (encOption encBits) :=
     D.computableInPolyTime.comp (hsim.comp ((ComputableInPolyTime.fst _ _).prod
-      (ComputableInPolyTime.natBits.comp
-        (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)))))
+      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)).encoding_comp))
   have hcand_eq (a : α) (j : ℕ) : cand (a, j) =
       ((OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer (program a)).run
         (Nat.bits j)).1 := by
