@@ -88,6 +88,8 @@ cost, and leaves the postcondition of the step.
 * `Cslib.DataStructure.Memory.FramedTriple.ite_max`,
   `Cslib.DataStructure.Memory.FramedTriple.dite_max`: conditionals with branch costs combined by
   `max`.
+* `Cslib.DataStructure.Memory.FramedTriple.of_readOnly`: a read-only program specified in the
+  older form (history, unchanged state, result, cost) as a framed triple with an empty frame.
 
 ## Main definitions
 
@@ -232,6 +234,15 @@ theorem of_realization {p : Prog α}
       r = (spec 0).clientResult s p ∧ t = (spec 0).clientState s p :=
   framedTriple_iff_realization.mpr
     ⟨hv, le_rfl, ⟨hfr.ge, fun a _ haS => by_contra fun h => haS (hS a h)⟩, rfl, rfl⟩
+
+/-- A read-only program specified in the older form (admissible history, unchanged state, result
+`r`, cost at most `c`) meets a framed triple with an empty frame that fixes its result and leaves
+the state unchanged, so that `FramedTriple.call_eq` and `framed_triple` can call it. -/
+theorem of_readOnly {p : Prog α} {r : α}
+    (hv : (spec w).ValidHistory s ((spec w).clientHistory s p))
+    (hst : (spec 0).clientState s p = s) (hr : (spec 0).clientResult s p = r)
+    (hc : memoryCost p s ≤ c) : FramedTriple w s p c ∅ fun r' t => r' = r ∧ t = s :=
+  framedTriple_iff_realization.mpr ⟨hv, hc, by rw [hst]; exact .refl _ _, hr, hst⟩
 
 end Cslib.DataStructure.Memory.FramedTriple
 
