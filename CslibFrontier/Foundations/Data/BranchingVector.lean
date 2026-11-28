@@ -335,18 +335,30 @@ inductive Reachable (s : σ) : σ → Prop
   | refl : Reachable s s
   | snoc {u c : σ} : Reachable s u → T.isLeaf u = false → c ∈ T.children u → Reachable s c
 
+private theorem induct_reachable {s : σ} {P : σ → Prop}
+    (branch : ∀ u, T.Reachable s u → T.isLeaf u = false →
+      (∀ c ∈ T.children u, P c) → P u)
+    (leaf : ∀ u, T.Reachable s u → T.isLeaf u = true → P u) : P s := by
+  suffices ∀ u, T.Reachable s u → P u from this s .refl
+  intro u
+  induction u using (_root_.measure T.measure).wf.induction with
+  | h u ih =>
+    intro hu
+    cases hleaf : T.isLeaf u
+    · exact branch u hu hleaf fun c hc =>
+        ih c (T.measure_child_lt hleaf hc) (hu.snoc hleaf hc)
+    · exact leaf u hu hleaf
+
 /-- Every leaf in `T.leaves s` is reachable from `s`. -/
 theorem reachable_of_mem_leaves {s l : σ} (hl : l ∈ T.leaves s) : T.Reachable s l := by
-  suffices ∀ u, T.Reachable s u → l ∈ T.leaves u → T.Reachable s l from this s .refl hl
-  intro u hreach hlu
-  induction hm : T.measure u using Nat.strong_induction_on generalizing u with
-  | ind m ih =>
-    cases hleaf : T.isLeaf u
-    · rw [T.leaves_of_not_isLeaf hleaf, List.mem_flatMap] at hlu
-      obtain ⟨c, hc, hlc⟩ := hlu
-      exact ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c (hreach.snoc hleaf hc) hlc rfl
-    · rw [T.leaves_of_isLeaf hleaf, List.mem_singleton] at hlu
-      rwa [hlu]
+  refine T.induct_reachable (P := fun u => l ∈ T.leaves u → T.Reachable s l) ?_ ?_ hl
+  · intro u _ hleaf ih hlu
+    rw [T.leaves_of_not_isLeaf hleaf, List.mem_flatMap] at hlu
+    obtain ⟨c, hc, hlc⟩ := hlu
+    exact ih c hc hlc
+  · intro u hu hleaf hlu
+    rw [T.leaves_of_isLeaf hleaf, List.mem_singleton] at hlu
+    simpa only [hlu] using hu
 
 /-- Whole-tree equivalence transport: if a property `P` is equivalent at every reachable internal
 state to holding on at least one child, then `P s` holds iff `P` holds at some leaf in
@@ -354,56 +366,42 @@ state to holding on at least one child, then `P s` holds iff `P` holds at some l
 theorem iff_exists_leaf {s : σ} {P : σ → Prop}
     (hstep : ∀ u, T.Reachable s u → T.isLeaf u = false → (P u ↔ ∃ c ∈ T.children u, P c)) :
     P s ↔ ∃ l ∈ T.leaves s, P l := by
-  suffices ∀ u, T.Reachable s u → (P u ↔ ∃ l ∈ T.leaves u, P l) from this s .refl
-  intro u hreach
-  induction hm : T.measure u using Nat.strong_induction_on generalizing u with
-  | ind m ih =>
-    cases hleaf : T.isLeaf u
-    · rw [hstep u hreach hleaf, T.leaves_of_not_isLeaf hleaf]
-      simp only [List.mem_flatMap]
-      constructor
-      · rintro ⟨c, hc, hPc⟩
-        obtain ⟨l, hl, hPl⟩ :=
-          (ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c (hreach.snoc hleaf hc) rfl).mp hPc
-        exact ⟨l, ⟨c, hc, hl⟩, hPl⟩
-      · rintro ⟨l, ⟨c, hc, hl⟩, hPl⟩
-        exact ⟨c, hc,
-          (ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c (hreach.snoc hleaf hc) rfl).mpr
-            ⟨l, hl, hPl⟩⟩
-    · rw [T.leaves_of_isLeaf hleaf]
-      simp only [List.mem_singleton, exists_eq_left]
+  refine T.induct_reachable (P := fun u => P u ↔ ∃ l ∈ T.leaves u, P l) ?_ ?_
+  · intro u hreach hleaf ih
+    rw [hstep u hreach hleaf, T.leaves_of_not_isLeaf hleaf]
+    simp only [List.mem_flatMap]
+    constructor
+    · rintro ⟨c, hc, hPc⟩
+      obtain ⟨l, hl, hPl⟩ := (ih c hc).mp hPc
+      exact ⟨l, ⟨c, hc, hl⟩, hPl⟩
+    · rintro ⟨l, ⟨c, hc, hl⟩, hPl⟩
+      exact ⟨c, hc, (ih c hc).mpr ⟨l, hl, hPl⟩⟩
+  · intro u _ hleaf
+    simp only [T.leaves_of_isLeaf hleaf, List.mem_singleton, exists_eq_left]
 
 /-- Additive weights conserved at every reachable internal expansion sum over `T.leaves s` to their
 root value `w s`. -/
 theorem sum_leaves_eq {s : σ} {w : σ → ℕ}
     (hadd : ∀ u, T.Reachable s u → T.isLeaf u = false → w u = ((T.children u).map w).sum) :
     ((T.leaves s).map w).sum = w s := by
-  suffices ∀ u, T.Reachable s u → ((T.leaves u).map w).sum = w u from this s .refl
-  intro u hreach
-  induction hm : T.measure u using Nat.strong_induction_on generalizing u with
-  | ind m ih =>
-    cases hleaf : T.isLeaf u
-    · rw [T.leaves_of_not_isLeaf hleaf, List.sum_map_flatMap,
-        hadd u hreach hleaf]
-      congr 1
-      refine List.map_congr_left fun c hc => ?_
-      exact ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c (hreach.snoc hleaf hc) rfl
-    · simp only [T.leaves_of_isLeaf hleaf, List.map_singleton, List.sum_singleton]
+  refine T.induct_reachable (P := fun u => ((T.leaves u).map w).sum = w u) ?_ ?_
+  · intro u hreach hleaf ih
+    rw [T.leaves_of_not_isLeaf hleaf, List.sum_map_flatMap, hadd u hreach hleaf]
+    exact congrArg List.sum (List.map_congr_left ih)
+  · intro u _ hleaf
+    simp only [T.leaves_of_isLeaf hleaf, List.map_singleton, List.sum_singleton]
 
 /-- Subadditive weights (`w u ≤ ∑_{c ∈ children u} w c`, as in covering rather than partitioning
 branching rules) are bounded above by their sum over `T.leaves s`. -/
 theorem le_sum_leaves {s : σ} {w : σ → ℕ}
     (hsub : ∀ u, T.Reachable s u → T.isLeaf u = false → w u ≤ ((T.children u).map w).sum) :
     w s ≤ ((T.leaves s).map w).sum := by
-  suffices ∀ u, T.Reachable s u → w u ≤ ((T.leaves u).map w).sum from this s .refl
-  intro u hreach
-  induction hm : T.measure u using Nat.strong_induction_on generalizing u with
-  | ind m ih =>
-    cases hleaf : T.isLeaf u
-    · rw [T.leaves_of_not_isLeaf hleaf, List.sum_map_flatMap]
-      refine (hsub u hreach hleaf).trans (List.sum_le_sum fun c hc => ?_)
-      exact ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c (hreach.snoc hleaf hc) rfl
-    · simp only [T.leaves_of_isLeaf hleaf, List.map_singleton, List.sum_singleton, le_refl]
+  refine T.induct_reachable (P := fun u => w u ≤ ((T.leaves u).map w).sum) ?_ ?_
+  · intro u hreach hleaf ih
+    rw [T.leaves_of_not_isLeaf hleaf, List.sum_map_flatMap]
+    exact (hsub u hreach hleaf).trans (List.sum_le_sum ih)
+  · intro u _ hleaf
+    simp only [T.leaves_of_isLeaf hleaf, List.map_singleton, List.sum_singleton, le_refl]
 
 private theorem sum_children_pow_le {r : ℝ} (hr : 1 ≤ r) {m : ℕ}
     {children : List σ} {steps' : List ℕ}
@@ -479,22 +477,14 @@ total tree work is at most `W * T.nodeCount s`. -/
 theorem workCost_le_mul_nodeCount {nodeWork : σ → ℕ} {W : ℕ} {s : σ}
     (hwork : ∀ u, T.Reachable s u → nodeWork u ≤ W) :
     T.workCost nodeWork s ≤ W * T.nodeCount s := by
-  suffices ∀ u, T.Reachable s u → T.workCost nodeWork u ≤ W * T.nodeCount u from this s .refl
-  intro u hreach
-  induction hm : T.measure u using Nat.strong_induction_on generalizing u with
-  | ind m ih =>
-    have hu : nodeWork u ≤ W := hwork u hreach
-    cases hleaf : T.isLeaf u
-    · rw [T.workCost_of_not_isLeaf nodeWork hleaf, T.nodeCount_of_not_isLeaf hleaf,
-        Nat.mul_add, Nat.mul_one]
-      refine Nat.add_le_add hu ?_
-      have hchildren : ((T.children u).map (T.workCost nodeWork)).sum ≤
-          ((T.children u).map fun c => W * T.nodeCount c).sum :=
-        List.sum_le_sum fun c hc =>
-          ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c (hreach.snoc hleaf hc) rfl
-      rwa [List.sum_map_mul_left] at hchildren
-    · rw [T.workCost_of_isLeaf nodeWork hleaf, T.nodeCount_of_isLeaf hleaf, Nat.mul_one]
-      exact hu
+  refine T.induct_reachable (P := fun u => T.workCost nodeWork u ≤ W * T.nodeCount u) ?_ ?_
+  · intro u hreach hleaf ih
+    rw [T.workCost_of_not_isLeaf nodeWork hleaf, T.nodeCount_of_not_isLeaf hleaf,
+      Nat.mul_add, Nat.mul_one, ← List.sum_map_mul_left]
+    exact Nat.add_le_add (hwork u hreach) (List.sum_le_sum ih)
+  · intro u hreach hleaf
+    simpa only [T.workCost_of_isLeaf nodeWork hleaf, T.nodeCount_of_isLeaf hleaf, Nat.mul_one]
+      using hwork u hreach
 
 /-- **Combined tree work bound.** Per-node work `≤ W` combined with `charSum T.steps r ≤ 1`
 (`1 ≤ r`) bounds total tree work by `W * (T.measure s + 1) * r ^ T.measure s`. -/

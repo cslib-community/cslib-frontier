@@ -64,8 +64,8 @@ private theorem exists_eq_append_cons_of_duplicate {x : α} :
 chain without repetitions, all of whose elements are elements of the walk. -/
 theorem exists_nodup_of_cycle_chain {l : List α} (hne : l ≠ []) (hch : (l : Cycle α).Chain r) :
     ∃ c : List α, c ≠ [] ∧ c.Nodup ∧ c ⊆ l ∧ (c : Cycle α).Chain r := by
-  induction h : l.length using Nat.strong_induction_on generalizing l with
-  | _ n ih =>
+  induction l using (measure List.length).wf.induction
+  rename_i l ih
   by_cases hnd : l.Nodup
   · exact ⟨l, hne, hnd, List.Subset.refl _, hch⟩
   obtain ⟨x, hx⟩ := List.exists_duplicate_iff_not_nodup.2 hnd
@@ -78,8 +78,9 @@ theorem exists_nodup_of_cycle_chain {l : List α} (hne : l ≠ []) (hch : (l : C
     simpa using List.isRotated_append (l := s) (l' := x :: (b ++ x :: d))
   rw [hrot, Cycle.chain_coe_cons] at hch
   have hsub : (x :: (b ++ [x])).IsChain r := hch.infix ⟨[], d ++ s ++ [x], by simp⟩
-  obtain ⟨c, hcne, hcnd, hcsub, hcch⟩ := ih (x :: b).length (by simp at h ⊢; omega)
-    (List.cons_ne_nil _ _) (by rw [Cycle.chain_coe_cons]; simpa using hsub) rfl
+  have hlt : (x :: b).length < (s ++ x :: (b ++ x :: d)).length := by simp; omega
+  obtain ⟨c, hcne, hcnd, hcsub, hcch⟩ := ih (x :: b) hlt (List.cons_ne_nil _ _)
+    (by rw [Cycle.chain_coe_cons]; simpa using hsub)
   exact ⟨c, hcne, hcnd, fun y hy => by have := hcsub hy; simp at this ⊢; tauto, hcch⟩
 
 /-- A closed walk through `a` gives a closed chain containing `a`. -/

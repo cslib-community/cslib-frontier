@@ -57,21 +57,20 @@ theorem eraseDups_eq_self [BEq α] [LawfulBEq α] {l : List α} : l.eraseDups = 
 /-- `eraseDups` keeps first occurrences, so its first entry satisfying `p` is that of the list. -/
 theorem find?_eraseDups [BEq α] [LawfulBEq α] (p : α → Bool) (l : List α) :
     l.eraseDups.find? p = l.find? p := by
-  induction hn : l.length using Nat.strong_induction_on generalizing l with
-  | _ n ih =>
-    cases l with
-    | nil => rfl
-    | cons a l =>
-      rw [eraseDups_cons, find?_cons, find?_cons]
-      cases hp : p a with
-      | true => rfl
-      | false =>
-        subst hn
-        rw [ih _ (Nat.lt_succ_of_le (length_filter_le _ _)) _ rfl, find?_filter]
-        refine find?_congr fun x _ => ?_
-        by_cases hx : x = a
-        · subst hx; simp [hp]
-        · simp [hx]
+  induction l using (measure List.length).wf.induction
+  rename_i l ih
+  cases l with
+  | nil => rfl
+  | cons a l =>
+    rw [eraseDups_cons, find?_cons, find?_cons]
+    cases hp : p a with
+    | true => rfl
+    | false =>
+      rw [ih _ (Nat.lt_succ_of_le (length_filter_le _ _)), find?_filter]
+      refine find?_congr fun x _ => ?_
+      by_cases hx : x = a
+      · subst hx; simp [hp]
+      · simp [hx]
 
 variable [DecidableEq α]
 
