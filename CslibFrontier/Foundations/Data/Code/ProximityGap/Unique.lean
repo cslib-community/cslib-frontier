@@ -847,30 +847,11 @@ private lemma exists_correlatedAgreement_curve_unique_pos [Fintype ι] [Decidabl
       A.map (evalRingHom z) = Pz * B.map (evalRingHom z) := fun z hz => by
     obtain ⟨c, hcRS, hdist⟩ := hclose z hz
     obtain ⟨Pz, hPz_deg, rfl⟩ := mem_reedSolomon.1 hcRS
-    let good : Finset ι := Finset.univ.filter fun i =>
-      (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) i = Pz.eval (α i)
-    have hgood := card_filter_eq_add_hammingDist (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j)
-      (fun i => Pz.eval (α i))
-    refine ⟨Pz, hPz_deg, sub_eq_zero.1 (eq_zero_of_degree_lt_of_eval_finset_eq_zero
-      (good.image α) ?_ fun x hx => ?_)⟩
-    · rw [card_image_of_injective _ hα]
-      have hmul_deg : (Pz * B.map (evalRingHom z)).degree < (k + e : ℕ) := by
-        by_cases hPz0 : Pz = 0
-        · rw [hPz0, zero_mul, degree_zero]; exact WithBot.bot_lt_coe _
-        · by_cases hBz0 : B.map (evalRingHom z) = 0
-          · rw [hBz0, mul_zero, degree_zero]; exact WithBot.bot_lt_coe _
-          · have h1 := (natDegree_lt_iff_degree_lt hPz0).2 hPz_deg
-            have h2 : (B.map (evalRingHom z)).natDegree ≤ e := natDegree_map_le.trans hB_deg
-            refine (degree_mul_le _ _).trans_lt ?_
-            rw [degree_eq_natDegree hPz0, degree_eq_natDegree hBz0, ← Nat.cast_add, Nat.cast_lt]
-            omega
-      change good.card + hammingDist _ _ = Fintype.card ι at hgood
-      exact (degree_sub_le _ _).trans_lt ((max_lt (degree_map_le.trans_lt hA_deg)
-        hmul_deg).trans_le (Nat.cast_le.2 (by omega)))
-    · obtain ⟨i, hi, rfl⟩ := mem_image.1 hx
-      rw [eval_sub, eval_mul, Polynomial.map_evalRingHom_eval, Polynomial.evalEval,
-        Polynomial.map_evalRingHom_eval, Polynomial.evalEval, hAB_eval i, eval_mul,
-        eval_curveCoordPoly, (mem_filter.1 hi).2, sub_self]
+    refine ⟨Pz, hPz_deg, BerlekampWelch.eq_mul_of_eval_eq hα he hPz_deg
+      ((hammingDist_comm _ _).trans_le hdist) (natDegree_map_le.trans hB_deg)
+      (degree_map_le.trans_lt (by rw [Nat.add_comm]; exact hA_deg)) fun i => ?_⟩
+    rw [Polynomial.map_evalRingHom_eval, Polynomial.evalEval, Polynomial.map_evalRingHom_eval,
+      Polynomial.evalEval, hAB_eval i, eval_mul, eval_curveCoordPoly]
   obtain ⟨P, hP_deg, hA_eq_PB⟩ := exists_quotient_of_bivariate_solution hα he hd he1 hk1
     (curveCoordPoly u) (natDegree_curveCoordPoly_le u) S hS hA0 hB_prim hB_deg hA_degZ
     hAB_eval hslice

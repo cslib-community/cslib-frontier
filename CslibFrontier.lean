@@ -3658,6 +3658,7 @@ public import CslibFrontier.Computability.Automata.MPDA.WellNested
 public import CslibFrontier.Computability.Circuit.Boolean.PopulationCount.PolyTime
 public import CslibFrontier.Logics.Propositional.Parity
 public import CslibFrontier.MachineLearning.UniformLearning.CIKK.Complexity
+public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Robust
 public import CslibFrontier.Probability.HashFamily.MatrixKernel
 public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.Words
 public import CslibFrontier.Computability.Circuit.Linearize
