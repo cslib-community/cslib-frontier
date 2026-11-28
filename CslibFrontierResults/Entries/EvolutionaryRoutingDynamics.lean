@@ -19,7 +19,7 @@ register_result "suri-imitative-routing-feasibility" where
   topic := "game theory"
   sources := [
     { paper := Suri2007, theorem := "Equations 29.1–29.2 and Exercise 29.6",
-      locator := "Section 29.3.1, pp. 724–725; Section 29.6, p. 736" }
+      locator := "Section 29.3.1, pp. 724–725; Exercises, p. 736" }
   ]
   theorems := [
     imitativeDrift_eq_replicatorDrift,
@@ -32,7 +32,10 @@ register_result "suri-imitative-routing-feasibility" where
     1 the pairwise imitative drift (Equation 29.1) equals the replicator drift (Equation 29.2) \
     and sums to 0, and that any trajectory of Equation (29.2) starting from a feasible flow \
     remains feasible for all t ≥ 0 (both for continuous rate functions lam ∘ x and for the \
-    relative rate λ(x) = (G.cost x)⁻¹ when feasible average latency is bounded below by lStar > 0)."
+    relative rate λ(x) = (G.cost x)⁻¹ when feasible average latency is bounded below by \
+    lStar > 0). For externally supplied trajectories, isFeasible and isFeasible_relative assume \
+    globally continuous latencies Continuous (G.latency e) on ℝ, whereas \
+    exists_relativeReplicatorTrajectory uses only [0, 1]-Lipschitz latencies."
 
 register_result "suri-imitative-routing-convergence" where
   title := "Fast convergence of imitative dynamics to an ε-approximate equilibrium \

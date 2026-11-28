@@ -547,9 +547,10 @@ theorem hasDerivWithinAt_potential (h1 : G.rate () = 1) {lam : (P → ℝ) → �
           G.latency e (G.edgeFlow (x t) e) :=
         Finset.sum_congr rfl fun p _ => by unfold replicatorDrift pathLatency; ring
 
-/-- **Lyapunov monotonicity** ([Suri2007], Section 29.3.2, pp. 726–727): along any feasible
-replicator trajectory with nonnegative rate `lam (x t) ≥ 0` and latencies continuous on `[0, 1]`,
-the shifted Beckmann potential `t ↦ G.potential lStar (x t)` is nonincreasing on `[0, ∞)`. -/
+/-- **Lyapunov monotonicity** ([Suri2007], Section 29.3.2, p. 726; Section 29.3.3, p. 727): along
+any feasible replicator trajectory with nonnegative rate `lam (x t) ≥ 0` and latencies continuous
+on `[0, 1]`, the shifted Beckmann potential `t ↦ G.potential lStar (x t)` is nonincreasing on
+`[0, ∞)`. -/
 theorem antitoneOn_potential (h1 : G.rate () = 1) {lam : (P → ℝ) → ℝ} {x : ℝ → P → ℝ}
     (hx : G.IsReplicatorTrajectory lam x) (hfeas : ∀ t ≥ 0, G.IsFeasible (x t))
     (hlam : ∀ t ≥ 0, 0 ≤ lam (x t)) (hcont : ∀ e, ContinuousOn (G.latency e) (Icc 0 1))
