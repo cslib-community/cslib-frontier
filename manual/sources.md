@@ -5255,6 +5255,17 @@ Journal of Computer and System Sciences 62(2), 236–266, 2001.
 DOI: [10.1006/jcss.2000.1730](https://doi.org/10.1006/jcss.2000.1730).
 Publisher metadata and abstract checked by the coordinated source pass on 2026-11-02; the proof-route attribution comes from the pinned Lean module.
 
+<a id="suri07"></a>
+## suri07
+
+Siddharth Suri.
+"Computational Evolutionary Game Theory."
+Chapter 29 of N. Nisan, T. Roughgarden, É. Tardos and V. V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, pp. 717–736.
+ISBN 978-0-521-87282-9 (`Suri2007`).
+Printed pages 719–723 and 735 of the published 2007 chapter were read directly on 2026-11-27 for Definition 29.1, Theorem 29.2, Figure 29.1 (Hawks and Doves), Section 29.2 (Nisan's clique reduction, Lemma 29.3, Lemmas 29.4–29.7, Theorem 29.8, and Theorem 29.9), and Exercises 29.1–29.5 (Exercise 29.5 asks to prove Lemma 29.7).
+[Basic.lean](../CslibFrontier/GameTheory/Evolutionary/Basic.lean) formalizes Definition 29.1, Theorem 29.2, Hawks and Doves, and the `2 × 2` characterization (noting that Exercise 29.3's literal claim that every `2 × 2` symmetric game has an ESS fails when both columns are constant).
+[CliqueHardness.lean](../CslibFrontier/GameTheory/Evolutionary/CliqueHardness.lean) formalizes Nisan's clique game `cliqueESSGame`, Lemmas 29.3–29.7 (including Exercise 29.5), and native multi-tape Turing-machine polynomial-time reductions for Theorem 29.8 (`NP`-hardness and `coNP`-hardness of ESS existence) and Theorem 29.9 (`coNP`-hardness of ESS recognition).
+
 <a id="svensson99"></a>
 ## svensson99
 

@@ -2567,6 +2567,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshRigid
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Spec
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Ports
 public import CslibFrontier.GameTheory.Congestion.Pricing.PricedWardrop
+public import CslibFrontier.GameTheory.Evolutionary.CliqueHardness
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Randomized
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.EdgeTransport
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.TimeLayer.Fin

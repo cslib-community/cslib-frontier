@@ -27,6 +27,7 @@ import CslibFrontierResults.Entries.ODonnellHastadTest
 import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.ODonnellSpectralConcentration
+import CslibFrontierResults.Entries.EvolutionaryCliqueHardness
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Entries.DFSWordRAM
