@@ -11,6 +11,8 @@ public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagMask
 public import CslibFrontier.Computability.WordRAM.Realization.PrefixFrame
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
+public import CslibFrontier.DataStructure.Memory.TripleFrame
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Tactic.Realize
 
@@ -33,8 +35,10 @@ programs over tree decompositions
 ## Main results
 
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.powProg_spec`,
+  `Cslib.Algorithms.WordRAM.TreeDecomposition.powProg_framed`,
   `Cslib.Algorithms.WordRAM.TreeDecomposition.powProg_realizes`
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.bagMemProg_spec`,
+  `Cslib.Algorithms.WordRAM.TreeDecomposition.bagMemProg_framed`,
   `Cslib.Algorithms.WordRAM.TreeDecomposition.bagMemProg_realizes`
 -/
 
@@ -96,6 +100,14 @@ theorem powProg_spec {w : ℕ} (args : PowArgs) {s : Memory.State} (hs : 0 < s.f
     powProg_state args s, powProg_result args s, by
       simpa only [powProg, Nat.one_mul] using
         memoryCost_iterate_le_of powStep 1 args.base (fun _ _ => le_rfl) args.exp 1 s⟩
+
+/-- `powProg` as a framed triple: it only reads, returns `base ^ exp` and leaves the state
+unchanged. -/
+theorem powProg_framed {w : ℕ} (args : PowArgs) {s : Memory.State} (hs : 0 < s.frontier) :
+    Memory.FramedTriple w s (powProg args) args.exp ∅ fun r t =>
+      r = args.base ^ args.exp ∧ t = s :=
+  let ⟨hv, hst, hr, hc⟩ := powProg_spec (w := w) args hs
+  Memory.FramedTriple.of_readOnly hv hst hr hc
 
 theorem powProg_realizes :
     Realizes .exact powProg WordEncoding.encode WordEncoding.encode
@@ -215,6 +227,15 @@ theorem bagMemProg_spec {w : ℕ} (args : BagScanArgs) {xs : List ℕ} {s : Memo
     refine ⟨validHistory_bind_step (validHistory_read_bind hlt (validHistory_pure w s _)) hv,
       hr.trans ?_⟩
     by_cases heq : u = args.target <;> simp [memBag, heq, eq_comm]
+
+/-- `bagMemProg` as a framed triple: it only reads, returns the membership flag and leaves the
+state unchanged. -/
+theorem bagMemProg_framed {w : ℕ} (args : BagScanArgs) {xs : List ℕ} {s : Memory.State}
+    (hxs : HoldsIn args.base xs s) (hlen : xs.length = args.len) :
+    Memory.FramedTriple w s (bagMemProg args) args.len ∅ fun r t =>
+      r = (if memBag args.target xs then 1 else 0) ∧ t = s :=
+  let ⟨hv, hst, hr, hc⟩ := bagMemProg_spec (w := w) args hxs hlen
+  Memory.FramedTriple.of_readOnly hv hst hr hc
 
 theorem bagMemProg_realizes :
     Realizes .exact bagMemProg WordEncoding.encode WordEncoding.encode

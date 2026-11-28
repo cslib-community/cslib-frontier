@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP.NodeDesc
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP.BagOps
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP.Radix
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -108,71 +109,35 @@ private theorem forgetInnerProg_spec {w : ℕ} (counting : Bool) (a : ForgetInne
     (hcTbl : HoldsIn a.cTblPtr cTbl s) (hcTbl_len : cTbl.length = a.q ^ a.cBagLen) :
     let addFn : ℕ → ℕ → ℕ :=
       if counting then (· + ·) else fun acc val => if val = 0 then acc else 1
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (forgetInnerProg a)) ∧
-    (Memory.spec 0).clientState s (forgetInnerProg a) = s ∧
-    (Memory.spec 0).clientResult s (forgetInnerProg a) =
-      dpAlgFold 0 addFn a.dLim
+    Memory.FramedTriple w s (forgetInnerProg a) (a.dLim * (a.cBagLen * (a.bagLen + 1) + 1)) ∅
+      fun r t => r = dpAlgFold 0 addFn a.dLim
         (fun d => cTbl.getD (toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v d)) 0) ∧
-    memoryCost (forgetInnerProg a) s ≤ a.dLim * (a.cBagLen * (a.bagLen + 1) + 1) := by
-  let addFn : ℕ → ℕ → ℕ :=
-    if counting then (· + ·) else fun acc val => if val = 0 then acc else 1
-  let stepCost := a.cBagLen * (a.bagLen + 1) + 1
-  let g (d : ℕ) := cTbl.getD (toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v d)) 0
-  suffices ∀ rem, rem ≤ a.dLim →
-      let d := a.dLim - rem
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate forgetInnerStep a rem (d, dpAlgFold 0 addFn d g))) ∧
-      ((Memory.spec 0).clientResult s
-        (iterate forgetInnerStep a rem (d, dpAlgFold 0 addFn d g))).2 =
-        dpAlgFold 0 addFn a.dLim g ∧
-      memoryCost (iterate forgetInnerStep a rem (d, dpAlgFold 0 addFn d g)) s ≤
-        rem * stepCost by
-    obtain ⟨hv, hr, hc⟩ := this a.dLim le_rfl
-    simp only [Nat.sub_self, dpAlgFold] at hv hr hc
-    unfold forgetInnerProg
-    refine ⟨validHistory_bind_step hv (validHistory_pure w _ _), forgetInnerProg_state a s,
-      by rwa [StateTransitionSpec.clientResult_bind], ?_⟩
-    rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-  intro rem
-  induction rem with
-  | zero => exact fun _ => ⟨validHistory_pure w s _, rfl, by simp [iterate]⟩
-  | succ k ih =>
-    intro hk_le
-    let d := a.dLim - (k + 1)
-    let curAcc := dpAlgFold 0 addFn d g
-    obtain ⟨hv_rp, hst_rp, hr_rp, hc_rp⟩ :=
-      radixProjProg_spec (w := w)
-        ⟨a.q, a.bagPtr, a.bagLen, a.m, a.v, d, 1, a.cBagPtr, a.cBagLen⟩
-        hLB hLB_len hcBag hcBag_len
-    simp only [radixProjAssign, ↓reduceIte] at hr_rp hc_rp
-    have hidx_lt :
-        toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v d) < cTbl.length :=
-      hcTbl_len ▸ hcBag_len ▸ toRadix_lt hq _ _
-    obtain ⟨hst_ev, hres_ev⟩ := forgetInnerStep_eval a d curAcc s
-    have hd1 : a.dLim - k = d + 1 := by omega
-    have hres_ev' :
-        (Memory.spec 0).clientResult s (forgetInnerStep (a, (d, curAcc))) =
-          (a.dLim - k, dpAlgFold 0 addFn (a.dLim - k) g) := by
-      rw [hres_ev, hr_rp, hcTbl.get _ hidx_lt, List.getElem_eq_getD 0, hd1, hmode]
-      cases counting <;> rfl
-    have hv_step : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (forgetInnerStep (a, (d, curAcc)))) := by
-      dsimp only [forgetInnerStep]
-      refine validHistory_bind_step hv_rp ?_
-      rw [hst_rp, hr_rp]
-      exact validHistory_read_bind (by have := hcTbl.1; omega) (validHistory_pure w s _)
-    have hc_step : memoryCost (forgetInnerStep (a, (d, curAcc))) s ≤ stepCost := by
-      dsimp only [forgetInnerStep, stepCost]
-      rw [memoryCost_bind', hst_rp, memoryCost_bind', memoryCost_read, clientState_read,
-        memoryCost_pure]
-      omega
-    obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
-    dsimp only [iterate]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev']),
-      by rwa [StateTransitionSpec.clientResult_bind, hst_ev, hres_ev'], ?_⟩
-    rw [memoryCost_bind', hst_ev, hres_ev']
-    exact (Nat.add_le_add hc_step hc_rem).trans_eq (by rw [Nat.succ_mul, Nat.add_comm])
+        t = s := by
+  intro addFn
+  set g := fun d => cTbl.getD (toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v d)) 0
+  have htf := hcTbl.1
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (s := s) (body := forgetInnerStep)
+    (c := a.cBagLen * (a.bagLen + 1) + 1) (S := ∅) (safe := fun _ _ _ => True) (d := a)
+    (n := a.dLim) (a₀ := (0, 0)) (Q := fun st t => st.2 = dpAlgFold 0 addFn a.dLim g ∧ t = s)
+    (fun k st t => t = s ∧ st = (k, dpAlgFold 0 addFn k g)) ⟨rfl, rfl⟩
+    (fun k hk st t ⟨ht, hst⟩ _ => ⟨trivial, by
+      subst t hst
+      obtain ⟨hv_rp, hst_rp, hr_rp, hc_rp⟩ := radixProjProg_spec (w := w)
+        ⟨a.q, a.bagPtr, a.bagLen, a.m, a.v, k, 1, a.cBagPtr, a.cBagLen⟩ hLB hLB_len hcBag hcBag_len
+      simp only [radixProjAssign, ↓reduceIte] at hr_rp hc_rp
+      have hrp := Memory.FramedTriple.of_readOnly hv_rp hst_rp hr_rp hc_rp
+      have hidx_lt :
+          toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v k) < cTbl.length :=
+        hcTbl_len ▸ hcBag_len ▸ toRadix_lt hq _ _
+      unfold forgetInnerStep
+      framed_triple
+      refine ⟨rfl, ?_⟩
+      rw [hcTbl.get _ hidx_lt, List.getElem_eq_getD 0, hmode]
+      cases counting <;> rfl⟩)
+    fun st t h _ => ⟨by rw [h.2], h.1⟩
+  unfold forgetInnerProg
+  exact Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+    fun st t h _ => Memory.FramedTriple.pure h) (by rw [Nat.mul_comm]; omega) fun _ _ => id
 
 private theorem forgetInnerProg_realizes :
     Realizes .exact forgetInnerProg WordEncoding.encode WordEncoding.encode
@@ -333,12 +298,10 @@ private theorem forgetFillProg_spec {w : ℕ} (counting : Bool) (a : ForgetFillA
     hcBag.mono (F := a.tblPtr) (by rw [hcBag_len]; exact hcBag_hi) hp_t
   have hcTbl_t : HoldsIn a.cTblPtr (dpInstTree counting a.q cs vars child) t :=
     hcTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hcBag_len]; exact hcTbl_hi) hp_t
-  obtain ⟨hv_in, hst_in, hr_in, hc_in⟩ :=
-    forgetInnerProg_spec (w := w) counting
-      ⟨a.mode, a.q, a.v, a.bagPtr, a.bagLen, m, a.cBagPtr, a.cBagLen, a.cTblPtr, a.dLim⟩
-      hq hmode hLB_t hLB_len hcBag_t hcBag_len hcTbl_t
-      (by rw [length_dpInstTree, hcBag_len])
-  dsimp only at hr_in hc_in
+  have hin := forgetInnerProg_spec (w := w) counting
+    ⟨a.mode, a.q, a.v, a.bagPtr, a.bagLen, m, a.cBagPtr, a.cBagLen, a.cTblPtr, a.dLim⟩
+    hq hmode hLB_t hLB_len hcBag_t hcBag_len hcTbl_t (by rw [length_dpInstTree, hcBag_len])
+  obtain ⟨-, -, -, hr_in, -⟩ := framedTriple_iff_realization.mp hin
   let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
   have hval_eq :
       (Memory.spec 0).clientResult t
@@ -363,16 +326,13 @@ private theorem forgetFillProg_spec {w : ℕ} (counting : Bool) (a : ForgetFillA
   have hentry_fit : Fits w entryVal :=
     hfit_cap.of_le
       (mem_dpInstTree_le counting hq cs vars (.forget a.v child) _ (List.getElem_mem _))
-  obtain ⟨hst_ev, hres_ev⟩ := forgetOuterStep_eval a m t
-  refine ⟨?_, by rw [hst_ev, hval_eq], hres_ev, trivial, ?_⟩
-  · dsimp only [forgetOuterStep]
-    refine validHistory_bind_step hv_in ?_
-    rw [hst_in, hval_eq]
-    exact validHistory_write_bind (by rw [hfr_t]; omega) hentry_fit (validHistory_pure w _ _)
-  · dsimp only [forgetOuterStep, stepCost]
-    rw [memoryCost_bind', hst_in, memoryCost_bind', memoryCost_write, memoryCost_pure]
-    dsimp only [m] at hc_in ⊢
-    omega
+  have hin' := Memory.FramedTriple.mono (Q' := fun r t' => r = entryVal ∧ t' = t) hin le_rfl
+    fun r t' h => ⟨h.1.trans (hr_in.symm.trans hval_eq), h.2⟩
+  obtain ⟨hv, hc, -, hr, hst⟩ := framedTriple_iff_realization.mp (show Memory.FramedTriple w t
+      (forgetOuterStep (a, m)) (a.dLim * (a.cBagLen * (a.bagLen + 1) + 1) + 1) Set.univ
+      fun r t' => r = m + 1 ∧ t' = ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ by
+    unfold forgetOuterStep; framed_triple)
+  exact ⟨hv, hst, hr, trivial, hc⟩
 
 private theorem forgetFillProg_realizes :
     Realizes .exact forgetFillProg WordEncoding.encode WordEncoding.encode

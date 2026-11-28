@@ -13,6 +13,7 @@ import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.MaskOps
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.ParentPass
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.WeightScan
 import CslibFrontier.Foundations.Data.List.FoldMax
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -99,40 +100,6 @@ def processNodesProg (args : ProcessNodesArgs) : Memory.Prog Unit := do
   let _ ← iterate processNodeStep args args.numNodes args.numNodes
   pure ()
 
-private theorem processNodeStep_eval (a : ProcessNodesArgs) (curNode : ℕ) (t : Memory.State) :
-    let p := t.mem (a.parPtr + curNode)
-    let dJ := a.descBase + 4 * curNode
-    let bagBPtr := t.mem dJ
-    let bagBLen := t.mem (dJ + 1)
-    let tblBPtr := t.mem (dJ + 2)
-    let tblBLen := t.mem (dJ + 3)
-    let dP := a.descBase + 4 * p
-    let bagPPtr := t.mem dP
-    let bagPLen := t.mem (dP + 1)
-    let tblPPtr := t.mem (dP + 2)
-    let tblPLen := t.mem (dP + 3)
-    let bestPtr := t.frontier
-    let t_a := (Memory.spec 0).clientState t (Memory.alloc tblPLen)
-    let t_c := (Memory.spec 0).clientState t_a
-      (childPassProg ⟨a.numVerts, a.adjPtr, a.wtPtr, bagBPtr, bagBLen, tblBPtr, tblBLen,
-        bagPPtr, bagPLen, bestPtr⟩)
-    let t_p := (Memory.spec 0).clientState t_c
-      (parentPassProg ⟨bagBPtr, bagBLen, bagPPtr, bagPLen, tblPPtr, tblPLen, bestPtr⟩)
-    (Memory.spec 0).clientState t (processNodeStep (a, curNode)) = t_p ∧
-    (Memory.spec 0).clientResult t (processNodeStep (a, curNode)) = curNode - 1 := by
-  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
-  unfold processNodeStep
-  dsimp only
-  iterate 9 rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hr_st, hr_res]
-  have ha_res : (Memory.spec 0).clientResult t
-      (Memory.alloc (t.mem (a.descBase + 4 * t.mem (a.parPtr + curNode) + 3))) = t.frontier := rfl
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, ha_res,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
-  exact ⟨rfl, rfl⟩
-
 private theorem cp_cost_poly_le {bj bp M : ℕ} (hj : bj ≤ M) (hp : bp ≤ M) :
     bj * (2 * bj + 1) + bp * (bj + 1) + bj * (bp + 2) + 3 ≤ 4 * M ^ 2 + 4 * M + 3 := by
   nlinarith
@@ -144,6 +111,16 @@ private theorem pp_cost_poly_le {bj bp M : ℕ} (hj : bj ≤ M) (hp : bp ≤ M) 
 private theorem step_pow_sum_le {P t : ℕ} (ht : t ≤ P) (M : ℕ) :
     P * (4 * M ^ 2 + 4 * M + 3) + P * (M ^ 2 + M + 3) + t ≤ P * (5 * M ^ 2 + 5 * M + 7) := by
   nlinarith
+
+/-- A program with an admissible history and a cost bound meets a framed triple over `Set.univ`
+that fixes its result and final state: no program lowers the frontier. -/
+private theorem framed_univ_of_realization {α : Type} {w c : ℕ} {s : Memory.State}
+    {p : Memory.Prog α} (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p))
+    (hc : memoryCost p s ≤ c) :
+    Memory.FramedTriple w s p c Set.univ fun r t =>
+      r = (Memory.spec 0).clientResult s p ∧ t = (Memory.spec 0).clientState s p :=
+  framedTriple_iff_realization.mpr
+    ⟨hv, hc, ⟨Memory.frontier_le_clientState (w := 0) s p, fun _ _ h => (h trivial).elim⟩, rfl, rfl⟩
 
 private abbrev ChildPassPre (w : ℕ) (args : ChildPassArgs) (s : Memory.State) : Prop :=
   Fits w 2 ∧
@@ -340,11 +317,6 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     (by simpa only [hp_tlen] using hp_tbl.1)
     hbest_cp hbestL_len (fun _ hx => List.mem_le_foldl_max hx) hbestL_le hfit_sum
   let t_p := (Memory.spec 0).clientState t_c (parentPassProg ppArgs)
-  obtain ⟨hst_ev, hres_ev⟩ := processNodeStep_eval a (k + 1) t
-  have hst_eq : (Memory.spec 0).clientState t (processNodeStep (a, k + 1)) = t_p := by
-    rw [hst_ev]
-    dsimp only [a, m, n, t_p, t_c, t_a, ppArgs, cpArgs, tblPLen, bestPtr, jFin]
-    rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
   have hlay_p : NodeLayout inst descBase
       (Function.update tblList pFin
         (parentPassPrefix (inst.bagAt jFin) (inst.bagAt pFin) (tblList pFin) bestL tblPLen))
@@ -378,45 +350,39 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     have := hlay.desc_hi
     have := pFin.isLt
     omega
-  have hv_step : (Memory.spec w).ValidHistory t
-      ((Memory.spec w).clientHistory t (processNodeStep (a, k + 1))) := by
+  have hcp : Memory.FramedTriple w ⟨clear t.mem t.frontier tblPLen, t.frontier + tblPLen⟩
+      (childPassProg cpArgs) (memoryCost (childPassProg cpArgs) t_a) Set.univ fun r t' =>
+        r = (Memory.spec 0).clientResult t_a (childPassProg cpArgs) ∧ t' = t_c :=
+    framed_univ_of_realization hv_cp le_rfl
+  have hpp := framed_univ_of_realization hv_pp le_rfl
+  have hfit_alloc : Fits w (t.frontier + 2 ^ (inst.bagAt pFin).length) :=
+    hfit_fr.of_le (by dsimp only [M] at hp_pow_le ⊢; omega)
+  have hc_cp_M : memoryCost (childPassProg cpArgs) t_a ≤ 2 ^ M * (4 * M ^ 2 + 4 * M + 3) :=
+    hc_cp.trans (Nat.mul_le_mul hj_pow_le (cp_cost_poly_le hj_len_le hp_len_le))
+  have hc_pp_M : memoryCost (parentPassProg ppArgs) t_c ≤ 2 ^ M * (M ^ 2 + M + 3) :=
+    hc_pp.trans (Nat.mul_le_mul hp_pow_le (pp_cost_poly_le hj_len_le hp_len_le))
+  have hsum_pow := step_pow_sum_le hp_pow_le M
+  have hft : Memory.FramedTriple w t (processNodeStep (a, k + 1))
+      (2 ^ M * (5 * M ^ 2 + 5 * M + 7) + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1) Set.univ
+      fun r t' => r = k ∧ t' = t_p := by
     unfold processNodeStep
     dsimp only
-    refine validHistory_read_bind hpar_lt_fr ?_
+    apply Memory.FramedTriple.read_bind hpar_lt_fr
     rw [hp_read]
-    refine validHistory_read_bind (by simpa only [Nat.add_zero] using hdJ_lt 0 (by decide)) <|
-      validHistory_read_bind (hdJ_lt 1 (by decide)) <|
-      validHistory_read_bind (hdJ_lt 2 (by decide)) <|
-      validHistory_read_bind (hdJ_lt 3 (by decide)) <|
-      validHistory_read_bind (by simpa only [Nat.add_zero] using hdP_lt 0 (by decide)) <|
-      validHistory_read_bind (hdP_lt 1 (by decide)) <|
-      validHistory_read_bind (hdP_lt 2 (by decide)) <|
-      validHistory_read_bind (hdP_lt 3 (by decide)) ?_
+    apply Memory.FramedTriple.read_bind (by simpa only [Nat.add_zero] using hdJ_lt 0 (by decide))
+    apply Memory.FramedTriple.read_bind (hdJ_lt 1 (by decide))
+    apply Memory.FramedTriple.read_bind (hdJ_lt 2 (by decide))
+    apply Memory.FramedTriple.read_bind (hdJ_lt 3 (by decide))
+    apply Memory.FramedTriple.read_bind (by simpa only [Nat.add_zero] using hdP_lt 0 (by decide))
+    apply Memory.FramedTriple.read_bind (hdP_lt 1 (by decide))
+    apply Memory.FramedTriple.read_bind (hdP_lt 2 (by decide))
+    apply Memory.FramedTriple.read_bind (hdP_lt 3 (by decide))
     rw [hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
-    exact validHistory_bind_step hv_alloc
-      (validHistory_bind_step hv_cp (validHistory_bind_step hv_pp (validHistory_pure w _ _)))
-  have hc_step : memoryCost (processNodeStep (a, k + 1)) t ≤
-      10 + 2 ^ M * (5 * M ^ 2 + 5 * M + 7) := by
-    have hr_s (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-    have hr_r (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
-    unfold processNodeStep
-    dsimp only
-    iterate 9 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
-    rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
-    rw [memoryCost_bind', memoryCost_alloc, memoryCost_bind', memoryCost_bind',
-      memoryCost_pure, Nat.add_zero]
-    have hc_cp_M : memoryCost (childPassProg cpArgs) t_a ≤ 2 ^ M * (4 * M ^ 2 + 4 * M + 3) :=
-      hc_cp.trans (Nat.mul_le_mul hj_pow_le (cp_cost_poly_le hj_len_le hp_len_le))
-    have hc_pp_M : memoryCost (parentPassProg ppArgs) t_c ≤
-        2 ^ M * (M ^ 2 + M + 3) :=
-      hc_pp.trans (Nat.mul_le_mul hp_pow_le (pp_cost_poly_le hj_len_le hp_len_le))
-    have hsum_pow := step_pow_sum_le hp_pow_le M
-    change 1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + ((tblPLen + 1) +
-      (memoryCost (childPassProg cpArgs) t_a +
-        memoryCost (parentPassProg ppArgs) t_c)))))))))) ≤ _
-    omega
-  refine ⟨hv_step, by rw [hres_ev]; omega, ?_,
-    by rwa [hst_eq], hpfx_next, hc_step, fun h4 => ?_⟩
+    framed_triple
+  obtain ⟨hv_step, hc_step, -, hres, hst_eq⟩ := framedTriple_iff_realization.mp hft
+  refine ⟨hv_step, hres, ?_,
+    by rw [hst_eq]; exact hlay_p, hpfx_next, hc_step.trans (by dsimp only [M]; omega),
+    fun h4 => ?_⟩
   · rw [hst_eq, hfr_pp, hfr_cp]
     exact Nat.add_le_add_left hp_pow_le _
   · have h2 : Fits w 2 := h4.of_le (by decide)
@@ -496,97 +462,83 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
   let M := inst.maxBagLen
   let B := M * inst.maxWeight
   let args : ProcessNodesArgs := ⟨m, 3 + m, 3, 3 + m + m * m, descBase, n⟩
-  let stepCost := 10 + 2 ^ M * (5 * M ^ 2 + 5 * M + 7)
-  suffices ∀ k st (tblList : Fin (n + 1) → List ℕ),
-      k ≤ n →
-      st.frontier ≤ s₁.frontier + (n - k) * 2 ^ M →
-      NodeLayout inst descBase tblList st →
-      prefixMaxSum tblList k ≤ (n - k) * B →
+  let Qf (t : Memory.State) : Prop := t.frontier ≤ s₁.frontier + n * 2 ^ M ∧
+    ∃ tblFinal : Fin (n + 1) → List ℕ,
+      NodeLayout inst descBase tblFinal t ∧ prefixMaxSum tblFinal 0 ≤ n * B ∧
       (∀ i : Fin (n + 1), ∀ s < 2 ^ (inst.bagAt i).length,
-        (tblList i).getD s 0 =
-          (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt (n - k))[i].getD s 0) →
-      (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (iterate processNodeStep args k k)) ∧
-      (let sEnd := (Memory.spec 0).clientState st (iterate processNodeStep args k k)
-       sEnd.frontier ≤ s₁.frontier + n * 2 ^ M ∧
-       ∃ tblFinal : Fin (n + 1) → List ℕ,
-         NodeLayout inst descBase tblFinal sEnd ∧
-         prefixMaxSum tblFinal 0 ≤ n * B ∧
-         (∀ i : Fin (n + 1), ∀ s < 2 ^ (inst.bagAt i).length,
-           (tblFinal i).getD s 0 =
-             (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[i].getD s 0)) ∧
-      memoryCost (iterate processNodeStep args k k) st ≤ k * stepCost by
-    obtain ⟨hv_l, ⟨hfr_l, hfin_l⟩, hc_l⟩ := this n s₁
-      (fun i => List.replicate (2 ^ (inst.bagAt i).length) 0) le_rfl (by simp) hlay₁
-      (by simp [prefixMaxSum_replicate_zero])
+        (tblFinal i).getD s 0 =
+          (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[i].getD s 0)
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (w := w) (s := s₁) (body := processNodeStep)
+    (c := 10 + 2 ^ M * (5 * M ^ 2 + 5 * M + 7)) (S := Set.univ) (safe := fun _ _ _ => True)
+    (d := args) (n := n) (a₀ := n) (Q := fun _ t => Qf t)
+    (fun j cur t => cur = n - j ∧ t.frontier ≤ s₁.frontier + j * 2 ^ M ∧
+      ∃ tblList : Fin (n + 1) → List ℕ, NodeLayout inst descBase tblList t ∧
+        prefixMaxSum tblList (n - j) ≤ j * B ∧
+        ∀ i : Fin (n + 1), ∀ s < 2 ^ (inst.bagAt i).length,
+          (tblList i).getD s 0 =
+            (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt j)[i].getD s 0)
+    ⟨rfl, by simp, _, hlay₁, (prefixMaxSum_replicate_zero _ _).trans_le (Nat.zero_le _),
       fun i s hs => by
-        simp [tablesInst_zero, List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, hs]
-    unfold processNodesProg
-    exact ⟨validHistory_bind_step hv_l (validHistory_pure w _ ()),
-      by rwa [StateTransitionSpec.clientState_bind],
-      by rwa [StateTransitionSpec.clientState_bind],
-      by rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]⟩
-  intro k
-  induction k with
-  | zero =>
-    intro st tblList _ hfr hlay hpfx hagree
-    simp only [Nat.sub_zero] at hfr hpfx hagree
-    exact ⟨validHistory_pure w st 0, ⟨hfr, tblList, hlay, hpfx, hagree⟩,
-      by simp [iterate, memoryCost_pure]⟩
-  | succ k ih =>
-    intro st tblList hk hfr hlay hpfx hagree
-    have hfr_sub : st.frontier + 2 ^ M ≤ s₁.frontier + (n - k) * 2 ^ M := by
-      calc st.frontier + 2 ^ M
-          ≤ (s₁.frontier + (n - (k + 1)) * 2 ^ M) + 2 ^ M := Nat.add_le_add_right hfr _
-        _ = s₁.frontier + (n - (k + 1) + 1) * 2 ^ M := by rw [Nat.add_assoc, ← Nat.succ_mul]
-        _ = s₁.frontier + (n - k) * 2 ^ M := by rw [show n - (k + 1) + 1 = n - k by omega]
-    have hfit_fr : Fits w (st.frontier + 2 ^ M) := hfit_peak.of_le
-      (hfr_sub.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ (Nat.sub_le _ _)) _))
-    obtain ⟨hv_step, hres_step, hfr_step, hlay_next, hpfx_next, hc_step, _⟩ :=
-      processNodeStep_full (w := w) inst descBase rfl hk hlay hpfx hfit_fr hfit_val
-    let jFin : Fin (n + 1) := ⟨k + 1, by omega⟩
-    let pFin := inst.parFin jFin
-    let bestL := childPassList inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
-      (tblList jFin) (List.replicate (2 ^ (inst.bagAt pFin).length) 0)
-      (2 ^ (inst.bagAt jFin).length)
-    let newTblP := parentPassPrefix (inst.bagAt jFin) (inst.bagAt pFin)
-      (tblList pFin) bestL (2 ^ (inst.bagAt pFin).length)
-    let tblList' := Function.update tblList pFin newTblP
-    have hagree_next (i : Fin (n + 1)) (s : ℕ) (hs : s < 2 ^ (inst.bagAt i).length) :
-        (tblList' i).getD s 0 =
-          (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt (n - k))[i].getD s 0 := by
-      have hj_ofNat : Fin.ofNat (n + 1) (n - (n - (k + 1))) = jFin := Fin.ext <| by
-        rw [Fin.val_ofNat, show n - (n - (k + 1)) = k + 1 by omega, Nat.mod_eq_of_lt (by omega)]
-      rw [show n - k = (n - (k + 1)) + 1 by omega, tablesInst_succ]
-      simp only [hj_ofNat]
-      dsimp only [tblList']
-      rcases eq_or_ne i pFin with rfl | hip
-      · have hs_lt_old : s < (tblList pFin).length := (hlay.tbl_holds pFin).1.symm ▸ hs
-        have hold_eq : (tblList pFin)[s] =
-            (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt
-              (n - (k + 1)))[pFin].getD s 0 := by
-          rw [← hagree pFin s hs, List.getD_eq_getElem?_getD,
-            List.getElem?_eq_getElem hs_lt_old, Option.getD_some]
-        rw [Function.update_self, Fin.getElem_fin, Vector.getElem_set_self,
-          getD_parentPass_raw _ _ _ _ hs,
-          getD_parentPassPrefix _ _ _ _ hs_lt_old hs, hold_eq,
-          getD_childPassList_eq inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
-            (tblList jFin) _ (2 ^ (inst.bagAt jFin).length) (hagree jFin) _
-            (restrictMask_lt_two_pow _ _ s)]
-      · rw [Function.update_of_ne hip, Fin.getElem_fin,
-          Vector.getElem_set_ne _ _ fun h => hip (Fin.ext h).symm]
-        exact hagree i s hs
-    let st₁ := (Memory.spec 0).clientState st (processNodeStep (args, k + 1))
-    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ := ih st₁ tblList' (by omega)
-      (hfr_step.trans hfr_sub) hlay_next hpfx_next hagree_next
-    dsimp only [iterate]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hres_step]), ?_, ?_⟩
-    · rwa [StateTransitionSpec.clientState_bind, hres_step]
-    · rw [memoryCost_bind', hres_step]
-      calc memoryCost (processNodeStep (args, k + 1)) st +
-            memoryCost (iterate processNodeStep args k k) st₁
-          ≤ stepCost + k * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (k + 1) * stepCost := by ring
+        simp [tablesInst_zero, List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, hs]⟩
+    (fun j hj cur st ⟨hcur, hfr, tblList, hlay, hpfx, hagree⟩ _ => ⟨trivial, by
+      obtain ⟨k, hk_eq⟩ : ∃ k, n - j = k + 1 := ⟨n - j - 1, by omega⟩
+      have hk : k + 1 ≤ n := by omega
+      rw [hk_eq] at hcur hpfx
+      subst hcur
+      obtain rfl : j = n - (k + 1) := by omega
+      have hfr_sub : st.frontier + 2 ^ M ≤ s₁.frontier + (n - (k + 1) + 1) * 2 ^ M :=
+        (Nat.add_le_add_right hfr _).trans_eq (by rw [Nat.add_assoc, ← Nat.succ_mul])
+      have hfit_fr : Fits w (st.frontier + 2 ^ M) := hfit_peak.of_le
+        (hfr_sub.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ (by omega)) _))
+      obtain ⟨hv_step, hres_step, hfr_step, hlay_next, hpfx_next, hc_step, _⟩ :=
+        processNodeStep_full (w := w) inst descBase rfl hk hlay hpfx hfit_fr hfit_val
+      let jFin : Fin (n + 1) := ⟨k + 1, by omega⟩
+      let pFin := inst.parFin jFin
+      let bestL := childPassList inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
+        (tblList jFin) (List.replicate (2 ^ (inst.bagAt pFin).length) 0)
+        (2 ^ (inst.bagAt jFin).length)
+      let newTblP := parentPassPrefix (inst.bagAt jFin) (inst.bagAt pFin)
+        (tblList pFin) bestL (2 ^ (inst.bagAt pFin).length)
+      let tblList' := Function.update tblList pFin newTblP
+      have hagree_next (i : Fin (n + 1)) (s : ℕ) (hs : s < 2 ^ (inst.bagAt i).length) :
+          (tblList' i).getD s 0 = (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt
+            (n - (k + 1) + 1))[i].getD s 0 := by
+        have hj_ofNat : Fin.ofNat (n + 1) (n - (n - (k + 1))) = jFin := Fin.ext <| by
+          rw [Fin.val_ofNat, show n - (n - (k + 1)) = k + 1 by omega, Nat.mod_eq_of_lt (by omega)]
+        rw [tablesInst_succ]
+        simp only [hj_ofNat]
+        dsimp only [tblList']
+        rcases eq_or_ne i pFin with rfl | hip
+        · have hs_lt_old : s < (tblList pFin).length := (hlay.tbl_holds pFin).1.symm ▸ hs
+          have hold_eq : (tblList pFin)[s] =
+              (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt
+                (n - (k + 1)))[pFin].getD s 0 := by
+            rw [← hagree pFin s hs, List.getD_eq_getElem?_getD,
+              List.getElem?_eq_getElem hs_lt_old, Option.getD_some]
+          rw [Function.update_self, Fin.getElem_fin, Vector.getElem_set_self,
+            getD_parentPass_raw _ _ _ _ hs,
+            getD_parentPassPrefix _ _ _ _ hs_lt_old hs, hold_eq,
+            getD_childPassList_eq inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
+              (tblList jFin) _ (2 ^ (inst.bagAt jFin).length) (hagree jFin) _
+              (restrictMask_lt_two_pow _ _ s)]
+        · rw [Function.update_of_ne hip, Fin.getElem_fin,
+            Vector.getElem_set_ne _ _ fun h => hip (Fin.ext h).symm]
+          exact hagree i s hs
+      refine (framed_univ_of_realization hv_step hc_step).mono le_rfl fun r t' ⟨hr, ht⟩ => ?_
+      subst hr ht
+      refine ⟨by rw [hres_step]; omega, hfr_step.trans hfr_sub, tblList', hlay_next, ?_,
+        hagree_next⟩
+      rw [show n - (n - (k + 1) + 1) = k by omega, show n - (k + 1) + 1 = n - k by omega]
+      exact hpfx_next⟩)
+    fun _ t ⟨_, hfr, tblList, hlay, hpfx, hagree⟩ _ =>
+      ⟨hfr, tblList, hlay, by rw [Nat.sub_self] at hpfx; exact hpfx, hagree⟩
+  have hft : Memory.FramedTriple w s₁ (processNodesProg args)
+      (n * (10 + 2 ^ M * (5 * M ^ 2 + 5 * M + 7))) Set.univ fun _ t => Qf t :=
+    Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+      fun _ _ h _ => Memory.FramedTriple.pure h) (by rw [Nat.add_zero, Nat.mul_comm _ n])
+      fun _ _ => id
+  obtain ⟨hv, hc, -, hfr, hfin⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, hfr, hfin, hc⟩
 
 /-- Exact-basis Word-RAM realization certificate for `processNodesProg`. -/
 theorem processNodesProg_realizes :
