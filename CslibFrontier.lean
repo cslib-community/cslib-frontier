@@ -7900,6 +7900,7 @@ public import CslibFrontier.Probability.BitString.SubsetSum.Matrix
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
 public import CslibFrontier.Probability.PairwiseIndependentHash.Affine
+public import CslibFrontier.GameTheory.Evolutionary.RoutingDynamics
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Kadin
 public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchySampling

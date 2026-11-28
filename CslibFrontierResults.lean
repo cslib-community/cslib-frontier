@@ -78,6 +78,7 @@ import CslibFrontierResults.Entries.SamplableNotComputable
 import CslibFrontierResults.Entries.DHKEM
 import CslibFrontierResults.Entries.KellyMarketClearing
 import CslibFrontierResults.Entries.SelfClosingDoor
+import CslibFrontierResults.Entries.EvolutionaryRoutingDynamics
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.PotentialPolymatrix
