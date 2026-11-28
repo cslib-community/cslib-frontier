@@ -129,11 +129,15 @@ example :
         (fun b => ∑ i, symmetricSecondPrice.payment b i) β} 2 ∧
       IsLeast {β : ℝ | IsCompetitive (optimalProfitTwo (ι := Fin 3))
         (fun b => ∑ i, symmetricSecondPrice.payment b i) β} 3 ∧
+      (¬ ∀ n : ℕ, 2 ≤ n → ∃ M : Mechanism (Fin n),
+        M.IsDSIC ∧ M.IsIR ∧ IsBinary M.allocation ∧ IsSymmetric M ∧
+          IsCompetitive optimalProfitTwo (fun b => ∑ i, M.payment b i) 10) ∧
       (∃ n ≥ 2, ∃ h ≥ (1 : ℝ),
         ∀ M : Mechanism (Fin n), M.IsDSIC → M.IsIR → IsBinary M.allocation → IsSymmetric M →
           ∃ b : Fin n → ℝ, (∀ i, 1 ≤ b i ∧ b i ≤ h) ∧
             ∑ i, M.payment b i < optimalProfit b / 2 - h * 1) := by
-  refine ⟨?_, ?_, exists_not_approx_symmetric_deterministic (by norm_num : (0 : ℝ) < 2) 1⟩
+  refine ⟨?_, ?_, fun h => not_exists_const_competitive_symmetric ⟨10, h⟩,
+    exists_not_approx_symmetric_deterministic (by norm_num : (0 : ℝ) < 2) 1⟩
   · simpa only [Fintype.card_fin, Nat.cast_ofNat] using
       isLeast_symmetricSecondPrice_competitiveRatio (ι := Fin 2) (by decide)
   · simpa only [Fintype.card_fin, Nat.cast_ofNat] using
@@ -194,6 +198,75 @@ private theorem expectedRSPE_isCompetitive {ι : Type*} [Fintype ι] [DecidableE
     exact (Finset.expect_sum_comm _ _ _).symm
   rw [hsum]
   exact rspe_isCompetitive
+
+/-- Contrast: `expectedRSPE` satisfies `IsUnitAlloc` while failing `IsBinary` (on `b = (1, 2)`
+for `Fin 2`, bidder `0` wins on `s = ∅` and loses on `s = {0}`). -/
+example : ¬ IsBinary (expectedRSPE (ι := Fin 2)).allocation := by
+  intro hBin
+  let b : Fin 2 → ℝ := ![(1 : ℝ), 2]
+  have hb : 0 ≤ b := fun i => by fin_cases i <;> norm_num [b]
+  have h1 : (rspe (∅ : Finset (Fin 2))).allocation b 0 = 1 := by
+    simp only [rspe, notMem_empty, ↓reduceIte, compl_empty, optimalProfitOn,
+      singlePriceProfitOn_empty, profitExtractOn, mem_univ, true_and]
+    have hpos : 0 < profitExtractSize (univ : Finset (Fin 2)) 0 b := by
+      unfold profitExtractSize
+      simp only [le_refl, ↓reduceIte]
+      have hmem : 1 ∈ (Finset.Icc 1 (univ : Finset (Fin 2)).card).filter fun k : ℕ =>
+          k ≤ ((univ : Finset (Fin 2)).filter fun j => (0 : ℝ) / (k : ℝ) ≤ b j).card := by
+        refine mem_filter.2 ⟨mem_Icc.2 ⟨le_rfl, by decide⟩, ?_⟩
+        have hfilt : ((univ : Finset (Fin 2)).filter fun j =>
+            (0 : ℝ) / ((1 : ℕ) : ℝ) ≤ b j) = univ :=
+          filter_true_of_mem fun j _ => by
+            rw [zero_div]; exact hb j
+        rw [hfilt, card_univ, Fintype.card_fin]; decide
+      rw [dite_eq_left ⟨1, hmem⟩]
+      exact lt_of_lt_of_le Nat.zero_lt_one (le_max' _ 1 hmem)
+    rw [ite_eq_left ⟨hpos, by rw [zero_div]; exact hb 0⟩]
+  have h0 : (rspe ({0} : Finset (Fin 2))).allocation b 0 = 0 := by
+    simp only [rspe, mem_singleton, ↓reduceIte, profitExtractOn, true_and]
+    have hR : optimalProfitOn ({0} : Finset (Fin 2))ᶜ b = 2 := by
+      have hcompl : ({0} : Finset (Fin 2))ᶜ = {1} := by decide
+      rw [hcompl]
+      apply le_antisymm
+      · refine singlePriceProfitOn_le (by norm_num) fun j hj _ => ?_
+        rw [mem_singleton.1 hj]
+        have hb1 : b 1 = 2 := rfl
+        rw [hb1]
+        have hle : ((({1} : Finset (Fin 2)).filter fun i => (2 : ℝ) ≤ b i).card : ℝ) ≤ 1 := by
+          exact_mod_cast (card_filter_le ({1} : Finset (Fin 2)) _).trans (by decide)
+        linarith
+      · have hle := mul_card_le_singlePriceProfitOn (m := 1) (s := ({1} : Finset (Fin 2)))
+          (W := {1}) (b := b) (p := 2) (fun j _ => hb j) subset_rfl (by decide)
+          fun j hj => by rw [mem_singleton.1 hj]; norm_num [b]
+        simpa only [card_singleton, Nat.cast_one, mul_one] using hle
+    rw [hR]
+    have hsz : profitExtractSize ({0} : Finset (Fin 2)) 2 b = 0 := by
+      unfold profitExtractSize
+      simp only [show (0 : ℝ) ≤ 2 by norm_num, ↓reduceIte]
+      have hempty : ((Finset.Icc 1 ({0} : Finset (Fin 2)).card).filter fun k : ℕ =>
+          k ≤ (({0} : Finset (Fin 2)).filter fun j => (2 : ℝ) / (k : ℝ) ≤ b j).card) = ∅ := by
+        refine filter_eq_empty_iff.2 fun k hk => ?_
+        have hk1 : k = 1 := by simp only [card_singleton, mem_Icc] at hk; omega
+        subst hk1
+        have hf : (({0} : Finset (Fin 2)).filter fun j =>
+            (2 : ℝ) / ((1 : ℕ) : ℝ) ≤ b j) = ∅ :=
+          filter_eq_empty_iff.2 fun j hj => by rw [mem_singleton.1 hj]; norm_num [b]
+        rw [hf, card_empty]; omega
+      rw [hempty, dite_eq_right Finset.not_nonempty_empty]
+    simp only [hsz, lt_irrefl, false_and, ↓reduceIte]
+  have hgt0 : 0 < expectedRSPE.allocation b 0 := by
+    dsimp only [expectedRSPE]
+    rw [← Finset.expect_const (s := (univ : Finset (Finset (Fin 2)))) univ_nonempty (0 : ℝ)]
+    exact Finset.expect_lt_expect
+      (fun s _ => (IsBinary.isUnitAlloc (rspe_isBinary s) b hb 0).1)
+      ⟨∅, mem_univ _, by rw [h1]; norm_num⟩
+  have hlt1 : expectedRSPE.allocation b 0 < 1 := by
+    dsimp only [expectedRSPE]
+    rw [← Finset.expect_const (s := (univ : Finset (Finset (Fin 2)))) univ_nonempty (1 : ℝ)]
+    exact Finset.expect_lt_expect
+      (fun s _ => (IsBinary.isUnitAlloc (rspe_isBinary s) b hb 0).2)
+      ⟨{0}, mem_univ _, by rw [h0]; norm_num⟩
+  rcases hBin b hb 0 with h | h <;> linarith
 
 /-- Non-vacuous client check of **Lemma 13.38** (`2 ≤ β`), the **`13 / 6` lower bound for `n = 3`**,
 and **Exercise 13.8** applied to both `expectedRSPE` and `symmetricSecondPrice`. -/
@@ -284,13 +357,22 @@ example :
   rw [hfl]
   norm_num
 
-/-- Concrete **Lemma 13.47** (`α = 4`, `ρ = 2`, exact consensus probability `1 / 2`) and
-**Lemma 13.48** (`α = 2`, `V = 4`, exact expectation `4 / (2 * Real.log 2)`). -/
+/-- Concrete **Lemma 13.47** (`α = 4`, `ρ = 2`: measurability and exact consensus probability
+`1 / 2`), **Lemma 13.48** (`α = 2`, `V = 4`, exact expectation `4 / (2 * Real.log 2)`), and
+contrast showing a non-truthful first-price mechanism fails `IsTruthfulWithHighProbAt` at
+`ε = 1 / 2`. -/
 example :
-    volume.real {u ∈ Set.Icc (0 : ℝ) 1 |
+    MeasurableSet {u ∈ Set.Icc (0 : ℝ) 1 |
+        ∀ V' ∈ Set.Icc ((10 : ℝ) / 2) 10, roundDown 4 u V' = roundDown 4 u 10} ∧
+      volume.real {u ∈ Set.Icc (0 : ℝ) 1 |
         ∀ V' ∈ Set.Icc ((10 : ℝ) / 2) 10, roundDown 4 u V' = roundDown 4 u 10} = 1 / 2 ∧
-      ∫ u in (0 : ℝ)..1, roundDown 2 u 4 = 4 / (2 * Real.log 2) := by
-  constructor
+      ∫ u in (0 : ℝ)..1, roundDown 2 u 4 = 4 / (2 * Real.log 2) ∧
+      ¬ IsTruthfulWithHighProbAt
+        (fun _ : ℝ =>
+          ({ allocation := fun _ _ => 1, payment := fun b i => b i } : Mechanism (Fin 1)))
+        ![(2 : ℝ)] 0 (1 / 2) := by
+  refine ⟨measurableSet_roundDown_consensus (by norm_num) (by norm_num) (by norm_num) (by norm_num),
+    ?_, ?_, ?_⟩
   · rw [volume_real_roundDown_consensus (by norm_num) (by norm_num) (by norm_num) (by norm_num)]
     have hlog : Real.logb 4 2 = 1 / 2 := by
       have h4 : (4 : ℝ) = 2 ^ (2 : ℝ) := by norm_num
@@ -300,6 +382,19 @@ example :
     rw [hlog]; norm_num
   · rw [integral_roundDown (by norm_num) (by norm_num)]
     norm_num
+  · intro hT
+    have h1 := hT 1 (by norm_num)
+    have hset : {u ∈ Set.Icc (0 : ℝ) 1 |
+        ({ allocation := fun _ _ => 1, payment := fun b i => b i } : Mechanism (Fin 1)).utility
+          0 (![(2 : ℝ)] 0) ![(2 : ℝ)] <
+        ({ allocation := fun _ _ => 1, payment := fun b i => b i } : Mechanism (Fin 1)).utility
+          0 (![(2 : ℝ)] 0) (Function.update ![(2 : ℝ)] 0 1)} = Set.Icc (0 : ℝ) 1 := by
+      ext u
+      simp only [Set.mem_sep_iff, Mechanism.utility, Function.update_self, and_iff_left_iff_imp]
+      intro _
+      norm_num
+    rw [hset, Real.volume_real_Icc_of_le zero_le_one] at h1
+    linarith
 
 /-- Concrete digital goods CEPE instantiation (**Theorem 13.49**, `α = 2`) on `Fin 3` with
 `v = (1, 1, 1)` (`m = 3` winners): `2 * Real.log 2`-competitive against `ℱ⁽²⁾` and truthful for

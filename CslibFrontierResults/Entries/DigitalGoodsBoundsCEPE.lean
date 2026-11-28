@@ -100,6 +100,7 @@ register_result "hartline-karlin-2007-cepe" where
       locator := "§13.4.6, pp. 349–350 (Footnote 2); Exercises, p. 361 (Exercise 13.11)" }
   ]
   theorems := [
+    Cslib.GameTheory.SingleParameter.DigitalGoods.measurableSet_roundDown_consensus,
     Cslib.GameTheory.SingleParameter.DigitalGoods.volume_real_roundDown_consensus,
     Cslib.GameTheory.SingleParameter.DigitalGoods.roundDown_isRhoConsensus,
     Cslib.GameTheory.SingleParameter.DigitalGoods.integral_roundDown,
@@ -107,22 +108,26 @@ register_result "hartline-karlin-2007-cepe" where
     Cslib.GameTheory.SingleParameter.DigitalGoods.cepeDet_optimal_response_of_consensus,
     Cslib.GameTheory.SingleParameter.DigitalGoods.cepeExpectedProfit_eq,
     Cslib.GameTheory.SingleParameter.DigitalGoods.cepe_isCompetitive,
-    Cslib.GameTheory.SingleParameter.DigitalGoods.cepe_truthful_measure_ge,
+    Cslib.GameTheory.SingleParameter.DigitalGoods.cepe_nontruthful_measure_le,
     Cslib.GameTheory.SingleParameter.DigitalGoods.cepe_isTruthfulWithHighProbAt,
     Cslib.GameTheory.SingleParameter.DigitalGoods.cepeDigitalGoods_isCompetitive,
     Cslib.GameTheory.SingleParameter.DigitalGoods.cepeDigitalGoods_truthful_of_winners
   ]
-  scope := "Randomization over `U ~ Uniform[0, 1]` is modeled via Lebesgue measure `volume.real` \
-    and interval integrals on `[0, 1]`. `volume_real_roundDown_consensus` and \
-    `roundDown_isRhoConsensus` prove Lemma 13.47 (exact consensus measure `1 - log_α ρ` for \
-    `1 < α`, `1 ≤ ρ ≤ α`, `0 < V`). `integral_roundDown` and `roundDown_isBetaEstimate` prove \
-    Lemma 13.48 (exact expectation `V / ((α * Real.log α) / (α - 1))`). \
-    `cepeDet_optimal_response_of_consensus` proves Exercise 13.11(a) assuming the profit \
-    extractor `PE R` is DSIC and normalized with allocations antitone in `R ≥ 0` (capturing \
-    monotone-in-`R` offered prices in `[0, ∞]`, Footnote 2, p. 350). `cepeExpectedProfit_eq`, \
-    `cepe_isCompetitive`, `cepe_truthful_measure_ge`, and `cepe_isTruthfulWithHighProbAt` prove \
-    Theorem 13.49 and Exercise 13.11(b) for an arbitrary seller cost function `c : (ι → ℝ) → ℝ` \
-    and exact profit extractor `PE`. Instantiating with `ℱ⁽²⁾` and `profitExtract` gives \
-    `cepeDigitalGoods_isCompetitive` and `cepeDigitalGoods_truthful_of_winners` (`1 - O(1/m)` \
-    truthfulness for `m ≥ 3` winners with `m / (m - 1) ≤ α`; the `m = 2` boundary where removing \
-    one winner can drop `ℱ⁽²⁾` to `0` is checked in tests). No running-time claim is made."
+  scope := "Randomization over `U ~ Uniform[0, 1]` is modeled via Lebesgue outer measure \
+    `volume.real` and interval integrals on `[0, 1]`. Following Definition 13.43 verbatim, \
+    `IsTruthfulWithHighProbAt` and `IsRhoConsensus` upper-bound the outer measure of the failure \
+    event by `ε`, avoiding non-measurable outer-measure loopholes. \
+    `measurableSet_roundDown_consensus`, `volume_real_roundDown_consensus`, and \
+    `roundDown_isRhoConsensus` prove Lemma 13.47 (measurability and exact consensus measure \
+    `1 - log_α ρ`, complement `log_α ρ`, for `1 < α`, `1 ≤ ρ ≤ α`, `0 < V`). \
+    `integral_roundDown` and `roundDown_isBetaEstimate` prove Lemma 13.48 (exact expectation \
+    `V / ((α * Real.log α) / (α - 1))`). `cepeDet_optimal_response_of_consensus` proves Exercise \
+    13.11(a) assuming the profit extractor `PE R` is DSIC and normalized with allocations antitone \
+    in `R ≥ 0` (capturing monotone-in-`R` offered prices in `[0, ∞]`, Footnote 2, p. 350). \
+    `cepeExpectedProfit_eq`, `cepe_isCompetitive`, `cepe_nontruthful_measure_le`, and \
+    `cepe_isTruthfulWithHighProbAt` prove Theorem 13.49 and Exercise 13.11(b) for an arbitrary \
+    seller cost function `c : (ι → ℝ) → ℝ` and exact profit extractor `PE`. Instantiating with \
+    `ℱ⁽²⁾` and `profitExtract` gives `cepeDigitalGoods_isCompetitive` and \
+    `cepeDigitalGoods_truthful_of_winners` (`1 - O(1/m)` truthfulness for `m ≥ 3` winners with \
+    `m / (m - 1) ≤ α`; the `m = 2` boundary where removing one winner can drop `ℱ⁽²⁾` to `0` is \
+    checked in tests). No running-time claim is made."

@@ -25,17 +25,21 @@ This module formalizes the Consensus Estimation Profit Extraction (`CEPE`) frame
 [HartlineKarlin2007], §13.4.6 (pp. 349–350) and Exercise 13.11 (p. 361):
 
 * **Solution concepts (`Definitions 13.43–13.45`, pp. 349–350):** for mechanisms and functions
-  randomized by a uniform draw `U ∈ [0, 1]` (modeled via Lebesgue measure `volume.real` and
+  randomized by a uniform draw `U ∈ [0, 1]` (modeled via Lebesgue outer measure `volume.real` and
   interval integrals `∫ u in (0 : ℝ)..1, …`), we define truthfulness with high probability
   (`IsTruthfulWithHighProbAt`, `IsTruthfulWithHighProb`), `ρ`-consensus (`IsRhoConsensus`), and
-  `β`-estimation (`IsBetaEstimate`).
+  `β`-estimation (`IsBetaEstimate`). Following Definition 13.43 verbatim,
+  `IsTruthfulWithHighProbAt` and `IsRhoConsensus` upper-bound the outer measure of the *failure*
+  event by `ε` rather than lower-bounding the outer measure of the good event, avoiding
+  non-measurable outer-measure loopholes.
 * **Random geometric rounding `r_α` (`Definition 13.46`, `Lemmas 13.47–13.48`, p. 350):**
   `roundDown α u V := if 0 < V then α ^ (⌊Real.logb α V - u⌋ + u) else 0` rounds `V > 0` down to
   the nearest `α ^ (i + u)` (`i : ℤ`). For `1 < α`:
-  - **Lemma 13.47** (`volume_real_roundDown_consensus`, `roundDown_isRhoConsensus`): for
-    `1 ≤ ρ ≤ α` and `0 < V`, the consensus event `{u ∈ [0, 1] | ∀ V' ∈ [V / ρ, V],
-    roundDown α u V' = roundDown α u V}` is measurable with exact Lebesgue measure
-    `1 - Real.logb α ρ`.
+  - **Lemma 13.47** (`measurableSet_roundDown_consensus`, `volume_real_roundDown_consensus`,
+    `roundDown_isRhoConsensus`): for `1 ≤ ρ ≤ α` and `0 < V`, the consensus event
+    `{u ∈ [0, 1] | ∀ V' ∈ [V / ρ, V], roundDown α u V' = roundDown α u V}` is measurable with exact
+    Lebesgue measure `1 - Real.logb α ρ`, and its complement on `[0, 1]` has measure
+    `Real.logb α ρ`.
   - **Lemma 13.48** (`integral_roundDown`, `roundDown_isBetaEstimate`): for `0 < V`,
     `∫ u in (0 : ℝ)..1, roundDown α u V = V / ((α * Real.log α) / (α - 1))`, so `roundDown α` is
     a `β`-estimate with exact `β = (α * Real.log α) / (α - 1)`.
@@ -50,10 +54,10 @@ This module formalizes the Consensus Estimation Profit Extraction (`CEPE`) frame
   For any single-parameter problem with seller cost function `c : (ι → ℝ) → ℝ` and target-monotone
   profit extractor `PE` extracting exact profit `R` whenever `0 ≤ R ≤ G b`, `cepe G PE α` has
   exact expected profit `G b / ((α * Real.log α) / (α - 1))` (`cepeExpectedProfit_eq`), is
-  `(α * Real.log α) / (α - 1)`-competitive against `G` (`cepe_isCompetitive`), and is truthful
-  with probability at least `1 - Real.logb α ρ` on inputs satisfying
-  `G v / ρ ≤ G (Function.update v i 0)` (`cepe_truthful_measure_ge`,
-  `cepe_isTruthfulWithHighProbAt`).
+  `(α * Real.log α) / (α - 1)`-competitive against `G` (`cepe_isCompetitive`), and on inputs
+  satisfying `G v / ρ ≤ G (Function.update v i 0)` the failure event that *some* deviation `bᵢ ≥ 0`
+  strictly improves bidder `i`'s utility has outer measure at most `Real.logb α ρ`
+  (`cepe_nontruthful_measure_le`, `cepe_isTruthfulWithHighProbAt`).
 * **Digital goods instantiation (p. 349):** `optimalProfitTwo` is monotone in bids
   (`singlePriceProfitOn_mono`) and `profitExtractOn s R` has allocations antitone in `R ≥ 0`
   (`profitExtractOn_allocation_antitone`). Instantiating Theorem 13.49 yields `cepeDigitalGoods`,
@@ -80,12 +84,12 @@ No running-time claim is made.
 
 * `roundDown_pos`, `roundDown_le`, `div_lt_roundDown`, `roundDown_mono`: basic bounds and
   monotonicity of `r_α`.
-* `volume_real_roundDown_consensus`, `roundDown_isRhoConsensus`: **Lemma 13.47**
-  ([HartlineKarlin2007], §13.4.6, p. 350).
+* `measurableSet_roundDown_consensus`, `volume_real_roundDown_consensus`,
+  `roundDown_isRhoConsensus`: **Lemma 13.47** ([HartlineKarlin2007], §13.4.6, p. 350).
 * `integral_roundDown`, `roundDown_isBetaEstimate`: **Lemma 13.48** ([HartlineKarlin2007],
   §13.4.6, p. 350).
 * `cepeDet_optimal_response_of_consensus`: **Exercise 13.11(a)** ([HartlineKarlin2007], p. 361).
-* `cepeExpectedProfit_eq`, `cepe_isCompetitive`, `cepe_truthful_measure_ge`,
+* `cepeExpectedProfit_eq`, `cepe_isCompetitive`, `cepe_nontruthful_measure_le`,
   `cepe_isTruthfulWithHighProbAt`: **Theorem 13.49** and **Exercise 13.11(b)**
   ([HartlineKarlin2007], §13.4.6, p. 350; p. 361).
 * `singlePriceProfitOn_mono`, `optimalProfitTwo_le_optimalProfit`,
@@ -114,27 +118,31 @@ variable {ι : Type*}
 
 /-- Pointwise truthfulness with probability at least `1 - ε` for bidder `i` at nonnegative profile
 `v`, for a mechanism randomized over `U ~ Uniform[0, 1]` ([HartlineKarlin2007], Definition 13.43,
-p. 349, localized to a given profile and bidder as used in Theorem 13.49, p. 350). -/
+p. 349, localized to a given profile and bidder as used in Theorem 13.49, p. 350): for every
+nonnegative deviation `bᵢ`, the outer Lebesgue measure of draws `u ∈ [0, 1]` for which bidder `i`
+strictly benefits from bidding `bᵢ` is at most `ε`. -/
 @[expose] def IsTruthfulWithHighProbAt [DecidableEq ι] (M : ℝ → Mechanism ι) (v : ι → ℝ)
     (i : ι) (ε : ℝ) : Prop :=
   ∀ b_i : ℝ, 0 ≤ b_i →
-    1 - ε ≤ volume.real
+    volume.real
       {u ∈ Set.Icc (0 : ℝ) 1 |
-        (M u).utility i (v i) (Function.update v i b_i) ≤ (M u).utility i (v i) v}
+        (M u).utility i (v i) v < (M u).utility i (v i) (Function.update v i b_i)} ≤ ε
 
 /-- **Truthfulness with high probability `1 - ε`** ([HartlineKarlin2007], Definition 13.43,
-p. 349): for every nonnegative profile `v`, bidder `i`, and nonnegative deviation `bᵢ`, the
-probability over `U ~ Uniform[0, 1]` that truthful bidding gives at least as much utility as
-bidding `bᵢ` is at least `1 - ε`. -/
+p. 349): for every nonnegative profile `v`, bidder `i`, and nonnegative deviation `bᵢ`, the outer
+measure over `U ~ Uniform[0, 1]` of draws where bidder `i` strictly benefits by bidding `bᵢ` is at
+most `ε`. -/
 @[expose] def IsTruthfulWithHighProb [DecidableEq ι] (M : ℝ → Mechanism ι) (ε : ℝ) : Prop :=
   ∀ v : ι → ℝ, 0 ≤ v → ∀ i : ι, IsTruthfulWithHighProbAt M v i ε
 
 /-- **Consensus function** ([HartlineKarlin2007], Definition 13.44, p. 349): a function `r`
 randomized over `U ~ Uniform[0, 1]` is a `ρ`-consensus with probability at least `1 - ε` if for
-every `V > 0`, `Pr[∀ V' ∈ [V / ρ, V], r U V' = r U V] ≥ 1 - ε`. -/
+every `V > 0`, the outer measure of draws `u ∈ [0, 1]` failing `∀ V' ∈ [V / ρ, V], r u V' = r u V`
+is at most `ε`. -/
 @[expose] def IsRhoConsensus (r : ℝ → ℝ → ℝ) (ρ ε : ℝ) : Prop :=
   ∀ V : ℝ, 0 < V →
-    1 - ε ≤ volume.real {u ∈ Set.Icc (0 : ℝ) 1 | ∀ V' ∈ Set.Icc (V / ρ) V, r u V' = r u V}
+    volume.real
+      {u ∈ Set.Icc (0 : ℝ) 1 | ¬ ∀ V' ∈ Set.Icc (V / ρ) V, r u V' = r u V} ≤ ε
 
 /-- **`β`-estimate** ([HartlineKarlin2007], Definition 13.45, p. 350): a function `r` randomized
 over `U ~ Uniform[0, 1]` is a `β`-estimate (`β > 0`) if for every `V > 0`, `r u V ≤ V` for all
@@ -292,6 +300,17 @@ private theorem roundDown_consensus_set_eq {α ρ V : ℝ} (hα : 1 < α) (hρ1 
       push_cast
       constructor <;> linarith
 
+/-- **Lemma 13.47 (measurability)** ([HartlineKarlin2007], §13.4.6, p. 350): for `1 < α`,
+`1 ≤ ρ ≤ α`, and `V > 0`, the `ρ`-consensus event of `roundDown α` on `[0, 1]` is measurable. -/
+theorem measurableSet_roundDown_consensus {α ρ V : ℝ} (hα : 1 < α) (hρ1 : 1 ≤ ρ) (hρα : ρ ≤ α)
+    (hV : 0 < V) :
+    MeasurableSet
+      {u ∈ Set.Icc (0 : ℝ) 1 | ∀ V' ∈ Set.Icc (V / ρ) V, roundDown α u V' = roundDown α u V} := by
+  rw [roundDown_consensus_set_eq hα hρ1 hρα hV]
+  split_ifs
+  · exact measurableSet_Icc.union measurableSet_Ioc
+  · exact measurableSet_Ioc
+
 /-- **Lemma 13.47 (exact measure)** ([HartlineKarlin2007], §13.4.6, p. 350): for `1 < α`,
 `1 ≤ ρ ≤ α`, and `V > 0`, the Lebesgue measure of the `ρ`-consensus event of `roundDown α` on
 `[0, 1]` equals `1 - Real.logb α ρ`. -/
@@ -319,11 +338,49 @@ theorem volume_real_roundDown_consensus {α ρ V : ℝ} (hα : 1 < α) (hρ1 : 1
   · rw [Real.volume_real_Ioc_of_le (by linarith)]
     ring
 
+/-- The complement of the `ρ`-consensus event of `roundDown α` on `[0, 1]` has exact Lebesgue
+measure `Real.logb α ρ`. -/
+private theorem volume_real_roundDown_nonconsensus {α ρ V : ℝ} (hα : 1 < α) (hρ1 : 1 ≤ ρ)
+    (hρα : ρ ≤ α) (hV : 0 < V) :
+    volume.real
+      {u ∈ Set.Icc (0 : ℝ) 1 | ¬ ∀ V' ∈ Set.Icc (V / ρ) V, roundDown α u V' = roundDown α u V} =
+      Real.logb α ρ := by
+  set C : Set ℝ :=
+    {u ∈ Set.Icc (0 : ℝ) 1 | ∀ V' ∈ Set.Icc (V / ρ) V, roundDown α u V' = roundDown α u V}
+  set B : Set ℝ :=
+    {u ∈ Set.Icc (0 : ℝ) 1 | ¬ ∀ V' ∈ Set.Icc (V / ρ) V, roundDown α u V' = roundDown α u V}
+  have hB_eq : B = Set.Icc (0 : ℝ) 1 \ C := by
+    ext u
+    simp only [B, C, Set.mem_sdiff, Set.mem_sep_iff, not_and]
+    exact ⟨fun ⟨h1, h2⟩ => ⟨h1, fun _ => h2⟩, fun ⟨h1, h2⟩ => ⟨h1, h2 h1⟩⟩
+  have hC_meas : MeasurableSet C := measurableSet_roundDown_consensus hα hρ1 hρα hV
+  have hB_meas : MeasurableSet B := hB_eq ▸ measurableSet_Icc.diff hC_meas
+  have hdisj : Disjoint C B := Set.disjoint_left.2 fun _ h1 h2 => h2.2 h1.2
+  have hunion : C ∪ B = Set.Icc (0 : ℝ) 1 := by
+    ext u
+    simp only [C, B, Set.mem_union, Set.mem_sep_iff]
+    constructor
+    · rintro (⟨h, _⟩ | ⟨h, _⟩) <;> exact h
+    · intro h
+      by_cases hp : ∀ V' ∈ Set.Icc (V / ρ) V, roundDown α u V' = roundDown α u V
+      · exact Or.inl ⟨h, hp⟩
+      · exact Or.inr ⟨h, hp⟩
+  have hC_fin : volume C ≠ ⊤ :=
+    ne_top_of_le_ne_top (by simp [Real.volume_Icc]) (measure_mono fun _ hu => hu.1)
+  have hB_fin : volume B ≠ ⊤ :=
+    ne_top_of_le_ne_top (by simp [Real.volume_Icc]) (measure_mono fun _ hu => hu.1)
+  have hsum : volume.real (C ∪ B) = volume.real C + volume.real B :=
+    measureReal_union hdisj hB_meas hC_fin hB_fin
+  rw [hunion, Real.volume_real_Icc_of_le zero_le_one,
+    volume_real_roundDown_consensus hα hρ1 hρα hV] at hsum
+  linarith
+
 /-- **Lemma 13.47** ([HartlineKarlin2007], §13.4.6, p. 350): `roundDown α` is a `ρ`-consensus
-with probability `1 - Real.logb α ρ` whenever `1 < α` and `1 ≤ ρ ≤ α`. -/
+with failure probability `Real.logb α ρ` (consensus probability `1 - Real.logb α ρ`) whenever
+`1 < α` and `1 ≤ ρ ≤ α`. -/
 theorem roundDown_isRhoConsensus {α ρ : ℝ} (hα : 1 < α) (hρ1 : 1 ≤ ρ) (hρα : ρ ≤ α) :
     IsRhoConsensus (roundDown α) ρ (Real.logb α ρ) :=
-  fun _ hV => (volume_real_roundDown_consensus hα hρ1 hρα hV).ge
+  fun _ hV => (volume_real_roundDown_nonconsensus hα hρ1 hρα hV).le
 
 /-- Explicit integral of `u ↦ α ^ (c + u)` on `[a, b]` for `1 < α`. -/
 private theorem integral_rpow_add {α : ℝ} (hα : 1 < α) (c a b : ℝ) :
@@ -494,7 +551,8 @@ theorem cepeDet_optimal_response_of_consensus [DecidableEq ι]
   cepeDet G PE (roundDown α u)
 
 /-- Expected profit of `cepe G PE α` over `U ~ Uniform[0, 1]` for a single-parameter problem with
-seller production cost `c : (ι → ℝ) → ℝ` ([HartlineKarlin2007], §13.1, p. 332; §13.4.6, p. 350). -/
+seller production cost `c : (ι → ℝ) → ℝ` ([HartlineKarlin2007], §13.1, pp. 331–332; §13.4.6,
+p. 350). -/
 @[expose] noncomputable def cepeExpectedProfit [Fintype ι] (G : (ι → ℝ) → ℝ)
     (PE : ℝ → Mechanism ι) (c : (ι → ℝ) → ℝ) (α : ℝ) (b : ι → ℝ) : ℝ :=
   ∫ u in (0 : ℝ)..1,
@@ -535,11 +593,12 @@ theorem cepe_isCompetitive [Fintype ι] {G : (ι → ℝ) → ℝ}
   refine ⟨hβ_pos.le, fun b hb => ?_⟩
   rw [cepeExpectedProfit_eq hG_nonneg hPE_extract hα hb, mul_div_cancel₀ _ hβ_pos.ne']
 
-/-- **Theorem 13.49 (simultaneous truthfulness event)** ([HartlineKarlin2007], §13.4.6, p. 350;
-Exercise 13.11(b), p. 361): on any nonnegative input `v` and bidder `i` satisfying
-`G v / ρ ≤ G (Function.update v i 0)` (`1 ≤ ρ ≤ α`), the event that truthful bidding is a
-simultaneous best response over all `bᵢ ≥ 0` has Lebesgue measure at least `1 - Real.logb α ρ`. -/
-theorem cepe_truthful_measure_ge [DecidableEq ι]
+/-- **Theorem 13.49 (simultaneous nontruthfulness failure bound)** ([HartlineKarlin2007], §13.4.6,
+p. 350; Exercise 13.11(b), p. 361): on any nonnegative input `v` and bidder `i` satisfying
+`G v / ρ ≤ G (Function.update v i 0)` (`1 ≤ ρ ≤ α`), the outer Lebesgue measure of draws
+`u ∈ [0, 1]` for which some nonnegative deviation `bᵢ ≥ 0` strictly improves bidder `i`'s utility
+is at most `Real.logb α ρ`. -/
+theorem cepe_nontruthful_measure_le [DecidableEq ι]
     {G : (ι → ℝ) → ℝ} (hG_nonneg : ∀ b, 0 ≤ b → 0 ≤ G b)
     (hG_mono : ∀ ⦃b b'⦄, 0 ≤ b → 0 ≤ b' → b ≤ b' → G b ≤ G b')
     {PE : ℝ → Mechanism ι}
@@ -550,54 +609,55 @@ theorem cepe_truthful_measure_ge [DecidableEq ι]
     {α ρ : ℝ} (hα : 1 < α) (hρ1 : 1 ≤ ρ) (hρα : ρ ≤ α)
     {v : ι → ℝ} (hv : 0 ≤ v) {i : ι}
     (hρv : G v / ρ ≤ G (Function.update v i 0)) :
-    1 - Real.logb α ρ ≤ volume.real
-      {u ∈ Set.Icc (0 : ℝ) 1 | ∀ b_i : ℝ, 0 ≤ b_i →
-        (cepe G PE α u).utility i (v i) (Function.update v i b_i) ≤
-          (cepe G PE α u).utility i (v i) v} := by
+    volume.real
+      {u ∈ Set.Icc (0 : ℝ) 1 | ∃ b_i : ℝ, 0 ≤ b_i ∧
+        (cepe G PE α u).utility i (v i) v <
+          (cepe G PE α u).utility i (v i) (Function.update v i b_i)} ≤
+      Real.logb α ρ := by
   have hv0 : 0 ≤ Function.update v i 0 := update_nonneg hv i le_rfl
   have hv0_le : Function.update v i 0 ≤ v := fun j => by
     by_cases hj : j = i
     · rw [hj, Function.update_self]; exact hv i
     · simp only [Function.update_of_ne hj, le_refl]
   have hGv0_le : G (Function.update v i 0) ≤ G v := hG_mono hv0 hv hv0_le
-  have hB_fin : volume
-      {u ∈ Set.Icc (0 : ℝ) 1 | ∀ b_i : ℝ, 0 ≤ b_i →
-        (cepe G PE α u).utility i (v i) (Function.update v i b_i) ≤
-          (cepe G PE α u).utility i (v i) v} ≠ ⊤ :=
-    ne_top_of_le_ne_top (by simp [Real.volume_Icc])
-      (measure_mono fun _ hu => hu.1)
   rcases (hG_nonneg v hv).eq_or_lt with h0 | hpos
   · have hGv0_eq : G (Function.update v i 0) = G v :=
       le_antisymm hGv0_le (h0 ▸ hG_nonneg _ hv0)
-    have hsub : Set.Icc (0 : ℝ) 1 ⊆
-        {u ∈ Set.Icc (0 : ℝ) 1 | ∀ b_i : ℝ, 0 ≤ b_i →
-          (cepe G PE α u).utility i (v i) (Function.update v i b_i) ≤
-            (cepe G PE α u).utility i (v i) v} := fun u hu =>
-      ⟨hu, fun b_i hb_i => cepeDet_optimal_response_of_consensus hG_nonneg hG_mono
+    have hempty :
+        {u ∈ Set.Icc (0 : ℝ) 1 | ∃ b_i : ℝ, 0 ≤ b_i ∧
+          (cepe G PE α u).utility i (v i) v <
+            (cepe G PE α u).utility i (v i) (Function.update v i b_i)} = ∅ := by
+      ext u
+      simp only [Set.mem_sep_iff, Set.mem_empty_iff_false, iff_false, not_and, not_exists]
+      intro _ b_i hb_i hlt
+      exact hlt.not_ge (cepeDet_optimal_response_of_consensus hG_nonneg hG_mono
         hPE_DSIC hPE_norm hPE_anti (fun _ _ => roundDown_nonneg hα u _)
-        ((roundDown_mono hα u).monotoneOn _) hv (by rw [hGv0_eq]) hb_i⟩
-    have hmeas : volume.real (Set.Icc (0 : ℝ) 1) ≤ volume.real _ :=
-      ENNReal.toReal_mono hB_fin (measure_mono hsub)
-    rw [Real.volume_real_Icc_of_le zero_le_one, sub_zero] at hmeas
-    have hlog0 : 0 ≤ Real.logb α ρ := Real.logb_nonneg hα hρ1
-    linarith
-  · have hsub :
-        {u ∈ Set.Icc (0 : ℝ) 1 | ∀ V' ∈ Set.Icc (G v / ρ) (G v),
-            roundDown α u V' = roundDown α u (G v)} ⊆
-        {u ∈ Set.Icc (0 : ℝ) 1 | ∀ b_i : ℝ, 0 ≤ b_i →
-          (cepe G PE α u).utility i (v i) (Function.update v i b_i) ≤
-            (cepe G PE α u).utility i (v i) v} := fun u hu =>
-      ⟨hu.1, fun b_i hb_i => cepeDet_optimal_response_of_consensus hG_nonneg hG_mono
+        ((roundDown_mono hα u).monotoneOn _) hv (by rw [hGv0_eq]) hb_i)
+    rw [hempty, measureReal_empty]
+    exact Real.logb_nonneg hα hρ1
+  · set B : Set ℝ :=
+      {u ∈ Set.Icc (0 : ℝ) 1 |
+        ¬ ∀ V' ∈ Set.Icc (G v / ρ) (G v), roundDown α u V' = roundDown α u (G v)}
+    have hsub :
+        {u ∈ Set.Icc (0 : ℝ) 1 | ∃ b_i : ℝ, 0 ≤ b_i ∧
+          (cepe G PE α u).utility i (v i) v <
+            (cepe G PE α u).utility i (v i) (Function.update v i b_i)} ⊆ B := by
+      rintro u ⟨hu, b_i, hb_i, hlt⟩
+      refine ⟨hu, fun hcons => hlt.not_ge ?_⟩
+      exact cepeDet_optimal_response_of_consensus hG_nonneg hG_mono
         hPE_DSIC hPE_norm hPE_anti (fun _ _ => roundDown_nonneg hα u _)
         ((roundDown_mono hα u).monotoneOn _) hv
-        (hu.2 (G (Function.update v i 0)) ⟨hρv, hGv0_le⟩) hb_i⟩
-    rw [← volume_real_roundDown_consensus hα hρ1 hρα hpos]
-    exact ENNReal.toReal_mono hB_fin (measure_mono hsub)
+        (hcons (G (Function.update v i 0)) ⟨hρv, hGv0_le⟩) hb_i
+    have hB_fin : volume B ≠ ⊤ :=
+      ne_top_of_le_ne_top (by simp [Real.volume_Icc]) (measure_mono fun _ hu => hu.1)
+    exact (ENNReal.toReal_mono hB_fin (measure_mono hsub)).trans_eq
+      (volume_real_roundDown_nonconsensus hα hρ1 hρα hpos)
 
 /-- **Theorem 13.49 (truthfulness with high probability)** ([HartlineKarlin2007], §13.4.6, p. 350;
 Definition 13.43, p. 349; Exercise 13.11(b), p. 361): on inputs satisfying
 `G v / ρ ≤ G (Function.update v i 0)` (`1 ≤ ρ ≤ α`), `CEPE` is truthful at `(v, i)` with
-probability at least `1 - Real.logb α ρ`. -/
+failure probability at most `Real.logb α ρ` (truthfulness probability at least
+`1 - Real.logb α ρ`). -/
 theorem cepe_isTruthfulWithHighProbAt [DecidableEq ι]
     {G : (ι → ℝ) → ℝ} (hG_nonneg : ∀ b, 0 ≤ b → 0 ≤ G b)
     (hG_mono : ∀ ⦃b b'⦄, 0 ≤ b → 0 ≤ b' → b ≤ b' → G b ≤ G b')
@@ -611,13 +671,21 @@ theorem cepe_isTruthfulWithHighProbAt [DecidableEq ι]
     (hρv : G v / ρ ≤ G (Function.update v i 0)) :
     IsTruthfulWithHighProbAt (cepe G PE α) v i (Real.logb α ρ) := by
   intro b_i hb_i
+  have hsub :
+      {u ∈ Set.Icc (0 : ℝ) 1 |
+        (cepe G PE α u).utility i (v i) v <
+          (cepe G PE α u).utility i (v i) (Function.update v i b_i)} ⊆
+      {u ∈ Set.Icc (0 : ℝ) 1 | ∃ b_i : ℝ, 0 ≤ b_i ∧
+        (cepe G PE α u).utility i (v i) v <
+          (cepe G PE α u).utility i (v i) (Function.update v i b_i)} :=
+    fun _ hu => ⟨hu.1, b_i, hb_i, hu.2⟩
   have hfin : volume
-      {u ∈ Set.Icc (0 : ℝ) 1 | (cepe G PE α u).utility i (v i) (Function.update v i b_i) ≤
-        (cepe G PE α u).utility i (v i) v} ≠ ⊤ :=
-    ne_top_of_le_ne_top (by simp [Real.volume_Icc])
-      (measure_mono fun _ hu => hu.1)
-  exact (cepe_truthful_measure_ge hG_nonneg hG_mono hPE_DSIC hPE_norm hPE_anti hα hρ1 hρα hv
-    hρv).trans (ENNReal.toReal_mono hfin (measure_mono fun u hu => ⟨hu.1, hu.2 b_i hb_i⟩))
+      {u ∈ Set.Icc (0 : ℝ) 1 | ∃ b_i : ℝ, 0 ≤ b_i ∧
+        (cepe G PE α u).utility i (v i) v <
+          (cepe G PE α u).utility i (v i) (Function.update v i b_i)} ≠ ⊤ :=
+    ne_top_of_le_ne_top (by simp [Real.volume_Icc]) (measure_mono fun _ hu => hu.1)
+  exact (ENNReal.toReal_mono hfin (measure_mono hsub)).trans
+    (cepe_nontruthful_measure_le hG_nonneg hG_mono hPE_DSIC hPE_norm hPE_anti hα hρ1 hρα hv hρv)
 
 end CEPE
 
