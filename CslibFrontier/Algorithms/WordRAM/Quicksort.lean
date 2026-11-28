@@ -622,7 +622,8 @@ private theorem PartInv.of_swap {w vlo vhi vpiv p q : ℕ} {mem₀ : ℕ → ℕ
       hI.modifies.trans (modifies_swapMem hp hq x.mem),
     hmem ▸ hlt, hmem ▸ heq, hmem ▸ hgt⟩
 
-private theorem partStep_spec {w vlo vhi vpiv : ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
+/-- One partition step preserves the partition invariant and shrinks the unknown interval. -/
+theorem partStep_spec {w vlo vhi vpiv : ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
     (hI : PartInv w vlo vhi vpiv mem₀ x) (hcg : x.regs cur < x.regs gt) :
     ∃ y, ExecWithin w partStep x y 9 ∧
       PartInv w vlo vhi vpiv mem₀ y ∧ y.regs gt - y.regs cur < x.regs gt - x.regs cur := by
@@ -766,7 +767,8 @@ private theorem validStack_push_if {n a b : ℕ} {S : List (ℕ × ℕ)} (hS : V
       rw [List.mem_singleton] at hq; subst hq; exact hdisj p hp
   · exact hS
 
-private theorem validStack_push_children {n vlo vlt vgt vhi : ℕ} {S₀ : List (ℕ × ℕ)}
+/-- Replacing the top range with its two nontrivial strict children preserves validity. -/
+theorem validStack_push_children {n vlo vlt vgt vhi : ℕ} {S₀ : List (ℕ × ℕ)}
     (hS : ValidStack n (S₀ ++ [(vlo, vhi)]))
     (hb : vlo ≤ vlt ∧ vlt < vgt ∧ vgt ≤ vhi) :
     let S₁ := if vlo + 2 ≤ vlt then S₀ ++ [(vlo, vlt)] else S₀
@@ -809,7 +811,8 @@ private theorem noExternalInversions_in_range {vlo vlt vgt vhi vpiv i j : ℕ}
       · have := heq_z i hi_ge_lt hi_eq; have := hgt_z j hj_gt hhi; omega
     · exact absurd ⟨hi_gt, hhi⟩ (hno (vgt, vhi) (by simp [show vgt + 2 ≤ vhi by omega]))
 
-private theorem noExternalInversions_after_partition {n vlo vlt vgt vhi vpiv : ℕ}
+/-- Partitioning a pending range creates no inversions outside its two pending children. -/
+theorem noExternalInversions_after_partition {n vlo vlt vgt vhi vpiv : ℕ}
     {S₀ : List (ℕ × ℕ)} {mem₀ mem₁ : ℕ → ℕ}
     (hS : ValidStack n (S₀ ++ [(vlo, vhi)]))
     (hinv₀ : NoExternalInversions n mem₀ (S₀ ++ [(vlo, vhi)]))
@@ -854,7 +857,8 @@ private theorem noExternalInversions_after_partition {n vlo vlt vgt vhi vpiv : �
         · exact hno p (by dsimp only [S₂, S₁]; split_ifs <;> simp [hp₀])
         · rw [List.mem_singleton.mp hp_last]; omega
 
-private theorem perm_full_of_subslice {n vlo vhi : ℕ} {mem₀ mem₁ : ℕ → ℕ}
+/-- A permutation inside a framed subrange preserves the permutation of the full input. -/
+theorem perm_full_of_subslice {n vlo vhi : ℕ} {mem₀ mem₁ : ℕ → ℕ}
     (hb : 1 ≤ vlo ∧ vlo ≤ vhi ∧ vhi ≤ n + 1)
     (hsub : (memSlice vlo vhi mem₁).Perm (memSlice vlo vhi mem₀))
     (hmod : Modifies (Finset.Ico vlo vhi) mem₀ mem₁) :
@@ -1199,7 +1203,8 @@ private theorem list_sum_subCost_nonneg (S : List (ℕ × ℕ)) :
   List.sum_nonneg fun _ hv => by
     obtain ⟨p, -, rfl⟩ := List.mem_map.mp hv; exact subCost_nonneg _
 
-private theorem avg_subCost_pivot_le (u : List ℕ) (hm : 2 ≤ u.length) (base : ℝ) :
+/-- Averaging the charge for one partition and its children is bounded by the parent potential. -/
+theorem avg_subCost_pivot_le (u : List ℕ) (hm : 2 ≤ u.length) (base : ℝ) :
     (∑ k : Fin u.length, (28 * (u.length : ℝ) + base +
       (subCost (u.countP (· < u[k.val])) + subCost (u.countP (u[k.val] < ·))))) /
       (u.length : ℝ) ≤ base + subCost u.length := by

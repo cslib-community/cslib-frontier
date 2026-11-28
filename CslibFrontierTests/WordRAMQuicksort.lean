@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Quicksort
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalSort
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.PointerPivot
 
 /-!
 # Randomized quicksort and expected-time tests
@@ -167,5 +169,47 @@ theorem uniform_fin4_expect :
 theorem harmonic_six_bound :
     harmonic 6 = 49 / 20 ∧ harmonic 6 ≤ (Nat.log 2 6 : ℚ) + 1 :=
   ⟨by norm_num [harmonic, Finset.sum_range_succ], harmonic_le_log_add_one 6⟩
+
+/-! ## Linked pivot walk -/
+
+private def pivotInput : Local.Data (Quicksort.localModel) 3 1 4 where
+  addr := fun _ => some 0
+  scalars := fun i => if i.val = 0 then 2 else if i.val = 2 then 1 else 0
+  values := fun a => a.val + 5
+  refs := fun _ => none
+
+example : ∃ y, Cslib.PointerMachine.ExecWithin
+    (Local.compile (Quicksort.pivotWalk 0 (0 : Fin 4) 1 2 3)) (Local.encode pivotInput) y 11 ∧
+    y.data 3 = 7 := by
+  obtain ⟨t, ht, hrun⟩ := Quicksort.pivotWalk_exec 0 0 1 2 3 (by decide) (by decide)
+    pivotInput 0 2 rfl rfl rfl rfl (by decide)
+  exact ⟨_, ⟨t, ht, Local.exec_compile hrun⟩, by simp [pivotInput]⟩
+
+/-! ## The compiled quicksort sorts duplicates in the heap -/
+
+open Quicksort in
+example :
+    let input := [4, 1, 4, 0, 3, 2, 0]
+    let x := Local.encode (localSortInput input)
+    let c := Local.compile localSortLoop
+    ∀ y ∈ (Cslib.PointerMachine.runRand localKernel c.program
+        ((19 * input.length + 33) * input.length + 1) x).support,
+      y.pc = c.size ∧ pointerSortOutput input.length y = [0, 0, 1, 2, 3, 4, 4] ∧
+        y.heap.length = 19 := by
+  intro input x c
+  obtain ⟨m, _, _, hsorted, hcost⟩ := pointerSort_exec input
+  have _expected : ProbComp.expect ((fun z => (Local.encode z.1, z.2)) <$> m)
+      (fun z => (z.2 : ℝ≥0∞)) ≤ 4705 := by
+    convert hcost using 1
+    have hlog : Nat.log 2 input.length = 2 := by decide
+    rw [hlog]
+    norm_num [input]
+  have hp : input.Perm [0, 0, 1, 2, 3, 4, 4] := by decide
+  have hout := ((List.mergeSort_perm input _).trans hp).eq_of_pairwise'
+    (List.pairwise_mergeSort' (· ≤ ·) input)
+    (by decide : ([0, 0, 1, 2, 3, 4, 4] : List ℕ).Pairwise (· ≤ ·))
+  intro cfg hcfg
+  obtain ⟨hpc, hkeys, hsize⟩ := hsorted cfg hcfg
+  exact ⟨hpc, hkeys.trans hout, hsize.trans (by decide)⟩
 
 end CslibFrontierTests.WordRAMQuicksort
