@@ -249,30 +249,9 @@ theorem agrees_of_selectedPins (op : Op) (x y : Fin (signature.Arity op) → Boo
   cases op with
   | const b => rfl
   | not => simpa [interpretation] using congrArg Bool.not (h 0 (by simp [selectedPins]))
-  | and =>
-    have h0 := Fin.forall_fin_two.mp (fun a (ha : a ∈ selectedPins .and x) => h a ha)
-    cases hx0 : x 0 <;> cases hx1 : x 1
-    · have ha := h0.1 (by simp [selectedPins, hx0])
-      simp [interpretation, hx0, ha]
-    · have ha := h0.1 (by simp [selectedPins, hx0])
-      simp [interpretation, hx0, ha]
-    · have ha := h0.2 (by simp [selectedPins, hx0, hx1])
-      simp [interpretation, hx1, ha]
-    · have ha0 := h0.1 (by simp [selectedPins, hx0, hx1])
-      have ha1 := h0.2 (by simp [selectedPins, hx0, hx1])
-      simp [interpretation, hx0, hx1, ha0, ha1]
-  | or =>
-    have h0 := Fin.forall_fin_two.mp (fun a (ha : a ∈ selectedPins .or x) => h a ha)
-    cases hx0 : x 0 <;> cases hx1 : x 1
-    · have ha0 := h0.1 (by simp [selectedPins, hx0, hx1])
-      have ha1 := h0.2 (by simp [selectedPins, hx0, hx1])
-      simp [interpretation, hx0, hx1, ha0, ha1]
-    · have ha := h0.2 (by simp [selectedPins, hx0, hx1])
-      simp [interpretation, hx1, ha]
-    · have ha := h0.1 (by simp [selectedPins, hx0])
-      simp [interpretation, hx0, ha]
-    · have ha := h0.1 (by simp [selectedPins, hx0])
-      simp [interpretation, hx0, ha]
+  | and | or =>
+    cases hx₀ : x 0 <;> cases hx₁ : x 1 <;>
+      simp_all [selectedPins, interpretation, Fin.forall_fin_two]
 
 private def argumentStates {W : Type*} [DecidableEq W] (op : Op)
     (sources : Fin (signature.Arity op) → W) (x : Fin (signature.Arity op) → Bool) :
@@ -284,86 +263,53 @@ private theorem card_argumentStates_le {W : Type*} [DecidableEq W] (op : Op)
     (argumentStates op sources x).card ≤ 2 :=
   Finset.card_image_le.trans ((Finset.card_le_univ _).trans (by cases op <;> simp))
 
-private theorem and_short {W : Type*} [DecidableEq W] (sources : Fin 2 → W)
-    (x : Fin 2 → Bool) (h : interpretation .and x = false) :
-    (argumentStates .and sources x).card ≤ 1 := by
-  apply Finset.card_image_le.trans
-  cases h0 : x 0 <;> cases h1 : x 1
-  · simp [selectedPins, h0]
-  · simp [selectedPins, h0]
-  · simp [selectedPins, h0, h1]
-  · simp [interpretation, h0, h1] at h
-
-private theorem or_short {W : Type*} [DecidableEq W] (sources : Fin 2 → W)
-    (x : Fin 2 → Bool) (h : interpretation .or x = true) :
-    (argumentStates .or sources x).card ≤ 1 := by
-  apply Finset.card_image_le.trans
-  cases h0 : x 0 <;> cases h1 : x 1
-  · simp [interpretation, h0, h1] at h
-  · simp [selectedPins, h0, h1]
-  · simp [selectedPins, h0]
-  · simp [selectedPins, h0]
-
-private theorem union_bound {W : Type*} [DecidableEq W] (op : Op)
-    (sources : Fin (signature.Arity op) → W) (x y : Fin (signature.Arity op) → Bool) :
+private theorem union_bound_of_short {W : Type*} [DecidableEq W] (op : Op)
+    (sources : Fin (signature.Arity op) → W) (x y : Fin (signature.Arity op) → Bool)
+    (b : Bool)
+    (hshort : ∀ z, interpretation op z = b → (argumentStates op sources z).card ≤ 1)
+    (hunique : ∀ z z', interpretation op z ≠ b → interpretation op z' ≠ b → z = z') :
     (argumentStates op sources x ∪ argumentStates op sources y).card ≤
       if interpretation op x = interpretation op y then 2 else 3 := by
   have hx := card_argumentStates_le op sources x
   have hy := card_argumentStates_le op sources y
   have hu := Finset.card_union_le (argumentStates op sources x) (argumentStates op sources y)
+  by_cases hx' : interpretation op x = b <;> by_cases hy' : interpretation op y = b
+  · rw [ite_eq_left (hx'.trans hy'.symm)]
+    exact hu.trans (Nat.add_le_add (hshort x hx') (hshort y hy'))
+  · rw [ite_eq_right (fun h => hy' (h.symm.trans hx'))]
+    exact hu.trans (Nat.add_le_add (hshort x hx') hy)
+  · rw [ite_eq_right (fun h => hx' (h.trans hy'))]
+    exact hu.trans (Nat.add_le_add hx (hshort y hy'))
+  · obtain rfl := hunique x y hx' hy'
+    simpa using hx
+
+private theorem union_bound {W : Type*} [DecidableEq W] (op : Op)
+    (sources : Fin (signature.Arity op) → W) (x y : Fin (signature.Arity op) → Bool) :
+    (argumentStates op sources x ∪ argumentStates op sources y).card ≤
+      if interpretation op x = interpretation op y then 2 else 3 := by
   cases op with
   | const b => simp [argumentStates, selectedPins]
   | not =>
-    have hx'' : (argumentStates .not sources x).card ≤ 1 := by simp [argumentStates, selectedPins]
-    have hy'' : (argumentStates .not sources y).card ≤ 1 := by simp [argumentStates, selectedPins]
+    have hcard (z : Fin 1 → Bool) : (argumentStates .not sources z).card ≤ 1 := by
+      simp [argumentStates, selectedPins]
+    have hu := (Finset.card_union_le _ _).trans (Nat.add_le_add (hcard x) (hcard y))
     split <;> omega
   | and =>
-    cases h0 : interpretation .and x <;> cases h1 : interpretation .and y
-    · have hx'' := and_short sources x h0
-      have hy'' := and_short sources y h1
-      simp only [ite_true]
-      omega
-    · have hx'' := and_short sources x h0
-      simp only [Bool.false_eq_true, ite_false]
-      omega
-    · have hy'' := and_short sources y h1
-      simp only [Bool.true_eq_false, ite_false]
-      omega
-    · have hxy : x = y := by
-        simp only [interpretation, Bool.and_eq_true] at h0 h1
-        funext i
-        have h : ∀ a : Fin 2, x a = y a := by
-          rw [Fin.forall_fin_two]
-          exact ⟨h0.1.trans h1.1.symm, h0.2.trans h1.2.symm⟩
-        exact h i
-      subst y
-      simpa using hx
+    apply union_bound_of_short _ _ _ _ false
+    · intro z hz
+      apply Finset.card_image_le.trans
+      cases hz₀ : z 0 <;> cases hz₁ : z 1 <;> simp_all [selectedPins, interpretation]
+    · intro z z' hz hz'
+      simp only [Bool.not_eq_false, interpretation, Bool.and_eq_true] at hz hz'
+      exact funext (Fin.forall_fin_two.2 ⟨hz.1.trans hz'.1.symm, hz.2.trans hz'.2.symm⟩)
   | or =>
-    cases h0 : interpretation .or x <;> cases h1 : interpretation .or y
-    · have hxy : x = y := by
-        have bothFalse (z : Fin 2 → Bool) (hz : interpretation .or z = false) :
-            z 0 = false ∧ z 1 = false := by
-          simp only [interpretation, Bool.or_eq_false_iff] at hz
-          exact hz
-        have hx'' := bothFalse x h0
-        have hy'' := bothFalse y h1
-        funext i
-        have h : ∀ a : Fin 2, x a = y a := by
-          rw [Fin.forall_fin_two]
-          exact ⟨hx''.1.trans hy''.1.symm, hx''.2.trans hy''.2.symm⟩
-        exact h i
-      subst y
-      simpa using hx
-    · have hy'' := or_short sources y h1
-      simp only [Bool.false_eq_true, ite_false]
-      omega
-    · have hx'' := or_short sources x h0
-      simp only [Bool.true_eq_false, ite_false]
-      omega
-    · have hx'' := or_short sources x h0
-      have hy'' := or_short sources y h1
-      simp only [ite_true]
-      omega
+    apply union_bound_of_short _ _ _ _ true
+    · intro z hz
+      apply Finset.card_image_le.trans
+      cases hz₀ : z 0 <;> cases hz₁ : z 1 <;> simp_all [selectedPins, interpretation]
+    · intro z z' hz hz'
+      simp only [Bool.not_eq_true, interpretation, Bool.or_eq_false_iff] at hz hz'
+      exact funext (Fin.forall_fin_two.2 ⟨hz.1.trans hz'.1.symm, hz.2.trans hz'.2.symm⟩)
 
 variable {n g : ℕ}
 
