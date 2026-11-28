@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Ryan Anderson
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.WordRAM.Heap
 public import CslibFrontier.Computability.WordRAM.Structured
 public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Parity
@@ -94,7 +95,6 @@ instructions.
 
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_loop`: a counting loop with one call
   per iteration, every call charged.
-* `Cslib.Algorithms.WordRAM.Refuter4n.exec_parityCode`: the certificate of the parity instance.
 -/
 
 public section
@@ -119,8 +119,8 @@ theorem fits_pointWord {w : ℕ} (x : BitString n) (h : n ≤ w) : Fits w (point
 
 /-- The postcondition of one evaluation of `f` on `x`, from data `s` to data `t`, for the input
 register `inp`, the base register `base`, the result register `out` and a window of `space`
-cells at the base held in `base`. "Outside the window" is written `a < b ∨ b + space ≤ a`, as in
-the frames of `MemoryWindow`. -/
+cells at the base held in `base`. The memory frame is `Modifies` on the window's
+`Block.footprint` (`Modifies.block_iff` gives it cell by cell). -/
 structure EvalPost {r : ℕ} (f : BooleanFunction n) (inp base out : Fin r) (space : ℕ)
     (x : BitString n) (s t : Data r) : Prop where
   /-- The result register holds `(f x).toNat`. -/
@@ -130,7 +130,7 @@ structure EvalPost {r : ℕ} (f : BooleanFunction n) (inp base out : Fin r) (spa
   /-- The base register is kept. -/
   base_eq : t.regs base = s.regs base
   /-- Every memory cell outside the window is kept. -/
-  mem_eq : ∀ a, (a < s.regs base ∨ s.regs base + space ≤ a) → t.mem a = s.mem a
+  mem_eq : Modifies (Block.mk (s.regs base) space).footprint s.mem t.mem
 
 /-- A **framed Word-RAM evaluator** for `f : BooleanFunction n`: a fixed standard-basis program
 on `r` registers with its calling convention and per-call instruction bound. The certificate
@@ -251,7 +251,7 @@ private theorem exec_parityBody {w : ℕ} (y : Data 7) (hone : y.regs pOne = 1)
 /-- **The parity evaluator's certificate.** At every width `w ≥ n + 1`, from any data with the
 packed point `pointWord x` in register `0`, `parityCode n` leaves `(parity n x).toNat` in
 register `2` within `6 n + 6` instructions, keeps registers `0` and `1`, and keeps all memory. -/
-theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n + 1 ≤ w)
+private theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n + 1 ≤ w)
     (hx : s.regs 0 = pointWord x) :
     ∃ t, ExecWithin w (parityCode n) s t (6 * n + 6) ∧ t.regs 2 = (parity n x).toNat ∧
       t.regs 0 = s.regs 0 ∧ t.regs 1 = s.regs 1 ∧ t.mem = s.mem := by
@@ -298,7 +298,7 @@ workspace, at the widths `w ≥ n + 1`, within `6 n + 6` instructions per call. 
   space_le_cost := Nat.zero_le _
   exec x s hw _ hx := by
     obtain ⟨t, ht, hout, hinp, hbase, hmem⟩ := exec_parityCode x s hw hx
-    exact ⟨t, ht, ⟨hout, hinp, hbase, fun a _ => by rw [hmem]⟩⟩
+    exact ⟨t, ht, ⟨hout, hinp, hbase, hmem ▸ Modifies.refl _ _⟩⟩
 
 end Parity
 

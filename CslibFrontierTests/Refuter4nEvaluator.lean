@@ -130,6 +130,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     · simp [hys, hk, hsk]
     intro t ⟨⟨hout, _, hbase, hmem⟩, hregs⟩
     simp only [Data.comap_regs, Data.comap_mem] at hout hbase hmem
+    replace hmem := Modifies.block_iff.1 hmem
     have hta (i : Fin 6) (hi : i ≠ 4) : t.regs (Fin.natAdd r i) = y.regs (Fin.natAdd r i) := by
       rw [hregs _ fun j => bank_ne j i]
       simp [hi]
@@ -182,7 +183,8 @@ example (x : BitString 4) (s : Data 7) (hx : s.regs 0 = pointWord x) (hb : s.reg
   have hfit : Fits 5 (s.regs 1 + 0) := by rw [hb]; decide
   obtain ⟨t, ht, hout, -, -, hmem⟩ := (parityEvaluator 4).exec (w := 5) x s
     (show 4 + 1 ≤ 5 by decide) hfit hx
-  exact ⟨t, ht, hout, hmem 9 (Or.inr (show s.regs 1 + 0 ≤ 9 by rw [hb]; decide))⟩
+  exact ⟨t, ht, hout,
+    Modifies.block_iff.1 hmem 9 (Or.inr (show s.regs 1 + 0 ≤ 9 by rw [hb]; decide))⟩
 
 /-- `exec_evalMany` for the parity evaluator: `k` calls charged `k * (6 n + 13) + 4`. -/
 example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ w)
@@ -221,11 +223,13 @@ theorem exec_windowCode {w : ℕ} (x : BitString 1) (s : Data 4) (hw : 1 + 1 ≤
     rw [← Nat.shiftRight_zero (n := pointWord x), Nat.shiftRight_and_one]
     exact congrArg Bool.toNat (testBit_equivFin x 0)
   refine ⟨_, (Exec.const h1).within.seq (Exec.store.within.seq (Exec.load.within.seq
-    (Exec.bin (h1.of_le Nat.and_le_right)).within)), ⟨?_, ?_, ?_, fun a ha => ?_⟩⟩
+    (Exec.bin (h1.of_le Nat.and_le_right)).within)),
+    ⟨?_, ?_, ?_, Modifies.block_iff.2 fun a ha => ?_⟩⟩
   · simp [hx, hbit, BinOp.eval]
   · simp
   · simp
-  · have hne : a ≠ s.regs 1 := by omega
+  · dsimp only at ha
+    have hne : a ≠ s.regs 1 := by omega
     simp [hne]
 
 /-- The window evaluator: `f x = x 0` on one bit, a one-cell window, four instructions. -/
