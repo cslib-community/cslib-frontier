@@ -254,19 +254,19 @@ theorem isWeakApproxEquilibrium_of_priceRatio_le {xHat : I → G → ℝ} {pHat 
       fun y _ => ?_⟩, fun g => isEmptyElim g⟩
     obtain rfl : y = xHat i := funext isEmptyElim
     nlinarith [hu_nn i (xHat i) isEmptyElim]
-  · obtain ⟨gMin, -, hgMin⟩ := exists_min_image univ (fun g => p g / pHat g) univ_nonempty
-    obtain ⟨gMax, -, hgMax⟩ := exists_max_image univ (fun g => p g / pHat g) univ_nonempty
+  · obtain ⟨gMin, hgMin⟩ := Finite.exists_min (fun g => p g / pHat g)
+    obtain ⟨gMax, hgMax⟩ := Finite.exists_max (fun g => p g / pHat g)
     set αMin := p gMin / pHat gMin
     set αMax := p gMax / pHat gMax
     have hαMin_pos : 0 < αMin := div_pos (hp gMin) (hpHat gMin)
     set r := αMax / αMin
-    have hr_ge_1 : 1 ≤ r := (one_le_div hαMin_pos).2 (hgMin gMax (mem_univ gMax))
+    have hr_ge_1 : 1 ≤ r := (one_le_div hαMin_pos).2 (hgMin gMax)
     have hr_pos : 0 < r := by linarith
     have hr_le : r ≤ 1 + ε / 3 := (div_le_iff₀ hαMin_pos).2 (hratio gMax gMin)
     have hp_le_max : ∀ g, p g ≤ αMax * pHat g :=
-      fun g => (div_le_iff₀ (hpHat g)).1 (hgMax g (mem_univ g))
+      fun g => (div_le_iff₀ (hpHat g)).1 (hgMax g)
     have hp_ge_min : ∀ g, αMin * pHat g ≤ p g :=
-      fun g => (le_div_iff₀ (hpHat g)).1 (hgMin g (mem_univ g))
+      fun g => (le_div_iff₀ (hpHat g)).1 (hgMin g)
     refine ⟨hμ, hp_nn, xHat, fun i => ?_, fun g => ?_⟩
     swap
     · nlinarith [heq.isFeasibleAllocation.2 g, E.totalSupply_nonneg g]
@@ -548,13 +548,13 @@ theorem mem_tatonnementBox_smul_of_isWalrasianEquilibrium [Nonempty G]
     {p : G → ℝ} (heq : IsWalrasianEquilibrium (phantomExcessDemand Z' η) p) :
     ∃ pStar ∈ tatonnementBox G η,
       IsWalrasianEquilibrium (phantomExcessDemand Z' η) pStar := by
-  obtain ⟨gMax, -, hgMax⟩ := exists_max_image univ p univ_nonempty
+  obtain ⟨gMax, hgMax⟩ := Finite.exists_max p
   have hpMax : 0 < p gMax := heq.1 gMax
   refine ⟨(p gMax)⁻¹ • p, fun g => ?_,
     (isHomogeneousDegZero_phantomExcessDemand hH η).isWalrasianEquilibrium_smul
       heq (inv_pos.2 hpMax)⟩
   simp only [Pi.smul_apply, smul_eq_mul]
-  refine ⟨?_, by simpa only [inv_mul_eq_div] using (div_le_one hpMax).2 (hgMax g (mem_univ g))⟩
+  refine ⟨?_, by simpa only [inv_mul_eq_div] using (div_le_one hpMax).2 (hgMax g)⟩
   have hrat := priceRatio_le_of_isWalrasianEquilibrium_phantomExcessDemand
     hη0 hη1 hX_nn heq gMax g
   have hn_pos : (0 : ℝ) < Fintype.card G := Nat.cast_pos.2 Fintype.card_pos
@@ -1119,13 +1119,13 @@ theorem sum_sq_phantomExcessDemand_le [Nonempty G] {Z' : (G → ℝ) → G → �
     have := neg_one_add_le_phantomExcessDemand hη0.le hX_nn hp_pos g
     dsimp only [X, Z]
     linarith
-  obtain ⟨gMin, -, hgMin⟩ := exists_min_image univ p univ_nonempty
-  obtain ⟨gMax, -, hgMax⟩ := exists_max_image univ p univ_nonempty
+  obtain ⟨gMin, hgMin⟩ := Finite.exists_min p
+  obtain ⟨gMax, hgMax⟩ := Finite.exists_max p
   -- Bound `∑ g, X g ≤ (p gMax / p gMin) * ∑ g, (1 + η)`.
   have hX_sum_le : ∑ g : G, X g ≤ (5 * n / η) * (2 * n) := by
     have h1 : p gMin * ∑ g : G, X g ≤ ∑ g : G, p g * X g := by
       rw [mul_sum]
-      exact sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hgMin g (mem_univ g)) (hX_pos g)
+      exact sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hgMin g) (hX_pos g)
     have hwal : ∑ g : G, p g * X g = ∑ g : G, p g * (1 + η) := by
       have hw0 : ∑ g : G, p g * Z p g = 0 := expenditure_eq_sum p (Z p) ▸ hWZ hp_pos
       calc ∑ g : G, p g * X g
@@ -1136,7 +1136,7 @@ theorem sum_sq_phantomExcessDemand_le [Nonempty G] {Z' : (G → ℝ) → G → �
       calc ∑ g : G, p g * (1 + η)
           ≤ ∑ _g : G, p gMax * 2 :=
             sum_le_sum fun g _ =>
-              mul_le_mul (hgMax g (mem_univ g)) (by linarith) (by positivity) (hp_pos gMax).le
+              mul_le_mul (hgMax g) (by linarith) (by positivity) (hp_pos gMax).le
         _ = p gMax * (2 * n) := by
             simp only [sum_const, card_univ, nsmul_eq_mul, n]
             ring

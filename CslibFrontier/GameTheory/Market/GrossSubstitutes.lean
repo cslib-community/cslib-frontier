@@ -210,12 +210,12 @@ theorem IsGrossSubstitutes.eq_smul_of_isWalrasianEquilibrium [Fintype G] [Nonemp
     (hGS : IsGrossSubstitutes Z) {p p' : G → ℝ}
     (hp : IsWalrasianEquilibrium Z p) (hp' : IsWalrasianEquilibrium Z p') :
     ∃ c : ℝ, 0 < c ∧ p' = c • p := by
-  obtain ⟨g₀, -, hg₀_max⟩ := exists_max_image univ (fun g => p' g / p g) univ_nonempty
+  obtain ⟨g₀, hg₀_max⟩ := Finite.exists_max (fun g => p' g / p g)
   set c : ℝ := p' g₀ / p g₀
   have hc : 0 < c := div_pos (hp'.1 g₀) (hp.1 g₀)
   refine ⟨c, hc, ?_⟩
   have hle : ∀ g, p' g ≤ (c • p) g := fun g =>
-    (div_le_iff₀ (hp.1 g)).1 (hg₀_max g (mem_univ g))
+    (div_le_iff₀ (hp.1 g)).1 (hg₀_max g)
   have hfix : (c • p) g₀ = p' g₀ := div_mul_cancel₀ (p' g₀) (hp.1 g₀).ne'
   by_contra hne
   obtain ⟨j, hj⟩ := Function.ne_iff.1 hne
