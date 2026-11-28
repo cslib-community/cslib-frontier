@@ -73,8 +73,7 @@ theorem exec_scatterStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ
   have hrfit : Fits w (routeBudget L m N (tableAddress L Q)) :=
     hfit.of_le (by unfold wordBudget; omega)
   refine WP.exists_execWithin ?_
-  unfold scatterStep loadQuery
-  wram_exec * [hn2, ha0, ha1, hI, hJ]
+  wram_exec * [scatterStep, loadQuery, hn2, ha0, ha1, hI, hJ]
   wram_call (exec_route hm I J _ (by regs_frame)
     (by wram_simp) (by wram_simp) (by wram_simp; exact htable) hrfit)
     with routed ⟨_, _, htile, hvalue, hrmem, hrregs⟩

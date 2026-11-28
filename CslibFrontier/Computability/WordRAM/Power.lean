@@ -64,8 +64,7 @@ theorem exec {w : ℕ} (b n : ℕ) (hb : 1 ≤ b) (x : Data 5)
   · rintro y ⟨hbv, hnv, ho, hv, hm⟩ hc_lt
     have hp : Fits w (b ^ (y.regs counter + 1)) := by
       fits [Nat.pow_le_pow_right hb (show y.regs counter + 1 ≤ n by omega)]
-    unfold body
-    wram_exec [hbv, ho, hv, ← pow_succ]
+    wram_exec [body, hbv, ho, hv, ← pow_succ]
     dsimp only [P]
     wram_simp [hbv, hnv, ho, hm]
   · wram_simp [Nat.zero_le]

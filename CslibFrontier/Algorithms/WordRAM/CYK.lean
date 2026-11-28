@@ -472,8 +472,7 @@ private theorem exec_cykSetup {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth w) :
   have hm3 : (Data.init I.encode : Data 24).mem 3 = I.nilRule.toNat := by simp [CYKInstance.encode]
   have hm4 : (Data.init I.encode : Data 24).mem 4 = I.rules.length := by simp [CYKInstance.encode]
   have hm5 : (Data.init I.encode : Data 24).mem 5 = I.word.length := by simp [CYKInstance.encode]
-  unfold cykSetup
-  wram_exec *
+  wram_exec * [cykSetup]
   · refine ⟨rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
     all_goals wram_simp *
     omega
@@ -705,8 +704,7 @@ private theorem exec_leafLevel {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth w)
         q.regs regWi = I.word[i] ∧ ActiveCellMem I 0 i (LeafAccProp I I.word[i] rIdx) q.mem
     have hpre : ∃ p1, ExecWithin w leafPre st p1 5 ∧
         p1.regs regRIdx = 0 ∧ Prule 0 p1 := by
-      unfold leafPre
-      wram_exec *
+      wram_exec * [leafPre]
       · refine ⟨by wram_simp *, by regs_frame, by wram_simp *, ?_, by wram_simp *, ?_⟩
         · wram_simp *; simp [cellBase]
         · exact activeCellMem_congr I 0 i (fun _ => False) _ (by simp [LeafAccProp])
@@ -883,8 +881,7 @@ private theorem exec_nodeSplitStep {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth
       q.regs regRightBase = cellBase I (d - 1 - k) (i + k + 1) ∧
       ActiveCellMem I d i (NodeAccProp I d i k rIdx) q.mem
   have hpre : ∃ p1, ExecWithin w nodeSplitPre st p1 13 ∧ p1.regs regRIdx = 0 ∧ Prule 0 p1 := by
-    unfold nodeSplitPre
-    wram_exec *
+    wram_exec * [nodeSplitPre]
     · refine ⟨by wram_simp *, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
         by regs_frame, by regs_frame, ?_, ?_, hmem⟩ <;> (wram_simp *; rfl)
     all_goals exact hw.of_le (by omega)
@@ -934,8 +931,7 @@ private theorem exec_nodeCellStep {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth 
       q.regs regI = i ∧ q.regs regCurBase = cellBase I d i ∧
       ActiveCellMem I d i (NodeAccProp I d i k 0) q.mem
   have hpre : ∃ p1, ExecWithin w nodeCellPre st p1 5 ∧ p1.regs regK = 0 ∧ Psplit 0 p1 := by
-    unfold nodeCellPre
-    wram_exec *
+    wram_exec * [nodeCellPre]
     · refine ⟨by wram_simp *, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
         by wram_simp *; rfl,
         activeCellMem_congr I d i (fun _ => False) _ (by simp [NodeAccProp])
@@ -1080,8 +1076,7 @@ private theorem exec_cykCode {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth w) :
           cellBase I (I.word.length - 1) 0 + I.initial.val := by simp [cellBase]
     have hfin : ∃ xf, ExecWithin w cykFinalRead x₂ xf 6 ∧
         xf.regs regTag = (cyk I.grammar I.word).toNat := by
-      unfold cykFinalRead
-      wram_exec *
+      wram_exec * [cykFinalRead]
       · wram_simp *
         rw [haddr_eq, hread_init, show I.word.length - 1 + 1 = I.word.length by omega,
           cyk, ite_eq_right hw_nil]

@@ -49,8 +49,7 @@ theorem exec_setup {W b N Q : ℕ} (x : Data 163) (hb : x.regs Reg.base = b)
   obtain ⟨s, hs, ss, sm, sb⟩ :
       ∃ s, ExecWithin W readSize x s 9 ∧ s.regs (powerBank 0) = N + Q + 3 ∧
         s.mem = x.mem ∧ s.regs MemoryWindow.Reg.base = b := by
-    unfold readSize
-    wram_exec [hb, hN, hQ, hsize]
+    wram_exec [readSize, hb, hN, hQ, hsize]
     refine ⟨rfl, rfl, ?_⟩
     wram_simp
     exact hb

@@ -27,7 +27,7 @@ automorphism-invariance theorem of [Nash1951], Theorem 2, p. 289 (which establis
 invariant under the full automorphism group of any finite game) to interchangeable players sharing
 a common nonempty action type `A`. Rather than building a separate fixed-point map, the proof
 restricts `CostGame.nashMap` from `Strategic.Nash` to the diagonal `(x, …, x)` — applying Brouwer's
-fixed-point theorem (`Cslib.Brouwer.exists_isFixedPt_pi_simplex`) on a single simplex `A → ℝ` — and
+fixed-point theorem (`Cslib.Brouwer.exists_isFixedPt_simplex`) on a single simplex `A → ℝ` — and
 uses symmetry (`IsSymmetric.nashMap_const_eq`) together with `CostGame.isFixedPt_nashMap_iff`.
 
 ## Main definitions
@@ -207,16 +207,16 @@ theorem IsSymmetric.exists_isSymmetricMixedNash [Nonempty A] (hG : G.IsSymmetric
     ∃ x : A → ℝ, G.IsSymmetricMixedNash x := by
   by_cases hι : Nonempty ι
   · obtain ⟨i₀⟩ := hι
-    let f : (Unit → A → ℝ) → (Unit → A → ℝ) := fun q _ => G.nashMap (fun _ => q ()) i₀
-    have hf_cont : Continuous f := continuous_pi fun _ => (continuous_apply i₀).comp
-      (G.continuous_nashMap.comp (continuous_pi fun _ => continuous_apply ()))
-    obtain ⟨q, hq, hfix⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex
-      (fun q hq _ => isMixedStrategy_iff.1
-        (G.isMixedStrategy_nashMap (fun _ => isMixedStrategy_iff.2 (hq ())) i₀))
+    let f : (A → ℝ) → A → ℝ := fun x => G.nashMap (fun _ => x) i₀
+    have hf_cont : Continuous f :=
+      (continuous_apply i₀).comp (G.continuous_nashMap.comp (continuous_pi fun _ => continuous_id))
+    obtain ⟨x, hxΔ, hfix⟩ := Cslib.Brouwer.exists_isFixedPt_simplex
+      (fun x hx => isMixedStrategy_iff.1
+        (G.isMixedStrategy_nashMap (fun _ => isMixedStrategy_iff.2 hx) i₀))
       hf_cont.continuousOn
-    have hx : IsMixedStrategy (q ()) := isMixedStrategy_iff.2 (hq ())
-    exact ⟨q (), hx, (G.isFixedPt_nashMap_iff (fun _ => hx)).1 <| funext fun i =>
-      (hG.nashMap_const_eq (q ()) i i₀).trans (congrFun hfix ())⟩
+    have hx : IsMixedStrategy x := isMixedStrategy_iff.2 hxΔ
+    exact ⟨x, hx, (G.isFixedPt_nashMap_iff (fun _ => hx)).1 <| funext fun i =>
+      (hG.nashMap_const_eq x i i₀).trans hfix⟩
   · classical
     rw [not_nonempty_iff] at hι
     exact ⟨Pi.single (Classical.arbitrary A) 1, isMixedStrategy_single _,

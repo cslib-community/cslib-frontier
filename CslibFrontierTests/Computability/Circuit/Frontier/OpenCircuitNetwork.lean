@@ -8,8 +8,10 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.OpenBitNetwork
+import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Normalize
 import CslibFrontier.Computability.Circuit.InnerSize
 import CslibFrontier.Computability.Circuit.Pi
+import Mathlib.Algebra.BigOperators.Pi
 import Mathlib.Data.ZMod.Basic
 
 /-!
@@ -17,6 +19,8 @@ import Mathlib.Data.ZMod.Basic
 
 A binary AND reads the first input twice and ignores the second. Over the field with two
 elements, setting the first bit to true gives contraction one for either value of the second bit.
+A separate network has a loop and an exterior bit on one vertex. Giving it an equality leaf
+must preserve the multiplicity of its accepting internal labels.
 -/
 
 set_option linter.privateModule false
@@ -39,5 +43,26 @@ example :
   rw [hc]
   change (if x 0 && x 0 then (1 : ZMod 2) else 0) = _
   rw [Bool.and_self]
+
+private def loop : OpenBitNetwork ℕ Unit Unit Unit where
+  src _ := ()
+  tgt _ := ()
+  site _ := ()
+  tensor _ α x := if α () = x () then 1 else 0
+  tensor_congr _ α β h := by rw [h () (Or.inl rfl)]
+  exterior_congr _ _ x y h := by rw [h () rfl]
+
+open scoped Classical in
+example : ∃ M : OpenBitNetwork ℕ Unit ((Unit ⊕ Unit) ⊕ Unit) ((Unit ⊕ Unit) ⊕ Unit),
+    M.IsNormalized ∧ ∀ x, M.contraction x = 1 := by
+  have ht : loop.Trivalent := by intro v; cases v; simp [loop]
+  obtain ⟨M, hM, _, hc⟩ := loop.exists_normalized ht
+  refine ⟨M, hM, fun x => (hc x).trans ?_⟩
+  classical
+  simp only [TensorNetwork.contraction, Finset.sum_apply, Fintype.prod_unique,
+    loop]
+  rw [← (Equiv.funUnique Unit Bool).symm.sum_comp, Fintype.sum_bool]
+  change (if true = x () then 1 else 0) + (if false = x () then 1 else 0) = (1 : ℕ)
+  cases x () <;> decide
 
 end CslibFrontierTests.Computability.Circuit.Frontier.OpenCircuitNetwork

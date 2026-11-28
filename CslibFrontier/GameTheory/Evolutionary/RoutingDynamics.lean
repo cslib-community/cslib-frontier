@@ -19,6 +19,7 @@ import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Calculus.Deriv.Slope
+import Mathlib.Analysis.Normed.Group.Uniform
 import Mathlib.Analysis.ODE.ExistUnique
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
@@ -581,6 +582,17 @@ section Existence
 
 variable {P E : Type*} [Fintype P] [DecidableEq E]
 
+private theorem lipschitzWith_sum {X ι : Type*} [PseudoMetricSpace X]
+    (s : Finset ι) {f : ι → X → ℝ} {K : ι → ℝ≥0}
+    (hf : ∀ i ∈ s, LipschitzWith (K i) (f i)) :
+    LipschitzWith (∑ i ∈ s, K i) (fun x => ∑ i ∈ s, f i x) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simpa only [Finset.sum_empty] using LipschitzWith.const (α := X) (0 : ℝ)
+  | insert i s hi ih =>
+    simpa only [Finset.sum_insert hi] using
+      (hf i (Finset.mem_insert_self i s)).add (ih fun j hj => hf j (Finset.mem_insert_of_mem hj))
+
 /-- Product of two bounded globally Lipschitz real-valued functions is globally Lipschitz. -/
 private theorem lipschitzWith_mul_of_bdd {X : Type*} [PseudoMetricSpace X]
     {f g : X → ℝ} {Kf Kg Bf Bg : ℝ≥0}
@@ -734,11 +746,9 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
       ∃ K : ℝ≥0, LipschitzWith K (clampedDrift G lStar) := by
   choose Ke hKe using hlip
   have hlat_lip : ∀ e, LipschitzWith (Ke e) (fun u => G.latency e (clamp01 u)) := fun e =>
-    LipschitzWith.of_dist_le_mul fun u v => by
-      have h1 := (hKe e).dist_le_mul (clamp01 u) (clamp01_mem u) (clamp01 v) (clamp01_mem v)
-      have h2 := lipschitzWith_clamp01.dist_le_mul u v
-      simp only [NNReal.coe_one, one_mul] at h2
-      exact h1.trans (mul_le_mul_of_nonneg_left h2 (Ke e).2)
+    lipschitzOnWith_univ.mp <| by
+      simpa only [mul_one] using!
+        (hKe e).comp lipschitzWith_clamp01.lipschitzOnWith (fun u _ => clamp01_mem u)
   have hlat_bdd : ∀ e, ∃ Be : ℝ≥0, ∀ u, |G.latency e (clamp01 u)| ≤ Be := fun e => by
     refine ⟨⟨G.latency e 0 + Ke e, add_nonneg (hnonneg e 0 ⟨le_rfl, zero_le_one⟩) (Ke e).2⟩,
       fun u => ?_⟩
@@ -753,37 +763,17 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
     linarith
   choose Be hBe using hlat_bdd
   have hedge_lip : ∀ e, LipschitzWith (Fintype.card P : ℝ≥0) (fun x : P → ℝ => G.edgeFlow x e) :=
-    fun e => LipschitzWith.of_dist_le_mul fun x y => by
-      rw [Real.dist_eq]
-      calc |G.edgeFlow x e - G.edgeFlow y e|
-          = |∑ p with e ∈ G.resources p, (x p - y p)| := by
-            unfold edgeFlow; rw [Finset.sum_sub_distrib]
-        _ ≤ ∑ p with e ∈ G.resources p, |x p - y p| := Finset.abs_sum_le_sum_abs _ _
-        _ ≤ ∑ p : P, |x p - y p| :=
-            Finset.sum_le_univ_sum_of_nonneg fun _ => abs_nonneg _
-        _ ≤ ∑ _p : P, dist x y := Finset.sum_le_sum fun p _ => by
-            simpa only [Real.dist_eq] using dist_le_pi_dist x y p
-        _ = (Fintype.card P : ℝ≥0) * dist x y := by
-            simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, NNReal.coe_natCast]
-  have hpath_lip : ∀ p, ∃ Kp : ℝ≥0, LipschitzWith Kp (fun x => clampedPathLatency G x p) :=
-    fun p => by
-      refine ⟨∑ e ∈ G.resources p, Ke e * (Fintype.card P : ℝ≥0),
-        LipschitzWith.of_dist_le_mul fun x y => ?_⟩
-      rw [Real.dist_eq]
-      calc |clampedPathLatency G x p - clampedPathLatency G y p|
-          = |∑ e ∈ G.resources p,
-              (G.latency e (clamp01 (G.edgeFlow x e)) - G.latency e (clamp01 (G.edgeFlow y e)))| :=
-            by unfold clampedPathLatency; rw [Finset.sum_sub_distrib]
-        _ ≤ ∑ e ∈ G.resources p,
-              |G.latency e (clamp01 (G.edgeFlow x e)) - G.latency e (clamp01 (G.edgeFlow y e))| :=
-            Finset.abs_sum_le_sum_abs _ _
-        _ ≤ ∑ e ∈ G.resources p, ↑(Ke e * (Fintype.card P : ℝ≥0)) * dist x y :=
-            Finset.sum_le_sum fun e _ => by
-              have hcomp := (hlat_lip e).comp (hedge_lip e)
-              simpa only [Real.dist_eq, Function.comp_apply] using hcomp.dist_le_mul x y
-        _ = ↑(∑ e ∈ G.resources p, Ke e * (Fintype.card P : ℝ≥0)) * dist x y := by
-            rw [← Finset.sum_mul]; push_cast; rfl
-  choose Kpath hKpath using hpath_lip
+    fun e => by
+      classical
+      let paths := Finset.univ.filter fun p => e ∈ G.resources p
+      have hsum : LipschitzWith (∑ _ ∈ paths, (1 : ℝ≥0)) (fun x : P → ℝ => ∑ p ∈ paths, x p) :=
+        lipschitzWith_sum paths fun p _ => LipschitzWith.eval p
+      refine hsum.weaken ?_
+      simpa only [Finset.sum_const, nsmul_eq_mul, mul_one, Nat.cast_le] using
+        Finset.card_le_univ paths
+  let Kpath (p : P) : ℝ≥0 := ∑ e ∈ G.resources p, Ke e * (Fintype.card P : ℝ≥0)
+  have hKpath (p : P) : LipschitzWith (Kpath p) (fun x => clampedPathLatency G x p) :=
+    lipschitzWith_sum (G.resources p) fun e _ => (hlat_lip e).comp (hedge_lip e)
   have hpath_bdd : ∀ p, ∃ Bp : ℝ≥0, ∀ x, |clampedPathLatency G x p| ≤ Bp := fun p => by
     refine ⟨∑ e ∈ G.resources p, Be e, fun x => ?_⟩
     calc |clampedPathLatency G x p|
@@ -792,35 +782,17 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
       _ ≤ ∑ e ∈ G.resources p, (Be e : ℝ) := Finset.sum_le_sum fun e _ => hBe e _
       _ = ↑(∑ e ∈ G.resources p, Be e) := by push_cast; rfl
   choose Bpath hBpath using hpath_bdd
-  have hclamp_coord_lip : ∀ p, LipschitzWith 1 (fun x : P → ℝ => clamp02 (x p)) := fun p =>
-    LipschitzWith.of_dist_le_mul fun x y => by
-      have h1 := lipschitzWith_clamp02.dist_le_mul (x p) (y p)
-      simp only [NNReal.coe_one, one_mul] at h1 ⊢
-      exact h1.trans (dist_le_pi_dist x y p)
+  have hclamp_coord_lip (p : P) : LipschitzWith 1 (fun x : P → ℝ => clamp02 (x p)) := by
+    simpa only [one_mul] using!
+      lipschitzWith_clamp02.comp (LipschitzWith.eval (α := fun _ : P => ℝ) p)
   have hclamp_coord_bdd : ∀ p (x : P → ℝ), |clamp02 (x p)| ≤ (2 : ℝ≥0) := fun p x => by
     have hm := clamp02_mem (x p)
     rw [abs_of_nonneg hm.1]
     exact hm.2
-  have hcost_lip : ∃ Kc : ℝ≥0, LipschitzWith Kc (clampedCost G) := by
-    have hterm : ∀ q, LipschitzWith ((2 : ℝ≥0) * Kpath q + Bpath q * 1)
-        (fun x => clamp02 (x q) * clampedPathLatency G x q) := fun q =>
-      lipschitzWith_mul_of_bdd (hclamp_coord_lip q) (hKpath q)
-        (hclamp_coord_bdd q) (hBpath q)
-    refine ⟨∑ q, ((2 : ℝ≥0) * Kpath q + Bpath q * 1),
-      LipschitzWith.of_dist_le_mul fun x y => ?_⟩
-    rw [Real.dist_eq]
-    calc |clampedCost G x - clampedCost G y|
-        = |∑ q, (clamp02 (x q) * clampedPathLatency G x q -
-            clamp02 (y q) * clampedPathLatency G y q)| := by
-          unfold clampedCost; rw [Finset.sum_sub_distrib]
-      _ ≤ ∑ q, |clamp02 (x q) * clampedPathLatency G x q -
-            clamp02 (y q) * clampedPathLatency G y q| := Finset.abs_sum_le_sum_abs _ _
-      _ ≤ ∑ q, ↑((2 : ℝ≥0) * Kpath q + Bpath q * 1) * dist x y :=
-          Finset.sum_le_sum fun q _ => by
-            simpa only [Real.dist_eq] using (hterm q).dist_le_mul x y
-      _ = ↑(∑ q, ((2 : ℝ≥0) * Kpath q + Bpath q * 1)) * dist x y := by
-          rw [← Finset.sum_mul]; push_cast; rfl
-  obtain ⟨Kc, hKc⟩ := hcost_lip
+  let Kc : ℝ≥0 := ∑ q, ((2 : ℝ≥0) * Kpath q + Bpath q * 1)
+  have hKc : LipschitzWith Kc (clampedCost G) :=
+    lipschitzWith_sum Finset.univ fun q _ =>
+      lipschitzWith_mul_of_bdd (hclamp_coord_lip q) (hKpath q) (hclamp_coord_bdd q) (hBpath q)
   let Bc : ℝ≥0 := ∑ q, (2 : ℝ≥0) * Bpath q
   have hBc : ∀ x, |clampedCost G x| ≤ Bc := fun x => by
     calc |clampedCost G x|
@@ -873,20 +845,7 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
           _ = ↑(Bc + Bpath p) := by push_cast; rfl
     have hdiff_lip : LipschitzWith (Kc + Kpath p)
         (fun x => clampedCost G x - clampedPathLatency G x p) :=
-      LipschitzWith.of_dist_le_mul fun x y => by
-        rw [Real.dist_eq]
-        have h1 : |clampedCost G x - clampedCost G y| ≤ Kc * dist x y := by
-          simpa only [Real.dist_eq] using hKc.dist_le_mul x y
-        have h2 : |clampedPathLatency G x p - clampedPathLatency G y p| ≤ Kpath p * dist x y := by
-          simpa only [Real.dist_eq] using (hKpath p).dist_le_mul x y
-        calc |(clampedCost G x - clampedPathLatency G x p) -
-                (clampedCost G y - clampedPathLatency G y p)|
-            = |(clampedCost G x - clampedCost G y) -
-                (clampedPathLatency G x p - clampedPathLatency G y p)| := by ring_nf
-          _ ≤ |clampedCost G x - clampedCost G y| +
-                |clampedPathLatency G x p - clampedPathLatency G y p| := abs_sub _ _
-          _ ≤ Kc * dist x y + Kpath p * dist x y := add_le_add h1 h2
-          _ = ↑(Kc + Kpath p) * dist x y := by push_cast; ring
+      hKc.sub (hKpath p)
     have hprod1_bdd : ∀ x, |clampedRate G lStar x * clamp02 (x p)| ≤ ↑(Br * 2) := fun x => by
       rw [abs_mul]
       calc |clampedRate G lStar x| * |clamp02 (x p)|

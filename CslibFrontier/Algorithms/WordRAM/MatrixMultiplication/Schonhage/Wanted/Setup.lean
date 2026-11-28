@@ -72,8 +72,7 @@ theorem exec_setup {w L m N Q : ℕ} (x : Data 96)
   simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
     countAddress, tableAddress, inputLimit, pow_two] at hi ht hc ho hcur0 hcur hco horig hefit
   refine WP.exists_execWithin ?_
-  unfold setup
-  wram_exec * [hQ, h4, h5, hq2, hi, ht, hc, hb, ht2, ho, hcur0, hcur, hco, horig, hefit]
+  wram_exec * [setup, hQ, h4, h5, hq2, hi, ht, hc, hb, ht2, ho, hcur0, hcur, hco, horig, hefit]
   refine ⟨?_, rfl⟩
   refine ⟨?_, ?_, by wram_simp, by wram_simp, by wram_simp; rfl,
     by wram_simp; simp only [offsetAddress, countAddress, tableAddress, inputLimit, pow_two],

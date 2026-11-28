@@ -52,8 +52,7 @@ theorem exec_emit {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
             (x.regs stamps + x.regs suffix) (x.regs epoch)) ∧
       (∀ i, ¬EmitLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold emit
-  wram_exec [h1, hs, hl, hn]
+  wram_exec [emit, h1, hs, hl, hn]
   all_goals
     refine ⟨by wram_simp; simp [hc], by wram_simp; simp [hc], fun i hi => ?_⟩
     simp only [EmitLocal, not_or] at hi

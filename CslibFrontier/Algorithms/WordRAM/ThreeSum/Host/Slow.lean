@@ -191,8 +191,7 @@ private theorem exec_loadTriple {w t F abp bcp acp free v₀ v₁ v₂ : ℕ}
   have hfree : Fits w free := hfit.of_le (by omega)
   have htfree : t ≤ free := (Nat.le_mul_self t).trans (by omega)
   refine WP.exists_execWithin ?_
-  unfold loadTriple
-  wram_exec [h.side, h.area, h.ab, h.bc, h.ac, hq, hv₀, hv₁, hv₂]
+  wram_exec [loadTriple, h.side, h.area, h.ab, h.bc, h.ac, hq, hv₀, hv₁, hv₂]
   · exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, rfl⟩
   all_goals exact hfree.of_le (by simp only [Fin.coe_divNat, Fin.coe_modNat] at *; omega)
@@ -207,8 +206,7 @@ private theorem exec_finish {w q : ℕ} (x : Data 24)
       y.regs out = (if x.regs positive = x.regs negative then 1 else x.regs out) ∧
       y.mem = x.mem := by
   refine WP.exists_execWithin ?_
-  unfold finish
-  wram_exec [ho, hq, hinc]
+  wram_exec [finish, ho, hq, hinc]
   all_goals exact ⟨by wram_simp, by wram_simp [hc], rfl⟩
 
 private theorem exec_body {w t F abp bcp acp free : ℕ}
@@ -311,8 +309,7 @@ private theorem exec_scan {w t F abp bcp acp free : ℕ}
       · exact Or.inr ((Fin.ext (by dsimp only [q] at *; omega) : p = q) ▸ hh)
   have hstop : Fits w (t * t * t) := hfit.of_le (by rw [Nat.mul_assoc]; omega)
   refine WP.exists_execWithin ?_
-  unfold program setup
-  wram_exec [ht, hstop]
+  wram_exec [program, setup, ht, hstop]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.stop) hbody
     (by wram_simp; exact Nat.zero_le _)
     ⟨⟨by wram_simp [ht], by wram_simp [hab], by wram_simp [hbc], by wram_simp [hac],

@@ -70,14 +70,8 @@ theorem isPPTOn_keyGen
     (ComputableInPolyTime.snd _ _).fst'
     (ComputableInPolyTime.snd _ _).snd'
   simpa only [bind_pure_comp] using hbits.map_with
-    (show ComputableInPolyTime
-      (fun p : (α × (List Bool × List Bool)) × List (List Bool) =>
-        (encPublicKey (p.1.2.1, p.2), p.1.2.2))
-      (encPair (encPair input (encPair encBits encBits)) (encList encBits))
-      (encPair encBits encBits) from
-      (((ComputableInPolyTime.fst _ _).snd'.fst'.prod
-        (ComputableInPolyTime.snd _ _)).of_enc_eq fun _ => rfl).prod
-          (ComputableInPolyTime.fst _ _).snd'.snd')
+    (right := encPair encBits encBits)
+    (f := fun p rows => (encPublicKey (p.2.1, rows), p.2.2)) (by fun_prop)
 
 include hencrypt in
 /-- Decode any public word and encrypt under the decoded base public key. -/

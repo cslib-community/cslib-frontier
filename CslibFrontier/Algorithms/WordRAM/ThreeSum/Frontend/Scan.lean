@@ -80,8 +80,7 @@ theorem step {w : ℕ} (x : Data 48)
     · exact hdouble.of_le (Nat.sub_le _ _)
     · exact hkey
   refine WP.exists_execWithin ?_
-  unfold body
-  wram_exec
+  wram_exec [body]
   wram_call (Select.exec _ ..) framed [hz, h1, h2, h3, h4, h5] with v m ⟨hut, hyk, hym⟩
   wram_exec [hut, hyk, hym, h1, hv] <;>
   · wram_simp [hyk, hym]
@@ -196,8 +195,7 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
         omega
       exact (hf a hne).trans (hframe a hnot)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (ExecWithin.loop_count P
     (fun y hy => (hy.1 len (by decide)).trans hn) hbody (by wram_simp; omega)
     ⟨fun j hj => by

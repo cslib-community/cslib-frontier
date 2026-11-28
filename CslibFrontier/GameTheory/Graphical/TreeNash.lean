@@ -100,17 +100,54 @@ theorem UpstreamNeighbors.parent_eq {ι : Type*} {G : SimpleGraph ι} {hT : G.Is
     (c : UpstreamNeighbors hT r v) : hT.parent r c.1 = v :=
   c.2.2
 
-private theorem not_mem_treeSide_other {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree} {u v : ι}
-    (h : G.Adj u v) : v ∉ hT.treeSide u v := by
-  have hm := hT.self_mem_treeSide_of_adj h.symm
-  rwa [hT.treeSide_compl_of_adj h] at hm
+/-- A non-root vertex's neighbors other than its downstream parent `hT.parent r v` are precisely its
+upstream neighbors in `UpstreamNeighbors hT r v`. -/
+theorem upstream_neighbor_iff {ι : Type*} {G : SimpleGraph ι} (hT : G.IsTree) (r : ι) {v c : ι}
+    (hv : v ≠ r) :
+    (G.Adj v c ∧ c ≠ hT.parent r v) ↔ (c ≠ r ∧ hT.parent r c = v) :=
+  ⟨fun ⟨hadj, hne⟩ => ((hT.adj_iff_parent r).mp hadj).resolve_left fun h => hne h.2.symm,
+   fun ⟨hcr, hpar⟩ => ⟨(hT.adj_iff_parent r).mpr (Or.inr ⟨hcr, hpar⟩), fun heq => by
+     have h1 := hT.length_pathTo_parent r hv
+     have h2 := hT.length_pathTo_parent r hcr
+     rw [hpar, heq] at h2; omega⟩⟩
 
-private theorem upstream_unique_of_mem_treeSide {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree}
+/-- Distinct upstream neighbors of `v` have disjoint subtrees `hT.treeSide c.1 v`. -/
+theorem upstream_unique_of_mem_treeSide {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree}
     {r v : ι} {c c' : UpstreamNeighbors hT r v} {z : ι}
     (hz : z ∈ hT.treeSide c.1 v) (hz' : z ∈ hT.treeSide c'.1 v) : c = c' :=
   by_contra fun hne => Set.disjoint_left.mp
     (hT.disjoint_treeSide_of_adj ((hT.adj_iff_parent r).mpr (Or.inr c.2))
       ((hT.adj_iff_parent r).mpr (Or.inr c'.2)) fun h => hne (Subtype.ext h)) hz hz'
+
+/-- Moving from `v` to an upstream neighbor `c` strictly decreases
+`Fintype.card ι - (hT.pathTo r ·).length`. -/
+theorem UpstreamNeighbors.card_sub_length_pathTo_lt {ι : Type*} [Fintype ι] {G : SimpleGraph ι}
+    {hT : G.IsTree} {r v : ι} (c : UpstreamNeighbors hT r v) :
+    Fintype.card ι - (hT.pathTo r c.1).length < Fintype.card ι - (hT.pathTo r v).length := by
+  have hlt := (hT.isPath_pathTo r c.1).length_lt
+  have hstep := hT.length_pathTo_parent r c.2.1
+  rw [c.2.2] at hstep
+  omega
+
+/-- For a non-root vertex `v ≠ r`, each upstream neighbor's subtree `hT.treeSide c.1 v` is
+contained in `hT.treeSide v (hT.parent r v)`. -/
+theorem UpstreamNeighbors.treeSide_subset {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree}
+    {r v : ι} (hv : v ≠ r) (c : UpstreamNeighbors hT r v) :
+    hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun _ hw => by
+  rw [hT.treeSide_eq_insert_biUnion (hT.adj_parent r hv)]
+  exact Set.mem_insert_of_mem v
+    (mem_iUnion₂.mpr ⟨c.1, (upstream_neighbor_iff hT r hv).mpr c.2, hw⟩)
+
+/-- Every non-root vertex `z ≠ r` lies in the subtree `hT.treeSide c.1 r` of some upstream
+neighbor `c` of the root `r`. -/
+theorem exists_upstream_mem_treeSide_root {ι : Type*} {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
+    {z : ι} (hzr : z ≠ r) :
+    ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.1 r := by
+  refine ⟨⟨hT.parent z r, ((hT.adj_iff_parent r).mp (hT.adj_parent z hzr.symm)).resolve_left
+    fun h => h.1 rfl⟩, ?_⟩
+  simp only [SimpleGraph.IsTree.mem_treeSide]
+  have hlen := hT.length_pathTo_parent z hzr.symm
+  omega
 
 namespace GraphicalGame
 
@@ -169,10 +206,7 @@ def treePassTable (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
         M.IsApproxBestResponse ε v xv (assembleNeighbors hT r hv xw u)
 termination_by Fintype.card ι - (hT.pathTo r v).length
 decreasing_by
-  have hlt := (hT.isPath_pathTo r c.1).length_lt
-  have hstep := hT.length_pathTo_parent r c.2.1
-  rw [c.2.2] at hstep
-  omega
+  exact c.card_sub_length_pathTo_lt
 
 /-- Witness predicate for `treePassTable` at `v ≠ r` ([Kearns2007], Figure 7.1 Step (ii)(d)2,
 pp. 165–166): `u` belongs to the witness list of `(xw, xv)` iff every upstream table entry
@@ -245,16 +279,6 @@ private theorem eq_rec_symm_self {i j : ι} (h : i = j) (y : ∀ k, S k → ℝ)
   cases h
   rfl
 
-omit [Fintype ι] [DecidableEq ι] in
-private theorem upstream_neighbor_iff {G : SimpleGraph ι} (hT : G.IsTree) (r : ι) {v c : ι}
-    (hv : v ≠ r) :
-    (G.Adj v c ∧ c ≠ hT.parent r v) ↔ (c ≠ r ∧ hT.parent r c = v) :=
-  ⟨fun ⟨hadj, hne⟩ => ((hT.adj_iff_parent r).mp hadj).resolve_left fun h => hne h.2.symm,
-   fun ⟨hcr, hpar⟩ => ⟨(hT.adj_iff_parent r).mpr (Or.inr ⟨hcr, hpar⟩), fun heq => by
-     have h1 := hT.length_pathTo_parent r hv
-     have h2 := hT.length_pathTo_parent r hcr
-     rw [hpar, heq] at h2; omega⟩⟩
-
 /-- **Subtree table invariant** ([Kearns2007], §7.3, pp. 164–166): for `v ≠ r`, `treePassTable`
 accepts `(xw, xv)` if and only if there exists a profile `q` assigning `xw` to `hT.parent r v`, `xv`
 to `v`, strategies from `allowed` across `UP_G(v) = hT.treeSide v (hT.parent r v)`, and making every
@@ -277,17 +301,11 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
     rw [treePassTable_iff_exists_witness hv]
     have hadj_vp : M.graph.Adj v (hT.parent r v) := hT.adj_parent r hv
     have hp_notMem : hT.parent r v ∉ hT.treeSide v (hT.parent r v) :=
-      not_mem_treeSide_other hadj_vp
+      hT.not_mem_treeSide_other hadj_vp
     have hlt_up : ∀ c : UpstreamNeighbors hT r v,
-        Fintype.card ι - (hT.pathTo r c.1).length < n := fun c => by
-      have hlt := (hT.isPath_pathTo r c.1).length_lt
-      have hstep := hT.length_pathTo_parent r c.2.1
-      rw [c.2.2] at hstep; omega
+        Fintype.card ι - (hT.pathTo r c.1).length < n := fun c => hn ▸ c.card_sub_length_pathTo_lt
     have hsub_up : ∀ c : UpstreamNeighbors hT r v,
-        hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun c w hw => by
-      rw [hT.treeSide_eq_insert_biUnion hadj_vp]
-      exact Set.mem_insert_of_mem v
-        (mem_iUnion₂.mpr ⟨c.1, (upstream_neighbor_iff hT r hv).mpr c.2, hw⟩)
+        hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun c => c.treeSide_subset hv
     constructor
     · rintro ⟨u, hxw, hxv, hchild, hbr_v⟩
       -- Extract subtree equilibria for each upstream neighbor `c` by IH.
@@ -312,7 +330,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
       have hq_on_child : ∀ (c : UpstreamNeighbors hT r v) {z : ι},
           z ∈ hT.treeSide c.1 v → q z = qc c z := fun c z hz => by
         have hzv : z ≠ v := fun h =>
-          not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm (h ▸ hz)
+          hT.not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm (h ▸ hz)
         have hzp : z ≠ hT.parent r v := fun h => hp_notMem (hsub_up c (h ▸ hz))
         have hex : ∃ c' : UpstreamNeighbors hT r v, z ∈ hT.treeSide c'.1 v := ⟨c, hz⟩
         simp only [q, hzv, hzp, hex, ↓reduceDIte]
@@ -362,12 +380,8 @@ theorem rootPassTable_iff_exists_isApproxNash {M : GraphicalGame ι S} {hT : M.g
   -- Partition `ι \ {r}` into the disjoint subtrees `hT.treeSide c.1 r` over
   -- `c : UpstreamNeighbors hT r r`.
   have hcover : ∀ z : ι, z ≠ r →
-      ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.1 r := fun z hzr => by
-    refine ⟨⟨hT.parent z r, ((hT.adj_iff_parent r).mp (hT.adj_parent z hzr.symm)).resolve_left
-      fun h => h.1 rfl⟩, ?_⟩
-    simp only [SimpleGraph.IsTree.mem_treeSide]
-    have hlen := hT.length_pathTo_parent z hzr.symm
-    omega
+      ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.1 r :=
+    fun _ hzr => exists_upstream_mem_treeSide_root hT r hzr
   constructor
   · rintro ⟨u, hxr, hchild, hbr_r⟩
     have hchild_eq : ∀ c : UpstreamNeighbors hT r r,
@@ -390,7 +404,7 @@ theorem rootPassTable_iff_exists_isApproxNash {M : GraphicalGame ι S} {hT : M.g
     have hq_on_child : ∀ (c : UpstreamNeighbors hT r r) {z : ι},
         z ∈ hT.treeSide c.1 r → q z = qc c z := fun c z hz => by
       have hzr : z ≠ r := fun h =>
-        not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm (h ▸ hz)
+        hT.not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm (h ▸ hz)
       simp only [q, hzr, ↓reduceDIte]
       rw [upstream_unique_of_mem_treeSide (Classical.choose_spec (hcover z hzr)) hz]
     refine ⟨q, hq_r, fun i => ?_, M.isApproxNash_iff_local.mpr fun z => ?_⟩

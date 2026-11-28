@@ -36,8 +36,6 @@ These are original computational certificates for the existing positional encodi
 
 @[expose] public section
 
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 namespace Cslib.Logic.PL
 
 open Turing.MultiTapeTM

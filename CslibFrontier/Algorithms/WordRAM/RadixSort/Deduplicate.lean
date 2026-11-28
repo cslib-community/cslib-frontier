@@ -81,7 +81,7 @@ theorem deduplicate_exec {w base keyBits : ℕ} (xs : List ℕ) (x : Data 16)
     Deduplicate.keys (xs.length + xs.length + base)).set
     Deduplicate.counts (xs.length + xs.length + base + xs.length)
   have hl : ExecWithin w outputLayout u v 3 := by
-    unfold outputLayout; wram_exec *
+    wram_exec * [outputLayout]
   have hlen : (passes keyBits xs).length = xs.length := hp.length_eq
   obtain ⟨y, rs, hy, hrs, hyout, hyrk, hyrc, _, hyf⟩ :=
     Deduplicate.exec (w := w) (s := u.regs src) (base := base + 2 * xs.length) (passes keyBits xs) v

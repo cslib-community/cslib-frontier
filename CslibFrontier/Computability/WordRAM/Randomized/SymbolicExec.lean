@@ -679,7 +679,7 @@ private meta def stepBranch (cfg : WP.Exec.Config) (g : MVarId) (rule : Name)
 private meta partial def isKnownDetOp (code : Expr) : MetaM Bool := do
   let code ← whnfR code
   match code.getAppFn.constName? with
-  | some ``Code.op => return (WP.Exec.opRule? (code.getArg! 2)).isSome
+  | some ``Code.op => return (← WP.Exec.opRule? (code.getArg! 2)).isSome
   | some ``Code.seq =>
     return (← isKnownDetOp (code.getArg! 2)) && (← isKnownDetOp (code.getArg! 3))
   | _ => return false
@@ -812,7 +812,7 @@ private meta partial def walk (cfg : WP.Exec.Config) (g : MVarId) : TacticM (Arr
           out := out ++ (← walk cfg g')
         return out
     | some ``Code.op =>
-      if (WP.Exec.opRule? (c1.getArg! 2)).isNone then return #[g]
+      if (← WP.Exec.opRule? (c1.getArg! 2)).isNone then return #[g]
       let seqRule := match kind with
         | .rand => ``WP.Rand.seq_exact
         | .randWithin => ``WP.RandWithin.seq_wp
@@ -837,7 +837,7 @@ private meta partial def walk (cfg : WP.Exec.Config) (g : MVarId) : TacticM (Arr
       | .dist => return #[g]
     | _ => return #[g]
   | some ``Code.op =>
-    if (WP.Exec.opRule? (code.getArg! 2)).isNone then return #[g]
+    if (← WP.Exec.opRule? (code.getArg! 2)).isNone then return #[g]
     let leafRule := match kind with
       | .rand => ``WP.Rand.of_wp_exact
       | .randWithin => ``WP.RandWithin.of_wp
@@ -919,7 +919,8 @@ It reassociates left-nested `Code.seq`, collapses deterministic `.op` steps usin
 simplifier and discharger, steps `Code.branch` (or splits unless `-split` is passed), and steps
 `Code.rand dst src` (both as a leaf and as `.seq (.rand dst src) c₂`, introducing `k` when `c₂`
 contains calls or loops). Stops cleanly at loops and unexpanded subroutines, leaving a `WP.Rand`,
-`WP.RandWithin`, or `WP.Dist` goal ready for `wram_rand_call`. -/
+`WP.RandWithin`, or `WP.Dist` goal ready for `wram_rand_call`. Unlike `wram_exec`, it does not open
+a program named among the hints: `unfold` the program first. -/
 syntax (name := wramRandExec) "wram_rand_exec" Lean.Parser.Tactic.optConfig
   (Lean.Parser.Tactic.discharger)?
   (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>

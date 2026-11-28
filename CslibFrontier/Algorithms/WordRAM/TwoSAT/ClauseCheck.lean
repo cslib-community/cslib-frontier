@@ -77,8 +77,8 @@ theorem checkClausesLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
           x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
           x₁.regs compIdxReg = (ok && isValidTwoClause c).toNat ∧
           (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r) := by
-      unfold checkClauseBody
-      wram_exec [hc0, hc1, hc2, hi, hpR, hok, hlen_p, hp_bound, hp_bound1, hi_bound]
+      wram_exec [checkClauseBody,
+        hc0, hc1, hc2, hi, hpR, hok, hlen_p, hp_bound, hp_bound1, hi_bound]
       all_goals
         refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => by regs_lt⟩
         wram_simp

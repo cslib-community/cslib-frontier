@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Layout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.AllBranches
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Step
 import CslibFrontier.Foundations.Data.List.Lookup
-import Mathlib.Data.List.GetD
 
 /-!
 # Routines reading an encoded formula
@@ -52,15 +52,6 @@ open _root_.Turing _root_.Turing.CounterProgram _root_.Turing.CounterProgram.Ins
 
 variable {P : CounterProgram} {w : List Bool} {B : ℕ}
 
-/-- The register `r` of a bounded list is bounded. -/
-private theorem getD_le {regs : List ℕ} (hB : ∀ r ∈ regs, r ≤ B) (i : ℕ) :
-    regs.getD i 0 ≤ B := by
-  rcases lt_or_ge i regs.length with h | h
-  · rw [List.getD_eq_getElem _ _ h]
-    exact hB _ (List.getElem_mem h)
-  · rw [List.getD_eq_default _ _ h]
-    exact Nat.zero_le _
-
 /-! ### Skipping a literal -/
 
 /-- The code moving the position in register `p` past the literal there: groups with a marker
@@ -80,23 +71,15 @@ private theorem reaches_digitLoop {l l' e p : ℕ}
     (hB : ∀ r ∈ regs, r ≤ B) (hend : pos + 8 * v.bits.length + 10 ≤ B) :
     ∀ k ≤ v.bits.length, P.Reaches w (P.Oblivious B) (l, regs.set p (pos + 8 * k))
       (e, regs.set p (pos + 8 * v.bits.length)) := by
-  have hBk : ∀ k ≤ v.bits.length, ∀ r ∈ regs.set p (pos + 8 * k), r ≤ B := fun k hk =>
-    List.forall_mem_set_of_forall_mem hB (by omega)
   intro k hk
   induction h : v.bits.length - k generalizing k with
   | zero =>
     obtain rfl : k = v.bits.length := by omega
-    refine Reaches.oread hl (by simp [Expr.readsChoice, hp]) (hBk _ le_rfl) ?_
-    simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen,
-      hlit.literal_end.2.1, readLabel]
-    exact Reaches.refl _
+    cp_step [List.getD_set_self hlen, hlit.literal_end.2.1]
   | succ n ih =>
     have hk' : k < v.bits.length := by omega
-    refine Reaches.oread hl (by simp [Expr.readsChoice, hp]) (hBk _ hk) ?_
-    simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen,
-      (hlit.literal_digit hk').2.1, readLabel]
-    refine Reaches.oassign hl' hp (by simp [Expr.readsChoice, hp]) (hBk _ hk) ?_
-    simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen, List.set_set]
+    cp_step [List.getD_set_self hlen, (hlit.literal_digit hk').2.1]
+    cp_step [List.getD_set_self hlen, List.set_set]
     rw [show pos + 8 * k + 8 = pos + 8 * (k + 1) by ring]
     exact ih (k + 1) (by omega) (by omega)
 
@@ -114,11 +97,8 @@ theorem reaches_skipLitCode {b p exit : ℕ} (hcode : P.CodeAt b (skipLitCode b 
   have := reaches_digitLoop h₀ h₁ hp hlen hlit hB (by omega) 0 (Nat.zero_le _)
   rw [Nat.mul_zero, Nat.add_zero, show regs.set p pos = regs by
     rw [← hpos, set_getD_self hlen]] at this
-  refine this.trans (Reaches.oassign h₂ hp (by simp [Expr.readsChoice, hp])
-    (List.forall_mem_set_of_forall_mem hB (by omega)) ?_)
-  simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen, List.set_set]
-  rw [Nat.add_assoc]
-  exact Reaches.refl _
+  refine this.trans ?_
+  cp_step [List.getD_set_self hlen, List.set_set, Nat.add_assoc]
 
 /-! ### Skipping a clause -/
 
@@ -142,19 +122,14 @@ theorem reaches_skipClauseCode {b p exit : ℕ} (hcode : P.CodeAt b (skipClauseC
     simpa [skipLitCode] using (codeAt_cons.mp hc.2).1
   induction ls generalizing pos regs with
   | nil =>
-    refine Reaches.oread h₀ (by simp [Expr.readsChoice, hp]) hB ?_
-    simp only [eval_reg, hpos, hls.getElem?_nil, readLabel]
-    refine Reaches.oassign h₄ hp (by simp [Expr.readsChoice, hp]) hB ?_
-    simp only [eval_add, eval_reg, eval_const, hpos, List.flatMap_nil, List.length_nil,
-      Nat.add_zero]
-    exact Reaches.refl _
+    cp_step [hpos, hls.getElem?_nil]
+    cp_step [hpos, List.flatMap_nil, List.length_nil, Nat.add_zero]
   | cons l ls ih =>
     obtain ⟨hl, hrest⟩ := hls.cons
     have hlB : pos + (literalBits l.1 l.2).length ≤ B := by
       simp only [List.flatMap_cons, List.length_append] at hend
       omega
-    refine Reaches.oread h₀ (by simp [Expr.readsChoice, hp]) hB ?_
-    simp only [eval_reg, hpos, hl.literal_start, readLabel]
+    cp_step [hpos, hl.literal_start]
     refine (reaches_skipLitCode hskip hp hlen hl hpos hB hlB).trans ?_
     have := ih (regs := regs.set p (pos + (literalBits l.1 l.2).length)) (by simpa using hlen)
       hrest (List.getD_set_self hlen) (List.forall_mem_set_of_forall_mem hB hlB)
@@ -392,13 +367,11 @@ theorem reaches_signCode {b p t yes no : ℕ} (hcode : P.CodeAt b (signCode b p 
   rw [show b + 1 + 1 = b + 2 by omega] at h₂
   rw [show b + 1 + 1 + 1 = b + 3 by omega] at h₃
   rw [length_literalBits] at hend
-  refine Reaches.oassign h₀ ht (by simp [Expr.readsChoice, hp]) hB ?_
   have := reaches_digitLoop h₁ h₂ ht hlen hlit hB hend 0 (Nat.zero_le _)
-  simp only [eval_reg, hpos, Nat.mul_zero, Nat.add_zero] at this ⊢
-  refine this.trans (Reaches.oread h₃ (by simp [Expr.readsChoice, ht])
-    (List.forall_mem_set_of_forall_mem hB (by omega)) ?_)
-  simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen, hlit.literal_end.2.2,
-    readLabel]
+  rw [Nat.mul_zero, Nat.add_zero] at this
+  cp_step [hpos]
+  refine this.trans ?_
+  cp_step [List.getD_set_self hlen, hlit.literal_end.2.2]
   cases sgn <;> exact Reaches.refl _
 
 end TwoSAT

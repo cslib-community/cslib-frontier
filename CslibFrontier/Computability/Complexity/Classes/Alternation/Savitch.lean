@@ -335,10 +335,7 @@ theorem computableInPolyTime_savitchVerifier :
     Turing.MultiTapeTM.ComputableInPolyTime (savitchVerifier (enc := enc) ntm c d)
       (encPair enc encBits)
       encBool := by
-  have hword : ComputableInPolyTime (fun x : α × List Bool => enc x.1) (encPair enc encBits)
-      encBits :=
-    (ComputableInPolyTime.of_eq (encOut := encBits) fun _ => rfl).comp
-      (ComputableInPolyTime.fst enc encBits)
+  have hword := (ComputableInPolyTime.fst enc encBits).encoding_comp
   have hwidth : ComputableInPolyTime (fun x : α × List Bool => ntm.codeWidth c d (enc x.1))
       (encPair enc encBits) encUnary :=
     (MultiTapeNTM.computableInPolyTime_codeWidth c d).comp (ComputableInPolyTime.fst enc encBits)

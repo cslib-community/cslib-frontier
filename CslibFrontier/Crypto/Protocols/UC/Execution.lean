@@ -54,6 +54,9 @@ evaluated at `κ` plus the adversary's budget.
 
 * `Cslib.Crypto.Protocols.UC.partySpec`, `Cslib.Crypto.Protocols.UC.netSpec`,
   `Cslib.Crypto.Protocols.UC.protocolSpec`, `Cslib.Crypto.Protocols.UC.execSpec`: the ports.
+* `Cslib.Crypto.Protocols.UC.queryParty`, `Cslib.Crypto.Protocols.UC.queryAdv`,
+  `Cslib.Crypto.Protocols.UC.queryNet`: named query helpers on the party, adversary, and network
+  ports.
 * `Cslib.Crypto.Protocols.UC.Protocol`, `Cslib.Crypto.Protocols.UC.IdealFunctionality`,
   `Cslib.Crypto.Protocols.UC.IdealFunctionality.toProtocol`, `Cslib.Crypto.Protocols.UC.Adversary`,
   `Cslib.Crypto.Protocols.UC.Environment`: the participants of the execution.
@@ -109,6 +112,23 @@ abbrev protocolSpec (n : ℕ) (In Out NetQ NetR : Type) : (Fin n × In) ⊕ NetQ
 /-- The ports of an execution seen by the environment: the party port and the adversary port. -/
 abbrev execSpec (n : ℕ) (In Out AdvQ AdvR : Type) : (Fin n × In) ⊕ AdvQ → Type :=
   partySpec n In Out ⊕ₒ netSpec AdvQ AdvR
+
+/-- Library infrastructure (no cited result): query party `i` with input `x` on the party port of an
+execution or protocol interface (`execSpec` / `protocolSpec`). -/
+abbrev queryParty {n : ℕ} {In Out AdvQ AdvR : Type} (i : Fin n) (x : In) :
+    ProbOracleComp (execSpec n In Out AdvQ AdvR) (Option Out) :=
+  ProbOracleComp.query (spec := execSpec n In Out AdvQ AdvR) (.inl (i, x))
+
+/-- Library infrastructure (no cited result): send query `q` to the adversary (or network) port of
+an execution or protocol interface (`execSpec` / `protocolSpec`). -/
+abbrev queryAdv {n : ℕ} {In Out AdvQ AdvR : Type} (q : AdvQ) :
+    ProbOracleComp (execSpec n In Out AdvQ AdvR) AdvR :=
+  ProbOracleComp.query (spec := execSpec n In Out AdvQ AdvR) (.inr q)
+
+/-- Library infrastructure (no cited result): send query `q` on a standalone network port
+(`netSpec NetQ NetR`). -/
+abbrev queryNet {NetQ NetR : Type} (q : NetQ) : ProbOracleComp (netSpec NetQ NetR) NetR :=
+  ProbOracleComp.query (spec := netSpec NetQ NetR) q
 
 /-! ### Participants -/
 
@@ -187,6 +207,47 @@ network query of the adversary is forwarded to the protocol. -/
         if i ∈ C then Sum.inl <$> P.handle (.inl (i, x)) else pure (.inl none)
     | .inr (.inr q) => Sum.inr <$> P.handle (.inr q)
 
+/-- Library infrastructure (no cited result): on an honest party query (`i ∉ C`), `corruptRouter`
+forwards the activation to `P`. -/
+@[simp] theorem corruptRouter_handle_inl_of_notMem (C : Finset (Fin n))
+    (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    {i : Fin n} (hi : i ∉ C) (x : In) :
+    (corruptRouter C P).handle (.inl (i, x)) = P.handle (.inl (i, x)) := by
+  simp only [corruptRouter, hi, ↓reduceIte]
+
+/-- Library infrastructure (no cited result): on a corrupted party query (`i ∈ C`),
+`corruptRouter` returns `none` without changing `P`'s state. -/
+@[simp] theorem corruptRouter_handle_inl_of_mem (C : Finset (Fin n))
+    (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    {i : Fin n} (hi : i ∈ C) (x : In) :
+    (corruptRouter C P).handle (.inl (i, x)) = pure none := by
+  simp only [corruptRouter, hi, ↓reduceIte]
+  rfl
+
+/-- Library infrastructure (no cited result): on an adversary-routed query to a corrupted party
+(`i ∈ C`), `corruptRouter` forwards to `P`'s party port and wraps the reply in `Sum.inl`. -/
+@[simp] theorem corruptRouter_handle_inr_inl_of_mem (C : Finset (Fin n))
+    (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    {i : Fin n} (hi : i ∈ C) (x : In) :
+    (corruptRouter C P).handle (.inr (.inl (i, x))) = Sum.inl <$> P.handle (.inl (i, x)) := by
+  simp only [corruptRouter, hi, ↓reduceIte]
+
+/-- Library infrastructure (no cited result): on an adversary-routed query to an honest party
+(`i ∉ C`), `corruptRouter` returns `.inl none` without changing `P`'s state. -/
+@[simp] theorem corruptRouter_handle_inr_inl_of_notMem (C : Finset (Fin n))
+    (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    {i : Fin n} (hi : i ∉ C) (x : In) :
+    (corruptRouter C P).handle (.inr (.inl (i, x))) = pure (.inl none) := by
+  simp only [corruptRouter, hi, ↓reduceIte]
+  rfl
+
+/-- Library infrastructure (no cited result): on a network query `.inr q`, `corruptRouter` forwards
+to `P`'s network port and wraps the reply in `Sum.inr`. -/
+@[simp] theorem corruptRouter_handle_inr_inr (C : Finset (Fin n))
+    (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    (q : NetQ) :
+    (corruptRouter C P).handle (.inr (.inr q)) = Sum.inr <$> P.handle (.inr q) := rfl
+
 /-- Intertwining two protocol machines intertwines their `corruptRouter` wrappers for any static
 corruption set `C`. -/
 theorem handle_corruptRouter_map_state (C : Finset (Fin n))
@@ -198,17 +259,20 @@ theorem handle_corruptRouter_map_state (C : Finset (Fin n))
       Prod.map _root_.id f <$> ((corruptRouter C P₂).handle q).run s := by
   rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | q⟩
   · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run_pure, map_pure, Prod.map_apply,
-        _root_.id_eq]
-    · simp only [corruptRouter, hi, ↓reduceIte, h (Sum.inl (i, x)) s]
+    · simp only [corruptRouter_handle_inl_of_mem C _ hi]
+      erw [StateT.run_pure, StateT.run_pure]
+      exact (map_pure (Prod.map _root_.id f) (none, s)).symm
+    · simp only [corruptRouter_handle_inl_of_notMem C _ hi]
+      exact h (Sum.inl (i, x)) s
   · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run_map]
-      rw [h (Sum.inl (i, x)) s, Functor.map_map, Functor.map_map]
+    · simp only [corruptRouter_handle_inr_inl_of_mem C _ hi]
+      erw [StateT.run_map, StateT.run_map, h (Sum.inl (i, x)) s, Functor.map_map, Functor.map_map]
       rfl
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run_pure, map_pure, Prod.map_apply,
-        _root_.id_eq]
-  · simp only [corruptRouter, StateT.run_map]
-    rw [h (Sum.inr q) s, Functor.map_map, Functor.map_map]
+    · simp only [corruptRouter_handle_inr_inl_of_notMem C _ hi]
+      erw [StateT.run_pure, StateT.run_pure]
+      exact (map_pure (Prod.map _root_.id f) (Sum.inl none, s)).symm
+  · simp only [corruptRouter_handle_inr_inr]
+    erw [StateT.run_map, StateT.run_map, h (Sum.inr q) s, Functor.map_map, Functor.map_map]
     rfl
 
 /-- A program calling only the network port, as a program calling the ports of a protocol. -/
@@ -228,6 +292,46 @@ protocol. -/
     (A : ExecAdversary n In Out NetQ NetR AdvQ AdvR) (κ : ℕ)
     (C : Finset (Fin n)) : Machine OracleSpec.empty (execSpec n In Out AdvQ AdvR) :=
   (liftAdversary (A κ C)).comp (corruptRouter C (π κ C))
+
+/-- Library infrastructure (no cited result): an honest party query (`i ∉ C`) to `execMachine`
+bypasses the adversary, runs `π κ C` on party `i`, and leaves the adversary's state unchanged. -/
+theorem execMachine_handle_inl_of_notMem (π : Protocol n In Out NetQ NetR)
+    (A : ExecAdversary n In Out NetQ NetR AdvQ AdvR) (κ : ℕ) (C : Finset (Fin n))
+    {i : Fin n} (hi : i ∉ C) (x : In) (s : (execMachine π A κ C).State) :
+    ((execMachine π A κ C).handle (.inl (i, x))).run s =
+      (fun p : Option Out × (π κ C).State =>
+        ((p.1, (s.1, p.2)) : Option Out × (execMachine π A κ C).State)) <$>
+        ((π κ C).handle (.inl (i, x))).run s.2 := by
+  rcases s with ⟨sA, sP⟩
+  change Equiv.prodAssoc _ _ _ <$> (corruptRouter C (π κ C)).runFrom
+    ((StateT.lift (queryParty i x)).run sA) sP = _
+  simp only [StateT.run_lift, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
+    corruptRouter_handle_inl_of_notMem C (π κ C) hi]
+  exact Functor.map_map _ _ _
+
+/-- Library infrastructure (no cited result): a corrupted party query (`i ∈ C`) to `execMachine`
+returns `none` without invoking the adversary or changing either state. -/
+@[simp] theorem execMachine_handle_inl_of_mem (π : Protocol n In Out NetQ NetR)
+    (A : ExecAdversary n In Out NetQ NetR AdvQ AdvR) (κ : ℕ) (C : Finset (Fin n))
+    {i : Fin n} (hi : i ∈ C) (x : In) :
+    (execMachine π A κ C).handle (.inl (i, x)) = pure none := by
+  funext ⟨sA, sP⟩
+  change Equiv.prodAssoc _ _ _ <$> (corruptRouter C (π κ C)).runFrom
+    ((StateT.lift (queryParty i x)).run sA) sP = pure (none, (sA, sP))
+  simp only [StateT.run_lift, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
+    corruptRouter_handle_inl_of_mem C (π κ C) hi, StateT.run_pure, map_pure]
+  rfl
+
+/-- Library infrastructure (no cited result): an adversary query `q` to `execMachine` runs
+`(A κ C).handle q` lifted onto the network port against `corruptRouter C (π κ C)` and reassociates
+the resulting state pair. -/
+theorem execMachine_handle_inr (π : Protocol n In Out NetQ NetR)
+    (A : ExecAdversary n In Out NetQ NetR AdvQ AdvR) (κ : ℕ) (C : Finset (Fin n))
+    (q : AdvQ) (s : (execMachine π A κ C).State) :
+    ((execMachine π A κ C).handle (.inr q)).run s =
+      (fun (((r, sA), sP) : (AdvR × (A κ C).State) × (corruptRouter C (π κ C)).State) =>
+        ((r, (sA, sP)) : AdvR × (execMachine π A κ C).State)) <$>
+        (corruptRouter C (π κ C)).runFrom (liftNet (((A κ C).handle q).run s.1)) s.2 := rfl
 
 /-- The UC execution experiment: the environment's output bit when it interacts with protocol `π`
 and adversary `A`, with corrupted parties `C`, security parameter `κ` and auxiliary input `z`. -/

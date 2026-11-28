@@ -574,8 +574,7 @@ private theorem kruskalSetup_exec {w n : ℕ} (es : List (WeightedEdge n ℕ))
   have hm2 : (Data.init (encode es) : Data 26).mem 2 = es.length := by
     simp [encode]
   refine WP.exists_execWithin ?_
-  unfold kruskalSetup
-  wram_exec [Data.init_regs, hm1, hm2]
+  wram_exec [kruskalSetup, Data.init_regs, hm1, hm2]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp; omega, by wram_simp; omega, by wram_simp; omega,
     by wram_simp; omega, by wram_simp; omega, by wram_simp; omega⟩
@@ -612,8 +611,7 @@ private theorem keys_exec {w n kb : ℕ} (es : List (WeightedEdge n ℕ)) (x : D
         omega]
       exact (hv_es _ hlt).2.2
     refine WP.exists_execWithin ?_
-    unfold keyBody
-    wram_exec [hvo, hveb, hvkb, hread]
+    wram_exec [keyBody, hvo, hveb, hvkb, hread]
     refine ⟨⟨fun r h1 h2 h3 h4 => ?_, ?_, ?_⟩, by wram_simp⟩
     · simp only [Data.write_regs, Data.set_regs, Function.update_of_ne h1,
         Function.update_of_ne h2, Function.update_of_ne h3, Function.update_of_ne h4]
@@ -627,8 +625,7 @@ private theorem keys_exec {w n kb : ℕ} (es : List (WeightedEdge n ℕ)) (x : D
       · subst hjeq; exact Function.update_self _ _ _
       · rw [Function.update_of_ne (by omega)]; exact hkeysK j (by omega) hj'
   refine WP.exists_execWithin ?_
-  unfold keysCode
-  wram_exec
+  wram_exec [keysCode]
   refine WP.of_spec
     (ExecWithin.loop_count (index := ctr) (limit := mEdges) (N := es.length) (T := 9)
       (KeyInv es kb x)
@@ -741,8 +738,7 @@ private theorem ufInit_exec {w n pb rb : ℕ} (x : Data 26)
     have hvpb : v.regs parBase = pb := (hfr parBase (by decide) (by decide)).trans hpb
     have hvrb : v.regs rnkBase = rb := (hfr rnkBase (by decide) (by decide)).trans hrb
     refine WP.exists_execWithin ?_
-    unfold ufInitBody
-    wram_exec [hvz, hvo, hvpb, hvrb]
+    wram_exec [ufInitBody, hvz, hvo, hvpb, hvrb]
     refine ⟨⟨fun r h1 h2 => ?_, ?_, ?_, ?_⟩, by wram_simp⟩
     · simp only [Data.write_regs, Data.set_regs, Function.update_of_ne h1,
         Function.update_of_ne h2]
@@ -765,8 +761,7 @@ private theorem ufInit_exec {w n pb rb : ℕ} (x : Data 26)
       · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
         exact hrnkU i (by omega)
   refine WP.exists_execWithin ?_
-  unfold ufInitCode
-  wram_exec
+  wram_exec [ufInitCode]
   refine WP.of_spec
     (ExecWithin.loop_count (index := ctr) (limit := nVerts) (N := n) (T := 5)
       (UFInitInv pb rb x n)
@@ -960,8 +955,7 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
   · have hru_eq : ru = rv := Fin.ext hsame
     have hrel_t : p.rel e.u e.v = true := by rw [huf.rel_eq]; simp [ru, rv, hru_eq]
     refine WP.exists_execWithin ?_
-    unfold emitAndUnionCode
-    wram_exec [hyru, hyrv, hsame]
+    wram_exec [emitAndUnionCode, hyru, hyrv, hsame]
     refine ⟨by wram_simp [hyz], by wram_simp [hyo], by wram_simp [hy3],
       by wram_simp [hyn], by wram_simp [hym], by wram_simp [hyeb], by wram_simp [hysb],
       by wram_simp [hypb], by wram_simp [hyrb], by wram_simp [hyop], by wram_simp [hys],
@@ -1145,8 +1139,7 @@ private theorem kruskalScanBody_exec {w n eb sb pb rb op : ℕ}
     have he2 : y.mem (eb + (perm[s] + perm[s] + perm[s]) + 1 + 1) = e.weight := by
       rwa [hmul3, Nat.add_assoc]
     refine WP.exists_execWithin ?_
-    unfold loadScanEdge
-    wram_exec [hyo, hysb, hyeb, hs_def, hread_i, he0, he1, he2]
+    wram_exec [loadScanEdge, hyo, hysb, hyeb, hs_def, hread_i, he0, he1, he2]
     refine ⟨rfl, fun r h1 h2 h3 h4 h5 h6 => ?_, by wram_simp, by wram_simp, by wram_simp⟩
     simp only [Data.set_regs, Function.update_of_ne h1, Function.update_of_ne h2,
       Function.update_of_ne h3, Function.update_of_ne h4, Function.update_of_ne h5,
@@ -1250,8 +1243,7 @@ private theorem kruskalScan_exec {w n eb sb pb rb op : ℕ}
       outputList yF.mem (yF.regs out) =
         encodeEdges (kruskalScan (Partition.discrete n) sorted) := by
   refine WP.exists_execWithin ?_
-  unfold kruskalScanCode
-  wram_exec
+  wram_exec [kruskalScanCode]
   refine WP.of_spec
     (ExecWithin.loop_count (index := ctr) (limit := mEdges) (N := sorted.length)
       (T := 16 * Nat.log 2 n + 51)

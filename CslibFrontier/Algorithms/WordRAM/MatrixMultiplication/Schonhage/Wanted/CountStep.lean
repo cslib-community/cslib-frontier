@@ -90,8 +90,8 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   dsimp only [I, J] at hI hJ
   dsimp only [key, Function.comp_def, tileKey, bandOf] at hkf hcf hload
   refine WP.exists_execWithin ?_
-  unfold countStep loadQuery tileCode
-  wram_exec * [hI, hJ, hload, hn2, ha, ha1, hβf, hγf, hpf, hkf, hcf, hcn, hn1]
+  wram_exec * [countStep, loadQuery, tileCode,
+    hI, hJ, hload, hn2, ha, ha1, hβf, hγf, hpf, hkf, hcf, hcn, hn1]
   refine ⟨by regs_frame, by wram_simp, fun t ht' => ?_, fun a ha' => ?_⟩
   · rw [Nat.count_succ]
     by_cases h : key n = t

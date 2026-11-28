@@ -65,8 +65,7 @@ theorem exec_countMasks {w : ℕ} (L m : ℕ) (x : Data 96)
     revert i h1' h2' h3' h4' h5' h6'
     simp only [countMasks, countBody, populationCode, Code.Preserves, Op.dest, Op.bin]
     decide
-  unfold countMasks
-  wram_exec *
+  wram_exec * [countMasks]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.2.2.2.1) hb
     (by wram_simp; exact Nat.zero_le _)
     (by dsimp only [P]; wram_simp [hL, hm, hM, h1, h2, prefixCount_zero]))

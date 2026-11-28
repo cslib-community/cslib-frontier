@@ -40,8 +40,7 @@ theorem exec_advance {w : ℕ} (x : Data 160) (ho : x.regs Reg.one = 1)
       y.mem = x.mem ∧ ∀ i, i ≠ Reg.cursor → i ≠ Reg.square → y.regs i = x.regs i := by
   have hinc : x.regs Reg.cursor + 1 ≤ (x.regs Reg.cursor + 1) * (x.regs Reg.cursor + 1) :=
     Nat.le_mul_self _
-  unfold advance
-  wram_exec [ho]
+  wram_exec [advance, ho]
   exact ⟨by wram_simp, by wram_simp, rfl, fun i hc hs => by wram_simp [hc, hs]⟩
 
 private theorem exec_keep_bestBefore {w D : ℕ} (score : ℕ → ℕ) (x : Data 160)

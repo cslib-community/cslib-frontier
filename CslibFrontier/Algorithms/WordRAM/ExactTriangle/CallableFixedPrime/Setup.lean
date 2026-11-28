@@ -71,8 +71,7 @@ theorem exec_setup {W : ℕ} (x : Data 640)
   obtain ⟨s, hs, sval, smem, sbase⟩ :
       ∃ s, ExecWithin W sizeArgument x s 7 ∧ s.regs (powerBank 0) = S ∧
         s.mem = x.mem ∧ s.regs Reg.base = b := by
-    unfold sizeArgument
-    wram_exec
+    wram_exec [sizeArgument]
     exact ⟨by wram_simp; rfl, rfl, by wram_simp; rfl⟩
   obtain ⟨y, hy, ymem, ymatch, ybound, -⟩ :=
     MemoryWindow.exec_dynamicSetupBank (r := 416) sourceBank_injective hpow_inj hbase_ne

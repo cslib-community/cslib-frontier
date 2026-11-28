@@ -49,7 +49,7 @@ private theorem poly_scope : ComputableInPolyTime
       (fun p : CSP Table ℕ × Record => p.1.getD p.2.1 ⟨⟨0, []⟩, []⟩)
       (encPair (encCSP encTable encNat) encRecord) (encConstraint encTable encNat) :=
     ComputableInPolyTime.listGetDWithInput (by fun_prop) (by fun_prop) _
-  exact hget.snd'
+  exact encConstraint_scope_polyTime hget
 
 private theorem poly_scopeWith {α : Type} {e : α ↪ List Bool}
     {F : α → CSP Table ℕ} {o : α → Record}

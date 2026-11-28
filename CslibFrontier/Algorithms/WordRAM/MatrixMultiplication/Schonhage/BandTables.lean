@@ -99,8 +99,7 @@ theorem exec_tableWrite {w : ℕ} (L m inv tab t : ℕ) (x : Data 96)
     revert i ha htmp hm_ne hr_ne
     simp only [tableWrite, Code.Preserves, Op.dest, Op.bin]
     decide
-  unfold tableWrite
-  wram_exec *
+  wram_exec * [tableWrite]
   · rename_i hp
     wram_simp [tableStep, lookup, ht, hp, hc, prefixCount_succ, Function.update_idem]
   · rename_i hp
@@ -158,8 +157,7 @@ theorem exec_tables {w : ℕ} (L m inv tab : ℕ) (x : Data 96)
     refine ⟨by omega, ⟨by regs_frame, hzr, ?_⟩, hzt⟩
     rw [hzmem, humem]
     exact hmem.step htlt hsep
-  unfold tablesCode
-  wram_exec *
+  wram_exec * [tablesCode]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.masks) hb
     (by wram_simp; exact Nat.zero_le _)
     (by refine ⟨by regs_frame, by wram_simp [prefixCount_zero],

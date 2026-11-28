@@ -300,8 +300,8 @@ private theorem exec_initMinvCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ
         (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
         z.regs idx = y.regs idx + 1 := by
       refine WP.exists_execWithin ?_
-      unfold initMinvBody
-      wram_exec [hrr_y, hby.hrn, hby.hbaseC, hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hby.hone,
+      wram_exec [initMinvBody,
+        hrr_y, hby.hrn, hby.hbaseC, hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hby.hone,
         hC_rj, hnz_j, hy_r, hle_sub, hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9]
       refine ⟨?_, fun i hi => by wram_simp [hr i hi], by wram_simp⟩
       wram_simp [d, hej]

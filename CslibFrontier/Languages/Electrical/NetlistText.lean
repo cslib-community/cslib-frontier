@@ -14,18 +14,28 @@ public import CslibFrontier.Foundations.Data.Nat.ToDigits
 # Netlist text: a SPICE subset for linear circuits
 
 A reader (`Cslib.Electrical.Text.parse`) for the netlists of `Cslib.Electrical.Netlist`, in a
-subset of the SPICE netlist format that a schematic editor's SPICE export writes for linear
-circuits.
+subset of the SPICE netlist format, with one directive of its own (`.probe`, below). The format
+follows the ngspice manual [Vogt2026] where the two overlap (§2.1.1 for the file structure,
+§2.1.3 for fields, numbers and node names, §2.4 for the title, `.end` and comment lines, §4.1 for
+the independent sources); the tests use node names of the form a schematic editor writes
+(`/out`, `Net-_R1-Pad2_`), but no exporter's actual output has been checked against this
+reader. An exported netlist is accepted only after its analysis and output lines (`.tran`,
+`.ac`, `.save`, `.control` blocks, …) are replaced by `.probe` lines.
 
 ## The grammar
 
 The text is a list of lines, separated by `\n`; a line's words are separated by spaces, tabs or
-carriage returns.
+carriage returns, so leading and trailing blanks and `\r\n` line ends are allowed.
 
-* The **first line is the title** and is ignored, as in SPICE (an exporter writes, for instance,
-  `.title My circuit`).
-* Blank lines and **comment lines**, whose first word starts with `*`, are ignored.
-* The line `.end` ends the netlist; the lines after it are ignored.
+* The **first line is the title** and is ignored, whatever it contains, as in SPICE (§2.1.1,
+  §2.4.1). A `.title` line elsewhere is rejected.
+* Blank lines and **comment lines**, whose first word starts with `*` (§2.4.3), are ignored.
+  End-of-line comments (`$`, `;`, `//`, §2.4.4) are not supported: these characters are not
+  name characters, or (for `//`) not allowed in a name, so a line containing one is rejected.
+* The netlist ends with a line consisting of the word `.end` (in either case) alone (§2.4.2).
+  A text without such a line is rejected, and so is a `.end` line with more words. Only blank
+  lines may follow it; any other line after it, including a comment, is rejected, so no input
+  is silently dropped. (§2.1.1 asks for a newline after `.end`; this reader does not.)
 * An **element line** starts with the element name; its first letter, in either case, gives
   the element:
 
@@ -34,33 +44,43 @@ carriage returns.
   | `Rname n+ n- value` | resistor, `value` ohms |
   | `Cname n+ n- value` | capacitor, `value` farads |
   | `Lname n+ n- value` | inductor, `value` henries |
-  | `Vname n+ n- [dc] [value] [ac [1]]` | voltage source `v(n+) - v(n-) = value` |
-  | `Iname n+ n- [dc] [value] [ac [1]]` | current source, `value` A from `n+` through it to `n-` |
+  | `Vname n+ n- [[dc] value] [ac [1]]` | voltage source `v(n+) - v(n-) = value` |
+  | `Iname n+ n- [[dc] value] [ac [1]]` | current source, `value` A from `n+` through it to `n-` |
   | `Gname n+ n- nc+ nc- value` | VCCS: current `value · v(nc+, nc-)` (S) from `n+` to `n-` |
   | `Ename n+ n- nc+ nc- value` | VCVS: `v(n+) - v(n-) = value · v(nc+, nc-)` |
 
-  A source's value defaults to `0`. A source marked `ac` (with magnitude `1`, written or
-  implied) is an **input port** of unit gain: its value is `value + u_k`, with the input ports
-  numbered `0, 1, …` in the order of their lines. These are exactly the element laws and the
-  sign conventions of `Cslib.Electrical.Element`, which are SPICE's.
+  These are the element laws and the sign conventions of `Cslib.Electrical.Element`, which are
+  SPICE's (§4.1 for the sources). A source's value defaults to `0`, and `dc` must be followed by
+  a value.
+* **Input ports** (an interpretation of this library, not SPICE's). In SPICE, `ac mag` marks a
+  source as the stimulus of small-signal AC analysis and does not change its DC or transient
+  value (§4.1). Here a source marked `ac` (with magnitude `1`, written or implied; §4.1's
+  general form leaves the magnitude optional, and a phase is rejected) is an input port of unit
+  gain: its value is `value + u_k` for an arbitrary input signal `u_k`, with the input ports
+  numbered `0, 1, …` in the order of their lines. For a circuit of the elements above, the
+  transfer function from `u_k` to a probe is then what ngspice's AC analysis computes when that
+  source is the only one marked `ac`.
 * An **output line** selects a probe: `.probe v n1 [n2]` is the voltage `v(n1) - v(n2)` (with
   `n2 = 0` if omitted) and `.probe i name` the current of the element `name`, in the direction
-  of its element law. (This directive is not SPICE's; probes are listed in the order of their
-  lines.)
+  of its element law; probes are numbered in the order of their lines. This syntax is this
+  library's own: ngspice's `.probe` directive (§11.6.5) has another syntax (`.probe v(node)`,
+  `.probe I(device)`, …) and another meaning (it saves vectors in a simulation), and its forms
+  are rejected here.
 
 **Nodes.** The node `0` is the ground. Every other node name is numbered `1, 2, …` in the order
 of first appearance on the element lines (positive, negative, then control nodes). Names are
 compared exactly, and a text with two distinct names that differ only in case is rejected, since
-SPICE does not distinguish them. The name `gnd` (in any case) is rejected: some SPICE dialects
-read it as the ground. Node and element names consist of letters, digits and `_ - / + . # ~`;
-two elements with the same name (up to case) are rejected.
+ngspice does not distinguish them (§2.1.3.4). The name `gnd` (in any case) is rejected: ngspice
+reads it as the ground (§2.1.3.5). Node and element names consist of letters, digits and
+`_ - / + . #`, without `//`; two elements with the same name (up to case) are rejected.
 
 **Values** are exact rationals: an optional sign, decimal digits, an optional fractional part
-`.digits`, an optional exponent `e[sign]digits` and an optional scale suffix, in either case,
-`t` (`10¹²`), `g` (`10⁹`), `meg` (`10⁶`), `k` (`10³`), `m` (`10⁻³`), `u` (`10⁻⁶`), `n` (`10⁻⁹`),
-`p` (`10⁻¹²`) or `f` (`10⁻¹⁵`). Nothing may follow the suffix: SPICE ignores trailing letters,
-so that `1F` is `10⁻¹⁵` there, and a unit written after a value is rejected rather than
-guessed.
+`.digits` with at least one digit, an optional exponent `e[sign]digits` and an optional scale
+suffix, in either case, `t` (`10¹²`), `g` (`10⁹`), `meg` (`10⁶`), `k` (`10³`), `m` (`10⁻³`), `u`
+(`10⁻⁶`), `n` (`10⁻⁹`), `p` (`10⁻¹²`) or `f` (`10⁻¹⁵`) (§2.1.3.2). Thus `1.e2`, `1.` and `.5`
+are rejected, and so are the suffixes `mil` and `a`. Nothing may follow the suffix: ngspice
+ignores trailing letters (§2.1.3.3), so that `1F` is `10⁻¹⁵` there, and a unit written after a
+value is rejected rather than guessed.
 
 **Rejected.** Every other line is rejected with a message, and nothing is silently omitted:
 other elements (diodes, transistors, subcircuit instances `X`, mutual inductances `K`,
@@ -75,6 +95,11 @@ and then no certificate is accepted for it.
 * `Cslib.Electrical.Text.ParsedNetlist`: a netlist with its probes and the names of its nodes
   and elements.
 * `Cslib.Electrical.Text.parse`: the reader.
+
+## References
+
+* [Vogt2026]: H. Vogt, G. Atkinson, D. Warning, P. Nenzi, *Ngspice User's Manual, Version 46*,
+  March 31st, 2026; the sections cited above were read in that version.
 -/
 
 @[expose] public section
@@ -144,12 +169,16 @@ def exponent (cs : List Char) : ℤ × List Char :=
     else (0, cs)
   | [] => (0, [])
 
-/-- The optional fractional part `.digits` at the front of `cs`, and the rest. -/
+/-- The optional fractional part `.digits` at the front of `cs`, and the rest. A `.` without
+digits is left in the rest, where no suffix accepts it. -/
 def fraction : List Char → List Char × List Char
-  | '.' :: cs => digits cs
+  | '.' :: cs => match digits cs with
+    | ([], _) => ([], '.' :: cs)
+    | r => r
   | cs => ([], cs)
 
-/-- **A value**: `[sign] digits [. digits] [e [sign] digits] [suffix]`, exactly. -/
+/-- **A value**: `[sign] digits [. digits] [e [sign] digits] [suffix]`, exactly, with at least
+one digit before and (if there is a `.`) after the dot. -/
 def value? (w : List Char) : Option ℚ :=
   let (neg, w) := sign w
   let (ip, w) := digits w
@@ -177,11 +206,19 @@ inductive Card where
 
 /-- Whether `c` may occur in a name. -/
 def isNameChar (c : Char) : Bool :=
-  c.isAlphanum || c == '_' || c == '-' || c == '/' || c == '+' || c == '.' || c == '#' ||
-    c == '~'
+  c.isAlphanum || c == '_' || c == '-' || c == '/' || c == '+' || c == '.' || c == '#'
 
-/-- Whether `w` is a well-formed node name. -/
-def isNodeName (w : List Char) : Bool := !w.isEmpty && w.all isNameChar && lower w != "gnd".toList
+/-- Whether a word contains `//`, which ngspice reads as the start of an end-of-line comment. -/
+def hasDoubleSlash : List Char → Bool
+  | '/' :: '/' :: _ => true
+  | _ :: cs => hasDoubleSlash cs
+  | [] => false
+
+/-- Whether `w` is a well-formed name: nonempty, of name characters, without `//`. -/
+def isName (w : List Char) : Bool := !w.isEmpty && w.all isNameChar && !hasDoubleSlash w
+
+/-- Whether `w` is a well-formed node name: a name other than `gnd`. -/
+def isNodeName (w : List Char) : Bool := isName w && lower w != "gnd".toList
 
 /-- The number of nodes of an element with first letter `c` (lower case): `2` for `R`, `C`, `L`,
 `V`, `I`, `4` for `G`, `E`, and `0` (unsupported) otherwise. -/
@@ -192,16 +229,25 @@ def arity (c : Char) : ℕ :=
 /-- Whether the element with first letter `c` (lower case) is an independent source. -/
 def isSource (c : Char) : Bool := c == 'v' || c == 'i'
 
-/-- The value and input flag of a source: `[dc] [value] [ac [1]]`. -/
+/-- The value of a source, `[[dc] value]` (`0` if omitted), and the rest. -/
+def sourceValue : List (List Char) → Except String (ℚ × List (List Char))
+  | [] => .ok (0, [])
+  | w :: ws =>
+    if lower w == "dc".toList then
+      match ws with
+      | w' :: ws' => match value? w' with
+        | some q => .ok (q, ws')
+        | none => .error "malformed source"
+      | [] => .error "malformed source"
+    else match value? w with
+      | some q => .ok (q, ws)
+      | none => .ok (0, w :: ws)
+
+/-- The value and input flag of a source: `[[dc] value] [ac [1]]`. -/
 def sourceSpec (ws : List (List Char)) : Except String (ℚ × Bool) :=
-  let ws := match ws with
-    | w :: ws' => if lower w == "dc".toList then ws' else ws
-    | [] => []
-  let (v, ws) := match ws with
-    | w :: ws' => match value? w with
-      | some q => (q, ws')
-      | none => (0, ws)
-    | [] => (0, [])
+  match sourceValue ws with
+  | .error e => .error e
+  | .ok (v, ws) =>
   match ws with
   | [] => .ok (v, false)
   | [a] => if lower a == "ac".toList then .ok (v, true) else .error "malformed source"
@@ -218,7 +264,7 @@ def elementCard (name : List Char) (ws : List (List Char)) : Except String Card 
     let k := c.toLower
     let n := arity k
     if n = 0 then .error ("unsupported element: " ++ String.ofList name) else
-    if !name.all isNameChar then .error "malformed name" else
+    if !isName name then .error "malformed name" else
     let nodes := ws.take n
     if nodes.length != n || !nodes.all isNodeName then .error "malformed nodes" else
     if isSource k then
@@ -235,20 +281,24 @@ def elementCard (name : List Char) (ws : List (List Char)) : Except String Card 
 /-- A probe line, after `.probe`. -/
 def probeCard : List (List Char) → Except String Card
   | [k, p] => if lower k == ['v'] && isNodeName p then .ok (.probeV p ['0'])
-      else if lower k == ['i'] then .ok (.probeI p) else .error "malformed probe"
+      else if lower k == ['i'] && isName p then .ok (.probeI p) else .error "malformed probe"
   | [k, p, q] => if lower k == ['v'] && isNodeName p && isNodeName q then .ok (.probeV p q)
       else .error "malformed probe"
   | _ => .error "malformed probe"
 
-/-- The cards of the lines after the title, up to `.end`. -/
+/-- The cards of the lines after the title, up to the `.end` line, which must be present, alone
+on its line and followed by blank lines only. -/
 def cards : List (List Char) → Except String (List Card)
-  | [] => .ok []
+  | [] => .error "missing .end"
   | l :: ls =>
     match words l with
     | [] => cards ls
     | w :: ws =>
       if w.head? == some '*' then cards ls
-      else if lower w == ".end".toList then .ok []
+      else if lower w == ".end".toList then
+        if !ws.isEmpty then .error "malformed .end"
+        else if ls.all fun l => (words l).isEmpty then .ok []
+        else .error "text after .end"
       else if lower w == ".probe".toList then
         match probeCard ws, cards ls with
         | .ok c, .ok cs => .ok (c :: cs)
@@ -283,12 +333,6 @@ def nodeRefs (cs : List Card) : List (List Char) :=
   cs.flatMap fun
     | .element _ nodes _ _ => nodes.filter (· != ['0'])
     | _ => []
-
-/-- The list without the repetitions of earlier entries. -/
-def firstOccurrences {α : Type} [BEq α] : List α → List α → List α
-  | seen, [] => seen.reverse
-  | seen, a :: as => if seen.contains a then firstOccurrences seen as
-    else firstOccurrences (a :: seen) as
 
 /-- The number of node `w` in the table `names` (`0` for the ground). -/
 def nodeIndex (names : List (List Char)) (w : List Char) : ℕ :=
@@ -346,7 +390,7 @@ def probesOf (names enames : List (List Char)) (cs : List Card) : Except String 
 
 /-- **Resolving the names of the cards.** -/
 def resolve (cs : List Card) : Except String ParsedNetlist :=
-  let names := firstOccurrences [] (nodeRefs cs)
+  let names := (nodeRefs cs).eraseDups
   let enames := elementNames cs
   if !(names.map lower).Nodup then .error "node names that differ only in case" else
   if !(enames.map lower).Nodup then .error "duplicate element names" else
@@ -357,12 +401,11 @@ def resolve (cs : List Card) : Except String ParsedNetlist :=
                        branches := branchesOf names 0 cs }
           probes := probes, nodeNames := names, branchNames := enames }
 
-/-- **The reader**: the netlist described by a text, or the reason it is rejected. -/
+/-- **The reader**: the netlist described by a text, or the reason it is rejected. The first line
+is the title and is skipped. -/
 def parse (s : String) : Except String ParsedNetlist :=
-  match lines s.toList with
-  | [] => .error "empty text"
-  | _ :: ls => match cards ls with
-    | .ok cs => resolve cs
-    | .error e => .error e
+  match cards (lines s.toList).tail with
+  | .ok cs => resolve cs
+  | .error e => .error e
 
 end Cslib.Electrical.Text

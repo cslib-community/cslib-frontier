@@ -198,8 +198,7 @@ theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
         List.sum_append, List.sum_cons, List.sum_nil, add_zero]
     have htake_W : entryAbsSum (es.take (p + 1)) ≤ W :=
       (((List.take_sublist _ _).map _).sum_le_sum fun _ _ => Nat.zero_le _).trans hes_W
-    unfold buildInputStep buildInputLoadCode
-    wram_exec * [hrmk, hrv]
+    wram_exec * [buildInputStep, buildInputLoadCode, hrmk, hrv]
     wram_call (exec_trieAdd (lo := free) (root := free) (key := setMask es[p].1)
       (delta := es[p].2) (free := curFree) (B := B) (fnZ := fnZ) _ (by regs_frame)
       (by regs_frame) (by regs_frame) (by wram_simp) (by wram_simp) (by wram_simp)

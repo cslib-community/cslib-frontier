@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.LowerBound
 public import Mathlib.Algebra.CharZero.Infinite
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound
 
 /-!
 # Unconditional frontier lower bounds for linear maps
@@ -37,6 +38,11 @@ For the explicit Cauchy matrices `1 / (i - (N + j))` this gives, for fan-in two:
 * **Prime fields**: the same maps over `ZMod q`, for every prime `q ≥ 2 N`, need more than
   `(2 - ε) N` inner gates in every basis of fan-in two, uniformly in `q`.
 
+At fan-in two the matched-pair Gaussian layout (`layoutBound_pairBound`) raises the coefficient
+from `2` to `1277773 / 277773 ≈ 4.600062`, for circuits with linear capacity and for polynomial
+circuits over infinite fields, and so for both Cauchy families. This bound is original to this
+library.
+
 The weighted-kernel specializations in
 `CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn` give stronger bounds at small
 fan-in, including `2 s > (4 - ε) N` at fan-in three.
@@ -59,6 +65,10 @@ fan-in, including `2 s > (4 - ε) N` at fan-in three.
   at fan-in two (via `layoutBound_switched`), original to this library, including arithmetic
   Cauchy circuits over characteristic zero and
   prime-field Cauchy circuits over `ZMod q`.
+* `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular`,
+  `eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial`: matched-pair bound
+  `s > (1277773 / 277773 - ε) N` at fan-in two (via `layoutBound_pairBound`), original to this
+  library.
 
 ## References
 
@@ -238,5 +248,37 @@ theorem eventually_switched_sub_mul_lt_innerSize_cauchyNat_zmod {ε : ℝ} (hε 
     N hN q _ hq σ I c hfan hc
   have : NeZero q := ⟨(Fact.out : q.Prime).ne_zero⟩
   exact hN (ZMod q) σ I _ c (isTotallyRegular_cauchyNat_zmod hq) hfan hc
+
+/-- **Matched-pair Gaussian lower bound for totally regular linear maps**: every circuit of
+fan-in two with linear capacity computing `x ↦ M x` for a totally regular `M` has more than
+`(1277773 / 277773 - ε) N` inner gates (`≈ 4.600062`). Original to this library. -/
+theorem eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
+      (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
+        c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) → c.LinearCapacity I →
+          (1277773 / 277773 - ε) * N < c.innerSize := by
+  have h := eventually_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 2) le_rfl
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hε
+  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
+  filter_upwards [h] with N hN F _ σ I M c hM hfan hc hcap
+  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    hN F σ I M c hM hfan hc hcap
+
+/-- **Matched-pair Gaussian lower bound over infinite fields**: every polynomial circuit of
+fan-in two computing `x ↦ M x` for a totally regular `M` has more than
+`(1277773 / 277773 - ε) N` inner gates (`≈ 4.600062`). Original to this library. -/
+theorem eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial
+    {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Infinite F] (σ : Signature.{v})
+      (I : Interpretation σ F), I.IsPolynomial → ∀ (M : Matrix (Fin N) (Fin N) F)
+        (c : Circuit σ N N), M.IsTotallyRegular → c.FanInAtMost 2 →
+          c.Computes I (fun x => M *ᵥ x) →
+            (1277773 / 277773 - ε) * N < c.innerSize := by
+  have h := eventually_lt_mul_innerSize_of_isTotallyRegular_isPolynomial.{u, v} (r := 2) le_rfl
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hε
+  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
+  filter_upwards [h] with N hN F _ _ σ I hpoly M c hM hfan hc
+  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    hN F σ I hpoly M c hM hfan hc
 
 end Cslib.Circuits.Frontier
