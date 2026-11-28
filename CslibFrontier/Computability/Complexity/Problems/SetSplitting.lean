@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Logics.Propositional.CNF.GraphCountingEncodings
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.Declared
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -267,8 +268,8 @@ theorem numVars_toCNF_le {x : SetSplittingInstance} (hx : x.Valid) :
 
 /-- `x.toCNF` has exactly `2 * x.sets.length` clauses. -/
 theorem length_toCNF (x : SetSplittingInstance) : x.toCNF.length = 2 * x.sets.length := by
-  simp [toCNF, CNF.setSplittingCNF, List.length_flatMap, List.map_const', List.sum_replicate,
-    smul_eq_mul, Nat.mul_comm]
+  rw [toCNF, CNF.setSplittingCNF,
+    List.length_flatMap_of_forall_length_eq (k := 2) (fun _ _ => rfl), Nat.mul_comm]
 
 /-- Explicit assignment bijection between models of `x.toCNF` on `x.ground.toFinset` and
 ordered splitting bipartitions of `x.ground.toFinset`. -/

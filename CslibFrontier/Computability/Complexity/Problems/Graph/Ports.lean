@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph
+import CslibFrontier.Foundations.Data.List.Counting
 import Batteries.Data.List.Lemmas
 import Mathlib.Data.List.GetD
 
@@ -41,7 +42,8 @@ def incidenceVertices (G : Graph) : List ℕ := G.edges.flatMap fun e => [e.1, e
 /-- Number of endpoint occurrences is twice the edge-list length. -/
 @[simp] theorem incidenceVertices_length (G : Graph) :
     G.incidenceVertices.length = 2 * G.edges.length := by
-  simp [incidenceVertices, List.length_flatMap, List.map_const', Nat.mul_comm]
+  rw [incidenceVertices, List.length_flatMap_of_forall_length_eq (k := 2) (fun _ _ => rfl),
+    Nat.mul_comm]
 
 /-- The even endpoint occurrence is the first endpoint of the corresponding listed edge. -/
 theorem getD_incidenceVertices_even (G : Graph) (i : ℕ) :

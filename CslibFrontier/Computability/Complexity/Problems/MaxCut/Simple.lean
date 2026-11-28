@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import CslibFrontier.Computability.Complexity.Problems.NAEThreeSAT
 public import Mathlib.Combinatorics.SimpleGraph.Density
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Complexity.Reduction.Guard
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -550,10 +551,9 @@ theorem toSimpleMaxCut_mem_iff {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length = 3)
 subdivided into three. -/
 theorem length_edges_toSimpleMaxCut (φ : CNF ℕ) :
     (toSimpleMaxCut φ).graph.edges.length = 18 * φ.length := by
-  simp only [toSimpleMaxCut, SimpleMaxCut.subdivide, SimpleMaxCut.subdivisionEdges,
-    SimpleMaxCut.pathEdges, List.length_flatMap, List.length_cons, List.length_nil,
-    List.map_const', List.sum_replicate, List.length_range, smul_eq_mul,
-    SimpleMaxCut.length_formulaEdges]
+  simp only [toSimpleMaxCut, SimpleMaxCut.subdivide, SimpleMaxCut.subdivisionEdges]
+  rw [List.length_flatMap_of_forall_length_eq (k := 3) (fun _ _ => rfl),
+    List.length_range, SimpleMaxCut.length_formulaEdges]
   ring
 
 /-- The reduction `toSimpleMaxCut` is polynomial-time. -/

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.BipartiteMatching
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Internal
 -- `import all`: reads `private theorem ekProg_flow_spec` without exporting it from `EdmondsKarp`.
 import all CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
@@ -89,7 +90,8 @@ private abbrev bmWorkspace (m r : ℕ) : ℕ :=
 
 private theorem length_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r → Bool) :
     (encodeBipartiteMatrix G).length = m * r := by
-  simp [encodeBipartiteMatrix, List.length_flatMap, List.map_const', List.sum_replicate]
+  rw [encodeBipartiteMatrix,
+    List.length_flatMap_of_forall_length_eq (k := r) (fun _ _ => by simp), List.length_finRange]
 
 private theorem getElem_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r → Bool)
     (u : Fin m) (v : Fin r) :

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.Assignment.Auction
 public import CslibFrontier.Computability.WordRAM.InputArray
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+import CslibFrontier.Foundations.Data.List.Counting
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -125,9 +126,9 @@ prices, reduced costs, and accumulated total assignment cost (`w = O(log n + log
 
 /-- Length of the encoded input list `inst.encode`. -/
 theorem encode_length (inst : Instance) : inst.encode.length = 1 + inst.n * inst.n := by
-  simp only [encode, List.length_cons, List.length_flatMap, List.length_map, List.length_finRange,
-    List.map_const', List.sum_replicate, nsmul_eq_mul, Nat.cast_id]
-  omega
+  rw [encode, List.length_cons,
+    List.length_flatMap_of_forall_length_eq (k := inst.n) (fun _ _ => by simp),
+    List.length_finRange, Nat.add_comm]
 
 /-- Every word of `inst.encode` fits in `w` bits when `Fits w inst.wordBound`. -/
 theorem inputFits_encode {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound) :

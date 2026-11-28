@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.PCP.Approximation.LabelCover
 public import CslibFrontier.Computability.PCP.Approximation.MaxCSP
 public import CslibFrontier.Computability.PCP.Encoded.ParallelEdges
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.PCP.Encoded.Count
 import CslibFrontier.Foundations.Data.List.Filter
 import CslibFrontier.Foundations.Data.BitString.Enumeration
@@ -97,8 +98,8 @@ def incidence (pairs : List (α × α)) (fallback : α × α)
 theorem length_edges_incidence (pairs : List (α × α)) (fallback : α × α)
     (g : Graph (α → α → Bool)) :
     (incidence pairs fallback g).edges.length = 2 * g.edges.length := by
-  simp [incidence, List.length_flatMap, block, List.map_const', List.sum_replicate,
-    Nat.mul_comm]
+  rw [incidence, List.length_flatMap_of_forall_length_eq (k := 2) (fun _ _ => rfl),
+    List.length_zipIdx, Nat.mul_comm]
 
 /-- Two constant projections to distinct symbols cannot both be satisfied: two left vertices
 `0` and `1` project to the symbols `a` and `b` at the same right vertex `0`. The two edges have

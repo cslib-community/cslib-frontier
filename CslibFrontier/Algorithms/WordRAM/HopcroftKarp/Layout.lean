@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.HopcroftKarp
 public import CslibFrontier.Computability.WordRAM.Function
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
@@ -258,7 +259,8 @@ theorem length_matchingPairs (inst : SparseInstance) :
 
 theorem length_matchingWords (inst : SparseInstance) :
     inst.matchingWords.length = 2 * inst.maxMatchingCard := by
-  simp [matchingWords, List.length_flatMap, inst.length_matchingPairs, Nat.mul_comm]
+  rw [matchingWords, List.length_flatMap_of_forall_length_eq (k := 2) (fun _ _ => rfl),
+    inst.length_matchingPairs, Nat.mul_comm]
 
 private theorem getElem_matchingWords_pair (inst : SparseInstance) {i : ℕ} (j : ℕ)
     (hi : i < inst.matchingPairs.length) (hj : j < 2) :
@@ -415,8 +417,9 @@ theorem numEdges_toSparse_le (inst : DenseInstance) :
 
 theorem encode_length (inst : DenseInstance) :
     inst.encode.length = 2 + inst.m * inst.r := by
-  simp only [encode, List.length_cons, List.length_flatMap, List.length_map, List.length_finRange,
-    List.map_const', List.sum_replicate, smul_eq_mul]
+  rw [encode, List.length_cons, List.length_cons,
+    List.length_flatMap_of_forall_length_eq (k := inst.r) (fun _ _ => by simp),
+    List.length_finRange]
   omega
 
 theorem inputFits_encode {w : ℕ} (inst : DenseInstance) (hw : Fits w inst.wordBound) :

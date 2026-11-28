@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.MaxFlow.RelabelToFront
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Time
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
@@ -199,9 +200,9 @@ theorem maxFlowValue_le (inst : Instance) :
 
 theorem length_answerWords (inst : Instance) :
     inst.answerWords.length = 1 + inst.n + inst.n * inst.n := by
-  simp only [answerWords, List.length_cons, List.length_append, List.length_map,
-    List.length_finRange, List.length_flatMap, List.map_const', List.sum_replicate,
-    smul_eq_mul]
+  rw [answerWords, List.length_cons, List.length_append, List.length_map,
+    List.length_flatMap_of_forall_length_eq (k := inst.n) (fun _ _ => by simp),
+    List.length_finRange]
   omega
 
 private theorem init_mem_n {r : ℕ} (inst : Instance) :
