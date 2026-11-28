@@ -277,9 +277,7 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
   · dsimp only [p]
     split_ifs with hi
     · refine Int.toNat_le.2 ((hpS_le ⟨i, hi⟩).trans (Int.ofNat_le.2 ?_))
-      have hbase : Fintype.card S * B' ^ 2 + 1 ≤ n * B' ^ 2 + 1 := by gcongr
-      exact Nat.mul_le_mul (Nat.factorial_le hcard) ((Nat.pow_le_pow_left hbase _).trans
-        (Nat.pow_le_pow_right (Nat.succ_pos _) hcard))
+      gcongr; omega
     · exact Nat.zero_le _
   · have hp (i : S) : (p i : ℤ) = pS i := by
       simp only [p, i.2, dite_true, Subtype.coe_eta, Int.toNat_of_nonneg (hpS_nonneg i)]

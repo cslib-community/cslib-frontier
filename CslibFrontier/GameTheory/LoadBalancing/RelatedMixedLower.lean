@@ -171,6 +171,12 @@ private theorem card_relatedMixedLowerMachine (k B : ℕ) :
       Fintype.card (relatedPureLowerMachine k) * B := by
   rw [Fintype.card_congr (relatedMixedLowerMachineEquiv k B), Fintype.card_prod, Fintype.card_fin]
 
+private theorem card_relatedMixedLowerMachine_le (k B : ℕ) :
+    Fintype.card (RelatedMixedLowerMachine k B) ≤ 2 ^ (k + 1) * k ^ k * B := by
+  rw [card_relatedMixedLowerMachine]
+  exact Nat.mul_le_mul_right B ((card_relatedPureLowerMachine_le k).trans
+    (Nat.mul_le_mul_left _ (Nat.factorial_le_pow k)))
+
 /-- The designated top-tier machine `(tier k, slot 0, copy b)`. -/
 private def relatedMixedTopMachine (k B : ℕ) (b : Fin B) : RelatedMixedLowerMachine k B :=
   ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩, b⟩
@@ -782,8 +788,7 @@ theorem expectedMakespan_relatedMixedLowerNE_ge_log_div_log_log_log {k B : ℕ} 
   have hlog3M_pos : 0 < Real.log (Real.log (Real.log (M : ℝ))) := by linarith
   -- Upper bound `log M ≤ 21 * k * log k`.
   have hM_le_nat : M ≤ 2 ^ (k + 1) * k ^ k * B :=
-    hM_card ▸ Nat.mul_le_mul_right B
-      ((card_relatedPureLowerMachine_le k).trans (Nat.mul_le_mul_left _ (Nat.factorial_le_pow k)))
+    card_relatedMixedLowerMachine_le k B
   have hlogM_le : Real.log (M : ℝ) ≤ 21 * (k : ℝ) * x := by
     calc Real.log (M : ℝ)
         ≤ Real.log ((2 : ℝ) ^ (k + 1) * (k : ℝ) ^ k * (B : ℝ)) :=
@@ -967,9 +972,8 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
     have hm_le_nat : m ≤ 2 ^ (k + 2) * (k + 1) ^ (k + 1) * (k + 1) ^ (18 * (k + 1)) :=
       hm_lt_next.le.trans <| by
         dsimp only [Mfn]
-        rw [card_relatedMixedLowerMachine, relatedMixedRep_eq]
-        exact Nat.mul_le_mul_right _ ((card_relatedPureLowerMachine_le (k + 1)).trans
-          (Nat.mul_le_mul_left _ (Nat.factorial_le_pow (k + 1))))
+        rw [relatedMixedRep_eq]
+        exact card_relatedMixedLowerMachine_le _ _
     have hlogm_le : Real.log (m : ℝ) ≤ 80 * (k : ℝ) * x := by
       have hlog_k1 : Real.log ((k + 1 : ℕ) : ℝ) ≤ 2 * x := by
         have hk1_le : ((k + 1 : ℕ) : ℝ) ≤ (k : ℝ) ^ 2 := by
@@ -1055,16 +1059,14 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
       push Not at hm1024
       have hlogm_le : Real.log (m : ℝ) ≤ 1233 := by
         have hm_le_pow : m ≤ 2 ^ 1233 := by
-          have h1 : Mfn 16 ≤ 2 ^ 17 * 16 ^ 16 * 16 ^ (18 * 16) := by
-            dsimp only [Mfn]
-            rw [card_relatedMixedLowerMachine, relatedMixedRep_eq]
-            exact Nat.mul_le_mul_right _ ((card_relatedPureLowerMachine_le 16).trans
-              (Nat.mul_le_mul_left _ (Nat.factorial_le_pow 16)))
           have h16 : (16 : ℕ) = 2 ^ 4 := rfl
-          have hrew : 2 ^ 17 * 16 ^ 16 * 16 ^ (18 * 16) = 2 ^ 1233 := by
-            rw [h16, ← pow_mul, ← pow_mul, ← pow_add, ← pow_add]
-            exact congrArg (2 ^ ·) rfl
-          exact (hlarge.le.trans h1).trans hrew.le
+          calc m ≤ Mfn 16 := hlarge.le
+            _ ≤ 2 ^ (16 + 1) * 16 ^ 16 * relatedMixedRep 16 := by
+              dsimp only [Mfn]
+              exact card_relatedMixedLowerMachine_le 16 (relatedMixedRep 16)
+            _ = 2 ^ 1233 := by
+              rw [relatedMixedRep_eq, h16, ← pow_mul, ← pow_mul, ← pow_add, ← pow_add]
+              exact congrArg (2 ^ ·) rfl
         have hlog2 : Real.log 2 ≤ 1 := by
           linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
         calc Real.log (m : ℝ)

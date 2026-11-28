@@ -218,12 +218,12 @@ theorem sq_sum_matrix_bilinear_mul_two_pow_rank_le [Fintype α] [Fintype β] [De
     (rank_mul_le_left _ _).trans (rank_mul_le_right _ _)
   have hnorm : ∑ p, ∑ q, M' p q ^ 2 ≤ ∑ p, ∑ q, M p q ^ 2 := by
     refine Finset.sum_le_sum fun p _ => Finset.sum_le_sum fun q _ => ?_
-    have hgh : g p ^ 2 * h q ^ 2 ≤ 1 := by
-      rw [← sq_abs, ← sq_abs (h q)]
-      exact (mul_le_mul (pow_le_one₀ (abs_nonneg _) (hg p)) (pow_le_one₀ (abs_nonneg _) (hh q))
-        (sq_nonneg _) zero_le_one).trans_eq (one_mul 1)
-    calc M' p q ^ 2 = M p q ^ 2 * (g p ^ 2 * h q ^ 2) := by rw [hM'_apply]; ring
-      _ ≤ M p q ^ 2 := mul_le_of_le_one_right (sq_nonneg _) hgh
+    have hgp := hg p
+    have hhq := hh q
+    calc M' p q ^ 2 = (|M p q| * |g p| * |h q|) ^ 2 := by
+          rw [hM'_apply, ← sq_abs (M p q * g p * h q), abs_mul, abs_mul]
+      _ ≤ (|M p q| * 1 * 1) ^ 2 := by gcongr
+      _ = M p q ^ 2 := by simp
   simp_rw [← hM'_apply]
   refine (sq_sum_matrix_bilinear_le_of_rank_le B M.rank M' hrank).trans ?_
   have := mul_le_mul_of_nonneg_left hnorm (Nat.cast_nonneg (α := ℝ) M.rank)
