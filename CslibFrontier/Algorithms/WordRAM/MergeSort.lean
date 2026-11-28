@@ -63,7 +63,7 @@ open Cslib.WordRAM
 
 /-- Strict tie-breaking key order on `0 .. keys.length - 1`: orders indices by strictly increasing
 `keys.getD · 0`, breaking ties by smaller original index. -/
-def StableKeyOrder (keys : List ℕ) (a b : ℕ) : Prop :=
+@[expose] def StableKeyOrder (keys : List ℕ) (a b : ℕ) : Prop :=
   keys.getD a 0 < keys.getD b 0 ∨ (keys.getD a 0 = keys.getD b 0 ∧ a < b)
 
 theorem StableKeyOrder.le {keys : List ℕ} {a b : ℕ} (h : StableKeyOrder keys a b) :
@@ -696,6 +696,141 @@ private theorem mergeRuns_stable {keys L M : List ℕ} {W p lo_v mid_v hi_v : �
         rw [Nat.mul_comm 2 (p + 1), Nat.mul_assoc]
       omega
 
+/-- Each block of the given width is stable-sorted and contains only indices in the
+corresponding original interval. The last block may be shorter than the width. -/
+structure StableRuns (keys : List ℕ) (width : ℕ) (indices : List ℕ) : Prop where
+  /-- Every block is sorted by key and then by original index. -/
+  ordered : ∀ q : ℕ, ((indices.drop (q * width)).take width).Pairwise (StableKeyOrder keys)
+  /-- Every index in a block belongs to that block's original interval. -/
+  index_bounds : ∀ q a : ℕ, a ∈ (indices.drop (q * width)).take width →
+    q * width ≤ a ∧ a < (q + 1) * width
+
+/-- The completed prefix of a pass permutes the same prefix of the source and has
+stable-sorted, range-bounded blocks at the new width. -/
+structure StableMergePrefix (keys source : List ℕ) (width written : ℕ)
+    (output : List ℕ) : Prop where
+  /-- The output occupies exactly the written prefix. -/
+  length_eq : output.length = written
+  /-- The output contains exactly the indices of the written part of the source. -/
+  perm : output.Perm (source.take written)
+  /-- The written blocks have the new width. -/
+  runs : StableRuns keys width output
+
+/-- The initial list of original indices has stable runs of width one. -/
+theorem stableRuns_range (keys : List ℕ) : StableRuns keys 1 (List.range keys.length) := by
+  constructor
+  · intro q
+    have hlen : ((List.range keys.length).drop (q * 1) |>.take 1).length ≤ 1 := by
+      simp only [List.length_take]
+      exact Nat.min_le_left ..
+    generalize hb : ((List.range keys.length).drop (q * 1)).take 1 = b at hlen ⊢
+    cases b with
+    | nil => exact .nil
+    | cons a b =>
+      cases b with
+      | nil => exact List.pairwise_singleton _ _
+      | cons x xs => simp at hlen
+  · intro q a ha
+    simp only [Nat.mul_one] at ha ⊢
+    by_cases hq : q < keys.length
+    · have hq' : q < (List.range keys.length).length := by simpa using hq
+      rw [List.drop_eq_getElem_cons hq', List.take_succ_cons, List.take_zero,
+        List.mem_singleton, List.getElem_range] at ha
+      subst a
+      exact ⟨le_rfl, Nat.lt_succ_self _⟩
+    · rw [List.drop_eq_nil_of_le (by simpa using Nat.le_of_not_gt hq), List.take_nil] at ha
+      exact (List.not_mem_nil ha).elim
+
+/-- A merge pass starts with an empty written prefix. -/
+theorem stableMergePrefix_empty (keys source : List ℕ) (width : ℕ) :
+    StableMergePrefix keys source width 0 [] := by
+  refine ⟨rfl, by simp, ⟨?_, ?_⟩⟩
+  · intro q
+    simp
+  · intro q a ha
+    simp at ha
+
+/-- Appending the merge of the two adjacent source blocks advances the output prefix.
+The target block has twice the width and remains stable-sorted and range-bounded. -/
+theorem stableMergePrefix_step {keys source output merged : List ℕ} {width p lo mid hi : ℕ}
+    (hlen : source.length = keys.length)
+    (hs : StableRuns keys width source)
+    (ho : StableMergePrefix keys source (2 * width) lo output)
+    (hlo : lo = p * (2 * width))
+    (hmid : mid = min keys.length (lo + width))
+    (hhi : hi = min keys.length (mid + width))
+    (hm : merged = ((source.drop lo).take (mid - lo)).merge
+      ((source.drop mid).take (hi - mid)) (fun a b => decide (keys.getD a 0 ≤ keys.getD b 0))) :
+    StableMergePrefix keys source (2 * width) hi (output ++ merged) := by
+  have hlen_pre := ho.perm.length_eq
+  rw [ho.length_eq, List.length_take, hlen] at hlen_pre
+  have hlo_le : lo ≤ keys.length := by omega
+  have hM_len : merged.length = hi - lo := by
+    rw [hm]
+    have hml := (List.merge_perm_append (fun a b => decide (keys.getD a 0 ≤ keys.getD b 0))
+      (xs := (source.drop lo).take (mid - lo)) (ys := (source.drop mid).take (hi - mid))).length_eq
+    rw [hml, List.length_append, List.length_take, List.length_take, List.length_drop,
+      List.length_drop, hlen]
+    omega
+  have hM_le : merged.length ≤ 2 * width := by omega
+  obtain ⟨hmOrder, hmRange⟩ :=
+    mergeRuns_stable hlen hlo hmid hhi hs.ordered hs.index_bounds hm
+  have hmPerm : merged.Perm (slice source lo (mid - lo) ++ slice source mid (hi - mid)) :=
+    hm ▸ List.merge_perm_append _
+  have htake :
+      source.take lo ++ (slice source lo (mid - lo) ++ slice source mid (hi - mid)) =
+        source.take hi := by
+    rw [← List.append_assoc, take_append_slice source (by omega : lo ≤ mid),
+      take_append_slice source (by omega : mid ≤ hi)]
+  have hblock (q : ℕ) :
+      slice (output ++ merged) (q * (2 * width)) (2 * width) =
+        slice output (q * (2 * width)) (2 * width) ∨
+      (q = p ∧ slice (output ++ merged) (q * (2 * width)) (2 * width) = merged) ∨
+      slice (output ++ merged) (q * (2 * width)) (2 * width) = [] := by
+    rcases lt_trichotomy q p with hqp | rfl | hpq
+    · have hq1 := Nat.mul_le_mul_right (2 * width) (Nat.succ_le_of_lt hqp)
+      rw [Nat.succ_mul] at hq1
+      exact Or.inl (slice_append_left (by rw [ho.length_eq, hlo]; omega))
+    · have hqEq : q * (2 * width) = output.length := hlo.symm.trans ho.length_eq.symm
+      refine Or.inr (Or.inl ⟨rfl, ?_⟩)
+      rw [slice, hqEq, List.drop_left' rfl, List.take_of_length_le hM_le]
+    · have hp1 := Nat.mul_le_mul_right (2 * width) (Nat.succ_le_of_lt hpq)
+      rw [Nat.succ_mul] at hp1
+      have hend : (output ++ merged).length ≤ q * (2 * width) := by
+        simp only [List.length_append, ho.length_eq, hlo]
+        omega
+      refine Or.inr (Or.inr ?_)
+      rw [slice, List.drop_eq_nil_of_le hend, List.take_nil]
+  refine ⟨by simp only [List.length_append, ho.length_eq, hM_len]; omega, ?_, ⟨?_, ?_⟩⟩
+  · rw [← htake]
+    exact ho.perm.append hmPerm
+  · intro q
+    change (slice (output ++ merged) (q * (2 * width)) (2 * width)).Pairwise _
+    rcases hblock q with h | ⟨-, h⟩ | h
+    · rw [h]
+      exact ho.runs.ordered q
+    · rwa [h]
+    · rw [h]
+      exact .nil
+  · intro q a ha
+    change a ∈ slice (output ++ merged) (q * (2 * width)) (2 * width) at ha
+    rcases hblock q with h | ⟨rfl, h⟩ | h
+    · exact ho.runs.index_bounds q a (by rw [h] at ha; exact ha)
+    · exact hmRange a (h ▸ ha)
+    · simp [h] at ha
+
+/-- When the run width covers the full input, its indices are stable-sorted. -/
+theorem StableRuns.finish {keys indices : List ℕ} {width : ℕ}
+    (h : StableRuns keys width indices) (hlen : indices.length ≤ width) :
+    indices.Pairwise (StableKeyOrder keys) := by
+  simpa only [Nat.zero_mul, List.drop_zero, List.take_of_length_le hlen] using h.ordered 0
+
+/-- A completed pass whose width covers the full input returns a stable permutation. -/
+theorem StableMergePrefix.finish {keys source output : List ℕ} {width : ℕ}
+    (h : StableMergePrefix keys source width source.length output)
+    (hlen : source.length ≤ width) : output.Perm source ∧ output.Pairwise (StableKeyOrder keys) :=
+  ⟨by simpa only [List.take_length] using h.perm, h.runs.finish (h.length_eq ▸ hlen)⟩
+
 private theorem mergePassBody_exec {w kb pb bb W : ℕ}
     (keys L : List ℕ) (y_mem : ℕ → ℕ)
     (hL_len : L.length = keys.length)
@@ -738,45 +873,20 @@ private theorem mergePassBody_exec {w kb pb bb W : ℕ}
   have hpB_end : u2.regs pB = hi_v := by omega
   rw [hpA_end, hpB_end, Nat.sub_self, Nat.sub_self, slice_zero, slice_zero] at hM_eq
   simp only [List.nil_merge, List.append_nil] at hM_eq
-  obtain ⟨hM_pw, hM_rng⟩ :=
-    mergeRuns_stable hL_len hlo_eq hmid_def hhi_def hL_pw hL_rng hM_eq
-  have hM_perm : M.Perm (slice L lo_v (mid_v - lo_v) ++ slice L mid_v (hi_v - mid_v)) := by
-    rw [hM_eq]; exact List.merge_perm_append _
-  have htake_hi :
-      L.take lo_v ++ (slice L lo_v (mid_v - lo_v) ++ slice L mid_v (hi_v - mid_v)) =
-        L.take hi_v := by
-    rw [← List.append_assoc, take_append_slice L (by omega : lo_v ≤ mid_v),
-      take_append_slice L (by omega : mid_v ≤ hi_v)]
-  have haccM_perm : (acc ++ M).Perm (L.take hi_v) := by
-    rw [← htake_hi]; exact hacc_perm.append hM_perm
+  have hprefix := stableMergePrefix_step hL_len ⟨hL_pw, hL_rng⟩
+    ⟨hacc_len, hacc_perm, ⟨hacc_pw, hacc_rng⟩⟩ hlo_eq hmid_def hhi_def hM_eq
   let u' := u2.set lo (u2.regs hi)
   have hex_mp : ExecWithin w mergePassBody u u' (18 * (hi_v - lo_v) + 14) := by
     unfold mergePassBody
     refine (hex_ms.seq (hex_in.seq ExecWithin.copy)).mono ?_
     rw [hout1]; omega
-  have hslice_accM (q : ℕ) :
-      slice (acc ++ M) (q * (2 * W)) (2 * W) = slice acc (q * (2 * W)) (2 * W) ∨
-        (q = p ∧ slice (acc ++ M) (q * (2 * W)) (2 * W) = M) ∨
-        slice (acc ++ M) (q * (2 * W)) (2 * W) = [] := by
-    rcases lt_trichotomy q p with hqp | rfl | hpq
-    · have hq1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hqp)
-      rw [Nat.succ_mul] at hq1
-      exact Or.inl (slice_append_left (by omega))
-    · have hq_eq : q * (2 * W) = acc.length := by omega
-      refine Or.inr (Or.inl ⟨rfl, ?_⟩)
-      rw [slice, hq_eq, List.drop_left' rfl, List.take_of_length_le (by omega)]
-    · have hp1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hpq)
-      rw [Nat.succ_mul] at hp1
-      have hge_end : (acc ++ M).length ≤ q * (2 * W) := by
-        simp only [List.length_append, hacc_len, hM_len]; omega
-      refine Or.inr (Or.inr ?_)
-      rw [slice, List.drop_eq_nil_of_le hge_end, List.take_nil]
   refine ⟨u', 18 * (hi_v - lo_v) + 14, hex_mp, ?_, ?_⟩
   · refine ⟨by wram_simp [u', hu2o], by wram_simp [u', hu2n],
       by wram_simp [u', hu2kb], by wram_simp [u', hu2pb], by wram_simp [u', hu2bb],
       by wram_simp [u', hu2w], by wram_simp [u', hu2hi]; omega, ?_, ?_, acc ++ M,
-      by simp only [List.length_append, hacc_len, hM_len]; wram_simp [u', hu2hi]; omega,
-      ?_, by wram_simp [u', hu2hi]; exact haccM_perm, ?_, ?_⟩
+      by wram_simp [u', hu2hi]; exact hprefix.length_eq,
+      ?_, by wram_simp [u', hu2hi]; exact hprefix.perm,
+      hprefix.runs.ordered, hprefix.runs.index_bounds⟩
     · intro hlt_hi
       wram_simp [u', hu2hi] at hlt_hi ⊢
       have hhi_full : hi_v = lo_v + 2 * W := by omega
@@ -796,16 +906,6 @@ private theorem mergePassBody_exec {w kb pb bb W : ℕ}
         have haddr : bb + lo_v + (j - lo_v) = bb + j := by omega
         rw [List.getElem_append_right hj_ge]
         simpa [u', hacc_len, haddr] using hM_mem (j - lo_v) hd_lt
-    · intro q
-      rcases hslice_accM q with h | ⟨-, h⟩ | h
-      · exact h.symm ▸ hacc_pw q
-      · exact h.symm ▸ hM_pw
-      · exact h.symm ▸ .nil
-    · intro q z hz
-      rcases hslice_accM q with h | ⟨rfl, h⟩ | h
-      · exact hacc_rng q z (h ▸ hz)
-      · exact hM_rng z (h ▸ hz)
-      · simp [h] at hz
   · have hlo_u' : u'.regs lo = hi_v := by wram_simp [u', hu2hi]
     rw [hlo_u']
     have hk1 : 18 * (hi_v - lo_v) + 16 ≤ 34 * (hi_v - lo_v) := by omega
@@ -895,13 +995,14 @@ theorem mergeSortPerm_exec {w kb pb bb : ℕ} (keys : List ℕ) (x : Data 18)
       (ExecWithin.loop_potential (cond := .lt lo len) (body := mergePassBody)
         (MidInv keys L kb pb bb W y.mem)
         (fun u => 34 * (keys.length - u.regs lo)) hmid_body ?_) ?_
-    · refine ⟨by wram_simp, by wram_simp [hyn],
+    · have hp := stableMergePrefix_empty keys L (2 * W)
+      refine ⟨by wram_simp, by wram_simp [hyn],
         by wram_simp [hykb], by wram_simp [hypb], by wram_simp [hybb],
         by wram_simp [hwrun]; rfl, by wram_simp; omega,
         fun _ => ⟨0, by wram_simp; simp⟩,
         Modifies.refl _ _, [], by wram_simp; rfl,
         fun j hj => absurd hj (Nat.not_lt_zero j),
-        by wram_simp; simp, fun _ => by simp [slice], fun _ _ h => by simp [slice] at h⟩
+        by wram_simp; exact hp.perm, hp.runs.ordered, hp.runs.index_bounds⟩
     · rintro uM ⟨hIM, hstopM⟩
       obtain ⟨huMo, huMn, huMkb, huMpb, huMbb, huMw,
         huMlo_le, _, hmodM_end, L', hL'_len, hL'_mem, hL'_perm, hL'_pw, hL'_rng⟩ := hIM
@@ -983,9 +1084,11 @@ theorem mergeSortPerm_exec {w kb pb bb : ℕ} (keys : List ℕ) (x : Data 18)
         (OuterInv keys kb pb bb x.mem)
         (fun y => Nat.clog 2 keys.length - Nat.log 2 (y.regs wRun)) (T := 41 * keys.length + 9)
         houter_body ?_) ?_
-    · refine ⟨by wram_simp [hyIn], by wram_simp [hyIkb],
+    · have hRuns := stableRuns_range keys
+      refine ⟨by wram_simp [hyIn], by wram_simp [hyIkb],
         by wram_simp [hyIpb], by wram_simp [hyIbb], ?_,
-        0, List.range keys.length, Nat.zero_le _, by wram_simp; rfl, ?_, List.Perm.refl _, ?_, ?_⟩
+        0, List.range keys.length, Nat.zero_le _, by wram_simp; rfl, ?_, List.Perm.refl _,
+        hRuns.ordered, hRuns.index_bounds⟩
       · rw [Modifies.block_iff]
         intro a ha; dsimp only at ha
         exact Modifies.block_iff.mp hmodI a (by dsimp only; omega)
@@ -993,30 +1096,14 @@ theorem mergeSortPerm_exec {w kb pb bb : ℕ} (keys : List ℕ) (x : Data 18)
         have hi_lt : i.val < keys.length := by simpa using i.isLt
         change yI.mem (pb + i.val) = (List.range keys.length)[i.val]
         simp [hpreI i.val hi_lt]
-      · intro q
-        rcases h : slice (List.range keys.length) (q * 2 ^ 0) (2 ^ 0) with _ | ⟨x0, _ | ⟨y0, tl⟩⟩
-        · exact .nil
-        · exact List.pairwise_singleton _ _
-        · have hlen : (slice (List.range keys.length) (q * 2 ^ 0) (2 ^ 0)).length ≤ 1 := by
-            simp [slice]
-          rw [h] at hlen; simp at hlen
-      · intro q z hz
-        simp only [Nat.pow_zero, Nat.mul_one, slice] at hz ⊢
-        by_cases hq : q < keys.length
-        · have hq' : q < (List.range keys.length).length := by simpa using hq
-          rw [List.drop_eq_getElem_cons hq', List.take_succ_cons, List.take_zero,
-            List.mem_singleton] at hz
-          subst hz; simp
-        · rw [List.drop_eq_nil_of_le (by simp; omega), List.take_nil] at hz; simp at hz
     · rintro yF ⟨hIF, hstopF⟩
       obtain ⟨hyFn, hyFkb, hyFpb, hyFbb, hmodF,
-        pass, perm, _, hwrunF, hperm_hold, hperm_range, hperm_pw, _⟩ := hIF
+        pass, perm, _, hwrunF, hperm_hold, hperm_range, hperm_pw, hperm_rng⟩ := hIF
       have hge_n : keys.length ≤ 2 ^ pass := by
         simp only [Cond.holds_lt, hwrunF, hyFn] at hstopF; omega
       have hperm_len : perm.length = keys.length := by simpa using hperm_range.length_eq
-      have hperm_stable : perm.Pairwise (StableKeyOrder keys) := by
-        have h0 := hperm_pw 0
-        simpa [slice, List.take_of_length_le (hperm_len ▸ hge_n)] using h0
+      have hperm_stable : perm.Pairwise (StableKeyOrder keys) :=
+        StableRuns.finish ⟨hperm_pw, hperm_rng⟩ (hperm_len ▸ hge_n)
       refine ⟨?_, perm, hmodF, hperm_hold, hperm_range, hperm_stable,
         hperm_stable.imp StableKeyOrder.le, hyFn, hyFkb, hyFpb, hyFbb⟩
       wram_simp

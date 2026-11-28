@@ -137,6 +137,10 @@ def encode (x : Data M n p d) : State M (layout p d) :=
 /-- Encoded states start at label zero. -/
 @[simp] theorem encode_pc (x : Data M n p d) : (encode x).pc = 0 := by simp [encode]
 
+/-- Encoded pointer registers contain the corresponding cell indices. -/
+theorem encode_ptr (x : Data M n p d) (r : Fin p) :
+    (encode x).ptr r = (x.addr r).map Fin.val := by simp [encode, addrCode]
+
 /-- The linked representation uses exactly one record per source cell. -/
 @[simp] theorem encode_heap_length (x : Data M n p d) : (encode x).heap.length = n := by
   simp [encode]
