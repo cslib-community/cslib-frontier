@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PointerMachine.Assemble
+public import CslibFrontier.Computability.PointerMachine.WordRAM.NaturalSimulation
 
 /-!
 # Natural merge sort on the pointer machine
@@ -134,5 +135,40 @@ theorem heap_length_eq {lt : M.Test} {x y : State M layout} {t : ℕ}
     simp [code, mergePass, mergePair, mergeRuns, emitLeast, emit, startOutput, appendRun,
       cutRun, clear, move, readNext, writeNext] at ho
   | _ => rfl
+
+section WordRAM
+
+open Cslib.PointerMachine.WordRAM
+
+private theorem naturalProgram_no_create (r : Fin layout.ptrRegs) :
+    Instr.create r ∉ (code (M := Natural.model) Natural.Test.lt).program := by
+  let allocates : Instr Natural.model layout → Bool
+    | .create _ => true
+    | _ => false
+  have h : ((code (M := Natural.model) Natural.Test.lt).program).any allocates = false := by decide
+  intro hr
+  exact (List.any_eq_false.mp h _ hr) rfl
+
+/-- Compiling the natural-key sorter costs at most seven word-RAM instructions per pointer
+instruction, including the halt, when the prepared state and execution bound fit the word size. -/
+theorem wordRAM_executes_of_executes {w time limit b : ℕ} {x y : State Natural.model layout}
+    (valid : x.Valid) (execution : Executes (code Natural.Test.lt).program x y time)
+    (bound : time ≤ limit) (initial : x.DataValid (· ≤ b))
+    (memory : Cslib.WordRAM.Fits w (nodeAddr layout (x.heap.length + limit)))
+    (values : Cslib.WordRAM.Fits w (b + limit)) :
+    let program := (code (M := Natural.model) Natural.Test.lt).program
+    let compiler := Natural.scalars layout
+    ∃ z k, k + 1 ≤ 7 * time ∧
+      Cslib.WordRAM.Runs w (compiler.compile program)
+        ⟨compiler.blockSize program * x.pc, encodeState compiler.encode x⟩
+        ⟨compiler.blockSize program * y.pc, z⟩ k ∧ Repr compiler.encode y z ∧
+      Cslib.WordRAM.step w (compiler.compile program)
+        ⟨compiler.blockSize program * y.pc, z⟩ = .halt 0 := by
+  obtain ⟨z, k, hcost, hruns, hrepr, hhalt⟩ :=
+    Natural.executes_compile valid execution bound initial memory values
+  have overhead := Natural.overhead_le_of_no_create _ naturalProgram_no_create
+  exact ⟨z, k, hcost.trans (Nat.mul_le_mul_right _ overhead), hruns, hrepr, hhalt⟩
+
+end WordRAM
 
 end Cslib.Algorithms.PointerMachine.MergeSort

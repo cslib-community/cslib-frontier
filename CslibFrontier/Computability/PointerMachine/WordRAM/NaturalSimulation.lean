@@ -55,6 +55,21 @@ theorem overhead_le (code : List (Instr model L)) :
     case ifTest test _ _ _ => cases test <;> simp
     all_goals omega
 
+/-- Allocation-free natural-basis programs cost at most seven word-RAM instructions per
+source instruction, regardless of the record layout. -/
+theorem overhead_le_of_no_create (code : List (Instr model L))
+    (h : ∀ r, Instr.create r ∉ code) : (scalars L).overhead code ≤ 7 := by
+  induction code with
+  | nil => simp [Scalars.overhead]
+  | cons i code ih =>
+    change max ((scalars L).effectTime i + 2) ((scalars L).overhead code) ≤ _
+    refine max_le ?_ (ih fun r hr => h r (List.mem_cons_of_mem i hr))
+    cases i <;> simp only [Scalars.effectTime, scalars]
+    case create r => exact (h r (List.mem_cons_self ..)).elim
+    case op op _ _ _ => cases op <;> decide
+    case ifTest test _ _ _ => cases test <;> decide
+    all_goals decide
+
 /-- Compile a natural-scalar execution with explicit sufficient width. All initial data is
 at most `b`; at most `limit` instructions execute. Fitting `b + limit` and the next-free address
 after `limit` allocations suffices, with no hypotheses about intermediate machine states.
