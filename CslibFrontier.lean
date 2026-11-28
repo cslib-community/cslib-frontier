@@ -2167,6 +2167,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.Languages.SQL.Expr
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeComposition
 public import CslibFrontier.Algorithms.WordRAM.RadixSort.Model
+public import CslibFrontier.Computability.Complexity.Classes.EasyWitness.QuasiPoly.Verifier
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Header
 public import CslibFrontier.Computability.WordRAM.Multiword.Compile
 public import CslibFrontier.Computability.Circuit.Boolean.Modular.InnerProduct.PolyTime
@@ -9079,6 +9080,7 @@ public import CslibFrontier.Algorithms.Lean.DyadicRecovery
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Termination
 public import CslibFrontier.Probability.Shearer
+public import CslibFrontier.Computability.Complexity.Classes.EasyWitness.NEVerifier
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.AlternatingNative
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Ports
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
@@ -9198,6 +9200,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryGroup
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Circuit
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentIndices
+public import CslibFrontier.Computability.Complexity.Classes.NQuasiP
 public import CslibFrontier.Computability.Complexity.Classes.EXP.Separation
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 public import CslibFrontier.Foundations.Data.BitString.ParityTests
