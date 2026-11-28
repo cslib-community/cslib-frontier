@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
+import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.BitString.List
@@ -30,7 +32,9 @@ adjacent cascade hybrids.
 ## Main results
 
 * `Cslib.Crypto.advantage_cascadePrefixHybridGame_succ_eq`: exact advantage for an adjacent
-  step. The strict oracle-PPT certificate and the full cascade bound (6.15) remain open (#5801).
+  step. The full cascade bound (6.15) remains open (#5801).
+* `Cslib.Crypto.isOraclePPT_cascadeChildDistinguisher`: strict oracle PPT for the explicit
+  single-key reduction used in the adjacent step.
 
 ## References
 
@@ -42,7 +46,7 @@ public section
 
 namespace Cslib.Crypto
 
-open Probability
+open Probability Turing.MultiTapeTM
 
 /-- Route the client at `depth n` and use one external PRF challenge among `count n` child
 channels. The selection uses `indexBits n` fair bits and rejects unused indices. -/
@@ -52,6 +56,30 @@ noncomputable def cascadeChildDistinguisher (valid : ℕ → List Bool → Bool)
     (adversary : OracleDistinguisher) : OracleDistinguisher := fun n aux =>
   cascadeChildChallengeProgram family (inLen n) n (count n) (indexBits n)
     (cascadeChildRouter (valid n) inLen family n (depth n) (adversary n aux))
+
+/-- The adjacent-step reduction runs in strict oracle polynomial time in the security parameter
+and auxiliary word. It uses a polynomial-time validity test and base family evaluation, and
+polynomial-time unary block widths, cut depths, channel counts and sampling widths. -/
+theorem isOraclePPT_cascadeChildDistinguisher
+    {valid : ℕ → List Bool → Bool} {inLen depth count indexBits : ℕ → ℕ}
+    {family : List Bool → List Bool → List Bool} {adversary : OracleDistinguisher}
+    (hvalid : ComputableInPolyTime (fun p : ℕ × List Bool => valid p.1 p.2)
+      (encPair encUnary encBits) encBool)
+    (hIn : ComputableInPolyTime inLen encUnary encUnary)
+    (hdepth : ComputableInPolyTime depth encUnary encUnary)
+    (hcount : ComputableInPolyTime count encUnary encUnary)
+    (hbits : ComputableInPolyTime indexBits encUnary encUnary)
+    (hLen : ∀ key block, block.length = inLen key.length → (family key block).length = key.length)
+    (hEval : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hA : IsOraclePPT encBool adversary) :
+    IsOraclePPT encBool (cascadeChildDistinguisher valid inLen depth count indexBits family
+      adversary) := by
+  let hn := ComputableInPolyTime.fst encUnary encBits
+  have hrouter := (isOraclePPTOn_encodedCascadeChildRouter hvalid hIn hLen hEval hA).preprocess
+    (ComputableInPolyTime.id'.prod (hdepth.comp hn))
+  exact isOraclePPTOn_cascadeChildChallengeProgram hEval hrouter
+    (hIn.comp hn) hn (hcount.comp hn) (hbits.comp hn)
 
 /-- One adjacent step of the cascade argument. The two prefix hybrids have the advantage
 of the explicit single-key PRF distinguisher multiplied by its sampled channel range.

@@ -26,6 +26,7 @@ bound. The distribution law and polynomial-time certificate are separate from th
 
 ## Main definitions
 
+* `Cslib.Crypto.encCascadeChildRequest`: the word encoding of a channel number and block.
 * `Cslib.Crypto.cascadeChildRouter`: the adaptive client of the child oracle.
 
 ## Main results
@@ -38,7 +39,10 @@ public section
 
 namespace Cslib.Crypto
 
-open Probability
+open Probability Turing.MultiTapeTM
+
+/-- A framed unary channel number followed by the raw block bits. -/
+abbrev encCascadeChildRequest : (ℕ × List Bool) ↪ List Bool := encPair encUnary encBits
 
 /-- State of the adaptive router. A parent's position in `parents` is its channel number. -/
 structure CascadeChildRouterState where

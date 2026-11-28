@@ -29,7 +29,6 @@ security parameters and cuts, while each routed query still reads only a bounded
 
 ## Main definitions
 
-* `Cslib.Crypto.encCascadeChildRequest` encodes a channel number and block as a word.
 * `Cslib.Crypto.encodedCascadeChildRouter` runs the cascade router on the single word port.
 
 ## Main results
@@ -48,9 +47,6 @@ public section
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
-
-/-- A framed unary channel number followed by the raw block bits. -/
-abbrev encCascadeChildRequest : (ℕ × List Bool) ↪ List Bool := encPair encUnary encBits
 
 /-- Use the existing adaptive router with each child query sent as an encoded word to the
 single external port. -/
