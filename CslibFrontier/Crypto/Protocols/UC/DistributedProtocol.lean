@@ -19,7 +19,8 @@ per-party local states (`Fin n → PartyState`) plus a shared network/channel st
 both static `Protocol` (`UC.Execution`) and snapshot adaptive `AdaptiveProtocol` (`UC.Adaptive`).
 
 Unlike monolithic `Protocol` and `AdaptiveProtocol` machines, where protocol authors must
-manually route per-party state and supply an arbitrary `view` projection:
+manually route per-party state (and, for `AdaptiveProtocol`, supply an arbitrary `view`
+projection):
 
 * `initParty` initializes each party `i : Fin n` independently via `OracleComp.pi`.
 * `onInput κ i x` accesses and updates only party `i`'s own `PartyState` and the shared `NetState`.
@@ -44,8 +45,9 @@ manually route per-party state and supply an arbitrary `view` projection:
   `.applyInitialCorruptions_parties_of_not_mem`, `.mem_support_closeEval_handle_input`,
   `.mem_support_closeEval_handle_net`: initialization and single-step local-state isolation.
 * `Cslib.Crypto.Protocols.UC.DistributedProtocol.corruptRouter_runFrom_parties_eq`,
-  `.execMachine_runFrom_parties_eq`, `.adaptiveRouter_runFrom_parties_eq`: end-to-end honest-party
-  local-state isolation under static and adaptive corruption routing.
+  `.execMachine_runFrom_parties_eq`, `.adaptiveRouter_runFrom_parties_eq`: local-state invariance
+  for an initially honest, unactivated (and, in the adaptive case, uncorrupted) party under static
+  and adaptive routing.
 * `Cslib.Crypto.Protocols.UC.DistributedProtocol.toAdaptive_toStatic_of_onCorrupt_eq`: static
   round-trip compatibility.
 -/
