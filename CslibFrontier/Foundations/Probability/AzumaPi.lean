@@ -135,43 +135,20 @@ theorem hasSubgaussianMGF_sum_pi (hY : ∀ i, Measurable (Y i))
         exact (le_abs_self _).trans ((abs_mul _ _).le.trans (mul_le_mul_of_nonneg_left
           ((abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun i _ => habs i v))
           (abs_nonneg t))))
-  have key : ∀ (s : Finset ι) (t : ℝ), ∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ ≤
-      exp ((∑ i ∈ s, ((c i : ℝ) / 2) ^ 2) * t ^ 2 / 2) := by
-    intro s t
-    induction s using Finset.induction_on_max with
-    | empty => simp
-    | insert j s hlt ih =>
-      have hj : j ∉ s := fun h => lt_irrefl j (hlt j h)
-      have hP : ∀ v z, ∑ i ∈ s, Y i (Function.update v j z) = ∑ i ∈ s, Y i v :=
-        fun v z => Finset.sum_congr rfl fun i hi => hadapted i j (hlt i hi) v z
-      have hstep (v) : ∫ z, exp (t * Y j (Function.update v j z)) ∂μ j ≤
-          exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2) := by
-        obtain ⟨a, ha⟩ := hrange j v
-        simpa [mgf] using (hasSubgaussianMGF_of_mem_Icc_of_integral_eq_zero
-          ((hY j).comp (measurable_update v)).aemeasurable (Filter.Eventually.of_forall ha)
-          (hmean j v)).mgf_le t
-      calc ∫ v, exp (t * ∑ i ∈ insert j s, Y i v) ∂Measure.pi μ
-          = ∫ v, ∫ z, exp (t * ∑ i ∈ insert j s, Y i (Function.update v j z)) ∂μ j
-              ∂Measure.pi μ := (integral_integral_update μ (hint (insert j s) t) j).symm
-        _ = ∫ v, exp (t * ∑ i ∈ s, Y i v) *
-              ∫ z, exp (t * Y j (Function.update v j z)) ∂μ j ∂Measure.pi μ := by
-            congr 1 with v
-            rw [← integral_const_mul]
-            congr 1 with z
-            rw [Finset.sum_insert hj, hP, mul_add, exp_add, mul_comm (exp _)]
-        _ ≤ (∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ) *
-              exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2) := by
-            rw [← integral_mul_const]
-            exact integral_mono_of_nonneg
-              (Filter.Eventually.of_forall fun v =>
-                mul_nonneg (exp_pos _).le (integral_nonneg fun _ => (exp_pos _).le))
-              ((hint s t).mul_const _)
-              (Filter.Eventually.of_forall fun v =>
-                mul_le_mul_of_nonneg_left (hstep v) (exp_pos _).le)
-        _ ≤ exp ((∑ i ∈ insert j s, ((c i : ℝ) / 2) ^ 2) * t ^ 2 / 2) := by
-            rw [Finset.sum_insert hj, add_mul, add_div, exp_add, mul_comm (exp _)]
-            exact mul_le_mul_of_nonneg_right ih (exp_pos _).le
-  exact ⟨hint univ, fun t => by simpa [mgf] using key univ t⟩
+  refine ⟨hint univ, fun t => ?_⟩
+  let B (i : ι) := ((c i : ℝ) / 2) ^ 2 * t ^ 2 / 2
+  have hstep (i : ι) (v) : ∫ z, exp (t * Y i (Function.update v i z)) ∂μ i ≤ exp (B i) := by
+    obtain ⟨a, ha⟩ := hrange i v
+    simpa [mgf, B] using (hasSubgaussianMGF_of_mem_Icc_of_integral_eq_zero
+      ((hY i).comp (measurable_update v)).aemeasurable (Filter.Eventually.of_forall ha)
+      (hmean i v)).mgf_le t
+  have h := integral_finset_prod_pi_le μ (fun i v => exp (t * Y i v)) (fun i => exp (B i))
+    (fun _ _ => (exp_pos _).le) (fun _ => (exp_pos _).le)
+    (fun i j hij v z => congrArg (fun y => exp (t * y)) (hadapted i j hij v z))
+    (fun s => by simpa only [← Real.exp_sum, ← Finset.mul_sum] using hint s t) hstep univ
+  simp only [mgf]
+  push_cast
+  simpa only [← Real.exp_sum, ← Finset.mul_sum, B, ← Finset.sum_div, ← Finset.sum_mul] using h
 
 /-- **The Azuma–Hoeffding inequality under a product measure.** Let `Y i` not depend on the
 coordinates after `i`, have mean `0` over coordinate `i`, and range over an interval of length
