@@ -368,17 +368,15 @@ theorem IsExtendedFormulation.hasNonnegFactorization_slackMatrix_of_forall_le [F
   choose w hw using fun j => (hEF (V j)).1 (hVP j)
   obtain ⟨c, j₁, j₂, hj⟩ := exists_dotProduct_lt_of_nontrivial (hV ▸ hP)
   have : Nonempty ν := ⟨j₁⟩
-  obtain ⟨jp, -, hjp⟩ := Finset.exists_max_image Finset.univ (fun j => c ⬝ᵥ V j)
-    Finset.univ_nonempty
-  obtain ⟨jm, -, hjm⟩ := Finset.exists_min_image Finset.univ (fun j => c ⬝ᵥ V j)
-    Finset.univ_nonempty
+  obtain ⟨jp, hjp⟩ := Finite.exists_max (fun j => c ⬝ᵥ V j)
+  obtain ⟨jm, hjm⟩ := Finite.exists_min (fun j => c ⬝ᵥ V j)
   have hrow : ∀ i, ∃ l : σ → K, 0 ≤ l ∧ ∀ x y, E' *ᵥ x + F' *ᵥ y = g' →
       l ⬝ᵥ (g - (E *ᵥ x + F *ᵥ y)) = b i - A i ⬝ᵥ x := fun i =>
     hEF.exists_nonneg_dotProduct_eq_sub c
-      (fun x hx => dotProduct_le_of_mem_convexHull (fun j => hjp j (Finset.mem_univ j)) (hV ▸ hx))
+      (fun x hx => dotProduct_le_of_mem_convexHull hjp (hV ▸ hx))
       (fun x hx => by
         have := dotProduct_le_of_mem_convexHull (c := -c) (δ := -(c ⬝ᵥ V jm))
-          (fun j => by rw [neg_dotProduct, neg_le_neg_iff]; exact hjm j (Finset.mem_univ j))
+          (fun j => by rw [neg_dotProduct, neg_le_neg_iff]; exact hjm j)
           (hV ▸ hx)
         rwa [neg_dotProduct, neg_le_neg_iff] at this)
       (hVP j₁) (hVP j₂) hj (A i) (b i) fun x hx => hA x hx i

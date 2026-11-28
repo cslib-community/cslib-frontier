@@ -193,8 +193,8 @@ theorem exists_nine_div_sq_mul_one_ninth_rpow_le_influence (f : (ι → Bool) �
   set I := totalInfluence F
   have hI : 0 < I := hV.trans_le (expect_sub_expect_sq_le_totalInfluence F)
   -- a nonconstant function has a coordinate, hence a most influential one
-  obtain ⟨i, -, hi⟩ :=
-    exists_max_image univ (fun i => influence i F) (nonempty_of_sum_ne_zero hI.ne')
+  have : Nonempty ι := univ_nonempty_iff.1 (nonempty_of_sum_ne_zero hI.ne')
+  obtain ⟨i, hi⟩ := Finite.exists_max (fun i => influence i F)
   refine ⟨i, ?_⟩
   set M := influence i F
   set a := (1 / 3 : ℝ) ^ (I / V)
@@ -215,7 +215,7 @@ theorem exists_nine_div_sq_mul_one_ninth_rpow_le_influence (f : (ι → Bool) �
           (sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le f j).trans <| by
             have := influence_nonneg j F
             gcongr
-            exact hi j (mem_univ j)
+            exact hi j
       _ = √M * I / 3 := by rw [← sum_div, ← sum_mul, mul_comm]; rfl
   have h3 : 3 * V * a / I ≤ √M := by rw [div_le_iff₀ hI]; linarith
   calc 9 / (I / V) ^ 2 * (1 / 9 : ℝ) ^ (I / V) = (3 * V * a / I) ^ 2 := by
@@ -257,14 +257,14 @@ theorem exists_expect_sub_expect_sq_mul_log_card_div_le_influence [Nonempty ι]
   set I := totalInfluence F
   set n : ℝ := (Fintype.card ι : ℝ)
   set L := log n
-  obtain ⟨i, -, hi⟩ := exists_max_image univ (fun i => influence i F) univ_nonempty
+  obtain ⟨i, hi⟩ := Finite.exists_max (fun i => influence i F)
   refine ⟨i, ?_⟩
   set M := influence i F
   have hn0 : 0 < n := Nat.cast_pos.2 Fintype.card_pos
   have hL : 0 ≤ L := log_nonneg (Nat.one_le_cast.2 Fintype.card_pos)
   have hV1 : V ≤ 1 := expect_sub_expect_sq_signVal_le_one f
   have hIM : I ≤ n * M :=
-    (sum_le_sum fun j _ => hi j (mem_univ j)).trans_eq (by rw [sum_const, card_univ, nsmul_eq_mul])
+    (sum_le_sum fun j _ => hi j).trans_eq (by rw [sum_const, card_univ, nsmul_eq_mul])
   rw [div_le_iff₀ (by positivity)]
   have hV0 : 0 ≤ V := expect_nonneg fun _ _ => sq_nonneg _
   rcases hV0.eq_or_lt with hV | hV
@@ -275,7 +275,7 @@ theorem exists_expect_sub_expect_sq_mul_log_card_div_le_influence [Nonempty ι]
     nlinarith
   · -- `Ĩ < L / 4`: the edge-isoperimetric bound `M ≥ 144 / L² · n^{-log 9 / 4}`
     obtain ⟨j, hj⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV
-    have hjM : influence j F ≤ M := hi j (mem_univ j)
+    have hjM : influence j F ≤ M := hi j
     set T := I / V
     have hT1 : 1 ≤ T := (one_le_div hV).2 (expect_sub_expect_sq_le_totalInfluence F)
     have hTL : T ≤ L / 4 := by rw [div_le_iff₀ hV]; linarith
