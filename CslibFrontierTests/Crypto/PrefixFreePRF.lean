@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.UHF.CBCMAC
+import CslibFrontier.Crypto.Primitives.UHF.Cascade
 
 /-!
 # Tests for the prefix-free collision wrapper
@@ -248,3 +249,33 @@ example : lpBlockValid (fun _ => 2) 3 [] = true ∧
         (PRF.freshBatchWordBlock 3 [[], [false, false, false]]).getD []) else []).length = 2
     rw [hFresh]
     rfl
+
+-- The cascade bound accepts the empty message and its one-block extension in the same batch.
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
+    ∃ reduction : OracleDistinguisher, IsOraclePPT encBool reduction ∧
+      (reduction 3 []).IsQueryBounded 2 ∧
+      Game.succProbability (multiQueryGame pure (fun _ d => lpBlockValid (fun _ => 2) d)
+        (fun _ d (key : BitString d) => cascadeFamily id family (List.ofFn key)) emptyWordBatch 3) ≤
+      (6 : ℕ) * Game.advantage (ProbComp.eval (prfRealGame id family reduction 3))
+        (ProbComp.eval (prfIdealGame id id reduction 3)) + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ 3 := by
+  have hFacts (cap : ℕ) {word : List Bool} (hWord : lpBlockValid (fun _ => cap) 3 word = true) :
+      3 ∣ word.length ∧ word.length ≤ cap * 3 := by
+    simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hWord
+    exact ⟨Nat.dvd_of_mod_eq_zero hWord.1, hWord.2⟩
+  refine succProbability_multiQueryGame_cascade_le_pointwise emptyWordBatch 3 2 2
+    ComputableInPolyTime.id' (computableInPolyTime_lpBlockValid (.const 2))
+    (computableInPolyTime_lpBlockValid (.const 3)) hF.length_eq hF.polyTime
+    (ComputableInPolyTime.const [[], [false, false, false]]).isPPTOn (by decide)
+    (fun _ hWord => (hFacts 2 hWord).1) (fun _ hWord => (hFacts 2 hWord).2)
+    (fun _ hWord => (hFacts 3 hWord).1) (fun _ hWord => (hFacts 3 hWord).2)
+    (by decide) ?_ ?_
+  · intro word block hWord hBlock
+    obtain ⟨hdiv, hcap⟩ := hFacts 2 hWord
+    have hBlockLength : block.length = 3 := hBlock
+    simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, List.length_append,
+      hBlockLength, Nat.add_mod_right, Nat.mod_eq_zero_of_dvd hdiv, true_and]
+    omega
+  · intro guesses hGuesses
+    simp only [emptyWordBatch, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hGuesses
+    subst guesses
+    decide
