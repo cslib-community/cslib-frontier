@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Algorithms.Lean.EditDistance.Hirschberg
-meta import CslibFrontier.Algorithms.Lean.EditDistance.Hirschberg
+import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergBounds
+meta import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergBounds
 
 /-!
 # Hirschberg reconstruction on directed costs and tied longest common subsequences
@@ -48,5 +48,11 @@ private def directionalCosts : Costs Bool where
 example : (hirschbergLCS [0, 1, 0] [1, 0, 1]).length = 2 := by
   rw [(hirschbergLCS_spec _ _).2.2]
   decide
+
+-- The empty side visits only the output letters. The unequal-length example transposes
+-- before splitting and the equal-length one takes two singleton leaves.
+#guard hirschbergProfile Costs.unit [0, 1, 2, 3] ([] : List Nat) = ⟨4, 0⟩
+#guard hirschbergProfile Costs.unit [0] ([0, 1] : List Nat) = ⟨19, 6⟩
+#guard hirschbergProfile Costs.unit [0, 1] ([0, 1] : List Nat) = ⟨28, 9⟩
 
 end CslibFrontierTests.Hirschberg
