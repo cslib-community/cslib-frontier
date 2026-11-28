@@ -6379,6 +6379,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Transfer
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerClock
 public import CslibFrontier.Crypto.Protocols.MPC.AllToAll
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Kernel
+public import CslibFrontier.Computability.Circuit.Boolean.ACC0.PrimePower
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.ElimLoop
 public import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.Producer
