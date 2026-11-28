@@ -40,7 +40,7 @@ circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuit
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.SemiCircuit.programGateLit_castSucc`, `programGateLit_last`,
+* `Cslib.Circuits.Boolean.SemiCircuit.programGateLit_gate_castSucc`, `programGateLit_gate_last`,
   `mem_programBinaryGates_gate_of_ne`, `programBinaryGate_gate_of_ne`,
   `mem_programBinaryGates_gate_last`, `programBinaryGate_gate_last`: appending a line keeps the
   earlier literals, binary gates and gate map; the new gate carries the literal of its line, the
@@ -157,13 +157,13 @@ theorem programWireLit_gate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (
 
 /-- **Last line.** The new gate carries the literal of its line, on the literals of the earlier
 wires. -/
-theorem programGateLit_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+theorem programGateLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
     programGateLit (p.gate line) (Fin.last g) = lineBinaryLit (programWireLit p) line := by
   exact Vector.getElem_push_last
 
 /-- **Prefix.** Appending a line keeps the literals of the earlier gates. -/
-theorem programGateLit_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+theorem programGateLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
     programGateLit (p.gate line) j.castSucc = programGateLit p j := by
   exact Vector.getElem_push_lt j.isLt
@@ -267,7 +267,7 @@ theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) 
     · exact lift (ih (.input i) ht)
     · revert ht
       refine Fin.lastCases ?_ (fun j => ?_) k
-      · rw [programWireLit_gate, programGateLit_last]
+      · rw [programWireLit_gate, programGateLit_gate_last]
         intro ht'
         obtain ⟨op | c, w⟩ := line
         · dsimp only [lineBinaryLit] at ht'
@@ -278,7 +278,7 @@ theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) 
           have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
           exact ⟨Or.inr ((mem_programBinaryGates_gate_last p _).2 hc), by omega⟩
         · simp [lineBinaryLit, Lit.Reads, Lit.const] at ht'
-      · rw [programWireLit_gate, programGateLit_castSucc, ← programWireLit_gate]
+      · rw [programWireLit_gate, programGateLit_gate_castSucc, ← programWireLit_gate]
         exact fun ht' => lift (ih (.gate j) ht')
 
 private theorem reads_programBinaryGate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
@@ -355,13 +355,14 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
     rintro (i | k)
     · simp [programWireLit_input]
     · refine Fin.lastCases ?_ (fun j => ?_) k
-      · rw [programWireLit_gate, programGateLit_last, Program.trace_gate_last, eval_lineBinaryLit]
+      · rw [programWireLit_gate, programGateLit_gate_last, Program.trace_gate_last,
+          eval_lineBinaryLit]
         · congr 1 with a : 1
           exact ih hval_p (line.wires a)
         · intro hc
           rw [← programBinaryGate_gate_last]
           exact hval (n + g) ((mem_programBinaryGates_gate_last p line).2 hc)
-      · rw [programWireLit_gate, programGateLit_castSucc, ← programWireLit_gate,
+      · rw [programWireLit_gate, programGateLit_gate_castSucc, ← programWireLit_gate,
           show (Wire.gate j.castSucc : Wire n (g + 1)) = (Wire.gate j).castSucc from rfl,
           Program.trace_gate_castSucc]
         exact ih hval_p (.gate j)
@@ -405,8 +406,7 @@ theorem ofCircuitBinary_out (C : Circuit (fullSignature 2 Bool) n 1) :
 @[simp] theorem size_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) :
     (ofCircuitBinary C).size = C.program.cost binaryB2Cost := by
   change (ofCircuitBinary C).gates.card + (∅ : Finset ℕ).card = C.program.cost binaryB2Cost
-  rw [ofCircuitBinary_gates]
-  rw [Finset.card_empty, add_zero, card_programBinaryGates]
+  rw [ofCircuitBinary_gates, Finset.card_empty, add_zero, card_programBinaryGates]
 
 /-- Every gate of `ofCircuitBinary C` is named `n + j` for a program line `j < C.size`. -/
 theorem mem_gates_ofCircuitBinary {C : Circuit (fullSignature 2 Bool) n 1} {J : ℕ}
@@ -437,7 +437,6 @@ values of the parameters. -/
 theorem out_eval_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) {val : ℕ → Bool}
     (hval : (ofCircuitBinary C).Consistent val) :
     (ofCircuitBinary C).out.eval val = C.eval fullInterpretation (fun i => val i) 0 := by
-  rw [ofCircuitBinary_out]
-  rw [eval_programWireLit C.program hval.2, Circuit.eval, Function.comp_apply]
+  rw [ofCircuitBinary_out, eval_programWireLit C.program hval.2, Circuit.eval, Function.comp_apply]
 
 end Cslib.Circuits.Boolean.SemiCircuit

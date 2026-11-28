@@ -48,7 +48,7 @@ gate row `⟨tt, left, right⟩`. The arithmetic decoder that the program comput
 proved equal to the builder line by line (literal codes and gate rows) through the public interface
 of `SemiCircuit.OfCircuit`: the per-line literal and gate `lineBinaryLit`, `lineBinaryGate`, the
 wire literals (`programWireLit_input`, `programWireLit_gate`), the prefix and last-line lemmas
-(`programGateLit_castSucc`, `programGateLit_last`, `mem_programBinaryGates_gate_of_ne`,
+(`programGateLit_gate_castSucc`, `programGateLit_gate_last`, `mem_programBinaryGates_gate_of_ne`,
 `mem_programBinaryGates_gate_last`, `programBinaryGate_gate_of_ne`, `programBinaryGate_gate_last`)
 and `ofCircuitBinary_gates`, `ofCircuitBinary_gate`, `ofCircuitBinary_out`. So the public
 statement is about `initialPacked C` itself.
@@ -279,12 +279,12 @@ private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignatur
     congr 1
     · refine List.ofFn_inj.2 (funext fun j => ?_)
       rw [Fin.val_castSucc]
-      simp only [programGateLit_castSucc, mem_programBinaryGates_gate_of_ne p line (hne j),
+      simp only [programGateLit_gate_castSucc, mem_programBinaryGates_gate_of_ne p line (hne j),
         programBinaryGate_gate_of_ne p line (hne j)]
     · rw [lineOut_lineWords (programWireLit p) _ (programWireLit_input p) (fun k => by
           rw [List.getD_eq_getElem _ _ (by simp), List.getElem_map, List.getElem_ofFn,
             programWireLit_gate])]
-      simp only [Fin.val_last, programGateLit_last, mem_programBinaryGates_gate_last,
+      simp only [Fin.val_last, programGateLit_gate_last, mem_programBinaryGates_gate_last,
         programBinaryGate_gate_last]
 
 /-! ### Validity of the encoding -/
