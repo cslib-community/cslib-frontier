@@ -113,6 +113,17 @@ example : ¬ (['a', 'b', 'a', 'c', 'a', 'b', 'a'].take 2).Palindrome := by
   rw [palindrome_take_iff (by decide)]
   decide
 
+/-! ## Distinct palindromic factors -/
+
+example : ([] : List Char).palindromicFactors = {[]} := by decide
+
+-- Repeated occurrences of the same word count once; this word reaches the bound.
+example : ['a', 'a', 'a'].palindromicFactors = {[], ['a'], ['a', 'a'], ['a', 'a', 'a']} := by
+  decide
+
+-- The final `a` has occurred before and introduces no new palindrome.
+example : ['a', 'b', 'c', 'a'].palindromicFactors.card = 4 := by decide
+
 /-! ## Word-RAM execution and linear running-time checks -/
 
 private meta def evalRadii (w : ℕ) (xs : List ℕ) : Option (List ℕ × ℕ) :=

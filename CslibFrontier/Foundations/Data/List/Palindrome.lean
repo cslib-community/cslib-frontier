@@ -8,6 +8,8 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/Data/List/Palindrome.lean`)
 
 public import CslibFrontier.Init
+public import Mathlib.Data.Finset.Card
+public import Mathlib.Data.List.Infix
 public import Mathlib.Data.List.Palindrome
 
 /-!
@@ -21,6 +23,9 @@ shrinking a palindromic factor symmetrically keeps it a palindrome
 two letters agree (`List.palindrome_extract_sub_one_add_one_iff`), and palindromic factors inside a
 palindromic factor reflect to palindromic factors (`List.Palindrome.extract_reflect`).
 
+`List.palindromicFactors` collects distinct palindromic words occurring as contiguous factors,
+including the empty word. Prepending a letter introduces at most one new palindrome.
+
 ## Main results
 
 * `List.Palindrome.iff_getElem?`: `l` is a palindrome iff `l[i]? = l[l.length - 1 - i]?` for
@@ -33,6 +38,8 @@ palindromic factor reflect to palindromic factors (`List.Palindrome.extract_refl
   `l.extract a b` is and `l[a - 1]? = l[b]?`.
 * `List.Palindrome.extract_reflect`: if `l.extract L R` and `l.extract a b` are palindromes with
   `L ≤ a ≤ b ≤ R`, then so is the mirror image `l.extract (L + R - b) (L + R - a)`.
+* `List.card_palindromicFactors_le`: a word of length `n` has at most `n + 1` distinct palindromic
+  factors [Glen, Justin, Widmer and Zamboni][GlenJustinWidmerZamboni2009], Proposition 2.1.
 -/
 
 public section
@@ -104,5 +111,57 @@ theorem Palindrome.extract_reflect {l : List α} {L R a b : ℕ}
   rw [hbig i (by omega) (by omega), h (L + R - 1 - i) (by omega) (by omega),
     hbig (a + b - 1 - (L + R - 1 - i)) (by omega) (by omega)]
   exact congrArg (l[·]?) (by omega)
+
+/-! ## Counting distinct palindromic factors -/
+
+variable [DecidableEq α]
+
+/-- The distinct palindromic factors of a finite word, including the empty word. -/
+@[expose] def palindromicFactors (w : List α) : Finset (List α) :=
+  (w.tails.flatMap inits).toFinset.filter Palindrome
+
+@[simp] theorem mem_palindromicFactors {p w : List α} :
+    p ∈ w.palindromicFactors ↔ p <:+: w ∧ p.Palindrome := by
+  simp [palindromicFactors, mem_tails, mem_inits, infix_iff_prefix_suffix, and_comm]
+
+/-- Prepending a letter introduces at most one distinct palindrome. Any new factor is a prefix.
+If two palindromic prefixes have different lengths, reflection in the longer one places the
+shorter one in the old word. -/
+theorem card_sdiff_palindromicFactors_cons_le_one (a : α) (w : List α) :
+    ((a :: w).palindromicFactors \ w.palindromicFactors).card ≤ 1 := by
+  have new_prefix {p : List α} (h : p ∈ (a :: w).palindromicFactors \ w.palindromicFactors) :
+      p <+: a :: w ∧ p.Palindrome ∧ ¬ p <:+: w := by
+    obtain ⟨hp, hn⟩ := Finset.mem_sdiff.mp h
+    obtain ⟨hi, hpal⟩ := mem_palindromicFactors.mp hp
+    have hnew : ¬ p <:+: w := fun h => hn (mem_palindromicFactors.mpr ⟨h, hpal⟩)
+    exact ⟨(infix_cons_iff.mp hi).resolve_right hnew, hpal, hnew⟩
+  apply Finset.card_le_one.mpr
+  intro p hp q hq
+  obtain ⟨hpp, hp, hn⟩ := new_prefix hp
+  obtain ⟨hqp, hq, hm⟩ := new_prefix hq
+  have eq_of_prefix {u v : List α} (hu : u.Palindrome) (hv : v.Palindrome)
+      (hnew : ¬ u <:+: w) (hvp : v <+: a :: w) (h : u <+: v) : u = v := by
+    have hs : u <:+ v := by simpa only [hu.reverse_eq, hv.reverse_eq] using reverse_suffix.mpr h
+    rcases prefix_cons_iff.mp hvp with rfl | ⟨t, rfl, ht⟩
+    · exact prefix_nil.mp h
+    · exact (suffix_cons_iff.mp hs).resolve_right fun h => hnew (h.isInfix.trans ht.isInfix)
+  exact (prefix_or_prefix_of_prefix hpp hqp).elim (eq_of_prefix hp hq hn hqp)
+    (fun h => (eq_of_prefix hq hp hm hpp h).symm)
+
+/-- A word of length `n` has at most `n + 1` distinct palindromic factors, including the empty
+word. This is the Droubay–Justin–Pirillo bound as restated in [Glen, Justin, Widmer and
+Zamboni][GlenJustinWidmerZamboni2009], Proposition 2.1. The alphabet need not be finite. -/
+theorem card_palindromicFactors_le (w : List α) :
+    w.palindromicFactors.card ≤ w.length + 1 := by
+  induction w with
+  | nil =>
+    simpa [palindromicFactors, tails, inits] using
+      Finset.card_filter_le ({[]} : Finset (List α)) Palindrome
+  | cons a w ih =>
+    have h := Finset.card_le_card_sdiff_add_card (s := (a :: w).palindromicFactors)
+      (t := w.palindromicFactors)
+    have := card_sdiff_palindromicFactors_cons_le_one a w
+    simp only [length_cons]
+    omega
 
 end List

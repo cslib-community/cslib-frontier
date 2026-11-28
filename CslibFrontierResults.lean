@@ -107,6 +107,7 @@ import CslibFrontierResults.Entries.LogspaceUniformNC
 import CslibFrontierResults.Entries.ODonnellHammingBall
 import CslibFrontierResults.Entries.AlmostSynchronous
 import CslibFrontierResults.Entries.ExternalRegret
+import CslibFrontierResults.Entries.PalindromicFactors
 import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.SergeevPrefixDepth
