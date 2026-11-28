@@ -709,12 +709,12 @@ theorem PseudorandomGenerator.of_nextBitUnpredictableRandomIndex
   rw [guessingAdvantage_nextBitPredictionGame_wordNextBitPredictor hlen adversary hpos,
     mul_div_cancel₀ _ hLne, eval_prgRealGame, eval_prgIdealGame]
 
-/-- **Yao's next-bit theorem (random-index formulation)** (after [BonehShoup2023], Section 3.5,
-Theorems 3.4 and 3.6, with the position drawn by the challenger instead of chosen by the adversary;
-registration in the results inventory is pending an outside-fleet source check, #5363): a function
-is a `PseudorandomGenerator` with expansion schedule `length` if and only if it runs in polynomial
-time, produces words of length `length n`, strictly stretches every seed, and is uniformly PPT
-random-index next-bit unpredictable. -/
+/-- **Yao's next-bit theorem for a challenger-chosen uniform position.** For a deterministic
+polynomial-time generator that maps every `n`-bit seed to exactly `length n` bits with
+`n < length n`, security against uniform strict PPT distinguishers is equivalent to random-index
+next-bit unpredictability. This variant of [BonehShoup2023], Section 3.5, Theorems 3.4 and 3.6
+(pp. 64 and 67), samples the position uniformly from the whole output. The predictor built from a
+distinguisher loses exactly a factor of `length n`. -/
 theorem pseudorandomGenerator_iff_nextBitUnpredictableRandomIndex
     (generator : List Bool → List Bool) (length : ℕ → ℕ) :
     PseudorandomGenerator generator length ↔
@@ -998,11 +998,13 @@ theorem PseudorandomGenerator.of_nextBitUnpredictable
   rw [guessingAdvantage_nextBitExperiment_wordNextBitTwoStage hlen adversary hpos,
     mul_div_cancel₀ _ hDne, eval_prgRealGame, eval_prgIdealGame]
 
-/-- **Yao's next-bit theorem (Boneh–Shoup Attack Game 3.2)** ([BonehShoup2023], Section 3.5,
-Theorems 3.4 and 3.6; registration in the results inventory is pending an outside-fleet source
-check, #5363): a function is a `PseudorandomGenerator` with expansion schedule `length` if and only
-if it runs in polynomial time, produces words of length `length n`, strictly stretches every seed,
-and is uniformly PPT two-stage next-bit unpredictable. -/
+/-- **Yao's next-bit theorem for an adversary-chosen position.** For a deterministic
+polynomial-time generator that maps every `n`-bit seed to exactly `length n` bits with
+`n < length n`, security against uniform strict PPT distinguishers is equivalent to two-stage
+next-bit unpredictability. This is the stretching case of [BonehShoup2023], Section 3.5, Attack
+Game 3.2, Definition 3.3 and Theorems 3.4 and 3.6 (pp. 64 and 67). The predictor built from a
+distinguisher samples a padded dyadic range to keep a strict clock and loses a factor of
+`dyadicSize (length n - 1)`. -/
 theorem pseudorandomGenerator_iff_nextBitUnpredictable
     (generator : List Bool → List Bool) (length : ℕ → ℕ) :
     PseudorandomGenerator generator length ↔
