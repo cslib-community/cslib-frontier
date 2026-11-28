@@ -21,7 +21,8 @@ of each length, and its slice at `n` is a constant or the conjunction of the `n`
 circuits of `n + 1` gates (`mem_SIZE_of_unary`). Since the circuits at different lengths need not be
 related, unary languages that no machine decides are in `P/poly` [Arora and Barak, Section
 6.1][AroraBarak09]. The class `Cslib.Complexity.SPARSE` counts the words of length at most `n`
-rather than exactly `n`; its members are in `P/poly` as well (`PPoly.of_mem_SPARSE`).
+rather than exactly `n`; its members are in `P/poly` as well (`PPoly.of_mem_SPARSE`), and so is
+every sparse problem, under any encoding of its instances (`SPARSE_subset_PPolyOn`).
 
 ## Main results
 
@@ -30,6 +31,8 @@ rather than exactly `n`; its members are in `P/poly` as well (`PPoly.of_mem_SPAR
 * `Cslib.Circuits.Boolean.PPoly.of_sparse`: sparse languages are in `P/poly`.
 * `Cslib.Circuits.Boolean.PPoly.of_mem_SPARSE`: languages in `Cslib.Complexity.SPARSE` are in
   `P/poly`.
+* `Cslib.Circuits.Boolean.SPARSE_subset_PPolyOn`: `SPARSE ⊆ P/poly`, for problems with any encoding
+  of their instances.
 * `Cslib.Circuits.Boolean.mem_SIZE_of_unary`, `Cslib.Circuits.Boolean.PPoly.of_unary`: unary
   languages have circuits of `n + 1` gates, so they are in `P/poly`.
 
@@ -84,6 +87,14 @@ theorem PPoly.of_mem_SPARSE
         exact ⟨hx, by simp⟩)).trans (hL n)
   rw [Set.encard_coe_eq_coe_finsetCard, card_image_of_injective _ List.ofFn_injective] at hle
   exact Nat.cast_le.mp hle
+
+/-- **SPARSE ⊆ P/poly**, for problems with any encoding `enc` of their instances: the encodings of
+the members of a sparse problem form a sparse language
+(`Cslib.Complexity.image_mem_SPARSE_encBits_iff`), which has circuits of polynomial size. -/
+theorem SPARSE_subset_PPolyOn {α : Type*} {enc : α ↪ List Bool} :
+    Complexity.SPARSE enc ⊆ PPolyOn enc := fun S hS =>
+  ⟨enc '' S, PPoly.of_mem_SPARSE (Complexity.image_mem_SPARSE_encBits_iff.mpr hS),
+    fun _ => enc.injective.mem_set_image.symm⟩
 
 /-- The word of length `n` is all `true` exactly when every one of its bits is. -/
 private theorem ofFn_eq_replicate_true_iff {n : ℕ} {x : BitString n} :

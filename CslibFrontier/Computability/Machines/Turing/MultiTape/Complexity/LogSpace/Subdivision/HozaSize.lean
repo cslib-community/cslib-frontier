@@ -119,12 +119,9 @@ can be represented in unary within this budget, and the exclusive limit is writt
 theorem seedSearchSize_inSpace :
     ComputableInSpace (fun p : ℕ × ℕ => seedSearchSize p.1 p.2) (encPair encNat encNat)
       encSeedSearchSize (fun p => (encPair encNat encNat p).length) := by
-  have hwidth := budget_comp (of_inO ComputableInO.natToUnary) codeLength_inSpace
-    (.of_le_linear 268435456 268435456 fun p => by
-      have := codeLength_le_encodedDimensions p
-      omega)
   exact encSeedSearchSize_mk_budget subdivisionSize_inSpace codeLength_inSpace
-    ((budget_comp_linear (of_inO (ComputableInDegree.two_pow_length encUnary).inO_one)
-      hwidth).of_enc_eq fun _ => by simp [encUnary_apply])
+    (budget_twoPow codeLength_inSpace (.of_le_linear 268435456 268435456 fun p => by
+      have := codeLength_le_encodedDimensions p
+      omega))
 
 end Cslib.Reachability.Hoza

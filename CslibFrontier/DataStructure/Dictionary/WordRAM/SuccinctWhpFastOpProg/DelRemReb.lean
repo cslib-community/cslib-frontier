@@ -86,11 +86,10 @@ private theorem realizes_delRemRebCheck :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     obtain ⟨hst_ra, hres_ra, _, _⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
-    obtain ⟨hst_rc, hres_rc, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
-      (by dsimp [hdrRebScanCursor]; omega) (s := s)
+    obtain ⟨hst_rc, hres_rc, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebScanCursor) (s := s) (by decide)
     obtain ⟨hst_o, hres_o, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
       hrep.2.2.2.1 (s := s)
@@ -135,10 +134,9 @@ private theorem realizes_readCandFpGen :
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_wp, hseed⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-    obtain ⟨hst_cs, _, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-      (by dsimp [hdrRebCandSalt]; omega) (s := s)
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+    obtain ⟨hst_cs, _, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebCandSalt) (s := s) (by decide)
     obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) hth s
     simp only [hst_cs, hmh_st, hmh_res] at *
@@ -181,12 +179,11 @@ private theorem realizes_delRemRebActive :
     obtain ⟨c, U, V, w₀, n_max, θ, fs, rm, henv, heq_wp, hseed, hrep, hb, hrIdx, hins_r, hv_r⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hst_cs, hres_cs, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-      (by dsimp [hdrRebCandSalt]; omega) (s := s)
+    obtain ⟨hst_cs, hres_cs, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebCandSalt) (s := s) (by decide)
     obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) hth s
     obtain ⟨hfp_st, hfp_res, _, _⟩ :=
@@ -255,13 +252,12 @@ theorem realizes_delRemRebGen :
     obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hce, hb, hrIdx, hreb_fn⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨hst_ra, hres_ra, _, _⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
-    obtain ⟨hst_rc, hres_rc, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
-      (by dsimp [hdrRebScanCursor]; omega) (s := s)
+    obtain ⟨hst_rc, hres_rc, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebScanCursor) (s := s) (by decide)
     obtain ⟨hst_o, hres_o, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
       hrep.2.2.2.1 (s := s)
@@ -330,11 +326,10 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
   set cp := mkWhpCoreParams c U V w n_max
   have hwp1 : (mkWhpParams c U V w n_max).1 = cp := by
     simp [cp, mkWhpParams, Nat.not_lt.mpr hth]
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   obtain ⟨hst_ra, hres_ra, hmc_ra, hvp_ra⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
-  obtain ⟨hst_rc, hres_rc, hmc_rc, hvp_rc⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
-    (by dsimp [hdrRebScanCursor]; omega) (s := s)
+  obtain ⟨hst_rc, hres_rc, hmc_rc, hvp_rc⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrRebScanCursor) (s := s) (by decide)
   rw [hrep.2.2.2.2.2.2.2.2.2.2.1] at hres_rc
   obtain ⟨hst_o, hres_o, hmc_o, hvp_o⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
@@ -364,9 +359,8 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
   · rw [ite_eq_left hcond]
     rw [ite_eq_left (hcond_iff.mpr hcond)] at hck
     obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn ((Bool.and_eq_true _ _).mp hcond).1
-    obtain ⟨hst_cs, hres_cs, hmc_cs, hvp_cs⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-      (by dsimp [hdrRebCandSalt]; omega) (s := s)
+    obtain ⟨hst_cs, hres_cs, hmc_cs, hvp_cs⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebCandSalt) (s := s) (by decide)
     rw [hrep.2.2.2.2.2.2.2.2.2.1] at hres_cs
     obtain ⟨hmh_st, hmh_res, hmh_mc, hmh_vp⟩ :=
       mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s

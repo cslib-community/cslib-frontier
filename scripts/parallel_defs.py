@@ -4,7 +4,7 @@ whose statement the library or its dependencies already prove.
 
 Usage: python3 scripts/parallel_defs.py [--base REF | --decl NAME... | --all]
            [--theorems [--no-external]] [--tiers SIZE:SHARE,...] [--max-shared N] [--same-module]
-           [--limit N] [--github] [--no-build-check]
+           [--limit N] [--github] [--summary-file PATH] [--no-build-check]
 
 AGENTS.md asks for reuse of existing definitions rather than parallel notions: the same concept
 defined again for another carrier type, or a copied verifier or game. This tool points authors and
@@ -379,22 +379,27 @@ def outputs_current() -> bool:
     return lo.lake_outputs_current(("CslibFrontier",))
 
 
-def publish(report: str, github: bool) -> None:
+def publish(report: str, github: bool, summary_file: Path | None = None) -> None:
     """Keep the log and review summary consistent, including skips and partial coverage."""
     print(report, end="")
+    if summary_file is not None:
+        with summary_file.open("a", encoding="utf-8") as copy:
+            copy.write(report)
     if github and os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
             summary.write(report)
 
 
-def skip(reason: str, github: bool, title: str = DEFS_TITLE) -> int:
+def skip(reason: str, github: bool, title: str = DEFS_TITLE,
+         summary_file: Path | None = None) -> int:
     publish(f"### {title} (advisory)\n\n{title} skipped: {reason}. "
-            "This is not a completed duplication check.\n", github)
+            "This is not a completed duplication check.\n", github, summary_file)
     return 0
 
 
 def run(args: argparse.Namespace, root: Path, build_dir: Path) -> int:
     title = THEOREMS_TITLE if args.theorems else DEFS_TITLE
+    summary_file: Path | None = getattr(args, "summary_file", None)
     modules = library_modules(root)
     if args.all:
         changed: dict[str, list[tuple[int, int]] | None] = {path_of(m): None for m in modules}
@@ -403,18 +408,20 @@ def run(args: argparse.Namespace, root: Path, build_dir: Path) -> int:
     if not changed and not args.decl:
         what = "theorems" if args.theorems else "definitions"
         publish(f"### {title} (advisory)\n\n"
-                f"{title}: no `CslibFrontier/` {what} added or modified.\n", args.github)
+                f"{title}: no `CslibFrontier/` {what} added or modified.\n",
+                args.github, summary_file)
         return 0
     if not build_dir.is_dir():
         return skip(f"no build outputs in {build_dir}; run `lake build` first", args.github,
-                    title)
+                    title, summary_file)
     unbuilt = [rel for rel in changed
                if not (build_dir / rel.removesuffix(".lean")).with_suffix(".olean").is_file()]
     if unbuilt and not args.all:
         return skip(f"{len(unbuilt)} changed module(s) are not built, e.g. {unbuilt[0]}",
-                    args.github, title)
+                    args.github, title, summary_file)
     if not args.no_build_check and not outputs_current():
-        return skip("the build outputs are stale; run `lake build` first", args.github, title)
+        return skip("the build outputs are stale; run `lake build` first", args.github, title,
+                    summary_file)
     tiers = parse_tiers(args.tiers)
     stdin = requests(modules, changed, args.decl, args.theorems, not args.no_external)
     rows = run_reader(build_dir, stdin, min(size for size, _ in tiers), args.max_shared)
@@ -428,7 +435,7 @@ def run(args: argparse.Namespace, root: Path, build_dir: Path) -> int:
     report = markdown(found, stats["examined"], args.limit, theorems=args.theorems,
                       source_url=github_source_url() if args.github else None,
                       missing=stats["missing"])
-    publish(report, args.github)
+    publish(report, args.github, summary_file)
     if args.github:
         for line in annotations(found, args.limit):
             print(line)
@@ -461,6 +468,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT, build_dir: Path = BUI
     parser.add_argument("--limit", type=int, default=10, help="report at most this many")
     parser.add_argument("--github", action="store_true",
                         help="write the job summary and notice annotations")
+    parser.add_argument("--summary-file", type=Path, default=None,
+                        help="append the Markdown report (without workflow commands) to PATH")
     parser.add_argument("--no-build-check", action="store_true",
                         help="do not check that the build outputs are current")
     args = parser.parse_args(argv)
@@ -468,7 +477,7 @@ def main(argv: list[str] | None = None, root: Path = ROOT, build_dir: Path = BUI
         return run(args, root, build_dir)
     except (Exception, SystemExit) as error:  # advisory: never fail the caller
         return skip(f"the tool failed ({error})", args.github,
-                    THEOREMS_TITLE if args.theorems else DEFS_TITLE)
+                    THEOREMS_TITLE if args.theorems else DEFS_TITLE, args.summary_file)
 
 
 if __name__ == "__main__":

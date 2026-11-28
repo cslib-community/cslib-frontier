@@ -434,7 +434,8 @@ theorem ValidSubtree.deg_bounds {n : ℕ} {st : RawState n} {T : FHTree n}
     (hT : ValidSubtree st none T) {m : ℕ} (hm : T.size ≤ m) :
     T.deg ≤ 2 * Nat.log 2 m + 1 ∧ T.deg + 1 ≤ m := by
   have hfib : Nat.fib (T.deg + 2) ≤ m := hT.fib_le_size.trans hm
-  exact ⟨deg_le_two_mul_log_add_one hfib, (deg_add_one_le_fib T.deg).trans hfib⟩
+  exact ⟨(Nat.le_two_mul_log_of_fib_le hfib).trans (Nat.le_succ _),
+    (deg_add_one_le_fib T.deg).trans hfib⟩
 
 /-! ## Constructing and linking root trees -/
 

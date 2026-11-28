@@ -128,8 +128,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
         (93500 * migFactor + 10000) * n := by
   intro N_new peakF
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hy_set_b hhdr_set
-  have ⟨hNU_old, hn_old⟩ : N_old ≤ U ∧ n ≤ N_old := by
-    rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨hN_new_pos, hn_new, hN_new_2n, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   set newMeta := base + offCompItems U w N_old
@@ -139,8 +138,8 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   set arenaW := migrateArenaWords U V w N_old N_new n
   set arenaB := newMeta + offNew
   set oldItemDst := arenaB + (arenaW - iwOld)
-  have hpeak_raw : base + migratePeakWords U V w N_old n = arenaB + arenaW := by
-    dsimp only [migratePeakWords, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]; ring
+  have hpeak_raw : base + migratePeakWords U V w N_old n = arenaB + arenaW :=
+    base_add_migratePeakWords base U V w N_old n
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_raw ▸ hfit_peak
   have hfit_nm : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
   obtain ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,

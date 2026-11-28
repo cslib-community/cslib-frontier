@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.ConcentratingShiftSet
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SetPartitioned
-public import CslibFrontier.Computability.Circuit.Arithmetic.ROABP
+public import CslibFrontier.Computability.Circuit.Arithmetic.ROABP.SplitRank
 
 /-!
 # Hitting sets for multilinear any-order ROABPs
@@ -47,7 +47,6 @@ every variable a block of its own; the set of all these points is `anyOrderHitti
 * `isHittingSet_anyOrderHittingSet`: the hitting set for multilinear polynomials of split rank
   at most `w` across every split.
 * `card_anyOrderHittingSet_le`: its size, a polynomial in `n` and `w`.
-* `IsAnyOrderROABP.splitRankLE`: any-order programs of width `w` have split rank at most `w`.
 * `isHittingSet_anyOrderHittingSet_roabp`: the hitting set for multilinear any-order ROABPs.
 
 ## References
@@ -106,23 +105,6 @@ theorem card_anyOrderHittingSet_le :
 section ROABP
 
 variable {F : Type*} [Field F] {n w : ℕ}
-
-/-- Nisan's observation: a polynomial computed by width-`w` read-once oblivious branching
-programs in every order has split rank at most `w` across every split of the variables. -/
-theorem IsAnyOrderROABP.splitRankLE {f : MvPolynomial (Fin n) F} (hf : IsAnyOrderROABP w f)
-    (U : Finset (Fin n)) : SplitRankLE (U : Set (Fin n)) w f := by
-  classical
-  obtain ⟨M, s, t, rfl⟩ := hf (U.toList ++ Uᶜ.toList)
-    (List.Nodup.append U.nodup_toList Uᶜ.nodup_toList fun i hi hi' =>
-      (mem_compl.1 (mem_toList.1 hi')) (mem_toList.1 hi))
-    (fun i => List.mem_append.2 ((em (i ∈ U)).imp mem_toList.2 fun h =>
-      mem_toList.2 (mem_compl.2 h)))
-  refine ⟨fun k => roabpProd M U.toList s k, fun k => roabpProd M Uᶜ.toList k t,
-    fun k => roabpProd_mem_supported M _ (fun i hi => mem_coe.2 (mem_toList.1 hi)) _ _,
-    fun k => roabpProd_mem_supported M _
-      (fun i hi => fun h => mem_compl.1 (mem_toList.1 hi) (mem_coe.1 h)) _ _, ?_⟩
-  rw [roabpProd, List.map_append, List.prod_append, Matrix.mul_apply]
-  rfl
 
 /-- **Polynomial-size hitting sets for multilinear any-order ROABPs** ([Shpilka2026],
 Theorem 1.1, in characteristic zero). `anyOrderHittingSet F n w` hits every multilinear

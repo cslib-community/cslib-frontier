@@ -21,7 +21,7 @@ pp. 10:10–10:11) [CarmosinoImpagliazzoKabanetsKolokolova2016].
 basis into which the unbounded fan-in basis with `MOD₂` gates translates, with a depth bound. This
 file gives the form for fan-in-two De Morgan circuits, where only size is counted: if `f` has
 De Morgan circuit complexity at most `s`, every `g_z` has De Morgan circuit complexity at most
-`(2100 · 8)² (ℓ + k s + 6 n'² + 3 + 1) ^ 8`, with `n' = k n + k`.
+`280 (ℓ + k s + 6 n'² + 3 + 1) ^ 3`, with `n' = k n + k`.
 
 The proof reads the De Morgan circuit for `f` as a circuit over the unbounded fan-in basis with
 `MOD₂` gates, builds the generator circuit there, and converts back with the polynomial-size
@@ -51,28 +51,32 @@ pp. 10:10–10:11][CarmosinoImpagliazzoKabanetsKolokolova2016], for `p = 2` and 
 circuits: if `f` has De Morgan circuit complexity at most `s`, then for every seed `z` the function
 `g_z`, whose truth table is the Nisan–Wigderson generator of `glAmp f k` on `z` for the design
 `Design.binaryPolynomial (k n + k) ℓ`, has De Morgan circuit complexity at most
-`(2100 · 8)² (ℓ + k s + 6 (k n + k)² + 3 + 1) ^ 8`. Only size is counted. -/
+`280 (ℓ + k s + 6 (k n + k)² + 3 + 1) ^ 3`. Only size is counted. -/
 theorem complexity_generator_glAmp_le {n s : ℕ} {f : BooleanFunction n}
     (hf : complexity interpretation (single f) ≤ s) (k ℓ : ℕ)
     (z : Fin ((k * n + k) * 2 ^ binaryFieldDegree (k * n + k)) → Bool) :
     complexity interpretation (single ((MCSP.truthTable ℓ).symm
         (generator (Design.binaryPolynomial (k * n + k) ℓ) (glAmp f k) z))) ≤
-      (2100 * 8) ^ 2 * (ℓ + (k * s + 6 * (k * n + k) ^ 2 + 3) + 1) ^ 8 := by
+      280 * (ℓ + (k * s + 6 * (k * n + k) ^ 2 + 3) + 1) ^ 3 := by
   obtain ⟨C, hC, hCs⟩ := complexity_le_iff.1 hf
   -- read `C` over the unbounded fan-in basis with `MOD₂` gates
   have hC' := (hC.mapOp (φ := Unbounded.deMorganToUnbounded) (J := Unbounded.interpretation)).mapOp
     (φ := Unbounded.toExt) (J := Unbounded.extInterpretation (modGate 2))
   obtain ⟨G, hG, hGs, -⟩ := exists_circuit_generator_glAmp (Signature.Hom.id _) hC' k ℓ z
   -- and convert the generator circuit back to a De Morgan circuit
-  obtain ⟨D, hDe, hDs⟩ := Unbounded.exists_deMorgan_simulation_modGate 2 G
+  obtain ⟨D, hDe, hDs, -⟩ := Unbounded.exists_deMorgan_simulation_modGate 2 G
   have hD : D.Computes interpretation _ := fun x => (congrFun hDe x).trans (hG x)
   have hG' : G.size ≤ k * s + 6 * (k * n + k) ^ 2 + 3 := by
     refine hGs.trans ?_
     simp only [Circuit.size_mapOp]
     gcongr
   refine (complexity_le_of_computes D hD).trans (hDs.trans ?_)
-  have h8 : max 2 1 ^ 3 = 8 := rfl
-  rw [h8]
-  gcongr
+  have h2 : max 2 1 = 2 := rfl
+  rw [h2]
+  set M := ℓ + (k * s + 6 * (k * n + k) ^ 2 + 3) + 1
+  have hGM : G.size ≤ M := by omega
+  have hM : 2 * (ℓ + G.size) + 1 ≤ 2 * M := by omega
+  calc G.size * (70 * (2 * (ℓ + G.size) + 1) ^ 2) ≤ M * (70 * (2 * M) ^ 2) := by gcongr
+    _ = 280 * M ^ 3 := by ring
 
 end Cslib.Crypto.PRG.NisanWigderson

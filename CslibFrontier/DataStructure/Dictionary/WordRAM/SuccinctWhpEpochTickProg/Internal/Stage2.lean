@@ -154,7 +154,7 @@ theorem realizes_epochTickStage2Gen :
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     have hdr (off : ℕ) (hoff : off < 32) := readHdrProg_spec (w := w)
@@ -204,7 +204,7 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
     FastStateStep base c U V w n_max θ (epochTickStage2 c U n_max θ fs) s s' := by
   have hth := henv.2.2.2.1
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
   set cp := mkWhpCoreParams c U V w n_max

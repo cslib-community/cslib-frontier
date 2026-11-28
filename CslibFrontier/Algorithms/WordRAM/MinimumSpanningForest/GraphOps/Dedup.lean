@@ -110,9 +110,6 @@ private theorem copyIndexedEdge_spec {w srcBase dstBase srcIdx dstIdx : ℕ} {s 
     ⟨rfl, fun q hq => ArrayCopy.copyPrefix_read hq⟩).wellFormed hwf
   exact hcopy.mono (by decide) fun _ _ ⟨⟨hfr, hmem⟩, hwf'⟩ => ⟨hfr, hwf', hmem⟩
 
-private theorem allocBlockDirty_clientResult (st : Memory.State) (k : ℕ) :
-    (Memory.spec 0).clientResult st (Memory.allocBlockDirty k) = ⟨st.frontier, k⟩ := rfl
-
 private theorem holdsRecords_zero_mem {base : ℕ} {rows : List (Fin 3 → ℕ)} {mem : ℕ → ℕ}
     (hrows : HoldsRecords 3 base rows mem) (hk : 0 < rows.length) :
     mem base = rows[0] 0 ∧ mem (base + 1) = rows[0] 1 ∧ mem (base + 2) = rows[0] 2 :=
@@ -688,11 +685,8 @@ private theorem realizes_dedupSortedProg : Realizes .exact
   realize [realizes_dedupScanStep, realizes_copyIndexedEdge]
   all_goals
     rcases h with ⟨h16, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
-    have hcs : ∀ st k, (Memory.spec 0).clientState st (Memory.allocBlockDirty k) =
-      ⟨st.mem, st.frontier + k⟩ := fun _ _ => rfl
-    try simp only [allocBlockDirty_clientResult] at h9 h7 h8 ⊢
-    repeat rw [hcs] at *
-    try dsimp only at h9 h7 h8 ⊢
+    repeat rw [Memory.clientState_allocBlockDirty] at *
+    try simp only [Memory.clientResult_allocBlockDirty] at h9 h7 h8 ⊢
     have hfront := hmem.frontier_fits
     first
     | exact h10 | exact iterationSafe_imp h9 (fun _ => rfl) (fun _ _ hs => hs)
@@ -1421,7 +1415,7 @@ theorem realizes_dedupSimpleEdgesProg : Realizes .exact
     realize [realizes_allocBlockDirty, realizes_dedupPrepStep, realizes_countingSortProg,
       realizes_dedupSortedProg]
     all_goals
-      try simp only [allocBlockDirty_clientResult] at *
+      try simp only [Memory.clientResult_allocBlockDirty] at *
       rcases h with ⟨h16, h3m, hnm, hsafe_p, hnz⟩
       have hfront := hmem.frontier_fits
       first

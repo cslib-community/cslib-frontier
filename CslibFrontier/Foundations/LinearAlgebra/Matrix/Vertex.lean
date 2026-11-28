@@ -210,7 +210,7 @@ variable [IsStrictOrderedRing K]
 omit [Fintype κ] in
 /-- Ray shooting, the minimum ratio test: from a feasible `x`, moving in a direction `v` that
 increases some row, the largest feasible step `t` makes some row `c` with `0 < (A *ᵥ v) c` tight. -/
-private theorem exists_tight_add_smul [Finite κ] (hx : A *ᵥ x ≤ b) {v : ι → K} {c : κ}
+theorem exists_tight_add_smul [Finite κ] (hx : A *ᵥ x ≤ b) {v : ι → K} {c : κ}
     (hc : 0 < (A *ᵥ v) c) :
     ∃ t : K, ∃ c, 0 < (A *ᵥ v) c ∧ A *ᵥ (x + t • v) ≤ b ∧ (A *ᵥ (x + t • v)) c = b c := by
   have := Fintype.ofFinite κ

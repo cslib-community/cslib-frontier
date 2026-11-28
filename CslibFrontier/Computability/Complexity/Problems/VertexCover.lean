@@ -48,7 +48,8 @@ first-order interpretations.
 ## Main definitions
 
 * `Cslib.Complexity.VertexCoverInstance`, `Cslib.Complexity.VertexCover`.
-* `Cslib.Complexity.VertexCover.declaredEdges`: the listed edges between declared vertices.
+* `Cslib.Complexity.VertexCover.declaredEdges`, `Cslib.Complexity.VertexCover.properEdges`: the
+  listed edges between declared vertices, and those between two distinct ones.
 * `Cslib.Complexity.VertexCover.isUncoveredEdge`, `Cslib.Complexity.VertexCover.uncoveredEdges`,
   `Cslib.Complexity.VertexCover.isCover`, `Cslib.Complexity.VertexCover.verifier`.
 * `Cslib.Complexity.IndependentSet.toVertexCover`.
@@ -253,8 +254,37 @@ private theorem computableInPolyTime_isDeclaredEdge :
 /-- Listing the edges between declared vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_declaredEdges :
-    ComputableInPolyTime declaredEdges encGraph (encList (encPair encNat encNat)) := by
+    ComputableInPolyTime declaredEdges encGraph encEdgeList := by
   fun_prop [declaredEdges]
+
+/-- The listed edges of `G` between two distinct declared vertices. -/
+def properEdges (G : Graph) : List (ℕ × ℕ) :=
+  (declaredEdges G).filter fun e => decide (e.1 ≠ e.2)
+
+/-- An edge is proper when it is listed and joins two distinct declared vertices. -/
+theorem mem_properEdges {G : Graph} {e : ℕ × ℕ} :
+    e ∈ properEdges G ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧ e.1 ≠ e.2 := by
+  simp only [properEdges, List.mem_filter, mem_declaredEdges, decide_eq_true_eq, and_assoc]
+
+/-- Covering the listed proper edges is equivalent to covering adjacency on declared vertices. -/
+theorem covers_properEdges_iff {G : Graph} {P : ℕ → Prop} :
+    (∀ e ∈ properEdges G, P e.1 ∨ P e.2) ↔
+      ∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → P u ∨ P v := by
+  constructor
+  · intro h u hu v hv hadj
+    obtain ⟨hne, he | he⟩ := Graph.toSimpleGraph_adj.1 hadj
+    · exact h (u, v) (mem_properEdges.2 ⟨he, hu, hv, hne⟩)
+    · exact (h (v, u) (mem_properEdges.2 ⟨he, hv, hu, hne.symm⟩)).symm
+  · intro h e he
+    obtain ⟨he, hu, hv, hne⟩ := mem_properEdges.1 he
+    exact h e.1 hu e.2 hv (Graph.toSimpleGraph_adj.2 ⟨hne, Or.inl he⟩)
+
+/-- Listing the proper edges is polynomial-time. -/
+@[fun_prop]
+theorem computableInPolyTime_properEdges :
+    ComputableInPolyTime properEdges encGraph encEdgeList := by
+  unfold properEdges
+  fun_prop
 
 /-- Whether the edge `e` joins two distinct declared vertices of `G` and neither endpoint is in
 `C`. -/
@@ -285,13 +315,9 @@ theorem mem_uncoveredEdges_iff {G : Graph} {C : List ℕ} {e : ℕ × ℕ} :
 theorem isCover_eq_true_iff {G : Graph} {C : List ℕ} :
     isCover G C = true ↔
       ∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → u ∈ C ∨ v ∈ C := by
-  simp only [isCover, uncoveredEdges, List.isEmpty_iff, List.filter_eq_nil_iff,
-    isUncoveredEdge_eq_true_iff, Graph.toSimpleGraph_adj, not_and, not_not, Prod.forall]
-  refine ⟨fun h u hu v hv ⟨huv, he⟩ => ?_,
-    fun h u v he hu hv huv huC => (h u hu v hv ⟨huv, Or.inl he⟩).resolve_left huC⟩
-  rcases he with he | he
-  · exact if huC : u ∈ C then Or.inl huC else Or.inr (h u v he hu hv huv huC)
-  · exact if hvC : v ∈ C then Or.inr hvC else Or.inl (h v u he hv hu huv.symm hvC)
+  rw [← covers_properEdges_iff]
+  simp only [isCover, List.isEmpty_iff, List.eq_nil_iff_forall_not_mem,
+    mem_uncoveredEdges_iff, mem_properEdges, not_and, not_not, or_iff_not_imp_left, and_imp]
 
 /-- Testing whether an edge is uncovered is polynomial-time. -/
 @[local fun_prop]
@@ -306,7 +332,7 @@ private theorem computableInPolyTime_isUncoveredEdge :
 @[fun_prop]
 theorem computableInPolyTime_uncoveredEdges :
     ComputableInPolyTime (fun p : Graph × List ℕ => uncoveredEdges p.1 p.2)
-      (encPair encGraph (encList encNat)) (encList (encPair encNat encNat)) := by
+      (encPair encGraph (encList encNat)) encEdgeList := by
   fun_prop [uncoveredEdges]
 
 /-- Testing whether `C` is a cover of `G` is polynomial-time. -/

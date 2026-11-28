@@ -36,7 +36,8 @@ undirected CSR graphs, reusing `ArrayOps.fillConstProg`, `Memory.allocBlockDirty
 * `realizes_connectedComponentsProg`, `connectedComponentsProg_spec`: correctness and linear cost.
 * `realizes_contractEdgesProg`, `contractEdgesProg_spec`: correctness and edge-contraction cost.
 * `realizes_compactVerticesProg`, `compactVerticesProg_spec`, `compactVertices_isSimple`,
-  `compactVertices_isMinSpanningForest`: correctness, simplicity, and MSF preservation.
+  `compactVertices_isMinSpanningForest`, `card_le_two_mul_of_noIsolated`: correctness, simplicity,
+  MSF preservation, and non-isolated vertex count bound.
 -/
 
 public section
@@ -177,24 +178,6 @@ private theorem holdsUndirCSR_of_ico {n offBase adjBase lo hi : ℕ} {es : List 
     HoldsUndirCSR offBase adjBase es s'.mem :=
   hcsr.congr (fun a _ ha => hmod.mem_eq_of_not_mem (by omega) (by simp; omega))
     (fun a _ ha => hmod.mem_eq_of_not_mem (by omega) (by simp; omega))
-
-private theorem iterate_const_spec {δ σ : Type} (body : δ × σ → Memory.Prog σ)
-    (safe : ℕ → δ × σ → Memory.State → Prop) (w : ℕ) (d : δ) (B n : ℕ)
-    (inv : ℕ → σ → Memory.State → Prop) (S : Set ℕ) (a₀ : σ) (s₀ : Memory.State)
-    (h₀ : inv 0 a₀ s₀)
-    (hstep : ∀ k < n, ∀ a s, inv k a s → safe w (d, a) s ∧
-      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (body (d, a))) ∧
-      memoryCost (body (d, a)) s ≤ B ∧
-      let a' := (Memory.spec 0).clientResult s (body (d, a))
-      let s' := (Memory.spec 0).clientState s (body (d, a))
-      Memory.Modifies S s s' ∧ inv (k + 1) a' s') :
-    let prog := iterate body d n a₀
-    iterationSafe body safe w d n a₀ s₀ ∧ Memory.FramedTriple w s₀ prog (B * n) S (inv n) := by
-  have h := iterate_potential_spec body safe w d B n inv (fun _ _ _ => 0) S
-    (fun k hk a s hi => by
-      obtain ⟨hs, hv, hc, hm, hi'⟩ := hstep k hk a s hi
-      exact ⟨hs, hv, by omega, hm, hi'⟩) a₀ s₀ h₀
-  exact ⟨h.1, framedTriple_iff_realization.mpr ⟨h.2.1, by simpa using h.2.2.1, h.2.2.2⟩⟩
 
 /-! ## Internal Potential and BFS Steps -/
 
@@ -418,11 +401,9 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
     ∃ q : List (Fin n), st = ⟨startJ + k, q.length⟩ ∧ q₀.Sublist q ∧
       BfsInv compBase queueBase cid es r q t ∧
       (∀ p' < k, ∃ v' : Fin n, t.mem (adjBase + 2 * (startJ + p')) = v'.val ∧ v' ∈ q)
-  obtain ⟨hsafe, hft⟩ := iterate_const_spec ccRelaxStep ccRelaxStepSafe w cfg 4 (endJ - startJ)
-      inv S ⟨startJ, q₀.length⟩ s
-      ⟨rfl, hwf, fun _ _ => rfl, CompStable.refl _ _ _ _, fun _ _ => rfl,
-        q₀, by simp, List.Sublist.refl q₀, hb₀, fun _ h => absurd h (Nat.not_lt_zero _)⟩
-      (fun k hk st t ⟨htfr, hwt, hframe, hold_comp, hold_q, q, hst_eq, hsub, hb, hvis_prev⟩ => by
+  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step ccRelaxStep ccRelaxStepSafe w cfg 4
+      (endJ - startJ) inv S (fun k hk st t
+        ⟨htfr, hwt, hframe, hold_comp, hold_q, q, hst_eq, hsub, hb, hvis_prev⟩ => by
         subst st
         have hcsr_t : HoldsUndirCSR offBase adjBase es t.mem :=
           hcsr.congr (fun a _ ha => hframe a (by omega)) (fun a _ ha => hframe a (by omega))
@@ -486,7 +467,8 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
           have hmod : ∀ a, a ∉ S → t'.mem a = t.mem a := fun a ha => by
             dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at ha; update_simp
           have hq₀_le := hsub.length_le
-          refine ⟨hsafe, hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩
+          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
+            ⟨hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩⟩
           rw [hst, hres]; refine ⟨htfr, hst ▸ wellFormed_clientState hwt hvh,
             fun a ha => (hmod a (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
             hold_comp.trans hcs_step,
@@ -506,7 +488,8 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
             dsimp only [stepProg, ccRelaxStep, cfg]
             rw [clientResult_bind_read, hnb_eq, clientResult_bind_read]
             simp only [hcv, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-          refine ⟨hsafe, hvh, hcost, ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, ?_⟩
+          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
+            ⟨hvh, hcost, ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, ?_⟩⟩
           rw [hst, hres]; refine ⟨htfr, hwt, hframe, hold_comp, hold_q, q,
             by simp only [Nat.add_assoc], hsub, hb, fun p' hp' => ?_⟩
           by_cases hp : p' = k
@@ -520,6 +503,9 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
                 omega
               · exact (hb.comp_cid v).mp h_eq_cid
           · exact hvis_prev p' (by omega))
+      ⟨startJ, q₀.length⟩ s
+      ⟨rfl, hwf, fun _ _ => rfl, CompStable.refl _ _ _ _, fun _ _ => rfl,
+        q₀, by simp, List.Sublist.refl q₀, hb₀, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hv, hm, hmod, hfr, hwf', _, hold_comp, hold_q, q₁, hst_end, hsub₁, hb₁, hvis₁⟩ :=
     framedTriple_iff_realization.mp hft
   have hcsr' := holdsUndirCSR_of_ico hcsr hmod (by omega) (by omega) (by omega)
@@ -1377,9 +1363,8 @@ private theorem contractEdges_loop_spec {w : ℕ} {d : ContractEdgesArgs} {s : M
       t.mem (outBase + 4 * i + 1) = s.mem (d.compBase + s.mem (d.edgeBase + 4 * i + 1)) ∧
       t.mem (outBase + 4 * i + 2) = s.mem (d.edgeBase + 4 * i + 2) ∧
       t.mem (outBase + 4 * i + 3) = s.mem (d.edgeBase + 4 * i + 3)
-  obtain ⟨hsafe, hft⟩ := iterate_const_spec contractEdgeStep contractEdgeStepSafe w
-      ⟨d.edgeBase, d.compBase, outBase⟩ 10 d.numEdges inv S 0 s₀
-      ⟨rfl, rfl, hwf₀, fun _ _ => rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
+  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step contractEdgeStep contractEdgeStepSafe w
+      ⟨d.edgeBase, d.compBase, outBase⟩ 10 d.numEdges inv S
       (fun k hk st t ⟨hst_eq, htfr, hwf_t, hframe, hpref⟩ => by
         subst st; obtain ⟨hb1, hb2, hb3⟩ := hbounds k hk
         have hu : t.mem (d.edgeBase + 4 * k) = s.mem (d.edgeBase + 4 * k) := hframe _ (by omega)
@@ -1413,7 +1398,8 @@ private theorem contractEdges_loop_spec {w : ℕ} {d : ContractEdgesArgs} {s : M
           dsimp only [stepProg, contractEdgeStep]; repeat rw [clientState_bind_read]; rfl
         have hmod : ∀ x, x ∉ S → t'.mem x = t.mem x := fun x hx => by
           dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at hx; update_simp
-        refine ⟨hsafe, hvh, hcost, ⟨by rw [hst], fun x _ hx => by rw [hst]; exact hmod x hx⟩, ?_⟩
+        refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
+          ⟨hvh, hcost, ⟨by rw [hst], fun x _ hx => by rw [hst]; exact hmod x hx⟩, ?_⟩⟩
         rw [hst, hres]; refine ⟨rfl, htfr, hst ▸ wellFormed_clientState hwf_t hvh,
           fun a ha => (hmod a (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
           fun i hi => ?_⟩
@@ -1424,6 +1410,7 @@ private theorem contractEdges_loop_spec {w : ℕ} {d : ContractEdgesArgs} {s : M
           all_goals exact hframe _ (by omega)
         · obtain ⟨h1, h2, h3, h4⟩ := hpref i (by omega)
           refine ⟨?_, ?_, ?_, ?_⟩ <;> (update_simp; assumption))
+      0 s₀ ⟨rfl, rfl, hwf₀, fun _ _ => rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   exact ⟨hsafe, hft.mono le_rfl fun _ _ ⟨_, hfr, hw, hfrm, hv⟩ => ⟨hfr, hw, hfrm, hv⟩⟩
 
 private theorem contractEdgesProg_word_spec {w n n' : ℕ} {d : ContractEdgesArgs}
@@ -1606,10 +1593,8 @@ private theorem compactMark_spec {w n edgeBase markBase : ℕ}
     (∀ x : Fin n, t.mem (markBase + x.val) = 0 ∨ t.mem (markBase + x.val) = 1) ∧
     ∀ x : Fin n, t.mem (markBase + x.val) = 1 ↔
       ∃ i, ∃ (_ : i < k) (hlt : i < es.length), (es[i]'hlt).u = x ∨ (es[i]'hlt).v = x
-  obtain ⟨hsafe, hft⟩ := iterate_const_spec compactMarkStep compactMarkStepSafe w
-      ⟨edgeBase, markBase⟩ 4 es.length inv S 0 s
-      ⟨rfl, rfl, hwf, fun _ _ => rfl, fun x => .inl (hinit x), fun x =>
-        ⟨fun h => by rw [hinit x] at h; omega, fun ⟨_, h, _⟩ => absurd h (Nat.not_lt_zero _)⟩⟩
+  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step compactMarkStep compactMarkStepSafe w
+      ⟨edgeBase, markBase⟩ 4 es.length inv S
       (fun k hk st t ⟨hst_eq, htfr, hwt, hframe, h01, hmark⟩ => by
         subst st
         obtain ⟨hu, hv, _, _⟩ := (hin.congr fun a _ ha => hframe a (by omega)) k hk
@@ -1643,7 +1628,8 @@ private theorem compactMark_spec {w n edgeBase markBase : ℕ}
           dsimp only [t']; rw [Function.update_apply, Function.update_apply]
           simp only [Nat.add_left_cancel_iff, Fin.val_inj]
           by_cases hxv : x = ek.v <;> by_cases hxu : x = ek.u <;> simp [hxv, hxu]
-        refine ⟨hsafe, hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩
+        refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
+          ⟨hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩⟩
         rw [hst, hres]; refine ⟨rfl, htfr, hst ▸ wellFormed_clientState hwt hvh,
           fun a ha => (hmod a (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
           fun x => by rw [hup x]; split <;> [exact .inr rfl; exact h01 x], fun x => ?_⟩
@@ -1656,6 +1642,8 @@ private theorem compactMark_spec {w n edgeBase markBase : ℕ}
           rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hi) with hik' | rfl
           · exact ⟨i, hik', hl, h_or⟩
           · exfalso; exact hor (h_or.elim (fun h => .inr h.symm) (fun h => .inl h.symm)))
+      0 s ⟨rfl, rfl, hwf, fun _ _ => rfl, fun x => .inl (hinit x), fun x =>
+        ⟨fun h => by rw [hinit x] at h; omega, fun ⟨_, h, _⟩ => absurd h (Nat.not_lt_zero _)⟩⟩
   obtain ⟨hv, hm, hmod, _, hfr, hwf', _, h01_end, hmark_end⟩ := framedTriple_iff_realization.mp hft
   refine ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv, hm, hmod, rfl, hfr, hwf'⟩, h01_end,
     fun x => (hmark_end x).trans ⟨fun ⟨i, hi, _, h_or⟩ => ⟨es[i], List.getElem_mem hi, h_or⟩,
@@ -1729,11 +1717,8 @@ private theorem compactAssign_spec {w n markBase : ℕ} {s : Memory.State}
       (∀ x : Fin n, x.val < k → (s.mem (markBase + x.val) = 1 ↔ x ∈ active)) ∧
       (∀ i (hi : i < active.length), t.mem (markBase + (active[i]'hi).val) = i) ∧
       ∀ x : Fin n, k ≤ x.val → t.mem (markBase + x.val) = s.mem (markBase + x.val)
-  obtain ⟨hsafe, hft⟩ := iterate_const_spec compactAssignStep compactAssignStepSafe w
-      markBase 2 n inv S ⟨0, 0⟩ s
-      ⟨rfl, hwf, [], rfl, List.nodup_nil, fun _ h => absurd h List.not_mem_nil,
-        fun _ h => absurd h (Nat.not_lt_zero _), fun _ h => absurd h (Nat.not_lt_zero _),
-        fun _ _ => rfl⟩
+  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step compactAssignStep compactAssignStepSafe w
+      markBase 2 n inv S
       (fun k hk st t ⟨htfr, hwt, active, hst_eq, hnd, hlt_k, hact_iff, hvals, htail⟩ => by
         subst st
         let x₀ : Fin n := ⟨k, hk⟩
@@ -1763,7 +1748,8 @@ private theorem compactAssign_spec {w n markBase : ℕ} {s : Memory.State}
             simp only [htf, ↓reduceIte]; rfl
           have hmod : ∀ a, a ∉ S → t'.mem a = t.mem a := fun a ha => by
             dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at ha; update_simp
-          refine ⟨hsafe, hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩
+          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
+            ⟨hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩⟩
           rw [hst, hres]; refine ⟨htfr, hst ▸ wellFormed_clientState hwt hvh, active ++ [x₀],
             by simp only [List.length_append, List.length_singleton],
             List.nodup_append.mpr ⟨hnd, List.nodup_singleton x₀, fun a ha b hb => by
@@ -1793,7 +1779,8 @@ private theorem compactAssign_spec {w n markBase : ℕ} {s : Memory.State}
           have hst : (Memory.spec 0).clientState t stepProg = t := by
             dsimp only [stepProg, compactAssignStep]; rw [clientState_bind_read]
             simp only [htf, ↓reduceIte]; rfl
-          refine ⟨hsafe, hvh, hcost, ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, ?_⟩
+          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
+            ⟨hvh, hcost, ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, ?_⟩⟩
           rw [hst, hres]
           refine ⟨htfr, hwt, active, rfl, hnd, fun x hx => Nat.lt_succ_of_lt (hlt_k x hx),
             fun x hx => by
@@ -1802,6 +1789,9 @@ private theorem compactAssign_spec {w n markBase : ℕ} {s : Memory.State}
               · obtain rfl : x = x₀ := Fin.ext (by dsimp only [x₀]; omega)
                 exact ⟨fun h => absurd h hf, fun hm => absurd hm hx₀_not⟩,
             hvals, fun x hx => htail x (by omega)⟩)
+      ⟨0, 0⟩ s ⟨rfl, hwf, [], rfl, List.nodup_nil, fun _ h => absurd h List.not_mem_nil,
+        fun _ h => absurd h (Nat.not_lt_zero _), fun _ h => absurd h (Nat.not_lt_zero _),
+        fun _ _ => rfl⟩
   obtain ⟨hv, hm, hmod, hfr, hwf', active, hres_eq, hnd_act, _, hact_iff, hvals_act, _⟩ :=
     framedTriple_iff_realization.mp hft
   have hact_len : active.length ≤ n := by simpa only [Fintype.card_fin] using hnd_act.length_le_card
@@ -2068,83 +2058,6 @@ theorem compactVertices_isSimple {nOut n : ℕ} {lift : Fin nOut → Fin n}
       rw [hu₁, hv₁, hu₂, hv₂]; exact congrArg (Sym2.map lift) hij
     exact Fin.ext (Fin.mk.inj (hsimp.2 hij_es))
 
-private theorem edgePartition_contractEdgeList_rel {nOut n : ℕ}
-    (lift : Fin nOut → Fin n) (hlift : Function.Injective lift) (L : List (WeightedEdge nOut ℕ)) :
-    (∀ x y : Fin nOut,
-      (edgePartition (contractEdgeList lift L)).rel (lift x) (lift y) = (edgePartition L).rel x y) ∧
-    (∀ u v : Fin n, (∀ x : Fin nOut, lift x ≠ u) →
-      (edgePartition (contractEdgeList lift L)).rel u v = decide (u = v)) := by
-  let R : Fin n → Fin n → Prop := fun a b =>
-    a = b ∨ ∃ x y : Fin nOut, lift x = a ∧ lift y = b ∧ (edgePartition L).rel x y = true
-  have hR_equiv : Equivalence R := ⟨fun _ => .inl rfl,
-    by rintro _ _ (rfl | ⟨x, y, rfl, rfl, hr⟩) <;>
-         [exact .inl rfl; exact .inr ⟨y, x, rfl, rfl, (edgePartition L).symm hr⟩],
-    by rintro _ _ _ (rfl | ⟨x₁, y₁, hx₁, hy₁, hr₁⟩) (rfl | ⟨x₂, y₂, hx₂, hy₂, hr₂⟩)
-       · exact .inl rfl
-       · exact .inr ⟨x₂, y₂, hx₂, hy₂, hr₂⟩
-       · exact .inr ⟨x₁, y₁, hx₁, hy₁, hr₁⟩
-       · obtain rfl : y₁ = x₂ := hlift (hy₁.trans hx₂.symm)
-         exact .inr ⟨x₁, y₂, hx₁, hy₂, (edgePartition L).trans hr₁ hr₂⟩⟩
-  have hiff_R : ∀ u v : Fin n,
-      Relation.EqvGen (fun a b => ∃ e ∈ contractEdgeList lift L, a = e.u ∧ b = e.v) u v ↔ R u v :=
-    fun u v => ⟨fun h => by
-      induction h with
-      | rel _ _ hab =>
-        rcases hab with ⟨e, he, rfl, rfl⟩; obtain ⟨e', he', rfl⟩ := List.mem_map.mp he
-        exact .inr ⟨e'.u, e'.v, rfl, rfl,
-          (rel_edgePartition_iff_eqvGen L e'.u e'.v).mpr (.rel _ _ ⟨e', he', rfl, rfl⟩)⟩
-      | refl => exact .inl rfl
-      | symm _ _ _ ih => exact hR_equiv.symm ih
-      | trans _ _ _ _ _ ih1 ih2 => exact hR_equiv.trans ih1 ih2,
-    fun h => by
-      rcases h with rfl | ⟨x, y, rfl, rfl, hr⟩
-      · exact .refl _
-      · have hxy := (rel_edgePartition_iff_eqvGen L x y).mp hr; clear hr
-        induction hxy with
-        | rel _ _ hab =>
-          rcases hab with ⟨e, he, rfl, rfl⟩
-          exact .rel _ _ ⟨contractEdge lift e, List.mem_map.mpr ⟨e, he, rfl⟩, rfl, rfl⟩
-        | refl => exact .refl _
-        | symm _ _ _ ih => exact .symm _ _ ih
-        | trans _ _ _ _ _ ih1 ih2 => exact .trans _ _ _ ih1 ih2⟩
-  refine ⟨fun x y => ?_, fun u v hnot => ?_⟩
-  · rw [Bool.eq_iff_iff, rel_edgePartition_iff_eqvGen, hiff_R]
-    exact ⟨by rintro (heq | ⟨x', y', hx', hy', hr'⟩)
-              · obtain rfl : x = y := hlift heq; exact (edgePartition L).refl x
-              · obtain rfl : x' = x := hlift hx'; obtain rfl : y' = y := hlift hy'; exact hr',
-      fun hr => .inr ⟨x, y, rfl, rfl, hr⟩⟩
-  · rw [Bool.eq_iff_iff, rel_edgePartition_iff_eqvGen, hiff_R, decide_eq_true_eq]
-    exact ⟨by rintro (rfl | ⟨x, _, hux, _⟩) <;> [rfl; exact absurd hux (hnot x)], fun h => .inl h⟩
-
-private theorem isAcyclic_contractEdgeList_of_injective {nOut n : ℕ}
-    {lift : Fin nOut → Fin n} (hlift : Function.Injective lift)
-    {L : List (WeightedEdge nOut ℕ)} (hL : IsAcyclic L) : IsAcyclic (contractEdgeList lift L) := by
-  induction L with
-  | nil => simp [contractEdgeList, isAcyclic_iff, edgePartition,
-      DisjointSet.Partition.numComponents_discrete]
-  | cons e rest ih =>
-    have hrest_ac := isAcyclic_sublist (List.sublist_cons_self _ _) hL; have hih := ih hrest_ac
-    have hL' := (Perm.isAcyclic_iff (List.perm_append_comm (l₁ := [e]) (l₂ := rest))).mp hL
-    rw [isAcyclic_iff] at hL' hrest_ac hih
-    rw [edgePartition, edgePartitionFrom_append, edgePartitionFrom_cons] at hL'
-    change ((edgePartition rest).merge e.u e.v).numComponents + (rest ++ [e]).length = nOut at hL'
-    have hnot : (edgePartition rest).rel e.u e.v = false := by
-      cases hr : (edgePartition rest).rel e.u e.v <;> [rfl; exfalso]
-      rw [DisjointSet.Partition.merge_of_rel hr] at hL'
-      simp only [List.length_append, List.length_singleton] at hL'; omega
-    have hnot_c : (edgePartition (contractEdgeList lift rest)).rel (lift e.u) (lift e.v) = false :=
-      (edgePartition_contractEdgeList_rel lift hlift rest).1 e.u e.v ▸ hnot
-    have hc_perm : (contractEdgeList lift (e :: rest)).Perm
-        (contractEdgeList lift rest ++ [contractEdge lift e]) := by
-      simpa only [contractEdgeList, List.map_cons, List.singleton_append] using
-        List.perm_append_comm (l₁ := [contractEdge lift e]) (l₂ := contractEdgeList lift rest)
-    rw [Perm.isAcyclic_iff hc_perm, isAcyclic_iff, edgePartition, edgePartitionFrom_append,
-      edgePartitionFrom_cons]
-    change ((edgePartition (contractEdgeList lift rest)).merge (lift e.u) (lift e.v)).numComponents
-      + (contractEdgeList lift rest ++ [contractEdge lift e]).length = n
-    have := DisjointSet.Partition.numComponents_merge_of_not_rel hnot_c
-    simp only [List.length_append, List.length_singleton] at hih ⊢; omega
-
 /-- Vertex compaction along an injective `lift` lifts any MSF `L_out` of the compacted edge list
 to an MSF `contractEdgeList lift L_out` of `es`. -/
 theorem compactVertices_isMinSpanningForest {nOut n : ℕ}
@@ -2165,26 +2078,57 @@ theorem compactVertices_isMinSpanningForest {nOut n : ℕ}
     by_cases hu : ∃ x : Fin nOut, lift x = u
     · obtain ⟨x, rfl⟩ := hu; by_cases hv : ∃ y : Fin nOut, lift y = v
       · obtain ⟨y, rfl⟩ := hv
-        rw [(edgePartition_contractEdgeList_rel lift hlift L₁).1 x y,
-          (edgePartition_contractEdgeList_rel lift hlift L₂).1 x y, heq]
+        rw [edgePartition_contractEdgeList_rel_inj hlift L₁ x y,
+          edgePartition_contractEdgeList_rel_inj hlift L₂ x y, heq]
       · have hsym : ∀ (p : DisjointSet.Partition n) a b, p.rel a b = p.rel b a :=
           fun p a b => Bool.eq_iff_iff.mpr ⟨p.symm, p.symm⟩
         have hn : ∀ y : Fin nOut, lift y ≠ v := fun y hy => hv ⟨y, hy⟩
         rw [hsym _ (lift x) v, hsym _ (lift x) v,
-          (edgePartition_contractEdgeList_rel lift hlift L₁).2 v (lift x) hn,
-          (edgePartition_contractEdgeList_rel lift hlift L₂).2 v (lift x) hn]
+          edgePartition_contractEdgeList_rel_of_not_mem lift L₁ hn,
+          edgePartition_contractEdgeList_rel_of_not_mem lift L₂ hn]
     · have hn : ∀ x : Fin nOut, lift x ≠ u := fun x hx => hu ⟨x, hx⟩
-      rw [(edgePartition_contractEdgeList_rel lift hlift L₁).2 u v hn,
-        (edgePartition_contractEdgeList_rel lift hlift L₂).2 u v hn]
+      rw [edgePartition_contractEdgeList_rel_of_not_mem lift L₁ hn,
+        edgePartition_contractEdgeList_rel_of_not_mem lift L₂ hn]
   rw [isMinSpanningForest_iff_threshold_partition] at hL ⊢
   refine ⟨⟨by rcases hL.1.1 with ⟨L', hperm, hsub⟩; rw [← hcon_es]
               exact ⟨L'.map (contractEdge lift), hperm.map _, hsub.map _⟩,
-    isAcyclic_contractEdgeList_of_injective hlift hL.1.2.1,
+    (isAcyclic_contractEdgeList_iff_of_injective hlift L_out).mpr hL.1.2.1,
     hcon_es ▸ hpart_con_eq L_out (esOut.map IndexedEdge.toWeighted) hL.1.2.2⟩, fun t => by
       have hfilt (M : List (WeightedEdge nOut ℕ)) :
           (contractEdgeList lift M).filter (fun e => decide (e.weight ≤ t)) =
           contractEdgeList lift (M.filter fun e => decide (e.weight ≤ t)) := by
         simp only [contractEdgeList, List.filter_map]; rfl
       rw [← hcon_es, hfilt, hfilt]; exact hpart_con_eq _ _ (hL.2 t)⟩
+
+/-- Any graph on `Fin n` with no isolated vertices (`∀ y, ∃ e ∈ es, e.u = y ∨ e.v = y`) satisfies
+`n ≤ 2 * es.length`. -/
+theorem card_le_two_mul_of_noIsolated {n : ℕ} {es : List (IndexedEdge n)}
+    (hno : ∀ y : Fin n, ∃ e ∈ es, e.u = y ∨ e.v = y) : n ≤ 2 * es.length := by
+  have hsub : (Finset.univ : Finset (Fin n)) ⊆
+      es.foldr (fun e acc => insert e.u (insert e.v acc)) ∅ := by
+    intro y _
+    obtain ⟨e, he, hy⟩ := hno y
+    clear hno
+    induction es with
+    | nil => simp at he
+    | cons a rest ih =>
+      simp only [List.foldr_cons, Finset.mem_insert]
+      rcases List.mem_cons.mp he with rfl | hmem
+      · rcases hy with rfl | rfl <;> simp
+      · exact Or.inr (Or.inr (ih hmem))
+  have hcard : ∀ l : List (IndexedEdge n),
+      (l.foldr (fun e acc => insert e.u (insert e.v acc)) (∅ : Finset (Fin n))).card ≤
+        2 * l.length := by
+    intro l
+    induction l with
+    | nil => simp
+    | cons a rest ih =>
+      simp only [List.foldr_cons, List.length_cons]
+      have h1 := Finset.card_insert_le a.u (insert a.v (rest.foldr
+        (fun e acc => insert e.u (insert e.v acc)) ∅))
+      have h2 := Finset.card_insert_le a.v (rest.foldr
+        (fun e acc => insert e.u (insert e.v acc)) ∅)
+      omega
+  simpa [Fintype.card_fin] using (Finset.card_le_card hsub).trans (hcard es)
 
 end Cslib.Algorithms.WordRAM.MinimumSpanningForest
