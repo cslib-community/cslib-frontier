@@ -70,15 +70,15 @@ two-player game `F : BimatrixGame α α`, the neighborhood fitness of `u` is
   payoffs (`tendsto_binomialRandom_real_forall_abnormalFitness_mul_le`).
 * **Unconditional Theorem 29.16** ([Suri2007], pp. 731–732):
   `BimatrixGame.binomialRandom_infinitePi_isGraphESS` proves that for any finite bimatrix game `F`
-  (arbitrary real payoffs) and any classical ESS `s`, if `p n = Ω(1 / n ^ c)` with `0 ≤ c < 1`,
-  then with probability `1` under `Measure.infinitePi (fun n => G(Fin n, p n))`, `s` is a graph
+  (arbitrary real payoffs) and any classical ESS `s`, if `p n = Ω(1 / n ^ c)` with `c < 1`,
+  then almost surely (`∀ᵐ`) under `Measure.infinitePi (fun n => G(Fin n, p n))`, `s` is a graph
   ESS with respect to `F` and `G` (for all mixed mutant strategies `t ≠ s` and all adversarial
   `ε_t`-linear mutant families simultaneously).
 * **Exercise 29.7** ([Suri2007], p. 736): for the symmetric `2 × 2` positive-payoff game
   `survivorWitnessGame = !![3, 2; 3, 1]` with classical ESS `![1, 0]` and mutant `![0, 1]`:
   - `exists_game_adversarial_linear_mutant_beats_all_incumbent_neighbors`: for any
-    `p n = Ω(1 / n ^ c)` (`0 ≤ c < 1`) bounded away from `1` (`∃ q < 1, ∀ᶠ n, p n ≤ q`), with
-    probability `1` an adversary can construct for every `ε' > 0` an `ε'`-linear mutant family
+    `p n = Ω(1 / n ^ c)` (`c < 1`) bounded away from `1` (`∃ q < 1, ∀ᶠ n, p n ≤ q`), almost
+    surely (`∀ᵐ`) an adversary can construct for every `ε' > 0` an `ε'`-linear mutant family
     containing a mutant with at least one incumbent neighbor and strictly higher fitness than all
     of its incumbent neighbors;
   - `exists_game_adversarial_mutant_beats_all_incumbent_neighbors`: without the linear-size
@@ -205,13 +205,6 @@ theorem IsGraphESS.isMixedStrategy {F : BimatrixGame α α} {G : ∀ n, SimpleGr
   h.1
 
 /-! ### Two-strategy neighborhood fitness formulas -/
-
-/-- Real probability of any event under a probability measure is at most `1`. -/
-private theorem measureReal_le_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (s : Set Ω) : μ.real s ≤ 1 := by
-  rw [measureReal_def]
-  exact ENNReal.toReal_le_of_le_ofReal zero_le_one
-    (by simpa using (measure_mono (Set.subset_univ s)).trans_eq measure_univ)
 
 /-- Under a two-strategy assignment (`t` on `M`, `s` outside `M`), the neighborhood fitness of
 `u` is the weighted average of its payoff against `s` and against `t` determined by its incumbent
@@ -883,32 +876,17 @@ private theorem ae_eventually_notMem_infinitePi_of_exp_neg {p : ℕ → I}
   rw [Real.norm_of_nonneg measureReal_nonneg]
   exact hn.trans (mul_le_mul_of_nonneg_left (Real.exp_le_half_pow n le_rfl) hK)
 
-/-- From `∀ᵐ ω ∂ μ, P ω` on a probability measure `μ`, deduce `μ {ω | P ω} = 1` without needing
-measurability of `{ω | P ω}`. -/
-private theorem measure_eq_one_of_ae {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] {P : Ω → Prop} (h : ∀ᵐ ω ∂μ, P ω) :
-    μ {ω | P ω} = 1 := by
-  have hnull : μ {ω | P ω}ᶜ = 0 := ae_iff.1 h
-  have hle : μ {ω | P ω} ≤ 1 := (measure_mono (Set.subset_univ _)).trans_eq measure_univ
-  have hge : 1 ≤ μ {ω | P ω} := by
-    calc (1 : ℝ≥0∞) = μ Set.univ := measure_univ.symm
-      _ = μ ({ω | P ω} ∪ {ω | P ω}ᶜ) := by rw [Set.union_compl_self]
-      _ ≤ μ {ω | P ω} + μ {ω | P ω}ᶜ := measure_union_le _ _
-      _ = μ {ω | P ω} := by rw [hnull, add_zero]
-  exact le_antisymm hle hge
-
 /-- For `α > 0`, `Real.log n / n ^ α → 0` as `n → ∞`. -/
 private theorem tendsto_log_div_rpow_nat {α : ℝ} (hα : 0 < α) :
     Tendsto (fun n : ℕ => Real.log (n : ℝ) / (n : ℝ) ^ α) atTop (𝓝 0) :=
   (isLittleO_log_rpow_atTop hα).tendsto_div_nhds_zero.comp tendsto_natCast_atTop_atTop
 
 /-- When `p n = Ω(1 / n ^ c)` with `c < 1`, `p n > 0` eventually and `log n / (n * p n) → 0`,
-and `k n = ⌈log n / p n⌉₊` satisfies `1 ≤ k n`, `log n ≤ k n * p n`, and `k n / n → 0`. -/
+and `k n = ⌈log n / p n⌉₊` satisfies `log n ≤ k n * p n` and `k n / n → 0`. -/
 private theorem dense_p_kCeil_props {p : ℕ → I} {c : ℝ} (hc1 : c < 1)
     (hp : ∃ a > 0, ∀ᶠ n : ℕ in atTop, a / (n : ℝ) ^ c ≤ (p n : ℝ)) :
     (∀ᶠ n : ℕ in atTop, 0 < (p n : ℝ)) ∧
     Tendsto (fun n : ℕ => Real.log (n : ℝ) / ((n : ℝ) * (p n : ℝ))) atTop (𝓝 0) ∧
-    (∀ᶠ n : ℕ in atTop, 1 ≤ ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊) ∧
     (∀ᶠ n : ℕ in atTop, 1 * Real.log (n : ℝ) ≤ (⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊ : ℝ) * (p n : ℝ)) ∧
     Tendsto (fun n : ℕ => (⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊ : ℝ) / (n : ℝ)) atTop (𝓝 0) := by
   obtain ⟨a, ha, hp_ev⟩ := hp
@@ -941,10 +919,6 @@ private theorem dense_p_kCeil_props {p : ℕ → I} {c : ℝ} (hc1 : c < 1)
           ≤ Real.log (n : ℝ) / (a * (n : ℝ) ^ (1 - c)) :=
             div_le_div_of_nonneg_left hlog hpos1 hnp
         _ = (1 / a) * (Real.log (n : ℝ) / (n : ℝ) ^ (1 - c)) := by field_simp
-  have hk_pos : ∀ᶠ n : ℕ in atTop, 1 ≤ ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊ := by
-    filter_upwards [hp_pos, eventually_ge_atTop 2] with n hpn hn
-    have hlog : 0 < Real.log (n : ℝ) := Real.log_pos (by exact_mod_cast (show 1 < n by omega))
-    exact Nat.one_le_iff_ne_zero.2 (Nat.ceil_pos.2 (div_pos hlog hpn)).ne'
   have hk_lo : ∀ᶠ n : ℕ in atTop,
       1 * Real.log (n : ℝ) ≤ (⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊ : ℝ) * (p n : ℝ) := by
     filter_upwards [hp_pos] with n hpn
@@ -965,7 +939,7 @@ private theorem dense_p_kCeil_props {p : ℕ → I} {c : ℝ} (hc1 : c < 1)
         ≤ (Real.log (n : ℝ) / (p n : ℝ) + 1) / (n : ℝ) :=
           div_le_div_of_nonneg_right hceil hn_pos.le
       _ = Real.log (n : ℝ) / ((n : ℝ) * (p n : ℝ)) + 1 / (n : ℝ) := by field_simp
-  exact ⟨hp_pos, hlog_p, hk_pos, hk_lo, hk_small⟩
+  exact ⟨hp_pos, hlog_p, hk_lo, hk_small⟩
 
 private theorem tendsto_div_nat_zero_of_eventually_le {k : ℕ → ℕ} {u : ℕ → ℝ}
     (hu : Tendsto u atTop (𝓝 0))
@@ -984,10 +958,9 @@ private theorem mul_rpow_one_sub_le_mul_p {n m : ℕ} {a c d p : ℝ} (hn : (0 :
     _ ≤ (m : ℝ) * p := mul_le_mul hm hp (by positivity) (Nat.cast_nonneg _)
 
 /-- Core exponential tail bound for uniform vertex-to-set degree concentration whenever `k n`
-satisfies `1 ≤ k n`, `κ * log n ≤ k n * p n`, and `k n / n → 0`. -/
+satisfies `κ * log n ≤ k n * p n` and `k n / n → 0`. -/
 private theorem eventually_badDegree_le_exp_neg {p : ℕ → I}
     {ε₀ η κ : ℝ} (hε₀ : 0 < ε₀) (hη0 : 0 < η) (hη1 : η ≤ 1) (hκ : 0 < κ) (k : ℕ → ℕ)
-    (hk_pos : ∀ᶠ n : ℕ in atTop, 1 ≤ k n)
     (hk_lo : ∀ᶠ n : ℕ in atTop, κ * Real.log (n : ℝ) ≤ (k n : ℝ) * (p n : ℝ))
     (hk_small : Tendsto (fun n : ℕ => (k n : ℝ) / (n : ℝ)) atTop (𝓝 0)) :
     ∀ᶠ n : ℕ in atTop,
@@ -1003,8 +976,8 @@ private theorem eventually_badDegree_le_exp_neg {p : ℕ → I}
     hlog_inf.eventually (eventually_ge_atTop _)
   have hk_ratio : ∀ᶠ n : ℕ in atTop, (k n : ℝ) / (n : ℝ) ≤ η * ε₀ / 4 :=
     hk_small.eventually (eventually_le_nhds (by positivity))
-  filter_upwards [hk_pos, hk_lo, hk_ratio, hlog_big, eventually_ge_atTop 1] with
-    n hkn1 hkn_lo hkn_rat hlogn hn1
+  filter_upwards [hk_lo, hk_ratio, hlog_big, eventually_ge_atTop 1] with
+    n hkn_lo hkn_rat hlogn hn1
   have hn_pos : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
   let a₀ : ℕ := ⌈ε₀ * (n : ℝ)⌉₊
   have ha₀_ge : ε₀ * (n : ℝ) ≤ (a₀ : ℝ) := Nat.le_ceil _
@@ -1022,7 +995,7 @@ private theorem eventually_badDegree_le_exp_neg {p : ℕ → I}
     rintro G ⟨A, hA, hbad⟩
     exact ⟨A, Nat.ceil_le.2 hA, hbad⟩
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
-  have hbd := binomialRandom_real_exists_many_badDegree_le (V := Fin n) (p n) hη0 hη1 hkn1 hka
+  have hbd := binomialRandom_real_exists_many_badDegree_le (V := Fin n) (p n) hη0 hη1 hka
   rw [Fintype.card_fin] at hbd
   refine hbd.trans ?_
   have h4eq : (4 : ℝ) ^ n = Real.exp ((n : ℝ) * (2 * Real.log 2)) := by
@@ -1055,7 +1028,6 @@ private theorem eventually_badDegree_le_exp_neg {p : ℕ → I}
 /-- Complementary w.h.p. form of `eventually_badDegree_le_exp_neg`. -/
 private theorem tendsto_goodDegree_one {p : ℕ → I}
     {ε₀ η κ : ℝ} (hε₀ : 0 < ε₀) (hη0 : 0 < η) (hη1 : η ≤ 1) (hκ : 0 < κ) (k : ℕ → ℕ)
-    (hk_pos : ∀ᶠ n : ℕ in atTop, 1 ≤ k n)
     (hk_lo : ∀ᶠ n : ℕ in atTop, κ * Real.log (n : ℝ) ≤ (k n : ℝ) * (p n : ℝ))
     (hk_small : Tendsto (fun n : ℕ => (k n : ℝ) / (n : ℝ)) atTop (𝓝 0)) :
     Tendsto (fun n : ℕ => G(Fin n, p n).real {G | ∀ A : Finset (Fin n),
@@ -1063,7 +1035,7 @@ private theorem tendsto_goodDegree_one {p : ℕ → I}
         ({u : Fin n | η * ((#A : ℝ) * (p n : ℝ)) <
           |(((A : Set (Fin n)) ∩ G.neighborSet u).ncard : ℝ) - (#A : ℝ) * (p n : ℝ)|} :
           Set (Fin n)).ncard < 2 * k n}) atTop (𝓝 1) := by
-  have hbad_ev := eventually_badDegree_le_exp_neg hε₀ hη0 hη1 hκ k hk_pos hk_lo hk_small
+  have hbad_ev := eventually_badDegree_le_exp_neg hε₀ hη0 hη1 hκ k hk_lo hk_small
   have hbad_zero : Tendsto (fun n : ℕ => G(Fin n, p n).real {G | ∃ A : Finset (Fin n),
       ε₀ * (n : ℝ) ≤ (#A : ℝ) ∧
         2 * k n ≤ ({u : Fin n | η * ((#A : ℝ) * (p n : ℝ)) <
@@ -1108,10 +1080,10 @@ theorem tendsto_binomialRandom_real_forall_abnormalFitness_additive_le {p : ℕ 
                 ((1 - (#M : ℝ) / n) * F.payoff₁ s s + ((#M : ℝ) / n) * F.payoff₁ s t)|} :
           Set (Fin n)).ncard ≤ 4 * ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊}) atTop (𝓝 1) := by
   let k : ℕ → ℕ := fun n => ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊
-  obtain ⟨hp_pos, _, hk_pos, hk_lo, hk_small⟩ := dense_p_kCeil_props hc1 hp
-  have hgood_one := tendsto_goodDegree_one hε₀ hη0 (by linarith) one_pos k hk_pos hk_lo hk_small
+  obtain ⟨hp_pos, _, hk_lo, hk_small⟩ := dense_p_kCeil_props hc1 hp
+  have hgood_one := tendsto_goodDegree_one hε₀ hη0 (by linarith) one_pos k hk_lo hk_small
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le' hgood_one tendsto_const_nhds ?_
-    (Eventually.of_forall fun _ => measureReal_le_one _ _)
+    (Eventually.of_forall fun _ => measureReal_le_one)
   filter_upwards [hp_pos, eventually_ge_atTop 1] with n hpn hn1
   have hn_pos : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
   refine measureReal_mono (fun G hG M hM hI => ?_) (measure_ne_top _ _)
@@ -1184,7 +1156,7 @@ theorem tendsto_binomialRandom_real_forall_abnormalFitness_mul_le {p : ℕ → I
   have hη0 : 0 < η := by dsimp only [η]; linarith
   have hη3 : η ≤ 1 / 3 := by dsimp only [η]; linarith
   let k : ℕ → ℕ := fun n => ⌊6 * Real.log (n : ℝ) / (τ ^ 2 * (p n : ℝ))⌋₊
-  obtain ⟨hp_pos, hlog_p, _, _, _⟩ := dense_p_kCeil_props hc1 hp
+  obtain ⟨hp_pos, hlog_p, _, _⟩ := dense_p_kCeil_props hc1 hp
   have hlog_inf : Tendsto (fun n : ℕ => Real.log (n : ℝ)) atTop atTop :=
     Real.tendsto_log_atTop.comp tendsto_natCast_atTop_atTop
   have hratio_ge2 : ∀ᶠ n : ℕ in atTop, 2 ≤ 6 * Real.log (n : ℝ) / (τ ^ 2 * (p n : ℝ)) := by
@@ -1192,9 +1164,6 @@ theorem tendsto_binomialRandom_real_forall_abnormalFitness_mul_le {p : ℕ → I
     rw [le_div_iff₀ (by positivity)]
     have hp1 : (p n : ℝ) ≤ 1 := unitInterval.le_one (p n)
     nlinarith [sq_nonneg τ]
-  have hk_pos : ∀ᶠ n : ℕ in atTop, 1 ≤ k n := by
-    filter_upwards [hratio_ge2] with n hn
-    exact Nat.le_floor (by linarith)
   have hk_lo : ∀ᶠ n : ℕ in atTop, (3 / τ ^ 2) * Real.log (n : ℝ) ≤ (k n : ℝ) * (p n : ℝ) := by
     filter_upwards [hp_pos, hratio_ge2] with n hpn hn
     have hfl : 6 * Real.log (n : ℝ) / (τ ^ 2 * (p n : ℝ)) - 1 < (k n : ℝ) := by
@@ -1217,10 +1186,9 @@ theorem tendsto_binomialRandom_real_forall_abnormalFitness_mul_le {p : ℕ → I
     calc (k n : ℝ) / (n : ℝ) ≤ (6 * Real.log (n : ℝ) / (τ ^ 2 * (p n : ℝ))) / (n : ℝ) :=
           div_le_div_of_nonneg_right hfl (Nat.cast_nonneg n)
       _ = (6 / τ ^ 2) * (Real.log (n : ℝ) / ((n : ℝ) * (p n : ℝ))) := by field_simp
-  have hgood_one := tendsto_goodDegree_one hε₀ hη0 (by linarith) (by positivity) k
-    hk_pos hk_lo hk_small
+  have hgood_one := tendsto_goodDegree_one hε₀ hη0 (by linarith) (by positivity) k hk_lo hk_small
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le' hgood_one tendsto_const_nhds ?_
-    (Eventually.of_forall fun _ => measureReal_le_one _ _)
+    (Eventually.of_forall fun _ => measureReal_le_one)
   filter_upwards [hp_pos, eventually_ge_atTop 1] with n hpn hn1
   have hn_pos : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
   have hlog : 0 ≤ Real.log (n : ℝ) := Real.log_nonneg (by exact_mod_cast hn1)
@@ -1389,7 +1357,7 @@ private theorem ae_eventually_forall_badDegree_lt {p : ℕ → I} {c : ℝ} (hc1
           ({u : Fin n | (1 / ((q : ℝ) + 4)) * ((#A : ℝ) * (p n : ℝ)) <
             |(((A : Set (Fin n)) ∩ (G n).neighborSet u).ncard : ℝ) - (#A : ℝ) * (p n : ℝ)|} :
             Set (Fin n)).ncard < 2 * ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊ := by
-  obtain ⟨_, _, hk_pos, hk_lo, hk_small⟩ := dense_p_kCeil_props hc1 hp
+  obtain ⟨_, _, hk_lo, hk_small⟩ := dense_p_kCeil_props hc1 hp
   rw [ae_all_iff]
   intro r
   rw [ae_all_iff]
@@ -1403,7 +1371,7 @@ private theorem ae_eventually_forall_badDegree_lt {p : ℕ → I} {c : ℝ} (hc1
     rw [div_le_one (by positivity : (0 : ℝ) < (q : ℝ) + 4)]
     linarith [Nat.cast_nonneg (α := ℝ) q]
   have hbd := eventually_badDegree_le_exp_neg hε₀ hη0 hη1 one_pos
-    (fun n => ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊) hk_pos hk_lo hk_small
+    (fun n => ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊) hk_lo hk_small
   filter_upwards [ae_eventually_notMem_infinitePi_of_exp_neg _ (by norm_num) hbd] with G hG
   filter_upwards [hG] with n hn A hA
   by_contra! hge
@@ -1516,7 +1484,7 @@ private theorem survivingMutants_card_le_of_regular_and_nonNeighborhood {n k : �
 2006): for any finite two-player bimatrix game `F` (arbitrary real payoffs) and any classical
 evolutionarily stable strategy `s` (`F.IsESS s`), if an infinite graph family `G` is drawn
 independently from `G(Fin n, p n)` with `p n = Ω(1 / n ^ c)` and `c < 1` (note `p n ≤ 1`
-automatically forces `0 ≤ c`), then with probability `1` under
+automatically forces `0 ≤ c`), then almost surely (`∀ᵐ`) under
 `Measure.infinitePi (fun n => G(Fin n, p n))`, `s` is a graph ESS with respect to `F` and `G` (for
 all mixed mutant strategies `t ≠ s` and all adversarial `ε_t`-linear mutant families
 simultaneously).
@@ -1527,13 +1495,11 @@ fitness function when `F.B = F.Aᵀ`). -/
 theorem binomialRandom_infinitePi_isGraphESS {p : ℕ → I} {c : ℝ} (hc1 : c < 1)
     (hp : ∃ a > 0, ∀ᶠ n : ℕ in atTop, a / (n : ℝ) ^ c ≤ (p n : ℝ))
     (F : BimatrixGame α α) {s : α → ℝ} (hs : F.IsESS s) :
-    (Measure.infinitePi fun n : ℕ => G(Fin n, p n)) {G | F.IsGraphESS G s} = 1 := by
-  let μ := Measure.infinitePi fun n : ℕ => G(Fin n, p n)
+    ∀ᵐ G ∂(Measure.infinitePi fun n : ℕ => G(Fin n, p n)), F.IsGraphESS G s := by
   let k : ℕ → ℕ := fun n => ⌈Real.log (n : ℝ) / (p n : ℝ)⌉₊
-  obtain ⟨hp_pos, _, _, _, hk_small⟩ := dense_p_kCeil_props hc1 hp
+  obtain ⟨hp_pos, _, _, hk_small⟩ := dense_p_kCeil_props hc1 hp
   have hae_deg := ae_eventually_forall_badDegree_lt hc1 hp
   have hae_non := ae_eventually_nonNeighborhood_quarter hc1 hp
-  refine measure_eq_one_of_ae μ ?_
   filter_upwards [hae_deg, hae_non] with G hdeg hnon
   refine ⟨hs.isMixedStrategy, fun t ht hne => ?_⟩
   obtain ⟨ε₀', hε₀', hlt_ess⟩ := (isESS_iff.1 hs).2 t ht hne
@@ -1724,11 +1690,10 @@ private theorem survivorWitness_mutant_ne : (![0, 1] : Fin 2 → ℝ) ≠ ![1, 0
 /-- **Exercise 29.7 (linear-size adversary, `p` bounded away from `1`)** ([Suri2007], p. 736):
 there exists a symmetric `2 × 2` game `F` (`survivorWitnessGame`), a classical ESS `s`
 (`![1, 0]`), and a mutant mixed strategy `t ≠ s` (`![0, 1]`) such that for every
-`p n = Ω(1 / n ^ c)` (`0 ≤ c < 1`) bounded away from `1` (`∃ q < 1, ∀ᶠ n, p n ≤ q`), with
-probability `1` under `Measure.infinitePi (fun n => G(Fin n, p n))`, for every `ε' > 0` an
-adversary can construct an `ε'`-linear mutant family `M` such that eventually in `n` there is a
-mutant `j ∈ M n` that has at least one incumbent neighbor and strictly higher fitness than every
-incumbent neighbor.
+`p n = Ω(1 / n ^ c)` (`c < 1`) bounded away from `1` (`∃ q < 1, ∀ᶠ n, p n ≤ q`), almost surely
+(`∀ᵐ`) under `Measure.infinitePi (fun n => G(Fin n, p n))`, for every `ε' > 0` an adversary can
+construct an `ε'`-linear mutant family `M` such that eventually in `n` there is a mutant `j ∈ M n`
+that has at least one incumbent neighbor and strictly higher fitness than every incumbent neighbor.
 
 By `IsESS.eventually_forall_graphFitness_lt_complete`, bounding `p` away from `1` is necessary
 when `M` is required to be `ε'`-linear (at `p = 1`, `G_n = K_n` and every mutant has strictly
@@ -1739,13 +1704,13 @@ theorem exists_game_adversarial_linear_mutant_beats_all_incumbent_neighbors :
       ∀ {p : ℕ → I} {c : ℝ}, c < 1 →
         (∃ a > 0, ∀ᶠ n : ℕ in atTop, a / (n : ℝ) ^ c ≤ (p n : ℝ)) →
         (∃ q < (1 : ℝ), ∀ᶠ n : ℕ in atTop, (p n : ℝ) ≤ q) →
-        (Measure.infinitePi fun n : ℕ => G(Fin n, p n))
-          {G | ∀ ε' > 0, ∃ M : ∀ n, Finset (Fin n), IsEpsLinear ε' M ∧
+        ∀ᵐ G ∂(Measure.infinitePi fun n : ℕ => G(Fin n, p n)),
+          ∀ ε' > 0, ∃ M : ∀ n, Finset (Fin n), IsEpsLinear ε' M ∧
             ∀ᶠ n : ℕ in atTop, ∃ j ∈ M n,
               (∃ i, i ∉ M n ∧ (G n).Adj j i) ∧
               ∀ i, i ∉ M n → (G n).Adj j i →
                 F.graphFitness (G n) (fun u => if u ∈ M n then t else s) i <
-                  F.graphFitness (G n) (fun u => if u ∈ M n then t else s) j} = 1 := by
+                  F.graphFitness (G n) (fun u => if u ∈ M n then t else s) j := by
   refine ⟨survivorWitnessGame, ![1, 0], ![0, 1], survivorWitnessGame_symm,
     survivorWitnessGame_isESS, survivorWitness_mutant_isMixed, survivorWitness_mutant_ne, ?_⟩
   intro p c hc1 ⟨a, ha, hp_lo⟩ ⟨q, hq1, hp_hi⟩
@@ -1817,7 +1782,6 @@ theorem exists_game_adversarial_linear_mutant_beats_all_incumbent_neighbors :
         ≤ Real.exp (-(2 * Real.log (n : ℝ))) := Real.exp_le_exp.2 (by linarith)
       _ = (Real.exp (Real.log ((n : ℝ) ^ 2)))⁻¹ := by rw [Real.exp_neg, Real.log_pow]; norm_num
       _ = (1 : ℝ) / ((n : ℝ) ^ 2) := by rw [Real.exp_log (by positivity), one_div]
-  refine measure_eq_one_of_ae _ ?_
   filter_upwards [hae_deg, hae_iso] with G hdeg h_iso ε' hε'
   classical
   let θ : ℝ := min (ε' / 2) ((1 - q') / 4)
@@ -1938,7 +1902,7 @@ theorem exists_game_adversarial_mutant_beats_all_incumbent_neighbors :
   have hlow : Tendsto (fun n : ℕ => 1 - Real.exp (-((a / 2) * (n : ℝ) ^ (1 - c)))) atTop (𝓝 1) := by
     simpa using hlim_exp.const_sub 1
   refine tendsto_of_tendsto_of_tendsto_of_le_of_le' hlow tendsto_const_nhds ?_
-    (Eventually.of_forall fun _ => measureReal_le_one _ _)
+    (Eventually.of_forall fun _ => measureReal_le_one)
   filter_upwards [eventually_isIsolated_zero_le_exp ha hp_lo, eventually_ge_atTop 2] with n hiso hn2
   have hn0 : 0 < n := by omega
   have hsub : {G : SimpleGraph (Fin n) | ¬G.IsIsolated ⟨0, hn0⟩} ⊆

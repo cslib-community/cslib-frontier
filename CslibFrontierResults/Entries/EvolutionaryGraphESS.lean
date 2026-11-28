@@ -69,8 +69,8 @@ register_result "suri-graph-ess-random-graphs" where
   ]
   scope := "Finite two-player bimatrix games F : BimatrixGame α α (arbitrary real payoffs) under \
     Definitions 29.13–29.15 (Contracts, IsEpsLinear, IsGraphESS) on loopless simple graphs. \
-    Proves Theorem 29.16 unconditionally with probability 1 under Measure.infinitePi (fun n => \
-    G(Fin n, p n)) for p n = Ω(1 / n ^ c), 0 ≤ c < 1, simultaneously over all mixed mutant \
+    Proves Theorem 29.16 unconditionally almost surely (`∀ᵐ`) under Measure.infinitePi (fun n => \
+    G(Fin n, p n)) for p n = Ω(1 / n ^ c), c < 1, simultaneously over all mixed mutant \
     strategies t ≠ s and all adversarial ε_t-linear mutant families. Also proves the exact \
     characterization on the loopless complete-graph family {K_n}: every classical ESS is a graph \
     ESS on {K_n}, every graph ESS on {K_n} is a symmetric Nash equilibrium and a classical ESS \
@@ -92,7 +92,7 @@ register_result "suri-graph-ess-adversarial-survivor" where
   ]
   scope := "Witnessed by the symmetric 2 × 2 positive-payoff game survivorWitnessGame = \
     !![3, 2; 3, 1] with classical ESS ![1, 0] and mutant ![0, 1]. For any p n = Ω(1 / n ^ c) \
-    (0 ≤ c < 1) bounded away from 1 (∃ q < 1, ∀ᶠ n, p n ≤ q), proves with probability 1 that for \
+    (c < 1) bounded away from 1 (∃ q < 1, ∀ᶠ n, p n ≤ q), proves almost surely (`∀ᵐ`) that for \
     every ε' > 0 an adversary constructs an ε'-linear mutant family containing a mutant with at \
     least one incumbent neighbor and strictly higher fitness than all of its incumbent neighbors. \
     Also proves the unconstrained-size version (singleton mutant, cf. Vickery 1987, p. 734) w.h.p. \

@@ -15,7 +15,9 @@ import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Data.Nat.Choose.Real
 import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.EdgePattern
 import CslibFrontier.Probability.Chernoff
+import CslibFrontier.Probability.PMF.Coin
 import Mathlib.Data.Nat.Choose.Bounds
+import Mathlib.Data.Sym.Card
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -81,33 +83,6 @@ variable {V : Type*}
 
 /-! ### Bridging `G(V, p)` edge indicators to `Cslib.Probability.PMF.pi` -/
 
-/-- Bernoulli distribution on `Bool` with success probability `p : unitInterval`. -/
-private noncomputable def bernoulliBoolPMF (p : I) : PMF Bool :=
-  PMF.ofFintype (fun b => if b then (toNNReal p : ENNReal) else (toNNReal (σ p) : ENNReal)) (by
-    rw [Fintype.sum_bool]
-    simp only [↓reduceIte, Bool.false_eq_true]
-    norm_cast
-    exact Subtype.ext (by simp))
-
-private theorem bernoulliBoolPMF_apply_true (p : I) :
-    (bernoulliBoolPMF p true).toReal = (p : ℝ) := by
-  simp [bernoulliBoolPMF]
-
-private theorem bernoulliBoolPMF_apply_false (p : I) :
-    (bernoulliBoolPMF p false).toReal = 1 - (p : ℝ) := by
-  simp [bernoulliBoolPMF, unitInterval.coe_symm_eq]
-
-private theorem bernoulliBoolPMF_toReal (p : I) (b : Bool) :
-    (bernoulliBoolPMF p b).toReal = if b then (p : ℝ) else 1 - (p : ℝ) := by
-  cases b
-  · simpa using bernoulliBoolPMF_apply_false p
-  · simpa using bernoulliBoolPMF_apply_true p
-
-private theorem bernoulliBoolPMF_mean_indicator (p : I) :
-    ∑ a : Bool, (bernoulliBoolPMF p a).toReal * (if a then (1 : ℝ) else 0) = (p : ℝ) := by
-  rw [Fintype.sum_bool]
-  simp [bernoulliBoolPMF_apply_true]
-
 /-- Classical edge-presence indicator on a finite set `S` of vertex pairs. -/
 private noncomputable def edgeIndicator (S : Finset (Sym2 V)) (G : SimpleGraph V)
     (e : {e : Sym2 V // e ∈ S}) : Bool :=
@@ -124,11 +99,11 @@ non-diagonal pairs equals the corresponding `Cslib.Probability.PMF.pi` event pro
 private theorem binomialRandom_real_edgeEvent_eq_pi [Finite V] (p : I) (S : Finset (Sym2 V))
     (hS : ∀ e ∈ S, ¬e.IsDiag) (P : ({e : Sym2 V // e ∈ S} → Bool) → Prop) :
     G(V, p).real {G | P (edgeIndicator S G)} =
-      ((Cslib.Probability.PMF.pi (fun _ : {e : Sym2 V // e ∈ S} => bernoulliBoolPMF p))
+      ((Cslib.Probability.PMF.pi (fun _ : {e : Sym2 V // e ∈ S} => Cslib.Probability.PMF.coin p))
         |>.toOuterMeasure {b | P b}).toReal := by
   classical
   let ι := {e : Sym2 V // e ∈ S}
-  let μ := Cslib.Probability.PMF.pi (fun _ : ι => bernoulliBoolPMF p)
+  let μ := Cslib.Probability.PMF.pi (fun _ : ι => Cslib.Probability.PMF.coin p)
   let pat : (ι → Bool) → Set (SimpleGraph V) :=
     fun b => {G | ∀ e : ι, (e.1 ∈ G.edgeSet ↔ b e = true)}
   let A : Finset (ι → Bool) := univ.filter P
@@ -136,7 +111,7 @@ private theorem binomialRandom_real_edgeEvent_eq_pi [Finite V] (p : I) (S : Fins
     rw [binomialRandom_real_edgePattern_of_injective p Subtype.val_injective
       (fun e => hS e.1 e.2) b]
     simp only [μ, Cslib.Probability.PMF.pi_apply, ENNReal.toReal_prod]
-    exact Finset.prod_congr rfl fun e _ => (bernoulliBoolPMF_toReal p (b e)).symm
+    exact Finset.prod_congr rfl fun e _ => (Cslib.Probability.PMF.coin_apply_toReal p (b e)).symm
   have hset : {G : SimpleGraph V | P (edgeIndicator S G)} = ⋃ b ∈ A, pat b := by
     ext G
     simp only [Set.mem_ofPred_eq, Set.mem_iUnion, mem_filter, mem_univ, true_and, pat, A]
@@ -183,20 +158,19 @@ private theorem ncard_inter_edgeSet_eq_sum (S : Finset (Sym2 V)) (G : SimpleGrap
 private def boolScore {ι : Type*} : ι → Bool → ℝ := fun _ b => if b then 1 else 0
 
 private theorem boolScore_mem_Icc {ι : Type*} (p : I) (i : ι) (a : Bool)
-    (_ : a ∈ (bernoulliBoolPMF p).support) : boolScore i a ∈ Set.Icc 0 1 := by
+    (_ : a ∈ (Cslib.Probability.PMF.coin p).support) : boolScore i a ∈ Set.Icc 0 1 := by
   cases a <;> simp [boolScore]
 
-private theorem sum_bernoulliBoolPMF_boolScore (p : I) (S : Finset (Sym2 V)) :
+private theorem sum_coin_boolScore (p : I) (S : Finset (Sym2 V)) :
     ∑ i : {e : Sym2 V // e ∈ S}, ∑ a : Bool,
-        (bernoulliBoolPMF p a).toReal * boolScore i a = (#S : ℝ) * (p : ℝ) := by
-  simp_rw [boolScore, bernoulliBoolPMF_mean_indicator]
-  simp
+        (Cslib.Probability.PMF.coin p a).toReal * boolScore i a = (#S : ℝ) * (p : ℝ) := by
+  simp [boolScore, Cslib.Probability.PMF.coin_apply_toReal]
 
 private theorem binomialRandom_real_edgeCount_eq_pi [Finite V] (p : I) (S : Finset (Sym2 V))
     (hS : ∀ e ∈ S, ¬e.IsDiag) (P : ℝ → Prop) :
     G(V, p).real {G | P (((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ)} =
       ((Cslib.Probability.PMF.pi fun _ : {e : Sym2 V // e ∈ S} =>
-          bernoulliBoolPMF p).toOuterMeasure
+          Cslib.Probability.PMF.coin p).toOuterMeasure
         {b | P (∑ e : {e : Sym2 V // e ∈ S}, boolScore e (b e))}).toReal := by
   have heq : {G : SimpleGraph V | P (((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ)} =
       {G | P (∑ e : {e : Sym2 V // e ∈ S}, boolScore e (edgeIndicator S G e))} := by
@@ -225,7 +199,7 @@ theorem binomialRandom_real_edgeCount_ge_one_add_mul [Finite V] (p : I) (S : Fin
       Real.exp (-(δ ^ 2 * μ / (2 + δ))) := by
   rw [binomialRandom_real_edgeCount_eq_pi p S hS (fun x => (1 + δ) * μ ≤ x)]
   exact Cslib.Probability.PMF.pi_sum_ge_one_add_mul _ boolScore (boolScore_mem_Icc p)
-    (by rw [sum_bernoulliBoolPMF_boolScore p S]; exact hμ) hδ
+    (by rw [sum_coin_boolScore p S]; exact hμ) hδ
 
 /-- **Multiplicative Chernoff upper tail for `δ ≤ 1`** ([MitzenmacherUpfal2017], Section 4.2):
 for `#S * p ≤ μ` and `0 ≤ δ ≤ 1`, `G(V, p)` has at least `(1 + δ) * μ` edges in `S` with
@@ -235,11 +209,9 @@ theorem binomialRandom_real_edgeCount_ge_one_add_mul_of_le_one [Finite V] (p : I
     (hδ : 0 ≤ δ) (hδ₁ : δ ≤ 1) :
     G(V, p).real {G | (1 + δ) * μ ≤ (((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ)} ≤
       Real.exp (-(δ ^ 2 * μ / 3)) := by
-  refine (binomialRandom_real_edgeCount_ge_one_add_mul p S hS hμ hδ).trans (Real.exp_le_exp.2 ?_)
-  have hp0 : (0 : ℝ) ≤ p := unitInterval.nonneg p
-  have hμ0 : 0 ≤ μ := le_trans (by positivity) hμ
-  rw [neg_le_neg_iff]
-  exact div_le_div_of_nonneg_left (by positivity) (by linarith) (by linarith)
+  rw [binomialRandom_real_edgeCount_eq_pi p S hS (fun x => (1 + δ) * μ ≤ x)]
+  exact Cslib.Probability.PMF.pi_sum_ge_one_add_mul_of_le_one _ boolScore (boolScore_mem_Icc p)
+    (by rw [sum_coin_boolScore p S]; exact hμ) hδ hδ₁
 
 /-- **Multiplicative Chernoff lower tail for edge counts in `G(V, p)`**
 ([MitzenmacherUpfal2017], Section 4.2): for any finite set `S` of non-diagonal pairs with
@@ -251,7 +223,7 @@ theorem binomialRandom_real_edgeCount_le_one_sub_mul [Finite V] (p : I) (S : Fin
       Real.exp (-(δ ^ 2 * μ / 2)) := by
   rw [binomialRandom_real_edgeCount_eq_pi p S hS (fun x => x ≤ (1 - δ) * μ)]
   exact Cslib.Probability.PMF.pi_sum_le_one_sub_mul _ boolScore (boolScore_mem_Icc p)
-    (by rw [sum_bernoulliBoolPMF_boolScore p S]; exact hμ) hδ
+    (by rw [sum_coin_boolScore p S]; exact hμ) hδ
 
 /-- **Two-sided multiplicative Chernoff bound for edge counts in `G(V, p)`**: for any finite set
 `S` of non-diagonal pairs and `0 ≤ δ ≤ 1`, the edge count deviates from `#S * p` by at least
@@ -261,25 +233,12 @@ theorem binomialRandom_real_edgeCount_abs_sub_ge_mul [Finite V] (p : I) (S : Fin
     G(V, p).real {G | δ * ((#S : ℝ) * (p : ℝ)) ≤
       |(((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ) - (#S : ℝ) * (p : ℝ)|} ≤
       2 * Real.exp (-(δ ^ 2 * ((#S : ℝ) * (p : ℝ)) / 3)) := by
-  set μ : ℝ := (#S : ℝ) * (p : ℝ)
-  have hp0 : (0 : ℝ) ≤ p := unitInterval.nonneg p
-  have hμ0 : 0 ≤ μ := by positivity
-  have hsub : {G : SimpleGraph V | δ * μ ≤ |(((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ) - μ|} ⊆
-      {G | (1 + δ) * μ ≤ (((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ)} ∪
-      {G | (((S : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ) ≤ (1 - δ) * μ} := by
-    intro G hG
-    simp only [Set.mem_ofPred_eq, Set.mem_union] at hG ⊢
-    rcases le_abs.1 hG with h1 | h2
-    · exact Or.inl (by linarith)
-    · exact Or.inr (by linarith)
-  have hle1 := binomialRandom_real_edgeCount_ge_one_add_mul_of_le_one p S hS le_rfl hδ hδ₁
-  have hle2 := binomialRandom_real_edgeCount_le_one_sub_mul p S hS le_rfl hδ
-  have hcmp : Real.exp (-(δ ^ 2 * μ / 2)) ≤ Real.exp (-(δ ^ 2 * μ / 3)) := by
-    rw [Real.exp_le_exp, neg_le_neg_iff]
-    exact div_le_div_of_nonneg_left (by positivity) (by norm_num) (by norm_num)
-  have hunion :=
-    (measureReal_mono hsub (measure_ne_top G(V, p) _)).trans (measureReal_union_le _ _)
-  linarith
+  rw [binomialRandom_real_edgeCount_eq_pi p S hS
+    (fun x => δ * ((#S : ℝ) * (p : ℝ)) ≤ |x - (#S : ℝ) * (p : ℝ)|)]
+  have h := Cslib.Probability.PMF.pi_sum_abs_sub_mean_ge_mul
+    (fun _ : {e : Sym2 V // e ∈ S} => Cslib.Probability.PMF.coin p) boolScore
+    (boolScore_mem_Icc p) hδ hδ₁
+  simpa only [sum_coin_boolScore p S] using h
 
 /-! ### Bipartite edge counts, internal edges, and vertex degrees -/
 
@@ -412,31 +371,8 @@ private theorem not_isDiag_of_mem_internalPairs [DecidableEq V] {K : Finset V} {
 
 private theorem card_internalPairs_le [DecidableEq V] (K : Finset V) :
     2 * #(internalPairs K) ≤ #K * #K := by
-  have hle : 2 * #(internalPairs K) ≤ #K.offDiag := by
-    have hcard : #K.offDiag =
-        ∑ e ∈ internalPairs K, #(K.offDiag.filter fun q => Sym2.mk.uncurry q = e) :=
-      Finset.card_eq_sum_card_image Sym2.mk.uncurry K.offDiag
-    rw [hcard]
-    calc 2 * #(internalPairs K) = ∑ _e ∈ internalPairs K, 2 := by
-          rw [Finset.sum_const, smul_eq_mul, mul_comm]
-      _ ≤ ∑ e ∈ internalPairs K, #(K.offDiag.filter fun q => Sym2.mk.uncurry q = e) := by
-          refine Finset.sum_le_sum fun e he => ?_
-          obtain ⟨⟨u, v⟩, huv, rfl⟩ := Finset.mem_image.1 he
-          have huv' := Finset.mem_offDiag.1 huv
-          have hsub : {(u, v), (v, u)} ⊆
-              K.offDiag.filter fun q => Sym2.mk.uncurry q = Sym2.mk.uncurry (u, v) := by
-            intro q hq
-            simp only [Finset.mem_insert, Finset.mem_singleton] at hq
-            rcases hq with rfl | rfl
-            · exact Finset.mem_filter.2 ⟨huv, rfl⟩
-            · exact Finset.mem_filter.2
-                ⟨Finset.mem_offDiag.2 ⟨huv'.2.1, huv'.1, huv'.2.2.symm⟩, Sym2.eq_swap⟩
-          have hne : (u, v) ≠ (v, u) := fun h => huv'.2.2 (congrArg Prod.fst h)
-          calc 2 = #({(u, v), (v, u)} : Finset (V × V)) := (Finset.card_pair hne).symm
-            _ ≤ #(K.offDiag.filter fun q => Sym2.mk.uncurry q = Sym2.mk.uncurry (u, v)) :=
-                Finset.card_le_card hsub
-  calc 2 * #(internalPairs K) ≤ #K.offDiag := hle
-    _ ≤ #K * #K := by rw [Finset.offDiag_card]; exact Nat.sub_le _ _
+  rw [internalPairs, Sym2.card_image_offDiag, Nat.choose_two_right]
+  exact (Nat.mul_div_le _ 2).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ 1))
 
 private theorem sum_ncard_inter_self_eq_two_mul [DecidableEq V] (K : Finset V) (G : SimpleGraph V) :
     ∑ u ∈ K, ((K : Set V) ∩ G.neighborSet u).ncard =
@@ -619,12 +555,12 @@ private theorem binomialRandom_real_sum_degreeInto_bad_le [Finite V] (p : I)
     linarith
   exact (measureReal_union_le _ _).trans (by linarith)
 
-/-- **Uniform vertex-to-set degree concentration in `G(V, p)`**: for `0 < η ≤ 1`, `1 ≤ k`, and
+/-- **Uniform vertex-to-set degree concentration in `G(V, p)`**: for `0 < η ≤ 1` and
 `4 k ≤ η a₀`, the probability that there exists a vertex subset `A` of size at least `a₀` for
 which at least `2 k` vertices have `|N(u) ∩ A|` deviating from `#A * p` by more than `η * #A * p`
 is at most `3 * 4 ^ |V| * exp (-(η ^ 2 * k * a₀ * p / 24))`. -/
 theorem binomialRandom_real_exists_many_badDegree_le [Fintype V] (p : I) {η : ℝ}
-    (hη0 : 0 < η) (hη1 : η ≤ 1) {a₀ k : ℕ} (hk : 1 ≤ k) (hka : 4 * (k : ℝ) ≤ η * (a₀ : ℝ)) :
+    (hη0 : 0 < η) (hη1 : η ≤ 1) {a₀ k : ℕ} (hka : 4 * (k : ℝ) ≤ η * (a₀ : ℝ)) :
     G(V, p).real {G | ∃ A : Finset V, a₀ ≤ #A ∧
       2 * k ≤ ({u : V | η * ((#A : ℝ) * (p : ℝ)) <
         |(((A : Set V) ∩ G.neighborSet u).ncard : ℝ) - (#A : ℝ) * (p : ℝ)|} : Set V).ncard} ≤

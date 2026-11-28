@@ -225,8 +225,8 @@ theorem bollobas_nonNeighborhood_instance :
 `![1 / 2, 1 / 2]`) with `p n = 1 / 2` (`c = 0`). -/
 theorem theorem_29_16_hawkDove_mixed_const_p :
     let p : ℕ → I := fun _ => ⟨1 / 2, by norm_num, by norm_num⟩
-    (Measure.infinitePi fun n : ℕ => G(Fin n, p n))
-      {G | (hawkDove 2 4).IsGraphESS G ![1 / 2, 1 / 2]} = 1 := by
+    ∀ᵐ G ∂(Measure.infinitePi fun n : ℕ => G(Fin n, p n)),
+      (hawkDove 2 4).IsGraphESS G ![1 / 2, 1 / 2] := by
   have hess : (hawkDove 2 4).IsESS ![1 / 2, 1 / 2] := by
     rw [isESS_hawkDove_iff_of_le (by norm_num) (by norm_num)]
     ext i; fin_cases i <;> norm_num
@@ -241,8 +241,8 @@ theorem theorem_29_16_hawkDove_mixed_sparse_p :
         Real.rpow_nonneg (by positivity) _,
         Real.rpow_le_one_of_one_le_of_nonpos (by linarith [Nat.cast_nonneg (α := ℝ) n])
           (by norm_num)⟩
-    (Measure.infinitePi fun n : ℕ => G(Fin n, p n))
-      {G | (hawkDove 2 4).IsGraphESS G ![1 / 2, 1 / 2]} = 1 := by
+    ∀ᵐ G ∂(Measure.infinitePi fun n : ℕ => G(Fin n, p n)),
+      (hawkDove 2 4).IsGraphESS G ![1 / 2, 1 / 2] := by
   intro p
   have hess : (hawkDove 2 4).IsESS ![1 / 2, 1 / 2] := by
     rw [isESS_hawkDove_iff_of_le (by norm_num) (by norm_num)]
@@ -308,13 +308,13 @@ theorem lemma_29_17_mul_instance :
 theorem exercise_29_7_linear_half :
     ∃ (F : BimatrixGame (Fin 2) (Fin 2)) (s t : Fin 2 → ℝ),
       F.B = F.Aᵀ ∧ F.IsESS s ∧ IsMixedStrategy t ∧ t ≠ s ∧
-      (Measure.infinitePi fun n : ℕ => G(Fin n, (⟨1 / 2, by norm_num, by norm_num⟩ : I)))
-        {G | ∀ ε' > 0, ∃ M : ∀ n, Finset (Fin n), IsEpsLinear ε' M ∧
+      ∀ᵐ G ∂(Measure.infinitePi fun n : ℕ => G(Fin n, (⟨1 / 2, by norm_num, by norm_num⟩ : I))),
+        ∀ ε' > 0, ∃ M : ∀ n, Finset (Fin n), IsEpsLinear ε' M ∧
           ∀ᶠ n : ℕ in atTop, ∃ j ∈ M n,
             (∃ i, i ∉ M n ∧ (G n).Adj j i) ∧
             ∀ i, i ∉ M n → (G n).Adj j i →
               F.graphFitness (G n) (fun u => if u ∈ M n then t else s) i <
-                F.graphFitness (G n) (fun u => if u ∈ M n then t else s) j} = 1 := by
+                F.graphFitness (G n) (fun u => if u ∈ M n then t else s) j := by
   obtain ⟨F, s, t, hsym, hess, ht, hne, h⟩ :=
     exists_game_adversarial_linear_mutant_beats_all_incumbent_neighbors
   exact ⟨F, s, t, hsym, hess, ht, hne,
