@@ -10636,6 +10636,7 @@ public import CslibFrontier.Languages.SQL.QueryLaws
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevTwoBlocks
 public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko
 public import CslibFrontier.Computability.Circuit.Rational.Deformation
+public import CslibFrontier.Algorithms.PointerMachine.MergeSort
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Line
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Request
 public import CslibFrontier.Probability.HoeffdingStep
