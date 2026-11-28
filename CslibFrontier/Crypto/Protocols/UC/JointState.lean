@@ -84,6 +84,7 @@ without importing the UC ideal-functionality or execution modules.
 * `Cslib.Crypto.Protocols.UC.SubSessionInput`, `Cslib.Crypto.Protocols.UC.SubSessionBackdoor`,
   `Cslib.Crypto.Protocols.UC.MultiSessionState`: named data structures for multi-session
   functionalities.
+* `Cslib.Crypto.Protocols.UC.lazySessionStep`: shared single-step lazy session-table activation.
 * `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSession`: lazy multi-session extension `F̂`.
 * `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol`: protocol-level budget-
   preserving lazy multi-session extension capturing `κ` and `C` at machine construction.
@@ -94,7 +95,8 @@ without importing the UC ideal-functionality or execution modules.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol_isBounded`,
+* `Cslib.Crypto.Protocols.UC.lazySessionStep_isQueryBounded`,
+  `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol_isBounded`,
   `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol_polyBounded`,
   `Cslib.Crypto.Protocols.UC.toJoint_polyBounded`,
   `Cslib.Crypto.Protocols.UC.jointDemux_polyBounded`,
@@ -165,6 +167,45 @@ structure MultiSessionState (n : ℕ) (SSID FState : Type) : Type where
   /-- Lazily initialized per-session states (`none` until first message). -/
   sessions : SSID → Option FState
 
+/-- Single lazy session-table activation step: looks up `ssid` in `sessions`, initializes a fresh
+session via `init` on a miss, runs `step` on that session's state, and wraps the updated session
+table via `wrap`. Shared by `IdealFunctionality.multiSession` and
+`IdealFunctionality.multiSessionProtocol`. -/
+@[expose] def lazySessionStep {SSID FState S α : Type} [DecidableEq SSID]
+    (init : ProbComp FState) (step : StateT FState ProbComp α)
+    (ssid : SSID) (sessions : SSID → Option FState) (wrap : (SSID → Option FState) → S) :
+    ProbComp (α × S) := do
+  let fState ← match sessions ssid with
+    | some st => pure st
+    | none => init
+  let (out, fState') ← step.run fState
+  return (out, wrap (Function.update sessions ssid (some fState')))
+
+/-- Query-budget preservation for `lazySessionStep`: at most `t` calls for lazy initialization on
+a miss plus at most `t` calls for `step`. -/
+theorem lazySessionStep_isQueryBounded {SSID FState S α : Type} [DecidableEq SSID]
+    {init : ProbComp FState} {step : StateT FState ProbComp α} {t : ℕ}
+    (hInit : init.IsQueryBounded t) (hStep : ∀ fState, (step.run fState).IsQueryBounded t)
+    (ssid : SSID) (sessions : SSID → Option FState) (wrap : (SSID → Option FState) → S) :
+    (lazySessionStep init step ssid sessions wrap).IsQueryBounded (2 * t) := by
+  refine OracleComp.IsCostBounded.mono (n := t + (t + 0)) ?_ (by omega)
+  have hBody : ∀ fState,
+      (step.run fState >>= fun x =>
+        pure (x.1, wrap (Function.update sessions ssid (some x.2)))).IsQueryBounded (t + 0) :=
+    fun fState => (hStep fState).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  dsimp only [lazySessionStep]
+  cases sessions ssid with
+  | some st => exact (OracleComp.IsCostBounded.pure st t).bind hBody
+  | none => exact hInit.bind hBody
+
+private theorem lazySessionStep_map_wrap {SSID FState S α : Type} [DecidableEq SSID]
+    (init : ProbComp FState) (step : StateT FState ProbComp α)
+    (ssid : SSID) (sessions : SSID → Option FState) (wrap : (SSID → Option FState) → S) :
+    lazySessionStep init step ssid sessions wrap =
+      Prod.map _root_.id wrap <$> lazySessionStep init step ssid sessions _root_.id := by
+  dsimp only [lazySessionStep]
+  cases sessions ssid <;> simp only [map_bind, map_pure, Prod.map_apply, id_eq]
+
 /-- Multi-session extension `F̂` of an ideal functionality `F` for any `[DecidableEq SSID]`:
 creates a fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor
 query for `ssid`, and activates that copy ([CanettiRabin2003], §3, "The Multi-session Extension of
@@ -185,18 +226,12 @@ instance in nested `composeMulti`) should use `IdealFunctionality.multiSessionPr
       (SubSessionBackdoor SSID BackQ) BackR where
   State := MultiSessionState n SSID F.State
   init κ C := pure { secParam := κ, corrupted := C, sessions := fun _ => none }
-  onInput i req s := do
-    let fState ← match s.sessions req.ssid with
-      | some st => pure st
-      | none => F.init s.secParam s.corrupted
-    let (out, fState') ← (F.onInput i req.input).run fState
-    return (out, { s with sessions := Function.update s.sessions req.ssid (some fState') })
-  onBackdoor req s := do
-    let fState ← match s.sessions req.ssid with
-      | some st => pure st
-      | none => F.init s.secParam s.corrupted
-    let (resp, fState') ← (F.onBackdoor req.query).run fState
-    return (resp, { s with sessions := Function.update s.sessions req.ssid (some fState') })
+  onInput i req s :=
+    lazySessionStep (F.init s.secParam s.corrupted) (F.onInput i req.input)
+      req.ssid s.sessions fun sessions' => { s with sessions := sessions' }
+  onBackdoor req s :=
+    lazySessionStep (F.init s.secParam s.corrupted) (F.onBackdoor req.query)
+      req.ssid s.sessions fun sessions' => { s with sessions := sessions' }
 
 /-- Budget-preserving protocol-level lazy multi-session extension of `F` for any
 `[DecidableEq SSID]`: captures the security parameter `κ` and static corruption set `C` at machine
@@ -212,18 +247,12 @@ with `(F.multiSession SSID).toProtocol` (`exec_multiSessionProtocol_eq`). -/
     { State := SSID → Option F.State
       init := pure fun _ => none
       handle
-        | .inl (i, req) => fun s => do
-            let fState ← match s req.ssid with
-              | some st => pure st
-              | none => ProbOracleComp.sample (F.init κ C)
-            let (out, fState') ← ProbOracleComp.sample ((F.onInput i req.input).run fState)
-            return (out, Function.update s req.ssid (some fState'))
-        | .inr req => fun s => do
-            let fState ← match s req.ssid with
-              | some st => pure st
-              | none => ProbOracleComp.sample (F.init κ C)
-            let (resp, fState') ← ProbOracleComp.sample ((F.onBackdoor req.query).run fState)
-            return (resp, Function.update s req.ssid (some fState')) }
+        | .inl (i, req) => fun s =>
+            ProbOracleComp.sample
+              (lazySessionStep (F.init κ C) (F.onInput i req.input) req.ssid s _root_.id)
+        | .inr req => fun s =>
+            ProbOracleComp.sample
+              (lazySessionStep (F.init κ C) (F.onBackdoor req.query) req.ssid s _root_.id) }
 
 /-- Every activation of `F.multiSessionProtocol SSID κ C` makes at most `2 * t` calls whenever
 `F.toProtocol κ C` has per-activation budget `t` (at most `t` for lazy `F.init κ C` on first
@@ -234,32 +263,17 @@ theorem IdealFunctionality.multiSessionProtocol_isBounded {n : ℕ}
     (hF : (F.toProtocol κ C).IsBounded t) :
     (F.multiSessionProtocol SSID κ C).IsBounded (2 * t) := by
   refine ⟨OracleComp.IsCostBounded.pure _ (2 * t), fun q s => ?_⟩
-  have hStep : ∀ {α : Type} (ssid : SSID) (step : F.State → ProbComp (α × F.State)),
-      (∀ fState, (ProbOracleComp.sample (spec := OracleSpec.empty) (step fState)).IsQueryBounded
-        t) →
-      (match s ssid with
-        | some st => do
-            let fState ← pure st
-            let x ← ProbOracleComp.sample (spec := OracleSpec.empty) (step fState)
-            pure (x.1, Function.update s ssid (some x.2))
-        | none => do
-            let fState ← ProbOracleComp.sample (spec := OracleSpec.empty) (F.init κ C)
-            let x ← ProbOracleComp.sample (spec := OracleSpec.empty) (step fState)
-            pure (x.1, Function.update s ssid (some x.2))).IsQueryBounded (2 * t) := by
-    intro α ssid step hStepB
-    have hBody : ∀ fState,
-        ((ProbOracleComp.sample (spec := OracleSpec.empty) (step fState)) >>= fun x =>
-          pure (x.1, Function.update s ssid (some x.2))).IsQueryBounded (t + 0) :=
-      fun fState => (hStepB fState).bind fun _ => OracleComp.IsCostBounded.pure _ 0
-    refine OracleComp.IsCostBounded.mono (n := t + (t + 0)) ?_ (by omega)
-    cases s ssid with
-    | some st => exact (OracleComp.IsCostBounded.pure st t).bind hBody
-    | none => exact (Machine.isQueryBounded_sample hF.1).bind hBody
   rcases q with ⟨i, req⟩ | req
-  · exact hStep req.ssid (fun fState => (F.onInput i req.input).run fState)
-      (fun fState => hF.2 (.inl (i, req.input)) fState)
-  · exact hStep req.ssid (fun fState => (F.onBackdoor req.query).run fState)
-      (fun fState => hF.2 (.inr req.query) fState)
+  · exact Machine.isQueryBounded_sample (lazySessionStep_isQueryBounded hF.1
+      (fun fState => by
+        simpa only [IdealFunctionality.toProtocol, StateT.run, Machine.closeProgram_sample] using
+          Machine.isQueryBounded_closeProgram (hF.2 (.inl (i, req.input)) fState))
+      req.ssid s _root_.id)
+  · exact Machine.isQueryBounded_sample (lazySessionStep_isQueryBounded hF.1
+      (fun fState => by
+        simpa only [IdealFunctionality.toProtocol, StateT.run, Machine.closeProgram_sample] using
+          Machine.isQueryBounded_closeProgram (hF.2 (.inr req.query) fState))
+      req.ssid s _root_.id)
 
 /-- Protocol-level lazy multi-session extension preserves polynomial call budgets with factor `2`:
 if `F.toProtocol` has budget `pF`, then `F.multiSessionProtocol SSID` has budget `2 * pF`. -/
@@ -624,7 +638,8 @@ private theorem handle_corruptRouter_multiSession_inl {m n : ℕ}
           (j, .inl (i, x))).run s := by
   dsimp only [SSP.parFinLazy, corruptRouter] at s ⊢
   simp only [hi, ↓reduceIte]
-  dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, StateT.run]
+  dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, lazySessionStep,
+    StateT.run]
   cases s j <;> simp [ProbOracleComp.sample_bind]
 
 private theorem handle_corruptRouter_multiSession_inr {m n : ℕ}
@@ -644,7 +659,8 @@ private theorem handle_corruptRouter_multiSession_inr {m n : ℕ}
     simp only [corruptRouter, hnq, ↓reduceIte, StateT.run_map]
   all_goals
     erw [StateT.run_map]
-    dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, StateT.run]
+    dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, lazySessionStep,
+      StateT.run]
     cases s j <;> simp [ProbOracleComp.sample_bind]
 
 private theorem eval_run_multiSession_relabel {m n : ℕ}
@@ -755,11 +771,9 @@ private theorem handle_multiSession_map_state {n : ℕ} {SubIn SubOut BackQ Back
       Prod.map _root_.id (MultiSessionState.mk κ C) <$>
         ((F.multiSessionProtocol SSID κ C).handle q).run s := by
   rcases q with ⟨i, req⟩ | req <;>
-    dsimp only [IdealFunctionality.multiSession, IdealFunctionality.multiSessionProtocol,
+    simp only [IdealFunctionality.multiSession, IdealFunctionality.multiSessionProtocol,
       IdealFunctionality.toProtocol, StateT.run] <;>
-    cases s req.ssid <;>
-    simp only [ProbOracleComp.sample_bind, ProbOracleComp.sample_pure, pure_bind, map_bind,
-      map_pure, Prod.map_apply, id_eq]
+    rw [lazySessionStep_map_wrap, ProbOracleComp.sample_map]
 
 private theorem run_corruptRouter_multiSessionProtocol_eq {n : ℕ}
     {SubIn SubOut BackQ BackR α : Type} (SSID : Type) [DecidableEq SSID]

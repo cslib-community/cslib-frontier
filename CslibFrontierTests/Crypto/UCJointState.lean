@@ -54,7 +54,7 @@ theorem lazy_creation_witness :
             { secParam := 0, corrupted := ∅, sessions := fun _ => none })).eval) =
       PMF.pure true := by
   simp only [corruptRouter, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
-    coinFunc, Machine.runFrom_query, StateT.run, Machine.closeProgram_map,
+    lazySessionStep, coinFunc, Machine.runFrom_query, StateT.run, Machine.closeProgram_map,
     Machine.closeProgram_sample, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_unifFin, Finset.notMem_empty, ↓reduceIte, pure_bind, bind_map_left,
     PMF.map_bind]
@@ -87,7 +87,7 @@ theorem copies_independent_witness :
       (dummyAdversary 2 _ _) ∅ twoCopiesEnv 0 []).eval true = (2 : ENNReal)⁻¹ := by
     rw [exec_dummyAdversary]
     simp only [twoCopiesEnv, corruptRouter, IdealFunctionality.multiSession,
-      IdealFunctionality.toProtocol, coinFunc, Machine.run, Machine.link,
+      IdealFunctionality.toProtocol, lazySessionStep, coinFunc, Machine.run, Machine.link,
       Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
       Machine.closeProgram_bind, Machine.closeProgram_sample, Machine.closeProgram_map,
       Machine.closeProgram_pure, ProbOracleComp.sample_pure, pure_bind, map_bind,
@@ -332,7 +332,7 @@ theorem demux_nontrivial_corrupted_witness :
     erw [liftParty_toJoint_two]
     simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
     simp only [pure_bind, Machine.run, Machine.link, corruptRouter,
-      IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
+      IdealFunctionality.multiSession, IdealFunctionality.toProtocol, lazySessionStep,
       Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
       ProbOracleComp.sample_pure, StateT.run_map, map_bind,
       Finset.mem_singleton, Fin.zero_ne_one, ↓reduceIte]
@@ -432,7 +432,7 @@ private theorem backdoor_creation_prefix (iPoll : Fin 2) :
   simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
   simp only [pure_bind, bind_map_left, Machine.run, Machine.link, corruptRouter,
     coinBackdoorFunc, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
-    Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
+    lazySessionStep, Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
     ProbOracleComp.sample_pure, StateT.run_map, map_bind,
     Finset.notMem_empty, ↓reduceIte]
   simp only [StateT.run, Machine.closeProgram_bind, Machine.closeProgram_sample,
@@ -600,8 +600,8 @@ theorem not_multiSession_polyBounded :
     { secParam := q.eval 0 + 1, corrupted := ∅, sessions := fun _ => none }
   have hact := (hq 0 ∅).2 (.inl ((0 : Fin 1), ⟨(), ()⟩)) s₀
   have hclosed := Machine.isQueryBounded_closeProgram hact
-  simp only [IdealFunctionality.toProtocol, IdealFunctionality.multiSession, coinInitFunc, s₀,
-    StateT.run, Machine.closeProgram_sample, pure_bind] at hclosed
+  simp only [IdealFunctionality.toProtocol, IdealFunctionality.multiSession, lazySessionStep,
+    coinInitFunc, s₀, StateT.run, Machine.closeProgram_sample, pure_bind] at hclosed
   have hle := drawFairBits_bind_isQueryBounded_le (q.eval 0 + 1) (q.eval 0) _ hclosed
   omega
 
@@ -628,13 +628,14 @@ theorem coinInitFunc_multiSessionProtocol_exec_witness :
   have hP : (exec (coinInitFunc.multiSessionProtocol Unit)
       (dummyAdversary 1 _ _) ∅ coinInitEnv 1 []).eval true = (2 : ENNReal)⁻¹ := by
     rw [exec_dummyAdversary]
-    simp only [coinInitEnv, corruptRouter, IdealFunctionality.multiSessionProtocol, coinInitFunc,
-      drawFairBits, Machine.run, Machine.link, Machine.runFrom_bind, Machine.runFrom_query,
-      Machine.runFrom_pure, Machine.closeProgram_bind, Machine.closeProgram_sample,
-      Machine.closeProgram_map, Machine.closeProgram_pure, ProbOracleComp.sample_pure,
-      ProbOracleComp.sample_bind, pure_bind, map_bind, StateT.run, ProbComp.eval_map,
-      ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, Finset.notMem_empty,
-      ↓reduceIte, Bool.xor_false, Option.getD_some, PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
+    simp only [coinInitEnv, corruptRouter, IdealFunctionality.multiSessionProtocol, lazySessionStep,
+      coinInitFunc, drawFairBits, Machine.run, Machine.link, Machine.runFrom_bind,
+      Machine.runFrom_query, Machine.runFrom_pure, Machine.closeProgram_bind,
+      Machine.closeProgram_sample, Machine.closeProgram_map, Machine.closeProgram_pure,
+      ProbOracleComp.sample_pure, ProbOracleComp.sample_bind, pure_bind, map_bind, StateT.run,
+      ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+      Finset.notMem_empty, ↓reduceIte, Bool.xor_false, Option.getD_some, PMF.bind_bind,
+      PMF.pure_bind, PMF.pure_map]
     simp [Probability.PMF.uniformOfFintype_apply]
   refine ⟨hP, ?_⟩
   rw [← exec_multiSessionProtocol_eq]
@@ -714,13 +715,13 @@ private theorem runFrom_jointFaultyRelay_false (C : Finset (Fin 2)) (κ : ℕ)
         Prod.map _root_.id f <$>
           ((idealRelay.multiSessionProtocol (Fin 2) κ C).handle q).run s := by
     rintro (⟨i, req⟩ | req) s
-    · dsimp only [jointFaultyRelay, IdealFunctionality.multiSessionProtocol, idealRelay,
-        StateT.run, f]
+    · dsimp only [jointFaultyRelay, IdealFunctionality.multiSessionProtocol, lazySessionStep,
+        idealRelay, StateT.run, f]
       cases s req.ssid <;> cases req.input <;>
         (simp only [Option.getD_none, Option.getD_some, Bool.false_eq_true, ↓reduceIte,
           ProbOracleComp.sample_pure, pure_bind, map_pure, Prod.map_apply, id_eq]; rfl)
-    · dsimp only [jointFaultyRelay, IdealFunctionality.multiSessionProtocol, idealRelay,
-        StateT.run, f]
+    · dsimp only [jointFaultyRelay, IdealFunctionality.multiSessionProtocol, lazySessionStep,
+        idealRelay, StateT.run, f]
       cases s req.ssid <;>
         simp only [Option.getD_none, Option.getD_some, ProbOracleComp.sample_pure, pure_bind,
           map_pure, Prod.map_apply, id_eq]
@@ -831,9 +832,9 @@ theorem orOuter_jointFaultyRelay_advantage_zero :
       cases b <;> rfl
     have hRelayInit : idealRelay.init 0 ∅ = pure sNone := rfl
     simp only [Machine.run, Machine.link, corruptRouter, IdealFunctionality.multiSessionProtocol,
-      Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure, StateT.run,
-      Finset.notMem_empty, ↓reduceIte, ProbOracleComp.sample_pure, pure_bind]
-    simp only [hRelayInit, hRelayOn, ProbOracleComp.sample_pure, pure_bind, ↓reduceIte,
+      lazySessionStep, Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
+      StateT.run, Finset.notMem_empty, ↓reduceIte, ProbOracleComp.sample_pure, pure_bind]
+    simp only [hRelayInit, hRelayOn, ProbOracleComp.sample_pure, pure_bind, id_eq, ↓reduceIte,
       Function.update_of_ne Fin.zero_ne_one.symm, Machine.closeProgram_map,
       Machine.closeProgram_pure, ProbComp.eval_map, ProbComp.eval_pure, Option.getD_some,
       Bool.and_self, Bool.not_true, PMF.pure_map, PMF.pure_apply, Bool.true_eq_false]
