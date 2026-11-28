@@ -19,7 +19,6 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
@@ -526,50 +525,48 @@ theorem isOraclePPTOn_lowerWith_decodeQuery {ι α : Type} {E : ι → Type}
 
 /-! ### Canonical-request normalizer -/
 
-/-- Library construction (no cited definition): rewrite every external word query `(c, w)` of a
-word program to its canonical representative `(c, I.requestNormalize c w)`, preserving private coin
-draws and returning oracle replies verbatim. -/
+/-- Rewrite every external word query `(c, w)` of a word program to its canonical representative
+`(c, I.requestNormalize c w)`, preserving private coin draws and returning oracle replies
+verbatim. -/
 def normalizeRequests {ι α : Type} {E : ι → Type} (I : WordInterface E)
     (program : WordOracleComp I.Channel α) : WordOracleComp I.Channel α :=
   ProbOracleComp.simulate
     (fun cw => ProbOracleComp.query (cw.1, I.requestNormalize cw.1 cw.2)) program
 
-/-- Library infrastructure (no cited result): request normalization preserves returned values. -/
+/-- Request normalization preserves returned values. -/
 @[simp] theorem normalizeRequests_pure {ι α : Type} {E : ι → Type} (I : WordInterface E)
     (a : α) : I.normalizeRequests (pure a) = pure a := rfl
 
-/-- Library infrastructure (no cited result): request normalization distributes over bind. -/
+/-- Request normalization distributes over bind. -/
 @[simp] theorem normalizeRequests_bind {ι α β : Type} {E : ι → Type} (I : WordInterface E)
     (program : WordOracleComp I.Channel α) (next : α → WordOracleComp I.Channel β) :
     I.normalizeRequests (program >>= next) =
       (I.normalizeRequests program >>= fun a => I.normalizeRequests (next a)) :=
   ProbOracleComp.simulate_bind _ _ _
 
-/-- Library infrastructure (no cited result): request normalization commutes with mapping. -/
+/-- Request normalization commutes with mapping. -/
 @[simp] theorem normalizeRequests_map {ι α β : Type} {E : ι → Type} (I : WordInterface E)
     (f : α → β) (program : WordOracleComp I.Channel α) :
     I.normalizeRequests (f <$> program) = f <$> I.normalizeRequests program :=
   ProbOracleComp.simulate_map _ _ _
 
-/-- Library infrastructure (no cited result): request normalization preserves private samples. -/
+/-- Request normalization preserves private samples. -/
 @[simp] theorem normalizeRequests_sample {ι α : Type} {E : ι → Type} (I : WordInterface E)
     (program : ProbComp α) :
     I.normalizeRequests (ProbOracleComp.sample program) = ProbOracleComp.sample program :=
   ProbOracleComp.simulate_sample _ _
 
-/-- Library infrastructure (no cited result): request normalization rewrites a single query
-`(c, w)` to `(c, I.requestNormalize c w)`. -/
+/-- Request normalization rewrites a single query `(c, w)` to `(c, I.requestNormalize c w)`. -/
 @[simp] theorem normalizeRequests_query {ι : Type} {E : ι → Type} (I : WordInterface E)
     (cw : I.Channel × List Bool) :
     I.normalizeRequests (ProbOracleComp.query cw) =
       ProbOracleComp.query (cw.1, I.requestNormalize cw.1 cw.2) :=
   ProbOracleComp.simulate_query _ _
 
-/-- Library infrastructure (no cited result): interacting with the total normalized oracle
-`I.encodeOracle oracle` produces the exact same joint output and oracle-state distribution as
-running `I.normalizeRequests program` against `I.toOracleCodec.wordOracle oracle` (which leaves
-oracle state unchanged on off-image requests), for every word program (including off-image
-queries). -/
+/-- Interacting with the total normalized oracle `I.encodeOracle oracle` produces the exact same
+joint output and oracle-state distribution as running `I.normalizeRequests program` against
+`I.toOracleCodec.wordOracle oracle` (which leaves oracle state unchanged on off-image requests),
+for every word program (including off-image queries). -/
 theorem runWith_encodeOracle_eq_wordOracle_normalizeRequests {ι α σ : Type} {E : ι → Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
     (program : WordOracleComp I.Channel α) (s : σ) :
@@ -582,9 +579,9 @@ theorem runWith_encodeOracle_eq_wordOracle_normalizeRequests {ι α σ : Type} {
   rw [ProbOracleComp.runWith_query]
   rfl
 
-/-- Library infrastructure (no cited result): interacting with `I.encodeOracle oracle` produces the
-same joint output and oracle-state law as running the typed adaptation
-`I.toOracleCodec.adapt (I.normalizeRequests program)` directly against `oracle`. -/
+/-- Interacting with `I.encodeOracle oracle` produces the same joint output and oracle-state law as
+running the typed adaptation `I.toOracleCodec.adapt (I.normalizeRequests program)` directly against
+`oracle`. -/
 theorem runWith_encodeOracle_eq_adapt_normalizeRequests {ι α σ : Type} {E : ι → Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
     (program : WordOracleComp I.Channel α) (s : σ) :
@@ -592,8 +589,8 @@ theorem runWith_encodeOracle_eq_adapt_normalizeRequests {ι α σ : Type} {E : �
       ProbOracleComp.runWith oracle (I.toOracleCodec.adapt (I.normalizeRequests program)) s := by
   rw [I.runWith_encodeOracle_eq_wordOracle_normalizeRequests, I.toOracleCodec.runWith_adapt]
 
-/-- Library infrastructure (no cited result): every external query issued by
-`I.normalizeRequests program` is a canonical `(I.channel q, I.request q)` pair. -/
+/-- Every external query issued by `I.normalizeRequests program` is a canonical
+`(I.channel q, I.request q)` pair. -/
 theorem queriesSatisfy_normalizeRequests {ι α : Type} {E : ι → Type}
     (I : WordInterface E) (program : WordOracleComp I.Channel α) :
     (I.normalizeRequests program).QueriesSatisfy
@@ -604,8 +601,8 @@ theorem queriesSatisfy_normalizeRequests {ι α : Type} {E : ι → Type}
       Prod.ext (I.request_decodeQuery cw.1 cw.2).1.symm
         (I.request_decodeQuery cw.1 cw.2).2.symm⟩
 
-/-- Library infrastructure (no cited result): any word program whose queries are already canonical
-is fixed identically by `I.normalizeRequests`. -/
+/-- Any word program whose queries are already canonical is fixed identically by
+`I.normalizeRequests`. -/
 theorem normalizeRequests_eq_self {ι α : Type} {E : ι → Type}
     (I : WordInterface E) {program : WordOracleComp I.Channel α}
     (h : program.QueriesSatisfy (fun cw => ∃ q : ι, cw = (I.channel q, I.request q))) :
@@ -620,14 +617,14 @@ theorem normalizeRequests_eq_self {ι α : Type} {E : ι → Type}
     simp only [OracleComp.sumHandler, I.requestNormalize_request]
     rfl
 
-/-- Library infrastructure (no cited result): canonical-request normalization is idempotent. -/
+/-- Canonical-request normalization is idempotent. -/
 @[simp] theorem normalizeRequests_idempotent {ι α : Type} {E : ι → Type}
     (I : WordInterface E) (program : WordOracleComp I.Channel α) :
     I.normalizeRequests (I.normalizeRequests program) = I.normalizeRequests program :=
   I.normalizeRequests_eq_self (I.queriesSatisfy_normalizeRequests program)
 
-/-- Library infrastructure (no cited result): every external query issued by a lowered typed
-program `program.lowerWith I limit` is canonical. -/
+/-- Every external query issued by a lowered typed program `program.lowerWith I limit` is
+canonical. -/
 theorem queriesSatisfy_lowerWith {ι α : Type} {E : ι → Type}
     (I : WordInterface E) (limit : ℕ) (program : ProbOracleComp E α) :
     (program.lowerWith I limit).QueriesSatisfy
@@ -636,16 +633,14 @@ theorem queriesSatisfy_lowerWith {ι α : Type} {E : ι → Type}
   simp only [lowerQuery, OracleComp.queriesSatisfy_map_iff]
   exact ProbOracleComp.QueriesSatisfy.query ⟨q, rfl⟩
 
-/-- Library infrastructure (no cited result): lowered typed programs are already canonical and
-therefore fixed by `I.normalizeRequests`. -/
+/-- Lowered typed programs are already canonical and therefore fixed by `I.normalizeRequests`. -/
 @[simp] theorem normalizeRequests_lowerWith {ι α : Type} {E : ι → Type}
     (I : WordInterface E) (limit : ℕ) (program : ProbOracleComp E α) :
     I.normalizeRequests (program.lowerWith I limit) = program.lowerWith I limit :=
   I.normalizeRequests_eq_self (I.queriesSatisfy_lowerWith limit program)
 
-/-- Library infrastructure (no cited result): for any word program whose queries are all canonical,
-`I.encodeOracle oracle` and `I.toOracleCodec.wordOracle oracle` induce the same joint output and
-oracle-state law. -/
+/-- For any word program whose queries are all canonical, `I.encodeOracle oracle` and
+`I.toOracleCodec.wordOracle oracle` induce the same joint output and oracle-state law. -/
 theorem runWith_encodeOracle_eq_wordOracle_of_queriesSatisfy {ι α σ : Type} {E : ι → Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
     {program : WordOracleComp I.Channel α}
@@ -655,74 +650,18 @@ theorem runWith_encodeOracle_eq_wordOracle_of_queriesSatisfy {ι α σ : Type} {
       ProbOracleComp.runWith (I.toOracleCodec.wordOracle oracle) program s := by
   rw [I.runWith_encodeOracle_eq_wordOracle_normalizeRequests, I.normalizeRequests_eq_self h]
 
-/-- Library infrastructure (no cited result): canonical-request normalization preserves external
-query budgets. -/
+/-- Canonical-request normalization preserves external query budgets. -/
 theorem isQueryBounded_normalizeRequests {ι α : Type} {E : ι → Type}
     (I : WordInterface E) {program : WordOracleComp I.Channel α} {n : ℕ}
     (h : program.IsQueryBounded n) :
     (I.normalizeRequests program).IsQueryBounded n :=
   h.simulate fun cw => ProbOracleComp.IsQueryBounded.query (cw.1, I.requestNormalize cw.1 cw.2)
 
-/-- Truncating every oracle reply to `fuel` bits leaves `machine.runOracle fuel input` unchanged.
--/
-private theorem runOracle_eq_simulate_take
-    {k : ℕ} {Control Operation : Type} [DecidableEq Operation]
-    (machine : Turing.MultiTapePTM k Bool Control Operation)
-    (fuel : ℕ) (input : List Bool) :
-    machine.runOracle fuel input =
-      ProbOracleComp.simulate (fun cw => List.take fuel <$> ProbOracleComp.query cw)
-        (machine.runOracle fuel input) := by
-  have htake :
-      machine.runOracle fuel input =
-        Turing.MultiTapeMachine.run machine
-          (fun choices => choices <$> ProbOracleComp.sample (ProbComp.uniform Bool))
-          (fun op word => List.take fuel <$> ProbOracleComp.query (op, word)) fuel input :=
-    (Turing.MultiTapePTM.finiteRunFrom_take_runOracle machine fuel input).symm.trans
-      (Turing.MultiTapeMachine.finiteRunFrom_init machine _ _ fuel input)
-  conv_rhs =>
-    simp only [Turing.MultiTapePTM.runOracle, Turing.MultiTapePTM.run, Turing.MultiTapePTM.runFrom,
-      Turing.MultiTapePTM.runConfigFrom, ProbOracleComp.simulate,
-      OracleComp.substitute_eq_interpret, OracleComp.interpret_map,
-      Turing.MultiTapeMachine.interpret_runConfigFrom]
-  have hsample :
-      OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun n =>
-            ProbOracleComp.sample (spec := fun _ : Operation × List Bool => List Bool)
-              (ProbComp.unifFin n))
-          (fun cw =>
-            List.take fuel <$> ProbOracleComp.query
-              (spec := fun _ : Operation × List Bool => List Bool) cw))
-        (ProbOracleComp.sample (spec := fun _ : Operation × List Bool => List Bool)
-          (ProbComp.uniform Bool)) =
-      ProbOracleComp.sample (spec := fun _ : Operation × List Bool => List Bool)
-        (ProbComp.uniform Bool) := by
-    rw [← OracleComp.substitute_eq_interpret]
-    exact ProbOracleComp.simulate_sample _ _
-  have hquery : ∀ (oracle : Operation) (word : List Bool),
-      OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun n =>
-            ProbOracleComp.sample (spec := fun _ : Operation × List Bool => List Bool)
-              (ProbComp.unifFin n))
-          (fun cw =>
-            List.take fuel <$> ProbOracleComp.query
-              (spec := fun _ : Operation × List Bool => List Bool) cw))
-        (ProbOracleComp.query (spec := fun _ : Operation × List Bool => List Bool)
-          (oracle, word)) =
-      List.take fuel <$> ProbOracleComp.query
-        (spec := fun _ : Operation × List Bool => List Bool) (oracle, word) :=
-    fun oracle word => by
-      rw [← OracleComp.substitute_eq_interpret]
-      exact ProbOracleComp.simulate_query _ (oracle, word)
-  simp only [hsample, hquery]
-  exact htake
-
-/-- Library infrastructure (no cited result): canonical-request normalization preserves uniform
-strict oracle PPT for arbitrary word adversaries, with no extra reply-length assumption: a
-polynomial-time realizing machine running for `T` steps cannot inspect beyond the first `T` bits
-of any oracle reply, so normalizing each request and taking `T` reply bits realizes
-`I.normalizeRequests` identically against every stateful external oracle. -/
+/-- Canonical-request normalization preserves uniform strict oracle PPT for arbitrary word
+adversaries, with no extra reply-length assumption: a polynomial-time realizing machine running for
+`T` steps cannot inspect beyond the first `T` bits of any oracle reply
+(`Turing.MultiTapePTM.runOracle_eq_simulate_take`), so normalizing each request and taking `T`
+reply bits realizes `I.normalizeRequests` identically against every stateful external oracle. -/
 theorem isOraclePPTOn_normalizeRequests {ι α β : Type} {E : ι → Type}
     (I : WordInterface E) {input : α ↪ List Bool} {output : β ↪ List Bool}
     {program : α → WordOracleComp I.Channel β}
@@ -767,7 +706,7 @@ theorem isOraclePPTOn_normalizeRequests {ι α β : Type} {E : ι → Type}
   change ProbOracleComp.runWith oracle
       (ProbOracleComp.simulate (handler a) (machine.runOracle (fuel a) (input a))) s = _
   rw [ProbOracleComp.runWith_simulate, hstep, ← ProbOracleComp.runWith_simulate,
-    ← runOracle_eq_simulate_take machine (fuel a) (input a),
+    ← Turing.MultiTapePTM.runOracle_eq_simulate_take machine (fuel a) (input a),
     ← hrealize a State normOracle s, ← I.normalizeRequests_map,
     normalizeRequests, ProbOracleComp.runWith_simulate]
   congr 1
