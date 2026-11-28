@@ -241,39 +241,45 @@ theorem P_corruptMark_adaptive_honest_isolated (mem : PartyMemory) (κ : ℕ)
   P_corruptMark.adaptiveRouter_runFrom_parties_eq .adaptive mem κ ∅ 1 adaptiveEnvProg
     adaptiveEnvProg_queriesSatisfy s hs hy
 
-/-- Positive test of the `onCorrupt` hook under `.adaptive` routing: starting with both parties at
-`false` and corrupting party `0` without sending first mutates party `0`'s cell to `true` (and
-reports `true` in `report.current`) while leaving party `1`'s cell at `false`. -/
-theorem P_corruptMark_adaptive_corrupt_marks_zero (mem : PartyMemory) (κ : ℕ)
-    {y : AdaptiveNetR Bool Bool Bool × AdaptiveRouterState (DistributedState 2 Bool Bool) Bool 2}
-    (hy : y ∈ (Machine.closeEval
+/-- Positive test of the `onCorrupt` hook under `.adaptive` routing: starting from the all-false
+initial state and corrupting party `0` produces a point mass whose report carries the post-hook
+`current := true` alongside the pre-corruption trace (`some [false]` when `.nonErasing`, `none`
+when `.erasing`), mutating party `0`'s cell to `true` while leaving party `1`'s cell at `false`. -/
+theorem P_corruptMark_adaptive_corrupt_marks_zero (mem : PartyMemory) (κ : ℕ) :
+    Machine.closeEval
       ((adaptiveRouter .adaptive (P_corruptMark.toAdaptive mem) κ ∅).runFrom
         (ProbOracleComp.query
           (spec := adaptiveProtocolSpec 2 MsgIn Bool Unit Bool Bool) (.inr (.corrupt 0)))
         { inner := { parties := fun _ => false, net := false }
           corrupted := ∅
-          trace := fun _ => [false] })).support) :
-    (∃ report, y.1 = .corrupt (some report) ∧ report.current = true) ∧
-      y.2.inner.parties 0 = true ∧ y.2.inner.parties 1 = false := by
+          trace := fun _ => [false] }) =
+      PMF.pure
+        (.corrupt (some { current := true
+                          history := if mem = .nonErasing then some [false] else none }),
+         { inner := { parties := fun i => decide (i = 0), net := false }
+           corrupted := {0}
+           trace := fun _ => [false] }) := by
   let M := adaptiveRouter .adaptive (P_corruptMark.toAdaptive mem) κ ∅
   let q : AdaptivePartyQ 2 MsgIn ⊕ AdaptiveNetQ 2 MsgIn Unit := .inr (.corrupt 0)
   let sM : M.State :=
     { inner := { parties := fun _ => false, net := false }
       corrupted := ∅
       trace := fun _ => [false] }
-  let yM : AdaptiveNetR Bool Bool Bool × M.State := y
-  have hy' : yM ∈ (Machine.closeEval (M.runFrom (ProbOracleComp.query q) sM)).support := hy
   have h0 : (0 : Fin 2) ∉ (∅ : Finset (Fin 2)) := by decide
-  rw [Machine.runFrom_query] at hy'
-  dsimp only [M, q, sM, adaptiveRouter, StateT.run] at hy'
-  simp only [h0, ↓reduceIte] at hy'
-  erw [Machine.mem_support_closeEval_pure] at hy'
-  refine ⟨⟨_, congrArg Prod.fst hy', ?_⟩, ?_, ?_⟩
-  · simp [AdaptiveProtocol.corruptionReport, DistributedProtocol.toAdaptive, P_corruptMark]
-  · have := congrArg (fun p => p.2.inner.parties 0) hy'
-    simpa [DistributedProtocol.toAdaptive, P_corruptMark] using this
-  · have := congrArg (fun p => p.2.inner.parties 1) hy'
-    simpa [DistributedProtocol.toAdaptive, P_corruptMark] using this
+  change Machine.closeEval (M.runFrom (ProbOracleComp.query q) sM) = _
+  rw [Machine.runFrom_query]
+  dsimp only [M, q, sM, adaptiveRouter, StateT.run]
+  simp only [h0, ↓reduceIte, Machine.closeEval_pure]
+  congr 1
+  refine Prod.ext ?_ ?_
+  · cases mem <;>
+      simp [AdaptiveProtocol.corruptionReport, DistributedProtocol.toAdaptive, P_corruptMark]
+  · simp only [DistributedProtocol.toAdaptive, P_corruptMark, insert_empty_eq]
+    congr 1
+    apply DistributedState.ext
+    · funext i
+      fin_cases i <;> decide
+    · rfl
 
 /-- Under `.adaptive` routing on `P_msg` (where `onCorrupt` is the identity), when party `0` starts
 uncorrupted, activating party `0`, querying the network, and corrupting party `0` returns

@@ -26,6 +26,9 @@ projection):
 * `onInput κ i x` accesses and updates only party `i`'s own `PartyState` and the shared `NetState`.
 * `onNet κ q` accesses and updates only `NetState`.
 * `toAdaptive` uses the canonical per-party local-state projection `fun _ i s => s.parties i`.
+  It reuses `AdaptiveProtocol.recordSnapshot` unchanged, so `.nonErasing` histories still append
+  every party's view after every inner activation (including network queries); per-party activation
+  histories remain open under #8377 item 6.
 
 ## Main definitions
 
@@ -122,7 +125,11 @@ Parties initialize independently via `OracleComp.pi`; party inputs update only `
 
 /-- Library construction (no cited definition): compile a `DistributedProtocol` into an
 `AdaptiveProtocol` with canonical per-party view `fun _ i s => s.parties i` and per-party
-corruption hook `P.onCorrupt`. -/
+corruption hook `P.onCorrupt`.
+
+This reuses `AdaptiveProtocol.recordSnapshot` unchanged, so `.nonErasing` histories still record
+every party's view after each inner activation (including network queries); per-party activation
+histories remain open under #8377 item 6. -/
 @[expose] def toAdaptive (P : DistributedProtocol n In Out NetQ NetR)
     (mem : PartyMemory := .nonErasing) :
     AdaptiveProtocol n In Out NetQ NetR P.PartyState where
@@ -227,47 +234,36 @@ theorem toAdaptive_onCorrupt_parties_ne (P : DistributedProtocol n In Out NetQ N
     (s : DistributedState n P.PartyState P.NetState) :
     ((P.toAdaptive mem).onCorrupt κ i s).net = s.net := rfl
 
-private theorem foldl_onCorrupt_parties_of_not_mem (P : DistributedProtocol n In Out NetQ NetR)
-    (mem : PartyMemory) (κ : ℕ) (C₀ : Finset (Fin n)) {j : Fin n} (hj : j ∉ C₀)
-    (l : List (Fin n)) (s : DistributedState n P.PartyState P.NetState) :
-    (l.foldl (fun acc i => if i ∈ C₀ then (P.toAdaptive mem).onCorrupt κ i acc else acc) s).parties
-      j = s.parties j := by
-  induction l generalizing s with
-  | nil => rfl
-  | cons i l ih =>
-    refine (ih (if i ∈ C₀ then (P.toAdaptive mem).onCorrupt κ i s else s)).trans ?_
-    by_cases hi : i ∈ C₀
-    · simp only [hi, ↓reduceIte]
-      exact P.toAdaptive_onCorrupt_parties_ne mem κ (fun (h : j = i) => hj (h ▸ hi)) s
-    · simp only [hi, ↓reduceIte]
-
-private theorem foldl_onCorrupt_net (P : DistributedProtocol n In Out NetQ NetR)
-    (mem : PartyMemory) (κ : ℕ) (C₀ : Finset (Fin n))
-    (l : List (Fin n)) (s : DistributedState n P.PartyState P.NetState) :
-    (l.foldl (fun acc i => if i ∈ C₀ then (P.toAdaptive mem).onCorrupt κ i acc else acc) s).net =
-      s.net := by
-  induction l generalizing s with
-  | nil => rfl
-  | cons i l ih =>
-    refine (ih (if i ∈ C₀ then (P.toAdaptive mem).onCorrupt κ i s else s)).trans ?_
-    by_cases hi : i ∈ C₀ <;> simp only [hi, ↓reduceIte]
-    exact P.toAdaptive_onCorrupt_net mem κ i s
-
 /-- Library infrastructure (no cited result): initial corruptions `C₀` leave every uncorrupted
 party `j ∉ C₀`'s local state unchanged. -/
 theorem applyInitialCorruptions_parties_of_not_mem (P : DistributedProtocol n In Out NetQ NetR)
     (mem : PartyMemory) (κ : ℕ) (C₀ : Finset (Fin n)) {j : Fin n} (hj : j ∉ C₀)
     (s : DistributedState n P.PartyState P.NetState) :
-    ((P.toAdaptive mem).applyInitialCorruptions κ C₀ s).parties j = s.parties j :=
-  P.foldl_onCorrupt_parties_of_not_mem mem κ C₀ hj (List.finRange n) s
+    ((P.toAdaptive mem).applyInitialCorruptions κ C₀ s).parties j = s.parties j := by
+  have hstep : ∀ (acc : DistributedState n P.PartyState P.NetState) (i : Fin n),
+      id (acc.parties j) =
+        (if i ∈ C₀ then (P.toAdaptive mem).onCorrupt κ i acc else acc).parties j := by
+    intro acc i
+    by_cases hi : i ∈ C₀
+    · simp only [hi, ↓reduceIte, id_eq]
+      exact (P.toAdaptive_onCorrupt_parties_ne mem κ (fun (h : j = i) => hj (h ▸ hi)) acc).symm
+    · simp only [hi, ↓reduceIte, id_eq]
+  exact (List.foldl_hom (fun st : DistributedState n P.PartyState P.NetState => st.parties j)
+    hstep).symm.trans (by rw [List.foldl_const (f := id), Function.iterate_id]; rfl)
 
 /-- Library infrastructure (no cited result): initial corruptions leave the shared network state
 `net` unchanged. -/
 theorem applyInitialCorruptions_net (P : DistributedProtocol n In Out NetQ NetR)
     (mem : PartyMemory) (κ : ℕ) (C₀ : Finset (Fin n))
     (s : DistributedState n P.PartyState P.NetState) :
-    ((P.toAdaptive mem).applyInitialCorruptions κ C₀ s).net = s.net :=
-  P.foldl_onCorrupt_net mem κ C₀ (List.finRange n) s
+    ((P.toAdaptive mem).applyInitialCorruptions κ C₀ s).net = s.net := by
+  have hstep : ∀ (acc : DistributedState n P.PartyState P.NetState) (i : Fin n),
+      id acc.net =
+        (if i ∈ C₀ then (P.toAdaptive mem).onCorrupt κ i acc else acc).net := by
+    intro acc i
+    by_cases hi : i ∈ C₀ <;> simp only [hi, ↓reduceIte, toAdaptive_onCorrupt_net, id_eq]
+  exact (List.foldl_hom (fun st : DistributedState n P.PartyState P.NetState => st.net)
+    hstep).symm.trans (by rw [List.foldl_const (f := id), Function.iterate_id]; rfl)
 
 /-- Library infrastructure (no cited result): activating party `i` leaves every other party
 `j ≠ i`'s local state unchanged on every supported outcome. -/
@@ -504,27 +500,24 @@ theorem toAdaptive_toStatic_of_onCorrupt_eq (P : DistributedProtocol n In Out Ne
     (mem : PartyMemory) (hon : ∀ κ i ps, P.onCorrupt κ i ps = ps) :
     (P.toAdaptive mem).toStatic = P.toProtocol := by
   funext κ C
+  have hon_state (i : Fin n) (acc : DistributedState n P.PartyState P.NetState) :
+      (P.toAdaptive mem).onCorrupt κ i acc = acc := by
+    apply DistributedState.ext
+    · simp only [toAdaptive, hon, Function.update_eq_self]
+    · rfl
   have hid : (P.toAdaptive mem).applyInitialCorruptions κ C = id := by
     funext s
-    have hstep : ∀ (l : List (Fin n)) (s' : DistributedState n P.PartyState P.NetState),
-        l.foldl (fun acc i => if i ∈ C then (P.toAdaptive mem).onCorrupt κ i acc else acc) s' =
-          s' := by
-      intro l s'
-      induction l generalizing s' with
-      | nil => rfl
-      | cons i l ih =>
-        refine (ih (if i ∈ C then (P.toAdaptive mem).onCorrupt κ i s' else s')).trans ?_
-        by_cases hi : i ∈ C
-        · simp only [hi, ↓reduceIte]
-          apply DistributedState.ext
-          · funext k
-            by_cases hk : k = i
-            · subst hk; simp [toAdaptive, hon]
-            · exact P.toAdaptive_onCorrupt_parties_ne mem κ hk s'
-          · rfl
-        · simp only [hi, ↓reduceIte]
-          rfl
-    exact hstep (List.finRange n) s
+    have hfn : (fun acc i => if i ∈ C then (P.toAdaptive mem).onCorrupt κ i acc else acc) =
+        fun acc (_ : Fin n) => id acc := by
+      funext acc i
+      by_cases hi : i ∈ C
+      · simp only [hi, ↓reduceIte, id_eq]
+        exact hon_state i acc
+      · simp only [hi, ↓reduceIte, id_eq]
+    change (List.finRange n).foldl
+      (fun acc i => if i ∈ C then (P.toAdaptive mem).onCorrupt κ i acc else acc) s = s
+    rw [hfn, List.foldl_const (f := id), Function.iterate_id]
+    rfl
   have hid' : (P.toAdaptive mem).applyInitialCorruptions κ C <$> (P.toMachine κ).init =
       (P.toMachine κ).init := by
     erw [hid, id_map]
