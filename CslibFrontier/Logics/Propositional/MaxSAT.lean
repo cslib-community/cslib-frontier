@@ -209,24 +209,25 @@ private theorem branchMinCost_eq_minCostOf {α : Type*} [DecidableEq α]
     (σ : α → Bool) :
     branchMinCost feas cost vs σ = minCostOf (fun τ => feas τ = true) cost := by
   classical
+  have hbound : ∀ ρ : α → Bool, feas ρ = true →
+      branchMinCost feas cost vs σ ≤ (cost ρ : WithTop ℕ) := by
+    intro ρ hρ
+    let ρ' : α → Bool := fun w => if w ∈ vs then ρ w else σ w
+    have hagree : ∀ w ∈ vs, ρ' w = ρ w := fun w hw => by simp [ρ', hw]
+    have hρ' : feas ρ' = true := (hfeas_congr hagree).trans hρ
+    have hle := branchMinCost_le_of_agree feas cost vs σ ρ' hρ' (fun w hw => by simp [ρ', hw])
+    rwa [hcost_congr hagree] at hle
   rcases branchMinCost_witness_or_top feas cost vs σ with htop | ⟨τ, _, hfeas, hcost⟩
   · have hunsat : ¬ ∃ ρ : α → Bool, feas ρ = true := by
       rintro ⟨ρ, hρ⟩
-      let ρ' : α → Bool := fun w => if w ∈ vs then ρ w else σ w
-      have hagree : ∀ w ∈ vs, ρ' w = ρ w := fun w hw => by simp [ρ', hw]
-      have hρ' : feas ρ' = true := (hfeas_congr hagree).trans hρ
-      have hle := branchMinCost_le_of_agree feas cost vs σ ρ' hρ' (fun w hw => by simp [ρ', hw])
+      have hle := hbound ρ hρ
       rw [htop, top_le_iff] at hle
       exact absurd hle (by simp)
     rw [htop, (minCostOf_eq_top_iff (fun τ => feas τ = true) cost).2 hunsat]
   · refine le_antisymm ?_ (hcost ▸ minCostOf_le_cost hfeas)
     by_cases hsat : ∃ ρ : α → Bool, feas ρ = true
     · obtain ⟨ρ, hρ, hopt⟩ := exists_feas_cost_eq_minCostOf hsat
-      let ρ' : α → Bool := fun w => if w ∈ vs then ρ w else σ w
-      have hagree : ∀ w ∈ vs, ρ' w = ρ w := fun w hw => by simp [ρ', hw]
-      have hρ' : feas ρ' = true := (hfeas_congr hagree).trans hρ
-      have hle := branchMinCost_le_of_agree feas cost vs σ ρ' hρ' (fun w hw => by simp [ρ', hw])
-      rwa [hcost_congr hagree, hopt] at hle
+      exact (hbound ρ hρ).trans_eq hopt
     · rw [(minCostOf_eq_top_iff (fun τ => feas τ = true) cost).2 hsat]
       exact le_top
 
