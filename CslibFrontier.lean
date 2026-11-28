@@ -1533,6 +1533,7 @@ public import CslibFrontier.Logics.Propositional.Algebraic.Nullstellensatz.Polyn
 public import CslibFrontier.Computability.Complexity.Classes.Time.WordRAM
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.VisitorPop
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Evaluation
+public import CslibFrontier.MachineLearning.InductiveInference.Informant
 public import CslibFrontier.Logics.Propositional.CNF.UnitPropagation
 public import CslibFrontier.Computability.WordRAM.InputArray
 public import CslibFrontier.Foundations.Data.List.Product
