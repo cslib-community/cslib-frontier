@@ -2562,6 +2562,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Toda
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.JohnsonCurve
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueUniqueness
 public import CslibFrontier.Logics.BooleanClone.Basic
+public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.Interpolation
 public import CslibFrontier.Computability.Complexity.Problems.UGraph.USTCONWriter
 public import CslibFrontier.Computability.GenericRAM.Native.Certificate
 public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.Certificates
@@ -4633,6 +4634,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamon
 public import CslibFrontier.DataStructure.BallsToSlots.Spec
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restoration
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledTwoBlockDecision
+public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.ClaimVerifier
 public import CslibFrontier.Computability.Complexity.Fagin.Ordered.Problems
 public import CslibFrontier.Logics.Propositional.CSP.CNFTemplate
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.MinPQ

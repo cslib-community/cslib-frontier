@@ -130,6 +130,26 @@ theorem operatorMod_lt [NeZero p] (o : ArithQBF.Operator) (t a b : ℕ) :
     operatorMod p o t a b < p := by
   cases o <;> exact Nat.mod_lt _ (NeZero.pos p)
 
+/-- The value of `1 - c` as a residue. -/
+theorem val_one_sub [NeZero p] (c : ZMod p) : (1 - c).val = subMod p 1 c.val := by
+  have h : ((subMod p 1 c.val : ℕ) : ZMod p) = 1 - c := by
+    rw [natCast_subMod, ZMod.natCast_zmod_val, Nat.cast_one]
+  rw [← h, ZMod.val_natCast, Nat.mod_eq_of_lt (subMod_lt _ _)]
+
+/-- The value of a connective as a residue. -/
+theorem val_connective [NeZero p] (o : ArithQBF.Connective) (a b : ZMod p) :
+    (o.apply a b).val = connectiveMod p o a.val b.val := by
+  have h : ((connectiveMod p o a.val b.val : ℕ) : ZMod p) = o.apply a b := by
+    rw [natCast_connectiveMod, ZMod.natCast_zmod_val, ZMod.natCast_zmod_val]
+  rw [← h, ZMod.val_natCast, Nat.mod_eq_of_lt (connectiveMod_lt _ _ _)]
+
+/-- The value of an operator as a residue. -/
+theorem val_operator [NeZero p] (o : ArithQBF.Operator) (t : ℕ) (a b : ZMod p) :
+    (o.apply (t : ZMod p) a b).val = operatorMod p o t a.val b.val := by
+  have h : ((operatorMod p o t a.val b.val : ℕ) : ZMod p) = o.apply (t : ZMod p) a b := by
+    rw [natCast_operatorMod, ZMod.natCast_zmod_val, ZMod.natCast_zmod_val]
+  rw [← h, ZMod.val_natCast, Nat.mod_eq_of_lt (operatorMod_lt _ _ _ _)]
+
 /-- A residue below `p` compares with an element of `ZMod p` through its value. -/
 theorem mod_eq_val_mod_iff [NeZero p] (a : ℕ) (c : ZMod p) :
     a % p = c.val % p ↔ (a : ZMod p) = c := by
