@@ -55,6 +55,8 @@ is tracked in cslib-frontier issue #7579.
   step-law hypothesis.
 * `Cslib.Interactive.Debate.soundness_of_lipschitzAt_run_prefixMachine`: the soundness step of
   `Debate.lean` for such machines, under Definition 6.1.
+* `Cslib.Interactive.Debate.soundness_figure1_of_lipschitzAt_run_prefixMachine`: the same at the
+  constants printed in Figure 1.
 
 ## References
 
@@ -258,6 +260,30 @@ theorem soundness_of_lipschitzAt_run_prefixMachine {enc : List Bool → Query}
     OracleComp.evalWith (sumHandler ProbComp.unifOracle ((prefixMachine enc).stepLaw O))
       (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5 :=
   soundness_of_lipschitzAt_stepLaw hK T (lipschitzAt_stepLaw_of_lipschitzAt_run henc hL)
+    (by rwa [Machine.evalWith_output_stepLaw]) A
+
+
+/-- **Soundness under Definition 6.1 at the constants of Figure 1, for machines that query the
+whole transcript.** A step toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem;
+the full statement is tracked in cslib-frontier issue #7579. For machines whose every step queries
+an injective encoding of the whole transcript so far, Definition 6.1 itself suffices for
+`soundness_figure1_of_lipschitzAt_stepLaw`: if the output of such a machine of `T` steps is
+`K`-Lipschitz at the external oracle and is `true` with probability at most `1 / 3`, then against
+the honest challenger of the protocol of Figure 1, with the constants printed there
+(`Params.figure1`), every proposer makes the verifier accept with probability at most `2 / 5`.
+
+Nothing is claimed about running time or query counts, and the grid replaces the real numbers of
+the source. The margins in the proof are those of `soundness_figure1_of_lipschitzAt_stepLaw`,
+not the source's. -/
+theorem soundness_figure1_of_lipschitzAt_run_prefixMachine {enc : List Bool → Query}
+    (henc : Function.Injective enc) {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {O : Query → PMF Bool}
+    (hL : LipschitzAt K O ((prefixMachine enc).run T))
+    (hno : OracleComp.evalWith (sumHandler ProbComp.unifOracle O)
+      ((prefixMachine enc).run T) true ≤ 1 / 3)
+    (A : Proposer (Params.figure1 K T).grid) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle ((prefixMachine enc).stepLaw O))
+      (run (Params.figure1 K T) A (honestChallenger (Params.figure1 K T))) true ≤ 2 / 5 :=
+  soundness_figure1_of_lipschitzAt_stepLaw hK T (lipschitzAt_stepLaw_of_lipschitzAt_run henc hL)
     (by rwa [Machine.evalWith_output_stepLaw]) A
 
 end Cslib.Interactive.Debate

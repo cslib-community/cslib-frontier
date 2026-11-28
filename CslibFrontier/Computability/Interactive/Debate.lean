@@ -42,12 +42,13 @@ exactly when the claim is close to its sample mean. Without an abort the verifie
 last bit. Each player is a program with private state, private coins and sample access to the
 step law; a player sees the public history and its own state, never the other player's.
 
-The two theorems are steps toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that
-theorem. Completeness needs no Lipschitz hypothesis. Soundness assumes that the output is
-Lipschitz in the whole step law (`ProbOracleComp.LipschitzAt K law (Debate.output (T + 1))`),
-which is stronger than Definition 6.1 of the source; the reason for the stronger hypothesis is
-recorded in cslib-frontier issue #7579. Neither theorem makes a claim about running time, about
-the number of oracle queries of any party, or about machines given by an encoding.
+The correctness theorems, at the constants of the Lean development accompanying the source and at
+those printed in Figure 1, are steps toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that
+theorem. Completeness needs no Lipschitz hypothesis. Soundness assumes that the output is Lipschitz
+in the whole step law (`ProbOracleComp.LipschitzAt K law (Debate.output n)`), which is stronger than
+Definition 6.1 of the source; the reason for the stronger hypothesis is recorded in cslib-frontier
+issue #7579. None of these theorems makes a claim about running time, about the number of oracle
+queries of any party, or about machines given by an encoding.
 
 ## Deviations from the source
 
@@ -60,8 +61,10 @@ the number of oracle queries of any party, or about machines given by an encodin
   (`Debate.map_coinBit_uniformOfFintype_left`, `Debate.map_coinBit_uniformOfFintype_right`).
 * The interpreter queries the independent copies and computes the bit; a player never announces
   the bit.
-* The sample counts and thresholds (`Debate.Params.default`) are those of the Lean development
-  accompanying the source (`Params.defaults`), not those of Figure 1.
+* Two sets of sample counts and thresholds are present: `Debate.Params.default`, those of the Lean
+  development accompanying the source (`Params.defaults`), and `Debate.Params.figure1`, those
+  printed in Figure 1. The proofs at `Debate.Params.figure1` use margins of their own, not the
+  source's; their docstrings give both.
 
 ## Main definitions
 
@@ -82,6 +85,9 @@ the number of oracle queries of any party, or about machines given by an encodin
 * `Cslib.Interactive.Debate.soundness_of_lipschitzAt_stepLaw`: against the honest challenger
   every proposer wins with probability at most `2 / 5` when the output is `true` with probability
   at most `1 / 3`.
+* `Cslib.Interactive.Debate.completeness_figure1_stepLaw`,
+  `Cslib.Interactive.Debate.soundness_figure1_of_lipschitzAt_stepLaw`: the same two statements
+  at the constants printed in Figure 1, for a `T`-step computation.
 
 ## References
 
@@ -1116,10 +1122,308 @@ private theorem default_abort_false_le (hK : 0 < K) (T : ℕ) (ν : PMF Bool)
   exact le_abs_sub_of_le_of_lt h (not_le.1 (of_decide_eq_false hcount))
     (le_of_eq (by simp only [Params.default]; field_simp; ring))
 
+/-! #### The constants of Figure 1 -/
+
+/-- The tail bound for a count of any positive size. -/
+private theorem map_countLaw_apply_le_exp (ν : PMF Bool) {n : ℕ} (hn : 0 < n) {e : ℝ}
+    (he : 0 ≤ e) (test : Fin (n + 1) → Bool) (b : Bool)
+    (h : ∀ count, test count = b → e ≤ |(count.val : ℝ) / n - (ν true).toReal|) :
+    (countLaw ν n).map test b ≤ ENNReal.ofReal (2 * Real.exp (-2 * n * e ^ 2)) := by
+  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  refine ((countLaw ν n).toOuterMeasure_mono
+    (t := {k : Fin (n + 1) | e ≤ |(k.val : ℝ) / n - (ν true).toReal|})
+    fun count hc => h count hc.1).trans ?_
+  rw [ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)]
+  exact countLaw_tail ν hn he
+
+/-- `2 exp (-2 n e ^ 2) ≤ 2 / y` once `192 d ^ 2 log y ≤ n` and `1 / (10 d) ≤ e`. -/
+private theorem two_mul_exp_le_of_count {n d e y : ℝ} (hd : 0 < d) (hy : 1 ≤ y)
+    (hn : 192 * d ^ 2 * Real.log y ≤ n) (he : 1 / (10 * d) ≤ e) :
+    2 * Real.exp (-2 * n * e ^ 2) ≤ 2 / y := by
+  have hL : 0 ≤ Real.log y := Real.log_nonneg hy
+  have hy0 : 0 < y := by linarith
+  have h10 : 1 ≤ 10 * d * e := by
+    rw [div_le_iff₀ (by positivity)] at he
+    linarith
+  have hde : 1 ≤ 100 * d ^ 2 * e ^ 2 := by nlinarith [mul_le_mul h10 h10 zero_le_one (by linarith)]
+  have hkey : Real.log y ≤ 2 * n * e ^ 2 := by
+    have h1 : 2 * (192 * d ^ 2 * Real.log y) * e ^ 2 ≤ 2 * n * e ^ 2 := by gcongr
+    nlinarith [mul_le_mul_of_nonneg_left hde hL]
+  calc 2 * Real.exp (-2 * n * e ^ 2) ≤ 2 * Real.exp (-Real.log y) := by
+        gcongr
+        linarith
+    _ = 2 / y := by rw [Real.exp_neg, Real.exp_log hy0, div_eq_mul_inv]
+
+/-- `d = ⌈150 K⌉` of Figure 1 is positive and at least `150 K`. -/
+private theorem figure1_d (hK : 0 < K) :
+    0 < (⌈150 * (K : ℝ)⌉₊ : ℝ) ∧ 150 * (K : ℝ) ≤ ⌈150 * (K : ℝ)⌉₊ := by
+  have hK' : (0 : ℝ) < K := by exact_mod_cast hK
+  exact ⟨Nat.cast_pos.2 (Nat.ceil_pos.2 (by positivity)), Nat.le_ceil _⟩
+
+private theorem figure1_grid_ge (K : ℝ≥0) (T : ℕ) :
+    192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T) ≤ (Params.figure1 K T).grid :=
+  Nat.le_ceil _
+
+private theorem figure1_challengerSamples_ge (K : ℝ≥0) (T : ℕ) :
+    192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T) ≤
+      (Params.figure1 K T).challengerSamples :=
+  figure1_grid_ge K T
+
+private theorem figure1_verifierSamples_ge (K : ℝ≥0) (T : ℕ) :
+    192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log 100 ≤ (Params.figure1 K T).verifierSamples :=
+  Nat.le_ceil _
+
+private theorem figure1_pos_of_ge {n : ℕ} {x : ℝ} (hx : 0 < x) (h : x ≤ n) : 0 < n :=
+  Nat.cast_pos.1 (hx.trans_le h)
+
+private theorem figure1_grid_pos (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T) :
+    0 < (Params.figure1 K T).grid := by
+  have hd := (figure1_d hK).1
+  have hT' : (1 : ℝ) ≤ T := by exact_mod_cast hT
+  have hlog : 0 < Real.log (100 * T) := Real.log_pos (by linarith)
+  exact figure1_pos_of_ge (by positivity) (figure1_grid_ge K T)
+
+/-- The challenger's sample count is the grid. -/
+private theorem figure1_challengerSamples_pos (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T) :
+    0 < (Params.figure1 K T).challengerSamples :=
+  figure1_grid_pos hK hT
+
+private theorem figure1_verifierSamples_pos (hK : 0 < K) (T : ℕ) :
+    0 < (Params.figure1 K T).verifierSamples := by
+  have hd := (figure1_d hK).1
+  have hlog : 0 < Real.log 100 := Real.log_pos (by norm_num)
+  exact figure1_pos_of_ge (by positivity) (figure1_verifierSamples_ge K T)
+
+/-- An error of at least `1 / (10 d)` against a count of size at least `192 d ^ 2 log (100 T)`
+fails with probability at most `1 / (50 T)`. -/
+private theorem figure1_exp_le (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T) {n e : ℝ}
+    (hn : 192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T) ≤ n)
+    (he : 1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ)) ≤ e) :
+    ENNReal.ofReal (2 * Real.exp (-2 * n * e ^ 2)) ≤ ENNReal.ofReal (1 / (50 * T)) := by
+  have hT' : (1 : ℝ) ≤ T := by exact_mod_cast hT
+  refine ENNReal.ofReal_le_ofReal ((two_mul_exp_le_of_count (figure1_d hK).1 (by linarith) hn
+    he).trans (le_of_eq ?_))
+  field_simp
+  ring
+
+/-- An error of at least `1 / (10 d)` against a count of size at least `192 d ^ 2 log 100` fails
+with probability at most `1 / 50`. -/
+private theorem figure1_exp_le_verifier (hK : 0 < K) {n e : ℝ}
+    (hn : 192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log 100 ≤ n)
+    (he : 1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ)) ≤ e) :
+    ENNReal.ofReal (2 * Real.exp (-2 * n * e ^ 2)) ≤ ENNReal.ofReal (1 / 50) :=
+  ENNReal.ofReal_le_ofReal ((two_mul_exp_le_of_count (figure1_d hK).1 (by norm_num) hn
+    he).trans (by norm_num))
+
+private theorem figure1_claim_tail (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T) (ν : PMF Bool) :
+    (countLaw ν (Params.figure1 K T).grid).toOuterMeasure
+        {k | 1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ)) ≤
+          |(k.val : ℝ) / (Params.figure1 K T).grid - (ν true).toReal|} ≤
+      ENNReal.ofReal (1 / (50 * T)) := by
+  have hd := (figure1_d hK).1
+  refine le_trans ?_ (figure1_exp_le hK hT (figure1_grid_ge K T) le_rfl)
+  rw [ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)]
+  exact countLaw_tail ν (figure1_grid_pos hK hT) (by positivity)
+
+private theorem figure1_verdict_false_le (hK : 0 < K) (T : ℕ) (law : List Bool → PMF Bool)
+    (bits : List Bool) (k : Fin ((Params.figure1 K T).grid + 1))
+    (h : |(k.val : ℝ) / (Params.figure1 K T).grid - (law bits true).toReal| ≤
+      1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) :
+    ev law (verdict (Params.figure1 K T) bits k) false ≤ ENNReal.ofReal (1 / 50) := by
+  have hd := (figure1_d hK).1
+  have hd0 : (⌈150 * (K : ℝ)⌉₊ : ℝ) ≠ 0 := hd.ne'
+  rw [ev_verdict]
+  refine (map_countLaw_apply_le_exp (law bits) (figure1_verifierSamples_pos hK T)
+    (e := 3 / (20 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (by positivity) _ false fun count hcount => ?_).trans
+    (figure1_exp_le_verifier hK (figure1_verifierSamples_ge K T) ?_)
+  · exact le_abs_sub_of_le_of_le h (not_lt.1 (of_decide_eq_false hcount))
+      (le_of_eq (by simp only [Params.figure1]; field_simp; ring))
+  · rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    linarith
+
+private theorem figure1_verdict_true_le (hK : 0 < K) (T : ℕ) (law : List Bool → PMF Bool)
+    (bits : List Bool) (k : Fin ((Params.figure1 K T).grid + 1))
+    (h : 3 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ)) ≤
+      |(k.val : ℝ) / (Params.figure1 K T).grid - (law bits true).toReal|) :
+    ev law (verdict (Params.figure1 K T) bits k) true ≤ ENNReal.ofReal (1 / 50) := by
+  have hd := (figure1_d hK).1
+  have hd0 : (⌈150 * (K : ℝ)⌉₊ : ℝ) ≠ 0 := hd.ne'
+  rw [ev_verdict]
+  refine (map_countLaw_apply_le_exp (law bits) (figure1_verifierSamples_pos hK T)
+    (e := 1 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (by positivity) _ true fun count hcount => ?_).trans
+    (figure1_exp_le_verifier hK (figure1_verifierSamples_ge K T) ?_)
+  · exact le_abs_sub_of_le_of_lt h (of_decide_eq_true hcount)
+      (le_of_eq (by simp only [Params.figure1]; field_simp; ring))
+  · rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    linarith
+
+private theorem figure1_abort_true_le (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T) (ν : PMF Bool)
+    (k : Fin ((Params.figure1 K T).grid + 1))
+    (h : |(k.val : ℝ) / (Params.figure1 K T).grid - (ν true).toReal| ≤
+      3 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) :
+    abortLaw (Params.figure1 K T) ν k true ≤ ENNReal.ofReal (1 / (50 * T)) := by
+  have hd := (figure1_d hK).1
+  have hd0 : (⌈150 * (K : ℝ)⌉₊ : ℝ) ≠ 0 := hd.ne'
+  refine (map_countLaw_apply_le_exp ν (figure1_challengerSamples_pos hK hT)
+    (e := 1 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (by positivity) _ true fun count hcount => ?_).trans
+    (figure1_exp_le hK hT (figure1_challengerSamples_ge K T) ?_)
+  · exact le_abs_sub_of_le_of_le h (of_decide_eq_true hcount)
+      (le_of_eq (by simp only [Params.figure1]; field_simp; ring))
+  · rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    linarith
+
+private theorem figure1_abort_false_le (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T) (ν : PMF Bool)
+    (k : Fin ((Params.figure1 K T).grid + 1))
+    (h : 5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ)) ≤
+      |(k.val : ℝ) / (Params.figure1 K T).grid - (ν true).toReal|) :
+    abortLaw (Params.figure1 K T) ν k false ≤ ENNReal.ofReal (1 / (50 * T)) := by
+  have hd := (figure1_d hK).1
+  have hd0 : (⌈150 * (K : ℝ)⌉₊ : ℝ) ≠ 0 := hd.ne'
+  refine (map_countLaw_apply_le_exp ν (figure1_challengerSamples_pos hK hT)
+    (e := 1 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (by positivity) _ false fun count hcount => ?_).trans
+    (figure1_exp_le hK hT (figure1_challengerSamples_ge K T) ?_)
+  · exact le_abs_sub_of_le_of_lt h (not_le.1 (of_decide_eq_false hcount))
+      (le_of_eq (by simp only [Params.figure1]; field_simp; ring))
+  · rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    linarith
+
 private theorem toReal_one_sub_ofReal {v : ℝ} (h0 : 0 ≤ v) (h1 : v ≤ 1) :
     (1 - ENNReal.ofReal v).toReal = 1 - v := by
   rw [ENNReal.toReal_sub_of_le (ENNReal.ofReal_le_one.2 h1) ENNReal.one_ne_top,
     ENNReal.toReal_one, ENNReal.toReal_ofReal h0]
+
+/-- The acceptance bound of `accept_ge` for a whole run from the empty history, in real
+numbers. -/
+private theorem accept_run_toReal (law : List Bool → PMF Bool) (P : Params) [NeZero P.grid]
+    (B : Challenger P.grid) {c qc vc : ℝ} (hqc : 0 ≤ qc) (hvc0 : 0 ≤ vc) (hvc1 : vc ≤ 1)
+    (hfar : ∀ bits, (countLaw (law bits) P.grid).toOuterMeasure
+      {k | c ≤ |(k.val : ℝ) / P.grid - (law bits true).toReal|} ≤ ENNReal.ofReal qc)
+    (hver : ∀ bits (k : Fin (P.grid + 1)),
+      |(k.val : ℝ) / P.grid - (law bits true).toReal| ≤ c →
+        ev law (verdict P bits k) false ≤ ENNReal.ofReal vc) :
+    (1 - vc) * (ev law (output P.rounds) true).toReal - (1 - vc) * P.rounds * qc ≤
+      (ev law (run P (honestProposer P) B) true).toReal := by
+  have hacc := accept_ge law P B hfar hver P.rounds [] (honestProposer P).init B.init
+  change _ * lawFrom law P.rounds [] true ≤ ev law (run P (honestProposer P) B) true + _ at hacc
+  have hfin := PMF.apply_ne_top (ev law (run P (honestProposer P) B)) true
+  have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
+    simp [ENNReal.mul_eq_top]⟩) hacc
+  rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
+    ENNReal.toReal_mul, ENNReal.toReal_mul, toReal_one_sub_ofReal hvc0 hvc1,
+    ENNReal.toReal_ofReal hqc, ENNReal.toReal_natCast, ← ev_output] at hreal
+  linarith
+
+/-- The rejection bound of `reject_ge` for a whole run of `n + 1` rounds from the empty history,
+in real numbers, when the output is `K`-Lipschitz in the whole step law: every proposer is
+rejected with probability at least `(1 - vc) (1 - (n + 1) qc) (P[output = false] - K b)`. -/
+private theorem reject_run_toReal (law : List Bool → PMF Bool) (P : Params) [NeZero P.grid]
+    (A : Proposer P.grid) {n : ℕ} (hn : P.rounds = n + 1) {K : ℝ≥0} {s b qc vc : ℝ}
+    (hsb : s ≤ b) (hb : 0 ≤ b) (hqc0 : 0 ≤ qc) (hqc1 : ((n : ℝ) + 1) * qc ≤ 1) (hvc0 : 0 ≤ vc)
+    (hvc1 : vc ≤ 1)
+    (h1 : ∀ bits (k : Fin (P.grid + 1)), |(k.val : ℝ) / P.grid - (law bits true).toReal| ≤ s →
+      abortLaw P (law bits) k true ≤ ENNReal.ofReal qc)
+    (h2 : ∀ bits (k : Fin (P.grid + 1)), b ≤ |(k.val : ℝ) / P.grid - (law bits true).toReal| →
+      abortLaw P (law bits) k false ≤ ENNReal.ofReal qc)
+    (h3 : ∀ bits (k : Fin (P.grid + 1)), s ≤ |(k.val : ℝ) / P.grid - (law bits true).toReal| →
+      ev law (verdict P bits k) true ≤ ENNReal.ofReal vc)
+    (hL : LipschitzAt K law (output (n + 1))) :
+    (1 - vc) * (1 - ((n : ℝ) + 1) * qc) * ((ev law (output (n + 1)) false).toReal - K * b) ≤
+      (ev law (run P A (honestChallenger P)) false).toReal := by
+  have hrej := reject_ge law P A hsb h1 h2 h3 (n + 1) [] A.init (honestChallenger P).init
+  change _ ≤ (ev law (runFrom P A (honestChallenger P) P.rounds [] A.init
+    (honestChallenger P).init) false).toReal
+  rw [hn]
+  have hclose := hL (bestLaw law b n) (ENNReal.ofReal b)
+    (fun bits => closeTo_bestLaw law hb n bits) {false}
+  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hclose
+  change ev law (output (n + 1)) false ≤ ev (bestLaw law b n) (output (n + 1)) false + _ at hclose
+  rw [ev_output (bestLaw law b n), lawFrom_bestLaw law b n (n + 1) [] (by simp)] at hclose
+  have hUtop : rejectValue law b (n + 1) [] ≠ ⊤ :=
+    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (n + 1) [])
+  have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
+    ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
+  rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
+    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal hb] at hclose'
+  have hqc1' : qc ≤ 1 := by
+    have : (0 : ℝ) ≤ n := Nat.cast_nonneg n
+    nlinarith
+  have hrej' := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hrej
+  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_pow, toReal_one_sub_ofReal hvc0 hvc1,
+    toReal_one_sub_ofReal hqc0 hqc1'] at hrej'
+  have hbern : 1 - ((n : ℝ) + 1) * qc ≤ (1 - qc) ^ (n + 1) := by
+    have h := one_add_mul_le_pow (a := -qc) (by linarith) (n + 1)
+    rw [show (1 : ℝ) + -qc = 1 - qc by ring] at h
+    push_cast at h
+    linarith
+  have hU0 : 0 ≤ (rejectValue law b (n + 1) []).toReal := ENNReal.toReal_nonneg
+  calc (1 - vc) * (1 - ((n : ℝ) + 1) * qc) * ((ev law (output (n + 1)) false).toReal - K * b)
+      ≤ (1 - vc) * (1 - ((n : ℝ) + 1) * qc) * (rejectValue law b (n + 1) []).toReal :=
+        mul_le_mul_of_nonneg_left (by linarith) (mul_nonneg (by linarith) (by linarith))
+    _ ≤ (1 - vc) * (1 - qc) ^ (n + 1) * (rejectValue law b (n + 1) []).toReal := by gcongr
+    _ ≤ _ := hrej'
+
+private theorem completeness_figure1_of_one_le (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T)
+    {law : List Bool → PMF Bool}
+    (hyes : 2 / 3 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (output T) true)
+    (B : Challenger (Params.figure1 K T).grid) :
+    3 / 5 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+      (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true := by
+  have : NeZero (Params.figure1 K T).grid := ⟨(figure1_grid_pos hK hT).ne'⟩
+  have hT' : (1 : ℝ) ≤ T := by exact_mod_cast hT
+  have hacc := accept_run_toReal law (Params.figure1 K T) B
+    (c := 1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (by positivity) (by norm_num) (by norm_num)
+    (fun bits => figure1_claim_tail hK hT (law bits))
+    (fun bits k h => figure1_verdict_false_le hK T law bits k h)
+  change (1 - 1 / 50) * (ev law (output T) true).toReal -
+    (1 - 1 / 50) * (T : ℝ) * (1 / (50 * T)) ≤ _ at hacc
+  have hslack : (1 - 1 / 50 : ℝ) * T * (1 / (50 * T)) = 49 / 2500 := by
+    field_simp
+    ring
+  have hyes' : (2 / 3 : ℝ) ≤ (ev law (output T) true).toReal := by
+    simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
+  change 3 / 5 ≤ ev law (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true
+  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) (PMF.apply_ne_top _ _),
+    ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  linarith
+
+private theorem soundness_figure1_succ (hK : 0 < K) (T : ℕ) {law : List Bool → PMF Bool}
+    (hL : LipschitzAt K law (output (T + 1)))
+    (hno : OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (output (T + 1)) true ≤
+      1 / 3)
+    (A : Proposer (Params.figure1 K (T + 1)).grid) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+      (run (Params.figure1 K (T + 1)) A (honestChallenger (Params.figure1 K (T + 1)))) true ≤
+        2 / 5 := by
+  have hT1 : 1 ≤ T + 1 := by omega
+  have : NeZero (Params.figure1 K (T + 1)).grid := ⟨(figure1_grid_pos hK hT1).ne'⟩
+  obtain ⟨hd, hKd⟩ := figure1_d hK
+  have hK' : (0 : ℝ) < K := by exact_mod_cast hK
+  have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
+  have hq : ((T : ℝ) + 1) * (1 / (50 * ((T + 1 : ℕ) : ℝ))) = 1 / 50 := by
+    push_cast
+    field_simp
+  have hrej := reject_run_toReal law (Params.figure1 K (T + 1)) A (n := T) rfl
+    (s := 3 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (b := 5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ)))
+    (by gcongr; norm_num) (by positivity) (by positivity) (by rw [hq]; norm_num) (by norm_num)
+    (by norm_num)
+    (fun bits k h => figure1_abort_true_le hK hT1 (law bits) k h)
+    (fun bits k h => figure1_abort_false_le hK hT1 (law bits) k h)
+    (fun bits k h => figure1_verdict_true_le hK (T + 1) law bits k h) hL
+  rw [hq] at hrej
+  -- `K b ≤ 1 / 240`, since `d ≥ 150 K`.
+  have hKb : (K : ℝ) * (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) ≤ 1 / 240 := by
+    rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num)]
+    linarith
+  have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
+    simpa [ev] using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
+  have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
+  have hrun := Probability.PMF.toReal_true_add_toReal_false
+    (ev law (run (Params.figure1 K (T + 1)) A (honestChallenger (Params.figure1 K (T + 1)))))
+  change ev law (run (Params.figure1 K (T + 1)) A
+    (honestChallenger (Params.figure1 K (T + 1)))) true ≤ 2 / 5
+  rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
+    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  linarith
 
 end Proofs
 
@@ -1141,29 +1445,21 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
       (run (Params.default K T) (honestProposer (Params.default K T)) B) true := by
   have : NeZero (Params.default K T).grid := ⟨(Params.default_pos hK T).1.ne'⟩
   have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
-  have hacc := accept_ge law (Params.default K T) B
-    (fun bits => default_claim_tail hK T (law bits))
-    (fun bits k h => default_verdict_false_le hK T law bits k h) (T + 1) []
-    (honestProposer (Params.default K T)).init B.init
-  change _ * lawFrom law (T + 1) [] true ≤
-    ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true + _ at hacc
-  change 3 / 5 ≤ ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true
-  have hfin := PMF.apply_ne_top
-    (ev law (run (Params.default K T) (honestProposer (Params.default K T)) B)) true
-  have hyes' : (2 / 3 : ℝ) ≤ (lawFrom law (T + 1) [] true).toReal := by
-    rw [← ev_output]
+  have hacc := accept_run_toReal law (Params.default K T) B (by positivity) (by norm_num)
+    (by norm_num) (fun bits => default_claim_tail hK T (law bits))
+    (fun bits k h => default_verdict_false_le hK T law bits k h)
+  change (1 - 1 / 100) * (ev law (output (T + 1)) true).toReal -
+    (1 - 1 / 100) * ((T + 1 : ℕ) : ℝ) * (1 / (100 * ((T : ℝ) + 1))) ≤ _ at hacc
+  have hslack : (1 - 1 / 100 : ℝ) * ((T + 1 : ℕ) : ℝ) * (1 / (100 * ((T : ℝ) + 1))) =
+      99 / 10000 := by
+    push_cast
+    field_simp
+    ring
+  have hyes' : (2 / 3 : ℝ) ≤ (ev law (output (T + 1)) true).toReal := by
     simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
-  have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
-    simp [ENNReal.mul_eq_top]⟩) hacc
-  rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
-    ENNReal.toReal_mul, ENNReal.toReal_mul, toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast, Nat.cast_add, Nat.cast_one]
-    at hreal
-  have hslack : (1 - 1 / 100 : ℝ) * ((T : ℝ) + 1) * (1 / (100 * (T + 1))) = 99 / 10000 := by
-    field_simp; ring
-  rw [hslack] at hreal
-  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin, ENNReal.toReal_div,
-    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  change 3 / 5 ≤ ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true
+  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) (PMF.apply_ne_top _ _),
+    ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
   linarith
 
 /-- **Soundness, as a step.** A step toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not
@@ -1186,46 +1482,83 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
   have : NeZero (Params.default K T).grid := ⟨(Params.default_pos hK T).1.ne'⟩
   have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
-  have hrej := reject_ge law (Params.default K T) A (s := 2 / (100 * (K : ℝ)))
-    (b := 5 / (100 * (K : ℝ))) (by gcongr; norm_num)
+  have hq : ((T : ℝ) + 1) * (1 / (100 * ((T : ℝ) + 1))) = 1 / 100 := by field_simp
+  have hrej := reject_run_toReal law (Params.default K T) A (n := T) rfl
+    (s := 2 / (100 * (K : ℝ))) (b := 5 / (100 * (K : ℝ))) (by gcongr; norm_num) (by positivity)
+    (by positivity) (by rw [hq]; norm_num) (by norm_num) (by norm_num)
     (fun bits k h => default_abort_true_le hK T (law bits) k h)
     (fun bits k h => default_abort_false_le hK T (law bits) k h)
-    (fun bits k h => default_verdict_true_le hK T law bits k h) (T + 1) [] A.init
-    (honestChallenger (Params.default K T)).init
-  change _ * rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≤
-    ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) false at hrej
-  change ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5
-  have hclose := hL (bestLaw law (5 / (100 * (K : ℝ))) T) (ENNReal.ofReal (5 / (100 * (K : ℝ))))
-    (fun bits => closeTo_bestLaw law (by positivity) T bits) {false}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hclose
-  change ev law (output (T + 1)) false ≤
-    ev (bestLaw law (5 / (100 * (K : ℝ))) T) (output (T + 1)) false + _ at hclose
-  rw [ev_output (bestLaw law (5 / (100 * (K : ℝ))) T),
-    lawFrom_bestLaw law (5 / (100 * (K : ℝ))) T (T + 1) [] (by simp)] at hclose
-  have hUtop : rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≠ ⊤ :=
-    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (T + 1) [])
+    (fun bits k h => default_verdict_true_le hK T law bits k h) hL
+  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by field_simp; ring
+  rw [hq, hK20] at hrej
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
     simpa [ev] using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
   have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
   have hrun := Probability.PMF.toReal_true_add_toReal_false
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
-  have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
-    ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
-  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by field_simp; ring
-  rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
-    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal (by positivity), hK20] at hclose'
-  have h1 : 1 / (100 * ((T : ℝ) + 1)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
-  have hrej' := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hrej
-  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_pow,
-    toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    toReal_one_sub_ofReal (by positivity) h1] at hrej'
-  have hbern : (99 / 100 : ℝ) ≤ (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) := by
-    have h := one_add_mul_le_pow (a := -(1 / (100 * ((T : ℝ) + 1)))) (by linarith [h1]) (T + 1)
-    have hcancel : ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by field_simp
-    rw [Nat.cast_add, Nat.cast_one, hcancel, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
-    linarith
+  change ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
     ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
-  nlinarith [hbern]
+  linarith
+
+/-- **Completeness at the constants of Figure 1, as a step.** A step toward
+[BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem: if the output of a `T`-step
+computation is `true` with probability at least `2 / 3`, then the honest proposer of the protocol
+of Figure 1, with the constants printed there (`Params.figure1`), makes the verifier accept with
+probability at least `3 / 5` against every challenger. No Lipschitz hypothesis is needed.
+
+The challenger is an arbitrary program with private state, private coins and unbounded sample access
+to the step law. Nothing is claimed about running time or query counts, and the grid replaces the
+real numbers of the source. The constants are those printed in Figure 1, but the margins in the
+proof are not the source's. Here, with `d = ⌈150 K⌉`, the honest estimate may be off by `1 / (10 d)`
+and the verifier's sample mean by `3 / (20 d)`, the first failing with probability at most
+`1 / (50 T)` per round and the second with probability at most `1 / 50`, by Hoeffding's inequality
+`2 exp (-2 n e ^ 2)`. The source allows `1 / (8 d)` for both (`dedebate.tex`, lines 487, 494 and
+495), with the same failure probabilities, from its bound `2 exp (-e ^ 2 n / 3)` (lines 449 to 453),
+and concludes with `(2 / 3 - 1 / 150) (49 / 50) ^ 2 > 3 / 5` (lines 539 to 541). -/
+theorem completeness_figure1_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
+    {law : List Bool → PMF Bool}
+    (hyes : 2 / 3 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (output T) true)
+    (B : Challenger (Params.figure1 K T).grid) :
+    3 / 5 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+      (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true := by
+  rcases Nat.eq_zero_or_pos T with rfl | hT
+  · -- With no step the output is `false`, so the hypothesis cannot hold.
+    have h0 : OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (output 0) =
+        PMF.pure false := rfl
+    rw [h0] at hyes
+    norm_num at hyes
+  · exact completeness_figure1_of_one_le hK hT hyes B
+
+/-- **Soundness at the constants of Figure 1, as a step.** A step toward
+[BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem: if the output of a `T`-step
+computation is `K`-Lipschitz in its whole step law and is `true` with probability at most `1 / 3`,
+then against the honest challenger of the protocol of Figure 1, with the constants printed there
+(`Params.figure1`), every proposer makes the verifier accept with probability at most `2 / 5`. The
+Lipschitz hypothesis is in the whole step law (every step and every transcript prefix), which is
+stronger than Definition 6.1 of the source; the reason is recorded in cslib-frontier issue #7579.
+
+The proposer is an arbitrary program with private state, private coins and unbounded sample access
+to the step law. Nothing is claimed about running time or query counts, and the grid replaces the
+real numbers of the source. The constants are those printed in Figure 1, but the margins in the
+proof are not the source's. Here, with `d = ⌈150 K⌉`, claims are split at `3 / (8 d)` and
+`5 / (8 d)` from the truth, and each sample mean may be off by `1 / (8 d)`, failing with probability
+at most `1 / (50 T)` per round for the challenger and `1 / 50` for the verifier; the Lipschitz term
+is at most `K · 5 / (8 d) ≤ 1 / 240`. The source splits at `3 / (8 d)` and `3 / (4 d)`
+(`dedebate.tex`, line 550), with the same failure probabilities (lines 584 and 591). -/
+theorem soundness_figure1_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
+    {law : List Bool → PMF Bool} (hL : LipschitzAt K law (output T))
+    (hno : OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (output T) true ≤ 1 / 3)
+    (A : Proposer (Params.figure1 K T).grid) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+      (run (Params.figure1 K T) A (honestChallenger (Params.figure1 K T))) true ≤ 2 / 5 := by
+  obtain _ | T := T
+  · -- With no round the protocol outputs `false`.
+    have h0 : OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+        (run (Params.figure1 K 0) A (honestChallenger (Params.figure1 K 0))) = PMF.pure false :=
+      rfl
+    rw [h0]
+    simp
+  · exact soundness_figure1_succ hK T hL hno A
 
 end Cslib.Interactive.Debate
