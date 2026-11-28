@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ThresholdNC1
 public import CslibFrontier.Computability.Circuit.Boolean.CarrySave.Reduce
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Foundations.Data.BitString.Binary
-import CslibFrontier.Foundations.Data.Nat.Bits
+import CslibFrontier.Foundations.Data.Nat.Radix.Digit
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -178,7 +178,7 @@ private theorem val_eval_maskWord (i : Fin op.arity) (x : Fin op.arity → Bool)
   cases op.literal i x
   · simp
   · simp only [Bool.and_true, Bool.toNat_true, mul_one]
-    exact Nat.sum_testBit_mul_two_pow ha
+    simpa only [Nat.mul_comm] using Nat.sum_two_pow_mul_testBit ha
 
 /-- The offset `2 ^ width - target` added to the literal sum. -/
 private def offset : ℕ := 2 ^ op.width - op.target.toNat

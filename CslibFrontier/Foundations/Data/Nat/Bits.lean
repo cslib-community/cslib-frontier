@@ -28,8 +28,7 @@ with initial value zero reconstructs the original number.
   do not change the value.
 * `Nat.foldr_bit_one_ne_zero`, `Nat.bits_foldr_bit_one`, `Nat.foldr_bit_one_lt`: reconstruction
   with base value `1`, producing a positive number whose binary digits end in `true`.
-* `Nat.foldr_bit_ofFn`, `Nat.sum_testBit_mul_two_pow`: a word and a bounded natural are
-  reconstructed by summing their binary place values.
+* `Nat.foldr_bit_ofFn`: reconstruction is the sum of the digits' binary place values.
 * `Nat.bits_shiftRight`: a binary right shift drops least-significant digits.
 * `Nat.size_div_two_add_one`: halving a positive number removes one binary digit.
 -/
@@ -118,15 +117,6 @@ theorem Nat.foldr_bit_testBit {n K : ℕ} (h : n.size ≤ K) :
     rw [List.range_succ_eq_map, List.map_cons, List.map_map, List.foldr_cons]
     have hmap : n.testBit ∘ Nat.succ = (n / 2).testBit := funext fun i => Nat.testBit_succ n i
     rw [hmap, ih hn, ← Nat.shiftRight_one, Nat.bit_testBit_zero_shiftRight_one]
-
-/-- A natural below `2 ^ w` is the sum of the place values of its first `w` binary digits. -/
-theorem Nat.sum_testBit_mul_two_pow {n w : ℕ} (hn : n < 2 ^ w) :
-    (∑ i : Fin w, (n.testBit i.val).toNat * 2 ^ i.val) = n := by
-  rw [← Nat.foldr_bit_ofFn]
-  have hbits : List.ofFn (fun i : Fin w => n.testBit i.val) = (List.range w).map n.testBit := by
-    apply List.ext_getElem <;> simp
-  rw [hbits]
-  exact Nat.foldr_bit_testBit (Nat.size_le.2 hn)
 
 /-- Shifting a natural right drops its least-significant digits, including past the last digit. -/
 theorem Nat.bits_shiftRight (n k : ℕ) : (n >>> k).bits = n.bits.drop k := by

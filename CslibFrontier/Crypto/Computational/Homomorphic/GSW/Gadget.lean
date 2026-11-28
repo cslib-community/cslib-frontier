@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Matrix.Mul
 public import Mathlib.Data.ZMod.Basic
-import CslibFrontier.Foundations.Data.Nat.Bits
+import CslibFrontier.Foundations.Data.Nat.Radix.Digit
 
 /-!
 # Binary gadgets for GSW encryption
@@ -95,10 +95,10 @@ def flattenMatrix (w : ℕ) (C : Matrix ρ (ι × Fin w) (ZMod (2 ^ w))) :
     bitCompose w (fun j => ((bitDecomp w v j).toNat : ZMod (2 ^ w))) = v := by
   funext i
   simp only [bitCompose, bitDecomp]
-  have h := Nat.sum_testBit_mul_two_pow (ZMod.val_lt (v i))
+  have h := Nat.sum_two_pow_mul_testBit (ZMod.val_lt (v i))
   have hc := congrArg (fun n : ℕ => (n : ZMod (2 ^ w))) h
   simpa only [Nat.cast_sum, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
-    ZMod.natCast_zmod_val] using hc
+    ZMod.natCast_zmod_val, mul_comm] using hc
 
 /-- The weighted row sum commutes with addition. -/
 theorem bitCompose_add (w : ℕ) (a b : ι × Fin w → ZMod (2 ^ w)) :
