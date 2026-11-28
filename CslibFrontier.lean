@@ -10455,6 +10455,7 @@ public import CslibFrontier.Foundations.Combinatorics.TailSum
 public import CslibFrontier.Algorithms.Lean.Kruskal.Basic
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.StepSize
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.Stub
+public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.TableGenerator
 public import CslibFrontier.Logics.Propositional.CNF.Johnson
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryRotateProgram
@@ -10488,6 +10489,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Insert
 public import CslibFrontier.Crypto.Computational.MLDSA.SplitMatrix
+public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.PolySchedule
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Interp
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.IndependentSources
