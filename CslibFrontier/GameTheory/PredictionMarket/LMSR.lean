@@ -10,11 +10,13 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.GameTheory.PredictionMarket.ScoringRules
 public import Mathlib.Analysis.SpecialFunctions.Log.Deriv
+public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Calculus.FDeriv.Add
 import Mathlib.Analysis.Calculus.FDeriv.Comp
 import Mathlib.Analysis.Calculus.FDeriv.Mul
 import Mathlib.Analysis.Calculus.FDeriv.Prod
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -54,6 +56,11 @@ and instantaneous price vector given by the softmax distribution
 * `Cslib.GameTheory.PredictionMarket.lmsrTraderPayoff`: net payoff `(q₂ ω - q₁ ω) - (C(q₂) - C(q₁))`
   to the trader (equivalently, the market maker's net loss) when moving from `q₁` to `q₂` and
   outcome `ω` occurs.
+* `Cslib.GameTheory.PredictionMarket.lmsrCondCost`,
+  `Cslib.GameTheory.PredictionMarket.lmsrCondPrice`,
+  `Cslib.GameTheory.PredictionMarket.lmsrCondUpdate`: conditional LMSR cost function `C_ψ`,
+  Bayes-rule conditional security price `P(φ | ψ)`, and post-trade share update for purchasing `δ`
+  shares of conditional security `S_{φ|ψ}` [PennockSami2007, Exercise 26.3, pp. 674–675].
 
 ## Main results
 
@@ -80,6 +87,13 @@ and instantaneous price vector given by the softmax distribution
   `Cslib.GameTheory.PredictionMarket.exists_lmsrTraderPayoff_zero_gt`: worst-case market-maker
   loss starting from zero shares is at most `b * log |Ω|`, and this bound is tight
   [PennockSami2007, §26.4.1, pp. 663–664; Hanson2007].
+* `Cslib.GameTheory.PredictionMarket.integral_lmsrCondPrice_eq_sub_lmsrCondCost`,
+  `Cslib.GameTheory.PredictionMarket.lmsrCost_lmsrCondUpdate_sub`,
+  `Cslib.GameTheory.PredictionMarket.lmsrTraderPayoff_lmsrCondUpdate`,
+  `Cslib.GameTheory.PredictionMarket.lmsrPrice_lmsrCondUpdate_of_notMem`: integrating the
+  Bayes-rule conditional price of `S_{φ|ψ}` from `0` to `δ` recovers `C_ψ(q + δ · 1_φ) - C_ψ(q)`,
+  and `lmsrCondUpdate` gives the exact post-trade quantity vector refunding cost outside `ψ` while
+  leaving prices outside `ψ` unchanged [PennockSami2007, Exercise 26.3, pp. 674–675].
 
 ## References
 
@@ -446,6 +460,190 @@ theorem exists_lmsrTraderPayoff_zero_gt [Nonempty Ω] {b : ℝ} (hb : 0 < b)
       simpa only [Real.log_exp] using Real.log_lt_log (Real.exp_pos _) hprice_gt
     linarith [mul_lt_mul_of_pos_left hlog_gt hb,
       (mul_neg b (ε / b)).trans (congrArg Neg.neg (mul_div_cancel₀ ε hb.ne'))]
+
+/-! ### Conditional LMSR securities (Exercise 26.3, pp. 674–675) -/
+
+omit [Fintype Ω] in
+/-- Conditional LMSR cost function `C_ψ(q) = b * log (∑ ω ∈ ψ, exp (q ω / b))` summed only over
+states in event `ψ` [PennockSami2007, Exercise 26.3, p. 674]. -/
+noncomputable def lmsrCondCost (b : ℝ) (ψ : Finset Ω) (q : Ω → ℝ) : ℝ :=
+  b * Real.log (∑ ω ∈ ψ, Real.exp (q ω / b))
+
+/-- Instantaneous Bayes-rule price of conditional security `S_{φ|ψ}`: the price of `S_{φ∧ψ}`
+divided by the price of `S_ψ` [PennockSami2007, Exercise 26.3, p. 674]. -/
+noncomputable def lmsrCondPrice [DecidableEq Ω] (b : ℝ) (q : Ω → ℝ) (φ ψ : Finset Ω) : ℝ :=
+  (∑ ω ∈ φ ∩ ψ, lmsrPrice b q ω) / ∑ ω ∈ ψ, lmsrPrice b q ω
+
+omit [Fintype Ω] in
+/-- New LMSR share vector after a trader purchases `δ` shares of conditional security `S_{φ|ψ}`:
+states in `φ ∩ ψ` gain `δ` shares, states in `ψ \ φ` stay unchanged, and states outside `ψ` gain
+`C_ψ(q + δ · 1_φ) - C_ψ(q)` shares so the cost is refunded when `ψ` does not occur
+[PennockSami2007, Exercise 26.3(b), p. 675]. -/
+noncomputable def lmsrCondUpdate [DecidableEq Ω] (b : ℝ) (φ ψ : Finset Ω) (q : Ω → ℝ) (δ : ℝ)
+    (ω : Ω) : ℝ :=
+  if ω ∈ ψ then
+    if ω ∈ φ then q ω + δ else q ω
+  else
+    q ω + (lmsrCondCost b ψ (fun ω' => q ω' + if ω' ∈ φ then δ else 0) - lmsrCondCost b ψ q)
+
+omit [Fintype Ω] in
+@[simp]
+theorem lmsrCondCost_apply (b : ℝ) (ψ : Finset Ω) (q : Ω → ℝ) :
+    lmsrCondCost b ψ q = b * Real.log (∑ ω ∈ ψ, Real.exp (q ω / b)) := by
+  rfl
+
+@[simp]
+theorem lmsrCondPrice_apply [DecidableEq Ω] (b : ℝ) (q : Ω → ℝ) (φ ψ : Finset Ω) :
+    lmsrCondPrice b q φ ψ = (∑ ω ∈ φ ∩ ψ, lmsrPrice b q ω) / ∑ ω ∈ ψ, lmsrPrice b q ω := by
+  rfl
+
+omit [Fintype Ω] in
+private theorem sum_exp_pos_on {ψ : Finset Ω} (hψ : ψ.Nonempty) (b : ℝ) (q : Ω → ℝ) :
+    0 < ∑ ω ∈ ψ, Real.exp (q ω / b) :=
+  sum_pos (fun _ _ => Real.exp_pos _) hψ
+
+/-- Bayes-rule conditional price simplifies directly to the restricted softmax ratio over `ψ`. -/
+theorem lmsrCondPrice_eq_div_sum_exp [DecidableEq Ω] (b : ℝ) (q : Ω → ℝ) (φ : Finset Ω)
+    {ψ : Finset Ω} (hψ : ψ.Nonempty) :
+    lmsrCondPrice b q φ ψ =
+      (∑ ω ∈ φ ∩ ψ, Real.exp (q ω / b)) / ∑ ω ∈ ψ, Real.exp (q ω / b) := by
+  have : Nonempty Ω := ⟨hψ.choose⟩
+  simp only [lmsrCondPrice_apply, lmsrPrice_apply, ← sum_div]
+  exact div_div_div_cancel_right₀ (sum_exp_pos b q).ne' _ _
+
+/-- Derivative of `t ↦ C_ψ(q + t · 1_φ)` equals the instantaneous conditional price of `S_{φ|ψ}`
+at `q + t · 1_φ` [PennockSami2007, Exercise 26.3(a), p. 674]. -/
+theorem hasDerivAt_lmsrCondCost_shift [DecidableEq Ω] {b : ℝ} (hb : 0 < b)
+    (φ : Finset Ω) {ψ : Finset Ω} (hψ : ψ.Nonempty) (q : Ω → ℝ) (t : ℝ) :
+    HasDerivAt (fun s : ℝ => lmsrCondCost b ψ (fun ω => q ω + if ω ∈ φ then s else 0))
+      (lmsrCondPrice b (fun ω => q ω + if ω ∈ φ then t else 0) φ ψ) t := by
+  let q' : ℝ → Ω → ℝ := fun s ω => q ω + if ω ∈ φ then s else 0
+  have hterm (ω : Ω) : HasDerivAt (fun s : ℝ => Real.exp (q' s ω / b))
+      (if ω ∈ φ then Real.exp (q' t ω / b) / b else 0) t := by
+    by_cases hω : ω ∈ φ
+    · simp only [q', hω, ↓reduceIte]
+      have hlin : HasDerivAt (fun s : ℝ => (q ω + s) / b) (1 / b) t :=
+        ((hasDerivAt_id t).const_add (q ω)).div_const b
+      simpa only [mul_one_div] using hlin.exp
+    · simp only [q', hω, ↓reduceIte, add_zero]
+      exact hasDerivAt_const t _
+  have hsum : HasDerivAt (fun s : ℝ => ∑ ω ∈ ψ, Real.exp (q' s ω / b))
+      (∑ ω ∈ ψ, if ω ∈ φ then Real.exp (q' t ω / b) / b else 0) t :=
+    HasDerivAt.fun_sum fun ω _ => hterm ω
+  have hpos := sum_exp_pos_on hψ b (q' t)
+  have hlog := (hsum.log hpos.ne').const_mul b
+  refine hlog.congr_deriv ?_
+  rw [lmsrCondPrice_eq_div_sum_exp b (q' t) φ hψ]
+  have hnum : (∑ ω ∈ ψ, if ω ∈ φ then Real.exp (q' t ω / b) / b else 0) =
+      (∑ ω ∈ φ ∩ ψ, Real.exp (q' t ω / b)) / b := by
+    rw [sum_div, ← Finset.sum_filter]
+    have hfilt : ψ.filter (fun ω => ω ∈ φ) = φ ∩ ψ := by
+      ext ω; simp [and_comm]
+    rw [hfilt]
+  rw [hnum]
+  field_simp [hb.ne', hpos.ne']
+
+/-- **Exercise 26.3(a)** ([PennockSami2007, p. 674]): integrating the Bayes-rule instantaneous
+price of `S_{φ|ψ}` from `0` to `δ` equals the conditional cost difference
+`C_ψ(q + δ · 1_φ) - C_ψ(q)`. -/
+theorem integral_lmsrCondPrice_eq_sub_lmsrCondCost [DecidableEq Ω] {b : ℝ} (hb : 0 < b)
+    (φ : Finset Ω) {ψ : Finset Ω} (hψ : ψ.Nonempty) (q : Ω → ℝ) (δ : ℝ) :
+    ∫ t in (0 : ℝ)..δ, lmsrCondPrice b (fun ω => q ω + if ω ∈ φ then t else 0) φ ψ =
+      lmsrCondCost b ψ (fun ω => q ω + if ω ∈ φ then δ else 0) - lmsrCondCost b ψ q := by
+  have hcont : Continuous (fun t : ℝ =>
+      lmsrCondPrice b (fun ω => q ω + if ω ∈ φ then t else 0) φ ψ) := by
+    have heq : (fun t : ℝ => lmsrCondPrice b (fun ω => q ω + if ω ∈ φ then t else 0) φ ψ) =
+        fun t => (∑ ω ∈ φ ∩ ψ, Real.exp ((q ω + if ω ∈ φ then t else 0) / b)) /
+          ∑ ω ∈ ψ, Real.exp ((q ω + if ω ∈ φ then t else 0) / b) :=
+      funext fun t => lmsrCondPrice_eq_div_sum_exp b _ φ hψ
+    rw [heq]
+    have hterm_cont (ω : Ω) :
+        Continuous (fun t : ℝ => Real.exp ((q ω + if ω ∈ φ then t else 0) / b)) := by
+      by_cases hω : ω ∈ φ
+      · simp only [hω, ↓reduceIte]; fun_prop
+      · simp only [hω, ↓reduceIte, add_zero]; fun_prop
+    have hsum_cont (S : Finset Ω) :
+        Continuous (fun t : ℝ => ∑ ω ∈ S, Real.exp ((q ω + if ω ∈ φ then t else 0) / b)) := by
+      induction S using Finset.cons_induction with
+      | empty => simpa only [Finset.sum_empty] using continuous_const
+      | cons a s ha ih =>
+        have ha' := hterm_cont a
+        simp only [Finset.sum_cons]
+        fun_prop
+    exact Continuous.div (hsum_cont (φ ∩ ψ)) (hsum_cont ψ) fun t => (sum_exp_pos_on hψ b _).ne'
+  have hint := intervalIntegral.integral_eq_sub_of_hasDerivAt
+    (fun t _ => hasDerivAt_lmsrCondCost_shift hb φ hψ q t) (hcont.intervalIntegrable 0 δ)
+  simpa only [ite_self, add_zero] using hint
+
+private theorem sum_exp_lmsrCondUpdate [DecidableEq Ω] {b : ℝ} (hb : 0 < b) (φ : Finset Ω)
+    {ψ : Finset Ω} (hψ : ψ.Nonempty) (q : Ω → ℝ) (δ : ℝ) :
+    ∑ ω : Ω, Real.exp (lmsrCondUpdate b φ ψ q δ ω / b) =
+      Real.exp ((lmsrCondCost b ψ (fun ω' => q ω' + if ω' ∈ φ then δ else 0) -
+        lmsrCondCost b ψ q) / b) * ∑ ω : Ω, Real.exp (q ω / b) := by
+  set c : ℝ := lmsrCondCost b ψ (fun ω' => q ω' + if ω' ∈ φ then δ else 0) - lmsrCondCost b ψ q
+  have hpos0 := sum_exp_pos_on hψ b q
+  have hpos1 := sum_exp_pos_on hψ b (fun ω' => q ω' + if ω' ∈ φ then δ else 0)
+  have hexp_c : Real.exp (c / b) =
+      (∑ ω ∈ ψ, Real.exp ((q ω + if ω ∈ φ then δ else 0) / b)) /
+        ∑ ω ∈ ψ, Real.exp (q ω / b) := by
+    simp only [c, lmsrCondCost_apply, ← mul_sub, mul_div_cancel_left₀ _ hb.ne',
+      Real.exp_sub, Real.exp_log hpos1, Real.exp_log hpos0]
+  rw [← Finset.sum_filter_add_sum_filter_not univ (fun ω : Ω => ω ∈ ψ),
+    ← Finset.sum_filter_add_sum_filter_not univ (fun ω : Ω => ω ∈ ψ)]
+  have hfilt : univ.filter (fun ω : Ω => ω ∈ ψ) = ψ := by ext ω; simp
+  rw [hfilt]
+  have hψ_part : ∑ ω ∈ ψ, Real.exp (lmsrCondUpdate b φ ψ q δ ω / b) =
+      Real.exp (c / b) * ∑ ω ∈ ψ, Real.exp (q ω / b) := by
+    rw [hexp_c, div_mul_cancel₀ _ hpos0.ne']
+    refine sum_congr rfl fun ω hω => ?_
+    simp only [lmsrCondUpdate, hω, ↓reduceIte]
+    split_ifs <;> simp
+  have hcompl_part : ∑ ω ∈ univ.filter (fun ω : Ω => ω ∉ ψ),
+      Real.exp (lmsrCondUpdate b φ ψ q δ ω / b) =
+      Real.exp (c / b) * ∑ ω ∈ univ.filter (fun ω : Ω => ω ∉ ψ), Real.exp (q ω / b) := by
+    rw [mul_sum]
+    refine sum_congr rfl fun ω hω => ?_
+    have hnot : ω ∉ ψ := (mem_filter.mp hω).2
+    simp only [lmsrCondUpdate, hnot, ↓reduceIte, add_div, Real.exp_add, c]
+    ring
+  rw [hψ_part, hcompl_part, ← mul_add]
+
+/-- **Exercise 26.3(b), total cost identity** ([PennockSami2007, p. 675]): updating the LMSR
+share vector from `q` to `lmsrCondUpdate b φ ψ q δ` increases the full LMSR cost `C(q)` by
+exactly the conditional cost `C_ψ(q + δ · 1_φ) - C_ψ(q)`. -/
+theorem lmsrCost_lmsrCondUpdate_sub [DecidableEq Ω] {b : ℝ} (hb : 0 < b) (φ : Finset Ω)
+    {ψ : Finset Ω} (hψ : ψ.Nonempty) (q : Ω → ℝ) (δ : ℝ) :
+    lmsrCost b (lmsrCondUpdate b φ ψ q δ) - lmsrCost b q =
+      lmsrCondCost b ψ (fun ω' => q ω' + if ω' ∈ φ then δ else 0) - lmsrCondCost b ψ q := by
+  have : Nonempty Ω := ⟨hψ.choose⟩
+  rw [lmsrCost_apply, lmsrCost_apply, sum_exp_lmsrCondUpdate hb φ hψ q δ,
+    Real.log_mul (Real.exp_pos _).ne' (sum_exp_pos b q).ne', Real.log_exp, mul_add,
+    mul_div_cancel₀ _ hb.ne']
+  ring
+
+/-- **Exercise 26.3(b), conditional security payoff** ([PennockSami2007, p. 675]): moving the LMSR
+state from `q` to `lmsrCondUpdate b φ ψ q δ` delivers exact conditional-security net payoff:
+`δ - cost` when `ω ∈ φ ∩ ψ`, `-cost` when `ω ∈ ψ \ φ`, and `0` (cancelled and refunded) when
+`ω ∉ ψ`. -/
+theorem lmsrTraderPayoff_lmsrCondUpdate [DecidableEq Ω] {b : ℝ} (hb : 0 < b) (φ : Finset Ω)
+    {ψ : Finset Ω} (hψ : ψ.Nonempty) (q : Ω → ℝ) (δ : ℝ) (ω : Ω) :
+    lmsrTraderPayoff b q (lmsrCondUpdate b φ ψ q δ) ω =
+      if ω ∈ ψ then
+        (if ω ∈ φ then δ else 0) -
+          (lmsrCondCost b ψ (fun ω' => q ω' + if ω' ∈ φ then δ else 0) - lmsrCondCost b ψ q)
+      else 0 := by
+  rw [lmsrTraderPayoff_apply, lmsrCost_lmsrCondUpdate_sub hb φ hψ q δ]
+  simp only [lmsrCondUpdate]
+  split_ifs <;> ring
+
+/-- **Exercise 26.3(b), price invariance outside `ψ`**: purchasing `δ` shares of conditional
+security `S_{φ|ψ}` leaves the instantaneous price of every outcome outside `ψ` unchanged. -/
+theorem lmsrPrice_lmsrCondUpdate_of_notMem [DecidableEq Ω] {b : ℝ} (hb : 0 < b) (φ : Finset Ω)
+    {ψ : Finset Ω} (hψ : ψ.Nonempty) (q : Ω → ℝ) (δ : ℝ) {ω : Ω} (hω : ω ∉ ψ) :
+    lmsrPrice b (lmsrCondUpdate b φ ψ q δ) ω = lmsrPrice b q ω := by
+  rw [lmsrPrice_apply, lmsrPrice_apply, sum_exp_lmsrCondUpdate hb φ hψ q δ]
+  simp only [lmsrCondUpdate, hω, ↓reduceIte, add_div, Real.exp_add]
+  rw [mul_comm (Real.exp (q ω / b)), mul_div_mul_left _ _ (Real.exp_pos _).ne']
 
 end LMSR
 

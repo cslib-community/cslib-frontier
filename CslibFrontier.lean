@@ -3704,6 +3704,7 @@ public import CslibFrontier.Computability.PCP.DegreeReduction
 public import CslibFrontier.Logics.FirstOrder.Operator.Polarity
 public import CslibFrontier.Foundations.Data.Nat.Factorial
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Parameters
+public import CslibFrontier.GameTheory.PredictionMarket.OrderMatching
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.Expr
 public import CslibFrontier.Computability.PCP.Power.WithInput
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Loop
@@ -7960,6 +7961,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Resources
 public import CslibFrontier.Computability.Circuit.Boolean.Multiplicity
 public import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.LogSpace
+public import CslibFrontier.GameTheory.PredictionMarket.NoTrade
 public import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.EntryContractionMachine
 public import CslibFrontier.Languages.Probabilistic.BitString
