@@ -1383,16 +1383,11 @@ end ORStarBid
 private lemma disjoint_disjSum_iff {α β : Type*}
     {s₁ s₂ : Finset α} {t₁ t₂ : Finset β} :
     Disjoint (s₁.disjSum t₁) (s₂.disjSum t₂) ↔ Disjoint s₁ s₂ ∧ Disjoint t₁ t₂ := by
-  simp only [Finset.disjoint_left, Finset.mem_disjSum]
-  constructor
-  · intro h
-    refine ⟨fun a ha₁ ha₂ => h (Or.inl ⟨a, ha₁, rfl⟩) (Or.inl ⟨a, ha₂, rfl⟩),
-      fun b hb₁ hb₂ => h (Or.inr ⟨b, hb₁, rfl⟩) (Or.inr ⟨b, hb₂, rfl⟩)⟩
-  · rintro ⟨hs, ht⟩ x (⟨a, ha₁, rfl⟩ | ⟨b, hb₁, rfl⟩) (⟨a', ha₂, h'⟩ | ⟨b', hb₂, h'⟩)
-    · exact hs ha₁ (Sum.inl.inj h' ▸ ha₂)
-    · cases h'
-    · cases h'
-    · exact ht hb₁ (Sum.inr.inj h' ▸ hb₂)
+  classical
+  have hcross := (Finset.disjoint_map_inl_map_inr s₂ t₁).symm
+  simp only [← Finset.map_inl_disjUnion_map_inr, Finset.disjUnion_eq_union,
+    Finset.disjoint_union_left, Finset.disjoint_union_right, Finset.disjoint_map,
+    Finset.disjoint_map_inl_map_inr, hcross, true_and, and_true]
 
 /-- Pairwise `XOR`-conflict relation between atomic-bid positions in a `BidFormula`: two atom
 positions conflict iff their lowest common ancestor in the formula tree is an `XOR` node. -/
@@ -1463,6 +1458,18 @@ private lemma getElem_appendIdxEquiv_inr {α : Type*} (l₁ l₂ : List α) (j :
     (l₁ ++ l₂)[appendIdxEquiv l₁ l₂ (.inr j)] = l₂[j] := by
   simp [appendIdxEquiv]
 
+/-- Transporting disjoint bid positions through the append equivalence adds their values. -/
+private theorem sum_append_orCollection {l₁ l₂ : List (SingleMindedBid M)}
+    (W₁ : Finset (Fin l₁.length)) (W₂ : Finset (Fin l₂.length)) :
+    ∑ k ∈ (W₁.disjSum W₂).map (appendIdxEquiv l₁ l₂).toEmbedding, ((l₁ ++ l₂)[k]).value =
+      ∑ i ∈ W₁, (l₁[i]).value + ∑ j ∈ W₂, (l₂[j]).value := by
+  rw [sum_map, ← Finset.map_inl_disjUnion_map_inr, sum_disjUnion, sum_map, sum_map]
+  congr 1
+  · exact sum_congr rfl fun i _ => congrArg SingleMindedBid.value
+      (getElem_appendIdxEquiv_inl l₁ l₂ i)
+  · exact sum_congr rfl fun j _ => congrArg SingleMindedBid.value
+      (getElem_appendIdxEquiv_inr l₁ l₂ j)
+
 /-- Split a valid `OR` collection on `l₁ ++ l₂` into its left (`l₁`) and right (`l₂`) parts,
 preserving compatibility, bundle inclusion, cross-disjointness, and weight sums. -/
 private theorem split_append_orCollection {l₁ l₂ : List (SingleMindedBid M)}
@@ -1481,14 +1488,10 @@ private theorem split_append_orCollection {l₁ l₂ : List (SingleMindedBid M)}
   intro e W₁ W₂
   have hW₁_mem : ∀ i ∈ W₁, e (.inl i) ∈ W := by
     intro i hi
-    rcases mem_map.mp (Finset.mem_toLeft.mp hi) with ⟨k, hkW, hkeq⟩
-    have : e (.inl i) = k := by simpa using congrArg e hkeq.symm
-    exact this ▸ hkW
+    simpa only [Finset.mem_map_equiv, Equiv.symm_symm] using Finset.mem_toLeft.mp hi
   have hW₂_mem : ∀ j ∈ W₂, e (.inr j) ∈ W := by
     intro j hj
-    rcases mem_map.mp (Finset.mem_toRight.mp hj) with ⟨k, hkW, hkeq⟩
-    have : e (.inr j) = k := by simpa using congrArg e hkeq.symm
-    exact this ▸ hkW
+    simpa only [Finset.mem_map_equiv, Equiv.symm_symm] using Finset.mem_toRight.mp hj
   refine ⟨hW₁_mem, hW₂_mem, ⟨?_, ?_⟩, ⟨?_, ?_⟩, ?_, ?_⟩
   · intro i₁ hi₁ i₂ hi₂ hne
     have hdj := hW.1 (hW₁_mem i₁ hi₁) (hW₁_mem i₂ hi₂)
@@ -1516,14 +1519,8 @@ private theorem split_append_orCollection {l₁ l₂ : List (SingleMindedBid M)}
       rw [Finset.toLeft_disjSum_toRight]
       ext k
       simp
-    rw [hW_eq, sum_map, ← Finset.map_inl_disjUnion_map_inr, sum_disjUnion, sum_map, sum_map]
-    congr 1
-    · refine sum_congr rfl fun i _ => ?_
-      change ((l₁ ++ l₂)[e (.inl i)]).value = (l₁[i]).value
-      rw [getElem_appendIdxEquiv_inl]
-    · refine sum_congr rfl fun j _ => ?_
-      change ((l₁ ++ l₂)[e (.inr j)]).value = (l₂[j]).value
-      rw [getElem_appendIdxEquiv_inr]
+    rw [hW_eq]
+    exact sum_append_orCollection W₁ W₂
 
 /-- Combine two valid `OR` collections on disjoint subbundles `R, T ⊆ S` into a valid collection
 on `l₁ ++ l₂`. -/
@@ -1573,15 +1570,7 @@ private theorem disjSum_append_orCollection {l₁ l₂ : List (SingleMindedBid M
     | inr j =>
       rw [getElem_appendIdxEquiv_inr]
       exact (hW₂.2 j (Finset.inr_mem_disjSum.mp ha)).trans hTS
-  · dsimp only [W]
-    rw [sum_map, ← Finset.map_inl_disjUnion_map_inr, sum_disjUnion, sum_map, sum_map]
-    congr 1
-    · refine sum_congr rfl fun i _ => ?_
-      change ((l₁ ++ l₂)[appendIdxEquiv l₁ l₂ (.inl i)]).value = (l₁[i]).value
-      rw [getElem_appendIdxEquiv_inl]
-    · refine sum_congr rfl fun j _ => ?_
-      change ((l₁ ++ l₂)[appendIdxEquiv l₁ l₂ (.inr j)]).value = (l₂[j]).value
-      rw [getElem_appendIdxEquiv_inr]
+  · exact sum_append_orCollection W₁ W₂
 
 private lemma appendIdxEquiv_inl_lt (f g : BidFormula M) (i : Fin f.atoms.length) :
     (appendIdxEquiv f.atoms g.atoms (.inl i)).val < f.size := by
