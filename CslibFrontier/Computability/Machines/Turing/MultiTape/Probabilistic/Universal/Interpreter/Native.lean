@@ -19,6 +19,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 
+import CslibFrontier.Languages.Probabilistic.Iteration.Reachable
+
 /-!
 # Retained fixed-channel oracle interpreter
 
@@ -59,6 +61,8 @@ open Cslib Cslib.Probability Turing.MultiTapeMachine Turing.MultiTapeTM
   Turing.MultiTapeTM.Internal Turing.MultiTapePTM.Internal
 open Turing.MultiTapePTM.Universal
 
+variable {S : Type} {r external : ℕ}
+
 /-! ### Typed loop semantics -/
 
 /-- Complete dynamic state of the fuel-independent retained loop. `fuel` is kept separately from
@@ -83,8 +87,19 @@ enc_structure eLoopState : LoopState where
   desc : eDesc, input : (encList encUnary), fuel : encUnary, replyBits : encUnary,
   remaining : encUnary, cfg : eICfg
 
-/-- Constructive proof decoder for retained clients that extend the typed loop state. The native
-interpreter itself still executes and charges its concrete parsers. -/
+/-- Two retained states agree on every field that one interpreter round must preserve. -/
+structure LoopState.SameStatic (first second : LoopState) : Prop where
+  /-- The source description is unchanged. -/
+  desc : second.desc = first.desc
+  /-- The source input is unchanged. -/
+  input : second.input = first.input
+  /-- The source fuel bound is unchanged. -/
+  fuel : second.fuel = first.fuel
+  /-- The raw reply-copy bound is unchanged. -/
+  replyBits : second.replyBits = first.replyBits
+
+/-- Constructive proof decoder used only by the typed bounded-iteration theorem. The retained body
+still executes and charges its concrete parsers. -/
 def loopStateDecoder : Decoder eLoopState :=
   (Decoder.pair descDecoder
     (.pair (.list .unary)
@@ -247,202 +262,326 @@ private noncomputable def advanceSomeCompiler : NativeCompiler (fun input : Adva
     some (advance input.1 input.2)) eAdvanceInput (encOption eLoopState) :=
   (NativeCompiler.optionSome eLoopState).comp advanceCompiler
 
-private abbrev BodyInput := Option LoopState
-private abbrev eBodyInput : BodyInput ↪ List Bool := encOption eLoopState
-private abbrev CoinInput := BodyInput × Bool
-private def eCoinInput : CoinInput ↪ List Bool := encPair eBodyInput encBool
-private abbrev LookupInput := CoinInput × Option Branches
-private def eLookupInput : LookupInput ↪ List Bool :=
-  encPair eCoinInput (encOption eBranches)
+private abbrev StoredInput (S : Type) := Option S
+private abbrev eStoredInput (encState : S ↪ List Bool) : StoredInput S ↪ List Bool :=
+  encOption encState
+private abbrev StoredCoinInput (S : Type) := StoredInput S × Bool
+private def eStoredCoinInput (encState : S ↪ List Bool) : StoredCoinInput S ↪ List Bool :=
+  encPair (eStoredInput encState) encBool
+private abbrev StoredLookupInput (S : Type) := StoredCoinInput S × Option Branches
+private def eStoredLookupInput (encState : S ↪ List Bool) :
+    StoredLookupInput S ↪ List Bool :=
+  encPair (eStoredCoinInput encState) (encOption eBranches)
+
+private abbrev BodyInput := StoredInput LoopState
+private abbrev eBodyInput : BodyInput ↪ List Bool := eStoredInput eLoopState
+private noncomputable def storedStateCompiler [Inhabited S]
+    (encState : S ↪ List Bool) :
+    NativeCompiler (fun state : StoredInput S => state.getD default)
+      (eStoredInput encState) encState :=
+  NativeCompiler.optionGetD default encState
+
+private noncomputable def storedSourceCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    NativeCompiler (fun state : StoredInput S => source (state.getD default))
+      (eStoredInput encState) eLoopState :=
+  sourceCompiler.comp (storedStateCompiler encState)
+
+private noncomputable def storedCfgCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    NativeCompiler (fun state : StoredInput S => (source (state.getD default)).cfg)
+      (eStoredInput encState) eICfg :=
+  cfgCompiler.comp (storedSourceCompiler encState source sourceCompiler)
+
+private noncomputable def storedRemainingCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    NativeCompiler (fun state : StoredInput S => (source (state.getD default)).remaining)
+      (eStoredInput encState) encUnary :=
+  remainingCompiler.comp (storedSourceCompiler encState source sourceCompiler)
+
+private noncomputable def advanceStoredCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState) :
+    NativeCompiler (fun state : StoredInput S =>
+      some (update (state.getD default, (source (state.getD default)).cfg)))
+      (eStoredInput encState) (eStoredInput encState) :=
+  (NativeCompiler.optionSome encState).comp
+    (updateCompiler.comp ((storedStateCompiler encState).pair
+      (storedCfgCompiler encState source sourceCompiler)))
 
 private noncomputable def bodyStateCompiler :
     NativeCompiler (fun state : BodyInput => state.getD default) eBodyInput eLoopState :=
-  NativeCompiler.optionGetD default eLoopState
+  storedStateCompiler eLoopState
 
-private noncomputable def bodyCfgCompiler :
-    NativeCompiler (fun state : BodyInput => (state.getD default).cfg) eBodyInput eICfg :=
-  cfgCompiler.comp bodyStateCompiler
-
-private noncomputable def bodyRemainingCompiler :
-    NativeCompiler (fun state : BodyInput => (state.getD default).remaining)
-      eBodyInput encUnary :=
-  remainingCompiler.comp bodyStateCompiler
-
-private noncomputable def advanceCurrentCompiler :
-    NativeCompiler (fun state : BodyInput =>
-      some (advance (state.getD default) (state.getD default).cfg))
-      eBodyInput eBodyInput :=
-  advanceSomeCompiler.comp (bodyStateCompiler.pair bodyCfgCompiler)
-
-private def toCommandAtInput (input : CoinInput) : Desc × (List ℕ × (ICfg × Bool)) :=
-  let state := input.1.getD default
+private def toStoredCommandAtInput [Inhabited S] (source : S → LoopState)
+    (input : StoredCoinInput S) : Desc × (List ℕ × (ICfg × Bool)) :=
+  let state := source (input.1.getD default)
   (state.desc, state.input, state.cfg, input.2)
 
-private noncomputable def commandAtInputCompiler :
-    NativeCompiler
-      toCommandAtInput
-      eCoinInput eCommandAtInput := by
-  let state := bodyStateCompiler.comp (NativeCompiler.first eBodyInput encBool)
-  let coin := NativeCompiler.second eBodyInput encBool
+private noncomputable def storedCommandAtInputCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    NativeCompiler (toStoredCommandAtInput source)
+      (eStoredCoinInput encState) eCommandAtInput := by
+  let state := (storedSourceCompiler encState source sourceCompiler).comp
+    (NativeCompiler.first (eStoredInput encState) encBool)
+  let coin := NativeCompiler.second (eStoredInput encState) encBool
   let fields := (descCompiler.comp state).pair
     ((inputCompiler.comp state).pair ((cfgCompiler.comp state).pair coin))
   exact fields.ofOutputEq fun _ => rfl
 
-private noncomputable def commandAtLookupInputCompiler :
+private noncomputable def storedCommandAtLookupInputCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
     NativeCompiler
-      (fun input : LookupInput =>
-        (toCommandAtInput input.1, input.2))
-      eLookupInput eCommandAtLookupInput := by
-  let coinInput := NativeCompiler.first eCoinInput (encOption eBranches)
-  let lookup := NativeCompiler.second eCoinInput (encOption eBranches)
-  exact (commandAtInputCompiler.comp coinInput).pair lookup
+      (fun input : StoredLookupInput S =>
+        (toStoredCommandAtInput source input.1, input.2))
+      (eStoredLookupInput encState) eCommandAtLookupInput := by
+  let coinInput := NativeCompiler.first (eStoredCoinInput encState) (encOption eBranches)
+  let lookup := NativeCompiler.second (eStoredCoinInput encState) (encOption eBranches)
+  exact ((storedCommandAtInputCompiler encState source sourceCompiler).comp coinInput).pair lookup
 
-/-- Retained post-lookup command interpreter. The table scan itself is deliberately outside this
-compiler so it can be charged once in the `lookup` phase. -/
-private noncomputable def commandCompiler (r : ℕ) :
+private noncomputable def storedCommandCompiler [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
     NativeCompiler
-      (fun input : LookupInput =>
-        commandAtFromLookup r (toCommandAtInput input.1, input.2))
-      eLookupInput (eCommand r) :=
-  (ICfg.commandAtFromLookupCompiler r).comp commandAtLookupInputCompiler
+      (fun input : StoredLookupInput S =>
+        commandAtFromLookup r (toStoredCommandAtInput source input.1, input.2))
+      (eStoredLookupInput encState) (eCommand r) :=
+  (ICfg.commandAtFromLookupCompiler r).comp
+    (storedCommandAtLookupInputCompiler encState source sourceCompiler)
 
-private abbrev QueryPayload (r : ℕ) := Fin r × (List ℕ × (ℕ × ICfg))
-private def eQueryPayload (r : ℕ) : QueryPayload r ↪ List Bool :=
-  encPair (eOperation r) (encPair (encList encUnary) (encPair encUnary eICfg))
-private abbrev CommandSum (r : ℕ) := ICfg ⊕ QueryPayload r
+/-- Operation, source request, continuation tag and suspended configuration selected from a
+retained command. This is the shared typed view used by both the open query executor and locally
+installed handlers. -/
+structure RetainedQueryPayload (r : ℕ) where
+  /-- Selected source operation. -/
+  operation : Fin r
+  /-- Decoded source request symbols. -/
+  request : List ℕ
+  /-- Continuation control tag. -/
+  next : ℕ
+  /-- Suspended source configuration awaiting the reply. -/
+  pending : ICfg
+
+/-- Field-order encoding of the retained-query view: operation, request, continuation tag and
+suspended configuration. Every field except the last is framed. -/
+enc_structure eRetainedQueryPayload (r : ℕ) : RetainedQueryPayload r where
+  operation : (eOperation r), request : (encList encUnary), next : encUnary, pending : eICfg
+
+private abbrev CommandSum (r : ℕ) := ICfg ⊕ RetainedQueryPayload r
 private def eCommandSum (r : ℕ) : CommandSum r ↪ List Bool :=
-  encSum eICfg (eQueryPayload r)
-private abbrev CommandInput (r : ℕ) := LookupInput × Command r
+  encSum eICfg (eRetainedQueryPayload r)
+
+/-- The narrow retained-command boundary: stored controller state and the selected command. -/
+abbrev RetainedCommandInput (r : ℕ) (S : Type) := S × Command r
+
+/-- Encoding of stored state followed by the selected command. -/
+abbrev eRetainedCommandInput (r : ℕ) (encState : S ↪ List Bool) :
+    RetainedCommandInput r S ↪ List Bool :=
+  encPair encState (eCommand r)
+
+private abbrev CommandInput (r : ℕ) := RetainedCommandInput r LoopState
 private def eCommandInput (r : ℕ) : CommandInput r ↪ List Bool :=
-  encPair eLookupInput (eCommand r)
+  eRetainedCommandInput r eLoopState
 
-private def defaultQueryPayload {r : ℕ} (fallback : Fin r) : QueryPayload r :=
-  (fallback, [], 0, default)
+/-- Total fallback for viewing a local command through the retained-query boundary. The fallback
+is used only on the local branch, before the command tag dispatch excludes that branch. -/
+private def defaultRetainedQueryPayload {r : ℕ} (fallback : Fin r) : RetainedQueryPayload r :=
+  { operation := fallback, request := [], next := 0, pending := default }
 
-private def commandQueryPayload (r : ℕ) (fallback : Fin r)
-    (input : CommandInput r) : QueryPayload r :=
-  Sum.elim (Function.const ICfg (defaultQueryPayload fallback)) id
-    (Command.equivSum r input.2)
+private def commandSumView (r : ℕ) : Command r → CommandSum r
+  | .local cfg => .inl cfg
+  | .query operation request next pending =>
+      .inr { operation, request, next, pending }
 
-private def commandState (input : LookupInput) : LoopState :=
-  input.1.1.getD default
+/-- Total shared retained-query view of a selected command. -/
+def retainedCommandQueryPayload (r : ℕ) (fallback : Fin r)
+    (input : RetainedCommandInput r S) : RetainedQueryPayload r :=
+  Sum.elim (Function.const ICfg (defaultRetainedQueryPayload fallback)) id
+    (commandSumView r input.2)
+
+/-- A query command retains all four fields independently of the fallback operation. -/
+theorem retainedCommandQueryPayload_query (state : S) (fallback operation : Fin r)
+    (request : List ℕ) (next : ℕ) (pending : ICfg) :
+    retainedCommandQueryPayload r fallback (state, .query operation request next pending) =
+      ⟨operation, request, next, pending⟩ := by
+  simp [retainedCommandQueryPayload, commandSumView]
+
+private def commandState (input : CommandInput r) : LoopState :=
+  input.1
 
 private noncomputable def commandSumCompiler (r : ℕ) :
-    NativeCompiler (Command.equivSum r) (eCommand r) (eCommandSum r) :=
-  (NativeCompiler.identity (eCommandSum r)).ofInputEq (Command.equivSum r) fun _ => rfl
+    NativeCompiler (commandSumView r) (eCommand r) (eCommandSum r) :=
+  (NativeCompiler.identity (eCommandSum r)).ofInputEq (commandSumView r) fun command => by
+    cases command <;> rfl
 
-private noncomputable def commandValueCompiler (r : ℕ) :
-    NativeCompiler (fun input : CommandInput r => input.2) (eCommandInput r) (eCommand r) :=
-  NativeCompiler.second eLookupInput (eCommand r)
+private noncomputable def retainedCommandValueCompiler (r : ℕ)
+    (encState : S ↪ List Bool) :
+    NativeCompiler (fun input : RetainedCommandInput r S => input.2)
+      (eRetainedCommandInput r encState) (eCommand r) :=
+  NativeCompiler.second encState (eCommand r)
 
-private noncomputable def commandSumInputCompiler (r : ℕ) :
-    NativeCompiler (fun input : CommandInput r => Command.equivSum r input.2)
-      (eCommandInput r) (eCommandSum r) :=
-  (commandSumCompiler r).comp (commandValueCompiler r)
+private noncomputable def retainedCommandSumInputCompiler (r : ℕ)
+    (encState : S ↪ List Bool) :
+    NativeCompiler (fun input : RetainedCommandInput r S => commandSumView r input.2)
+      (eRetainedCommandInput r encState) (eCommandSum r) :=
+  (commandSumCompiler r).comp (retainedCommandValueCompiler r encState)
 
-private noncomputable def commandIsQueryCompiler (r : ℕ) :
-    NativeCompiler (fun input : CommandInput r => (Command.equivSum r input.2).isRight)
-      (eCommandInput r) encTest :=
+private noncomputable def retainedCommandIsQueryCompiler (r : ℕ)
+    (encState : S ↪ List Bool) :
+    NativeCompiler
+      (fun input : RetainedCommandInput r S => (commandSumView r input.2).isRight)
+      (eRetainedCommandInput r encState) encTest :=
   NativeCompiler.boolToTest.comp
-    ((NativeCompiler.sumTag eICfg (eQueryPayload r)).comp (commandSumInputCompiler r))
+    ((NativeCompiler.sumTag eICfg (eRetainedQueryPayload r)).comp
+      (retainedCommandSumInputCompiler r encState))
 
-private noncomputable def localCfgCompiler (r : ℕ) :
+private noncomputable def retainedLocalCfgCompiler (r : ℕ)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r =>
-        Sum.elim id (Function.const (QueryPayload r) default) (Command.equivSum r input.2))
-      (eCommandInput r) eICfg :=
-  (NativeCompiler.sumLeftD default eICfg (eQueryPayload r)).comp
-    (commandSumInputCompiler r)
+      (fun input : RetainedCommandInput r S =>
+        Sum.elim id (Function.const (RetainedQueryPayload r) default)
+          (commandSumView r input.2))
+      (eRetainedCommandInput r encState) eICfg :=
+  (NativeCompiler.sumLeftD default eICfg (eRetainedQueryPayload r)).comp
+    (retainedCommandSumInputCompiler r encState)
 
-private noncomputable def queryPayloadCompiler (r : ℕ) (fallback : Fin r) :
+/-- Compiler for the shared retained-query view. Consumers can project its four fields without
+rebuilding the command-sum decoding chain. -/
+noncomputable def retainedCommandQueryPayloadCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (commandQueryPayload r fallback)
-      (eCommandInput r) (eQueryPayload r) :=
-  (NativeCompiler.sumRightD (defaultQueryPayload fallback) eICfg (eQueryPayload r)).comp
-    (commandSumInputCompiler r)
-
-private noncomputable def lookupValueCompiler (r : ℕ) :
-    NativeCompiler (fun input : CommandInput r => input.1)
-      (eCommandInput r) eLookupInput :=
-  NativeCompiler.first eLookupInput (eCommand r)
+      (retainedCommandQueryPayload r fallback : RetainedCommandInput r S → _)
+      (eRetainedCommandInput r encState) (eRetainedQueryPayload r) :=
+  (NativeCompiler.sumRightD (defaultRetainedQueryPayload fallback) eICfg
+    (eRetainedQueryPayload r)).comp (retainedCommandSumInputCompiler r encState)
 
 private noncomputable def commandLoopStateCompiler (r : ℕ) :
-    NativeCompiler
-      (fun input : CommandInput r => commandState input.1)
+    NativeCompiler (commandState : CommandInput r → LoopState)
       (eCommandInput r) eLoopState :=
-  bodyStateCompiler.comp
-    ((NativeCompiler.first eBodyInput encBool).comp
-      ((NativeCompiler.first eCoinInput (encOption eBranches)).comp
-        (lookupValueCompiler r)))
+  NativeCompiler.first eLoopState (eCommand r)
+
+private noncomputable def retainedLocalAdvanceCompiler (r : ℕ)
+    (encState : S ↪ List Bool) (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState) :
+    NativeCompiler (fun input : RetainedCommandInput r S =>
+      some (update (input.1,
+        Sum.elim id (Function.const (RetainedQueryPayload r) default)
+          (commandSumView r input.2))))
+      (eRetainedCommandInput r encState) (eStoredInput encState) :=
+  (NativeCompiler.optionSome encState).comp
+    (updateCompiler.comp
+      ((NativeCompiler.first encState (eCommand r)).pair
+        (retainedLocalCfgCompiler r encState)))
 
 private noncomputable def localAdvanceCompiler (r : ℕ) :
     NativeCompiler (fun input : CommandInput r =>
-      some (advance (input.1.1.1.getD default)
-        (Sum.elim id (Function.const (QueryPayload r) default)
-          (Command.equivSum r input.2))))
+      some (advance input.1
+        (Sum.elim id (Function.const (RetainedQueryPayload r) default)
+          (commandSumView r input.2))))
       (eCommandInput r) eBodyInput :=
-  advanceSomeCompiler.comp
-    ((commandLoopStateCompiler r).pair (localCfgCompiler r))
+  retainedLocalAdvanceCompiler r eLoopState (fun input => advance input.1 input.2)
+    advanceCompiler
 
-private noncomputable def queryOperationCompiler (r : ℕ) (fallback : Fin r) :
+private noncomputable def queryPayloadFieldsCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).1)
-      (eCommandInput r) (eOperation r) :=
+      (fun input : RetainedCommandInput r S =>
+        let payload := retainedCommandQueryPayload r fallback input
+        (payload.operation, payload.request, payload.next, payload.pending))
+      (eRetainedCommandInput r encState)
+      (encPair (eOperation r) (encPair (encList encUnary) (encPair encUnary eICfg))) :=
+  let fields := fun payload : RetainedQueryPayload r =>
+    (payload.operation, payload.request, payload.next, payload.pending)
+  ((NativeCompiler.identity
+      (encPair (eOperation r) (encPair (encList encUnary) (encPair encUnary eICfg))))
+    |>.ofInputEq (encIn := eRetainedQueryPayload r) fields fun _ => rfl).comp
+      (retainedCommandQueryPayloadCompiler r fallback encState)
+
+/-- Select the operation tag from the retained command. -/
+noncomputable opaque queryOperationCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
+    NativeCompiler
+      (fun input : RetainedCommandInput r S =>
+        (retainedCommandQueryPayload r fallback input).operation)
+      (eRetainedCommandInput r encState) (eOperation r) :=
   (NativeCompiler.first (eOperation r)
     (encPair (encList encUnary) (encPair encUnary eICfg))).comp
-      (queryPayloadCompiler r fallback)
+      (queryPayloadFieldsCompiler r fallback encState)
 
-private noncomputable def queryTailCompiler (r : ℕ) (fallback : Fin r) :
+private noncomputable def queryTailCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).2)
-      (eCommandInput r) (encPair (encList encUnary) (encPair encUnary eICfg)) :=
+      (fun input : RetainedCommandInput r S =>
+        ((retainedCommandQueryPayload r fallback input).request,
+          (retainedCommandQueryPayload r fallback input).next,
+          (retainedCommandQueryPayload r fallback input).pending))
+      (eRetainedCommandInput r encState) (encPair (encList encUnary) (encPair encUnary eICfg)) :=
   (NativeCompiler.second (eOperation r)
     (encPair (encList encUnary) (encPair encUnary eICfg))).comp
-      (queryPayloadCompiler r fallback)
+      (queryPayloadFieldsCompiler r fallback encState)
 
-private noncomputable def queryRequestCompiler (r : ℕ) (fallback : Fin r) :
+/-- Select the source request from the retained command. -/
+noncomputable opaque queryRequestCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).2.1)
-      (eCommandInput r) (encList encUnary) :=
+      (fun input : RetainedCommandInput r S =>
+        (retainedCommandQueryPayload r fallback input).request)
+      (eRetainedCommandInput r encState) (encList encUnary) :=
   (NativeCompiler.first (encList encUnary) (encPair encUnary eICfg)).comp
-    (queryTailCompiler r fallback)
+    (queryTailCompiler r fallback encState)
 
-private noncomputable def queryNextCfgCompiler (r : ℕ) (fallback : Fin r) :
+private noncomputable def queryNextCfgCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).2.2)
-      (eCommandInput r) (encPair encUnary eICfg) :=
+      (fun input : RetainedCommandInput r S =>
+        ((retainedCommandQueryPayload r fallback input).next,
+          (retainedCommandQueryPayload r fallback input).pending))
+      (eRetainedCommandInput r encState) (encPair encUnary eICfg) :=
   (NativeCompiler.second (encList encUnary) (encPair encUnary eICfg)).comp
-    (queryTailCompiler r fallback)
+    (queryTailCompiler r fallback encState)
 
-private noncomputable def queryNextCompiler (r : ℕ) (fallback : Fin r) :
+/-- Select the continuation tag from the retained command. -/
+noncomputable opaque queryNextCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).2.2.1)
-      (eCommandInput r) encUnary :=
-  (NativeCompiler.first encUnary eICfg).comp (queryNextCfgCompiler r fallback)
+      (fun input : RetainedCommandInput r S =>
+        (retainedCommandQueryPayload r fallback input).next)
+      (eRetainedCommandInput r encState) encUnary :=
+  (NativeCompiler.first encUnary eICfg).comp (queryNextCfgCompiler r fallback encState)
 
-private noncomputable def queryCfgCompiler (r : ℕ) (fallback : Fin r) :
+/-- Select the suspended source configuration from the retained command. -/
+noncomputable opaque queryCfgCompiler (r : ℕ) (fallback : Fin r)
+    (encState : S ↪ List Bool) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).2.2.2)
-      (eCommandInput r) eICfg :=
-  (NativeCompiler.second encUnary eICfg).comp (queryNextCfgCompiler r fallback)
+      (fun input : RetainedCommandInput r S =>
+        (retainedCommandQueryPayload r fallback input).pending)
+      (eRetainedCommandInput r encState) eICfg :=
+  (NativeCompiler.second encUnary eICfg).comp (queryNextCfgCompiler r fallback encState)
 
 private noncomputable def queryRequestWordCompiler (r : ℕ) (fallback : Fin r) :
     NativeCompiler
       (fun input : CommandInput r =>
-        encList encUnary (commandQueryPayload r fallback input).2.1)
+        encList encUnary (retainedCommandQueryPayload r fallback input).request)
       (eCommandInput r) encBits :=
-  (queryRequestCompiler r fallback).ofOutputEq fun _ => rfl
+  (queryRequestCompiler r fallback eLoopState).ofOutputEq fun _ => rfl
 
 private noncomputable def queryReplyBitsCompiler (r : ℕ) :
     NativeCompiler
-      (fun input : CommandInput r => (commandState input.1).replyBits)
+      (fun input : CommandInput r => (commandState input).replyBits)
       (eCommandInput r) encUnary :=
   replyBitsCompiler.comp (commandLoopStateCompiler r)
 
 private def queryInput (r : ℕ) (fallback : Fin r) (input : CommandInput r) :
     List Bool × ℕ :=
-  (encList encUnary (commandQueryPayload r fallback input).2.1,
-    (commandState input.1).replyBits)
+  (encList encUnary (retainedCommandQueryPayload r fallback input).request,
+    (commandState input).replyBits)
 
 /-- Retained marshalling of a validated query command into the raw request and reply-copy limit
 expected by a fixed-operation query primitive. -/
@@ -468,10 +607,10 @@ private noncomputable def queryPostReplyCompiler (r : ℕ) :
 private def queryPost (r : ℕ) (fallback : Fin r) (input : QueryPostInput r) :
     BodyInput :=
   let command := input.1
-  let state := commandState command.1
-  let payload := commandQueryPayload r fallback command
+  let state := commandState command
+  let payload := retainedCommandQueryPayload r fallback command
   let decoded := (frames input.2).map List.length |>.take state.fuel
-  some (advance state (payload.2.2.2.receive payload.1 payload.2.2.1 decoded))
+  some (advance state (payload.pending.receive payload.operation payload.next decoded))
 
 /-- Phase-preserving deterministic reply decoding, source-symbol truncation, checked reply
 installation and loop-state update. -/
@@ -486,11 +625,11 @@ private noncomputable def queryPostCompiler (r : ℕ) (fallback : Fin r) : Class
   let retained := (ClassifiedCompiler.inPhase .codec
     (NativeCompiler.takeUnary encUnary)).comp (decoded.pair fuel)
   let operation := (ClassifiedCompiler.inPhase .tags
-    (queryOperationCompiler r fallback)).comp command
+    (queryOperationCompiler r fallback eLoopState)).comp command
   let next := (ClassifiedCompiler.inPhase .tags
-    (queryNextCompiler r fallback)).comp command
+    (queryNextCompiler r fallback eLoopState)).comp command
   let cfg := (ClassifiedCompiler.inPhase .parsing
-    (queryCfgCompiler r fallback)).comp command
+    (queryCfgCompiler r fallback eLoopState)).comp command
   let receiveInput := cfg.pair (operation.pair (next.pair retained))
   let received := (ClassifiedCompiler.inPhase .localStep
     (ICfg.receiveCompiler r)).comp receiveInput
@@ -517,8 +656,12 @@ private noncomputable def queryPostArtifact (r : ℕ) (fallback : Fin r) :=
   NativeOracleProgram.ofCompiler (r := r) (queryPostCompiler r fallback)
 
 /-- Possible copied prefixes, enumerated only to choose a common clock. -/
-private noncomputable def replyWords (replyBits : ℕ) : List (List Bool) :=
+noncomputable def boundedReplyWords (replyBits : ℕ) : List (List Bool) :=
   (BitString.shortWords replyBits).toList
+
+theorem mem_boundedReplyWords_iff (reply : List Bool) (replyBits : ℕ) :
+    reply ∈ boundedReplyWords replyBits ↔ reply.length ≤ replyBits := by
+  simp [boundedReplyWords, BitString.mem_shortWords]
 
 /-- Uniform phase bounds for the deterministic post-query pipeline over every copied reply prefix
 that the external handler can produce. -/
@@ -527,15 +670,15 @@ private noncomputable def queryPostOnline (r : ℕ) (fallback : Fin r) :
   time := fun phase input =>
     listMax (fun reply =>
       (queryPostArtifact r fallback).online.time phase (input, reply))
-      (replyWords (commandState input.1).replyBits)
+      (boundedReplyWords (commandState input).replyBits)
 
 private theorem queryPostOnline_le (r : ℕ) (fallback : Fin r)
     (input : CommandInput r) (reply : List Bool)
-    (hreply : reply.length ≤ (commandState input.1).replyBits) (phase : OnlinePhase) :
+    (hreply : reply.length ≤ (commandState input).replyBits) (phase : OnlinePhase) :
     (queryPostArtifact r fallback).online.time phase (input, reply) ≤
         (queryPostOnline r fallback).time phase input := by
-  have hmem : reply ∈ replyWords (commandState input.1).replyBits := by
-    exact Finset.mem_toList.mpr (BitString.mem_shortWords.mpr hreply)
+  have hmem : reply ∈ boundedReplyWords (commandState input).replyBits := by
+    exact (mem_boundedReplyWords_iff _ _).2 hreply
   exact le_listMax (f := fun reply =>
     (queryPostArtifact r fallback).online.time phase (input, reply)) hmem
 
@@ -576,13 +719,14 @@ private noncomputable def queryBranch (r : ℕ) (fallback operation : Fin r) :
 
 private def operationTest (r : ℕ) (fallback operation : Fin r)
     (input : CommandInput r) : List Bool :=
-  encTest (decide ((commandQueryPayload r fallback input).1 = operation))
+  encTest (decide ((retainedCommandQueryPayload r fallback input).operation = operation))
 
 private noncomputable def operationNatCompiler (r : ℕ) (fallback : Fin r) :
     NativeCompiler
-      (fun input : CommandInput r => (commandQueryPayload r fallback input).1.val)
+      (fun input : CommandInput r =>
+        (retainedCommandQueryPayload r fallback input).operation.val)
       (eCommandInput r) encUnary :=
-  (queryOperationCompiler r fallback).ofOutputEq fun _ => rfl
+  (queryOperationCompiler r fallback eLoopState).ofOutputEq fun _ => rfl
 
 /-- Retained equality test for one statically installed operation branch. -/
 private noncomputable def operationTestCompiler (r : ℕ) (fallback operation : Fin r) :
@@ -610,9 +754,9 @@ private def operations (r : ℕ) : List (Fin r) := List.finRange r
 artifact. It advances the original state with the explicit local default rather than invoking a
 semantic callback. -/
 private def localAdvance (r : ℕ) (input : CommandInput r) : BodyInput :=
-  some (advance (commandState input.1)
-    (Sum.elim id (Function.const (QueryPayload r) default)
-      (Command.equivSum r input.2)))
+  some (advance (commandState input)
+    (Sum.elim id (Function.const (RetainedQueryPayload r) default)
+      (commandSumView r input.2)))
 
 private noncomputable def queryFallback (r : ℕ) :=
   NativeOracleProgram.ofCompiler (r := r)
@@ -623,9 +767,59 @@ private noncomputable def queryDispatch (r : ℕ) (fallback : Fin r) :=
   NativeOracleProgram.finiteDispatch
     ((operations r).map (operationCase r fallback)) (queryFallback r)
 
+private def executeRetainedCommand (r : ℕ) (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (input : RetainedCommandInput r S) : WordOracleComp (Fin external) (Option S) :=
+  match input.2 with
+  | .local cfg => pure (some (update (input.1, cfg)))
+  | .query _ _ _ _ => queryProgram input
+
+private noncomputable def retainedLocalArtifact (external r : ℕ)
+    (encState : S ↪ List Bool) (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState) :=
+  NativeOracleProgram.ofCompiler (r := external)
+    (ClassifiedCompiler.inPhase .controller
+      (retainedLocalAdvanceCompiler r encState update updateCompiler))
+
+/-- Reusable command executor with a supplied retained query branch. Local commands use the
+provided state update compiler; query commands run the supplied artifact on only stored state and
+the selected command. -/
+private noncomputable def commandExecutorWithQueryBranch (r : ℕ)
+    (encState : S ↪ List Bool) (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState)
+    {queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (queryArtifact : NativeOracleProgram external queryProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :
+    NativeOracleProgram external (executeRetainedCommand r update queryProgram)
+      (eRetainedCommandInput r encState) (encOption encState) := by
+  let condition := ClassifiedCompiler.inPhase .tags
+    ((retainedCommandIsQueryCompiler r encState).ofOutputEq (encOut := encBits)
+      (g := fun input : RetainedCommandInput r S => encTest (commandSumView r input.2).isRight)
+      fun _ => rfl)
+  let assembled := NativeOracleProgram.dispatch condition queryArtifact
+    (retainedLocalArtifact external r encState update updateCompiler)
+  apply castProgram assembled
+  funext input
+  obtain ⟨state, command⟩ := input
+  cases command <;> simp [executeRetainedCommand, commandSumView, encTest_false, encTest_true]
+
+private noncomputable def commandExecutorZeroWithQueryProgram
+    (encState : S ↪ List Bool) (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState)
+    (queryProgram : RetainedCommandInput 0 S → WordOracleComp (Fin external) (Option S)) :
+    NativeOracleProgram external (executeRetainedCommand 0 update queryProgram)
+      (eRetainedCommandInput 0 encState) (encOption encState) := by
+  let localProgram := retainedLocalArtifact external 0 encState update updateCompiler
+  apply castProgram localProgram
+  funext input
+  obtain ⟨state, command⟩ := input
+  cases command with
+  | «local» cfg => rfl
+  | query operation request next cfg => exact Fin.elim0 operation
+
 private theorem dispatchProgram_operations (r : ℕ) (fallback operation : Fin r)
     (input : CommandInput r)
-    (hoperation : (commandQueryPayload r fallback input).1 = operation) :
+    (hoperation : (retainedCommandQueryPayload r fallback input).operation = operation) :
     NativeOracleProgram.dispatchProgram
         ((operations r).map (operationCase r fallback))
         (fun command => pure (localAdvance r command)) input =
@@ -647,300 +841,483 @@ private theorem dispatchProgram_operations (r : ℕ) (fallback operation : Fin r
           ↓reduceIte]
         exact ih htail
 
-private noncomputable def executeCommand (r : ℕ) (fallback : Fin r)
-    (input : CommandInput r) : WordOracleComp (Fin r) BodyInput :=
-  match input.2 with
-  | .local cfg => pure (some (advance (commandState input.1) cfg))
-  | .query operation _ _ _ => queryBranchProgram r fallback operation input
-
-private noncomputable def commandProgram : (r : ℕ) →
-    CommandInput r → WordOracleComp (Fin r) BodyInput
-  | 0, input =>
+private noncomputable def originalQueryProgram : (r : ℕ) →
+    RetainedCommandInput r LoopState → WordOracleComp (Fin r) BodyInput
+  | 0, input => pure (localAdvance 0 input)
+  | r + 1, input =>
       match input.2 with
-      | .local cfg => pure (some (advance (commandState input.1) cfg))
-      | .query operation _ _ _ => Fin.elim0 operation
-  | r + 1, input => executeCommand (r + 1) 0 input
+      | .local _ => queryBranchProgram (r + 1) 0 0 input
+      | .query operation _ _ _ => queryBranchProgram (r + 1) 0 operation input
 
-/-- Complete validated-command executor for a nonempty fixed channel type. The command tag is
-tested by a retained compiler, and query selection is a literal finite dispatcher. -/
-private noncomputable def commandExecutorSucc (r : ℕ) :
-    NativeOracleProgram (r + 1) (executeCommand (r + 1) 0)
-      (eCommandInput (r + 1)) eBodyInput := by
-  let condition := ClassifiedCompiler.inPhase .tags
-    ((commandIsQueryCompiler (r + 1)).ofOutputEq (encOut := encBits)
-      (g := fun input : CommandInput (r + 1) =>
-        encTest (Command.equivSum (r + 1) input.2).isRight) fun _ => by
-          simp only [encBits_apply])
-  let assembled := NativeOracleProgram.dispatch condition
-    (queryDispatch (r + 1) 0) (queryFallback (r + 1))
-  apply castProgram assembled
-  funext input
-  rcases input with ⟨lookup, command⟩
-  cases command with
-  | «local» cfg =>
-      simp [executeCommand, commandState, Command.equivSum, encTest_false]
-  | query operation request next cfg =>
-      simp only [executeCommand, Command.equivSum]
-      exact dispatchProgram_operations (r + 1) 0 operation
-        (lookup, .query operation request next cfg) rfl
-
-/-- Zero-channel command execution has no query branch and therefore installs no dummy `Fin 0`
-operation or query artifact. -/
-private noncomputable def commandExecutorZero :
-    NativeOracleProgram 0 (commandProgram 0)
-      (eCommandInput 0) eBodyInput := by
-  let localProgram := queryFallback 0
-  apply castProgram localProgram
-  funext input
-  rcases input with ⟨lookup, command⟩
-  cases command with
-  | «local» cfg => rfl
-  | query operation request next cfg => exact Fin.elim0 operation
-
-/-- Complete validated-command executor, including the empty fixed-channel boundary. -/
-private noncomputable def commandExecutor : (r : ℕ) →
-    NativeOracleProgram r (commandProgram r) (eCommandInput r) eBodyInput
-  | 0 => commandExecutorZero
-  | r + 1 => commandExecutorSucc r
+private noncomputable def originalQueryArtifact : (r : ℕ) →
+    NativeOracleProgram r (originalQueryProgram r) (eCommandInput r) eBodyInput
+  | 0 => queryFallback 0
+  | r + 1 => by
+      -- The outer command test intercepts local commands before this dispatcher.
+      apply castProgram (queryDispatch (r + 1) 0)
+      funext input
+      obtain ⟨state, command⟩ := input
+      cases command with
+      | «local» cfg =>
+          exact dispatchProgram_operations (r + 1) 0 0 (state, .local cfg) rfl
+      | query operation request next pending =>
+          exact dispatchProgram_operations (r + 1) 0 operation
+            (state, .query operation request next pending) rfl
 
 /-! ### Single-lookup active round -/
 
-private def lookupResult (input : CoinInput) : Option Branches :=
-  let commandInput := toCommandAtInput input
+private def storedLookupResult [Inhabited S] (source : S → LoopState)
+    (input : StoredCoinInput S) : Option Branches :=
+  let commandInput := toStoredCommandAtInput source input
   NativeCompiler.firstMatch (commandInput.1.table,
     commandInput.2.2.1.key commandInput.2.1
       ((commandInput.2.2.1.control.getD none).getD 0))
 
-/-- The lookup scan is an actual retained deterministic artifact, after explicit marshalling of
-the active loop state and private coin. -/
-private noncomputable def lookupArtifact (r : ℕ) :
-    NativeOracleProgram r (fun input : CoinInput => pure (lookupResult input))
-      eCoinInput (encOption eBranches) :=
+private noncomputable def storedLookupArtifact [Inhabited S] (external : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    NativeOracleProgram external
+      (fun input : StoredCoinInput S => pure (storedLookupResult source input))
+      (eStoredCoinInput encState) (encOption eBranches) :=
   NativeOracleProgram.preprocess
-    (ClassifiedCompiler.inPhase .marshalling commandAtInputCompiler)
-    (NativeOracleProgram.ofCompiler (r := r)
+    (ClassifiedCompiler.inPhase .marshalling
+      (storedCommandAtInputCompiler encState source sourceCompiler))
+    (NativeOracleProgram.ofCompiler (r := external)
       (ClassifiedCompiler.inPhase .lookup ICfg.commandAtLookupCompiler))
 
-private def commandFromLookup (r : ℕ) (input : LookupInput) : Command r :=
-  commandAtFromLookup r (toCommandAtInput input.1, input.2)
+private def commandFromStoredLookup [Inhabited S] (r : ℕ) (source : S → LoopState)
+    (input : StoredLookupInput S) : Command r :=
+  commandAtFromLookup r (toStoredCommandAtInput source input.1, input.2)
 
-private theorem commandFromLookup_lookupResult (r : ℕ) (input : CoinInput) :
-    commandFromLookup r (input, lookupResult input) =
-      let state := input.1.getD default
-      state.cfg.commandAt r state.desc state.input input.2 := by
-  exact commandAtFromLookup_firstMatch r (toCommandAtInput input)
+private noncomputable def commandFromStoredLookupArtifact [Inhabited S] (external r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    NativeOracleProgram external
+      (fun input : StoredLookupInput S => pure (commandFromStoredLookup r source input))
+      (eStoredLookupInput encState) (eCommand r) :=
+  NativeOracleProgram.ofCompiler (r := external)
+    (ClassifiedCompiler.inPhase .localStep
+      (storedCommandCompiler r encState source sourceCompiler))
 
-/-- Retained post-lookup command construction. It performs no table scan. -/
-private noncomputable def commandFromLookupArtifact (r : ℕ) :
-    NativeOracleProgram r (fun input : LookupInput => pure (commandFromLookup r input))
-      eLookupInput (eCommand r) :=
-  NativeOracleProgram.ofCompiler (r := r)
-    (ClassifiedCompiler.inPhase .localStep (commandCompiler r))
+private def retainedCommandFromLookup [Inhabited S] (r : ℕ)
+    (input : StoredLookupInput S × Command r) : RetainedCommandInput r S :=
+  (input.1.1.1.getD default, input.2)
 
-/-- Uniform resource record for the command executor at the unique deterministic command produced
-from one captured lookup result. -/
-private noncomputable def commandExecutorOnline (r : ℕ) : OnlineAccounting LookupInput :=
-  (commandExecutor r).online.reindex fun input => (input, commandFromLookup r input)
+private noncomputable def retainedCommandFromLookupCompiler [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) :
+    NativeCompiler (retainedCommandFromLookup r)
+      (encPair (eStoredLookupInput encState) (eCommand r))
+      (eRetainedCommandInput r encState) := by
+  let lookup := NativeCompiler.first (eStoredLookupInput encState) (eCommand r)
+  let coin := (NativeCompiler.first (eStoredCoinInput encState) (encOption eBranches)).comp lookup
+  let stored := (NativeCompiler.first (eStoredInput encState) encBool).comp coin
+  let state := (storedStateCompiler encState).comp stored
+  let command := NativeCompiler.second (eStoredLookupInput encState) (eCommand r)
+  exact state.pair command
 
-private theorem commandExecutor_resource_bound (r : ℕ) (input : LookupInput)
-    (OracleState : Type)
-    (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
+private noncomputable def preparedCommandArtifact [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :=
+  NativeOracleProgram.preprocess
+    (ClassifiedCompiler.inPhase .marshalling
+      (retainedCommandFromLookupCompiler r encState)) commandArtifact
+
+private noncomputable def storedCommandExecutorOnline [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :
+    OnlineAccounting (StoredLookupInput S) :=
+  (preparedCommandArtifact r encState commandArtifact).online.reindex fun input =>
+    (input, commandFromStoredLookup r source input)
+
+private theorem storedCommandExecutor_resource_bound [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState))
+    (input : StoredLookupInput S) (OracleState : Type)
+    (oracle : Fin external × List Bool → StateT OracleState PMF (List Bool))
     (state : OracleState) (command : Command r) (state' : OracleState)
     (hcommand : (command, state') ∈
-      (ProbOracleComp.runWith oracle (pure (commandFromLookup r input)) state).support)
+      (ProbOracleComp.runWith oracle
+        (pure (commandFromStoredLookup r source input)) state).support)
     (phase : OnlinePhase) :
-    (commandExecutor r).online.time phase (input, command) ≤
-        (commandExecutorOnline r).time phase input := by
+    (preparedCommandArtifact r encState commandArtifact).online.time phase (input, command) ≤
+        (storedCommandExecutorOnline r encState source commandArtifact).time phase input := by
   simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
     Prod.mk.injEq] at hcommand
   rcases hcommand with ⟨rfl, rfl⟩
   exact le_rfl
 
-/-- Execute the captured post-lookup command, including any validated external query. -/
-private noncomputable def fromLookupArtifact (r : ℕ) :=
-  NativeOracleProgram.sequenceCaptured (commandFromLookupArtifact r) (commandExecutor r)
-    (commandExecutorOnline r) (commandExecutor_resource_bound r)
+private noncomputable def fromStoredLookupArtifact [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :=
+  NativeOracleProgram.sequenceCaptured
+    (commandFromStoredLookupArtifact external r encState source sourceCompiler)
+    (preparedCommandArtifact r encState commandArtifact)
+    (storedCommandExecutorOnline r encState source commandArtifact)
+    (storedCommandExecutor_resource_bound r encState source commandArtifact)
 
-/-- Resource record for the unique deterministic table result on one coin-bearing input. -/
-private noncomputable def fromLookupOnline (r : ℕ) : OnlineAccounting CoinInput :=
-  (fromLookupArtifact r).online.reindex fun input => (input, lookupResult input)
+private noncomputable def storedFromLookupOnline [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :
+    OnlineAccounting (StoredCoinInput S) :=
+  (fromStoredLookupArtifact r encState source sourceCompiler commandArtifact).online.reindex
+    fun input => (input, storedLookupResult source input)
 
-private theorem fromLookup_resource_bound (r : ℕ) (input : CoinInput)
-    (OracleState : Type)
-    (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
+private theorem storedFromLookup_resource_bound [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState))
+    (input : StoredCoinInput S) (OracleState : Type)
+    (oracle : Fin external × List Bool → StateT OracleState PMF (List Bool))
     (state : OracleState) (lookup : Option Branches) (state' : OracleState)
     (hlookup : (lookup, state') ∈
-      (ProbOracleComp.runWith oracle (pure (lookupResult input)) state).support)
+      (ProbOracleComp.runWith oracle (pure (storedLookupResult source input)) state).support)
     (phase : OnlinePhase) :
-    (fromLookupArtifact r).online.time phase (input, lookup) ≤
-        (fromLookupOnline r).time phase input := by
+    (fromStoredLookupArtifact r encState source sourceCompiler commandArtifact).online.time phase
+          (input, lookup) ≤
+        (storedFromLookupOnline r encState source sourceCompiler commandArtifact).time phase
+          input := by
   simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
     Prod.mk.injEq] at hlookup
   rcases hlookup with ⟨rfl, rfl⟩
   exact le_rfl
 
-/-- One coin-bearing active round with exactly one captured table scan. -/
-private noncomputable def coinRoundArtifact (r : ℕ) :=
-  NativeOracleProgram.sequenceCaptured (lookupArtifact r) (fromLookupArtifact r)
-    (fromLookupOnline r) (fromLookup_resource_bound r)
+private noncomputable def storedCoinRoundArtifact [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :=
+  NativeOracleProgram.sequenceCaptured
+    (storedLookupArtifact external encState source sourceCompiler)
+    (fromStoredLookupArtifact r encState source sourceCompiler commandArtifact)
+    (storedFromLookupOnline r encState source sourceCompiler commandArtifact)
+    (storedFromLookup_resource_bound r encState source sourceCompiler commandArtifact)
 
-/-- Phasewise maximum of the active continuation over the two fair-coin outcomes. -/
-private noncomputable def coinRoundOnline (r : ℕ) : OnlineAccounting BodyInput where
+private noncomputable def storedCoinRoundOnline [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :
+    OnlineAccounting (StoredInput S) where
   time := fun phase input =>
-    max ((coinRoundArtifact r).online.time phase (input, false))
-      ((coinRoundArtifact r).online.time phase (input, true))
+    max ((storedCoinRoundArtifact r encState source sourceCompiler
+        commandArtifact).online.time phase (input, false))
+      ((storedCoinRoundArtifact r encState source sourceCompiler
+        commandArtifact).online.time phase (input, true))
 
-private theorem coinRound_resource_bound (r : ℕ) (input : BodyInput)
-    (OracleState : Type)
-    (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
+
+private theorem storedCoinRound_resource_bound [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState))
+    (input : StoredInput S) (OracleState : Type)
+    (oracle : Fin external × List Bool → StateT OracleState PMF (List Bool))
     (state : OracleState) (coin : Bool) (state' : OracleState)
     (hcoin : (coin, state') ∈
       (ProbOracleComp.runWith oracle
         (ProbOracleComp.sample (ProbComp.uniform Bool)) state).support)
     (phase : OnlinePhase) :
-    (coinRoundArtifact r).online.time phase (input, coin) ≤
-        (coinRoundOnline r).time phase input := by
+    (storedCoinRoundArtifact r encState source sourceCompiler
+        commandArtifact).online.time phase (input, coin) ≤
+        (storedCoinRoundOnline r encState source sourceCompiler commandArtifact).time
+          phase input := by
   cases coin
   · exact le_max_left _ _
   · exact le_max_right _ _
 
-/-- Active source round: sample one retained fair bit, scan the runtime table once, then execute
-the selected local or validated query command. -/
-private noncomputable def activeArtifact (r : ℕ) :=
+private noncomputable def storedActiveArtifact [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    {commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (commandArtifact : NativeOracleProgram external commandProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :=
   NativeOracleProgram.sequenceCaptured
-    (NativeOracleProgram.fairBit (r := r) eBodyInput) (coinRoundArtifact r)
-    (coinRoundOnline r) (coinRound_resource_bound r)
+    (NativeOracleProgram.fairBit (r := external) (eStoredInput encState))
+    (storedCoinRoundArtifact r encState source sourceCompiler commandArtifact)
+    (storedCoinRoundOnline r encState source sourceCompiler commandArtifact)
+    (storedCoinRound_resource_bound r encState source sourceCompiler commandArtifact)
 
-private noncomputable def activeProgram (r : ℕ) (input : BodyInput) :
-    WordOracleComp (Fin r) BodyInput :=
+private noncomputable def storedActiveProgram [Inhabited S] (r : ℕ) (source : S → LoopState)
+    (commandProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (input : StoredInput S) : WordOracleComp (Fin external) (StoredInput S) :=
   NativeOracleProgram.capturedProgram
-    (fun _ : BodyInput => ProbOracleComp.sample (ProbComp.uniform Bool))
+    (fun _ : StoredInput S => ProbOracleComp.sample (ProbComp.uniform Bool))
     (fun coinInput =>
       NativeOracleProgram.capturedProgram
-        (fun input : CoinInput => pure (lookupResult input))
+        (fun input : StoredCoinInput S => pure (storedLookupResult source input))
         (fun lookupInput =>
           NativeOracleProgram.capturedProgram
-            (fun input : LookupInput => pure (commandFromLookup r input))
-            (commandProgram r) lookupInput)
+            (fun input : StoredLookupInput S =>
+              pure (commandFromStoredLookup r source input))
+            (fun input => commandProgram (retainedCommandFromLookup r input)) lookupInput)
         coinInput)
     input
 
-private theorem activeProgram_some (r : ℕ) (state : LoopState) (control : Option ℕ)
-    (hcontrol : state.cfg.control = some control) :
-    activeProgram r (some state) =
-      (fun cfg => some (advance state cfg)) <$>
-        wordStep r state.desc state.input state.fuel state.replyBits state.cfg := by
-  simp only [activeProgram, NativeOracleProgram.capturedProgram, pure_bind,
-    commandFromLookup_lookupResult, wordStep, hcontrol, map_eq_bind_pure_comp]
-  conv_rhs => rw [bind_assoc]
+/-- Exact active-round semantics exposed to users of the generalized controller. -/
+noncomputable def activeProgramWithQueryBranch [Inhabited S] (r : ℕ) (source : S → LoopState)
+    (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (state : S) : WordOracleComp (Fin external) (Option S) :=
+  storedActiveProgram r source (executeRetainedCommand r update queryProgram) (some state)
+
+/-- An active round samples one fair bit, scans the source table once, constructs one command and
+then either performs the supplied local update or invokes the retained query program. -/
+theorem activeProgramWithQueryBranch_apply [Inhabited S] (r : ℕ) (source : S → LoopState)
+    (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (state : S) :
+    activeProgramWithQueryBranch r source update queryProgram state = (do
+      let coin ← ProbOracleComp.sample (ProbComp.uniform Bool)
+      let current := source state
+      let command := current.cfg.commandAt r current.desc current.input coin
+      match command with
+      | .local cfg => pure (some (update (state, cfg)))
+      | .query _ _ _ _ => queryProgram (state, command)) := by
+  simp only [activeProgramWithQueryBranch, storedActiveProgram, NativeOracleProgram.capturedProgram,
+    pure_bind, storedLookupResult, commandFromStoredLookup, toStoredCommandAtInput,
+    retainedCommandFromLookup, Option.getD_some]
   apply OracleComp.bind_congr_on_support
   intro coin _
-  cases hcommand : state.cfg.commandAt r state.desc state.input coin with
-  | «local» next =>
-      cases r <;>
-        simp [commandProgram, executeCommand, commandState, hcommand, Function.comp_def]
-  | query operation request next pending =>
-      cases r with
-      | zero => exact Fin.elim0 operation
-      | succ r =>
-          simp [commandProgram, executeCommand, queryBranchProgram,
-            NativeOracleProgram.capturedProgram, NativeOracleProgram.queryTakeProgram,
-            queryInput, queryPost,
-            commandQueryPayload, defaultQueryPayload, commandState, Command.equivSum,
-            unaryListDecoder, Turing.MultiTapeTM.Decoder.list,
-            Turing.MultiTapeTM.Decoder.unary, hcommand,
-            Function.comp_def]
+  rw [commandAtFromLookup_firstMatch r
+    ((source state).desc, (source state).input, (source state).cfg, coin)]
+  rfl
 
 /-! ### Outer one-round controller -/
 
-private def bodyIsSome (input : BodyInput) : List Bool := encTest input.isSome
-private def bodyRemainingIsZero (input : BodyInput) : List Bool :=
-  encTest ((input.getD default).remaining = 0)
-private def bodyControlIsSome (input : BodyInput) : List Bool :=
-  encTest (input.getD default).cfg.control.isSome
+private def storedBodyIsSome (input : StoredInput S) : List Bool := encTest input.isSome
+private def storedBodyRemainingIsZero [Inhabited S] (source : S → LoopState)
+    (input : StoredInput S) : List Bool :=
+  encTest ((source (input.getD default)).remaining = 0)
+private def storedBodyControlIsSome [Inhabited S] (source : S → LoopState)
+    (input : StoredInput S) : List Bool :=
+  encTest (source (input.getD default)).cfg.control.isSome
 
-private noncomputable def bodyIsSomeCompiler :
-    ClassifiedCompiler bodyIsSome eBodyInput encBits :=
+private noncomputable def storedBodyIsSomeCompiler (encState : S ↪ List Bool) :
+    ClassifiedCompiler (storedBodyIsSome : StoredInput S → List Bool)
+      (eStoredInput encState) encBits :=
   ClassifiedCompiler.inPhase .tags
-    ((NativeCompiler.optionIsSomeTest eLoopState).ofOutputEq fun _ => rfl)
+    ((NativeCompiler.optionIsSomeTest encState).ofOutputEq fun _ => rfl)
 
-private noncomputable def bodyRemainingIsZeroCompiler :
-    ClassifiedCompiler bodyRemainingIsZero eBodyInput encBits :=
+private noncomputable def storedBodyRemainingIsZeroCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    ClassifiedCompiler (storedBodyRemainingIsZero source)
+      (eStoredInput encState) encBits :=
   ClassifiedCompiler.inPhase .controller
-    ((NativeCompiler.unaryIsZeroTest.comp bodyRemainingCompiler).ofOutputEq fun _ => rfl)
+    ((NativeCompiler.unaryIsZeroTest.comp
+      (storedRemainingCompiler encState source sourceCompiler)).ofOutputEq fun _ => rfl)
 
-private noncomputable def bodyControlIsSomeCompiler :
-    ClassifiedCompiler bodyControlIsSome eBodyInput encBits := by
-  let control := ICfg.controlCompiler.comp bodyCfgCompiler
+private noncomputable def storedBodyControlIsSomeCompiler [Inhabited S]
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState) :
+    ClassifiedCompiler (storedBodyControlIsSome source)
+      (eStoredInput encState) encBits := by
+  let control := ICfg.controlCompiler.comp
+    (storedCfgCompiler encState source sourceCompiler)
   exact ClassifiedCompiler.inPhase .tags
     (((NativeCompiler.optionIsSomeTest Turing.MultiTapeTM.Universal.eSym).comp control).ofOutputEq
       fun _ => rfl)
 
-private noncomputable def stopArtifact (r : ℕ) :=
-  NativeOracleProgram.ofCompiler (r := r)
+private noncomputable def storedStopArtifact (external : ℕ) (encState : S ↪ List Bool) :=
+  NativeOracleProgram.ofCompiler (r := external)
     (ClassifiedCompiler.inPhase .controller
-      (NativeCompiler.const eBodyInput eBodyInput none))
+      (NativeCompiler.const (eStoredInput encState) (eStoredInput encState) none))
 
-private noncomputable def haltedRoundArtifact (r : ℕ) :=
-  NativeOracleProgram.ofCompiler (r := r)
-    (ClassifiedCompiler.inPhase .controller advanceCurrentCompiler)
+private noncomputable def storedHaltedRoundArtifact [Inhabited S] (external : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState) :=
+  NativeOracleProgram.ofCompiler (r := external)
+    (ClassifiedCompiler.inPhase .controller
+      (advanceStoredCompiler encState source sourceCompiler update updateCompiler))
+
+/-- Semantics of one generalized retained controller round. Absent and exhausted states stop;
+halted source storage is updated locally; active storage runs the shared coin/lookup/command
+pipeline with the supplied query branch. -/
+noncomputable def bodyProgramWithQueryBranch [Inhabited S] (r : ℕ) (source : S → LoopState)
+    (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (input : Option S) : WordOracleComp (Fin external) (Option S) :=
+  if storedBodyIsSome input = [] then pure none
+  else if storedBodyRemainingIsZero source input = [] then
+    if storedBodyControlIsSome source input = [] then
+      pure (some (update (input.getD default, (source (input.getD default)).cfg)))
+    else
+      storedActiveProgram r source (executeRetainedCommand r update queryProgram) input
+  else pure none
+
+/-- An absent stored state remains absent without sampling or executing a command. -/
+@[simp]
+theorem bodyProgramWithQueryBranch_none [Inhabited S] (r : ℕ) (source : S → LoopState)
+    (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)) :
+    bodyProgramWithQueryBranch r source update queryProgram none = pure none := by
+  rfl
+
+/-- Exhausted source fuel stops the controller before sampling or command execution. -/
+theorem bodyProgramWithQueryBranch_exhausted [Inhabited S] (r : ℕ)
+    (source : S → LoopState) (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (state : S) (hremaining : (source state).remaining = 0) :
+    bodyProgramWithQueryBranch r source update queryProgram (some state) = pure none := by
+  simp [bodyProgramWithQueryBranch, storedBodyIsSome, storedBodyRemainingIsZero,
+    hremaining, encTest_true]
+
+/-- Halted source storage performs the supplied local state update without sampling. -/
+theorem bodyProgramWithQueryBranch_halted [Inhabited S] (r : ℕ)
+    (source : S → LoopState) (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (state : S) (hremaining : (source state).remaining ≠ 0)
+    (hcontrol : (source state).cfg.control = none) :
+    bodyProgramWithQueryBranch r source update queryProgram (some state) =
+      pure (some (update (state, (source state).cfg))) := by
+  simp [bodyProgramWithQueryBranch, storedBodyIsSome, storedBodyRemainingIsZero,
+    storedBodyControlIsSome, hremaining, hcontrol, encTest_true, encTest_false]
+
+/-- Active source storage runs exactly the public fair-coin/lookup/command semantics above. -/
+theorem bodyProgramWithQueryBranch_active [Inhabited S] (r : ℕ)
+    (source : S → LoopState) (update : S × ICfg → S)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (state : S) (control : Option ℕ) (hremaining : (source state).remaining ≠ 0)
+    (hcontrol : (source state).cfg.control = some control) :
+    bodyProgramWithQueryBranch r source update queryProgram (some state) =
+      activeProgramWithQueryBranch r source update queryProgram state := by
+  simp [bodyProgramWithQueryBranch, activeProgramWithQueryBranch, storedBodyIsSome,
+    storedBodyRemainingIsZero, storedBodyControlIsSome, hremaining, hcontrol, encTest_true,
+    encTest_false]
+
+private noncomputable def bodyWithCommandArtifact [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState)
+    (queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S))
+    (commandArtifact : NativeOracleProgram external (executeRetainedCommand r update queryProgram)
+      (eRetainedCommandInput r encState) (encOption encState)) :
+    NativeOracleProgram external (bodyProgramWithQueryBranch r source update queryProgram)
+      (encOption encState) (encOption encState) := by
+  let active := storedActiveArtifact r encState source sourceCompiler commandArtifact
+  let halted := storedHaltedRoundArtifact external encState source sourceCompiler update
+    updateCompiler
+  let byControl := NativeOracleProgram.dispatch
+    (storedBodyControlIsSomeCompiler encState source sourceCompiler) active halted
+  let byRemaining := NativeOracleProgram.dispatch
+    (storedBodyRemainingIsZeroCompiler encState source sourceCompiler)
+    (storedStopArtifact external encState) byControl
+  let assembled := NativeOracleProgram.dispatch (storedBodyIsSomeCompiler encState)
+    byRemaining (storedStopArtifact external encState)
+  apply castProgram assembled
+  funext input
+  rfl
+
+/-- The shared retained one-round controller with a supplied stateful query artifact. Source
+commands use `Fin r`; the supplied artifact may expose a different external operation type. The
+stored-state projection and local update are actual named compilers; lookup, coin, command-tag and
+outer dispatch work remain the single native pipeline used by the ordinary interpreter. At
+`r = 0` the uninhabited query branch and supplied query artifact are not installed. -/
+noncomputable def bodyWithQueryBranch [Inhabited S] (r : ℕ)
+    (encState : S ↪ List Bool) (source : S → LoopState)
+    (sourceCompiler : NativeCompiler source encState eLoopState)
+    (update : S × ICfg → S)
+    (updateCompiler : NativeCompiler update (encPair encState eICfg) encState)
+    {queryProgram : RetainedCommandInput r S → WordOracleComp (Fin external) (Option S)}
+    (queryArtifact : NativeOracleProgram external queryProgram
+      (eRetainedCommandInput r encState) (encOption encState)) :
+    NativeOracleProgram external (bodyProgramWithQueryBranch r source update queryProgram)
+      (encOption encState) (encOption encState) := by
+  cases r with
+  | zero =>
+      exact bodyWithCommandArtifact 0 encState source sourceCompiler update updateCompiler
+        queryProgram (commandExecutorZeroWithQueryProgram encState update updateCompiler
+          queryProgram)
+  | succ r =>
+      exact bodyWithCommandArtifact (r + 1) encState source sourceCompiler update updateCompiler
+        queryProgram
+        (commandExecutorWithQueryBranch (r + 1) encState update updateCompiler queryArtifact)
 
 /-- Retained one-round controller. Absent and zero-remaining states emit the empty option word;
 halted source storage decrements the source clock without sampling; active storage executes the
 coin/lookup/command pipeline. -/
 private noncomputable def body (r : ℕ) :
     NativeOracleProgram r (step r) eBodyInput eBodyInput := by
-  let byControl := NativeOracleProgram.dispatch bodyControlIsSomeCompiler
-    (activeArtifact r) (haltedRoundArtifact r)
-  let byRemaining := NativeOracleProgram.dispatch bodyRemainingIsZeroCompiler
-    (stopArtifact r) byControl
-  let assembled := NativeOracleProgram.dispatch bodyIsSomeCompiler byRemaining (stopArtifact r)
+  let assembled := bodyWithQueryBranch r eLoopState id
+    (NativeCompiler.identity eLoopState) (fun input => advance input.1 input.2)
+    advanceCompiler (originalQueryArtifact r)
   apply castProgram assembled
   funext input
   cases input with
-  | none =>
-      simp [step, bodyIsSome, encTest_false]
+  | none => rfl
   | some state =>
       by_cases hremaining : state.remaining = 0
-      · simp [step, bodyIsSome, bodyRemainingIsZero, hremaining, encTest_true]
+      · rw [bodyProgramWithQueryBranch_exhausted (hremaining := hremaining)]
+        simp [step, hremaining]
       · cases hcontrol : state.cfg.control with
         | none =>
-            simp [step, bodyIsSome, bodyRemainingIsZero, bodyControlIsSome,
-              hremaining, hcontrol, advance, wordStep, encTest_true, encTest_false]
+            rw [bodyProgramWithQueryBranch_halted (hremaining := hremaining) (hcontrol := hcontrol)]
+            simp [step, hremaining, wordStep, hcontrol]
         | some control =>
-            have hremainingTest : bodyRemainingIsZero (some state) = [] := by
-              simp [bodyRemainingIsZero, hremaining, encTest_false]
-            have hcontrolTest : bodyControlIsSome (some state) ≠ [] := by
-              simp [bodyControlIsSome, hcontrol, encTest_true]
-            simp only [bodyIsSome, Option.isSome_some, encTest_true, List.cons_ne_nil,
-              ↓reduceIte, hremainingTest, hcontrolTest]
-            change activeProgram r (some state) = step r (some state)
-            rw [activeProgram_some r state control hcontrol]
-            simp only [step, hremaining, ↓reduceIte, map_eq_bind_pure_comp,
-              Function.comp_def]
+            rw [bodyProgramWithQueryBranch_active (hremaining := hremaining) (hcontrol := hcontrol),
+              activeProgramWithQueryBranch_apply]
+            simp only [step, hremaining, ↓reduceIte, wordStep, hcontrol, id_eq]
+            conv_rhs => rw [bind_assoc]
+            apply OracleComp.bind_congr_on_support
+            intro coin _
+            cases hcmd : state.cfg.commandAt r state.desc state.input coin with
+            | «local» next => simp
+            | query operation request next pending =>
+                cases r with
+                | zero => exact Fin.elim0 operation
+                | succ r =>
+                    simp [originalQueryProgram, queryBranchProgram,
+                      NativeOracleProgram.capturedProgram, NativeOracleProgram.queryTakeProgram,
+                      queryInput, queryPost, commandState,
+                      retainedCommandQueryPayload, commandSumView, unaryListDecoder,
+                      Turing.MultiTapeTM.Decoder.list, Turing.MultiTapeTM.Decoder.unary]
 
 /-! ### Finite proof reachability and uniform round bounds -/
 
-private def withDynamic (template : LoopState) (remaining : ℕ) (cfg : ICfg) : LoopState :=
+/-- Replace only the dynamic round counter and first-order configuration of retained storage. -/
+def LoopState.withDynamic (template : LoopState) (remaining : ℕ) (cfg : ICfg) : LoopState :=
   { template with remaining := remaining, cfg := cfg }
 
-private theorem iterate_step_withDynamic (r : ℕ) (template : LoopState) (cfg : ICfg) :
+/-- Iterating the optional retained controller from positive dynamic storage is the corresponding
+`wordStep` iteration, with the static fields retained and the round counter exhausted. -/
+theorem iterate_step_withDynamic (r : ℕ) (template : LoopState) (cfg : ICfg) :
     ∀ count,
-      OracleComp.iterate count (step r) (some (withDynamic template count cfg)) =
-        (fun final => some (withDynamic template 0 final)) <$>
+      OracleComp.iterate count (step r) (some (template.withDynamic count cfg)) =
+        (fun final => some (template.withDynamic 0 final)) <$>
           OracleComp.iterate count
             (wordStep r template.desc template.input template.fuel template.replyBits) cfg
-  | 0 => by simp [withDynamic]
+  | 0 => by simp [LoopState.withDynamic]
   | count + 1 => by
       rw [OracleComp.iterate_succ_bind, OracleComp.iterate_succ_bind]
-      simp only [step, withDynamic, Nat.succ_ne_zero, ↓reduceIte, advance]
+      simp only [step, LoopState.withDynamic, Nat.succ_ne_zero, ↓reduceIte, advance]
       rw [map_eq_bind_pure_comp]
       conv_lhs => rw [bind_assoc]
       conv_rhs => rw [bind_assoc]
       simp only [pure_bind]
       apply OracleComp.bind_congr_on_support
       intro next _
-      change OracleComp.iterate count (step r) (some (withDynamic template count next)) = _
+      change OracleComp.iterate count (step r)
+        (some (LoopState.withDynamic template count next)) = _
       rw [iterate_step_withDynamic r template next count]
       rw [map_eq_bind_pure_comp]
       rfl
@@ -953,15 +1330,16 @@ theorem stagedRun_eq_run (r : ℕ) : stagedRun r = run r := by
     rw [show
       { desc := input.desc, input := input.input, fuel := input.fuel,
           replyBits := input.replyBits, remaining := input.fuel, cfg := ICfg.init input.desc } =
-        withDynamic
+        LoopState.withDynamic
           { desc := input.desc, input := input.input, fuel := input.fuel,
             replyBits := input.replyBits, remaining := input.fuel, cfg := ICfg.init input.desc }
           input.fuel (ICfg.init input.desc) by rfl]
     rw [iterate_step_withDynamic]
-    simp [run, hcount, output, withDynamic]
+    simp [run, hcount, output, LoopState.withDynamic]
   · simp [stagedRun, initialState, hcount, rounds, output, run]
 
-private def successorForReply {r : ℕ} (state : LoopState) (operation : Fin r) (next : ℕ)
+/-- Finite enumeration of every Boolean reply prefix whose length fits `replyBits`. -/
+private def successorForReply (state : LoopState) (operation : Fin r) (next : ℕ)
     (pending : ICfg) (reply : List Bool) : BodyInput :=
   some (advance state (pending.receive operation next
     ((unaryListDecoder.decode reply).take state.fuel)))
@@ -971,7 +1349,7 @@ private noncomputable def coinSuccessors (r : ℕ) (state : LoopState) (coin : B
   match state.cfg.commandAt r state.desc state.input coin with
   | .local cfg => [some (advance state cfg)]
   | .query operation _ next pending =>
-      (replyWords state.replyBits).map
+      (boundedReplyWords state.replyBits).map
         (successorForReply state operation next pending)
 
 /-- Finite overapproximation of all one-round results under arbitrary stateful handlers. Duplicate
@@ -985,13 +1363,12 @@ private noncomputable def successors (r : ℕ) : BodyInput → List BodyInput
         | some _ => [false, true].flatMap (coinSuccessors r state)
 
 /-- States reachable after exactly `count` semantic rounds in the proof enumeration. -/
-private noncomputable def reachable (r : ℕ) (initial : BodyInput) : ℕ → List BodyInput
-  | 0 => [initial]
-  | count + 1 => (successors r initial).flatMap fun next => reachable r next count
+private noncomputable abbrev reachable (r : ℕ) :=
+  ProbOracleComp.reachableIn (successors r)
 
 /-- All reachable typed states at indices used by the bounded-iteration certificate. -/
-private noncomputable def reachablePrefix (r : ℕ) (initial : BodyInput) : List BodyInput :=
-  (List.range (rounds initial + 1)).flatMap (reachable r initial)
+private noncomputable abbrev reachablePrefix (r : ℕ) (initial : BodyInput) : List BodyInput :=
+  ProbOracleComp.reachableThrough (successors r) initial (rounds initial)
 
 private theorem support_mem_successors (r : ℕ) (current next : BodyInput)
     (OracleState : Type)
@@ -1033,9 +1410,9 @@ private theorem support_mem_successors (r : ℕ) (current next : BodyInput)
               obtain ⟨⟨reply, replyState⟩, hreply, hfinal⟩ :=
                 (PMF.mem_support_bind_iff _ _ _).mp hcommand
               supp_cases hfinal [ProbOracleComp.runWith_pure] with ⟨rfl, rfl⟩
-              have hprefix : reply.take current.replyBits ∈ replyWords current.replyBits := by
-                exact Finset.mem_toList.mpr
-                  (BitString.mem_shortWords.mpr (List.length_take_le _ _))
+              have hprefix :
+                  reply.take current.replyBits ∈ boundedReplyWords current.replyBits := by
+                exact (mem_boundedReplyWords_iff _ _).2 (List.length_take_le _ _)
               have hbranch :
                   some
                     (advance current
@@ -1055,25 +1432,6 @@ private theorem support_mem_successors (r : ℕ) (current next : BodyInput)
                 List.mem_flatMap.mpr ⟨coin, by simp [hcoinValue], hbranch⟩
               simpa only [successors, hremaining, hcontrol, ↓reduceIte] using hall
 
-private theorem mem_reachable_succ {r : ℕ} {initial current next : BodyInput} {count : ℕ}
-    (hcurrent : current ∈ reachable r initial count)
-    (hnext : next ∈ successors r current) :
-    next ∈ reachable r initial (count + 1) := by
-  induction count generalizing initial current next with
-  | zero =>
-      simp only [reachable, List.mem_singleton] at hcurrent
-      subst current
-      simp only [reachable, List.mem_flatMap]
-      exact ⟨next, hnext, by simp⟩
-  | succ count ih =>
-      change current ∈ (successors r initial).flatMap (fun middle =>
-        reachable r middle count) at hcurrent
-      change next ∈ (successors r initial).flatMap (fun middle =>
-        reachable r middle (Nat.succ count))
-      rw [List.mem_flatMap] at hcurrent ⊢
-      obtain ⟨middle, hmiddle, hcurrent⟩ := hcurrent
-      exact ⟨middle, hmiddle, ih hcurrent hnext⟩
-
 private theorem support_mem_reachable (r : ℕ) (initial : BodyInput) (count : ℕ)
     (OracleState : Type)
     (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
@@ -1081,32 +1439,15 @@ private theorem support_mem_reachable (r : ℕ) (initial : BodyInput) (count : �
     (hcurrent : (current, state') ∈
       (ProbOracleComp.runWith oracle
         (OracleComp.iterate count (step r) initial) state).support) :
-    current ∈ reachable r initial count := by
-  induction count generalizing initial state current with
-  | zero =>
-      simp only [OracleComp.iterate_zero, ProbOracleComp.runWith_pure,
-        PMF.mem_support_pure_iff, Prod.mk.injEq] at hcurrent
-      rcases hcurrent with ⟨rfl, rfl⟩
-      simp [reachable]
-  | succ count ih =>
-      rw [OracleComp.iterate_succ_bind, ProbOracleComp.runWith_bind] at hcurrent
-      obtain ⟨⟨middle, middleState⟩, hmiddle, htail⟩ :=
-        (PMF.mem_support_bind_iff _ _ _).mp hcurrent
-      simp only [reachable, List.mem_flatMap]
-      exact ⟨middle,
-        support_mem_successors r initial middle OracleState oracle state middleState hmiddle,
-        ih middle middleState current htail⟩
-
-private structure SameStatic (first second : LoopState) : Prop where
-  desc : second.desc = first.desc
-  input : second.input = first.input
-  fuel : second.fuel = first.fuel
-  replyBits : second.replyBits = first.replyBits
+    current ∈ reachable r initial count :=
+  ProbOracleComp.mem_reachableIn_of_runWith_iterate (step r) (successors r) oracle
+    (fun a b s t => support_mem_successors r a b OracleState oracle s t)
+      initial count state hcurrent
 
 private def Progress (initial : BodyInput) (count : ℕ) (current : BodyInput) : Prop :=
   match initial with
   | none => current = none
-  | some first => ∃ second, current = some second ∧ SameStatic first second ∧
+  | some first => ∃ second, current = some second ∧ LoopState.SameStatic first second ∧
       second.remaining + count = first.remaining
 
 /-- Reachability plus the exact remaining-round equation. -/
@@ -1119,7 +1460,7 @@ private theorem invariant_zero (r : ℕ) (initial : BodyInput) :
   · cases initial with
     | none => rfl
     | some state => exact ⟨state, rfl, ⟨rfl, rfl, rfl, rfl⟩, by simp⟩
-  · simp [reachable]
+  · simp [reachable, ProbOracleComp.reachableIn]
 
 private theorem progress_successor {r : ℕ} {initial current next : BodyInput} {count : ℕ}
     (hcount : count < rounds initial) (hprogress : Progress initial count current)
@@ -1157,7 +1498,7 @@ private theorem invariant_successor {r : ℕ} {initial current next : BodyInput}
     Invariant r initial (count + 1) next ∧ encOption eLoopState next ≠ [] := by
   refine ⟨⟨(progress_successor hcount hinvariant.1 OracleState oracle state state' hnext).1,
     ?_⟩, (progress_successor hcount hinvariant.1 OracleState oracle state state' hnext).2⟩
-  exact mem_reachable_succ hinvariant.2
+  exact ProbOracleComp.mem_reachableIn_succ hinvariant.2
     (support_mem_successors r current next OracleState oracle state state' hnext)
 
 private theorem invariant_last (r : ℕ) (initial current : BodyInput)
@@ -1179,12 +1520,6 @@ private theorem invariant_last (r : ℕ) (initial current : BodyInput)
       have hzero : second.remaining = 0 := by omega
       simp [step, hzero]
 
-private theorem mem_reachablePrefix {r : ℕ} {initial current : BodyInput} {count : ℕ}
-    (hcount : count ≤ rounds initial) (hcurrent : current ∈ reachable r initial count) :
-    current ∈ reachablePrefix r initial := by
-  simp only [reachablePrefix, List.mem_flatMap]
-  exact ⟨count, List.mem_range.mpr (by omega), hcurrent⟩
-
 /-- Maximum encoded typed-state length over every finitely enumerated reachable prefix state. -/
 private noncomputable def lengthBound (r : ℕ) (initial : BodyInput) : ℕ :=
   listMax (fun state => (encOption eLoopState state).length) (reachablePrefix r initial)
@@ -1198,7 +1533,7 @@ private theorem body_resource_bound (r : ℕ) (initial : BodyInput) (count : ℕ
     (hcount : count ≤ rounds initial) (current : BodyInput)
     (hinvariant : Invariant r initial count current) (phase : OnlinePhase) :
     (body r).online.time phase current ≤ (roundOnline r).time phase initial := by
-  have hmem := mem_reachablePrefix hcount hinvariant.2
+  have hmem := ProbOracleComp.mem_reachableThrough hcount hinvariant.2
   exact le_listMax hmem
 
 private theorem state_length_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
@@ -1206,7 +1541,7 @@ private theorem state_length_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
     (hinvariant : Invariant r initial count current) :
     (encOption eLoopState current).length ≤ lengthBound r initial :=
   le_listMax (f := fun state => (encOption eLoopState state).length)
-    (mem_reachablePrefix hcount hinvariant.2)
+    (ProbOracleComp.mem_reachableThrough hcount hinvariant.2)
 
 /-! ### Complete retained artifact -/
 

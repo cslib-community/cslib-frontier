@@ -166,6 +166,16 @@ private theorem sum_mul_local_eq_sum_neighborhoodMarginal {ι : Type*} {S : ι �
     sum_ite_eq univ (fun j : ClosedNeighborhood G i => s j.1) (fun u => σ.weights s * f u),
     mem_univ, ↓reduceIte]
 
+private theorem sum_ite_neighborhoodMarginal {ι : Type*} {S : ι → Type*}
+    [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι) [DecidableRel G.Adj]
+    (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
+    (p : (∀ j : ClosedNeighborhood G i, S j.1) → Prop) [DecidablePred p] :
+    (∑ u, if p u then neighborhoodMarginal G σ i u else 0) =
+      ∑ s : (∀ j, S j), if p (fun j => s j.1) then σ.weights s else 0 := by
+  have h := sum_mul_local_eq_sum_neighborhoodMarginal G σ i (fun u => if p u then 1 else 0)
+  rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _)] at h
+  simpa only [mul_ite, mul_one, mul_zero] using h.symm
+
 private theorem neighborhoodMarginal_nonneg {ι : Type*} {S : ι → Type*}
     [Finite ι] [∀ i, Finite (S i)] (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
@@ -1902,30 +1912,8 @@ theorem isEdgeConsistent_neighborhoodMarginal (G : SimpleGraph ι)
         ∑ s : (∀ k, S k), if s x = ax ∧ s y = by_ then σ.weights s else 0 := by
     intro x y hxy ax by_
     rw [edgeMarginal_def]
-    simp_rw [neighborhoodMarginal_eq_sum]
-    calc ∑ u : (∀ k : ClosedNeighborhood G x, S k.1),
-          (if u ⟨x, Or.inl rfl⟩ = ax ∧ u ⟨y, Or.inr hxy⟩ = by_ then
-            ∑ s : (∀ k, S k),
-              if (fun k : ClosedNeighborhood G x => s k.1) = u then σ.weights s else 0
-          else 0)
-        = ∑ u : (∀ k : ClosedNeighborhood G x, S k.1),
-          ∑ s : (∀ k, S k),
-            if u ⟨x, Or.inl rfl⟩ = ax ∧ u ⟨y, Or.inr hxy⟩ = by_ then
-              if (fun k : ClosedNeighborhood G x => s k.1) = u then σ.weights s else 0
-            else 0 :=
-          sum_congr rfl fun u _ => by split_ifs <;> simp
-      _ = ∑ s : (∀ k, S k),
-          ∑ u : (∀ k : ClosedNeighborhood G x, S k.1),
-            if (fun k : ClosedNeighborhood G x => s k.1) = u then
-              if u ⟨x, Or.inl rfl⟩ = ax ∧ u ⟨y, Or.inr hxy⟩ = by_ then σ.weights s else 0
-            else 0 := by
-          rw [sum_comm]
-          refine sum_congr rfl fun s _ => sum_congr rfl fun u _ => ?_
-          split_ifs <;> rfl
-      _ = ∑ s : (∀ k, S k), if s x = ax ∧ s y = by_ then σ.weights s else 0 := by
-          refine sum_congr rfl fun s _ => ?_
-          rw [sum_ite_eq univ (fun k : ClosedNeighborhood G x => s k.1)]
-          simp
+    exact sum_ite_neighborhoodMarginal G σ x
+      (fun u => u ⟨x, Or.inl rfl⟩ = ax ∧ u ⟨y, Or.inr hxy⟩ = by_)
   rw [hside i j hadj a b, hside j i hadj.symm b a]
   exact sum_congr rfl fun s _ => by simp only [and_comm]
 
@@ -1939,32 +1927,8 @@ theorem isIntersectionConsistent_neighborhoodMarginal (G : SimpleGraph ι)
       restrictMarginal G (neighborhoodMarginal G σ) x T hx y =
         ∑ s : (∀ k, S k), if (fun k : T => s k.1) = y then σ.weights s else 0 := by
     intro x hx
-    unfold restrictMarginal
-    simp_rw [neighborhoodMarginal_eq_sum]
-    calc ∑ u : (∀ k : ClosedNeighborhood G x, S k.1),
-          (if (fun k : T => u ⟨k.1, hx k.1 k.2⟩) = y then
-            ∑ s : (∀ k, S k),
-              if (fun k : ClosedNeighborhood G x => s k.1) = u then σ.weights s else 0
-          else 0)
-        = ∑ u : (∀ k : ClosedNeighborhood G x, S k.1),
-          ∑ s : (∀ k, S k),
-            if (fun k : ClosedNeighborhood G x => s k.1) = u then
-              if (fun k : T => u ⟨k.1, hx k.1 k.2⟩) = y then σ.weights s else 0
-            else 0 :=
-          sum_congr rfl fun u _ => by
-            split_ifs
-            · exact sum_congr rfl fun s _ => by split_ifs <;> rfl
-            · symm
-              exact sum_eq_zero fun s _ => by split_ifs <;> rfl
-      _ = ∑ s : (∀ k, S k),
-          ∑ u : (∀ k : ClosedNeighborhood G x, S k.1),
-            if (fun k : ClosedNeighborhood G x => s k.1) = u then
-              if (fun k : T => u ⟨k.1, hx k.1 k.2⟩) = y then σ.weights s else 0
-            else 0 := sum_comm
-      _ = ∑ s : (∀ k, S k), if (fun k : T => s k.1) = y then σ.weights s else 0 := by
-          refine sum_congr rfl fun s _ => ?_
-          rw [sum_ite_eq univ (fun k : ClosedNeighborhood G x => s k.1)]
-          simp
+    rw [restrictMarginal_def]
+    exact sum_ite_neighborhoodMarginal G σ x (fun u => (fun k : T => u ⟨k.1, hx k.1 k.2⟩) = y)
   exact (hside i (fun _ h => h.1)).trans (hside j (fun _ h => h.2)).symm
 
 private theorem isEdgeConsistent_of_isIntersectionConsistent_of_isTree {G : SimpleGraph ι}

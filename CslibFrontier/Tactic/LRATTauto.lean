@@ -22,17 +22,17 @@ public meta import Lean.Elab.Tactic.ElabTerm
 propositions, the *atoms*, from an LRAT certificate `cert : Array LRAT.IntAction`: one generated
 at elaboration time by the CDCL solver, or one supplied as `lrat_tauto using cert`. The kernel
 checks the certificate; the proof uses no native evaluation, and its axioms are those of
-`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT`.
+`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRATRat`.
 
 The tactic reads the goal `P` as a proposition `A : Proposition (Fin n)` and a valuation
 `v : Fin n → Prop` of its atoms, with `A.eval v ↔ P`. It then applies
-`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT` to `A` and `v`. Its hypothesis, that
-`Cslib.Logic.PL.CNF.checkLRAT` accepts `cert` on `(imp A falsum).plaistedGreenbaumNumberedCNF`,
+`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRATRat` to `A` and `v`. Its hypothesis, that
+`Cslib.Logic.PL.CNF.checkLRATRat` accepts `cert` on `(imp A falsum).plaistedGreenbaumNumberedCNF`,
 is proved by `decide` for the checker built for kernel reduction,
 `Cslib.Logic.PL.CNF.checkLRATKernel`, and rewritten with
-`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`. So the kernel runs that checker, and only that
-run is trusted; where the certificate came from does not matter. The goals proved are the
-classical tautologies, since `eval_prop_of_checkLRAT` decides each atom classically. Without
+`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRATRat`. So the kernel runs that checker, and only
+that run is trusted; where the certificate came from does not matter. The goals proved are the
+classical tautologies, since `eval_prop_of_checkLRATRat` decides each atom classically. Without
 `using`, `P` is `P₁ → ⋯ → Pₖ → G` for the goal `G` and the premises `Pᵢ` that the tactic finds
 in the context or is given as `lrat_tauto [t₁, …, tₙ]` (see "Hypotheses and leaves"); the trusted
 step is the same, on a larger formula.
@@ -720,10 +720,10 @@ private def closeGoal (g : MVarId) (cert : Option Expr) (hyps : Bool) (terms : A
     catch ex => throwError (← explainRejection checkE cert ex)
   trace[lrat_tauto] "the kernel checked the certificate in {(← IO.monoMsNow) - start} ms"
   let v := valuation atoms
-  -- `checkLRATKernel φ cert = true`, rewritten to `checkLRAT φ cert = true`
-  let hcheck ← mkEqTrans (← mkEqSymm (← mkAppM ``CNF.checkLRATKernel_eq_checkLRAT #[φE, cert]))
-    hcheck
-  let hA ← mkAppM ``Proposition.eval_prop_of_checkLRAT #[hcheck, v]
+  -- `checkLRATKernel φ cert = true`, rewritten to `checkLRATRat φ cert = true`
+  let hcheck ← mkEqTrans
+    (← mkEqSymm (← mkAppM ``CNF.checkLRATKernel_eq_checkLRATRat #[φE, cert])) hcheck
+  let hA ← mkAppM ``Proposition.eval_prop_of_checkLRATRat #[hcheck, v]
   let (_, p, hiff) ← s.iffGoal
   -- `hiff : X ↔ P`, where `X` is `A.eval v` up to unfolding `eval` and the valuation, and `P` is
   -- `P₁ → ⋯ → Pₖ → G` for the premises `Pᵢ`.

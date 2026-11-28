@@ -7,13 +7,13 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.CNF.LRAT
+public import CslibFrontier.Logics.Propositional.CNF.LRATRat
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-! # An LRAT checker for kernel reduction
 
-`Cslib.Logic.PL.CNF.checkLRAT` is the reference LRAT checker
+`Cslib.Logic.PL.CNF.checkLRATRat` is the reference LRAT checker with RAT steps
 [Cruz-Filipe et al.][CruzFilipeHeuleHuntKaufmannSchneiderKamp2017]. The kernel can evaluate it,
 but it keeps its clause database and its trail of true literals in lists: looking up a hinted
 clause searches the list of all clauses, and testing whether a literal is false searches the
@@ -37,11 +37,15 @@ As in `checkLRATFast`, the trail is indexed by literal rather than by variable: 
 checker's trail holds both polarities of a variable when the added clause contains both, which
 makes both literals false.
 
-It accepts the fragment `checkLRAT` accepts: RUP additions, empty-clause steps and deletions.
-It agrees with `checkLRAT` on every formula and certificate
-(`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`). Rewriting with that equation,
-`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRAT` and
-`Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff` give its soundness and completeness.
+It checks RUP additions, empty-clause steps and deletions with the trie and the bitmask, and RAT
+additions with the check `Cslib.Logic.PL.CNF.ratWith` of `checkLRATRat`, reading the trie and
+visiting every clause it stores (`Cslib.Logic.PL.CNF.ClauseTrie.all`); within a RAT step the
+trail is a list. It agrees with `checkLRATRat` on every formula and certificate
+(`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRATRat`). Rewriting with that equation,
+`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRATRat` and
+`Cslib.Algorithms.Lean.DPLL.exists_checkLRATRat_iff` give its soundness and completeness. It
+accepts every certificate of the RUP checker `Cslib.Logic.PL.CNF.checkLRAT`
+(`Cslib.Logic.PL.CNF.checkLRATRat_of_checkLRAT`).
 
 It is the checker for kernel reduction. In compiled and interpreted code the array-based
 `Cslib.Logic.PL.CNF.checkLRATFast` is faster, by 4.8 to 6.5 times compiled on SATLIB-scale
@@ -58,7 +62,7 @@ measurements are in the module docstring of `checkLRATFast`.
 
 * `Cslib.Logic.PL.CNF.ClauseTrie.get_insert`, `Cslib.Logic.PL.CNF.ClauseTrie.get_erase`: reading
   the trie after storing or deleting a clause.
-* `Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`: the checker agrees with `checkLRAT`.
+* `Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRATRat`: the checker agrees with `checkLRATRat`.
 
 ## References
 
@@ -221,6 +225,37 @@ private theorem get_eraseAll (t : ClauseTrie) (ids : List ℕ) (n : ℕ) :
     rw [ih, get_erase]
     by_cases h : n = i <;> simp [h]
 
+/-- Whether `f n c` holds for every clause `c` stored under a number `n`. The numbers are rebuilt
+from the path: the key `k` of the subtrie `zero` is the number `2 k + 1`, and of `one` the
+number `2 k + 2`. -/
+def all : ClauseTrie → (ℕ → Clause ℕ → Bool) → Bool
+  | leaf, _ => true
+  | node v z o, f =>
+    v.all (f 0) && z.all (fun k c => f (2 * k + 1) c) && o.all (fun k c => f (2 * k + 2) c)
+
+/-- **`all` tests every stored clause.** -/
+theorem all_eq_true (t : ClauseTrie) (f : ℕ → Clause ℕ → Bool) :
+    t.all f = true ↔ ∀ n c, t.get n = some c → f n c = true := by
+  induction t generalizing f with
+  | leaf => simp [all, get]
+  | node v z o ihz iho =>
+    simp only [all, Bool.and_eq_true, ihz, iho]
+    constructor
+    · rintro ⟨⟨hv, hz⟩, ho⟩ (_ | n) c hc
+      · simp only [get] at hc
+        simpa [hc] using hv
+      · simp only [get] at hc
+        split_ifs at hc with h
+        · simpa [show 2 * (n / 2) + 1 = n + 1 by omega] using hz _ _ hc
+        · simpa [show 2 * (n / 2) + 2 = n + 1 by omega] using ho _ _ hc
+    · intro h
+      refine ⟨⟨?_, fun k c hc => h _ _ ?_⟩, fun k c hc => h _ _ ?_⟩
+      · cases hv : v with
+        | none => rfl
+        | some c => simpa using h 0 c (by simp [get, hv])
+      · simpa [get, show (2 * k) % 2 = 0 by omega, show 2 * k / 2 = k by omega] using hc
+      · simpa [get, show (2 * k + 1) % 2 = 1 by omega, show (2 * k + 1) / 2 = k by omega] using hc
+
 end ClauseTrie
 
 /-! ### Trails as bitmasks -/
@@ -303,14 +338,16 @@ def checkLRATKernelAux : ClauseTrie → List LRAT.IntAction → Bool
     propagateKernel db (litMask ((Clause.ofDIMACS c.toList).map Std.Sat.Literal.negate))
         hints.toList &&
       checkLRATKernelAux (db.insert id (some (Clause.ofDIMACS c.toList))) rest
-  | _, .addRat .. :: _ => false
+  | db, .addRat id c _ rup rat :: rest =>
+    ratWith db.get db.all (Clause.ofDIMACS c.toList) rup.toList (ratHintList rat) &&
+      checkLRATKernelAux (db.insert id (some (Clause.ofDIMACS c.toList))) rest
   | db, .del ids :: rest => checkLRATKernelAux (db.eraseAll ids.toList) rest
 
 /-- **The LRAT checker for kernel reduction**: it accepts exactly the certificates that
-`CNF.checkLRAT` accepts (`CNF.checkLRATKernel_eq_checkLRAT`), with the clauses of `φ` numbered from
-`1`. Clauses are looked up in a binary trie keyed by number, and the literals assumed true in a
-step are the bits set in a natural number. It is for kernel reduction (`decide`); compiled and
-interpreted code should use the faster `CNF.checkLRATFast`. -/
+`CNF.checkLRATRat` accepts (`CNF.checkLRATKernel_eq_checkLRATRat`), RAT steps included, with the
+clauses of `φ` numbered from `1`. Clauses are looked up in a binary trie keyed by number, and the
+literals assumed true in a RUP step are the bits set in a natural number. It is for kernel
+reduction (`decide`); compiled and interpreted code should use the faster `CNF.checkLRATFast`. -/
 def checkLRATKernel (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
   checkLRATKernelAux (ClauseTrie.ofList φ.lratDB) cert.toList
 
@@ -318,26 +355,31 @@ def checkLRATKernel (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
 
 private theorem checkLRATKernelAux_eq {db : ClauseTrie} {L : List (ℕ × Clause ℕ)}
     (hdb : ∀ n, db.get n = L.lookup n) (cert : List LRAT.IntAction) :
-    checkLRATKernelAux db cert = checkLRATAux L cert := by
+    checkLRATKernelAux db cert = checkLRATRatAux L cert := by
   induction cert generalizing db L with
   | nil => rfl
   | cons a cert ih =>
     have hp : propagateWith db.get = propagateHints L := by rw [funext hdb]; rfl
     cases a with
-    | addEmpty _ _ =>
-      simp only [checkLRATKernelAux, checkLRATAux, ← hp]
-      exact propagateKernel_eq db _ (by simp)
-    | addRup _ _ _ =>
-      simp only [checkLRATKernelAux, checkLRATAux, ← hp,
+    | addEmpty _ hints =>
+      simp only [checkLRATKernelAux, checkLRATRatAux, ← hp]
+      exact propagateKernel_eq db hints.toList (by simp)
+    | addRup id c hints =>
+      simp only [checkLRATKernelAux, checkLRATRatAux, ← hp,
         propagateKernel_eq db _ (testBit_litMask _)]
       exact congrArg _ (ih fun n => by rw [ClauseTrie.get_insert, hdb, List.lookup_cons_eq_ite])
-    | addRat => rfl
-    | del _ =>
+    | addRat id c _ rup rat =>
+      simp only [checkLRATKernelAux, checkLRATRatAux]
+      rw [ih fun n => by rw [ClauseTrie.get_insert, hdb, List.lookup_cons_eq_ite],
+        show db.get = (L.lookup ·) from funext hdb,
+        ratWith_congr (fun f => (ClauseTrie.all_eq_true db f).trans (by simp only [hdb]))
+          (fun _ => allLookup_eq_true)]
+    | del ids =>
       exact ih fun n => by rw [ClauseTrie.get_eraseAll, hdb, List.lookup_filter_not_contains]
 
 /-- **The kernel checker agrees with the reference checker** on every formula and certificate. -/
-theorem checkLRATKernel_eq_checkLRAT (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
-    checkLRATKernel φ cert = checkLRAT φ cert :=
+theorem checkLRATKernel_eq_checkLRATRat (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
+    checkLRATKernel φ cert = checkLRATRat φ cert :=
   checkLRATKernelAux_eq (ClauseTrie.get_ofList _) cert.toList
 
 end CNF
