@@ -7,26 +7,21 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Midpoint
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitList
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitWord
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.RadixRounds
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability.Bounds
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryNormalization
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
-import CslibFrontier.Foundations.Data.Nat.Log
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 import CslibFrontier.Foundations.Data.BitString.Binary
-import CslibFrontier.Foundations.Data.BitString.Counter
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Tactic.Space
-import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -37,21 +32,28 @@ import Mathlib.Tactic.Ring
 A nondeterministic machine whose computation paths on an input of length `n` visit at most `S`
 work cells is simulated by a deterministic machine within space `O((S + log₂ n + 1) ^ 2)`: this is
 Savitch's theorem [Savitch1970]. No constructibility of `S` is assumed; as in Sipser's proof of
-Theorem 8.5 [Sipser2013], the machine tries growing bounds. The simulation runs Savitch's midpoint
-recursion with an explicit stack (`Cslib.Reachability.Savitch.step`) on the compact configuration
-graph of the machine (`Turing.MultiTapeNTM.ConfigurationGraph`), whose vertices omit the input. A
-vertex of the graph of radix `B` is stored as a word of `W = O(log B)` bits, so the stack of at
-most `W` frames has `O(W ^ 2)` bits. The input is never copied: the simulation is a query machine
-(`Turing.QueryMachine`), which reads one input bit per step, and the edge test at the bottom of the
+Theorem 8.5 [Sipser2013], the simulation tries growing bounds. It runs Savitch's midpoint recursion
+(`Cslib.Reachability.reach`) on the compact configuration graph of the machine
+(`Turing.MultiTapeNTM.ConfigurationGraph`), whose vertices omit the input. A vertex of the graph of
+radix `B` is stored as a word of `W = O(log B)` bits, so a chain of at most `W + 1` frames of the
+recursion has `O(W ^ 2)` bits. The input is never copied: the edge test at the bottom of the
 recursion needs exactly one input bit, at the input head of its source vertex.
 
-The space bound `S` is not computed. The machine counts the input in binary and then tries the
-radices `roundRadix State n j = 4 ^ j * startRadix State n` of
+No machine is built by hand, and the recursion is not specified here: it is the midpoint
+recursion `Cslib.Reachability.reach`, which
+`Turing.MultiTapeTM.ComputableInSpace.reach` runs within the space of one chain of frames for any
+edge test of two stored words and the input. This file supplies the edge test of the graph on
+words in that form (`Turing.MultiTapeNTM.SquareSavitch.inputEdge_inSpace`); it reads the one input
+bit it needs at a computed position. The search over the radices is a loop of
+`Turing.MultiTapeTM.ComputableInSpace.loopWith` whose registers are the radix and the answer.
+
+The space bound `S` is not computed. The search tries the radices
+`roundRadix State n j = 4 ^ j * startRadix State n` of
 `Turing.MultiTapeNTM.ConfigurationGraph.roundRadix` in turn, the radices of Immerman's inductive
 counting for nondeterministic space; Sipser's proof of Theorem 8.5 likewise tries the space bounds
 `1, 2, 3, …` and checks whether the machine uses more. In round `j`, a first recursion asks
 whether an overflowing vertex, one with a step leaving the radix, is reachable from the start
-vertex; if it is, the machine moves on to round `j + 1`. Otherwise every reachable view fits the
+vertex; if it is, the search moves on to round `j + 1`. Otherwise every reachable view fits the
 radix, and a second recursion on the same graph asks whether an accepting halted vertex is
 reachable, which decides acceptance. A machine
 within space `S` has no reachable overflow from round `4 * S + 1` on
@@ -66,8 +68,8 @@ theorem to hold for sublinear space bounds down to f(n) ≥ log n." Sipser's The
 assumes `f(n) ≥ n`, and Arora and Barak's Theorem 4.14 assumes a space-constructible bound
 `S(n) ≥ log n`. In the extension, the machine has a read-only input tape, and the configurations of
 the machine on the input `w` record the state, the work tapes and the head positions but not `w`.
-Here these are the vertices of the compact configuration graph, and the query machine reads the one
-input bit an edge test needs. The sources state the theorem for languages decided by
+Here these are the vertices of the compact configuration graph, and the edge test reads the one
+input bit it needs. The sources state the theorem for languages decided by
 nondeterministic machines whose branches all halt; the statement here also covers machines that
 only recognize the problem (branches may run forever), arbitrary per-instance bounds without
 constructibility, and arbitrary instances under an encoding into `List Bool`.
@@ -77,9 +79,7 @@ constructibility, and arbitrary instances under an encoding into `List Bool`.
 * `Turing.MultiTapeNTM.SquareSavitch.wordEdge`: the edges of the graph on words, given the round
   mode and the input bit at the source.
 * `Turing.MultiTapeNTM.SquareSavitch.sinkReach`: the recursion from the start vertex to the sink.
-* `Turing.MultiTapeNTM.SquareSavitch.machine`: the deterministic query machine.
-* `Turing.MultiTapeNTM.SquareSavitch.Runtime`: named runtime fields with generated encodings and
-  certificates.
+* `Turing.MultiTapeNTM.SquareSavitch.search`: a round of the search over the radices.
 
 ## Main results
 
@@ -89,9 +89,10 @@ constructibility, and arbitrary instances under an encoding into `List Bool`.
 * `Turing.MultiTapeNTM.exists_decidableInTimeAndSpace_sq`: **Savitch's theorem**: a problem
   recognized by a nondeterministic machine within space `S` is decided by a deterministic machine
   within space `O((S + log₂ n + 1) ^ 2)`.
-* `Turing.MultiTapeNTM.SquareSavitch.exists_halted`,
-  `Turing.MultiTapeNTM.SquareSavitch.length_encRuntime_le`: the machine halts, and its states have
-  `O((S + log₂ n + 1) ^ 2)` bits.
+* `Turing.MultiTapeNTM.SquareSavitch.inputEdge_inSpace`: the edge test, from two stored words,
+  the stored radix and the input.
+* `Turing.MultiTapeNTM.SquareSavitch.sinkReach_inSpace`: the recursion of a round within the space
+  of its frames.
 
 ## References
 
@@ -111,17 +112,6 @@ namespace Turing.MultiTapeNTM.SquareSavitch
 open MultiTapeTM ConfigurationGraph Cslib.Reachability Cslib.Reachability.Savitch
 open Cslib.BitString (lowBits length_lowBits lsbValue_replicate_true)
 
-/-- Edge-test parameters, with the input bit read last. -/
-structure EdgeParams where
-  /-- Whether the round searches for overflow, rather than for acceptance. -/
-  overflowMode : Bool
-  /-- Radix used to encode the simulated machine registers. -/
-  radix : ℕ
-  /-- Length of the original read-only input. -/
-  inputLength : ℕ
-  /-- Input bit just read, or `none` beyond the input. -/
-  symbol : Option Bool
-
 /-! ### The graph on words -/
 
 variable {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
@@ -138,11 +128,6 @@ noncomputable def wordEdge (overflowMode : Bool) (B n : ℕ) (symbol : Option Bo
     (u v : List Bool) : Bool :=
   edgeWithSymbol ntm B n (ofBits u) (ofBits v) symbol ||
     (target ntm overflowMode B n symbol (ofBits u) && v.all id)
-
-/-- The edges of the graph on words, with `EdgeParams` bundling the round mode, radix, input
-length, and input bit. -/
-noncomputable def paramEdge (p : EdgeParams) : List Bool → List Bool → Bool :=
-  wordEdge ntm p.overflowMode p.radix p.inputLength p.symbol
 
 /-- The edges of the graph on words on the input `w`: the input bit is read at the input head of
 the source. -/
@@ -295,698 +280,128 @@ theorem not_overflowReachable_of_runsInSpace {S j : ℕ} (hs : ntm.RunsInSpace w
 
 end Graph
 
-/-! ### The query machine -/
+/-! ### A round of the search, within the space of its frames -/
 
-/-- The parameters and unary vertex width share one frame. -/
-structure RoundSetup where
-  /-- Parameters shared by all edge tests in this round. -/
-  params : EdgeParams
-  /-- Bit width of vertices, stored in unary. -/
-  width : ℕ
+/-- The registers of the search over the radices. -/
+structure SearchState where
+  /-- The radix of the round. -/
+  radix : ℕ
+  /-- The answer, once it is known. -/
+  answer : Option Bool
 
-/-- A round of midpoint recursion. -/
-structure SimulationRound where
-  /-- Edge-test parameters and vertex width. -/
-  setup : RoundSetup
-  /-- Current continuation stack and recursion register. -/
-  recursion : Savitch.State
+/-- The binary radix, framed, and the optional answer, in field order. -/
+enc_structure encSearch : SearchState where radix : encNat, answer : (encOption encBool)
 
-/-- The input counter, startup flag, and current simulation round. -/
-structure Runtime where
-  /-- Number of input bits counted; the input length after startup. -/
-  counter : ℕ
-  /-- Whether input counting has finished and recursion has started. -/
-  started : Bool
-  /-- Current midpoint-recursion round. -/
-  round : SimulationRound
+section Round
 
-/-- Round mode, binary radix and input length followed by the optional input bit, in field
-order. -/
-enc_structure encEdgeParams : EdgeParams where
-  overflowMode : encBool, radix : encNat, inputLength : encNat, symbol : (encOption encBool)
-/-- Framed edge parameters followed by the unary vertex width. -/
-enc_structure encRoundSetup : RoundSetup where params : encEdgeParams, width : encUnary
-/-- Framed round setup followed by the encoded recursion state. -/
-enc_structure encSimulationRound : SimulationRound where setup : encRoundSetup, recursion : encState
-/-- Binary counter, startup bit and simulation round, in field order. -/
-enc_structure encRuntime : Runtime where
-  counter : encNat, started : encBool, round : encSimulationRound
+open ComputableInSpace
 
-/-- Convert a pair `(params, width)` into `RoundSetup`. -/
-@[expose] def RoundSetup.ofPair (p : EdgeParams × ℕ) : RoundSetup := ⟨p.1, p.2⟩
+variable {α : Type} (enc : α ↪ List Bool)
 
-/-- Enter the named runtime representation at the generic Savitch round boundary. -/
-@[expose] def SimulationRound.ofRound (q : (EdgeParams × ℕ) × Savitch.State) : SimulationRound :=
-  ⟨.ofPair q.1, q.2⟩
+/-- The registers of an edge test in a round: two stored words, framed, and the registers of the
+search. -/
+abbrev encEdgeRegisters : (List Bool × List Bool) × SearchState ↪ List Bool :=
+  encPair (encPair encBits encBits) encSearch
 
-/-- The first state of a round of the given mode and radix, on inputs of length `n`: the call at
-depth `W` from the start vertex to the sink. The start vertex is written as the binary digits of
-its value plus `2 ^ W`, without the last one (`Turing.MultiTapeTM.bits_add_two_pow`). -/
-noncomputable def initRound (overflowMode : Bool) (B n : ℕ) :
-    (EdgeParams × ℕ) × Savitch.State :=
-  ((⟨overflowMode, B, n, none⟩, vertexWidth k B),
-    ⟨[], .call (vertexWidth k B) (startID ntm B + 2 ^ vertexWidth k B).bits.dropLast
-      (List.replicate (vertexWidth k B) true)⟩)
+attribute [local fun_prop] edgeWithSymbol_budget overflow_budget bad_budget
 
-/-- The round held while the input is counted. -/
-def idle : (EdgeParams × ℕ) × Savitch.State :=
-  ((⟨false, 0, 0, none⟩, 0), ⟨[], .ret false⟩)
+/-- **The edge test of the graph on words**, from two stored words, the stored radix and the
+input: within the stored words and registers and the logarithm of the length of the input. The
+one input bit is read at the input head of the source. -/
+theorem inputEdge_inSpace (mode : Bool) :
+    ComputableInSpace
+      (fun q : ((List Bool × List Bool) × SearchState) × α =>
+        inputEdge ntm mode q.1.2.radix (enc q.2) q.1.1.1 q.1.1.2)
+      (encPair encEdgeRegisters enc) encBool
+      fun q => (encEdgeRegisters q.1).length + Nat.log2 (enc q.2).length := by
+  have hreg := budget_registers (encR := encEdgeRegisters) (encA := enc) (.refl _)
+  have hn := budget_inputLength (encR := encEdgeRegisters) (encA := enc) (.refl _)
+  have hbit := budget_inputBit (queryIndex_budget (k := k) (encSearch_radix_budget hreg.snd')
+    (budget_ofBits hreg.fst'.fst')) (.refl _)
+  space [inputEdge, wordEdge, target]
 
-/-- The source of the pending call, if any. -/
-def callSource (st : Savitch.State) : List Bool :=
-  match st.reg with
-  | .call _ u _ => u
-  | .ret _ => []
+/-- The budget of a round at the radix of the registers: `W + 1` frames of `O(W)` bits for
+vertices of `W` bits, the registers and the logarithm of the length of the input. -/
+abbrev roundBudget (p : SearchState × α) : ℕ :=
+  (vertexWidth k p.1.radix + 1) *
+    (vertexWidth k p.1.radix + (encSearch p.1).length + Nat.log2 (enc p.2).length + 1)
 
-/-- The recursion has returned its value. -/
-@[expose] def returned (st : Savitch.State) : Bool :=
-  st.stack.isEmpty && !st.reg.toPair.1.isSome
+/-- **The recursion of a round, within the space of its frames.** From the stored radix and the
+input, the midpoint recursion at depth `W`, the width of the vertices, from the start vertex to
+the sink is computable within space `O((W + 1) * (W + log₂ B + log₂ n + 1))`
+(`Turing.MultiTapeTM.ComputableInSpace.reach`). -/
+theorem sinkReach_inSpace (mode : Bool) :
+    ComputableInSpace (fun p : SearchState × α => sinkReach ntm mode p.1.radix (enc p.2))
+      (encPair encSearch enc) encBool (roundBudget (k := k) enc) := by
+  -- the width and the endpoints, from the stored radix
+  let S (p : SearchState × α) : ℕ :=
+    vertexWidth k p.1.radix + (encSearch p.1).length + Nat.log2 (enc p.2).length
+  have hctx : CoversContext encSearch enc S := .of_le fun p => by dsimp only [S]; omega
+  have hB := encSearch_radix_budget (budget_registers hctx)
+  have hN := vertexBound_budget (k := k) hB
+  have hWu : ComputableInSpace (fun p : SearchState × α => vertexWidth k p.1.radix)
+      (encPair encSearch enc) encUnary S :=
+    (budget_comp_linear natSizeUnary hN).of_enc_eq fun _ => rfl
+  have hWb : ComputableInSpace (fun p : SearchState × α => vertexWidth k p.1.radix)
+      (encPair encSearch enc) encNat S :=
+    (budget_comp_linear natSize hN).of_enc_eq fun _ => rfl
+  have hpair := budget_prod hWb (startID_budget ntm hB)
+  have hsrc : ComputableInSpace
+      (fun p : SearchState × α => lowBits (vertexWidth k p.1.radix) (startID ntm p.1.radix))
+      (encPair encSearch enc) encBits S :=
+    budget_comp_linear listToBits ((lowBits_inSpace.comp hpair).weaken
+      (.add (.refl _) (.add (.of_le fun p => by dsimp only [S]; omega) hpair.length_le)))
+  have hreach := reach (S := S) (edge := fun p => inputEdge ntm mode p.1.radix (enc p.2))
+    (E := fun p => 9 * vertexWidth k p.1.radix + 2 * (encSearch p.1).length +
+      2 * Nat.log2 (enc p.2).length + 8)
+    hWu hWb hsrc (budget_bitsReplicate true hWu) (assoc_context (inputEdge_inSpace ntm enc mode))
+    (fun p x y hx hy => by
+      simp only [length_encPair, encBits_apply, hx, hy]
+      omega)
+    fun p => ⟨length_lowBits _ _, List.length_replicate⟩
+  refine (hreach.of_enc_eq fun _ => rfl).weaken ⟨16, fun p => ?_⟩
+  have h₁ := log2_length_encPair_le encSearch enc p
+  have h₂ := Nat.log2_le_self (vertexWidth k p.1.radix)
+  dsimp only [S, roundBudget]
+  nlinarith
 
-/-- The round has returned, and it is an overflow round: the next round starts. -/
-@[expose] def restarts (s : Runtime) : Bool :=
-  s.round.setup.params.overflowMode && returned s.round.recursion
+/-- **A round of the search**: an overflow round that finds overflow moves to the next radix; one
+that finds none is followed by the acceptance round at the same radix, whose value is the answer;
+with an answer the search stops. -/
+noncomputable def search (p : SearchState × α) : Option SearchState :=
+  if p.1.answer.isSome then none
+  else if sinkReach ntm true p.1.radix (enc p.2) then some ⟨4 * p.1.radix, none⟩
+  else some ⟨p.1.radix, some (sinkReach ntm false p.1.radix (enc p.2))⟩
 
-variable (k) in
-/-- The input bit to read: the next input position while counting, then the input head of the
-source of the pending call. -/
-noncomputable def query (s : Runtime) : ℕ :=
-  if s.started then
-    queryIndex (k := k) s.round.setup.params.radix (ofBits (callSource s.round.recursion))
-  else s.counter
+/-- A round of the search, within the budget of a round. -/
+theorem search_inSpace : ComputableInSpace (search ntm enc) (encPair encSearch enc)
+    (encOption encSearch) (roundBudget (k := k) enc) := by
+  have hreg := budget_registers (encR := encSearch) (encA := enc) (Bs := roundBudget (k := k) enc)
+    (.of_le fun p => by dsimp only [roundBudget]; nlinarith)
+  have hover := sinkReach_inSpace ntm enc true
+  have haccept := sinkReach_inSpace ntm enc false
+  space [search]
 
-/-- A step of the machine, given the input bit read: count the input until its end, then start the
-overflow round of the first radix. An overflow round that returns `true` starts the overflow round
-of the next radix; one that returns `false` starts the acceptance round of the same radix. Other
-steps run the recursion, with the bit read as the input bit of the edge test. -/
-noncomputable def next (p : Runtime × Option Bool) : Runtime :=
-  if p.1.started then
-    if restarts p.1 then
-      ⟨p.1.counter, true, .ofRound (initRound ntm p.1.round.recursion.reg.toPair.2
-        (if p.1.round.recursion.reg.toPair.2 then 4 * p.1.round.setup.params.radix
-          else p.1.round.setup.params.radix) p.1.counter)⟩
-    else
-      ⟨p.1.counter, true, .ofRound (roundStep (paramEdge ntm)
-        ((⟨p.1.round.setup.params.overflowMode, p.1.round.setup.params.radix,
-          p.1.round.setup.params.inputLength, p.2⟩, p.1.round.setup.width),
-          p.1.round.recursion))⟩
-  else if p.2.isSome then ⟨p.1.counter + 1, false, p.1.round⟩
-  else ⟨p.1.counter, true, .ofRound (initRound ntm true (startRadix State p.1.counter) p.1.counter)⟩
-
-/-- The machine halts once an acceptance round has returned. -/
-@[expose] def halted (s : Runtime) : Bool :=
-  s.started && !s.round.setup.params.overflowMode && returned s.round.recursion
-
-/-- The answer: the value returned by the recursion. -/
-@[expose] def finish (s : Runtime) : List Bool := [s.round.recursion.reg.toPair.2]
-
-/-- **The deterministic simulation**, as a query machine: count the input, then run Savitch's
-recursion on the graphs on words of growing radix, reading the input bit of each edge test. -/
-noncomputable def machine : QueryMachine Runtime where
-  init := ⟨0, false, .ofRound idle⟩
-  query := query k
-  next := next ntm
-  emit _ := []
-  halted := halted
-  finish := finish
-
-/-! ### The runs of the machine -/
-
-section Run
-
-variable {ntm} (w : List Bool)
-
-/-- The step of the recursion only uses the edge test at a call at level `0`. -/
-private theorem step_congr {e₁ e₂ : List Bool → List Bool → Bool} {W : ℕ} {st : Savitch.State}
-    (h : ∀ u v, st.reg = .call 0 u v → e₁ u v = e₂ u v) :
-    Savitch.step e₁ W st = Savitch.step e₂ W st := by
-  obtain ⟨stack, (⟨_ | i, u, v⟩ | b)⟩ := st
-  · simp only [Savitch.step, h u v rfl]
-  · rfl
-  · cases stack <;> cases b <;> rfl
-
-/-- The machine emits nothing before its final answer. -/
-theorem output_eq (t : ℕ) : (machine ntm).output w t = finish ((machine ntm).run w t) := by
-  rw [QueryMachine.output]
-  conv_rhs => rw [← List.nil_append (finish _)]
-  congr 1
-  simp only [List.flatten_eq_nil_iff, List.mem_map]
-  rintro _ ⟨i, -, rfl⟩
-  split <;> rfl
-
-/-- While counting, the machine holds the number of input bits read. -/
-theorem run_of_le {t : ℕ} (ht : t ≤ w.length) :
-    (machine ntm).run w t = ⟨t, false, .ofRound idle⟩ := by
-  induction t with
-  | zero => rfl
-  | succ t ih =>
-    rw [QueryMachine.run_succ, ih (by omega)]
-    have hread : (machine ntm).read w ⟨t, false, .ofRound idle⟩ = some w[t] := by
-      simp only [QueryMachine.read, machine, query, Bool.false_eq_true, ↓reduceIte,
-        List.getElem?_eq_getElem (show t < w.length by omega)]
-    rw [QueryMachine.step, hread]
-    simp [machine, halted, next]
-
-/-- At the end of the input, the machine starts the overflow round of the first radix. -/
-theorem run_length_succ :
-    (machine ntm).run w (w.length + 1) =
-      ⟨w.length, true, .ofRound (initRound ntm true (startRadix State w.length) w.length)⟩ := by
-  rw [QueryMachine.run_succ, run_of_le w le_rfl]
-  have hread : (machine ntm).read w ⟨w.length, false, .ofRound idle⟩ = none := by
-    simp only [QueryMachine.read, machine, query, Bool.false_eq_true, ↓reduceIte,
-      List.getElem?_eq_none le_rfl]
-  rw [QueryMachine.step, hread]
-  simp [machine, halted, next]
-
-/-- The value of a returned recursion is the value of its register. -/
-private theorem returned_eq_true_iff {st : Savitch.State} :
-    returned st = true ↔ ∃ b, st = ⟨[], .ret b⟩ := by
-  obtain ⟨stack, (⟨i, u, v⟩ | b)⟩ := st
-  · simp [returned, Reg.toPair]
-  · cases stack <;> simp [returned, Reg.toPair]
-
-/-- **A step of a round that has not returned** runs the recursion, with the input bit at the
-source of the pending call. -/
-private theorem step_round {mode : Bool} {B : ℕ} {symbol : Option Bool} {st : Savitch.State}
-    (h : returned st = false) :
-    (machine ntm).step w ⟨w.length, true, .ofRound ((⟨mode, B, w.length, symbol⟩,
-        vertexWidth k B), st)⟩ =
-      ⟨w.length, true, .ofRound ((⟨mode, B, w.length,
-        w[queryIndex (k := k) B (ofBits (callSource st))]?⟩, vertexWidth k B),
-        Savitch.step (inputEdge ntm mode B w) (vertexWidth k B) st)⟩ := by
-  have hh : halted (⟨w.length, true, .ofRound ((⟨mode, B, w.length, symbol⟩,
-      vertexWidth k B), st)⟩ : Runtime) = false := by
-    simp [halted, SimulationRound.ofRound, RoundSetup.ofPair, h]
-  have hr : restarts (⟨w.length, true, .ofRound ((⟨mode, B, w.length, symbol⟩,
-      vertexWidth k B), st)⟩ : Runtime) = false := by
-    simp [restarts, SimulationRound.ofRound, RoundSetup.ofPair, h]
-  simp only [QueryMachine.step, machine, hh, Bool.false_eq_true, ↓reduceIte, next, hr,
-    QueryMachine.read, query]
-  have hstep : Savitch.step (wordEdge ntm mode B w.length
-      w[queryIndex (k := k) B (ofBits (callSource st))]?) (vertexWidth k B) st =
-      Savitch.step (inputEdge ntm mode B w) (vertexWidth k B) st :=
-    step_congr fun u v hreg => by simp only [inputEdge, callSource, hreg]
-  simp only [roundStep, paramEdge, SimulationRound.ofRound, RoundSetup.ofPair, hstep]
-
-/-- **A returned overflow round starts the next round**: the overflow round of the next radix if
-it returned `true`, and the acceptance round of the same radix otherwise. -/
-private theorem step_restart {B : ℕ} {symbol : Option Bool} {b : Bool} :
-    (machine ntm).step w ⟨w.length, true, .ofRound ((⟨true, B, w.length, symbol⟩,
-        vertexWidth k B), ⟨[], .ret b⟩)⟩ =
-      ⟨w.length, true, .ofRound (initRound ntm b (if b then 4 * B else B) w.length)⟩ :=
-  rfl
-
-/-- A returned acceptance round has halted. -/
-private theorem halted_round {B : ℕ} {symbol : Option Bool} {b : Bool} :
-    halted ⟨w.length, true, .ofRound ((⟨false, B, w.length, symbol⟩, vertexWidth k B),
-      ⟨[], .ret b⟩)⟩ = true := rfl
-
-/-- The first state of a round, once the start vertex is known to have a word. -/
-private theorem initRound_snd {mode : Bool} {B : ℕ} (hB : Fintype.card (Option State) + 1 < B) :
-    (initRound ntm mode B w.length).2 = ⟨[], .call (vertexWidth k B)
-      (lowBits (vertexWidth k B) (startID ntm B)) (List.replicate (vertexWidth k B) true)⟩ := by
-  rw [initRound, dropLast_bits_add_two_pow
-    ((startID_lt hB).trans (vertexBound_lt_two_pow_vertexWidth k B))]
-
-/-- **A returned round holds the value of its recursion.** -/
-private theorem ret_eq_sinkReach {mode : Bool} {B : ℕ} (hB : Fintype.card (Option State) + 1 < B)
-    {i : ℕ} {b : Bool} (h : (Savitch.step (inputEdge ntm mode B w) (vertexWidth k B))^[i]
-      (initRound ntm mode B w.length).2 = ⟨[], .ret b⟩) :
-    b = sinkReach ntm mode B w := by
-  rw [initRound_snd w hB] at h
-  obtain ⟨T, -, hT⟩ := exists_iterate_step_call (edge := inputEdge ntm mode B w)
-    (w := vertexWidth k B) (vertexWidth k B) (lowBits (vertexWidth k B) (startID ntm B))
-    (List.replicate (vertexWidth k B) true) []
-  rcases le_total i T with hiT | hTi
-  · rw [← Nat.sub_add_cancel hiT, Function.iterate_add_apply, h,
-      Function.iterate_fixed rfl] at hT
-    cases hT
-    rfl
-  · rw [← Nat.sub_add_cancel hTi, Function.iterate_add_apply, hT,
-      Function.iterate_fixed rfl] at h
-    cases h
-    rfl
-
-/-- **A round runs to its return**: from the first state of a round, the machine runs the
-recursion until it returns the value `sinkReach`. -/
-private theorem exists_run_returned {mode : Bool} {B t₀ : ℕ}
-    (hB : Fintype.card (Option State) + 1 < B)
-    (h₀ : (machine ntm).run w t₀ =
-      ⟨w.length, true, .ofRound (initRound ntm mode B w.length)⟩) :
-    ∃ t symbol, (machine ntm).run w t = ⟨w.length, true, .ofRound ((⟨mode, B, w.length, symbol⟩,
-      vertexWidth k B), ⟨[], .ret (sinkReach ntm mode B w)⟩)⟩ := by
-  have hex : ∃ i, returned ((Savitch.step (inputEdge ntm mode B w) (vertexWidth k B))^[i]
-      (initRound ntm mode B w.length).2) = true := by
-    obtain ⟨T, -, hT⟩ := exists_iterate_step_call (edge := inputEdge ntm mode B w)
-      (w := vertexWidth k B) (vertexWidth k B) (lowBits (vertexWidth k B) (startID ntm B))
-      (List.replicate (vertexWidth k B) true) []
-    exact ⟨T, by rw [initRound_snd w hB, hT]; rfl⟩
-  have hrun : ∀ i ≤ Nat.find hex, ∃ symbol, (machine ntm).run w (t₀ + i) =
-      ⟨w.length, true, .ofRound ((⟨mode, B, w.length, symbol⟩, vertexWidth k B),
-        (Savitch.step (inputEdge ntm mode B w) (vertexWidth k B))^[i]
-          (initRound ntm mode B w.length).2)⟩ := by
-    intro i hi
-    induction i with
-    | zero => exact ⟨none, h₀⟩
-    | succ i ih =>
-      obtain ⟨symbol, hs⟩ := ih (by omega)
-      have hr : returned ((Savitch.step (inputEdge ntm mode B w) (vertexWidth k B))^[i]
-          (initRound ntm mode B w.length).2) = false :=
-        Bool.eq_false_iff.mpr (Nat.find_min hex (show i < Nat.find hex by omega))
-      rw [← Nat.add_assoc, QueryMachine.run_succ, hs, step_round w hr,
-        Function.iterate_succ_apply']
-      exact ⟨_, rfl⟩
-  obtain ⟨symbol, hs⟩ := hrun _ le_rfl
-  obtain ⟨b, hb⟩ := returned_eq_true_iff.mp (Nat.find_spec hex)
-  refine ⟨t₀ + Nat.find hex, symbol, ?_⟩
-  rw [hs, hb, ← ret_eq_sinkReach w hB hb]
-
-/-- **The states of a run**: counting the input, or a round of radix `roundRadix State n j`,
-after overflow rounds that found overflow at every earlier radix. An acceptance round has no
-reachable overflow at its radix. -/
-def RunState (s : Runtime) : Prop :=
-  (∃ t ≤ w.length, s = ⟨t, false, .ofRound idle⟩) ∨
-    ∃ (mode : Bool) (j i : ℕ) (symbol : Option Bool),
-      (∀ j' < j, OverflowReachable ntm (roundRadix State w.length j') w) ∧
-      (mode = false → ¬ OverflowReachable ntm (roundRadix State w.length j) w) ∧
-      s = ⟨w.length, true, .ofRound ((⟨mode, roundRadix State w.length j, w.length, symbol⟩,
-        vertexWidth k (roundRadix State w.length j)),
-        (Savitch.step (inputEdge ntm mode (roundRadix State w.length j) w)
-          (vertexWidth k (roundRadix State w.length j)))^[i]
-          (initRound ntm mode (roundRadix State w.length j) w.length).2)⟩
-
-/-- The machine keeps the states of a run. -/
-private theorem runState_step {s : Runtime} (h : RunState (ntm := ntm) w s) :
-    RunState (ntm := ntm) w ((machine ntm).step w s) := by
-  rcases h with ⟨t, ht, rfl⟩ | ⟨mode, j, i, symbol, hlt, hmode, rfl⟩
-  · rcases ht.lt_or_eq with ht | rfl
-    · refine .inl ⟨t + 1, ht, ?_⟩
-      rw [← run_of_le (ntm := ntm) w ht.le, ← QueryMachine.run_succ, run_of_le w ht]
-    · refine .inr ⟨true, 0, 0, none, fun _ h => absurd h (Nat.not_lt_zero _), by simp, ?_⟩
-      rw [← run_of_le (ntm := ntm) w le_rfl, ← QueryMachine.run_succ, run_length_succ,
-        roundRadix_zero]
-      rfl
-  · have hB := card_lt_roundRadix (State := State) w.length j
-    cases hr : returned ((Savitch.step (inputEdge ntm mode (roundRadix State w.length j) w)
-        (vertexWidth k (roundRadix State w.length j)))^[i]
-        (initRound ntm mode (roundRadix State w.length j) w.length).2) with
-    | false =>
-      rw [step_round w hr, ← Function.iterate_succ_apply'
-        (Savitch.step (inputEdge ntm mode (roundRadix State w.length j) w)
-          (vertexWidth k (roundRadix State w.length j)))]
-      exact .inr ⟨mode, j, i + 1, _, hlt, hmode, rfl⟩
-    | true =>
-      obtain ⟨b, hb⟩ := returned_eq_true_iff.mp hr
-      have hbv := ret_eq_sinkReach w hB hb
-      rw [hb]
-      cases mode with
-      | false =>
-        refine .inr ⟨false, j, i, symbol, hlt, hmode, ?_⟩
-        rw [hb]
-        simp only [QueryMachine.step, machine, halted_round, ↓reduceIte]
-      | true =>
-        rw [step_restart]
-        cases b with
-        | true =>
-          have ho := (sinkReach_true_iff hB).mp hbv.symm
-          refine .inr ⟨true, j + 1, 0, none, fun j' hj' => ?_, by simp, ?_⟩
-          · rcases (Nat.lt_succ_iff.mp hj').lt_or_eq with hj' | rfl
-            · exact hlt j' hj'
-            · exact ho
-          · rw [roundRadix_succ]
-            rfl
-        | false =>
-          have hno : ¬ OverflowReachable ntm (roundRadix State w.length j) w := fun ho =>
-            Bool.false_ne_true (hbv.trans ((sinkReach_true_iff hB).mpr ho))
-          exact .inr ⟨false, j, 0, none, hlt, fun _ => hno, rfl⟩
-
-/-- Every state of the run is a state of a run. -/
-theorem runState_run (t : ℕ) : RunState (ntm := ntm) w ((machine ntm).run w t) := by
-  induction t with
-  | zero => exact .inl ⟨0, Nat.zero_le _, rfl⟩
-  | succ t ih => rw [QueryMachine.run_succ]; exact runState_step w ih
-
-/-- **A halted machine has decided acceptance.** -/
-private theorem answer_iff_of_halted {s : Runtime} (h : RunState (ntm := ntm) w s)
-    (hh : halted s = true) : s.round.recursion.reg.toPair.2 = true ↔ ntm.Accepts w := by
-  rcases h with ⟨t, -, rfl⟩ | ⟨mode, j, i, symbol, -, hmode, rfl⟩
-  · simp [halted] at hh
-  · have hB := card_lt_roundRadix (State := State) w.length j
-    cases mode with
-    | true => simp [halted, SimulationRound.ofRound, RoundSetup.ofPair] at hh
-    | false =>
-      have hr : returned ((Savitch.step (inputEdge ntm false (roundRadix State w.length j) w)
-          (vertexWidth k (roundRadix State w.length j)))^[i]
-          (initRound ntm false (roundRadix State w.length j) w.length).2) = true := by
-        simpa only [halted, SimulationRound.ofRound, RoundSetup.ofPair, Bool.not_false,
-          Bool.true_and] using hh
-      obtain ⟨b, hb⟩ := returned_eq_true_iff.mp hr
-      simp only [SimulationRound.ofRound, hb, Reg.toPair]
-      rw [ret_eq_sinkReach w hB hb]
-      exact sinkReach_false_iff hB (hmode rfl)
-
-/-- A returned overflow round leads to a halted machine or to the overflow round of the next
-radix, after reachable overflow. -/
-private theorem halted_or_next_round {j t₀ : ℕ}
-    (h₀ : (machine ntm).run w t₀ = ⟨w.length, true, .ofRound
-      (initRound ntm true (roundRadix State w.length j) w.length)⟩) :
-    (∃ t, halted ((machine ntm).run w t) = true) ∨
-      (OverflowReachable ntm (roundRadix State w.length j) w ∧ ∃ t₁,
-        (machine ntm).run w t₁ = ⟨w.length, true, .ofRound
-          (initRound ntm true (roundRadix State w.length (j + 1)) w.length)⟩) := by
-  have hB := card_lt_roundRadix (State := State) w.length j
-  obtain ⟨t, symbol, ht⟩ := exists_run_returned w hB h₀
-  have hnext := (QueryMachine.run_succ _ w t).trans (by rw [ht, step_restart])
-  cases hb : sinkReach ntm true (roundRadix State w.length j) w with
-  | false =>
-    rw [hb] at hnext
-    obtain ⟨t', symbol', ht'⟩ := exists_run_returned w hB hnext
-    exact .inl ⟨t', by rw [ht']; exact halted_round w⟩
-  | true =>
-    rw [hb] at hnext
-    refine .inr ⟨(sinkReach_true_iff hB).mp hb, t + 1, ?_⟩
-    rw [hnext, roundRadix_succ]
-    rfl
-
-/-- **The machine halts** on the inputs of a machine within some space bound. -/
-theorem exists_halted {S : ℕ} (hs : ntm.RunsInSpace w S) :
-    ∃ t, halted ((machine ntm).run w t) = true := by
-  suffices key : ∀ m j t₀, 4 * S + 1 ≤ j + m →
-      (machine ntm).run w t₀ = ⟨w.length, true, .ofRound
-        (initRound ntm true (roundRadix State w.length j) w.length)⟩ →
-      ∃ t, halted ((machine ntm).run w t) = true from
-    key (4 * S + 1) 0 (w.length + 1) (by omega) (by rw [run_length_succ, roundRadix_zero])
-  intro m
-  induction m with
-  | zero =>
-    intro j t₀ hj h₀
-    rcases halted_or_next_round w h₀ with h | ⟨ho, -⟩
-    · exact h
-    · exact absurd ho (not_overflowReachable_of_runsInSpace hs (by omega))
-  | succ m ih =>
-    intro j t₀ hj h₀
-    rcases halted_or_next_round w h₀ with h | ⟨-, t₁, h₁⟩
-    · exact h
-    · exact ih (j + 1) t₁ (by omega) h₁
-
-end Run
-
-/-! ### The size of the states -/
-
-section Size
-
-variable {ntm} {w : List Bool}
-
-/-- A run within space `S` stays below round `4 * S + 1`. -/
-theorem le_of_overflowReachable {S j : ℕ} (hs : ntm.RunsInSpace w S)
-    (hlt : ∀ j' < j, OverflowReachable ntm (roundRadix State w.length j') w) : j ≤ 4 * S + 1 := by
-  by_contra h
-  exact not_overflowReachable_of_runsInSpace hs le_rfl (hlt _ (by omega))
-
-/-- The states of the recursion satisfy the invariant of a run at depth `W`. -/
-private theorem invariant_iterate_initRound {mode : Bool} {B : ℕ}
-    (hB : Fintype.card (Option State) + 1 < B) (i : ℕ) :
-    Invariant (vertexWidth k B) (vertexWidth k B)
-      ((Savitch.step (inputEdge ntm mode B w) (vertexWidth k B))^[i]
-        (initRound ntm mode B w.length).2) := by
-  refine invariant_iterate _ ?_ i
-  rw [initRound_snd w hB]
-  refine ⟨trivial, fun i u v h => ?_⟩
-  obtain ⟨rfl, rfl, rfl⟩ := Reg.call.inj h
-  exact ⟨by simp, length_lowBits _ _, List.length_replicate⟩
-
-/-- The runtime's framing cost, separated from the encoded recursion state. -/
-theorem length_encRuntime (s : Runtime) :
-    (encRuntime s).length = 2 * (encNat s.counter).length +
-      8 * (encNat s.round.setup.params.radix).length +
-      8 * (encNat s.round.setup.params.inputLength).length +
-      4 * (encOption encBool s.round.setup.params.symbol).length +
-      2 * s.round.setup.width + 27 + (encState s.round.recursion).length := by
-  enc_len [encRuntime_apply, encSimulationRound_apply, encRoundSetup_apply, encEdgeParams_apply,
-    encRuntimeFields, encSimulationRoundFields, encRoundSetupFields, encEdgeParamsFields]
+end Round
 
 variable (k State) in
 /-- The constant factor of the width of the vertices in the rounds of a run. -/
 noncomputable def widthConst : ℕ :=
   Fintype.card (Register k) * (Fintype.card (Option State) + 8) + 1
 
-variable (k State) in
-/-- The constant of the bound on the states of the machine. -/
-noncomputable def sizeConst : ℕ :=
-  (encState (⟨[], .ret false⟩ : Savitch.State)).length + 47 +
-    8 * (Fintype.card (Option State) + 9) + 2 * widthConst k State +
-    24 * (widthConst k State + 1) * (widthConst k State + widthConst k State + 1)
-
-/-- **The states of a run have `O((S + log₂ n + 1) ^ 2)` bits**, for a machine within space
-`S`. -/
-theorem length_encRuntime_le {S : ℕ} (hs : ntm.RunsInSpace w S) {s : Runtime}
-    (h : RunState (ntm := ntm) w s) :
-    (encRuntime s).length ≤ sizeConst k State * (S + Nat.log2 w.length + 1) ^ 2 := by
-  have hL1 : 1 ≤ S + Nat.log2 w.length + 1 := by omega
-  have hLL : S + Nat.log2 w.length + 1 ≤ (S + Nat.log2 w.length + 1) ^ 2 :=
-    Nat.le_self_pow two_ne_zero _
-  rcases h with ⟨t, ht, rfl⟩ | ⟨mode, j, i, symbol, hlt, -, rfl⟩
-  · have h₁ := length_encNat_le_log2 ht
-    have h₀ : (encNat 0).length = 0 := by simp
-    have hnone : (encOption encBool none).length ≤ 2 := by simp
-    have hE : (encState (⟨[], .ret false⟩ : Savitch.State)).length + 47 ≤ sizeConst k State := by
-      unfold sizeConst
-      omega
-    rw [length_encRuntime]
-    simp only [SimulationRound.ofRound, RoundSetup.ofPair, idle]
-    calc _ ≤ ((encState (⟨[], .ret false⟩ : Savitch.State)).length + 47) *
-          (S + Nat.log2 w.length + 1) := by
-          nlinarith [Nat.mul_le_mul_left (encState (⟨[], .ret false⟩ : Savitch.State)).length hL1]
-      _ ≤ sizeConst k State * (S + Nat.log2 w.length + 1) ^ 2 := Nat.mul_le_mul hE hLL
-  · have hB := card_lt_roundRadix (State := State) w.length j
-    have hj := le_of_overflowReachable hs hlt
-    have hinv := invariant_iterate_initRound (ntm := ntm) (w := w) (mode := mode) hB i
-    have hn := length_encNat_le_log2 (le_refl w.length)
-    have hBl : (encNat (roundRadix State w.length j)).length ≤
-        2 * j + Nat.log2 w.length + Fintype.card (Option State) + 5 := by
-      rw [length_encNat_eq_size, Nat.size_le]
-      exact (roundRadix_le_two_pow (State := State) w.length j).trans_lt
-        (Nat.pow_lt_pow_right (by norm_num) (by omega))
-    have hW := vertexWidth_roundRadix_le k State w.length j
-    have hsym : (encOption encBool symbol).length ≤ 2 := by cases symbol <;> simp
-    rw [length_encRuntime]
-    simp only [SimulationRound.ofRound, RoundSetup.ofPair]
-    unfold sizeConst
-    have hW' : vertexWidth k (roundRadix State w.length j) ≤
-        widthConst k State * (S + Nat.log2 w.length + 1) := by
-      unfold widthConst
-      generalize Fintype.card (Register k) = R at *
-      generalize Fintype.card (Option State) = q at *
-      have : 2 * j + Nat.log2 w.length + q + 4 ≤ (q + 8) * (S + Nat.log2 w.length + 1) := by
-        nlinarith
-      nlinarith
-    have hBl' : (encNat (roundRadix State w.length j)).length ≤
-        (Fintype.card (Option State) + 9) * (S + Nat.log2 w.length + 1) := by
-      generalize Fintype.card (Option State) = q at *
-      nlinarith
-    have hst := length_encState_le_of_bounds hinv hW' hW' hL1
-    have hn' : (encNat w.length).length ≤ S + Nat.log2 w.length + 1 := by omega
-    generalize (encState (⟨[], .ret false⟩ : Savitch.State)).length = E at *
-    generalize widthConst k State = Wc at *
-    generalize vertexWidth k (roundRadix State w.length j) = W at *
-    generalize (encNat (roundRadix State w.length j)).length = Bl at *
-    generalize (encNat w.length).length = nl at *
-    generalize (encOption encBool symbol).length = sl at *
-    generalize Fintype.card (Option State) = q at *
-    generalize S + Nat.log2 w.length + 1 = L at *
-    generalize (encState _).length = E' at *
-    have hlin : 2 * nl + 8 * Bl + 8 * nl + 4 * sl + 2 * W + 27 ≤
-        (E + 47 + 8 * (q + 9) + 2 * Wc) * L ^ 2 := by
-      have : (E + 47 + 8 * (q + 9) + 2 * Wc) * L ≤ (E + 47 + 8 * (q + 9) + 2 * Wc) * L ^ 2 :=
-        Nat.mul_le_mul_left _ hLL
-      nlinarith [Nat.zero_le (E * L)]
-    nlinarith
-
-end Size
-
-/-! ### The parts of the machine in linear space -/
-
-section Parts
-
-open ComputableInSpace
-
-variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
-
-/-- The fields of a state of the recursion, as pairs. -/
-private theorem stateFields_inSpace :
-    ComputableInSpace (fun st : Savitch.State => (st.stack, st.reg.toPair)) encState
-      (encPair (encList encFrame) (encPair (encOption encCall) encBool))
-      fun st => (encState st).length :=
-  of_inO (ComputableInO.of_eq fun _ => rfl)
-
-/-- The stack, within a budget. -/
-private theorem budget_stack {st : α → Savitch.State} (h : ComputableInSpace st enc encState S) :
-    ComputableInSpace (fun a => (st a).stack) enc (encList encFrame) S :=
-  (budget_comp_linear stateFields_inSpace h).fst'
-
-/-- The register as a pair, within a budget. -/
-private theorem budget_reg {st : α → Savitch.State} (h : ComputableInSpace st enc encState S) :
-    ComputableInSpace (fun a => (st a).reg.toPair) enc (encPair (encOption encCall) encBool) S :=
-  (budget_comp_linear stateFields_inSpace h).snd'
-
-/-- The value of the source of the pending call, within a budget. -/
-private theorem budget_callSource {st : α → Savitch.State}
-    (h : ComputableInSpace st enc encState S) :
-    ComputableInSpace (fun a => ofBits (callSource (st a))) enc encNat S := by
-  have hsrc : ComputableInSpace (fun a => callSource (st a)) enc encBits S :=
-    ((budget_optionGetD (0, [], []) (budget_reg h).fst').snd'.fst').of_enc_eq fun a => by
-      unfold callSource
-      cases (st a).reg <;> rfl
-  exact budget_comp_linear (of_inO ComputableInO.bitsToNat) hsrc
-
-/-- Whether the recursion has returned, within a budget. -/
-private theorem budget_returned {st : α → Savitch.State}
-    (h : ComputableInSpace st enc encState S) :
-    ComputableInSpace (fun a => returned (st a)) enc encBool S :=
-  (budget_finite (fun p : Bool × Bool => p.1 && !p.2)
-    (budget_prod (budget_isEmpty (budget_stack h))
-      (budget_optionIsSome (budget_reg h).fst'))).of_enc_eq fun _ => rfl
-
-attribute [local fun_prop] budget_stack budget_reg budget_callSource budget_returned
-  queryIndex_budget
-
-/-- The input position to read, in space linear in the state. -/
-theorem query_inSpace :
-    ComputableInSpace (query k) encRuntime encNat fun s => (encRuntime s).length := by
-  space [query]
-
-/-- The halting test, in space linear in the state. -/
-theorem halted_inSpace :
-    ComputableInSpace halted encRuntime encBool fun s => (encRuntime s).length := by
-  exact (budget_finite (fun (started, mode, ret) => started && !mode && ret)
-    (show ComputableInSpace
-      (fun s : Runtime => (s.started, s.round.setup.params.overflowMode,
-        returned s.round.recursion)) encRuntime
-      (encPair encBool (encPair encBool encBool)) (fun s => (encRuntime s).length)
-      from by space)).of_enc_eq fun _ => rfl
-
-/-- The restart test, in space linear in the state. -/
-theorem restarts_inSpace :
-    ComputableInSpace restarts encRuntime encBool fun s => (encRuntime s).length := by
-  exact (budget_finite (fun p : Bool × Bool => p.1 && p.2)
-    (show ComputableInSpace
-      (fun s : Runtime => (s.round.setup.params.overflowMode, returned s.round.recursion))
-      encRuntime (encPair encBool encBool) (fun s => (encRuntime s).length)
-      from by space)).of_enc_eq fun _ => rfl
-
-/-- The answer, in space linear in the state. -/
-theorem finish_inSpace :
-    ComputableInSpace finish encRuntime encBits fun s => (encRuntime s).length := by
-  exact (show ComputableInSpace (fun s : Runtime => s.round.recursion.reg.toPair.2)
-    encRuntime encBool (fun s => (encRuntime s).length) from by space).of_enc_eq fun _ => rfl
-
-/-- The edge test of the graph on words, in linear space. -/
-private theorem paramEdge_inSpace : ComputableInSpace
-    (fun q : EdgeParams × List Bool × List Bool => paramEdge ntm q.1 q.2.1 q.2.2)
-    (encPair encEdgeParams (encPair encBits encBits)) encBool
-    fun q => (encPair encEdgeParams (encPair encBits encBits) q).length := by
-  have hp := fst encEdgeParams (encPair encBits encBits)
-  have huv := snd encEdgeParams (encPair encBits encBits)
-  have hmode := encEdgeParams_overflowMode_budget hp
-  have hB := encEdgeParams_radix_budget hp
-  have hn := encEdgeParams_inputLength_budget hp
-  have hsym := encEdgeParams_symbol_budget hp
-  have hu := huv.fst'
-  have hv := huv.snd'
-  have hvalU := budget_comp_linear (of_inO ComputableInO.bitsToNat) hu
-  have hvalV := budget_comp_linear (of_inO ComputableInO.bitsToNat) hv
-  have hin : (fun q : EdgeParams × List Bool × List Bool =>
-      (encPair encEdgeParams (encPair encBits encBits) q).length) ≼ _ := .refl _
-  have he := edgeWithSymbol_budget ntm hB hn hvalU hvalV hsym
-  have ho := overflow_budget ntm hB hn hvalU hsym
-  have hb := bad_budget (k := k) (State := State) hB hn hvalU
-  have hall := budget_comp_linear
-    (of_inO (.of_linear (.of_transducer (encIn := encBits) (encMid := encBool)
-      (f := fun l : List Bool => l.all id) Savitch.allT fun l => by
-        rw [Savitch.allT_run]; rfl))) hv
-  exact (budget_finite
-    (fun (e, m, o, b, a) => e || ((if m then o else b) && a))
-    (budget_prod he (budget_prod hmode (budget_prod ho (budget_prod hb hall))))).of_enc_eq
-    fun _ => rfl
-
-/-- A round of the recursion on the graph on words, in space linear in the round. -/
-private theorem roundStep_inSpace :
-    ComputableInSpace (roundStep (paramEdge ntm)) (encRound encEdgeParams)
-      (encRound encEdgeParams) fun q => (encRound encEdgeParams q).length := by
-  obtain ⟨Te, hedge⟩ := (paramEdge_inSpace ntm).exists_inO
-  refine (of_inO (computableInO_roundStep hedge)).weaken (.of_le_linear 3 0 fun q => ?_)
-  rcases h : q.2.reg with ⟨i, u, v⟩ | b
-  · have hreg := length_encReg_call i u v
-    have hst := length_encState q.2
-    rw [h, hreg] at hst
-    simp only [Reg.edgeCost, encRound, length_encPair, encBits_apply] at hst ⊢
-    omega
-  · simp only [Reg.edgeCost]
-    omega
-
-/-- The first state of a round, from the mode, the radix and the input length, within a
-budget. -/
-private theorem initRound_budget {mode : α → Bool} {B n : α → ℕ}
-    (hmode : ComputableInSpace mode enc encBool S) (hB : ComputableInSpace B enc encNat S)
-    (hn : ComputableInSpace n enc encNat S) :
-    ComputableInSpace (fun a => initRound ntm (mode a) (B a) (n a)) enc
-      (encRound encEdgeParams) S := by
-  have hN := vertexBound_budget (k := k) hB
-  have hW₀ := budget_comp_linear natSizeUnary hN
-  have hW : ComputableInSpace (fun a => vertexWidth k (B a)) enc encUnary S :=
-    hW₀.of_enc_eq fun _ => rfl
-  have hstart := startID_budget ntm hB
-  have hpow₀ : ComputableInSpace (fun W : ℕ => 2 ^ W) encUnary encNat
-      fun W => (encUnary W).length := by
-    simpa only [encUnary_apply, List.length_replicate] using
-      of_inO (ComputableInDegree.two_pow_length encUnary).inO_one
-  have hpow := budget_comp_linear hpow₀ hW
-  have hbits : ComputableInSpace
-      (fun a => (startID ntm (B a) + 2 ^ vertexWidth k (B a)).bits) enc encBits S :=
-    (budget_natAdd hstart hpow).of_enc_eq fun _ => rfl
-  have hsrc := budget_comp_linear (of_inO ComputableInDegree.bitsDropLast.inO_one) hbits
-  have hsink : ComputableInSpace (fun a => List.replicate (vertexWidth k (B a)) true) enc
-      encBits S := hW.of_enc_eq fun _ => rfl
-  have hcall := budget_optionSome (budget_prod hW (budget_prod hsrc hsink))
-  have hstate : ComputableInSpace (fun a => (initRound ntm (mode a) (B a) (n a)).2) enc encState
-      S :=
-    (budget_prod (budget_const (encB := encList encFrame) [])
-      (budget_prod hcall (budget_const (encB := encBool) false))).of_enc_eq fun _ => rfl
-  have hparams := encEdgeParams_mk_budget hmode hB hn
-    (budget_const (encB := encOption encBool) none)
-  exact (budget_prod (budget_prod hparams hW) hstate).of_enc_eq fun _ => rfl
-
-/-- The first radix, within a budget. -/
-private theorem startRadix_budget {n : α → ℕ} (hn : ComputableInSpace n enc encNat S) :
-    ComputableInSpace (fun a => startRadix State (n a)) enc encNat S :=
-  budget_natMul (budget_natAdd hn (budget_const 2)) (budget_const _)
-
-attribute [local fun_prop] initRound_budget startRadix_budget
-
-/-- A step of the machine, in space linear in the state and the bit read. -/
-theorem next_inSpace : ComputableInSpace (next ntm)
-    (encPair encRuntime (encOption encBool)) encRuntime
-    fun p => (encPair encRuntime (encOption encBool) p).length := by
-  have hstep := roundStep_inSpace ntm
-  have hrestart := restarts_inSpace
-  have hconvert : ComputableInSpace SimulationRound.ofRound (encRound encEdgeParams)
-      encSimulationRound (fun q => (encRound encEdgeParams q).length) :=
-    of_inO (ComputableInO.of_eq fun _ => rfl)
-  space [next]
-
-end Parts
-
 end Turing.MultiTapeNTM.SquareSavitch
 
 namespace Turing.MultiTapeNTM
 
-open MultiTapeTM ConfigurationGraph SquareSavitch
+open MultiTapeTM ConfigurationGraph SquareSavitch ComputableInSpace
 
 /-- **Savitch's theorem** [Savitch1970], for general space bounds. No constructibility is assumed:
 the machine tries growing bounds, as in Sipser's proof of Theorem 8.5 [Sipser2013]. A
 problem recognized by a nondeterministic machine whose computation paths on `enc a` visit at most
 `S a` work cells, and whose branches need not halt, is decided by a deterministic machine within
-space `O((S a + log₂ |enc a| + 1) ^ 2)`: Savitch's midpoint recursion on the compact configuration
-graphs of the machine of growing radix (`Turing.MultiTapeNTM.SquareSavitch.machine`). -/
+space `O((S a + log₂ |enc a| + 1) ^ 2)`: a search over the radices of the compact configuration
+graph of the machine (`Turing.MultiTapeNTM.SquareSavitch.search`), whose rounds run Savitch's
+midpoint recursion on a chain of frames (`Turing.MultiTapeNTM.SquareSavitch.sinkReach_inSpace`). -/
 theorem exists_decidableInTimeAndSpace_sq {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {k : ℕ} {State : Type} [Finite State] {ntm : MultiTapeNTM k Bool State} {S : α → ℕ}
     (hA : ntm.RecognizesInSpace enc A S) :
@@ -994,25 +409,90 @@ theorem exists_decidableInTimeAndSpace_sq {α : Type} {enc : α ↪ List Bool} {
       fun a => c * (S a + Nat.log2 (enc a).length + 1) ^ 2 := by
   classical
   let : Fintype State := Fintype.ofFinite State
-  have hex (a : α) : ∃ t, (machine ntm).halted ((machine ntm).run (enc a) t) = true :=
-    exists_halted (enc a) (hA a).1
-  have hhalt (a : α) := Nat.find_spec (hex a)
-  have hpre (a : α) : ∀ t < Nat.find (hex a),
-      (machine ntm).halted ((machine ntm).run (enc a) t) = false := fun t ht =>
-    Bool.eq_false_iff.mpr (Nat.find_min (hex a) ht)
-  have hf (a : α) :
-      encBool (decide (a ∈ A)) = (machine ntm).output (enc a) (Nat.find (hex a)) := by
-    rw [output_eq, encBool_apply, finish]
-    congr 1
-    rw [Bool.eq_iff_iff, answer_iff_of_halted (enc a) (runState_run (enc a) _) (hhalt a),
-      decide_eq_true_iff]
-    exact (hA a).2
-  obtain ⟨t, c, h⟩ := (machine ntm).computableInSpace query_inSpace (next_inSpace ntm)
-    (ComputableInSpace.const []) halted_inSpace finish_inSpace (fun a => Nat.find (hex a))
-    hhalt hpre hf (fun a => (S a + Nat.log2 (enc a).length + 1) ^ 2)
-    (fun a => (show Nat.log2 (enc a).length + 1 ≤ S a + Nat.log2 (enc a).length + 1 by omega).trans
-      (Nat.le_self_pow two_ne_zero _))
-    ⟨sizeConst k State, fun a t _ => length_encRuntime_le (hA a).1 (runState_run (enc a) t)⟩
-  exact ⟨t, c, decidableInTimeAndSpace_iff.mpr ⟨_, h, fun a => by simp⟩⟩
+  -- the first round without reachable overflow
+  have hex (a : α) : ∃ j, ¬ OverflowReachable ntm (roundRadix State (enc a).length j) (enc a) :=
+    ⟨_, not_overflowReachable_of_runsInSpace (hA a).1 le_rfl⟩
+  have hJ (a : α) : Nat.find (hex a) ≤ 4 * S a + 1 :=
+    Nat.find_min' (hex a) (not_overflowReachable_of_runsInSpace (hA a).1 le_rfl)
+  have hB (a : α) (j : ℕ) := card_lt_roundRadix (State := State) (enc a).length j
+  -- the first radix
+  have hinit : ComputableInSpace
+      (fun a => (⟨roundRadix State (enc a).length 0, none⟩ : SearchState)) enc encSearch
+      fun a => Nat.log2 (enc a).length :=
+    (encSearch_mk_budget (budget_natMul (budget_natAdd (inputLength enc) (budget_const 2))
+      (budget_const _)) (budget_const none)).of_enc_eq fun a => by rw [roundRadix_zero]; rfl
+  have hloop := loopWith (step := search ntm enc)
+    (B := fun a => (widthConst k State + 1) * (widthConst k State +
+      2 * (Fintype.card (Option State) + 9) + 6) * (S a + Nat.log2 (enc a).length + 1) ^ 2)
+    (fun a j => if j ≤ Nat.find (hex a) then ⟨roundRadix State (enc a).length j, none⟩
+      else ⟨roundRadix State (enc a).length (Nat.find (hex a)), some (decide (a ∈ A))⟩)
+    (fun a => Nat.find (hex a) + 1) hinit (search_inSpace ntm enc)
+    (fun a => by simp)
+    (fun a j hj => ?_) (fun a => by simp [search]) (fun a j hj => ?_)
+  · obtain ⟨t, c, h, -⟩ := ((budget_optionGetD false (encSearch_answer_budget hloop)).of_enc_eq
+      (encC := encBool) (g := fun a => decide (a ∈ A)) fun a => by simp).weaken
+        (S₁ := fun a => (S a + Nat.log2 (enc a).length + 1) ^ 2)
+        ⟨(widthConst k State + 1) * (widthConst k State +
+          2 * (Fintype.card (Option State) + 9) + 6) + 2, fun a => by
+          have : 1 ≤ (S a + Nat.log2 (enc a).length + 1) ^ 2 := Nat.one_le_pow _ _ (by omega)
+          have : Nat.log2 (enc a).length ≤ (S a + Nat.log2 (enc a).length + 1) ^ 2 :=
+            (show _ ≤ S a + Nat.log2 (enc a).length + 1 by omega).trans
+              (Nat.le_self_pow two_ne_zero _)
+          nlinarith⟩
+    exact ⟨t, 2 * c, decidableInTimeAndSpace_iff.mpr ⟨_, h.mono (fun _ => le_rfl) fun a => by
+      have : 1 ≤ (S a + Nat.log2 (enc a).length + 1) ^ 2 := Nat.one_le_pow _ _ (by omega)
+      nlinarith, fun a => by simp⟩⟩
+  · -- a round maps the registers to the next ones
+    rcases Nat.lt_succ_iff.mp hj |>.lt_or_eq with hlt | rfl
+    · have ho : sinkReach ntm true (roundRadix State (enc a).length j) (enc a) = true :=
+        (sinkReach_true_iff (hB a j)).mpr (not_not.mp (Nat.find_min (hex a) hlt))
+      simp only [hlt.le, ↓reduceIte, Nat.succ_le_of_lt hlt, search, Option.isSome_none,
+        Bool.false_eq_true, ho, roundRadix_succ]
+    · have hno := Nat.find_spec (hex a)
+      have ho : sinkReach ntm true (roundRadix State (enc a).length (Nat.find (hex a))) (enc a) =
+          false := Bool.eq_false_iff.mpr fun h => hno ((sinkReach_true_iff (hB a _)).mp h)
+      have hacc : sinkReach ntm false (roundRadix State (enc a).length (Nat.find (hex a)))
+          (enc a) = decide (a ∈ A) := by
+        rw [Bool.eq_iff_iff, sinkReach_false_iff (hB a _) hno, decide_eq_true_iff]
+        exact (hA a).2.symm
+      simp only [le_refl, ↓reduceIte, search, Option.isSome_none, Bool.false_eq_true,
+        ho, hacc, Nat.not_succ_le_self]
+  · -- the budget of a round on the registers of the run
+    obtain ⟨j', hj', o, hr⟩ : ∃ j' ≤ Nat.find (hex a), ∃ o : Option Bool,
+        (if j ≤ Nat.find (hex a) then (⟨roundRadix State (enc a).length j, none⟩ : SearchState)
+          else ⟨roundRadix State (enc a).length (Nat.find (hex a)), some (decide (a ∈ A))⟩) =
+          ⟨roundRadix State (enc a).length j', o⟩ := by
+      split_ifs with h
+      · exact ⟨j, h, none, rfl⟩
+      · exact ⟨_, le_rfl, _, rfl⟩
+    rw [hr]
+    have hj'S := hj'.trans (hJ a)
+    have hW := vertexWidth_roundRadix_le k State (enc a).length j'
+    have hBl : (encNat (roundRadix State (enc a).length j')).length ≤
+        2 * j' + Nat.log2 (enc a).length + Fintype.card (Option State) + 5 := by
+      rw [length_encNat_eq_size, Nat.size_le]
+      exact (roundRadix_le_two_pow (State := State) (enc a).length j').trans_lt
+        (Nat.pow_lt_pow_right (by norm_num) (by omega))
+    have ho : (encOption encBool o).length ≤ 2 := by rcases o with _ | b <;> simp
+    simp only [roundBudget, encSearch_apply, encSearchFields, length_encPair]
+    unfold widthConst
+    generalize Fintype.card (Register k) = R at *
+    generalize Fintype.card (Option State) = q at *
+    generalize vertexWidth k (roundRadix State (enc a).length j') = W at *
+    generalize (encNat (roundRadix State (enc a).length j')).length = Bl at *
+    generalize (encOption encBool o).length = ol at *
+    generalize hL : S a + Nat.log2 (enc a).length + 1 = L
+    have hL1 : 1 ≤ L := by omega
+    have hW' : W ≤ (R * (q + 8) + 1) * L := by
+      have : 2 * j' + Nat.log2 (enc a).length + q + 4 ≤ (q + 8) * L := by nlinarith
+      nlinarith
+    have hBl' : Bl ≤ (q + 9) * L := by nlinarith
+    generalize R * (q + 8) + 1 = Wc at *
+    generalize Nat.log2 (enc a).length = ℓ at *
+    have h₁ : W + 1 ≤ (Wc + 1) * L := by nlinarith
+    have h₂ : W + (2 * Bl + 1 + ol) + ℓ + 1 ≤ (Wc + 2 * (q + 9) + 6) * L := by nlinarith
+    calc (W + 1) * (W + (2 * Bl + 1 + ol) + ℓ + 1)
+        ≤ (Wc + 1) * L * ((Wc + 2 * (q + 9) + 6) * L) := Nat.mul_le_mul h₁ h₂
+      _ = (Wc + 1) * (Wc + 2 * (q + 9) + 6) * L ^ 2 := by ring
 
 end Turing.MultiTapeNTM

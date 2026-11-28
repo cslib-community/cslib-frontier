@@ -9,20 +9,19 @@ module
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Savitch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Savitch
 
 /-!
 # Tests: Savitch's theorem
 
-Words of a fixed width and the start word written as `(x + 2 ^ W).bits.dropLast`; the counting
-phase of the query machine and its first overflow round; the two recursions, reporting no overflow
-and deciding acceptance, for a machine without work tapes that accepts every input, so that the
-hypotheses of the machine-level theorem are satisfiable; the general inclusion
-`NSPACE(s) ⊆ DSPACE(s²)` at linear and sublinear bounds; and the class inclusions
-`NL ⊆ DSPACE(log² n)` and `RL ⊆ DSPACE(log² n)` on concrete problems. A nontrivial first-bit
-language checks the RL bridge and the quadratic-space conclusion on accepting, rejecting and empty
-inputs.
+Words of a fixed width; the edge test, the recursion of a round and a round of the search over
+the radices as certified functions of stored registers and the input;
+the two recursions, reporting no overflow and deciding acceptance, for a machine without work
+tapes that accepts every input, so that the hypotheses of the machine-level theorem are
+satisfiable; the general inclusion `NSPACE(s) ⊆ DSPACE(s²)` at linear and sublinear bounds; and
+the class inclusions `NL ⊆ DSPACE(log² n)` and `RL ⊆ DSPACE(log² n)` on concrete problems. A
+nontrivial first-bit language checks the RL bridge and the quadratic-space conclusion on
+accepting, rejecting and empty inputs.
 -/
 
 -- This module contains only checked clients.
@@ -37,7 +36,6 @@ open Cslib.BitString (lowBits)
 /-! ### Words of a fixed width -/
 
 example : lowBits 4 5 = [true, false, true, false] := by decide
-example : (5 + 2 ^ 4).bits.dropLast = lowBits 4 5 := by decide
 example : ofBits (lowBits 6 37) = 37 := by decide
 example : (lowBits 3 0, lowBits 0 0) = ([false, false, false], []) := by decide
 
@@ -56,15 +54,25 @@ private theorem accepts_acceptMachine (w : List Bool) : acceptMachine.Accepts w 
   refine ⟨⟨(RelSeries.singleton _ _).cons (acceptMachine.initCfg w) hstep, rfl⟩, ?_, ?_⟩ <;>
     simp [acceptAction]
 
--- While counting, the query machine holds the number of input bits read, and at the end of the
--- input it starts the first overflow round, at the start radix.
-example : (machine acceptMachine).run [true, false, true] 2 = ⟨2, false, .ofRound idle⟩ :=
-  run_of_le _ (by decide)
+/-- The edge test of a round is a certified function of two stored words, the stored radix and the
+input, within the stored words and the logarithm of the length of the input. -/
+example (mode : Bool) : ComputableInSpace
+    (fun q : ((List Bool × List Bool) × SearchState) × List Bool =>
+      inputEdge acceptMachine mode q.1.2.radix q.2 q.1.1.1 q.1.1.2)
+    (encPair encEdgeRegisters encBits) encBool
+    fun q => (encEdgeRegisters q.1).length + Nat.log2 (encBits q.2).length :=
+  inputEdge_inSpace acceptMachine encBits mode
 
-example :
-    (machine acceptMachine).run [true, false] 3 =
-      ⟨2, true, .ofRound (initRound acceptMachine true (startRadix Unit 2) 2)⟩ :=
-  run_length_succ [true, false]
+/-- The recursion of a round, from the stored radix and the input. -/
+example (mode : Bool) : ComputableInSpace
+    (fun p : SearchState × List Bool => sinkReach acceptMachine mode p.1.radix p.2)
+    (encPair encSearch encBits) encBool (roundBudget (k := 0) encBits) :=
+  sinkReach_inSpace acceptMachine encBits mode
+
+/-- A round of the search over the radices, within the budget of a round. -/
+example : ComputableInSpace (search acceptMachine encBits) (encPair encSearch encBits)
+    (encOption encSearch) (roundBudget (k := 0) encBits) :=
+  search_inSpace acceptMachine encBits
 
 /-- A machine within space `0` has no reachable overflow from round `1` on, so the overflow
 recursion reports none. -/
@@ -135,38 +143,9 @@ example : ∃ c₁ c₂ t, DecidableInTimeAndSpace startsTrue encBits t
     fun w => c₁ * Nat.log2 (encBits w).length ^ 2 + c₂ :=
   mem_DSPACE_iff.mp (RL_subset_DSPACE_log2_sq startsTrue_mem_RL)
 
-/-! ### Named runtime fields preserve the encoded words -/
+/-! ### Named registers keep the encoded words -/
 
-private abbrev encParamTuple : Bool × ℕ × ℕ × Option Bool ↪ List Bool :=
-  encPair encBool (encPair encNat (encPair encNat (encOption encBool)))
-
-example (s : Runtime) : encRuntime s =
-    encPair encNat (encPair encBool (Cslib.Reachability.Savitch.encRound encParamTuple))
-      (s.counter, s.started,
-        (((s.round.setup.params.overflowMode, s.round.setup.params.radix,
-          s.round.setup.params.inputLength, s.round.setup.params.symbol), s.round.setup.width),
-          s.round.recursion)) := rfl
-
-example (p : EdgeParams) :
-    encEdgeParams p = encParamTuple (p.overflowMode, p.radix, p.inputLength, p.symbol) := rfl
-
-example (q : (EdgeParams × ℕ) × Cslib.Reachability.Savitch.State) :
-    encSimulationRound (.ofRound q) = Cslib.Reachability.Savitch.encRound encEdgeParams q := rfl
-
-example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {s : α → Runtime}
-    (hs : ComputableInSpace s enc encRuntime S) :
-    ComputableInSpace (fun a => (s a).round.setup.params.radix) enc encNat S :=
-  encEdgeParams_radix_budget (encRoundSetup_params_budget
-    (encSimulationRound_setup_budget (encRuntime_round_budget hs)))
-
-example : halted ⟨0, false, ⟨⟨⟨false, 0, 0, none⟩, 0⟩, ⟨[], .ret true⟩⟩⟩ = false := rfl
-example : halted ⟨0, true, ⟨⟨⟨false, 0, 0, none⟩, 0⟩, ⟨[], .ret true⟩⟩⟩ = true := rfl
--- A returned overflow round does not halt: the machine restarts with the next radix.
-example : halted ⟨0, true, ⟨⟨⟨true, 0, 0, none⟩, 0⟩, ⟨[], .ret false⟩⟩⟩ = false := rfl
-example : restarts ⟨0, true, ⟨⟨⟨true, 0, 0, none⟩, 0⟩, ⟨[], .ret false⟩⟩⟩ = true := rfl
-example : finish ⟨0, true, ⟨⟨⟨false, 0, 0, none⟩, 0⟩, ⟨[], .ret false⟩⟩⟩ = [false] := rfl
-
-example : ComputableInSpace Nat.size encNat encUnary fun n => (encNat n).length :=
-  ComputableInSpace.natSizeUnary
+example (s : SearchState) :
+    encSearch s = encPair encNat (encOption encBool) (s.radix, s.answer) := rfl
 
 end CslibFrontierTests.LogSpaceSavitch
