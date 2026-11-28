@@ -34,12 +34,12 @@ private meta def input (keys order : List ℕ) : State model layout :=
     (List.range keys.length).map fun i =>
       ⟨fun _ => (order.dropWhile (· != i)).tail.head?, fun _ => keys[i]?.getD 0⟩⟩
 
-private meta def execute : ℕ → State model layout → Option (State model layout)
+private meta def execute : ℕ → State model layout → Option (State model layout × ℕ)
   | 0, _ => none
   | fuel + 1, x =>
     match step program x with
-    | some y => execute fuel y
-    | none => if x.pc == (code (M := model) ()).size then some x else none
+    | some y => (execute fuel y).map fun (z, steps) => (z, steps + 1)
+    | none => if x.pc == (code (M := model) ()).size then some (x, 0) else none
 
 -- Read exactly the expected number of nodes and require a null terminator.
 private meta def readList (heap : List (Record model layout)) :
@@ -54,7 +54,7 @@ private meta def readList (heap : List (Record model layout)) :
 private meta def checksSort (keys order : List ℕ) : Bool :=
   match execute (100 * (order.length + 1) ^ 2) (input keys order) with
   | none => false
-  | some y =>
+  | some (y, _) =>
     y.heap.map (fun node => node.data 0) == keys &&
       readList y.heap order.length (y.ptr head) ==
         some (order.mergeSort fun i j => keys[i]?.getD 0 ≤ keys[j]?.getD 0)
@@ -70,5 +70,13 @@ private meta def ternaryLists : ℕ → List (List ℕ)
 
 #guard (List.range 7).all fun n =>
   (ternaryLists n).all fun keys => checksSort keys (List.range n)
+
+-- A final suffix is attached whole, including when the entire input is one run.
+private meta def countSteps (keys : List ℕ) : Option ℕ :=
+  (execute (100 * (keys.length + 1) ^ 2) (input keys (List.range keys.length))).map Prod.snd
+
+#guard countSteps (List.range 32) == some 303
+#guard countSteps (List.range 32).reverse == some 3439
+#guard countSteps ((List.range 128).map fun i => (47 * i + 11) % 17) == some 21505
 
 end CslibFrontierTests.PointerMachineMergeSort

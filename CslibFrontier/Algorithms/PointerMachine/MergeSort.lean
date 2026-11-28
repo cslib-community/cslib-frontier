@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.PointerMachine.Assemble
 
 The input is a null-terminated singly linked list with one key per record. Each pass
 cuts consecutive nondecreasing runs and merges adjacent pairs by relinking their nodes.
+When one run is exhausted, the remaining suffix is spliced in one operation on the output link.
 Ties go to the earlier run. The program stops after a pass finds only one run, and
 returns the head in the original register. It uses no allocation or scalar arithmetic.
 
@@ -31,7 +32,7 @@ namespace Cslib.Algorithms.PointerMachine.MergeSort
 open Cslib.PointerMachine
 
 /-- Pointer registers, two key registers, and one successor and key field per record. -/
-@[expose, reducible] def layout : Layout := ⟨10, 2, 1, 1⟩
+@[expose, reducible] def layout : Layout := ⟨12, 2, 1, 1⟩
 
 /-- The list head at entry and after sorting. -/
 abbrev head : Fin layout.ptrRegs := 0
@@ -45,6 +46,8 @@ private abbrev tail : Fin layout.ptrRegs := 6
 private abbrev last : Fin layout.ptrRegs := 7
 private abbrev probe : Fin layout.ptrRegs := 8
 private abbrev merged : Fin layout.ptrRegs := 9
+private abbrev leftLast : Fin layout.ptrRegs := 10
+private abbrev rightLast : Fin layout.ptrRegs := 11
 
 variable {M : Model}
 
@@ -61,39 +64,41 @@ private def readNext (dst src : Fin layout.ptrRegs) : Code M layout :=
 private def writeNext (dst src : Fin layout.ptrRegs) : Code M layout :=
   .op (.storePtr 0 dst src)
 
--- Isolate the run starting at pending and leave pending at the first node after it.
-private def cutRun (lt : M.Test) : Code M layout :=
-  move last pending ▷ readNext pending last ▷ move probe pending ▷
+-- Isolate the run starting at pending, saving its tail and advancing pending past it.
+private def cutRun (lt : M.Test) (runTail : Fin layout.ptrRegs) : Code M layout :=
+  move runTail pending ▷ readNext pending runTail ▷ move probe pending ▷
   .loopUntil (.ptrEq probe nil)
-    (.op (.loadData 0 0 probe) ▷ .op (.loadData 1 0 last) ▷
+    (.op (.loadData 0 0 probe) ▷ .op (.loadData 1 0 runTail) ▷
       .branch (.data lt 0 1)
         (clear probe)
-        (move last probe ▷ readNext pending last ▷ move probe pending)) ▷
-  writeNext last nil
+        (move runTail probe ▷ readNext pending runTail ▷ move probe pending)) ▷
+  writeNext runTail nil
+
+private def appendRun (first final : Fin layout.ptrRegs) : Code M layout :=
+  .branch (.ptrEq tail nil) (move result first) (writeNext tail first) ▷ move tail final
 
 -- Save the successor before attaching the chosen node to the output.
 private def emit (src : Fin layout.ptrRegs) : Code M layout :=
-  move last src ▷ readNext src src ▷
-  .branch (.ptrEq tail nil) (move result last) (writeNext tail last) ▷
-  move tail last
+  move last src ▷ readNext src src ▷ appendRun last last
 
 private def mergeRuns (lt : M.Test) : Code M layout :=
   .loopUntil (.ptrEq left nil)
     (.branch (.ptrEq right nil)
-      (emit left)
+      (appendRun left leftLast ▷ clear left)
       (.op (.loadData 0 0 right) ▷ .op (.loadData 1 0 left) ▷
         .branch (.data lt 0 1) (emit right) (emit left))) ▷
-  .loopUntil (.ptrEq right nil) (emit right)
+  .branch (.ptrEq right nil) .skip (appendRun right rightLast)
 
 private def mergePair (lt : M.Test) : Code M layout :=
-  move left pending ▷ cutRun lt ▷ move right pending ▷
-  .branch (.ptrEq right nil) .skip (move merged right ▷ cutRun lt) ▷
-  mergeRuns lt
+  move left pending ▷ cutRun lt leftLast ▷ move right pending ▷
+  .branch (.ptrEq right nil)
+    (appendRun left leftLast)
+    (move merged right ▷ cutRun lt rightLast ▷ mergeRuns lt)
 
 private def mergePass (lt : M.Test) : Code M layout :=
   move pending head ▷ clear result ▷ clear tail ▷ clear merged ▷
   .loopUntil (.ptrEq pending nil) (mergePair lt) ▷
-  writeNext tail nil ▷ move head result
+  move head result
 
 /-- Stably sort a singly linked list in place. The predicate `lt` tests strict key order. -/
 def code (lt : M.Test) : Code M layout :=
@@ -115,7 +120,7 @@ theorem heap_length_eq {lt : M.Test} {x y : State M layout} {t : ℕ}
   | storePtr _ base _ | storeData _ base _ =>
     cases hp : a.ptr base <;> simp [Op.effect, Op.instr, Instr.effect, State.modify, hp]
   | create =>
-    simp [code, mergePass, mergePair, mergeRuns, emit, cutRun, clear, move,
+    simp [code, mergePass, mergePair, mergeRuns, emit, appendRun, cutRun, clear, move,
       readNext, writeNext] at ho
   | _ => rfl
 
