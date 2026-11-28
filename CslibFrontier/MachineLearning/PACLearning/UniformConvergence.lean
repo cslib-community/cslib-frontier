@@ -93,8 +93,7 @@ theorem measure_pi_le_abs_card_filter_div_sub_measure (μ : Measure Z) [IsProbab
   have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hcount (S : Fin m → Z) :
       ((Finset.univ.filter fun i => g (S i) = true).card : ℝ) = ∑ i, score i (g (S i)) := by
-    simp only [score, Finset.card_filter, Nat.cast_sum, apply_ite Nat.cast, Nat.cast_one,
-      Nat.cast_zero]
+    simp only [score, ← Finset.sum_boole]
   have hmean : ∑ i : Fin m, ∑ a, (q a).toReal * score i a = m * (μ {z | g z = true}).toReal := by
     simp only [score, Fintype.sum_bool, ↓reduceIte, Bool.false_eq_true, mul_one, mul_zero,
       add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, q,

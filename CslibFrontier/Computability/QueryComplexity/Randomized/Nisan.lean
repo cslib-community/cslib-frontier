@@ -137,11 +137,11 @@ theorem Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost (h : μ.Com
         (t.card_queries_le_cost x)
     have hmiss : (#(F.filter fun B => Disjoint B Q) : ℝ) ≤
         ∑ B ∈ F, (e t x + e t (flipBlock B x)) := by
-      rw [card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
-      refine (sum_le_sum fun B hB => one_le_err_add_err (hF.1 B (mem_filter.1 hB).1)
-        (mem_filter.1 hB).2).trans ?_
-      exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun B _ _ =>
-        add_nonneg (he t x) (he t _)
+      rw [← Finset.sum_boole]
+      refine sum_le_sum fun B hB => ?_
+      split_ifs with hBQ
+      · exact one_le_err_add_err (hF.1 B hB) hBQ
+      · exact add_nonneg (he t x) (he t _)
     have hsplit : (#F : ℝ) = #(F.filter fun B => Disjoint B Q) +
         #(F.filter fun B => ¬Disjoint B Q) := by
       exact_mod_cast (card_filter_add_card_filter_not (s := F) fun B => Disjoint B Q).symm

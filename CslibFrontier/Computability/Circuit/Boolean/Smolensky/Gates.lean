@@ -124,8 +124,7 @@ end Approximators
 /-- A sum of bits is their count. -/
 private theorem sum_bitVal (S : Finset (Fin m)) (u : Fin m → Bool) :
     ∑ i ∈ S, bitVal R (u i) = (#(S.filter fun i => u i = true) : R) := by
-  rw [Finset.card_filter, Nat.cast_sum]
-  exact Finset.sum_congr rfl fun i _ => by cases u i <;> simp [bitVal]
+  simp only [bitVal, ← Finset.sum_boole]
 
 /-- If some coordinate is true, at most half of the sets have a sum of bits equal to zero. -/
 private theorem two_mul_card_sum_eq_zero_le [Nontrivial R] [DecidableEq R] (u : Fin m → Bool)

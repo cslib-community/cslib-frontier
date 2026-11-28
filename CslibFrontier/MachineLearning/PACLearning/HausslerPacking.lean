@@ -91,6 +91,12 @@ noncomputable def hypercubeEdgeMinSum [DecidableEq ι] [Fintype ι] (μ : (ι �
   ∑ i : ι, ∑ f : ι → Bool,
     if f i = false then min (μ f) (μ (Function.update f i true)) else 0
 
+/-- The edge-minimum sum counts each edge at its endpoint with coordinate `i` equal to `false`. -/
+theorem hypercubeEdgeMinSum_eq_sum [DecidableEq ι] [Fintype ι] (μ : (ι → Bool) → ℝ) :
+    hypercubeEdgeMinSum μ = ∑ i : ι, ∑ f : ι → Bool,
+      if f i = false then min (μ f) (μ (Function.update f i true)) else 0 := by
+  rw [hypercubeEdgeMinSum]
+
 private theorem min_add_min_le_min_max_add_min_min (a₀ a₁ b₀ b₁ : ℝ) :
     min a₀ b₀ + min a₁ b₁ ≤ min (max a₀ a₁) (max b₀ b₁) + min (min a₀ a₁) (min b₀ b₁) := by
   rcases le_total a₀ a₁ with ha | ha <;> rcases le_total b₀ b₁ with hb | hb
@@ -114,24 +120,6 @@ private theorem sum_fin_succ_bool {n : ℕ} (Φ : (Fin (n + 1) → Bool) → ℝ
     Fintype.sum_bool]
   simp only [Fin.consEquiv_apply, sum_add_distrib]
   exact add_comm _ _
-
-private theorem setShatters_tail_image {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters (Fin.tail '' S) W) : SetShatters S (Fin.succ '' W) := by
-  intro T hT
-  obtain ⟨_, ⟨c, hc, rfl⟩, hcT⟩ := hW (Fin.succ ⁻¹' T) fun i hi => by
-    obtain ⟨j, hj, hji⟩ := hT hi
-    rwa [Fin.succ_inj.mp hji] at hj
-  refine ⟨c, hc, Set.ext fun x => ?_⟩
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-  constructor
-  · rintro ⟨hcx, i, hiW, rfl⟩
-    have hmem : i ∈ Fin.tail c ⁻¹' {true} ∩ W := ⟨hcx, hiW⟩
-    rw [hcT] at hmem
-    exact hmem
-  · intro hxT
-    obtain ⟨i, hiW, rfl⟩ := hT hxT
-    have hmem : i ∈ Fin.tail c ⁻¹' {true} ∩ W := hcT ▸ hxT
-    exact ⟨hmem.1, i, hiW, rfl⟩
 
 private theorem setShatters_cons_both {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
     (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} W) :
@@ -186,11 +174,8 @@ private theorem sum_min_update_fin_le :
         ∑ g : Fin n → Bool, μ_min g := by
       rw [sum_fin_succ_bool]
       refine sum_congr rfl fun g _ => ?_
-      have hupd : Function.update (Fin.cons false g : Fin (n + 1) → Bool) 0 true =
-          Fin.cons true g := by
-        ext k
-        rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨j, rfl⟩ <;> simp
-      simp only [Fin.cons_zero, ↓reduceIte, Bool.true_eq_false, add_zero, hupd, μ_min]
+      simp only [Fin.cons_zero, Fin.update_cons_zero, ↓reduceIte, Bool.true_eq_false, add_zero,
+        μ_min]
     have hedges_succ : (∑ j : Fin n, ∑ f : Fin (n + 1) → Bool,
         if f j.succ = false then min (μ f) (μ (Function.update f j.succ true)) else 0) ≤
         hypercubeEdgeMinSum μ_max + hypercubeEdgeMinSum μ_min := by
@@ -199,15 +184,7 @@ private theorem sum_min_update_fin_le :
       refine sum_le_sum fun j _ => ?_
       rw [sum_fin_succ_bool, ← sum_add_distrib]
       refine sum_le_sum fun g _ => ?_
-      have hupd_b : ∀ b : Bool, Function.update (Fin.cons b g : Fin (n + 1) → Bool) j.succ true =
-          Fin.cons b (Function.update g j true) := fun b => by
-        ext k
-        rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨k', rfl⟩
-        · simp [(Fin.succ_ne_zero j).symm]
-        · by_cases hkj : k' = j
-          · subst hkj; simp
-          · simp [hkj]
-      simp only [Fin.cons_succ, hupd_b false, hupd_b true]
+      simp only [Fin.cons_succ, ← Fin.cons_update]
       by_cases hgj : g j = false
       · simp only [hgj, ↓reduceIte, μ_max, μ_min]
         exact min_add_min_le_min_max_add_min_min _ _ _ _
@@ -230,7 +207,7 @@ private theorem sum_min_update_fin_le :
         · exact ⟨Fin.cons true g, hg1, by simp [Fin.tail_cons]⟩
       have hsh' : SetShatters {f : Fin (n + 1) → Bool | 0 < μ f} ↑(W.map (Fin.succEmb n)) := by
         rw [coe_map]
-        exact setShatters_tail_image (hW.superset hsub)
+        exact SetShatters.image_of_comp (hW.superset hsub)
       simpa only [card_map] using hsh _ hsh'
     have hsh_min : ∀ W : Finset (Fin n),
         SetShatters {g : Fin n → Bool | 0 < μ_min g} ↑W → W.card + 1 ≤ d := by
@@ -477,11 +454,7 @@ private theorem sum_coordHarmonic_zero_ge {m r : ℕ} (P : Finset (Fin m → Boo
           (fiberCount P (Fin.cons i s) (Fin.cons false w) +
             fiberCount P (Fin.cons i s) (Fin.cons true w)) := by
       intro w
-      have hupd : Function.update (Fin.cons false w : Fin (r + 1) → Bool) 0 true =
-          Fin.cons true w := by
-        ext k
-        rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨j, rfl⟩ <;> simp
-      simp only [Fin.cons_zero, ↓reduceIte, Bool.true_eq_false, add_zero, hupd]
+      simp only [Fin.cons_zero, Fin.update_cons_zero, ↓reduceIte, Bool.true_eq_false, add_zero]
     simp_rw [hterm]
     refine sum_le_univ_sum_of_nonneg fun w => ?_
     unfold fiberCount

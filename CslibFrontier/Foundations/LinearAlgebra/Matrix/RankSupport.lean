@@ -95,8 +95,7 @@ theorem card_nonzero_entries_le_rank_mul_mul (M : Matrix m n K) (d e : ℕ)
     #{p : m × n | M p.1 p.2 ≠ 0} ≤ M.rank * d * e := by
   classical
   have hcount : #{p : m × n | M p.1 p.2 ≠ 0} = ∑ j, #{i | M i j ≠ 0} := by
-    simp only [card_filter, ← univ_product_univ, sum_product]
-    exact sum_comm
+    simp only [card_filter, Fintype.sum_prod_type_right]
   calc
     #{p : m × n | M p.1 p.2 ≠ 0} = ∑ j, #{i | M i j ≠ 0} := hcount
     _ ≤ ∑ j : n, if ∃ i, M i j ≠ 0 then e else 0 := by

@@ -258,7 +258,7 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   set A : ℤ := ∑ i, (a i : ℤ)
   have hA : (#L : ℤ) * ((n : ℤ) - e) ≤ A := by
     have hswap : A = ∑ x ∈ L, (#({i | x i = w i} : Finset ι) : ℤ) := by
-      simpa only [A, a, card_filter, Nat.cast_sum] using (sum_comm : ∑ i : ι, ∑ x ∈ L, _ = _)
+      simpa only [A, a, ← Finset.sum_boole] using (sum_comm : ∑ i : ι, ∑ x ∈ L, _ = _)
     rw [hswap, ← nsmul_eq_mul]
     exact card_nsmul_le_sum _ _ _ fun x hx => by
       have := le_card_filter_eq_of_hammingDist_le (mem_filter.1 hx).2

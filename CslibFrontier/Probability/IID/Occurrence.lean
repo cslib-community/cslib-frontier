@@ -100,8 +100,7 @@ omit [Fintype α] in
 /-- The occurrence count is a sum of indicators. -/
 theorem occurrenceCount_eq_sum {k : ℕ} (x : Fin k → α) (b : α) :
     (occurrenceCount x b : ℝ) = ∑ i, if x i = b then 1 else 0 := by
-  simp only [occurrenceCount, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-    Nat.cast_zero]
+  simp only [occurrenceCount, ← Finset.sum_boole]
 
 omit [Fintype α] in
 /-- Prepending a sample adds its indicator to the occurrence count. -/

@@ -232,14 +232,13 @@ private theorem roundGrid_disagree_le_of_le {w : ℝ} (hw : 0 < w) {N : ℕ} [Ne
   have hcard : ((Finset.univ.filter
       (· ∈ {i : Fin N | roundGrid w N i x₁ ≠ roundGrid w N i x₂})).card : ℤ) ≤
       ⌊(N : ℝ) * (x₂ / w)⌋ - ⌊(N : ℝ) * (x₁ / w)⌋ := by
-    rw [Finset.card_filter, Nat.cast_sum]
+    rw [← Finset.sum_boole]
     refine (Finset.sum_le_sum (g := fun i => roundGridBin w N i x₂ - roundGridBin w N i x₁)
       fun i _ => ?_).trans_eq ?_
     · simp only [Set.mem_ofPred_eq, ne_eq, roundGrid_eq_iff_bin_eq hw]
       split_ifs with hne
-      · exact_mod_cast sub_nonneg.mpr (hbin i)
+      · exact sub_nonneg.mpr (hbin i)
       · have := lt_of_le_of_ne (hbin i) hne
-        push_cast
         omega
     · simp only [roundGridBin, Finset.sum_sub_distrib]
       rw [Fin.sum_univ_eq_sum_range (fun i : ℕ => ⌊x₂ / w + (i : ℝ) / N⌋) N,

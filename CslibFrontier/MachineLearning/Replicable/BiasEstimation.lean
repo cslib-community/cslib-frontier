@@ -223,10 +223,7 @@ periodic grid rounding of `empiricalBias` (interpreted semantically via `Program
 
 private theorem empiricalBias_eq_empiricalMean {m : ℕ} (S : Fin m → Bool) :
     empiricalBias S = empiricalMean (fun b => if b then (1 : ℝ) else 0) S := by
-  simp only [empiricalBias, empiricalMean, Finset.card_filter, Nat.cast_sum]
-  congr 1
-  refine Finset.sum_congr rfl fun j _ => ?_
-  cases S j <;> simp
+  simp only [empiricalBias, empiricalMean, ← Finset.sum_boole]
 
 private theorem coinBias_eq_distExpectation (D : PMF Bool) :
     coinBias D = distExpectation D (fun b => if b then (1 : ℝ) else 0) := by

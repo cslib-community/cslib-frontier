@@ -123,7 +123,7 @@ theorem dens_filter_apply_mem_and_apply_mem (hh : IsPairwiseIndependentHash h) {
 theorem expect_card_filter_apply_mem [Semifield 𝕜] [CharZero 𝕜]
     (hh : IsPairwiseIndependentHash h) (S : Finset X) (B : Finset Y) :
     𝔼 i, (#{x ∈ S | h i x ∈ B} : 𝕜) = #S * (#B / Fintype.card Y) := by
-  simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+  simp only [← sum_boole]
   rw [expect_sum_comm]
   simp only [hh.expect_boole_apply_mem, sum_const, nsmul_eq_mul]
 

@@ -183,8 +183,7 @@ theorem coeff_matP_mul_matQ {p : ℕ} (hp : p ≠ 0) (a b : Fin n) (r : ℕ) (hr
   -- `(PQ)[a,b]` is the sum over `c` of `x^(w(a,c) mod p + w(b,c) mod p)`, and the coefficient of
   -- `x^r` in each term is 1 or 0.
   simp only [Matrix.mul_apply, matP, matQ, Matrix.of_apply, ← pow_add, map_sum,
-    CyclicIntRing.coeff_x_pow, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-    Nat.cast_zero, eq_add_toNat_emod_iff hp hr]
+    CyclicIntRing.coeff_x_pow, ← Finset.sum_boole, eq_add_toNat_emod_iff hp hr]
 
 /-- Recover the total modular-zero count from the cyclic matrix product by summing, over `(a,b)`,
 the coefficient at the residue of `-wAB a b`.

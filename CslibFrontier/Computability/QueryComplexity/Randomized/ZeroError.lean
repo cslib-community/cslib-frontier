@@ -144,7 +144,7 @@ theorem errorProb_uniformMixture [DecidableEq β] (g : C → DecisionTree ι β)
       (#{c | (g c).eval x ≠ f x} : ℝ) / Fintype.card C := by
   rw [errorProb_eq_sum, uniformMixture, StdSimplex.weights_map,
     Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
-    Finsupp.sum_fintype _ _ fun _ => zero_mul _, card_filter, Nat.cast_sum, sum_div]
+    Finsupp.sum_fintype _ _ fun _ => zero_mul _, ← Finset.sum_boole, sum_div]
   refine sum_congr rfl fun c _ => ?_
   by_cases h : (g c).eval x = f x <;> simp [h, div_eq_inv_mul]
 

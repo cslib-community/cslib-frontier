@@ -226,8 +226,7 @@ theorem two_mul_card_dotProduct_eq_true_add_two_pow :
       2 ^ Fintype.card ι * 2 ^ Fintype.card ι := by
   have hrow : #{q : (ι → Bool) × (ι → Bool) | q.1 ⬝ᵥ q.2 = true} =
       ∑ x : ι → Bool, #{y | x ⬝ᵥ y = true} := by
-    rw [card_filter, Fintype.sum_prod_type]
-    exact sum_congr rfl fun x _ => (card_filter _ _).symm
+    simp only [card_filter, Fintype.sum_prod_type]
   have hsum := sum_congr rfl fun x (_ : x ∈ (univ : Finset (ι → Bool))) =>
     two_mul_card_dotProduct_eq_true_add x
   rw [sum_add_distrib, ← mul_sum, sum_ite_eq', sum_const, card_univ] at hsum

@@ -541,14 +541,14 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
   have hcount : ((univ.filter fun i : Fin m =>
       signVal (S i).2 * normalizedScore S A T (S i).1 ≤ ρ).card : ℝ) *
       exp (-(ρ * totalVote S A T)) ≤ potential exp (lossSeq S A) T := by
-    rw [card_filter, Nat.cast_sum, sum_mul, potential]
+    rw [← sum_boole, sum_mul, potential]
     refine sum_le_sum fun i _ => ?_
     split_ifs with hi
-    · rw [Nat.cast_one, one_mul, weight, ← exp_sum, sum_lossSeq]
+    · rw [one_mul, weight, ← exp_sum, sum_lossSeq]
       rw [normalizedScore_of_not_exists_error_zero S A hz, ← mul_div_assoc, div_le_iff₀ hZ,
         mul_neg, mul_comm] at hi
       exact Real.exp_le_exp.mpr (by linarith)
-    · simpa only [Nat.cast_zero, zero_mul] using (weight_pos (fun _ _ _ => exp_pos _) i).le
+    · simpa only [zero_mul] using (weight_pos (fun _ _ _ => exp_pos _) i).le
   have hfac : exp (ρ * totalVote S A T) *
       ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) =
       ∏ t ∈ range T, 2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *

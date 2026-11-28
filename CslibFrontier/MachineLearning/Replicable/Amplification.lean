@@ -327,8 +327,7 @@ private theorem empFreq_concentrates [DecidableEq α] (q : PMF α) (k : ℕ) [Ne
       2 * Real.exp (-2 * (k : ℝ) * δ ^ 2) := by
   let f : α → ℝ := fun z => if z = y then 1 else 0
   have hfreq (v : Fin k → α) : empFreq k v y = empiricalMean f v := by
-    simp only [empFreq, empiricalMean, f, Finset.card_filter, Nat.cast_sum]
-    congr 1; exact Finset.sum_congr rfl fun j _ => by split_ifs <;> simp
+    simp only [empFreq, empiricalMean, f, ← Finset.sum_boole]
   have hexp : (q y).toReal = distExpectation q f := by
     rw [distExpectation, tsum_eq_single y fun z hz => by simp [f, hz]]
     simp [f]

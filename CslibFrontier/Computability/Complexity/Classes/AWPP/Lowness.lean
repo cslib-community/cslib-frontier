@@ -188,7 +188,7 @@ theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ L
     (fun w : Fin (r a) → Bool => F (a, List.ofFn w)) (fun w => V (a, List.ofFn w)) herror
   have hcount : (∑ w : Fin (r a) → Bool, if V (a, List.ofFn w) then (1 : ℤ) else 0) =
       acceptCount V a (r a) := by
-    simp only [acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+    simp only [acceptCount, ← Finset.sum_boole]
   rw [hcount, mul_comm (E a)] at hbatch
   rw [hL a]
   exact_mod_cast (positive_gap_iff (B := (2 : ℤ) ^ r a)
