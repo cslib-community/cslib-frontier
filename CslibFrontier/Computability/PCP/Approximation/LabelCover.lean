@@ -91,14 +91,9 @@ theorem satisfiable_toGraph_projectionEval_iff (g : Graph (β → γ)) :
     (g.toGraph projectionEval).Satisfiable ↔
       ∃ (ℓ : ℕ → β) (r : ℕ → γ), ∀ d ∈ g.edges, d.constraint (ℓ d.src) = r d.dst := by
   simp only [ConstraintGraph.Satisfiable, ConstraintGraph.Satisfies, Graph.toGraph,
-    projectionEval, decide_eq_true_eq]
-  constructor
-  · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => (σ v).1, fun v => (σ v).2, fun d hd => ?_⟩
-    obtain ⟨i, rfl⟩ := List.get_of_mem hd
-    exact hσ i
-  · rintro ⟨ℓ, r, h⟩
-    exact ⟨fun v => (ℓ v, r v), fun i => h _ (List.get_mem _ _)⟩
+    projectionEval, decide_eq_true_eq, List.mem_iff_get, forall_exists_index]
+  exact ⟨fun ⟨σ, hσ⟩ => ⟨fun v => (σ v).1, fun v => (σ v).2, fun _ i h => h ▸ hσ i⟩,
+    fun ⟨ℓ, r, h⟩ => ⟨fun v => (ℓ v, r v), fun i => h _ i rfl⟩⟩
 
 /-- The gap problem of **Label Cover** with left labels `β` and right labels `γ`, completeness
 `c` and soundness `s`. Each edge goes from a left vertex `src` to a right vertex `dst` and carries

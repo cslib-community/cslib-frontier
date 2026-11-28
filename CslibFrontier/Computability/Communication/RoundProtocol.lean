@@ -186,19 +186,13 @@ output. -/
     (ofProtocol p d h).run x y = p.run x y
   | .output _, _, _, _, _ => rfl
   | .alice _ _ _, 0, h, _, _ => absurd h (Nat.not_succ_le_zero _)
-  | .alice send p₀ p₁, d + 1, h, x, y => by
-    change (cond (send x) (ofProtocol p₁ d _) (ofProtocol p₀ d _)).run x y =
-      cond (send x) (p₁.run x y) (p₀.run x y)
-    cases send x
-    · exact run_ofProtocol p₀ d _ x y
-    · exact run_ofProtocol p₁ d _ x y
+  | .alice send _ _, d + 1, _, x, y => by
+    simp only [ofProtocol, run_alice, Protocol.run]
+    cases send x <;> exact run_ofProtocol _ d _ x y
   | .bob _ _ _, 0, h, _, _ => absurd h (Nat.not_succ_le_zero _)
-  | .bob send p₀ p₁, d + 1, h, x, y => by
-    change (cond (send y) (ofProtocol p₁ d _) (ofProtocol p₀ d _)).run x y =
-      cond (send y) (p₁.run x y) (p₀.run x y)
-    cases send y
-    · exact run_ofProtocol p₀ d _ x y
-    · exact run_ofProtocol p₁ d _ x y
+  | .bob send _ _, d + 1, _, x, y => by
+    simp only [ofProtocol, run_bob, Protocol.run]
+    cases send y <;> exact run_ofProtocol _ d _ x y
 
 /-- A bit protocol and its round protocol solve the same relations. -/
 @[simp] theorem solves_ofProtocol_iff {d : ℕ} {p : Protocol X Y Z} {h : p.depth ≤ d}

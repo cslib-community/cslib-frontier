@@ -26,7 +26,8 @@ connects these cells to finite adjacency, deriving piece coordinates and the pad
 
 * `PreparationSpec.count_eq_card`: the actual output counter is the finite instance cardinality.
 * `PreparationSpec.index_unique`: unique existing finite coordinates for each output record.
-* `PreparationSpec.instance_readback`: exact query slices and matrices at every finite index.
+* `PreparationSpec.instance_readback`: descriptor and matrices for each finite index,
+  with the record bounded by the heap.
 -/
 
 public section
@@ -47,11 +48,9 @@ theorem count_eq_card {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fi
 
 private theorem pieces_pos {n D g : ℕ} (hD : 16 ≤ D) (hDn : D ≤ n) (hg : 1 ≤ g) :
     0 < numPieces n D g := by
-  have hcover : n ≤ numPieces n D g * pieceSize D g :=
-    Nat.le_ceilDiv_mul (pieceSize_pos hD hg)
-  by_contra h
-  have hzero : numPieces n D g = 0 := by omega
-  rw [hzero, Nat.zero_mul] at hcover
+  have hcover : n ≤ numPieces n D g * pieceSize D g := Nat.le_ceilDiv_mul (pieceSize_pos hD hg)
+  refine Nat.pos_of_ne_zero fun h => ?_
+  rw [h, Nat.zero_mul] at hcover
   omega
 
 /-- Every occupied native instance slot has exactly one existing finite class/chunk/piece
@@ -79,11 +78,9 @@ theorem index_unique {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fin
     ((Nat.div_lt_iff_lt_mul hH).mpr hi)
   let out : InstanceIndex p := ⟨rc.1, rc.2.val, i % H⟩
   have hout : out ∈ instanceIndices wAB D g p := by
-    rw [mem_instanceIndices]
-    refine ⟨?_, Nat.mod_lt _ hH⟩
+    refine (mem_instanceIndices wAB out).2 ⟨?_, Nat.mod_lt _ hH⟩
     change rc.2.val < numChunks (residueClass wAB p rc.1) (queryCap n D)
-    rw [numChunks, hCount]
-    exact rc.2.isLt
+    rw [numChunks, hCount]; exact rc.2.isLt
   refine ⟨out, ⟨hout, ?_⟩, ?_⟩
   · change i = (ChunkCatalogue.before C (queryCap n D) rc.1.val + rc.2.val) * H + i % H
     rw [← hrc]
@@ -97,8 +94,7 @@ theorem index_unique {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fin
     have heq : i = (ChunkCatalogue.before C (queryCap n D) other.residue.val + other.chunk) * H +
         other.piece := hother.2
     have hdiv : i / H = ChunkCatalogue.before C (queryCap n D) other.residue.val + other.chunk := by
-      rw [heq, Nat.mul_comm _ H, Nat.mul_add_div hH,
-        Nat.div_eq_of_lt hj, Nat.add_zero]
+      rw [heq]; exact Nat.mul_add_div_of_lt _ hj
     have hmod : i % H = other.piece := by rw [heq, Nat.mul_add_mod_of_lt hj]
     have he : rc' = rc := huniq rc' hdiv
     exact InstanceIndex.ext (congrArg Sigma.fst he) (congrArg (fun q => q.2.val) he) hmod.symm
@@ -106,7 +102,8 @@ theorem index_unique {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fin
 /-- Each existing finite instance is stored at its computed native ordinal. Its six-word
 record contains the exact residue, piece, existing query-chunk pointer/cardinality and both
 matrix pointers. The matrix readback reuses the same entry formulas as `MatrixSpec`, including
-their modular adjacency and zero-padding results. -/
+their modular adjacency and zero-padding results. The whole record ends within the producer's
+heap. -/
 theorem instance_readback {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fin n → ℤ)
     (hp : p ≠ 0) (hAB : ∀ a b, values (Cslib.Matrix.pairIndex (a, b)) = wAB a b)
     (hD : 16 ≤ D) (hDn : D ≤ n) (hg : 1 ≤ g)
@@ -131,7 +128,8 @@ theorem instance_readback {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n �
       (Block.mk A.dst (n * D)).Realizes y.mem
         (fun j => WriteMatrices.entry false A (fun q => R (2 * N + q)) j) ∧
       (Block.mk A'.dst (n * D)).Realizes y.mem
-        (fun j => WriteMatrices.entry true A' (fun q => R (N + q)) j) := by
+        (fun j => WriteMatrices.entry true A' (fun q => R (N + q)) j) ∧
+      base + 6 + 2 * (n * D) ≤ y.regs Instances.heap := by
   let N := n * n
   let R := fun q => (values q % (p : ℤ)).toNat
   let C := fun rho => Nat.count (fun q => R q = rho) N
@@ -148,24 +146,32 @@ theorem instance_readback {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n �
   have hchunk : idx.chunk < C idx.residue.val ⌈/⌉ queryCap n D := by
     simpa only [numChunks, hCount] using hk
   have hord : ord < K := ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hchunk
-  have hbound := Nat.mul_le_mul_right H (Nat.succ_le_of_lt hord)
-  rw [Nat.succ_mul] at hbound
-  have hi : i < K * H := by dsimp only [i]; omega
+  have hi : i < K * H := by
+    dsimp only [i]
+    rw [Nat.mul_comm ord H]
+    exact Nat.mul_add_lt_mul_of_lt_of_lt hord hj
   have hdiv : i / H = ord := by dsimp only [i]; exact Nat.mul_add_div_of_lt ord hj
   have hmod : i % H = idx.piece := by dsimp only [i]; exact Nat.mul_add_mod_of_lt hj
-  obtain ⟨-, -, -, -, -, -, -, -, -, hdesc, hblocks, -⟩ := h
+  obtain ⟨-, -, -, -, -, hheap, -, -, -, hdesc, hblocks, -⟩ := h
   have hd := hdesc idx.residue.val idx.residue.isLt idx.chunk hchunk
   have hresidue : y.mem (desc + 3 * ord) = idx.residue.val := hd.1
   have hquery : y.mem (desc + 3 * ord + 1) =
       5 + 6 * N + p + 2 * idx.residue.val * N + 2 * (idx.chunk * queryCap n D) := hd.2.1
   have hcount : y.mem (desc + 3 * ord + 2) =
       min (queryCap n D) ((residueClass wAB p idx.residue).card - idx.chunk * queryCap n D) := by
-    rw [hCount]
-    exact hd.2.2
+    rw [hCount]; exact hd.2.2
   obtain ⟨hr, hL, hR⟩ := hblocks i hi
   dsimp only at hr hL hR
   rw [hdiv, hmod, hresidue, hquery, hcount] at hr
   rw [hdiv, hmod, hresidue] at hL hR
-  exact ⟨hr, hL, hR⟩
+  refine ⟨hr, hL, hR, ?_⟩
+  let out := desc + 3 * K
+  let stride := 6 + 2 * (n * D)
+  have hend := Nat.mul_le_mul_right stride (Nat.succ_le_of_lt hi)
+  rw [Nat.succ_mul] at hend
+  rw [hheap]
+  change out + i * stride + 6 + 2 * (n * D) ≤ out + K * H * stride
+  rw [Nat.add_assoc (out + i * stride) 6, Nat.add_assoc out (i * stride)]
+  exact Nat.add_le_add_left hend out
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PreparationSpec

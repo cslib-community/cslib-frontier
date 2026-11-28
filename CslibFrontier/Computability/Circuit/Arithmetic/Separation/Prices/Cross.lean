@@ -1,0 +1,149 @@
+/-
+Copyright (c) 2026 Anthropic, PBC. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Anthropic
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
+
+/-!
+# Lemmas for the crossing inequality
+
+For Proposition B.3 (prop:crossing) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]: tensors
+with four legs (`Separation.Prices.four`), the two wires among them
+(`Separation.Prices.rpow_mul_rpow_le_apply_four`), the splitting conditions
+`Separation.Prices.SplitAB` and `Separation.Prices.SplitAD`, and the compact set of the pairs
+`(r, l)` (`Separation.Prices.quarter`, `Separation.Prices.exists_quarter`).
+
+## Main definitions
+
+* `Separation.Prices.SplitAB`, `Separation.Prices.SplitAD`, `Separation.Prices.four`,
+  `Separation.Prices.quarter`.
+
+## Main results
+
+* `Separation.Prices.rpow_mul_rpow_le_apply_four`, `Separation.Prices.rpow_le_exp`,
+  `Separation.Prices.exists_quarter`.
+
+## References
+
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  Proposition B.3 of the paper; module `Nc.Price.Cross`
+-/
+
+@[expose] public section
+
+
+namespace Cslib.Circuits.Arithmetic.Separation.Prices
+
+open Cslib.PartyTensor Finset
+
+/-- `f` is a sum of `r` products of a function of the first two indices and one of the last two. -/
+def SplitAB {K : Type} [Field K] {α β : Type} (f : α → β → α → β → K) (r : ℕ) : Prop :=
+  ∃ g h : Fin r → α × β → K, ∀ a b c d, f a b c d = ∑ k, g k (a, b) * h k (c, d)
+
+/-- `f` is a sum of `r` products of a function of the first and the last index and one of the two in
+the middle. -/
+def SplitAD {K : Type} [Field K] {α β : Type} (f : α → β → α → β → K) (r : ℕ) : Prop :=
+  ∃ (g : Fin r → α × β → K) (h : Fin r → β × α → K), ∀ a b c d, f a b c d = ∑ k,
+      g k (a, d) * h k (b, c)
+
+section Four
+
+variable {K : Type} [Field K] {I : Type} [Fintype I] [DecidableEq I]
+variable {α β : Type} [Fintype α] [DecidableEq α] [Nonempty α] [Fintype β] [DecidableEq β]
+  [Nonempty β]
+
+/-- A tensor with four legs, of sizes |α|, |β|, |α|, |β|. -/
+def four (f : α → β → α → β → K) : PartyTensor K (Fin 4) where
+  Index q := match q with
+    | 0 => α
+    | 1 => β
+    | 2 => α
+    | 3 => β
+  fintype q := match q with
+    | 0 => inferInstanceAs (Fintype α)
+    | 1 => inferInstanceAs (Fintype β)
+    | 2 => inferInstanceAs (Fintype α)
+    | 3 => inferInstanceAs (Fintype β)
+  decEq q := match q with
+    | 0 => inferInstanceAs (DecidableEq α)
+    | 1 => inferInstanceAs (DecidableEq β)
+    | 2 => inferInstanceAs (DecidableEq α)
+    | 3 => inferInstanceAs (DecidableEq β)
+  entry x := f (x 0) (x 1) (x 2) (x 3)
+
+variable (F : SpectralPoint K I)
+
+/-- The two wires between x and v and between y and u. -/
+theorem rpow_mul_rpow_le_apply_four (x y v u : I) :
+    (Fintype.card α : ℝ) ^ F.wireExponent x v * (Fintype.card β : ℝ) ^ F.wireExponent y u ≤
+      F (push ![x, y, v, u]
+        (four fun (a : α) (b : β) c d => if a = c ∧ b = d then (1 : K) else 0)) := by
+  classical
+  set D := Fintype.card α
+  set D' := Fintype.card β
+  rw [← F.apply_wire x v (n := D) Fintype.card_pos,
+    ← F.apply_wire y u (n := D') Fintype.card_pos, ← F.map_mul]
+  let e : Fin D ≃ α := (Fintype.equivFin α).symm
+  let e' : Fin D' ≃ β := (Fintype.equivFin β).symm
+  let σ : Fin 2 ⊕ Fin 2 → Fin 4 := Sum.elim ![0, 2] ![1, 3]
+  have h1 : (Sum.elim ![x, v] ![y, u] : Fin 2 ⊕ Fin 2 → I) = ![x, y, v, u] ∘ σ := by
+    funext i
+    rcases i with i | i <;> fin_cases i <;> rfl
+  refine F.monotone ((antisymmRel_push_outerPair (Sum.elim ![x, v] ![y, u])
+    (unit K (Fin 2) D) (unit K (Fin 2) D')).2.trans ?_)
+  rw [h1]
+  refine (antisymmRel_push_push ![x, y, v, u] σ _).2.trans (push_le_push _ ?_)
+  refine le_of_entry_eq (fun
+    | 0, a => e (a ⟨Sum.inl 0, rfl⟩) | 1, a => e' (a ⟨Sum.inr 0, rfl⟩)
+    | 2, a => e (a ⟨Sum.inl 1, rfl⟩) | 3, a => e' (a ⟨Sum.inr 1, rfl⟩)) fun z => ?_
+  have gen (a0 a2 : Fin D) (a1 a3 : Fin D') :
+      (if a0 = a2 then (1 : K) else 0) * (if a1 = a3 then 1 else 0) =
+        if e a0 = e a2 ∧ e' a1 = e' a3 then 1 else 0 := by
+    simp only [e.injective.eq_iff, e'.injective.eq_iff]
+    rw [ite_and, ite_mul, one_mul, zero_mul]
+  exact (congr_arg₂ (· * ·) (unit_two_entry fun l => z (σ (Sum.inl l)) ⟨Sum.inl l, rfl⟩)
+    (unit_two_entry fun l => z (σ (Sum.inr l)) ⟨Sum.inr l, rfl⟩)).trans (gen _ _ _ _)
+
+end Four
+
+theorem rpow_le_exp (r : ℕ) (z : ℝ) : (r : ℝ) ^ z ≤ Real.exp (Real.log r * z) := by
+  rcases Nat.eq_zero_or_pos r with rfl | hr
+  · simp only [Nat.cast_zero, Real.log_zero, zero_mul, Real.exp_zero]
+    exact Real.zero_rpow_le_one z
+  · rw [Real.rpow_def_of_pos (by exact_mod_cast hr)]
+
+/-- The quarter disc of radius √ρ. -/
+def quarter (ρ : ℝ) : Set (ℝ × ℝ) := {p | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧ p.1 ^ 2 + p.2 ^ 2 ≤ ρ}
+
+private theorem isCompact_quarter (ρ : ℝ) : IsCompact (quarter ρ) := by
+  have h4 : IsClosed {p : ℝ × ℝ | p.1 ^ 2 + p.2 ^ 2 ≤ ρ} :=
+    isClosed_le (by fun_prop) continuous_const
+  refine (isCompact_Icc.prod isCompact_Icc :
+    IsCompact (Set.Icc (0 : ℝ) (ρ + 1) ×ˢ Set.Icc (0 : ℝ) (ρ + 1))).of_isClosed_subset
+      ((isClosed_le continuous_const continuous_fst).inter
+        ((isClosed_le continuous_const continuous_snd).inter h4)) ?_
+  rintro ⟨r, l⟩ ⟨hr, hl, h⟩
+  simp only at hr hl h
+  refine ⟨⟨hr, ?_⟩, ⟨hl, ?_⟩⟩ <;> nlinarith [sq_nonneg (r - 1), sq_nonneg (l - 1)]
+
+/-- If X ≤ min(A + r·s, B + l·t) + δ for all δ > 0 with some (r, l) in the quarter disc, then also
+for δ = 0. -/
+theorem exists_quarter {ρ X A B s t : ℝ} (hρ : 0 ≤ ρ)
+    (h : ∀ δ : ℝ, 0 < δ → ∃ p ∈ quarter ρ, X ≤ min (A + p.1 * s) (B + p.2 * t) + δ) :
+    ∃ p ∈ quarter ρ, X ≤ min (A + p.1 * s) (B + p.2 * t) := by
+  obtain ⟨p, hp, hmax⟩ := (isCompact_quarter ρ).exists_isMaxOn
+    (f := fun p : ℝ × ℝ => min (A + p.1 * s) (B + p.2 * t))
+    ⟨(0, 0), le_rfl, le_rfl, by simpa using hρ⟩ (by fun_prop)
+  refine ⟨p, hp, le_of_forall_pos_le_add fun δ hδ => ?_⟩
+  obtain ⟨p', hp', h'⟩ := h δ hδ
+  have hm : min (A + p'.1 * s) (B + p'.2 * t) ≤ min (A + p.1 * s) (B + p.2 * t) := hmax hp'
+  linarith
+
+end Cslib.Circuits.Arithmetic.Separation.Prices

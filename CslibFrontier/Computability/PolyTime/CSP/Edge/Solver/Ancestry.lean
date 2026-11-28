@@ -190,10 +190,8 @@ private theorem common_code {F : CSP Table ℕ} (m : Forest.Meeting F) :
       m.commonNodes.map nodeCode := by
   simp only [common, nodes_code, List.zip_map, List.takeWhile_map, List.map_map]
   have he : (fun p : DAG.Node F × DAG.Node F => nodeCode p.1 == nodeCode p.2) =
-      (fun p => p.1 == p.2) := by
-    funext p
-    apply Bool.eq_iff_iff.mpr
-    simp only [beq_iff_eq, nodeCode_injective.eq_iff]
+      fun p => p.1 == p.2 :=
+    funext fun _ => Bool.eq_iff_iff.mpr (by simp [nodeCode_injective.eq_iff])
   simp only [Prod.map_fst, Prod.map_snd, he, Forest.Meeting.commonNodes,
     List.map_map, Function.comp_def]
 
@@ -214,17 +212,15 @@ theorem blossom_code {F : CSP Table ℕ} (m : Forest.Meeting F) :
         (EdgeAugmenting.code b.prepare) (EdgeAugmenting.code b.cycle)) := by
   simp only [blossom, EdgeForest.codeMeeting, EdgeForest.codeExpansion,
     EdgeAugmenting.recordAt_index, Occurrence.record, ancestry_code]
-  have hcommon := common_code m
-  simp only [Forest.Meeting.left, Forest.Meeting.right] at hcommon
-  rw [hcommon]
+  rw [← Forest.Meeting.left, ← Forest.Meeting.right, common_code]
   simp only [List.head?_reverse, List.length_map, List.getLast?_map]
   cases ha : m.ancestor? with
   | none =>
-    have hn : m.commonNodes.getLast? = none := ha
-    simp [Forest.Meeting.blossomData, Forest.Meeting.ancestor?, hn]
+    simp [Forest.Meeting.blossomData, Forest.Meeting.ancestor?,
+      show m.commonNodes.getLast? = none from ha]
   | some ancestor =>
-    have hlast : m.commonNodes.getLast? = some ancestor := ha
-    simp only [hlast, Option.map_some, Option.elim_some]
+    simp only [show m.commonNodes.getLast? = some ancestor from ha,
+      Option.map_some, Option.elim_some]
     cases ancestor with
     | inl base =>
       simp [Forest.Meeting.blossomData, ha, nodeCode, walk, append, NativeWalk.take,

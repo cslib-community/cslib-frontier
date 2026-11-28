@@ -4,7 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+import CslibFrontier.Computability.Complexity.FineGrained.Schaefer
 import CslibFrontier.Computability.Complexity.Problems.CSP.Hardness
+-- The malformed-input size regression computes the unexposed body of ofExactThreeSAT.
+import all CslibFrontier.Computability.Complexity.Problems.CSP.SelfDualThreeSAT
 
 /-!
 # Linear-size Schaefer hardness regression tests
@@ -13,6 +18,8 @@ Counts distinguish repeated occurrences from distinct variables. Sparse binary n
 effect on the combinatorial bounds. The native reduction witness is exercised on a concrete
 NAE language and on the zero-size input; malformed inputs are also covered.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.SchaeferSize
 
@@ -70,6 +77,16 @@ private theorem nae_missing : ¬ CSP.HasSchaeferPolymorphism naeArity naeSem := 
 
 private def encUnit : Unit ↪ List Bool :=
   ⟨fun _ => [], fun _ _ _ => Subsingleton.elim _ _⟩
+
+example (hSH : SH) :
+    ¬DecidableInPowerExpTime (CSPSAT naeArity naeSem) (encCSP encUnit encNat) CSP.numVars
+      (1 / 2 : ℝ) :=
+  (SH_iff_CSPSAT_numVars encUnit naeArity naeSem nae_missing).mp hSH _
+    (by norm_num) (by norm_num)
+
+example (h : ∀ p : ℝ, 0 < p → p < 1 →
+    ¬DecidableInPowerExpTime (CSPSAT naeArity naeSem) (encCSP encUnit encNat) CSP.numVars p) : SH :=
+  (SH_iff_CSPSAT_numVars encUnit naeArity naeSem nae_missing).mpr h
 
 -- A single witness has native polynomial time, correctness, and a uniform clause-linear bound.
 example : ∃ (f : CNF ℕ → CSP Unit ℕ) (C : ℕ),

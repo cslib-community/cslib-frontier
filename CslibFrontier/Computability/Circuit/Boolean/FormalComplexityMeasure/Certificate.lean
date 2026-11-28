@@ -89,19 +89,14 @@ original instance of the formal complexity measure axioms, without complement in
 @[simp] theorem acceptedCertificateMeasure_singleton (a : BitString n) :
     (acceptedCertificateMeasure a).measure (fun x => decide (x = a)) = n := by
   simp only [acceptedCertificateMeasure, decide_true, ite_true]
-  apply le_antisymm (certificateComplexityAt_le_card _ _)
-  apply le_certificateComplexityAt
-  intro S hS
-  have he : S = univ := by
-    apply eq_univ_of_forall
-    intro i
-    by_contra hi
-    have h := hS (Function.update a i (!(a i))) (fun j hj => by
-      exact Function.update_of_ne (ne_of_mem_of_not_mem hj hi) _ _)
-    have hx : Function.update a i (!(a i)) = a := of_decide_eq_true (h.trans (by simp))
-    have hb := congrFun hx i
-    simp at hb
-  simp [he]
+  refine le_antisymm (certificateComplexityAt_le_card _ _)
+    (le_certificateComplexityAt fun S hS => ?_)
+  suffices S = univ by simp [this]
+  refine eq_univ_of_forall fun i => of_not_not fun hi => ?_
+  have h := hS (Function.update a i (!a i)) fun j hj =>
+    Function.update_of_ne (ne_of_mem_of_not_mem hj hi) _ _
+  have hx : Function.update a i (!a i) = a := of_decide_eq_true (h.trans (by simp))
+  simpa using congrFun hx i
 
 /-- At least half of all truth tables have zero accepted-certificate measure, at every arity.
 Together with `acceptedCertificateMeasure_singleton`, this rules out an unconditional positive
@@ -113,24 +108,17 @@ theorem card_le_two_mul_card_zero_acceptedCertificateMeasure (a : BitString n) :
   classical
   let rejecting : Finset (BooleanFunction n) := univ.filter fun f => f a = false
   let accepting : Finset (BooleanFunction n) := univ.filter fun f => f a = true
-  have he : rejecting.card = accepting.card := by
-    apply Finset.card_bijective (fun f x => !(f x))
-      (show Function.Involutive (fun (f : BooleanFunction n) x => !(f x)) from
-        fun f => funext fun x => Bool.not_not (f x)).bijective
-    intro f
-    simp [rejecting, accepting]
-  have hs := card_filter_add_card_filter_not (s := (univ : Finset (BooleanFunction n)))
-    (fun f => f a = false)
-  have hn : (univ.filter fun f : BooleanFunction n => ¬f a = false) = accepting := by
-    ext f
-    simp [accepting]
-  rw [hn, card_univ] at hs
-  have hsub : rejecting ⊆ univ.filter fun f =>
-      (acceptedCertificateMeasure a).measure f = 0 := by
-    intro f hf
-    exact mem_filter.mpr ⟨mem_univ _, acceptedCertificateMeasure_of_false a (mem_filter.mp hf).2⟩
-  have hb := card_le_card hsub
-  change rejecting.card + accepting.card = _ at hs
+  have he : rejecting.card = accepting.card :=
+    Finset.card_bijective (fun f x => !f x)
+      (Function.Involutive.bijective fun f => funext fun x => Bool.not_not (f x))
+      fun f => by simp [rejecting, accepting]
+  have hs : rejecting.card + accepting.card = Fintype.card (BooleanFunction n) := by
+    simpa [rejecting, accepting] using
+      card_filter_add_card_filter_not (s := (univ : Finset (BooleanFunction n)))
+        (fun f => f a = false)
+  have hb := card_le_card (s := rejecting)
+    (t := univ.filter fun f => (acceptedCertificateMeasure a).measure f = 0) fun f hf =>
+      mem_filter.mpr ⟨mem_univ _, acceptedCertificateMeasure_of_false a (mem_filter.mp hf).2⟩
   omega
 
 end Cslib.Circuits.Boolean

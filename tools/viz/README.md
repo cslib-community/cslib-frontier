@@ -14,6 +14,7 @@ change this directory and uploads the built site as an artifact.
 | `modules.html` | **Module explorer.** Search and filter all library modules; each has its size, declarations, imports and importers, how much rebuilds when it changes, depth, change history, results resting on it, unused definitions, and links to its API page and source |
 | `results.html` | **Result explorer.** Every registered result: sources, theorems linked to their API entries, the library it rests on by area and module, and the audit rows citing it |
 | `textbooks.html` | **Textbook map.** The audits' dispositions by chapter; click through to each audited result, its audit row and the registered results that formalize it |
+| `prs.html` | **Pull requests.** Headline numbers (merged, last 7 days, time to merge, open now), a galaxy of every pull request by time and area (sized by lines, coloured by kind; search, filters, hover, click through), and the PR charts |
 | `areas.html` | **Areas.** One card per area: growth, size, declarations, results, unused definitions, and its most rebuilt and most changed modules |
 
 Pages embed their data and need no remote scripts, so they also work opened from disk. They
@@ -25,7 +26,9 @@ and a CSV of the data behind it.
 
 | View | Question it answers |
 |---|---|
+| `atlas` | How did the library take shape, and how did its parts come to depend on each other? (MP4: a map of areas and sub-areas, with comets for new imports) |
 | `evolution` | How did the import graph grow, day by day? (MP4) |
+| `lifetime-streams` | Which sub-areas grew when? (six-hourly streamgraph) |
 | `growth-by-area` | Which areas drove the growth? |
 | `declarations` | How many theorems and definitions exist, and how much code each costs |
 | `lean-declarations` | What the library declares, exactly, by area and kind (Lean census) |
@@ -34,6 +37,9 @@ and a CSV of the data behind it.
 | `treemap` | Where is the code, and which parts change most? |
 | `hotspots` | Which large modules keep changing? |
 | `import-graph` | The whole module import graph today (4K poster) |
+| `atlas-poster` | The atlas today (4K) |
+| `pr-growth-vs-cleanup` | Does the project pause to consolidate? (new-result versus refactoring lines) |
+| `pr-waterfall` | How long does work wait, and how much is in flight? (every PR, opened to merged) |
 | `import-matrix` | Which sub-areas import which? |
 | `change-coupling` | Which sub-areas change in the same commits? |
 | `hubs` | How much of the library rebuilds when a module changes? |
@@ -57,6 +63,14 @@ python3 -m venv /tmp/viz-venv && /tmp/viz-venv/bin/pip install -r tools/viz/requ
 # When working on pages, reuse the census an earlier run wrote instead of recomputing it:
 /tmp/viz-venv/bin/python tools/viz/build.py --only cadence --lean-census tools/viz/_site/lean-census.json
 ```
+
+Pull request views need metadata from GitHub: `--fetch-prs` reads it with the token in
+`GITHUB_TOKEN` or `GH_TOKEN` (read-only; in CI the workflow's own token, with
+`pull-requests: read`), and `--prs-json FILE` reuses the `prs.json` an earlier run wrote. With
+`--prs-previous URL|FILE`, the fetch starts from that list and asks GitHub only for pull requests
+updated since (newest first), a page or two instead of the whole history; the nightly build
+passes the `prs.json` it published the night before.
+Without either, those views and the Pull requests page are skipped.
 
 Without `--lean-lib` the census views are skipped; the pull-request workflow builds no Lean, so
 it checks everything else.
@@ -114,6 +128,11 @@ constants behind, so a nonzero count lists candidates, not certainties.
 
 * `history.py` replays git history; `audits.py` reads the textbook audits; `lean_census.py` and
   `LeanDecls.lean` read the built library.
+* `github_prs.py` fetches pull request metadata; `prs.py` joins each merged pull request to its
+  squash commit (by the `(#N)` in its subject) for the areas it changed.
+* `atlas.py` lays the library out as nested discs (areas, then sub-areas, then modules by their
+  imports) and draws territories as the Voronoi regions of the modules; `streams.py` draws the
+  streamgraph.
 * `plots_*.py` and `evolution.py` draw the charts with Matplotlib and Pillow; `style.py` holds the
   palette, the light and dark themes and the CSV writer.
 * `site_data.py` computes the pages' data; `pages.py` writes the pages from `site/` (one stylesheet,

@@ -59,9 +59,8 @@ theorem length_shortMembers (S : Set (List Bool)) (n : ℕ) :
 theorem length_le_length_shortMembers {ℓ : List (List Bool)} (hnd : ℓ.Nodup)
     (h : ∀ s ∈ ℓ, s ∈ S ∧ s.length ≤ n) : ℓ.length ≤ (shortMembers S n).length := by
   rw [← List.toFinset_card_of_nodup hnd, ← List.toFinset_card_of_nodup (nodup_shortMembers S n)]
-  exact Finset.card_le_card fun s hs => by
-    rw [List.mem_toFinset] at hs ⊢
-    exact mem_shortMembers.mpr (h s hs)
+  exact Finset.card_le_card fun s hs =>
+    List.mem_toFinset.mpr (mem_shortMembers.mpr (h s (List.mem_toFinset.mp hs)))
 
 /-- **A list attaining the census lists all short members.** A duplicate-free list of short
 members of `S` with as many entries as there are short members agrees with `S` on every short
@@ -69,15 +68,11 @@ word. -/
 theorem mem_iff_of_length_eq_length_shortMembers {ℓ : List (List Bool)} (hnd : ℓ.Nodup)
     (h : ∀ s ∈ ℓ, s ∈ S ∧ s.length ≤ n) (hlen : ℓ.length = (shortMembers S n).length)
     {s : List Bool} (hs : s.length ≤ n) : s ∈ ℓ ↔ s ∈ S := by
-  have hsub : ℓ.toFinset ⊆ (shortMembers S n).toFinset := fun t ht => by
-    rw [List.mem_toFinset] at ht ⊢
-    exact mem_shortMembers.mpr (h t ht)
+  have hsub : ℓ.toFinset ⊆ (shortMembers S n).toFinset := fun t ht =>
+    List.mem_toFinset.mpr (mem_shortMembers.mpr (h t (List.mem_toFinset.mp ht)))
   have heq := Finset.eq_of_subset_of_card_le hsub (by
     rw [List.toFinset_card_of_nodup hnd, List.toFinset_card_of_nodup (nodup_shortMembers S n),
       hlen])
-  refine ⟨fun hsℓ => (h s hsℓ).1, fun hsS => ?_⟩
-  have hmem : s ∈ (shortMembers S n).toFinset :=
-    List.mem_toFinset.mpr (mem_shortMembers.mpr ⟨hsS, hs⟩)
-  rwa [← heq, List.mem_toFinset] at hmem
+  simpa only [List.mem_toFinset, mem_shortMembers, hs, and_true] using Finset.ext_iff.mp heq s
 
 end Cslib.BitString

@@ -229,21 +229,21 @@ private theorem twice_le_extractionGame
   classical
   simp only [pmf_norm, Rewinding.twice, extractionGame, knowledgeExtractor, firstStage,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map]
-  refine Probability.PMF.bind_apply_mono_on_support _ _ fun ts _ => ?_
-  refine Probability.PMF.bind_apply_mono_on_support _ _ fun c _ => ?_
-  refine Probability.PMF.bind_apply_mono_on_support _ _ fun c' _ => ?_
-  refine Probability.PMF.bind_apply_mono_on_support _ _ fun z _ => ?_
-  refine Probability.PMF.bind_apply_mono_on_support _ _ fun z' _ => ?_
+  refine Probability.PMF.bind_apply_mono_on_support _ _ fun ts _ =>
+    Probability.PMF.bind_apply_mono_on_support _ _ fun c _ =>
+    Probability.PMF.bind_apply_mono_on_support _ _ fun c' _ =>
+    Probability.PMF.bind_apply_mono_on_support _ _ fun z _ =>
+    Probability.PMF.bind_apply_mono_on_support _ _ fun z' _ => ?_
   by_cases hwin : (decide (AcceptsWord P enc i y ts.1 c z) &&
       decide (AcceptsWord P enc i y ts.1 c' z') && c != c') = true
   · simp only [Bool.and_eq_true, bne_iff_ne, decide_eq_true_eq] at hwin
     obtain ⟨⟨⟨t₀, z₀, ht, hz, hacc⟩, ⟨t₁, z₁, ht', hz', hacc'⟩⟩, hne⟩ := hwin
-    have htt : t₁ = t₀ := (enc.commitment i).injective (ht'.trans ht.symm)
-    rw [htt] at hacc'
-    have hR := hsound i y t₀ c z₀ c' z₁ hne hacc hacc'
+    have hR := hsound i y t₀ c z₀ c' z₁ hne hacc
+      ((enc.commitment i).injective (ht'.trans ht.symm) ▸ hacc')
     calc _ ≤ 1 := PMF.coe_le_one _ _
       _ = _ := by
-        rw [← ht, ← hz, ← hz', hreal, decide_eq_true ⟨_, rfl, hR⟩, PMF.pure_apply_self]
+        rw [← ht, ← hz, ← hz', hreal,
+          decide_eq_true (p := ∃ x, _) ⟨extract i y t₀ c z₀ c' z₁, rfl, hR⟩, PMF.pure_apply_self]
   · simp [Bool.eq_false_iff.mpr hwin]
 
 /-- The prover's first stage after sampling a statement `y` from `μ`, keeping `y` alongside the
@@ -354,12 +354,9 @@ theorem sq_sub_le_bind_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R
         Fintype.card (C i) ≤
     Game.succProbability (μ.bind fun y => extractionGame enc encW R
       (knowledgeExtractor enc sampleChallenge extractWord A) i y) := by
-  have h := sq_sub_mul_le_bind_extractionGame hsound hreal sampleChallenge A i μ
-    (κ := (Fintype.card (C i) : ℝ)⁻¹) fun c => by
-      simp only [huniform, Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-        ENNReal.toReal_natCast, le_refl]
-  rw [huniform] at h
-  simpa only [div_eq_mul_inv, mul_comm] using h
+  simpa only [huniform, div_eq_mul_inv, mul_comm] using
+    sq_sub_mul_le_bind_extractionGame hsound hreal sampleChallenge A i μ
+      (κ := (Fintype.card (C i) : ℝ)⁻¹) fun _ => by simp [huniform, PMF.uniformOfFintype_apply]
 
 /-- **Extraction by rewinding with exactly uniform challenges**: on every statement `y`, if the
 prover `A` convinces the honest verifier with probability `ε` and `sampleChallenge i` samples

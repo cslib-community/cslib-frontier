@@ -210,14 +210,10 @@ theorem realize_le {V : Type*} (v : V → Fin B) (u w : V) :
 theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
     (isZero r u).Realize v ↔ (v u : ℕ) = 0 := by
   fo_simp [isZero, hlt]
-  constructor
-  · intro h
-    by_contra hne
-    have h0 : 0 < (v u : ℕ) := by omega
-    have hB : 0 < B := h0.trans (v u).2
-    have := h ⟨0, hB⟩
-    fin_index
-  · omega
+  refine ⟨fun h => ?_, by omega⟩
+  by_contra hne
+  have := h ⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _) (v u).2⟩
+  fin_index
 
 /-- On `Fin B`, with `r` read as `<`, `isMax r u` holds exactly when `u` is assigned `B - 1`. -/
 @[fo_realize]
@@ -225,13 +221,10 @@ theorem realize_isMax {V : Type*} (v : V → Fin B) (u : V) :
     (isMax r u).Realize v ↔ (v u : ℕ) = B - 1 := by
   fo_simp [isMax, hlt]
   have hu := (v u).2
-  constructor
-  · intro h
-    by_contra hne
-    have hlt' : (v u : ℕ) + 1 < B := by omega
-    have := h ⟨(v u : ℕ) + 1, hlt'⟩
-    fin_index
-  · omega
+  refine ⟨fun h => ?_, by omega⟩
+  by_contra hne
+  have := h ⟨(v u : ℕ) + 1, by omega⟩
+  fin_index
 
 /-- On `Fin B`, with `r` read as `<`, `succ r u w` holds exactly when `w` is assigned the
 successor of the value of `u`. -/
@@ -245,13 +238,9 @@ theorem realize_succ {V : Type*} (v : V → Fin B) (u w : V) :
   · rintro ⟨hlt', hmid⟩
     rw [Fin.lt_def] at hlt'
     by_contra hne
-    have hlt1 : (v u : ℕ) + 1 < (v w : ℕ) := by omega
-    have hltB : (v u : ℕ) + 1 < B := hlt1.trans hw
-    rcases hmid ⟨(v u : ℕ) + 1, hltB⟩ with h | h
-    · fin_index
-    · fin_index
-  · intro h
-    refine ⟨by omega, fun z => ?_⟩
+    rcases hmid ⟨(v u : ℕ) + 1, by omega⟩ with h | h <;> fin_index
+  · intro _
+    refine ⟨by omega, fun _ => ?_⟩
     omega
 
 /-- On `Fin B`, with `r` read as `<` and a domain formula holding exactly below `M < B`,
@@ -265,11 +254,10 @@ theorem realize_isFirstOut {inDom : L.Formula (Fin 1)} {M : ℕ} (hMB : M < B)
   constructor
   · rintro ⟨hge, hlt_all⟩
     by_contra hne
-    have hgt : M < (v u : ℕ) := by omega
-    have hM := hlt_all ![⟨M, hMB⟩] (by simpa [Fin.lt_def] using hgt)
+    have hM := hlt_all ![⟨M, hMB⟩] (by simp only [Fin.lt_def, Matrix.cons_val_fin_one]; omega)
     simp at hM
-  · intro heq
-    refine ⟨by omega, fun k hk => ?_⟩
+  · intro _
+    refine ⟨by omega, fun _ _ => ?_⟩
     omega
 
 end FinOrder

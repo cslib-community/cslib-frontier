@@ -74,11 +74,10 @@ theorem Valid.restrict {S : State n} (hS : S.Valid f) {x : ℕ} {ℓ : Lit} {P :
     (hS.phi_affine.comp (isAffine_update isAffine_id x (isAffine_lit_eval isAffine_id ℓ)))
     fun val hlocus pr hpr => by
       by_cases hprP : pr ∈ P
-      · have hav := h.avoid pr hprP
-        have h1 : pr.fst ≠ x := fun he => hav (Or.inl he)
-        have h2 : pr.snd ≠ x := fun he => hav (Or.inr he)
-        exact (ZeroPair.holds_congr (Function.update_of_ne h1 (ℓ.eval val) val)
-          (Function.update_of_ne h2 (ℓ.eval val) val)).2 (hlocus pr hprP)
+      · exact (ZeroPair.holds_congr
+          (Function.update_of_ne (fun he => h.avoid pr hprP (.inl he)) (ℓ.eval val) val)
+          (Function.update_of_ne (fun he => h.avoid pr hprP (.inr he)) (ℓ.eval val) val)).2
+          (hlocus pr hprP)
       · exact h.drop pr hpr hprP val
 
 /-! ### Pair creation (PC) -/
@@ -106,59 +105,38 @@ theorem Valid.addPair_W_eq {S : State n} (_hS : S.Valid f) {pr : ZeroPair}
     fun u hu hu1 hu2 => by
       by_cases hup : S.Paired u
       · obtain ⟨pr', hpr', hcu⟩ := hup
-        have hup1 : S₁.Paired u := ⟨pr', Finset.mem_insert_of_mem hpr', hcu⟩
-        have hup0 : S.Paired u := ⟨pr', hpr', hcu⟩
-        rw [wt_of_paired hup1, wt_of_paired hup0]
+        rw [wt_of_paired ⟨pr', Finset.mem_insert_of_mem hpr', hcu⟩, wt_of_paired ⟨pr', hpr', hcu⟩]
       · have hup1 : ¬ S₁.Paired u := by
           rintro ⟨pr', hpr', hcu⟩
           rcases Finset.mem_insert.1 hpr' with rfl | hpr'
           · rcases hcu with he | he <;> [exact hu1 he.symm; exact hu2 he.symm]
           · exact hup ⟨pr', hpr', hcu⟩
-        have hu1m : u ∈ S₁.unpaired := mem_unpaired.2 ⟨by rw [addPair_params]; exact hu, hup1⟩
-        have hu0m : u ∈ S.unpaired := mem_unpaired.2 ⟨hu, hup⟩
-        rw [wt_of_mem hu1m, wt_of_mem hu0m, SemiCircuit.deg, SemiCircuit.deg, addPair_children]
+        rw [wt_of_mem (mem_unpaired.2 ⟨addPair_params S pr ▸ hu, hup1⟩),
+          wt_of_mem (mem_unpaired.2 ⟨hu, hup⟩), SemiCircuit.deg, SemiCircuit.deg, addPair_children]
+  have hwt (u : ℕ) (hu : u ∈ S.params) : S₁.wt u + loss u = S.wt u := by
+    by_cases hu1 : u = pr.fst
+    · subst hu1
+      have hp1 : S₁.Paired pr.fst := ⟨pr, Finset.mem_insert_self _ _, Or.inl rfl⟩
+      dsimp only [loss]
+      rw [wt_of_paired hp1, wt_of_mem h.fst_unpaired,
+        show config.weight (S.deg pr.fst) = weight (S.deg pr.fst) from rfl,
+        weight_of_one_le h1, ite_eq_left rfl, ite_eq_right h.ne]
+    · by_cases hu2 : u = pr.snd
+      · subst hu2
+        have hp2 : S₁.Paired pr.snd := ⟨pr, Finset.mem_insert_self _ _, Or.inr rfl⟩
+        dsimp only [loss]
+        rw [wt_of_paired hp2, wt_of_mem h.snd_unpaired,
+          show config.weight (S.deg pr.snd) = weight (S.deg pr.snd) from rfl,
+          weight_of_one_le h2, ite_eq_right hu1, ite_eq_left rfl]
+      · dsimp only [loss]
+        rw [ite_eq_right hu1, ite_eq_right hu2, add_zero, hwt_same u hu hu1 hu2, add_zero]
   have hle1 := W_add_le (S := S) (S' := S₁) (N := S.params) le_rfl (by rw [addPair_params])
-    loss (fun _ => 0) fun u hu => by
-      simp only [add_zero]
-      by_cases hu1 : u = pr.fst
-      · subst hu1
-        have hp1 : S₁.Paired pr.fst := ⟨pr, Finset.mem_insert_self _ _, Or.inl rfl⟩
-        dsimp only [loss]
-        rw [wt_of_paired hp1, wt_of_mem h.fst_unpaired,
-          show config.weight (S.deg pr.fst) = weight (S.deg pr.fst) from rfl,
-          weight_of_one_le h1, ite_eq_left rfl, ite_eq_right h.ne]
-      · by_cases hu2 : u = pr.snd
-        · subst hu2
-          have hp2 : S₁.Paired pr.snd := ⟨pr, Finset.mem_insert_self _ _, Or.inr rfl⟩
-          dsimp only [loss]
-          rw [wt_of_paired hp2, wt_of_mem h.snd_unpaired,
-            show config.weight (S.deg pr.snd) = weight (S.deg pr.snd) from rfl,
-            weight_of_one_le h2, ite_eq_right hu1, ite_eq_left rfl]
-        · dsimp only [loss]
-          rw [ite_eq_right hu1, ite_eq_right hu2, add_zero, hwt_same u hu hu1 hu2, add_zero]
+    loss (fun _ => 0) fun u hu => (hwt u hu).le
   have hle2 := W_add_le (S := S₁) (S' := S) (N := S.params) (by rw [addPair_params]) le_rfl
-    (fun _ => 0) loss fun u hu => by
-      simp only [add_zero]
-      by_cases hu1 : u = pr.fst
-      · subst hu1
-        dsimp only [loss]
-        rw [wt_of_mem h.fst_unpaired,
-          show config.weight (S.deg pr.fst) = weight (S.deg pr.fst) from rfl,
-          weight_of_one_le h1, ite_eq_left rfl, ite_eq_right h.ne]
-        omega
-      · by_cases hu2 : u = pr.snd
-        · subst hu2
-          dsimp only [loss]
-          rw [wt_of_mem h.snd_unpaired,
-            show config.weight (S.deg pr.snd) = weight (S.deg pr.snd) from rfl,
-            weight_of_one_le h2, ite_eq_right hu1, ite_eq_left rfl]
-          omega
-        · dsimp only [loss]
-          rw [ite_eq_right hu1, ite_eq_right hu2, add_zero, hwt_same u hu hu1 hu2, add_zero]
+    (fun _ => 0) loss fun u hu => (hwt u hu).ge
   have hs1 : S₁.s = S.s := addPair_size S pr
-  have hq1 : S₁.q = S.q + 1 := addPair_q h
-  dsimp only [S₁] at hle1 hle2 hs1 hq1
-  rw [hsum, Finset.sum_const_zero, hs1, hq1] at hle1 hle2
+  dsimp only [S₁] at hle1 hle2 hs1
+  rw [hsum, Finset.sum_const_zero, hs1, addPair_q h] at hle1 hle2
   omega
 
 /-! ### Affine reparameterisation (AR) -/

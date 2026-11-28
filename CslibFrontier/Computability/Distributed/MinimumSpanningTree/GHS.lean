@@ -239,6 +239,14 @@ private theorem bothIn_eq_true_iff {V : Type*} [DecidableEq V] (S : Finset V) (e
     exact ⟨fun ⟨hu, hv⟩ x hx => hx.elim (· ▸ hu) (· ▸ hv),
       fun h => ⟨h u (.inl rfl), h v (.inr rfl)⟩⟩
 
+private theorem bothIn_mk_eq_true {V : Type*} [DecidableEq V] {S : Finset V} {u v : V} :
+    bothIn S s(u, v) = true ↔ u ∈ S ∧ v ∈ S := by
+  simp only [bothIn_mk, Bool.and_eq_true, decide_eq_true_eq]
+
+private theorem bothIn_mono {V : Type*} [DecidableEq V] {A B : Finset V} {z : Sym2 V}
+    (hAB : A ⊆ B) (hz : bothIn A z = true) : bothIn B z = true :=
+  (bothIn_eq_true_iff B z).2 fun x hx => hAB ((bothIn_eq_true_iff A z).1 hz x hx)
+
 /-- Computable Boolean check testing whether `e` has one endpoint in `S₁` and one in `S₂`. -/
 @[expose] def betweenSets {V : Type*} [DecidableEq V] (S₁ S₂ : Finset V) (e : Sym2 V) : Bool :=
   Sym2.lift
@@ -269,6 +277,22 @@ private theorem betweenSets_eq_true_iff {V : Type*} [DecidableEq V] (S₁ S₂ :
       rcases Sym2.eq_iff.mp heq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
       · exact .inl ⟨hu, hv⟩
       · exact .inr ⟨hv, hu⟩
+
+private theorem betweenSets_mono_right {V : Type*} [DecidableEq V] {A B B' : Finset V}
+    {e : Sym2 V} (hsub : B ⊆ B') (h : betweenSets A B e = true) :
+    betweenSets A B' e = true := by
+  rw [betweenSets_eq_true_iff] at h ⊢
+  obtain ⟨u, hu, v, hv, he⟩ := h
+  exact ⟨u, hu, v, hsub hv, he⟩
+
+private theorem notMem_of_edgeState_eq_basic {V : Type*} [DecidableEq V] {s : FragState V}
+    {e : Sym2 V} (h : s.edgeState e = .basic) :
+    e ∉ s.branchEdges ∧ e ∉ s.rejectedEdges := by
+  have hbr : e ∉ s.branchEdges := fun hm => by
+    simp only [FragState.edgeState, hm, ↓reduceIte, reduceCtorEq] at h
+  have hrej : e ∉ s.rejectedEdges := fun hm => by
+    simp only [FragState.edgeState, hbr, hm, ↓reduceIte, reduceCtorEq] at h
+  exact ⟨hbr, hrej⟩
 
 /-- Whether all internal edges of `S` in `G` are non-`Basic` (`Branch` or `Rejected`). -/
 @[expose] def noBasicInternalEdges {V : Type*} [DecidableEq V] (G : SimpleGraph V)
@@ -556,17 +580,47 @@ private structure FragInv {V W : Type*} [Fintype V] [DecidableEq V] (G : SimpleG
         (∑ F ∈ s.fragments, fragRemBudget L_max F) ≤
       (5 * (L_max - 1) + 3) * Fintype.card V + 2 * G.edgeFinset.card
 
-private theorem sum_verts_card_eq {V W : Type*} [Fintype V] [DecidableEq V] {G : SimpleGraph V}
-    [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
-    (hinv : FragInv G w s) :
-    (∑ F ∈ s.fragments, F.verts.card) = Fintype.card V := by
-  have hbi : s.fragments.biUnion Fragment.verts = Finset.univ := by
-    ext v
-    simp only [Finset.mem_biUnion, Finset.mem_univ, iff_true]
-    exact hinv.verts_cover v
-  rw [← Finset.card_univ, ← hbi, Finset.card_biUnion]
-  intro F₁ h₁ F₂ h₂ hne
-  exact hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
+/-- Two fragments of a reachable partition sharing a vertex coincide. -/
+private theorem FragInv.eq_of_mem_verts {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
+    (hinv : FragInv G w s) {F F' : Fragment V} (hF : F ∈ s.fragments) (hF' : F' ∈ s.fragments)
+    {v : V} (hv : v ∈ F.verts) (hv' : v ∈ F'.verts) : F = F' := by
+  by_contra hne
+  exact Finset.disjoint_left.mp (hinv.verts_disjoint F hF F' hF' hne) hv hv'
+
+/-- A fragment spanning `Finset.univ` is the only fragment. -/
+private theorem FragInv.eq_of_verts_eq_univ {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
+    (hinv : FragInv G w s) {F F' : Fragment V} (hF : F ∈ s.fragments) (hF' : F' ∈ s.fragments)
+    (huniv : F'.verts = Finset.univ) : F = F' :=
+  let ⟨u, hu⟩ := hinv.verts_nonempty F hF
+  hinv.eq_of_mem_verts hF hF' hu (huniv ▸ Finset.mem_univ u)
+
+/-- Unpacks a successful guarded step `if c then some x else none = some y`. -/
+private theorem of_ite_eq_some {α : Type*} {c : Prop} [Decidable c] {x y : α}
+    (h : (if c then some x else none) = some y) : c ∧ x = y :=
+  (Option.ite_none_right_eq_some.1 h).imp_right Option.some.inj
+
+private theorem forall_mem_insert_of_subset {α : Type*} [DecidableEq α] {s t : Finset α} {a : α}
+    {P : α → Prop} (hts : t ⊆ s) (ha : P a) (hs : ∀ x ∈ s, P x) : ∀ x ∈ insert a t, P x :=
+  fun x hx => (Finset.mem_insert.1 hx).elim (· ▸ ha) fun h => hs x (hts h)
+
+/-- A witness survives replacing `b` by `c` when the property transfers from `b` to `c`. -/
+private theorem exists_mem_insert_erase {α : Type*} [DecidableEq α] {s : Finset α} {b c : α}
+    {P : α → Prop} (hb : P b → P c) (h : ∃ x ∈ s, P x) : ∃ x ∈ insert c (s.erase b), P x := by
+  obtain ⟨x, hx, hPx⟩ := h
+  by_cases hxb : x = b
+  · exact ⟨c, Finset.mem_insert_self _ _, hb (hxb ▸ hPx)⟩
+  · exact ⟨x, Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hxb, hx⟩), hPx⟩
+
+/-- A witness survives replacing `a` and `b` by `c` when the property transfers to `c`. -/
+private theorem exists_mem_insert_erase₂ {α : Type*} [DecidableEq α] {s : Finset α} {a b c : α}
+    {P : α → Prop} (ha : P a → P c) (hb : P b → P c) (h : ∃ x ∈ s, P x) :
+    ∃ x ∈ insert c ((s.erase a).erase b), P x := by
+  obtain ⟨x, hx, hPx⟩ := exists_mem_insert_erase ha h
+  rcases Finset.mem_insert.1 hx with rfl | hx
+  · exact ⟨_, Finset.mem_insert_self _ _, hPx⟩
+  · exact exists_mem_insert_erase hb ⟨x, hx, hPx⟩
 
 private theorem notMem_erase_of_same_verts {V W : Type*} [Fintype V] [DecidableEq V]
     {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
@@ -666,6 +720,8 @@ private theorem fragInv_init (V : Type*) {W : Type*} [Fintype V] [DecidableEq V]
     simp only [initFragState, MsgCount.total, Finset.sdiff_empty]
     omega
 
+/-! ### Shared fragment-partition and transition frame lemmas -/
+
 /-- Helper for `absorb` and `merge`: combining two disjoint fragments `F₁ ≠ F₂` across a
 cross-fragment edge `e ∈ G.edgeFinset` preserves `branch_isMOE`, `branch_internal`,
 `rejected_internal`, and `frag_branch_card`. -/
@@ -682,124 +738,65 @@ private theorem combine_edge_facts {V W : Type*} [Fintype V] [DecidableEq V] {G 
       (∀ z ∈ s.rejectedEdges, ∃ F ∈ frags', bothIn F.verts z = true) ∧
       (∀ F ∈ frags',
         (branches'.filter fun z => bothIn F.verts z = true).card + 1 = F.verts.card) := by
-  intro frags' branches'
+  dsimp only
   obtain ⟨u₀, hu₀, v₀, hv₀, he_eq⟩ := (betweenSets_eq_true_iff F₁.verts F₂.verts e).mp hbtw
   have hdisj₁₂ : Disjoint F₁.verts F₂.verts := hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
+  have hsub₁ : F₁.verts ⊆ Fcomb.verts := hverts ▸ Finset.subset_union_left
+  have hsub₂ : F₂.verts ⊆ Fcomb.verts := hverts ▸ Finset.subset_union_right
   have not_both_single : ∀ F ∈ s.fragments, bothIn F.verts e = false := by
     intro F hF
-    rw [Bool.eq_false_iff]
-    intro hboth
-    rw [he_eq, bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq] at hboth
-    have heq₁ : F = F₁ := by
-      by_contra hne₁
-      exact Finset.disjoint_left.mp (hinv.verts_disjoint F hF F₁ h₁ hne₁) hboth.1 hu₀
-    have heq₂ : F = F₂ := by
-      by_contra hne₂
-      exact Finset.disjoint_left.mp (hinv.verts_disjoint F hF F₂ h₂ hne₂) hboth.2 hv₀
-    exact hne (heq₁.symm.trans heq₂)
-  have he_not_branch : e ∉ s.branchEdges := by
-    intro hm
-    obtain ⟨F, hF, hb⟩ := hinv.branch_internal e hm
-    rw [not_both_single F hF] at hb
-    cases hb
-  have he_not_rej : e ∉ s.rejectedEdges := by
-    intro hm
-    obtain ⟨F, hF, hb⟩ := hinv.rejected_internal e hm
-    rw [not_both_single F hF] at hb
-    cases hb
-  have bothIn_mono : ∀ {A B : Finset V} {z : Sym2 V}, A ⊆ B → bothIn A z = true →
-      bothIn B z = true := by
-    intro A B z hAB hz
-    rw [bothIn_eq_true_iff] at hz ⊢
-    exact fun x hx => hAB (hz x hx)
+    rw [Bool.eq_false_iff, he_eq, Ne, bothIn_mk_eq_true]
+    exact fun ⟨hu, hv⟩ =>
+      hne ((hinv.eq_of_mem_verts h₁ hF hu₀ hu).trans (hinv.eq_of_mem_verts hF h₂ hv hv₀))
+  have not_internal : ∀ z, (∃ F ∈ s.fragments, bothIn F.verts z = true) → z ≠ e := by
+    rintro z ⟨F, hF, hb⟩ rfl
+    exact Bool.false_ne_true ((not_both_single F hF).symm.trans hb)
+  have he_not_branch : e ∉ s.branchEdges := fun hm => not_internal e (hinv.branch_internal e hm) rfl
   have lift_internal : ∀ z : Sym2 V, (∃ F ∈ s.fragments, bothIn F.verts z = true) →
-      ∃ F ∈ frags', bothIn F.verts z = true := by
-    rintro z ⟨F, hF, hz⟩
-    by_cases hF₁ : F = F₁
-    · refine ⟨Fcomb, Finset.mem_insert_self _ _, bothIn_mono ?_ (hF₁ ▸ hz)⟩
-      rw [hverts]; exact Finset.subset_union_left
-    · by_cases hF₂ : F = F₂
-      · refine ⟨Fcomb, Finset.mem_insert_self _ _, bothIn_mono ?_ (hF₂ ▸ hz)⟩
-        rw [hverts]; exact Finset.subset_union_right
-      · refine ⟨F, Finset.mem_insert_of_mem ?_, hz⟩
-        exact Finset.mem_erase.mpr ⟨hF₂, Finset.mem_erase.mpr ⟨hF₁, hF⟩⟩
-  have hbr_int' : ∀ z ∈ branches', ∃ F ∈ frags', bothIn F.verts z = true := by
-    intro z hz
-    rcases Finset.mem_insert.mp hz with rfl | hz_old
-    · refine ⟨Fcomb, Finset.mem_insert_self _ _, ?_⟩
-      rw [he_eq, hverts, bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-      exact ⟨Finset.mem_union_left _ hu₀, Finset.mem_union_right _ hv₀⟩
-    · exact lift_internal z (hinv.branch_internal z hz_old)
-  have hrej_int' : ∀ z ∈ s.rejectedEdges, ∃ F ∈ frags', bothIn F.verts z = true :=
-    fun z hz => lift_internal z (hinv.rejected_internal z hz)
-  have hcard' : ∀ F ∈ frags',
-      (branches'.filter fun z => bothIn F.verts z = true).card + 1 = F.verts.card := by
-    intro F hF
-    rcases Finset.mem_insert.mp hF with hF_eq | hF_rest
-    · subst F
-      have he_both : bothIn Fcomb.verts e = true := by
-        rw [he_eq, hverts, bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-        exact ⟨Finset.mem_union_left _ hu₀, Finset.mem_union_right _ hv₀⟩
-      have hfilt_ins : (branches'.filter fun z => bothIn Fcomb.verts z = true) =
-          insert e (s.branchEdges.filter fun z => bothIn Fcomb.verts z = true) := by
-        simp only [branches', Finset.filter_insert, he_both, ↓reduceIte]
-      have he_not_filt : e ∉ s.branchEdges.filter fun z => bothIn Fcomb.verts z = true :=
-        fun hm => he_not_branch (Finset.mem_of_mem_filter e hm)
-      have hsplit : (s.branchEdges.filter fun z => bothIn Fcomb.verts z = true) =
-          (s.branchEdges.filter fun z => bothIn F₁.verts z = true) ∪
-            (s.branchEdges.filter fun z => bothIn F₂.verts z = true) := by
-        ext z
-        simp only [Finset.mem_union, Finset.mem_filter]
-        constructor
-        · rintro ⟨hzB, hzC⟩
-          obtain ⟨F₀, hF₀, hz₀⟩ := hinv.branch_internal z hzB
-          induction z using Sym2.ind with
-          | _ a b =>
-            rw [bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq] at hz₀ hzC
-            rw [hverts, Finset.mem_union] at hzC
-            rcases hzC.1 with ha₁ | ha₂
-            · have hF₀_eq : F₀ = F₁ := by
-                by_contra hne₀
-                exact Finset.disjoint_left.mp (hinv.verts_disjoint F₀ hF₀ F₁ h₁ hne₀) hz₀.1 ha₁
-              subst hF₀_eq
-              left
-              rw [bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-              exact ⟨hzB, hz₀⟩
-            · have hF₀_eq : F₀ = F₂ := by
-                by_contra hne₀
-                exact Finset.disjoint_left.mp (hinv.verts_disjoint F₀ hF₀ F₂ h₂ hne₀) hz₀.1 ha₂
-              subst hF₀_eq
-              right
-              rw [bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-              exact ⟨hzB, hz₀⟩
-        · rintro (⟨hzB, hz₁⟩ | ⟨hzB, hz₂⟩)
-          · exact ⟨hzB, bothIn_mono (hverts ▸ Finset.subset_union_left) hz₁⟩
-          · exact ⟨hzB, bothIn_mono (hverts ▸ Finset.subset_union_right) hz₂⟩
-      have hdisj_filt : Disjoint (s.branchEdges.filter fun z => bothIn F₁.verts z = true)
+      ∃ F ∈ insert Fcomb ((s.fragments.erase F₁).erase F₂), bothIn F.verts z = true :=
+    fun z => exists_mem_insert_erase₂ (bothIn_mono hsub₁) (bothIn_mono hsub₂)
+  have he_both : bothIn Fcomb.verts e = true := by
+    rw [he_eq, bothIn_mk_eq_true]
+    exact ⟨hsub₁ hu₀, hsub₂ hv₀⟩
+  refine ⟨he_not_branch, fun hm => not_internal e (hinv.rejected_internal e hm) rfl,
+    fun z hz => (Finset.mem_insert.mp hz).elim
+      (fun h => ⟨Fcomb, Finset.mem_insert_self _ _, h ▸ he_both⟩)
+      fun hz => lift_internal z (hinv.branch_internal z hz),
+    fun z hz => lift_internal z (hinv.rejected_internal z hz), fun F hF => ?_⟩
+  rcases Finset.mem_insert.mp hF with hF_eq | hF_rest
+  · subst F
+    -- Branch edges inside `F₁ ∪ F₂` are exactly those inside `F₁` or inside `F₂`.
+    have hsplit : (s.branchEdges.filter fun z => bothIn Fcomb.verts z = true) =
+        (s.branchEdges.filter fun z => bothIn F₁.verts z = true) ∪
           (s.branchEdges.filter fun z => bothIn F₂.verts z = true) := by
-        rw [Finset.disjoint_left]
-        intro z hz₁ hz₂
-        induction z using Sym2.ind with
-        | _ a b =>
-          have h₁' := (Finset.mem_filter.mp hz₁).2
-          have h₂' := (Finset.mem_filter.mp hz₂).2
-          rw [bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq] at h₁' h₂'
-          exact Finset.disjoint_left.mp hdisj₁₂ h₁'.1 h₂'.1
-      have hc₁ := hinv.frag_branch_card F₁ h₁
-      have hc₂ := hinv.frag_branch_card F₂ h₂
-      have hucard : Fcomb.verts.card = F₁.verts.card + F₂.verts.card := by
-        rw [hverts, Finset.card_union_of_disjoint hdisj₁₂]
-      rw [hfilt_ins, Finset.card_insert_of_notMem he_not_filt, hsplit,
-        Finset.card_union_of_disjoint hdisj_filt]
-      omega
-    · have hF_in : F ∈ s.fragments := Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hF_rest)
-      have hfilt_eq : (branches'.filter fun z => bothIn F.verts z = true) =
-          (s.branchEdges.filter fun z => bothIn F.verts z = true) := by
-        simp only [branches', Finset.filter_insert, not_both_single F hF_in, Bool.false_eq_true,
-          ↓reduceIte]
-      rw [hfilt_eq]
-      exact hinv.frag_branch_card F hF_in
-  exact ⟨he_not_branch, he_not_rej, hbr_int', hrej_int', hcard'⟩
+      ext z
+      simp only [Finset.mem_union, Finset.mem_filter, ← and_or_left]
+      refine and_congr_right fun hzB =>
+        ⟨fun hzC => ?_, fun h => h.elim (bothIn_mono hsub₁) (bothIn_mono hsub₂)⟩
+      obtain ⟨F₀, hF₀, hz₀⟩ := hinv.branch_internal z hzB
+      induction z using Sym2.ind with
+      | _ a b =>
+        rw [bothIn_mk_eq_true] at hz₀ hzC
+        rcases Finset.mem_union.mp (hverts ▸ hzC.1) with ha | ha
+        · exact .inl (bothIn_mk_eq_true.2 (hinv.eq_of_mem_verts hF₀ h₁ hz₀.1 ha ▸ hz₀))
+        · exact .inr (bothIn_mk_eq_true.2 (hinv.eq_of_mem_verts hF₀ h₂ hz₀.1 ha ▸ hz₀))
+    have hdisj_filt : Disjoint (s.branchEdges.filter fun z => bothIn F₁.verts z = true)
+        (s.branchEdges.filter fun z => bothIn F₂.verts z = true) := by
+      refine Finset.disjoint_filter.2 fun z _ hz₁ hz₂ => ?_
+      induction z using Sym2.ind with
+      | _ a b =>
+        rw [bothIn_mk_eq_true] at hz₁ hz₂
+        exact Finset.disjoint_left.mp hdisj₁₂ hz₁.1 hz₂.1
+    have hc₁ := hinv.frag_branch_card F₁ h₁
+    have hc₂ := hinv.frag_branch_card F₂ h₂
+    simp only [Finset.filter_insert, he_both, ↓reduceIte]
+    rw [Finset.card_insert_of_notMem fun hm => he_not_branch (Finset.mem_of_mem_filter e hm),
+      hsplit, Finset.card_union_of_disjoint hdisj_filt, hverts,
+      Finset.card_union_of_disjoint hdisj₁₂]
+    omega
+  · have hF_in : F ∈ s.fragments := Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hF_rest)
+    simp only [Finset.filter_insert, not_both_single F hF_in, Bool.false_eq_true, ↓reduceIte]
+    exact hinv.frag_branch_card F hF_in
 
 /-- Helper for single-fragment phase updates (`wakeupSingleton`, `wakeup`, `completeSearch`,
 `haltSearch`) where `verts` and `level` are unchanged. -/
@@ -817,49 +814,28 @@ private theorem replace_phase_partition {V W : Type*} [Fintype V] [DecidableEq V
       (∀ G₀ ∈ frags',
         (s.branchEdges.filter fun z => bothIn G₀.verts z = true).card + 1 = G₀.verts.card) ∧
       (∀ G₀ ∈ frags', 2 ^ G₀.level ≤ G₀.verts.card) := by
-  intro frags'
-  have hnotMem : F' ∉ s.fragments.erase F :=
-    notMem_erase_of_same_verts hinv hF (by rw [hverts])
-  refine ⟨hnotMem, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro G₀ hG₀
-    rcases Finset.mem_insert.mp hG₀ with rfl | hG₀_er
-    · rw [hverts]; exact hinv.verts_nonempty F hF
-    · exact hinv.verts_nonempty G₀ (Finset.mem_of_mem_erase hG₀_er)
-  · intro G₁ hG₁ G₂ hG₂ hne
-    rcases Finset.mem_insert.mp hG₁ with rfl | h₁_er <;>
-      rcases Finset.mem_insert.mp hG₂ with rfl | h₂_er
-    · exact absurd rfl hne
-    · obtain ⟨hne₂F, h₂_in⟩ := Finset.mem_erase.mp h₂_er
-      rw [hverts]
-      exact hinv.verts_disjoint F hF G₂ h₂_in hne₂F.symm
-    · obtain ⟨hne₁F, h₁_in⟩ := Finset.mem_erase.mp h₁_er
-      rw [hverts]
-      exact hinv.verts_disjoint G₁ h₁_in F hF hne₁F
-    · exact hinv.verts_disjoint G₁ (Finset.mem_of_mem_erase h₁_er)
-        G₂ (Finset.mem_of_mem_erase h₂_er) hne
-  · intro v
-    obtain ⟨G₀, hG₀, hv⟩ := hinv.verts_cover v
-    by_cases hGF : G₀ = F
-    · exact ⟨F', Finset.mem_insert_self _ _, hverts ▸ hGF ▸ hv⟩
-    · exact ⟨G₀, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hGF, hG₀⟩), hv⟩
-  · intro z hz
-    obtain ⟨G₀, hG₀, hb⟩ := hinv.branch_internal z hz
-    by_cases hGF : G₀ = F
-    · exact ⟨F', Finset.mem_insert_self _ _, hverts ▸ hGF ▸ hb⟩
-    · exact ⟨G₀, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hGF, hG₀⟩), hb⟩
-  · intro z hz
-    obtain ⟨G₀, hG₀, hb⟩ := hinv.rejected_internal z hz
-    by_cases hGF : G₀ = F
-    · exact ⟨F', Finset.mem_insert_self _ _, hverts ▸ hGF ▸ hb⟩
-    · exact ⟨G₀, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hGF, hG₀⟩), hb⟩
-  · intro G₀ hG₀
-    rcases Finset.mem_insert.mp hG₀ with rfl | hG₀_er
-    · rw [hverts]; exact hinv.frag_branch_card F hF
-    · exact hinv.frag_branch_card G₀ (Finset.mem_of_mem_erase hG₀_er)
-  · intro G₀ hG₀
-    rcases Finset.mem_insert.mp hG₀ with rfl | hG₀_er
-    · rw [hverts, hlevel]; exact hinv.two_pow_level_le F hF
-    · exact hinv.two_pow_level_le G₀ (Finset.mem_of_mem_erase hG₀_er)
+  dsimp only
+  have hsub := s.fragments.erase_subset F
+  refine ⟨notMem_erase_of_same_verts hinv hF (by rw [hverts]),
+    forall_mem_insert_of_subset hsub (hverts ▸ hinv.verts_nonempty F hF) hinv.verts_nonempty, ?_,
+    fun v => exists_mem_insert_erase (fun h => hverts ▸ h) (hinv.verts_cover v),
+    fun z hz => exists_mem_insert_erase (fun h => hverts ▸ h) (hinv.branch_internal z hz),
+    fun z hz => exists_mem_insert_erase (fun h => hverts ▸ h) (hinv.rejected_internal z hz),
+    forall_mem_insert_of_subset hsub (hverts ▸ hinv.frag_branch_card F hF) hinv.frag_branch_card,
+    forall_mem_insert_of_subset hsub (hverts ▸ hlevel ▸ hinv.two_pow_level_le F hF)
+      hinv.two_pow_level_le⟩
+  intro G₁ hG₁ G₂ hG₂ hne
+  rcases Finset.mem_insert.mp hG₁ with rfl | h₁_er <;>
+    rcases Finset.mem_insert.mp hG₂ with rfl | h₂_er
+  · exact absurd rfl hne
+  · obtain ⟨hne₂F, h₂_in⟩ := Finset.mem_erase.mp h₂_er
+    rw [hverts]
+    exact hinv.verts_disjoint F hF G₂ h₂_in hne₂F.symm
+  · obtain ⟨hne₁F, h₁_in⟩ := Finset.mem_erase.mp h₁_er
+    rw [hverts]
+    exact hinv.verts_disjoint G₁ h₁_in F hF hne₁F
+  · exact hinv.verts_disjoint G₁ (Finset.mem_of_mem_erase h₁_er)
+      G₂ (Finset.mem_of_mem_erase h₂_er) hne
 
 /-- Helper for `absorb` and `merge`: replacing two distinct fragments `F₁ ≠ F₂` by `Fcomb` with
 `Fcomb.verts = F₁.verts ∪ F₂.verts` preserves the fragment partition of `V`. -/
@@ -873,38 +849,30 @@ private theorem combine_partition {V W : Type*} [Fintype V] [DecidableEq V]
       (∀ G₀ ∈ frags', G₀.verts.Nonempty) ∧
       (∀ G₁ ∈ frags', ∀ G₂ ∈ frags', G₁ ≠ G₂ → Disjoint G₁.verts G₂.verts) ∧
       (∀ v : V, ∃ G₀ ∈ frags', v ∈ G₀.verts) := by
-  intro frags'
-  have hnotMem : Fcomb ∉ (s.fragments.erase F₁).erase F₂ :=
-    notMem_erase2_of_union hinv h₁ (hverts ▸ Finset.subset_union_left)
-  refine ⟨hnotMem, ?_, ?_, ?_⟩
-  · intro G₀ hG₀
-    rcases Finset.mem_insert.mp hG₀ with rfl | hG₀_er
-    · rw [hverts]; exact (hinv.verts_nonempty F₁ h₁).mono Finset.subset_union_left
-    · exact hinv.verts_nonempty G₀ (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hG₀_er))
-  · intro G₁ hG₁ G₂ hG₂ hneG
-    rcases Finset.mem_insert.mp hG₁ with rfl | h₁_er <;>
-      rcases Finset.mem_insert.mp hG₂ with rfl | h₂_er
-    · exact absurd rfl hneG
-    · obtain ⟨hne₂₂, h₂_er₁⟩ := Finset.mem_erase.mp h₂_er
-      obtain ⟨hne₂₁, h₂_in⟩ := Finset.mem_erase.mp h₂_er₁
-      rw [hverts, Finset.disjoint_union_left]
-      exact ⟨hinv.verts_disjoint F₁ h₁ G₂ h₂_in hne₂₁.symm,
-        hinv.verts_disjoint F₂ h₂ G₂ h₂_in hne₂₂.symm⟩
-    · obtain ⟨hne₁₂, h₁_er₁⟩ := Finset.mem_erase.mp h₁_er
-      obtain ⟨hne₁₁, h₁_in⟩ := Finset.mem_erase.mp h₁_er₁
-      rw [hverts, Finset.disjoint_union_right]
-      exact ⟨hinv.verts_disjoint G₁ h₁_in F₁ h₁ hne₁₁,
-        hinv.verts_disjoint G₁ h₁_in F₂ h₂ hne₁₂⟩
-    · exact hinv.verts_disjoint G₁ (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h₁_er))
-        G₂ (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h₂_er)) hneG
-  · intro v
-    obtain ⟨G₀, hG₀, hv⟩ := hinv.verts_cover v
-    by_cases hG₁ : G₀ = F₁
-    · exact ⟨Fcomb, Finset.mem_insert_self _ _, hverts ▸ Finset.mem_union_left _ (hG₁ ▸ hv)⟩
-    · by_cases hG₂ : G₀ = F₂
-      · exact ⟨Fcomb, Finset.mem_insert_self _ _, hverts ▸ Finset.mem_union_right _ (hG₂ ▸ hv)⟩
-      · exact ⟨G₀, Finset.mem_insert_of_mem
-          (Finset.mem_erase.mpr ⟨hG₂, Finset.mem_erase.mpr ⟨hG₁, hG₀⟩⟩), hv⟩
+  dsimp only
+  have hsub : (s.fragments.erase F₁).erase F₂ ⊆ s.fragments :=
+    (Finset.erase_subset _ _).trans (Finset.erase_subset _ _)
+  refine ⟨notMem_erase2_of_union hinv h₁ (hverts ▸ Finset.subset_union_left),
+    forall_mem_insert_of_subset hsub
+      (hverts ▸ (hinv.verts_nonempty F₁ h₁).mono Finset.subset_union_left) hinv.verts_nonempty, ?_,
+    fun v => exists_mem_insert_erase₂ (fun h => hverts ▸ Finset.mem_union_left _ h)
+      (fun h => hverts ▸ Finset.mem_union_right _ h) (hinv.verts_cover v)⟩
+  intro G₁ hG₁ G₂ hG₂ hneG
+  rcases Finset.mem_insert.mp hG₁ with rfl | h₁_er <;>
+    rcases Finset.mem_insert.mp hG₂ with rfl | h₂_er
+  · exact absurd rfl hneG
+  · obtain ⟨hne₂₂, h₂_er₁⟩ := Finset.mem_erase.mp h₂_er
+    obtain ⟨hne₂₁, h₂_in⟩ := Finset.mem_erase.mp h₂_er₁
+    rw [hverts, Finset.disjoint_union_left]
+    exact ⟨hinv.verts_disjoint F₁ h₁ G₂ h₂_in hne₂₁.symm,
+      hinv.verts_disjoint F₂ h₂ G₂ h₂_in hne₂₂.symm⟩
+  · obtain ⟨hne₁₂, h₁_er₁⟩ := Finset.mem_erase.mp h₁_er
+    obtain ⟨hne₁₁, h₁_in⟩ := Finset.mem_erase.mp h₁_er₁
+    rw [hverts, Finset.disjoint_union_right]
+    exact ⟨hinv.verts_disjoint G₁ h₁_in F₁ h₁ hne₁₁,
+      hinv.verts_disjoint G₁ h₁_in F₂ h₂ hne₁₂⟩
+  · exact hinv.verts_disjoint G₁ (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h₁_er))
+      G₂ (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h₂_er)) hneG
 
 private theorem sum_erase2 {α : Type*} [DecidableEq α] {s : Finset α} {a b : α}
     (ha : a ∈ s) (hb : b ∈ s) (hne : a ≠ b) (f : α → ℕ) :
@@ -914,677 +882,523 @@ private theorem sum_erase2 {α : Type*} [DecidableEq α] {s : Finset α} {a b : 
   have h2 := Finset.sum_erase_add s f ha
   omega
 
+/-- Frame lemma lifting `FragInv` across a single-fragment phase update `F ↦ F'` that preserves
+`F.verts`, `F.level`, `branchEdges`, and `rejectedEdges`. -/
+private theorem fragInv_replacePhase {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
+    (hinv : FragInv G w s) {F F' : Fragment V} (hF : F ∈ s.fragments)
+    (hverts : F'.verts = F.verts) (hlevel : F'.level = F.level) {msgs' : MsgCount}
+    (hsleep : F'.phase = .sleeping → ∃ v : V, F' = ⟨{v}, 0, none, .sleeping⟩)
+    (hsearch : F'.phase = .searching → 1 ≤ F'.level)
+    (hhalt : F'.phase = .halted →
+      F'.verts = Finset.univ ∧ G.edgeFinset ⊆ s.branchEdges ∪ s.rejectedEdges)
+    (hfound : ∀ e, F'.phase = .found e → F'.verts ≠ Finset.univ ∧ IsMOE G w F'.verts e)
+    (htarget : ∀ e, F'.phase = .found e →
+      ∃ Ft ∈ insert F' (s.fragments.erase F),
+        Ft ≠ F' ∧ betweenSets F'.verts Ft.verts e = true ∧ F'.level ≤ Ft.level)
+    (hmsgs_one : Fintype.card V ≤ 1 → msgs'.total = 0)
+    (hbud : 2 ≤ Fintype.card V →
+      let L_max := Nat.log 2 (Fintype.card V)
+      msgs'.total + fragRemBudget L_max F' ≤ s.msgs.total + fragRemBudget L_max F) :
+    FragInv G w { s with fragments := insert F' (s.fragments.erase F), msgs := msgs' } := by
+  obtain ⟨hnotMem, hnemp, hdisj, hcov, hbr_int, hrej_int, hbr_card, hpow⟩ :=
+    replace_phase_partition hinv hF hverts hlevel
+  have hsub := s.fragments.erase_subset F
+  refine
+    { verts_nonempty := hnemp
+      verts_disjoint := hdisj
+      verts_cover := hcov
+      branch_sub := hinv.branch_sub
+      rejected_sub := hinv.rejected_sub
+      branch_rejected_disjoint := hinv.branch_rejected_disjoint
+      branch_isMOE := hinv.branch_isMOE
+      branch_internal := hbr_int
+      rejected_internal := hrej_int
+      frag_branch_card := hbr_card
+      two_pow_level_le := hpow
+      sleeping_spec := forall_mem_insert_of_subset hsub hsleep hinv.sleeping_spec
+      searching_level_pos := forall_mem_insert_of_subset hsub hsearch hinv.searching_level_pos
+      halted_spec := forall_mem_insert_of_subset hsub hhalt hinv.halted_spec
+      found_isMOE := forall_mem_insert_of_subset hsub hfound hinv.found_isMOE
+      -- Surviving `found` fragments whose MOE targeted `F` retarget onto `F'`.
+      found_target_level := forall_mem_insert_of_subset subset_rfl htarget fun G₀ hG₀ e₀ hph =>
+        exists_mem_insert_erase
+          (fun ⟨_, hb, hl⟩ => ⟨fun h => hnotMem (h ▸ hG₀), hverts ▸ hb, hlevel ▸ hl⟩)
+          (hinv.found_target_level G₀ (hsub hG₀) e₀ hph)
+      msgs_card_le_one := hmsgs_one
+      msgs_budget := fun h2 => by
+        intro L_max
+        have hsum_er := Finset.sum_erase_add s.fragments (fragRemBudget L_max) hF
+        have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
+        have hdrop := hbud h2
+        have hprev := hinv.msgs_budget h2
+        dsimp only [L_max] at *
+        omega }
+
+/-- Specialization of `fragInv_replacePhase` for transitions (`wakeup`, `completeSearch`) that move
+a fragment `F` into phase `.found e` targeting a fragment `Ft` across `e = s(u₀, v₀)`. -/
+private theorem fragInv_setFound {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
+    (hinv : FragInv G w s) {F Ft : Fragment V} (hF : F ∈ s.fragments) (hFt : Ft ∈ s.fragments)
+    {e : Sym2 V} (hmoe : IsMOE G w F.verts e) {u₀ v₀ : V} (hu₀ : u₀ ∈ F.verts)
+    (hv₀ : v₀ ∉ F.verts) (hv₀_Ft : v₀ ∈ Ft.verts) (he_eq : e = s(u₀, v₀))
+    (hlev : F.level ≤ Ft.level) {msgs' : MsgCount}
+    (hbud : 2 ≤ Fintype.card V →
+      let L_max := Nat.log 2 (Fintype.card V)
+      msgs'.total + fragRemBudget L_max { F with phase := .found e } ≤
+        s.msgs.total + fragRemBudget L_max F) :
+    FragInv G w
+      { s with
+        fragments := insert { F with phase := .found e } (s.fragments.erase F)
+        msgs := msgs' } := by
+  have hne_univ : F.verts ≠ Finset.univ := fun hu => hv₀ (hu ▸ Finset.mem_univ v₀)
+  have hcard2 : 2 ≤ Fintype.card V :=
+    Fintype.one_lt_card_iff.mpr ⟨u₀, v₀, fun h => hv₀ (h ▸ hu₀)⟩
+  have hFt_ne_F : Ft ≠ F := fun h => hv₀ ((congrArg Fragment.verts h) ▸ hv₀_Ft)
+  refine fragInv_replacePhase hinv hF (F' := { F with phase := .found e }) rfl rfl
+    (fun h => by cases h) (fun h => by cases h) (fun h => by cases h)
+    (fun e₀ hph => by injection hph with he₀; subst he₀; exact ⟨hne_univ, hmoe⟩)
+    (fun e₀ hph => ?_) (fun h1 => by omega) hbud
+  injection hph with he₀
+  subst he₀
+  refine ⟨Ft, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hFt_ne_F, hFt⟩), ?_, ?_, hlev⟩
+  · intro hFt_F'
+    exact hv₀ ((congrArg Fragment.verts hFt_F') ▸ hv₀_Ft)
+  · rw [betweenSets_eq_true_iff]
+    exact ⟨u₀, hu₀, v₀, hv₀_Ft, he_eq⟩
+
+/-- Frame lemma lifting `FragInv` across a two-fragment combine step (`absorb` or `merge`) that
+replaces `F₁ ≠ F₂` with `Fcomb` (`Fcomb.verts = F₁.verts ∪ F₂.verts`), adds the bridging MOE `e`
+of `F₁.verts` to `branchEdges`, and keeps both components' levels at or below `Fcomb.level`. -/
+private theorem fragInv_combine {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
+    (hinv : FragInv G w s) {F₁ F₂ Fcomb : Fragment V}
+    (h₁ : F₁ ∈ s.fragments) (h₂ : F₂ ∈ s.fragments) (hne : F₁ ≠ F₂)
+    (hverts : Fcomb.verts = F₁.verts ∪ F₂.verts)
+    (hlev₁ : F₁.level ≤ Fcomb.level) (hlev₂ : F₂.level ≤ Fcomb.level)
+    {e : Sym2 V} (hmoe₁ : IsMOE G w F₁.verts e)
+    (hbtw : betweenSets F₁.verts F₂.verts e = true) {msgs' : MsgCount}
+    (hpow : 2 ^ Fcomb.level ≤ Fcomb.verts.card)
+    (hsleep : Fcomb.phase = .sleeping → ∃ v : V, Fcomb = ⟨{v}, 0, none, .sleeping⟩)
+    (hsearch : Fcomb.phase = .searching → 1 ≤ Fcomb.level)
+    (hhalt : Fcomb.phase = .halted →
+      Fcomb.verts = Finset.univ ∧ G.edgeFinset ⊆ insert e s.branchEdges ∪ s.rejectedEdges)
+    (hfound : ∀ e₀, Fcomb.phase = .found e₀ →
+      Fcomb.verts ≠ Finset.univ ∧ IsMOE G w Fcomb.verts e₀)
+    (htarget : ∀ e₀, Fcomb.phase = .found e₀ →
+      ∃ Ft ∈ insert Fcomb ((s.fragments.erase F₁).erase F₂),
+        Ft ≠ Fcomb ∧ betweenSets Fcomb.verts Ft.verts e₀ = true ∧ Fcomb.level ≤ Ft.level)
+    (hbud : 2 ≤ Fintype.card V →
+      let L_max := Nat.log 2 (Fintype.card V)
+      msgs'.total + fragRemBudget L_max Fcomb ≤
+        s.msgs.total + fragRemBudget L_max F₁ + fragRemBudget L_max F₂) :
+    FragInv G w
+      { s with
+        fragments := insert Fcomb ((s.fragments.erase F₁).erase F₂)
+        branchEdges := insert e s.branchEdges
+        msgs := msgs' } := by
+  obtain ⟨hnotMem, hnemp, hdisj, hcov⟩ := combine_partition hinv h₁ h₂ hverts
+  obtain ⟨_, he_not_rej, hbr_int, hrej_int, hbr_card⟩ :=
+    combine_edge_facts hinv h₁ h₂ hne hverts hbtw
+  have hsub : (s.fragments.erase F₁).erase F₂ ⊆ s.fragments :=
+    (Finset.erase_subset _ _).trans (Finset.erase_subset _ _)
+  -- Distinct nonempty disjoint fragments guarantee `|V| ≥ 2`, so `msgs_card_le_one` is vacuous.
+  have hcard2 : 2 ≤ Fintype.card V := by
+    obtain ⟨u₁, hu₁⟩ := hinv.verts_nonempty F₁ h₁
+    obtain ⟨u₂, hu₂⟩ := hinv.verts_nonempty F₂ h₂
+    exact Fintype.one_lt_card_iff.mpr
+      ⟨u₁, u₂, fun h => hne (hinv.eq_of_mem_verts h₁ h₂ hu₁ (h ▸ hu₂))⟩
+  refine
+    { verts_nonempty := hnemp
+      verts_disjoint := hdisj
+      verts_cover := hcov
+      branch_sub := Finset.insert_subset (mem_edgeFinset.mpr hmoe₁.1.1) hinv.branch_sub
+      rejected_sub := hinv.rejected_sub
+      branch_rejected_disjoint :=
+        Finset.disjoint_insert_left.mpr ⟨he_not_rej, hinv.branch_rejected_disjoint⟩
+      branch_isMOE := Finset.forall_mem_insert _ _ _ |>.2 ⟨⟨F₁.verts, hmoe₁⟩, hinv.branch_isMOE⟩
+      branch_internal := hbr_int
+      rejected_internal := hrej_int
+      frag_branch_card := hbr_card
+      two_pow_level_le := forall_mem_insert_of_subset hsub hpow hinv.two_pow_level_le
+      sleeping_spec := forall_mem_insert_of_subset hsub hsleep hinv.sleeping_spec
+      searching_level_pos := forall_mem_insert_of_subset hsub hsearch hinv.searching_level_pos
+      halted_spec := forall_mem_insert_of_subset hsub hhalt fun G₀ hG₀ hph =>
+        (hinv.halted_spec G₀ hG₀ hph).imp_right
+          (·.trans (Finset.union_subset_union_left (Finset.subset_insert _ _)))
+      found_isMOE := forall_mem_insert_of_subset hsub hfound hinv.found_isMOE
+      -- Surviving `found` fragments pointing at `F₁` or `F₂` retarget onto `Fcomb`.
+      found_target_level := forall_mem_insert_of_subset subset_rfl htarget fun G₀ hG₀ e₀ hph =>
+        exists_mem_insert_erase₂
+          (fun ⟨_, hb, hl⟩ => ⟨fun h => hnotMem (h ▸ hG₀),
+            betweenSets_mono_right (hverts ▸ Finset.subset_union_left) hb, hl.trans hlev₁⟩)
+          (fun ⟨_, hb, hl⟩ => ⟨fun h => hnotMem (h ▸ hG₀),
+            betweenSets_mono_right (hverts ▸ Finset.subset_union_right) hb, hl.trans hlev₂⟩)
+          (hinv.found_target_level G₀ (hsub hG₀) e₀ hph)
+      msgs_card_le_one := fun h1 => by omega
+      msgs_budget := fun h2 => by
+        intro L_max
+        have hsum_er2 := sum_erase2 h₁ h₂ hne (fragRemBudget L_max)
+        have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
+        have hdrop := hbud h2
+        have hprev := hinv.msgs_budget h2
+        dsimp only [L_max] at *
+        omega }
+
+/-! ### Per-action preservation of `FragInv` -/
+
+/-- `FragAction.wakeupSingleton` halts the lone singleton fragment in a `1`-vertex graph with no
+edges and preserves `FragInv`. -/
+private theorem fragInv_step_wakeupSingleton {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {v : V} (hinv : FragInv G w s) (htr : fragStep? G w s (.wakeupSingleton v) = some s') :
+    FragInv G w s' := by
+  obtain ⟨⟨hF, huniv⟩, rfl⟩ := of_ite_eq_some htr
+  have hcard_one : Fintype.card V = 1 := by
+    rw [← Finset.card_univ, ← huniv, Finset.card_singleton]
+  -- A single-vertex simple graph has no edges.
+  have hG_empty : G.edgeFinset ⊆ ∅ := fun e he => by
+    induction e using Sym2.ind with
+    | _ x y =>
+      exact ((G.mem_edgeSet.mp (mem_edgeFinset.mp he)).ne
+        (Fintype.card_le_one_iff.mp hcard_one.le x y)).elim
+  exact fragInv_replacePhase hinv hF (F' := ⟨{v}, 0, none, .halted⟩) rfl rfl
+    (fun h => by cases h) (fun h => by cases h)
+    (fun _ => ⟨huniv, hG_empty.trans (Finset.empty_subset _)⟩)
+    (fun _ h => by cases h) (fun _ h => by cases h)
+    hinv.msgs_card_le_one (fun h2 => by omega)
+
+/-- `FragAction.wakeup` transitions a sleeping singleton `{v}` to `found e` (`Connect(0)`) and
+preserves `FragInv`, paying `1` unit from its per-vertex budget. -/
+private theorem fragInv_step_wakeup {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {v : V} {e : Sym2 V} (hinv : FragInv G w s)
+    (htr : fragStep? G w s (.wakeup v e) = some s') :
+    FragInv G w s' := by
+  obtain ⟨⟨hF, hmoe⟩, rfl⟩ := of_ite_eq_some htr
+  let F : Fragment V := ⟨{v}, 0, none, .sleeping⟩
+  obtain ⟨_, u₀, hu₀, w₀, hw₀, he_eq⟩ := hmoe.1
+  rw [Finset.mem_singleton] at hu₀
+  subst u₀
+  -- Any fragment covering the external endpoint `w₀` of `e = s(v, w₀)` has level `≥ 0`.
+  obtain ⟨Ft, hFt, hw_in⟩ := hinv.verts_cover w₀
+  refine fragInv_setFound hinv (F := F) hF hFt hmoe (Finset.mem_singleton_self v) hw₀ hw_in he_eq
+    (Nat.zero_le _) fun h2 => ?_
+  -- Budget drop: sleeping `5*(L_max - 1) + 3` → found `5*(L_max - 1) + 2` covers `+1` `Connect`.
+  intro L_max
+  have h0_lt : 0 < L_max := Nat.le_log_of_pow_le (by decide) (by simpa using h2)
+  have hb_old : fragRemBudget L_max F = 5 * (L_max - 1) + 3 := by
+    simp only [F, fragRemBudget, perVertexBudget, Finset.card_singleton, mul_one]
+  have hb_new : fragRemBudget L_max { F with phase := .found e } = 5 * (L_max - 1) + 2 := by
+    simp only [F, fragRemBudget, perVertexBudget, h0_lt, ↓reduceIte, Nat.sub_zero,
+      Finset.card_singleton, mul_one]
+  have htot : ({ s.msgs with connect := s.msgs.connect + 1 } : MsgCount).total =
+      s.msgs.total + 1 := by
+    simp only [MsgCount.total]; omega
+  dsimp only [L_max, F] at *
+  omega
+
+/-- `FragAction.rejectChord` moves an internal `basic` edge into `rejectedEdges` (`2` messages:
+`Test` + `Reject` or dual `Test`) and preserves `FragInv`. -/
+private theorem fragInv_step_rejectChord {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {F : Fragment V} {e : Sym2 V} {dual : Bool} (hinv : FragInv G w s)
+    (htr : fragStep? G w s (.rejectChord F e dual) = some s') :
+    FragInv G w s' := by
+  obtain ⟨⟨hF, hph, he_fin, hboth, hbasic⟩, rfl⟩ := of_ite_eq_some htr
+  obtain ⟨he_not_br, he_not_rej⟩ := notMem_of_edgeState_eq_basic hbasic
+  have hcard2 : 2 ≤ Fintype.card V := two_le_card_of_searching hinv hF hph
+  refine
+    { verts_nonempty := hinv.verts_nonempty
+      verts_disjoint := hinv.verts_disjoint
+      verts_cover := hinv.verts_cover
+      branch_sub := hinv.branch_sub
+      rejected_sub := Finset.insert_subset he_fin hinv.rejected_sub
+      branch_rejected_disjoint :=
+        Finset.disjoint_insert_right.mpr ⟨he_not_br, hinv.branch_rejected_disjoint⟩
+      branch_isMOE := hinv.branch_isMOE
+      branch_internal := hinv.branch_internal
+      rejected_internal := fun z hz => by
+        rcases Finset.mem_insert.mp hz with rfl | hz_old
+        · exact ⟨F, hF, hboth⟩
+        · exact hinv.rejected_internal z hz_old
+      frag_branch_card := hinv.frag_branch_card
+      two_pow_level_le := hinv.two_pow_level_le
+      sleeping_spec := hinv.sleeping_spec
+      searching_level_pos := hinv.searching_level_pos
+      halted_spec := fun G₀ hG₀ hph₀ => by
+        obtain ⟨hu, hsub⟩ := hinv.halted_spec G₀ hG₀ hph₀
+        exact ⟨hu, hsub.trans (Finset.union_subset_union_right (Finset.subset_insert _ _))⟩
+      found_isMOE := hinv.found_isMOE
+      found_target_level := hinv.found_target_level
+      msgs_card_le_one := fun h1 => by omega
+      msgs_budget := fun h2 => by
+        -- Adding `e` to `rejectedEdges` shrinks `|E \ rejectedEdges|` by `1`, offsetting `+2`.
+        intro L_max
+        have hcard_sd : (G.edgeFinset \ insert e s.rejectedEdges).card + 1 =
+            (G.edgeFinset \ s.rejectedEdges).card := by
+          rw [Finset.sdiff_insert,
+            Finset.card_erase_add_one (Finset.mem_sdiff.mpr ⟨he_fin, he_not_rej⟩)]
+        have htot : (if dual then { s.msgs with test := s.msgs.test + 2 }
+            else { s.msgs with test := s.msgs.test + 1, reject := s.msgs.reject + 1 }).total =
+            s.msgs.total + 2 := by
+          cases dual <;> simp only [↓reduceIte, Bool.false_eq_true, MsgCount.total] <;> omega
+        have hprev := hinv.msgs_budget h2
+        dsimp only [L_max] at *
+        omega }
+
+/-- `FragAction.completeSearch` moves searching fragment `F` to `found e` once every node's MOE
+passes the level-delay check, charging at most `4 * |F.verts|` messages against `fragRemBudget`. -/
+private theorem fragInv_step_completeSearch {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {F : Fragment V} {e : Sym2 V} (hinv : FragInv G w s)
+    (htr : fragStep? G w s (.completeSearch F e) = some s') :
+    FragInv G w s' := by
+  obtain ⟨⟨hF, hph, _, hmoe, hallAcc⟩, rfl⟩ := of_ite_eq_some htr
+  obtain ⟨hadj_edge, u₀, hu₀, v₀, hv₀, he_eq⟩ := hmoe.1
+  -- The fragment MOE `e = s(u₀, v₀)` is also `u₀`'s local MOE, so `allNodeMOEsAccepted` yields a
+  -- target fragment `Ft ≠ F` covering `v₀` with `F.level ≤ Ft.level`.
+  have hadj_uv : G.Adj u₀ v₀ := G.mem_edgeSet.mp (he_eq ▸ hadj_edge)
+  have hmin_uv : ∀ v', G.Adj u₀ v' → v' ∉ F.verts → w s(u₀, v₀) ≤ w s(u₀, v') := by
+    intro v' hadj' hv'
+    rw [← he_eq]
+    exact hmoe.2 s(u₀, v') ⟨G.mem_edgeSet.mpr hadj', u₀, hu₀, v', hv', rfl⟩
+  unfold allNodeMOEsAccepted at hallAcc
+  obtain ⟨Ft, hFt, hv₀_Ft, hF_le_Ft⟩ :=
+    (of_decide_eq_true hallAcc) u₀ hu₀ v₀ hadj_uv hv₀ hmin_uv
+  have hFt_ne_F : Ft ≠ F := fun h => hv₀ ((congrArg Fragment.verts h) ▸ hv₀_Ft)
+  -- Since `F` and `Ft` are disjoint and both have size `≥ 2^F.level`, `|V| ≥ 2^(F.level + 1)`.
+  have hF_lt_Lmax : F.level < Nat.log 2 (Fintype.card V) := by
+    have hdisj_FFt := hinv.verts_disjoint F hF Ft hFt hFt_ne_F.symm
+    have hpF := hinv.two_pow_level_le F hF
+    have hpFt' : 2 ^ F.level ≤ Ft.verts.card :=
+      (Nat.pow_le_pow_right (by decide) hF_le_Ft).trans (hinv.two_pow_level_le Ft hFt)
+    have hsum_le : F.verts.card + Ft.verts.card ≤ Fintype.card V := by
+      rw [← Finset.card_union_of_disjoint hdisj_FFt]
+      exact Finset.card_le_univ _
+    have hpow_succ : 2 ^ (F.level + 1) ≤ Fintype.card V := by
+      rw [Nat.pow_succ]; omega
+    have hle_succ := Nat.le_log_of_pow_le (by decide) hpow_succ
+    omega
+  refine fragInv_setFound hinv hF hFt hmoe hu₀ hv₀ hv₀_Ft he_eq hF_le_Ft fun _ => ?_
+  -- `Test + Accept ≤ 2|F|`, `Report = |F|`, `Change-root + Connect ≤ |F|`, totaling `≤ 4|F|`.
+  intro L_max
+  have hout_le := outgoingNodeCount_le_card G F.verts
+  have hhops_le := changeRootHops_add_one_le_card s F e (hinv.verts_nonempty F hF)
+  have hlt_L : F.level < L_max := hF_lt_Lmax
+  have hb_diff : fragRemBudget L_max F =
+      fragRemBudget L_max { F with phase := .found e } + 4 * F.verts.card := by
+    simp only [hph, fragRemBudget, perVertexBudget, hlt_L, ↓reduceIte]
+    have h1 : 5 * (L_max - F.level) + 1 = 5 * (L_max - 1 - F.level) + 2 + 4 := by omega
+    rw [h1, Nat.right_distrib]
+  have htot : ({ s.msgs with
+      test := s.msgs.test + outgoingNodeCount G F.verts
+      accept := s.msgs.accept + outgoingNodeCount G F.verts
+      report := s.msgs.report + F.verts.card
+      changeRoot := s.msgs.changeRoot + changeRootHops s F e
+      connect := s.msgs.connect + 1 } : MsgCount).total ≤
+      s.msgs.total + 4 * F.verts.card := by
+    simp only [MsgCount.total]; omega
+  dsimp only [L_max] at *
+  omega
+
+/-- `FragAction.haltSearch` halts a spanning `searching` fragment once all internal edges are
+classified, paying `|F.verts|` `Report` messages from its remaining budget. -/
+private theorem fragInv_step_haltSearch {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {F : Fragment V} (hinv : FragInv G w s) (htr : fragStep? G w s (.haltSearch F) = some s') :
+    FragInv G w s' := by
+  obtain ⟨⟨hF, hph, huniv, hnoBasic⟩, rfl⟩ := of_ite_eq_some htr
+  let F' : Fragment V := { F with phase := .halted }
+  have hcard2 : 2 ≤ Fintype.card V := two_le_card_of_searching hinv hF hph
+  -- Because `F.verts = univ`, `noBasicInternalEdges` classifies every edge of `G`.
+  have hall_classified : G.edgeFinset ⊆ s.branchEdges ∪ s.rejectedEdges := by
+    intro c hc
+    have hnoB := (noBasicInternalEdges_eq_true_iff G s F.verts).mp hnoBasic
+    have hboth : bothIn F.verts c = true := by
+      rw [huniv, bothIn_eq_true_iff]
+      exact fun x _ => Finset.mem_univ x
+    have h1 := hnoB c hc hboth
+    simp only [FragState.edgeState] at h1
+    by_cases hbr : c ∈ s.branchEdges
+    · exact Finset.mem_union_left _ hbr
+    · by_cases hrej : c ∈ s.rejectedEdges
+      · exact Finset.mem_union_right _ hrej
+      · simp only [hbr, hrej, ↓reduceIte, ne_eq, not_true_eq_false] at h1
+  refine fragInv_replacePhase hinv hF (F' := F') rfl rfl
+    (fun h => by cases h) (fun h => by cases h) (fun _ => ⟨huniv, hall_classified⟩)
+    (fun _ h => by cases h) (fun _ h => by cases h)
+    (fun h1 => by omega) (fun _ => ?_)
+  -- Every vertex in a `searching` fragment holds at least `1` unit of budget for `Report(∞)`.
+  intro L_max
+  have hb_new : fragRemBudget L_max F' = 0 := by
+    simp only [F', fragRemBudget, perVertexBudget, zero_mul]
+  have hb_old : F.verts.card ≤ fragRemBudget L_max F := by
+    simp only [fragRemBudget, hph, perVertexBudget]
+    exact Nat.le_mul_of_pos_left _ (by omega)
+  have htot : ({ s.msgs with report := s.msgs.report + F.verts.card } : MsgCount).total =
+      s.msgs.total + F.verts.card := by
+    simp only [MsgCount.total]; omega
+  dsimp only [L_max, F'] at *
+  omega
+
+/-- Absorption preserves the outgoing MOE of a higher-level `found` recipient fragment `F₂`
+(`w e₂ ≤ w e` forces every outgoing edge from `F₂ ∪ F₁` to have weight at least `w e₂`). -/
+private theorem absorb_found_pres {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s : FragState V}
+    (hinv : FragInv G w s) {F₁ F₂ : Fragment V} (h₁ : F₁ ∈ s.fragments) (h₂ : F₂ ∈ s.fragments)
+    (hne : F₁ ≠ F₂) (hlt : F₁.level < F₂.level) {e e₂ : Sym2 V}
+    (hmoe₁ : IsMOE G w F₁.verts e) (hbtw : betweenSets F₁.verts F₂.verts e = true)
+    (hph₂ : F₂.phase = .found e₂) :
+    let F₂' : Fragment V := ⟨F₂.verts ∪ F₁.verts, F₂.level, F₂.core, F₂.phase⟩
+    F₂'.verts ≠ Finset.univ ∧ IsMOE G w F₂'.verts e₂ ∧
+      ∃ Ft ∈ insert F₂' ((s.fragments.erase F₁).erase F₂),
+        Ft ≠ F₂' ∧ betweenSets F₂'.verts Ft.verts e₂ = true ∧ F₂'.level ≤ Ft.level := by
+  intro F₂'
+  have hdisj₁₂ : Disjoint F₁.verts F₂.verts := hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
+  obtain ⟨_, hmoe₂⟩ := hinv.found_isMOE F₂ h₂ e₂ hph₂
+  obtain ⟨F₃, h₃, h₃_ne_₂, hbtw₂, hlev₂₃⟩ := hinv.found_target_level F₂ h₂ e₂ hph₂
+  -- Because `F₁.level < F₂.level ≤ F₃.level`, `e₂` cannot land in `F₁`.
+  have h₃_ne_₁ : F₃ ≠ F₁ := fun h => by subst h; omega
+  obtain ⟨u₂, hu₂, v₂, hv₂, he₂_eq⟩ := (betweenSets_eq_true_iff _ _ _).mp hbtw₂
+  have hv₂_not₂ : v₂ ∉ F₂.verts :=
+    Finset.disjoint_right.mp (hinv.verts_disjoint F₂ h₂ F₃ h₃ h₃_ne_₂.symm) hv₂
+  have hv₂_not₁ : v₂ ∉ F₁.verts :=
+    Finset.disjoint_right.mp (hinv.verts_disjoint F₁ h₁ F₃ h₃ h₃_ne_₁.symm) hv₂
+  have hv₂_not_u : v₂ ∉ F₂'.verts := by
+    simp only [F₂', Finset.mem_union, not_or]; exact ⟨hv₂_not₂, hv₂_not₁⟩
+  have hnot_univ' : F₂'.verts ≠ Finset.univ := fun hu => hv₂_not_u (hu ▸ Finset.mem_univ v₂)
+  have hout_e₂ : IsOutgoingEdge G F₂'.verts e₂ :=
+    ⟨hmoe₂.1.1, u₂, Finset.mem_union_left _ hu₂, v₂, hv₂_not_u, he₂_eq⟩
+  -- Since `e` leaves `F₂`, `w e₂ ≤ w e`; hence `e₂` dominates edges leaving both `F₂` and `F₁`.
+  obtain ⟨u₁, hu₁, v₁, hv₁, he₁_eq⟩ := (betweenSets_eq_true_iff _ _ _).mp hbtw
+  have hu₁_not₂ : u₁ ∉ F₂.verts := Finset.disjoint_left.mp hdisj₁₂ hu₁
+  have hw_e₂_le_e : w e₂ ≤ w e :=
+    hmoe₂.2 e ⟨hmoe₁.1.1, v₁, hv₁, u₁, hu₁_not₂, he₁_eq.trans Sym2.eq_swap⟩
+  have hmoe₂' : IsMOE G w F₂'.verts e₂ := by
+    refine ⟨hout_e₂, fun f hf => ?_⟩
+    obtain ⟨hfG, a, ha, b, hb, hf_eq⟩ := hf
+    simp only [F₂', Finset.mem_union, not_or] at ha hb
+    rcases ha with ha₂ | ha₁
+    · exact hmoe₂.2 f ⟨hfG, a, ha₂, b, hb.1, hf_eq⟩
+    · exact hw_e₂_le_e.trans (hmoe₁.2 f ⟨hfG, a, ha₁, b, hb.2, hf_eq⟩)
+  have h₃_in' : F₃ ∈ insert F₂' ((s.fragments.erase F₁).erase F₂) :=
+    Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨h₃_ne_₂, Finset.mem_erase.mpr ⟨h₃_ne_₁, h₃⟩⟩)
+  have h₃_ne_2' : F₃ ≠ F₂' := fun h => hv₂_not_u (h ▸ hv₂)
+  have hbtw₂' : betweenSets F₂'.verts F₃.verts e₂ = true := by
+    rw [betweenSets_eq_true_iff]
+    exact ⟨u₂, Finset.mem_union_left _ hu₂, v₂, hv₂, he₂_eq⟩
+  exact ⟨hnot_univ', hmoe₂', F₃, h₃_in', h₃_ne_2', hbtw₂', hlev₂₃⟩
+
+/-- `FragAction.absorb` merges lower-level fragment `F₁` into `F₂` (`F₁.level < F₂.level`) along
+`F₁`'s MOE `e`, preserving `FragInv` and spending `|F₁.verts|` `Initiate` messages. -/
+private theorem fragInv_step_absorb {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {F₁ F₂ : Fragment V} (hinv : FragInv G w s)
+    (htr : fragStep? G w s (.absorb F₁ F₂) = some s') :
+    FragInv G w s' := by
+  dsimp only [fragStep?] at htr
+  cases hph₁ : F₁.phase with
+  | sleeping | searching | halted =>
+    rw [hph₁] at htr; cases htr
+  | found e =>
+    rw [hph₁] at htr
+    obtain ⟨⟨h₁, h₂, hne, hlt, hok₂, hbtw⟩, rfl⟩ := of_ite_eq_some htr
+    let F₂' : Fragment V := ⟨F₂.verts ∪ F₁.verts, F₂.level, F₂.core, F₂.phase⟩
+    obtain ⟨_, hmoe₁⟩ := hinv.found_isMOE F₁ h₁ e hph₁
+    have hpow : 2 ^ F₂'.level ≤ F₂'.verts.card :=
+      (hinv.two_pow_level_le F₂ h₂).trans (Finset.card_le_card Finset.subset_union_left)
+    refine fragInv_combine hinv h₁ h₂ hne (Fcomb := F₂') (Finset.union_comm _ _) hlt.le le_rfl
+      hmoe₁ hbtw hpow
+      (fun h => by change F₂.phase = .sleeping at h; rw [h] at hok₂; cases hok₂)
+      (fun h => hinv.searching_level_pos F₂ h₂ h)
+      (fun h => by change F₂.phase = .halted at h; rw [h] at hok₂; cases hok₂)
+      (fun e₀ h => let ⟨hnu, hm, _⟩ := absorb_found_pres hinv h₁ h₂ hne hlt hmoe₁ hbtw h; ⟨hnu, hm⟩)
+      (fun e₀ h => (absorb_found_pres hinv h₁ h₂ hne hlt hmoe₁ hbtw h).2.2)
+      (fun _ => ?_)
+    -- Because `F₁.level < F₂.level`, `F₁`'s per-vertex budget exceeds `F₂`'s by at least `1`.
+    intro L_max
+    have hL₁_lt : F₁.level < L_max := lt_of_lt_of_le hlt (level_le_log_of_inv hinv h₂)
+    have hdisj₁₂ : Disjoint F₁.verts F₂.verts := hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
+    have hucard : F₂'.verts.card = F₂.verts.card + F₁.verts.card :=
+      Finset.card_union_of_disjoint hdisj₁₂.symm
+    have hb_F₂' : fragRemBudget L_max F₂' =
+        fragRemBudget L_max F₂ + perVertexBudget L_max F₂.level F₂.phase * F₁.verts.card := by
+      simp only [F₂', fragRemBudget, hucard, Nat.left_distrib]
+    have hpv_le : perVertexBudget L_max F₂.level F₂.phase + 1 ≤
+        perVertexBudget L_max F₁.level F₁.phase := by
+      rw [hph₁]
+      simp only [perVertexBudget, hL₁_lt, ↓reduceIte]
+      cases hph₂ : F₂.phase with
+      | sleeping | halted => rw [hph₂] at hok₂; cases hok₂
+      | searching => dsimp only; omega
+      | found _ => dsimp only; split_ifs <;> omega
+    have hmul_le : (perVertexBudget L_max F₂.level F₂.phase + 1) * F₁.verts.card ≤
+        fragRemBudget L_max F₁ := by
+      simpa only [fragRemBudget] using Nat.mul_le_mul_right F₁.verts.card hpv_le
+    rw [Nat.right_distrib, one_mul] at hmul_le
+    have htot : ({ s.msgs with initiate := s.msgs.initiate + F₁.verts.card } : MsgCount).total =
+        s.msgs.total + F₁.verts.card := by
+      simp only [MsgCount.total]; omega
+    dsimp only [L_max, F₂'] at *
+    omega
+
+/-- `FragAction.merge` combines equal-level fragments `F₁` and `F₂` along their shared MOE `e` into
+a `searching` level-`L + 1` fragment, charging `|F₁.verts| + |F₂.verts|` `Initiate` messages. -/
+private theorem fragInv_step_merge {V W : Type*} [Fintype V] [DecidableEq V]
+    {G : SimpleGraph V} [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
+    {F₁ F₂ : Fragment V} {e : Sym2 V} (hinv : FragInv G w s)
+    (htr : fragStep? G w s (.merge F₁ F₂ e) = some s') :
+    FragInv G w s' := by
+  obtain ⟨⟨h₁, h₂, hne, hlev_eq, hph₁, hph₂, hbtw⟩, rfl⟩ := of_ite_eq_some htr
+  let F' : Fragment V := ⟨F₁.verts ∪ F₂.verts, F₁.level + 1, some e, .searching⟩
+  obtain ⟨_, hmoe₁⟩ := hinv.found_isMOE F₁ h₁ e hph₁
+  have hdisj₁₂ : Disjoint F₁.verts F₂.verts := hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
+  have hucard : F'.verts.card = F₁.verts.card + F₂.verts.card :=
+    Finset.card_union_of_disjoint hdisj₁₂
+  -- Merging two level-`L` fragments doubles the lower size bound: `2^(L + 1) ≤ |F₁| + |F₂|`.
+  have hpow_F' : 2 ^ F'.level ≤ F'.verts.card := by
+    have hp₁ := hinv.two_pow_level_le F₁ h₁
+    have hp₂ := hinv.two_pow_level_le F₂ h₂
+    rw [← hlev_eq] at hp₂
+    change 2 ^ (F₁.level + 1) ≤ F'.verts.card
+    rw [Nat.pow_succ, hucard]
+    omega
+  refine fragInv_combine hinv h₁ h₂ hne (Fcomb := F') rfl (Nat.le_succ _)
+    (by dsimp only [F']; omega) hmoe₁ hbtw hpow_F'
+    (fun h => by cases h) (fun _ => Nat.succ_pos _) (fun h => by cases h)
+    (fun _ h => by cases h) (fun _ h => by cases h) (fun _ => ?_)
+  -- Raising the level from `L` (`found`) to `L + 1` (`searching`) frees exactly `1` msg/vertex.
+  intro L_max
+  have hL₁_lt : F₁.level < L_max :=
+    Nat.le_log_of_pow_le (by decide) (hpow_F'.trans (Finset.card_le_univ _))
+  have hb_F' : fragRemBudget L_max F' + F₁.verts.card + F₂.verts.card =
+      fragRemBudget L_max F₁ + fragRemBudget L_max F₂ := by
+    simp only [F', fragRemBudget, hph₁, hph₂, perVertexBudget, ← hlev_eq, hL₁_lt,
+      ↓reduceIte, hucard]
+    have h1 : 5 * (L_max - 1 - F₁.level) + 2 = 5 * (L_max - (F₁.level + 1)) + 1 + 1 := by omega
+    rw [h1, ← Nat.left_distrib, Nat.right_distrib, Nat.right_distrib, Nat.right_distrib, one_mul]
+    omega
+  have htot : ({ s.msgs with
+      initiate := s.msgs.initiate + F₁.verts.card + F₂.verts.card } : MsgCount).total =
+      s.msgs.total + F₁.verts.card + F₂.verts.card := by
+    simp only [MsgCount.total]; omega
+  dsimp only [L_max, F'] at *
+  omega
+
+/-- Inductive step: every transition of `fragStep?` preserves `FragInv`. -/
 private theorem fragInv_step {V W : Type*} [Fintype V] [DecidableEq V] {G : SimpleGraph V}
     [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s' : FragState V}
     {a : FragAction V} (hinv : FragInv G w s) (htr : fragStep? G w s a = some s') :
     FragInv G w s' := by
   cases a with
-  | wakeupSingleton v =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    obtain ⟨hF, huniv⟩ := hg
-    injection htr with hs'
-    subst hs'
-    let F : Fragment V := ⟨{v}, 0, none, .sleeping⟩
-    let F' : Fragment V := ⟨{v}, 0, none, .halted⟩
-    obtain ⟨hnotMem, hnemp, hdisj, hcov, hbr_int, hrej_int, hbr_card, hpow⟩ :=
-      replace_phase_partition hinv hF (F' := F') rfl rfl
-    have hcard_one : Fintype.card V = 1 := by
-      rw [← Finset.card_univ, ← huniv, Finset.card_singleton]
-    have hG_empty : G.edgeFinset = ∅ := by
-      ext e
-      simp only [mem_edgeFinset, Finset.notMem_empty, iff_false]
-      intro he
-      induction e using Sym2.ind with
-      | _ x y =>
-        have hx : x ∈ ({v} : Finset V) := huniv.symm ▸ Finset.mem_univ x
-        have hy : y ∈ ({v} : Finset V) := huniv.symm ▸ Finset.mem_univ y
-        rw [Finset.mem_singleton] at hx hy
-        exact (G.mem_edgeSet.mp he).ne (hx.trans hy.symm)
-    refine
-      { verts_nonempty := hnemp
-        verts_disjoint := hdisj
-        verts_cover := hcov
-        branch_sub := hinv.branch_sub
-        rejected_sub := hinv.rejected_sub
-        branch_rejected_disjoint := hinv.branch_rejected_disjoint
-        branch_isMOE := hinv.branch_isMOE
-        branch_internal := hbr_int
-        rejected_internal := hrej_int
-        frag_branch_card := hbr_card
-        two_pow_level_le := hpow
-        sleeping_spec := fun G₀ hG₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · exact hinv.sleeping_spec G₀ (Finset.mem_of_mem_erase h_er) hph
-        searching_level_pos := fun G₀ hG₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · exact hinv.searching_level_pos G₀ (Finset.mem_of_mem_erase h_er) hph
-        halted_spec := fun G₀ hG₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · exact ⟨huniv, by rw [hG_empty]; exact Finset.empty_subset _⟩
-          · exact hinv.halted_spec G₀ (Finset.mem_of_mem_erase h_er) hph
-        found_isMOE := fun G₀ hG₀ e₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · exact hinv.found_isMOE G₀ (Finset.mem_of_mem_erase h_er) e₀ hph
-        found_target_level := fun G₀ hG₀ e₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · obtain ⟨hne₀, hG₀_in⟩ := Finset.mem_erase.mp h_er
-            obtain ⟨u, hu⟩ := hinv.verts_nonempty G₀ hG₀_in
-            have hu_v : u ∈ ({v} : Finset V) := huniv.symm ▸ Finset.mem_univ u
-            exact absurd hu_v (Finset.disjoint_left.mp (hinv.verts_disjoint G₀ hG₀_in F hF hne₀) hu)
-        msgs_card_le_one := hinv.msgs_card_le_one
-        msgs_budget := fun h2 => by omega }
-  | wakeup v e =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    obtain ⟨hF, hmoe⟩ := hg
-    injection htr with hs'
-    subst hs'
-    let F : Fragment V := ⟨{v}, 0, none, .sleeping⟩
-    let F' : Fragment V := ⟨{v}, 0, none, .found e⟩
-    obtain ⟨hnotMem, hnemp, hdisj, hcov, hbr_int, hrej_int, hbr_card, hpow⟩ :=
-      replace_phase_partition hinv hF (F' := F') rfl rfl
-    obtain ⟨_, u₀, hu₀, w₀, hw₀, he_eq⟩ := hmoe.1
-    rw [Finset.mem_singleton] at hu₀
-    subst u₀
-    have hnot_univ : ({v} : Finset V) ≠ Finset.univ := fun hu => hw₀ (hu ▸ Finset.mem_univ w₀)
-    have hcard2 : 2 ≤ Fintype.card V := by
-      have hvw : v ≠ w₀ := fun h => hw₀ (h ▸ Finset.mem_singleton_self v)
-      have hsub : ({v, w₀} : Finset V) ⊆ Finset.univ := Finset.subset_univ _
-      have hc := Finset.card_le_card hsub
-      rw [Finset.card_pair hvw, Finset.card_univ] at hc
-      exact hc
-    refine
-      { verts_nonempty := hnemp
-        verts_disjoint := hdisj
-        verts_cover := hcov
-        branch_sub := hinv.branch_sub
-        rejected_sub := hinv.rejected_sub
-        branch_rejected_disjoint := hinv.branch_rejected_disjoint
-        branch_isMOE := hinv.branch_isMOE
-        branch_internal := hbr_int
-        rejected_internal := hrej_int
-        frag_branch_card := hbr_card
-        two_pow_level_le := hpow
-        sleeping_spec := fun G₀ hG₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · exact hinv.sleeping_spec G₀ (Finset.mem_of_mem_erase h_er) hph
-        searching_level_pos := fun G₀ hG₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · exact hinv.searching_level_pos G₀ (Finset.mem_of_mem_erase h_er) hph
-        halted_spec := fun G₀ hG₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph
-          · exact hinv.halted_spec G₀ (Finset.mem_of_mem_erase h_er) hph
-        found_isMOE := fun G₀ hG₀ e₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · injection hph with he₀; subst he₀; exact ⟨hnot_univ, hmoe⟩
-          · exact hinv.found_isMOE G₀ (Finset.mem_of_mem_erase h_er) e₀ hph
-        found_target_level := fun G₀ hG₀ e₀ hph => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · injection hph with he₀; subst he₀
-            obtain ⟨Ft, hFt, hw_in⟩ := hinv.verts_cover w₀
-            have hFt_ne_F : Ft ≠ F := fun h =>
-              hw₀ ((show Ft.verts = {v} from congrArg Fragment.verts h) ▸ hw_in)
-            refine ⟨Ft, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hFt_ne_F, hFt⟩), ?_,
-              ?_, Nat.zero_le _⟩
-            · intro hFt_F'
-              exact hw₀ ((show Ft.verts = {v} from congrArg Fragment.verts hFt_F') ▸ hw_in)
-            · rw [betweenSets_eq_true_iff]
-              exact ⟨v, Finset.mem_singleton_self v, w₀, hw_in, he_eq⟩
-          · obtain ⟨hne₀, hG₀_in⟩ := Finset.mem_erase.mp h_er
-            obtain ⟨Ft, hFt, hFt_ne, hbtw, hlev⟩ := hinv.found_target_level G₀ hG₀_in e₀ hph
-            by_cases hFt_F : Ft = F
-            · subst hFt_F
-              refine ⟨F', Finset.mem_insert_self _ _, fun h => hnotMem (h ▸ h_er), hbtw, hlev⟩
-            · exact ⟨Ft, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hFt_F, hFt⟩),
-                hFt_ne, hbtw, hlev⟩
-        msgs_card_le_one := fun h1 => by omega
-        msgs_budget := fun h2 => by
-          intro L_max
-          have hL_pos : 1 ≤ L_max := Nat.le_log_of_pow_le (by decide) (by simpa using h2)
-          have h0_lt : 0 < L_max := hL_pos
-          have hsum_er := Finset.sum_erase_add s.fragments (fragRemBudget L_max) hF
-          have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
-          have hb_old : fragRemBudget L_max F = 5 * (L_max - 1) + 3 := by
-            simp only [F, fragRemBudget, perVertexBudget, Finset.card_singleton, mul_one]
-          have hb_new : fragRemBudget L_max F' = 5 * (L_max - 1) + 2 := by
-            simp only [F', fragRemBudget, perVertexBudget, h0_lt, ↓reduceIte, Nat.sub_zero,
-              Finset.card_singleton, mul_one]
-          have htot : ({ s.msgs with connect := s.msgs.connect + 1 } : MsgCount).total =
-              s.msgs.total + 1 := by
-            simp only [MsgCount.total]; omega
-          have hprev := hinv.msgs_budget h2
-          dsimp only [L_max, F, F'] at *
-          omega }
-  | rejectChord F e dual =>
-    dsimp only [fragStep?] at htr
-    by_cases hg : F ∈ s.fragments ∧ F.phase = .searching ∧ e ∈ G.edgeFinset ∧
-        bothIn F.verts e = true ∧ s.edgeState e = .basic
-    · simp only [hg] at htr
-      obtain ⟨hF, hph, he_fin, hboth, hbasic⟩ := hg
-      injection htr with hs'
-      subst hs'
-      have he_not_br : e ∉ s.branchEdges := by
-        intro hm; simp only [FragState.edgeState, hm, ↓reduceIte, reduceCtorEq] at hbasic
-      have he_not_rej : e ∉ s.rejectedEdges := by
-        intro hm; simp only [FragState.edgeState, he_not_br, hm, ↓reduceIte, reduceCtorEq] at hbasic
-      have hcard2 : 2 ≤ Fintype.card V := two_le_card_of_searching hinv hF hph
-      refine
-        { verts_nonempty := hinv.verts_nonempty
-          verts_disjoint := hinv.verts_disjoint
-          verts_cover := hinv.verts_cover
-          branch_sub := hinv.branch_sub
-          rejected_sub := Finset.insert_subset he_fin hinv.rejected_sub
-          branch_rejected_disjoint :=
-            Finset.disjoint_insert_right.mpr ⟨he_not_br, hinv.branch_rejected_disjoint⟩
-          branch_isMOE := hinv.branch_isMOE
-          branch_internal := hinv.branch_internal
-          rejected_internal := fun z hz => by
-            rcases Finset.mem_insert.mp hz with rfl | hz_old
-            · exact ⟨F, hF, hboth⟩
-            · exact hinv.rejected_internal z hz_old
-          frag_branch_card := hinv.frag_branch_card
-          two_pow_level_le := hinv.two_pow_level_le
-          sleeping_spec := hinv.sleeping_spec
-          searching_level_pos := hinv.searching_level_pos
-          halted_spec := fun G₀ hG₀ hph₀ => by
-            obtain ⟨hu, hsub⟩ := hinv.halted_spec G₀ hG₀ hph₀
-            exact ⟨hu, hsub.trans (Finset.union_subset_union_right (Finset.subset_insert _ _))⟩
-          found_isMOE := hinv.found_isMOE
-          found_target_level := hinv.found_target_level
-          msgs_card_le_one := fun h1 => by omega
-          msgs_budget := fun h2 => by
-            intro L_max
-            have he_sdiff : e ∈ G.edgeFinset \ s.rejectedEdges :=
-              Finset.mem_sdiff.mpr ⟨he_fin, he_not_rej⟩
-            have hsdiff_eq : G.edgeFinset \ insert e s.rejectedEdges =
-                (G.edgeFinset \ s.rejectedEdges).erase e := by
-              ext z
-              simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]
-              tauto
-            have hcard_sd : (G.edgeFinset \ insert e s.rejectedEdges).card + 1 =
-                (G.edgeFinset \ s.rejectedEdges).card := by
-              rw [hsdiff_eq, Finset.card_erase_add_one he_sdiff]
-            have htot : (if dual then { s.msgs with test := s.msgs.test + 2 }
-                else { s.msgs with test := s.msgs.test + 1, reject := s.msgs.reject + 1 }).total =
-                s.msgs.total + 2 := by
-              cases dual <;> simp only [↓reduceIte, Bool.false_eq_true, MsgCount.total] <;> omega
-            have hprev := hinv.msgs_budget h2
-            dsimp only [L_max] at *
-            omega }
-    · simp only [hg] at htr
-      cases htr
-  | completeSearch F e =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    obtain ⟨hF, hph, hne_univ, hmoe, hallAcc⟩ := hg
-    injection htr with hs'
-    subst hs'
-    let F' : Fragment V := { F with phase := .found e }
-    obtain ⟨hnotMem, hnemp, hdisj, hcov, hbr_int, hrej_int, hbr_card, hpow⟩ :=
-      replace_phase_partition hinv hF (F' := F') rfl rfl
-    obtain ⟨hadj_edge, u₀, hu₀, v₀, hv₀, he_eq⟩ := hmoe.1
-    have hadj_uv : G.Adj u₀ v₀ := G.mem_edgeSet.mp (he_eq ▸ hadj_edge)
-    have hmin_uv : ∀ v', G.Adj u₀ v' → v' ∉ F.verts → w s(u₀, v₀) ≤ w s(u₀, v') := by
-      intro v' hadj' hv'
-      rw [← he_eq]
-      exact hmoe.2 s(u₀, v') ⟨G.mem_edgeSet.mpr hadj', u₀, hu₀, v', hv', rfl⟩
-    unfold allNodeMOEsAccepted at hallAcc
-    have hallAcc' := of_decide_eq_true hallAcc
-    obtain ⟨Ft, hFt, hv₀_Ft, hF_le_Ft⟩ := hallAcc' u₀ hu₀ v₀ hadj_uv hv₀ hmin_uv
-    have hFt_ne_F : Ft ≠ F := fun h => hv₀ ((congrArg Fragment.verts h) ▸ hv₀_Ft)
-    have hdisj_FFt : Disjoint F.verts Ft.verts := hinv.verts_disjoint F hF Ft hFt hFt_ne_F.symm
-    have hF_lt_Lmax : F.level < Nat.log 2 (Fintype.card V) := by
-      have hpF := hinv.two_pow_level_le F hF
-      have hpFt := hinv.two_pow_level_le Ft hFt
-      have hpFt' : 2 ^ F.level ≤ Ft.verts.card :=
-        (Nat.pow_le_pow_right (by decide) hF_le_Ft).trans hpFt
-      have hsum_le : F.verts.card + Ft.verts.card ≤ Fintype.card V := by
-        rw [← Finset.card_union_of_disjoint hdisj_FFt]
-        exact Finset.card_le_univ _
-      have hpow_succ : 2 ^ (F.level + 1) ≤ Fintype.card V := by
-        rw [Nat.pow_succ]
-        omega
-      have hle_succ := Nat.le_log_of_pow_le (by decide) hpow_succ
-      omega
-    have hcard2 : 2 ≤ Fintype.card V := two_le_card_of_searching hinv hF hph
-    refine
-      { verts_nonempty := hnemp
-        verts_disjoint := hdisj
-        verts_cover := hcov
-        branch_sub := hinv.branch_sub
-        rejected_sub := hinv.rejected_sub
-        branch_rejected_disjoint := hinv.branch_rejected_disjoint
-        branch_isMOE := hinv.branch_isMOE
-        branch_internal := hbr_int
-        rejected_internal := hrej_int
-        frag_branch_card := hbr_card
-        two_pow_level_le := hpow
-        sleeping_spec := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.sleeping_spec G₀ (Finset.mem_of_mem_erase h_er) hph₀
-        searching_level_pos := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.searching_level_pos G₀ (Finset.mem_of_mem_erase h_er) hph₀
-        halted_spec := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.halted_spec G₀ (Finset.mem_of_mem_erase h_er) hph₀
-        found_isMOE := fun G₀ hG₀ e₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · injection hph₀ with he₀; subst he₀; exact ⟨hne_univ, hmoe⟩
-          · exact hinv.found_isMOE G₀ (Finset.mem_of_mem_erase h_er) e₀ hph₀
-        found_target_level := fun G₀ hG₀ e₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · injection hph₀ with he₀; subst he₀
-            refine ⟨Ft, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hFt_ne_F, hFt⟩), ?_, ?_,
-              hF_le_Ft⟩
-            · intro hFt_F'
-              exact hv₀ ((congrArg Fragment.verts hFt_F') ▸ hv₀_Ft)
-            · rw [betweenSets_eq_true_iff]
-              exact ⟨u₀, hu₀, v₀, hv₀_Ft, he_eq⟩
-          · obtain ⟨hne₀, hG₀_in⟩ := Finset.mem_erase.mp h_er
-            obtain ⟨Gt, hGt, hGt_ne, hbtw, hlev⟩ := hinv.found_target_level G₀ hG₀_in e₀ hph₀
-            by_cases hGt_F : Gt = F
-            · subst hGt_F
-              exact ⟨F', Finset.mem_insert_self _ _, fun h => hnotMem (h ▸ h_er), hbtw, hlev⟩
-            · exact ⟨Gt, Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨hGt_F, hGt⟩),
-                hGt_ne, hbtw, hlev⟩
-        msgs_card_le_one := fun h1 => by omega
-        msgs_budget := fun h2 => by
-          intro L_max
-          have hsum_er := Finset.sum_erase_add s.fragments (fragRemBudget L_max) hF
-          have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
-          have hout_le : outgoingNodeCount G F.verts ≤ F.verts.card :=
-            outgoingNodeCount_le_card G F.verts
-          have hhops_le : changeRootHops s F e + 1 ≤ F.verts.card :=
-            changeRootHops_add_one_le_card s F e (hinv.verts_nonempty F hF)
-          have hlt_L : F.level < L_max := hF_lt_Lmax
-          have hb_diff : fragRemBudget L_max F =
-              fragRemBudget L_max F' + 4 * F.verts.card := by
-            simp only [F', hph, fragRemBudget, perVertexBudget, hlt_L, ↓reduceIte]
-            have h1 : 5 * (L_max - F.level) + 1 = 5 * (L_max - 1 - F.level) + 2 + 4 := by omega
-            rw [h1, Nat.right_distrib]
-          have htot : ({ s.msgs with
-              test := s.msgs.test + outgoingNodeCount G F.verts
-              accept := s.msgs.accept + outgoingNodeCount G F.verts
-              report := s.msgs.report + F.verts.card
-              changeRoot := s.msgs.changeRoot + changeRootHops s F e
-              connect := s.msgs.connect + 1 } : MsgCount).total ≤
-              s.msgs.total + 4 * F.verts.card := by
-            simp only [MsgCount.total]; omega
-          have hprev := hinv.msgs_budget h2
-          dsimp only [L_max, F'] at *
-          omega }
-  | haltSearch F =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    obtain ⟨hF, hph, huniv, hnoBasic⟩ := hg
-    injection htr with hs'
-    subst hs'
-    let F' : Fragment V := { F with phase := .halted }
-    obtain ⟨hnotMem, hnemp, hdisj, hcov, hbr_int, hrej_int, hbr_card, hpow⟩ :=
-      replace_phase_partition hinv hF (F' := F') rfl rfl
-    have hcard2 : 2 ≤ Fintype.card V := two_le_card_of_searching hinv hF hph
-    have hall_classified : G.edgeFinset ⊆ s.branchEdges ∪ s.rejectedEdges := by
-      intro c hc
-      have hnoB := (noBasicInternalEdges_eq_true_iff G s F.verts).mp hnoBasic
-      have hboth : bothIn F.verts c = true := by
-        rw [huniv, bothIn_eq_true_iff]
-        exact fun x _ => Finset.mem_univ x
-      have h1 := hnoB c hc hboth
-      simp only [FragState.edgeState] at h1
-      by_cases hbr : c ∈ s.branchEdges
-      · exact Finset.mem_union_left _ hbr
-      · by_cases hrej : c ∈ s.rejectedEdges
-        · exact Finset.mem_union_right _ hrej
-        · simp only [hbr, hrej, ↓reduceIte, ne_eq, not_true_eq_false] at h1
-    refine
-      { verts_nonempty := hnemp
-        verts_disjoint := hdisj
-        verts_cover := hcov
-        branch_sub := hinv.branch_sub
-        rejected_sub := hinv.rejected_sub
-        branch_rejected_disjoint := hinv.branch_rejected_disjoint
-        branch_isMOE := hinv.branch_isMOE
-        branch_internal := hbr_int
-        rejected_internal := hrej_int
-        frag_branch_card := hbr_card
-        two_pow_level_le := hpow
-        sleeping_spec := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.sleeping_spec G₀ (Finset.mem_of_mem_erase h_er) hph₀
-        searching_level_pos := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.searching_level_pos G₀ (Finset.mem_of_mem_erase h_er) hph₀
-        halted_spec := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · exact ⟨huniv, hall_classified⟩
-          · exact hinv.halted_spec G₀ (Finset.mem_of_mem_erase h_er) hph₀
-        found_isMOE := fun G₀ hG₀ e₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.found_isMOE G₀ (Finset.mem_of_mem_erase h_er) e₀ hph₀
-        found_target_level := fun G₀ hG₀ e₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · obtain ⟨hne₀, hG₀_in⟩ := Finset.mem_erase.mp h_er
-            obtain ⟨u, hu⟩ := hinv.verts_nonempty G₀ hG₀_in
-            have huF : u ∈ F.verts := huniv.symm ▸ Finset.mem_univ u
-            exact absurd huF (Finset.disjoint_left.mp (hinv.verts_disjoint G₀ hG₀_in F hF hne₀) hu)
-        msgs_card_le_one := fun h1 => by omega
-        msgs_budget := fun h2 => by
-          intro L_max
-          have hsum_er := Finset.sum_erase_add s.fragments (fragRemBudget L_max) hF
-          have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
-          have hb_new : fragRemBudget L_max F' = 0 := by
-            simp only [F', fragRemBudget, perVertexBudget, zero_mul]
-          have hb_old : F.verts.card ≤ fragRemBudget L_max F := by
-            simp only [fragRemBudget, hph, perVertexBudget]
-            exact Nat.le_mul_of_pos_left _ (by omega)
-          have htot : ({ s.msgs with report := s.msgs.report + F.verts.card } : MsgCount).total =
-              s.msgs.total + F.verts.card := by
-            simp only [MsgCount.total]; omega
-          have hprev := hinv.msgs_budget h2
-          dsimp only [L_max, F'] at *
-          omega }
-  | absorb F₁ F₂ =>
-    dsimp only [fragStep?] at htr
-    cases hph₁ : F₁.phase with
-    | sleeping | searching | halted =>
-      rw [hph₁] at htr; cases htr
-    | found e =>
-      rw [hph₁] at htr
-      dsimp only at htr
-      split_ifs at htr with hg
-      obtain ⟨h₁, h₂, hne, hlt, hok₂, hbtw⟩ := hg
-      injection htr with hs'
-      subst hs'
-      let F₂' : Fragment V := ⟨F₂.verts ∪ F₁.verts, F₂.level, F₂.core, F₂.phase⟩
-      have hverts_comm : F₂'.verts = F₁.verts ∪ F₂.verts := Finset.union_comm _ _
-      obtain ⟨hnotMem, hnemp, hdisj, hcov⟩ :=
-        combine_partition hinv h₁ h₂ (Fcomb := F₂') hverts_comm
-      obtain ⟨_, hmoe₁⟩ := hinv.found_isMOE F₁ h₁ e hph₁
-      have he_fin : e ∈ G.edgeFinset := mem_edgeFinset.mpr hmoe₁.1.1
-      obtain ⟨he_not_br, he_not_rej, hbr_int, hrej_int, hbr_card⟩ :=
-        combine_edge_facts hinv h₁ h₂ hne (Fcomb := F₂') hverts_comm hbtw
-      have hdisj₁₂ : Disjoint F₁.verts F₂.verts := hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
-      have hcard2 : 2 ≤ Fintype.card V := by
-        obtain ⟨u₁, hu₁⟩ := hinv.verts_nonempty F₁ h₁
-        obtain ⟨u₂, hu₂⟩ := hinv.verts_nonempty F₂ h₂
-        have hu_ne : u₁ ≠ u₂ := fun h => Finset.disjoint_left.mp hdisj₁₂ hu₁ (h ▸ hu₂)
-        have hc := Finset.card_le_card (Finset.subset_univ ({u₁, u₂} : Finset V))
-        rw [Finset.card_pair hu_ne, Finset.card_univ] at hc
-        exact hc
-      have hF₂_found_pres : ∀ e₂, F₂.phase = .found e₂ →
-          F₂'.verts ≠ Finset.univ ∧ IsMOE G w F₂'.verts e₂ ∧
-            ∃ Ft ∈ insert F₂' ((s.fragments.erase F₁).erase F₂),
-              Ft ≠ F₂' ∧ betweenSets F₂'.verts Ft.verts e₂ = true ∧ F₂'.level ≤ Ft.level := by
-        intro e₂ hph₂
-        obtain ⟨_, hmoe₂⟩ := hinv.found_isMOE F₂ h₂ e₂ hph₂
-        obtain ⟨F₃, h₃, h₃_ne_₂, hbtw₂, hlev₂₃⟩ := hinv.found_target_level F₂ h₂ e₂ hph₂
-        have h₃_ne_₁ : F₃ ≠ F₁ := by
-          intro h; subst h; omega
-        obtain ⟨u₂, hu₂, v₂, hv₂, he₂_eq⟩ := (betweenSets_eq_true_iff _ _ _).mp hbtw₂
-        have hv₂_not₂ : v₂ ∉ F₂.verts :=
-          Finset.disjoint_right.mp (hinv.verts_disjoint F₂ h₂ F₃ h₃ h₃_ne_₂.symm) hv₂
-        have hv₂_not₁ : v₂ ∉ F₁.verts :=
-          Finset.disjoint_right.mp (hinv.verts_disjoint F₁ h₁ F₃ h₃ h₃_ne_₁.symm) hv₂
-        have hv₂_not_u : v₂ ∉ F₂'.verts := by
-          simp only [F₂', Finset.mem_union, not_or]; exact ⟨hv₂_not₂, hv₂_not₁⟩
-        have hnot_univ' : F₂'.verts ≠ Finset.univ := fun hu => hv₂_not_u (hu ▸ Finset.mem_univ v₂)
-        have hout_e₂ : IsOutgoingEdge G F₂'.verts e₂ :=
-          ⟨hmoe₂.1.1, u₂, Finset.mem_union_left _ hu₂, v₂, hv₂_not_u, he₂_eq⟩
-        obtain ⟨u₁, hu₁, v₁, hv₁, he₁_eq⟩ := (betweenSets_eq_true_iff _ _ _).mp hbtw
-        have hu₁_not₂ : u₁ ∉ F₂.verts := Finset.disjoint_left.mp hdisj₁₂ hu₁
-        have hout_e₁_from₂ : IsOutgoingEdge G F₂.verts e :=
-          ⟨hmoe₁.1.1, v₁, hv₁, u₁, hu₁_not₂, he₁_eq.trans Sym2.eq_swap⟩
-        have hw_e₂_le_e₁ : w e₂ ≤ w e := hmoe₂.2 e hout_e₁_from₂
-        have hmoe₂' : IsMOE G w F₂'.verts e₂ := by
-          refine ⟨hout_e₂, fun f hf => ?_⟩
-          obtain ⟨hfG, a, ha, b, hb, hf_eq⟩ := hf
-          simp only [F₂', Finset.mem_union, not_or] at ha hb
-          rcases ha with ha₂ | ha₁
-          · exact hmoe₂.2 f ⟨hfG, a, ha₂, b, hb.1, hf_eq⟩
-          · exact hw_e₂_le_e₁.trans (hmoe₁.2 f ⟨hfG, a, ha₁, b, hb.2, hf_eq⟩)
-        have h₃_in' : F₃ ∈ insert F₂' ((s.fragments.erase F₁).erase F₂) :=
-          Finset.mem_insert_of_mem
-            (Finset.mem_erase.mpr ⟨h₃_ne_₂, Finset.mem_erase.mpr ⟨h₃_ne_₁, h₃⟩⟩)
-        have h₃_ne_2' : F₃ ≠ F₂' := fun h => hv₂_not_u (h ▸ hv₂)
-        have hbtw₂' : betweenSets F₂'.verts F₃.verts e₂ = true := by
-          rw [betweenSets_eq_true_iff]
-          exact ⟨u₂, Finset.mem_union_left _ hu₂, v₂, hv₂, he₂_eq⟩
-        exact ⟨hnot_univ', hmoe₂', F₃, h₃_in', h₃_ne_2', hbtw₂', hlev₂₃⟩
-      refine
-        { verts_nonempty := hnemp
-          verts_disjoint := hdisj
-          verts_cover := hcov
-          branch_sub := Finset.insert_subset he_fin hinv.branch_sub
-          rejected_sub := hinv.rejected_sub
-          branch_rejected_disjoint :=
-            Finset.disjoint_insert_left.mpr ⟨he_not_rej, hinv.branch_rejected_disjoint⟩
-          branch_isMOE := fun z hz => by
-            rcases Finset.mem_insert.mp hz with rfl | hz_old
-            · exact ⟨F₁.verts, hmoe₁⟩
-            · exact hinv.branch_isMOE z hz_old
-          branch_internal := hbr_int
-          rejected_internal := hrej_int
-          frag_branch_card := hbr_card
-          two_pow_level_le := fun G₀ hG₀ => by
-            rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-            · exact (hinv.two_pow_level_le F₂ h₂).trans
-                (Finset.card_le_card Finset.subset_union_left)
-            · exact hinv.two_pow_level_le G₀
-                (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er))
-          sleeping_spec := fun G₀ hG₀ hph₀ => by
-            rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-            · change F₂.phase = .sleeping at hph₀; rw [hph₀] at hok₂; cases hok₂
-            · exact hinv.sleeping_spec G₀
-                (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) hph₀
-          searching_level_pos := fun G₀ hG₀ hph₀ => by
-            rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-            · exact hinv.searching_level_pos F₂ h₂ hph₀
-            · exact hinv.searching_level_pos G₀
-                (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) hph₀
-          halted_spec := fun G₀ hG₀ hph₀ => by
-            rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-            · change F₂.phase = .halted at hph₀; rw [hph₀] at hok₂; cases hok₂
-            · obtain ⟨hu, hsub⟩ := hinv.halted_spec G₀
-                (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) hph₀
-              exact ⟨hu, hsub.trans (Finset.union_subset_union_left (Finset.subset_insert _ _))⟩
-          found_isMOE := fun G₀ hG₀ e₀ hph₀ => by
-            rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-            · obtain ⟨hnu, hm, _⟩ := hF₂_found_pres e₀ hph₀
-              exact ⟨hnu, hm⟩
-            · exact hinv.found_isMOE G₀
-                (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) e₀ hph₀
-          found_target_level := fun G₀ hG₀ e₀ hph₀ => by
-            rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-            · exact (hF₂_found_pres e₀ hph₀).2.2
-            · obtain ⟨hne₀₂, h_er₁⟩ := Finset.mem_erase.mp h_er
-              obtain ⟨hne₀₁, hG₀_in⟩ := Finset.mem_erase.mp h_er₁
-              obtain ⟨Gt, hGt, hGt_ne, hbtw₀, hlev₀⟩ := hinv.found_target_level G₀ hG₀_in e₀ hph₀
-              obtain ⟨ua, hua, ub, hub, he₀_eq⟩ := (betweenSets_eq_true_iff _ _ _).mp hbtw₀
-              have hF₂'_ne_G₀ : F₂' ≠ G₀ := fun h => hnotMem (h ▸ h_er)
-              by_cases hGt₁ : Gt = F₁
-              · subst hGt₁
-                refine ⟨F₂', Finset.mem_insert_self _ _, hF₂'_ne_G₀, ?_, ?_⟩
-                · rw [betweenSets_eq_true_iff]
-                  exact ⟨ua, hua, ub, Finset.mem_union_right _ hub, he₀_eq⟩
-                · dsimp only [F₂']; omega
-              · by_cases hGt₂ : Gt = F₂
-                · subst hGt₂
-                  refine ⟨F₂', Finset.mem_insert_self _ _, hF₂'_ne_G₀, ?_, hlev₀⟩
-                  rw [betweenSets_eq_true_iff]
-                  exact ⟨ua, hua, ub, Finset.mem_union_left _ hub, he₀_eq⟩
-                · exact ⟨Gt, Finset.mem_insert_of_mem
-                    (Finset.mem_erase.mpr ⟨hGt₂, Finset.mem_erase.mpr ⟨hGt₁, hGt⟩⟩),
-                    hGt_ne, hbtw₀, hlev₀⟩
-          msgs_card_le_one := fun h1 => by omega
-          msgs_budget := fun h2 => by
-            intro L_max
-            have hL₂_le : F₂.level ≤ L_max := level_le_log_of_inv hinv h₂
-            have hL₁_lt : F₁.level < L_max := lt_of_lt_of_le hlt hL₂_le
-            have hsum_er2 := sum_erase2 h₁ h₂ hne (fragRemBudget L_max)
-            have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
-            have hucard : F₂'.verts.card = F₂.verts.card + F₁.verts.card :=
-              Finset.card_union_of_disjoint hdisj₁₂.symm
-            have hb_F₂' : fragRemBudget L_max F₂' =
-                fragRemBudget L_max F₂ +
-                  perVertexBudget L_max F₂.level F₂.phase * F₁.verts.card := by
-              simp only [F₂', fragRemBudget, hucard, Nat.left_distrib]
-            have hpv_le : perVertexBudget L_max F₂.level F₂.phase + 1 ≤
-                perVertexBudget L_max F₁.level F₁.phase := by
-              rw [hph₁]
-              simp only [perVertexBudget, hL₁_lt, ↓reduceIte]
-              cases hph₂ : F₂.phase with
-              | sleeping | halted => rw [hph₂] at hok₂; cases hok₂
-              | searching =>
-                dsimp only
-                omega
-              | found e₂ =>
-                dsimp only
-                split_ifs <;> omega
-            have hmul_le : (perVertexBudget L_max F₂.level F₂.phase + 1) * F₁.verts.card ≤
-                fragRemBudget L_max F₁ := by
-              simpa only [fragRemBudget] using Nat.mul_le_mul_right F₁.verts.card hpv_le
-            rw [Nat.right_distrib, one_mul] at hmul_le
-            have htot : ({ s.msgs with initiate := s.msgs.initiate + F₁.verts.card } :
-                MsgCount).total = s.msgs.total + F₁.verts.card := by
-              simp only [MsgCount.total]; omega
-            have hprev := hinv.msgs_budget h2
-            dsimp only [L_max, F₂'] at *
-            omega }
-  | merge F₁ F₂ e =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    obtain ⟨h₁, h₂, hne, hlev_eq, hph₁, hph₂, hbtw⟩ := hg
-    injection htr with hs'
-    subst hs'
-    let F' : Fragment V := ⟨F₁.verts ∪ F₂.verts, F₁.level + 1, some e, .searching⟩
-    obtain ⟨hnotMem, hnemp, hdisj, hcov⟩ := combine_partition hinv h₁ h₂ (Fcomb := F') rfl
-    obtain ⟨_, hmoe₁⟩ := hinv.found_isMOE F₁ h₁ e hph₁
-    have he_fin : e ∈ G.edgeFinset := mem_edgeFinset.mpr hmoe₁.1.1
-    obtain ⟨he_not_br, he_not_rej, hbr_int, hrej_int, hbr_card⟩ :=
-      combine_edge_facts hinv h₁ h₂ hne (Fcomb := F') rfl hbtw
-    have hdisj₁₂ : Disjoint F₁.verts F₂.verts := hinv.verts_disjoint F₁ h₁ F₂ h₂ hne
-    have hpow_F' : 2 ^ F'.level ≤ F'.verts.card := by
-      have hp₁ := hinv.two_pow_level_le F₁ h₁
-      have hp₂ := hinv.two_pow_level_le F₂ h₂
-      rw [← hlev_eq] at hp₂
-      have huc : F'.verts.card = F₁.verts.card + F₂.verts.card :=
-        Finset.card_union_of_disjoint hdisj₁₂
-      change 2 ^ (F₁.level + 1) ≤ F'.verts.card
-      rw [Nat.pow_succ, huc]
-      omega
-    have hL₁_succ_le : F₁.level + 1 ≤ Nat.log 2 (Fintype.card V) := by
-      have hle_V : 2 ^ (F₁.level + 1) ≤ Fintype.card V :=
-        hpow_F'.trans (Finset.card_le_univ _)
-      exact Nat.le_log_of_pow_le (by decide) hle_V
-    have hcard2 : 2 ≤ Fintype.card V := by
-      have h2_le : 2 ≤ 2 ^ (F₁.level + 1) := by
-        calc 2 = 2 ^ 1 := rfl
-          _ ≤ 2 ^ (F₁.level + 1) := Nat.pow_le_pow_right (by decide) (by omega)
-      exact h2_le.trans (hpow_F'.trans (Finset.card_le_univ _))
-    refine
-      { verts_nonempty := hnemp
-        verts_disjoint := hdisj
-        verts_cover := hcov
-        branch_sub := Finset.insert_subset he_fin hinv.branch_sub
-        rejected_sub := hinv.rejected_sub
-        branch_rejected_disjoint :=
-          Finset.disjoint_insert_left.mpr ⟨he_not_rej, hinv.branch_rejected_disjoint⟩
-        branch_isMOE := fun z hz => by
-          rcases Finset.mem_insert.mp hz with rfl | hz_old
-          · exact ⟨F₁.verts, hmoe₁⟩
-          · exact hinv.branch_isMOE z hz_old
-        branch_internal := hbr_int
-        rejected_internal := hrej_int
-        frag_branch_card := hbr_card
-        two_pow_level_le := fun G₀ hG₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · exact hpow_F'
-          · exact hinv.two_pow_level_le G₀
-              (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er))
-        sleeping_spec := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.sleeping_spec G₀
-              (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) hph₀
-        searching_level_pos := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · exact Nat.succ_pos _
-          · exact hinv.searching_level_pos G₀
-              (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) hph₀
-        halted_spec := fun G₀ hG₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · obtain ⟨hu, hsub⟩ := hinv.halted_spec G₀
-              (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) hph₀
-            exact ⟨hu, hsub.trans (Finset.union_subset_union_left (Finset.subset_insert _ _))⟩
-        found_isMOE := fun G₀ hG₀ e₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · exact hinv.found_isMOE G₀
-              (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase h_er)) e₀ hph₀
-        found_target_level := fun G₀ hG₀ e₀ hph₀ => by
-          rcases Finset.mem_insert.mp hG₀ with rfl | h_er
-          · cases hph₀
-          · obtain ⟨hne₀₂, h_er₁⟩ := Finset.mem_erase.mp h_er
-            obtain ⟨hne₀₁, hG₀_in⟩ := Finset.mem_erase.mp h_er₁
-            obtain ⟨Gt, hGt, hGt_ne, hbtw₀, hlev₀⟩ := hinv.found_target_level G₀ hG₀_in e₀ hph₀
-            obtain ⟨ua, hua, ub, hub, he₀_eq⟩ := (betweenSets_eq_true_iff _ _ _).mp hbtw₀
-            have hF'_ne_G₀ : F' ≠ G₀ := fun h => hnotMem (h ▸ h_er)
-            by_cases hGt₁ : Gt = F₁
-            · subst hGt₁
-              refine ⟨F', Finset.mem_insert_self _ _, hF'_ne_G₀, ?_, ?_⟩
-              · rw [betweenSets_eq_true_iff]
-                exact ⟨ua, hua, ub, Finset.mem_union_left _ hub, he₀_eq⟩
-              · dsimp only [F']; omega
-            · by_cases hGt₂ : Gt = F₂
-              · subst hGt₂
-                refine ⟨F', Finset.mem_insert_self _ _, hF'_ne_G₀, ?_, ?_⟩
-                · rw [betweenSets_eq_true_iff]
-                  exact ⟨ua, hua, ub, Finset.mem_union_right _ hub, he₀_eq⟩
-                · dsimp only [F']; omega
-              · exact ⟨Gt, Finset.mem_insert_of_mem
-                  (Finset.mem_erase.mpr ⟨hGt₂, Finset.mem_erase.mpr ⟨hGt₁, hGt⟩⟩),
-                  hGt_ne, hbtw₀, hlev₀⟩
-        msgs_card_le_one := fun h1 => by omega
-        msgs_budget := fun h2 => by
-          intro L_max
-          have hL₁_lt : F₁.level < L_max := hL₁_succ_le
-          have hsum_er2 := sum_erase2 h₁ h₂ hne (fragRemBudget L_max)
-          have hsum_ins := Finset.sum_insert hnotMem (f := fragRemBudget L_max)
-          have hucard : F'.verts.card = F₁.verts.card + F₂.verts.card :=
-            Finset.card_union_of_disjoint hdisj₁₂
-          have hb_F' : fragRemBudget L_max F' + F₁.verts.card + F₂.verts.card =
-              fragRemBudget L_max F₁ + fragRemBudget L_max F₂ := by
-            simp only [F', fragRemBudget, hph₁, hph₂, perVertexBudget, ← hlev_eq, hL₁_lt,
-              ↓reduceIte, hucard]
-            have h1 : 5 * (L_max - 1 - F₁.level) + 2 = 5 * (L_max - (F₁.level + 1)) + 1 + 1 := by
-              omega
-            rw [h1, ← Nat.left_distrib, Nat.right_distrib, Nat.right_distrib, Nat.right_distrib,
-              one_mul]
-            omega
-          have htot : ({ s.msgs with
-              initiate := s.msgs.initiate + F₁.verts.card + F₂.verts.card } : MsgCount).total =
-              s.msgs.total + F₁.verts.card + F₂.verts.card := by
-            simp only [MsgCount.total]; omega
-          have hprev := hinv.msgs_budget h2
-          dsimp only [L_max, F'] at *
-          omega }
+  | wakeupSingleton _ => exact fragInv_step_wakeupSingleton hinv htr
+  | wakeup _ _ => exact fragInv_step_wakeup hinv htr
+  | rejectChord _ _ _ => exact fragInv_step_rejectChord hinv htr
+  | completeSearch _ _ => exact fragInv_step_completeSearch hinv htr
+  | haltSearch _ => exact fragInv_step_haltSearch hinv htr
+  | absorb _ _ => exact fragInv_step_absorb hinv htr
+  | merge _ _ _ => exact fragInv_step_merge hinv htr
 
 private theorem fragInv_mTr {V W : Type*} [Fintype V] [DecidableEq V] {G : SimpleGraph V}
     [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s₀ s : FragState V}
@@ -1767,6 +1581,13 @@ theorem FragReachable.level_le_log_card {V W : Type*} [Fintype V] [DecidableEq V
 
 /-! ### Deadlock-freedom and minimum-level smallest-MOE progress -/
 
+/-- A guarded step `fragStep? G w s a = if c then some s₁ else none` is enabled when `c` holds. -/
+private theorem exists_tr_of_ite {V W : Type*} [Fintype V] [DecidableEq V] {G : SimpleGraph V}
+    [DecidableRel G.Adj] [LinearOrder W] {w : Sym2 V → W} {s s₁ : FragState V} {a : FragAction V}
+    {c : Prop} [Decidable c] (ha : fragStep? G w s a = if c then some s₁ else none) (hc : c) :
+    ∃ s', (fragLTS G w).Tr s a s' :=
+  ⟨s₁, ha.trans (ite_eq_left hc)⟩
+
 /-- Fragment-phase protocol step toward `#7508` (after [GallagerHumbletSpira1983], §3, pp. 72–73):
 under injective edge weights, whenever every fragment of minimum level `L_min` is in phase `found`
 (and at least one fragment has level `L_min`), some minimum-level fragment has an enabled `absorb`
@@ -1838,13 +1659,9 @@ theorem FragReachable.exists_absorb_or_merge_of_minLevel_found {V W : Type*} [Fi
     have he_eq : e₁ = e₂ :=
       hinj hmoe₁.1.1 hmoe₂.1.1 (le_antisymm hw_1_le_2 hw_2_le_1)
     subst he_eq
-    have hstep : (fragStep? G w s (.merge F₁ F₂ e₁)).isSome := by
-      dsimp only [fragStep?]
-      split_ifs with hc
-      · rfl
-      · exact absurd ⟨h₁, h₂, h₁_ne_₂, h₁_lev.trans h₂_lev.symm, hph₁, hph₂, hbtw⟩ hc
-    obtain ⟨s', hs'⟩ := Option.isSome_iff_exists.mp hstep
-    exact ⟨.merge F₁ F₂ e₁, s', rfl, hs'⟩
+    have ⟨s', hs'⟩ : ∃ s', (fragLTS G w).Tr s (.merge F₁ F₂ e₁) s' :=
+      exists_tr_of_ite rfl ⟨h₁, h₂, h₁_ne_₂, h₁_lev.trans h₂_lev.symm, hph₁, hph₂, hbtw⟩
+    exact ⟨_, s', rfl, hs'⟩
 
 /-- Fragment-phase protocol step toward `#7508` (after [GallagerHumbletSpira1983], §3, pp. 72–73):
 on a finite connected graph with injective edge weights, every non-halted reachable `FragState` has
@@ -1860,21 +1677,9 @@ theorem FragReachable.exists_step_of_not_halted {V W : Type*} [Fintype V] [Decid
   · obtain ⟨F, hF, hsleep⟩ := hex_sleep
     obtain ⟨v, rfl⟩ := hinv.sleeping_spec F hF hsleep
     by_cases huniv : ({v} : Finset V) = Finset.univ
-    · have hstep : (fragStep? G w s (.wakeupSingleton v)).isSome := by
-        dsimp only [fragStep?]
-        split_ifs with hc
-        · rfl
-        · exact absurd ⟨hF, huniv⟩ hc
-      obtain ⟨s', hs'⟩ := Option.isSome_iff_exists.mp hstep
-      exact ⟨.wakeupSingleton v, s', hs'⟩
+    · exact ⟨.wakeupSingleton v, exists_tr_of_ite rfl ⟨hF, huniv⟩⟩
     · obtain ⟨e, hmoe⟩ := exists_isMOE hconn w (Finset.singleton_nonempty v) huniv
-      have hstep : (fragStep? G w s (.wakeup v e)).isSome := by
-        dsimp only [fragStep?]
-        split_ifs with hc
-        · rfl
-        · exact absurd ⟨hF, hmoe⟩ hc
-      obtain ⟨s', hs'⟩ := Option.isSome_iff_exists.mp hstep
-      exact ⟨.wakeup v e, s', hs'⟩
+      exact ⟨.wakeup v e, exists_tr_of_ite rfl ⟨hF, hmoe⟩⟩
   · push Not at hex_sleep
     obtain ⟨F_any, hF_any, _⟩ := hinv.verts_cover v_any
     have hfrags_ne : s.fragments.Nonempty := ⟨F_any, hF_any⟩
@@ -1885,38 +1690,19 @@ theorem FragReachable.exists_step_of_not_halted {V W : Type*} [Fintype V] [Decid
     · obtain ⟨F, hF, hF_lev, hsearch⟩ := hex_search
       by_cases huniv : F.verts = Finset.univ
       · by_cases hnoBasic : noBasicInternalEdges G s F.verts = true
-        · have hstep : (fragStep? G w s (.haltSearch F)).isSome := by
-            dsimp only [fragStep?]
-            split_ifs with hc
-            · rfl
-            · exact absurd ⟨hF, hsearch, huniv, hnoBasic⟩ hc
-          obtain ⟨s', hs'⟩ := Option.isSome_iff_exists.mp hstep
-          exact ⟨.haltSearch F, s', hs'⟩
+        · exact ⟨.haltSearch F, exists_tr_of_ite rfl ⟨hF, hsearch, huniv, hnoBasic⟩⟩
         · have hnotB : ¬ (∀ c ∈ G.edgeFinset, bothIn F.verts c = true → s.edgeState c ≠ .basic) :=
             fun hall => hnoBasic ((noBasicInternalEdges_eq_true_iff G s F.verts).mpr hall)
           push Not at hnotB
           obtain ⟨c, hc, hboth, hbas⟩ := hnotB
-          have _ : F ∈ s.fragments ∧ F.phase = .searching ∧ c ∈ G.edgeFinset ∧
-              bothIn F.verts c = true ∧ s.edgeState c = .basic :=
-            ⟨hF, hsearch, hc, hboth, hbas⟩
-          have hstep : (fragStep? G w s (.rejectChord F c false)).isSome := by
-            dsimp only [fragStep?]
-            split_ifs <;> rfl
-          obtain ⟨s', hs'⟩ := Option.isSome_iff_exists.mp hstep
-          exact ⟨.rejectChord F c false, s', hs'⟩
+          exact ⟨.rejectChord F c false, exists_tr_of_ite rfl ⟨hF, hsearch, hc, hboth, hbas⟩⟩
       · obtain ⟨e, hmoe⟩ := exists_isMOE hconn w (hinv.verts_nonempty F hF) huniv
         have hallAcc : allNodeMOEsAccepted G w s F = true := by
           unfold allNodeMOEsAccepted
           refine decide_eq_true fun u _ v _ _ _ => ?_
           obtain ⟨Ft, hFt, hv_Ft⟩ := hinv.verts_cover v
           exact ⟨Ft, hFt, hv_Ft, hF_lev ▸ hmin_le Ft hFt⟩
-        have hstep : (fragStep? G w s (.completeSearch F e)).isSome := by
-          dsimp only [fragStep?]
-          split_ifs with hc
-          · rfl
-          · exact absurd ⟨hF, hsearch, huniv, hmoe, hallAcc⟩ hc
-        obtain ⟨s', hs'⟩ := Option.isSome_iff_exists.mp hstep
-        exact ⟨.completeSearch F e, s', hs'⟩
+        exact ⟨.completeSearch F e, exists_tr_of_ite rfl ⟨hF, hsearch, huniv, hmoe, hallAcc⟩⟩
     · push Not at hex_search
       have hfound_min : ∀ F ∈ s.fragments, F.level = L_min → ∃ e, F.phase = .found e := by
         intro F hF hlev
@@ -1943,55 +1729,33 @@ theorem FragReachable.isTerminal_iff_halted {V W : Type*} [Fintype V] [Decidable
     exact hterm a s' htr
   · rintro ⟨Fh, hFh, hph_h⟩ a s' htr
     have hinv := hr.inv
-    obtain ⟨huniv, hall_class⟩ := hinv.halted_spec Fh hFh hph_h
-    have honly : ∀ F ∈ s.fragments, F = Fh := by
-      intro F hF
-      by_contra hne
-      obtain ⟨u, hu⟩ := hinv.verts_nonempty F hF
-      have hu_Fh : u ∈ Fh.verts := huniv.symm ▸ Finset.mem_univ u
-      exact Finset.disjoint_left.mp (hinv.verts_disjoint F hF Fh hFh hne) hu hu_Fh
+    -- The halted spanning fragment is the only one, so no guard of `fragStep?` can hold.
+    have honly : ∀ F ∈ s.fragments, F = Fh := fun F hF =>
+      hinv.eq_of_verts_eq_univ hF hFh (hinv.halted_spec Fh hFh hph_h).1
+    have hph : ∀ F ∈ s.fragments, F.phase = .halted := fun F hF => honly F hF ▸ hph_h
     change fragStep? G w s a = some s' at htr
     cases a with
-    | wakeupSingleton v =>
-      simp only [fragStep?] at htr
-      split_ifs at htr with hg
-      have heq := honly _ hg.1
-      rw [← heq] at hph_h; cases hph_h
-    | wakeup v e =>
-      simp only [fragStep?] at htr
-      split_ifs at htr with hg
-      have heq := honly _ hg.1
-      rw [← heq] at hph_h; cases hph_h
+    | wakeupSingleton v => cases hph _ (of_ite_eq_some htr).1.1
+    | wakeup v e => cases hph _ (of_ite_eq_some htr).1.1
     | rejectChord F e dual =>
-      dsimp only [fragStep?] at htr
-      by_cases hg : F ∈ s.fragments ∧ F.phase = .searching ∧ e ∈ G.edgeFinset ∧
-          bothIn F.verts e = true ∧ s.edgeState e = .basic
-      · have heq := honly F hg.1
-        rw [heq, hph_h] at hg; cases hg.2.1
-      · simp only [hg] at htr; cases htr
+      obtain ⟨⟨hF, hs, -⟩, -⟩ := of_ite_eq_some htr
+      cases hs.symm.trans (hph F hF)
     | completeSearch F e =>
-      simp only [fragStep?] at htr
-      split_ifs at htr with hg
-      have heq := honly F hg.1
-      rw [heq, hph_h] at hg; cases hg.2.1
+      obtain ⟨⟨hF, hs, -⟩, -⟩ := of_ite_eq_some htr
+      cases hs.symm.trans (hph F hF)
     | haltSearch F =>
-      simp only [fragStep?] at htr
-      split_ifs at htr with hg
-      have heq := honly F hg.1
-      rw [heq, hph_h] at hg; cases hg.2.1
+      obtain ⟨⟨hF, hs, -⟩, -⟩ := of_ite_eq_some htr
+      cases hs.symm.trans (hph F hF)
     | absorb F₁ F₂ =>
       dsimp only [fragStep?] at htr
       cases hp : F₁.phase with
       | sleeping | searching | halted => rw [hp] at htr; cases htr
       | found e =>
         rw [hp] at htr
-        dsimp only at htr
-        split_ifs at htr with hg
-        exact hg.2.2.1 ((honly F₁ hg.1).trans (honly F₂ hg.2.1).symm)
+        cases hp.symm.trans (hph F₁ (of_ite_eq_some htr).1.1)
     | merge F₁ F₂ e =>
-      simp only [fragStep?] at htr
-      split_ifs at htr with hg
-      exact hg.2.2.1 ((honly F₁ hg.1).trans (honly F₂ hg.2.1).symm)
+      obtain ⟨⟨h₁, -, -, -, hp, -⟩, -⟩ := of_ite_eq_some htr
+      cases hp.symm.trans (hph F₁ h₁)
 
 /-! ### Exact MST termination, combine-step bound, and `5 N log₂ N + 2 E` message complexity -/
 
@@ -2094,59 +1858,33 @@ private theorem stepMeasure_lt_of_step {V W : Type*} [Fintype V] [DecidableEq V]
       s'.fragments.card + (if a.isCombine then 1 else 0) = s.fragments.card := by
   cases a with
   | wakeupSingleton v =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    injection htr with hs'; subst hs'
+    obtain ⟨hg, rfl⟩ := of_ite_eq_some htr
     simpa only [FragAction.isCombine, Bool.false_eq_true, ↓reduceIte, add_zero] using
       stepMeasure_replace_phase hinv hg.1 (F' := ⟨{v}, 0, none, .halted⟩) rfl rfl
         (Nat.zero_lt_succ 2) s.msgs
   | wakeup v e =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    injection htr with hs'; subst hs'
+    obtain ⟨hg, rfl⟩ := of_ite_eq_some htr
     simpa only [FragAction.isCombine, Bool.false_eq_true, ↓reduceIte, add_zero] using
       stepMeasure_replace_phase hinv hg.1 (F' := ⟨{v}, 0, none, .found e⟩) rfl rfl
         (Nat.lt_succ_of_le (Nat.le_succ 1)) _
   | rejectChord F e dual =>
-    dsimp only [fragStep?] at htr
-    by_cases hg : F ∈ s.fragments ∧ F.phase = .searching ∧ e ∈ G.edgeFinset ∧
-        bothIn F.verts e = true ∧ s.edgeState e = .basic
-    · simp only [hg] at htr
-      obtain ⟨_, _, he_fin, _, hbasic⟩ := hg
-      injection htr with hs'; subst hs'
-      have he_not_br : e ∉ s.branchEdges := by
-        intro hm; simp only [FragState.edgeState, hm, ↓reduceIte, reduceCtorEq] at hbasic
-      have he_not_rej : e ∉ s.rejectedEdges := by
-        intro hm
-        simp only [FragState.edgeState, he_not_br, hm, ↓reduceIte, reduceCtorEq] at hbasic
-      have he_sdiff : e ∈ G.edgeFinset \ (s.branchEdges ∪ s.rejectedEdges) := by
-        rw [Finset.mem_sdiff, Finset.mem_union, not_or]
-        exact ⟨he_fin, he_not_br, he_not_rej⟩
-      have hsdiff_eq : G.edgeFinset \ (s.branchEdges ∪ insert e s.rejectedEdges) =
-          (G.edgeFinset \ (s.branchEdges ∪ s.rejectedEdges)).erase e := by
-        ext z
-        simp only [Finset.mem_sdiff, Finset.mem_union, Finset.mem_insert, Finset.mem_erase]
-        tauto
-      have hcard_sd : (G.edgeFinset \ (s.branchEdges ∪ insert e s.rejectedEdges)).card + 1 =
-          (G.edgeFinset \ (s.branchEdges ∪ s.rejectedEdges)).card := by
-        rw [hsdiff_eq, Finset.card_erase_add_one he_sdiff]
-      refine ⟨?_, rfl⟩
-      dsimp only [stepMeasure]
-      rw [← hcard_sd]
-      exact Nat.add_lt_add_left (Nat.lt_succ_self _) _
-    · simp only [hg] at htr; cases htr
+    obtain ⟨⟨_, _, he_fin, _, hbasic⟩, rfl⟩ := of_ite_eq_some htr
+    obtain ⟨he_not_br, he_not_rej⟩ := notMem_of_edgeState_eq_basic hbasic
+    have hcard_sd : (G.edgeFinset \ (s.branchEdges ∪ insert e s.rejectedEdges)).card + 1 =
+        (G.edgeFinset \ (s.branchEdges ∪ s.rejectedEdges)).card := by
+      rw [Finset.union_insert, Finset.sdiff_insert, Finset.card_erase_add_one
+        (Finset.mem_sdiff.mpr ⟨he_fin, Finset.notMem_union.mpr ⟨he_not_br, he_not_rej⟩⟩)]
+    refine ⟨?_, rfl⟩
+    dsimp only [stepMeasure]
+    omega
   | completeSearch F e =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    injection htr with hs'; subst hs'
+    obtain ⟨hg, rfl⟩ := of_ite_eq_some htr
     have hrank : phaseRank (FragPhase.found e) < phaseRank F.phase := by
       rw [hg.2.1]; exact Nat.lt_succ_self 1
     simpa only [FragAction.isCombine, Bool.false_eq_true, ↓reduceIte, add_zero] using
       stepMeasure_replace_phase hinv hg.1 (F' := { F with phase := .found e }) rfl rfl hrank _
   | haltSearch F =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    injection htr with hs'; subst hs'
+    obtain ⟨hg, rfl⟩ := of_ite_eq_some htr
     have hrank : phaseRank (FragPhase.halted : FragPhase V) < phaseRank F.phase := by
       rw [hg.2.1]; exact Nat.zero_lt_succ 1
     simpa only [FragAction.isCombine, Bool.false_eq_true, ↓reduceIte, add_zero] using
@@ -2157,10 +1895,7 @@ private theorem stepMeasure_lt_of_step {V W : Type*} [Fintype V] [DecidableEq V]
     | sleeping | searching | halted => rw [hp] at htr; cases htr
     | found e =>
       rw [hp] at htr
-      dsimp only at htr
-      split_ifs at htr with hg
-      obtain ⟨h₁, h₂, hne, _, _, _⟩ := hg
-      injection htr with hs'; subst hs'
+      obtain ⟨⟨h₁, h₂, hne, -⟩, rfl⟩ := of_ite_eq_some htr
       have hrank : phaseRank F₂.phase < 3 + phaseRank F₁.phase + phaseRank F₂.phase := by
         have hr₁ : phaseRank F₁.phase = 1 := by rw [hp]; rfl
         omega
@@ -2169,10 +1904,7 @@ private theorem stepMeasure_lt_of_step {V W : Type*} [Fintype V] [DecidableEq V]
           (Fcomb := ⟨F₂.verts ∪ F₁.verts, F₂.level, F₂.core, F₂.phase⟩)
           (Finset.union_comm _ _) hrank e _
   | merge F₁ F₂ e =>
-    simp only [fragStep?] at htr
-    split_ifs at htr with hg
-    obtain ⟨h₁, h₂, hne, _, hp₁, hp₂, _⟩ := hg
-    injection htr with hs'; subst hs'
+    obtain ⟨⟨h₁, h₂, hne, _, hp₁, hp₂, _⟩, rfl⟩ := of_ite_eq_some htr
     have hrank : phaseRank (FragPhase.searching : FragPhase V) <
         3 + phaseRank F₁.phase + phaseRank F₂.phase := by
       rw [hp₁, hp₂]
@@ -2247,11 +1979,8 @@ theorem fragLTS_completeTrace_combineSteps_eq {V W : Type*} [Fintype V] [Decidab
   obtain ⟨Fh, hFh, hph_h⟩ := hhalt
   obtain ⟨huniv, _⟩ := hr.inv.halted_spec Fh hFh hph_h
   have hs_one : s.fragments = {Fh} := by
-    refine Finset.eq_singleton_iff_unique_mem.mpr ⟨hFh, fun F hF => ?_⟩
-    by_contra hne
-    obtain ⟨u, hu⟩ := hr.inv.verts_nonempty F hF
-    have hu_Fh : u ∈ Fh.verts := huniv.symm ▸ Finset.mem_univ u
-    exact Finset.disjoint_left.mp (hr.inv.verts_disjoint F hF Fh hFh hne) hu hu_Fh
+    exact Finset.eq_singleton_iff_unique_mem.mpr
+      ⟨hFh, fun F hF => hr.inv.eq_of_verts_eq_univ hF hFh huniv⟩
   have hcard1 : s.fragments.card = 1 := by rw [hs_one, Finset.card_singleton]
   exact ⟨s, hmtr, hhalt', hMST, by omega⟩
 

@@ -128,15 +128,13 @@ theorem winProb_shared_le_value [Nonempty A] [Nonempty B] {R : Type*} (ρ : PMF 
         {z | G.accepts z.1.1 z.1.2 z.2.1 z.2.2}).toReal ≤ G.value := by
   refine ENNReal.toReal_le_of_le_ofReal G.value_nonneg ?_
   rw [PMF.toOuterMeasure_bind_apply]
-  have hr : ∀ r, (G.questions.map fun q => (q, ha q.1 r, hb q.2 r)).toOuterMeasure
-      {z | G.accepts z.1.1 z.1.2 z.2.1 z.2.2} ≤ ENNReal.ofReal G.value := by
-    intro r
-    rw [PMF.toOuterMeasure_map_apply,
-      ← ENNReal.ofReal_toReal (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)]
-    exact ENNReal.ofReal_le_ofReal (G.winProb_le_value (fun x => ha x r) (fun y => hb y r))
   calc ∑' r, ρ r * (G.questions.map fun q => (q, ha q.1 r, hb q.2 r)).toOuterMeasure
         {z | G.accepts z.1.1 z.1.2 z.2.1 z.2.2}
-      ≤ ∑' r, ρ r * ENNReal.ofReal G.value := tsum_le_tsum fun r => by gcongr; exact hr r
+      ≤ ∑' r, ρ r * ENNReal.ofReal G.value := tsum_le_tsum fun r => mul_le_mul_right (by
+          rw [PMF.toOuterMeasure_map_apply,
+            ← ENNReal.ofReal_toReal (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)]
+          exact ENNReal.ofReal_le_ofReal (G.winProb_le_value (fun x => ha x r) (fun y => hb y r)))
+        (ρ r)
     _ = ENNReal.ofReal G.value := by rw [ENNReal.tsum_mul_right, ρ.tsum_coe, one_mul]
 
 end Finite
@@ -255,14 +253,12 @@ theorem toOuterMeasure_accepts_le_value_add {S T : Type*} [Fintype S] [Fintype T
   have hM : M.map (fun w => (w.1, α w.2.1, β w.2.2)) =
       ρ.bind fun r => G.questions.map fun q => (q, α (fA q.1 r), β (fB q.2 r)) := by
     rw [PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def]
-    simp only [← PMF.bind_pure_comp, Function.comp_def]
+    simp only [← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
     exact PMF.bind_comm _ _ _
   have hshared : (M.toOuterMeasure E).toReal ≤ G.value := by
     have h := G.winProb_shared_le_value ρ (fun x r => α (fA x r)) (fun y r => β (fB y r))
     rwa [← hM, PMF.toOuterMeasure_map_apply] at h
-  have habs := Cslib.Probability.PMF.abs_toOuterMeasure_toReal_sub_le_dist L M E
-  rw [dist_comm] at habs
+  have habs := dist_comm L M ▸ Cslib.Probability.PMF.abs_toOuterMeasure_toReal_sub_le_dist L M E
   linarith [le_abs_self ((L.toOuterMeasure E).toReal - (M.toOuterMeasure E).toReal)]
 
 /-- **Strategy extraction** [Holenstein, proof of Lemma 6.5][Holenstein2009], multiplied out so

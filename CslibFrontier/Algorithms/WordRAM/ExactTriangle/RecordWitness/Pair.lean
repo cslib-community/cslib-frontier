@@ -63,22 +63,15 @@ theorem exec_scanPair {w U n first length out queries count i scans a b : ℕ}
   have sIndex : s.regs Reg.index = i := by regs_frame
   have sScans : s.regs Reg.scans = scans + 1 := by regs_frame
   have sFound : s.regs Reg.found = 0 := by regs_frame
-  have hexe : ExecWithin (w + 2) scanPair x y (42 * length + 28) :=
-    (hd.seq (he.seq hy)).mono (by omega)
   have yflag : y.regs Reg.found = s.regs (scanBank WitnessScan.Reg.found) := by
     rcases sf with sf | sf <;> simp only [yf, sf, sFound, Nat.zero_ne_one, ↓reduceIte]
-  refine ⟨y, hexe, yFixed, ym.trans (sm.trans dm), yi.trans sIndex, ys.trans sScans,
-    ?_, ?_, ?_⟩
+  refine ⟨y, (hd.seq (he.seq hy)).mono (by omega), yFixed, ym.trans (sm.trans dm),
+    yi.trans sIndex, ys.trans sScans, ?_, ?_, fun hfound => ?_⟩
   · simpa only [yflag] using sf
   · simpa only [yflag] using iffFound
-  · intro hfound
-    have hsfound : s.regs (scanBank WitnessScan.Reg.found) = 1 := yflag.symm.trans hfound
+  · have hsfound : s.regs (scanBank WitnessScan.Reg.found) = 1 := yflag.symm.trans hfound
     obtain ⟨lo, hi, hz⟩ := sw hsfound
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · simpa only [hsfound, ↓reduceIte] using ya
-    · simpa only [hsfound, ↓reduceIte] using yb
-    · simpa only [yc, hsfound, ↓reduceIte] using lo
-    · simpa only [yc, hsfound, ↓reduceIte] using hi
-    · simpa only [yc, hsfound, ↓reduceIte] using hz
+    simp only [hsfound, ↓reduceIte] at ya yb yc
+    exact ⟨ya, yb, yc ▸ lo, yc ▸ hi, yc ▸ hz⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

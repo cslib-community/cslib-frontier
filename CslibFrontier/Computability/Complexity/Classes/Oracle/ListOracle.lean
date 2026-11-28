@@ -64,16 +64,13 @@ theorem ComputableInPolyTimeWithOracle.exists_listOracle {f : α → β} {output
           F (a, ℓ) = output (f a) := by
   obtain ⟨k, m, machine, q, hrun⟩ := hf.exists_replayOutput
   let T : α → ℕ := fun a => q.eval (input a).length
-  have hTa : ComputableInPolyTime T input encUnary := by
+  have hT : ComputableInPolyTime (fun x : α × List (List Bool) => T x.1)
+      (encPair input (encList encBits)) encUnary := by
     dsimp only [T]
     fun_prop
-  have hT : ComputableInPolyTime (fun x : α × List (List Bool) => T x.1)
-      (encPair input (encList encBits)) encUnary :=
-    hTa.comp (ComputableInPolyTime.fst _ _)
-  have hinput : ComputableInPolyTime (fun a : α => input a) input encBits := .of_eq fun _ => rfl
   have hinput' : ComputableInPolyTime (fun x : α × List (List Bool) => input x.1)
       (encPair input (encList encBits)) encBits :=
-    hinput.comp (g := fun x : α × List (List Bool) => x.1) (.fst _ _)
+    ComputableInPolyTime.comp (.of_eq fun _ => rfl) (g := Prod.fst) (.fst _ _)
   have hpar : ComputableInPolyTime (fun x : α × List (List Bool) => (input x.1, x.2))
       (encPair input (encList encBits)) (encPair encBits (encList encBits)) :=
     hinput'.prod (.snd _ _)
@@ -107,8 +104,6 @@ theorem ComputableInPolyTimeWithOracle.exists_listOracle_bool {f : α → Bool}
   obtain ⟨F, q, hF, hFS⟩ := hf.exists_listOracle
   refine ⟨fun x => decide (F x = [true]), q,
     ComputableInPolyTime.decide_eq' hF (ComputableInPolyTime.const [true]), fun a ℓ hℓ => ?_⟩
-  change decide (F (a, ℓ) = [true]) = f a
-  rw [hFS a ℓ hℓ, encBool_apply]
-  cases f a <;> rfl
+  cases hb : f a <;> simp [hFS a ℓ hℓ, hb, encBool_apply]
 
 end Cslib.Complexity

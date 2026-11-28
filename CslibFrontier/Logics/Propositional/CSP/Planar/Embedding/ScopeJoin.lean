@@ -99,30 +99,14 @@ theorem record_scopeJoinSourceEquiv (F H : CSP Rel V) (r : Rel)
       | Sum.inr (Sum.inl o) => (F.length + 1 + o.1.val, o.2.val, o.var)
       | Sum.inr (Sum.inr i) => (F.length + 1 + H.length, i.val, y i) := by
   rcases a with (o | i) | (o | i)
-  · change (appendOccurrenceEquiv _ _ (Sum.inl (appendOfFnOccurrenceEquiv F r x
-      (Sum.inl o)))).record = _
-    rw [record_appendOccurrenceEquiv_inl, record_appendOfFnOccurrenceEquiv_inl]
-  · change (appendOccurrenceEquiv _ _ (Sum.inl (appendOfFnOccurrenceEquiv F r x
-      (Sum.inr i)))).record = _
-    rw [record_appendOccurrenceEquiv_inl, record_appendOfFnOccurrenceEquiv_inr]
-  · change (appendOccurrenceEquiv _ _ (Sum.inr (appendOfFnOccurrenceEquiv H r y
-      (Sum.inl o)))).record = _
-    rw [record_appendOccurrenceEquiv_inr]
-    have he := record_appendOfFnOccurrenceEquiv_inl H r y o
-    have hc := congrArg Prod.fst he
-    have hj := congrArg (fun record => record.2.1) he
-    have hv := congrArg (fun record => record.2.2) he
-    simp only [CSP.Occurrence.record] at hc hj hv
-    simp only [List.length_append, List.length_singleton, hc, hj, hv]
-  · change (appendOccurrenceEquiv _ _ (Sum.inr (appendOfFnOccurrenceEquiv H r y
-      (Sum.inr i)))).record = _
-    rw [record_appendOccurrenceEquiv_inr]
-    have he := record_appendOfFnOccurrenceEquiv_inr H r y i
-    have hc := congrArg Prod.fst he
-    have hj := congrArg (fun record => record.2.1) he
-    have hv := congrArg (fun record => record.2.2) he
-    simp only [CSP.Occurrence.record] at hc hj hv
-    simp only [List.length_append, List.length_singleton, hc, hj, hv]
+  · rw [source_left, record_appendOccurrenceEquiv_inl, record_appendOfFnOccurrenceEquiv_inl]
+  · rw [source_left, record_appendOccurrenceEquiv_inl, record_appendOfFnOccurrenceEquiv_inr]
+  · rw [source_right, record_appendOccurrenceEquiv_inr]
+    simpa [CSP.Occurrence.record, Nat.add_assoc] using
+      record_appendOfFnOccurrenceEquiv_inl H r y o
+  · rw [source_right, record_appendOccurrenceEquiv_inr]
+    simpa [CSP.Occurrence.record, Nat.add_assoc] using
+      record_appendOfFnOccurrenceEquiv_inr H r y i
 
 /-- Full target records retain original body order and the specified right-then-left probe. -/
 theorem record_scopeJoinTargetEquiv (F H : CSP Rel V) (r : Rel)
@@ -134,19 +118,11 @@ theorem record_scopeJoinTargetEquiv (F H : CSP Rel V) (r : Rel)
       | Sum.inr (Sum.inl o) => (F.length + o.1.val, o.2.val, o.var)
       | Sum.inr (Sum.inr i) => (F.length + H.length, i.val, y i) := by
   rcases a with (o | i) | (o | i)
-  · change (appendOfFnOccurrenceEquiv _ r (Fin.addCases y x)
-      (Sum.inl (appendOccurrenceEquiv F H (Sum.inl o)))).record = _
-    rw [record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inl]
-  · change (appendOfFnOccurrenceEquiv _ r (Fin.addCases y x)
-      (Sum.inr (Fin.natAdd n i))).record = _
-    rw [record_appendOfFnOccurrenceEquiv_inr]
+  · rw [target_body_left, record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inl]
+  · rw [target_probe_left, record_appendOfFnOccurrenceEquiv_inr]
     simp only [List.length_append, Fin.val_natAdd, Fin.addCases_right]
-  · change (appendOfFnOccurrenceEquiv _ r (Fin.addCases y x)
-      (Sum.inl (appendOccurrenceEquiv F H (Sum.inr o)))).record = _
-    rw [record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inr]
-  · change (appendOfFnOccurrenceEquiv _ r (Fin.addCases y x)
-      (Sum.inr (Fin.castAdd m i))).record = _
-    rw [record_appendOfFnOccurrenceEquiv_inr]
+  · rw [target_body_right, record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inr]
+  · rw [target_probe_right, record_appendOfFnOccurrenceEquiv_inr]
     simp only [List.length_append, Fin.val_castAdd, Fin.addCases_left]
 
 /-- The occurrence map leaves every actual variable label unchanged. -/
@@ -158,9 +134,7 @@ theorem var_scopeJoinOccurrenceEquiv (F H : CSP Rel V) (r : Rel)
   obtain ⟨a, rfl⟩ := (scopeJoinSourceEquiv F H r x y).surjective o
   have hs := congrArg (fun record => record.2.2) (record_scopeJoinSourceEquiv F H r x y a)
   have ht := congrArg (fun record => record.2.2) (record_scopeJoinTargetEquiv F H r x y a)
-  change (scopeJoinTargetEquiv F H r x y
-    ((scopeJoinSourceEquiv F H r x y).symm (scopeJoinSourceEquiv F H r x y a))).var = _
-  rw [Equiv.symm_apply_apply]
+  simp only [scopeJoinOccurrenceEquiv, Equiv.trans_apply, Equiv.symm_apply_apply]
   rcases a with (o | i) | (o | i) <;> exact ht.trans hs.symm
 
 /-- The target constraint fibers are exactly the source fibers with the two probe centers
@@ -178,11 +152,7 @@ theorem constraint_scopeJoinOccurrenceEquiv (F H : CSP Rel V) (r : Rel)
   have hsb := congrArg Prod.fst (record_scopeJoinSourceEquiv F H r x y b)
   have hta := congrArg Prod.fst (record_scopeJoinTargetEquiv F H r x y a)
   have htb := congrArg Prod.fst (record_scopeJoinTargetEquiv F H r x y b)
-  change (scopeJoinTargetEquiv F H r x y
-      ((scopeJoinSourceEquiv F H r x y).symm (scopeJoinSourceEquiv F H r x y a))).1 =
-    (scopeJoinTargetEquiv F H r x y
-      ((scopeJoinSourceEquiv F H r x y).symm (scopeJoinSourceEquiv F H r x y b))).1 ↔ _
-  rw [Equiv.symm_apply_apply, Equiv.symm_apply_apply, Fin.ext_iff]
+  simp only [scopeJoinOccurrenceEquiv, Equiv.trans_apply, Equiv.symm_apply_apply, Fin.ext_iff]
   rw [Function.update_id_apply_eq_iff]
   rcases a with (a | i) | (a | i) <;> rcases b with (b | j) | (b | j) <;>
     simp only [CSP.Occurrence.record] at hsa hsb hta htb <;>
@@ -197,23 +167,11 @@ theorem argumentSuccessor_scopeJoinSourceEquiv (F H : CSP Rel V) (r : Rel)
       scopeJoinSourceEquiv F H r x y (Sum.map
         (Sum.map argumentSuccessor (finRotate m))
         (Sum.map argumentSuccessor (finRotate n)) a) := by
-  rcases a with (o | i) | (o | i)
-  · rw [source_left, argumentSuccessor_appendOccurrenceEquiv]
-    simp only [Sum.map_inl]
-    rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inl]
-    rfl
-  · rw [source_left, argumentSuccessor_appendOccurrenceEquiv]
-    simp only [Sum.map_inl]
-    rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
-    rfl
-  · rw [source_right, argumentSuccessor_appendOccurrenceEquiv]
-    simp only [Sum.map_inr]
-    rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inl]
-    rfl
-  · rw [source_right, argumentSuccessor_appendOccurrenceEquiv]
-    simp only [Sum.map_inr]
-    rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
-    rfl
+  rcases a with (o | i) | (o | i) <;>
+    simp only [source_left, source_right, argumentSuccessor_appendOccurrenceEquiv,
+      Sum.map_inl, Sum.map_inr,
+      argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
+      argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
 
 private theorem argumentSuccessor_target_splice (F H : CSP Rel V) (r : Rel)
     (x : Fin (m + 1) → V) (y : Fin (n + 1) → V)
@@ -226,38 +184,28 @@ private theorem argumentSuccessor_target_splice (F H : CSP Rel V) (r : Rel)
           (Sum.inr (Sum.inr (Fin.last n))) a)) := by
   classical
   rcases a with (o | i) | (o | i)
-  · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simp)]
-    rw [target_body_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
-      argumentSuccessor_appendOccurrenceEquiv]
-    rfl
+  · simp [Equiv.swap_apply_of_ne_of_ne, target_body_left,
+      argumentSuccessor_appendOfFnOccurrenceEquiv_inl, argumentSuccessor_appendOccurrenceEquiv]
   · by_cases hi : i = Fin.last m
     · subst i
-      rw [Equiv.swap_apply_left]
-      simp only [Sum.map_inr, finRotate_last]
-      rw [target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_right]
-      apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      fin_index [val_finRotate]
+      simp only [Equiv.swap_apply_left, Sum.map_inr, finRotate_last,
+        target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_right]
+      congr 2; fin_index [val_finRotate]
     · rw [Equiv.swap_apply_of_ne_of_ne (by simpa using hi) (by simp)]
-      simp only [Sum.map_inl, Sum.map_inr]
-      rw [target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_left]
-      apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      fin_index [val_finRotate]
-  · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simp)]
-    rw [target_body_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
-      argumentSuccessor_appendOccurrenceEquiv]
-    rfl
+      simp only [Sum.map_inl, Sum.map_inr,
+        target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
+      congr 2; fin_index [val_finRotate]
+  · simp [Equiv.swap_apply_of_ne_of_ne, target_body_right,
+      argumentSuccessor_appendOfFnOccurrenceEquiv_inl, argumentSuccessor_appendOccurrenceEquiv]
   · by_cases hi : i = Fin.last n
     · subst i
-      rw [Equiv.swap_apply_right]
-      simp only [Sum.map_inl, Sum.map_inr, finRotate_last]
-      rw [target_probe_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_left]
-      apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      fin_index [val_finRotate]
+      simp only [Equiv.swap_apply_right, Sum.map_inl, Sum.map_inr, finRotate_last,
+        target_probe_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_left]
+      congr 2; fin_index [val_finRotate]
     · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simpa using hi)]
-      simp only [Sum.map_inr]
-      rw [target_probe_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_right]
-      apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      fin_index [val_finRotate]
+      simp only [Sum.map_inr,
+        target_probe_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
+      congr 2; fin_index [val_finRotate]
 
 /-- Joining the last outgoing corner at each probe center gives exactly the target positive
 argument cycles, with no reflected scope or arbitrary all-port conjunction principle. -/
@@ -285,11 +233,8 @@ private theorem source_probe_left_vertex (F H : CSP Rel V) (r : Rel)
         CSP Rel V).numVars +
         F.length := by
   rw [vertex_incidenceDart]
-  simp only [ite_true]
-  exact congrArg (fun record =>
-    (((F ++ [Constraint.mk r (List.ofFn x)]) ++ (H ++ [Constraint.mk r (List.ofFn y)])) :
-      CSP Rel V).numVars + record.1)
-      (record_scopeJoinSourceEquiv F H r x y (Sum.inl (Sum.inr i)))
+  exact congrArg (_ + ·)
+    (congrArg Prod.fst (record_scopeJoinSourceEquiv F H r x y (Sum.inl (Sum.inr i))))
 
 private theorem source_probe_right_vertex (F H : CSP Rel V) (r : Rel)
     (x : Fin m → V) (y : Fin n → V) (i : Fin n) :
@@ -298,11 +243,8 @@ private theorem source_probe_right_vertex (F H : CSP Rel V) (r : Rel)
         CSP Rel V).numVars +
         (F.length + 1 + H.length) := by
   rw [vertex_incidenceDart]
-  simp only [ite_true]
-  exact congrArg (fun record =>
-    (((F ++ [Constraint.mk r (List.ofFn x)]) ++ (H ++ [Constraint.mk r (List.ofFn y)])) :
-      CSP Rel V).numVars + record.1)
-      (record_scopeJoinSourceEquiv F H r x y (Sum.inr (Sum.inr i)))
+  exact congrArg (_ + ·)
+    (congrArg Prod.fst (record_scopeJoinSourceEquiv F H r x y (Sum.inr (Sum.inr i))))
 
 /-- Join the two actual probe centers at their last outgoing corners. Both probe scopes
 are nonempty, so their actual constraint darts supply the corners even for empty bodies. -/
@@ -358,10 +300,9 @@ theorem respectsArgumentOrder_scopeJoinRotation (F H : CSP Rel V) (r : Rel)
     RespectsArgumentOrder (scopeJoinRotation F H r x y hd rho tau) := by
   intro p
   obtain ⟨o, rfl⟩ := (scopeJoinOccurrenceEquiv F H r x y).surjective p
-  rw [← occurrenceDartEquiv_apply]
-  unfold scopeJoinRotation
-  rw [rotate_constraintJoinRotation, ← (incidenceDart_injective true).map_swap]
-  rw [(respectsArgumentOrder_appendRotation _ _ hd rho tau hr hs) _,
+  rw [← occurrenceDartEquiv_apply, scopeJoinRotation, rotate_constraintJoinRotation,
+    ← (incidenceDart_injective true).map_swap,
+    (respectsArgumentOrder_appendRotation _ _ hd rho tau hr hs) _,
     occurrenceDartEquiv_apply, argumentSuccessor_scopeJoinOccurrenceEquiv]
 
 /-- The full target checker accepts the actual joined-scope table from source ordered

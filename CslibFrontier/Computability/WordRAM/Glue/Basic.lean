@@ -154,27 +154,20 @@ theorem realize (h : GlueComputes B P f bound time) :
   refine ⟨n, emit (Fin.castAdd (n + 1)) (Fin.natAdd k), hg, ?_⟩
   intro w v mem hv hw
   let x : Data (k + (n + 1)) := ⟨Fin.addCases v (fun _ => 0), mem⟩
-  have hxs : x.regs ∘ Fin.castAdd (n + 1) = v := by
-    funext i
-    change Fin.addCases v (fun _ : Fin (n + 1) => 0) (Fin.castAdd (n + 1) i) = v i
-    exact Fin.addCases_left i
+  have hxs : x.regs ∘ Fin.castAdd (n + 1) = v := funext fun i =>
+    show Fin.addCases v (fun _ : Fin (n + 1) => 0) (Fin.castAdd (n + 1) i) = v i from
+      Fin.addCases_left i
   obtain ⟨y, hy, hyo, hym, hyf⟩ := hrun w x (hxs.symm ▸ hv) (hxs.symm ▸ hw)
-  refine ⟨y, hy, hxs ▸ hyo, hym, ?_⟩
-  intro i
-  exact (hyf _ (fun j => (hd i j).symm)).trans (congrFun hxs i)
+  exact ⟨y, hy, hxs ▸ hyo, hym, fun i => (hyf _ fun j => (hd i j).symm).trans (congrFun hxs i)⟩
 
 /-- Weaken the envelope and instruction budget explicitly, outside syntax-directed search. -/
 theorem mono (h : GlueComputes B P f bound time)
     (hb : ∀ v, P v → bound v ≤ bound' v) (ht : time ≤ time') :
     GlueComputes B P f bound' time' := by
   obtain ⟨hf, n, emit, he⟩ := h
-  refine ⟨fun v hv => (hf v hv).trans (hb v hv), n, emit, ?_⟩
-  intro r src tmp hi hd
-  obtain ⟨hg, hrun⟩ := he src tmp hi hd
-  refine ⟨hg, ?_⟩
-  intro w x hx hw
-  obtain ⟨y, hy, ho, hm, hf⟩ := hrun w x hx (hw.of_le (hb _ hx))
-  exact ⟨y, hy.mono ht, ho, hm, hf⟩
+  exact ⟨fun v hv => (hf v hv).trans (hb v hv), n, emit, fun src tmp hi hd =>
+    (he src tmp hi hd).imp_right fun hrun w x hx hw =>
+      (hrun w x hx (hw.of_le (hb _ hx))).imp fun _ ⟨hy, h⟩ => ⟨hy.mono ht, h⟩⟩
 
 /-- Copy one input register. Its bound is checked against the common visible envelope. -/
 @[expose] def Witness.proj (i : Fin k) (hb : ∀ v, P v → v i ≤ bound v) :
@@ -309,13 +302,9 @@ theorem reindex {m : ℕ} {Q : (Fin m → ℕ) → Prop} {b : (Fin m → ℕ) �
     (hP : ∀ v, Q v → P (v ∘ ρ)) (hb : ∀ v, Q v → bound (v ∘ ρ) ≤ b v) :
     GlueComputes B Q (fun v => f (v ∘ ρ)) b time := by
   obtain ⟨hf, n, emit, he⟩ := h
-  refine ⟨fun v hv => (hf _ (hP v hv)).trans (hb v hv), n,
-    fun src tmp => emit (src ∘ ρ) tmp, ?_⟩
-  intro r src tmp hi hd
-  obtain ⟨hg, hrun⟩ := he (src ∘ ρ) tmp hi (fun i j => hd (ρ i) j)
-  refine ⟨hg, ?_⟩
-  intro w x hx hw
-  exact hrun w x (hP _ hx) (hw.of_le (hb _ hx))
+  exact ⟨fun v hv => (hf _ (hP v hv)).trans (hb v hv), n, fun src tmp => emit (src ∘ ρ) tmp,
+    fun src tmp hi hd => (he (src ∘ ρ) tmp hi fun i j => hd (ρ i) j).imp_right
+      fun hrun w x hx hw => hrun w x (hP _ hx) (hw.of_le (hb _ hx))⟩
 
 /-- Substitute any finite vector of computed arguments into a routine. All component emitters,
 scratch banks and budgets are fixed before runtime inputs or widths. The forest runs in index
@@ -340,15 +329,12 @@ theorem comp_many {m : ℕ} {Q : (Fin m → ℕ) → Prop} {h b : (Fin m → ℕ
       (he : inner i p = inner j q) : (⟨i, p⟩ : S) = ⟨j, q⟩ := by
     apply idx.injective
     fin_index [inner]
-  have hinj (i : Fin m) : Function.Injective (inner i) := by
-    intro p q he
-    exact Fin.ext (congrArg (fun s : S => s.2.val) (hindex he))
+  have hinj (i : Fin m) : Function.Injective (inner i) := fun p q he =>
+    Fin.ext (congrArg (fun s : S => s.2.val) (hindex he))
   have hsep (i j : Fin m) (p : Fin (ns i + 1)) (q : Fin (ns j + 1))
       (he : inner i p = inner j q) : i = j := congrArg Sigma.fst (hindex he)
-  have hout : Function.Injective outer := by
-    fin_index [outer]
-  have hio (i : Fin m) (p : Fin (ns i + 1)) (q : Fin (a + 1)) :
-      inner i p ≠ outer q := by
+  have hout : Function.Injective outer := by fin_index [outer]
+  have hio (i : Fin m) (p : Fin (ns i + 1)) (q : Fin (a + 1)) : inner i p ≠ outer q := by
     fin_index [inner, outer]
   let emit : ∀ {r : ℕ}, (Fin k → Fin r) → (Fin (N + a + 1) → Fin r) → Code B r :=
     fun src tmp => (List.finRange m).foldr
@@ -377,37 +363,27 @@ theorem comp_many {m : ℕ} {Q : (Fin m → ℕ) → Prop} {h b : (Fin m → ℕ
         ∀ j, (∀ q, tmp q ≠ j) → y.regs j = z.regs j := by
     induction L generalizing z with
     | nil =>
-      have hargs : z.regs ∘ (fun i => tmp (inner i 0)) = g v := by
-        funext i
-        exact hvals i (by simp)
+      have hargs : z.regs ∘ (fun i => tmp (inner i 0)) = g v := funext fun i => hvals i (by simp)
       obtain ⟨y, hy, ho, hm, hf⟩ := hfrun w z (hargs.symm ▸ hQ v hx)
         (hargs.symm ▸ hw.of_le (hb v hx))
-      refine ⟨y, ?_, ?_, hm, ?_⟩
-      · simpa only [List.foldr_nil, List.map_nil, List.sum_nil, Nat.zero_add] using hy
-      · change y.regs (tmp 0) = h (z.regs ∘ (fun i => tmp (inner i 0))) at ho
-        exact hargs ▸ ho
-      · intro j hj
-        exact hf j (fun q => hj (outer q))
+      refine ⟨y, ?_, hargs ▸ ho, hm, fun j hj => hf j fun q => hj (outer q)⟩
+      simpa only [List.foldr_nil, List.map_nil, List.sum_nil, Nat.zero_add] using hy
     | cons i L ih =>
       obtain ⟨z', he, ho, hm, hframe⟩ := (hc i).2 w z (hz.symm ▸ hx) (hz.symm ▸ hw)
-      have hz' : z'.regs ∘ src = v := by
-        funext j
-        exact (hframe (src j) (fun q => (hd j (inner i q)).symm)).trans (congrFun hz j)
+      have hz' : z'.regs ∘ src = v := funext fun j =>
+        (hframe (src j) (fun q => (hd j (inner i q)).symm)).trans (congrFun hz j)
       have hvals' (j : Fin m) (hj : j ∉ L) : z'.regs (tmp (inner j 0)) = g v j := by
         by_cases hji : j = i
         · subst j
           change z'.regs (tmp (inner i 0)) = g (z.regs ∘ src) i at ho
           exact hz ▸ ho
-        · have hreg := hframe (tmp (inner j 0))
-            (fun q heq => hji (hsep i j q 0 (hi heq)).symm)
-          exact hreg.trans (hvals j (by simpa only [List.mem_cons, not_or] using And.intro hji hj))
+        · exact (hframe _ fun q heq => hji (hsep i j q 0 (hi heq)).symm).trans
+            (hvals j (by simp [hji, hj]))
       obtain ⟨y, hy, hyo, hym, hyf⟩ := ih z' hz' hvals'
-      refine ⟨y, ?_, hyo, hym.trans hm, ?_⟩
-      · simpa only [List.foldr_cons, List.map_cons, List.sum_cons, Nat.add_assoc] using he.seq hy
-      · intro j hj
-        exact (hyf j hj).trans (hframe j (fun q => hj (inner i q)))
-  obtain ⟨y, hy, ho, hm, hf⟩ := run (List.finRange m) x rfl
-    (fun i hi => False.elim (hi (by simp)))
+      refine ⟨y, ?_, hyo, hym.trans hm, fun j hj =>
+        (hyf j hj).trans (hframe j fun q => hj (inner i q))⟩
+      simpa only [List.foldr_cons, List.map_cons, List.sum_cons, Nat.add_assoc] using he.seq hy
+  obtain ⟨y, hy, ho, hm, hf⟩ := run (List.finRange m) x rfl fun i hi => (hi (by simp)).elim
   refine ⟨y, ?_, ho, hm, hf⟩
   simpa only [List.ofFn_eq_map] using hy
 
@@ -419,11 +395,10 @@ theorem comp {g b : (Fin 1 → ℕ) → ℕ} {Q : (Fin 1 → ℕ) → Prop} {tf 
     (hQ : ∀ v, P v → Q (fun _ => f v))
     (hb : ∀ v, P v → b (fun _ => f v) ≤ bound v) :
     GlueComputes B P (fun v => g (fun _ => f v)) bound (tf + tg + 1) := by
-  have hc := hg.comp_many (g := fun v _ => f v) (t := fun _ : Fin 1 => tf)
-    (fun _ => hf) hQ hb
-  have hc' : GlueComputes B P (fun v => g (fun _ => f v)) bound (tf + tg) := by
-    simpa [List.ofFn_succ] using hc
-  exact hc'.mono (fun _ _ => le_rfl) (by omega)
+  have hc : GlueComputes B P (fun v => g (fun _ => f v)) bound (tf + tg) := by
+    simpa [List.ofFn_succ] using hg.comp_many (g := fun v _ => f v) (t := fun _ : Fin 1 => tf)
+      (fun _ => hf) hQ hb
+  exact hc.mono (fun _ _ => le_rfl) (by omega)
 
 /-- Select between two computations by an existing register condition. Only the selected
 branch must satisfy its domain; the inactive branch may fault if executed. -/
@@ -438,12 +413,10 @@ theorem select (cond : Cond k) {f g : (Fin k → ℕ) → ℕ} {tf tg : ℕ}
     fun src tmp => .branch (cond.rename src)
       (.seq (ea src (tmp ∘ left)) (.op (.copy (tmp 0) (tmp (left 0)))))
       (.seq (eb src (tmp ∘ right)) (.op (.copy (tmp 0) (tmp (right 0)))))
-  refine ⟨?_, a + b + 2, emit, ?_⟩
-  · intro v hv
-    dsimp only
-    split
-    · exact hfo v ⟨hv, by assumption⟩
-    · exact hgo v ⟨hv, by assumption⟩
+  refine ⟨fun v hv => ?_, a + b + 2, emit, ?_⟩
+  · dsimp only
+    split_ifs with hc
+    exacts [hfo v ⟨hv, hc⟩, hgo v ⟨hv, hc⟩]
   intro r src tmp hi hd
   obtain ⟨hga, hra⟩ := ha src (tmp ∘ left) (hi.comp left_injective)
     (fun i j => hd i (left j))
@@ -458,19 +431,15 @@ theorem select (cond : Cond k) {f g : (Fin k → ℕ) → ℕ} {tf tg : ℕ}
     refine ⟨y.set (tmp 0) (y.regs (tmp (left 0))),
       ((hy.seq ExecWithin.copy).branch_pos (hc.mpr h)).mono (by omega), ?_, hym, ?_⟩
     · simpa [Data.set, h] using hyo
-    · intro i hne
-      change Function.update y.regs (tmp 0) _ i = x.regs i
-      rw [Function.update_of_ne (hne 0).symm]
-      exact hyf i (fun j => hne (left j))
+    · exact fun i hne =>
+        (Function.update_of_ne (hne 0).symm _ _).trans (hyf i fun j => hne (left j))
   · obtain ⟨y, hy, hyo, hym, hyf⟩ := hrb w x ⟨hx, h⟩ hw
     refine ⟨y.set (tmp 0) (y.regs (tmp (right 0))),
       ((hy.seq ExecWithin.copy).branch_neg (fun h' => h (hc.mp h'))).mono (by omega),
       ?_, hym, ?_⟩
     · simpa [Data.set, h] using hyo
-    · intro i hne
-      change Function.update y.regs (tmp 0) _ i = x.regs i
-      rw [Function.update_of_ne (hne 0).symm]
-      exact hyf i (fun j => hne (right j))
+    · exact fun i hne =>
+        (Function.update_of_ne (hne 0).symm _ _).trans (hyf i fun j => hne (right j))
 
 /-- Standard binary operations use the basis's documented total natural-number semantics. -/
 theorem bin_standard {f g : (Fin k → ℕ) → ℕ} {tf tg : ℕ}

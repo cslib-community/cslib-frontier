@@ -105,21 +105,17 @@ theorem truthTable_mem_P {A : Set (α × ℕ)} {r : α → ℕ} {d : α × List 
     {a | d (a, truthTableAnswers A r a) = true} ∈ P encA := by
   classical
   obtain ⟨f, hf, hAf⟩ := mem_P.mp hA
-  have hans : ComputableInPolyTime
-      (fun a => (List.range (r a)).map fun i => f (a, i)) encA encBits :=
-    ComputableInPolyTime.mapToBitsWithInput (ComputableInPolyTime.range.comp hr) hf
   refine mem_P.mpr ⟨fun a => d (a, (List.range (r a)).map fun i => f (a, i)),
-    hd.comp (ComputableInPolyTime.id'.prod hans), fun a => ?_⟩
-  simp [truthTableAnswers_eq_map_range, hAf]
+    hd.comp (ComputableInPolyTime.id'.prod
+      (ComputableInPolyTime.mapToBitsWithInput (ComputableInPolyTime.range.comp hr) hf)),
+    fun a => by simp [truthTableAnswers_eq_map_range, hAf]⟩
 
 /-- **`P` is closed under polynomial-time truth-table reductions.** -/
 theorem PolyTimeTruthTableReducible.mem_P
     (h : PolyTimeTruthTableReducible encA encB L B) (hB : B ∈ P encB) : L ∈ P encA := by
   obtain ⟨r, q, d, ⟨hr, hq, hd⟩, hL⟩ := h
-  have hqB : q ⁻¹' B ∈ P (encPair encA encUnary) :=
-    PolyTimeReducible.mem_P ⟨q, hq, fun _ => Iff.rfl⟩ hB
-  convert truthTable_mem_P hqB hr hd using 1
-  ext a
-  exact hL a
+  have hset : L = {a | d (a, truthTableAnswers (q ⁻¹' B) r a) = true} := Set.ext hL
+  exact hset.symm ▸
+    truthTable_mem_P (PolyTimeReducible.mem_P ⟨q, hq, fun _ => Iff.rfl⟩ hB) hr hd
 
 end Cslib.Complexity

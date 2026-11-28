@@ -128,21 +128,10 @@ private theorem count_map_adjLabel [DecidableEq V] [DecidableEq β] (G : SimpleG
     subst hcv
     exact G.irrefl hadj
   have h2 : (Finset.univ.val.map label).count (true, false, x) = if χ v = x then 1 else 0 := by
-    rw [hcnt]
-    have hfilt : (Finset.univ.filter fun c =>
-        decide (c = v) = true ∧ decide (G.Adj v c) = false ∧ χ c = x) =
-        if χ v = x then {v} else ∅ := by
-      ext c
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq,
-        decide_eq_false_iff_not]
-      split_ifs with hx
-      · simp only [Finset.mem_singleton]
-        exact ⟨fun h => h.1, fun h => by subst h; exact ⟨rfl, G.irrefl, hx⟩⟩
-      · simp only [Finset.notMem_empty, iff_false, not_and]
-        rintro rfl -
-        exact hx
-    rw [hfilt]
-    split_ifs <;> simp
+    rw [hcnt, Finset.card_filter, Finset.sum_eq_single v]
+    · simp
+    · exact fun c _ hcv => by simp [hcv]
+    · simp
   have h3 : (Finset.univ.val.map label).count (false, true, x) =
       ((G.neighborFinset v).val.map χ).count x := by
     rw [hcnt, Multiset.count_map, Finset.card_def, ← Finset.filter_val]
@@ -155,32 +144,13 @@ private theorem count_map_adjLabel [DecidableEq V] [DecidableEq β] (G : SimpleG
   have htot : (Finset.univ.val.map χ).count x = (Finset.univ.filter fun c => χ c = x).card := by
     rw [Multiset.count_map, Finset.card_def, ← Finset.filter_val]
     simp only [eq_comm (a := x)]
-  rw [hcnt, hcnt, hcnt, htot]
-  set S := Finset.univ.filter fun c : V => χ c = x
-  have hsplit1 := S.card_filter_add_card_filter_not (fun c => c = v)
-  have hsplit2 := (S.filter fun c => ¬c = v).card_filter_add_card_filter_not (fun c => G.Adj v c)
-  have heq_tf : (Finset.univ.filter fun c =>
-      decide (c = v) = true ∧ decide (G.Adj v c) = false ∧ χ c = x) =
-      S.filter fun c => c = v := by
-    ext c
-    simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq,
-      decide_eq_false_iff_not]
-    exact ⟨fun ⟨hcv, _, hx⟩ => ⟨hx, hcv⟩, fun ⟨hx, hcv⟩ => by subst hcv; exact ⟨rfl, G.irrefl, hx⟩⟩
-  have heq_ft : (Finset.univ.filter fun c =>
-      decide (c = v) = false ∧ decide (G.Adj v c) = true ∧ χ c = x) =
-      (S.filter fun c => ¬c = v).filter fun c => G.Adj v c := by
-    ext c
-    simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_false_iff_not,
-      decide_eq_true_eq]
-    tauto
-  have heq_ff : (Finset.univ.filter fun c =>
-      decide (c = v) = false ∧ decide (G.Adj v c) = false ∧ χ c = x) =
-      (S.filter fun c => ¬c = v).filter fun c => ¬G.Adj v c := by
-    ext c
-    simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_false_iff_not]
-    tauto
-  rw [heq_tf, heq_ft, heq_ff]
-  omega
+  rw [hcnt, hcnt, hcnt, htot, Finset.card_filter, Finset.card_filter, Finset.card_filter,
+    Finset.card_filter, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun c _ => ?_
+  by_cases hcv : c = v
+  · subst hcv
+    simp
+  · by_cases hadj : G.Adj v c <;> simp [hcv, hadj]
 
 /-- A bijection `f : V ≃ W` carrying `v` to `w`, neighbors of `v` to neighbors of `w`, and
 `χ`-colors to `ψ`-colors exists if and only if `v` and `w` receive the same refined color and `χ`
@@ -194,9 +164,7 @@ theorem SimpleGraph.exists_equiv_adj_iff_refineColoring_eq
   constructor
   · rintro ⟨f, hf⟩
     have hv : f v = w := (hf v).1.1 rfl
-    have hχv : χ v = ψ w := by
-      have := (hf v).2.2
-      rwa [hv] at this
+    have hχv : χ v = ψ w := hv ▸ (hf v).2.2
     have huniv : (Finset.univ : Finset V).val.map χ = (Finset.univ : Finset W).val.map ψ :=
       Equiv.exists_apply_eq_iff_map_univ_eq.1 ⟨f, fun c => ((hf c).2.2).symm⟩
     have hnbhd : H.neighborFinset w = (G.neighborFinset v).map f.toEmbedding := by
@@ -231,9 +199,7 @@ theorem SimpleGraph.exists_equiv_adj_iff_refineColoring_eq
       · rw [hG11, hH11]
     obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hlabel
     refine ⟨f, fun c => ?_⟩
-    have hc := (hf c).symm
-    simp only [labelG, labelH, Prod.mk.injEq, decide_eq_decide] at hc
-    exact hc
+    simpa only [labelG, labelH, Prod.mk.injEq, decide_eq_decide] using (hf c).symm
 
 end Fiber
 
@@ -244,16 +210,13 @@ section GraphPebble
 variable {V W : Type*} {G : SimpleGraph V} {H : SimpleGraph W}
 
 private theorem fin_two_add_one_ne (p : Fin 2) : p + 1 ≠ p := by
-  revert p
-  decide
+  decide +revert
 
 private theorem fin_two_eq_or_add_one (p q : Fin 2) : q = p ∨ q = p + 1 := by
-  revert p q
-  decide
+  decide +revert
 
 private theorem fin_two_add_one_add_one (p : Fin 2) : p + 1 + 1 = p := by
-  revert p
-  decide
+  decide +revert
 
 private theorem comp_vec_two {α β : Type*} (a : α → β) (i j : α) : a ∘ ![i, j] = ![a i, a j] :=
   (FinVec.map_eq a ![i, j]).symm
@@ -366,42 +329,28 @@ theorem bijPebbleWins_graph_iff (m : ℕ) (S : Set (Fin 2)) (a : Fin 2 → V) (b
         Function.update_of_ne (fin_two_add_one_ne p) d b
       by_cases hpS : p + 1 ∈ S
       · simp only [hpS, forall_const]
-        have hstep : (∃ f : V ≃ W, ∀ c,
-            ((c = a (p + 1) ↔ f c = b (p + 1)) ∧
-              (G.Adj (a (p + 1)) c ↔ H.Adj (b (p + 1)) (f c))) ∧
-            (∀ j ∈ insert p S,
-              G.refinementColoring (fun _ => ()) m (Function.update a p c j) =
-                H.refinementColoring (fun _ => ()) m (Function.update b p (f c) j)) ∧
-            ∀ k < m, G.colorHistogram (fun _ => ()) k = H.colorHistogram (fun _ => ()) k) ↔
-            ∃ f : V ≃ W, ∀ c,
-              (c = a (p + 1) ↔ f c = b (p + 1)) ∧
-              (G.Adj (a (p + 1)) c ↔ H.Adj (b (p + 1)) (f c)) ∧
-              G.refinementColoring (fun _ => ()) m c =
-                H.refinementColoring (fun _ => ()) m (f c) := by
-          constructor
-          · rintro ⟨f, hf⟩
-            refine ⟨f, fun c => ⟨(hf c).1.1, (hf c).1.2, ?_⟩⟩
-            have hpc := (hf c).2.1 p (Set.mem_insert p S)
-            rwa [Function.update_self, Function.update_self] at hpc
-          · rintro ⟨f, hf⟩
-            have hhist : G.colorHistogram (fun _ => ()) m = H.colorHistogram (fun _ => ()) m := by
-              rw [colorHistogram_eq, colorHistogram_eq]
-              exact Equiv.exists_apply_eq_iff_map_univ_eq.1 ⟨f, fun c => ((hf c).2.2).symm⟩
-            have hcol_q : G.refinementColoring (fun _ => ()) m (a (p + 1)) =
-                H.refinementColoring (fun _ => ()) m (b (p + 1)) := by
-              have hfa : f (a (p + 1)) = b (p + 1) := (hf (a (p + 1))).1.1 rfl
-              have hca := (hf (a (p + 1))).2.2
-              rwa [hfa] at hca
-            refine ⟨f, fun c => ⟨⟨(hf c).1, (hf c).2.1⟩, fun j _ => ?_,
-              fun k hk => colorHistogram_eq_of_le hk.le hhist⟩⟩
-            rcases fin_two_eq_or_add_one p j with rfl | rfl
-            · rw [Function.update_self, Function.update_self]
-              exact (hf c).2.2
-            · rw [hupd_a, hupd_b]
-              exact hcol_q
-        rw [hstep, exists_equiv_adj_iff_refineColoring_eq, ← refinementColoring_succ,
-          ← refinementColoring_succ, ← colorHistogram_eq, ← colorHistogram_eq]
-        exact Iff.rfl
+        rw [refinementColoring_succ, refinementColoring_succ, colorHistogram_eq, colorHistogram_eq]
+        refine Iff.trans ?_ exists_equiv_adj_iff_refineColoring_eq
+        constructor
+        · rintro ⟨f, hf⟩
+          refine ⟨f, fun c => ⟨(hf c).1.1, (hf c).1.2, ?_⟩⟩
+          have hpc := (hf c).2.1 p (Set.mem_insert p S)
+          rwa [Function.update_self, Function.update_self] at hpc
+        · rintro ⟨f, hf⟩
+          have hhist : G.colorHistogram (fun _ => ()) m = H.colorHistogram (fun _ => ()) m := by
+            rw [colorHistogram_eq, colorHistogram_eq]
+            exact Equiv.exists_apply_eq_iff_map_univ_eq.1 ⟨f, fun c => ((hf c).2.2).symm⟩
+          have hcol_q : G.refinementColoring (fun _ => ()) m (a (p + 1)) =
+              H.refinementColoring (fun _ => ()) m (b (p + 1)) := by
+            have hca := (hf (a (p + 1))).2.2
+            rwa [(hf (a (p + 1))).1.1 rfl] at hca
+          refine ⟨f, fun c => ⟨⟨(hf c).1, (hf c).2.1⟩, fun j _ => ?_,
+            fun k hk => colorHistogram_eq_of_le hk.le hhist⟩⟩
+          rcases fin_two_eq_or_add_one p j with rfl | rfl
+          · rw [Function.update_self, Function.update_self]
+            exact (hf c).2.2
+          · rw [hupd_a, hupd_b]
+            exact hcol_q
       · simp only [hpS, IsEmpty.forall_iff, true_and]
         have hins : insert p S = {p} := by
           ext r

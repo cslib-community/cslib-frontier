@@ -62,16 +62,15 @@ theorem classify_eq_decision_parse (e : Q ≃ Fin s) (b : ℕ) (word : List Bool
   classical
   by_cases hbad : b = 0 ∨ word.length ≠ Encoding.width k s b
   · simp [classify, Encoding.NativeDecode.parse, hbad, decision]
-  · by_cases htag : word.headD false = true
+  · cases htag : word.headD false
+    · simp only [classify, Encoding.NativeDecode.parse, hbad, htag, Bool.false_eq_true, ↓reduceIte,
+        Option.map_none, decision]
     · simp only [classify, Encoding.NativeDecode.parse, hbad, htag, ↓reduceIte,
         Option.map_some, Encoding.NativeDecode.payload, QueryReplay.RawResult.toView, decision]
       split
-      · cases hfirst : word.getD (Encoding.NativeDecode.trackOffset k s b) false <;>
-          cases hsecond : word.getD (Encoding.NativeDecode.trackOffset k s b + 1) false <;>
-          simp_all
+      · cases word.getD (Encoding.NativeDecode.trackOffset k s b) false <;>
+          cases word.getD (Encoding.NativeDecode.trackOffset k s b + 1) false <;> rfl
       · rfl
-    · simp only [classify, Encoding.NativeDecode.parse, hbad, htag, Bool.false_eq_true, ↓reduceIte,
-        Option.map_none, decision]
 
 /-- Stored width-correct roots have exactly the existing decoder's semantic decision. -/
 theorem classify_ofFn_eq_decision_decode (e : Q ≃ Fin s) (b : ℕ) [NeZero b]
@@ -88,19 +87,16 @@ theorem classify_inSpace (e : Q ≃ Fin s) :
   classical
   have hb := fst encNat encBits
   have hw := snd encNat encBits
-  have hwordLength : ComputableInSpace List.length encBits encNat
-      (fun word => (encBits word).length) :=
-    Encoding.NativeDecode.wordLength_inSpace
-  have hlength := budget_comp_linear hwordLength hw
+  have hlength := budget_comp_linear Encoding.NativeDecode.wordLength_inSpace hw
   have hwidth := budget_comp_linear (Encoding.width_inSpace k s) hb
   have hshape := budget_finite (encC := encBool)
     (fun pair : Bool × Bool => pair.1 || !pair.2)
     (budget_prod (budget_natIsZero hb) (budget_natEq hlength hwidth))
   have htag := budget_comp_linear (bitsGetD false)
-    (budget_prod hw (budget_const (encB := encNat) 0 (.refl _)))
+    (budget_prod hw (budget_const (encB := encNat) 0))
   have hrank := budget_comp_linear Encoding.NativeDecode.readNat_inSpace
-    (budget_prod hw (budget_prod (budget_const (encB := encNat) 1 (.refl _))
-      (budget_const (encB := encNat) (s + 1).size (.refl _))))
+    (budget_prod hw (budget_prod (budget_const (encB := encNat) 1)
+      (budget_const (encB := encNat) (s + 1).size)))
   have hcontrol := budget_comp_linear (Encoding.NativeDecode.state_inSpace e) hrank
   have hhalt := budget_finite (encC := encBool) (Option.isNone : Option Q → Bool) hcontrol
   have hoffset := Encoding.NativeDecode.trackOffset_inSpace (k := k) (s := s)
@@ -111,14 +107,14 @@ theorem classify_inSpace (e : Q ≃ Fin s) :
     (fun pair : Bool × Bool => pair.1 && !pair.2) (budget_prod hfirst hsecond)
   have hsome := budget_comp_linear (encC := encOption encBool)
     (of_inO (ComputableInDegree.optionSome (enc₁ := encBool)).inO_one) haccept
-  have hnone := budget_const (encIn := encArgs) (encB := encOption encBool) none (.refl _)
+  have hnone :=
+    budget_const (Bs := fun a => (encArgs a).length) (encIn := encArgs) (encB := encOption encBool)
+      none
   refine (budget_ite hshape hnone
-    (budget_ite htag (budget_ite hhalt hsome hnone) hnone)).of_enc_eq ?_
-  rintro ⟨b, word⟩
-  rw [show word.getD 0 false = word.headD false from by
-    cases word <;> rfl]
-  by_cases hzero : b = 0 <;>
-    by_cases hlength : word.length = Encoding.width k s b <;>
+    (budget_ite htag (budget_ite hhalt hsome hnone) hnone)).of_enc_eq fun ⟨b, word⟩ => ?_
+  have hhead : word.getD 0 false = word.headD false := by cases word <;> rfl
+  rw [hhead]
+  by_cases hzero : b = 0 <;> by_cases hlength : word.length = Encoding.width k s b <;>
     simp [classify, hzero, hlength]
 
 end Turing.MultiTapePTM.BlockComputation.RootDecision

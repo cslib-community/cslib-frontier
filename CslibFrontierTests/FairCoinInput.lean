@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.FairCoin.ReadInput
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ConfigurationReader
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou.Base
 
 /-!
 # Fair-coin count blocks on actual framed inputs
@@ -119,6 +120,16 @@ private theorem count_input (different input : Bool) :
   have htrue := hcoin true
   rw [coinCountWithSymbol]
   cases input <;> cases different <;> simp_all [running]
+
+-- At precision four, the same two compact IDs have numerator zero, eight or sixteen
+-- according to the input bit and whether the two coin transitions coincide.
+example (different input : Bool) :
+    saksZhouBaseCounts (machine different) 4 3 [input]
+      ⟨_, vertexID_lt (fits_three (running input) rfl)⟩
+      ⟨_, vertexID_lt (fits_three (stopped input true) rfl)⟩ =
+        if input then (if different then 8 else 16) else 0 := by
+  simp only [saksZhouBaseCounts, List.length_singleton, count_input]
+  cases input <;> cases different <;> decide
 
 private noncomputable def source : ℕ := vertexID 3 (running true)
 

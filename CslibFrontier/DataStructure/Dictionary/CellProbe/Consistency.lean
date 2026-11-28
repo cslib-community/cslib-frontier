@@ -49,17 +49,19 @@ hold.
 
 * `IsQualified`, `IsCappedConsistent`, `MetaTree.IsGoodSeg`: probe-capped qualification,
   consistency, and good child-segment predicates.
-* `candidateQueryDeleteInsertOps`, `HardKeyValSeed`: candidate segment simulations and
-  global-value seeds.
+* `candidateQueryDeleteInsertOps`, `candidateDeleteInsertOps`, `HardKeyValSeed`,
+  `modeStride`, `modeHorizon`, `modeDist`, `HardKeyValSeed.modeOps`,
+  `HardKeyValSeed.modeCandidateOps`: candidate segment simulations, global-value seeds, and
+  mode-parametric (`withQueries : Bool`) hard sequences.
 
 ## Main results
 
 * `MetaTree.isQualified_elemSlice_of_isGoodSeg`, `IsQualified.isCappedConsistent`,
   `MetaTree.quarter_fanout_le_sum_prob_isGoodSeg`: qualification, consistency, and Claim 4.1.
-* `insertQueryDeleteDist_eq_bind_keyVals`, `map_ops_uniformOfFintype_hardKeyValSeed`: global-value
-  reparametrization of `insertQueryDeleteDist`.
-* `div_pow_le_choose`, `logb_choose_sub_logb_choose_sub_le`,
-  `quarter_mul_logb_le_logb_powersetCard_sub_nbr`: binomial log estimates and Claim 4.6.
+* `insertQueryDeleteDist_eq_bind_keyVals`, `insertDeleteDist_eq_bind_keyVals`,
+  `map_ops_uniformOfFintype_hardKeyValSeed`, `map_modeOps_uniformOfFintype_hardKeyValSeed`,
+  `HardKeyValSeed.run_take_modeOps_fst`: global-value reparametrization and prefix state
+  characterization of `insertQueryDeleteDist` and `insertDeleteDist`.
 
 ## References
 
@@ -73,7 +75,8 @@ namespace Cslib.DataStructure.Dictionary.CellProbe
 
 open Cslib.CellProbe Cslib.DataStructure Cslib.DataStructure.Dictionary
 open Cslib.Probability
-open Finset (orderSubset orderSubset_apply image_orderSubset embSetPermEquiv
+open Finset (orderSubset orderSubset_apply image_orderSubset
+  orderSubset_eq_of_embSetPermEquiv_fst embSetPermEquiv
   embSetPermEquiv_symm_apply embSetPermEquiv_fst)
 open scoped BigOperators ENNReal
 
@@ -128,11 +131,7 @@ theorem IsQualified.isCappedConsistent {D : IndexedScheme Op Result cells w} {st
   refine ⟨?_, hcardA, hcardB⟩
   have hsub : (S_A ∩ S_B).filter (fun j => C_A j ≠ C_B j) ⊆
       S_A.filter (fun j => C_A j ≠ C_end j) ∪ S_B.filter (fun j => C_B j ≠ C_end j) :=
-    fun j hj => by
-      rw [Finset.mem_filter, Finset.mem_inter] at hj; obtain ⟨⟨hjA, hjB⟩, hne⟩ := hj
-      rw [Finset.mem_union, Finset.mem_filter, Finset.mem_filter]
-      exact if hAe : C_A j = C_end j then Or.inr ⟨hjB, fun hBe => hne (hAe.trans hBe.symm)⟩
-        else Or.inl ⟨hjA, hAe⟩
+    fun j hj => by simp only [Finset.mem_filter, Finset.mem_inter, Finset.mem_union] at hj ⊢; grind
   have hle : (((S_A ∩ S_B).filter (fun j => C_A j ≠ C_B j)).card : ℝ) ≤
       ((S_A.filter (fun j => C_A j ≠ C_end j)).card : ℝ) +
       ((S_B.filter (fun j => C_B j ≠ C_end j)).card : ℝ) := by
@@ -271,12 +270,8 @@ theorem quarter_fanout_le_sum_prob_isGoodSeg {Ω : Type*} [Fintype Ω]
           (if T.IsGoodSeg D initLen stride (opsOf ω) γ t ℓ b i then (1 : ℝ) else 0) := by
   set halfSet := Finset.univ.filter fun i : Fin (T.fanout (ℓ + 1)) => i.val < T.fanout (ℓ + 1) / 2
   obtain ⟨q, hq⟩ := T.even_fanout (ℓ + 1) (Nat.le_add_left 1 ℓ)
-  have hhalf_card : halfSet.card = T.fanout (ℓ + 1) / 2 := by
-    refine (Finset.card_bij (s := halfSet) (t := Finset.range (T.fanout (ℓ + 1) / 2))
-      (fun i _ => i.val) (fun _ hi => Finset.mem_range.mpr (Finset.mem_filter.mp hi).2)
-      (fun _ _ _ _ h => Fin.ext h) fun r hr => ?_).trans (Finset.card_range _)
-    exact ⟨⟨r, by have := Finset.mem_range.mp hr; omega⟩,
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hr⟩, rfl⟩
+  have hhalf_card : halfSet.card = T.fanout (ℓ + 1) / 2 :=
+    Fin.card_filter_val_lt.trans (min_eq_right (Nat.div_le_self _ _))
   have hhalf_real : (halfSet.card : ℝ) = (T.fanout (ℓ + 1) : ℝ) / 2 := by
     rw [hhalf_card, hq, Nat.mul_div_cancel_left q (by omega)]; push_cast; ring
   have hbad_half : (∑ i ∈ halfSet, ∑ ω, (p ω).toReal *
@@ -468,9 +463,42 @@ noncomputable instance (U V n : ℕ) : Fintype (HardKeyValSeed U V n) :=
         right_inv := fun ⟨⟨_, _⟩, _⟩ => by
           ext m <;> simp [HardKeyValSeed.permKeyEmb, ← liftDelPerm_symm] }))
 
+/-- Elementary-step stride per meta-operation: `3` (`[query, delete, insert]`) when
+`withQueries = true`, and `2` (`[delete, insert]`) when `withQueries = false`. -/
+@[expose] def modeStride (withQueries : Bool) : ℕ :=
+  if withQueries then 3 else 2
+
+/-- Correctness horizon `n + modeStride withQueries * n` (`4 * n` vs. `3 * n`). -/
+@[expose] def modeHorizon (withQueries : Bool) (n : ℕ) : ℕ :=
+  n + modeStride withQueries * n
+
+/-- Mode-parametric hard operational sequence distribution (`insertQueryDeleteDist` vs.
+`insertDeleteDist`). -/
+@[expose] noncomputable def modeDist (withQueries : Bool) (U V n : ℕ) (hU : 2 * n ≤ U)
+    (hV : 1 ≤ V) : PMF (List (Dynamic.Op U)) :=
+  if withQueries then insertQueryDeleteDist U V n hU hV else insertDeleteDist U V n hU hV
+
+@[simp]
+theorem modeDist_true (U V n : ℕ) (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
+    modeDist true U V n hU hV = insertQueryDeleteDist U V n hU hV := by rfl
+
+@[simp]
+theorem modeDist_false (U V n : ℕ) (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
+    modeDist false U V n hU hV = insertDeleteDist U V n hU hV := by rfl
+
 /-- Full `4 * n`-operation `[query, delete, insert]` sequence generated by `s`. -/
 @[expose] def HardKeyValSeed.ops {U V n : ℕ} (s : HardKeyValSeed U V n) : List (Dynamic.Op U) :=
   insertQueryDeleteSeq s.keys (fun idx => s.kv (s.keys idx)) s.delPerm
+
+/-- Full `3 * n`-operation `[delete, insert]` update-only sequence generated by `s`. -/
+@[expose] def HardKeyValSeed.updateOps {U V n : ℕ} (s : HardKeyValSeed U V n) :
+    List (Dynamic.Op U) :=
+  insertDeleteSeq s.keys (fun idx => s.kv (s.keys idx)) s.delPerm
+
+/-- Mode-parametric full sequence generated by `s` (`s.ops` vs. `s.updateOps`). -/
+@[expose] def HardKeyValSeed.modeOps {U V n : ℕ} (withQueries : Bool) (s : HardKeyValSeed U V n) :
+    List (Dynamic.Op U) :=
+  if withQueries then s.ops else s.updateOps
 
 /-- Active size-`n` key set `K` before meta-operation `t₀ ≤ n`. -/
 @[expose] def HardKeyValSeed.activeKeys {U V n : ℕ} (s : HardKeyValSeed U V n)
@@ -494,9 +522,38 @@ noncomputable def HardKeyValSeed.candidateOps {U V n : ℕ} (s : HardKeyValSeed 
       (orderSubset B hB (embSetPermEquiv (Fin U) m
         (segInsertedKeys s.keys t₀ m ht)).2) s.kv := by rfl
 
-/-- Dictionary state reached after `n` initial insertions and `t ≤ n` meta-operations of `s.ops`. -/
-theorem HardKeyValSeed.run_take_ops_fst {U V n t : ℕ} (s : HardKeyValSeed U V n) (ht : t ≤ n) :
-    ((Dynamic.spec U V n).run (Dictionary.empty U) (s.ops.take (n + 3 * t))).1 =
+/-- Candidate `[delete, insert]` segment sequence for candidate set `B` (`B.card = m`). -/
+noncomputable def HardKeyValSeed.candidateUpdateOps {U V n : ℕ} (s : HardKeyValSeed U V n)
+    (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U)) (hB : B.card = m) : List (Dynamic.Op U) :=
+  candidateDeleteInsertOps (segDeletedKeys s.keys s.delPerm t₀ m ht)
+    (orderSubset B hB (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2) s.kv
+
+theorem HardKeyValSeed.candidateUpdateOps_eq {U V n : ℕ} (s : HardKeyValSeed U V n)
+    (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U)) (hB : B.card = m) :
+    s.candidateUpdateOps t₀ m ht B hB =
+      candidateDeleteInsertOps (segDeletedKeys s.keys s.delPerm t₀ m ht)
+        (orderSubset B hB (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2) s.kv := by
+  rfl
+
+/-- Mode-parametric candidate segment sequence for candidate set `B` (`B.card = m`). -/
+noncomputable def HardKeyValSeed.modeCandidateOps {U V n : ℕ} (withQueries : Bool)
+    (s : HardKeyValSeed U V n) (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U))
+    (hB : B.card = m) : List (Dynamic.Op U) :=
+  if withQueries then s.candidateOps t₀ m ht B hB else s.candidateUpdateOps t₀ m ht B hB
+
+theorem HardKeyValSeed.modeCandidateOps_eq {U V n : ℕ} (withQueries : Bool)
+    (s : HardKeyValSeed U V n) (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U))
+    (hB : B.card = m) :
+    s.modeCandidateOps withQueries t₀ m ht B hB =
+      if withQueries then s.candidateOps t₀ m ht B hB else s.candidateUpdateOps t₀ m ht B hB := by
+  rfl
+
+/-- Dictionary state reached after `n` initial insertions and `t ≤ n` meta-operations of
+`s.modeOps withQueries`. -/
+theorem HardKeyValSeed.run_take_modeOps_fst (withQueries : Bool) {U V n t : ℕ}
+    (s : HardKeyValSeed U V n) (ht : t ≤ n) :
+    ((Dynamic.spec U V n).run (Dictionary.empty U)
+        ((s.modeOps withQueries).take (n + modeStride withQueries * t))).1 =
       (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).1 := by
   set vals := fun idx => s.kv (s.keys idx); set pvals := fun idx => s.kv (s.permKeyEmb idx)
   have hinit : ((Dynamic.spec U V n).run (Dictionary.empty U) (initInsertSeq s.keys vals)).1 =
@@ -512,22 +569,98 @@ theorem HardKeyValSeed.run_take_ops_fst {U V n t : ℕ} (s : HardKeyValSeed U V 
     · push Not at hex
       rw [dictOfEmb_apply_eq_none _ _ hex,
         dictOfEmb_apply_eq_none _ _ fun k => by rw [hemb]; exact hex _]
-  have hmeta (j : Fin n) : queryDeleteInsertMetaOp s.keys vals s.delPerm j =
-      queryDeleteInsertMetaOp s.permKeyEmb pvals (Equiv.refl (Fin n)) j := by
-    simp [queryDeleteInsertMetaOp, vals, pvals, HardKeyValSeed.permKeyEmb]
-  have hrhs :=
-    (validHistory_and_run_take_insertQueryDeleteSeq s.permKeyEmb pvals (Equiv.refl (Fin n)) ht).2
-  rw [take_insertQueryDeleteSeq, StateTransitionSpec.run_append, activeWindowDict_refl] at hrhs
-  rw [HardKeyValSeed.ops, take_insertQueryDeleteSeq, StateTransitionSpec.run_append]
-  dsimp only at hrhs ⊢
-  rw [hinit, List.flatMap_congr fun j _ => hmeta j]; exact hrhs
+  cases withQueries
+  · have hmeta (j : Fin n) : deleteInsertMetaOp s.keys vals s.delPerm j =
+        deleteInsertMetaOp s.permKeyEmb pvals (Equiv.refl (Fin n)) j := by
+      simp [deleteInsertMetaOp, vals, pvals, HardKeyValSeed.permKeyEmb]
+    have hrhs :=
+      (validHistory_and_run_take_insertDeleteSeq s.permKeyEmb pvals (Equiv.refl (Fin n)) ht).2
+    rw [take_insertDeleteSeq, StateTransitionSpec.run_append, activeWindowDict_refl] at hrhs
+    simp only [modeOps, Bool.false_eq_true, ↓reduceIte, modeStride]
+    rw [updateOps, take_insertDeleteSeq, StateTransitionSpec.run_append]
+    dsimp only at hrhs ⊢
+    rw [hinit, List.flatMap_congr fun j _ => hmeta j]; exact hrhs
+  · have hmeta (j : Fin n) : queryDeleteInsertMetaOp s.keys vals s.delPerm j =
+        queryDeleteInsertMetaOp s.permKeyEmb pvals (Equiv.refl (Fin n)) j := by
+      simp [queryDeleteInsertMetaOp, vals, pvals, HardKeyValSeed.permKeyEmb]
+    have hrhs :=
+      (validHistory_and_run_take_insertQueryDeleteSeq s.permKeyEmb pvals (Equiv.refl (Fin n)) ht).2
+    rw [take_insertQueryDeleteSeq, StateTransitionSpec.run_append, activeWindowDict_refl] at hrhs
+    simp only [modeOps, ↓reduceIte, modeStride]
+    rw [ops, take_insertQueryDeleteSeq, StateTransitionSpec.run_append]
+    dsimp only at hrhs ⊢
+    rw [hinit, List.flatMap_congr fun j _ => hmeta j]; exact hrhs
 
-/-- Pushing `PMF.uniformOfFintype (HardKeyValSeed U V n)` forward by `HardKeyValSeed.ops` recovers
-`insertQueryDeleteDist U V n hU hV`. -/
-theorem map_ops_uniformOfFintype_hardKeyValSeed {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
+/-- Dictionary state reached after `n` initial insertions and `t ≤ n` meta-operations of `s.ops`. -/
+theorem HardKeyValSeed.run_take_ops_fst {U V n t : ℕ} (s : HardKeyValSeed U V n) (ht : t ≤ n) :
+    ((Dynamic.spec U V n).run (Dictionary.empty U) (s.ops.take (n + 3 * t))).1 =
+      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).1 :=
+  s.run_take_modeOps_fst true ht
+
+/-- Any prefix `n + modeStride withQueries * t` (`t ≤ n`) of `s.modeOps withQueries` is admissible
+under `Dynamic.spec U V n`. -/
+theorem HardKeyValSeed.validHistory_take_modeOps (withQueries : Bool) {U V n t : ℕ}
+    (s : HardKeyValSeed U V n) (ht : t ≤ n) :
+    (Dynamic.spec U V n).ValidHistory (Dictionary.empty U)
+      ((s.modeOps withQueries).take (n + modeStride withQueries * t)) := by
+  cases withQueries
+  · exact (validHistory_and_run_take_insertDeleteSeq s.keys (fun idx => s.kv (s.keys idx))
+      s.delPerm ht).1
+  · exact (validHistory_and_run_take_insertQueryDeleteSeq s.keys (fun idx => s.kv (s.keys idx))
+      s.delPerm ht).1
+
+private theorem HardKeyValSeed.length_modeOps (withQueries : Bool) {U V n : ℕ}
+    (s : HardKeyValSeed U V n) :
+    (s.modeOps withQueries).length = modeHorizon withQueries n := by
+  cases withQueries
+  · simp [modeOps, updateOps, modeHorizon, modeStride, length_insertDeleteSeq]; ring
+  · simp [modeOps, HardKeyValSeed.ops, modeHorizon, modeStride, length_insertQueryDeleteSeq]; ring
+
+/-- Length of the `t`-meta-operation prefix of `s.modeOps withQueries` for `t ≤ n`. -/
+theorem HardKeyValSeed.length_take_modeOps (withQueries : Bool) {U V n t : ℕ}
+    (s : HardKeyValSeed U V n) (ht : t ≤ n) :
+    ((s.modeOps withQueries).take (n + modeStride withQueries * t)).length =
+      n + modeStride withQueries * t := by
+  rw [List.length_take, s.length_modeOps, Nat.min_eq_left]
+  exact Nat.add_le_add_left (Nat.mul_le_mul_left _ ht) n
+
+/-- Segment slice `[t₀, t₀ + m)` of `s.modeOps withQueries` equals `s.modeCandidateOps` on the true
+inserted key set `s.insertedSet t₀ m ht`. -/
+theorem HardKeyValSeed.elemSlice_modeOps_eq_trueCandidate (withQueries : Bool) {U V n t₀ m : ℕ}
+    (s : HardKeyValSeed U V n) (ht : t₀ + m ≤ n) :
+    elemSlice n (modeStride withQueries) (s.modeOps withQueries) t₀ (t₀ + m) =
+      s.modeCandidateOps withQueries t₀ m ht (s.insertedSet t₀ m ht)
+        (by simp [HardKeyValSeed.insertedSet,
+          Finset.card_image_of_injective _ (segInsertedKeys s.keys t₀ m ht).injective]) := by
+  have hcard : (s.insertedSet t₀ m ht).card = m := by
+    simp [HardKeyValSeed.insertedSet,
+      Finset.card_image_of_injective _ (segInsertedKeys s.keys t₀ m ht).injective]
+  have hord : orderSubset (s.insertedSet t₀ m ht) hcard
+      (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2 =
+      segInsertedKeys s.keys t₀ m ht :=
+    orderSubset_eq_of_embSetPermEquiv_fst
+      (Subtype.ext (embSetPermEquiv_fst m (segInsertedKeys s.keys t₀ m ht)))
+  cases withQueries
+  · simp only [modeStride, Bool.false_eq_true, ↓reduceIte, modeOps, modeCandidateOps,
+      candidateUpdateOps, hord]
+    exact elemSlice_insertDeleteSeq_eq_candidate s.keys s.kv s.delPerm ht
+  · simp only [modeStride, ↓reduceIte, modeOps, HardKeyValSeed.ops, modeCandidateOps,
+      HardKeyValSeed.candidateOps_eq, hord]
+    exact elemSlice_insertQueryDeleteSeq_eq_candidate s.keys s.kv s.delPerm ht
+
+private theorem map_seedSeq_uniformOfFintype_hardKeyValSeed {U V n : ℕ}
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V)
+    (seq : (Fin (2 * n) ↪ Fin U) → (Fin (2 * n) → Fin V) →
+      Equiv.Perm (Fin n) → List (Dynamic.Op U)) {dist : PMF (List (Dynamic.Op U))}
+    (hdist : letI : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
+      letI : Nonempty (Fin V) := ⟨⟨0, hV⟩⟩
+      dist = (PMF.uniformOfFintype (Fin (2 * n) ↪ Fin U)).bind fun keys =>
+        (PMF.uniformOfFintype (Fin U → Fin V)).bind fun kv =>
+          (PMF.uniformOfFintype (Equiv.Perm (Fin n))).map fun delPerm =>
+            seq keys (fun idx => kv (keys idx)) delPerm) :
     letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-    (PMF.uniformOfFintype (HardKeyValSeed U V n)).map HardKeyValSeed.ops =
-      insertQueryDeleteDist U V n hU hV := by
+    (PMF.uniformOfFintype (HardKeyValSeed U V n)).map
+      (fun s => seq s.keys (fun idx => s.kv (s.keys idx)) s.delPerm) = dist := by
   let _ : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
   let _ : Nonempty (Fin V) := ⟨⟨0, hV⟩⟩
   let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
@@ -535,10 +668,29 @@ theorem map_ops_uniformOfFintype_hardKeyValSeed {U V n : ℕ} (hU : 2 * n ≤ U)
       HardKeyValSeed U V n :=
     ⟨fun ⟨⟨k, kv⟩, d⟩ => ⟨k, kv, d⟩, fun s => ((s.keys, s.kv), s.delPerm),
       fun ⟨⟨_, _⟩, _⟩ => rfl, fun ⟨_, _, _⟩ => rfl⟩
-  rw [insertQueryDeleteDist_eq_bind_keyVals hU hV, ← PMF.uniformOfFintype_map_equiv e,
-    _root_.PMF.map_comp, ← PMF.uniformOfFintype_prod, _root_.PMF.map_bind,
-    ← PMF.uniformOfFintype_prod, _root_.PMF.bind_bind]
+  rw [hdist, ← PMF.uniformOfFintype_map_equiv e, _root_.PMF.map_comp, ← PMF.uniformOfFintype_prod,
+    _root_.PMF.map_bind, ← PMF.uniformOfFintype_prod, _root_.PMF.bind_bind]
   congr 1 with keys; congr 1 with kv
-  simp [_root_.PMF.map_comp, Function.comp_def, e, HardKeyValSeed.ops]
+  simp [_root_.PMF.map_comp, Function.comp_def, e]
+
+/-- Pushing `PMF.uniformOfFintype (HardKeyValSeed U V n)` forward by `HardKeyValSeed.ops` recovers
+`insertQueryDeleteDist U V n hU hV`. -/
+theorem map_ops_uniformOfFintype_hardKeyValSeed {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
+    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
+    (PMF.uniformOfFintype (HardKeyValSeed U V n)).map HardKeyValSeed.ops =
+      insertQueryDeleteDist U V n hU hV :=
+  map_seedSeq_uniformOfFintype_hardKeyValSeed hU hV _ (insertQueryDeleteDist_eq_bind_keyVals hU hV)
+
+/-- Pushing `PMF.uniformOfFintype (HardKeyValSeed U V n)` forward by `HardKeyValSeed.modeOps`
+recovers `modeDist withQueries U V n hU hV`. -/
+theorem map_modeOps_uniformOfFintype_hardKeyValSeed (withQueries : Bool) {U V n : ℕ}
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
+    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
+    (PMF.uniformOfFintype (HardKeyValSeed U V n)).map (HardKeyValSeed.modeOps withQueries) =
+      modeDist withQueries U V n hU hV := by
+  cases withQueries
+  · exact map_seedSeq_uniformOfFintype_hardKeyValSeed hU hV _
+      (insertDeleteDist_eq_bind_keyVals hU hV)
+  · exact map_ops_uniformOfFintype_hardKeyValSeed hU hV
 
 end Cslib.DataStructure.Dictionary.CellProbe

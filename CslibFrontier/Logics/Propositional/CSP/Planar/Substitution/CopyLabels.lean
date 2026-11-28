@@ -61,14 +61,11 @@ theorem getElem_vars_gadgetCopy
         (copyIndex_lt_gadgetOccurrence gadgets B F hi o) =
       Sum.elim (fun a => 2 * F[i].scope.getD a.val 0)
         (fun j => 2 * (B * i + j.val) + 1) o.var := by
-  have hj : incidenceEdgeIndex o < (gadgets F[i].rel).template.vars.length := by
-    simpa only [PPGadget.template, vars_relabel, List.length_map] using
-      incidenceEdgeIndex_lt_vars o
-  have h := getElem_vars_copyIndex B (fun r => (gadgets r).template) F hi hj
+  have h := getElem_vars_copyIndex B (fun r => (gadgets r).template) F hi
+    (by simpa only [PPGadget.template, vars_relabel, List.length_map] using
+      incidenceEdgeIndex_lt_vars o)
   rw [getElem_template_vars_occurrence] at h
-  cases hvar : o.var with
-  | inl a => simpa only [hvar, Sum.elim_inl, Bool.false_eq_true, ite_false] using h
-  | inr j => simpa only [hvar, Sum.elim_inr, ite_true] using h
+  cases hvar : o.var <;> simpa [hvar] using h
 
 /-- Every bounded target position has an actual typed occurrence in one original gadget
 copy. This recovers positions through the existing public incidence-index lookup. -/
@@ -78,13 +75,11 @@ theorem exists_gadgetCopy
     (hi : index < (replaceGadgets B (fun r => (gadgets r).template) F).vars.length) :
     ∃ (i : ℕ) (hi : i < F.length) (o : (gadgets F[i].rel).body.Occurrence),
       occurrencePrefix (fun r => (gadgets r).template) F i + incidenceEdgeIndex o = index := by
-  obtain ⟨i, hi, j, hj, he⟩ := exists_copyIndex B (fun r => (gadgets r).template) F hi
-  have hb : j < (incidenceGraph (gadgets F[i].rel).body).edges.length := by
+  obtain ⟨i, hi', j, hj, rfl⟩ := exists_copyIndex B (fun r => (gadgets r).template) F hi
+  obtain ⟨o, rfl⟩ := exists_incidenceEdgeIndex (F := (gadgets F[i].rel).body) j <| by
     simp only [PPGadget.template, vars_relabel, List.length_map] at hj
-    simpa only [incidenceGraph_edges, List.length_map, ← CSP.map_occurrences,
-      List.length_map] using hj
-  obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := (gadgets F[i].rel).body) j hb
-  exact ⟨i, hi, o, by rw [ho]; exact he.symm⟩
+    simpa only [incidenceGraph_edges, List.length_map, ← CSP.map_occurrences] using hj
+  exact ⟨i, hi', o, rfl⟩
 
 /-- Every copied variable-word entry is a bounded target position carrying precisely its
 instantiated canonical label. The same witness supplies the position and the target getter. -/
@@ -133,15 +128,12 @@ theorem getD_vars_of_mem_shifted_auxiliaryBlock
 fixed bound. Zero auxiliary bounds cause no exception, since they admit no local index. -/
 theorem auxiliaryName_eq_iff {B i k j q : ℕ} (hj : j < B) (hq : q < B) :
     2 * (B * i + j) + 1 = 2 * (B * k + q) + 1 ↔ i = k ∧ j = q := by
-  constructor
-  · intro he
-    have hbase : B * i + j = B * k + q := by omega
-    have hpos : 0 < B := by omega
-    have hdiv := congrArg (fun v => v / B) hbase
-    simp only [Nat.mul_add_div hpos, Nat.div_eq_of_lt hj, Nat.div_eq_of_lt hq,
-      Nat.add_zero] at hdiv
-    exact ⟨hdiv, by subst k; omega⟩
-  · rintro ⟨rfl, rfl⟩
-    rfl
+  refine ⟨fun he => ?_, fun ⟨rfl, rfl⟩ => rfl⟩
+  have hdiv := congrArg (· / B) (by omega : B * i + j = B * k + q)
+  simp only [Nat.mul_add_div (by omega : 0 < B), Nat.div_eq_of_lt hj, Nat.div_eq_of_lt hq,
+    Nat.add_zero] at hdiv
+  refine ⟨hdiv, ?_⟩
+  subst hdiv
+  omega
 
 end Cslib.Complexity.CSP.GadgetRotation

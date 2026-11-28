@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Probabilistic.AffineHash
+import CslibFrontier.Probability.BitString.AffineHash.Overlap
 import CslibFrontier.Probability.BitString.LinearHash.Collisions
 import CslibFrontier.Tactic.PPT
 
@@ -100,6 +101,10 @@ example : ¬ ∃ rows : Fin 0 → BitString 1,
   2 * (S.offDiag.filter fun p => hash rows p.1 = hash rows p.2).card ≤ S.offDiag.card)
 
 /-! ### Word-level affine seeds, affine hashes, and zero tests -/
+
+-- Two disjoint singleton fibers can both hit zero under one affine hash. At width one,
+-- among the four affine seeds only the constant-zero map hits both fibers.
+example : (commonHashHits 1 {![false]} {![true]}).card = 1 := by decide
 
 -- Identity matrix with shift `(1, 1)` sends `(1, 1)` to `(0, 0)` and `(1, 0)` to `(0, 1)`.
 example :

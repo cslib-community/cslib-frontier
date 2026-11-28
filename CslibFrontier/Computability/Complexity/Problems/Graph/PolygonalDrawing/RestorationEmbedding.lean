@@ -106,8 +106,7 @@ theorem IsEmbedding.restoredRoute_vertex_contacts {G : Graph} {u v : ℕ}
     ∃ side, (D.restoredRoute ρ a b e).AtEnd i t side ∧ Dart.vertex (G := G) (e, side) = w := by
   let j := contractedIndex G u v e
   have hvertex (side : Bool) : (contractionLift G u v (j, side)).vertex =
-      Dart.vertex (G := G) (e, side) := by
-    exact contractionLift_vertex_contractedIndex G u v e side
+      Dart.vertex (G := G) (e, side) := contractionLift_vertex_contractedIndex G u v e side
   have htarget (side : Bool) (h : Dart.vertex (G := G) (e, side) = u ∨
       Dart.vertex (G := G) (e, side) = v) : Dart.vertex (j, side) = v := by
     apply (contractionLift_vertex_eq_iff G u v (j, side)).mpr
@@ -128,8 +127,7 @@ theorem IsEmbedding.restoredRoute_vertex_contacts {G : Graph} {u v : ℕ}
     by_cases hw' : w = u ∨ w = v
     · exact False.elim (hD.outsideRoute_not_mem_ball v hρ hcut j k ht
         (hEq.symm ▸ D.restoredVertex_mem_ball huv ha hb w hw'))
-    · have hwu : w ≠ u := fun h => hw' (Or.inl h)
-      have hwv : w ≠ v := fun h => hw' (Or.inr h)
+    · obtain ⟨hwu, hwv⟩ := not_or.mp hw'
       have hdecl : w ∈ (contractLastEdgeGraph G u v).1 := by
         have h := List.mem_map_of_mem (f := Function.update id u v) hw
         simpa only [contractLastEdgeGraph, Graph.relabel, Function.update_of_ne hwu, id_eq] using h
@@ -143,11 +141,7 @@ theorem IsEmbedding.restoredRoute_vertex_contacts {G : Graph} {u v : ℕ}
         · rw [h, Function.update_self] at hupdate
           exact False.elim (hwv hupdate.symm)
         · simpa only [Function.update_of_ne h, id_eq] using hupdate
-      have hunchanged : ¬(Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v) := by
-        rintro (h | h)
-        · exact hwu (hsource.symm.trans h)
-        · exact hwv (hsource.symm.trans h)
-      exact ⟨side, D.restoredRoute_atEnd_of_exterior ρ a b e i k t side hpos hat hunchanged,
+      exact ⟨side, D.restoredRoute_atEnd_of_exterior ρ a b e i k t side hpos hat (hsource ▸ hw'),
         hsource⟩
   · have hEq := heval.symm.trans heq
     have hw' := D.restoredVertex_active_of_mem_closedBall hpoints a b w hw

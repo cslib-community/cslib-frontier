@@ -465,17 +465,6 @@ private lemma procSync_transport {P V : Type*} [Fintype P] [LinearOrder P] {t : 
         htag.trans h6, lt_of_lt_of_le h7 hnr, h8, fun q hq => (h9 q hq).trans (hrt q),
         hpr h10⟩
 
-private lemma procSync_mono {P V : Type*} [Fintype P] [LinearOrder P] {t : ℕ}
-    {hist : List (OpRecord P V)} {nr₁ nr₂ : ℕ} {rt₁ rt₂ : P → Tag P}
-    {opTag₁ opTag₂ : ℕ → Option (Tag P)} {p : P}
-    {pend? : Option (PendingOp V)} {ph : ClientPhase P V}
-    (hnr : nr₁ ≤ nr₂) (hrt : ∀ q, rt₁ q ≤ rt₂ q)
-    (htag : ∀ pend, pend? = some pend → opTag₂ pend.opId = opTag₁ pend.opId)
-    (hps : ProcSync t hist nr₁ rt₁ opTag₁ p pend? ph) :
-    ProcSync t hist nr₂ rt₂ opTag₂ p pend? ph :=
-  procSync_transport le_rfl hnr hrt
-    (fun pend _ hp hc => ⟨hc, rfl, rfl, htag pend hp, id⟩) hps
-
 /-- Equation-compiled well-formedness predicate for an in-flight envelope `e` with body `msg`. -/
 private def MsgWF {P V : Type*} [LinearOrder P] (v₀ : V)
     (s : State P (ABDState P V) (ABDMsg P V) V) (opTag : ℕ → Option (Tag P))
@@ -606,28 +595,21 @@ private lemma abdGood_prec_append {P V : Type*} [Fintype P] [LinearOrder P]
     (rec' : OpRecord P V) (hinv : rec'.invStep = s.step) (hstat : rec'.status = .pending) :
     (∀ i < s.history.length, ∀ j < s.history.length,
       prec (s.history ++ [rec']) i j ↔ prec s.history i j) ∧
-    (∀ i, ¬ prec (s.history ++ [rec']) s.history.length i) ∧
     (∀ a, prec (s.history ++ [rec']) a s.history.length ↔
       ∃ ha : a < s.history.length, s.history[a].status.isCompleted = true) := by
   let hist' := s.history ++ [rec']
   have hlen : hist'.length = s.history.length + 1 := by simp [hist']
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · intro i hi j hj
     have hi' : i < hist'.length := by omega
     have hj' : j < hist'.length := by omega
     constructor
     · rintro ⟨_, _, r, hr, hlt⟩
-      change (s.history ++ [rec'])[i].status.respStep? = some r at hr
-      change r < (s.history ++ [rec'])[j].invStep at hlt
-      simp only [List.getElem_append_left hi, List.getElem_append_left hj] at hr hlt
-      exact ⟨hi, hj, r, hr, hlt⟩
+      exact ⟨hi, hj, r, by simpa [hist', List.getElem_append_left hi] using hr,
+        by simpa [hist', List.getElem_append_left hj] using hlt⟩
     · rintro ⟨_, _, r, hr, hlt⟩
-      refine ⟨hi', hj', r, ?_, ?_⟩
-      · simpa [hist', List.getElem_append_left hi] using hr
-      · simpa [hist', List.getElem_append_left hj] using hlt
-  · intro i ⟨_, _, r, hr, _⟩
-    change (s.history ++ [rec'])[s.history.length].status.respStep? = some r at hr
-    simp [hstat, OpStatus.respStep?] at hr
+      exact ⟨hi', hj', r, by simpa [hist', List.getElem_append_left hi] using hr,
+        by simpa [hist', List.getElem_append_left hj] using hlt⟩
   · intro a
     constructor
     · rintro ⟨ha', _, r, hr, _⟩
@@ -636,20 +618,17 @@ private lemma abdGood_prec_append {P V : Type*} [Fintype P] [LinearOrder P]
       · change (s.history ++ [rec'])[a].status.respStep? = some r at hr
         simp only [List.getElem_append_left ha] at hr
         exact ⟨ha, by simp [OpStatus.isCompleted, hr]⟩
-      · have heq : a = s.history.length := by omega
-        subst heq
+      · obtain rfl : a = s.history.length := by omega
         change (s.history ++ [rec'])[s.history.length].status.respStep? = some r at hr
         simp [hstat, OpStatus.respStep?] at hr
     · rintro ⟨ha, hcomp⟩
-      have ha' : a < hist'.length := by omega
-      have hb' : s.history.length < hist'.length := by omega
       cases hrs : s.history[a].status.respStep? with
       | none => simp [OpStatus.isCompleted, hrs] at hcomp
       | some r =>
-        obtain ⟨_, hr_lt⟩ := (hg.hist_wf a ha).2.1 r hrs
-        refine ⟨ha', hb', r, ?_, ?_⟩
-        · simpa [hist', List.getElem_append_left ha] using hrs
-        · simp [hist', hinv, hr_lt]
+        have ha' : a < (s.history ++ [rec']).length := by simp; omega
+        have hb' : s.history.length < (s.history ++ [rec']).length := by simp
+        exact ⟨ha', hb', r, by simpa [List.getElem_append_left ha] using hrs,
+          by simp [hinv, ((hg.hist_wf a ha).2.1 r hrs).2]⟩
 
 private lemma abdGood_prec_complete {P V : Type*} [Fintype P] [LinearOrder P]
     {s : State P (ABDState P V) (ABDMsg P V) V}
@@ -708,19 +687,6 @@ private lemma ABDGood.pending_info {P V : Type*} [Fintype P] [LinearOrder P]
   · exact ⟨hps.1, hps.2.1, hps.2.2.1.trans hps.2.2.2.1.symm, hps.2.2.2.2.1⟩
   · exact ⟨hps.1, hps.2.1, hps.2.2.1.trans hps.2.2.2.1.symm, hps.2.2.2.2.1⟩
 
-private lemma ABDGood.pending_opId_ne {P V : Type*} [Fintype P] [LinearOrder P]
-    {v₀ : V} {t : ℕ} {s : State P (ABDState P V) (ABDMsg P V) V}
-    {opTag : ℕ → Option (Tag P)} (hg : ABDGood v₀ t s opTag)
-    {p q : P} (hpq : p ≠ q) {p₁ p₂ : PendingOp V}
-    (hp : (s.proc p).pending = some p₁) (hq : (s.proc q).pending = some p₂) :
-    p₁.opId ≠ p₂.opId := by
-  obtain ⟨hi₁, hc₁, _⟩ := hg.pending_info hp
-  obtain ⟨hi₂, hc₂, _⟩ := hg.pending_info hq
-  intro heq
-  have hget : s.history[p₁.opId]? = s.history[p₂.opId]? := by rw [heq]
-  rw [List.getElem?_eq_getElem hi₁, List.getElem?_eq_getElem hi₂] at hget
-  exact hpq (hc₁.symm.trans ((congrArg OpRecord.caller (Option.some.inj hget)).trans hc₂))
-
 private lemma update_proc_repTag_le {P V : Type*} [DecidableEq P] [LinearOrder P]
     (proc : P → ProcState (ABDState P V) V) {actor : P}
     {nextSt : ABDState P V} {newPend : Option (PendingOp V)}
@@ -730,28 +696,96 @@ private lemma update_proc_repTag_le {P V : Type*} [DecidableEq P] [LinearOrder P
   · subst hq; simpa using hle
   · simp [hq]
 
-private lemma update_proc_repTag_eq {P V : Type*} [DecidableEq P]
-    (proc : P → ProcState (ABDState P V) V) {actor : P}
-    {nextSt : ABDState P V} {newPend : Option (PendingOp V)}
-    (heq : nextSt.repTag = (proc actor).state.repTag) (q : P) :
-    (Function.update proc actor ⟨nextSt, newPend⟩ q).state.repTag = (proc q).state.repTag := by
-  by_cases hq : q = actor
-  · subst hq; simpa using heq
-  · simp [hq]
+section StepProofs
 
-/-- Shared `MsgWF` preservation across any single-process update
-`s'.proc = Function.update s.proc actor ⟨nextSt, newPend⟩`. -/
-private lemma msgWF_transfer_update {P V : Type*} [DecidableEq P] [LinearOrder P] {v₀ : V}
-    {s : State P (ABDState P V) (ABDMsg P V) V}
-    {msgs' : Multiset (Envelope P (ABDMsg P V))} {hist' : List (OpRecord P V)} {step' : ℕ}
+variable {P V : Type*} [Fintype P] [DecidableEq P] [LinearOrder P] [DecidableEq V]
+
+omit [DecidableEq V] in
+private lemma repTag_le_of_onRecv_eq {v₀ : V} {t : ℕ}
+    {dest : P} {st nextSt : ABDState P V} {src : P} {body : ABDMsg P V}
+    {outMsgs : Multiset (P × ABDMsg P V)} {resp : Option (OpResp V)}
+    (hout : (abdProtocol P V v₀ t).onRecv dest st src body = ⟨nextSt, outMsgs, resp⟩) :
+    st.repTag ≤ nextSt.repTag := by
+  have hns : (abdOnRecv t dest st src body).nextState = nextSt := congrArg StepOut.nextState hout
+  exact hns ▸ abdOnRecv_repTag_mono t dest st src body
+
+omit [DecidableEq P] [DecidableEq V] in
+private lemma prec_phase1_step_of_old {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag)
+    {actor : P} {baseMsgs : Multiset (Envelope P (ABDMsg P V))}
+    {outMsgs : Multiset (P × ABDMsg P V)}
+    (hbase_sub : ∀ m ∈ baseMsgs, m ∈ s.msgs)
+    (hout_qresp : ∀ dest' reqId rTag rVal,
+      (dest', .queryResp reqId rTag rVal) ∈ outMsgs → (s.proc actor).state.repTag ≤ rTag)
+    {p : P} {pnd : PendingOp V} {reqId : ℕ} {knd : OpKind V}
+    {resp' : Finset P} {bt' : Tag P} {bv' : V}
+    (hp1 : (s.proc p).pending = some pnd)
+    (hp2 : (s.proc p).state.phase = .phase1 reqId knd resp' bt' bv')
+    {a : ℕ} {τ_a : Tag P} (hpr : prec s.history a pnd.opId) (hτ_old : opTag a = some τ_a) :
+    ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧
+      (∀ q ∈ Q, τ_a ≤ (s.proc q).state.repTag) ∧
+      (∀ q ∈ Q, ∀ rTag rVal,
+        ⟨q, p, .queryResp reqId rTag rVal⟩ ∈
+          baseMsgs + outMsgs.map (tagSender actor) → τ_a ≤ rTag) ∧
+      (∀ q ∈ Q, q ∈ resp' → τ_a ≤ bt') := by
+  obtain ⟨Q, hQc, hQr, hQm, hQresp⟩ :=
+    hg.prec_phase1 p pnd reqId knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_old
+  refine ⟨Q, hQc, hQr, fun q hq rt rv hm => ?_, hQresp⟩
+  rcases Multiset.mem_add.mp hm with hm_old | hm_new
+  · exact hQm q hq rt rv (hbase_sub _ hm_old)
+  · obtain ⟨⟨dest', body'⟩, hpm, heq⟩ := Multiset.mem_map.mp hm_new
+    injection heq with hsrc _ hbody; subst hsrc hbody
+    exact (hQr actor hq).trans (hout_qresp dest' reqId rt rv hpm)
+
+omit [DecidableEq V] in
+/-- Unified `ABDGood` transition frame lemma across client invocations, Phase-1/Phase-2 transitions,
+completions, and replica deliveries at `actor`: discharges unchanged-client (`p ≠ actor`),
+old-message, `inv_mono`, and existing-history-entry preservation once, leaving callers only the
+transition-specific local obligation at `actor` and any newly added, newly tagged, or newly
+completed history entry. -/
+private lemma abdGood_step {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag opTag' : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag)
     {actor : P} {nextSt : ABDState P V} {newPend : Option (PendingOp V)}
-    {opTag opTag' : ℕ → Option (Tag P)}
-    (hlen : s.history.length ≤ hist'.length)
-    (htag_pres : ∀ (i : ℕ) (hi : i < s.history.length) τ,
-      opTag i = some τ →
-      (hist'[i]'(lt_of_lt_of_le hi hlen)).kind = s.history[i].kind ∧ opTag' i = some τ)
-    (hnext_actor : (s.proc actor).state.nextReqId ≤ nextSt.nextReqId)
+    {baseMsgs : Multiset (Envelope P (ABDMsg P V))}
+    {outMsgs : Multiset (P × ABDMsg P V)}
+    {hist' : List (OpRecord P V)}
     (hrep_actor : (s.proc actor).state.repTag ≤ nextSt.repTag)
+    (hlen : s.history.length ≤ hist'.length)
+    (hlen_ub : hist'.length ≤ s.history.length + 1)
+    (hmeta : ∀ (i : ℕ) (hi : i < s.history.length),
+      (hist'[i]'(lt_of_lt_of_le hi hlen)).caller = (s.history[i]'hi).caller ∧
+      (hist'[i]'(lt_of_lt_of_le hi hlen)).kind = (s.history[i]'hi).kind ∧
+      (hist'[i]'(lt_of_lt_of_le hi hlen)).invStep = (s.history[i]'hi).invStep)
+    (hother_entry : ∀ (i : ℕ) (hi : i < s.history.length), (s.history[i]'hi).caller ≠ actor →
+      hist'[i]'(lt_of_lt_of_le hi hlen) = (s.history[i]'hi) ∧ opTag' i = opTag i)
+    (hnew_entry : ∀ (j : ℕ) (hj : j < hist'.length), s.history.length ≤ j →
+      (hist'[j]'hj) = ⟨actor, (hist'[j]'hj).kind, s.step, .pending⟩ ∧
+        newPend = some ⟨j, (hist'[j]'hj).kind⟩)
+    (hprec_old : ∀ i < s.history.length, ∀ j < s.history.length,
+      prec hist' i j ↔ prec s.history i j)
+    (htag_out : ∀ i, hist'.length ≤ i → opTag' i = none)
+    (htag_lt : ∀ i τ, opTag' i = some τ → i < s.history.length)
+    (htag_pres : ∀ i τ, opTag i = some τ → opTag' i = some τ)
+    (htag_new_pending : ∀ (i : ℕ) (hi : i < s.history.length) τ,
+      opTag i = none → opTag' i = some τ → (s.history[i]'hi).status = .pending)
+    (hpnd_keep : ∀ (i : ℕ) (hi : i < s.history.length),
+      (hist'[i]'(lt_of_lt_of_le hi hlen)).status = .pending →
+      (s.proc actor).pending = some ⟨i, (s.history[i]'hi).kind⟩ →
+      newPend = some ⟨i, (s.history[i]'hi).kind⟩)
+    (hstatus_complete : ∀ (i : ℕ) (hi : i < s.history.length),
+      hist'[i]'(lt_of_lt_of_le hi hlen) ≠ (s.history[i]'hi) →
+      (opTag' i).isSome = true ∧
+        ∃ resp, matchCompletion (s.history[i]'hi).kind resp s.step =
+          some (hist'[i]'(lt_of_lt_of_le hi hlen)).status)
+    (hbase_sub : ∀ m ∈ baseMsgs, m ∈ s.msgs)
+    (hout_qresp : ∀ dest' reqId rTag rVal,
+      (dest', .queryResp reqId rTag rVal) ∈ outMsgs → (s.proc actor).state.repTag ≤ rTag)
+    (hps_actor : ProcSync t hist' nextSt.nextReqId
+      (fun q => (Function.update s.proc actor ⟨nextSt, newPend⟩ q).state.repTag)
+      opTag' actor newPend nextSt.phase)
+    (hnext_actor : (s.proc actor).state.nextReqId ≤ nextSt.nextReqId)
     (hp1_actor : ∀ reqId, reqId < (s.proc actor).state.nextReqId →
       (∀ knd resp bt bv, (s.proc actor).state.phase = .phase1 reqId knd resp bt bv → False) →
       ∀ knd resp bt bv, nextSt.phase = .phase1 reqId knd resp bt bv → False)
@@ -759,65 +793,404 @@ private lemma msgWF_transfer_update {P V : Type*} [DecidableEq P] [LinearOrder P
       (∀ knd resp bt bv, (s.proc actor).state.phase = .phase1 reqId knd resp bt bv → False) →
       ∀ knd cTag cVal acks, nextSt.phase = .phase2 reqId knd cTag cVal acks →
         ∃ acks₀, (s.proc actor).state.phase = .phase2 reqId knd cTag cVal acks₀)
-    {e : Envelope P (ABDMsg P V)} (hw : MsgWF v₀ s opTag e.src e.dest e.body) :
-    MsgWF v₀
-      { msgs := msgs'
+    (hout_wf : ∀ pm ∈ outMsgs,
+      MsgWF v₀
+        { msgs := baseMsgs + outMsgs.map (tagSender actor)
+          proc := Function.update s.proc actor ⟨nextSt, newPend⟩
+          history := hist'
+          step := s.step + 1 }
+        opTag' actor pm.1 pm.2)
+    (hrep_val_actor : TagValidVal v₀ hist' opTag' nextSt.repTag nextSt.repVal)
+    (hphase_val_actor : PhaseValValid v₀ hist' opTag' nextSt.phase)
+    (hnew_write_tag : ∀ (i : ℕ) (hi : i < hist'.length) v τ,
+      opTag i = none → opTag' i = some τ → (hist'[i]'hi).kind = .write v →
+      (∃ seq, τ = nextWriteTag seq (hist'[i]'hi).caller) ∧
+      (∀ (j : ℕ) (hj : j < s.history.length) vj,
+        (s.history[j]'hj).kind = .write vj → opTag j ≠ some τ) ∧
+      (∀ (j : ℕ) (_hj : j < hist'.length) τ',
+        opTag j = none → opTag' j = some τ' → j = i))
+    (hnew_read_val : ∀ (i : ℕ) (hi0 : i < s.history.length) stp r τ,
+      (hist'[i]'(lt_of_lt_of_le hi0 hlen)).status = .doneRead stp r →
+      (hist'[i]'(lt_of_lt_of_le hi0 hlen)).status ≠ (s.history[i]'hi0).status →
+      opTag' i = some τ → TagValidVal v₀ hist' opTag' τ r)
+    (hnew_comp_quorum : ∀ (a : ℕ) (ha0 : a < s.history.length) τ_a,
+      (hist'[a]'(lt_of_lt_of_le ha0 hlen)).status.isCompleted = true →
+      (s.history[a]'ha0).status.isCompleted ≠ true →
+      opTag' a = some τ_a →
+      ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧ ∀ q ∈ Q, τ_a ≤ (s.proc q).state.repTag)
+    (hp1_actor_prec : ∀ pend reqId knd resp' bt' bv',
+      newPend = some pend →
+      nextSt.phase = .phase1 reqId knd resp' bt' bv' →
+      ∀ a τ_a, prec hist' a pend.opId → opTag' a = some τ_a →
+      ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧
+        (∀ q ∈ Q, τ_a ≤ (s.proc q).state.repTag) ∧
+        (∀ q ∈ Q, ∀ rTag rVal,
+          ⟨q, actor, .queryResp reqId rTag rVal⟩ ∈
+            baseMsgs + outMsgs.map (tagSender actor) → τ_a ≤ rTag) ∧
+        (∀ q ∈ Q, q ∈ resp' → τ_a ≤ bt'))
+    (hnew_prec_tag : ∀ (a b : ℕ) (hb : b < s.history.length) τ_a τ_b,
+      prec s.history a b → opTag a = some τ_a → opTag b = none → opTag' b = some τ_b →
+      PrecTagOrder τ_a τ_b (s.history[b]'hb).kind) :
+    ABDGood v₀ t
+      { msgs := baseMsgs + outMsgs.map (tagSender actor)
         proc := Function.update s.proc actor ⟨nextSt, newPend⟩
         history := hist'
-        step := step' }
-      opTag' e.src e.dest e.body := by
-  have hnext_le : ∀ p : P, (s.proc p).state.nextReqId ≤
-      (Function.update s.proc actor ⟨nextSt, newPend⟩ p).state.nextReqId := by
-    intro p; by_cases hp : p = actor <;> [subst hp; skip] <;> [simpa using hnext_actor; simp [hp]]
+        step := s.step + 1 } opTag' := by
+  set proc' := Function.update s.proc actor ⟨nextSt, newPend⟩
   have hrep_le := update_proc_repTag_le s.proc (newPend := newPend) hrep_actor
-  have hp1_back : ∀ p reqId, reqId < (s.proc p).state.nextReqId →
-      (∀ knd resp bt bv, (s.proc p).state.phase = .phase1 reqId knd resp bt bv → False) →
-      ∀ knd resp bt bv,
-        (Function.update s.proc actor ⟨nextSt, newPend⟩ p).state.phase =
-          .phase1 reqId knd resp bt bv → False := by
-    intro p reqId hreq hp1 knd resp bt bv hph'
-    by_cases hp : p = actor
-    · subst hp; simp only [Function.update_self] at hph'
-      exact hp1_actor reqId hreq hp1 knd resp bt bv hph'
-    · simp only [Function.update_of_ne hp] at hph'
-      exact hp1 knd resp bt bv hph'
-  have hp2_back : ∀ p reqId, reqId < (s.proc p).state.nextReqId →
-      (∀ knd resp bt bv, (s.proc p).state.phase = .phase1 reqId knd resp bt bv → False) →
-      ∀ knd cTag cVal acks,
-        (Function.update s.proc actor ⟨nextSt, newPend⟩ p).state.phase =
-          .phase2 reqId knd cTag cVal acks →
-        ∃ acks₀, (s.proc p).state.phase = .phase2 reqId knd cTag cVal acks₀ := by
-    intro p reqId hreq hp1 knd cTag cVal acks hph'
-    by_cases hp : p = actor
-    · subst hp; simp only [Function.update_self] at hph'
-      exact hp2_actor reqId hreq hp1 knd cTag cVal acks hph'
-    · simp only [Function.update_of_ne hp] at hph'
-      exact ⟨acks, hph'⟩
-  cases hb : e.body with
-  | query reqId =>
-    rw [hb] at hw; dsimp only [MsgWF] at hw ⊢
-    exact lt_of_lt_of_le hw (hnext_le e.src)
-  | queryResp reqId τ v =>
-    rw [hb] at hw; dsimp only [MsgWF] at hw ⊢
-    exact ⟨lt_of_lt_of_le hw.1 (hnext_le e.dest), tagValidVal_mono hlen htag_pres hw.2⟩
-  | store reqId τ v =>
-    rw [hb] at hw; dsimp only [MsgWF] at hw ⊢
-    obtain ⟨hreq, htv, hp1, hp2⟩ := hw
-    refine ⟨lt_of_lt_of_le hreq (hnext_le e.src), tagValidVal_mono hlen htag_pres htv,
-      hp1_back e.src reqId hreq hp1, fun knd cTag cVal acks hph' => ?_⟩
-    obtain ⟨acks₀, hph₀⟩ := hp2_back e.src reqId hreq hp1 knd cTag cVal acks hph'
-    exact hp2 knd cTag cVal acks₀ hph₀
-  | ack reqId =>
-    rw [hb] at hw; dsimp only [MsgWF] at hw ⊢
-    obtain ⟨hreq, hp1, hp2⟩ := hw
-    refine ⟨lt_of_lt_of_le hreq (hnext_le e.dest), hp1_back e.dest reqId hreq hp1,
-      fun knd cTag cVal acks hph' => ?_⟩
-    obtain ⟨acks₀, hph₀⟩ := hp2_back e.dest reqId hreq hp1 knd cTag cVal acks hph'
-    exact (hp2 knd cTag cVal acks₀ hph₀).trans (hrep_le e.src)
+  have hsome_pres : ∀ i, (opTag i).isSome = true → (opTag' i).isSome = true := by
+    intro i hs
+    obtain ⟨τ, hτ⟩ := Option.isSome_iff_exists.mp hs
+    exact Option.isSome_iff_exists.mpr ⟨τ, htag_pres i τ hτ⟩
+  have htv_pres : ∀ (i : ℕ) (hi : i < s.history.length) τ,
+      opTag i = some τ →
+      (hist'[i]'(lt_of_lt_of_le hi hlen)).kind = s.history[i].kind ∧ opTag' i = some τ :=
+    fun i hi τ hτ => ⟨(hmeta i hi).2.1, htag_pres i τ hτ⟩
+  have htag_cases : ∀ i τ, opTag' i = some τ → opTag i = none ∨ opTag i = some τ := by
+    intro i τ hτ
+    cases ho : opTag i with
+    | none => exact Or.inl rfl
+    | some τ₀ => exact Or.inr (by rw [← htag_pres i τ₀ ho, hτ])
+  have htag_of_not_pending : ∀ (i : ℕ) (hi : i < s.history.length) τ,
+      s.history[i].status ≠ .pending → opTag' i = some τ → opTag i = some τ :=
+    fun i hi τ hnp hτ' => (htag_cases i τ hτ').resolve_left fun ho =>
+      hnp (htag_new_pending i hi τ ho hτ')
+  refine
+    { tag_out := htag_out
+      hist_wf := fun i hi => by
+        dsimp only at hi ⊢
+        by_cases hi0 : i < s.history.length
+        · by_cases hget : hist'[i] = s.history[i]
+          · obtain ⟨h1, h2, h3, h4, h5⟩ := hg.hist_wf i hi0
+            refine ⟨hget ▸ Nat.lt_succ_of_lt h1,
+              fun r hr => ⟨hget ▸ (h2 r (hget ▸ hr)).1, Nat.lt_succ_of_lt (h2 r (hget ▸ hr)).2⟩,
+              fun r v hr => ⟨hget ▸ (h3 r v (hget ▸ hr)).1, hsome_pres i (h3 r v (hget ▸ hr)).2⟩,
+              fun r hr => ⟨hget ▸ (h4 r (hget ▸ hr)).1, hsome_pres i (h4 r (hget ▸ hr)).2⟩,
+              fun hp => ?_⟩
+            have hp0 := h5 (hget ▸ hp)
+            by_cases hc : s.history[i].caller = actor
+            · rw [hget, hc]; simp only [proc', Function.update_self]
+              exact hpnd_keep i hi0 hp (hc ▸ hp0)
+            · rw [hget]; simpa [proc', Function.update_of_ne hc] using hp0
+          · obtain ⟨hsome_i, resp, hm⟩ := hstatus_complete i hi0 hget
+            obtain ⟨h1, _⟩ := hg.hist_wf i hi0
+            obtain ⟨_, hk_i, hinv_i⟩ := hmeta i hi0
+            rw [hinv_i, hk_i]
+            cases hki : s.history[i].kind <;> rcases resp with _ | (_ | _) <;>
+              simp only [hki, matchCompletion, Option.some.injEq, reduceCtorEq] at hm <;>
+              rw [← hm] <;>
+              exact ⟨Nat.lt_succ_of_lt h1, by simp [OpStatus.respStep?, h1.le], by simp [hsome_i],
+                by simp [hsome_i], by simp⟩
+        · obtain ⟨hrec, hnp⟩ := hnew_entry i hi (Nat.le_of_not_lt hi0)
+          have hcaller : hist'[i].caller = actor := congrArg OpRecord.caller hrec
+          have hinv : hist'[i].invStep = s.step := congrArg OpRecord.invStep hrec
+          have hst : hist'[i].status = .pending := congrArg OpRecord.status hrec
+          rw [hinv, hst, hcaller]
+          refine ⟨Nat.lt_succ_self _, by rintro _ ⟨⟩, by rintro _ _ ⟨⟩,
+            by rintro _ ⟨⟩, fun _ => ?_⟩
+          simp [proc', hnp]
+      inv_mono := fun i j hij hj => by
+        dsimp only at hj ⊢
+        by_cases hjl : j < s.history.length
+        · have hil := hij.trans hjl
+          rw [(hmeta i hil).2.2, (hmeta j hjl).2.2]
+          exact hg.inv_mono i j hij hjl
+        · have hil : i < s.history.length := by omega
+          rw [(hmeta i hil).2.2,
+            congrArg OpRecord.invStep (hnew_entry j hj (Nat.le_of_not_lt hjl)).1]
+          exact (hg.hist_wf i hil).1
+      proc_sync := fun p => by
+        change ProcSync t hist' (proc' p).state.nextReqId (fun q => (proc' q).state.repTag)
+          opTag' p (proc' p).pending (proc' p).state.phase
+        by_cases hp : p = actor
+        · subst hp; simpa [proc'] using hps_actor
+        · simp only [proc', Function.update_of_ne hp]
+          refine procSync_transport hlen le_rfl hrep_le ?_ (hg.proc_sync p)
+          intro pend hi _ hc
+          obtain ⟨hget, htag_eq⟩ := hother_entry pend.opId hi (hc ▸ hp)
+          refine ⟨hget ▸ hc, congrArg OpRecord.kind hget, congrArg OpRecord.status hget, htag_eq,
+            fun hprev j hj hjne hjc => ?_⟩
+          by_cases hjl : j < s.history.length
+          · rw [(hmeta j hjl).1] at hjc
+            exact (hprec_old j hjl pend.opId hi).mpr (hprev j hjl hjne hjc)
+          · exact False.elim (hp (hjc.symm.trans
+              (congrArg OpRecord.caller (hnew_entry j hj (Nat.le_of_not_lt hjl)).1)))
+      msg_wf := fun m hm => by
+        rcases Multiset.mem_add.mp hm with hm_old | hm_new
+        · have hw := hg.msg_wf m (hbase_sub m hm_old)
+          have hnext_le (p : P) : (s.proc p).state.nextReqId ≤ (proc' p).state.nextReqId := by
+            rcases eq_or_ne p actor with rfl | hp
+            · simpa [proc'] using hnext_actor
+            · simp [proc', hp]
+          have hp1_back (p : P) {rId : ℕ} (hreq : rId < (s.proc p).state.nextReqId)
+              (hp1 : ∀ knd rp bt bv, (s.proc p).state.phase = .phase1 rId knd rp bt bv → False)
+              (knd : OpKind V) (rp : Finset P) (bt : Tag P) (bv : V)
+              (hph' : (proc' p).state.phase = .phase1 rId knd rp bt bv) : False := by
+            rcases eq_or_ne p actor with rfl | hp
+            · simp only [proc', Function.update_self] at hph'
+              exact hp1_actor rId hreq hp1 knd rp bt bv hph'
+            · simp only [proc', Function.update_of_ne hp] at hph'; exact hp1 knd rp bt bv hph'
+          have hp2_back (p : P) {rId : ℕ} (hreq : rId < (s.proc p).state.nextReqId)
+              (hp1 : ∀ knd rp bt bv, (s.proc p).state.phase = .phase1 rId knd rp bt bv → False)
+              (knd : OpKind V) (cTag : Tag P) (cVal : V) (acks : Finset P)
+              (hph' : (proc' p).state.phase = .phase2 rId knd cTag cVal acks) :
+              ∃ acks₀, (s.proc p).state.phase = .phase2 rId knd cTag cVal acks₀ := by
+            rcases eq_or_ne p actor with rfl | hp
+            · simp only [proc', Function.update_self] at hph'
+              exact hp2_actor rId hreq hp1 knd cTag cVal acks hph'
+            · simp only [proc', Function.update_of_ne hp] at hph'; exact ⟨acks, hph'⟩
+          rcases m with ⟨src, dest, reqId | ⟨reqId, τ, v⟩ | ⟨reqId, τ, v⟩ | reqId⟩
+          · exact lt_of_lt_of_le hw (hnext_le src)
+          · exact ⟨lt_of_lt_of_le hw.1 (hnext_le dest), tagValidVal_mono hlen htv_pres hw.2⟩
+          · obtain ⟨hreq, htv, hp1, hp2⟩ := hw
+            refine ⟨lt_of_lt_of_le hreq (hnext_le src), tagValidVal_mono hlen htv_pres htv,
+              hp1_back src hreq hp1, fun knd cTag cVal acks hph' => ?_⟩
+            obtain ⟨acks₀, hph₀⟩ := hp2_back src hreq hp1 knd cTag cVal acks hph'
+            exact hp2 knd cTag cVal acks₀ hph₀
+          · obtain ⟨hreq, hp1, hp2⟩ := hw
+            refine ⟨lt_of_lt_of_le hreq (hnext_le dest), hp1_back dest hreq hp1,
+              fun knd cTag cVal acks hph' => ?_⟩
+            obtain ⟨acks₀, hph₀⟩ := hp2_back dest hreq hp1 knd cTag cVal acks hph'
+            exact (hp2 knd cTag cVal acks₀ hph₀).trans (hrep_le src)
+        · obtain ⟨pm, hpm, rfl⟩ := Multiset.mem_map.mp hm_new
+          exact hout_wf pm hpm
+      write_unique :=
+        ⟨fun i hi v τ hk hτ => by
+          dsimp only at hi hk ⊢
+          rcases htag_cases i τ hτ with ho | ho
+          · exact (hnew_write_tag i hi v τ ho hτ hk).1
+          · have hi0 := hg.lt_length_of_opTag_some ho
+            rw [(hmeta i hi0).2.1] at hk; rw [(hmeta i hi0).1]
+            exact hg.write_unique.1 i hi0 v τ hk ho,
+         fun i j hi hj v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂ => by
+          dsimp only at hi hj hk₁ hk₂
+          have hold : ∀ k (hk : k < hist'.length) v, hist'[k].kind = .write v → opTag k = some τ →
+              ∃ hk0 : k < s.history.length, s.history[k].kind = .write v := fun k _ v hkk ho =>
+            have hk0 := hg.lt_length_of_opTag_some ho; ⟨hk0, (hmeta k hk0).2.1 ▸ hkk⟩
+          rcases htag_cases i τ hτ₁ with ho₁ | ho₁ <;> rcases htag_cases j τ hτ₂ with ho₂ | ho₂
+          · exact ((hnew_write_tag i hi v₁ τ ho₁ hτ₁ hk₁).2.2 j hj τ ho₂ hτ₂).symm
+          · obtain ⟨hj0, hk₂⟩ := hold j hj v₂ hk₂ ho₂
+            exact absurd ho₂ ((hnew_write_tag i hi v₁ τ ho₁ hτ₁ hk₁).2.1 j hj0 v₂ hk₂)
+          · obtain ⟨hi0, hk₁⟩ := hold i hi v₁ hk₁ ho₁
+            exact absurd ho₁ ((hnew_write_tag j hj v₂ τ ho₂ hτ₂ hk₂).2.1 i hi0 v₁ hk₁)
+          · obtain ⟨hi0, hk₁⟩ := hold i hi v₁ hk₁ ho₁
+            obtain ⟨hj0, hk₂⟩ := hold j hj v₂ hk₂ ho₂
+            exact hg.write_unique.2 i j hi0 hj0 v₁ v₂ τ hk₁ hk₂ ho₁ ho₂⟩
+      val_valid :=
+        ⟨fun q => by
+          by_cases hqa : q = actor
+          · subst hqa; simpa [proc'] using hrep_val_actor
+          · simp only [proc', Function.update_of_ne hqa]
+            exact tagValidVal_mono hlen htv_pres (hg.val_valid.1 q),
+         fun p => by
+          by_cases hp : p = actor
+          · subst hp; simpa [proc'] using hphase_val_actor
+          · simp only [proc', Function.update_of_ne hp]
+            exact phaseValValid_mono hlen htv_pres (hg.val_valid.2.1 p),
+         fun i _ stp r τ hst hτ => by
+          dsimp only at hst ⊢
+          have hi0 := htag_lt i τ hτ
+          by_cases hst_eq : (hist'[i]'(lt_of_lt_of_le hi0 hlen)).status = s.history[i].status
+          · have hst0 : s.history[i].status = .doneRead stp r := hst_eq.symm.trans hst
+            have hτ0 := htag_of_not_pending i hi0 τ (by simp [hst0]) hτ
+            exact tagValidVal_mono hlen htv_pres (hg.val_valid.2.2 i hi0 stp r τ hst0 hτ0)
+          · exact hnew_read_val i hi0 stp r τ hst hst_eq hτ⟩
+      completed_quorum := fun a _ τ_a hcomp hτ => by
+        dsimp only at hcomp ⊢
+        have ha0 := htag_lt a τ_a hτ
+        by_cases hc0 : s.history[a].status.isCompleted = true
+        · have hτ0 := htag_of_not_pending a ha0 τ_a (by intro hp; simp [hp] at hc0) hτ
+          obtain ⟨Q, hQc, hQr⟩ := hg.completed_quorum a ha0 τ_a hc0 hτ0
+          exact ⟨Q, hQc, fun q hq => (hQr q hq).trans (hrep_le q)⟩
+        · obtain ⟨Q, hQc, hQr⟩ := hnew_comp_quorum a ha0 τ_a hcomp hc0 hτ
+          exact ⟨Q, hQc, fun q hq => (hQr q hq).trans (hrep_le q)⟩
+      prec_phase1 := fun p pnd reqId knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_a => by
+        dsimp only at hp1 hp2 hpr ⊢
+        by_cases hp : p = actor
+        · subst hp
+          simp only [proc', Function.update_self] at hp1 hp2
+          obtain ⟨Q, hQc, hQr, hQm, hQresp⟩ :=
+            hp1_actor_prec pnd reqId knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_a
+          exact ⟨Q, hQc, fun q hq => (hQr q hq).trans (hrep_le q), hQm, hQresp⟩
+        · simp only [proc', Function.update_of_ne hp] at hp1 hp2
+          have ha0 := htag_lt a τ_a hτ_a
+          obtain ⟨hpnd_lt, _⟩ := hg.pending_info hp1
+          have hpr0 := (hprec_old a ha0 pnd.opId hpnd_lt).mp hpr
+          have ⟨_, _, _, hrs, _⟩ := hpr0
+          have hτ0 := htag_of_not_pending a ha0 τ_a
+            (by intro hpend; simp [hpend, OpStatus.respStep?] at hrs) hτ_a
+          obtain ⟨Q, hQc, hQr, hQm, hQresp⟩ :=
+            prec_phase1_step_of_old hg hbase_sub hout_qresp hp1 hp2 hpr0 hτ0
+          exact ⟨Q, hQc, fun q hq => (hQr q hq).trans (hrep_le q), hQm, hQresp⟩
+      prec_tag := fun a b _ τ_a τ_b hpr hτ_a hτ_b => by
+        dsimp only at hpr ⊢
+        have ha0 := htag_lt a τ_a hτ_a
+        have hb0 := htag_lt b τ_b hτ_b
+        have hpr0 := (hprec_old a ha0 b hb0).mp hpr
+        have ⟨_, _, _, hrs, _⟩ := hpr0
+        have hτ_a0 := htag_of_not_pending a ha0 τ_a
+          (by intro hpend; simp [hpend, OpStatus.respStep?] at hrs) hτ_a
+        rw [(hmeta b hb0).2.1]
+        rcases htag_cases b τ_b hτ_b with ho_b | ho_b
+        · exact hnew_prec_tag a b hb0 τ_a τ_b hpr0 hτ_a0 ho_b hτ_b
+        · exact hg.prec_tag a b hb0 τ_a τ_b hpr0 hτ_a0 ho_b }
 
-section StepProofs
+/-- Specialization of `abdGood_step` to `resp = none` deliveries keeping `history` and `opTag`. -/
+private lemma abdGood_deliver_same_opTag {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
+    (nextSt : ABDState P V) (outMsgs : Multiset (P × ABDMsg P V))
+    (hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
+      ⟨nextSt, outMsgs, none⟩)
+    (hout_qresp : ∀ d rId rt rv,
+      (d, .queryResp rId rt rv) ∈ outMsgs → (s.proc e.dest).state.repTag ≤ rt)
+    (hps_dest : ProcSync t s.history nextSt.nextReqId
+      (fun q => (Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag)
+      opTag e.dest (s.proc e.dest).pending nextSt.phase)
+    (hnext_dest : (s.proc e.dest).state.nextReqId ≤ nextSt.nextReqId)
+    (hp1_dest : ∀ rId < (s.proc e.dest).state.nextReqId,
+      (∀ knd resp bt bv, (s.proc e.dest).state.phase = .phase1 rId knd resp bt bv → False) →
+      ∀ knd resp bt bv, nextSt.phase = .phase1 rId knd resp bt bv → False)
+    (hp2_dest : ∀ rId < (s.proc e.dest).state.nextReqId,
+      (∀ knd resp bt bv, (s.proc e.dest).state.phase = .phase1 rId knd resp bt bv → False) →
+      ∀ knd cT cV acks, nextSt.phase = .phase2 rId knd cT cV acks →
+        ∃ acks₀, (s.proc e.dest).state.phase = .phase2 rId knd cT cV acks₀)
+    (hout_wf : ∀ pm ∈ outMsgs, MsgWF v₀
+      ⟨s.msgs.erase e + outMsgs.map (tagSender e.dest),
+        Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩, s.history, s.step + 1⟩
+      opTag e.dest pm.1 pm.2)
+    (hrep_val_dest : TagValidVal v₀ s.history opTag nextSt.repTag nextSt.repVal)
+    (hphase_val_dest : PhaseValValid v₀ s.history opTag nextSt.phase)
+    (hp1_dest_prec : ∀ pend rId knd resp' bt' bv',
+      (s.proc e.dest).pending = some pend → nextSt.phase = .phase1 rId knd resp' bt' bv' →
+      ∀ a τ_a, prec s.history a pend.opId → opTag a = some τ_a →
+      ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧ (∀ q ∈ Q, τ_a ≤ (s.proc q).state.repTag) ∧
+        (∀ q ∈ Q, ∀ rt rv,
+          ⟨q, e.dest, .queryResp rId rt rv⟩ ∈ s.msgs.erase e + outMsgs.map (tagSender e.dest) →
+            τ_a ≤ rt) ∧
+        (∀ q ∈ Q, q ∈ resp' → τ_a ≤ bt')) :
+    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag := by
+  rw [(abdProtocol P V v₀ t).doDeliver_of_resp_eq_none hout]
+  exact abdGood_step (opTag' := opTag) (actor := e.dest) (nextSt := nextSt)
+    (newPend := (s.proc e.dest).pending) (baseMsgs := s.msgs.erase e)
+    (outMsgs := outMsgs) (hist' := s.history)
+    hg (repTag_le_of_onRecv_eq hout) le_rfl (Nat.le_succ _)
+    (fun _ _ => ⟨rfl, rfl, rfl⟩) (fun _ _ _ => ⟨rfl, rfl⟩)
+    (fun _ hj hge => absurd (lt_of_lt_of_le hj hge) (lt_irrefl _))
+    (fun _ _ _ _ => Iff.rfl) hg.tag_out (fun _ _ => hg.lt_length_of_opTag_some)
+    (fun _ _ h => h) (fun _ _ _ h0 h1 => nomatch h0.symm.trans h1)
+    (fun _ _ _ h => h) (fun _ _ hne => False.elim (hne rfl))
+    (fun _ => Multiset.mem_of_mem_erase) hout_qresp hps_dest hnext_dest hp1_dest hp2_dest
+    hout_wf hrep_val_dest hphase_val_dest (fun _ _ _ _ h0 h1 => nomatch h0.symm.trans h1)
+    (fun _ _ _ _ _ _ hne => False.elim (hne rfl)) (fun _ _ _ hc hne => False.elim (hne hc))
+    hp1_dest_prec (fun _ _ _ _ _ _ _ h0 h1 => nomatch h0.symm.trans h1)
 
-variable {P V : Type*} [Fintype P] [DecidableEq P] [LinearOrder P] [DecidableEq V]
+/-- Preservation of `ABDGood` for any delivery with `resp = none` that leaves `phase` and
+`nextReqId` at `e.dest` unchanged (stale messages and replica `.query` / `.store` handlers). -/
+private lemma abdGood_deliver_keep_phase {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
+    (nextSt : ABDState P V) (outMsgs : Multiset (P × ABDMsg P V))
+    (hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
+      ⟨nextSt, outMsgs, none⟩)
+    (hphase_eq : nextSt.phase = (s.proc e.dest).state.phase)
+    (hnext_eq : nextSt.nextReqId = (s.proc e.dest).state.nextReqId)
+    (hout_wf : ∀ pm ∈ outMsgs, MsgWF v₀
+      ⟨s.msgs.erase e + outMsgs.map (tagSender e.dest),
+        Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩, s.history, s.step + 1⟩
+      opTag e.dest pm.1 pm.2)
+    (hout_qresp : ∀ d rId rt rv,
+      (d, .queryResp rId rt rv) ∈ outMsgs → (s.proc e.dest).state.repTag ≤ rt)
+    (hrep_val_dest : TagValidVal v₀ s.history opTag nextSt.repTag nextSt.repVal) :
+    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag := by
+  exact abdGood_deliver_same_opTag hg nextSt outMsgs hout hout_qresp
+    (hnext_eq.symm ▸ hphase_eq.symm ▸ procSync_transport le_rfl le_rfl
+      (update_proc_repTag_le s.proc (repTag_le_of_onRecv_eq hout))
+      (fun _ _ _ hc => ⟨hc, rfl, rfl, rfl, id⟩) (hg.proc_sync e.dest))
+    hnext_eq.symm.le
+    (fun _ _ hp1 knd resp bt bv hph => hp1 knd resp bt bv (hphase_eq.symm.trans hph))
+    (fun _ _ _ _ _ _ acks hph => ⟨acks, hphase_eq.symm.trans hph⟩)
+    hout_wf hrep_val_dest (hphase_eq ▸ hg.val_valid.2.1 e.dest)
+    (fun _ _ _ _ _ _ hp1 hp2 _ _ hpr hτ =>
+      prec_phase1_step_of_old hg (fun _ => Multiset.mem_of_mem_erase) hout_qresp
+        hp1 (hphase_eq.symm.trans hp2) hpr hτ)
+
+/-- Helper for a message delivery that leaves local states, `pending`, and `history` unchanged and
+emits zero messages (stale or out-of-phase messages). -/
+private lemma abdGood_deliver_noop {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
+    (hnoop : abdOnRecv t e.dest (s.proc e.dest).state e.src e.body =
+      ⟨(s.proc e.dest).state, 0, none⟩) :
+    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag := by
+  exact abdGood_deliver_keep_phase hg (s.proc e.dest).state 0 hnoop rfl rfl (fun _ hm => nomatch hm)
+    (fun _ _ _ _ hm => nomatch hm) (hg.val_valid.1 e.dest)
+
+/-- Helper preserving `ABDGood` when a replica handles `.query` or `.store`. -/
+private lemma abdGood_deliver_replica {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)} (he : e ∈ s.msgs)
+    (hrep : (∃ reqId, e.body = .query reqId) ∨ (∃ reqId τ v, e.body = .store reqId τ v)) :
+    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag := by
+  have he_wf := hg.msg_wf e he
+  rcases hrep with ⟨reqId, hb⟩ | ⟨reqId, inTag, inVal, hb⟩
+  · rw [hb] at he_wf
+    dsimp only [MsgWF] at he_wf
+    refine abdGood_deliver_keep_phase hg (s.proc e.dest).state
+      {(e.src, .queryResp reqId (s.proc e.dest).state.repTag (s.proc e.dest).state.repVal)}
+      (by simp [abdProtocol, hb, abdOnRecv]) rfl rfl ?_ ?_ (hg.val_valid.1 e.dest)
+    · intro pm hpm
+      rw [Multiset.mem_singleton] at hpm; subst hpm
+      exact ⟨by rcases eq_or_ne e.src e.dest with hs | hs <;> [rw [hs]; skip] <;>
+        simpa [hs] using he_wf, hg.val_valid.1 e.dest⟩
+    · intro _ _ _ _ hm
+      simp only [Multiset.mem_singleton, Prod.mk.injEq, ABDMsg.queryResp.injEq] at hm
+      exact hm.2.2.1 ▸ le_rfl
+  · rw [hb] at he_wf
+    obtain ⟨hreq, htv, hp1, hp2⟩ := he_wf
+    let nextSt := (abdOnRecv t e.dest (s.proc e.dest).state e.src e.body).nextState
+    have hph_nr : nextSt.phase = (s.proc e.dest).state.phase ∧
+        nextSt.nextReqId = (s.proc e.dest).state.nextReqId := by
+      simp only [nextSt, hb, abdOnRecv]; split_ifs <;> exact ⟨rfl, rfl⟩
+    have hsrc :
+        let st' := (Function.update s.proc e.dest
+          ⟨nextSt, (s.proc e.dest).pending⟩ e.src).state
+        st'.phase = (s.proc e.src).state.phase ∧
+          st'.nextReqId = (s.proc e.src).state.nextReqId := by
+      dsimp only
+      rcases eq_or_ne e.src e.dest with hs | hs
+      · rw [hs, Function.update_self]; exact hph_nr
+      · simp [hs]
+    refine abdGood_deliver_keep_phase hg nextSt {(e.src, .ack reqId)}
+      (by simp [abdProtocol, hb, abdOnRecv, nextSt]) hph_nr.1 hph_nr.2 ?_
+      (fun _ _ _ _ hm => by simp at hm)
+      (by simp only [nextSt, hb, abdOnRecv]; split_ifs <;> [exact htv; exact hg.val_valid.1 e.dest])
+    intro pm hpm
+    rw [Multiset.mem_singleton] at hpm; subst hpm
+    refine ⟨hsrc.2.symm ▸ hreq,
+      fun knd resp bt bv hph => hp1 knd resp bt bv (hsrc.1.symm.trans hph),
+      fun knd cTag cVal acks hph => ?_⟩
+    obtain ⟨hcT, _⟩ := hp2 knd cTag cVal acks (hsrc.1.symm.trans hph)
+    simp only [Function.update_self, nextSt, hb]
+    exact hcT ▸ abdOnRecv_store_le_repTag t e.dest (s.proc e.dest).state e.src reqId inTag inVal
+
+omit [DecidableEq P] [DecidableEq V] in
+private lemma pending_of_phase_ne_idle {v₀ : V} {t : ℕ}
+    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
+    (hg : ABDGood v₀ t s opTag) (p : P) (hne : (s.proc p).state.phase ≠ .idle) :
+    ∃ pend, (s.proc p).pending = some pend := by
+  have hps := hg.proc_sync p
+  cases hp : (s.proc p).pending with
+  | none =>
+    rw [hp] at hps
+    cases hph : (s.proc p).state.phase <;> rw [hph] at hps hne
+    exacts [absurd rfl hne, hps.elim, hps.elim]
+  | some pend => exact ⟨pend, rfl⟩
+
+/-- Phase-2 `(chosenTag, chosenVal)` selected by `dest` upon completing Phase 1 with `(bt, bv)`. -/
+private def phase2Choice (dest : P) : OpKind V → Tag P → V → Tag P × V
+  | .write v, bt, _ => (nextWriteTag bt.seq dest, v)
+  | .read, bt, bv => (bt, bv)
 
 omit [DecidableEq V] in
 private lemma abdGood_invoke {v₀ : V} {t : ℕ} (h2t : 2 * t < Fintype.card P)
@@ -834,492 +1207,61 @@ private lemma abdGood_invoke {v₀ : V} {t : ℕ} (h2t : 2 * t < Fintype.card P)
   rw [(abdProtocol P V v₀ t).doInvoke_of_resp_eq_none
     (nextSt := nextSt) (outMsgs := outMsgs) rfl]
   let rec' : OpRecord P V := ⟨caller, kind, s.step, .pending⟩
-  set proc' := Function.update s.proc caller ⟨nextSt, some ⟨s.history.length, kind⟩⟩
-  have hrep_eq : ∀ q : P, (proc' q).state.repTag = (s.proc q).state.repTag :=
-    update_proc_repTag_eq s.proc rfl
-  obtain ⟨hprec_old, _, hprec_to_new⟩ := abdGood_prec_append hg rec' rfl rfl
-  have hlen_le : s.history.length ≤ (s.history ++ [rec']).length := by simp
-  have htag_pres : ∀ (i : ℕ) (hi : i < s.history.length) τ,
-      opTag i = some τ →
-      ((s.history ++ [rec'])[i]'(lt_of_lt_of_le hi hlen_le)).kind = s.history[i].kind ∧
-        opTag i = some τ :=
-    fun _ hi _ hτ => ⟨by simp [List.getElem_append_left hi], hτ⟩
+  obtain ⟨hprec_old, hprec_to_new⟩ := abdGood_prec_append hg rec' rfl rfl
   have hq_pos : 0 < Fintype.card P - t := by omega
-  refine
-    { tag_out := fun i hi => hg.tag_out i (le_trans (by simp) hi)
-      hist_wf := fun i hi => by
-        have hi_len : i < s.history.length + 1 := by simpa using hi
-        by_cases hlt : i < s.history.length
-        · simp only [List.getElem_append_left hlt]
-          obtain ⟨hinv, hresp, hdr, hdw, hpnd⟩ := hg.hist_wf i hlt
-          refine ⟨Nat.lt_succ_of_lt hinv,
-            fun r hr => ⟨(hresp r hr).1, Nat.lt_succ_of_lt (hresp r hr).2⟩,
-            hdr, hdw, fun hp => ?_⟩
-          have hp' := hpnd hp
-          have hne : s.history[i].caller ≠ caller := fun heq => by
-            rw [heq, hpend_none] at hp'; cases hp'
-          simpa [proc', Function.update_of_ne hne] using hp'
-        · obtain rfl : i = s.history.length := by omega
-          simp [proc', OpStatus.respStep?]
-      inv_mono := fun i j hij hj => by
-        have hj_len : j < s.history.length + 1 := by simpa using hj
-        by_cases hjl : j < s.history.length
-        · simp only [List.getElem_append_left (hij.trans hjl), List.getElem_append_left hjl]
-          exact hg.inv_mono i j hij hjl
-        · obtain rfl : j = s.history.length := by omega
-          simp only [List.getElem_append_left hij, List.getElem_append_right le_rfl,
-            Nat.sub_self, List.getElem_singleton]
-          exact (hg.hist_wf i hij).1
-      proc_sync := fun p => by
-        change ProcSync t (s.history ++ [rec']) (proc' p).state.nextReqId
-          (fun q => (proc' q).state.repTag) opTag p (proc' p).pending (proc' p).state.phase
-        by_cases hp : p = caller
-        · subst hp
-          dsimp only [proc', nextSt]
-          rw [Function.update_self]
-          dsimp only [ProcSync]
-          refine ⟨by simp, by simp [rec'], by simp [rec'], rfl, by simp [rec'],
-            hg.tag_out s.history.length le_rfl, Nat.lt_succ_self _, by simpa using hq_pos, ?_⟩
-          intro j hj hjne hjc
-          have hj_len : j < s.history.length + 1 := by simpa using hj
-          have hjl : j < s.history.length := by omega
-          rw [List.getElem_append_left hjl] at hjc
-          refine (hprec_to_new j).mpr ⟨hjl, ?_⟩
-          cases hst : s.history[j].status with
-          | doneRead _ _ | doneWrite _ => rfl
-          | pending =>
-            have hpnd := (hg.hist_wf j hjl).2.2.2.2 hst
-            rw [hjc, hpend_none] at hpnd; cases hpnd
-        · simp only [proc', Function.update_of_ne hp]
-          refine procSync_transport hlen_le le_rfl (fun q => (hrep_eq q).symm.le) ?_
-            (hg.proc_sync p)
-          intro pend hi _ hc
-          refine ⟨by simpa [List.getElem_append_left hi] using hc,
-            by simp [List.getElem_append_left hi], by simp [List.getElem_append_left hi], rfl,
-            fun hprev j hj hjne hjc => ?_⟩
-          have hj_len : j < s.history.length + 1 := by simpa using hj
-          by_cases hjl : j < s.history.length
-          · rw [List.getElem_append_left hjl] at hjc
-            exact (hprec_old j hjl _ hi).mpr (hprev j hjl hjne hjc)
-          · obtain rfl : j = s.history.length := by omega
-            simp only [List.getElem_append_right le_rfl, Nat.sub_self,
-              List.getElem_singleton, rec'] at hjc
-            exact False.elim (hp hjc.symm)
-      msg_wf := fun e he => by
-        rw [Multiset.mem_add] at he
-        rcases he with he_old | he_new
-        · refine msgWF_transfer_update (actor := caller) (nextSt := nextSt)
-            (newPend := some ⟨s.history.length, kind⟩)
-            hlen_le htag_pres (Nat.le_succ _) le_rfl ?_
-            (fun _ _ _ _ _ _ _ h => nomatch h) (hg.msg_wf e he_old)
-          intro rId hreq _ _ _ _ _ hph'
-          simp only [nextSt, ClientPhase.phase1.injEq] at hph'
-          exact Nat.lt_irrefl _ (hph'.1 ▸ hreq)
-        · obtain ⟨rfl, hb⟩ := mem_map_tagSender_broadcastAll.mp he_new
-          rw [hb]; simp [MsgWF, proc', nextSt, reqId]
-      write_unique :=
-        ⟨fun i _ v τ hk hτ => by
-          have hil := hg.lt_length_of_opTag_some hτ
-          simp only [List.getElem_append_left hil] at hk ⊢
-          exact hg.write_unique.1 i hil v τ hk hτ,
-         fun i j _ _ v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂ => by
-          have hil := hg.lt_length_of_opTag_some hτ₁
-          have hjl := hg.lt_length_of_opTag_some hτ₂
-          simp only [List.getElem_append_left hil, List.getElem_append_left hjl] at hk₁ hk₂
-          exact hg.write_unique.2 i j hil hjl v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂⟩
-      val_valid :=
-        ⟨fun q => by
-          have hq := tagValidVal_mono hlen_le htag_pres (hg.val_valid.1 q)
-          by_cases hqc : q = caller
-          · subst hqc; simpa [proc', nextSt] using hq
-          · simpa [proc', hqc] using hq,
-         fun p => by
-          by_cases hp : p = caller
-          · subst hp
-            simp only [proc', nextSt, Function.update_self, PhaseValValid]
-            exact Or.inl ⟨rfl, rfl⟩
-          · simp only [proc', Function.update_of_ne hp]
-            exact phaseValValid_mono hlen_le htag_pres (hg.val_valid.2.1 p),
-         fun i _ stp r τ hst hτ => by
-          have hil := hg.lt_length_of_opTag_some hτ
-          simp only [List.getElem_append_left hil] at hst
-          exact tagValidVal_mono hlen_le htag_pres (hg.val_valid.2.2 i hil stp r τ hst hτ)⟩
-      completed_quorum := fun a _ τ_a hcomp hτ => by
-        have hal := hg.lt_length_of_opTag_some hτ
-        simp only [List.getElem_append_left hal] at hcomp
-        obtain ⟨Q, hQcard, hQtag⟩ := hg.completed_quorum a hal τ_a hcomp hτ
-        exact ⟨Q, hQcard, fun q hq => (hrep_eq q).symm ▸ hQtag q hq⟩
-      prec_phase1 := fun p pend rId knd responses bt bv hp_pend hp_ph a τ_a hprec hτ_a => by
-        have hal := hg.lt_length_of_opTag_some hτ_a
-        have hno_new_qr : ∀ {q p' rt rv},
-            (⟨q, p', .queryResp rId rt rv⟩ : Envelope P (ABDMsg P V)) ∉
-              outMsgs.map (tagSender caller) :=
-          fun hnew => by obtain ⟨_, ⟨⟩⟩ := mem_map_tagSender_broadcastAll.mp hnew
-        by_cases hp : p = caller
-        · subst hp
-          simp only [proc', nextSt, Function.update_self, Option.some.injEq,
-            ClientPhase.phase1.injEq] at hp_pend hp_ph
-          subst hp_pend; obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hp_ph
-          obtain ⟨_, hcomp_a⟩ := (hprec_to_new a).mp hprec
-          obtain ⟨Q, hQcard, hQtag⟩ := hg.completed_quorum a hal τ_a hcomp_a hτ_a
-          refine ⟨Q, hQcard, fun q hq => (hrep_eq q).symm ▸ hQtag q hq,
-            fun q _ rTag rVal hmem => ?_, fun _ _ hm => nomatch hm⟩
-          rcases Multiset.mem_add.mp hmem with hold | hnew
-          · exact False.elim (Nat.lt_irrefl _ (hg.msg_wf _ hold).1)
-          · exact False.elim (hno_new_qr hnew)
-        · simp only [proc', Function.update_of_ne hp] at hp_pend hp_ph
-          obtain ⟨hpend_lt, _⟩ := hg.pending_info hp_pend
-          rw [hprec_old a hal pend.opId hpend_lt] at hprec
-          obtain ⟨Q, hQcard, hQrep, hQmsg, hQresp⟩ :=
-            hg.prec_phase1 p pend rId knd responses bt bv hp_pend hp_ph a τ_a hprec hτ_a
-          refine ⟨Q, hQcard, fun q hq => (hrep_eq q).symm ▸ hQrep q hq,
-            fun q hq rTag rVal hmem => ?_, hQresp⟩
-          rcases Multiset.mem_add.mp hmem with hold | hnew
-          · exact hQmsg q hq rTag rVal hold
-          · exact False.elim (hno_new_qr hnew)
-      prec_tag := fun a b _ τ_a τ_b hprec hτ_a hτ_b => by
-        have hal := hg.lt_length_of_opTag_some hτ_a
-        have hbl := hg.lt_length_of_opTag_some hτ_b
-        rw [hprec_old a hal b hbl] at hprec
-        simp only [List.getElem_append_left hbl]
-        exact hg.prec_tag a b hbl τ_a τ_b hprec hτ_a hτ_b }
-
-omit [DecidableEq V] in
-private lemma repTag_le_of_onRecv_eq {v₀ : V} {t : ℕ}
-    {dest : P} {st nextSt : ABDState P V} {src : P} {body : ABDMsg P V}
-    {outMsgs : Multiset (P × ABDMsg P V)} {resp : Option (OpResp V)}
-    (hout : (abdProtocol P V v₀ t).onRecv dest st src body = ⟨nextSt, outMsgs, resp⟩) :
-    st.repTag ≤ nextSt.repTag := by
-  have hns : (abdOnRecv t dest st src body).nextState = nextSt := congrArg StepOut.nextState hout
-  exact hns ▸ abdOnRecv_repTag_mono t dest st src body
-
-private lemma prec_phase1_deliver_step {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
-    {nextSt : ABDState P V} {outMsgs : Multiset (P × ABDMsg P V)}
-    (hrep_le : ∀ q : P, (s.proc q).state.repTag ≤
-      (Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag)
-    (hout_qresp : ∀ dest' reqId rTag rVal,
-      (dest', .queryResp reqId rTag rVal) ∈ outMsgs → (s.proc e.dest).state.repTag ≤ rTag)
-    {p : P} {pnd : PendingOp V} {reqId : ℕ} {knd : OpKind V}
-    {resp' : Finset P} {bt' : Tag P} {bv' : V}
-    (hp1 : (s.proc p).pending = some pnd)
-    (hp2 : (s.proc p).state.phase = .phase1 reqId knd resp' bt' bv')
-    {a : ℕ} {τ_a : Tag P} (hpr : prec s.history a pnd.opId) (hτ_old : opTag a = some τ_a) :
-    ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧
-      (∀ q ∈ Q, τ_a ≤
-        (Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag) ∧
-      (∀ q ∈ Q, ∀ rTag rVal,
-        ⟨q, p, .queryResp reqId rTag rVal⟩ ∈
-          s.msgs.erase e + outMsgs.map (tagSender e.dest) → τ_a ≤ rTag) ∧
-      (∀ q ∈ Q, q ∈ resp' → τ_a ≤ bt') := by
-  obtain ⟨Q, hQc, hQr, hQm, hQresp⟩ :=
-    hg.prec_phase1 p pnd reqId knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_old
-  refine ⟨Q, hQc, fun q hq => (hQr q hq).trans (hrep_le q), ?_, hQresp⟩
-  intro q hq rt rv hm
-  rcases Multiset.mem_add.mp hm with hm_old | hm_new
-  · exact hQm q hq rt rv (Multiset.mem_of_mem_erase hm_old)
-  · obtain ⟨⟨dest', body'⟩, hpm, heq⟩ := Multiset.mem_map.mp hm_new
-    injection heq with hsrc _ hbody; subst hsrc hbody
-    exact (hQr e.dest hq).trans (hout_qresp dest' reqId rt rv hpm)
-
-/-- Unified `ABDGood` preservation lemma for any message delivery whose local handler returns
-`resp = none` (hence leaving `history` and `pending` unchanged). -/
-private lemma abdGood_deliver_resp_none {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag opTag' : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
-    {nextSt : ABDState P V} {outMsgs : Multiset (P × ABDMsg P V)}
-    (hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
-      ⟨nextSt, outMsgs, none⟩)
-    (htag_out : ∀ i, s.history.length ≤ i → opTag' i = none)
-    (htag_pres : ∀ i τ, opTag i = some τ → opTag' i = some τ)
-    (hcomp_tag : ∀ (a : ℕ) (ha : a < s.history.length) τ_a,
-      s.history[a].status.isCompleted = true → opTag' a = some τ_a → opTag a = some τ_a)
-    (htag_other : ∀ p, p ≠ e.dest → ∀ pend, (s.proc p).pending = some pend →
-      opTag' pend.opId = opTag pend.opId)
-    (hps_dest : ProcSync t s.history nextSt.nextReqId
-      (fun q => (Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag)
-      opTag' e.dest (s.proc e.dest).pending nextSt.phase)
-    (hnext_dest : (s.proc e.dest).state.nextReqId ≤ nextSt.nextReqId)
-    (hp1_dest : ∀ reqId, reqId < (s.proc e.dest).state.nextReqId →
-      (∀ knd resp bt bv, (s.proc e.dest).state.phase = .phase1 reqId knd resp bt bv → False) →
-      ∀ knd resp bt bv, nextSt.phase = .phase1 reqId knd resp bt bv → False)
-    (hp2_dest : ∀ reqId, reqId < (s.proc e.dest).state.nextReqId →
-      (∀ knd resp bt bv, (s.proc e.dest).state.phase = .phase1 reqId knd resp bt bv → False) →
-      ∀ knd cTag cVal acks, nextSt.phase = .phase2 reqId knd cTag cVal acks →
-        ∃ acks₀, (s.proc e.dest).state.phase = .phase2 reqId knd cTag cVal acks₀)
-    (hout_wf : ∀ pm ∈ outMsgs,
-      MsgWF v₀
-        { msgs := s.msgs.erase e + outMsgs.map (tagSender e.dest)
-          proc := Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩
-          history := s.history
-          step := s.step + 1 }
-        opTag' e.dest pm.1 pm.2)
-    (hout_qresp : ∀ dest' reqId rTag rVal,
-      (dest', .queryResp reqId rTag rVal) ∈ outMsgs → (s.proc e.dest).state.repTag ≤ rTag)
-    (hwu :
-      (∀ (i : ℕ) (hi : i < s.history.length) v τ,
-        s.history[i].kind = .write v → opTag' i = some τ →
-        ∃ seq, τ = nextWriteTag seq s.history[i].caller) ∧
-      (∀ (i j : ℕ) (hi : i < s.history.length) (hj : j < s.history.length) v₁ v₂ τ,
-        s.history[i].kind = .write v₁ → s.history[j].kind = .write v₂ →
-        opTag' i = some τ → opTag' j = some τ → i = j))
-    (hrep_val_dest : TagValidVal v₀ s.history opTag' nextSt.repTag nextSt.repVal)
-    (hphase_val_dest : PhaseValValid v₀ s.history opTag' nextSt.phase)
-    (hread_val : ∀ (i : ℕ) (hi : i < s.history.length) step r τ,
-      s.history[i].status = .doneRead step r → opTag' i = some τ →
-      TagValidVal v₀ s.history opTag' τ r)
-    (hp1_dest_prec : ∀ pend reqId knd resp' bt' bv',
-      (s.proc e.dest).pending = some pend →
-      nextSt.phase = .phase1 reqId knd resp' bt' bv' →
-      ∀ a τ_a, prec s.history a pend.opId → opTag a = some τ_a →
-      ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧
-        (∀ q ∈ Q,
-          τ_a ≤ (Function.update s.proc e.dest
-            ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag) ∧
-        (∀ q ∈ Q, ∀ rTag rVal,
-          ⟨q, e.dest, .queryResp reqId rTag rVal⟩ ∈
-            s.msgs.erase e + outMsgs.map (tagSender e.dest) → τ_a ≤ rTag) ∧
-        (∀ q ∈ Q, q ∈ resp' → τ_a ≤ bt'))
-    (hprec_tag : ∀ (a b : ℕ) (hb : b < s.history.length) τ_a τ_b,
-      prec s.history a b → opTag' a = some τ_a → opTag' b = some τ_b →
-      PrecTagOrder τ_a τ_b s.history[b].kind) :
-    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag' := by
-  rw [(abdProtocol P V v₀ t).doDeliver_of_resp_eq_none hout]
-  set proc' := Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩
-  have hrep_dest := repTag_le_of_onRecv_eq hout
-  have hrep_le := update_proc_repTag_le s.proc (newPend := (s.proc e.dest).pending) hrep_dest
-  have hpend_eq : ∀ p : P, (proc' p).pending = (s.proc p).pending := by
-    intro p; by_cases hp : p = e.dest <;> [subst hp; skip] <;> simp [proc', *]
-  have hsome_pres : ∀ i, (opTag i).isSome = true → (opTag' i).isSome = true := by
-    intro i hs
-    obtain ⟨τ, hτ⟩ := Option.isSome_iff_exists.mp hs
-    exact Option.isSome_iff_exists.mpr ⟨τ, htag_pres i τ hτ⟩
-  have htv_pres : ∀ (i : ℕ) (hi : i < s.history.length) τ,
-      opTag i = some τ → s.history[i].kind = s.history[i].kind ∧ opTag' i = some τ :=
-    fun i _ τ hτ => ⟨rfl, htag_pres i τ hτ⟩
-  refine
-    { tag_out := htag_out
-      hist_wf := fun i hi => by
-        obtain ⟨h1, h2, h3, h4, h5⟩ := hg.hist_wf i hi
-        exact ⟨Nat.lt_succ_of_lt h1,
-          fun r hr => ⟨(h2 r hr).1, Nat.lt_succ_of_lt (h2 r hr).2⟩,
-          fun r v hr => ⟨(h3 r v hr).1, hsome_pres i (h3 r v hr).2⟩,
-          fun r hr => ⟨(h4 r hr).1, hsome_pres i (h4 r hr).2⟩,
-          fun hp => (hpend_eq s.history[i].caller).trans (h5 hp)⟩
-      inv_mono := hg.inv_mono
-      proc_sync := fun p => by
-        change ProcSync t s.history (proc' p).state.nextReqId (fun q => (proc' q).state.repTag)
-          opTag' p (proc' p).pending (proc' p).state.phase
-        by_cases hp : p = e.dest
-        · subst hp; simpa [proc'] using hps_dest
-        · simp only [proc', Function.update_of_ne hp]
-          exact procSync_mono le_rfl hrep_le (htag_other p hp) (hg.proc_sync p)
-      msg_wf := fun m hm => by
-        rcases Multiset.mem_add.mp hm with hm_old | hm_new
-        · exact msgWF_transfer_update le_rfl htv_pres hnext_dest hrep_dest hp1_dest hp2_dest
-            (hg.msg_wf m (Multiset.mem_of_mem_erase hm_old))
-        · obtain ⟨pm, hpm, rfl⟩ := Multiset.mem_map.mp hm_new
-          exact hout_wf pm hpm
-      write_unique := hwu
-      val_valid :=
-        ⟨fun q => by
-          by_cases hqd : q = e.dest
-          · subst hqd; simpa [proc'] using hrep_val_dest
-          · simp only [proc', Function.update_of_ne hqd]
-            exact tagValidVal_mono le_rfl htv_pres (hg.val_valid.1 q),
-         fun p => by
-          by_cases hp : p = e.dest
-          · subst hp; simpa [proc'] using hphase_val_dest
-          · simp only [proc', Function.update_of_ne hp]
-            exact phaseValValid_mono le_rfl htv_pres (hg.val_valid.2.1 p),
-         hread_val⟩
-      completed_quorum := fun a ha τ_a hcomp hτ => by
-        obtain ⟨Q, hQc, hQr⟩ := hg.completed_quorum a ha τ_a hcomp (hcomp_tag a ha τ_a hcomp hτ)
-        exact ⟨Q, hQc, fun q hq => (hQr q hq).trans (hrep_le q)⟩
-      prec_phase1 := fun p pnd reqId knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_a => by
-        rw [hpend_eq p] at hp1
-        have ⟨ha_lt, _, _, hr_step, _⟩ := hpr
-        have ha_comp : s.history[a].status.isCompleted = true := by
-          simp [OpStatus.isCompleted, hr_step]
-        have hτ_old := hcomp_tag a ha_lt τ_a ha_comp hτ_a
-        by_cases hp : p = e.dest
-        · subst hp; simp only [proc', Function.update_self] at hp2
-          exact hp1_dest_prec pnd reqId knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_old
-        · simp only [proc', Function.update_of_ne hp] at hp2
-          exact prec_phase1_deliver_step hg hrep_le hout_qresp hp1 hp2 hpr hτ_old
-      prec_tag := hprec_tag }
-
-/-- Specialization of `abdGood_deliver_resp_none` when `opTag` is unchanged (`opTag' = opTag`). -/
-private lemma abdGood_deliver_same_opTag {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
-    {nextSt : ABDState P V} {outMsgs : Multiset (P × ABDMsg P V)}
-    (hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
-      ⟨nextSt, outMsgs, none⟩)
-    (hps_dest : ProcSync t s.history nextSt.nextReqId
-      (fun q => (Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag)
-      opTag e.dest (s.proc e.dest).pending nextSt.phase)
-    (hnext_dest : (s.proc e.dest).state.nextReqId ≤ nextSt.nextReqId)
-    (hp1_dest : ∀ reqId, reqId < (s.proc e.dest).state.nextReqId →
-      (∀ knd resp bt bv, (s.proc e.dest).state.phase = .phase1 reqId knd resp bt bv → False) →
-      ∀ knd resp bt bv, nextSt.phase = .phase1 reqId knd resp bt bv → False)
-    (hp2_dest : ∀ reqId, reqId < (s.proc e.dest).state.nextReqId →
-      (∀ knd resp bt bv, (s.proc e.dest).state.phase = .phase1 reqId knd resp bt bv → False) →
-      ∀ knd cTag cVal acks, nextSt.phase = .phase2 reqId knd cTag cVal acks →
-        ∃ acks₀, (s.proc e.dest).state.phase = .phase2 reqId knd cTag cVal acks₀)
-    (hout_wf : ∀ pm ∈ outMsgs,
-      MsgWF v₀
-        { msgs := s.msgs.erase e + outMsgs.map (tagSender e.dest)
-          proc := Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩
-          history := s.history
-          step := s.step + 1 }
-        opTag e.dest pm.1 pm.2)
-    (hout_qresp : ∀ dest' reqId rTag rVal,
-      (dest', .queryResp reqId rTag rVal) ∈ outMsgs → (s.proc e.dest).state.repTag ≤ rTag)
-    (hrep_val_dest : TagValidVal v₀ s.history opTag nextSt.repTag nextSt.repVal)
-    (hphase_val_dest : PhaseValValid v₀ s.history opTag nextSt.phase)
-    (hp1_dest_prec : ∀ pend reqId knd resp' bt' bv',
-      (s.proc e.dest).pending = some pend →
-      nextSt.phase = .phase1 reqId knd resp' bt' bv' →
-      ∀ a τ_a, prec s.history a pend.opId → opTag a = some τ_a →
-      ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧
-        (∀ q ∈ Q,
-          τ_a ≤ (Function.update s.proc e.dest
-            ⟨nextSt, (s.proc e.dest).pending⟩ q).state.repTag) ∧
-        (∀ q ∈ Q, ∀ rTag rVal,
-          ⟨q, e.dest, .queryResp reqId rTag rVal⟩ ∈
-            s.msgs.erase e + outMsgs.map (tagSender e.dest) → τ_a ≤ rTag) ∧
-        (∀ q ∈ Q, q ∈ resp' → τ_a ≤ bt')) :
-    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag :=
-  abdGood_deliver_resp_none hg hout hg.tag_out (fun _ _ h => h) (fun _ _ _ _ h => h)
-    (fun _ _ _ _ => rfl) hps_dest hnext_dest hp1_dest hp2_dest hout_wf hout_qresp
-    hg.write_unique hrep_val_dest hphase_val_dest hg.val_valid.2.2 hp1_dest_prec hg.prec_tag
-
-/-- Preservation of `ABDGood` for any delivery with `resp = none` that leaves `phase` and
-`nextReqId` at `e.dest` unchanged (stale messages and replica `.query` / `.store` handlers). -/
-private lemma abdGood_deliver_keep_phase {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
-    {nextSt : ABDState P V} {outMsgs : Multiset (P × ABDMsg P V)}
-    (hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
-      ⟨nextSt, outMsgs, none⟩)
-    (hphase_eq : nextSt.phase = (s.proc e.dest).state.phase)
-    (hnext_eq : nextSt.nextReqId = (s.proc e.dest).state.nextReqId)
-    (hout_wf : ∀ pm ∈ outMsgs,
-      MsgWF v₀
-        { msgs := s.msgs.erase e + outMsgs.map (tagSender e.dest)
-          proc := Function.update s.proc e.dest ⟨nextSt, (s.proc e.dest).pending⟩
-          history := s.history
-          step := s.step + 1 }
-        opTag e.dest pm.1 pm.2)
-    (hout_qresp : ∀ dest' reqId rTag rVal,
-      (dest', .queryResp reqId rTag rVal) ∈ outMsgs → (s.proc e.dest).state.repTag ≤ rTag)
-    (hrep_val_dest : TagValidVal v₀ s.history opTag nextSt.repTag nextSt.repVal) :
-    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag := by
-  have hrep_le := update_proc_repTag_le s.proc (newPend := (s.proc e.dest).pending)
-    (repTag_le_of_onRecv_eq hout)
-  exact abdGood_deliver_same_opTag hg hout
-    (hnext_eq.symm ▸ hphase_eq.symm ▸ procSync_mono le_rfl hrep_le (fun _ _ => rfl)
-      (hg.proc_sync e.dest))
-    hnext_eq.symm.le
-    (fun _ _ hp1 knd resp bt bv hph => hp1 knd resp bt bv (hphase_eq.symm.trans hph))
-    (fun _ _ _ _ _ _ acks hph => ⟨acks, hphase_eq.symm.trans hph⟩)
-    hout_wf hout_qresp hrep_val_dest (hphase_eq ▸ hg.val_valid.2.1 e.dest)
-    fun _ _ _ _ _ _ hp1 hp2 _ _ hpr hτ =>
-      prec_phase1_deliver_step hg hrep_le hout_qresp hp1 (hphase_eq.symm.trans hp2) hpr hτ
-
-/-- Helper for a message delivery that leaves local states, `pending`, and `history` unchanged and
-emits zero messages (stale or out-of-phase messages). -/
-private lemma abdGood_deliver_noop {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)}
-    (hnoop : abdOnRecv t e.dest (s.proc e.dest).state e.src e.body =
-      ⟨(s.proc e.dest).state, 0, none⟩) :
-    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag :=
-  abdGood_deliver_keep_phase hg hnoop rfl rfl (fun _ hm => nomatch hm)
-    (fun _ _ _ _ hm => nomatch hm) (hg.val_valid.1 e.dest)
-
-/-- Helper preserving `ABDGood` when a replica handles `.query` or `.store`. -/
-private lemma abdGood_deliver_replica {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) {e : Envelope P (ABDMsg P V)} (he : e ∈ s.msgs)
-    (hrep : (∃ reqId, e.body = .query reqId) ∨ (∃ reqId τ v, e.body = .store reqId τ v)) :
-    ABDGood v₀ t ((abdProtocol P V v₀ t).doDeliver e s) opTag := by
-  let out := abdOnRecv t e.dest (s.proc e.dest).state e.src e.body
-  have hout_resp : out.resp = none := by
-    rcases hrep with ⟨_, hb⟩ | ⟨_, _, _, hb⟩ <;> simp [out, hb, abdOnRecv]
-  have hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
-      ⟨out.nextState, out.outgoing, none⟩ := by
-    change out = ⟨out.nextState, out.outgoing, none⟩; rw [← hout_resp]
-  have hphase_eq : out.nextState.phase = (s.proc e.dest).state.phase := by
-    rcases hrep with ⟨_, hb⟩ | ⟨_, _, _, hb⟩
-    · simp [out, hb, abdOnRecv]
-    · simp only [out, hb, abdOnRecv]; split_ifs <;> rfl
-  have hnext_eq : out.nextState.nextReqId = (s.proc e.dest).state.nextReqId := by
-    rcases hrep with ⟨_, hb⟩ | ⟨_, _, _, hb⟩
-    · simp [out, hb, abdOnRecv]
-    · simp only [out, hb, abdOnRecv]; split_ifs <;> rfl
-  have hsrc_pair :
-      let st' := (Function.update s.proc e.dest
-        ⟨out.nextState, (s.proc e.dest).pending⟩ e.src).state
-      st'.phase = (s.proc e.src).state.phase ∧
-        st'.nextReqId = (s.proc e.src).state.nextReqId := by
-    dsimp only
-    by_cases hs : e.src = e.dest
-    · rw [hs, Function.update_self]; exact ⟨hphase_eq, hnext_eq⟩
-    · simp [hs]
-  obtain ⟨hsrc_phase, hsrc_next⟩ := hsrc_pair
-  refine abdGood_deliver_keep_phase hg hout hphase_eq hnext_eq ?_ ?_ ?_
-  · intro pm hpm
-    rcases hrep with ⟨reqId, hb⟩ | ⟨reqId, inTag, inVal, hb⟩
-    · simp only [out, hb, abdOnRecv, Multiset.mem_singleton] at hpm
-      subst hpm
-      have he_wf := hg.msg_wf e he; rw [hb] at he_wf
-      exact ⟨hsrc_next.symm ▸ he_wf, hg.val_valid.1 e.dest⟩
-    · simp only [out, hb, abdOnRecv, Multiset.mem_singleton] at hpm
-      subst hpm
-      have he_wf := hg.msg_wf e he; rw [hb] at he_wf
-      obtain ⟨hreq, _, hp1, hp2⟩ := he_wf
-      refine ⟨hsrc_next.symm ▸ hreq,
-        fun knd resp bt bv hph => hp1 knd resp bt bv (hsrc_phase.symm.trans hph),
-        fun knd cTag cVal acks hph => ?_⟩
-      obtain ⟨hcT, _⟩ := hp2 knd cTag cVal acks (hsrc_phase.symm.trans hph)
-      rw [← hcT]
-      simpa [out, hb] using
-        abdOnRecv_store_le_repTag t e.dest (s.proc e.dest).state e.src reqId inTag inVal
-  · intro dest' reqId rTag rVal hm
-    rcases hrep with ⟨_, hb⟩ | ⟨_, _, _, hb⟩
-    · simp only [out, hb, abdOnRecv, Multiset.mem_singleton, Prod.mk.injEq,
-        ABDMsg.queryResp.injEq] at hm
-      exact hm.2.2.1 ▸ le_rfl
-    · simp [out, hb, abdOnRecv] at hm
-  · rcases hrep with ⟨_, hb⟩ | ⟨_, inTag, inVal, hb⟩
-    · simpa [out, hb, abdOnRecv] using hg.val_valid.1 e.dest
-    · simp only [out, hb, abdOnRecv]
-      split_ifs
-      · have he_wf := hg.msg_wf e he; rw [hb] at he_wf; exact he_wf.2.1
-      · exact hg.val_valid.1 e.dest
-
-omit [DecidableEq P] [DecidableEq V] in
-private lemma pending_of_phase_ne_idle {v₀ : V} {t : ℕ}
-    {s : State P (ABDState P V) (ABDMsg P V) V} {opTag : ℕ → Option (Tag P)}
-    (hg : ABDGood v₀ t s opTag) (p : P) (hne : (s.proc p).state.phase ≠ .idle) :
-    ∃ pend, (s.proc p).pending = some pend := by
-  have hps := hg.proc_sync p
-  cases hp : (s.proc p).pending with
-  | none =>
-    rw [hp] at hps
-    cases hph : (s.proc p).state.phase <;> rw [hph] at hps hne
-    · exact False.elim (hne rfl)
-    · exact False.elim hps
-    · exact False.elim hps
-  | some pend => exact ⟨pend, rfl⟩
-
-/-- Phase-2 `(chosenTag, chosenVal)` selected by `dest` upon completing Phase 1 with `(bt, bv)`. -/
-private def phase2Choice (dest : P) : OpKind V → Tag P → V → Tag P × V
-  | .write v, bt, _ => (nextWriteTag bt.seq dest, v)
-  | .read, bt, bv => (bt, bv)
+  refine abdGood_step (opTag' := opTag) (actor := caller) (nextSt := nextSt)
+    (newPend := some ⟨s.history.length, kind⟩) (baseMsgs := s.msgs)
+    (outMsgs := outMsgs) (hist' := s.history ++ [rec'])
+    hg le_rfl (by simp) (by simp)
+    (fun i hi => by simp [List.getElem_append_left hi])
+    (fun i hi _ => ⟨List.getElem_append_left hi, rfl⟩)
+    (fun j hj hge => by
+      have hj_len : j < s.history.length + 1 := by simpa using hj
+      obtain rfl : j = s.history.length := by omega
+      simp [rec'])
+    hprec_old (fun i hi => hg.tag_out i (le_trans (by simp) hi))
+    (fun _ _ => hg.lt_length_of_opTag_some) (fun _ _ h => h)
+    (fun _ _ _ h0 h1 => nomatch h0.symm.trans h1)
+    (fun _ _ _ hp => by rw [hpend_none] at hp; cases hp)
+    (fun i hi hne => False.elim (hne (List.getElem_append_left hi)))
+    (fun _ hm => hm) (by simp [outMsgs, broadcastAll]) ?_ (Nat.le_succ _)
+    (fun _ hreq _ _ _ _ _ hph' => by
+      simp only [nextSt, ClientPhase.phase1.injEq] at hph'
+      exact Nat.lt_irrefl _ (hph'.1 ▸ hreq))
+    (fun _ _ _ _ _ _ _ h => nomatch h)
+    (fun pm hpm => by
+      simp only [outMsgs, broadcastAll, Multiset.mem_map, Finset.mem_val, Finset.mem_univ,
+        true_and] at hpm
+      obtain ⟨q, rfl⟩ := hpm; simp [MsgWF, nextSt, reqId])
+    (tagValidVal_mono (by simp) (fun i hi _ hτ => ⟨by simp [List.getElem_append_left hi], hτ⟩)
+      (hg.val_valid.1 caller))
+    (Or.inl ⟨rfl, rfl⟩)
+    (fun _ _ _ _ h0 h1 => nomatch h0.symm.trans h1)
+    (fun i hi0 _ _ _ _ hne => False.elim (hne (by simp [List.getElem_append_left hi0])))
+    (fun a ha0 _ hc hne => False.elim (hne (by simpa [List.getElem_append_left ha0] using hc)))
+    ?_ (fun _ _ _ _ _ _ _ h0 h1 => nomatch h0.symm.trans h1)
+  · refine ⟨by simp, by simp [rec'], by simp [rec'], rfl, by simp [rec'],
+      hg.tag_out s.history.length le_rfl, Nat.lt_succ_self _, by simpa using hq_pos, ?_⟩
+    intro j hj hjne hjc
+    dsimp only at hjne
+    have hj_len : j < s.history.length + 1 := by simpa using hj
+    have hjl : j < s.history.length := by omega
+    rw [List.getElem_append_left hjl] at hjc
+    refine (hprec_to_new j).mpr ⟨hjl, ?_⟩
+    cases hst : s.history[j].status with
+    | doneRead _ _ | doneWrite _ => rfl
+    | pending =>
+      have hpnd := (hg.hist_wf j hjl).2.2.2.2 hst
+      rw [hjc, hpend_none] at hpnd; cases hpnd
+  · intro pend rId knd responses bt bv hp_pend hp_ph a τ_a hprec hτ_a
+    simp only [nextSt, Option.some.injEq, ClientPhase.phase1.injEq] at hp_pend hp_ph
+    subst hp_pend; obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hp_ph
+    obtain ⟨hal, hcomp_a⟩ := (hprec_to_new a).mp hprec
+    obtain ⟨Q, hQcard, hQtag⟩ := hg.completed_quorum a hal τ_a hcomp_a hτ_a
+    refine ⟨Q, hQcard, hQtag, fun q _ rTag rVal hmem => ?_, fun _ _ hm => nomatch hm⟩
+    rcases Multiset.mem_add.mp hmem with hold | hnew
+    · exact False.elim (Nat.lt_irrefl _ (hg.msg_wf _ hold).1)
+    · obtain ⟨_, ⟨⟩⟩ := mem_map_tagSender_broadcastAll.mp hnew
 
 /-- Phase-1 quorum transition (`.phase1 → .phase2`): assigns `chosenTag` at `pend.opId`, checks
 write-tag freshness across same-caller writes, and converts `prec_phase1` into `prec_tag` via
@@ -1365,9 +1307,13 @@ private lemma abdGood_phase1_to_phase2 {v₀ : V} {t : ℕ}
     intro i τ hτ
     have hip : i ≠ pend.opId := fun heq => by subst heq; rw [htag_pend] at hτ; cases hτ
     exact (Function.update_of_ne hip _ opTag).trans hτ
-  have htv_pres : ∀ (i : ℕ) (hi : i < s.history.length) τ,
-      opTag i = some τ → s.history[i].kind = s.history[i].kind ∧ opTag' i = some τ :=
-    fun i _ τ hτ => ⟨rfl, htag_pres i τ hτ⟩
+  have heq_pend_of_new : ∀ {i τ}, opTag i = none → opTag' i = some τ →
+      i = pend.opId ∧ τ = chosenTag := by
+    intro i τ h0 h1
+    by_cases hip : i = pend.opId
+    · subst hip; simp only [opTag', Function.update_self, Option.some.injEq] at h1
+      exact ⟨rfl, h1.symm⟩
+    · simp only [opTag', Function.update_of_ne hip, h0] at h1; cases h1
   have hprec_all_a : ∀ (a : ℕ) τ_a, prec s.history a pend.opId → opTag a = some τ_a →
       τ_a ≤ bestTag' := by
     intro a τ_a hprec hτ_a
@@ -1377,25 +1323,40 @@ private lemma abdGood_phase1_to_phase2 {v₀ : V} {t : ℕ}
     obtain ⟨q, hq_inter⟩ := quorum_inter_nonempty h2t hQcard hquorum
     obtain ⟨hqQ, hqR'⟩ := Finset.mem_inter.mp hq_inter
     exact hresp'_le hQmsg hQresp q hqQ hqR'
+  have htv_pres : ∀ (i : ℕ) (hi : i < s.history.length) τ,
+      opTag i = some τ → s.history[i].kind = s.history[i].kind ∧ opTag' i = some τ :=
+    fun i _ τ hτ => ⟨rfl, htag_pres i τ hτ⟩
   have hchosen_valid : TagValidVal v₀ s.history opTag' chosenTag chosenVal := by
     cases kind with
     | read => exact tagValidVal_mono le_rfl htv_pres hbestVal'
     | write _ => exact Or.inr ⟨pend.opId, hi_pend, hk_pend, Function.update_self ..⟩
-  refine ⟨opTag', abdGood_deliver_resp_none hg hout ?_ htag_pres ?_ ?_ ?_ le_rfl
-    (fun _ _ _ _ _ _ _ h => nomatch h) ?_ ?_ ?_ ?_ ?_ hchosen_valid ?_
-    (fun _ _ _ _ _ _ _ h => nomatch h) ?_⟩
-  · intro i hi
-    exact (Function.update_of_ne (by omega) _ opTag).trans (hg.tag_out i hi)
-  · intro a _ τ_a hcomp hτ
-    have hap : a ≠ pend.opId := fun heq => by subst heq; rw [hst_pend] at hcomp; cases hcomp
-    simpa only [opTag', Function.update_of_ne hap] using hτ
-  · exact fun p hp pnd hpnd =>
-      Function.update_of_ne (hg.pending_opId_ne hp hpnd hp_dest) _ opTag
+  refine ⟨opTag', ?_⟩
+  rw [(abdProtocol P V v₀ t).doDeliver_of_resp_eq_none hout]
+  refine abdGood_step (opTag' := opTag') (actor := e.dest) (nextSt := nextSt)
+    (newPend := (s.proc e.dest).pending) (baseMsgs := s.msgs.erase e)
+    (outMsgs := outMsgs) (hist' := s.history)
+    hg le_rfl le_rfl (Nat.le_succ _)
+    (fun _ _ => ⟨rfl, rfl, rfl⟩)
+    (fun i _ hne => ⟨rfl, Function.update_of_ne (by rintro rfl; exact hne hc_pend) _ opTag⟩)
+    (fun _ hj hge => absurd (lt_of_lt_of_le hj hge) (lt_irrefl _)) (fun _ _ _ _ => Iff.rfl)
+    (fun i hi => (Function.update_of_ne (by omega) _ opTag).trans (hg.tag_out i hi))
+    (fun i τ hτ => by
+      by_cases hip : i = pend.opId
+      · exact hip ▸ hi_pend
+      · exact hg.lt_length_of_opTag_some ((Function.update_of_ne hip _ opTag).symm.trans hτ))
+    htag_pres
+    (fun _ _ _ h0 h1 => (heq_pend_of_new h0 h1).1 ▸ hst_pend)
+    (fun _ _ _ h => h) (fun _ _ hne => False.elim (hne rfl))
+    (fun _ => Multiset.mem_of_mem_erase) (by simp [outMsgs, broadcastAll]) ?_ le_rfl
+    (fun _ _ _ _ _ _ _ h => nomatch h) ?_ ?_
+    (tagValidVal_mono le_rfl htv_pres (hg.val_valid.1 e.dest)) hchosen_valid ?_
+    (fun _ _ _ _ _ _ hne => False.elim (hne rfl))
+    (fun _ _ _ hc hne => False.elim (hne hc))
+    (fun _ _ _ _ _ _ _ h => nomatch h) ?_
   · rw [hp_dest]
-    dsimp only [nextSt, ProcSync]
     exact ⟨hi_pend, hc_pend, hk_pend, hpk_pend, hst_pend, Function.update_self .., hreq_lt,
       by simpa using hq_pos, fun _ hm => False.elim (Finset.notMem_empty _ hm), hprev_pend⟩
-  · intro reqId' _ hp1 _ _ _ _ hph'
+  · intro _ _ hp1 _ _ _ _ hph'
     simp only [nextSt, ClientPhase.phase2.injEq] at hph'
     exact False.elim (hp1 kind responses bestTag bestVal (hph'.1 ▸ hph_dest))
   · intro pm hpm
@@ -1405,56 +1366,26 @@ private lemma abdGood_phase1_to_phase2 {v₀ : V} {t : ℕ}
     dsimp only [MsgWF, nextSt]; rw [Function.update_self]
     refine ⟨hreq_lt, hchosen_valid, (fun _ _ _ _ h => nomatch h), fun _ _ _ _ hph => ?_⟩
     injection hph with _ _ hcT hcV _; exact ⟨hcT, hcV⟩
-  · intro _ _ _ _ hm; simp [outMsgs, broadcastAll] at hm
-  · have hfresh_write : ∀ k (hk : k < s.history.length) vk vw,
-        kind = .write vw → k ≠ pend.opId →
-        s.history[k].kind = .write vk → opTag k ≠ some chosenTag := by
-      intro k hk vk vw hkw_kind hkne hkw hτk
-      obtain ⟨seq_k, hτk_eq⟩ := hg.write_unique.1 k hk vk chosenTag hkw hτk
-      have hc_eq : chosenTag = nextWriteTag bestTag'.seq e.dest := by
-        simp [chosenTag, cv, phase2Choice, hkw_kind]
-      have hwriter := congrArg Tag.writer (hτk_eq.symm.trans hc_eq)
-      simp only [nextWriteTag_writer, WithBot.coe_inj] at hwriter
-      have hle := hprec_all_a k chosenTag (hprev_pend k hk hkne hwriter) hτk
-      exact lt_irrefl chosenTag (hc_eq ▸ lt_nextWriteTag_of_seq_le (seq_le_of_le hle) e.dest)
-    refine ⟨fun i hi v τ hk hτ => ?_, fun i j hi hj v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂ => ?_⟩
-    · by_cases hip : i = pend.opId
-      · subst hip
-        simp only [opTag', Function.update_self, Option.some.injEq] at hτ; subst hτ
-        rw [hk_pend] at hk; cases hk
-        exact ⟨bestTag'.seq, hc_pend ▸ rfl⟩
-      · simp only [opTag', Function.update_of_ne hip] at hτ
-        exact hg.write_unique.1 i hi v τ hk hτ
-    · rcases eq_or_ne i pend.opId with rfl | hi_p <;>
-        rcases eq_or_ne j pend.opId with rfl | hj_p
-      · rfl
-      · simp only [opTag', Function.update_self, Function.update_of_ne hj_p,
-          Option.some.injEq] at hτ₁ hτ₂
-        exact False.elim (hfresh_write j hj v₂ v₁ (hk_pend.symm.trans hk₁) hj_p hk₂ (hτ₁ ▸ hτ₂))
-      · simp only [opTag', Function.update_self, Function.update_of_ne hi_p,
-          Option.some.injEq] at hτ₁ hτ₂
-        exact False.elim (hfresh_write i hi v₁ v₂ (hk_pend.symm.trans hk₂) hi_p hk₁ (hτ₂ ▸ hτ₁))
-      · simp only [opTag', Function.update_of_ne hi_p, Function.update_of_ne hj_p] at hτ₁ hτ₂
-        exact hg.write_unique.2 i j hi hj v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂
-  · exact tagValidVal_mono le_rfl htv_pres (hg.val_valid.1 e.dest)
-  · intro i hi stp r τ hst hτ
-    have hip : i ≠ pend.opId := fun heq => by subst heq; rw [hst_pend] at hst; cases hst
-    simp only [opTag', Function.update_of_ne hip] at hτ
-    exact tagValidVal_mono le_rfl htv_pres (hg.val_valid.2.2 i hi stp r τ hst hτ)
-  · intro a b hb τ_a τ_b hpr hτ_a hτ_b
-    have hap : a ≠ pend.opId := fun heq => by
-      subst heq; obtain ⟨_, _, _, hr, _⟩ := hpr; simp [hst_pend, OpStatus.respStep?] at hr
-    simp only [opTag', Function.update_of_ne hap] at hτ_a
-    by_cases hbp : b = pend.opId
-    · subst hbp
-      simp only [opTag', Function.update_self, Option.some.injEq] at hτ_b; subst hτ_b
-      have hle := hprec_all_a a τ_a hpr hτ_a
-      rw [hk_pend]
-      cases kind with
-      | read => exact hle
-      | write _ => exact lt_nextWriteTag_of_seq_le (seq_le_of_le hle) e.dest
-    · simp only [opTag', Function.update_of_ne hbp] at hτ_b
-      exact hg.prec_tag a b hb τ_a τ_b hpr hτ_a hτ_b
+  · intro i _ v τ h0 h1 hk
+    obtain ⟨rfl, rfl⟩ := heq_pend_of_new h0 h1
+    have hkw_kind : kind = .write v := hk_pend.symm.trans hk
+    have hc_eq : chosenTag = nextWriteTag bestTag'.seq e.dest := by
+      simp [chosenTag, cv, phase2Choice, hkw_kind]
+    refine ⟨⟨bestTag'.seq, hc_pend ▸ hc_eq⟩, fun k hk_lt vk hkw hτk => ?_,
+      fun _ _ _ hj0 hj1 => (heq_pend_of_new hj0 hj1).1⟩
+    have hkne : k ≠ pend.opId := fun heq => by subst heq; rw [htag_pend] at hτk; cases hτk
+    obtain ⟨seq_k, hτk_eq⟩ := hg.write_unique.1 k hk_lt vk chosenTag hkw hτk
+    have hwriter := congrArg Tag.writer (hτk_eq.symm.trans hc_eq)
+    simp only [nextWriteTag_writer, WithBot.coe_inj] at hwriter
+    have hle := hprec_all_a k chosenTag (hprev_pend k hk_lt hkne hwriter) hτk
+    exact lt_irrefl chosenTag (hc_eq ▸ lt_nextWriteTag_of_seq_le (seq_le_of_le hle) e.dest)
+  · intro a b _ τ_a τ_b hpr hτ_a hb0 hb1
+    obtain ⟨rfl, rfl⟩ := heq_pend_of_new hb0 hb1
+    have hle := hprec_all_a a τ_a hpr hτ_a
+    rw [hk_pend]
+    cases kind with
+    | read => exact hle
+    | write _ => exact lt_nextWriteTag_of_seq_le (seq_le_of_le hle) e.dest
 
 /-- Helper preserving `ABDGood` when a client receives `.queryResp`. -/
 private lemma abdGood_deliver_queryResp {v₀ : V} {t : ℕ}
@@ -1506,15 +1437,14 @@ private lemma abdGood_deliver_queryResp {v₀ : V} {t : ℕ}
             ⟨nextSt, 0, none⟩ := by
           simp [abdProtocol, hb, abdOnRecv, hph_dest, responses', bestTag', bestVal', hquorum,
             nextSt]
-        have hrep_same := update_proc_repTag_eq s.proc
-          (nextSt := nextSt) (newPend := (s.proc e.dest).pending) rfl
-        refine ⟨opTag, abdGood_deliver_same_opTag hg hout ?_ le_rfl ?_
+        refine ⟨opTag, abdGood_deliver_same_opTag hg nextSt 0 hout
+          (fun _ _ _ _ hm => nomatch hm) ?_ le_rfl ?_
           (fun _ _ _ _ _ _ _ h => nomatch h) (fun _ hm => nomatch hm)
-          (fun _ _ _ _ hm => nomatch hm) (hg.val_valid.1 e.dest) hbestVal' ?_⟩
+          (hg.val_valid.1 e.dest) hbestVal' ?_⟩
         · rw [hp_dest]
           exact ⟨hi_pend, hc_pend, hk_pend, hpk_pend, hst_pend, htag_pend, hreq_lt,
             Nat.lt_of_not_le hquorum, hprev_pend⟩
-        · intro reqId' _ hp1 _ _ _ _ hph'
+        · intro _ _ hp1 _ _ _ _ hph'
           simp only [nextSt, ClientPhase.phase1.injEq] at hph'
           exact hp1 kind responses bestTag bestVal (hph'.1 ▸ hph_dest)
         · intro pnd reqId' knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_a
@@ -1524,8 +1454,7 @@ private lemma abdGood_deliver_queryResp {v₀ : V} {t : ℕ}
           obtain ⟨Q, hQc, hQr, hQm, hQresp⟩ :=
             hg.prec_phase1 e.dest pend rId kind responses bestTag bestVal hp_dest hph_dest
               a τ_a hpr hτ_a
-          refine ⟨Q, hQc, fun q hq => (hrep_same q).symm ▸ hQr q hq,
-            fun q hq rt rv hm => ?_, hresp'_le hQm hQresp⟩
+          refine ⟨Q, hQc, hQr, fun q hq rt rv hm => ?_, hresp'_le hQm hQresp⟩
           simp only [Multiset.map_zero, add_zero] at hm
           exact hQm q hq rt rv (Multiset.mem_of_mem_erase hm)
     · exact ⟨opTag, abdGood_deliver_noop hg (by simp [hb, abdOnRecv, hph_dest, hmatch])⟩
@@ -1560,10 +1489,7 @@ private lemma abdGood_phase2_complete {v₀ : V} {t : ℕ}
     simp [abdProtocol, hb, abdOnRecv, hph_dest, hquorum, outResp, nextSt]
   rw [(abdProtocol P V v₀ t).doDeliver_of_complete hout_step hp_dest hmatch_comp hi_pend]
   set hist' := s.history.set pend.opId { s.history[pend.opId] with status := stDone }
-  set proc' := Function.update s.proc e.dest ⟨nextSt, none⟩
   have hlen_eq : hist'.length = s.history.length := List.length_set
-  have hrep_eq : ∀ q : P, (proc' q).state.repTag = (s.proc q).state.repTag :=
-    update_proc_repTag_eq s.proc rfl
   have hmeta_eq : ∀ (i : ℕ) (hi : i < s.history.length),
       (hist'[i]'(hlen_eq.symm ▸ hi)).caller = s.history[i].caller ∧
       (hist'[i]'(hlen_eq.symm ▸ hi)).kind = s.history[i].kind ∧
@@ -1572,125 +1498,60 @@ private lemma abdGood_phase2_complete {v₀ : V} {t : ℕ}
     by_cases hip : i = pend.opId
     · subst hip; simp [hist']
     · simp [hist', List.getElem_set_ne (Ne.symm hip)]
-  have htv_to_new : ∀ {τ v},
-      TagValidVal v₀ s.history opTag τ v → TagValidVal v₀ hist' opTag τ v :=
-    tagValidVal_mono hlen_eq.symm.le fun i hi _ hτ' => ⟨(hmeta_eq i hi).2.1, hτ'⟩
+  have htv_pres : ∀ (j : ℕ) (hj : j < s.history.length) τ,
+      opTag j = some τ →
+      (hist'[j]'(hlen_eq.symm ▸ hj)).kind = s.history[j].kind ∧ opTag j = some τ :=
+    fun j hj _ hτ' => ⟨(hmeta_eq j hj).2.1, hτ'⟩
   have hstDone_resp : stDone.respStep? = some s.step := by cases kind <;> rfl
   have hprec_eq := abdGood_prec_complete hg hi_pend hst_pend stDone hstDone_resp
-  refine
-    { tag_out := hlen_eq ▸ hg.tag_out
-      hist_wf := fun i hi => by
-        have hi0 : i < s.history.length := hlen_eq ▸ hi
-        by_cases hip : i = pend.opId
-        · subst hip
-          obtain ⟨hinv, _⟩ := hg.hist_wf pend.opId hi0
-          simp only [hist', List.getElem_set_self]
-          refine ⟨Nat.lt_succ_of_lt hinv, fun r hr => ?_, fun r v hr => ?_,
-            fun r hr => ?_, fun hp => ?_⟩
-          · rw [hstDone_resp, Option.some.injEq] at hr; subst hr
-            exact ⟨Nat.le_of_lt hinv, Nat.lt_succ_self _⟩
-          · dsimp only [stDone] at hr
-            cases kind <;> [exact ⟨hk_pend, by simp [htag_pend]⟩; cases hr]
-          · dsimp only [stDone] at hr
-            cases kind with
-            | read => cases hr
-            | write vw => exact ⟨⟨vw, hk_pend⟩, by simp [htag_pend]⟩
-          · dsimp only [stDone] at hp; cases kind <;> cases hp
-        · obtain ⟨h1, h2, h3, h4, h5⟩ := hg.hist_wf i hi0
-          have hget : hist'[i] = s.history[i] := by simp [hist', List.getElem_set_ne (Ne.symm hip)]
-          rw [hget]
-          refine ⟨Nat.lt_succ_of_lt h1,
-            fun r hr => ⟨(h2 r hr).1, Nat.lt_succ_of_lt (h2 r hr).2⟩, h3, h4, fun hp => ?_⟩
-          have hp0 := h5 hp
-          have hne_c : s.history[i].caller ≠ e.dest := fun heq => by
-            rw [heq, hp_dest, Option.some.injEq] at hp0
-            exact hip (congrArg PendingOp.opId hp0).symm
-          simpa [proc', Function.update_of_ne hne_c] using hp0
-      inv_mono := fun i j hij hj => by
-        have hj0 : j < s.history.length := hlen_eq ▸ hj
-        rw [(hmeta_eq i (hij.trans hj0)).2.2, (hmeta_eq j hj0).2.2]
-        exact hg.inv_mono i j hij hj0
-      proc_sync := fun p => by
-        change ProcSync t hist' (proc' p).state.nextReqId
-          (fun q => (proc' q).state.repTag) opTag p (proc' p).pending (proc' p).state.phase
-        by_cases hp : p = e.dest
-        · subst hp; simp [proc', nextSt, ProcSync]
-        · simp only [proc', Function.update_of_ne hp]
-          refine procSync_transport hlen_eq.symm.le le_rfl (fun q => (hrep_eq q).symm.le) ?_
-            (hg.proc_sync p)
-          intro pnd h1 hpp hc
-          have hne_id := hg.pending_opId_ne hp hpp hp_dest
-          refine ⟨(hmeta_eq _ h1).1.trans hc, (hmeta_eq _ h1).2.1,
-            by simp [hist', List.getElem_set_ne (Ne.symm hne_id)], rfl,
-            fun hprev j hj hjne hjc => ?_⟩
-          have hj0 : j < s.history.length := hlen_eq ▸ hj
-          rw [(hmeta_eq j hj0).1] at hjc
-          exact (hprec_eq j _).mpr (hprev j hj0 hjne hjc)
-      msg_wf := fun m hm => by
-        simp only [Multiset.map_zero, add_zero] at hm
-        exact msgWF_transfer_update (actor := e.dest) (nextSt := nextSt) (newPend := none)
-          hlen_eq.symm.le (fun i hi _ hτ => ⟨(hmeta_eq i hi).2.1, hτ⟩) le_rfl le_rfl
-          (fun _ _ _ _ _ _ _ h => nomatch h) (fun _ _ _ _ _ _ _ h => nomatch h)
-          (hg.msg_wf m (Multiset.mem_of_mem_erase hm))
-      write_unique :=
-        ⟨fun i hi v τ hk hτ => by
-          have hi0 : i < s.history.length := hlen_eq ▸ hi
-          rw [(hmeta_eq i hi0).2.1] at hk; rw [(hmeta_eq i hi0).1]
-          exact hg.write_unique.1 i hi0 v τ hk hτ,
-         fun i j hi hj v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂ => by
-          have hi0 : i < s.history.length := hlen_eq ▸ hi
-          have hj0 : j < s.history.length := hlen_eq ▸ hj
-          rw [(hmeta_eq i hi0).2.1] at hk₁; rw [(hmeta_eq j hj0).2.1] at hk₂
-          exact hg.write_unique.2 i j hi0 hj0 v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂⟩
-      val_valid :=
-        ⟨fun q => by
-          have hq := htv_to_new (hg.val_valid.1 q)
-          by_cases hqd : q = e.dest
-          · subst hqd; simpa [proc', nextSt] using hq
-          · simpa [proc', hqd] using hq,
-         fun p => by
-          by_cases hp : p = e.dest
-          · subst hp; simp [proc', nextSt, PhaseValValid]
-          · simp only [proc', Function.update_of_ne hp]
-            exact phaseValValid_mono hlen_eq.symm.le
-              (fun i hi _ hτ' => ⟨(hmeta_eq i hi).2.1, hτ'⟩) (hg.val_valid.2.1 p),
-         fun i hi stp r τ hst hτ => by
-          have hi0 : i < s.history.length := hlen_eq ▸ hi
-          by_cases hip : i = pend.opId
-          · subst hip
-            simp only [hist', List.getElem_set_self] at hst; dsimp only [stDone] at hst
-            cases kind with
-            | write _ => cases hst
-            | read =>
-              injection hst with _ hr_eq; subst hr_eq
-              rw [htag_pend, Option.some.injEq] at hτ; subst hτ
-              exact htv_to_new hchosen_valid
-          · simp only [hist', List.getElem_set_ne (Ne.symm hip)] at hst
-            exact htv_to_new (hg.val_valid.2.2 i hi0 stp r τ hst hτ)⟩
-      completed_quorum := fun a ha τ_a hcomp hτ => by
-        have ha0 : a < s.history.length := hlen_eq ▸ ha
-        by_cases hap : a = pend.opId
-        · subst hap
-          rw [htag_pend, Option.some.injEq] at hτ; subst hτ
-          exact ⟨insert e.src acks, hquorum, fun q hq => (hrep_eq q).symm ▸ hacks'_le q hq⟩
-        · simp only [hist', List.getElem_set_ne (Ne.symm hap)] at hcomp
-          obtain ⟨Q, hQc, hQr⟩ := hg.completed_quorum a ha0 τ_a hcomp hτ
-          exact ⟨Q, hQc, fun q hq => (hrep_eq q).symm ▸ hQr q hq⟩
-      prec_phase1 := fun p pnd reqId' knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_a => by
-        by_cases hp : p = e.dest
-        · subst hp; simp [proc', nextSt] at hp2
-        · simp only [proc', Function.update_of_ne hp] at hp1 hp2
-          rw [hprec_eq] at hpr
-          obtain ⟨Q, hQc, hQr, hQm, hQresp⟩ :=
-            hg.prec_phase1 p pnd reqId' knd resp' bt' bv' hp1 hp2 a τ_a hpr hτ_a
-          refine ⟨Q, hQc, fun q hq => (hrep_eq q).symm ▸ hQr q hq,
-            fun q hq rt rv hm => ?_, hQresp⟩
-          simp only [Multiset.map_zero, add_zero] at hm
-          exact hQm q hq rt rv (Multiset.mem_of_mem_erase hm)
-      prec_tag := fun a b hb τ_a τ_b hpr hτ_a hτ_b => by
-        have hb0 : b < s.history.length := hlen_eq ▸ hb
-        rw [hprec_eq] at hpr; rw [(hmeta_eq b hb0).2.1]
-        exact hg.prec_tag a b hb0 τ_a τ_b hpr hτ_a hτ_b }
+  refine abdGood_step (opTag' := opTag) (actor := e.dest) (nextSt := nextSt)
+    (newPend := none) (baseMsgs := s.msgs.erase e)
+    (outMsgs := 0) (hist' := hist')
+    hg le_rfl hlen_eq.symm.le (hlen_eq ▸ Nat.le_succ _) hmeta_eq
+    (fun i _ hne => ⟨by
+      have hip : pend.opId ≠ i := by rintro rfl; exact hne hc_pend
+      simp [hist', List.getElem_set_ne hip], rfl⟩)
+    (fun _ hj hge => absurd (lt_of_lt_of_le (hlen_eq ▸ hj) hge) (lt_irrefl _))
+    (fun i _ j _ => hprec_eq i j)
+    (hlen_eq ▸ hg.tag_out) (fun _ _ => hg.lt_length_of_opTag_some) (fun _ _ h => h)
+    (fun _ _ _ h0 h1 => nomatch h0.symm.trans h1) ?_ ?_
+    (fun _ => Multiset.mem_of_mem_erase) (fun _ _ _ _ hm => nomatch hm)
+    trivial le_rfl (fun _ _ _ _ _ _ _ h => nomatch h) (fun _ _ _ _ _ _ _ h => nomatch h)
+    (fun _ hm => nomatch hm) (tagValidVal_mono hlen_eq.symm.le htv_pres (hg.val_valid.1 e.dest))
+    trivial (fun _ _ _ _ h0 h1 => nomatch h0.symm.trans h1) ?_ ?_
+    (fun _ _ _ _ _ _ _ h => nomatch h)
+    (fun _ _ _ _ _ _ _ h0 h1 => nomatch h0.symm.trans h1)
+  · intro i _ hpend_i hp0
+    rw [hp_dest, Option.some.injEq] at hp0
+    have hip : pend.opId = i := congrArg PendingOp.opId hp0
+    subst hip
+    simp only [hist', List.getElem_set_self] at hpend_i
+    dsimp only [stDone] at hpend_i
+    cases kind <;> cases hpend_i
+  · intro i _ hne
+    have hip : i = pend.opId := by
+      by_contra hne_i; exact hne (by simp [hist', List.getElem_set_ne (Ne.symm hne_i)])
+    subst hip
+    exact ⟨by simp [htag_pend], some outResp,
+      by simpa [hist', hk_pend, ← hpk_pend] using hmatch_comp⟩
+  · intro i _ stp r τ hst hne hτ
+    have hip : i = pend.opId := by
+      by_contra hne_i; exact hne (by simp [hist', List.getElem_set_ne (Ne.symm hne_i)])
+    subst hip
+    simp only [hist', List.getElem_set_self] at hst; dsimp only [stDone] at hst
+    cases kind with
+    | write _ => cases hst
+    | read =>
+      injection hst with _ hr_eq; subst hr_eq
+      rw [htag_pend, Option.some.injEq] at hτ; subst hτ
+      exact tagValidVal_mono hlen_eq.symm.le htv_pres hchosen_valid
+  · intro a _ τ_a hcomp hne hτ
+    have hap : a = pend.opId := by
+      by_contra hne_a
+      exact hne (by simpa [hist', List.getElem_set_ne (Ne.symm hne_a)] using hcomp)
+    subst hap
+    rw [htag_pend, Option.some.injEq] at hτ; subst hτ
+    exact ⟨insert e.src acks, hquorum, hacks'_le⟩
 
 /-- Helper preserving `ABDGood` when a client receives `.ack`. -/
 private lemma abdGood_deliver_ack {v₀ : V} {t : ℕ}
@@ -1720,24 +1581,23 @@ private lemma abdGood_deliver_ack {v₀ : V} {t : ℕ}
         have hv := hg.val_valid.2.1 e.dest; rwa [hph_dest] at hv
       by_cases hquorum : Fintype.card P - t ≤ acks'.card
       · exact abdGood_phase2_complete hg hb hp_dest hph_dest hquorum hacks'_le hchosen_valid
-      · refine abdGood_deliver_same_opTag
-          (nextSt := { (s.proc e.dest).state with
-            phase := .phase2 rId kind chosenTag chosenVal acks' })
-          (outMsgs := 0) hg
-          (by simp [abdProtocol, hb, abdOnRecv, hph_dest, acks', hquorum]) ?_ le_rfl
+      · let nextSt : ABDState P V :=
+          { (s.proc e.dest).state with phase := .phase2 rId kind chosenTag chosenVal acks' }
+        have hout : (abdProtocol P V v₀ t).onRecv e.dest (s.proc e.dest).state e.src e.body =
+            ⟨nextSt, 0, none⟩ := by
+          simp [abdProtocol, hb, abdOnRecv, hph_dest, acks', hquorum, nextSt]
+        refine abdGood_deliver_same_opTag hg nextSt 0 hout
+          (fun _ _ _ _ hm => nomatch hm) ?_ le_rfl
           (fun _ _ _ _ _ _ _ h => nomatch h) ?_ (fun _ hm => nomatch hm)
-          (fun _ _ _ _ hm => nomatch hm) (hg.val_valid.1 e.dest) hchosen_valid
-          (fun _ _ _ _ _ _ _ h => nomatch h)
+          (hg.val_valid.1 e.dest) hchosen_valid (fun _ _ _ _ _ _ _ h => nomatch h)
         · rw [hp_dest]
           exact ⟨hi_pend, hc_pend, hk_pend, hpk_pend, hst_pend, htag_pend, hreq_lt,
             Nat.lt_of_not_le hquorum,
-            fun q hq => by
-              by_cases hqd : q = e.dest
-              · subst hqd; simpa using hacks'_le e.dest hq
-              · simp only [Function.update_of_ne hqd]; exact hacks'_le q hq,
+            fun q hq => (hacks'_le q hq).trans
+              (update_proc_repTag_le s.proc (nextSt := nextSt) (newPend := some pend) le_rfl q),
             hprev_pend⟩
         · intro _ _ _ _ _ _ _ hph'
-          simp only [ClientPhase.phase2.injEq] at hph'
+          simp only [nextSt, ClientPhase.phase2.injEq] at hph'
           obtain ⟨rfl, rfl, rfl, rfl, _⟩ := hph'
           exact ⟨acks, hph_dest⟩
     · exact abdGood_deliver_noop hg (by simp [hb, abdOnRecv, hph_dest, hmatch])
@@ -2192,10 +2052,8 @@ private lemma abd_phase1_eventually_phase2 {t : ℕ} (h2t : 2 * t < Fintype.card
       · simp [p1Set, heq, Protocol.doDeliver, abdProtocol, abdOnRecv, hph, hq_card]
   let d₂ := Nat.find hex_gt
   have hd₂_not : ¬ IsP1 (k₁ + d₂) := Nat.find_spec hex_gt
-  have hd₂_pos : 0 < d₂ := by
-    by_contra h0
-    have hd0 : d₂ = 0 := by omega
-    exact hd₂_not (hd0 ▸ ⟨∅, initTag P, v₀, hinit_ph⟩)
+  have hd₂_pos : 0 < d₂ :=
+    Nat.pos_of_ne_zero fun hd0 => hd₂_not (hd0 ▸ ⟨∅, initTag P, v₀, hinit_ph⟩)
   have hd₂_prev : IsP1 (k₁ + (d₂ - 1)) := by
     by_contra hnot; exact Nat.find_min hex_gt (by omega) hnot
   have hk₂_eq : k₁ + (d₂ - 1) + 1 = k₁ + d₂ := by omega
@@ -2293,8 +2151,7 @@ theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
       ∃ hlt : pend.opId < (ss k).history.length,
         (ss k).history[pend.opId].status = .pending := by
     intro k p pend hp
-    obtain ⟨_, hg⟩ := hgood k
-    obtain ⟨hlt, _, _, hst⟩ := hg.pending_info hp
+    obtain ⟨hlt, _, _, hst⟩ := (hgood k).choose_spec.pending_info hp
     exact ⟨hlt, hst⟩
   by_cases hdone₀ : (ss k₀).history[i].status.isCompleted = true
   · exact ⟨k₀, hi₀, le_rfl, hdone₀⟩
@@ -2324,9 +2181,7 @@ theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
   have hex_lt : ∃ k, i < (ss k).history.length := ⟨k₀, hi₀⟩
   let k₁ := Nat.find hex_lt
   have hk₁_lt : i < (ss k₁).history.length := Nat.find_spec hex_lt
-  have hk₁_pos : 0 < k₁ := by
-    by_contra h0
-    have hk0 : k₁ = 0 := by omega
+  have hk₁_pos : 0 < k₁ := Nat.pos_of_ne_zero fun hk0 => by
     rw [hk0, hstart] at hk₁_lt; simp [Protocol.start] at hk₁_lt
   let k_inv := k₁ - 1
   have hk_succ : k_inv + 1 = k₁ := by omega

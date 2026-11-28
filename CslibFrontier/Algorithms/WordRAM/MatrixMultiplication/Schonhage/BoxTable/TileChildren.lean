@@ -60,27 +60,23 @@ theorem exec_childLoop {w D V c e T p R C : ℕ} (x : Data registers)
   let P (j : ℕ) (y : Data registers) : Prop :=
     y.regs Reg.accumulator = Signed.encode (∑ d ∈ Finset.range j, b d) ∧
       y.mem = x.mem ∧ (∀ i, ¬ChildLocal i → y.regs i = x.regs i)
-  have hi : P (x.regs Reg.term) x := by
-    refine ⟨?_, rfl, fun _ _ => rfl⟩
-    simp [hd, hacc, Signed.encode]
+  have hi : P (x.regs Reg.term) x := ⟨by simp [hd, hacc, Signed.encode], rfl, fun _ _ => rfl⟩
   have hb (y : Data registers) (hy : P (y.regs Reg.term) y) (hlt : y.regs Reg.term < 10) :
       ∃ z, ExecWithin (w + 2) addChild y z 29 ∧ P (y.regs Reg.term + 1) z ∧
         z.regs Reg.term = y.regs Reg.term + 1 := by
     obtain ⟨hsumy, hmem, hregs⟩ := hy
-    have hchildmag : (b (y.regs Reg.term)).natAbs ≤ 10 * C :=
-      (hmag _ hlt).trans (by omega)
-    have hchildrank := hrange _ hlt
+    have := hrange _ hlt
     obtain ⟨z, hz, hza, hzd, hzm, hzf⟩ := exec_addChild
-      (hsigned.of_natAbs_le (hsum _ hlt.le)) (hsigned.of_natAbs_le hchildmag) y
+      (hsigned.of_natAbs_le (hsum _ hlt.le))
+      (hsigned.of_natAbs_le ((hmag _ hlt).trans (by omega))) y
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       (by regs_frame) hTpos (by regs_frame)
       rfl hsumy (by regs_frame) (by regs_frame)
       (by simpa only [hmem] using hrank _ hlt)
       (by simpa only [hmem] using hvalue _ hlt)
       (hfit.of_le (by omega))
-    refine ⟨z, hz, ⟨?_, hzm.trans hmem,
+    exact ⟨z, hz, ⟨by simpa only [Finset.sum_range_succ] using hza, hzm.trans hmem,
       fun i hi => (hzf i hi).trans (hregs i hi)⟩, hzd⟩
-    simpa only [Finset.sum_range_succ] using hza
   obtain ⟨y, hy, ⟨hya, hym, hyf⟩, hdone⟩ := ExecWithin.loop_count P
     (fun _ ⟨_, _, hf⟩ => (hf _ (by decide)).trans h10) hb (by simp [hd]) hi
   exact ⟨y, by simpa only [hd] using hy, hdone, hya, hym, hyf⟩

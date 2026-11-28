@@ -85,11 +85,8 @@ def graph : Digraph (Fin N) where
 /-- With children below their parents, the dependency graph is acyclic. -/
 theorem wellFounded_graph (hchild : ∀ i, 0 < i → ∀ a, child i a < i) :
     WellFounded (graph (N := N) child).Adj :=
-  Subrelation.wf (r := InvImage (· < ·) fun v : Fin N => (v : ℕ)) (fun {u v} h => by
-      obtain ⟨hv, a, ha⟩ := h
-      change (u : ℕ) < v
-      rw [← ha]
-      exact hchild _ hv a)
+  Subrelation.wf (r := InvImage (· < ·) Fin.val)
+    (fun {u _} ⟨hv, a, ha⟩ => show (u : ℕ) < _ from ha ▸ hchild _ hv a)
     (InvImage.wf _ wellFounded_lt)
 
 /-- Every index has at most `d` predecessors. -/
@@ -98,9 +95,8 @@ theorem ncard_graph_adj_le (v : Fin N) : {u | (graph child).Adj u v}.ncard ≤ d
   refine (Set.ncard_le_ncard ?_ (Set.finite_range (child v))).trans ?_
   · rintro _ ⟨u, ⟨-, a, ha⟩, rfl⟩
     exact ⟨a, ha⟩
-  · rw [← Set.image_univ]
-    refine (Set.ncard_image_le (Set.toFinite _)).trans ?_
-    rw [Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]
+  · simpa [← Set.image_univ] using
+      Set.ncard_image_le (f := child v) (s := Set.univ) (Set.toFinite _)
 
 /-! ### Readiness on words -/
 
@@ -116,14 +112,11 @@ theorem ready_indicatorList (hchild : ∀ i, 0 < i → i < N → ∀ a, child i 
     ready child (indicatorList C) i = true ↔ ∀ u, (graph child).Adj u i → u ∈ C := by
   simp only [ready, Bool.or_eq_true, beq_iff_eq, List.all_eq_true, List.mem_finRange, true_implies,
     graph_adj]
-  constructor
+  refine ⟨?_, fun h => ?_⟩
   · rintro (h0 | h) u ⟨hi, a, ha⟩
     · omega
-    · have hget := getD_indicatorList C u
-      rw [← ha, h a] at hget
-      exact of_decide_eq_true hget.symm
-  · intro h
-    by_cases h0 : (i : ℕ) = 0
+    · exact of_decide_eq_true (by rw [← getD_indicatorList C u, ← ha, h a])
+  · by_cases h0 : (i : ℕ) = 0
     · exact Or.inl h0
     · refine Or.inr fun a => ?_
       have hlt := hchild i (Nat.pos_of_ne_zero h0) i.isLt a
@@ -148,15 +141,10 @@ theorem reach_wordStep_ready_iff_blackPebblable
 /-- Flipping bit `i` makes `i` the first difference. -/
 theorem diffIndex_set {u : List Bool} {i : ℕ} (hi : i < u.length) {b : Bool}
     (hb : u.getD i false ≠ b) : diffIndex u (u.set i b) = i := by
-  have hfind : (List.range u.length).find?
-      (fun j => u.getD j false != (u.set i b).getD j false) = some i := by
-    rw [List.find?_range_eq_some]
-    refine ⟨?_, List.mem_range.2 hi, fun j hj => ?_⟩
-    · simpa [List.getD_eq_getElem?_getD, List.getElem?_set_self hi] using hb
-    · have hne : i ≠ j := by omega
-      simp [List.getD_eq_getElem?_getD, List.getElem?_set_ne hne]
-  unfold diffIndex
-  rw [hfind, Option.getD_some]
+  rw [diffIndex, List.find?_range_eq_some.2 ⟨?_, List.mem_range.2 hi, fun j hj => ?_⟩,
+    Option.getD_some]
+  · simpa [List.getD_eq_getElem?_getD, List.getElem?_set_self hi] using hb
+  · simp [List.getD_eq_getElem?_getD, List.getElem?_set_ne (by omega : i ≠ j)]
 
 variable {U : Type*}
 
@@ -183,44 +171,28 @@ variable {C : Finset (Fin N)} {t : List (ℕ × U)}
 theorem length_eq (h : Holds value C t) : t.length = C.card := by
   rw [← List.length_map Prod.fst, ← List.toFinset_card_of_nodup h.nodup,
     ← Finset.card_map Fin.valEmbedding]
-  congr 1
-  ext i
-  simp only [List.mem_toFinset, h.mem_keys, Finset.mem_map, Fin.valEmbedding_apply]
+  exact congrArg Finset.card <| Finset.ext fun i => by simp [h.mem_keys]
 
 /-- Placing a pebble on `v` stores its value. -/
 theorem insert (h : Holds value C t) {v : Fin N} (hv : v ∉ C) :
     Holds value (insert v C) (((v : ℕ), value v) :: t) where
-  nodup := by
-    refine List.nodup_cons.2 ⟨fun hmem => hv ?_, h.nodup⟩
-    obtain ⟨w, hw, hwv⟩ := (h.mem_keys v).1 hmem
-    exact Fin.ext hwv ▸ hw
-  mem_keys i := by
-    simp only [List.map_cons, List.mem_cons, h.mem_keys, Finset.mem_insert]
-    constructor
-    · rintro (rfl | ⟨w, hw, rfl⟩)
-      · exact ⟨v, Or.inl rfl, rfl⟩
-      · exact ⟨w, Or.inr hw, rfl⟩
-    · rintro ⟨w, rfl | hw, rfl⟩
-      · exact Or.inl rfl
-      · exact Or.inr ⟨w, hw, rfl⟩
-  value_eq p hp := by
-    rcases List.mem_cons.1 hp with rfl | hp
-    · rfl
-    · exact h.value_eq p hp
+  nodup := List.nodup_cons.2 ⟨fun hmem =>
+    let ⟨w, hw, hwv⟩ := (h.mem_keys v).1 hmem
+    hv (Fin.ext hwv ▸ hw), h.nodup⟩
+  mem_keys i := by simp [h.mem_keys, or_and_right, exists_or, eq_comm]
+  value_eq p hp := (List.mem_cons.1 hp).elim (· ▸ rfl) (h.value_eq p)
 
 /-- Removing the pebble on `v` drops its entry. -/
 theorem erase (h : Holds value C t) (v : Fin N) :
     Holds value (C.erase v) (t.filter fun p => p.1 != v) where
   nodup := h.nodup.sublist (List.filter_sublist.map _)
   mem_keys i := by
-    simp only [List.mem_map, List.mem_filter, bne_iff_ne, ne_eq, Finset.mem_erase]
-    constructor
-    · rintro ⟨p, ⟨hp, hpv⟩, rfl⟩
-      obtain ⟨w, hw, hwp⟩ := (h.mem_keys p.1).1 (List.mem_map_of_mem hp)
-      exact ⟨w, ⟨fun hwv => hpv (by rw [← hwp, hwv]), hw⟩, hwp⟩
-    · rintro ⟨w, ⟨hwv, hw⟩, rfl⟩
-      obtain ⟨p, hp, hpw⟩ := List.mem_map.1 ((h.mem_keys w).2 ⟨w, hw, rfl⟩)
-      exact ⟨p, ⟨hp, fun hpv => hwv (Fin.ext (by rw [← hpw, hpv]))⟩, hpw⟩
+    simp only [List.mem_map, List.mem_filter, bne_iff_ne, ne_eq, Finset.mem_erase, Fin.ext_iff]
+    refine ⟨fun ⟨p, ⟨hp, hpv⟩, hpi⟩ => ?_, fun ⟨w, ⟨hwv, hw⟩, hwi⟩ => ?_⟩
+    · obtain ⟨w, hw, hwp⟩ := (h.mem_keys p.1).1 (List.mem_map_of_mem hp)
+      exact ⟨w, ⟨hwp.symm ▸ hpv, hw⟩, hwp.trans hpi⟩
+    · obtain ⟨p, hp, hpw⟩ := List.mem_map.1 ((h.mem_keys w).2 ⟨w, hw, rfl⟩)
+      exact ⟨p, ⟨hp, hpw.symm ▸ hwv⟩, hpw.trans hwi⟩
   value_eq p hp := h.value_eq p (List.mem_of_mem_filter hp)
 
 end Holds
@@ -233,7 +205,7 @@ theorem Holds.lookup_eq {C : Finset (Fin N)} {t : List (ℕ × U)} (h : Holds va
   | none =>
     exact absurd (List.lookup_eq_none_iff.1 hlookup p hp) (by simp [hpv])
   | some x =>
-    obtain ⟨l₁, l₂, rfl, -⟩ := List.lookup_eq_some_iff.1 hlookup
+    obtain ⟨_, _, rfl, -⟩ := List.lookup_eq_some_iff.1 hlookup
     exact congrArg some (h.value_eq ((v : ℕ), x) (by simp))
 
 /-! ### The table -/
@@ -262,10 +234,7 @@ theorem length_tableStep_le {s : ℕ} {u v : List Bool} {t : List (ℕ × U)} (h
     (tableStep child gates source s u v t).length ≤ s := by
   unfold tableStep
   split_ifs with h₁ h₂ h₃
-  · exact ht
-  · exact (List.length_filter_le _ _).trans ht
-  · simpa using h₃
-  · exact ht
+  exacts [ht, (List.length_filter_le _ _).trans ht, by simpa using h₃, ht]
 
 /-- **One move preserves the invariant.** If the table holds the values of `C`, and `D` is `C` or
 one legal move with at most `s` pebbles away, then after one step from the word of `C` to the word
@@ -276,46 +245,38 @@ theorem holds_tableStep (hchild : ∀ i, 0 < i → ∀ a, child i a < i)
     {s : ℕ} {C D : Finset (Fin N)} {t : List (ℕ × U)} (h : Holds value C t)
     (hmove : C = D ∨ (blackPebbleGame (graph child) s).UnlabelledTr C D) :
     Holds value D (tableStep child gates source s (indicatorList C) (indicatorList D) t) := by
-  rcases hmove with rfl | ⟨m, hstep, hcard⟩
-  · rwa [tableStep, ite_eq_left rfl]
   by_cases hCD : C = D
-  · subst hCD
-    rwa [tableStep, ite_eq_left rfl]
+  · rwa [← hCD, tableStep, ite_eq_left rfl]
+  obtain ⟨_, hstep, hcard⟩ := hmove.resolve_left hCD
   have hne : indicatorList C ≠ indicatorList D := fun e => hCD (indicatorList_injective e)
   cases hstep with
   | @place v hv =>
     have hvC : v ∉ C := fun hm => hCD (Finset.insert_eq_of_mem hm).symm
     have hbit : (indicatorList C).getD v false = false := by
       rw [getD_indicatorList, decide_eq_false hvC]
-    have hdiff : diffIndex (indicatorList C) (indicatorList (insert v C)) = v := by
-      rw [indicatorList_insert]
-      exact diffIndex_set (by simp) (by rw [hbit]; decide)
+    have hdiff : diffIndex (indicatorList C) (indicatorList (insert v C)) = v :=
+      indicatorList_insert C v ▸ diffIndex_set (by simp) (ne_of_eq_of_ne hbit Bool.false_ne_true)
     have hlen : t.length < s := by
-      rw [h.length_eq]
-      rw [Finset.card_insert_of_notMem hvC] at hcard
+      have := Finset.card_insert_of_notMem hvC
+      have := h.length_eq
       omega
     have hentry : entry child gates source t v = value v := by
       unfold entry
       split_ifs with h0
       · rw [h0, hzero]
       · rw [hsucc v (Nat.pos_of_ne_zero h0) v.isLt]
-        congr 1
-        funext a
-        have hlt : child v a < N := (hchild v (Nat.pos_of_ne_zero h0) a).trans v.isLt
-        rw [h.lookup_eq (v := ⟨child v a, hlt⟩) (hv _ ⟨Nat.pos_of_ne_zero h0, a, rfl⟩),
-          Option.getD_some]
-    rw [tableStep, ite_eq_right hne, hdiff, hbit, ite_eq_right Bool.false_ne_true, ite_eq_left hlen,
-      hentry]
-    exact h.insert hvC
+        refine congrArg (gates v) (funext fun a => ?_)
+        rw [h.lookup_eq (v := ⟨child v a, (hchild v (Nat.pos_of_ne_zero h0) a).trans v.isLt⟩)
+          (hv _ ⟨Nat.pos_of_ne_zero h0, a, rfl⟩), Option.getD_some]
+    simpa only [tableStep, ite_eq_right hne, hdiff, hbit, ite_eq_right Bool.false_ne_true,
+      ite_eq_left hlen, hentry] using h.insert hvC
   | @remove v =>
-    have hvC : v ∈ C := by
-      by_contra hm
-      exact hCD (Finset.erase_eq_of_notMem hm).symm
+    have hvC : v ∈ C := by_contra fun hm => hCD (Finset.erase_eq_of_notMem hm).symm
     have hbit : (indicatorList C).getD v false = true := by
       rw [getD_indicatorList, decide_eq_true hvC]
-    have hdiff : diffIndex (indicatorList C) (indicatorList (C.erase v)) = v := by
-      rw [indicatorList_erase]
-      exact diffIndex_set (by simp) (by rw [hbit]; decide)
+    have hdiff : diffIndex (indicatorList C) (indicatorList (C.erase v)) = v :=
+      indicatorList_erase C v ▸
+        diffIndex_set (by simp) (ne_of_eq_of_ne hbit Bool.false_ne_true.symm)
     rw [tableStep, ite_eq_right hne, hdiff, hbit, ite_eq_left rfl]
     exact h.erase v
 
@@ -329,17 +290,13 @@ theorem holds_tableStep_of_wordStep (hchild : ∀ i, 0 < i → ∀ a, child i a 
     (huv : u = v ∨ wordStep (ready child) s u v = true) {t : List (ℕ × U)}
     (h : Holds value (supportOfList N u) t) :
     Holds value (supportOfList N v) (tableStep child gates source s u v t) := by
-  have hlt : ∀ i, 0 < i → i < N → ∀ a, child i a < N := fun i hi hiN a =>
-    (hchild i hi a).trans hiN
-  obtain ⟨C, rfl⟩ : ∃ C : Finset (Fin N), indicatorList C = u :=
-    ⟨_, indicatorList_supportOfList hu⟩
-  obtain ⟨D, rfl⟩ : ∃ D : Finset (Fin N), indicatorList D = v :=
-    ⟨_, indicatorList_supportOfList hv⟩
+  obtain ⟨C, rfl⟩ : ∃ C : Finset (Fin N), indicatorList C = u := ⟨_, indicatorList_supportOfList hu⟩
+  obtain ⟨D, rfl⟩ : ∃ D : Finset (Fin N), indicatorList D = v := ⟨_, indicatorList_supportOfList hv⟩
   rw [supportOfList_indicatorList] at h ⊢
-  refine holds_tableStep child gates source hchild hzero hsucc h ?_
-  rcases huv with huv | huv
-  · exact Or.inl (indicatorList_injective huv)
-  · exact Or.inr ((wordStep_indicatorList_iff (ready_indicatorList child hlt)).1 huv).2
+  exact holds_tableStep child gates source hchild hzero hsucc h <|
+    huv.imp (fun e => indicatorList_injective e) fun h' =>
+      ((wordStep_indicatorList_iff (ready_indicatorList child
+        fun i hi hiN a => (hchild i hi a).trans hiN)).1 h').2
 
 /-- **The evaluator is correct.** Along a walk `ws` of words of length `N` from the zero word in
 which consecutive words are equal or one word move apart, tables built by `tableStep` from the
@@ -355,18 +312,13 @@ theorem lookup_eq_of_tableStep (hchild : ∀ i, 0 < i → ∀ a, child i a < i)
     (hts : ∀ j < n, ts (j + 1) = tableStep child gates source s (ws j) (ws (j + 1)) (ts j))
     {v : Fin N} (hend : ws n = indicatorList {v}) :
     (ts n).lookup (v : ℕ) = some (value v) := by
-  have key : ∀ j ≤ n, Holds value (supportOfList N (ws j)) (ts j) := by
-    intro j hj
-    induction j with
-    | zero =>
-      rw [hws0, hts0, ← indicatorList_empty, supportOfList_indicatorList]
-      exact holds_nil
-    | succ j ih =>
-      rw [hts j hj]
-      exact holds_tableStep_of_wordStep child gates source hchild hzero hsucc (hlen j (by omega))
-        (hlen (j + 1) hj) (hstep j hj) (ih (by omega))
-  have h := key n le_rfl
-  rw [hend, supportOfList_indicatorList] at h
-  exact h.lookup_eq (Finset.mem_singleton_self v)
+  suffices ∀ j ≤ n, Holds value (supportOfList N (ws j)) (ts j) from
+    (supportOfList_indicatorList {v} ▸ hend ▸ this n le_rfl).lookup_eq (Finset.mem_singleton_self v)
+  intro j hj
+  induction j with
+  | zero => simpa [hws0, hts0, ← indicatorList_empty] using holds_nil
+  | succ j ih =>
+    exact hts j hj ▸ holds_tableStep_of_wordStep child gates source hchild hzero hsucc
+      (hlen j (by omega)) (hlen (j + 1) hj) (hstep j hj) (ih (by omega))
 
 end Cslib.Pebbling.Descending

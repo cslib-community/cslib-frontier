@@ -61,14 +61,7 @@ private theorem conditionalEntropy_le_add {Ω G : Type*} [Finite C] [Finite α] 
       conditionalEntropy (ν.map fun ω => (c ω, g ω)) +
         conditionalEntropy (ν.map fun ω => ((c ω, g ω), x ω)) := by
   have h1 := entropy_map_le (ν.map fun ω => ((c ω, g ω), x ω)) fun t => (t.1.1, t.2)
-  simp only [conditionalEntropy, PMF.map_comp] at h1 ⊢
-  have e1 : ((fun t : (C × G) × α => (t.1.1, t.2)) ∘ fun ω => ((c ω, g ω), x ω)) =
-      fun ω => (c ω, x ω) := rfl
-  have e2 : (Prod.fst ∘ fun ω => (c ω, x ω)) = c := rfl
-  have e3 : (Prod.fst ∘ fun ω => (c ω, g ω)) = c := rfl
-  have e4 : (Prod.fst ∘ fun ω => ((c ω, g ω), x ω)) = fun ω => (c ω, g ω) := rfl
-  rw [e1] at h1
-  rw [e2, e3, e4]
+  simp only [conditionalEntropy, PMF.map_comp, Function.comp_def] at h1 ⊢
   linarith
 
 /-- **Size lower bound for garbled material.** Let `c : Ω → C` be an observation, `x : Ω → α` a

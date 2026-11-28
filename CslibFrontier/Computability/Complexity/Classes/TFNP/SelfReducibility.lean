@@ -140,11 +140,10 @@ theorem exists_mem_FNP_not_selfReducible (D : Decoder enc)
     (hne : P enc ≠ NP enc ∩ coNP enc) :
     ∃ R ∈ FNP enc, IsTotalSearch R ∧ R ∉ FPSearch enc ∧ ¬SearchSelfReducible enc R := by
   obtain ⟨R, ⟨hR, htot⟩, hRP⟩ := Set.not_subset.mp fun h : TFNP enc ⊆ FPSearch enc =>
-    hne ((Set.subset_inter (fun _ h => P_subset_NP h) fun _ h => P_subset_coNP h).antisymm
+    hne ((Set.subset_inter P_subset_NP P_subset_coNP).antisymm
       (NP_inter_coNP_subset_P_of_TFNP_subset_FPSearch h))
-  refine ⟨R, hR, htot, hRP, fun h => hRP (h.mem_FPSearch hR ?_)⟩
-  rw [isTotalSearch_iff_searchDomain_eq_univ.mp htot]
-  exact mem_P_image D univ_mem_P
+  exact ⟨R, hR, htot, hRP, fun h => hRP (h.mem_FPSearch hR
+    (isTotalSearch_iff_searchDomain_eq_univ.mp htot ▸ mem_P_image D univ_mem_P))⟩
 
 /-! ### Exercises 2.16 and 2.17: non-trivial divisors -/
 
@@ -163,12 +162,11 @@ divide `N`. -/
 theorem searchDomain_divisorSearch : searchDomain divisorSearch = {N | 1 < N ∧ ¬N.Prime} := by
   ext N
   simp only [mem_searchDomain, divisorSearch, Set.mem_ofPred_eq]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨_, Q, rfl, hQ, hQN, hdvd⟩
-    exact ⟨hQ.trans hQN, fun hp => ((hp.eq_one_or_self_of_dvd Q hdvd).elim
-      (fun h => by omega) fun h => by omega)⟩
-  · rintro ⟨hN, hp⟩
-    obtain ⟨Q, hdvd, hQ, hQN⟩ := (Nat.not_prime_iff_exists_dvd_lt (by omega)).mp hp
+    exact ⟨hQ.trans hQN, fun hp => (hp.eq_one_or_self_of_dvd Q hdvd).elim (by omega) (by omega)⟩
+  · rintro ⟨_, hp⟩
+    obtain ⟨Q, hdvd, _, hQN⟩ := (Nat.not_prime_iff_exists_dvd_lt (by omega)).mp hp
     exact ⟨_, Q, rfl, by omega, hQN, hdvd⟩
 
 /-- The composite numbers are the domain of `compositeSearch` too. -/
@@ -179,7 +177,7 @@ theorem searchDomain_compositeSearch : searchDomain compositeSearch = {N | 1 < N
 theorem setOf_composite_mem_P : {N : ℕ | 1 < N ∧ ¬N.Prime} ∈ P encNat := by
   obtain ⟨f, hf, hfp⟩ := mem_P.mp primes_mem_P
   refine mem_P.mpr ⟨fun N => decide (1 < N) && !f N, by fun_prop, fun N => ?_⟩
-  have h : N.Prime ↔ f N = true := hfp N
+  have := hfp N
   cases hfN : f N <;> simp_all
 
 private theorem length_encNat_le_of_lt {Q N : ℕ} (h : Q < N) :
@@ -191,17 +189,14 @@ re-encoding it, and comparing it and its greatest common divisor with `N`. -/
 theorem divisorSearch_mem_FNP : divisorSearch ∈ FNP encNat := by
   have hre : ComputableInPolyTime (fun x : ℕ × List Bool => encNat (ofBits x.2))
       (encPair encNat encBits) encBits := (bitsToNat.comp (snd encNat encBits)).encoding_comp
-  refine mem_FNP.mpr ⟨⟨.X, fun N w ⟨Q, hw, _, hQN, _⟩ => ?_⟩,
+  refine mem_FNP.mpr ⟨⟨.X, fun N w ⟨Q, hw, _, hQN, _⟩ => by
+      simpa [← hw] using length_encNat_le_of_lt hQN⟩,
     fun x => decide (encNat (ofBits x.2) = x.2) && decide (1 < ofBits x.2) &&
       decide (ofBits x.2 < x.1) && decide (Nat.gcd (ofBits x.2) x.1 = ofBits x.2),
     by fun_prop, fun N w => ?_⟩
-  · simpa [← hw] using length_encNat_le_of_lt hQN
-  · simp only [divisorSearch, Bool.and_eq_true, decide_eq_true_eq]
-    constructor
-    · rintro ⟨Q, rfl, hQ, hQN, hdvd⟩
-      simp [hQ, hQN, Nat.gcd_eq_left hdvd]
-    · rintro ⟨⟨⟨hre, hQ⟩, hQN⟩, hgcd⟩
-      exact ⟨_, hre, hQ, hQN, hgcd ▸ Nat.gcd_dvd_right _ _⟩
+  simp only [divisorSearch, Bool.and_eq_true, decide_eq_true_eq]
+  exact ⟨fun ⟨Q, hw, hQ, hQN, hdvd⟩ => by simp [← hw, hQ, hQN, Nat.gcd_eq_left hdvd],
+    fun ⟨⟨⟨hre, hQ⟩, hQN⟩, hgcd⟩ => ⟨_, hre, hQ, hQN, hgcd ▸ Nat.gcd_dvd_right _ _⟩⟩
 
 /-- `compositeSearch` is in `FPSearch`: test compositeness, and return `N`. -/
 theorem compositeSearch_mem_FPSearch : compositeSearch ∈ FPSearch encNat := by
@@ -214,7 +209,7 @@ theorem compositeSearch_mem_FPSearch : compositeSearch ∈ FPSearch encNat := by
     fun N => if c N then some (encNat N) else none, by fun_prop, fun N => ?_⟩
   by_cases hN : c N = true
   · simp only [hN, ite_true, Option.some.injEq]
-    exact ⟨fun w hw => ⟨hw.symm, (hcS N).2 hN⟩, fun h => (Option.some_ne_none _ h).elim⟩
+    exact ⟨fun w hw => ⟨hw.symm, (hcS N).2 hN⟩, fun h => by cases h⟩
   · simp only [hN, Bool.false_eq_true, ite_false, reduceCtorEq, false_imp_iff, implies_true,
       true_and]
     exact fun _ ⟨_, _, h⟩ => hN ((hcS N).1 h)
@@ -229,11 +224,8 @@ theorem divisorSearch_mem_FPSearch_iff : divisorSearch ∈ FPSearch encNat ↔
   constructor
   · rintro ⟨-, s, hs, hsolve⟩
     refine ⟨fun N => ofBits ((s N).getD []), by fun_prop, fun N hN hp => ?_⟩
-    have hdom : N ∈ searchDomain divisorSearch := by
-      rw [searchDomain_divisorSearch]
-      exact ⟨hN, hp⟩
     cases hsN : s N with
-    | none => exact (hsolve.notMem hsN hdom).elim
+    | none => exact (hsolve.notMem hsN (searchDomain_divisorSearch ▸ ⟨hN, hp⟩)).elim
     | some w =>
       obtain ⟨Q, rfl, hQ⟩ := hsolve.rel hsN
       simpa only [hsN, Option.getD_some, ofBits_encNat] using hQ
@@ -244,14 +236,10 @@ theorem divisorSearch_mem_FPSearch_iff : divisorSearch ∈ FPSearch encNat ↔
       fun N => ⟨fun w hw => ?_, fun hw => ?_⟩⟩
     · by_cases hN : c N = true
       · simp only [hN, ite_true, Option.some.injEq] at hw
-        obtain ⟨h₁, h₂⟩ := (hcS N).2 hN
-        exact ⟨f N, hw, hsplit N h₁ h₂⟩
+        exact ⟨f N, hw, hsplit N ((hcS N).2 hN).1 ((hcS N).2 hN).2⟩
       · simp [hN] at hw
     · rw [searchDomain_divisorSearch]
-      intro hmem
-      by_cases hN : c N = true
-      · simp [hN] at hw
-      · exact hN ((hcS N).1 hmem)
+      exact fun hmem => by simp [(hcS N).1 hmem] at hw
 
 /-- The oracle language of the composite numbers is in `P` on words. -/
 private theorem image_composite_mem_P :

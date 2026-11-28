@@ -165,17 +165,13 @@ is inhabited. -/
 theorem optionToList : ComputableInO (Option.toList (α := α)) (encOption enc) (encList enc)
     (fun o => (encOption enc o).length) fun o => (encOption enc o).length := by
   rcases isEmpty_or_nonempty α with h | h
-  · exact (const (encIn := encOption enc) (encMid := encList enc) []).of_enc_eq fun o => by
-      cases o with
-      | none => rfl
-      | some a => exact isEmptyElim a
+  · exact (const []).of_enc_eq fun | none => rfl | some a => isEmptyElim a
   · obtain ⟨d⟩ := h
     have hsingle : ComputableInO (fun a : α => [a]) enc (encList enc)
         (fun a => (enc a).length) fun a => (enc a).length :=
-      of_linear (.of_frame fun a => by rw [encList_cons, encList_nil, List.append_nil])
+      of_linear (.of_frame fun _ => by rw [encList_cons, encList_nil, List.append_nil])
     refine (((optionIsSome id').ite (hsingle.comp_linear (optionGetD d id'))
-      (const [])).of_enc_eq fun o => ?_).mono 2 (fun _ => ?_) fun _ => ?_
-    · cases o <;> rfl
+      (const [])).of_enc_eq fun o => by cases o <;> rfl).mono 2 (fun _ => ?_) fun _ => ?_
     all_goals split_ifs <;> omega
 
 /-- Convert a computed option to a zero- or one-element list, within the bounds of the option. -/

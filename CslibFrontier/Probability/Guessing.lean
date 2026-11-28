@@ -70,9 +70,7 @@ theorem score_le_uniform_guess (real : PMF (Seed × (Prefix × Suffix))) (seed :
     funext fun ⟨_, _, _⟩ => rfl
   have hchange := abs_sum_mul_sub_le
     (real.map (fun (s, p, _) => (s, p))) ideal best
-    (bound := 1) (fun pair => by
-      rw [abs_of_nonneg (hscore _ _).1]
-      exact (hscore _ _).2)
+    (bound := 1) fun _ => (abs_of_nonneg (hscore _ _).1).trans_le (hscore _ _).2
   have hguess (s : Seed) :
       (∑ initial, (PMF.uniformOfFintype Prefix initial).toReal * best (s, initial)) ≤
         Fintype.card Suffix * ∑ z,
@@ -81,9 +79,7 @@ theorem score_le_uniform_guess (real : PMF (Seed × (Prefix × Suffix))) (seed :
     calc
       _ ≤ ∑ initial, (PMF.uniformOfFintype Prefix initial).toReal *
           ∑ suffix, score s (initial, suffix) := by
-        apply Finset.sum_le_sum
-        intro initial _
-        apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
+        gcongr with initial
         exact Finset.single_le_sum (fun suffix _ => (hscore _ _).1)
           (Finset.mem_univ (complete s initial))
       _ = _ := by
@@ -98,14 +94,11 @@ theorem score_le_uniform_guess (real : PMF (Seed × (Prefix × Suffix))) (seed :
       rw [← hmap]
       exact (sum_map_mul _ _ _).symm
     _ ≤ (∑ pair, (ideal pair).toReal * best pair) + 2 * dist _ ideal := by
-      have h := (le_abs_self _).trans hchange
-      linarith
+      linarith [(le_abs_self _).trans hchange]
     _ ≤ _ := by
       simp only [ideal, sum_bind_mul, sum_map_mul]
       rw [add_comm, Finset.mul_sum]
-      apply add_le_add le_rfl
-      apply Finset.sum_le_sum
-      intro s _
+      refine add_le_add le_rfl (Finset.sum_le_sum fun s _ => ?_)
       simpa only [mul_left_comm] using
         mul_le_mul_of_nonneg_left (hguess s) (ENNReal.toReal_nonneg (a := seed s))
 
@@ -123,8 +116,7 @@ theorem IsTwoUniversal.score_le_uniform_guess {Input : Type*} [Fintype Input]
   have h := Cslib.Probability.score_le_uniform_guess (seededHash seed source hash) seed score hscore
   simp only [seededHash, sum_bind_mul, sum_map_mul, PMF.map_bind, PMF.map_comp,
     Function.comp_def] at h
-  apply h.trans
-  apply add_le_add _ le_rfl
+  refine h.trans (add_le_add ?_ le_rfl)
   have hdist := hhash.leftover_hash source
   dsimp only [seededHash] at hdist
   linarith

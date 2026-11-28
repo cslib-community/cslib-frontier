@@ -195,17 +195,14 @@ private lemma exists_xRep_eq (P : (twist α β γ).toAffine.Point) :
     simp only [Affine.Point.xRep_some, xPair_some, Matrix.cons_val_zero, Matrix.cons_val_one,
       mul_one]
     have hD := algebraMap_cubicPoly_ne_zero α β γ
-    have hx : x = algebraMap k[X] (RatFunc k) (cubicPoly α β γ) *
-        (x / algebraMap k[X] (RatFunc k) (cubicPoly α β γ)) := by field_simp
-    generalize x / algebraMap k[X] (RatFunc k) (cubicPoly α β γ) = z at hx ⊢
+    set z := x / algebraMap k[X] (RatFunc k) (cubicPoly α β γ)
     have hb : algebraMap k[X] (RatFunc k) z.denom ≠ 0 :=
       (map_ne_zero_iff _ (RatFunc.algebraMap_injective k)).2 (RatFunc.denom_ne_zero _)
     refine ⟨algebraMap k[X] (RatFunc k) (cubicPoly α β γ) / algebraMap k[X] (RatFunc k) z.denom,
-      div_ne_zero hD hb, ?_, ?_⟩
-    · rw [hx]
-      conv_lhs => rw [← RatFunc.num_div_denom z]
-      field_simp
-    · field_simp
+      div_ne_zero hD hb, ?_, by field_simp⟩
+    rw [show x = algebraMap k[X] (RatFunc k) (cubicPoly α β γ) * z by dsimp [z]; field_simp]
+    conv_lhs => rw [← RatFunc.num_div_denom z]
+    field_simp
 
 /-- `Λ · sym2x P Q` is a nonzero multiple of the primitive triple
 `sym2Pair (xPair P) (xPair Q)`. -/
@@ -244,23 +241,14 @@ private lemma exists_smul_eq_addSubMap (P Q : (twist α β γ).toAffine.Point) :
   obtain ⟨t, -, hts⟩ := Affine.Point.sym2x_add_sub_eq_addSubMap_sym2x P Q
   obtain ⟨c, hc, hcS⟩ := exists_twistScale_sym2x P Q
   obtain ⟨c', -, hcS'⟩ := exists_twistScale_sym2x (P + Q) (P - Q)
-  set w := sym2Pair (xPair P).1 (xPair P).2 (xPair Q).1 (xPair Q).2
-  set v := sym2Pair (xPair (P + Q)).1 (xPair (P + Q)).2 (xPair (P - Q)).1 (xPair (P - Q)).2
   refine ⟨t * c' / c ^ 2, funext fun j ↦ ?_⟩
-  have key : algebraMap k[X] (RatFunc k)
-      (MvPolynomial.eval w (((ofCubic α β γ).map C).addSubMap j)) * c ^ 2 =
-      t * c' * algebraMap k[X] (RatFunc k) (v j) := by
-    rw [addSubMap_map, MvPolynomial.eval_map, MvPolynomial.eval₂_comp_left, mul_comm,
-      ← eval₂_smul_addSubMap]
-    have h1 : (algebraMap k[X] (RatFunc k)) ∘ w = fun i ↦ algebraMap k[X] (RatFunc k) (w i) :=
-      rfl
-    rw [h1, ← hcS, eval₂_addSubMap_twistScale, ← congrFun hts j]
-    have h2 := congrFun hcS' j
-    simp only [Pi.smul_apply, smul_eq_mul] at h2 ⊢
-    rw [mul_assoc t, ← h2]
-    ring
+  have h2 := congrFun hcS' j
+  simp only [Pi.smul_apply, smul_eq_mul] at h2 ⊢
+  rw [div_mul_eq_mul_div, div_eq_iff (pow_ne_zero 2 hc), addSubMap_map, MvPolynomial.eval_map,
+    MvPolynomial.eval₂_comp_left, mul_comm _ (c ^ 2), ← eval₂_smul_addSubMap, Function.comp_def,
+    ← hcS, eval₂_addSubMap_twistScale, ← congrFun hts j, mul_assoc t, ← h2]
   simp only [Pi.smul_apply, smul_eq_mul]
-  rw [div_mul_eq_mul_div, div_eq_iff (pow_ne_zero 2 hc), key]
+  ring
 
 open scoped Classical in
 /-- **Manin's parallelogram law.** On the twist, `d (P + Q) + d (P - Q) = 2 d P + 2 d Q` for all

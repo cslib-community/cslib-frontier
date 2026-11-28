@@ -42,15 +42,7 @@ theorem list_prod_ofFn_apply : ∀ {d : ℕ} (M : Fin d → Matrix ι ι R) (a b
       if p 0 = a ∧ p (Fin.last d) = b then ∏ i : Fin d, M i (p i.castSucc) (p i.succ) else 0
   | 0, M, a, b => by
     rw [← (Equiv.funUnique (Fin 1) ι).symm.sum_comp]
-    simp only [List.ofFn_zero, List.prod_nil, Matrix.one_apply, Finset.univ_eq_empty,
-      Finset.prod_empty, Equiv.funUnique_symm_apply, Fin.last_zero, uniqueElim_const]
-    by_cases hab : a = b
-    · subst hab
-      simp
-    · rw [ite_eq_right hab]
-      refine (Finset.sum_eq_zero fun c _ => ite_eq_right ?_).symm
-      rintro ⟨rfl, rfl⟩
-      exact hab rfl
+    simp [Matrix.one_apply, ite_and]
   | d + 1, M, a, b => by
     have hL : (List.ofFn M).prod a b = ∑ q : Fin (d + 1) → ι,
         if q (Fin.last d) = b then M 0 a (q 0) * ∏ i : Fin d, M i.succ (q i.castSucc) (q i.succ)
@@ -79,9 +71,7 @@ the path. -/
 theorem trace_pow_eq_sum (M : Matrix ι ι R) (d : ℕ) :
     (M ^ d).trace = ∑ p : Fin (d + 1) → ι,
       if p 0 = p (Fin.last d) then ∏ i : Fin d, M (p i.castSucc) (p i.succ) else 0 := by
-  have hM : M ^ d = (List.ofFn fun _ : Fin d => M).prod := by
-    rw [List.ofFn_const, List.prod_replicate]
-  rw [hM, trace]
+  rw [← List.prod_replicate, ← List.ofFn_const, trace]
   simp only [diag_apply, list_prod_ofFn_apply]
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun p _ => ?_

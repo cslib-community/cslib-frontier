@@ -47,8 +47,7 @@ local notation "Joint" => Matrix (ι × κ) (ι × κ) ℂ
 private theorem kroneckerOne_decodedPoint (M : Q → POVM Ans ι) (u : Point F (n + 1)) (a : F) :
     (kroneckerOne ((decodedPoint (fun q => (M q).toMeasurement) u).effect a) : Joint) =
       (decodedPoint (fun q => QuantumStrategy.leftMeasurement (M q)) u).effect a := by
-  simp only [decodedPoint, Measurement.map_effect, map_sum]
-  rfl
+  simp only [decodedPoint, Measurement.map_effect, map_sum]; rfl
 
 /-- The averaged point effect of a polynomial embeds into the joint algebra
 by tensoring with the identity. -/
@@ -76,13 +75,10 @@ private theorem exists_leftSelfImprovementCertificate (M : Q → POVM Ans ι) :
   classical
   obtain ⟨T, Z, hZ, hle, hslack, _, _, _⟩ := exists_selfImprovement_trace_certificate (d := d)
     (decodedPoint (fun q => (M q).toMeasurement))
-  refine ⟨T.toPOVM, Z, hZ, hle, ?_, ?_⟩
-  · intro g
+  refine ⟨T.toPOVM, Z, hZ, hle, fun g => ?_, fun g => ?_⟩ <;>
     rw [← averagePolynomialPointEffect_leftMeasurement]
-    exact OrderHomClass.mono (kroneckerOne (κ := κ)) (hle g)
-  · intro g
-    rw [← averagePolynomialPointEffect_leftMeasurement]
-    change kroneckerOne (κ := κ) (T.effect g) * kroneckerOne Z =
+  · exact OrderHomClass.mono (kroneckerOne (κ := κ)) (hle g)
+  · change kroneckerOne (κ := κ) (T.effect g) * kroneckerOne Z =
       kroneckerOne (T.effect g) * kroneckerOne (averagePolynomialPointEffect
         (decodedPoint (fun q => (M q).toMeasurement)) g)
     rw [← map_mul, ← map_mul, hslack]
@@ -157,10 +153,8 @@ theorem exists_tensorSelfImprovement
     (fun g u b => Measurement.commute_map_right (C.alice (.point u)) decodePoint _
       (fun a =>
         (commute_kroneckerOne_oneKronecker ((S.alice (.point u)).effect a) (G.effect g)).symm) b)
-  refine ⟨T, Z, hZ, hlocal,
-    ?_, hpoint, hgap, hstrong⟩
-  exact (sub_le_sub hinput (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcopy)
-    (by norm_num))).trans hmass
+  exact ⟨T, Z, hZ, hlocal, (sub_le_sub hinput (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcopy)
+    (by norm_num))).trans hmass, hpoint, hgap, hstrong⟩
 
 private theorem sandwichedPolynomial_effect_lift {J : Type*} [CStarAlgebra J]
     [PartialOrder J] [StarOrderedRing J]
@@ -185,19 +179,16 @@ private theorem sandwichedPolynomial_effect_lift {J : Type*} [CStarAlgebra J]
   cases a with
   | some g => exact hsome g
   | none =>
-      rw [Measurement.effect_none_eq_one_sub_successfulEffect,
-        Measurement.effect_none_eq_one_sub_successfulEffect]
-      simp only [Measurement.successfulEffect, map_sub, map_one, map_sum, hsome, B]
+      simp only [Measurement.effect_none_eq_one_sub_successfulEffect,
+        Measurement.successfulEffect, map_sub, map_one, map_sum, hsome, B]
 
 private theorem sandwichedPolynomial_left (M : Q → POVM Ans ι) (T : POVM Poly ι) :
     sandwichedPolynomialMeasurement
         (decodedPoint fun q => QuantumStrategy.leftMeasurement (κ := κ) (M q))
         (QuantumStrategy.leftMeasurement T) =
       QuantumStrategy.leftMeasurement (sandwichedPolynomialMeasurement
-        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM := by
-  apply Measurement.ext
-  intro a
-  exact sandwichedPolynomial_effect_lift (kroneckerOne (κ := κ)) M T
+        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM :=
+  Measurement.ext fun a => sandwichedPolynomial_effect_lift (kroneckerOne (κ := κ)) M T
     (fun q => QuantumStrategy.leftMeasurement (M q)) (QuantumStrategy.leftMeasurement T)
     (fun _ _ => rfl) (fun _ => rfl) a
 
@@ -206,10 +197,8 @@ private theorem sandwichedPolynomial_right (M : Q → POVM Ans ι) (T : POVM Pol
         (decodedPoint fun q => QuantumStrategy.rightMeasurement (ι := κ) (M q))
         (QuantumStrategy.rightMeasurement T) =
       QuantumStrategy.rightMeasurement (sandwichedPolynomialMeasurement
-        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM := by
-  apply Measurement.ext
-  intro a
-  exact sandwichedPolynomial_effect_lift (oneKronecker (ι := κ)) M T
+        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM :=
+  Measurement.ext fun a => sandwichedPolynomial_effect_lift (oneKronecker (ι := κ)) M T
     (fun q => QuantumStrategy.rightMeasurement (M q)) (QuantumStrategy.rightMeasurement T)
     (fun _ _ => rfl) (fun _ => rfl) a
 
@@ -219,26 +208,21 @@ private theorem selfImprovement_budget (m δ ε r : ℝ) (hm : 1 ≤ m)
     let ξ := m * (6 * (2 * δ + 4 * ε + r))
     √(2 * δ) ≤ 2 * √δ ∧ √ξ ≤ 6 * m * t := by
   intro t ξ
-  have hδ' := Real.sqrt_nonneg δ
-  have hε' := Real.sqrt_nonneg ε
-  have hr' := Real.sqrt_nonneg r
   have ht : 0 ≤ t := by dsimp [t]; positivity
-  constructor
-  · apply (Real.sqrt_le_iff).2
-    constructor
-    · positivity
-    · nlinarith only [Real.sq_sqrt hδ, hδ]
-  · have hinner : 6 * (2 * δ + 4 * ε + r) ≤ (6 * t) ^ 2 := by
-      dsimp only [t]
-      nlinarith only [Real.sq_sqrt hδ, Real.sq_sqrt hε, Real.sq_sqrt hr, hδ, hε, hr,
-        mul_nonneg hδ' hε', mul_nonneg hδ' hr', mul_nonneg hε' hr']
-    calc
-      √ξ ≤ √(m * (6 * t) ^ 2) := Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hinner (by linarith))
-      _ = √m * (6 * t) := by
-        rw [Real.sqrt_mul (by linarith), Real.sqrt_sq (by positivity)]
-      _ ≤ m * (6 * t) := mul_le_mul_of_nonneg_right (Real.sqrt_le_self_iff.mpr (Or.inr hm))
-        (by positivity)
-      _ = 6 * m * t := by ring
+  refine ⟨Real.sqrt_le_iff.2 ⟨by positivity,
+    by nlinarith only [Real.sq_sqrt hδ, hδ]⟩, ?_⟩
+  have hinner : 6 * (2 * δ + 4 * ε + r) ≤ (6 * t) ^ 2 := by
+    dsimp only [t]
+    nlinarith only [Real.sq_sqrt hδ, Real.sq_sqrt hε, Real.sq_sqrt hr, hδ, hε, hr,
+      mul_nonneg (Real.sqrt_nonneg δ) (Real.sqrt_nonneg ε),
+      mul_nonneg (Real.sqrt_nonneg δ) (Real.sqrt_nonneg r),
+      mul_nonneg (Real.sqrt_nonneg ε) (Real.sqrt_nonneg r)]
+  calc
+    √ξ ≤ √(m * (6 * t) ^ 2) := Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hinner (by linarith))
+    _ = √m * (6 * t) := by rw [Real.sqrt_mul (by linarith), Real.sqrt_sq (by positivity)]
+    _ ≤ m * (6 * t) := mul_le_mul_of_nonneg_right (Real.sqrt_le_self_iff.mpr (Or.inr hm))
+      (by positivity)
+    _ = 6 * m * t := by ring
 
 /-- The four nonprojective self-improvement bounds for a symmetric strategy
 [JNVWY2020LowIndividualDegree, Lemma 9.1]. Both players use the same local
@@ -283,23 +267,15 @@ theorem exists_symmetricSelfImprovement
   obtain ⟨hδsqrt, hξsqrt⟩ := selfImprovement_budget m δ ε r hm hδ hε hr
   have ht : 0 ≤ t := by dsimp [t]; positivity
   have hmt : t ≤ m * t := le_mul_of_one_le_left ht hm
-  have hδt : √δ ≤ t := by
-    dsimp only [t]
-    linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg r]
-  have hrt : √r ≤ t := by
-    dsimp only [t]
-    linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg δ]
+  have hδt : √δ ≤ t := by dsimp only [t]; linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg r]
+  have hrt : √r ≤ t := by dsimp only [t]; linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg δ]
   have hδmt := hδt.trans hmt
-  have hrmt' := hrt.trans hmt
-  have hz : ζ = 100 * (m * t) := by
-    change 100 * m * t = 100 * (m * t)
-    ring
+  have hz : ζ = 100 * (m * t) := mul_assoc _ _ _
   have hL (q : Q) : (C.alice q).IsProjective :=
     QuantumStrategy.leftMeasurement_isProjective (S.alice q) (hprojective q)
   have hR (q : Q) : (C.bob q).IsProjective := by
-    change (QuantumStrategy.rightMeasurement (ι := ι) (S.bob q)).IsProjective
-    rw [hM]
-    exact QuantumStrategy.rightMeasurement_isProjective (S.alice q) (hprojective q)
+    dsimp only [C, QuantumStrategy.toCommuting]
+    exact hM ▸ QuantumStrategy.rightMeasurement_isProjective (S.alice q) (hprojective q)
   obtain ⟨T, Z, hZ, hmajor, hmass, hpoint, hgap, hstrong⟩ :=
     exists_tensorSelfImprovement S G η (fun _ => hR _) (fun _ => hL _)
       (fun _ => hR _) (fun _ => hL _) hinput
@@ -311,10 +287,7 @@ theorem exists_symmetricSelfImprovement
       (QuantumStrategy.leftMeasurement T) = L := sandwichedPolynomial_left S.alice T
   have hright : sandwichedPolynomialMeasurement (decodedPoint S.toCommuting.bob)
       (QuantumStrategy.rightMeasurement T) = R := by
-    change sandwichedPolynomialMeasurement
-      (decodedPoint fun q => QuantumStrategy.rightMeasurement (S.bob q))
-      (QuantumStrategy.rightMeasurement T) = R
-    rw [hM, sandwichedPolynomial_right]
+    simpa only [QuantumStrategy.toCommuting, hM] using sandwichedPolynomial_right S.alice T
   have hswap (X Y : Local) : C.state (X ⊗ₖ Y) = C.state (Y ⊗ₖ X) :=
     AlgState.vector_kronecker_swap S.state S.norm_state hψ X Y
   have htrace : C.state R.successfulEffect = C.state L.successfulEffect := by
@@ -325,11 +298,11 @@ theorem exists_symmetricSelfImprovement
         C.state ((decodedPoint C.alice u).effect b * R.effect (some g)) := by
     let B := decodedPoint fun q => (S.alice q).toMeasurement
     have hbob : (decodedPoint C.bob u).effect b = oneKronecker ((B u).effect b) := by
-      change (decodedPoint (fun q => QuantumStrategy.rightMeasurement (S.bob q)) u).effect b = _
-      simp only [hM, B, decodedPoint, Measurement.map_effect, map_sum]
+      simp only [C, QuantumStrategy.toCommuting, hM, B, decodedPoint, Measurement.map_effect,
+        map_sum]
       rfl
-    have halice := kroneckerOne_decodedPoint (κ := ι) S.alice u b
-    change kroneckerOne ((B u).effect b) = (decodedPoint C.alice u).effect b at halice
+    have halice : kroneckerOne ((B u).effect b) = (decodedPoint C.alice u).effect b :=
+      kroneckerOne_decodedPoint S.alice u b
     rw [hbob, ← halice]
     change C.state ((H.effect (some g) ⊗ₖ (1 : Local)) * (1 ⊗ₖ (B u).effect b)) =
       C.state (((B u).effect b ⊗ₖ 1) * (1 ⊗ₖ H.effect (some g)))
@@ -351,33 +324,26 @@ theorem exists_symmetricSelfImprovement
       Commute ((evaluatePolynomialMeasurement R u).effect (some a))
         ((decodedPoint C.alice u).effect b) := by
     rw [evaluatePolynomialMeasurement_effect_some]
-    refine Commute.sum_left _ _ _ fun g _ => ?_
-    exact Measurement.commute_map_right (C.alice (.point u)) decodePoint _ (fun c =>
+    exact Commute.sum_left _ _ _ fun g _ =>
+      Measurement.commute_map_right (C.alice (.point u)) decodePoint _ (fun c =>
       (commute_kroneckerOne_oneKronecker
         ((S.alice (.point u)).effect c) (H.effect (some g))).symm) b
   rw [hleft] at hmass hpoint hgap
   rw [hleft, hright] at hstrong
   refine ⟨H.toPOVM, Z, hZ, hmajor, ?_, ?_, ?_, ?_⟩
-  · refine le_trans ?_ hmass
-    change 1 - η - ζ ≤ 1 - η - 3 * √(2 * δ)
-    rw [hz]
-    linarith only [hδsqrt, hδmt, hmt, ht]
+  · exact le_trans (by rw [hz]; linarith only [hδsqrt, hδmt, hmt, ht]) hmass
   · change (𝔼 u : Point F (n + 1), Measurement.successfulMismatch C.state
         (evaluatePolynomialMeasurement L u) (decodedPoint C.bob u)) ≤
       2 * √(2 * δ) + 2 * √ξ at hpoint
     simp only [Measurement.successfulMismatch, mul_sub, mul_one, map_sub, hevalMass,
       hcompare, ← (hcomm _ _ _).eq] at hpoint
-    refine le_trans ?_ (show 2 * √(2 * δ) + 2 * √ξ ≤ ζ from ?_)
-    · simpa only [Measurement.successfulMismatch, mul_sub, mul_one, map_sub] using hpoint
-    · rw [hz]
-      linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht]
+    simpa only [Measurement.successfulMismatch, mul_sub, mul_one, map_sub] using
+      hpoint.trans (by rw [hz]; linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht])
   · change _ - (𝔼 u : Point F (n + 1), ∑ b,
       (C.state ((evaluatePolynomialMeasurement L u).effect (some b) *
         (decodedPoint C.bob u).effect b)).re) ≤ 5 * √(2 * δ) + 2 * √ξ at hgap
-    refine le_trans ?_ (show 5 * √(2 * δ) + 2 * √ξ ≤ ζ from ?_)
-    · simpa only [hcompare] using hgap
-    · rw [hz]
-      linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht]
+    simpa only [hcompare] using
+      hgap.trans (by rw [hz]; linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht])
   · change (C.state R.successfulEffect).re -
       ∑ g, (C.state (R.effect (some g) * L.effect (some g))).re ≤ _ at hstrong
     rw [htrace] at hstrong
@@ -385,29 +351,18 @@ theorem exists_symmetricSelfImprovement
       commute_kroneckerOne_oneKronecker (H.effect (some g)) (H.effect (some g))
     simp only [← (hxy _).eq, TwoProverGame.commutingWinProb_swap_of_symmetric _ S hM hψ] at hstrong
     by_cases hsmall : r ≤ 1
-    · refine hstrong.trans ?_
-      change 5 * √(2 * δ) + 5 * √ξ + 2 * √ξ + m * d / Fintype.card F ≤ ζ
-      rw [mul_div_assoc, hz]
-      change 5 * √(2 * δ) + 5 * √ξ + 2 * √ξ + m * r ≤ 100 * (m * t)
-      have hrs : r ≤ √r := by
-        apply (Real.le_sqrt hr hr).2
-        nlinarith only [mul_nonneg hr (sub_nonneg.mpr hsmall)]
-      have hrmt : m * r ≤ m * t := by
-        apply mul_le_mul_of_nonneg_left _ (by linarith)
-        exact hrs.trans hrt
-      linarith only [hδsqrt, hξsqrt, hδmt, hrmt, hmt, ht]
-    · have hmass_le : (C.state L.successfulEffect).re ≤ 1 := by
-        apply C.state.re_apply_le_one
-        rw [← sub_nonneg, ← L.effect_none_eq_one_sub_successfulEffect]
-        exact L.nonneg none
+    · have hrs : r ≤ √r :=
+        (Real.le_sqrt hr hr).2 (by nlinarith only [mul_nonneg hr (sub_nonneg.mpr hsmall)])
+      have hrmt : m * r ≤ m * t := mul_le_mul_of_nonneg_left (hrs.trans hrt) (by linarith)
+      exact hstrong.trans
+        (by rw [mul_div_assoc, hz]; linarith only [hδsqrt, hξsqrt, hδmt, hrmt, hmt, ht])
+    · have hmass_le : (C.state L.successfulEffect).re ≤ 1 :=
+        C.state.re_apply_le_one (sub_nonneg.mp
+          (L.effect_none_eq_one_sub_successfulEffect ▸ L.nonneg none))
       have hagree : 0 ≤ ∑ g, (C.state (L.effect (some g) * R.effect (some g))).re :=
         sum_nonneg fun g _ => C.state.re_apply_nonneg
           ((hxy g).mul_nonneg (L.nonneg _) (R.nonneg _))
-      have hrone : 1 ≤ √r := by
-        simpa only [Real.sqrt_one] using Real.sqrt_le_sqrt (le_of_not_ge hsmall)
-      rw [hz]
-      change (C.state L.successfulEffect).re -
-        ∑ g, (C.state (L.effect (some g) * R.effect (some g))).re ≤ 100 * (m * t)
-      linarith only [hmass_le, hagree, hrone, hrmt']
+      linarith only [hz, hmass_le, hagree, Real.one_le_sqrt.mpr (le_of_not_ge hsmall),
+        hrt.trans hmt]
 
 end Cslib.PCP.LowIndividualDegree

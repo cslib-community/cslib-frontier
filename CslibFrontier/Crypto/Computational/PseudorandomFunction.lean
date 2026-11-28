@@ -17,6 +17,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -46,6 +47,8 @@ queries and answers all have `n` bits.
 
 ## Main results
 
+* `Cslib.Crypto.computableInPolyTime_prfOracle_comp`: plain polynomial-time composition rule for
+  `prfOracle`.
 * `Cslib.Crypto.wordOracle_bitStrings`, `Cslib.Crypto.wordOracle_bitStrings_answer`: agreement of
   `OracleCodec.bitStrings` with `randomFunctionOracle` and `lazyRandomFunctionOracle`.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
@@ -73,6 +76,31 @@ abbrev OracleDistinguisher := ℕ → List Bool → WordOracleComp Unit Bool
 /-- A keyed oracle rejects queries outside the declared domain. -/
 def prfOracle (family : List Bool → List Bool → List Bool) (n : ℕ) (key query : List Bool) :
     List Bool := if query.length = n then family key query else []
+
+/-- Evaluating `prfOracle family (n a) (key a) (query a)` is computable in plain polynomial time
+whenever `family`, the unary domain width `n`, `key`, and `query` are computable in plain
+polynomial time. -/
+@[fun_prop]
+theorem computableInPolyTime_prfOracle_comp {γ : Type} {encIn : γ ↪ List Bool}
+    {family : List Bool → List Bool → List Bool}
+    (hfamily : ComputableInPolyTime
+      (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits)
+    {n : γ → ℕ} {key query : γ → List Bool}
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hkey : ComputableInPolyTime key encIn encBits)
+    (hquery : ComputableInPolyTime query encIn encBits) :
+    ComputableInPolyTime
+      (fun a => prfOracle family (n a) (key a) (query a))
+      encIn encBits := by
+  have hfam : ComputableInPolyTime (fun a => family (key a) (query a)) encIn encBits :=
+    hfamily.comp (hkey.prod hquery)
+  have heq : (fun a => prfOracle family (n a) (key a) (query a)) =
+      (fun a => if (query a).length == n a then family (key a) (query a) else []) := by
+    funext a
+    simp [prfOracle]
+  rw [heq]
+  fun_prop
 
 /-- Read a fixed random table on `n`-bit inputs, rejecting malformed words before interpreting
 their bits. -/

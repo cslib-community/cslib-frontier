@@ -100,12 +100,10 @@ theorem targetKey_eq {M : ℕ} (hM : 0 < M) (neg : Bool) (z : ℤ) :
     targetKey M neg z = residueKey M (signedValue neg z) := by
   cases neg
   · rfl
-  · have hr := residueKey_lt hM z
-    apply Int.ofNat_inj.mp
+  · apply Int.ofNat_inj.mp
     change (((M - residueKey M z) % M : ℕ) : ℤ) = (residueKey M (-z) : ℤ)
-    rw [Int.natCast_emod, Nat.cast_sub (Nat.le_of_lt hr), residueKey_cast hM,
-      residueKey_cast hM]
-    rw [Int.sub_emod_emod, Int.sub_emod_left]
+    rw [Int.natCast_emod, Nat.cast_sub (residueKey_lt hM z).le, residueKey_cast hM,
+      residueKey_cast hM, Int.sub_emod_emod, Int.sub_emod_left]
 
 /-- A prefix of the compact output; membership is tested against the full histogram. -/
 def heavyList (values : ℕ → ℤ) (n M : ℕ) : ℕ → List ℤ
@@ -140,16 +138,13 @@ theorem heavyList_toFinset (values : ℕ → ℤ) (n : ℕ) {M : ℕ} (hM : 0 < 
     (heavyList values n M n).toFinset =
       Cslib.Algorithms.ThreeSum.ChanHe.heavy ((Finset.range n).image values) M := by
   ext z
-  rw [heavyList_eq_filter]
-  simp only [List.mem_toFinset, List.mem_map, List.mem_filter, List.mem_range, decide_eq_true_eq]
-  constructor
-  · rintro ⟨i, ⟨hi, hc⟩, rfl⟩
-    exact (mem_heavy_iff_count values n hM hinj hi).mpr hc
-  · intro hz
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp
-      ((Finset.mem_filter.mp hz).1)
-    exact ⟨i, ⟨Finset.mem_range.mp hi,
-      (mem_heavy_iff_count values n hM hinj (Finset.mem_range.mp hi)).mp hz⟩, rfl⟩
+  simp only [heavyList_eq_filter, List.mem_toFinset, List.mem_map, List.mem_filter,
+    List.mem_range, decide_eq_true_eq]
+  refine ⟨fun ⟨i, ⟨hi, hc⟩, h⟩ => h ▸ (mem_heavy_iff_count values n hM hinj hi).mpr hc,
+    fun hz => ?_⟩
+  obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp (Finset.mem_filter.mp hz).1
+  exact ⟨i, ⟨Finset.mem_range.mp hi,
+    (mem_heavy_iff_count values n hM hinj (Finset.mem_range.mp hi)).mp hz⟩, rfl⟩
 
 /-- The exact per-input write, either to the next compact heavy cell or to packed light cells. -/
 def write (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col dist t : ℕ)

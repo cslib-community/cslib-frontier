@@ -75,10 +75,7 @@ private theorem queryBody_exec (hx : Entry b n i δ x) (hi : i ≤ n) (hn : 0 < 
 /-- One prefix-query iteration leaves RAM memory unchanged. -/
 @[simp]
 theorem queryNext_mem : (queryNext x b n i a).mem = x.mem := by
-  simp only [queryNext]
-  split
-  · rfl
-  · split <;> rfl
+  simp only [queryNext]; split_ifs <;> rfl
 
 private theorem queryNext_entry (hx : Entry b n i δ x) (he : i ≠ n) :
     Entry (if i < n / 2 then b + 1 else b + n / 2 + n / 2) (n / 2)
@@ -91,11 +88,9 @@ private theorem queryLoop_full (hx : Entry b n n δ x) (hn : 0 < n)
     (hxans : x.regs ans = a) (ha : Fits w (b + 2 * n)) (hv : Fits w (a + x.mem b)) :
     ∃ y, ExecWithin w queryLoop x y 15 ∧ y.regs ans = a + x.mem b ∧ y.mem = x.mem := by
   have he := queryBody_exec hx le_rfl hn hxans ha hv (fun h => (h rfl).elim)
-  refine ⟨_, he.loop_once (cond := .lt zero idx) ?_ ?_, ?_,
-    queryNext_mem⟩
+  refine ⟨_, he.loop_once (cond := .lt zero idx) ?_ ?_, ?_, queryNext_mem⟩
   · simp only [Cond.holds_lt, hx.zero_eq, hx.idx_eq, hn]
-  · simp +decide [queryNext]
-  · simp +decide [queryNext]
+  all_goals simp +decide [queryNext]
 
 /-- A query adds precisely the first `i` leaf values to its initial accumulator, using at
 most `13 (h + 1) + 2` instructions. The whole memory is unchanged. Bounds include the loop

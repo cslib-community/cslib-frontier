@@ -154,9 +154,8 @@ theorem walkAt_cons_succ (v : V) (a : D) (k : Fin t → D) (i : ℕ) :
 /-- The `(i + 1)`-th dart of a walk whose first label is `a` is the `i`-th dart of the walk along
 the remaining labels from the neighbor along `a`. -/
 theorem walkDart_cons_succ (v : V) (a : D) (k : Fin t → D) (i : Fin t) :
-    G.walkDart (v, Fin.cons a k) i.succ = G.walkDart (G.neighbor v a, k) i := by
-  rw [walkDart, Fin.val_succ, walkAt_cons_succ]
-  rfl
+    G.walkDart (v, Fin.cons a k) i.succ = G.walkDart (G.neighbor v a, k) i :=
+  Prod.ext (G.walkAt_cons_succ v a k i) rfl
 
 /-- The walk along the first `n` labels of a walk follows it for `n` steps. -/
 theorem walkAt_take (p : V × (Fin t → D)) {n i : ℕ} (hn : n ≤ t) (hi : i ≤ n) :
@@ -170,21 +169,18 @@ theorem walkAt_take (p : V × (Fin t → D)) {n i : ℕ} (hn : n ≤ t) (hi : i 
 
 /-- The darts of the walk along the first `n` labels of a walk are its first `n` darts. -/
 theorem walkDart_take (p : V × (Fin t → D)) {n : ℕ} (hn : n ≤ t) (i : Fin n) :
-    G.walkDart (p.1, Fin.take n hn p.2) i = G.walkDart p (Fin.castLE hn i) := by
-  rw [walkDart, walkDart, G.walkAt_take p hn i.isLt.le]
-  rfl
+    G.walkDart (p.1, Fin.take n hn p.2) i = G.walkDart p (Fin.castLE hn i) :=
+  Prod.ext (G.walkAt_take p hn i.isLt.le) rfl
 
 /-- Appending a label to a walk does not change its first `t` steps. -/
 theorem walkAt_snoc (v : V) (k : Fin t → D) (a : D) {i : ℕ} (hi : i ≤ t) :
     G.walkAt (v, Fin.snoc k a) i = G.walkAt (v, k) i := by
-  rw [← G.walkAt_take (v, Fin.snoc k a) t.le_succ hi]
-  simp [Fin.take_eq_init]
+  simp [← G.walkAt_take (v, Fin.snoc k a) t.le_succ hi, Fin.take_eq_init]
 
 /-- The `i`-th dart of a walk extended by a label `a` is the `i`-th dart of the walk. -/
 theorem walkDart_snoc_castSucc (v : V) (k : Fin t → D) (a : D) (i : Fin t) :
-    G.walkDart (v, Fin.snoc k a) i.castSucc = G.walkDart (v, k) i := by
-  rw [walkDart, walkDart, Fin.val_castSucc, G.walkAt_snoc v k a i.isLt.le]
-  simp
+    G.walkDart (v, Fin.snoc k a) i.castSucc = G.walkDart (v, k) i :=
+  Prod.ext (G.walkAt_snoc v k a i.isLt.le) (Fin.snoc_castSucc (α := fun _ => D) a k i)
 
 /-- The walk along the labels of `p` after its `n`-th step, from the `n`-th vertex of `p`. -/
 def walkDrop (p : V × (Fin t → D)) (n : ℕ) : V × (Fin (t - n) → D) :=
@@ -214,9 +210,8 @@ theorem walkAt_walkDrop (p : V × (Fin t → D)) (n i : ℕ) :
 
 /-- The `j`-th dart of the walk after the `n`-th step of `p` is the `(n + j)`-th dart of `p`. -/
 theorem walkDart_walkDrop (p : V × (Fin t → D)) (n : ℕ) (j : Fin (t - n)) :
-    G.walkDart (G.walkDrop p n) j = G.walkDart p ⟨n + j, by have := j.isLt; omega⟩ := by
-  rw [walkDart, walkDart, walkAt_walkDrop]
-  rfl
+    G.walkDart (G.walkDrop p n) j = G.walkDart p ⟨n + j, by have := j.isLt; omega⟩ :=
+  Prod.ext (G.walkAt_walkDrop p n j) rfl
 
 /-- A walk of length `t` ends at the neighbor along its labels in the power `G ^ t`. -/
 theorem walkAt_length (p : V × (Fin t → D)) : G.walkAt p t = (G.pow t).neighbor p.1 p.2 := by
@@ -224,10 +219,7 @@ theorem walkAt_length (p : V × (Fin t → D)) : G.walkAt p t = (G.pow t).neighb
   | zero => rfl
   | succ t ih =>
     obtain ⟨v, k⟩ := p
-    calc G.walkAt (v, k) (t + 1) = G.walkAt (v, Fin.cons (k 0) (Fin.tail k)) (t + 1) := by
-          rw [Fin.cons_self_tail]
-      _ = (G.pow (t + 1)).neighbor v k := by
-          rw [walkAt_cons_succ, ih, neighbor_pow_succ]
+    rw [← Fin.cons_self_tail k, walkAt_cons_succ, ih, ← neighbor_pow_succ, Fin.cons_self_tail]
 
 /-- The `n`-th vertex of a walk is the neighbor along its first `n` labels in the power `G ^ n`. -/
 theorem walkAt_eq_neighbor_pow (p : V × (Fin t → D)) {n : ℕ} (hn : n ≤ t) :
@@ -252,15 +244,12 @@ theorem walkDart_rot_pow (p : V × (Fin t → D)) (i : Fin t) :
     induction i using Fin.lastCases with
     | last =>
       rw [Fin.rev_last]
-      refine Prod.ext ?_ ?_
-      · rw [walkDart_fst, Fin.val_last, G.walkAt_snoc _ _ _ le_rfl, Prod.mk.eta, walkAt_length]
-        exact (G.pow t).neighbor_neighbor_rot _ _
-      · simp [walkDart]
+      refine Prod.ext ?_ (by simp [walkDart])
+      rw [walkDart_fst, Fin.val_last, G.walkAt_snoc _ _ _ le_rfl, Prod.mk.eta, walkAt_length]
+      exact (G.pow t).neighbor_neighbor_rot _ _
     | cast i =>
       rw [walkDart_snoc_castSucc, Prod.mk.eta, ih, Fin.rev_castSucc]
-      congr 1
-      conv_rhs => rw [← Fin.cons_self_tail k]
-      rw [walkDart_cons_succ]
+      conv_rhs => rw [← Fin.cons_self_tail k, G.walkDart_cons_succ]
       rfl
 
 /-- Reversing a walk in `G ^ t` reverses its trajectory. -/
@@ -269,8 +258,7 @@ theorem walkAt_rot_pow (p : V × (Fin t → D)) {i : ℕ} (hi : i ≤ t) :
   rcases hi.lt_or_eq with hi | rfl
   · change G.walkAt _ (⟨i, hi⟩ : Fin t) = _
     rw [← walkDart_fst, walkDart_rot_pow, fst_rot_walkDart, Fin.val_rev, Fin.val_mk]
-    congr 1
-    omega
+    exact congrArg (G.walkAt p) (by omega)
   · rw [walkAt_length, Nat.sub_self, walkAt_zero]
     exact (G.pow i).neighbor_neighbor_rot _ _
 
@@ -280,17 +268,14 @@ theorem rot_pow_walkDrop (p : V × (Fin t → D)) (n : ℕ) :
     (G.pow (t - n)).rot (G.walkDrop p n) =
       (((G.pow t).rot p).1, Fin.take (t - n) (Nat.sub_le t n) ((G.pow t).rot p).2) := by
   refine Prod.ext ?_ (funext fun j ↦ ?_)
-  · have h : G.walkAt (G.walkDrop p n) (t - n) = G.walkAt p t := by
-      rw [walkAt_walkDrop]
-      rcases le_total n t with h | h
-      · rw [Nat.add_sub_of_le h]
-      · rw [G.walkAt_of_le p (by omega : t ≤ n + (t - n))]
-    exact (G.walkAt_length (G.walkDrop p n)).symm.trans (h.trans (G.walkAt_length p))
-  · have h₁ := congrArg Prod.snd (G.walkDart_rot_pow (G.walkDrop p n) j)
-    have h₂ := congrArg Prod.snd (G.walkDart_rot_pow p (Fin.castLE (Nat.sub_le t n) j))
-    simp only [walkDart_snd] at h₁ h₂
-    dsimp only
-    rw [Fin.take_apply, h₁, h₂, walkDart_walkDrop]
+  · refine (G.walkAt_length (G.walkDrop p n)).symm.trans (Eq.trans ?_ (G.walkAt_length p))
+    rw [walkAt_walkDrop]
+    rcases le_total n t with h | h
+    · rw [Nat.add_sub_of_le h]
+    · exact G.walkAt_of_le p (by omega)
+  · dsimp only
+    rw [Fin.take_apply, ← G.walkDart_snd ((G.pow (t - n)).rot (G.walkDrop p n)),
+      ← G.walkDart_snd ((G.pow t).rot p), walkDart_rot_pow, walkDart_rot_pow, walkDart_walkDrop]
     congr 3
     fin_index
 
@@ -418,8 +403,7 @@ of it uniformly random labels before and after it. -/
 theorem expect_splitWalk {M : Type*} [AddCommMonoid M] [Module ℚ≥0 M] (i : Fin t)
     (F : (V × D) × (Fin i → D) × (Fin (t - (i + 1)) → D) → M) :
     𝔼 p, F (G.splitWalk i p) = 𝔼 q, 𝔼 r, 𝔼 s, F (q, r, s) := by
-  rw [Fintype.expect_equiv (G.splitWalk i) _ F fun _ ↦ rfl, Fintype.expect_prod_type]
-  simp only [Fintype.expect_prod_type]
+  simp_rw [Fintype.expect_equiv (G.splitWalk i) _ F fun _ ↦ rfl, Fintype.expect_prod_type]
 
 /-- **The crossing count.** Counted by their `i`-th dart `q`, the walks of length `t` for which the
 reverse of the first `i` steps satisfies `P q` and the steps after the `i`-th satisfy `Q q` are
@@ -519,10 +503,7 @@ theorem expect_walkDart_mul_walkDart {i j : Fin t} (hij : i < j) (f g : V × D �
       f (G.splitWalk i p).1 *
         g (G.walkDart ((G.rot (G.splitWalk i p).1).1, (G.splitWalk i p).2.2) ⟨_, hj⟩) := by
     rw [splitWalk_apply, fst_rot_walkDart, ← walkDrop_fst, Prod.mk.eta, walkDart_walkDrop]
-    congr 3
-    ext
-    simp only
-    omega
+    exact congrArg (fun k ↦ f (G.walkDart p i) * g (G.walkDart p k)) (by fin_index)
   simp only [h]
   rw [G.expect_splitWalk i fun x ↦ f x.1 * g (G.walkDart ((G.rot x.1).1, x.2.2) ⟨_, hj⟩)]
   simp only [Fintype.expect_const, ← mul_expect, expect_walkDart_mk]
@@ -543,22 +524,20 @@ theorem sq_expect_walkDart_mul_walkDart_sub_le {i j : Fin t} (hij : i < j) (f g 
     simp
   set φ : V → ℝ := fun v ↦ 𝔼 a, f (G.rot (v, a))
   set ψ : V → ℝ := fun w ↦ 𝔼 a, g (w, a)
-  have hφ : 𝔼 v, φ v = 𝔼 q, f q := by
-    rw [← G.expect_comp_rot f, Fintype.expect_prod_type]
+  have hφ : 𝔼 v, φ v = 𝔼 q, f q :=
+    (Fintype.expect_prod_type (f ∘ G.rot)).symm.trans (G.expect_comp_rot f)
   have hψ : 𝔼 w, ψ w = 𝔼 q, g q := (Fintype.expect_prod_type g).symm
   have hφ₂ : 𝔼 v, φ v ^ 2 ≤ 𝔼 q, f q ^ 2 := by
     rw [← G.expect_comp_rot fun q ↦ f q ^ 2, Fintype.expect_prod_type]
     exact expect_le_expect fun v _ ↦ sq_expect_le_expect_sq _ _
-  have hψ₂ : 𝔼 w, ψ w ^ 2 ≤ 𝔼 q, g q ^ 2 := by
-    rw [Fintype.expect_prod_type fun q ↦ g q ^ 2]
-    exact expect_le_expect fun v _ ↦ sq_expect_le_expect_sq _ _
-  have hmix := G.sq_expect_mul_walk_pow_sub_le (j - (i + 1)) φ ψ
-  rw [hφ, hψ] at hmix
-  rw [G.expect_walkDart_mul_walkDart hij]
-  refine hmix.trans ?_
+  have hψ₂ : 𝔼 w, ψ w ^ 2 ≤ 𝔼 q, g q ^ 2 :=
+    (expect_le_expect fun v _ ↦ sq_expect_le_expect_sq _ _).trans_eq
+      (Fintype.expect_prod_type fun q ↦ g q ^ 2).symm
+  rw [G.expect_walkDart_mul_walkDart hij, ← hφ, ← hψ]
+  refine (G.sq_expect_mul_walk_pow_sub_le (j - (i + 1)) φ ψ).trans ?_
   have := G.spectralExpansion_nonneg
-  have h₂ : 0 ≤ 𝔼 w, ψ w ^ 2 - (𝔼 q, g q) ^ 2 := hψ ▸ sub_nonneg.2 (sq_expect_le_expect_sq _ ψ)
-  have h₃ : 0 ≤ 𝔼 q, f q ^ 2 - (𝔼 q, f q) ^ 2 := sub_nonneg.2 (sq_expect_le_expect_sq _ f)
+  have h₂ : 0 ≤ 𝔼 w, ψ w ^ 2 - (𝔼 w, ψ w) ^ 2 := sub_nonneg.2 (sq_expect_le_expect_sq _ ψ)
+  have h₃ : 0 ≤ 𝔼 q, f q ^ 2 - (𝔼 v, φ v) ^ 2 := hφ ▸ sub_nonneg.2 (sq_expect_le_expect_sq _ f)
   gcongr
 
 /-- **Two darts of a random walk are almost independent**: for steps `i < j` of a uniformly random

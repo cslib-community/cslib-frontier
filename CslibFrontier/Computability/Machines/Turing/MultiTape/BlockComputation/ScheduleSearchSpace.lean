@@ -60,10 +60,7 @@ theorem resume_counter_le {k : ℕ} (E : Evaluator)
     (N b q σ : ℕ) (result : Option Bool) (returned : E.State)
     (hpending : pending k ((N, b, q), σ, result) = true) :
     cursor (resume E ((N, b, q), σ, result) returned) ≤ 3 ^ ((k + 1) * q) := by
-  have hp := hpending
-  simp only [pending, Bool.and_eq_true] at hp
-  have hv : ScheduleCounter.valid k (σ, q) = true := hp.2
-  have hσ := ScheduleCounter.succ_le_bound hv
+  have hσ := ScheduleCounter.succ_le_bound (Eq.mp (Bool.and_eq_true _ _) hpending).2
   cases ho : E.outcome ((N, b, q), returned) <;>
     simp only [resume, ho, cursor] <;> omega
 
@@ -80,10 +77,7 @@ theorem runFrom_one_encoding_le {k : ℕ} (E : Evaluator) (A : ℕ → ℕ → �
       space k A N b q := by
   let c : CallerState := ((N, b, q), σ, result)
   let start := E.start (N, b, σ, q)
-  have hp := hpending
-  simp only [pending, Bool.and_eq_true] at hp
-  have hv : ScheduleCounter.valid k (σ, q) = true := hp.2
-  have hσ := (ScheduleCounter.valid_eq_true_iff k σ q).mp hv
+  have hσ := (ScheduleCounter.valid_eq_true_iff k σ q).mp (Eq.mp (Bool.and_eq_true _ _) hpending).2
   have hcaller := caller_encoding_le k N b q σ result hσ.le
   have hnext : (encCaller (resume E c (E.machine.runFrom w start T))).length ≤
       callerSpace k (N, b, q) := by

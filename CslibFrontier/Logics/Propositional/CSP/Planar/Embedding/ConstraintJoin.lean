@@ -62,26 +62,18 @@ theorem constraintJoinDartEquiv_vertex_eq_iff {F : CSP Rel V} {T : CSP Other W}
   simp only [incidenceDartEquiv_apply, occurrenceDartEquiv_apply, vertex_mergeDartEquiv]
   rw [vertex_incidenceDart_eq_iff, hv, hc]
   simp only [hh, hk, vertex_incidenceDart]
-  have hbound (o : F.Occurrence) : F.distinctVars.idxOf o.var < F.numVars := by
-    rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
+  have hbound (o : F.Occurrence) : F.distinctVars.idxOf o.var < F.numVars :=
+    F.length_distinctVars ▸ List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
   have ho := hbound o
   have hp := hbound p
   have hupdate (o : F.Occurrence) : Function.update id (F.numVars + b) (F.numVars + a)
-      (F.distinctVars.idxOf o.var) = F.distinctVars.idxOf o.var := by
-    have := hbound o
-    exact Function.update_of_ne (by omega) _ _
-  cases side <;> cases other
-  · simp only [Bool.false_eq_true, ite_false, true_and, hupdate]
-    exact (List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)).symm
-  · simp only [Bool.false_eq_true, ite_false, ite_true, false_and, hupdate, update_add,
-      false_iff]
-    omega
-  · simp only [Bool.false_eq_true, ite_false, ite_true, Bool.true_eq_false, false_and,
-      hupdate, update_add, false_iff]
-    omega
-  · simp only [ite_true, true_and, update_add]
-    omega
+      (F.distinctVars.idxOf o.var) = F.distinctVars.idxOf o.var :=
+    Function.update_of_ne (by have := hbound o; omega) _ _
+  cases side <;> cases other <;>
+    simp only [Bool.false_eq_true, Bool.true_eq_false, ite_false, ite_true, true_and,
+      false_and, hupdate, update_add, false_iff]
+  · exact (List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)).symm
+  all_goals omega
 
 /-- Literal outgoing swap followed by the proved target occurrence transport. -/
 @[expose] noncomputable def constraintJoinRotation {F : CSP Rel V} {T : CSP Other W}

@@ -271,19 +271,15 @@ theorem ecomplexityFrom_directProduct_comp_wiring_le {p : ℕ} (select : Fin n �
     ecomplexityFrom I cost (directProduct (fun x => f (x ∘ select)) k) id ≤
       ecomplexityFrom I cost (directProduct f k) id := by
   refine le_ecomplexityFrom_iff.mpr fun c hc => ?_
-  change c.Computes I (directProduct f k) at hc
-  let wiring := Circuit.wiring σ fun i : Fin (k * n) =>
-    finProdFinEquiv ((finProdFinEquiv.symm i).1, select (finProdFinEquiv.symm i).2)
-  have h : (c.comp wiring).ComputesFrom I (directProduct (fun x => f (x ∘ select)) k) id := by
-    intro x
-    rw [Circuit.eval_comp, hc]
-    funext j
-    apply congrArg f
-    funext i
-    simp only [BitString.block, wiring, Circuit.eval_wiring, Function.comp_apply,
-      Equiv.symm_apply_apply, id_eq]
-  exact (ecomplexityFrom_le_of_computesFrom _ h).trans_eq
+  refine (ecomplexityFrom_le_of_computesFrom (c.comp <| Circuit.wiring σ fun i : Fin (k * n) =>
+    finProdFinEquiv ((finProdFinEquiv.symm i).1, select (finProdFinEquiv.symm i).2))
+    fun x => ?_).trans_eq
     (by rw [Circuit.cost_program_comp, Circuit.cost_program_wiring, Nat.zero_add])
+  change c.Computes I (directProduct f k) at hc
+  change (c.comp _).eval I x = _
+  rw [Circuit.eval_comp, hc]
+  exact funext fun j => congrArg f <| funext fun i => by
+    simp only [BitString.block, Circuit.eval_wiring, Function.comp_apply, Equiv.symm_apply_apply]
 
 /-- Minimum direct-product size is monotone in the number of copies, including zero copies. -/
 theorem complexity_directProduct_mono [I.IsComplete] {small large : ℕ} (hle : small ≤ large) :
@@ -293,8 +289,8 @@ theorem complexity_directProduct_mono [I.IsComplete] {small large : ℕ} (hle : 
       fun _ => funext fun i => i.elim0).trans (by simp)
   obtain ⟨c, hc, hsize⟩ :=
     exists_computes_size_eq_complexity (I := I) (f := directProduct f large)
-  refine (complexity_le_of_computes _ (hc.takeDirectProductPrefix hsmall hle)).trans_eq ?_
-  simp [Circuit.takeDirectProductPrefix, hsize]
+  exact (complexity_le_of_computes _ (hc.takeDirectProductPrefix hsmall hle)).trans_eq
+    (by simp [Circuit.takeDirectProductPrefix, hsize])
 
 /-- One copy costs no more than a single-output implementation. -/
 theorem complexity_directProduct_one_le [I.IsComplete] :

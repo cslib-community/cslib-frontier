@@ -46,17 +46,13 @@ private theorem planeProblem_mem_PSPACE {A B : Type} {encA : A ↪ List Bool}
     (hc : ComputableInPolyTime compile encA encB) (hS : S ∈ PSPACE encB) :
     {x | (word x).checkPlane = true ∧ (word x).WellTyped [] [] ∧ compile x ∈ S} ∈
       PSPACE encA := by
-  have hr : PolyTimeReducible encA encB (compile ⁻¹' S) S :=
-    ⟨compile, hc, fun _ => Iff.rfl⟩
-  have hg := computableInPolyTime_planeGuard.comp hw
   have hm : {x | planeGuard (word x) = true} ∈ PSPACE encA :=
-    ⟨_, .of_polyTime hg, fun _ => Iff.rfl⟩
-  have he : {x | (word x).checkPlane = true ∧ (word x).WellTyped [] [] ∧ compile x ∈ S} =
-      {x | planeGuard (word x) = true} ∩ (compile ⁻¹' S) := by
-    ext x
-    simp [planeGuard, and_assoc]
-  rw [he]
-  exact inter_mem_PSPACE hm (hr.mem_PSPACE hS)
+    ⟨_, .of_polyTime (computableInPolyTime_planeGuard.comp hw), fun _ => Iff.rfl⟩
+  have hcS : compile ⁻¹' S ∈ PSPACE encA :=
+    PolyTimeReducible.mem_PSPACE ⟨compile, hc, fun _ => Iff.rfl⟩ hS
+  convert inter_mem_PSPACE hm hcS using 1
+  ext x
+  simp [planeGuard, and_assoc]
 
 /-- Fixed-target plane AND/OR NCL is decidable in polynomial space. -/
 theorem PlaneWordAndOrNCL_mem_PSPACE : PlaneWordAndOrNCL ∈ PSPACE encPlaneWordAndOrNCL :=
