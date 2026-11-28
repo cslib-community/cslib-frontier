@@ -90,10 +90,11 @@ theorem eq_of_isThresholdOver_of_featureMoment_eq {X ι : Type*} [Fintype X] [Fi
       (∑ j : ι, a j * (#{x : X | f x = true ∧ g j x = true} : ℝ)) -
         θ * (#{x : X | f x = true} : ℝ) := by
     have hcount : (#{x : X | f x = true} : ℝ) = ∑ x : X, ((f x).toNat : ℝ) := by
-      rw [card_filter, Nat.cast_sum]; exact sum_congr rfl fun x _ => by cases f x <;> simp
+      rw [← Finset.sum_boole]
+      exact sum_congr rfl fun x _ => by cases f x <;> simp
     have hcount_j (j : ι) : (#{x : X | f x = true ∧ g j x = true} : ℝ) =
         ∑ x : X, ((f x).toNat : ℝ) * ((g j x).toNat : ℝ) := by
-      rw [card_filter, Nat.cast_sum]
+      rw [← Finset.sum_boole]
       exact sum_congr rfl fun x _ => by cases f x <;> cases g j x <;> simp
     simp_rw [S, mul_sub, sum_sub_distrib, hcount, hcount_j, mul_sum]; rw [sum_comm]; congr 1
     · exact sum_congr rfl fun x _ => sum_congr rfl fun j _ => by ring

@@ -263,8 +263,7 @@ theorem measure_pi_bernstein_single_le (D : Measure (α × β)) [IsProbabilityMe
   have hδ0 : 0 ≤ δ := Real.sqrt_nonneg _
   have hcount (S : LabeledSample α β n) :
       (empiricalMiscount h S : ℝ) = ∑ i : Fin n, score i (f (S i)) := by
-    simp only [empiricalMiscount, score, f, Finset.card_filter, Nat.cast_sum, Nat.cast_ite,
-      Nat.cast_one, Nat.cast_zero, decide_eq_true_eq]
+    simp only [empiricalMiscount, score, f, ← Finset.sum_boole, decide_eq_true_eq]
   have hnR : (0 : ℝ) < n := Nat.cast_pos.2 hn
   have hsub : {S : LabeledSample α β n |
         (empiricalMiscount h S : ℝ) / n + c +
@@ -327,9 +326,7 @@ private theorem measurable_heldOutMiscount {m : ℕ} (J : Finset (Fin m))
     Measurable fun S : LabeledSample α β m => (heldOutMiscount J (g S) S : ℝ) := by
   have heq : (fun S : LabeledSample α β m => (heldOutMiscount J (g S) S : ℝ)) =
       fun S => ∑ i ∈ Jᶜ, if g S (S i).1 ≠ (S i).2 then (1 : ℝ) else 0 := by
-    funext S
-    simp only [heldOutMiscount, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-      Nat.cast_zero]
+    simp only [heldOutMiscount, ← Finset.sum_boole]
   rw [heq]
   refine Finset.measurable_sum _ fun i _ => ?_
   have hset : MeasurableSet {S : LabeledSample α β m | g S (S i).1 ≠ (S i).2} :=

@@ -161,7 +161,7 @@ theorem sum_sum_card_heavy_le (C' : (Fin k → U) → Fin k → V) (f : U → V)
       ≤ n ^ k * k.choose s * Real.exp (-(α * s)) := by
     calc ∑ P ∈ univ.powersetCard s, (#{y ∈ heavy | Disjoint (disagreements C' f y) P} : ℝ)
         = ∑ y ∈ heavy, (#{P ∈ univ.powersetCard s | Disjoint (disagreements C' f y) P} : ℝ) := by
-          simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+          simp only [← Finset.sum_boole]
           exact sum_comm
       _ ≤ ∑ _y ∈ heavy, (k.choose s * Real.exp (-(α * s)) : ℝ) := by
           refine sum_le_sum fun y hy => ?_

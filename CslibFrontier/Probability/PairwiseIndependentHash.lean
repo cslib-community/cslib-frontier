@@ -174,7 +174,7 @@ theorem comp_seedEquiv {ι' : Type*} [Fintype ι'] (hh : IsPairwiseIndependentHa
 theorem expect_card_filter_apply_eq [Semifield 𝕜] [CharZero 𝕜] (hh : IsPairwiseIndependentHash h)
     (S : Finset X) (y : Y) :
     𝔼 i, (#{x ∈ S | h i x = y} : 𝕜) = #S / Fintype.card Y := by
-  simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+  simp only [← sum_boole]
   rw [expect_sum_comm]
   simp only [Fintype.expect_boole, hh.dens_filter_apply_eq, NNRat.cast_inv, NNRat.cast_natCast,
     sum_const, nsmul_eq_mul, div_eq_mul_inv]

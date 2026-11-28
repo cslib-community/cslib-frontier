@@ -388,10 +388,8 @@ theorem cubeCayley_walk_eq_circulant_mulVec {ι : Type*} [Fintype ι] [Decidable
   have hsum : (∑ y : ι → Bool, (#{j : Fin d | s j = u - y} : ℝ) / d * f y) =
       ∑ y : ι → Bool, ∑ j : Fin d, if s j = u - y then f y / d else 0 := by
     refine sum_congr rfl fun y _ => ?_
-    rw [card_filter, Nat.cast_sum]
-    simp only [Nat.cast_ite, Nat.cast_one, Nat.cast_zero, sum_div, sum_mul, ite_div, zero_div,
-      ite_mul, zero_mul]
-    exact sum_congr rfl fun _ _ => by split_ifs <;> ring
+    simp only [← sum_boole, sum_div, sum_mul, ite_div, zero_div, ite_mul, zero_mul,
+      one_div_mul_eq_div]
   rw [hsum, sum_comm, sum_div]
   refine sum_congr rfl fun j _ => ?_
   have heq (y : ι → Bool) : (s j = u - y) ↔ (y = u + s j) := by

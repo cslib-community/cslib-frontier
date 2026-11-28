@@ -10,6 +10,7 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.RealizableSample
 public import CslibFrontier.MachineLearning.PACLearning.VCDimension
 import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
+import CslibFrontier.MachineLearning.PACLearning.HausslerPacking
 import Mathlib.Combinatorics.Hall.Finite
 import Mathlib.Data.Fintype.Pi
 import Mathlib.MeasureTheory.Constructions.Pi
@@ -107,309 +108,39 @@ theorem oneInclusionEdges_mono [DecidableEq ι] [Fintype ι] {S₁ S₂ : Finset
   rcases mem_oneInclusionEdges.mp he with ⟨h1, h2, h3⟩
   exact mem_oneInclusionEdges.mpr ⟨h h1, h2, h h3⟩
 
-private theorem setShatters_image_succ {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters (Fin.tail '' S) W) : SetShatters S (Fin.succ '' W) :=
-  SetShatters.image_of_comp hW
-
-private theorem setShatters_insert_zero {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} W) :
-    SetShatters S (insert 0 (Fin.succ '' W)) := by
-  classical
-  intro T hT
-  obtain ⟨g, ⟨hg0, hg1⟩, hgT⟩ := hW (W ∩ Fin.succ ⁻¹' T) Set.inter_subset_left
-  let b : Bool := decide ((0 : Fin (n + 1)) ∈ T)
-  refine ⟨Fin.cons b g, by cases hb : b <;> [exact hg0; exact hg1], Set.ext fun x => ?_⟩
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-  rcases Fin.eq_zero_or_eq_succ x with rfl | ⟨i, rfl⟩
-  · simp [b]
-  · constructor
-    · rintro ⟨hgi, hxins⟩
-      simp only [Fin.cons_succ] at hgi
-      have hiW : i ∈ W := by
-        rcases hxins with h0 | ⟨j, hj, hji⟩
-        · exact absurd h0 (Fin.succ_ne_zero i)
-        · rwa [Fin.succ_inj.mp hji] at hj
-      have hmem : i ∈ g ⁻¹' {true} ∩ W := ⟨hgi, hiW⟩
-      rw [hgT] at hmem
-      exact hmem.2
-    · intro hiT
-      have hiW : i ∈ W := by
-        rcases hT hiT with h0 | ⟨j, hj, hji⟩
-        · exact absurd h0 (Fin.succ_ne_zero i)
-        · rwa [Fin.succ_inj.mp hji] at hj
-      have hmem : i ∈ g ⁻¹' {true} ∩ W := hgT ▸ ⟨hiW, hiT⟩
-      exact ⟨by simpa only [Fin.cons_succ, Set.mem_preimage, Set.mem_singleton_iff] using hmem.1,
-        Or.inr ⟨i, hiW, rfl⟩⟩
-
-private theorem card_oneInclusionEdges_fin_le :
-    ∀ {n d : ℕ} {S : Finset (Fin n → Bool)},
-      (∀ W : Finset (Fin n), SetShatters (S : Set (Fin n → Bool)) ↑W → W.card ≤ d) →
-      (oneInclusionEdges S).card ≤ d * S.card
-  | 0, d, S, _ => by
-    have hemp : oneInclusionEdges S = ∅ := eq_empty_of_forall_notMem fun e _ => Fin.elim0 e.1
-    simp [hemp]
-  | n + 1, d, S, hS => by
-    classical
-    let S₀ : Finset (Fin n → Bool) := Finset.univ.filter fun g => Fin.cons false g ∈ S
-    let S₁ : Finset (Fin n → Bool) := Finset.univ.filter fun g => Fin.cons true g ∈ S
-    have hcard_b : ∀ b : Bool,
-        (S.filter fun f => f 0 = b).card =
-          (Finset.univ.filter fun g : Fin n → Bool => Fin.cons b g ∈ S).card := by
-      intro b
-      refine card_bij (fun f _ => Fin.tail f) ?_ ?_ ?_
-      · intro f hf
-        rcases mem_filter.mp hf with ⟨hfS, hf0⟩
-        rw [mem_filter]
-        refine ⟨mem_univ _, ?_⟩
-        have hcons : Fin.cons b (Fin.tail f) = f := by
-          rw [← hf0, Fin.cons_self_tail]
-        rwa [hcons]
-      · intro f₁ h₁ f₂ h₂ htail
-        have hf₁ : Fin.cons b (Fin.tail f₁) = f₁ := by
-          rw [← (mem_filter.mp h₁).2, Fin.cons_self_tail]
-        have hf₂ : Fin.cons b (Fin.tail f₂) = f₂ := by
-          rw [← (mem_filter.mp h₂).2, Fin.cons_self_tail]
-        rw [← hf₁, ← hf₂, htail]
-      · intro g hg
-        exact ⟨Fin.cons b g, mem_filter.mpr ⟨(mem_filter.mp hg).2, rfl⟩,
-          by simp [Fin.tail_cons]⟩
-    have hScard : S.card = (S₀ ∪ S₁).card + (S₀ ∩ S₁).card := by
-      have hsplit := card_filter_add_card_filter_not (s := S) (fun f => f 0 = false)
-      have hnot : (S.filter fun f => ¬ f 0 = false) = S.filter fun f => f 0 = true := by
-        congr 1; ext f; cases f 0 <;> simp
-      rw [hnot, hcard_b false, hcard_b true] at hsplit
-      exact hsplit.symm.trans (card_union_add_card_inter S₀ S₁).symm
-    -- Count edges along coordinate `0`.
-    have hedge0 : ((oneInclusionEdges S).filter fun e => e.1 = 0).card = (S₀ ∩ S₁).card := by
-      refine card_bij (fun e _ => Fin.tail e.2) ?_ ?_ ?_
-      · intro ⟨i, f⟩ he
-        rcases mem_filter.mp he with ⟨heE, hi0⟩
-        dsimp only at hi0
-        subst hi0
-        rcases mem_oneInclusionEdges.mp heE with ⟨hfS, hf0, hupdS⟩
-        have hcons0 : Fin.cons false (Fin.tail f) = f := by
-          rw [← hf0, Fin.cons_self_tail]
-        have hcons1 : Fin.cons true (Fin.tail f) = Function.update f 0 true := by
-          ext k
-          rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨j, rfl⟩
-          · simp
-          · simp [Fin.tail]
-        exact mem_inter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hcons0.symm ▸ hfS⟩,
-          mem_filter.mpr ⟨mem_univ _, hcons1.symm ▸ hupdS⟩⟩
-      · intro ⟨i₁, f₁⟩ h₁ ⟨i₂, f₂⟩ h₂ htail
-        rcases mem_filter.mp h₁ with ⟨he₁, rfl⟩
-        rcases mem_filter.mp h₂ with ⟨he₂, rfl⟩
-        have hf₁ : Fin.cons false (Fin.tail f₁) = f₁ := by
-          rw [← (mem_oneInclusionEdges.mp he₁).2.1, Fin.cons_self_tail]
-        have hf₂ : Fin.cons false (Fin.tail f₂) = f₂ := by
-          rw [← (mem_oneInclusionEdges.mp he₂).2.1, Fin.cons_self_tail]
-        exact Prod.ext rfl (by rw [← hf₁, ← hf₂, htail])
-      · intro g hg
-        rcases mem_inter.mp hg with ⟨hg0, hg1⟩
-        refine ⟨(0, Fin.cons false g), mem_filter.mpr ⟨mem_oneInclusionEdges.mpr
-          ⟨(mem_filter.mp hg0).2, rfl, ?_⟩, rfl⟩, by simp [Fin.tail_cons]⟩
-        have hupd : Function.update (Fin.cons false g : Fin (n + 1) → Bool) 0 true =
-            Fin.cons true g := by
-          ext k
-          rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨j, rfl⟩ <;> simp
-        rw [hupd]
-        exact (mem_filter.mp hg1).2
-    -- Count edges along coordinates `j.succ` with `f 0 = b`.
-    have hedge_succ : ∀ b : Bool,
-        ((oneInclusionEdges S).filter fun e => e.1 ≠ 0 ∧ e.2 0 = b).card =
-          (oneInclusionEdges
-            (Finset.univ.filter fun g : Fin n → Bool => Fin.cons b g ∈ S)).card := by
-      intro b
-      let Sb := Finset.univ.filter fun g : Fin n → Bool => Fin.cons b g ∈ S
-      refine card_bij (fun e he => ((e.1).pred (mem_filter.mp he).2.1, Fin.tail e.2)) ?_ ?_ ?_
-      · intro ⟨i, f⟩ he
-        rcases mem_filter.mp he with ⟨heE, hi0, hfb⟩
-        rcases mem_oneInclusionEdges.mp heE with ⟨hfS, hfi, hupdS⟩
-        dsimp only at hi0 hfb hfS hfi hupdS ⊢
-        have hcons : Fin.cons b (Fin.tail f) = f := by
-          rw [← hfb, Fin.cons_self_tail]
-        have hupd_eq : Fin.cons b (Function.update (Fin.tail f) (i.pred hi0) true) =
-            Function.update f i true := by
-          ext k
-          rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨j, rfl⟩
-          · simp [hfb, hi0.symm]
-          · by_cases hji : j = i.pred hi0
-            · subst hji
-              simp [Fin.succ_pred]
-            · have hki : j.succ ≠ i := fun h => hji <| Fin.ext <| by
-                have hval := congrArg Fin.val h
-                simp only [Fin.val_succ, Fin.val_pred] at hval ⊢
-                omega
-              simp [Fin.tail, hji, hki]
-        refine mem_oneInclusionEdges.mpr ⟨mem_filter.mpr ⟨mem_univ _, hcons.symm ▸ hfS⟩, ?_,
-          mem_filter.mpr ⟨mem_univ _, hupd_eq.symm ▸ hupdS⟩⟩
-        simpa [Fin.tail, Fin.succ_pred] using hfi
-      · intro ⟨i₁, f₁⟩ h₁ ⟨i₂, f₂⟩ h₂ heq
-        rcases mem_filter.mp h₁ with ⟨_, hi₁, hfb₁⟩
-        rcases mem_filter.mp h₂ with ⟨_, hi₂, hfb₂⟩
-        rcases Prod.mk.inj heq with ⟨hip, htail⟩
-        have hi_eq : i₁ = i₂ := by
-          rw [← Fin.succ_pred i₁ hi₁, ← Fin.succ_pred i₂ hi₂, hip]
-        have hf₁ : Fin.cons b (Fin.tail f₁) = f₁ := by rw [← hfb₁, Fin.cons_self_tail]
-        have hf₂ : Fin.cons b (Fin.tail f₂) = f₂ := by rw [← hfb₂, Fin.cons_self_tail]
-        exact Prod.ext hi_eq (by rw [← hf₁, ← hf₂, htail])
-      · rintro ⟨j, g⟩ he
-        rcases mem_oneInclusionEdges.mp he with ⟨hgSb, hgj, hupdSb⟩
-        dsimp only at hgSb hgj hupdSb
-        have hupd_cons : Function.update (Fin.cons b g : Fin (n + 1) → Bool) j.succ true =
-            Fin.cons b (Function.update g j true) := by
-          ext k
-          rcases Fin.eq_zero_or_eq_succ k with rfl | ⟨k', rfl⟩
-          · simp [(Fin.succ_ne_zero j).symm]
-          · by_cases hkj : k' = j
-            · subst hkj; simp
-            · simp [hkj]
-        refine ⟨(j.succ, Fin.cons b g), mem_filter.mpr ⟨mem_oneInclusionEdges.mpr
-          ⟨(mem_filter.mp hgSb).2, by simpa using hgj, ?_⟩, Fin.succ_ne_zero j, rfl⟩, ?_⟩
-        · rw [hupd_cons]
-          exact (mem_filter.mp hupdSb).2
-        · simp [Fin.tail_cons]
-    have hedges_total :
-        (oneInclusionEdges S).card =
-          (S₀ ∩ S₁).card + (oneInclusionEdges S₀).card + (oneInclusionEdges S₁).card := by
-      have hpart0 := card_filter_add_card_filter_not (s := oneInclusionEdges S) (fun e => e.1 = 0)
-      have hpartb := card_filter_add_card_filter_not
-        (s := (oneInclusionEdges S).filter fun e => ¬ e.1 = 0) (fun e => e.2 0 = false)
-      rw [filter_filter, filter_filter] at hpartb
-      have hnotb : ((oneInclusionEdges S).filter fun e => ¬ e.1 = 0 ∧ ¬ e.2 0 = false) =
-          (oneInclusionEdges S).filter fun e => e.1 ≠ 0 ∧ e.2 0 = true := by
-        congr 1; ext e; cases e.2 0 <;> simp
-      have hedge_S0 : ((oneInclusionEdges S).filter fun e => ¬ e.1 = 0 ∧ e.2 0 = false).card =
-          (oneInclusionEdges S₀).card := hedge_succ false
-      have hedge_S1 : ((oneInclusionEdges S).filter fun e => e.1 ≠ 0 ∧ e.2 0 = true).card =
-          (oneInclusionEdges S₁).card := hedge_succ true
-      rw [hnotb, hedge_S0, hedge_S1] at hpartb
-      rw [hedge0, ← hpartb] at hpart0
-      omega
-    have hedges_submod :
-        (oneInclusionEdges S₀).card + (oneInclusionEdges S₁).card ≤
-          (oneInclusionEdges (S₀ ∪ S₁)).card + (oneInclusionEdges (S₀ ∩ S₁)).card := by
-      rw [← card_union_add_card_inter]
-      have hinter : oneInclusionEdges S₀ ∩ oneInclusionEdges S₁ = oneInclusionEdges (S₀ ∩ S₁) := by
-        ext e
-        simp only [mem_inter, mem_oneInclusionEdges]
-        tauto
-      have hunion : oneInclusionEdges S₀ ∪ oneInclusionEdges S₁ ⊆
-          oneInclusionEdges (S₀ ∪ S₁) :=
-        union_subset (oneInclusionEdges_mono subset_union_left)
-          (oneInclusionEdges_mono subset_union_right)
-      rw [hinter]
-      exact Nat.add_le_add_right (card_le_card hunion) _
-    have hsh_union : ∀ W : Finset (Fin n),
-        SetShatters (↑(S₀ ∪ S₁) : Set (Fin n → Bool)) ↑W → W.card ≤ d := by
-      intro W hW
-      have hsub : (↑(S₀ ∪ S₁) : Set (Fin n → Bool)) ⊆
-          Fin.tail '' (S : Set (Fin (n + 1) → Bool)) := by
-        intro g hg
-        rcases mem_union.mp (mem_coe.mp hg) with hg0 | hg1
-        · exact ⟨Fin.cons false g, (mem_filter.mp hg0).2, by simp [Fin.tail_cons]⟩
-        · exact ⟨Fin.cons true g, (mem_filter.mp hg1).2, by simp [Fin.tail_cons]⟩
-      have hsh' : SetShatters (S : Set (Fin (n + 1) → Bool)) ↑(W.map (Fin.succEmb n)) := by
-        rw [coe_map]
-        exact setShatters_image_succ (hW.superset hsub)
-      simpa only [card_map] using hS _ hsh'
-    have hsh_inter : ∀ W : Finset (Fin n),
-        SetShatters (↑(S₀ ∩ S₁) : Set (Fin n → Bool)) ↑W → W.card + 1 ≤ d := by
-      intro W hW
-      have hsub : (↑(S₀ ∩ S₁) : Set (Fin n → Bool)) ⊆
-          {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} := by
-        intro g hg
-        rcases mem_inter.mp (mem_coe.mp hg) with ⟨hg0, hg1⟩
-        exact ⟨(mem_filter.mp hg0).2, (mem_filter.mp hg1).2⟩
-      have h0not : (0 : Fin (n + 1)) ∉ W.map (Fin.succEmb n) := by
-        simp only [mem_map, Fin.coe_succEmb, not_exists, not_and]
-        exact fun i _ => Fin.succ_ne_zero i
-      have hsh' : SetShatters (S : Set (Fin (n + 1) → Bool))
-          ↑(insert 0 (W.map (Fin.succEmb n))) := by
-        rw [coe_insert, coe_map]
-        exact setShatters_insert_zero (hW.superset hsub)
-      have hcard := hS _ hsh'
-      rwa [card_insert_of_notMem h0not, card_map] at hcard
-    rcases d with _ | d
-    · have hemp_inter : (S₀ ∩ S₁).card = 0 := by
-        rw [card_eq_zero, ← not_nonempty_iff_eq_empty]
-        intro ⟨g, hg⟩
-        have hsh0 : SetShatters (↑(S₀ ∩ S₁) : Set (Fin n → Bool)) ↑(∅ : Finset (Fin n)) := by
-          intro T hT
-          have hTeq : T = ∅ := Set.subset_empty_iff.mp (by simpa using hT)
-          subst hTeq
-          exact ⟨g, hg, by simp⟩
-        have := hsh_inter ∅ hsh0
-        omega
-      have hemp_edges_inter : (oneInclusionEdges (S₀ ∩ S₁)).card = 0 := by
-        rw [card_eq_zero.mp hemp_inter]
-        simp [oneInclusionEdges]
-      have ih_u := card_oneInclusionEdges_fin_le (d := 0) hsh_union
-      omega
-    · have ih_u := card_oneInclusionEdges_fin_le (d := d + 1) hsh_union
-      have ih_i := card_oneInclusionEdges_fin_le (d := d) fun W hW => by
-        have := hsh_inter W hW; omega
-      calc (oneInclusionEdges S).card
-          = (S₀ ∩ S₁).card + ((oneInclusionEdges S₀).card + (oneInclusionEdges S₁).card) := by
-            omega
-        _ ≤ (S₀ ∩ S₁).card +
-              ((oneInclusionEdges (S₀ ∪ S₁)).card + (oneInclusionEdges (S₀ ∩ S₁)).card) :=
-            Nat.add_le_add_left hedges_submod _
-        _ ≤ (S₀ ∩ S₁).card + ((d + 1) * (S₀ ∪ S₁).card + d * (S₀ ∩ S₁).card) :=
-            Nat.add_le_add_left (Nat.add_le_add ih_u ih_i) _
-        _ = (d + 1) * ((S₀ ∪ S₁).card + (S₀ ∩ S₁).card) := by ring
-        _ = (d + 1) * S.card := by rw [← hScard]
-
 /-- **Haussler–Littlestone–Warmuth subgraph edge-density bound**
 [HausslerLittlestoneWarmuth1994, Lemma 2.4 (locator unverified)]: if `S : Finset (ι → Bool)`
 shatters no finite set of more than `d` coordinates, then `(oneInclusionEdges S).card ≤ d * S.card`.
+Apply the weighted hypercube edge bound to the indicator of `S`.
 -/
 theorem card_oneInclusionEdges_le_mul_card [DecidableEq ι] [Fintype ι] {d : ℕ}
     {S : Finset (ι → Bool)}
     (hS : ∀ W : Finset ι, SetShatters (S : Set (ι → Bool)) ↑W → W.card ≤ d) :
     (oneInclusionEdges S).card ≤ d * S.card := by
   classical
-  let e : Fin (Fintype.card ι) ≃ ι := (Fintype.equivFin ι).symm
-  let S' : Finset (Fin (Fintype.card ι) → Bool) := S.image (· ∘ e)
-  have hinj_fn : Function.Injective (fun f : ι → Bool => f ∘ e) :=
-    fun f₁ f₂ h => funext fun i => by simpa using congrFun h (e.symm i)
-  have hcard_S : S'.card = S.card := card_image_of_injective S hinj_fn
-  have hedg_eq : (oneInclusionEdges S).card = (oneInclusionEdges S').card := by
-    refine card_bij (fun p _ => (e.symm p.1, p.2 ∘ e)) ?_ ?_ ?_
-    · rintro ⟨i, f⟩ hp
-      rcases mem_oneInclusionEdges.mp hp with ⟨hfS, hfi, hupdS⟩
-      dsimp only at hfS hfi hupdS ⊢
-      have hupd : Function.update (f ∘ e) (e.symm i) true = Function.update f i true ∘ e := by
-        ext j
-        by_cases hj : j = e.symm i
-        · subst hj; simp
-        · have hej : e j ≠ i := fun h => hj (by rw [← h, Equiv.symm_apply_apply])
-          simp [hj, hej]
-      exact mem_oneInclusionEdges.mpr ⟨mem_image_of_mem _ hfS, by simp [hfi],
-        hupd ▸ mem_image_of_mem _ hupdS⟩
-    · rintro ⟨i₁, f₁⟩ _ ⟨i₂, f₂⟩ _ heq
-      rcases Prod.mk.inj heq with ⟨hi, hf⟩
-      exact Prod.ext (e.symm.injective hi) (hinj_fn hf)
-    · rintro ⟨j, g⟩ hp
-      rcases mem_oneInclusionEdges.mp hp with ⟨hgS', hgj, hupdS'⟩
-      dsimp only at hgS' hgj hupdS'
-      rcases mem_image.mp hgS' with ⟨f, hfS, rfl⟩
-      rcases mem_image.mp hupdS' with ⟨f', hf'S, hf'eq⟩
-      have hf'_upd : f' = Function.update f (e j) true := by
-        apply hinj_fn
-        dsimp only
-        rw [hf'eq]
-        ext k
-        by_cases hkj : k = j
-        · subst hkj; simp
-        · simp [hkj, e.injective.ne hkj]
-      refine ⟨(e j, f), mem_oneInclusionEdges.mpr ⟨hfS, hgj, hf'_upd ▸ hf'S⟩, ?_⟩
-      simp
-  have hS' : ∀ W : Finset (Fin (Fintype.card ι)),
-      SetShatters (S' : Set (Fin (Fintype.card ι) → Bool)) ↑W → W.card ≤ d := fun W hW =>
-    SetShatters.card_le_of_comp hS (by simpa only [S', coe_image] using hW)
-  rw [hedg_eq, ← hcard_S]
-  exact card_oneInclusionEdges_fin_le hS'
+  let μ (f : ι → Bool) : ℝ := if f ∈ S then 1 else 0
+  have hsupport : {f | 0 < μ f} = (S : Set (ι → Bool)) := by
+    ext f
+    by_cases hf : f ∈ S <;> simp [μ, hf]
+  have hsum : (∑ f : ι → Bool, μ f) = (S.card : ℝ) := by
+    simp [μ]
+  have hedges : hypercubeEdgeMinSum μ = ((oneInclusionEdges S).card : ℝ) := by
+    let edgeWeight (e : ι × (ι → Bool)) : ℝ := if e ∈ oneInclusionEdges S then 1 else 0
+    rw [hypercubeEdgeMinSum_eq_sum]
+    calc
+      _ = ∑ i : ι, ∑ f : ι → Bool, edgeWeight (i, f) := by
+        refine sum_congr rfl fun i _ => sum_congr rfl fun f _ => ?_
+        by_cases hf : f ∈ S <;> by_cases hbit : f i = false <;>
+          by_cases hnext : Function.update f i true ∈ S <;>
+          simp [μ, edgeWeight, mem_oneInclusionEdges, hf, hbit, hnext]
+      _ = _ := by
+        rw [← Fintype.sum_prod_type edgeWeight]
+        simp only [edgeWeight, sum_boole, filter_mem_eq_inter, univ_inter]
+  have hb := sum_min_update_le_mul_sum (μ := μ)
+    (fun f => by dsimp only [μ]; split <;> positivity)
+    (fun W hW => hS W (hsupport ▸ hW))
+  rw [hedges, hsum] at hb
+  exact_mod_cast hb
 
 /-! ### 2. Bounded-outdegree orientation via Hall's marriage theorem -/
 

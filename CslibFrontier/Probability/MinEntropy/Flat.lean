@@ -64,7 +64,7 @@ private theorem mem_fractional [Fintype α] {f : α → ℝ} {a : α} :
 private theorem sum_eq_card_filter (s : Finset α) (f : α → ℝ)
     (h : ∀ a ∈ s, f a = 0 ∨ f a = 1) :
     ∑ a ∈ s, f a = (s.filter fun a => f a = 1).card := by
-  rw [card_filter, Nat.cast_sum]
+  rw [← sum_boole]
   refine sum_congr rfl fun a ha => ?_
   rcases h a ha with h | h <;> simp [h]
 

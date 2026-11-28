@@ -298,8 +298,7 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
   have hsub : {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) <
       ε * m / 2} ⊆ {b | ∑ i, score i (b i) ≤ (1 - 1 / 2) * (ε * m)} := by
     intro b hb
-    simp only [Set.mem_ofPred_eq, score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite,
-      Nat.cast_one, Nat.cast_zero] at hb ⊢
+    simp only [Set.mem_ofPred_eq, score, ← Finset.sum_boole] at hb ⊢
     linarith
   have hexp : Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) < 1 / 2 := by
     calc Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) ≤ Real.exp (-1) :=

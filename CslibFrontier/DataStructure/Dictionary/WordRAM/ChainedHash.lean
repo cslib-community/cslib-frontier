@@ -1171,9 +1171,8 @@ theorem expect_collCount_le_card_mul (U n_max : ℕ) (s : Dictionary.State U) (u
           {b' | h b' u' = h b' u}.indicator seedLaw b := by
         rw [tsum_fintype]
         refine Finset.sum_congr rfl fun b _ => ?_
-        simp only [collCount, Finset.card_filter, Nat.cast_sum, Finset.mul_sum]
-        refine Finset.sum_congr rfl fun u' _ => ?_
-        split_ifs with he <;> simp [Set.indicator, h, w₀, M, he]
+        simp only [collCount, ← Finset.sum_boole, Finset.mul_sum, Set.indicator, Set.mem_ofPred_eq,
+          h, w₀, M, mul_ite, mul_one, mul_zero]
     _ = ∑ u' ∈ (Dictionary.dom s).erase u, seedLaw.toOuterMeasure {b' | h b' u' = h b' u} := by
         rw [Finset.sum_comm]
         exact Finset.sum_congr rfl fun u' _ => by rw [PMF.toOuterMeasure_apply, tsum_fintype]

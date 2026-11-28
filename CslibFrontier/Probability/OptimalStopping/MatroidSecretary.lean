@@ -1172,9 +1172,7 @@ private theorem sum_layerGap_mul_countHalf {α : Type*} (w : α → ℝ) {v : �
       2 * ∑ y ∈ S, w y := by
   have hcard : ∀ i : Fin q, (((S.filter fun y => v i.val / 2 ≤ w y).card : ℕ) : ℝ) =
       ∑ y ∈ S, if v i.val / 2 ≤ w y then (1 : ℝ) else 0 := by
-    intro i
-    rw [Finset.card_filter, Nat.cast_sum]
-    refine Finset.sum_congr rfl fun y _ => by split_ifs <;> simp
+    exact fun _ => (Finset.sum_boole _ _).symm
   simp_rw [hcard, Finset.mul_sum]
   rw [Finset.sum_comm]
   refine Finset.sum_le_sum fun y hy => ?_

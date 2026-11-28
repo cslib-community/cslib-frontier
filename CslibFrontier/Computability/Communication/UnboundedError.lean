@@ -82,7 +82,7 @@ theorem errorProb_eq_card (P : PrivateCoin a b X Y Z) (R : X → Y → Z → Pro
         (2 ^ a * 2 ^ b) := by
   rw [errorProb, PMF.toOuterMeasure_apply_toReal]
   simp only [PMF.uniformOfFintype_apply, Fintype.card_prod, BitString.card, Set.mem_ofPred_eq]
-  rw [Finset.card_filter, Nat.cast_sum, Finset.sum_div]
+  rw [← Finset.sum_boole, Finset.sum_div]
   refine Finset.sum_congr rfl fun r _ => ?_
   split_ifs <;> simp [ENNReal.toReal_inv]
 

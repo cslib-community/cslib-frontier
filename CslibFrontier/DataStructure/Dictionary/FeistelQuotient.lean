@@ -424,9 +424,7 @@ theorem expect_card_feistelXor_eq_on [DecidableEq Q] {U b m : ℕ} {𝕜 : Type*
       (#{x ∈ S.erase u | feistelXor b m hbm qOf H i x = feistelXor b m hbm qOf H i u} : 𝕜) =
         ∑ x ∈ S',
           if feistelXor b m hbm qOf H i x = feistelXor b m hbm qOf H i u then (1 : 𝕜) else 0 := by
-    rw [filter_feistelXor_eq_filter_qOf_ne hbm qOf H i S u hq, card_filter, Nat.cast_sum]
-    refine sum_congr rfl fun x _ => ?_
-    split_ifs <;> simp
+    rw [filter_feistelXor_eq_filter_qOf_ne hbm qOf H i S u hq, ← sum_boole]
   simp only [hcard]
   rw [expect_sum_comm]
   have hterm : ∀ x ∈ S',

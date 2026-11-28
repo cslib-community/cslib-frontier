@@ -253,9 +253,8 @@ theorem sum_lintegral_error_prefixHypothesis_le [MeasurableEq β] [DecidableEq �
         have hcount : ∑ t : Fin (m + 1),
             {S : LabeledSample α β (m + 1) | prefixHypothesis A S t (S t).1 ≠ (S t).2}.indicator
               1 S = (mistakes A (List.ofFn S) : ℝ≥0∞) := by
-          rw [mistakes_ofFn_eq_card, Finset.card_filter, Nat.cast_sum]
-          exact Finset.sum_congr rfl fun t _ => by
-            by_cases h : prefixHypothesis A S t (S t).1 ≠ (S t).2 <;> simp [h]
+          simp only [mistakes_ofFn_eq_card, ← Finset.sum_boole, Set.indicator,
+            Set.mem_ofPred_eq, Pi.one_apply]
         rw [hcount]
         exact_mod_cast (mistakes_le_mistakeBound (realizable_ofFn hS)).trans hM
     _ = M := by simp
@@ -304,9 +303,7 @@ private theorem mul_error_prefixMajority_le {A : OnlineLearner α Bool} (hA : Is
     have hcard : ∑ t : Fin (m + 1), {z : α × Bool | prefixHypothesis A S t z.1 ≠ z.2}.indicator 1 z
         = ((Finset.univ.filter fun t : Fin (m + 1) => prefixHypothesis A S t z.1 ≠ z.2).card :
           ℝ≥0∞) := by
-      rw [Finset.card_filter, Nat.cast_sum]
-      exact Finset.sum_congr rfl fun t _ => by
-        by_cases ht : prefixHypothesis A S t z.1 ≠ z.2 <;> simp [ht]
+      simp only [← Finset.sum_boole, Set.indicator, Set.mem_ofPred_eq, Pi.one_apply]
     simp only [mem_ofPred_eq, f, hcard]
     exact_mod_cast le_two_mul_card_of_prefixMajority_ne A S hz
   calc (m + 1 : ℝ≥0∞) * error D (prefixMajority A S)

@@ -845,8 +845,7 @@ theorem expect_roundsOn_le {U' n' : ℕ} {A : Finset (Fin U')} {B : Finset (Fin 
   set L := Nat.clog 2 A.card
   have hrounds_eq (h : Scheme U' n') : (roundsOn h A B : ℝ) =
       ∑ i ∈ Finset.range U', if (stateAt h A B i).1.Nonempty then (1 : ℝ) else 0 := by
-    simp only [roundsOn, card_filter, Nat.cast_sum]
-    exact sum_congr rfl fun _ _ => by split_ifs <;> simp
+    simp only [roundsOn, ← sum_boole]
   simp_rw [hrounds_eq, mul_sum]; rw [sum_comm]
   let bound (i : ℕ) : ℝ := if i < L then 1 else (1 / 2 : ℝ) ^ (i - L)
   have hterm : ∀ i ∈ Finset.range U',

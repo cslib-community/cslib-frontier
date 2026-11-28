@@ -312,8 +312,7 @@ private theorem sharpPWithOracle_mem_GapP_of_mem_SPP (hA : A ∈ SPP encBits)
         hrun (a, List.ofFn w) (languageOracle A)
     simpa only [F, input, T', D', hout, encBool_apply, List.headD_cons, one_pow, one_mul] using
       weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w) fun q _ => hg_eq q
-  simp only [r, hF_eval, hc_eq a, acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite,
-    Nat.cast_one, Nat.cast_zero]
+  simp only [r, hF_eval, hc_eq a, acceptCount, ← Finset.sum_boole]
 
 /-- **`SPP` is low for `GapP`** ([Fenner–Fortnow–Kurtz, Section 5][FennerFortnowKurtz1994]):
 every `SPP` oracle can be simulated exactly with unit denominator in `GapP`. -/
@@ -440,8 +439,7 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
         hrun (a, List.ofFn w) (languageOracle A)
     simpa only [F, S, T, input, T', D', H', hout, encBool_apply, List.headD_cons] using
       weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w) hH_exact
-  simp only [r, hF_eval, ← mul_sum, hc_eq a, acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite,
-    Nat.cast_one, Nat.cast_zero]
+  simp only [r, hF_eval, ← mul_sum, hc_eq a, acceptCount, ← Finset.sum_boole]
 
 /-- **`LWPP` scaling simulation for `GapPWithOracle`**
 ([Fenner–Fortnow–Kurtz, Section 5][FennerFortnowKurtz1994]): for every `LWPP` oracle `A` and

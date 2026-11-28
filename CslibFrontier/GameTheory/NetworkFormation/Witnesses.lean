@@ -896,7 +896,7 @@ theorem potentialGapNetwork_best_nash_not_min_potential :
             hi (hji ▸ hd)
         simp [hl, hi, harmonic_zero]
     rw [htrunk, Finset.sum_congr rfl fun i _ => by rw [hdir i], ← Finset.mul_sum]
-    simp only [Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+    simp only [← Finset.sum_boole]
   have hpot_direct : potentialGapNetwork.potential potentialGapDirect = 18 / 5 := by
     rw [hpot_formula,
       Finset.filter_true_of_mem fun j _ => broadcastIsDirect_direct (trunkCost := 2)
