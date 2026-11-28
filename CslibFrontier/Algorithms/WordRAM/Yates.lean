@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.Yates
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Computability.WordRAM.Realization.Signed
@@ -372,24 +373,17 @@ private theorem pow2Prog_realizes :
 
 private theorem pow2Prog_spec {w : ℕ} (n : ℕ) (s₀ : Memory.State) (hfit : Fits w (2 ^ n)) :
     Pow2ProgSafe w n s₀ ∧
-      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (pow2Prog n)) ∧
-      memoryCost (pow2Prog n) s₀ = 0 ∧
-      (Memory.spec 0).clientState s₀ (pow2Prog n) = s₀ ∧
-      (Memory.spec 0).clientResult s₀ (pow2Prog n) = 2 ^ n := by
-  have h1 : Fits w 1 := hfit.of_le Nat.one_le_two_pow
-  have hit := iterate_spec pow2Step Pow2StepSafe w () 0 n
-    (fun k acc s => s = s₀ ∧ acc = 2 ^ k) (fun _ => False)
-    (fun k hk acc s ⟨hs, hacc⟩ => by
-      subst hs; subst hacc
-      have h2 : 2 ^ k + 2 ^ k ≤ 2 ^ n := by
-        rw [← two_mul, ← pow_succ']
-        exact Nat.pow_le_pow_right (by norm_num) hk
-      refine ⟨hfit.of_le h2, trivial, le_rfl, rfl, fun _ _ => rfl, rfl, ?_⟩
-      change 2 ^ k + 2 ^ k = 2 ^ (k + 1)
-      rw [pow_succ', two_mul])
-    1 s₀ ⟨rfl, rfl⟩
-  refine ⟨⟨h1, hit.1⟩, hit.2.1, Nat.eq_zero_of_le_zero (by simpa [pow2Prog] using hit.2.2.1),
-    hit.2.2.2.2.2.1, hit.2.2.2.2.2.2⟩
+      Memory.FramedTriple w s₀ (pow2Prog n) 0 ∅ fun r t => r = 2 ^ n ∧ t = s₀ := by
+  obtain ⟨hsafe, h⟩ := Memory.FramedTriple.iterate (body := pow2Step) (safe := Pow2StepSafe)
+    (d := ()) (c := 0) (n := n) (a₀ := 1) (S := ∅) (Q := fun r t => r = 2 ^ n ∧ t = s₀)
+    (fun k acc t => acc = 2 ^ k ∧ t = s₀) ⟨rfl, rfl⟩
+    (fun k hk acc t ⟨hacc, ht⟩ _ => by
+      subst hacc ht
+      refine ⟨hfit.of_le ?_, Memory.FramedTriple.pure ⟨?_, rfl⟩⟩
+      · rw [← two_mul, ← pow_succ']; exact Nat.pow_le_pow_right (by norm_num) hk
+      · change 2 ^ k + 2 ^ k = 2 ^ (k + 1); rw [pow_succ', two_mul])
+    fun _ _ h _ => h
+  exact ⟨⟨hfit.of_le Nat.one_le_two_pow, hsafe⟩, h.mono (by simp) fun _ _ => id⟩
 
 private structure PassArgs where
   step : ℕ
@@ -528,133 +522,71 @@ private theorem passProg_spec {w n : ℕ}
     (i : Fin n)
     (Pval : ℕ → Prop)
     (hop_exec : ∀ (s : Memory.State) (u v : ℕ), Pval u → Pval v →
-      opSafe w (u, v) s ∧
-        (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (opProg (u, v))) ∧
-        memoryCost (opProg (u, v)) s = 0 ∧
-        (Memory.spec 0).clientState s (opProg (u, v)) = s ∧
-        (Memory.spec 0).clientResult s (opProg (u, v)) = opWord u v ∧
-        Fits w (opWord u v))
+      opSafe w (u, v) s ∧ Fits w (opWord u v) ∧
+        Memory.FramedTriple w s (opProg (u, v)) 0 ∅ fun r t => r = opWord u v ∧ t = s)
     (hP_prev : ∀ k, Pval (prev k))
     (s₀ : Memory.State)
     (hfr : 2 + 2 ^ n ≤ s₀.frontier)
     (hfit_addr : Fits w (2 + 2 ^ n))
     (harr : ∀ k : Fin (2 ^ n), s₀.mem (2 + k.1) = prev k) :
     let a : PassArgs := ⟨2 ^ i.1, 2 ^ (n - 1)⟩
-    let s' := (Memory.spec 0).clientState s₀ (passProg opProg a)
     iterationSafe (passStep opProg) (PassStepSafe opSafe) w a a.half 0 s₀ ∧
-      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (passProg opProg a)) ∧
-      memoryCost (passProg opProg a) s₀ ≤ 3 * 2 ^ (n - 1) ∧
-      s'.frontier = s₀.frontier ∧
-      (∀ x < 2, s'.mem x = s₀.mem x) ∧
-      ∀ k : Fin (2 ^ n), s'.mem (2 + k.1) = tablePass opWord prev i k := by
-  let a : PassArgs := ⟨2 ^ i.1, 2 ^ (n - 1)⟩
+      Memory.FramedTriple w s₀ (passProg opProg a) (3 * 2 ^ (n - 1)) {x | 2 ≤ x}
+        fun _ t => ∀ k : Fin (2 ^ n), t.mem (2 + k.1) = tablePass opWord prev i k := by
+  intro a
+  simp only [a]
   let next := tablePass opWord prev i
-  let inv (p : ℕ) (cur : ℕ) (s : Memory.State) : Prop :=
-    cur = p ∧ s.frontier = s₀.frontier ∧
-      (∀ x < 2, s.mem x = s₀.mem x) ∧
-      ∀ k : Fin (2 ^ n),
-        s.mem (2 + k.1) = if ∃ r < p, hiIdx (2 ^ i.1) r = k.1 then next k else prev k
-  have hit := iterate_spec (passStep opProg) (PassStepSafe opSafe) w a 3 (2 ^ (n - 1)) inv
-    (fun x => 2 ≤ x)
-    (fun p hp cur s ⟨hcur, hs_fr, hs_low, hs_arr⟩ => by
-      subst cur
-      have hhi_lt : hiIdx (2 ^ i.1) p < 2 ^ n := hiIdx_lt_two_pow i.isLt hp
-      have hlo_lt : loIdx (2 ^ i.1) p < 2 ^ n :=
-        lt_trans (loIdx_lt_hiIdx (Nat.two_pow_pos i.1) p) hhi_lt
-      let kHi : Fin (2 ^ n) := ⟨hiIdx (2 ^ i.1) p, hhi_lt⟩
-      let kLo : Fin (2 ^ n) := ⟨loIdx (2 ^ i.1) p, hlo_lt⟩
-      have hnot_hi : ¬∃ r < p, hiIdx (2 ^ i.1) r = kHi.1 := by
-        rintro ⟨r, hr, heq⟩
-        exact Nat.ne_of_lt (hiIdx_strictMono (2 ^ i.1) hr) heq
-      have hnot_lo : ¬∃ r < p, hiIdx (2 ^ i.1) r = kLo.1 := by
-        rintro ⟨r, _, heq⟩
-        have hb1 := hiIdx_testBit_true i.1 r
-        have hb2 := loIdx_testBit_false i.1 p
-        dsimp only [kLo] at heq
-        rw [heq, hb2] at hb1
-        cases hb1
-      have hmem_hi : s.mem (2 + hiIdx (2 ^ i.1) p) = prev kHi := by
-        simpa [kHi, hnot_hi] using hs_arr kHi
-      have hmem_lo : s.mem (2 + loIdx (2 ^ i.1) p) = prev kLo := by
-        simpa [kLo, hnot_lo] using hs_arr kLo
-      obtain ⟨hop_safe, hop_vh, hop_mc, hop_st, hop_res, hop_fit⟩ :=
-        hop_exec s (prev kHi) (prev kLo) (hP_prev kHi) (hP_prev kLo)
-      have hnext_hi : opWord (prev kHi) (prev kLo) = next kHi := by
-        dsimp only [next, tablePass]
-        rw [ite_eq_left (hiIdx_testBit_true i.1 p)]
-        have hxor : (⟨kHi.1 ^^^ 2 ^ i.1, Nat.xor_lt_two_pow kHi.isLt
-            (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩ : Fin (2 ^ n)) = kLo :=
-          Fin.ext (hiIdx_xor_two_pow i.1 p)
-        rw [hxor]
-      have hhi_fr : 2 + hiIdx (2 ^ i.1) p < s.frontier := by rw [hs_fr]; omega
-      have hlo_fr : 2 + loIdx (2 ^ i.1) p < s.frontier := by rw [hs_fr]; omega
-      have hfit_hi : Fits w (2 + hiIdx (2 ^ i.1) p) := hfit_addr.of_le (by omega)
-      have hfit_p1 : Fits w (p + 1) := hfit_addr.of_le (by
-        have : 2 ^ (n - 1) ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) (Nat.sub_le n 1)
-        omega)
-      have hs_safe : PassStepSafe opSafe w (a, p) s :=
-        ⟨Nat.ne_of_gt (Nat.two_pow_pos i.1), hfit_hi, hfit_p1,
-          by simpa only [a, hmem_hi, hmem_lo] using hop_safe⟩
-      have hbody_eq : passStep opProg (a, p) =
-          (Memory.read (2 + hiIdx (2 ^ i.1) p) >>= fun vHi =>
-            Memory.read (2 + loIdx (2 ^ i.1) p) >>= fun vLo =>
-              opProg (vHi, vLo) >>= fun vNew =>
-                Memory.write (2 + hiIdx (2 ^ i.1) p) vNew >>= fun _ => pure (p + 1)) := rfl
-      have hvh : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (passStep opProg (a, p))) := by
-        rw [hbody_eq]
-        refine validHistory_read_bind hhi_fr (validHistory_read_bind hlo_fr ?_)
-        rw [hmem_hi, hmem_lo]
-        refine validHistory_bind_step hop_vh ?_
-        rw [hop_st, hop_res]
-        exact validHistory_write_bind hhi_fr hop_fit (validHistory_pure w _ _)
-      have hmc : memoryCost (passStep opProg (a, p)) s ≤ 3 := by
-        rw [hbody_eq, memoryCost_bind', clientState_read, clientResult_read,
-          memoryCost_read, memoryCost_bind', clientState_read, clientResult_read,
-          memoryCost_read, hmem_hi, hmem_lo, memoryCost_bind', hop_mc, hop_st, hop_res,
-          memoryCost_bind', memoryCost_write, memoryCost_pure]
-      have hst_eq : (Memory.spec 0).clientState s (passStep opProg (a, p)) =
-          ⟨Function.update s.mem (2 + hiIdx (2 ^ i.1) p) (next kHi), s.frontier⟩ := by
-        rw [hbody_eq, StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-          StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-          hmem_hi, hmem_lo, StateTransitionSpec.clientState_bind, hop_st, hop_res, hnext_hi,
-          StateTransitionSpec.clientState_bind, clientState_write]
-        rfl
-      have hres_eq : (Memory.spec 0).clientResult s (passStep opProg (a, p)) = p + 1 := by
-        rw [hbody_eq, StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read,
-          StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read,
-          hmem_hi, hmem_lo, StateTransitionSpec.clientResult_bind, hop_st, hop_res,
-          StateTransitionSpec.clientResult_bind, clientState_write]
-        rfl
-      refine ⟨hs_safe, hvh, hmc, ?_, ?_, ?_⟩
-      · rw [hst_eq]
-      · intro x hx
-        rw [hst_eq]
-        change Function.update s.mem (2 + hiIdx (2 ^ i.1) p) (next kHi) x = s.mem x
-        exact Function.update_of_ne (by omega) _ _
-      · rw [hst_eq, hres_eq]
-        refine ⟨rfl, hs_fr, fun x hx => ?_, fun k => ?_⟩
-        · change Function.update s.mem (2 + hiIdx (2 ^ i.1) p) (next kHi) x = s₀.mem x
-          rw [Function.update_of_ne (by omega)]
-          exact hs_low x hx
-        · by_cases hk : k = kHi
-          · subst hk
-            have hex : ∃ r < p + 1, hiIdx (2 ^ i.1) r = kHi.1 := ⟨p, Nat.lt_succ_self p, rfl⟩
-            change Function.update s.mem (2 + kHi.1) (next kHi) (2 + kHi.1) = _
-            rw [Function.update_self, ite_eq_left hex]
-          · have hne_val : k.1 ≠ hiIdx (2 ^ i.1) p := fun h => hk (Fin.ext h)
-            change Function.update s.mem (2 + hiIdx (2 ^ i.1) p) (next kHi) (2 + k.1) = _
-            rw [Function.update_of_ne (by omega), hs_arr k]
-            simp only [Nat.exists_lt_succ_right, Ne.symm hne_val, or_false])
-    0 s₀ ⟨rfl, rfl, fun _ _ => rfl, fun k => by simpa using harr k⟩
-  obtain ⟨hsafe, hvh, hmc, hfr', _, _, _, hlow', harr'⟩ := hit
-  refine ⟨hsafe, hvh, hmc, hfr', hlow', fun k => ?_⟩
-  change ((Memory.spec 0).clientState s₀ (iterate (passStep opProg) a (2 ^ (n - 1)) 0)).mem
-    (2 + k.1) = next k
-  simp only [harr' k, exists_hiIdx_iff_testBit i.isLt k.isLt]
-  by_cases hbit : k.1.testBit i.1 = true
-  · simp [hbit]
-  · simp [hbit, next, tablePass]
+  refine Memory.FramedTriple.iterate (fun p cur t => cur = p ∧ ∀ k : Fin (2 ^ n),
+        t.mem (2 + k.1) = if ∃ r < p, hiIdx (2 ^ i.1) r = k.1 then next k else prev k)
+    ⟨rfl, fun k => by simpa using harr k⟩ (fun p hp cur s ⟨hcur, hs_arr⟩ ⟨hs_fr, _⟩ => ?_)
+    fun _ s' ⟨_, harr'⟩ _ k => ?_
+  · subst cur
+    have hhi_lt : hiIdx (2 ^ i.1) p < 2 ^ n := hiIdx_lt_two_pow i.isLt hp
+    have hlo_lt : loIdx (2 ^ i.1) p < 2 ^ n :=
+      lt_trans (loIdx_lt_hiIdx (Nat.two_pow_pos i.1) p) hhi_lt
+    let kHi : Fin (2 ^ n) := ⟨hiIdx (2 ^ i.1) p, hhi_lt⟩
+    let kLo : Fin (2 ^ n) := ⟨loIdx (2 ^ i.1) p, hlo_lt⟩
+    have hnot_hi : ¬∃ r < p, hiIdx (2 ^ i.1) r = kHi.1 := by
+      rintro ⟨r, hr, heq⟩
+      exact Nat.ne_of_lt (hiIdx_strictMono (2 ^ i.1) hr) heq
+    have hnot_lo : ¬∃ r < p, hiIdx (2 ^ i.1) r = kLo.1 := by
+      rintro ⟨r, _, heq⟩
+      have hb1 := hiIdx_testBit_true i.1 r
+      have hb2 := loIdx_testBit_false i.1 p
+      dsimp only [kLo] at heq
+      rw [heq, hb2] at hb1
+      cases hb1
+    have hmem_hi : s.mem (2 + hiIdx (2 ^ i.1) p) = prev kHi := by
+      simpa [kHi, hnot_hi] using hs_arr kHi
+    have hmem_lo : s.mem (2 + loIdx (2 ^ i.1) p) = prev kLo := by
+      simpa [kLo, hnot_lo] using hs_arr kLo
+    obtain ⟨hop_safe, hop_fit, hop⟩ := hop_exec s (s.mem (2 + hiIdx (2 ^ i.1) p))
+      (s.mem (2 + loIdx (2 ^ i.1) p)) (hmem_hi ▸ hP_prev kHi) (hmem_lo ▸ hP_prev kLo)
+    have hnext_hi : opWord (prev kHi) (prev kLo) = next kHi := by
+      dsimp only [next, tablePass]
+      rw [ite_eq_left (hiIdx_testBit_true i.1 p)]
+      have hxor : (⟨kHi.1 ^^^ 2 ^ i.1, Nat.xor_lt_two_pow kHi.isLt
+          (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩ : Fin (2 ^ n)) = kLo :=
+        Fin.ext (hiIdx_xor_two_pow i.1 p)
+      rw [hxor]
+    have hfit_p1 : Fits w (p + 1) := hfit_addr.of_le (by
+      have : 2 ^ (n - 1) ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) (Nat.sub_le n 1)
+      omega)
+    refine ⟨⟨Nat.ne_of_gt (Nat.two_pow_pos i.1), by region_omega, hfit_p1, hop_safe⟩, ?_⟩
+    unfold passStep
+    framed_triple
+    · refine ⟨rfl, fun k => ?_⟩
+      simp only [hmem_hi, hmem_lo, hnext_hi]
+      by_cases hk : k = kHi
+      · have hex : ∃ r < p + 1, hiIdx (2 ^ i.1) r = k.1 := ⟨p, Nat.lt_succ_self p, by rw [hk]⟩
+        rw [hk, Function.update_self, ite_eq_left (hk ▸ hex)]
+      · have hne_val : k.1 ≠ hiIdx (2 ^ i.1) p := fun h => hk (Fin.ext h)
+        rw [Function.update_of_ne (by omega), hs_arr k]
+        simp only [Nat.exists_lt_succ_right, Ne.symm hne_val, or_false]
+  · simp only [harr' k, exists_hiIdx_iff_testBit i.isLt k.isLt]
+    by_cases hbit : k.1.testBit i.1 = true
+    · simp [hbit, next]
+    · simp [hbit, next, tablePass]
 
 private theorem butterflyProg_spec {w n : ℕ}
     {opProg : ℕ × ℕ → Memory.Prog ℕ} {opSafe : ℕ → ℕ × ℕ → Memory.State → Prop}
@@ -662,127 +594,67 @@ private theorem butterflyProg_spec {w n : ℕ}
     (Pval : ℕ → Prop)
     (t₀ : Fin (2 ^ n) → ℕ)
     (hop_exec : ∀ (s : Memory.State) (u v : ℕ), Pval u → Pval v →
-      opSafe w (u, v) s ∧
-        (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (opProg (u, v))) ∧
-        memoryCost (opProg (u, v)) s = 0 ∧
-        (Memory.spec 0).clientState s (opProg (u, v)) = s ∧
-        (Memory.spec 0).clientResult s (opProg (u, v)) = opWord u v ∧
-        Fits w (opWord u v))
+      opSafe w (u, v) s ∧ Fits w (opWord u v) ∧
+        Memory.FramedTriple w s (opProg (u, v)) 0 ∅ fun r t => r = opWord u v ∧ t = s)
     (hP_fold : ∀ m ≤ n, ∀ k,
       Pval (((List.finRange n).take m).foldl (tablePass opWord) t₀ k))
     (s₀ : Memory.State)
     (hfr : 2 + 2 ^ n ≤ s₀.frontier)
     (hfit_addr : Fits w (2 + 2 ^ n))
     (harr : ∀ k : Fin (2 ^ n), s₀.mem (2 + k.1) = t₀ k) :
-    let outAddr := (Memory.spec 0).clientResult s₀ (butterflyProg opProg n)
-    let s' := (Memory.spec 0).clientState s₀ (butterflyProg opProg n)
     let outWords := List.ofFn ((List.finRange n).foldl (tablePass opWord) t₀)
     ButterflyProgSafe opProg opSafe w n s₀ ∧
-      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (butterflyProg opProg n)) ∧
-      memoryCost (butterflyProg opProg n) s₀ ≤ 3 * n * 2 ^ n + 1 ∧
-      outputList s'.mem outAddr = outWords ∧
-      Fits w (outAddr + outWords.length) := by
+      Memory.FramedTriple w s₀ (butterflyProg opProg n) (3 * n * 2 ^ n + 1) {x | 1 ≤ x}
+        fun r t => outputList t.mem r = outWords ∧ Fits w (r + outWords.length) := by
   have hfit_2n : Fits w (2 ^ n) := hfit_addr.of_le (Nat.le_add_left _ _)
   have hfit_2 : Fits w 2 := hfit_addr.of_le (Nat.le_add_right _ _)
-  obtain ⟨hp_safe, hp_vh, hp_mc, hp_st, hp_res⟩ := pow2Prog_spec n s₀ hfit_2n
+  obtain ⟨hp_safe, hp⟩ := pow2Prog_spec n s₀ hfit_2n
   let s₂ : Memory.State := ⟨Function.update s₀.mem 1 (2 ^ n), s₀.frontier⟩
-  have hs₂_arr : ∀ k : Fin (2 ^ n), s₂.mem (2 + k.1) = t₀ k := fun k => by
-    dsimp only [s₂]
-    rw [Function.update_of_ne (by omega)]
-    exact harr k
-  have hs₂_len : s₂.mem 1 = 2 ^ n := Function.update_self 1 (2 ^ n) s₀.mem
   let half := 2 ^ n / 2
-  let inv (i : ℕ) (step : ℕ) (s : Memory.State) : Prop :=
-    step = 2 ^ i ∧ s.frontier = s₀.frontier ∧ s.mem 1 = 2 ^ n ∧
-      ∀ k : Fin (2 ^ n),
-        s.mem (2 + k.1) = ((List.finRange n).take i).foldl (tablePass opWord) t₀ k
-  have hout_it := iterate_spec (outerStep opProg) (OuterStepSafe opProg opSafe) w half
-    (3 * 2 ^ (n - 1)) n inv (fun x => 2 ≤ x)
-    (fun i hi step s ⟨hstep_eq, hs_fr, hs_len, hs_arr⟩ => by
+  obtain ⟨hit_safe, hloop⟩ := Memory.FramedTriple.iterate (body := outerStep opProg)
+    (safe := OuterStepSafe opProg opSafe) (d := half) (n := n) (c := 3 * 2 ^ (n - 1)) (a₀ := 1)
+    (s := s₂) (S := {x | 2 ≤ x}) (Q := fun _ t => t.mem 1 = 2 ^ n ∧
+      ∀ k : Fin (2 ^ n), t.mem (2 + k.1) = (List.finRange n).foldl (tablePass opWord) t₀ k)
+    (fun i step t => step = 2 ^ i ∧ ∀ k : Fin (2 ^ n),
+      t.mem (2 + k.1) = ((List.finRange n).take i).foldl (tablePass opWord) t₀ k)
+    ⟨rfl, fun k => (Function.update_of_ne (by omega) _ _).trans (harr k)⟩
+    (fun i hi step s ⟨hstep_eq, hs_arr⟩ ⟨hs_fr, _⟩ => by
       subst hstep_eq
       have hhalf : half = 2 ^ (n - 1) := by
         simpa only [pow_one] using Nat.pow_div (show 1 ≤ n by omega) (show 0 < 2 by norm_num)
-      let prev := ((List.finRange n).take i).foldl (tablePass opWord) t₀
-      let idxFin : Fin n := ⟨i, hi⟩
-      have htake_succ : (List.finRange n).take (i + 1) = (List.finRange n).take i ++ [idxFin] :=
-        List.take_succ_finRange hi
-      have hpass := passProg_spec (w := w) opWord prev idxFin Pval hop_exec
-        (fun k => hP_fold i (Nat.le_of_lt hi) k) s (by rw [hs_fr]; exact hfr) hfit_addr hs_arr
-      have hstep2_le : 2 ^ i + 2 ^ i ≤ 2 ^ n := by
-        rw [← two_mul, ← pow_succ']
-        exact Nat.pow_le_pow_right (by norm_num) hi
-      have hfit_step2 : Fits w (2 ^ i + 2 ^ i) := hfit_2n.of_le hstep2_le
-      have houter_eq : outerStep opProg (half, 2 ^ i) =
-          (passProg opProg ⟨2 ^ i, 2 ^ (n - 1)⟩ >>= fun _ => pure (2 ^ i + 2 ^ i)) := by
-        simp only [outerStep, hhalf]
-      have hs_safe : OuterStepSafe opProg opSafe w (half, 2 ^ i) s := by
-        simpa only [OuterStepSafe, hhalf] using And.intro hpass.1 hfit_step2
-      have hvh : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (outerStep opProg (half, 2 ^ i))) := by
-        rw [houter_eq]
-        exact validHistory_bind_step hpass.2.1 (validHistory_pure w _ _)
-      have hmc : memoryCost (outerStep opProg (half, 2 ^ i)) s ≤ 3 * 2 ^ (n - 1) := by
-        rw [houter_eq, memoryCost_bind', memoryCost_pure, Nat.add_zero]
-        exact hpass.2.2.1
-      have hst_eq : (Memory.spec 0).clientState s (outerStep opProg (half, 2 ^ i)) =
-          (Memory.spec 0).clientState s (passProg opProg ⟨2 ^ i, 2 ^ (n - 1)⟩) := by
-        rw [houter_eq, StateTransitionSpec.clientState_bind]
-        rfl
-      have hres_eq : (Memory.spec 0).clientResult s (outerStep opProg (half, 2 ^ i)) =
-          2 ^ (i + 1) := by
-        rw [houter_eq, StateTransitionSpec.clientResult_bind]
-        change 2 ^ i + 2 ^ i = 2 ^ (i + 1)
-        rw [pow_succ', two_mul]
-      refine ⟨hs_safe, hvh, hmc, ?_, ?_, ?_⟩
-      · rw [hst_eq]; exact hpass.2.2.2.1
-      · intro x hx
-        rw [hst_eq]
-        exact hpass.2.2.2.2.1 x (Nat.lt_of_not_ge hx)
-      · rw [hst_eq, hres_eq]
-        refine ⟨rfl, hpass.2.2.2.1.trans hs_fr, ?_, fun k => ?_⟩
-        · exact (hpass.2.2.2.2.1 1 (by omega)).trans hs_len
-        · rw [hpass.2.2.2.2.2 k, htake_succ, List.foldl_append]
-          rfl)
-    1 s₂ ⟨rfl, rfl, hs₂_len, hs₂_arr⟩
-  obtain ⟨hit_safe, hit_vh, hit_mc, _, _, _, _, hit_len, hit_arr⟩ := hout_it
-  have h1_fr : 1 < s₀.frontier := by omega
-  have hbf_eq : butterflyProg opProg n =
-      (pow2Prog n >>= fun sz =>
-        Memory.write 1 sz >>= fun _ =>
-          iterate (outerStep opProg) (sz / 2) n 1 >>= fun _ => pure 1) := rfl
-  have hres_bf : (Memory.spec 0).clientResult s₀ (butterflyProg opProg n) = 1 := by
-    rw [hbf_eq, StateTransitionSpec.clientResult_bind, hp_st, hp_res,
-      StateTransitionSpec.clientResult_bind, clientState_write,
-      StateTransitionSpec.clientResult_bind]
-    rfl
-  refine ⟨⟨hfit_2, hp_safe, by simpa only [hp_res, hp_st, half, s₂] using hit_safe⟩,
-    ?_, ?_, ?_, ?_⟩
-  · rw [hbf_eq]
-    refine validHistory_bind_step hp_vh ?_
-    rw [hp_st, hp_res]
-    refine validHistory_write_bind h1_fr hfit_2n ?_
-    exact validHistory_bind_step hit_vh (validHistory_pure w _ _)
-  · rw [hbf_eq, memoryCost_bind', hp_mc, hp_st, hp_res, zero_add,
-      memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    have h2le : 2 ^ (n - 1) ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) (Nat.sub_le n 1)
-    have hmul : 3 * 2 ^ (n - 1) * n ≤ 3 * n * 2 ^ n :=
-      (Nat.mul_right_comm 3 _ n).trans_le (Nat.mul_le_mul_left _ h2le)
-    exact Nat.add_le_add_left (hit_mc.trans hmul) 1 |>.trans_eq (by ring)
-  · have hst_bf : (Memory.spec 0).clientState s₀ (butterflyProg opProg n) =
-        (Memory.spec 0).clientState s₂ (iterate (outerStep opProg) half n 1) := by
-      rw [hbf_eq, StateTransitionSpec.clientState_bind, hp_st, hp_res,
-        StateTransitionSpec.clientState_bind, clientState_write,
-        StateTransitionSpec.clientState_bind]
-      rfl
-    rw [hres_bf, hst_bf, outputList_eq_iff]
-    refine ⟨by simp [hit_len], fun k => ?_⟩
+      obtain ⟨hpass_safe, hpass⟩ := passProg_spec (w := w) opWord _ ⟨i, hi⟩ Pval hop_exec
+        (fun k => hP_fold i (Nat.le_of_lt hi) k) s (by dsimp only [s₂] at hs_fr; omega)
+        hfit_addr hs_arr
+      have hfit_step2 : Fits w (2 ^ i + 2 ^ i) := hfit_2n.of_le (by
+        rw [← two_mul, ← pow_succ']; exact Nat.pow_le_pow_right (by norm_num) hi)
+      refine ⟨by simpa only [OuterStepSafe, hhalf] using And.intro hpass_safe hfit_step2, ?_⟩
+      simp only [outerStep, hhalf]
+      refine (Memory.FramedTriple.call hpass subset_rfl fun _ t hs' _ =>
+        Memory.FramedTriple.pure (c := 0) ⟨by ring, fun k => ?_⟩).mono (Nat.add_zero _).le
+          fun _ _ => id
+      rw [hs' k, List.take_succ_finRange hi, List.foldl_append]
+      rfl)
+    fun _ t ⟨_, hs'⟩ ⟨_, hframe⟩ =>
+      ⟨(hframe 1 (by dsimp only [s₂]; omega) (by simp)).trans
+        (Function.update_self 1 (2 ^ n) s₀.mem), fun k => by
+          rw [hs' k, List.take_of_length_le (by simp)]⟩
+  have hp_post := hp.post
+  rw [clientResult_width, clientState_width] at hp_post
+  refine ⟨⟨hfit_2, hp_safe, by simpa only [hp_post.1, hp_post.2, half, s₂] using hit_safe⟩, ?_⟩
+  have h2le : 2 ^ (n - 1) ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) (Nat.sub_le n 1)
+  have hmul : 3 * 2 ^ (n - 1) * n ≤ 3 * n * 2 ^ n :=
+    (Nat.mul_right_comm 3 _ n).trans_le (Nat.mul_le_mul_left _ h2le)
+  unfold butterflyProg
+  refine (Memory.FramedTriple.call_eq hp (Set.empty_subset _)
+    (Memory.FramedTriple.write_bind_of_mem (by omega) hfit_2n (by simp)
+      (Memory.FramedTriple.call hloop (fun x hx => by region_omega) fun _ t h _ =>
+        Memory.FramedTriple.pure (c := 0) ⟨?_, ?_⟩))).mono (by omega) fun _ _ => id
+  · rw [outputList_eq_iff]
+    refine ⟨by simp [h.1], fun k => ?_⟩
     have hk_lt : k.1 < 2 ^ n := by simpa using k.isLt
-    change ((Memory.spec 0).clientState s₂ (iterate (outerStep opProg) half n 1)).mem
-        (1 + 1 + k.1) = (List.ofFn ((List.finRange n).foldl (tablePass opWord) t₀))[k.1]
-    rw [show 1 + 1 + k.1 = 2 + k.1 by omega, List.getElem_ofFn, hit_arr ⟨k.1, hk_lt⟩]
-    have htake : (List.finRange n).take n = List.finRange n := by simp
-    rw [htake]
-  · rw [hres_bf, List.length_ofFn]
+    change t.mem (1 + 1 + k.1) = (List.ofFn ((List.finRange n).foldl (tablePass opWord) t₀))[k.1]
+    rw [show 1 + 1 + k.1 = 2 + k.1 by omega, List.getElem_ofFn, h.2 ⟨k.1, hk_lt⟩]
+  · rw [List.length_ofFn]
     exact hfit_addr.of_le (by omega)
 
 /-! ## Pure Yates intermediate-value bounds -/
@@ -943,15 +815,10 @@ private theorem exists_yates_program_of_spec {Inst : Type}
     (hlen : ∀ I, 1 ≤ (encode I).length)
     (hfit_len : ∀ I {w}, FitsW I w → Fits w ((encode I).length + 1))
     (hspec : ∀ (I : Inst) {w : ℕ}, FitsW I w →
-      let s₀ := Memory.State.init (encode I)
-      let f := butterflyProg opProg (nOf I)
-      let outAddr := (Memory.spec 0).clientResult s₀ f
-      let s' := (Memory.spec 0).clientState s₀ f
-      ButterflyProgSafe opProg opSafe w (nOf I) s₀ ∧
-        (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ f) ∧
-        memoryCost f s₀ ≤ 3 * nOf I * 2 ^ nOf I + 1 ∧
-        outputList s'.mem outAddr = expected I ∧
-        Fits w (outAddr + (expected I).length)) :
+      ButterflyProgSafe opProg opSafe w (nOf I) (Memory.State.init (encode I)) ∧
+        Memory.FramedTriple w (Memory.State.init (encode I)) (butterflyProg opProg (nOf I))
+          (3 * nOf I * 2 ^ nOf I + 1) {x | 1 ≤ x} fun r t =>
+            outputList t.mem r = expected I ∧ Fits w (r + (expected I).length)) :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧ prog.IsRandFree ∧
       prog.ComputesListInTime (fun _ I => encode I)
         (fun I _ => C * ((nOf I + 1) * 2 ^ nOf I)) FitsW expected := by
@@ -963,17 +830,13 @@ private theorem exists_yates_program_of_spec {Inst : Type}
   obtain ⟨y, m, hruns, hhalt, hmem, _, hsteps⟩ :=
     he w (nOf I) (encode I)
       (by rintro ⟨_ | _, hj⟩; exacts [hlayout I, by omega])
-      (hlen I) (hfit_len I hfw) hin_fits hs.1 hs.2.1
-  rw [clientState_width w] at hmem
-  rw [clientResult_width w] at hhalt
+      (hlen I) (hfit_len I hfw) hin_fits hs.1 hs.2.validHistory
   dsimp only [wordWords] at hhalt
-  have hymem :
-      y.mem = ((Memory.spec 0).clientState (Memory.State.init (encode I))
-        (butterflyProg opProg (nOf I))).mem :=
-    congrArg Memory.State.mem hmem
+  have hymem : y.mem = ((Memory.spec w).clientState (Memory.State.init (encode I))
+      (butterflyProg opProg (nOf I))).mem := congrArg Memory.State.mem hmem
   refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns, step_stripRand_of_halt hhalt,
-    hymem ▸ hs.2.2.2.1, hs.2.2.2.2, rfl⟩, ?_⟩
-  have hmc := hs.2.2.1
+    hymem ▸ hs.2.post.1, hs.2.post.2, rfl⟩, ?_⟩
+  have hmc := (framedTriple_iff_realization.mp hs.2).2.1
   have hpow1 : 1 ≤ 2 ^ nOf I := Nat.one_le_two_pow
   have hn_le : nOf I ≤ nOf I * 2 ^ nOf I := Nat.le_mul_of_pos_right _ hpow1
   have hpos : 1 ≤ (nOf I + 1) * 2 ^ nOf I := by nlinarith
@@ -1049,7 +912,7 @@ theorem exists_zetaNat_program :
       have hfit_uv : Fits w (u + v) := hfit.of_le (by
         have := Nat.one_le_two_pow (n := I.n)
         unfold NatInstance.wordBound; omega)
-      exact ⟨hfit_uv, trivial, rfl, rfl, rfl, hfit_uv⟩)
+      exact ⟨hfit_uv, hfit_uv, Memory.FramedTriple.pure ⟨rfl, rfl⟩⟩)
     hP_fold (Memory.State.init I.encode)
     (by simp only [Memory.State.init, NatInstance.length_encode]; omega)
     (hfit.of_le (by unfold NatInstance.wordBound; omega))
@@ -1070,16 +933,11 @@ private theorem signed_butterfly_spec (isMobius : Bool) (I : IntInstance) {w : �
       else
         fun w d _ => Fits w 2 ∧ Fits w (2 * (Prod.fst d / 2 + Prod.snd d / 2) + 1)
     let s₀ := Memory.State.init I.encode
-    let f := butterflyProg opProg I.n
-    let outAddr := (Memory.spec 0).clientResult s₀ f
-    let s' := (Memory.spec 0).clientState s₀ f
     let expected := (if isMobius then Cslib.Algorithms.Lean.Yates.mobius I.entries
       else Cslib.Algorithms.Lean.Yates.zeta I.entries).toList.map Cslib.WordRAM.Signed.encode
     ButterflyProgSafe opProg opSafe w I.n s₀ ∧
-      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ f) ∧
-      memoryCost f s₀ ≤ 3 * I.n * 2 ^ I.n + 1 ∧
-      outputList s'.mem outAddr = expected ∧
-      Fits w (outAddr + expected.length) := by
+      Memory.FramedTriple w s₀ (butterflyProg opProg I.n) (3 * I.n * 2 ^ I.n + 1) {x | 1 ≤ x}
+        fun r t => outputList t.mem r = expected ∧ Fits w (r + expected.length) := by
   let opProg := if isMobius then signedSubProg else signedAddProg
   let opSafe : ℕ → ℕ × ℕ → Memory.State → Prop :=
     if isMobius then
@@ -1105,12 +963,9 @@ private theorem signed_butterfly_spec (isMobius : Bool) (I : IntInstance) {w : �
     have := Nat.one_le_two_pow (n := I.n)
     unfold IntInstance.wordBound; omega)
   have hop_exec : ∀ (s : Memory.State) (u v : ℕ), Pval u → Pval v →
-      opSafe w (u, v) s ∧
-        (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (opProg (u, v))) ∧
-        memoryCost (opProg (u, v)) s = 0 ∧
-        (Memory.spec 0).clientState s (opProg (u, v)) = s ∧
-        (Memory.spec 0).clientResult s (opProg (u, v)) = signedTableOp c u v ∧
-        Fits w (signedTableOp c u v) := by
+      opSafe w (u, v) s ∧ Fits w (signedTableOp c u v) ∧
+        Memory.FramedTriple w s (opProg (u, v)) 0 ∅ fun r t =>
+          r = signedTableOp c u v ∧ t = s := by
     intro s u v ⟨za, hza, hu⟩ ⟨zb, hzb, hv⟩
     subst hu; subst hv
     have hpow2 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
@@ -1131,17 +986,20 @@ private theorem signed_butterfly_spec (isMobius : Bool) (I : IntInstance) {w : �
       exact hfit.of_le (by unfold IntInstance.wordBound; omega)
     cases isMobius
     · dsimp only [opProg, opSafe, Bool.false_eq_true, ↓reduceIte]
-      exact ⟨⟨hfit_2, hfit.of_le hdiv⟩, validHistory_signedAddProg w s _,
-        memoryCost_signedAddProg _ s, clientState_signedAddProg s _,
-        (clientResult_signedAddProg s za zb).trans (by simpa [c] using hop_w.symm), hfit_res⟩
+      exact ⟨⟨hfit_2, hfit.of_le hdiv⟩, hfit_res, framedTriple_iff_realization.mpr
+        ⟨validHistory_signedAddProg w s _, (memoryCost_signedAddProg _ s).le,
+          (congrArg (Memory.Modifies ∅ s) (clientState_signedAddProg s _)).mpr (.refl ∅ s),
+          (clientResult_signedAddProg s za zb).trans (by simpa [c] using hop_w.symm),
+          clientState_signedAddProg s _⟩⟩
     · dsimp only [opProg, opSafe, ↓reduceIte]
       have hb1 : Cslib.WordRAM.Signed.encode zb + 1 ≤ I.wordBound := by
         have := Cslib.WordRAM.Signed.encode_le_two_mul_add_one hzb
         unfold IntInstance.wordBound; omega
-      exact ⟨⟨hfit_2, hfit.of_le hb1, hfit.of_le hdiv⟩, validHistory_signedSubProg w s _,
-        memoryCost_signedSubProg _ s, clientState_signedSubProg s _,
-        (clientResult_signedSubProg s za zb).trans (by
-          simpa [c, sub_eq_add_neg] using hop_w.symm), hfit_res⟩
+      exact ⟨⟨hfit_2, hfit.of_le hb1, hfit.of_le hdiv⟩, hfit_res, framedTriple_iff_realization.mpr
+        ⟨validHistory_signedSubProg w s _, (memoryCost_signedSubProg _ s).le,
+          (congrArg (Memory.Modifies ∅ s) (clientState_signedSubProg s _)).mpr (.refl ∅ s),
+          (clientResult_signedSubProg s za zb).trans (by
+            simpa [c, sub_eq_add_neg] using hop_w.symm), clientState_signedSubProg s _⟩⟩
   have hlist : List.ofFn ((List.finRange I.n).foldl (tablePass (signedTableOp c)) t₀) =
       (if isMobius then Cslib.Algorithms.Lean.Yates.mobius I.entries
        else Cslib.Algorithms.Lean.Yates.zeta I.entries).toList.map

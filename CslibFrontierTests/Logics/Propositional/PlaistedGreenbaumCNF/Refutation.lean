@@ -55,11 +55,11 @@ private theorem cert_ok :
 
 /-- Contraposition over `Prop`, from the certificate. -/
 example (a b : Prop) : (a → b) → ¬b → ¬a := by
-  simpa using eval_prop_of_checkLRAT cert_ok ![a, b]
+  simpa using eval_prop_of_checkLRATRat (CNF.checkLRATRat_of_checkLRAT cert_ok) ![a, b]
 
 /-- The same certificate gives the truth-table statement. -/
 example (v : Fin 2 → Bool) : contraposition.eval v = true :=
-  eval_of_checkLRAT cert_ok v
+  eval_of_checkLRATRat (CNF.checkLRATRat_of_checkLRAT cert_ok) v
 
 /-- The accepted certificate with one wrong hint, 3 for 2 in its first step, is rejected. -/
 example : (neg contraposition).plaistedGreenbaumNumberedCNF.checkLRAT

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.LowerBound
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound
 
 /-!
 # Unconditional frontier lower bounds with gates of unbounded fan-in
@@ -20,7 +21,9 @@ and with aggregate gates (`Cslib.Circuits.Frontier.eventually_lt_mul_card_of_agg
 conditional on the layout hypothesis `LayoutBound (r + 1) A`. Spanning trees prove it with
 coefficient `A = 1` in every degree (`Cslib.Circuits.Frontier.layoutBound_one`), and median
 edge-score layouts prove it with `A = 2p` in degree three
-(`Cslib.Circuits.Frontier.layoutBound_gaussian`), which removes the hypothesis.
+(`Cslib.Circuits.Frontier.layoutBound_gaussian`), which removes the hypothesis. Matched-pair
+Gaussian layouts improve the degree-three coefficient to `A = 277773 / 1000000`
+(`Cslib.Circuits.Frontier.layoutBound_pairBound`).
 
 Let `S_n ⊆ U^n` be `K_n`-rectangle-free sets over a finite alphabet `U` with at least two
 symbols, with `log K_n = o(n)` and `n log |U| - log |S_n| = o(n)`, and let `β(n) = o(n)`. Then for
@@ -32,7 +35,8 @@ any fan-in with a ledger in a monoid `M` with `log |M| ≤ β(n)`, has `s` ordin
 
 and at fan-in `r = 2`,
 
-`s > (L - ε) n` with `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.5625`.
+`s > (1277773 / 277773 - ε) n`, with `1277773 / 277773 ≈ 4.600062`, by the matched-pair layout
+(original to this library).
 
 For instance, `o(n)` gates of unbounded fan-in computing AND, OR, parity, or counts modulo a
 fixed `m` cost nothing in the leading term.
@@ -49,6 +53,10 @@ fixed `m` cost nothing in the leading term.
   `eventually_switched_sub_mul_lt_card_of_aggregates`: the median-switched Gaussian `(L₃ - ε) n`
   bounds (`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`), original to this library (via
   `layoutBound_switched`).
+* `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_card_of_ledger`,
+  `eventually_pairBound_sub_mul_lt_card_of_aggregates`: the matched-pair
+  `(1277773 / 277773 - ε) n` bounds at ordinary fan-in two, original to this library (via
+  `layoutBound_pairBound`).
 
 ## References
 
@@ -188,5 +196,47 @@ theorem eventually_switched_sub_mul_lt_card_of_aggregates
     show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
     eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
       (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
+
+/-- **Matched-pair Gaussian frontier lower bound with a ledger**: at ordinary fan-in two, a
+circuit deciding a dense rectangle-free family has more than `(1277773 / 277773 - ε) n` ordinary
+inner gates (`≈ 4.600062`). Original to this library. -/
+theorem eventually_pairBound_sub_mul_lt_card_of_ledger
+    (hSK : DenseRectangleFree S K)
+    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (M : Type w)
+      [CommMonoid M] [Finite M],
+        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
+        Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
+          (1277773 / 277773 - ε) * n <
+            (c.program.innerGates.filter fun g => ¬special g).card := by
+  have h := eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hβ hε
+  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
+  filter_upwards [h] with n hn σ I Acc c special _ M _ _ hfan hled hM hdec
+  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    hn σ I Acc c special M hfan hled hM hdec
+
+/-- **Matched-pair Gaussian frontier lower bound with aggregate gates**: at ordinary fan-in two,
+a circuit deciding a dense rectangle-free family has more than `(1277773 / 277773 - ε) n` ordinary
+inner gates (`≈ 4.600062`). Original to this library. -/
+theorem eventually_pairBound_sub_mul_lt_card_of_aggregates
+    (hSK : DenseRectangleFree S K)
+    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (T : Type w)
+      [CommMonoid T] [Finite T],
+        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
+        (∀ g, special g → Aggregates (I (c.program.lines g).op) T) →
+        Nat.card {g // special g} * Real.log (Nat.card T) ≤ β n →
+        c.Decides I Acc (S n) →
+          (1277773 / 277773 - ε) * n <
+            (c.program.innerGates.filter fun g => ¬special g).card := by
+  have h := eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hβ hε
+  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
+  filter_upwards [h] with n hn σ I Acc c special _ T _ _ hfan hagg hT hdec
+  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    hn σ I Acc c special T hfan hagg hT hdec
 
 end Cslib.Circuits.Frontier
