@@ -66,14 +66,19 @@ RAM simulation.
 
 ## Main results
 
-* `Cslib.Complexity.fineExpLazyDiagonal_notMem_NTIME`: `fineExpLazyDiagonal e c` is outside
-  `NTIME (2 ^ n / (n + 1) ^ (e + 1))`.
+* `Cslib.Complexity.exists_length_ge_fineExpLazyDiagonal_disagree`: every problem in
+  `NTIME (2 ^ n / (n + 1) ^ (e + 1))` differs from `fineExpLazyDiagonal e c` at arbitrarily large
+  lengths; `Cslib.Complexity.fineExpLazyDiagonal_notMem_NTIME`: so the diagonal is outside it.
 * `Cslib.Complexity.exists_fineExpLazyDiagonal_mem_NTIME`: for all sufficiently large `e` and
   `c` (depending on `e`), `fineExpLazyDiagonal e c ∈ NTIME (2 ^ n)`.
 * `Cslib.Complexity.exists_NTIME_two_pow_div_pow_ssubset`:
   `∃ k, NTIME (2 ^ n / (n + 1) ^ k) ⊂ NTIME (2 ^ n)`.
 * `Cslib.Complexity.NTIME_two_pow_sub_rpow_ssubset`:
   `NTIME (⌊2 ^ (n - c₀ * n ^ δ)⌋₊) ⊂ NTIME (2 ^ n)` for all `δ > 0` and `c₀ > 0`.
+* `Cslib.Complexity.exists_mem_NTIME_two_pow_forall_exists_length_ge`: the same separation at
+  arbitrarily large lengths, robust under changes on finitely many lengths.
+* `Cslib.Complexity.eventually_floor_two_pow_sub_rpow_le`: subexponential savings eventually beat
+  every polynomial factor.
 
 ## References
 
@@ -179,11 +184,13 @@ private theorem exists_le_fineCertLen (e c₀ : ℕ) :
     exact (Nat.mul_le_mul_left _ hpow_sz).trans hsum
   exact Nat.le_of_mul_le_mul_right hmul (Nat.two_pow_pos _)
 
-/-- **The fine exponential lazy diagonal is outside `NTIME (2 ^ n / (n + 1) ^ (e + 1))`**
-(`Cslib.Complexity.Diagonal.lazyLanguage_notMem_NTIME`). -/
-theorem fineExpLazyDiagonal_notMem_NTIME (e c : ℕ) :
-    fineExpLazyDiagonal e c ∉ NTIME encBits fun n => 2 ^ n / (n + 1) ^ (e + 1) :=
-  Diagonal.lazyLanguage_notMem_NTIME (exists_le_fineCertLen e)
+/-- **Every problem in `NTIME (2 ^ n / (n + 1) ^ (e + 1))` differs from the fine exponential lazy
+diagonal at arbitrarily large lengths**
+(`Cslib.Complexity.Diagonal.exists_length_ge_lazyLanguage_disagree`). -/
+theorem exists_length_ge_fineExpLazyDiagonal_disagree (e c : ℕ) {B : Set (List Bool)}
+    (hB : B ∈ NTIME encBits fun n => 2 ^ n / (n + 1) ^ (e + 1)) (N₀ : ℕ) :
+    ∃ y : List Bool, N₀ ≤ y.length ∧ ¬ (y ∈ fineExpLazyDiagonal e c ↔ y ∈ B) :=
+  Diagonal.exists_length_ge_lazyLanguage_disagree (exists_le_fineCertLen e)
     (fun c₂ => ⟨2 ^ c₂, fun y v hy hv => by
       have hsz : c₂ < Nat.size (y.length + 1) := Nat.lt_size.mpr (by omega)
       have hlen : (encPair encBits encBits (y, v)).length + 1 =
@@ -191,11 +198,18 @@ theorem fineExpLazyDiagonal_notMem_NTIME (e c : ℕ) :
         simp only [length_encPair, encBits_apply, hv]; omega
       rw [hlen, budget, mul_comm c₂]
       exact Nat.mul_le_mul_left _ (by omega)⟩)
-    fun P => by
+    (fun P => by
       have h1 : P + 1 ≤ 2 ^ (P + c) :=
         (Nat.lt_two_pow_self (n := P)).trans_le
           (Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_add_right P c))
-      exact h1.trans_lt Nat.lt_two_pow_self
+      exact h1.trans_lt Nat.lt_two_pow_self) hB N₀
+
+/-- **The fine exponential lazy diagonal is outside `NTIME (2 ^ n / (n + 1) ^ (e + 1))`**
+(`Cslib.Complexity.Diagonal.lazyLanguage_notMem_NTIME`). -/
+theorem fineExpLazyDiagonal_notMem_NTIME (e c : ℕ) :
+    fineExpLazyDiagonal e c ∉ NTIME encBits fun n => 2 ^ n / (n + 1) ^ (e + 1) := fun hD =>
+  let ⟨_, _, hy⟩ := exists_length_ge_fineExpLazyDiagonal_disagree e c hD 0
+  hy Iff.rfl
 
 /-! ### Upper bound: inside `NTIME (2 ^ n)` via the `O(t log t)` universal machine -/
 
@@ -887,55 +901,73 @@ theorem exists_NTIME_two_pow_div_pow_ssubset :
   refine ⟨e₀ + 1, (Set.ssubset_iff_of_subset (NTIME_mono fun n => Nat.div_le_self _ _)).mpr
     ⟨fineExpLazyDiagonal e₀ c₀, hc₀ c₀ le_rfl, fineExpLazyDiagonal_notMem_NTIME e₀ c₀⟩⟩
 
+/-- Subexponential savings lose more than every polynomial factor: for real `δ > 0`, `c₀ > 0` and
+every `k`, eventually `⌊2 ^ (n - c₀ * n ^ δ)⌋₊ ≤ 2 ^ n / (n + 1) ^ k`. -/
+theorem eventually_floor_two_pow_sub_rpow_le {δ c₀ : ℝ} (hδ : 0 < δ) (hc₀ : 0 < c₀) (k : ℕ) :
+    ∀ᶠ n : ℕ in atTop, ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ ≤ 2 ^ n / (n + 1) ^ k := by
+  have hlog := Nat.eventually_mul_log_add_pow_le_rpow (b := 2) Nat.one_lt_two 1 1 1
+    (K := ((k : ℝ) + 1) / c₀) (by positivity) hδ
+  filter_upwards [hlog] with n hn
+  have h1 : ((k : ℝ) + 1) * ((Nat.log 2 (n + 1) : ℝ) + 1) ≤ c₀ * (n : ℝ) ^ δ := by
+    rw [pow_one] at hn
+    have := mul_le_mul_of_nonneg_left hn hc₀.le
+    rw [← mul_assoc, mul_div_cancel₀ _ hc₀.ne'] at this
+    push_cast at this
+    exact this
+  have h2 : ((n + 1 : ℕ) : ℝ) ^ k ≤ (2 : ℝ) ^ (c₀ * (n : ℝ) ^ δ) := by
+    have hlt : (n + 1 : ℕ) ≤ 2 ^ (Nat.log 2 (n + 1) + 1) :=
+      (Nat.lt_pow_succ_log_self Nat.one_lt_two (n + 1)).le
+    have hltR : ((n + 1 : ℕ) : ℝ) ≤ (2 : ℝ) ^ (Nat.log 2 (n + 1) + 1 : ℕ) := by
+      exact_mod_cast hlt
+    have hpow : ((n + 1 : ℕ) : ℝ) ^ k ≤ (2 : ℝ) ^ ((k * (Nat.log 2 (n + 1) + 1) : ℕ) : ℝ) := by
+      calc ((n + 1 : ℕ) : ℝ) ^ k
+          ≤ ((2 : ℝ) ^ (Nat.log 2 (n + 1) + 1 : ℕ)) ^ k :=
+            pow_le_pow_left₀ (by positivity) hltR k
+        _ = (2 : ℝ) ^ (k * (Nat.log 2 (n + 1) + 1) : ℕ) := by
+            rw [← pow_mul, mul_comm]
+        _ = (2 : ℝ) ^ ((k * (Nat.log 2 (n + 1) + 1) : ℕ) : ℝ) := by rw [Real.rpow_natCast]
+    have hexp : ((k * (Nat.log 2 (n + 1) + 1) : ℕ) : ℝ) ≤ c₀ * (n : ℝ) ^ δ := by
+      have hk : (k : ℝ) ≤ (k : ℝ) + 1 := by linarith
+      have hpos : (0 : ℝ) ≤ (Nat.log 2 (n + 1) : ℝ) + 1 := by positivity
+      push_cast
+      exact (mul_le_mul_of_nonneg_right hk hpos).trans h1
+    exact hpow.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp)
+  have hprodR : (⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k ≤
+      ((2 ^ n : ℕ) : ℝ) := by
+    calc (⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k
+        ≤ (2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ) * ((n + 1 : ℕ) : ℝ) ^ k :=
+          mul_le_mul_of_nonneg_right (Nat.floor_le (Real.rpow_nonneg (by norm_num) _))
+            (by positivity)
+      _ ≤ (2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ) * (2 : ℝ) ^ (c₀ * (n : ℝ) ^ δ) :=
+          mul_le_mul_of_nonneg_left h2 (Real.rpow_nonneg (by norm_num) _)
+      _ = (2 : ℝ) ^ (n : ℝ) := by
+          rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2), sub_add_cancel]
+      _ = ((2 ^ n : ℕ) : ℝ) := by rw [Real.rpow_natCast]; norm_cast
+  have hprodN : ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ * (n + 1) ^ k ≤ 2 ^ n := by
+    exact_mod_cast hprodR
+  exact (Nat.le_div_iff_mul_le (Nat.pow_pos (Nat.succ_pos n))).2 hprodN
+
 /-- **Subexponential-savings nondeterministic time hierarchy**: for every real `δ > 0` and
 `c₀ > 0`, `NTIME (⌊2 ^ (n - c₀ * n ^ δ)⌋₊) ⊂ NTIME (2 ^ n)` on bit strings. -/
 theorem NTIME_two_pow_sub_rpow_ssubset {δ c₀ : ℝ} (hδ : 0 < δ) (hc₀ : 0 < c₀) :
     NTIME encBits (fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊) ⊂
       NTIME encBits fun n => 2 ^ n := by
   obtain ⟨k, hss⟩ := exists_NTIME_two_pow_div_pow_ssubset
-  have hle : ∀ᶠ n : ℕ in atTop,
-      ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ ≤ 2 ^ n / (n + 1) ^ k := by
-    have hlog := Nat.eventually_mul_log_add_pow_le_rpow (b := 2) Nat.one_lt_two 1 1 1
-      (K := ((k : ℝ) + 1) / c₀) (by positivity) hδ
-    filter_upwards [hlog] with n hn
-    have h1 : ((k : ℝ) + 1) * ((Nat.log 2 (n + 1) : ℝ) + 1) ≤ c₀ * (n : ℝ) ^ δ := by
-      rw [pow_one] at hn
-      have := mul_le_mul_of_nonneg_left hn hc₀.le
-      rw [← mul_assoc, mul_div_cancel₀ _ hc₀.ne'] at this
-      push_cast at this
-      exact this
-    have h2 : ((n + 1 : ℕ) : ℝ) ^ k ≤ (2 : ℝ) ^ (c₀ * (n : ℝ) ^ δ) := by
-      have hlt : (n + 1 : ℕ) ≤ 2 ^ (Nat.log 2 (n + 1) + 1) :=
-        (Nat.lt_pow_succ_log_self Nat.one_lt_two (n + 1)).le
-      have hltR : ((n + 1 : ℕ) : ℝ) ≤ (2 : ℝ) ^ (Nat.log 2 (n + 1) + 1 : ℕ) := by
-        exact_mod_cast hlt
-      have hpow : ((n + 1 : ℕ) : ℝ) ^ k ≤ (2 : ℝ) ^ ((k * (Nat.log 2 (n + 1) + 1) : ℕ) : ℝ) := by
-        calc ((n + 1 : ℕ) : ℝ) ^ k
-            ≤ ((2 : ℝ) ^ (Nat.log 2 (n + 1) + 1 : ℕ)) ^ k :=
-              pow_le_pow_left₀ (by positivity) hltR k
-          _ = (2 : ℝ) ^ (k * (Nat.log 2 (n + 1) + 1) : ℕ) := by
-              rw [← pow_mul, mul_comm]
-          _ = (2 : ℝ) ^ ((k * (Nat.log 2 (n + 1) + 1) : ℕ) : ℝ) := by rw [Real.rpow_natCast]
-      have hexp : ((k * (Nat.log 2 (n + 1) + 1) : ℕ) : ℝ) ≤ c₀ * (n : ℝ) ^ δ := by
-        have hk : (k : ℝ) ≤ (k : ℝ) + 1 := by linarith
-        have hpos : (0 : ℝ) ≤ (Nat.log 2 (n + 1) : ℝ) + 1 := by positivity
-        push_cast
-        exact (mul_le_mul_of_nonneg_right hk hpos).trans h1
-      exact hpow.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp)
-    have hprodR : (⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k ≤
-        ((2 ^ n : ℕ) : ℝ) := by
-      calc (⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k
-          ≤ (2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ) * ((n + 1 : ℕ) : ℝ) ^ k :=
-            mul_le_mul_of_nonneg_right (Nat.floor_le (Real.rpow_nonneg (by norm_num) _))
-              (by positivity)
-        _ ≤ (2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ) * (2 : ℝ) ^ (c₀ * (n : ℝ) ^ δ) :=
-            mul_le_mul_of_nonneg_left h2 (Real.rpow_nonneg (by norm_num) _)
-        _ = (2 : ℝ) ^ (n : ℝ) := by
-            rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2), sub_add_cancel]
-        _ = ((2 ^ n : ℕ) : ℝ) := by rw [Real.rpow_natCast]; norm_cast
-    have hprodN : ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ * (n + 1) ^ k ≤ 2 ^ n := by
-      exact_mod_cast hprodR
-    exact (Nat.le_div_iff_mul_le (Nat.pow_pos (Nat.succ_pos n))).2 hprodN
-  exact lt_of_le_of_lt (NTIME_mono_of_eventually_le hle) hss
+  exact lt_of_le_of_lt
+    (NTIME_mono_of_eventually_le (eventually_floor_two_pow_sub_rpow_le hδ hc₀ k)) hss
+
+/-- **The subexponential-savings hierarchy at arbitrarily large lengths**: for every real `δ > 0`
+and `c₀ > 0`, some problem in `NTIME (2 ^ n)` on bit strings differs from every problem in
+`NTIME (⌊2 ^ (n - c₀ * n ^ δ)⌋₊)` at inputs of arbitrarily large length. In particular no
+problem agreeing with it on all long inputs lies in the smaller class. -/
+theorem exists_mem_NTIME_two_pow_forall_exists_length_ge {δ c₀ : ℝ} (hδ : 0 < δ) (hc₀ : 0 < c₀) :
+    ∃ H ∈ NTIME encBits (fun n => 2 ^ n), ∀ B ∈ NTIME encBits
+      (fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊), ∀ N₀ : ℕ,
+        ∃ y : List Bool, N₀ ≤ y.length ∧ ¬ (y ∈ H ↔ y ∈ B) := by
+  obtain ⟨e₀, he₀⟩ := exists_fineExpLazyDiagonal_mem_NTIME
+  obtain ⟨c, hc⟩ := he₀ e₀ le_rfl
+  refine ⟨fineExpLazyDiagonal e₀ c, hc c le_rfl, fun B hB N₀ => ?_⟩
+  exact exists_length_ge_fineExpLazyDiagonal_disagree e₀ c
+    (NTIME_mono_of_eventually_le (eventually_floor_two_pow_sub_rpow_le hδ hc₀ (e₀ + 1)) hB) N₀
 
 end Cslib.Complexity
