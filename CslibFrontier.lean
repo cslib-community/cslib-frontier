@@ -2664,6 +2664,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Schedule
+public import CslibFrontier.Languages.Electrical.CapacitanceRange
 public import CslibFrontier.Languages.Electrical.LinearCircuit
 public import CslibFrontier.Probability.Product.ConditionalExpectation
 public import CslibFrontier.Logics.Propositional.CNF.Moser.LocalLemma

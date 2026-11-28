@@ -154,8 +154,9 @@ private theorem getD_branchRows {f : ℕ → Branch → List (ℕ × ℚ)} {A : 
   rw [List.getD_append_right _ _ _ _ (by omega), getD_mapBranches, hA, ite_eq_left (by omega),
     zero_add, branch]
 
-theorem mna_E_eq : c.mna.E = realOfSparse c.size c.size c.eSparse := by
-  refine (realOfSparse_eq_rowsOf fun r j hr _ => ?_).symm
+/-- Entry `(r, j)` of the sparse rows of `E` is `eEntry r j`. -/
+theorem sparseGet_eSparse {r : ℕ} (hr : r < c.size) (j : ℕ) :
+    sparseGet (c.eSparse.getD r []) j = c.eEntry r j := by
   rw [eEntry]
   by_cases hrn : r < c.nodes
   · rw [ite_eq_left hrn, eSparse, List.getD_append _ _ _ _ (by simpa using hrn)]
@@ -163,8 +164,9 @@ theorem mna_E_eq : c.mna.E = realOfSparse c.size c.size c.eSparse := by
   · rw [ite_eq_right hrn, eSparse, getD_branchRows (by simp) (by omega) hr,
       sparseGet_filter_ne_zero, branchERow, sparseGet_stamp]
 
-theorem mna_F_eq : c.mna.F = realOfSparse c.size c.size c.fSparse := by
-  refine (realOfSparse_eq_rowsOf fun r j hr hj => ?_).symm
+/-- Entry `(r, j)` of the sparse rows of `F` is `fEntry r j`. -/
+theorem sparseGet_fSparse {r j : ℕ} (hr : r < c.size) (hj : j < c.size) :
+    sparseGet (c.fSparse.getD r []) j = c.fEntry r j := by
   rw [fEntry]
   by_cases hrn : r < c.nodes
   · rw [ite_eq_left hrn, fSparse, List.getD_append _ _ _ _ (by simpa using hrn),
@@ -179,6 +181,12 @@ theorem mna_F_eq : c.mna.F = realOfSparse c.size c.size c.fSparse := by
   · rw [ite_eq_right hrn, fSparse, getD_branchRows (by simp) (by omega) hr,
       sparseGet_filter_ne_zero, branchFRow, sparseGet_append, sparseGet_stamp,
       sparseGet_sparseScale, sparseGet_vSparse]
+
+theorem mna_E_eq : c.mna.E = realOfSparse c.size c.size c.eSparse :=
+  (realOfSparse_eq_rowsOf fun _ j hr _ => sparseGet_eSparse hr j).symm
+
+theorem mna_F_eq : c.mna.F = realOfSparse c.size c.size c.fSparse :=
+  (realOfSparse_eq_rowsOf fun _ _ hr hj => sparseGet_fSparse hr hj).symm
 
 variable {c : Netlist}
 

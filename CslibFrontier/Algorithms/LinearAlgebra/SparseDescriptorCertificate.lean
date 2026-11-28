@@ -57,6 +57,8 @@ are never computed: only their sparse factors are checked. Every theorem about
 ## Main results
 
 * `Cslib.LinearAlgebra.SparseDecouplingCert.toDecoupling`, `A_toDecoupling`, `Q₁'_toDecoupling`.
+* `Cslib.LinearAlgebra.SparseDecouplingCert.exists_decoupling_of_add`: the decoupling of a
+  pencil whose `E` differs by a matrix that the transforms map into the differential block.
 * `Cslib.LinearAlgebra.SparseDecouplingCert.isExponentiallyStableAt_of_check`.
 -/
 
@@ -475,6 +477,47 @@ theorem A_toDecoupling (hE : S.E = realOfSparse N N E) (hF : S.F = realOfSparse 
 theorem Q₁'_toDecoupling (hE : S.E = realOfSparse N N E) (hF : S.F = realOfSparse N N F)
     (h : c.check N E F = true) : (toDecoupling hE hF h).Q₁' = realOfSparse c.k N c.Uᵢ := by
   unfold toDecoupling
+  refine (DescriptorSystem.IndexOneDecoupling.Q₁'_ofSchur ..).trans ?_
+  ext i j
+  simp [blockEquiv, toRows₁, realOfSparse, ofSparse_apply]
+
+/-- **A structured decoupling survives a change of `E` inside its differential block.** Let `c`
+be accepted for the pencil `(E, F)` and let the sparse rows `Δ` satisfy
+`T Δ U = [[Δ₁₁, 0], [0, 0]]` (the three zero blocks checked by `isZeroSparse`). If
+`S.E = E + s Δ` and `S.F = F` for a real `s`, and `E₁₁ + s Δ₁₁` is invertible, then the same
+transforms decouple `S` (`DescriptorSystem.IndexOneDecoupling.ofSchur`), with state matrix
+`(E₁₁ + s Δ₁₁)⁻¹ (F₁₁ - F₁₂ K)` and the differential coordinates of `c`, the first `c.k` rows
+of `Uᵢ`. -/
+theorem exists_decoupling_of_add (h : c.check N E F = true) {Δ : List (List (ℕ × ℚ))}
+    (hΔ : Δ.length ≤ N) (h₁₂ : isZeroSparse (blk₁₂ c.k (c.bar Δ)) = true)
+    (h₂₁ : isZeroSparse (blk₂₁ c.k (c.bar Δ)) = true)
+    (h₂₂ : isZeroSparse (blk₂₂ c.k (c.bar Δ)) = true) {s : ℝ}
+    (hE : S.E = realOfSparse N N E + s • realOfSparse N N Δ) (hF : S.F = realOfSparse N N F)
+    (hu : IsUnit (realOfSparse c.k c.k (blk₁₁ c.k (c.bar E)) +
+      s • realOfSparse c.k c.k (blk₁₁ c.k (c.bar Δ))).det) :
+    ∃ D : S.IndexOneDecoupling (Fin c.k) (Fin c.r),
+      D.A = (realOfSparse c.k c.k (blk₁₁ c.k (c.bar E)) +
+          s • realOfSparse c.k c.k (blk₁₁ c.k (c.bar Δ)))⁻¹ *
+        (realOfSparse c.k c.k (blk₁₁ c.k (c.bar F)) -
+          realOfSparse c.k c.r (blk₁₂ c.k (c.bar F)) * realOfSparse c.r c.k c.K) ∧
+      D.Q₁' = realOfSparse c.k N c.Uᵢ := by
+  have hs := spec h
+  have hUl : c.U.length = N := by
+    simp only [check, Bool.and_eq_true, beq_iff_eq, Nat.ble_eq, and_assoc] at h
+    exact h.2.2.2.2.1
+  have hE' : (realOfSparse N N c.T).submatrix (blockEquiv hs.hN).symm id * S.E *
+      (realOfSparse N N c.U).submatrix id (blockEquiv hs.hN).symm =
+      fromBlocks (realOfSparse c.k c.k (blk₁₁ c.k (c.bar E)) +
+        s • realOfSparse c.k c.k (blk₁₁ c.k (c.bar Δ))) 0 0 0 := by
+    rw [hE, Matrix.mul_add, Matrix.add_mul, Matrix.mul_smul, Matrix.smul_mul, hs.hE,
+      transform_blocks hs.hN hUl hΔ]
+    simp only [realOfSparse, ofSparse_eq_zero_of_isZeroSparse h₁₂,
+      ofSparse_eq_zero_of_isZeroSparse h₂₁, ofSparse_eq_zero_of_isZeroSparse h₂₂,
+      Matrix.map_zero _ Rat.cast_zero, fromBlocks_smul, fromBlocks_add, smul_zero, add_zero]
+  have hF' : (realOfSparse N N c.T).submatrix (blockEquiv hs.hN).symm id * S.F *
+      (realOfSparse N N c.U).submatrix id (blockEquiv hs.hN).symm = _ := hF ▸ hs.hF
+  refine ⟨DescriptorSystem.IndexOneDecoupling.ofSchur (blockEquiv hs.hN) _ _ _ _ _ _ _ _ _ _
+    hs.hT hs.hU hE' hF' hu hs.hF₂₂ hs.hK, DescriptorSystem.IndexOneDecoupling.A_ofSchur .., ?_⟩
   refine (DescriptorSystem.IndexOneDecoupling.Q₁'_ofSchur ..).trans ?_
   ext i j
   simp [blockEquiv, toRows₁, realOfSparse, ofSparse_apply]

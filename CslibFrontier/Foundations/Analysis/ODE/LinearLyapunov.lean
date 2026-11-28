@@ -63,10 +63,14 @@ assumed.
 * `ContinuousLinearMap.IsTrajectoryOn.norm_sq_le`: the explicit decay bound above.
 * `exists_pos_mul_norm_sq_le_inner_apply`: a positive quadratic form on a finite-dimensional
   space is coercive.
+* `ContinuousLinearMap.exists_norm_le_exp_of_inner_le`: `⟪x, P x⟫ > 0` and
+  `A† P + P A ≤ -2 α P` give `‖x t‖ ≤ M exp (-α t) ‖x 0‖`.
 * `ContinuousLinearMap.isExponentiallyStable_of_inner_pos`: `⟪x, P x⟫ > 0` and
   `⟪x, (A† P + P A) x⟫ < 0` for `x ≠ 0` imply exponential stability.
 * `Matrix.hasDerivWithinAt_dotProduct_mulVec`: the energy identity
   `d/dt (xᵀ P x) = xᵀ (Aᵀ P + P A) x` for coordinate trajectories.
+* `Matrix.exists_norm_le_exp_toEuclideanCLM_of_posDef`: `P ≻ 0` and `Aᵀ P + P A + 2 α P ⪯ 0`
+  give `‖x t‖ ≤ M exp (-α t) ‖x 0‖` in the Euclidean norm.
 * `Matrix.isExponentiallyStable_toEuclideanCLM_of_posDef`: `P ≻ 0` and `-(Aᵀ P + P A) ≻ 0`
   (`Matrix.PosDef` over `ℝ`) imply exponential stability of `ẋ = A x` in the Euclidean norm.
 -/
@@ -227,14 +231,44 @@ theorem IsTrajectoryOn.norm_sq_le (hx : A.IsTrajectoryOn x (Ici 0)) {m M c : ℝ
         mul_le_mul_of_nonneg_left (hup _) (Real.exp_pos _).le
     _ = M * (Real.exp (-(c / M) * t) * ‖x 0‖ ^ 2) := by ring
 
+/-- **Quadratic Lyapunov bound with a given rate.** On a finite-dimensional real inner product
+space, if `⟪y, P y⟫ > 0` for every `y ≠ 0` and `⟪y, (A† P + P A) y⟫ ≤ -2 α ⟪y, P y⟫` for every
+`y`, then there is a constant `M`, independent of the trajectory, such that every trajectory of
+`ẋ = A x` on `[0, ∞)` satisfies `‖x t‖ ≤ M exp (-α t) ‖x 0‖` for `t ≥ 0`. -/
+theorem exists_norm_le_exp_of_inner_le [FiniteDimensional ℝ E]
+    (hP : ∀ y ≠ 0, 0 < ⟪y, P y⟫) {α : ℝ}
+    (hK : ∀ y, ⟪y, (adjoint A * P + P * A) y⟫ ≤ -(2 * α) * ⟪y, P y⟫) :
+    ∃ M : ℝ, ∀ x : ℝ → E, A.IsTrajectoryOn x (Ici 0) →
+      ∀ t ≥ 0, ‖x t‖ ≤ M * Real.exp (-(α * t)) * ‖x 0‖ := by
+  obtain ⟨m, hm, hlow⟩ := exists_pos_mul_norm_sq_le_inner_apply hP
+  set M := ‖P‖ + 1
+  have hM : 0 < M := by positivity
+  have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := fun y =>
+    calc ⟪y, P y⟫ ≤ ‖y‖ * ‖P y‖ := real_inner_le_norm _ _
+      _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm y) (norm_nonneg _)
+      _ ≤ M * ‖y‖ ^ 2 := by nlinarith [norm_nonneg y]
+  refine ⟨Real.sqrt (M / m), fun x hx t ht => ?_⟩
+  have h : m * ‖x t‖ ^ 2 ≤ m * (M / m * Real.exp (-(2 * α) * t) * ‖x 0‖ ^ 2) :=
+    calc m * ‖x t‖ ^ 2 ≤ ⟪x t, P (x t)⟫ := hlow _
+      _ ≤ Real.exp (-(2 * α) * t) * ⟪x 0, P (x 0)⟫ := hx.inner_apply_le_exp_mul hK ht
+      _ ≤ Real.exp (-(2 * α) * t) * (M * ‖x 0‖ ^ 2) :=
+          mul_le_mul_of_nonneg_left (hup _) (Real.exp_pos _).le
+      _ = m * (M / m * Real.exp (-(2 * α) * t) * ‖x 0‖ ^ 2) := by field_simp
+  have h := le_of_mul_le_mul_left h hm
+  refine pow_le_pow_iff_left₀ (norm_nonneg _) (by positivity) two_ne_zero |>.1 ?_
+  rw [mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+  convert h using 3
+  push_cast
+  ring_nf
+
 /-- **Quadratic Lyapunov criterion.** On a finite-dimensional real inner product space, if
 `⟪y, P y⟫ > 0` and `⟪y, (A† P + P A) y⟫ < 0` for every `y ≠ 0`, then `ẋ = A x` is exponentially
-stable. The coercivity constants come from `exists_pos_mul_norm_sq_le_inner_apply`, the upper
-constant is `‖P‖ + 1`, and the rate is obtained from `IsTrajectoryOn.norm_sq_le`. -/
+stable. The coercivity constant `c` of `-(A† P + P A)` comes from
+`exists_pos_mul_norm_sq_le_inner_apply`, and with the upper constant `‖P‖ + 1` of the energy the
+rate `c / (2 (‖P‖ + 1))` follows from `exists_norm_le_exp_of_inner_le`. -/
 theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
     (hP : ∀ y ≠ 0, 0 < ⟪y, P y⟫) (hQ : ∀ y ≠ 0, ⟪y, (adjoint A * P + P * A) y⟫ < 0) :
     A.IsExponentiallyStable := by
-  obtain ⟨m, hm, hlow⟩ := exists_pos_mul_norm_sq_le_inner_apply hP
   obtain ⟨c, hc, hcQ⟩ := exists_pos_mul_norm_sq_le_inner_apply (P := -(adjoint A * P + P * A))
     fun y hy => by rw [neg_apply, inner_neg_right]; linarith [hQ y hy]
   set M := ‖P‖ + 1
@@ -243,14 +277,16 @@ theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
     calc ⟪y, P y⟫ ≤ ‖y‖ * ‖P y‖ := real_inner_le_norm _ _
       _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm y) (norm_nonneg _)
       _ ≤ M * ‖y‖ ^ 2 := by nlinarith [norm_nonneg y]
-  refine ⟨Real.sqrt (M / m), c / (2 * M), by positivity, fun x hx t ht => ?_⟩
-  have h := hx.norm_sq_le hm hc.le hlow hup
-    (fun y => by simpa only [neg_apply, inner_neg_right] using hcQ y) ht
-  refine pow_le_pow_iff_left₀ (norm_nonneg _) (by positivity) two_ne_zero |>.1 ?_
-  rw [mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
-  convert h using 3
-  push_cast
-  ring_nf
+  obtain ⟨K, hK⟩ := exists_norm_le_exp_of_inner_le (A := A) hP (α := c / (2 * M)) fun y => by
+    have h1 := hcQ y
+    rw [neg_apply, inner_neg_right] at h1
+    have h2 : c / M * ⟪y, P y⟫ ≤ c * ‖y‖ ^ 2 :=
+      calc c / M * ⟪y, P y⟫ ≤ c / M * (M * ‖y‖ ^ 2) :=
+            mul_le_mul_of_nonneg_left (hup y) (div_nonneg hc.le hM.le)
+        _ = c * ‖y‖ ^ 2 := by field_simp
+    have h3 : -(2 * (c / (2 * M))) * ⟪y, P y⟫ = -(c / M * ⟪y, P y⟫) := by field_simp
+    rw [h3]; linarith
+  exact ⟨K, c / (2 * M), by positivity, hK⟩
 
 end ContinuousLinearMap
 
@@ -280,6 +316,24 @@ theorem hasDerivWithinAt_dotProduct_mulVec {A P : Matrix n n ℝ} {x : ℝ → n
   have h := (isTrajectoryOn_toEuclideanCLM_iff.2 hx).hasDerivWithinAt_inner_apply
     (P := toEuclideanCLM (𝕜 := ℝ) P) ht
   simpa only [lyapunov_toEuclideanCLM, inner_toEuclideanCLM] using h
+
+/-- **Quadratic Lyapunov bound with a given rate, for matrices.** If `P` is a positive definite
+real matrix and `Aᵀ P + P A + 2 α P ⪯ 0`, then there is a constant `M` such that every trajectory
+of `ẋ = A x` on `EuclideanSpace ℝ n` satisfies `‖x t‖ ≤ M exp (-α t) ‖x 0‖` for `t ≥ 0`. -/
+theorem exists_norm_le_exp_toEuclideanCLM_of_posDef {A P : Matrix n n ℝ} (hP : P.PosDef)
+    {α : ℝ} (hR : (-(Aᵀ * P + P * A + (2 * α) • P)).PosSemidef) :
+    ∃ M : ℝ, ∀ x : ℝ → EuclideanSpace ℝ n,
+      (toEuclideanCLM (𝕜 := ℝ) A).IsTrajectoryOn x (Ici 0) →
+        ∀ t ≥ 0, ‖x t‖ ≤ M * Real.exp (-(α * t)) * ‖x 0‖ := by
+  refine ContinuousLinearMap.exists_norm_le_exp_of_inner_le (P := toEuclideanCLM (𝕜 := ℝ) P)
+    (fun y hy => ?_) fun y => ?_
+  · rw [inner_toEuclideanCLM]
+    simpa using hP.dotProduct_mulVec_pos (x := y.ofLp) (by simpa using hy)
+  · have := hR.dotProduct_mulVec_nonneg y.ofLp
+    rw [lyapunov_toEuclideanCLM, inner_toEuclideanCLM, inner_toEuclideanCLM]
+    simp only [star_trivial, neg_mulVec, add_mulVec, smul_mulVec, dotProduct_neg, dotProduct_add,
+      dotProduct_smul, smul_eq_mul] at this ⊢
+    linarith
 
 /-- **Quadratic Lyapunov criterion for matrices.** If `P` and `-(Aᵀ * P + P * A)` are positive
 definite real matrices, then `ẋ = A x` is exponentially stable on `EuclideanSpace ℝ n`, i.e. in

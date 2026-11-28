@@ -97,6 +97,8 @@ the dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithme
 * `Cslib.LinearAlgebra.LDLCert`: an `LDLᵀ` witness, with its factors `LDLCert.L` and `LDLCert.d`.
 * `Cslib.LinearAlgebra.LDLCert.factors`, `LDLCert.checkPosDef`, `LDLCert.checkPosSemidef`: the
   checkers, built on the lower-triangle check `LDLCert.factorsLower`.
+* `Cslib.LinearAlgebra.LDLCert.checkPosDefComputed`: the check of `≻ 0` on a witness that the
+  kernel computes itself (`LDLCert.compute`), for small matrices with large entries.
 * `Cslib.LinearAlgebra.scaledLyapunovResidual`, `Cslib.LinearAlgebra.lyapunovScale`: the
   fraction-free Lyapunov residual.
 * `Cslib.LinearAlgebra.LyapunovCert`, `LyapunovCert.check`: witnesses for `P ≻ 0` and
@@ -112,7 +114,8 @@ the dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithme
   rational matrices.
 * `Cslib.LinearAlgebra.LDLCert.eq_of_factors`: an accepted witness factors `M`.
 * `Cslib.LinearAlgebra.LDLCert.posDef_of_checkPosDef`,
-  `Cslib.LinearAlgebra.LDLCert.posSemidef_of_checkPosSemidef`: soundness over `ℝ`.
+  `Cslib.LinearAlgebra.LDLCert.posSemidef_of_checkPosSemidef`,
+  `Cslib.LinearAlgebra.LDLCert.posDef_of_checkPosDefComputed`: soundness over `ℝ`.
 * `Cslib.LinearAlgebra.LDLCert.exists_checkPosDef_iff`,
   `Cslib.LinearAlgebra.LDLCert.exists_checkPosSemidef_iff`: soundness and completeness, for
   matrices of `n` rows of `n` entries.
@@ -719,6 +722,31 @@ theorem exists_checkPosDef_iff {rows : List (List ℚ)} :
     exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
       ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
         by simp [ofFactors, hd]⟩⟩
+
+/-- An `LDLᵀ` witness for the `n × n` matrix with rows `rows`, computed by symmetric Gaussian
+elimination without pivoting over `ℚ`: the first pivot `d₀`, the first column `l` of `L` divided
+by it, and the factors of the Schur complement `M₂₂ - l M₁₂`, by recursion on `n`. The
+computation is not proved correct; `checkPosDefComputed` checks its output, so a zero or
+negative pivot only makes the check fail. -/
+@[expose] def compute : ℕ → List (List ℚ) → LDLCert
+  | 0, _ => ⟨[], []⟩
+  | n + 1, rows =>
+    let r₀ := rows.headD []
+    let d := r₀.headD 0
+    let l := rows.tail.map fun r => r.headD 0 / d
+    let rest := compute n (List.zipWith (fun r li => List.zipWith (fun x y => x - li * y)
+      r.tail r₀.tail) rows.tail l)
+    ⟨[1] :: List.zipWith (fun li r => li :: r) l rest.lower, d :: rest.diag⟩
+
+/-- Whether `ofLists n n rows ≻ 0`, checked on the witness computed by `compute`: no witness has
+to be supplied, and the kernel computes the factorization before checking it. -/
+@[expose] def checkPosDefComputed (n : ℕ) (rows : List (List ℚ)) : Bool :=
+  (compute n rows).checkPosDef n rows
+
+/-- **Soundness of the computed check.** -/
+theorem posDef_of_checkPosDefComputed {rows : List (List ℚ)}
+    (h : checkPosDefComputed n rows = true) : ((ofLists n n rows).map ((↑) : ℚ → ℝ)).PosDef :=
+  (compute n rows).posDef_of_checkPosDef h
 
 end LDLCert
 
