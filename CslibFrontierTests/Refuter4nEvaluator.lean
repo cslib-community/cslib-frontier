@@ -62,7 +62,10 @@ def evalMany (E : FramedEvaluator n f r) : Code .standard (r + 6) :=
     (.loop (.lt (cK r) (cCnt r)) (.seq (evalPrep E) (.seq (E.code.rename (bank r)) (evalCont E))))
 
 @[simp] private theorem bank_ne (i : Fin r) (j : Fin 6) : bank r i ≠ Fin.natAdd r j :=
-  fun h => by have := congrArg Fin.val h; simp at this; omega
+  fun h => by
+    have := congrArg Fin.val h
+    simp only [bank, Fin.val_castAdd, Fin.val_natAdd] at this
+    omega
 
 @[simp] private theorem ne_bank (i : Fin r) (j : Fin 6) : Fin.natAdd r j ≠ bank r i :=
   (bank_ne i j).symm
@@ -84,7 +87,7 @@ the packed point `xs[j]` at `src + j`. If the source block, the output block and
 `(f xs[j]).toNat` at `dst + j` for every `j < k` within `k * (E.cost + 7) + 4` instructions, and
 keeps every cell outside the window and the output block. -/
 theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List (BitString n))
-    (s : Data (r + 6)) (hw : E.Admits w) (hw1 : 1 ≤ w) (hcnt : s.regs (cCnt r) = xs.length)
+    (s : Data (r + 6)) (hw : E.minWidth ≤ w) (hw1 : 1 ≤ w) (hcnt : s.regs (cCnt r) = xs.length)
     (hsrc : s.regs (cSrc r) = src) (hdst : s.regs (cDst r) = dst)
     (hb : s.regs (bank r E.base) = b)
     (hpts : ∀ (j : ℕ) (hj : j < xs.length), s.mem (src + j) = pointWord xs[j])
@@ -114,7 +117,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     refine ⟨?_, ?_, ?_, ?_, ?_, fun j _ hj => absurd hj (Nat.not_lt_zero j), fun a _ _ => rfl⟩ <;>
       simp [s₀, hcnt, hsrc, hdst, hb]
   have hstep (y : Data (r + 6)) (hy : P (y.regs (cK r)) y) (hlt : y.regs (cK r) < xs.length) :
-      ∃ a x, ExecWithin w (evalPrep E) y a 2 ∧ E.Admits w ∧
+      ∃ a x, ExecWithin w (evalPrep E) y a 2 ∧ E.minWidth ≤ w ∧
         Fits w (a.regs (bank r E.base) + E.space) ∧ a.regs (bank r E.inp) = pointWord x ∧
         ∀ t, E.CallPost (bank r) x a t → ∃ z, ExecWithin w (evalCont E) t z 3 ∧
           P (y.regs (cK r) + 1) z ∧ z.regs (cK r) = y.regs (cK r) + 1 := by
@@ -194,7 +197,8 @@ example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ 
       ∀ (j : ℕ) (hj : j < xs.length), t.mem (dst + j) = (parity 3 xs[j]).toNat := by
   obtain ⟨t, ht, hres, -⟩ := exec_evalMany (parityEvaluator 3) xs s hw (by omega) hcnt hsrc hdst
     hb hpts (by simpa [parityEvaluator] using hfb) hfs hfd
-    (fun _ _ => by simp [parityEvaluator]; omega) (fun _ _ => by simp [parityEvaluator]; omega)
+    (fun j _ => show src + j < b ∨ b + 0 ≤ src + j by omega)
+    (fun j _ => show dst + j < b ∨ b + 0 ≤ dst + j by omega)
     hsd
   exact ⟨t, ht, hres⟩
 

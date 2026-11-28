@@ -30,15 +30,15 @@ bit-per-word inputs) to this calling convention is separate work.
 
 **Contract.** A `FramedEvaluator n f r` is a fixed standard-basis program `code` on `r`
 registers, with an input register `inp`, a workspace base register `base`, a result register
-`out` (`inp ≠ base`), a workspace size `space`, a per-call instruction bound `cost` and a set
-`Admits` of admitted word widths, at which `n ≤ w`. Its certificate `exec` holds for every
-admitted width, every point `x`, every base address `b` with `Fits w (b + space)`, and every
-data whose register `inp` holds `pointWord x` and register `base` holds `b`; the other registers
-and all memory,
-including the workspace window `[b, b + space)`, are arbitrary. From such data `code` runs within
-`cost` instructions to data with `(f x).toNat` in `out`, registers `inp` and `base` unchanged, and
-every memory cell outside the window unchanged. Window cells and the other registers are left
-unspecified.
+`out` (`inp ≠ base`), a workspace size `space`, a per-call instruction bound `cost` and a
+minimum word width `minWidth ≥ n`. The admitted widths are all `w ≥ minWidth`, so a caller may
+run at any larger width its own addresses need. The certificate `exec` holds for every admitted
+width, every point `x`, every base address `b` with `Fits w (b + space)`, and every data whose
+register `inp` holds `pointWord x` and register `base` holds `b`; the other registers and all
+memory, including the workspace window `[b, b + space)`, are arbitrary. From such data `code`
+runs within `cost` instructions to data with `(f x).toNat` in `out`, registers `inp` and
+`base` unchanged, and every memory cell outside the window unchanged. Window cells and the
+other registers are left unspecified.
 
 Since the certificate starts from arbitrary window contents and scratch registers, a call needs
 no reset before it, and any initialisation the code performs is part of `cost`: every call,
@@ -50,9 +50,9 @@ there.
 (`Code.rename`). `FramedEvaluator.exec_rename` gives the call postcondition `CallPost`: the
 result in `g out`, `g inp` and `g base` kept, every caller register outside the bank kept and
 memory outside the window kept, within `cost`. `FramedEvaluator.exec_loop` runs a counting loop
-whose body is a charged preparation, one call and a charged continuation: `N` iterations cost
-`N * (tPrep + cost + tCont + 2) + 2` instructions, overhead plus the number of calls times
-the cost of evaluation and setup.
+whose body is a charged preparation, one call and a charged continuation (`ExecWithin.call`):
+from index `i₀` up to the limit `N` it costs `(N - i₀) * (tPrep + cost + tCont + 2) + 2`
+instructions, overhead plus the number of calls times the cost of evaluation and setup.
 
 **Instance.** `parityEvaluator n` evaluates `Cslib.parity n` by a shift-and-mask loop over the
 `n` bits of the packed point, with no workspace, at the widths `w ≥ n + 1`, within `6 n + 6`
@@ -127,14 +127,14 @@ structure FramedEvaluator (n : ℕ) (f : BitString n → Bool) (r : ℕ) where
   space : ℕ
   /-- The instruction bound of one call, setup and reset included. -/
   cost : ℕ
-  /-- The admitted word widths. -/
-  Admits : ℕ → Prop
+  /-- The minimum admitted word width: every `w ≥ minWidth` is admitted. -/
+  minWidth : ℕ
   /-- The input and base registers are distinct, so a caller can set both. -/
   inp_ne_base : inp ≠ base
   /-- At an admitted width, packed points fit a word. -/
-  le_of_admits : ∀ {w : ℕ}, Admits w → n ≤ w
+  le_minWidth : n ≤ minWidth
   /-- The execution certificate, for every admitted width, point, base and data. -/
-  exec : ∀ {w b : ℕ} (x : BitString n) (s : Data r), Admits w → Fits w (b + space) →
+  exec : ∀ {w b : ℕ} (x : BitString n) (s : Data r), minWidth ≤ w → Fits w (b + space) →
     s.regs inp = pointWord x → s.regs base = b →
     ∃ t, ExecWithin w code s t cost ∧ t.regs out = (f x).toNat ∧
       t.regs inp = s.regs inp ∧ t.regs base = s.regs base ∧
@@ -157,7 +157,7 @@ outside the window at the base held in `g E.base` is kept. -/
 point `x` and the window at the base held in `g E.base` fits, the renamed program runs within
 `E.cost` instructions and establishes `CallPost`. -/
 theorem exec_rename {g : Fin r → Fin r'} (hg : g.Injective) {w : ℕ} (x : BitString n)
-    (s : Data r') (hw : E.Admits w) (hfit : Fits w (s.regs (g E.base) + E.space))
+    (s : Data r') (hw : E.minWidth ≤ w) (hfit : Fits w (s.regs (g E.base) + E.space))
     (hx : s.regs (g E.inp) = pointWord x) :
     ∃ t, ExecWithin w (E.code.rename g) s t E.cost ∧ E.CallPost g x s t := by
   obtain ⟨t, ht, hQ, hframe⟩ := ExecWithin.rename_post hg
@@ -174,7 +174,7 @@ theorem exec_loop {g : Fin r → Fin r'} (hg : g.Injective) {w N tPrep tCont : �
     {index limit : Fin r'} {prep cont : Code .standard r'} (P : ℕ → Data r' → Prop)
     (hlimit : ∀ y, P (y.regs index) y → y.regs limit = N)
     (hstep : ∀ y, P (y.regs index) y → y.regs index < N →
-      ∃ a x, ExecWithin w prep y a tPrep ∧ E.Admits w ∧
+      ∃ a x, ExecWithin w prep y a tPrep ∧ E.minWidth ≤ w ∧
         Fits w (a.regs (g E.base) + E.space) ∧ a.regs (g E.inp) = pointWord x ∧
         ∀ t, E.CallPost g x a t → ∃ z, ExecWithin w cont t z tCont ∧
           P (y.regs index + 1) z ∧ z.regs index = y.regs index + 1)
@@ -183,9 +183,8 @@ theorem exec_loop {g : Fin r → Fin r'} (hg : g.Injective) {w N tPrep tCont : �
       ((N - s.regs index) * (tPrep + E.cost + tCont + 2) + 2) ∧ P N y ∧ y.regs index = N :=
   ExecWithin.loop_count P hlimit (fun y hy hlt => by
     obtain ⟨a, x, hprep, hw, hfit, hx, hcont⟩ := hstep y hy hlt
-    obtain ⟨t, ht, hpost⟩ := E.exec_rename hg x a hw hfit hx
-    obtain ⟨z, hz, hP⟩ := hcont t hpost
-    exact ⟨z, hprep.seq (ht.seq hz) |>.mono (by omega), hP⟩) hle hs
+    exact ExecWithin.call hg hprep (E.exec x (a.comap g) hw hfit hx rfl)
+      fun t hQ hframe => hcont t ⟨hQ.1, hQ.2.1, hQ.2.2.1, hframe, hQ.2.2.2⟩) hle hs
 
 end FramedEvaluator
 
@@ -303,9 +302,9 @@ workspace, at the widths `w ≥ n + 1`, within `6 n + 6` instructions per call. 
   out := 2
   space := 0
   cost := 6 * n + 6
-  Admits w := n + 1 ≤ w
+  minWidth := n + 1
   inp_ne_base := by decide
-  le_of_admits h := by omega
+  le_minWidth := by omega
   exec x s hw _ hx _ := by
     obtain ⟨t, ht, hout, hinp, hbase, hmem⟩ := exec_parityCode x s hw hx
     exact ⟨t, ht, hout, hinp, hbase, fun a _ => by rw [hmem]⟩
