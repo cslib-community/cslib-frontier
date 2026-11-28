@@ -15,6 +15,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop.ExpectedTime
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Ring
 
@@ -508,8 +509,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
     set r₀ : Config (k + 1 + 2) Bool ((Unit ⊕ RewindState) ⊕ RewindWorkState) Empty w₀ :=
       { tapes := wordsCfg w₀ none (words [] w₀) [], channels := Empty.elim }
     have hr₀ : r₀.tapes.state = none := rfl
-    rw [hload, tsum_eq_single r₀ fun r hr => by rw [PMF.pure_apply, ite_eq_right hr, zero_mul],
-      PMF.pure_apply, ite_eq_left rfl, one_mul, ite_eq_left hr₀]
+    rw [hload, PMF.tsum_pure_mul, ite_eq_left hr₀]
     have hstart : Sequential.start (U.seq fin) r₀ = Sequential.left fin (startU [] w₀) :=
       Config.ext (by simp [r₀, Sequential.start, Sequential.left, startU, runConfig, U,
         MultiTapePTM.repeatUntilBlank, withState_wordsCfg, mapState_wordsCfg, handOver])

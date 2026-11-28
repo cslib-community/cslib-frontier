@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Probability.PMF.Expect
 
 /-!
 # Interactive proofs with perfect soundness are in `NP`
@@ -155,8 +156,7 @@ theorem acceptFrom_historyProver (h : History) {p : WordQueryComp Unit Bool} {e 
         refine (acceptFrom_query_bind (historyProver h) ((m, y) :: e) m next).trans ?_
         change ∑' ys : List Bool × History,
           (PMF.pure (y, e)) ys * acceptFrom (historyProver h) ys.2 (some (next ys.1)) = 1
-        rw [tsum_eq_single (y, e) fun ys hys => by simp [PMF.pure_apply, hys]]
-        simpa [PMF.pure_apply] using ih hp
+        exact (PMF.tsum_pure_mul _ _).trans (ih hp)
 
 /-! ### Positive acceptance is an accepting transcript -/
 

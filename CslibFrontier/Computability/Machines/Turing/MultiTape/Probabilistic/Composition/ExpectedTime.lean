@@ -201,9 +201,7 @@ theorem toOuterMeasure_compl_continuation_le
     (Composition.consumer second k₀)).runClosedConfigFrom _
       (Sequential.left (Composition.consumer second k₀) initial))).toOuterMeasure goodᶜ ≤ _
   refine (toOuterMeasure_compl_seq_le _ _ hgood (L + 4) rest initial).trans ?_
-  rw [hstate, tsum_eq_single (MultiTapeMachine.Composition.ready mark k₁ cfg)
-      fun r hr => by rw [PMF.pure_apply, ite_eq_right hr, zero_mul],
-    PMF.pure_apply, ite_eq_left rfl, one_mul,
+  rw [hstate, PMF.tsum_pure_mul,
     ite_eq_left (show (MultiTapeMachine.Composition.ready mark k₁ cfg).tapes.state = none from rfl),
     MultiTapeMachine.Composition.start_ready,
     Composition.runClosedConfigFrom_consumer, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
