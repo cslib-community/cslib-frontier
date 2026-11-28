@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.List.Palindrome
 public import Mathlib.Data.List.AList
-public import Mathlib.Data.List.MinMax
 import Mathlib.Data.List.Induction
 
 /-!
@@ -23,9 +22,9 @@ palindrome goes to its longest proper palindromic suffix. Both roots link to the
 
 This executable representation implements the graph of [Rubinchik and Shur][RubinchikShur2015],
 arXiv:1506.04862v2, §2, pp. 3–5, using full words as keys.
-The previous tree is retained when appending a letter. A suffix
-scan identifies the one possible new vertex and its link. The vertex count bounds the number
-of graph vertices. The paper's time and space bounds use a different representation and search.
+Appending a letter retains the previous tree. A longest-first suffix scan stops at the first
+palindrome to identify the one possible new vertex and its link. The bound counts graph vertices.
+The paper's time and space bounds use a different representation and search.
 -/
 
 public section
@@ -59,22 +58,23 @@ namespace Eertree
 variable {α : Type*} [DecidableEq α]
 
 private def longestSuffix (w : List α) : List α :=
-  ((w.tails.filter (fun p => decide p.Palindrome)).argmax List.length).getD []
+  (w.tails.find? (fun p => decide p.Palindrome)).getD []
 
 private theorem longestSuffix_spec (w : List α) :
     longestSuffix w <:+ w ∧ (longestSuffix w).Palindrome ∧
       ∀ p : List α, p <:+ w → p.Palindrome → p.length ≤ (longestSuffix w).length := by
-  let xs := w.tails.filter (fun p => decide p.Palindrome)
-  have mem {p : List α} : p ∈ xs ↔ p <:+ w ∧ p.Palindrome := by simp [xs, List.mem_tails]
-  have hnil : [] ∈ xs := mem.mpr ⟨List.nil_suffix, .nil⟩
-  obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp
-    (show xs.argmax List.length ≠ none from fun h => by simp [List.argmax_eq_none.mp h] at hnil)
-  have eq : longestSuffix w = q := by
-    change (xs.argmax List.length).getD [] = q
-    rw [hq]; rfl
-  rw [eq]
-  obtain ⟨hs, hp⟩ := mem.mp (List.argmax_mem hq)
-  exact ⟨hs, hp, fun p h hp => List.le_of_mem_argmax (mem.mpr ⟨h, hp⟩) hq⟩
+  induction w with
+  | nil => simp [longestSuffix, List.tails, List.Palindrome.nil]
+  | cons a w ih =>
+    by_cases h : (a :: w).Palindrome
+    · have eq : longestSuffix (a :: w) = a :: w := by simp [longestSuffix, h]
+      rw [eq]
+      exact ⟨List.suffix_rfl, h, fun _ hs _ => hs.length_le⟩
+    · have eq : longestSuffix (a :: w) = longestSuffix w := by
+        simp [longestSuffix, h]
+      rw [eq]
+      refine ⟨ih.1.trans (List.suffix_cons a w), ih.2.1, fun p hs hp => ih.2.2 p ?_ hp⟩
+      exact (List.suffix_cons_iff.mp hs).resolve_left fun e => h (e ▸ hp)
 
 private theorem factors_append (w : List α) (a : α) :
     (w ++ [a]).palindromicFactors = insert (longestSuffix (w ++ [a])) w.palindromicFactors := by
