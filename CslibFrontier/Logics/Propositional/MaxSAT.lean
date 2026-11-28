@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Matthew Doty. All rights reserved.
+Copyright (c) 2026 Matthew Doty, Nick L. Leppelmeier. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Matthew Doty
+Authors: Matthew Doty, Nick L. Leppelmeier
 -/
 
 module

@@ -65,7 +65,10 @@ The instances are over the variables `ℕ`, as the checker's are.
 
 * [F. Bacchus, M. Järvisalo, R. Martins, *Maximum Satisfiability*][BacchusJarvisaloMartins2021]
 * [B. Bogaerts, S. Gocht, C. McCreesh, J. Nordström, *Certified Dominance and Symmetry Breaking for
-  Combinatorial Optimisation*][BogaertsGochtMcCreeshNordstrom2023]
+  Combinatorial Optimisation*][BogaertsGochtMcCreeshNordstrom2023]: the proof system for
+  optimisation that the checker `Cslib.Logic.PL.VeriPB.checkRed` implements, with logged
+  solutions and objective-improving constraints, through which the `BOUNDS` results above
+  certify optima.
 -/
 
 public section
