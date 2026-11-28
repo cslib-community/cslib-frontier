@@ -149,11 +149,10 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             simp only [htake_succ, List.find?_append, hok, Option.none_or,
               List.find?_cons, List.find?_nil]
             cases S.cand ⟨k, hk⟩ <;> rfl
-          unfold pickChosenBody
           cases hck : S.cand ⟨k, hk⟩ <;>
           · simp only [hck, Bool.toNat_true, Bool.toNat_false, ite_true,
               Bool.false_eq_true, ite_false] at hck_mem hnext
-            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
+            wram_exec [pickChosenBody, hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
             simp only [Ppick, hnext]
             and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2])
       (by rw [hlab1]; exact Nat.zero_le _)
