@@ -228,9 +228,8 @@ theorem expectedCostDist_nil (μ : PMF B.Mem) : B.expectedCostDist μ [] = 0 := 
 
 @[simp]
 theorem expectedCostDist_pure (m : B.Mem) (reqs : List P.Req) :
-    B.expectedCostDist (PMF.pure m) reqs = B.expectedCostFrom m reqs := by
-  rw [expectedCostDist, tsum_eq_single m fun m' hm' => by simp [PMF.pure_apply_of_ne _ _ hm']]
-  simp
+    B.expectedCostDist (PMF.pure m) reqs = B.expectedCostFrom m reqs :=
+  Probability.PMF.tsum_pure_mul m fun m' => B.expectedCostFrom m' reqs
 
 /-- One-step Bellman decomposition of `expectedCostDist` over a memory distribution `μ`. -/
 theorem expectedCostDist_cons (μ : PMF B.Mem) (r : P.Req) (rs : List P.Req) :
@@ -308,11 +307,8 @@ theorem expectedCostFrom_ofDetStrategy (A : DetStrategy P) (m : A.Mem) (reqs : L
   induction reqs generalizing m with
   | nil => simp only [expectedCostFrom_nil, DetStrategy.costFrom_nil, Nat.cast_zero]
   | cons r rs ih =>
-    rw [expectedCostFrom_cons, tsum_eq_single (A.step m r)]
-    · simp only [ofDetStrategy, PMF.pure_apply_self, one_mul, ih, DetStrategy.costFrom_cons,
-        Nat.cast_add]
-    · intro m' hm'
-      simp only [ofDetStrategy, PMF.pure_apply_of_ne _ _ hm', zero_mul]
+    simp only [expectedCostFrom_cons, ofDetStrategy, Probability.PMF.tsum_pure_mul, ih,
+      DetStrategy.costFrom_cons, Nat.cast_add]
 
 /-- From any admissible initial configuration `s₀`, the expected cost of `ofDetStrategy A` equals
 `A.cost s₀ reqs`. -/

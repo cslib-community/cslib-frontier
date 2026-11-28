@@ -131,10 +131,6 @@ namespace ExecRCodeDist
 variable {w L_peak : ℕ} {c c₁ c₂ pos neg body : RCode B r} {cond : Cond r} {x y : RData r}
   {μ μ₁ μ' : PMF (RData r)} {T T' T₁ T₂ : ℝ≥0∞}
 
-private theorem tsum_pure_mul (y : RData r) (f : RData r → ℝ≥0∞) :
-    (∑' z, PMF.pure y z * f z) = f y := by
-  rw [tsum_eq_single y (fun z hz => by simp [PMF.pure_apply, hz]), PMF.pure_apply_self, one_mul]
-
 theorem congr_dist (h : ExecRCodeDist w c x μ T L_peak) (hμ : μ = μ') (hT : T ≤ T') :
     ExecRCodeDist w c x μ' T' L_peak := hμ ▸ h.mono hT
 
@@ -192,7 +188,7 @@ theorem seq_pure (h₁ : ExecRCodeDist w c₁ x (PMF.pure y) T₁ L_peak)
     ExecRCodeDist w (.seq c₁ c₂) x μ (T₁ + T₂) L_peak :=
   (h₁.seq (μ₂ := fun _ => μ) (T₂ := fun _ => T₂) fun _ hz =>
     Set.mem_singleton_iff.mp (PMF.support_pure _ ▸ hz) ▸ h₂).congr_dist
-    (PMF.pure_bind y _) (by simp only [tsum_pure_mul, le_rfl])
+    (PMF.pure_bind y _) (by simp only [Cslib.Probability.PMF.tsum_pure_mul, le_rfl])
 
 /-- Ranked worst-case `K`-iteration `while` loop rule for `ExecRCodeDist`. -/
 theorem loop_bounded (I Q : RData r → Prop) {μ_body : RData r → PMF (RData r)}
@@ -383,7 +379,7 @@ private theorem supExpectedStepsWithin_loop_geometric {cond : Cond r} {body : RC
           _ ≤ M + 2 + ∑' y, loopExitRPMF cond μ_body z y * K_cont y :=
               add_le_add (add_le_add hdrift le_rfl) le_rfl
       · simp only [hcz, ↓reduceIte, zero_add]
-        rw [loopExitRPMF_of_not_holds hcz, tsum_pure_mul]
+        rw [loopExitRPMF_of_not_holds hcz, Cslib.Probability.PMF.tsum_pure_mul]
         refine ((supExpectedStepsWithin_succ_le_of_const (w := w) (n := n) (p := p)
           fun _ => stepRandResizable_branch_neg (s := ⟨pc, z⟩) hp.head hcz).trans
           (add_le_add le_rfl (supExpectedStepsWithin_le_of_const fun _ =>
@@ -403,7 +399,7 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
       T + ∑' y, μ y * supExpectedStepsWithin w p N (.running ⟨pc + c.size, y⟩) := by
   induction h generalizing pc N with
   | @of_demonicExec _ n c x y hd =>
-    rw [tsum_pure_mul]
+    rw [Cslib.Probability.PMF.tsum_pure_mul]
     exact (hd.supExpectedStepsWithin_assemble hp).trans
       (add_le_add le_rfl (iSup₂_le fun z hz => hz ▸ le_rfl))
   | @rand _ dst src x _ hfit =>
@@ -595,7 +591,7 @@ private theorem le_haltedReach_loop_geometric {cond : Cond r} {body : RCode B r}
             (haltedReach_jump_le (d := d) (y := u) hp.loop_back) _).trans <|
           (ih_body z hIz hcz).trans <|
           haltedReach_le_of_const fun _ => stepRandResizable_branch_pos (s := ⟨pc, z⟩) hp.head hcz
-      · rw [loopIterRPMF_of_not_holds hcz, tsum_pure_mul]
+      · rw [loopIterRPMF_of_not_holds hcz, Cslib.Probability.PMF.tsum_pure_mul]
   simp_rw [loopExitRPMF_apply_of_hasSum
     (hasSum_loopExitRDensity hp_pos hp_top hinv hp_exit hx_inv), ENNReal.iSup_mul]
   refine (ENNReal.tsum_iSup_of_monotone
@@ -613,7 +609,7 @@ theorem le_haltedReach_assemble (h : ExecRCodeDist w c x μ T L_peak) {p : RProg
     (∑' y, μ y * haltedReach w p v d (pc + c.size) y) ≤ haltedReach w p v d pc x := by
   induction h generalizing pc with
   | of_demonicExec hd =>
-    rw [tsum_pure_mul]
+    rw [Cslib.Probability.PMF.tsum_pure_mul]
     exact (le_iInf₂ fun z hz => hz ▸ le_rfl).trans (hd.le_haltedReach_assemble hp)
   | @rand _ dst src x _ hfit =>
     exact (Probability.PMF.tsum_map_mul _ _ _).trans_le (haltedReach_le_of_rand hp.head hfit)

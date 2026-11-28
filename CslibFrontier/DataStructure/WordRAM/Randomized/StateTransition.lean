@@ -322,13 +322,10 @@ noncomputable def toRandomized (C : StateTransitionImpl P D w base params s₀) 
     refine ⟨fun t => PMF.pure ⟨(), s' t, y t⟩, fun t => (n t : ℝ≥0∞),
       fun t ht => ⟨by simpa using ExecCodeDist.of_exec (hspec t ht).1, fun q hq => by
         supp_cases hq; exact (hspec t ht).2.1⟩,
-      fun ⟨⟩ => by simp [PMF.map_bind], nofun, tsum_le_tsum fun t => ?_⟩
-    by_cases ht_mem : t ∈ ν.support
-    · refine mul_le_mul_right ?_ _
-      rw [tsum_eq_single ⟨(), s' t, y t⟩ (fun q hq => by simp [PMF.pure_apply, hq])]
-      simp only [PMF.pure_apply_self, one_mul]
-      exact_mod_cast (hspec t ht_mem).2.2
-    · rw [(PMF.apply_eq_zero_iff _ _).mpr ht_mem, zero_mul, zero_mul]
+      fun ⟨⟩ => by simp [PMF.map_bind], nofun, Probability.PMF.tsum_mul_mono_support ν
+        fun t ht => ?_⟩
+    simp only [Probability.PMF.tsum_pure_mul]
+    exact_mod_cast (hspec t ht).2.2
 
 end Cslib.DataStructure.WordRAM.StateTransitionImpl
 

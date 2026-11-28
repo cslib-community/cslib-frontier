@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Probability.StatisticalDistance.Event
@@ -147,11 +148,10 @@ theorem isAdviceNonMalleableExtractor_zero_iff {X Seed Adv : Type*} [Fintype See
 /-- An expectation of a score bounded by `C` on the support has absolute value at most `C`. -/
 private theorem abs_sum_toReal_mul_le {α : Type*} [Fintype α] (ν : PMF α) {F : α → ℝ} {C : ℝ}
     (hF : ∀ a ∈ ν.support, |F a| ≤ C) : |∑ a, (ν a).toReal * F a| ≤ C := by
-  calc _ ≤ ∑ a, (ν a).toReal * C := (abs_sum_le_sum_abs _ _).trans <| sum_le_sum fun a _ => by
-          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-          by_cases ha : a ∈ ν.support
-          · exact mul_le_mul_of_nonneg_left (hF a ha) ENNReal.toReal_nonneg
-          · simp [(ν.apply_eq_zero_iff a).mpr ha]
+  calc |∑ a, (ν a).toReal * F a| ≤ ∑ a, (ν a).toReal * |F a| := by
+        simpa only [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg] using
+          abs_sum_le_sum_abs (fun a => (ν a).toReal * F a) univ
+    _ ≤ ∑ a, (ν a).toReal * C := sum_toReal_mul_mono_support ν hF
     _ = C := by rw [← sum_mul, sum_toReal, one_mul]
 
 private theorem sum_abs_signVal_mul_prod_le {X Seed Adv : Type*} [Fintype X] [Fintype Seed]

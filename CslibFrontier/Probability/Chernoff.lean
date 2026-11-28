@@ -12,6 +12,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Probability.Moments.Basic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Probability.ProbabilityMassFunction.Integrals
@@ -108,12 +109,8 @@ theorem mgf_pi_sum_le [∀ i, MeasurableSpace (α i)] [∀ i, MeasurableSingleto
       Real.exp ((∑ a, (p i a).toReal * score i a) * (Real.exp t - 1)) := by
     rw [hcoord]
     calc ∑ a, (p i a).toReal * Real.exp (t * score i a)
-        ≤ ∑ a, (p i a).toReal * (1 + score i a * (Real.exp t - 1)) := by
-          refine Finset.sum_le_sum fun a _ => ?_
-          by_cases ha : a ∈ (p i).support
-          · exact mul_le_mul_of_nonneg_left (exp_mul_le_one_add_mul (hscore i a ha) t)
-              ENNReal.toReal_nonneg
-          · rw [PMF.apply_eq_zero_iff _ _ |>.mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
+        ≤ ∑ a, (p i a).toReal * (1 + score i a * (Real.exp t - 1)) :=
+          sum_toReal_mul_mono_support (p i) fun a ha => exp_mul_le_one_add_mul (hscore i a ha) t
       _ = 1 + (∑ a, (p i a).toReal * score i a) * (Real.exp t - 1) := by
           simp only [mul_add, mul_one, Finset.sum_add_distrib, sum_toReal, Finset.sum_mul,
             mul_assoc]

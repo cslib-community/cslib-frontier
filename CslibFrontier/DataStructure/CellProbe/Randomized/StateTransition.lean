@@ -266,18 +266,12 @@ noncomputable def toRandomized {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0
         rw [PMF.map_bind]
         simp [μ_step]
       simp [hconst]
-    · refine tsum_le_tsum fun t => ?_
-      by_cases ht_mem : t ∈ ν.support
-      · refine mul_le_mul_right ?_ _
-        have ht : hasInv t := hsupp t ht_mem
-        have hpot := (Classical.choose_spec (C.step_exec o ht.2 ht.1)).2.2
-        simp only [Cslib.CellProbe.Randomized.Scheme.ofDeterministic,
-          RandProbeTree.expectedProbes_ofProbeTree, μ_step]
-        rw [tsum_eq_single ⟨(), nextS t, ((P.step o).run t.mem).2, ((P.step o).run t.mem).1⟩
-          (fun q hq => by simp [PMF.pure_apply, hq])]
-        simp only [PMF.pure_apply_self, one_mul]
-        exact_mod_cast hpot
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr ht_mem, zero_mul, zero_mul]
+    · refine Probability.PMF.tsum_mul_mono_support ν fun t ht_mem => ?_
+      have ht : hasInv t := hsupp t ht_mem
+      have hpot := (Classical.choose_spec (C.step_exec o ht.2 ht.1)).2.2
+      simp only [Cslib.CellProbe.Randomized.Scheme.ofDeterministic,
+        RandProbeTree.expectedProbes_ofProbeTree, μ_step, Probability.PMF.tsum_pure_mul]
+      exact_mod_cast hpot
 
 @[simp]
 theorem toRandomized_rep {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}

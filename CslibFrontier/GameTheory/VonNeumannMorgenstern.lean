@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF.Coin
 public import Mathlib.Data.Finset.Basic
 
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Max
@@ -336,14 +337,8 @@ theorem sum_toReal_eq_one_of_mem_lotteriesOn {X : Finset α} {p : PMF α}
 /-- Expected utility of a degenerate lottery `PMF.pure x` for `x ∈ X` equals `u x`. -/
 @[simp]
 theorem expectedUtility_pure {X : Finset α} (u : α → ℝ) {x : α} (hx : x ∈ X) :
-    expectedUtility X u (PMF.pure x) = u x := by
-  classical
-  rw [expectedUtility, Finset.sum_eq_single x]
-  · simp
-  · intro y _ hy
-    simp [PMF.pure_apply_of_ne x y hy]
-  · intro h
-    exact absurd hx h
+    expectedUtility X u (PMF.pure x) = u x :=
+  Probability.PMF.sum_pure_toReal_mul hx u
 
 /-- Expected utility is affine in mixtures (AFP `expected_value_mix_pmf`). -/
 theorem expectedUtility_mix (X : Finset α) (u : α → ℝ) (a : I) (p q : PMF α) :

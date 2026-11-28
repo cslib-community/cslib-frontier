@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to `Cslib/Probability/PMF.lean`)
 
 public import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Boolean distributions and Boolean predicates
@@ -73,31 +74,37 @@ theorem ext_bool {p q : PMF Bool} (h : p true = q true) : p = q := by
     rw [toReal_false_eq_one_sub, toReal_false_eq_one_sub, h]
   · exact h
 
+/-- The `true`-mass of a Boolean predicate pushed forward along `p.map` is the expectation of its
+indicator. -/
+theorem map_apply_true (p : PMF α) (E : α → Bool) :
+    (p.map E) true = ∑' a, p a * (if E a then 1 else 0) := by
+  rw [PMF.map_apply]
+  refine tsum_congr fun a => ?_
+  cases E a <;> simp
+
 /-- Pointwise implication on the support makes the mapped `true`-mass monotone. -/
 theorem map_true_mono (p : PMF α) {E F : α → Bool}
     (h : ∀ a ∈ p.support, E a = true → F a = true) :
     (p.map E) true ≤ (p.map F) true := by
-  rw [PMF.map_apply, PMF.map_apply]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ p.support
-  · by_cases hE : true = E a
-    · simp [← hE, h a ha hE.symm]
-    · simp [hE]
-  · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
+  simp only [map_apply_true]
+  refine tsum_mul_mono_support p fun a ha => ?_
+  by_cases hE : E a = true
+  · simp [hE, h a ha hE]
+  · simp [hE]
 
 /-- Union bound for two Boolean predicates pushed forward along `p.map`. -/
 theorem map_true_le_add (p : PMF α) {E A B : α → Bool}
     (h : ∀ a ∈ p.support, E a = true → A a = true ∨ B a = true) :
     (p.map E) true ≤ (p.map A) true + (p.map B) true := by
-  rw [PMF.map_apply, PMF.map_apply, PMF.map_apply, ← tsum_add]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ p.support
-  · by_cases hE : true = E a
-    · rcases h a ha hE.symm with hA | hB
-      · simp [← hE, hA]
-      · simp [← hE, hB]
-    · simp [hE]
-  · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
+  simp only [map_apply_true, ← tsum_add, ← mul_add]
+  refine tsum_mul_mono_support p fun a ha => ?_
+  by_cases hE : E a = true
+  · rcases h a ha hE with hA | hB
+    · rw [ite_eq_left hE, ite_eq_left hA]
+      exact le_self_add
+    · rw [ite_eq_left hE, ite_eq_left hB]
+      exact le_add_self
+  · simp [hE]
 
 /-- Union bound over a finite family of Boolean predicates pushed forward along `p.map`: if every
 possible outcome satisfying `E` satisfies some `F i` with `i ∈ s`, the `true`-mass of `E` is at most
@@ -128,14 +135,6 @@ theorem map_any_range_true_le_sum (p : PMF α) (K : ℕ) (F : ℕ → α → Boo
     (p.map (fun a => (List.range K).any (fun j => F j a))) true ≤
       ∑ j ∈ Finset.range K, (p.map (F j)) true :=
   map_true_le_sum p _ fun a _ ha => by simpa using ha
-
-/-- The `true`-mass of a Boolean predicate pushed forward along `p.map` is the expectation of its
-indicator. -/
-theorem map_apply_true (p : PMF α) (E : α → Bool) :
-    (p.map E) true = ∑' a, p a * (if E a then 1 else 0) := by
-  rw [PMF.map_apply]
-  refine tsum_congr fun a => ?_
-  cases E a <;> simp
 
 /-- Negating a Boolean predicate complements its `true`-mass in `ℝ≥0∞`. -/
 theorem map_not_true (p : PMF α) (E : α → Bool) :

@@ -98,10 +98,7 @@ theorem tsum_jointLaw_cons_mul (μ : PMF α) (laws : List (PMF α)) (k : List α
 
 theorem tsum_jointLaw_nil_mul (k : List α → ℝ≥0∞) :
     ∑' xs, jointLaw ([] : List (PMF α)) xs * k xs = k [] := by
-  rw [jointLaw_nil, tsum_eq_single []]
-  · simp
-  · intro xs hxs
-    simp [PMF.pure_apply, hxs]
+  rw [jointLaw_nil, Cslib.Probability.PMF.tsum_pure_mul]
 
 /-- The expectation of a constant is that constant. -/
 theorem tsum_pmf_mul_const (μ : PMF α) (c : ℝ≥0∞) : ∑' x, μ x * c = c := by

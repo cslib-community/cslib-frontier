@@ -262,16 +262,11 @@ noncomputable def toRandomized (C : StateTransitionImpl P D w base params s₀) 
       have hconst : ((ν.bind μ_step).map CoupledRState.seed) () = 1 := by
         rw [PMF.map_bind]; simp [μ_step]
       simp [hconst]
-    · refine tsum_le_tsum fun t => ?_
-      by_cases ht_mem : t ∈ ν.support
-      · refine mul_le_mul_right ?_ _
-        have ht : hasInv t := hsupp t ht_mem
-        rw [tsum_eq_single ⟨(), nextState t, nextData t⟩
-          (fun q hq => by simp [μ_step, PMF.pure_apply, hq])]
-        simp only [μ_step, T_step, PMF.pure_apply_self, one_mul, nextData, nextSteps, ht,
-          ↓reduceDIte]
-        exact_mod_cast (pick t ht).amort
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr ht_mem, zero_mul, zero_mul]
+    · refine Probability.PMF.tsum_mul_mono_support ν fun t ht_mem => ?_
+      have ht : hasInv t := hsupp t ht_mem
+      simp only [μ_step, T_step, Probability.PMF.tsum_pure_mul, nextData, nextSteps, ht,
+        ↓reduceDIte]
+      exact_mod_cast (pick t ht).amort
 
 end Cslib.DataStructure.WordRAM.Resizable.StateTransitionImpl
 
