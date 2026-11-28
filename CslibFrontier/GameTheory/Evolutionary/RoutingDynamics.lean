@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Calculus.Deriv.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 public import Mathlib.Topology.MetricSpace.Lipschitz
+import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Analysis.Calculus.Deriv.Add
 import Mathlib.Analysis.Calculus.Deriv.Comp
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
@@ -75,22 +76,25 @@ reaches an `ε`-approximate equilibrium (Definition 29.11) within time
 * `Cslib.GameTheory.NonatomicCongestionGame.imitativeDrift_eq_replicatorDrift`: algebraic
   equivalence of Equations (29.1) and (29.2) ([Suri2007], pp. 724–725).
 * `Cslib.GameTheory.NonatomicCongestionGame.sum_replicatorDrift_eq_zero`,
+  `Cslib.GameTheory.NonatomicCongestionGame.IsReplicatorTrajectory.pos_of_pos`,
   `Cslib.GameTheory.NonatomicCongestionGame.IsReplicatorTrajectory.isFeasible`,
   `Cslib.GameTheory.NonatomicCongestionGame.IsReplicatorTrajectory.isFeasible_relative`:
-  zero drift sum and all-time feasibility invariance ([Suri2007], Exercise 29.6, p. 736).
+  zero drift sum, strict interior support preservation, and all-time feasibility invariance
+  ([Suri2007], Section 29.3.2 and Exercise 29.6, p. 736).
 * `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.isApproxEquilibrium`: every Wardrop
   equilibrium with positive average latency is an `ε`-approximate equilibrium for every `ε > 0`.
 * `Cslib.GameTheory.NonatomicCongestionGame.hasDerivWithinAt_potential`,
   `Cslib.GameTheory.NonatomicCongestionGame.antitoneOn_potential`: exact time derivative of `Φ`
-  ([Suri2007], Equation 29.4, p. 727) and Lyapunov monotonicity ([Suri2007], Section 29.3.2).
+  ([Suri2007], Equation 29.4, p. 727) and Lyapunov monotonicity
+  ([Suri2007], Section 29.3.2, p. 726; Section 29.3.3, p. 727).
 * `Cslib.GameTheory.NonatomicCongestionGame.exists_relativeReplicatorTrajectory`,
   `Cslib.GameTheory.NonatomicCongestionGame.eqOn_of_isRelativeReplicatorTrajectory`: global
   existence and uniqueness of relative-rate replicator trajectories on `[0, ∞)` under Lipschitz
   latencies on `[0, 1]`.
-* `Cslib.GameTheory.NonatomicCongestionGame.IsReplicatorTrajectory`:
-  `exists_mem_Icc_isApproxEquilibrium` (trajectory hitting time) and
-  `exists_relativeReplicatorTrajectory_isApproxEquilibrium` (existential global trajectory):
-  convergence (hitting time) to an `ε`-approximate equilibrium in time
+* `NonatomicCongestionGame.exists_relativeReplicatorTrajectory_isApproxEquilibrium` (existential
+  global trajectory) and
+  `NonatomicCongestionGame.IsReplicatorTrajectory.exists_mem_Icc_isApproxEquilibrium` (trajectory
+  hitting time): convergence (hitting time) to an `ε`-approximate equilibrium in time
   `2 / ε ^ 3 * Real.log (2 * lMax / lStar)` ([Suri2007], Theorem 29.12, pp. 727–728).
 
 ## References
@@ -1005,12 +1009,8 @@ theorem exists_relativeReplicatorTrajectory {G : NonatomicCongestionGame Unit P 
     have hcont_coeff : ContinuousOn (fun u => clampedRate G lStar (x u) * clampedCost G (x u))
         (Icc 0 T) := by
       have hlat_c : ∀ e, Continuous (fun w => G.latency e (clamp01 w)) := fun e => by
-        obtain ⟨Ke, hKe⟩ := hlip e
-        exact (LipschitzWith.of_dist_le_mul fun a b => by
-          have h1 := hKe.dist_le_mul (clamp01 a) (clamp01_mem a) (clamp01 b) (clamp01_mem b)
-          have h2 := lipschitzWith_clamp01.dist_le_mul a b
-          simp only [NNReal.coe_one, one_mul] at h2
-          exact h1.trans (mul_le_mul_of_nonneg_left h2 Ke.2)).continuous
+        obtain ⟨_, hKe⟩ := hlip e
+        exact hKe.continuousOn.comp_continuous lipschitzWith_clamp01.continuous clamp01_mem
       have hedge_c : ∀ e, Continuous (fun u => G.edgeFlow (x u) e) := fun e => by
         unfold edgeFlow; fun_prop
       have hpath_c : ∀ q, Continuous (fun u => clampedPathLatency G (x u) q) := fun q => by
@@ -1129,29 +1129,9 @@ variable {P E : Type*} [Fintype P] [Fintype E] [DecidableEq E]
 /-- Weighted Cauchy–Schwarz inequality for nonnegative weights on a finite set. -/
 private theorem sq_sum_mul_le_sum_mul_sum_mul_sq {ι : Type*} (s : Finset ι)
     {w y : ι → ℝ} (hw : ∀ i ∈ s, 0 ≤ w i) :
-    (∑ i ∈ s, w i * y i) ^ 2 ≤ (∑ i ∈ s, w i) * (∑ i ∈ s, w i * y i ^ 2) := by
-  set W := ∑ i ∈ s, w i
-  set S := ∑ i ∈ s, w i * y i
-  have hW : 0 ≤ W := Finset.sum_nonneg hw
-  rcases hW.eq_or_lt with hW0 | hWpos
-  · have hzero : ∀ i ∈ s, w i = 0 := (Finset.sum_eq_zero_iff_of_nonneg hw).1 hW0.symm
-    have hS0 : S = 0 := Finset.sum_eq_zero fun i hi => by rw [hzero i hi, zero_mul]
-    rw [hS0, ← hW0]
-    norm_num
-  · have hnonneg : 0 ≤ ∑ i ∈ s, w i * (W * y i - S) ^ 2 :=
-      Finset.sum_nonneg fun i hi => mul_nonneg (hw i hi) (sq_nonneg _)
-    have hexp : ∑ i ∈ s, w i * (W * y i - S) ^ 2 =
-        W * (W * (∑ i ∈ s, w i * y i ^ 2) - S ^ 2) := by
-      calc ∑ i ∈ s, w i * (W * y i - S) ^ 2
-          = ∑ i ∈ s, (W ^ 2 * (w i * y i ^ 2) - 2 * W * S * (w i * y i) + S ^ 2 * w i) :=
-            Finset.sum_congr rfl fun i _ => by ring
-        _ = W ^ 2 * (∑ i ∈ s, w i * y i ^ 2) - 2 * W * S * S + S ^ 2 * W := by
-            simp only [Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum]; rfl
-        _ = W * (W * (∑ i ∈ s, w i * y i ^ 2) - S ^ 2) := by ring
-    rw [hexp] at hnonneg
-    have hsub : 0 ≤ W * (∑ i ∈ s, w i * y i ^ 2) - S ^ 2 :=
-      nonneg_of_mul_nonneg_right hnonneg hWpos
-    linarith
+    (∑ i ∈ s, w i * y i) ^ 2 ≤ (∑ i ∈ s, w i) * (∑ i ∈ s, w i * y i ^ 2) :=
+  Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul s hw (fun i hi => mul_nonneg (hw i hi) (sq_nonneg _))
+    fun _ _ => le_of_eq (by ring)
 
 omit [Fintype E] in
 /-- Variance lower bound behind [Suri2007], Equation (29.5), pp. 727–728: if a feasible flow `x`
