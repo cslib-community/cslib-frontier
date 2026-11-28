@@ -7754,6 +7754,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embeddi
 public import CslibFrontier.Computability.Probabilistic.Oracle.Normalization
 public import CslibFrontier.Computability.WordRAM.GhostLoop
 public import CslibFrontier.DataStructure.StateTransition
+public import CslibFrontier.Algorithms.Lean.DFS.Dominance
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.LowerBound
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.SourceTransfer
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
