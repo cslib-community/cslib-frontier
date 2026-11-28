@@ -37,4 +37,16 @@ example : ¬Identifiable {L : Set (List Bool) | Language.IsRegular (L : Language
 example : ¬Identifiable {L : Set (List Bool) | Language.IsContextFree (L : Language Bool)} :=
   not_identifiable_isContextFree
 
+/-- Clients outside the defining module build and take apart `Identifiable`, and unfold
+`Identifies` and `Text.content`. -/
+example (𝓛 : Set (Set ℕ)) (φ : Learner ℕ) (h : ∀ L ∈ 𝓛, Identifies φ L) : Identifiable 𝓛 :=
+  ⟨φ, h⟩
+
+example (𝓛 : Set (Set ℕ)) (h : Identifiable 𝓛) (L : Set ℕ) (hL : L ∈ 𝓛) (t : Text ℕ)
+    (ht : t.content = L) : ∃ φ : Learner ℕ, ∀ᶠ n in Filter.atTop, φ (t.take n) = L := by
+  obtain ⟨φ, hφ⟩ := h
+  exact ⟨φ, hφ L hL t ht⟩
+
+example (t : Text ℕ) (x : ℕ) (h : t 3 = some x) : x ∈ t.content := ⟨3, h⟩
+
 end CslibFrontierTests.InductiveInference

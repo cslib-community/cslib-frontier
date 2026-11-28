@@ -305,7 +305,7 @@ theorem identifiable_of_isTelltale {𝓛 : Set (Set α)} (hc : 𝓛.Countable)
 
 /-- A class of languages over a countable set of strings is identifiable in the limit from text
 exactly when it is countable and each of its languages has a telltale. This is the ineffective
-counterpart of Angluin's characterization [Angluin1980, Theorem 1] (locator not verified): Angluin
+counterpart of Angluin's characterization [Angluin1980]: Angluin
 treats effective learners of indexed families and needs the telltales to be uniformly
 enumerable, which this model does not. Countability reflects Gold's observation that a learner
 has only countably many conjectures. -/
