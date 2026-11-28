@@ -334,11 +334,8 @@ theorem prodList_polyTime {p : α → ℕ} {fl : α → List ℕ} {cs : α → L
     ComputableInPolyTime (fun x => prodList (p x) (fl x) (cs x)) encIn (encList encNat) := by
   have hstep : ComputableInPolyTime (fun q : (α × List ℕ) × List ℕ => mul (p q.1.1) (fl q.1.1)
       q.1.2 q.2) (encPair (encPair encIn (encList encNat)) (encList encNat)) (encList encNat) := by
-    have hx := (ComputableInPolyTime.fst encIn (encList encNat)).comp
-      (ComputableInPolyTime.fst (encPair encIn (encList encNat)) (encList encNat))
-    exact computableInPolyTime_mul (hp.comp hx) (hfl.comp hx)
-      ((ComputableInPolyTime.snd encIn (encList encNat)).comp (ComputableInPolyTime.fst _ _))
-      (ComputableInPolyTime.snd _ _)
+    exact computableInPolyTime_mul (hp.comp (by fun_prop)) (hfl.comp (by fun_prop))
+      (by fun_prop) (by fun_prop)
   exact ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encList encNat) (encL := encList (encList encNat))
     (step := fun x acc c => mul (p x) (fl x) acc c) (computableInPolyTime_one hfl)
@@ -355,11 +352,8 @@ theorem sumList_polyTime {p : α → ℕ} {fl : α → List ℕ} {cs : α → Li
     ComputableInPolyTime (fun x => sumList (p x) (fl x) (cs x)) encIn (encList encNat) := by
   have hstep : ComputableInPolyTime (fun q : (α × List ℕ) × List ℕ => add (p q.1.1) (fl q.1.1)
       q.1.2 q.2) (encPair (encPair encIn (encList encNat)) (encList encNat)) (encList encNat) := by
-    have hx := (ComputableInPolyTime.fst encIn (encList encNat)).comp
-      (ComputableInPolyTime.fst (encPair encIn (encList encNat)) (encList encNat))
-    exact computableInPolyTime_add (hp.comp hx) (hfl.comp hx)
-      ((ComputableInPolyTime.snd encIn (encList encNat)).comp (ComputableInPolyTime.fst _ _))
-      (ComputableInPolyTime.snd _ _)
+    exact computableInPolyTime_add (hp.comp (by fun_prop)) (hfl.comp (by fun_prop))
+      (by fun_prop) (by fun_prop)
   exact ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encList encNat) (encL := encList (encList encNat))
     (step := fun x acc c => add (p x) (fl x) acc c)
