@@ -62,6 +62,8 @@ hardness at infinitely many encoded lengths, which is not what
 
 ## Main results
 
+* `Cslib.HardnessEncoding.card_agree_hardnessEncode_div_le`: small circuits agree with the
+  encoding of a hard function of whole blocks on at most a `1 / 2 + 1 / 2 ^ σ` fraction.
 * `Cslib.HardnessEncoding.isAverageCaseHard_encodedSlice_of`: hardness at one length.
 * `Cslib.HardnessEncoding.eventually_isAverageCaseHard_encodedSlice`: **exponential worst-case
   hardness gives exponential average-case hardness**.
@@ -163,6 +165,7 @@ private theorem two_pow_masks_le (σ : ℕ) {b : ℕ} (hb : 1 ≤ b) :
         Nat.mul_le_mul_left _ (Nat.pow_log_le_self 2 (by omega))
     _ = 16 * b * 4 ^ σ := by ring
 
+/-- The number of masks `2 ^ K` with `K = 2 σ + ⌊log₂ w⌋ + 2` exceeds `2 (4 b) 4 ^ σ`. -/
 private theorem two_pow_masks_ge (σ b : ℕ) :
     2 * (4 * b) * 4 ^ σ + 1 ≤ 2 ^ (2 * σ + Nat.log 2 (4 * b) + 2) := by
   rw [two_pow_masks]
@@ -339,6 +342,45 @@ private theorem final_lt {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
 
 /-! ### Hardness at one length -/
 
+/-- **Small circuits barely agree with the encoding of a hard function of whole blocks.** Let
+`M ≥ 1` and `B ≥ 1` with `(2 ^ 27 * M ^ 3 + 4608 * M + 128) * B ^ 6 ≤ 2 ^ ⌊B / 4⌋` and
+`50 σ ≤ B + 1`. If `f` on `M B` bits needs `2 ^ (40 B)` gates, then no circuit of size `2 ^ σ + 2`
+agrees with the encoding of `f` over the binary field of degree `4 B` with `B`-bit blocks on more
+than a `1 / 2 + 1 / 2 ^ σ` fraction of the inputs. This is average-case hardness for size `2 ^ σ`,
+with two gates of slack for the callers that fix ignored input bits first. -/
+theorem card_agree_hardnessEncode_div_le {M B σ : ℕ} (hM : 1 ≤ M) (hB : 1 ≤ B)
+    (hev : (2 ^ 27 * M ^ 3 + 4608 * M + 128) * B ^ 6 ≤ 2 ^ (B / 4)) (hσ : 50 * σ ≤ B + 1)
+    (f : BooleanFunction (M * B)) (hhard : 2 ^ (40 * B) ≤ complexity interpretation (single f))
+    (g : BooleanFunction (M * (4 * B) + 4 * B))
+    (hg : complexity interpretation (single g) ≤ 2 ^ σ + 2) :
+    (#{y | g y = hardnessEncode (BinaryField.equivBits (w := 4 * B) (by omega)).toEquiv
+      (BinaryField.embed (by omega) (by omega : B ≤ 4 * B)) f y} : ℝ) / 2 ^ (M * (4 * B) + 4 * B)
+      ≤ 1 / 2 + 1 / ((2 ^ σ : ℕ) : ℝ) := by
+  classical
+  have hw0 : 4 * B ≠ 0 := by omega
+  obtain ⟨hA, hB', hD', hE, hF⟩ := schedule_bounds hB hev
+  have h3σ : 3 * σ ≤ B := by omega
+  have h5σ : 5 * σ ≤ B := by omega
+  have hd1 : 1 ≤ M * (2 ^ B - 1) := by
+    have : 2 ≤ 2 ^ B :=
+      calc 2 = 2 ^ 1 := by norm_num
+        _ ≤ 2 ^ B := Nat.pow_le_pow_right (by norm_num) hB
+    exact Nat.mul_pos (by omega) (by omega)
+  by_contra hcon
+  push Not at hcon
+  rw [lt_div_iff₀ (by positivity)] at hcon
+  have hrec := complexity_le_pow_of_agree_hardnessEncode (BinaryField.equivBits hw0).toEquiv
+    (BinaryField.embed hw0 (by omega : B ≤ 4 * B)) f (C := g)
+    (s := 2 ^ σ + 2) hg (ε := 1 / ((2 ^ σ : ℕ) : ℝ)) (by positivity)
+    hcon.le (K := 2 * σ + Nat.log 2 (4 * B) + 2) (D := 2 ^ (3 * B - B / 4))
+    (L := Nat.log 2 (M * B) + 1) (by omega) (masks_size (two_pow_masks_ge σ B)) hd1
+    (by rw [BinaryField.card hw0]; exact card_lt_card_monomials hM hB hA)
+    (by rw [BinaryField.card hw0]; exact margin_le hB hB' h3σ)
+    (by rw [BinaryField.card hw0]; exact errors_le hM hB hD' hE h3σ)
+    (Nat.lt_pow_succ_log_self (by norm_num) (M * B)).le
+  rw [BinaryField.card hw0] at hrec
+  exact absurd hhard (not_le.2 (hrec.trans_lt (final_lt hM hB hF h5σ)))
+
 /-- **Hardness at one length.** Let `M ≥ 1` and let the block length `b` at length `N` be positive
 with `(2 ^ 27 * M ^ 3 + 4608 * M + 128) * b ^ 6 ≤ 2 ^ ⌊b / 4⌋`. If `50 σ ≤ b + 1` and the slice of
 `L` at length `M b` needs `2 ^ (40 b)` gates, then the encoded slice at length `N` is average-case
@@ -354,32 +396,16 @@ theorem isAverageCaseHard_encodedSlice_of {L : Language Bool} {M N σ : ℕ} (hM
   set b := blockLength M N with hb_def
   have hb0 : b ≠ 0 := by omega
   have hw0 : 4 * b ≠ 0 := by omega
-  obtain ⟨hA, hB, hD', hE, hF⟩ := schedule_bounds hb hev
-  have h3σ : 3 * σ ≤ b := by omega
-  have h5σ : 5 * σ ≤ b := by omega
-  have h2b : 2 ≤ 2 ^ b :=
-    calc 2 = 2 ^ 1 := by norm_num
-      _ ≤ 2 ^ b := Nat.pow_le_pow_right (by norm_num) hb
-  have hd1 : 1 ≤ M * (2 ^ b - 1) := Nat.mul_pos (by omega) (by omega)
   -- a circuit of high agreement
   intro g hg
   by_contra hcon
   push Not at hcon
   rw [encodedSlice, dite_eq_right hb0, lt_div_iff₀ (by positivity)] at hcon
   obtain ⟨C, hC, hCagree⟩ := exists_complexity_le_of_agree_prefix (encodedLength_le M N) _ g hcon
-  -- the reconstruction
-  have hrec := complexity_le_pow_of_agree_hardnessEncode (BinaryField.equivBits hw0).toEquiv
-    (BinaryField.embed hw0 (by omega : b ≤ 4 * b)) (L.slice (M * b)) (C := C)
-    (s := 2 ^ σ + 2) (hC.trans (by omega)) (ε := 1 / ((2 ^ σ : ℕ) : ℝ)) (by positivity)
-    hCagree.le (K := 2 * σ + Nat.log 2 (4 * b) + 2) (D := 2 ^ (3 * b - b / 4))
-    (L := Nat.log 2 (M * b) + 1) (by omega) (masks_size (two_pow_masks_ge σ b)) hd1
-    (by rw [BinaryField.card hw0]; exact card_lt_card_monomials hM hb hA)
-    (by rw [BinaryField.card hw0]; exact margin_le hb hB h3σ)
-    (by rw [BinaryField.card hw0]; exact errors_le hM hb hD' hE h3σ)
-    (Nat.lt_pow_succ_log_self (by norm_num) (M * b)).le
-  -- the bound contradicts the worst-case hardness
-  rw [BinaryField.card hw0] at hrec
-  exact absurd hhard (not_le.2 (hrec.trans_lt (final_lt hM hb hF h5σ)))
+  have h := card_agree_hardnessEncode_div_le hM hb hev (by omega) (L.slice (M * b)) hhard C
+    (hC.trans (by omega))
+  rw [div_le_iff₀ (by positivity)] at h
+  exact absurd hCagree (not_lt.2 h)
 
 /-! ### Hardness at all large lengths -/
 
