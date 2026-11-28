@@ -18,7 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 /-!
 # Deterministic computations on repeated random-tape blocks
 
-Split a supplied bit list into fixed-width rows and collect one Boolean vote per row. Callers
+Split a supplied bit list into fixed-width rows and collect one output per row. Callers
 can compute the dimensions from the encoded instance length. Missing bits read as `false`;
 extra bits are ignored, and zero-width rows are retained. No probability distribution or
 complexity-class error condition is imposed here.
@@ -29,15 +29,17 @@ the separate probabilistic-program interface for independently sampled runs.
 
 ## Main definitions
 
-* `Cslib.Complexity.repeatVotes`: collect the ordered votes.
+* `Cslib.Complexity.repeatOutputs` and `Cslib.Complexity.repeatVotes`: collect ordered outputs
+  or Boolean votes.
 * `Cslib.Complexity.repeatAny`: accept if any vote is `true`.
 * `Cslib.Complexity.repeatMajority`: accept if more than half of `2 r(n)` votes are `true`.
 
 ## Main results
 
 * `Cslib.Complexity.repeatVotes_ofFn`: votes on a full tape agree with finite block evaluation.
-* `Cslib.Complexity.computableInO_repeatVotes`: a runtime bound for varying unary dimensions
-  and arbitrary verifier clocks.
+* `Cslib.Complexity.computableInO_repeatOutputs` and
+  `Cslib.Complexity.computableInO_repeatVotes`: runtime bounds for varying unary dimensions and
+  arbitrary verifier clocks.
 * `Cslib.Complexity.computableInPolyTime_repeatVotes`: producing votes takes polynomial time.
 * `Cslib.Complexity.computableInPolyTime_repeatAny`,
   `Cslib.Complexity.computableInPolyTime_repeatMajority`: efficient aggregation.
@@ -57,24 +59,34 @@ open Finset Turing.MultiTapeTM
 
 variable {α : Type}
 
-/-- Collect votes on fixed-width rows of a supplied random tape, padding missing bits with
-`false` and ignoring bits beyond the prescribed rows. Zero-width rows still contribute votes. -/
-def repeatVotes (trials width : ℕ) (V : α × List Bool → Bool)
-    (input : α × List Bool) : List Bool :=
-  (BitString.listRows trials width input.2).map (fun row => V (input.1, row))
+/-- Collect outputs on fixed-width rows of a supplied random tape, padding missing bits with
+`false` and ignoring bits beyond the prescribed rows. Zero-width rows still contribute outputs. -/
+def repeatOutputs {β : Type} (trials width : ℕ) (evaluate : α × List Bool → β)
+    (input : α × List Bool) : List β :=
+  (BitString.listRows trials width input.2).map (fun row => evaluate (input.1, row))
+
+/-- Repetition produces one output for each prescribed trial, even on a short tape. -/
+@[simp]
+theorem length_repeatOutputs {β : Type} (trials width : ℕ) (V : α × List Bool → β)
+    (input : α × List Bool) : (repeatOutputs trials width V input).length = trials := by
+  simp [repeatOutputs]
+
+/-- Collect Boolean votes on fixed-width rows of a supplied random tape. -/
+def repeatVotes (trials width : ℕ) (V : α × List Bool → Bool) (input : α × List Bool) : List Bool :=
+  repeatOutputs trials width V input
 
 /-- Repetition produces one vote for each prescribed trial, even on a short tape. -/
 @[simp]
 theorem length_repeatVotes (trials width : ℕ) (V : α × List Bool → Bool)
-    (input : α × List Bool) : (repeatVotes trials width V input).length = trials := by
-  simp [repeatVotes]
+    (input : α × List Bool) : (repeatVotes trials width V input).length = trials :=
+  length_repeatOutputs trials width V input
 
 /-- On a full tape, votes are evaluations on its finite blocks, in order. -/
 theorem repeatVotes_ofFn {trials width : ℕ} {V : α × List Bool → Bool} (a : α)
     (x : BitString (trials * width)) :
     repeatVotes trials width V (a, List.ofFn x) =
       List.ofFn (fun i => V (a, List.ofFn (BitString.block x i))) := by
-  simp [repeatVotes, BitString.listRows_ofFn, List.map_ofFn, Function.comp_def]
+  simp [repeatVotes, repeatOutputs, BitString.listRows_ofFn, List.map_ofFn, Function.comp_def]
 
 /-- Producing votes takes polynomial time when the verifier and the unary dimensions do.
 The dimensions may depend on the complete input, and output uses the raw bit-list encoding. -/
@@ -86,23 +98,25 @@ theorem computableInPolyTime_repeatVotes {enc : α ↪ List Bool}
     (hwidth : ComputableInPolyTime width (encPair enc encBits) encUnary) :
     ComputableInPolyTime (fun input => repeatVotes (trials input) (width input) V input)
       (encPair enc encBits) encBits := by
-  unfold repeatVotes
+  unfold repeatVotes repeatOutputs
   fun_prop
 
-/-- Vote collection charges polynomial overhead for the input and the two unary dimensions and
-at most one verifier call per row. Only the verifier times on rows of the prescribed width must
-be bounded, even for a malformed, short, or empty supplied tape. -/
-theorem computableInO_repeatVotes {enc : α ↪ List Bool}
-    {V : α × List Bool → Bool} {trials width : α × List Bool → ℕ}
+/-- Collecting framed outputs charges polynomial overhead for the input and unary dimensions
+and at most one verifier call per row. The clock includes the time to handle the framed output
+list. Only the verifier times on rows of the prescribed width must be bounded. -/
+theorem computableInO_repeatOutputs {β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
+    {V : α × List Bool → β} {trials width : α × List Bool → ℕ}
     {Tv Sv Ttr Str Tw Sw R : α × List Bool → ℕ}
-    (hV : ComputableInO V (encPair enc encBits) encBool Tv Sv)
+    (hV : ComputableInO V (encPair enc encBits) encOut Tv Sv)
     (htr : ComputableInO trials (encPair enc encBits) encUnary Ttr Str)
     (hw : ComputableInO width (encPair enc encBits) encUnary Tw Sw)
     (hR : ∀ p row, row.length = width p → Tv (p.1, row) ≤ R p) :
-    ∃ d S, ComputableInO (fun p => repeatVotes (trials p) (width p) V p)
-      (encPair enc encBits) encBits
-      (fun p => (trials p + 1) * (((encPair enc encBits p).length + Ttr p + Tw p + 1) ^ d + R p))
-      S := by
+    let outputs (p : α × List Bool) := repeatOutputs (trials p) (width p) V p
+    ∃ d S, ComputableInO outputs (encPair enc encBits) (encList encOut)
+      (fun p => (trials p + 1) *
+        (((encPair enc encBits p).length + Ttr p + Tw p + 1) ^ d +
+          (encList encOut (outputs p)).length + R p)) S := by
+  dsimp only
   let input := encPair enc encBits
   let prepared := encPair (encPair encUnary encUnary) encBits
   let prep (p : α × List Bool) := ((trials p, width p), p.2)
@@ -154,65 +168,96 @@ theorem computableInO_repeatVotes {enc : α ↪ List Bool}
   obtain ⟨Srows, hrows⟩ := hrows
   obtain ⟨m, hm⟩ := hrows.length_le_time
   have hmap := ComputableInO.mapWith hV (ComputableInO.fst enc encBits) hrows
-  have hbits := (ComputableInDegree.listToBits.inO_one).comp_linear hmap
-  refine ⟨max d 1, _, (hbits.mono_time (4 + 8 * m) (fun p => ?_)).of_enc_eq
+  refine ⟨max d 1, _, (hmap.mono_time (4 + 2 * m) (fun p => ?_)).of_enc_eq
     (fun _ => rfl)⟩
-  · have hi : (input p).length ≤ budget p := by
-      have := hbase_le p
-      dsimp only [base] at this
-      omega
-    have hp : (enc p.1).length ≤ budget p :=
-      (by simp only [input, length_encPair]; omega : (enc p.1).length ≤ (input p).length).trans hi
-    have hb : 1 ≤ budget p := (hbase p).trans (hbase_le p)
-    have hlen : (encList encBits (rows p)).length ≤ (2 * m) * budget p := by
+  let out := (encList encOut (repeatOutputs (trials p) (width p) V p)).length
+  have hi : (input p).length ≤ budget p := by
+    have := hbase_le p
+    dsimp only [base] at this
+    omega
+  have hp : (enc p.1).length ≤ budget p :=
+    (by simp only [input, length_encPair]; omega : (enc p.1).length ≤ (input p).length).trans hi
+  have hb : 1 ≤ budget p := (hbase p).trans (hbase_le p)
+  have hlen : (encList encBits (rows p)).length ≤ (2 * m) * budget p := by
+    calc
+      _ ≤ m * (budget p + 1) := hm p
+      _ ≤ m * (2 * budget p) := Nat.mul_le_mul_left _ (by omega)
+      _ = (2 * m) * budget p := by ring
+  have hr : listMax (fun row => Tv (p.1, row)) (rows p) ≤ R p := by
+    apply listMax_le
+    intro row hrow
+    exact hR p row (BitString.length_of_mem_listRows hrow)
+  change (input p).length + (input p).length + budget p + ((rows p).length + 1) *
+    ((enc p.1).length + (encList encBits (rows p)).length + out +
+      listMax (fun row => Tv (p.1, row)) (rows p)) ≤ _
+  rw [show (rows p).length = trials p by simp [rows]]
+  let bound := budget p + out + R p
+  have hround : (enc p.1).length + (encList encBits (rows p)).length + out +
+      listMax (fun row => Tv (p.1, row)) (rows p) ≤ (1 + 2 * m) * bound := by
+    calc
+      _ ≤ budget p + (2 * m) * budget p + out + R p :=
+        Nat.add_le_add (Nat.add_le_add_right (Nat.add_le_add hp hlen) out) hr
+      _ = (1 + 2 * m) * budget p + (out + R p) := by ring
+      _ ≤ (1 + 2 * m) * bound := by
+        dsimp only [bound]
+        rw [Nat.add_assoc, Nat.mul_add]
+        exact Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (by omega)) _
+  have hstart : (input p).length + (input p).length + budget p ≤
+      (trials p + 1) * (3 * bound) :=
+    (by dsimp only [bound]; omega : (input p).length + (input p).length + budget p ≤ 3 * bound).trans
+      (Nat.le_mul_of_pos_left _ (by omega))
+  calc
+    _ ≤ (trials p + 1) * (3 * bound) + (trials p + 1) * ((1 + 2 * m) * bound) :=
+      Nat.add_le_add hstart (Nat.mul_le_mul_left _ hround)
+    _ = (4 + 2 * m) * ((trials p + 1) * bound) := by ring
+    _ ≤ _ := Nat.mul_le_mul_left _ (Nat.le_succ _)
+
+/-- Vote collection charges polynomial overhead for the input and the unary dimensions and
+at most one verifier call per row. Votes are returned using the raw bit-list encoding. -/
+theorem computableInO_repeatVotes {enc : α ↪ List Bool}
+    {V : α × List Bool → Bool} {trials width : α × List Bool → ℕ}
+    {Tv Sv Ttr Str Tw Sw R : α × List Bool → ℕ}
+    (hV : ComputableInO V (encPair enc encBits) encBool Tv Sv)
+    (htr : ComputableInO trials (encPair enc encBits) encUnary Ttr Str)
+    (hw : ComputableInO width (encPair enc encBits) encUnary Tw Sw)
+    (hR : ∀ p row, row.length = width p → Tv (p.1, row) ≤ R p) :
+    ∃ d S, ComputableInO (fun p => repeatVotes (trials p) (width p) V p)
+      (encPair enc encBits) encBits
+      (fun p => (trials p + 1) * (((encPair enc encBits p).length + Ttr p + Tw p + 1) ^ d + R p))
+      S := by
+  obtain ⟨d, _, hout⟩ := computableInO_repeatOutputs hV htr hw hR
+  obtain ⟨m, hm⟩ := htr.length_le_time
+  have hbits := (ComputableInDegree.listToBits.inO_one).comp_linear hout
+  refine ⟨max d 1, _, (hbits.mono_time (3 * m + 1) (fun p => ?_)).of_enc_eq (fun _ => rfl)⟩
+  let base := (encPair enc encBits p).length + Ttr p + Tw p + 1
+  let budget := base ^ max d 1
+  have hbase : base ≤ budget := Nat.le_self_pow (by omega : max d 1 ≠ 0) _
+  have hpow : base ^ d ≤ budget :=
+    Nat.pow_le_pow_right (by dsimp only [base]; omega) (le_max_left d 1)
+  have htrials : trials p ≤ m * budget := by
+    have h := hm p
+    rw [encUnary_apply, List.length_replicate] at h
+    exact h.trans (Nat.mul_le_mul_left _ ((by dsimp only [base]; omega :
+      Ttr p + 1 ≤ base).trans hbase))
+  have houtlen : (encList encBool (repeatOutputs (trials p) (width p) V p)).length ≤
+      3 * trials p := by
+    simpa only [length_repeatOutputs, Nat.mul_comm] using
+      length_encList_le encBool (repeatOutputs (trials p) (width p) V p) (b := 1)
+        (fun v _ => by cases v <;> decide)
+  change (trials p + 1) *
+    (base ^ d + (encList encBool (repeatOutputs (trials p) (width p) V p)).length + R p) ≤ _
+  calc
+    _ ≤ (trials p + 1) * (budget + 3 * (m * budget) + R p) :=
+      Nat.mul_le_mul_left _ (Nat.add_le_add_right
+        (Nat.add_le_add hpow (houtlen.trans (Nat.mul_le_mul_left 3 htrials))) _)
+    _ ≤ (trials p + 1) * ((3 * m + 1) * (budget + R p)) := by
+      apply Nat.mul_le_mul_left
+      rw [Nat.mul_add]
       calc
-        _ ≤ m * (budget p + 1) := hm p
-        _ ≤ m * (2 * budget p) := Nat.mul_le_mul_left _ (by omega)
-        _ = (2 * m) * budget p := by ring
-    have hrows_len : (rows p).length = trials p := by simp [rows]
-    have hvlen : (encList encBool (repeatVotes (trials p) (width p) V p)).length ≤
-        3 * trials p := by
-      simpa only [length_repeatVotes, Nat.mul_comm] using
-        length_encList_le encBool (repeatVotes (trials p) (width p) V p) (b := 1)
-          (fun v _ => by cases v <;> decide)
-    have hv : (encList encBool (repeatVotes (trials p) (width p) V p)).length ≤
-        (6 * m) * budget p := by
-      have h := length_le_length_encList encBits (rows p)
-      rw [hrows_len] at h
-      exact hvlen.trans ((Nat.mul_le_mul_left 3 (h.trans hlen)).trans_eq (by ring))
-    have hr : listMax (fun row => Tv (p.1, row)) (rows p) ≤ R p := by
-      apply listMax_le
-      intro row hrow
-      exact hR p row (BitString.length_of_mem_listRows hrow)
-    change (input p).length + (input p).length + budget p + ((rows p).length + 1) *
-      ((enc p.1).length + (encList encBits (rows p)).length +
-        (encList encBool (repeatVotes (trials p) (width p) V p)).length +
-        listMax (fun row => Tv (p.1, row)) (rows p)) ≤ _
-    rw [hrows_len]
-    have hround : (enc p.1).length + (encList encBits (rows p)).length +
-        (encList encBool (repeatVotes (trials p) (width p) V p)).length +
-        listMax (fun row => Tv (p.1, row)) (rows p) ≤ (1 + 8 * m) * (budget p + R p) := by
-      calc
-        _ ≤ budget p + 2 * m * budget p + 6 * m * budget p + R p :=
-          Nat.add_le_add (Nat.add_le_add (Nat.add_le_add hp hlen) hv) hr
-        _ = (1 + 8 * m) * budget p + R p := by ring
-        _ ≤ (1 + 8 * m) * (budget p + R p) := by
-          rw [Nat.mul_add]
-          exact Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (by omega)) _
-    have hstart : (input p).length + (input p).length + budget p ≤
-        (trials p + 1) * (3 * (budget p + R p)) :=
-      (by omega : (input p).length + (input p).length + budget p ≤ 3 * (budget p + R p)).trans
-        (Nat.le_mul_of_pos_left _ (by omega))
-    have htotal := Nat.add_le_add hstart (Nat.mul_le_mul_left (trials p + 1) hround)
-    refine htotal.trans ?_
-    change (trials p + 1) * (3 * (budget p + R p)) +
-      (trials p + 1) * ((1 + 8 * m) * (budget p + R p)) ≤
-      (4 + 8 * m) * ((trials p + 1) * (budget p + R p) + 1)
-    rw [show
-      (trials p + 1) * (3 * (budget p + R p)) +
-          (trials p + 1) * ((1 + 8 * m) * (budget p + R p)) =
-        (4 + 8 * m) * ((trials p + 1) * (budget p + R p)) by ring]
-    exact Nat.mul_le_mul_left _ (by omega)
+        _ = (3 * m + 1) * budget + R p := by ring
+        _ ≤ _ := Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (by omega)) _
+    _ = (3 * m + 1) * ((trials p + 1) * (budget + R p)) := by ring
+    _ ≤ _ := Nat.mul_le_mul_left _ (Nat.le_succ _)
 
 /-- The strict majority of `2 r(n)` runs of `V`, where `n` is the length of the encoded instance:
 the random string is cut into `2 r(n)` rows of `p(n)` bits (`Cslib.BitString.listRows`), `V` runs

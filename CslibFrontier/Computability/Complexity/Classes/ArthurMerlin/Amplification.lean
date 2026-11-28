@@ -120,7 +120,7 @@ def merlinArthurRepeat (enc : α ↪ List Bool) (q r p : Polynomial ℕ) (V : α
 theorem computableInPolyTime_merlinArthurRepeat {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) (q r p : Polynomial ℕ) :
     ComputableInPolyTime (merlinArthurRepeat enc q r p V) (encPair enc encBits) encBool := by
-  unfold merlinArthurRepeat repeatMajority repeatVotes
+  unfold merlinArthurRepeat repeatMajority repeatVotes repeatOutputs
   fun_prop
 
 /-- On a proof of length `q(n)` followed by a random string `w`, `merlinArthurRepeat` is
