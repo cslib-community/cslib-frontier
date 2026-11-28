@@ -704,12 +704,10 @@ private theorem idxOf_lt_of_pairwise_not_prec {Ev : Type*} [DecidableEq Ev]
   have hj : l.idxOf e₂ < l.length := List.idxOf_lt_length_of_mem he₂
   rcases lt_trichotomy (l.idxOf e₁) (l.idxOf e₂) with hlt | heq | hgt
   · exact hlt
-  · have he₁₂ : e₁ = e₂ := (List.getElem_idxOf hi).symm.trans
-      ((by simp [heq] : l[l.idxOf e₁] = l[l.idxOf e₂]).trans (List.getElem_idxOf hj))
-    exact absurd (he₁₂ ▸ hprec) (irrefl e₂)
+  · exact absurd ((List.idxOf_inj he₁).mp heq ▸ hprec) (irrefl e₂)
   · exact absurd hprec (by
       simpa [List.getElem_idxOf hi, List.getElem_idxOf hj] using
-        List.pairwise_iff_getElem.mp hpw _ _ hj hi hgt)
+        hpw.rel_getElem_of_lt hj hi hgt)
 
 private theorem foldl_comm_prefix {S Ev Eff : Type*} (effect : Eff → S → S) (effOf : Ev → Eff)
     (a : Ev) (pre : List Ev)
