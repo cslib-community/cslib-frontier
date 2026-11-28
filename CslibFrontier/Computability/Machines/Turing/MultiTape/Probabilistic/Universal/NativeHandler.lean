@@ -10,6 +10,12 @@ module
 public import
   CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter.Native
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
+import CslibFrontier.Foundations.Control.Monad.StateT
+
+public import
+  CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.BitString
+
+import CslibFrontier.Languages.Probabilistic.Iteration.Reachable
 
 /-!
 # Retained stateful handlers for native universal queries
@@ -24,42 +30,20 @@ The construction does not hide the handler behind a semantic callback. Its final
 the composed finite-control machine, state encoding, phase accounting and generated description.
 A handler with no external channels specializes the branch to a closed `MultiTapePTM` fragment.
 
-## Main definitions
+The locally installed handler receives the selected operation, the encoded request and its
+private state. Its retained compiler emits a raw reply and the next private state. The controller
+copies the specified raw prefix, decodes it and updates the source and handler state together.
+The finite-state instance constructs the loop and output bounds by enumerating reachable
+prefixes. The handler supplies its own native artifact and a clock bound for reply installation
+on supported outputs.
 
-* `Turing.MultiTapePTM.Universal.NativeHandler.HandlerCall`: encoded operation, request word and
-  handler state.
-* `Turing.MultiTapePTM.Universal.NativeHandler.QueryInput`: suspended source query and handler
-  state.
-* `Turing.MultiTapePTM.Universal.NativeHandler.queryBranch`: actual retained handler invocation
-  followed by retained reply installation.
-* `Turing.MultiTapePTM.Universal.NativeHandler.handlerBodyArtifact`: the single shared universal
-  controller instantiated with the retained handler branch.
-* `Turing.MultiTapePTM.Universal.NativeHandler.finiteLoopCertificate` and
-  `finiteRunCertificate`: canonical certificates for finite private handler states.
-* `Turing.MultiTapePTM.Universal.NativeHandler.artifact`: complete closed retained initialization,
-  typed loop and output-plus-final-state projection.
-
-## Main results
-
-* `Turing.MultiTapePTM.Universal.NativeHandler.queryProgram_apply`: the exact stateful handler,
-  prefix-copy, decode and source-update semantics.
-* `Turing.MultiTapePTM.Universal.NativeHandler.machine_queryBranch` and
-  `Turing.MultiTapePTM.Universal.NativeHandler.time_queryBranch`: the specialized retained machine
-  term and exact construction-assigned time sum.
-* `Turing.MultiTapePTM.Universal.NativeHandler.online_queryBranch` and
-  `Turing.MultiTapePTM.Universal.NativeHandler.installReplyWorkspace_le_queryBranch`: the complete
-  componentwise ledger and supported-continuation workspace bound.
-* `Turing.MultiTapePTM.Universal.NativeHandler.queryBranch_installedDescriptions`: the final
-  composed branch occurs once in its installed-description inventory.
-* `Turing.MultiTapePTM.Universal.NativeHandler.queryBranch_installedBits`: the occurrence-sensitive
-  installed charge is the generated composed description size.
-* `Turing.MultiTapePTM.Universal.NativeHandler.run_handlerRunProgram_eq_runState`: exact source
-  `runState` semantics, including operation-count rejection and final private state.
-* `Turing.MultiTapePTM.Universal.NativeHandler.runWith_artifact_machine`: exact clocked-machine
-  equality for the complete closed output and final private state.
-* `Turing.MultiTapePTM.Universal.NativeHandler.time_handlerLoopArtifact` and
-  `Turing.MultiTapePTM.Universal.NativeHandler.artifact_installedDescriptions`: exact repeated-body
-  clock and one-occurrence installed inventory.
+* `run_handlerRunProgram_eq_runState` gives the source output together with the final handler
+  state, including rejection of malformed operation counts.
+* `runWith_artifact_machine` identifies the output distribution of the closed clocked machine.
+* `time_queryBranch`, `time_handlerLoopArtifact` and `time_artifact` account for the installed
+  query, the additional stopping round and the output copy. The deterministic raw-prefix
+  compiler also bounds its time and workspace by the raw length and requested count. Whole-run
+  independent workspace, an online polynomial clock and a concrete production handler remain open.
 
 ## References
 
@@ -75,7 +59,7 @@ open Cslib Cslib.Probability Turing.MultiTapeMachine Turing.MultiTapeTM
 open Turing.MultiTapePTM.Universal
 open Turing.MultiTapePTM.Universal.NativeInterpreter
 
-variable {HandlerState : Type}
+variable {HandlerState α : Type} {r external : ℕ} {encHandlerState : HandlerState ↪ List Bool}
 
 /-! ### Typed handler boundary -/
 
@@ -145,12 +129,12 @@ abbrev QueryResult (HandlerState : Type) :=
   Option (RetainedState HandlerState)
 
 /-- Encoding of the complete result of one installed source query. -/
-def eQueryResult (encHandlerState : HandlerState ↪ List Bool) :
+abbrev eQueryResult (encHandlerState : HandlerState ↪ List Bool) :
     QueryResult HandlerState ↪ List Bool :=
   encOption (eRetainedState encHandlerState)
 
 /-- Marshal the typed source request into the Boolean word consumed by a local handler. -/
-def handlerCall (input : QueryInput r HandlerState) : HandlerCall r HandlerState :=
+@[expose] def handlerCall (input : QueryInput r HandlerState) : HandlerCall r HandlerState :=
   { operation := input.operation
     request := encList encUnary input.request
     state := input.handlerState }
@@ -163,7 +147,7 @@ def installReply (input : QueryInput r HandlerState)
   let reply := result.reply.take input.source.replyBits
   let decoded := (frames reply).map List.length |>.take input.source.fuel
   let next := input.pending.receive input.operation input.next decoded
-  some { source := input.source.advance next, handlerState := result.state }
+  some { source := advance input.source next, handlerState := result.state }
 
 /-- The exact stateful semantics executed by the retained query branch. -/
 noncomputable def queryProgram
@@ -285,8 +269,6 @@ private noncomputable def classifiedOfOutputEq {Alpha Beta Gamma : Type}
   compiler := compiler.compiler.ofOutputEq henc
   online := compiler.online
   time_eq := compiler.time_eq
-  workspace_le := compiler.workspace_le
-  clockWorkspace_le := compiler.clockWorkspace_le
 
 /-- Retained operation/request/state marshalling for one local handler call. -/
 private noncomputable def handlerCallCompiler (r : ℕ)
@@ -380,8 +362,10 @@ private noncomputable def installReplyCompiler (r : ℕ)
 noncomputable def installReplyArtifact (external r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
     NativeOracleProgram external
-      (fun input : PostInput r HandlerState => pure (installReply input.1 input.2))
-      (ePostInput r encHandlerState) (eQueryResult encHandlerState) :=
+      (fun input : QueryInput r HandlerState × HandlerResult HandlerState =>
+        pure (installReply input.1 input.2))
+      (encPair (eQueryInput r encHandlerState) (eHandlerResult encHandlerState))
+      (eQueryResult encHandlerState) :=
   NativeOracleProgram.ofCompiler (r := external)
     (installReplyCompiler r encHandlerState)
 
@@ -411,9 +395,7 @@ def PostBound (r : ℕ) (encHandlerState : HandlerState ↪ List Bool)
       (ProbOracleComp.runWith oracle (handler (handlerCall input)) state).support →
     ∀ phase,
       (installReplyArtifact external r encHandlerState).online.time phase (input, result) ≤
-          postOnline.time phase input ∧
-        (installReplyArtifact external r encHandlerState).online.workspace phase
-            (input, result) ≤ postOnline.workspace phase input
+          postOnline.time phase input
 
 /-- Install one actual retained stateful handler in a validated source-query branch. The caller's
 phasewise post bound covers continuation costs only on results in the supplied handler artifact's
@@ -442,7 +424,7 @@ theorem queryProgram_apply
     (handler : HandlerCall r HandlerState →
       WordOracleComp (Fin external) (HandlerResult HandlerState))
     (input : QueryInput r HandlerState) :
-    queryProgram handler input = do
+    queryProgram handler input = (do
       let result ← handler
         { operation := input.operation
           request := encList encUnary input.request
@@ -450,45 +432,8 @@ theorem queryProgram_apply
       let reply := result.reply.take input.source.replyBits
       let decoded := (frames reply).map List.length |>.take input.source.fuel
       let next := input.pending.receive input.operation input.next decoded
-      pure (some { source := input.source.advance next, handlerState := result.state }) :=
-  rfl
-
-/-- The specialized branch exposes the literal capture append, supplied handler machine and
-retained reply installer. In particular, the raw-prefix compiler is part of the executed second
-machine rather than a semantic support assumption. -/
-theorem machine_queryBranch (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall r HandlerState →
-      WordOracleComp (Fin external) (HandlerResult HandlerState)}
-    (artifact : NativeOracleProgram external handler
-      (eHandlerCall r encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput r HandlerState))
-    (hpost : PostBound r encHandlerState handler postOnline) :
-    (queryBranch r encHandlerState artifact postOnline hpost).machine =
-      (installReplyArtifact external r encHandlerState).machine.tidyComp
-        (appendPTM
-          (ofDeterministic
-            (NativeCompiler.encodeFrame (eQueryInput r encHandlerState)).machine)
-          (preparedHandler r encHandlerState artifact).machine) true :=
-  NativeOracleProgram.machine_sequenceCaptured _ _ _ _
-
-/-- The complete phase ledger is the captured-input construction ledger: handler preparation and
-execution are sequenced with the caller-supplied continuation bound, while capture and final tidy
-composition are charged to marshalling. Aggregate time and peak workspace are derived from this
-record. -/
-theorem online_queryBranch (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall r HandlerState →
-      WordOracleComp (Fin external) (HandlerResult HandlerState)}
-    (artifact : NativeOracleProgram external handler
-      (eHandlerCall r encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput r HandlerState))
-    (hpost : PostBound r encHandlerState handler postOnline) :
-    (queryBranch r encHandlerState artifact postOnline hpost).online =
-      NativeOracleProgram.capturedAccounting
-        (preparedHandler r encHandlerState artifact)
-        (installReplyArtifact external r encHandlerState) postOnline :=
-  rfl
+      pure (some { source := advance input.source next, handlerState := result.state })) := by
+  simp [queryProgram, handlerCall, installReply, NativeOracleProgram.capturedProgram]
 
 /-- Exact construction-assigned branch time: retained caller framing and handler execution,
 followed by the phasewise reply-installer bound and the outer composition overhead. -/
@@ -502,7 +447,7 @@ theorem time_queryBranch (r : ℕ)
     (hpost : PostBound r encHandlerState handler postOnline)
     (input : QueryInput r HandlerState) :
     (queryBranch r encHandlerState artifact postOnline hpost).time input =
-      5 * (NativeCompiler.encodeFrame (eQueryInput r encHandlerState) |>.time input +
+      5 * ((NativeCompiler.encodeFrame (eQueryInput r encHandlerState)).time input +
         (preparedHandler r encHandlerState artifact).time input) +
           postOnline.totalTime input + 9 :=
   NativeOracleProgram.time_sequenceCaptured _ _ _ _ _
@@ -527,62 +472,11 @@ theorem installReplyTime_le_queryBranch (r : ℕ)
       (queryBranch r encHandlerState artifact postOnline hpost).time input := by
   calc
     _ ≤ postOnline.time phase input :=
-      (hpost input OracleState oracle state result state' hresult phase).1
+      hpost input OracleState oracle state result state' hresult phase
     _ ≤ postOnline.totalTime input := postOnline.time_le_totalTime phase input
     _ ≤ (queryBranch r encHandlerState artifact postOnline hpost).time input := by
       rw [time_queryBranch]
       omega
-
-/-- On every supported handler result, each reply-installer phase fits the final branch's peak
-workspace. This retains the raw-prefix, codec, local-step and controller costs as separate ledger
-coordinates before the aggregate peak is taken. -/
-theorem installReplyWorkspace_le_queryBranch (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall r HandlerState →
-      WordOracleComp (Fin external) (HandlerResult HandlerState)}
-    (artifact : NativeOracleProgram external handler
-      (eHandlerCall r encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput r HandlerState))
-    (hpost : PostBound r encHandlerState handler postOnline)
-    (input : QueryInput r HandlerState) (OracleState : Type)
-    (oracle : Fin external × List Bool → StateT OracleState PMF (List Bool))
-    (state : OracleState) (result : HandlerResult HandlerState) (state' : OracleState)
-    (hresult : (result, state') ∈
-      (ProbOracleComp.runWith oracle (handler (handlerCall input)) state).support)
-    (phase : OnlinePhase) :
-    (installReplyArtifact external r encHandlerState).online.workspace phase (input, result) ≤
-      (queryBranch r encHandlerState artifact postOnline hpost).workspace input :=
-  NativeOracleProgram.secondWorkspace_le_sequenceCaptured
-    (preparedHandler r encHandlerState artifact)
-    (installReplyArtifact external r encHandlerState) postOnline hpost
-    input OracleState oracle state result state' hresult phase
-
-/-- The installed inventory contains one occurrence of the final composed query branch. The
-handler control is inlined into this description rather than charged as a second installed copy. -/
-theorem queryBranch_installedDescriptions (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall r HandlerState →
-      WordOracleComp (Fin external) (HandlerResult HandlerState)}
-    (artifact : NativeOracleProgram external handler
-      (eHandlerCall r encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput r HandlerState))
-    (hpost : PostBound r encHandlerState handler postOnline) :
-    (queryBranch r encHandlerState artifact postOnline hpost).installedDescriptions =
-      [(queryBranch r encHandlerState artifact postOnline hpost).description] :=
-  NativeOracleProgram.installedDescriptions_eq_singleton _
-
-/-- The one-occurrence installed code charge is exactly the final composed description size. -/
-theorem queryBranch_installedBits (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall r HandlerState →
-      WordOracleComp (Fin external) (HandlerResult HandlerState)}
-    (artifact : NativeOracleProgram external handler
-      (eHandlerCall r encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput r HandlerState))
-    (hpost : PostBound r encHandlerState handler postOnline) :
-    (queryBranch r encHandlerState artifact postOnline hpost).installedBits =
-      (queryBranch r encHandlerState artifact postOnline hpost).staticBits :=
-  NativeOracleProgram.installedBits_eq_staticBits _
 
 /-! ### Closed retained handler loop -/
 
@@ -623,62 +517,39 @@ def retainedStateDecoder {encHandlerState : HandlerState ↪ List Bool}
 /-- Initialize the source loop and retain the caller-supplied private handler state. A malformed
 runtime operation count becomes an exhausted retained state, so the source result is `[]` while
 the caller's handler state remains observable. -/
-def initialHandlerState (r : ℕ) (input : HandlerRunInput HandlerState) :
+@[expose] def initialHandlerState (r : ℕ) (input : HandlerRunInput HandlerState) :
     QueryResult HandlerState :=
   some
     { source := (initialState r input.source).getD default
       handlerState := input.handlerState }
 
-/-- Exact valid/malformed boundary of the retained handler initializer. -/
-theorem initialHandlerState_apply (r : ℕ) (input : HandlerRunInput HandlerState) :
-    initialHandlerState r input =
-      if input.source.desc.operations = r then
-        some
-          { source :=
-              { desc := input.source.desc
-                input := input.source.input
-                fuel := input.source.fuel
-                replyBits := input.source.replyBits
-                remaining := input.source.fuel
-                cfg := ICfg.init input.source.desc }
-            handlerState := input.handlerState }
-      else some
-        { source := default
-          handlerState := input.handlerState } := by
-  simp [initialHandlerState, initialState]
-
 /-- Runtime source-round schedule of a retained handler state. -/
-def handlerRounds : QueryResult HandlerState → ℕ
+@[expose] def handlerRounds : QueryResult HandlerState → ℕ
   | none => 0
   | some state => state.source.remaining
 
 /-- Return the final source output and private handler state together. The absent case is only the
 total compiler fallback: exact retained runs finish in a present state. -/
-def handlerOutput [Inhabited HandlerState] :
+@[expose] def handlerOutput [Inhabited HandlerState] :
     QueryResult HandlerState → HandlerRunOutput HandlerState
   | none => { output := [], handlerState := default }
   | some state => { output := state.source.cfg.output, handlerState := state.handlerState }
 
 @[simp]
-theorem handlerOutput_some (state : RetainedState HandlerState) :
+theorem handlerOutput_some [Inhabited HandlerState] (state : RetainedState HandlerState) :
     handlerOutput (some state) =
-      { output := state.source.cfg.output, handlerState := state.handlerState } :=
-  rfl
+      { output := state.source.cfg.output, handlerState := state.handlerState } := rfl
 
 /-- Local source commands advance the source state and preserve private handler state. -/
-def localUpdate (input : RetainedState HandlerState × ICfg) : RetainedState HandlerState :=
-  { source := input.1.source.advance input.2
+@[expose] def localUpdate (input : RetainedState HandlerState × ICfg) :
+    RetainedState HandlerState :=
+  { source := advance input.1.source input.2
     handlerState := input.1.handlerState }
-
-@[simp]
-theorem localUpdate_handlerState (input : RetainedState HandlerState × ICfg) :
-    (localUpdate input).handlerState = input.1.handlerState :=
-  rfl
 
 /-- Marshal a selected source query and the retained private state into the installed-handler
 boundary. The total local-command fallback is never executed because `bodyWithQueryBranch`
 dispatches on the command tag before entering this artifact. -/
-def handlerQueryInput (r : ℕ)
+@[expose] def handlerQueryInput (r : ℕ)
     (input : RetainedCommandInput (r + 1) (RetainedState HandlerState)) :
     QueryInput (r + 1) HandlerState :=
   let payload := retainedCommandQueryPayload (r + 1) 0 input
@@ -699,8 +570,8 @@ theorem handlerQueryInput_query (r : ℕ) (state : RetainedState HandlerState)
         request
         next
         pending
-        handlerState := state.handlerState } :=
-  rfl
+        handlerState := state.handlerState } := by
+  simp [handlerQueryInput, retainedCommandQueryPayload_query]
 
 /-- Closed query semantics installed in the generic body. -/
 noncomputable def handlerCommandProgram (r : ℕ)
@@ -717,7 +588,7 @@ theorem handlerCommandProgram_query (r : ℕ)
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (state : RetainedState HandlerState) (operation : Fin (r + 1))
     (request : List ℕ) (next : ℕ) (pending : ICfg) :
-    handlerCommandProgram r handler (state, .query operation request next pending) = do
+    handlerCommandProgram r handler (state, .query operation request next pending) = (do
       let result ← handler
         { operation
           request := encList encUnary request
@@ -726,8 +597,8 @@ theorem handlerCommandProgram_query (r : ℕ)
       let decoded := (frames reply).map List.length |>.take state.source.fuel
       let cfg := pending.receive operation next decoded
       pure (some
-        { source := state.source.advance cfg
-          handlerState := result.state }) := by
+        { source := advance state.source cfg
+          handlerState := result.state })) := by
   simpa [handlerCommandProgram] using
     queryProgram_apply handler
       { source := state.source
@@ -742,7 +613,7 @@ theorem handlerCommandProgram_query (r : ℕ)
 /-- Run one installed handler call as the stateful oracle seen by the original open interpreter.
 The handler's own private samples remain fresh, and its returned state becomes the next oracle
 state. -/
-noncomputable def localHandlerOracle
+@[expose] noncomputable def localHandlerOracle
     (handler : HandlerCall r HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (query : Fin r × List Bool) : StateT HandlerState ProbComp (List Bool) :=
@@ -752,7 +623,7 @@ noncomputable def localHandlerOracle
     pure (result.reply, result.state)
 
 /-- The same handler lifted before closing its impossible external channel. This form is used to
-compare the concrete retained controller with stateful interpretation of `NativeInterpreter.run`.
+compare the concrete retained controller with stateful interpretation of `Universal.run`.
 -/
 private noncomputable def localHandlerProgram
     (handler : HandlerCall r HandlerState →
@@ -799,27 +670,34 @@ private theorem run_runWithLocalHandler
       ProbOracleComp.sample
           ((program.runState (localHandlerOracle handler)).run state) =
         runWithLocalHandler handler program state := by
-    rw [ProbOracleComp.sample_run_interpret]
+    rw [ProbOracleComp.runState, ProbOracleComp.sample_run_interpret]
     unfold runWithLocalHandler
-    apply congrArg (fun oracle => (OracleComp.interpret oracle program).run state)
-    funext query
-    cases query with
+    congr 2 with q t : 2
+    cases q with
     | inl n => rfl
     | inr query =>
-        funext handlerState
-        simp [localHandlerOracle, localHandlerProgram, sample_run_empty]
+        simp [StateT.run, localHandlerOracle, localHandlerProgram,
+          sample_run_empty]
   calc
-    _ = (ProbOracleComp.sample
+    _ = (ProbOracleComp.sample (spec := fun _ : Fin 0 × List Bool => List Bool)
         ((program.runState (localHandlerOracle handler)).run state)).run
           (fun impossible => impossible.1.elim0) :=
-      congrArg (fun closed => closed.run (fun impossible => impossible.1.elim0)) hsample.symm
+      congrArg (fun closed : WordOracleComp (Fin 0) (α × HandlerState) =>
+        closed.run (fun impossible => impossible.1.elim0)) hsample.symm
     _ = _ := ProbOracleComp.run_sample _ _
 
-private noncomputable def retainedSourceCompiler
+private def retainedFields (s : RetainedState HandlerState) := (s.source, s.handlerState)
+
+private noncomputable opaque retainedHandlerStateCompiler
+    (encHandlerState : HandlerState ↪ List Bool) :
+    NativeCompiler RetainedState.handlerState (eRetainedState encHandlerState) encHandlerState :=
+  (NativeCompiler.second eLoopState encHandlerState).ofInputEq retainedFields fun _ => rfl
+
+private noncomputable opaque retainedSourceCompiler
     (encHandlerState : HandlerState ↪ List Bool) :
     NativeCompiler RetainedState.source (eRetainedState encHandlerState) eLoopState :=
   (NativeCompiler.first eLoopState encHandlerState).ofInputEq
-    RetainedState.source fun _ => rfl
+    (encIn := eRetainedState encHandlerState) retainedFields fun _ => rfl
 
 private noncomputable def localUpdateCompiler
     (encHandlerState : HandlerState ↪ List Bool) :
@@ -830,45 +708,22 @@ private noncomputable def localUpdateCompiler
   let source := (retainedSourceCompiler encHandlerState).comp retained
   let cfg := NativeCompiler.second (eRetainedState encHandlerState) eICfg
   let advanced := advanceCompiler.comp (source.pair cfg)
-  let state := ((NativeCompiler.second eLoopState encHandlerState).ofInputEq
-    RetainedState.handlerState fun _ => rfl).comp retained
+  let state := (retainedHandlerStateCompiler encHandlerState).comp retained
   exact (advanced.pair state).ofOutputEq fun _ => rfl
 
-private noncomputable def handlerQueryInputCompiler (r : ℕ)
+private noncomputable opaque handlerQueryInputCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
     NativeCompiler (handlerQueryInput r)
       (eRetainedCommandInput (r + 1) (eRetainedState encHandlerState))
       (eQueryInput (r + 1) encHandlerState) := by
   let retained := NativeCompiler.first (eRetainedState encHandlerState) (eCommand (r + 1))
   let source := (retainedSourceCompiler encHandlerState).comp retained
-  let state := ((NativeCompiler.second eLoopState encHandlerState).ofInputEq
-    RetainedState.handlerState fun _ => rfl).comp retained
-  let payload := retainedCommandQueryPayloadCompiler (r + 1) 0
-    (eRetainedState encHandlerState)
-  let fields : NativeCompiler
-      (fun input : RetainedCommandInput (r + 1) (RetainedState HandlerState) =>
-        let payload := retainedCommandQueryPayload (r + 1) 0 input
-        (payload.operation, payload.request, payload.next, payload.pending))
-      (eRetainedCommandInput (r + 1) (eRetainedState encHandlerState))
-      (encPair (eOperation (r + 1))
-        (encPair (encList encUnary) (encPair encUnary eICfg))) :=
-    ((NativeCompiler.identity
-        (encPair (eOperation (r + 1))
-          (encPair (encList encUnary) (encPair encUnary eICfg))))
-      |>.ofInputEq
-        (fun payload : RetainedQueryPayload (r + 1) =>
-          (payload.operation, payload.request, payload.next, payload.pending))
-        fun _ => rfl).comp payload
-  let operation := (NativeCompiler.first (eOperation (r + 1))
-    (encPair (encList encUnary) (encPair encUnary eICfg))).comp fields
-  let tail := (NativeCompiler.second (eOperation (r + 1))
-    (encPair (encList encUnary) (encPair encUnary eICfg))).comp fields
-  let request := (NativeCompiler.first (encList encUnary)
-    (encPair encUnary eICfg)).comp tail
-  let nextCfg := (NativeCompiler.second (encList encUnary)
-    (encPair encUnary eICfg)).comp tail
-  let next := (NativeCompiler.first encUnary eICfg).comp nextCfg
-  let pending := (NativeCompiler.second encUnary eICfg).comp nextCfg
+  let state := (retainedHandlerStateCompiler encHandlerState).comp retained
+  let encState := eRetainedState encHandlerState
+  let operation := queryOperationCompiler (r + 1) 0 encState
+  let request := queryRequestCompiler (r + 1) 0 encState
+  let next := queryNextCompiler (r + 1) 0 encState
+  let pending := queryCfgCompiler (r + 1) 0 encState
   exact (source.pair (operation.pair (request.pair (next.pair (pending.pair state)))))
     |>.ofOutputEq fun _ => rfl
 
@@ -890,25 +745,8 @@ noncomputable def handlerQueryArtifact (r : ℕ)
       (handlerQueryInputCompiler r encHandlerState))
     (queryBranch (r + 1) encHandlerState handlerArtifact postOnline hpost)
 
-/-- Exact command-boundary query time: marshalling, the actual retained handler branch and the
-preprocessing composition overhead are all visible. -/
-theorem time_handlerQueryArtifact (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (input : RetainedCommandInput (r + 1) (RetainedState HandlerState)) :
-    (handlerQueryArtifact r encHandlerState handlerArtifact postOnline hpost).time input =
-      5 * (handlerQueryInputCompiler r encHandlerState).time input +
-        (queryBranch (r + 1) encHandlerState handlerArtifact postOnline hpost).time
-          (handlerQueryInput r input) + 9 :=
-  NativeOracleProgram.time_preprocess _ _
-
 /-- Exact one-round semantics of the installed handler controller. -/
-def handlerBodyProgram [Inhabited HandlerState] (r : ℕ)
+noncomputable def handlerBodyProgram [Inhabited HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState)) :
     QueryResult HandlerState → WordOracleComp (Fin 0) (QueryResult HandlerState) :=
@@ -916,7 +754,7 @@ def handlerBodyProgram [Inhabited HandlerState] (r : ℕ)
     (handlerCommandProgram r handler)
 
 @[simp]
-theorem handlerBodyProgram_none [Inhabited HandlerState] (r : ℕ)
+private theorem handlerBodyProgram_none [Inhabited HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState)) :
     handlerBodyProgram r handler none = pure none :=
@@ -924,7 +762,7 @@ theorem handlerBodyProgram_none [Inhabited HandlerState] (r : ℕ)
     (handlerCommandProgram r handler)
 
 /-- Exhausted retained source storage stops before sampling or invoking the handler. -/
-theorem handlerBodyProgram_exhausted [Inhabited HandlerState] (r : ℕ)
+private theorem handlerBodyProgram_exhausted [Inhabited HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (state : RetainedState HandlerState) (hremaining : state.source.remaining = 0) :
@@ -933,7 +771,7 @@ theorem handlerBodyProgram_exhausted [Inhabited HandlerState] (r : ℕ)
     (handlerCommandProgram r handler) state hremaining
 
 /-- A halted source advances locally while preserving the private handler state. -/
-theorem handlerBodyProgram_halted [Inhabited HandlerState] (r : ℕ)
+private theorem handlerBodyProgram_halted [Inhabited HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (state : RetainedState HandlerState) (hremaining : state.source.remaining ≠ 0)
@@ -944,7 +782,7 @@ theorem handlerBodyProgram_halted [Inhabited HandlerState] (r : ℕ)
     (handlerCommandProgram r handler) state hremaining hcontrol
 
 /-- Active retained storage uses exactly the shared fair-coin/lookup/command semantics. -/
-theorem handlerBodyProgram_active [Inhabited HandlerState] (r : ℕ)
+private theorem handlerBodyProgram_active [Inhabited HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (state : RetainedState HandlerState) (control : Option ℕ)
@@ -985,20 +823,17 @@ private theorem handlerBodyProgram_withDynamic [Inhabited HandlerState] (r : ℕ
       rw [handlerBodyProgram_active r handler _ control hremaining]
       · rw [activeProgramWithQueryBranch_apply]
         simp only [runWithLocalHandler, wordStep, hcontrol, OracleComp.interpret_bind,
-          StateT.run_bind, ProbOracleComp.interpret_sample, OracleComp.run_interpret_lift,
-          bind_map_left]
+          StateT.run_bind, ProbOracleComp.run_interpret_lift_sample, bind_map_left, map_bind]
         apply congrArg (ProbOracleComp.sample (ProbComp.uniform Bool) >>= ·)
         funext coin
-        rw [commandAtFromLookup_firstMatch]
+        dsimp only [withDynamicHandlerState]
         cases hcommand : cfg.commandAt (r + 1) template.desc template.input coin with
-        | local next =>
-            simp [hcommand, localUpdate, withDynamicHandlerState, advance]
+        | «local» next =>
+            simp [localUpdate, advance]
         | query operation request next pending =>
-            rw [show handlerCommandProgram r handler
-                (withDynamicHandlerState template (remaining + 1) cfg handlerState,
-                  .query operation request next pending) = _ from
-              handlerCommandProgram_query r handler _ operation request next pending]
-            simp [hcommand, localHandlerProgram, withDynamicHandlerState, advance]
+            simp [handlerCommandProgram_query, advance, unaryListDecoder, Decoder.list,
+              Decoder.unary, Cslib.StateT.map_apply, StateT.run, localHandlerProgram,
+              Functor.map_map]
       · simpa [withDynamicHandlerState] using hcontrol
 
 private theorem handlerIterate_withDynamic [Inhabited HandlerState] (r : ℕ)
@@ -1016,10 +851,11 @@ private theorem handlerIterate_withDynamic [Inhabited HandlerState] (r : ℕ)
   | count + 1 => by
       rw [OracleComp.iterate_succ_bind, OracleComp.iterate_succ_bind,
         handlerBodyProgram_withDynamic]
-      simp only [runWithLocalHandler, OracleComp.interpret_bind, StateT.run_bind, map_bind]
+      simp only [runWithLocalHandler, OracleComp.interpret_bind, StateT.run_bind, map_bind,
+        bind_map_left]
       apply OracleComp.bind_congr_on_support
-      rintro (nextCfg, nextHandlerState) -
-      simpa only [Nat.succ_sub_one] using
+      rintro ⟨nextCfg, nextHandlerState⟩ -
+      simpa only [runWithLocalHandler] using
         handlerIterate_withDynamic r handler template nextCfg nextHandlerState count
 
 /-- One actual retained controller round with a locally installed stateful handler. It instantiates
@@ -1039,35 +875,9 @@ noncomputable def handlerBodyArtifact [Inhabited HandlerState] (r : ℕ)
     (localUpdateCompiler encHandlerState)
     (handlerQueryArtifact r encHandlerState handlerArtifact postOnline hpost)
 
-/-- The complete installed one-round controller remains one composed description occurrence. -/
-theorem handlerBodyArtifact_installedDescriptions [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline) :
-    (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).installedDescriptions =
-      [(handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).description] :=
-  NativeOracleProgram.installedDescriptions_eq_singleton _
-
-/-- The one-round controller's exact installed charge is its final composed static size. -/
-theorem handlerBodyArtifact_installedBits [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline) :
-    (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).installedBits =
-      (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).staticBits :=
-  NativeOracleProgram.installedBits_eq_staticBits _
-
 /-- Public proof obligations for retaining a runtime-bounded closed handler loop. The decoder and
 invariant are proof data only. Every executed round is the concrete `handlerBodyArtifact`; its
-componentwise time and workspace are bounded phase by phase, and the final stopping round must
+execution time is bounded phase by phase, and the final stopping round must
 produce the empty option encoding required by `iterateWhile`. -/
 structure LoopCertificate [Inhabited HandlerState] (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool)
@@ -1092,11 +902,6 @@ structure LoopCertificate [Inhabited HandlerState] (r : ℕ)
     invariant initial count current → ∀ phase,
       (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).online.time
           phase current ≤ roundOnline.time phase initial
-  /-- Every reachable body workspace phase is charged by `roundOnline`. -/
-  workspace : ∀ initial count, count ≤ handlerRounds initial → ∀ current,
-    invariant initial count current → ∀ phase,
-      (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).online.workspace
-          phase current ≤ roundOnline.workspace phase initial
   /-- One supported body result preserves the invariant and has a nonempty state encoding before
   the final stopping round. -/
   preserve : ∀ initial count, count < handlerRounds initial → ∀ current,
@@ -1125,7 +930,7 @@ private def finiteSuccessorForReply (state : RetainedState HandlerState)
     (operation : Fin (r + 1)) (next : ℕ) (pending : ICfg) (reply : List Bool)
     (handlerState : HandlerState) : QueryResult HandlerState :=
   some
-    { source := state.source.advance (pending.receive operation next
+    { source := advance state.source (pending.receive operation next
         ((unaryListDecoder.decode reply).take state.source.fuel))
       handlerState }
 
@@ -1151,18 +956,15 @@ private noncomputable def finiteSuccessors [Fintype HandlerState] (r : ℕ) :
         | some _ => [false, true].flatMap (finiteCoinSuccessors r state)
 
 /-- States in the finite overapproximation after exactly `count` retained rounds. -/
-private noncomputable def finiteReachable [Fintype HandlerState] (r : ℕ)
-    (initial : QueryResult HandlerState) : ℕ → List (QueryResult HandlerState)
-  | 0 => [initial]
-  | count + 1 =>
-      (finiteSuccessors r initial).flatMap fun next => finiteReachable r next count
+private noncomputable abbrev finiteReachable [Fintype HandlerState] (r : ℕ) :=
+  ProbOracleComp.reachableIn (finiteSuccessors r (HandlerState := HandlerState))
 
 /-- All finitely enumerated retained states at indices used by the loop certificate. -/
 private noncomputable def finiteReachablePrefix [Fintype HandlerState] (r : ℕ)
     (initial : QueryResult HandlerState) : List (QueryResult HandlerState) :=
   (List.range (handlerRounds initial + 1)).flatMap (finiteReachable r initial)
 
-private theorem support_mem_finiteSuccessors [Fintype HandlerState] (r : ℕ)
+private theorem support_mem_finiteSuccessors [Inhabited HandlerState] [Fintype HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (current next : QueryResult HandlerState) (OracleState : Type)
@@ -1194,16 +996,16 @@ private theorem support_mem_finiteSuccessors [Fintype HandlerState] (r : ℕ)
             activeProgramWithQueryBranch_apply, ProbOracleComp.runWith_bind] at hnext
           obtain ⟨⟨coin, coinState⟩, hcoin, hcommand⟩ :=
             (PMF.mem_support_bind_iff _ _ _).mp hnext
+          dsimp only at hcommand
           have hcoinValue : coin = false ∨ coin = true := by cases coin <;> simp
-          rw [commandAtFromLookup_firstMatch] at hcommand
           cases hcmd : current.source.cfg.commandAt (r + 1) current.source.desc
               current.source.input coin with
-          | local cfg =>
+          | «local» cfg =>
               simp only [hcmd, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
                 Prod.mk.injEq] at hcommand
               rcases hcommand with ⟨rfl, rfl⟩
-              simp only [finiteSuccessors, hremaining, hcontrol, List.mem_flatMap,
-                List.mem_cons, List.mem_singleton]
+              simp only [finiteSuccessors, hremaining, ↓reduceIte, hcontrol, List.mem_flatMap,
+                List.mem_cons, List.not_mem_nil, or_false]
               exact ⟨coin, hcoinValue, by simp [finiteCoinSuccessors, hcmd]⟩
           | query operation request nextTag pending =>
               rw [hcmd, handlerCommandProgram_query, ProbOracleComp.runWith_bind] at hcommand
@@ -1217,30 +1019,14 @@ private theorem support_mem_finiteSuccessors [Fintype HandlerState] (r : ℕ)
                 (mem_boundedReplyWords_iff _ _).2 (List.length_take_le _ _)
               have hstate : result.state ∈ (Finset.univ.toList : List HandlerState) :=
                 Finset.mem_toList.mpr (Finset.mem_univ _)
-              simp only [finiteSuccessors, hremaining, hcontrol, List.mem_flatMap,
-                List.mem_cons, List.mem_singleton]
+              simp only [finiteSuccessors, hremaining, ↓reduceIte, hcontrol, List.mem_flatMap,
+                List.mem_cons, List.not_mem_nil, or_false]
               refine ⟨coin, hcoinValue, ?_⟩
               simp only [finiteCoinSuccessors, hcmd, List.mem_flatMap, List.mem_map]
               exact ⟨result.reply.take current.source.replyBits, hprefix,
                 result.state, hstate, rfl⟩
 
-private theorem mem_finiteReachable_succ [Fintype HandlerState]
-    {r : ℕ} {initial current next : QueryResult HandlerState} {count : ℕ}
-    (hcurrent : current ∈ finiteReachable r initial count)
-    (hnext : next ∈ finiteSuccessors r current) :
-    next ∈ finiteReachable r initial (count + 1) := by
-  induction count generalizing initial with
-  | zero =>
-      simp only [finiteReachable, List.mem_singleton] at hcurrent
-      subst current
-      simp only [finiteReachable, List.mem_flatMap]
-      exact ⟨next, hnext, by simp [finiteReachable]⟩
-  | succ count ih =>
-      simp only [finiteReachable, List.mem_flatMap] at hcurrent ⊢
-      obtain ⟨middle, hmiddle, hcurrent⟩ := hcurrent
-      exact ⟨middle, hmiddle, ih hcurrent hnext⟩
-
-private theorem support_mem_finiteReachable [Fintype HandlerState] (r : ℕ)
+private theorem support_mem_finiteReachable [Inhabited HandlerState] [Fintype HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (initial : QueryResult HandlerState) (count : ℕ) (OracleState : Type)
@@ -1249,22 +1035,11 @@ private theorem support_mem_finiteReachable [Fintype HandlerState] (r : ℕ)
     (hcurrent : (current, state') ∈
       (ProbOracleComp.runWith oracle
         (OracleComp.iterate count (handlerBodyProgram r handler) initial) state).support) :
-    current ∈ finiteReachable r initial count := by
-  induction count generalizing initial state current with
-  | zero =>
-      simp only [OracleComp.iterate_zero, ProbOracleComp.runWith_pure,
-        PMF.mem_support_pure_iff, Prod.mk.injEq] at hcurrent
-      rcases hcurrent with ⟨rfl, rfl⟩
-      simp [finiteReachable]
-  | succ count ih =>
-      rw [OracleComp.iterate_succ_bind, ProbOracleComp.runWith_bind] at hcurrent
-      obtain ⟨⟨middle, middleState⟩, hmiddle, htail⟩ :=
-        (PMF.mem_support_bind_iff _ _ _).mp hcurrent
-      simp only [finiteReachable, List.mem_flatMap]
-      exact ⟨middle,
-        support_mem_finiteSuccessors r handler initial middle OracleState oracle state middleState
-          hmiddle,
-        ih middle middleState current htail⟩
+    current ∈ finiteReachable r initial count :=
+  ProbOracleComp.mem_reachableIn_of_runWith_iterate (handlerBodyProgram r handler)
+    (finiteSuccessors r) oracle
+    (fun a b s t => support_mem_finiteSuccessors r handler a b OracleState oracle s t)
+      initial count state hcurrent
 
 private def FiniteProgress (initial : QueryResult HandlerState) (count : ℕ)
     (current : QueryResult HandlerState) : Prop :=
@@ -1284,10 +1059,12 @@ private def FiniteInvariant [Fintype HandlerState] (r : ℕ)
 private theorem finiteInvariant_zero [Fintype HandlerState] (r : ℕ)
     (initial : QueryResult HandlerState) : FiniteInvariant r initial 0 initial := by
   constructor
-  · cases initial <;> simp [FiniteProgress, LoopState.SameStatic]
-  · simp [finiteReachable]
+  · cases initial with
+    | none => rfl
+    | some s => exact ⟨s, rfl, ⟨rfl, rfl, rfl, rfl⟩, by simp⟩
+  · simp [finiteReachable, ProbOracleComp.reachableIn]
 
-private theorem finiteProgress_successor [Fintype HandlerState]
+private theorem finiteProgress_successor [Inhabited HandlerState]
     {r : ℕ} {initial current next : QueryResult HandlerState} {count : ℕ}
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
@@ -1297,52 +1074,25 @@ private theorem finiteProgress_successor [Fintype HandlerState]
     (state state' : OracleState)
     (hnext : (next, state') ∈
       (ProbOracleComp.runWith oracle (handlerBodyProgram r handler current) state).support) :
-    FiniteProgress initial (count + 1) next := by
+    FiniteProgress initial (count + 1) next ∧ eQueryResult encHandlerState next ≠ [] := by
   cases hinitial : initial with
-  | none => simp [handlerRounds, hinitial] at hcount
+  | none => simp [hinitial, handlerRounds] at hcount
   | some first =>
       simp only [FiniteProgress, hinitial] at hprogress
       obtain ⟨second, rfl, hstatic, hremaining⟩ := hprogress
-      have hpositive : second.source.remaining ≠ 0 := by omega
-      cases hcontrol : second.source.cfg.control with
-      | none =>
-          rw [handlerBodyProgram_halted r handler second hpositive hcontrol] at hnext
-          simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-            Prod.mk.injEq] at hnext
-          rcases hnext with ⟨rfl, rfl⟩
-          refine ⟨localUpdate (second, second.source.cfg), rfl, ?_, ?_⟩
-          · exact ⟨hstatic.desc, hstatic.input, hstatic.fuel, hstatic.replyBits⟩
-          · simp only [localUpdate, advance]
-            omega
-      | some control =>
-          rw [handlerBodyProgram_active r handler second control hpositive hcontrol,
-            activeProgramWithQueryBranch_apply, ProbOracleComp.runWith_bind] at hnext
-          obtain ⟨⟨coin, coinState⟩, hcoin, hcommand⟩ :=
-            (PMF.mem_support_bind_iff _ _ _).mp hnext
-          rw [commandAtFromLookup_firstMatch] at hcommand
-          cases hcmd : second.source.cfg.commandAt (r + 1) second.source.desc
-              second.source.input coin with
-          | local cfg =>
-              simp only [hcmd, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-                Prod.mk.injEq] at hcommand
-              rcases hcommand with ⟨rfl, rfl⟩
-              refine ⟨localUpdate (second, cfg), rfl, ?_, ?_⟩
-              · exact ⟨hstatic.desc, hstatic.input, hstatic.fuel, hstatic.replyBits⟩
-              · simp only [localUpdate, advance]
-                omega
-          | query operation request nextTag pending =>
-              rw [hcmd, handlerCommandProgram_query, ProbOracleComp.runWith_bind] at hcommand
-              obtain ⟨⟨result, resultState⟩, hresult, hfinal⟩ :=
-                (PMF.mem_support_bind_iff _ _ _).mp hcommand
-              simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-                Prod.mk.injEq] at hfinal
-              rcases hfinal with ⟨rfl, rfl⟩
-              refine ⟨_, rfl, ?_, ?_⟩
-              · exact ⟨hstatic.desc, hstatic.input, hstatic.fuel, hstatic.replyBits⟩
-              · simp only [advance]
-                omega
+      simp only [hinitial, handlerRounds] at hcount
+      obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero (show second.source.remaining ≠ 0 by omega)
+      have hsecond : second =
+          withDynamicHandlerState second.source (n + 1) second.source.cfg second.handlerState := by
+        cases second with
+        | mk source state => cases source; simp_all [withDynamicHandlerState]
+      rw [hsecond, handlerBodyProgram_withDynamic, ProbOracleComp.runWith_map] at hnext
+      obtain ⟨⟨⟨cfg, hs⟩, middle⟩, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
+      rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
+      exact ⟨⟨_, rfl, ⟨hstatic.desc, hstatic.input, hstatic.fuel, hstatic.replyBits⟩,
+        by dsimp [withDynamicHandlerState]; omega⟩, by simp [eQueryResult]⟩
 
-private theorem finiteInvariant_successor [Fintype HandlerState]
+private theorem finiteInvariant_successor [Inhabited HandlerState] [Fintype HandlerState]
     {r : ℕ} {initial current next : QueryResult HandlerState} {count : ℕ}
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
@@ -1353,15 +1103,13 @@ private theorem finiteInvariant_successor [Fintype HandlerState]
     (hnext : (next, state') ∈
       (ProbOracleComp.runWith oracle (handlerBodyProgram r handler current) state).support) :
     FiniteInvariant r initial (count + 1) next ∧ eQueryResult encHandlerState next ≠ [] := by
-  refine ⟨⟨finiteProgress_successor handler hcount hinvariant.1 OracleState oracle state state'
-    hnext, ?_⟩, ?_⟩
-  · exact mem_finiteReachable_succ hinvariant.2
-      (support_mem_finiteSuccessors r handler current next OracleState oracle state state' hnext)
-  · obtain ⟨second, rfl, -, -⟩ := finiteProgress_successor handler hcount hinvariant.1
-      OracleState oracle state state' hnext
-    simp
+  obtain ⟨hprogress, hpresent⟩ := finiteProgress_successor (encHandlerState := encHandlerState)
+    handler hcount hinvariant.1 OracleState oracle state state' hnext
+  exact ⟨⟨hprogress, ProbOracleComp.mem_reachableIn_succ hinvariant.2
+    (support_mem_finiteSuccessors r handler current next OracleState oracle state state' hnext)⟩,
+    hpresent⟩
 
-private theorem finiteInvariant_last [Fintype HandlerState] (r : ℕ)
+private theorem finiteInvariant_last [Inhabited HandlerState] [Fintype HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState))
     (initial current : QueryResult HandlerState)
@@ -1374,15 +1122,15 @@ private theorem finiteInvariant_last [Fintype HandlerState] (r : ℕ)
       ProbOracleComp.runWith oracle (pure []) state := by
   cases hinitial : initial with
   | none =>
-      simp only [FiniteProgress, hinitial] at hinvariant
+      have hcurrent : current = none := by simpa only [FiniteProgress, hinitial] using hinvariant.1
       subst current
-      simp
+      simp [handlerBodyProgram_none, eQueryResult]
   | some first =>
-      simp only [FiniteProgress, hinitial, handlerRounds] at hinvariant
+      simp only [hinitial, handlerRounds] at hinvariant
       obtain ⟨second, rfl, hstatic, hremaining⟩ := hinvariant.1
       have hzero : second.source.remaining = 0 := by omega
       rw [handlerBodyProgram_exhausted r handler second hzero]
-      simp
+      simp [eQueryResult]
 
 private theorem mem_finiteReachablePrefix [Fintype HandlerState]
     {r : ℕ} {initial current : QueryResult HandlerState} {count : ℕ}
@@ -1414,10 +1162,6 @@ private noncomputable def finiteRoundOnline [Inhabited HandlerState]
     listMax (fun current =>
       (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).online.time
         phase current) (finiteReachablePrefix r initial)
-  workspace := fun phase initial =>
-    listMax (fun current =>
-      (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).online.workspace
-        phase current) (finiteReachablePrefix r initial)
 
 /-- Canonical loop certificate for any finitely inhabited private handler state. It enumerates all
 bounded reply prefixes and all next private states, so it applies to probabilistic handlers without
@@ -1437,16 +1181,15 @@ noncomputable def finiteLoopCertificate [Inhabited HandlerState] [Fintype Handle
   roundOnline := finiteRoundOnline r encHandlerState handlerArtifact postOnline hpost
   invariant := FiniteInvariant r
   base := finiteInvariant_zero r
-  time := fun initial count hcount current hinvariant phase =>
+  time := fun _ _ hcount _ hinvariant _ =>
     le_listMax (mem_finiteReachablePrefix hcount hinvariant.2)
-  workspace := fun initial count hcount current hinvariant phase =>
-    le_listMax (mem_finiteReachablePrefix hcount hinvariant.2)
-  preserve := fun initial count hcount current hinvariant OracleState oracle state state' next
+  preserve := fun _ _ hcount _ hinvariant OracleState oracle state state' _
       hnext => finiteInvariant_successor handler hcount hinvariant OracleState oracle state state'
         hnext
   last := finiteInvariant_last r handler
-  length := fun initial count hcount current hinvariant =>
-    le_listMax (mem_finiteReachablePrefix hcount hinvariant.2)
+  length := fun _ _ hcount _ hinvariant =>
+    le_listMax (f := fun s => (eQueryResult encHandlerState s).length)
+      (mem_finiteReachablePrefix hcount hinvariant.2)
 
 /-- Exact closed loop semantics before runtime initialization and final-output projection. -/
 noncomputable def handlerLoopProgram [Inhabited HandlerState] (r : ℕ)
@@ -1473,23 +1216,8 @@ noncomputable def handlerLoopArtifact [Inhabited HandlerState] (r : ℕ)
     (.option (retainedStateDecoder certificate.handlerStateDecoder))
     (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost)
     handlerRounds certificate.lengthBound certificate.roundOnline certificate.invariant
-    certificate.base certificate.time certificate.workspace certificate.preserve certificate.last
+    certificate.base certificate.time certificate.preserve certificate.last
     certificate.length
-
-/-- The retained loop is literally `iterateWhile` over the one reviewed handler body. -/
-theorem machine_handlerLoopArtifact [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : LoopCertificate r encHandlerState handler handlerArtifact postOnline hpost) :
-    (handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost certificate).machine =
-      (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).machine.iterateWhile
-        true :=
-  NativeOracleProgram.machine_boundedIterationEncodedOn _ _ _ _ _ _ _ _ _ _ _ _
 
 /-- Exact construction-assigned loop time, including every handler body round and the final
 stopping round. -/
@@ -1509,61 +1237,7 @@ theorem time_handlerLoopArtifact [Inhabited HandlerState] (r : ℕ)
           (certificate.roundOnline.totalTime initial +
             10 * certificate.lengthBound initial + 23) +
         8 * certificate.lengthBound initial + 17 :=
-  NativeOracleProgram.time_boundedIterationEncodedOn _ _ _ _ _ _ _ _ _ _ _ _ _
-
-/-- The closed loop's one installed occurrence is the final composed `iterateWhile` description;
-the body and query controls are inlined and are not listed again. -/
-theorem handlerLoopArtifact_installedDescriptions [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : LoopCertificate r encHandlerState handler handlerArtifact postOnline hpost) :
-    (handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost
-      certificate).installedDescriptions =
-        [(handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost
-          certificate).description] :=
-  NativeOracleProgram.installedDescriptions_eq_singleton _
-
-/-- The typed loop's exact installed charge is its final composed static size. -/
-theorem handlerLoopArtifact_installedBits [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : LoopCertificate r encHandlerState handler handlerArtifact postOnline hpost) :
-    (handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost
-      certificate).installedBits =
-        (handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost
-          certificate).staticBits :=
-  NativeOracleProgram.installedBits_eq_staticBits _
-
-/-- Every certified body phase remains visible in the closed loop's peak workspace. Repetition
-changes time, while workspace is a peak. -/
-theorem handlerBodyWorkspace_le_loopWorkspace [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : LoopCertificate r encHandlerState handler handlerArtifact postOnline hpost)
-    (initial : QueryResult HandlerState) (count : ℕ)
-    (hcount : count ≤ handlerRounds initial) (current : QueryResult HandlerState)
-    (hcurrent : certificate.invariant initial count current) (phase : OnlinePhase) :
-    (handlerBodyArtifact r encHandlerState handlerArtifact postOnline hpost).online.workspace
-        phase current ≤
-      (handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost certificate).workspace
-        initial :=
-  NativeOracleProgram.bodyWorkspace_le_boundedIterationEncodedOn _ _ _ _ _ _ _ _ _ _ _ _
-    initial count hcount current hcurrent phase
+  NativeOracleProgram.time_boundedIterationEncodedOn _ _ _ _ _ _ _ _ _ _ _ _
 
 /-! ### Runtime preparation and final projection -/
 
@@ -1573,15 +1247,17 @@ noncomputable def initialHandlerStateCompiler [Inhabited HandlerState] (r : ℕ)
     NativeCompiler (initialHandlerState r)
       (eHandlerRunInput encHandlerState) (eQueryResult encHandlerState) := by
   let sourceInput := (NativeCompiler.first eRunInput encHandlerState).ofInputEq
-    HandlerRunInput.source fun _ => rfl
+    (encIn := eHandlerRunInput encHandlerState)
+    (fun i : HandlerRunInput HandlerState => (i.source, i.handlerState)) fun _ => rfl
   let state := (NativeCompiler.second eRunInput encHandlerState).ofInputEq
-    HandlerRunInput.handlerState fun _ => rfl
+    (encIn := eHandlerRunInput encHandlerState)
+    (fun i : HandlerRunInput HandlerState => (i.source, i.handlerState)) fun _ => rfl
   let source := (initialCompiler r).comp sourceInput
   let retainedSource := (NativeCompiler.optionGetD default eLoopState).comp source
   let retained : NativeCompiler
       (fun input : HandlerRunInput HandlerState =>
-        ({ source := (initialState r input.source).getD default
-          handlerState := input.handlerState } : RetainedState HandlerState))
+        (⟨(initialState r input.source).getD default, input.handlerState⟩ :
+          RetainedState HandlerState))
       (eHandlerRunInput encHandlerState) (eRetainedState encHandlerState) :=
     (retainedSource.pair state).ofOutputEq fun _ => rfl
   exact ((NativeCompiler.optionSome (eRetainedState encHandlerState)).comp retained).ofOutputEq
@@ -1599,12 +1275,10 @@ noncomputable def handlerOutputCompiler [Inhabited HandlerState]
   let source := (retainedSourceCompiler encHandlerState).comp retained
   let cfg := cfgCompiler.comp source
   let output := ICfg.outputCompiler.comp cfg
-  let state := ((NativeCompiler.second eLoopState encHandlerState).ofInputEq
-    RetainedState.handlerState fun _ => rfl).comp retained
+  let state := (retainedHandlerStateCompiler encHandlerState).comp retained
   let result : NativeCompiler
       (fun input : QueryResult HandlerState =>
-        ({ output := (input.getD default).source.cfg.output
-          handlerState := (input.getD default).handlerState } :
+        (⟨(input.getD default).source.cfg.output, (input.getD default).handlerState⟩ :
           HandlerRunOutput HandlerState))
       (eQueryResult encHandlerState) (eHandlerRunOutput encHandlerState) :=
     (output.pair state).ofOutputEq fun _ => rfl
@@ -1656,7 +1330,7 @@ theorem time_initializedHandlerArtifact [Inhabited HandlerState] (r : ℕ)
       5 * (initialHandlerStateCompiler (r + 1) encHandlerState).time input +
         (handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost certificate).time
           (initialHandlerState (r + 1) input) + 9 :=
-  NativeOracleProgram.time_preprocess _ _
+  NativeOracleProgram.time_preprocess _ _ _
 
 /-- Exact complete closed semantics: initialize, execute every source round with the retained local
 handler, then return the source output and final private handler state together. -/
@@ -1677,53 +1351,30 @@ private theorem handlerRunProgram_eq_runWithLocalHandler [Inhabited HandlerState
     handlerRunProgram r handler input =
       (fun result =>
         ({ output := result.1, handlerState := result.2 } : HandlerRunOutput HandlerState)) <$>
-        runWithLocalHandler handler (NativeInterpreter.run (r + 1) input.source)
+        runWithLocalHandler handler (Turing.MultiTapePTM.Universal.run (r + 1) input.source)
           input.handlerState := by
   by_cases hoperations : input.source.desc.operations = r + 1
-  · rw [← congrFun (stagedRun_eq_run (r + 1)) input.source]
-    simp only [handlerRunProgram, initializedHandlerProgram, handlerLoopProgram,
-      initialHandlerState, initialState, hoperations, ↓reduceIte, stagedRun,
-      handlerRounds, rounds]
-    rw [show
-      { source :=
-          { desc := input.source.desc
-            input := input.source.input
-            fuel := input.source.fuel
-            replyBits := input.source.replyBits
-            remaining := input.source.fuel
-            cfg := ICfg.init input.source.desc }
-        handlerState := input.handlerState } =
-        withDynamicHandlerState
-          { desc := input.source.desc
-            input := input.source.input
-            fuel := input.source.fuel
-            replyBits := input.source.replyBits
-            remaining := input.source.fuel
-            cfg := ICfg.init input.source.desc }
-          input.source.fuel (ICfg.init input.source.desc) input.handlerState by rfl]
-    rw [show
-      { desc := input.source.desc
-        input := input.source.input
-        fuel := input.source.fuel
-        replyBits := input.source.replyBits
-        remaining := input.source.fuel
-        cfg := ICfg.init input.source.desc } =
-        LoopState.withDynamic
-          { desc := input.source.desc
-            input := input.source.input
-            fuel := input.source.fuel
-            replyBits := input.source.replyBits
-            remaining := input.source.fuel
-            cfg := ICfg.init input.source.desc }
-          input.source.fuel (ICfg.init input.source.desc) by rfl]
-    rw [handlerIterate_withDynamic, iterate_step_withDynamic]
-    simp [runWithLocalHandler, handlerOutput, output, withDynamicHandlerState]
-  · simp [handlerRunProgram, initializedHandlerProgram, handlerLoopProgram,
-      initialHandlerState, initialState, hoperations, handlerRounds,
-      handlerOutput, NativeInterpreter.run, runWithLocalHandler]
+  · let template : LoopState :=
+      ⟨input.source.desc, input.source.input, input.source.fuel, input.source.replyBits,
+        input.source.fuel, ICfg.init input.source.desc⟩
+    simp only [Turing.MultiTapePTM.Universal.run, hoperations, ↓reduceIte]
+    change handlerOutput <$> OracleComp.iterate _ (handlerBodyProgram r handler) _ = _
+    have hinit : initialHandlerState (r + 1) input =
+        some (withDynamicHandlerState template input.source.fuel (ICfg.init input.source.desc)
+          input.handlerState) := by simp [initialHandlerState, initialState, hoperations, template,
+            withDynamicHandlerState]
+    rw [hinit]
+    change handlerOutput <$> OracleComp.iterate input.source.fuel _ _ = _
+    rw [handlerIterate_withDynamic]
+    simp [runWithLocalHandler, withDynamicHandlerState, template,
+      Functor.map_map, Cslib.StateT.map_apply, StateT.run]
+  · simp [handlerRunProgram, initializedHandlerProgram, handlerLoopProgram, initialHandlerState,
+      initialState, hoperations, handlerRounds, Turing.MultiTapePTM.Universal.run,
+      runWithLocalHandler, show (default : LoopState).remaining = 0 from rfl]
+    rfl
 
 /-- **Exact retained local-handler semantics.** Closing the impossible external channel of the
-constructed program gives the complete `NativeInterpreter.runState` computation: malformed
+constructed program gives the complete stateful interpreter computation: malformed
 operation counts return `[]` and preserve the initial handler state, while valid runs return the
 source output beside the handler's actual final state. -/
 theorem run_handlerRunProgram_eq_runState [Inhabited HandlerState] (r : ℕ)
@@ -1733,7 +1384,7 @@ theorem run_handlerRunProgram_eq_runState [Inhabited HandlerState] (r : ℕ)
     (handlerRunProgram r handler input).run (fun impossible => impossible.1.elim0) =
       (fun result =>
         ({ output := result.1, handlerState := result.2 } : HandlerRunOutput HandlerState)) <$>
-        ((NativeInterpreter.run (r + 1) input.source).runState
+        ((Turing.MultiTapePTM.Universal.run (r + 1) input.source).runState
           (localHandlerOracle handler)).run input.handlerState := by
   rw [handlerRunProgram_eq_runWithLocalHandler, ProbOracleComp.run_map,
     run_runWithLocalHandler]
@@ -1749,7 +1400,8 @@ theorem handlerRunProgram_malformed [Inhabited HandlerState] (r : ℕ)
       pure { output := [], handlerState := input.handlerState } := by
   simp [handlerRunProgram, initializedHandlerProgram, handlerLoopProgram,
     initialHandlerState, initialState, hoperations, handlerRounds,
-    handlerOutput]
+    show (default : LoopState).remaining = 0 from rfl]
+  rfl
 
 /-- A valid zero-clock run performs no body round and returns the initialized source output beside
 the unchanged private handler state. -/
@@ -1767,7 +1419,7 @@ theorem handlerRunProgram_zero_fuel [Inhabited HandlerState] (r : ℕ)
     initialHandlerState, initialState, hoperations, hfuel, handlerRounds, handlerOutput]
 
 /-- Proof-carrying output-copy bound for the final retained handler artifact. The loop certificate
-owns reachability and body bounds; this record adds only the support-local final projection bound. -/
+owns reachability and body bounds. This record adds the support-local final projection bound. -/
 structure RunCertificate [Inhabited HandlerState] (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool)
     (handler : HandlerCall (r + 1) HandlerState →
@@ -1789,10 +1441,7 @@ structure RunCertificate [Inhabited HandlerState] (r : ℕ)
       ∀ phase,
         (ClassifiedCompiler.inPhase .outputCopy
             (handlerOutputCompiler encHandlerState)).online.time phase current ≤
-            outputOnline.time phase input ∧
-          (ClassifiedCompiler.inPhase .outputCopy
-              (handlerOutputCompiler encHandlerState)).online.workspace phase current ≤
-            outputOnline.workspace phase input
+            outputOnline.time phase input
 
 /-- Phasewise maxima of final output copying over the finite set of reachable final retained
 states. -/
@@ -1804,12 +1453,6 @@ private noncomputable def finiteOutputOnline [Inhabited HandlerState]
     listMax (fun current =>
       (ClassifiedCompiler.inPhase .outputCopy
         (handlerOutputCompiler encHandlerState)).online.time phase current)
-      (finiteReachable r (initialHandlerState (r + 1) input)
-        (handlerRounds (initialHandlerState (r + 1) input)))
-  workspace := fun phase input =>
-    listMax (fun current =>
-      (ClassifiedCompiler.inPhase .outputCopy
-        (handlerOutputCompiler encHandlerState)).online.workspace phase current)
       (finiteReachable r (initialHandlerState (r + 1) input)
         (handlerRounds (initialHandlerState (r + 1) input)))
 
@@ -1832,7 +1475,7 @@ noncomputable def finiteRunCertificate [Inhabited HandlerState] [Fintype Handler
       (initialHandlerState (r + 1) input)
       (handlerRounds (initialHandlerState (r + 1) input)) OracleState oracle state current state'
       (by simpa [initializedHandlerProgram, handlerLoopProgram] using hcurrent)
-    exact ⟨le_listMax hreach, le_listMax hreach⟩
+    exact le_listMax hreach
 
 /-- Complete actual closed retained artifact. Its operation type is `Fin 0`: every source query is
 handled locally, so no validation or other external call remains. -/
@@ -1854,9 +1497,10 @@ noncomputable def artifact [Inhabited HandlerState] (r : ℕ)
     (ClassifiedCompiler.inPhase .outputCopy (handlerOutputCompiler encHandlerState))
     certificate.outputOnline certificate.outputBound
 
-/-- The complete machine contains exactly input initialization, one typed iteration of the shared
-handler body, and final output projection. No parallel controller or semantic callback is hidden. -/
-theorem machine_artifact [Inhabited HandlerState] (r : ℕ)
+/-- Installed and runtime bits for the closed controller. Its own description includes the
+installed handler. The source description occurs inside the framed source input and the initial
+private handler state follows that frame. -/
+theorem installed_add_input_bits [Inhabited HandlerState] (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool)
     {handler : HandlerCall (r + 1) HandlerState →
       WordOracleComp (Fin 0) (HandlerResult HandlerState)}
@@ -1864,16 +1508,14 @@ theorem machine_artifact [Inhabited HandlerState] (r : ℕ)
       (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
     (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
     (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : RunCertificate r encHandlerState handler handlerArtifact postOnline hpost) :
-    (artifact r encHandlerState handlerArtifact postOnline hpost certificate).machine =
-      (ofDeterministic
-        (ClassifiedCompiler.inPhase .outputCopy
-          (handlerOutputCompiler encHandlerState)).compiler.machine).tidyComp
-        ((handlerLoopArtifact r encHandlerState handlerArtifact postOnline hpost
-          certificate.loop).machine.tidyComp
-            (ofDeterministic
-              (ClassifiedCompiler.inPhase .inputCopy
-                (initialHandlerStateCompiler (r + 1) encHandlerState)).compiler.machine) true) true :=
+    (certificate : RunCertificate r encHandlerState handler handlerArtifact postOnline hpost)
+    (input : HandlerRunInput HandlerState) :
+    let installed := artifact r encHandlerState handlerArtifact postOnline hpost certificate
+    installed.staticBits + (eHandlerRunInput encHandlerState input).length =
+      descLen installed.description +
+        (2 * (2 * suppliedDescSize input.source + 1 + runParameterSize input.source) +
+          1 + (encHandlerState input.handlerState).length) := by
+  simp only [eHandlerRunInput_apply, length_encPair, ← runInputSize_eq_framed, runInputSize]
   rfl
 
 /-- Exact final composition time, with the initialized loop and support-local output copy kept as
@@ -1893,25 +1535,9 @@ theorem time_artifact [Inhabited HandlerState] (r : ℕ)
           certificate.loop).time input + certificate.outputOnline.totalTime input + 9 :=
   NativeOracleProgram.time_postprocess _ _ _ _ _
 
-/-- Direct clean-phase certificate for the complete output-plus-final-state law. -/
-theorem artifact_computes [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : RunCertificate r encHandlerState handler handlerArtifact postOnline hpost)
-    (input : HandlerRunInput HandlerState) :
-    (artifact r encHandlerState handlerArtifact postOnline hpost certificate).machine.ComputesTidily
-      (eHandlerRunInput encHandlerState input)
-      ((artifact r encHandlerState handlerArtifact postOnline hpost certificate).time input)
-      ((eHandlerRunOutput encHandlerState) <$> handlerRunProgram r handler input) :=
-  (artifact r encHandlerState handlerArtifact postOnline hpost certificate).computes input
-
-/-- Exact stateful distribution equality for the clocked closed machine. The impossible external
-operation channel is retained in the statement only to use the common machine semantics. -/
+/-- Exact stateful distribution equality for the clocked closed machine. Running the native
+clocked machine through the empty external interface yields the encoded source result and final
+private handler state. The unrelated external state passes through unchanged. -/
 theorem runWith_artifact_machine [Inhabited HandlerState] (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool)
     {handler : HandlerCall (r + 1) HandlerState →
@@ -1928,40 +1554,14 @@ theorem runWith_artifact_machine [Inhabited HandlerState] (r : ℕ)
         ((artifact r encHandlerState handlerArtifact postOnline hpost certificate).machine.runOracle
           ((artifact r encHandlerState handlerArtifact postOnline hpost certificate).time input)
           (eHandlerRunInput encHandlerState input)) state =
-      ProbOracleComp.runWith oracle
-        ((eHandlerRunOutput encHandlerState) <$> handlerRunProgram r handler input)
-        state :=
-  (artifact_computes r encHandlerState handlerArtifact postOnline hpost certificate input).runOracle
-    oracle state
-
-/-- The final composed closed artifact occurs once. Input/output compilers, handler body, query
-branch and loop control are inlined and are not separately installed occurrences. -/
-theorem artifact_installedDescriptions [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : RunCertificate r encHandlerState handler handlerArtifact postOnline hpost) :
-    (artifact r encHandlerState handlerArtifact postOnline hpost
-      certificate).installedDescriptions =
-        [(artifact r encHandlerState handlerArtifact postOnline hpost certificate).description] :=
-  NativeOracleProgram.installedDescriptions_eq_singleton _
-
-/-- Exact occurrence-sensitive static charge of the complete closed artifact. -/
-theorem artifact_installedBits [Inhabited HandlerState] (r : ℕ)
-    (encHandlerState : HandlerState ↪ List Bool)
-    {handler : HandlerCall (r + 1) HandlerState →
-      WordOracleComp (Fin 0) (HandlerResult HandlerState)}
-    (handlerArtifact : NativeOracleProgram 0 handler
-      (eHandlerCall (r + 1) encHandlerState) (eHandlerResult encHandlerState))
-    (postOnline : OnlineAccounting (QueryInput (r + 1) HandlerState))
-    (hpost : PostBound (r + 1) encHandlerState handler postOnline)
-    (certificate : RunCertificate r encHandlerState handler handlerArtifact postOnline hpost) :
-    (artifact r encHandlerState handlerArtifact postOnline hpost certificate).installedBits =
-      (artifact r encHandlerState handlerArtifact postOnline hpost certificate).staticBits :=
-  NativeOracleProgram.installedBits_eq_staticBits _
+      (ProbComp.eval (((Turing.MultiTapePTM.Universal.run (r + 1) input.source).runState
+          (localHandlerOracle handler)).run input.handlerState)).map (fun result =>
+        (eHandlerRunOutput encHandlerState ⟨result.1, result.2⟩, state)) := by
+  rw [NativeOracleProgram.time,
+    ((artifact r encHandlerState handlerArtifact postOnline hpost certificate).computes
+    input).runOracle oracle state, ProbOracleComp.runWith_map,
+    ← sample_run_empty (handlerRunProgram r handler input), run_handlerRunProgram_eq_runState,
+    ProbOracleComp.runWith_sample, ProbComp.eval_map, PMF.map_comp, PMF.map_comp]
+  rfl
 
 end Turing.MultiTapePTM.Universal.NativeHandler

@@ -30,22 +30,93 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
 open Turing.MultiTapeTM.Internal
 
+/-- Retained conversion from a raw word to its framed Boolean-list representation. -/
+@[expose] noncomputable def frameBits :
+    NativeCompiler (id : List Bool → List Bool) encBits (encList encBool) := by
+  let convert : NativeCompiler (fun word : List Bool =>
+      bitsToBoolListT.run bitsToBoolListT.q₀ word)
+      encBits encBits :=
+    ofTransducer bitsToBoolListT Universal.eBit fun _ => rfl
+  exact ((convert.comp (encodeFrame encBits)).ofOutputEq fun word => by
+      simpa only [id_eq, encBits_apply] using (bitsToBoolListT_run word).symm)
+
 /-- Binary-indexed access to a raw bit word, with an explicit out-of-range fallback. The compiler
 retains the framing conversion and the complete framed-list scan. -/
 @[expose] noncomputable def bitsGetDNatCompiler (fallback : Bool) :
     NativeCompiler (fun p : List Bool × ℕ => p.1.getD p.2 fallback)
       (encPair encBits encNat) encBool := by
-  let encInput := encPair encBits encNat
   let bits := first encBits encNat
   let index := second encBits encNat
-  let convert : NativeCompiler (fun word : List Bool =>
-      bitsToBoolListT.run bitsToBoolListT.q₀ word)
-      encBits encBits :=
-    ofTransducer bitsToBoolListT Universal.eBit fun _ => rfl
-  let listed : NativeCompiler (id : List Bool → List Bool) encBits (encList encBool) :=
-    ((convert.comp (encodeFrame encBits)).ofOutputEq fun word => by
-      simpa only [id_eq, encBits_apply] using (bitsToBoolListT_run word).symm)
-  let listedInput := listed.comp bits
+  let listedInput := frameBits.comp bits
   exact (listGetDNatCompiler fallback encBool).comp (listedInput.pair index)
+
+private theorem length_encList_bool (word : List Bool) :
+    (encList encBool word).length = 3 * word.length := by
+  induction word with
+  | nil => rfl
+  | cons bit word ih =>
+    simp only [encList_cons, List.length_append, length_frame, encBool_apply,
+      List.length_nil, List.length_cons, ih]
+    omega
+
+private noncomputable def unframeBits :
+    NativeCompiler (id : List Bool → List Bool) (encList encBool) encBits :=
+  ofTransducer listBitsT Fin.valEmbedding fun word => listBitsT_run word
+
+private noncomputable def takeBitsInput :
+    NativeCompiler (fun input : List Bool × ℕ => (input.1, input.2))
+      (encPair encBits encUnary) (encPair (encList encBool) encUnary) := by
+  let word := frameBits.comp (NativeCompiler.first encBits encUnary)
+  let count := NativeCompiler.second encBits encUnary
+  exact word.pair count
+
+private noncomputable def takeBitsFramed :
+    NativeCompiler (fun input : List Bool × ℕ => input.1.take input.2)
+      (encPair encBits encUnary) (encList encBool) :=
+  (takeUnary encBool).comp takeBitsInput
+
+/-- Canonical retained raw-bit prefix compiler. The executed machine first frames every raw bit,
+uses the direct unary encoded-list prefix machine, then removes the frames. -/
+noncomputable def takeBits :
+    NativeCompiler (fun input : List Bool × ℕ => input.1.take input.2)
+      (encPair encBits encUnary) encBits :=
+  unframeBits.comp takeBitsFramed
+
+/-- Fully expanded exact clock in the raw-word length, unary count and emitted-prefix length. -/
+theorem time_takeBits_expanded (input : List Bool × ℕ) :
+    takeBits.time input =
+      124 * input.1.length + 21 * input.2 + 24 * (input.1.take input.2).length + 135 := by
+  simp only [takeBits, takeBitsFramed, takeBitsInput, frameBits, encodeFrame, unframeBits,
+    NativeCompiler.comp, NativeCompiler.pair, first, second,
+    ofTransducer, takeUnary, takeDropUnary, NativeCompiler.ofOutputEq, id_eq, length_frame,
+    length_encList_bool,
+    length_encPair, encBits_apply, encUnary_apply, List.length_replicate]
+  omega
+
+/-- Fully expanded exact workspace in the raw-word length, unary count and emitted-prefix length. -/
+theorem workspace_takeBits_expanded (input : List Bool × ℕ) :
+    takeBits.workspace input =
+      60 * input.1.length + 13 * input.2 + 15 * (input.1.take input.2).length + 268 := by
+  simp only [takeBits, takeBitsFramed, takeBitsInput, frameBits, encodeFrame, unframeBits,
+    NativeCompiler.comp, NativeCompiler.pair, first, second,
+    ofTransducer, takeUnary, takeDropUnary, NativeCompiler.ofOutputEq, id_eq, length_frame,
+    length_encList_bool,
+    length_encPair, encBits_apply, encUnary_apply, List.length_replicate]
+  omega
+
+/-- A direct linear clock bound in the actual raw-word length and unary count. -/
+theorem time_takeBits_le (input : List Bool × ℕ) :
+    takeBits.time input ≤ 148 * (input.1.length + input.2 + 1) := by
+  rw [time_takeBits_expanded]
+  have htake := List.length_take_le input.2 input.1
+  omega
+
+/-- A direct linear workspace bound in the actual raw-word length and unary count. -/
+theorem workspace_takeBits_le (input : List Bool × ℕ) :
+    takeBits.workspace input ≤ 268 * (input.1.length + input.2 + 1) := by
+  rw [workspace_takeBits_expanded]
+  have htake := List.length_take_le input.2 input.1
+  omega
+
 
 end Turing.MultiTapeTM.Internal.NativeCompiler
