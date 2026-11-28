@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.PolyTime.Plurality
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 
 /-! Binary natural outputs use the plurality certificate, including ties and empty lists. -/
 
