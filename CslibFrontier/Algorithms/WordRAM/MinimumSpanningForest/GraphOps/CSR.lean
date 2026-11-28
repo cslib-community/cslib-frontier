@@ -523,7 +523,7 @@ private theorem csrScatter_framed {w n edgeBase adj cur fEnd : ℕ}
         (adj + 2 * pos₂) eu.val) (adj + 2 * pos₂ + 1) k, t.frontier⟩
     have htEnd_new : tEnd.mem (adj + 2 * (offFn ev.castSucc + len₂ ev)) = eu.val ∧
         tEnd.mem (adj + 2 * (offFn ev.castSucc + len₂ ev) + 1) = k := hnew₂
-    show inv₃ (k + 1) (k + 1) tEnd
+    change inv₃ (k + 1) (k + 1) tEnd
     refine ⟨rfl, htfr, fun u => ?_, fun u => ?_⟩
     · dsimp only [tEnd]
       rw [hcur₂ u, edgeDegPrefix_succ es hk u]

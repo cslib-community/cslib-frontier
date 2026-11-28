@@ -1026,7 +1026,7 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
       refine FramedTriple.read_bind (c := 9) hst_lt ?_
       simp only [hst0, ↓reduceIte]
       framed_triple
-      · show Inv (t + 1) ⟨a.idx + 1, a.count + 1⟩ st₂
+      · change Inv (t + 1) ⟨a.idx + 1, a.count + 1⟩ st₂
         dsimp only [Inv, m] at *
         refine ⟨by omega, by omega, by omega, hfr_cp.trans hst_fr, hwf_cp, fun x hx => ?_,
           corrEmitted ++ [eFin],
