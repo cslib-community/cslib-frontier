@@ -710,8 +710,8 @@ theorem validProg_queryWithHash {U V w n_max : ℕ}
     (hpre : QueryWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1) s
       (queryWithHashProg U V w n_max d) := by
-  simp only [queryWithHashProg, queryWithHashGenProg, p_bucketBits_mk,
-    p_bucketMask_mk, pure_bind, queryBodyGenProg_mk]
+  simp only [queryWithHashProg, queryWithHashGenProg, succinct_param_simps, pure_bind,
+    queryBodyGenProg_mk]
   exact validProg_queryBody hpre.1.1 hpre.2.2.2
 
 end
@@ -793,8 +793,8 @@ theorem validProg_insertWithHash {U V w n_max : ℕ}
     (hpre : InsertWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1.1) s
       (insertWithHashProg U V w n_max d) := by
-  simp only [insertWithHashProg, insertWithHashGenProg, p_bucketBits_mk,
-    p_bucketMask_mk, pure_bind, insertBodyGenProg_mk]
+  simp only [insertWithHashProg, insertWithHashGenProg, succinct_param_simps, pure_bind,
+    insertBodyGenProg_mk]
   exact validProg_insertBody hpre.1.1 hpre.1.2.1 hpre.1.2.2.1 hpre.1.2.2.2 hpre.2.2.2
 
 end
@@ -852,8 +852,8 @@ theorem validProg_deletePrepWithHash {U V w n_max : ℕ}
     (hpre : QueryWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1) s
       (deletePrepWithHashProg U V w n_max d) := by
-  simp only [deletePrepWithHashProg, deletePrepWithHashGenProg, p_bucketBits_mk,
-    p_bucketMask_mk, pure_bind, deletePrepGenProg_mk]
+  simp only [deletePrepWithHashProg, deletePrepWithHashGenProg, succinct_param_simps, pure_bind,
+    deletePrepGenProg_mk]
   exact validProg_deletePrep hpre.1.1 hpre.2.2.2
 
 end
@@ -947,8 +947,8 @@ theorem validProg_deleteFinishWithHash {U V w n_max : ℕ}
     (hpre : DeleteFinishWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1.1.1) s
       (deleteFinishWithHashProg U V w n_max d) := by
-  simp only [deleteFinishWithHashProg, deleteFinishWithHashGenProg, p_bucketBits_mk,
-    p_bucketMask_mk, pure_bind, deleteFinishGenProg_mk]
+  simp only [deleteFinishWithHashProg, deleteFinishWithHashGenProg, succinct_param_simps,
+    pure_bind, deleteFinishGenProg_mk]
   exact validProg_deleteFinish hpre.1.1 hpre.1.2.1 hpre.1.2.2.1 hpre.1.2.2.2 hpre.2.2.2
 
 end
@@ -1011,8 +1011,8 @@ theorem queryWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   let m := mOfSeed U n_max θ q
   obtain ⟨hb_eq, hq_eq, hm_eq, hb_lt, hm_lt, hpre⟩ := dispatch_spec (w := w) hwf henv θ hinv u
   have hprog_eq : prog = queryBodyProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m) := by
-    simp only [prog, d, h_q, b, q, m, h1, queryWithHashProg, queryWithHashGenProg, p_bucketBits_mk,
-      p_bucketMask_mk, pure_bind, queryBodyGenProg_mk, hb_eq, hq_eq, hm_eq]
+    simp only [prog, d, h_q, b, q, m, h1, queryWithHashProg, queryWithHashGenProg,
+      succinct_param_simps, pure_bind, queryBodyGenProg_mk, hb_eq, hq_eq, hm_eq]
   have hspec := queryBodyProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
   rw [hprog_eq]
@@ -1061,7 +1061,7 @@ theorem insertWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   have hprog_eq : prog =
       insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m) := by
     simp only [prog, d, h_q, b, q, m, h1, insertWithHashProg, insertWithHashGenProg,
-      p_bucketBits_mk, p_bucketMask_mk, pure_bind, insertBodyGenProg_mk, hb_eq, hq_eq, hm_eq]
+      succinct_param_simps, pure_bind, insertBodyGenProg_mk, hb_eq, hq_eq, hm_eq]
   have hB_eq : bucketMapOfState U n_max h1 s_abs b q = s_abs u :=
     bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u
   have hcap : (bucketMapOfState U n_max h1 s_abs b q).isSome ∨ totalSlots n_max gm₀ < n_max := by
@@ -1123,7 +1123,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   have hprep_eq : prog_prep =
       deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m) := by
     dsimp only [prog_prep, d_prep, deletePrepWithHashProg, deletePrepWithHashGenProg]
-    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, deletePrepGenProg_mk]
+    simp only [succinct_param_simps, pure_bind, deletePrepGenProg_mk]
     rw [hb_eq, hq_eq, hm_eq]
   have hprep_spec := deletePrepProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hfin_spec := deleteFinishProg_bucket_spec hwf.1 hb_inv henv hb_lt (q_target := q) (m := m)
@@ -1140,7 +1140,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
       deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
         (((((base, b), (found, j_del)), phys_del), m), mOfSeed U n_max θ q_last) := by
     dsimp only [prog_fin, d_fin, deleteFinishWithHashProg, deleteFinishWithHashGenProg]
-    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, deleteFinishGenProg_mk]
+    simp only [succinct_param_simps, pure_bind, deleteFinishGenProg_mk]
     rw [hb_eq, hm_eq]; rfl
   obtain ⟨hpre_fin_inner, hf, hout, ⟨L', hinv'⟩, htot', hcost_fin⟩ := hfin_spec
   rw [bucketMapOfState_update hwf.2.1 h1 s_abs u none] at hinv'

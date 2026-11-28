@@ -154,9 +154,8 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
   set s₇ := (Memory.spec 0).clientState s₆
     (compRemoveTailGMOnlyGenProg ((mkCompParams U V w N, metaBase), b))
   have hres_all : (Memory.spec 0).clientResult s (compPromoteStepGenProg d) = k + 1 := by
-    simp only [d, compPromoteStepGenProg, compPromoteFinishStepProg,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure,
-      hst_gm, hres_gm, hst_ds, hres_ds]
+    simp only [d, compPromoteStepGenProg, compPromoteFinishStepProg, client_simps, hst_gm, hres_gm,
+      hst_ds, hres_ds]
   have hst_all : s' = s₇ := by
     simp [s', d, compPromoteStepGenProg, compPromoteFinishStepProg,
       hst_gm, hres_gm, hst_ds, hres_ds, hmv_st, hmv_res, s₇, s₆, s₅, s₄]

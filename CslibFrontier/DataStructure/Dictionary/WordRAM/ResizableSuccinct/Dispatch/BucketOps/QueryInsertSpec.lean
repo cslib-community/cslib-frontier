@@ -99,7 +99,7 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
       (queryWithHashProg U V (ghostW w) N ((0, u.val), h_q)) =
       (Memory.spec 0).clientResult s_fix
         (queryBodyProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m)) := by
-    simp only [queryWithHashProg, queryWithHashGenProg, p_bucketBits_mk, p_bucketMask_mk,
+    simp only [queryWithHashProg, queryWithHashGenProg, succinct_param_simps,
       queryBodyGenProg_mk, pure_bind]
     rw [and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q,
       Nat.shiftRight_eq_div_pow u.val (bucketBits N)]
@@ -208,7 +208,7 @@ private theorem insertWithHashProg_clientState_hit (U V w₀ n_max u v h_q : ℕ
     (Memory.spec 0).clientState s_fix (insertWithHashProg U V w₀ n_max (((0, u), v), h_q)) =
       (Memory.spec 0).clientState s_fix
         (writeValProg U V w₀ n_max (hashSpace U w₀ n_max) ((0, res_sb.2), v)) := by
-  simp only [insertWithHashProg, insertWithHashGenProg, p_bucketBits_mk, p_bucketMask_mk,
+  simp only [insertWithHashProg, insertWithHashGenProg, succinct_param_simps,
     insertBodyGenProg_mk, pure_bind]
   rw [hb_eq, hq_eq, hm_eq]
   simp only [insertBodyProg, insertBodyGenProg, searchBucketGenProg_mk, writeValGenProg_mk,
@@ -233,7 +233,7 @@ private theorem insertWithHashProg_clientState_miss (U V w₀ n_max u v h_q : �
         (prependIfIndexedProg U V w₀ n_max (hashSpace U w₀ n_max)
           (((0, b), m),
             bCount n_max (gmAt 0 U V w₀ n_max (hashSpace U w₀ n_max) s_fix.mem) b)) := by
-  simp only [insertWithHashProg, insertWithHashGenProg, p_bucketBits_mk, p_bucketMask_mk,
+  simp only [insertWithHashProg, insertWithHashGenProg, succinct_param_simps,
     insertBodyGenProg_mk, pure_bind]
   rw [hb_eq, hq_eq, hm_eq]
   simp only [insertBodyProg, insertBodyGenProg, searchBucketGenProg_mk, writeValGenProg_mk,

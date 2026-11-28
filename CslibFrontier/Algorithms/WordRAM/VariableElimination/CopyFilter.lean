@@ -182,8 +182,8 @@ theorem filterNe_cost (args : MemScanArgs) (s : Memory.State) :
   rw [memoryCost_bind', memoryCost_allocDirty, memoryCost_bind', memoryCost_pure, Nat.add_zero]
   refine Nat.add_le_add_left (memoryCost_iterate_le_of filterNeStep 2 args.target (fun a t => ?_)
     args.len ⟨args.base, s.frontier, 0⟩ ⟨s.mem, s.frontier + args.len⟩) 1
-  simp only [filterNeStep, memoryCost_bind', memoryCost_read, clientResult_read, memoryCost_ite]
-  split_ifs <;> simp [memoryCost_write, memoryCost_pure]
+  simp only [filterNeStep, client_simps, memoryCost_ite]
+  split_ifs <;> simp
 
 private theorem filterNeStep_eval (target : ℕ) (st : FilterState) (t : Memory.State) :
     (Memory.spec 0).clientResult t (filterNeStep (target, st)) =

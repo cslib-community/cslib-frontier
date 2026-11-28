@@ -79,8 +79,8 @@ private theorem realizesBounded_compDemoteReadGM :
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
       lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits
-    simp only [cpSlabSizeSubOne_mk, cpSlabSize_mk, htop_eq,
-      StateTransitionSpec.clientState, runClient_state_readCompGMGenProg] at *
+    simp only [succinct_param_simps, htop_eq, StateTransitionSpec.clientState,
+      runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg htop_lt] at *
     try rw [clientResult_readCompGMGenProg h0_lt] at *)
   all_goals try exact ⟨henv.compMetaEnv, by simp only [cpN_mk]; omega⟩

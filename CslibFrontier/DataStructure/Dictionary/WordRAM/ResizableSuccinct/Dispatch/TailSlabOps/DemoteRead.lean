@@ -184,15 +184,13 @@ private theorem compDemoteStep_read_spec {metaBase itemBase U V w N m_cap b k : 
   · unfold StateTransitionSpec.clientState
     simp [compDemoteReadGMProg]
   · dsimp only [compDemoteReadGMProg]
-    simp only [cpSlabSizeSubOne_mk, cpSlabSize_mk, htop_eq]
-    rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg htop_lt,
-      clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg h0_lt, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h1_lt,
-      clientState_readCompGMGenProg]
+    simp only [succinct_param_simps, htop_eq]
+    simp only [client_simps, StateTransitionSpec.clientState,
+      clientResult_readCompGMGenProg htop_lt, runClient_state_readCompGMGenProg,
+      clientResult_readCompGMGenProg h0_lt, clientResult_readCompGMGenProg h1_lt]
     rfl
   · dsimp only [compDemoteReadGMProg]
-    simp only [cpSlabSizeSubOne_mk, cpSlabSize_mk, htop_eq]
+    simp only [succinct_param_simps, htop_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, htop_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h0_lt⟩) ?_

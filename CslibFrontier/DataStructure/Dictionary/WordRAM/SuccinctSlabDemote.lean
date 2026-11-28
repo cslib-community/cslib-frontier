@@ -306,33 +306,29 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   have hr_vl := clientResult_readValProg (U := U) (V := V) (w := w) (h_space := h_space)
     (base := base) s hg_last_lt
   dsimp only [g_del, p_del, gmSlabTopIdx, gm, g_last, p_last, u] at hr_qd hr_vd hr_ql hr_vl
-  have hres_eq : (Memory.spec 0).clientResult s
-      (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 := by
-    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
-      writeValGenProg_mk, appendTailItemGenProg_mk]
-    rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg, hr_top,
-      StateTransitionSpec.clientResult_bind, clientState_readGMProg, hr_0,
-      StateTransitionSpec.clientResult_bind, clientState_readQuotProg, hr_qd,
-      StateTransitionSpec.clientResult_bind, clientState_readValProg, hr_vd,
-      StateTransitionSpec.clientResult_bind, clientState_readQuotProg, hr_ql,
-      StateTransitionSpec.clientResult_bind, clientState_readValProg, hr_vl]
-    simp only [StateTransitionSpec.clientResult_bind]
+  have eval_eq {α : Type} {p : Memory.Prog α} {a : α} {t : Memory.State}
+      (ha : (Memory.spec 0).clientResult s p = a) (ht : (Memory.spec 0).clientState s p = t) :
+      Cslib.DataStructure.eval (Memory.spec 0) p s = (a, t) :=
+    Prod.ext ha ht
+  have hrun : Cslib.DataStructure.eval (Memory.spec 0)
+      (demoteStepProg U V w n_max h_space ((base, b), k)) s =
+      (k + 1, s₅) := by
+    simp only [demoteStepProg, demoteStepGenProg, succinct_param_simps, readGMGenProg_mk,
+      readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
+      appendTailItemGenProg_mk, ← PFunctor.FreeM.bind_eq_bind]
+    rw [eval_bind, eval_eq hr_top (clientState_readGMProg ..),
+      eval_bind, eval_eq hr_0 (clientState_readGMProg ..),
+      eval_bind, eval_eq hr_qd (clientState_readQuotProg ..),
+      eval_bind, eval_eq hr_vd (clientState_readValProg ..),
+      eval_bind, eval_eq hr_ql (clientState_readQuotProg ..),
+      eval_bind, eval_eq hr_vl (clientState_readValProg ..),
+      eval_bind, eval_eq hres_app (show _ = s₁ from rfl)]
+    repeat rw [eval_bind]
+    rw [eval_pure']
+    dsimp only [Cslib.DataStructure.eval]
     rfl
-  have hst : s' = s₅ := by
-    dsimp only [s']
-    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
-      writeValGenProg_mk, appendTailItemGenProg_mk]
-    rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hr_top,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg, hr_0,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hr_qd,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hr_vd,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hr_ql,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hr_vl,
-      StateTransitionSpec.clientState_bind, hres_app]
-    repeat rw [StateTransitionSpec.clientState_bind]
-    rfl
+  have hres_eq := congrArg Prod.fst hrun
+  have hst : s' = s₅ := congrArg Prod.snd hrun
   rw [hst]
   refine ⟨hres_eq, by rw [hf5, hf4, hf3, hf2, hf1], fun a ha => ?_,
     by rw [hq5, hq4, hq3, hq2, hq1], by rw [hv5, hv4, hv3, hv2, hv1],

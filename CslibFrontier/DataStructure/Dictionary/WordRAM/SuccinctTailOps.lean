@@ -617,7 +617,7 @@ theorem appendTailItemProg_effect {U V w n_max h_space base b : ℕ}
     hr_idx (lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_lt]))
     h1_lt (lt_two_pow_globalPtrBits_of_le_n_max (by omega))
   simp only [s', appendTailItemProg, appendTailItemGenProg, readGMGenProg_mk, writeGMGenProg_mk,
-    p_tailCap_mk, p_gmTailPtrBase_mk, p_gmTailOwnerBase_mk]
+    succinct_param_simps]
   rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
     clientState_readGMProg, clientResult_readGMProg s hr_idx,
     StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
@@ -822,7 +822,7 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
         (wGM (4 + 3 * b + 1) r_del)) (wGM 1 t_last) := by
     simp only [s', wGM, removeLastTailItemProg, removeLastTailItemGenProg, readGMGenProg_mk,
       writeGMGenProg_mk, readQuotGenProg_mk, writeQuotGenProg_mk, readValGenProg_mk,
-      writeValGenProg_mk, p_tailCap_mk, p_gmTailPtrBase_mk, p_gmTailOwnerBase_mk, p_nMaxSubOne_mk]
+      writeValGenProg_mk, succinct_param_simps]
     dsimp only [r_del, gmRIdx] at hptr_del
     rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
       clientResult_readGMProg s hr_idx, StateTransitionSpec.clientState_bind,

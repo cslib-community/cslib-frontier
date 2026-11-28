@@ -2716,6 +2716,7 @@ public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.Layout
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Prepare
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 public import CslibFrontier.Probability.KWiseIndependent.Concentration
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctParamSimps
 public import CslibFrontier.Foundations.Data.List.OfFn
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.KernelProduct
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust

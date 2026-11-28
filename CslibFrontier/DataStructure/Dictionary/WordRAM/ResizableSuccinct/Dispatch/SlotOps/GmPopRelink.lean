@@ -136,13 +136,8 @@ theorem compGmUnlinkTopSlabGenProg_effect {metaBase itemBase U V w N m_items b :
       (compGmUnlinkTopSlabGenProg ((mkCompParams U V w N, metaBase), b)) =
       gm (gmSlabTopIdx b) := by
     dsimp only [compGmUnlinkTopSlabGenProg, compGmUnlinkWriteProg, cpGmSlabMetaBase_mk, gm]
-    dsimp only [gm] at hbel_eq
-    rw [hq_eq, htop_eq, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg htop_idx_lt, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind]
-    rfl
+    simp only [client_simps, StateTransitionSpec.clientState, runClient_state_readCompGMGenProg,
+      hq_eq, htop_eq, clientResult_readCompGMGenProg htop_idx_lt]
   have hst : s' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState s
         (writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmSlabTopIdx b),
@@ -246,8 +241,8 @@ theorem compGmRelinkMovedSlabGenProg_effect
         writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmSlabTopIdx b_last), p_del)
       else pure ()) := by
     change (Memory.spec 0).clientState s _ = _
-    dsimp only [compGmRelinkMovedSlabGenProg, compGmRelinkWriteProg, cpGmSlabMetaBase_mk,
-      cpDirSlabs_mk, cpGmSlabDirBase_mk, gmSlabDirIdx, gmSlabOwnerSIdx, b_last, s_last, q_last, gm]
+    dsimp only [compGmRelinkMovedSlabGenProg, compGmRelinkWriteProg, succinct_param_simps,
+      gmSlabDirIdx, gmSlabOwnerSIdx, b_last, s_last, q_last, gm]
     dsimp only [b_last, gm] at hq_eq htop_eq hq_lt
     rw [hpl4, StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hownB_lt,
       clientState_readCompGMGenProg, StateTransitionSpec.clientState_bind,
@@ -287,7 +282,7 @@ private theorem realizesBounded_compGmRelinkWrite :
     have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_lt := gmQIdx_lt hb_pos hb_last
     have htop_lt := gmSlabTopIdx_lt hb_pos hb_last
-    simp only [cpDirSlabs_mk, cpGmSlabDirBase_mk, StateTransitionSpec.clientState] at *)
+    simp only [succinct_param_simps, StateTransitionSpec.clientState] at *)
   all_goals try exact lt_of_le_of_lt (by omega) hU
   all_goals try (
     have hc_dir : s_last < dirSlabsPerBucket N := by assumption
@@ -362,8 +357,7 @@ theorem validProg_compGmRelinkMovedSlab {w : ℕ} {d : ((CompParams × ℕ) × �
       globalMetaLen N := gmSlabTopIdx_lt hb_pos hb_last
   have htop_eq : gmQIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) + 2 =
       gmSlabTopIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) := rfl
-  dsimp only [compGmRelinkMovedSlabGenProg, compGmRelinkWriteProg, cpGmSlabMetaBase_mk,
-    cpDirSlabs_mk, cpGmSlabDirBase_mk]
+  dsimp only [compGmRelinkMovedSlabGenProg, compGmRelinkWriteProg, succinct_param_simps]
   rw [hpl4]
   refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hownB_lt⟩) ?_
   rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg hownB_lt]

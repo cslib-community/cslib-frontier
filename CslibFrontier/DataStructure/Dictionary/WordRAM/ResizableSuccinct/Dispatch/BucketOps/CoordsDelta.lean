@@ -83,10 +83,8 @@ def compGrowDeltaGenProg : CompParams × ℕ → Memory.Prog ℕ
     (Memory.spec 0).clientResult s (compGrowDeltaGenProg (mkCompParams U V w N, n)) =
       compactedItemWords U V w N (n + 1) - compactedItemWords U V w N n := by
   dsimp only [compGrowDeltaGenProg]
-  rw [prog_clientResult_bind, clientResult_compItemWordsGenProg hw,
-    clientState_compItemWordsGenProg, prog_clientResult_bind,
-    clientResult_compItemWordsGenProg hw, clientState_compItemWordsGenProg,
-    prog_clientResult_pure]
+  simp only [client_simps, StateTransitionSpec.clientState, clientResult_compItemWordsGenProg hw,
+    runClient_state_compItemWordsGenProg]
 
 theorem clientState_compGrowDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compGrowDeltaGenProg d) = s := by
@@ -148,10 +146,8 @@ def compShrinkDeltaGenProg : CompParams × ℕ → Memory.Prog ℕ
     (Memory.spec 0).clientResult s (compShrinkDeltaGenProg (mkCompParams U V w N, n)) =
       compactedItemWords U V w N n - compactedItemWords U V w N (n - 1) := by
   dsimp only [compShrinkDeltaGenProg]
-  rw [prog_clientResult_bind, clientResult_compItemWordsGenProg hw,
-    clientState_compItemWordsGenProg, prog_clientResult_bind,
-    clientResult_compItemWordsGenProg hw, clientState_compItemWordsGenProg,
-    prog_clientResult_pure]
+  simp only [client_simps, StateTransitionSpec.clientState, clientResult_compItemWordsGenProg hw,
+    runClient_state_compItemWordsGenProg]
 
 theorem clientState_compShrinkDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compShrinkDeltaGenProg d) = s := by
@@ -217,7 +213,7 @@ theorem clientResult_compFeistelCoordsProg (U V w N u h_q : ℕ) (s : Memory.Sta
         (compFeistelCoordsProg (mkCompParams U V w N, (u, h_q))) =
       ((feistelBucket (bucketBits N) (fun _ => h_q) u, keyQuotient (bucketBits N) u),
         h_q >>> bucketBits N) := by
-  dsimp only [compFeistelCoordsProg, cpBucketBits_mk, cpBucketMask_mk]
+  dsimp only [compFeistelCoordsProg, succinct_param_simps]
   simp only [pure_bind, prog_clientResult_pure]
   rw [and_mask_xor_eq_feistelBucket (bucketBits N) u h_q, Nat.shiftRight_eq_div_pow]
   rfl

@@ -137,44 +137,13 @@ each full slab (`off = 0` and `j + 1 < q_b * slabSize n_max`). -/
 full slab (`off = 0` and `j + 1 < q_b * slabSize n_max`). -/
 @[expose] def resolveOvfStepProg (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) :=
-  let base := ovfBucketBase d
-  let b := ovfBucketIdx d
-  let j := ovfResolveIdx d
-  let p_cur := ovfResolveSlabPtr d
-  do
-    let q_idx ← pure (4 + 3 * b)
-    let q_b ← readGMProg U V w n_max h_space (base, q_idx)
-    let qK ← pure (q_b * slabSize n_max)
-    if j < qK then do
-      let off ← pure ((slabSize n_max - 1) - j % slabSize n_max)
-      let phys ← pure (p_cur * slabSize n_max + off)
-      let z0 ← pure 0
-      if off = z0 then do
-        let j1 ← pure (j + 1)
-        if j1 < qK then do
-          let abv_idx ← pure (gmSlabMetaBase n_max + 4 * p_cur + 3)
-          let p_next ← readGMProg U V w n_max h_space (base, abv_idx)
-          pure (phys, p_next)
-        else
-          pure (phys, p_cur)
-      else
-        pure (phys, p_cur)
-    else do
-      let r ← pure (j - qK)
-      let t_idx ← pure (gmTailPtrBase n_max + (b * tailCapPerBucket n_max + r))
-      let t ← readGMProg U V w n_max h_space (base, t_idx)
-      let phys ← pure ((n_max - 1) - t)
-      pure (phys, p_cur)
+  resolveOvfStepGenProg ((mkDictParams U V w n_max h_space, d.1), d.2)
 
 @[simp]
 theorem resolveOvfStepGenProg_mk (U V w n_max h_space : ℕ)
     (d1 d2 : ℕ × ℕ) :
     resolveOvfStepGenProg ((mkDictParams U V w n_max h_space, d1), d2) =
-      resolveOvfStepProg U V w n_max h_space (d1, d2) := by
-  simp only [resolveOvfStepGenProg, resolveOvfStepProg, ovfGenParams, ovfGenBase, ovfGenBucket,
-    ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk,
-    p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk, p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk,
-    readGMGenProg_mk]
+      resolveOvfStepProg U V w n_max h_space (d1, d2) := rfl
 
 theorem memoryCost_resolveOvfStepGenProg_pos
     (d : (DictParams × (ℕ × ℕ)) × (ℕ × ℕ)) (s : Memory.State) :
@@ -187,8 +156,8 @@ theorem memoryCost_resolveOvfStepGenProg_pos
 theorem clientState_resolveOvfStepProg (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (resolveOvfStepProg U V w n_max h_space d) = s := by
-  unfold resolveOvfStepProg
-  simp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr, pure_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]
   split_ifs <;> first
     | (rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl)
@@ -197,8 +166,9 @@ theorem clientState_resolveOvfStepProg (U V w n_max h_space : ℕ)
 theorem memoryCost_resolveOvfStepProg_le (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (resolveOvfStepProg U V w n_max h_space d) s ≤ 4 := by
-  unfold resolveOvfStepProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind, ←
+    PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs <;>
     simp only [memoryCost_bind, memoryCost_readGMProg, memoryCost_pure] <;>
@@ -271,8 +241,8 @@ theorem clientResult_resolveOvfStepProg {U V w n_max h_space : ℕ}
       d.2.2 * slabSize n_max + (slabSize n_max - 1 - d.2.1 % slabSize n_max) =
         slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2.1 := fun hj => by
     unfold slotOf; rw [ite_eq_right hb0, ite_eq_left hj, hp hj]
-  unfold resolveOvfStepProg
-  simp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr, pure_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
   split_ifs with hj_slab hoff hj1_slab
@@ -453,29 +423,13 @@ j_found), phys_found))`). Resolves `(phys, p_next) ← resolveOvfStepProg` and r
 @[expose] def ovfStepProg (U V w n_max h_space : ℕ)
     (x : ((ℕ × ℕ) × ℕ) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) :
     Memory.Prog ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ) :=
-  let acc := x.2
-  do
-    let pair ← resolveOvfStepProg U V w n_max h_space (ovfQueryLoc x, ovfAccCursor acc)
-    let q_val ← readQuotProg U w n_max h_space (ovfQueryBase x, pair.1)
-    let j1 ← pure (ovfAccSlotIdx acc + 1)
-    let z0 ← pure 0
-    if ovfAccFound acc = z0 then
-      if q_val = ovfQueryQuot x then do
-        let z1 ← pure 1
-        pure ((((j1, pair.2), z1), ovfAccSlotIdx acc), pair.1)
-      else
-        pure ((((j1, pair.2), z0), ovfAccMatchIdx acc), ovfAccPhys acc)
-    else
-      pure ((((j1, pair.2), ovfAccFound acc), ovfAccMatchIdx acc), ovfAccPhys acc)
+  ovfStepGenProg ((mkDictParams U V w n_max h_space, x.1), x.2)
 
 @[simp]
 theorem ovfStepGenProg_mk (U V w n_max h_space : ℕ)
     (x1 : (ℕ × ℕ) × ℕ) (x2 : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) :
     ovfStepGenProg ((mkDictParams U V w n_max h_space, x1), x2) =
-      ovfStepProg U V w n_max h_space (x1, x2) := by
-  simp only [ovfStepGenProg, ovfStepProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
-    ovfStepGenQuot, ovfQueryLoc, ovfQueryBase, ovfQueryQuot, ovfAccCursor, ovfAccSlotIdx,
-    ovfAccFound, ovfAccMatchIdx, ovfAccPhys, resolveOvfStepGenProg_mk, readQuotGenProg_mk]
+      ovfStepProg U V w n_max h_space (x1, x2) := rfl
 
 theorem memoryCost_ovfStepGenProg_pos
     (x : (DictParams × ((ℕ × ℕ) × ℕ)) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
@@ -490,8 +444,8 @@ theorem memoryCost_ovfStepGenProg_pos
 theorem clientState_ovfStepProg (U V w n_max h_space : ℕ)
     (x : ((ℕ × ℕ) × ℕ) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (ovfStepProg U V w n_max h_space x) = s := by
-  unfold ovfStepProg
-  simp only [pure_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_resolveOvfStepProg,
     StateTransitionSpec.clientState_bind, clientState_readQuotProg]
   split_ifs <;> rfl
@@ -499,10 +453,11 @@ theorem clientState_ovfStepProg (U V w n_max h_space : ℕ)
 theorem memoryCost_ovfStepProg_le (U V w n_max h_space : ℕ)
     (x : ((ℕ × ℕ) × ℕ) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
     memoryCost (ovfStepProg U V w n_max h_space x) s ≤ 6 := by
-  unfold ovfStepProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind,
+    ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_resolveOvfStepProg, memoryCost_bind]
-  have := memoryCost_resolveOvfStepProg_le U V w n_max h_space (ovfQueryLoc x, ovfAccCursor x.2) s
+  have := memoryCost_resolveOvfStepProg_le U V w n_max h_space (x.1.1, ovfAccCursor x.2) s
   split_ifs <;> · change memoryCost (resolveOvfStepProg _ _ _ _ _ _) s + (2 + 0) ≤ 6; omega
 
 /-- Precondition for `ovfStepProg`. -/
@@ -558,8 +513,8 @@ theorem clientResult_ovfStepProg {U V w n_max h_space : ℕ}
   dsimp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx] at hres
   have hphys_lt : slotOf n_max (gmAt x.1.1.1 U V w n_max h_space s.mem) x.1.1.2 x.2.1.1.1.1 <
       n_max := (slotOf_lt_and_injective hinv).1 x.1.1.2 hb x.2.1.1.1.1 hj_bc
-  unfold ovfStepProg
-  simp only [pure_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_resolveOvfStepProg,
     StateTransitionSpec.clientResult_bind, clientState_readQuotProg]
   rw [show ((Memory.spec 0).clientResult s
@@ -781,42 +736,19 @@ abbrev ovfInitBucket (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.2
     pure (z0, z0)
 
 /-- Helper initializing `(p_init, fuel)` for Phase 2 overflow search (`d = (base, b)`). -/
-@[expose] def initOvfSearchProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog (ℕ × ℕ) := do
-  let q_idx ← pure (4 + 3 * d.2)
-  let q_b ← readGMProg U V w n_max h_space (d.1, q_idx)
-  let r_idx ← pure (q_idx + 1)
-  let r_b ← readGMProg U V w n_max h_space (d.1, r_idx)
-  let qK ← pure (q_b * slabSize n_max)
-  let c ← pure (qK + r_b)
-  let cap ← pure (min n_max (effBucketCap n_max))
-  let z0 ← pure 0
-  if cap < c then do
-    let fuel ← pure (c - cap)
-    if cap < qK then do
-      let dir_idx ← pure (gmSlabDirBase n_max + d.2 * dirSlabsPerBucket n_max +
-        (dirSlabsPerBucket n_max - 1))
-      let p_prev ← readGMProg U V w n_max h_space (d.1, dir_idx)
-      let abv_idx ← pure (gmSlabMetaBase n_max + 4 * p_prev + 3)
-      let p_init ← readGMProg U V w n_max h_space (d.1, abv_idx)
-      pure (p_init, fuel)
-    else
-      pure (z0, fuel)
-  else
-    pure (z0, z0)
+@[expose] def initOvfSearchProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog (ℕ × ℕ) :=
+  initOvfSearchGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem initOvfSearchGenProg_mk (U V w n_max h_space : ℕ) (d : ℕ × ℕ) :
     initOvfSearchGenProg (mkDictParams U V w n_max h_space, d) =
-      initOvfSearchProg U V w n_max h_space d := by
-  simp only [initOvfSearchGenProg, initOvfSearchProg, ovfInitBase, ovfInitBucket,
-    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
-    p_gmSlabMetaBase_mk, readGMGenProg_mk]
+      initOvfSearchProg U V w n_max h_space d := rfl
 
 theorem clientState_initOvfSearchProg (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (initOvfSearchProg U V w n_max h_space d) = s := by
-  unfold initOvfSearchProg
-  simp only [pure_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
     StateTransitionSpec.clientState_bind, clientState_readGMProg]
   split_ifs <;> first
@@ -827,8 +759,8 @@ theorem clientState_initOvfSearchProg (U V w n_max h_space : ℕ)
 theorem memoryCost_initOvfSearchProg_le (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
     memoryCost (initOvfSearchProg U V w n_max h_space d) s ≤ 8 := by
-  unfold initOvfSearchProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    succinct_param_simps, readGMGenProg_mk, pure_bind, ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg,
     memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs <;>
@@ -886,8 +818,8 @@ theorem clientResult_initOvfSearchProg {U V w n_max h_space : ℕ}
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
     unfold bCount gmQIdx gmRIdx; simp only [hb0, ↓reduceIte, hb]
   have hbc_le := bCount_le_n_max hinv d.2
-  unfold initOvfSearchProg
-  simp only [pure_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, StateTransitionSpec.clientResult_bind,
     clientState_readGMProg, clientResult_readGMProg s hr_lt, hbc_eq]
@@ -1019,23 +951,12 @@ quotient `q_target = d.2.2`, returning `((found, j_found), phys_found)`. -/
 returning `((found, j_found), phys_found)`. -/
 @[expose] def searchOverflowProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     Memory.Prog ((ℕ × ℕ) × ℕ) :=
-  if bucketBits n_max = 0 then do
-    let z0 ← pure 0
-    pure ((z0, z0), z0)
-  else do
-    let init ← initOvfSearchProg U V w n_max h_space d.1
-    let j0 ← pure (min n_max (effBucketCap n_max))
-    let z0 ← pure 0
-    let res ← ovfLoopProg U V w n_max h_space
-      ((d, ((((j0, init.1), z0), z0), z0)), init.2)
-    pure ((ovfAccFound res, ovfAccMatchIdx res), res.2)
+  searchOverflowGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem searchOverflowGenProg_mk (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     searchOverflowGenProg (mkDictParams U V w n_max h_space, d) =
-      searchOverflowProg U V w n_max h_space d := by
-  simp only [searchOverflowGenProg, searchOverflowProg, ovfSearchBucketLoc,
-    p_bucketBits_mk, p_minCap_mk, initOvfSearchGenProg_mk, ovfLoopGenProg_mk]
+      searchOverflowProg U V w n_max h_space d := rfl
 
 /-- Precondition for `searchOverflowProg` (`d = ((base, b), q_target)`). -/
 @[expose] def SearchOverflowPre (U V w₀ n_max h_space w : ℕ)
@@ -1101,12 +1022,12 @@ theorem searchOverflowProg_spec {U V w₀ n_max h_space w : ℕ}
     fun ⟨_, hj1, hj2, _⟩ => by omega
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · have hlt_cap := lt_effBucketCap_of_bucketBits_eq_zero hb0
-    unfold searchOverflowProg; rw [ite_eq_left hb0]
-    simp only [pure_bind, memoryCost_pure]
+    simp only [searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk, hb0, ↓reduceIte,
+      pure_bind, memoryCost_pure]
     exact ⟨rfl, by omega, fun h => by omega, by rw [ite_eq_right (hno_of (by omega))]; rfl⟩
-  · unfold searchOverflowProg ovfLoopProg
-    rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
-    simp only [pure_bind]
+  · simp only [searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk, ovfSearchBucketLoc,
+      p_minCap_mk, initOvfSearchGenProg_mk, ovfLoopGenProg_mk, pure_bind, ovfLoopProg,
+      ite_eq_right (Nat.ne_of_gt hb_pos)]
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
       memoryCost_bind_of_clientState_eq (clientState_initOvfSearchProg ..),
       clientState_initOvfSearchProg]
@@ -1183,21 +1104,14 @@ first searches the micro-bucket chain `(b, m)` via `searchMicroChainProg`; if no
 searches any overflow slots `j ∈ [effBucketCap n_max, bCount n_max gm b)` via
 `searchOverflowProg`. Returns `((found, j_found), phys_found)`. -/
 @[expose] def searchBucketProg (U V w n_max h_space : ℕ)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ((ℕ × ℕ) × ℕ) := do
-  let res1 ← searchMicroChainProg U V w n_max h_space d
-  let z1 ← pure 1
-  if microSearchFound res1 = z1 then
-    pure ((z1, microSearchIdx res1), res1.2)
-  else
-    searchOverflowProg U V w n_max h_space d.1
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ((ℕ × ℕ) × ℕ) :=
+  searchBucketGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem searchBucketGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     searchBucketGenProg (mkDictParams U V w n_max h_space, d) =
-      searchBucketProg U V w n_max h_space d := by
-  simp only [searchBucketGenProg, searchBucketProg, searchBucketGenQuery,
-    searchMicroChainGenProg_mk, searchOverflowGenProg_mk]
+      searchBucketProg U V w n_max h_space d := rfl
 
 open Classical in
 theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
@@ -1238,8 +1152,8 @@ theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
   have h2 := searchOverflowProg_spec (d := d.1) henv hb hinv
   dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx, microAccStatus, microAccIdx,
     ovfBucketBase, ovfBucketIdx, ovfSearchFound, ovfSearchIdx] at h1 h2
-  unfold searchBucketProg
-  simp only [pure_bind]
+  simp only [searchBucketProg, searchBucketGenProg, searchBucketGenQuery,
+    searchMicroChainGenProg_mk, searchOverflowGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     memoryCost_bind_of_clientState_eq h1.1, h1.1]
   set res1 := (Memory.spec 0).clientResult s (searchMicroChainProg U V w₀ n_max h_space d)
@@ -1292,22 +1206,14 @@ from `Values` at physical slot `res.2`, otherwise returns `none`. -/
 calls `searchBucketProg` and, if found (`ovfSearchFound res = 1`), reads and returns `some v`
 from `Values` at physical slot `res.2`, otherwise returns `none`. -/
 @[expose] def queryBodyProg (U V w n_max h_space : ℕ)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (Option ℕ) := do
-  let res ← searchBucketProg U V w n_max h_space d
-  let z1 ← pure 1
-  if ovfSearchFound res = z1 then do
-    let v ← readValProg U V w n_max h_space (ovfQueryBase d, res.2)
-    pure (some v)
-  else
-    pure none
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (Option ℕ) :=
+  queryBodyGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem queryBodyGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     queryBodyGenProg (mkDictParams U V w n_max h_space, d) =
-      queryBodyProg U V w n_max h_space d := by
-  simp only [queryBodyGenProg, queryBodyProg, ovfSearchFound, ovfQueryBase,
-    searchBucketGenProg_mk, readValGenProg_mk]
+      queryBodyProg U V w n_max h_space d := rfl
 
 open Classical in
 theorem queryBodyProg_spec {U V w₀ n_max h_space w : ℕ}
@@ -1344,8 +1250,7 @@ theorem queryBodyProg_spec {U V w₀ n_max h_space w : ℕ}
   dsimp only [gm, prog, ovfQueryBase, ovfQueryBucket, ovfQueryQuot] at *
   have hsb := searchBucketProg_spec henv hb hm hinv hchain hc_lt
   dsimp only [ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound, ovfSearchIdx] at hsb
-  unfold queryBodyProg
-  simp only [pure_bind]
+  simp only [queryBodyProg, queryBodyGenProg, searchBucketGenProg_mk, readValGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     memoryCost_bind_of_clientState_eq hsb.1, hsb.1]
   set res := (Memory.spec 0).clientResult s (searchBucketProg U V w₀ n_max h_space d)

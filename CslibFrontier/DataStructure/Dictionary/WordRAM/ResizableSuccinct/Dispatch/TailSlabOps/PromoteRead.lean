@@ -257,34 +257,25 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
   · unfold StateTransitionSpec.clientState
     simp [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
   · dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
-    simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
-      cpTailCap_mk]
-    rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hptr_u_lt,
-      clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg hptr_top_lt, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h0_lt,
-      clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg]
+    simp only [bind_assoc, pure_bind, succinct_param_simps]
+    simp only [client_simps, StateTransitionSpec.clientState,
+      clientResult_readCompGMGenProg hptr_u_lt, runClient_state_readCompGMGenProg,
+      clientResult_readCompGMGenProg hptr_top_lt, clientResult_readCompGMGenProg h0_lt,
+      clientResult_readCompGMGenProg h1_lt]
     rfl
   · unfold StateTransitionSpec.clientState
     simp [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
   · dsimp only [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
     simp only [bind_assoc, pure_bind]
-    rw [StateTransitionSpec.clientResult_bind, clientResult_readCompTDGenProg htu_max,
-      clientState_readCompTDGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompTDGenProg httop_max, clientState_readCompTDGenProg,
-      StateTransitionSpec.clientResult_bind, clientResult_readCompTDGenProg hn'_max,
-      clientState_readCompTDGenProg, StateTransitionSpec.clientResult_bind,
+    simp only [client_simps, StateTransitionSpec.clientState,
+      clientResult_readCompTDGenProg htu_max, runClient_state_readCompTDGenProg,
+      clientResult_readCompTDGenProg httop_max, clientResult_readCompTDGenProg hn'_max,
       clientResult_denseOfCircGenProg (fun _ => hcpl.win_inv.td_lt _ htu_lt),
-      clientState_denseOfCircGenProg, StateTransitionSpec.clientResult_bind,
+      runClient_state_denseOfCircGenProg,
       clientResult_denseOfCircGenProg (fun _ => hcpl.win_inv.td_lt _ httop_lt),
-      clientState_denseOfCircGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_denseOfCircGenProg (fun _ => hcpl.win_inv.td_lt _ hn'_lt),
-      clientState_denseOfCircGenProg]
-    rfl
+      clientResult_denseOfCircGenProg (fun _ => hcpl.win_inv.td_lt _ hn'_lt)]
   · dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
-    simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
-      cpTailCap_mk]
+    simp only [bind_assoc, pure_bind, succinct_param_simps]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, hptr_u_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, hptr_top_lt⟩) ?_

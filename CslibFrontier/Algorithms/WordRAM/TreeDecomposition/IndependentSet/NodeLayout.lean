@@ -521,7 +521,7 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
       dsimp only
       rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_len,
         memoryCost_bind', hst_pow, hr_pow, memoryCost_bind', memoryCost_alloc]
-      simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]
+      simp only [client_simps]
       have := inst.bagAt_length_le kFin
       dsimp only [stepCost, bagLen, tblLen] at *; omega
     obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=

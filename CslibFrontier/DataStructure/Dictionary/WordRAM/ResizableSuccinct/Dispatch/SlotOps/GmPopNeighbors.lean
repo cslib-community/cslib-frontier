@@ -78,12 +78,10 @@ private theorem clientResult_compGmReadMovedMetaProg {U V w N metaBase p_last : 
   obtain ⟨hownB_last_lt, hownS_last_lt, hbel_last_lt, habv_last_lt, hpl4⟩ :=
     gmSlabIdx_facts hb_pos hp_last_cap
   dsimp only [compGmReadMovedMetaProg, cpGmSlabMetaBase_mk]
-  rw [hpl4, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hownB_last_lt,
-    clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-    clientResult_readCompGMGenProg hownS_last_lt, clientState_readCompGMGenProg,
-    StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hbel_last_lt,
-    clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-    clientResult_readCompGMGenProg habv_last_lt, clientState_readCompGMGenProg]
+  simp only [client_simps, StateTransitionSpec.clientState, hpl4,
+    clientResult_readCompGMGenProg hownB_last_lt, runClient_state_readCompGMGenProg,
+    clientResult_readCompGMGenProg hownS_last_lt, clientResult_readCompGMGenProg hbel_last_lt,
+    clientResult_readCompGMGenProg habv_last_lt]
   rfl
 
 private def compGmUpdateNeighborLinksProg :
@@ -189,8 +187,8 @@ theorem compGmLinkMovedNeighborsGenProg_effect
         ((b_last, s_last), (bel_last, abv_last))))) = s_upd := by
     dsimp only [compGmUpdateNeighborLinksProg, cpGmSlabMetaBase_mk, s_upd, q_last]
     dsimp only [b_last, bel_last, abv_last, gm] at hq_eq hq_last_lt hbl4 hal4 ⊢
-    rw [hq_eq, StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hq_last_lt,
-      clientState_readCompGMGenProg, hbl4, hal4, StateTransitionSpec.clientState_bind]
+    simp only [client_simps, StateTransitionSpec.clientState, hq_eq,
+      clientResult_readCompGMGenProg hq_last_lt, runClient_state_readCompGMGenProg, hbl4, hal4]
   have hst : s' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState
         ((Memory.spec 0).clientState

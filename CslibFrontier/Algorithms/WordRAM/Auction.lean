@@ -238,8 +238,7 @@ theorem exists_scaledAuction_program :
     obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
       he w inst.n inst.encode hlayout hk hfit_len hin hsafe hv
     rw [clientState_width w, scaledMainProg, clientState_bind, clientState_pure] at hmem
-    simp only [clientResult_width w, wordWords, scaledMainProg, clientResult_bind,
-      clientResult_pure] at hhalt₀
+    simp only [clientResult_width w, wordWords, scaledMainProg, client_simps] at hhalt₀
     refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀,
       (show y.mem = _ from congrArg Memory.State.mem hmem) ▸ hout_s, ?_, rfl⟩,
       scaled_steps_le hsteps hmc⟩

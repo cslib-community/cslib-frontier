@@ -212,7 +212,7 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
       hgm_mid.symm ▸ hm_items, hb_lt, hm_lt, hm_last_lt, hj_lt, hphys_eq, hb_inv.hchains,
       hmem_del, hmem_last⟩
   unfold deleteFinishWithHashProg deleteFinishWithHashGenProg at hinv_fix'
-  simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, and_mask_xor_eq_feistelBucket,
+  simp only [succinct_param_simps, pure_bind, and_mask_xor_eq_feistelBucket,
     deleteFinishGenProg, deleteFoundGenProg_mk] at hinv_fix'
   set df_prog := compDeleteFinishGenProg
     ((((((mkCompParams U V w N, (metaBase, itemBase)), b), (found, j_del)), phys_del), m), m_last)

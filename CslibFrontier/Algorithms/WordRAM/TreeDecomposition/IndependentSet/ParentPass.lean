@@ -274,8 +274,7 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
     have hc_step : memoryCost (parentPassStep (args, curS)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      simp only [parentPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_rk, hr_rk,
-        memoryCost_write, memoryCost_pure, stepCost]
+      simp only [parentPassStep, client_simps, hr_s, hr_r, hst_rk, hr_rk, stepCost]
       omega
     obtain ⟨hv_rem, hfr_rem, hout_rem, hpfx_rem, hc_rem⟩ :=
       ih (curS + 1) st₁ (by omega) hfr hout₁ hpfx_next

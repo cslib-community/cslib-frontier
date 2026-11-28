@@ -99,8 +99,8 @@ theorem btreeLookupGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
     · rw [clientState_bind, hst, hres1]
       simp only [Nat.one_ne_zero, ↓reduceIte]
       rw [clientState_bind, clientState_laneGetGenProg]; rfl
-    · simp only [clientResult_bind, hst, hres1, hmap1, Nat.one_ne_zero, ↓reduceIte,
-        clientResult_laneGetGenProg, StateTransitionSpec.clientResult_pure]
+    · simp only [client_simps, hst, hres1, hmap1, Nat.one_ne_zero, ↓reduceIte,
+      clientResult_laneGetGenProg]
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres1, Nat.one_ne_zero,
         ↓reduceIte, memoryCost_laneGetGenProg, memoryCost_pure]
       omega

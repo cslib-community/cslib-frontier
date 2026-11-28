@@ -212,8 +212,7 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
           simp [hmeta, mkNodeMeta, Nat.add_mul_mod_self_left]
         refine ⟨isRoot, cur, lo, hi, .leaf cur c0, ?_, ?_, rfl, hqlo, hqhi, hhi, hv⟩
         · unfold descendStepGenProg
-          simp only [d0, pure_bind, clientResult_bind, hcs_n, hres_n, hmod1, ↓reduceIte,
-            StateTransitionSpec.clientResult_pure]
+          simp only [d0, pure_bind, client_simps, hcs_n, hres_n, hmod1, ↓reduceIte]
         · cases f <;> simp [descendToLeaf, hmeta]
       | branch idx c0 cs =>
         obtain rfl : cur = idx := hrt.symm

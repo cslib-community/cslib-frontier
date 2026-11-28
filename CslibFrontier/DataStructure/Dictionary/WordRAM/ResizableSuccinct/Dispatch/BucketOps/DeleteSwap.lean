@@ -196,12 +196,10 @@ private theorem clientResult_compResolveCopyPairProg {metaBase itemBase U V w N 
   have hbc : 1 ≤ bCount N gm b := Nat.one_le_of_lt hj_del
   have hj_last : bCount N gm b - 1 < bCount N gm b := Nat.sub_lt hbc Nat.one_pos
   dsimp only [compResolveCopyPairProg, gm, td]
-  rw [prog_clientResult_bind, clientResult_compLastSlotOfGenProg hslot hb hbc,
-    clientState_compLastSlotOfGenProg, prog_clientResult_bind,
-    clientResult_denseOfPhys_slotOf hcpl henv hslot hb hj_last,
-    clientState_denseOfPhysGenProg, prog_clientResult_bind,
-    clientResult_denseOfPhys_slotOf hcpl henv hslot hb hj_del,
-    clientState_denseOfPhysGenProg, prog_clientResult_pure]
+  simp only [client_simps, StateTransitionSpec.clientState, runClient_state_compLastSlotOfGenProg,
+    runClient_state_denseOfPhysGenProg, clientResult_compLastSlotOfGenProg hslot hb hbc,
+    clientResult_denseOfPhys_slotOf hcpl henv hslot hb hj_del]
+  rw [clientResult_denseOfPhys_slotOf hcpl henv hslot hb hj_last]
 
 private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_cap b j_del : ℕ}
     {s_fix s : Memory.State}

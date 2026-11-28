@@ -99,7 +99,7 @@ def compItemWordsGenProg : CompParams × ℕ → Memory.Prog ℕ
     (Memory.spec 0).clientResult s (compItemWordsGenProg (mkCompParams U V w N, m)) =
       compactedItemWords U V w N m := by
   rw [compactedItemWords_eq_wOffQ_add hw]
-  dsimp only [compItemWordsGenProg, cpQuotBits_mk, cpValBits_mk, cpW_mk]
+  dsimp only [compItemWordsGenProg, succinct_param_simps]
   simp only [pure_bind, prog_clientResult_bind, clientResult_compQOffsetProg]
   split_ifs <;> rfl
 
@@ -141,7 +141,7 @@ theorem realizesBounded_compItemWordsGen :
     obtain ⟨U, V, N, hw, _hnU, hU, hV, rfl, hfit⟩ := h
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
-    simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, clientResult_compQOffsetProg] at *)
+    simp only [succinct_param_simps, clientResult_compQOffsetProg] at *)
   all_goals try exact ⟨hw, rfl, hq, hv, hfit.of_le (by omega)⟩
   all_goals exact hfit.of_le (by omega)
 

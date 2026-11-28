@@ -145,9 +145,9 @@ theorem clientResult_compResolveOvfStepGenProg_eq {U V w w₀ N h_space metaBase
   have hq_eq1 : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
   have hq_eq2 : 4 + 3 * b = gmQIdx b := rfl
   simp only [compResolveOvfStepGenProg, compResolveOvfInSlabGenProg, compResolveOvfAdvanceGenProg,
-    resolveOvfStepProg, ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr,
-    cpSlabSize_mk, cpSlabSizeSubOne_mk, cpGmSlabMetaBase_mk, cpGmTailPtrBase_mk,
-    cpTailCap_mk, cpNSubOne_mk, pure_bind, hq_eq1, hq_eq2]
+    resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind, hq_eq1,
+    hq_eq2]
   rw [prog_clientResult_bind, clientResult_readCompGMGenProg hq_lt,
     clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s_fix hq_lt, ← hgm_eq]
@@ -238,7 +238,7 @@ private theorem realizesBounded_compResolveOvfInSlabGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hqK_le, hj_lt, hp_lt_max, hpK_le⟩ := h
     have hK : 0 < slabSize N := slabSize_pos N
     have hmod_lt := Nat.mod_lt j hK
-    simp only [cpSlabSize_mk, cpSlabSizeSubOne_mk] at *)
+    simp only [succinct_param_simps] at *)
   all_goals try exact hK.ne'
   all_goals try exact ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hp_lt_max⟩
   all_goals try omega
@@ -277,9 +277,8 @@ theorem realizesBounded_compResolveOvfStepGen :
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b
     unfold bCount at hbc_le; simp only [hb_ne, ↓reduceIte, hb] at hbc_le
-    simp only [cpSlabSize_mk, cpGmTailPtrBase_mk, cpTailCap_mk, cpNSubOne_mk, hq_eq,
-      StateTransitionSpec.clientState, clientResult_readCompGMGenProg hq_lt,
-      runClient_state_readCompGMGenProg] at *)
+    simp only [succinct_param_simps, hq_eq, StateTransitionSpec.clientState,
+      clientResult_readCompGMGenProg hq_lt, runClient_state_readCompGMGenProg] at *)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hq_lt⟩
   all_goals try (
     have hc_pos : j < compGmAt metaBase U w N s.mem (gmQIdx b) * slabSize N := by assumption
@@ -313,8 +312,7 @@ theorem validProg_compResolveOvfStepGen {w : ℕ} {d : ((CompParams × ℕ) × �
   have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
   have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
   dsimp only [compResolveOvfStepGenProg, compResolveOvfInSlabGenProg, compResolveOvfAdvanceGenProg]
-  simp only [cpSlabSize_mk, cpSlabSizeSubOne_mk, cpGmSlabMetaBase_mk,
-    cpGmTailPtrBase_mk, cpTailCap_mk, hq_eq]
+  simp only [succinct_param_simps, hq_eq]
   refine validProg_bind (validProg_readCompGMGen ⟨henv, hq_lt⟩) ?_
   rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg hq_lt]
   refine validProg_ite (fun hj_slab => ?_) (fun hj_ge => ?_)
@@ -398,8 +396,8 @@ theorem clientResult_compInitOvfSearchGenProg_eq {U V w w₀ N h_space metaBase 
   have hq_eq1 : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
   have hq_eq2 : 4 + 3 * b = gmQIdx b := rfl
   have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
-  simp only [compInitOvfSearchGenProg, compInitOvfFromDirGenProg, initOvfSearchProg, cpSlabSize_mk,
-    cpMinCap_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpDirSlabsSubOne_mk, cpGmSlabMetaBase_mk,
+  simp only [compInitOvfSearchGenProg, compInitOvfFromDirGenProg, succinct_param_simps,
+    initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket, readGMGenProg_mk,
     pure_bind, hq_eq1, hq_eq2, hr_eq]
   rw [prog_clientResult_bind, clientResult_readCompGMGenProg hq_lt,
     clientState_readCompGMGenProg, prog_clientResult_bind, clientResult_readCompGMGenProg hr_lt,
@@ -477,8 +475,7 @@ private theorem realizesBounded_compInitOvfFromDirGen :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨qK, fuel⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hcapN, rfl, hslot⟩ := h
-    simp only [cpMinCap_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpDirSlabsSubOne_mk,
-      cpGmSlabMetaBase_mk] at *)
+    simp only [succinct_param_simps] at *)
   all_goals (
     have hcap_le : effBucketCap N ≤ compGmAt metaBase U w N s.mem (gmQIdx b) * slabSize N := by
       rw [min_eq_right hcapN.le] at hc; omega
@@ -524,7 +521,7 @@ theorem realizesBounded_compInitOvfSearchGen :
     have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b
     unfold bCount at hbc_le; simp only [hb_ne, ↓reduceIte, hb] at hbc_le
-    simp only [cpSlabSize_mk, cpMinCap_mk, hq_eq, hr_eq, StateTransitionSpec.clientState,
+    simp only [succinct_param_simps, hq_eq, hr_eq, StateTransitionSpec.clientState,
       clientResult_readCompGMGenProg hq_lt, clientResult_readCompGMGenProg hr_lt,
       runClient_state_readCompGMGenProg] at *)
   all_goals try (
@@ -552,8 +549,7 @@ theorem validProg_compInitOvfSearchGen {w : ℕ} {d : (CompParams × ℕ) × ℕ
   have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
   have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
   dsimp only [compInitOvfSearchGenProg, compInitOvfFromDirGenProg]
-  simp only [cpSlabSize_mk, cpMinCap_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk,
-    cpDirSlabsSubOne_mk, cpGmSlabMetaBase_mk, hq_eq, hr_eq]
+  simp only [succinct_param_simps, hq_eq, hr_eq]
   refine validProg_bind (validProg_readCompGMGen ⟨henv, hq_lt⟩) ?_
   rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg hq_lt]
   refine validProg_bind (validProg_readCompGMGen ⟨henv, hr_lt⟩) ?_
