@@ -121,7 +121,15 @@ under it. -/
         ∀ (C : Finset (Fin n)) (Z : Environment n In Out AdvQ AdvR) (pZ : Polynomial ℕ),
           Z.PolyBounded pZ → ∀ (κ : ℕ) (z : List Bool), advantage π φ A S C Z κ z ≤ ε pA pZ κ
 
-/-- Concrete UC realization: protocol `π` emulates the ideal protocol of the functionality `F`. -/
+/-- Concrete UC realization: protocol `π` emulates the ideal protocol of `F` with simulator call
+overhead `g` and distinguishing error `ε`. This is UC realization of [Canetti2020] (ePrint revision
+of February 11, 2020), Definition 20, p. 58, with `EmulatesWithin` in place of Definition 9's UC
+emulation (see `EmulatesWithin` for the concrete call-budget and error bounds and the differences
+from Definition 15), and without Definition 20's further requirement that `π` be
+subroutine-respecting. Like `EmulatesWithin`, it is novel to this library: it is not
+source-identical, and no implication to or from Definitions 15 or 20 is established here. It implies
+`Realizes` whenever every `ε pA pZ` is negligible (`EmulatesWithin.emulates`), and is plausible for
+the same reasons (`RealizesWithin.compose_trans`, `not_realizesWithin_fcom`). -/
 abbrev RealizesWithin (π : Protocol n In Out NetQ NetR)
     (F : IdealFunctionality n In Out BackQ BackR)
     (g : Polynomial ℕ) (ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0) : Prop :=

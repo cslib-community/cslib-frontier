@@ -729,9 +729,9 @@ theorem EmulatesWithin.multiSession_toJoint {m n : ℕ}
   refine ⟨jointMux A, pA, jointMux_polyBounded hA, SimPolyBound.refl pA, fun C Z pZ _ κ z => ?_⟩
   simp only [advantage, Game.advantage, exec_composeMulti_toJoint, nndist_self, le_rfl]
 
-/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
-theorem: for a fixed number `m` of sessions, static corruptions, pull execution and this library's
-call-bounded statistical `Realizes`, if `ρHat` realizes the multi-session extension
+/-- Fixed-session joint-state replacement step in this library's call-bounded statistical `Realizes`
+model (a step toward Theorem 1 of [CanettiRabin2003], not that theorem): for a fixed number `m` of
+sessions, static corruptions, and pull execution, if `ρHat` realizes the multi-session extension
 `F.multiSession (Fin m)`, then the joint-state protocol `compose ρ.toJoint ρHat` emulates the
 `m`-session `F`-hybrid protocol `composeMulti ρ F.toProtocol`. -/
 theorem Realizes.compose_toJoint {m n : ℕ}
@@ -744,11 +744,11 @@ theorem Realizes.compose_toJoint {m n : ℕ}
   (Realizes.compose (toJoint_polyBounded hρ) h).trans
     ((EmulatesWithin.toJoint_multiSession ρ F).emulates fun _ _ => negligible_zero)
 
-/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
-theorem: for a fixed number `m` of sessions, static corruptions, pull execution and this library's
-call-bounded statistical `Realizes`, if `ρHat` realizes `F.multiSession (Fin m)` and
-`composeMulti ρ F.toProtocol` realizes `G`, then the joint-state protocol `compose ρ.toJoint ρHat`
-realizes `G`. -/
+/-- Fixed-session modular joint-state realization step in this library's call-bounded statistical
+`Realizes` model (a step toward Theorem 1 of [CanettiRabin2003], not that theorem): for a fixed
+number `m` of sessions, static corruptions, and pull execution, if `ρHat` realizes
+`F.multiSession (Fin m)` and `composeMulti ρ F.toProtocol` realizes `G`, then the joint-state
+protocol `compose ρ.toJoint ρHat` realizes `G`. -/
 theorem Realizes.compose_toJoint_trans {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR NQ NR GQ GR : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -759,11 +759,11 @@ theorem Realizes.compose_toJoint_trans {m n : ℕ}
     Realizes (UC.compose ρ.toJoint ρHat) G :=
   (h.compose_toJoint hρ).trans hρG
 
-/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
-theorem: concrete form for a fixed number `m` of sessions, static corruptions, pull execution and
-this library's call-bounded `RealizesWithin`. If `ρHat` realizes `F.multiSession (Fin m)` with
-overhead `g` and error `ε`, then `compose ρ.toJoint ρHat` emulates `composeMulti ρ F.toProtocol`
-with the overhead and error below. -/
+/-- Concrete fixed-session joint-state replacement step in this library's call-bounded
+`RealizesWithin` model (a step toward Theorem 1 of [CanettiRabin2003], not that theorem): for a
+fixed number `m` of sessions, static corruptions, and pull execution, if `ρHat` realizes
+`F.multiSession (Fin m)` with overhead `g` and error `ε`, then `compose ρ.toJoint ρHat` emulates
+`composeMulti ρ F.toProtocol` with the overhead and error below. -/
 theorem RealizesWithin.compose_toJoint {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR NQ NR : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -779,10 +779,10 @@ theorem RealizesWithin.compose_toJoint {m n : ℕ}
     (fun _ _ _ => by rw [add_zero])
   rwa [Polynomial.X_comp] at htrans
 
-/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
-theorem: reverse direction for a fixed number `m` of sessions, static corruptions, pull execution
-and this library's call-bounded statistical `Realizes`. If `π` realizes `F`, then the `m`-session
-protocol `composeMulti ρ π` emulates the `F.multiSession (Fin m)`-hybrid protocol
+/-- Reverse fixed-session joint-state composition step in this library's call-bounded statistical
+`Realizes` model (a step toward Theorem 1 of [CanettiRabin2003], not that theorem): for a fixed
+number `m` of sessions, static corruptions, and pull execution, if `π` realizes `F`, then the
+`m`-session protocol `composeMulti ρ π` emulates the `F.multiSession (Fin m)`-hybrid protocol
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`. -/
 theorem Realizes.composeMulti_toJoint {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ NR BackQ BackR : Type}
