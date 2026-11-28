@@ -38,11 +38,11 @@ example : (innerProductCircuit 3).eval (extInterpretation (modGate 2))
   rw [eval_innerProductCircuit]
   decide
 
-/-- Two constant gates give the string `101` at any input. -/
+/-- Two constant gates append the string `101` to any input, and output 6 is its last bit. -/
 example (x : BitString 4) :
-    (constsCircuit toExt ![true, false, true]).eval (extInterpretation (modGate 2)) x 2 =
-      true := by
-  rw [eval_constsCircuit]
+    (Unbounded.substituteCircuit toExt (appendInputs ![true, false, true])).eval
+      (extInterpretation (modGate 2)) x 6 = true := by
+  rw [Unbounded.eval_substituteCircuit, substitute_appendInputs]
   rfl
 
 /-- A conjunction on each of three blocks of two bits: the blocks of `111000` are `11`, `10` and
