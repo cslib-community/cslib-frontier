@@ -6244,6 +6244,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.GameTheory.Mechanism.Indirect
 public import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 public import CslibFrontier.Computability.Circuit.Quantum.Classical
+public import CslibFrontier.Crypto.Protocols.UC.AdaptiveComposition
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Certificate
 public import CslibFrontier.Logics.Propositional.CNF.Eval
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Holders
