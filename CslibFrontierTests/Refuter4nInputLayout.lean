@@ -90,6 +90,10 @@ line, and unary, binary and constant lines; and at a larger width. -/
 #guard runCheck mixCircuit 7
 #guard runCheck mixCircuit 12
 
+/-- The input words determine the circuit (module client of `encode_injective`). -/
+example (C₁ C₂ : Circuit (fullSignature 2 Bool) 2 1) (h : encode C₁ = encode C₂) : C₁ = C₂ :=
+  encode_injective h
+
 /-- The width `7` is admitted for `xor3Circuit` (`n + C.size + 2 = 6`). -/
 example : FitsWidth xor3Circuit 7 := ⟨by decide, by decide⟩
 
