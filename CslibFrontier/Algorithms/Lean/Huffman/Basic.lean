@@ -41,9 +41,11 @@ model to Mathlib's `InformationTheory.IsPrefixFree` and `InformationTheory.IsUni
   `∑ (a, d), d • w a`.
 * `CodeTree.weightedPathLength_join`: compositional path-length identity for grafting a forest of
   code trees onto a skeleton `CodeTree (CodeTree α)`.
-* `CodeTree.isPrefixFree_codewordSet`, `CodeTree.isUniquelyDecodable_codewordSet`: every
-  `CodeTree` codebook is `InformationTheory.IsPrefixFree`, and every non-leaf `CodeTree` codebook
-  is `InformationTheory.IsUniquelyDecodable`.
+* `CodeTree.isPrefixFree_codewordSet`, `CodeTree.isUniquelyDecodable_codewordSet`,
+  `CodeTree.isUniquelyDecodable_codewordSet_iff`: every `CodeTree` codebook is
+  `InformationTheory.IsPrefixFree`, and a `CodeTree` codebook is
+  `InformationTheory.IsUniquelyDecodable` if and only if the tree has at least two leaves (a single
+  leaf `leaf a` assigns the empty codeword `[]`).
 * `CodeTree.decode_encode`, `CodeTree.length_encode_eq_weightedPathLength_count`: lossless
   bit-stream round-trip and exact equality between compressed bit length and weighted external path
   length under empirical symbol counts.
@@ -280,6 +282,9 @@ variable {α : Type*}
 def codewordSet (T : CodeTree α) : Set (List Bool) :=
   {c | ∃ a, (a, c) ∈ T.codewords}
 
+@[simp] theorem mem_codewordSet {T : CodeTree α} {c : List Bool} :
+    c ∈ T.codewordSet ↔ ∃ a, (a, c) ∈ T.codewords := Iff.rfl
+
 @[simp] theorem map_fst_codewords (T : CodeTree α) :
     T.codewords.map Prod.fst = T.leaves := by
   induction T with
@@ -350,6 +355,18 @@ theorem nil_notMem_codewordSet_branch (l r : CodeTree α) :
 theorem isUniquelyDecodable_codewordSet (l r : CodeTree α) :
     InformationTheory.IsUniquelyDecodable (branch l r).codewordSet :=
   (branch l r).isPrefixFree_codewordSet.isUniquelyDecodable (nil_notMem_codewordSet_branch l r)
+
+/-- A `CodeTree` codebook is `InformationTheory.IsUniquelyDecodable` if and only if the tree has
+at least two leaves: every `branch l r` assigns nonempty prefix-free codewords, whereas a single
+leaf `leaf a` assigns the empty codeword `[]`, violating
+`InformationTheory.IsUniquelyDecodable.epsilon_notMem`. -/
+theorem isUniquelyDecodable_codewordSet_iff (T : CodeTree α) :
+    InformationTheory.IsUniquelyDecodable T.codewordSet ↔ 2 ≤ T.leaves.length := by
+  cases T with
+  | leaf a =>
+    exact iff_of_false (fun h => h.epsilon_notMem ⟨a, List.mem_singleton.mpr rfl⟩) (by simp)
+  | branch l r =>
+    exact iff_of_true (isUniquelyDecodable_codewordSet l r) (two_le_length_leaves_of_branch l r)
 
 /-- Lookup the binary codeword of symbol `a` in `T` (first match in left-to-right order). -/
 @[expose] def encodeSym [DecidableEq α] : CodeTree α → α → Option (List Bool)

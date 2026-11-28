@@ -268,20 +268,65 @@ private theorem isUniquelyDecodable_suffixCode :
     simpa [List.map_map, Function.comp_def, List.reverse_reverse] using this
   exact List.reverse_injective (hmap_inj hEq_rev)
 
--- Instantiate `huffman_optimal_isUniquelyDecodable` against the non-prefix-free `suffixCode`!
+-- Instantiate `huffman_optimal_isUniquelyDecodable` against the non-prefix-free `suffixCode`,
+-- consuming both the feasibility (`IsUniquelyDecodable T.codewordSet`) and optimality conjuncts.
 example :
     let syms : List (Fin 3) := [0, 1, 2]
     let w : Fin 3 → ℕ := ![5, 7, 10]
     ∃ T, huffman w syms = some T ∧
+      InformationTheory.IsUniquelyDecodable T.codewordSet ∧
       T.weightedPathLength w ≤ (syms.map fun a => (suffixCode a).length • w a).sum := by
   intro syms w
   have hne : syms ≠ [] := by decide
+  have h2 : 2 ≤ syms.length := by decide
   have hnodup : syms.Nodup := by decide
   have hw : ∀ a ∈ syms, 0 ≤ w a := fun _ _ => Nat.zero_le _
   have hinj_dec : ∀ i j : Fin 3, suffixCode i = suffixCode j → i = j := by decide
   have hinj : Set.InjOn suffixCode {a | a ∈ syms} := fun i _ j _ hEq => hinj_dec i j hEq
   rcases huffman_spec hne hw with ⟨T, hT, _, _⟩
-  exact ⟨T, hT, huffman_optimal_isUniquelyDecodable hne hnodup hw hT hinj
+  exact ⟨T, hT, huffman_optimal_isUniquelyDecodable h2 hnodup hw hT hinj
     isUniquelyDecodable_suffixCode⟩
+
+/-! ## 6. Singleton boundary witness (1-symbol empty-codeword degeneracy) -/
+
+-- On a 1-symbol alphabet, `CodeTree.leaf 0` has `codewordSet = {[]}`, which satisfies Mathlib's
+-- `IsPrefixFree` but is NOT `IsUniquelyDecodable` (by `IsUniquelyDecodable.epsilon_notMem`), and
+-- its bit-stream decoder returns `none` on `[]`. Meanwhile, the 1-bit code `fun _ => [false]` IS
+-- `IsUniquelyDecodable` with cost `1 > 0 = (CodeTree.leaf 0).weightedPathLength (fun _ => 1)`.
+example :
+    ¬ InformationTheory.IsUniquelyDecodable (CodeTree.leaf (0 : Fin 1)).codewordSet ∧
+    InformationTheory.IsPrefixFree (CodeTree.leaf (0 : Fin 1)).codewordSet ∧
+    (CodeTree.leaf (0 : Fin 1)).decode [] = none :=
+  ⟨fun hud => hud.epsilon_notMem (CodeTree.mem_codewordSet.mpr ⟨0, List.mem_singleton.mpr rfl⟩),
+    CodeTree.isPrefixFree_codewordSet (.leaf (0 : Fin 1)), by rw [CodeTree.decode.eq_1]⟩
+
+-- Checked Word-RAM uniquely-decodable feasibility witness on `ws = [5, 7, 10]` (`2 ≤ ws.length`),
+-- paired with the `n = 1` boundary (`ws = [1]`, `lens = [0]`, `T = CodeTree.leaf 0`, non-UD).
+example :
+    (∃ T : CodeTree (Fin 3),
+      InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+      T.weightedPathLength (symWeight [5, 7, 10]) ≤
+        ((List.finRange 3).map fun a => (suffixCode a).length * symWeight [5, 7, 10] a).sum) ∧
+    (∃ T : CodeTree (Fin 1),
+      T = CodeTree.leaf 0 ∧
+      ¬ InformationTheory.IsUniquelyDecodable T.codewordSet) := by
+  obtain ⟨_, _, _, _, _, _, hpos3⟩ :=
+    fromSortedProgram_spec (w := 8) [5, 7, 10] (by decide) (by decide)
+  obtain ⟨T3, _, _, _, _, hud3⟩ := hpos3 (by decide) (by decide)
+  obtain ⟨hT3_ud, hT3_opt⟩ := hud3 (by decide)
+  have hinj : Set.InjOn suffixCode {a | a ∈ List.finRange 3} := by
+    intro i _ j _ hEq
+    exact (by decide : ∀ a b : Fin 3, suffixCode a = suffixCode b → a = b) i j hEq
+  have hset : {a : Fin 3 | a ∈ List.finRange 3} = {a : Fin 3 | a ∈ ([0, 1, 2] : List (Fin 3))} := by
+    ext a; fin_cases a <;> simp
+  obtain ⟨_, _, _, _, _, _, hpos1⟩ :=
+    huffmanProgram_spec (w := 8) [1] (by decide) (by decide)
+  obtain ⟨T1, _, hperm1, _, _⟩ := hpos1 (by decide)
+  have hT1_eq : T1 = CodeTree.leaf 0 :=
+    CodeTree.eq_leaf_of_leaves_perm_singleton ((by decide : List.finRange 1 = [0]) ▸ hperm1)
+  refine ⟨⟨T3, hT3_ud, hT3_opt suffixCode hinj (hset ▸ isUniquelyDecodable_suffixCode)⟩,
+    ⟨T1, hT1_eq, ?_⟩⟩
+  rw [hT1_eq, CodeTree.isUniquelyDecodable_codewordSet_iff]
+  decide
 
 end CslibFrontierTests.Huffman

@@ -38,8 +38,10 @@ are proved in `CslibFrontier.Algorithms.WordRAM.Huffman`:
    nonnegative inputs (`huffmanFromSorted_spec`).
 4. **End-to-end unsorted Huffman construction (`huffman`)**: sorts `syms` with `List.mergeSort` and
    runs `huffmanFromSorted`, producing a tree certified by `IsHuffmanBuild` (hence optimal over all
-   `CodeTree`s, all injective `IsPrefixFree` binary codes, and all injective `IsUniquelyDecodable`
-   binary codes).
+   `CodeTree`s and all injective `IsPrefixFree` binary codes, and—when `2 ≤ syms.length`, avoiding
+   the 1-symbol `CodeTree.leaf a` degeneracy whose `codewordSet = {[]}` is `IsPrefixFree` in
+   Mathlib but not `IsUniquelyDecodable`—producing a uniquely decodable codebook optimal over all
+   injective `IsUniquelyDecodable` binary codes).
 
 ## Main definitions
 
@@ -63,7 +65,8 @@ are proved in `CslibFrontier.Algorithms.WordRAM.Huffman`:
   permutation) on any nonempty sorted symbol list with nonnegative weights.
 * `Cslib.Algorithms.Lean.Huffman.huffman_spec`, `huffman_optimal`,
   `huffman_optimal_isPrefixFree`, `huffman_optimal_isUniquelyDecodable`: end-to-end correctness and
-  optimality of `huffman`.
+  optimality of `huffman` (with `2 ≤ syms.length` and `IsUniquelyDecodable T.codewordSet` in the
+  uniquely decodable headline).
 
 ## References
 
@@ -573,20 +576,26 @@ theorem huffman_optimal_isPrefixFree {α β : Type u}
   exact (Option.some.inj (hT₀.symm.trans hT) ▸ hbuild).weightedPathLength_le_of_isPrefixFree
     hne hnodup hw hinj hpf
 
-/-- **Optimality of `huffman` over All Uniquely Decodable Binary Codes**: on distinct symbols `syms`
-with nonnegative weights, `huffman w syms` achieves weighted path length at most that of *any*
-injective `InformationTheory.IsUniquelyDecodable` binary code. -/
+/-- **Optimality of `huffman` over All Uniquely Decodable Binary Codes**: on at least two distinct
+symbols (`2 ≤ syms.length`) with nonnegative weights, `huffman w syms` returns a tree `T` whose
+codebook is `InformationTheory.IsUniquelyDecodable` and achieves weighted path length at most that
+of *any* injective `InformationTheory.IsUniquelyDecodable` binary code.
+
+On a 1-symbol input, `huffman w [a] = some (.leaf a)` has `codewordSet = {[]}`, which is
+`InformationTheory.IsPrefixFree` in Mathlib (covered by `huffman_optimal_isPrefixFree`) but not
+`InformationTheory.IsUniquelyDecodable`. -/
 theorem huffman_optimal_isUniquelyDecodable {α β : Type u}
     [AddCommMonoid β] [LinearOrder β] [IsOrderedAddMonoid β]
-    {syms : List α} (hne : syms ≠ []) (hnodup : syms.Nodup)
+    {syms : List α} (h2 : 2 ≤ syms.length) (hnodup : syms.Nodup)
     {w : α → β} (hw : ∀ a ∈ syms, 0 ≤ w a)
     {T : CodeTree α} (hT : huffman w syms = some T)
     {code : α → List Bool}
     (hinj : Set.InjOn code {a | a ∈ syms})
     (hud : InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ syms})) :
-    T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
-  obtain ⟨_, hT₀, hbuild, _⟩ := huffman_spec hne hw
+    InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+      T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
+  obtain ⟨_, hT₀, hbuild, _⟩ := huffman_spec (List.ne_nil_of_length_pos (by omega)) hw
   exact (Option.some.inj (hT₀.symm.trans hT) ▸ hbuild).weightedPathLength_le_of_isUniquelyDecodable
-    hne hnodup hw hinj hud
+    h2 hnodup hw hinj hud
 
 end Cslib.Algorithms.Lean.Huffman

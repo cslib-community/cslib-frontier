@@ -22,12 +22,15 @@ and proves its optimality over:
 2. **All finite injective `InformationTheory.IsPrefixFree` binary codes**
    (`IsHuffmanBuild.weightedPathLength_le_of_isPrefixFree`) under nonnegative weights, via unary
    trie compaction (`exists_codeTree_of_isPrefixFree`).
-3. **All finite injective `InformationTheory.IsUniquelyDecodable` binary codes**
-   (`IsHuffmanBuild.weightedPathLength_le_of_isUniquelyDecodable`) under nonnegative weights, via
-   Mathlib's Kraft–McMillan inequality and our constructive binary Kraft converse
-   (`exists_codeTree_of_isUniquelyDecodable`, [McMillan1956]; [CoverThomas2006], Theorem 5.8.1,
-   specialized to binary alphabet `Bool`, $D = 2$, and generalized from real probability weights to
-   any ordered additive commutative monoid `β`).
+3. **All finite injective `InformationTheory.IsUniquelyDecodable` binary codes on at least two
+   symbols** (`IsHuffmanBuild.weightedPathLength_le_of_isUniquelyDecodable`, requiring
+   `2 ≤ syms.length` and proving `InformationTheory.IsUniquelyDecodable T.codewordSet`) under
+   nonnegative weights, via Mathlib's Kraft–McMillan inequality and our constructive binary Kraft
+   converse (`exists_codeTree_of_isUniquelyDecodable`, [McMillan1956]; [CoverThomas2006],
+   Theorem 5.8.1, specialized to binary alphabet `Bool`, $D = 2$, and generalized from real
+   probability weights to any ordered additive commutative monoid `β`). On a 1-symbol alphabet,
+   `CodeTree.leaf a` has `codewordSet = {[]}`, which satisfies Mathlib's `IsPrefixFree` but not
+   `IsUniquelyDecodable`.
 
 ## Proof architecture
 
@@ -60,7 +63,8 @@ Lemma 16.3.
 * `Cslib.Algorithms.Lean.Huffman.IsHuffmanBuild.weightedPathLength_le_of_isPrefixFree`: optimality
   among all injective `InformationTheory.IsPrefixFree` binary codes.
 * `Cslib.Algorithms.Lean.Huffman.IsHuffmanBuild.weightedPathLength_le_of_isUniquelyDecodable`:
-  optimality among all injective `InformationTheory.IsUniquelyDecodable` binary codes.
+  feasibility (`IsUniquelyDecodable T.codewordSet`) and optimality among all injective
+  `InformationTheory.IsUniquelyDecodable` binary codes for `2 ≤ syms.length`.
 
 ## References
 
@@ -559,19 +563,28 @@ theorem IsHuffmanBuild.weightedPathLength_le_of_isPrefixFree {α β : Type*}
 
 /-- **Optimality of Huffman Coding over All Uniquely Decodable Binary Codes** ([McMillan1956];
 [CoverThomas2006], Theorem 5.8.1 specialized to binary alphabet `Bool`, $D = 2$, and generalized to
-arbitrary ordered additive commutative monoid weights `β`): under nonnegative symbol weights, a
-Huffman tree `T` achieves weighted path length at most the weighted codeword length of *any*
-injective `InformationTheory.IsUniquelyDecodable` binary code on `syms`. -/
+arbitrary ordered additive commutative monoid weights `β`): on at least two distinct symbols
+(`2 ≤ syms.length`) with nonnegative weights, a Huffman tree `T` produces a uniquely decodable
+codebook (`InformationTheory.IsUniquelyDecodable T.codewordSet`) whose weighted path length is at
+most the weighted codeword length of *any* injective `InformationTheory.IsUniquelyDecodable` binary
+code on `syms`.
+
+On a 1-symbol alphabet, the unique full binary tree `CodeTree.leaf a` has `codewordSet = {[]}`,
+which is `InformationTheory.IsPrefixFree` in Mathlib (so
+`IsHuffmanBuild.weightedPathLength_le_of_isPrefixFree` still applies) but not
+`InformationTheory.IsUniquelyDecodable`. -/
 theorem IsHuffmanBuild.weightedPathLength_le_of_isUniquelyDecodable {α β : Type*}
     [AddCommMonoid β] [PartialOrder β] [IsOrderedAddMonoid β]
-    {syms : List α} (hne : syms ≠ []) (hnodup : syms.Nodup)
+    {syms : List α} (h2 : 2 ≤ syms.length) (hnodup : syms.Nodup)
     {w : α → β} (hw : ∀ a ∈ syms, 0 ≤ w a)
     {T : CodeTree α} (hbuild : IsHuffmanBuild w (syms.map .leaf) T)
     {code : α → List Bool}
     (hinj : Set.InjOn code {a | a ∈ syms})
     (hud : InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ syms})) :
-    T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
-  rcases exists_codeTree_of_isUniquelyDecodable hne hnodup hinj hud hw with ⟨T', hperm, hwpl⟩
-  exact le_trans (hbuild.weightedPathLength_le T' hperm) hwpl
+    InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+      T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
+  rcases exists_codeTree_of_isUniquelyDecodable h2 hnodup hinj hud hw with ⟨T', hperm, _, hwpl⟩
+  exact ⟨T.isUniquelyDecodable_codewordSet_iff.mpr (hbuild.leaves_perm.length_eq.symm ▸ h2),
+    le_trans (hbuild.weightedPathLength_le T' hperm) hwpl⟩
 
 end Cslib.Algorithms.Lean.Huffman
