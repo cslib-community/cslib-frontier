@@ -804,5 +804,16 @@ class CheckHygieneCLITests(unittest.TestCase):
         self.assertEqual(len(seq), 2)
 
 
+class AgentsSizeTests(unittest.TestCase):
+    def test_agents_md_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "AGENTS.md"
+            path.write_bytes(b"x" * check_hygiene.AGENTS_MAX_BYTES)
+            self.assertEqual(check_hygiene.check_agents_size(path), [])
+            path.write_bytes(b"x" * (check_hygiene.AGENTS_MAX_BYTES + 1))
+            self.assertIn("exceeds", check_hygiene.check_agents_size(path)[0])
+        self.assertEqual(check_hygiene.check_agents_size(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

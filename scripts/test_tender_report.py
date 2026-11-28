@@ -214,5 +214,22 @@ class CheckStateTests(unittest.TestCase):
         self.assertEqual(tr.ci_state([run, failed]), ("failure", ["ci-checks"]))
 
 
+class ImprovementShareTests(unittest.TestCase):
+    def test_counts_improvement_titles_and_flags_large_fleets_below_the_floor(self):
+        log = "\n".join(["A\tfeat(X): add a theorem (#1)"] * 8
+                        + ["A\trefactor(X)!: share a lemma (#2)", "A\tperf: faster (#3)",
+                           "B\tfeat: one (#4)", "B\tstyle(Y): rename (#5)",
+                           "C\tfeat(Z): add (#6)"] + ["C\tfeat(Z): more (#7)"] * 9
+                        + ["D\trefactoring is not a type (#8)", "malformed line"])
+        rows = {r["author"]: r for r in tr.improvement_share(log)}
+        self.assertEqual((rows["A"]["merged"], rows["A"]["improvements"], rows["A"]["below"]),
+                         (10, 2, False))
+        self.assertEqual((rows["B"]["improvements"], rows["B"]["below"]), (1, False))
+        self.assertEqual((rows["C"]["merged"], rows["C"]["below"]), (10, True))
+        self.assertEqual(rows["D"]["improvements"], 0)
+        self.assertNotIn("malformed line", rows)
+        self.assertIn("below one in five", tr.render_share(list(rows.values()), "main", 7))
+
+
 if __name__ == "__main__":
     unittest.main()
