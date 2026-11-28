@@ -27,8 +27,20 @@ WORKER_SIGNATURE = re.compile(
 )
 
 
+# Preserve the entire worker ID: several distinct workers share the same fleet suffix.
+AUTHORING_WORKER = re.compile(
+    rf"^[*_-]*[ \t]*(?:\*\*)?(?:Authoring worker|Worker):(?:\*\*)?[ \t]*`({ID})`"
+    rf"|^[*_]*(?:Implemented by (?:agent|AI) worker) `({ID})`"
+    rf"|^[*_]*(?:Authored with AI assistance|"
+    rf"(?:Implemented(?: and locally validated)? (?:by|with)|Drafted, proved, and locally validated by)"
+    rf" an? [^\n()]*coding agent) \(`(worker-{ID})`(?=[ \t)]|$)"
+    rf"|^Addressed [^\n]*?\((?:posted )?by `(worker-{ID})`\):",
+    re.I | re.M,
+)
+
+
 def worker_id(body: str) -> str | None:
-    """Read a public worker ID from a field, self-claim, or named worker signature."""
+    """Read a public worker ID from a field, self-claim, signature, or author credit."""
     body = re.sub(r"(?s)<!--.*?(?:-->|\Z)", "", body.replace("\r\n", "\n"))
     body = re.sub(r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?(?:^[ \t]*\1[ \t]*$|\Z)", "", body)
     fields = WORKER_FIELD.findall(body)
@@ -36,6 +48,7 @@ def worker_id(body: str) -> str | None:
         ids = {value.lower() for value in fields}
         return next(iter(ids)) if len(ids) == 1 else None
     ids = {value.lower() for value in WORKER_SIGNATURE.findall(body)}
+    ids.update(value.lower() for match in AUTHORING_WORKER.findall(body) for value in match if value)
     for pattern in WORKER_CLAIMS:
         claim = pattern.match(body.lstrip("\n"))
         if claim:

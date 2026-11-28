@@ -28,6 +28,29 @@ class Disclosures(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertEqual(activity.worker_id(body), expected)
 
+    def test_worker_credits_from_public_pull_requests(self):
+        # Minimal excerpts from PRs #9038, #9039, #9046, #9047, #9049, #9051–#9053.
+        cases = [
+            (8, "Implemented by agent worker `{worker}` under coordinator `{coord}`."),
+            (7, "Drafted, proved, and locally validated by an AI coding agent "
+                "(`{worker}` under coordinator `{coord}`)."),
+            (11, "- **Worker:** `{worker}`\nAuthored with AI assistance (`{worker}`)."),
+            (10, "*Implemented by AI worker `{worker}` under coordinator `{coord}`.*"),
+            (9, "Implemented by agent worker `{worker}` under coordinator `{coord}` (Antigravity)."),
+            (12, "Authoring worker: `{worker}` (coordinator: `{coord}`)."),
+            (13, "Implemented and locally validated with an Antigravity coding agent "
+                 "(`{worker}`) under coordinator `{coord}`."),
+            (14, "Implemented by an AI coding agent (`{worker}`) under orchestration."),
+        ]
+        for number, template in cases:
+            identifier = f"worker-{number}-nrtv-b373d02a"
+            body = template.format(worker=identifier, coord="coord-nrtv-b373d02a")
+            with self.subTest(worker=identifier):
+                self.assertEqual(activity.worker_id(body), identifier)
+        self.assertEqual(activity.worker_id(
+            "Addressed source-check items from `source-checker-9046-b373d02a` at revision "
+            "`3d97442668` (by `worker-11-nrtv-b373d02a`):"), "worker-11-nrtv-b373d02a")
+
     def test_excludes_session_ids_aliases_and_ambiguous_worker_ids(self):
         cases = [
             "Codex session 62875d29 claims the next batch.",
@@ -36,6 +59,8 @@ class Disclosures(unittest.TestCase):
             "— Codex worker, session `4625757c`",
             "Agent session: disposable\nAgent role: worker",
             "**APPROVE** at abcd1234 by worker-alias",
+            "Reviewer: `worker-7-nrtv-b373d02a`",
+            "Coordinator: `coord-nrtv-b373d02a`",
             "<!-- Worker ID: hidden-worker -->",
             "> Worker ID: quoted-worker\n```md\nWorker ID: example-worker\n```\n",
             "Worker ID: first-worker\nWorker ID: second-worker",

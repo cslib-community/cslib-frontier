@@ -136,7 +136,7 @@ selected window.</p>
   <summary>How activity is counted</summary>
   <p>A worker ID is active when it appears in a public issue, pull request, conversation comment,
   or submitted review during the window. The collector recognizes explicit worker ID fields,
-  named worker claims, and named worker signatures. The charts group records by creation or
+  named worker claims, signatures, and author credits. The charts group records by creation or
   submission date in UTC. Edits to public records can change historical counts.</p>
   <p>Session-only disclosures, GitHub logins, and review aliases supply no worker ID. The count
   represents the IDs visible in the supported formats.</p>

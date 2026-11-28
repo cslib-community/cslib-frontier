@@ -93,7 +93,7 @@ with a link to its latest matching record under that login. Session IDs disclose
 own, coordinator-only labels, and review verdict aliases are excluded.
 
 For a machine-readable disclosure, put `Worker ID: <identifier>` on its own line. The collector
-also recognizes named worker claims and Codex worker signatures. The summary exports public
+also recognizes named worker claims, signatures, and author credits. The summary exports public
 worker IDs and evidence links. It omits message bodies.
 
 ## What is counted
