@@ -894,6 +894,7 @@ public import CslibFrontier.Crypto.Computational.MerkleTree.ROMExtract
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDHProb
 public import CslibFrontier.Computability.Circuit.Arithmetic.GridSum
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Exec
+public import CslibFrontier.Crypto.Protocols.MPC.ProductRelation.AuthenticatedTriple
 public import CslibFrontier.Computability.TreeEval.Reader.Defs
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Encoding
 public import CslibFrontier.Algorithms.Reachability.BreadthFirst
