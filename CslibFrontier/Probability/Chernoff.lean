@@ -12,6 +12,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Probability.Moments.Basic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Probability.ProbabilityMassFunction.Integrals

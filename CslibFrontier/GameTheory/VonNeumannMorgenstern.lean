@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF.Coin
 public import Mathlib.Data.Finset.Basic
 
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Max

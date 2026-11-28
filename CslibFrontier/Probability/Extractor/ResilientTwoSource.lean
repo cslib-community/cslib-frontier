@@ -17,7 +17,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
-import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Probability.StatisticalDistance.Event

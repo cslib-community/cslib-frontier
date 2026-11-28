@@ -16,6 +16,7 @@ public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Tactic.ENNRealToReal
 

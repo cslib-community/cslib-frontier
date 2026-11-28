@@ -505,11 +505,6 @@ section CoinFixing
 
 variable {M : Type u} {X : Type v} {Y : Type w}
 
-/-- Expected second component of a point-mass `(output, cost)` law `PMF.pure p`. -/
-theorem tsum_pure_snd_natCast (p : Y × ℕ) :
-    (∑' z : Y × ℕ, (PMF.pure p) z * (z.2 : ℝ≥0∞)) = (p.2 : ℝ≥0∞) :=
-  PMF.tsum_pure_mul p fun z => z.2
-
 /-- When a joint `(output, cost)` law `run` is a mixture `μ.bind fun m => PMF.pure (out m, c m)`
 of deterministic outcomes, its expected cost is the `μ`-average of `c`. -/
 theorem tsum_snd_eq_of_bind_pure (μ : PMF M) (out : M → Y) (c : M → ℕ) {run : PMF (Y × ℕ)}

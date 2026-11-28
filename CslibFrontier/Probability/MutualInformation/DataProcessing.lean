@@ -13,7 +13,7 @@ import CslibFrontier.Probability.Divergence
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
-import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformSubset
 

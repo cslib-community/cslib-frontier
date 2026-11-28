@@ -32,6 +32,8 @@ into the vocabulary of `Finset.expect` (`𝔼`) and `Finset.dens`.
   deterministic and random scores (including finite-source pushforwards onto arbitrary codomains).
 * `Cslib.Probability.PMF.tsum_map_mul`, `.tsum_bind_mul`, `.tsum_pure_mul`: expectations of
   extended nonnegative scores under maps, random continuations, and point masses.
+* `Cslib.Probability.PMF.tsum_pure_toReal_mul`, `.sum_pure_toReal_mul`: real expectations
+  under a point mass evaluate the score at that point.
 * `Cslib.Probability.PMF.sq_tsum_le_tsum_sq`: Jensen's inequality `E[g]² ≤ E[g²]` for a
   `[0, 1]`-valued score.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_bind_apply`: a uniform first stage averages the
@@ -71,6 +73,19 @@ theorem tsum_bind_mul {α β : Type*} (p : PMF α) (f : α → PMF β) (k : β �
 theorem tsum_pure_mul {α : Type*} (a : α) (f : α → ℝ≥0∞) :
     ∑' x, PMF.pure a x * f x = f a := by
   rw [tsum_eq_single a (fun x hx => by simp [PMF.pure_apply, hx]), PMF.pure_apply_self, one_mul]
+
+/-- Summing a real score against a point mass gives the score at that point. -/
+theorem tsum_pure_toReal_mul {α : Type*} (a : α) (f : α → ℝ) :
+    ∑' x, (PMF.pure a x).toReal * f x = f a := by
+  rw [tsum_eq_single a fun x hx => by simp [PMF.pure_apply_of_ne _ _ hx],
+    PMF.pure_apply_self, ENNReal.toReal_one, one_mul]
+
+/-- The same point-mass expectation can be summed over any finite set containing the point. -/
+theorem sum_pure_toReal_mul {α : Type*} {s : Finset α} {a : α} (ha : a ∈ s) (f : α → ℝ) :
+    ∑ x ∈ s, (PMF.pure a x).toReal * f x = f a := by
+  rw [← tsum_pure_toReal_mul a f]
+  exact (tsum_eq_sum fun x hx => by
+    simp [PMF.pure_apply_of_ne a x (fun h => hx (h.symm ▸ ha))]).symm
 
 /-- Averaging a score after a deterministic map averages its composite with that map.
 Adapted from the cslib `crypto` branch at `5ff69ca`. -/

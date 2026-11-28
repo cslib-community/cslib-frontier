@@ -11,7 +11,6 @@ public import CslibFrontier.Probability.MarkovChain.Mixing
 public import Mathlib.InformationTheory.Hamming
 import CslibFrontier.Foundations.Data.Hamming
 import CslibFrontier.Probability.PMF.Expect
-import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
 
 /-!

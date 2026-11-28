@@ -12,10 +12,10 @@ public import CslibFrontier.Probability.PMF
 /-!
 # Expectations that only see the support
 
-An `ℝ≥0∞`-valued expectation `∑' a, p a * f a` under `p : PMF α` depends only on the values of
-`f` on `p.support`. These lemmas package the off-support case split (`p a = 0`) that otherwise
-recurs whenever a coupled-state invariant holds only on the support, such as a pinned
-abstract state in the randomized state-transition certificates.
+Expectations under `p : PMF α` depend only on the score on `p.support`. This applies to
+extended nonnegative expectations and to finite real expectations. These lemmas package the
+off-support case split (`p a = 0`) that otherwise recurs whenever an invariant holds only on the
+support, such as a pinned abstract state in the randomized state-transition certificates.
 
 ## Main results
 
@@ -27,6 +27,8 @@ abstract state in the randomized state-transition certificates.
   expectations.
 * `Cslib.Probability.PMF.tsum_mul_le_of_support`: an integrand bounded on the support has
   expectation at most that bound.
+* `Cslib.Probability.PMF.sum_toReal_mul_mono_support`,
+  `.sum_toReal_mul_congr_support`: the same monotonicity and congruence for finite real scores.
 -/
 
 public section
@@ -69,5 +71,21 @@ theorem tsum_mul_le_of_support (p : PMF α) {f : α → ℝ≥0∞} {c : ℝ≥0
     (h : ∀ a ∈ p.support, f a ≤ c) :
     ∑' a, p a * f a ≤ c :=
   (tsum_mul_mono_support p h).trans_eq (by rw [ENNReal.tsum_mul_right, p.tsum_coe, one_mul])
+
+/-- Finite real expectations are monotone under pointwise inequalities on the support. -/
+theorem sum_toReal_mul_mono_support {α : Type*} [Fintype α] (p : PMF α) {f g : α → ℝ}
+    (h : ∀ a ∈ p.support, f a ≤ g a) :
+    ∑ a, (p a).toReal * f a ≤ ∑ a, (p a).toReal * g a := by
+  refine Finset.sum_le_sum fun a _ => ?_
+  by_cases ha : a ∈ p.support
+  · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
+  · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
+
+/-- Finite real expectations depend only on the values of the scores on the support. -/
+theorem sum_toReal_mul_congr_support {α : Type*} [Fintype α] (p : PMF α)
+    {f g : α → ℝ} (h : ∀ a ∈ p.support, f a = g a) :
+    ∑ a, (p a).toReal * f a = ∑ a, (p a).toReal * g a :=
+  le_antisymm (sum_toReal_mul_mono_support p fun a ha => (h a ha).le)
+    (sum_toReal_mul_mono_support p fun a ha => (h a ha).ge)
 
 end Cslib.Probability.PMF

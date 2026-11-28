@@ -12,7 +12,6 @@ public import CslibFrontier.Probability.Collision
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
-import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!

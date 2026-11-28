@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Probability.MinEntropy
 public import CslibFrontier.Probability.UniversalHash
-import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Leftover hashing from weak random sources

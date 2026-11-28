@@ -11,7 +11,6 @@ public import CslibFrontier.Probability.Collision
 public import CslibFrontier.Probability.Entropy
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.SupportTsum
-import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
 
 /-!

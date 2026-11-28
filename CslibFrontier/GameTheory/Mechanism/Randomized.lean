@@ -10,7 +10,7 @@ module
 public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Map
-import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Topology.Algebra.InfiniteSum.Order
 import Mathlib.Topology.Algebra.InfiniteSum.Real
