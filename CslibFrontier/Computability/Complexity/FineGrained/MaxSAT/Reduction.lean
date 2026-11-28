@@ -1496,7 +1496,7 @@ theorem computableInPolyTime_maxCSPOptimizeBounded {Rel : Type} [Finite Rel]
     (binary_sub'
       (binary_add' (encStructSolution_optValue_polyTime hsol)
         (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
-          (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id'))))
+          (encMaxCSPInstance_constraints_polyTime encRel .id'))))
       (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
         (encStructInstance_clauses_polyTime hstruct))))
     (encStructSolution_assignmentBits_polyTime hsol)
