@@ -16,7 +16,7 @@ register_result "median-of-five-six-comparisons" where
   title := "Six comparisons suffice to select the median of five"
   topic := "comparison selection"
   sources := [
-    { paper := RuzickaWiedermann1979, theorem := "The uniform six-comparison construction",
+    { paper := RuzickaWiedermann1979, theorem := "Fig. 3",
       locator := "§2, p. 322, case 2b on p. 323 and Figure 3 on p. 324." }
   ]
   theorems := [Cslib.Query.eval_medianFive, Cslib.Query.medianFive_countQueries]
