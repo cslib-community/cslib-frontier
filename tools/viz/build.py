@@ -8,7 +8,7 @@ Usage:
   python3 tools/viz/build.py [--out DIR] [--only NAME ...] [--no-video] [--ref REF]
 
 Writes every chart (PNG and SVG, a dark PNG and a CSV of its data), the two videos, and the
-interactive pages (briefing, module and result explorers, textbook map, areas) into `--out`
+interactive pages (briefing, explorers, textbook map, agent activity) into `--out`
 (default `tools/viz/_site`). See tools/viz/README.md.
 """
 
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime as dt
 import json
 import sys
 import time
@@ -37,6 +38,7 @@ import atlas  # noqa: E402
 import streams  # noqa: E402
 import prs  # noqa: E402
 import github_prs  # noqa: E402
+import agent_activity  # noqa: E402
 import style  # noqa: E402
 
 
@@ -188,6 +190,11 @@ def main() -> int:
     ap.add_argument("--prs-previous", default=None,
                     help="with --fetch-prs: URL or file of the previously published prs.json; "
                          "only pull requests updated since are fetched")
+    activity = ap.add_mutually_exclusive_group()
+    activity.add_argument("--fetch-agent-activity", action="store_true",
+                          help="read public agent disclosures (requires --fetch-prs and its token)")
+    activity.add_argument("--agent-activity-json", type=Path,
+                          help="reuse an aggregated report from an earlier build")
     ap.add_argument("--lean-lib", type=Path, default=None,
                     help="build outputs (.lake/build/lib/lean) of the commit being visualized; "
                          "enables the Lean census views")
@@ -200,6 +207,9 @@ def main() -> int:
     ap.add_argument("--repo-url", default="https://github.com/cslib-community/cslib-frontier",
                     help="links the commit in the report; empty to omit")
     args = ap.parse_args()
+
+    if args.fetch_agent_activity and (not args.fetch_prs or args.prs_json or not github_prs.token()):
+        ap.error("--fetch-agent-activity needs --fetch-prs with a GitHub token")
 
     t0 = time.time()
     H = h.History(args.repo, args.ref)
@@ -238,6 +248,22 @@ def main() -> int:
         args.out.mkdir(parents=True, exist_ok=True)
         (args.out / "prs.json").write_text(json.dumps(raw_prs, separators=(",", ":")))
         pr_recs = prs.records(H, raw_prs)
+    agents = None
+    if args.agent_activity_json:
+        agents = json.loads(args.agent_activity_json.read_text())
+        if agents.get("metric") != "worker_ids":
+            ap.error("--agent-activity-json needs a worker-ID report from the current generator")
+    elif args.fetch_agent_activity:
+        t = time.time()
+        now = dt.datetime.now(dt.timezone.utc)
+        events = agent_activity.fetch(github_prs.DEFAULT_REPO, github_prs.token(),
+                                      raw_prs, now)
+        agents = agent_activity.summarize(events, now)
+        print(f"agent activity: {len(events)} records ({time.time() - t:.1f}s)", flush=True)
+    if agents is not None:
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "agent-activity.json").write_text(json.dumps(agents, separators=(",", ":")))
+
     videos = {"atlas", "evolution"}
     names = args.only or [c.name for c in CHARTS if not (args.no_video and c.name in videos)]
     built: dict[str, list[Path]] = {}
@@ -272,7 +298,7 @@ def main() -> int:
                "reading": c.reading, "files": _files(c.name, built[c.name]), "wide": c.wide}
               for c in CHARTS if c.name in built]
     t = time.time()
-    written = pages.build(args.out, H, census, charts, SECTIONS, args.repo_url, pr_recs)
+    written = pages.build(args.out, H, census, charts, SECTIONS, args.repo_url, pr_recs, agents)
     print(f"pages: {', '.join(p.name for p in written)} ({time.time() - t:.1f}s)", flush=True)
     return 0
 
