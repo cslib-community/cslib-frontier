@@ -52,11 +52,9 @@ private def recordReply (out : Option (List Byte)) : SigningReply s :=
 
 private theorem recordReply_some {sig : List Byte} (h : sig.length = signatureBytes s) :
     (recordReply s (some sig)).map FixedBytes.toList = some sig := by
-  simp only [recordReply, Option.map_some, Option.some.injEq]
   obtain ⟨v, rfl⟩ := FixedBytes.exists_toList h
-  congr 1
-  funext i
-  simp [FixedBytes.toList]
+  simp only [recordReply, Option.map_some, Option.some.injEq]
+  exact congrArg FixedBytes.toList (funext fun i => by simp [FixedBytes.toList])
 
 /-- Install one digest-sized prefix per raw input in the finite quantum register. Bytes
 after the installed prefix, raw inputs outside the register and the SHAKE128 component come
@@ -75,12 +73,10 @@ XOFs at every raw input and requested length, including at literal FIPS SHAKE. -
 theorem sharedXofs_digestTable (base : Xofs) :
     sharedXofs s extra base (base.digestTable s extra) = base := by
   refine Xofs.ext rfl (ExtendableOutput.ext (funext fun x => funext fun n => ?_))
-  unfold sharedXofs ExtendableOutput.withPrefixes
   by_cases h : x ∈ commitmentAddresses s extra
-  · simp only [h, ↓reduceDIte, Xofs.digestTable,
-      registerBytes_ofList _ _ (base.h256.length_read ..)]
-    exact base.h256.readWithPrefix_self x n _
-  · simp [h]
+  · simp [sharedXofs, ExtendableOutput.withPrefixes, h, Xofs.digestTable,
+      registerBytes_ofList _ _ (base.h256.length_read ..), base.h256.readWithPrefix_self]
+  · simp [sharedXofs, ExtendableOutput.withPrefixes, h]
 
 /-- At the actual commitment input every use of SHAKE256 reads precisely the digest
 in the coherent register, even when another protocol role has used that raw input. -/
@@ -329,10 +325,8 @@ private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fin
   let C := Real.sqrt (((s.params.ℓ + 2) * fuel : ℕ) + F ^ 2) * Real.sqrt mass
   have finite : commitmentGuessProbability s.params (by cases s <;> decide) A ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
-  unfold signingAttemptRefreshProbability
-  rw [← expect_sub_distrib]
-  refine (abs_expect_le _ _).trans (expect_le univ_nonempty fun hv _ => ?_)
-  obtain ⟨H, v⟩ := hv
+  rw [signingAttemptRefreshProbability, signingAttemptRefreshProbability, ← expect_sub_distrib]
+  refine (abs_expect_le _ _).trans (expect_le univ_nonempty fun ⟨H, v⟩ _ => ?_)
   let G (i : commitmentAddresses s extra) := Function.update H i v
   let u (b : B) := p.state addStep ψ H b
   simp only [reduceCtorEq, false_and, true_and, ↓reduceIte, ← sum_sub_distrib]

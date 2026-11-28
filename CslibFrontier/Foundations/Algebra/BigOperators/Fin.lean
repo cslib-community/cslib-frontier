@@ -13,6 +13,7 @@ public import Mathlib.Algebra.BigOperators.Intervals
 public import Mathlib.Algebra.Module.Defs
 public import Mathlib.Order.Interval.Finset.Fin
 import Mathlib.Algebra.BigOperators.Module
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Abel
 
 /-!
@@ -33,8 +34,8 @@ namespace Fin
 theorem sum_eq_sum_range_of_eq_zero {M : Type*} [AddCommMonoid M] {n k : ℕ} (hk : k ≤ n)
     (f : ℕ → M) (hf : ∀ j, k ≤ j → f j = 0) :
     ∑ j : Fin n, f j = ∑ j ∈ range k, f j := by
-  rw [Fin.sum_univ_eq_sum_range f n, ← Finset.sum_range_add_sum_Ico _ hk]
-  rw [Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
+  rw [Fin.sum_univ_eq_sum_range f n, ← Finset.sum_range_add_sum_Ico _ hk,
+    Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
 
 /-- The differences within indexed pairs and across consecutive pairs telescope
 to the difference from the first entry to the last exit. -/
@@ -45,6 +46,34 @@ theorem sum_univ_adjacent_differences {M : Type*} [AddCommGroup M] {n : ℕ}
   rw [Finset.sum_sub_distrib, Finset.sum_sub_distrib,
     Fin.sum_univ_castSucc exit, Fin.sum_univ_succ entry]
   abel
+
+/-- A weighted sum of within-round potential drops from `a` to `b` is bounded by the
+endpoint difference in weighted slack plus the inter-round drift. The `hslack` condition
+compares weights at the same potential and holds automatically for constant weights. -/
+theorem sum_range_mul_sub_le_of_adjacent {R : Type*} [Ring R] [LinearOrder R]
+    [IsOrderedAddMonoid R] (w a b drift : ℕ → R) (D : R) (T : ℕ)
+    (hslack : ∀ t < T, w t * (D - a (t + 1)) ≤ w (t + 1) * (D - a (t + 1)))
+    (hdrift : ∀ t < T, w t * (a (t + 1) - b t) ≤ drift t) :
+    ∑ t ∈ range (T + 1), w t * (a t - b t) ≤
+      w T * (D - b T) - w 0 * (D - a 0) + ∑ t ∈ range T, drift t := by
+  let entry (i : Fin (T + 1)) := w i * (D - a i)
+  let exit (i : Fin (T + 1)) := w i * (D - b i)
+  have hwithin (i : Fin (T + 1)) : exit i - entry i = w i * (a i - b i) := by
+    simp only [entry, exit, ← mul_sub, sub_sub_sub_cancel_left]
+  have hbetween (i : Fin T) : exit i.castSucc - entry i.succ ≤ drift i := by
+    calc
+      exit i.castSucc - entry i.succ ≤ w i * (D - b i) - w i * (D - a (i + 1)) :=
+        sub_le_sub_left (hslack i i.isLt) _
+      _ = w i * (a (i + 1) - b i) := by rw [← mul_sub, sub_sub_sub_cancel_left]
+      _ ≤ drift i := hdrift i i.isLt
+  have htel := sum_univ_adjacent_differences entry exit
+  simp only [hwithin] at htel
+  rw [← Fin.sum_univ_eq_sum_range _ (T + 1), ← Fin.sum_univ_eq_sum_range _ T]
+  change _ ≤ exit (Fin.last T) - entry 0 + _
+  rw [← htel, add_assoc, le_add_iff_nonneg_right, ← Finset.sum_add_distrib]
+  exact Finset.sum_nonneg fun i _ => by
+    rw [sub_add_eq_add_sub, sub_nonneg]
+    exact (sub_le_iff_le_add.mp (hbetween i)).trans_eq (add_comm _ _)
 
 /-- Summation by parts on a finite vector using prefix sums and successive differences. -/
 theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [Module R M]
@@ -73,12 +102,11 @@ theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [M
         ← sum_neg_distrib, ← Fin.sum_univ_eq_sum_range _ n]
       congr 1
       refine sum_congr rfl fun i _ => ?_
-      have hcast : Fin.ofNat (n + 1) i.val = i.castSucc := hofNat i.castSucc
-      have hsucc : Fin.ofNat (n + 1) (i.val + 1) = i.succ := hofNat i.succ
       have hi := hprefix i.castSucc
       simp only [Fin.val_castSucc] at hi
       rw [hi]
-      simp only [g, hcast, hsucc, ← smul_neg, neg_sub]
+      simp only [g, show Fin.ofNat (n + 1) i.val = i.castSucc from hofNat i.castSucc,
+        show Fin.ofNat (n + 1) (i.val + 1) = i.succ from hofNat i.succ, ← smul_neg, neg_sub]
 
 /-- Summation by parts on a finite vector using tail sums and successive differences. -/
 theorem sum_univ_smul_by_parts_tail {R M : Type*} [Ring R] [AddCommGroup M] [Module R M]
@@ -94,13 +122,9 @@ theorem sum_univ_smul_by_parts_tail {R M : Type*} [Ring R] [AddCommGroup M] [Mod
       (∑ j ∈ Iic i.castSucc, a j.rev) = ∑ j ∈ Ici i.rev.succ, a j := by
     rw [← rev_castSucc, ← map_revPerm_Iic i.castSucc, Finset.sum_map]
     rfl
-  have hrev (i : Fin (n + 1)) : revPerm i = i.rev := rfl
-  simp only [Function.comp_apply, hrev] at h
-  rw [hs, htotal, rev_last] at h
-  simp only [htail, rev_castSucc, rev_succ] at h
-  rw [h]
-  congr 1
-  exact Equiv.sum_comp revPerm
-    (fun i => (∑ j ∈ Ici i.succ, a j) • (b i.succ - b i.castSucc))
+  simp only [Function.comp_apply, show ∀ i : Fin (n + 1), revPerm i = i.rev from fun _ => rfl,
+    hs, htotal, rev_last, htail, rev_castSucc, rev_succ] at h
+  exact h.trans (congrArg ((∑ i, a i) • b 0 + ·)
+    (Equiv.sum_comp revPerm fun i => (∑ j ∈ Ici i.succ, a j) • (b i.succ - b i.castSucc)))
 
 end Fin

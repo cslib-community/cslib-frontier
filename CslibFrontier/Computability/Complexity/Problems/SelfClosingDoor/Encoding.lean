@@ -66,9 +66,9 @@ enc_structure encState : State where
 /-- Reading the network's prescribed initial configuration is polynomial-time. -/
 @[fun_prop] theorem Instance.computableInPolyTime_initial :
     ComputableInPolyTime Instance.initial encInstance encState := by
-  have hb : ComputableInPolyTime (fun I : Instance => I.doors.map Door.initial)
-      encInstance (encList encBool) := by fun_prop
-  have hraw := ComputableInPolyTime.listToBits.comp hb
+  have hraw := ComputableInPolyTime.listToBits.comp
+    (by fun_prop : ComputableInPolyTime (fun I : Instance => I.doors.map Door.initial)
+      encInstance (encList encBool))
   unfold Instance.initial
   fun_prop
 
@@ -96,34 +96,21 @@ private theorem checkTraversal_polyTime :
           (decide (q.1.2.location = tunnel.target) &&
             decide (q.1.2.bits = q.1.1.bits.set q.2.2 (!q.1.1.bits.getD q.2.2 false))))
       (encPair (encPair encState encState) (encPair encDoor encUnary)) encBool := by
-  have hs : ComputableInPolyTime
-      (fun q : (State × State) × (Door × ℕ) => q.1.1.bits)
-      (encPair (encPair encState encState) (encPair encDoor encUnary)) encBits := by fun_prop
-  have hi : ComputableInPolyTime
-      (fun q : (State × State) × (Door × ℕ) => q.2.2)
+  have hlist := ComputableInPolyTime.bitsToList.comp
+    (by fun_prop : ComputableInPolyTime (fun q : (State × State) × (Door × ℕ) => q.1.1.bits)
+      (encPair (encPair encState encState) (encPair encDoor encUnary)) encBits)
+  have hi : ComputableInPolyTime (fun q : (State × State) × (Door × ℕ) => q.2.2)
       (encPair (encPair encState encState) (encPair encDoor encUnary)) encUnary := by fun_prop
-  have hlist := ComputableInPolyTime.bitsToList.comp hs
   have hbit := ComputableInPolyTime.listGetDWithInput hlist hi false
-  have hset := ComputableInPolyTime.listSetWithInput encBool hlist hi
-    (ComputableInPolyTime.bool_not.comp hbit)
-  have hraw := ComputableInPolyTime.listToBits.comp hset
-  have hsource : ComputableInPolyTime
-      (fun q : (State × State) × (Door × ℕ) => q.1.1.location)
-      (encPair (encPair encState encState) (encPair encDoor encUnary)) encNat := by fun_prop
-  have htarget : ComputableInPolyTime
-      (fun q : (State × State) × (Door × ℕ) => q.1.2.location)
-      (encPair (encPair encState encState) (encPair encDoor encUnary)) encNat := by fun_prop
-  have hbits : ComputableInPolyTime
-      (fun q : (State × State) × (Door × ℕ) => q.1.2.bits)
-      (encPair (encPair encState encState) (encPair encDoor encUnary)) encBits := by fun_prop
-  have hdoor : ComputableInPolyTime
-      (fun q : (State × State) × (Door × ℕ) => q.2.1)
-      (encPair (encPair encState encState) (encPair encDoor encUnary)) encDoor := by fun_prop
-  have htunnel := Door.computableInPolyTime_tunnel hdoor hbit
-  have hentry := encTunnel_source_polyTime htunnel
-  have hexit := encTunnel_target_polyTime htunnel
-  exact (hsource.decide_eq' hentry).bool_and'
-    ((htarget.decide_eq' hexit).bool_and' (hbits.decide_eq' hraw))
+  have hraw := ComputableInPolyTime.listToBits.comp
+    (ComputableInPolyTime.listSetWithInput encBool hlist hi
+      (ComputableInPolyTime.bool_not.comp hbit))
+  have htunnel := Door.computableInPolyTime_tunnel (door := fun q => q.2.1) (by fun_prop) hbit
+  exact (ComputableInPolyTime.decide_eq' (left := fun q => q.1.1.location) (by fun_prop)
+      (encTunnel_source_polyTime htunnel)).bool_and'
+    ((ComputableInPolyTime.decide_eq' (left := fun q => q.1.2.location) (by fun_prop)
+        (encTunnel_target_polyTime htunnel)).bool_and'
+      (ComputableInPolyTime.decide_eq' (left := fun q => q.1.2.bits) (by fun_prop) hraw))
 
 /-- Checking an enabled traversal is polynomial-time in the network and endpoint states. -/
 @[fun_prop] theorem computableInPolyTime_checkStep {α : Type} {input : α ↪ List Bool}

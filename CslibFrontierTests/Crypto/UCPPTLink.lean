@@ -39,6 +39,8 @@ Non-degenerate witnesses for `CslibFrontier.Crypto.Protocols.UC.PPT.Link`:
    reply-unbounded, and `iterLinkEnv` is PPT, yet linking them yields a non-PPT environment via
    `IsOraclePPTOn.query_bounds`, whereas absorbing the reply-bounded `tagAdv` into `iterLinkEnv`
    stays strict PPT (`iterLinkEnv_absorbAdversary_tagAdv_isPPT`).
+4. A one-query caller can read the last bit of an unrestricted honest echo using an
+   auxiliary-input-dependent cap. The same criterion rejects the exponential feedback witness.
 -/
 
 set_option linter.privateModule false
@@ -638,6 +640,166 @@ into the same `iterLinkEnv` stays strict PPT. -/
 theorem iterLinkEnv_absorbAdversary_tagAdv_isPPT :
     (absorbAdversary {1} tagAdv iterLinkEnv).IsPPT coinPartyPort msgPort :=
   iterLinkEnv_isPPT.absorbAdversary tagAdv_isPPT tagAdv_isReplyBounded {1}
+
+section ReachableReplyTests
+
+private def echoPartyPort : WordPort (Fin 2 × List Bool) (Option (List Bool)) :=
+  WordPort.party msgPort
+
+/-- Honest parties copy the entire input back to the caller. No network query is issued. -/
+private def honestWordEcho : Protocol 2 (List Bool) (List Bool) Unit Unit := fun _ _ =>
+  { State := PUnit
+    init := pure PUnit.unit
+    handle := fun
+      | Sum.inl (_, w), _ => pure (some w, PUnit.unit)
+      | Sum.inr (), _ => pure ((), PUnit.unit) }
+
+private theorem honestWordEcho_isPPT : honestWordEcho.IsPPT echoPartyPort unitPort := by
+  let iP := WordInterface.protocol echoPartyPort unitPort
+  let EIn := encHandlerCall (encPPTParam 2) (encFinite iP.Channel) encBits
+  have hw : ComputableInPolyTime
+      (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool => x.2.1.2)
+      EIn encBits := by unfold EIn encHandlerCall; fun_prop
+  have hreq : ComputableInPolyTime
+      (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool =>
+        (echoPartyPort.queryDecoder.decode x.2.1.2).2) EIn encBits :=
+    ((ComputableInPolyTime.snd (encFinEnum (Fin 2)) encBits).comp
+      echoPartyPort.queryDecoder.computableInPolyTime).comp hw
+  have hrep : ComputableInPolyTime
+      (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool =>
+        echoPartyPort.reply (some (echoPartyPort.queryDecoder.decode x.2.1.2).2)) EIn encBits :=
+    (ComputableInPolyTime.of_eq (encIn := encOption encBits) (encOut := encBits)
+      (f := echoPartyPort.reply) (fun _ => rfl)).comp
+      ((ComputableInPolyTime.optionSome encBits).comp hreq)
+  let branch : iP.Channel → PPTParam 2 × (iP.Channel × List Bool) × List Bool →
+      WordOracleComp WordInterface.empty.Channel (List Bool × List Bool) := fun c x =>
+    match c with
+    | .inl () => pure (echoPartyPort.reply (some (echoPartyPort.queryDecoder.decode x.2.1.2).2), [])
+    | .inr () => pure (unitPort.reply (), [])
+  refine ⟨{
+    codec := fun _ _ => punitWordCodec
+    init := (ComputableInPolyTime.const (encIn := encPPTParam 2) (encOut := encBits) []).isPPTOn
+    handle := by
+      have htag : ComputableInPolyTime
+          (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool => x.2.1.1)
+          EIn (encFinite iP.Channel) := by unfold EIn encHandlerCall; fun_prop
+      refine (IsOraclePPTOn.finite_cases (branch := branch) htag ?_).congr
+        fun x State oracle s => ?_
+      · rintro (⟨⟨⟩⟩ | ⟨⟨⟩⟩)
+        · exact (hrep.prod (ComputableInPolyTime.const
+            (encIn := EIn) (encOut := encBits) [])).isPPTOn.isOraclePPTOn
+        · exact (ComputableInPolyTime.const (encIn := EIn) (encOut := encPair encBits encBits)
+            (unitPort.reply (), [])).isPPTOn.isOraclePPTOn
+      · rcases x with ⟨p, ⟨⟨⟨⟩⟩ | ⟨⟨⟩⟩, req⟩, sw⟩ <;>
+          simp only [branch, wordHandle, honestWordEcho, punitWordCodec, WordInterface.protocol,
+            WordInterface.sum, WordInterface.net, StateT.run, ProbOracleComp.lowerWith,
+            ProbOracleComp.simulate_pure, map_pure] <;> rfl
+    normalize := ComputableInPolyTime.const (encIn := encPair (encPPTParam 2) encBits)
+      (encOut := encBits) []
+    growth _ _ := 0
+    growth_poly := PolyBounded.const 0
+    preserve p request s out hout := by
+      rcases OracleComp.mem_supportWith_map_iff.mp hout with ⟨x, _, rfl⟩
+      exact Nat.le_refl 0 }⟩
+
+private theorem honestWordEcho_not_isReplyBounded :
+    ¬ Machine.IsReplyBounded honestWordEcho WordInterface.empty
+        (WordInterface.protocol echoPartyPort unitPort) := by
+  rintro ⟨bound, _, h⟩
+  let p : PPTParam 2 := ⟨0, 0, ∅⟩
+  let w := List.replicate (bound p + 1) true
+  have hmem : (some w, PUnit.unit) ∈ OracleComp.support
+      (ProbOracleComp.lowerWith WordInterface.empty p.replyBound
+        (((honestWordEcho 0 ∅).handle (Sum.inl ((0 : Fin 2), w))).run PUnit.unit)) := by
+    simp [honestWordEcho, StateT.run, ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure,
+      OracleComp.support]
+    rfl
+  have hlen := h p (Sum.inl ((0 : Fin 2), w)) PUnit.unit (some w, PUnit.unit) hmem
+  change (echoPartyPort.reply (some w)).length ≤ bound p at hlen
+  simp only [echoPartyPort, WordPort.party, msgPort, encOption_some, encBits_apply,
+    List.length_cons, w, List.length_replicate] at hlen
+  omega
+
+/-- Read the last payload bit after removing the option tag, with false for an empty payload. -/
+private def lastEchoBit (w : List Bool) : Bool := w.tail.reverse.headD false
+
+private def readAuxEcho : Environment 2 (List Bool) (List Bool) Unit Unit :=
+  fun _ z => do
+    let r ← ProbOracleComp.query (Sum.inl ((0 : Fin 2), z))
+    return lastEchoBit (echoPartyPort.reply r)
+
+private theorem readAuxEcho_link_answer (κ : ℕ) (z : List Bool) :
+    (honestWordEcho κ ∅).link (readAuxEcho κ z) = pure (z.reverse.headD false) := by
+  simp [Machine.link, readAuxEcho, honestWordEcho, StateT.run, lastEchoBit,
+    echoPartyPort, WordPort.party, msgPort, encOption_some, encBits_apply]
+
+private theorem readAuxEcho_isPPT : readAuxEcho.IsPPT echoPartyPort unitPort := by
+  let iE := WordInterface.exec echoPartyPort unitPort
+  let query : EnvParam → (Fin 2 × List Bool) ⊕ Unit :=
+    fun e => Sum.inl ((0 : Fin 2), e.aux)
+  have hpair : ComputableInPolyTime (fun e : EnvParam => ((0 : Fin 2), e.aux))
+      encEnvParam echoPartyPort.query :=
+    (ComputableInPolyTime.const (encIn := encEnvParam) (encOut := encFinEnum (Fin 2))
+      (0 : Fin 2)).prod (by fun_prop : ComputableInPolyTime EnvParam.aux encEnvParam encBits)
+  have hreq : ComputableInPolyTime (fun e => iE.request (query e)) encEnvParam encBits :=
+    (ComputableInPolyTime.of_eq (encIn := echoPartyPort.query) (encOut := encBits)
+      (f := echoPartyPort.query) (fun _ => rfl)).comp hpair
+  have hq := iE.isOraclePPTOn_lowerWith_query (query := query) (limit := EnvParam.replyBound)
+    (ComputableInPolyTime.const (Sum.inl () : iE.Channel)) hreq (by fun_prop)
+  have hpost : ComputableInPolyTime lastEchoBit encBits encBool :=
+    (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp
+      (ComputableInPolyTime.bitsReverse.comp ComputableInPolyTime.bitsTail)
+  refine (hq.map hpost).congr fun e State oracle s => ?_
+  simp only [readAuxEcho, query, iE, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+    ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery,
+    WordInterface.exec, WordInterface.sum, WordInterface.net, Functor.map_map]
+  rfl
+
+/-- The one-bit option tag followed by the auxiliary input is the longest reachable reply.
+The original machine-level cap fails already at fixed security parameter and external cap zero. -/
+private theorem readAuxEcho_link_isOraclePPT :
+    IsOraclePPTOn (Operation := WordInterface.empty.Channel) encEnvParam encBool
+      (fun e : EnvParam => ProbOracleComp.lowerWith WordInterface.empty e.replyBound
+        ((honestWordEcho e.secParam ∅).link (readAuxEcho e.secParam e.aux))) := by
+  have hlen : ComputableInPolyTime (fun e : EnvParam => e.aux.length) encEnvParam encUnary := by
+    simpa only [encBits_apply, Function.comp_def] using
+      (ComputableInPolyTime.encoding_length encBits).comp
+        (by fun_prop : ComputableInPolyTime EnvParam.aux encEnvParam encBits)
+  have hcap : ComputableInPolyTime (fun e : EnvParam => e.aux.length + 1) encEnvParam encUnary :=
+    by fun_prop
+  apply readAuxEcho_isPPT.isOraclePPTOn_lowerWith_link_of_reachable
+    honestWordEcho_isPPT ∅ (fun e => e.aux.length + 1) hcap
+  intro e State oracle sO s0 _
+  apply RepliesFitOn.query
+  · intro x hx
+    simp only [honestWordEcho, StateT.run, ProbOracleComp.lowerWith,
+      ProbOracleComp.simulate_pure, ProbOracleComp.runWith_pure] at hx
+    obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
+    change (echoPartyPort.reply (some e.aux)).length ≤ e.aux.length + 1
+    simp [echoPartyPort, WordPort.party, msgPort, encOption_some, encBits_apply]
+  · intro x _
+    exact .pure _ _ _
+
+/-- The upstream observable exponential transcript excludes every computable polynomial
+reachable cap for this particular caller and machine, even though each separately is PPT. -/
+private theorem no_computable_reachable_cap_for_doubleForward (cap : EnvParam → ℕ)
+    (hcap : ComputableInPolyTime cap encEnvParam encUnary) :
+    ¬ ∀ (e : EnvParam) (State : Type)
+        (oracle : (WordInterface.exec coinPartyPort msgPort).Channel × List Bool →
+          StateT State PMF (List Bool)) (sO : State)
+        (s0 : (liftAdversary (In := Bool) (Out := List Bool)
+          (doubleForwardAdv e.secParam ∅)).State),
+        s0 ∈ (liftAdversary (In := Bool) (Out := List Bool)
+          (doubleForwardAdv e.secParam ∅)).init.eval.support →
+        RepliesFitOn (liftAdversary (In := Bool) (Out := List Bool) (doubleForwardAdv e.secParam ∅))
+          (WordInterface.exec coinPartyPort msgPort) (WordInterface.exec coinPartyPort msgPort)
+          e.replyBound (cap e) oracle (iterLinkEnv e.secParam e.aux) s0 sO := by
+  intro hfit
+  exact link_without_isReplyBounded_not_isPPT
+    (iterLinkEnv_isPPT.isOraclePPTOn_lowerWith_link_of_reachable
+      doubleForwardAdv_isPPT.liftAdversary ∅ cap hcap hfit)
+
+end ReachableReplyTests
 
 end NegativeLinkWitness
 

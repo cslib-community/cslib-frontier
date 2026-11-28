@@ -53,11 +53,8 @@ theorem toeplitz_mulVec_surjective_bool {d : Fin n → Bool} (hd : d ≠ 0) :
     hd (funext fun j => by simpa using congrArg bitEquiv (congrFun h j))
   obtain ⟨a, ha⟩ := toeplitz_mulVec_surjective (m := m) hd' (bitEquiv.symm ∘ c)
   refine ⟨bitEquiv ∘ a, funext fun i => ?_⟩
-  have hi := congrArg bitEquiv (congrFun ha i)
-  simp only [Function.comp_apply, RingEquiv.apply_symm_apply] at hi
-  rw [← hi]
-  simp only [mulVec, dotProduct, toeplitz_apply, map_sum, map_mul, Function.comp_apply,
-    RingEquiv.apply_symm_apply]
+  simpa only [mulVec, dotProduct, toeplitz_apply, map_sum, map_mul, Function.comp_apply,
+    RingEquiv.apply_symm_apply] using congrArg bitEquiv (congrFun ha i)
 
 /-- **Toeplitz hashing of bit strings is pairwise independent**: the maps `x ↦ T x + v` from
 `n`-bit strings to `m`-bit strings, for a uniformly random `m × n` Toeplitz matrix `T` over `Bool`
@@ -69,9 +66,7 @@ theorem isPairwiseIndependentHash_toeplitzHash_bool :
   isPairwiseIndependentHash_add_of_surjective
     (AddMonoidHom.mk' (fun (a : Fin (m + n - 1) → Bool) (x : Fin n → Bool) => toeplitz a *ᵥ x)
       fun a b => funext fun x => by rw [Pi.add_apply, toeplitz_add, add_mulVec])
-    fun x₁ x₂ hx c => by
-      obtain ⟨a, ha⟩ := toeplitz_mulVec_surjective_bool (m := m) (sub_ne_zero.2 hx) c
-      refine ⟨a, ?_⟩
-      simpa only [AddMonoidHom.mk'_apply, mulVec_sub] using ha
+    fun _ _ hx c => (toeplitz_mulVec_surjective_bool (m := m) (sub_ne_zero.2 hx) c).imp
+      fun _ ha => by simpa only [AddMonoidHom.mk'_apply, mulVec_sub] using ha
 
 end Cslib.BitString

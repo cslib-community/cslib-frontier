@@ -106,18 +106,14 @@ private theorem path_cover (F : Semifilter ↥(targetᶜ)) (v : Fin n → Bool)
     | zero =>
       suffices cylinder target 0 v h = Set.univ from this ▸ F.apply_univ
       ext x
-      have hs : splice 0 v x.val = v := by
-        ext i
-        simp [splice]
+      have hs : splice 0 v x.val = v := funext fun i => by simp [splice]
       simp [cylinder, hh, hs]
     | succ k ih =>
       by_contra hn
       exact cylinder_step F v hv h ⟨k, by lia⟩ (ih (by lia)) hn (hnone ⟨k, by lia⟩)
   suffices cylinder target n v h = {x | h x.val = true} from hF (this ▸ all n le_rfl)
   ext x
-  have hs : splice n v x.val = x.val := by
-    ext i
-    simp [splice, i.isLt]
+  have hs : splice n v x.val = x.val := funext fun i => by simp [splice, i.isLt]
   simp [cylinder, hs]
 
 
@@ -161,13 +157,11 @@ private theorem complement_estimate (F : Semifilter ↥(targetᶜ)) :
   classical
   have pointwise (h : (Fin n → Bool) → Bool) : (1 : ℝ) ≤ oneIf (¬ F {x | h x.val = true}) +
       oneIf (¬ F {x | (!h x.val) = true}) + hit F ({x | h x.val = true}, {x | h x.val ≠ true}) := by
-    have hnot : {x : ↥(targetᶜ) | (!h x.val) = true} = {x | h x.val ≠ true} := by
-      ext x
-      cases h x.val <;> simp
+    have hnot : {x : ↥(targetᶜ) | (!h x.val) = true} = {x | h x.val ≠ true} :=
+      Set.ext fun x => by cases h x.val <;> simp
     rw [hnot]
-    have hempty : ({x : ↥(targetᶜ) | h x.val = true} ∩ {x | h x.val ≠ true}) = ∅ := by
-      ext x
-      simp
+    have hempty : ({x : ↥(targetᶜ) | h x.val = true} ∩ {x | h x.val ≠ true}) = ∅ :=
+      Set.ext fun x => by simp
     by_cases ha : F {x | h x.val = true} <;> by_cases hb : F {x | h x.val ≠ true} <;>
       simp only [oneIf, hit, Semifilter.PreservesPair, ha, hb, hempty, F.not_apply_empty,
         not_true_eq_false, not_false_eq_true, true_implies, false_implies, ite_true, ite_false] <;>

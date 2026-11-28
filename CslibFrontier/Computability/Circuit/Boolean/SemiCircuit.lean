@@ -316,10 +316,9 @@ theorem WellFormed.exists_consistent (hC : C.WellFormed) (u : ℕ → Bool) :
       · exact ⟨val, hval, fun J hJ hJk =>
           hgate J hJ ((Nat.lt_succ_iff.1 hJk).lt_of_ne fun h => hk (h ▸ hJ))⟩
   obtain ⟨val, hval, hgate⟩ := key (C.gates.sup id + 1)
-  have hng (i : ℕ) (hi : i ∈ C.params ∪ C.aux) : i ∉ C.gates :=
-    (Finset.mem_union.1 hi).elim hC.notMem_gates_of_mem_params hC.notMem_gates_of_mem_aux
   exact ⟨val, fun j hj => (hval j (hC.notMem_gates_of_mem_params hj)).trans (hu j hj),
-    (eqnsHold_congr hC fun i hi => hval i (hng i hi)).2 heq,
+    (eqnsHold_congr hC fun i hi => hval i ((Finset.mem_union.1 hi).elim
+      hC.notMem_gates_of_mem_params hC.notMem_gates_of_mem_aux)).2 heq,
     fun J hJ => hgate J hJ (Nat.lt_succ_of_le (Finset.le_sup (f := id) hJ))⟩
 
 /-- On the solutions of the affine system, the internal value `t` is the affine function
@@ -398,17 +397,14 @@ theorem exists_affineIn_of_mem_terms (hC : C.WellFormed) {x e : ℕ} (hx : x ∈
     · rw [hval' i hi, Function.update_of_ne hix]
     · obtain ⟨c, T, hT⟩ := hC.exists_affineIn hi
       rw [hT.2 val heq, hT.2 val' heq']
-      congr 1
-      refine Finset.sum_congr rfl fun j hj => ?_
-      rw [hval' j (hT.1 hj), Function.update_of_ne fun h : j = x => hne i hi c T hT (h ▸ hj)]
-  have h1 : val x + ∑ i ∈ (C.eqn e).terms.erase x, val i = (C.eqn e).rhs := by
-    simpa only [Equation.Holds, ← Finset.add_sum_erase _ _ hxe] using heq e he
-  have h2 : (!val x) + ∑ i ∈ (C.eqn e).terms.erase x, val i = (C.eqn e).rhs := by
-    simpa only [Equation.Holds, ← Finset.add_sum_erase _ _ hxe, hval' x hx, Function.update_self,
-      Finset.sum_congr rfl fun i hi =>
-        (hagree i (Finset.mem_of_mem_erase hi) (Finset.ne_of_mem_erase hi)).symm] using heq' e he
-  rw [← h2] at h1
-  cases val x <;> simp at h1
+      exact congrArg (c + ·) (Finset.sum_congr rfl fun j hj => by
+        rw [hval' j (hT.1 hj), Function.update_of_ne fun h : j = x => hne i hi c T hT (h ▸ hj)])
+  have h1 := heq e he
+  have h2 := heq' e he
+  rw [Equation.Holds, ← Finset.add_sum_erase _ _ hxe] at h1 h2
+  rw [hval' x hx, Function.update_self, Finset.sum_congr rfl fun i hi =>
+    (hagree i (Finset.mem_of_mem_erase hi) (Finset.ne_of_mem_erase hi)).symm, ← h1] at h2
+  cases val x <;> simp at h2
 
 /-! ### Changing unread values -/
 
@@ -427,14 +423,12 @@ gives a consistent assignment of the original semi-circuit once `x` takes the va
 literal. -/
 theorem consistent_of_subst {x : ℕ} {ℓ : Lit} (hxg : x ∉ C.gates) (hℓ : ℓ.arg ≠ .node x)
     {val : ℕ → Bool} (h : (C.subst x ℓ).Consistent val) :
-    C.Consistent (Function.update val x (ℓ.eval val)) := by
-  have hupd : Function.update val x (ℓ.eval val) x =
-      ℓ.eval (Function.update val x (ℓ.eval val)) := by
-    rw [Function.update_self]
-    exact (Lit.eval_congr fun i hi =>
-      Function.update_of_ne (fun hx : i = x => hℓ (hx ▸ hi)) _ _).symm
-  exact (consistent_subst hupd).1 ((consistent_update_iff (C := C.subst x ℓ) hxg
-    (fun _ _ => Gate.not_reads_subst hℓ) (fun _ _ => Equation.notMem_subst hℓ) val _).2 h)
+    C.Consistent (Function.update val x (ℓ.eval val)) :=
+  (consistent_subst <| (Function.update_self x (ℓ.eval val) val).trans
+    (Lit.eval_congr fun _ hi =>
+      Function.update_of_ne (fun hx : _ = x => hℓ (hx ▸ hi)) _ _).symm).1
+    ((consistent_update_iff (C := C.subst x ℓ) hxg
+      (fun _ _ => Gate.not_reads_subst hℓ) (fun _ _ => Equation.notMem_subst hℓ) val _).2 h)
 
 /-! ### Lifting consistent assignments -/
 

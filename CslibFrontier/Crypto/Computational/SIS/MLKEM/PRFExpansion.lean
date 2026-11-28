@@ -163,7 +163,7 @@ private theorem cbdVecResidues_flatten_map_take {k n q η : ℕ} (blocks : List 
       blocks.map (cbdResidues n q η) := by
   subst hk
   unfold cbdVecResidues
-  rw [show blocks.length = (blocks.map (List.take (n * (2 * η)))).length by simp,
+  rw [← List.length_map (List.take (n * (2 * η))),
     BitString.listRows_flatten _ fun block hblock => ?_]
   · simp only [List.map_map, Function.comp_def, cbdResidues_take]
   · obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hblock
@@ -192,18 +192,14 @@ theorem cbd_keyNoise (P : Params) (F : List Bool → List Bool → List Bool) (�
   have hsplit :
       keyNoise P F σ = (S.map (List.take w)).flatten ++ (E.map (List.take w)).flatten := by
     unfold keyNoise expandNoise
-    rw [show 2 * P.k = P.k + P.k by omega, List.range_add, List.flatMap_append, List.flatMap_def,
-      List.flatMap_def]
+    rw [Nat.two_mul P.k, List.range_add, List.flatMap_append, List.flatMap_def, List.flatMap_def]
     simp only [S, E, List.map_map, Function.comp_def, w]
-  have hlen : (S.map (List.take w)).flatten.length = P.k * w := by
-    rw [length_flatten_map_take _ hS]
-    simp [S]
-  exact ⟨by
-      rw [hsplit, List.take_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [S]) hS]
-      simp [S],
-    by
-      rw [hsplit, List.drop_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [E]) hE]
-      simp [E]⟩
+  have hlen : (S.map (List.take w)).flatten.length = P.k * w :=
+    (length_flatten_map_take _ hS).trans (by simp [S])
+  rw [hsplit, List.take_left' hlen, List.drop_left' hlen,
+    cbdVecResidues_flatten_map_take _ ((List.length_map _).trans List.length_range) hS,
+    cbdVecResidues_flatten_map_take _ ((List.length_map _).trans List.length_range) hE]
+  simp
 
 /-- **Encryption decodes `CBD_η(F(r, N))`.** If `F r` has at least `prfLen P` bits at the word of
 each counter `N ≤ 2k`, the polynomials that `encDetWord` decodes from the coins `encNoise P F r`
@@ -234,31 +230,24 @@ theorem cbd_encNoise (P : Params) (F : List Bool → List Bool → List Bool) (r
   have hsplit : encNoise P F r = (B₁.map (List.take w₁)).flatten ++
       ((B₂.map (List.take w₂)).flatten ++ (F r (nonceWord P (2 * P.k))).take w₂) := by
     unfold encNoise expandNoise
-    rw [show 2 * P.k + 1 = P.k + P.k + 1 by omega, List.range_succ, List.range_add,
-      List.flatMap_append, List.flatMap_append, List.append_assoc, List.flatMap_singleton]
+    rw [List.range_succ, List.flatMap_append, List.flatMap_singleton, Nat.two_mul P.k,
+      List.range_add, List.flatMap_append, List.append_assoc]
     refine congrArg₂ (· ++ ·) ?_ (congrArg₂ (· ++ ·) ?_ (by simp [encWidth, w₂, two_mul]))
-    · rw [List.flatMap_def]
-      simp only [B₁, List.map_map]
+    · simp only [B₁, List.flatMap_def, List.map_map]
       exact congrArg _ (List.map_congr_left fun N hN => by
         simp [encWidth, List.mem_range.mp hN, w₁])
-    · rw [List.flatMap_def]
-      simp only [B₂, List.map_map]
+    · simp only [B₂, List.flatMap_def, List.map_map]
       exact congrArg _ (List.map_congr_left fun _ _ => by simp [encWidth, w₂])
-  have hlen₁ : (B₁.map (List.take w₁)).flatten.length = P.k * w₁ := by
-    rw [length_flatten_map_take _ h₁]
-    simp [B₁]
-  have hlen₂ : (B₂.map (List.take w₂)).flatten.length = P.k * w₂ := by
-    rw [length_flatten_map_take _ h₂]
-    simp [B₂]
-  exact ⟨by
-      rw [hsplit, List.take_left' hlen₁, cbdVecResidues_flatten_map_take _ (by simp [B₁]) h₁]
-      simp [B₁],
-    by
-      rw [hsplit, List.drop_left' hlen₁, List.take_left' hlen₂,
-        cbdVecResidues_flatten_map_take _ (by simp [B₂]) h₂]
-      simp [B₂],
-    by rw [hsplit, ← List.drop_drop, List.drop_left' hlen₁, List.drop_left' hlen₂,
-      cbdResidues_take]⟩
+  have hlen₁ : (B₁.map (List.take w₁)).flatten.length = P.k * w₁ :=
+    (length_flatten_map_take _ h₁).trans (by simp [B₁])
+  have hlen₂ : (B₂.map (List.take w₂)).flatten.length = P.k * w₂ :=
+    (length_flatten_map_take _ h₂).trans (by simp [B₂])
+  rw [hsplit, ← List.drop_drop, List.take_left' hlen₁, List.drop_left' hlen₁,
+    List.take_left' hlen₂, List.drop_left' hlen₂,
+    cbdVecResidues_flatten_map_take _ ((List.length_map _).trans List.length_range) h₁,
+    cbdVecResidues_flatten_map_take _ ((List.length_map _).trans List.length_range) h₂,
+    cbdResidues_take]
+  simp
 
 /-! ### Key generation and the family -/
 

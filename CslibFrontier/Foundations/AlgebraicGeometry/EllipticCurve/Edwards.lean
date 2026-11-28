@@ -202,23 +202,16 @@ private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSq
     rw [hε] at hL
     linear_combination hL
   by_cases hsum : x₁ * y₂ + x₂ * y₁ = 0
-  · apply hd
-    refine ⟨(x₁ * y₂)⁻¹, ?_⟩
-    have hxy : x₂ * y₁ = -(x₁ * y₂) := by linear_combination hsum
+  · refine hd ⟨(x₁ * y₂)⁻¹, ?_⟩
     have hsq : E.d * (x₁ * y₂) ^ 2 = 1 := by
-      linear_combination -hε + E.d * (x₁ * y₂) * hxy
-    have hnz : x₁ * y₂ ≠ 0 := fun hz ↦ by rw [hz] at hsq; simp at hsq
+      linear_combination -hε + E.d * (x₁ * y₂) * hsum
+    have hnz : x₁ * y₂ ≠ 0 := fun hz ↦ by simp [hz] at hsq
     exact (eq_mul_inv_iff_mul_eq₀ hnz).mpr (eq_inv_of_mul_eq_one_left (by linear_combination hsq))
-  · have h4' : E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 = 4 := by
-      apply mul_right_cancel₀ (pow_ne_zero 2 hsum)
-      linear_combination -h4
-    apply hd
-    refine ⟨2 / (y₁ * y₂ - x₁ * x₂), ?_⟩
-    have h4ne : (4 : F) ≠ 0 := by
-      rw [show (4 : F) = 2 * 2 by ring]
-      exact mul_ne_zero h2 h2
+  · have h4' : E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 = 4 :=
+      mul_right_cancel₀ (pow_ne_zero 2 hsum) (by linear_combination -h4)
     have hnz : (y₁ * y₂ - x₁ * x₂) ^ 2 ≠ 0 := fun hz ↦
-      h4ne (by rw [hz, mul_zero] at h4'; exact h4'.symm)
+      mul_ne_zero h2 h2 (by linear_combination -h4' + E.d * hz)
+    refine hd ⟨2 / (y₁ * y₂ - x₁ * x₂), ?_⟩
     rw [div_mul_div_comm, ← sq, ← sq, show (2 : F) ^ 2 = 4 by norm_num, eq_div_iff hnz]
     exact h4'
 
@@ -226,10 +219,8 @@ private lemma add_denom_ne_zero (hd : ¬IsSquare E.d) (P Q : E.Point) :
     1 + E.d * P.x * Q.x * P.y * Q.y ≠ 0 := by
   by_cases h2 : (2 : F) = 0
   · have h0 : E.d * P.x * Q.x * P.y * Q.y = 0 := by
-      have h := E.mul_xy_eq_zero_of_two_eq_zero h2 hd P
-      linear_combination E.d * Q.x * Q.y * h
-    rw [h0]
-    simp
+      linear_combination E.d * Q.x * Q.y * E.mul_xy_eq_zero_of_two_eq_zero h2 hd P
+    simp [h0]
   · exact E.add_denom_ne_zero_of_two_ne_zero h2 hd P Q
 
 /-- For non-square `E.d`, both denominators `1 ± E.d * P.x * Q.x * P.y * Q.y` in the unified

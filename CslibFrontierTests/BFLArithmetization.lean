@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-import CslibFrontier.Computability.Complexity.Classes.MIP.Arithmetization
+import CslibFrontier.Computability.Complexity.Classes.MIP.PCP
 import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.NormNum.Prime
@@ -34,7 +34,7 @@ Exercises `Cslib.Complexity.MIP` (`Arithmetization.lean`, `#892` M5a):
 namespace CslibFrontierTests.BFLArithmetization
 
 open Cslib Cslib.BitString Cslib.Circuits Cslib.Circuits.Boolean Cslib.Complexity
-open Cslib.Complexity.MIP Cslib.Interactive Cslib.Logic.PL
+open Cslib.Complexity.MIP Cslib.Interactive Cslib.Logic.PL Cslib.Probability
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 open Turing.MultiTapeTM.Universal MvPolynomial
 open scoped ENNReal
@@ -254,6 +254,39 @@ private def acceptAct : Universal.Act := ⟨0, [], some 1, none⟩
 private def acceptDesc : Universal.Desc :=
   ⟨0, 0, [(⟨0, none, []⟩, acceptAct), (⟨0, some 0, []⟩, acceptAct), (⟨0, some 1, []⟩, acceptAct)]⟩
 
+-- An external verifier extracts the typed decoder from membership and runs its raw syntax check.
+example {x : Succinct3CNFInstance} (h : x ∈ Succinct3SAT) : x.valid = true := by
+  unfold Succinct3SAT at h
+  obtain ⟨c, hc, _⟩ := h
+  exact x.valid_eq_true_iff.mpr ⟨c, hc⟩
+
+-- A decoder with one clause, two-bit variable addresses and repeated literals.
+-- Output positions alternate between two constant gates in each literal block.
+example :
+    let x : Succinct3CNFInstance :=
+      ⟨0, 2, ([(.const false, []), (.const true, [])], [0, 1, 1, 1, 0, 0, 0, 1, 1])⟩
+    x.valid = true ∧ x.signWires = [1, 0, 1] ∧ x.addressWires 1 = [1, 0] ∧
+      ({x with code := (x.code.1, [0])}).valid = false ∧
+      ({x with code := (x.code.1, [3, 1, 1, 1, 0, 0, 0, 1, 1])}).valid = false := by
+  decide
+
+private theorem oneStep_mem : ⟨acceptDesc, [true], 1⟩ ∈ NEXPBoundedAcceptance :=
+  NEXPBoundedAcceptance.mem_iff.mpr ⟨[false], by decide, by decide⟩
+
+private theorem zeroSteps_not_mem : ⟨acceptDesc, [true], 0⟩ ∉ NEXPBoundedAcceptance := by
+  intro h
+  obtain ⟨_, _, hc⟩ := NEXPBoundedAcceptance.mem_iff.mp h
+  exact Bool.false_ne_true (congrArg Prod.snd hc)
+
+-- One strict verifier accepts an honest static proof after one step and bounds every proof
+-- for the same machine and input when the clock starts at zero.
+example : ∃ V : NEXPBoundedAcceptanceInstance → WordOracleComp Unit Bool,
+    IsOraclePPTOn encNEXPBoundedAcceptanceInstance encBool V ∧
+    (∃ π, acceptProb (V ⟨acceptDesc, [true], 1⟩) (Prover.ofProof π) = 1) ∧
+    ∀ π, acceptProb (V ⟨acceptDesc, [true], 0⟩) (Prover.ofProof π) ≤ 1 / 2 := by
+  obtain ⟨V, hV, hc, hs⟩ := NEXP_subset_PCPPoly NEXPBoundedAcceptance.mem_NEXP
+  exact ⟨V, hV, hc _ oneStep_mem, hs _ zeroSteps_not_mem⟩
+
 -- Concrete `NEXPBoundedAcceptance` accepting and rejecting instances routed through
 -- `exists_succinctDecoder_of_mem_NEXP`.
 example :
@@ -264,8 +297,10 @@ example :
       ComputableInPolyTime (fun a =>
         Tableau.Decoder.decoderCode tm (frame (encNEXPBoundedAcceptanceInstance a), n a, T a))
         encNEXPBoundedAcceptanceInstance encCode ∧
-      PolyBounded (fun a => (encNEXPBoundedAcceptanceInstance a).length)
-        (fun a => Tableau.clauseBits k State (T a) + Tableau.labelBits k State (T a)) ∧
+      ComputableInPolyTime (fun a => Tableau.clauseBits k State (T a))
+        encNEXPBoundedAcceptanceInstance encUnary ∧
+      ComputableInPolyTime (fun a => Tableau.labelBits k State (T a))
+        encNEXPBoundedAcceptanceInstance encUnary ∧
       (Tableau.succinctCNF tm (frame (encNEXPBoundedAcceptanceInstance aAcc))
           (n aAcc) (T aAcc)).Satisfiable ∧
       ¬ (Tableau.succinctCNF tm (frame (encNEXPBoundedAcceptanceInstance aRej))
@@ -276,20 +311,14 @@ example :
           (Tableau.colBits (T aAcc) + Tableau.timeBits (T aAcc) +
             (frame (encNEXPBoundedAcceptanceInstance aAcc)).length + 1)) := by
   dsimp only
-  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hwidths, hmem⟩ :=
+  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hQ, hL, hmem⟩ :=
     exists_succinctDecoder_of_mem_NEXP NEXPBoundedAcceptance.mem_NEXP
   let aAcc : NEXPBoundedAcceptanceInstance := ⟨acceptDesc, [true], 1⟩
   let aRej : NEXPBoundedAcceptanceInstance := ⟨acceptDesc, [true], 0⟩
-  have haAcc : aAcc ∈ NEXPBoundedAcceptance :=
-    NEXPBoundedAcceptance.mem_iff.mpr ⟨[false], by decide, by decide⟩
-  have haRej : aRej ∉ NEXPBoundedAcceptance := by
-    intro h
-    obtain ⟨c, -, hc⟩ := NEXPBoundedAcceptance.mem_iff.mp h
-    exact Bool.false_ne_true (congrArg Prod.snd hc)
-  obtain ⟨hsat_acc, cAcc, _, hsize_acc, _⟩ := hmem aAcc
-  obtain ⟨hsat_rej, _⟩ := hmem aRej
-  exact ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hwidths, hsat_acc.mp haAcc,
-    fun h => haRej (hsat_rej.mpr h), ⟨cAcc, hsize_acc⟩⟩
+  obtain ⟨_, _, hsat_acc, cAcc, _, hsize_acc, _⟩ := hmem aAcc
+  obtain ⟨_, _, hsat_rej, _⟩ := hmem aRej
+  exact ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hQ, hL, hsat_acc.mp oneStep_mem,
+    fun h => zeroSteps_not_mem (hsat_rej.mpr h), ⟨cAcc, hsize_acc⟩⟩
 
 -- Routing `NEXPBoundedAcceptance` through `exists_succinctCNF_of_mem_NEXP`,
 -- `Tableau.Decoder.exists_decoder`, and `satisfiable_toCNF_iff_succinctCNF`.
@@ -308,12 +337,6 @@ example :
     exists_succinctCNF_of_mem_NEXP NEXPBoundedAcceptance.mem_NEXP
   let aAcc : NEXPBoundedAcceptanceInstance := ⟨acceptDesc, [true], 1⟩
   let aRej : NEXPBoundedAcceptanceInstance := ⟨acceptDesc, [true], 0⟩
-  have haAcc : aAcc ∈ NEXPBoundedAcceptance :=
-    NEXPBoundedAcceptance.mem_iff.mpr ⟨[false], by decide, by decide⟩
-  have haRej : aRej ∉ NEXPBoundedAcceptance := by
-    intro h
-    obtain ⟨c, -, hc⟩ := NEXPBoundedAcceptance.mem_iff.mp h
-    exact Bool.false_ne_true (congrArg Prod.snd hc)
   obtain ⟨hlen_acc, hlt_acc, hsat_acc⟩ := hmem aAcc
   obtain ⟨_, _, hsat_rej⟩ := hmem aRej
   obtain ⟨cAcc, _, _, hcAcc⟩ :=
@@ -328,7 +351,7 @@ example :
   refine ⟨k, State, hfin, hdecEq, tm, n, T,
     (@computableInPolyTime_decoderCode k State hfin hdecEq tm).comp harg,
     ⟨cAcc, (satisfiable_toCNF_iff_succinctCNF tm hlt_acc hlen_acc cAcc hcAcc).mpr
-      (hsat_acc.mp haAcc)⟩,
-    fun h => haRej (hsat_rej.mpr h)⟩
+      (hsat_acc.mp oneStep_mem)⟩,
+    fun h => zeroSteps_not_mem (hsat_rej.mpr h)⟩
 
 end CslibFrontierTests.BFLArithmetization

@@ -285,6 +285,12 @@ theorem satisfiable_toCNF (sem : Rel → List Bool → Bool) (F : CSP Rel V) :
 
 variable [DecidableEq V]
 
+/-- The bounded-width compilation cannot increase the number of occurring variables. -/
+theorem numVars_toCNFBounded_le (k : ℕ) (sem : Rel → List Bool → Bool) (F : CSP Rel V) :
+    (F.toCNFBounded k sem).numVars ≤ F.numVars :=
+  Finset.card_le_card fun _ hv =>
+    List.mem_toFinset.mpr (mem_vars_toCNFBounded (List.mem_toFinset.mp hv))
+
 /-- Forbidden-assignment CNF compilation preserves declared-variable model counts on every finite
 variable set `declared` with multiplicity `1` (no auxiliary variables). -/
 @[simp]

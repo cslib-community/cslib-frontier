@@ -149,17 +149,13 @@ private theorem basis_anticomm_oddExpect_le
     oddExpect (fun x z => S.state.norm (B false x * B true z + B true z * B false x) ^ 2) ≤
       (9 / 2) * (4096 * ε + 2 * chshAnticommConst * ε) := by
   intro M B
-  let F (x z : Fin n → Bool) := S.state.norm (B false x * B true z + B true z * B false x) ^ 2
   have h := expect_norm_pauliBraidingBasis_anticomm_sq_le S roles
-  change (𝔼 p : ↥(oddPairs (Fin n)), F p.val.1 p.val.2) ≤ _ at h
-  change oddExpect F ≤ _
   rw [oddExpect_eq_dens_mul_expect]
-  have hnonneg : 0 ≤ 𝔼 p : ↥(oddPairs (Fin n)), F p.val.1 p.val.2 :=
-    expect_nonneg fun p _ => sq_nonneg _
-  refine (mul_le_mul_of_nonneg_right dens_oddPairs_le_half hnonneg).trans
-    ((mul_le_mul_of_nonneg_left h (by norm_num : 0 ≤ (1 / 2 : ℝ))).trans ?_)
-  have hconst := mul_le_mul_of_nonneg_left hac (mul_nonneg zero_le_two chshAnticommConst_nonneg)
-  linarith only [hcons, hconst]
+  refine (mul_le_mul_of_nonneg_right dens_oddPairs_le_half
+    (expect_nonneg fun _ _ => sq_nonneg _)).trans
+    ((mul_le_mul_of_nonneg_left h (by norm_num)).trans ?_)
+  linarith only [hcons, mul_le_mul_of_nonneg_left hac
+    (mul_nonneg zero_le_two chshAnticommConst_nonneg)]
 
 omit [Nonempty (Fin n)] in
 private theorem commute_average_basisObservable
@@ -170,9 +166,7 @@ private theorem commute_average_basisObservable
     Commute C (𝔼 d, pauliBraidingBasisObservable N b x d) := by
   change Commute C (𝔼 d, (pauliBraidingBasisBitMeasurement N b x d).observable)
   rw [← Measurement.observable_average]
-  apply Commute.symm
-  refine Measurement.commute_observable_average _ _ fun d => ?_
-  apply Commute.symm
+  refine (Measurement.commute_observable_average _ _ fun d => Commute.symm ?_).symm
   change Commute C (((N _).map _).effect false - ((N _).map _).effect true)
   simp only [Measurement.map_effect]
   exact (Commute.sum_right _ _ _ fun a _ => h _ a).sub_right
@@ -246,12 +240,8 @@ private theorem basis_cross_distance_le
   intro A B
   have h := expect_norm_pauliBraidingBasisObservable_sub_sq_le
     TwoProverGame.chsh id (fun _ => id) b T
-  change (𝔼 x, T.state.norm (A x - B x) ^ 2) ≤ _ at h
-  have hmul := mul_le_mul_of_nonneg_left hcons
-    (by positivity : 0 ≤ 896 * ((oddPairs (Fin n)).dens : ℝ))
-  have hhalf := mul_le_mul_of_nonneg_right (dens_oddPairs_le_half (ι := Fin n)) hε
-  have hcap := mul_le_mul_of_nonneg_left hhalf (by norm_num : 0 ≤ (896 : ℝ))
-  linarith only [h, hmul, hlin, hcap]
+  have hdens : (0 : ℝ) ≤ (oddPairs (Fin n)).dens := by positivity
+  nlinarith [h, hlin, hcons, dens_oddPairs_le_half (ι := Fin n), hdens]
 
 /-- The three branch scores of a single projective-basis tensor strategy bound the
 Pauli-group multiplication defects of exactly linear character families on both original
@@ -301,18 +291,15 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
   let V (b : Bool) (x : Fin n → Bool) := oneKronecker (ι := ι) ((Q b).charObs x)
   let A (b : Bool) (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.alice b x d
   let B (b : Bool) (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.bob b x d
-  let r := pauliBraidingRoundingError ε
   let c := 832 * ε
-  have hε : 0 ≤ ε := by
-    have hm := SeededGame.answersWinProb_le_one (branch 0) S.answers
-    change (branch 0).quantumWinProb S ≤ 1 at hm
-    linarith only [hm, hlin]
+  have h0_le : (branch 0).quantumWinProb S ≤ 1 := (branch 0).answersWinProb_le_one S.answers
+  have hε : 0 ≤ ε := by linarith only [hlin, h0_le]
   have hlin' : 1 - (branch 0).commutingWinProb T ≤ ε := by
     linarith only [hlin, (branch 0).commutingWinProb_toCommuting S]
-  have hcons' : 1 - (branch 2).commutingWinProb T ≤ ε := by
-    simpa only [T, SeededGame.commutingWinProb_toCommuting] using hcons
-  have hac' : Real.cos (π / 8) ^ 2 - (branch 1).commutingWinProb T ≤ ε := by
-    simpa only [T, SeededGame.commutingWinProb_toCommuting] using hac
+  have hcons' : 1 - (branch 2).commutingWinProb T ≤ ε :=
+    (branch 2).commutingWinProb_toCommuting S ▸ hcons
+  have hac' : Real.cos (π / 8) ^ 2 - (branch 1).commutingWinProb T ≤ ε :=
+    (branch 1).commutingWinProb_toCommuting S ▸ hac
   have hAB (b : Bool) : 𝔼 x, T.state.norm (A b x - B b x) ^ 2 ≤ c :=
     basis_cross_distance_le T b hε hlin' hcons'
   have hU (b : Bool) (x : Fin n → Bool) : U b x ∈ unitary (Matrix (ι × κ) (ι × κ) ℂ) :=
@@ -387,16 +374,11 @@ private theorem compress_in_joint_state {η : Type w} [Fintype η] [DecidableEq 
   let ψ := φ.comap e he
   refine ⟨J, inferInstance, inferInstance, W, hW, (hproduct ψ).trans ?_, hZ, ?_⟩
   · simpa only [ψ, AlgState.norm_comap, map_sub, map_mul, hLift] using hdef.1
-  · have hmean : (𝔼 x, let D := W * X x - (pauliXPow x ⊗ₖ (1 : Matrix J J ℂ)) * W
-          (ψ (Dᴴ * D)).re) =
-        𝔼 x, 𝔼 z, ψ.norm (Z z * X x - (signVal (x ⬝ᵥ z) : ℂ) • (X x * Z z)) ^ 2 := by
-      refine expect_congr rfl fun x _ => ?_
-      dsimp only
-      rw [hX x, ψ.re_apply_expect]
-      simp only [AlgState.norm_sq, Matrix.star_eq_conjTranspose]
-    refine hmean.le.trans ?_
-    simpa only [ψ, AlgState.norm_comap, map_sub, map_mul, map_smul, Function.comp_apply]
-      using hdef.2
+  · refine (le_of_eq (expect_congr rfl fun x _ => ?_)).trans hdef.2
+    dsimp only
+    rw [hX x, ψ.re_apply_expect]
+    simp only [← Matrix.star_eq_conjTranspose, ← AlgState.norm_sq, ψ, X, Z, AlgState.norm_comap,
+      map_sub, map_mul, map_smul, Function.comp_apply]
 
 private theorem quantum_branch_deficits_le
     (S : QuantumStrategy (PauliBraidingQuestion n Bool) (PauliBraidingQuestion n Bool)
@@ -426,11 +408,8 @@ private theorem quantum_branch_deficits_le
     ((branch i).commutingWinProb_toCommuting S) ▸
       pauliBraidingBranch_deficit_le TwoProverGame.chsh id (fun _ => id) T.answers
         upper hupper hfull i
-  refine ⟨?_, by simpa only [upper, Fin.reduceEq, ite_false] using hδ 2,
-    by simpa only [upper, ite_true] using hδ 1⟩
-  have hzero := hδ 0
-  simp only [upper, Fin.reduceEq, ite_false] at hzero
-  linarith only [hzero]
+  have hδ0 : 1 - (branch 0).quantumWinProb S ≤ 3 * ε := hδ 0
+  exact ⟨by linarith only [hδ0], hδ 2, hδ 1⟩
 
 /-- Near the mean of the branch upper bounds, a projective-basis tensor strategy admits
 local isometries compressing the rounded products and intertwining the individual

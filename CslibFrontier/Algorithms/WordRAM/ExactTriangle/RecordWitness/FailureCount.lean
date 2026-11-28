@@ -55,17 +55,13 @@ theorem native_failed_count_le {m n g p : ℕ} (values : ℕ → ℤ)
   apply Nat.count_mono_left
   intro i hi hn
   let j : Fin qs.length := ⟨i, hi⟩
-  have hget : qs.getD i default = qs.get j := by
-    rw [List.getD_eq_getElem _ _ hi, List.get_eq_getElem]
+  have hget : qs.getD i default = qs.get j :=
+    (List.getD_eq_getElem _ _ hi).trans (List.get_eq_getElem (l := qs) (i := j)).symm
   rw [hget]
-  constructor
-  · intro hz
-    apply hn.1
-    rw [hanswer j, hz]
-    rfl
-  · apply (WitnessScan.fails_iff_scanPiece_eq_none AB BC AC wAB wBC wAC
-      hD hg hAB hBC hAC (qs.get j).1 (qs.get j).2).mp
-    obtain ⟨ha, hb⟩ := hcoords j
-    simpa only [j, ha, hb] using hn.2
+  obtain ⟨ha, hb⟩ := hcoords j
+  refine ⟨fun hz => hn.1 ((hanswer j).trans (hz ▸ rfl)), ?_⟩
+  apply (WitnessScan.fails_iff_scanPiece_eq_none AB BC AC wAB wBC wAC
+    hD hg hAB hBC hAC _ _).mp
+  simpa only [j, ha, hb] using hn.2
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

@@ -120,45 +120,36 @@ theorem stage_sublist : ∀ l : List α, (stage label t l).Sublist l
   | [] => List.Sublist.slnil
   | a :: rest => by
     rw [stage]
-    split
-    · exact (reps_sublist a rest).cons a
-    · exact ((List.take_sublist _ _).trans (reps_sublist a rest)).cons_cons a
+    split_ifs
+    exacts [(reps_sublist a rest).cons a,
+      ((List.take_sublist _ _).trans (reps_sublist a rest)).cons_cons a]
 
 theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (2 * t + 2) (l.length - 1)
   | [] => Nat.zero_le _
   | a :: rest => by
     have h := (reps_sublist (label := label) a rest).length_le
+    have ht := List.length_take_le (2 * t + 1) (reps label a rest)
     rw [stage]
-    split
-    · simp only [List.length_cons, Nat.add_sub_cancel]
-      omega
-    · have := List.length_take_le (2 * t + 1) (reps label a rest)
-      rw [List.length_cons]
-      omega
+    split <;> simp only [List.length_cons, Nat.add_sub_cancel] <;> omega
 
 theorem iterate_stage_sublist (i : ℕ) (l : List α) : ((stage label t)^[i] l).Sublist l := by
   induction i with
   | zero => exact List.Sublist.refl l
-  | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    exact (stage_sublist _).trans ih
+  | succ i ih => exact Function.iterate_succ_apply' _ i l ▸ (stage_sublist _).trans ih
 
 theorem length_iterate_stage_le (i : ℕ) (l : List α) :
     ((stage label t)^[i] l).length ≤ max (2 * t + 2) (l.length - i) := by
   induction i with
   | zero => exact le_max_right _ _
   | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    refine (length_stage_le _).trans ?_
-    omega
+    exact (congrArg List.length (Function.iterate_succ_apply' (stage label t) i l)).trans_le
+      ((length_stage_le _).trans (by omega))
 
 theorem prune_sublist (l : List α) : (prune label t l).Sublist l := iterate_stage_sublist _ l
 
 /-- A pruned level has at most `2 t + 2` nodes. -/
 theorem length_prune_le (l : List α) : (prune label t l).length ≤ 2 * t + 2 := by
-  have := length_iterate_stage_le (label := label) (t := t) l.length l
-  rw [Nat.sub_self] at this
-  exact this.trans (by omega)
+  simpa [prune] using length_iterate_stage_le (label := label) (t := t) l.length l
 
 end Prune
 
@@ -192,10 +183,9 @@ private theorem filter_length_le_of_nodup
     obtain ⟨b', hb', rfl⟩ := List.mem_map.1 hy
     exact Prod.ext hxy (by rw [hp b (List.mem_filter.1 hb).2, hp b' (List.mem_filter.1 hb').2])
   have hle := hc ((T.map lab).map Prod.fst).toFinset fun w hw => by
-    simp only [List.mem_toFinset, List.map_map, List.mem_map, Function.comp_apply] at hw
-    obtain ⟨b, hb, rfl⟩ := hw
-    have ⟨hbU, hbp⟩ := List.mem_filter.1 hb
-    exact ⟨hK b hbU (hp b hbp), hlen b (hsub.subset hbU)⟩
+    obtain ⟨b, hb, rfl⟩ := List.mem_map.1 (by simpa using hw : w ∈ T.map (Prod.fst ∘ lab))
+    exact ⟨hK b (List.mem_filter.1 hb).1 (hp b (List.mem_filter.1 hb).2),
+      hlen b (hsub.subset (List.mem_filter.1 hb).1)⟩
   rwa [List.toFinset_card_of_nodup hnd', List.length_map, List.length_map] at hle
 
 /-- A stage keeps a satisfiable node, if there is one. -/
@@ -221,17 +211,14 @@ private theorem exists_mem_stage (hkey : ∀ ψ, ψ ∈ SAT ↔ ((key ψ).1 ∈ 
     · rename_i hpos
       by_cases hasat : units a ++ φ ∈ SAT
       · /- If `a` were satisfiable, every kept label with the sign `true` would lie in `K`. -/
-        exfalso
         have hle := filter_length_le_of_nodup hc hnodup (List.Sublist.refl kept) hlen (s₀ := true)
-          (p := fun b => (lab b).2) (fun _ h => h) fun b _ hsign => by
-            have := (hkey (Mahaney.disj φ a b)).1 (Mahaney.disj_mem_SAT_iff.2 (.inl hasat))
-            rwa [hsign, iff_true_right rfl] at this
+          (p := fun b => (lab b).2) (fun _ h => h) fun b _ hsign =>
+            ((hkey _).1 (Mahaney.disj_mem_SAT_iff.2 (.inl hasat))).2 hsign
         dsimp only [lab] at hle
         omega
       · exact hcases.resolve_left hasat
     · rename_i hpos
-      by_contra hnone
-      push Not at hnone
+      by_contra! hnone
       have hasat : units a ++ φ ∉ SAT := hnone a (List.mem_cons_self ..)
       obtain ⟨b', hb', hb'sat⟩ := hcases.resolve_left hasat
       by_cases hshort : kept.length ≤ 2 * t + 1
@@ -244,11 +231,11 @@ private theorem exists_mem_stage (hkey : ∀ ψ, ψ ∈ SAT ↔ ((key ψ).1 ∈ 
           (((List.take_sublist _ _).filter _).length_le).trans (not_lt.1 hpos)
         have hTneg : (T.filter fun b => !(lab b).2).length ≤ t :=
           filter_length_le_of_nodup hc hnodup (List.take_sublist _ _) hlen (s₀ := false)
-            (p := fun b => !(lab b).2) (fun _ h => by simpa using h) fun b hbT hsign => by
-              have hdisj : Mahaney.disj φ a b ∉ SAT := fun h =>
-                (Mahaney.disj_mem_SAT_iff.1 h).elim hasat (hnone b (List.mem_cons_of_mem _ hbT))
-              rw [hkey, hsign] at hdisj
-              simpa using hdisj
+            (p := fun b => !(lab b).2) (fun _ h => by simpa using h) fun b hbT hsign =>
+              by_contra fun hnK =>
+                (Mahaney.disj_mem_SAT_iff.1 ((hkey _).2
+                  (iff_of_false hnK fun ht => Bool.false_ne_true (hsign.symm.trans ht)))).elim
+                  hasat (hnone b (List.mem_cons_of_mem _ hbT))
         have := List.length_eq_length_filter_add (l := T) fun b => (lab b).2
         omega
 
@@ -259,16 +246,13 @@ private theorem exists_mem_prune (hkey : ∀ ψ, ψ ∈ SAT ↔ ((key ψ).1 ∈ 
     (hM : ∀ a ∈ l, ∀ b ∈ l, (key (Mahaney.disj φ a b)).1.length ≤ M)
     (h : ∃ a ∈ l, units a ++ φ ∈ SAT) :
     ∃ a ∈ prune (fun a b => key (Mahaney.disj φ a b)) t l, units a ++ φ ∈ SAT := by
-  suffices ∀ i, ∃ a ∈ (stage (fun a b => key (Mahaney.disj φ a b)) t)^[i] l,
-      units a ++ φ ∈ SAT from this _
-  intro i
-  induction i with
-  | zero => exact h
-  | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    have hsub := (iterate_stage_sublist
-      (label := fun a b => key (Mahaney.disj φ a b)) (t := t) i l).subset
-    exact exists_mem_stage hkey hc (fun a ha b hb => hM a (hsub ha) b (hsub hb)) ih
+  refine Nat.rec (motive := fun i =>
+    ∃ a ∈ (stage (fun a b => key (Mahaney.disj φ a b)) t)^[i] l, units a ++ φ ∈ SAT) h
+    (fun i ih => ?_) l.length
+  rw [Function.iterate_succ_apply']
+  have hsub := (iterate_stage_sublist
+    (label := fun a b => key (Mahaney.disj φ a b)) (t := t) i l).subset
+  exact exists_mem_stage hkey hc (fun a ha b hb => hM a (hsub ha) b (hsub hb)) ih
 
 /-- **Correctness of the procedure.** If the signed labels `key` reduce `SAT` to `K`, the words of
 the labels of the pairs of nodes of the tree of `φ` have length at most `M`, and every finite set
@@ -312,8 +296,7 @@ private theorem computableInPolyTime_stage {key : CNF ℕ → List Bool × Bool}
       (fun r : (CNF ℕ × ℕ) × List (List (Literal ℕ)) =>
         stage (fun a b => key (Mahaney.disj r.1.1 a b)) r.1.2 r.2)
       (encPair (encPair encCNF encUnary) encNodes) encNodes := by
-  simp only [stage_eq]
-  unfold Mahaney.disj
+  simp only [stage_eq, Mahaney.disj]
   fun_prop
 
 /-- A level of the search is polynomial-time, uniformly in the formula, the bound, the nodes and
@@ -367,29 +350,14 @@ theorem mem_SAT_iff_signedKey {S : Set β} {r : CNF ℕ → ℕ} {q : CNF ℕ ×
   classical
   have hcons : ∀ w : List Bool, true :: w ∈ List.cons true '' (encB '' S) ↔ w ∈ encB '' S :=
     fun w => (List.cons_injective).mem_set_image
-  have hnil : ([] : List Bool) ∉ List.cons true '' (encB '' S) := by
-    rintro ⟨w, -, hw⟩
-    exact List.cons_ne_nil _ _ hw
+  have hnil : ([] : List Bool) ∉ List.cons true '' (encB '' S) :=
+    fun ⟨w, _, hw⟩ => List.cons_ne_nil _ _ hw
   rw [hL, signedKey]
   rcases Nat.le_one_iff_eq_zero_or_eq_one.1 (hr ψ) with h0 | h1
-  · have hans : truthTableAnswers (q ⁻¹' S) r ψ = [] := by
-      rw [← List.length_eq_zero_iff, length_truthTableAnswers, h0]
-    simp only [h0, List.replicate_zero, ite_true, hans]
-    simp [hnil]
-  · have hans : truthTableAnswers (q ⁻¹' S) r ψ = [decide (q (ψ, 0) ∈ S)] := by
-      rw [truthTableAnswers_eq_map_range, h1]
-      simp
-    simp only [h1, List.replicate_one, hans]
-    split
-    · rename_i heq
-      cases hq : decide (q (ψ, 0) ∈ S) <;> simp [heq, hnil]
-    · rename_i hne
-      rw [hcons, encB.injective.mem_set_image]
-      by_cases hqS : q (ψ, 0) ∈ S
-      · simp [hqS]
-      · have hfalse : d (ψ, [false]) = !d (ψ, [true]) := by
-          cases hf : d (ψ, [false]) <;> cases ht : d (ψ, [true]) <;> simp_all
-        simp [hqS, hfalse]
+  · simp [h0, truthTableAnswers_eq_map_range, hnil]
+  · simp only [h1, List.replicate_one, truthTableAnswers_eq_map_range, List.range_one, List.map]
+    by_cases hqS : q (ψ, 0) ∈ S <;> cases hf : d (ψ, [false]) <;> cases ht : d (ψ, [true]) <;>
+      simp [hqS, hf, ht, hnil, hcons, encB.injective.mem_set_image]
 
 /-- Signed labels are polynomial-time when the reduction is. -/
 theorem computableInPolyTime_signedKey {r : CNF ℕ → ℕ} {q : CNF ℕ × ℕ → β}
@@ -419,27 +387,21 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
   them are marked encodings of members of the sparse problem. -/
   let Q : Polynomial ℕ := Polynomial.C C * (p.comp (Polynomial.X * Polynomial.X *
     (16 * Polynomial.X + 21) + Polynomial.X) + 1) ^ D
-  have hQ (L : ℕ) : Q.eval L = C * (p.eval (L * L * (16 * L + 21) + L) + 1) ^ D := by
-    simp [Q]
   refine ⟨fun φ => accepts (signedKey encB r q d) (Q.eval (encCNF φ).length) φ,
     computableInPolyTime_accepts hkey ((unary_eval Q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := List.cons true '' (encB '' S)) (M := p.eval ((encCNF φ).length *
       (encCNF φ).length * (16 * (encCNF φ).length + 21) + (encCNF φ).length))
       (mem_SAT_iff_signedKey hr1 hL) (fun a b ha hb hla hlb => ?_) (fun s hs => ?_)).symm⟩
-  · refine (hp _).trans (Polynomial.eval_mono _ ?_)
-    have hvars := length_vars_le φ
-    have hla' : a.length ≤ (encCNF φ).length := hla.trans hvars
-    have hlb' : b.length ≤ (encCNF φ).length := hlb.trans hvars
-    refine (Mahaney.length_encCNF_disj_le ha hb).trans ?_
-    gcongr
+  · refine (hp _).trans (Polynomial.eval_mono _ ((Mahaney.length_encCNF_disj_le ha hb).trans ?_))
+    gcongr <;> exact le_trans ‹_› (length_vars_le φ)
   · /- Dropping the leading `true` is injective on `s`, and gives members of the sparse problem
     no longer than the words in `s`. -/
-    rw [hQ]
-    have hinj : Set.InjOn List.tail (s : Set (List Bool)) := by
-      intro w hw w' hw' hww'
-      obtain ⟨u, -, rfl⟩ := (hs w hw).1
-      obtain ⟨u', -, rfl⟩ := (hs w' hw').1
-      simpa using hww'
+    simp only [Q, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_add,
+      Polynomial.eval_comp, Polynomial.eval_X, Polynomial.eval_ofNat, Polynomial.eval_one]
+    have hinj : Set.InjOn List.tail (s : Set (List Bool)) := fun w hw w' hw' hww' => by
+      obtain ⟨_, -, rfl⟩ := (hs w hw).1
+      obtain ⟨_, -, rfl⟩ := (hs w' hw').1
+      exact congrArg (List.cons true) hww'
     rw [← Finset.card_image_of_injOn hinj]
     refine hCD _ _ fun v hv => ?_
     obtain ⟨w, hw, rfl⟩ := Finset.mem_image.1 hv

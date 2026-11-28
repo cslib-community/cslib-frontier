@@ -65,6 +65,11 @@ theorem isPolymorphism_majority_iff (R : Set (V → Bool)) :
     congr 1 with j : 1
     fin_cases j <;> rfl
 
+private theorem medianBit_eq_iff : ∀ x y z b : Bool,
+    (x && y || y && z || z && x) = b ↔
+      (x = b ∧ y = b) ∨ (y = b ∧ z = b) ∨ (z = b ∧ x = b) := by
+  decide
+
 /-- A nonempty majority-closed relation on finitely many coordinates contains a tuple whenever
 each of its pairs of coordinates extends to a tuple in the relation. Pairing a coordinate with
 itself includes singleton projections; nonemptiness handles the empty coordinate type. -/
@@ -82,17 +87,15 @@ theorem mem_of_pairwise_of_majority [Finite V] {R : Set (V → Bool)}
       obtain ⟨y, hy, hya⟩ := ih (s.erase j) (Finset.erase_ssubset hj)
       obtain ⟨z, hz, hza⟩ := ih (s.erase k) (Finset.erase_ssubset hk)
       refine ⟨median x y z, hclosed x hx y hy z hz, fun l hl => ?_⟩
+      apply (medianBit_eq_iff ..).2
       rcases eq_or_ne i l with rfl | hli
-      · rw [median, hya i (Finset.mem_erase.mpr ⟨hij, hi⟩),
-          hza i (Finset.mem_erase.mpr ⟨hik, hi⟩)]
-        cases a i <;> simp
+      · exact .inr (.inl ⟨hya i (Finset.mem_erase.2 ⟨hij, hi⟩),
+          hza i (Finset.mem_erase.2 ⟨hik, hi⟩)⟩)
       · rcases eq_or_ne j l with rfl | hlj
-        · rw [median, hxa j (Finset.mem_erase.mpr ⟨hij.symm, hj⟩),
-            hza j (Finset.mem_erase.mpr ⟨hjk, hj⟩)]
-          cases a j <;> simp
-        · rw [median, hxa l (Finset.mem_erase.mpr ⟨hli.symm, hl⟩),
-            hya l (Finset.mem_erase.mpr ⟨hlj.symm, hl⟩)]
-          cases a l <;> simp
+        · exact .inr (.inr ⟨hza j (Finset.mem_erase.2 ⟨hjk, hj⟩),
+            hxa j (Finset.mem_erase.2 ⟨hij.symm, hj⟩)⟩)
+        · exact .inl ⟨hxa l (Finset.mem_erase.2 ⟨hli.symm, hl⟩),
+            hya l (Finset.mem_erase.2 ⟨hlj.symm, hl⟩)⟩
     · rcases (by omega : s.card = 0 ∨ s.card = 1 ∨ s.card = 2) with hs' | hs' | hs'
       · obtain rfl := Finset.card_eq_zero.mp hs'
         obtain ⟨b, hb⟩ := hne
@@ -111,25 +114,16 @@ literal signs, repeated variables, the empty clause and unit clauses. -/
 theorem Clause.eval_median_of_length_le_two {c : Clause V} (hc : c.length ≤ 2)
     {x y z : V → Bool} (hx : c.eval x = true) (hy : c.eval y = true)
     (hz : c.eval z = true) : c.eval (median x y z) = true := by
-  cases c with
-  | nil => simp [Clause.eval] at hx
-  | cons p c =>
-    cases c with
-    | nil =>
-      obtain ⟨i, b⟩ := p
-      simp only [Clause.eval, List.any_cons, List.any_nil, Bool.or_false] at hx hy hz ⊢
-      cases b <;> cases hxi : x i <;> cases hyi : y i <;> cases hzi : z i <;>
-        simp_all [median]
-    | cons q c =>
-      have : c = [] := by simpa using hc
-      subst c
-      obtain ⟨i, b⟩ := p
-      obtain ⟨j, d⟩ := q
-      cases b <;> cases d <;>
-        cases hxi : x i <;> cases hxj : x j <;>
-        cases hyi : y i <;> cases hyj : y j <;>
-        cases hzi : z i <;> cases hzj : z j <;>
-        simp_all [Clause.eval, median]
+  rcases c with _ | ⟨⟨i, b⟩, _ | ⟨⟨j, d⟩, c⟩⟩
+  · simp [Clause.eval] at hx
+  · simp only [Clause.eval, List.any_cons, List.any_nil, Bool.or_false, Literal.eval,
+      beq_iff_eq] at hx hy ⊢
+    exact (medianBit_eq_iff ..).2 (.inl ⟨hx, hy⟩)
+  · obtain rfl : c = [] := by simpa using hc
+    -- Among three satisfying assignments, two agree with one of the two literals.
+    simp only [Clause.eval, List.any_cons, List.any_nil, Bool.or_false, Bool.or_eq_true,
+      Literal.eval, beq_iff_eq, median, medianBit_eq_iff] at hx hy hz ⊢
+    tauto
 
 /-- Models of a width-two CNF form a majority-preserved relation. -/
 theorem CNF.isPolymorphism_majority {φ : CNF V} (hφ : ∀ c ∈ φ, c.length ≤ 2) :
@@ -156,9 +150,10 @@ theorem exists_separating_clause_of_majority [Finite V] {R : Set (V → Bool)}
     refine ⟨[(i, !a i), (j, !a j)], by simp, ?_, ?_⟩
     · intro b hb
       have hn : ¬ (b i = a i ∧ b j = a j) := fun h => hij ⟨b, hb, h⟩
-      cases hai : a i <;> cases haj : a j <;> cases hbi : b i <;> cases hbj : b j <;>
-        simp_all [Clause.eval]
-    · cases hai : a i <;> cases haj : a j <;> simp [Clause.eval, hai, haj]
+      simpa only [Clause.eval, List.any_cons, List.any_nil, Bool.or_false, Bool.or_eq_true,
+        Literal.eval, beq_iff_eq, Bool.eq_not] using not_and_or.mp hn
+    · simp only [Clause.eval, List.any_cons, List.any_nil, Literal.eval, Bool.beq_not_self,
+        Bool.or_false]
   · exact ⟨[], by simp, fun b hb => (hne ⟨b, hb⟩).elim, rfl⟩
 
 /-- **Majority preservation iff 2CNF definability.** Relations on finitely many Boolean

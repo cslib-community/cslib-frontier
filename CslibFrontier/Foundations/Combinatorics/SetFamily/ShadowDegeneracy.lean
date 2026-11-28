@@ -99,10 +99,8 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
       have hsub {I : Finset α} (hI : I ∈ Γ) : I ⊆ U₁ :=
         mem_powerset.mp (subset_biUnion_powerset Γ hI)
       rcases Nat.eq_zero_or_pos v with rfl | hvpos
-      · refine (card_eq_zero.mpr (filter_eq_empty_iff.mpr fun I hI hIq => ?_)).trans_le
-          (Nat.zero_le _)
-        have := card_le_card (hsub hI)
-        omega
+      · refine (card_eq_zero.mpr (filter_eq_empty_iff.mpr fun I hI => ?_)).trans_le (Nat.zero_le _)
+        simp [subset_empty.mp (le_of_le_of_eq (hsub hI) (card_eq_zero.mp hU₁))]
       by_cases hvd : v ≤ d
       · have h2 : #Γ ≤ #U₁.powerset := card_le_card (subset_biUnion_powerset Γ)
         rw [card_powerset, hU₁] at h2
@@ -132,36 +130,27 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
       set Γlink : Finset (Finset α) := ({E ∈ Γ | i₀ ∈ E}).image (·.erase i₀)
       have hmem_link (J : Finset α) : J ∈ Γlink ↔ i₀ ∉ J ∧ insert i₀ J ∈ Γ := by
         simp only [Γlink, mem_image, mem_filter]
-        constructor
-        · rintro ⟨E, ⟨hEΓ, hiE⟩, rfl⟩
-          exact ⟨notMem_erase i₀ E, (insert_erase hiE).symm ▸ hEΓ⟩
-        · rintro ⟨hni, hins⟩
-          exact ⟨insert i₀ J, ⟨hins, mem_insert_self i₀ J⟩, erase_insert hni⟩
-      have hdel_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γdel → J ∈ Γdel := by
-        intro I J hJI hI
-        obtain ⟨hIΓ, hni⟩ := mem_filter.mp hI
-        exact mem_filter.mpr ⟨hΓ hJI hIΓ, fun hj => hni (hJI hj)⟩
+        exact ⟨fun ⟨E, ⟨hEΓ, hiE⟩, hJE⟩ => hJE ▸ ⟨notMem_erase i₀ E, (insert_erase hiE).symm ▸ hEΓ⟩,
+          fun ⟨hni, hins⟩ => ⟨insert i₀ J, ⟨hins, mem_insert_self i₀ J⟩, erase_insert hni⟩⟩
+      have hdel_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γdel → J ∈ Γdel := fun _ _ hJI hI =>
+        mem_filter.mpr ⟨hΓ hJI (mem_filter.mp hI).1, fun hj => (mem_filter.mp hI).2 (hJI hj)⟩
       have hdel_cap : (q + 1).factorial * #{I ∈ Γdel | #I = q + 1} ≤ d ^ (q + 1) :=
         (Nat.mul_le_mul_left _ (card_le_card (filter_subset_filter _ (filter_subset _ _)))).trans
           hΓcap
       have hdel_1 : #{I ∈ Γdel | #I = 1} = v - 1 := by
         obtain ⟨E₀, hE₀, hi₀E⟩ := mem_biUnion.mp hi₀U
         have heq : ({I ∈ Γdel | #I = 1} : Finset _) =
-            ({I ∈ Γ | #I = 1} : Finset _).erase {i₀} := by
-          ext I
+            ({I ∈ Γ | #I = 1} : Finset _).erase {i₀} := Finset.ext fun I => by
           simp only [Γdel, mem_filter, mem_erase]
-          constructor
-          · rintro ⟨⟨hI, hni⟩, hc⟩
-            exact ⟨fun h => hni (h ▸ mem_singleton_self i₀), hI, hc⟩
-          · rintro ⟨hne, hI, hc⟩
-            obtain ⟨j, rfl⟩ := card_eq_one.mp hc
-            exact ⟨⟨hI, fun hj => hne (by rw [mem_singleton.mp hj])⟩, card_singleton j⟩
+          refine ⟨fun ⟨⟨hI, hni⟩, hc⟩ => ⟨fun h => hni (h ▸ mem_singleton_self i₀), hI, hc⟩, ?_⟩
+          rintro ⟨hne, hI, hc⟩
+          obtain ⟨j, rfl⟩ := card_eq_one.mp hc
+          exact ⟨⟨hI, fun hj => hne (by rw [mem_singleton.mp hj])⟩, card_singleton j⟩
         rw [heq, card_erase_of_mem (mem_filter.mpr ⟨hΓ (singleton_subset_iff.mpr hi₀E) hE₀,
           card_singleton i₀⟩), hv]
-      have hlink_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γlink → J ∈ Γlink := by
-        intro I J hJI hI
-        obtain ⟨hni, hins⟩ := (hmem_link I).mp hI
-        exact (hmem_link J).mpr ⟨fun hj => hni (hJI hj), hΓ (insert_subset_insert i₀ hJI) hins⟩
+      have hlink_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γlink → J ∈ Γlink := fun I J hJI hI =>
+        let ⟨hni, hins⟩ := (hmem_link I).mp hI
+        (hmem_link J).mpr ⟨fun hj => hni (hJI hj), hΓ (insert_subset_insert i₀ hJI) hins⟩
       have hlink_1 : #{J ∈ Γlink | #J = 1} ≤ v - 1 := by
         rw [← hdel_1]
         refine card_le_card (filter_subset_filter _ fun J hJ => ?_)
@@ -176,16 +165,12 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
           obtain ⟨hni, hins⟩ := (hmem_link J).mp hJl
           exact mem_filter.mpr ⟨hins, by rwa [card_insert_of_notMem hni], mem_insert_self i₀ J⟩
         · obtain ⟨hIΓ, hIP, hiI⟩ := mem_filter.mp hI
-          refine mem_filter.mpr ⟨(hmem_link _).mpr ⟨notMem_erase i₀ I, ?_⟩, ?_⟩
-          · rwa [insert_erase hiI]
-          · rwa [card_erase_add_one hiI]
+          exact mem_filter.mpr ⟨(hmem_link _).mpr ⟨notMem_erase i₀ I,
+            (insert_erase hiI).symm ▸ hIΓ⟩, (card_erase_add_one hiI).symm ▸ hIP⟩
       have hlink_bound : #{J ∈ Γlink | q ≤ #J} ≤ (v - 1) ^ (q - 1) * 2 ^ d := by
         refine (ih_p hlink_down ?_).trans (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hlink_1 _))
-        have h := hlink_card (· = q + 1)
-        simp only [Nat.add_right_cancel_iff] at h
-        simpa only [h, deg, Γtop, filter_filter] using hdeg_cap
-      have hwith_card := hlink_card (q + 1 ≤ ·)
-      simp only [Nat.add_le_add_iff_right] at hwith_card
+        simpa only [← hlink_card (· = q + 1), Nat.add_right_cancel_iff, deg, Γtop,
+          filter_filter] using hdeg_cap
       have hsplit : #{I ∈ Γ | q + 1 ≤ #I} =
           #{I ∈ Γdel | q + 1 ≤ #I} + #{I ∈ Γ | q + 1 ≤ #I ∧ i₀ ∈ I} := by
         rw [← card_filter_add_card_filter_not (s := ({I ∈ Γ | q + 1 ≤ #I} : Finset _))
@@ -199,7 +184,8 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
           _ ≤ (u + 1) * (u + 1) ^ r := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) r)
           _ = (u + 1) ^ (r + 1) := (pow_succ' _ _).symm
       calc #{I ∈ Γ | q + 1 ≤ #I}
-          = #{I ∈ Γdel | q + 1 ≤ #I} + #{J ∈ Γlink | q ≤ #J} := by rw [hsplit, hwith_card]
+          = #{I ∈ Γdel | q + 1 ≤ #I} + #{J ∈ Γlink | q ≤ #J} := by
+            simp only [hsplit, ← hlink_card (q + 1 ≤ ·), Nat.add_le_add_iff_right]
         _ ≤ (v - 1) ^ q * 2 ^ d + (v - 1) ^ (q - 1) * 2 ^ d :=
           add_le_add (ih_v (v - 1) (by omega) Γdel hdel_down hdel_cap hdel_1) hlink_bound
         _ ≤ v ^ q * 2 ^ d := by rw [← add_mul]; exact Nat.mul_le_mul_right _ hpow_step

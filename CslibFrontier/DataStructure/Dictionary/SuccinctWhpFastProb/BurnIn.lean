@@ -66,9 +66,8 @@ theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedW
     obtain ⟨fs', htick, hv', hw', hs', hbuf_or⟩ :=
       epochTick_some_of_work_bound hv.toCore hv.overmars_valid hv.stage_valid.toPreTick
         hdom_sub hsalt_all hcw.salt_bound hcw.work_le
-    refine ⟨fs', fastQuery c U n_max θ fs u, ?_,
+    exact ⟨fs', fastQuery c U n_max θ fs u, by simp only [fastStepPure, htick],
       ⟨hv', hbuf_or.elim (fun h => h ▸ hcw.buf_alloc) fun h => h ▸ Nat.zero_le _, hw', hs'⟩⟩
-    simp only [fastStepPure, htick]
   | delete u =>
     obtain ⟨hc1, hom1, hpre1, _⟩ := hv.fastDelete_spec u
     obtain ⟨hclk1, hep1, hia1, hev1, hw1_le, hs1⟩ :=
@@ -76,14 +75,12 @@ theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedW
     obtain ⟨fs', htick, hv', hw', hs', hbuf_or⟩ :=
       epochTick_some_of_work_bound hc1 hom1 hpre1 hdom_nxt hsalt_all hs1
         (by have := hcw.work_le; omega)
-    refine ⟨fs', none, ?_, ⟨hv', ?_, hw', hs'⟩⟩
-    · dsimp only [fastStepPure]; rw [htick]
-    · rcases hbuf_or with hbeq | hia0
-      · rw [hbeq, hia1]
-        refine hcw.buf_alloc.trans (le_of_eq ?_)
-        congr 1; ext x; rw [mem_filter, mem_filter]
-        exact and_congr_right fun _ => by rw [← hev1 _ (fpReducedKey_lt c U n_max θ.2 x)]
-      · rw [hia0]; exact Nat.zero_le _
+    refine ⟨fs', none, by simp only [fastStepPure, htick], ⟨hv', ?_, hw', hs'⟩⟩
+    rcases hbuf_or with hbeq | hia0
+    · rw [hbeq, hia1]
+      exact hcw.buf_alloc.trans_eq (congrArg card (filter_congr fun x _ => by
+        rw [hev1 _ (fpReducedKey_lt c U n_max θ.2 x)]))
+    · exact hia0 ▸ Nat.zero_le _
   | insert u v =>
     obtain ⟨hu_ins, hu_W⟩ := hop_ins u v rfl
     obtain ⟨fs1, hins, hclk1, hba1, hw1_eq, hs1⟩ :=
@@ -93,9 +90,8 @@ theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedW
     obtain ⟨fs', htick, hv', hw', hs', hbuf_or⟩ :=
       epochTick_some_of_work_bound hc1 hom1 hst1.toPreTick hdom_nxt hsalt_all hs1
         (by rw [hclk1, hw1_eq]; exact hcw.work_le)
-    refine ⟨fs', none, ?_,
+    exact ⟨fs', none, by simp only [fastStepPure, hins, htick],
       ⟨hv', hbuf_or.elim (fun h => h ▸ hba1) fun h => h ▸ Nat.zero_le _, hw', hs'⟩⟩
-    simp only [fastStepPure, hins, htick]
 
 /-- Burn-in countdown budget to reach `CleanWindowFast` within the trailing window. -/
 @[expose] def HasBurnInBudget (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
@@ -151,9 +147,7 @@ private theorem HasBurnInBudget.step {c U V n_max : ℕ} (hnU : n_max ≤ U)
   rcases hbud with ⟨fs, rfl, hcw⟩ | ⟨hb_pos, hv, hrem⟩
   · obtain ⟨fs', res, hf, hcw'⟩ := CleanWindowFast.step hnU hcw hval hdom_sub hdom_nxt hop_ins
       hinj_rkey hbal_nxt hsalt_all hbad_def hbad_lt
-    left
-    refine ⟨fs', ?_, hcw'⟩
-    dsimp only [whpStepPure]; rw [hf]
+    exact Or.inl ⟨fs', by simp only [whpStepPure, hf], hcw'⟩
   · cases st with
     | small _ => exact absurd hrem id
     | fallback csr0 =>
@@ -167,7 +161,6 @@ private theorem HasBurnInBudget.step {c U V n_max : ℕ} (hnU : n_max ≤ U)
       dsimp only [whpStepPure]
       cases hf : fastStepPure c U n_max θ fs op with
       | none =>
-        dsimp only
         obtain ⟨hcsr0, hqv0⟩ := hv.fastToCsr_spec
         obtain ⟨hcsr1, _, hqv1⟩ := csrStepOp_spec hnU θ.1 hcsr0 hqv0 hval
         obtain ⟨fs', hsh, hcw'⟩ := trySelfHeal_clean hv.hth hcsr1 hqv1 hgood_nxt
@@ -216,10 +209,7 @@ theorem mem_stateSeq_append_left {U : ℕ} (s₀ : State U)
     (l₁ l₂ : List (Dynamic.Op U)) :
     ∀ s ∈ stateSeq s₀ l₁, s ∈ stateSeq s₀ (l₁ ++ l₂) := by
   induction l₁ generalizing s₀ with
-  | nil =>
-    intro s hs
-    simp only [stateSeq, List.mem_singleton] at hs
-    subst hs; exact self_mem_stateSeq _ _
+  | nil => simp [stateSeq, self_mem_stateSeq]
   | cons o rest ih =>
     intro s hs
     simp only [stateSeq, List.cons_append, List.mem_cons] at hs ⊢
@@ -259,45 +249,25 @@ theorem HasBurnInBudget.run {c U V n_max : ℕ} (hnU : n_max ≤ U)
         (((Dynamic.spec U V n_max).run dict l).1) (b - l.length) := by
   intro l
   induction l with
-  | nil =>
-    intro st dict b hbud _ _ _
-    simpa [whpRunFrom] using hbud
+  | nil => exact fun hbud _ _ _ => hbud
   | cons o rest ih =>
     intro st dict b hbud hv_l hseq_sub hins_sub
     have hdict_mem := hseq_sub dict (self_mem_stateSeq dict (o :: rest))
     have hnxt_mem := hseq_sub (Dynamic.step dict o).1
       (List.mem_cons_of_mem dict (self_mem_stateSeq _ rest))
-    have hdom_sub : (Dictionary.dom dict : Set (Fin U)) ⊆
-        ((Dictionary.dom (windowStartState U n_max ops) ∪
-          opInsKeys (windowSuffix U n_max ops) : Finset (Fin U)) : Set (Fin U)) := by
-      exact_mod_cast dom_subset_union_opInsKeys _ _ dict hdict_mem
-    have hdom_nxt : (Dictionary.dom (Dynamic.step dict o).1 : Set (Fin U)) ⊆
-        ((Dictionary.dom (windowStartState U n_max ops) ∪
-          opInsKeys (windowSuffix U n_max ops) : Finset (Fin U)) : Set (Fin U)) := by
-      exact_mod_cast dom_subset_union_opInsKeys _ _ _ hnxt_mem
-    have hop_ins : ∀ u v, o = .insert u v →
-        u ∈ opInsKeys (windowSuffix U n_max ops) ∧
-        u ∈ Dictionary.dom (windowStartState U n_max ops) ∪
-          opInsKeys (windowSuffix U n_max ops) := by
-      rintro u v rfl
-      have hu : u ∈ opInsKeys (windowSuffix U n_max ops) :=
-        hins_sub (mem_insert_self u _)
-      exact ⟨hu, mem_union_right _ hu⟩
-    have hstep := HasBurnInBudget.step hnU hbud hv_l.1 hdom_sub hdom_nxt hop_ins
+    have hdom_sub := Finset.coe_subset.mpr (dom_subset_union_opInsKeys _ _ dict hdict_mem)
+    have hdom_nxt := Finset.coe_subset.mpr (dom_subset_union_opInsKeys _ _ _ hnxt_mem)
+    have hstep := HasBurnInBudget.step hnU hbud hv_l.1 hdom_sub hdom_nxt
+      (by
+        rintro u v rfl
+        have hu := hins_sub (mem_insert_self u _)
+        exact ⟨hu, mem_union_right _ hu⟩)
       (hg.goodSeedOnState_of_mem hnxt_mem) hg.1 (hg.2.1 _ hnxt_mem) hg.2.2.2.1 hbad_def hbad_lt
     have hins_rest : opInsKeys rest ⊆ opInsKeys (windowSuffix U n_max ops) := by
       refine Subset.trans ?_ hins_sub
-      cases o with
-      | insert u _ => exact subset_insert u _
-      | query _ => exact Subset.rfl
-      | delete _ => exact Subset.rfl
-    have hres := ih hstep hv_l.2
-      (fun s hs => hseq_sub s (List.mem_cons_of_mem dict hs)) hins_rest
-    change HasBurnInBudget c U V n_max θ _ BadIns
-      (whpRunFrom c U n_max θ (whpStepPure c U n_max θ st o).1 rest)
-      ((Dynamic.spec U V n_max).run (Dynamic.step dict o).1 rest).1
-      (b - (rest.length + 1))
-    simpa only [Nat.add_comm, Nat.sub_sub] using hres
+      cases o <;> simp [opInsKeys, subset_insert]
+    rw [List.length_cons, Nat.add_comm, ← Nat.sub_sub]
+    exact ih hstep hv_l.2 (fun s hs => hseq_sub s (List.mem_cons_of_mem dict hs)) hins_rest
 
 theorem whpRunFrom_small {c U n_max : ℕ} (θ : SeedWhp c U n_max) :
     ∀ (ops : List (Dynamic.Op U)) (sm : SmallDictState),

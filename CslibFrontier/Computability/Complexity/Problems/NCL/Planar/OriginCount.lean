@@ -43,13 +43,10 @@ private theorem card_fiber_castAdd {A B : Type*} [Finite A] [Finite B] {n m : �
       Sum.elim (fun a => (f a).castAdd m) (fun b => Fin.natAdd n (g b)) v = i.castAdd m} =
       Nat.card {a // f a = i} := by
   simp only [Nat.card_subtype_sum, Sum.elim_inl, Sum.elim_inr]
-  let : IsEmpty {b // Fin.natAdd n (g b) = i.castAdd m} := ⟨fun b => by
-    have he := congrArg Fin.val b.property
-    have hi := i.isLt
-    change n + (g b.val).val = i.val at he
-    omega⟩
-  simp only [Nat.card_of_isEmpty, Nat.add_zero]
-  exact Nat.card_congr (Equiv.subtypeEquivRight fun _ => Fin.castAdd_inj)
+  let : IsEmpty {b // Fin.natAdd n (g b) = i.castAdd m} :=
+    ⟨fun b => absurd (congrArg Fin.val b.property) (by simp; omega)⟩
+  simpa only [Nat.card_of_isEmpty, Nat.add_zero] using
+    Nat.card_congr (Equiv.subtypeEquivRight fun _ => Fin.castAdd_inj)
 
 private theorem card_fiber_natAdd {A B : Type*} [Finite A] [Finite B] {n m : ℕ}
     (f : A → Fin n) (g : B → Fin m) (i : Fin m) :
@@ -57,13 +54,10 @@ private theorem card_fiber_natAdd {A B : Type*} [Finite A] [Finite B] {n m : ℕ
       Sum.elim (fun a => (f a).castAdd m) (fun b => Fin.natAdd n (g b)) v = Fin.natAdd n i} =
       Nat.card {b // g b = i} := by
   simp only [Nat.card_subtype_sum, Sum.elim_inl, Sum.elim_inr]
-  let : IsEmpty {a // (f a).castAdd m = Fin.natAdd n i} := ⟨fun a => by
-    have he := congrArg Fin.val a.property
-    have ha := (f a.val).isLt
-    change (f a.val).val = n + i.val at he
-    omega⟩
-  simp only [Nat.card_of_isEmpty, Nat.zero_add]
-  exact Nat.card_congr (Equiv.subtypeEquivRight fun _ => Fin.natAdd_inj n)
+  let : IsEmpty {a // (f a).castAdd m = Fin.natAdd n i} :=
+    ⟨fun a => absurd (congrArg Fin.val a.property) (by simp; omega)⟩
+  simpa only [Nat.card_of_isEmpty, Nat.zero_add] using
+    Nat.card_congr (Equiv.subtypeEquivRight fun _ => Fin.natAdd_inj n)
 
 private theorem card_vtx {Γ : List Color → List Color → Type} (I : Interp Γ)
     {a b : List Color} (D : Diagram Γ a b) :
@@ -96,8 +90,7 @@ theorem crossingOrigin_fiber_le {Γ : List Color → List Color → Type}
   | gen _ => exact fun h => nomatch h
   | id _ => exact fun _ i => i.elim0
   | swap c d =>
-    intro _ _
-    exact (Nat.card_le_card_of_injective Subtype.val Subtype.val_injective).trans
+    exact fun _ _ => (Nat.card_le_card_of_injective Subtype.val Subtype.val_injective).trans
       ((card_vtx Prim.interp (Crossover.diagram c d)).trans_le (Crossover.length_vertexList_le c d))
   | comp D₁ D₂ ih₁ ih₂ | tensor D₁ D₂ ih₁ ih₂ =>
     intro h i
@@ -107,10 +100,8 @@ theorem crossingOrigin_fiber_le {Γ : List Color → List Color → Type}
       Sum.elim (fun v => (crossingOrigin H D₁ h₁ v).castAdd (swapCount D₂))
         (fun v => Fin.natAdd (swapCount D₁) (crossingOrigin H D₂ h₂ v)) v = i} ≤ 286
     refine Fin.addCases (fun j => ?_) (fun j => ?_) i
-    · rw [card_fiber_castAdd]
-      exact ih₁ h₁ j
-    · rw [card_fiber_natAdd]
-      exact ih₂ h₂ j
+    · exact (card_fiber_castAdd _ _ j).trans_le (ih₁ h₁ j)
+    · exact (card_fiber_natAdd _ _ j).trans_le (ih₂ h₂ j)
 
 namespace Embedding
 
@@ -199,8 +190,7 @@ theorem planeVertexOrigin_row_fiber_le {m : ℕ} (vs : List (Vertex (Fin m)))
         (fun v => .crossing (crossingOrigin Cell.expand _
           (routing vs (color vs) hw).noGens v))
         (fun v => .cap (capVertexOrigin (color vs) (List.finRange m) v))) v) = r} ≤ _
-  rw [Nat.card_subtype_sum, Nat.card_subtype_sum]
-  simp only [Sum.elim_inl, Sum.elim_inr]
+  simp only [Nat.card_subtype_sum, Sum.elim_inl, Sum.elim_inr]
   have hs := card_fiber_comp_le (sourceVertexOrigin (fun p => color vs p.edge) vs)
     (fun i => row (.vertex i)) r 1 (sourceVertexOrigin_fiber_le _ vs)
   have hc := card_fiber_comp_le (capVertexOrigin (color vs) (List.finRange m))

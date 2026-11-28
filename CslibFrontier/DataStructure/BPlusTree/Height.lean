@@ -36,6 +36,9 @@ number of entries up to `2 * t - 1`, including none.
   entries.
 * `BPlusTree.IsWF.height_le_log`: the height of a well-formed tree is at most
   `Nat.log t size + 1`.
+* `BPlusTree.le_mul_height_add_of_scan`: a count on trees that spends at most one unit per
+  separator at each interior node of a descent, and at most one per entry and `c` more in the
+  leaf, is at most `(2 * t - 1) * height + c`.
 
 ## References
 
@@ -108,6 +111,35 @@ theorem Balanced.height_le_log (hb : Balanced tr) (ht : 2 ≤ t)
   rcases Nat.lt_or_ge tr.height 2 with h1 | h2
   · omega
   · have := Nat.le_log_of_pow_le (by omega) (hb.pow_le_size ht hw ho h2)
+    omega
+
+/-- A count that spends at most one unit per entry and `c` more in a leaf, and at most one unit
+per separator at a node beyond what it spends in one of the node's children, is at most
+`(2 * t - 1) * height + c` on a tree whose root has width at most `2 * t - 1` and whose children
+are occupied. -/
+theorem le_mul_height_add_of_scan {c : ℕ} {f : BPlusTree α β → ℕ}
+    (hleaf : ∀ entries, f (.leaf entries) ≤ entries.length + c)
+    (hnode : ∀ (first : BPlusTree α β) (rest : List (Branch α β)) (B : ℕ),
+      (∀ ch ∈ (node first rest).children, f ch ≤ B) → f (node first rest) ≤ rest.length + B)
+    {tr : BPlusTree α β} (hw : tr.width ≤ 2 * t - 1) (hc : ∀ ch ∈ tr.children, Occupied t ch) :
+    f tr ≤ (2 * t - 1) * tr.height + c := by
+  induction tr with
+  | leaf entries => simpa using (hleaf entries).trans (Nat.add_le_add_right hw c)
+  | node first rest ihf ihr =>
+    have ih : ∀ ch ∈ (node first rest).children, ch.width ≤ 2 * t - 1 →
+        (∀ d ∈ ch.children, Occupied t d) → f ch ≤ (2 * t - 1) * ch.height + c := by
+      simpa only [children_node, List.forall_mem_cons, List.forall_mem_map] using ⟨ihf, ihr⟩
+    have hB : ∀ ch ∈ (node first rest).children,
+        f ch ≤ (2 * t - 1) * ((node first rest).height - 1) + c := fun ch hch => by
+      have ho := hc ch hch
+      exact (ih ch hch ho.width_le fun _ hd => ho.of_mem_children hd).trans
+        (Nat.add_le_add_right (Nat.mul_le_mul_left _
+          (Nat.le_sub_of_add_le (height_succ_le_of_mem_children hch))) c)
+    obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero (height_pos (tr := node first rest)).ne'
+    have := hnode first rest _ hB
+    rw [width_node] at hw
+    rw [hn, Nat.succ_sub_one] at this
+    rw [hn, Nat.mul_succ]
     omega
 
 variable [LinearOrder α]

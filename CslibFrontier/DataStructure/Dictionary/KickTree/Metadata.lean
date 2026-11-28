@@ -149,10 +149,7 @@ theorem popcount_eq_sum_testBit (B : ℕ) (w : Fin (2 ^ B)) :
 /-- Complementation: `rank0 w k + rank1 w k = k`. -/
 theorem rank0_add_rank1 (B : ℕ) (w : Fin (2 ^ B)) (k : Fin (B + 1)) :
     rank0 B w k + rank1 B w k = k.val := by
-  dsimp [rank0, rank1]
-  have h := List.length_eq_length_filter_add (l := List.range k.val) (fun i => w.val.testBit i)
-  rw [List.length_range] at h
-  omega
+  rw [rank0, rank1, Nat.add_comm, ← List.length_eq_length_filter_add, List.length_range]
 
 /-- Rank 1 is bounded by the prefix length `k`. -/
 theorem rank1_le (B : ℕ) (w : Fin (2 ^ B)) (k : Fin (B + 1)) :
@@ -179,18 +176,13 @@ theorem rank1_eq_popcount (B : ℕ) (w : Fin (2 ^ B)) :
 /-- Soundness of `select1`: any returned position genuinely holds a 1-bit. -/
 theorem select1_sound (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select1 B w k = some idx) : w.val.testBit idx.val = true := by
-  have hmem := List.mem_of_getElem? h
-  rw [BitString.mem_positions] at hmem
-  rwa [BitString.equivFin_symm_apply] at hmem
+  simpa only [BitString.mem_positions, BitString.equivFin_symm_apply] using List.mem_of_getElem? h
 
 /-- Soundness of `select0`: any returned position genuinely holds a 0-bit. -/
 theorem select0_sound (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select0 B w k = some idx) : w.val.testBit idx.val = false := by
-  have hmem := List.mem_of_getElem? h
-  rw [BitString.mem_positions] at hmem
-  rw [BitString.equivFin_symm_apply] at hmem
-  revert hmem
-  cases w.val.testBit idx.val <;> simp
+  simpa only [BitString.mem_positions, BitString.equivFin_symm_apply, Bool.not_eq_true'] using
+    List.mem_of_getElem? h
 
 /-- Find the least index of a 0-bit in `w < 2 ^ B` (`none` if all bits are 1). -/
 @[expose] def firstZeroBit (B : ℕ) (w : Fin (2 ^ B)) : Option (Fin B) :=
@@ -234,33 +226,29 @@ private theorem filter_range_length_eq_filter_positions_length {B : ℕ} (w : Fi
 private theorem rank1_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (idx : Fin B) :
     ((List.range idx.val).filter (fun i => w.val.testBit i)).length =
       ((BitString.positions ((BitString.equivFin B).symm w)).filter (· < idx)).length := by
-  have h := filter_range_length_eq_filter_positions_length w true idx.isLt.le
-  simp only [beq_true] at h
-  exact h
+  simpa only [beq_true, Fin.lt_def] using
+    filter_range_length_eq_filter_positions_length w true idx.isLt.le
 
 private theorem rank0_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (idx : Fin B) :
     ((List.range idx.val).filter (fun i => !w.val.testBit i)).length =
       ((BitString.positions (fun i => !((BitString.equivFin B).symm w i))).filter
         (· < idx)).length := by
-  have h := filter_range_length_eq_filter_positions_length w false idx.isLt.le
-  simp only [beq_false] at h
-  exact h
+  simpa only [beq_false, Fin.lt_def] using
+    filter_range_length_eq_filter_positions_length w false idx.isLt.le
 
 /-- Rank-select inversion: if `select1 B w k = some idx`, the rank of `idx` is `k`. -/
 theorem rank1_select1 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select1 B w k = some idx) :
-    rank1 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k := by
-  dsimp [rank1]
-  rw [rank1_eq_filter_positions_length w idx]
-  exact filter_lt_of_getElem (BitString.pairwise_positions _) h
+    rank1 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k :=
+  (rank1_eq_filter_positions_length w idx).trans
+    (filter_lt_of_getElem (BitString.pairwise_positions _) h)
 
 /-- Rank-select inversion: if `select0 B w k = some idx`, the 0-rank of `idx` is `k`. -/
 theorem rank0_select0 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select0 B w k = some idx) :
-    rank0 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k := by
-  dsimp [rank0]
-  rw [rank0_eq_filter_positions_length w idx]
-  exact filter_lt_of_getElem (BitString.pairwise_positions _) h
+    rank0 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k :=
+  (rank0_eq_filter_positions_length w idx).trans
+    (filter_lt_of_getElem (BitString.pairwise_positions _) h)
 
 /-- Population count matches the length of the set-bit positions list. -/
 theorem popcount_eq_length_positions (B : ℕ) (w : Fin (2 ^ B)) :
@@ -277,21 +265,14 @@ theorem popcount_eq_spec (B : ℕ) (w : Fin (2 ^ B)) :
 `k < popcount B w`. -/
 theorem select1_isSome_iff (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) :
     (select1 B w k).isSome ↔ k < popcount B w := by
-  dsimp [select1]
-  rw [popcount_eq_length_positions]
-  simp
+  simp [select1, popcount_eq_length_positions]
 
 /-- Domain completeness for `select0`: `select0 B w k` is defined if and only if
 `k < B - popcount B w`. -/
 theorem select0_isSome_iff (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) :
     (select0 B w k).isSome ↔ k < B - popcount B w := by
-  dsimp [select0]
-  rw [isSome_getElem?]
-  have hlen : (BitString.positions (fun i => !((BitString.equivFin B).symm w i))).length =
-      B - popcount B w := by
-    rw [BitString.length_positions, BitString.weight_not, Fintype.card_fin,
-      ← BitString.length_positions, ← popcount_eq_length_positions]
-  rw [hlen]
+  rw [select0, isSome_getElem?, BitString.length_positions, BitString.weight_not, Fintype.card_fin,
+    ← BitString.length_positions, ← popcount_eq_length_positions]
 
 /-- Specification of a Four-Russians bit-parallel lookup table of block size `B`. -/
 structure Table (B : ℕ) (α : Type*) where
@@ -338,17 +319,15 @@ variable {α : Type*} {K : ℕ}
 
 @[simp] theorem read_write_same (A : MiniArray α K) (i : Fin K) (val : α) :
     (A.write i val).read i = val := by
-  simp [read, write]
+  exact Function.update_self i val A.data
 
 theorem read_write_of_ne (A : MiniArray α K) {i j : Fin K} (h : j ≠ i) (val : α) :
     (A.write i val).read j = A.read j := by
-  simp [read, write, Function.update_of_ne h]
+  exact Function.update_of_ne h val A.data
 
 private theorem sum_ofFn_add_one (f : Fin K → ℕ) :
     (List.ofFn (fun i => f i + 1)).sum = (List.ofFn f).sum + K := by
-  simp only [List.sum_ofFn, Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ,
-    Fintype.card_fin, nsmul_eq_mul, mul_one]
-  rfl
+  simp [List.sum_ofFn, Finset.sum_add_distrib]
 
 @[simp] theorem write_write_same (A : MiniArray α K) (i : Fin K) (v₁ v₂ : α) :
     (A.write i v₂).write i v₁ = A.write i v₁ := by
@@ -375,37 +354,22 @@ theorem write_comm (A : MiniArray α K) {i j : Fin K} (h : i ≠ j) (u v : α) :
 /-- The total bit length of the unary delimiters equals `totalBits`. -/
 theorem delimiters_length_eq_totalBits (A : MiniArray α K) (sizeOf : α → ℕ) :
     (A.delimiters sizeOf).length = A.totalBits sizeOf := by
-  dsimp [delimiters, totalBits]
-  rw [List.length_flatten, List.map_ofFn]
   have hlen : (List.length ∘ fun i : Fin K =>
-      ((List.replicate (sizeOf (A.data i)) false).concat true)) =
-      (fun i => sizeOf (A.data i) + 1) := by
-    ext i
-    simp
-  rw [hlen]
-  have hsum := sum_ofFn_add_one (fun i => sizeOf (A.data i))
-  omega
+      (List.replicate (sizeOf (A.data i)) false).concat true) = fun i => sizeOf (A.data i) + 1 :=
+    funext fun _ => by simp
+  rw [delimiters, totalBits, List.length_flatten, List.map_ofFn, hlen, sum_ofFn_add_one,
+    Nat.add_comm]
 
 private lemma filter_id_replicate_false_concat_true (s : ℕ) :
     ((List.replicate s false).concat true).filter id = [true] := by
-  rw [List.concat_eq_append, List.filter_append, List.filter_replicate_of_neg (by decide)]
-  rfl
+  simp [List.concat_eq_append]
 
 /-- Delimiter count: the total number of delimiter 1-bits across all `K` items is exactly `K`. -/
 theorem delimiters_count_delimiters (A : MiniArray α K) (sizeOf : α → ℕ) :
     ((A.delimiters sizeOf).filter id).length = K := by
-  dsimp [delimiters]
-  rw [List.filter_flatten]
-  induction K with
-  | zero => rfl
-  | succ K' ih =>
-    rw [List.ofFn_succ, List.map_cons, List.flatten_cons, List.length_append]
-    rw [filter_id_replicate_false_concat_true]
-    have this' := ih (⟨A.data ∘ Fin.succ⟩ : MiniArray α K')
-    dsimp at this'
-    rw [this']
-    simp
-    omega
+  simp only [delimiters, List.filter_flatten, List.map_ofFn, Function.comp_def,
+    filter_id_replicate_false_concat_true, List.ofFn_const, List.flatten_replicate_singleton,
+    List.length_replicate]
 
 end MiniArray
 
@@ -500,10 +464,7 @@ private lemma insert?_cons (b : Bool) {val : α} {t t' : PrefixTrie α} {bs : Li
 through `.branch l r`. -/
 theorem query_pruneBranch (l r : PrefixTrie α) (k : List Bool) :
     query (pruneBranch l r) k = query (.branch l r) k := by
-  cases l <;> cases r <;> try rfl
-  cases k with
-  | nil => rfl
-  | cons b bs => cases b <;> rfl
+  cases l <;> cases r <;> rcases k with _ | ⟨⟨⟩, _⟩ <;> rfl
 
 /-- Delete a prefix from the prefix trie, removing the target leaf and contracting
 empty branches back to `.empty`. -/
@@ -557,11 +518,10 @@ theorem query_insert_two_distinct (v1 v2 : α) (p : List Bool) (b1 b2 : Bool) (h
     (s1 s2 : List Bool) (t1 t2 : PrefixTrie α)
     (hins1 : insert? v1 .empty (p ++ (b1 :: s1)) = some t1)
     (hins2 : insert? v2 t1 (p ++ (b2 :: s2)) = some t2) :
-    query t2 (p ++ (b1 :: s1)) = some v1 ∧ query t2 (p ++ (b2 :: s2)) = some v2 := by
-  constructor
-  · rw [query_insert_of_diverge v2 p b2 b1 (Ne.symm hb) s2 s1 t1 t2 hins2]
-    exact query_insert_same v1 .empty t1 (p ++ b1 :: s1) hins1
-  · exact query_insert_same v2 t1 t2 (p ++ b2 :: s2) hins2
+    query t2 (p ++ (b1 :: s1)) = some v1 ∧ query t2 (p ++ (b2 :: s2)) = some v2 :=
+  ⟨(query_insert_of_diverge v2 p b2 b1 hb.symm s2 s1 t1 t2 hins2).trans
+      (query_insert_same v1 .empty t1 _ hins1),
+    query_insert_same v2 t1 t2 _ hins2⟩
 
 /-- Deleting from the left branch does not alter queries routed to the right branch. -/
 theorem query_delete_branch_other_dir_false (l r : PrefixTrie α) (bs bs' : List Bool) :
@@ -620,32 +580,21 @@ private theorem decodeHelper_encode (t : PrefixTrie α) (fuel : ℕ)
     (hfuel : nodeCount t ≤ fuel) (rest1 : List Bool) (rest2 : List α) :
     decodeHelper fuel (encodeE1 t ++ rest1) (encodeE2 t ++ rest2) = some (t, rest1, rest2) := by
   induction t generalizing fuel rest1 rest2 with
-  | empty =>
-    cases fuel <;> rfl
-  | leaf _ =>
-    cases fuel <;> rfl
+  | empty | leaf _ => cases fuel <;> rfl
   | branch l r ihl ihr =>
-    dsimp [nodeCount] at hfuel
     cases fuel with
-    | zero => omega
+    | zero => simp [nodeCount] at hfuel
     | succ fuel' =>
-      dsimp [encodeE1, encodeE2, decodeHelper]
-      have hfl : nodeCount l ≤ fuel' := by omega
-      have hfr : nodeCount r ≤ fuel' := by omega
-      rw [List.append_assoc (encodeE1 l) (encodeE1 r) rest1]
-      rw [List.append_assoc (encodeE2 l) (encodeE2 r) rest2]
-      rw [ihl fuel' hfl]
-      dsimp
-      rw [ihr fuel' hfr]
-      rfl
+      simp only [nodeCount] at hfuel
+      simp [encodeE1, encodeE2, decodeHelper, List.append_assoc,
+        ihl fuel' (by omega), ihr fuel' (by omega)]
 
 /-- Exact DFS roundtrip decoding theorem for prefix tries. -/
 theorem decode_encode (t : PrefixTrie α) :
     decode (encodeE1 t) (encodeE2 t) = some t := by
   have h := decodeHelper_encode t ((encodeE1 t).length + 1)
     (Nat.le_succ_of_le (nodeCount_le_encodeE1_length t)) [] []
-  simp only [List.append_nil] at h
-  simp [decode, h]
+  simp_all [decode]
 
 @[simp] theorem query_leaf_nil (v : α) : query (.leaf v) [] = some v := rfl
 
@@ -738,15 +687,12 @@ theorem setSlot_preserves_valid : {h : ℕ} → (t : FreeSlotTree B h) → (b : 
   | h + 1, .node _ summary children, b, idx, hval => by
     rw [setSlot]
     split_ifs with hstride hc
-    · dsimp only [Valid]
-      refine ⟨fun i => ?_, fun i => ?_⟩ <;> by_cases heq : i = ⟨idx / B ^ (h + 1), hc⟩
-      · subst heq
-        rw [Function.update_self]
-        exact setSlot_preserves_valid _ b _ (hval.1 _)
-      · rw [Function.update_of_ne heq]; exact hval.1 i
-      · subst heq; simp
-      · simp [Function.update_of_ne heq, hval.2 i,
-          show i.val ≠ idx / B ^ (h + 1) from fun h' => heq (Fin.ext h')]
+    · refine ⟨fun i => ?_, fun i => ?_⟩ <;>
+        rcases eq_or_ne i ⟨idx / B ^ (h + 1), hc⟩ with rfl | heq
+      · simpa only [Function.update_self] using setSlot_preserves_valid _ b _ (hval.1 _)
+      · simpa only [Function.update_of_ne heq] using hval.1 i
+      · simp
+      · simp [Function.update_of_ne heq, Fin.val_ne_of_ne heq, hval.2 i]
     all_goals exact hval
 
 /-- Allocating a slot preserves structural validity across all tree levels. -/
@@ -762,12 +708,9 @@ theorem freeSlot_preserves_valid {h : ℕ} (t : FreeSlotTree B h) (idx : ℕ) (h
 theorem isFree_lt : ∀ {h : ℕ} (t : FreeSlotTree B h) (i : ℕ),
     isFree t i = true → i < B ^ (h + 1)
   | 0, .leaf freeBits, i, hfree => by
-    dsimp [isFree] at hfree
-    split_ifs at hfree with hlt
-    · simpa using hlt
+    by_cases hlt : i < B <;> simp [isFree, hlt] at hfree ⊢
   | h + 1, .node _ _ children, i, hfree => by
-    rw [isFree] at hfree
-    dsimp only at hfree
+    simp only [isFree] at hfree
     split_ifs at hfree with hstride hc
     rw [pow_succ']
     exact (Nat.div_lt_iff_lt_mul (Nat.pos_of_ne_zero hstride)).mp hc
@@ -779,38 +722,26 @@ private theorem isFree_node_mul_add {h : ℕ} (summary : Fin B → Bool)
   have hdiv : (c.val * B ^ (h + 1) + off) / B ^ (h + 1) = c.val := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hoff, Nat.zero_add]
   have hmod : (c.val * B ^ (h + 1) + off) % B ^ (h + 1) = off := by
-    rw [Nat.add_comm, Nat.add_mul_mod_self_right]
-    exact Nat.mod_eq_of_lt hoff
-  rw [isFree]
-  dsimp only
-  split_ifs with h0 hc'
-  · omega
-  · rw [show (⟨_, hc'⟩ : Fin B) = c from Fin.ext hdiv, hmod]
-  · exact (hc' (by rw [hdiv]; exact c.isLt)).elim
+    rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hoff]
+  simp [isFree, c.pos.ne', hdiv, hmod, c.isLt]
 
 /-- Full-tree soundness of free-slot lookup: any slot index returned by `findFree?`
 is genuinely free. -/
 theorem findFree?_sound : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t → ∀ {i : ℕ},
     findFree? t = some i → isFree t i = true
-  | 0, .leaf freeBits => fun _ i hfind => by
-    cases hhd : (BitString.positions freeBits).head? with
-    | none => simp [findFree?, hhd] at hfind
-    | some c =>
-      simp only [findFree?, hhd, Option.some.injEq] at hfind
-      subst hfind
-      simpa [isFree, c.isLt] using BitString.mem_positions.mp (List.mem_of_mem_head? hhd)
-  | h + 1, .node _ summary children => fun hv i hfind => by
-    unfold findFree? at hfind
-    cases hcand : (BitString.positions summary).head? with
-    | none => simp [hcand] at hfind
-    | some c =>
-      cases hchild : findFree? (children c) with
-      | none => simp [hcand, hchild] at hfind
-      | some off =>
-        simp only [hcand, hchild, Option.some.injEq] at hfind
-        subst hfind
-        have hsound := findFree?_sound (children c) (hv.1 c) hchild
-        rwa [isFree_node_mul_add summary children c (isFree_lt _ off hsound)]
+  | 0, .leaf freeBits => fun _ _ hfind => by
+    cases hhd : (BitString.positions freeBits).head? <;>
+      simp only [findFree?, hhd, Option.some.injEq, reduceCtorEq] at hfind
+    subst hfind
+    simpa [isFree] using BitString.mem_positions.mp (List.mem_of_mem_head? hhd)
+  | h + 1, .node _ summary children => fun hv _ hfind => by
+    rcases hcand : (BitString.positions summary).head? with _ | c <;>
+      simp only [findFree?, hcand, reduceCtorEq] at hfind
+    rcases hchild : findFree? (children c) with _ | off <;>
+      simp only [hchild, Option.some.injEq, reduceCtorEq] at hfind
+    subst hfind
+    have hsound := findFree?_sound (children c) (hv.1 c) hchild
+    rwa [isFree_node_mul_add summary children c (isFree_lt _ off hsound)]
 
 private theorem ofFn_any_id_iff {n : ℕ} (f : Fin n → Bool) :
     (List.ofFn f).any id = true ↔ ∃ i : Fin n, f i = true := by
@@ -841,27 +772,19 @@ theorem findFree?_complete : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t →
 theorem hasFree_iff_exists_isFree : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t →
     (hasFree t = true ↔ ∃ i : ℕ, isFree t i = true)
   | 0, .leaf freeBits => fun _ => by
-    dsimp [hasFree]
-    rw [ofFn_any_id_iff]
-    constructor
-    · rintro ⟨i, hi⟩
-      exact ⟨i.val, by simp [isFree, i.isLt, hi]⟩
-    · rintro ⟨idx, hfree⟩
-      dsimp [isFree] at hfree
-      split_ifs at hfree with hlt
-      · exact ⟨⟨idx, hlt⟩, hfree⟩
+    rw [hasFree, ofFn_any_id_iff]
+    refine ⟨fun ⟨i, hi⟩ => ⟨i.val, by simp [isFree, i.isLt, hi]⟩, fun ⟨idx, hfree⟩ => ?_⟩
+    simp only [isFree] at hfree
+    split_ifs at hfree with hlt
+    exact ⟨⟨idx, hlt⟩, hfree⟩
   | h + 1, .node _ summary children => fun hv => by
-    change (List.ofFn summary).any id = true ↔ ∃ i : ℕ, isFree (.node h summary children) i = true
-    rw [ofFn_any_id_iff]
-    constructor
-    · rintro ⟨c, hc⟩
-      obtain ⟨off, hoff⟩ :=
+    rw [hasFree, ofFn_any_id_iff]
+    refine ⟨fun ⟨c, hc⟩ => ?_, fun ⟨idx, hfree⟩ => ?_⟩
+    · obtain ⟨off, hoff⟩ :=
         (hasFree_iff_exists_isFree (children c) (hv.1 c)).mp ((hv.2 c).symm.trans hc)
       exact ⟨c.val * B ^ (h + 1) + off,
         by rwa [isFree_node_mul_add summary children c (isFree_lt _ off hoff)]⟩
-    · rintro ⟨idx, hfree⟩
-      rw [isFree] at hfree
-      dsimp only at hfree
+    · simp only [isFree] at hfree
       split_ifs at hfree with h0 hc'
       exact ⟨⟨idx / B ^ (h + 1), hc'⟩,
         (hv.2 _).trans ((hasFree_iff_exists_isFree _ (hv.1 _)).mpr ⟨_, hfree⟩)⟩
@@ -874,18 +797,13 @@ theorem findFree?_complete_of_exists_isFree {h : ℕ} (t : FreeSlotTree B h) (hv
 /-- Updating a slot to `b` correctly sets the slot occupancy at `idx` across all tree heights. -/
 theorem isFree_setSlot_self : ∀ {h : ℕ} (t : FreeSlotTree B h) (b : Bool) (idx : ℕ),
     idx < B ^ (h + 1) → isFree (setSlot b idx t) idx = b
-  | 0, .leaf freeBits, b, idx, hlt => by
-    have hltB : idx < B := by simpa using hlt
-    dsimp [setSlot, isFree]
-    simp [hltB]
+  | 0, .leaf _, _, _, hlt => by simp_all [setSlot, isFree]
   | h + 1, .node _ summary children, b, idx, hlt => by
     rw [pow_succ] at hlt
     have hstride_pos : B ^ (h + 1) > 0 := Nat.pos_of_ne_zero fun h0 => by simp [h0] at hlt
     have hc : idx / B ^ (h + 1) < B := Nat.div_lt_of_lt_mul hlt
-    rw [setSlot]
-    simp only [hstride_pos, hc, ↓reduceDIte]
-    rw [isFree]
-    simp only [hstride_pos.ne', ↓reduceIte, hc, ↓reduceDIte, Function.update_self]
+    simp only [setSlot, isFree, hstride_pos, hstride_pos.ne', ↓reduceIte, hc, ↓reduceDIte,
+      Function.update_self]
     exact isFree_setSlot_self _ b _ (Nat.mod_lt _ hstride_pos)
 
 /-- Updating slot `idx` preserves the occupancy of any distinct slot `j ≠ idx`. -/
@@ -896,15 +814,14 @@ theorem isFree_setSlot_of_ne : ∀ {h : ℕ} (t : FreeSlotTree B h) (b : Bool) (
     rw [setSlot]
     split_ifs with hstride hc
     · simp only [isFree, hstride.ne', ↓reduceIte]
-      by_cases hc' : j / B ^ (h + 1) < B
-      · simp only [hc', ↓reduceDIte]
-        by_cases heq : (⟨j / B ^ (h + 1), hc'⟩ : Fin B) = ⟨idx / B ^ (h + 1), hc⟩
+      split_ifs with hc'
+      · rcases eq_or_ne (⟨j / B ^ (h + 1), hc'⟩ : Fin B) ⟨idx / B ^ (h + 1), hc⟩ with heq | heq
         · rw [heq, Function.update_self]
           refine isFree_setSlot_of_ne _ b _ _ fun hmod => hne ?_
           rw [← Nat.div_add_mod j (B ^ (h + 1)), ← Nat.div_add_mod idx (B ^ (h + 1)), hmod,
             Fin.mk.inj heq]
         · rw [Function.update_of_ne heq]
-      · simp [hc']
+      · rfl
     all_goals rfl
 
 /-- Allocating slot `idx` marks it as occupied across all tree heights. -/

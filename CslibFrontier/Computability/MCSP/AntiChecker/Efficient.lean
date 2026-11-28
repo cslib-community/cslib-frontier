@@ -99,16 +99,14 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
     set m := n + s + 1 with hmdef
     have hm1 : 1 ≤ m := Nat.le_add_left 1 _
     have hq : queryLength n s ℓ R R ≤ 5000 * m ^ 5 := queryLength_antiChecker_le n s
-    have hDle : ∀ q ≤ queryLength n s ℓ R R, (D q).size ≤ c₀ * (5001 * m ^ 5) ^ c₀ := by
-      intro q hqr
+    have hDle (q : ℕ) (hqr : q ≤ queryLength n s ℓ R R) :
+        (D q).size ≤ c₀ * (5001 * m ^ 5) ^ c₀ := by
       rw [hDsize]
-      refine (hc₀ q).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ?_ _))
       have : 1 ≤ m ^ 5 := Nat.one_le_pow _ _ hm1
-      omega
+      exact (hc₀ q).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _))
     have hinl := size_inlineOracle_le G D (fanInAtMost_generator n s ℓ R) hDle
     have hmax : max 1 (c₀ * (5001 * m ^ 5) ^ c₀) ≤ (c₀ + 1) * 5001 ^ c₀ * m ^ (5 * c₀) := by
-      have h1 : 1 ≤ 5001 ^ c₀ * m ^ (5 * c₀) :=
-        Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by positivity) (by positivity))
+      have h1 : 1 ≤ 5001 ^ c₀ * m ^ (5 * c₀) := Nat.one_le_iff_ne_zero.2 (by positivity)
       rw [mul_pow, ← pow_mul]
       exact max_le (by nlinarith) (by nlinarith)
     have hG : G.size ≤ 4270 * 2 ^ n * m ^ 5 := by
@@ -134,8 +132,7 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
     refine ⟨x, ?_, hgx⟩
     rw [Set.mem_ofPred_eq, map_fst_samplesOf, List.mem_ofFn] at hx
     obtain ⟨j, rfl⟩ := hx
-    have hjt : (j : ℕ) < t := lt_of_lt_of_le j.isLt hRt
-    refine ⟨⟨j, hjt⟩, funext fun b => ?_⟩
+    refine ⟨⟨j, lt_of_lt_of_le j.isLt hRt⟩, funext fun b => ?_⟩
     simp only [BitString.block_apply, Circuit.eval_comp, Circuit.eval_wiring, Function.comp_apply,
       eval_inlineOracle G fun q => hD q, blockSelect, Equiv.symm_apply_apply]
     congr 2
@@ -150,9 +147,7 @@ theorem eventually_mul_floor_div_add_le_floor {β : ℝ} (hβ : 0 < β) :
       n * ⌊(2 : ℝ) ^ (β * n) / (10 * n)⌋₊ + 2 + 2 * n * (n + 2) ≤ ⌊(2 : ℝ) ^ (β * n)⌋₊ := by
   have ha : 1 < (2 : ℝ) ^ β := Real.one_lt_rpow (by norm_num) hβ
   filter_upwards [eventually_mul_add_one_pow_lt_pow 4 2 ha, eventually_gt_atTop 0] with n hpoly hn
-  have hXβ : (2 : ℝ) ^ (β * n) = ((2 : ℝ) ^ β) ^ n := by
-    rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
-  rw [← hXβ] at hpoly
+  rw [← Real.rpow_natCast ((2 : ℝ) ^ β), ← Real.rpow_mul (by norm_num)] at hpoly
   set X := (2 : ℝ) ^ (β * n)
   have hX0 : 0 < X := by positivity
   have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
@@ -161,8 +156,7 @@ theorem eventually_mul_floor_div_add_le_floor {β : ℝ} (hβ : 0 < β) :
   have hns : (n : ℝ) * ⌊X / (10 * n)⌋₊ ≤ X / 10 :=
     calc (n : ℝ) * ⌊X / (10 * n)⌋₊ ≤ n * (X / (10 * n)) := by gcongr
       _ = X / 10 := by field_simp
-  push_cast
-  nlinarith
+  push_cast; nlinarith
 
 /-- **The efficient anti-checker** [Oliveira, Pich and Santhanam, Lemma 4.1]
 [OliveiraPichSanthanam2019] (OPS ToC 2021 Lemma 4.1; ECCC TR18-158 Lemma 17). If
@@ -186,7 +180,6 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   refine ⟨c + 1, fun β hβ => ?_⟩
   set a : ℝ := (2 : ℝ) ^ β with ha_def
   have ha : 1 < a := Real.one_lt_rpow (by norm_num) hβ
-  have ha0 : 0 < a := by linarith
   filter_upwards [eventually_mul_add_one_pow_lt_pow 4 2 ha,
     eventually_mul_add_one_pow_lt_pow (10 + c * 2 ^ c) 0 ha, eventually_gt_atTop 0,
     eventually_mul_floor_div_add_le_floor hβ] with n hpoly hconst hn hgap
@@ -197,20 +190,16 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   have hX10 : (2 : ℝ) ^ (10 * β * n) = X ^ 10 := by
     rw [show 10 * β * n = β * n * (10 : ℕ) by push_cast; ring,
       Real.rpow_mul_natCast (by norm_num : (0 : ℝ) ≤ 2), hXβ]
-  have hX0 : 0 < X := pow_pos ha0 n
+  have hX0 : 0 < X := pow_pos (zero_lt_one.trans ha) n
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
-  have hnX : 4 * ((n : ℝ) + 1) ^ 2 < X := hpoly
   have hcX : 10 + (c : ℝ) * 2 ^ c < X := by simpa using hconst
   have hX10le : (10 : ℝ) ≤ X := by
-    have : (0 : ℝ) ≤ c * 2 ^ c := by positivity
-    linarith
+    linarith [mul_nonneg (Nat.cast_nonneg (α := ℝ) c) (pow_nonneg zero_le_two c)]
   have hn1X : (n : ℝ) + 1 ≤ X := by nlinarith
   -- The parameters.
   set s := ⌊(2 : ℝ) ^ (β * n) / (10 * n)⌋₊
   set t := ⌊(2 : ℝ) ^ (10 * β * n)⌋₊
-  have hs : (s : ℝ) ≤ X / (10 * n) := by
-    rw [← hXβ]
-    exact Nat.floor_le (by positivity)
+  have hs : (s : ℝ) ≤ X / (10 * n) := hXβ ▸ Nat.floor_le (by positivity)
   have hsX : (s : ℝ) ≤ X := hs.trans (div_le_self hX0.le (by nlinarith))
   have hm : ((n + s + 1 : ℕ) : ℝ) ≤ 2 * X := by push_cast; linarith
   -- Enough rounds.
@@ -241,7 +230,7 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   · -- Hardness: `n s + complexity (strictMajority n) ≤ n s + 2 + 2 n (n + 2) ≤ ⌊X⌋₊`.
     have hmaj : complexity interpretation (single (strictMajority n)) ≤ 2 + n * (2 * (n + 2)) :=
       complexity_threshold_le n (n / 2 + 1)
-    have hring : n * (2 * (n + 2)) = 2 * n * (n + 2) := by ring
+    rw [← Nat.mul_assoc, Nat.mul_comm n 2] at hmaj
     omega
 
 end Cslib.MCSP.AntiChecker

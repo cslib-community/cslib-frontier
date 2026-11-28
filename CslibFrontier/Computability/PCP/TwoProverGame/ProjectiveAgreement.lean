@@ -46,31 +46,22 @@ theorem exists_projective_pair_of_agreement (φ : AlgState (Matrix (ι × κ) (�
     (fun a => commute_liftedEffects G H a a)
   have hL := Measurement.sum_re_effect_sq_le_one φ L
   have hR := Measurement.sum_re_effect_sq_le_one φ R
-  change 1 - ζ ≤ Measurement.agreement φ L R at h
   have hLeft : 1 - 2 * ζ ≤ ∑ a,
       (φ (kroneckerOne (κ := κ) (G.toMeasurement.effect a * G.toMeasurement.effect a))).re := by
-    have he (a : α) : (φ (L.effect a * L.effect a)).re =
-        (φ (kroneckerOne (κ := κ) (G.toMeasurement.effect a * G.toMeasurement.effect a))).re := by
-      rw [map_mul (kroneckerOne (κ := κ))]
-      rfl
-    simp only [← he]
-    linarith only [h, hsq, hR]
+    simp only [map_mul]
+    exact show 1 - 2 * ζ ≤ ∑ a, (φ (L.effect a * L.effect a)).re by linarith only [h, hsq, hR]
   have hRight : 1 - 2 * ζ ≤ ∑ a,
       (φ (oneKronecker (ι := ι) (H.toMeasurement.effect a * H.toMeasurement.effect a))).re := by
-    have he (a : α) : (φ (R.effect a * R.effect a)).re =
-        (φ (oneKronecker (ι := ι) (H.toMeasurement.effect a * H.toMeasurement.effect a))).re := by
-      rw [map_mul (oneKronecker (ι := ι))]
-      rfl
-    simp only [← he]
-    linarith only [h, hsq, hL]
+    simp only [map_mul]
+    exact show 1 - 2 * ζ ≤ ∑ a, (φ (R.effect a * R.effect a)).re by linarith only [h, hsq, hL]
   obtain ⟨P, hP, hdP⟩ := Measurement.exists_isProjective_sum_norm_map_sub_sq_le_of_le
     φ (kroneckerOne (κ := κ)) G.toMeasurement hLeft
   obtain ⟨T, hT, hdT⟩ := Measurement.exists_isProjective_sum_norm_map_sub_sq_le_of_le
     φ (oneKronecker (ι := ι)) H.toMeasurement hRight
   refine ⟨P.toPOVM, T.toPOVM, hP, hT, ?_, ?_⟩
   · simpa only [leftMeasurement, kroneckerOne_apply, POVM.toMeasurement_effect,
-      Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using hdP
+      Measurement.toPOVM_effect] using hdP.trans_eq (by ring)
   · simpa only [rightMeasurement, oneKronecker_apply, POVM.toMeasurement_effect,
-      Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using hdT
+      Measurement.toPOVM_effect] using hdT.trans_eq (by ring)
 
 end Cslib.PCP.QuantumStrategy

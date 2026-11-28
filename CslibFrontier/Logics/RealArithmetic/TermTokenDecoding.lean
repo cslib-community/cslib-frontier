@@ -36,12 +36,9 @@ open Turing.MultiTapeTM
 
 private theorem encTermToken_ofFin {n : ℕ} (token : ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) :
     encTermToken (TermToken.ofFin token) = encTermTokenEncoding n token := by
-  rcases token with z | (i | (_ | _))
-  · rfl
-  · simp only [TermToken.ofFin, encTermToken, encTermTokenEncoding, Sum.map_inr, Sum.map_inl,
-      encSum_inr, encSum_inl, EncodingPolicy.BinaryIntUnaryFin.fin, encFinEnum_fin_apply]
-  · rfl
-  · rfl
+  rcases token with _ | (_ | (_ | _)) <;> try rfl
+  simp only [TermToken.ofFin, encTermToken, encTermTokenEncoding, Sum.map_inr, Sum.map_inl,
+    encSum_inr, encSum_inl, EncodingPolicy.BinaryIntUnaryFin.fin, encFinEnum_fin_apply]
 
 /-- A term's word decodes to its original prefix tokens with natural-number ranks. -/
 theorem termTokensDecoder_decode_encTerm {n : ℕ} (t : Term n) :
@@ -51,9 +48,7 @@ theorem termTokensDecoder_decode_encTerm {n : ℕ} (t : Term n) :
   change ((encTerm_tokens n t).map TermToken.ofFin).flatMap (frame ∘ encTermToken) =
     (encTerm_tokens n t).flatMap (frame ∘ encTermTokenEncoding n)
   rw [List.flatMap_map]
-  congr 1
-  funext token
-  exact congrArg frame (encTermToken_ofFin token)
+  exact List.flatMap_congr fun token _ => congrArg frame (encTermToken_ofFin token)
 
 /-- Every decoded variable rank is strictly smaller than the length of the input word. -/
 theorem termTokenRank_lt_of_decode {word : List Bool} {tokens : List TermToken} {i : ℕ}
@@ -64,6 +59,6 @@ theorem termTokenRank_lt_of_decode {word : List Bool} {tokens : List TermToken} 
     (encL := encList encTermToken) tokens _ hi
   change (true :: false :: encUnary i).length ≤ (encList encTermToken tokens).length at hlen
   simp only [List.length_cons, encUnary_apply, List.length_replicate] at hlen
-  omega
+  lia
 
 end Cslib.Logic.RealArithmetic

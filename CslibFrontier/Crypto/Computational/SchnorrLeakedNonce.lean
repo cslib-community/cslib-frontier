@@ -119,28 +119,18 @@ theorem isOraclePPTOn_schnorrLeakedNonceWordAdversary (F : PrimeOrderGroupFamily
     rfl
   rw [hdef]
   let E := encPair F.encDesc (encPair encUnary (encPair encBits (encPair encBits encBits)))
-  have hdec : ComputableInPolyTime
-      (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool =>
-        (Decoder.bits.pair Decoder.bits).decode x.2.2.2.1)
-      E (encPair encBits encBits) :=
-    (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp (by fun_prop)
   have hreq : ComputableInPolyTime
       (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool =>
         encPair encBits encBits
           (x.2.2.1, ((Decoder.bits.pair Decoder.bits).decode x.2.2.2.1).1))
       E encBits :=
-    ((by fun_prop : ComputableInPolyTime _ E encBits).prod
-      ((ComputableInPolyTime.fst encBits encBits).comp hdec)).encoding_comp
+    ((by fun_prop : ComputableInPolyTime _ E (encPair encBits encBits))).encoding_comp
   refine (IsOraclePPTOn.query_take () hreq (by fun_prop)).map_with ?_
-  have harg : ComputableInPolyTime
-      (fun p : (F.Desc × ℕ × List Bool × List Bool × List Bool) × List Bool =>
-        (p.1.1, ([] : List Bool), p.1.2.2.2.2, ([] : List Bool), ([] : List Bool), p.2,
-          ((Decoder.bits.pair Decoder.bits).decode p.1.2.2.2.1).2))
-      (encPair E encBits)
-      (encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits (encPair encBits
-        (encPair encBits encBits)))))) := by
-    fun_prop
-  exact F.computableInPolyTime_schnorrRelatedNonceExtractWord.comp harg
+  exact F.computableInPolyTime_schnorrRelatedNonceExtractWord.comp
+    (g := fun p : (F.Desc × ℕ × List Bool × List Bool × List Bool) × List Bool =>
+      (p.1.1, [], p.1.2.2.2.2, [], [], p.2,
+        ((Decoder.bits.pair Decoder.bits).decode p.1.2.2.2.1).2))
+    (by fun_prop)
 
 /-- Native `WordOracleComp` leaked-randomness key-recovery game: `schnorrSigKeyGen` draws
 `(pk, sk)`, `sampleExp` draws signing randomness `r`, signing executes the exact steps of

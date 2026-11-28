@@ -106,11 +106,8 @@ def splitHandler (q : ℕ) : ClockedComp (natOracleSpec ⊕ₒ natOracleSpec) �
 /-- Against `p ⊕ x`, `joinHandler` implements the oracles `p` and `x` of the sum interface. -/
 theorem implements_joinHandler (p x : ℕ →. ℕ) :
     ClockedComp.Implements joinHandler (p ⊕ x) (OracleComp.sumHandler p x) := by
-  have hl := implements_toClocked (p ⊕ x) joinLeft
-  have hr := implements_toClocked (p ⊕ x) joinRight
-  rw [eval_joinLeft] at hl
-  rw [eval_joinRight] at hr
-  exact hl.sumHandler hr
+  simpa only [joinHandler, eval_joinLeft, eval_joinRight] using
+    (implements_toClocked (p ⊕ x) joinLeft).sumHandler (implements_toClocked (p ⊕ x) joinRight)
 
 /-- Against the oracles `p` and `x`, `splitHandler` implements their join `p ⊕ x`. -/
 theorem implements_splitHandler (p x : ℕ →. ℕ) :
@@ -118,11 +115,8 @@ theorem implements_splitHandler (p x : ℕ →. ℕ) :
   intro q
   cases h : q.bodd <;> simp only [splitHandler, h, Bool.cond_false, Bool.cond_true] <;>
     refine ⟨(ClockedComp.Stable.query _).map _,
-      (ClockedComp.eval_map _ (.query _) _).trans ?_⟩
-  · rw [ClockedComp.eval_query (OracleComp.sumHandler (m := Part) p x)]
-    simp [Partrec.join, h]
-  · rw [ClockedComp.eval_query (OracleComp.sumHandler (m := Part) p x)]
-    simp [Partrec.join, h]
+      (ClockedComp.eval_map _ (.query _) _).trans ?_⟩ <;>
+    simp [ClockedComp.eval_query (OracleComp.sumHandler (m := Part) p x), Partrec.join, h]
 
 /-- A program over two oracles `p` and `x`, with each query answered through the join, computes
 the same relative to `p ⊕ x`. -/

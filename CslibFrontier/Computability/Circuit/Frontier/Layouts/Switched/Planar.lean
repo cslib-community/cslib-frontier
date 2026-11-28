@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Disintegration
 public import Mathlib.Analysis.SpecialFunctions.PolarCoord
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
+import CslibFrontier.Foundations.Probability.Gaussian.Polar
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Periodic
 
 /-!
@@ -45,65 +46,6 @@ def normal2 : Measure (ℝ × ℝ) := (gaussianReal 0 1).prod (gaussianReal 0 1)
 
 instance : IsProbabilityMeasure normal2 := by unfold normal2; infer_instance
 
-/-- The polar-coordinate radial weight `r · φ(r) · φ(0)` for the planar standard Gaussian. -/
-private def radial (r : ℝ) : ℝ := r * (gaussianPDFReal 0 1 r * gaussianPDFReal 0 1 0)
-
-/-- Rotational symmetry of the standard bivariate Gaussian density. -/
-private theorem density_polar (r t : ℝ) :
-    gaussianPDFReal 0 1 (r * Real.cos t) * gaussianPDFReal 0 1 (r * Real.sin t) =
-      gaussianPDFReal 0 1 r * gaussianPDFReal 0 1 0 := by
-  simp only [gaussianPDFReal, NNReal.coe_one, mul_one, sub_zero, ne_eq,
-    OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, neg_zero, zero_div, Real.exp_zero]
-  rw [mul_mul_mul_comm, ← Real.exp_add]
-  have h : -(r * Real.cos t) ^ 2 / 2 + -(r * Real.sin t) ^ 2 / 2 = -r ^ 2 / 2 := by
-    nlinarith [Real.cos_sq_add_sin_sq t]
-  rw [h]
-  ring
-
-/-- Density formula for integration against `normal2`. -/
-private theorem integral_normal2 (f : ℝ × ℝ → ℝ) :
-    (∫ z, f z ∂normal2) =
-      ∫ z, (gaussianPDFReal 0 1 z.1 * gaussianPDFReal 0 1 z.2) * f z := by
-  rw [normal2, gaussianReal_of_var_ne_zero 0 (by norm_num : (1 : NNReal) ≠ 0),
-    prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1)]
-  rw [integral_withDensity_eq_integral_toReal_smul]
-  · simp only [ENNReal.toReal_mul, toReal_gaussianPDF, smul_eq_mul]
-    rfl
-  · fun_prop
-  · exact ae_of_all _ fun z => ENNReal.mul_lt_top gaussianPDF_lt_top gaussianPDF_lt_top
-
-/-- Any function depending only on angle factors under the product Gaussian. -/
-private theorem integral_angular (f : ℝ × ℝ → ℝ) (g : ℝ → ℝ)
-    (h : ∀ r, 0 < r → ∀ t ∈ Ioo (-Real.pi) Real.pi,
-      f (r * Real.cos t, r * Real.sin t) = g t) :
-    (∫ z, f z ∂normal2) =
-      (∫ r in Ioi 0, radial r) * ∫ t in Ioo (-Real.pi) Real.pi, g t := by
-  rw [integral_normal2, ← integral_comp_polarCoord_symm]
-  calc
-    _ = ∫ z in Ioi (0 : ℝ) ×ˢ Ioo (-Real.pi) Real.pi, radial z.1 * g z.2 := by
-      apply setIntegral_congr_fun (measurableSet_Ioi.prod measurableSet_Ioo)
-      intro z hz
-      change z.1 * ((gaussianPDFReal 0 1 (z.1 * Real.cos z.2) *
-        gaussianPDFReal 0 1 (z.1 * Real.sin z.2)) *
-        f (z.1 * Real.cos z.2, z.1 * Real.sin z.2)) = _
-      rw [h z.1 hz.1 z.2 hz.2, density_polar]
-      dsimp [radial]
-      ring
-    _ = _ := setIntegral_prod_mul _ _ _ _
-
-/-- The radial integral of `normal2` equals `1 / (2π)`. -/
-private theorem radial_integral : (∫ r in Ioi 0, radial r) = 1 / (2 * Real.pi) := by
-  have h := integral_angular (fun _ => 1) (fun _ => 1) (by intros; rfl)
-  have hangle : (∫ _t in Ioo (-Real.pi) Real.pi, (1 : ℝ)) = 2 * Real.pi := by
-    rw [setIntegral_const, smul_eq_mul, mul_one, Real.volume_real_Ioo,
-      max_eq_left (by linarith [Real.pi_pos])]
-    ring
-  rw [hangle] at h
-  simp only [integral_const, probReal_univ, smul_eq_mul, mul_one] at h
-  have hp := Real.pi_pos
-  apply (eq_div_iff (by positivity : (2 * Real.pi) ≠ 0)).mpr
-  nlinarith
-
 /-- A vector with unit inner square has unit norm. -/
 private theorem norm_eq_one_of_inner_self {E : Type*} [NormedAddCommGroup E]
     [InnerProductSpace ℝ E] {a : E} (ha : inner ℝ a a = 1) : ‖a‖ = 1 :=
@@ -115,9 +57,9 @@ theorem stdGaussian_map_inner_prod_unit {E : Type*} [NormedAddCommGroup E] [Inne
     [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
     {a b : E} (ha : inner ℝ a a = 1) (hb : inner ℝ b b = 1) (hab : inner ℝ a b = 0) :
     (stdGaussian E).map (fun x => (inner ℝ a x, inner ℝ b x)) = normal2 := by
-  rw [stdGaussian_map_inner_prod hab, normal2]
-  simp only [show ‖a‖₊ = 1 from NNReal.eq (norm_eq_one_of_inner_self ha),
-    show ‖b‖₊ = 1 from NNReal.eq (norm_eq_one_of_inner_self hb), one_pow]
+  rw [stdGaussian_map_inner_prod hab, normal2,
+    (NNReal.eq (norm_eq_one_of_inner_self ha) : ‖a‖₊ = 1),
+    (NNReal.eq (norm_eq_one_of_inner_self hb) : ‖b‖₊ = 1), one_pow]
 
 /-- Convenience form of `stdGaussian_map_inner_unit` keyed on `inner ℝ a a = 1`. -/
 theorem stdGaussian_map_inner_unit_sq {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
@@ -126,28 +68,6 @@ theorem stdGaussian_map_inner_unit_sq {E : Type*} [NormedAddCommGroup E] [InnerP
     (stdGaussian E).map (fun x => inner ℝ a x) = gaussianReal 0 1 :=
   stdGaussian_map_inner_unit (norm_eq_one_of_inner_self ha)
 
-
-
-/-- Iterated polar coordinates for the planar standard Gaussian. -/
-private theorem integral_normal2_polar {f : ℝ × ℝ → ℝ}
-    (hf : IntegrableOn (fun p : ℝ × ℝ => radial p.1 * f (p.1 * Real.cos p.2, p.1 * Real.sin p.2))
-      (Ioi 0 ×ˢ Ioo (-π) π)) :
-    ∫ z, f z ∂normal2 =
-      ∫ r in Ioi 0, ∫ t in Ioo (-π) π, radial r * f (r * Real.cos t, r * Real.sin t) := by
-  rw [integral_normal2, ← integral_comp_polarCoord_symm]
-  calc
-    _ = ∫ p in Ioi (0 : ℝ) ×ˢ Ioo (-π) π,
-          radial p.1 * f (p.1 * Real.cos p.2, p.1 * Real.sin p.2) := by
-      apply setIntegral_congr_fun (measurableSet_Ioi.prod measurableSet_Ioo)
-      intro p hp
-      change p.1 * ((gaussianPDFReal 0 1 (p.1 * Real.cos p.2) *
-        gaussianPDFReal 0 1 (p.1 * Real.sin p.2)) *
-        f (p.1 * Real.cos p.2, p.1 * Real.sin p.2)) = _
-      rw [density_polar]
-      dsimp [radial]
-      ring
-    _ = _ := by
-      rw [Measure.volume_eq_prod, setIntegral_prod _ hf]
 
 /-! ## Angular free sets -/
 
@@ -187,11 +107,8 @@ private theorem freeInd_periodic (γ₀ γ₁ k : ℝ) : Function.Periodic (free
 private theorem intervalIntegrable_of_bdd {f : ℝ → ℝ} (hf : Measurable f) (h0 : ∀ t, 0 ≤ f t)
     (h1 : ∀ t, f t ≤ 1) (a b : ℝ) : IntervalIntegrable f volume a b := by
   rw [intervalIntegrable_iff]
-  refine Measure.integrableOn_of_bounded (M := 1) ?_ hf.aestronglyMeasurable ?_
-  · exact measure_Ioc_lt_top.ne |>.lt_top.ne
-  · filter_upwards with t
-    rw [Real.norm_eq_abs, abs_of_nonneg (h0 t)]
-    exact h1 t
+  exact Measure.integrableOn_of_bounded measure_Ioc_lt_top.ne hf.aestronglyMeasurable
+    (Filter.Eventually.of_forall fun t => (Real.norm_of_nonneg (h0 t)).trans_le (h1 t))
 
 private theorem intervalIntegrable_freeInd (γ₀ γ₁ k : ℝ) {a b : ℝ} :
     IntervalIntegrable (freeInd γ₀ γ₁ k) volume a b :=
@@ -209,10 +126,8 @@ private theorem cos_lt_cos_of_mem {c u : ℝ} (hc : 0 ≤ c) (_hcπ : c ≤ π) 
     (h2 : u < 2 * π - c) : Real.cos u < Real.cos c := by
   rcases le_or_gt u π with hu | hu
   · exact Real.cos_lt_cos_of_nonneg_of_le_pi hc hu h1
-  · have : Real.cos u = Real.cos (2 * π - u) := by
-      rw [Real.cos_sub, Real.cos_two_pi, Real.sin_two_pi]; ring
-    rw [this]
-    exact Real.cos_lt_cos_of_nonneg_of_le_pi hc (by linarith) (by linarith)
+  · exact Real.cos_two_pi_sub u ▸
+      Real.cos_lt_cos_of_nonneg_of_le_pi hc (by linarith) (by linarith)
 
 /-- `cos c ≤ cos u` for `|u| ≤ c ≤ π`. -/
 private theorem cos_le_cos_of_abs_le {c u : ℝ} (hcπ : c ≤ π) (h : |u| ≤ c) :
@@ -258,13 +173,11 @@ private theorem angMeasure_ge {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ
       (c < t - γ₀ ∧ t - γ₀ < 2 * π - c ∨ c < γ₀ - t ∧ γ₀ - t < 2 * π - c) →
       (c < t + γ₁ ∧ t + γ₁ < 2 * π - c) → FreeAngle γ₀ γ₁ k t := by
     intro t ha hb hd
-    have key : ∀ u, (c < u ∧ u < 2 * π - c ∨ c < -u ∧ -u < 2 * π - c) → Real.cos u < k := by
-      intro u hu
+    have key (u : ℝ) (hu : c < u ∧ u < 2 * π - c ∨ c < -u ∧ -u < 2 * π - c) :
+        Real.cos u < k := by
       refine (lt_max_iff.mp ?_).resolve_right (not_lt.mpr (Real.neg_one_le_cos u))
-      rw [← hck]
-      rcases hu with ⟨p, q⟩ | ⟨p, q⟩
-      · exact cos_lt_cos_of_mem hc0 hcπ p q
-      · simpa only [Real.cos_neg] using cos_lt_cos_of_mem hc0 hcπ p q
+      exact hck ▸ hu.elim (fun h => cos_lt_cos_of_mem hc0 hcπ h.1 h.2) fun h =>
+        (Real.cos_neg u).symm ▸ cos_lt_cos_of_mem hc0 hcπ h.1 h.2
     exact ⟨key t ha, key _ (hb.imp id fun hb => ⟨by linarith [hb.1], by linarith [hb.2]⟩),
       key _ (Or.inl hd)⟩
   have hpt : ∀ t, (Ioo (-γ₁ + c) (-c)).indicator (fun _ => (1 : ℝ)) t +
@@ -369,19 +282,8 @@ theorem measurableSet_planarSet (γ₀ γ₁ h : ℝ) : MeasurableSet (planarSet
     ((measurableSet_lt (by fun_prop) measurable_const).inter
       (measurableSet_lt (by fun_prop) measurable_const))
 
-private theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ radial r := by
-  unfold radial
-  have := gaussianPDFReal_nonneg 0 1 r
-  have := gaussianPDFReal_nonneg 0 1 0
-  positivity
-
-private theorem measurable_radial : Measurable radial :=
-  measurable_id.mul ((measurable_gaussianPDFReal 0 1).mul measurable_const)
-
-private theorem integrableOn_radial : IntegrableOn radial (Ioi 0) := by
-  apply Integrable.of_integral_ne_zero
-  rw [radial_integral]
-  have := Real.pi_pos
+private theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ planarGaussianRadialWeight r := by
+  unfold planarGaussianRadialWeight
   positivity
 
 private theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
@@ -391,53 +293,30 @@ private theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
   have e2 : Real.cos γ₁ * (r * Real.cos t) - Real.sin γ₁ * (r * Real.sin t) =
       r * Real.cos (t + γ₁) := by rw [Real.cos_add]; ring
   simp only [planarSet, Set.mem_ofPred_eq, e1, e2, FreeAngle]
-  rw [lt_div_iff₀ hr, lt_div_iff₀ hr, lt_div_iff₀ hr]
-  simp only [mul_comm]
+  simp only [lt_div_iff₀ hr, mul_comm]
 
 /-- Polar form of the planar probability. -/
 private theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
-    planarProb γ₀ γ₁ h = ∫ r in Ioi 0, radial r * angMeasure γ₀ γ₁ (h / r) := by
+    planarProb γ₀ γ₁ h =
+      ∫ r in Ioi 0, planarGaussianRadialWeight r * angMeasure γ₀ γ₁ (h / r) := by
   classical
-  set f : ℝ × ℝ → ℝ := (planarSet γ₀ γ₁ h).indicator (fun _ => 1)
-  have hf01 : ∀ z, 0 ≤ f z ∧ f z ≤ 1 := by
-    intro z; simp only [f, indicator]; split_ifs <;> norm_num
-  have hfm : Measurable f := measurable_const.indicator (measurableSet_planarSet γ₀ γ₁ h)
-  have hint : IntegrableOn
-      (fun p : ℝ × ℝ => radial p.1 * f (p.1 * Real.cos p.2, p.1 * Real.sin p.2))
-      (Ioi 0 ×ˢ Ioo (-π) π) := by
-    have hprod : Integrable (fun p : ℝ × ℝ => ‖radial p.1‖ * (fun _ : ℝ => (1 : ℝ)) p.2)
-        ((volume.restrict (Ioi 0)).prod (volume.restrict (Ioo (-π) π))) :=
-      integrableOn_radial.norm.mul_prod (integrable_const 1)
-    rw [IntegrableOn, Measure.volume_eq_prod, ← Measure.prod_restrict]
-    refine hprod.mono' ?_ (ae_of_all _ fun p => ?_)
-    · exact ((measurable_radial.comp measurable_fst).mul
-        (hfm.comp (by fun_prop))).aestronglyMeasurable
-    · rw [norm_mul, mul_one]
-      exact mul_le_of_le_one_right (norm_nonneg _)
-        (by rw [Real.norm_eq_abs, abs_of_nonneg (hf01 _).1]; exact (hf01 _).2)
-  rw [planarProb, ← integral_indicator_one (measurableSet_planarSet γ₀ γ₁ h)]
-  change ∫ z, f z ∂normal2 = _
-  rw [integral_normal2_polar hint]
-  apply setIntegral_congr_fun measurableSet_Ioi
-  intro r hr
-  dsimp only
-  rw [integral_const_mul, angMeasure, intervalIntegral.integral_of_le (by linarith [Real.pi_pos]),
+  rw [planarProb, normal2, measureReal_prod_gaussianReal_polar (measurableSet_planarSet γ₀ γ₁ h)]
+  refine setIntegral_congr_fun measurableSet_Ioi fun r hr => ?_
+  rw [angMeasure, intervalIntegral.integral_of_le (by linarith [Real.pi_pos]),
     integral_Ioc_eq_integral_Ioo]
-  congr 1
-  apply setIntegral_congr_fun measurableSet_Ioo
-  intro t _
-  simp only [f, indicator, freeInd, planarSet_polar hr]
+  refine congrArg (planarGaussianRadialWeight r * ·) (setIntegral_congr_fun measurableSet_Ioo
+    fun t _ => ?_)
+  simp only [indicator, freeInd]
+  exact if_congr (planarSet_polar hr) rfl rfl
 
 /-- Free measure comparison at every radius. -/
 private theorem angMeasure_compare {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
     (h1' : γ₁ ≤ π) : angMeasure (2 * π / 3) (2 * π / 3) k ≤ angMeasure γ₀ γ₁ k := by
   rcases le_or_gt k 1 with hk | hk
   · exact (angMeasure_eq_le hk).trans (angMeasure_ge h0 h0' h1 h1' hk)
-  · have hall : ∀ a b t, freeInd a b k t = 1 := by
-      intro a b t
-      have : FreeAngle a b k t := ⟨by linarith [Real.cos_le_one t],
-        by linarith [Real.cos_le_one (t - a)], by linarith [Real.cos_le_one (t + b)]⟩
-      simp [freeInd, this]
+  · have hall (a b t : ℝ) : freeInd a b k t = 1 := ite_eq_left
+      ⟨(Real.cos_le_one t).trans_lt hk, (Real.cos_le_one _).trans_lt hk,
+        (Real.cos_le_one _).trans_lt hk⟩
     simp only [angMeasure, hall, le_refl]
 
 /-- **Planar comparison.** For `γ₀, γ₁ ∈ [0, π]`, the planar probability is at
@@ -445,17 +324,13 @@ least the equilateral one. -/
 theorem planarProb_ge_eq {γ₀ γ₁ h : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
     (h1' : γ₁ ≤ π) : planarProb (2 * π / 3) (2 * π / 3) h ≤ planarProb γ₀ γ₁ h := by
   rw [planarProb_polar, planarProb_polar]
-  have hA : ∀ a b k, 0 ≤ angMeasure a b k ∧ angMeasure a b k ≤ 2 * π := by
-    intro a b k
+  have hA (a b k : ℝ) : 0 ≤ angMeasure a b k ∧ angMeasure a b k ≤ 2 * π := by
+    refine ⟨intervalIntegral.integral_nonneg (by linarith [Real.pi_pos])
+      fun t _ => freeInd_nonneg a b k t, ?_⟩
     have hle := intervalIntegral.integral_mono_on (by linarith [Real.pi_pos] : -π ≤ π)
-      (intervalIntegrable_freeInd a b k) intervalIntegrable_const
-      (fun t _ => freeInd_le_one a b k t)
-    have hge := intervalIntegral.integral_nonneg (μ := volume) (by linarith [Real.pi_pos] : -π ≤ π)
-      (fun t _ => freeInd_nonneg a b k t)
-    simp only [intervalIntegral.integral_const, smul_eq_mul, mul_one] at hle
-    exact ⟨hge, by unfold angMeasure; linarith⟩
-  have hmeasA : ∀ a b, Measurable fun r => angMeasure a b (h / r) := by
-    intro a b
+      (intervalIntegrable_freeInd a b k) intervalIntegrable_const fun t _ => freeInd_le_one a b k t
+    simpa [angMeasure, sub_neg_eq_add, two_mul] using hle
+  have hmeasA (a b : ℝ) : Measurable fun r => angMeasure a b (h / r) := by
     -- the parametric integral of a jointly measurable bounded function
     have hj : Measurable (Function.uncurry fun r t => freeInd a b (h / r) t) :=
       (measurable_uncurry_freeInd a b).comp ((measurable_const.div measurable_fst).prodMk
@@ -463,17 +338,17 @@ theorem planarProb_ge_eq {γ₀ γ₁ h : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ �
     unfold angMeasure
     simp_rw [intervalIntegral.integral_of_le (by linarith [Real.pi_pos] : -π ≤ π)]
     exact (hj.stronglyMeasurable.integral_prod_right (ν := volume.restrict (Ioc (-π) π))).measurable
-  have hI : ∀ a b, IntegrableOn (fun r => radial r * angMeasure a b (h / r)) (Ioi 0) := by
-    intro a b
-    refine (integrableOn_radial.mul_const (2 * π)).mono'
-      (measurable_radial.mul (hmeasA a b)).aestronglyMeasurable ?_
+  have hrad : IntegrableOn planarGaussianRadialWeight (Ioi 0) :=
+    integrable_planarGaussianRadialWeight.integrableOn
+  have hI (a b : ℝ) : IntegrableOn
+      (fun r => planarGaussianRadialWeight r * angMeasure a b (h / r)) (Ioi 0) := by
+    refine (hrad.mul_const (2 * π)).mono'
+      (hrad.aestronglyMeasurable.mul (hmeasA a b).aestronglyMeasurable) ?_
     filter_upwards [ae_restrict_mem measurableSet_Ioi] with r hr
-    rw [norm_mul, Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (radial_nonneg (le_of_lt hr)),
+    rw [norm_mul, Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (radial_nonneg hr.le),
       abs_of_nonneg (hA a b _).1]
-    exact mul_le_mul_of_nonneg_left (hA a b _).2 (radial_nonneg (le_of_lt hr))
-  apply setIntegral_mono_on (hI _ _) (hI _ _) measurableSet_Ioi
-  intro r hr
-  exact mul_le_mul_of_nonneg_left (angMeasure_compare h0 h0' h1 h1')
-    (radial_nonneg (le_of_lt hr))
+    exact mul_le_mul_of_nonneg_left (hA a b _).2 (radial_nonneg hr.le)
+  exact setIntegral_mono_on (hI _ _) (hI _ _) measurableSet_Ioi fun r hr =>
+    mul_le_mul_of_nonneg_left (angMeasure_compare h0 h0' h1 h1') (radial_nonneg hr.le)
 
 end Cslib.Circuits.Frontier.Switched

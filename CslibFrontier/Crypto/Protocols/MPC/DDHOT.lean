@@ -264,9 +264,7 @@ private theorem chosen_branch_eq {q : ℕ} [Module (ZMod q) G] (g m : G) (a b r 
       let e := r • g + s • (a • g)
       (e, b • e + m) := by
   dsimp only [ddhOTEncryptBranch]
-  refine Prod.ext rfl ?_
-  dsimp only
-  module
+  exact Prod.ext rfl (by module)
 
 /-- Algebraic identity for the unchosen branch ciphertext in `ddhOTProtocol`. -/
 private theorem unchosen_branch_eq {q : ℕ} [Module (ZMod q) G] (g m : G) (a b r s : ZMod q) :
@@ -274,8 +272,7 @@ private theorem unchosen_branch_eq {q : ℕ} [Module (ZMod q) G] (g m : G) (a b 
       let u' := (r + a * s) • g
       let w_ddh := (a * (r + a * s)) • g
       (u', w_ddh - b • u' + m) := by
-  dsimp only [ddhOTEncryptBranch]
-  refine Prod.ext ?_ ?_ <;> dsimp only <;> module
+  refine Prod.ext ?_ ?_ <;> dsimp only [ddhOTEncryptBranch] <;> module
 
 /-- Round 3 sender reply in the unchecked variant: omits the `w.1 + w.2 = u` verification. -/
 @[expose] def ddhOTSenderReplyUnchecked {q : ℕ} [Module (ZMod q) G] (g : G) (m : G × G)
@@ -488,9 +485,7 @@ private theorem evalWith_ddhOTSteps (g : G) (q : ℕ) [Module (ZMod q) G]
     (st : (i : Fin 2) → OTIn G i × DDHOTCoinsWith C₀ C₁ i) :
     (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).steps.evalWith noOracleWorld st =
       PMF.pure (ddhOTReceivedWith g proj₀ proj₁ st) := by
-  dsimp only [ddhOTProtocolWith]
-  simp only [Steps.evalWith_message, Steps.evalWith_done, PMF.pure_map]
-  rfl
+  simp only [ddhOTProtocolWith, Steps.evalWith_message, Steps.evalWith_done, PMF.pure_map]; rfl
 
 /-- Independent coin sampling draws the sender's and receiver's coins. -/
 private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [Module (ZMod q) G]
@@ -500,14 +495,9 @@ private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [Module (ZMod q) G]
         (OracleComp.pi (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).sampleCoins) =
       (ProbComp.eval sample₀).bind fun raw₀ =>
         (ProbComp.eval sample₁).map fun raw₁ => ddhOTCoinsWith raw₀ raw₁ := by
-  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
-  refine congrArg (PMF.bind _) (funext fun raw₀ => ?_)
-  erw [PMF.map_bind]
-  simp only [PMF.pure_map]
-  rw [← PMF.bind_pure_comp]
-  refine congrArg (PMF.bind _) (funext fun raw₁ => congrArg PMF.pure
-    (funext (β := DDHOTCoinsWith C₀ C₁) fun i => ?_))
+  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, pmf_norm]
+  refine congrArg (PMF.bind _) (funext fun raw₀ => congrArg (PMF.bind _) (funext fun raw₁ =>
+    congrArg PMF.pure (funext (β := DDHOTCoinsWith C₀ C₁) fun i => ?_)))
   fin_cases i <;> rfl
 
 /-- Receiver's view in a run with coins `(raw₀, raw₁)`. -/
@@ -520,10 +510,9 @@ private theorem ddhOTReceivedWith_one {q : ℕ} [Module (ZMod q) G] {C₀ C₁ :
       let u := (proj₀ raw₀).exponent • g
       let w := ddhOTReceiverMsg g (x 1) (proj₁ raw₁) u
       ddhOTReceiverViewWith (x 1) raw₁ u (ddhOTSenderReply g (x 0) (proj₀ raw₀) w) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
-  · exact Round.received_message_ext fun _ => rfl
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · exact Round.received_message_ext fun _ => rfl
+  exact PartyView.ext rfl rfl (Prod.ext (Round.received_message_ext fun _ => rfl)
+    (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+      (Prod.ext (Round.received_message_ext fun _ => rfl) rfl)))
 
 /-- Sender's view in a run with coins `(raw₀, raw₁)`. -/
 private theorem ddhOTReceivedWith_zero {q : ℕ} [Module (ZMod q) G] {C₀ C₁ : Type} (g : G)
@@ -534,10 +523,9 @@ private theorem ddhOTReceivedWith_zero {q : ℕ} [Module (ZMod q) G] {C₀ C₁ 
         PartyView (OTIn G) (DDHOTCoinsWith C₀ C₁) (ddhOTSchedule G) 0) =
       ddhOTSenderViewWith (x 0) raw₀
         (ddhOTReceiverMsg g (x 1) (proj₁ raw₁) ((proj₀ raw₀).exponent • g)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · exact Round.received_message_ext fun _ => rfl
-  · exact Round.received_message_eq_of_ne (by decide) _ _
+  exact PartyView.ext rfl rfl (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+    (Prod.ext (Round.received_message_ext fun _ => rfl)
+      (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _) rfl)))
 
 /-! ### Execution law and correctness -/
 
@@ -573,9 +561,8 @@ theorem evalWith_ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
       return (ddhOTViewsWith g proj₀ proj₁ x raw₀ raw₁, otOutputs x) := by
   rw [Protocol.evalWith_eq, eval_pi_ddhOTSampleCoins]
   simp only [evalWith_ddhOTSteps, pmf_norm]
-  refine congrArg (ProbComp.eval sample₀).bind (funext fun raw₀ => ?_)
-  refine congrArg (ProbComp.eval sample₁).bind
-    (funext fun raw₁ => congrArg PMF.pure (Prod.ext ?_ ?_))
+  refine congrArg (ProbComp.eval sample₀).bind (funext fun raw₀ =>
+    congrArg (ProbComp.eval sample₁).bind (funext fun raw₁ => congrArg PMF.pure (Prod.ext ?_ ?_)))
   · funext i
     fin_cases i
     · exact ddhOTReceivedWith_zero g proj₀ proj₁ x raw₀ raw₁
@@ -586,8 +573,7 @@ theorem evalWith_ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
       rfl
   · funext i
     fin_cases i
-    · rfl
-    · exact outputOfView_ddhOT_one g q sample₀ sample₁ proj₀ proj₁ x raw₀ raw₁
+    exacts [rfl, outputOfView_ddhOT_one g q sample₀ sample₁ proj₀ proj₁ x raw₀ raw₁]
 
 /-- **Correctness**: for any party coin samplers and exponent projections, in every execution of
 `ddhOTProtocolWith`, the sender outputs `()` and the receiver outputs
@@ -652,21 +638,13 @@ theorem idealJoint_ddhOT_sender_with (g : G) (q : ℕ) [NeZero q] [Module (ZMod 
       let b ← PMF.uniformOfFintype (ZMod q)
       return (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
         (ddhOTReceiverMsg g (x 1) b ((proj₀ raw₀).exponent • g))), otOutputs x)) := by
-  simp only [pmf_norm]
+  simp only [pmf_norm, ddhOTSenderSimWithCoinsOf]
   refine congrArg (PMF.bind _) (funext fun raw₀ => ?_)
-  let σ : Bool := x 1
-  change (PMF.uniformOfFintype (ZMod q)).bind (fun b =>
-      PMF.pure (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
-        (b • g, (proj₀ raw₀).exponent • g - b • g)), otOutputs x)) =
-    (PMF.uniformOfFintype (ZMod q)).bind (fun b =>
-      PMF.pure (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
-        (ddhOTReceiverMsg g σ b ((proj₀ raw₀).exponent • g))), otOutputs x))
-  cases σ
-  · rfl
+  cases hσ : x 1
+  · simp only [ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte]; rfl
   · conv_lhs => rw [← PMF.uniformOfFintype_map_sub_left (proj₀ raw₀).exponent, PMF.bind_map]
     refine congrArg (PMF.bind _) (funext fun b => ?_)
-    simp only [Function.comp_apply, ddhOTReceiverMsg, ↓reduceIte,
-      sub_smul, sub_sub_cancel]
+    simp only [Function.comp_apply, ddhOTReceiverMsg, ↓reduceIte, sub_smul, sub_sub_cancel]; rfl
 
 /-- Real joint distribution for a corrupted sender (`{0}`). -/
 theorem realJoint_ddhOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
@@ -681,8 +659,7 @@ theorem realJoint_ddhOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
   simp only [pmf_norm, ProbComp.eval_uniform]
   refine congrArg (PMF.bind _) (funext fun c₀ =>
     congrArg (PMF.bind _) (funext fun b => congrArg PMF.pure ?_))
-  simp only [Prod.map, id, restrict_singleton, ddhOTViewsWith]
-  rfl
+  simp [Prod.map, restrict_singleton, ddhOTViewsWith]
 
 /-- **Perfect privacy against a corrupted sender**: the ideal joint distribution with
 `ddhOTSenderSim` equals the real joint distribution. -/
@@ -821,18 +798,11 @@ theorem real_receiver_eq_ddhRealExperiment_of (g : G) (q : ℕ) [NeZero q] [Modu
   simp only [pmf_norm, sampleDDHOTSenderCoins, ddhRealExperiment, ddhOTReductionOf,
     ProbComp.eval_uniform]
   congr 1 with a : 1
-  obtain ⟨σ, hσ⟩ : ∃ σ : Bool, x 1 = σ := ⟨_, rfl⟩
-  refine Eq.trans ?_ (uniform_bind_branch (ProbComp.eval sample₁) a σ fun raw₁ r s k =>
+  refine Eq.trans ?_ (uniform_bind_branch (ProbComp.eval sample₁) a (x 1) fun raw₁ r s k =>
     ProbComp.eval (ddhOTReductionWithCoinsOf g proj₁ x D raw₁ r s (a • g) (k • g) ((a * k) • g)))
-  simp only [PMF.monad_bind_eq_bind]
-  congr 1 with r₀ : 1
-  congr 1 with s₀ : 1
-  congr 1 with r₁ : 1
-  congr 1 with s₁ : 1
-  congr 1 with raw₁ : 1
-  simp_rw [ddhOTReductionWithCoinsOf, hσ]
-  cases σ <;> simp only [ddhOTReceiverMsg, ddhOTSenderReplyUnchecked, Bool.false_eq_true,
-    ↓reduceIte, chosen_branch_eq, unchosen_branch_eq]
+  cases hσ : x 1 <;> simp only [PMF.monad_bind_eq_bind, ddhOTReductionWithCoinsOf, hσ,
+    ddhOTReceiverMsg, ddhOTSenderReplyUnchecked, Bool.false_eq_true, ↓reduceIte, chosen_branch_eq,
+    unchosen_branch_eq]
 
 /-- The real execution for a corrupted receiver is the real DDH world
 `Cslib.Crypto.ddhRealExperiment q g` run on `ddhOTReduction`. -/
@@ -930,9 +900,8 @@ theorem ideal_receiver_eq_ddhRandomExperiment_of (g : G) (q : ℕ) [NeZero q] [M
     congrArg (PMF.bind _) (funext fun r =>
       congrArg (PMF.bind _) (funext fun s =>
         congrArg (PMF.bind _) (funext fun k => ?_))))
-  have hshift : ∀ (c : ZMod q) (m : G),
-      c • g - (proj₁ raw₁) • k • g + m = c • g + (m - (proj₁ raw₁) • k • g) :=
-    fun c m => by abel
+  have hshift (c : ZMod q) (m : G) :
+      c • g - (proj₁ raw₁) • k • g + m = c • g + (m - (proj₁ raw₁) • k • g) := by abel
   simp_rw [hshift]
   let σ : Bool := x 1
   let e_σ := r • g + s • (a • g)
@@ -1011,11 +980,8 @@ theorem succProbability_ddhOTUncheckedRealGame (g : G) (q : ℕ) [NeZero q] [Mod
     (b₀ b₁ : ZMod q) :
     (Game.succProbability (ProbComp.eval (ddhOTUncheckedRealGame g q b₀ b₁)) : ℝ) = 1 := by
   have hcoins : (ddhOTUncheckedProtocol g q).sampleCoins 0 = sampleDDHOTSenderCoins q := rfl
-  rw [Game.coe_succProbability]
-  simp only [ddhOTUncheckedRealGame, hcoins,
-    ddhOTSenderReplyOf_ddhOTUncheckedProtocol, ddhOTAttackBothMessages_eq, decide_true,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_const, PMF.pure_apply, ↓reduceIte,
-    ENNReal.toReal_one]
+  simp [Game.coe_succProbability, ddhOTUncheckedRealGame, hcoins,
+    ddhOTSenderReplyOf_ddhOTUncheckedProtocol, ddhOTAttackBothMessages_eq]
 
 /-- In `ddhOTUncheckedIdealGame`, every simulator `S` outputs both messages with probability at
 most `(Fintype.card G : ℝ)⁻¹`: the message it does not query is uniform and independent of its
@@ -1032,17 +998,13 @@ theorem succProbability_ddhOTUncheckedIdealGame_le
     cases τ <;> simp only [Bool.false_eq_true, ↓reduceIte]
     · refine PMF.bind_apply_le_on_support _ fun m₀ _ => ?_
       rw [PMF.bind_comm]
-      refine PMF.bind_apply_le_on_support _ fun pair _ =>
-        PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-          (congrArg Prod.snd (of_decide_eq_true hy)).symm.trans
-            (congrArg Prod.snd (of_decide_eq_true hy'))
+      exact PMF.bind_apply_le_on_support _ fun pair _ =>
+        PMF.uniformOfFintype_bind_pure_apply_true_le fun _ _ _ _ => by simp_all
     · rw [PMF.bind_comm]
       refine PMF.bind_apply_le_on_support _ fun m₁ _ => ?_
       rw [PMF.bind_comm]
-      refine PMF.bind_apply_le_on_support _ fun pair _ =>
-        PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-          (congrArg Prod.fst (of_decide_eq_true hy)).symm.trans
-            (congrArg Prod.fst (of_decide_eq_true hy'))
+      exact PMF.bind_apply_le_on_support _ fun pair _ =>
+        PMF.uniformOfFintype_bind_pure_apply_true_le fun _ _ _ _ => by simp_all
   rw [Game.coe_succProbability, ← ENNReal.toReal_natCast, ← ENNReal.toReal_inv]
   exact ENNReal.toReal_mono (by simp) h_ennreal
 

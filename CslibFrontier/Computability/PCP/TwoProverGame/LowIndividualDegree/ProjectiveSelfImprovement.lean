@@ -71,10 +71,9 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
   have hc (a b : Option α) : Commute (L.effect a) (R.effect b) :=
     commute_kroneckerOne_oneKronecker (H.effect a) (H.effect b)
   have hcomplete : 1 - 2 * ζ ≤ Measurement.agreement φ L R := by
-    have h := Measurement.one_sub_agreement_le_two_mul_successfulGap φ L R hc hmass
     change (φ L.successfulEffect).re - ∑ a, (φ (L.effect (some a) * R.effect (some a))).re ≤
       ζ at hgap
-    linarith only [h, hgap]
+    linarith only [Measurement.one_sub_agreement_le_two_mul_successfulGap φ L R hc hmass, hgap]
   have hsquare (a : Option α) : (φ (L.effect a * L.effect a)).re =
       (φ (R.effect a * R.effect a)).re := by
     change (φ ((H.effect a ⊗ₖ (1 : Local)) * (H.effect a ⊗ₖ (1 : Local)))).re =
@@ -82,18 +81,18 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
     simpa only [← mul_kronecker_mul, Matrix.one_mul] using
       congrArg Complex.re (hφ (H.effect a * H.effect a) 1)
   have hlocal : 1 - 2 * ζ ≤ ∑ a, (φ (kroneckerOne (κ := ι)
-      (H.toMeasurement.effect a * H.toMeasurement.effect a))).re := by
-    refine hcomplete.trans ((Measurement.agreement_le_sum_effect_sq_of_equal φ L R
-      (fun a => hc a a) hsquare).trans_eq ?_)
-    refine sum_congr rfl fun a _ => ?_
-    change (φ (kroneckerOne (H.effect a) * kroneckerOne (H.effect a))).re = _
-    rw [map_mul (kroneckerOne (κ := ι)), POVM.toMeasurement_effect]
+      (H.toMeasurement.effect a * H.toMeasurement.effect a))).re :=
+    hcomplete.trans <| (Measurement.agreement_le_sum_effect_sq_of_equal φ L R
+      (fun a => hc a a) hsquare).trans_eq <| sum_congr rfl fun a _ => by
+        change (φ (kroneckerOne (H.effect a) * kroneckerOne (H.effect a))).re = _
+        rw [map_mul (kroneckerOne (κ := ι)), POVM.toMeasurement_effect]
   obtain ⟨P, hP, hround⟩ := Measurement.exists_isProjective_sum_norm_map_sub_sq_le_of_le
     φ (kroneckerOne (κ := ι)) H.toMeasurement hlocal
+  have h18 : (9 : ℝ) * (2 * ζ) = 18 * ζ := by ring
   simp only [← map_sub (kroneckerOne (κ := ι))] at hround
-  simp only [POVM.toMeasurement_effect, kroneckerOne_apply] at hround
+  simp only [POVM.toMeasurement_effect, kroneckerOne_apply, h18] at hround
   refine ⟨P.toPOVM, hP, hcomplete, ?_, ?_⟩
-  · simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using hround
+  · simpa only [Measurement.toPOVM_effect] using hround
   · have he (a : Option α) :
         φ.norm ((H.effect a - P.effect a) ⊗ₖ (1 : Local)) ^ 2 =
           φ.norm ((1 : Local) ⊗ₖ (H.effect a - P.effect a)) ^ 2 := by
@@ -103,8 +102,7 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
         ← map_star (oneKronecker (ι := ι)), ← map_mul (kroneckerOne (κ := ι)),
         ← map_mul (oneKronecker (ι := ι)), kroneckerOne_apply, oneKronecker_apply]
       exact congrArg Complex.re (hφ _ _)
-    simpa only [he, Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using
-      hround
+    simpa only [he, Measurement.toPOVM_effect] using hround
 
 private theorem boundedness_le_evaluatedGap
     (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ))
@@ -123,25 +121,21 @@ private theorem boundedness_le_evaluatedGap
     simp only [evaluatePolynomialMeasurement_effect_some, mul_sum, map_sum, Complex.re_sum]
     rw [← sum_fiberwise univ (fun g : Poly => MvPolynomial.eval u g.val)
       (fun g => (φ ((A u).effect (MvPolynomial.eval u g.val) * P.effect (some g))).re)]
-    refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
-    rw [(mem_filter.mp hg).2]
+    exact sum_congr rfl fun b _ => sum_congr rfl fun g hg => by rw [(mem_filter.mp hg).2]
   have hmean (g : Poly) :
       (𝔼 u : Point F (n + 1), (φ ((A u).effect (MvPolynomial.eval u g.val) *
         P.effect (some g))).re) =
         (φ (averagePolynomialPointEffect A g * P.effect (some g))).re := by
     rw [averagePolynomialPointEffect_eq, smul_mul_assoc, sum_mul,
       AlgState.re_apply_uniformAverage]
-  simp only [hscore]
-  rw [expect_sum_comm]
-  simp only [hmean]
+  simp_rw [hscore, expect_sum_comm, hmean]
   have hle : (∑ g : Poly, (φ (averagePolynomialPointEffect A g * P.effect (some g))).re) ≤
       (φ (Z * P.successfulEffect)).re := by
     rw [Measurement.successfulEffect, mul_sum, map_sum, Complex.re_sum]
     refine sum_le_sum fun g _ => φ.re_apply_mono ?_
     rw [← sub_nonneg, ← sub_mul]
-    have hc := (hZ (some g)).sub_right
-      (commute_averagePolynomialPointEffect A g _ (hcomm (some g)))
-    exact hc.symm.mul_nonneg (sub_nonneg.mpr (hmajor g)) (P.nonneg _)
+    exact ((hZ (some g)).sub_right (commute_averagePolynomialPointEffect A g _
+      (hcomm (some g)))).symm.mul_nonneg (sub_nonneg.mpr (hmajor g)) (P.nonneg _)
   rw [P.effect_none_eq_one_sub_successfulEffect, mul_sub, mul_one, map_sub, Complex.sub_re]
   linarith only [hle]
 
@@ -185,18 +179,12 @@ private theorem exists_roundedSymmetricSelfImprovement
   let HR := QuantumStrategy.rightMeasurement (ι := ι) H
   let PL := QuantumStrategy.leftMeasurement (κ := ι) P
   let PR := QuantumStrategy.rightMeasurement (ι := ι) P
-  have haL : (∑ a, C.state.norm (HL.effect a - PL.effect a) ^ 2) ≤ 18 * ζ := by
-    change (∑ a : Option Poly, C.state.norm (kroneckerOne (H.effect a) -
-      kroneckerOne (P.effect a)) ^ 2) ≤ _
-    simp only [← map_sub (kroneckerOne (κ := ι))]
-    simp only [kroneckerOne_apply (κ := ι)]
-    exact hdistL
-  have haR : (∑ a, C.state.norm (HR.effect a - PR.effect a) ^ 2) ≤ 18 * ζ := by
-    change (∑ a : Option Poly, C.state.norm (oneKronecker (H.effect a) -
-      oneKronecker (P.effect a)) ^ 2) ≤ _
-    simp only [← map_sub (oneKronecker (ι := ι))]
-    simp only [oneKronecker_apply (ι := ι)]
-    exact hdistR
+  have haL : (∑ a, C.state.norm (HL.effect a - PL.effect a) ^ 2) ≤ 18 * ζ :=
+    (sum_congr rfl fun a _ => congrArg (C.state.norm · ^ 2)
+      (map_sub (kroneckerOne (κ := ι)) (H.effect a) (P.effect a)).symm).trans_le hdistL
+  have haR : (∑ a, C.state.norm (HR.effect a - PR.effect a) ^ 2) ≤ 18 * ζ :=
+    (sum_congr rfl fun a _ => congrArg (C.state.norm · ^ 2)
+      (map_sub (oneKronecker (ι := ι)) (H.effect a) (P.effect a)).symm).trans_le hdistR
   have hcomm (L R : POVM (Option Poly) ι) (a b : Option Poly) :
       Commute ((QuantumStrategy.leftMeasurement (κ := ι) L).effect a)
         ((QuantumStrategy.rightMeasurement (ι := ι) R).effect b) :=
@@ -206,26 +194,26 @@ private theorem exists_roundedSymmetricSelfImprovement
       |(C.state L.successfulEffect).re - (C.state R.successfulEffect).re| ≤ s := by
     refine (Measurement.abs_successfulMass_sub_le C.state L R).trans ?_
     rw [C.state.norm_sub_comm, ← Real.sqrt_sq (C.state.norm_nonneg _)]
-    apply Real.sqrt_le_sqrt
-    exact (single_le_sum (fun a _ => sq_nonneg (C.state.norm (L.effect a - R.effect a)))
-      (mem_univ (none : Option Poly))).trans h
+    exact Real.sqrt_le_sqrt ((single_le_sum (fun a _ => sq_nonneg (C.state.norm
+      (L.effect a - R.effect a))) (mem_univ (none : Option Poly))).trans h)
   have hmL := hmassClose HL PL haL
   have hmR := hmassClose HR PR haR
   have hcoarse (u : Point F (n + 1)) :
       (∑ b, C.state.norm ((evaluatePolynomialMeasurement HR u).effect b -
         (evaluatePolynomialMeasurement PR u).effect b) ^ 2) ≤ 16 * ζ + 4 * s := by
-    have h := Measurement.sum_norm_sub_sq_map_le_of_agreement C.state HL HR PR
-      (Option.map fun g => MvPolynomial.eval u g.val) (hcomm H H) (hcomm H P) hcomplete haR
-    simpa only [evaluatePolynomialMeasurement, show (8 : ℝ) * (2 * ζ) = 16 * ζ by ring] using h
+    have h16 : (8 : ℝ) * (2 * ζ) = 16 * ζ := by ring
+    simpa only [evaluatePolynomialMeasurement, h16] using
+      Measurement.sum_norm_sub_sq_map_le_of_agreement C.state HL HR PR
+        (Option.map fun g => MvPolynomial.eval u g.val) (hcomm H H) (hcomm H P) hcomplete haR
   have hscore (u : Point F (n + 1)) :
       |(∑ b, (C.state ((A u).effect b *
           (evaluatePolynomialMeasurement HR u).effect (some b))).re) -
         (∑ b, (C.state ((A u).effect b *
           (evaluatePolynomialMeasurement PR u).effect (some b))).re)| ≤ t := by
-    have h := (Measurement.abs_agreement_sub_right_le C.state ((A u).map some)
-      (evaluatePolynomialMeasurement HR u) (evaluatePolynomialMeasurement PR u)).trans
-      (Real.sqrt_le_sqrt (hcoarse u))
-    simpa only [Measurement.agreement_map_left] using h
+    simpa only [Measurement.agreement_map_left] using
+      (Measurement.abs_agreement_sub_right_le C.state ((A u).map some)
+        (evaluatePolynomialMeasurement HR u) (evaluatePolynomialMeasurement PR u)).trans
+        (Real.sqrt_le_sqrt (hcoarse u))
   have hbad (N : Measurement (Option Poly) (Matrix (ι × ι) (ι × ι) ℂ))
       (hc : ∀ a u b, Commute ((A u).effect b) (N.effect a)) (u : Point F (n + 1)) :
       Measurement.successfulMismatch C.state (evaluatePolynomialMeasurement N u) (A u) =
@@ -239,9 +227,8 @@ private theorem exists_roundedSymmetricSelfImprovement
     unfold Measurement.successfulMismatch
     simp only [mul_sub, mul_one, map_sub, Complex.sub_re, sum_sub_distrib, ← (hd _).eq,
       ← Complex.re_sum, ← map_sum]
-    rw [show (∑ b, (evaluatePolynomialMeasurement N u).effect (some b)) =
-      (evaluatePolynomialMeasurement N u).successfulEffect from rfl,
-      evaluatePolynomialMeasurement_successfulEffect]
+    change (C.state (evaluatePolynomialMeasurement N u).successfulEffect).re - _ = _
+    rw [evaluatePolynomialMeasurement_successfulEffect]
   have hA (N : POVM (Option Poly) ι) (a : Option Poly) (u : Point F (n + 1)) (b : F) :
       Commute ((A u).effect b) ((QuantumStrategy.rightMeasurement (ι := ι) N).effect a) :=
     (Measurement.commute_map_right (C.alice (.point u)) decodePoint _ (fun c =>
@@ -253,9 +240,8 @@ private theorem exists_roundedSymmetricSelfImprovement
       (Real.sqrt_le_sqrt haL)
     have hsw (N : POVM (Option Poly) ι) :
         Measurement.agreement C.state PR (QuantumStrategy.leftMeasurement (κ := ι) N) =
-          Measurement.agreement C.state (QuantumStrategy.leftMeasurement (κ := ι) N) PR := by
-      unfold Measurement.agreement
-      exact sum_congr rfl fun a _ => by rw [(hcomm N P a a).eq]
+          Measurement.agreement C.state (QuantumStrategy.leftMeasurement (κ := ι) N) PR :=
+      sum_congr rfl fun a _ => congrArg (fun X => (C.state X).re) (hcomm N P a a).symm.eq
     rw [hsw H, hsw P] at h2
     change 1 - 2 * ζ ≤ Measurement.agreement C.state HL HR at hcomplete
     linarith only [(abs_le.mp h1).2, (abs_le.mp h2).2, hcomplete]
@@ -318,10 +304,9 @@ private theorem projective_budget (m ε δ r : ℝ) (hm : 1 ≤ m)
   have hyu : y ≤ u := Real.le_sqrt_of_sq_le (by nlinarith only [mul_nonneg hy (sub_nonneg.mpr hy1)])
   have hm₀ : 0 ≤ m := zero_le_one.trans hm
   have hζ : ζ ≤ 300 * m * x := by
-    have he : √ε ≤ x := Real.sqrt_le_sqrt (le_max_left _ _)
-    have hd : √δ ≤ x := Real.sqrt_le_sqrt ((le_max_left _ _).trans (le_max_right _ _))
-    have hrr : √r ≤ x := Real.sqrt_le_sqrt ((le_max_right _ _).trans (le_max_right _ _))
-    nlinarith only [he, hd, hrr, hm₀]
+    nlinarith only [Real.sqrt_le_sqrt (le_max_left ε (max δ r)),
+      Real.sqrt_le_sqrt ((le_max_left δ r).trans (le_max_right ε _)),
+      Real.sqrt_le_sqrt ((le_max_right δ r).trans (le_max_right ε _)), hm₀]
   have hs : s ≤ 74 * m * y := by
     refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
     rw [mul_pow, mul_pow, Real.sq_sqrt hx]
@@ -404,8 +389,7 @@ theorem exists_projectiveSymmetricSelfImprovement
       hpoint.trans hpoint', hgap.trans hgap', hcopy.trans hcopy'⟩
   · let P : POVM (Option Poly) ι := POVM.const none
     have hP : P.toMeasurement.IsProjective := by
-      intro a
-      cases a <;> simp [P, POVM.const, POVM.toMeasurement_effect]
+      rintro (_ | _) <;> simp [P, POVM.const, POVM.toMeasurement_effect]
     have hκ : 1 ≤ κ := by
       have hpow : 1 ≤ r ^ (1 / 32 : ℝ) := Real.one_le_rpow (le_of_not_ge hr1) (by norm_num)
       have hsum : 1 ≤ ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ) := by
@@ -435,14 +419,9 @@ theorem exists_projectiveSymmetricSelfImprovement
         _ = 1 := G'.sum_prob C.state
     have ηnonneg : 0 ≤ η := by linarith only [hinput.trans hscore]
     have hvL (g : Poly) : (QuantumStrategy.leftMeasurement (κ := ι) P).effect (some g) = 0 := by
-      change kroneckerOne (P.effect (some g)) = 0
-      simp [P, POVM.const]
+      simp [QuantumStrategy.leftMeasurement, P, POVM.const]
     have hvR (g : Poly) : (QuantumStrategy.rightMeasurement (ι := ι) P).effect (some g) = 0 := by
-      change oneKronecker (P.effect (some g)) = 0
-      simp [P, POVM.const]
-    have hvnone : (QuantumStrategy.rightMeasurement (ι := ι) P).effect none = 1 := by
-      change oneKronecker (P.effect none) = 1
-      simp [P, POVM.const]
+      simp [QuantumStrategy.rightMeasurement, P, POVM.const]
     refine ⟨P, 1, hP, zero_le_one, fun g => (averagePolynomialPointEffect_mem_Icc _ g).2,
       ?_, ?_, ?_, ?_⟩
     · simp only [Measurement.successfulEffect, hvL, sum_const_zero, map_zero, Complex.zero_re]
@@ -450,7 +429,7 @@ theorem exists_projectiveSymmetricSelfImprovement
     · simp only [Measurement.successfulMismatch, evaluatePolynomialMeasurement_effect_some,
         hvR, sum_const_zero, zero_mul, map_zero, Complex.zero_re, Fintype.expect_const]
       exact zero_le_one.trans hκ
-    · simpa only [hvnone, one_kronecker_one, mul_one, C.state.map_one, Complex.one_re] using hκ
+    · simpa [QuantumStrategy.rightMeasurement, P, POVM.const, one_kronecker_one] using hκ
     · simp only [Measurement.successfulCopyDefect, hvL, hvR, sub_zero, AlgState.norm_zero,
         zero_pow (by decide : (2 : ℕ) ≠ 0), sum_const_zero]
       exact zero_le_one.trans hκ

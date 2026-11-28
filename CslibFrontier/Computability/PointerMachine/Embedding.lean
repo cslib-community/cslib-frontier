@@ -148,8 +148,7 @@ private theorem relabel_congr {g : ℕ → ℕ}
     (hg : ∀ a, a < x.heap.length → g a = f a) {n : Record M L} (hn : n ∈ x.heap) :
     n.relabel g = n.relabel f := by
   unfold Record.relabel
-  congr 1
-  funext r
+  congr 1 with r : 1
   exact Option.map_congr fun a ha => hg a (h.source_valid.2 n hn r a ha)
 
 private theorem create (r : Fin L.ptrRegs) :
@@ -168,29 +167,28 @@ private theorem create (r : Fin L.ptrRegs) :
     · exact (h.ptr s).trans (Option.map_congr fun a ha => hg a (h.source_valid.1 s a ha)).symm
   · intro a b ha hb hab
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha hb
-    by_cases ha' : a < x.heap.length <;> by_cases hb' : b < x.heap.length
+    rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp ha) with ha' | rfl <;>
+      rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hb) with hb' | rfl
     · exact h.injective ha' hb' (by simpa only [hg a ha', hg b hb'] using hab)
-    · rw [show b = x.heap.length by omega, hfresh, hg a ha'] at hab
-      exact absurd hab (h.bound ha').ne
-    · rw [show a = x.heap.length by omega, hfresh, hg b hb'] at hab
-      exact absurd hab.symm (h.bound hb').ne
-    · omega
+    · exact absurd (hg a ha' ▸ hfresh ▸ hab) (h.bound ha').ne
+    · exact absurd (hg b hb' ▸ hfresh ▸ hab.symm) (h.bound hb').ne
+    · rfl
   · intro a ha
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha ⊢
-    by_cases ha' : a < x.heap.length
+    rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp ha) with ha' | rfl
     · simpa only [hg a ha'] using Nat.lt_succ_of_lt (h.bound ha')
-    · simp [show a = x.heap.length by omega, hfresh]
+    · simp [hfresh]
   · intro a ha
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha
     change (y.heap ++ [Record.blank])[g a]? =
       ((x.heap ++ [Record.blank])[a]?).map (Record.relabel g)
-    by_cases ha' : a < x.heap.length
+    rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp ha) with ha' | rfl
     · rw [hg a ha', List.getElem?_append_left (h.bound ha'), List.getElem?_append_left ha',
         h.heap ha']
       cases hn : x.heap[a]? with
       | none => rfl
       | some n => simp [h.relabel_congr hg (List.mem_of_getElem? hn)]
-    · simp [show a = x.heap.length by omega, hfresh, Record.relabel, Record.blank]
+    · simp [hfresh, Record.relabel, Record.blank]
 
 /-- Every instruction preserves heap embeddings. Allocation extends the map at the fresh
 source address and leaves its values on all previously allocated source addresses unchanged. -/
@@ -199,15 +197,12 @@ theorem effect (i : Instr M L) :
   cases i with
   | create r => exact h.create r
   | null r => exact ⟨f, fun _ _ => rfl, h.setPtr r none (by simp)⟩
-  | movePtr r r' =>
-    refine ⟨f, fun _ _ => rfl, ?_⟩
-    simpa only [Instr.effect, h.ptr] using h.setPtr r (x.ptr r') (h.source_valid.1 r')
-  | moveData s s' =>
-    refine ⟨f, fun _ _ => rfl, ?_⟩
-    simpa only [Instr.effect, h.data] using h.setData s (x.data s')
-  | op o s s₁ s₂ =>
-    refine ⟨f, fun _ _ => rfl, ?_⟩
-    simpa only [Instr.effect, h.data] using h.setData s (M.evalOp o (x.data s₁) (x.data s₂))
+  | movePtr r r' => exact ⟨f, fun _ _ => rfl,
+      by simpa only [Instr.effect, h.ptr] using h.setPtr r (x.ptr r') (h.source_valid.1 r')⟩
+  | moveData s s' => exact ⟨f, fun _ _ => rfl,
+      by simpa only [Instr.effect, h.data] using h.setData s (x.data s')⟩
+  | op o s s₁ s₂ => exact ⟨f, fun _ _ => rfl, by
+      simpa only [Instr.effect, h.data] using h.setData s (M.evalOp o (x.data s₁) (x.data s₂))⟩
   | loadPtr r field base =>
     refine ⟨f, fun _ _ => rfl, ?_⟩
     simp only [Instr.effect, h.deref]
@@ -227,8 +222,7 @@ theorem effect (i : Instr M L) :
       (Instr.effect_valid (i := .storePtr field base r) h.source_valid)
       (Instr.effect_valid (i := .storePtr field base r) h.target_valid) fun n _ => ?_⟩
     simp only [Record.relabel, h.ptr]
-    congr 1
-    funext s
+    congr 1 with s
     simp only [Function.update_apply, apply_ite (Option.map f)]
   | storeData field base s =>
     refine ⟨f, fun _ _ => rfl, h.modify base _ _

@@ -104,11 +104,7 @@ theorem glAmpCandidate_glAmp (f : BooleanFunction n) (hK : 0 < K) (masks : Fin K
     (y : Fin k → BitString n) :
     glAmpCandidate (glAmp f k) masks (fun j => (fun i => f (y i)) ⬝ᵥ masks j) y =
       fun i => f (y i) := by
-  have hpred : (fun r => glAmp f k (Fin.append (BitString.blocksEquiv.symm y) r)) =
-      fun r => (fun i => f (y i)) ⬝ᵥ r := by
-    funext r
-    rw [glAmp_append, BitString.block_blocksEquiv_symm]
-  rw [glAmpCandidate_apply, hpred]
+  simp only [glAmpCandidate_apply, glAmp_append, BitString.block_blocksEquiv_symm]
   exact Crypto.GoldreichLevin.candidate_parity _ masks hK
 
 /-- **Claim 4.4 of Carmosino, Impagliazzo, Kabanets and Kolokolova, in library form.** If `h`

@@ -145,9 +145,8 @@ theorem toCostGame_cost (i : ι) (s : ∀ i, S i) :
 primary PDF). -/
 theorem isPureNash_toCostGame_iff [DecidableEq ι] (hw : ∀ i, 0 < W.weight i) {s : ∀ i, S i} :
     W.toCostGame.IsPureNash s ↔
-      ∀ i (a : S i), W.unitCost i s ≤ W.unitCost i (Function.update s i a) := by
-  refine forall₂_congr fun i a => ?_
-  simp only [toCostGame_cost, mul_le_mul_iff_right₀ (hw i)]
+      ∀ i (a : S i), W.unitCost i s ≤ W.unitCost i (Function.update s i a) :=
+  forall₂_congr fun i _ => mul_le_mul_iff_right₀ (hw i)
 
 /-- Exchanging sums over players and resources: summing `weight i * f e` over every player's chosen
 resources weights each resource `e` by `load s e`. -/
@@ -221,12 +220,8 @@ as `W`. -/
 theorem toCostGame_toUniformCongestionGame (w : ℝ) (hw : ∀ i, W.weight i = w) :
     (W.toUniformCongestionGame w).toCostGame = W.toCostGame := by
   unfold CongestionGame.toCostGame toCostGame
-  congr
-  funext i s
-  simp only [unitCost, hw i, Finset.mul_sum]
-  refine Finset.sum_congr rfl fun e _ => ?_
-  rw [W.load_eq_uniform w hw s e]
-  rfl
+  congr with i s
+  simp [toUniformCongestionGame, unitCost, hw i, Finset.mul_sum, W.load_eq_uniform w hw s]
 
 /-- **Equilibrium existence for equal-weight atomic congestion games**
 ([NisanRoughgardenTardosVazirani2007], Chapter 18, Theorem 18.12; locator not re-verified against
@@ -273,9 +268,8 @@ theorem affinePotential_update_sub [DecidableEq ι] [Fintype E] {a b : E → ℝ
     (hl : ∀ e x, W.latency e x = a e * x + b e) (s : ∀ j, S j) (i : ι) (a' : S i) :
     W.affinePotential (Function.update s i a') - W.affinePotential s =
       2 * W.weight i * (W.unitCost i (Function.update s i a') - W.unitCost i s) := by
-  let s' := Function.update s i a'
-  change W.affinePotential s' - W.affinePotential s =
-    2 * W.weight i * (W.unitCost i s' - W.unitCost i s)
+  set s' := Function.update s i a' with hs'_def
+  have hs'i : s' i = a' := Function.update_self i a' s
   have hself (t : ∀ j, S j) (e : E) :
       (∑ j with e ∈ W.resources j (t j), W.weight j * W.latency e (W.weight j)) =
         (if e ∈ W.resources i (t i) then W.weight i * W.latency e (W.weight i) else 0) +
@@ -295,15 +289,14 @@ theorem affinePotential_update_sub [DecidableEq ι] [Fintype E] {a b : E → ℝ
         ∑ j ∈ Finset.univ.erase i,
           if e ∈ W.resources j (s j) then W.weight j * W.latency e (W.weight j) else 0 :=
       Finset.sum_congr rfl fun j hj => by
-        simp only [s', Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-    rw [hself s' e, hself s e, hrest, show s' i = a' from Function.update_self i a' s,
-      show W.load s' e = W.load (Function.update s i a') e from rfl, W.load_update s i a' e]
+        simp only [hs'_def, Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+    rw [hself s' e, hself s e, hrest, hs'i, hs'_def, W.load_update s i a' e]
     simp only [hl]
     by_cases h1 : e ∈ W.resources i (s i) <;> by_cases h2 : e ∈ W.resources i a' <;>
       simp only [h1, h2, ↓reduceIte] <;> ring
   rw [affinePotential_def, affinePotential_def, ← Finset.sum_sub_distrib]
   simp only [hpt, ← Finset.mul_sum, Finset.sum_sub_distrib, Finset.sum_ite_mem, Finset.univ_inter]
-  rw [unitCost, unitCost, show s' i = a' from Function.update_self i a' s]
+  rw [unitCost, unitCost, hs'i]
 
 /-- Half of `affinePotential` is an **exact potential** of `toCostGame` whenever latencies are
 affine ([NisanRoughgardenTardosVazirani2007], Chapter 18, Exercise 18.4 and Chapter 19,
@@ -312,9 +305,8 @@ theorem isExactPotential_half_affinePotential_of_forall [DecidableEq ι] [Fintyp
     (hl : ∀ e x, W.latency e x = a e * x + b e) :
     W.toCostGame.IsExactPotential (fun s => 1 / 2 * W.affinePotential s) := by
   intro s i a'
-  have h := W.affinePotential_update_sub hl s i a'
-  simp only [toCostGame_cost]
-  linarith
+  dsimp only [toCostGame]
+  linarith [W.affinePotential_update_sub hl s i a']
 
 variable {W}
 
@@ -447,9 +439,8 @@ private def gmvImprover (s : Fin 2 → Fin 4) : Fin 2 × Fin 4 :=
 private lemma gmvLoad_eq (s : Fin 2 → Fin 4) (e : Fin 6) :
     gmvGame.load s e =
       (if e ∈ gmvPaths (s 0) then 1 else 0) + (if e ∈ gmvPaths (s 1) then 2 else 0) := by
-  rw [gmvGame.load_eq_ite_add_erase s 0 e]
-  have h1 : (Finset.univ.erase (0 : Fin 2)) = {1} := by decide
-  rw [h1]
+  have h1 : (Finset.univ.erase (0 : Fin 2)) = {1} := rfl
+  rw [gmvGame.load_eq_ite_add_erase s 0 e, h1]
   simp [gmvGame]
 
 /-- **Weighted congestion games with quadratic latencies need not have pure Nash equilibria**

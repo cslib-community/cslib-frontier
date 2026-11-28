@@ -135,17 +135,12 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
                 (⟨w.length, b, σ, i.val, m, 0, r * m⟩ : Interpolation.Context) x, r)) := by
         simp only [initial, htag, show ImplicitPath.walk k address ≠ 0 from hz,
           ↓reduceIte, hprepare, i]
-      refine ⟨T, values, ?_, ?_, ?_, ?_⟩
+      refine ⟨T, values, ?_, ?_, fun j => ?_, fun t ht => ?_⟩
       · rw [hstart, runFrom_inr]
         exact hhalt
-      · rw [hstart, runFrom_inr, hrun]
-        rfl
-      · intro j
-        rw [hnode]
-        rw [hi] at hvalues
-        exact hvalues j
-      · intro t ht
-        change (encState ((machine M e).runFrom w (initial M e (address, params)) t)).length ≤ _
+      · rw [hstart, runFrom_inr, hrun]; rfl
+      · simpa only [hnode, hi] using hvalues j
+      · change (encState ((machine M e).runFrom w (initial M e (address, params)) t)).length ≤ _
         rw [hstart, runFrom_inr]
         have hlocal := hsize t ht
         change (GateVector.encState ((GateVector.machine M e).runFrom w

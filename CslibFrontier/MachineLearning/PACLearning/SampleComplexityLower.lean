@@ -74,10 +74,8 @@ variable {α : Type*} [MeasurableSpace α]
 open Classical in
 private lemma measurable_decide_mem {c : Set α} (hc : MeasurableSet c) :
     Measurable (fun x : α => decide (x ∈ c)) := by
-  refine measurable_to_bool ?_
-  convert hc using 1
-  ext x
-  simp
+  have h : (fun x : α => decide (x ∈ c)) ⁻¹' {true} = c := Set.ext fun _ => by simp
+  exact measurable_to_bool (h.symm ▸ hc)
 
 private lemma measurable_graph_of_bool {c : α → Bool} (hc : Measurable c) :
     Measurable (fun x : α => (x, c x)) :=
@@ -106,11 +104,8 @@ theorem pi_map_sampleOf
     Measurable.prodMk measurable_id (measurable_decide_mem hc)
   -- vendored: the pinned Mathlib makes `IsProbabilityMeasure (P.map f)` a global instance and
   -- removes `Measure.isProbabilityMeasure_map`, so the local instances are dropped.
-  have hsampleOf_eq : (sampleOf c : (Fin m → α) → LabeledSample α Bool m) =
-      (fun xs i => (fun x : α => (x, decide (x ∈ c))) (xs i)) := by
-    funext xs i; rfl
-  rw [hsampleOf_eq]
-  exact (Measure.pi_map_pi (fun _ => hmeasf.aemeasurable)).symm
+  exact (Measure.pi_map_pi (f := fun _ (x : α) => (x, decide (x ∈ c)))
+    (fun _ => hmeasf.aemeasurable)).symm
 
 open Classical in
 /-- The realizable joint distribution `P.map (x ↦ (x, c x))` has zero error
@@ -118,10 +113,11 @@ against `c` itself. -/
 theorem error_realizable_self_eq_zero
     (P : Measure α) {c : α → Bool} (hc_meas : Measurable c) :
     error (P.map (fun x : α => (x, c x))) c = 0 := by
-  simp only [error]
-  rw [Measure.map_apply (measurable_graph_of_bool hc_meas) (measurableSet_ne_bool c hc_meas),
-    show (fun x : α => (x, c x)) ⁻¹' {p : α × Bool | c p.1 ≠ p.2} = ∅ from by ext x; simp]
-  exact measure_empty
+  have hpre : (fun x : α => (x, c x)) ⁻¹' {p : α × Bool | c p.1 ≠ p.2} = ∅ :=
+    Set.ext fun _ => by simp
+  simp only [error,
+    Measure.map_apply (measurable_graph_of_bool hc_meas) (measurableSet_ne_bool c hc_meas),
+    hpre, measure_empty]
 
 open Classical in
 /-- For a concept `c ∈ C`, the realizable distribution `P.map (x ↦ (x, c x))`
@@ -232,10 +228,9 @@ private lemma joint_failure_eq_marginal
   rw [hev_rewrite, hπ_eq]
   -- Now apply Measure.map_apply₀ to the rewritten event.
   have hmeasSampleOf :
-      Measurable (sampleOf (c ⁻¹' {true}) : (Fin m → α) → LabeledSample α Bool m) := by
-    refine measurable_pi_iff.mpr fun i => ?_
-    refine (measurable_pi_apply i).prodMk ?_
-    exact (measurable_decide_mem hc_set).comp (measurable_pi_apply i)
+      Measurable (sampleOf (c ⁻¹' {true}) : (Fin m → α) → LabeledSample α Bool m) :=
+    measurable_pi_iff.mpr fun i =>
+      (measurable_pi_apply i).prodMk ((measurable_decide_mem hc_set).comp (measurable_pi_apply i))
   -- The rewritten event is null-measurable w.r.t. the pushforward measure
   -- (which equals `D^m`, a finitely-supported pi-product).
   have hnull : NullMeasurableSet
@@ -278,33 +273,26 @@ theorem sample_complexity_lower_bound_randomized
   push Not at h
   -- ε, δ in `ℝ≥0∞` form. The `nnreal_eq_ofReal_toReal` rewrite below converts
   -- `(x.val : ℝ≥0∞)` to `ENNReal.ofReal x.val.toReal`, enabling `ofReal`-style bounds.
-  set εE : ℝ≥0∞ := (ε.val : ℝ≥0∞) with hεE_def
-  set δE : ℝ≥0∞ := (δ.val : ℝ≥0∞) with hδE_def
-  have hε'_pos : 0 < ε.val.toReal := NNReal.coe_pos.mpr ε.property.1
-  have hεE_pos : 0 < εE := by rw [hεE_def]; exact_mod_cast ε.property.1
-  have nnreal_eq_ofReal_toReal : ∀ (x : NNReal),
-      (x : ℝ≥0∞) = ENNReal.ofReal x.toReal := fun _ => ENNReal.ofReal_coe_nnreal.symm
-  have hεE_le : εE ≤ ENNReal.ofReal (1 / 8) := by
-    rw [hεE_def, nnreal_eq_ofReal_toReal]
-    exact ENNReal.ofReal_le_ofReal hε_le
-  have hδE_lt : δE < ENNReal.ofReal (1 / 14) := by
-    rw [hδE_def, nnreal_eq_ofReal_toReal]
-    exact (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hδ_lt
-  have h32ε_pos : (0 : ℝ) < 32 * ε.val.toReal := by positivity
-  have hW_sub : (0 : ℝ) < (W.card : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ (W.card : ℝ) := by exact_mod_cast hW_card
-    linarith
-  have hε_toReal : ENNReal.toReal εE = ε.val.toReal := by rw [hεE_def]; simp
+  let εE : ℝ≥0∞ := ε.val
+  let δE : ℝ≥0∞ := δ.val
+  have hεE_pos : 0 < εE := ENNReal.coe_pos.mpr ε.property.1
+  have hεE_le : (ε.val : ℝ≥0∞) ≤ ENNReal.ofReal (1 / 8) :=
+    ENNReal.ofReal_coe_nnreal ▸ ENNReal.ofReal_le_ofReal hε_le
+  have hδE_lt : (δ.val : ℝ≥0∞) < ENNReal.ofReal (1 / 14) :=
+    ENNReal.ofReal_coe_nnreal ▸ (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hδ_lt
+  have h32ε_pos : (0 : ℝ) < 32 * ε.val.toReal :=
+    mul_pos (by norm_num) (NNReal.coe_pos.mpr ε.property.1)
+  have hW_sub : (0 : ℝ) < (W.card : ℝ) - 1 :=
+    sub_pos.mpr (one_lt_two.trans_le (Nat.ofNat_le_cast.mpr hW_card))
   have hm_ennreal : (↑m : ℝ≥0∞) < ENNReal.ofReal
       ((W.card - 1 : ℝ) / (32 * ENNReal.toReal εE)) := by
-    rw [← ENNReal.ofReal_natCast (n := m), hε_toReal]
+    rw [← ENNReal.ofReal_natCast (n := m)]
     exact (ENNReal.ofReal_lt_ofReal_iff (div_pos hW_sub h32ε_pos)).mpr h
   -- Project `C` to `Set α` via the characteristic-set map and verify shattering.
   set C_set : Set (Set α) := {s | ∃ c ∈ C, c ⁻¹' {true} = s}
-  have hW_set : ∀ W' ⊆ (↑W : Set α), ∃ s ∈ C_set, s ∩ ↑W = W' := by
-    intro W' hW'
-    obtain ⟨c, hc, hc_eq⟩ := hW W' hW'
-    exact ⟨c ⁻¹' {true}, ⟨c, hc, rfl⟩, hc_eq⟩
+  have hW_set : ∀ W' ⊆ (↑W : Set α), ∃ s ∈ C_set, s ∩ ↑W = W' := fun W' hW' =>
+    let ⟨c, hc, hc_eq⟩ := hW W' hW'
+    ⟨c ⁻¹' {true}, ⟨c, hc, rfl⟩, hc_eq⟩
   -- Extract the randomized learner.
   obtain ⟨Ω, mΩ, Q, hQ, A, hA⟩ := hlearn
   -- Set-valued projection of the learner.
@@ -320,11 +308,9 @@ theorem sample_complexity_lower_bound_randomized
         {S : LabeledSample α Bool m |
           error (P.map (fun x => (x, c x))) (A ω S) > εE} ∂Q ≤ ↑δ.val := by
     intro P hP_prob c hc
-    have hc_meas := hC_meas c hc
     -- vendored: local `IsProbabilityMeasure (P.map _)` instance dropped, as above.
-    have ⟨haem, hint⟩ := hA _ (h_real P hP_prob c hc)
-    rw [optimalError_realizable_eq_zero P hc hc_meas, zero_add] at haem hint
-    exact ⟨haem, hint⟩
+    simpa only [optimalError_realizable_eq_zero P hc (hC_meas c hc), zero_add] using
+      hA _ (h_real P hP_prob c hc)
   -- AE-measurability of marginal failure (for `P` supported on `↑W`) from
   -- joint AE-measurability via `joint_failure_eq_marginal`.
   have hA_aem : ∀ (P : Measure α) [IsProbabilityMeasure P],
@@ -332,35 +318,22 @@ theorem sample_complexity_lower_bound_randomized
         AEMeasurable (fun ω => (Measure.pi (fun _ : Fin m => P))
           {xs : Fin m → α |
             hypothesisError P ((A_set ω) (sampleOf s xs)) s > εE}) Q := by
-    intro P hP_prob hP_supp s hs
-    obtain ⟨c_bool, hc_bool_mem, hc_bool_eq⟩ := hs
-    have hcb_meas := hC_meas c_bool hc_bool_mem
-    obtain ⟨hjoint_aem, _⟩ := collapsed P hc_bool_mem
-    subst hc_bool_eq
-    exact hjoint_aem.congr (Filter.Eventually.of_forall fun ω =>
-      joint_failure_eq_marginal (m := m) hP_supp hcb_meas (A ω) εE)
+    rintro P hP_prob hP_supp _ ⟨c_bool, hc_bool_mem, rfl⟩
+    exact (collapsed P hc_bool_mem).1.congr (Filter.Eventually.of_forall fun ω =>
+      joint_failure_eq_marginal (m := m) hP_supp (hC_meas c_bool hc_bool_mem) (A ω) εE)
   -- Apply the EHKV witness lemma.
   obtain ⟨P, hP_prob, hP_supp, c_set, hc_set_mem, hbad⟩ :=
     exists_bad_concept_marginal hW_set hW_card hεE_pos hεE_le hδE_lt
       hm_ennreal Q A_set hA_aem
   -- vendored: `haveI` becomes `have` (the pinned Mathlib's `haveI` style linter).
   have := hP_prob
-  obtain ⟨c_bool, hc_bool_mem, hc_bool_eq⟩ := hc_set_mem
-  have hcb_meas := hC_meas c_bool hc_bool_mem
+  obtain ⟨c_bool, hc_bool_mem, rfl⟩ := hc_set_mem
   obtain ⟨_, hPAC⟩ := collapsed P hc_bool_mem
   -- Bridge: pointwise equality joint = marginal, hence the integrals agree.
-  have hint_eq : ∫⁻ ω, (Measure.pi (fun _ : Fin m =>
-        P.map (fun x : α => (x, c_bool x))))
-          {S : LabeledSample α Bool m |
-            error (P.map (fun x : α => (x, c_bool x))) (A ω S) > εE} ∂Q =
-      ∫⁻ ω, (Measure.pi (fun _ : Fin m => P))
-        {xs : Fin m → α |
-          hypothesisError P ((A_set ω) (sampleOf c_set xs)) c_set > εE} ∂Q := by
-    subst hc_bool_eq
-    exact lintegral_congr fun ω => joint_failure_eq_marginal hP_supp hcb_meas (A ω) εE
+  have hint_eq := lintegral_congr (μ := Q) fun ω =>
+    joint_failure_eq_marginal hP_supp (hC_meas c_bool hc_bool_mem) (A ω) εE
   -- Combine: ∫ marginal ≤ δE  (from PAC + bridge) contradicts δE < ∫ marginal.
-  rw [hint_eq] at hPAC
-  exact absurd hPAC (not_le.mpr hbad)
+  exact absurd (hint_eq ▸ hPAC) (not_le.mpr hbad)
 
 /-- Deterministic specialization via `IsPACLearnerFor.toIsRPACLearnerFor`. -/
 theorem sample_complexity_lower_bound
@@ -424,9 +397,8 @@ theorem sample_complexity_lower_bound_vcDim
     Set.nonempty_iff_ne_empty.mpr fun h => by simpa using (h ▸ hvc : (2 : ℕ) ≤ sSup (∅ : Set ℕ))
   obtain ⟨W, hWcard, hW⟩ := Nat.sSup_mem hne hbdd
   have hvc_eq : vcDim C = W.card := hWcard.symm
-  rw [hvc_eq]
-  exact sample_complexity_lower_bound_randomized hW (hvc_eq ▸ hvc) hε_le hδ_lt hC_meas
-    h_real hlearn
+  rw [hvc_eq] at hvc ⊢
+  exact sample_complexity_lower_bound_randomized hW hvc hε_le hδ_lt hC_meas h_real hlearn
 
 /-- Lower bound on deterministic sample complexity in terms of `vcDim`. -/
 theorem sampleComplexity_lower_bound_vcDim
@@ -439,10 +411,9 @@ theorem sampleComplexity_lower_bound_vcDim
     (h_real : ∀ (P : Measure α), IsProbabilityMeasure P → ∀ c ∈ C,
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearnable : {n : ℕ | IsPACLearnerFor n ε δ C 𝒟}.Nonempty) :
-    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ sampleComplexity IsPACLearnerFor C ε δ 𝒟 := by
-  have hmem : IsPACLearnerFor _ ε δ C 𝒟 := Nat.sInf_mem hlearnable
-  exact sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
-    (IsPACLearnerFor.toIsRPACLearnerFor.{_, _, 0} hmem)
+    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ sampleComplexity IsPACLearnerFor C ε δ 𝒟 :=
+  sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
+    (IsPACLearnerFor.toIsRPACLearnerFor.{_, _, 0} (Nat.sInf_mem hlearnable))
 
 /-- Lower bound on randomized sample complexity in terms of `vcDim`. -/
 theorem rsampleComplexity_lower_bound_vcDim
@@ -455,9 +426,9 @@ theorem rsampleComplexity_lower_bound_vcDim
     (h_real : ∀ (P : Measure α), IsProbabilityMeasure P → ∀ c ∈ C,
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearnable : {n : ℕ | IsRPACLearnerFor.{_, _, 0} n ε δ C 𝒟}.Nonempty) :
-    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ rsampleComplexity C ε δ 𝒟 := by
-  have hmem : IsRPACLearnerFor _ ε δ C 𝒟 := Nat.sInf_mem hlearnable
-  exact sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real hmem
+    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ rsampleComplexity C ε δ 𝒟 :=
+  sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
+    (Nat.sInf_mem hlearnable)
 
 end EHKVLowerBound
 

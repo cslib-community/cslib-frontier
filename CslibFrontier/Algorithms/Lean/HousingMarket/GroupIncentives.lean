@@ -84,9 +84,7 @@ variable {n : ℕ}
 
 @[ext]
 theorem ext {I J : Instance n} (h : ∀ i, I.pref i = J.pref i) : I = J := by
-  cases I
-  cases J
-  simpa using funext h
+  exact congrArg Instance.mk (funext h)
 
 variable (I : Instance n)
 
@@ -99,8 +97,7 @@ variable {I}
 
 @[simp] theorem updatePrefs_empty (π : Fin n → Equiv.Perm (Fin n)) :
     I.updatePrefs ∅ π = I := by
-  ext j
-  simp [updatePrefs]
+  exact ext fun _ => by simp [updatePrefs]
 
 theorem updatePrefs_singleton (i : Fin n) (π : Fin n → Equiv.Perm (Fin n)) :
     I.updatePrefs {i} π = I.updatePref i (π i) := by
@@ -123,17 +120,14 @@ theorem updatePrefs_insert {S : Finset (Fin n)} {i : Fin n} (hi : i ∉ S)
 
 theorem updatePrefs_rank_of_notMem {S : Finset (Fin n)} {j : Fin n} (hj : j ∉ S)
     (π : Fin n → Equiv.Perm (Fin n)) : (I.updatePrefs S π).rank j = I.rank j := by
-  funext h
-  rw [rank, rank, updatePrefs_pref_of_notMem hj]
+  exact funext fun _ => by simp [rank, updatePrefs_pref_of_notMem hj]
 
 @[simp] theorem updatePref_self (i : Fin n) : I.updatePref i (I.pref i) = I := by
-  ext j
-  simp [updatePref]
+  exact ext fun _ => by simp [updatePref]
 
 @[simp] theorem updatePref_idem (i : Fin n) (π₁ π₂ : Equiv.Perm (Fin n)) :
     (I.updatePref i π₁).updatePref i π₂ = I.updatePref i π₂ := by
-  ext j
-  simp [updatePref]
+  exact ext fun _ => by simp [updatePref]
 
 @[simp] theorem updatePref_pref_self (i : Fin n) (π : Equiv.Perm (Fin n)) :
     (I.updatePref i π).pref i = π := by
@@ -152,9 +146,7 @@ private theorem eq_ttcRounds_of_forall_rank_le {J : Instance n} {S : Finset (Fin
     (hle : ∀ i ∈ S, i ∈ R → I.rank i (J.ttc i) ≤ I.rank i (I.ttcRounds k R i)) :
     ∀ x ∈ R, J.ttc x = I.ttcRounds k R x := by
   induction k generalizing R with
-  | zero =>
-    intro x hx
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro x hx
     set C := I.cycleAgents R
@@ -207,8 +199,7 @@ theorem ttc_updatePref_eq_of_apply_eq {i : Fin n} {π : Equiv.Perm (Fin n)}
     (h : (I.updatePref i π).ttc i = I.ttc i) :
     (I.updatePref i π).ttc = I.ttc := by
   refine I.eq_ttc_of_forall_rank_le (S := {i})
-    (fun j hj => I.updatePref_pref_of_ne π (Finset.notMem_singleton.1 hj)) ?_
-  intro j hj
+    (fun j hj => I.updatePref_pref_of_ne π (Finset.notMem_singleton.1 hj)) fun j hj => ?_
   rw [Finset.mem_singleton.1 hj, h]
 
 end Instance
@@ -251,9 +242,8 @@ and at least one member of `S` is strictly better off. -/
       ∃ i ∈ S, I.rank i (M (I.updatePrefs S π) i) < I.rank i (M I i))
 
 theorem IsGroupStrategyProof.isWeakGroupStrategyProof {M : HousingMechanism n}
-    (h : M.IsGroupStrategyProof) : M.IsWeakGroupStrategyProof := by
-  intro I S π ⟨i₀, hi₀⟩ hlt
-  exact h I S π ⟨fun i hi => (hlt i hi).le, i₀, hi₀, hlt i₀ hi₀⟩
+    (h : M.IsGroupStrategyProof) : M.IsWeakGroupStrategyProof :=
+  fun I S π ⟨i₀, hi₀⟩ hlt => h I S π ⟨fun i hi => (hlt i hi).le, i₀, hi₀, hlt i₀ hi₀⟩
 
 theorem IsWeakGroupStrategyProof.isStrategyProof {M : HousingMechanism n}
     (h : M.IsWeakGroupStrategyProof) : M.IsStrategyProof := by
@@ -270,39 +260,25 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
     (h : M.IsGroupStrategyProof) : M.IsNonBossy := by
   intro I i π heq
   by_contra hne
-  obtain ⟨j, hj_ne⟩ : ∃ j, M (I.updatePref i π) j ≠ M I j := by
-    by_contra! hall
-    exact hne (Equiv.ext hall)
+  obtain ⟨j, hj_ne⟩ := not_forall.1 (mt Equiv.ext hne)
   have hji : j ≠ i := fun h0 => hj_ne (h0 ▸ heq)
   rcases lt_or_gt_of_ne fun hr => hj_ne (I.rank_injective j hr) with hlt | hgt
   · have hupd : I.updatePrefs {i, j} (fun k => if k = i then π else I.pref k) =
         I.updatePref i π := by
       ext k
-      rcases eq_or_ne k i with rfl | hki
-      · simp [Instance.updatePrefs]
-      · rcases eq_or_ne k j with rfl | hkj
-        · simp [Instance.updatePrefs, hji, Instance.updatePref_pref_of_ne _ hji]
-        · simp [Instance.updatePrefs, hki, hkj, Instance.updatePref_pref_of_ne _ hki]
-    refine h I {i, j} _ ⟨fun k hk => ?_, j, by simp, hupd.symm ▸ hlt⟩
-    rw [hupd]
-    rcases Finset.mem_insert.1 hk with rfl | hkj
-    · rw [heq]
-    · exact Finset.mem_singleton.1 hkj ▸ hlt.le
+      by_cases hki : k = i <;> simp [Instance.updatePrefs, Instance.updatePref_pref_of_ne, hki]
+    exact h I {i, j} _ ⟨(Finset.forall_mem_insert _ _ _).2 ⟨by rw [hupd, heq],
+      fun _ hk => by simpa only [Finset.mem_singleton.1 hk, hupd] using hlt.le⟩,
+      j, by simp, hupd.symm ▸ hlt⟩
   · set I' := I.updatePref i π
     have hupd' : I'.updatePrefs {i, j} I.pref = I := by
       ext k
-      rcases eq_or_ne k i with rfl | hki
-      · simp [Instance.updatePrefs]
-      · rcases eq_or_ne k j with rfl | hkj
-        · simp [Instance.updatePrefs]
-        · simp [Instance.updatePrefs, I', hki, hkj, Instance.updatePref_pref_of_ne _ hki]
-    have hrj : I'.rank j = I.rank j := I.updatePref_rank_of_ne π hji
-    refine h I' {i, j} I.pref ⟨fun k hk => ?_, j, by simp, by rwa [hupd', hrj]⟩
-    rw [hupd']
-    rcases Finset.mem_insert.1 hk with rfl | hkj
-    · rw [heq]
-    · rw [Finset.mem_singleton.1 hkj, hrj]
-      exact hgt.le
+      by_cases hki : k = i <;> simp [Instance.updatePrefs, I', Instance.updatePref_pref_of_ne, hki]
+    have hj_lt : I'.rank j (M (I'.updatePrefs {i, j} I.pref) j) < I'.rank j (M I' j) := by
+      rwa [hupd', I.updatePref_rank_of_ne π hji]
+    exact h I' {i, j} I.pref ⟨(Finset.forall_mem_insert _ _ _).2 ⟨by rw [hupd', heq],
+      fun _ hk => by simpa only [Finset.mem_singleton.1 hk] using hj_lt.le⟩,
+      j, by simp, hj_lt⟩
 
 /-! #### Two-slot masking permutation for `(SP ∧ NonBossy) → GSP` -/
 
@@ -329,14 +305,11 @@ private theorem topTwoPerm_apply_zero (a b : Fin n) :
   · have hz01 : z₀ ≠ ⟨1, by have := Fin.val_ne_of_ne h; omega⟩ :=
       fun heq => by simpa [z₀] using congrArg Fin.val heq
     have hz0k : z₀ ≠ σ₀.symm b := fun heq => h (by simpa [σ₀] using congrArg σ₀ heq)
-    rw [Equiv.trans_apply, Equiv.swap_apply_of_ne_of_ne hz01 hz0k]
-    exact Equiv.swap_apply_left z₀ a
+    rw [Equiv.trans_apply, Equiv.swap_apply_of_ne_of_ne hz01 hz0k, Equiv.swap_apply_left]
 
 private theorem topTwoPerm_symm_fst_val (a b : Fin n) :
     ((topTwoPerm a b).symm a).val = 0 := by
-  have := congrArg (topTwoPerm a b).symm (topTwoPerm_apply_zero a b)
-  rw [Equiv.symm_apply_apply] at this
-  exact congrArg Fin.val this.symm
+  simpa using congrArg (fun x => ((topTwoPerm a b).symm x).val) (topTwoPerm_apply_zero a b).symm
 
 private theorem eq_or_eq_of_topTwoPerm_symm_le {a b x : Fin n}
     (hle : (topTwoPerm a b).symm x ≤ (topTwoPerm a b).symm b) :
@@ -345,18 +318,14 @@ private theorem eq_or_eq_of_topTwoPerm_symm_le {a b x : Fin n}
   have ha0 : (topTwoPerm a b).symm a = ⟨0, a.pos⟩ := Fin.ext (topTwoPerm_symm_fst_val a b)
   by_cases hab : a = b
   · subst hab
-    have hx0 : ((topTwoPerm a a).symm x).val = 0 := by
-      have hval : ((topTwoPerm a a).symm x).val ≤ ((topTwoPerm a a).symm a).val := hle
-      rw [ha0] at hval
-      exact Nat.eq_zero_of_le_zero hval
+    have hx0 : ((topTwoPerm a a).symm x).val = 0 :=
+      Nat.eq_zero_of_le_zero (by simpa only [Fin.le_def, ha0] using hle)
     exact Or.inl ((topTwoPerm a a).symm.injective ((Fin.ext hx0).trans ha0.symm))
   · have hn2 : 2 ≤ n := by have := Fin.val_ne_of_ne hab; omega
-    have hb1 : (topTwoPerm a b).symm b = ⟨1, hn2⟩ := by
-      apply (topTwoPerm a b).injective
-      simp [topTwoPerm, hab, Equiv.trans_apply]
-    have hx_le : ((topTwoPerm a b).symm x).val ≤ 1 := by
-      simpa only [Fin.le_def, hb1] using hle
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hx_le with hx0 | hx1
+    have hb1 : (topTwoPerm a b).symm b = ⟨1, hn2⟩ :=
+      (topTwoPerm a b).injective (by simp [topTwoPerm, hab, Equiv.trans_apply])
+    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 (by simpa only [Fin.le_def, hb1] using hle) with
+      hx0 | hx1
     · exact Or.inl ((topTwoPerm a b).symm.injective ((Fin.ext hx0).trans ha0.symm))
     · exact Or.inr ((topTwoPerm a b).symm.injective ((Fin.ext hx1).trans hb1.symm))
 
@@ -371,26 +340,21 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
   set J := I.updatePrefs S π
   let πStar : Fin n → Equiv.Perm (Fin n) := fun i => topTwoPerm (M J i) (M I i)
   -- Step 1: moving `T ⊆ S` from `J` to `πStar` preserves `M _ = M J`.
-  have hJ_inv : ∀ T : Finset (Fin n), T ⊆ S → M (J.updatePrefs T πStar) = M J := by
-    intro T
+  have hJ_inv (T : Finset (Fin n)) : T ⊆ S → M (J.updatePrefs T πStar) = M J := by
     induction T using Finset.induction_on with
     | empty => simp
     | @insert i T hiT ih =>
       intro hTS
       have hT := ih ((Finset.subset_insert i T).trans hTS)
       set JT := J.updatePrefs T πStar
+      have hsp : ((πStar i).symm (M (JT.updatePref i (πStar i)) i)).val = 0 := by
+        simpa [hT, Fin.le_def, πStar, topTwoPerm_symm_fst_val] using
+          hSP (JT.updatePref i (πStar i)) i (JT.pref i)
       rw [J.updatePrefs_insert hiT]
-      set J' := JT.updatePref i (πStar i)
-      have hsp : (J'.rank i (M J' i)).val ≤ (J'.rank i (M J i)).val := by
-        simpa [J', hT] using hSP J' i (JT.pref i)
-      have hzero : (J'.rank i (M J i)).val = 0 := by
-        rw [JT.updatePref_rank_self]
-        exact topTwoPerm_symm_fst_val (M J i) (M I i)
-      have heq_house : M J' i = M JT i := hT ▸ J'.rank_injective i (Fin.ext (by omega))
-      exact (hNB JT i (πStar i) heq_house).trans hT
+      exact (hNB JT i (πStar i) (hT ▸ (πStar i).symm.injective
+        (Fin.ext (hsp.trans (topTwoPerm_symm_fst_val (M J i) (M I i)).symm)))).trans hT
   -- Step 2: moving `T ⊆ S` from `I` to `πStar` preserves `M _ = M I`.
-  have hI_inv : ∀ T : Finset (Fin n), T ⊆ S → M (I.updatePrefs T πStar) = M I := by
-    intro T
+  have hI_inv (T : Finset (Fin n)) : T ⊆ S → M (I.updatePrefs T πStar) = M I := by
     induction T using Finset.induction_on with
     | empty => simp
     | @insert i T hiT ih =>
@@ -415,9 +379,8 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
   have hsame : J.updatePrefs S πStar = I.updatePrefs S πStar := by
     ext k
     by_cases hkS : k ∈ S <;> simp [Instance.updatePrefs, J, hkS]
-  have hMJ_eq_MI : M J = M I := by
-    rw [← hJ_inv S Finset.Subset.rfl, hsame, hI_inv S Finset.Subset.rfl]
-  exact lt_irrefl _ (hMJ_eq_MI ▸ hlt)
+  rw [← hJ_inv S Finset.Subset.rfl, hsame, hI_inv S Finset.Subset.rfl] at hlt
+  exact lt_irrefl _ hlt
 
 /-! ### Top trading cycles properties -/
 

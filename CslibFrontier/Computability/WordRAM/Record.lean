@@ -196,9 +196,8 @@ theorem Code.not_readsWidth_appendCode {B : Basis} {r : ℕ} {c d : Code B r}
 theorem WP.of_exec_spec {B : Basis} {r w T : ℕ} {c : Code B r} {x : Data r}
     {P : Data r → Prop} {Q : Data r → ℕ → Prop}
     (h : ∃ y, Exec w c x y T ∧ P y) (hQ : ∀ y, P y → Q y T) :
-    WP w c x Q := by
-  obtain ⟨y, hy, hP⟩ := h
-  exact WP.of_execWithin hy.within (hQ y hP)
+    WP w c x Q :=
+  h.elim fun y ⟨hy, hP⟩ => WP.of_execWithin hy.within (hQ y hP)
 
 /-- Continue symbolic `WP` execution across an exact-count prefix `c` of a right-nested
 `ram[ … ]` block. -/
@@ -288,9 +287,8 @@ theorem storeCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
 /-- `storeRecord` preserves every register except `cursor`. -/
 theorem storeRecord_preserves {k : ℕ} [NeZero k] (addr cursor one : Fin r)
     (fields : Fin k → Fin r) {j : Fin r} (hj : j ≠ cursor) :
-    (storeRecord addr cursor one fields).Preserves j := by
-  simp only [storeRecord, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-  exact ⟨hj.symm, storeCursor_preserves cursor one fields hj⟩
+    (storeRecord addr cursor one fields).Preserves j :=
+  ⟨fun h => hj (Option.some.inj h.symm), storeCursor_preserves cursor one fields hj⟩
 
 /-- `loadCursor` preserves every register outside `LoadRecordLocal cursor fields`. -/
 theorem loadCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
@@ -312,9 +310,8 @@ theorem loadCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
 /-- `loadRecord` preserves every register outside `LoadRecordLocal cursor fields`. -/
 theorem loadRecord_preserves {k : ℕ} [NeZero k] (addr cursor one : Fin r)
     (fields : Fin k → Fin r) {j : Fin r} (hj : ¬LoadRecordLocal cursor fields j) :
-    (loadRecord addr cursor one fields).Preserves j := by
-  simp only [loadRecord, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-  exact ⟨fun h => hj (Or.inl h.symm), loadCursor_preserves cursor one fields hj⟩
+    (loadRecord addr cursor one fields).Preserves j :=
+  ⟨fun h => hj (Or.inl (Option.some.inj h.symm)), loadCursor_preserves cursor one fields hj⟩
 
 private theorem add_not_readsWidth (cursor one : Fin r) :
     ¬(Code.op (B := .standard) (Op.bin .add cursor cursor one)).ReadsWidth := by
@@ -361,9 +358,8 @@ theorem storeCursor_exec {k w : ℕ} [inst : NeZero k] (cursor one : Fin r) (fie
   match k, inst, fields, hfields_ne, hfit with
   | 0, h, _, _, _ => exact absurd rfl h.out
   | 1, _, fields, _, _ =>
-    refine ⟨x.write (x.regs cursor) (x.regs (fields 0)), Exec.store, ?_, ?_, fun _ _ => rfl⟩
-    · simp [writeWords, Data.write_mem]
-    · simp
+    exact ⟨x.write (x.regs cursor) (x.regs (fields 0)), Exec.store,
+      by simp [writeWords, Data.write_mem], rfl, fun _ _ => rfl⟩
   | k + 2, _, fields, hfields_ne, hfit =>
     have := hfit.of_le (show x.regs cursor + 1 ≤ _ by omega)
     refine WP.Exact.exists_exec ?_
@@ -420,8 +416,7 @@ theorem RecordSpec.store_exec {α : Type*} {k w : ℕ} [NeZero k] (R : RecordSpe
       ∀ j, j ≠ cursor → y.regs j = x.regs j := by
   obtain ⟨y, hy, hymem, hmod, _, hyregs⟩ :=
     storeRecord_exec addr cursor one fields x hone_ne hfields_ne hone hfit
-  have hwords : (fun i => x.regs (fields i)) = R.toWords v := funext hfields
-  rw [hwords] at hymem
+  rw [funext hfields] at hymem
   exact ⟨y, hy, hymem ▸ R.holdsAt_write (x.regs addr) v x.mem, hymem, hmod, hyregs⟩
 
 /-- Execute `loadCursor` in `2 * k - 1` instructions from an initialized cursor register. -/
@@ -461,8 +456,7 @@ theorem loadCursor_exec {k w : ℕ} [inst : NeZero k] (cursor one : Fin r) (fiel
         wram_simp [hx₂, Fin.val_zero, Nat.add_zero]
       · rw [hyfields i, Fin.val_succ]
         wram_simp [hx₂]
-        congr 1
-        omega
+        exact congrArg x.mem (by omega)
     · have hcur : j ≠ cursor := fun h => hj (Or.inl h)
       have hf0 : j ≠ fields 0 := fun h => hj (Or.inr ⟨0, h⟩)
       rw [hyregs j fun h => h.elim hcur fun ⟨i, h⟩ => hj (Or.inr ⟨i.succ, h⟩)]

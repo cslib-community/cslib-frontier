@@ -70,10 +70,8 @@ namespace Turing.MultiTapeTM.BinaryGcd
 theorem gcd_product_halving {a b : ℕ} (ha : 0 < a) (hab : a ≤ b) :
     2 * (a * (b % a)) ≤ a * b := by
   have hr := Nat.mod_lt b ha
-  have hq : 1 ≤ b / a := (Nat.one_le_div_iff ha).mpr hab
   have hid := Nat.mod_add_div b a
-  have hmul := Nat.mul_le_mul_left a hq
-  have hhalf : 2 * (b % a) ≤ b := by lia
+  have hmul := Nat.mul_le_mul_left a ((Nat.one_le_div_iff ha).mpr hab)
   nlinarith
 
 /-- One step of Euclid's algorithm: replace `(a, b)` by `(b, a % b)` while `b ≠ 0`. -/
@@ -131,8 +129,7 @@ lemma mul_gcdStep_two_le (s : ℕ × ℕ) (hs : s.2 ≤ s.1) :
     2 * ((gcdStep s).1 * (gcdStep s).2) ≤ s.1 * s.2 := by
   unfold gcdStep
   split_ifs with h
-  · rw [h]
-    simp
+  · simp [h]
   · calc 2 * (s.2 * (s.1 % s.2))
         ≤ s.2 * s.1 := gcd_product_halving (Nat.pos_of_ne_zero h) hs
       _ = s.1 * s.2 := Nat.mul_comm s.2 s.1
@@ -157,21 +154,14 @@ lemma snd_iterate_gcdStep_gcdCount (p : ℕ × ℕ) :
   rw [Function.iterate_add_apply, Function.iterate_one]
   set k := p.1.bits.length + p.2.bits.length
   obtain ⟨hord, hprod⟩ := iterate_gcdStep_product_le (gcdStep p) (snd_gcdStep_le_fst p) k
-  have hmul : (gcdStep p).1 * (gcdStep p).2 < 2 ^ k := by
-    refine (mul_gcdStep_le p).trans_lt ?_
-    have h₁ : p.1 < 2 ^ p.1.bits.length :=
-      Nat.size_eq_bits_len p.1 ▸ Nat.lt_size_self p.1
-    have h₂ : p.2 < 2 ^ p.2.bits.length :=
-      Nat.size_eq_bits_len p.2 ▸ Nat.lt_size_self p.2
-    rw [show k = p.1.bits.length + p.2.bits.length from rfl, Nat.pow_add]
-    exact Nat.mul_lt_mul'' h₁ h₂
+  have h₁ : p.1 < 2 ^ p.1.bits.length := Nat.size_eq_bits_len p.1 ▸ Nat.lt_size_self p.1
+  have h₂ : p.2 < 2 ^ p.2.bits.length := Nat.size_eq_bits_len p.2 ▸ Nat.lt_size_self p.2
+  have hmul : (gcdStep p).1 * (gcdStep p).2 < 2 ^ k :=
+    (mul_gcdStep_le p).trans_lt (Nat.pow_add 2 _ _ ▸ Nat.mul_lt_mul'' h₁ h₂)
   by_contra hne
-  have hpos : 1 ≤ (gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2 := by
-    have : 1 ≤ (gcdStep^[k] (gcdStep p)).2 := Nat.pos_of_ne_zero hne
-    nlinarith
-  have hge : 2 ^ k ≤ 2 ^ k * ((gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2) :=
-    Nat.le_mul_of_pos_right (2 ^ k) hpos
-  lia
+  have hpos : 1 ≤ (gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2 :=
+    Nat.mul_pos (lt_of_lt_of_le (Nat.pos_of_ne_zero hne) hord) (Nat.pos_of_ne_zero hne)
+  nlinarith [Nat.le_mul_of_pos_right (2 ^ k) hpos]
 
 /-- Iterating `gcdStep` for `gcdCount p` steps reaches `(Nat.gcd p.1 p.2, 0)`. -/
 theorem iterate_gcdStep_eq (p : ℕ × ℕ) :
@@ -186,12 +176,10 @@ theorem iterate_gcdStep_eq (p : ℕ × ℕ) :
 theorem length_encPair_iterate_gcdStep_le (p : ℕ × ℕ) (i : ℕ) :
     (encPair encNat encNat (gcdStep^[i] p)).length ≤ 3 * (encPair encNat encNat p).length := by
   have hmax := max_iterate_gcdStep_le p i
-  have h₁ : (gcdStep^[i] p).1 ≤ max p.1 p.2 := (le_max_left _ _).trans hmax
-  have h₂ : (gcdStep^[i] p).2 ≤ max p.1 p.2 := (le_max_right _ _).trans hmax
+  have hs₁ := Nat.size_le_size ((le_max_left _ _).trans hmax)
+  have hs₂ := Nat.size_le_size ((le_max_right _ _).trans hmax)
   have hm : (max p.1 p.2).size ≤ p.1.size + p.2.size := by grind
-  have hs₁ : ((gcdStep^[i] p).1).size ≤ p.1.size + p.2.size := (Nat.size_le_size h₁).trans hm
-  have hs₂ : ((gcdStep^[i] p).2).size ≤ p.1.size + p.2.size := (Nat.size_le_size h₂).trans hm
-  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hs₁ hs₂ ⊢
+  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hs₁ hs₂ hm ⊢
   lia
 
 /-- Initial state `((m, a), (0, if m ≤ 1 then 0 else 1))` for the unsigned extended-Euclidean
@@ -284,15 +272,14 @@ private lemma snd_iterate_modInvStep_lt {m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ)
 
 /-- When `0 < m`, `modInv a m < m`. -/
 theorem modInv_lt {a m : ℕ} (hm : 0 < m) : modInv a m < m := by
-  have hinit : (modInvInit a m).2.1 < m ∧ (modInvInit a m).2.2 < m := by
-    unfold modInvInit
-    split_ifs <;> lia
-  exact (snd_iterate_modInvStep_lt hm (modInvInit a m) hinit.1 hinit.2 (gcdCount (m, a))).1
+  refine (snd_iterate_modInvStep_lt hm (modInvInit a m) hm ?_ (gcdCount (m, a))).1
+  unfold modInvInit
+  split_ifs <;> lia
 
 /-- For every `a` and `m`, `modInv a m ≤ m`. -/
-theorem modInv_le (a m : ℕ) : modInv a m ≤ m := by
-  obtain ⟨h₁, h₂⟩ := snd_modInvInit_le a m
-  exact (snd_iterate_modInvStep_le m (modInvInit a m) h₁ h₂ (gcdCount (m, a))).1
+theorem modInv_le (a m : ℕ) : modInv a m ≤ m :=
+  (snd_iterate_modInvStep_le m _ (snd_modInvInit_le a m).1 (snd_modInvInit_le a m).2
+    (gcdCount (m, a))).1
 
 private lemma modEq_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) :
@@ -322,18 +309,14 @@ private lemma modEq_iterate_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ
 theorem mul_modInv_modEq_gcd (a : ℕ) {m : ℕ} (hm : 0 < m) :
     a * modInv a m ≡ Nat.gcd m a [MOD m] := by
   have hm₁ : a * (modInvInit a m).2.1 ≡ (modInvInit a m).1.1 [MOD m] := by
-    change a * 0 ≡ m [MOD m]
-    simp [Nat.ModEq]
+    simp [modInvInit, Nat.ModEq]
   have hm₂ : a * (modInvInit a m).2.2 ≡ (modInvInit a m).1.2 [MOD m] := by
-    change a * (if m ≤ 1 then 0 else 1) ≡ a [MOD m]
+    dsimp only [modInvInit]
     split_ifs with hle
-    · obtain rfl : m = 1 := by lia
-      exact Nat.modEq_one
+    · exact (show m = 1 by lia) ▸ Nat.modEq_one
     · rw [Nat.mul_one]
-  have hiter := (modEq_iterate_modInvStep hm (modInvInit a m) hm₁ hm₂ (gcdCount (m, a))).1
-  have hfst : ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m)).1.1 = Nat.gcd m a := by
-    rw [fst_iterate_modInvStep, show (modInvInit a m).1 = (m, a) from rfl, iterate_gcdStep_eq]
-  simpa [modInv, modInvCoeff0, hfst] using hiter
+  simpa only [modInv, modInvCoeff0, fst_iterate_modInvStep, modInvInit, iterate_gcdStep_eq] using
+    (modEq_iterate_modInvStep hm (modInvInit a m) hm₁ hm₂ (gcdCount (m, a))).1
 
 /-- Modular inverse correctness: when `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 theorem mul_modInv_modEq_one {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :
@@ -346,9 +329,8 @@ theorem modInv_eq_zmod_inv_val {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m)
     modInv a m = ((a : ZMod m)⁻¹).val := by
   rcases m with _ | _ | m
   · exact absurd hm (Nat.lt_irrefl 0)
-  · have hlt := modInv_lt (a := a) zero_lt_one
-    have hval := ZMod.val_lt ((a : ZMod 1)⁻¹)
-    lia
+  · rw [Nat.lt_one_iff.mp (modInv_lt (a := a) zero_lt_one),
+      Nat.lt_one_iff.mp (ZMod.val_lt ((a : ZMod 1)⁻¹))]
   · have : Fact (1 < m + 2) := ⟨by lia⟩
     have hmul : (a : ZMod (m + 2)) * (modInv a (m + 2) : ZMod (m + 2)) = 1 := by
       simpa using (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr
@@ -363,17 +345,15 @@ private theorem length_encPair_iterate_modInvStep_le (a m i : ℕ) :
       9 * (encPair encNat encNat (a, m)).length := by
   set s := (modInvStep m)^[i] (modInvInit a m)
   have hfst : s.1 = gcdStep^[i] (m, a) := fst_iterate_modInvStep m (modInvInit a m) i
-  have hmax := max_iterate_gcdStep_le (m, a) i
-  have hr₁ : s.1.1 ≤ max m a := by rw [hfst]; exact (le_max_left _ _).trans hmax
-  have hr₂ : s.1.2 ≤ max m a := by rw [hfst]; exact (le_max_right _ _).trans hmax
+  have hmax := hfst ▸ max_iterate_gcdStep_le (m, a) i
+  have hsr₁ := Nat.size_le_size ((le_max_left _ _).trans hmax)
+  have hsr₂ := Nat.size_le_size ((le_max_right _ _).trans hmax)
   have hm : (max m a).size ≤ m.size + a.size := by grind
-  have hsr₁ : s.1.1.size ≤ m.size + a.size := (Nat.size_le_size hr₁).trans hm
-  have hsr₂ : s.1.2.size ≤ m.size + a.size := (Nat.size_le_size hr₂).trans hm
   obtain ⟨hinit₁, hinit₂⟩ := snd_modInvInit_le a m
   obtain ⟨ht₁, ht₂⟩ := snd_iterate_modInvStep_le m (modInvInit a m) hinit₁ hinit₂ i
-  have hst₁ : s.2.1.size ≤ m.size := Nat.size_le_size ht₁
-  have hst₂ : s.2.2.size ≤ m.size := Nat.size_le_size ht₂
-  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hsr₁ hsr₂ hst₁ hst₂ ⊢
+  have hst₁ := Nat.size_le_size ht₁
+  have hst₂ := Nat.size_le_size ht₂
+  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hsr₁ hsr₂ hm hst₁ hst₂ ⊢
   lia
 
 attribute [irreducible] modInv
@@ -403,8 +383,8 @@ theorem binary_gcd : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.gcd p.1 p.2
       (encPair encNat encNat) encUnary := by
     unfold BinaryGcd.gcdCount
     fun_prop
-  have hiter := binary_gcdIterate.comp ((id' (encIn := encPair encNat encNat)).prod hcount)
-  simpa only [Function.comp_apply, BinaryGcd.iterate_gcdStep_eq] using hiter.fst'
+  simpa only [Function.comp_apply, BinaryGcd.iterate_gcdStep_eq] using
+    (binary_gcdIterate.comp ((id' (encIn := encPair encNat encNat)).prod hcount)).fst'
 
 /-- Greatest common divisor of computed binary values, fixing their intermediate encodings for
 proof search. -/
@@ -430,10 +410,6 @@ private theorem computableInPolyTime_modInvNext {α : Type} {enc : α ↪ List B
 @[fun_prop, program_certificate]
 theorem binary_modInv : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.modInv p.1 p.2)
     (encPair encNat encNat) encNat := by
-  have hnext := @computableInPolyTime_modInvNext
-  have hpar : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
-      (encPair encNat encNat) encNat := by
-    fun_prop
   have hcount : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.gcdCount (p.2, p.1))
       (encPair encNat encNat) encUnary := by
     unfold BinaryGcd.gcdCount
@@ -449,18 +425,15 @@ theorem binary_modInv : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.mo
     unfold BinaryGcd.modInvStep
     have hm := fst encNat (encPair (encPair encNat encNat) (encPair encNat encNat))
     have hs := snd encNat (encPair (encPair encNat encNat) (encPair encNat encNat))
-    have hr₀ := hs.fst'.fst'
-    have hr₁ := hs.fst'.snd'
-    exact (decide_eq' hr₁ (const 0)).ite_decide hs
-      ((hr₁.prod (binary_mod' hr₀ hr₁)).prod
-        (hs.snd'.snd'.prod
-          (hnext hm (binary_div' hr₀ hr₁) hs.snd'.fst' hs.snd'.snd')))
-  have hiter := iterateWith hpar hcount hinit hstep
+    exact (decide_eq' hs.fst'.snd' (const 0)).ite_decide hs
+      ((hs.fst'.snd'.prod (binary_mod' hs.fst'.fst' hs.fst'.snd')).prod
+        (hs.snd'.snd'.prod (computableInPolyTime_modInvNext hm
+          (binary_div' hs.fst'.fst' hs.fst'.snd') hs.snd'.fst' hs.snd'.snd')))
+  unfold BinaryGcd.modInv
+  exact (iterateWith (snd encNat encNat) hcount hinit hstep
     (bound := fun p => 9 * (encPair encNat encNat p).length)
     ((PolyBounded.const 9).mul .self)
-    (fun p i _ => BinaryGcd.length_encPair_iterate_modInvStep_le p.1 p.2 i)
-  unfold BinaryGcd.modInv
-  exact hiter.snd'.fst'
+    fun p i _ => BinaryGcd.length_encPair_iterate_modInvStep_le p.1 p.2 i).snd'.fst'
 
 /-- Unsigned modular inverse of computed binary values, fixing their intermediate encodings for
 proof search. -/

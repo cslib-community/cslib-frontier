@@ -72,58 +72,35 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
     let i := (subdivisionEdgeIndex I e).original
     let k := (subdivisionEdgeIndex I e).piece
     have hlookup := subdivide_getElem? I i k
-    have hindex : 3 * i.val + k.val = e.val := (subdivisionEdgeIndex_val I e).symm
-    rw [hindex] at hlookup
-    have hget := Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)
+    have hev := subdivisionEdgeIndex_val I e
+    rw [← hev] at hlookup
+    rw [Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)] at hf
     have hk : k.val = 0 ∨ k.val = 1 ∨ k.val = 2 := by have := k.isLt; omega
     rcases hk with hk | hk | hk
-    · refine ⟨(i, false), Fin.ext ?_, ?_⟩
-      · change e.val = 3 * i.val + 0
-        omega
-      · rw [hget] at hf
-        simpa only [Fin.getElem_fin, hk, List.getElem_cons_zero, Segment.frozen,
-          Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
-          List.getD_eq_getElem _ _ i.isLt] using hf
-    · rw [hget] at hf
-      simp only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
+    · refine ⟨(i, false), Fin.ext (hev.trans (congrArg (3 * i.val + ·) hk)), ?_⟩
+      simpa only [Fin.getElem_fin, hk, List.getElem_cons_zero, Segment.frozen,
+        Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
+        List.getD_eq_getElem _ _ i.isLt] using hf
+    · simp only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
         Segment.frozen, Bool.false_eq_true] at hf
-    · refine ⟨(i, true), Fin.ext ?_, ?_⟩
-      · change e.val = 3 * i.val + 2
-        omega
-      · rw [hget] at hf
-        simpa only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
-          Segment.frozen, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
-          List.getD_eq_getElem _ _ i.isLt] using hf
+    · refine ⟨(i, true), Fin.ext (hev.trans (congrArg (3 * i.val + ·) hk)), ?_⟩
+      simpa only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
+        Segment.frozen, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
+        List.getD_eq_getElem _ _ i.isLt] using hf
   · rintro ⟨⟨i, b⟩, rfl, hf⟩
     cases b
-    · have hbound : 3 * i.val < (subdivide I).length := by rw [length_subdivide]; omega
-      have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans
-        (by simpa only [Fin.val_zero, Nat.add_zero] using subdivide_getElem? I i 0))
-      change ((subdivide I)[3 * i.val]).frozen = true
-      rw [hget]
-      change (I.orders.getD I.graph.edges[i].1 none).isSome = true
-      simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
-        List.getD_eq_getElem _ _ i.isLt] using hf
-    · have hbound : 3 * i.val + 2 < (subdivide I).length := by rw [length_subdivide]; omega
-      have hget := Option.some.inj
-        ((List.getElem?_eq_getElem hbound).symm.trans (subdivide_getElem? I i 2))
-      change ((subdivide I)[3 * i.val + 2]).frozen = true
-      rw [hget]
-      change (I.orders.getD I.graph.edges[i].2 none).isSome = true
-      simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
-        List.getD_eq_getElem _ _ i.isLt] using hf
+    · rw [Option.some.inj ((List.getElem?_eq_getElem he).symm.trans (subdivide_getElem? I i 0))]
+      simpa [Dart.vertex, Graph.edgeEndpoint, List.getD_eq_getElem _ _ i.isLt] using hf
+    · rw [Option.some.inj ((List.getElem?_eq_getElem he).symm.trans (subdivide_getElem? I i 2))]
+      simpa [Dart.vertex, Graph.edgeEndpoint, List.getD_eq_getElem _ _ i.isLt] using hf
 
 /-- The actual outgoing first/last route vector points from the original center to its leaf. -/
 theorem referenceDrawing_subdivisionDart_germ (I : FixedRotationInput) (d : Dart I.graph) :
     (referenceDrawing I).germ (subdivisionDart I d) =
       referencePoint I (I.graph.vertices.length + d.index) - referencePoint I d.vertex := by
-  have hends := subdivisionDart_endpoints I d
-  have hline (a : Dart (subdivisionGraph I)) :
-      (referenceDrawing I).germ a =
-        referencePoint I a.reverse.vertex - referencePoint I a.vertex := by
-    rcases a with ⟨e, b⟩
-    cases b <;> rfl
-  rw [hline, hends.1, hends.2]
+  obtain ⟨h1, h2⟩ := subdivisionDart_endpoints I d
+  rw [← h1, ← h2]
+  rcases subdivisionDart I d with ⟨_, _ | _⟩ <;> rfl
 
 /-- Every selected outgoing vector is nonzero, even at either end of an original loop. -/
 theorem referenceDrawing_subdivisionDart_germ_ne_zero {I : FixedRotationInput} (hI : Valid I)
@@ -180,8 +157,8 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
     simp only [Nat.add_sub_cancel_left, List.getElem_cons_succ]
     rw [List.getElem_append_left (by simpa only [List.length_map] using hk),
       List.getElem_map, List.getElem_reverse]
-    simp only [show word.length - 1 - k = i by omega]
-    exact congrArg (I.graph.vertices.length + ·) (List.getElem_idxOf hi)
+    have hki : word.length - 1 - k = i := by omega
+    simpa only [hki] using congrArg (I.graph.vertices.length + ·) (List.getElem_idxOf hi)
   have hrank : (referenceOrder I).idxOf (I.graph.vertices.length + d) =
       blockPrefix.length + (k + 1) := hget ▸ hn.idxOf_getElem _ hpos
   refine ⟨hget ▸ List.getElem_mem hpos, ?_, ?_⟩ <;> rw [hvrank, hrank] <;> dsimp only [k, i] <;>
@@ -196,12 +173,10 @@ theorem referenceDrawing_fixedWord_arg_lt_iff {I : FixedRotationInput} (hI : Val
       ((referenceDrawing I).germ (subdivisionDart I e)).arg ↔
         word.idxOf e.index < word.idxOf d.index := by
   have hs := fixedWord_rank_spec hI hw
-  have hdv := fixedWord_dart_vertex hI hw hd
-  have hev := fixedWord_dart_vertex hI hw he
   have hdl := hs.2 d.index hd
   have hel := hs.2 e.index he
   rw [referenceDrawing_subdivisionDart_germ, referenceDrawing_subdivisionDart_germ,
-    hdv, hev]
+    fixedWord_dart_vertex hI hw hd, fixedWord_dart_vertex hI hw he]
   change (parabolaPoint _ - parabolaPoint _).arg <
     (parabolaPoint _ - parabolaPoint _).arg ↔ _
   -- Both actual leaf names and the center belong to the enumeration before reading ranks.
@@ -221,13 +196,10 @@ theorem referenceDrawing_fixedWord_directions_injective {I : FixedRotationInput}
   have harg : ((referenceDrawing I).germ (subdivisionDart I d)).arg =
       ((referenceDrawing I).germ (subdivisionDart I e)).arg :=
     Complex.arg_coe_angle_eq_iff.mp heq
-  have hde := referenceDrawing_fixedWord_arg_lt_iff hI hw hd he
-  have hed := referenceDrawing_fixedWord_arg_lt_iff hI hw he hd
-  have hrank : word.idxOf d.index = word.idxOf e.index := by
-    simp only [harg, lt_self_iff_false, false_iff] at hde hed
-    omega
-  exact (Dart.indexEquiv I.graph).injective
-    (Fin.ext ((List.idxOf_inj hd).mp hrank))
+  have hrank : word.idxOf d.index = word.idxOf e.index := le_antisymm
+    (not_lt.mp (mt (referenceDrawing_fixedWord_arg_lt_iff hI hw hd he).mpr (by simp [harg])))
+    (not_lt.mp (mt (referenceDrawing_fixedWord_arg_lt_iff hI hw he hd).mpr (by simp [harg])))
+  exact (Dart.indexEquiv I.graph).injective (Fin.ext ((List.idxOf_inj hd).mp hrank))
 
 /-- Clockwise is the reversed angular order `c,b,a`, since `sbtw` increases counterclockwise.
 For three distinct original darts, this is exactly increasing cyclic order in the prescribed
@@ -254,9 +226,7 @@ theorem referenceDrawing_fixedWord_clockwise_iff {I : FixedRotationInput} (hI : 
         ((referenceOrder I).idxOf v : ℝ)
       exact sub_pos.mpr (Nat.cast_lt.mpr hs.2.1)
     refine ⟨Complex.neg_pi_div_two_lt_arg_iff.mpr (Or.inl hre), ?_⟩
-    have hupper := Complex.arg_lt_pi_div_two_iff.mpr (Or.inl hre)
-    dsimp [A]
-    linarith only [hupper, Real.pi_pos]
+    linarith [Complex.arg_lt_pi_div_two_iff.mpr (Or.inl hre), Real.pi_pos]
   have hne {d e : Dart I.graph} (hd : d.index ∈ word) (he : e.index ∈ word) (hne : d ≠ e) :
       A d ≠ A e := fun h => hne (referenceDrawing_fixedWord_directions_injective hI hw hd he
     (congrArg (fun x : ℝ => (x : Real.Angle)) h))
@@ -283,11 +253,9 @@ theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
     sbtw ((referenceDrawing I).direction (subdivisionDart I c))
       ((referenceDrawing I).direction (subdivisionDart I b))
       ((referenceDrawing I).direction (subdivisionDart I a)) := by
-  have hav := fixedWord_dart_vertex hI hw ha
-  have hbv := fixedWord_dart_vertex hI hw hb
-  have hcv := fixedWord_dart_vertex hI hw hc
-  exact (hReal.cutPort_clockwise v hρ (Metric.mem_ball_self hρ)
-    a b c hav hbv hcv hab hbc hac).trans
+  exact (hReal.cutPort_clockwise v hρ (Metric.mem_ball_self hρ) a b c
+    (fixedWord_dart_vertex hI hw ha) (fixedWord_dart_vertex hI hw hb)
+    (fixedWord_dart_vertex hI hw hc) hab hbc hac).trans
     ((hfixed.mem_rotationInterval_iff_fixedWord hI hw ha hb hc hab hbc hac).trans
       (referenceDrawing_fixedWord_clockwise_iff hI hw ha hb hc hab hbc hac).symm)
 

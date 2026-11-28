@@ -239,36 +239,26 @@ theorem tree_splayUp_ne_nil (x : α) (l r : BinaryTree α) (ctx : List (Frame α
 
 @[simp] theorem focusMin_eq_none_iff (t : BinaryTree α) (ctx : List (Frame α)) :
     focusMin t ctx = none ↔ t = .nil := by
-  cases t with
-  | nil => simp [focusMin]
-  | node a l r =>
-    simp only [focusMin, reduceCtorEq, iff_false]
-    cases focusMin l (.left a r :: ctx) <;> simp
+  cases t <;> simp [focusMin]
 
 @[simp] theorem focusMax_eq_none_iff (t : BinaryTree α) (ctx : List (Frame α)) :
     focusMax t ctx = none ↔ t = .nil := by
-  cases t with
-  | nil => simp [focusMax]
-  | node a l r =>
-    simp only [focusMax, reduceCtorEq, iff_false]
-    cases focusMax r (.right l a :: ctx) <;> simp
+  cases t <;> simp [focusMax]
 
 /-- One step of `focusMin`: it either finds the focus in the left child, or the left child is empty
 and the focus is the node itself. -/
 private theorem focusMin_node_eq_some {a : α} {l r : BinaryTree α} {ctx : List (Frame α)}
     {f : Focus α} (hf : focusMin (.node a l r) ctx = some f) :
-    focusMin l (.left a r :: ctx) = some f ∨ l = .nil ∧ f = ⟨a, l, r, ctx⟩ := by
-  rcases Option.or_eq_some_iff.mp hf with hl | ⟨hl, hf⟩
-  · exact .inl hl
-  · exact .inr ⟨(focusMin_eq_none_iff l _).mp hl, (Option.some.inj hf).symm⟩
+    focusMin l (.left a r :: ctx) = some f ∨ l = .nil ∧ f = ⟨a, l, r, ctx⟩ :=
+  (Option.or_eq_some_iff.mp hf).imp_right fun ⟨hl, hf⟩ =>
+    ⟨(focusMin_eq_none_iff l _).mp hl, (Option.some.inj hf).symm⟩
 
 /-- One step of `focusMax`, mirroring `focusMin_node_eq_some`. -/
 private theorem focusMax_node_eq_some {a : α} {l r : BinaryTree α} {ctx : List (Frame α)}
     {f : Focus α} (hf : focusMax (.node a l r) ctx = some f) :
-    focusMax r (.right l a :: ctx) = some f ∨ r = .nil ∧ f = ⟨a, l, r, ctx⟩ := by
-  rcases Option.or_eq_some_iff.mp hf with hr | ⟨hr, hf⟩
-  · exact .inl hr
-  · exact .inr ⟨(focusMax_eq_none_iff r _).mp hr, (Option.some.inj hf).symm⟩
+    focusMax r (.right l a :: ctx) = some f ∨ r = .nil ∧ f = ⟨a, l, r, ctx⟩ :=
+  (Option.or_eq_some_iff.mp hf).imp_right fun ⟨hr, hf⟩ =>
+    ⟨(focusMax_eq_none_iff r _).mp hr, (Option.some.inj hf).symm⟩
 
 theorem focusMin_spec {t : BinaryTree α} {ctx : List (Frame α)} {f : Focus α}
     (hf : focusMin t ctx = some f) :
@@ -337,7 +327,7 @@ private theorem allLeft_focusMin {t : BinaryTree α} {ctx : List (Frame α)} {f 
   | nil => simp [focusMin] at hf
   | node a l r ihl _ =>
     rcases focusMin_node_eq_some hf with hl | ⟨_, rfl⟩
-    · exact ihl (show AllLeft (.left a r :: ctx) from hctx) hl
+    · exact ihl (ctx := .left a r :: ctx) hctx hl
     · exact hctx
 
 private theorem left_nil_splayUp (x : α) (r : BinaryTree α) :
@@ -358,12 +348,8 @@ theorem exists_node_nil_left_splayMin {t : BinaryTree α} (ht : t ≠ .nil) :
   cases hf : focusMin t [] with
   | none => exact (ht ((focusMin_eq_none_iff t []).mp hf)).elim
   | some f =>
-    simp only
-    have hleft := (focusMin_spec hf).2
-    have hall := allLeft_focusMin (ctx := []) trivial hf
-    rw [hleft]
-    obtain ⟨r', hr'⟩ := left_nil_splayUp f.key f.rightSub f.ctx hall
-    exact ⟨f.key, r', hr'⟩
+    simp only [(focusMin_spec hf).2]
+    exact ⟨f.key, left_nil_splayUp f.key f.rightSub f.ctx (allLeft_focusMin (ctx := []) trivial hf)⟩
 
 private def AllRight : List (Frame α) → Prop
   | [] => True
@@ -376,7 +362,7 @@ private theorem allRight_focusMax {t : BinaryTree α} {ctx : List (Frame α)} {f
   | nil => simp [focusMax] at hf
   | node a l r _ ihr =>
     rcases focusMax_node_eq_some hf with hr | ⟨_, rfl⟩
-    · exact ihr (show AllRight (.right l a :: ctx) from hctx) hr
+    · exact ihr (ctx := .right l a :: ctx) hctx hr
     · exact hctx
 
 private theorem right_nil_splayUp (x : α) (l : BinaryTree α) :
@@ -397,12 +383,9 @@ theorem exists_node_nil_right_splayMax {t : BinaryTree α} (ht : t ≠ .nil) :
   cases hf : focusMax t [] with
   | none => exact (ht ((focusMax_eq_none_iff t []).mp hf)).elim
   | some f =>
-    simp only
-    have hright := (focusMax_spec hf).2
-    have hall := allRight_focusMax (ctx := []) trivial hf
-    rw [hright]
-    obtain ⟨l', hl'⟩ := right_nil_splayUp f.key f.leftSub f.ctx hall
-    exact ⟨f.key, l', hl'⟩
+    simp only [(focusMax_spec hf).2]
+    exact ⟨f.key,
+      right_nil_splayUp f.key f.leftSub f.ctx (allRight_focusMax (ctx := []) trivial hf)⟩
 
 end Shape
 
@@ -420,9 +403,7 @@ theorem focusMin_ctx_length {t : BinaryTree α} {ctx : List (Frame α)} {f : Foc
   | nil => simp [focusMin] at hf
   | node a l r ihl _ =>
     rcases focusMin_node_eq_some hf with hl | ⟨rfl, rfl⟩
-    · have hlen := ihl hl
-      simp only [List.length_cons, minimumVisits] at hlen ⊢
-      omega
+    · simpa only [List.length_cons, minimumVisits, Nat.add_assoc, Nat.add_comm 1] using ihl hl
     · simp [minimumVisits]
 
 theorem elements_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
@@ -431,18 +412,15 @@ theorem elements_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
   induction ctx generalizing t₁ t₂ with
   | nil => exact he
   | cons f ctx ih =>
-    cases f with
-    | left p r => exact ih (by simp [elements, he])
-    | right l p => exact ih (by simp [elements, he])
+    cases f <;> exact ih (by simp [elements, he])
 
 theorem ordered_of_ordered_plug {t : BinaryTree α} {ctx : List (Frame α)}
     (h : Ordered (plug t ctx)) : Ordered t := by
   induction ctx generalizing t with
   | nil => exact h
   | cons f ctx ih =>
-    cases f with
-    | left p r => exact (ih h).1
-    | right l p => exact (ih h).2.1
+    cases f
+    exacts [(ih h).1, (ih h).2.1]
 
 theorem ordered_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
     (he : elements t₁ = elements t₂) (ho : Ordered t₁ → Ordered t₂)
@@ -452,13 +430,11 @@ theorem ordered_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
   | cons f ctx ih =>
     cases f with
     | left p r =>
-      refine ih (by simp [elements, he]) ?_ h
-      rintro ⟨ht₁, hr, hlt, hgt⟩
-      exact ⟨ho ht₁, hr, he ▸ hlt, hgt⟩
+      exact ih (t₁ := .node p t₁ r) (by simp [elements, he])
+        (fun ⟨h1, hr, hlt, hgt⟩ => ⟨ho h1, hr, he ▸ hlt, hgt⟩) h
     | right l p =>
-      refine ih (by simp [elements, he]) ?_ h
-      rintro ⟨hl, ht₁, hlt, hgt⟩
-      exact ⟨hl, ho ht₁, hlt, he ▸ hgt⟩
+      exact ih (t₁ := .node p l t₁) (by simp [elements, he])
+        (fun ⟨hl, h1, hlt, hgt⟩ => ⟨hl, ho h1, hlt, he ▸ hgt⟩) h
 
 /-- A single left-zig rotation preserves the represented finite set of keys. -/
 private theorem elements_zig_left {x p : α} {a b c : BinaryTree α} :
@@ -560,11 +536,7 @@ Figure 6). -/
   | nil => simp [focusSearch]
   | node a l r =>
     simp only [focusSearch, reduceCtorEq, iff_false]
-    split
-    · cases focusSearch x l (.left a r :: ctx) <;> simp
-    · split
-      · cases focusSearch x r (.right l a :: ctx) <;> simp
-      · simp
+    split_ifs <;> simp
 
 /-- One step of `focusSearch`: it descends into the child on `x`'s side, falling back to the node
 itself when that child is empty, or stops at a node whose key is `x`. -/
@@ -575,13 +547,10 @@ private theorem focusSearch_node_eq_some {x a : α} {l r : BinaryTree α} {ctx :
       x = a ∧ f = ⟨a, l, r, ctx⟩ := by
   simp only [focusSearch] at hf
   split_ifs at hf with hxa hax
-  · rcases Option.or_eq_some_iff.mp hf with hl | ⟨hl, hf⟩
-    · exact .inl ⟨hxa, .inl hl⟩
-    · exact .inl ⟨hxa, .inr ⟨(focusSearch_eq_none_iff x l _).mp hl, (Option.some.inj hf).symm⟩⟩
-  · rcases Option.or_eq_some_iff.mp hf with hr | ⟨hr, hf⟩
-    · exact .inr (.inl ⟨hax, .inl hr⟩)
-    · exact .inr (.inl ⟨hax, .inr ⟨(focusSearch_eq_none_iff x r _).mp hr,
-        (Option.some.inj hf).symm⟩⟩)
+  · exact .inl ⟨hxa, (Option.or_eq_some_iff.mp hf).imp_right fun ⟨hl, hf⟩ =>
+      ⟨(focusSearch_eq_none_iff x l _).mp hl, (Option.some.inj hf).symm⟩⟩
+  · exact .inr (.inl ⟨hax, (Option.or_eq_some_iff.mp hf).imp_right fun ⟨hr, hf⟩ =>
+      ⟨(focusSearch_eq_none_iff x r _).mp hr, (Option.some.inj hf).symm⟩⟩)
   · exact .inr (.inr ⟨le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa), (Option.some.inj hf).symm⟩)
 
 theorem focusSearch_toTree_and_length {x : α} {t : BinaryTree α} {ctx : List (Frame α)}
@@ -592,15 +561,11 @@ theorem focusSearch_toTree_and_length {x : α} {t : BinaryTree α} {ctx : List (
   | node a l r ihl ihr =>
     rcases focusSearch_node_eq_some hf with
       ⟨hxa, hl | ⟨rfl, rfl⟩⟩ | ⟨hax, hr | ⟨rfl, rfl⟩⟩ | ⟨rfl, rfl⟩
-    · obtain ⟨htree, hlen⟩ := ihl hl
-      refine ⟨htree, ?_⟩
-      simp only [List.length_cons, searchVisits, hxa, ↓reduceIte] at hlen ⊢
-      omega
+    · refine (ihl hl).imp_right fun hlen => ?_
+      simp only [List.length_cons, searchVisits, hxa, ↓reduceIte] at hlen ⊢; omega
     · simp [Focus.toTree, Focus.sub, searchVisits, hxa]
-    · obtain ⟨htree, hlen⟩ := ihr hr
-      refine ⟨htree, ?_⟩
-      simp only [List.length_cons, searchVisits, lt_asymm hax, hax, ↓reduceIte] at hlen ⊢
-      omega
+    · refine (ihr hr).imp_right fun hlen => ?_
+      simp only [List.length_cons, searchVisits, lt_asymm hax, hax, ↓reduceIte] at hlen ⊢; omega
     · simp [Focus.toTree, Focus.sub, searchVisits, lt_asymm hax, hax]
     · simp [Focus.toTree, Focus.sub, searchVisits]
 
@@ -615,9 +580,7 @@ private theorem focusSearch_spec_left {x a k : α} {l r : BinaryTree α}
       (∀ y ∈ elements (.node a l r), ¬ (x < y ∧ y < k) ∧ ¬ (k < y ∧ y < x)) := by
   refine ⟨mem_elements_node.mpr (hk.imp_right .inl), fun hx => ?_, fun y hy => ?_⟩
   · rcases mem_elements_node.mp hx with rfl | hx | hx
-    · exact (lt_irrefl x hxa).elim
-    · exact hxeq hx
-    · exact (lt_asymm hxa (har x hx)).elim
+    exacts [(lt_irrefl x hxa).elim, hxeq hx, (lt_asymm hxa (har x hx)).elim]
   · rcases mem_elements_node.mp hy with rfl | hy | hy
     · exact ⟨fun h => not_le_of_gt h.2 hka, fun h => lt_asymm hxa h.2⟩
     · exact hbet y hy
@@ -634,9 +597,7 @@ private theorem focusSearch_spec_right {x a k : α} {l r : BinaryTree α}
       (∀ y ∈ elements (.node a l r), ¬ (x < y ∧ y < k) ∧ ¬ (k < y ∧ y < x)) := by
   refine ⟨mem_elements_node.mpr (hk.imp_right .inr), fun hx => ?_, fun y hy => ?_⟩
   · rcases mem_elements_node.mp hx with rfl | hx | hx
-    · exact (lt_irrefl x hax).elim
-    · exact (lt_asymm hax (hla x hx)).elim
-    · exact hxeq hx
+    exacts [(lt_irrefl x hax).elim, (lt_asymm hax (hla x hx)).elim, hxeq hx]
   · rcases mem_elements_node.mp hy with rfl | hy | hy
     · exact ⟨fun h => lt_asymm hax h.1, fun h => not_le_of_gt h.1 hak⟩
     · have hya := hla y hy
@@ -663,8 +624,7 @@ theorem focusSearch_ordered_spec {x : α} {t : BinaryTree α} {ctx : List (Frame
     · obtain ⟨hmem, hxeq, hbet⟩ := ihr hr hfr
       exact focusSearch_spec_right hax hla (har _ hmem).le (.inr hmem) hxeq hbet
     · exact focusSearch_spec_right hax hla le_rfl (.inl rfl) (by simp) (by simp)
-    · refine ⟨by simp, fun _ => rfl, fun y _ => ?_⟩
-      exact ⟨fun h => lt_irrefl x (lt_trans h.1 h.2), fun h => lt_irrefl x (lt_trans h.1 h.2)⟩
+    · exact ⟨by simp, fun _ => rfl, fun _ _ => and_self_iff.mpr fun h => lt_asymm h.1 h.2⟩
 
 /-! ### Core Splaying Operations -/
 
@@ -697,8 +657,8 @@ private theorem ordered_splayFocus {t : BinaryTree α} (ht : Ordered t) {opt : O
   cases hopt : opt with
   | none => trivial
   | some f =>
-    have htree : plug (.node f.key f.leftSub f.rightSub) f.ctx = t := hsome f hopt
-    exact ordered_splayUp (htree.symm ▸ ht)
+    rw [← plug_nil t, ← hsome f hopt] at ht
+    exact ordered_splayUp ht
 
 @[simp] theorem tree_splay_eq_nil_iff (x : α) (t : BinaryTree α) :
     (splay x t).tree = .nil ↔ t = .nil :=
@@ -722,21 +682,16 @@ theorem rotations_splay_add_one_eq_searchVisits {t : BinaryTree α} (ht : t ≠ 
   cases hf : focusSearch x t [] with
   | none => exact (ht ((focusSearch_eq_none_iff x t []).mp hf)).elim
   | some f =>
-    have hlen := (focusSearch_toTree_and_length hf).2
-    simpa only [rotations_splayUp, List.length_nil, zero_add] using hlen
+    simpa only [rotations_splayUp, List.length_nil, zero_add] using
+      (focusSearch_toTree_and_length hf).2
 
 /-- If `x ∈ elements t` in an `Ordered` tree `t`, `splay x t` places `x` at the root. -/
 theorem rootKey_splay_of_mem {t : BinaryTree α} (ht : Ordered t) {x : α} (hx : x ∈ elements t) :
     rootKey (splay x t).tree = some x := by
   simp only [splay]
   cases hf : focusSearch x t [] with
-  | none =>
-    have hnil := (focusSearch_eq_none_iff x t []).mp hf
-    subst hnil
-    simp [elements] at hx
-  | some f =>
-    have hkey := (focusSearch_ordered_spec ht hf).2.1 hx
-    simp [hkey]
+  | none => simp [(focusSearch_eq_none_iff x t []).mp hf] at hx
+  | some f => simp [(focusSearch_ordered_spec ht hf).2.1 hx]
 
 /-- Root of a splayed tree: if `(splay x t).tree = .node r L R` with `t` ordered, the splayed tree
 is ordered with the same keys, `r = x` when `x` is present, and no key lies strictly between `x`
@@ -751,10 +706,8 @@ private theorem splay_root_spec {t L R : BinaryTree α} {x r : α} (ht : Ordered
   | none => simp [hf] at hs
   | some f =>
     simp only [hf] at hs
-    have hr_eq : r = f.key := by
-      simpa only [hs, rootKey_node, Option.some.injEq] using
-        rootKey_splayUp f.key f.leftSub f.rightSub f.ctx
-    exact hr_eq ▸ (focusSearch_ordered_spec ht hf).2
+    exact Option.some.inj (hs ▸ rootKey_splayUp f.key f.leftSub f.rightSub f.ctx) ▸
+      (focusSearch_ordered_spec ht hf).2
 
 /-- Split separation on the left: if `(splay x t).tree = .node r L R` and `x < r`, then every key
 in `L` is strictly less than `x`. -/
@@ -766,9 +719,7 @@ theorem splay_split_lt {t L R : BinaryTree α} {x r : α} (ht : Ordered t)
   have hyr : y < r := hord.2.2.1 y hyL
   have hy : y ∈ elements t := helem ▸ mem_elements_node.mpr (.inr (.inl hyL))
   rcases lt_trichotomy y x with hyx | rfl | hxy
-  · exact hyx
-  · exact (hxr.ne' (hxeq hy)).elim
-  · exact ((hbet y hy).1 ⟨hxy, hyr⟩).elim
+  exacts [hyx, (hxr.ne' (hxeq hy)).elim, ((hbet y hy).1 ⟨hxy, hyr⟩).elim]
 
 /-- Split separation on the right: if `(splay x t).tree = .node r L R` and `r ≤ x`, then every key
 in `R` is strictly greater than `x`. -/
@@ -782,9 +733,7 @@ theorem splay_split_ge {t L R : BinaryTree α} {x r : α} (ht : Ordered t)
   have hry : r < y := hord.2.2.2 y hyR
   have hy : y ∈ elements t := helem ▸ mem_elements_node.mpr (.inr (.inr hyR))
   rcases lt_trichotomy x y with hxy | rfl | hyx
-  · exact hxy
-  · exact (hrx.ne (hxeq hy)).elim
-  · exact ((hbet y hy).2 ⟨hry, hyx⟩).elim
+  exacts [hxy, (hrx.ne (hxeq hy)).elim, ((hbet y hy).2 ⟨hry, hyx⟩).elim]
 
 @[simp] theorem elements_splayMin (t : BinaryTree α) :
     elements (splayMin t).tree = elements t :=
@@ -906,34 +855,21 @@ and rotates it to the root. -/
 
 @[simp] theorem elements_contains (x : α) (t : BinaryTree α) :
     elements (contains x t).tree = elements t := by
-  simp only [contains]
-  cases hs : (splay x t).tree <;> simp [← elements_splay x t, hs]
+  cases hs : (splay x t).tree <;> simp [contains, ← elements_splay x t, hs]
 
 theorem ordered_contains {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (contains x t).tree := by
-  simp only [contains]
-  have ho := ordered_splay ht x
-  cases hs : (splay x t).tree <;> simpa [hs] using ho
+  cases hs : (splay x t).tree <;> simpa [contains, hs] using ordered_splay ht x
 
 theorem contains_answer_eq_true {t : BinaryTree α} (ht : Ordered t) (x : α) :
     (contains x t).answer = true ↔ x ∈ elements t := by
   simp only [contains]
   cases hs : (splay x t).tree with
-  | nil =>
-    have hnil := (tree_splay_eq_nil_iff x t).mp hs
-    subst hnil
-    simp [elements]
+  | nil => simp [(tree_splay_eq_nil_iff x t).mp hs]
   | node r l R =>
     simp only [decide_eq_true_eq]
-    constructor
-    · rintro rfl
-      have he := elements_splay x t
-      rw [hs] at he
-      exact he ▸ (by simp)
-    · intro hx
-      have hroot := rootKey_splay_of_mem ht hx
-      rw [hs] at hroot
-      exact (Option.some.inj hroot).symm
+    exact ⟨fun h => elements_splay x t ▸ hs.symm ▸ mem_elements_node.mpr (.inl h), fun hx =>
+      (Option.some.inj ((congrArg rootKey hs).symm.trans (rootKey_splay_of_mem ht hx))).symm⟩
 
 theorem contains_answer_eq {t : BinaryTree α} (ht : Ordered t) (x : α) :
     (contains x t).answer = SearchTree.contains x t := by
@@ -941,16 +877,13 @@ theorem contains_answer_eq {t : BinaryTree α} (ht : Ordered t) (x : α) :
 
 theorem ordered_split {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (split x t).left ∧ Ordered (split x t).right := by
-  simp only [split]
-  have ho := ordered_splay ht x
   cases hs : (splay x t).tree with
-  | nil => simp [Ordered]
+  | nil => simp [split, hs, Ordered]
   | node r l R =>
-    dsimp only
-    rw [hs] at ho
-    obtain ⟨hl, hR, hlr, hrR⟩ := ho
-    split <;> dsimp only
-    · exact ⟨hl, ⟨trivial, hR, by simp, hrR⟩⟩
+    obtain ⟨hl, hR, hlr, hrR⟩ : Ordered (.node r l R) := hs ▸ ordered_splay ht x
+    simp only [split, hs]
+    split_ifs
+    · exact ⟨hl, trivial, hR, by simp, hrR⟩
     · exact ⟨⟨hl, trivial, hlr, by simp⟩, hR⟩
 
 /-- `split x t` partitions the keys of an ordered `t` into those `≤ x` and those `> x`. -/
@@ -958,11 +891,8 @@ private theorem split_partition {t : BinaryTree α} (ht : Ordered t) (x : α) :
     elements (split x t).left ∪ elements (split x t).right = elements t ∧
       (∀ y ∈ elements (split x t).left, y ≤ x) ∧ ∀ y ∈ elements (split x t).right, x < y := by
   simp only [split]
-  have he := elements_splay x t
   cases hs : (splay x t).tree with
-  | nil =>
-    rw [hs] at he
-    simp [← he]
+  | nil => simp [← elements_splay x t, hs]
   | node r l R =>
     obtain ⟨⟨_, _, hlr, hrR⟩, he, -, -⟩ := splay_root_spec ht hs
     dsimp only
@@ -970,15 +900,10 @@ private theorem split_partition {t : BinaryTree α} (ht : Ordered t) (x : α) :
     · simp only [← he, elements, Finset.empty_union, Finset.union_insert]
     · exact (splay_split_lt ht hs hxr y hy).le
     · rcases mem_elements_node.mp hy with rfl | hy | hy
-      · exact hxr
-      · simp at hy
-      · exact lt_trans hxr (hrR y hy)
+      exacts [hxr, by simp at hy, lt_trans hxr (hrR y hy)]
     · simp only [← he, elements, Finset.union_empty, Finset.insert_union]
-    · have hrx : r ≤ x := le_of_not_gt hxr
-      rcases mem_elements_node.mp hy with rfl | hy | hy
-      · exact hrx
-      · exact (hlr y hy).le.trans hrx
-      · simp at hy
+    · rcases mem_elements_node.mp hy with rfl | hy | hy
+      exacts [le_of_not_gt hxr, (hlr y hy).le.trans (le_of_not_gt hxr), by simp at hy]
     · exact splay_split_ge ht hs (le_of_not_gt hxr) y hy
 
 theorem elements_split_left {t : BinaryTree α} (ht : Ordered t) (x : α) :
@@ -999,9 +924,7 @@ theorem elements_join (t₁ t₂ : BinaryTree α) :
   | nil => simp [join]
   | node a l r =>
     obtain ⟨m, lm, hm⟩ := exists_node_nil_right_splayMax (t := .node a l r) (by simp)
-    have he := elements_splayMax (.node a l r)
-    rw [hm] at he
-    rw [← he]
+    rw [← elements_splayMax (.node a l r)]
     simp only [join, hm, elements, Finset.union_empty, Finset.insert_union]
 
 theorem ordered_join {t₁ t₂ : BinaryTree α} (h₁ : Ordered t₁) (h₂ : Ordered t₂)
@@ -1011,14 +934,10 @@ theorem ordered_join {t₁ t₂ : BinaryTree α} (h₁ : Ordered t₁) (h₂ : O
   | nil => simpa [join] using h₂
   | node a l r =>
     obtain ⟨m, lm, hm⟩ := exists_node_nil_right_splayMax (t := .node a l r) (by simp)
-    have ho := ordered_splayMax h₁
-    have he := elements_splayMax (.node a l r)
-    rw [hm] at ho he
-    obtain ⟨hlm, _, hlt, _⟩ := ho
+    have ⟨hlm, _, hlt, _⟩ : Ordered (.node m lm .nil) := hm ▸ ordered_splayMax h₁
     simp only [join, hm]
-    refine ⟨hlm, h₂, hlt, ?_⟩
-    intro y hy
-    exact hsep m (he ▸ by simp) y hy
+    refine ⟨hlm, h₂, hlt, fun y hy => hsep m ?_ y hy⟩
+    simp [← elements_splayMax (.node a l r), hm]
 
 /-- Splaying a nonempty tree yields a node. -/
 private theorem exists_splay_eq_node {t : BinaryTree α} (ht : t ≠ .nil) (x : α) :
@@ -1033,9 +952,8 @@ private theorem exists_splay_eq_node {t : BinaryTree α} (ht : t ≠ .nil) (x : 
   | nil => simp [insert, elements]
   | node a l r =>
     obtain ⟨r', l', R', hs⟩ := exists_splay_eq_node (t := .node a l r) (by simp) x
-    have he := elements_splay x (.node a l r)
-    rw [hs] at he
-    simp only [insert, hs, ← he]
+    rw [← elements_splay x (.node a l r)]
+    simp only [insert, hs]
     split_ifs with hxr hrx
     · simp only [elements, Finset.empty_union, Finset.union_insert]
     · simp only [elements, Finset.union_empty, Finset.insert_union]
@@ -1048,16 +966,14 @@ theorem ordered_insert {t : BinaryTree α} (ht : Ordered t) (x : α) :
   | node a l r =>
     obtain ⟨r', l', R', hs⟩ := exists_splay_eq_node (t := .node a l r) (by simp) x
     have ho := (splay_root_spec ht hs).1
-    obtain ⟨-, -, hlr', -⟩ := id ho
     obtain ⟨hleft, hright⟩ := ordered_split ht x
     obtain ⟨-, -, hgt⟩ := split_partition ht x
-    simp only [split, hs] at hleft hright hgt
-    simp only [insert, hs]
+    simp only [split, insert, hs] at hleft hright hgt ⊢
     split_ifs at hleft hright hgt ⊢ with hxr hrx
     · exact ⟨hleft, hright, splay_split_lt ht hs hxr, hgt⟩
     · refine ⟨hleft, hright, fun y hy => ?_, hgt⟩
       rcases mem_elements_node.mp hy with rfl | hy | hy
-      exacts [hrx, (hlr' y hy).trans hrx, by simp at hy]
+      exacts [hrx, (ho.2.2.1 y hy).trans hrx, by simp at hy]
     · exact ho
 
 @[simp] theorem rootKey_insert (x : α) (t : BinaryTree α) :
@@ -1068,9 +984,7 @@ theorem ordered_insert {t : BinaryTree α} (ht : Ordered t) (x : α) :
     obtain ⟨r', l', R', hs⟩ := exists_splay_eq_node (t := .node a l r) (by simp) x
     simp only [insert, hs]
     split_ifs with hxr hrx
-    · rfl
-    · rfl
-    · simp [le_antisymm (le_of_not_gt hrx) (le_of_not_gt hxr)]
+    exacts [rfl, rfl, congrArg some (le_antisymm (not_lt.1 hxr) (not_lt.1 hrx))]
 
 theorem elements_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
     elements (erase x t).tree = (elements t).erase x := by
@@ -1092,22 +1006,18 @@ theorem ordered_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
   | node a l r =>
     obtain ⟨r', l', R', hs⟩ := exists_splay_eq_node (t := .node a l r) (by simp) x
     have ho := (splay_root_spec ht hs).1
-    obtain ⟨hl', hR', hlr', hrR'⟩ := id ho
     simp only [erase, hs]
     split_ifs
-    · exact ordered_join hl' hR' (fun y hy z hz => lt_trans (hlr' y hy) (hrR' z hz))
+    · exact ordered_join ho.1 ho.2.1 fun y hy z hz => lt_trans (ho.2.2.1 y hy) (ho.2.2.2 z hz)
     · exact ho
 
 @[simp] theorem elements_minimum (t : BinaryTree α) :
     elements (minimum t).tree = elements t := by
-  simp only [minimum]
-  cases hs : (splayMin t).tree <;> simp [← elements_splayMin t, hs]
+  cases hs : (splayMin t).tree <;> simp [minimum, ← elements_splayMin t, hs]
 
 theorem ordered_minimum {t : BinaryTree α} (ht : Ordered t) :
     Ordered (minimum t).tree := by
-  simp only [minimum]
-  have ho := ordered_splayMin ht
-  cases hs : (splayMin t).tree <;> simpa [hs] using ho
+  cases hs : (splayMin t).tree <;> simpa [minimum, hs] using ordered_splayMin ht
 
 /-- The root of an ordered tree with empty left subtree is its least key. -/
 private theorem leastResult_node_nil {m : α} {R : BinaryTree α} (ho : Ordered (.node m .nil R)) :
@@ -1115,18 +1025,14 @@ private theorem leastResult_node_nil {m : α} {R : BinaryTree α} (ho : Ordered 
   simp only [LeastResult]
   refine ⟨by simp, fun y hy => ?_⟩
   rcases mem_elements_node.mp hy with rfl | hy | hy
-  · exact le_rfl
-  · simp at hy
-  · exact (ho.2.2.2 y hy).le
+  exacts [le_rfl, by simp at hy, (ho.2.2.2 y hy).le]
 
 /-- `splayMin` of a nonempty ordered tree brings its least key to a root with empty left
 subtree. -/
 private theorem leastResult_splayMin {t : BinaryTree α} (ht : Ordered t) (hne : t ≠ .nil) :
     ∃ m R, (splayMin t).tree = .node m .nil R ∧ LeastResult (elements t) (some m) := by
   obtain ⟨m, R, hm⟩ := exists_node_nil_left_splayMin hne
-  refine ⟨m, R, hm, ?_⟩
-  rw [← elements_splayMin t, hm]
-  exact leastResult_node_nil (hm ▸ ordered_splayMin ht)
+  exact ⟨m, R, hm, elements_splayMin t ▸ hm.symm ▸ leastResult_node_nil (hm ▸ ordered_splayMin ht)⟩
 
 theorem minimum_spec {t : BinaryTree α} (ht : Ordered t) :
     LeastResult (elements t) (minimum t).answer := by
@@ -1142,58 +1048,44 @@ theorem minimum_answer_eq {t : BinaryTree α} (ht : Ordered t) :
 
 @[simp] theorem elements_successor (x : α) (t : BinaryTree α) :
     elements (successor x t).tree = elements t := by
-  simp only [successor]
-  have he := elements_splay x t
+  rw [← elements_splay x t]
   cases hs : (splay x t).tree with
-  | nil => simpa [hs] using he
+  | nil => simp [successor, hs]
   | node r l R =>
-    dsimp only
-    rw [hs] at he
-    split
-    · exact he
+    simp only [successor, hs]
+    split_ifs
+    · rfl
     · cases R with
-      | nil => exact he
+      | nil => rfl
       | node b rl rr =>
         obtain ⟨m, mR, hm⟩ := exists_node_nil_left_splayMin (t := .node b rl rr) (by simp)
-        have heR := hm ▸ elements_splayMin (.node b rl rr)
-        simp only [hm]
-        rw [elements_zig_left.symm, elements, heR]
-        exact he
+        rw [hm, ← elements_zig_left, elements, ← hm, elements_splayMin, ← elements]
 
 theorem ordered_successor {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (successor x t).tree := by
-  simp only [successor]
-  have ho := ordered_splay ht x
   cases hs : (splay x t).tree with
-  | nil => simp [Ordered]
+  | nil => simp [successor, hs, Ordered]
   | node r l R =>
-    dsimp only
-    have ho' : Ordered (.node r l R) := hs ▸ ho
-    have ⟨hl, hR, hlr, hrR⟩ := ho'
-    split
-    · exact ho'
+    have ho : Ordered (.node r l R) := hs ▸ ordered_splay ht x
+    simp only [successor, hs]
+    split_ifs
+    · exact ho
     · cases R with
-      | nil => exact ho'
+      | nil => exact ho
       | node b rl rr =>
         obtain ⟨m, mR, hm⟩ := exists_node_nil_left_splayMin (t := .node b rl rr) (by simp)
-        have hoR := hm ▸ ordered_splayMin hR
-        have heR := hm ▸ elements_splayMin (.node b rl rr)
         simp only [hm]
-        exact ordered_zig_right ⟨hl, hoR, hlr, heR.symm ▸ hrR⟩
+        exact ordered_zig_right ⟨ho.1, hm ▸ ordered_splayMin ho.2.1, ho.2.2.1,
+          (hm ▸ elements_splayMin (.node b rl rr)).symm ▸ ho.2.2.2⟩
 
 theorem successor_spec {t : BinaryTree α} (ht : Ordered t) (x : α) :
     LeastResult ((elements t).filter (x < ·)) (successor x t).answer := by
   have hright := elements_split_right ht x
-  simp only [successor]
-  simp only [split] at hright
   cases hs : (splay x t).tree with
-  | nil =>
-    rw [hs] at hright
-    simp [LeastResult, ← hright]
+  | nil => simp [successor, split, LeastResult, ← hright, hs]
   | node r l R =>
     obtain ⟨⟨-, hR, -, hrR⟩, -, -, -⟩ := splay_root_spec ht hs
-    rw [hs] at hright
-    dsimp only at hright ⊢
+    simp only [successor, split, hs] at hright ⊢
     split_ifs at hright ⊢ with hxr <;> rw [← hright]
     · exact leastResult_node_nil ⟨trivial, hR, by simp, hrR⟩
     · cases R with

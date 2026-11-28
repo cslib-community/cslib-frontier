@@ -96,10 +96,8 @@ private theorem intervalWeight_update_bounds (code : V → Fin ℓ → Bool) (se
     rw [sum_mul]
     refine sum_le_sum fun i _ => ?_
     cases code (column i) j <;> simp [coefficient, scaleAccumulatedWeight, Nat.padicValNat_def]
-  have htail := Nat.two_mul_sum_six_pow_multiplicity_erase_le ha hm hmax
-  have hscaled := Nat.mul_le_mul_right (6 ^ (ℓ - (j.val + 1))) htail
-  rw [Nat.mul_assoc] at hscaled
-  have hdouble := (Nat.mul_le_mul_left 2 hsum).trans hscaled
+  have hdouble := (Nat.mul_le_mul_left 2 hsum).trans (Nat.mul_assoc 2 _ _ ▸ Nat.mul_le_mul_right
+    (6 ^ (ℓ - (j.val + 1))) (Nat.two_mul_sum_six_pow_multiplicity_erase_le ha hm hmax))
   simp only [coefficient, scaleAccumulatedWeight, Nat.padicValNat_def] at *
   omega
 
@@ -137,9 +135,7 @@ theorem minIntervalWeight_update_bounds (code : V → Fin ℓ → Bool) (seed : 
       d₁ ≤ d₀ + coefficient mid j * (code v j).toNat + coefficient mid j / 2 :=
   MinIsolation.BaseSix.minWeight_update_bounds
     (fun p s => intervalWeight code s (Icc a b) (column p)) hne (m := padicValNat 2 mid)
-    (c := code v) seed j fun p hp => by
-      have h := intervalWeight_update_bounds code seed ha hm hmax (column p) j
-      rw [hcolumn p hp] at h
-      exact h
+    (c := code v) seed j fun p hp =>
+      hcolumn p hp ▸ intervalWeight_update_bounds code seed ha hm hmax (column p) j
 
 end Cslib.Reachability.Hoza

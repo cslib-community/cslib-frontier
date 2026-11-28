@@ -117,9 +117,7 @@ theorem card_filter_quadratic_eq_zero_le {n : ℕ} [NeZero n] {a : ZMod n} (b c 
   have hf : f ≠ 0 := fun h => ha <| by
     simpa [f] using congrArg (fun p : (ZMod n)[X] => p.coeff 2) h
   have hsub : (Finset.univ.filter fun χ : ZMod n => a * χ ^ 2 + b * χ + c = 0) ⊆
-      Finset.univ.filter fun χ : ZMod n => f.eval χ = 0 := fun χ hχ => by
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hχ ⊢
-    simpa [f] using hχ
+      Finset.univ.filter fun χ : ZMod n => f.eval χ = 0 := fun χ hχ => by simpa [f] using hχ
   calc _ ≤ _ := Finset.card_le_card hsub
     _ ≤ f.natDegree * (n / n.minFac) := ZMod.card_filter_eval_eq_zero_le hf
     _ ≤ 2 * (n / n.minFac) := Nat.mul_le_mul_right _ natDegree_quadratic_le
@@ -136,20 +134,17 @@ theorem ringMacGap_mul_eq_zero_iff {n : ℕ} [NeZero n] (y : ZMod n) :
     ringMacGap n * y = 0 ↔ ZMod.castHom (Nat.minFac_dvd n) (ZMod n.minFac) y = 0 := by
   have hd : 0 < n / n.minFac :=
     Nat.div_pos (Nat.minFac_le (Nat.pos_of_ne_zero (NeZero.ne n))) (Nat.minFac_pos n)
-  have key : n ∣ n / n.minFac * y.val ↔ n.minFac ∣ y.val := by
-    simpa [Nat.div_mul_cancel (Nat.minFac_dvd n)] using
-      Nat.mul_dvd_mul_iff_left hd (b := n.minFac) (c := y.val)
   have hy : ringMacGap n * y = ((n / n.minFac * y.val : ℕ) : ZMod n) := by
     rw [ringMacGap, Nat.cast_mul, ZMod.natCast_zmod_val]
-  rw [hy, ZMod.natCast_eq_zero_iff, key, ZMod.castHom_apply, ZMod.cast_eq_val,
-    ZMod.natCast_eq_zero_iff]
+  rw [hy, ZMod.natCast_eq_zero_iff, ZMod.castHom_apply, ZMod.cast_eq_val,
+    ZMod.natCast_eq_zero_iff, ← Nat.mul_dvd_mul_iff_left hd (b := n.minFac) (c := y.val),
+    Nat.div_mul_cancel (Nat.minFac_dvd n)]
 
 /-- For `n > 1`, `ringMacGap n` is nonzero. -/
 theorem ringMacGap_ne_zero {n : ℕ} (hn : 1 < n) : ringMacGap n ≠ 0 := by
   have : NeZero n := ⟨by omega⟩
   have : Fact (1 < n.minFac) := ⟨(Nat.minFac_prime (by omega)).one_lt⟩
-  intro h
-  exact one_ne_zero <| by
+  exact fun h => one_ne_zero <| by
     simpa only [map_one] using (ringMacGap_mul_eq_zero_iff (1 : ZMod n)).1 (by simp [h])
 
 /-- **Lemma 3 is sharp.** Shifting the value by `ringMacGap n` leaves exactly `n / n.minFac`

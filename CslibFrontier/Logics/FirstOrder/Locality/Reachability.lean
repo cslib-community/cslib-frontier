@@ -124,12 +124,10 @@ theorem gaifmanGraph_relStructure {M : Type*} (R : M → M → Prop) :
 /-- The Gaifman graph of the covering relation of a preorder is its Hasse diagram. -/
 theorem gaifmanGraph_covBy {α : Type*} [Preorder α] :
     @gaifmanGraph Language.graph α (relStructure (· ⋖ ·)) = SimpleGraph.hasse α := by
-  rw [gaifmanGraph_relStructure]
   ext x y
-  rw [SimpleGraph.fromRel_adj, SimpleGraph.hasse_adj]
-  exact ⟨fun h => h.2, fun h => ⟨fun hxy => by
-    subst hxy
-    rcases h with h | h <;> exact h.ne rfl, h⟩⟩
+  simp only [gaifmanGraph_relStructure, SimpleGraph.fromRel_adj, SimpleGraph.hasse_adj,
+    and_iff_right_iff_imp]
+  exact fun h hxy => h.elim (·.ne hxy) (·.ne hxy.symm)
 
 /-! ### Transitive closure on the successor relation -/
 
@@ -159,12 +157,9 @@ private theorem isNbhdIso_shift {r : ℕ} {a b : Fin N} (ha : r ≤ (a : ℕ)) (
   let := relStructure (M := Fin N) (· ⋖ ·)
   refine ⟨⟨fun x hx => ?_, fun x hx y hy hxy => ?_, fun y hy => ?_⟩,
     fun _ => Fin.ext (by simp only; omega), ?_⟩
-  · rw [mem_ball_covBy] at hx ⊢
-    simp only
+  · simp only [mem_ball_covBy] at hx ⊢
     omega
-  · rw [mem_ball_covBy] at hx hy
-    have := congrArg Fin.val hxy
-    simp only at this
+  · simp only [mem_ball_covBy, Fin.mk.injEq] at hx hy hxy
     exact Fin.ext (by omega)
   · rw [mem_ball_covBy] at hy
     exact ⟨⟨y + a - b, by omega⟩,
@@ -257,10 +252,9 @@ private theorem realize_ulift {N : ℕ} (φ : Language.graph.Formula (Fin 2)) (a
       (letI := relStructure (M := Fin N) (· ⋖ ·); φ.Realize ![a, b]) := by
   let := relStructure (M := Fin N) (· ⋖ ·)
   let := @Equiv.inducedStructure Language.graph (Fin N) (ULift.{u} (Fin N)) _ Equiv.ulift.symm
-  have h := StrongHomClass.realize_formula (ulift.{u} N) φ (v := ![a, b])
-  have h2 : (ulift.{u} N ∘ ![a, b]) = ![ULift.up a, ULift.up b] := by
-    ext i; fin_cases i <;> rfl
-  rwa [h2] at h
+  have h2 : (ulift.{u} N ∘ ![a, b]) = ![ULift.up a, ULift.up b] :=
+    funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)
+  simpa only [h2] using StrongHomClass.realize_formula (ulift.{u} N) φ (v := ![a, b])
 
 /-- **Transitive closure is not first-order definable** ([Libkin, §4.1][Libkin2004]): no formula
 `φ(x, y)` of the language of graphs, read as the language of directed graphs, defines the
@@ -286,11 +280,10 @@ theorem not_exists_formula_transGen :
       φ.Realize ![a, b] ↔ Relation.TransGen (fun x y : M => RelMap adj ![x, y]) a b := by
   -- `φ(x, y) ∨ x = y` would then define the reflexive–transitive closure.
   rintro ⟨φ, hφ⟩
-  refine not_exists_formula_reflTransGen.{u} ⟨φ ⊔ (Term.var 0).equal (Term.var 1), ?_⟩
-  intro M _ _ a b
-  rw [Relation.reflTransGen_iff_eq_or_transGen, Formula.realize_sup, hφ, Formula.realize_equal]
-  simp only [Term.realize_var, Matrix.cons_val_zero, Matrix.cons_val_one]
-  exact or_comm.trans (or_congr_left eq_comm)
+  refine not_exists_formula_reflTransGen.{u}
+    ⟨φ ⊔ (Term.var 0).equal (Term.var 1), fun M _ _ a b => ?_⟩
+  rw [Relation.reflTransGen_iff_eq_or_transGen]
+  fo_simp [hφ, or_comm, eq_comm]
 
 /-! ### Undirected reachability -/
 
@@ -304,15 +297,12 @@ theorem isNbhdIso_of_iso (e : G ≃g H) {k r : ℕ} {a : Fin k → V} {b : Fin k
     @IsNbhdIso Language.graph V W G.structure H.structure k r a b e := by
   let := G.structure
   let := H.structure
-  have hball : ∀ x, x ∈ ball Language.graph a r ↔ e x ∈ ball Language.graph b r := by
-    intro x
+  have hball (x : V) : x ∈ ball Language.graph a r ↔ e x ∈ ball Language.graph b r := by
     simp only [mem_ball, gaifmanGraph_structure, ← hab, e.edist_eq]
-  refine ⟨⟨fun x hx => (hball x).1 hx, fun x _ y _ h => e.injective h, fun y hy => ?_⟩,
-    hab, ?_⟩
-  · exact ⟨e.symm y, (hball _).2 (by simpa using hy), by simp⟩
-  · intro l R t _
-    match l, R with
-    | 2, .adj => exact e.map_adj_iff
+  refine ⟨⟨fun x hx => (hball x).1 hx, fun x _ y _ h => e.injective h,
+    fun y hy => ⟨e.symm y, (hball _).2 (by simpa using hy), by simp⟩⟩, hab, ?_⟩
+  rintro _ ⟨⟩ _ _
+  exact e.map_adj_iff
 
 /-- **Far-apart pairs in one copy look like pairs across two copies**: in `G ⊕g G`, if `u` and
 `v` are at distance more than `2r + 1` in `G`, then the radius-`r` neighborhoods of
@@ -369,8 +359,7 @@ theorem card_le_of_realize_iff_reachable_pathGraph {m : ℕ} {φ : Language.grap
   have : 0 < 3 ^ (quantifierRank φ + 1) := pow_pos (by decide) _
   have h := edist_le_of_realize_iff_reachable hφ (u := ⟨0, by omega⟩) (v := ⟨m - 1, by omega⟩)
     ((SimpleGraph.connected_pathGraph.2 (by omega)).preconnected _ _)
-  rw [SimpleGraph.edist_pathGraph, Nat.cast_le] at h
-  simp only at h
+  simp only [SimpleGraph.edist_pathGraph, Nat.cast_le] at h
   omega
 
 /-- **Reachability is not first-order definable** on finite graphs: no formula `φ(x, y)` of the
@@ -381,16 +370,11 @@ theorem not_exists_formula_reachable :
   rintro ⟨φ, hφ⟩
   have : 0 < 3 ^ (quantifierRank φ + 1) := pow_pos (by decide) _
   set m := 3 ^ (quantifierRank φ + 1) + 2
-  let e : ULift.{u} (Fin m) ≃ Fin m := Equiv.ulift
-  let G := (SimpleGraph.pathGraph m).comap e
-  have hG := SimpleGraph.Iso.comap e (SimpleGraph.pathGraph m)
-  have h := edist_le_of_realize_iff_reachable (G := G) (φ := φ)
-    (fun x y => hφ (ULift.{u} (Fin m) ⊕ ULift.{u} (Fin m)) (G ⊕g G) x y)
+  have hG := SimpleGraph.Iso.comap Equiv.ulift.{u} (SimpleGraph.pathGraph m)
+  have h := edist_le_of_realize_iff_reachable (φ := φ) (fun x y => hφ _ _ x y)
     (u := hG.symm ⟨0, by omega⟩) (v := hG.symm ⟨m - 1, by omega⟩)
     ((SimpleGraph.connected_pathGraph.2 (by omega)).preconnected _ _ |>.map hG.symm.toHom)
-  rw [← hG.edist_eq, hG.apply_symm_apply, hG.apply_symm_apply, SimpleGraph.edist_pathGraph,
-    Nat.cast_le] at h
-  simp only at h
+  simp only [← hG.edist_eq, hG.apply_symm_apply, SimpleGraph.edist_pathGraph, Nat.cast_le] at h
   omega
 
 /-! ### The locality radius must be exponential -/
@@ -407,11 +391,8 @@ def distLE : ℕ → Language.graph.Formula (Fin 2)
 
 @[simp] theorem quantifierRank_distLE (k : ℕ) : quantifierRank (distLE k) = k := by
   induction k with
-  | zero =>
-    simp only [distLE, quantifierRank_sup, Term.equal, Relations.formula₂, Relations.formula,
-      quantifierRank_bdEqual, quantifierRank_relations_boundedFormula, max_self]
-  | succ k ih =>
-    simp only [distLE, quantifierRank_ex, quantifierRank_inf, quantifierRank_relabel, ih, max_self]
+  | zero => simp [distLE, Term.equal, Relations.formula₂, Relations.formula]
+  | succ k ih => simp [distLE, ih]
 
 theorem realize_distLE_zero {M : Type*} [Language.graph.Structure M] (x y : M) :
     (distLE 0).Realize ![x, y] ↔ x = y ∨ RelMap adj ![x, y] := by
@@ -421,11 +402,9 @@ theorem realize_distLE_succ {M : Type*} [Language.graph.Structure M] (k : ℕ) (
     (distLE (k + 1)).Realize ![x, y] ↔
       ∃ z, (distLE k).Realize ![x, z] ∧ (distLE k).Realize ![z, y] := by
   fo_simp [distLE]
-  refine exists_congr fun z => and_congr ?_ ?_ <;>
-  · apply iff_of_eq
-    congr 1
-    · ext i; fin_cases i <;> rfl
-    · exact Subsingleton.elim _ _
+  exact exists_congr fun z => and_congr
+    (iff_of_eq (congrArg₂ _ (funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)) (Subsingleton.elim _ _)))
+    (iff_of_eq (congrArg₂ _ (funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)) (Subsingleton.elim _ _)))
 
 /-- `distLE k` says that the distance is at most `2 ^ k`. -/
 theorem realize_distLE (G : SimpleGraph V) (k : ℕ) (x y : V) :
@@ -436,11 +415,10 @@ theorem realize_distLE (G : SimpleGraph V) (k : ℕ) (x y : V) :
     rw [realize_distLE_zero, pow_zero, Nat.cast_one, SimpleGraph.edist_le_one_iff_adj_or_eq]
     exact Or.comm
   | succ k ih =>
-    have h2 : ((2 ^ (k + 1) : ℕ) : ℕ∞) = ((2 ^ k : ℕ) : ℕ∞) + ((2 ^ k : ℕ) : ℕ∞) := by
-      rw [pow_succ, mul_two, Nat.cast_add]
-    simp only [realize_distLE_succ, ih]
-    exact ⟨fun ⟨_, h1, h2'⟩ => SimpleGraph.edist_triangle.trans (h2 ▸ add_le_add h1 h2'),
-      fun h => SimpleGraph.exists_edist_le_of_edist_le_add (by rwa [Nat.cast_add, ← h2])⟩
+    simp only [realize_distLE_succ, ih, pow_succ, mul_two]
+    exact ⟨fun ⟨_, h1, h2⟩ => SimpleGraph.edist_triangle.trans
+        (by simpa only [Nat.cast_add] using add_le_add h1 h2),
+      SimpleGraph.exists_edist_le_of_edist_le_add⟩
 
 /-- **The locality radius must be exponential in the quantifier rank**
 ([Libkin, §4.3, p. 54][Libkin2004]): the rank-`(k + 1)` formula `distLE (k + 1)` distinguishes two
@@ -452,20 +430,14 @@ theorem exists_nbhdIso_realize_distLE (k : ℕ) :
       (letI := G.structure; (distLE (k + 1)).Realize a) ∧
       ¬ (letI := G.structure; (distLE (k + 1)).Realize b) := by
   have hk : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-  have hk' : 2 ^ (k + 1) = 2 * 2 ^ k := by rw [pow_succ, mul_comm]
   set m := 2 ^ (k + 1) + 1
   let P := SimpleGraph.pathGraph m
-  have hP : P.edist ⟨0, by omega⟩ ⟨2 ^ (k + 1), by omega⟩ = ((2 ^ (k + 1) : ℕ) : ℕ∞) := by
-    rw [SimpleGraph.edist_pathGraph]
-    simp
   refine ⟨Fin m ⊕ Fin m, inferInstance, P ⊕g P, ![.inl ⟨0, by omega⟩, .inl ⟨2 ^ (k + 1), by omega⟩],
-    ![.inl ⟨0, by omega⟩, .inr ⟨2 ^ (k + 1), by omega⟩], ?_, ?_, ?_⟩
-  · exact nbhdIso_sum (by rw [hP, Nat.cast_lt]; omega)
-  · rw [realize_distLE]
-    exact ((SimpleGraph.Embedding.sumInl (G := P) (H := P)).toHom.edist_le _ _).trans hP.le
-  · rw [realize_distLE, SimpleGraph.edist_eq_top_of_not_reachable
-      (SimpleGraph.not_reachable_sum_inl_inr _ _)]
-    exact not_le.2 (ENat.natCast_lt_top _)
+    ![.inl ⟨0, by omega⟩, .inr ⟨2 ^ (k + 1), by omega⟩],
+    nbhdIso_sum (by simp only [P, SimpleGraph.edist_pathGraph, Nat.cast_lt, pow_succ]; omega),
+    by simp [realize_distLE, SimpleGraph.edist_sum_inl, P, SimpleGraph.edist_pathGraph], ?_⟩
+  simp [realize_distLE, SimpleGraph.edist_eq_top_of_not_reachable
+    (SimpleGraph.not_reachable_sum_inl_inr _ _)]
 
 /-- **No subexponential radius gives Gaifman locality**: if a radius `ρ n` makes every formula of
 quantifier rank at most `n` Gaifman-local on finite graphs (as `(3 ^ (n + 1) - 1) / 2` does,

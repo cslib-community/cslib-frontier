@@ -248,29 +248,22 @@ private theorem combined_step (σ : Signer Req Reply Point C Log S) (q : Req ⊕
       withSampleList σ.fallback (gameHandler σ) q s.1.toGame := by
   cases q with
   | inl q =>
-    obtain ⟨st, n⟩ := s
     rw [run_handler_inl, run_interpret_countingUniform_pure]
     simp only [PMF.monad_map_eq_map, PMF.pure_map, withSampleList, gameHandler, State.toGame]
-    cases (σ.step (st.samples.headD σ.fallback) q).2 <;> rfl
+    cases (σ.step (s.1.samples.headD σ.fallback) q).2 <;> rfl
   | inr x =>
     cases h : s.1.table.lookup x with
     | some e =>
       have hcache : s.1.toGame.1.1.lookup x = some e.1 := by
         simp [State.toGame, List.lookup_map_snd, h]
-      rw [run_handler_inr_some σ h]
-      simp only [run_interpret_countingUniform_pure, PMF.monad_map_eq_map, PMF.pure_map,
-        withSampleList, gameHandler, oracle, memoize_of_some _ _ _ _ hcache,
-        PMF.monad_pure_eq_pure]
-      rfl
+      simp only [withSampleList, gameHandler, oracle, memoize_of_some _ _ _ _ hcache]
+      simp [run_handler_inr_some σ h, State.toGame]
     | none =>
       have hcache : s.1.toGame.1.1.lookup x = none := by
         simp [State.toGame, List.lookup_map_snd, h]
-      rw [run_handler_inr_none σ h]
-      simp only [interp_norm, PMF.monad_map_eq_map, withSampleList, gameHandler, oracle,
-        memoize_of_none _ _ _ hcache, run_countingUniform, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind,
-        Function.comp_apply]
-      rfl
+      simp only [withSampleList, gameHandler, oracle, memoize_of_none _ _ _ hcache]
+      simp [run_handler_inr_none σ h, interp_norm, run_countingUniform, ← PMF.bind_pure_comp,
+        State.toGame]
 
 /-- The reduction's final check, with its oracle answered uniformly, wins exactly when the game's
 final check does. -/
@@ -283,17 +276,13 @@ private theorem map_run_finish (κ : Check M T C Z Point Log) (cand : M × (T ×
   | some e =>
     have hcache : st.toGame.1.1.lookup (κ.point m t) = some e.1 := by
       simp [State.toGame, List.lookup_map_snd, h]
-    simp only [finish, h, run_interpret_countingUniform_pure, PMF.pure_map, finishGame, verdict,
-      oracle, memoize_of_some _ _ _ _ hcache, PMF.monad_pure_eq_pure]
-    rfl
+    rw [finishGame, oracle, memoize_of_some _ _ _ _ hcache]
+    simp [finish, h, verdict, State.toGame]
   | none =>
     have hcache : st.toGame.1.1.lookup (κ.point m t) = none := by
       simp [State.toGame, List.lookup_map_snd, h]
-    simp only [finish, h, interp_norm, PMF.monad_map_eq_map, finishGame, verdict, oracle,
-      memoize_of_none _ _ _ hcache, run_countingUniform, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind,
-      Function.comp_apply]
-    rfl
+    rw [finishGame, oracle, memoize_of_none _ _ _ hcache]
+    simp [finish, h, interp_norm, verdict, run_countingUniform, ← PMF.bind_pure_comp, State.toGame]
 
 /-- **The reduction simulates the game.** With its oracle answered uniformly, the reduction wins
 exactly when the adversary wins against the game's signer with the same presampled values. -/
@@ -305,9 +294,8 @@ theorem map_run_program (σ : Signer Req Reply Point C Log S) (κ : Check M T C 
         fun (cand, game, _) => finishGame κ (cand, game) := by
   have hsim := run_interpret_map_state _ (withSampleList σ.fallback (gameHandler σ))
     (fun s : State Point C Log S × ℕ => s.1.toGame) (combined_step σ) A (⟨[], [], 0, samples⟩, 0)
-  rw [show (⟨[], [], 0, samples⟩ : State Point C Log S).toGame = (([], []), samples) from rfl]
-    at hsim
-  rw [program, interpret_bind, StateT.run_bind, run_interpret_run_interpret, ← hsim]
+  rw [program, interpret_bind, StateT.run_bind, run_interpret_run_interpret]
+  erw [← hsim]
   simp only [pmf_norm]
   exact congrArg (PMF.bind _) (funext fun r => map_run_finish κ r.1 r.2.1 r.2.2)
 
@@ -390,31 +378,29 @@ theorem runWithAnswers_program (default : C) (σ : Signer Req Reply Point C Log 
   obtain ⟨hcount, hpos, hprog⟩ := hinv
   cases hl : st.table.lookup (κ.point m t) with
   | some e =>
-    obtain ⟨l₁, l₂, htable, -⟩ := List.lookup_eq_some_iff.mp hl
-    have hmem : (κ.point m t, e.1, e.2) ∈ st.table := by
-      rw [htable]
-      exact List.mem_append_right _ List.mem_cons_self
     obtain ⟨c, i⟩ := e
+    obtain ⟨l₁, l₂, htable, -⟩ := List.lookup_eq_some_iff.mp hl
+    have hmem : (κ.point m t, c, i) ∈ st.table :=
+      htable ▸ List.mem_append_right _ List.mem_cons_self
     simp only [finish, hl, runWithAnswers_pure, List.append_nil, verdict, Prod.mk.injEq] at hout
     obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout
     cases i with
     | none =>
       obtain ⟨s, q, l, hr, hlog⟩ := hprog _ _ hmem
-      have hfresh := hκ s q _ c l hr m t st.log rfl hlog
-      simp [hfresh]
+      simp [hκ s q _ c l hr m t st.log rfl hlog]
     | some i =>
       obtain ⟨hq, hc⟩ := hpos _ _ _ hmem
       refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
-      split_ifs at hj with hwin
-      cases hj
-      exact ⟨hq, hc, ((Bool.and_eq_true _ _).mp hwin).1⟩
+      simp only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] at hj
+      rcases hj with ⟨⟨hacc, -⟩, rfl⟩
+      exact ⟨hq, hc, hacc⟩
   | none =>
     simp only [finish, hl, runWithAnswers_map_query, verdict, Prod.mk.injEq] at hout
     obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout
     refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
-    split_ifs at hj with hwin
-    cases hj
-    refine ⟨by rw [hcount, List.getElem?_concat_length], ?_, ((Bool.and_eq_true _ _).mp hwin).1⟩
+    obtain ⟨⟨hacc, -⟩, rfl⟩ : (_ ∧ _) ∧ _ = j :=
+      by simpa only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] using hj
+    refine ⟨by rw [hcount, List.getElem?_concat_length], ?_, hacc⟩
     rw [hcount, List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
 
 /-- The reduction asks at most one query per hash call of the adversary, and one more to check
@@ -425,21 +411,13 @@ theorem isQueryBounded_program (σ : Signer Req Reply Point C Log S) (κ : Check
     IsQueryBounded (program σ κ A samples) (Qro + 1) := by
   have hhandler : ∀ (q : Req ⊕ Point) (st : State Point C Log S),
       IsQueryBounded ((handler σ q).run st) (hashCost q)
-    | .inl q, st => by
-      rw [run_handler_inl]
-      exact .pure _ _
+    | .inl _, _ => .pure _ _
     | .inr x, st => by
-      cases hl : st.table.lookup x with
-      | some e =>
-        rw [run_handler_inr_some σ hl]
-        exact .pure _ _
-      | none =>
-        rw [run_handler_inr_none σ hl]
-        exact .liftBind _ _ 0 fun _ => .pure _ 0
+      cases hl : st.table.lookup x <;> simp only [handler, StateT.run, hl]
+      exacts [.liftBind _ _ 0 fun _ => .pure _ 0, .pure _ _]
   refine (hA.run_interpret hhandler ⟨[], [], 0, samples⟩).bind fun ⟨⟨m, t, _⟩, st⟩ => ?_
   cases hl : st.table.lookup (κ.point m t) <;> simp only [finish, hl]
-  · exact .liftBind _ _ 0 fun _ => .pure _ 0
-  · exact .pure _ _
+  exacts [.liftBind _ _ 0 fun _ => .pure _ 0, .pure _ _]
 
 /-! ### Forking the reduction -/
 
@@ -470,8 +448,8 @@ private theorem map_run_le_validIndex (σ : Signer Req Reply Point C Log S)
   by_cases hw : outcome.won = true
   · obtain ⟨j, rfl⟩ := Option.isSome_iff_exists.mp (hwin hw)
     have hlt : j < queries.length := (List.getElem?_eq_some_iff.mp (hnamed j rfl).1).1
-    rw [hw, zero_add]
-    simp [validIndex, show j ≤ Qro by omega, hlt]
+    have hjQ : j ≤ Qro := by omega
+    simp [hw, validIndex, hjQ, hlt]
   · simp [Bool.eq_false_iff.mpr hw]
 
 /-- **The forking lemma for the reduction** ([BellareNeven2006], Lemma 1). If an event has

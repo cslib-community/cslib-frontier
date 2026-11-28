@@ -170,8 +170,7 @@ theorem abs_integral_comp_sum_sub_le_of_lipschitzWith (hμ : ∀ i, MemLp id 3 (
       (abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hφ hC).trans ?_⟩) hψ).trans_eq (by ring)
   have he : (γ ^ (1 / 3 : ℝ)) ^ 3 = γ := by
     simpa using Real.rpow_inv_natCast_pow hγ (n := 3) (by norm_num)
-  rw [mul_pow, he]
-  nlinarith [mul_nonneg ((abs_nonneg _).trans (hC 0)) hγ]
+  rw [mul_pow, he]; nlinarith [mul_nonneg ((abs_nonneg _).trans (hC 0)) hγ]
 
 /-! ### The Lévy distance: Corollary 11.61 -/
 
@@ -191,8 +190,7 @@ private theorem pow_mul_div_six_le {γ : ℝ} (hγ : 0 ≤ γ) :
     2 ^ (3 - 1) * ((3 : ℕ) + 1 : ℝ) ^ 3 * (γ / 6) ≤ (3 * γ ^ (1 / 4 : ℝ)) ^ (3 + 1) := by
   have he : (γ ^ (1 / 4 : ℝ)) ^ (3 + 1) = γ := by
     simpa using Real.rpow_inv_natCast_pow hγ (n := 4) (by norm_num)
-  rw [mul_pow, he]
-  linarith
+  rw [mul_pow, he]; linarith
 
 /-- **Corollary 11.61**, upper bound [O'Donnell, Corollary 11.61][ODonnell2014]: in the setting of
 the Invariance Principle for sums, `Pr[∑ Xᵢ ≤ u] ≤ Pr[∑ Yᵢ ≤ u + ε] + ε` for every `u`, with
@@ -248,14 +246,12 @@ theorem abs_measureReal_sum_le_sub_cdf_le_of_hasLaw (hμ : ∀ i, MemLp id 3 (μ
     exact (gaussianReal_real_Iic_add_le 0 v one_ne_zero hε).trans
       (add_le_add le_rfl (div_le_div_of_nonneg_left hε two_pos h2))
   set ε := 3 * (∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) ^ (1 / 4 : ℝ) with hε
-  have hε0 : 0 ≤ ε := by
-    have := sum_integral_abs_pow_three_nonneg μ ν
-    positivity
+  have hε0 : 0 ≤ ε :=
+    mul_nonneg (by norm_num) (Real.rpow_nonneg (sum_integral_abs_pow_three_nonneg μ ν) _)
   have hup := measureReal_sum_le_le_add μ ν hμ hν h₁ h₂ u
   have hlo := measureReal_sum_le_sub_le μ ν hμ hν h₁ h₂ u
   rw [← hε, hΦ] at hup hlo
-  have hb := hanti (u - ε) hε0
-  rw [sub_add_cancel] at hb
+  have hb := sub_add_cancel u ε ▸ hanti (u - ε) hε0
   rw [abs_sub_le_iff]
   constructor <;> linarith [hanti u hε0]
 
@@ -283,17 +279,17 @@ private theorem hasLaw_sum_pi_map_gaussianReal {σ : ι → ℝ} (hσ : ∑ i, �
   have he : ((fun z : ι → ℝ => ∑ i, z i) ∘ fun z i => σ i * z i) = (σ ⬝ᵥ ·) :=
     funext fun _ => by simp [dotProduct]
   have hσσ : σ ⬝ᵥ σ = 1 := by simpa [dotProduct, sq] using hσ
-  rw [he, pi_gaussianReal_map_dotProduct_eq_map_const_mul, hσσ, Real.sqrt_one]
-  simp
+  simp [he, pi_gaussianReal_map_dotProduct_eq_map_const_mul, hσσ]
 
 /-- `9/2 · a^(1/4) ≤ 6 γ^(1/4)` when `0 ≤ a ≤ 3 γ`, as `3^(1/4) ≤ 4/3`. -/
 private theorem nine_div_two_mul_rpow_le {a γ : ℝ} (ha : 0 ≤ a) (h : a ≤ 3 * γ) :
     9 / 2 * a ^ (1 / 4 : ℝ) ≤ 6 * γ ^ (1 / 4 : ℝ) := by
   have hγ : 0 ≤ γ := by linarith
-  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 := by
-    rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
-    exact (Real.rpow_le_rpow (by norm_num) (show (3 : ℝ) ≤ (4 / 3) ^ 4 by norm_num)
-      (by norm_num)).trans_eq (Real.pow_rpow_inv_natCast (by norm_num) (by norm_num))
+  have h4 : (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ := by norm_num
+  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 :=
+    h4.symm ▸ (Real.rpow_le_rpow zero_le_three (by norm_num : (3 : ℝ) ≤ (4 / 3) ^ 4)
+      (inv_nonneg.2 (Nat.cast_nonneg 4))).trans_eq
+      (Real.pow_rpow_inv_natCast (by positivity) (Nat.succ_ne_zero 3))
   calc 9 / 2 * a ^ (1 / 4 : ℝ) ≤ 9 / 2 * (3 * γ) ^ (1 / 4 : ℝ) :=
         mul_le_mul_of_nonneg_left (Real.rpow_le_rpow ha h (by norm_num)) (by norm_num)
     _ = 9 / 2 * 3 ^ (1 / 4 : ℝ) * γ ^ (1 / 4 : ℝ) := by

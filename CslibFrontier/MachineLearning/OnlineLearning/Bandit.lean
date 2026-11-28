@@ -250,9 +250,8 @@ theorem blockFullInfo_loss_eq (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) 
         exact sum_congr rfl fun i _ => by simp [blockFullInfo, blockIdx_div hm, mul_sum]
     _ = (m : ℝ) * ∑ i, H (blockAvgLoss m ℓ) τ i * blockAvgLoss m ℓ τ i := by
         rw [mul_sum]
-        exact sum_congr rfl fun i _ => by
-          simp only [blockAvgLoss]
-          field_simp
+        refine sum_congr rfl fun i _ => ?_
+        rw [blockAvgLoss, mul_left_comm, mul_div_cancel₀ _ hm_ne]
 
 /-- Full-information block regret bound [BlumMansour2007AGT, §4.6, p. 94]:
 if `H` achieves external regret at most `R` on `blockAvgLoss m ℓ` over `K` blocks, then
@@ -265,12 +264,10 @@ theorem blockFullInfo_loss_le [Nonempty ι] {H : (ℕ → ι → ℝ) → ℕ �
     ∑ t ∈ range (K * m), ∑ i, blockFullInfo H m ℓ t i * ℓ t i ≤
       minCumLoss ℓ (K * m) + (m : ℝ) * R := by
   obtain ⟨k₀, hk₀⟩ := exists_sum_eq_minCumLoss (blockAvgLoss m ℓ) K
-  have h1 := hreg k₀
-  rw [hk₀] at h1
   rw [blockFullInfo_loss_eq H hm ℓ, ← mul_minCumLoss_blockAvgLoss hm ℓ K]
-  have hm_nn : (0 : ℝ) ≤ m := Nat.cast_nonneg m
   calc (m : ℝ) * ∑ τ ∈ range K, ∑ i, H (blockAvgLoss m ℓ) τ i * blockAvgLoss m ℓ τ i
-      ≤ (m : ℝ) * (minCumLoss (blockAvgLoss m ℓ) K + R) := mul_le_mul_of_nonneg_left h1 hm_nn
+      ≤ (m : ℝ) * (minCumLoss (blockAvgLoss m ℓ) K + R) :=
+        mul_le_mul_of_nonneg_left (hk₀ ▸ hreg k₀) (Nat.cast_nonneg m)
     _ = (m : ℝ) * minCumLoss (blockAvgLoss m ℓ) K + (m : ℝ) * R := mul_add _ _ _
 
 /-! ### Collision-free exploration schedules -/
@@ -374,13 +371,8 @@ theorem expect_exploredLoss_eq {m K : ℕ} {Ω : Type*} [Fintype Ω] [Nonempty �
     (sched : ExplorationSchedule ι m Ω) (ℓ : ℕ → ι → ℝ) {τ : ℕ} (hτ : τ < K) (i : ι) :
     (𝔼 ω : Fin K → Ω, exploredLoss sched ω ℓ τ i) = blockAvgLoss m ℓ τ i := by
   rw [← Fintype.expect_expect_update (fun ω : Fin K → Ω => exploredLoss sched ω ℓ τ i) ⟨τ, hτ⟩]
-  have hinner : ∀ ω : Fin K → Ω,
-      (𝔼 x : Ω, exploredLoss sched (Function.update ω ⟨τ, hτ⟩ x) ℓ τ i) =
-        blockAvgLoss m ℓ τ i := fun ω =>
-    (expect_congr rfl (g := fun x : Ω => ℓ (τ * m + (sched.time x i).val) i) fun x _ => by
-      simp only [exploredLoss_of_lt sched _ ℓ hτ i, Function.update_self]).trans
-      (sched.expect_apply i fun r => ℓ (τ * m + r.val) i)
-  simp only [hinner, Fintype.expect_const]
+  simp only [exploredLoss_of_lt _ _ ℓ hτ i, Function.update_self, Fintype.expect_const]
+  exact sched.expect_apply i fun r => ℓ (τ * m + r.val) i
 
 /-- **Causal decoupling identity** [BlumMansour2007AGT, §4.6, eq. (4.2), p. 95]: because `H` is
 causal on `[0, 1]` histories, its round-`τ` distribution depends only on blocks `< τ` and is
@@ -501,15 +493,12 @@ theorem mabPlay_nonneg [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype Ω]
     {ℓ : ℕ → ι → ℝ} {t : ℕ} (hℓ : ∀ s < t, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) (j : ι) :
     0 ≤ mabPlay hm sched H ω ℓ t j := by
   unfold mabPlay
-  by_cases hτ : t / m < K
-  · simp only [hτ, ↓reduceDIte]
-    by_cases h : ∃ i : ι, sched.time (ω ⟨t / m, hτ⟩) i = ⟨t % m, Nat.mod_lt t hm⟩
-    · simp only [h, ↓reduceDIte]
-      split_ifs <;> norm_num
-    · simp only [h, ↓reduceDIte]
-      exact hH.nonneg
-        (exploredLoss_mem_Icc_of_obs sched ω fun _ hσ i => hℓ _ (blockIdx_lt_of_lt_div hσ _) i) j
-  · simp only [hτ, ↓reduceDIte]; positivity
+  split_ifs with hτ h
+  · exact zero_le_one
+  · exact le_rfl
+  · exact hH.nonneg
+      (exploredLoss_mem_Icc_of_obs sched ω fun _ hσ i => hℓ _ (blockIdx_lt_of_lt_div hσ _) i) j
+  · positivity
 
 theorem sum_mabPlay_eq_one [DecidableEq ι] [Nonempty ι] {m K : ℕ} {Ω : Type*} [Fintype Ω]
     (hm : 0 < m) (sched : ExplorationSchedule ι m Ω)
@@ -517,15 +506,12 @@ theorem sum_mabPlay_eq_one [DecidableEq ι] [Nonempty ι] {m K : ℕ} {Ω : Type
     {ℓ : ℕ → ι → ℝ} {t : ℕ} (hℓ : ∀ s < t, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) :
     ∑ j : ι, mabPlay hm sched H ω ℓ t j = 1 := by
   unfold mabPlay
-  by_cases hτ : t / m < K
-  · simp only [hτ, ↓reduceDIte]
-    by_cases h : ∃ i : ι, sched.time (ω ⟨t / m, hτ⟩) i = ⟨t % m, Nat.mod_lt t hm⟩
-    · simp only [h, ↓reduceDIte, sum_ite_eq', mem_univ, ↓reduceIte]
-    · simp only [h, ↓reduceDIte]
-      exact hH.sum_eq_one
-        (exploredLoss_mem_Icc_of_obs sched ω fun _ hσ i => hℓ _ (blockIdx_lt_of_lt_div hσ _) i)
+  split_ifs with hτ h
+  · simp only [sum_ite_eq', mem_univ, ↓reduceIte]
+  · exact hH.sum_eq_one
+      (exploredLoss_mem_Icc_of_obs sched ω fun _ hσ i => hℓ _ (blockIdx_lt_of_lt_div hσ _) i)
   · have hN : (Fintype.card ι : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-    simp only [hτ, ↓reduceDIte, sum_const, card_univ, nsmul_eq_mul, mul_one_div, div_self hN]
+    simp only [sum_const, card_univ, nsmul_eq_mul, mul_one_div, div_self hN]
 
 /-- **Partial-information (bandit) feedback causality**: in round `t`, `mabPlay` depends *only* on
 the single-arm losses observed during the earlier blocks' exploration rounds
@@ -544,16 +530,10 @@ theorem mabPlay_bandit_congr [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype 
     mabPlay hm sched H ω ℓ t = mabPlay hm sched H ω ℓ' t := by
   funext j
   unfold mabPlay
-  by_cases hτ : t / m < K
-  · simp only [hτ, ↓reduceDIte]
-    by_cases hex : ∃ i : ι, sched.time (ω ⟨t / m, hτ⟩) i = ⟨t % m, Nat.mod_lt t hm⟩
-    · simp only [hex, ↓reduceDIte]
-    · simp only [hex, ↓reduceDIte]
-      exact congrFun (hH.congr (exploredLoss_mem_Icc_of_obs sched ω hobs) fun σ hσ =>
-        funext fun i => by
-          have hσK := lt_trans hσ hτ
-          simp only [exploredLoss_of_lt sched ω _ hσK i, h ⟨σ, hσK⟩ hσ i]) j
-  · simp only [hτ, ↓reduceDIte]
+  split_ifs with hτ _ _ <;> try rfl
+  exact congrFun (hH.congr (exploredLoss_mem_Icc_of_obs sched ω hobs) fun σ hσ =>
+    funext fun i => by
+      simp only [exploredLoss_of_lt sched ω _ (hσ.trans hτ) i, h ⟨σ, hσ.trans hτ⟩ hσ i]) j
 
 /-- For every fixed exploration seed sequence `ω : Fin K → Ω`, `mabPlay` is a causal online
 algorithm (`IsOnlineAlgorithm`). -/
@@ -575,20 +555,10 @@ theorem mabPlay_apply_explore [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype
     (τ : Fin K) (i j : ι) :
     mabPlay hm sched H ω ℓ (τ.val * m + (sched.time (ω τ) i).val) j =
       if j = i then 1 else 0 := by
-  have hdiv := blockIdx_div hm τ.val (sched.time (ω τ) i)
-  have hmod : (τ.val * m + (sched.time (ω τ) i).val) % m = (sched.time (ω τ) i).val :=
-    Nat.mul_add_mod_of_lt (sched.time (ω τ) i).isLt
-  unfold mabPlay
-  have hτ : (τ.val * m + (sched.time (ω τ) i).val) / m < K := by rw [hdiv]; exact τ.isLt
-  have hex : ∃ i' : ι, sched.time (ω ⟨(τ.val * m + (sched.time (ω τ) i).val) / m, hτ⟩) i' =
-      ⟨(τ.val * m + (sched.time (ω τ) i).val) % m, Nat.mod_lt _ hm⟩ :=
-    ⟨i, by
-      ext
-      simp only [hdiv, Fin.eta, hmod]⟩
-  have huniq : hex.choose = i := (sched.time (ω τ)).injective <| Fin.ext <| by
-    have hfin : (⟨(τ.val * m + (sched.time (ω τ) i).val) / m, hτ⟩ : Fin K) = τ := Fin.ext hdiv
-    simpa only [congrArg ω hfin, hmod] using congrArg Fin.val hex.choose_spec
-  simp only [hτ, ↓reduceDIte, hex, huniq]
+  simp only [mabPlay, blockIdx_div hm, Nat.mul_add_mod_of_lt (sched.time (ω τ) i).isLt, τ.isLt,
+    ↓reduceDIte, Fin.eta]
+  have hex : ∃ i' : ι, sched.time (ω τ) i' = sched.time (ω τ) i := ⟨i, rfl⟩
+  simp only [hex, ↓reduceDIte, (sched.time (ω τ)).injective hex.choose_spec]
 
 /-- On any non-exploration offset `r` in block `τ`, `mabPlay` plays the base algorithm's
 distribution `H (exploredLoss sched ω ℓ) τ`. -/
@@ -597,16 +567,8 @@ theorem mabPlay_apply_exploit [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype
     (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) (ω : Fin K → Ω) (ℓ : ℕ → ι → ℝ)
     (τ : Fin K) {r : Fin m} (hr : ∀ i : ι, sched.time (ω τ) i ≠ r) (j : ι) :
     mabPlay hm sched H ω ℓ (τ.val * m + r.val) j = H (exploredLoss sched ω ℓ) τ.val j := by
-  have hdiv := blockIdx_div hm τ.val r
-  have hmod : (τ.val * m + r.val) % m = r.val := Nat.mul_add_mod_of_lt r.isLt
-  unfold mabPlay
-  have hτ : (τ.val * m + r.val) / m < K := by rw [hdiv]; exact τ.isLt
-  have hnot : ¬ ∃ i : ι, sched.time (ω ⟨(τ.val * m + r.val) / m, hτ⟩) i =
-      ⟨(τ.val * m + r.val) % m, Nat.mod_lt _ hm⟩ := fun ⟨i, hi⟩ => by
-    have hfin : (⟨(τ.val * m + r.val) / m, hτ⟩ : Fin K) = τ := Fin.ext hdiv
-    have hr' : (⟨(τ.val * m + r.val) % m, Nat.mod_lt _ hm⟩ : Fin m) = r := Fin.ext hmod
-    exact hr i (by rwa [hfin, hr'] at hi)
-  rw [dite_eq_left_of_eq_true (eq_true hτ), dite_eq_right_of_eq_false (eq_false hnot), hdiv]
+  simp only [mabPlay, blockIdx_div hm, Nat.mul_add_mod_of_lt r.isLt, τ.isLt, ↓reduceDIte,
+    Fin.eta, hr, exists_false]
 
 private theorem mabPlay_round_loss_le_one [DecidableEq ι] [Nonempty ι] {m K : ℕ} {Ω : Type*}
     [Fintype Ω] (hm : 0 < m) (sched : ExplorationSchedule ι m Ω)
@@ -660,10 +622,8 @@ private theorem mabPlay_block_loss_le [DecidableEq ι] [Nonempty ι] {m K : ℕ}
             sum_nonneg fun j _ => mul_nonneg (hH_nn j) (hℓ _ (blockIdx_lt τ.isLt r) j).1
       _ = (m : ℝ) * ∑ j, H (exploredLoss sched ω ℓ) τ.val j * blockAvgLoss m ℓ τ.val j := by
           rw [sum_comm, mul_sum]
-          exact sum_congr rfl fun j _ => by
-            rw [← mul_sum]
-            simp only [blockAvgLoss]
-            field_simp
+          refine sum_congr rfl fun j _ => ?_
+          rw [← mul_sum, blockAvgLoss, mul_left_comm, mul_div_cancel₀ _ hm_ne]
   calc ∑ r : Fin m, ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j
       = (∑ r ∈ univ \ E,
           ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j) +
@@ -689,18 +649,10 @@ private theorem mabPlay_expected_loss_le_mul [DecidableEq ι] [Nonempty ι] {m K
           (m : ℝ) * ∑ τ ∈ range K,
             ∑ j, H (exploredLoss sched ω ℓ) τ j * blockAvgLoss m ℓ τ j := fun ω => by
     rw [sum_range_mul_eq_sum_block K m, ← Fin.sum_univ_eq_sum_range]
-    have hsum : ∑ τ : Fin K,
-        ∑ r : Fin m,
-          ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j ≤
-        ∑ τ : Fin K, ((Fintype.card ι : ℝ) +
-          (m : ℝ) * ∑ j, H (exploredLoss sched ω ℓ) τ.val j * blockAvgLoss m ℓ τ.val j) :=
-      sum_le_sum fun τ _ => mabPlay_block_loss_le hm sched hH ω hℓ τ
-    simp only [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul,
-      ← mul_sum] at hsum
-    have hfin := Fin.sum_univ_eq_sum_range (fun τ =>
-      ∑ j, H (exploredLoss sched ω ℓ) τ j * blockAvgLoss m ℓ τ j) K
-    rw [hfin, mul_comm (K : ℝ)] at hsum
-    exact hsum
+    refine (sum_le_sum fun τ _ => mabPlay_block_loss_le hm sched hH ω hℓ τ).trans_eq ?_
+    simp only [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, ← mul_sum]
+    rw [Fin.sum_univ_eq_sum_range (fun τ =>
+      ∑ j, H (exploredLoss sched ω ℓ) τ j * blockAvgLoss m ℓ τ j) K, mul_comm (K : ℝ)]
   have hm_nn : (0 : ℝ) ≤ m := Nat.cast_nonneg m
   have hexp := expect_sum_online_mul_blockAvgLoss_le sched hH hℓ hreg
   calc (𝔼 ω : Fin K → Ω,
@@ -757,7 +709,7 @@ theorem mabPlay_expected_loss_le [DecidableEq ι] [Nonempty ι] {m K T : ℕ} {�
         (∑ t ∈ range (K * m), ∑ j, mabPlay hm sched H ω ℓ t j * ℓ t j) +
         (∑ r ∈ range (T - K * m),
           ∑ j, mabPlay hm sched H ω ℓ (K * m + r) j * ℓ (K * m + r) j) := fun ω => by
-    conv_lhs => rw [show T = K * m + (T - K * m) by omega]
+    conv_lhs => rw [← Nat.add_sub_of_le hKm]
     exact sum_range_add _ _ _
   calc
     (𝔼 ω : Fin K → Ω, ∑ t ∈ range T, ∑ j, mabPlay hm sched H ω ℓ t j * ℓ t j)
@@ -797,13 +749,9 @@ noncomputable def mabBlockCount (N T : ℕ) : ℕ :=
 noncomputable def mabBlockLen (N T : ℕ) : ℕ :=
   T / mabBlockCount N T
 
-theorem mabBlockCount_pos {N T : ℕ} (hN : 0 < N) (hT : N ≤ T) : 0 < mabBlockCount N T := by
-  unfold mabBlockCount
-  refine Nat.floor_pos.mpr ?_
-  have h1 : (1 : ℝ) ≤ (T : ℝ) / N := by
-    rw [le_div_iff₀ (Nat.cast_pos.mpr hN), one_mul]
-    exact_mod_cast hT
-  exact one_le_rpow h1 (by norm_num)
+theorem mabBlockCount_pos {N T : ℕ} (hN : 0 < N) (hT : N ≤ T) : 0 < mabBlockCount N T :=
+  Nat.floor_pos.mpr <| one_le_rpow
+    ((one_le_div (Nat.cast_pos.mpr hN)).mpr (Nat.cast_le.mpr hT)) (by norm_num)
 
 theorem mabBlockCount_mul_mabBlockLen_le (N T : ℕ) :
     mabBlockCount N T * mabBlockLen N T ≤ T :=
@@ -817,16 +765,11 @@ theorem le_mabBlockLen {N T : ℕ} (hN : 0 < N) (hT : N ≤ T) : N ≤ mabBlockL
   set x : ℝ := ((T : ℝ) / N) ^ ((2 : ℝ) / 3)
   have hK_le : (mabBlockCount N T : ℝ) ≤ x := Nat.floor_le (by positivity)
   have hNx_le : (N : ℝ) * x ≤ T := by
-    rw [← pow_le_pow_iff_left₀ (by positivity) hTr (by decide : 3 ≠ 0)]
-    rw [mul_pow, rpow_two_thirds_cube (by positivity)]
-    have hcalc : (N : ℝ) ^ 3 * ((T : ℝ) / N) ^ 2 = (T : ℝ) ^ 2 * N := by field_simp
-    rw [hcalc]
-    have hNT_r : (N : ℝ) ≤ T := by exact_mod_cast hT
-    nlinarith [sq_nonneg (T : ℝ)]
-  have hmul : ((N * mabBlockCount N T : ℕ) : ℝ) ≤ T := by
-    push_cast
-    exact (mul_le_mul_of_nonneg_left hK_le hNr.le).trans hNx_le
-  exact_mod_cast hmul
+    have hfield : (N : ℝ) ^ 3 * ((T : ℝ) / N) ^ 2 = (T : ℝ) ^ 2 * N := by field_simp
+    rw [← pow_le_pow_iff_left₀ (by positivity) hTr (Nat.succ_ne_zero 2), mul_pow,
+      rpow_two_thirds_cube (by positivity), hfield]
+    nlinarith [sq_nonneg (T : ℝ), (by exact_mod_cast hT : (N : ℝ) ≤ T)]
+  exact_mod_cast (mul_le_mul_of_nonneg_left hK_le hNr.le).trans hNx_le
 
 theorem mabBlockLen_pos {N T : ℕ} (hN : 0 < N) (hT : N ≤ T) : 0 < mabBlockLen N T :=
   lt_of_lt_of_le hN (le_mabBlockLen hN hT)
@@ -878,40 +821,33 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
     set x : ℝ := ((T : ℝ) / N) ^ ((2 : ℝ) / 3)
     set B : ℝ := (T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3)
     have hB_nn : 0 ≤ B := by positivity
-    have hx_ge : 1 ≤ x := one_le_rpow (by
-      rw [le_div_iff₀ hNpos, one_mul]
-      exact_mod_cast hT) (by norm_num)
+    have hx_ge : 1 ≤ x :=
+      one_le_rpow ((one_le_div hNpos).mpr (Nat.cast_le.mpr hT)) (by norm_num)
     have hx_pos : 0 < x := by linarith
     have hK_le_x : (K : ℝ) ≤ x := Nat.floor_le hx_pos.le
     have hx_half_le_K : x / 2 ≤ (K : ℝ) := by
-      by_cases hx2 : x < 2
-      · have h1 : (1 : ℝ) ≤ (K : ℝ) := by exact_mod_cast Nat.le_floor (by exact_mod_cast hx_ge)
-        linarith
-      · have hlt := Nat.lt_floor_add_one x
-        change x < (K : ℝ) + 1 at hlt
-        linarith
+      have h1 : (1 : ℝ) ≤ K := Nat.one_le_cast.mpr hK_pos
+      have hlt : x < (K : ℝ) + 1 := Nat.lt_floor_add_one x
+      rcases lt_or_ge x 2 with hx2 | hx2 <;> linarith
     have hB_cube : B ^ 3 = (T : ℝ) ^ 2 * N := by
       dsimp only [B]
       rw [mul_pow, rpow_two_thirds_cube hTpos.le, rpow_one_third_cube hNpos.le]
     have hNx_eq_B : (N : ℝ) * x = B := by
       refine (pow_left_inj₀ (by positivity) hB_nn (by decide : 3 ≠ 0)).mp ?_
-      rw [mul_pow, rpow_two_thirds_cube (by positivity), hB_cube]
+      rw [mul_pow, rpow_two_thirds_cube (div_nonneg hTpos.le hNpos.le), hB_cube]
       field_simp
     have hterm1 : (N : ℝ) * K ≤ B :=
       (mul_le_mul_of_nonneg_left hK_le_x hNpos.le).trans_eq hNx_eq_B
     have hterm2 : ((T - K * m : ℕ) : ℝ) ≤ (1 / 2) * B := by
-      have hrem_nat : T - K * m < K := by
-        change T - K * (T / K) < K
-        rw [show T - K * (T / K) = T % K by have := Nat.div_add_mod T K; omega]
-        exact Nat.mod_lt T hK_pos
+      have hrem_nat : T - K * m < K := (Nat.mod_def T K).symm ▸ Nat.mod_lt T hK_pos
       calc ((T - K * m : ℕ) : ℝ) ≤ x := (Nat.cast_le.mpr hrem_nat.le).trans hK_le_x
         _ = (1 / N) * B := by rw [← hNx_eq_B]; field_simp
         _ ≤ (1 / 2) * B :=
           mul_le_mul_of_nonneg_right (one_div_le_one_div_of_le (by norm_num) hNr) hB_nn
     have hT_div_eq : (T : ℝ) / √x = B := by
+      have hx6 : (√x) ^ 6 = x ^ 3 := (pow_mul (√x) 2 3).trans (by rw [sq_sqrt hx_pos.le])
       refine (pow_left_inj₀ (by positivity) hB_nn (by decide : 6 ≠ 0)).mp ?_
-      rw [div_pow, show (√x) ^ 6 = x ^ 3 by rw [show 6 = 2 * 3 by rfl, pow_mul, sq_sqrt hx_pos.le],
-        rpow_two_thirds_cube (by positivity), show B ^ 6 = (B ^ 3) ^ 2 by ring, hB_cube]
+      rw [div_pow, hx6, rpow_two_thirds_cube (div_nonneg hTpos.le hNpos.le), pow_mul B 3 2, hB_cube]
       field_simp
     have hterm3 : (m : ℝ) * (C * √((K : ℝ) * log N)) ≤ C * √2 * √(log N) * B := by
       have hm_le : (m : ℝ) ≤ (T : ℝ) / K :=
@@ -938,8 +874,7 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
         _ ≤ C * (√2 * √(log N) * B) := mul_le_mul_of_nonneg_left hcore hC
         _ = C * √2 * √(log N) * B := by ring
     have hL_gt : (1 / 2 : ℝ) ≤ log (N : ℝ) := by
-      have hlog2 : (1 / 2 : ℝ) ≤ log 2 := by linarith [log_two_gt_d9]
-      exact hlog2.trans (log_le_log (by norm_num) hNr)
+      linarith [log_two_gt_d9, log_le_log zero_lt_two hNr]
     have hcoef2 : √2 * √(log (N : ℝ)) ≤ 2 * log (N : ℝ) := by
       refine le_of_sq_le_sq ?_ (by positivity)
       rw [mul_pow, sq_sqrt (by norm_num), sq_sqrt hL.le]
@@ -958,15 +893,13 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
             (3 + 2 * C) * (T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3) * log N := by
           have hmul := mul_le_mul_of_nonneg_right hfactor hB_nn
           dsimp only [B] at hterm1 hterm2 hterm3 hmul
-          have hrew : ((3 + 2 * C) * log (N : ℝ)) *
-              ((T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3)) =
-              (3 + 2 * C) * (T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3) * log N := by ring
+          rw [mul_right_comm, ← mul_assoc] at hmul
           linarith
   · -- Degenerate single-action boundary `N = 1`: regret is identically `0` and `log 1 = 0`.
     have hN1 : N = 1 := le_antisymm (by omega) hN_pos
     have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hN1.le
     obtain ⟨i₀⟩ := ‹Nonempty ι›
-    rw [show log (N : ℝ) = 0 by simp [hN1], mul_zero, add_zero]
+    simp only [hN1, Nat.cast_one, log_one, mul_zero, add_zero]
     have hpt : ∀ ω : Fin K → (ι ↪ Fin m),
         ∑ t ∈ range T, ∑ j, mabPlay hm_pos sched (H K) ω ℓ t j * ℓ t j =
           ∑ t ∈ range T, ℓ t i₀ := fun ω =>
@@ -1008,13 +941,12 @@ theorem mabMW_expected_loss_le [DecidableEq ι] [Nonempty ι] {T : ℕ}
     prob (mwFactor (min √(log (Fintype.card ι) / K') (1 / 2)))
   have halg : ∀ K', IsOnlineAlgorithm (Hfam K') := fun K' =>
     isOnlineAlgorithm_prob fun x hx => by
+      have hmul := mul_le_mul (min_le_right √(log (Fintype.card ι) / K') (1 / 2))
+        hx.2 hx.1 (by positivity)
       rw [mwFactor_apply]
-      have hη_nn : 0 ≤ min √(log (Fintype.card ι) / K') (1 / 2) :=
-        le_min (sqrt_nonneg _) (by norm_num)
-      have hη_le : min √(log (Fintype.card ι) / K') (1 / 2) ≤ 1 / 2 := min_le_right _ _
-      nlinarith [hx.2]
-  have hbound := mabPlay_expected_loss_le_two_thirds hT halg (by norm_num : (0 : ℝ) ≤ 2)
-    (fun K' c hc k => mw_regret_le_sqrt_of_mem_Icc hc k) hℓ
-  simpa only [Hfam, show (3 : ℝ) + 2 * 2 = 7 by norm_num] using hbound
+      linarith
+  have h7 : (3 : ℝ) + 2 * 2 = 7 := by norm_num
+  simpa only [Hfam, h7] using mabPlay_expected_loss_le_two_thirds hT halg zero_le_two
+    (fun _ _ hc => mw_regret_le_sqrt_of_mem_Icc hc) hℓ
 
 end Cslib.MachineLearning.OnlineLearning.Experts

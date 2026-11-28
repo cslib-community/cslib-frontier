@@ -134,14 +134,10 @@ theorem firstExit_spec (f : OccurrenceLabeling F Bool) (w r : Walk F)
 private theorem snoc_exchange {f : OccurrenceLabeling F Bool} {p : Walk F}
     {o e : Occurrence F} (h : (p.snoc o e).IsFWalk Table.sem f) :
     o ∉ p.edges ∧ ValidLabeling Table.sem (pairFlip (p.flip f) o e) := by
-  have hn := h.1.1.2
-  change (Walk.edgesOf (p.steps ++ [(o, e)])).Nodup at hn
-  rw [Walk.edgesOf_append] at hn
-  change (p.edges ++ [o, e]).Nodup at hn
-  have hsplit := List.nodup_append.mp hn
-  have hno : o ∉ p.edges := fun ho => hsplit.2.2 _ ho _ (by simp) rfl
-  have hoe : o ≠ e := by simpa using (List.nodup_cons.mp hsplit.2.1).1
-  have hp : p.edges.Nodup := hsplit.1
+  obtain ⟨hp, h2, hdisj⟩ := List.nodup_append.mp
+    (by simpa [Walk.edges, Walk.snoc, Walk.edgesOf_append] using h.1.1.2)
+  have hno : o ∉ p.edges := fun ho => hdisj _ ho _ List.mem_cons_self rfl
+  have hoe : o ≠ e := mt List.mem_singleton.mpr (List.nodup_cons.mp h2).1
   have hv := (Walk.prefixValid_iff_forall_take.mp h.1.2.2) (p.snoc o e).steps.length le_rfl
   simp only [List.take_length] at hv
   change ValidLabeling Table.sem (Walk.flipSteps f (p.steps ++ [(o, e)])) at hv
@@ -196,8 +192,8 @@ theorem liftPrefix_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F Bool}
         List.flatMap_nil, List.toFinset_nil, BitString.flipOn_empty] using hb
     · have hqends : q.start ≠ q.finish := by
         by_cases heq : ex.length = r.steps.length
-        · rw [show q = r by simp [q, heq, Walk.take]]
-          exact hend.resolve_left (fun hn => by simp [hn] at hk; omega)
+        · have hqr : q = r := by simp [q, heq, Walk.take]
+          exact hqr ▸ hend.resolve_left fun hn => hk0 (heq.trans (congrArg List.length hn))
         · have hcons := hr.not_inconsistent_finish_take (n := ex.length) (by omega) (by omega)
           exact fun he => hcons (he ▸ hroot)
       exact blossom_after_prefix hb hM ⟨hq, hqends⟩ hstart hqvars
@@ -205,9 +201,8 @@ theorem liftPrefix_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F Bool}
   have hx : ex.input.var ∉ internal w := by
     rw [hov]
     by_cases hqn : q.steps = []
-    · have heq : q.finish = r.start := by
-        change Walk.finishFrom r.start q.steps = r.start; rw [hqn]; rfl
-      exact heq ▸ hstart
+    · rw [Walk.finish, hqn]
+      exact hstart
     · obtain ⟨s, hs, heq⟩ := Walk.finish_step q hqn
       exact heq ▸ hqvars s.2 (List.mem_flatMap.mpr ⟨s, hs, by simp⟩)
   obtain ⟨p, hp, _, hpw, hps, hpf, hpv⟩ := attachmentWalk_spec hB hM ex.input hx

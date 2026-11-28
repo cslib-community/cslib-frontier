@@ -92,9 +92,9 @@ private theorem mul_pow_six_le_four_pow
   induction w, sixteen_le using Nat.le_induction with
   | base => norm_num
   | succ w _ ih =>
-    have powered := Nat.pow_le_pow_left (by omega : 16 * (w + 1) ≤ 17 * w) 6
+    have hstep : 16 * (w + 1) ≤ 17 * w := by omega
+    have powered := Nat.pow_le_pow_left hstep 6
     rw [mul_pow, mul_pow] at powered
-    norm_num at powered
     rw [pow_succ 4 w]
     omega
 
@@ -115,27 +115,19 @@ private theorem six_mul_succ_sq_lt_two_pow
 private theorem sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (one_le : 1 ≤ w) :
     sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w < (64 * w ^ 6) ^ (w + 1) := by
   let ratio := 64 * w ^ 6
-  have ratioPositive : 0 < ratio := by
-    simp only [ratio]
-    positivity
+  have ratioPositive : 0 < ratio := by dsimp only [ratio]; positivity
   have successorSmall : (w + 1) ^ 2 < ratio := by
     have : 1 ≤ w ^ 6 := one_le_pow₀ one_le
     have : (w + 1) ^ 2 ≤ 4 * w ^ 6 :=
-      calc (w + 1) ^ 2 ≤ (2 * w) ^ 2 := by
-            gcongr
-            omega
+      calc (w + 1) ^ 2 ≤ (2 * w) ^ 2 := Nat.pow_le_pow_left (by omega) 2
         _ = 4 * w ^ 2 := by ring
-        _ ≤ 4 * w ^ 6 := by
-            gcongr
-            omega
+        _ ≤ 4 * w ^ 6 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_right one_le (by decide))
     omega
   calc sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
-      ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by
-        gcongr
-        exact sunflower_bound_le w
+      ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w :=
+        Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (sunflower_bound_le w) 2)
     _ = (w + 1) ^ 2 * ratio ^ w := by
-        simp only [ratio, mul_pow, ← pow_mul, show 3 * w * 2 = 6 * w by ring]
-        ring
+        simp only [ratio, mul_pow, ← pow_mul, Nat.mul_right_comm 3 w 2]; ring
     _ < ratio * ratio ^ w :=
         Nat.mul_lt_mul_of_pos_right successorSmall (pow_pos ratioPositive w)
     _ = ratio ^ (w + 1) := by ring
@@ -150,16 +142,13 @@ private theorem positive_budget
     Positive.errorCap n k (w ^ 2) w * 64 ^ w <
       Nat.choose n k := by
   let ratio := 64 * w ^ 6
-  have ratioPositive : 0 < ratio := by
-    simp only [ratio]
-    positivity
+  have ratioPositive : 0 < ratio := by dsimp only [ratio]; positivity
   have k_le_n : k ≤ n :=
     calc k ≤ 64 * w ^ 6 * k := Nat.le_mul_of_pos_left k ratioPositive
       _ ≤ n := verticesLarge
   calc Positive.errorCap n k (w ^ 2) w * 64 ^ w
       = (sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w) * Nat.choose (n - (w + 1)) (k - (w + 1)) := by
-        simp only [Positive.errorCap]
-        ring
+        simp only [Positive.errorCap]; ring
     _ < ratio ^ (w + 1) * Nat.choose (n - (w + 1)) (k - (w + 1)) :=
         Nat.mul_lt_mul_of_pos_right (sunflowerBound_sq_mul_sixtyFour_pow_lt w one_le)
           (Nat.choose_pos (Nat.sub_le_sub_right k_le_n _))
@@ -171,18 +160,14 @@ private theorem positive_budget
 private theorem six_mul_sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (sixteen_le : 16 ≤ w) :
     6 * sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w < 4 ^ (w ^ 2) := by
   calc 6 * sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
-      ≤ 6 * ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by
-        gcongr
-        exact sunflower_bound_le w
+      ≤ 6 * ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := Nat.mul_le_mul_right _
+          (Nat.mul_le_mul_left 6 (Nat.pow_le_pow_left (sunflower_bound_le w) 2))
     _ = 6 * (w + 1) ^ 2 * (64 * w ^ 6) ^ w := by
-        rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, show 3 * w * 2 = 6 * w by ring]
-        ring
+        rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, Nat.mul_right_comm 3 w 2]; ring
     _ < 2 ^ w * (64 * w ^ 6) ^ w :=
         Nat.mul_lt_mul_of_pos_right (six_mul_succ_sq_lt_two_pow w sixteen_le)
           (pow_pos (by positivity) w)
-    _ = (128 * w ^ 6) ^ w := by
-        rw [← mul_pow]
-        ring_nf
+    _ = (128 * w ^ 6) ^ w := by rw [← mul_pow]; ring_nf
     _ ≤ (4 ^ w) ^ w := Nat.pow_le_pow_left (mul_pow_six_le_four_pow w sixteen_le) w
     _ = 4 ^ (w ^ 2) := by rw [← pow_mul, pow_two]
 
@@ -206,22 +191,17 @@ private theorem negative_budget
     omega
   calc 2 * negativeGateCap n (k - 1) (w ^ 2) w * 64 ^ w
       = 2 * (2 * fb + fb ^ 2) * 64 ^ w * ((w ^ 2) ^ petals * colors ^ (n - petals)) := by
-        simp only [negativeGateCap, Negative.pluckErrorCap, fb, colors, petals]
-        ring
+        simp only [negativeGateCap, Negative.pluckErrorCap, fb, colors, petals]; ring
     _ ≤ 6 * fb ^ 2 * 64 ^ w * ((w ^ 2) ^ petals * colors ^ (n - petals)) :=
         Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ familySum)
     _ < 4 ^ petals * ((w ^ 2) ^ petals * colors ^ (n - petals)) :=
         Nat.mul_lt_mul_of_pos_right
           (six_mul_sunflowerBound_sq_mul_sixtyFour_pow_lt w sixteen_le)
           (Nat.mul_pos (pow_pos (pow_pos (by omega) 2) _) (pow_pos hcolors _))
-    _ = (4 * w ^ 2) ^ petals * colors ^ (n - petals) := by
-      rw [mul_pow]
-      ring
+    _ = (4 * w ^ 2) ^ petals * colors ^ (n - petals) := by rw [mul_pow, mul_assoc]
     _ ≤ colors ^ petals * colors ^ (n - petals) := by
       gcongr
-    _ = (k - 1) ^ n := by
-        rw [← pow_add]
-        exact congrArg (colors ^ ·) (by omega)
+    _ = (k - 1) ^ n := by rw [← pow_add, Nat.add_sub_of_le petals_le_n]
 
 /-- A monotone circuit separating the graphs with a `k`-clique from the `(k - 1)`-colourable graphs
 on `n` vertices has more than `64 ^ w` gates, for every width `w ≥ 16` with `4 w ^ 2 ≤ k - 1` and
@@ -333,10 +313,8 @@ theorem two_rpow_sqrt_lt_size_of_separates {n k : ℕ} (hk : 2 ≤ k) (hn : k ^ 
     cast_linarith [sqrtPositive]
   calc (2 : ℝ) ^ Real.sqrt k ≤ (2 : ℝ) ^ ((2 * Nat.sqrt k : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num) exponentBound
-    _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) := by
-        rw [Real.rpow_natCast]
-        push_cast
-        rfl
+    _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) :=
+        (Real.rpow_natCast 2 (2 * Nat.sqrt k)).trans (by push_cast; rfl)
     _ < C.size := by exact_mod_cast two_pow_two_mul_sqrt_lt_size_of_separates hk hn hC
 
 /-- **The monotone lower bound for cliques, real form.** For `2 ≤ k` with `k ^ 4 ≤ n`, every

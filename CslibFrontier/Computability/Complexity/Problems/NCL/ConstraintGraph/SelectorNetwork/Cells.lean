@@ -97,17 +97,14 @@ theorem checkStandard (c : Cell) :
     c.diagram.checkGens Prim.checkStandard = true := by
   cases c with
   | row n =>
-    have h := Gadgets.OrTree.checkStandard n
-    rw [checkGens_and] at h
-    simp only [Bool.and_eq_true] at h
-    exact h.2
+    exact ((Bool.and_eq_true _ _).mp
+      ((checkGens_and _ _ _).symm.trans (Gadgets.OrTree.checkStandard n))).2
   | character n => exact Gadgets.AndTree.checkStandard n
   | relation r => cases r <;> decide +kernel
 
 /-- Local implementations have consistent colored boundary incidences. -/
-theorem checkPorts (c : Cell) : c.diagram.checkGens Prim.interp.checkPorts = true := by
-  have h := c.checkStandard
-  exact ((checkGens_checkStandard_iff _).mp h).2.2
+theorem checkPorts (c : Cell) : c.diagram.checkGens Prim.interp.checkPorts = true :=
+  ((checkGens_checkStandard_iff _).mp c.checkStandard).2.2
 
 /-- Each selector cell uses linearly many standard vertices and created wires. -/
 theorem size_le (c : Cell) :
@@ -115,15 +112,11 @@ theorem size_le (c : Cell) :
       c.diagram.innerCount ≤ 64 + 22 * c.top.length := by
   cases c with
   | row n =>
-    change ((Gadgets.OrTree.diagram n).vertexList Prim.interp).length ≤ _ ∧
-      (Gadgets.OrTree.diagram n).innerCount ≤ _
-    rw [Gadgets.OrTree.length_vertexList, Gadgets.OrTree.innerCount,
+    simp only [diagram, top, Gadgets.OrTree.length_vertexList, Gadgets.OrTree.innerCount,
       Gadgets.OrTree.length_bundle]
     omega
   | character n =>
-    change ((Gadgets.AndTree.diagram n).vertexList Prim.interp).length ≤ _ ∧
-      (Gadgets.AndTree.diagram n).innerCount ≤ _
-    rw [Gadgets.AndTree.length_vertexList, Gadgets.AndTree.innerCount,
+    simp only [diagram, top, Gadgets.AndTree.length_vertexList, Gadgets.AndTree.innerCount,
       Gadgets.OrTree.length_bundle]
     omega
   | relation r => cases r <;> decide +kernel

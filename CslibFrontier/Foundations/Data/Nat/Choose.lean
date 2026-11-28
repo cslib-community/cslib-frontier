@@ -168,20 +168,15 @@ theorem choose_mul_pow_le {a s : ℕ} (has : a ≤ s) (k : ℕ) :
 theorem pow_mul_choose_le_choose_mul_pow {d m s : ℕ} (hdm : d ≤ m) :
     (d + 1 - s) ^ s * m.choose s ≤ d.choose s * (m + 1 - s) ^ s := by
   rcases Nat.lt_or_ge d s with hds | hsd
-  · rcases Nat.eq_zero_or_pos s with rfl | hs
+  · rcases s with _ | s
     · simp
-    · rw [show d + 1 - s = 0 by omega, zero_pow hs.ne', zero_mul]
-      exact Nat.zero_le _
+    · have h0 : d + 1 - (s + 1) = 0 := by omega
+      simp [h0]
   -- for `i < s ≤ d ≤ m`: `(d + 1 - s) (m - i) ≤ (d - i) (m + 1 - s)`
   refine pow_mul_choose_le_choose_mul_pow_of_le s fun k hk => ?_
-  obtain ⟨j, rfl⟩ : ∃ j, s = k + 1 + j := ⟨s - k - 1, by omega⟩
-  obtain ⟨a, rfl⟩ : ∃ a, d = k + 1 + j + a := ⟨d - (k + 1 + j), by omega⟩
-  obtain ⟨b, rfl⟩ : ∃ b, m = k + 1 + j + a + b := ⟨m - (k + 1 + j + a), by omega⟩
-  rw [show k + 1 + j + a + 1 - (k + 1 + j) = a + 1 by omega,
-    show k + 1 + j + a + b - k = 1 + j + a + b by omega,
-    show k + 1 + j + a - k = 1 + j + a by omega,
-    show k + 1 + j + a + b + 1 - (k + 1 + j) = a + b + 1 by omega]
-  nlinarith [Nat.zero_le (b * j)]
+  zify [hsd.trans d.le_succ, hk.le.trans (hsd.trans hdm), hk.le.trans hsd,
+    hsd.trans (hdm.trans m.le_succ)]
+  nlinarith
 
 /-- `C(b * m - m, k) * b ^ k ≤ C(b * m, k) * (b - 1) ^ k`. -/
 theorem choose_mul_sub_mul_pow_le (b m k : ℕ) :

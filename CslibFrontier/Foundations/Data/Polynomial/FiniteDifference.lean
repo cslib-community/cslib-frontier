@@ -77,19 +77,8 @@ theorem eval_zero_eq_sum_neg_one_pow_choose_eval_succ {n : ℕ} {P : R[X]} (hP :
       (-1 : R) ^ r * ((n + 1).choose (r + 1) : R) * P.eval ((r : R) + 1) := by
   have h := sum_neg_one_pow_choose_eval_eq_zero P hP 0
   rw [sum_range_succ'] at h
-  simp only [Nat.cast_zero, add_zero, pow_zero, Nat.choose_zero_right, Nat.cast_one,
-    one_mul] at h
-  have heq :
-      ∑ r ∈ range (n + 1),
-          (-1 : R) ^ (r + 1) * ((n + 1).choose (r + 1) : R) * P.eval (↑(r + 1)) =
-        - ∑ r ∈ range (n + 1),
-            (-1 : R) ^ r * ((n + 1).choose (r + 1) : R) * P.eval ((r : R) + 1) := by
-    rw [← sum_neg_distrib]
-    refine sum_congr rfl fun r _ => ?_
-    rw [show ((r + 1 : ℕ) : R) = (r : R) + 1 by push_cast; ring, pow_succ']
-    ring
-  simp only [zero_add] at h
-  rw [heq, add_comm] at h
-  exact eq_of_sub_eq_zero (by simpa [sub_eq_add_neg] using h)
+  simp only [Nat.cast_zero, zero_add, pow_zero, pow_succ', Nat.choose_zero_right, Nat.cast_one,
+    Nat.cast_add, one_mul, neg_mul, sum_neg_distrib] at h
+  exact (neg_add_eq_zero.mp h).symm
 
 end Polynomial

@@ -12,6 +12,8 @@ public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Algebra.Ring.Parity
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Card
+public import Mathlib.Data.Fintype.Option
+public import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.List.Nodup
 
 /-!
@@ -42,7 +44,8 @@ it accepts and `0` on the others (`BranchingProgram.pathCount_toNBP`), and it ha
 
 ## Main definitions
 
-* `Cslib.BranchingPrograms.NBP.Wire`: a wire to an earlier node, a rectifier or a contact.
+* `Cslib.BranchingPrograms.NBP.Wire`: a wire to an earlier node, a rectifier or a contact;
+  `Cslib.BranchingPrograms.NBP.Wire.equivProd` identifies it with its head and label.
 * `Cslib.BranchingPrograms.NBP`: a nondeterministic branching program.
 * `Cslib.BranchingPrograms.NBP.size`: its number of contacts.
 * `Cslib.BranchingPrograms.NBP.pathCount`: the number of source-to-target paths an input switches
@@ -76,6 +79,28 @@ structure NBP.Wire (ι α : Type*) (n : ℕ) where
   head : Fin n
   /-- `none` for a rectifier, and `some (i, a)` for a contact testing `x i = a`. -/
   label : Option (ι × α)
+  deriving DecidableEq
+
+namespace NBP.Wire
+
+variable {ι α : Type*} {n : ℕ}
+
+/-- A wire is its head and its label. -/
+def equivProd : Wire ι α n ≃ Fin n × Option (ι × α) where
+  toFun w := (w.head, w.label)
+  invFun p := ⟨p.1, p.2⟩
+
+instance [Fintype ι] [Fintype α] : Fintype (Wire ι α n) :=
+  Fintype.ofEquiv _ equivProd.symm
+
+/-- There are `n * (|ι| |α| + 1)` wires to `n` earlier nodes: a rectifier and a contact for each
+test, to each node. -/
+theorem card [Fintype ι] [Fintype α] :
+    Fintype.card (Wire ι α n) = n * (Fintype.card ι * Fintype.card α + 1) := by
+  rw [Fintype.card_congr equivProd, Fintype.card_prod, Fintype.card_fin, Fintype.card_option,
+    Fintype.card_prod]
+
+end NBP.Wire
 
 /-- A *nondeterministic branching program* over inputs `ι → α`, with `n` nodes in topological
 order: the first node is the target, each later node has a list of wires to earlier nodes, and the

@@ -62,30 +62,23 @@ theorem add {n m : ℕ} {f g : Series F Ω} (hf : RatLe n f) (hg : RatLe m g) :
     RatLe (n + m) (f + g) := by
   obtain ⟨Q₁, _, r₁, h1, rfl⟩ := hf
   obtain ⟨Q₂, _, r₂, h2, rfl⟩ := hg
-  refine ⟨Q₁ ⊕ Q₂, inferInstance, r₁.add r₂, by simp; omega, ?_⟩
-  ext o
-  exact Rep.add_series r₁ r₂ o
+  exact ⟨Q₁ ⊕ Q₂, inferInstance, r₁.add r₂, by simp; omega, funext (Rep.add_series r₁ r₂)⟩
 
 theorem mul {n m : ℕ} {f g : Series F Ω} (hf : RatLe n f) (hg : RatLe m g) :
     RatLe (n + m) (Series.mul f g) := by
   obtain ⟨Q₁, _, r₁, h1, rfl⟩ := hf
   obtain ⟨Q₂, _, r₂, h2, rfl⟩ := hg
-  refine ⟨Q₁ ⊕ Q₂, inferInstance, r₁.mul r₂, by simp; omega, ?_⟩
-  ext o
-  exact Rep.mul_series r₁ r₂ o
+  exact ⟨Q₁ ⊕ Q₂, inferInstance, r₁.mul r₂, by simp; omega, funext (Rep.mul_series r₁ r₂)⟩
 
 theorem kstar {n : ℕ} {f : Series F Ω} (hf : RatLe n f) : RatLe (n + 1) (Series.kstar f) := by
   obtain ⟨Q₁, _, r₁, h1, rfl⟩ := hf
-  refine ⟨Unit ⊕ Q₁, inferInstance, r₁.star, by simp; omega, ?_⟩
-  ext o
-  exact Rep.star_series r₁ o
+  exact ⟨Unit ⊕ Q₁, inferInstance, r₁.star, by simp; omega, funext r₁.star_series⟩
 
 theorem smul {n : ℕ} {f : Series F Ω} (c : F) (hf : RatLe n f) : RatLe n (c • f) := by
   obtain ⟨Q, _, r, h1, rfl⟩ := hf
   refine ⟨Q, _, ⟨c • r.lam, r.mu, r.gam⟩, h1, ?_⟩
   ext o
-  have htail : ∀ o, (⟨c • r.lam, r.mu, r.gam⟩ : Rep F Ω Q).tail o = r.tail o := by
-    intro o
+  have htail (o : List Ω) : (⟨c • r.lam, r.mu, r.gam⟩ : Rep F Ω Q).tail o = r.tail o := by
     induction o with
     | nil => rfl
     | cons a o ih => simp [Rep.tail, ih]
@@ -120,12 +113,10 @@ theorem RatLe.letter [DecidableEq Ω] (a : Ω) :
     fun q => if q then 1 else 0⟩, by simp, ?_⟩
   ext o
   match o with
-  | [] => simp [Rep.series, Rep.tail, Series.letter, dotProduct]
+  | [] | _ :: _ :: _ => simp [Rep.series, Rep.tail, Series.letter, dotProduct, Matrix.mulVec]
   | [b] =>
     by_cases h : b = a <;>
       simp [Rep.series, Rep.tail, Series.letter, dotProduct, Matrix.mulVec, h]
-  | b :: c :: o =>
-    simp [Rep.series, Rep.tail, Series.letter, dotProduct, Matrix.mulVec]
 
 /-- Normal form: one initial and one final state, giving the same values at non-empty words. -/
 theorem RatLe.normal {n : ℕ} {f : Series F Ω} (hf : RatLe n f) :
@@ -145,11 +136,9 @@ theorem RatLe.normal {n : ℕ} {f : Series F Ω} (hf : RatLe n f) :
       | some (some q), some (some q') => r.mu a q q'
   have hsink (o : List Ω) (ho : o ≠ []) : (o.map mu).prod (some none) (some none) = 0 := by
     obtain ⟨b, o', rfl⟩ := List.exists_cons_of_ne_nil ho
-    rw [List.map_cons, List.prod_cons, Matrix.mul_apply]
-    simp [mu]
-  have key : ∀ o : List Ω, ∀ q, o ≠ [] →
+    simp [Matrix.mul_apply, mu]
+  have key (o : List Ω) : ∀ q, o ≠ [] →
       (o.map mu).prod (some (some q)) (some none) = r.tail o q := by
-    intro o
     induction o with
     | nil => simp
     | cons a o ih =>
@@ -191,20 +180,10 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
       | nil => rfl
       | cons a o ih =>
         rw [Rep.tail, ih]
-        cases a with
-        | none => simp
-        | some a =>
-          by_cases h : o.all Option.isSome
-          · simp only [h, ite_true, List.all_cons, Option.isSome_some, Bool.true_and,
-              List.reduceOption_cons_of_some, Option.elim]
-            rfl
-          · simp [h]
+        cases a <;> by_cases h : o.all Option.isSome <;>
+          simp [h, List.reduceOption_cons_of_some, Rep.tail]
     funext o
-    rw [Rep.series, key]
-    by_cases h : o.all Option.isSome
-    · simp only [h, ite_true]
-      rfl
-    · simp [h]
+    by_cases h : o.all Option.isSome <;> simp [Rep.series, key, h]
   · refine ⟨Unit, inferInstance, ⟨1, fun a => a.elim 1 fun _ => 0, 1⟩, by simp, ?_⟩
     have key (o : List (Option Ω)) :
         (⟨1, fun a => a.elim 1 fun _ => 0, 1⟩ : Rep F (Option Ω) Unit).tail o =
@@ -215,8 +194,7 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
         rw [Rep.tail, ih]
         cases a <;> simp
     funext o
-    rw [Rep.series, key]
-    by_cases h : o.all Option.isNone <;> simp [h]
+    by_cases h : o.all Option.isNone <;> simp [Rep.series, key, h]
 
 theorem idle_apply (P : Series F Ω) (w : List Ω) (j : ℕ) :
     Series.idle P (w.map some ++ List.replicate j none) = P w := by
@@ -229,17 +207,12 @@ theorem idle_apply (P : Series F Ω) (w : List Ω) (j : ℕ) :
     · have hmem : some w[k] ∈ (w.map some ++ List.replicate j none).drop k := by
         rw [List.drop_append_of_le_length (by simp; omega), List.mem_append, ← List.map_drop]
         exact Or.inl (List.mem_map.2 ⟨w[k], List.drop_eq_getElem_cons h ▸ List.mem_cons_self, rfl⟩)
-      have hn : ¬((w.map some ++ List.replicate j none).drop k).all Option.isNone :=
-        fun hall => by simpa using List.all_eq_true.1 hall _ hmem
-      simp only [hn, ↓reduceIte, mul_zero]
+      simp [(List.all_eq_false (p := Option.isNone)).2 ⟨_, hmem, nofun⟩]
     · have hmem : none ∈ (w.map some ++ List.replicate j none).take k := by
         rw [List.take_append, List.mem_append, List.length_map, List.take_replicate]
         exact Or.inr (List.mem_replicate.2 ⟨by omega, rfl⟩)
-      have hn : ¬((w.map some ++ List.replicate j none).take k).all Option.isSome :=
-        fun hall => by simpa using List.all_eq_true.1 hall _ hmem
-      simp only [hn, ↓reduceIte, zero_mul]
-  · intro h
-    exact absurd (mem_range.2 (by simp; omega)) h
+      simp [(List.all_eq_false (p := Option.isSome)).2 ⟨_, hmem, nofun⟩]
+  · exact fun h => absurd (mem_range.2 (by simp; omega)) h
 
 theorem idle_ne_zero (P : Series F Ω) (o : List (Option Ω)) (h : Series.idle P o ≠ 0) :
     ∃ (w : List Ω) (j : ℕ), o = w.map some ++ List.replicate j none := by
@@ -250,21 +223,13 @@ theorem idle_ne_zero (P : Series F Ω) (o : List (Option Ω)) (h : Series.idle P
     by_contra fun hn => hk (by rw [ite_eq_right hn, zero_mul])
   have h2 : (o.drop k).all Option.isNone = true :=
     by_contra fun hn => hk (by rw [ite_eq_right hn, mul_zero])
-  have e1 (l : List (Option Ω)) (hl : l.all Option.isSome = true) :
-      l.reduceOption.map some = l := by
-    induction l with
-    | nil => rfl
-    | cons a l ih =>
-      cases a with
-      | none => simp at hl
-      | some a =>
-        simp only [List.all_cons, Option.isSome_some, Bool.true_and] at hl
-        rw [List.reduceOption_cons_of_some, List.map_cons, ih hl]
-  have e2 (l : List (Option Ω)) (hl : l.all Option.isNone = true) :
-      List.replicate l.length none = l :=
-    (List.eq_replicate_iff.2 ⟨rfl, fun a ha => by simpa using List.all_eq_true.1 hl a ha⟩).symm
+  have hprefix : (o.take k).reduceOption.map some = o.take k := by
+    rw [List.reduceOption, List.map_filterMap_some_eq_filter_map_isSome, List.map_id]
+    exact List.filter_eq_self.mpr (List.all_eq_true.mp h1)
+  have hsuffix : o.drop k = List.replicate (o.drop k).length none :=
+    List.eq_replicate_iff.mpr ⟨rfl, fun a ha => by simpa using List.all_eq_true.mp h2 a ha⟩
   exact ⟨(o.take k).reduceOption, (o.drop k).length,
-    by rw [e1 _ h1, e2 _ h2, List.take_append_drop]⟩
+    by rw [hprefix, ← hsuffix, List.take_append_drop]⟩
 
 end Idle
 

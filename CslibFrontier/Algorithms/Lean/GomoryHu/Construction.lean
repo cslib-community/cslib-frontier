@@ -154,17 +154,13 @@ theorem vget_gomoryHuStep_parent (W : Fin n → Fin n → ℕ) (adj : Fin n → 
     vget (gomoryHuStep W adj p fl s).parent z =
       gusfieldStep (vget p) s (ekCut W adj s (vget p s)) z := by
   simp only [gomoryHuStep, gusfieldStep]
-  generalize ekCut W adj s (vget p s) = X
-  have hq (z) : vget (rehang p s (vget p s) X (List.finRange n) p) z =
-      if vget p z = vget p s ∧ z ∈ X then s else vget p z := by
-    simp only [vget_rehang, List.mem_finRange, true_and]
-  generalize rehang p s (vget p s) X (List.finRange n) p = q at hq ⊢
   rcases eq_or_ne z s with rfl | hzs
-  · by_cases hX : vget p (vget p z) ∈ X <;> simp [hX]
+  · by_cases hX : vget p (vget p z) ∈ ekCut W adj z (vget p z) <;> simp [hX]
   rcases eq_or_ne z (vget p s) with rfl | hzt
-  · by_cases hX : vget p (vget p s) ∈ X <;> simp [hX, hzs, vget_vset_ne _ _ hzs.symm]
-  by_cases hX : vget p (vget p s) ∈ X <;>
-    simp [hX, hzs, hzt, vget_vset_ne _ _ hzs.symm, vget_vset_ne _ _ hzt.symm, hq]
+  · by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+      simp [hX, hzs, vget_vset_ne _ _ hzs.symm]
+  by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+    simp [hX, hzs, hzt, vget_vset_ne _ _ hzs.symm, vget_vset_ne _ _ hzt.symm, vget_rehang]
 
 /-- The weight array computed by `gomoryHuStep` agrees pointwise with `gusfieldStepWeight`. -/
 theorem vget_gomoryHuStep_weight (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n))
@@ -173,13 +169,12 @@ theorem vget_gomoryHuStep_weight (W : Fin n → Fin n → ℕ) (adj : Fin n → 
       gusfieldStepWeight (vget p) (vget fl) s (ekCut W adj s (vget p s))
         (ekValue W adj s (vget p s)) z := by
   simp only [gomoryHuStep, gusfieldStepWeight]
-  generalize ekCut W adj s (vget p s) = X
-  generalize ekValue W adj s (vget p s) = val
   rcases eq_or_ne z s with rfl | hzs
-  · by_cases hX : vget p (vget p z) ∈ X <;> simp [hX]
+  · by_cases hX : vget p (vget p z) ∈ ekCut W adj z (vget p z) <;> simp [hX]
   rcases eq_or_ne z (vget p s) with rfl | hzt
-  · by_cases hX : vget p (vget p s) ∈ X <;> simp [hX, hzs, vget_vset_ne _ _ hzs.symm]
-  by_cases hX : vget p (vget p s) ∈ X <;>
+  · by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+      simp [hX, hzs, vget_vset_ne _ _ hzs.symm]
+  by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
     simp [hX, hzs, hzt, vget_vset_ne _ _ hzs.symm, vget_vset_ne _ _ hzt.symm]
 
 /-- Gusfield's loop over the vertices `l`, skipping the root `r` and tracking both parent and

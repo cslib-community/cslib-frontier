@@ -30,6 +30,7 @@ length of its output.
 
 * `Cslib.Complexity.ComputableInPowerExpTime.comp` and
   `Cslib.Complexity.ComputableInPowerExpTime.comp_polyTime`: composition with parameter blowup.
+* `Cslib.Complexity.ComputableInPowerExpTime.prod`: pair two outputs at a common power.
 * `Cslib.Complexity.DecidableInPowerExpTime.mono_measure`: enlarge the instance parameter.
 * `Cslib.Complexity.DecidableInPowerExpTime.of_reduction`: transfer along a reduction with an
   exponential time bound and a power bound on the target parameter.
@@ -72,6 +73,30 @@ theorem DecidableInPowerExpTime.mono_measure {ν : α → ℕ} {p : ℝ}
   exact (two_rpow_mul_pow_le_two_rpow_mul_pow
     (mul_le_mul_of_nonneg_left hparam (Nat.cast_nonneg C)) le_rfl).trans (by simp)
 
+/-- Computing two functions on the same input and pairing their outputs preserves their
+common power in the exponent. -/
+theorem ComputableInPowerExpTime.prod {f : α → β} {g : α → γ} {p : ℝ}
+    (hf : ComputableInPowerExpTime f encA encB μA p)
+    (hg : ComputableInPowerExpTime g encA encC μA p) :
+    ComputableInPowerExpTime (fun a => (f a, g a)) encA (encPair encB encC) μA p := by
+  obtain ⟨C, e, hf⟩ := hf
+  obtain ⟨D, d, hg⟩ := hg
+  obtain ⟨t, c, hf, ht⟩ := hf.exists_computableInO
+  obtain ⟨u, k, hg, hu⟩ := hg.exists_computableInO
+  let R (a : α) : ℝ := (2 : ℝ) ^ (max C D * (μA a + 1 : ℝ) ^ p) * ((encA a).length + 1) ^ max e d
+  have hbound (a : α) : ((t a + u a : ℕ) : ℝ) ≤ (c + k : ℕ) * R a + (c + k : ℕ) := by
+    have hf' : (2 : ℝ) ^ (C * (μA a + 1 : ℝ) ^ p) * ((encA a).length + 1) ^ e ≤ R a :=
+      two_rpow_mul_pow_le_two_rpow_mul_pow (mul_le_mul_of_nonneg_right
+        (by exact_mod_cast le_max_left C D) (by positivity)) (le_max_left e d)
+    have hg' : (2 : ℝ) ^ (D * (μA a + 1 : ℝ) ^ p) * ((encA a).length + 1) ^ d ≤ R a :=
+      two_rpow_mul_pow_le_two_rpow_mul_pow (mul_le_mul_of_nonneg_right
+        (by exact_mod_cast le_max_right C D) (by positivity)) (le_max_right e d)
+    push_cast
+    linarith [ht a, hu a, mul_le_mul_of_nonneg_left hf' c.cast_nonneg,
+      mul_le_mul_of_nonneg_left hg' k.cast_nonneg]
+  exact ⟨max C D, max e d, (ComputableInTimeO.of_computableInO (hf.prod hg) hbound).mono
+    (c + k) (fun _ => le_rfl) (fun _ => by positivity)⟩
+
 /-- Composing a map of power `q` and parameter blowup `O((μA + 1) ^ b)` with a function
 of power `p ≥ 0` gives power `max q (b * p)`. The time to compute the first map also bounds
 the length of the encoded argument supplied to the second. -/
@@ -107,40 +132,20 @@ theorem ComputableInPowerExpTime.comp {f : α → β} {g : β → γ} {q b p : �
     have ht' : (t a : ℝ) ≤ P' :=
       (le_two_mul_mul_of_le_mul_add (ht a) le_rfl hP).trans
         (mul_le_mul_of_nonneg_right (by linarith) (by positivity))
-    have hlen : ((encB (f a)).length : ℝ) ≤ l * (P' + 1) := by
-      have hlen' : ((encB (f a)).length : ℝ) ≤ l * ((t a : ℝ) + 1) := by
-        exact_mod_cast hl a
-      exact hlen'.trans
-        (mul_le_mul_of_nonneg_left (add_le_add ht' (le_refl (1 : ℝ))) (by positivity))
+    have hlen : ((encB (f a)).length : ℝ) ≤ l * (P' + 1) :=
+      (by exact_mod_cast hl a : ((encB (f a)).length : ℝ) ≤ l * (t a + 1)).trans
+        (mul_le_mul_of_nonneg_left (by linarith) (by positivity))
     have hy : (2 : ℝ) ^ (D * (μB (f a) + 1 : ℝ) ^ p) ≤ 1 * X := by
       rw [one_mul]
-      apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      have hb := Real.rpow_le_rpow (by positivity : 0 ≤ (μB (f a) + 1 : ℝ)) (hsize a) hp
-      change _ ≤ R * x ^ (b * p)
-      rw [Real.mul_rpow (by positivity) (by positivity), ← Real.rpow_mul (by positivity)] at hb
-      simpa only [R, mul_assoc] using mul_le_mul_of_nonneg_left hb (Nat.cast_nonneg D)
+      exact two_rpow_mul_rpow_le_of_le_mul_rpow (by positivity) (by positivity)
+        (by positivity) (hsize a) hp
     have hsum := reduction_add_time_le hP' hX (C := 1) (by norm_num) hlen hy (hu (f a))
     have hrate : X * P ^ (e + 1) ≤ (2 : ℝ) ^ (S * x ^ max q (b * p)) *
-        y ^ (d * (e + 1)) := by
-      dsimp only [X, P]
-      rw [mul_pow, ← Real.rpow_natCast ((2 : ℝ) ^ (C * x ^ q)), ← Real.rpow_mul (by norm_num),
-        ← mul_assoc, ← Real.rpow_add (by norm_num), ← pow_mul]
-      apply mul_le_mul_of_nonneg_right _ (by positivity)
-      apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      have h₁ := Real.rpow_le_rpow_of_exponent_le hx (le_max_left q (b * p))
-      have h₂ := Real.rpow_le_rpow_of_exponent_le hx (le_max_right q (b * p))
-      have h₃ := Nat.le_ceil R
-      dsimp only [S]
-      push_cast
-      nlinarith [mul_le_mul_of_nonneg_left h₁
-          (show 0 ≤ (C : ℝ) * (e + 1) by positivity),
-        mul_le_mul_of_nonneg_left h₂ (show 0 ≤ R by positivity),
-        mul_le_mul_of_nonneg_right h₃ (show 0 ≤ x ^ max q (b * p) by positivity)]
+        y ^ (d * (e + 1)) :=
+      power_reduction_envelope_le hx (by positivity) (by positivity)
     have hsum' : (t a : ℝ) + u (f a) ≤ M * (X * P ^ (e + 1)) := by
       refine (add_le_add ht' le_rfl).trans (hsum.trans_eq ?_)
-      dsimp only [P', M]
-      rw [mul_pow]
-      ring
+      simp only [P', M, mul_pow]; ring
     push_cast
     exact hsum'.trans (mul_le_mul_of_nonneg_left hrate (by positivity))
   · exact (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity)).trans
@@ -155,8 +160,7 @@ theorem ComputableInPowerExpTime.comp_polyTime {f : α → β} {g : β → γ} {
     (hb : 0 ≤ b) (hp : 0 ≤ p) :
     ComputableInPowerExpTime (g ∘ f) encA encC μA (b * p) := by
   obtain ⟨e, he⟩ := ComputableInExpTime.of_computableInPolyTime (μ := fun _ => 0) hf
-  have hmax : max 0 (b * p) = b * p := max_eq_right (mul_nonneg hb hp)
-  rw [← hmax]
+  rw [← max_eq_right (mul_nonneg hb hp)]
   exact hg.comp ⟨0, e, by simpa [ComputableInExpTime] using he⟩ hsize hp
 
 /-- If a many-one reduction takes time exponential in the `q`th power of its source parameter,
@@ -171,8 +175,7 @@ theorem DecidableInPowerExpTime.of_reduction {f : α → β} {q b p : ℝ}
     DecidableInPowerExpTime A encA μA (max q (b * p)) := by
   obtain ⟨D, e, h⟩ := h
   obtain ⟨g, hgB, hg⟩ := decidableInTimeO_iff_exists_computableInTimeO.mp h
-  have hsolver : ComputableInPowerExpTime g encB encBool μB p := ⟨D, e, hg⟩
-  obtain ⟨C, d, hout⟩ := hsolver.comp hf hsize hp
+  obtain ⟨C, d, hout⟩ := ComputableInPowerExpTime.comp ⟨D, e, hg⟩ hf hsize hp
   exact ⟨C, d, decidableInTimeO_iff_exists_computableInTimeO.mpr
     ⟨g ∘ f, fun a => (hmem a).trans (hgB (f a)), hout⟩⟩
 
@@ -184,8 +187,7 @@ theorem DecidableInPowerExpTime.of_polyTime_reduction {f : α → β} {b p : ℝ
     (hb : 0 ≤ b) (hp : 0 ≤ p) (h : DecidableInPowerExpTime B encB μB p) :
     DecidableInPowerExpTime A encA μA (b * p) := by
   obtain ⟨e, he⟩ := ComputableInExpTime.of_computableInPolyTime (μ := fun _ => 0) hf
-  have hmax : max 0 (b * p) = b * p := max_eq_right (mul_nonneg hb hp)
-  rw [← hmax]
+  rw [← max_eq_right (mul_nonneg hb hp)]
   exact h.of_reduction ⟨0, e, by simpa [ComputableInExpTime] using he⟩ hmem hsize hp
 
 end Cslib.Complexity

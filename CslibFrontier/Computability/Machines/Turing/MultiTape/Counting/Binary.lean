@@ -65,12 +65,9 @@ theorem length_binaryCertificate {width : ℕ} {indices : List ℕ}
   induction indices with
   | nil => simp [binaryCertificate]
   | cons index rest ih =>
-    simp only [binaryCertificate, List.flatMap_cons, List.length_append, List.length_cons]
-    change (BitString.binaryWord width index).length + (binaryCertificate width rest).length =
-      (rest.length + 1) * width
-    rw [BitString.length_binaryWord (h index (by simp)),
-      ih (fun i hi => h i (by simp [hi])), Nat.add_mul]
-    simp [Nat.add_comm]
+    rw [binaryCertificate, List.flatMap_cons, List.length_append, List.length_cons,
+      BitString.length_binaryWord (h index List.mem_cons_self), ← binaryCertificate,
+      ih fun i hi => h i (List.mem_cons_of_mem _ hi), Nat.add_mul, Nat.one_mul, Nat.add_comm]
 
 /-- Encoding followed by block decoding preserves every bounded occurrence index. -/
 theorem binaryIndices_binaryCertificate {width : ℕ} {indices : List ℕ}
@@ -171,16 +168,12 @@ theorem card_binaryCertificateAccepts {k : ℕ} {Symbol State : Type*} {input : 
     obtain ⟨hlen, hvalid⟩ := (machine.mem_certificates_iff _ _ _).mp hcert
     obtain ⟨⟨choices, final⟩, hdecode⟩ := Option.isSome_iff_exists.mp hvalid
     have hsmall := machine.decodeCertificate_indices_lt (Nat.two_pow_pos _) hbound hdecode
-    have hlength : (binaryCertificate width indices).length = count * width := by
-      rw [length_binaryCertificate hsmall, hlen]
-    let word := BitString.ofList (count * width) (binaryCertificate width indices)
-    have hword : List.ofFn word = binaryCertificate width indices :=
-      BitString.ofFn_ofList hlength
-    have hround : binaryIndices count width (List.ofFn word) = indices := by
-      rw [hword, ← hlen, binaryIndices_binaryCertificate hsmall]
-    refine ⟨word, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hround⟩
-    rw [hround]
-    exact hverdict
+    have hround : binaryIndices count width
+        (List.ofFn (BitString.ofList (count * width) (binaryCertificate width indices))) =
+        indices := by
+      rw [BitString.ofFn_ofList (by rw [length_binaryCertificate hsmall, hlen]),
+        ← hlen, binaryIndices_binaryCertificate hsmall]
+    exact ⟨_, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hround.symm ▸ hverdict⟩, hround⟩
 
 /-- A finite-control machine over a finite alphabet has one positive block width whose `2 ^ width`
 codes cover every transition list, as `card_binaryCertificateAccepts` requires. -/

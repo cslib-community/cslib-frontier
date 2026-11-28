@@ -159,39 +159,29 @@ theorem eval_toPlacedGate_ket {t : ℕ} {cs : List ℕ} {g : PlacedGate m}
     (hg : toPlacedGate? m (false, t, cs) = some g) (ht : t < m) (x : Fin m → Bool) :
     g.eval (ket x) = ket (Function.update x ⟨t, ht⟩
       (x ⟨t, ht⟩ ^^ cs.all fun c => (List.ofFn x).getD c false)) := by
-  have hread (i : Fin m) : (List.ofFn x).getD i false = x i := by
-    simp [List.getD_eq_getElem?_getD]
+  have hread {i : ℕ} (hi : i < m) : (List.ofFn x).getD i false = x ⟨i, hi⟩ := by
+    simp [List.getD_eq_getElem?_getD, hi]
   match cs, hg with
   | [], hg =>
     simp only [toPlacedGate?, ht, ↓reduceDIte, Option.some.injEq] at hg
     subst hg
-    refine (PlacedGate.eval_ofPerm_ket_of_update _ _ 0 (fun z => !z 0) (fun z => ?_) x).trans ?_
-    · funext i
-      rw [Subsingleton.elim i 0, Function.update_self]
-      rfl
-    · simp only [List.all_nil, Bool.xor_true]
-      rfl
+    refine (PlacedGate.eval_ofPerm_ket_of_update _ _ 0 (fun z => !z 0) (fun z =>
+      funext fun i => by rw [Subsingleton.elim i 0, Function.update_self]; rfl) x).trans ?_
+    simp only [List.all_nil, Bool.xor_true]; rfl
   | [c], hg =>
     simp only [toPlacedGate?] at hg
     split_ifs at hg with h
-    simp only [Option.some.injEq] at hg
-    subst hg
+    cases Option.some.inj hg
     refine (PlacedGate.eval_ofPerm_ket_of_update _ _ 1 (fun z => z 1 ^^ z 0) (fun _ => rfl)
       x).trans ?_
-    rw [List.all_cons, List.all_nil, Bool.and_true,
-      show (List.ofFn x).getD c false = x ⟨c, h.1⟩ from hread ⟨c, h.1⟩]
-    rfl
+    rw [List.all_cons, List.all_nil, Bool.and_true, hread h.1]; rfl
   | [c₁, c₂], hg =>
     simp only [toPlacedGate?] at hg
     split_ifs at hg with h
-    simp only [Option.some.injEq] at hg
-    subst hg
+    cases Option.some.inj hg
     refine (PlacedGate.eval_ofPerm_ket_of_update _ _ 2 (fun z => z 2 ^^ (z 0 && z 1))
       (fun _ => rfl) x).trans ?_
-    rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true,
-      show (List.ofFn x).getD c₁ false = x ⟨c₁, h.1⟩ from hread ⟨c₁, h.1⟩,
-      show (List.ofFn x).getD c₂ false = x ⟨c₂, h.2.1⟩ from hread ⟨c₂, h.2.1⟩]
-    rfl
+    rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true, hread h.1, hread h.2.1]; rfl
   | _ :: _ :: _ :: _, hg => simp [toPlacedGate?] at hg
 
 /-- **The Hadamard gate code branches on its target**: the well-formed code `(true, t, [])` maps
@@ -217,8 +207,7 @@ theorem eval_toPlacedGate_hadamard_ket {t : ℕ} {g : PlacedGate m}
   · rw [ite_eq_left_of_eq_true _ _ (eq_true (hcond.mpr hagree)), Gate.hadamard_apply]
     have hw (i : Fin 1) :
         (⟨![⟨t, ht⟩], fun i j _ => Subsingleton.elim i j⟩ : Fin 1 ↪ Fin m) i = ⟨t, ht⟩ := by
-      rw [Subsingleton.elim i 0]
-      rfl
+      rw [Subsingleton.elim i 0]; rfl
     simp only [iff_true_intro hagree, and_true, Function.comp_apply, hw]
     cases y ⟨t, ht⟩ <;> cases x ⟨t, ht⟩ <;> simp
   · rw [ite_eq_right_of_eq_false _ _ (eq_false (mt hcond.mp hagree))]
@@ -266,8 +255,8 @@ theorem onesProb_le_one (m : ℕ) (gs : List GateCode) (S : List ℕ) (x : List 
 /-- The event of no condition is certain. -/
 @[simp] theorem onesProb_nil (m : ℕ) (gs : List GateCode) (x : List Bool) :
     onesProb m gs [] x = 1 := by
-  rw [onesProb, show onesAt m [] = univ by simp [onesAt], measureProb_univ, Circuit.norm_run,
-    one_pow]
+  have h : onesAt m [] = univ := by simp [onesAt]
+  rw [onesProb, h, measureProb_univ, Circuit.norm_run, one_pow]
 
 /-- The accepting outcomes: qubit `0` reads `1`. -/
 def accepting (m : ℕ) : Finset (Fin m → Bool) := onesAt m [0]
@@ -306,18 +295,16 @@ theorem acceptProb_append_not (hm : 0 < m) (gs : List GateCode) (x : List Bool) 
     funext j
     by_cases hj : j = ⟨0, hm⟩ <;> simp [flip, hj]
   have hket (z : Fin m → Bool) : g.eval (ket z) = ket (flip z) := by
-    rw [GateCode.eval_toPlacedGate_ket hg hm z]
-    simp only [List.all_nil, Bool.xor_true]
-    rfl
+    simpa only [List.all_nil, Bool.xor_true] using GateCode.eval_toPlacedGate_ket hg hm z
   -- the NOT gate reads the amplitude of the flipped outcome
   have happly := g.eval_apply_of_involutive hflip hket ψ
   have hrun : Circuit.run (Circuit.ofCodes m (gs ++ [(false, 0, [])])) (inputState m x) =
       g.eval ψ := by
-    simp only [Circuit.run, Circuit.ofCodes_append, Circuit.eval_append, ψ]
-    simp [Circuit.ofCodes, hg]
+    simp [Circuit.run, Circuit.eval_append, Circuit.ofCodes, hg, ψ]
   -- the rejecting outcomes have probability one minus the acceptance probability
   have hcompl := measureProb_compl ψ (accepting m)
-  rw [show ‖ψ‖ = 1 from Circuit.norm_run _ _, one_pow] at hcompl
+  have hnorm : ‖ψ‖ = 1 := Circuit.norm_run _ _
+  rw [hnorm, one_pow] at hcompl
   rw [acceptProb, hrun, acceptProb, ← hcompl]
   simp only [measureProb, happly]
   refine sum_nbij' flip flip (fun y hy => ?_) (fun y hy => ?_) (fun y _ => hflip y)

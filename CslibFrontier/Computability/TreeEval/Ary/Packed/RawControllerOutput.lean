@@ -137,7 +137,7 @@ private theorem step_inSpace :
   have ht := snd' (snd' (snd' (snd' hpar)))
   have hbank := snd' hq
   have hindex := budget_natAdd (budget_natMul ht hr) (budget_natDiv hj hm)
-  have hcell := budget_comp_lin getD (linear_mul 8) (budget_prod hbank hindex)
+  have hcell := budget_getD hbank hindex
   have hbit := budget_comp_lin natTestBit (linear_mul 32)
     (budget_prod (budget_natMod hcell hp) (budget_natMod hj hm))
   exact (budget_prod hq (budget_prod (budget_natSucc hj) (budget_snoc hout hbit))).of_enc_eq

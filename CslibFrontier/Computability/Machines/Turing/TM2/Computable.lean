@@ -123,11 +123,9 @@ theorem isComputable_of_eval [Fintype K] [Finite Λ] [Finite σ] [∀ k, Finite 
   choose T hT hlt using hrun
   have hiter (a : α) := iterate_round (M := M) (hlt a)
   have hhalt (a : α) : (b a).l = none := by
-    have h := (mem_eval.1 (hb a)).2
     rcases hba : b a with ⟨_ | _, _, _⟩
     · rfl
-    · rw [hba] at h
-      simp [step] at h
+    · exact absurd (hba ▸ (mem_eval.1 (hb a)).2) (by simp [step])
   let fin : Option (Cfg Γ Λ σ) → List Bool := fun o => (o.map read).getD []
   have hfin : ComputableInPolyTime fin (encOption encCfg) encBits :=
     optionGetDWithInput (optionMapWithInput (f := fun _ c => read c) id'
@@ -144,13 +142,9 @@ theorem isComputable_of_eval [Fintype K] [Finite Λ] [Finite σ] [∀ k, Finite 
     (fun a => by
       rw [Function.iterate_succ_apply', hiter a (T a) le_rfl, hT a]
       simp [round, hhalt a])
-  have hval (a : α) : fin ((round M)^[T a] (some (start a))) = encOut (f a) := by
-    simp [fin, hiter a (T a) le_rfl, hT a, hread_eq a]
   obtain ⟨k, State, hState, tm, htm⟩ := hc
   exact ComputableInTimeAndSpace.isComputable ⟨k, State, hState, tm, fun a => by
-    have h := htm a
-    dsimp only at h
-    rwa [hval a] at h⟩
+    simpa [fin, hiter a (T a) le_rfl, hT a, hread_eq a] using htm a⟩
 
 end Turing.TM2
 
@@ -211,12 +205,11 @@ theorem Computable.isComputable {α β : Type} [Primcodable α] [Primcodable β]
       ComputableInPolyTime.of_finite _
     exact ComputableInPolyTime.listToBits.comp ((ComputableInPolyTime.map hbit).comp
       ((ComputableInPolyTime.filter hkeep).comp hstack))
-  · have h := eval_finProgram c [Encodable.encode a]
-    rw [heval a] at h
-    have hmem : halt [Encodable.encode (f a)] ∈
-        TM2.Cfg.mapLabel Subtype.val <$> StateTransition.eval (TM2.step (finProgram c))
-          (finInit c [Encodable.encode a]) := h ▸ Part.mem_map halt (Part.mem_some _)
-    obtain ⟨b, hb, hbhalt⟩ := (Part.mem_map_iff _).1 hmem
+  · have h : halt [Encodable.encode (f a)] ∈ halt <$> c.eval [Encodable.encode a] := by
+      rw [heval a]
+      exact Part.mem_map halt (Part.mem_some _)
+    rw [← eval_finProgram] at h
+    obtain ⟨b, hb, hbhalt⟩ := (Part.mem_map_iff _).1 h
     exact ⟨b, hb, readDigits_halt c _ b hbhalt⟩
 
 /-- Reading a word as a number, least significant bit first, is primitive recursive. -/

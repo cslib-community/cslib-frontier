@@ -149,32 +149,46 @@ theorem rand {dst src : Fin r} (hfit : Fits w (x.regs src))
   · simp only [map_bind, map_pure, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_unifFin]
     rfl
 
-/-- **Sequencing.** If the observation `g` after `c₁` determines the law `κ (g y)` of the
-observation `f` after `c₂`, the laws compose by `PMF.bind`. -/
-theorem seq {g : Data r → β} {ν : PMF β} {κ : β → PMF α}
+private theorem bind_codeComp {g : Data r → β} {ν : PMF β} {κ : β → PMF α}
+    {c' : Code B r} {stepCost : ℕ → ℕ → ℕ}
     (h₁ : ExecRandLaw w c₁ x P T₁ R₁ g ν)
-    (h₂ : ∀ y, P y → ExecRandLaw w c₂ y Q T₂ R₂ f (κ (g y))) :
-    ExecRandLaw w (.seq c₁ c₂) x Q (T₁ + T₂) (R₁ + R₂) f (ν.bind κ) := by
+    (h₂ : ∀ y, P y → ExecRandLaw w c' y Q T₂ R₂ f (κ (g y)))
+    (hexec : ∀ {m₁}, ExecRand w c₁ x m₁ →
+      (∀ z₁ ∈ m₁.support, ExecRand w c' z₁.1 (codeComp w c' z₁.1)) →
+      ExecRand w c x (do
+        let z₁ ← m₁
+        let z₂ ← codeComp w c' z₁.1
+        pure (z₂.1, stepCost z₁.2 z₂.2)))
+    (hcost : ∀ a b, a ≤ T₁ → b ≤ T₂ → stepCost a b ≤ T') :
+    ExecRandLaw w c x Q T' (R₁ + R₂) f (ν.bind κ) := by
   obtain ⟨m₁, hm₁, hq₁, hsup₁, hlaw₁⟩ := h₁
   have hstep (z₁) (hz₁ : z₁ ∈ m₁.support) :
-      ExecRand w c₂ z₁.1 (codeComp w c₂ z₁.1) ∧
-      (codeComp w c₂ z₁.1).IsQueryBounded R₂ ∧
-      (∀ z₂ ∈ (codeComp w c₂ z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂) ∧
-      ((fun z => f z.1) <$> codeComp w c₂ z₁.1).eval = κ (g z₁.1) := by
+      ExecRand w c' z₁.1 (codeComp w c' z₁.1) ∧ (codeComp w c' z₁.1).IsQueryBounded R₂ ∧
+      (∀ z₂ ∈ (codeComp w c' z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂) ∧
+      ((fun z => f z.1) <$> codeComp w c' z₁.1).eval = κ (g z₁.1) := by
     obtain ⟨m₂, hm₂, hq₂, hsup₂, hlaw₂⟩ := h₂ z₁.1 (hsup₁ z₁ hz₁).1
     exact hm₂.codeComp_eq ▸ ⟨hm₂, hq₂, hsup₂, hlaw₂⟩
-  refine ⟨_, ExecRand.seq hm₁ fun z₁ hz₁ => (hstep z₁ hz₁).1,
+  refine ⟨_, hexec hm₁ fun z₁ hz₁ => (hstep z₁ hz₁).1,
     OracleComp.IsCostBounded.bind_on_support hq₁ fun z₁ hz₁ => ?_, fun z hz => ?_, ?_⟩
   · simpa only [Nat.add_zero] using (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
   · supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
     exact ⟨((hstep z₁ hz₁).2.2.1 z₂ hz₂).1,
-      Nat.add_le_add (hsup₁ z₁ hz₁).2 ((hstep z₁ hz₁).2.2.1 z₂ hz₂).2⟩
+      hcost _ _ (hsup₁ z₁ hz₁).2 ((hstep z₁ hz₁).2.2.1 z₂ hz₂).2⟩
   · rw [← hlaw₁]
     simp only [map_bind, map_pure, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map,
       PMF.bind_map]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun z₁ hz₁ => ?_
     rw [ProbComp.support_eval] at hz₁
-    rw [Function.comp_apply, ← (hstep z₁ hz₁).2.2.2, ProbComp.eval_map]; rfl
+    rw [Function.comp_apply, ← (hstep z₁ hz₁).2.2.2, ProbComp.eval_map]
+    rfl
+
+/-- **Sequencing.** If the observation `g` after `c₁` determines the law `κ (g y)` of the
+observation `f` after `c₂`, the laws compose by `PMF.bind`. -/
+theorem seq {g : Data r → β} {ν : PMF β} {κ : β → PMF α}
+    (h₁ : ExecRandLaw w c₁ x P T₁ R₁ g ν)
+    (h₂ : ∀ y, P y → ExecRandLaw w c₂ y Q T₂ R₂ f (κ (g y))) :
+    ExecRandLaw w (.seq c₁ c₂) x Q (T₁ + T₂) (R₁ + R₂) f (ν.bind κ) :=
+  bind_codeComp h₁ h₂ (fun hm₁ hstep => ExecRand.seq hm₁ hstep) fun _ _ => Nat.add_le_add
 
 /-- A deterministic prefix leading to `y` does not change the law of what follows. -/
 theorem seq_det {y : Data r} (h₁ : ExecWithin w c₁ x y T₁) (h₂ : ExecRandLaw w c₂ y Q T₂ R f μ) :
@@ -252,27 +266,9 @@ loop, and the laws compose by `PMF.bind`. -/
 theorem loop_iter {g : Data r → β} {ν : PMF β} {κ : β → PMF α} (hc : cond.Holds x)
     (hb : ExecRandLaw w body x P T₁ R₁ g ν)
     (hl : ∀ y, P y → ExecRandLaw w (.loop cond body) y Q T₂ R₂ f (κ (g y))) :
-    ExecRandLaw w (.loop cond body) x Q (T₁ + T₂ + 2) (R₁ + R₂) f (ν.bind κ) := by
-  obtain ⟨mb, hmb, hqb, hsupb, hlawb⟩ := hb
-  have hstep (z₁) (hz₁ : z₁ ∈ mb.support) :
-      ExecRand w (.loop cond body) z₁.1 (codeComp w (.loop cond body) z₁.1) ∧
-      (codeComp w (.loop cond body) z₁.1).IsQueryBounded R₂ ∧
-      (∀ z₂ ∈ (codeComp w (.loop cond body) z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂) ∧
-      ((fun z => f z.1) <$> codeComp w (.loop cond body) z₁.1).eval = κ (g z₁.1) := by
-    obtain ⟨ml, hml, hql, hsupl, hlawl⟩ := hl z₁.1 (hsupb z₁ hz₁).1
-    exact hml.codeComp_eq ▸ ⟨hml, hql, hsupl, hlawl⟩
-  refine ⟨_, ExecRand.loop_iter hc hmb fun z₁ hz₁ => (hstep z₁ hz₁).1,
-    OracleComp.IsCostBounded.bind_on_support hqb fun z₁ hz₁ => ?_, fun z hz => ?_, ?_⟩
-  · simpa only [Nat.add_zero] using (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
-  · supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
-    exact ⟨((hstep z₁ hz₁).2.2.1 z₂ hz₂).1,
-      Nat.add_le_add_right (Nat.add_le_add (hsupb z₁ hz₁).2 ((hstep z₁ hz₁).2.2.1 z₂ hz₂).2) 2⟩
-  · rw [← hlawb]
-    simp only [map_bind, map_pure, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map,
-      PMF.bind_map]
-    refine Probability.PMF.bind_congr_on_support _ _ _ fun z₁ hz₁ => ?_
-    rw [ProbComp.support_eval] at hz₁
-    rw [Function.comp_apply, ← (hstep z₁ hz₁).2.2.2, ProbComp.eval_map]; rfl
+    ExecRandLaw w (.loop cond body) x Q (T₁ + T₂ + 2) (R₁ + R₂) f (ν.bind κ) :=
+  bind_codeComp hb hl (fun hmb hstep => ExecRand.loop_iter hc hmb hstep)
+    fun _ _ h₁ h₂ => Nat.add_le_add_right (Nat.add_le_add h₁ h₂) 2
 
 /-- **Compiled programs.** Compiling `c` with `Code.program out` halts on every path within any
 fuel `T' ≥ T + 1`, makes at most `R` `rand` calls, satisfies the postcondition on the halting

@@ -43,16 +43,11 @@ theorem intersectionParity_cutEnds_left {p q : Route}
   classical
   unfold intersectionParity
   change (∑ i : Fin p.segments, ∑ j : Fin q.segments, _) = _
-  apply Finset.sum_congr rfl
-  intro i _
-  apply Finset.sum_congr rfl
-  intro j _
-  apply decide_eq_decide.mpr
+  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => decide_eq_decide.mpr ?_
   obtain ⟨hl, hlu, hh⟩ := p.cut_bounds hs ht hst i
   constructor
   · rintro ⟨z, hz, hzq⟩
-    rw [openSegment_eq_image_lineMap] at hz
-    obtain ⟨u, hu, he⟩ := hz
+    obtain ⟨u, hu, he⟩ := (openSegment_eq_image_lineMap ℝ _ _).subset hz
     change (p.cutEnds s t).eval i u = z at he
     rw [p.eval_cutEnds] at he
     have htime : p.cutTime s t i u ∈ Set.Ioo (p.cutLower s i) (p.cutUpper t i) := by
@@ -61,8 +56,7 @@ theorem intersectionParity_cutEnds_left {p q : Route}
     exact ⟨z, he ▸ lineMap_mem_openSegment ℝ _ _
       ⟨hl.trans_lt htime.1, htime.2.trans_le hh⟩, hzq⟩
   · rintro ⟨z, hz, hzq⟩
-    rw [openSegment_eq_image_lineMap] at hz
-    obtain ⟨v, hv, he⟩ := hz
+    obtain ⟨v, hv, he⟩ := (openSegment_eq_image_lineMap ℝ _ _).subset hz
     change p.eval i v = z at he
     by_cases hdeg : p.point i.castSucc = p.point i.succ
     · have hcut : (p.cutEnds s t).eval i v = z := by
@@ -120,8 +114,7 @@ theorem intersectionParity_line_split_of_disjoint {a b : ℂ} {q : Route} {l u :
       openSegment ℝ (q.point j.castSucc) (q.point j.succ)).Nonempty)) = _
     exact Fin.sum_univ_one _
   rw [hsum, hsum, hsum, ← Finset.sum_add_distrib]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   let J := openSegment ℝ (q.point j.castSucc) (q.point j.succ)
   have himage (s t : ℝ) (hst : s < t) : F '' Set.Ioo s t = openSegment ℝ (F s) (F t) := by
     rw [← openSegment_eq_Ioo hst, image_openSegment]

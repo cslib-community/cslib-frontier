@@ -221,19 +221,14 @@ theorem stage1Proposal_eq_some_iff {P : Type*} [Fintype P] (st : P → ProcState
       majorityThreshold (Fintype.card P) ≤ reportCount st S b := by
   cases b <;> dsimp only [stage1Proposal] <;> split_ifs with ht hf
   · exact ⟨(fun h => nomatch h), fun _ => by finset_card [reportCount, majorityThreshold]⟩
-  · exact ⟨fun _ => hf, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun hf' => (hf hf').elim⟩
-  · exact ⟨fun _ => ht, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
+  all_goals simp [*]
 
 /-- Symmetric characterization of when `stage1Proposal` emits `none`. -/
 theorem stage1Proposal_eq_none_iff {P : Type*} [Fintype P] (st : P → ProcState)
     (S : Finset P) :
     stage1Proposal st S = none ↔
       ∀ b : Bool, reportCount st S b < majorityThreshold (Fintype.card P) := by
-  rw [Option.eq_none_iff_forall_ne_some]
-  simp only [ne_eq, stage1Proposal_eq_some_iff, not_le]
+  simp only [Option.eq_none_iff_forall_ne_some, ne_eq, stage1Proposal_eq_some_iff, not_le]
 
 /-- **Stage-1 proposal uniqueness:** across the entire network, no two Stage-1 quorums `S₁` and
 `S₂` can produce conflicting `some` proposals from the same state `st`, because two strict
@@ -285,9 +280,8 @@ private lemma stage2Update_est_of_unique {P : Type*} {t : ℕ} {prop : P → Opt
   obtain ⟨j, hjS, hjb⟩ := hex
   have hpos : 1 ≤ proposalCount prop S b := (proposalCount_pos_iff prop S b).mpr ⟨j, hjS, hjb⟩
   cases b
-  · have hno : ¬ 1 ≤ proposalCount prop S true := by
-      rw [proposalCount_pos_iff]
-      rintro ⟨j', _, hj't⟩
+  · have hno : ¬ 1 ≤ proposalCount prop S true := fun h => by
+      obtain ⟨j', _, hj't⟩ := (proposalCount_pos_iff prop S true).mp h
       cases huniq j j' false true hjb hj't
     simp only [stage2Update, hno, ↓reduceIte, hpos]
   · simp only [stage2Update, hpos, ↓reduceIte]
@@ -296,9 +290,8 @@ private lemma stage2Update_est_of_all_none {P : Type*} {t : ℕ} {prop : P → O
     {S : Finset P} {coin : Bool} {cur : ProcState}
     (hnone : ∀ j ∈ S, prop j = none) :
     (stage2Update t prop S coin cur).est = coin := by
-  have hno (b : Bool) : ¬ 1 ≤ proposalCount prop S b := by
-    rw [proposalCount_pos_iff]
-    rintro ⟨j, hj, hjb⟩
+  have hno (b : Bool) : ¬ 1 ≤ proposalCount prop S b := fun h => by
+    obtain ⟨j, hj, hjb⟩ := (proposalCount_pos_iff prop S b).mp h
     exact Option.some_ne_none b (hjb.symm.trans (hnone j hj))
   simp only [stage2Update, hno true, hno false, ↓reduceIte]
 
@@ -321,11 +314,7 @@ private lemma stage2Update_decided_eq_some_iff_of_none {P : Type*} {t : ℕ} {pr
   rw [hd]
   cases b <;> split_ifs with ht hf
   · exact ⟨(fun h => nomatch h), fun hf' => (not_both ⟨ht, hf'⟩).elim⟩
-  · exact ⟨fun _ => hf, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun hf' => (hf hf').elim⟩
-  · exact ⟨fun _ => ht, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
+  all_goals simp [*]
 
 /-- Execute one two-stage phase of Ben-Or's protocol on global state `st` under quorum-phase
 schedule `sched` and coin assignment `coins`. -/
@@ -358,9 +347,7 @@ theorem adaptiveRun_eq_run {P : Type*} [Fintype P] (t : ℕ)
     ∀ r, adaptiveRun t strat coins inp r =
       run t (fun k => strat k (adaptiveRun t strat coins inp k)) coins inp r
   | 0 => rfl
-  | r + 1 => by
-    simp only [adaptiveRun, run]
-    rw [← adaptiveRun_eq_run t strat coins inp r]
+  | r + 1 => congrArg (phaseStep t _ (coins r)) (adaptiveRun_eq_run t strat coins inp r)
 
 /-- Every process currently carries the same binary estimate. -/
 @[expose] def IsUnanimous {P : Type*} (st : P → ProcState) : Prop :=
@@ -417,9 +404,8 @@ theorem phaseStep_of_est_eq {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSche
 theorem IsUnanimous.phaseStep {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSchedule P}
     {st : P → ProcState} (hu : IsUnanimous st) (ht : 2 * t < Fintype.card P)
     (hv : sched.Valid t) (coins : P → Bool) :
-    IsUnanimous (BenOr.phaseStep t sched coins st) := by
-  obtain ⟨b, hb⟩ := hu
-  exact ⟨b, fun p => (phaseStep_of_est_eq ht hv coins hb p).1⟩
+    IsUnanimous (BenOr.phaseStep t sched coins st) :=
+  hu.imp fun _ hb p => (phaseStep_of_est_eq ht hv coins hb p).1
 
 /-- **Single-phase lock-in:** if process `p` newly decides `b` in Stage 2 of a valid phase (when
 `2 * t < |P|`), then **every** process `q` adopts next estimate `b` in that phase, regardless of
@@ -436,9 +422,8 @@ theorem phaseStep_lock_in {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSchedu
     fun j₁ j₂ _ _ h₁ h₂ => stage1Proposal_unique st (sched.q1 j₁) (sched.q1 j₂) h₁ h₂
   have hcnt : t + 1 ≤ proposalCount prop (sched.q2 p) b :=
     (stage2Update_decided_eq_some_iff_of_none huniq hnone b).mp hdec
-  have hQ : Fintype.card P - t ≤ (sched.q2 q).card := hv.card_q2 q
   obtain ⟨j, hj⟩ : ∃ j, j ∈ ((sched.q2 p).filter fun j => prop j = some b) ∩ sched.q2 q := by
-    finset_card [proposalCount]
+    finset_card [proposalCount, hv.card_q2 q]
   rw [Finset.mem_inter, Finset.mem_filter] at hj
   exact stage2Update_est_of_unique huniq ⟨j, hj.2, hj.1.2⟩
 
@@ -459,9 +444,8 @@ private lemma run_decided_stable_add {P : Type*} [Fintype P] {t : ℕ} {sched : 
 theorem run_decided_stable {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSchedule P}
     {coins : ℕ → P → Bool} {inp : P → Bool} {r₁ r₂ : ℕ} (hr : r₁ ≤ r₂) {p : P} {b : Bool}
     (hd : (run t sched coins inp r₁ p).decided = some b) :
-    (run t sched coins inp r₂ p).decided = some b := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hr
-  exact run_decided_stable_add hd d
+    (run t sched coins inp r₂ p).decided = some b :=
+  match r₂, Nat.exists_eq_add_of_le hr with | _, ⟨d, rfl⟩ => run_decided_stable_add hd d
 
 /-- Lock invariant: whenever any process has decided `b`, every process carries estimate `b`.
 Preserved across all valid phases once `2 * t < |P|`. -/
@@ -482,8 +466,7 @@ theorem EstimateLocked.phaseStep {P : Type*} [Fintype P] {t : ℕ} {sched : Phas
   cases hcur : (st p).decided with
   | none => exact phaseStep_lock_in ht hv hcur hd q
   | some d =>
-    have hprev := phaseStep_decided_stable (sched := sched) (coins := coins) (t := t) hcur
-    rw [hd] at hprev; cases hprev
+    cases Option.some.inj ((phaseStep_decided_stable hcur).symm.trans hd)
     exact (phaseStep_of_est_eq ht hv coins (hinv p b hcur) q).1
 
 private lemma estimateLocked_run {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSchedule P}
@@ -503,10 +486,7 @@ theorem phaseStep_allDecided_of_est_eq {P : Type*} [Fintype P] {t : ℕ} {sched 
     (phaseStep t sched coins st p).decided = some b := by
   cases hd : (st p).decided with
   | none => exact (phaseStep_of_est_eq ht hv coins hest p).2 hd
-  | some d =>
-    have hdb : b = d := (hest p).symm.trans (hlock p d hd p)
-    subst hdb
-    exact phaseStep_decided_stable hd
+  | some d => exact (hest p).symm.trans (hlock p d hd p) ▸ phaseStep_decided_stable hd
 
 /-- **Quorum-phase unanimous validity** (quorum-phase counterpart of Theorem 1(ii), [BenOr1983],
 §3, printed p. 29): if all processes start with input `b`, every process decides `b` after phase
@@ -537,10 +517,9 @@ theorem run_agreement {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSc
     (hd₁ : (run t sched coins inp r₁ p₁).decided = some b₁)
     (hd₂ : (run t sched coins inp r₂ p₂).decided = some b₂) :
     b₁ = b₂ := by
-  have hd₁' := run_decided_stable (Nat.le_max_left r₁ r₂) hd₁
-  have hd₂' := run_decided_stable (Nat.le_max_right r₁ r₂) hd₂
   have hlock := estimateLocked_run ht coins inp (max r₁ r₂) hv
-  exact (hlock p₁ b₁ hd₁' p₁).symm.trans (hlock p₂ b₂ hd₂' p₁)
+  exact (hlock p₁ b₁ (run_decided_stable (Nat.le_max_left r₁ r₂) hd₁) p₁).symm.trans
+    (hlock p₂ b₂ (run_decided_stable (Nat.le_max_right r₁ r₂) hd₂) p₁)
 
 /-- **Input integrity (strong binary validity):** whenever any process decides `b` in any phase,
 at least one process started with initial input `b`. -/
@@ -555,11 +534,9 @@ theorem run_exists_inp_eq_of_decided {P : Type*} [Fintype P] {t : ℕ} {sched : 
     by_cases hunan : ∀ q : P, inp q = inp q₀
     · exact ⟨q₀, run_agreement ht (r₁ := 1) (r₂ := r + 1) (fun k hk => hv k (by omega))
         (run_validity ht (hv 0 (Nat.zero_lt_succ r)) coins hunan p) hd⟩
-    · push Not at hunan
-      obtain ⟨q₁, hq₁⟩ := hunan
-      by_cases hb : inp q₀ = b
-      · exact ⟨q₀, hb⟩
-      · exact ⟨q₁, by cases b <;> cases h0 : inp q₀ <;> cases h1 : inp q₁ <;> simp_all⟩
+    · obtain ⟨q₁, hq₁⟩ := not_forall.mp hunan
+      refine if hb : inp q₀ = b then ⟨q₀, hb⟩ else ⟨q₁, ?_⟩
+      cases b <;> cases h0 : inp q₀ <;> cases h1 : inp q₁ <;> simp_all
 
 /-! ### Dynamic mid-stage crash simulation and uniform agreement -/
 
@@ -630,10 +607,7 @@ theorem CrashSchedule.Valid.valid_toSchedule {P : Type*} [Fintype P] [DecidableE
   have hsdiff : Fintype.card P - t ≤ (Finset.univ \ cs.crashed2 r).card := by
     finset_card [hv.card_crashed2 r]
   refine ⟨fun p => ?_, fun p => ?_⟩ <;> simp only [toSchedule] <;> split_ifs with hp
-  · exact hsdiff
-  · exact hv.card_q1 r p hp
-  · exact hsdiff
-  · exact hv.card_q2 r p hp
+  exacts [hsdiff, hv.card_q1 r p hp, hsdiff, hv.card_q2 r p hp]
 
 private lemma crashStep_eq_phaseStep_toSchedule {P : Type*} [Fintype P] [DecidableEq P]
     {t : ℕ} {cs : CrashSchedule P} {r : ℕ} {coins : P → Bool}
@@ -650,12 +624,13 @@ private lemma crashStep_eq_phaseStep_toSchedule {P : Type*} [Fintype P] [Decidab
     have hrc (b : Bool) : reportCount stC (cs.q1 r j) b = reportCount stR (cs.q1 r j) b :=
       congrArg Finset.card (Finset.filter_congr fun k hk => by rw [hq1Eq j hj1 k hk])
     simp only [CrashSchedule.toSchedule, hj1, ↓reduceIte, stage1Proposal, hrc]
+  have hq2 : (cs.toSchedule r).q2 p = cs.q2 r p := ite_eq_right hp2
   have hfilt (b : Bool) :
       proposalCount (fun j => if j ∈ cs.crashed1 r then none else stage1Proposal stC (cs.q1 r j))
         (cs.q2 r p) b =
       proposalCount (fun j => stage1Proposal stR ((cs.toSchedule r).q1 j))
         ((cs.toSchedule r).q2 p) b := by
-    rw [show (cs.toSchedule r).q2 p = cs.q2 r p from ite_eq_right hp2]
+    rw [hq2]
     exact congrArg Finset.card (Finset.filter_congr fun j hj => by simp only [hprop j hj])
   simp only [crashStep, phaseStep, hp2, ↓reduceIte, hpEq, stage2Update, hfilt]
 
@@ -665,19 +640,13 @@ theorem crashRun_eq_run {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ} {cs : 
     (hv : cs.Valid t) (coins : ℕ → P → Bool) (inp : P → Bool) :
     (∀ p, crashRun t cs coins inp 0 p = run t cs.toSchedule coins inp 0 p) ∧
     ∀ r, ∀ p ∉ cs.crashed2 r,
-      crashRun t cs coins inp (r + 1) p = run t cs.toSchedule coins inp (r + 1) p := by
-  refine ⟨fun _ => rfl, ?_⟩
-  intro r
-  induction r with
-  | zero =>
-    intro p hp2
-    exact crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 0 p hp2) rfl (fun _ _ _ _ => rfl)
-  | succ r ih =>
-    intro p hp2
-    have hpPrev : p ∉ cs.crashed2 r :=
-      fun h => hp2 (hv.crashed1_subset (r + 1) (hv.crashed2_subset r h))
-    exact crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 (r + 1) p hp2) (ih p hpPrev)
-      (fun j hj1 k hk => ih k (Finset.disjoint_left.mp (hv.disjoint_q1 r j hj1) hk))
+      crashRun t cs coins inp (r + 1) p = run t cs.toSchedule coins inp (r + 1) p :=
+  ⟨fun _ => rfl, Nat.rec
+    (fun p hp2 => crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 0 p hp2)
+      rfl fun _ _ _ _ => rfl)
+    fun r ih p hp2 => crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 (r + 1) p hp2)
+      (ih p fun h => hp2 (hv.crashed1_subset (r + 1) (hv.crashed2_subset r h)))
+      fun j hj1 k hk => ih k (Finset.disjoint_left.mp (hv.disjoint_q1 r j hj1) hk)⟩
 
 private lemma crashRun_decided_origin {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ}
     {cs : CrashSchedule P} (hv : cs.Valid t) {coins : ℕ → P → Bool} {inp : P → Bool}
@@ -691,9 +660,7 @@ private lemma crashRun_decided_origin {P : Type*} [Fintype P] [DecidableEq P] {t
     · simp only [crashRun, crashStep, hp, ↓reduceIte] at hd
       obtain ⟨r₀, hr₀, hnp, hrun⟩ := ih hd
       exact ⟨r₀, Nat.lt_succ_of_lt hr₀, hnp, hrun⟩
-    · refine ⟨r, Nat.lt_succ_self r, hp, ?_⟩
-      rw [← (crashRun_eq_run hv coins inp).2 r p hp]
-      exact hd
+    · exact ⟨r, Nat.lt_succ_self r, hp, (crashRun_eq_run hv coins inp).2 r p hp ▸ hd⟩
 
 /-- **Uniform agreement under dynamic crashes:** even if a process decides in some phase and
 immediately crashes afterward, its decision agrees with the decision of every other process across
@@ -744,11 +711,8 @@ private lemma phaseStep_fin3SplitSchedule_fixed (fallback : Fin 3 → Bool) :
     phaseStep 1 fin3SplitSchedule fallback (initState (fin3SplitInput (fallback 0))) =
       initState (fin3SplitInput (fallback 0)) := by
   have hfb : fallback = fun i : Fin 3 =>
-      if i = 0 then fallback 0 else if i = 1 then fallback 1 else fallback 2 := by
-    funext ⟨k, hk⟩
-    match k with
-    | 0 | 1 | 2 => rfl
-    | n + 3 => omega
+      if i = 0 then fallback 0 else if i = 1 then fallback 1 else fallback 2 :=
+    funext fun ⟨k, hk⟩ => by rcases k with _ | _ | _ | k <;> first | rfl | omega
   funext p
   conv_lhs => rw [hfb]
   exact phaseStep_fin3SplitSchedule_three (fallback 0) (fallback 1) (fallback 2) p
@@ -762,15 +726,11 @@ theorem exists_nonterminating_of_fixed_coin (fallback : Fin 3 → Bool) :
       sched.Valid 1 ∧
         ∀ (r : ℕ) (p : Fin 3),
           (run 1 (fun _ => sched) (fun _ => fallback) inp r p).decided = none := by
-  refine ⟨fin3SplitInput (fallback 0), fin3SplitSchedule, valid_fin3SplitSchedule, ?_⟩
-  have hfix (r : ℕ) :
-      run 1 (fun _ => fin3SplitSchedule) (fun _ => fallback) (fin3SplitInput (fallback 0)) r =
-        initState (fin3SplitInput (fallback 0)) := by
-    induction r with
-    | zero => rfl
-    | succ r ih => simpa only [run, ih] using phaseStep_fin3SplitSchedule_fixed fallback
-  intro r p
-  rw [hfix r]
-  rfl
+  refine ⟨fin3SplitInput (fallback 0), fin3SplitSchedule, valid_fin3SplitSchedule, fun r p => ?_⟩
+  have hfix : run 1 (fun _ => fin3SplitSchedule) (fun _ => fallback)
+      (fin3SplitInput (fallback 0)) r = initState (fin3SplitInput (fallback 0)) :=
+    Nat.rec rfl (fun _ ih => by
+      simpa only [run, ih] using phaseStep_fin3SplitSchedule_fixed fallback) r
+  exact congrArg (fun st => (st p).decided) hfix
 
 end Cslib.Distributed.BenOr

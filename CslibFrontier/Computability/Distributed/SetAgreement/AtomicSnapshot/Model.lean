@@ -98,11 +98,8 @@ def ScanOrder.fin (n : ℕ) : ScanOrder (Fin n) where
 theorem ScanOrder.length_eq_card {P : Type*} [Fintype P] (ord : ScanOrder P) :
     ord.elems.length = Fintype.card P := by
   classical
-  have hfin : ord.elems.toFinset = (univ : Finset P) := by
-    ext j
-    simp only [List.mem_toFinset, mem_univ, iff_true]
-    exact ord.complete j
-  rw [← List.toFinset_card_of_nodup ord.nodup, hfin, card_univ]
+  rw [← List.toFinset_card_of_nodup ord.nodup,
+    eq_univ_iff_forall.mpr fun j => List.mem_toFinset.mpr (ord.complete j), card_univ]
 
 /-! ### Client operations, history records, and canonical snapshot linearizability -/
 
@@ -214,25 +211,10 @@ theorem seqSnapshotValid_append {P Data : Type*} [DecidableEq P] (mem : P → Da
       seqSnapshotValid mem hist xs ∧
         seqSnapshotValid (seqSnapshotMemAfter mem hist xs) hist ys := by
   induction xs generalizing mem with
-  | nil => simp only [List.nil_append, seqSnapshotValid, seqSnapshotMemAfter, true_and]
+  | nil => simp [seqSnapshotValid, seqSnapshotMemAfter]
   | cons idx xs ih =>
     simp only [List.cons_append, seqSnapshotValid, seqSnapshotMemAfter]
-    cases hget : hist[idx]? with
-    | none => simp only [false_and]
-    | some rec =>
-      rcases rec with ⟨caller, kind, invStep, status⟩
-      cases kind with
-      | scan =>
-        cases status with
-        | pending => simp only [false_and]
-        | doneScan t snap =>
-          rw [ih mem, and_assoc]
-        | doneUpdate t => simp only [false_and]
-      | update val =>
-        cases status with
-        | pending => exact ih (Function.update mem caller val)
-        | doneScan t snap => simp only [false_and]
-        | doneUpdate t => exact ih (Function.update mem caller val)
+    rcases hist[idx]? with _ | ⟨caller, _ | val, _, _ | ⟨t, snap⟩ | t⟩ <;> simp [ih, and_assoc]
 
 /-- `seq` is a valid Herlihy–Wing linearization of snapshot history `hist` from initial value
 `dInit` ([AfekAttiyaDolevGafniMerrittShavit1993], §2.1, Definition 1):

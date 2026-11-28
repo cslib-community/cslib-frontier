@@ -66,15 +66,9 @@ def baseBlock {M L : ℕ} (j : Fin M) : Finset (Fin M × Fin L) :=
 
 /-- Each row `baseBlock j` of `Fin M × Fin L` has exactly `L` coordinates. -/
 private theorem baseBlock_card {M L : ℕ} (j : Fin M) : (baseBlock (L := L) j).card = L := by
-  have h : (baseBlock (L := L) j).card = (Finset.univ : Finset (Fin L)).card := by
-    apply Finset.card_bij (fun p _ => p.2)
-    · intro p _
-      exact Finset.mem_univ _
-    · intro p hp q hq hpq
-      exact Prod.ext (((mem_baseBlock j p).mp hp).trans ((mem_baseBlock j q).mp hq).symm) hpq
-    · intro b _
-      exact ⟨(j, b), (mem_baseBlock j (j, b)).mpr rfl, rfl⟩
-  simpa using h
+  refine (Finset.card_bij (fun p _ => p.2) (fun _ _ => Finset.mem_univ _)
+    (fun p hp q hq h => ?_) fun b _ => ⟨(j, b), (mem_baseBlock j _).mpr rfl, rfl⟩).trans (by simp)
+  exact Prod.ext (((mem_baseBlock j p).mp hp).trans ((mem_baseBlock j q).mp hq).symm) h
 
 /-- For `0 < L`, each row `baseBlock j` is nonempty. -/
 theorem baseBlock_nonempty {M L : ℕ} (hL : 0 < L) (j : Fin M) :
@@ -86,10 +80,8 @@ theorem baseBlock_nonempty {M L : ℕ} (hL : 0 < L) (j : Fin M) :
 theorem baseBlock_disjoint {M L : ℕ} :
     Pairwise fun i j : Fin M => Disjoint (baseBlock (L := L) i) (baseBlock j) := by
   intro i j hij
-  apply Finset.disjoint_left.mpr
-  rintro ⟨a, b⟩ hi hj
-  simp only [mem_baseBlock] at hi hj
-  exact hij (hi.symm.trans hj)
+  exact Finset.disjoint_left.mpr fun ⟨a, _⟩ hi hj =>
+    hij (((mem_baseBlock i _).mp hi).symm.trans ((mem_baseBlock j _).mp hj))
 
 /-- Flipping row `j` of the all-`false` input yields `blockCenter j`. -/
 private theorem flip_zero_baseBlock {M L : ℕ} (j : Fin M) :
@@ -133,12 +125,10 @@ theorem initialFamily_nested (d M : ℕ) : NestedFamily (initialFamily d M) := b
 /-- Every predicate of `initialFamily d M` rejects the all-`false` input. -/
 theorem initialFamily_zero (d M : ℕ) (q : Fin (d + 1)) :
     initialFamily d M q (fun _ => false) = false := by
-  have hn : ¬ ∃ c : Fin M,
-      hammingDist (fun _ : Fin M × Fin (d + 2) => false) (blockCenter c) ≤ d - q.val := by
-    rintro ⟨c, hc⟩
-    rw [hammingDist_zero_blockCenter] at hc
-    omega
-  simp [initialFamily, ballPredicate, hn]
+  simp only [initialFamily, ballPredicate, decide_eq_false_iff_not, not_exists]
+  intro c hc
+  rw [hammingDist_zero_blockCenter] at hc
+  omega
 
 /-- Every predicate of `initialFamily d M` accepts the all-`false` input with row `j`
 flipped. -/
@@ -154,13 +144,10 @@ theorem initialFamily_side_zero (d M : ℕ) :
     sideSensitivity (initialFamily d M) false ≤ d + 2 := by
   apply sideSensitivity_le
   intro q x hx
-  have hs : ∀ a b : Fin M, a ≠ b →
-      2 * ((d - q.val) + 1) < hammingDist (blockCenter (L := d + 2) a) (blockCenter b) := by
-    intro a b hab
-    rw [hammingDist_blockCenter a b hab]
-    omega
-  exact (ballPredicate_sensitivityAt_zero_le blockCenter (d - q.val) hs x hx).trans
-    (by omega)
+  refine (ballPredicate_sensitivityAt_zero_le blockCenter (d - q.val)
+    (fun a b hab => ?_) x hx).trans (by omega)
+  rw [hammingDist_blockCenter a b hab]
+  omega
 
 /-- On accepted inputs, every predicate of `initialFamily d M` has sensitivity at most
 `(d + 2) * M`, the number of coordinates. -/
@@ -182,13 +169,11 @@ theorem initialFamily_joint (d M : ℕ) (b : Bool) :
   unfold jointSensitivityAt
   rw [Nat.le_zero, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
   intro i _ ⟨hi, hi'⟩
-  cases b with
-  | false =>
-      have hflip : initialFamily d M q' (BitString.flipOn {i} x) = true := by grind
-      exact ballPredicate_no_joint_zero blockCenter hrad x i hx hflip
-  | true =>
-      have hflip : initialFamily d M q (BitString.flipOn {i} x) = false := by grind
-      exact ballPredicate_no_joint_one blockCenter hrad x i hx' hflip
+  cases b
+  · exact ballPredicate_no_joint_zero blockCenter hrad x i hx
+      (show initialFamily d M q' _ = true by grind)
+  · exact ballPredicate_no_joint_one blockCenter hrad x i hx'
+      (show initialFamily d M q _ = false by grind)
 
 end Internal
 

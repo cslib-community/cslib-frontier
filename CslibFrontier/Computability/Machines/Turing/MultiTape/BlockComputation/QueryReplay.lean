@@ -190,8 +190,7 @@ theorem Represents.applyAction {s : Config k Q} {c : Cfg k Bool Q w} {base : Fin
       · subst i
         rw [List.getD_set_self (hin h), cellOfCode_symbolCode, hs.heads h, Function.update_self]
       · rw [List.getD_set_ne (Ne.symm he), hs.cells h i hlen, Function.update_of_ne]
-        rw [hs.heads h]
-        exact fun heq => he (by exact_mod_cast add_left_cancel heq)
+        exact fun heq => he (by exact_mod_cast add_left_cancel (heq.trans (hs.heads h)))
 
 /-- The duration counter does not change the represented native data. -/
 theorem Represents.withRemaining {s : Config k Q} {c : Cfg k Bool Q w} {base : Fin k → ℤ}
@@ -210,14 +209,13 @@ theorem Represents.tick {s : Config k Q} {c : Cfg k Bool Q w} {base : Fin k → 
     simpa only [QueryReplay.tick, hs.control, hcontrol, Option.elim_none] using
       hs.withRemaining (s.remaining - 1)
   | some q =>
-    have hsymbols : symbols s = c.workTapeSymbols := by
-      funext h
-      exact (hs.cells h (s.heads h) (hin h)).trans (by rw [← hs.heads h]; rfl)
+    have hsymbols : symbols s = c.workTapeSymbols :=
+      funext fun h => (hs.cells h (s.heads h) (hin h)).trans (hs.heads h ▸ rfl)
     rw [MultiTapeTM.step_of_state hcontrol]
-    have ha := hs.applyAction (M.tr q c.inputSymbol c.workTapeSymbols) hin hpos
     simpa only [QueryReplay.tick, hs.control, hcontrol, Option.elim_some,
       inputSymbol_read s c hs.inputLength hs.inputPos, hsymbols] using
-      ha.withRemaining (s.remaining - 1)
+      (hs.applyAction (M.tr q c.inputSymbol c.workTapeSymbols) hin hpos).withRemaining
+        (s.remaining - 1)
 
 /-- A live duration counter takes one local replay tick. -/
 theorem step_eq_tick (M : MultiTapeTM k Bool Q) (w : List Bool) (s : Config k Q)
@@ -322,10 +320,8 @@ theorem loadView_represents (width : ℕ) (J : Option (Fin k) → ℤ)
     split_ifs <;> rfl
   · simp only [loadView, embedCfg]
     push_cast; ring
-  · have hi' : i < 3 * width := by simpa only [loadView, List.length_ofFn] using hi
-    simp only [loadView]
-    rw [List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using hi')]
-    simp only [List.getElem_ofFn, cellOfCode_symbolCode, embedCfg]
+  · rw [List.getD_eq_getElem _ _ hi]
+    simp only [loadView, List.getElem_ofFn, cellOfCode_symbolCode, embedCfg]
 
 /-- The actual query subroutine realizes the native block replay on the original input, without
 storing that word in its state. -/
@@ -351,8 +347,7 @@ theorem live_runFrom_loadView (M : MultiTapeTM k Bool Q) (width : ℕ)
     (J : Option (Fin k) → ℤ) (v : View k Q width) {t : ℕ} (ht : t < width) :
     (machine M).halted ((machine M).runFrom w (loadView w.length width J v) t) = false := by
   change decide (((machine M).runFrom w (loadView w.length width J v) t).remaining = 0) = false
-  rw [remaining_runFrom]
-  exact decide_eq_false_iff_not.mpr (by simp only [loadView]; omega)
+  simp [remaining_runFrom, loadView, Nat.sub_eq_zero_iff_le, ht.not_ge]
 
 /-- Decode the final local data back to a leaving view. Absolute work origins are multiples of
 `width`, so they do not affect the head residues. -/
@@ -372,18 +367,13 @@ theorem Represents.result_eq {s : Config k Q} {c : Cfg k Bool Q w}
     (funext₃ fun h d r => ?_)
   · cases head with
     | none => simp only [result, Cfg.blockControl, Cfg.headPos_none, hs.inputPos]
-    | some h =>
-      change (s.heads h : ZMod width) = (c.workTapePos h : ZMod width)
-      rw [hs.heads h]
-      push_cast
-      simp
+    | some h => simp [result, Cfg.blockControl, hs.heads h]
   · have hr := ZMod.val_lt r
     have hd := d.isLt
     change cellOfCode ((s.cells h).getD (d * width + r.val) 0) =
       c.workTapes h (width * (J (some h) + d - 1) + r.val)
     rw [hs.cells h (d * width + r.val) (by rw [hlen h]; nlinarith)]
-    congr 1
-    push_cast; ring
+    exact congrArg _ (by push_cast; ring)
 
 /-- The state-returning query subroutine computes exactly the native leaving view of the block. -/
 theorem result_runFrom_loadView (M : MultiTapeTM k Bool Q) (width : ℕ) [NeZero width]
@@ -424,9 +414,7 @@ theorem cells_lt_three_runFrom (M : MultiTapeTM k Bool Q) (w : List Bool) (s : C
 /-- The view loader writes only the existing blank/false/true codes. -/
 theorem cells_lt_three_loadView (width : ℕ) (J : Option (Fin k) → ℤ)
     (v : View k Q width) (h : Fin k) :
-    ∀ a ∈ (loadView w.length width J v).cells h, a < 3 := by
-  rintro _ ha
-  obtain ⟨_, rfl⟩ := List.mem_ofFn.mp ha
-  exact symbolCode_lt _
+    ∀ a ∈ (loadView w.length width J v).cells h, a < 3 :=
+  fun _ ha => (List.mem_ofFn.mp ha).elim fun _ hx => hx ▸ symbolCode_lt _
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay

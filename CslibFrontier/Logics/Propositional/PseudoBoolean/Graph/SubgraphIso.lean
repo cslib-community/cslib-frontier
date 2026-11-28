@@ -219,41 +219,33 @@ theorem forall_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
   rw [forall_holds_isoConstraints_iff_aux]
   constructor
   · rintro ⟨hal1, ham1, hinj, hedge⟩
-    have hone : ∀ a, (Finset.univ.filter fun u => σ (isoVar t a u) = true).card = 1 := fun a => by
-      have := card_true_add_card_false fun u => σ (isoVar t a u)
-      have := hal1 a
-      have := ham1 a
-      omega
-    choose f hf using fun a => Finset.card_eq_one.1 (hone a)
-    have hσ : ∀ a u, σ (isoVar t a u) = decide (f a = u) := fun a u => by
-      have := congrArg (u ∈ ·) (hf a)
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton,
-        eq_iff_iff] at this
-      rw [Bool.eq_iff_iff, decide_eq_true_eq, this, eq_comm]
-    have hinj' : Function.Injective f := fun a b hab => by
-      have hle : (Finset.univ.filter fun a : Fin p => σ (isoVar t a (f b)) = true).card ≤ 1 := by
-        have := card_true_add_card_false fun a : Fin p => σ (isoVar t a (f b))
-        have := hinj (f b)
-        have := (Finset.univ.filter fun a : Fin p => σ (isoVar t a (f b)) = true).card_le_univ
-        simp only [Fintype.card_fin] at this
+    choose f hf using fun (a : Fin p) =>
+      (Finset.card_eq_one (s := Finset.univ.filter fun u => σ (isoVar t a u) = true)).1 <| by
+        have := card_true_add_card_false fun u => σ (isoVar t a u)
+        have := hal1 a
+        have := ham1 a
         omega
-      exact Finset.card_le_one.1 hle a (by simp [hσ, hab]) b (by simp [hσ])
+    have hσ (a : Fin p) (u : Fin t) : σ (isoVar t a u) = decide (f a = u) := by
+      rw [Bool.eq_iff_iff, decide_eq_true_eq]
+      simpa using (Finset.ext_iff.1 (hf a) u).trans (Finset.mem_singleton.trans eq_comm)
+    have hinj' : Function.Injective f := fun a b hab => by
+      have := card_true_add_card_false fun a : Fin p => σ (isoVar t a (f b))
+      have := hinj (f b)
+      exact (Finset.card_le_one (s := Finset.univ.filter fun a => σ (isoVar t a (f b)) = true)).1
+        (by omega) a (by simp [hσ, hab]) b (by simp [hσ])
     refine ⟨⟨⟨f, fun {a b} hab => ?_⟩, hinj'⟩, hσ⟩
     obtain ⟨v, hv, hσv⟩ := hedge (f a) a b hab (by simp [hσ])
     rw [hσ, decide_eq_true_eq] at hσv
     exact hσv ▸ hv
   · rintro ⟨f, hσ⟩
-    have hS : ∀ a, (Finset.univ.filter fun u => σ (isoVar t a u) = true) = {f a} := fun a => by
-      ext u
-      simp [hσ, eq_comm]
+    have hS (a : Fin p) : (Finset.univ.filter fun u => σ (isoVar t a u) = true) = {f a} :=
+      Finset.ext fun u => by simp [hσ, eq_comm]
     refine ⟨fun a => by simp [hS], fun a => ?_, fun u => ?_, fun u a b hab ha => ?_⟩
     · have := card_true_add_card_false fun u => σ (isoVar t a u)
       rw [hS, Finset.card_singleton] at this
       omega
     · have hle : (Finset.univ.filter fun a : Fin p => σ (isoVar t a u) = true).card ≤ 1 :=
-        Finset.card_le_one.2 fun a ha b hb => by
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, hσ, decide_eq_true_eq] at ha hb
-          exact f.injective (ha.trans hb.symm)
+        Finset.card_le_one.2 fun a ha b hb => f.injective (by simp_all)
       have := card_true_add_card_false fun a : Fin p => σ (isoVar t a u)
       omega
     · rw [hσ, decide_eq_true_eq] at ha
@@ -265,11 +257,10 @@ theorem exists_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
     (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] :
     (∃ σ : ℕ → Bool, ∀ c ∈ isoConstraints P T, c.Holds σ) ↔ P.IsContained T := by
   simp only [forall_holds_isoConstraints_iff]
-  refine ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
+  exact ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
     ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u =>
-      decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => ?_, fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
-  obtain ⟨rfl, rfl⟩ := isoVar_inj h
-  exact hfu
+      decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => (isoVar_inj h).1 ▸ (isoVar_inj h).2 ▸ hfu,
+        fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
 
 /-! ### CakePB's variable names -/
 
@@ -298,17 +289,14 @@ private theorem isoName_inj {a u a' u' : ℕ} (h : isoName a u = isoName a' u') 
 
 private theorem isOPBName_isoName (a u : ℕ) : isOPBName (isoName a u) = true := by
   obtain ⟨d, ds, hd, -⟩ := Nat.exists_toDecimal_eq_cons a
-  have hc (c) (hc : c ∈ Nat.toDecimal a ++ '_' :: Nat.toDecimal u) : isNameChar c = true := by
-    rcases List.mem_append.1 hc with hc | hc
-    · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
-    · rcases List.mem_cons.1 hc with rfl | hc
-      · decide
-      · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
   rw [isOPBName, isoName, String.toList_ofList, hd, List.cons_append, List.cons_append]
-  simp only [Bool.and_eq_true, List.all_eq_true]
-  refine ⟨by decide, fun c hc' => hc c ?_⟩
-  rw [hd]
-  simpa using hc'
+  simp only [Bool.and_eq_true, List.all_eq_true, ← List.cons_append, ← hd, List.mem_append,
+    List.mem_cons]
+  refine ⟨by decide, fun c hc => ?_⟩
+  rcases hc with hc | rfl | hc
+  · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
+  · decide
+  · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
 
 private theorem isoVar_lt (a : Fin p) (u : Fin t) : isoVar t a u < p * t :=
   val_finProdFinEquiv_eq_isoVar a u ▸ (finProdFinEquiv (a, u)).isLt
@@ -337,13 +325,10 @@ private theorem lt_of_mem_varList_isoConstraints (P : SimpleGraph (Fin p)) [Deci
 /-- **CakePB's name of a variable**: the variable `xₐᵤ = t·a + u` is named `xa_u`. -/
 @[simp] theorem name_isoNames_isoVar (a : Fin p) (u : Fin t) :
     (isoNames p t).name (isoVar t a u) = isoName a u := by
-  have hlt := isoVar_lt a u
   have hd : isoVar t a u / t = a := by
-    rw [isoVar, Nat.mul_add_div (Fin.pos u), Nat.div_eq_of_lt u.isLt,
-      Nat.add_zero]
-  have hm : isoVar t a u % t = u := by
-    rw [isoVar, Nat.mul_add_mod, Nat.mod_eq_of_lt u.isLt]
-  simp [Names.name, Names.nameChars, isoNames, hlt, hd, hm]
+    rw [isoVar, Nat.mul_add_div (Fin.pos u), Nat.div_eq_of_lt u.isLt, Nat.add_zero]
+  have hm : isoVar t a u % t = u := by rw [isoVar, Nat.mul_add_mod, Nat.mod_eq_of_lt u.isLt]
+  simp [Names.name, Names.nameChars, isoNames, isoVar_lt a u, hd, hm]
 
 /-- **CakePB's names cover the encoding** (`Cslib.Logic.PL.VeriPB.Text.Names.Covers`): they are
 distinct OPB names, and every variable of the encoding is named, `xa_u`. -/
@@ -392,16 +377,11 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
   rw [← exists_holds_isoConstraints_iff]
   have hc' : (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).map
       (·.1) = some concl := by rw [hc]; rfl
-  cases concl with
-  | sat _ =>
-    cases hb
-    exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (isoNames_covers P T) hc') rfl
-  | unsat _ =>
-    cases hb
-    exact iff_of_false
+  cases concl <;> cases hb
+  · exact iff_of_false
       (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (isoNames_covers P T) hc' σ hσ)
-      (by simp)
-  | _ => cases hb
+      Bool.false_ne_true
+  · exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (isoNames_covers P T) hc') rfl
 
 /-- **Subgraph isomorphism for LAD graphs** (CakePB's `check_unsat_3_sem`, the pure functional
 specification of `cake_pb_iso`, not its compiled code): if the checker returns `b` for the LAD

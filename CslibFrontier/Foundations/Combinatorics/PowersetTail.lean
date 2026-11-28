@@ -65,15 +65,12 @@ variable {U : Type*} [DecidableEq U]
 theorem sum_powerset_two_pow_card_sdiff {K S : Finset U} (hKS : K ⊆ S) :
     ∑ x ∈ S.powerset, 2 ^ #(K \ x) = 3 ^ #K * 2 ^ (#S - #K) := by
   have h := prod_add (fun _ => (1 : ℕ)) (fun i => if i ∈ K then 2 else 1) S
-  simp only [prod_const_one, one_mul, prod_ite_mem] at h
-  have hl : ∏ i ∈ S, (1 + if i ∈ K then 2 else 1) = 3 ^ #K * 2 ^ (#S - #K) := by
-    rw [prod_congr rfl fun i _ => show (1 + if i ∈ K then 2 else 1) = if i ∈ K then 3 else 2 by
-        split_ifs <;> rfl,
-      prod_ite, prod_const, prod_const, filter_mem_eq_inter, inter_eq_right.mpr hKS,
-      ← sdiff_eq_filter, card_sdiff_of_subset hKS]
-  rw [← hl, h]
+  have hite (i : U) : (1 + if i ∈ K then 2 else 1) = if i ∈ K then 3 else 2 := by
+    split_ifs <;> rfl
+  simp only [prod_const_one, one_mul, prod_ite_mem, hite, prod_ite, prod_const,
+    filter_mem_eq_inter, inter_eq_right.mpr hKS, ← sdiff_eq_filter, card_sdiff_of_subset hKS] at h
+  rw [h]
   refine sum_congr rfl fun t _ => by
-    rw [prod_const]
     congr 2; ext i; have := @hKS i; simp only [mem_inter, mem_sdiff]; tauto
 
 /-- Few subsets of `S` meet `K ⊆ S` in at most `j` points: `2 ^ (#K - j)` times their number is at
@@ -81,20 +78,17 @@ most `3 ^ #K 2 ^ #(S \ K)`. -/
 theorem two_pow_mul_card_filter_card_inter_le {K S : Finset U} (hKS : K ⊆ S) (j : ℕ) :
     2 ^ (#K - j) * #{x ∈ S.powerset | #(K ∩ x) ≤ j} ≤ 3 ^ #K * 2 ^ (#S - #K) := by
   rw [← sum_powerset_two_pow_card_sdiff hKS]
-  refine mul_card_filter_le_sum _ _ _ fun x _ hx => Nat.pow_le_pow_right (Nat.succ_pos 1) ?_
-  have h := card_sdiff_add_card_inter K x
-  omega
+  exact mul_card_filter_le_sum _ _ _ fun x _ hx => Nat.pow_le_pow_right two_pos
+    (by have := card_sdiff_add_card_inter K x; omega)
 
 /-- Few subsets of `S` miss at most `j` of its points: `2 ^ (#S - j)` times their number is at
 most `3 ^ #S`. -/
 theorem two_pow_mul_card_filter_card_sdiff_le (S : Finset U) (j : ℕ) :
     2 ^ (#S - j) * #{x ∈ S.powerset | #(S \ x) ≤ j} ≤ 3 ^ #S := by
-  have h := sum_pow_mul_eq_add_pow (2 : ℕ) 1 S
-  simp only [one_pow, mul_one] at h
-  rw [show (3 : ℕ) = 2 + 1 from rfl, ← h]
-  refine mul_card_filter_le_sum _ _ _ fun x hx hj => Nat.pow_le_pow_right (Nat.succ_pos 1) ?_
-  have := card_sdiff_add_card_eq_card (mem_powerset.mp hx)
-  omega
+  have h : ∑ x ∈ S.powerset, 2 ^ #x = 3 ^ #S := by simpa using sum_pow_mul_eq_add_pow (2 : ℕ) 1 S
+  rw [← h]
+  exact mul_card_filter_le_sum _ _ _ fun x hx hj => Nat.pow_le_pow_right two_pos
+    (by have := card_sdiff_add_card_eq_card (mem_powerset.mp hx); omega)
 
 /-! ### Families of sets that avoid many points -/
 
@@ -111,10 +105,9 @@ private theorem card_filter_subset_mul_pow_le (A : Finset (Finset U)) (S : Finse
   obtain ⟨K, hKbad, hKcard⟩ := exists_subset_card_eq hbad
   have hKS : K ⊆ S := hKbad.trans (filter_subset _ _)
   have h4sum : 4 * ∑ x ∈ AS, #(K ∩ x) ≤ 3 * r * #AS := by
-    have hsumK : ∑ i ∈ K, #{x ∈ AS | i ∈ x} = ∑ x ∈ AS, #(K ∩ x) := by
-      rw [show ∑ i ∈ K, #{x ∈ AS | i ∈ x} = ∑ x ∈ AS, #{i ∈ K | i ∈ x} from
-        sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow _]
-      exact sum_congr rfl fun x _ => by rw [filter_mem_eq_inter]
+    have hsumK : ∑ i ∈ K, #{x ∈ AS | i ∈ x} = ∑ x ∈ AS, #(K ∩ x) :=
+      (sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow _).trans
+        (sum_congr rfl fun _ _ => congrArg card filter_mem_eq_inter)
     rw [← hsumK, mul_sum]
     calc ∑ i ∈ K, 4 * #{x ∈ AS | i ∈ x} ≤ ∑ _i ∈ K, #AS :=
           sum_le_sum fun i hi => (mem_filter.mp (hKbad hi)).2
@@ -132,14 +125,16 @@ private theorem card_filter_subset_mul_pow_le (A : Finset (Finset U)) (S : Finse
     card_le_card fun x hx => mem_filter.mpr ⟨hASsub (mem_filter.mp hx).1, by
       have := (mem_filter.mp hx).2; omega⟩
   have hcount := two_pow_mul_card_filter_card_inter_le hKS (r - 1)
-  rw [hKcard, show 3 * r - (r - 1) = 2 * r + 1 by omega] at hcount
+  have hsub : 3 * r - (r - 1) = 2 * r + 1 := by omega
+  rw [hKcard, hsub] at hcount
+  have hAS4 : #AS ≤ 4 * #{x ∈ S.powerset | #(K ∩ x) ≤ r - 1} := by omega
   have key : 2 ^ (2 * r + 1) * #AS ≤ 4 * (3 ^ (3 * r) * 2 ^ (#S - 3 * r)) :=
-    (Nat.mul_le_mul_left _ (show #AS ≤ 4 * #{x ∈ S.powerset | #(K ∩ x) ≤ r - 1} by omega)).trans
-      (by rw [mul_left_comm]; exact Nat.mul_le_mul_left _ hcount)
+    (Nat.mul_le_mul_left _ hAS4).trans
+      (by simpa only [mul_left_comm] using Nat.mul_le_mul_left 4 hcount)
   have h2S : 2 ^ (#S - 3 * r) * 2 ^ (3 * r) = 2 ^ #S := by
     rw [← pow_add, Nat.sub_add_cancel (hKcard ▸ card_le_card hKS)]
   have h32 : (32 : ℕ) ^ r = 2 ^ (2 * r) * 2 ^ (3 * r) := by
-    rw [← pow_add, show 2 * r + 3 * r = 5 * r by ring, pow_mul]; norm_num
+    rw [← pow_add, ← add_mul, pow_mul]; norm_num
   have h27 : (27 : ℕ) ^ r = 3 ^ (3 * r) := by rw [pow_mul]; norm_num
   rw [h32, h27]; refine Nat.le_of_mul_le_mul_left ?_ (two_pos : 0 < 2)
   calc 2 * (#AS * (2 ^ (2 * r) * 2 ^ (3 * r))) = 2 ^ (2 * r + 1) * #AS * 2 ^ (3 * r) := by ring
@@ -154,12 +149,10 @@ private theorem card_filter_card_sdiff_le_real (S : Finset U) (j : ℕ) :
   have hcount : 2 ^ #S * #{x ∈ S.powerset | #(S \ x) ≤ j} ≤ 2 ^ j * 3 ^ #S :=
     calc 2 ^ #S * #{x ∈ S.powerset | #(S \ x) ≤ j}
         ≤ 2 ^ j * 2 ^ (#S - j) * #{x ∈ S.powerset | #(S \ x) ≤ j} :=
-          Nat.mul_le_mul_right _ (by
-            rw [← pow_add]
-            exact Nat.pow_le_pow_right two_pos (by omega))
-      _ ≤ 2 ^ j * 3 ^ #S := by
-          rw [mul_assoc]
-          exact Nat.mul_le_mul_left _ (two_pow_mul_card_filter_card_sdiff_le S j)
+          Nat.mul_le_mul_right _ (pow_add 2 j (#S - j) ▸ Nat.pow_le_pow_right two_pos (by omega))
+      _ ≤ 2 ^ j * 3 ^ #S :=
+          (mul_assoc _ _ _).trans_le
+            (Nat.mul_le_mul_left _ (two_pow_mul_card_filter_card_sdiff_le S j))
   have hcountR : (2 : ℝ) ^ #S * #{x ∈ S.powerset | #(S \ x) ≤ j} ≤ 2 ^ j * 3 ^ #S := by
     exact_mod_cast hcount
   have h34 : (2 : ℝ) ^ #S * (2 ^ #S * (2 ^ j * (3 / 4) ^ #S)) = 2 ^ j * 3 ^ #S := by
@@ -183,9 +176,8 @@ private theorem four_mul_sum_bad_le_sum_add (A : Finset (Finset U)) (S : Finset 
   have hASsub : AS ⊆ S.powerset := fun x hx => mem_powerset.mpr (mem_filter.mp hx).2
   have hS : ∑ i ∈ S, #{x ∈ A | x ⊆ S ∧ i ∉ x} = ∑ x ∈ AS, #(S \ x) := by
     simp only [hAS, ← filter_filter]
-    rw [show ∑ i ∈ S, #{x ∈ AS | i ∉ x} = ∑ x ∈ AS, #{i ∈ S | i ∉ x} from
-      sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow _]
-    exact sum_congr rfl fun x _ => by rw [sdiff_eq_filter]
+    exact (sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow _).trans
+      (sum_congr rfl fun _ _ => by simp only [bipartiteBelow, sdiff_eq_filter])
   have hH : (j + 1) * #{x ∈ AS | j < #(S \ x)} ≤ ∑ x ∈ AS, #(S \ x) :=
     mul_card_filter_le_sum _ _ _ fun _ _ => id
   have hHH : #{x ∈ AS | j < #(S \ x)} + #{x ∈ AS | ¬j < #(S \ x)} = #AS :=
@@ -238,28 +230,26 @@ theorem four_mul_sum_card_filter_notMem_le (A : Finset (Finset U)) (S : Finset U
       rw [hcontain, havoid] at hlt; have := hsplit i
       exact mem_filter.mpr ⟨hiS, by rw [← hAS]; omega⟩
     have hNr : (N : ℝ) ≤ 2 * (27 / 32) ^ r * 2 ^ #S := by
-      have h : (N : ℝ) * 32 ^ r ≤ 2 * 27 ^ r * 2 ^ #S := by exact_mod_cast hsmall
-      rw [div_pow, mul_div_assoc', div_mul_eq_mul_div, le_div_iff₀ (by positivity)]; linarith
+      rw [div_pow, mul_div_assoc', div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
+      exact_mod_cast hsmall
     have h1 : (∑ i ∈ bad, (#{x ∈ A | x ⊆ S ∧ i ∉ x} : ℝ)) ≤ #S * N :=
-      (by exact_mod_cast sum_avoid_le_card_mul A S bad :
-          (∑ i ∈ bad, (#{x ∈ A | x ⊆ S ∧ i ∉ x} : ℝ)) ≤ #bad * N).trans
-        (mul_le_mul_of_nonneg_right (by exact_mod_cast card_le_card (filter_subset _ S))
-          (by positivity))
-    have h3 : (#S : ℝ) * N ≤ #S * (2 * (27 / 32) ^ r * 2 ^ #S) := by gcongr
-    rw [mul_add]
-    linarith [h1, h3, hpos, show (0 : ℝ) ≤ 2 ^ #S * ((j + 1) * 2 ^ j * (3 / 4) ^ #S) by positivity,
-      show 4 * ((#S : ℝ) * (2 * (27 / 32) ^ r * 2 ^ #S)) =
-        2 ^ #S * (8 * #S * (27 / 32) ^ r) by ring]
+      mod_cast (sum_avoid_le_card_mul A S bad).trans
+        (Nat.mul_le_mul_right _ (card_le_card (filter_subset _ S)))
+    have h3 : 4 * ((#S : ℝ) * N) ≤ 2 ^ #S * (8 * #S * (27 / 32) ^ r) :=
+      (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hNr (Nat.cast_nonneg _))
+        (by norm_num)).trans_eq (by ring)
+    have hnn : (0 : ℝ) ≤ 2 ^ #S * ((j + 1) * 2 ^ j * (3 / 4) ^ #S) := by positivity
+    rw [mul_add]; linarith
   · -- Few bad points: most members of the family avoid many points.
     have hmainR : 4 * ∑ i ∈ bad, (#{x ∈ A | x ⊆ S ∧ i ∉ x} : ℝ) ≤
         ∑ i ∈ S, (#{x ∈ A | x ⊆ S ∧ i ∉ x} : ℝ) +
-          (j + 1) * #{x ∈ S.powerset | #(S \ x) ≤ j} := by
-      exact_mod_cast four_mul_sum_bad_le_sum_add A S (bad := bad) (by omega)
-    have hQ := mul_le_mul_of_nonneg_left (card_filter_card_sdiff_le_real S j)
-      (by positivity : (0 : ℝ) ≤ j + 1)
-    rw [mul_add]
-    linarith [hmainR, hQ, show (0 : ℝ) ≤ 2 ^ #S * (8 * #S * (27 / 32) ^ r) by positivity,
-      show (j + 1 : ℝ) * (2 ^ #S * (2 ^ j * (3 / 4) ^ #S)) =
-        2 ^ #S * ((j + 1) * 2 ^ j * (3 / 4) ^ #S) by ring]
+          (j + 1) * #{x ∈ S.powerset | #(S \ x) ≤ j} :=
+      mod_cast four_mul_sum_bad_le_sum_add A S (bad := bad) (by omega)
+    have hQ : ((j + 1 : ℝ) * #{x ∈ S.powerset | #(S \ x) ≤ j}) ≤
+        2 ^ #S * ((j + 1) * 2 ^ j * (3 / 4) ^ #S) :=
+      (mul_le_mul_of_nonneg_left (card_filter_card_sdiff_le_real S j) (by positivity)).trans_eq
+        (by ring)
+    have hnn : (0 : ℝ) ≤ 2 ^ #S * (8 * #S * (27 / 32) ^ r) := by positivity
+    rw [mul_add]; linarith
 
 end Cslib

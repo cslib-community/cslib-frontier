@@ -89,13 +89,10 @@ theorem decodeCertificate_sound (machine : MultiTapeCTM k Symbol State)
       word = choices ++ List.replicate (word.length - choices.length) 0 := by
   induction word generalizing cfg choices with
   | nil =>
-    cases hs : cfg.state with
-    | none =>
-      simp only [decodeCertificate, hs, List.length_nil, List.replicate_zero, ↓reduceIte,
-        Option.some.injEq, Prod.mk.injEq] at h
-      rcases h with ⟨rfl, rfl⟩
-      simp [hs, Cfg.Halted]
-    | some state => simp [decodeCertificate, hs] at h
+    cases hs : cfg.state <;> simp only [decodeCertificate, hs, List.length_nil,
+      List.replicate_zero, ↓reduceIte, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at h
+    rcases h with ⟨rfl, rfl⟩
+    exact ⟨rfl, hs, rfl⟩
   | cons index word ih =>
     cases hs : cfg.state with
     | none =>
@@ -137,10 +134,7 @@ theorem padCertificate_injOn (machine : MultiTapeCTM k Symbol State)
   obtain ⟨_, _, hrr, hhr⟩ := (machine.mem_branches_iff cfg fuel r).mp hr
   have dl := machine.decodeCertificate_append_replicate hrl hhl (fuel - l.length)
   have dr := machine.decodeCertificate_append_replicate hrr hhr (fuel - r.length)
-  change machine.decodeCertificate cfg (padCertificate fuel l) = _ at dl
-  change machine.decodeCertificate cfg (padCertificate fuel r) = _ at dr
-  rw [heq] at dl
-  exact congrArg Prod.fst (Option.some.inj (dl.symm.trans dr))
+  exact congrArg Prod.fst (Option.some.inj ((dl.symm.trans (congrArg _ heq)).trans dr))
 
 /-- The finite set of canonical fixed-length certificates. Its membership theorem identifies it
 with the independently defined decoder's successful inputs. -/

@@ -95,13 +95,9 @@ theorem exec_receive_one {w p k A B a b out scratch frames frame : ℕ}
   obtain ⟨y, hy, yh, yc, values, productValues, memory⟩ := exec_accumulate_progress
     phase (fun _ => false) t subtract x u v hx hc hl hu hv rfl hsign
     (by simpa only [progressValue, Bool.false_eq_true, ite_false] using hout) hprod hmag haddr
-  refine ⟨y, hy, yh, yc, ?_, productValues, ?_⟩
-  · intro s j hj
-    rw [values s j hj, progressValue_eq_next]
-    intro hd
-    refine hzero s fun he => ?_
-    subst s
-    simp at hd
+  refine ⟨y, hy, yh, yc, fun s j hj => ?_, productValues, ?_⟩
+  · rw [values s j hj, progressValue_eq_next]
+    exact fun hd => hzero s fun he => absurd (he ▸ hd) (by simp)
   · intro d hd
     have ht := Nat.mul_le_mul_right (4 ^ k * p) t.isLt
     have hsize : 4 ^ (k + 1) * p = 4 * (4 ^ k * p) := by rw [pow_succ]; ring
@@ -147,15 +143,11 @@ theorem exec_receive_two {w p k A B a b out scratch frames frame : ℕ}
   obtain ⟨y, hy, yh, yc, values₂, product₂, memory₂⟩ := exec_accumulate_progress
     phase (Function.update (fun _ => false) t₁ true) t₂ subtract₂ s u v sh sc hl hu hv
     (by simp only [Function.update_of_ne hne]) hsign₂ values₁ product₁ hmag haddr
-  refine ⟨y, (hs.seq hy).mono (by omega), yh, yc, ?_, product₂, ?_⟩
-  · intro t j hj
-    rw [values₂ t j hj, progressValue_eq_next]
-    intro hd
-    refine hzero t (fun he => ?_) (fun he => ?_)
-    · subst t
-      simp [Function.update_of_ne (Ne.symm hne)] at hd
-    · subst t
-      simp at hd
+  refine ⟨y, (hs.seq hy).mono (by omega), yh, yc, fun t j hj => ?_, product₂, ?_⟩
+  · rw [values₂ t j hj, progressValue_eq_next]
+    exact fun hd => hzero t
+      (fun he => absurd (he ▸ hd) (by simp [Function.update_of_ne (Ne.symm hne)]))
+      (fun he => absurd (he ▸ hd) (by simp))
   · intro d hd
     have ht₁ := Nat.mul_le_mul_right (4 ^ k * p) t₁.isLt
     have ht₂ := Nat.mul_le_mul_right (4 ^ k * p) t₂.isLt

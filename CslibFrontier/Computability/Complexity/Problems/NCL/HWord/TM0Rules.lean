@@ -117,36 +117,32 @@ private theorem stable_step_word {M : TM0.Machine Γ Q} {c : Cfg Γ Q} {d : Micr
     (h : Phases.step M (.stable c) = some d) :
     Rewrites (Rule M) (word (.stable c)) (word d) := by
   rcases c with ⟨q, a, L, R⟩
-  cases hM : M q a with
+  match hM : M q a with
   | none => simp [Phases.step, step, hM] at h
-  | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write b =>
-      simp only [Phases.step, step, hM, Option.map_some, Option.some.injEq] at h
+  | some (q', .write b) =>
+    simp only [Phases.step, step, hM, Option.map_some, Option.some.injEq] at h
+    subst h
+    rcases R with _ | ⟨c, R⟩
+    · exact ⟨lb :: L.reverse.map leftSym, ⟨[head q a, rb], [head q' b, rb]⟩, [],
+        Rule.writeEnd hM, by simp [word, frame],
+        by simp [word, frame]⟩
+    · simpa only [word, frame, List.map_cons, List.cons_append, List.nil_append,
+        List.append_assoc] using frame_rewrites L R (Rule.write c hM)
+  | some (q', .move .left) =>
+    rcases L with _ | ⟨b, L⟩
+    · simp [Phases.step, step, hM] at h
+    · simp only [Phases.step, step, hM, Option.map_some, Option.some.injEq] at h
       subst h
-      rcases R with _ | ⟨c, R⟩
-      · exact ⟨lb :: L.reverse.map leftSym, ⟨[head q a, rb], [head q' b, rb]⟩, [],
-          Rule.writeEnd hM, by simp [word, frame], by simp [word, frame]⟩
-      · simpa only [word, frame, List.map_cons, List.cons_append, List.nil_append,
-          List.append_assoc] using frame_rewrites L R (Rule.write c hM)
-    | move direction =>
-      cases direction with
-      | left =>
-        rcases L with _ | ⟨b, L⟩
-        · simp [Phases.step, step, hM] at h
-        · simp only [Phases.step, step, hM, Option.map_some, Option.some.injEq] at h
-          subst h
-          simpa only [word, frame, List.reverse_cons, List.map_append, List.map_cons,
-            List.map_nil, List.cons_append, List.nil_append, List.append_assoc] using
-            frame_rewrites L R (Rule.leftBegin b hM)
-      | right =>
-        rcases R with _ | ⟨b, R⟩
-        · simp [Phases.step, step, hM] at h
-        · simp only [Phases.step, step, hM, Option.map_some, Option.some.injEq] at h
-          subst h
-          simpa only [word, frame, List.map_cons, List.cons_append, List.nil_append,
-            List.append_assoc] using frame_rewrites L R (Rule.rightBegin b hM)
+      simpa only [word, frame, List.reverse_cons, List.map_append, List.map_cons,
+        List.map_nil, List.cons_append, List.nil_append, List.append_assoc] using
+        frame_rewrites L R (Rule.leftBegin b hM)
+  | some (q', .move .right) =>
+    rcases R with _ | ⟨b, R⟩
+    · simp [Phases.step, step, hM] at h
+    · simp only [Phases.step, step, hM, Option.map_some, Option.some.injEq] at h
+      subst h
+      simpa only [word, frame, List.map_cons, List.cons_append, List.nil_append,
+        List.append_assoc] using frame_rewrites L R (Rule.rightBegin b hM)
 
 /-- Every phase transition executes one actual local rule. -/
 theorem step_word {M : TM0.Machine Γ Q} {c d : MicroCfg Γ Q}

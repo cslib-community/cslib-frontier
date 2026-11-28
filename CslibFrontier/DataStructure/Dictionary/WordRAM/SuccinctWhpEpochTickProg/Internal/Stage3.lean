@@ -265,7 +265,7 @@ theorem realizes_epochTickStage3Gen :
     have hth := henv.2.2.2.1
     have h2w := henv.two_le_w
     have h3w := henv.three_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
@@ -327,7 +327,7 @@ theorem epochTickStage3GenProg_fastStep {c U V w n_max base : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (epochTickStage3 c U n_max θ fs) s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
   set cp := mkWhpCoreParams c U V w n_max

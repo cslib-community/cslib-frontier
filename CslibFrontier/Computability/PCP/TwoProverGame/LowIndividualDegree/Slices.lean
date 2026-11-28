@@ -44,18 +44,15 @@ def appendPoint (x : F) : Point F m ↪ Point F (m + 1) where
 /-- The slice embedding appends the chosen last coordinate. -/
 theorem appendPoint_apply (x : F) (u : Point F m) :
     appendPoint x u = Fin.snoc u x := by
-  unfold appendPoint
   rfl
 
 @[simp] theorem appendPoint_apply_castSucc (x : F) (u : Point F m) (i : Fin m) :
-    appendPoint x u i.castSucc = u i := by
-  change Fin.snoc (α := fun _ : Fin (m + 1) => F) u x i.castSucc = _
-  exact Fin.snoc_castSucc (α := fun _ : Fin (m + 1) => F) x u i
+    appendPoint x u i.castSucc = u i :=
+  Fin.snoc_castSucc (α := fun _ : Fin (m + 1) => F) x u i
 
 @[simp] theorem appendPoint_apply_last (x : F) (u : Point F m) :
-    appendPoint x u (Fin.last m) = x := by
-  change Fin.snoc (α := fun _ : Fin (m + 1) => F) u x (Fin.last m) = _
-  exact Fin.snoc_last (α := fun _ : Fin (m + 1) => F) x u
+    appendPoint x u (Fin.last m) = x :=
+  Fin.snoc_last (α := fun _ : Fin (m + 1) => F) x u
 
 /-- Append the fixed coordinate to every point on a geometric line. -/
 def appendLine (x : F) (L : Finset (Point F m)) : Finset (Point F (m + 1)) :=
@@ -77,8 +74,7 @@ theorem appendPoint_affine (x t : F) (u v : Point F m) :
 
 theorem appendLine_linePoints (x : F) (u v : Point F m) :
     appendLine x (linePoints u v) = linePoints (appendPoint x u) (appendPoint 0 v) := by
-  unfold appendLine linePoints
-  rw [Finset.map_eq_image, Finset.image_image]
+  simp only [appendLine, linePoints, Finset.map_eq_image, Finset.image_image]
   exact image_congr fun t _ => appendPoint_affine x t u v
 
 omit [Fintype F] [DecidableEq F] in
@@ -92,7 +88,7 @@ omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) :
     appendPoint (0 : F) (prefixDirection i v) = prefixDirection i.castSucc v :=
   funext fun j => Fin.lastCases
-    (by simp [prefixDirection, show ¬ m < i.val + 1 by have := i.isLt; omega])
+    (by simp [prefixDirection, Nat.not_lt.mpr (Nat.add_one_le_iff.mpr i.isLt)])
     (fun _ => by simp only [appendPoint_apply_castSucc, prefixDirection, Fin.val_castSucc]) j
 
 omit [DecidableEq F] in
@@ -104,9 +100,7 @@ theorem uniformPoint_succ :
   calc
     _ = ((uniformOfFintype F).bind fun x =>
         (uniformOfFintype (Point F m)).map fun u => (x, u)).map e := by
-      rw [PMF.map_bind]
-      simp only [PMF.map_comp]
-      rfl
+      simp only [PMF.map_bind, PMF.map_comp]; rfl
     _ = _ := by rw [uniformOfFintype_prod, uniformOfFintype_map_equiv]
 
 omit [DecidableEq F] in
@@ -118,9 +112,7 @@ theorem consistencyQuestions_slices
       ∑ x, (uniformOfFintype F x).toReal *
         ∑ q, ((consistencyQuestions (F := F) (m := m)) q).toReal *
           score (appendQuestion x q.1, appendQuestion x q.2) := by
-  simp only [consistencyQuestions, sum_map_mul]
-  rw [← uniformPoint_succ, sum_bind_mul]
-  simp only [sum_map_mul, appendQuestion]
+  simp only [consistencyQuestions, sum_map_mul, ← uniformPoint_succ, sum_bind_mul, appendQuestion]
 
 private theorem sum_uniform_fin_split {n : ℕ} (f : Fin (n + 2) → ℝ) :
     (n + 2 : ℝ) * (∑ i, (uniformOfFintype (Fin (n + 2)) i).toReal * f i) =
@@ -231,14 +223,12 @@ theorem lineHasDegree_append_iff (x : F) (u v : Point F m) (d : ℕ)
     Subtype.ext (appendPoint_affine x t u v)
   refine ⟨fun h => ?_, fun h => ?_⟩
   · obtain ⟨p, hp, hpEval⟩ := line_polynomial_of_eq h hL
-    refine ⟨u, v, rfl, p, hp, fun t => ?_⟩
-    have ht : f (e.symm (b t)) = p.eval t := hpEval t
-    rwa [← he, e.symm_apply_apply] at ht
+    exact ⟨u, v, rfl, p, hp, fun t => by
+      simpa only [Function.comp_apply, b, ← he, e, Equiv.symm_apply_apply] using hpEval t⟩
   · obtain ⟨p, hp, hpEval⟩ := h.exists_polynomial
     refine ⟨appendPoint x u, appendPoint 0 v, hL, p, hp, fun t => ?_⟩
     change f (e.symm (b t)) = p.eval t
-    rw [← he, e.symm_apply_apply]
-    exact hpEval t
+    simpa only [← he, e.symm_apply_apply] using hpEval t
 
 /-- A line answer is transported by pulling its point values along the slice equivalence. -/
 noncomputable def appendLineAnswer (x : F) (answer : Σ L : Finset (Point F m), L → F) :
@@ -249,18 +239,16 @@ private theorem lineHasDegree_append (x : F) (L : Finset (Point F m)) (d : ℕ)
     (f : L → F) :
     LineHasDegree (f ∘ (appendLineEquiv x L).symm) d ↔ LineHasDegree f d := by
   refine ⟨fun h => ?_, fun h => ?_⟩
-  · have ⟨u, v, hL, _, _, _⟩ := h
+  · obtain ⟨u, v, hL, -⟩ := id h
     have hinit : (fun p : Point F (m + 1) => Fin.init p) ∘ appendPoint x = id :=
       funext fun z => funext (appendPoint_apply_castSucc x z)
-    have hproj : (appendLine x L).image (fun p => Fin.init p) = L := by
-      rw [appendLine, map_eq_image, image_image, hinit, image_id]
     have hgeom : linePoints (Fin.init u) (Fin.init v) = L := by
-      rw [← hproj, ← hL]
-      simp only [linePoints, image_image]
-      congr 1
+      have himg := congrArg (Finset.image Fin.init) hL
+      simp only [appendLine, map_eq_image, linePoints, image_image, hinit, image_id] at himg
+      exact himg
     subst hgeom
     exact (lineHasDegree_append_iff x _ _ d f).mp h
-  · have ⟨u, v, hL, _, _, _⟩ := h
+  · obtain ⟨u, v, hL, -⟩ := id h
     subst hL
     exact (lineHasDegree_append_iff x u v d f).mpr h
 
@@ -311,15 +299,12 @@ noncomputable def restrictAnswer (x : F) : Answer F (m + 1) → Answer F m
 omit [Fintype F] [DecidableEq F] in
 @[simp] theorem restrictAnswer_inl (x a : F) :
     restrictAnswer (m := m) x (.inl a) = .inl a := by
-  unfold restrictAnswer
   rfl
 
 omit [Fintype F] [DecidableEq F] in
 /-- Line answers remain line answers under restriction. -/
 theorem restrictAnswer_inr_exists (x : F) (a : Σ L : Finset (Point F (m + 1)), L → F) :
-    ∃ b, restrictAnswer (m := m) x (.inr a) = .inr b := by
-  unfold restrictAnswer
-  exact ⟨_, rfl⟩
+    ∃ b, restrictAnswer (m := m) x (.inr a) = .inr b := ⟨_, rfl⟩
 
 private theorem restrictAnswer_lineAgrees (x : F) (L : Finset (Point F m)) (u : Point F m)
     (d : ℕ) (g : Σ K : Finset (Point F (m + 1)), K → F) (a : F)
@@ -379,14 +364,13 @@ private theorem branchLoss_eq_sum {n : ℕ} (d D : ℕ) (b : Branch)
   let p := (branchGameWithDiagonalCap n d D b).questions.bind fun q =>
     (ans q.1 q.2).map fun a => (q, a)
   let e := {z | (branchGameWithDiagonalCap (F := F) n d D b).AcceptsRound z}
-  change 1 - (p.toOuterMeasure e).toReal = _
   have hcompl : 1 - (p.toOuterMeasure e).toReal = (p.toOuterMeasure eᶜ).toReal := by
     linarith [toOuterMeasure_toReal_add_compl p e]
-  rw [hcompl, toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
+  refine hcompl.trans ?_
+  rw [toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
   refine sum_congr rfl fun q _ => ?_
-  rw [PMF.toOuterMeasure_map_apply]
-  unfold e lossAt
-  rw [TwoProverGame.acceptsRound_eq, branchGameWithDiagonalCap_accepts]
+  simp only [PMF.toOuterMeasure_map_apply, e, lossAt,
+    TwoProverGame.acceptsRound_eq, branchGameWithDiagonalCap_accepts]
   rfl
 
 /-- Averaged over the last coordinate, restriction at fixed degree caps does not increase
@@ -409,15 +393,12 @@ theorem branchLoss_restrict_le (n d D : ℕ) (b : Branch)
   have hn (q : Question F (n + 2) × Question F (n + 2)) : 0 ≤ lossAt d D ans q :=
     ENNReal.toReal_nonneg
   cases b
-  · simp only [branchQuestions_axis] at h ⊢
-    simp only [ite_eq_right (by decide : Branch.axis ≠ .consistency)]
+  · simp only [branchQuestions_axis, reduceCtorEq, ↓reduceIte] at h ⊢
     exact (mul_le_mul_of_nonneg_left h (by positivity)).trans
       (axisQuestions_slices_le (lossAt d D ans) hn)
-  · simp only [branchQuestions_consistency] at h ⊢
-    simp only [↓reduceIte, one_mul]
+  · simp only [branchQuestions_consistency, ↓reduceIte, one_mul] at h ⊢
     exact h.trans_eq (consistencyQuestions_slices (lossAt d D ans)).symm
-  · simp only [branchQuestions_diagonal] at h ⊢
-    simp only [ite_eq_right (by decide : Branch.diagonal ≠ .consistency)]
+  · simp only [branchQuestions_diagonal, reduceCtorEq, ↓reduceIte] at h ⊢
     exact (mul_le_mul_of_nonneg_left h (by positivity)).trans
       (diagonalQuestions_slices_le (lossAt d D ans) hn)
 

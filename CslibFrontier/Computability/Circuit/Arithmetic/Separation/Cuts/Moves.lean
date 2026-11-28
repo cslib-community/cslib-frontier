@@ -150,6 +150,12 @@ theorem sum_eq {M : Type*} [Fintype N] [AddCommMonoid M] (f : UnitId A U0 N U1 â
   simp only [Fintype.sum_sigma]
   rfl
 
+/-- The number of units: `A * A * U0` initial units and `U1` units of every channel. -/
+theorem card_eq [Fintype N] :
+    Fintype.card (UnitId A U0 N U1) = A * A * U0 + Fintype.card N * U1 := by
+  rw [Fintype.card_eq_sum_ones, sum_eq]
+  simp [Nat.mul_assoc]
+
 end UnitId
 
 section Units

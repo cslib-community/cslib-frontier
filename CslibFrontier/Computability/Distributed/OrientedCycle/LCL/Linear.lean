@@ -93,13 +93,10 @@ variable {L : Type*} {R : L → L → Prop}
 theorem IsSolution.relatesInSteps {n : ℕ} {ℓ : ZMod n → L} (h : IsSolution R ℓ) (v : ZMod n)
     (m : ℕ) : Relation.RelatesInSteps R (ℓ v) (ℓ (v + m)) m := by
   induction m with
-  | zero =>
-    rw [Nat.cast_zero, add_zero]
-    exact .refl _
+  | zero => simpa only [Nat.cast_zero, add_zero] using .refl (ℓ v)
   | succ m ih =>
     refine .tail _ _ _ m ih ?_
-    have := h (v + m)
-    rwa [add_assoc, ← Nat.cast_succ] at this
+    simpa only [Nat.cast_succ, ← add_assoc] using h (v + m)
 
 /-- Closed walks of two consecutive lengths `d` and `d + 1` make `q` flexible with flexibility
 `d * d` (the Frobenius number of `{d, d + 1}` is `d * (d + 1) - d - (d + 1) < d * d`). -/
@@ -109,8 +106,7 @@ theorem IsFlexible.of_consecutive {q : L} {d : ℕ} (hd : Relation.RelatesInStep
   · obtain ⟨t', h0, hq⟩ := (show Relation.RelatesInSteps R q q (0 + 1) by
       obtain rfl | rfl : d = 0 ∨ d = 1 := by omega
       exacts [hd1, hd]).succ
-    rw [Relation.RelatesInSteps.zero_iff] at h0
-    subst h0
+    rcases Relation.RelatesInSteps.zero_iff.1 h0 with rfl
     exact fun m _ => IsFlexible.of_loop hq m (Nat.zero_le _)
   intro m hm
   have hF := (frobeniusNumber_iff.1 (frobeniusNumber_pair
@@ -119,8 +115,7 @@ theorem IsFlexible.of_consecutive {q : L} {d : ℕ} (hd : Relation.RelatesInStep
       have : 4 ≤ d * d := Nat.mul_le_mul h2 h2
       omega)
   obtain ⟨i, j, hij⟩ := (AddSubmonoid.mem_closure_pair _ _ _).1 hF
-  simp only [smul_eq_mul] at hij
-  rw [← hij, ← zero_add (i * d)]
+  rw [← hij, smul_eq_mul, smul_eq_mul, ← zero_add (i * d)]
   exact ((Relation.RelatesInSteps.refl q).add_mul_of_cycle hd i).add_mul_of_cycle hd1 j
 
 /-! ### The lower bound -/
@@ -141,23 +136,17 @@ private theorem isFlexible_of_apply_eq {t n : ℕ} [NeZero n] (F : LocalRule ℕ
     (hq : F.apply (fun v : ZMod n => v.val) p = F.apply (fun v : ZMod n => v.val) p') :
     IsFlexible R (F.apply (fun v : ZMod n => v.val) p) ((p' - p) * (p' - p)) := by
   set x₀ : ZMod n → ℕ := fun v => v.val with hx₀def
-  have hx₀ : Function.Injective x₀ := ZMod.val_injective n
-  have hx₀n : ∀ v, x₀ v < n := fun v => ZMod.val_lt v
   have hval : ∀ k < n, x₀ (k : ZMod n) = k := fun k hk => ZMod.val_cast_of_lt hk
-  have h1 := (hF x₀ hx₀ hx₀n).relatesInSteps (p : ZMod n) (p' - p)
+  have h1 := (hF x₀ (ZMod.val_injective n) ZMod.val_lt).relatesInSteps (p : ZMod n) (p' - p)
   rw [← Nat.cast_add, Nat.add_sub_cancel' (by omega), ← hq] at h1
   set σ : ℕ → ℕ := fun k => if k ≤ p + t then k else if k = p + t + 1 then p' + t + 1
     else if k ≤ p' + t + 1 then k - 1 else k with hσ
-  have hσinj : Function.Injective σ := by
-    intro a b h
+  have hσinj : Function.Injective σ := fun a b h => by
     simp only [hσ] at h
     split_ifs at h <;> omega
   have hσn : ∀ k < n, σ k < n := by grind
   set x₁ : ZMod n → ℕ := fun v => σ v.val with hx₁def
-  have hx₁ : Function.Injective x₁ := hσinj.comp (ZMod.val_injective n)
-  have hx₁n : ∀ v, x₁ v < n := fun v => hσn _ (ZMod.val_lt v)
-  have hval₁ : ∀ k < n, x₁ (k : ZMod n) = σ k := fun k hk => by
-    simp only [hx₁def, ZMod.val_cast_of_lt hk]
+  have hval₁ : ∀ k < n, x₁ (k : ZMod n) = σ k := fun k hk => congrArg σ (ZMod.val_cast_of_lt hk)
   have e0 : F.apply x₁ (p : ZMod n) = F.apply x₀ (p : ZMod n) :=
     F.toFun_congr fun o ho₁ ho₂ => by
       simp only [window]
@@ -171,8 +160,10 @@ private theorem isFlexible_of_apply_eq {t n : ℕ} [NeZero n] (F : LocalRule ℕ
         hval _ (by omega)]
       simp only [hσ]
       split_ifs <;> omega
-  have h2 := (hF x₁ hx₁ hx₁n).relatesInSteps (p : ZMod n) (p' - p + 1)
-  rw [← Nat.cast_add, show p + (p' - p + 1) = p' + 1 by omega, e0, e1, ← hq] at h2
+  have h2 := (hF x₁ (hσinj.comp (ZMod.val_injective n))
+    (fun v => hσn _ (ZMod.val_lt v))).relatesInSteps (p : ZMod n) (p' - p + 1)
+  have hp1 : p + (p' - p + 1) = p' + 1 := by omega
+  rw [← Nat.cast_add, hp1, e0, e1, ← hq] at h2
   exact IsFlexible.of_consecutive h1 h2
 
 end Cslib.Distributed.OrientedCycle.LCL
@@ -210,9 +201,8 @@ algorithm solving `R` on the oriented `n`-cycle has `n ≤ (|L| + 1) (2t + 1)`. 
 theorem Algorithm.SolvesLCL.le_of_forall_not_isFlexible {S L : Type*} [Fintype L]
     {A : Algorithm ℕ S L} {R : L → L → Prop} {n t : ℕ} (hA : A.SolvesLCL R n t)
     (hR : ∀ q K, ¬IsFlexible R q K) : n ≤ (Fintype.card L + 1) * (2 * t + 1) :=
-  (A.toLocalRule t).le_of_forall_not_isFlexible (fun x hx hxn => by
-    have := hA x hx hxn
-    rwa [show A.run x t = (A.toLocalRule t).apply x from funext (A.run_eq_apply x t)] at this) hR
+  (A.toLocalRule t).le_of_forall_not_isFlexible
+    (fun x hx hxn => funext (A.run_eq_apply x t) ▸ hA x hx hxn) hR
 
 end Cslib.Distributed.OrientedCycle
 
@@ -263,24 +253,21 @@ theorem gatherRule_isSolution {L : Type*} {R : L → L → Prop} {n r : ℕ} {�
       have hk' : (k : ZMod n) = v₀ - v := ZMod.natCast_zmod_val _
       by_cases hkr : k ≤ r
       · refine ⟨⟨k + r, by omega⟩, ?_⟩
-        change x (v + ((((k + r : ℕ) : ℤ) - r : ℤ) : ZMod n)) = 0
-        rw [show (((k + r : ℕ) : ℤ) - r) = (k : ℤ) by push_cast; ring, Int.cast_natCast, hk',
-          add_sub_cancel, hv₀]
+        have heq : ((((k + r : ℕ) : ℤ) - r : ℤ) : ZMod n) = k := by push_cast; ring
+        simpa only [window, heq, hk', add_sub_cancel] using hv₀
       · refine ⟨⟨k + r - n, by omega⟩, ?_⟩
-        change x (v + ((((k + r - n : ℕ) : ℤ) - r : ℤ) : ZMod n)) = 0
-        rw [show (((k + r - n : ℕ) : ℤ) - r) = (k : ℤ) - n by omega, Int.cast_sub,
-          Int.cast_natCast, Int.cast_natCast, ZMod.natCast_self, sub_zero, hk', add_sub_cancel,
-          hv₀]
+        have heq : (((k + r - n : ℕ) : ℤ) - r) = (k : ℤ) - n := by omega
+        simpa only [window, heq, Int.cast_sub, Int.cast_natCast, ZMod.natCast_self, sub_zero, hk',
+          add_sub_cancel] using hv₀
     obtain ⟨i, hi, hi0⟩ := zeroIndex_spec hex
     have hv : v + ((((i : ℕ) : ℤ) - r : ℤ) : ZMod n) = v₀ := hx (hi0.trans hv₀.symm)
     change ℓ₀ ((((r : ℤ) - zeroIndex fun i : Fin (2 * r + 1) =>
       window x v (((i : ℕ) : ℤ) - r)) : ℤ) : ZMod n) = ℓ₀ (v - v₀)
     rw [← hi, ← hv]
     congr 1
-    push_cast
-    ring
+    push_cast; ring
   intro v
-  rw [key, key, show v + 1 - v₀ = (v - v₀) + 1 by ring]
+  rw [key, key, add_sub_right_comm]
   exact h₀ _
 
 /-- **Every solvable problem in `⌊n / 2⌋` rounds.** If the oriented `n`-cycle has a solution, then

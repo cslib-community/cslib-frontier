@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.EXP
 public import CslibFrontier.Computability.Complexity.Classes.Space
+import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
+import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Time
 import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Basic
 
@@ -24,7 +26,10 @@ import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Basic
 (`Cslib.Complexity.mem_PSPACE_iff_exists_mem_DSPACE`), and time bounds space
 (`Cslib.Complexity.DTIME_subset_DSPACE`), so `PSPACE ⊆ EXPSPACE` and `EXP ⊆ EXPSPACE`. The first
 inclusion is strict for problems on bit words by the space hierarchy theorem
-(`Cslib.Complexity.PSPACE_ssubset_EXPSPACE`, in `Classes.EXPSPACE.Separation`).
+(`Cslib.Complexity.PSPACE_ssubset_EXPSPACE`, in `Classes.EXPSPACE.Separation`). Nondeterministic
+time also bounds nondeterministic space (`Cslib.Complexity.NTIME_subset_NSPACE`), and Savitch's
+theorem squares the space bound (`Cslib.Complexity.NSPACE_subset_DSPACE_sq`), so
+`NEXP ⊆ EXPSPACE`.
 
 ## Main definitions
 
@@ -37,12 +42,16 @@ inclusion is strict for problems on bit words by the space hierarchy theorem
   `h` is exponential space.
 * `Cslib.Complexity.PSPACE_subset_EXPSPACE`: polynomial space is within exponential space.
 * `Cslib.Complexity.EXP_subset_EXPSPACE`: exponential time is within exponential space.
+* `Cslib.Complexity.NEXP_subset_EXPSPACE`: nondeterministic exponential time is within
+  exponential space.
 * `Cslib.Complexity.compl_mem_EXPSPACE`: closure under complement.
 
 ## References
 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 * [M. Sipser, *Introduction to the Theory of Computation*][Sipser2013]
+* [W. J. Savitch, *Relationships between nondeterministic and deterministic tape
+  complexities*][Savitch1970]
 -/
 
 @[expose] public section
@@ -77,6 +86,21 @@ theorem PSPACE_subset_EXPSPACE {α : Type} {enc : α ↪ List Bool} :
 theorem EXP_subset_EXPSPACE : EXP enc ⊆ EXPSPACE enc := fun _ hA =>
   let ⟨k, hk⟩ := mem_EXP_iff.mp hA
   mem_EXPSPACE_iff.mpr ⟨k, DTIME_subset_DSPACE hk⟩
+
+/-- **Nondeterministic exponential time is within exponential space**: a problem in
+`NTIME (2 ^ n ^ k)` is in `NSPACE (2 ^ (n ^ k + n))` (`Cslib.Complexity.NTIME_subset_NSPACE`), a
+bound above `log₂ n`, so Savitch's theorem [Savitch1970] places it in
+`DSPACE (2 ^ ((n ^ k + n) * 2))` (`Cslib.Complexity.NSPACE_subset_DSPACE_sq`). -/
+theorem NEXP_subset_EXPSPACE {α : Type} {enc : α ↪ List Bool} : NEXP enc ⊆ EXPSPACE enc := by
+  intro A hA
+  obtain ⟨k, hk⟩ := mem_NEXP_iff.mp hA
+  have h := NSPACE_subset_DSPACE_sq (s := fun n => 2 ^ (n ^ k + n))
+    (fun n => (Nat.log2_le_self n).trans (Nat.lt_two_pow_self.le.trans
+      (Nat.pow_le_pow_right (by norm_num) (Nat.le_add_left n _))))
+    (NSPACE_mono (fun n => Nat.pow_le_pow_right (by norm_num) (Nat.le_add_right _ n))
+      (NTIME_subset_NSPACE hk))
+  simp only [← pow_mul] at h
+  exact DSPACE_two_pow_subset_EXPSPACE (by fun_prop) h
 
 /-- `EXPSPACE` is closed under complement (`Cslib.Complexity.compl_mem_DSPACE`). -/
 theorem compl_mem_EXPSPACE {α : Type} {enc : α ↪ List Bool} {A : Set α} (h : A ∈ EXPSPACE enc) :

@@ -146,17 +146,12 @@ theorem card_le_four_mul_card (f : BooleanFunction n) {c : ℕ} (hc : c ≤ μ.m
   have h₁ := card_filter_involution (fun g => c ≤ 4 * μ.measure g) shift hs
   have h₂ := card_filter_involution (fun g => c ≤ 4 * μ.measure g)
     (fun g => neg (shift g)) hns
-  have hcard := Finset.card_le_card cover
-  have hbound := Finset.card_union_le
-    (good ∪ (Finset.univ.filter fun g => neg g ∈ good) ∪
-      (Finset.univ.filter fun g => shift g ∈ good))
-    (Finset.univ.filter fun g => neg (shift g) ∈ good)
-  have hb₁ := Finset.card_union_le (good ∪ (Finset.univ.filter fun g => neg g ∈ good))
-    (Finset.univ.filter fun g => shift g ∈ good)
-  have hb₀ := Finset.card_union_le good (Finset.univ.filter fun g => neg g ∈ good)
+  have hcard := (Finset.card_le_card cover).trans <| (Finset.card_union_le _ _).trans <|
+    Nat.add_le_add_right ((Finset.card_union_le _ _).trans <|
+      Nat.add_le_add_right (Finset.card_union_le _ _) _) _
   change _ = good.card at h₀ h₁ h₂
   simp only [good, Finset.mem_filter, Finset.mem_univ, true_and, Finset.card_univ]
-    at hcard hbound hb₁ hb₀ h₀ h₁ h₂ ⊢
+    at hcard h₀ h₁ h₂ ⊢
   omega
 
 end FormalComplexityMeasure

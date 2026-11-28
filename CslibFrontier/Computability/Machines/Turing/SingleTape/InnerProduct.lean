@@ -73,7 +73,6 @@ theorem innerProduct_average_lower_bound {ι : Bool → Symbol} {yes : Symbol} {
   obtain ⟨r, hr⟩ : ∃ r, r = n - m := ⟨_, rfl⟩
   have hmmin : 2 * d + 2 ≤ m := by omega
   have hsplit : m + r = n := by omega
-  have hparity : n = 2 * m ∨ n = 2 * m + 1 := by omega
   subst n
   have hblock (a b : BitString r) :
       2 ^ (2 * m) * ((r + 1) * m) ≤
@@ -104,15 +103,11 @@ theorem innerProduct_average_lower_bound {ι : Bool → Symbol} {yes : Symbol} {
         (Equiv.prodCongr (Fin.appendEquiv m r) (Fin.appendEquiv m r))
   have hreindex :
       (∑ ab : BitString r × BitString r, ∑ xy : BitString m × BitString m,
-        time (Fin.append xy.1 ab.1, Fin.append xy.2 ab.2)) = ∑ p, time p := by
-    rw [← Fintype.sum_prod_type']
-    exact e.sum_comp time
-  have hcount : (Fintype.card (BitString r × BitString r)) * 2 ^ (2 * m) =
-      2 ^ (2 * (m + r)) := by
-    simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
-      ← pow_add]
-    congr 1
-    omega
+        time (Fin.append xy.1 ab.1, Fin.append xy.2 ab.2)) = ∑ p, time p :=
+    (Fintype.sum_prod_type' _).symm.trans (e.sum_comp time)
+  have hcount : Fintype.card (BitString r × BitString r) * 2 ^ (2 * m) = 2 ^ (2 * (m + r)) := by
+    simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, ← pow_add]
+    exact congrArg (2 ^ ·) (by omega)
   simp only [Finset.sum_const, Finset.card_univ, Nat.nsmul_eq_mul,
     ← Finset.mul_sum, hreindex] at htotal
   rw [← Nat.mul_assoc, hcount] at htotal

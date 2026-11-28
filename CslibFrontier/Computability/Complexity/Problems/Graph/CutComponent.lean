@@ -50,9 +50,7 @@ theorem split_component_separates {G H : Graph} (a b : Dart G) (hb : b.vertex = 
   let marked (u : ℕ) : Prop := u = w ∨ inClass u
   have hend (d : Dart G) : (e d).vertex = _ := hEnds d
   have markNew : marked w := Or.inl rfl
-  have markOld : ¬marked a.vertex := by
-    rintro (h | ⟨h, _⟩)
-    exacts [hfresh a h, h rfl]
+  have markOld : ¬marked a.vertex := fun h => h.elim (hfresh a) fun ⟨ha, _⟩ => ha rfl
   have markAway (d : Dart G) (hd : d.vertex ≠ a.vertex) :
       marked (e d).vertex ↔ inClass d.vertex := by
     rw [hend, ite_eq_right (fun h => hd (hcut d h))]
@@ -72,12 +70,10 @@ theorem split_component_separates {G H : Graph} (a b : Dart G) (hb : b.vertex = 
     · exact (markCut d hd).trans (markAway d.reverse (hloop d hd)).symm
     by_cases hrev : d.reverse.vertex = a.vertex
     · rw [markAway d hd, markCut d.reverse hrev, Dart.reverse_reverse]
-    have hreach : K.Reachable ⟨d.vertex, hd⟩ ⟨d.reverse.vertex, hrev⟩ := by
-      by_cases he : d.vertex = d.reverse.vertex
-      · exact (Subtype.ext he : (⟨d.vertex, hd⟩ : {u : ℕ // u ≠ a.vertex}) =
-          ⟨d.reverse.vertex, hrev⟩) ▸ .rfl
-      apply SimpleGraph.Adj.reachable
-      exact d.adj_vertex_reverse he
+    have hreach : K.Reachable ⟨d.vertex, hd⟩ ⟨d.reverse.vertex, hrev⟩ :=
+      if he : d.vertex = d.reverse.vertex then
+        (Subtype.ext he : (⟨d.vertex, hd⟩ : {u | u ≠ a.vertex}) = ⟨d.reverse.vertex, hrev⟩) ▸ .rfl
+      else SimpleGraph.Adj.reachable (G := K) (d.adj_vertex_reverse he)
     rw [markAway d hd, markAway d.reverse hrev]
     exact ⟨fun ⟨_, h⟩ => ⟨hrev, h.trans hreach⟩, fun ⟨_, h⟩ => ⟨hd, h.trans hreach.symm⟩⟩
   have ha' : (e a).vertex = w := by rw [hend, ite_eq_left ((hclass a rfl).mpr .rfl)]
@@ -128,9 +124,8 @@ theorem vertex_preimage_split_darts {G H : Graph} (v w : ℕ)
   have hd := hEnds (E.symm i, b)
   rw [E.apply_symm_apply] at hd
   rw [hd]
-  split
-  · rename_i h
-    rw [Function.update_self, hselected _ h]
+  split_ifs with h
+  · rw [Function.update_self, hselected _ h]
   · rw [Function.update_of_ne (hfresh _), id_eq]
 
 end Cslib.Complexity.Graph

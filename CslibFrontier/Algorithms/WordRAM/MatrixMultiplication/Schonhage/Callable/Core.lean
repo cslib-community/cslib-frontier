@@ -65,11 +65,9 @@ theorem exec_core {W b m N : ℕ}
     fun _ => ⟨fun i k => (hX i k).1, fun k j => (hY k j).1⟩
   obtain ⟨hw, hmag, hbudget⟩ := source_admission (Q := qs.length) hN
   have htwo : sourceWidth N qs.length - 2 + 2 = sourceWidth N qs.length := by omega
-  have hbudget' : Fits (sourceWidth N qs.length - 2 + 2)
-      (QueriedProduct.wordBudget (19 * m) m N qs.length) := by simpa only [htwo] using hbudget
-  have hi : InputFits (sourceWidth N qs.length) (QueriedProduct.input true (19 * m) X Y qs) := by
-    simpa only [htwo] using
-      QueriedProduct.input_fits hw (show m ≤ 19 * m by omega) true X Y qs hXabs hYabs hmag hbudget'
+  have hbudget' := htwo.symm ▸ hbudget
+  have hi : InputFits (sourceWidth N qs.length) (QueriedProduct.input true (19 * m) X Y qs) :=
+    htwo ▸ QueriedProduct.input_fits hw (by omega) true X Y qs hXabs hYabs hmag hbudget'
   have hrow : x.mem (b + 3) = N := by
     rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega)]
     simp [State.init, Data.init, QueriedProduct.input]
@@ -81,14 +79,10 @@ theorem exec_core {W b m N : ℕ}
     fun a ha => (congrFun smem (b + a)).trans (hinput a ha)
   obtain ⟨p, hp, pp, pv, pf⟩ := QueriedProduct.exec hw (show m ≤ 19 * m by omega)
     true X Y qs _ (fun a _ ha => vinput a ha) hXabs hYabs hbits hmag hbudget'
-  have hp' : ExecWithin (sourceWidth N qs.length) (QueriedProduct.program true)
-      (MemoryWindow.view (sourceWidth N qs.length) b s) p
-      (QueriedProduct.timeBound (show m ≤ 19 * m by omega) qs) := by
-    simpa only [htwo] using hp
   obtain ⟨-, hw_le, hwindow, -, -, -⟩ :=
     MemoryWindow.dynamicWidth_fits (b := b) (widthCoeff := 128) (S := N + qs.length + 3)
       (by decide) (by omega) (hfit.of_le (Nat.le_add_right _ 1024))
-  obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp'
+  obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin (htwo ▸ hp)
     (QueriedProduct.not_readsWidth true) sbound smatch hw_le hwindow
   refine ⟨y, hs.seq hy, ymatch.base_eq, ymatch.modulus_eq,
     (ymatch.regs _).trans pp.inputSize, (ymatch.regs _).trans pp.queryCount,

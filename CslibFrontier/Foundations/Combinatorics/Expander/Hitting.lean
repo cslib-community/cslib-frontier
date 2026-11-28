@@ -111,11 +111,11 @@ theorem expect_prod_walkAt (t : ℕ) (h : ℕ → V → ℝ) (v : V) :
   induction t generalizing h v with
   | zero => simp
   | succ t ih =>
-    rw [Fin.expect_univ_cons, weightedWalk_succ, Pi.mul_apply, walk_apply, mul_expect]
-    refine expect_congr rfl fun a _ => ?_
-    simp only [prod_range_succ' _ (t + 1), walkAt_cons_succ, walkAt_zero,
-      ← expect_mul, ih (fun i => h (i + 1))]
-    exact mul_comm _ _
+    rw [Fin.expect_univ_cons, weightedWalk_succ, Pi.mul_apply, walk_apply, mul_comm (h 0 v),
+      expect_mul]
+    exact expect_congr rfl fun a _ => by
+      simp only [prod_range_succ' _ (t + 1), walkAt_cons_succ, walkAt_zero, ← expect_mul,
+        ih (fun i => h (i + 1))]
 
 /-- The average of the weighted walk is the expected product of the weights along a uniformly
 random walk. -/
@@ -141,20 +141,17 @@ theorem expect_walk_sub_one_sub_spectralExpansion_sq_le [Nonempty V] [Nonempty D
   set w : V → ℝ := G.walk (fun v => x v - α)
   have hw₀ : 𝔼 v, (x v - α) = 0 := Fintype.expect_balance x
   have hyw (v : V) : G.walk x v - (1 - ℓ) * α = ℓ * α + w v := by
-    have : G.walk x = (fun _ => α) + w := by
-      rw [← G.walk_const α, ← map_add]
-      exact congrArg G.walk (funext fun _ => by simp)
-    rw [this, Pi.add_apply]
-    ring
+    have hw : w v = G.walk x v - α := by
+      simpa [w, Pi.sub_def] using congrFun (map_sub G.walk x (fun _ => α)) v
+    linarith
   have hvar : 𝔼 v, (x v - α) ^ 2 = 𝔼 v, x v ^ 2 - α ^ 2 := by
-    simp_rw [show ∀ v, (x v - α) ^ 2 = x v ^ 2 - 2 * α * x v + α ^ 2 from fun _ => by ring,
-      expect_add_distrib, expect_sub_distrib, ← mul_expect, Fintype.expect_const]
+    simp_rw [sub_sq, expect_add_distrib, expect_sub_distrib, mul_assoc, ← mul_expect, ← expect_mul,
+      Fintype.expect_const]
     ring
   calc 𝔼 v, (G.walk x v - (1 - ℓ) * α) ^ 2
       = ℓ ^ 2 * α ^ 2 + 2 * (ℓ * α) * 𝔼 v, w v + 𝔼 v, w v ^ 2 := by
-        have hsq (v : V) : (ℓ * α + w v) ^ 2 = ℓ ^ 2 * α ^ 2 + 2 * (ℓ * α) * w v + w v ^ 2 := by
-          ring
-        simp_rw [hyw, hsq, expect_add_distrib, ← mul_expect, Fintype.expect_const]
+        simp_rw [hyw, add_sq, expect_add_distrib, mul_assoc, ← mul_expect, Fintype.expect_const]
+        ring
     _ ≤ ℓ ^ 2 * α ^ 2 + 2 * (ℓ * α) * 0 + ℓ ^ 2 * (𝔼 v, x v ^ 2 - α ^ 2) := by
         rw [G.expect_walk_eq_zero hw₀, ← hvar]
         gcongr
@@ -263,20 +260,19 @@ theorem dens_filter_forall_walkAt_mem_le_pow [Nonempty D] {B : ℕ → Finset V}
     (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B i} : ℝ) ≤
       (μ + G.spectralExpansion * (1 - μ)) ^ (t + 1) := by
   have hμ₀ : 0 ≤ μ := (by positivity : (0 : ℝ) ≤ dens (B 0)).trans (hB 0)
-  have hℓ := G.spectralExpansion_nonneg
   rw [pow_succ']
   refine (G.dens_filter_forall_walkAt_mem_le hB t).trans ?_
   gcongr
-  exact le_add_of_nonneg_right (mul_nonneg hℓ (sub_nonneg.mpr hμ))
+  exact le_add_of_nonneg_right (mul_nonneg G.spectralExpansion_nonneg (sub_nonneg.mpr hμ))
 
 /-- A uniformly started walk misses a set of density `δ` with probability at most
 `(1 - δ) (1 - (1 - λ(G)) δ) ^ t`. -/
 theorem dens_filter_forall_walkAt_notMem_le [Nonempty V] [Nonempty D] (A : Finset V) (t : ℕ) :
     (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∉ A} : ℝ) ≤
       (1 - (dens A : ℝ)) * (1 - (1 - G.spectralExpansion) * (dens A : ℝ)) ^ t := by
-  have hsum : (dens Aᶜ : ℝ) + dens A = 1 := by
-    exact_mod_cast (by simpa only [compl_eq_univ_sdiff, dens_univ] using
-      dens_sdiff_add_dens_eq_dens (subset_univ A) : dens Aᶜ + dens A = 1)
+  have hsum : (dens Aᶜ : ℝ) + dens A = 1 :=
+    mod_cast (compl_eq_univ_sdiff (s := A) ▸
+      (dens_sdiff_add_dens_eq_dens (subset_univ A)).trans dens_univ)
   have hring : 1 - (dens A : ℝ) + G.spectralExpansion * (1 - (1 - dens A)) =
       1 - (1 - G.spectralExpansion) * dens A := by ring
   simpa only [mem_compl, hring] using

@@ -97,17 +97,9 @@ theorem isCorrect_iff (hP : P.IsLinearSummation) : P.IsCorrect ↔
   rw [P.isCorrect_iff]
   refine ⟨fun h i r q hrq => funext fun j => ?_, fun h x i r q hrq => ?_⟩
   · have := h (Pi.single j true) i r q hrq
-    rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, single_dotProduct,
-      Pi.single_apply] at this
-    rw [Pi.single_apply]
-    generalize (q false + q true) j = a at this ⊢
-    rcases eq_or_ne j i with rfl | hji
-    · simp only [↓reduceIte] at this ⊢
-      revert this
-      cases a <;> decide
-    · simp only [hji, hji.symm, ↓reduceIte] at this ⊢
-      revert this
-      cases a <;> decide
+    rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, single_dotProduct] at this
+    change 1 * (q false + q true) j = (Pi.single j true : ι → Bool) i at this
+    simpa only [one_mul, Pi.single_apply, eq_comm] using this
   · rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, h i r q hrq]
     exact dotProduct_single_one x i
 
@@ -151,21 +143,16 @@ theorem mem_support_add (hP : P.IsLinearSummation) (hcorrect : P.IsCorrect)
     induction D using Finset.induction_on with
     | empty => simpa only [sum_empty, add_zero] using hv
     | insert a D ha ih =>
-      rw [sum_insert ha, sum_insert ha]
-      rw [show v + (Pi.single a (w a + v a) + ∑ h ∈ D, Pi.single h (w h + v h)) =
-          (v + ∑ h ∈ D, Pi.single h (w h + v h)) + Pi.single a (w a + v a) by abel,
-        show s + (w a + v a + ∑ h ∈ D, (w h + v h)) =
-          (s + ∑ h ∈ D, (w h + v h)) + (w a + v a) by abel]
+      rw [sum_insert ha, sum_insert ha, ← add_assoc v, add_right_comm v,
+        ← add_assoc s, add_right_comm s]
       cases w a + v a
-      · rw [show ∀ b : Bool, b + false = b from Bool.xor_false,
-          show (Pi.single a false : ι → Bool) = 0 from Pi.single_zero a, add_zero]
-        exact ih
-      · rw [show ∀ b : Bool, b + true = !b from Bool.xor_true]
-        exact hP.add_single_mem hcorrect hprivate ih a
-  have h := key univ
-  rwa [univ_sum_single (fun h => w h + v h),
-    show v + (fun h => w h + v h) = w from funext fun h => by
-      rw [Pi.add_apply, add_comm (w h), ← add_assoc, BooleanRing.add_self, zero_add]] at h
+      · change _ + Pi.single a 0 ∈ (ProbComp.eval (P.serverQuery (_ + 0) i)).support
+        simpa only [Pi.single_zero, add_zero] using ih
+      · generalize s + ∑ h ∈ D, (w h + v h) = b at ih ⊢
+        cases b <;> exact hP.add_single_mem hcorrect hprivate ih a
+  have hvw : v + (fun h => w h + v h) = w := funext fun h => by
+    rw [Pi.add_apply, add_comm (w h), ← add_assoc, BooleanRing.add_self, zero_add]
+  simpa only [univ_sum_single (fun h => w h + v h), hvw] using key univ
 
 omit [DecidableEq ι] in
 /-- In a correct, private linear-summation scheme, the server `s` can receive at least half of all
@@ -184,9 +171,9 @@ theorem two_pow_le_two_mul_ncard_support (hP : P.IsLinearSummation) (hcorrect : 
   -- Every set can be received by `s` or by the other server.
   have hcover : (Set.univ : Set (ι → Bool)) ⊆ T s ∪ T (!s) := fun w _ => by
     have hw := hP.mem_support_add hcorrect hprivate hv w
-    cases hsum : ∑ h, (w h + v h)
-    · exact Or.inl (by rwa [hsum, show ∀ b : Bool, b + false = b from Bool.xor_false] at hw)
-    · exact Or.inr (by rwa [hsum, show ∀ b : Bool, b + true = !b from Bool.xor_true] at hw)
+    cases hsum : ∑ h, (w h + v h) <;> rw [hsum] at hw
+    · cases s <;> exact Or.inl hw
+    · cases s <;> exact Or.inr hw
   -- Flipping the position `h₀` maps the sets of the other server into those of `s`.
   have hflip : (T (!s)).ncard ≤ (T s).ncard :=
     Set.ncard_le_ncard_of_injOn (· + Pi.single h₀ true)
@@ -298,12 +285,9 @@ theorem isPrivate_evenTwoServer : (evenTwoServer h₀).IsPrivate := by
     congr 1 with u : 1
     change makeEven h₀ (u + Pi.single i σ) + Pi.single i σ = makeEven h₀ u + Pi.single h₀ σ
     rw [makeEven_add_single]
-    funext j
-    simp only [Pi.add_apply]
-    generalize makeEven h₀ u j = a, (Pi.single i σ : ι → Bool) j = b,
-      (Pi.single h₀ σ : ι → Bool) j = c
-    revert a b c
-    decide
+    ext j
+    rw [Pi.add_apply, Pi.add_apply, Pi.add_apply, add_right_comm, add_assoc (makeEven h₀ u j),
+      BooleanRing.add_self, add_zero, ← Pi.add_apply]
   intro σ i i'
   rw [key, key]
 

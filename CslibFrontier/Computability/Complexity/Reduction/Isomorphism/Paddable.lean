@@ -142,22 +142,20 @@ theorem polyTimeInvertibleLengthIncreasingOneOneReducible (hA : Paddable encA A)
     ComputableInPolyTime.bitsAppend
       (ComputableInPolyTime.frame.comp (ComputableInPolyTime.id'.of_enc_eq fun _ => rfl))
       (hk.of_enc_eq fun _ => rfl)
-  refine ⟨fun b => pad (r b) (w b), ⟨fun a => D.decode (unframe (unpad a)), ?_, ?_, ?_, ?_⟩,
+  refine ⟨fun b => pad (r b) (w b),
+    ⟨fun a => D.decode (unframe (unpad a)), hpad.comp (hr.prod hw),
+      D.computableInPolyTime.comp (ComputableInPolyTime.unframe.comp hunpad),
+      fun b => by simp only [hdec, w, unframe_frame_append, D.decode_enc], fun b => ?_⟩,
     fun b => (hrBA b).trans (hmem (r b) (w b)).symm⟩
-  · exact hpad.comp (hr.prod hw)
-  · exact D.computableInPolyTime.comp (ComputableInPolyTime.unframe.comp hunpad)
-  · intro b
-    simp only [hdec, w, unframe_frame_append, D.decode_enc]
-  · intro b
-    dsimp only
-    refine Nat.lt_of_not_le fun hle => ?_
-    have h1 : (w b).length ≤ c * ((encA (pad (r b) (w b))).length + 1) ^ d := by
-      simpa only [encBits_apply, hdec] using hcd (pad (r b) (w b))
-    have h2 : (w b).length = 2 * (encB b).length + 1 + k b := by
-      simp only [w, List.length_append, length_frame, List.length_replicate]
-    have h3 : c * ((encA (pad (r b) (w b))).length + 1) ^ d ≤ k b :=
-      Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
-    omega
+  dsimp only
+  refine Nat.lt_of_not_le fun hle => ?_
+  have h1 : (w b).length ≤ c * ((encA (pad (r b) (w b))).length + 1) ^ d := by
+    simpa only [encBits_apply, hdec] using hcd (pad (r b) (w b))
+  have h2 : (w b).length = 2 * (encB b).length + 1 + k b := by
+    simp only [w, List.length_append, length_frame, List.length_replicate]
+  have h3 : c * ((encA (pad (r b) (w b))).length + 1) ^ d ≤ k b :=
+    Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
+  omega
 
 /-- **Berman–Hartmanis, paddable form.** Two paddable languages that are polynomial-time many-one
 interreducible are polynomial-time isomorphic, given total polynomial-time decoders for both
@@ -179,10 +177,8 @@ theorem PolyTimeIsomorphic.paddable (h : PolyTimeIsomorphic encA encB A B)
   refine ⟨fun a y => e.symm (pad (e a) y), fun a => unpad (e a), ?_, hunpad.comp he, ?_, ?_⟩
   · exact hsymm.comp (hpad.comp ((he.comp (ComputableInPolyTime.fst encA encBits)).prod
       (ComputableInPolyTime.snd encA encBits)))
-  · intro a y
-    simp only [Equiv.apply_symm_apply, hdec]
-  · intro a y
-    rw [hAB, Equiv.apply_symm_apply, hmem, hAB]
+  · exact fun a y => by simp only [Equiv.apply_symm_apply, hdec]
+  · exact fun a y => by rw [hAB, Equiv.apply_symm_apply, hmem, hAB]
 
 /-- Paddability is invariant under polynomial-time isomorphism. -/
 theorem PolyTimeIsomorphic.paddable_iff (h : PolyTimeIsomorphic encA encB A B) :
@@ -232,10 +228,8 @@ theorem Paddable.preimage_decode (hA : Paddable encA A) (D : Decoder encA) :
     hunpad.comp D.computableInPolyTime, ?_, ?_⟩
   · exact henc.comp (hpad.comp ((D.computableInPolyTime.comp
       (ComputableInPolyTime.fst encBits encBits)).prod (ComputableInPolyTime.snd encBits encBits)))
-  · intro w y
-    simp only [D.decode_enc, hdec]
-  · intro w y
-    simp only [Set.mem_preimage, D.decode_enc, hmem]
+  · exact fun w y => by simp only [D.decode_enc, hdec]
+  · exact fun w y => by simp only [Set.mem_preimage, D.decode_enc, hmem]
 
 /-- A paddable language of typed instances is polynomial-time isomorphic to the language of the
 words that decode into it. So, for paddable languages, the typed instance model and the string

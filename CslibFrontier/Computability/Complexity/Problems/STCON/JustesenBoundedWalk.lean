@@ -104,11 +104,8 @@ theorem configurationJustesenBoundedWalk_firstHalting_iff (ntm : MultiTapeNTM k 
   let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
   have hcall := configurationJustesenSubdivisionEdge_halts_and_agrees ntm c w seed
   let initial := Runtime.entry edge start callbackVerdict 3 ctx r
-  change (Runtime.machine edge start callbackVerdict 3 initial).FirstHalting w bits
-      (Runtime.machine edge start callbackVerdict 3 initial).init ∧
-    Runtime.remainingFuel ((Runtime.machine edge start callbackVerdict 3 initial).run w bits) =
-      some left ↔ _
-  rw [NondeterministicQueryMachine.run, Runtime.machine_init]
+  have hM : M = Runtime.machine edge start callbackVerdict 3 initial := rfl
+  rw [hM, NondeterministicQueryMachine.run, Runtime.machine_init]
   exact Runtime.firstHalting_remainingFuel_iff edge start callbackVerdict 3 initial ctx r w adjacent
     (fun u v => (hcall u v).1) (fun u v => (hcall u v).2) bits left
 
@@ -149,12 +146,10 @@ theorem configurationJustesenBoundedWalk_stateBound_le_log (ntm : MultiTapeNTM k
   intro I size seed fuel calleeBound hfuel
   have hctx := hcontext w seed.val seed.isLt
   have hv : (encNat size.vertexCount).length ≤ _ := hvertices w
-  have hwidth : Nat.log2 size.vertexCount.size ≤ (encNat size.vertexCount).length := by
-    rw [length_encNat_eq_size]
-    exact Nat.log2_le_self _
+  have hwidth : Nat.log2 size.vertexCount.size ≤ (encNat size.vertexCount).length :=
+    length_encNat_eq_size _ ▸ Nat.log2_le_self _
   have hf := length_encNat_mono hfuel
-  have hclock : (encNat 3).length = 2 := rfl
-  simp only [Runtime.stateBound, hclock, Nat.add_mul, Nat.mul_assoc]
+  simp only [Runtime.stateBound, show (encNat 3).length = 2 from rfl, Nat.add_mul, Nat.mul_assoc]
   omega
 
 /-- At each valid seed, the common clock and logarithmic state bound cover all selector

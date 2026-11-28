@@ -45,23 +45,20 @@ private theorem agree_at_setup {s : Level} {base : Xofs} {a b : ℕ} {ha : 528 �
   simp only [Xofs.withKeySeedExpansion, byteAt_withPrefixes, key, ↓reduceIte, Option.bind_none,
     Option.getD_none]
   cases share
-  · rfl
-  · exact original.2 x i (Or.inr short)
+  exacts [rfl, original.2 x i (Or.inr short)]
 
 private theorem RowAgreement.write {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) (x : List Bool) (out : List Byte) :
     RowAgreement v (L.writeCommitment x out) (R.writeCommitment x out) := by
-  refine ⟨h.1, ?_⟩
-  intro y key short i
-  simp only [Xofs.writeCommitment, byteAt_withPrefixes, h.2 y key short i]
+  exact ⟨h.1, fun y key short i => by
+    simp only [Xofs.writeCommitment, byteAt_withPrefixes, h.2 y key short i]⟩
 
 private theorem RowAgreement.read {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) {x : List Bool} (hk : x.length ≠ 272) (hn : x.length ≠ 528)
     (n : ℕ) : L.h256.read x n = R.h256.read x n := by
-  apply read_eq_of_byteAt_eq
-  intro i _
-  exact h.2 x (fun e => hk (e ▸ length_keySeedInput ..))
-    (fun _ e => hn (e ▸ length_nonceInput_bits ..)) i
+  exact read_eq_of_byteAt_eq fun i _ =>
+    h.2 x (fun e => hk (e ▸ length_keySeedInput ..))
+      (fun _ e => hn (e ▸ length_nonceInput_bits ..)) i
 
 private theorem RowAgreement.publicKey {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) (pk : MLDSA.PublicKey s.params) :
@@ -153,8 +150,7 @@ private theorem draw_eq_map {s : Level} {L R : Xofs} (pair : MLDSA.PublicKey s.p
   refine congrArg (PMF.bind _ ·) (funext fun d => ?_)
   have eq := same d
   split <;> split
-  · simp only [PMF.map_bind, PMF.pure_map, Option.map_some]
-    rfl
+  · simp [PMF.map_bind, carryTerminal]
   · next hr _ hl => simp [hl, hr] at eq
   · next _ hr hl => simp [hl, hr] at eq
   · next c hr c' hl =>
@@ -200,8 +196,7 @@ private theorem publicCall_congr {s : Level} {v : SecretExpansionViews s} {base�
   simp only [Function.comp_def, Option.map_some, PMF.pure_bind]
   refine next _ _ _ ?_ (congrArg (q.logReply t.reply) log) ?_
   · change RowAgreement v (st₁.xofs.writeCommitment _ _) (st₂.xofs.writeCommitment _ _)
-    rw [h.rep size safe q]
-    exact h.write _ _
+    exact h.rep size safe q ▸ h.write _ _
   · change st₁.writes ++ [_] = st₂.writes ++ [_]
     rw [writes, h.rep size safe q]
     rfl
@@ -229,10 +224,9 @@ private theorem scoreProgram_congr (C : QuantumSigningForger) {s : Level}
   induction prog generalizing st₁ st₂ dev with
   | pure f =>
     rw [show PFunctor.FreeM.pure f = (pure f : Program C Forgery) from rfl]
-    simpa only [scoreProgram, ProbOracleComp.runWith_pure,
-      PMF.pure_map, log] using congrArg PMF.pure (h.freshWin pair f st₂.log (by
-        rw [st₂.trace.read_publicKey, key]
-        exact safe))
+    simpa only [scoreProgram, ProbOracleComp.runWith_pure, PMF.pure_map, log] using
+      congrArg PMF.pure (h.freshWin pair f st₂.log
+        fun e => safe (((st₂.trace.read_publicKey ..).trans key).symm.trans e))
   | liftBind cmd k ih =>
     rw [show PFunctor.FreeM.liftBind cmd k = (OracleComp.query cmd >>= k) from rfl]
     simp only [scoreProgram, ProbOracleComp.runWith, OracleComp.runWith_bind,
@@ -244,9 +238,8 @@ private theorem scoreProgram_congr (C : QuantumSigningForger) {s : Level}
         st₁.trace.replay_eq.symm.trans (congrArg (TerminalSigningWrite.replay base₁) writes)
       simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, deviceCommand,
         PMF.bind_map, Function.comp_def, raw]
-      apply congrArg (PMF.bind _ ·)
-      funext ⟨reply, device⟩
-      exact ih reply device st₁ st₂ h log writes
+      exact congrArg (PMF.bind _ ·) (funext fun ⟨reply, device⟩ =>
+        ih reply device st₁ st₂ h log writes)
     · simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, PMF.bind_map,
         Function.comp_def]
       exact publicCall_congr st₁ st₂ h log writes size safe pair ask
@@ -310,11 +303,8 @@ private theorem good_view {s : Level} {base : Xofs} {a b : ℕ} {ha : 528 ≤ a}
     v.refreshKeySeed.bind fun H =>
       (v.pair.map (C.publicPairWinWithDevice s G H v.publicSeed)).getD (PMF.pure false) := by
   intro G
-  rw [← PMF.bind_const (p := v.refreshKeySeed)
-    (q := (v.pair.map (fun pk => (C.publicPairSigning s G v.publicSeed pk).map
-      (·.trial.newDigestWin))).getD (PMF.pure false))]
-  apply PMF.bind_congr_on_support
-  intro H hH
+  refine (PMF.bind_const v.refreshKeySeed _).symm.trans
+    (PMF.bind_congr_on_support _ _ _ fun H hH => ?_)
   cases hp : v.pair with
   | none => rfl
   | some pk => exact separate_device hv hH share hp safe C
@@ -380,17 +370,13 @@ theorem secretRow_changedResponse_le (C : QuantumSigningForger) (s : Level) (bas
       | some pk => C.publicPairResponseChange s j (if share then v.shared else v.background)
           H v.publicSeed pk) true ≤
       (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-  refine le_trans ?_ (C.publicPairQueryHit_le s j base ha hb)
-  apply PMF.bind_apply_mono_on_support
-  intro v hv
-  apply PMF.bind_apply_mono_on_support
-  intro H hH
+  refine le_trans (PMF.bind_apply_mono_on_support _ true fun v hv =>
+    PMF.bind_apply_mono_on_support _ true fun H hH => ?_) (C.publicPairQueryHit_le s j base ha hb)
   cases hp : v.pair with
   | none => exact le_rfl
   | some pk =>
     simp only [publicPairResponseChange, publicPairQueryAddress, PMF.map_comp, Function.comp_def]
-    apply PMF.map_true_mono
-    exact fun o _ => C.hit_of_change (agree_at_setup hv hH share) o
+    exact PMF.map_true_mono _ fun o _ => C.hit_of_change (agree_at_setup hv hH share) o
 
 end QuantumSigningForger
 

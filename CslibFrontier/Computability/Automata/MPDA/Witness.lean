@@ -91,25 +91,21 @@ theorem atomicWitness_spec {i : Fin n} {s t : State} {γ : Γ} {u : List (Symbol
   dsimp only at h
   split_ifs at h with hT
   obtain ⟨ws, hws, rfl⟩ := Option.map_eq_some_iff.mp h
-  obtain ⟨hwn, hrun⟩ := wnWitness_spec hws
-  exact ⟨a, s₁, ws, rfl, hT, hwn, hrun⟩
+  exact ⟨a, s₁, ws, rfl, hT, (wnWitness_spec hws).1, (wnWitness_spec hws).2⟩
 
 theorem isSome_atomicWitness {i : Fin n} {s t : State} {γ : Γ}
     (h : ⟨s, γ, t⟩ ∈ M.atomicHoles i) : (M.atomicWitness i s γ t).isSome := by
   obtain ⟨a, s₁, hT, hwn⟩ := (mem_atomicHoles M).mp h
   refine List.findSome?_isSome_iff.mpr ⟨(a, s₁), FinEnum.mem_toList _, ?_⟩
-  dsimp only
-  simp only [hT, ↓reduceIte, Option.isSome_map]
-  exact isSome_wrWitness ((mem_wellNestedPairs M).mpr hwn)
+  simpa only [hT, ↓reduceIte, Option.isSome_map] using
+    isSome_wrWitness ((mem_wellNestedPairs M).mpr hwn)
 
 /-- The run of a realization is a block run of it. -/
 theorem blockWitness_spec {i : Fin n} {s t : State} {r : List (Γ × State)}
     (hr : M.Realizes i s t r) :
     ∀ {v : List (Symbol × Op n Γ)}, M.blockWitness i s r = some v → M.BlockRun i s t r v := by
   induction hr with
-  | nil =>
-    rintro _ ⟨⟩
-    exact blockRun_nil
+  | nil => exact fun h => (Option.some.inj h).symm ▸ blockRun_nil
   | cons hr' _ ih =>
     intro v h
     obtain ⟨v', hv', h⟩ := Option.bind_eq_some_iff.mp h
@@ -118,14 +114,17 @@ theorem blockWitness_spec {i : Fin n} {s t : State} {r : List (Γ × State)}
     obtain ⟨a, s₁, ws, rfl, hT, hws, hwsrun⟩ := atomicWitness_spec hu
     exact (ih hv').snoc hT hws hwsrun
 
+private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option β} (f : α → β → γ)
+    (ha : a.isSome) (hb : b.isSome) : (a.bind fun x => b.map (f x)).isSome := by
+  simpa only [Option.isSome_bind, Option.isSome_map, hb, Option.any_true] using ha
+
 theorem isSome_blockWitness {i : Fin n} {s t : State} {r : List (Γ × State)}
     (hr : M.Realizes i s t r) : (M.blockWitness i s r).isSome := by
   induction hr with
   | nil => rfl
   | cons hr' hγ ih =>
-    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp ih
-    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp (isSome_atomicWitness hγ)
-    simp [blockWitness, hv, hr'.realizationEnd, hu]
+    rw [blockWitness, hr'.realizationEnd]
+    exact isSome_bind_map _ ih (isSome_atomicWitness hγ)
 
 end Block
 
@@ -165,9 +164,7 @@ theorem reachUpTo_mono {K : ℕ} {k k' : ℕ} (h : k ≤ k') : M.reachUpTo K k �
 theorem reachUpTo_stable {K k : ℕ} (h : M.reachUpTo K (k + 1) = M.reachUpTo K k) :
     ∀ j, M.reachUpTo K (k + j) = M.reachUpTo K k
   | 0 => rfl
-  | j + 1 => by
-    rw [← Nat.add_assoc, reachUpTo, reachUpTo_stable h j]
-    exact h
+  | j + 1 => (congrArg (fun R => R ∪ R.biUnion (M.successors K)) (reachUpTo_stable h j)).trans h
 
 /-- The worklist loop only adds lists reached in as many more steps as it has fuel. -/
 theorem explore_subset_reachUpTo {K : ℕ} :
@@ -179,10 +176,9 @@ theorem explore_subset_reachUpTo {K : ℕ} :
     unfold explore
     split_ifs
     · exact hv.trans (reachUpTo_mono (by omega))
-    rw [show D + (f + 1) = D + 1 + f by omega]
-    refine explore_subset_reachUpTo f (D + 1) _ _ (Finset.union_subset
-      (hv.trans (reachUpTo_mono (by omega))) ?_) Finset.subset_union_right
-    intro μ hμ
+    have hDf : D + (f + 1) = D + 1 + f := by omega
+    refine hDf ▸ explore_subset_reachUpTo f (D + 1) _ _ (Finset.union_subset
+      (hv.trans (reachUpTo_mono (by omega))) fun μ hμ => ?_) Finset.subset_union_right
     obtain ⟨ν, hν, hμ⟩ := Finset.mem_biUnion.mp (Finset.mem_sdiff.mp hμ).1
     exact Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨ν, hv (ht hν), hμ⟩)
 
@@ -195,11 +191,10 @@ theorem stableLayers_eq {K : ℕ} :
   | f + 1, k => by
     simp only [layers, stableLayers]
     split_ifs with hfix
-    · refine ⟨k, le_rfl, rfl, ?_⟩
-      rw [reachUpTo_stable (k := k) hfix (f + 1)]
+    · exact ⟨k, le_rfl, rfl, (reachUpTo_stable (k := k) hfix (f + 1)).le⟩
     · obtain ⟨e, hke, heq, hsub⟩ := stableLayers_eq f (k + 1)
-      refine ⟨e, by omega, ?_, by rw [show k + (f + 1) = k + 1 + f by omega]; exact hsub⟩
-      simpa [layers, reachUpTo] using heq
+      have hk : k + (f + 1) = k + 1 + f := by omega
+      exact ⟨e, Nat.le_of_succ_le hke, by simpa [layers, reachUpTo] using heq, hk ▸ hsub⟩
 
 end Rounds
 
@@ -290,7 +285,7 @@ private theorem take_append_cons_drop {α : Type*} {l : List α} {j : ℕ} {x : 
     (h : l[j]? = some x) :
     l.take j ++ x :: l.drop (j + 1) = l := by
   obtain ⟨hj, rfl⟩ := List.getElem?_eq_some_iff.mp h
-  conv_rhs => rw [← List.take_append_drop j l, List.drop_eq_getElem_cons hj]
+  rw [← List.drop_eq_getElem_cons hj, List.take_append_drop]
 
 theorem initWitness_spec {K : ℕ} {μ : HoleList n State} {w : List (Symbol × Op n Γ)}
     (h : M.initWitness μ = some w) : μ.holes = [] ∧ M.RunsTo K μ [] w := by
@@ -326,10 +321,7 @@ theorem holeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
     obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp h
     rw [List.reverse_eq_cons_iff] at hh hr
     subst hh hr
-    have hlen : rs'.reverse.length = hs.reverse.length := by
-      have := hrs.length_eq
-      simp only [List.length_append, List.length_reverse, List.length_singleton] at this ⊢
-      omega
+    have hlen : rs'.reverse.length = hs.reverse.length := by simpa using hrs.length_eq
     obtain ⟨hpre, hlast⟩ := List.Forall₂.split_of_length_eq hlen hrs
     cases hlast with
     | cons hreal _ =>
@@ -352,7 +344,6 @@ theorem popBack_spec {K : ℕ} {R : Finset (HoleList n State)}
     obtain ⟨⟨γ, s₃, ℓ, ℓ', b⟩, -, h⟩ := List.exists_of_findSome?_eq_some h
     dsimp only at h
     split_ifs at h with hc
-    obtain ⟨hb, hpost, -, hγ⟩ := hc
     obtain ⟨w', hw', h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp h
     obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
@@ -361,10 +352,9 @@ theorem popBack_spec {K : ℕ} {R : Finset (HoleList n State)}
     obtain ⟨hrpre, hrest⟩ := List.Forall₂.split_of_length_eq hlen hrs
     cases hrest with
     | cons hr hrpost =>
-    have hν : M.RealizesAll (rs.take j ++ ((γ, s₃) :: r) :: rs.drop (j + 1))
-        (holes.take j ++ ⟨i, s₁, s₃⟩ :: holes.drop (j + 1)) :=
-      List.rel_append hrpre (.cons (.cons hr hγ) hrpost)
-    exact (hrec _ _ _ hν hw').pop (splitLastHole_eq_some_of hpost _) hlen hb hwn hvrun
+    exact (hrec ⟨holes.take j ++ ⟨i, s₁, s₃⟩ :: holes.drop (j + 1), ℓ⟩ _ _
+      (List.rel_append hrpre (.cons (.cons hr hc.2.2.2) hrpost)) hw').pop
+      (splitLastHole_eq_some_of hc.2.1 _) hlen hc.1 hwn hvrun
   next => simp at h
 
 omit [DecidablePred (· ∈ M.start)] in
@@ -380,34 +370,31 @@ theorem closeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
   obtain ⟨⟨i, s₁, γ, s₃, ℓ, ℓ', b⟩, -, h⟩ := List.exists_of_findSome?_eq_some h
   dsimp only at h
   split_ifs at h with hc
-  obtain ⟨hb, hpost, -, hγ⟩ := hc
   obtain ⟨w', hw', h⟩ := Option.bind_eq_some_iff.mp h
   obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp h
   obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
   have hlen : (rs.take j).length = (holes.take j).length := by simp [hrs.length_eq]
   rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs ⊢
   obtain ⟨hrpre, hrpost⟩ := List.Forall₂.split_of_length_eq hlen hrs
-  have hν : M.RealizesAll (rs.take j ++ [(γ, s₃)] :: rs.drop j)
-      (holes.take j ++ ⟨i, s₁, s₃⟩ :: holes.drop j) :=
-    List.rel_append hrpre (.cons (.cons .nil hγ) hrpost)
-  exact (hrec _ _ _ hν hw').popClose (splitLastHole_eq_some_of hpost _) hlen hb hwn hvrun
+  exact (hrec ⟨holes.take j ++ ⟨i, s₁, s₃⟩ :: holes.drop j, ℓ⟩ _ _
+    (List.rel_append hrpre (.cons (.cons .nil hc.2.2.2) hrpost)) hw').popClose
+    (splitLastHole_eq_some_of hc.2.1 _) hlen hc.1 hwn hvrun
 
 /-- **Soundness of the backward search**: a found run reaches the list. -/
 theorem holeWitness_spec {K : ℕ} :
     ∀ (Rs : List (Finset (HoleList n State))), RecSound M K (M.holeWitness K Rs)
-  | [], μ, rs, w, hrs, h => by
-    obtain ⟨hh, hw⟩ := initWitness_spec (K := K) h
-    exact List.forall₂_nil_right_iff.mp (hh ▸ hrs) ▸ hw
+  | [], μ, rs, w, hrs, h =>
+    List.forall₂_nil_right_iff.mp ((initWitness_spec (K := K) h).1 ▸ hrs) ▸
+      (initWitness_spec (K := K) h).2
   | R :: Rs, μ, rs, w, hrs, h => by
     simp only [holeWitness, Option.orElse_eq_orElse, Option.orElse_eq_or] at h
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
-    · obtain ⟨hh, hw⟩ := initWitness_spec (K := K) h
-      exact List.forall₂_nil_right_iff.mp (hh ▸ hrs) ▸ hw
+    · exact List.forall₂_nil_right_iff.mp ((initWitness_spec (K := K) h).1 ▸ hrs) ▸
+        (initWitness_spec (K := K) h).2
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
     · exact holeBack_spec (holeWitness_spec Rs) hrs h
-    rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
-    · exact popBack_spec (holeWitness_spec Rs) hrs h
-    · exact closeBack_spec (holeWitness_spec Rs) hrs h
+    exact (Option.or_eq_some_iff.mp h).elim (popBack_spec (holeWitness_spec Rs) hrs)
+      fun h => closeBack_spec (holeWitness_spec Rs) hrs h.2
 
 end BackwardSound
 
@@ -418,20 +405,11 @@ section BackwardComplete
 variable {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
   [DecidablePred (· ∈ M.start)]
 
-private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option β} (f : α → β → γ)
-    (ha : a.isSome) (hb : b.isSome) : (a.bind fun x => b.map (f x)).isSome := by
-  obtain ⟨x, rfl⟩ := Option.isSome_iff_exists.mp ha
-  obtain ⟨y, rfl⟩ := Option.isSome_iff_exists.mp hb
-  rfl
-
 theorem isSome_initWitness {μ : HoleList n State} (h : μ ∈ M.initialLists) :
     (M.initWitness μ).isSome := by
   obtain ⟨hh, s₀, hs₀, hwr⟩ := mem_initialLists.mp h
-  unfold initWitness
-  simp only [hh, ↓reduceIte]
-  refine List.findSome?_isSome_iff.mpr ⟨s₀, FinEnum.mem_toList _, ?_⟩
-  simp only [hs₀, ↓reduceIte]
-  exact isSome_wrWitness hwr
+  simp only [initWitness, hh, ↓reduceIte, List.findSome?_isSome_iff]
+  exact ⟨s₀, FinEnum.mem_toList _, by simp [hs₀, isSome_wrWitness hwr]⟩
 
 theorem isSome_holeWitness_of_init {K : ℕ} {Rs : List (Finset (HoleList n State))}
     {μ : HoleList n State} {rs : List (List (Γ × State))} (h : μ ∈ M.initialLists) :
@@ -472,9 +450,7 @@ theorem isSome_holeWitness {K : ℕ} :
       simp only at hs hK
       subst hs
       obtain ⟨rs₀, rs₁, rfl, -, hrs₀, hrs₁⟩ := List.Forall₂.split_right hrs
-      cases hrs₁ with
-      | cons hr h =>
-      cases h
+      rcases hrs₁ with _ | ⟨hr, _ | ⟨⟩⟩
       unfold holeBack
       simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
         List.cons_append, List.reverse_reverse]
@@ -501,9 +477,8 @@ theorem isSome_holeWitness {K : ℕ} :
         have hr' : (rpre ++ r :: rpost)[pre.length]? = some r := by rw [← hlen]; simp
         simp only [hh, hr']
         refine List.findSome?_isSome_iff.mpr ⟨(γ, s₃, ℓν, s', b), FinEnum.mem_toList _, ?_⟩
-        simp only [List.take_left, List.take_left' hlen,
-          show (pre ++ ⟨i, s₁, s₂⟩ :: post).drop (pre.length + 1) = post by simp,
-          show (rpre ++ r :: rpost).drop (pre.length + 1) = rpost by simp [← hlen]]
+        simp only [List.take_left, List.take_left' hlen, ← List.drop_drop, List.drop_left,
+          List.drop_left' hlen, List.drop_succ_cons, List.drop_zero]
         split_ifs with hc
         · exact isSome_bind_map _ (ih (List.rel_append hrpre (.cons (.cons hr hγ) hrpost)))
             (isSome_wrWitness hwr)
@@ -550,13 +525,12 @@ theorem witness_spec {K : ℕ} {w : List (Symbol × Op n Γ)} (h : M.witness K =
   obtain ⟨⟨ℓ, f⟩, -, h⟩ := List.exists_of_findSome?_eq_some h
   dsimp only at h
   split_ifs at h with hc
-  obtain ⟨hf, -⟩ := hc
   obtain ⟨v, hv, h⟩ := Option.bind_eq_some_iff.mp h
   obtain ⟨w', hw', rfl⟩ := Option.map_eq_some_iff.mp h
   obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
   obtain ⟨s₀, hs₀, hrun, hb⟩ :=
     (holeWitness_spec _ ⟨[], ℓ⟩ [] w' List.Forall₂.nil hw').accepting rfl hwn hvrun
-  exact ⟨s₀, hs₀, f, hf, hrun, hb⟩
+  exact ⟨s₀, hs₀, f, hc.1, hrun, hb⟩
 
 /-- A returned run reads a word of the `K`-hole-bounded language. -/
 theorem map_fst_mem_boundedLanguage_of_witness {K : ℕ} {w : List (Symbol × Op n Γ)}
@@ -568,19 +542,13 @@ theorem map_fst_mem_boundedLanguage_of_witness {K : ℕ} {w : List (Symbol × Op
 answers `false`, that is, by Theorem 1, exactly when the `K`-hole-bounded language is not
 empty. -/
 theorem isSome_witness_iff {K : ℕ} : (M.witness K).isSome ↔ M.isEmpty K = false := by
-  constructor
-  · intro h
-    obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨_, hw⟩ := Option.isSome_iff_exists.mp h
     exact isEmpty_eq_false_of_mem_boundedLanguage (map_fst_mem_boundedLanguage_of_witness hw)
-  · intro h
-    unfold isEmpty isEmptyFrom at h
-    rw [decide_eq_false_iff_not, not_not] at h
-    obtain ⟨μ, hμ, hholes, f, hf, hwr⟩ := h
-    have hμR : μ ∈ M.reachUpTo K (0 + listBound n State K) :=
-      explore_subset_reachUpTo _ 0 _ _ le_rfl le_rfl hμ
+  · simp only [isEmpty, isEmptyFrom, decide_eq_false_iff_not, not_not] at h
+    obtain ⟨⟨_, ℓ⟩, hμ, rfl, f, hf, hwr⟩ := h
+    have hμR := explore_subset_reachUpTo _ 0 _ _ le_rfl le_rfl hμ
     obtain ⟨e, -, heq, hsub⟩ := stableLayers_eq (M := M) (K := K) (listBound n State K) 0
-    obtain ⟨holes, ℓ⟩ := μ
-    cases hholes
     have hL : M.stableLayers K (listBound n State K) [M.initialLists] = M.layers K (e + 1) := heq
     refine List.findSome?_isSome_iff.mpr ⟨(ℓ, f), FinEnum.mem_toList _, ?_⟩
     simp only [hL]

@@ -73,30 +73,20 @@ variable {k a b r : ℕ}
 /-- A strand with an input port is uniquely determined by that port. -/
 theorem inputStrand_of_index (e : Strand k a b r) (i : Fin (k + a + r))
     (hi : inputIndex e = some i) : inputStrand i = e := by
-  rcases e with j | ((j | j) | j) <;> simp only [inputIndex, Option.some.injEq] at hi
-  · subst i
-    simp [inputStrand, j.isLt]
-  · subst i
-    simp [inputStrand, show ¬k + j.val < k by omega,
-      show k + j.val < k + a by have := j.isLt; omega]
-  · cases hi
-  · subst i
-    simp [inputStrand, show ¬k + a + j.val < k by omega,
-      show ¬k + a + j.val < k + a by omega]
+  rcases e with j | ((j | j) | j) <;> cases hi
+  all_goals
+    have := j.isLt
+    dsimp only [inputStrand]
+    split_ifs <;> (try simp only [Sum.inl.injEq, Sum.inr.injEq, Fin.ext_iff]) <;> omega
 
 /-- A strand with an output port is uniquely determined by that port. -/
 theorem outputStrand_of_index (e : Strand k a b r) (j : Fin (k + b + r))
     (hj : outputIndex e = some j) : outputStrand j = e := by
-  rcases e with i | ((i | i) | i) <;> simp only [outputIndex, Option.some.injEq] at hj
-  · subst j
-    simp [outputStrand, i.isLt]
-  · cases hj
-  · subst j
-    simp [outputStrand, show ¬k + i.val < k by omega,
-      show k + i.val < k + b by have := i.isLt; omega]
-  · subst j
-    simp [outputStrand, show ¬k + b + i.val < k by omega,
-      show ¬k + b + i.val < k + b by omega]
+  rcases e with i | ((i | i) | i) <;> cases hj
+  all_goals
+    have := i.isLt
+    dsimp only [outputStrand]
+    split_ifs <;> (try simp only [Sum.inl.injEq, Sum.inr.injEq, Fin.ext_iff]) <;> omega
 
 /-- The unique cell vertex in the layer's own coordinates. -/
 @[expose] def Layer.center (_L : Layer k a b r) : Point :=
@@ -130,10 +120,7 @@ theorem Layer.center_rows (L : Layer k a b r) :
 theorem Layer.edge_rows (L : Layer k a b r) (e : Strand k a b r) :
     (L.source e).2 < (L.target e).2 := by
   rcases e with i | ((i | j) | j)
-  · exact L.height_pos
-  · exact L.center_rows.1
-  · exact L.center_rows.2
-  · exact L.height_pos
+  exacts [L.height_pos, L.center_rows.1, L.center_rows.2, L.height_pos]
 
 /-- Each upper band supplies its actual orthogonal path. -/
 private theorem Layer.connected_upper (L : Layer k a b r) (e : Strand k a b r)

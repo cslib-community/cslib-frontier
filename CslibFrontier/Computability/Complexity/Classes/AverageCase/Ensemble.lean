@@ -117,12 +117,9 @@ theorem cdf_eq_cdfLo_add (D : Ensemble) (x : List Bool) :
   congr 1
   rw [PMF.toOuterMeasure_apply, tsum_eq_single x]
   · simp
-  · intro y hy
-    by_cases hyx : BitString.binaryValue y = BitString.binaryValue x
-    · rw [Set.indicator_of_mem hyx]
-      exact by_contra fun hne => hy (BitString.binaryValue_injective_of_length_eq
+  · exact fun y hy => Set.indicator_apply_eq_zero.mpr fun hyx =>
+      Decidable.byContradiction fun hne => hy (BitString.binaryValue_injective_of_length_eq
         (D.length_eq _ _ ((PMF.mem_support_iff _ _).mpr hne)) hyx)
-    · rw [Set.indicator_of_notMem hyx]
 
 /-- Nothing lies below a word of value `0`. -/
 theorem cdfLo_of_binaryValue_eq_zero (D : Ensemble) {x : List Bool}
@@ -213,12 +210,9 @@ theorem uniform_toOuterMeasure_binaryValue_lt {N K : ℕ} (hK : K ≤ 2 ^ N) :
   rcases Nat.eq_zero_or_pos K with rfl | hK0
   · simp
   · obtain ⟨u, hu⟩ := BitString.exists_binaryValue_eq (t := N) (k := K - 1) (by omega)
-    have h := cdf_uniform (List.ofFn u)
-    rw [cdf, List.length_ofFn, hu, show K - 1 + 1 = K by omega] at h
-    rw [← h]
-    congr 1
-    ext
-    simp only [Set.mem_ofPred_eq]; omega
+    have hset : {r | BitString.binaryValue r < K} = {y | BitString.binaryValue y ≤ K - 1} :=
+      Set.ext fun _ => by simp only [Set.mem_ofPred_eq]; omega
+    simpa [cdf, hset, hu, Nat.sub_add_cancel hK0] using cdf_uniform (List.ofFn u)
 
 /-- The uniform ensemble is polynomial-time computable. -/
 theorem uniform_pComp : uniform.PComp :=

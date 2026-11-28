@@ -15,10 +15,13 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
-# Nondeterministic space within deterministic exponential time
+# Nondeterministic space and time
 
-A nondeterministic machine within space `s` is simulated deterministically within time
-`2 ^ O(log₂ n + s)` [Arora and Barak, Section 4.1][AroraBarak09]
+Nondeterministic time bounds nondeterministic space: along every computation path a machine
+visits at most one new cell per work tape and step, so `NTIME t ⊆ NSPACE t`.
+
+In the other direction, a nondeterministic machine within space `s` is simulated deterministically
+within time `2 ^ O(log₂ n + s)` [Arora and Barak, Section 4.1][AroraBarak09]
 [Sipser, Section 8.4][Sipser2013]: list the views reachable from the initial view by breadth-first
 search until no new view appears (`Turing.MultiTapeNTM.reachableViews`), and test whether one of
 them is accepting. The simulation holds for recognizers (`Turing.MultiTapeNTM.RecognizesInSpace`),
@@ -31,6 +34,7 @@ statements here also cover nonhalting recognizers and arbitrary encoded instance
 
 ## Main results
 
+* `Cslib.Complexity.NTIME_subset_NSPACE`: `NTIME t ⊆ NSPACE t`.
 * `Turing.MultiTapeNTM.RecognizesInSpace.mem_DTIME`: a problem recognized within space `s` is in
   `DTIME (2 ^ (c * (log₂ n + s n + 1)))`.
 * `Cslib.Complexity.exists_mem_DTIME_of_mem_NSPACE`: `NSPACE s ⊆ DTIME (2 ^ O(log₂ n + s n))`.
@@ -83,6 +87,13 @@ namespace Cslib.Complexity
 open _root_.Turing
 
 variable {α : Type} {enc : α ↪ List Bool}
+
+/-- **Nondeterministic time bounds space**: along every computation path a machine visits at most
+one new cell per work tape and step, so `NTIME t ⊆ NSPACE t`. -/
+theorem NTIME_subset_NSPACE {t : ℕ → ℕ} : NTIME enc t ⊆ NSPACE enc t := by
+  rintro A ⟨c₁, c₂, k, State, hfin, ntm, hA⟩
+  refine ⟨k, State, hfin, ntm, k * c₁, k * (c₂ + 1), hA.decidesInSpace.mono fun a => ?_⟩
+  rw [Nat.mul_assoc, ← Nat.mul_add, Nat.add_assoc]
 
 /-- **Nondeterministic space is within deterministic exponential time**
 [Arora and Barak, Section 4.1][AroraBarak09] [Sipser, Section 8.4][Sipser2013]:

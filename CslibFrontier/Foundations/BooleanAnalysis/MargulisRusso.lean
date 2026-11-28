@@ -7,10 +7,8 @@ Authors: Vincent Liew
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
-public import CslibFrontier.Foundations.BooleanAnalysis.Influence
+public import CslibFrontier.Foundations.BooleanAnalysis.BiasedFourier
 public import Mathlib.Analysis.Calculus.Deriv.Basic
-public import Mathlib.Analysis.Real.Sqrt
 import Mathlib.Analysis.Calculus.Deriv.Comp
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 
@@ -31,12 +29,13 @@ identities of polynomials at every real `p`; the weighted sums are expectations 
 
 The book states the formula [O'Donnell, Section 8.4, (8.8)][ODonnell2014] for `0 < p < 1` as a
 derivative in the mean `μ = 1 - 2p` of a bit read as a sign: it is `σ⁻¹ ∑ᵢ f̂^{(p)}(i)`, where
-`σ = 2√(p(1 - p))` and `f̂^{(p)}(i) = 𝔼_p[h · (signVal (x i) - μ) / σ]` is the `p`-biased Fourier
-coefficient on `{i}` (Definitions 8.39 and 8.40). That statement is
-`BitString.hasDerivAt_bernoulliAverage_one_sub_div_two`, which differentiates
+`σ = 2√(p(1 - p))` (`BitString.biasedStd`) and `f̂^{(p)}(i)` is the `p`-biased Fourier
+coefficient on `{i}` (`BitString.biasedFourierCoeff` of
+`CslibFrontier.Foundations.BooleanAnalysis.BiasedFourier`, Definitions 8.39 and 8.40). That
+statement is `BitString.hasDerivAt_bernoulliAverage_one_sub_div_two`, which differentiates
 `m ↦ bernoulliAverage ((1 - m) / 2) h` at `μ`. Its proof follows the book's: `d/dμ = -(1/2) d/dp`,
-and pairing across bit `i` gives `𝔼_p[h · (signVal (x i) - μ)] = σ² 𝔼_p[D_{x_i} h]`
-(`BitString.bernoulliAverage_mul_signVal_sub`).
+and pairing across bit `i` gives `f̂^{(p)}(i) = σ 𝔼_p[D_{x_i} h]`
+(`BitString.biasedFourierCoeff_singleton`).
 
 For a monotone Boolean function the change is the indicator that `i` is pivotal, so the derivative
 of `Pr_p[f = true]` is the expected number of pivotal coordinates
@@ -74,10 +73,10 @@ The bit-string helpers of `CslibFrontier.Foundations.Data.BitString.Flip` connec
 naming a pivotal coordinate: `BitString.exists_update_ne_of_nonconstant` finds `x` and `i` with
 `f (Function.update x i (!x i)) ≠ f x`, and
 `BitString.apply_update_false_eq_apply_update_true_iff` converts that form into the
-`false`/`true` form used here. `BitString.sum_update_false_add_update_true` pairs every vector
-with its flip at `i` in any additive commutative monoid, which is how the bit weights are
-regrouped in the proof; `BitString.bernoulliWeight_pos` gives positive mask weights for
-`0 < p < 1`.
+`false`/`true` form used here. The proof regroups the derivative of the bit weights by
+`BitString.sum_prod_erase_mul_ite_mul_eq_bernoulliAverage` of
+`CslibFrontier.Foundations.BooleanAnalysis.Bernoulli`, which pairs every vector with its flip at
+`i`; `BitString.bernoulliWeight_pos` gives positive mask weights for `0 < p < 1`.
 
 Checked clients differentiate the product of two bits (slope `2p`), a dictator (slope `1`, also
 in the influence form) and the dictator read as a sign (slope `-2` in `p`, in the derivative form,
@@ -92,8 +91,6 @@ pivotal coordinate of the AND of two bits, show that its probability is strictly
   form, the expected change when a bit is set.
 * `Cslib.BitString.hasDerivAt_bernoulliAverage_sum_derivative`: the same, in terms of the
   derivatives `Dᵢ h`.
-* `Cslib.BitString.bernoulliAverage_mul_signVal_sub`: the `p`-biased Fourier coefficient on `{i}`
-  is `σ` times the expected derivative `Dᵢ h`.
 * `Cslib.BitString.hasDerivAt_bernoulliAverage_one_sub_div_two`: the Margulis–Russo Formula
   (8.8) in the book's form.
 * `Cslib.BitString.hasDerivAt_bernoulliAverage_bitVal_of_monotone`: the formula for monotone
@@ -124,49 +121,21 @@ theorem hasDerivAt_bernoulliAverage (h : (ι → Bool) → ℝ) (p : ℝ) :
     HasDerivAt (fun q => bernoulliAverage q h)
       (∑ i, bernoulliAverage p fun x =>
         h (Function.update x i true) - h (Function.update x i false)) p := by
-  set w : ι → (ι → Bool) → ℝ → ℝ := fun j s q => if s j = true then q else 1 - q
   have hw (j : ι) (s : ι → Bool) :
-      HasDerivAt (w j s) (if s j = true then 1 else -1) p := by
+      HasDerivAt (fun q : ℝ => if s j then q else 1 - q) (if s j then 1 else -1) p := by
     by_cases hj : s j = true
-    · simpa [w, hj] using hasDerivAt_id' p
-    · simpa [w, hj] using (hasDerivAt_id p).const_sub 1
+    · simpa [hj] using hasDerivAt_id' p
+    · simpa [hj] using (hasDerivAt_id p).const_sub 1
   have hsum := HasDerivAt.fun_sum (u := univ) fun s _ =>
     (HasDerivAt.fun_finsetProd (u := univ) fun j _ => hw j s).mul_const (h s)
   refine hsum.congr_deriv ?_
   -- the derivative, regrouped by coordinate
-  have hW (t : ι → Bool) (i : ι) :
-      bernoulliWeight p t = w i t p * ∏ j ∈ univ.erase i, w j t p :=
-    (mul_prod_erase univ (fun j => w j t p) (mem_univ i)).symm
-  have hR (i : ι) (s : ι → Bool) (b : Bool) :
-      ∏ j ∈ univ.erase i, w j (Function.update s i b) p = ∏ j ∈ univ.erase i, w j s p :=
-    prod_congr rfl fun j hj => by simp [w, Function.update_of_ne (ne_of_mem_erase hj)]
-  have key (i : ι) : ∑ s, (∏ j ∈ univ.erase i, w j s p) * (if s i = true then 1 else -1) * h s =
-      bernoulliAverage p fun x => h (Function.update x i true) - h (Function.update x i false) := by
-    have e₁ := sum_update_false_add_update_true i
-      fun s => (∏ j ∈ univ.erase i, w j s p) * (if s i = true then 1 else -1) * h s
-    have e₂ := sum_update_false_add_update_true i fun s => bernoulliWeight p s *
-      (h (Function.update s i true) - h (Function.update s i false))
-    have hpt (x : ι → Bool) :
-        (∏ j ∈ univ.erase i, w j (Function.update x i false) p) *
-            (if Function.update x i false i = true then 1 else -1) *
-            h (Function.update x i false) +
-          (∏ j ∈ univ.erase i, w j (Function.update x i true) p) *
-            (if Function.update x i true i = true then 1 else -1) *
-            h (Function.update x i true) =
-        bernoulliWeight p (Function.update x i false) *
-            (h (Function.update (Function.update x i false) i true) -
-              h (Function.update (Function.update x i false) i false)) +
-          bernoulliWeight p (Function.update x i true) *
-            (h (Function.update (Function.update x i true) i true) -
-              h (Function.update (Function.update x i true) i false)) := by
-      simp only [hW _ i, hR, Function.update_idem, Function.update_self, w]
-      simp only [Bool.false_eq_true, ite_false, ite_true]
-      ring
-    simp only [hpt] at e₁
-    rw [bernoulliAverage]
-    linear_combination e₂ / 2 - e₁ / 2
-  simp only [smul_eq_mul, sum_mul, ← key]
-  exact sum_comm
+  simp only [smul_eq_mul, sum_mul]
+  rw [sum_comm]
+  refine sum_congr rfl fun i _ => ?_
+  rw [sum_prod_erase_mul_ite_mul_eq_bernoulliAverage]
+  congr 1 with x
+  ring
 
 /-- The derivative in `p` of the `p`-biased expectation of `h` is `-2 ∑ᵢ 𝔼_p[Dᵢ h]`. With
 `μ = 1 - 2p`, this is the step `d/dμ 𝔼[h^{(p)}] = ∑ᵢ 𝔼[D_{x_i} h^{(p)}]` of the proof of (8.8)
@@ -183,76 +152,24 @@ theorem hasDerivAt_bernoulliAverage_sum_derivative (h : (ι → Bool) → ℝ) (
   rw [derivative]
   ring
 
-/-- Pairing across bit `i` against the centered sign of bit `i`: with `μ = 1 - 2p`, the mean of
-`signVal (x i)`, the `p`-biased expectation of `h · (signVal (x i) - μ)` is `4p(1 - p)` times that
-of the derivative `Dᵢ h`. Since `σ² = 4p(1 - p)`, this is the step
-`𝔼_p[D_{x_i} f] = σ⁻¹ f̂^{(p)}(i)` of the book's proof of (8.8). -/
-theorem bernoulliAverage_mul_signVal_sub (h : (ι → Bool) → ℝ) (p : ℝ) (i : ι) :
-    (bernoulliAverage p fun x => h x * (signVal (x i) - (1 - 2 * p))) =
-      4 * p * (1 - p) * bernoulliAverage p (derivative i h) := by
-  have hw (x : ι → Bool) : (1 - p) * bernoulliWeight p (Function.update x i true) =
-      p * bernoulliWeight p (Function.update x i false) := by
-    have hR (b : Bool) : ∏ j ∈ univ.erase i, (if Function.update x i b j = true then p else 1 - p)
-        = ∏ j ∈ univ.erase i, (if x j = true then p else 1 - p) :=
-      prod_congr rfl fun j hj => by rw [Function.update_of_ne (ne_of_mem_erase hj)]
-    rw [bernoulliWeight, bernoulliWeight, ← mul_prod_erase univ _ (mem_univ i),
-      ← mul_prod_erase univ _ (mem_univ i), hR, hR]
-    simp only [Function.update_self, ite_true, Bool.false_eq_true, ite_false]
-    ring
-  have e₁ := sum_update_false_add_update_true i fun x =>
-    bernoulliWeight p x * (h x * (signVal (x i) - (1 - 2 * p)))
-  have e₂ := sum_update_false_add_update_true i fun x =>
-    bernoulliWeight p x * (4 * p * (1 - p) * derivative i h x)
-  have e₃ : ∑ x, (bernoulliWeight p (Function.update x i false) *
-        (h (Function.update x i false) * (signVal (Function.update x i false i) - (1 - 2 * p))) +
-      bernoulliWeight p (Function.update x i true) *
-        (h (Function.update x i true) * (signVal (Function.update x i true i) - (1 - 2 * p)))) =
-      ∑ x, (bernoulliWeight p (Function.update x i false) *
-          (4 * p * (1 - p) * derivative i h (Function.update x i false)) +
-        bernoulliWeight p (Function.update x i true) *
-          (4 * p * (1 - p) * derivative i h (Function.update x i true))) :=
-    sum_congr rfl fun x _ => by
-      simp only [derivative, Function.update_self, Function.update_idem, signVal_true,
-        signVal_false]
-      linear_combination (-2 * (1 - p) * h (Function.update x i true) -
-        2 * p * h (Function.update x i false)) * hw x
-  beta_reduce at e₁ e₂
-  rw [← bernoulliAverage_const_mul]
-  simp only [bernoulliAverage]
-  linarith
-
 /-- **The Margulis–Russo Formula** [O'Donnell, Section 8.4, (8.8)][ODonnell2014], in the book's
-form: for `0 < p < 1`, with `μ = 1 - 2p` and `σ = 2√(p(1 - p))`, the derivative in `μ` of the
-`p`-biased expectation of `h` is `σ⁻¹ ∑ᵢ f̂^{(p)}(i)`. Here `f̂^{(p)}(i)` is the `p`-biased Fourier
-coefficient `𝔼_p[h · φ(x i)]` of `h` on `{i}`, with `φ(x i) = (signVal (x i) - μ) / σ`
+form: for `0 < p < 1`, with `μ = 1 - 2p` and `σ = 2√(p(1 - p))` (`biasedStd p`), the derivative in
+`μ` of the `p`-biased expectation of `h` is `σ⁻¹ ∑ᵢ f̂^{(p)}(i)`, where `f̂^{(p)}(i)` is the
+`p`-biased Fourier coefficient `biasedFourierCoeff p h {i}`
 [O'Donnell, Definitions 8.39 and 8.40][ODonnell2014], and the expectation at mean `m` is the one
 at rate `(1 - m) / 2`. -/
 theorem hasDerivAt_bernoulliAverage_one_sub_div_two (h : (ι → Bool) → ℝ) {p : ℝ} (hp : 0 < p)
     (hp' : p < 1) :
     HasDerivAt (fun m => bernoulliAverage ((1 - m) / 2) h)
-      ((2 * √(p * (1 - p)))⁻¹ * ∑ i, bernoulliAverage p fun x =>
-        h x * ((signVal (x i) - (1 - 2 * p)) / (2 * √(p * (1 - p))))) (1 - 2 * p) := by
-  set σ := 2 * √(p * (1 - p)) with hσ
-  have hσ2 : σ ^ 2 = 4 * p * (1 - p) := by
-    rw [hσ, mul_pow, Real.sq_sqrt (mul_pos hp (by linarith)).le]
-    ring
-  have hσ0 : σ ≠ 0 := fun h0 => by
-    rw [h0] at hσ2
-    nlinarith
+      ((biasedStd p)⁻¹ * ∑ i, biasedFourierCoeff p h {i}) (1 - 2 * p) := by
+  have hσ := biasedStd_ne_zero hp hp'
   have hm : HasDerivAt (fun m : ℝ => (1 - m) / 2) (-1 / 2) (1 - 2 * p) := by
     simpa using ((hasDerivAt_id (1 - 2 * p)).const_sub 1).div_const 2
   have hd := (hasDerivAt_bernoulliAverage_sum_derivative h ((1 - (1 - 2 * p)) / 2)).comp
     (1 - 2 * p) hm
   rw [show (1 - (1 - 2 * p)) / 2 = p by ring] at hd
   refine hd.congr_deriv ?_
-  have hc (i : ι) : (bernoulliAverage p fun x => h x * ((signVal (x i) - (1 - 2 * p)) / σ)) =
-      σ⁻¹ * (4 * p * (1 - p) * bernoulliAverage p (derivative i h)) := by
-    rw [← bernoulliAverage_mul_signVal_sub, ← bernoulliAverage_const_mul]
-    congr 1
-    funext x
-    ring
-  simp only [hc, ← mul_sum]
-  rw [← hσ2]
+  simp only [biasedFourierCoeff_singleton hp hp', ← mul_sum]
   field_simp
 
 /-- **The Margulis–Russo Formula for monotone functions** [O'Donnell, Section 8.4][ODonnell2014]:

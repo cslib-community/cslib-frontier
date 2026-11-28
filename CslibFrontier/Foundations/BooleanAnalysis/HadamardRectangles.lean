@@ -99,14 +99,9 @@ theorem card_mul_le_two_pow_of_dotProduct_eq (A B : Finset (ι → Bool)) (b : B
       _ = _ := by simp [mul_assoc]
   have hL := sq_sum_signVal_dotProduct_le A B
   rw [hs, mul_pow, show signVal b ^ 2 = 1 by cases b <;> norm_num, mul_one, sq] at hL
-  have : (#A : ℝ) * #B ≤ 2 ^ Fintype.card ι := by
-    rcases (Nat.cast_nonneg (α := ℝ) (#A * #B)).eq_or_lt with h0 | h0
-    · rw [Nat.cast_mul] at h0
-      rw [← h0]
-      positivity
-    · rw [Nat.cast_mul] at h0
-      exact le_of_mul_le_mul_left hL h0
-  exact_mod_cast this
+  obtain h0 | h0 := Nat.eq_zero_or_pos (#A * #B)
+  · simp [h0]
+  · exact Nat.le_of_mul_le_mul_left (by exact_mod_cast hL) h0
 
 /-! ### Weighted sums: the Hadamard transform in `ℓ²` -/
 
@@ -124,11 +119,7 @@ theorem sum_signVal_dotProduct_mul_signVal_dotProduct (x x' : ι → Bool) :
   by_cases hxx : x = x'
   · subst hxx
     simp [signVal_mul_self]
-  · have hne : x + x' ≠ 0 := fun h => hxx (funext fun i => by
-      have hi := congrFun h i
-      simp only [Pi.add_apply, Pi.zero_apply] at hi
-      revert hi
-      cases x i <;> cases x' i <;> decide)
+  · have hne : x + x' ≠ 0 := fun h => hxx (by simpa [add_assoc] using congrArg (· + x') h)
     simp only [hsign, sum_ite_dotProduct, hne, hxx, ite_false]
 
 /-- **Parseval's identity for the Hadamard transform.** For real weights `a` on the bit strings

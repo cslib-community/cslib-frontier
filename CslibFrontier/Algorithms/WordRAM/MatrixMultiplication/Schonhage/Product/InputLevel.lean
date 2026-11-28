@@ -28,16 +28,11 @@ theorem input_change_level {m N : ℕ} (bits : Bool) (L L' : ℕ)
     (qs : List (Fin N × Fin N)) (a : ℕ) (ha : a ≠ 1) :
     (State.init (input bits L X Y qs) : State 160).data.mem a =
       (State.init (input bits L' X Y qs) : State 160).data.mem a := by
-  cases a with
-  | zero =>
-    change (Data.init _ : Data 160).mem 0 = (Data.init _ : Data 160).mem 0
-    rw [Data.init_mem_zero, Data.init_mem_zero]
-    have h := input_length bits L X Y qs
-    have h' := input_length bits L' X Y qs
-    omega
-  | succ a =>
-    cases a with
-    | zero => exact (ha rfl).elim
-    | succ a => rfl
+  rcases a with _ | _ | a
+  · simp only [State.init, Data.init_mem_zero]
+    exact Nat.add_right_cancel
+      ((input_length bits L X Y qs).trans (input_length bits L' X Y qs).symm)
+  · exact (ha rfl).elim
+  · rfl
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

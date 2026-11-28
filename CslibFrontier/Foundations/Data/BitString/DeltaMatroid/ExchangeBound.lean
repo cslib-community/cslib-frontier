@@ -60,15 +60,10 @@ theorem IsEvenDeltaMatroid.card_disagree_le (hR : IsEvenDeltaMatroid R)
         intro i hi
         obtain ⟨hiO, hxy'⟩ := mem_filter.mp hi
         have hie : i ≠ e := by
-          intro h
-          subst h
-          apply hxy'
-          rw [show y' i = !y i from flipOn_apply_of_mem (mem_insert_self i {j})]
-          exact Bool.eq_not_iff.mpr he
-        refine mem_erase.mpr ⟨hie, mem_filter.mpr ⟨hiO, ?_⟩⟩
-        by_cases hij : i = j
-        · exact hij ▸ hj.symm
-        · rwa [hy'_of_ne hie hij] at hxy'
+          rintro rfl
+          exact hxy' ((Bool.eq_not_iff.mpr he).trans (by simp [y', flipOn_apply]))
+        exact mem_erase.mpr ⟨hie, mem_filter.mpr ⟨hiO,
+          if hij : i = j then hij ▸ hj.symm else hy'_of_ne hie hij ▸ hxy'⟩⟩
       have h₁ := (card_le_card hI).trans (card_insert_le j _)
       have h₂ := (card_le_card hO').trans_lt (card_erase_lt_of_mem (mem_filter.mpr ⟨heO, he⟩))
       omega

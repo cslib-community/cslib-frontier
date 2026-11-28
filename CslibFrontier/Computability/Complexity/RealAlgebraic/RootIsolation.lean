@@ -291,11 +291,9 @@ private theorem getLastD_eq_reverse_headD {α : Type*} (l : List α) (d : α) :
   rw [List.getLastD_eq_getLast?, List.headD_eq_head?_getD, List.getLast?_eq_head?_reverse]
 
 private theorem ratPoly_getLastD_polyTime (d : ℚ) :
-    ComputableInPolyTime (fun l : List ℚ => l.getLastD d) encRatPoly encRat := by
-  have heq : (fun l : List ℚ => l.getLastD d) = fun l => l.reverse.headD d :=
-    funext fun l => getLastD_eq_reverse_headD l d
-  rw [heq]
-  exact (headD d).comp (listReverse encRat)
+    ComputableInPolyTime (fun l : List ℚ => l.getLastD d) encRatPoly encRat :=
+  ((headD d).comp (listReverse encRat)).of_enc_eq fun l =>
+    congrArg encRat (getLastD_eq_reverse_headD l d)
 
 /-! ### Polynomial-time Euclidean division `CoeffList.divMod` and `negMod` over `ℚ` -/
 
@@ -403,18 +401,11 @@ private theorem div_mul_int_eq_div_natAbs (D : ℕ) (num w : ℤ) (hw : w ≠ 0)
       num'.natAbs = num.natAbs := by
   rcases lt_or_gt_of_ne hw with hneg | hpos
   · have hw_z : w = -(w.natAbs : ℤ) := by omega
-    have hw_eq : (w : ℚ) = -(w.natAbs : ℚ) := by
-      conv_lhs => rw [hw_z]
-      rw [Int.cast_neg, Int.cast_natCast]
     refine ⟨-num, ?_, Int.natAbs_neg num⟩
-    rw [hw_eq, Int.cast_neg, Nat.cast_mul]
+    rw [congrArg Int.cast hw_z, Int.cast_neg, Int.cast_natCast, Int.cast_neg, Nat.cast_mul]
     ring
   · have hw_z : w = (w.natAbs : ℤ) := by omega
-    have hw_eq : (w : ℚ) = (w.natAbs : ℚ) := by
-      conv_lhs => rw [hw_z]
-      rw [Int.cast_natCast]
-    refine ⟨num, ?_, rfl⟩
-    rw [hw_eq, Nat.cast_mul]
+    exact ⟨num, by rw [congrArg Int.cast hw_z, Int.cast_natCast, Nat.cast_mul], rfl⟩
 
 private theorem divModStep_commonDenomBound {bt : List ℚ} {Db Bbt W : ℕ} {wlc : ℤ}
     (hDb1 : 1 ≤ Db) (hDb_le : Db ≤ Bbt)
@@ -517,10 +508,7 @@ private theorem divMod_iterate_bitBound (a b : List ℚ) {B : ℕ}
         have hDj1 : 1 ≤ Da * W ^ j := Nat.mul_pos hDa1 (Nat.pow_pos hW1)
         obtain ⟨hq', hr'⟩ := divModStep_commonDenomBound
           hDb1 hDb_le hbt_cd hlc_eq hw0 rfl hwlc_le hDj1 ih.1 ih.2
-        have hD_eq : Da * W ^ j * W = Da * W ^ (j + 1) := by rw [pow_succ]; ring
-        have hM_eq : 2 * Bbt * ((2 * Bbt) ^ j * M0) = (2 * Bbt) ^ (j + 1) * M0 := by
-          rw [pow_succ']; ring
-        rw [hD_eq, hM_eq] at hq' hr'
+        rw [mul_assoc Da, ← pow_succ, ← mul_assoc (2 * Bbt), ← pow_succ'] at hq' hr'
         exact ⟨hq', hr'⟩
     obtain ⟨hqk, hrk⟩ := hiter k
     -- Every factor is at most `P = 2 ^ (E + 1)`, and `P ^ (k + 1)` fits the claimed exponent.
@@ -832,30 +820,14 @@ theorem sturmSeqList_computableInPolyTime :
           dsimp only
           change _ ≤ 431 * (L + 1) ^ 6
           omega
-    convert hiter using 1
-    funext cs
-    by_cases he : (CoeffList.trim cs).isEmpty = true
-    · simp [he]
-    · simp [he]
-  have hpost : ComputableInPolyTime
-      (fun cs : List ℚ =>
-        if (CoeffList.trim cs).isEmpty then []
-        else
-          let st :=
-            if (CoeffList.trim cs).isEmpty then
-              ({ revPrefix := [], cur := [], next := [] } : SturmIterState)
-            else
-              sturmIterStep^[(CoeffList.deriv (CoeffList.trim cs)).length]
-                { revPrefix := [], cur := CoeffList.trim cs,
-                  next := CoeffList.deriv (CoeffList.trim cs) }
-          (st.cur :: st.revPrefix).reverse)
-      encRatPoly encSturmSeq :=
-    ((listIsEmpty' encRat).comp hp).ite (const [])
-      ((listReverse encRatPoly).comp ((cons encRatPoly).comp
-        ((encSturmIterState_cur_polyTime hloop).prod
-          (encSturmIterState_revPrefix_polyTime hloop))))
+    exact hiter.of_enc_eq fun cs => by
+      by_cases he : (CoeffList.trim cs).isEmpty = true <;> simp [he]
+  have hpost := ((listIsEmpty' encRat).comp hp).ite (const [])
+    ((listReverse encRatPoly).comp ((cons encRatPoly).comp
+      ((encSturmIterState_cur_polyTime hloop).prod
+        (encSturmIterState_revPrefix_polyTime hloop))))
   refine hpost.of_enc_eq fun cs => congrArg encSturmSeq ?_
-  dsimp only [sturmSeqList]
+  dsimp only [sturmSeqList, Function.comp_apply]
   by_cases he : (CoeffList.trim cs).isEmpty = true
   · simp [he]
   · simp only [he, Bool.false_eq_true, ↓reduceIte]
@@ -966,13 +938,9 @@ private theorem signVariations_nonzero_eq :
     simp only [List.map_cons, List.tail_cons, List.zip_cons_cons, List.countP_cons]
     rcases lt_or_gt_of_ne ha with ha_neg | ha_pos <;>
       rcases lt_or_gt_of_ne hb with hb_neg | hb_pos
-    · have ha_not : ¬(0 < a) := not_lt.mpr ha_neg.le
-      have hb_not : ¬(0 < b) := not_lt.mpr hb_neg.le
-      simp [sign_neg ha_neg, sign_neg hb_neg, ha_not, hb_not]
-    · have ha_not : ¬(0 < a) := not_lt.mpr ha_neg.le
-      simp [sign_neg ha_neg, sign_pos hb_pos, ha_not, hb_pos, Nat.add_comm]
-    · have hb_not : ¬(0 < b) := not_lt.mpr hb_neg.le
-      simp [sign_pos ha_pos, sign_neg hb_neg, ha_pos, hb_not, Nat.add_comm]
+    · simp [sign_neg ha_neg, sign_neg hb_neg, ha_neg.not_gt, hb_neg.not_gt]
+    · simp [sign_neg ha_neg, sign_pos hb_pos, ha_neg.not_gt, hb_pos, Nat.add_comm]
+    · simp [sign_pos ha_pos, sign_neg hb_neg, ha_pos, hb_neg.not_gt, Nat.add_comm]
     · simp [sign_pos ha_pos, sign_pos hb_pos, ha_pos, hb_pos]
 
 private theorem signVariations_rat_eq (l : List ℚ) :
@@ -986,27 +954,14 @@ private theorem signVariations_rat_eq (l : List ℚ) :
 
 private theorem signVariations_polyTime :
     ComputableInPolyTime (List.signVariations (α := ℚ)) encRatPoly encUnary := by
-  have heq : (List.signVariations (α := ℚ)) = fun l : List ℚ =>
-      let bs := (l.filter (fun q => !decide (q = 0))).map (fun q => decide (0 < q))
-      (bs.zip bs.tail).countP (fun p => p.1 != p.2) :=
-    funext signVariations_rat_eq
-  rw [heq]
-  have hnz : ComputableInPolyTime (fun l : List ℚ => l.filter (fun q => !decide (q = 0)))
-      encRatPoly encRatPoly := filter (bool_not.comp rat_isZero)
-  have hbs : ComputableInPolyTime
-      (fun l : List ℚ => (l.filter (fun q => !decide (q = 0))).map (fun q => decide (0 < q)))
-      encRatPoly (encList encBool) :=
+  have hnz : ComputableInPolyTime _ encRatPoly encRatPoly := filter (bool_not.comp rat_isZero)
+  have hbs : ComputableInPolyTime _ encRatPoly (encList encBool) :=
     mapWith (rat_lt' (const 0) (snd encBool encRat)) (const false) hnz
-  have hzip : ComputableInPolyTime
-      (fun l : List ℚ =>
-        let bs := (l.filter (fun q => !decide (q = 0))).map (fun q => decide (0 < q))
-        bs.zip bs.tail)
-      encRatPoly (encList (encPair encBool encBool)) :=
-    (zip encBool encBool).comp (hbs.prod ((listTail encBool).comp hbs))
+  have hzip := (zip encBool encBool).comp (hbs.prod ((listTail encBool).comp hbs))
   have htest : ComputableInPolyTime (fun p : Bool × (Bool × Bool) => p.2.1 != p.2.2)
-      (encPair encBool (encPair encBool encBool)) encBool :=
-    of_finite _
-  exact countPWith htest (const false) hzip
+      (encPair encBool (encPair encBool encBool)) encBool := of_finite _
+  exact (countPWith htest (const false) hzip).of_enc_eq fun l =>
+    congrArg encUnary (signVariations_rat_eq l)
 
 /-- Evaluating `Cslib.RealRoot.sturmVariationsList` at a rational point is computable in polynomial
 time from `encPair encSturmSeq encRat` to `encUnary`. -/
@@ -1046,14 +1001,9 @@ private theorem maxAbsList_foldl_mem_or_zero :
       · exact Or.inl (max_eq_left hge)
     · exact Or.inr ⟨a, List.mem_cons_of_mem x ha, heq⟩
 
-private theorem rat_abs_polyTime : ComputableInPolyTime (fun q : ℚ => |q|) encRat encRat := by
-  have heq : (fun q : ℚ => |q|) = fun q => if q < 0 then -q else q :=
-    funext fun q => by
-      by_cases h : q < 0
-      · simp [h, abs_of_neg h]
-      · simp [h, abs_of_nonneg (not_lt.mp h)]
-  rw [heq]
-  exact (rat_lt' id' (const 0)).ite_decide rat_neg id'
+private theorem rat_abs_polyTime : ComputableInPolyTime (fun q : ℚ => |q|) encRat encRat :=
+  ((rat_lt' id' (const 0)).ite_decide rat_neg id').of_enc_eq fun q => by
+    by_cases h : q < 0 <;> simp [h, abs_of_neg, abs_of_nonneg, not_lt.mp]
 
 private theorem maxAbsList_polyTime :
     ComputableInPolyTime maxAbsList encRatPoly encRat := by
@@ -1172,68 +1122,37 @@ private theorem sqNormList_eq_map_sum (ns : List ℤ) :
 
 private theorem mignotteSepSqInv_polyTime :
     ComputableInPolyTime mignotteSepSqInv encRatPoly encNat := by
-  have heq : mignotteSepSqInv = fun cs : List ℚ =>
-      let t := CoeffList.trim cs
-      let d := t.length - 1
-      let D := lcmDens t
-      let ns := t.map (fun q => q.num * ((D / q.den : ℕ) : ℤ))
-      let sn := (ns.map fun a => a.natAbs * a.natAbs).sum
-      d ^ (d + 2) * sn ^ (d - 1) := by
-    funext cs
-    simp only [mignotteSepSqInv, clearDenomsList, sqNormList_eq_map_sum]
-  rw [heq]
   have ht := trim_computableInPolyTime
   have hd_u := unary_sub' ((length_list encRat).comp ht) (const 1)
   have hd_b := unary_to_binary.comp hd_u
   have hD := lcmDens_polyTime.comp ht
-  have hns : ComputableInPolyTime
-      (fun cs : List ℚ =>
-        let t := CoeffList.trim cs
-        let D := lcmDens t
-        t.map (fun q => q.num * ((D / q.den : ℕ) : ℤ)))
-      encRatPoly (encList encIntBin) :=
+  have hns : ComputableInPolyTime _ encRatPoly (encList encIntBin) :=
     mapWith (intBin_mul' (rat_num.comp (snd _ _))
       (intBin_natCast.comp (binary_div' (fst _ _) (rat_den.comp (snd _ _))))) hD ht
-  have hsn : ComputableInPolyTime
-      (fun cs : List ℚ =>
-        let t := CoeffList.trim cs
-        let D := lcmDens t
-        ((t.map (fun q => q.num * ((D / q.den : ℕ) : ℤ))).map
-          fun a => a.natAbs * a.natAbs).sum)
-      encRatPoly encNat :=
+  have hsn : ComputableInPolyTime _ encRatPoly encNat :=
     binary_sum.comp (mapWith
       (binary_mul' (intBin_natAbs.comp (snd encBool encIntBin))
         (intBin_natAbs.comp (snd encBool encIntBin)))
       (const false) hns)
-  exact binary_mul'
+  refine (binary_mul'
     (binary_pow' hd_b (unary_add' hd_u (const 2)))
-    (binary_pow' hsn (unary_sub' hd_u (const 1)))
+    (binary_pow' hsn (unary_sub' hd_u (const 1)))).of_enc_eq fun cs => congrArg encNat ?_
+  simp only [mignotteSepSqInv, clearDenomsList, sqNormList_eq_map_sum, Function.comp_apply]
 
 private theorem clog4_eq_size_pred_div2 (X : ℕ) :
     Nat.clog 4 X = ((X - 1).size + 1) / 2 := by
   rcases X with _ | _ | m
   · simp
   · simp
-  · have hm1 : 1 ≤ m + 1 := by omega
-    have hsize_pos : 1 ≤ (m + 1).size := Nat.size_pos.mpr hm1
-    set k := ((m + 1).size + 1) / 2
-    have h4pow : ∀ j, 4 ^ j = 2 ^ (2 * j) := fun j => by
+  · rw [Nat.add_sub_cancel]
+    have h4 (j : ℕ) : 4 ^ j = 2 ^ (2 * j) := by
       rw [show (4 : ℕ) = 2 ^ 2 from rfl, ← pow_mul]
-    have hle : Nat.clog 4 (m + 1 + 1) ≤ k := by
-      refine Nat.clog_le_of_le_pow ?_
-      rw [h4pow]
-      have hlt : m + 1 < 2 ^ (m + 1).size := Nat.lt_size_self (m + 1)
-      have h2k : (m + 1).size ≤ 2 * k := by omega
-      exact (Nat.succ_le_of_lt hlt).trans (Nat.pow_le_pow_right zero_lt_two h2k)
-    have hge : k ≤ Nat.clog 4 (m + 1 + 1) := by
-      by_contra hlt
-      have hclog_le : 2 * Nat.clog 4 (m + 1 + 1) < (m + 1).size := by omega
-      have hpow_clog := Nat.le_pow_clog (by decide : 1 < 4) (m + 1 + 1)
-      rw [h4pow] at hpow_clog
-      have hm_lt : m + 1 < 2 ^ (2 * Nat.clog 4 (m + 1 + 1)) := by omega
-      have := Nat.size_le.mpr hm_lt
+    refine le_antisymm (Nat.clog_le_of_le_pow ?_) ?_
+    · rw [h4]
+      exact (Nat.lt_size_self (m + 1)).trans_le (Nat.pow_le_pow_right zero_lt_two (by omega))
+    · have := Nat.size_le.mpr (Nat.lt_of_lt_of_le (Nat.lt_succ_self (m + 1))
+        (h4 _ ▸ Nat.le_pow_clog (by decide) (m + 1 + 1)))
       omega
-    exact le_antisymm hle hge
 
 /-- `Cslib.RealRoot.mignotteBisectionDepth` is computable in polynomial time from `encRatPoly` to
 `encUnary`. -/
@@ -1462,25 +1381,18 @@ private theorem refineLeftRoot_polyTime :
     ComputableInPolyTime
       (fun a : RefineArgs => refineLeftRoot a.t a.seq a.fuel a.u a.v a.vu)
       encRefineArgs encRootInterval := by
-  have heq : (fun a : RefineArgs => refineLeftRoot a.t a.seq a.fuel a.u a.v a.vu) =
-      fun a =>
-        if evalCoeffList a.v a.t = 0 then { lower := a.v, upper := a.v }
-        else if !(decide (evalCoeffList a.u a.t = 0)) then { lower := a.u, upper := a.v }
-        else refineLeftLoop a.t a.seq a.fuel a.u a.v a.vu := by
-    funext a
-    simp only [refineLeftRoot, Bool.not_eq_true', decide_eq_false_iff_not]
-  rw [heq]
   have hc1 := rat_isZero'
     (evalCoeffList_computableInPolyTime.comp
       ((encRefineArgs_v_polyTime id').prod (encRefineArgs_t_polyTime id')))
   have hc2 := bool_not.comp (rat_isZero'
     (evalCoeffList_computableInPolyTime.comp
       ((encRefineArgs_u_polyTime id').prod (encRefineArgs_t_polyTime id'))))
-  exact hc1.ite_decide
+  refine (hc1.ite_decide
     (encRootInterval_mk_polyTime (encRefineArgs_v_polyTime id') (encRefineArgs_v_polyTime id'))
     (hc2.ite
       (encRootInterval_mk_polyTime (encRefineArgs_u_polyTime id') (encRefineArgs_v_polyTime id'))
-      refineLeftLoop_polyTime)
+      refineLeftLoop_polyTime)).of_enc_eq fun a => congrArg encRootInterval ?_
+  simp only [refineLeftRoot, Function.comp_apply, Bool.not_eq_true', decide_eq_false_iff_not]
 
 /-! ### Polynomial-time Sturm bisection `isolateRoots` -/
 
@@ -1548,16 +1460,14 @@ private theorem stepFrontier_flatMap_eval (t : List ℚ) (seq : List (List ℚ))
       items.flatMap (evalFrontierItem t seq depthBound (fuel + 1)) := by
   rw [stepFrontier, List.flatMap_assoc]
   refine List.flatMap_congr fun it hit => ?_
-  by_cases hd : it.isDone = true
-  · simp [stepFrontierItem, evalFrontierItem, hd]
-  · have hdf : it.isDone = false := Bool.eq_false_iff.mpr hd
-    have h2 : 2 ≤ it.vu - it.vv := hact it hit hdf
-    have h0 : ¬(it.vu - it.vv = 0) := by omega
-    have h1 : ¬(it.vu - it.vv = 1) := by omega
-    simp only [stepFrontierItem, evalFrontierItem, hdf, Bool.false_eq_true, ↓reduceIte,
+  cases hd : it.isDone
+  · have h2 := hact it hit hd
+    have h01 : it.vu - it.vv ≠ 0 ∧ it.vu - it.vv ≠ 1 := by omega
+    simp only [stepFrontierItem, evalFrontierItem, hd, Bool.false_eq_true, ↓reduceIte,
       List.flatMap_append, classifyNode_flatMap_eval]
     conv_rhs => rw [isolateIoc]
-    simp only [h0, h1, ↓reduceIte]
+    simp only [h01.1, h01.2, ↓reduceIte]
+  · simp [stepFrontierItem, evalFrontierItem, hd]
 
 private theorem finishFrontier_eq_flatMap_eval_zero (t : List ℚ) (seq : List (List ℚ))
     (depthBound : ℕ) (items : List FrontierItem)
@@ -1567,18 +1477,13 @@ private theorem finishFrontier_eq_flatMap_eval_zero (t : List ℚ) (seq : List (
   | nil => rfl
   | cons it rest ih =>
     have ih' := ih fun x hx => hact x (List.mem_cons_of_mem it hx)
-    by_cases hd : it.isDone = true
-    · simp only [finishFrontier, List.filter_cons_of_pos hd, List.map_cons, List.flatMap_cons,
-        evalFrontierItem, hd, ↓reduceIte, List.singleton_append]
-      exact congrArg (_ :: ·) ih'
-    · have hdf : it.isDone = false := Bool.eq_false_iff.mpr hd
-      have h2 := hact it List.mem_cons_self hdf
-      have h0 : ¬(it.vu - it.vv = 0) := by omega
-      have h1 : ¬(it.vu - it.vv = 1) := by omega
-      simp only [finishFrontier, List.filter_cons_of_neg hd, List.flatMap_cons,
-        evalFrontierItem, hdf, Bool.false_eq_true, ↓reduceIte, isolateIoc, h0, h1,
-        List.nil_append]
-      exact ih'
+    cases hd : it.isDone
+    · have h2 := hact it List.mem_cons_self hd
+      have h01 : it.vu - it.vv ≠ 0 ∧ it.vu - it.vv ≠ 1 := by omega
+      simpa only [finishFrontier, List.filter_cons, List.flatMap_cons, evalFrontierItem, hd,
+        Bool.false_eq_true, ↓reduceIte, isolateIoc, h01.1, h01.2, List.nil_append] using ih'
+    · simpa only [finishFrontier, List.filter_cons_of_pos hd, List.map_cons, List.flatMap_cons,
+        evalFrontierItem, hd, ↓reduceIte, List.singleton_append] using congrArg (_ :: ·) ih'
 
 private theorem signVariations_le_length {α : Type*} [Zero α] [LinearOrder α] (l : List α) :
     l.signVariations ≤ l.length := by
@@ -1847,28 +1752,11 @@ private theorem classifyNode_polyTime :
     ComputableInPolyTime
       (fun a : ClassifyArgs => classifyNode a.t a.seq a.depthBound a.u a.v a.vu a.vv)
       encClassifyArgs (encList encFrontierItem) := by
-  have heq : (fun a : ClassifyArgs => classifyNode a.t a.seq a.depthBound a.u a.v a.vu a.vv) =
-      fun a =>
-        let count := a.vu - a.vv
-        if count == 0 then []
-        else if count == 1 then
-          let J := refineLeftRoot a.t a.seq a.depthBound a.u a.v a.vu
-          [{ isDone := true, lower := J.lower, upper := J.upper, vu := 0, vv := 0 }]
-        else
-          [{ isDone := false, lower := a.u, upper := a.v, vu := a.vu, vv := a.vv }] := by
-    funext a
-    simp only [classifyNode, beq_iff_eq]
-  rw [heq]
   have hcnt := unary_sub' (encClassifyArgs_vu_polyTime id') (encClassifyArgs_vv_polyTime id')
-  have hrefArgs : ComputableInPolyTime
-      (fun a : ClassifyArgs =>
-        ({ t := a.t, seq := a.seq, fuel := a.depthBound,
-           u := a.u, v := a.v, vu := a.vu } : RefineArgs))
-      encClassifyArgs encRefineArgs :=
-    encRefineArgs_mk_polyTime
-      (encClassifyArgs_t_polyTime id') (encClassifyArgs_seq_polyTime id')
-      (encClassifyArgs_depthBound_polyTime id') (encClassifyArgs_u_polyTime id')
-      (encClassifyArgs_v_polyTime id') (encClassifyArgs_vu_polyTime id')
+  have hrefArgs := encRefineArgs_mk_polyTime
+    (encClassifyArgs_t_polyTime id') (encClassifyArgs_seq_polyTime id')
+    (encClassifyArgs_depthBound_polyTime id') (encClassifyArgs_u_polyTime id')
+    (encClassifyArgs_v_polyTime id') (encClassifyArgs_vu_polyTime id')
   have hJ := refineLeftRoot_polyTime.comp hrefArgs
   have hdone_item := encFrontierItem_mk_polyTime (const true)
     (encRootInterval_lower_polyTime hJ) (encRootInterval_upper_polyTime hJ)
@@ -1876,10 +1764,12 @@ private theorem classifyNode_polyTime :
   have hact_item := encFrontierItem_mk_polyTime (const false)
     (encClassifyArgs_u_polyTime id') (encClassifyArgs_v_polyTime id')
     (encClassifyArgs_vu_polyTime id') (encClassifyArgs_vv_polyTime id')
-  exact (unary_beq hcnt (const 0)).ite (const [])
+  refine ((unary_beq hcnt (const 0)).ite (const [])
     ((unary_beq hcnt (const 1)).ite
       ((cons encFrontierItem).comp (hdone_item.prod (const [])))
-      ((cons encFrontierItem).comp (hact_item.prod (const []))))
+      ((cons encFrontierItem).comp (hact_item.prod (const []))))).of_enc_eq fun a =>
+    congrArg (encList encFrontierItem) ?_
+  simp only [classifyNode, Function.comp_apply, beq_iff_eq]
 
 private def stepFrontierPar (par : List ℚ × (List (List ℚ) × ℕ))
     (items : List FrontierItem) : List FrontierItem :=
@@ -1957,19 +1847,13 @@ theorem isolateRoots_computableInPolyTime :
         exact Nat.zero_le _
       · simp only [he, Bool.false_eq_true, ↓reduceIte] at hk ⊢
         obtain ⟨hlen_k, hinv_k, _, _⟩ := stepFrontier_iterate_invariant cs k hk
-        change (encList encFrontierItem
-          ((stepFrontier (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs))^[k]
-            (classifyNode (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
-              (-(cauchyBoundNat cs : ℚ)) (cauchyBoundNat cs : ℚ)
-              (sturmVariationsList (sturmSeqList cs) (-(cauchyBoundNat cs : ℚ)))
-              (sturmVariationsList (sturmSeqList cs) (cauchyBoundNat cs : ℚ))))).length ≤
-          8891 * ((encRatPoly cs).length + 1) ^ 7
         set items_k := (stepFrontier (CoeffList.trim cs) (sturmSeqList cs)
           (mignotteBisectionDepth cs))^[k]
           (classifyNode (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
             (-(cauchyBoundNat cs : ℚ)) (cauchyBoundNat cs : ℚ)
             (sturmVariationsList (sturmSeqList cs) (-(cauchyBoundNat cs : ℚ)))
             (sturmVariationsList (sturmSeqList cs) (cauchyBoundNat cs : ℚ)))
+        change (encList encFrontierItem items_k).length ≤ 8891 * N ^ 7
         have hcs_len : cs.length ≤ L := SizedListEncoding.length_le (encA := encRat) cs
         have hB_cs : HasCoeffBitBound L cs := hasCoeffBitBound_length_encRatPoly cs
         have hNN3 : N ≤ N ^ 3 := Nat.le_self_pow (by norm_num) N

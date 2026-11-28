@@ -75,9 +75,7 @@ private theorem sumScaledStep_realizes :
       SumScaledStepSafe (fun _ _ => 0) := by
   unfold sumScaledStep
   realize
-  all_goals
-    rcases h with ⟨_, _, _, _, _, _⟩
-    assumption
+  all_goals tauto
 
 private theorem four_n_maxMag_add_one_le_wordBound (inst : Instance) :
     4 * (inst.n * inst.maxMag) + 1 ≤ inst.wordBound := by
@@ -117,7 +115,7 @@ theorem sumScaledCostProg_realizes :
   unfold sumScaledCostProg
   realize [sumScaledStep_realizes]
   all_goals
-    rcases h with ⟨_, _, _, _, _, _⟩
+    unfold SumScaledCostSafe at h
     tauto
 
 /-- Specification of `sumScaledCostProg`: computes `inst.encodedMinCost` in at most `2 * inst.n`
@@ -150,8 +148,6 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         = (outputList s₀.mem ws.outBase)[i.val]'hi := (getElem_outputList _ _ _ hi).symm
       _ = inst.assignment[i.val]'(by simp) := by simp [hout]
       _ = (π i).val := by simp [Instance.assignment, π]
-  have hf1 : Fits w 1 := hw.of_le (by unfold Instance.wordBound; omega)
-  have hf2 : Fits w 2 := hw.of_le (by unfold Instance.wordBound; omega)
   have hit := iterate_spec sumScaledStep SumScaledStepSafe w ws 2 ws.n
     (fun k st s => s = s₀ ∧ st.idx = k ∧
       st.acc = (((List.finRange inst.n).take k).map fun i => C_unsc (i, π i)).sum ∧
@@ -170,8 +166,8 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
           s₀.mem (ws.bC + (st.idx * ws.n + s₀.mem (ws.outBase + 1 + st.idx))) =
             (inst.n + 1) * C_unsc (i₀, j₀) := by
         rw [hj_mem, hn]; exact hC_mem i₀ j₀
-      have hdiv : ((inst.n + 1) * C_unsc (i₀, j₀)) / ws.scale = C_unsc (i₀, j₀) := by
-        rw [hscale]; exact Nat.mul_div_right _ (Nat.succ_pos inst.n)
+      have hdiv : ((inst.n + 1) * C_unsc (i₀, j₀)) / ws.scale = C_unsc (i₀, j₀) :=
+        hscale.symm ▸ Nat.mul_div_right _ (Nat.succ_pos inst.n)
       have hacc_next_le : st.acc + C_unsc (i₀, j₀) ≤ (st.idx + 1) * (2 * ws.M) := by
         rw [Nat.add_mul, one_mul]
         exact Nat.add_le_add hacc_le (hC_unsc_le (i₀, j₀))
@@ -179,29 +175,24 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         have hle_max : st.acc + C_unsc (i₀, j₀) ≤ 2 * (inst.n * inst.maxMag) :=
           hacc_next_le.trans ((Nat.mul_le_mul hk' (Nat.mul_le_mul_left 2 hM_le)).trans_eq (by ring))
         exact hw.of_le (by omega)
-      have hmul_idx : st.idx * ws.n ≤ ws.n * ws.n :=
-        Nat.mul_le_mul_right ws.n (le_of_lt hk)
       have hsafe : SumScaledStepSafe w (ws, st) s₀ := by
         dsimp only [SumScaledStepSafe]
-        refine ⟨by omega, hfit_ws.of_le (by omega),
+        exact ⟨by omega,
+          hfit_ws.of_le (by omega),
           hfit_ws.of_le (by omega),
           hfit_ws.of_le (by rw [hj_mem]; omega),
-          hfit_ws.of_le (by omega), ?_⟩
-        rw [hc_mem, hdiv]
-        exact hacc_fit
+          hfit_ws.of_le (by omega),
+          by simpa only [hc_mem, hdiv] using hacc_fit⟩
       have hv : (Memory.spec w).ValidHistory s₀
           ((Memory.spec w).clientHistory s₀ (sumScaledStep (ws, st))) := by
         unfold sumScaledStep
         dsimp only
         exact validHistory_read_bind (by omega)
           (validHistory_read_bind (by rw [hj_mem]; omega) (validHistory_pure w _ _))
-      have hmc : memoryCost (sumScaledStep (ws, st)) s₀ ≤ 2 := by
-        unfold sumScaledStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
+      have hmc : memoryCost (sumScaledStep (ws, st)) s₀ ≤ 2 :=
+        memoryCost_read_bind_le fun _ _ => memoryCost_read_bind_le fun _ _ => le_rfl
       have hst_eq : (Memory.spec 0).clientState s₀ (sumScaledStep (ws, st)) = s₀ := by
-        unfold sumScaledStep
-        rw [clientState_bind_read, clientState_bind_read, clientState_pure]
+        rw [sumScaledStep, clientState_bind_read, clientState_bind_read, clientState_pure]
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
       unfold sumScaledStep
       rw [clientResult_bind_read, clientResult_bind_read, clientResult_pure]
@@ -212,10 +203,7 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         List.map_singleton, List.sum_singleton])
     ⟨0, 0⟩ s₀ ⟨rfl, rfl, by simp, by simp⟩
   obtain ⟨hsafe_it, hv_it, hmc_it, _, _, hs_it, _, hacc_full, hacc_le_n⟩ := hit
-  let res := (Memory.spec 0).clientResult s₀ (iterate sumScaledStep ws ws.n ⟨0, 0⟩)
-  change res.acc = (((List.finRange inst.n).take ws.n).map fun i => C_unsc (i, π i)).sum
-    at hacc_full
-  change res.acc ≤ ws.n * (2 * ws.M) at hacc_le_n
+  set res := (Memory.spec 0).clientResult s₀ (iterate sumScaledStep ws ws.n ⟨0, 0⟩) with hres
   rw [Nat.mul_left_comm] at hacc_le_n
   have hsum_z : (res.acc : ℤ) = inst.minCost + ((inst.n * ws.M : ℕ) : ℤ) := by
     rw [hn, List.take_of_length_le (by simp), ← Fin.sum_univ_def] at hacc_full
@@ -228,35 +216,24 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
     push_cast
     ring
   have hnM : ws.n * ws.M ≤ inst.n * inst.maxMag := hn ▸ Nat.mul_le_mul_left _ hM_le
-  have hf_st : Fits w (ws.n * ws.M) := hw.of_le (by omega)
-  have hpos_safe : res.acc < ws.n * ws.M →
-      res.acc ≤ ws.n * ws.M ∧ Fits w (2 * (ws.n * ws.M - res.acc)) ∧
-        Fits w (2 * (ws.n * ws.M - res.acc) + 1) := fun hlt =>
-    ⟨hlt.le,
-      hw.of_le (by omega),
-      hw.of_le (by omega)⟩
-  have hneg_safe : ¬(res.acc < ws.n * ws.M) →
-      ws.n * ws.M ≤ res.acc ∧ Fits w (2 * (res.acc - ws.n * ws.M)) := fun hlt =>
-    ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩
+  have hf2 : Fits w 2 := hw.of_le (by dsimp [Instance.wordBound]; omega)
+  have hsafe_prog : SumScaledCostSafe w ws s₀ := by
+    rw [SumScaledCostSafe, ← hres]
+    exact ⟨hsafe_it, hf2.of_le (by decide), hf2, hw.of_le (by omega),
+      fun hlt => ⟨hlt.le, hw.of_le (by omega), hw.of_le (by omega)⟩,
+      fun hlt => ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩⟩
   unfold sumScaledCostProg
-  refine ⟨⟨hsafe_it, hf1, hf2, hf_st, hpos_safe, hneg_safe⟩,
+  refine ⟨hsafe_prog,
     validHistory_bind_step hv_it
       (validHistory_ite (fun _ => validHistory_pure w _ _) (fun _ => validHistory_pure w _ _)),
     ?_, ?_⟩
   · rw [memoryCost_bind', memoryCost_ite]
-    split_ifs <;> {
-      rw [memoryCost_pure, Nat.add_zero]
-      exact hmc_it.trans_eq (by rw [hn]) }
-  · rw [clientResult_bind, hs_it]
-    change (Memory.spec 0).clientResult s₀
-      (if res.acc < ws.n * ws.M then pure (2 * (ws.n * ws.M - res.acc) + 1)
-       else pure (2 * (res.acc - ws.n * ws.M))) = _
+    split_ifs <;> simpa [memoryCost_pure, hn] using hmc_it
+  · rw [clientResult_bind, hs_it, ← hres]
+    dsimp only
+    rw [apply_ite ((Memory.spec 0).clientResult s₀), clientResult_pure, clientResult_pure, hn]
     unfold Instance.encodedMinCost Signed.encode
-    rw [hn]
-    split_ifs
-    all_goals
-      simp only [clientResult_pure]
-      omega
+    split_ifs <;> omega
 
 end
 

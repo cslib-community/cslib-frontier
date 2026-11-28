@@ -156,13 +156,9 @@ theorem directionalTree_computes (d : ℕ) (ω : DirectionalCoins d) :
   | succ d ih =>
     obtain ⟨⟨b, ω₀, ω₁⟩, rfl⟩ := (coinsEquiv d).symm.surjective ω
     intro x
-    have h₀ := ih ω₀ fun p => x (Fin.cons false p)
-    have h₁ := ih ω₁ fun p => x (Fin.cons true p)
-    rw [directionalTree_succ, nandTree_succ, ← h₀, ← h₁]
-    cases b
-    · simp only [Bool.cond_false, eval_nandThen, DecisionTree.eval_mapQueries, Function.comp_def]
-    · simp only [Bool.cond_true, eval_nandThen, DecisionTree.eval_mapQueries, Function.comp_def,
-        Bool.and_comm]
+    rw [directionalTree_succ, nandTree_succ, ← ih ω₀ fun p => x (Fin.cons false p),
+      ← ih ω₁ fun p => x (Fin.cons true p)]
+    cases b <;> simp [Function.comp_def, Bool.and_comm]
 
 @[simp] theorem eval_directionalTree (d : ℕ) (ω : DirectionalCoins d)
     (x : (Fin d → Bool) → Bool) : (directionalTree d ω).eval x = nandTree d x :=
@@ -198,8 +194,7 @@ theorem directional_computes (d : ℕ) : (directional d).Computes 0 (nandTree d)
 /-- At depth `0` the directional algorithm reads the single leaf. -/
 theorem expectedCost_directional_zero (x : (Fin 0 → Bool) → Bool) :
     (directional 0).expectedCost x = 1 := by
-  rw [directional, expectedCost_uniformMixture]
-  simp [directionalTree]
+  simp [directional, expectedCost_uniformMixture, directionalTree]
 
 private theorem expect_bool (g : Bool → ℝ) : 𝔼 b, g b = (g false + g true) / 2 := by
   rw [Fintype.expect_eq_sum_div_card, Fintype.sum_bool, Fintype.card_bool, add_comm]
@@ -207,10 +202,8 @@ private theorem expect_bool (g : Bool → ℝ) : 𝔼 b, g b = (g false + g true
 
 private theorem expect_coins_succ (d : ℕ) (g : DirectionalCoins (d + 1) → ℝ) :
     𝔼 ω, g ω = 𝔼 b, 𝔼 ω₀, 𝔼 ω₁, g ((coinsEquiv d).symm (b, ω₀, ω₁)) := by
-  rw [Fintype.expect_equiv (coinsEquiv d) g (fun bω => g ((coinsEquiv d).symm bω))
-      fun ω => by rw [Equiv.symm_apply_apply], ← univ_product_univ, expect_product,
-    ← univ_product_univ]
-  simp only [expect_product]
+  simp only [Fintype.expect_equiv (coinsEquiv d) g (fun bω => g ((coinsEquiv d).symm bω))
+      fun ω => by rw [Equiv.symm_apply_apply], ← univ_product_univ, expect_product]
 
 /-- **The expected-cost recurrence** of the directional algorithm: with `E₀`, `E₁` the expected
 costs on the left and right subtrees and `v₀`, `v₁` their values, the expected cost at depth
@@ -242,12 +235,11 @@ theorem expectedCost_directional_le (k : ℕ) :
         cond (nandTree (2 * k + 1) x) (3 / 2 * 3 ^ k) (2 * 3 ^ k) := by
   induction k with
   | zero =>
-    have h0 (y : (Fin (2 * 0) → Bool) → Bool) : (directional (2 * 0)).expectedCost y = 1 :=
-      expectedCost_directional_zero y
-    refine ⟨fun x => by rw [h0, pow_zero], fun x => ?_⟩
-    rw [expectedCost_directional_succ, nandTree_succ, h0, h0]
-    cases nandTree (2 * 0) (fun p => x (Fin.cons false p)) <;>
-      cases nandTree (2 * 0) (fun p => x (Fin.cons true p)) <;> norm_num
+    refine ⟨fun x => by simp [expectedCost_directional_zero], fun x => ?_⟩
+    rw [expectedCost_directional_succ, nandTree_succ]
+    simp only [Nat.mul_zero, expectedCost_directional_zero]
+    cases nandTree 0 (fun p => x (Fin.cons false p)) <;>
+      cases nandTree 0 (fun p => x (Fin.cons true p)) <;> norm_num
   | succ k ih =>
     obtain ⟨-, hodd⟩ := ih
     have heven (x : (Fin (2 * (k + 1)) → Bool) → Bool) :
@@ -262,15 +254,14 @@ theorem expectedCost_directional_le (k : ℕ) :
         cases nandTree (2 * k + 1) (fun p => x (Fin.cons true p)) <;>
         simp only [Bool.cond_false, Bool.cond_true] <;> intro h₀ h₁ <;> linarith
     refine ⟨heven, fun x => ?_⟩
-    rw [expectedCost_directional_succ, nandTree_succ (2 * (k + 1)) x, pow_succ]
+    rw [expectedCost_directional_succ, nandTree_succ (2 * (k + 1)) x]
     have h₀ := heven fun p => x (Fin.cons false p)
     have h₁ := heven fun p => x (Fin.cons true p)
-    rw [pow_succ] at h₀ h₁
     have hM : (0 : ℝ) ≤ 3 ^ k := by positivity
     cases nandTree (2 * (k + 1)) (fun p => x (Fin.cons false p)) <;>
       cases nandTree (2 * (k + 1)) (fun p => x (Fin.cons true p)) <;>
       simp only [Bool.cond_false, Bool.cond_true, Bool.and_false, Bool.and_true, Bool.not_false,
-        Bool.not_true, add_zero] <;> linarith
+        Bool.not_true, add_zero, pow_succ] at h₀ h₁ ⊢ <;> linarith
 
 /-! ### The sharp rate -/
 
@@ -286,17 +277,14 @@ private theorem sqrt_33_lt_six : √(33 : ℝ) < 6 :=
 
 /-- `2 α² = α + 4`. -/
 theorem two_mul_directionalRate_sq : 2 * directionalRate ^ 2 = directionalRate + 4 := by
-  have h := Real.sq_sqrt (show (0 : ℝ) ≤ 33 by norm_num)
   rw [directionalRate]
-  linear_combination h / 8
+  linear_combination Real.sq_sqrt (show (0 : ℝ) ≤ 33 by norm_num) / 8
 
 theorem three_halves_lt_directionalRate : 3 / 2 < directionalRate := by
-  rw [directionalRate]
-  linarith [five_lt_sqrt_33]
+  rw [directionalRate]; linarith [five_lt_sqrt_33]
 
 theorem directionalRate_lt_seven_fourths : directionalRate < 7 / 4 := by
-  rw [directionalRate]
-  linarith [sqrt_33_lt_six]
+  rw [directionalRate]; linarith [sqrt_33_lt_six]
 
 /-- `α ^ 2 < 3`, so the sharp rate improves on the `3 ^ k` bound at even depth `2k`. -/
 theorem directionalRate_sq_lt_three : directionalRate ^ 2 < 3 := by
@@ -316,10 +304,7 @@ theorem expectedCost_directional_le_cond_rate (d : ℕ) (x : (Fin d → Bool) �
   induction d with
   | zero =>
     rw [expectedCost_directional_zero, nandTree_zero, pow_zero]
-    cases x Fin.elim0
-    · simp only [Bool.cond_false, mul_one]
-      linarith
-    · simp only [Bool.cond_true, le_refl]
+    cases x Fin.elim0 <;> simp only [Bool.cond_false, Bool.cond_true, mul_one] <;> linarith
   | succ d ih =>
     rw [expectedCost_directional_succ, nandTree_succ, pow_succ]
     have h₀ := ih fun p => x (Fin.cons false p)
@@ -330,8 +315,6 @@ theorem expectedCost_directional_le_cond_rate (d : ℕ) (x : (Fin d → Bool) �
       linear_combination (directionalRate ^ d / 2) * hα2
     have hTF : (directionalRate - 1 / 2) * directionalRate ^ d + directionalRate ^ d / 2 =
         directionalRate ^ d * directionalRate := by ring
-    have hFF : (directionalRate - 1 / 2) * directionalRate ^ d ≤
-        directionalRate ^ d * directionalRate := by linarith
     revert h₀ h₁
     cases nandTree d (fun p => x (Fin.cons false p)) <;>
       cases nandTree d (fun p => x (Fin.cons true p)) <;>
@@ -346,8 +329,7 @@ theorem expectedCost_directional_le_rate (d : ℕ) (x : (Fin d → Bool) → Boo
   have hA : (0 : ℝ) ≤ directionalRate ^ d := pow_nonneg (by linarith) d
   cases hv : nandTree d x <;> rw [hv] at h
   · exact h
-  · rw [Bool.cond_true] at h
-    exact h.trans (le_mul_of_one_le_left hA (by linarith))
+  · exact h.trans (le_mul_of_one_le_left hA (by linarith))
 
 end NandTree
 
@@ -372,10 +354,8 @@ private theorem exists_computes_zero_andOrTree_of_directional {k : ℕ} {c : ℝ
     computes_uniformMixture fun ω x => ?_, fun x => ?_⟩
   · rw [DecisionTree.eval_dual, eval_directionalTree, andOrTree_eq_not_orAndTree,
       orAndTree_eq_nandTree]
-  · have h := hc fun p => !x p
-    rw [directional, expectedCost_uniformMixture] at h
-    rw [expectedCost_uniformMixture]
-    simpa only [DecisionTree.cost_dual] using h
+  · simpa only [directional, expectedCost_uniformMixture, DecisionTree.cost_dual] using
+      hc fun p => !x p
 
 /-- **The AND–OR tree has a zero-error randomized decision tree with `3 ^ k` expected queries**
 [Motwani and Raghavan, Theorem 2.1][MotwaniRaghavan95]: the directional algorithm, run on the dual
@@ -434,8 +414,8 @@ theorem zeroErrorComplexity_andOrTree_le_rpow_rate (k : ℕ) :
     zeroErrorComplexity (andOrTree k) ≤
       (directionalRate - 1 / 2) * ((4 : ℝ) ^ k) ^ Real.logb 2 directionalRate := by
   have hα : 0 < directionalRate := by linarith [three_halves_lt_directionalRate]
-  rw [show (4 : ℝ) ^ k = (2 : ℝ) ^ (2 * k) by rw [pow_mul]; norm_num,
-    pow_rpow_logb_eq (by norm_num) (by norm_num) hα]
+  have h4 : (4 : ℝ) ^ k = (2 : ℝ) ^ (2 * k) := by rw [pow_mul]; norm_num
+  rw [h4, pow_rpow_logb_eq (by norm_num) (by norm_num) hα]
   exact zeroErrorComplexity_andOrTree_le_rate k
 
 end Cslib.QueryComplexity

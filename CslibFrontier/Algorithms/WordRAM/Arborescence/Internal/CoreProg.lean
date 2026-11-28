@@ -76,8 +76,8 @@ private theorem bestEntryRowStep_realizes :
   unfold bestEntryRowStep
   realize
   all_goals
-    obtain ⟨h1, hm, ha, hc, hp, hco, hy⟩ := h
-    first | exact h1 | exact hm | exact ha | exact hc | exact hp | exact hco | exact hy
+    rcases h with ⟨_, _, _, _, _, _, _⟩
+    assumption
 
 /-- Fills candidate entry feasibility and cost arrays for source vertex `a.u`. -/
 @[expose] public def fillBestEntryRowProg (a : BestEntryRowArgs) : Memory.Prog ℕ :=
@@ -137,10 +137,9 @@ private theorem bestEntryOuterStep_realizes :
   unfold bestEntryOuterStep
   realize [fillBestEntryRowProg_realizes, argMinArrayProg_realizes]
   all_goals
-    obtain ⟨hu, hk, hws, hrow, harg⟩ := h
+    obtain ⟨_, _, hws, _, _⟩ := h
     first
-    | exact hrow
-    | exact harg
+    | assumption
     | exact hws.of_le (by
         dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBase, curAdjBase, curCostBase,
           candPredBase, candCostBase]
@@ -222,17 +221,10 @@ private theorem bestExitRowStep_realizes :
   unfold bestExitRowStep
   realize [signedSubProg_realizes]
   all_goals
-    obtain ⟨h2, hm, ha, hc, hp, hpo, hco, hx, hsub⟩ := h
+    obtain ⟨h2, _, _, _, _, _, _, _, hsub⟩ := h
     first
-    | exact h2
+    | assumption
     | exact h2.of_le (by omega)
-    | exact hm
-    | exact ha
-    | exact hc
-    | exact hp
-    | exact hpo
-    | exact hco
-    | exact hx
     | exact (hsub ‹_›).1
     | exact (hsub ‹_›).2.1
     | exact (hsub ‹_›).2.2
@@ -283,10 +275,9 @@ private theorem bestExitOuterStep_realizes :
   unfold bestExitOuterStep
   realize [fillBestExitRowProg_realizes, argMinArrayProg_realizes]
   all_goals
-    obtain ⟨hcol, hk, hws, hrow, harg⟩ := h
+    obtain ⟨_, _, hws, _, _⟩ := h
     first
-    | exact hrow
-    | exact harg
+    | assumption
     | exact hws.of_le (by
         dsimp only [wsSize, frameParentBase, frameMaskBase, frameBExitBase, frameBase, curAdjBase,
           curCostBase, candPredBase, candCostBase]
@@ -418,24 +409,17 @@ private theorem contractCostCellProg_realizes :
     first
     | exact (hsub ‹_› ‹_› ‹_› ‹_›).2.1
     | exact (hsub ‹_› ‹_› ‹_› ‹_›).2.2
-    | exact hws.of_le (by
-        dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
-          frameBase, curAdjBase, curCostBase, nextCostBase]
-        omega)
-    | exact hws.of_le (by
-        have hbx : s.mem (frameBExitBase d.1.ws d.1.n d.1.k + d.2) < d.1.n := ‹_›
-        have hbx_c := List.mul_add_lt_sq hbx hcol
-        have hfx := (hsub ‹_› ‹_› ‹_› hbx).1
-        have hbx_f := List.mul_add_lt_sq hbx hfx
-        dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
-          frameBase, curAdjBase, curCostBase, nextCostBase] at hbx hbx_c hfx hbx_f ⊢
-        omega)
-    | exact hws.of_le (by
-        have hbe : s.mem (frameBEntryBase d.1.ws d.1.n d.1.k + d.1.u) < d.1.n := ‹_›
-        have hu_be := List.mul_add_lt_sq hu hbe
-        dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
-          frameBase, curAdjBase, curCostBase, nextCostBase] at hbe hu_be ⊢
-        omega)
+    | refine hws.of_le ?_
+      try
+        have hbx : s.mem (frameBExitBase d.1.ws d.1.n d.1.k + d.2) < d.1.n := by assumption
+        have := List.mul_add_lt_sq hbx hcol
+        have := List.mul_add_lt_sq hbx (hsub (by assumption) (by assumption) (by assumption) hbx).1
+      try
+        have hbe : s.mem (frameBEntryBase d.1.ws d.1.n d.1.k + d.1.u) < d.1.n := by assumption
+        have := List.mul_add_lt_sq hu hbe
+      dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
+        frameBase, curAdjBase, curCostBase, nextCostBase] at *
+      omega
 
 /-- Contracts one cell `(env.u, col)` in cost then adjacency order. -/
 @[expose] public def contractRowStep (q : ContractRowArgs × ℕ) : Memory.Prog ℕ := do
@@ -537,10 +521,9 @@ private theorem contractTablesProg_realizes :
   unfold contractTablesProg
   realize [contractLoopProg_realizes, copyWordsProg_realizes]
   all_goals
-    obtain ⟨hws, hloop, hcp⟩ := h
+    obtain ⟨hws, _, _⟩ := h
     first
-    | exact hloop
-    | exact hcp
+    | assumption
     | exact hws.of_le (by
         dsimp only [wsSize, curAdjBase, nextAdjBase]
         nlinarith)
@@ -643,10 +626,9 @@ private theorem expandLevelProg_realizes :
   unfold expandLevelProg
   realize [fillExpandRowProg_realizes, copyWordsProg_realizes]
   all_goals
-    obtain ⟨hk, hws, hx0, hqx0, hexp, hcopy⟩ := h
+    obtain ⟨_, hws, hx0, hqx0, _, _⟩ := h
     first
-    | exact hexp
-    | exact hcopy
+    | assumption
     | exact hws.of_le (by
         dsimp only [wsSize, frameRepAddr, frameBExitBase, frameBase, curParentBase,
           nextParentBase] at hx0 hqx0 ⊢
@@ -719,15 +701,9 @@ private theorem contractRoundBodyProg_realizes :
   realize [cycleMaskProg_realizes, bestEntryProg_realizes, bestExitProg_realizes,
     contractTablesProg_realizes]
   all_goals
-    obtain ⟨hk, hws, hz, hcm, hbe, hbx, hct, hcp⟩ := h
+    obtain ⟨_, hws, _, _, _, _, _, _⟩ := h
     first
-    | exact hz
-    | exact hcm
-    | exact hbe
-    | exact hbx
-    | exact hct
-    | exact hcp
-    | exact hws
+    | assumption
     | exact hws.of_le (by
         dsimp only [wsSize, frameRepAddr, frameParentBase, frameMaskBase, frameBase]
         nlinarith)

@@ -152,10 +152,10 @@ private theorem computablePred_eligB (hr : Computable₂ r) :
     Computable.snd.comp (Computable.fst.comp Computable.fst)
   have hi : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.1.2 :=
     Computable.snd.comp Computable.fst
-  have hy : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.2 := Computable.snd
   refine ComputablePred.exists_lt (f := fun x : ((Code × ℕ) × ℕ) × ℕ => x.2 + 1)
     (p := fun x d => ∃ m < x.1.1.2 + 1, m ∈ Φ.cost (vers x.1.1.1 (x.1.2 + 1) d) x.2 ∧
-      ∃ m' < r x.2 m + 1, m' ∈ Φ.cost (ofNat Code x.1.2) x.2) ?_ (Computable.succ.comp hy)
+      ∃ m' < r x.2 m + 1, m' ∈ Φ.cost (ofNat Code x.1.2) x.2) ?_
+    (Computable.succ.comp Computable.snd)
   refine ComputablePred.exists_lt
     (f := fun z : (((Code × ℕ) × ℕ) × ℕ) × ℕ => z.1.1.1.2 + 1)
     (p := fun z m => m ∈ Φ.cost (vers z.1.1.1.1 (z.1.1.2 + 1) z.2) z.1.2 ∧
@@ -167,19 +167,18 @@ private theorem computablePred_eligB (hr : Computable₂ r) :
   have hi' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.1.1.2 :=
     hi.comp (Computable.fst.comp Computable.fst)
   have hy' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.1.2 :=
-    hy.comp (Computable.fst.comp Computable.fst)
+    Computable.snd.comp (Computable.fst.comp Computable.fst)
   have hd' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.2 :=
     Computable.snd.comp Computable.fst
-  have hm' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.2 := Computable.snd
-  refine ComputablePred.and ?_ ?_
-  · exact Φ.computablePred_mem_cost_comp
-      (computable_vers he' (Computable.succ.comp hi') hd') hy' hm'
-  · refine ComputablePred.exists_lt
-      (f := fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => r w.1.1.2 w.2 + 1)
-      (p := fun w m' => m' ∈ Φ.cost (ofNat Code w.1.1.1.2) w.1.1.2) ?_
-      (Computable.succ.comp (hr.comp hy' hm'))
-    exact Φ.computablePred_mem_cost_comp ((Computable.ofNat Code).comp
-      (hi'.comp Computable.fst)) (hy'.comp Computable.fst) Computable.snd
+  refine ComputablePred.and
+    (Φ.computablePred_mem_cost_comp
+      (computable_vers he' (Computable.succ.comp hi') hd') hy' Computable.snd) ?_
+  refine ComputablePred.exists_lt
+    (f := fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => r w.1.1.2 w.2 + 1)
+    (p := fun w m' => m' ∈ Φ.cost (ofNat Code w.1.1.1.2) w.1.1.2) ?_
+    (Computable.succ.comp (hr.comp hy' Computable.snd))
+  exact Φ.computablePred_mem_cost_comp ((Computable.ofNat Code).comp
+    (hi'.comp Computable.fst)) (hy'.comp Computable.fst) Computable.snd
 
 private theorem computablePred_costOK :
     ComputablePred fun x : ((Code × ℕ) × ℕ) × ℕ => CostOK Φ x.1.1.1 x.1.1.2 x.1.2 x.2 := by
@@ -214,14 +213,13 @@ private theorem computablePred_costOK :
     Computable.snd.comp (Computable.fst.comp Computable.fst)
   have hy : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.2 :=
     Computable.snd.comp Computable.fst
-  have hd : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.2 := Computable.snd
   refine (ComputablePred.nat_le hu hi).imp ((ComputablePred.nat_le hi hy).imp ?_)
   refine ComputablePred.exists_lt
     (f := fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.1.1.2 + 1)
     (p := fun v m => m ∈ Φ.cost (vers v.1.1.1.1.1.1 (v.1.1.2 + 1) v.2) v.1.2) ?_
     (Computable.succ.comp hB)
   exact Φ.computablePred_mem_cost_comp (computable_vers (he.comp Computable.fst)
-    (Computable.succ.comp (hi.comp Computable.fst)) (hd.comp Computable.fst))
+    (Computable.succ.comp (hi.comp Computable.fst)) (Computable.snd.comp Computable.fst))
     (hy.comp Computable.fst) Computable.snd
 
 private theorem primrec_ovOf : Primrec₂ ovOf :=
@@ -246,12 +244,11 @@ private theorem computable_canc_eligB (hr : Computable₂ r) :
     (ov := fun q => ovB q.1.2.2.1) ?_ ?_ (Computable.fst.comp (Computable.snd.comp
       Computable.fst)) (Computable.snd.comp (Computable.snd.comp (Computable.snd.comp
       Computable.fst)))
-  · have h := (computable_eligB Φ r hr).comp (α := ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ × ℕ)
+  · exact ((computable_eligB Φ r hr).comp (α := ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ × ℕ)
       (Computable.pair (Computable.pair (Computable.pair
       (Computable.fst.comp (Computable.fst.comp Computable.fst))
       (Computable.snd.comp Computable.fst)) (Computable.fst.comp Computable.snd))
-      (Computable.snd.comp Computable.snd))
-    exact h.of_eq fun _ => rfl
+      (Computable.snd.comp Computable.snd))).of_eq fun _ => rfl
   · have h1 : Computable₂ ovB := (Primrec.option_isSome.comp primrec_ovOf).to_comp
     have hd : Computable fun p : ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ => p.1.1.2.2.1 :=
       Computable.fst.comp (Computable.snd.comp (Computable.snd.comp
@@ -283,39 +280,34 @@ private theorem computable_post (hr : Computable₂ r) :
 
 private theorem partrec₂_master (hr : Computable₂ r) : Partrec₂ (master Φ r) := by
   -- the arguments `(e, (u, (d, x)))` decoded from `(e, N)`
+  have hp1 : Computable fun p : Code × ℕ => p.2.unpair.1.unpair :=
+    Computable.unpair.comp (Computable.fst.comp (Computable.unpair.comp Computable.snd))
   have hq : Computable fun p : Code × ℕ =>
-      (p.1, p.2.unpair.1.unpair.1, p.2.unpair.1.unpair.2, p.2.unpair.2) := by
-    refine Computable.pair Computable.fst (Computable.pair ?_ (Computable.pair ?_ ?_))
-    · exact Computable.fst.comp (Computable.unpair.comp (Computable.fst.comp
-        (Computable.unpair.comp Computable.snd)))
-    · exact Computable.snd.comp (Computable.unpair.comp (Computable.fst.comp
-        (Computable.unpair.comp Computable.snd)))
-    · exact Computable.snd.comp (Computable.unpair.comp Computable.snd)
+      (p.1, p.2.unpair.1.unpair.1, p.2.unpair.1.unpair.2, p.2.unpair.2) :=
+    Computable.pair Computable.fst (Computable.pair (Computable.fst.comp hp1)
+      (Computable.pair (Computable.snd.comp hp1)
+        (Computable.snd.comp (Computable.unpair.comp Computable.snd))))
   have hcost : Computable₂ fun (p : Code × ℕ) (B : ℕ) =>
-      costOK Φ p.1 p.2.unpair.1.unpair.1 p.2.unpair.2 B := by
-    have h := (computable_costOK Φ).comp (α := (Code × ℕ) × ℕ)
+      costOK Φ p.1 p.2.unpair.1.unpair.1 p.2.unpair.2 B :=
+    ((computable_costOK Φ).comp (α := (Code × ℕ) × ℕ)
       (Computable.pair (Computable.pair (Computable.pair
         (Computable.fst.comp (hq.comp Computable.fst))
         (Computable.fst.comp (Computable.snd.comp (hq.comp Computable.fst))))
         (Computable.snd.comp (Computable.snd.comp (Computable.snd.comp
-          (hq.comp Computable.fst))))) Computable.snd)
-    exact h.of_eq fun _ => rfl
+          (hq.comp Computable.fst))))) Computable.snd)).of_eq fun _ => rfl
   have hsel : Computable₂ fun (p : Code × ℕ) (B : ℕ) =>
-      selCode Φ r p.1 p.2.unpair.1.unpair.1 p.2.unpair.1.unpair.2 p.2.unpair.2 B := by
-    have h := (computable_selCode Φ r hr).comp (α := (Code × ℕ) × ℕ)
-      (Computable.pair (hq.comp Computable.fst) Computable.snd)
-    exact h.of_eq fun _ => rfl
+      selCode Φ r p.1 p.2.unpair.1.unpair.1 p.2.unpair.1.unpair.2 p.2.unpair.2 B :=
+    ((computable_selCode Φ r hr).comp (α := (Code × ℕ) × ℕ)
+      (Computable.pair (hq.comp Computable.fst) Computable.snd)).of_eq fun _ => rfl
   have hpost : Computable₂ fun (q : (Code × ℕ) × ℕ) (w : ℕ) =>
-      post Φ r q.1.1 q.1.2.unpair.1.unpair.1 q.1.2.unpair.1.unpair.2 q.1.2.unpair.2 q.2 w := by
-    have h := (computable_post Φ r hr).comp (α := ((Code × ℕ) × ℕ) × ℕ)
+      post Φ r q.1.1 q.1.2.unpair.1.unpair.1 q.1.2.unpair.1.unpair.2 q.1.2.unpair.2 q.2 w :=
+    ((computable_post Φ r hr).comp (α := ((Code × ℕ) × ℕ) × ℕ)
       (Computable.pair (Computable.pair (hq.comp (Computable.fst.comp Computable.fst))
-        (Computable.snd.comp Computable.fst)) Computable.snd)
-    exact h.of_eq fun _ => rfl
+        (Computable.snd.comp Computable.fst)) Computable.snd)).of_eq fun _ => rfl
   have hx : Computable fun q : (Code × ℕ) × ℕ => q.1.2.unpair.2 :=
     Computable.snd.comp (Computable.unpair.comp (Computable.snd.comp Computable.fst))
-  have h := Partrec.bind (Partrec.rfind (hcost.partrec₂))
-    (Partrec.map (Code.eval_part.comp hsel hx) hpost).to₂
-  exact h.of_eq fun _ => rfl
+  exact (Partrec.bind (Partrec.rfind hcost.partrec₂)
+    (Partrec.map (Code.eval_part.comp hsel hx) hpost).to₂).of_eq fun _ => rfl
 
 /-! ### Semantics of the construction -/
 
@@ -323,8 +315,7 @@ variable {Φ r}
 
 private theorem eval_vers {e : Code} (he : e.eval = master Φ r e) (u d x : ℕ) :
     (vers e u d).eval x = run Φ r e u d x := by
-  rw [vers, Code.eval_curry, he]
-  simp only [master, Nat.unpair_pair]
+  simp [vers, Code.eval_curry, he, master]
 
 private theorem costOK_eq_true {e u x B} : costOK Φ e u x B = true ↔ CostOK Φ e u x B :=
   @decide_eq_true_iff _ (Classical.dec _)
@@ -335,7 +326,6 @@ private theorem elig_eq_true {e i y} : elig Φ r e i y = true ↔ Elig Φ r e i 
 /-- Under the cost cap of `CostOK`, capped eligibility is eligibility. -/
 private theorem eligB_eq {e u x B} (h : CostOK Φ e u x B) {i y} (hu : u ≤ i) (hiy : i ≤ y)
     (hy : y ≤ x) : eligB Φ r e B i y = elig Φ r e i y := by
-  unfold eligB elig
   refine decide_eq_decide.2 ⟨?_, ?_⟩
   · rintro ⟨d, hd, m, -, hm, m', hm', hm'c⟩
     exact ⟨d, hd, m, hm, m', hm'c, by omega⟩
@@ -360,9 +350,8 @@ private theorem run_eq {e u d x B} (hB : B ∈ Nat.rfind fun B => Part.some (cos
       (((canc (elig Φ r e) (ovB d) u x).map fun _ => 1 - w).getD 0))
       (Code.eval (((canc (elig Φ r e) (ovB d) u x).map (ofNat Code)).getD Code.zero) x) := by
   have hok : CostOK Φ e u x B := costOK_eq_true.1 (Part.mem_some_iff.1 (Nat.rfind_spec hB)).symm
-  rw [run, Part.bind_of_mem hB]
-  unfold selCode post
-  rw [canc_eligB_eq hok]
+  unfold run selCode post
+  simp only [Part.bind_of_mem hB, canc_eligB_eq hok]
 
 /-- If every version consulted up to stage `x` halts, some cost cap works. -/
 private theorem exists_costOK {e u x}
@@ -376,11 +365,9 @@ private theorem exists_costOK {e u x}
     (Finset.range (x + 1) ×ˢ Finset.range (x + 1)) ×ˢ Finset.range (x + 1)
   refine ⟨S.sup g, fun i hi y hy d hd hui hiy => ?_⟩
   have hdom := h i y d hui hiy (by omega) (by omega)
-  refine ⟨g ((i, y), d), Nat.lt_succ_of_le (Finset.le_sup ?_), ?_⟩
-  · simp only [S, Finset.mem_product, Finset.mem_range]
-    omega
-  · simp only [g, hdom, ↓reduceDIte]
-    exact Part.get_mem hdom
+  refine ⟨g ((i, y), d), Nat.lt_succ_of_le (Finset.le_sup ?_),
+    by simpa only [g, hdom, ↓reduceDIte] using Part.get_mem hdom⟩
+  simp only [S, Finset.mem_product, Finset.mem_range]; omega
 
 /-- A cancelled program halts at the stage where it is cancelled. -/
 private theorem dom_eval_of_canc {e : Code} {ov : ℕ → Bool} {u x i : ℕ}
@@ -394,9 +381,8 @@ private theorem dom_run_of_costOK {e u d x B} (hB : CostOK Φ e u x B) :
     (run Φ r e u d x).Dom := by
   rw [run_eq (Part.get_mem (dom_rfind_costOK hB))]
   change (Code.eval _ _).Dom
-  cases hc : canc (elig Φ r e) (ovB d) u x with
-  | none => exact trivial
-  | some i => exact dom_eval_of_canc hc
+  cases hc : canc (elig Φ r e) (ovB d) u x
+  exacts [trivial, dom_eval_of_canc hc]
 
 /-- At the fixed point `e`, every version halts on every input, by induction on `x - u`. -/
 private theorem costOK_of_fixed {e : Code} (he : e.eval = master Φ r e) :
@@ -423,8 +409,7 @@ private theorem ovOf_encode_nil (y : ℕ) : ovOf (encode ([] : List (Option ℕ)
 
 private theorem ovOf_encode_map (g : ℕ → Option ℕ) (N y : ℕ) :
     ovOf (encode ((List.range N).map g)) y = if y < N then g y else none := by
-  unfold ovOf
-  rw [ofNat_encode, List.getElem?_map]
+  rw [ovOf, ofNat_encode, List.getElem?_map]
   split_ifs with hy
   · simp [List.getElem?_range hy]
   · simp [List.getElem?_eq_none (l := List.range N) (by simpa using hy)]
@@ -443,38 +428,30 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
   obtain ⟨e, he⟩ := Code.fixed_point₂ (partrec₂_master Φ r hr)
   let d₀ := encode ([] : List (Option ℕ))
   have hovd₀ : ∀ y, ovOf d₀ y = none := ovOf_encode_nil
-  have hov₀ : ovB d₀ = fun _ => false := funext fun y => by
-    simp only [ovB, hovd₀, Option.isSome_none]
+  have hov₀ : ovB d₀ = fun _ => false := funext fun y => by simp [ovB, hovd₀]
   -- the run from `0` without overrides
   let C₀ : ℕ → Option ℕ := canc (elig Φ r e) (fun _ => false) 0
-  have hdom : ∀ x, (run Φ r e 0 d₀ x).Dom := fun x => by
-    obtain ⟨B, hB⟩ := costOK_of_fixed he _ 0 x le_rfl
-    exact dom_run_of_costOK hB
+  have hdom : ∀ x, (run Φ r e 0 d₀ x).Dom := fun x =>
+    (costOK_of_fixed he _ 0 x le_rfl).elim fun _ => dom_run_of_costOK
   let f : ℕ → ℕ := fun x => (run Φ r e 0 d₀ x).get (hdom x)
   have hfmem : ∀ x, f x ∈ run Φ r e 0 d₀ x := fun x => Part.get_mem (hdom x)
   -- the value of `f` at a stage with a cancellation, and at a stage without one
-  have hfc : ∀ x i w, C₀ x = some i → w ∈ (ofNat Code i).eval x → f x = 1 - w := by
-    intro x i w hc hw
-    have hc' : canc (elig Φ r e) (ovB d₀) 0 x = some i := by rw [hov₀]; exact hc
-    have h := mem_run he (u := 0) (d := d₀) (x := x) (w := w)
-      (by rw [hc', Option.map_some, Option.getD_some]; exact hw)
-    rw [hovd₀, Option.getD_none, hc', Option.map_some, Option.getD_some] at h
-    exact Part.mem_unique (hfmem x) h
-  have hf0 : ∀ x, C₀ x = none → f x = 0 := by
-    intro x hc
-    have hc' : canc (elig Φ r e) (ovB d₀) 0 x = none := by rw [hov₀]; exact hc
-    have h := mem_run he (u := 0) (d := d₀) (x := x) (w := 0)
-      (by rw [hc', Option.map_none, Option.getD_none]; exact Part.mem_some 0)
-    rw [hovd₀, Option.getD_none, hc', Option.map_none, Option.getD_none] at h
-    exact Part.mem_unique (hfmem x) h
-  have hf1 : ∀ x, f x ≤ 1 := by
-    intro x
+  have hC₀ (x) : canc (elig Φ r e) (ovB d₀) 0 x = C₀ x :=
+    congrArg (canc (elig Φ r e) · 0 x) hov₀
+  have hfc (x i w) (hc : C₀ x = some i) (hw : w ∈ (ofNat Code i).eval x) : f x = 1 - w :=
+    Part.mem_unique (hfmem x) <| by
+      simpa [hovd₀, (hC₀ x).trans hc] using
+        mem_run he (u := 0) (d := d₀) (x := x) (w := w) (by simpa [(hC₀ x).trans hc] using hw)
+  have hf0 (x) (hc : C₀ x = none) : f x = 0 :=
+    Part.mem_unique (hfmem x) <| by
+      simpa [hovd₀, (hC₀ x).trans hc] using mem_run he (u := 0) (d := d₀) (x := x) (w := 0)
+        (by simpa [(hC₀ x).trans hc] using id (α := 0 ∈ Code.zero.eval x) (Part.mem_some 0))
+  have hf1 (x) : f x ≤ 1 := by
     cases hc : C₀ x with
-    | none => rw [hf0 x hc]; exact zero_le_one
+    | none => exact (hf0 x hc).le.trans zero_le_one
     | some i =>
       obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hc)
-      rw [hfc x i w hc hw]
-      omega
+      exact (hfc x i w hc hw).le.trans (Nat.sub_le _ _)
   have hfcomp : Computable f :=
     (Code.eval_part.comp (Computable.const (vers e 0 d₀)) Computable.id).of_eq_tot
       fun x => by rw [eval_vers he]; exact hfmem x
@@ -491,49 +468,38 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
   classical
   let g : ℕ → Option ℕ := fun y => if ∃ j < i + 1, C₀ y = some j then some (f y) else none
   let D := encode ((List.range N).map g)
-  have hovD : ∀ y, ovOf D y = g y := by
-    intro y
+  have hovD (y) : ovOf D y = g y := by
     rw [ovOf_encode_map]
     split_ifs with hy
-    · rfl
-    · have : ¬∃ j < i + 1, C₀ y = some j := fun ⟨j, hj, hc⟩ => hN y (by omega) j hj hc
-      simp only [g, this, ↓reduceIte]
-  have hovB : ∀ y, ovB D y = true ↔ ∃ j < i + 1, C₀ y = some j := by
-    intro y
-    simp only [ovB, hovD, g]
-    split_ifs with h <;> simp [h]
+    exacts [rfl, (ite_eq_right fun ⟨j, hj, hc⟩ => hN y (not_lt.1 hy) j hj hc).symm]
+  have hovB : ∀ y, ovB D y = true ↔ ∃ j < i + 1, C₀ y = some j := fun y => by simp [ovB, hovD, g]
   have hsame := canc_override hovB
   -- the version `vers e (i + 1) D` computes `f`
   let c' := vers e (i + 1) D
-  have hc' : ∀ y, f y ∈ c'.eval y := by
-    intro y
+  have hc' : ∀ y, f y ∈ c'.eval y := fun y => by
     rw [eval_vers he]
     by_cases hlow : ∃ j < i + 1, C₀ y = some j
-    · have hg : ovOf D y = some (f y) := by rw [hovD]; simp only [g, hlow, ↓reduceIte]
+    · have hg : ovOf D y = some (f y) := by simp only [hovD, g, hlow, ↓reduceIte]
       have hdom' : ((((canc (elig Φ r e) (ovB D) (i + 1) y).map
           (ofNat Code)).getD Code.zero).eval y).Dom := by
         cases hcy : canc (elig Φ r e) (ovB D) (i + 1) y
         exacts [trivial, dom_eval_of_canc hcy]
       obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 hdom'
       simpa only [hg, Option.getD_some] using mem_run he (u := i + 1) (d := D) (x := y) hw
-    · have hg : ovOf D y = none := by rw [hovD]; simp only [g, hlow, ↓reduceIte]
+    · have hg : ovOf D y = none := by simp only [hovD, g, hlow, ↓reduceIte]
       cases hcy : C₀ y with
       | none =>
         have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = none :=
           Option.eq_none_iff_forall_ne_some.2 fun k h' =>
             Option.some_ne_none k (((hsame y k (canc_le h').1).1 h').symm.trans hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
+        simpa [hg, hcy', hf0 y hcy] using mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
           (by rw [hcy']; exact Part.mem_some 0)
-        rw [hg, hcy', Option.map_none, Option.getD_none, Option.getD_none] at h
-        rwa [hf0 y hcy]
       | some k =>
-        have hk : i + 1 ≤ k := not_lt.1 fun hk => hlow ⟨k, hk, hcy⟩
-        have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = some k := (hsame y k hk).2 hcy
+        have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = some k :=
+          (hsame y k (not_lt.1 fun hk => hlow ⟨k, hk, hcy⟩)).2 hcy
         obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := w)
-          (by simpa [hcy'] using hw)
-        rw [hfc y k w hcy hw]
-        simpa [hg, hcy'] using h
+        simpa [hg, hcy', hfc y k w hcy hw] using
+          mem_run he (u := i + 1) (d := D) (x := y) (w := w) (by simpa [hcy'] using hw)
   refine ⟨c', hc', ?_⟩
   -- eventually `c` is not eligible, which is the speedup
   filter_upwards [hne, eventually_ge_atTop D] with y hy hDy m hm m' hm'

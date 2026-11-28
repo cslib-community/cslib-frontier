@@ -51,20 +51,17 @@ theorem stationary_bound {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP.
         (stationaryState s n (fun _ => HP.K) (dyadicFloor δ m) Δ ⟨0, raw⟩ truth j) ⟨0, truth⟩ y| ≤
         Cpre * ∑ i ∈ range j, dyadicFloor δ m i * ε i := by
   obtain ⟨L, hL, hroot⟩ := root_dist HP hζ
-  refine ⟨3 * L * (12 * (1 + δ / 2) / (δ / 2)), by positivity, ?_⟩
-  intro ι s n Δ raw truth m j hj hno ε hε herr y hy
-  have hηθ : δ ≤ HP.θ := by
-    have h := threshold_margin HP
-    linarith [HP.η_lt_η₂, HP.η_pos]
-  have hh := abs_stationaryState_root_sub_le_weighted_dyadic
+  refine ⟨3 * L * (12 * (1 + δ / 2) / (δ / 2)), by positivity,
+    fun s n Δ raw truth m j hj hno ε hε herr y hy => ?_⟩
+  have hηθ : δ ≤ HP.θ := by linarith [threshold_margin HP, HP.η_lt_η₂, HP.η_pos]
+  simpa only [stateRootError, mul_assoc] using abs_stationaryState_root_sub_le_weighted_dyadic
     (H := output HP ζ) (p := (4⁻¹ : ℝ)) (C := L)
-    hδ (rank_pos HP) hL (by norm_num : (0 : ℝ) ≤ 0) (by linarith : (0 : ℝ) ≤ δ / 2)
+    hδ (rank_pos HP) hL le_rfl (half_pos hδ).le
     m j hj hno hε herr
     (fun x _ _ hx => entry_zero HP (hx.trans hηθ))
-    (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans (hδs.trans hmargin)) (hq'.2.trans
-      (hδs.trans hmargin)))
+    (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans (hδs.trans hmargin))
+      (hq'.2.trans (hδs.trans hmargin)))
     (fun x v q x' v' q' _ _ _ _ => hroot x v q x' v' q') y hy
-  simpa only [stateRootError, mul_assoc] using hh
 
 
 omit hζ in
@@ -84,19 +81,15 @@ theorem continuation_preserved {ι : Type*} (s : Finset ι) (n : ℕ → ℕ)
   have hb (y : ι) (ν : Fin 2) := abs_stationaryState_row_sub_le_dyadic
     (s := s) (n := n) (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
     hδ.le m j (by omega) hno y ν
-  apply reference_iterate_output_eq (H := output HP ζ) hs.le (rank_pos HP)
-    (fun y hy => by have hh := (abs_le.mp (hb y 0)).1; linarith [hfirst y hy])
-    (fun y hy => by
-      have hh := abs_le.mp (hb y 1)
-      exact abs_le.mpr ⟨by linarith [(abs_le.mp (hsecond y hy)).1], by linarith [(abs_le.mp
-        (hsecond y hy)).2]⟩)
+  exact reference_iterate_output_eq (H := output HP ζ) hs.le (rank_pos HP)
+    (fun y hy => by linarith [(abs_le.mp (hb y 0)).1, hfirst y hy])
+    (fun y hy => abs_le.mpr ⟨by linarith [(abs_le.mp (hb y 1)).1, (abs_le.mp (hsecond y hy)).1],
+      by linarith [(abs_le.mp (hb y 1)).2, (abs_le.mp (hsecond y hy)).2]⟩)
     (hmargin.trans_lt HP.η_lt_η₂) (threshold_margin HP)
     (fun _ _ _ hx => entry_zero HP hx) (fun _ _ _ hq => gate_zero HP hq)
     (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans hmargin) (hq'.2.trans hmargin)) r
-  · intro i hi; exact hn (j + i) (Nat.le_add_right _ _) (by omega)
-  · intro i _; have h := dyadicFloor_le_scale_div hδ.le m (j + i); linarith
-  · exact hy
-
+    (fun i hi => hn (j + i) (Nat.le_add_right _ _) (by omega))
+    (fun i _ => by linarith [dyadicFloor_le_scale_div hδ.le m (j + i)]) y hy
 
 /-- Cap-free actual relative comparison at fixed shape. The bounded initial default is
 necessary for the sentinel coupling; it is supplied by actual stationary preloss. -/
@@ -126,11 +119,9 @@ theorem relative_bound {scale : ℝ} (hs : 0 < scale)
     have hb := root_range HP ζ (b.row y 0) (b.row y 1) (firstRank s K b.defaultValue b.row)
     change 0 ≤ _ ∧ _ ≤ R at ha hb
     exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
-  have hg (d v r : ℝ) (hr : T ≤ r) : output HP ζ d v r = 0 :=
-    gate_zero HP (by
-      dsimp only [T] at hr
-      linarith [HP.toHierarchyParams.atomCap_gt, threshold_margin HP, HP.θ_lt_θ₂,
-        le_max_right ((HP.k : ℝ) + 1) HP.θ₂])
+  have hg (d v r : ℝ) (hr : T ≤ r) : output HP ζ d v r = 0 := gate_zero HP (by
+    linarith [hr, HP.toHierarchyParams.atomCap_gt, threshold_margin HP, HP.θ_lt_θ₂,
+      le_max_right ((HP.k : ℝ) + 1) HP.θ₂])
   obtain ⟨C, hC, hbound⟩ := Cslib.RowCompression.exists_iterate_root_bound
     (output HP ζ) hsat R (by positivity) hrange (root_dist HP hζ) hg (cap_pos HP)
   exact ⟨C, hC, fun s n floors Δ truth raw loss z m hz hm hn hf hfirst hsecond hloss ε hε herr
@@ -172,9 +163,7 @@ theorem sharp_noOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP.
   have hact := hfinal s actual.defaultValue truth r loss hfirst hloss εf hεf herrf y hy
   have hr : r + loss = actual.row := funext fun y => funext fun ν => by simp [loss]
   rw [hr] at hact
-  change |stateRootError (output HP ζ) s HP.K actual ref y| ≤ Cf * εf at hact
   have href := hpre s n Δ raw truth m m le_rfl hno ε hε herr y hy
-  change |stateRootError (output HP ζ) s HP.K ref ⟨0, truth⟩ y| ≤ _ at href
   calc
     _ ≤ |stateRootError (output HP ζ) s HP.K actual ref y| + |stateRootError (output HP ζ) s
       HP.K ref ⟨0, truth⟩ y| := abs_sub_le _ _ _
@@ -200,8 +189,8 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
         (stationaryContinuation s n HP.K (dyadicFloor δ m) Δ ⟨0, raw⟩ truth j (m - j)) y| ≤
         Ctail * ∑ i ∈ Ico j m, 28^(m - i) * ε i := by
   obtain ⟨C, hC, hbound⟩ := relative_bound HP ζ hζ hs hcapscale
-  refine ⟨4 * C, by positivity, ?_⟩
-  intro ι s n Δ raw truth δ hδ hδs m j hj hover hfirst hsecond hn ε hε herr y hy
+  refine ⟨4 * C, by positivity,
+    fun {ι} s n Δ raw truth δ hδ hδs m j hj hover hfirst hsecond hn ε hε herr y hy => ?_⟩
   let ρ := dyadicFloor δ m
   let run := iterate s n (fun _ => HP.K) ρ Δ ⟨0, raw⟩
   let raw₀ := uncompressedRow Δ raw (j + 1)
@@ -216,10 +205,9 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
     rw [stationaryState_row_sub] at h
     change |loss y ν| ≤ δ / 100 at h
     linarith
-  have hlocalε (i : ℕ) (hi : i ≤ m - j) : 0 ≤ preloadedError ε j i := by
-    cases i with
-    | zero => exact hε j le_rfl hj
-    | succ i => exact hε (j + i) (Nat.le_add_right _ _) (by omega)
+  have hlocalε : ∀ i ≤ m - j, 0 ≤ preloadedError ε j i
+    | 0, _ => hε j le_rfl hj
+    | i + 1, hi => hε (j + i) (Nat.le_add_right _ _) (by omega)
   have hlocalerr (i : ℕ) (hi : i ≤ m - j) (y : ι) (hy : y ∈ s) :
       clippedError (truth y 0) (truth y 1)
         (uncompressedRow (preloadedIncrement Δ j) raw₀ i y) ≤ preloadedError ε j i := by
@@ -230,30 +218,25 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
       dsimp only [raw₀]
       rw [uncompressedRow_preloadedIncrement j (Nat.succ_pos i), preloadedError_succ]
       simpa only [Nat.add_assoc] using herr (j + i) (Nat.le_add_right _ _) (by omega) y hy
-  have hrow : raw₀ + loss = inputRow s n (fun _ => HP.K) ρ Δ ⟨0, raw⟩ j := by
-    funext y ν
-    dsimp only [raw₀, loss, run, inputRow, Pi.add_apply]
-    rw [uncompressedRow_succ]
-    ring
+  have hrow : raw₀ + loss = inputRow s n (fun _ => HP.K) ρ Δ ⟨0, raw⟩ j :=
+    funext fun y => funext fun ν => by
+      dsimp only [raw₀, loss, run, inputRow, Pi.add_apply]
+      rw [uncompressedRow_succ]; ring
   have hactual : iterate s (fun i => n (j + i)) (fun _ => HP.K) (fun i => ρ (j + i))
       (preloadedIncrement Δ j) ⟨z, raw₀ + loss⟩ (m - j) = run m := by
     rw [hrow]
     simpa only [hjr] using iterate_preloadedIncrement (s := s) (n := n) (K := fun _ => HP.K)
       (ρ := ρ) (Δ := Δ) (a := ⟨0, raw⟩) j hr
-  have hz : z ≤ scale := by
-    have h := stationaryState_defaultValue_le_dyadic (s := s) (n := n)
-      (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
-      hδ.le (by norm_num) (by dsimp; positivity) m j hj.le hover.1
-    exact h.trans hδs
-  have hlocal := hbound s (fun i => n (j + i)) (fun i => ρ (j + i))
+  have hz : z ≤ scale := (stationaryState_defaultValue_le_dyadic (s := s) (n := n)
+    (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
+    hδ.le le_rfl (by dsimp; positivity) m j hj.le hover.1).trans hδs
+  have hlocal := hactual ▸ hbound s (fun i => n (j + i)) (fun i => ρ (j + i))
     (preloadedIncrement Δ j) truth raw₀ loss z (m - j) hz hr
     (fun i hi => hn (j + i) (Nat.le_add_right _ _) (by omega))
     (fun i _ => by have h := dyadicFloor_le_scale_div hδ.le m (j + i); dsimp only [ρ]; linarith)
     hfirst hsecond hloss (preloadedError ε j) hlocalε hlocalerr y hy
-  rw [hactual] at hlocal
-  have hbudget := prefixErrorBudget_preloadedError_le j hr
+  have hbudget := hjr ▸ prefixErrorBudget_preloadedError_le j hr
     (fun i hi => hε i (mem_Ico.mp hi).1 (by have := (mem_Ico.mp hi).2; omega))
-  rw [hjr] at hbudget
   calc
     _ ≤ C * prefixErrorBudget (preloadedError ε j) (m - j) := hlocal
     _ ≤ C * (4*∑ i ∈ Ico j m, 28^(m - i) * ε i) := mul_le_mul_of_nonneg_left hbudget hC
@@ -289,20 +272,15 @@ theorem sharp_firstOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ 
   have ht := htail s n Δ raw truth δ hδ hδs m j hj hover hfirst hsecond hn ε
     (fun i _ hi => hε i hi) herrtail y hy
   have hp := hpre s n Δ raw truth m j hj.le hover.1 ε (fun i hi => hε i (hi.trans hj)) herrpre y hy
-  have hc := continuation_preserved HP ζ s n Δ raw truth hs hmargin hδ hδs m j (m - j)
-    (by omega) hover.1 hfirst hsecond hn y hy
-  change output HP ζ (c.row y 0) (c.row y 1) (firstRank s HP.K c.defaultValue c.row) =
-    output HP ζ (b.row y 0) (b.row y 1) (firstRank s HP.K b.defaultValue b.row) at hc
   have href : stateRootError (output HP ζ) s HP.K c ⟨0, truth⟩ y =
-      stateRootError (output HP ζ) s HP.K b ⟨0, truth⟩ y := by
-    unfold stateRootError
-    rw [hc]
-  rw [← href] at hp
+      stateRootError (output HP ζ) s HP.K b ⟨0, truth⟩ y :=
+    congrArg (· ^ (4⁻¹ : ℝ) - _) (continuation_preserved HP ζ s n Δ raw truth hs hmargin hδ hδs m j
+      (m - j) (by omega) hover.1 hfirst hsecond hn y hy)
   calc
     _ ≤ |stateRootError (output HP ζ) s HP.K a c y| + |stateRootError (output HP ζ) s HP.K c
       ⟨0, truth⟩ y| := abs_sub_le _ _ _
     _ ≤ Ct * ∑ i ∈ Ico j m, 28 ^ (m - i) * ε i + Cp * ∑ i ∈ range j, dyadicFloor δ m i * ε i :=
-      add_le_add ht hp
+      add_le_add ht (href.symm ▸ hp)
     _ = _ := add_comm _ _
 
 
@@ -336,13 +314,12 @@ theorem sharp_compression {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP
   classical
   obtain ⟨Cf, hCf, hno⟩ := sharp_noOverflow HP ζ hζ hs hmargin
   obtain ⟨Ct, hCt, hover⟩ := sharp_firstOverflow HP ζ hζ hs hmargin hcapscale
-  refine ⟨max Cf Ct, le_trans hCf (le_max_left _ _), ?_⟩
-  intro η hη hmargin
+  refine ⟨max Cf Ct, hCf.trans (le_max_left _ _), fun η hη hmargin => ?_⟩
   obtain ⟨An, hAn, hn⟩ := hno η hη hmargin
   obtain ⟨At, hAt, ht⟩ := hover η hη hmargin
-  refine ⟨max An At, le_trans hAn (le_max_left _ _), ?_⟩
-  intro ι S n Δ raw truth m heavy hfirst hsecond hcapacity ε hε herr
-    εfinal hεfinal herrfinal hfalse y hy
+  refine ⟨max An At, hAn.trans (le_max_left _ _),
+    fun S n Δ raw truth m heavy hfirst hsecond hcapacity ε hε herr
+      εfinal hεfinal herrfinal hfalse y hy => ?_⟩
   exact le_of_noOverflow_of_firstOverflow S n (fun _ => HP.K) (dyadicFloor η m) Δ ⟨0, raw⟩ m
     heavy ε (fun _ => by positivity) hε hεfinal hAt hCf hCt hfalse
     (fun hnone => hn S n Δ raw truth m hnone hfirst ε hε
@@ -360,12 +337,11 @@ theorem fixed_shape (HP : FourthRootHierarchyParams 16 1 16 32 8) :
       ζ ≤ scale / 2 ∧ ζ ≤ HP.θ / 2 := by
   let scale := min (HP.η / 2) (HP.toHierarchyParams.atomCap / 20000)
   have hs : 0 < scale := by dsimp only [scale]; positivity
-  refine ⟨scale, min (scale / 4) (HP.θ / 4), hs, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (min_le_left _ _).trans (by linarith [HP.η_pos])
-  · exact (min_le_right _ _).trans (by linarith [cap_pos HP])
-  · positivity
-  · exact (min_le_left _ _).trans (by linarith)
-  · exact (min_le_right _ _).trans (by linarith [HP.θ_pos])
+  exact ⟨scale, min (scale / 4) (HP.θ / 4), hs,
+    (min_le_left _ _).trans (by linarith [HP.η_pos]),
+    (min_le_right _ _).trans (by linarith [cap_pos HP]),
+    by positivity, (min_le_left _ _).trans (by linarith),
+    (min_le_right _ _).trans (by linarith [HP.θ_pos])⟩
 
 
 end Matrix.FourthRootHierarchyParams.NormalizedRow

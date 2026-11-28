@@ -103,14 +103,24 @@ theorem subtreeWeight_nonneg {w : α → ℝ} (hw : ∀ x, 0 ≤ w x) (t : Binar
   | nil => exact le_rfl
   | node a _ _ ihl ihr => simp only [subtreeWeight_node]; linarith [hw a]
 
+private theorem subtreeWeight_node_bounds {w : α → ℝ} (hw : ∀ x, 0 ≤ w x)
+    (a : α) (l r : BinaryTree α) :
+    w a ≤ subtreeWeight w (.node a l r) ∧
+    subtreeWeight w l ≤ subtreeWeight w (.node a l r) ∧
+    subtreeWeight w r ≤ subtreeWeight w (.node a l r) := by
+  rw [subtreeWeight_node]
+  have hl := subtreeWeight_nonneg hw l
+  have hr := subtreeWeight_nonneg hw r
+  exact ⟨(le_add_of_nonneg_right hl).trans (le_add_of_nonneg_right hr),
+    (le_add_of_nonneg_left (hw a)).trans (le_add_of_nonneg_right hr),
+    le_add_of_nonneg_left (add_nonneg (hw a) hl)⟩
+
 theorem subtreeWeight_pos {w : α → ℝ} (hw : ∀ x, 0 < w x) {t : BinaryTree α} (ht : t ≠ .nil) :
     0 < subtreeWeight w t := by
   cases t with
   | nil => exact (ht rfl).elim
   | node a l r =>
-    simp only [subtreeWeight_node]
-    linarith [hw a, subtreeWeight_nonneg (fun x => (hw x).le) l,
-      subtreeWeight_nonneg (fun x => (hw x).le) r]
+    exact (hw a).trans_le (subtreeWeight_node_bounds (fun x => (hw x).le) a l r).1
 
 theorem subtreeWeight_plug_congr (w : α → ℝ) {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
     (h : subtreeWeight w t₁ = subtreeWeight w t₂) :
@@ -126,22 +136,20 @@ theorem le_subtreeWeight_plug {w : α → ℝ} (hw : ∀ x, 0 ≤ w x) (t : Bina
   | nil => exact le_rfl
   | cons f _ ih =>
     cases f with
-    | left p r =>
-      exact (show subtreeWeight w t ≤ subtreeWeight w (.node p t r) by
-        simp only [subtreeWeight_node]; linarith [hw p, subtreeWeight_nonneg hw r]).trans (ih _)
-    | right l p =>
-      exact (show subtreeWeight w t ≤ subtreeWeight w (.node p l t) by
-        simp only [subtreeWeight_node]; linarith [hw p, subtreeWeight_nonneg hw l]).trans (ih _)
+    | left p r => exact (subtreeWeight_node_bounds hw p t r).2.1.trans (ih _)
+    | right l p => exact (subtreeWeight_node_bounds hw p l t).2.2.trans (ih _)
 
 theorem subtreeWeight_splayUp (w : α → ℝ) (x : α) (l r : BinaryTree α) (ctx : List (Frame α)) :
     subtreeWeight w (splayUp x l r ctx).tree = subtreeWeight w (plug (.node x l r) ctx) := by
   induction l, r, ctx using splayUp.induct x with
   | case1 => rfl
-  | case2 | case3 => simp only [splayUp, plug_left, plug_right, plug_nil, subtreeWeight_node]; ring
+  | case2 | case3 =>
+    simp only [splayUp, plug_left, plug_right, plug_nil, subtreeWeight_node]
+    ac_rfl
   | case4 _ _ _ _ _ _ _ ih | case5 _ _ _ _ _ _ _ ih | case6 _ _ _ _ _ _ _ ih
     | case7 _ _ _ _ _ _ _ ih =>
     simp only [splayUp, plug_left, plug_right]
-    exact ih.trans (subtreeWeight_plug_congr w _ (by simp only [subtreeWeight_node]; ring))
+    exact ih.trans (subtreeWeight_plug_congr w _ (by simp only [subtreeWeight_node]; ac_rfl))
 
 @[simp] theorem subtreeWeight_splayMin (w : α → ℝ) (t : BinaryTree α) :
     subtreeWeight w (splayMin t).tree = subtreeWeight w t := by
@@ -149,9 +157,8 @@ theorem subtreeWeight_splayUp (w : α → ℝ) (x : α) (l r : BinaryTree α) (c
   cases hf : focusMin t [] with
   | none => simp [(focusMin_eq_none_iff t []).mp hf]
   | some f =>
-    rw [subtreeWeight_splayUp]
-    simpa only [Focus.toTree, Focus.sub, plug_nil] using
-      congrArg (subtreeWeight w) (focusMin_spec hf).1
+    exact (subtreeWeight_splayUp w f.key f.leftSub f.rightSub f.ctx).trans
+      (congrArg (subtreeWeight w) (focusMin_spec hf).1)
 
 @[simp] theorem subtreeWeight_splayMax (w : α → ℝ) (t : BinaryTree α) :
     subtreeWeight w (splayMax t).tree = subtreeWeight w t := by
@@ -159,9 +166,8 @@ theorem subtreeWeight_splayUp (w : α → ℝ) (x : α) (l r : BinaryTree α) (c
   cases hf : focusMax t [] with
   | none => simp [(focusMax_eq_none_iff t []).mp hf]
   | some f =>
-    rw [subtreeWeight_splayUp]
-    simpa only [Focus.toTree, Focus.sub, plug_nil] using
-      congrArg (subtreeWeight w) (focusMax_spec hf).1
+    exact (subtreeWeight_splayUp w f.key f.leftSub f.rightSub f.ctx).trans
+      (congrArg (subtreeWeight w) (focusMax_spec hf).1)
 
 /-- Base-2 logarithmic rank `r(x) = log₂ s(x)` of a subtree ([SleatorTarjan1985b], Section 2,
 p. 658, Footnote 1). -/
@@ -200,16 +206,13 @@ theorem potential_plug_sub_eq (w : α → ℝ) {t₁ t₂ : BinaryTree α} (ctx 
       potential w t₁ - potential w t₂ := by
   induction ctx generalizing t₁ t₂ with
   | nil => rfl
-  | cons f _ ih =>
-    cases f with
-    | left p r =>
-      have hsw' : subtreeWeight w (.node p t₁ r) = subtreeWeight w (.node p t₂ r) := by
-        simp only [subtreeWeight_node, hsw]
-      simp only [plug_left]; rw [ih hsw']; simp only [potential_node, nodeRank_congr hsw']; ring
-    | right l p =>
-      have hsw' : subtreeWeight w (.node p l t₁) = subtreeWeight w (.node p l t₂) := by
-        simp only [subtreeWeight_node, hsw]
-      simp only [plug_right]; rw [ih hsw']; simp only [potential_node, nodeRank_congr hsw']; ring
+  | cons f ctx ih =>
+    have hw := subtreeWeight_plug_congr w [f] hsw
+    rw [show f :: ctx = [f] ++ ctx from rfl, plug_append, plug_append, ih hw]
+    have hr := nodeRank_congr hw
+    cases f <;>
+      simp only [plug_left, plug_right, plug_nil] at hr ⊢ <;>
+      simp only [potential_node, hr, add_sub_add_left_eq_sub, add_sub_add_right_eq_sub]
 
 /-- Sleator–Tarjan running-time measure for a single splay ([SleatorTarjan1985b], Section 2,
 p. 658): the number of rotations performed, or `1` when zero rotations are performed. -/
@@ -425,9 +428,8 @@ variable {α : Type*} [LinearOrder α]
   cases hf : focusSearch x t [] with
   | none => simp [(focusSearch_eq_none_iff x t []).mp hf]
   | some f =>
-    rw [subtreeWeight_splayUp]
-    simpa only [Focus.toTree, Focus.sub, plug_nil] using
-      congrArg (subtreeWeight w) (focusSearch_toTree_and_length hf).1
+    exact (subtreeWeight_splayUp w f.key f.leftSub f.rightSub f.ctx).trans
+      (congrArg (subtreeWeight w) (focusSearch_toTree_and_length hf).1)
 
 /-- On an `Ordered` search tree, `subtreeWeight w t` equals the Finset sum of `w` over
 `elements t`. -/
@@ -470,10 +472,8 @@ private theorem focus_splayUp_amortized_le {w : α → ℝ} (hw : ∀ y, 0 < w y
     obtain ⟨_, _, hnode⟩ := exists_node_splayUp f.key f.leftSub f.rightSub f.ctx
     rw [htree, hnode] at he; exact he ▸ by simp
   · have hup := htree ▸ splayUp_splayTime_amortized_le hw f.key f.leftSub f.rightSub f.ctx
-    have hw_le : w f.key ≤ subtreeWeight w (.node f.key f.leftSub f.rightSub) := by
-      simp only [subtreeWeight_node]
-      linarith [subtreeWeight_nonneg (fun y => (hw y).le) f.leftSub,
-        subtreeWeight_nonneg (fun y => (hw y).le) f.rightSub]
+    have hw_le := (subtreeWeight_node_bounds (fun y => (hw y).le)
+      f.key f.leftSub f.rightSub).1
     have hrk_le : Real.logb 2 (w f.key) ≤ nodeRank w (.node f.key f.leftSub f.rightSub) :=
       Real.logb_le_logb_of_le (by norm_num) (hw f.key) hw_le
     have hdiv : Real.logb 2 (subtreeWeight w t / w f.key) = nodeRank w t - Real.logb 2 (w f.key) :=
@@ -551,11 +551,9 @@ theorem sum_logb_weight_le_potential {w : α → ℝ} (hw : ∀ y, 0 < w y)
   induction t with
   | nil => simp [elements]
   | node a l r ihl ihr =>
-    have ha_le : Real.logb 2 (w a) ≤ nodeRank w (.node a l r) := by
-      refine Real.logb_le_logb_of_le (by norm_num) (hw a) ?_
-      simp only [subtreeWeight_node]
-      linarith [subtreeWeight_nonneg (fun y => (hw y).le) l,
-        subtreeWeight_nonneg (fun y => (hw y).le) r]
+    have ha_le : Real.logb 2 (w a) ≤ nodeRank w (.node a l r) :=
+      Real.logb_le_logb_of_le (by norm_num) (hw a)
+        (subtreeWeight_node_bounds (fun y => (hw y).le) a l r).1
     simp only [elements, Finset.sum_insert ht.notMem_elements_union,
       Finset.sum_union ht.disjoint_elements, potential_node]
     linarith [ihl ht.1, ihr ht.2.1]
@@ -568,15 +566,13 @@ theorem potential_le_sum_logb_of_le {w : α → ℝ} (hw : ∀ y, 0 < w y)
   induction t with
   | nil => simp [elements]
   | node a l r ihl ihr =>
-    have hwa := hw a
-    have hwl' := subtreeWeight_nonneg (fun y => (hw y).le) l
-    have hwr' := subtreeWeight_nonneg (fun y => (hw y).le) r
-    simp only [subtreeWeight_node] at hW
+    obtain ⟨_, hl, hr⟩ := subtreeWeight_node_bounds (fun y => (hw y).le) a l r
     have hrk : nodeRank w (.node a l r) ≤ Real.logb 2 W :=
       Real.logb_le_logb_of_le (by norm_num) (subtreeWeight_pos hw (by simp)) hW
     simp only [elements, Finset.sum_insert ht.notMem_elements_union,
       Finset.sum_union ht.disjoint_elements, potential_node]
-    linarith [ihl ht.1 (by linarith), ihr ht.2.1 (by linarith)]
+    rw [← add_assoc]
+    exact add_le_add (add_le_add hrk (ihl ht.1 (hl.trans hW))) (ihr ht.2.1 (hr.trans hW))
 
 /-- **Fixed-Weight Potential Drop Bound** ([SleatorTarjan1985b], Section 2, p. 659):
 between any two `Ordered` trees `t₁` and `t₂` representing the same set of keys, if
@@ -702,18 +698,11 @@ private theorem splaySeqTime_present_telescoping {w : α → ℝ} (hw : ∀ y, 0
 private theorem list_sum_map_eq_sum_count {s : Finset α} (xs : List α)
     (hxs : ∀ x ∈ xs, x ∈ s) (f : α → ℝ) :
     (xs.map f).sum = ∑ y ∈ s, (xs.count y : ℝ) * f y := by
-  induction xs with
-  | nil => simp
-  | cons x xs ih =>
-    have hx_mem : x ∈ s := hxs x List.mem_cons_self
-    simp only [List.map_cons, List.sum_cons, ih fun z hz => hxs z (List.mem_cons_of_mem x hz)]
-    have hsplit : ∀ y ∈ s, ((x :: xs).count y : ℝ) * f y =
-        (xs.count y : ℝ) * f y + if y = x then f y else 0 := fun y _ => by
-      rw [List.count_cons]; by_cases hyx : y = x
-      · subst hyx; simp only [beq_self_eq_true, ↓reduceIte, Nat.cast_add, Nat.cast_one]; ring
-      · simp [hyx, beq_false_of_ne (Ne.symm hyx)]
-    rw [Finset.sum_congr rfl hsplit, Finset.sum_add_distrib, Finset.sum_ite_eq' s x f]
-    simp only [hx_mem, ↓reduceIte]; ring
+  have hs : xs.toFinset ⊆ s := fun _ hy => hxs _ (List.mem_toFinset.mp hy)
+  rw [Finset.sum_list_map_count, Finset.sum_subset hs]
+  · simp only [nsmul_eq_mul]
+  · intro y _ hy
+    rw [List.count_eq_zero_of_not_mem (mt List.mem_toFinset.mpr hy), zero_nsmul]
 
 /-- **Static Optimality Theorem** ([SleatorTarjan1985b], Section 2, Theorem 2, p. 659):
 for any `Ordered` splay tree `t` and any access sequence `xs` of present keys (`∀ x ∈ xs, x ∈ t`)
@@ -764,14 +753,10 @@ theorem splaySeqTime_le_static_optimality (xs : List α) {t : BinaryTree α} (ht
       simp only [w, hy, ↓reduceIte]
       have hcy_ge : (1 : ℝ) ≤ xs.count y := by exact_mod_cast hq y hy
       have hcy_le : (xs.count y : ℝ) ≤ xs.length := by
-        rw [hcount_sum]
-        exact Finset.single_le_sum (f := fun z => (xs.count z : ℝ))
-          (fun _ _ => Nat.cast_nonneg _) hy
-      have hcy_pos : (0 : ℝ) < xs.count y := by linarith
+        exact_mod_cast (List.count_le_length : xs.count y ≤ xs.length)
+      have hcy_pos : (0 : ℝ) < xs.count y := zero_lt_one.trans_le hcy_ge
       have hdiv_ge : 1 ≤ (xs.length : ℝ) / xs.count y := (one_le_div hcy_pos).mpr hcy_le
-      have hlog_nonneg : 0 ≤ Real.logb 2 ((xs.length : ℝ) / xs.count y) :=
-        Real.logb_nonneg (by norm_num) hdiv_ge
-      nlinarith
+      exact le_mul_of_one_le_left (Real.logb_nonneg (by norm_num) hdiv_ge) hcy_ge
     linarith
 
 /-- **Fixed-weight access-sequence bound** ([SleatorTarjan1985b], Section 2, p. 659; the common

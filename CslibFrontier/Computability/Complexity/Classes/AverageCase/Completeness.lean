@@ -99,16 +99,13 @@ theorem codeVerifier_polyTime (hnum : ComputableInPolyTime num encBits encNat)
     {V : List Bool × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair encBits encBits) encBool) :
     ComputableInPolyTime (codeVerifier num den q V) (encPair encBits encBits) encBool := by
-  have hcode := code_polyTime hnum hden
-  have h1 := ComputableInPolyTime.fst encBits encBits
-  have h2 := ComputableInPolyTime.snd encBits encBits
-  have hx := ComputableInPolyTime.unframe.comp h2
-  have hw := ComputableInPolyTime.dropFrame.comp h2
-  have hq := (ComputableInPolyTime.unary_eval q).comp (ComputableInPolyTime.length_bits.comp hx)
-  have hV' := hV.comp (hx.prod hw)
-  have hd1 := ComputableInPolyTime.decide_eq' h1 (hcode.comp hx)
-  have hd2 := ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits.comp hw) hq
-  exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hd1 hd2) hV'
+  have hx := ComputableInPolyTime.unframe.comp (.snd encBits encBits)
+  have hw := ComputableInPolyTime.dropFrame.comp (.snd encBits encBits)
+  exact ComputableInPolyTime.bool_and'
+    (.bool_and' (.decide_eq' (.fst encBits encBits) ((code_polyTime hnum hden).comp hx))
+      (.decide_eq' (ComputableInPolyTime.length_bits.comp hw)
+        ((ComputableInPolyTime.unary_eval q).comp (ComputableInPolyTime.length_bits.comp hx))))
+    (hV.comp (hx.prod hw))
 
 section Spec
 
@@ -132,9 +129,8 @@ theorem length_header_code_le (c x : List Bool) :
 /-- The code is injective. -/
 theorem code_injective {x x' : List Bool} (h : code num den x = code num den x') : x = x' := by
   obtain ⟨h1, h2⟩ := frame_append_inj h
-  have hlen : x.length = x'.length := by
-    simpa using congrArg BitString.binaryValue h1
-  exact Compression.compress_injective hcdf hden hlen h2
+  exact Compression.compress_injective hcdf hden
+    (by simpa using congrArg BitString.binaryValue h1) h2
 
 /-- **Domination by the header weight**:
 `2^{|header c (C x)|} D_n(x) ≤ 2^{2|c|+4} (6n+5)^2 (2n+1)^2`, the inequality
@@ -148,12 +144,10 @@ theorem two_pow_length_header_code_mul_le (c x : List Bool) :
   have hA : 2 ^ (2 * c.length + 1 + (2 * (code num den x).length.size + 1) +
       2 * x.length.size + 1) * 2 ≤
       2 ^ (2 * c.length + 4) * (6 * x.length + 5) ^ 2 * (2 * x.length + 1) ^ 2 := by
-    have h1 : 2 ^ (2 * (code num den x).length.size) ≤ (6 * x.length + 5) ^ 2 := by
-      rw [pow_mul']
-      exact Nat.pow_le_pow_left ((Nat.two_pow_size_le _).trans (by omega)) 2
-    have h2 : 2 ^ (2 * x.length.size) ≤ (2 * x.length + 1) ^ 2 := by
-      rw [pow_mul']
-      exact Nat.pow_le_pow_left (Nat.two_pow_size_le _) 2
+    have h1 : 2 ^ (2 * (code num den x).length.size) ≤ (6 * x.length + 5) ^ 2 :=
+      (pow_mul' 2 2 _).trans_le (Nat.pow_le_pow_left ((Nat.two_pow_size_le _).trans (by omega)) 2)
+    have h2 : 2 ^ (2 * x.length.size) ≤ (2 * x.length + 1) ^ 2 :=
+      (pow_mul' 2 2 _).trans_le (Nat.pow_le_pow_left (Nat.two_pow_size_le _) 2)
     calc 2 ^ (2 * c.length + 1 + (2 * (code num den x).length.size + 1) +
           2 * x.length.size + 1) * 2 =
         2 ^ (2 * c.length + 4) * 2 ^ (2 * (code num den x).length.size) *
@@ -180,20 +174,17 @@ end Spec
 private theorem runFor_eq_of_computesInTimeAndSpace {k : ℕ} {State : Type}
     {tm : Turing.MultiTapeTM k Bool State} {w out : List Bool} {T s t : ℕ}
     (h : tm.ComputesInTimeAndSpace w out T s) (ht : T ≤ t) :
-    tm.runFor w t = some out := by
-  obtain ⟨hh, ho⟩ := h.runFrom_of_le ht
-  exact (tm.mem_runFor_iff).mpr ⟨hh, ho⟩
+    tm.runFor w t = some out :=
+  tm.mem_runFor_iff.mpr (h.runFrom_of_le ht)
 
 /-- A clocked run that returns `out'` agrees with the output of the machine. -/
 private theorem eq_of_runFor_eq {k : ℕ} {State : Type} {tm : Turing.MultiTapeTM k Bool State}
     {w out out' : List Bool} {T s t : ℕ} (h : tm.ComputesInTimeAndSpace w out T s)
     (h' : tm.runFor w t = some out') : out' = out := by
-  have h1 := (tm.mem_runFor_iff).mp h'
+  obtain ⟨hhalt, hout'⟩ := tm.mem_runFor_iff.mp h'
   rcases le_total T t with hTt | htT
-  · obtain ⟨-, ho⟩ := h.runFrom_of_le hTt
-    rw [← h1.2, ho]
-  · obtain ⟨-, ho⟩ := h.runFrom_of_le (le_refl T)
-    rw [← h1.2, ← ho, tm.runFrom_eq_of_halt _ htT h1.1]
+  · rw [← hout', (h.runFrom_of_le hTt).2]
+  · rw [← hout', ← (h.runFrom_of_le le_rfl).2, tm.runFrom_eq_of_halt _ htT hhalt]
 
 /-- **Levin's theorem** [Bogdanov and Trevisan, Theorem 19][BogdanovTrevisan2006]: every problem of
 `DistNP` reduces to the distributional bounded halting problem `(BH, U^BH)`. -/
@@ -225,34 +216,28 @@ theorem distHard_problem : DistHard DistNP problem := by
       (Polynomial.C 2 * Polynomial.X + Polynomial.C 1) ^ 2, fun n => by simp⟩
   let f (x : List Bool) : List Bool :=
     encode c (code num den x) (N.eval x.length - (header c (code num den x)).length)
-  have hhead (x : List Bool) : (header c (code num den x)).length ≤ N.eval x.length := by
-    have := length_header_code_le hcdf hden0 c x
-    rw [hN]
-    omega
   have hflen (x : List Bool) : (f x).length = N.eval x.length := by
-    have := hhead x
-    rw [length_encode]
+    have := length_header_code_le hcdf hden0 c x
+    rw [length_encode, hN]
     omega
   have hfinj : Function.Injective f := fun x x' h =>
     code_injective hcdf hden0 (encode_injective h).2.1
   have hfpoly : ComputableInPolyTime f encBits encBits := by
     have hcode := code_polyTime hnum hden
-    have hh : ComputableInPolyTime (fun x => (header c (code num den x)).length) encBits
-        encUnary :=
-      ComputableInPolyTime.length_bits.comp
-        (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))
-    have hNx : ComputableInPolyTime (fun x : List Bool => N.eval x.length) encBits encUnary :=
-      (ComputableInPolyTime.unary_eval N).comp ComputableInPolyTime.length_bits
-    exact encode_polyTime (ComputableInPolyTime.const c) hcode
-      (ComputableInPolyTime.unary_sub' hNx hh)
+    exact encode_polyTime (.const c) hcode (.unary_sub'
+      ((ComputableInPolyTime.unary_eval N).comp .length_bits)
+      (ComputableInPolyTime.length_bits.comp
+        (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))))
   refine ⟨⟨f, fun n => N.eval n, P, hfpoly, fun n x _ => ?_, fun n y => ?_⟩⟩
   · -- correctness
     rw [problem_lang, encode_mem_BH_iff, accepts_iff]
-    have hhx := hhead x
     have hRle : R.eval x.length ≤ N.eval x.length - (header c (code num den x)).length := by
       have := length_header_code_le hcdf hden0 c x
-      rw [hN] at hhx ⊢
+      rw [hN]
       omega
+    have hpair (v : List Bool) :
+        frame (code num den x) ++ v = encPair encBits encBits (code num den x, v) := by
+      simp [encPair_apply]
     constructor
     · intro hx
       obtain ⟨w, hw, hVw⟩ := (hVer x).mp hx
@@ -273,23 +258,17 @@ theorem distHard_problem : DistHard DistNP problem := by
       have hwR : 2 * x.length + 1 + q.eval x.length ≤ R.eval x.length :=
         hR x.length ▸ Nat.le_add_left _ _
       refine ⟨frame x ++ w, by enc_len, ?_⟩
-      · rw [hc, show frame (code num den x) ++ (frame x ++ w) =
-            encPair encBits encBits (code num den x, frame x ++ w) by
-          rw [encPair_apply]; rfl]
-        rw [runFor_eq_of_computesInTimeAndSpace (htm (code num den x, frame x ++ w))
+      · rw [hc, hpair, runFor_eq_of_computesInTimeAndSpace (htm (code num den x, frame x ++ w))
           (hTb.trans hRle)]
         simp only [codeVerifier, unframe_frame_append, dropFrame_frame_append, hw, hVw,
           decide_true, Bool.and_self, encBool_apply]
     · rintro ⟨v, -, hrun⟩
-      rw [hc, show frame (code num den x) ++ v = encPair encBits encBits (code num den x, v) by
-        rw [encPair_apply]; rfl] at hrun
-      have hout := eq_of_runFor_eq (htm (code num den x, v)) hrun
-      have hv : codeVerifier num den q V (code num den x, v) = true := by
-        simpa only [encBool_apply, List.cons.injEq, and_true] using hout.symm
-      simp only [codeVerifier, Bool.and_eq_true, decide_eq_true_eq] at hv
-      obtain ⟨⟨hcx, hq⟩, hV⟩ := hv
-      rw [code_injective hcdf hden0 hcx]
-      exact (hVer _).mpr ⟨dropFrame v, by simpa only [encBits_apply] using hq, hV⟩
+      rw [hc, hpair] at hrun
+      have hv := (eq_of_runFor_eq (htm (code num den x, v)) hrun).symm
+      simp only [encBool_apply, List.cons.injEq, and_true, codeVerifier, Bool.and_eq_true,
+        decide_eq_true_eq] at hv
+      rw [code_injective hcdf hden0 hv.1.1]
+      exact (hVer _).mpr ⟨dropFrame v, by simpa only [encBits_apply] using hv.1.2, hv.2⟩
   · -- domination
     by_cases hy : ∃ x ∈ (L.ens.dist n).support, f x = y
     · obtain ⟨x, hx, rfl⟩ := hy

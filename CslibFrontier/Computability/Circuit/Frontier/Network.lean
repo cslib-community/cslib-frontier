@@ -142,10 +142,8 @@ def read : Set ι :=
 /-- The inputs read by a set with one more vertex. -/
 theorem readIn_insert_subset (v : V) (L : Set V) :
     N.readIn (insert v L) ⊆ N.readIn L ∪ N.readAt v := by
-  rintro i ⟨u, hu, hi⟩
-  rcases hu with rfl | hu
-  · exact Or.inr hi
-  · exact Or.inl ⟨u, hu, hi⟩
+  rintro i ⟨u, rfl | hu, hi⟩
+  exacts [Or.inr hi, Or.inl ⟨u, hu, hi⟩]
 
 /-- **The separator lemma.** Let `α` satisfy the network on the input `x` and `β` on the input
 `y`, and suppose that they agree on the edge cut of `L`. Then the network is satisfied on any
@@ -160,20 +158,16 @@ theorem Satisfies.splice {N : Network U ι V E} {L : Set V} {x y z : ι → U} {
     piecewise_eqOn_compl _ _ _⟩
   by_cases hv : v ∈ L
   · -- Near `L`, the spliced assignment is `α` and the input reads like `x`.
-    refine N.constraint_congr v x z α _ (fun i hi => (hzx ⟨v, hv, hi⟩).symm) (fun e he => ?_)
-      (hx v)
-    have : e ∈ N.touching L := by rcases he with h | h <;> [left; right] <;> rw [h] <;> exact hv
-    exact (piecewise_eq_of_mem _ _ _ this).symm
+    exact N.constraint_congr v x z α _ (fun i hi => (hzx ⟨v, hv, hi⟩).symm)
+      (fun e he => (piecewise_eq_of_mem _ _ _ (he.imp (·.symm ▸ hv) (·.symm ▸ hv))).symm) (hx v)
   · -- Away from `L`, it is `β` and the input reads like `y`; the two agree on the cut.
     have hinputs : ∀ i, N.site i = some v → y i = z i := fun i hi =>
       (hzy fun ⟨u, hu, hiu⟩ => hv (Option.some.inj (hiu.symm.trans hi) ▸ hu)).symm
-    have hedges : ∀ e, N.src e = v ∨ N.tgt e = v → β e = (N.touching L).piecewise α β e := by
-      intro e he
+    have hedges (e : E) (he : N.src e = v ∨ N.tgt e = v) :
+        β e = (N.touching L).piecewise α β e := by
       by_cases ht : e ∈ N.touching L
-      · rw [piecewise_eq_of_mem _ _ _ ht]
-        exact (hcut (by
-          rcases he with h | h <;> rcases ht with h' | h' <;>
-            simp_all [Multigraph.mem_edgeCut])).symm
+      · refine (hcut ?_).symm.trans (piecewise_eq_of_mem _ _ _ ht).symm
+        rcases he with h | h <;> rcases ht with h' | h' <;> simp_all [Multigraph.mem_edgeCut]
       · exact (piecewise_eq_of_notMem _ _ _ ht).symm
     exact N.constraint_congr v y z β _ hinputs hedges (hy v)
 
@@ -208,11 +202,9 @@ private theorem frontierValues_of_notMem {t : ℕ} {α : E → U} {e : E} (he : 
 `N.frontier π t`. -/
 theorem frontierValues_eq_iff {t : ℕ} {α β : E → U} :
     N.frontierValues π t α = N.frontierValues π t β ↔ EqOn α β (N.frontier π t) := by
-  refine ⟨fun h e he => ?_, fun h => funext fun e => ?_⟩
-  · simpa [frontierValues, he] using congrFun h e
-  · by_cases he : e ∈ N.frontier π t
-    · simp [frontierValues, he, h he]
-    · simp [frontierValues, he]
+  refine ⟨fun h e he => by simpa [frontierValues, he] using congrFun h e,
+    fun h => funext fun e => ?_⟩
+  by_cases he : e ∈ N.frontier π t <;> simp [frontierValues, he, @h e]
 
 /-- The inputs revealed by time `t`: those read by the first `t` vertices, and after the last
 vertex, all inputs, including those the network does not read. -/
@@ -224,28 +216,20 @@ theorem revealedBy_mono : Monotone (N.revealedBy π) := by
   intro s t hst
   unfold revealedBy
   split_ifs with hs ht ht
-  · rintro i ⟨v, hv, hi⟩
-    exact ⟨v, lt_of_lt_of_le hv hst, hi⟩
-  · exact subset_univ _
-  · exact absurd (hst.trans ht) hs
-  · exact le_rfl
+  exacts [fun i ⟨v, hv, hi⟩ => ⟨v, lt_of_lt_of_le hv hst, hi⟩, subset_univ _,
+    absurd (hst.trans ht) hs, le_rfl]
 
 /-- The inputs revealed while processing the vertex numbered `t` are those read at that
 vertex. -/
 private theorem revealedBy_succ_diff {t : ℕ} (ht : t < Nat.card V) :
     N.revealedBy π (t + 1) \ N.revealedBy π t = N.readAt (π.symm ⟨t, ht⟩) := by
   ext i
-  simp only [revealedBy, show t + 1 ≤ Nat.card V by omega, ht.le, ite_true, mem_sdiff, readIn,
+  simp only [revealedBy, Nat.succ_le_of_lt ht, ht.le, ite_true, mem_sdiff, readIn,
     readAt, mem_ofPred_eq, Layout.mem_initial]
-  constructor
-  · rintro ⟨⟨u, hu, hiu⟩, hi'⟩
-    have hut : (π u : ℕ) = t := by
-      by_contra hne
-      exact hi' ⟨u, by omega, hiu⟩
+  refine ⟨fun ⟨⟨u, hu, hiu⟩, hi'⟩ => ?_, fun hi => ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩⟩
+  · have hut : (π u : ℕ) = t := of_not_not fun hne => hi' ⟨u, by omega, hiu⟩
     exact hiu.trans (congrArg some (π.symm_apply_eq.mpr (Fin.ext hut.symm)).symm)
-  · rintro hi
-    refine ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩
-    simp [Option.some.inj (hiu.symm.trans hi)] at hu
+  · simp [Option.some.inj (hiu.symm.trans hi)] at hu
 
 /-- The inputs revealed while processing the vertex numbered `t` are read at that vertex. -/
 theorem revealedBy_succ_diff_subset {t : ℕ} (ht : t < Nat.card V) :
@@ -324,10 +308,8 @@ private theorem newly_branchingProgram_card :
 private theorem isAcceptingPath_frontierValues {x : ι → U} {α : E → U} (hα : N.Satisfies x α) :
     (N.branchingProgram π).IsAcceptingPath x fun t => N.frontierValues π t α where
   start := funext fun _ => N.frontierValues_of_notMem π (by simp)
-  accept := funext fun _ => N.frontierValues_of_notMem π <| by
-    rw [Multigraph.frontier_of_card_le _ _ (show Nat.card V ≤ (N.branchingProgram π).length from
-      Nat.le_succ _)]
-    exact notMem_empty _
+  accept := funext fun _ => N.frontierValues_of_notMem π <|
+    Multigraph.frontier_of_card_le _ _ (Nat.le_succ _) ▸ notMem_empty _
   edge _ _ := (N.branchingProgram_edge_iff π).mpr ⟨α, x, rfl, rfl, rfl, fun _ => hα _⟩
 
 /-- **Gluing.** An accepting path of the branching program lists the frontier values of a
@@ -351,8 +333,7 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
   let lo (e : E) : ℕ := min (π (N.src e) : ℕ) (π (N.tgt e))
   let hi (e : E) : ℕ := max (π (N.src e) : ℕ) (π (N.tgt e))
   have hmem (e : E) (t : ℕ) : e ∈ N.frontier π t ↔ lo e < t ∧ t ≤ hi e := by
-    simp only [Multigraph.mem_frontier, lo, hi]
-    omega
+    simp only [Multigraph.mem_frontier, lo, hi]; omega
   have hhiV (e : E) : hi e < Nat.card V := max_lt (π _).isLt (π _).isLt
   -- While an edge is on the frontier, the path carries the value given to it by the step that
   -- processes its earlier end.
@@ -372,26 +353,19 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
     refine N.constraint_congr _ (ys t) x (αs t) _ (fun i hread => ?_) (fun e he => ?_)
       (hcheck t (by omega) ht)
     · -- The inputs read at the vertex are read during its step.
-      have hi' : i ∈ (N.branchingProgram π).newly t := by rwa [N.newly_branchingProgram π ht]
-      exact congrFun (hys t (by omega)) ⟨i, hi'⟩
+      exact congrFun (hys t (by omega)) ⟨i, (N.revealedBy_succ_diff π ht).symm ▸ hread⟩
     · -- The vertex is the earlier end of the edge, or the edge is on the frontier before it.
-      have hend : lo e = t ∨ lo e < t ∧ t ≤ hi e := by
-        have : (π (N.src e) : ℕ) = t ∨ (π (N.tgt e) : ℕ) = t :=
-          he.imp (fun h => by rw [h, hπt]) (fun h => by rw [h, hπt])
-        simp only [lo, hi]
-        omega
-      rcases hend with h | ⟨h₁, h₂⟩
-      · rw [h]
-      · have h := hpersist e t h₁ h₂
-        rw [hfv t (by omega), N.frontierValues_of_mem π ((hmem e t).mpr ⟨h₁, h₂⟩)] at h
-        exact Option.some_injective _ h
+      rcases (show lo e = t ∨ lo e < t ∧ t ≤ hi e by
+          rcases he with h | h <;> simp only [h, hπt, lo, hi] <;> omega) with rfl | ⟨h₁, h₂⟩
+      · rfl
+      · simpa only [hfv t (by omega), N.frontierValues_of_mem π ((hmem e t).mpr ⟨h₁, h₂⟩),
+          Option.some.injEq] using hpersist e t h₁ h₂
   · by_cases he : e ∈ N.frontier π t
-    · rw [N.frontierValues_of_mem π he]
-      exact hpersist e t ((hmem e t).mp he).1 ((hmem e t).mp he).2
+    · exact (hpersist e t ((hmem e t).mp he).1 ((hmem e t).mp he).2).trans
+        (N.frontierValues_of_mem π he).symm
     · rw [N.frontierValues_of_notMem π he]
-      rcases ht.lt_or_eq with ht | rfl
-      · rw [hfv t ht, N.frontierValues_of_notMem π he]
-      · exact congrFun hγ.accept e
+      exact ht.lt_or_eq.elim (fun ht => hfv t ht ▸ N.frontierValues_of_notMem π he)
+        fun h => h ▸ congrFun hγ.accept e
 
 /-- **Exactness.** The branching program of a layout accepts exactly the accepted inputs of the
 network. -/
@@ -431,9 +405,8 @@ theorem ncard_edges_le [Finite ι] [Finite U] [Finite E] {t : ℕ} (ht : t < Nat
       simp only [g, frontierValues] <;> split_ifs <;> rfl
   calc ((N.branchingProgram π).edges t).ncard
       ≤ (range g).ncard := ncard_le_ncard hsub (toFinite _)
-    _ ≤ Nat.card ((C → U) × ((N.branchingProgram π).newly t → U)) := by
-        rw [← image_univ]
-        exact (ncard_image_le (toFinite _)).trans (ncard_univ _).le
+    _ ≤ Nat.card ((C → U) × ((N.branchingProgram π).newly t → U)) :=
+        image_univ ▸ (ncard_image_le (toFinite _)).trans (ncard_univ _).le
     _ = Nat.card U ^ (C.ncard + (N.readAt (π.symm ⟨t, ht⟩)).ncard) := by
         rw [Nat.card_prod, Nat.card_fun, Nat.card_fun, Nat.card_coe_set_eq,
           Nat.card_coe_set_eq, N.newly_branchingProgram π ht, pow_add]
@@ -457,9 +430,8 @@ theorem ncard_edges_last_le [Finite ι] [Finite U] :
       ≤ (range fun a : (N.branchingProgram π).newly (Nat.card V) → U =>
           ((fun _ => none : E → Option U), a, (fun _ => none : E → Option U))).ncard :=
         ncard_le_ncard hsub (toFinite _)
-    _ ≤ Nat.card ((N.branchingProgram π).newly (Nat.card V) → U) := by
-        rw [← image_univ]
-        exact (ncard_image_le (toFinite _)).trans (ncard_univ _).le
+    _ ≤ Nat.card ((N.branchingProgram π).newly (Nat.card V) → U) :=
+        image_univ ▸ (ncard_image_le (toFinite _)).trans (ncard_univ _).le
     _ = Nat.card U ^ N.readᶜ.ncard := by
         rw [Nat.card_fun, Nat.card_coe_set_eq, N.newly_branchingProgram_card π]
 
@@ -479,14 +451,11 @@ theorem ncard_image_path_le [Finite U] [Finite E] (π : Layout V) {t : ℕ}
     obtain ⟨α, -, hα⟩ :=
       N.exists_satisfies_of_isAcceptingPath π ((N.branchingProgram π).isAcceptingPath_path hx)
     refine ⟨F.domRestrict α, funext fun e => ?_⟩
-    dsimp only
-    rw [hα t (by omega)]
-    simp only [φ, frontierValues, Set.domRestrict_apply]
+    simp only [φ, hα t (by omega), frontierValues, Set.domRestrict_apply]
     split_ifs <;> rfl
   calc _ ≤ (range φ).ncard := ncard_le_ncard hsub (toFinite _)
-    _ ≤ Nat.card (F → U) := by
-        rw [← image_univ]
-        exact (ncard_image_le (toFinite _)).trans (ncard_univ _).le
+    _ ≤ Nat.card (F → U) :=
+        image_univ ▸ (ncard_image_le (toFinite _)).trans (ncard_univ _).le
     _ = Nat.card U ^ F.ncard := by rw [Nat.card_fun, Nat.card_coe_set_eq]
 
 /-- **The size of the program.** If a layout has width at most `w`, and every vertex has degree
@@ -498,8 +467,8 @@ theorem size_branchingProgram_le [Finite ι] [Finite U] [Nonempty U] [Finite E]
     (N.branchingProgram π).size ≤
       Nat.card V * Nat.card U ^ (w + d + m) + Nat.card U ^ N.readᶜ.ncard := by
   have hq : 1 ≤ Nat.card U := Nat.card_pos
-  rw [ReadOnceNBP.size, show (N.branchingProgram π).length = Nat.card V + 1 from rfl,
-    Finset.sum_range_succ]
+  have hlen : (N.branchingProgram π).length = Nat.card V + 1 := rfl
+  rw [ReadOnceNBP.size, hlen, Finset.sum_range_succ]
   refine add_le_add ?_ (N.ncard_edges_last_le π)
   calc ∑ t ∈ Finset.range (Nat.card V), ((N.branchingProgram π).edges t).ncard
       ≤ ∑ _t ∈ Finset.range (Nat.card V), Nat.card U ^ (w + d + m) := by
@@ -531,10 +500,9 @@ theorem ncard_accepted_le [Finite ι] [Finite U] [Nonempty U] [Finite E] {K : �
     (hd : N.MaxDegreeLE d) (hm : ∀ v, (N.readAt v).ncard ≤ m) :
     N.accepted.ncard ≤
       (K - 1) ^ 2 * (Nat.card V * Nat.card U ^ (w + d + m) + Nat.card U ^ N.readᶜ.ncard) := by
-  have h := (N.branchingProgram π).ncard_accepted_le (Nat.succ_pos _) (K := K)
-    (by rwa [accepted_branchingProgram])
-  rw [accepted_branchingProgram] at h
-  exact h.trans (Nat.mul_le_mul_left _ (N.size_branchingProgram_le π hw hd hm))
+  refine (N.accepted_branchingProgram π ▸ (N.branchingProgram π).ncard_accepted_le
+    (Nat.succ_pos _) (by rwa [accepted_branchingProgram])).trans ?_
+  exact Nat.mul_le_mul_left _ (N.size_branchingProgram_le π hw hd hm)
 
 /-- **Peeling for networks.** Let `S` have bias at most `b ≥ 0` on rectangles with both sides
 of size at least `K`, and let every input have at most one satisfying assignment. If a layout
@@ -549,10 +517,8 @@ theorem abs_signedCount_accepted_le [Finite ι] [Finite U] [Nonempty U] [Finite 
     (hm : ∀ v, (N.readAt v).ncard ≤ m) :
     |signedCount S N.accepted| ≤ 2 * b * N.accepted.ncard +
       ((K - 1) ^ 2 * (Nat.card V * Nat.card U ^ (w + d + m) + Nat.card U ^ N.readᶜ.ncard) : ℕ) := by
-  have h := (N.branchingProgram π).abs_signedCount_accepted_le
-    (N.unambiguous_branchingProgram π hunique) (Nat.succ_pos _) hb hS
-  rw [accepted_branchingProgram] at h
-  refine h.trans (add_le_add le_rfl ?_)
+  refine (N.accepted_branchingProgram π ▸ (N.branchingProgram π).abs_signedCount_accepted_le
+    (N.unambiguous_branchingProgram π hunique) (Nat.succ_pos _) hb hS).trans (add_le_add le_rfl ?_)
   exact_mod_cast Nat.mul_le_mul_left _ (N.size_branchingProgram_le π hw hd hm)
 
 end BranchingProgram

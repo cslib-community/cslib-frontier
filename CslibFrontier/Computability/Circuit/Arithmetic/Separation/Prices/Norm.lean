@@ -61,10 +61,7 @@ theorem loadNorm_nonneg (α : E → ℝ) (n : E → ℝ) : 0 ≤ loadNorm α n :
 theorem loadNorm_add_le (α : E → ℝ) (hα : ∀ e, 0 < α e) (n n' : E → ℝ) :
     loadNorm α (fun e => n e + n' e) ≤ loadNorm α n + loadNorm α n' := by
   rw [loadNorm_eq_norm α hα, loadNorm_eq_norm α hα, loadNorm_eq_norm α hα]
-  refine le_trans (le_of_eq ?_) (norm_add_le _ _)
-  congr 1
-  ext e
-  simp [add_div]
+  exact (congrArg norm (PiLp.ext fun e => add_div (n e) (n' e) _)).trans_le (norm_add_le _ _)
 
 theorem loadNorm_smul (α : E → ℝ) {c : ℝ} (hc : 0 ≤ c) (n : E → ℝ) :
     loadNorm α (fun e => c * n e) = c * loadNorm α n := by
@@ -81,11 +78,8 @@ theorem loadNorm_zero (α : E → ℝ) : loadNorm α (fun _ => 0) = 0 := by simp
 theorem loadNorm_sum_le {B : Type*} (s : Finset B) (α : E → ℝ) (hα : ∀ e, 0 < α e) (n : B → E → ℝ) :
     loadNorm α (fun e => ∑ β ∈ s, n β e) ≤ ∑ β ∈ s, loadNorm α (n β) := by
   rw [loadNorm_eq_norm α hα]
-  refine le_trans (le_of_eq ?_) ((norm_sum_le s _).trans
-    (Finset.sum_le_sum fun β _ => (loadNorm_eq_norm α hα (n β)).ge))
-  congr 1
-  ext e
-  simp [Finset.sum_div]
+  exact ((congrArg norm (PiLp.ext fun _ => by simp [Finset.sum_div])).trans_le
+    (norm_sum_le s _)).trans (Finset.sum_le_sum fun β _ => (loadNorm_eq_norm α hα (n β)).ge)
 
 theorem le_loadNorm (α : E → ℝ) (hα : ∀ e, 0 < α e) (n : E → ℝ) (e : E) :
     n e ≤ loadNorm α n * √(α e) := by
@@ -163,9 +157,7 @@ theorem exists_load {E N : Type} [Fintype E] [Fintype N] (α : E → ℝ) (hα :
       linarith
     · refine h1.trans ?_
       have h4 : S * R * W = ∑ ν, S * R / W * (β ν * w' ν) * w' ν := by
-        have : ∀ ν, S * R / W * (β ν * w' ν) * w' ν = S * R / W * (β ν * w' ν ^ 2) :=
-          fun ν => by ring
-        rw [Finset.sum_congr rfl fun ν _ => this ν, ← Finset.mul_sum, ← hWsq]
+        simp only [mul_assoc, ← sq, ← Finset.mul_sum, ← hWsq]
         field_simp
       rw [h4]
       exact Finset.sum_le_sum fun ν _ => mul_le_mul_of_nonneg_right (Nat.le_ceil _) (hw' ν)

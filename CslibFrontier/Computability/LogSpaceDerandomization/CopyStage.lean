@@ -121,11 +121,9 @@ include hC0 hφ0 hφθ hθf in
 theorem cutoffCorrection_residual_le_mul (hCf : ∀ x y, C x y ≤ f) (hf : 0 ≤ f)
     (hC1 : C *ᵥ 1 ≤ 1) (k : ℕ) (x y : V) :
     (C - cutoffCorrectionIter φ C k + cutoffCorrectionIter φ C k * C) x y ≤ (k + 1) * f := by
-  have h := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).input_le_mul hCf hf hC1 k
-    x y
-  have h0 := cutoffCorrectionIter_nonneg (C := C) hφ0 k x y
+  have h := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).input_le_mul hCf hf hC1 k x y
   simp only [Matrix.add_apply, Matrix.sub_apply] at h ⊢
-  linarith
+  linarith [cutoffCorrectionIter_nonneg (C := C) hφ0 k x y]
 
 include hC0 hφ0 hφθ hθf in
 /-- **Domination of the unsigned terms**: for `θ ≤ 1`, the residual of the `(k + 1)`-th iterate
@@ -137,44 +135,32 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
     θ / (2 * (k + 1)) * (C + cutoffCorrectionIter φ C (k + 1) +
         cutoffCorrectionIter φ C (k + 1) * C) x y ≤
       (C - cutoffCorrectionIter φ C (k + 1) + cutoffCorrectionIter φ C (k + 1) * C) x y := by
-  have hk : (0 : ℝ) < k + 1 := by positivity
-  have ha0 : 0 ≤ (C + cutoffCorrectionIter φ C k * C) x y :=
-    add_nonneg (hC0 x y) (Finset.sum_nonneg fun z _ =>
-      mul_nonneg (cutoffCorrectionIter_nonneg hφ0 k x z) (hC0 z y))
-  have ha := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).input_le_mul hCf hf hC1 k
-    x y
-  have hEa : cutoffCorrectionIter φ C (k + 1) x y =
-      φ y ((C + cutoffCorrectionIter φ C k * C) x y) := by
-    rw [cutoffCorrectionIter_succ]; rfl
-  have he0 := cutoffCorrectionIter_nonneg (C := C) hφ0 (k + 1) x y
-  have hea := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).le_input k x y
-  have hFE : (cutoffCorrectionIter φ C k * C) x y ≤ (cutoffCorrectionIter φ C (k + 1) * C) x y :=
-    Finset.sum_le_sum fun z _ =>
-      mul_le_mul_of_nonneg_right (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
-  have hθa := hφθ y ((C + cutoffCorrectionIter φ C k * C) x y)
-  rw [← hEa] at hθa
   set F := cutoffCorrectionIter φ C k
-  set E := cutoffCorrectionIter φ C (k + 1)
+  set E := cutoffCorrectionIter φ C (k + 1) with hEdef
   set a := (C + F * C) x y
   set t := θ / (k + 1)
+  have hk : (0 : ℝ) < k + 1 := by positivity
+  have ha0 : 0 ≤ a :=
+    add_nonneg (hC0 x y) (Finset.sum_nonneg fun z _ =>
+      mul_nonneg (cutoffCorrectionIter_nonneg hφ0 k x z) (hC0 z y))
+  have ha := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).input_le_mul hCf hf hC1 k x y
+  have he0 := cutoffCorrectionIter_nonneg (C := C) hφ0 (k + 1) x y
+  have hea := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).le_input k x y
+  have hFE : (F * C) x y ≤ (E * C) x y :=
+    Finset.sum_le_sum fun z _ =>
+      mul_le_mul_of_nonneg_right (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
   have ht0 : 0 ≤ t := by positivity
   have ht1 : t ≤ 1 := by rw [div_le_one hk]; linarith
+  have htf : t * a ≤ θ * f :=
+    calc t * a ≤ t * ((k + 1) * f) := mul_le_mul_of_nonneg_left ha ht0
+      _ = θ * f := by simp only [t]; field_simp
   have hmin : t * a ≤ a - E x y := by
-    rcases le_or_gt 0 (a - θ * f) with h | h
-    · have he : E x y ≤ a - θ * f := by rw [max_eq_left h] at hθa; exact hθa
-      have : t * a ≤ θ * f := by
-        calc t * a ≤ t * ((k + 1) * f) := mul_le_mul_of_nonneg_left ha ht0
-          _ = θ * f := by simp only [t]; field_simp
-      linarith
-    · have he : E x y ≤ 0 := by rw [max_eq_right h.le] at hθa; exact hθa
-      nlinarith
+    have hθa : E x y ≤ max (a - θ * f) 0 :=
+      (congrFun (congrFun (cutoffCorrectionIter_succ ..) x) y).trans_le (hφθ y a)
+    rcases le_max_iff.mp hθa with he | he <;> nlinarith
   have hcoef : θ / (2 * (k + 1)) = t / 2 := by simp only [t]; field_simp
-  have h1 : t / 2 * E x y ≤ t / 2 * a := mul_le_mul_of_nonneg_left hea (by positivity)
-  have h2 : t / 2 * ((E * C) x y - (F * C) x y) ≤ (E * C) x y - (F * C) x y :=
-    mul_le_of_le_one_left (by linarith) (by linarith)
-  have hadef : a = C x y + (F * C) x y := rfl
   rw [hcoef]
-  simp only [Matrix.add_apply, Matrix.sub_apply]
+  simp only [a, Matrix.add_apply, Matrix.sub_apply] at hea hmin ⊢
   nlinarith
 
 variable {A : Finset V}
@@ -194,9 +180,8 @@ theorem cutoffCorrectionIter_mem (hA : ∀ x y, C x y ≠ 0 → x ∈ A ∧ y �
       refine Finset.sum_eq_zero fun z _ => by_contra fun hmul => ?_
       obtain ⟨hE, hCz⟩ := mul_ne_zero_iff.1 hmul
       exact hxy ⟨(ih x z hE).1, (hA z y hCz).2⟩
-    rw [cutoffCorrectionIter_succ]
-    change φ y ((C + cutoffCorrectionIter φ C k * C) x y) = 0
-    rw [hin, cutoff_zero hφ0 hφθ hθf]
+    simpa only [cutoffCorrectionIter_succ, cutoffCorrection, Matrix.of_apply, hin] using
+      cutoff_zero hφ0 hφθ hθf y
 
 include hφ0 hφθ hθf in
 /-- **The residual stays within the support of `C`** [OpenAI2026LogSpace, Lemma 4.4]. -/
@@ -225,9 +210,8 @@ theorem cutoffCorrectionIter_isStrictUpperTriangular [Preorder V]
   | zero => intro x y _; simp [cutoffCorrectionIter]
   | succ k ih =>
     intro x y hxy
-    rw [cutoffCorrectionIter_succ]
-    change φ y ((C + cutoffCorrectionIter φ C k * C) x y) = 0
-    rw [(hC.add (ih.mul hC)) hxy, cutoff_zero hφ0 hφθ hθf]
+    simpa only [cutoffCorrectionIter_succ, cutoffCorrection, Matrix.of_apply,
+      (hC.add (ih.mul hC)) hxy] using cutoff_zero hφ0 hφθ hθf y
 
 include hφ0 hφθ hθf in
 /-- **The residual of a strictly upper triangular matrix is strictly upper triangular.** -/
@@ -256,8 +240,7 @@ theorem sum_copyFraction (χ : ℝ → ℝ) (m : ℕ) (t : ℝ) : ∑ j, copyFra
   rw [Fin.sum_univ_succ]
   simp only [copyFraction, Fin.succ_ne_zero, ↓reduceIte, Finset.sum_const, card_univ,
     Fintype.card_fin, nsmul_eq_mul]
-  field_simp
-  ring
+  field_simp; ring
 
 theorem copyFraction_nonneg (h0 : 0 ≤ χ t) (h1 : χ t ≤ 1) (j : Fin (m + 1)) :
     0 ≤ copyFraction χ m t j := by
@@ -271,8 +254,7 @@ theorem copyFraction_le_one (h0 : 0 ≤ χ t) (h1 : χ t ≤ 1) (j : Fin (m + 1)
     copyFraction χ m t j ≤ 1 := by
   unfold copyFraction
   split_ifs
-  · have : 0 ≤ (m : ℝ) / (m + 1) * χ t := by positivity
-    linarith
+  · exact sub_le_self 1 (by positivity)
   · rw [div_le_one (by positivity)]; linarith
 
 theorem copyFraction_of_eq_zero (h : χ t = 0) (j : Fin (m + 1)) :
@@ -282,9 +264,8 @@ theorem copyFraction_of_eq_zero (h : χ t = 0) (j : Fin (m + 1)) :
 theorem copyFraction_of_eq_one (h : χ t = 1) (j : Fin (m + 1)) :
     copyFraction χ m t j = 1 / (m + 1) := by
   unfold copyFraction
-  split_ifs
-  · rw [h]; field_simp; ring
-  · rw [h]
+  split_ifs <;> simp only [h, mul_one]
+  field_simp; ring
 
 end Fraction
 
@@ -375,20 +356,14 @@ theorem copyStage_mem_copyCover [DecidableEq V] {A O : Finset V}
     (hrO : ∀ j x, j ≠ 0 → r j x ≠ 0 → x ∈ O) (hχ₀ : ∀ t, t ≤ τ₀ → χ t = 0)
     (hcolO : ∀ x y, τ₀ < D x y → y ∈ O) (a b : V × Fin (m + 1))
     (h : copyStage χ m r D a b ≠ 0) : a ∈ copyCover A O ∧ b ∈ copyCover A O := by
-  obtain ⟨⟨x, i⟩, ⟨y, j⟩⟩ := (⟨a, b⟩ : _ × _)
   simp only [copyStage, copySplit, of_apply, ne_eq, mul_eq_zero, not_or] at h
   obtain ⟨⟨hr, hD⟩, hs⟩ := h
   have hxy := hA _ _ hD
   simp only [copyCover, mem_union, mem_product, mem_singleton, mem_erase, mem_univ, and_true]
-  constructor
-  · by_cases hi : a.2 = 0
-    · exact Or.inl ⟨hxy.1, hi⟩
-    · exact Or.inr ⟨hrO _ _ hi hr, hi⟩
-  · by_cases hj : b.2 = 0
-    · exact Or.inl ⟨hxy.2, hj⟩
-    · refine Or.inr ⟨hcolO a.1 b.1 ?_, hj⟩
-      by_contra hle
-      exact hs (by simp [copyFraction_of_eq_zero (hχ₀ _ (not_lt.mp hle)), hj])
+  refine ⟨(em (a.2 = 0)).imp (⟨hxy.1, ·⟩) fun hi => ⟨hrO _ _ hi hr, hi⟩,
+    (em (b.2 = 0)).imp (⟨hxy.2, ·⟩) fun hj => ⟨hcolO a.1 b.1 ?_, hj⟩⟩
+  by_contra hle
+  exact hs (by simp [copyFraction_of_eq_zero (hχ₀ _ (not_lt.mp hle)), hj])
 
 end Stage
 
@@ -411,8 +386,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
   have hcount : ∀ i y, (#{x | δ < G i x y} : ℝ) * δ = ∑ x, if δ < G i x y then δ else 0 :=
     fun i y => by rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
       nsmul_eq_mul]
-  have hrowA : ∀ i x, (∑ y, if δ < G i x y then δ else 0) ≤ if x ∈ A then s i else 0 := by
-    intro i x
+  have hrowA (i) (x) : (∑ y, if δ < G i x y then δ else 0) ≤ if x ∈ A then s i else 0 := by
     split_ifs with hx
     · exact (Finset.sum_le_sum fun y _ => hind i x y).trans (hGs i x)
     · refine le_of_eq (Finset.sum_eq_zero fun y _ => ?_)
@@ -437,8 +411,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
     _ ≤ ∑ i, ∑ x, if x ∈ A then s i else 0 :=
         Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun x _ => hrowA i x
     _ = #A * ∑ i, s i := by
-        simp only [Finset.sum_ite_mem, univ_inter, Finset.sum_const, nsmul_eq_mul]
-        rw [Finset.mul_sum]
+        simp only [Finset.sum_ite_mem, univ_inter, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum]
 
 /-! ### One stage -/
 
@@ -475,17 +448,15 @@ theorem copyStage_rates (hC : C.IsStrictUpperTriangular) (hC0 : ∀ x y, 0 ≤ C
   intro D
   have hθf : 0 ≤ θ * f := by positivity
   have hD0 : ∀ x y, 0 ≤ D x y := cutoffCorrection_residual_nonneg hC0 hφ0 hφθ hφm hθf k
-  have hbig : ∀ x y, τ₀ < D x y → (∀ j, r j y = 1) ∧ y ∈ O := fun x y h => by
-    rcases hcol y with hgood | hcopy
-    · have := cutoffCorrection_residual_le hC hC0 hCf hC1 hφ0 hφθ hφm hφL hf hθ hL hgood k x
-      exact absurd (this.trans hτ₀) (not_le.mpr h)
-    · exact hcopy
+  have hbig (x y : V) (h : τ₀ < D x y) : (∀ j, r j y = 1) ∧ y ∈ O :=
+    (hcol y).resolve_left fun hgood =>
+      ((cutoffCorrection_residual_le hC hC0 hCf hC1 hφ0 hφθ hφm hφL hf hθ hL hgood k x).trans
+        hτ₀).not_gt h
   refine ⟨copyStage_le (fun j x => (hr01 j x).1) (fun j x => (hr01 j x).2) hD0
       (cutoffCorrection_residual_le_mul hC0 hφ0 hφθ hθf hCf hf.le hC1 k) hχ0 hχ1 hχ₁ hτ₁ hK,
     copyStage_mul_copyWeight hr0 hχ₀ fun x y h => (hbig x y h).1,
     copyStage_mem_copyCover (cutoffCorrection_residual_mem hφ0 hφθ hθf hA k) hrO hχ₀
-      fun x y h => (hbig x y h).2, ?_⟩
-  exact (card_copyCover_le A O).trans (by omega)
+      fun x y h => (hbig x y h).2, (card_copyCover_le A O).trans (by omega)⟩
 
 end Rates
 
@@ -517,9 +488,7 @@ theorem sub_rewardTransport_mulVec_le_of_rates (hP : ∀ l i j, 0 ≤ P l i j)
     Nat.rec (by simpa using hε0) hεs
   have hAn : ∀ l, #(A l) ≤ 2 ^ l * n :=
     Nat.rec (by simpa only [pow_zero, one_mul] using hA0)
-      fun l ih => by
-        rw [pow_succ]
-        linarith [hAs l]
+      fun l ih => (hAs l).trans ((Nat.mul_le_mul_left 2 ih).trans_eq (by rw [pow_succ', mul_assoc]))
   exact sub_rewardTransport_mulVec_le_pow hP hP1 hC hstep hp hp0 hp1 hz hε A hA hAn l
 
 end Hierarchy

@@ -287,14 +287,12 @@ variable {x}
 /-- Every node precision is positive at a call with an edge. -/
 theorem nodePrec_pos (hM : 1 ≤ x.edges) (i : ℕ) : 0 < nodePrec x i := by
   unfold nodePrec nodePrecision
-  have : 0 < 8 * x.edges * (slots x + 1) := by positivity
-  omega
+  positivity
 
 /-- Every weight is positive. -/
 theorem weights_pos (i : ℕ) : ∀ w ∈ weights x i, 0 < w := by
-  intro w hw
-  simp only [weights, modeWeights, List.mem_map] at hw
-  obtain ⟨j, -, rfl⟩ := hw
+  rintro w hw
+  obtain ⟨j, -, rfl⟩ := List.mem_map.1 hw
   omega
 
 /-- An active call has an edge. -/
@@ -309,20 +307,16 @@ theorem one_le_edges_of_active (h : active x = true) : 1 ≤ x.edges := by
 theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.edges := by
   obtain ⟨hleaf, hu, -, -, -, -, -⟩ := of_decide_eq_true h
   set L := Nat.log 2 x.scale with hL
-  have hL1 : 1 ≤ L := Nat.pos_of_ne_zero fun h0 => by
-    change 1 ≤ L / 2 ^ (17 + x.depth) at hu
-    simp [h0] at hu
+  have hL1 : 1 ≤ L := Nat.pos_of_ne_zero fun h0 => by simp [levels, taper, ← hL, h0] at hu
   have hs0 : x.scale ≠ 0 := fun h0 => by simp [hL, h0] at hL1
   have hsL : 2 ^ L ≤ x.scale := Nat.pow_log_le_self 2 hs0
   have ha : slots x ≤ L / 32768 := slotBits_le _ _
   -- `⌊√λ⌋ ≤ 2 ^ ((λ + 1) / 2)`.
-  have hsq : Nat.sqrt L ≤ 2 ^ ((L + 1) / 2) := by
-    have h1 : Nat.sqrt L ^ 2 ≤ (2 ^ ((L + 1) / 2)) ^ 2 := by
-      calc Nat.sqrt L ^ 2 ≤ L := Nat.sqrt_le' L
-        _ ≤ 2 ^ L := Nat.lt_two_pow_self.le
-        _ ≤ 2 ^ (2 * ((L + 1) / 2)) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        _ = (2 ^ ((L + 1) / 2)) ^ 2 := by rw [mul_comm, pow_mul]
-    exact (Nat.pow_le_pow_iff_left (by norm_num)).mp h1
+  have hsq : Nat.sqrt L ≤ 2 ^ ((L + 1) / 2) := (Nat.pow_le_pow_iff_left (by norm_num : 2 ≠ 0)).mp <|
+    calc Nat.sqrt L ^ 2 ≤ L := Nat.sqrt_le' L
+      _ ≤ 2 ^ L := Nat.lt_two_pow_self.le
+      _ ≤ 2 ^ (2 * ((L + 1) / 2)) := Nat.pow_le_pow_right (by norm_num) (by omega)
+      _ = (2 ^ ((L + 1) / 2)) ^ 2 := by rw [mul_comm, pow_mul]
   have hsqpos : 0 < Nat.sqrt L := Nat.sqrt_pos.mpr hL1
   have h64 : 64 ^ slots x ≤ 2 ^ (6 * (L / 32768)) := by
     calc 64 ^ slots x = 2 ^ (6 * slots x) := by rw [pow_mul]; norm_num
@@ -332,9 +326,7 @@ theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.
       _ = 2 ^ (6 * (L / 32768) + (L + 1) / 2) := (pow_add _ _ _).symm
       _ ≤ 2 ^ L := Nat.pow_le_pow_right (by norm_num) (by omega)
       _ ≤ x.scale := hsL
-  have hle : 64 ^ slots x ≤ leafSize x.scale :=
-    (Nat.le_div_iff_mul_le hsqpos).mpr hprod
-  omega
+  exact ((Nat.le_div_iff_mul_le hsqpos).mpr hprod).trans hleaf.le
 
 /-- An active call has a node of positive multiplicity: the index `2 ^ a + 1`, of level `0`. -/
 theorem nodes_ne_nil_of_active (h : active x = true) : nodes x ≠ [] := by
@@ -388,8 +380,8 @@ theorem walk {x : Call T} (h : active x = true) (vals : State → List ℕ) :
         exact hstep c hc'
       · have hc'' : c = (cursorList (weights x) (nodePrec x) (nodes x).length (numPoints x)
             64).length - 1 := by omega
-        simp only [List.getElem?_eq_none (show (cursorList (weights x) (nodePrec x)
-          (nodes x).length (numPoints x) 64).length ≤ c + 1 by omega)]
+        have hge := Nat.not_lt.mp hc'
+        simp only [List.getElem?_eq_none hge]
         exact hc'' ▸ hlast
     · rw [List.take_add_one, List.getElem?_eq_getElem hc]
       simp only [runAcc, Option.toList_some, List.foldl_append, List.foldl_cons, List.foldl_nil]
@@ -444,12 +436,10 @@ theorem getElem_flatMap_range {α : Type*} (f : ℕ → ℕ → α) {T n t k : �
     simp only [List.range_succ, List.flatMap_append, List.flatMap_singleton]
     have hlen : ((List.range T).flatMap fun t => (List.range n).map (f t)).length = T * n := by
       simp
-    rcases Nat.lt_or_ge t T with htT | htT
-    · rw [List.getElem_append_left (by rw [hlen]; nlinarith only [htT, hk])]
-      exact ih htT
-    · have htT' : t = T := by omega
-      subst htT'
-      rw [List.getElem_append_right (by rw [hlen]; omega)]
+    rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp ht) with htT | rfl
+    · have htn : t * n + k < T * n := by nlinarith only [htT, hk]
+      exact (List.getElem_append_left (hlen.symm ▸ htn)).trans (ih htT)
+    · rw [List.getElem_append_right (by omega)]
       simp [hlen]
 
 variable {x}
@@ -478,8 +468,7 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
     (T := (nodes x).length) (n := numPoints x) (r := 64) (mul (wide x) x.fl) (add (wide x) x.fl)
     (one x.fl) (zero x.fl) (val (wide x) x.fl) (fun a b => val_mul a b) (fun a b => val_add a b)
     val_one val_zero (by norm_num) (nodePrec_pos hM) weights_pos vals
-  have hloop : (runLoop x vals).2.2 = qs := by rw [runLoop, children, hrun]
-  rw [hloop]
+  rw [runLoop, children, hrun]
   -- The row of the `j`-th node is its block.
   have hnodup : (nodes x).Nodup := (List.nodup_range).filter _
   have hmem : (nodes x)[j] ∈ nodes x := List.getElem_mem hj
