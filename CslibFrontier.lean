@@ -2818,7 +2818,6 @@ public import CslibFrontier.Crypto.Computational.GoldwasserMicali
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.StartLoads
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.NodeRound
-public import CslibFrontier.Crypto.Protocols.UC.Commitment
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Pentagon
 public import CslibFrontier.DataStructure.StateTransition.ExpectedAmortized
 public import CslibFrontier.Privacy.DifferentialPrivacy.Reconstruction
