@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CircuitSAT
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.Declared
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF
 import CslibFrontier.Computability.Circuit.Program
+import Mathlib.Data.List.Sigma
 
 /-!
 # Exact-multiplicity CSP and CNF compilation of circuits via the frontier compiler
@@ -433,13 +434,11 @@ theorem reachGateCountCode_le_numVars_toCNFCode (I : Interpretation σ Bool)
   set L := code.1.zipIdx.filter P
   have hcount : reachGateCountCode n code = L.length := List.countP_eq_length_filter
   have hnodup : (L.map fun gj => n + gj.2).Nodup := by
-    have hidx : (code.1.zipIdx.map Prod.snd).Nodup := by
-      rw [List.zipIdx_map_snd]
-      exact List.nodup_range'
     have hsub : (L.map Prod.snd).Sublist (code.1.zipIdx.map Prod.snd) :=
       List.filter_sublist.map _
-    have := (hsub.nodup hidx).map (f := (n + ·)) fun a b h => by simpa using h
-    simpa [List.map_map, Function.comp_def] using this
+    simpa only [List.map_map, Function.comp_def] using
+      (hsub.nodup (List.nodup_zipIdx_map_snd code.1)).map (f := (n + ·))
+        (fun _ _ h => Nat.add_left_cancel h)
   rw [hcount, ← List.length_map (f := fun gj => n + gj.2), ← List.toFinset_card_of_nodup hnodup]
   refine Finset.card_le_card fun w hw => ?_
   simp only [List.mem_toFinset, List.mem_map] at hw

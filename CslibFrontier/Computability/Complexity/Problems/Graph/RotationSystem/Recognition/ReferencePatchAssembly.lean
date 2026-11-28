@@ -315,10 +315,9 @@ private theorem word_order_from_cuts {ι : Type*} (L : List ι) (a b : ℂ)
     rw [hright z hz, hproj]
     exact (lineMap_lt_right_iff_lt (hβ z hz)).mpr hab
   have hbetween : L.Pairwise fun z w => ξ (right z) < ξ (left w) :=
-    List.pairwise_iff_getElem.mpr fun i j hi hj hij => by
-      rw [hright _ (List.getElem_mem hi), hleft _ (List.getElem_mem hj), hproj, hproj]
-      exact (lineMap_lt_lineMap_iff_of_lt' hab).mpr
-        (List.pairwise_iff_getElem.mp hsorted i j hi hj hij)
+    hsorted.imp_of_mem fun hz hw hzw => by
+      rw [hright _ hz, hleft _ hw, hproj, hproj]
+      exact (lineMap_lt_lineMap_iff_of_lt' hab).mpr hzw
   have hchain := chain_patch_word L a b left middle right
     (fun x y => ξ x < ξ y) hab hfirst hfinal hlocal hbetween
   rwa [← List.pairwise_map, ← List.isChain_iff_pairwise, List.isChain_map]
