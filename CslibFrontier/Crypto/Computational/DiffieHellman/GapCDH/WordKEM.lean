@@ -405,8 +405,9 @@ subgroup-validating decapsulation as in Construction 12.23) with key length `key
 strict oracle-PPT adversary has negligible distinguishing advantage between the real-key
 (`bit = true`) and random-key (`bit = false`) worlds of `dhKEMCCAWordGame`.
 
-This notion is DH-KEM-specific and local to this module, pending the generic KEM records of the
-crypto readability program (#4817, I3 #4894). -/
+Encapsulation, decapsulation and the adversary share one random function in this game.
+The generic `Cslib.Crypto.KEM.cpaExperiment` runs closed honest algorithms and gives the
+distinguisher a single challenge. -/
 def DHKEMROMINDCCA (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ) : Prop :=
   Game.Indistinguishable
     (fun A n => F.dhKEMCCAWordGame setup keyLen A true n)
