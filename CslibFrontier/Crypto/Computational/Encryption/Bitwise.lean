@@ -49,9 +49,8 @@ the single-bit challenger, and encrypts the prefix `m₁.take split` and suffix 
 itself using the public key.
 
 Because all bits of the challenge word are chosen before any ciphertext is produced, the prefix and
-suffix ciphertexts are sampled non-adaptively with `List.mapM`: unlike the adaptive multi-query
-reduction `lorToSingle` (`Cslib.Crypto.Encryption.LoRCPA.FromSingle`), `isPPT_bitwiseToSingle`
-needs no global polynomial cap on ciphertext lengths under malformed public keys.
+suffix ciphertexts are sampled non-adaptively with `List.mapM`, so `isPPT_bitwiseToSingle` needs
+only `hvalid`, `hencrypt`, and `hmax` (with no ciphertext-length hypothesis beyond `hencrypt`).
 
 For unrestricted equal-length challenges (`WordINDCPA`), the length of the adversary's chosen words
 is bounded by a polynomial in `n` plus the public-key length (`IsPPTOn.length_le`). Whenever the

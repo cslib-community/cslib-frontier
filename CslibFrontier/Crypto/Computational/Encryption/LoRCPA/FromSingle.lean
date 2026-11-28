@@ -160,12 +160,10 @@ noncomputable def lorToSingle {Msg : Type}
 private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hvalid : ComputableInPolyTime (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
     IsPPTOn (encPair (encPair encUnary encBits) encUnary)
@@ -185,7 +183,7 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
   have hrun : IsPPTOn E1 encLoRLoopState
       (fun q : ((ℕ × List Bool) × ℕ) × List Bool =>
         lorRunOn valid encrypt adversary q.1.1.1 q.1.1.2 true q.1.2 (q.2, [])) :=
-    isPPTOn_lorRunOn hvalid hencrypt hctBound hctLen hadversary
+    isPPTOn_lorRunOn hvalid hencrypt hadversary
       (by dsimp only [E1, EIn]; fun_prop) (by dsimp only [E1, EIn]; fun_prop)
       (ComputableInPolyTime.const true) (by dsimp only [E1, EIn]; fun_prop)
       (by dsimp only [E1, encLoRLoopState]; fun_prop)
@@ -223,22 +221,20 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
       rejectLoRToSingleState)).isPPTOn
 
 /-- `lorToSingleAt` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
-`hctBound`/`hctLen`, and `hQ` certify the prefix/suffix simulation (`valid`, `encrypt`, bounded
-ciphertext lengths across adaptive queries, and the iteration count `Q n`). -/
+and `hQ` certify the prefix/suffix simulation (`valid`, `encrypt`, and the iteration count
+`Q n`). -/
 theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hvalid : ComputableInPolyTime (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) (split : ℕ) :
     (lorToSingleAt valid encrypt Q adversary split).IsPPT encMsg where
   choose :=
-    (isPPTOn_lorToSingleAt_choose hvalid hencrypt hctBound hctLen hQ hadversary).preprocess
+    (isPPTOn_lorToSingleAt_choose hvalid hencrypt hQ hadversary).preprocess
       (ComputableInPolyTime.id'.prod (ComputableInPolyTime.const split))
   guess := by
     have hdecoded : ComputableInPolyTime
@@ -251,7 +247,7 @@ theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
             (Q p.1 - (lorToSingleStateDecoder.decode p.2.1).split - 1)
             ((lorToSingleStateDecoder.decode p.2.1).stateA,
               p.2.2 :: (lorToSingleStateDecoder.decode p.2.1).transcript)) :=
-      isPPTOn_lorRunOn hvalid hencrypt hctBound hctLen hadversary
+      isPPTOn_lorRunOn hvalid hencrypt hadversary
         (by dsimp only [encGuessInput]; fun_prop)
         (encLoRToSingleState_pk_polyTime hdecoded)
         (ComputableInPolyTime.const false)
@@ -270,23 +266,21 @@ theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
       (hrun.bind_with (hadversary.guess.preprocess harg)) (ComputableInPolyTime.const false).isPPTOn
 
 /-- `lorToSingle` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
-`hctBound`/`hctLen`, and `hQ` certify the dyadic sampler and simulated prefix/suffix queries. -/
+and `hQ` certify the dyadic sampler and simulated prefix/suffix queries. -/
 theorem isPPT_lorToSingle {Msg : Type} {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hvalid : ComputableInPolyTime (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
     (lorToSingle valid encrypt Q adversary).IsPPT encMsg where
   choose := (isPPTOn_sampleDyadicIndex
     (hQ.comp (ComputableInPolyTime.fst encUnary encBits))).bind_with
-      (isPPTOn_lorToSingleAt_choose hvalid hencrypt hctBound hctLen hQ hadversary)
-  guess := (isPPT_lorToSingleAt hvalid hencrypt hctBound hctLen hQ hadversary 0).guess
+      (isPPTOn_lorToSingleAt_choose hvalid hencrypt hQ hadversary)
+  guess := (isPPT_lorToSingleAt hvalid hencrypt hQ hadversary 0).guess
 
 /-! ### Hybrid games and exact advantage identity -/
 
@@ -544,94 +538,64 @@ security under admissibility predicate `valid` implies `Q`-query left-or-right C
 - `hvalid`: `valid` must be computable in polynomial time because `lorToSingle` evaluates it to
   filter simulated prefix and suffix queries.
 - `hencrypt`: `encrypt` must be uniformly strict PPT because `lorToSingle` directly encrypts
-  simulated prefix and suffix queries under `pk`.
-- `hctBound` and `hctLen`: under every key word and for every `msg : Msg`, admissible or not,
-  every ciphertext has length at most `ctBound n`, a polynomial in `n` alone, so that the
-  transcript stays polynomially bounded over `Q n` rounds. This global output-length bound is a
-  convention of this library and is stronger than the source's. [BonehShoup2023], Definition 2.9
-  (p. 30), bounds the lengths of the members of each space, and Definition 11.3(4) (p. 438) asks
-  that encryption land in the ciphertext space only for generated keys and for messages in the
-  message space. A total `encrypt` that copies a long input from outside the source's message
-  space fails `hctLen` without changing any experiment of the source. Every source scheme has a
-  bounded-output extension that agrees with it on the source's domain and truncates or rejects
-  other inputs; that extension satisfies `hctLen`. On an infinite message type no scheme that
-  decrypts every message satisfies `hctLen`, since there are finitely many ciphertexts of length at
-  most `ctBound n`.
+  simulated prefix and suffix queries under `pk` (and `hencrypt.length_le` together with the
+  adversary's `state_growth` and `msg_length_le` bounds keeps the transcript polynomially bounded
+  across all `Q n` adaptive rounds without any external ciphertext-length cap).
 - `hQ`: `Q` must be computable in unary polynomial time so `lorToSingle` can sample the hybrid cut,
   iterate `Q n` steps in strict PPT, and bound `dyadicSize (Q n)` polynomially. -/
 theorem INDCPAOn.lorINDCPAOn {Msg : Type}
     {valid : ℕ → List Bool → Msg → Msg → Bool} {encMsg : Msg ↪ List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)} {Q : ℕ → ℕ}
-    {ctBound : ℕ → ℕ}
     (hvalid : ComputableInPolyTime (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (h : INDCPAOn valid encMsg keyGen encrypt) :
     LoRINDCPAOn valid encMsg keyGen encrypt Q := by
   intro adversary hadversary
   have hsingleNeg := h (lorToSingle valid encrypt Q adversary)
-    (isPPT_lorToSingle hvalid hencrypt hctBound hctLen hQ hadversary)
+    (isPPT_lorToSingle hvalid hencrypt hQ hadversary)
   negligible using fun n => (advantage_lorGameOn_eq valid keyGen encrypt Q adversary n).le
 
 /-- **Theorem 11.1 (unrestricted messages):** unrestricted `INDCPAOf` implies `LoRINDCPAOf`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix
   queries.
-- `hctBound` and `hctLen`: every ciphertext of every `msg : Msg` has length at most `ctBound n`,
-  as in `INDCPAOn.lorINDCPAOn` (on an infinite message type, `encrypt` must truncate or reject
-  inputs beyond a polynomial length).
 - `hQ`: `Q` must be computable in unary polynomial time to execute and certify the reduction. -/
 theorem INDCPAOf.lorINDCPAOf {Msg : Type} {encMsg : Msg ↪ List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)} {Q : ℕ → ℕ}
-    {ctBound : ℕ → ℕ}
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (h : INDCPAOf encMsg keyGen encrypt) :
     LoRINDCPAOf encMsg keyGen encrypt Q :=
-  h.lorINDCPAOn (ComputableInPolyTime.const true) hencrypt hctBound hctLen hQ
+  h.lorINDCPAOn (ComputableInPolyTime.const true) hencrypt hQ
 
 /-- **Theorem 11.1 (single-bit messages):** `INDCPA` implies `LoRINDCPA`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix
   queries.
-- `hctBound` and `hctLen`: every ciphertext of every `msg : Bool` has length at most `ctBound n`,
-  as in `INDCPAOn.lorINDCPAOn`.
 - `hQ`: `Q` must be computable in unary polynomial time to execute and certify the reduction. -/
 theorem INDCPA.lorINDCPA
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)} {Q : ℕ → ℕ}
-    {ctBound : ℕ → ℕ}
     (hencrypt : IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (h : INDCPA keyGen encrypt) :
     LoRINDCPA keyGen encrypt Q :=
-  h.lorINDCPAOn (ComputableInPolyTime.const true) hencrypt hctBound hctLen hQ
+  h.lorINDCPAOn (ComputableInPolyTime.const true) hencrypt hQ
 
 /-- **Theorem 11.1 (bit-word messages, equal-length rule):** `WordINDCPA` implies `WordLoRINDCPA`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix
   queries.
-- `hctBound` and `hctLen`: every ciphertext of every `msg : List Bool` (admissible or not) has
-  length at most `ctBound n`, as in `INDCPAOn.lorINDCPAOn`; `encrypt` must truncate or reject
-  words beyond a polynomial length.
 - `hQ`: `Q` must be computable in unary polynomial time to execute and certify the reduction. -/
 theorem WordINDCPA.wordLoRINDCPA
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)} {Q : ℕ → ℕ}
-    {ctBound : ℕ → ℕ}
     (hencrypt : IsPPTOn (encKeyedInput encBits) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (h : WordINDCPA keyGen encrypt) :
     WordLoRINDCPA keyGen encrypt Q :=
-  h.lorINDCPAOn ((by polytime)) hencrypt hctBound hctLen hQ
+  h.lorINDCPAOn ((by polytime)) hencrypt hQ
 
 end Cslib.Crypto.Encryption
 

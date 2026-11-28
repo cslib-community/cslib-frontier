@@ -48,7 +48,8 @@ and the loss-two public-key replacement bound `advantage_lorDistinguisher_le`.
   of the adaptive query/guess stage inputs and the `(state, transcript)` loop state.
 * `Cslib.Crypto.Encryption.LoRAdversaryOf.IsPPT`, `Cslib.Crypto.Encryption.LoRAdversary.IsPPT`,
   `Cslib.Crypto.Encryption.WordLoRAdversary.IsPPT`: uniform strict PPT admissibility of all three
-  stages with polynomially bounded per-step state growth.
+  stages with polynomially bounded per-step state growth and transcript-independent polynomial
+  challenge-message length.
 * `Cslib.Crypto.Encryption.lorStepOn`, `Cslib.Crypto.Encryption.lorStep`,
   `Cslib.Crypto.Encryption.lorRunOn`, `Cslib.Crypto.Encryption.lorRun`: one adaptive query step and
   the `q`-step adaptive query loop, with and without a challenge-pair admissibility predicate.
@@ -78,7 +79,7 @@ and the loss-two public-key replacement bound `advantage_lorDistinguisher_le`.
   `Cslib.Crypto.Encryption.isPPT_lorDistinguisher`,
   `Cslib.Crypto.Encryption.isPPT_lorKeyDistinguisherOn`,
   `Cslib.Crypto.Encryption.isPPT_lorKeyDistinguisher`: uniform strict PPT certificates via
-  `IsPPTOn.iterateWith_of_bounded_growth`.
+  `IsPPTOn.iterateWith_spec`.
 
 ## References
 
@@ -124,8 +125,11 @@ abbrev encLoRLoopState : List Bool × List (List Bool) ↪ List Bool :=
 
 /-- Uniform strict PPT certificate for a stateful `LoRAdversaryOf Msg` over message encoding
 `encMsg`: all three stages (`start`, `query`, `guess`) are uniform strict PPT on their complete
-inputs, and each adaptive `query` increases the bit length of the saved state word by at most a
-polynomially bounded function of the security parameter. -/
+inputs, each adaptive `query` increases the bit length of the saved state word by at most a
+polynomially bounded function of the security parameter, and each queried challenge pair has
+encoded length polynomially bounded in the security parameter and current saved state length
+(independently of the ciphertext transcript, preventing adaptive exponential message/ciphertext
+blowup across rounds). -/
 structure LoRAdversaryOf.IsPPT {Msg : Type} (encMsg : Msg ↪ List Bool)
     (adversary : LoRAdversaryOf Msg) : Prop where
   /-- The initialization stage is uniform strict PPT on the parameter and public key. -/
@@ -144,6 +148,11 @@ structure LoRAdversaryOf.IsPPT {Msg : Type} (encMsg : Msg ↪ List Bool)
     ∀ n state transcript choice,
       choice ∈ (ProbComp.eval (adversary.query n state transcript)).support →
       (ChoiceOut.state choice).length ≤ state.length + bound n
+  /-- Uniform transcript-independent polynomial bound on the encoded challenge message pair in
+  terms of the security parameter and current saved state length. -/
+  msg_length_le : ∃ cm dm : ℕ, ∀ n state transcript choice,
+    choice ∈ (ProbComp.eval (adversary.query n state transcript)).support →
+    (encPair encMsg encMsg (ChoiceOut.msgs choice)).length ≤ cm * (n + state.length + 2) ^ dm
 
 /-- A stateful adaptive left-or-right adversary for single-bit messages (`Bool`). -/
 abbrev LoRAdversary : Type := LoRAdversaryOf Bool
@@ -399,12 +408,9 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
     {adversary : LoRAdversaryOf Msg} {security : α → ℕ} {pk : α → List Bool}
     {bit : α → Bool} {count : α → ℕ} {initial : α → List Bool × List (List Bool)}
-    {ctBound : ℕ → ℕ}
     (hvalid : ComputableInPolyTime (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hadversary : adversary.IsPPT encMsg)
     (hsecurity : ComputableInPolyTime security input encUnary)
     (hpk : ComputableInPolyTime pk input encBits)
@@ -442,41 +448,90 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
       henc.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2)) <| by
         dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop
   obtain ⟨stBound, hstBound, hstLen⟩ := hadversary.state_growth
-  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinitial hstep
-    (growth := fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1)
-    (by growth_poly) fun a loopState next hnext => ?_
-  simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hnext
-  obtain ⟨choice, hchoice_supp, c, hc_supp, rfl⟩ := hnext
-  have hst := hstLen (security a) loopState.1 loopState.2 choice hchoice_supp
-  have hct : c.length ≤ ctBound (security a) := by
-    cases hval : valid (security a) (pk a) (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) <;>
-      simp only [hval, Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at hc_supp
-    · subst hc_supp
-      exact Nat.zero_le _
-    · exact hctLen (security a) (pk a) _ c hc_supp
-  simp only [encLoRLoopState, encPair_apply, encBits_apply, encList_cons,
-    List.length_append, length_frame]
-  omega
+  obtain ⟨cm, dm, hmsgLen⟩ := hadversary.msg_length_le
+  obtain ⟨ce, de, hencLen⟩ := hencrypt.length_le
+  let stMax (a : α) : ℕ := (initial a).1.length + count a * stBound (security a)
+  let msgMax (a : α) : ℕ := cm * (security a + stMax a + 2) ^ dm
+  let ctMax (a : α) : ℕ :=
+    ce * (2 * security a + 2 * (pk a).length + msgMax a + 3) ^ de
+  let invariant (a : α) (i : ℕ) (loopState : List Bool × List (List Bool)) : Prop :=
+    loopState.1.length ≤ (initial a).1.length + i * stBound (security a) ∧
+      (encList encBits loopState.2).length ≤
+        (encList encBits (initial a).2).length + i * (2 * ctMax a + 1)
+  let size (a : α) : ℕ :=
+    2 * stMax a + 1 + ((encList encBits (initial a).2).length + count a * (2 * ctMax a + 1))
+  have hsize : PolyBounded (fun a => (input a).length) size := by
+    dsimp only [size, ctMax, msgMax, stMax]
+    growth_poly
+  refine (IsPPTOn.iterateWith_spec hcount hinitial hstep invariant ?_ ?_ hsize ?_).1
+  · intro a
+    simp [invariant]
+  · intro a i loopState hi hinv next hnext
+    simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hnext
+    obtain ⟨choice, hchoice_supp, c, hc_supp, rfl⟩ := hnext
+    have hst := hstLen (security a) loopState.1 loopState.2 choice hchoice_supp
+    have hst_le : loopState.1.length ≤ stMax a :=
+      hinv.1.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hi.le) _)
+    have hmsg_pair : (encPair encMsg encMsg (ChoiceOut.msgs choice)).length ≤ msgMax a :=
+      (hmsgLen (security a) loopState.1 loopState.2 choice hchoice_supp).trans
+        (Nat.mul_le_mul_left cm (Nat.pow_le_pow_left (by omega) dm))
+    have hct : c.length ≤ ctMax a := by
+      cases hval : valid (security a) (pk a) (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) <;>
+        simp only [hval, Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at hc_supp
+      · subst hc_supp
+        exact Nat.zero_le _
+      · have hm_le :
+            (encMsg (if bit a then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)).length ≤
+              msgMax a := by
+          have hm_pair :
+              (encMsg (if bit a then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)).length ≤
+                (encPair encMsg encMsg (ChoiceOut.msgs choice)).length := by
+            cases bit a <;>
+              simp only [ChoiceOut.msgs, ChoiceOut.msg₀, ChoiceOut.msg₁, encPair_apply,
+                List.length_append, length_frame, Bool.false_eq_true, ↓reduceIte] <;> omega
+          exact hm_pair.trans hmsg_pair
+        have hkeyed : (encKeyedInput encMsg
+            (security a, pk a,
+              if bit a then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)).length + 1 ≤
+            2 * security a + 2 * (pk a).length + msgMax a + 3 := by
+          simp only [encKeyedInput, encPair_apply, encUnary_apply, encBits_apply,
+            List.length_append, List.length_replicate, length_frame]
+          omega
+        exact (hencLen (security a, pk a, _) c hc_supp).trans
+          (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left hkeyed de))
+    refine ⟨?_, ?_⟩
+    · dsimp only
+      have hmul : (i + 1) * stBound (security a) =
+          i * stBound (security a) + stBound (security a) :=
+        Nat.succ_mul i (stBound (security a))
+      omega
+    · dsimp only
+      simp only [encList_cons, encBits_apply, List.length_append, length_frame]
+      have hmul : (i + 1) * (2 * ctMax a + 1) = i * (2 * ctMax a + 1) + (2 * ctMax a + 1) :=
+        Nat.succ_mul i (2 * ctMax a + 1)
+      omega
+  · intro a i loopState hi hinv
+    simp only [encLoRLoopState, encPair_apply, encBits_apply, List.length_append, length_frame,
+      size, stMax]
+    have h1 := Nat.mul_le_mul_right (stBound (security a)) hi
+    have h2 := Nat.mul_le_mul_right (2 * ctMax a + 1) hi
+    omega
 
 /-- Parameterized uniform strict PPT certificate for `lorDistinguisherOn` when `valid` is
-computable in polynomial time, encryption is strict PPT with polynomially bounded ciphertext
-length, `Q` is computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
+computable in polynomial time, encryption is strict PPT, `Q` is computable in polynomial time, and
+the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
 theorem isPPTOn_lorDistinguisherOn {α : Type} {input : α ↪ List Bool}
     {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
     {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     {security : α → ℕ} {pk : α → List Bool} {bit : α → Bool}
-    {ctBound : ℕ → ℕ}
     (hvalid : ComputableInPolyTime
       (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c,
-      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg)
     (hsecurity : ComputableInPolyTime security input encUnary)
@@ -485,7 +540,7 @@ theorem isPPTOn_lorDistinguisherOn {α : Type} {input : α ↪ List Bool}
     IsPPTOn input encBool
       (fun a => lorDistinguisherOn valid encrypt Q adversary (bit a) (security a) (pk a)) := by
   have hfst := fst input encBits
-  have hrun := isPPTOn_lorRunOn hvalid hencrypt hctBound hctLen hadversary (hsecurity.comp hfst)
+  have hrun := isPPTOn_lorRunOn hvalid hencrypt hadversary (hsecurity.comp hfst)
     (hpk.comp hfst) (hbit.comp hfst) (hQ.comp (hsecurity.comp hfst))
     ((snd input encBits).prod (const []))
   simpa only [lorDistinguisherOn] using
@@ -499,12 +554,8 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
     {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     {security : α → ℕ} {pk : α → List Bool} {bit : α → Bool}
-    {ctBound : ℕ → ℕ}
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c,
-      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg)
     (hsecurity : ComputableInPolyTime security input encUnary)
@@ -512,68 +563,56 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
     (hbit : ComputableInPolyTime bit input encBool) :
     IsPPTOn input encBool
       (fun a => lorDistinguisher encrypt Q adversary (bit a) (security a) (pk a)) :=
-  isPPTOn_lorDistinguisherOn (const true) hencrypt hctBound hctLen hQ hadversary
-    hsecurity hpk hbit
+  isPPTOn_lorDistinguisherOn (const true) hencrypt hQ hadversary hsecurity hpk hbit
 
 /-- `lorDistinguisherOn` is one uniform strict PPT distinguisher when `valid` is computable in
-polynomial time, encryption is strict PPT with polynomially bounded ciphertext length, `Q` is
-computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
+polynomial time, encryption is strict PPT, `Q` is computable in polynomial time, and the adversary
+satisfies `LoRAdversaryOf.IsPPT`. -/
 theorem isPPT_lorDistinguisherOn {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hvalid : ComputableInPolyTime
       (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c,
-      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) (bit : Bool) :
     IsPPT encBool (lorDistinguisherOn valid encrypt Q adversary bit) :=
-  isPPTOn_lorDistinguisherOn hvalid hencrypt hctBound hctLen hQ hadversary
+  isPPTOn_lorDistinguisherOn hvalid hencrypt hQ hadversary
     (fst encUnary encBits) (snd encUnary encBits) (const bit)
 
-/-- `lorDistinguisher` is one uniform strict PPT distinguisher when encryption is strict PPT with
-polynomially bounded ciphertext length, `Q` is computable in polynomial time, and the adversary
-satisfies `LoRAdversaryOf.IsPPT`. -/
+/-- `lorDistinguisher` is one uniform strict PPT distinguisher when encryption is strict PPT, `Q`
+is computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
 theorem isPPT_lorDistinguisher {encMsg : Msg ↪ List Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c,
-      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) (bit : Bool) :
     IsPPT encBool (lorDistinguisher encrypt Q adversary bit) :=
-  isPPT_lorDistinguisherOn (const true) hencrypt hctBound hctLen hQ hadversary bit
+  isPPT_lorDistinguisherOn (const true) hencrypt hQ hadversary bit
 
 /-- The hidden-bit reduction `lorKeyDistinguisherOn` is one uniform strict PPT distinguisher when
-`valid` is computable in polynomial time, encryption is strict PPT with polynomially bounded
-ciphertext length, `Q` is computable in polynomial time, and the adversary satisfies
-`LoRAdversaryOf.IsPPT`. -/
+`valid` is computable in polynomial time, encryption is strict PPT, `Q` is computable in polynomial
+time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
 theorem isPPT_lorKeyDistinguisherOn {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hvalid : ComputableInPolyTime
       (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
       (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c,
-      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
     IsPPT encBool (lorKeyDistinguisherOn valid encrypt Q adversary) := by
   have hdist : IsPPTOn (encPair (encPair encUnary encBits) encBool) encBool
       (fun p => lorDistinguisherOn valid encrypt Q adversary p.2 p.1.1 p.1.2) :=
-    isPPTOn_lorDistinguisherOn hvalid hencrypt hctBound hctLen hQ hadversary
+    isPPTOn_lorDistinguisherOn hvalid hencrypt hQ hadversary
       ((fst encUnary encBits).comp (fst _ encBool))
       ((snd encUnary encBits).comp (fst _ encBool)) (snd _ encBool)
   simpa only [IsPPT, lorKeyDistinguisherOn, bind_pure_comp] using
@@ -584,19 +623,16 @@ theorem isPPT_lorKeyDistinguisherOn {encMsg : Msg ↪ List Bool}
           ((snd _ encBool).prod ((snd _ encBool).comp (fst _ encBool)))
 
 /-- The unrestricted hidden-bit reduction `lorKeyDistinguisher` is one uniform strict PPT
-distinguisher when encryption is strict PPT with polynomially bounded ciphertext length, `Q` is
-computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
+distinguisher when encryption is strict PPT, `Q` is computable in polynomial time, and the adversary
+satisfies `LoRAdversaryOf.IsPPT`. -/
 theorem isPPT_lorKeyDistinguisher {encMsg : Msg ↪ List Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c,
-      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
     IsPPT encBool (lorKeyDistinguisher encrypt Q adversary) :=
-  isPPT_lorKeyDistinguisherOn (const true) hencrypt hctBound hctLen hQ hadversary
+  isPPT_lorKeyDistinguisherOn (const true) hencrypt hQ hadversary
 
 end Cslib.Crypto.Encryption

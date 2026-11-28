@@ -555,15 +555,6 @@ theorem eval_lorGameSerialized (n m w η Q : ℕ → ℕ) (adversary : Encryptio
     distinguishingGame_realEnsemble_lorDistinguisherSerialized,
     ← lorGame_eq_bind_lorDistinguisher]
 
-private theorem polynomiallyBounded_ciphertextLength {n w : ℕ → ℕ}
-    (hn : ComputableInPolyTime n encUnary encUnary)
-    (hw : ComputableInPolyTime w encUnary encUnary) :
-    Cslib.PolynomiallyBounded (fun k => (n k + 1) * w k) := by
-  have h : ComputableInPolyTime (fun k => (n k + 1) * w k) encUnary encUnary := by fun_prop
-  have hp : PolyBounded (fun x => x) (fun k => (n k + 1) * w k) := by
-    simpa only [encUnary_apply, List.length_replicate] using h.polyBounded
-  exact PolyBounded.polynomiallyBounded hp
-
 private theorem isPPTOn_encryptSerialized_keyed {n m w : ℕ → ℕ}
     (hn : ComputableInPolyTime n encUnary encUnary)
     (hm : ComputableInPolyTime m encUnary encUnary)
@@ -591,8 +582,6 @@ theorem isPPTOn_lorDistinguisherSerialized {n m w Q : ℕ → ℕ} {adversary : 
         (security a) (publicWord a)) :=
   Encryption.isPPTOn_lorDistinguisher
     (isPPTOn_encryptSerialized_keyed hn hm hw)
-    (polynomiallyBounded_ciphertextLength hn hw)
-    (fun _ _ _ _ hc => le_of_eq (length_of_mem_support_encryptSerialized hc))
     hQ hadversary hsecurity hpublicWord hbit
 
 /-- Efficient dimension and query-count schedules make `lorDistinguisherSerialized` one uniform
@@ -606,8 +595,6 @@ theorem isPPT_lorDistinguisherSerialized {n m w Q : ℕ → ℕ} {adversary : En
     IsPPT encBool (lorDistinguisherSerialized n m w Q adversary bit) :=
   Encryption.isPPT_lorDistinguisher
     (isPPTOn_encryptSerialized_keyed hn hm hw)
-    (polynomiallyBounded_ciphertextLength hn hw)
-    (fun _ _ _ _ hc => le_of_eq (length_of_mem_support_encryptSerialized hc))
     hQ hadversary bit
 
 /-- Efficient dimension and query-count schedules make `lorLweDistinguisher` one uniform strict PPT
@@ -621,8 +608,6 @@ theorem isPPT_lorLweDistinguisher {n m w Q : ℕ → ℕ} {adversary : Encryptio
     IsPPT encBool (lorLweDistinguisher n m w Q adversary) :=
   Encryption.isPPT_lorKeyDistinguisher
     (isPPTOn_encryptSerialized_keyed hn hm hw)
-    (polynomiallyBounded_ciphertextLength hn hw)
-    (fun _ _ _ _ hc => le_of_eq (length_of_mem_support_encryptSerialized hc))
     hQ hadversary
 
 /-- Concrete adaptive `Q`-query left-or-right security for `lorGameSerialized`: the advantage is at
