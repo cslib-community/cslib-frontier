@@ -5047,7 +5047,7 @@ Section 3 (pp. 9–16) defines generalized median voter schemes on paths, their 
 Section 4 proves Theorem 2 (p. 21): every strategy-proof onto rule has a dictator on each cycle.
 `TreeEMVS` represents extended median voter schemes by branch-winning coalitions rather than by consistent path schemes; see its docstring for the correspondence.
 Strong group strategyproofness of these rules is proved in the library and is not stated in the paper.
-The cycle results cover shortest cycles only.
+[FacilityLocation/Cycle.lean](../CslibFrontier/GameTheory/Mechanism/FacilityLocation/Cycle.lean) formalizes only the shortest-cycle and pure-cycle-graph step after Theorem 2; arbitrary-cycle dictatorship remains open ([#4327](https://github.com/cslib-community/cslib-frontier/issues/4327)).
 
 <a id="schummervohra07"></a>
 ## schummervohra07
