@@ -32,6 +32,14 @@ there; `f 0` enters through right-continuity at `0`: it is the right limit `f (0
 
 ## References
 
+* [Widder1941], Chapter II, §2, Theorem 2.1 and its proof, pp. 38–39: if `α` is of bounded
+  variation on every `[0, R]` and `α(t) = O(e^{γt})`, then for `re s > γ`
+  `∫₀^∞ e^{-st} dα(t) = s ∫₀^∞ e^{-st} α(t) dt - α(0)`; Theorem 2.3a, p. 41, gives the same
+  identity wherever the left side converges with `re s > 0`. Compare `laplace_deriv` with
+  `α = f`: when `f` is right-continuous at `0` and differentiable on `(0, ∞)` with `f'` locally
+  integrable, the Stieltjes integral is `laplace f' s`. Widder's left side may converge
+  conditionally and needs no bound on `f'`; here `laplace f' s` is an absolutely convergent
+  Lebesgue integral, which is why `f'` has its own exponential-order bound.
 * S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
   "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
   handout `10-expm.pdf`), slide 10–3 ("Derivative property"): `L(ż) = s Z(s) - z(0)`, by

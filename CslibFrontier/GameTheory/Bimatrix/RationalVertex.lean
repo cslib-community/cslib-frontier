@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.Int.Radix
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IntegerKernel
 public import CslibFrontier.GameTheory.Bimatrix.BestResponsePolytope
 public import CslibFrontier.GameTheory.Bimatrix.ShapleyOrientation
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -650,11 +651,8 @@ theorem abs_cramerVec_le {k H : ℕ} {M_int : Matrix κ (Fin k) ℤ} {b_int : κ
     (hM : ∀ r c, |M_int r c| ≤ H) (hb : ∀ r, |b_int r| ≤ H) (T : Finset κ) (hT : T.card = k)
     (i : Fin k) :
     |cramerVec M_int b_int T hT i| ≤ (k.factorial * H ^ k : ℕ) := by
-  rw [cramerVec, Matrix.cramer_apply]
-  refine (Matrix.det_le (abv := AbsoluteValue.abs) (x := (H : ℤ)) fun r c => ?_).trans_eq (by simp)
-  by_cases hc : c = i
-  · subst hc; simp [Matrix.updateCol_self, hb]
-  · simp [Matrix.updateCol_ne hc, hM, basisMat]
+  simpa only [cramerVec, Fintype.card_fin] using Matrix.abs_cramer_le (A := basisMat M_int T hT)
+    (b := fun j => b_int (T.orderIsoOfFin hT j : κ)) (fun r c => hM _ c) (fun r => hb _) i
 
 omit [Fintype κ] [DecidableEq κ] in
 private theorem abs_basisSignNum_le {k H : ℕ} {M_int : Matrix κ (Fin k) ℤ} {b_int : κ → ℤ}

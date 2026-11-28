@@ -210,9 +210,8 @@ private theorem computableInPolyTime_sumBlocksCode {α : Type} {enc : α ↪ Lis
     have hsuccCoinsBin := binary_mul' (const (m + 1)) hcoinsBin
     have hrange₁ : ComputableInPolyTime
         (fun a => ([], List.range (m * coins a))) enc encCode :=
-      (const []).prod <| by
-        simpa only [Function.comp_def, List.map_id'] using
-          unary_to_binary.map.comp (range.comp (unary_mul.comp ((const m).prod hcoins)))
+      (const []).prod ((range.comp (unary_mul.comp ((const m).prod hcoins))).reencodeList
+        unary_to_binary)
     have hrange₂ : ComputableInPolyTime
         (fun a => ([], (List.range (coins a)).map (fun c => c + coins a * m))) enc encCode :=
       (const []).prod <| mapWithInput (range.comp hcoins) <|

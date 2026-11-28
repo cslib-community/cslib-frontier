@@ -105,19 +105,6 @@ def answerStep (answer : Operation × List Bool → List Bool)
     | .step action symbol move => cfg.step action symbol move
     | .query op next => cfg.receive op next (answer (op, (cfg.channels op).1))
 
-omit [DecidableEq Operation] in
-/-- Interpreting a bounded loop against an answer function iterates the interpreted body. -/
-theorem _root_.Cslib.OracleComp.interpret_id_iterate {State Query : Type}
-    {spec : OracleSpec.{0, 0} Query} (answer : (q : Query) → spec q) (n : ℕ)
-    (step : State → OracleComp spec State) (s : State) :
-    OracleComp.interpret (m := Id) answer (OracleComp.iterate n step s) =
-      (fun s => OracleComp.interpret (m := Id) answer (step s))^[n] s := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [OracleComp.iterate_succ, OracleComp.interpret_bind, Function.iterate_succ_apply', ← ih]
-    rfl
-
 /-- The interpreted native instruction, with every coin `false`, is `answerStep`. -/
 private theorem interpret_finiteStep (answer : Operation × List Bool → List Bool)
     (cfg : FiniteConfig k Bool Control Operation) :

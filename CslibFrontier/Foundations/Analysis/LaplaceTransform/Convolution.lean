@@ -38,6 +38,14 @@ Mathlib's `MeasureTheory.integral_convolution` (Fubini).
 
 ## References
 
+* [Widder1941], Chapter II, §12, Definition 12 and Theorem 12.1a, pp. 91–92: for scalar
+  `a`, `b` integrable on every `(0, R)`, the resultant `c(t) = ∫₀^t a(t - u) b(u) du` satisfies
+  `∫₀^∞ e^{-s₀t} a(t) dt · ∫₀^∞ e^{-s₀t} b(t) dt = ∫₀^∞ e^{-s₀t} c(t) dt` when both factors
+  converge absolutely, and then the right side converges absolutely. Compare
+  `laplace_causalConvolution` and `laplaceConvergent_causalConvolution`, which pair
+  vector-valued functions by a bilinear map and use Bochner integrals. Widder derives it from the
+  Laplace–Stieltjes product theorem (§11, Theorem 11.5, p. 88); Theorems 12.1b and 12.1c, p. 92,
+  weaken absolute convergence, which is not done here.
 * S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
   "Linear dynamical systems with inputs & outputs" (Stanford Engineering Everywhere handout
   `13-lin-sys.pdf`), slide 13–8: with zero initial state `Y(s) = H(s) U(s)` and `y = h ∗ u`, the

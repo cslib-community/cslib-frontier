@@ -24,8 +24,9 @@ associativity of linking (`Cslib.Crypto.Protocols.UC.Machine.link_comp`).
 
 With call budgets, absorbing an adversary with budget `pA` into an environment with budget `pZ`
 gives an environment with budget `UC.absorbPoly pZ pA = pA + 1 + pZ * (pA + 2)`, and the black-box
-simulator has budget `pA * (pD + 1) + pD`, which is bounded by `X * (pD + 1) + pD` at
-`κ + pA κ`. Hence concrete emulation of the dummy adversary (`UC.EmulatesDummyWithin`) implies
+simulator has budget `pA * (pD + 1) + pD`, which is bounded by
+`UC.compSimPoly pD = X * (pD + 1) + pD` at `κ + pA κ`. Hence concrete emulation of the dummy
+adversary (`UC.EmulatesDummyWithin`) implies
 concrete emulation (`UC.EmulatesDummyWithin.emulatesWithin`) with the error evaluated at the
 absorbed environment budget, and conversely (`UC.EmulatesWithin.emulatesDummyWithin`). Black-box
 emulation (`UC.EmulatesBlackBoxWithin`), with one simulator `S_D` used as `UC.compSim S_D A` for
@@ -42,6 +43,7 @@ running time.
   adversary.
 * `Cslib.Crypto.Protocols.UC.absorbAdversary`: an environment running an adversary internally.
 * `Cslib.Crypto.Protocols.UC.absorbPoly`: the budget of an absorbed environment.
+* `Cslib.Crypto.Protocols.UC.compSimPoly`: the simulator overhead of a black-box simulator.
 * `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin`,
   `Cslib.Crypto.Protocols.UC.EmulatesBlackBoxWithin`: emulation of the dummy adversary, and
   black-box emulation.
@@ -56,8 +58,9 @@ running time.
   adversary into the environment.
 * `Cslib.Crypto.Protocols.UC.compSim_polyBounded`,
   `Cslib.Crypto.Protocols.UC.absorbAdversary_polyBounded`,
-  `Cslib.Crypto.Protocols.UC.eval_absorbPoly`, `Cslib.Crypto.Protocols.UC.eval_absorbPoly_mono`:
-  budgets.
+  `Cslib.Crypto.Protocols.UC.eval_absorbPoly`, `Cslib.Crypto.Protocols.UC.eval_absorbPoly_mono`,
+  `Cslib.Crypto.Protocols.UC.eval_compSimPoly`,
+  `Cslib.Crypto.Protocols.UC.eval_compSimPoly_mono`: budgets.
 * `Cslib.Crypto.Protocols.UC.emulates_iff_emulatesDummy`: completeness of the dummy adversary with
   negligible error.
 * `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.emulatesWithin`,
@@ -179,6 +182,24 @@ theorem eval_absorbPoly_mono {pZ pZ' pA pA' : Polynomial ℕ} {κ : ℕ}
   have := Nat.mul_le_mul hZ (Nat.add_le_add_right hA 2)
   omega
 
+/-- Library infrastructure (no cited result): the call-budget overhead `X * (pD + 1) + pD` of the
+black-box simulator `compSim S_D A` on a core simulator with budget `pD`, as a polynomial in
+`κ + pA κ`. -/
+@[expose] noncomputable def compSimPoly (pD : Polynomial ℕ) : Polynomial ℕ :=
+  Polynomial.X * (pD + 1) + pD
+
+@[simp] theorem eval_compSimPoly (pD : Polynomial ℕ) (x : ℕ) :
+    (compSimPoly pD).eval x = x * (pD.eval x + 1) + pD.eval x := by
+  simp only [compSimPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_one]
+
+/-- Library infrastructure (no cited result): the black-box simulator overhead is monotone in the
+core budget. -/
+theorem eval_compSimPoly_mono {pD pD' : Polynomial ℕ} {x : ℕ} (h : pD.eval x ≤ pD'.eval x) :
+    (compSimPoly pD).eval x ≤ (compSimPoly pD').eval x := by
+  simp only [eval_compSimPoly]
+  exact Nat.add_le_add (Nat.mul_le_mul_left x (Nat.add_le_add_right h 1)) h
+
 /-- The dummy adversary makes one call per activation. -/
 theorem dummyAdversary_polyBounded (n : ℕ) (NetQ NetR : Type) :
     (dummyAdversary n NetQ NetR).PolyBounded 1 :=
@@ -193,10 +214,10 @@ theorem compSim_polyBounded {S_D : Adversary n NetQ NetR BackQ BackR}
   simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
   exact h
 
-/-- The black-box simulator's budget is bounded by `X * (pD + 1) + pD` at `κ + pA κ`. -/
+/-- The black-box simulator's budget is bounded by `compSimPoly pD` at `κ + pA κ`. -/
 theorem simPolyBound_compSim (pD pA : Polynomial ℕ) :
-    SimPolyBound (Polynomial.X * (pD + 1) + pD) pA (pA * (pD + 1) + pD) := fun κ => by
-  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_one]
+    SimPolyBound (compSimPoly pD) pA (pA * (pD + 1) + pD) := fun κ => by
+  simp only [eval_compSimPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
   have hD : pD.eval κ ≤ pD.eval (κ + pA.eval κ) := pD.eval_mono (Nat.le_add_right _ _)
   exact Nat.add_le_add (Nat.mul_le_mul (Nat.le_add_left _ _) (Nat.add_le_add_right hD 1)) hD
 
@@ -287,16 +308,16 @@ theorem EmulatesDummyWithin.emulatesBlackBoxWithin {pD : Polynomial ℕ}
 /-- Black-box emulation is emulation, with the black-box simulator's budget. -/
 theorem EmulatesBlackBoxWithin.emulatesWithin {pD : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (h : EmulatesBlackBoxWithin π φ pD ε) :
-    EmulatesWithin π φ (Polynomial.X * (pD + 1) + pD) ε := by
+    EmulatesWithin π φ (compSimPoly pD) ε := by
   obtain ⟨S_D, hS, hadv⟩ := h
   exact fun AdvQ AdvR A pA hA => ⟨compSim S_D A, pA * (pD + 1) + pD, compSim_polyBounded hS hA,
     simPolyBound_compSim pD pA, hadv AdvQ AdvR A pA hA⟩
 
 /-- Completeness of the dummy adversary: simulating it gives emulation, with simulator overhead
-`X * (pD + 1) + pD` and the error evaluated at the absorbed environment's budget. -/
+`compSimPoly pD` and the error evaluated at the absorbed environment's budget. -/
 theorem EmulatesDummyWithin.emulatesWithin {pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (h : EmulatesDummyWithin π φ pD ε) :
-    EmulatesWithin π φ (Polynomial.X * (pD + 1) + pD) (fun pA pZ => ε (absorbPoly pZ pA)) :=
+    EmulatesWithin π φ (compSimPoly pD) (fun pA pZ => ε (absorbPoly pZ pA)) :=
   h.emulatesBlackBoxWithin.emulatesWithin
 
 /-- Emulation gives a simulator for the dummy adversary, whose budget is bounded by `g` at

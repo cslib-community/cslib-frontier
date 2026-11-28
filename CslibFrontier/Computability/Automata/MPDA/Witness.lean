@@ -114,14 +114,17 @@ theorem blockWitness_spec {i : Fin n} {s t : State} {r : List (Γ × State)}
     obtain ⟨a, s₁, ws, rfl, hT, hws, hwsrun⟩ := atomicWitness_spec hu
     exact (ih hv').snoc hT hws hwsrun
 
+private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option β} (f : α → β → γ)
+    (ha : a.isSome) (hb : b.isSome) : (a.bind fun x => b.map (f x)).isSome := by
+  simpa only [Option.isSome_bind, Option.isSome_map, hb, Option.any_true] using ha
+
 theorem isSome_blockWitness {i : Fin n} {s t : State} {r : List (Γ × State)}
     (hr : M.Realizes i s t r) : (M.blockWitness i s r).isSome := by
   induction hr with
   | nil => rfl
   | cons hr' hγ ih =>
-    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp ih
-    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp (isSome_atomicWitness hγ)
-    simp [blockWitness, hv, hr'.realizationEnd, hu]
+    rw [blockWitness, hr'.realizationEnd]
+    exact isSome_bind_map _ ih (isSome_atomicWitness hγ)
 
 end Block
 
@@ -282,7 +285,7 @@ private theorem take_append_cons_drop {α : Type*} {l : List α} {j : ℕ} {x : 
     (h : l[j]? = some x) :
     l.take j ++ x :: l.drop (j + 1) = l := by
   obtain ⟨hj, rfl⟩ := List.getElem?_eq_some_iff.mp h
-  conv_rhs => rw [← List.take_append_drop j l, List.drop_eq_getElem_cons hj]
+  rw [← List.drop_eq_getElem_cons hj, List.take_append_drop]
 
 theorem initWitness_spec {K : ℕ} {μ : HoleList n State} {w : List (Symbol × Op n Γ)}
     (h : M.initWitness μ = some w) : μ.holes = [] ∧ M.RunsTo K μ [] w := by
@@ -401,10 +404,6 @@ section BackwardComplete
 
 variable {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
   [DecidablePred (· ∈ M.start)]
-
-private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option β} (f : α → β → γ)
-    (ha : a.isSome) (hb : b.isSome) : (a.bind fun x => b.map (f x)).isSome := by
-  cases a <;> cases b <;> simp_all
 
 theorem isSome_initWitness {μ : HoleList n State} (h : μ ∈ M.initialLists) :
     (M.initWitness μ).isSome := by

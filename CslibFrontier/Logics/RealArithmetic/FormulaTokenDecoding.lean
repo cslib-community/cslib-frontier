@@ -45,8 +45,7 @@ theorem formulaTokensDecoder_decode_encFormula {n : ℕ} (p : Formula n) :
   change ((encFormula_tokens n p).map FormulaToken.encodeTerms).flatMap (frame ∘ encFormulaToken) =
     (encFormula_tokens n p).flatMap (frame ∘ encFormulaTokenEncoding n)
   rw [List.flatMap_map]
-  exact congrArg (fun f => (encFormula_tokens n p).flatMap f)
-    (funext fun token => congrArg frame (encFormulaToken_encodeTerms token))
+  exact List.flatMap_congr fun token _ => congrArg frame (encFormulaToken_encodeTerms token)
 
 /-- The bits of an equality or inequality term payload fit strictly inside the formula word. -/
 theorem formulaTermWord_length_lt_of_decode {word term : List Bool} {tokens : List FormulaToken}
@@ -59,6 +58,6 @@ theorem formulaTermWord_length_lt_of_decode {word term : List Bool} {tokens : Li
     have hlen := SizedListEncoding.length_elem_le (encA := encFormulaToken)
       (encL := encList encFormulaToken) tokens _ hterm
     simp only [encFormulaToken, encSum_inr, encSum_inl, encBits_apply, List.length_cons] at hlen ⊢
-    omega
+    lia
 
 end Cslib.Logic.RealArithmetic

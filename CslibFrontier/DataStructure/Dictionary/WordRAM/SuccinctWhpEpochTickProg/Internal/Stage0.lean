@@ -178,7 +178,7 @@ theorem realizes_epochTickStage0Gen :
     obtain ⟨c, U, V, _, n_max, θ, fs, dict, henv, rfl, hrep, hcore, hs0⟩ := h
     cases henv.2.2.1
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
       rcases hcore.curEp_or with h01 | h01 <;> simp [FastState.oldEp, h01]
     have hbo := hcore.bufOld_valid

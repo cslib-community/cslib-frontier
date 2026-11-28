@@ -34,6 +34,11 @@ open Turing.MultiTapeTM ComputableInPolyTime
 noncomputable def polynomialResidue (p D t : ℕ) (coeff : ℕ → ℕ) : ℕ :=
   (∑ k ∈ Finset.range (D + 1), coeff k * powMod p t k) % p
 
+/-- A positive modulus gives a canonical natural residue. -/
+theorem polynomialResidue_lt {p : ℕ} (hp : 0 < p) (D t : ℕ) (coeff : ℕ → ℕ) :
+    polynomialResidue p D t coeff < p :=
+  Nat.mod_lt _ hp
+
 /-- Evaluation uses one counting level above its coefficient access.
 The modulus, evaluation point, degree bound, and coefficient index are binary. -/
 theorem polynomialResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}

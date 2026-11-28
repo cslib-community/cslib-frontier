@@ -6,7 +6,9 @@ Authors: Erik Demaine
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.Complexity.FineGrained.RandomizedSatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
+import CslibFrontier.Computability.Complexity.FineGrained.Schaefer
 import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SharpTwoSATPower
 import CslibFrontier.Computability.Complexity.FineGrained.WeakExponentialTimeHypothesis
@@ -119,6 +121,53 @@ register_result "sh-exponent-transfer" where
     rules out a deterministic target solver in 2 ^ O((N + 1) ^ p) times a polynomial in the \
     target encoding length whenever b > 0, p > 0 and b * p < 1. The hypothesis q < 1 allows \
     q = 0 for polynomial-time reductions. The reduction's time bounds the length it writes."
+
+register_result "rsh-fixed-width-size" where
+  title := "The randomized Satisfiability Hypothesis in terms of fixed-width formula size"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Lemma 2.1 and Theorem 7.1(a) (fixed-width size step)",
+      locator := "arXiv:2611.02650v2, §2.1, p. 5 and §7, p. 11" }
+  ]
+  theorems := [Cslib.Complexity.rSH_iff_KSAT]
+  scope := "For each fixed k ≥ 3, rSH for unrestricted SAT is equivalent to ruling out any \
+    fixed power saving for k-SAT measured in occurring variables plus clauses. The seeded \
+    multitape solvers have two-sided error at most one third and a worst-case time bound over \
+    all seeds. The native binary CNF encoding allows polynomial overhead in actual input \
+    length. The fixed-width language rejects wider formulas."
+
+register_result "rsh-exponent-transfer" where
+  title := "Exponent transfer under the randomized Satisfiability Hypothesis"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Theorem 7.1(b) (exponent transfer)",
+      locator := "arXiv:2611.02650v2, §7, p. 11" }
+  ]
+  theorems := [Cslib.Complexity.rSH.not_solvesWithErrorInPowerExpTime_of_reduction]
+  scope := "Under rSH, a deterministic reduction from 3SAT with source size s = occurring \
+    variables + clauses, time 2 ^ O((s + 1) ^ q) times a polynomial in source encoding length, \
+    and target parameter N = O((s + 1) ^ (b + η)) for every η > 0 rules out worst-case seeded \
+    target time 2 ^ O((N + 1) ^ p) times a polynomial in target encoding length when q < 1, \
+    b > 0, p > 0, and b * p < 1. The target may be a promise problem. The solver must run within \
+    the bound on every seed and has two-sided error at most one third on promised inputs."
+
+register_result "sh-iff-schaefer-cspsat" where
+  title := "SH is equivalent to variable-count lower bounds for hard Boolean constraint languages"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Corollary 4.1",
+      locator := "arXiv:2611.02650v2, §4, p. 9" }
+  ]
+  theorems := [Cslib.Complexity.SH_iff_CSPSAT_numVars]
+  scope := "For each fixed finite Boolean constraint language without a common Schaefer \
+    polymorphism, SH is equivalent to the absence of a deterministic multitape solver with any \
+    fixed power saving in the exponent measured in occurring variables. The native CSP encoding \
+    uses binary variable labels and the time bound allows polynomial overhead in encoded input \
+    length. The exact-arity language permits repeated variables and constraints and rejects \
+    malformed scopes."
 
 register_result "sharp-sh-three-occurrence-sharp-two-sat" where
   title := "The counting Satisfiability Hypothesis gives a bounded-degree #2SAT lower bound"

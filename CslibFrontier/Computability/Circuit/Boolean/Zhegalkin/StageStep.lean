@@ -101,9 +101,8 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
     CostSynthesis interpretation andCost (midSet d s p q₀ ∪ intraSet d s q₀ b)
       {hFn d r} (p + s) 0 := by
   have hzero_mem : constZero n ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
-    have h0 : constZero n ∈ ({constZero n, constOne n} : Set (BooleanFunction n)) := Or.inl rfl
     simp only [midSet, stageSet, Set.mem_union]
-    tauto
+    lrat_tauto [(Or.inl rfl : constZero n ∈ ({constZero n, constOne n} : Set (BooleanFunction n)))]
   have hmem : ∀ idx ∈ zhegRowParts d s p r,
       zhegPartVal d s p r idx ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
     intro idx hidx
@@ -147,11 +146,10 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
       simp only [midSet, Set.mem_union]
       tauto
     · obtain ⟨hne, rfl⟩ := hite h4
-      have htail_mem : zhegPartVal d s p r .xTail ∈ xGroupSet n s :=
-        ⟨n / s, Additive.matrixTailSet d.aX s r, hne,
-          fun _ hj => Additive.div_eq_of_mem_matrixTailSet hj, rfl⟩
       simp only [midSet, stageSet, Set.mem_union]
-      tauto
+      lrat_tauto [(⟨n / s, Additive.matrixTailSet d.aX s r, hne,
+          fun _ hj => Additive.div_eq_of_mem_matrixTailSet hj, rfl⟩ :
+        zhegPartVal d s p r .xTail ∈ xGroupSet n s)]
     · obtain ⟨ℓ, hℓ, rfl⟩ := mem_map.mp h5
       obtain ⟨_, hdiv, hlt, _⟩ := mem_filter.mp hℓ
       have hmod_lt : ℓ.1 % s < b := by

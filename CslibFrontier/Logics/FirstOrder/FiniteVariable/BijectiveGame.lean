@@ -160,11 +160,6 @@ private theorem preimage_insert_equiv {k' : ℕ} (σ : Fin k' ≃ Fin k) (i : Fi
   ext j
   simp only [Set.mem_insert_iff, Set.mem_preimage, σ.injective.eq_iff]
 
-private theorem update_comp_equiv {α : Type*} {k' : ℕ} (σ : Fin k' ≃ Fin k) (a : Fin k → α)
-    (i : Fin k') (c : α) : Function.update (a ∘ σ) i c = Function.update a (σ i) c ∘ σ := by
-  ext j
-  simp [Function.update_apply, σ.injective.eq_iff]
-
 /-- Reindexing pebble names along a bijection preserves winning positions of the bijective game. -/
 theorem bijPebbleWins_comp_equiv_iff {k' : ℕ} (σ : Fin k' ≃ Fin k) :
     ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N},
@@ -175,7 +170,7 @@ theorem bijPebbleWins_comp_equiv_iff {k' : ℕ} (σ : Fin k' ≃ Fin k) :
     rw [bijPebbleWins_succ, bijPebbleWins_succ, partialIsoOn_comp_equiv_iff]
     refine and_congr Iff.rfl (σ.forall_congr fun i => exists_congr fun f =>
       forall_congr' fun c => ?_)
-    rw [preimage_insert_equiv, update_comp_equiv, update_comp_equiv,
+    simp only [preimage_insert_equiv, ← Function.update_comp_eq_of_injective _ σ.injective,
       bijPebbleWins_comp_equiv_iff σ]
 
 theorem BijPebbleWins.refl : ∀ (n : ℕ) (S : Set (Fin k)) (a : Fin k → M), BijPebbleWins L n S a a

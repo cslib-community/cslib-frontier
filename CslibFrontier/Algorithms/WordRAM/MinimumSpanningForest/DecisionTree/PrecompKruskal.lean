@@ -162,11 +162,6 @@ private theorem choose_two_succ (n : ℕ) : (n + 1).choose 2 = n.choose 2 + n :=
   rw [Nat.choose_succ_succ]
   simp [Nat.add_comm]
 
-private theorem testBit_eq_decide_shift_and (m j : ℕ) :
-    ((m >>> j) &&& 1 = 1) ↔ m.testBit j = true := by
-  rw [Nat.and_one_is_mod, Nat.testBit, Nat.and_comm 1 (m >>> j), Nat.and_one_is_mod]
-  rcases Nat.mod_two_eq_zero_or_one (m >>> j) with h | h <;> simp [h]
-
 private theorem testBit_or_one_shiftLeft (m k b : ℕ) :
     (m ||| (1 <<< k)).testBit b = (m.testBit b || decide (b = k)) := by
   rw [Nat.testBit_or, Nat.one_shiftLeft, Nat.testBit_two_pow]
