@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
-import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Certificate
 import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerReplay
 
 /-! A diamond with two distinct paths of different internal weights. -/
@@ -66,14 +66,20 @@ private def rectangularDiamond : LayeredDigraph (Fin (2 + 1) × Fin 2) where
 
 open Cslib.Reachability.Hoza Cslib.Code.JustesenFamily
 
--- Apply both resource-independent guarantees to an actual graph.
+-- Apply the native family to a seed isolating the graph, then evaluate an internal vertex.
+open Cslib.Reachability.Hoza.SeedWeight.Dimensions Turing Turing.MultiTapeTM in
 example :
-    ∃ seed : Fin (codeLength 2 2) → Bool,
+    ∃ (seed : Fin (codeLength 2 2) → Bool) (degree C time k : ℕ) (State : Type)
+      (_ : Finite State) (tm : MultiTapeTM k Bool State),
       rectangularDiamond.IsMinIsolating (generatedWeight seed) ∧
-        ∃ C : ℕ, ∀ z : Fin 3 × Fin 2, generatedWeight seed z < (2 * (2 * (2 + 1) + 1)) ^ C := by
-  obtain ⟨seed, h⟩ := exists_generatedWeight_isMinIsolating rectangularDiamond fun _ => rfl
-  obtain ⟨C, hC⟩ := generatedWeight_polynomial
-  exact ⟨seed, h, C, hC 2 2 seed⟩
+      (∀ z, generatedWeight seed z < (2 * (6 + 1)) ^ degree) ∧
+      tm.ComputesInTimeAndSpace (encInput (canonicalInput seed (1, 0)))
+        (encNat (generatedWeight seed (1, 0))) time (C * (Nat.log2 6 + 1)) := by
+  obtain ⟨_, degree, C, time, k, State, finite, tm, h⟩ := generatedWeight_certified
+  obtain ⟨_, hisolate, heval⟩ := h 2 2
+  obtain ⟨seed, hseed⟩ := hisolate rectangularDiamond fun _ => rfl
+  exact ⟨seed, degree, C, time (canonicalInput seed (1, 0)), k, State, finite, tm, hseed,
+    fun z => (heval seed z).1, (heval seed (1, 0)).2⟩
 
 example : codeLength 2 2 ≤ 268435456 * (Nat.log 2 (2 * (2 + 1)) + 1) :=
   (codeLength_bounds 2 2).2

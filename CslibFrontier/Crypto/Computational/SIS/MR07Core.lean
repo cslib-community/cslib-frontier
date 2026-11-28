@@ -108,7 +108,7 @@ module's representation choice. -/
     ((q : ℝ)⁻¹ : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ j)
 
 /-- Real matrix cast of an integer matrix. -/
-private abbrev matR {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) : Matrix (Fin n) (Fin n) ℝ :=
+abbrev matR {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) : Matrix (Fin n) (Fin n) ℝ :=
   B.map Int.cast
 
 /-- Embed an integer vector in `EuclideanSpace ℝ (Fin n)`. -/
@@ -120,17 +120,20 @@ private noncomputable abbrev gridVec {n : ℕ} (q : ℕ) (u : Fin n → ℤ) :
     EuclideanSpace ℝ (Fin n) :=
   ((q : ℝ)⁻¹ : ℝ) • toVecℤ u
 
-private theorem isUnit_matR_det {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
+/-- The real cast of an integer matrix with nonzero determinant has unit determinant. -/
+theorem isUnit_matR_det {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
     IsUnit (matR B).det := by
   refine isUnit_iff_ne_zero.mpr ?_
   rw [show (matR B).det = (B.det : ℝ) by simpa [matR] using ((Int.castRingHom ℝ).map_det B).symm]
   exact Int.cast_ne_zero.mpr hB
 
-private theorem matR_mul_inv {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
+/-- Right-inverse identity `matR B * (matR B)⁻¹ = 1` for `B.det ≠ 0`. -/
+theorem matR_mul_inv {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
     matR B * (matR B)⁻¹ = 1 :=
   Matrix.mul_nonsing_inv (matR B) (isUnit_matR_det hB)
 
-private theorem matR_inv_mul {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
+/-- Left-inverse identity `(matR B)⁻¹ * matR B = 1` for `B.det ≠ 0`. -/
+theorem matR_inv_mul {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
     (matR B)⁻¹ * matR B = 1 :=
   Matrix.nonsing_inv_mul (matR B) (isUnit_matR_det hB)
 
@@ -347,7 +350,8 @@ private theorem modParallelepiped_add_mem {n : ℕ} {B : Matrix (Fin n) (Fin n) 
   congr 2; funext k
   simp [Int.floor_add_intCast]
 
-private theorem modParallelepiped_idemp {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0)
+/-- Reducing modulo the fundamental parallelepiped `P(B)` is idempotent for `B.det ≠ 0`. -/
+theorem modParallelepiped_idemp {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0)
     (x : EuclideanSpace ℝ (Fin n)) :
     modParallelepiped B (modParallelepiped B x) = modParallelepiped B x := by
   have h := inv_mulVec_modParallelepiped hB x
@@ -369,13 +373,15 @@ private theorem modParallelepiped_eq_iff_sub_mem {n : ℕ} {B : Matrix (Fin n) (
   rw [show x - y = (x - modParallelepiped B x) - (y - modParallelepiped B y) by rw [h]; abel]
   exact Submodule.sub_mem _ (sub_modParallelepiped_mem hB x) (sub_modParallelepiped_mem hB y)
 
-private theorem modParallelepiped_mem_of_le {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0)
+/-- Reducing modulo `P(B)` preserves membership in any superlattice `L ≥ intLattice B`. -/
+theorem modParallelepiped_mem_of_le {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0)
     {L : Submodule ℤ (EuclideanSpace ℝ (Fin n))} (hBL : intLattice B ≤ L)
     {x : EuclideanSpace ℝ (Fin n)} (hx : x ∈ L) : modParallelepiped B x ∈ L := by
   rw [show modParallelepiped B x = x - (x - modParallelepiped B x) by abel]
   exact Submodule.sub_mem _ hx (hBL (sub_modParallelepiped_mem hB x))
 
-private theorem modParallelepiped_abs_le {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ)
+/-- Coordinatewise bound `|(modParallelepiped B x) i| ≤ ∑ j, |B i j|` on `P(B)`. -/
+theorem modParallelepiped_abs_le {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ)
     (x : EuclideanSpace ℝ (Fin n)) (i : Fin n) :
     |(modParallelepiped B x) i| ≤ ∑ j : Fin n, |(B i j : ℝ)| := by
   unfold modParallelepiped
@@ -760,12 +766,14 @@ theorem idealGridSample_fst_closeTo_uniform
 /-! ### Part 3: Sublattice Quotient & Discrete-Grid Combining Procedure (Finite MR07 Lemma 5.8) -/
 
 /-- For `L(S) ≤ L(B)`, construct the integer transition matrix `U` satisfying `B * U = S`. -/
-private noncomputable def sublatticeMat {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
+noncomputable def sublatticeMat {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
     (hSB : intLattice S ≤ intLattice B) : Matrix (Fin n) (Fin n) ℤ :=
   fun i j => Classical.choose ((mem_intLattice_iff B (intCol S j)).1
     (hSB (Submodule.subset_span ⟨j, rfl⟩))) i
 
-private theorem mul_sublatticeMat {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
+/-- The integer transition matrix `sublatticeMat B S hSB` satisfies
+`B * sublatticeMat B S hSB = S`. -/
+theorem mul_sublatticeMat {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
     (hSB : intLattice S ≤ intLattice B) : B * sublatticeMat B S hSB = S := by
   ext i j
   have hi := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i)
@@ -775,13 +783,15 @@ private theorem mul_sublatticeMat {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
     simpa only [Matrix.mul_apply, sublatticeMat, intCol, Matrix.mulVec, dotProduct,
       Int.cast_sum, Int.cast_mul] using hi.symm
 
-private theorem det_sublatticeMat {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0)
+/-- For invertible `B` and `L(S) ≤ L(B)`, `(sublatticeMat B S hSB).det = S.det / B.det`. -/
+theorem det_sublatticeMat {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0)
     (hSB : intLattice S ≤ intLattice B) : (sublatticeMat B S hSB).det = S.det / B.det := by
   have hdet : B.det * (sublatticeMat B S hSB).det = S.det := by
     rw [← Matrix.det_mul, mul_sublatticeMat]
   rw [← hdet, Int.mul_ediv_cancel_left _ hB]
 
-private theorem det_sublatticeMat_ne_zero {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
+/-- For invertible `S` and `L(S) ≤ L(B)`, `sublatticeMat B S hSB` has nonzero determinant. -/
+theorem det_sublatticeMat_ne_zero {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B) :
     (sublatticeMat B S hSB).det ≠ 0 := fun h0 =>
   hS (by rw [← mul_sublatticeMat B S hSB, Matrix.det_mul, h0, mul_zero])
@@ -809,13 +819,28 @@ private theorem SublatticeQuot.ext_toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n)
     {v₁ v₂ : SublatticeQuot B S} (h : v₁.toVec = v₂.toVec) : v₁ = v₂ :=
   Subtype.ext (toVecℤ_injective h)
 
+/-- The zero representative `0 ∈ L(B) ∩ P(S)`. -/
+def SublatticeQuot.zero {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) : SublatticeQuot B S :=
+  ⟨0,
+   fun _ => by
+     simpa only [Pi.zero_apply, abs_zero] using Finset.sum_nonneg fun _ _ => abs_nonneg _,
+   by
+     have hz : WithLp.toLp 2 (fun i : Fin n => (((0 : Fin n → ℤ) i : ℤ) : ℝ)) = 0 := by
+       ext i; simp
+     rw [hz]; exact (intLattice B).zero_mem,
+   by
+     have hz : WithLp.toLp 2 (fun i : Fin n => (((0 : Fin n → ℤ) i : ℤ) : ℝ)) = 0 := by
+       ext i; simp
+     rw [hz, modParallelepiped_zero]⟩
+
+/-- The coordinate vector of `SublatticeQuot.zero B S` is `0`. -/
+@[simp] theorem SublatticeQuot.zero_val {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
+    (SublatticeQuot.zero B S).1 = 0 := by
+  rfl
+
 /-- `SublatticeQuot B S` is always nonempty (`0` is a representative). -/
-instance {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) : Nonempty (SublatticeQuot B S) := by
-  have hz : WithLp.toLp 2 (fun i : Fin n => (((0 : Fin n → ℤ) i : ℤ) : ℝ)) = 0 := by ext i; simp
-  exact ⟨⟨0, fun _ => by
-    simpa only [Pi.zero_apply, abs_zero] using Finset.sum_nonneg fun _ _ => abs_nonneg _,
-    by rw [hz]; exact (intLattice B).zero_mem,
-    by rw [hz, modParallelepiped_zero]⟩⟩
+instance {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) : Nonempty (SublatticeQuot B S) :=
+  ⟨SublatticeQuot.zero B S⟩
 
 /-- `SublatticeQuot B S` is finite via the explicit coordinate box `[-∑_j |S i j|, ∑_j |S i j|]`. -/
 noncomputable instance {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
@@ -1525,21 +1550,8 @@ private theorem cond_gaussian_sum_le_prob_ge_one_third
   have ⟨hL2, hE⟩ := integral_norm_sum_smul_sq_discreteGaussian_le hn B hB hβ hr hε0 hε hdual
     centers z hz_norm hs
   have hMem : MemLp (fun Y : Fin m → intLattice B => ∑ i : Fin m,
-      (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) 2 P.toMeasure := by
-    have hfin (s : Finset (Fin m)) : MemLp (fun Y : Fin m → intLattice B =>
-        ∑ i ∈ s, (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) 2 P.toMeasure := by
-      classical
-      induction s using Finset.induction_on with
-      | empty => simp only [Finset.sum_empty]; exact MemLp.zero
-      | @insert a t ha ih =>
-        have heq : (fun Y : Fin m → intLattice B => ∑ i ∈ insert a t, (z i : ℝ) •
-            ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) =
-            (fun Y => (z a : ℝ) • ((Y a : EuclideanSpace ℝ (Fin n)) - centers a)) +
-              (fun Y => ∑ i ∈ t, (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) :=
-          funext fun Y => Finset.sum_insert ha
-        rw [heq]
-        exact ((hL2 a).const_smul (z a : ℝ)).add ih
-    exact hfin Finset.univ
+      (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) 2 P.toMeasure :=
+    memLp_finsetSum _ fun i _ => (hL2 i).const_smul (z i : ℝ)
   have hbad := (mul_meas_ge_le_integral_of_nonneg (ae_of_all _ fun Y => sq_nonneg _)
     ((memLp_two_iff_integrable_sq_norm hMem.aestronglyMeasurable).1 hMem) (r ^ 2)).trans hE
   have hbad_le : (P.toMeasure {Y | r ^ 2 ≤ ‖∑ i : Fin m, (z i : ℝ) •
@@ -1676,9 +1688,8 @@ private theorem idealIncGDDStep_eq_factor {n m q : ℕ} [NeZero q] (hn : 1 ≤ n
       (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
         (ProbComp.eval (F (combineMatrix B S q V C))).bind fun z => PMF.pure _) = _
   rw [PMF.bind_comm]
-  refine congrArg (PMF.bind (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)))
-    (funext fun V => ?_)
-  exact PMF.bind_comm _ (ProbComp.eval (F (combineMatrix B S q V C))) _
+  exact congrArg (PMF.bind _) (funext fun V =>
+    PMF.bind_comm _ (ProbComp.eval (F (combineMatrix B S q V C))) _)
 
 private theorem idealJoint_good_prob_ge
     {n m q : ℕ} [NeZero q] (hm : 1 ≤ m) (B S : Matrix (Fin n) (Fin n) ℤ)

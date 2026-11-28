@@ -97,54 +97,50 @@ theorem dispatchCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x :
       FibInv n K_max w base ((indexedMinPQSpec n K_max).stepFn s o).1 y ∧
       Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
       m + potential y ≤ charge n s o + potential x := by
-  have hz0 : x.regs zeroP = 0 := hinv.2.1.regs_zeroP
+  have hcond (r : Fin rFib) : (Cond.eq r zeroP).Holds x ↔ x.regs r = 0 := by
+    simp [Cond.Holds, hinv.2.1.regs_zeroP]
   cases o with
   | isEmpty =>
     obtain ⟨ht2, ht1, ht0⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := isEmptyCode_exec hinv
     refine ⟨y, m + 1 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_pos c0 he)), hdec, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_pos ((hcond tag1).2 ht1) (Exec.branch_pos ((hcond tag0).2 ht0) he)),
+      hdec, hinv_y, hmod, ?_⟩
     simp only [charge, tEmpty]
     omega
   | getKey v =>
     obtain ⟨ht2, ht1, ht0, hv_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := getKeyCode_exec v hinv hv_reg
     refine ⟨y, m + 2 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_neg c0 he)), hdec, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_pos ((hcond tag1).2 ht1) (Exec.branch_neg (mt (hcond tag0).1 ht0) he)),
+      hdec, hinv_y, hmod, ?_⟩
     simp only [charge, tGet]
     omega
   | insert v k =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
       insertCode_exec v k hinv hval hv_reg hk_reg
     refine ⟨y, m + 1 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_pos c0 he)), rfl, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_neg (mt (hcond tag1).1 ht1) (Exec.branch_pos ((hcond tag0).2 ht0) he)),
+      rfl, hinv_y, hmod, ?_⟩
     simp only [charge, tIns]
     omega
   | decreaseKey v k =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
       decreaseKeyCode_exec v k hinv hval hv_reg hk_reg
     refine ⟨y, m + 2 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_neg c0 he)), rfl, hinv_y, hmod, ?_⟩
+      Exec.branch_pos ((hcond tag2).2 ht2)
+        (Exec.branch_neg (mt (hcond tag1).1 ht1) (Exec.branch_neg (mt (hcond tag0).1 ht0) he)),
+      rfl, hinv_y, hmod, ?_⟩
     simp only [charge, tDec]
     omega
   | extractMin =>
-    have c2 : ¬(Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact harg
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := extractMinCode_exec hinv
-    refine ⟨y, m + 2, Exec.branch_neg c2 he, hdec, hinv_y, hmod, ?_⟩
+    refine ⟨y, m + 2, Exec.branch_neg (mt (hcond tag2).1 harg) he, hdec, hinv_y, hmod, ?_⟩
     simp only [charge, tExt]
     omega
 
@@ -412,22 +408,13 @@ theorem run_ops_exact_fresh {n K_max w base : ℕ} (hS : Fits w (base + space n)
       t_ops ≤
         421 * (numQueries ops + numInserts ops + numDecreaseKeys ops +
           numExtractMins ops * (Nat.log 2 n + 1)) := by
-  let d₀ : Data rFib := ⟨initRegs n base, mem₀⟩
-  have hfr_eq : d₀.regs frontierReg = base := by
-    simp only [d₀, initRegs, show frontierReg ≠ nReg by decide, ↓reduceIte]
-  have hpar : ∀ j : Fin 1, d₀.regs (![nReg] j) = ![n] j := fun j => by
-    fin_cases j; rfl
   obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hinv₀, hpot₀, hmod₀⟩ :=
-    (impl (K_max := K_max) hS hK).initFresh_exec (initRegs_bounded hS hmem) hfr_eq hpar
-      hzero
-  have hruns₀ : Runs w initFreshProg ⟨0, d₀⟩
-      ⟨0 + code.toSubroutineCode.initFresh.size, x₀⟩ t_init :=
-    he_init.runs (pc := 0) (p := initFreshProg) (Program.Contains.self _).append_left
-  have hhalt₀ : step w initFreshProg ⟨0 + code.toSubroutineCode.initFresh.size, x₀⟩ =
-      .halt (x₀.regs outFlag) :=
-    step_program_halt code.toSubroutineCode.initFresh outFlag x₀
+    (impl (K_max := K_max) hS hK).initFresh_exec (initRegs_bounded hS hmem) rfl
+      (Fin.forall_fin_one.2 rfl) hzero
   obtain ⟨z, t_ops, hruns_ops, _, hbound⟩ := seq_runsOps hS hK ops hinv₀ hv
-  refine ⟨_, x₀, t_init, z, t_ops, hruns₀, ⟨_, hhalt₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
+  refine ⟨_, x₀, t_init, z, t_ops,
+    he_init.runs (pc := 0) (p := initFreshProg) (Program.Contains.self _).append_left,
+    ⟨_, step_program_halt code.toSubroutineCode.initFresh outFlag x₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
   · change t_init ≤ 26 at ht_init
     omega
   · change potential x₀ ≤ 0 at hpot₀
@@ -448,21 +435,13 @@ theorem run_ops_exact_reusable {n K_max w base : ℕ} (hS : Fits w (base + space
       t_ops ≤
         421 * (numQueries ops + numInserts ops + numDecreaseKeys ops +
           numExtractMins ops * (Nat.log 2 n + 1)) := by
-  let d₀ : Data rFib := ⟨initRegs n base, mem₀⟩
-  have hfr_eq : d₀.regs frontierReg = base := by
-    simp only [d₀, initRegs, show frontierReg ≠ nReg by decide, ↓reduceIte]
-  have hpar : ∀ j : Fin 1, d₀.regs (![nReg] j) = ![n] j := fun j => by
-    fin_cases j; rfl
   obtain ⟨x₀, ⟨t_init, ht_init, he_init⟩, _, hinv₀, hpot₀, hmod₀⟩ :=
-    (impl (K_max := K_max) hS hK).initClear_exec (initRegs_bounded hS hmem) hfr_eq hpar
-  have hruns₀ : Runs w initClearProg ⟨0, d₀⟩
-      ⟨0 + code.toSubroutineCode.initClear.size, x₀⟩ t_init :=
-    he_init.runs (pc := 0) (p := initClearProg) (Program.Contains.self _).append_left
-  have hhalt₀ : step w initClearProg ⟨0 + code.toSubroutineCode.initClear.size, x₀⟩ =
-      .halt (x₀.regs outFlag) :=
-    step_program_halt code.toSubroutineCode.initClear outFlag x₀
+    (impl (K_max := K_max) hS hK).initClear_exec (initRegs_bounded hS hmem) rfl
+      (Fin.forall_fin_one.2 rfl)
   obtain ⟨z, t_ops, hruns_ops, _, hbound⟩ := seq_runsOps hS hK ops hinv₀ hv
-  refine ⟨_, x₀, t_init, z, t_ops, hruns₀, ⟨_, hhalt₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
+  refine ⟨_, x₀, t_init, z, t_ops,
+    he_init.runs (pc := 0) (p := initClearProg) (Program.Contains.self _).append_left,
+    ⟨_, step_program_halt code.toSubroutineCode.initClear outFlag x₀⟩, hmod₀, hruns_ops, ?_, ?_⟩
   · change t_init ≤ 26 + 4 * (9 * n + 1) + 6 at ht_init
     omega
   · change potential x₀ ≤ 0 at hpot₀

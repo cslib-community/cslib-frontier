@@ -37,7 +37,7 @@ all three. Fixed supported secret width and the depth convention `2 * budget` ar
 from the canonical leveled overhead theorem. -/
 theorem exists_modLeveledGame_coin_evaluator {E : Scheme}
     (hkeyGen : IsPPTOn encUnary (encPair encBits encBits) E.keyGen)
-    (hencrypt : IsPPTOn (encPair encUnary (encPair encBits encBool)) encBits
+    (hencrypt : IsPPTOn (encKeyedInput encBool) encBits
       (fun (n, pk, bit) => E.encrypt n pk bit))
     {adversary : Encryption.Adversary} (hadversary : adversary.IsPPT)
     {width coins budget capacity : ℕ → ℕ}
@@ -73,17 +73,13 @@ theorem exists_modLeveledGame_coin_evaluator {E : Scheme}
   let chooseCoins := fun n => c_ch * (2 * n + pubLen n + 2) ^ d_ch
   let guessCoins := fun n => c_gu * (2 * n + 2 * chooseCoins n + encCoins n + 4) ^ d_gu
   have hkeyCoins : ComputableInPolyTime keyCoins encUnary encUnary := by
-    dsimp only [keyCoins]
-    fun_prop
+    dsimp only [keyCoins]; fun_prop
   have hencCoins : ComputableInPolyTime encCoins encUnary encUnary := by
-    dsimp only [encCoins]
-    fun_prop
+    dsimp only [encCoins]; fun_prop
   have hchooseCoins : ComputableInPolyTime chooseCoins encUnary encUnary := by
-    dsimp only [chooseCoins, pubLen, publicKeyLengthBound]
-    fun_prop
+    dsimp only [chooseCoins, pubLen, publicKeyLengthBound]; fun_prop
   have hguessCoins : ComputableInPolyTime guessCoins encUnary encUnary := by
-    dsimp only [guessCoins]
-    fun_prop
+    dsimp only [guessCoins]; fun_prop
   refine ⟨keyCoins, encCoins, chooseCoins, guessCoins,
     modLeveledGameCoins evalKey evalEncrypt evalChoose evalGuess coins (fun n => 2 * budget n)
       capacity keyCoins encCoins chooseCoins guessCoins,
@@ -91,12 +87,9 @@ theorem exists_modLeveledGame_coin_evaluator {E : Scheme}
   · intro bit
     apply computableInPolyTime_modLeveledGameCoins hevalKey hevalEncrypt hevalChoose hevalGuess
       hcoins (by fun_prop) hcapacity hkeyCoins hencCoins hchooseCoins hguessCoins bit
-  · have htotal : ComputableInPolyTime (fun n => modLeveledGameCoinBudget (coins n)
-        (2 * budget n) (capacity n) (keyCoins n) (encCoins n) (chooseCoins n) (guessCoins n))
-        encUnary encUnary := by
-      unfold modLeveledGameCoinBudget modLeveledChooseCoinBudget leveledGuessCoinBudget
-      fun_prop
-    exact htotal.polynomiallyBounded
+  · refine ComputableInPolyTime.polynomiallyBounded ?_
+    unfold modLeveledGameCoinBudget modLeveledChooseCoinBudget leveledGuessCoinBudget
+    fun_prop
   · intro bit n
     exact eval_game_modLeveledAdversary_eq_map_coins E adversary evalKey evalEncrypt evalChoose
       evalGuess coins (fun n => 2 * budget n) capacity keyCoins encCoins chooseCoins guessCoins

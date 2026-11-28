@@ -31,9 +31,7 @@ variable {Rel V : Type*} {F : CSP Rel V}
 
 /-- Every incidence appears in the deterministic scan. -/
 theorem mem_incidenceList (o : Occurrence F) : o ∈ incidenceList F := by
-  rcases o with ⟨i, j⟩
-  exact List.mem_flatten.mpr ⟨_, List.mem_ofFn.mpr ⟨i, rfl⟩,
-    List.mem_ofFn.mpr ⟨j, rfl⟩⟩
+  exact List.mem_flatten.mpr ⟨_, List.mem_ofFn.mpr ⟨o.1, rfl⟩, List.mem_ofFn.mpr ⟨o.2, rfl⟩⟩
 
 instance (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F Bool) :
     Decidable (ValidLabeling sem f) :=
@@ -56,20 +54,15 @@ theorem occurrences_eq_map_incidenceList (F : CSP Rel V) :
   rw [occurrences_eq_flatMap_zipIdx]
   unfold incidenceList
   conv_lhs => rw [← List.ofFn_getElem (xs := F.zipIdx)]
-  simp only [List.length_zipIdx, List.getElem_zipIdx, Nat.zero_add]
-  simp only [List.flatMap, List.map_flatten, List.map_ofFn, Function.comp_def]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
+  simp only [List.length_zipIdx, List.getElem_zipIdx, Nat.zero_add, List.flatMap,
+    List.map_flatten, List.map_ofFn, Function.comp_def]
+  refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
   simp only [Fin.val_cast]
   conv_lhs => rw [← List.ofFn_getElem (xs := F[i.val].scope.zipIdx)]
-  simp only [List.length_zipIdx, List.getElem_zipIdx, Nat.zero_add, List.map_ofFn]
-  rfl
+  simp [List.map_ofFn, Function.comp_def, Occurrence.record, Occurrence.var]
 
 /-- Positional incidences are not duplicated by the typed scan. -/
 theorem incidenceList_nodup (F : CSP Rel V) : (incidenceList F).Nodup := by
-  apply List.Nodup.of_map (f := Occurrence.record)
-  rw [← occurrences_eq_map_incidenceList]
-  exact occurrences_nodup F
+  exact (occurrences_eq_map_incidenceList F ▸ occurrences_nodup F).of_map _
 
 end Cslib.Logic.PL.CSP

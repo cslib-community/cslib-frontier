@@ -7,16 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.NatCodec
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.Reduction
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF
-public import Mathlib.Data.Nat.Pairing
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Logics.Propositional.CNF.ThreeCNF.PolyTime
@@ -33,7 +30,7 @@ relabelling and the Cook–Levin theorem proves that `ThreeSAT` is `NP`-complete
 ## Main definitions
 
 * `Cslib.Complexity.ThreeSAT`.
-* `Cslib.Complexity.toThreeSAT`.
+* `Cslib.Complexity.splitVarCodec`, `Cslib.Complexity.toThreeSAT`.
 * `Cslib.Complexity.ThreeSAT.verifier`: clause-width check combined with `SAT.verifier`.
 
 ## Main results
@@ -60,20 +57,24 @@ open Cslib.Logic.PL Turing.MultiTapeTM
 [Arora and Barak, Section 2.3.1][AroraBarak09]. -/
 def ThreeSAT : Set (CNF ℕ) := {φ | (∀ c ∈ φ, c.length ≤ 3) ∧ φ.Satisfiable}
 
+/-- Codec numbering the variables of a split formula: original variables at even numbers,
+auxiliary variables at odd numbers through `Nat.pair`. -/
+def splitVarCodec : NatCodec (ℕ ⊕ (ℕ × ℕ)) :=
+  NatCodec.nat.sum (NatCodec.nat.pair .nat)
+
 /-- An injective numbering of the variables of a split formula: original variables at even
-numbers, auxiliary variables at odd numbers through `Nat.pair`. -/
+numbers, auxiliary variables at odd numbers through `Nat.pair`. Kept as a pure computational term so
+statements mentioning `toThreeSAT` do not inherit `Nat.unpair_pair`'s classical axioms from
+`splitVarCodec`'s proof fields. -/
 def splitVarToNat : ℕ ⊕ (ℕ × ℕ) → ℕ :=
   Sum.elim (2 * ·) fun p => 2 * Nat.pair p.1 p.2 + 1
 
-theorem splitVarToNat_injective : Function.Injective splitVarToNat := by
-  rintro (a | ⟨a₁, a₂⟩) (b | ⟨b₁, b₂⟩) h <;> simp only [splitVarToNat, Sum.elim_inl,
-    Sum.elim_inr] at h
-  · rw [show a = b by omega]
-  · omega
-  · omega
-  · have : Nat.pair a₁ a₂ = Nat.pair b₁ b₂ := by omega
-    rw [Nat.pair_eq_pair] at this
-    rw [this.1, this.2]
+@[simp]
+theorem splitVarCodec_apply (x : ℕ ⊕ (ℕ × ℕ)) : splitVarCodec x = splitVarToNat x :=
+  rfl
+
+theorem splitVarToNat_injective : Function.Injective splitVarToNat :=
+  splitVarCodec.injective
 
 /-- The reduction from `SAT` to `ThreeSAT`: split the clauses, then number the variables. -/
 def toThreeSAT (φ : CNF ℕ) : CNF ℕ := φ.to3CNF.relabel splitVarToNat
@@ -89,59 +90,15 @@ theorem mem_ThreeSAT_toThreeSAT_iff (φ : CNF ℕ) : toThreeSAT φ ∈ ThreeSAT 
 
 /-! ### Polynomial-time reduction and NP-completeness -/
 
-private theorem encNat_two_mul (n : ℕ) :
-    encNat (2 * n) = if (encNat n).isEmpty then [] else false :: encNat n := by
-  rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rfl
-  · have hne : n.bits ≠ [] := fun h => hn.ne' (encNat.injective h)
-    simp [hne, Nat.bit0_bits n hn.ne']
-
-private theorem encNat_two_mul_add_one (n : ℕ) :
-    encNat (2 * n + 1) = true :: encNat n :=
-  Nat.bit1_bits n
-
 /-- Variable numbering after clause splitting is polynomial-time: original binary variables shift
 by one bit, and unary fresh-variable pairs are paired and converted to odd binary numbers. -/
 @[fun_prop]
 theorem computableInPolyTime_splitVarToNat :
     ComputableInPolyTime splitVarToNat
       (encSum encNat (encPair encUnary encUnary)) encNat := by
-  let encS := encSum encNat (encPair encUnary encUnary)
-  let D₁ : Decoder encNat := .nat
-  let D₂ : Decoder (encPair encUnary encUnary) := .pair .unary .unary
-  have hraw : ComputableInPolyTime (fun x => encS x) encS encBits := .of_eq fun _ => rfl
-  have hc : ComputableInPolyTime Sum.isRight encS encBool :=
-    ((ComputableInPolyTime.headD false).comp hraw).of_enc_eq fun x => by cases x <;> rfl
-  have hpair : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.pair p.1 p.2)
-      (encPair encUnary encUnary) encUnary := by
-    unfold Nat.pair
-    fun_prop
-  have hbits : ComputableInPolyTime (fun n : ℕ => encNat n) encNat encBits :=
-    .of_eq fun _ => rfl
-  have hempty := ComputableInPolyTime.bitsIsEmpty.comp hbits
-  have hcons := ComputableInPolyTime.bitsCons (.const false) hbits
-  have hdouble : ComputableInPolyTime (2 * ·) encNat encNat :=
-    (show ComputableInPolyTime
-        (fun n : ℕ => if (encNat n).isEmpty then ([] : List Bool) else false :: encNat n)
-        encNat encBits from hempty.ite (.const []) hcons).of_enc_eq encNat_two_mul
-  have hodd : ComputableInPolyTime (fun n : ℕ => 2 * n + 1) encNat encNat :=
-    (show ComputableInPolyTime (fun n : ℕ => true :: encNat n)
-        encNat encBits from ComputableInPolyTime.bitsCons (.const true) hbits).of_enc_eq
-          encNat_two_mul_add_one
-  have hl : ComputableInPolyTime (fun x => 2 * D₁.decode (encS x).tail) encS encNat :=
-    hdouble.comp (D₁.computableInPolyTime.comp (ComputableInPolyTime.bitsTail.comp hraw))
-  have hr : ComputableInPolyTime
-      (fun x => 2 * (let p := D₂.decode (encS x).tail; Nat.pair p.1 p.2) + 1) encS encNat :=
-    hodd.comp (ComputableInPolyTime.unary_to_binary.comp
-      (hpair.comp (D₂.computableInPolyTime.comp (ComputableInPolyTime.bitsTail.comp hraw))))
-  refine (hc.ite hr hl).of_enc_eq fun x => ?_
-  rcases x with a | ⟨b, c⟩
-  · rw [encNat.injective.eq_iff]
-    simp only [splitVarToNat, encS, encSum_inl, List.tail_cons, Sum.isRight_inl,
-      Bool.false_eq_true, ↓reduceIte, Sum.elim_inl, D₁.decode_enc]
-  · rw [encNat.injective.eq_iff]
-    simp only [splitVarToNat, encS, encSum_inr, List.tail_cons, Sum.isRight_inr,
-      ↓reduceIte, Sum.elim_inr, D₂.decode_enc]
+  change ComputableInPolyTime (fun x => splitVarCodec x) _ _
+  unfold splitVarCodec
+  fun_prop
 
 /-- The reduction `toThreeSAT` is computable in polynomial time under `encCNF`. -/
 @[fun_prop]

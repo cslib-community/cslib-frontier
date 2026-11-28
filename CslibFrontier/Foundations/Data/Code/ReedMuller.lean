@@ -93,19 +93,15 @@ theorem card_sub_mul_pow_le_mul_hammingNorm_of_mem_reedMuller {f : (Fin m → F)
     (hf : f ∈ reedMuller F m d) (hf0 : f ≠ 0) :
     (Fintype.card F - d) * Fintype.card F ^ m ≤ Fintype.card F * hammingNorm f := by
   obtain ⟨P, hP, rfl⟩ := mem_reedMuller.1 hf
-  have hP0 : P ≠ 0 := by
-    rintro rfl
-    exact hf0 (funext fun _ => map_zero _)
+  have hP0 : P ≠ 0 := fun h => hf0 (funext fun _ => by simp [h])
   -- at most a `d / q` fraction of the points are zeros
-  have hzero : Fintype.card F * #{x | eval x P = 0} ≤ d * Fintype.card F ^ m := by
-    rw [mul_comm]
-    exact card_filter_eval_eq_zero_mul_card_le hP0 hP
+  have hzero : Fintype.card F * #{x | eval x P = 0} ≤ d * Fintype.card F ^ m :=
+    Nat.mul_comm _ _ ▸ card_filter_eval_eq_zero_mul_card_le hP0 hP
   -- the zeros and the nonzeros make up all `q ^ m` points
   have hsum : #{x | eval x P = 0} + hammingNorm (fun x => eval x P) = Fintype.card F ^ m := by
     rw [hammingNorm, card_filter_add_card_filter_not, card_univ, Fintype.card_fun,
       Fintype.card_fin]
-  have hmul := congrArg (Fintype.card F * ·) hsum
-  simp only [mul_add] at hmul
+  have hmul := by simpa only [mul_add] using congrArg (Fintype.card F * ·) hsum
   rw [Nat.sub_mul]
   omega
 
@@ -153,11 +149,9 @@ theorem minDist_reedMuller (hd : d < Fintype.card F) :
     ext x
     simp [P, Fintype.mem_piFinset, Fin.forall_fin_succ, prod_ne_zero_iff, sub_eq_zero]
   have hnorm : hammingNorm (fun x => eval x P) = (Fintype.card F - d) * Fintype.card F ^ m := by
-    rw [hammingNorm, hne, Fintype.card_piFinset, Fin.prod_univ_succ]
-    simp [card_univ_sdiff, hT]
-  have hP0 : (fun x => eval x P) ≠ 0 := by
-    rw [← hammingNorm_pos_iff, hnorm]
-    exact Nat.mul_pos (by omega) (pow_pos Fintype.card_pos _)
+    simp [hammingNorm, hne, Fintype.card_piFinset, Fin.prod_univ_succ, card_univ_sdiff, hT]
+  have hP0 : (fun x => eval x P) ≠ 0 := hammingNorm_pos_iff.mp
+    (hnorm ▸ Nat.mul_pos (Nat.sub_pos_of_lt hd) (pow_pos Fintype.card_pos _))
   calc minDist (reedMuller F (m + 1) d : Set ((Fin (m + 1) → F) → F))
       ≤ hammingDist (fun x => eval x P) 0 :=
         minDist_le_hammingDist (eval_mem_reedMuller hP) (Submodule.zero_mem _) hP0

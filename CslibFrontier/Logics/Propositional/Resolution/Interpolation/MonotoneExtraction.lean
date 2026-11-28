@@ -87,10 +87,7 @@ variable {X V Y Z : Type*}
 /-- Whether the shared variables occur only positively in `A`: every literal of `A` on a shared
 variable is positive. -/
 def positive (A : CNF (X ⊕ Y)) : Bool :=
-  A.all fun d => d.all fun l => l.1.isRight || l.2
-
-/-- Two gates with the constant value `b`. -/
-def constGates (b : Bool) : List (Monotone.Op × List ℕ) := List.replicate 2 (.const b, [])
+  A.all fun d => d.all fun (v, b) => v.isRight || b
 
 /-- The gate `g` after a constant gate. -/
 def padGate (g : Monotone.Op × List ℕ) : List (Monotone.Op × List ℕ) := [(.const false, []), g]
@@ -162,8 +159,8 @@ variable {X Y Z : Type*} {pos : Bool} {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : CNF (
 theorem positive_eq_true_iff {A : CNF (X ⊕ Y)} :
     positive A = true ↔ ∀ d ∈ A, ∀ i b, (.inl i, b) ∈ d → b = true := by
   simp only [positive, List.all_eq_true, Bool.or_eq_true]
-  refine ⟨fun h d hd i b hl => by simpa using h d hd _ hl, fun h d hd l hl => ?_⟩
-  rcases l with ⟨i | _, b⟩
+  refine ⟨fun h d hd i b hl => by simpa using h d hd (.inl i, b) hl, fun h d hd ⟨v, b⟩ hl => ?_⟩
+  rcases v with i | _
   · exact Or.inr (h d hd i b hl)
   · exact Or.inl rfl
 
@@ -174,15 +171,43 @@ theorem positive_eq_true_iff {A : CNF (X ⊕ Y)} :
   · cases pos <;> rfl
   all_goals rfl
 
-private theorem isCodeFrom_resolventGates {m k₁ k₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)}
-    (h₁ : k₁ < m) (h₂ : k₂ < m) (hv : ∀ i, v = .inl i → i < n) :
-    Program.IsCodeFrom Monotone.signature n (2 * m)
-      (resolventGates pos (n + 2 * m) (n + 2 * k₁ + 1) (n + 2 * k₂ + 1) v) := by
+private theorem isCodeFrom_resolventGates {m w₁ w₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)}
+    (h₁ : w₁ < n + m) (h₂ : w₂ < n + m) (hv : ∀ i, v = .inl i → i < n) :
+    Program.IsCodeFrom Monotone.signature n m (resolventGates pos (n + m) w₁ w₂ v) := by
   rcases v with i | _ | _
   · have hi := hv i rfl
     cases pos
     all_goals refine ⟨⟨rfl, ?_⟩, ⟨rfl, ?_⟩, trivial⟩ <;> (simp; omega)
   all_goals exact ⟨⟨rfl, by simp⟩, ⟨rfl, by simp; omega⟩, trivial⟩
+
+private theorem wireValue_twoGates {G : List (Monotone.Op × List ℕ)} {i u v : ℕ}
+    (hi : i < n) (hu : u < n + G.length) (hv : v < n + G.length) (op₀ op₁ : Monotone.Op)
+    (hcode : Program.IsCodeFrom Monotone.signature n 0
+      (G ++ [(op₀, [i, u]), (op₁, [n + G.length, v])])) (a : ℕ → Bool) :
+    Interpolant.wireValue Monotone.interpretation n
+      (G ++ [(op₀, [i, u]), (op₁, [n + G.length, v])]) (n + G.length + 1) a =
+      Monotone.interpretation op₁ fun k =>
+        [Monotone.interpretation op₀ fun k' =>
+          [a i, Interpolant.wireValue Monotone.interpretation n G u a][k'.val]?.getD false,
+         Interpolant.wireValue Monotone.interpretation n G v a][k.val]?.getD false := by
+  have e₀ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 0) (op := op₀)
+    (args := [i, u]) rfl a
+  have e₁ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 1) (op := op₁)
+    (args := [n + G.length, v]) rfl a
+  simp only [Nat.add_zero] at e₀
+  rw [e₁]
+  congr 1; funext k
+  match k.val with
+  | 0 =>
+    dsimp only [List.getElem?_cons_zero, Option.elim, Option.getD]
+    rw [e₀]
+    congr 1; funext k'
+    match k'.val with
+    | 0 => exact Interpolant.wireValue_input hi a
+    | 1 => exact Interpolant.wireValue_append_of_lt hu a
+    | _ + 2 => rfl
+  | 1 => exact Interpolant.wireValue_append_of_lt hv a
+  | _ + 2 => rfl
 
 variable [DecidableEq Y] [DecidableEq Z]
 
@@ -203,14 +228,14 @@ theorem gates_append_singleton :
 below `n`. -/
 theorem isCodeFrom_lineGates (hvars : ∀ d ∈ lines, ∀ i b, (.inl i, b) ∈ d → i < n) :
     Program.IsCodeFrom Monotone.signature n (2 * lines.length) (lineGates pos n A B lines c) :=
-  Interpolant.isCodeFrom_lineGatesOf (fun _ => rfl) isCodeFrom_resolventGates hvars
+  Interpolant.isCodeFrom_lineGatesOf (by decide) (fun _ => rfl) isCodeFrom_resolventGates hvars
 
 /-- **The code is well formed** when the shared variables of the lines are below `n`: each gate
 has the arity of its operation and reads only the shared-variable inputs and earlier gates. -/
 theorem isCodeFrom_gates (hvars : ∀ d ∈ lines, ∀ i b, (.inl i, b) ∈ d → i < n) :
     Program.IsCodeFrom Monotone.signature n 0 (gates pos n A B lines) :=
-  Interpolant.isCodeFrom_gatesOf (fun _ => rfl) length_resolventGates isCodeFrom_resolventGates
-    hvars
+  Interpolant.isCodeFrom_gatesOf (by decide) (fun _ => rfl) length_resolventGates
+    isCodeFrom_resolventGates hvars
 
 end MonotoneInterpolant
 
@@ -244,54 +269,19 @@ theorem CNF.IsProof.ofCode_monotoneInterpolantCode {n : ℕ} {A : CNF (ℕ ⊕ Y
     (fun hd => CNF.isMonotoneInterpolantAt_relabel_inl hpos hd)
     (fun hd => CNF.isMonotoneInterpolantAt_relabel_inr hneg hd)
     (fun h0 => h0.isInterpolant) ?_ h hnil hA hB
-  intro G m k₁ k₂ c₁ c₂ v hG _ _ hv hcode hg₁ hg₂ hw₁ hw₂
-  have hbase : n + 2 * m = n + G.length := by rw [hG]
+  intro G w₁ w₂ c₁ c₂ v hw₁ hw₂ hv hcode hg₁ hg₂
   rcases v with i | j | k
   · have hi := hv i rfl
     clear hpos hneg hpos_def
     clear_value pos
     cases pos
     · convert hg₁.resolvent_inl_false i hg₂ using 1
-      funext a
-      have e₀ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 0)
-        (g := (.and, [i, n + 2 * k₂ + 1])) rfl a
-      have e₁ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 1)
-        (g := (.or, [n + 2 * m, n + 2 * k₁ + 1])) rfl a
-      rw [← hbase] at e₀ e₁
-      simp only [Nat.add_zero] at e₀
-      rw [e₁]
-      simp only [Monotone.interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ,
-        Option.elim, Fin.isValue, Fin.val_zero, Fin.val_one] at e₀ e₁ ⊢
-      rw [e₀, Interpolant.wireValue_input hi, hw₁, hw₂]
+      exact funext fun a => MonotoneInterpolant.wireValue_twoGates hi hw₂ hw₁ .and .or hcode a
     · convert hg₁.resolvent_inl_true i hg₂ using 1
-      funext a
-      have e₀ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 0)
-        (g := (.or, [i, n + 2 * k₁ + 1])) rfl a
-      have e₁ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 1)
-        (g := (.and, [n + 2 * m, n + 2 * k₂ + 1])) rfl a
-      rw [← hbase] at e₀ e₁
-      simp only [Nat.add_zero] at e₀
-      rw [e₁]
-      simp only [Monotone.interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ,
-        Option.elim, Fin.isValue, Fin.val_zero, Fin.val_one] at e₀ e₁ ⊢
-      rw [e₀, Interpolant.wireValue_input hi, hw₁, hw₂]
+      exact funext fun a => MonotoneInterpolant.wireValue_twoGates hi hw₁ hw₂ .or .and hcode a
   · convert hg₁.resolvent_inr_inl j hg₂ using 1
-    funext a
-    have e₁ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 1)
-      (g := (.or, [n + 2 * k₁ + 1, n + 2 * k₂ + 1])) rfl a
-    rw [← hbase] at e₁
-    rw [e₁]
-    simp only [Monotone.interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ,
-      Option.elim, Fin.isValue, Fin.val_zero, Fin.val_one]
-    rw [hw₁, hw₂]
+    exact funext (Interpolant.wireValue_block_two Monotone.interpretation 1 .or hcode rfl hw₁ hw₂)
   · convert hg₁.resolvent_inr_inr k hg₂ using 1
-    funext a
-    have e₁ := Interpolant.wireValue_block Monotone.interpretation hcode (j := 1)
-      (g := (.and, [n + 2 * k₁ + 1, n + 2 * k₂ + 1])) rfl a
-    rw [← hbase] at e₁
-    rw [e₁]
-    simp only [Monotone.interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ,
-      Option.elim, Fin.isValue, Fin.val_zero, Fin.val_one]
-    rw [hw₁, hw₂]
+    exact funext (Interpolant.wireValue_block_two Monotone.interpretation 1 .and hcode rfl hw₁ hw₂)
 
 end Cslib.Logic.PL

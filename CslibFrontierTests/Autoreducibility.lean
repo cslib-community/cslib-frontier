@@ -44,18 +44,20 @@ theorem coSingleton_mitotic : PolyTimeManyOneMitotic encBits ({[]}ᶜ : Set (Lis
      ⟨fun w => if !w.isEmpty && !w.headD false then [true] else [], by fun_prop,
        fun w => by rcases w with _ | ⟨_ | _, _⟩ <;> simp [headTrueSet]⟩⟩⟩
 
--- `{[]}ᶜ` witnesses that polynomial-time many-one mitoticity (and DTT / 1-tt / btt / tt
+-- `{[]}ᶜ` witnesses that polynomial-time many-one mitoticity (and DTT / PTT / 1-tt / btt / tt
 -- autoreducibility) does not imply polynomial-time or log-space many-one autoreducibility.
 example :
     ∃ A : Set (List Bool),
       PolyTimeManyOneMitotic encBits A ∧
       PolyTimeDTTAutoreducible encBits A ∧
+      PolyTimePTTAutoreducible encBits A ∧
       PolyTimeKTruthTableAutoreducible 2 encBits A ∧
       ¬ PolyTimeManyOneAutoreducible encBits A ∧
       ¬ LogSpaceManyOneAutoreducible encBits A :=
   ⟨{[]}ᶜ,
     coSingleton_mitotic,
     coSingleton_mitotic.polyTimeDTTMitotic.polyTimeDTTAutoreducible,
+    coSingleton_mitotic.polyTimeDTTMitotic.polyTimePTTMitotic.polyTimePTTAutoreducible,
     (coSingleton_mitotic.polyTimeKTruthTableMitotic_one.mono
       (by decide : 1 ≤ 2)).polyTimeKTruthTableAutoreducible,
     not_polyTimeManyOneAutoreducible_compl_singleton [],

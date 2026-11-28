@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (regression tests)
+
 import CslibFrontier.Crypto.Computational.EvenMansour
 import Mathlib.Data.ZMod.Basic
 
@@ -22,6 +25,8 @@ Exercises `CslibFrontier/Crypto/Computational/EvenMansour.lean`:
   `Negligible` theorems;
 * concrete word-oracle (`EvenMansourDistinguisher`) instantiations and axiom-footprint guards.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.ComputationalEvenMansour
 
@@ -50,22 +55,21 @@ example :
 
 /-- Identity word family `(n, block) ↦ block`, used as a concrete polynomial-time permutation
 family to instantiate `evenMansourCipher` and `singleKeyEvenMansourCipher`. -/
-def idWordFamily (_ : ℕ) (block : List Bool) : List Bool := block
+private def idWordFamily (_ : ℕ) (block : List Bool) : List Bool := block
 
-theorem computableInPolyTime_idWordFamily :
+private theorem computableInPolyTime_idWordFamily :
     ComputableInPolyTime (fun p : ℕ × List Bool => idWordFamily p.1 p.2)
-      (encPair encUnary encBits) encBits := by
-  unfold idWordFamily
-  polytime
+      (encPair encUnary encBits) encBits :=
+  ComputableInPolyTime.snd encUnary encBits
 
 /-- Concrete two-key Even–Mansour `BlockCipher` built from `idWordFamily`. -/
-def idEvenMansourCipher : BlockCipher :=
+private def idEvenMansourCipher : BlockCipher :=
   evenMansourCipher idWordFamily idWordFamily
     computableInPolyTime_idWordFamily computableInPolyTime_idWordFamily
     (fun _ _ h => h) (fun _ _ h => h) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
 
 /-- Concrete single-key Even–Mansour `BlockCipher` built from `idWordFamily`. -/
-def idSingleKeyEvenMansourCipher : BlockCipher :=
+private def idSingleKeyEvenMansourCipher : BlockCipher :=
   singleKeyEvenMansourCipher idWordFamily idWordFamily
     computableInPolyTime_idWordFamily computableInPolyTime_idWordFamily
     (fun _ _ h => h) (fun _ _ h => h) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
@@ -109,30 +113,28 @@ example (n : ℕ) (key : List Bool) (hkey : key.length = n) :
 /-- A randomized distinguisher over an arbitrary group `G`: flips a fair coin (`unifFin 1`),
 queries the cipher forward on `0`, queries the primitive permutation inverse on the ciphertext `y`,
 and tests whether the result equals `0` (or `y = 0` on the other coin branch). -/
-def sampleProbDistinguisher (G : Type) [Zero G] [DecidableEq G] :
+private def sampleProbDistinguisher (G : Type) [Zero G] [DecidableEq G] :
     ProbOracleComp (EvenMansourSpec G) Bool := do
   let c ← ProbOracleComp.sample (ProbComp.unifFin 1)
   let y ← ProbOracleComp.query (spec := EvenMansourSpec G) (Sum.inl (.forward 0))
   let u ← ProbOracleComp.query (spec := EvenMansourSpec G) (Sum.inr (.inverse y))
   return if c = 0 then decide (u = 0) else decide (y = 0)
 
-theorem isProbCallBounded_sampleProbDistinguisher (G : Type) [Zero G] [DecidableEq G] :
+private theorem isProbCallBounded_sampleProbDistinguisher (G : Type) [Zero G] [DecidableEq G] :
     IsProbCallBounded (sampleProbDistinguisher G) 1 1 := by
-  constructor
-  · simpa [sampleProbDistinguisher, cipherCost] using
-      (ProbOracleComp.isCostBounded_sample cipherCost (ProbComp.unifFin 1)).bind fun _ =>
-        (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec G) cipherCost
+  have hcost (cost : RandomPermutation.PermQuery G ⊕ RandomPermutation.PermQuery G → ℕ)
+      (h1 : ∀ y, cost (Sum.inr (.inverse y)) = cost (Sum.inr (.inverse 0))) :
+      OracleComp.IsCostBounded (Sum.elim (fun _ => 0) cost) (sampleProbDistinguisher G)
+        (cost (Sum.inl (.forward 0)) + cost (Sum.inr (.inverse 0))) := by
+    simpa only [sampleProbDistinguisher, Nat.zero_add, Nat.add_zero] using
+      (ProbOracleComp.isCostBounded_sample cost (ProbComp.unifFin 1)).bind fun _ =>
+        (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec G) cost
           (Sum.inl (.forward (0 : G)))).bind fun (y : G) =>
-          (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec G) cipherCost
+          h1 y ▸ (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec G) cost
             (Sum.inr (.inverse y))).bind fun _ =>
             OracleComp.IsCostBounded.pure _ 0
-  · simpa [sampleProbDistinguisher, permCost] using
-      (ProbOracleComp.isCostBounded_sample permCost (ProbComp.unifFin 1)).bind fun _ =>
-        (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec G) permCost
-          (Sum.inl (.forward (0 : G)))).bind fun (y : G) =>
-          (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec G) permCost
-            (Sum.inr (.inverse y))).bind fun _ =>
-            OracleComp.IsCostBounded.pure _ 0
+  exact ⟨by simpa [cipherCost] using hcost cipherCost (fun _ => rfl),
+    by simpa [permCost] using hcost permCost (fun _ => rfl)⟩
 
 -- Concrete instantiation of the coin-fixing decomposition and randomized Even–Mansour bounds over
 -- `ZMod 7` and `BitString 4`.
@@ -182,27 +184,26 @@ example :
 
 /-- A concrete word-oracle distinguisher that queries cipher encryption on `0^n` and primitive
 inverse on the returned ciphertext, and checks whether the result is `0^n`. -/
-def sampleWordDistinguisher : EvenMansourDistinguisher := fun n _ => do
+private def sampleWordDistinguisher : EvenMansourDistinguisher := fun n _ => do
   let z := List.replicate n false
   let y ← ProbOracleComp.query ((false, false), z)
   let u ← ProbOracleComp.query ((true, true), y)
   return decide (u = z)
 
-theorem isWordCallBounded_sampleWordDistinguisher (n : ℕ) :
+private theorem isWordCallBounded_sampleWordDistinguisher (n : ℕ) :
     IsWordCallBounded (sampleWordDistinguisher n []) 1 1 := by
-  constructor
-  · simpa [sampleWordDistinguisher, wordCipherCost] using
-      (ProbOracleComp.isCostBounded_query (spec := fun _ => List Bool) wordCipherCost
+  have hcost (cost : (Bool × Bool) × List Bool → ℕ)
+      (h1 : ∀ y, cost ((true, true), y) = cost ((true, true), [])) :
+      OracleComp.IsCostBounded (Sum.elim (fun _ => 0) cost) (sampleWordDistinguisher n [])
+        (cost ((false, false), List.replicate n false) + cost ((true, true), [])) := by
+    simpa only [sampleWordDistinguisher, Nat.add_zero] using
+      (ProbOracleComp.isCostBounded_query (spec := fun _ => List Bool) cost
         ((false, false), List.replicate n false)).bind fun (y : List Bool) =>
-        (ProbOracleComp.isCostBounded_query (spec := fun _ => List Bool) wordCipherCost
+        h1 y ▸ (ProbOracleComp.isCostBounded_query (spec := fun _ => List Bool) cost
           ((true, true), y)).bind fun _ =>
           OracleComp.IsCostBounded.pure _ 0
-  · simpa [sampleWordDistinguisher, wordPermCost] using
-      (ProbOracleComp.isCostBounded_query (spec := fun _ => List Bool) wordPermCost
-        ((false, false), List.replicate n false)).bind fun (y : List Bool) =>
-        (ProbOracleComp.isCostBounded_query (spec := fun _ => List Bool) wordPermCost
-          ((true, true), y)).bind fun _ =>
-          OracleComp.IsCostBounded.pure _ 0
+  exact ⟨by simpa [wordCipherCost] using hcost wordCipherCost (fun _ => rfl),
+    by simpa [wordPermCost] using hcost wordPermCost (fun _ => rfl)⟩
 
 example (n : ℕ) :
     (Game.advantage (ProbComp.eval (evenMansourWordRealGame sampleWordDistinguisher n))

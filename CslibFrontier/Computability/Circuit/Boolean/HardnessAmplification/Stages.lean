@@ -146,11 +146,10 @@ theorem BitSynthesis.lineListDecode {enc : F ≃ BitString w} {G : (Fin m → F)
   let pt : F → Fin m → (Fin n → Bool) → F := fun t i x => ΨA (some (t, i)) fun k => φ k x
   have hB : Synthesis interpretation (S ∪ TA)
       (⋃ t : F, Set.range fun j => bitsOf enc (fun x => G fun i => pt t i x) j) (q * SG) := by
-    have := Synthesis.iUnion (I := interpretation) (s := S ∪ TA)
+    simpa [q] using Synthesis.iUnion (I := interpretation) (s := S ∪ TA)
       (fun t : F => Set.range fun j => bitsOf enc (fun x => G fun i => pt t i x) j)
       (fun _ => SG) (fun t => hG n (S ∪ TA) (pt t) fun i j =>
         Set.mem_union_right _ ⟨(some (t, i), j), rfl⟩)
-    simpa [q] using this
   set TB := ⋃ t : F, Set.range fun j => bitsOf enc (fun x => G fun i => pt t i x) j
   -- decoding with the hint
   let e := Fintype.equivFin F
@@ -166,18 +165,12 @@ theorem BitSynthesis.lineListDecode {enc : F ≃ BitString w} {G : (Fin m → F)
       (τ := fun v => v (Fin.last q)) (Set.mem_union_left _ (⟨Fin.last q, rfl⟩ :
         (fun v : Fin (q + 1) → F => v (Fin.last q)) ∈ inputs (q + 1)))
       (Set.mem_union_right _ rfl) d D
-    refine (hconst.trans hdec).mono Set.Subset.rfl ?_ le_rfl
-    rintro _ ⟨u, rfl⟩
-    rfl
+    exact (hconst.trans hdec).mono Set.Subset.rfl (by rintro _ ⟨u, rfl⟩; rfl) le_rfl
   let φC : Fin (q + 1) → (Fin n → Bool) → F :=
     Fin.lastCases (fun x => ΨA none fun i => φ i x) fun k x => G fun i => pt (e.symm k) i x
-  have hφC : ∀ k j, bitsOf enc (φC k) j ∈ (S ∪ TA) ∪ TB := by
-    intro k j
-    refine Fin.lastCases ?_ (fun k => ?_) k
-    · simp only [φC, Fin.lastCases_last]
-      exact Set.mem_union_left _ (Set.mem_union_right _ ⟨(none, j), rfl⟩)
-    · simp only [φC, Fin.lastCases_castSucc]
-      exact Set.mem_union_right _ (Set.mem_iUnion.2 ⟨e.symm k, j, rfl⟩)
+  have hφC : ∀ k j, bitsOf enc (φC k) j ∈ (S ∪ TA) ∪ TB := fun k j =>
+    Fin.lastCases (Set.mem_union_left _ (Set.mem_union_right _ ⟨(none, j), by simp [φC]⟩))
+      (fun k => Set.mem_union_right _ (Set.mem_iUnion.2 ⟨e.symm k, j, by simp [φC]⟩)) k
   have hC' := Synthesis.bitBlast_synthesis enc enc.symm enc.symm_apply_apply
     ΨC hC φC hφC
   refine (hA'.trans (hB.comp hC')).mono Set.Subset.rfl ?_ ?_
@@ -185,8 +178,7 @@ theorem BitSynthesis.lineListDecode {enc : F ≃ BitString w} {G : (Fin m → F)
     refine Or.inr ⟨((), j), funext fun x => ?_⟩
     simp only [bitsOf, ΨC, φC, Fin.lastCases_last, Fin.lastCases_castSucc, Equiv.symm_apply_apply,
       Code.lineListDecode, pt, ΨA]
-  · unfold lineCost
-    nlinarith
+  · simp only [lineCost]; nlinarith
 
 /-! ### The self-correction stage -/
 
@@ -213,10 +205,10 @@ theorem BitSynthesis.selfCorrect {enc : F ≃ BitString w} {C1 : (Fin m → F) �
     v o.2 + ν o.1.2 * V o.1.1 o.2
   have hA : Synthesis (fullInterpretation (k := 2)) (inputs m) (Set.range ΨA)
       (m * (3 ^ L * (d + 1))) := by
-    have := Synthesis.family (I := fullInterpretation (k := 2)) (s := inputs m) ΨA (fun _ => 1)
-      (fun o => Synthesis.full_unary (fun a => a + ν o.1.2 * V o.1.1 o.2)
-        (⟨o.2, rfl⟩ : (fun v : Fin m → F => v o.2) ∈ inputs m))
-    simpa [Fintype.card_prod, mul_comm, mul_left_comm, mul_assoc] using this
+    simpa [Fintype.card_prod, mul_comm, mul_left_comm, mul_assoc] using
+      Synthesis.family (I := fullInterpretation (k := 2)) (s := inputs m) ΨA (fun _ => 1)
+        (fun o => Synthesis.full_unary (fun a => a + ν o.1.2 * V o.1.1 o.2)
+          (⟨o.2, rfl⟩ : (fun v : Fin m → F => v o.2) ∈ inputs m))
   have hA' := Synthesis.bitBlast_synthesis enc enc.symm enc.symm_apply_apply
     ΨA hA φ hφ
   set TA := Set.range fun oj : ((Fin (3 ^ L) × Fin (d + 1)) × Fin m) × Fin w =>
@@ -228,12 +220,12 @@ theorem BitSynthesis.selfCorrect {enc : F ≃ BitString w} {C1 : (Fin m → F) �
       (⋃ τi : Fin (3 ^ L) × Fin (d + 1),
         Set.range fun j => bitsOf enc (fun x => C1 fun k => pt τi k x) j)
       (3 ^ L * (d + 1) * S1) := by
-    have := Synthesis.iUnion (I := interpretation) (s := S ∪ TA)
-      (fun τi : Fin (3 ^ L) × Fin (d + 1) =>
-        Set.range fun j => bitsOf enc (fun x => C1 fun k => pt τi k x) j)
-      (fun _ => S1) (fun τi => hC1 n (S ∪ TA) (pt τi) fun k j =>
-        Set.mem_union_right _ ⟨((τi, k), j), rfl⟩)
-    simpa [Fintype.card_prod, mul_comm, mul_left_comm, mul_assoc] using this
+    simpa [Fintype.card_prod, mul_comm, mul_left_comm, mul_assoc] using
+      Synthesis.iUnion (I := interpretation) (s := S ∪ TA)
+        (fun τi : Fin (3 ^ L) × Fin (d + 1) =>
+          Set.range fun j => bitsOf enc (fun x => C1 fun k => pt τi k x) j)
+        (fun _ => S1) (fun τi => hC1 n (S ∪ TA) (pt τi) fun k j =>
+          Set.mem_union_right _ ⟨((τi, k), j), rfl⟩)
   set TB := ⋃ τi : Fin (3 ^ L) × Fin (d + 1),
     Set.range fun j => bitsOf enc (fun x => C1 fun k => pt τi k x) j
   -- interpolation and majorities
@@ -241,23 +233,16 @@ theorem BitSynthesis.selfCorrect {enc : F ≃ BitString w} {C1 : (Fin m → F) �
     majTree L fun τ => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i))
   have hC : Synthesis (fullInterpretation (k := 2)) (inputs (3 ^ L * (d + 1))) (Set.range ΨC)
       (3 ^ L * (2 * (d + 1) + 1) + (2 * 3 ^ L - 2)) := by
+    let fSum : Fin (3 ^ L) → (Fin (3 ^ L * (d + 1)) → F) → F :=
+      fun τ v => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i))
     have hsums := Synthesis.family (I := fullInterpretation (k := 2))
-      (s := inputs (3 ^ L * (d + 1)))
-      (fun τ v => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i)))
-      (fun _ => 2 * (d + 1) + 1)
-      (fun τ => by
+      (s := inputs (3 ^ L * (d + 1))) fSum (fun _ => 2 * (d + 1) + 1) fun τ => by
         simpa using Synthesis.full_weightedSum (s := inputs (3 ^ L * (d + 1))) (lagrangeWeight ν)
-          (fun i v => v (finProdFinEquiv (τ, i))) (fun i => ⟨_, rfl⟩))
-    have htree := Synthesis.full_majTree (s := inputs (3 ^ L * (d + 1)) ∪
-        Set.range fun τ (v : Fin (3 ^ L * (d + 1)) → F) =>
-          ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i))) L
-      (fun τ v => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i)))
-      (fun τ => Set.mem_union_right _ ⟨τ, rfl⟩)
-    refine (hsums.trans htree).mono Set.Subset.rfl ?_ ?_
-    · rintro _ ⟨u, rfl⟩
-      rfl
-    · simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
-      exact le_rfl
+          (fun i v => v (finProdFinEquiv (τ, i))) (fun i => ⟨_, rfl⟩)
+    have htree := Synthesis.full_majTree (s := inputs (3 ^ L * (d + 1)) ∪ Set.range fSum) L fSum
+      fun τ => Set.mem_union_right _ ⟨τ, rfl⟩
+    exact (hsums.trans htree).mono Set.Subset.rfl (by rintro _ ⟨u, rfl⟩; rfl)
+      (by simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, le_refl])
   let φC : Fin (3 ^ L * (d + 1)) → (Fin n → Bool) → F := fun k x =>
     C1 fun i => pt (finProdFinEquiv.symm k) i x
   have hφC : ∀ k j, bitsOf enc (φC k) j ∈ (S ∪ TA) ∪ TB := fun k j =>
@@ -269,7 +254,6 @@ theorem BitSynthesis.selfCorrect {enc : F ≃ BitString w} {C1 : (Fin m → F) �
     refine Or.inr ⟨((), j), funext fun x => ?_⟩
     simp only [bitsOf, ΨC, φC, Equiv.symm_apply_apply, lagrangeDecode, pt, ΨA]
     rfl
-  · unfold selfCorrectCost
-    nlinarith
+  · simp only [selfCorrectCost]; nlinarith
 
 end Cslib.Circuits.Boolean

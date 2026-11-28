@@ -82,16 +82,15 @@ private theorem senderReceipts_append (tables : List (Fin 4 → Bool)) (choices 
         t (boolPairToFin4 (false, choices.getD tables.length false)))] := by
   induction tables generalizing choices with
   | nil =>
-      cases choices with
-      | nil => simp at h
-      | cons c cs => rfl
+      rcases choices with _ | ⟨c, cs⟩
+      · simp at h
+      · rfl
   | cons t' ts ih =>
-      cases choices with
-      | nil => simp at h
-      | cons c cs =>
-          simp only [List.cons_append, senderReceipts, List.zip_cons_cons, List.map_cons,
-            List.length_cons, List.getD_cons_succ]
-          exact congrArg (List.cons _) (ih cs (by simpa using h))
+      rcases choices with _ | ⟨c, cs⟩
+      · simp at h
+      · simpa only [List.cons_append, senderReceipts, List.zip_cons_cons, List.map_cons,
+          List.length_cons, List.getD_cons_succ] using
+          congrArg (List.cons _) (ih cs (by simpa using h))
 
 private theorem scheduledHandler_step (k : ℕ) (choices : List Bool)
     (hchoices : choices.length = k) (request : SenderOperation × List Bool) (s : Session) :
@@ -117,11 +116,10 @@ private theorem senderStore_observations (k : ℕ) (choices : List Bool)
   have ha : (senderReceipts s.tables choices).map Prod.snd = selectedBits s.tables choices := by
     simp only [senderReceipts, selectedBits, List.map_map, Function.comp_def]
   by_cases hc : s.sealed = true
-  · have hi : (senderReceipts s.tables choices).map
-        (fun r => (fin4ToBoolPair r.1).2) = choices := by
-      simp only [senderReceipts, List.map_map, Function.comp_def,
-        fin4ToBoolPair_boolPairToFin4]
-      exact List.map_snd_zip (by rw [hchoices, hs hc])
+  · have hi : (senderReceipts s.tables choices).map (fun r => (fin4ToBoolPair r.1).2) =
+        choices := by
+      simpa only [senderReceipts, List.map_map, Function.comp_def, fin4ToBoolPair_boolPairToFin4]
+        using List.map_snd_zip (by rw [hchoices, hs hc])
     simp only [Store.observations, senderStore, ha, hi]
   · simp [Store.observations, senderStore, Session.observation, hc]
 
@@ -134,13 +132,11 @@ private theorem run_senderSchedule {Output : Type} (k : ℕ) (choices : List Boo
           (senderSchedule choices)) program).run 0) {} =
       (ProbComp.eval (sessionProgram k program)).map (fun (out, s) =>
         ((out, s.tables.length), senderStore choices s)) := by
-  have h := ProbOracleComp.runWith_map_state
-    (fun request (s : Session) => PMF.pure ([], s.advance k request))
-    (scheduledHandler k choices) (fun s => (s.tables.length, senderStore choices s))
-    (fun request s => by
-      rw [scheduledHandler_step k choices hchoices]
-      simp) program .initial
-  have hh := congrArg (PMF.map (fun (out, index, store) => ((out, index), store))) h
+  have hh := congrArg (PMF.map fun (out, index, store) => ((out, index), store))
+    (ProbOracleComp.runWith_map_state
+      (fun request (s : Session) => PMF.pure ([], s.advance k request)) (scheduledHandler k choices)
+      (fun s => (s.tables.length, senderStore choices s))
+      (fun request s => by simp [scheduledHandler_step k choices hchoices]) program .initial)
   rw [PMF.map_comp] at hh
   delta scheduledHandler at hh
   rw [ProbOracleComp.runWith_run_interpret]

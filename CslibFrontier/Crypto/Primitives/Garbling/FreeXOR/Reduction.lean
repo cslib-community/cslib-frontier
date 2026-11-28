@@ -23,31 +23,39 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# The CCR reduction program for Free-XOR garbling
+# The CCR reduction for the privacy of Free-XOR garbling
 
-Library infrastructure (no cited result): the Free-XOR `prv.sim` reduction as a certified,
-tweak-unique strict oracle-PPT CCR adversary; its run equality, advantage equality, and simulation
-privacy theorem follow in the next PR.
+Library infrastructure (no cited result): the run equality and exact advantage equality
+connecting `FreeXOR.prvSimReduction` to `FreeXOR.scheme`, completing the reduction whose
+program, legality, and efficiency were certified in Part 3a.
 
-The reduction `prvSimReduction hash B` runs `B`'s choice of a query `(f, x)`. When `x` has `f.n`
-bits and `8 q ≤ 2 ^ k`, it samples `(n + q)` active `(k + 2)`-bit labels, propagates active
-labels across XOR gates, evaluates the circuit on `x` to obtain all plaintext wire bits, and issues
-the 8 oracle queries of every non-XOR gate (`allReqs`) non-adaptively at level `k`
-(`(key, true), tweak, bit`), whose requests all carry distinct `k`-bit tweaks while `8 q ≤ 2 ^ k`.
-It then builds the garbled view `(F, X, d)` from the oracle replies and hands it to `B`'s guess.
-Otherwise (on an invalid input length or when `8 q > 2 ^ k`), it makes no oracle queries and runs
-`B`'s guess on `⊥`.
+The `prv.sim` advantage of an adversary `B` against the simulator `simWord` of
+`FreeXOR.scheme hash`, with the side information `phiXor`, is exactly the circular correlation
+robustness advantage of an explicit, certified non-adaptive reduction `prvSimReduction hash B`, at
+every parameter `k` where every valid circuit `B` can choose has `8 q ≤ 2 ^ k`
+(`prvSimAdvantage_simWord_eq`).
+
+The reduction runs `B`'s choice of a query `(f, x)`. When `x` has `f.n` bits and `8 q ≤ 2 ^ k`, it
+samples one `(k + 2)`-bit active label per input and non-XOR gate, propagates active labels across
+XOR gates, evaluates the circuit on `x` to obtain all plaintext wire bits, and issues the 8 oracle
+queries of every non-XOR gate (`allReqs`) non-adaptively at level `k` (`(key, true), tweak, bit`),
+whose requests all carry distinct `k`-bit tweaks while `8 q ≤ 2 ^ k`. It then builds the garbled
+view `(F, X, d)` from the oracle replies and hands it to `B`'s guess. Otherwise (on an invalid input
+length or when `8 q > 2 ^ k`), it makes no oracle queries and runs `B`'s guess on `⊥`.
 
 Key-only queries `H'(x, t) = CCR.atLevel hash k (x, false) t` transfer to full-label queries via
 `CCR.advantage_keyOnly` in `CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust`,
-since `(x, true) + (R, true) = (x + R, false)`. The reduction asks every tweak at most once on
-every execution path (`isTweakUnique_prvSimReduction`), issues `8` requests per non-XOR gate on
-valid bounded inputs (`exists_of_mem_support_runWith_prvSimReduction`), and is uniform strict
-oracle PPT (`isOraclePPT_prvSimReduction`).
+since `(x, true) + (R, true) = (x + R, false)`. Against every fixed full-label oracle `O`, the word
+reduction runs the typed reduction `FreeXOR.reduction` of
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR` on `toCircuit f` (`eval_run_prvSimReduction`).
+Thus, by `FreeXOR.realGame_reduction` and `FreeXOR.idealGame_reduction`, its CCR advantage equals
+the `prv.sim` advantage (`prvSimAdvantage_simWord_eq`). The reduction asks every tweak at most once
+on every execution path (`isTweakUnique_prvSimReduction`), issues `8` requests per non-XOR gate on
+valid bounded inputs (`exists_of_mem_support_runWith_prvSimReduction`), and is uniform strict oracle
+PPT (`isOraclePPT_prvSimReduction`).
 
 ## Main definitions
 
@@ -58,6 +66,8 @@ oracle PPT (`isOraclePPT_prvSimReduction`).
 * `Cslib.Crypto.Garbling.FreeXOR.isTweakUnique_prvSimReduction`: the reduction is tweak-unique.
 * `Cslib.Crypto.Garbling.FreeXOR.exists_of_mem_support_runWith_prvSimReduction`: logged execution
   request count.
+* `Cslib.Crypto.Garbling.FreeXOR.prvSimAdvantage_simWord_eq`: the `prv.sim` advantage equals the
+  reduction's CCR advantage while `8 q ≤ 2 ^ k`.
 * `Cslib.Crypto.Garbling.FreeXOR.isOraclePPT_prvSimReduction`: the reduction is oracle PPT.
 -/
 
@@ -312,6 +322,39 @@ private theorem allReqs_prefix_length (k n : ℕ) (gates : List (ℕ × ℕ × L
     simp only [Option.map_some, Option.toList_some]
     cases isXorTable gates[m].2.2 <;> simp; omega
 
+private theorem allReqs_length (k n : ℕ) (gates : List (ℕ × ℕ × List Bool))
+    (labels : List (List Bool)) (ws : List Bool) :
+    (allReqs k n gates labels ws).length = 8 * nonXorRank (xorFlags gates) gates.length :=
+  allReqs_prefix_length k n gates labels ws le_rfl
+
+private theorem allReqs_getD_slot (k n : ℕ) (gates : List (ℕ × ℕ × List Bool))
+    (labels : List (List Bool)) (ws : List Bool) {g : ℕ} (hg : g < gates.length)
+    (hxor : isXorTable gates[g].2.2 = false)
+    {idx : ℕ} (hidx : idx < 8) :
+    (allReqs k n gates labels ws).getD (8 * nonXorRank (xorFlags gates) g + idx) [] =
+      gateReqSlot k n g labels ws gates[g] idx := by
+  let free := xorFlags gates
+  let step := fun j => gateReqs k n j labels ws (gates.getD j (0, 0, []))
+  have hsplit : List.range gates.length =
+      List.range g ++ g :: (List.range (gates.length - g - 1)).map (g + 1 + ·) := by
+    conv_lhs =>
+      rw [show gates.length = g + 1 + (gates.length - g - 1) by omega, List.range_add,
+        List.range_succ, List.append_assoc, List.singleton_append]
+  have hpre : ((List.range g).map step).flatten.length = 8 * nonXorRank free g :=
+    allReqs_prefix_length k n gates labels ws hg.le
+  have hstep : step g = gateReqs k n g labels ws gates[g] := by
+    simp [step, List.getD_eq_getElem?_getD, hg]
+  have hlen : (gateReqs k n g labels ws gates[g]).length = 8 := by
+    rw [gateReqs_length, hxor]; simp
+  change ((List.range gates.length).map step).flatten.getD (8 * nonXorRank free g + idx) [] =
+    gateReqSlot k n g labels ws gates[g] idx
+  rw [hsplit, List.map_append, List.map_cons, List.flatten_append, List.flatten_cons, hstep,
+    ← List.append_assoc, List.getD_eq_getElem?_getD,
+    List.getElem?_append_left (by rw [List.length_append, hpre, hlen]; omega),
+    List.getElem?_append_right (by omega), hpre, Nat.add_sub_cancel_left,
+    List.getElem?_eq_getElem (by omega), Option.getD_some]
+  exact gateReqs_getElem hxor hidx (by omega)
+
 private theorem allReqs_lookup (k n : ℕ) (gates : List (ℕ × ℕ × List Bool))
     (labels : List (List Bool)) (ws : List Bool) {p : ℕ}
     (hp : p < (allReqs k n gates labels ws).length) :
@@ -341,8 +384,7 @@ private theorem allReqs_lookup (k n : ℕ) (gates : List (ℕ × ℕ × List Boo
     by_cases hlt : p < ((List.range m).map step).flatten.length
     · obtain ⟨g, hg, idx, hidx, hxor, hp_eq, hval⟩ := ih hmlt.le hlt
       refine ⟨g, Nat.lt_succ_of_lt hg, idx, hidx, hxor, hp_eq, ?_⟩
-      rw [List.getElem_append_left hlt]
-      exact hval
+      rwa [List.getElem_append_left hlt]
     · have hge : ((List.range m).map step).flatten.length ≤ p := Nat.le_of_not_lt hlt
       have hstep_eq : step m = gateReqs k n m labels ws gates[m] := by
         simp [step, List.getD_eq_getElem?_getD, hmlt]
@@ -359,10 +401,8 @@ private theorem allReqs_lookup (k n : ℕ) (gates : List (ℕ × ℕ × List Boo
         omega
       refine ⟨m, Nat.lt_succ_self m, p - 8 * nonXorRank free m, hp', hxor,
         by omega, ?_⟩
-      have hsub : p - ((List.range m).map step).flatten.length = p - 8 * nonXorRank free m := by
-        rw [hpre]
       rw [List.getElem_append_right hge]
-      simp only [hsub, hstep_eq]
+      simp only [hpre, hstep_eq]
       exact gateReqs_getElem hxor hp' _
 
 end Helpers
@@ -458,9 +498,8 @@ private theorem isCostBounded_iterate_replyStep (k : ℕ) (reqs : List (List Boo
     · by_cases hprev : ∃ i < m, ∃ hi : i < reqs.length,
           (reqs[i].drop (k + 2)).take k = List.ofFn t
       · obtain ⟨i, hi_m, hi_len, hti⟩ := hprev
-        have hm_ne : ¬ (reqs[m].drop (k + 2)).take k = List.ofFn t := by
-          intro htm
-          exact (htw i hi_len m hmlt).2 (by omega) (hti.trans htm.symm)
+        have hm_ne : ¬ (reqs[m].drop (k + 2)).take k = List.ofFn t := fun htm =>
+          (htw i hi_len m hmlt).2 (by omega) (hti.trans htm.symm)
         have hnext : ∃ i < m + 1, ∃ hi : i < reqs.length,
             (reqs[i].drop (k + 2)).take k = List.ofFn t := ⟨i, by omega, hi_len, hti⟩
         simp only [show ∃ i < m, ∃ hi : i < reqs.length,
@@ -551,44 +590,793 @@ theorem exists_of_mem_support_runWith_prvSimReduction {σ State : Type}
         else 0 := by
   unfold prvSimReduction at hmem
   rw [ProbOracleComp.runWith_bind] at hmem
-  obtain ⟨⟨⟨q, st⟩, s₁, tr₁⟩, h₁, h₂⟩ := (PMF.mem_support_bind_iff _ _ _).mp hmem
+  obtain ⟨⟨⟨q, st⟩, _, _⟩, h₁, h₂⟩ := (PMF.mem_support_bind_iff _ _ _).mp hmem
   rw [ProbOracleComp.runWith_sample] at h₁
-  obtain ⟨⟨q', st'⟩, hq', hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp h₁
-  simp only [Prod.mk.injEq] at hpair
-  rcases hpair with ⟨⟨hq_eq, hst_eq⟩, hs₁, htr₁⟩
-  subst hq_eq hst_eq hs₁ htr₁
-  refine ⟨q', st', hq', ?_⟩
+  obtain ⟨_, hq', hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp h₁
+  rcases Prod.mk.inj hpair with ⟨rfl, rfl, rfl⟩
+  refine ⟨q, st, hq', ?_⟩
   dsimp only at h₂
-  by_cases hguard : q'.input.length = q'.fn.1.n ∧ 8 * q'.fn.1.q ≤ 2 ^ k
-  · simp only [hguard, and_self, ↓reduceIte] at h₂ ⊢
-    rw [ProbOracleComp.runWith_bind] at h₂
-    obtain ⟨⟨coins, s₂, tr₂⟩, hc, h₃⟩ := (PMF.mem_support_bind_iff _ _ _).mp h₂
+  split_ifs at h₂ ⊢ with hguard
+  · rw [ProbOracleComp.runWith_bind] at h₂
+    obtain ⟨⟨coins, _, _⟩, hc, h₃⟩ := (PMF.mem_support_bind_iff _ _ _).mp h₂
     rw [ProbOracleComp.runWith_sample] at hc
-    obtain ⟨coins', -, hc_eq⟩ := (PMF.mem_support_map_iff _ _ _).mp hc
-    simp only [Prod.mk.injEq] at hc_eq
-    rcases hc_eq with ⟨-, rfl, rfl⟩
+    obtain ⟨_, -, hc_eq⟩ := (PMF.mem_support_map_iff _ _ _).mp hc
+    rcases Prod.mk.inj hc_eq with ⟨-, rfl, rfl⟩
     rw [ProbOracleComp.runWith_bind] at h₃
-    obtain ⟨⟨rs, s₃, tr₃⟩, hrs, h₄⟩ := (PMF.mem_support_bind_iff _ _ _).mp h₃
+    obtain ⟨⟨rs, _, _⟩, hrs, h₄⟩ := (PMF.mem_support_bind_iff _ _ _).mp h₃
     rw [ProbOracleComp.runWith_sample] at h₄
-    obtain ⟨b, -, hb_eq⟩ := (PMF.mem_support_map_iff _ _ _).mp h₄
-    simp only [Prod.mk.injEq] at hb_eq
-    rcases hb_eq with ⟨-, -, rfl⟩
-    have htr := length_transcript_iterate_replyStep oracle k _ _ [] s [] hrs
-    have hlen : (prvSimReqs k q'.fn.1 (q'.fn.1.wires q'.input q'.fn.1.q) coins).length =
-        8 * (phiXor.phi q'.fn).free.count false := by
-      simp only [prvSimReqs, allReqs]
-      rw [allReqs_prefix_length _ _ _ _ _ le_rfl, xorFlags_gateList, nonXorRank,
-        List.take_of_length_le]
-      simp [phiXor]
-    simpa [hlen] using htr
-  · simp only [hguard, ↓reduceIte] at h₂ ⊢
-    rw [ProbOracleComp.runWith_sample] at h₂
-    obtain ⟨b, -, hb_eq⟩ := (PMF.mem_support_map_iff _ _ _).mp h₂
-    simp only [Prod.mk.injEq] at hb_eq
-    rcases hb_eq with ⟨-, -, rfl⟩
+    obtain ⟨_, -, hb_eq⟩ := (PMF.mem_support_map_iff _ _ _).mp h₄
+    rcases Prod.mk.inj hb_eq with ⟨-, -, rfl⟩
+    have hlen : (prvSimReqs k q.fn.1 (q.fn.1.wires q.input q.fn.1.q) coins).length =
+        8 * (phiXor.phi q.fn).free.count false := by
+      rw [prvSimReqs, allReqs, allReqs_prefix_length _ _ _ _ _ le_rfl, xorFlags_gateList,
+        nonXorRank, List.take_of_length_le (by simp [phiXor])]
+    simpa [hlen] using length_transcript_iterate_replyStep oracle k _ _ [] s [] hrs
+  · rw [ProbOracleComp.runWith_sample] at h₂
+    obtain ⟨_, -, hb_eq⟩ := (PMF.mem_support_map_iff _ _ _).mp h₂
+    rcases Prod.mk.inj hb_eq with ⟨-, -, rfl⟩
     rfl
 
 end Legality
+
+/-! ### Against a fixed oracle -/
+
+section Run
+
+private theorem uniformList_map_simBaseLabels (k : ℕ) (f : ValidCircuit) :
+    (BitString.uniformList ((f.1.n + f.1.q) * (k + 2))).map
+        (fun coins => (simBaseLabels k coins :
+          Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool)) =
+      PMF.uniformOfFintype (Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) := by
+  let e : Wire f.1.n (toCircuit f).size ≃ Fin (f.1.n + f.1.q) :=
+    (Wire.equivFin f.1.n (toCircuit f).size).trans (finCongr (by rw [size_toCircuit]))
+  let E : (Wire f.1.n (toCircuit f).size → BitString (k + 2)) ≃
+      (Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) :=
+    Equiv.arrowCongr (Equiv.refl _) (labelEquiv k)
+  have hcomp : (fun coins => (simBaseLabels k coins :
+        Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool)) =
+      (E : _ → _) ∘ fun coins w =>
+        BitString.ofList (k + 2) (BitString.listRow (k + 2) (e w) coins) := by
+    funext coins w
+    rfl
+  rw [hcomp, ← PMF.map_comp, BitString.uniformList_map_listRow_equiv e (k + 2),
+    PMF.uniformOfFintype_map_equiv E]
+
+private theorem testBit_decide_lt_four {i : ℕ} (hi : i < 4) :
+    (i.testBit 1 = decide (2 ≤ i)) ∧ (i.testBit 0 = decide (i % 2 = 1)) := by
+  interval_cases i <;> decide
+
+private theorem simPropWords_ofFn_labelBits (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
+    simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q =
+      List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+        labelBits (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
+          (Wire.ofNat v v.isLt)) := by
+  rw [xorFlags_gateList]
+  exact simPropWords_q k f coins
+
+private theorem validCircuit_gate_bounds (f : ValidCircuit) (g : Fin (toCircuit f).size) :
+    (g : ℕ) < f.1.q ∧ 1 ≤ f.1.A (g.cast (size_toCircuit f)) ∧
+      f.1.A (g.cast (size_toCircuit f)) < f.1.B (g.cast (size_toCircuit f)) ∧
+      f.1.B (g.cast (size_toCircuit f)) < f.1.n + 1 + g.val := by
+  have hsize := size_toCircuit f
+  have hgq : (g : ℕ) < f.1.q := by have := g.isLt; omega
+  have hA₁ := f.2.one_le_A (g.cast (size_toCircuit f))
+  have hAB := f.2.A_lt_B (g.cast (size_toCircuit f))
+  have hBg := f.2.B_lt_gate (g.cast (size_toCircuit f))
+  simp only [ConventionalCircuit.topo, Fin.val_cast] at hA₁ hAB hBg
+  exact ⟨hgq, hA₁, hAB, hBg⟩
+
+private theorem wire_toCircuit_input (f : ValidCircuit) (g : Fin (toCircuit f).size)
+    (s : Fin 2) :
+    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm s) =
+      Wire.ofNat ((if s = 0 then f.1.A (g.cast (size_toCircuit f))
+        else f.1.B (g.cast (size_toCircuit f))) - 1) (by
+          have hsize := size_toCircuit f
+          obtain ⟨hgq, hA₁, hAB, hBg⟩ := validCircuit_gate_bounds f g
+          fin_cases s <;> simp <;> omega) := by
+  have hsize := size_toCircuit f
+  obtain ⟨hgq, hA₁, hAB, hBg⟩ := validCircuit_gate_bounds f g
+  fin_cases s
+  · exact (congrArg ((toCircuit f).topology.wires g) (Fin.ext rfl)).trans
+      (wires_toCircuit_zero f g (by omega))
+  · exact (congrArg ((toCircuit f).topology.wires g) (Fin.ext rfl)).trans
+      (wires_toCircuit_one f g (by omega))
+
+private theorem simPropWords_getD_input (k : ℕ) (f : ValidCircuit) (coins : List Bool)
+    (g : Fin (toCircuit f).size) (s : Fin 2) :
+    (simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+        ((if s = 0 then f.1.A (g.cast (size_toCircuit f))
+          else f.1.B (g.cast (size_toCircuit f))) - 1) [] =
+      labelBits (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
+        ((toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm s))) := by
+  rw [simPropWords_ofFn_labelBits]
+  fin_cases s
+  · exact getD_ofFn_wire_A f _ g
+  · exact getD_ofFn_wire_B f _ g
+
+private theorem flipped_garbledRowOf_toCircuit (k : ℕ) (f : ValidCircuit) (coins : List Bool)
+    (g : Fin (toCircuit f).size) (hg : freeCircuit f g = false) {i : ℕ} (hi : i < 4)
+    (s : Fin 2) :
+    flipped (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
+        (garbledRowOf (toCircuit f).topology g hg i)
+        (Fin.cast (arity_topology_toCircuit f g).symm s) =
+      ((if s = 0 then decide (2 ≤ i) else decide (i % 2 = 1)) ^^
+        HalfGates.colourWord k
+          ((simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+            ((if s = 0 then f.1.A (g.cast (size_toCircuit f))
+              else f.1.B (g.cast (size_toCircuit f))) - 1) [])) := by
+  have harity := arity_topology_toCircuit f g
+  have htb := testBit_decide_lt_four hi
+  rw [simPropWords_getD_input k f coins g s, HalfGates.colourWord_labelBits]
+  dsimp only [flipped, garbledRowOf]
+  rw [Bool.add_eq_xor]
+  fin_cases s <;> simp [harity, htb.1, htb.2]
+
+private theorem wires_getD_input {f : ValidCircuit} {x : List Bool} (hx : x.length = f.1.n)
+    (g : Fin (toCircuit f).size) (s : Fin 2) :
+    (f.1.wires x f.1.q).getD ((if s = 0 then f.1.A (g.cast (size_toCircuit f))
+        else f.1.B (g.cast (size_toCircuit f))) - 1) false =
+      (toCircuit f).program.trace fullInterpretation (BitString.ofList f.1.n x)
+        ((toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm s)) := by
+  rw [wire_toCircuit_input, trace_toCircuit, BitString.ofFn_ofList hx, Wire.toNat_ofNat]
+
+private theorem slotReq_eq_encodeQuery {k : ℕ} {f : ValidCircuit} {x : List Bool}
+    (hx : x.length = f.1.n) (coins : List Bool) (g : Fin (toCircuit f).size)
+    (hg : freeCircuit f g = false) {i : ℕ} (hi : i < 4) (s : Fin 2) :
+    let labels := simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q
+    let ws := f.1.wires x f.1.q
+    let gc := g.cast (size_toCircuit f)
+    let A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
+    let r := garbledRowOf (toCircuit f).topology g hg i
+    let p : GarbledSlot (toCircuit f).topology (freeCircuit f) :=
+      ⟨r, Fin.cast (arity_topology_toCircuit f g).symm s⟩
+    ((), slotReq k f.1.n labels ws g.val (f.1.A gc - 1) (f.1.B gc - 1)
+      [f.1.G gc false false, f.1.G gc false true, f.1.G gc true false, f.1.G gc true true]
+      i s.val) =
+      (CCR.codec k).encodeQuery (CCR.keyOnlyEmbed _ _ (reductionQuery (toCircuit f)
+        fullInterpretation (slotTweak (toCircuit f).topology (freeCircuit f) k)
+        (BitString.ofList f.1.n x) A p)) := by
+  have hsize := size_toCircuit f
+  have harity := arity_topology_toCircuit f g
+  have hgq : (g : ℕ) < f.1.q := by have := g.isLt; omega
+  set A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
+  have hla := simPropWords_getD_input k f coins g 0
+  have hlb := simPropWords_getD_input k f coins g 1
+  have hva := wires_getD_input hx g 0
+  have hvb := wires_getD_input hx g 1
+  have hf₀ := flipped_garbledRowOf_toCircuit k f coins g hg hi 0
+  have hf₁ := flipped_garbledRowOf_toCircuit k f coins g hg hi 1
+  simp only [Fin.isValue, ↓reduceIte, show (1 : Fin 2) ≠ 0 by decide] at hla hlb hva hvb hf₀ hf₁
+  have hvg : (f.1.wires x f.1.q).getD (f.1.n + g.val) false =
+      (toCircuit f).program.trace fullInterpretation (BitString.ofList f.1.n x) (.gate g) := by
+    have hwg : (Wire.ofNat (f.1.n + g.val) (by omega) : Wire f.1.n (toCircuit f).size) =
+        .gate g := Wire.toNat_injective (by simp)
+    rw [← hwg, trace_toCircuit, BitString.ofFn_ofList hx, Wire.toNat_ofNat]
+  have htake_lbl (y : BitString (k + 1) × Bool) : (labelBits y).take (k + 1) = List.ofFn y.1 := by
+    rw [labelBits_apply, List.take_left' (List.length_ofFn)]
+  have hrowBit : ((f.1.wires x f.1.q).getD (f.1.n + g.val) false ^^
+      [f.1.G (g.cast (size_toCircuit f)) false false,
+       f.1.G (g.cast (size_toCircuit f)) false true,
+       f.1.G (g.cast (size_toCircuit f)) true false,
+       f.1.G (g.cast (size_toCircuit f)) true true].getD
+        ((if (decide (2 ≤ i) ^^ HalfGates.colourWord k
+            ((simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+              (f.1.A (g.cast (size_toCircuit f)) - 1) [])) ^^
+            (f.1.wires x f.1.q).getD (f.1.A (g.cast (size_toCircuit f)) - 1) false then 2 else 0) +
+          (if (decide (i % 2 = 1) ^^ HalfGates.colourWord k
+            ((simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+              (f.1.B (g.cast (size_toCircuit f)) - 1) [])) ^^
+            (f.1.wires x f.1.q).getD (f.1.B (g.cast (size_toCircuit f)) - 1) false then 1 else 0))
+        false) =
+      rowBit (toCircuit f) fullInterpretation (BitString.ofList f.1.n x) A
+        (garbledRowOf (toCircuit f).topology g hg i) := by
+    rw [getD_table, ← hf₀, ← hf₁, hva, hvb, hvg]
+    dsimp only [rowBit, GarbledRow.gate, garbledRowOf]
+    erw [fullInterpretation_lines_toCircuit f g]
+    simp only [Bool.add_eq_xor]
+    rfl
+  dsimp only [slotReq]
+  rw [hrowBit]
+  have htw : PointPermute.tweak k g.val i s.val =
+      List.ofFn (slotTweak (toCircuit f).topology (freeCircuit f) k
+        ⟨garbledRowOf (toCircuit f).topology g hg i, Fin.cast harity.symm s⟩) :=
+    (ofFn_slotTweak_garbledRowOf f k g hg hi (Fin.cast harity.symm s)).symm
+  have hkey : (if s.val = 0 then
+        (simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+          (f.1.A (g.cast (size_toCircuit f)) - 1) []
+      else (simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+        (f.1.B (g.cast (size_toCircuit f)) - 1) []).take (k + 1) ++ [true] =
+      labelBits ((reductionQuery (toCircuit f) fullInterpretation
+        (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.n x) A
+        ⟨garbledRowOf (toCircuit f).topology g hg i,
+          Fin.cast harity.symm s⟩).label, true) := by
+    fin_cases s
+    · simp only [↓reduceIte, hla, htake_lbl, reductionQuery]; rfl
+    · simp only [one_ne_zero, ↓reduceIte, hlb, htake_lbl, reductionQuery]; rfl
+  have hbit : ((if s.val = 0 then
+        decide (2 ≤ i) ^^ HalfGates.colourWord k
+          ((simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+            (f.1.A (g.cast (size_toCircuit f)) - 1) [])
+      else !(decide (2 ≤ i) ^^ HalfGates.colourWord k
+          ((simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+            (f.1.A (g.cast (size_toCircuit f)) - 1) [])) &&
+        (decide (i % 2 = 1) ^^ HalfGates.colourWord k
+          ((simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).getD
+            (f.1.B (g.cast (size_toCircuit f)) - 1) []))) &&
+        rowBit (toCircuit f) fullInterpretation (BitString.ofList f.1.n x) A
+          (garbledRowOf (toCircuit f).topology g hg i)) =
+      (reductionQuery (toCircuit f) fullInterpretation
+        (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.n x) A
+        ⟨garbledRowOf (toCircuit f).topology g hg i,
+          Fin.cast harity.symm s⟩).bit := by
+    rw [← hf₀, ← hf₁]
+    fin_cases s
+    · dsimp only [reductionQuery, isFirst]
+      rw [ite_eq_left rfl, decide_eq_true fun j hj => by
+        have hlt : j.val < 0 := Fin.lt_def.mp hj; omega, Bool.and_true]
+      rfl
+    · simp only [one_ne_zero, ↓reduceIte, reductionQuery, isFirst]
+      change ((!flipped A (garbledRowOf (toCircuit f).topology g hg i) (Fin.cast harity.symm 0) &&
+          flipped A (garbledRowOf (toCircuit f).topology g hg i) (Fin.cast harity.symm 1)) && _) =
+        ((flipped A (garbledRowOf (toCircuit f).topology g hg i) (Fin.cast harity.symm 1) && _) &&
+          _)
+      rw [Bool.and_comm (flipped A (garbledRowOf (toCircuit f).topology g hg i)
+        (Fin.cast harity.symm 1))]
+      congr 2; symm
+      cases hb : flipped A (garbledRowOf (toCircuit f).topology g hg i) (Fin.cast harity.symm 0)
+      · exact decide_eq_true fun j hj =>
+          (Fin.ext (Nat.lt_one_iff.mp (Fin.lt_def.mp hj)) : j = Fin.cast harity.symm 0) ▸ hb
+      · exact decide_eq_false fun hp => Bool.noConfusion
+          (hb.symm.trans (hp _ (Fin.lt_def.mpr (show (0 : ℕ) < 1 by decide))))
+  erw [htw, hkey, hbit]
+  simp only [CCR.codec, CCR.keyOnlyEmbed, labelBits_apply, List.append_assoc,
+    List.singleton_append]
+  rfl
+
+private noncomputable def oracleReplies (k : ℕ) (f : ValidCircuit) (x coins : List Bool)
+    (O : CCR.Query (BitString (k + 1) × Bool) (BitString k) → BitString (k + 1) × Bool) :
+    List (List Bool) :=
+  (allReqs k f.1.n f.1.gateList (simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q)
+      (f.1.wires x f.1.q)).map fun req =>
+    match (CCR.codec k).decodeQuery ((), req) with
+    | some q => labelBits (O q)
+    | none => []
+
+private theorem redGate_eq (hash : List Bool → List Bool → List Bool) {k : ℕ} {f : ValidCircuit}
+    {x : List Bool} (hx : x.length = f.1.n)
+    (O : CCR.Query (BitString (k + 1) × Bool) (BitString k) → BitString (k + 1) × Bool)
+    (coins : List Bool) (g : Fin (toCircuit f).size) :
+    let free := xorFlags f.1.gateList
+    let labels := simPropWords k f.1.topo free coins f.1.q
+    let rs := oracleReplies k f x coins O
+    let A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
+    let O' : GarbledSlot (toCircuit f).topology (freeCircuit f) → BitString (k + 1) × Bool :=
+      fun p => O (CCR.keyOnlyEmbed _ _ (reductionQuery (toCircuit f) fullInterpretation
+        (slotTweak (toCircuit f).topology (freeCircuit f) k)
+        (BitString.ofList f.1.n x) A p))
+    encodeGate k (PointPermute.wireWidth f.1.n (toCircuit f).size) (toCircuit f).topology
+        (freeCircuit f) (reductionTable (fun key t => CCR.atLevel hash k (key, false) t)
+          (slotTweak (toCircuit f).topology (freeCircuit f) k) A O') g =
+      BitString.lowBits (PointPermute.wireWidth f.1.n f.1.q)
+          (f.1.A (g.cast (size_toCircuit f))) ++
+        BitString.lowBits (PointPermute.wireWidth f.1.n f.1.q)
+          (f.1.B (g.cast (size_toCircuit f))) ++
+        (List.ofFn fun i : Fin 4 => redRowData hash k f.1.n free labels rs
+          (g.cast (size_toCircuit f)) (f.1.A (g.cast (size_toCircuit f)) - 1)
+          (f.1.B (g.cast (size_toCircuit f)) - 1) i).flatten := by
+  have hsize := size_toCircuit f
+  have harity := arity_topology_toCircuit f g
+  obtain ⟨hgq, hA₁, hAB, hBg⟩ := validCircuit_gate_bounds f g
+  dsimp only
+  set free := xorFlags f.1.gateList
+  set labels := simPropWords k f.1.topo free coins f.1.q
+  set ws := f.1.wires x f.1.q
+  set reqs := allReqs k f.1.n f.1.gateList labels ws
+  set rs := oracleReplies k f x coins O
+  set A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
+  have hfree_eq : free.getD g.val false = freeCircuit f g := by
+    simp only [free, xorFlags_gateList, phiXor, freeCircuit, List.getD_eq_getElem?_getD,
+      List.getElem?_ofFn, hgq, ↓reduceDIte, Option.getD_some]
+    rfl
+  rw [encodeGate_toCircuit k f _ g]
+  dsimp only [redRowData]
+  rw [List.ofFn_succ, List.ofFn_succ, List.ofFn_succ, List.ofFn_succ, List.ofFn_zero,
+    List.flatten_cons, List.flatten_cons, List.flatten_cons, List.flatten_cons, List.flatten_nil]
+  simp only [Fin.val_zero, Fin.val_succ, Fin.val_cast, ↓reduceIte, hfree_eq, List.append_nil]
+  by_cases hg : freeCircuit f g = true
+  · simp [hg, show isXorGate f.1 (g.cast (size_toCircuit f)) = true from hg]
+  · have hg' : freeCircuit f g = false := Bool.eq_false_iff.mpr hg
+    simp only [hg', Bool.false_eq_true, ↓reduceDIte, ↓reduceIte, List.singleton_append,
+      List.append_assoc]
+    congr 2
+    have hlout : labels.getD (f.1.n + g.val) [] = labelBits (A (.gate g)) := by
+      rw [show labels = simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q from rfl,
+        simPropWords_ofFn_labelBits, getD_ofFn_wire_gate]
+    have hmem_free : free[g.val]'(by
+        simp [free, xorFlags, ConventionalCircuit.length_gateList, hgq]) = false := by
+      simpa [free, xorFlags_gateList, phiXor, freeCircuit, Fin.cast] using hg'
+    have hxor_g : isXorTable (f.1.gateList[g.val]'(by
+        simpa [ConventionalCircuit.length_gateList] using hgq)).2.2 = false := by
+      simpa [free, xorFlags] using hmem_free
+    have hrow_eq (i : ℕ) (hi : i < 4) :
+        labelBits (reductionTable (fun key t => CCR.atLevel hash k (key, false) t)
+          (slotTweak (toCircuit f).topology (freeCircuit f) k) A
+          (fun p => O (CCR.keyOnlyEmbed _ _ (reductionQuery (toCircuit f) fullInterpretation
+            (slotTweak (toCircuit f).topology (freeCircuit f) k)
+            (BitString.ofList f.1.n x) A p))) (garbledRowOf (toCircuit f).topology g hg' i)) =
+          redRow hash k f.1.n free labels rs g.val (f.1.A (g.cast (size_toCircuit f)) - 1)
+            (f.1.B (g.cast (size_toCircuit f)) - 1) i := by
+      have hrs_slot (s : Fin 2) :
+          rs.getD (8 * nonXorRank free g.val + 2 * i + s.val) [] =
+            labelBits (O (CCR.keyOnlyEmbed _ _ (reductionQuery (toCircuit f) fullInterpretation
+              (slotTweak (toCircuit f).topology (freeCircuit f) k)
+              (BitString.ofList f.1.n x) A
+              ⟨garbledRowOf (toCircuit f).topology g hg' i, Fin.cast harity.symm s⟩))) := by
+        have hidx_lt : 2 * i + s.val < 8 := by omega
+        have hlt_rank := nonXorRank_lt free
+          (by simp [free, xorFlags, ConventionalCircuit.length_gateList, hgq]) hmem_free hgq
+        have hlen_reqs : 8 * nonXorRank free g.val + (2 * i + s.val) < reqs.length := by
+          rw [allReqs_length, ConventionalCircuit.length_gateList]
+          change _ < 8 * nonXorRank free f.1.q; omega
+        have hget_req : reqs[8 * nonXorRank free g.val + (2 * i + s.val)]'hlen_reqs =
+            slotReq k f.1.n labels ws g.val (f.1.A (g.cast hsize) - 1)
+              (f.1.B (g.cast hsize) - 1)
+              [f.1.G (g.cast hsize) false false, f.1.G (g.cast hsize) false true,
+               f.1.G (g.cast hsize) true false, f.1.G (g.cast hsize) true true] i s.val := by
+          have h := allReqs_getD_slot k f.1.n f.1.gateList labels ws
+            (by simpa [ConventionalCircuit.length_gateList] using hgq) hxor_g hidx_lt
+          rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlen_reqs,
+            Option.getD_some] at h
+          rw [h, gateReqSlot, show (2 * i + s.val) / 2 = i by omega,
+            show (2 * i + s.val) % 2 = s.val by omega]
+          simp only [ConventionalCircuit.gateList, List.getElem_ofFn]; rfl
+        have hdec := ((CCR.codec k).decodeQuery_eq_some_iff _ _).mpr
+          (slotReq_eq_encodeQuery hx coins g hg' hi s).symm
+        dsimp only [rs, oracleReplies]
+        rw [show 8 * nonXorRank free g.val + 2 * i + s.val =
+            8 * nonXorRank free g.val + (2 * i + s.val) by omega,
+          List.getD_eq_getElem?_getD,
+          List.getElem?_eq_getElem (by simpa [List.length_map] using hlen_reqs),
+          Option.getD_some, List.getElem_map, hget_req]
+        change (match (CCR.codec k).decodeQuery
+            ((), slotReq k f.1.n labels ws g.val _ _ _ i s.val) with
+          | some q => labelBits (O q)
+          | none => []) = _
+        rw [hdec]
+      have harity_row : (toCircuit f).topology.arity
+          (garbledRowOf (toCircuit f).topology g hg' i).gate = 2 := harity
+      have hslot_side (s : Fin 2) :
+          labelBits (if flipped A (garbledRowOf (toCircuit f).topology g hg' i)
+                (Fin.cast harity_row.symm s) = true then
+              O (CCR.keyOnlyEmbed _ _ (reductionQuery (toCircuit f) fullInterpretation
+                (slotTweak (toCircuit f).topology (freeCircuit f) k)
+                (BitString.ofList f.1.n x) A
+                ⟨garbledRowOf (toCircuit f).topology g hg' i, Fin.cast harity_row.symm s⟩))
+            else CCR.atLevel hash k ((A ((toCircuit f).topology.wires
+                (↑(garbledRowOf (toCircuit f).topology g hg' i).fst)
+                (Fin.cast harity_row.symm s))).1, false)
+              (slotTweak (toCircuit f).topology (freeCircuit f) k
+                ⟨garbledRowOf (toCircuit f).topology g hg' i, Fin.cast harity_row.symm s⟩)) =
+            if ((if s = 0 then decide (2 ≤ i) else decide (i % 2 = 1)) ^^
+                HalfGates.colourWord k (labels.getD ((if s = 0 then f.1.A (g.cast hsize)
+                  else f.1.B (g.cast hsize)) - 1) [])) = true then
+              rs.getD (8 * nonXorRank free g.val + 2 * i + s.val) []
+            else keyHashWord hash k (labels.getD ((if s = 0 then f.1.A (g.cast hsize)
+                else f.1.B (g.cast hsize)) - 1) []) (PointPermute.tweak k g.val i s.val) := by
+        rw [apply_ite labelBits]
+        refine ite_congr
+          (congrArg (· = true) (flipped_garbledRowOf_toCircuit k f coins g hg' hi s))
+          (fun _ => (hrs_slot s).symm) (fun _ => ?_)
+        rw [labelBits_atLevel_key]
+        erw [ofFn_slotTweak_garbledRowOf f k g hg' hi (Fin.cast harity.symm s),
+          ← simPropWords_getD_input k f coins g s]
+        rfl
+      dsimp only [redRow]
+      rw [reductionTable]
+      dsimp only [GarbledRow.gate]
+      change labelBits (A (.gate g) + ∑ x_1 : Fin ((toCircuit f).topology.arity
+          (garbledRowOf (toCircuit f).topology g hg' i).gate), _) = _
+      rw [labelBits_add, ← Fin.sum_congr' _ harity_row.symm, Fin.sum_univ_two, labelBits_add, hlout]
+      exact congrArg (List.zipWith xor (labelBits (A (.gate g))) ·)
+        (congrArg₂ (List.zipWith xor)
+          (by simpa only [Fin.val_zero, Nat.add_zero, ↓reduceIte, Fin.isValue] using hslot_side 0)
+          (by simpa only [Fin.val_one, one_ne_zero, ↓reduceIte, Fin.isValue] using hslot_side 1))
+    simp only [show isXorGate f.1 (g.cast (size_toCircuit f)) = false from hg', Nat.reduceAdd,
+      Nat.add_one_ne_zero, ↓reduceIte, List.nil_append, List.cons_append]
+    rw [List.ofFn_succ, List.ofFn_succ, List.ofFn_succ, List.ofFn_succ, List.ofFn_zero,
+      List.flatten_cons, List.flatten_cons, List.flatten_cons, List.flatten_cons,
+      List.flatten_nil, List.append_nil]
+    simp only [Fin.val_zero, Fin.val_succ, Nat.reduceAdd]
+    exact congrArg (false :: ·) (congrArg₂ (· ++ ·) (hrow_eq 0 (by omega))
+      (congrArg₂ (· ++ ·) (hrow_eq 1 (by omega))
+        (congrArg₂ (· ++ ·) (hrow_eq 2 (by omega)) (hrow_eq 3 (by omega)))))
+
+private theorem redView_eq (hash : List Bool → List Bool → List Bool) {k : ℕ} {f : ValidCircuit}
+    {x : List Bool} (hx : x.length = f.1.n)
+    (O : CCR.Query (BitString (k + 1) × Bool) (BitString k) → BitString (k + 1) × Bool)
+    (coins : List Bool) :
+    redView hash k f.1 (f.1.wires x f.1.q) coins (oracleReplies k f x coins O) =
+      viewWord k (toCircuit f).topology (freeCircuit f)
+        (FreeXOR.reductionView (toCircuit f).topology
+          (fun key t => CCR.atLevel hash k (key, false) t)
+          (slotTweak (toCircuit f).topology (freeCircuit f) k)
+          ((toCircuit f).eval fullInterpretation (BitString.ofList f.1.n x))
+          (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
+          fun p => O (CCR.keyOnlyEmbed _ _ (reductionQuery (toCircuit f) fullInterpretation
+            (slotTweak (toCircuit f).topology (freeCircuit f) k)
+            (BitString.ofList f.1.n x)
+            (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)) p))) := by
+  have hτ := (toCircuit f).isOrdered_topology
+  have hgate (g : Fin f.1.q) : f.1.gateList.getD g (0, 0, []) =
+      (f.1.A g, f.1.B g, [f.1.G g false false, f.1.G g false true, f.1.G g true false,
+        f.1.G g true true]) := by
+    simp [ConventionalCircuit.gateList, List.getD_eq_getElem?_getD]
+  have hlen : (simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q).length =
+      f.1.n + f.1.q :=
+    length_simPropWords k f.1.topo (xorFlags f.1.gateList) coins le_rfl
+  have hA₁ (g : Fin f.1.q) : 1 ≤ f.1.A g := f.2.one_le_A g
+  have hAB (g : Fin f.1.q) : f.1.A g < f.1.B g := f.2.A_lt_B g
+  have hBg (g : Fin f.1.q) : f.1.B g < f.1.n + 1 + g := f.2.B_lt_gate g
+  dsimp only [redView, viewWord, FreeXOR.reductionView]
+  rw [PrvView.mk.injEq]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [ConventionalCircuit.length_gateList,
+      PointPermute.bodyWith_eq_ofFn f.1.A f.1.B
+        (fun g i => redRowData hash k f.1.n (xorFlags f.1.gateList)
+          (simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q)
+          (oracleReplies k f x coins O) g (f.1.A g - 1) (f.1.B g - 1) i)
+        (fun g => by rw [hgate]) (fun g => by rw [hgate])
+        (fun g i => by
+          have ha := hA₁ g
+          have hab := hAB g
+          have hb := hBg g
+          have hg := g.isLt
+          rw [hlen]
+          simp only [
+            show min (f.1.n + f.1.q + 1) (f.1.A g) = f.1.A g from Nat.min_eq_right (by omega),
+            show min (f.1.n + f.1.q + 1) (f.1.B g) = f.1.B g from Nat.min_eq_right (by omega)])]
+    simp only [encodeFn]
+    congr 2
+    · rw [size_toCircuit]
+    · rw [List.ofFn_congr (size_toCircuit f)]
+      refine congrArg List.flatten (congrArg List.ofFn (funext fun g => ?_))
+      rw [redGate_eq hash hx O coins (Fin.cast (size_toCircuit f).symm g)]
+      have hcast : Fin.cast (size_toCircuit f) (Fin.cast (size_toCircuit f).symm g) = g :=
+        Fin.ext rfl
+      simp only [hcast]
+  · rw [List.map_range_eq_ofFn]
+    simp only [propagate_input hτ, simBaseLabels, Wire.toNat_input,
+      labelBits_labelOfWord (PointPermute.length_simLabel k coins _)]
+  · rw [List.map_range_eq_ofFn, ConventionalCircuit.length_gateList, simPropWords_ofFn_labelBits]
+    refine congrArg List.ofFn (funext fun o => ?_)
+    have hval : (f.1.wires x f.1.q).getD (f.1.n + f.1.q - f.1.m + o) false =
+        (toCircuit f).eval fullInterpretation (BitString.ofList f.1.n x) o := by
+      rw [← toNat_outputs_toCircuit, Circuit.eval, Function.comp_apply,
+        ← BitString.ofFn_ofList hx, trace_toCircuit]
+      simp [BitString.ofList_ofFn]
+    rw [getD_ofFn_wire_output, hval, HalfGates.colourWord_labelBits, Bool.add_eq_xor]
+    rfl
+
+variable (hash) in
+/-- Library infrastructure (no cited result): **The word reduction runs the typed reduction.**
+Against every fixed full-label oracle `O`,
+the reduction for `B` at parameter `k` runs `B`'s choice of `(f, x)`. When `x` has `f.n` bits and
+`8 q ≤ 2 ^ k`, it runs the typed reduction `FreeXOR.reduction` on `toCircuit f` with key-only
+queries lifted via `CCR.keyOnlyEmbed` and `B`'s guess on the view words; otherwise it runs `B`'s
+guess on `⊥`. -/
+theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ) (k : ℕ)
+    (O : CCR.Query (BitString (k + 1) × Bool) (BitString k) → BitString (k + 1) × Bool) :
+    ProbComp.eval (((CCR.codec k).adapt (prvSimReduction hash B k [])).run
+        fun q => pure (O q)) =
+      (ProbComp.eval ((B k).choose ())).bind fun (query, state) =>
+        if query.input.length = query.fn.1.n ∧ 8 * query.fn.1.q ≤ 2 ^ k then
+          ProbComp.eval ((FreeXOR.reduction (toCircuit query.fn) fullInterpretation
+            (fun key t => CCR.atLevel hash k (key, false) t)
+            (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+            (BitString.ofList query.fn.1.n query.input)
+            (fun V => (B k).guess state
+              (some (viewWord k _ (freeCircuit query.fn) V)))).run
+              fun q => pure (O (CCR.keyOnlyEmbed _ _ q)))
+        else ProbComp.eval ((B k).guess state none) := by
+  simp only [prvSimReduction, prvSimReqs, OracleCodec.run_adapt, ProbOracleComp.run_bind,
+    ProbOracleComp.run_sample, ProbComp.eval_bind]
+  refine congrArg _ (funext fun ⟨query, state⟩ => ?_)
+  dsimp only
+  split_ifs with hguard
+  swap
+  · simp only [ProbOracleComp.run_sample]
+  set f := query.fn
+  set x := query.input
+  have hx : x.length = f.1.n := hguard.1
+  rw [eval_run_reduction]
+  simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
+    BitString.eval_sampleList]
+  rw [← uniformList_map_simBaseLabels k f, PMF.bind_map]
+  refine congrArg _ (funext fun coins => ?_)
+  let labels := simPropWords k f.1.topo (xorFlags f.1.gateList) coins f.1.q
+  let ws := f.1.wires x f.1.q
+  let reqs := allReqs k f.1.n f.1.gateList labels ws
+  let ans := oracleReplies k f x coins O
+  have hO : ∀ i (hi : i < reqs.length),
+      ((CCR.codec k).wordOracle fun q => (pure (O q) : ProbComp _)) ((), reqs.getD i []) =
+        pure (ans.getD i []) := by
+    intro i hi
+    obtain ⟨g, hg, idx, hidx, hxor, _, hreq⟩ := allReqs_lookup k f.1.n f.1.gateList labels ws hi
+    have hgq : g < f.1.q := by simpa [ConventionalCircuit.length_gateList] using hg
+    let gFin : Fin (toCircuit f).size := ⟨g, by rw [size_toCircuit]; exact hgq⟩
+    have hcast : gFin.cast (size_toCircuit f) = ⟨g, hgq⟩ := Fin.ext rfl
+    have hfree_g : freeCircuit f gFin = false := by
+      simpa [ConventionalCircuit.gateList, freeCircuit, isXorGate, hcast, isXorTable_eq] using hxor
+    let sFin : Fin 2 := ⟨idx % 2, Nat.mod_lt _ (by decide)⟩
+    have henc := slotReq_eq_encodeQuery (k := k) hx coins gFin hfree_g (i := idx / 2)
+      (by omega) sFin
+    dsimp only at henc
+    have hreq_eq : reqs[i]'hi = slotReq k f.1.n labels ws gFin.val
+        (f.1.A (gFin.cast (size_toCircuit f)) - 1) (f.1.B (gFin.cast (size_toCircuit f)) - 1)
+        [f.1.G (gFin.cast (size_toCircuit f)) false false,
+         f.1.G (gFin.cast (size_toCircuit f)) false true,
+         f.1.G (gFin.cast (size_toCircuit f)) true false,
+         f.1.G (gFin.cast (size_toCircuit f)) true true] (idx / 2) sFin.val := by
+      rw [hreq, gateReqSlot]
+      simp [ConventionalCircuit.gateList, gFin, sFin]
+    have hia : i < ans.length := by simpa [ans, oracleReplies] using hi
+    rw [← hreq_eq] at henc
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some,
+      List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hia, Option.getD_some,
+      henc, CCR.wordOracle_codec_encodeQuery]
+    dsimp only [ans, oracleReplies]
+    erw [List.getElem_map]
+    have hdec := ((CCR.codec k).decodeQuery_eq_some_iff _ _).mpr henc.symm
+    change (pure _ : ProbComp _) = pure (match (CCR.codec k).decodeQuery ((), reqs[i]) with
+      | some q => labelBits (O q)
+      | none => [])
+    rw [hdec]
+  unfold replyStep
+  rw [run_iterate_replyStepWord (k + 2) reqs.length (fun idx => reqs.getD idx [])
+      ((CCR.codec k).wordOracle fun q => (pure (O q) : ProbComp _))
+      (fun idx => ans.getD idx []) hO, ProbComp.eval_pure, PMF.pure_bind]
+  have htake : ((List.range reqs.length).map fun idx => (ans.getD idx []).take (k + 2)) = ans := by
+    apply List.ext_getElem (by simp [ans, oracleReplies]; rfl)
+    intro i hi hia
+    rw [List.getElem_map, List.getElem_range, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hia, Option.getD_some]
+    dsimp only [ans, oracleReplies]
+    erw [List.getElem_map]
+    cases (CCR.codec k).decodeQuery ((), reqs[i]'(by simpa [ans, oracleReplies] using hia)) <;>
+      simp
+  rw [htake]
+  exact congrArg (fun V => ProbComp.eval ((B k).guess state (some V))) (redView_eq hash hx O coins)
+
+end Run
+
+/-! ### The exact equality -/
+
+section Exact
+
+variable (hash : List Bool → List Bool → List Bool)
+
+private theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^ k) :
+    Function.Injective (slotTweak (toCircuit f).topology (freeCircuit f) k) := by
+  rintro ⟨⟨⟨g, hg⟩, r⟩, s⟩ ⟨⟨⟨g', hg'⟩, r'⟩, s'⟩ h
+  have hinj := @PointPermute.slotTweak_injective k f hk ⟨⟨g, r⟩, s⟩ ⟨⟨g', r'⟩, s'⟩ h
+  obtain rfl : g = g' := congrArg (·.1.1) hinj
+  cases hinj
+  rfl
+
+/-- **The real view is the typed real view.** For a query `(f, x)` with `x` of `f.n` bits, the
+real view at parameter `k` is the words of the typed view, on `x`, of the typed garbling of
+`toCircuit f`. -/
+private theorem eval_prvView (k : ℕ) (query : Query ValidCircuit)
+    (hx : query.input.length = query.fn.1.n) :
+    ProbComp.eval ((scheme hash).prvView k query) =
+      (ProbComp.eval (FreeXOR.garble (toCircuit query.fn) fullInterpretation
+        (fun key t => CCR.atLevel hash k (key, false) t)
+        (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k))).map
+        fun G => viewWord k _ (freeCircuit query.fn)
+          (G.view (BitString.ofList query.fn.1.n query.input)) := by
+  have hcoins : (scheme hash).coins k query.fn =
+      (k + 1) + (query.fn.1.n + query.fn.1.q) * (k + 2) := rfl
+  have hfun : (fun a : Scheme.Garbled =>
+      (⟨a.fn, (scheme hash).encode a.encInfo query.input, a.decInfo⟩ : PrvView)) ∘
+        (scheme hash).gb k query.fn =
+      (fun p : BitString (k + 1) × (Wire query.fn.1.n (toCircuit query.fn).size →
+          BitString (k + 1) × Bool) =>
+        viewWord k _ (freeCircuit query.fn) ((garbleWith (toCircuit query.fn)
+          fullInterpretation (fun key t => CCR.atLevel hash k (key, false) t)
+          (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k) p.1
+          p.2).view (BitString.ofList query.fn.1.n query.input))) ∘
+        (fun coins => (HalfGates.offsetKey k coins,
+          (baseLabels k coins : Wire query.fn.1.n (toCircuit query.fn).size → _))) := by
+    funext coins
+    simp only [Function.comp_apply]
+    rw [gb_eq_encodeGarbled]
+    simp only [viewWord, encodeGarbled, Garbled.view, PrvView.mk.injEq, true_and, and_true]
+    exact PointPermute.projectiveEncode_labelBits (n := query.fn.1.n) _ hx
+  simp only [Scheme.prvView, garble, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
+    Scheme.eval_garble, ProbComp.eval_uniform, hcoins, PMF.map_comp]
+  have hunif : (BitString.uniformList ((k + 1) + (query.fn.1.n + query.fn.1.q) *
+      (k + 2))).map (fun coins => (HalfGates.offsetKey k coins,
+        (baseLabels k coins : Wire query.fn.1.n (toCircuit query.fn).size → _))) =
+      PMF.uniformOfFintype (BitString (k + 1) ×
+        (Wire query.fn.1.n (toCircuit query.fn).size → BitString (k + 1) × Bool)) := by
+    rw [BitString.uniformList_add, PMF.map_bind]
+    calc _ = (BitString.uniformList (k + 1)).bind fun front =>
+          ((BitString.uniformList ((query.fn.1.n + query.fn.1.q) * (k + 2))).map
+            (fun back => (simBaseLabels k back :
+              Wire query.fn.1.n (toCircuit query.fn).size → _))).map
+              fun B => (BitString.ofList (k + 1) front, B) := by
+          refine Probability.PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
+          have hlen := BitString.length_of_mem_support_uniformList hfront
+          rw [PMF.map_comp, PMF.map_comp]
+          congr 1
+          funext back
+          refine Prod.ext (BitString.ofList_append_of_le hlen.ge _) (funext fun w => ?_)
+          simp [baseLabels, simBaseLabels, baseWord, PointPermute.simLabel, BitString.listRow,
+            List.drop_left' hlen]
+      _ = _ := by
+          rw [uniformList_map_simBaseLabels, ← Cslib.Probability.PMF.uniformOfFintype_prod,
+            ← BitString.uniformList_ofList, PMF.bind_map]
+          rfl
+  rw [hfun, ← PMF.map_comp, hunif, ← Cslib.Probability.PMF.uniformOfFintype_prod]
+  simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+
+private theorem eval_prvSimExperiment_true {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
+    (k : ℕ) (S : PrvSimulator XorTopology)
+    (hq : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n → 8 * query.fn.1.q ≤ 2 ^ k) :
+    ProbComp.eval (prvSimExperiment (scheme hash) phiXor k S (B k) true) =
+      (ProbComp.eval ((B k).choose ())).bind fun (query, state) =>
+        if query.input.length = query.fn.1.n ∧ 8 * query.fn.1.q ≤ 2 ^ k then
+          FreeXOR.realGame (toCircuit query.fn) fullInterpretation
+            (fun key t => CCR.atLevel hash k (key, false) t)
+            (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+            (BitString.ofList query.fn.1.n query.input)
+            (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
+        else ProbComp.eval ((B k).guess state none) := by
+  simp only [FreeXOR.realGame, ProbComp.eval_bind]
+  exact eval_prvSimExperiment_eq_bind (scheme hash) phiXor k S (B k) true
+    (fun q => 8 * q.fn.1.q ≤ 2 ^ k) hq
+    (fun query (G : FreeXOR.Garbled (toCircuit query.fn).topology (freeCircuit query.fn)
+        (BitString (k + 1))) =>
+      viewWord k _ (freeCircuit query.fn) (G.view (BitString.ofList query.fn.1.n query.input)))
+    (fun query => ProbComp.eval (FreeXOR.garble (toCircuit query.fn) fullInterpretation
+      (fun key t => CCR.atLevel hash k (key, false) t)
+      (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)))
+    (fun query _ _ hx => by
+      change query.input.length = query.fn.1.n at hx
+      simp only [ite_true]
+      exact eval_prvView hash k query hx)
+
+private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
+    (k : ℕ)
+    (hq : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n → 8 * query.fn.1.q ≤ 2 ^ k) :
+    ProbComp.eval (prvSimExperiment (scheme hash) phiXor k (simWord hash k) (B k) false) =
+      (ProbComp.eval ((B k).choose ())).bind fun (query, state) =>
+        if query.input.length = query.fn.1.n ∧ 8 * query.fn.1.q ≤ 2 ^ k then
+          FreeXOR.simGame (toCircuit query.fn) fullInterpretation
+            (fun key t => CCR.atLevel hash k (key, false) t)
+            (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+            (BitString.ofList query.fn.1.n query.input)
+            (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
+        else ProbComp.eval ((B k).guess state none) := by
+  simp only [FreeXOR.simGame, ProbComp.eval_bind]
+  exact eval_prvSimExperiment_eq_bind (scheme hash) phiXor k (simWord hash k) (B k) false
+    (fun q => 8 * q.fn.1.q ≤ 2 ^ k) hq
+    (fun query (V : FreeXOR.View (toCircuit query.fn).topology (freeCircuit query.fn)
+        (BitString (k + 1))) =>
+      viewWord k _ (freeCircuit query.fn) V)
+    (fun query => ProbComp.eval (FreeXOR.simulate (toCircuit query.fn).topology
+      (freeCircuit query.fn) (fun key t => CCR.atLevel hash k (key, false) t)
+      (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+      ((toCircuit query.fn).eval fullInterpretation (BitString.ofList query.fn.1.n query.input))))
+    (fun query _ _ hx => by
+      change query.input.length = query.fn.1.n at hx
+      have hy : BitString.ofList query.fn.1.m (query.fn.1.evalCirc query.input) =
+          (toCircuit query.fn).eval fullInterpretation
+            (BitString.ofList query.fn.1.n query.input) := by
+        have h := eval_toCircuit query.fn (BitString.ofList query.fn.1.n query.input)
+        rw [BitString.ofFn_ofList hx] at h
+        rw [← h, BitString.ofList_ofFn]
+      simp only [Bool.false_eq_true, ite_false]
+      rw [show (scheme hash).ev query.fn query.input = query.fn.1.evalCirc query.input from rfl,
+        eval_simWord, hy])
+
+private theorem eval_realExperiment_prvSimReduction {σ : Type}
+    (B : ℕ → PrvSimAdversary ValidCircuit σ) (k : ℕ) :
+    ProbComp.eval (PRF.realExperiment (CCR.keyed (CCR.atLevel hash k) CCR.offset CCR.offset)
+        ((CCR.codec k).adapt (prvSimReduction hash B k []))) =
+      (ProbComp.eval ((B k).choose ())).bind fun (query, state) =>
+        if query.input.length = query.fn.1.n ∧ 8 * query.fn.1.q ≤ 2 ^ k then
+          FreeXOR.realGame (toCircuit query.fn) fullInterpretation
+            (fun key t => CCR.atLevel hash k (key, false) t)
+            (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+            (BitString.ofList query.fn.1.n query.input)
+            (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
+        else ProbComp.eval ((B k).guess state none) := by
+  simp only [PRF.realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
+    eval_run_prvSimReduction]
+  rw [PMF.bind_comm]
+  refine congrArg _ (funext fun ⟨query, state⟩ => ?_)
+  dsimp only
+  split_ifs
+  · have h := FreeXOR.realGame_reduction (toCircuit query.fn) fullInterpretation
+      (fun key t => CCR.atLevel hash k (key, false) t)
+      (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+      (BitString.ofList query.fn.1.n query.input)
+      (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
+      (hfree_toCircuit query.fn) BitString.add_self
+    rw [← h]
+    simp only [PRF.realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform]
+    refine congrArg _ (funext fun R => congrArg ProbComp.eval (congrArg _ (funext fun q => ?_)))
+    change pure (CCR.atLevel hash k (q.label + R, true + true) q.tweak +
+        bitOffset (R, true) q.bit) =
+      pure (CCR.atLevel hash k (q.label + R, false) q.tweak + bitOffset (R, true) q.bit)
+    rw [show (true + true : Bool) = false by decide]
+  · rw [PMF.bind_const]
+
+private theorem eval_idealExperiment_prvSimReduction {σ : Type}
+    (B : ℕ → PrvSimAdversary ValidCircuit σ) (k : ℕ) :
+    ProbComp.eval (PRF.idealExperiment ((CCR.codec k).adapt (prvSimReduction hash B k []))) =
+      (ProbComp.eval ((B k).choose ())).bind fun (query, state) =>
+        if query.input.length = query.fn.1.n ∧ 8 * query.fn.1.q ≤ 2 ^ k then
+          FreeXOR.simGame (toCircuit query.fn) fullInterpretation
+            (fun key t => CCR.atLevel hash k (key, false) t)
+            (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+            (BitString.ofList query.fn.1.n query.input)
+            (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
+        else ProbComp.eval ((B k).guess state none) := by
+  simp only [PRF.idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
+    eval_run_prvSimReduction]
+  rw [PMF.bind_comm]
+  refine congrArg _ (funext fun ⟨query, state⟩ => ?_)
+  dsimp only
+  split_ifs with hguard
+  · rw [← FreeXOR.idealGame_reduction (toCircuit query.fn) fullInterpretation
+        (fun key t => CCR.atLevel hash k (key, false) t)
+        (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+        (BitString.ofList query.fn.1.n query.input)
+        (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
+        (slotTweak_injective k query.fn hguard.2)]
+    simp only [PRF.idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform]
+    have hcomp : (fun f : CCR.Query (BitString (k + 1) × Bool) (BitString k) →
+          BitString (k + 1) × Bool =>
+        ProbComp.eval ((FreeXOR.reduction (toCircuit query.fn) fullInterpretation
+          (fun key t => CCR.atLevel hash k (key, false) t)
+          (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+          (BitString.ofList query.fn.1.n query.input)
+          (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))).run
+            fun q => pure (f (CCR.keyOnlyEmbed _ _ q)))) =
+        (fun g : CCR.Query (BitString (k + 1)) (BitString k) → BitString (k + 1) × Bool =>
+          ProbComp.eval ((FreeXOR.reduction (toCircuit query.fn) fullInterpretation
+            (fun key t => CCR.atLevel hash k (key, false) t)
+            (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+            (BitString.ofList query.fn.1.n query.input)
+            (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))).run
+              fun q => pure (g q))) ∘
+          (fun f q => f (CCR.keyOnlyEmbed _ _ q)) := by
+      funext f
+      rfl
+    rw [hcomp, ← PMF.bind_map, Probability.PMF.uniformOfFintype_pi_map_comp_embedding]
+  · rw [PMF.bind_const]
+
+/-- Library infrastructure (no cited result): **The `prv.sim` advantage against the simulator
+is the reduction's CCR advantage.** At
+parameter `k`, if every valid query that `B k` can choose has `8 q ≤ 2 ^ k`, the `prv.sim`
+advantage of `B k` against `simWord hash k`, with side information `phiXor`, equals the finite CCR
+advantage `CCR.advantage (CCR.atLevel hash k) CCR.offset CCR.offset` of `prvSimReduction hash B`
+at level `k`, read through `CCR.codec k`. -/
+theorem prvSimAdvantage_simWord_eq {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ) (k : ℕ)
+    (hq : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n → 8 * query.fn.1.q ≤ 2 ^ k) :
+    prvSimAdvantage (scheme hash) phiXor k (simWord hash k) (B k) =
+      CCR.advantage (CCR.atLevel hash k) CCR.offset CCR.offset
+        ((CCR.codec k).adapt (prvSimReduction hash B k [])) := by
+  rw [prvSimAdvantage, Experiment.advantage, eval_prvSimExperiment_false hash B k hq,
+    eval_prvSimExperiment_true hash B k _ hq, Game.advantage_comm, CCR.advantage, PRF.advantage,
+    eval_realExperiment_prvSimReduction, eval_idealExperiment_prvSimReduction]
+
+end Exact
 
 /-! ### Efficiency -/
 
@@ -622,40 +1410,18 @@ private theorem gateReqs_polyTime {γ : Type} {encIn : γ ↪ List Bool}
       encIn (encList encBits) := by
   have hcap : ComputableInPolyTime (fun x => (labels x).length + (ws x).length + 1) encIn
       encUnary := by polytime
-  have ha : ComputableInPolyTime
-      (fun x => min ((labels x).length + (ws x).length + 1) (gate x).1 - 1) encIn encUnary :=
-    ComputableInPolyTime.unary_sub' (ComputableInPolyTime.binary_min_unary' hcap hgate.fst')
-      (ComputableInPolyTime.const 1)
-  have hb : ComputableInPolyTime
-      (fun x => min ((labels x).length + (ws x).length + 1) (gate x).2.1 - 1) encIn encUnary :=
-    ComputableInPolyTime.unary_sub' (ComputableInPolyTime.binary_min_unary' hcap hgate.snd'.fst')
-      (ComputableInPolyTime.const 1)
+  have ha := ComputableInPolyTime.unary_sub'
+    (ComputableInPolyTime.binary_min_unary' hcap hgate.fst') (ComputableInPolyTime.const 1)
+  have hb := ComputableInPolyTime.unary_sub'
+    (ComputableInPolyTime.binary_min_unary' hcap hgate.snd'.fst') (ComputableInPolyTime.const 1)
   have htt := hgate.snd'.snd'
-  have hcond : ComputableInPolyTime (fun x => isXorTable (gate x).2.2) encIn encBool :=
-    isXorTable_polyTime.comp htt
-  have hr00 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 0)
-    (ComputableInPolyTime.const 0)
-  have hr01 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 0)
-    (ComputableInPolyTime.const 1)
-  have hr10 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 1)
-    (ComputableInPolyTime.const 0)
-  have hr11 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 1)
-    (ComputableInPolyTime.const 1)
-  have hr20 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 2)
-    (ComputableInPolyTime.const 0)
-  have hr21 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 2)
-    (ComputableInPolyTime.const 1)
-  have hr30 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 3)
-    (ComputableInPolyTime.const 0)
-  have hr31 := slotReq_polyTime hk hn hlabels hws hg ha hb htt (ComputableInPolyTime.const 3)
-    (ComputableInPolyTime.const 1)
+  let sr (i s : ℕ) := slotReq_polyTime hk hn hlabels hws hg ha hb htt
+    (ComputableInPolyTime.const i) (ComputableInPolyTime.const s)
   have hnil : ComputableInPolyTime (fun _ : γ => ([] : List (List Bool))) encIn
       (encList encBits) := ComputableInPolyTime.const _
-  have hlist := ComputableInPolyTime.cons' hr00 (ComputableInPolyTime.cons' hr01
-    (ComputableInPolyTime.cons' hr10 (ComputableInPolyTime.cons' hr11
-      (ComputableInPolyTime.cons' hr20 (ComputableInPolyTime.cons' hr21
-        (ComputableInPolyTime.cons' hr30 (ComputableInPolyTime.cons' hr31 hnil)))))))
-  exact ComputableInPolyTime.ite' hcond hnil hlist
+  exact ComputableInPolyTime.ite' (isXorTable_polyTime.comp htt) hnil
+    (.cons' (sr 0 0) (.cons' (sr 0 1) (.cons' (sr 1 0) (.cons' (sr 1 1)
+      (.cons' (sr 2 0) (.cons' (sr 2 1) (.cons' (sr 3 0) (.cons' (sr 3 1) hnil))))))))
 
 private theorem allReqs_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     {k n : γ → ℕ} {gates : γ → List (ℕ × ℕ × List Bool)}
@@ -673,32 +1439,12 @@ private theorem allReqs_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     (hws.comp hfst) hgate
   have hq : ComputableInPolyTime (fun x => (gates x).length) encIn encUnary :=
     (ComputableInPolyTime.length_list _).comp hgates
-  have hfm : ∀ (l : List ℕ) (f : ℕ → List (List Bool)), (l.map f).flatten = l.flatMap f :=
-    fun l f => by induction l <;> simp [*]
   have heq : (fun x => allReqs (k x) (n x) (gates x) (labels x) (ws x)) = fun x =>
       (List.range (gates x).length).flatMap fun g =>
         gateReqs (k x) (n x) g (labels x) (ws x) ((gates x).getD g (0, 0, [])) := by
-    funext x
-    exact hfm _ _
+    funext x; exact List.flatMap_def.symm
   rw [heq]
   exact ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.range.comp hq) hstep
-
-private theorem isOraclePPTOn_replyStep {γ : Type} {encIn : γ ↪ List Bool}
-    {k : γ → ℕ} {reqs : γ → List (List Bool)}
-    (hk : ComputableInPolyTime k encIn encUnary)
-    (hreqs : ComputableInPolyTime reqs encIn (encList encBits)) :
-    IsOraclePPTOn (encPair encIn (encList encBits)) (encList encBits)
-      (fun p : γ × List (List Bool) => replyStep (k p.1) (reqs p.1) p.2) := by
-  let E := encPair encIn (encList encBits)
-  have hfst := ComputableInPolyTime.fst encIn (encList encBits)
-  have hrs := ComputableInPolyTime.snd encIn (encList encBits)
-  have hidx := (ComputableInPolyTime.length_list _).comp hrs
-  have hreq : ComputableInPolyTime (fun p : γ × List (List Bool) =>
-      (reqs p.1).getD p.2.length []) E encBits :=
-    ComputableInPolyTime.listGetDWithInput (hreqs.comp hfst) hidx []
-  have hlim : ComputableInPolyTime (fun p : γ => k p + 2) encIn encUnary :=
-    ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2)
-  exact isOraclePPTOn_replyStepWord hlim hreq
 
 variable {hash : List Bool → List Bool → List Bool}
   (hf : ComputableInPolyTime (fun p : List Bool × List Bool => hash p.1 p.2)
@@ -835,50 +1581,6 @@ private theorem prvSimReqs_polyTime {γ : Type} {encIn : γ ↪ List Bool}
   have hd := circuitData_polyTime.comp hfv
   exact allReqs_polyTime hk hd.fst' hd.snd'.snd' (validSimPropWords_polyTime hk hfv hcoins) hws
 
-private theorem isOraclePPTOn_prvSimLoop_aux {γ : Type} {encIn : γ ↪ List Bool}
-    {k : γ → ℕ} {reqs : γ → List (List Bool)}
-    (hk : ComputableInPolyTime k encIn encUnary)
-    (hreqs : ComputableInPolyTime reqs encIn (encList encBits)) :
-    IsOraclePPTOn encIn (encList encBits)
-      (fun p : γ => OracleComp.iterate (reqs p).length (replyStep (k p) (reqs p)) []) := by
-  have hcount : ComputableInPolyTime (fun p => (reqs p).length) encIn encUnary :=
-    (ComputableInPolyTime.length_list _).comp hreqs
-  have hgrowth : ComputableInPolyTime (fun p => 2 * (k p + 2) + 2) encIn encUnary :=
-    ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod
-        (ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2))))
-      (ComputableInPolyTime.const 2)
-  exact IsOraclePPTOn.iterateWith_of_bounded_growth (Operation := Unit)
-    (input := encIn) (stateEncoding := encList encBits) (initial := fun _ => [])
-    (count := fun p => (reqs p).length) (step := fun p => replyStep (k p) (reqs p))
-    hcount (ComputableInPolyTime.const (encIn := encIn) []) (isOraclePPTOn_replyStep hk hreqs)
-    (growth := fun p => 2 * (k p + 2) + 2)
-    (hgrowth.polyBounded_length.mono fun p => by
-      simp only [encUnary_apply, List.length_replicate, le_refl])
-    (fun _ _ _ hnext => length_le_of_mem_support_replyStepWord hnext)
-
-private theorem isOraclePPTOn_prvSimLoop :
-    IsOraclePPTOn (encPair (encPrvChosen encValidCircuit encσ) encBits) (encList encBits)
-      (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) × List Bool =>
-        let ws := p.1.2.1.fn.1.wires p.1.2.1.input p.1.2.1.fn.1.q
-        let reqs := prvSimReqs p.1.1.1 p.1.2.1.fn.1 ws p.2
-        OracleComp.iterate reqs.length (replyStep p.1.1.1 reqs) []) := by
-  dsimp only
-  have hchosen := ComputableInPolyTime.fst (encPrvChosen encValidCircuit encσ) encBits
-  have hcoins := ComputableInPolyTime.snd (encPrvChosen encValidCircuit encσ) encBits
-  have hk : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
-      List Bool => p.1.1.1) (encPair (encPrvChosen encValidCircuit encσ) encBits) encUnary :=
-    (ComputableInPolyTime.fst _ _).fst'.comp hchosen
-  have hquery : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
-      List Bool => p.1.2.1) (encPair (encPrvChosen encValidCircuit encσ) encBits)
-      (encQuery ValidCircuit encValidCircuit) :=
-    (ComputableInPolyTime.snd _ _).fst'.comp hchosen
-  have hfn := encQuery_fn_polyTime _ _ hquery
-  have hx := encQuery_input_polyTime _ _ hquery
-  have hws := wires_polyTime.comp (hfn.prod hx)
-  have hreqs := prvSimReqs_polyTime hk hfn hws hcoins
-  exact isOraclePPTOn_prvSimLoop_aux hk hreqs
-
 include hf hB in
 private theorem isOraclePPTOn_prvSimGuess :
     IsOraclePPTOn (encPair (encPrvChosen encValidCircuit encσ) encBits) encBool
@@ -891,23 +1593,26 @@ private theorem isOraclePPTOn_prvSimGuess :
   let E := encPair (encPrvChosen encValidCircuit encσ) encBits
   have hchosen := ComputableInPolyTime.fst (encPrvChosen encValidCircuit encσ) encBits
   have hcoins := ComputableInPolyTime.snd (encPrvChosen encValidCircuit encσ) encBits
-  have hk : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
-      List Bool => p.1.1.1) E encUnary := (ComputableInPolyTime.fst _ _).fst'.comp hchosen
-  have hquery : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
-      List Bool => p.1.2.1) E (encQuery ValidCircuit encValidCircuit) :=
-    (ComputableInPolyTime.snd _ _).fst'.comp hchosen
-  have hstate : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
-      List Bool => p.1.2.2) E encσ := (ComputableInPolyTime.snd _ _).snd'.comp hchosen
+  have hk := (ComputableInPolyTime.fst _ _).fst'.comp hchosen
+  have hquery := (ComputableInPolyTime.snd _ _).fst'.comp hchosen
+  have hstate := (ComputableInPolyTime.snd _ _).snd'.comp hchosen
   have hfn := encQuery_fn_polyTime _ _ hquery
   have hx := encQuery_input_polyTime _ _ hquery
   have hws := wires_polyTime.comp (hfn.prod hx)
+  have hreqs := prvSimReqs_polyTime hk hfn hws hcoins
   have hfst := ComputableInPolyTime.fst E (encList encBits)
+  have hrs := ComputableInPolyTime.snd E (encList encBits)
+  have hloop := isOraclePPTOn_iterate_replyStepWord
+    ((ComputableInPolyTime.length_list _).comp hreqs)
+    (ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2))
+    (ComputableInPolyTime.listGetDWithInput (hreqs.comp hfst)
+      ((ComputableInPolyTime.length_list _).comp hrs) [])
   have hview := redView_polyTime hf (hk.comp hfst) (hfn.comp hfst) (hws.comp hfst)
-    (hcoins.comp hfst) (ComputableInPolyTime.snd E (encList encBits))
+    (hcoins.comp hfst) hrs
   have hprep := (hk.comp hfst).prod ((hstate.comp hfst).prod
     ((ComputableInPolyTime.optionSome encPrvView).comp hview))
-  have hstep_guess := (hB.guess.preprocess hprep).isOraclePPTOn (Operation := Unit)
-  exact (isOraclePPTOn_prvSimLoop (encσ := encσ)).bind_with hstep_guess
+  unfold replyStep
+  exact hloop.bind_with ((hB.guess.preprocess hprep).isOraclePPTOn (Operation := Unit))
 
 include hf hB in
 /-- Library infrastructure (no cited result): **Efficiency of the reduction.** For every hash

@@ -69,10 +69,9 @@ theorem Program.DecidesInTime.mem_P_of_width
     (htime : PolyBounded (fun a => (encIn a).length) (fun a => time a (width a))) :
     A ∈ Cslib.Complexity.P encIn := by
   classical
-  have hf := h.computesInTime.turingComputableInPolyTime_of_width hop hwidth hallowed hfits
-    hencode htime
-  refine ⟨fun a => decide ((if a ∈ A then 1 else 0) = 1), hf.decide_eq' (.const 1), fun a => ?_⟩
-  by_cases ha : a ∈ A <;> simp [ha]
+  exact ⟨fun a => decide ((if a ∈ A then 1 else 0) = 1),
+    (h.computesInTime.turingComputableInPolyTime_of_width hop hwidth hallowed hfits
+      hencode htime).decide_eq' (.const 1), fun a => by by_cases ha : a ∈ A <;> simp [ha]⟩
 
 /-- **A polynomial-time word-RAM decider places its problem in `P`.** The program decides `A`
 within `T (size a)` instructions at every fitting word size above `logWidth k (size a)`, the word
@@ -88,9 +87,9 @@ theorem Program.DecidesInTime.mem_P
       (fun a w => logWidth k (size a) ≤ w)) :
     A ∈ Cslib.Complexity.P encIn := by
   classical
-  have hf := h.computesInTime.turingComputableInPolyTime hop hT hsize hencode
-  refine ⟨fun a => decide ((if a ∈ A then 1 else 0) = 1), hf.decide_eq' (.const 1), fun a => ?_⟩
-  by_cases ha : a ∈ A <;> simp [ha]
+  exact ⟨fun a => decide ((if a ∈ A then 1 else 0) = 1),
+    (h.computesInTime.turingComputableInPolyTime hop hT hsize hencode).decide_eq' (.const 1),
+    fun a => by by_cases ha : a ∈ A <;> simp [ha]⟩
 
 /-- **Uniform polynomial word-RAM time is in `P`**, for a width-independent word encoding
 computable in polynomial time and a size measure polynomially bounded in the encoded input
@@ -128,24 +127,23 @@ theorem uniformPolynomialTime_of_mem_P {A : Set α} (h : A ∈ Cslib.Complexity.
     unfold simBound
     fun_prop
   obtain ⟨D, e, hD⟩ := polynomiallyBounded_iff_le.1 hS
-  refine ⟨fun n => simTime K (Fintype.card Q) (t n), ?_, D + e + 2, by omega, regs K,
-    simProgram tm.tr tm.q₀ (Fintype.equivFin Q), (fun a w hw _ => ?_),
+  refine ⟨fun n => simTime K (Fintype.card Q) (t n),
+    (PolynomiallyBounded.const _).add (ht.mul (.const _)), D + e + 2, by omega, regs K,
+    simProgram tm.tr tm.q₀ (Fintype.equivFin Q), fun a w hw _ => ?_,
     inputAdmissible_of_widthIndependent _ _⟩
-  · unfold simTime
-    exact (PolynomiallyBounded.const _).add (ht.mul (.const _))
-  · obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
-    have hb : simBound K (Fintype.card Q) (encIn a).length (t (encIn a).length) < 2 ^ w :=
-      calc _ ≤ D * ((encIn a).length + 1) ^ e := hD _
-        _ < 2 ^ logWidth (D + e) (encIn a).length := lt_two_pow_logWidth _ _ _
-        _ ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num)
-          ((logWidth_mono (by omega) le_rfl).trans hw)
-    have hw2 : 2 ≤ w := le_trans (by unfold logWidth; nlinarith) hw
-    obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
-      (by rw [hout]; simp only [encBool_apply, List.length_singleton]; omega)
-    rw [hout, encBool_apply, Cslib.BitString.lsbValue_singleton] at hex
-    refine ⟨(f a).toNat, n, hex, hn, Bool.toNat_le _, ?_⟩
-    rw [hA a]
-    cases f a <;> simp
+  obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
+  have hb : simBound K (Fintype.card Q) (encIn a).length (t (encIn a).length) < 2 ^ w :=
+    calc _ ≤ D * ((encIn a).length + 1) ^ e := hD _
+      _ < 2 ^ logWidth (D + e) (encIn a).length := lt_two_pow_logWidth _ _ _
+      _ ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num)
+        ((logWidth_mono (by omega) le_rfl).trans hw)
+  have hw2 : 2 ≤ w := le_trans (by unfold logWidth; nlinarith) hw
+  obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
+    (by simp only [hout, encBool_apply, List.length_singleton]; omega)
+  rw [hout, encBool_apply, Cslib.BitString.lsbValue_singleton] at hex
+  refine ⟨(f a).toNat, n, hex, hn, Bool.toNat_le _, ?_⟩
+  rw [hA a]
+  cases f a <;> simp
 
 /-- **`P` is uniform polynomial time on the word RAM**, over any basis `B` containing
 `Basis.additive` whose checked operations are polynomial-time: a problem is in `P` exactly when

@@ -107,13 +107,12 @@ private def selected {S : Finset (Finset (Fin n))} {K : Finset (Fin n)} (π : Pr
 do, the first vertex of a collision pair is private to its petal. -/
 theorem fst_injective {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
     (hS : (S : Set (Finset (Fin n))).Pairwise fun s t => s ∩ t ⊆ K)
-    (π : Profile S K) : Function.Injective fun s : S => (π s).1.1 := by
-  intro s t hst
+    (π : Profile S K) : Function.Injective fun s : S => (π s).1.1 := fun s t hst => by
   by_contra hne
   have hst' : (π s).1.1 = (π t).1.1 := hst
   have hs := mem_collisionPairs.1 (π s).2
-  have ht := mem_collisionPairs.1 (π t).2
-  exact hs.2.1 (hS s.2 t.2 (fun e => hne (Subtype.ext e)) (mem_inter.2 ⟨hs.1, hst' ▸ ht.1⟩))
+  exact hs.2.1 (hS s.2 t.2 (fun e => hne (Subtype.ext e))
+    (mem_inter.2 ⟨hs.1, hst' ▸ (mem_collisionPairs.1 (π t).2).1⟩))
 
 private theorem card_selected {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
     (hS : (S : Set (Finset (Fin n))).Pairwise fun s t => s ∩ t ⊆ K)
@@ -144,20 +143,15 @@ private theorem card_profileColorings_le {S : Finset (Finset (Fin n))} {K : Fins
     (hS : (S : Set (Finset (Fin n))).Pairwise fun s t => s ∩ t ⊆ K) (π : Profile S K) :
     (profileColorings r π).card ≤ r ^ (n - S.card) := by
   let O := univ \ selected π
-  let f : profileColorings r π → O → Fin r := fun c v => c.1 v.1
-  have hf : Function.Injective f := by
-    intro c d hcd
-    refine Subtype.ext (funext fun v => ?_)
-    by_cases hv : v ∈ selected π
-    · obtain ⟨s, -, rfl⟩ := mem_image.1 hv
-      have hc := (mem_filter.1 c.2).2 s
-      have hd := (mem_filter.1 d.2).2 s
-      rw [hc, hd]
-      exact congrFun hcd ⟨_, mem_sdiff.2 ⟨mem_univ _, snd_notMem_selected hS π s⟩⟩
-    · exact congrFun hcd ⟨v, mem_sdiff.2 ⟨mem_univ _, hv⟩⟩
-  have := Fintype.card_le_of_injective f hf
-  rwa [Fintype.card_coe, Fintype.card_fun, Fintype.card_fin, Fintype.card_coe,
-    card_univ_sdiff, Fintype.card_fin, card_selected hS π] at this
+  have hf : Function.Injective (fun (c : profileColorings r π) (v : O) => c.1 v.1) := fun c d hcd =>
+    Subtype.ext <| funext fun v => by
+      by_cases hv : v ∈ selected π
+      · obtain ⟨s, -, rfl⟩ := mem_image.1 hv
+        rw [(mem_filter.1 c.2).2 s, (mem_filter.1 d.2).2 s]
+        exact congrFun hcd ⟨_, mem_sdiff.2 ⟨mem_univ _, snd_notMem_selected hS π s⟩⟩
+      · exact congrFun hcd ⟨v, mem_sdiff.2 ⟨mem_univ _, hv⟩⟩
+  simpa only [O, Fintype.card_coe, Fintype.card_fun, Fintype.card_fin, card_univ_sdiff,
+    card_selected hS π] using Fintype.card_le_of_injective _ hf
 
 /-- A colouring injective on `K` but not on `s` has a collision pair in `s`. -/
 private theorem exists_collisionPair {c : Coloring n r} {K s : Finset (Fin n)}
@@ -166,8 +160,8 @@ private theorem exists_collisionPair {c : Coloring n r} {K s : Finset (Fin n)}
   simp only [Set.InjOn, not_forall] at hs
   obtain ⟨u, hu, v, hv, hc, huv⟩ := hs
   by_cases huK : u ∈ K
-  · have hvK : v ∉ K := fun hvK => huv (hK huK hvK hc)
-    exact ⟨⟨(v, u), mem_collisionPairs.2 ⟨hv, hvK, hu, Ne.symm huv⟩⟩, hc.symm⟩
+  · exact ⟨⟨(v, u), mem_collisionPairs.2 ⟨hv, fun hvK => huv (hK huK hvK hc), hu, Ne.symm huv⟩⟩,
+      hc.symm⟩
   · exact ⟨⟨(u, v), mem_collisionPairs.2 ⟨hu, huK, hv, huv⟩⟩, hc⟩
 
 /-- The colourings injective on the core of a sunflower but on none of its petals. -/
@@ -194,11 +188,10 @@ theorem card_sunflowerBad_le {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
   calc (sunflowerBad r S K).card
       ≤ ∑ π : Profile S K, (profileColorings r π).card :=
         (card_le_card hcover).trans card_biUnion_le
-    _ ≤ ∑ _π : Profile S K, r ^ (n - S.card) :=
-        sum_le_sum fun π _ => card_profileColorings_le hS π
-    _ = Fintype.card (Profile S K) * r ^ (n - S.card) := by rw [sum_const, card_univ, smul_eq_mul]
-    _ ≤ (w ^ 2) ^ S.card * r ^ (n - S.card) := Nat.mul_le_mul_right _ (card_profile_le hSw)
-    _ = pluckErrorCap n r p w := by rw [hSp, pluckErrorCap]
+    _ ≤ Fintype.card (Profile S K) * r ^ (n - S.card) :=
+        (sum_le_sum fun π _ => card_profileColorings_le hS π).trans_eq
+          (by rw [sum_const, card_univ, smul_eq_mul])
+    _ ≤ pluckErrorCap n r p w := hSp ▸ Nat.mul_le_mul_right _ (card_profile_le hSw)
 
 /-! ### Errors of plucking -/
 
@@ -215,9 +208,9 @@ and rejected by `F`. -/
 /-- One pluck makes at most `pluckErrorCap n r p w` negative errors. -/
 private theorem card_stepExceptions_le_of_pluck {F G : Finset (Finset (Fin n))} (h : Pluck p F G)
     (hF : ∀ s ∈ F, s.card ≤ w) : (stepExceptions r F G).card ≤ pluckErrorCap n r p w := by
-  obtain ⟨S, hSF, hSp, K, hSK, rfl⟩ := h
+  obtain ⟨-, S, hSF, hSp, K, hSK, rfl⟩ := h
   refine (card_le_card fun c hc => ?_).trans
-    (card_sunflowerBad_le hSp (hSK.imp fun _ _ h => h.subset) fun s hs => hF s (hSF hs))
+    (card_sunflowerBad_le hSp (hSK.2.imp fun _ _ h => h.subset) fun s hs => hF s (hSF hs))
   obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
   refine mem_filter.2 ⟨mem_univ _, ?_, fun s hs hcs =>
     hF' ⟨s, hSF hs, contains_ofColoring_iff.2 hcs⟩⟩
@@ -235,7 +228,7 @@ theorem stepExceptions_subset (r : ℕ) (F G H : Finset (Finset (Fin n))) :
   · exact mem_union_right _ (mem_stepExceptions.2 ⟨hH, hG⟩)
 
 /-- `m` plucks make at most `m` times `pluckErrorCap n r p w` negative errors. -/
-private theorem card_stepExceptions_le_of_relatesInSteps (hp : 2 ≤ p)
+private theorem card_stepExceptions_le_of_relatesInSteps
     {F G : Finset (Finset (Fin n))}
     {m : ℕ} (h : RelatesInSteps (Pluck p) F G m) (hF : ∀ s ∈ F, s.card ≤ w) :
     (stepExceptions r F G).card ≤ m * pluckErrorCap n r p w := by
@@ -247,16 +240,16 @@ private theorem card_stepExceptions_le_of_relatesInSteps (hp : 2 ≤ p)
           card_le_card (stepExceptions_subset r F G H)
       _ ≤ m * pluckErrorCap n r p w + pluckErrorCap n r p w :=
           (card_union_le _ _).trans (Nat.add_le_add ih (card_stepExceptions_le_of_pluck hGH
-            (forall_card_le_of_relatesInSteps_pluck hp hFG hF)))
+            (forall_card_le_of_relatesInSteps_pluck hFG hF)))
       _ = (m + 1) * pluckErrorCap n r p w := (Nat.succ_mul _ _).symm
 
 /-- A plucking normalisation makes at most as many errors as `pluckErrorCap n r p w` times the
 number of sets of the family. -/
-theorem card_stepExceptions_pluckNormalForm_le (hp : 2 ≤ p) {F : Finset (Finset (Fin n))}
+theorem card_stepExceptions_pluckNormalForm_le {F : Finset (Finset (Fin n))}
     (hF : ∀ s ∈ F, s.card ≤ w) :
     (stepExceptions r F (pluckNormalForm p F)).card ≤ F.card * pluckErrorCap n r p w :=
-  let ⟨_, hm, h⟩ := relatesInSteps_pluckNormalForm hp F
-  (card_stepExceptions_le_of_relatesInSteps hp h hF).trans (Nat.mul_le_mul_right _ hm)
+  let ⟨_, hm, h⟩ := relatesInSteps_pluckNormalForm (p := p) F
+  (card_stepExceptions_le_of_relatesInSteps h hF).trans (Nat.mul_le_mul_right _ hm)
 
 /-! ### The approximation scheme -/
 
@@ -273,19 +266,14 @@ theorem card_gateTerms_le (op : Op) (A : Fin (signature.Arity op) → Approximat
       errorCost n r p w op := by
   cases op with
   | const b =>
-    rw [errorCost]
-    refine (Nat.mul_le_mul_right _ ?_).trans_eq (one_mul _)
-    cases b <;> simp [gateTerms]
+    exact (Nat.mul_le_mul_right _ (by cases b <;> simp [gateTerms])).trans_eq (one_mul _)
   | or =>
-    refine Nat.mul_le_mul_right _ ((card_filter_le _ _).trans ((card_union_le _ _).trans ?_))
-    beta_reduce
-    have := (A 0).card_le
-    have := (A 1).card_le
-    omega
+    exact Nat.mul_le_mul_right _ ((card_filter_le _ _).trans ((card_union_le _ _).trans
+      ((Nat.add_le_add (A 0).card_le (A 1).card_le).trans_eq (two_mul _).symm)))
   | and =>
-    refine Nat.mul_le_mul_right _ ((card_filter_le _ _).trans (card_image_le.trans ?_))
-    rw [card_product, pow_two]
-    exact Nat.mul_le_mul (A 0).card_le (A 1).card_le
+    exact Nat.mul_le_mul_right _ ((card_filter_le _ _).trans (card_image_le.trans <|
+      (card_product _ _).trans_le <| (Nat.mul_le_mul (A 0).card_le (A 1).card_le).trans_eq
+        (pow_two _).symm))
 
 /-- The negative errors of a gate: those of plucking the sets produced at the gate. -/
 noncomputable def exceptions (r : ℕ) (op : Op) (A : Fin (signature.Arity op) → Approximator n p w) :
@@ -302,22 +290,18 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
       Monotone.interpretation op fun i => (A i).decode (ofColoring c) := by
   rw [Bool.le_iff_imp, decode_eq_true, terms_interpretation]
   intro h
-  have hG : Accepts (gateTerms w op fun i => (A i).terms) (ofColoring c) :=
+  obtain ⟨s, hs, hcs⟩ : Accepts (gateTerms w op fun i => (A i).terms) (ofColoring c) :=
     not_not.1 fun hG => hc (mem_stepExceptions.2 ⟨h, hG⟩)
-  obtain ⟨s, hs, hcs⟩ := hG
   cases op with
   | const b => cases b <;> simp_all [gateTerms]
   | or =>
     rw [interpretation_or, Bool.or_eq_true, decode_eq_true, decode_eq_true]
-    rcases mem_union.1 (mem_filter.1 hs).1 with hs | hs
-    · exact Or.inl ⟨s, hs, hcs⟩
-    · exact Or.inr ⟨s, hs, hcs⟩
+    exact (mem_union.1 (mem_filter.1 hs).1).imp (fun h => ⟨s, h, hcs⟩) (fun h => ⟨s, h, hcs⟩)
   | and =>
     rw [interpretation_and, Bool.and_eq_true, decode_eq_true, decode_eq_true]
     obtain ⟨⟨t, u⟩, htu, rfl⟩ := mem_image.1 (mem_filter.1 hs).1
-    obtain ⟨ht, hu⟩ := mem_product.1 htu
     have hj := Contains.of_join (x := ofColoring c) (s := t) (t := u) hcs
-    exact ⟨⟨t, ht, hj.1⟩, ⟨u, hu, hj.2⟩⟩
+    exact ⟨⟨t, (mem_product.1 htu).1, hj.1⟩, ⟨u, (mem_product.1 htu).2, hj.2⟩⟩
 
 /-- **Negative errors.** The approximation scheme on the complete multipartite graphs of
 colourings with `r` colours: the approximate value is at most the exact one away from the errors
@@ -333,7 +317,7 @@ noncomputable def scheme (hw : 2 ≤ w) :
   exceptions := exceptions r
   input_correct c i := by rw [decode_input hw]
   gate_correct := gate_correct
-  exceptions_card_le op A := (card_stepExceptions_pluckNormalForm_le Fact.out
+  exceptions_card_le op A := (card_stepExceptions_pluckNormalForm_le
     fun _ => card_le_of_mem_gateTerms).trans (card_gateTerms_le op A)
 
 /-! ### Approximators accept many colourings -/
@@ -345,14 +329,11 @@ noncomputable def acceptedColorings (r : ℕ) (F : Finset (Finset (Fin n))) : Fi
 /-- At most `w ^ 2 * r ^ (n - 1)` colourings are not injective on a set of at most `w`
 vertices. -/
 private theorem card_filter_not_injOn_le {s : Finset (Fin n)} (hs : s.card ≤ w) :
-    (univ.filter fun c : Coloring n r => ¬Set.InjOn c s).card ≤ w ^ 2 * r ^ (n - 1) := by
-  have hS : (({s} : Finset (Finset (Fin n))) : Set (Finset (Fin n))).Pairwise
-      fun t u => t ∩ u ⊆ ∅ := fun t ht u hu htu => by
-    rw [coe_singleton, Set.mem_singleton_iff] at ht hu
-    exact absurd (ht.trans hu.symm) htu
-  refine (card_le_card fun c hc => ?_).trans ((card_sunflowerBad_le (card_singleton s) hS
-    fun t ht => (mem_singleton.1 ht) ▸ hs).trans_eq (by simp [pluckErrorCap]))
-  exact mem_filter.2 ⟨mem_univ _, by simp, fun t ht => (mem_singleton.1 ht) ▸ (mem_filter.1 hc).2⟩
+    (univ.filter fun c : Coloring n r => ¬Set.InjOn c s).card ≤ w ^ 2 * r ^ (n - 1) :=
+  (card_le_card fun c hc => mem_filter.2 ⟨mem_univ _, coe_empty ▸ Set.injOn_empty c, fun t ht =>
+    (mem_singleton.1 ht) ▸ (mem_filter.1 hc).2⟩).trans ((card_sunflowerBad_le (K := ∅)
+      (card_singleton s) (coe_singleton s ▸ Set.pairwise_singleton _ _)
+      fun t ht => (mem_singleton.1 ht) ▸ hs).trans_eq (by rw [pluckErrorCap, pow_one]))
 
 /-- **Approximators accept many colourings.** If `r` is at least twice `w ^ 2`, every nonempty
 family of sets of at most `w` vertices accepts at least half of the colourings. -/

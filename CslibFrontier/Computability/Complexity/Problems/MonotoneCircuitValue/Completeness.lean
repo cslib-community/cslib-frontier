@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.MonotoneCircuitValue
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Completeness
 public import CslibFrontier.Computability.Circuit.Monotone.DualRail
+import CslibFrontier.Computability.Circuit.Encoding.MapOp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Doubled
 import CslibFrontier.Tactic.EncLen
 
@@ -60,7 +61,7 @@ its decider rather than by translating the given circuit directly.
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Section 6.7][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity.MonotoneCircuitValue
 
@@ -70,7 +71,7 @@ open Turing MultiTapeTM Circuits Circuits.Boolean ComputableInSpace CircuitValue
 
 /-- The operation of the gate translating a De Morgan operation positively (`b = true`) or
 negatively, read in the De Morgan basis. -/
-def dualOp (b : Bool) : Boolean.Op → Boolean.Op
+private def dualOp (b : Bool) : Boolean.Op → Boolean.Op
   | .const c => .const (if b then c else !c)
   | .not => .or
   | .and => if b then .and else .or
@@ -78,7 +79,7 @@ def dualOp (b : Bool) : Boolean.Op → Boolean.Op
 
 /-- The gate translating a De Morgan gate positively (`b = true`) or negatively
 (`Cslib.Circuits.Monotone.dualGates`), read in the De Morgan basis. -/
-def dualGateDM (b : Bool) (g : Boolean.Op × List ℕ) : Boolean.Op × List ℕ :=
+private def dualGateDM (b : Bool) (g : Boolean.Op × List ℕ) : Boolean.Op × List ℕ :=
   (dualOp b g.1, if decide (Boolean.signature.Arity g.1 = 0) then []
     else if decide (g.1 = .not) then
       [Monotone.railWire (!b) (g.2.getD 0 0), Monotone.railWire (!b) (g.2.getD 0 0)]
@@ -94,23 +95,23 @@ section
 variable {α : Type} {encIn : α ↪ List Bool} {Bs : α → ℕ}
 
 /-- Computing a rail wire `Monotone.railWire c w` preserves a space budget. -/
-private theorem railWire_inSpace (c : Bool) (hin : (fun x => (encIn x).length) ≼ Bs)
+private theorem railWire_inSpace (c : Bool)
     {w : α → ℕ} (hw : ComputableInSpace w encIn encNat Bs) :
     ComputableInSpace (fun x => Monotone.railWire c (w x)) encIn encNat Bs :=
-  (budget_natAdd (budget_natMul (budget_const (encB := encNat) 2 hin) hw)
-    (budget_const (encB := encNat) (if c then 1 else 2) hin)).of_enc_eq fun _ => rfl
+  (budget_natAdd (budget_natMul (budget_const (encB := encNat) 2) hw)
+    (budget_const (encB := encNat) (if c then 1 else 2))).of_enc_eq fun _ => rfl
 
 /-- **The translated gates within a budget**, from a gate within the budget. -/
 private theorem dualGateDM_inSpace (b : Bool) {g : α → Boolean.Op × List ℕ}
-    (hg : ComputableInSpace g encIn encGate Bs) (hin : (fun x => (encIn x).length) ≼ Bs) :
+    (hg : ComputableInSpace g encIn encGate Bs) :
     ComputableInSpace (fun x => dualGateDM b (g x)) encIn encGate Bs := by
   have hop := fst' hg
   have hargs := snd' hg
   have ha := budget_headD 0 hargs
   have hb := budget_headD 0 (budget_tail hargs)
   have hrail (c : Bool) {w : α → ℕ} (hw : ComputableInSpace w encIn encNat Bs) :=
-    railWire_inSpace c hin hw
-  have hnil := budget_const (encB := encList encNat) ([] : List ℕ) hin
+    railWire_inSpace c hw
+  have hnil := budget_const (encIn := encIn) (Bs := Bs) (encB := encList encNat) ([] : List ℕ)
   have hcons {a : α → ℕ} {L : α → List ℕ} (ha : ComputableInSpace a encIn encNat Bs)
       (hL : ComputableInSpace L encIn (encList encNat) Bs) :=
     budget_cons ha hL
@@ -137,10 +138,11 @@ variable {k : ℕ} {State : Type} [Fintype State] [DecidableEq State]
 /-- **The instance of the monotone circuit value problem** for the input `w`: the dual-rail
 translation of the tableau circuit of `tm` for `timeBound C d |w|` steps on inputs of length
 `|w|`, with the dual-rail inputs of `w`. -/
-noncomputable def dualTableauInstance (w : List Bool) :
-    Σ n, Circuit Monotone.signature n 1 × BitString n :=
-  ⟨2 * w.length + 1, Monotone.dualRail (Tableau.circuit tm w.length (timeBound C d w.length)),
-    Monotone.railBitString fun i => w[i]⟩
+@[expose] noncomputable def dualTableauInstance (w : List Bool) :
+    MonotoneCircuitValueInstance where
+  arity := 2 * w.length + 1
+  circuit := Monotone.dualRail (Tableau.circuit tm w.length (timeBound C d w.length))
+  input := Monotone.railBitString fun i => w[i]
 
 /-- The dual-rail instance is a yes-instance exactly when the tableau instance is. -/
 theorem mem_dualTableauInstance_iff (w : List Bool) :
@@ -151,14 +153,14 @@ theorem mem_dualTableauInstance_iff (w : List Bool) :
   rw [Monotone.eval_dualRail]
 
 /-- The two translated gates of gate `j` of the tableau, as the writer emits them. -/
-noncomputable def dualChunk (n j : ℕ) : List Bool :=
+private noncomputable def dualChunk (n j : ℕ) : List Bool :=
   doubled (doubled (frame
     (encGate (dualGateDM true (Tableau.gateCode tm n (timeBound C d n) j))))) ++
     doubled (doubled (frame
       (encGate (dualGateDM false (Tableau.gateCode tm n (timeBound C d n) j)))))
 
 /-- **The writer of the dual-rail instances.** -/
-noncomputable def dualSpec : WriterSpec where
+private noncomputable def dualSpec : WriterSpec where
   countUnit := List.replicate 8 true
   countEnd := [true, true, true, true, true, false]
   numChunks n := Tableau.numGates k State (timeBound C d n)
@@ -219,8 +221,6 @@ private theorem encMonotoneCircuitValue_dualTableauInstance (w : List Bool) :
 section Space
 
 variable {α : Type} {encIn : α ↪ List Bool} {Bs : α → ℕ}
-  (hin : (fun x => (encIn x).length) ≼ Bs)
-include hin
 
 private theorem dualChunkGates_inSpace {g : α → Boolean.Op × List ℕ}
     (hg : ComputableInSpace g encIn encGate Bs) :
@@ -229,7 +229,7 @@ private theorem dualChunkGates_inSpace {g : α → Boolean.Op × List ℕ}
         doubled (doubled (frame (encGate (dualGateDM false (g x)))))) encIn encBits Bs := by
   have hrail (b : Bool) := budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
     (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
-      (budget_comp_linear (ComputableInSpace.frame encGate) (dualGateDM_inSpace b hg hin)))
+      (budget_comp_linear (ComputableInSpace.frame encGate) (dualGateDM_inSpace b hg)))
   refine ((hrail true).append (hrail false)
     (g := fun x => doubled (doubled (frame (encGate (dualGateDM true (g x))))) ++
       doubled (doubled (frame (encGate (dualGateDM false (g x))))))
@@ -241,14 +241,14 @@ private theorem dualChunk_inSpace {n j : α → ℕ}
     (hn : ComputableInSpace n encIn encNat Bs)
     (hj : ComputableInSpace j encIn encNat Bs) :
     ComputableInSpace (fun x => dualChunk tm C d (n x) (j x)) encIn encBits Bs := by
-  have hg := Tableau.gateCode_inSpace tm hn (timeBound_inSpace C d hin hn) hin hj
-  exact dualChunkGates_inSpace hin hg
+  have hg := Tableau.gateCode_inSpace tm hn (timeBound_inSpace C d hn) hj
+  exact dualChunkGates_inSpace hg
 
 private theorem dualTrailer_inSpace {n : α → ℕ}
     (hn : ComputableInSpace n encIn encNat Bs) :
     ComputableInSpace (fun x => (dualSpec tm C d).trailer (n x)) encIn encBits Bs :=
-  trailerWire_inSpace hin [false, true] (railWire_inSpace true hin
-    (Tableau.outWire_inSpace (k := k) (State := State) (timeBound_inSpace C d hin hn) hin hn))
+  trailerWire_inSpace [false, true] (railWire_inSpace true
+    (Tableau.outWire_inSpace (k := k) (State := State) (timeBound_inSpace C d hn) hn))
 
 end Space
 
@@ -265,8 +265,8 @@ theorem computableInLogSpace_dualTableauInstance :
   have hi := snd' (snd' hs)
   exact (dualSpec tm C d).computableInLogSpace
     (encMonotoneCircuitValue_dualTableauInstance tm C d)
-    (numGates_inSpace (k := k) (State := State) hin (timeBound_inSpace C d hin hn))
-    (dualChunk_inSpace tm C d hin hn hi) (dualTrailer_inSpace tm C d hin hn)
+    (numGates_inSpace (k := k) (State := State) (timeBound_inSpace C d hn))
+    (dualChunk_inSpace tm C d hn hi) (dualTrailer_inSpace tm C d hn)
     (polynomiallyBounded_numGates_timeBound (k := k) (State := State) C d)
 
 end Instance

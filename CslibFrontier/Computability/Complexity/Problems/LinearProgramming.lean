@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.NP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BasicSolution
 public import Mathlib.Tactic.Matrix.ListMatrix
 import CslibFrontier.Computability.Complexity.Classes.NP.Witness
@@ -27,9 +28,10 @@ import Mathlib.Data.List.GetD
 # Rational linear-programming feasibility is in `NP ∩ coNP`
 
 `LPFeasibility` is the set of finite systems of linear inequalities `∑ j, a j * x j ≤ t` with
-integer coefficients that have a rational solution, encoded by `LPFeasibility.encSystem` as lists
-of pairs `(a, t)` with signed-binary integers. A system with rational coefficients is equivalent
-to an integer one after clearing denominators row by row.
+integer coefficients (`Cslib.Complexity.LinearInequality`) that have a rational solution, encoded
+by `LPFeasibility.encSystem` (`encList encLinearInequality`) as lists of inequalities with
+signed-binary integers. A system with rational coefficients is equivalent to an integer one after
+clearing denominators row by row.
 
 Both a solution and a proof of infeasibility have polynomial-size certificates:
 
@@ -49,6 +51,8 @@ or interior-point methods) is not formalized here.
 
 ## Main definitions
 
+* `Cslib.Complexity.LinearInequality`, `Cslib.Complexity.encLinearInequality`: integer linear
+  inequalities and their signed-binary encoding.
 * `Cslib.Complexity.LPFeasibility`, with the instance encoding
   `Cslib.Complexity.LPFeasibility.encSystem`.
 * `Cslib.Complexity.LPFeasibility.check`, `Cslib.Complexity.LPFeasibility.certCheck`: the
@@ -77,29 +81,47 @@ namespace Cslib.Complexity
 
 open Finset Matrix Turing.MultiTapeTM ComputableInPolyTime Mathlib.Tactic.Matrix
 
+/-- A linear inequality `∑ j < coeffs.length, coeffs[j] * x j ≤ bound` with integer coefficients
+and right-hand side, missing coefficients read as zero. -/
+@[ext]
+structure LinearInequality where
+  /-- The integer coefficients `a[0], …, a[m - 1]` of the variables `x 0, …, x (m - 1)`. -/
+  coeffs : List ℤ
+  /-- The integer upper bound `t` on the linear form. -/
+  bound : ℤ
+  deriving DecidableEq
+
+/-- Signed-binary encoding of `LinearInequality`: a framed signed-binary list of coefficients
+(`encList encIntBin`) followed by the signed-binary bound (`encIntBin`), preserving the exact
+encoded words of `encPair (encList encIntBin) encIntBin`. -/
+enc_structure encLinearInequality : LinearInequality where
+  coeffs : (encList encIntBin), bound : encIntBin
+
 /-- **Rational linear-programming feasibility**: the systems of linear inequalities with integer
-coefficients that have a rational solution. A constraint `(a, t)` asks for
+coefficients that have a rational solution. A constraint `⟨a, t⟩` asks for
 `∑ j < a.length, a[j] * x j ≤ t`; missing coefficients are zero. -/
-@[expose] def LPFeasibility : Set (List (List ℤ × ℤ)) :=
-  {C | ∃ x : ℕ → ℚ, ∀ c ∈ C, ∑ j ∈ range c.1.length, (c.1.getD j 0 : ℚ) * x j ≤ c.2}
+@[expose] def LPFeasibility : Set (List LinearInequality) :=
+  {C | ∃ x : ℕ → ℚ, ∀ c ∈ C,
+    ∑ j ∈ range c.coeffs.length, (c.coeffs.getD j 0 : ℚ) * x j ≤ c.bound}
 
 namespace LPFeasibility
 
-/-- The instance encoding of `LPFeasibility`: a framed list of rows, each a framed signed-binary
-list of coefficients followed by the signed-binary bound. -/
-abbrev encSystem : List (List ℤ × ℤ) ↪ List Bool :=
-  encList (encPair (encList encIntBin) encIntBin)
+/-- The instance encoding of `LPFeasibility`: a framed list of rows encoded by
+`encLinearInequality`. -/
+abbrev encSystem : List LinearInequality ↪ List Bool :=
+  encList encLinearInequality
 
 /-- The constraint matrix of `C` with `n` columns, missing coefficients read as zero. -/
-@[expose] def matrix (C : List (List ℤ × ℤ)) (n : ℕ) : Matrix (Fin C.length) (Fin n) ℤ :=
-  of fun i j => (C[i.1]).1.getD j 0
+@[expose] def matrix (C : List LinearInequality) (n : ℕ) : Matrix (Fin C.length) (Fin n) ℤ :=
+  of fun i j => C[i.1].coeffs.getD j 0
 
 /-- The right-hand side of `C`. -/
-@[expose] def rhs (C : List (List ℤ × ℤ)) : Fin C.length → ℤ := fun i => (C[i.1]).2
+@[expose] def rhs (C : List LinearInequality) : Fin C.length → ℤ := fun i => C[i.1].bound
 
 /-- **The matrix form.** When every row has at most `n` coefficients, `C` is feasible iff
 `matrix C n *ᵥ x ≤ rhs C` has a rational solution. -/
-theorem mem_iff_exists_mulVec_le {C : List (List ℤ × ℤ)} {n : ℕ} (hn : ∀ c ∈ C, c.1.length ≤ n) :
+theorem mem_iff_exists_mulVec_le {C : List LinearInequality} {n : ℕ}
+    (hn : ∀ c ∈ C, c.coeffs.length ≤ n) :
     C ∈ LPFeasibility ↔
       ∃ x : Fin n → ℚ, (matrix C n).map (Int.cast : ℤ → ℚ) *ᵥ x ≤ fun i => (rhs C i : ℚ) := by
   constructor
@@ -108,7 +130,7 @@ theorem mem_iff_exists_mulVec_le {C : List (List ℤ × ℤ)} {n : ℕ} (hn : �
     have h := hx _ (List.getElem_mem i.2)
     simp only [mulVec, dotProduct, map_apply, matrix, of_apply, rhs]
     rw [Fin.sum_eq_sum_range_of_eq_zero (hn _ (List.getElem_mem i.2))
-      (fun j => ((C[i.1].1.getD j 0 : ℤ) : ℚ) * x j)
+      (fun j => ((C[i.1].coeffs.getD j 0 : ℤ) : ℚ) * x j)
       fun j hj => by rw [List.getD_eq_default _ _ hj, Int.cast_zero, zero_mul]]
     exact h
   · rintro ⟨x, hx⟩
@@ -116,10 +138,10 @@ theorem mem_iff_exists_mulVec_le {C : List (List ℤ × ℤ)} {n : ℕ} (hn : �
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
     have h := hx ⟨i, hi⟩
     simp only [mulVec, dotProduct, map_apply, matrix, of_apply, rhs] at h
-    have h' : ∑ j : Fin n, ((C[i].1.getD j 0 : ℤ) : ℚ) *
-        (if h : (j : ℕ) < n then x ⟨j, h⟩ else 0) ≤ C[i].2 := by
+    have h' : ∑ j : Fin n, ((C[i].coeffs.getD j 0 : ℤ) : ℚ) *
+        (if h : (j : ℕ) < n then x ⟨j, h⟩ else 0) ≤ C[i].bound := by
       simpa only [Fin.is_lt, dite_true, Fin.eta] using h
-    rwa [Fin.sum_eq_sum_range_of_eq_zero (hn _ hc) (fun j => ((C[i].1.getD j 0 : ℤ) : ℚ) *
+    rwa [Fin.sum_eq_sum_range_of_eq_zero (hn _ hc) (fun j => ((C[i].coeffs.getD j 0 : ℤ) : ℚ) *
       if h : j < n then x ⟨j, h⟩ else 0)
       fun j hj => by rw [List.getD_eq_default _ _ hj, Int.cast_zero, zero_mul]] at h'
 
@@ -130,12 +152,13 @@ private theorem dotProduct_eq_sum_range {R : Type*} [CommSemiring R] (a w : List
 
 /-- The `NP` check: `d > 0` and `w / d` satisfies every constraint, as
 `∑ j < a.length, a[j] * w[j] ≤ d * t`. -/
-@[expose] def check (x : List (List ℤ × ℤ) × (ℤ × List ℤ)) : Bool :=
-  decide (0 < x.2.1) &&
-    x.1.all fun c => decide (ListMatrix.dotProduct c.1.length c.1 x.2.2 ≤ x.2.1 * c.2)
+@[expose] def check : List LinearInequality × (ℤ × List ℤ) → Bool
+  | (C, (d, w)) =>
+    decide (0 < d) &&
+      C.all fun c => decide (ListMatrix.dotProduct c.coeffs.length c.coeffs w ≤ d * c.bound)
 
 /-- **Soundness of the `NP` check.** -/
-theorem mem_of_check {C : List (List ℤ × ℤ)} {d : ℤ} {w : List ℤ}
+theorem mem_of_check {C : List LinearInequality} {d : ℤ} {w : List ℤ}
     (h : check (C, (d, w)) = true) : C ∈ LPFeasibility := by
   simp only [check, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true] at h
   obtain ⟨hd, hc⟩ := h
@@ -143,12 +166,13 @@ theorem mem_of_check {C : List (List ℤ × ℤ)} {d : ℤ} {w : List ℤ}
   refine ⟨fun j => (w.getD j 0 : ℚ) / d, fun c hcC => ?_⟩
   have h1 := hc c hcC
   rw [dotProduct_eq_sum_range] at h1
-  have key : (∑ j ∈ range c.1.length, (c.1.getD j 0 : ℚ) * ((w.getD j 0 : ℚ) / d)) * d =
-      ((∑ j ∈ range c.1.length, c.1.getD j 0 * w.getD j 0 : ℤ) : ℚ) := by
+  have key : (∑ j ∈ range c.coeffs.length, (c.coeffs.getD j 0 : ℚ) * ((w.getD j 0 : ℚ) / d)) * d =
+      ((∑ j ∈ range c.coeffs.length, c.coeffs.getD j 0 * w.getD j 0 : ℤ) : ℚ) := by
     rw [Finset.sum_mul]
     push_cast
     exact Finset.sum_congr rfl fun j _ => by rw [mul_assoc, div_mul_cancel₀ _ hdQ.ne']
-  have h3 : ((∑ j ∈ range c.1.length, c.1.getD j 0 * w.getD j 0 : ℤ) : ℚ) ≤ c.2 * d := by
+  have h3 : ((∑ j ∈ range c.coeffs.length, c.coeffs.getD j 0 * w.getD j 0 : ℤ) : ℚ) ≤
+      c.bound * d := by
     rw [mul_comm]
     exact_mod_cast h1
   exact le_of_mul_le_mul_right (key ▸ h3) hdQ
@@ -159,19 +183,14 @@ private theorem factorial_mul_pow_le {k l L B : ℕ} (hk : k ≤ 3 * L) (hl : l 
     k ! * (l * (B + 1) ^ 2 + 1) ^ k ≤ 2 ^ ((3 * L + 3) * (6 * L)) := by
   set T := 2 ^ (3 * L + 3) with hT
   have hT1 : 1 ≤ T := Nat.one_le_two_pow
-  have hkT : k ≤ T := by
-    calc k ≤ 3 * L + 3 := by omega
-      _ ≤ T := Nat.lt_two_pow_self.le
+  have hkT : k ≤ T := (by omega : k ≤ 3 * L + 3).trans Nat.lt_two_pow_self.le
   have hbase : l * (B + 1) ^ 2 + 1 ≤ T := by
     have h1 : l * (B + 1) ^ 2 + 1 ≤ (l + 1) * (B + 1) ^ 2 := by
       have : 1 ≤ (B + 1) ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos _)
       nlinarith
-    have h2 : l + 1 ≤ 2 ^ (L + 1) := by
-      calc l + 1 ≤ L + 2 := by omega
-        _ ≤ 2 ^ (L + 1) := Nat.lt_two_pow_self
-    have h3 : (B + 1) ^ 2 ≤ 2 ^ (2 * L + 2) := by
-      calc (B + 1) ^ 2 ≤ (2 ^ (L + 1)) ^ 2 := Nat.pow_le_pow_left hB 2
-        _ = 2 ^ (2 * L + 2) := by rw [← pow_mul]; ring_nf
+    have h2 : l + 1 ≤ 2 ^ (L + 1) := (by omega : l + 1 ≤ L + 2).trans Nat.lt_two_pow_self
+    have h3 : (B + 1) ^ 2 ≤ 2 ^ (2 * L + 2) :=
+      (Nat.pow_le_pow_left hB 2).trans_eq (by rw [← pow_mul]; ring_nf)
     calc l * (B + 1) ^ 2 + 1 ≤ (l + 1) * (B + 1) ^ 2 := h1
       _ ≤ 2 ^ (L + 1) * 2 ^ (2 * L + 2) := Nat.mul_le_mul h2 h3
       _ = T := by rw [hT, ← pow_add]; ring_nf
@@ -183,15 +202,15 @@ private theorem factorial_mul_pow_le {k l L B : ℕ} (hk : k ≤ 3 * L) (hl : l 
     _ = 2 ^ ((3 * L + 3) * (6 * L)) := by rw [hT, ← pow_mul]
 
 /-- Every coefficient of a system has absolute value below `2 ^ L`, `L` its encoded length. -/
-private theorem abs_le_two_pow {C : List (List ℤ × ℤ)} {c : List ℤ × ℤ} (hc : c ∈ C)
-    {z : ℤ} (hz : z ∈ c.1 ∨ z = c.2) :
+private theorem abs_le_two_pow {C : List LinearInequality} {c : LinearInequality} (hc : c ∈ C)
+    {z : ℤ} (hz : z ∈ c.coeffs ∨ z = c.bound) :
     |z| ≤ ((2 ^ (encSystem C).length : ℕ) : ℤ) := by
   have hlen :
       (encIntBin z).length ≤ (encSystem C).length := by
     refine le_trans ?_ (length_le_encList_of_mem _ hc)
     rcases hz with hz | rfl
-    · exact (length_le_encList_of_mem _ hz).trans (length_le_encPair_left _ _ c)
-    · exact length_le_encPair_right _ _ c
+    · exact (length_le_encList_of_mem _ hz).trans (encLinearInequality_coeffs_length_le c)
+    · exact encLinearInequality_bound_length_le c
   rw [length_encIntBin] at hlen
   rw [Int.abs_eq_natAbs]
   have : z.natAbs < 2 ^ z.natAbs.size := Nat.lt_size_self _
@@ -200,21 +219,22 @@ private theorem abs_le_two_pow {C : List (List ℤ × ℤ)} {c : List ℤ × ℤ
   exact_mod_cast (this.trans_le h2).le
 
 /-- Every row has at most `L` coefficients, `L` the encoded length. -/
-private theorem length_le_encLength {C : List (List ℤ × ℤ)} {c : List ℤ × ℤ} (hc : c ∈ C) :
-    c.1.length ≤ (encSystem C).length :=
+private theorem length_le_encLength {C : List LinearInequality} {c : LinearInequality}
+    (hc : c ∈ C) :
+    c.coeffs.length ≤ (encSystem C).length :=
   (length_le_length_encList _ _).trans
-    ((length_le_encPair_left _ _ c).trans (length_le_encList_of_mem _ hc))
+    ((encLinearInequality_coeffs_length_le c).trans (length_le_encList_of_mem _ hc))
 
-private theorem abs_matrix_le (C : List (List ℤ × ℤ)) (n : ℕ) (i : Fin C.length) (j : Fin n) :
+private theorem abs_matrix_le (C : List LinearInequality) (n : ℕ) (i : Fin C.length) (j : Fin n) :
     |matrix C n i j| ≤
       ((2 ^ (encSystem C).length : ℕ) : ℤ) := by
   simp only [matrix, of_apply]
-  by_cases hj : (j : ℕ) < C[i.1].1.length
+  by_cases hj : (j : ℕ) < C[i.1].coeffs.length
   · exact abs_le_two_pow (List.getElem_mem i.2) (Or.inl (List.getD_mem 0 hj))
   · rw [List.getD_eq_default _ _ (not_lt.1 hj), abs_zero]
     positivity
 
-private theorem abs_rhs_le (C : List (List ℤ × ℤ)) (i : Fin C.length) :
+private theorem abs_rhs_le (C : List LinearInequality) (i : Fin C.length) :
     |rhs C i| ≤ ((2 ^ (encSystem C).length : ℕ) : ℤ) :=
   abs_le_two_pow (List.getElem_mem i.2) (Or.inr rfl)
 
@@ -244,11 +264,11 @@ private theorem eval_witnessPoly (L : ℕ) :
 
 /-- **Small witnesses.** A feasible system has a witness accepted by `check` of polynomial
 size, by `Matrix.exists_int_mulVec_le`. -/
-private theorem exists_check_of_mem {C : List (List ℤ × ℤ)} (hC : C ∈ LPFeasibility) :
+private theorem exists_check_of_mem {C : List LinearInequality} (hC : C ∈ LPFeasibility) :
     ∃ w : ℤ × List ℤ, check (C, w) = true ∧ (encPair encIntBin (encList encIntBin) w).length ≤
       witnessPoly.eval (encSystem C).length := by
   set L := (encSystem C).length with hL
-  have hrow : ∀ c ∈ C, c.1.length ≤ L := fun c hc => length_le_encLength hc
+  have hrow : ∀ c ∈ C, c.coeffs.length ≤ L := fun c hc => length_le_encLength hc
   have hm : C.length ≤ L := length_le_length_encList _ _
   obtain ⟨x, hx⟩ := (mem_iff_exists_mulVec_le hrow).1 hC
   obtain ⟨d, p, hd, hAp, hdN, hpN⟩ :=
@@ -268,10 +288,11 @@ private theorem exists_check_of_mem {C : List (List ℤ × ℤ)} (hC : C ∈ LPF
     have h := hAp ⟨i, hi⟩
     simp only [mulVec, dotProduct, matrix, of_apply, rhs, Pi.smul_apply, smul_eq_mul] at h
     rw [dotProduct_eq_sum_range]
-    have h' : ∑ j : Fin L, C[i].1.getD (j : ℕ) 0 * (List.ofFn p).getD (j : ℕ) 0 ≤ d * C[i].2 := by
+    have h' : ∑ j : Fin L, C[i].coeffs.getD (j : ℕ) 0 * (List.ofFn p).getD (j : ℕ) 0 ≤
+        d * C[i].bound := by
       simpa only [List.getD_ofFn] using h
     rwa [Fin.sum_eq_sum_range_of_eq_zero (hrow _ hc)
-      (fun j => C[i].1.getD j 0 * (List.ofFn p).getD j 0)
+      (fun j => C[i].coeffs.getD j 0 * (List.ofFn p).getD j 0)
       fun j hj => by rw [List.getD_eq_default _ _ hj, zero_mul]] at h'
   · rw [length_encPair, eval_witnessPoly]
     dsimp only
@@ -291,7 +312,7 @@ private theorem sum_range_eq_of_vanish {M : Type*} [AddCommMonoid M] {k n : ℕ}
     Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
 
 /-- The padded dot product of `C.map f` with `q`, as a sum over the rows. -/
-private theorem dotProduct_map_eq_sum_fin (C : List (List ℤ × ℤ)) (f : List ℤ × ℤ → ℤ)
+private theorem dotProduct_map_eq_sum_fin (C : List LinearInequality) (f : LinearInequality → ℤ)
     (q : List ℤ) :
     ListMatrix.dotProduct q.length (C.map f) q = ∑ i : Fin C.length, q.getD i 0 * f C[i.1] := by
   rw [ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range_eq_sum_range]
@@ -310,14 +331,15 @@ private theorem dotProduct_map_eq_sum_fin (C : List (List ℤ × ℤ)) (f : List
 
 /-- The `coNP` check: `q ≥ 0`, every column of `∑ i, q[i] * C[i]` vanishes and
 `∑ i, q[i] * t[i] < 0`, the integer Farkas certificate of infeasibility. -/
-@[expose] def certCheck (x : List (List ℤ × ℤ) × List ℤ) : Bool :=
-  x.2.all (fun z => decide (0 ≤ z)) &&
-    (x.1.all fun c => (List.range c.1.length).all fun j =>
-      decide (ListMatrix.dotProduct x.2.length (x.1.map fun c' => c'.1.getD j 0) x.2 = 0)) &&
-    decide (ListMatrix.dotProduct x.2.length (x.1.map Prod.snd) x.2 < 0)
+@[expose] def certCheck : List LinearInequality × List ℤ → Bool
+  | (C, q) =>
+    q.all (fun z => decide (0 ≤ z)) &&
+      (C.all fun c => (List.range c.coeffs.length).all fun j =>
+        decide (ListMatrix.dotProduct q.length (C.map fun c' => c'.coeffs.getD j 0) q = 0)) &&
+      decide (ListMatrix.dotProduct q.length (C.map LinearInequality.bound) q < 0)
 
 /-- **Soundness of the `coNP` check**, by Farkas' lemma (`Matrix.not_exists_mulVec_le_iff`). -/
-theorem notMem_of_certCheck {C : List (List ℤ × ℤ)} {q : List ℤ}
+theorem notMem_of_certCheck {C : List LinearInequality} {q : List ℤ}
     (h : certCheck (C, q) = true) : C ∉ LPFeasibility := by
   simp only [certCheck, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true,
     List.mem_range] at h
@@ -335,9 +357,9 @@ theorem notMem_of_certCheck {C : List (List ℤ × ℤ)} {q : List ℤ}
     simp only [Pi.zero_apply]
     exact_mod_cast this
   · funext j
-    have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].1.getD j 0 = 0 := by
-      rw [← dotProduct_map_eq_sum_fin C (fun c => c.1.getD j 0) q]
-      by_cases hj : ∃ c ∈ C, (j : ℕ) < c.1.length
+    have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].coeffs.getD j 0 = 0 := by
+      rw [← dotProduct_map_eq_sum_fin C (fun c => c.coeffs.getD j 0) q]
+      by_cases hj : ∃ c ∈ C, (j : ℕ) < c.coeffs.length
       · obtain ⟨c, hc, hjc⟩ := hj
         exact hcol c hc j hjc
       · push Not at hj
@@ -349,19 +371,18 @@ theorem notMem_of_certCheck {C : List (List ℤ × ℤ)} {q : List ℤ}
         · rw [List.getD_eq_default _ _ (by simpa using not_lt.1 hk), zero_mul]
     simp only [vecMul, dotProduct, map_apply, matrix, of_apply, Pi.zero_apply]
     exact_mod_cast hz
-  · have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].2 < 0 := by
-      rw [← dotProduct_map_eq_sum_fin C Prod.snd q]
-      exact hrhs
+  · have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].bound < 0 := by
+      rw [← dotProduct_map_eq_sum_fin C LinearInequality.bound q]; exact hrhs
     simp only [dotProduct, rhs]
     exact_mod_cast hz
 
 /-- **Small certificates.** An infeasible system has a certificate accepted by `certCheck` of
 polynomial size, by `Matrix.exists_int_farkas_certificate`. -/
-private theorem exists_certCheck_of_notMem {C : List (List ℤ × ℤ)} (hC : C ∉ LPFeasibility) :
+private theorem exists_certCheck_of_notMem {C : List LinearInequality} (hC : C ∉ LPFeasibility) :
     ∃ q : List ℤ, certCheck (C, q) = true ∧ (encList encIntBin q).length ≤
       witnessPoly.eval (encSystem C).length := by
   set L := (encSystem C).length with hL
-  have hrow : ∀ c ∈ C, c.1.length ≤ L := fun c hc => length_le_encLength hc
+  have hrow : ∀ c ∈ C, c.coeffs.length ≤ L := fun c hc => length_le_encLength hc
   have hm : C.length ≤ L := length_le_length_encList _ _
   have hno : ¬∃ x : Fin L → ℚ, (matrix C L).map (Int.cast : ℤ → ℚ) *ᵥ x ≤
       fun i => (rhs C i : ℚ) := fun h => hC ((mem_iff_exists_mulVec_le hrow).2 h)
@@ -408,14 +429,25 @@ attribute [local fun_prop] listDotProduct_polyTime
 
 /-- The `NP` check is polynomial-time. -/
 theorem computableInPolyTime_check : ComputableInPolyTime check
-    (encPair (encSystem)
-      (encPair encIntBin (encList encIntBin))) encBool := by
-  fun_prop [check]
+    (encPair encSystem (encPair encIntBin (encList encIntBin))) encBool := by
+  have h : check = fun x => decide (0 < x.2.1) &&
+      x.1.all fun c =>
+        decide (ListMatrix.dotProduct c.coeffs.length c.coeffs x.2.2 ≤ x.2.1 * c.bound) :=
+    rfl
+  rw [h]
+  fun_prop
 
 /-- The `coNP` check is polynomial-time. -/
 theorem computableInPolyTime_certCheck : ComputableInPolyTime certCheck
-    (encPair (encSystem) (encList encIntBin)) encBool := by
-  unfold certCheck
+    (encPair encSystem (encList encIntBin)) encBool := by
+  have h : certCheck = fun x =>
+      x.2.all (fun z => decide (0 ≤ z)) &&
+        (x.1.all fun c => (List.range c.coeffs.length).all fun j =>
+          decide (ListMatrix.dotProduct x.2.length (x.1.map fun c' => c'.coeffs.getD j 0) x.2 =
+            0)) &&
+        decide (ListMatrix.dotProduct x.2.length (x.1.map LinearInequality.bound) x.2 < 0) :=
+    rfl
+  rw [h]
   apply bool_and' (bool_and' ?_ ?_) (by fun_prop)
   · apply allWithInput (by fun_prop)
     fun_prop
@@ -424,21 +456,19 @@ theorem computableInPolyTime_certCheck : ComputableInPolyTime certCheck
     fun_prop
 
 /-- **Rational LP feasibility is in `NP`.** -/
-theorem mem_NP : LPFeasibility ∈ NP (encSystem) :=
+theorem mem_NP : LPFeasibility ∈ NP encSystem :=
   mem_NP_of_check (.pair .intBin (.list .intBin)) computableInPolyTime_check
     (fun _ _ h => mem_of_check h) fun _ hC => exists_check_of_mem hC
 
 /-- **Rational LP feasibility is in `coNP`.** -/
-theorem mem_coNP : LPFeasibility ∈ coNP (encSystem) :=
+theorem mem_coNP : LPFeasibility ∈ coNP encSystem :=
   mem_NP_of_check (.list .intBin) computableInPolyTime_certCheck
     (fun _ _ h => notMem_of_certCheck h) fun _ hC => exists_certCheck_of_notMem hC
 
 /-- **Rational LP feasibility is in `NP ∩ coNP`** [Schrijver1986, Section 10.1]. -/
-theorem mem_NP_inter_coNP : LPFeasibility ∈ NP (encSystem) ∩
-    coNP (encSystem) :=
+theorem mem_NP_inter_coNP : LPFeasibility ∈ NP encSystem ∩ coNP encSystem :=
   ⟨mem_NP, mem_coNP⟩
 
 end LPFeasibility
-
 
 end Cslib.Complexity

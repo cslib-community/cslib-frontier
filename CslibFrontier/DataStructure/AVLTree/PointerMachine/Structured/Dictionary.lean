@@ -78,10 +78,8 @@ private theorem storeData_effect {extra regs : ℕ} (x : State M (layout extra r
   have heap : ((Op.storeData field base src).effect x).heap = x.heap.modify a fun n =>
       { n with data := Function.update n.data field (x.data src) } := by
     simp [Op.effect, Op.instr, Instr.effect, State.modify, cursor]
-  refine ⟨heap ▸ rep.updateData a field (x.data src), ?_, ?_, ?_⟩
-  · simp [Op.effect, Op.instr, Instr.effect]
-  · simp [Op.effect, Op.instr, Instr.effect]
-  · rw [heap, List.length_modify]
+  refine ⟨heap ▸ rep.updateData a field (x.data src), ?_, ?_, by rw [heap, List.length_modify]⟩
+  all_goals simp [Op.effect, Op.instr, Instr.effect]
 
 /-- A complete dictionary read follows the AVL search path and returns the represented value.
 It preserves the heap, root, query, and every client scalar register. -/
@@ -118,9 +116,7 @@ theorem read_correct [LinearOrder M.Value] (zero : M.Op) (lt : M.Test)
       simp [State.deref, hp, stored.absent ordered missing]
     | some address =>
       obtain ⟨path, label, node, get, -, lookup, fields, key⟩ := result.key address hp
-      have labelKey : label.data 0 = s.data 0 := by
-        rw [← fields]
-        exact key
+      have labelKey : label.data 0 = s.data 0 := fields ▸ key
       simp [State.deref, hp, lookup, fields, stored.value path label get, labelKey]
   obtain ⟨t, run, value⟩ := main
   exact ⟨t, run, run.heap_eq (by pm_frame), run.ptr_keep [0, 5] (by pm_frame) (by simp), value,
@@ -142,13 +138,9 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
     ∃ t result, ExecWithin (write zero maxSucc lt heavy le) s t (112 * avl.cachedHeight + 35) ∧
       WriteResult encode s t result avl memory := by
   have h01 : (0 : Fin (regs + 4)) ≠ 1 := by simp
-  have h02 : (0 : Fin (regs + 4)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < regs + 4)]
-  have h31 : (3 : Fin (regs + 4)) ≠ 1 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 3 < regs + 4)]
-  have h32 : (3 : Fin (regs + 4)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 3 < regs + 4),
-      Nat.mod_eq_of_lt (by omega : 2 < regs + 4)]
+  have h02 : (0 : Fin (regs + 4)) ≠ 2 := by simp (disch := omega) [Fin.ext_iff, Nat.mod_eq_of_lt]
+  have h31 : (3 : Fin (regs + 4)) ≠ 1 := by simp (disch := omega) [Fin.ext_iff, Nat.mod_eq_of_lt]
+  have h32 : (3 : Fin (regs + 4)) ≠ 2 := by simp (disch := omega) [Fin.ext_iff, Nat.mod_eq_of_lt]
   let start : State M (layout 2 (regs + 2)) := s.setPtr 0 (s.ptr 1)
   obtain ⟨a, newTree, ea, _, ra⟩ := PointerMachine.Structured.insert_correct
     zero maxSucc lt heavy le encode zero_spec max_spec compare heavy_spec le_spec 1 (by decide)
@@ -160,16 +152,14 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
   obtain ⟨b, eb, rb⟩ :=
     SearchTree.PointerMachine.Structured.search_correct lt compare seekStart newTree none ra.rep
     (by simp [seekStart, State.setPtr, ra.root])
-  have eb' : ExecWithin (SearchTree.PointerMachine.Structured.search lt) seekStart b
-      (7 * SearchTree.searchVisits (a.data 0) (keys newTree) + 3) := eb
   have present : SearchTree.contains (a.data 0) (keys newTree) = true := by
     rw [ra.matched.keys, query]
     exact (SearchTree.contains_eq_true (valid_insert valid (s.data 0)).ordered _).mpr
       (by change s.data 0 ∈ (AVLTree.insert (s.data 0) avl).elements; simp [elements_insert])
-  have someCursor : (b.ptr 0).isSome = true := by simpa [seekStart] using rb.found.trans present
-  obtain ⟨address, cursor⟩ := Option.isSome_iff_exists.mp someCursor
+  obtain ⟨address, cursor⟩ :=
+    Option.isSome_iff_exists.mp (by simpa [seekStart] using rb.found.trans present)
   obtain ⟨path, label, node, get, labelAddress, lookup, fields, key⟩ := rb.key address cursor
-  have labelKey : label.data 0 = s.data 0 := by rw [← fields]; exact key.trans query
+  have labelKey : label.data 0 = s.data 0 := (congrFun fields 0).symm.trans (key.trans query)
   have bPayload : b.data 3 = s.data 3 := (rb.data 3 h31).trans payload
   have bRep : Represents b.heap none newTree := by
     simpa only [rb.heap, seekStart, State.setPtr, Nat.add_assoc] using ra.rep
@@ -180,15 +170,14 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
   have resultMatches : Matches encode 1 result (AVLTree.insert (s.data 0) avl) :=
     matches_updatePayload ra.matched _ _
   have newStored : Stores (encode 0) result (Function.update memory (s.data 0) (s.data 3)) := by
-    dsimp only [result]
-    rw [← labelAddress]
-    exact stores_insert_updatePayload (s := start) rep matched valid stored ra path label get
-      labelKey (s.data 3)
+    simpa only [result, labelAddress, start, State.setPtr] using
+      stores_insert_updatePayload (s := start) rep matched valid stored ra path label get
+        labelKey (s.data 3)
   have run : ExecWithin (write zero maxSucc lt heavy le) s c
       (1 + (105 * avl.cachedHeight + 2 + 20 +
         (1 + (7 * SearchTree.searchVisits (a.data 0) (keys newTree) + 3 + 1)))) :=
     ExecWithin.seq (ExecWithin.op_eq rfl) (ExecWithin.seq ea
-      (ExecWithin.seq (ExecWithin.op_eq rfl) (ExecWithin.seq eb' ExecWithin.op)))
+      (ExecWithin.seq (ExecWithin.op_eq rfl) (ExecWithin.seq eb ExecWithin.op)))
   have visits : SearchTree.searchVisits (a.data 0) (keys newTree) ≤ avl.cachedHeight + 1 := by
     rw [ra.matched.keys]
     exact (searchVisits_le_cachedHeight (valid_insert valid (s.data 0)).heightConsistent _).trans
@@ -197,11 +186,8 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
     ⟨resultRep, resultMatches, ra.distinct.updateData _ _ _, newStored, ?_, ?_, ?_⟩⟩
   · rw [ptrC, rb.ptr 1 (by simp [layout]) (by simp [layout])]
     simpa [result, seekStart, State.setPtr, root_updateData] using ra.root
-  · have length : c.heap.length = a.heap.length :=
-      sizeC.trans (congrArg List.length rb.heap)
-    simpa only [length, start, State.setPtr] using ra.space
-  · intro i h1 h2
-    rw [dataC]
-    exact (rb.data i h1).trans (ra.data i h1 h2)
+  · simpa only [c, sizeC.trans (congrArg List.length rb.heap), start, seekStart, State.setPtr] using
+      ra.space
+  · exact fun i h1 h2 => (congrFun dataC i).trans ((rb.data i h1).trans (ra.data i h1 h2))
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Dictionary.Structured

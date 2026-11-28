@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.Protocol
-public import CslibFrontier.Probability.Minimax
+public import CslibFrontier.Computability.RandomizedCost
 public import Cslib.Foundations.Data.BitString
 public import Cslib.Probability.PMF
 public import Mathlib.Basic.Real.Basic
@@ -22,9 +22,10 @@ import CslibFrontier.Probability.PMF
 
 In a *public-coin* protocol the players share random bits, which they use to draw a deterministic
 protocol from a distribution and run it; so a public-coin protocol is a distribution over
-deterministic protocols (`PublicCoin`). In a *private-coin* protocol Alice and Bob hold separate
-uniformly random bit strings of `a` and `b` bits, and a deterministic protocol computes the bits
-sent from each player's input and random bits (`PrivateCoin`)
+deterministic protocols (`PublicCoin`), instantiating `Cslib.RandomizedCost`
+(`Protocol.randomizedCost`). In a *private-coin* protocol Alice and Bob hold separate uniformly
+random bit strings of `a` and `b` bits, and a deterministic protocol computes the bits sent from
+each player's input and random bits (`PrivateCoin`)
 [Kushilevitz and Nisan, Chapter 3][KushilevitzNisan1997].
 
 A randomized protocol solves a relation `R` on `A × B` with error `ε` when, on every pair of inputs
@@ -43,12 +44,14 @@ random bits from public coins (`PrivateCoin.toPublicCoin`,
 If a public-coin protocol has error at most `ε` on every pair of inputs from `A × B`, then for every
 distribution `ν` on `A × B` some protocol it can draw has error at most `ε` on inputs drawn from `ν`
 (`PublicCoin.Solves.exists_distributionalError_le`). This averaging argument
-(`Probability.PMF.exists_mem_support_toOuterMeasure_le`) is the easy direction of Yao's principle
+(`RandomizedCost.Solves.exists_distributionalError_le`) is the easy direction of Yao's principle
 [Yao1977], and turns lower bounds on deterministic protocols over a distribution into lower bounds
 on randomized ones.
 
 ## Main definitions
 
+* `Cslib.Communication.Protocol.randomizedCost`: deterministic protocols as a
+  `Cslib.RandomizedCost` model on `X × Y`.
 * `Cslib.Communication.PublicCoin`: public-coin protocols, as distributions over deterministic
   protocols, with `PublicCoin.depth`, `PublicCoin.errorProb`, `PublicCoin.Solves` and
   `PublicCoin.ecomplexity`.
@@ -84,6 +87,13 @@ variable {X Y Z : Type*}
 use shared random bits to draw a deterministic protocol from this distribution, and run it. -/
 abbrev PublicCoin (X Y Z : Type*) : Type _ :=
   PMF (Protocol X Y Z)
+
+/-- Deterministic two-party protocols as a `RandomizedCost` model on `X × Y` with evaluation
+`fun p q => p.run q.1 q.2` and worst-case cost `Protocol.depth`. -/
+def Protocol.randomizedCost (X Y Z : Type*) :
+    RandomizedCost (Protocol X Y Z) (X × Y) Z where
+  eval p q := p.run q.1 q.2
+  cost := Protocol.depth
 
 /-- The error of a deterministic protocol on inputs drawn from `ν`: the probability that its output
 on a pair of inputs drawn from `ν` is not related to them by `R`. -/
@@ -121,6 +131,13 @@ noncomputable def ecomplexityFun (ε : ℝ) (f : X → Y → Z) : ℕ∞ :=
 variable {μ : PublicCoin X Y Z} {p : Protocol X Y Z} {R : X → Y → Z → Prop} {A A' : Set X}
   {B B' : Set Y} {ε ε' : ℝ} {x : X} {y : Y}
 
+/-- Curried two-party `Solves` on `A` and `B` is equivalent to `RandomizedCost.Solves` on `A ×ˢ B`.
+-/
+theorem solves_iff_randomizedCost :
+    μ.Solves ε R A B ↔
+      (Protocol.randomizedCost X Y Z).Solves μ ε (fun q z => R q.1 q.2 z) (A ×ˢ B) :=
+  ⟨fun h ⟨x, y⟩ ⟨hx, hy⟩ => h x hx y hy, fun h x hx y hy => h (x, y) ⟨hx, hy⟩⟩
+
 theorem depth_le_iff {c : ℕ∞} : μ.depth ≤ c ↔ ∀ p ∈ μ.support, (p.depth : ℕ∞) ≤ c :=
   PMF.maxCost_le_iff
 
@@ -131,27 +148,27 @@ theorem depth_le_depth (hp : p ∈ μ.support) : (p.depth : ℕ∞) ≤ μ.depth
   PMF.maxCost_pure Protocol.depth p
 
 theorem errorProb_nonneg : 0 ≤ μ.errorProb R x y :=
-  PMF.errorProb_nonneg
+  RandomizedCost.errorProb_nonneg (C := Protocol.randomizedCost X Y Z) (x := (x, y))
 
 theorem errorProb_le_one : μ.errorProb R x y ≤ 1 :=
-  PMF.errorProb_le_one
+  RandomizedCost.errorProb_le_one (C := Protocol.randomizedCost X Y Z) (x := (x, y))
 
 open Classical in
 theorem errorProb_pure (p : Protocol X Y Z) (R : X → Y → Z → Prop) (x : X) (y : Y) :
     errorProb (PMF.pure p) R x y = if R x y (p.run x y) then 0 else 1 :=
-  PMF.errorProb_pure (fun (p : Protocol X Y Z) (q : X × Y) => R q.1 q.2 (p.run q.1 q.2)) p (x, y)
+  (Protocol.randomizedCost X Y Z).errorProb_pure p (fun q z => R q.1 q.2 z) (x, y)
 
 theorem Solves.mono (h : μ.Solves ε R A B) (hε : ε ≤ ε') (hA : A' ⊆ A) (hB : B' ⊆ B) :
     μ.Solves ε' R A' B' :=
-  fun x hx y hy => (h x (hA hx) y (hB hy)).trans hε
+  solves_iff_randomizedCost.mpr <|
+    (solves_iff_randomizedCost.mp h).mono hε (Set.prod_mono hA hB)
 
 /-- A deterministic protocol solving `R` is a public-coin protocol solving it with any
 nonnegative error. -/
 theorem solves_pure (hp : p.Solves R A B) (hε : 0 ≤ ε) :
     Solves (PMF.pure p) ε R A B :=
-  fun x hx y hy =>
-    PMF.errorProb_pure_le (fun (p : Protocol X Y Z) (q : X × Y) => R q.1 q.2 (p.run q.1 q.2))
-      (hp x hx y hy) hε
+  solves_iff_randomizedCost.mpr <|
+    RandomizedCost.solves_pure (fun ⟨x, y⟩ ⟨hx, hy⟩ => hp x hx y hy) hε
 
 /-- **The averaging argument**, the easy direction of Yao's principle: if `μ` solves `R` on
 `A × B` with error `ε`, then for every distribution `ν` on `A × B` some protocol that `μ` can draw
@@ -159,7 +176,7 @@ errs with probability at most `ε` on inputs drawn from `ν`. -/
 theorem Solves.exists_distributionalError_le (h : μ.Solves ε R A B) (ν : PMF (X × Y))
     (hν : ∀ q ∈ ν.support, q.1 ∈ A ∧ q.2 ∈ B) :
     ∃ p ∈ μ.support, p.distributionalError ν R ≤ ε :=
-  PMF.exists_errorProb_le ν fun q hq => h _ (hν q hq).1 _ (hν q hq).2
+  (solves_iff_randomizedCost.mp h).exists_distributionalError_le ν hν
 
 theorem ecomplexity_le_depth (h : μ.Solves ε R A B) : ecomplexity ε R A B ≤ μ.depth :=
   ENat.iInf_subtype_le h
@@ -172,20 +189,35 @@ theorem ecomplexity_le_iff {k : ℕ} :
     ecomplexity ε R A B ≤ k ↔ ∃ μ : PublicCoin X Y Z, μ.Solves ε R A B ∧ μ.depth ≤ k :=
   ENat.iInf_subtype_le_natCast_iff
 
+/-- Two-party `ecomplexity` agrees with `RandomizedCost.ecomplexity` on `A ×ˢ B`. -/
+theorem ecomplexity_eq_randomizedCost (ε : ℝ) (R : X → Y → Z → Prop) (A : Set X) (B : Set Y) :
+    ecomplexity ε R A B =
+      (Protocol.randomizedCost X Y Z).ecomplexity ε (fun q z => R q.1 q.2 z) (A ×ˢ B) :=
+  le_antisymm
+    (RandomizedCost.le_ecomplexity_iff.mpr fun _ hμ =>
+      ecomplexity_le_depth (solves_iff_randomizedCost.mpr hμ))
+    (le_ecomplexity_iff.mpr fun _ hμ =>
+      RandomizedCost.ecomplexity_le_maxCost (solves_iff_randomizedCost.mp hμ))
+
 /-- Allowing more error makes a relation easier. -/
-theorem ecomplexity_anti (hε : ε ≤ ε') : ecomplexity ε' R A B ≤ ecomplexity ε R A B :=
-  ENat.iInf_subtype_mono fun _ hμ => hμ.mono hε subset_rfl subset_rfl
+theorem ecomplexity_anti (hε : ε ≤ ε') : ecomplexity ε' R A B ≤ ecomplexity ε R A B := by
+  simpa only [ecomplexity_eq_randomizedCost] using RandomizedCost.ecomplexity_anti hε
 
 /-- Solving a relation on larger sets is harder. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
-    ecomplexity ε R A' B' ≤ ecomplexity ε R A B :=
-  ENat.iInf_subtype_mono fun _ hμ => hμ.mono le_rfl hA hB
+    ecomplexity ε R A' B' ≤ ecomplexity ε R A B := by
+  simpa only [ecomplexity_eq_randomizedCost] using
+    RandomizedCost.ecomplexity_mono (Set.prod_mono hA hB)
 
 /-- Public-coin protocols with nonnegative error are at least as good as deterministic ones. -/
 theorem ecomplexity_le_protocol (hε : 0 ≤ ε) :
-    ecomplexity ε R A B ≤ Protocol.ecomplexity R A B :=
-  ENat.iInf_subtype_le_iInf_subtype PMF.pure (fun _ hp => solves_pure hp hε)
-    fun p _ => (depth_pure p).le
+    ecomplexity ε R A B ≤ Protocol.ecomplexity R A B := by
+  rw [ecomplexity_eq_randomizedCost]
+  refine (RandomizedCost.ecomplexity_le_detComplexity hε).trans ?_
+  refine le_iInf fun p => ENat.iInf_subtype_natCast_le
+    (P := fun p' => (Protocol.randomizedCost X Y Z).DetSolves p' (fun q z => R q.1 q.2 z) (A ×ˢ B))
+    (d := Protocol.depth) ?_
+  exact fun ⟨x, y⟩ ⟨hx, hy⟩ => p.2 x hx y hy
 
 theorem ecomplexityFun_le_protocol {f : X → Y → Z} (hε : 0 ≤ ε) :
     ecomplexityFun ε f ≤ Protocol.ecomplexityFun f :=
@@ -194,13 +226,14 @@ theorem ecomplexityFun_le_protocol {f : X → Y → Z} (hε : 0 ≤ ε) :
 /-- Precomposing the inputs does not make a function harder: the players apply `a` and `b` to
 their inputs and run a protocol for `f`. -/
 theorem ecomplexityFun_comap_le {X' Y' : Type*} (f : X → Y → Z) (a : X' → X) (b : Y' → Y) :
-    ecomplexityFun ε (fun x y => f (a x) (b y)) ≤ ecomplexityFun ε f :=
-  ENat.iInf_subtype_le_iInf_subtype (PMF.map (Protocol.comap a b))
-    (fun μ hμ x _ y _ => by
-      simpa [errorProb, PMF.errorProb_map, PMF.errorProb] using hμ (a x) trivial (b y) trivial)
-    fun μ _ =>
-      PMF.maxCost_map_le Protocol.depth Protocol.depth _ μ fun p _ =>
-        (Protocol.depth_comap a b p).le
+    ecomplexityFun ε (fun x y => f (a x) (b y)) ≤ ecomplexityFun ε f := by
+  have h := RandomizedCost.ecomplexity_comap_le
+    (C := Protocol.randomizedCost X' Y' Z) (C' := Protocol.randomizedCost X Y Z)
+    (S := fun q z => f q.1 q.2 = z) (A := Set.univ ×ˢ Set.univ) (B := Set.univ ×ˢ Set.univ)
+    (ε := ε) (Protocol.comap a b) (fun q => (a q.1, b q.2))
+    (fun p q => Protocol.run_comap a b p q.1 q.2) (fun p => (Protocol.depth_comap a b p).le)
+    (fun _ _ => ⟨trivial, trivial⟩)
+  simpa only [ecomplexityFun, ecomplexity_eq_randomizedCost] using h
 
 end PublicCoin
 

@@ -18,14 +18,15 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Oracle.Lens
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
-import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.GameHop
@@ -87,9 +88,10 @@ and Theorem 5.2, printed pp. 183–189) that witnesses joint non-vacuity of all 
    and Theorem 5.2, printed pp. 183–189): for any `PseudorandomFunction family`, `prfCipher`
    encrypts an `n`-bit message `msg` under an `n`-bit key `k` by sampling a random nonce
    `r ← BitString.sampleList n` and outputting the `2 * n`-bit ciphertext
-   `r ++ List.zipWith xor (family k r) msg`. Using `ProbOracleComp.identicalUntilBad_withBadFlag`
+   `r ++ List.zipWith xor (family k r) msg`. Using `StateLens.probIdenticalUntilBad_latch`
    between the lazy random-function game (Boneh–Shoup Game 2, "faithful gnome") and the fresh
-   one-time-pad game (Boneh–Shoup Game 3, "forgetful gnome"), we prove the quantitative CPA bound
+   one-time-pad game (Boneh–Shoup Game 3, "forgetful gnome") together with
+   `StateLens.toOuterMeasure_latch_le`, we prove the quantitative CPA bound
    of Theorem 5.2 and derive `PseudorandomFunction.indcpa_prfCipher`. Combining `prfCipher` with
    `(prfMAC family hprf.polyTime).reindex (fun n => 2 * n) _` produces `prfEncryptThenMAC`, which
    satisfies `AuthenticatedEncryption` and `INDCCA` assuming only `PseudorandomFunction family`.
@@ -586,15 +588,14 @@ theorem eval_sufCmaGame_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
       rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
       by_cases hlenEq : (msg.length == n) = true
       · simp only [hlenEq, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          PMF.bind_map, Function.comp_def, PMF.map_bind, ProbComp.eval_bind,
-          ProbComp.eval_pure, PMF.bind_bind]
+          pmf_norm]
         apply PMF.bind_congr_on_support
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           MACScheme.signingPairOracle, MACScheme.signingPairOracleOn, hcLen, beq_self_eq_true,
           ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
-        simp only [PMF.map_bind, PMF.pure_map, PMF.pure_bind, Prod.map_apply, id_eq]
+        simp only [Prod.map_apply, id_eq, pmf_norm]
         apply PMF.bind_congr_on_support
         intro tag htag
         rw [List.take_of_length_le (htagBound km hkm c hcLen tag htag)]
@@ -768,10 +769,9 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
         let km ← M.keyGen n
         return encPair encBits encBits (ke, km)) := rfl
   simp only [MACScheme.sufOneTimeGame, SymmetricCipher.ciOneTimeGame, etmToOneTimeMACForger,
-    hkeyGen, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def, Prod.map_fst, Prod.map_snd,
-    id_eq]
+    hkeyGen, ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, Prod.map_fst, Prod.map_snd, id_eq,
+    pmf_norm]
   rw [PMF.bind_comm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km hkm => ?_
@@ -790,14 +790,13 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
           Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
       by_cases hlen : (msg.length == n) = true
       · simp only [hlen, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          Probability.PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, PMF.map_bind]
+          pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun c hc => ?_
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlen) c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           MACScheme.oneTimeSigningPairOracle, MACScheme.signingPairOracleOn, hcLen,
-          beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte, ProbComp.eval_bind,
-          ProbComp.eval_pure, Probability.PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map,
-          Prod.map_apply, id_eq]
+          beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte, Prod.map_apply, id_eq,
+          pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
         rw [List.take_of_length_le (htagBound km hkm c hcLen tag htag)]
         rfl
@@ -1087,9 +1086,8 @@ theorem eval_cpaOneTimeGame_etmToOneTimeCPAAdversary (E : SymmetricCipher) (M : 
         let km ← M.keyGen n
         return encPair encBits encBits (ke, km)) := rfl
   simp only [SymmetricCipher.cpaOneTimeGame, etmToOneTimeCPAAdversary, hkeyGen,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km _ => ?_
   have hsim := ProbOracleComp.runWith_run_interpret_map
@@ -1109,9 +1107,8 @@ theorem eval_cpaOneTimeGame_etmToOneTimeCPAAdversary (E : SymmetricCipher) (M : 
         (!alreadyQueried && ((unframe payload).length == n) &&
           ((dropFrame payload).length == n)) = true
     · simp only [hcond, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-        ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, ProbComp.eval_bind,
-        ProbComp.eval_pure, PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.pure_map,
-        PMF.pure_bind, PMF.bind_bind, Prod.map_apply, id_eq]
+        ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, Prod.map_apply, id_eq,
+        pmf_norm]
       simp only [Bool.and_eq_true, beq_iff_eq] at hcond
       have hmbLen : (if bit then dropFrame payload else unframe payload).length = n := by
         cases bit <;> simp [hcond.1.2, hcond.2]
@@ -1509,37 +1506,62 @@ theorem eval_prfRealGame_cpaToPrfDistinguisher (family : List Bool → List Bool
     simp [prfOracle, hrLen, List.take_of_length_le hpadLen.le]
   · simp [hlenEq, runWith_norm, pmf_norm]
 
+/-- Named state record for the `prfCipher` CPA collision hop ([BonehShoup2023], Section 5.4.1,
+Theorem 5.2, Games 2 and 3), pairing the random-function `cache` with the sticky nonce-collision
+flag `bad`. -/
+private structure PRFCipherBadState where
+  cache : List (List Bool × List Bool)
+  bad : Bool
+
+private def PRFCipherBadState.cacheLens :
+    StateLens PRFCipherBadState (List (List Bool × List Bool)) where
+  get s := s.cache
+  set s c := { s with cache := c }
+  get_set _ _ := rfl
+  set_get _ := rfl
+  set_set _ _ _ := rfl
+
+private def PRFCipherBadState.badLens : StateLens PRFCipherBadState Bool where
+  get s := s.bad
+  set s b := { s with bad := b }
+  get_set _ _ := rfl
+  set_get _ := rfl
+  set_set _ _ _ := rfl
+
 /-- Per-step kernel for the faithful lazy random-function CPA game ([BonehShoup2023], Section
-5.4.1, Theorem 5.2, Game 2 "faithful gnome", printed p. 186), returning a per-call collision
-indicator `(cache.lookup r).isSome` lifted via `OracleComp.withBadFlag`. -/
+5.4.1, Theorem 5.2, Game 2 "faithful gnome", printed p. 186), zooming `memoize` onto
+`PRFCipherBadState.cache` via `cacheLens.zoom` and setting `bad := (st.cache.lookup r).isSome` for
+`badLens.latch`. -/
 private noncomputable def prfCipherFaithfulStep (n : ℕ) (bit : Bool)
-    (request : Unit × List Bool) (cache : List (List Bool × List Bool)) :
-    PMF (List Bool × (List (List Bool × List Bool) × Bool)) :=
+    (request : Unit × List Bool) (st : PRFCipherBadState) :
+    PMF (List Bool × PRFCipherBadState) :=
   let m0 := unframe request.2
   let m1 := dropFrame request.2
   if (m0.length == n) && (m1.length == n) then do
     let msg := if bit then m1 else m0
     let r ← BitString.uniformList n
-    (memoize (fun _ => BitString.uniformList n) r cache).map fun res =>
-      (r ++ List.zipWith xor (res.1.take n) msg, (res.2, (cache.lookup r).isSome))
+    (PRFCipherBadState.cacheLens.zoom (memoize (fun _ => BitString.uniformList n) r) st).map
+      fun res =>
+        (r ++ List.zipWith xor (res.1.take n) msg,
+          { res.2 with bad := (st.cache.lookup r).isSome })
   else
-    PMF.pure ([], (cache, false))
+    PMF.pure ([], { st with bad := false })
 
 /-- Per-step kernel for the forgetful CPA game ([BonehShoup2023], Section 5.4.1, Theorem 5.2,
-Game 3 "forgetful gnome", printed p. 187), sampling a fresh `pad` regardless of `cache` and
-returning `(cache.lookup r).isSome` as per-call collision indicator. -/
+Game 3 "forgetful gnome", printed p. 187), sampling a fresh `pad` regardless of `st.cache` and
+recording `(st.cache.lookup r).isSome` as the per-call collision indicator. -/
 private noncomputable def prfCipherForgetfulStep (n : ℕ) (bit : Bool)
-    (request : Unit × List Bool) (cache : List (List Bool × List Bool)) :
-    PMF (List Bool × (List (List Bool × List Bool) × Bool)) :=
+    (request : Unit × List Bool) (st : PRFCipherBadState) :
+    PMF (List Bool × PRFCipherBadState) :=
   let m0 := unframe request.2
   let m1 := dropFrame request.2
   if (m0.length == n) && (m1.length == n) then do
     let msg := if bit then m1 else m0
     let r ← BitString.uniformList n
     (BitString.uniformList n).map fun pad =>
-      (r ++ List.zipWith xor (pad.take n) msg, ((r, pad) :: cache, (cache.lookup r).isSome))
+      (r ++ List.zipWith xor (pad.take n) msg, ⟨(r, pad) :: st.cache, (st.cache.lookup r).isSome⟩)
   else
-    PMF.pure ([], (cache, false))
+    PMF.pure ([], ⟨st.cache, false⟩)
 
 /-- Bit-independent one-time-pad CPA oracle: on a valid pair of `n`-bit messages, samples
 independent uniform `n`-bit strings `r` and `pad` and returns `r ++ pad`. -/
@@ -1557,15 +1579,16 @@ private noncomputable def prfCipherOTPOracle (n : ℕ) (request : Unit × List B
 private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDistinguisher)
     (bit : Bool) (n : ℕ) :
     ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary bit) n) =
-      (ProbOracleComp.runWith (OracleComp.withBadFlag (prfCipherFaithfulStep n bit))
-        (adversary n []) ([], false)).map Prod.fst := by
+      (ProbOracleComp.runWith (PRFCipherBadState.badLens.latch (prfCipherFaithfulStep n bit))
+        (adversary n []) ⟨[], false⟩).map Prod.fst := by
   rw [prfIdealGame_eq_cached]
   simp only [cpaToPrfDistinguisher, ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.runWith_map, PMF.map_comp]
   have hsim := ProbOracleComp.runWith_run_interpret_map
     (cpaToPrfHandler n bit)
-    (fun req s => ProbComp.eval (cachedRandomFunctionOracle n n req.2 s))
-    (fun q cache => (prfCipherFaithfulStep n bit q cache).map (Prod.map id Prod.fst))
+    (fun req s => ProbComp.eval (cachedRandomFunctionOracle (·.length == n) n req.2 s))
+    (fun q cache =>
+      (prfCipherFaithfulStep n bit q ⟨cache, false⟩).map (Prod.map id PRFCipherBadState.cache))
     (fun _ => ()) id
     (fun ⟨⟨⟩, payload⟩ cache => by
       unfold cpaToPrfHandler prfCipherFaithfulStep
@@ -1573,38 +1596,35 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
       by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
       · simp only [hlenEq, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
           ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, BitString.eval_sampleList,
-          Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map, PMF.map_comp,
-          Function.comp_def, Prod.map_apply, id_eq]
+          StateLens.zoom, PRFCipherBadState.cacheLens, Prod.map_apply, id_eq, pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
         have hrLen : r.length = n := BitString.length_of_mem_support_uniformList hr
-        simp only [cachedRandomFunctionOracle, hrLen, ↓reduceIte, ProbComp.eval_memoize,
-          BitString.eval_sampleList]
+        simp only [cachedRandomFunctionOracle, cachedSamplerOracle, beq_iff_eq, hrLen, ↓reduceIte,
+          ProbComp.eval_memoize, BitString.eval_sampleList]
         rfl
       · simp [hlenEq, ProbOracleComp.runWith_pure])
     (adversary n []) []
-  have hdrop := ProbOracleComp.runWith_withBadFlag_map_fst (prfCipherFaithfulStep n bit)
-    (fun q cache => (prfCipherFaithfulStep n bit q cache).map (Prod.map id Prod.fst))
-    (fun _ _ => rfl) (adversary n []) [] false
+  have hdrop := PRFCipherBadState.badLens.runWith_latch_map (prfCipherFaithfulStep n bit)
+    (fun q cache =>
+      (prfCipherFaithfulStep n bit q ⟨cache, false⟩).map (Prod.map id PRFCipherBadState.cache))
+    PRFCipherBadState.cache (fun _ _ => rfl)
+    (fun _ ⟨_, b⟩ hb => by subst hb; rfl) (adversary n []) ⟨[], false⟩
   have h1 := congrArg (PMF.map (fun x => x.1.1)) hsim
   have h2 := congrArg (PMF.map Prod.fst) hdrop
   simp only [PMF.map_comp, Function.comp_def, id_eq] at h1 h2 ⊢
   exact h1.trans h2.symm
 
 private theorem run_prfCipherForgetfulStep_map_fst (adversary : OracleDistinguisher)
-    (bit : Bool) (n : ℕ) (cache : List (List Bool × List Bool)) (bad : Bool) :
-    (ProbOracleComp.runWith (OracleComp.withBadFlag (prfCipherForgetfulStep n bit))
-        (adversary n []) (cache, bad)).map Prod.fst =
+    (bit : Bool) (n : ℕ) (st : PRFCipherBadState) :
+    (ProbOracleComp.runWith (PRFCipherBadState.badLens.latch (prfCipherForgetfulStep n bit))
+        (adversary n []) st).map Prod.fst =
     (ProbOracleComp.runWith (prfCipherOTPOracle n) (adversary n []) ()).map Prod.fst := by
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := OracleComp.withBadFlag (prfCipherForgetfulStep n bit))
-    (oracle' := prfCipherOTPOracle n)
-    (represent := fun _ : List (List Bool × List Bool) × Bool => ())
-    (step := by
-      intro ⟨⟨⟩, payload⟩ ⟨c, b⟩
-      unfold OracleComp.withBadFlag prfCipherForgetfulStep prfCipherOTPOracle
+  have hsim := PRFCipherBadState.badLens.runWith_latch_map (prfCipherForgetfulStep n bit)
+    (prfCipherOTPOracle n) (fun _ => ()) (fun _ _ => rfl)
+    (fun ⟨⟨⟩, payload⟩ s _ => by
+      unfold prfCipherForgetfulStep prfCipherOTPOracle
       by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
-      · simp only [hlenEq, ↓reduceIte, Probability.PMF.monad_bind_eq_bind, PMF.map_bind,
-          PMF.map_comp, Function.comp_def, Prod.map_fst, id_eq]
+      · simp only [hlenEq, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
         simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
         have hmsgLen : (if bit then dropFrame payload else unframe payload).length = n := by
           cases bit <;> simp [hlenEq]
@@ -1620,53 +1640,58 @@ private theorem run_prfCipherForgetfulStep_map_fst (adversary : OracleDistinguis
           simp [PMF.map_comp, Function.comp_def]
         rw [hpad, BitString.uniformList_map_take_zipWith_xor hmsgLen]
       · simp [hlenEq])
-    (adversary n []) (cache, bad)
+    (adversary n []) st
   have h := congrArg (PMF.map Prod.fst) hsim
-  simp only [PMF.map_comp, Function.comp_def] at h
-  exact h
+  simpa only [PMF.map_comp, Function.comp_def, Prod.map_fst, id_eq] using h
 
 private theorem identicalUntilBad_prfCipherStep (n : ℕ) (bit : Bool) :
     ProbOracleComp.IdenticalUntilBad
-      (OracleComp.withBadFlag (prfCipherFaithfulStep n bit))
-      (OracleComp.withBadFlag (prfCipherForgetfulStep n bit))
-      OracleComp.FlagBad := by
-  refine ProbOracleComp.identicalUntilBad_withBadFlag _ _ fun request cache a cache' => ?_
+      (PRFCipherBadState.badLens.latch (prfCipherFaithfulStep n bit))
+      (PRFCipherBadState.badLens.latch (prfCipherForgetfulStep n bit))
+      PRFCipherBadState.badLens.Bad := by
+  refine PRFCipherBadState.badLens.probIdenticalUntilBad_latch _ _
+    fun request st _ _ st' hst' => ?_
   unfold prfCipherFaithfulStep prfCipherForgetfulStep
   by_cases hlenEq : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
   · simp only [hlenEq, ↓reduceIte, Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
     refine tsum_congr fun r => congrArg (_ * ·) ?_
-    cases hlookup : cache.lookup r with
+    cases hlookup : st.cache.lookup r with
     | some _ =>
       refine ((PMF.apply_eq_zero_iff _ _).mpr fun hx => ?_).trans
         ((PMF.apply_eq_zero_iff _ _).mpr fun hx => ?_).symm <;>
       · obtain ⟨_, -, hres⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        exact Bool.false_ne_true (congrArg (fun x => x.2.2) hres).symm
+        have hbad : st'.bad = true := by
+          have := congrArg (fun x => x.2.bad) hres
+          exact this.symm
+        exact Bool.false_ne_true (hst'.symm.trans hbad)
     | none =>
-      simp [memoize_of_none, hlookup, PMF.map, Function.comp_def,
-        Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
+      rw [PRFCipherBadState.cacheLens.zoom_memoize_of_none _ r st hlookup]
+      simp [PRFCipherBadState.cacheLens, PMF.monad_map_eq_map, PMF.map_comp,
+        Function.comp_def]
   · simp [hlenEq]
 
 private theorem step_bad_prfCipherForgetfulStep_le (n : ℕ) (bit : Bool)
-    (request : Unit × List Bool) (cache : List (List Bool × List Bool)) :
-    (prfCipherForgetfulStep n bit request cache).toOuterMeasure {x | OracleComp.FlagBad x.2} ≤
-      (cache.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ n) := by
+    (request : Unit × List Bool) (st : PRFCipherBadState) :
+    (prfCipherForgetfulStep n bit request st).toOuterMeasure
+        {x | PRFCipherBadState.badLens.Bad x.2} ≤
+      (st.cache.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ n) := by
   unfold prfCipherForgetfulStep
   by_cases hlenEq : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
   · simp only [hlenEq, ↓reduceIte, Probability.PMF.monad_bind_eq_bind]
     refine (Probability.PMF.toOuterMeasure_bind_failure_le
-      (BitString.uniformList n) _ {r : List Bool | (cache.lookup r).isSome = false}
-      {x : List Bool × (List (List Bool × List Bool) × Bool) | OracleComp.FlagBad x.2} 0
+      (BitString.uniformList n) _ {r : List Bool | (st.cache.lookup r).isSome = false}
+      {x : List Bool × PRFCipherBadState | PRFCipherBadState.badLens.Bad x.2} 0
       fun r _ hr => nonpos_iff_eq_zero.mpr <|
         (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr <|
           Set.disjoint_left.mpr fun x hx hbad => by
             obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
             exact Bool.false_ne_true (hr.symm.trans hbad)).trans ?_
-    have hcompl : {r : List Bool | (cache.lookup r).isSome = false}ᶜ =
-        {r : List Bool | (cache.lookup r).isSome = true} := by
+    have hcompl : {r : List Bool | (st.cache.lookup r).isSome = false}ᶜ =
+        {r : List Bool | (st.cache.lookup r).isSome = true} := by
       ext r; simp
     rw [hcompl, add_zero]
-    exact BitString.toOuterMeasure_lookup_uniformList_le n cache
-  · simp [hlenEq, OracleComp.FlagBad]
+    exact BitString.toOuterMeasure_lookup_uniformList_le n st.cache
+  · simp [hlenEq, StateLens.Bad, PRFCipherBadState.badLens]
 
 private theorem advantage_prfIdealGame_prfCipherOTPOracle_le (adversary : OracleDistinguisher)
     (bit : Bool) (n Q : ℕ) (hq : (adversary n []).IsQueryBounded Q) :
@@ -1675,34 +1700,28 @@ private theorem advantage_prfIdealGame_prfCipherOTPOracle_le (adversary : Oracle
       ((ProbOracleComp.runWith (prfCipherOTPOracle n) (adversary n []) ()).map Prod.fst) : ℝ) ≤
       (Q : ℝ) ^ 2 / (2 : ℝ) ^ n := by
   rw [eval_prfIdealGame_cpaToPrfDistinguisher,
-    ← run_prfCipherForgetfulStep_map_fst adversary bit n [] false]
+    ← run_prfCipherForgetfulStep_map_fst adversary bit n ⟨[], false⟩]
   set δ : ℝ≥0∞ := (1 : ℝ≥0∞) / 2 ^ n
   have hiub := identicalUntilBad_prfCipherStep n bit
-  have hclose := (hiub.closeTo_run (adversary n []) ([], false)).map Prod.fst
+  have hclose := (hiub.closeTo_run (adversary n []) ⟨[], false⟩).map Prod.fst
   rw [hiub.bad_eq] at hclose
-  have hbad := ProbOracleComp.toOuterMeasure_bad_le
-    (handler := OracleComp.withBadFlag (prfCipherForgetfulStep n bit))
-    (bad := OracleComp.FlagBad) (fun _ => 1)
-    (fun st => (st.1.length : ℝ≥0∞) * δ) δ
-    (fun q ⟨c, b⟩ hb => by
-      have hb' : b = false := Bool.eq_false_iff.mpr hb
-      subst hb'
-      simpa only [OracleComp.withBadFlag_false, Nat.cast_one, one_mul] using
-        step_bad_prfCipherForgetfulStep_le n bit q c)
-    (fun q ⟨c, b⟩ _ x hx _ => by
-      unfold OracleComp.withBadFlag prfCipherForgetfulStep at hx
+  have hbad := PRFCipherBadState.badLens.toOuterMeasure_latch_le
+    (step := prfCipherForgetfulStep n bit)
+    (fun _ => 1) (fun st => (st.cache.length : ℝ≥0∞) * δ) δ
+    (fun q st _ => by
+      simpa only [Nat.cast_one, one_mul] using step_bad_prfCipherForgetfulStep_le n bit q st)
+    (fun q st _ x hx _ => by
+      unfold prfCipherForgetfulStep at hx
       by_cases hlen : ((unframe q.2).length == n && (dropFrame q.2).length == n) = true
-      · simp only [hlen, ↓reduceIte, Probability.PMF.monad_bind_eq_bind, PMF.map_bind,
-          PMF.map_comp, Function.comp_def, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hx
+      · simp only [hlen, ↓reduceIte, Probability.PMF.monad_bind_eq_bind,
+          PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hx
         obtain ⟨r, -, pad, -, rfl⟩ := hx
-        simp only [Prod.map_snd, Prod.map_fst, id_eq, List.length_cons, Nat.cast_add, Nat.cast_one,
-          add_mul, one_mul]
+        simp only [List.length_cons, Nat.cast_add, Nat.cast_one, add_mul, one_mul]
         exact le_rfl
-      · simp only [hlen, Bool.false_eq_true, ↓reduceIte, PMF.pure_map,
-          PMF.mem_support_pure_iff] at hx
+      · simp only [hlen, Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at hx
         subst hx
         exact le_add_of_nonneg_right zero_le)
-    hq hq (s := ([], false)) Bool.false_ne_true
+    hq hq (s := ⟨[], false⟩) rfl
   have hadv := Game.closeTo_iff_coe_advantage_le.mp (hclose.mono hbad)
   simp only [List.length_nil, Nat.cast_zero, zero_mul, zero_add, δ] at hadv
   ennreal_to_real at hadv

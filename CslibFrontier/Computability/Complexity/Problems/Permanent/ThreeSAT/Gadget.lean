@@ -179,19 +179,14 @@ theorem gadget_minor (Out In : Finset (Fin 3)) :
   have hOI : Out = In ↔ (decide (0 ∈ Out) = decide (0 ∈ In) ∧
       decide (1 ∈ Out) = decide (1 ∈ In) ∧ decide (2 ∈ Out) = decide (2 ∈ In)) := by
     simp only [decide_eq_decide]
-    constructor
-    · rintro rfl; exact ⟨Iff.rfl, Iff.rfl, Iff.rfl⟩
-    · rintro ⟨h0, h1, h2⟩
-      ext p
-      fin_cases p
-      exacts [h0, h1, h2]
+    refine ⟨fun h => h ▸ ⟨Iff.rfl, Iff.rfl, Iff.rfl⟩, fun ⟨h0, h1, h2⟩ => ?_⟩
+    ext p
+    fin_cases p <;> assumption
   have hne : Out.Nonempty ↔ (decide (0 ∈ Out) = true ∨ decide (1 ∈ Out) = true ∨
       decide (2 ∈ Out) = true) := by
     simp only [decide_eq_true_eq]
-    constructor
-    · rintro ⟨p, hp⟩
-      fin_cases p <;> simp_all
-    · rintro (h | h | h) <;> exact ⟨_, h⟩
+    refine ⟨fun ⟨p, hp⟩ => by fin_cases p <;> simp_all, ?_⟩
+    rintro (h | h | h) <;> exact ⟨_, h⟩
   simp only [hOI, hne]
 
 variable {V : Type*} [DecidableEq V] [Fintype V]

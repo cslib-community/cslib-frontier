@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -308,8 +309,7 @@ theorem distinguishingGame_lorKeyDistinguisherOn (valid : ℕ → List Bool → 
         (fun guess => guess ^^ bit)) := by
   unfold distinguishingGame Game.withSetup lorKeyDistinguisherOn
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.map_bind]
-  rw [PMF.bind_comm]
-  rfl
+  exact PMF.bind_comm _ _ _
 
 /-- The hidden-bit distinguisher `lorKeyDistinguisher` averages the two `lorDistinguisher` games,
 complementing the `true` experiment. -/
@@ -415,54 +415,36 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
       (fun a => lorRunOn valid encrypt adversary (security a) (pk a) (bit a)
         (count a) (initial a)) := by
   let stepMidEnc := encPair (encPair input encLoRLoopState) (encChoiceOut encMsg)
+  have hfst := fst input encLoRLoopState
+  have hq1 := hfst.comp (fst (encPair input encLoRLoopState) (encChoiceOut encMsg))
   have hquery : IsPPTOn (encPair input encLoRLoopState) (encChoiceOut encMsg)
       (fun p => adversary.query (security p.1) p.2.1 p.2.2) :=
-    hadversary.query.preprocess
-      ((hsecurity.comp (ComputableInPolyTime.fst input encLoRLoopState)).prod
-        (ComputableInPolyTime.snd input encLoRLoopState))
-  have hcp : ComputableInPolyTime
-      (fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
-        (security q.1.1, pk q.1.1, ChoiceOut.msg₀ q.2, ChoiceOut.msg₁ q.2))
-      stepMidEnc (encChallengePairInput encMsg) := by
-    dsimp only [stepMidEnc, encChallengePairInput, encChoiceOut]; fun_prop
-  have hvalid_q := hvalid.comp hcp
-  have hsel : ComputableInPolyTime
-      (fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
-        if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
-      stepMidEnc encMsg :=
-    ComputableInPolyTime.ite (by dsimp only [stepMidEnc]; fun_prop)
-      (by dsimp only [stepMidEnc, encChoiceOut]; fun_prop)
-      (by dsimp only [stepMidEnc, encChoiceOut]; fun_prop)
-  have hencArg : ComputableInPolyTime
-      (fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
-        (security q.1.1, pk q.1.1, if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2))
-      stepMidEnc (encKeyedInput encMsg) := by
-    dsimp only [stepMidEnc, encKeyedInput]
-    exact (hsecurity.comp (by fun_prop)).prod ((hpk.comp (by fun_prop)).prod hsel)
-  have hencCond : IsPPTOn stepMidEnc encBits
-      (fun q => if valid (security q.1.1) (pk q.1.1)
-          (ChoiceOut.msg₀ q.2) (ChoiceOut.msg₁ q.2) then
-        encrypt (security q.1.1) (pk q.1.1)
-          (if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
-      else pure []) :=
-    IsPPTOn.cond hvalid_q (hencrypt.preprocess hencArg)
-      (ComputableInPolyTime.const []).isPPTOn
-  have hcons := hencCond.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2))
-    (by dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop)
+    hadversary.query.preprocess ((hsecurity.comp hfst).prod (snd input encLoRLoopState))
   have hstep : IsPPTOn (encPair input encLoRLoopState) encLoRLoopState
       (fun p => lorStepOn valid encrypt adversary (security p.1) (pk p.1) (bit p.1) p.2) := by
-    simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with hcons
+    have henc : IsPPTOn stepMidEnc encBits
+        (fun q => if valid (security q.1.1) (pk q.1.1)
+            (ChoiceOut.msg₀ q.2) (ChoiceOut.msg₁ q.2) then
+          encrypt (security q.1.1) (pk q.1.1)
+            (if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
+        else pure []) :=
+      IsPPTOn.cond
+        (hvalid.comp (g := fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
+            (security q.1.1, pk q.1.1, ChoiceOut.msg₀ q.2, ChoiceOut.msg₁ q.2))
+          ((hsecurity.comp hq1).prod <| (hpk.comp hq1).prod <|
+            (fst _ encBits).comp (snd _ (encChoiceOut encMsg))))
+        (hencrypt.preprocess <| (hsecurity.comp hq1).prod <| (hpk.comp hq1).prod <|
+          ComputableInPolyTime.ite (hbit.comp hq1)
+            ((snd encMsg encMsg).comp ((fst _ encBits).comp (snd _ (encChoiceOut encMsg))))
+            ((fst encMsg encMsg).comp ((fst _ encBits).comp (snd _ (encChoiceOut encMsg)))))
+        (const []).isPPTOn
+    simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with <|
+      henc.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2)) <| by
+        dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop
   obtain ⟨stBound, hstBound, hstLen⟩ := hadversary.state_growth
-  have hsecPoly : PolyBounded (fun a : α => (input a).length) security :=
-    hsecurity.polyBounded
-  have hstPoly := (PolyBounded.of_polynomiallyBounded security hstBound).comp hsecPoly
-  have hctPoly := (PolyBounded.of_polynomiallyBounded security hctBound).comp hsecPoly
-  have hgrowthPoly : PolyBounded (fun a : α => (input a).length)
-      (fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1) :=
-    (((PolyBounded.const 2).mul hstPoly).add ((PolyBounded.const 2).mul hctPoly)).add
-      (PolyBounded.const 1)
-  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinitial hstep hgrowthPoly ?_
-  intro a loopState next hnext
+  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinitial hstep
+    (growth := fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1)
+    (by growth_poly) fun a loopState next hnext => ?_
   simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hnext
   obtain ⟨choice, hchoice_supp, c, hc_supp, rfl⟩ := hnext
@@ -470,7 +452,8 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
   have hct : c.length ≤ ctBound (security a) := by
     cases hval : valid (security a) (pk a) (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) <;>
       simp only [hval, Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at hc_supp
-    · subst hc_supp; exact Nat.zero_le _
+    · subst hc_supp
+      exact Nat.zero_le _
     · exact hctLen (security a) (pk a) _ c hc_supp
   simp only [encLoRLoopState, encPair_apply, encBits_apply, encList_cons,
     List.length_append, length_frame]
@@ -501,20 +484,14 @@ theorem isPPTOn_lorDistinguisherOn {α : Type} {input : α ↪ List Bool}
     (hbit : ComputableInPolyTime bit input encBool) :
     IsPPTOn input encBool
       (fun a => lorDistinguisherOn valid encrypt Q adversary (bit a) (security a) (pk a)) := by
-  have hstart : IsPPTOn input encBits (fun a => adversary.start (security a) (pk a)) :=
-    hadversary.start.on.preprocess (hsecurity.prod hpk)
   have hfst := fst input encBits
-  have hrun : IsPPTOn (encPair input encBits) encLoRLoopState
-      (fun p => lorRunOn valid encrypt adversary (security p.1) (pk p.1) (bit p.1)
-        (Q (security p.1)) (p.2, [])) :=
-    isPPTOn_lorRunOn hvalid hencrypt hctBound hctLen hadversary (hsecurity.comp hfst)
-      (hpk.comp hfst) (hbit.comp hfst) (hQ.comp (hsecurity.comp hfst))
-      ((snd input encBits).prod (const []))
-  have hguess : IsPPTOn (encPair (encPair input encBits) encLoRLoopState) encBool
-      (fun p => adversary.guess (security p.1.1) p.2.1 p.2.2) :=
-    hadversary.guess.preprocess
-      (((hsecurity.comp hfst).comp (fst _ encLoRLoopState)).prod (snd _ encLoRLoopState))
-  simpa only [lorDistinguisherOn] using hstart.bind_with (hrun.bind_with hguess)
+  have hrun := isPPTOn_lorRunOn hvalid hencrypt hctBound hctLen hadversary (hsecurity.comp hfst)
+    (hpk.comp hfst) (hbit.comp hfst) (hQ.comp (hsecurity.comp hfst))
+    ((snd input encBits).prod (const []))
+  simpa only [lorDistinguisherOn] using
+    (hadversary.start.on.preprocess (hsecurity.prod hpk)).bind_with
+      (hrun.bind_with <| hadversary.guess.preprocess
+        (((hsecurity.comp hfst).comp (fst _ encLoRLoopState)).prod (snd _ encLoRLoopState)))
 
 /-- Parameterized uniform strict PPT certificate for the unrestricted `lorDistinguisher`. -/
 theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
@@ -594,27 +571,17 @@ theorem isPPT_lorKeyDistinguisherOn {encMsg : Msg ↪ List Bool}
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
     IsPPT encBool (lorKeyDistinguisherOn valid encrypt Q adversary) := by
-  let baseEnc := encPair encUnary encBits
-  let coinEnc := encPair baseEnc encBool
-  have hcoin := isPPTOn_uniform_bool baseEnc
-  have hdist : IsPPTOn coinEnc encBool
+  have hdist : IsPPTOn (encPair (encPair encUnary encBits) encBool) encBool
       (fun p => lorDistinguisherOn valid encrypt Q adversary p.2 p.1.1 p.1.2) :=
     isPPTOn_lorDistinguisherOn hvalid hencrypt hctBound hctLen hQ hadversary
-      (by dsimp only [coinEnc, baseEnc]; fun_prop)
-      (by dsimp only [coinEnc, baseEnc]; fun_prop)
-      (snd baseEnc encBool)
-  have hxor : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × Bool) × Bool => p.2 ^^ p.1.2)
-      (encPair coinEnc encBool) encBool := by
-    have hx := of_finite (encIn := encPair encBool encBool) (encOut := encBool)
-      fun p : Bool × Bool => p.1 ^^ p.2
-    have harg : ComputableInPolyTime
-        (fun p : ((ℕ × List Bool) × Bool) × Bool => (p.2, p.1.2))
-        (encPair coinEnc encBool) (encPair encBool encBool) := by
-      dsimp only [coinEnc, baseEnc]; fun_prop
-    simpa only [Function.comp_def] using hx.comp harg
+      ((fst encUnary encBits).comp (fst _ encBool))
+      ((snd encUnary encBits).comp (fst _ encBool)) (snd _ encBool)
   simpa only [IsPPT, lorKeyDistinguisherOn, bind_pure_comp] using
-    hcoin.bind_with (hdist.map_with (f := fun p guess => guess ^^ p.2) hxor)
+    (isPPTOn_uniform_bool _).bind_with <|
+      hdist.map_with (f := fun p guess => guess ^^ p.2) <|
+        (of_finite (encIn := encPair encBool encBool) (encOut := encBool)
+          fun p : Bool × Bool => p.1 ^^ p.2).comp
+          ((snd _ encBool).prod ((snd _ encBool).comp (fst _ encBool)))
 
 /-- The unrestricted hidden-bit reduction `lorKeyDistinguisher` is one uniform strict PPT
 distinguisher when encryption is strict PPT with polynomially bounded ciphertext length, `Q` is

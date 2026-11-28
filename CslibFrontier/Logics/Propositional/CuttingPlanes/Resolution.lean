@@ -71,12 +71,9 @@ private theorem div_two_contra_add_two_nsmul (I : Ineq V) :
     (contra + 2 • I).div 2 = contra + I := by
   refine div_eq_of Nat.two_pos ?_ ?_ ?_
   · ext v
-    simp only [coeff_add, coeff_contra, coeff_nsmul, zero_add, Finsupp.smul_apply, smul_eq_mul,
-      nsmul_eq_mul, Nat.cast_ofNat]
-  · simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
-    push_cast
-    omega
-  · simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
+    simp [coeff_nsmul]
+  all_goals
+    simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
     push_cast
     omega
 
@@ -137,26 +134,18 @@ theorem CNF.IsProof.cuttingPlanes {φ : CNF V} {ls : List (Clause V)} (h : φ.Is
     (hw : ∀ c ∈ ls, c.width ≤ w) :
     ∃ ls', CuttingPlanes.IsProof φ.toIneqs ls' ∧ (∀ c ∈ ls, c.toIneq ∈ ls') ∧
       ls'.length ≤ (4 * w + 1) * ls.length := by
-  induction h with
-  | nil => exact ⟨[], .nil, by simp, by simp⟩
-  | @mem ls c _ hc ih =>
-    obtain ⟨ls', h', hmem, hlen⟩ := ih fun d hd => hw d (List.mem_cons_of_mem _ hd)
-    refine ⟨_ :: ls', h'.hyp (CNF.toIneq_mem_toIneqs hc), fun d hd => ?_, ?_⟩
-    · rcases List.mem_cons.1 hd with rfl | hd
-      exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hmem d hd)]
-    · rw [List.length_cons, List.length_cons, Nat.mul_succ]
-      omega
-  | @resolvent ls c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
-    obtain ⟨ls', h', hmem, hlen⟩ := ih fun d hd => hw d (List.mem_cons_of_mem _ hd)
-    obtain ⟨ls'', h'', hR, hlen''⟩ := (derivableInSize_toIneq_resolvent hv₁ hv₂).extend h'
-      fun J hJ => Or.inr (by rcases hJ with rfl | rfl; exacts [hmem _ h₁, hmem _ h₂])
-    refine ⟨ls'' ++ ls', h'', fun d hd => ?_, ?_⟩
-    · rcases List.mem_cons.1 hd with rfl | hd
-      exacts [hR, List.mem_append_right _ (hmem d hd)]
-    · have hw₁ := hw c₁ (List.mem_cons_of_mem _ h₁)
-      have hw₂ := hw c₂ (List.mem_cons_of_mem _ h₂)
-      rw [List.length_append, List.length_cons, Nat.mul_succ]
-      omega
+  obtain ⟨ls', h', hmem, hlen⟩ := (CNF.isProof_iff_lineProof.1 h).simulate Clause.toIneq
+    (4 * w + 1)
+    (fun c hc _ => ⟨[c.toIneq], LineProof.nil.hyp (CNF.toIneq_mem_toIneqs hc), by simp, by simp⟩)
+    fun r hr _ hp => by
+      obtain ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩ := hr
+      obtain ⟨m, hm, hR, hmlen⟩ := derivableInSize_toIneq_resolvent hv₁ hv₂
+      have hw₁ := hw c₁ (hp c₁ (by simp))
+      have hw₂ := hw c₂ (hp c₂ (by simp))
+      refine ⟨m, (CuttingPlanes.isProof_iff_lineProof.1 hm).mono_hyp fun I hI => Or.inr ?_,
+        hR, by omega⟩
+      rcases hI with rfl | rfl <;> simp
+  exact ⟨ls', CuttingPlanes.isProof_iff_lineProof.2 h', hmem, hlen⟩
 
 /-- **Cutting planes simulate resolution**, by size [Cook, Coullard and
 Turán][CookCoullardTuran1987]: a resolution refutation of `s` lines of a CNF with `N` variables

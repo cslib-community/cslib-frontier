@@ -86,11 +86,10 @@ private theorem trace_parityProgram (k : ℕ) (hk : k < n) (x : BitString n) :
       parityOn (Iic ⟨k, hk⟩) x := by
   induction k with
   | zero =>
-    have : Iic (⟨0, hk⟩ : Fin n) = insert ⟨0, hk⟩ ∅ := by
+    have : Iic (⟨0, hk⟩ : Fin n) = {⟨0, hk⟩} := by
       ext i
       simp [Fin.le_def, Fin.ext_iff]
-    rw [this, parityOn_insert (notMem_empty _), parityOn_empty, Bool.xor_false]
-    rfl
+    simp [parityProgram, Program.trace, this]
   | succ k ih =>
     have : Iic (⟨k + 1, hk⟩ : Fin n) = insert ⟨k + 1, hk⟩ (Iic ⟨k, by omega⟩) := by
       ext i
@@ -114,21 +113,17 @@ theorem exists_computes_parity (n : ℕ) :
       C.program.cost binaryCost = 3 * n ∧ C.size = 4 * n := by
   refine ⟨⟨(parityProgram n n.lt_succ_self).1, fun _ => (parityProgram n n.lt_succ_self).2⟩,
     fun x => funext fun _ => ?_, cost_parityProgram n _, rfl⟩
-  have : Iic (⟨n, n.lt_succ_self⟩ : Fin (n + 1)) = univ := by
-    ext i
-    simpa [Fin.le_def] using Nat.lt_succ_iff.1 i.isLt
-  exact (trace_parityProgram n _ x).trans (by rw [this]; rfl)
+  exact (trace_parityProgram n _ x).trans (congrArg (parityOn · x) Iic_top)
 
 /-- The parity of no bits is computed by one constant gate, which is not binary. -/
 theorem exists_computes_parity_zero :
     ∃ C : Circuit signature 0 1, C.Computes interpretation (single (parity 0)) ∧
       C.program.cost binaryCost = 0 := by
   refine ⟨⟨Program.empty.gate ⟨.const false, Fin.elim0⟩, fun _ => .gate (Fin.last 0)⟩,
-    fun x => ?_, rfl⟩
-  funext
-  change (Program.empty.gate _).eval interpretation x (Fin.last 0) = parity 0 x
-  rw [Program.eval_gate_last]
-  simp [Line.eval, interpretation, parity, parityOn]
+    fun x => funext fun _ => ?_, rfl⟩
+  dsimp only [Circuit.eval, Function.comp_def]
+  rw [Program.trace_gateWire, Program.gateFunction_apply, Program.eval_gate_last]
+  simp [single, Line.eval, interpretation, parity]
 
 /-- The circuit complexity of the parity of `n + 1` bits is at most `4 n`. -/
 theorem complexity_parity_le (n : ℕ) :

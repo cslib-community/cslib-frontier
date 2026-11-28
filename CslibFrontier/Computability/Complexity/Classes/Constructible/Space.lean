@@ -76,14 +76,9 @@ theorem SpaceConstructible.of_computableInLogSpace {s : ℕ → ℕ}
 /-- **`⌊log₂ n⌋ ^ (k + 1)` is space-constructible**: compute `⌊log₂ n⌋` in unary from the length,
 multiply in unary and convert to binary, in logarithmic space. -/
 theorem spaceConstructible_log2_pow (k : ℕ) :
-    SpaceConstructible fun n => Nat.log2 n ^ (k + 1) := by
-  have hlog : ComputableInLogSpace (fun x : List Bool => Nat.log2 x.length) encBits encUnary :=
-    ComputableInLogSpace.unaryLog2 ComputableInLogSpace.bitsLength
-  refine SpaceConstructible.of_computableInLogSpace (ComputableInLogSpace.unaryToBinary ?_)
+    SpaceConstructible fun n => Nat.log2 n ^ (k + 1) :=
+  SpaceConstructible.of_computableInLogSpace (.unaryToBinary (by fun_prop))
     fun n => Nat.le_self_pow (by omega) _
-  induction k with
-  | zero => simpa using hlog
-  | succ k ih => simpa only [pow_succ] using ComputableInLogSpace.unaryMul ih hlog
 
 /-- **`⌊log₂ n⌋` is space-constructible.** -/
 theorem spaceConstructible_log2 : SpaceConstructible Nat.log2 := by

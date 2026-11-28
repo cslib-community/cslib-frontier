@@ -274,36 +274,31 @@ private theorem initialCode_eq (w : ℕ) : initialCode w = (initial w).code := b
 /-- Native generation of the complete initial carry row from unary width. -/
 theorem computableInPolyTime_initial :
     ComputableInPolyTime (fun w => (initial w).code) encUnary encCode := by
-  have hw : ComputableInPolyTime (fun p : ℕ × ℕ => p.1)
-      (encPair encUnary encUnary) encNat := unary_to_binary.comp (fst _ _)
-  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
-      (encPair encUnary encUnary) encNat := unary_to_binary.comp (snd _ _)
   have hg : ComputableInPolyTime (fun p : ℕ × ℕ => initialGenerateCode p.1 p.2)
-      (encPair encUnary encUnary) encCode := by unfold initialGenerateCode; fun_prop
-  have hp : ComputableInPolyTime (fun p : ℕ × ℕ => initialPropagateCode p.1 p.2)
-      (encPair encUnary encUnary) encCode := by unfold initialPropagateCode; fun_prop
-  have hn : ComputableInPolyTime (fun w : ℕ => w + w + 1) encUnary encNat := by
-    have h := unary_to_binary
+      (encPair encUnary encUnary) encCode := by
+    unfold initialGenerateCode
     fun_prop
+  have hp : ComputableInPolyTime (fun p : ℕ × ℕ => initialPropagateCode p.1 p.2)
+      (encPair encUnary encUnary) encCode := by
+    unfold initialPropagateCode
+    fun_prop
+  have hn : ComputableInPolyTime (fun w : ℕ => w + w + 1) encUnary encNat := by fun_prop
   have hr : ComputableInPolyTime (fun w : ℕ => List.range (w + 1))
       encUnary (encList encUnary) := by fun_prop
-  have h := computableInPolyTime_appendCode hn
-    (computableInPolyTime_bundleCode hn (const 1) (mapWithInput hr hg))
-    (computableInPolyTime_bundleCode hn (const 1) (mapWithInput hr hp))
-  simpa only [← initialCode_eq, initialCode] using h
+  simpa only [← initialCode_eq, initialCode] using
+    computableInPolyTime_appendCode hn
+      (computableInPolyTime_bundleCode hn (const 1) (mapWithInput hr hg))
+      (computableInPolyTime_bundleCode hn (const 1) (mapWithInput hr hp))
 
 /-- Native generation of all the input carries from unary word width. -/
 theorem computableInPolyTime_carries :
     ComputableInPolyTime (fun w => (carries w).code) encUnary encCode := by
-  have hw : ComputableInPolyTime (fun w : ℕ => w + 1) encUnary encUnary := by fun_prop
-  have ht : ComputableInPolyTime (fun w : ℕ => Nat.clog 2 (w + 1)) encUnary encUnary := by
-    fun_prop
-  have hs := computableInPolyTime_scan.comp (hw.prod ht)
-  have hn : ComputableInPolyTime (fun w : ℕ => w + w + 1) encUnary encNat := by
-    have h := unary_to_binary
-    fun_prop
+  have hn : ComputableInPolyTime (fun w : ℕ => w + w + 1) encUnary encNat := by fun_prop
+  have harg : ComputableInPolyTime (fun w : ℕ => (w + 1, Nat.clog 2 (w + 1)))
+      encUnary (encPair encUnary encUnary) := by fun_prop
   simpa only [Function.comp_def, compCode_code, carries] using
-    computableInPolyTime_compCode hn hs computableInPolyTime_initial
+    computableInPolyTime_compCode hn (computableInPolyTime_scan.comp harg)
+      computableInPolyTime_initial
 
 private def sumTemplate : Formula signature 3 :=
   ((Formula.input 0).xor (.input 1)).xor (.input 2)
@@ -351,29 +346,25 @@ private theorem finishCode_eq (w : ℕ) : finishCode w = (finish w).code := by
 /-- Native generation of sum-bit and carry-out wiring from unary width. -/
 theorem computableInPolyTime_finish :
     ComputableInPolyTime (fun w => (finish w).code) encUnary encCode := by
-  have hw : ComputableInPolyTime (fun p : ℕ × ℕ => p.1)
-      (encPair encUnary encUnary) encNat := unary_to_binary.comp (fst _ _)
-  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
-      (encPair encUnary encUnary) encNat := unary_to_binary.comp (snd _ _)
   have hs : ComputableInPolyTime (fun p : ℕ × ℕ => sumCode p.1 p.2)
       (encPair encUnary encUnary) encCode := by
     apply computableInPolyTime_formulaCode _ (by fun_prop)
     intro j
     fin_cases j
-    · exact hi
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.2) _ encNat
+      fun_prop
     · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + p.2) _ encNat
       fun_prop
     · change ComputableInPolyTime
         (fun p : ℕ × ℕ => (p.1 + p.1 + 1) + (p.1 - p.2)) _ encNat
       fun_prop
-  have hw' := unary_to_binary
   have hn : ComputableInPolyTime
       (fun w : ℕ => (w + w + 1) + ((w + 1) + (w + 1))) encUnary encNat := by fun_prop
   have hc : ComputableInPolyTime (fun w : ℕ => ([], [w + w + 1]))
       encUnary encCode := by fun_prop
-  have h := computableInPolyTime_appendCode hn
-    (computableInPolyTime_bundleCode hn (const 15) (mapWithInput range hs)) hc
-  simpa only [← finishCode_eq, finishCode] using h
+  simpa only [← finishCode_eq, finishCode] using
+    computableInPolyTime_appendCode hn
+      (computableInPolyTime_bundleCode hn (const 15) (mapWithInput range hs)) hc
 
 /-- Identity-wire codes are generated from a unary input count, with binary output references. -/
 private theorem computableInPolyTime_identityCode :
@@ -445,5 +436,19 @@ theorem computableInPolyTime_carryLookaheadFinish :
     simpa only [he] using (const [(Op.const false, [])]).prod hrep
   have h := computableInPolyTime_appendCode hn computableInPolyTime_carryLookaheadAdd hz
   simpa only [appendCode_code, carryLookaheadFinish] using h
+
+/-- `@[fun_prop]` rule for `carryLookahead` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_carryLookahead {α : Type} {enc : α ↪ List Bool}
+    {w : α → ℕ} (hw : ComputableInPolyTime w enc encUnary) :
+    Circuit.ComputableCircuitCode (fun a => carryLookahead (w a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_carryLookahead.comp hw)
+
+/-- `@[fun_prop]` rule for `carryLookaheadAdd` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_carryLookaheadAdd {α : Type} {enc : α ↪ List Bool}
+    {w : α → ℕ} (hw : ComputableInPolyTime w enc encUnary) :
+    Circuit.ComputableCircuitCode (fun a => carryLookaheadAdd (w a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_carryLookaheadAdd.comp hw)
 
 end Cslib.Circuits.Boolean

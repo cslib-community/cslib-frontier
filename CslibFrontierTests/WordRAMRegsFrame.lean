@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Register facts across calls
@@ -197,6 +198,35 @@ example (x y z : Data 4) (n : ℕ) (hy : y.regs a = n)
     (zf : ∀ i, i ≠ c → z.regs i = y.regs i) (zx : ∀ i, i ≠ b → i ≠ c → z.regs i = x.regs i) :
     z.regs a = n := by
   regs_frame
+
+/-! ## Bank views (`Data.comap` / `Data.extend`), `Data.havoc`, and `wram_exec *` -/
+
+private def lowBank (i : Fin 2) : Fin 4 := ⟨i.val, by omega⟩
+
+private abbrev twoRegs : ℕ := 2
+
+/-- `regs_frame` crosses `let u := z.extend f x`, `Data.comap_extend`, and universal bank frames,
+and equates `Data.comap` reads across differing register-count wrappers (`2` vs `twoRegs`). -/
+example (arg : Data 4) (z : Data twoRegs) (v : ℕ)
+    (ha : (arg.comap lowBank).regs 0 = v)
+    (hb : arg.regs 3 = 99)
+    (hz : ∀ i : Fin twoRegs, i ≠ 1 → z.regs i = (arg.comap lowBank).regs i) :
+    let u := z.extend lowBank arg
+    (u.comap lowBank).regs 0 = v ∧ u.regs 3 = 99 := by
+  intro u
+  regs_frame
+
+/-- `regs_frame` crosses `Data.havoc` both outside and inside the clobbered registers. -/
+example (x : Data 4) (v : Fin 4 → ℕ) (m : ℕ → ℕ) (ha : x.regs a = 12) (hvb : v b = 77) :
+    (x.havoc bump v m).regs a = 12 ∧ (x.havoc bump v m).regs b = 77 := by
+  regs_frame
+
+/-- `wram_exec *` automatically discovers register equations from context hypotheses. -/
+example {w : ℕ} (x : Data 4) (n : ℕ) (ha : x.regs a = n) (hfit : Fits w (n + 1))
+    (h1 : Fits w 1) :
+    ∃ y, ExecWithin w (ram[ b ← #1; c ← a + b ]) x y 2 ∧ y.regs c = n + 1 := by
+  wram_exec * [hfit, h1]
+  wram_simp
 
 /-! ## Nothing is left behind
 

@@ -18,6 +18,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.Circuit.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Native generation of complete GSW decryption circuits
@@ -71,24 +72,18 @@ private theorem tail_val (n w : ℕ) (hw : 0 < w) (i : Fin (n * w)) :
 
 private theorem productInputsCode_eq (n w : ℕ) (hw : 0 < w) :
     productInputsCode n w = (Circuit.wiring signature (productInputs n w hw)).code := by
-  apply Prod.ext
-  · rfl
-  change _ = List.ofFn (fun i => (productInputs n w hw i).val)
+  refine Prod.ext rfl ?_
+  change List.range (n * w) ++ _ = List.ofFn (fun i => (productInputs n w hw i).val)
   rw [List.ofFn_add]
-  have hl : (fun i : Fin (n * w) =>
-      (productInputs n w hw (Fin.castAdd (n * w) i)).val) = (fun i => i.val) := by
-    funext i
-    simp only [productInputs, Fin.append_left, Fin.val_castAdd]
-  have hr : (fun i : Fin (n * w) =>
-      (productInputs n w hw (Fin.natAdd (n * w) i)).val) =
-      (fun i => n * w + (w - 1) * ((n + 1) * w) + (w + i.val)) := by
-    funext i
-    simp only [productInputs, Fin.append_right]
-    exact tail_val n w hw i
   change _ ++ _ = List.ofFn (fun i : Fin (n * w) =>
       (productInputs n w hw (Fin.castAdd (n * w) i)).val) ++ _
-  rw [hl, hr]
-  congr 1 <;> apply List.ext_getElem (by simp) <;> intro i hi hi' <;> simp
+  congr 1
+  · refine List.ext_getElem (by simp) fun i _ _ => ?_
+    simp [productInputs]
+  · refine List.ext_getElem (by simp) fun i _ hi' => ?_
+    simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, productInputs,
+      Fin.append_right]
+    exact (tail_val n w hw ⟨i, by simpa using hi'⟩).symm
 
 private def decoderCode (w : ℕ) : Code :=
   if w = 0 then ([(.const false, [])], [w])
@@ -132,22 +127,19 @@ private theorem decoderCode_eq (w : ℕ) : decoderCode w = (decodeWord w).code :
 def code (n w : ℕ) : Code :=
   private_decl% (if w = 0 then ([(.const false, [])], [inputWidth n w])
   else compCode (inputWidth n w) (decoderCode w)
-    (compCode (inputWidth n w) (Modular.subtractCode w)
+    (compCode (inputWidth n w) (Modular.subtract w).code
       (appendCode (inputWidth n w) (rowCode n w)
-        (compCode (inputWidth n w) (Modular.innerProductCode n w)
+        (compCode (inputWidth n w) (Modular.innerProduct n w).code
           (productInputsCode n w)))))
 
 /-- The native constructor returns every gate and designated output of the actual circuit. -/
 theorem code_eq_code (n w : ℕ) : code n w = (circuit n w).code := by
-  by_cases hw : 0 < w
-  · change (if w = 0 then _ else _) = _
-    rw [ite_eq_right (by omega : w ≠ 0), decoderCode_eq, Modular.subtractCode_eq_code,
-      rowCode_eq n w hw, Modular.innerProductCode_eq_code, productInputsCode_eq n w hw,
-      compCode_code, appendCode_code, compCode_code, compCode_code]
-    rw [circuit, dite_eq_left hw]
-    rfl
-  · have hz : w = 0 := by omega
-    subst w
+  rcases eq_or_ne w 0 with rfl | hw
+  · rfl
+  · have hw' : 0 < w := Nat.pos_of_ne_zero hw
+    change (if w = 0 then _ else _) = _
+    rw [ite_eq_right hw, decoderCode_eq, rowCode_eq n w hw', productInputsCode_eq n w hw',
+      compCode_code, appendCode_code, compCode_code, compCode_code, circuit, dite_eq_left hw']
     rfl
 
 private theorem native_rowCode :
@@ -180,13 +172,10 @@ private theorem native_decoderCode :
   have ht : ComputableInPolyTime (fun w : ℕ =>
       formulaCode w ((Formula.input (n := 2) 0).xor (.input 1)) ![w - 1, w - 2])
       encUnary encCode := by
-    apply computableInPolyTime_formulaCode _ hw
-    intro i
+    refine computableInPolyTime_formulaCode _ hw fun i => ?_
     fin_cases i
-    · change ComputableInPolyTime (fun w : ℕ => w - 1) _ encNat
-      fun_prop
-    · change ComputableInPolyTime (fun w : ℕ => w - 2) _ encNat
-      fun_prop
+    · exact (by fun_prop : ComputableInPolyTime (fun w : ℕ => w - 1) encUnary encNat)
+    · exact (by fun_prop : ComputableInPolyTime (fun w : ℕ => w - 2) encUnary encNat)
   unfold decoderCode
   fun_prop
 
@@ -195,28 +184,27 @@ private theorem native_code :
       (encPair encUnary encUnary) encCode := by
   have hn : ComputableInPolyTime (fun p : ℕ × ℕ => inputWidth p.1 p.2)
       (encPair encUnary encUnary) encNat := by fun_prop
-  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => Modular.innerProductCode p.1 p.2)
-      (encPair encUnary encUnary) encCode := by
-    simpa only [Modular.innerProductCode_eq_code] using
-      Modular.computableInPolyTime_innerProduct
-  have hs : ComputableInPolyTime (fun p : ℕ × ℕ => Modular.subtractCode p.2)
-      (encPair encUnary encUnary) encCode := by
-    simpa only [Modular.subtractCode_eq_code, Function.comp_def] using
-      Modular.computableInPolyTime_subtract.comp (snd _ _)
+  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => (Modular.innerProduct p.1 p.2).code)
+      (encPair encUnary encUnary) encCode :=
+    Modular.computableInPolyTime_innerProduct
+  have hs : ComputableInPolyTime (fun p : ℕ × ℕ => (Modular.subtract p.2).code)
+      (encPair encUnary encUnary) encCode :=
+    Modular.computableInPolyTime_subtract.comp (snd _ _)
   have hd := native_decoderCode.comp (snd encUnary encUnary)
   have hbody := computableInPolyTime_compCode hn hd
     (computableInPolyTime_compCode hn hs
       (computableInPolyTime_appendCode hn native_rowCode
         (computableInPolyTime_compCode hn hi
           native_productInputsCode)))
-  change ComputableInPolyTime (fun p : ℕ × ℕ =>
-    if p.2 = 0 then ([(Op.const false, [])], [inputWidth p.1 p.2])
-    else compCode (inputWidth p.1 p.2) (decoderCode p.2)
-      (compCode (inputWidth p.1 p.2) (Modular.subtractCode p.2)
-        (appendCode (inputWidth p.1 p.2) (rowCode p.1 p.2)
-          (compCode (inputWidth p.1 p.2) (Modular.innerProductCode p.1 p.2)
-            (productInputsCode p.1 p.2))))) _ _
-  fun_prop
+  have hz : ComputableInPolyTime
+      (fun p : ℕ × ℕ => decide (p.2 = 0)) (encPair encUnary encUnary) encBool := by fun_prop
+  have hzero : ComputableInPolyTime
+      (fun p : ℕ × ℕ => ([(Op.const false, [])], [inputWidth p.1 p.2]))
+      (encPair encUnary encUnary) encCode :=
+    (const _).prod (hn.cons' (const []))
+  refine (hz.ite hzero hbody).of_enc_eq fun p => ?_
+  change encCode (if p.2 = 0 then _ else _) = _
+  simp only [decide_eq_true_eq, Function.comp_apply]
 
 /-- One native polynomial-time algorithm generates the full decryptor from unary parameters. -/
 theorem computableInPolyTime_code :
@@ -245,9 +233,7 @@ theorem computableInPolyTime_layeredAugment :
         (augmentNand (circuit p.1 p.2)).code)
       (encPair encUnary encUnary) Layered.encCompiled := by
   have ha := computableInPolyTime_augmentNand.comp native_circuit
-  have hview : ComputableInPolyTime
-      (fun D : Σ m, Circuit signature m 1 => (D.1, D.2.code))
-      (encCircuit 1) (encPair encUnary encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hv := hview.comp ha
   exact Layered.computableInPolyTime_compile hv.fst' hv.snd'
 

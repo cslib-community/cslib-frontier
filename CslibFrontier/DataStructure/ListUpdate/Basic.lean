@@ -125,10 +125,8 @@ theorem idxOf_reverse_add_idxOf {l : List α} (hl : l.Nodup) {x : α} (hx : x �
 theorem card_filter_idxOf_lt [Fintype α] {l : List α} (hl : IsArrangement l) (r : α) :
     (Finset.univ.filter fun x => l.idxOf x < l.idxOf r).card = l.idxOf r := by
   have h : (Finset.univ.filter fun x => l.idxOf x < l.idxOf r) =
-      (l.take (l.idxOf r)).toFinset := by
-    ext x
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, List.mem_toFinset]
-    exact (List.mem_take_iff_idxOf_lt (hl.2 x)).symm
+      (l.take (l.idxOf r)).toFinset :=
+    Finset.ext fun x => by simp [List.mem_take_iff_idxOf_lt (hl.2 x)]
   rw [h, List.toFinset_card_of_nodup (hl.1.sublist (List.take_sublist _ _)), List.length_take,
     Nat.min_eq_left List.idxOf_le_length]
 
@@ -153,41 +151,29 @@ theorem mem_inversionSet [Fintype α] {l l' : List α} {x y : α} :
 theorem inversions_self [Fintype α] (l : List α) : inversions l l = 0 := by
   rw [inversions, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
   rintro ⟨x, y⟩ h
-  rw [mem_inversionSet] at h
-  omega
+  rw [mem_inversionSet] at h; omega
 
-theorem inversions_comm [Fintype α] (l l' : List α) : inversions l l' = inversions l' l := by
-  refine Finset.card_equiv (Equiv.prodComm α α) fun ⟨x, y⟩ => ?_
-  rw [Equiv.prodComm_apply, Prod.swap_prod_mk, mem_inversionSet, mem_inversionSet]
-  exact And.comm
+theorem inversions_comm [Fintype α] (l l' : List α) : inversions l l' = inversions l' l :=
+  Finset.card_equiv (Equiv.prodComm α α) fun ⟨_, _⟩ => by simp [mem_inversionSet, And.comm]
 
 /-- **Triangle inequality** for inversions through an intermediate arrangement. -/
 theorem inversions_triangle [Fintype α] (l₁ : List α) {l₂ : List α} (h₂ : IsArrangement l₂)
     (l₃ : List α) : inversions l₁ l₃ ≤ inversions l₁ l₂ + inversions l₂ l₃ := by
-  refine le_trans (Finset.card_le_card ?_) (Finset.card_union_le _ _)
-  rintro ⟨x, y⟩ h
+  refine (Finset.card_le_card fun ⟨x, y⟩ h => ?_).trans (Finset.card_union_le _ _)
   rw [Finset.mem_union, mem_inversionSet, mem_inversionSet]
   rw [mem_inversionSet] at h
-  have hxy : x ≠ y := by grind
-  have hne : l₂.idxOf x ≠ l₂.idxOf y := fun he => hxy (h₂.idxOf_inj.1 he)
+  have hne : l₂.idxOf x ≠ l₂.idxOf y := fun he => (by grind : x ≠ y) (h₂.idxOf_inj.1 he)
   omega
 
 /-- Any two lists have at most `n (n - 1) / 2` inversions, where `n = Fintype.card α`. -/
 theorem two_mul_inversions_le [Fintype α] (l l' : List α) :
     2 * inversions l l' ≤ Fintype.card α * (Fintype.card α - 1) := by
-  have hdisj : Disjoint (inversionSet l l') (inversionSet l' l) := by
-    rw [Finset.disjoint_left]
-    rintro ⟨x, y⟩ h₁ h₂
-    rw [mem_inversionSet] at h₁ h₂
-    omega
-  have hsub : inversionSet l l' ∪ inversionSet l' l ⊆ (Finset.univ : Finset α).offDiag := by
-    rintro ⟨x, y⟩ h
-    rw [Finset.mem_offDiag]
-    refine ⟨Finset.mem_univ _, Finset.mem_univ _, fun hxy => ?_⟩
-    dsimp only at hxy
-    subst hxy
-    rw [Finset.mem_union, mem_inversionSet, mem_inversionSet] at h
-    omega
+  have hdisj : Disjoint (inversionSet l l') (inversionSet l' l) :=
+    Finset.disjoint_left.2 fun ⟨_, _⟩ h₁ h₂ => by rw [mem_inversionSet] at h₁ h₂; omega
+  have hsub : inversionSet l l' ∪ inversionSet l' l ⊆ (Finset.univ : Finset α).offDiag :=
+    fun ⟨x, y⟩ h => Finset.mem_offDiag.2 ⟨Finset.mem_univ _, Finset.mem_univ _, fun hxy => by
+      rw [show x = y from hxy, Finset.mem_union, mem_inversionSet, mem_inversionSet] at h
+      omega⟩
   have hcard := Finset.card_le_card hsub
   rw [Finset.card_union_of_disjoint hdisj, Finset.offDiag_card, Finset.card_univ,
     ← Nat.mul_sub_one] at hcard
@@ -209,25 +195,21 @@ theorem card_filter_ne_add_card_crossBefore_le [Fintype α] (l l' : List α) (r 
       inversions l l' := by
   rw [← Finset.card_map (Function.Embedding.sectL α r), ← Finset.card_union_of_disjoint]
   · refine Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ _) ?_)
-    intro p hp
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_map.1 hp
-    exact mem_inversionSet.2 (mem_crossBefore.1 hx)
-  · rw [Finset.disjoint_left]
-    intro p hp₁ hp₂
-    obtain ⟨x, -, rfl⟩ := Finset.mem_map.1 hp₂
-    exact (Finset.mem_filter.1 hp₁).2.2 rfl
+    exact Finset.forall_mem_map.2 fun x hx => mem_inversionSet.2 (mem_crossBefore.1 hx)
+  · exact Finset.disjoint_left.2 fun _ hp₁ hp₂ => by
+      obtain ⟨x, -, rfl⟩ := Finset.mem_map.1 hp₂
+      exact (Finset.mem_filter.1 hp₁).2.2 rfl
 
 /-- Items in front of `r` in `l` are either in front of `r` in `l'` or in `crossBefore l l' r`. -/
 theorem idxOf_le_card_crossBefore_add [Fintype α] {l l' : List α}
     (hl : IsArrangement l) (hl' : IsArrangement l') (r : α) :
     l.idxOf r ≤ (crossBefore l l' r).card + l'.idxOf r := by
   rw [← card_filter_idxOf_lt hl r, ← card_filter_idxOf_lt hl' r]
-  refine le_trans (Finset.card_le_card ?_) ((Finset.card_union_le _ _).trans_eq (Nat.add_comm _ _))
-  intro x hx
+  refine (Finset.card_le_card fun x hx => ?_).trans
+    ((Finset.card_union_le _ _).trans_eq (Nat.add_comm _ _))
   rw [Finset.mem_union, mem_crossBefore]
   simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
-  have hxr : x ≠ r := by grind
-  have hne : l'.idxOf x ≠ l'.idxOf r := fun he => hxr (hl'.idxOf_inj.1 he)
+  have hne : l'.idxOf x ≠ l'.idxOf r := fun he => (by grind : x ≠ r) (hl'.idxOf_inj.1 he)
   omega
 
 /-- If `r` sits at position `l.idxOf r` in `l`, then moving to `l'` either creates inversions or

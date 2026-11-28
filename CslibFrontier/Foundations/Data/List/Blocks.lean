@@ -63,8 +63,7 @@ theorem sum_map_range_eq_sum_range {M : Type*} [AddCommMonoid M] (n : ℕ) (f : 
 /-- A list is its entries at `0, …, length - 1`. -/
 theorem map_getD_range {α : Type*} (l : List α) (x : α) :
     (List.range l.length).map (l.getD · x) = l := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  simp [List.getElem?_eq_getElem h₂]
+  exact List.ext_getElem (by simp) fun _ _ h₂ => by simp [List.getElem?_eq_getElem h₂]
 
 /-- A sum over a `flatMap` sums the inner sums. -/
 theorem sum_map_flatMap {α β M : Type*} [AddMonoid M] (l : List α) (f : α → List β)
@@ -136,14 +135,11 @@ theorem sum_filter_mod {J : ℕ} (hJ : 0 < J) (l : List ℕ) (f : ℕ → ℕ) :
   induction l with
   | nil => simp
   | cons x l ih =>
-    have hc : ∀ h, (((x :: l).filter (· % J = h)).map f).sum =
+    have hc (h : ℕ) : (((x :: l).filter (· % J = h)).map f).sum =
         (if x % J = h then f x else 0) + ((l.filter (· % J = h)).map f).sum := by
-      intro h
       by_cases hx : x % J = h <;> simp [hx]
-    rw [Finset.sum_congr rfl fun h _ => hc h, Finset.sum_add_distrib, ih,
-      Finset.sum_ite_eq (Finset.range J) (x % J) (fun _ => f x),
-      ite_eq_left (Finset.mem_range.mpr (Nat.mod_lt x hJ))]
-    simp
+    rw [Finset.sum_congr rfl fun h _ => hc h]
+    simp [Finset.sum_add_distrib, ih, Finset.mem_range.mpr (Nat.mod_lt x hJ)]
 
 /-- Summing over the residue classes below `m` sums over the numbers below `m`. -/
 theorem sum_residueClass {J : ℕ} (hJ : 0 < J) (m : ℕ) (f : ℕ → ℕ) :
@@ -157,13 +153,12 @@ theorem sum_length_filter_mod {J : ℕ} (hJ : 0 < J) (l : List ℕ) :
 
 /-- **A residue class below `m` has at most `m / J + 1` numbers.** -/
 theorem length_residueClass_le (J m g : ℕ) : (residueClass J m g).length ≤ m / J + 1 := by
-  rw [residueClass, ← List.toFinset_card_of_nodup ((List.nodup_range).filter _)]
+  rw [residueClass, ← List.toFinset_card_of_nodup (List.nodup_range.filter _)]
   calc #((List.range m).filter (· % J = g)).toFinset
       ≤ #(Finset.range (m / J + 1)) := by
         refine Finset.card_le_card_of_injOn (· / J) (fun x hx => ?_) (fun x hx y hy hxy => ?_)
         · simp only [Finset.mem_coe, List.mem_toFinset, List.mem_filter, List.mem_range,
-            decide_eq_true_eq] at hx
-          simp only [Finset.coe_range, Set.mem_Iio]
+            decide_eq_true_eq, Finset.coe_range, Set.mem_Iio] at hx ⊢
           exact Nat.lt_succ_of_le (Nat.div_le_div_right hx.1.le)
         · simp only [Finset.mem_coe, List.mem_toFinset, List.mem_filter, List.mem_range,
             decide_eq_true_eq] at hx hy

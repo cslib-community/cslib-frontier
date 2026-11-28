@@ -11,16 +11,17 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Basic
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.AffineSubspace
 public import CslibFrontier.Foundations.Data.BitString.AffineSubspace
+public import CslibFrontier.Foundations.Data.BitString.LinearEquiv
 public import CslibFrontier.Probability.MinEntropy
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
-import CslibFrontier.Foundations.Data.BitString.ZModTwo
+import CslibFrontier.Foundations.Data.BitString.ZModSpace
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
-import Mathlib.LinearAlgebra.Quotient.Basic
 import Mathlib.Logic.Equiv.Fin.Basic
 import Mathlib.Tactic.Linarith
 
@@ -34,8 +35,6 @@ explicit affine condensers and extractors ([Li2023], [LiZhong2024]):
   of `BitString n`.
 * `Cslib.AffineDisperser.Li.IsAffineSource`: an `(n, k)` affine source (`[Li2023, Def. 3.1]`,
   `[LiZhong2024, Def. 15]`).
-* `Cslib.AffineDisperser.Li.blockEquiv`: canonical isomorphism between `BitString (∑ i, b i)`
-  and partitioned bit-blocks `∀ i : Fin t, BitString (b i)`.
 * `Cslib.AffineDisperser.Li.IsAffineExtractor`: seedless `(k, ε)`-affine extractors.
 * `Cslib.AffineDisperser.Li.IsSumsetExtractor`: `(k₁, k₂, ε)`-sumset extractors
   (`[Li2023, Thm. 7.13]`).
@@ -72,203 +71,6 @@ public section
 namespace Cslib.AffineDisperser.Li
 
 open Cslib.BitString Cslib.Probability Cslib.Probability.PMF Module
-
-/-! ### Transfer between `Bool`-modules and `(ZMod 2)`-vector spaces -/
-
-section BoolVectorSpace
-
-private def toZModBits (ι : Type*) : (ι → Bool) ≃+ (ι → ZMod 2) where
-  toFun v i := bitEquiv.symm (v i)
-  invFun v i := bitEquiv (v i)
-  left_inv v := funext fun i => bitEquiv.apply_symm_apply (v i)
-  right_inv v := funext fun i => bitEquiv.symm_apply_apply (v i)
-  map_add' u v := funext fun i => map_add bitEquiv.symm (u i) (v i)
-
-private theorem toZModBits_smul {ι : Type*} (c : Bool) (v : ι → Bool) :
-    toZModBits ι (c • v) = bitEquiv.symm c • toZModBits ι v :=
-  funext fun i => map_mul bitEquiv.symm c (v i)
-
-private theorem symm_toZModBits_smul {ι : Type*} (c : ZMod 2) (v : ι → ZMod 2) :
-    (toZModBits ι).symm (c • v) = bitEquiv c • (toZModBits ι).symm v := by
-  apply (toZModBits ι).injective
-  rw [toZModBits_smul, (toZModBits ι).apply_symm_apply, (toZModBits ι).apply_symm_apply,
-    bitEquiv.symm_apply_apply]
-
-private def toZModSub {ι : Type*} (V : Submodule Bool (ι → Bool)) :
-    Submodule (ZMod 2) (ι → ZMod 2) where
-  carrier := toZModBits ι '' (V : Set (ι → Bool))
-  zero_mem' := ⟨0, V.zero_mem, map_zero _⟩
-  add_mem' := by
-    rintro _ _ ⟨x, hx, rfl⟩ ⟨y, hy, rfl⟩
-    exact ⟨x + y, V.add_mem hx hy, map_add _ x y⟩
-  smul_mem' := by
-    rintro c _ ⟨x, hx, rfl⟩
-    refine ⟨bitEquiv c • x, V.smul_mem _ hx, ?_⟩
-    rw [toZModBits_smul, bitEquiv.symm_apply_apply]
-
-private def ofZModSub {ι : Type*} (W : Submodule (ZMod 2) (ι → ZMod 2)) :
-    Submodule Bool (ι → Bool) where
-  carrier := (toZModBits ι).symm '' (W : Set (ι → ZMod 2))
-  zero_mem' := ⟨0, W.zero_mem, map_zero _⟩
-  add_mem' := by
-    rintro _ _ ⟨x, hx, rfl⟩ ⟨y, hy, rfl⟩
-    exact ⟨x + y, W.add_mem hx hy, map_add _ x y⟩
-  smul_mem' := by
-    rintro c _ ⟨x, hx, rfl⟩
-    refine ⟨bitEquiv.symm c • x, W.smul_mem _ hx, ?_⟩
-    rw [symm_toZModBits_smul, bitEquiv.apply_symm_apply]
-
-private theorem mem_toZModSub {ι : Type*} {V : Submodule Bool (ι → Bool)} {x : ι → Bool} :
-    toZModBits ι x ∈ toZModSub V ↔ x ∈ V :=
-  ⟨fun ⟨_, hy, hyx⟩ => (toZModBits ι).injective hyx ▸ hy, fun hx => ⟨x, hx, rfl⟩⟩
-
-private theorem mem_ofZModSub {ι : Type*} {W : Submodule (ZMod 2) (ι → ZMod 2)} {x : ι → Bool} :
-    x ∈ ofZModSub W ↔ toZModBits ι x ∈ W :=
-  ⟨fun ⟨_, hy, hyx⟩ => hyx ▸ ((toZModBits ι).apply_symm_apply _).symm ▸ hy,
-    fun hx => ⟨_, hx, (toZModBits ι).symm_apply_apply x⟩⟩
-
-private theorem toZModSub_ofZModSub {ι : Type*} (W : Submodule (ZMod 2) (ι → ZMod 2)) :
-    toZModSub (ofZModSub W) = W := by
-  ext y; obtain ⟨x, rfl⟩ := (toZModBits ι).surjective y
-  rw [mem_toZModSub, mem_ofZModSub]
-
-private theorem toZModSub_le_iff {ι : Type*} {U V : Submodule Bool (ι → Bool)} :
-    toZModSub U ≤ toZModSub V ↔ U ≤ V :=
-  ⟨fun h _ hx => mem_toZModSub.mp (h (mem_toZModSub.mpr hx)),
-    fun h _ ⟨_, hx, h'⟩ => h' ▸ mem_toZModSub.mpr (h hx)⟩
-
-private theorem toZModSub_inf {ι : Type*} (U V : Submodule Bool (ι → Bool)) :
-    toZModSub (U ⊓ V) = toZModSub U ⊓ toZModSub V := by
-  ext y; obtain ⟨x, rfl⟩ := (toZModBits ι).surjective y
-  simp only [Submodule.mem_inf, mem_toZModSub]
-
-private theorem toZModSub_sup {ι : Type*} (U V : Submodule Bool (ι → Bool)) :
-    toZModSub (U ⊔ V) = toZModSub U ⊔ toZModSub V :=
-  le_antisymm (by
-    rintro _ ⟨_, hz, rfl⟩
-    obtain ⟨u, hu, v, hv, rfl⟩ := Submodule.mem_sup.mp hz
-    exact map_add (toZModBits ι) u v ▸
-      Submodule.add_mem_sup (mem_toZModSub.mpr hu) (mem_toZModSub.mpr hv))
-    (sup_le (toZModSub_le_iff.mpr le_sup_left) (toZModSub_le_iff.mpr le_sup_right))
-
-private def toZModLinear {ι₁ ι₂ : Type*} (f : (ι₁ → Bool) →ₗ[Bool] (ι₂ → Bool)) :
-    (ι₁ → ZMod 2) →ₗ[ZMod 2] (ι₂ → ZMod 2) where
-  toFun z := toZModBits ι₂ (f ((toZModBits ι₁).symm z))
-  map_add' _ _ := by simp only [map_add]
-  map_smul' c a := by
-    rw [symm_toZModBits_smul, map_smul, toZModBits_smul, bitEquiv.symm_apply_apply]; rfl
-
-private def toZModSubEquiv {ι : Type*} (V : Submodule Bool (ι → Bool)) :
-    V ≃+ toZModSub V where
-  toFun v := ⟨toZModBits ι v.1, mem_toZModSub.mpr v.2⟩
-  invFun w := ⟨(toZModBits ι).symm w.1, by
-    rw [← mem_toZModSub, (toZModBits ι).apply_symm_apply]; exact w.2⟩
-  left_inv v := Subtype.ext ((toZModBits ι).symm_apply_apply v.1)
-  right_inv w := Subtype.ext ((toZModBits ι).apply_symm_apply w.1)
-  map_add' u v := Subtype.ext (map_add (toZModBits ι) u.1 v.1)
-
-private theorem finrank_bool_eq_finrank_toZMod {ι : Type*} (V : Submodule Bool (ι → Bool)) :
-    finrank Bool V = finrank (ZMod 2) (toZModSub V) :=
-  congrArg Cardinal.toNat <|
-    rank_eq_of_equiv_equiv (R := Bool) (R' := ZMod 2) (M := V) (M₁ := toZModSub V)
-      bitEquiv.symm (toZModSubEquiv V) bitEquiv.symm.bijective
-      fun c v => Subtype.ext (toZModBits_smul c v.1)
-
-private theorem natCard_submodule_bool {ι : Type*} [Finite ι] (V : Submodule Bool (ι → Bool)) :
-    Nat.card V = 2 ^ finrank Bool V := by
-  have eV := (toZModSubEquiv V).toEquiv
-  have : Finite (toZModSub V) := Finite.of_equiv V eV
-  let _ : Fintype (toZModSub V) := Fintype.ofFinite _
-  rw [Nat.card_congr eV, Nat.card_eq_fintype_card,
-    Fintype.card_congr (Module.finBasis (ZMod 2) (toZModSub V)).equivFun.toEquiv,
-    Fintype.card_fun, Fintype.card_fin, ZMod.card, finrank_bool_eq_finrank_toZMod]
-
-/-- Complementing a `Bool`-submodule inside another `Bool`-submodule of `ι → Bool`. -/
-theorem exists_isCompl_submodule {ι : Type*} (K V : Submodule Bool (ι → Bool))
-    (hKV : K ≤ V) :
-    ∃ U : Submodule Bool (ι → Bool), U ≤ V ∧ U ⊓ K = ⊥ ∧ U ⊔ K = V := by
-  let KZ := (toZModSub K).comap (toZModSub V).subtype
-  obtain ⟨UZ, hUZ⟩ := Submodule.exists_isCompl KZ
-  have hle : UZ.map (toZModSub V).subtype ≤ toZModSub V := Submodule.map_subtype_le _ _
-  refine ⟨ofZModSub (UZ.map (toZModSub V).subtype), ?_, ?_, ?_⟩
-  · rwa [← toZModSub_le_iff, toZModSub_ofZModSub]
-  · rw [eq_bot_iff, ← toZModSub_le_iff, toZModSub_inf, toZModSub_ofZModSub]
-    rintro y ⟨hy1, hy2⟩
-    obtain ⟨⟨w, hwV⟩, hwU, rfl⟩ := Submodule.mem_map.mp hy1
-    have hmem : (⟨w, hwV⟩ : toZModSub V) ∈ KZ ⊓ UZ := ⟨hy2, hwU⟩
-    rw [hUZ.inf_eq_bot, Submodule.mem_bot] at hmem
-    have h0 : w = 0 := congrArg Subtype.val hmem
-    subst h0; exact (toZModSub ⊥).zero_mem
-  · refine le_antisymm (sup_le (by rwa [← toZModSub_le_iff, toZModSub_ofZModSub]) hKV) ?_
-    rw [← toZModSub_le_iff, toZModSub_sup, toZModSub_ofZModSub, sup_comm]
-    intro w hw
-    obtain ⟨k, hk, u, hu, hku⟩ :=
-      Submodule.mem_sup.mp (hUZ.sup_eq_top ▸ Submodule.mem_top : (⟨w, hw⟩ : toZModSub V) ∈ _)
-    exact Submodule.mem_sup.mpr ⟨k.1, hk, u.1, Submodule.mem_map.mpr ⟨u, hu, rfl⟩,
-      congrArg Subtype.val hku⟩
-
-/-- Dimension formula for the sum and intersection of two `Bool`-submodules of `ι → Bool`. -/
-theorem finrank_sup_add_finrank_inf_bitString {ι : Type*} [Finite ι]
-    (U K : Submodule Bool (ι → Bool)) :
-    finrank Bool ↥(U ⊔ K) + finrank Bool ↥(U ⊓ K) =
-      finrank Bool U + finrank Bool K := by
-  have : Finite (ι → ZMod 2) := Finite.of_equiv (ι → Bool) (toZModBits ι).toEquiv
-  simp_rw [finrank_bool_eq_finrank_toZMod]
-  rw [toZModSub_sup, toZModSub_inf]
-  exact Submodule.finrank_sup_add_finrank_inf_eq (toZModSub U) (toZModSub K)
-
-/-- Rank-nullity for linear maps between `Bool`-vector spaces `ι₁ → Bool` and `ι₂ → Bool`. -/
-theorem finrank_range_add_finrank_ker_bitString {ι₁ ι₂ : Type*} [Finite ι₁]
-    (f : (ι₁ → Bool) →ₗ[Bool] (ι₂ → Bool)) (V : Submodule Bool (ι₁ → Bool)) :
-    finrank Bool ↥(V.map f) + finrank Bool ↥(V ⊓ LinearMap.ker f) = finrank Bool V := by
-  let fZ := toZModLinear f
-  have hmap : toZModSub (V.map f) = LinearMap.range (fZ.domRestrict (toZModSub V)) := by
-    ext y; obtain ⟨w, rfl⟩ := (toZModBits ι₂).surjective y
-    simp only [mem_toZModSub, Submodule.mem_map, LinearMap.mem_range, LinearMap.domRestrict_apply,
-      Subtype.exists, fZ, toZModLinear, LinearMap.coe_mk, AddHom.coe_mk]
-    exact ⟨fun ⟨x, hx, h⟩ => ⟨toZModBits ι₁ x, mem_toZModSub.mpr hx,
-        by rw [(toZModBits ι₁).symm_apply_apply, h]⟩,
-      fun ⟨_, ⟨x, hx, rfl⟩, h⟩ => ⟨x, hx, (toZModBits ι₂).injective
-        (by simpa only [(toZModBits ι₁).symm_apply_apply] using h)⟩⟩
-  have hker : toZModSub (V ⊓ LinearMap.ker f) = toZModSub V ⊓ LinearMap.ker fZ := by
-    ext z; obtain ⟨x, rfl⟩ := (toZModBits ι₁).surjective z
-    simp only [Submodule.mem_inf, mem_toZModSub, LinearMap.mem_ker, fZ, toZModLinear,
-      LinearMap.coe_mk, AddHom.coe_mk, (toZModBits ι₁).symm_apply_apply,
-      (toZModBits ι₂).map_eq_zero_iff]
-  let eK : LinearMap.ker (fZ.domRestrict (toZModSub V)) ≃ₗ[ZMod 2]
-      ↥(toZModSub V ⊓ LinearMap.ker fZ) :=
-    { toFun := fun v => ⟨v.1.1, v.1.2, LinearMap.mem_ker.mpr v.2⟩
-      invFun := fun w => ⟨⟨w.1, w.2.1⟩, LinearMap.mem_ker.mpr w.2.2⟩
-      left_inv := fun _ => rfl
-      right_inv := fun _ => rfl
-      map_add' := fun _ _ => rfl
-      map_smul' := fun _ _ => rfl }
-  have : Finite (ι₁ → ZMod 2) := Finite.of_equiv (ι₁ → Bool) (toZModBits ι₁).toEquiv
-  simp_rw [finrank_bool_eq_finrank_toZMod]
-  rw [hmap, hker, ← eK.finrank_eq]
-  exact LinearMap.finrank_range_add_finrank_ker (fZ.domRestrict (toZModSub V))
-
-/-- Existence of a `k₁`-dimensional `Bool`-submodule inside any `Bool`-submodule of `ι → Bool`
-of dimension at least `k₁`. -/
-theorem exists_submodule_finrank_eq_bitString {ι : Type*} [Finite ι]
-    (V : Submodule Bool (ι → Bool)) (k₁ : ℕ) (hk₁ : k₁ ≤ finrank Bool V) :
-    ∃ U : Submodule Bool (ι → Bool), U ≤ V ∧ finrank Bool U = k₁ := by
-  have : Finite (ι → ZMod 2) := Finite.of_equiv (ι → Bool) (toZModBits ι).toEquiv
-  rw [finrank_bool_eq_finrank_toZMod] at hk₁
-  let B0 := Module.finBasis (ZMod 2) (toZModSub V)
-  let g : Fin k₁ → ι → ZMod 2 := fun i => B0 (Fin.castLE hk₁ i)
-  let UZ := Submodule.span (ZMod 2) (Set.range g)
-  have hli : LinearIndependent (ZMod 2) g :=
-    (B0.linearIndependent.comp _ (Fin.castLE_injective hk₁)).map'
-      (toZModSub V).subtype (LinearMap.ker_eq_bot.mpr Subtype.val_injective)
-  refine ⟨ofZModSub UZ,
-    toZModSub_le_iff.mp (by
-      rw [toZModSub_ofZModSub]
-      exact Submodule.span_le.mpr (by rintro _ ⟨i, rfl⟩; exact (B0 _).2)),
-    by rw [finrank_bool_eq_finrank_toZMod, toZModSub_ofZModSub, finrank_span_eq_card hli,
-      Fintype.card_fin]⟩
-
-end BoolVectorSpace
 
 /-! ### Uniform distributions on affine subspaces -/
 
@@ -390,16 +192,11 @@ private theorem uniformAffine_eq_bind_add_of_isCompl {n : ℕ}
         fun a => (uniformAffine (AffineSubspace.mk' 0 K) ⟨0, AffineSubspace.self_mem_mk' 0 K⟩).map
           fun b => a + b := by
   classical
-  let e := isCompl_prodEquiv hU hK hcompl
-  rw [uniformAffine_eq_map_direction A hx₀, ← uniformOfFintype_map_equiv e, PMF.map_comp,
-    show (fun v : A.direction => x₀ + v.1) ∘ e = fun p : U × K => x₀ + (e (p.1, p.2)).1 from rfl,
-    ← uniformOfFintype_bind_map (fun u k => x₀ + (e (u, k)).1),
-    uniformAffine_mk'_eq_map x₀ U, PMF.bind_map]
-  refine congrArg (PMF.bind _) (funext fun u => ?_)
-  dsimp only [Function.comp_def]
-  rw [uniformAffine_mk'_eq_map 0 K, PMF.map_comp]
-  exact congrArg (PMF.map · _) (funext fun k => by
-    change x₀ + (u.1 + k.1) = x₀ + u.1 + (0 + k.1); rw [zero_add, add_assoc])
+  rw [uniformAffine_eq_map_direction A hx₀, uniformAffine_mk'_eq_map x₀ U]
+  simp_rw [uniformAffine_mk'_eq_map 0 K]
+  relabel_uniform (isCompl_prodEquiv hU hK hcompl) with uk
+  rw [zero_add, add_assoc]
+  rfl
 
 /-- An affine map pushes `uniformAffine A hA` forward to `uniformAffine (A.map L.toAffineMap)`. -/
 theorem uniformAffine_map_of_isAffine {n m : ℕ} (A : AffineSubspace Bool (BitString n))
@@ -414,7 +211,7 @@ theorem uniformAffine_map_of_isAffine {n m : ℕ} (A : AffineSubspace Bool (BitS
   have hLx₀ : L x₀ ∈ A' := AffineSubspace.mem_map.mpr ⟨x₀, hx₀, rfl⟩
   have hdir' : A'.direction = A.direction.map hL.linearMap := AffineSubspace.map_direction _ _
   let K : Submodule Bool (BitString n) := A.direction ⊓ LinearMap.ker hL.linearMap
-  obtain ⟨U, hU_le, hinf, hsup⟩ := exists_isCompl_submodule K A.direction inf_le_left
+  obtain ⟨U, hU_le, hinf, hsup⟩ := exists_isCompl_submodule_bool (K := K) inf_le_left
   let eUA' : U ≃ A'.direction := Equiv.ofBijective
     (fun u => ⟨hL.linearMap u.1, hdir'.symm ▸ Submodule.mem_map.mpr ⟨u.1, hU_le u.2, rfl⟩⟩)
     ⟨fun u₁ u₂ h => Subtype.ext <| sub_eq_zero.mp <| by
@@ -456,9 +253,9 @@ theorem isAffineSource_map_of_isAffine {n m k : ℕ} {X : PMF (BitString n)}
   rcases hX with ⟨A, ⟨x₀, hx₀⟩, hdim, rfl⟩
   have hle_k : finrank Bool (A.direction.map hL.linearMap) ≤ k := by
     rw [← hdim]
-    exact (Nat.le_add_right _ _).trans_eq (finrank_range_add_finrank_ker_bitString hL.linearMap _)
+    exact (Nat.le_add_right _ _).trans_eq (finrank_map_add_finrank_inf_ker_bool hL.linearMap _)
   have hle_m : finrank Bool (A.direction.map hL.linearMap) ≤ m := by
-    rw [finrank_bool_eq_finrank_toZMod]
+    rw [← finrank_submoduleZModIso]
     exact (Submodule.finrank_le _).trans (by simp)
   exact ⟨finrank Bool (A.direction.map hL.linearMap), hle_k, hle_m, A.map hL.toAffineMap,
     ⟨L x₀, AffineSubspace.mem_map.mpr ⟨x₀, hx₀, rfl⟩⟩,
@@ -489,20 +286,24 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
   rcases hX with ⟨Asub, ⟨x₀, hx₀⟩, hdim, rfl⟩
   let K := Asub.direction ⊓ LinearMap.ker hL.linearMap
   obtain ⟨U, hU_le, hcompl_inf, hcompl_sup⟩ :=
-    exists_isCompl_submodule K Asub.direction inf_le_left
-  let fU := (toZModLinear hL.linearMap).domRestrict (toZModSub U)
+    exists_isCompl_submodule_bool (K := K) inf_le_left
+  let fU := (linearMapZModEquiv (Fin n) (Fin m) hL.linearMap).domRestrict
+    (submoduleZModIso (Fin n) U)
   have hfU_inj : Function.Injective fU := (injective_iff_map_eq_zero fU).mpr fun ⟨z, hz⟩ hfz => by
-    obtain ⟨u, hu, rfl⟩ := hz
-    have hLu : hL.linearMap u = 0 := (toZModBits (Fin m)).injective <| by
-      simpa only [fU, toZModLinear, LinearMap.domRestrict_apply, LinearMap.coe_mk, AddHom.coe_mk,
-        (toZModBits (Fin n)).symm_apply_apply, map_zero] using hfz
+    obtain ⟨u, rfl⟩ := (toZModSpace (Fin n)).surjective z
+    have hu : u ∈ U := toZModSpace_mem_submoduleZModIso.mp hz
+    have hLu : hL.linearMap u = 0 := (toZModSpace (Fin m)).injective <| by
+      simpa only [fU, LinearMap.domRestrict_apply, linearMapZModEquiv_toZModSpace, map_zero]
+        using hfz
     have huK : u ∈ U ⊓ K := ⟨hu, hU_le hu, LinearMap.mem_ker.mpr hLu⟩
     rw [hcompl_inf, Submodule.mem_bot] at huK
-    exact Subtype.ext (by simp [huK])
+    subst huK
+    exact Subtype.ext (map_zero _)
   let eU := LinearEquiv.ofInjective fU hfU_inj
   obtain ⟨W, hW⟩ := Submodule.exists_isCompl (LinearMap.range fU)
-  let TZ := ((toZModSub U).subtype.comp eU.symm.toLinearMap).comp (Submodule.projectionOnto _ _ hW)
-  let T : BitString m → BitString n := fun y => (toZModBits _).symm (TZ (toZModBits _ y))
+  let TZ := ((submoduleZModIso (Fin n) U).subtype.comp eU.symm.toLinearMap).comp
+    (Submodule.projectionOnto _ _ hW)
+  let T : BitString m → BitString n := fun y => (toZModSpace _).symm (TZ (toZModSpace _ y))
   have T_add (a b : BitString m) : T (a + b) = T a + T b := by simp only [T, map_add]
   let L_inv : BitString m → BitString n := fun y => x₀ + T (y + L x₀)
   have hL_inv : IsAffine L_inv := fun y₁ y₂ y₃ => by
@@ -512,10 +313,10 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
       BitString.add_self x₀, add_zero, ← T_add, ← T_add]
     congr 1; rw [show (y₁ + L x₀) + (y₂ + L x₀) + (y₃ + L x₀) =
       (y₁ + y₂ + y₃) + (L x₀ + L x₀) + L x₀ by abel, BitString.add_self, add_zero]
-  have hkdim := finrank_sup_add_finrank_inf_bitString U K
+  have hkdim := finrank_sup_add_finrank_inf_bool U K
   rw [hcompl_inf, hcompl_sup, finrank_bot, add_zero] at hkdim
   have hU_le_m : finrank Bool U ≤ m := by
-    rw [finrank_bool_eq_finrank_toZMod, eU.finrank_eq]
+    rw [← finrank_submoduleZModIso, eU.finrank_eq]
     exact (Submodule.finrank_le _).trans (by simp)
   refine ⟨finrank Bool U, finrank Bool K,
     uniformAffine (AffineSubspace.mk' x₀ U) ⟨x₀, AffineSubspace.self_mem_mk' x₀ U⟩,
@@ -531,9 +332,8 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
       simpa [AffineSubspace.mem_mk', vsub_eq_sub] using
         (mem_support_uniformAffine_iff (AffineSubspace.mk' 0 K) _ b).mp hb
     have hLb := hL.toAffineMap.map_vadd (0 : BitString n) b
-    have hker : hL.toAffineMap.linear b = 0 := hbK.2
-    rw [vadd_eq_add, add_zero, vadd_eq_add, IsAffine.coe_toAffineMap, hker, zero_add] at hLb
-    exact hLb
+    rwa [vadd_eq_add, add_zero, vadd_eq_add, IsAffine.coe_toAffineMap,
+      show hL.toAffineMap.linear b = 0 from hbK.2, zero_add] at hLb
   · intro a ha
     have haU : a -ᵥ x₀ ∈ U := by
       simpa [AffineSubspace.mem_mk'] using
@@ -541,20 +341,20 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
     have hLa := hL.toAffineMap.map_vadd x₀ (a -ᵥ x₀)
     rw [vsub_vadd, IsAffine.coe_toAffineMap, vadd_eq_add] at hLa
     have hproj : Submodule.projectionOnto _ _ hW
-        (fU ⟨toZModBits _ (a -ᵥ x₀), mem_toZModSub.mpr haU⟩) =
-        eU ⟨toZModBits _ (a -ᵥ x₀), mem_toZModSub.mpr haU⟩ :=
+        (fU ⟨toZModSpace _ (a -ᵥ x₀), toZModSpace_mem_submoduleZModIso.mpr haU⟩) =
+        eU ⟨toZModSpace _ (a -ᵥ x₀), toZModSpace_mem_submoduleZModIso.mpr haU⟩ :=
       Submodule.projectionOnto_apply_left hW ⟨_, LinearMap.mem_range_self fU _⟩
     have hadd : L a + L x₀ = hL.linearMap (a -ᵥ x₀) := by
       rw [hLa, add_assoc, BitString.add_self, add_zero]; rfl
     simp only [L_inv, T, hadd]
-    have hyZ : toZModBits (Fin m) (hL.linearMap (a -ᵥ x₀)) =
-        fU ⟨toZModBits _ (a -ᵥ x₀), mem_toZModSub.mpr haU⟩ := by
-      simp only [fU, toZModLinear, LinearMap.domRestrict_apply, LinearMap.coe_mk, AddHom.coe_mk,
-        (toZModBits _).symm_apply_apply]
-    rw [hyZ, show TZ (fU ⟨toZModBits _ (a -ᵥ x₀), mem_toZModSub.mpr haU⟩) = toZModBits _ (a -ᵥ x₀)
+    have hyZ : toZModSpace (Fin m) (hL.linearMap (a -ᵥ x₀)) =
+        fU ⟨toZModSpace _ (a -ᵥ x₀), toZModSpace_mem_submoduleZModIso.mpr haU⟩ := by
+      simp only [fU, LinearMap.domRestrict_apply, linearMapZModEquiv_toZModSpace]
+    rw [hyZ, show TZ (fU ⟨toZModSpace _ (a -ᵥ x₀), toZModSpace_mem_submoduleZModIso.mpr haU⟩) =
+      toZModSpace _ (a -ᵥ x₀)
       by simp only [TZ, LinearMap.comp_apply, LinearEquiv.coe_coe, hproj,
         LinearEquiv.symm_apply_apply, Submodule.coe_subtype],
-      (toZModBits _).symm_apply_apply, vsub_eq_sub]; abel
+      (toZModSpace _).symm_apply_apply, vsub_eq_sub]; abel
   · intro ℓ hℓ
     obtain ⟨xℓ, hxℓ, rfl⟩ : ∃ x ∈ Asub, L x = ℓ := by
       obtain ⟨x, hx, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hℓ
@@ -573,19 +373,6 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
 
 /-! ### Affine Block Decomposition ([Li2023, Lemma 3.10]) -/
 
-/-- Canonical additive equivalence between flat bit strings `BitString (∑ i, b i)` and
-partitioned bit-blocks `∀ i : Fin t, BitString (b i)`. -/
-@[expose] def blockEquiv {t : ℕ} (b : Fin t → ℕ) :
-    BitString (∑ i, b i) ≃+ (∀ i : Fin t, BitString (b i)) where
-  toFun x i j := x (finSigmaFinEquiv ⟨i, j⟩)
-  invFun g k := g (finSigmaFinEquiv.symm k).1 (finSigmaFinEquiv.symm k).2
-  left_inv x := funext fun k => by simp
-  right_inv g := funext fun i => funext fun j => by
-    change g (finSigmaFinEquiv.symm (finSigmaFinEquiv ⟨i, j⟩)).1
-      (finSigmaFinEquiv.symm (finSigmaFinEquiv ⟨i, j⟩)).2 = g i j
-    rw [finSigmaFinEquiv.symm_apply_apply]
-  map_add' _ _ := rfl
-
 private theorem blockSlice_codim_le {t r : ℕ} {b : Fin t → ℕ}
     (V_flat : Submodule Bool (BitString (∑ i, b i)))
     (eB : (∀ i : Fin t, BitString (b i)) ≃ₗ[Bool] BitString (∑ i, b i))
@@ -593,26 +380,10 @@ private theorem blockSlice_codim_le {t r : ℕ} {b : Fin t → ℕ}
     b i ≤ finrank Bool
       ↥(V_flat.comap (eB.toLinearMap.comp (LinearMap.single Bool (fun j => BitString (b j)) i))) +
       r := by
-  let sfl := eB.toLinearMap.comp (LinearMap.single Bool (fun j => BitString (b j)) i)
-  let gZ := (toZModSub V_flat).mkQ.comp (toZModLinear sfl)
-  have hker : LinearMap.ker gZ = toZModSub (V_flat.comap sfl) := by
-    ext z; obtain ⟨x, rfl⟩ := (toZModBits _).surjective z
-    simp only [gZ, LinearMap.mem_ker, LinearMap.comp_apply, Submodule.mkQ_apply,
-      Submodule.Quotient.mk_eq_zero, toZModLinear, LinearMap.coe_mk, AddHom.coe_mk,
-      (toZModBits _).symm_apply_apply, mem_toZModSub, Submodule.mem_comap]
-  have hrank : finrank (ZMod 2) (LinearMap.range gZ) + finrank (ZMod 2) (LinearMap.ker gZ) =
-      b i := (LinearMap.finrank_range_add_finrank_ker gZ).trans (by simp)
-  have hquot : finrank (ZMod 2) ((Fin (∑ j, b j) → ZMod 2) ⧸ toZModSub V_flat) +
-      finrank (ZMod 2) (toZModSub V_flat) = ∑ j, b j :=
-    (Submodule.finrank_quotient_add_finrank (toZModSub V_flat)).trans (by simp)
-  have hker_dim : finrank (ZMod 2) (LinearMap.ker gZ) =
-      finrank Bool ↥(V_flat.comap sfl) := by
-    rw [hker, ← finrank_bool_eq_finrank_toZMod]
-  have hrange_le : finrank (ZMod 2) (LinearMap.range gZ) ≤
-      finrank (ZMod 2) ((Fin (∑ j, b j) → ZMod 2) ⧸ toZModSub V_flat) := Submodule.finrank_le _
-  have hvf : finrank (ZMod 2) (toZModSub V_flat) = finrank Bool V_flat :=
-    (finrank_bool_eq_finrank_toZMod V_flat).symm
-  dsimp only [sfl] at hker_dim
+  dsimp only [BitString] at hr ⊢
+  set sfl := eB.toLinearMap.comp (LinearMap.single Bool (fun j => Fin (b j) → Bool) i)
+  have h := finrank_comap_codim_le_bool sfl V_flat
+  simp only [Fintype.card_fin] at h
   omega
 
 private theorem blockSlice_mem_of_iSup {t : ℕ} {b : Fin t → ℕ}
@@ -629,11 +400,6 @@ private theorem blockSlice_mem_of_iSup {t : ℕ} {b : Fin t → ℕ}
   | zero => exact fun i => (W i).zero_mem
   | add _ _ _ _ ihx ihy => exact fun i => (W i).add_mem (ihx i) (ihy i)
 
-private def blockEquivLin {t : ℕ} (b : Fin t → ℕ) :
-    (∀ i : Fin t, BitString (b i)) ≃ₗ[Bool] BitString (∑ i, b i) :=
-  { toAddEquiv := (blockEquiv b).symm
-    map_smul' := fun _ _ => rfl }
-
 /-- **Affine Block Decomposition** ([Li2023, Lemma 3.10]):
 if `X` is an affine source over `t` bit-blocks `∀ i : Fin t, BitString (b i)` of codimension
 `≤ r` (i.e. `(∑ i, b i) - r ≤ k`), then `X` is a convex mixture (`μ.bind`) of independent
@@ -641,7 +407,7 @@ product affine sources `PMF.pi (P c)` whose `i`-th block `P c i` is an affine so
 `BitString (b i)` of dimension at least `b i - r`. -/
 theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
     {X : PMF (∀ i : Fin t, BitString (b i))}
-    (hX : IsAffineSource (X.map (blockEquiv b).symm) k)
+    (hX : IsAffineSource (X.map (piBlocksLinearEquiv b).symm) k)
     (hr : (∑ i, b i) ≤ k + r) :
     ∃ (C : Type) (_ : Fintype C) (μ : PMF C)
       (P : C → ∀ i : Fin t, PMF (BitString (b i))),
@@ -649,9 +415,9 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
       X = μ.bind fun c => PMF.pi (P c) := by
   classical
   rcases hX with ⟨A_flat, ⟨x₀_flat, hx₀_flat⟩, hdim_flat, hX_flat⟩
-  let eB := blockEquivLin b
+  let eB := (piBlocksLinearEquiv b).symm
   let V_flat := A_flat.direction
-  let x₀ := blockEquiv b x₀_flat
+  let x₀ := piBlocksLinearEquiv b x₀_flat
   let W : ∀ i : Fin t, Submodule Bool (BitString (b i)) := fun i =>
     V_flat.comap (eB.toLinearMap.comp (LinearMap.single Bool (fun j => BitString (b j)) i))
   let Wprod := ⨆ i : Fin t, (W i).map (LinearMap.single Bool (fun j => BitString (b j)) i)
@@ -660,7 +426,7 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
     refine Submodule.map_le_iff_le_comap.mpr (iSup_le fun i => ?_)
     exact Submodule.map_le_iff_le_comap.mpr le_rfl
   obtain ⟨C_flat, hC_le, hC_inf, hC_sup⟩ :=
-    exists_isCompl_submodule Wprod_flat V_flat hWprod_flat_le
+    exists_isCompl_submodule_bool hWprod_flat_le
   have hsum_single : ∀ (f : ∀ i : Fin t, BitString (b i)),
       (∑ i : Fin t, Pi.single i (f i)) = f := fun f => funext fun i => by
     simp [Finset.sum_apply]
@@ -679,37 +445,29 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
         right_inv := fun wf => Subtype.ext (eB.apply_symm_apply wf.1) }).trans
       (isCompl_prodEquiv hC_le hWprod_flat_le ⟨hC_inf, hC_sup⟩)
   let P : C_flat → ∀ i : Fin t, PMF (BitString (b i)) := fun c i =>
-    uniformAffine (AffineSubspace.mk' (x₀ i + (blockEquiv b c.1) i) (W i))
+    uniformAffine (AffineSubspace.mk' (x₀ i + (piBlocksLinearEquiv b c.1) i) (W i))
       ⟨_, AffineSubspace.self_mem_mk' _ _⟩
-  have hX_eq : X = (uniformAffine A_flat ⟨x₀_flat, hx₀_flat⟩).map (blockEquiv b) := by
+  have hX_eq : X = (uniformAffine A_flat ⟨x₀_flat, hx₀_flat⟩).map (piBlocksLinearEquiv b) := by
     rw [← hX_flat, PMF.map_comp,
-      show (⇑(blockEquiv b) ∘ ⇑(blockEquiv b).symm) = id from
-        funext (blockEquiv b).apply_symm_apply, PMF.map_id]
+      show (⇑(piBlocksLinearEquiv b) ∘ ⇑(piBlocksLinearEquiv b).symm) = id from
+        funext (piBlocksLinearEquiv b).apply_symm_apply, PMF.map_id]
   refine ⟨C_flat, inferInstance, PMF.uniformOfFintype C_flat, P,
     fun c i => ⟨finrank Bool (W i), blockSlice_codim_le V_flat eB (hdim_flat ▸ hr) i,
       _, _, by rw [AffineSubspace.direction_mk'], rfl⟩, ?_⟩
-  have hbind : ((PMF.uniformOfFintype (C_flat × (∀ i : Fin t, W i))).map
-      fun p => blockEquiv b (x₀_flat + (e_dir p).1)) =
-      (PMF.uniformOfFintype C_flat).bind fun c =>
-        (PMF.uniformOfFintype (∀ i : Fin t, W i)).map fun w =>
-          blockEquiv b (x₀_flat + (e_dir (c, w)).1) :=
-    (uniformOfFintype_bind_map fun c w => blockEquiv b (x₀_flat + (e_dir (c, w)).1)).symm
-  rw [hX_eq, uniformAffine_eq_map_direction A_flat hx₀_flat, ← uniformOfFintype_map_equiv e_dir,
-    PMF.map_comp, PMF.map_comp]
-  change (PMF.uniformOfFintype (C_flat × (∀ i : Fin t, W i))).map
-    (fun p => blockEquiv b (x₀_flat + (e_dir p).1)) = _
-  rw [hbind]
-  refine congrArg (PMF.bind _) (funext fun c => ?_)
-  have hpi : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
-      fun w i => x₀ i + blockEquiv b c.1 i + (w i).1 := by
+  have hpi (c : C_flat) : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
+      fun w i => x₀ i + piBlocksLinearEquiv b c.1 i + (w i).1 := by
     have : P c = fun i => (PMF.uniformOfFintype (W i)).map
-        fun w => x₀ i + blockEquiv b c.1 i + w.1 :=
+        fun w => x₀ i + piBlocksLinearEquiv b c.1 i + w.1 :=
       funext fun i => uniformAffine_mk'_eq_map _ (W i)
     rw [this, PMF.pi_map, PMF.pi_uniformOfFintype]
-  rw [hpi]
-  exact congrArg (PMF.map · _) (funext fun w => funext fun i => by
-    change (blockEquiv b (x₀_flat + (c.1 + (blockEquiv b).symm fun j => (w j).1))) i = _
-    simp only [map_add, (blockEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc])
+  rw [hX_eq, uniformAffine_eq_map_direction A_flat hx₀_flat, PMF.map_comp]
+  simp_rw [hpi]
+  relabel_uniform e_dir with cw
+  funext i
+  symm
+  change (piBlocksLinearEquiv b
+    (x₀_flat + (cw.1.1 + (piBlocksLinearEquiv b).symm fun j => (cw.2 j).1))) i = _
+  simp only [map_add, (piBlocksLinearEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc]
 
 /-! ### Bridges from affine and sumset extractors to `IsAffineDisperser` ([Li2023, Cor. 7.14]) -/
 
@@ -779,11 +537,11 @@ theorem exists_independent_affine_sum_of_isAffineSource {n k k₁ k₂ : ℕ}
       (k₂ : ℝ) ≤ minEntropy B ∧ X = A.bind fun a => B.map fun b => a + b := by
   rcases hX with ⟨Asub, ⟨x₀, hx₀⟩, hdim, rfl⟩
   obtain ⟨V₁, hV₁_le, hV₁_dim⟩ :=
-    exists_submodule_finrank_eq_bitString Asub.direction k₁ (by omega)
+    exists_submodule_finrank_eq_bool Asub.direction k₁ (by omega)
   obtain ⟨V₂, hV₂_le, hcompl_inf, hcompl_sup⟩ :=
-    exists_isCompl_submodule V₁ Asub.direction hV₁_le
+    exists_isCompl_submodule_bool hV₁_le
   have hV₂_dim : finrank Bool V₂ = k - k₁ := by
-    have hsum := finrank_sup_add_finrank_inf_bitString V₂ V₁
+    have hsum := finrank_sup_add_finrank_inf_bool V₂ V₁
     rw [hcompl_inf, hcompl_sup, finrank_bot, add_zero, hdim, hV₁_dim] at hsum; omega
   refine ⟨uniformAffine (AffineSubspace.mk' x₀ V₁) ⟨x₀, AffineSubspace.self_mem_mk' x₀ V₁⟩,
     uniformAffine (AffineSubspace.mk' (0 : BitString n) V₂) ⟨0, AffineSubspace.self_mem_mk' 0 V₂⟩,
@@ -791,11 +549,9 @@ theorem exists_independent_affine_sum_of_isAffineSource {n k k₁ k₂ : ℕ}
     ⟨_, _, by rw [AffineSubspace.direction_mk', hV₂_dim], rfl⟩, ?_,
     uniformAffine_eq_bind_add_of_isCompl Asub hx₀ hV₁_le hV₂_le
       ⟨by rw [inf_comm]; exact hcompl_inf, by rw [sup_comm]; exact hcompl_sup⟩⟩
-  calc (k₂ : ℝ) ≤ ((k - k₁ : ℕ) : ℝ) := by exact_mod_cast (by omega : k₂ ≤ k - k₁)
-    _ = finrank Bool (AffineSubspace.mk' (0 : BitString n) V₂).direction := by
-        rw [AffineSubspace.direction_mk', hV₂_dim]
-    _ = minEntropy _ :=
-        (minEntropy_uniformAffine (AffineSubspace.mk' (0 : BitString n) V₂) _).symm
+  refine le_trans ?_ (minEntropy_uniformAffine _ _).ge
+  rw [AffineSubspace.direction_mk', hV₂_dim]
+  exact_mod_cast (by omega : k₂ ≤ k - k₁)
 
 /-- A `(k₁, k₂, ε)` sumset extractor is a `(k, ε)` affine extractor whenever `k₁ + k₂ ≤ k`
 ([Li2023, Cor. 7.14]). -/

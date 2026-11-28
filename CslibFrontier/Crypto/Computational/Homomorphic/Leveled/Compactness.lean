@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.PolyTime
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Compilation
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Compact decryption for the leveled construction
@@ -84,11 +85,8 @@ theorem exists_decrypt_parameter_bound :
   intro n sk ciphertext hsk hc
   have hlength : (encPair encUnary (encPair encBits encBits) (n, sk, ciphertext)).length =
       N n := by simp [N, hsk, hc]
-  constructor
-  · exact (ht (((encPair encUnary (encPair encBits encBits)) (n, sk, ciphertext)).length)).trans
-      (by rw [hlength]; exact Nat.le_add_right _ _)
-  · exact (hs (((encPair encUnary (encPair encBits encBits)) (n, sk, ciphertext)).length)).trans
-      (by rw [hlength]; exact Nat.le_add_left _ _)
+  exact ⟨(ht _).trans (hlength ▸ Nat.le_add_right _ _),
+    (hs _).trans (hlength ▸ Nat.le_add_left _ _)⟩
 
 include hD in
 /-- The actual decoder, tag selection and base-circuit evaluation have polynomial-size circuits
@@ -164,12 +162,9 @@ theorem exists_uniform_decrypt_circuits
             (BitString.ofList ((3 * secretWidth n + 1) + (ciphertextWidth n + 1))
               (sk ++ ciphertext)) 0 =
           (scheme D budget).decrypt n sk ciphertext := by
-  have hview : ComputableInPolyTime
-      (fun c : Σ m, Circuit Boolean.signature m 1 => (c.1, c.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
   have htotal : ComputableInPolyTime
       (fun n => secretWidth n + ciphertextWidth n) encUnary encUnary :=
-    hview.fst'.comp hD
+    (Boolean.computableInPolyTime_arity_code 1).fst'.comp hD
   have hciph : ComputableInPolyTime ciphertextWidth encUnary encUnary := by
     simpa only [Nat.add_sub_cancel_left] using
       (show ComputableInPolyTime
@@ -182,12 +177,8 @@ theorem exists_uniform_decrypt_circuits
   let decryptConcat (p : ℕ × List Bool) : Bool :=
     decrypt D p.1 (p.2.take (K p.1)) (p.2.drop (K p.1))
   have hdecryptConcat : ComputableInPolyTime decryptConcat (encPair encUnary encBits) encBool := by
-    have hklen : ComputableInPolyTime (fun p : ℕ × List Bool => K p.1)
-        (encPair encUnary encBits) encUnary :=
-      hK.comp (ComputableInPolyTime.fst encUnary encBits)
-    have hw : ComputableInPolyTime (Prod.snd : ℕ × List Bool → List Bool)
-        (encPair encUnary encBits) encBits :=
-      ComputableInPolyTime.snd encUnary encBits
+    have hklen := hK.comp (ComputableInPolyTime.fst encUnary encBits)
+    have hw := ComputableInPolyTime.snd encUnary encBits
     exact computableInPolyTime_decrypt D hD
       (ComputableInPolyTime.fst encUnary encBits)
       (ComputableInPolyTime.bitsTakeWithInput hw hklen)
@@ -202,14 +193,11 @@ theorem exists_uniform_decrypt_circuits
       (fun n => (⟨W n, circuits n⟩ : Σ m, Circuit Boolean.signature m 1))
       encUnary (Boolean.encCircuit 1) :=
     (hW.prod hcode).of_enc_eq fun n => by simp only [Boolean.encCircuit_apply]
-  have hsize : PolynomiallyBounded (fun n => (circuits n).size) := by
-    have hlen_unary : ComputableInPolyTime (fun n => (circuits n).code.1.length)
-        encUnary encUnary :=
-      (ComputableInPolyTime.length_list Boolean.encGate).comp hcode.fst'
-    exact hlen_unary.polynomiallyBounded.mono_of_le
+  have hsize : PolynomiallyBounded (fun n => (circuits n).size) :=
+    ((ComputableInPolyTime.length_list Boolean.encGate).comp
+      hcode.fst').polynomiallyBounded.mono_of_le
       fun n => (Circuit.length_code_fst (circuits n)).ge
-  refine ⟨circuits, hgen, hsize, ?_⟩
-  intro budget n sk ciphertext hsk hciphertext
+  refine ⟨circuits, hgen, hsize, fun budget n sk ciphertext hsk hciphertext => ?_⟩
   have hwlen : (sk ++ ciphertext).length = W n := by simp [W, K, hsk, hciphertext]
   have h := hcorrect n (BitString.ofList (W n) (sk ++ ciphertext)) 0
   simp only [F, decryptConcat, K, BitString.ofFn_ofList hwlen, List.take_left' hsk,

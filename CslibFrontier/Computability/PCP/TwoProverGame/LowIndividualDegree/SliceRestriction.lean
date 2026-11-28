@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Quantum.Algebra.CStar
 import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -59,7 +60,7 @@ theorem average_slice_axis_loss_le {n : ℕ}
       (restrictStrategy t S))) ≤
       (n + 2 : ℝ) *
         (1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .axis).commutingWinProb S) := by
-  rw [← uniform_sum_eq_expect]
+  rw [← Cslib.Probability.PMF.sum_uniformOfFintype_toReal_mul]
   simpa using
     commutingBranchLoss_restrict_le n d D .axis S
 
@@ -70,7 +71,7 @@ theorem average_slice_consistency_loss_le {n : ℕ}
     (𝔼 t : F, (1 - (branchGameWithDiagonalCap (F := F) n d D .consistency).commutingWinProb
         (restrictStrategy t S))) ≤
       1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .consistency).commutingWinProb S := by
-  rw [← uniform_sum_eq_expect]
+  rw [← Cslib.Probability.PMF.sum_uniformOfFintype_toReal_mul]
   simpa using
     commutingBranchLoss_restrict_le n d D .consistency S
 
@@ -84,7 +85,7 @@ theorem average_slice_diagonal_loss_le {n : ℕ}
       (restrictStrategy t S))) ≤
       (n + 2 : ℝ) *
         (1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .diagonal).commutingWinProb S) := by
-  rw [← uniform_sum_eq_expect]
+  rw [← Cslib.Probability.PMF.sum_uniformOfFintype_toReal_mul]
   simpa using
     commutingBranchLoss_restrict_le n d D .diagonal S
 
@@ -154,8 +155,7 @@ theorem restrictSliceTensor_bob_eq_alice
     (S : QuantumStrategy (Question F (m + 1)) (Question F (m + 1))
       (Answer F (m + 1)) (Answer F (m + 1)) ι ι) (t : F) (h : S.bob = S.alice) :
     (restrictSliceTensor S t).bob = (restrictSliceTensor S t).alice := by
-  unfold restrictSliceTensor
-  rw [h]
+  simp [restrictSliceTensor, h]
 
 /-- The restricted strategy uses projective measurements when the original does. -/
 theorem restrictSliceTensor_alice_isProjective
@@ -175,32 +175,21 @@ theorem restrictSliceTensor_toCommuting
       (Answer F (m + 1)) (Answer F (m + 1)) ι κ) (t : F) :
     (restrictSliceTensor S t).toCommuting = restrictStrategy t S.toCommuting := by
   classical
-  apply CommutingStrategy.ext
-  · rw [restrictStrategy_state]
-    unfold QuantumStrategy.toCommuting restrictSliceTensor
-    rfl
-  · funext q
-    rw [restrictStrategy_alice]
-    unfold QuantumStrategy.toCommuting restrictSliceTensor
-    apply Measurement.ext
-    intro a
+  refine CommutingStrategy.ext (by simp [restrictStrategy_state, QuantumStrategy.toCommuting,
+      restrictSliceTensor])
+    (funext fun q => Measurement.ext fun a => ?_) (funext fun q => Measurement.ext fun a => ?_)
+  · rw [restrictStrategy_alice]
     change kroneckerOne ((restrictAnswerPOVM (S.alice (appendQuestion t q)) t).effect a) =
       ((QuantumStrategy.leftMeasurement (κ := κ) (S.alice (appendQuestion t q))).map
         (restrictAnswer t)).effect a
-    unfold restrictAnswerPOVM
-    simp only [Measurement.toPOVM_effect, Measurement.map_effect, map_sum,
+    simp only [restrictAnswerPOVM, Measurement.toPOVM_effect, Measurement.map_effect, map_sum,
       POVM.toMeasurement_effect]
     rfl
-  · funext q
-    rw [restrictStrategy_bob]
-    unfold QuantumStrategy.toCommuting restrictSliceTensor
-    apply Measurement.ext
-    intro a
+  · rw [restrictStrategy_bob]
     change oneKronecker ((restrictAnswerPOVM (S.bob (appendQuestion t q)) t).effect a) =
       ((QuantumStrategy.rightMeasurement (ι := ι) (S.bob (appendQuestion t q))).map
         (restrictAnswer t)).effect a
-    unfold restrictAnswerPOVM
-    simp only [Measurement.toPOVM_effect, Measurement.map_effect, map_sum,
+    simp only [restrictAnswerPOVM, Measurement.toPOVM_effect, Measurement.map_effect, map_sum,
       POVM.toMeasurement_effect]
     rfl
 

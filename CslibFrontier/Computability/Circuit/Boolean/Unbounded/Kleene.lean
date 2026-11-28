@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.Forall2
 import Mathlib.Data.List.GetD
 
@@ -107,10 +108,8 @@ theorem ofFn_elim_eq_map {σ : Signature.{v}} {U : Type u} (d : U) (values : Lis
     (g : σ.Op × List ℕ) (h : g.2.length = σ.Arity g.1) :
     List.ofFn (fun a : Fin (σ.Arity g.1) => g.2[a.val]?.elim d (values.getD · d)) =
       g.2.map (values.getD · d) := by
-  refine List.ext_getElem (by simp [h]) fun i h₁ h₂ => ?_
-  simp only [List.getElem_map, List.getElem_ofFn]
-  rw [List.getElem?_eq_getElem (by simpa using h₂)]
-  rfl
+  refine List.ext_getElem (by simp [h]) fun _ _ h₂ => ?_
+  simp [List.getElem?_eq_getElem (by simpa using h₂)]
 
 /-- **Folds by position are evaluations.** Appending, for each gate, a function of its operation
 and of the values of its arguments read by position is `evalCode` for the interpretation applying
@@ -122,10 +121,9 @@ theorem foldl_eq_evalCode {σ : Signature.{v}} {U : Type u} (F : σ.Op → List 
   induction gates generalizing x with
   | nil => rfl
   | cons g gates ih =>
-    rw [List.foldl_cons, ih _ fun g' hg' => h g' (List.mem_cons_of_mem _ hg')]
-    change _ = gates.foldl _ (x ++ [F g.1 (List.ofFn fun a => g.2[a.val]?.elim d (x.getD · d))])
-    rw [ofFn_elim_eq_map d x g (h g (List.mem_cons_self ..))]
-    rfl
+    rw [List.foldl_cons, ih _ fun _ hg => h _ (List.mem_cons_of_mem _ hg)]
+    exact congrArg (gates.foldl _ ·)
+      (by rw [← ofFn_elim_eq_map d x g (h g (List.mem_cons_self ..))]; rfl)
 
 /-- **The value of a gate, read as a list.** For an interpretation applying `F` to the list of its
 arguments, the value of a gate of a well-formed gate list from `n` inputs is `F` applied to the
@@ -138,9 +136,8 @@ theorem getD_evalCode_eq_map {σ : Signature.{v}} {U : Type u} {I : Interpretati
     (evalCode I d x gates).getD (n + j) d =
       F gate.1 (gate.2.map ((evalCode I d x gates).getD · d)) := by
   subst hx
-  rw [getD_evalCode I d x h hg, hI]
   obtain ⟨hj, rfl⟩ := List.getElem?_eq_some_iff.1 hg
-  rw [ofFn_elim_eq_map d _ _ (h.getElem j hj).1]
+  rw [getD_evalCode I d x h hg, hI, ofFn_elim_eq_map d _ _ (h.getElem j hj).1]
 
 namespace Boolean.Unbounded
 
@@ -199,33 +196,29 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
   intro c hc
   cases op with
   | not =>
-    simp only [kleeneInterpretation, kleeneOp, List.ofFn_succ, List.ofFn_zero, List.headD_cons,
-      Option.mem_def, Option.map_eq_some_iff] at hc
+    simp only [kleeneInterpretation, kleeneOp, List.ofFn_succ, List.headD_cons, Option.mem_def,
+      Option.map_eq_some_iff] at hc
     obtain ⟨c', hc', rfl⟩ := hc
     simp [h 0 c' hc']
   | and m =>
-    simp only [kleeneInterpretation, kleeneOp, kleeneAnd, List.mem_ofFn] at hc
+    simp only [kleeneInterpretation, kleeneOp, kleeneAnd, List.mem_ofFn, all_ofFn_beq] at hc
     split_ifs at hc with h₁ h₂
     · obtain ⟨i, hi⟩ := h₁
       cases hc
-      rw [interpretation_and, eq_comm, decide_eq_false_iff_not]
-      exact fun hall => Bool.false_ne_true ((h i false hi).trans (hall i))
+      simp only [interpretation_and, Bool.false_eq, decide_eq_false_iff_not, not_forall]
+      exact ⟨i, by simp [h i false hi]⟩
     · cases hc
-      rw [all_ofFn_beq] at h₂
-      rw [interpretation_and, eq_comm, decide_eq_true_iff]
-      exact fun i => (h i true (h₂ i)).symm
+      simp [interpretation_and, fun i => (h i true (h₂ i)).symm]
     · cases hc
   | or m =>
-    simp only [kleeneInterpretation, kleeneOp, kleeneOr, List.mem_ofFn] at hc
+    simp only [kleeneInterpretation, kleeneOp, kleeneOr, List.mem_ofFn, all_ofFn_beq] at hc
     split_ifs at hc with h₁ h₂
     · obtain ⟨i, hi⟩ := h₁
       cases hc
-      rw [interpretation_or, eq_comm, decide_eq_true_iff]
-      exact ⟨i, (h i true hi).symm⟩
+      have hb : ∃ j, b j = true := ⟨i, (h i true hi).symm⟩
+      simp [interpretation_or, hb]
     · cases hc
-      rw [all_ofFn_beq] at h₂
-      rw [interpretation_or, eq_comm, decide_eq_false_iff_not, not_exists]
-      exact fun i hi => Bool.false_ne_true ((h i false (h₂ i)).trans hi)
+      simp [interpretation_or, fun i => (h i false (h₂ i)).symm]
     · cases hc
 
 /-- **On known arguments, Kleene's operations are the Boolean operations.** -/
@@ -236,20 +229,12 @@ theorem kleeneInterpretation_some (op : Op) (b : Fin (signature.Arity op) → Bo
   | and m =>
     by_cases h : ∀ i, b i = true
     · simp [kleeneInterpretation, kleeneOp, kleeneAnd, h]
-    · obtain ⟨i, hi⟩ := not_forall.1 h
-      have hmem : some false ∈ List.ofFn (fun i => some (b i)) :=
-        List.mem_ofFn.2 ⟨i, by simpa using hi⟩
-      simp only [kleeneInterpretation, kleeneOp, kleeneAnd_of_mem hmem, interpretation_and]
-      simp [h]
+    · have h' : ∃ i, b i = false := by simpa using h
+      simp [kleeneInterpretation, kleeneOp, kleeneAnd, List.mem_ofFn, h, h']
   | or m =>
     by_cases h : ∃ i, b i = true
-    · obtain ⟨i, hi⟩ := h
-      have hmem : some true ∈ List.ofFn (fun i => some (b i)) :=
-        List.mem_ofFn.2 ⟨i, by simp [hi]⟩
-      simp only [kleeneInterpretation, kleeneOp, kleeneOr_of_mem hmem, interpretation_or]
-      exact congrArg some (decide_eq_true ⟨i, hi⟩).symm
-    · simp only [not_exists, Bool.not_eq_true] at h
-      simp [kleeneInterpretation, kleeneOp, kleeneOr, h]
+    · simp [kleeneInterpretation, kleeneOp, kleeneOr, List.mem_ofFn, interpretation_or, h]
+    · simp_all [kleeneInterpretation, kleeneOp, kleeneOr, interpretation_or]
 
 /-! ### Evaluating gate lists -/
 
@@ -293,8 +278,7 @@ theorem approx_kleeneEval {ρ : List (Option Bool)} {x : List Bool} (hx : List.F
   | nil => rfl
   | cons g gates ih =>
     change (kleeneEval (kleeneStep ρ g) gates).length = _
-    rw [ih, kleeneStep, List.length_append, List.length_singleton, List.length_cons]
-    omega
+    simp [ih, kleeneStep]; omega
 
 /-- Kleene evaluation keeps the input values. -/
 theorem getD_kleeneEval_of_lt (ρ : List (Option Bool)) (gates : List (Op × List ℕ)) {i : ℕ}
@@ -302,22 +286,18 @@ theorem getD_kleeneEval_of_lt (ρ : List (Option Bool)) (gates : List (Op × Lis
   induction gates generalizing ρ with
   | nil => rfl
   | cons g gates ih =>
-    change (kleeneEval (kleeneStep ρ g) gates).getD i none = _
-    rw [ih _ (by simp only [kleeneStep, List.length_append, List.length_singleton]; omega),
-      kleeneStep, List.getD_append _ _ _ _ hi]
+    rw [kleeneEval, List.foldl_cons, ← kleeneEval, ih _ (by simp [kleeneStep]; omega), kleeneStep,
+      List.getD_append _ _ _ _ hi]
 
 /-- On known arguments, as many as the arity, a Kleene operation is known. -/
 theorem kleeneOp_map_some_ne_none (op : Op) {l : List Bool} (hl : l.length = op.arity) :
     kleeneOp op (l.map some) ≠ none := by
   cases op with
   | not =>
-    obtain ⟨b, rfl⟩ := List.length_eq_one_iff.1 hl
+    obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 hl
     simp [kleeneOp]
-  | and m =>
-    simp only [kleeneOp, kleeneAnd]
-    split_ifs <;> simp_all
-  | or m =>
-    simp only [kleeneOp, kleeneOr]
+  | and _ | or _ =>
+    simp only [kleeneOp, kleeneAnd, kleeneOr]
     split_ifs <;> simp_all
 
 /-- **The Kleene value of a gate** of a well-formed gate list is its operation applied to the
@@ -341,11 +321,13 @@ private theorem kleeneOp_eq_ite (op : Op) (l : List (Option Bool)) :
   | and m => simp [Op.toNat, kleeneOp]
   | or m => simp [Op.toNat, kleeneOp]
 
+@[local fun_prop]
 private theorem computableInPolyTime_kleeneAnd :
     ComputableInPolyTime kleeneAnd (encList (encOption encBool)) (encOption encBool) := by
   unfold kleeneAnd
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_kleeneOr :
     ComputableInPolyTime kleeneOr (encList (encOption encBool)) (encOption encBool) := by
   unfold kleeneOr
@@ -355,23 +337,15 @@ private theorem computableInPolyTime_kleeneStep :
     ComputableInPolyTime (fun p : List (Option Bool) × (Op × List ℕ) => kleeneStep p.1 p.2)
       (encPair (encList (encOption encBool)) (Circuit.encGate encOp))
       (encList (encOption encBool)) := by
-  have hp := ComputableInPolyTime.id' (encIn :=
-    encPair (encList (encOption encBool)) (Circuit.encGate encOp))
-  have hvals := hp.fst'
-  have hop : ComputableInPolyTime (fun p : List (Option Bool) × (Op × List ℕ) => p.2.1.toNat)
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encUnary :=
-    hp.snd'.fst'.of_enc_eq fun _ => rfl
+  have hop : ComputableInPolyTime Op.toNat encOp encUnary :=
+    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
   have hargs : ComputableInPolyTime
       (fun p : List (Option Bool) × (Op × List ℕ) => p.2.2.map (p.1.getD · none))
       (encPair (encList (encOption encBool)) (Circuit.encGate encOp))
       (encList (encOption encBool)) := by
-    refine ComputableInPolyTime.mapWithInput hp.snd'.snd' ?_
-    have hq := ComputableInPolyTime.id' (encIn :=
-      encPair (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encNat)
-    exact ComputableInPolyTime.listGetD_binary (encA := encOption encBool) none hq.fst'.fst'
-      hq.snd'
-  have hand := computableInPolyTime_kleeneAnd.comp hargs
-  have hor := computableInPolyTime_kleeneOr.comp hargs
+    refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
+    exact ComputableInPolyTime.listGetD_binary (encA := encOption encBool)
+      (encL := encList (encOption encBool)) none (by fun_prop) (by fun_prop)
   have hnot : ComputableInPolyTime
       (fun p : List (Option Bool) × (Op × List ℕ) =>
         ((p.2.2.map (p.1.getD · none)).headD none).map (!·))
@@ -379,22 +353,8 @@ private theorem computableInPolyTime_kleeneStep :
     (ComputableInPolyTime.of_finite (fun a : Option Bool => a.map (!·))).comp
       ((ComputableInPolyTime.headD (encA := encOption encBool)
         (encL := encList (encOption encBool)) none).comp hargs)
-  have hzero : ComputableInPolyTime
-      (fun p : List (Option Bool) × (Op × List ℕ) => p.2.1.toNat == 0)
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encBool :=
-    ComputableInPolyTime.unary_beq' hop (ComputableInPolyTime.const 0)
-  have hodd : ComputableInPolyTime
-      (fun p : List (Option Bool) × (Op × List ℕ) => p.2.1.toNat % 2 == 1)
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encBool :=
-    ComputableInPolyTime.unary_beq' (ComputableInPolyTime.unary_mod.comp
-      (hop.prod (ComputableInPolyTime.const 2))) (ComputableInPolyTime.const 1)
-  have hval : ComputableInPolyTime
-      (fun p : List (Option Bool) × (Op × List ℕ) => kleeneOp p.2.1 (p.2.2.map (p.1.getD · none)))
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) (encOption encBool) := by
-    simp only [kleeneOp_eq_ite]
-    exact ComputableInPolyTime.ite' hzero hnot (ComputableInPolyTime.ite' hodd hand hor)
-  exact ComputableInPolyTime.listAppend' hvals
-    (ComputableInPolyTime.cons' hval (ComputableInPolyTime.const []))
+  simp only [kleeneStep, kleeneOp_eq_ite]
+  polytime
 
 /-- **Kleene evaluation is polynomial-time**, for input values and gates computed in polynomial
 time. -/

@@ -162,11 +162,9 @@ private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hy : y < N)
   have hN : 0 < N := Nat.zero_lt_of_lt hy
   set f := b' - b with hf_def
   set w := a * BinaryGcd.modInv a' N % N with hw_def
-  have hcancel : a ^ e ≡ a' ^ e * y ^ f [MOD N] := by
-    refine Nat.ModEq.cancel_right_of_coprime (c := y ^ b) ?_ ?_
-    · exact Nat.Coprime.symm (Nat.Coprime.pow_left b hyN)
-    · rw [mul_assoc, ← pow_add, hf_def, Nat.sub_add_cancel hbb']
-      exact h
+  have hcancel : a ^ e ≡ a' ^ e * y ^ f [MOD N] :=
+    Nat.ModEq.cancel_right_of_coprime (hyN.pow_left b).symm
+      (by simpa only [mul_assoc, ← pow_add, hf_def, Nat.sub_add_cancel hbb'] using h)
   have hinv : a' * BinaryGcd.modInv a' N ≡ 1 [MOD N] := BinaryGcd.mul_modInv_modEq_one hN ha'
   have hwe : w ^ e ≡ y ^ f [MOD N] :=
     calc w ^ e ≡ (a * BinaryGcd.modInv a' N) ^ e [MOD N] := (Nat.mod_modEq _ _).pow e
@@ -178,9 +176,8 @@ private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hy : y < N)
   have hw : Nat.Coprime w N :=
     (ZMod.coprime_mod_iff_coprime _ _).mpr
       (ha.mul_left (Nat.coprime_of_mul_modEq_one a' (by rwa [mul_comm])))
-  have hroot := commonRoot_pow_modEq_right hN hef hw hwe
   rw [rsaEval]
-  exact Eq.trans hroot (Nat.mod_eq_of_lt hy)
+  exact Eq.trans (commonRoot_pow_modEq_right hN hef hw hwe) (Nat.mod_eq_of_lt hy)
 
 /-- **The root from a collision** ([BonehShoup2023], proof of Theorem 10.7, p. 417). For `e`
 coprime to `b.dist b'` (`b' - b` if `b ≤ b'`, else `b - b'`), units `y`, `a` and `a'` modulo `N`
@@ -233,27 +230,16 @@ theorem computableInPolyTime_rsaHashRoot {α : Type} {enc : α ↪ List Bool}
 theorem isPPT_rsaHashToRSA {A : CollisionFinderFor RSAHashKey}
     (hA : IsPPTOn (encPair encUnary encRSAHashKey) (encPair encBits encBits)
       (fun p => A p.1 p.2)) : (rsaHashToRSA A).IsPPT := by
-  have hrun : IsPPTOn encRSAInput (encPair encBits encBits)
-      (fun x : RSAInput => A x.secParam ⟨x.publicKey, x.challenge⟩) :=
-    hA.preprocess
-      (prepare := fun x : RSAInput => (x.secParam, (⟨x.publicKey, x.challenge⟩ : RSAHashKey)))
-      (by fun_prop)
-  have hd₁ : ComputableInPolyTime
-      (fun p : RSAInput × (List Bool × List Bool) => rsaHashDecoder.decode p.2.1)
-      (encPair encRSAInput (encPair encBits encBits)) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (by fun_prop)
-  have hd₂ : ComputableInPolyTime
-      (fun p : RSAInput × (List Bool × List Bool) => rsaHashDecoder.decode p.2.2)
-      (encPair encRSAInput (encPair encBits encBits)) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (by fun_prop)
-  have hroot : ComputableInPolyTime
-      (fun p : RSAInput × (List Bool × List Bool) =>
-        rsaHashRoot p.1.publicKey.N p.1.publicKey.e p.1.challenge
-          (rsaHashDecoder.decode p.2.1).1 (rsaHashDecoder.decode p.2.1).2
-          (rsaHashDecoder.decode p.2.2).1 (rsaHashDecoder.decode p.2.2).2)
-      (encPair encRSAInput (encPair encBits encBits)) encNat :=
-    computableInPolyTime_rsaHashRoot (by fun_prop) (by fun_prop) (by fun_prop)
-      hd₁.fst' hd₁.snd' hd₂.fst' hd₂.snd'
+  have hrun := hA.preprocess
+    (prepare := fun x : RSAInput => (x.secParam, (⟨x.publicKey, x.challenge⟩ : RSAHashKey)))
+    (by fun_prop)
+  have hsnd := ComputableInPolyTime.snd encRSAInput (encPair encBits encBits)
+  have hd₁ := rsaHashDecoder.computableInPolyTime.comp hsnd.fst'
+  have hd₂ := rsaHashDecoder.computableInPolyTime.comp hsnd.snd'
+  have hroot := computableInPolyTime_rsaHashRoot
+    (N := fun p : RSAInput × (List Bool × List Bool) => p.1.publicKey.N)
+    (e := fun p => p.1.publicKey.e) (y := fun p => p.1.challenge)
+    (by fun_prop) (by fun_prop) (by fun_prop) hd₁.fst' hd₁.snd' hd₂.fst' hd₂.snd'
   refine (hrun.map_with
     (f := fun x pair => rsaHashRoot x.publicKey.N x.publicKey.e x.challenge
       (rsaHashDecoder.decode pair.1).1 (rsaHashDecoder.decode pair.1).2
@@ -264,12 +250,10 @@ theorem isPPT_rsaHashToRSA {A : CollisionFinderFor RSAHashKey}
 theorem computableInPolyTime_rsaHash :
     ComputableInPolyTime (fun p : RSAHashKey × List Bool => rsaHash p.1 p.2)
       (encPair encRSAHashKey encBits) encNat := by
-  have hd : ComputableInPolyTime (fun p : RSAHashKey × List Bool => rsaHashDecoder.decode p.2)
-      (encPair encRSAHashKey encBits) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
+  have hd := rsaHashDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.snd encRSAHashKey encBits)
   have hN : ComputableInPolyTime (fun p : RSAHashKey × List Bool => p.1.publicKey.N)
       (encPair encRSAHashKey encBits) encNat := by fun_prop
-  unfold rsaHash
   exact ComputableInPolyTime.binary_mod'
     (ComputableInPolyTime.binary_mul'
       (computableInPolyTime_powMod hN hd.fst' (by fun_prop))
@@ -280,26 +264,14 @@ theorem computableInPolyTime_validRSAHashInput :
     ComputableInPolyTime
       (fun p : (ℕ × RSAHashKey) × List Bool => validRSAHashInput p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encRSAHashKey) encBits) encBool := by
-  have hd : ComputableInPolyTime
-      (fun p : (ℕ × RSAHashKey) × List Bool => rsaHashDecoder.decode p.2)
-      (encPair (encPair encUnary encRSAHashKey) encBits) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
+  have hd := rsaHashDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.snd (encPair encUnary encRSAHashKey) encBits)
   have hN : ComputableInPolyTime (fun p : (ℕ × RSAHashKey) × List Bool => p.1.2.publicKey.N)
       (encPair (encPair encUnary encRSAHashKey) encBits) encNat := by fun_prop
-  have he : ComputableInPolyTime (fun p : (ℕ × RSAHashKey) × List Bool => p.1.2.publicKey.e)
-      (encPair (encPair encUnary encRSAHashKey) encBits) encNat := by fun_prop
-  have hcanon : ComputableInPolyTime
-      (fun p : (ℕ × RSAHashKey) × List Bool =>
-        encPair encNat encNat (rsaHashDecoder.decode p.2) == p.2)
-      (encPair (encPair encUnary encRSAHashKey) encBits) encBool :=
-    ComputableInPolyTime.beq hd.encoding_comp (ComputableInPolyTime.snd _ _)
-  have hlt := ComputableInPolyTime.binary_lt' hd.fst' hN
-  have hcop := ComputableInPolyTime.decide_eq'
-    (ComputableInPolyTime.binary_gcd' hd.fst' hN) (ComputableInPolyTime.const 1)
-  have hlt₂ := ComputableInPolyTime.binary_lt' hd.snd' he
-  unfold validRSAHashInput
-  exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
-    (ComputableInPolyTime.bool_and' hcanon hlt) hcop) hlt₂)
+  exact (((hd.encoding_comp.beq (ComputableInPolyTime.snd _ _)).bool_and'
+    (hd.fst'.binary_lt' hN)).bool_and'
+    (ComputableInPolyTime.decide_eq' (hd.fst'.binary_gcd' hN) (.const 1))).bool_and'
+    (hd.snd'.binary_lt' (by fun_prop))
 
 /-- A collision of the RSA hash at a key with prime `e` and a unit base `y < N` decodes to pairs
 from which `rsaHashRoot` computes an `e`-th root of `y`. -/
@@ -311,8 +283,7 @@ private theorem rsaEval_rsaHashRoot_of_isCollisionFor (desc : RSADesc) (he : des
     rsaEval desc.modulus desc.e (rsaHashRoot desc.modulus desc.e y (rsaHashDecoder.decode m₁).1
       (rsaHashDecoder.decode m₁).2 (rsaHashDecoder.decode m₂).1 (rsaHashDecoder.decode m₂).2) =
       y := by
-  rw [isCollisionFor_eq_true_iff] at hcoll
-  obtain ⟨hv₁, hv₂, hne, hH⟩ := hcoll
+  obtain ⟨hv₁, hv₂, hne, hH⟩ := isCollisionFor_eq_true_iff.mp hcoll
   simp only [validRSAHashInput, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv₁ hv₂
   obtain ⟨⟨⟨hc₁, ha₁⟩, hu₁⟩, hb₁⟩ := hv₁
   obtain ⟨⟨⟨hc₂, ha₂⟩, hu₂⟩, hb₂⟩ := hv₂
@@ -323,13 +294,10 @@ private theorem rsaEval_rsaHashRoot_of_isCollisionFor (desc : RSADesc) (he : des
   set b' := (rsaHashDecoder.decode m₂).2
   have hmod : a ^ desc.e * y ^ b ≡ a' ^ desc.e * y ^ b' [MOD desc.modulus] := by
     rwa [Nat.ModEq, Nat.mul_mod, Nat.mul_mod (a' ^ desc.e)]
-  have hbb' : b ≠ b' := by
-    intro hbb
-    rw [← hbb] at hmod
-    have hae : a ^ desc.e ≡ a' ^ desc.e [MOD desc.modulus] :=
-      Nat.ModEq.cancel_right_of_coprime (Nat.Coprime.symm (Nat.Coprime.pow_left b hyN)) hmod
-    have haa : a = a' := congrArg Fin.val
-      ((rsaEval_bijective_fin desc).injective (a₁ := ⟨a, ha₁⟩) (a₂ := ⟨a', ha₂⟩) (Fin.ext hae))
+  have hbb' : b ≠ b' := fun hbb => by
+    have haa : a = a' := congrArg Fin.val ((rsaEval_bijective_fin desc).injective
+      (a₁ := ⟨a, ha₁⟩) (a₂ := ⟨a', ha₂⟩)
+      (Fin.ext (Nat.ModEq.cancel_right_of_coprime (hyN.pow_left b).symm (hbb ▸ hmod))))
     exact hne (hc₁.symm.trans ((congrArg (encPair encNat encNat) (Prod.ext haa hbb)).trans hc₂))
   have hef : Nat.Coprime desc.e (b.dist b') :=
     (Nat.Prime.coprime_iff_not_dvd he).mpr
@@ -359,9 +327,8 @@ theorem succProbability_collisionGameFor_rsaHash_le_rsaUnitInversionGame (gen : 
   have hchal (x : (ZMod desc.modulus)ˣ) :
       desc.publicKey.eval (desc.unitResidue x) = desc.unitResidue (x ^ desc.e) := by
     ext
-    rw [RSAPublicKey.val_eval]
-    simp only [RSADesc.unitResidue, rsaEval, Units.val_pow_eq_pow_val]
-    rw [← ZMod.val_natCast, Nat.cast_pow, ZMod.natCast_zmod_val]
+    simp only [RSAPublicKey.val_eval, RSADesc.unitResidue, rsaEval, Units.val_pow_eq_pow_val,
+      ← ZMod.val_natCast, Nat.cast_pow, ZMod.natCast_zmod_val]
   have hwin (x : (ZMod desc.modulus)ˣ) (r : Fin desc.modulus) :
       r = desc.unitResidue x ↔
         rsaEval desc.modulus desc.e r = (desc.unitResidue (x ^ desc.e) : ℕ) := by
@@ -376,13 +343,12 @@ theorem succProbability_collisionGameFor_rsaHash_le_rsaUnitInversionGame (gen : 
     (congrArg (· true)
       (PMF.uniformOfFintype_bind_bijective (rsaEval_bijective_units desc) (k := G)
         fun x => ?_).symm)
-  · refine PMF.bind_apply_mono_on_support _ true fun y _ => ?_
-    refine PMF.bind_apply_mono_on_support _ true fun pair _ => ?_
+  · refine PMF.bind_apply_mono_on_support _ true fun y _ =>
+      PMF.bind_apply_mono_on_support _ true fun pair _ => ?_
     by_cases hcoll : isCollisionFor (Param := RSAHashKey) (Digest := fun _ => ℕ) rsaHash
         validRSAHashInput n ⟨desc.publicKey, (y : ZMod desc.modulus).val⟩ pair.1 pair.2 = true
-    · have hroot := rsaEval_rsaHashRoot_of_isCollisionFor desc (hprime desc hdesc)
-        (ZMod.val_lt _) (ZMod.val_coe_unit_coprime y) hcoll
-      exact (PMF.coe_le_one _ _).trans_eq (by simp [hroot])
+    · simp only [hcoll, rsaEval_rsaHashRoot_of_isCollisionFor desc (hprime desc hdesc)
+          (ZMod.val_lt _) (ZMod.val_coe_unit_coprime y) hcoll, decide_true, le_refl]
     · simp [Bool.eq_false_iff.mpr hcoll]
   · simp only [G, hwin, hchal]
     rfl

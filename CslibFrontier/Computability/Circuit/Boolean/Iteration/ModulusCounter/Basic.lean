@@ -77,9 +77,7 @@ def advance (a b T : ℕ) : ℕ := if 0 < a ∧ b < a then (b + T) % a else b
 
 /-- Advancing by `0` steps leaves the state unchanged. -/
 @[simp] theorem advance_zero (a b : ℕ) : advance a b 0 = b := by
-  by_cases h : 0 < a ∧ b < a
-  · simp [advance, h, Nat.mod_eq_of_lt h.2]
-  · simp [advance, h]
+  by_cases h : 0 < a ∧ b < a <;> simp [advance, h, Nat.mod_eq_of_lt]
 
 /-- If both `a` and `b` are strictly below `U`, then `advance a b T` is strictly below `U`. -/
 theorem advance_lt {a b U T : ℕ} (ha : a < U) (hb : b < U) : advance a b T < U := by
@@ -99,29 +97,31 @@ theorem advance_add (a b S T : ℕ) :
 variable {k : ℕ}
 
 /-- The `k`-bit modulus word in the first `k` coordinates. -/
-def leftWord (x : BitString (k + k)) : BitVec k := word fun i => x (Fin.castAdd k i)
+def leftWord (x : BitString (k + k)) : BitVec k :=
+  BitString.equivBitVec fun i => x (Fin.castAdd k i)
 
 /-- The `k`-bit counter state word in the last `k` coordinates. -/
-def rightWord (x : BitString (k + k)) : BitVec k := word fun i => x (Fin.natAdd k i)
+def rightWord (x : BitString (k + k)) : BitVec k :=
+  BitString.equivBitVec fun i => x (Fin.natAdd k i)
 
 /-- Pack a `k`-bit modulus word and a `k`-bit counter state word into `BitString (k + k)`. -/
 def pack (a b : BitVec k) : BitString (k + k) :=
-  Fin.append (fun i : Fin k => a.getLsbD i.val) (fun i : Fin k => b.getLsbD i.val)
+  Fin.append (BitString.equivBitVec.symm a) (BitString.equivBitVec.symm b)
 
 /-- Extracting the left word of `pack a b` recovers `a`. -/
 @[simp] theorem leftWord_pack (a b : BitVec k) : leftWord (pack a b) = a := by
-  simp only [leftWord, pack, Fin.append_left, word_getLsbD]
+  simp only [leftWord, pack, Fin.append_left, Equiv.apply_symm_apply]
 
 /-- Extracting the right word of `pack a b` recovers `b`. -/
 @[simp] theorem rightWord_pack (a b : BitVec k) : rightWord (pack a b) = b := by
-  simp only [rightWord, pack, Fin.append_right, word_getLsbD]
+  simp only [rightWord, pack, Fin.append_right, Equiv.apply_symm_apply]
 
 /-- Repacking the left and right words of `x` recovers `x`. -/
 @[simp] theorem pack_words (x : BitString (k + k)) : pack (leftWord x) (rightWord x) = x := by
   funext bit
   induction bit using Fin.addCases with
-  | left i => simp only [pack, leftWord, Fin.append_left, getLsbD_word]
-  | right i => simp only [pack, rightWord, Fin.append_right, getLsbD_word]
+  | left i => simp only [pack, leftWord, Fin.append_left, Equiv.symm_apply_apply]
+  | right i => simp only [pack, rightWord, Fin.append_right, Equiv.symm_apply_apply]
 
 /-- The `T`-step modular counter map on `BitString (k + k)`. -/
 def power (T : ℕ) (x : BitString (k + k)) : BitString (k + k) :=
@@ -150,56 +150,43 @@ def period (k : ℕ) : ℕ := Nat.lcmUpto (2 ^ k - 1)
 
 private theorem modulus_dvd_period {a : ℕ} (ha : 0 < a) (haU : a < 2 ^ k) : a ∣ period k := by
   change a ∣ (Finset.Icc 1 (2 ^ k - 1)).lcm id
-  apply Finset.dvd_lcm
-  simpa only [Finset.mem_Icc] using (show 1 ≤ a ∧ a ≤ 2 ^ k - 1 by omega)
+  exact Finset.dvd_lcm (Finset.mem_Icc.mpr ⟨ha, Nat.le_sub_one_of_lt haU⟩)
 
 private theorem power_period (x : BitString (k + k)) : power (period k) x = x := by
   unfold power advance
   split_ifs with h
-  · have hd := modulus_dvd_period h.1 (BitVec.isLt (leftWord x))
-    rw [Nat.add_mod, Nat.mod_eq_zero_of_dvd hd, Nat.add_zero,
-      Nat.mod_mod, Nat.mod_eq_of_lt h.2]
+  · rw [Nat.add_mod, Nat.mod_eq_zero_of_dvd (modulus_dvd_period h.1 (BitVec.isLt (leftWord x))),
+      Nat.add_zero, Nat.mod_mod, Nat.mod_eq_of_lt h.2]
     simp
   · simp
 
 /-- The single-step modular counter map `power 1` is a bijection on `BitString (k + k)`. -/
 theorem power_bijective : Function.Bijective (power (k := k) 1) := by
   have hpos : 0 < period k := Nat.lcmUpto_pos _
-  constructor
-  · intro x y he
-    have h := congrArg (power (period k - 1)) he
-    simpa only [power_add, show 1 + (period k - 1) = period k by omega, power_period] using h
-  · intro y
-    exact ⟨power (period k - 1) y, by
-      rw [power_add, Nat.sub_add_cancel hpos, power_period]⟩
+  exact Function.bijective_iff_has_inverse.mpr ⟨power (period k - 1),
+    fun x => by rw [power_add, Nat.add_comm 1, Nat.sub_add_cancel hpos, power_period],
+    fun x => by rw [power_add, Nat.sub_add_cancel hpos, power_period]⟩
 
 /-- Different residues modulo `period k` give different Boolean functions. -/
 theorem powers_injective :
     Function.Injective (fun T : Fin (period k) => power (k := k) T.val) := by
   intro S T he
-  have hmod (a : ℕ) (ha : 0 < a) (haU : a < 2 ^ k) : S.val % a = T.val % a := by
-    have hx := congrArg (fun f => (rightWord (f
-      (pack (BitVec.ofNat k a) (BitVec.ofNat k 0)))).toNat) he
-    have hslt := (Nat.mod_lt S.val ha).trans haU
-    have htlt := (Nat.mod_lt T.val ha).trans haU
-    simpa [power, advance, Nat.mod_eq_of_lt haU, ha, Nat.mod_eq_of_lt hslt,
-      Nat.mod_eq_of_lt htlt] using hx
-  have helper (S T : ℕ) (hST : S ≤ T)
-      (hmod : ∀ a, 0 < a → a < 2 ^ k → S % a = T % a) : period k ∣ T - S := by
-    change (Finset.Icc 1 (2 ^ k - 1)).lcm id ∣ T - S
-    apply Finset.lcm_dvd
-    intro a ha
-    have ha' : 1 ≤ a ∧ a ≤ 2 ^ k - 1 := Finset.mem_Icc.mp ha
-    have hm : Nat.ModEq a S T := hmod a (by omega) (by have := Nat.one_le_two_pow (n := k); omega)
-    exact (Nat.modEq_iff_dvd' hST).mp hm
-  apply Fin.ext
-  rcases le_total S.val T.val with h | h
-  · have hd := helper S.val T.val h hmod
-    have hz := Nat.eq_zero_of_dvd_of_lt hd (by have := T.isLt; omega)
+  have hle {a b : ℕ} (hab : a ≤ b) (hb : b < period k) (h : power (k := k) a = power b) :
+      a = b := by
+    have hdvd : period k ∣ b - a := Finset.lcm_dvd (s := Finset.Icc 1 (2 ^ k - 1)) fun m hm => by
+      obtain ⟨hm1, hm2⟩ := Finset.mem_Icc.mp hm
+      have hm0 : 0 < m := hm1
+      have hmU : m < 2 ^ k := by have := Nat.one_le_two_pow (n := k); omega
+      refine (Nat.modEq_iff_dvd' hab).mp ?_
+      change a % m = b % m
+      simpa [power, advance, Nat.mod_eq_of_lt hmU, hm0,
+        Nat.mod_eq_of_lt ((Nat.mod_lt a hm0).trans hmU),
+        Nat.mod_eq_of_lt ((Nat.mod_lt b hm0).trans hmU)] using
+        congrArg (fun f => (rightWord (f (pack (BitVec.ofNat k m) (BitVec.ofNat k 0)))).toNat) h
+    have := Nat.eq_zero_of_dvd_of_lt hdvd (by omega)
     omega
-  · have hd := helper T.val S.val h (fun a ha hU => (hmod a ha hU).symm)
-    have hz := Nat.eq_zero_of_dvd_of_lt hd (by have := S.isLt; omega)
-    omega
+  exact Fin.ext <| (le_total S.val T.val).elim (fun h => hle h T.isLt he)
+    fun h => (hle h S.isLt he.symm).symm
 
 /-! ### Linear-size step circuit -/
 
@@ -221,14 +208,10 @@ theorem stepValue_spec (a b : BitVec k) :
     simp only [stepValue, BitVec.ult, decide_eq_true_eq, h, ite_true, he, advance,
       ha, and_self]
     split_ifs with heq
-    · apply BitVec.eq_of_toNat_eq
-      simp [heq]
+    · exact BitVec.eq_of_toNat_eq (by simp [heq])
     · have hlt : b.toNat + 1 < a.toNat := by omega
-      apply BitVec.eq_of_toNat_eq
-      simp only [hsum, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt, Nat.mod_eq_of_lt hs]
-  · simp only [stepValue, BitVec.ult, decide_eq_true_eq, h, ite_false, advance,
-      and_false]
-    simp
+      exact BitVec.eq_of_toNat_eq (by simp [Nat.mod_eq_of_lt hlt, Nat.mod_eq_of_lt hs])
+  · simp [stepValue, BitVec.ult, h, advance]
 
 /-- Equality of two available `k`-bit words costs at most `6 * k + 1` gates. -/
 private theorem synthesis_word_eq {n : ℕ} (s : Set (BooleanFunction n))
@@ -236,15 +219,13 @@ private theorem synthesis_word_eq {n : ℕ} (s : Set (BooleanFunction n))
     (ha : ∀ i : Fin k, (fun x => (a x).getLsbD i.val) ∈ s)
     (hb : ∀ i : Fin k, (fun x => (b x).getLsbD i.val) ∈ s) :
     Synthesis interpretation s {fun x => decide (a x = b x)} (6 * k + 1) := by
-  have h := synthesis_bits_eq s (fun x i => (a x).getLsbD i.val)
-    (fun x i => (b x).getLsbD i.val)
-    (by rintro _ ⟨i, rfl⟩; exact ha i) (by rintro _ ⟨i, rfl⟩; exact hb i)
-  have heq (x : BitString n) :
-      ((fun i : Fin k => (a x).getLsbD i.val) = fun i : Fin k => (b x).getLsbD i.val) ↔
-        a x = b x :=
-    ⟨fun h => BitVec.eq_of_getLsbD_eq fun i hi => congrFun h ⟨i, hi⟩,
-      fun h => funext fun i => congrArg (fun v => v.getLsbD i.val) h⟩
-  simpa only [heq] using h
+  have heq : (fun x => decide ((fun i : Fin k => (a x).getLsbD i.val) =
+      fun i : Fin k => (b x).getLsbD i.val)) = fun x => decide (a x = b x) :=
+    funext fun x => decide_eq_decide.mpr
+      ⟨fun h => BitVec.eq_of_getLsbD_eq fun i hi => congrFun h ⟨i, hi⟩,
+        fun h => funext fun i => congrArg (fun v => v.getLsbD i.val) h⟩
+  exact heq ▸ synthesis_bits_eq s (fun x i => (a x).getLsbD i.val)
+    (fun x i => (b x).getLsbD i.val) (fun _ ⟨i, h⟩ => h ▸ ha i) (fun _ ⟨i, h⟩ => h ▸ hb i)
 
 /-- Synthesizing `stepValue (a x) (b x)` from available words and constants costs at most
 `50 * k + 18` gates. -/
@@ -261,63 +242,47 @@ theorem synthesis_stepValue {n : ℕ} (src : Set (BooleanFunction n))
   have hi (i : Fin k) : (fun x => (inc x).getLsbD i.val) ∈ src1 := Or.inr ⟨i, rfl⟩
   let equal := fun x => decide (inc x = a x)
   let active := fun x => (b x).ult (a x)
-  have heq := synthesis_word_eq src1 inc a hi (fun i => Or.inl (ha i))
-  have hlt := Synthesis.word_ult (s := src1) b a (fun i => Or.inl (hb i)) (fun i => Or.inl (ha i))
+  have hcmp := (synthesis_word_eq src1 inc a hi fun i => Or.inl (ha i)).union
+    (Synthesis.word_ult (s := src1) b a (fun i => Or.inl (hb i)) fun i => Or.inl (ha i))
   let src2 := src1 ∪ ({equal} ∪ {active})
   let next := fun x => if equal x then (0 : BitVec k) else inc x
   have hm := Synthesis.word_mux (s := src2) (fun _ => (0 : BitVec k)) inc equal
-    (Or.inr (Or.inl rfl)) (fun _ => Or.inl (Or.inl (hc _))) (fun i => Or.inl (hi i))
+    (Or.inr (Or.inl rfl)) (fun _ => Or.inl (Or.inl (hc _))) fun i => Or.inl (hi i)
   let src3 := src2 ∪ wordWires next
-  have hm' := Synthesis.word_mux (s := src3) next b active
-    (Or.inl (Or.inr (Or.inr rfl))) (fun i => Or.inr ⟨i, rfl⟩)
-    (fun i => Or.inl (Or.inl (Or.inl (hb i))))
-  have hout := hadd.trans ((heq.union hlt).trans (hm.trans hm'))
-  refine hout.mono Set.Subset.rfl ?_ (by omega)
+  have hm' := Synthesis.word_mux (s := src3) next b active (Or.inl (Or.inr (Or.inr rfl)))
+    (fun i => Or.inr ⟨i, rfl⟩) fun i => Or.inl (Or.inl (Or.inl (hb i)))
+  refine (hadd.trans (hcmp.trans (hm.trans hm'))).mono Set.Subset.rfl ?_ (by omega)
   rintro _ ⟨i, rfl⟩
-  refine ⟨i, ?_⟩
-  funext x
-  simp only [stepValue, active, next, equal, inc, decide_eq_true_eq]
+  exact ⟨i, funext fun x => by simp only [stepValue, active, next, equal, inc, decide_eq_true_eq]⟩
 
 /-- The single-step modular counter `power 1` has a De Morgan circuit of size at most
 `50 * k + 20`. -/
 theorem exists_linear_circuit (k : ℕ) :
     ∃ c : Circuit signature (k + k) (k + k),
       c.Computes interpretation (power (k := k) 1) ∧ c.size ≤ 50 * k + 20 := by
-  let a := fun x : BitString (k + k) => leftWord x
-  let b := fun x : BitString (k + k) => rightWord x
   let constants : Set (BooleanFunction (k + k)) := {fun _ => false, fun _ => true}
   let src := inputs (k + k) ∪ constants
   have hc (v : Bool) : (fun _ : BitString (k + k) => v) ∈ src := by
     cases v <;> simp [src, constants]
-  have ha (i : Fin k) : (fun x => (a x).getLsbD i.val) ∈ src := by
-    simpa only [a, leftWord, getLsbD_word] using
-      (show (fun x : BitString (k + k) => x (Fin.castAdd k i)) ∈ src from Or.inl ⟨_, rfl⟩)
-  have hb (i : Fin k) : (fun x => (b x).getLsbD i.val) ∈ src := by
-    simpa only [b, rightWord, getLsbD_word] using
-      (show (fun x : BitString (k + k) => x (Fin.natAdd k i)) ∈ src from Or.inl ⟨_, rfl⟩)
-  have hconst : Synthesis interpretation (inputs (k + k)) constants 2 :=
-    (Synthesis.const false).union (Synthesis.const true)
-  have hstep := synthesis_stepValue src a b ha hb hc
-  have hout := hconst.trans hstep
-  have hall := (Synthesis.of_subset (I := interpretation)
-    (s := inputs (k + k)) (t := inputs (k + k)) Set.Subset.rfl).union hout
-  have hs : Synthesis interpretation (inputs (k + k))
-      (wires (power (k := k) 1)) (50 * k + 20) := by
-    apply hall.mono Set.Subset.rfl ?_ (by omega)
-    rintro _ ⟨bit, rfl⟩
-    induction bit using Fin.addCases with
-    | left i =>
-      left
-      exact ⟨Fin.castAdd k i, by
-        funext x
-        simp only [power, pack, Fin.append_left, leftWord, getLsbD_word]⟩
-    | right i =>
-      right
-      refine ⟨i, ?_⟩
-      funext x
-      simp only [power, pack, Fin.append_right]
-      rw [← stepValue_spec]
-  exact hs.exists_circuit_outputs
+  have ha (i : Fin k) : (fun x => (leftWord x).getLsbD i.val) ∈ src := by
+    simp only [leftWord, BitString.getLsbD_equivBitVec]
+    exact Or.inl ⟨Fin.castAdd k i, rfl⟩
+  have hb (i : Fin k) : (fun x => (rightWord x).getLsbD i.val) ∈ src := by
+    simp only [rightWord, BitString.getLsbD_equivBitVec]
+    exact Or.inl ⟨Fin.natAdd k i, rfl⟩
+  have hout := ((Synthesis.const false).union (Synthesis.const true)).trans
+    (synthesis_stepValue src leftWord rightWord ha hb hc)
+  have hall := (Synthesis.of_subset (I := interpretation) (s := inputs (k + k))
+    Set.Subset.rfl).union hout
+  refine (hall.mono Set.Subset.rfl ?_ (by omega)).exists_circuit_outputs
+  rintro _ ⟨bit, rfl⟩
+  induction bit using Fin.addCases with
+  | left i =>
+    exact Or.inl ⟨Fin.castAdd k i, funext fun x => by
+      simp only [power, pack, Fin.append_left, leftWord, Equiv.symm_apply_apply]⟩
+  | right i =>
+    exact Or.inr ⟨i, funext fun x => by
+      simp only [power, pack, Fin.append_right, ← stepValue_spec]; rfl⟩
 
 end ModulusCounter
 
@@ -346,7 +311,7 @@ def counterNextBits (x : BitString (k + k)) : BitString k :=
 theorem counterModulus_eq_of_eq {x y : BitString (k + k)}
     (h : (fun i => x (Fin.castAdd k i)) = fun i => y (Fin.castAdd k i)) :
     counterModulus x = counterModulus y :=
-  congrArg (fun z => (word z).toNat) h
+  congrArg (fun z => (BitString.equivBitVec z).toNat) h
 
 /-- `counterStep k` preserves the modulus stored in the first `k` coordinates. -/
 theorem counterStep_preserve_modulus (x : BitString (k + k)) :

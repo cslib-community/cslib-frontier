@@ -33,7 +33,7 @@ theorem prepareWords_eq_of_combined_none (e : Q ≃ Fin s) (N b σ i : ℕ)
     (words : Assignments.Words k)
     (hcombined : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i),
       words.previous, words.providers) = none) :
-    prepareWords (k := k) e (N, b, σ, i, words) = .inl words.previous := by
+    prepareWords (k := k) e ⟨N, b, σ, i, words⟩ = .inl words.previous := by
   simp only [prepareWords, hcombined]
 
 /-- A successful combination supplies the exact native replay state with computed scheduling
@@ -42,7 +42,7 @@ theorem prepareWords_eq_of_combined_some (e : Q ≃ Fin s) (N b σ i : ℕ)
     (words : Assignments.Words k) (raw : RawResult k Q)
     (hcombined : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i),
       words.previous, words.providers) = some raw) :
-    prepareWords (k := k) e (N, b, σ, i, words) =
+    prepareWords (k := k) e ⟨N, b, σ, i, words⟩ =
       let (positive, negative) := ScheduleRead.origin k 0 (σ, i)
       .inr ((positive, negative, ScheduleRead.fullrow k (σ, i)),
         Load.load (N, b, (positive, negative), raw)) := by
@@ -53,7 +53,7 @@ theorem prepare_eq_of_combined_none (e : Q ≃ Fin s) (N b σ i limit counter st
     (hcombined : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i),
       (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).previous,
       (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).providers) = none) :
-    prepare (k := k) e (N, b, σ, i, limit, counter, stride) =
+    prepare (k := k) e ⟨N, b, σ, i, limit, counter, stride⟩ =
       .inl (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).previous :=
   prepareWords_eq_of_combined_none e N b σ i _ hcombined
 
@@ -64,7 +64,7 @@ theorem prepare_eq_of_combined_some (e : Q ≃ Fin s) (N b σ i limit counter st
     (hcombined : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i),
       (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).previous,
       (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).providers) = some raw) :
-    prepare (k := k) e (N, b, σ, i, limit, counter, stride) =
+    prepare (k := k) e ⟨N, b, σ, i, limit, counter, stride⟩ =
       let (positive, negative) := ScheduleRead.origin k 0 (σ, i)
       .inr ((positive, negative, ScheduleRead.fullrow k (σ, i)),
         Load.load (N, b, (positive, negative), raw)) :=
@@ -81,7 +81,7 @@ theorem finish_prepareWords_of_parses {q : ℕ} (M : MultiTapeTM k Bool Q) (e : 
     (hproviders : ∀ h δ, Encoding.NativeChecked.parse e (b, words.providers h δ) =
         some (providers h δ)) :
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepareWords e (w.length, b, σ, i, words)) b) =
+      (prepareWords e ⟨w.length, b, σ, i, words⟩) b) =
       List.ofFn (Encoding.encode e
         (gate (MultiTapePTM.ofDeterministic M) w b
           (scheduleOfNat k q σ) i (some (previous.toView b))
@@ -106,21 +106,15 @@ theorem finish_prepareWords_of_parses {q : ℕ} (M : MultiTapeTM k Bool Q) (e : 
       previous providers hp hps
   rcases horigin : ScheduleRead.origin k 0 (σ, i) with ⟨positive, negative⟩
   have hinput : scheduleBlock schedule i none = (positive : ℤ) - negative := by
-    have ho := ScheduleRead.origin_sub_eq_scheduleBlock (k := k) (q := q)
-      σ i.val i.isLt.le none
-    change (let (p, n) := ScheduleRead.origin k 0 (σ, i.val);
-      (p : ℤ) - n = scheduleBlock schedule i none) at ho
-    rw [horigin] at ho
-    exact ho.symm
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj horigin.symm
+    exact (ScheduleRead.origin_sub_eq_scheduleBlock (k := k) (q := q) σ i.val i.isLt.le none).symm
   rw [prepareWords_eq_of_combined_some e w.length b σ i words raw hcombined,
     horigin, ScheduleRead.fullrow_eq_scheduleOfNat, CheckedGate.runFrom_inr]
   change (Gate.machine M e).finish ((Gate.machine M e).runFrom w
     ((positive, negative, schedule i), Load.load (w.length, b, (positive, negative), raw)) b) = _
-  have hf := Gate.finish_runFrom_load M e w b positive negative (schedule i) raw
-    hcanonical (scheduleBlock schedule i) hinput
-  dsimp only at hf
-  rw [hview] at hf
-  simpa [gate, MultiTapeTM.stepCoins_ofDeterministic, schedule] using hf
+  simpa [gate, MultiTapeTM.stepCoins_ofDeterministic, schedule, hview] using
+    Gate.finish_runFrom_load M e w b positive negative (schedule i) raw
+      hcanonical (scheduleBlock schedule i) hinput
 
 /-- When the previous and every provider label pass canonical parsing, the prepared supplier
 emits exactly the encoded existing block gate. Failed head-motion validation still emits FAIL.
@@ -136,7 +130,7 @@ theorem finish_prepare_of_parses {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q ≃
       (b, (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).providers h δ) =
         some (providers h δ)) :
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepare e (w.length, b, σ, i, limit, counter, stride)) b) =
+      (prepare e ⟨w.length, b, σ, i, limit, counter, stride⟩) b) =
       List.ofFn (Encoding.encode e
         (gate (MultiTapePTM.ofDeterministic M) w b
           (scheduleOfNat k q σ) i (some (previous.toView b))

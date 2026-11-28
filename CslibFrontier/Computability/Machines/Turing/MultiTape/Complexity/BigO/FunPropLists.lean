@@ -23,24 +23,34 @@ charged-space bounds. `fun_prop` composes the primitives through
 `Turing.MultiTapeTM.ComputableInO.comp'`; `Turing.MultiTapeTM.ComputableInO.mono` then compares
 the assembled bounds with the client's target bounds.
 
-The list, option and unary-number primitives are linear in their encoded arguments. The
-registered binary `natSucc` and `natPred` certificates instead have quadratic time and linear
-charged space. General equality `eq'` adds its explicit product-of-lengths time charge and
-encoded-pair space charge; clients enable it locally. Tests against a fixed value of a finite
-type and binary zero retain the tested computation's bounds, whereas `isEmpty'` adds the
-computed list's encoded length to both time and space. A test takes that computation as a
-premise, since its Boolean result does not determine the tested value's encoding.
+The list, option, bit-word and unary-number primitives are linear in their encoded arguments.
+Captured framing, option-to-list and unary-length rules compose linearly via
+`Turing.MultiTapeTM.ComputableInO.comp_linear`, preserving the inner computation's bounds without
+adding an output-length term. The registered binary `natSucc` and `natPred` certificates instead
+have quadratic time and linear charged space. General equality `eq'` adds its explicit
+product-of-lengths time charge and encoded-pair space charge; clients enable it locally. Tests
+against a fixed value of a finite type and binary zero retain the tested computation's bounds,
+whereas `isEmpty'` adds the computed list's encoded length to both time and space. A test takes
+that computation as a premise, since its Boolean result does not determine the tested value's
+encoding.
 
 ## Main results
 
-* `Turing.MultiTapeTM.ComputableInO.take'`, `.drop'`: prefixes and suffixes, with a unary count.
+* `Turing.MultiTapeTM.ComputableInO.take'`, `.drop'`: prefixes and suffixes of a list, with a unary
+  count.
+* `Turing.MultiTapeTM.ComputableInO.listAppend'`, `.frame'`, `.unframe'`, `.dropFrame'`,
+  `.bitsAppend'`: list concatenation, framing and bit-string concatenation preserving producer
+  bounds.
+* `Turing.MultiTapeTM.ComputableInO.optionToList`, `.optionToList'`: option-to-list conversion
+  without assuming an inhabited payload type.
+* `Turing.MultiTapeTM.ComputableInO.bitsLengthUnary'`: unary length of a computed bit string.
 * `Turing.MultiTapeTM.ComputableInO.not'`, `.and'`, `.or'`: Boolean connectives.
 * `Turing.MultiTapeTM.ComputableInO.decideEq'`, `.natIsZero'`: tests against a constant.
 * `Turing.MultiTapeTM.ComputableInO.eq'`: equality of computed values, enabled locally by a client.
 * `Turing.MultiTapeTM.ComputableInO.iteDecide`: case distinction on a decidable proposition.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM.ComputableInO
 
@@ -57,8 +67,6 @@ linear_rule cons' : (fun p : α × List α => p.1 :: p.2) from (encPair enc (enc
   to (encList enc) := ComputableInDegree.cons enc
 linear_rule snoc' : (fun p : List α × α => p.1 ++ [p.2]) from (encPair (encList enc) enc)
   to (encList enc) := ComputableInDegree.snoc enc
-linear_rule append' : (fun p : List α × List α => p.1 ++ p.2)
-  from (encPair (encList enc) (encList enc)) to (encList enc) := ComputableInDegree.listAppend enc
 linear_rule tail' : (fun l : List α => l.tail) from (encList enc) to (encList enc) :=
   ComputableInDegree.listTail enc
 
@@ -151,6 +159,69 @@ theorem eq' [DecidableEq α] {a b : γ → α} (ha : ComputableInO a encIn enc T
 theorem optionIsNone {o : γ → Option α} (h : ComputableInO o encIn (encOption enc) T S) :
     ComputableInO (fun x => (o x).isNone) encIn encBool T S :=
   (not' h.optionIsSome).of_enc_eq fun x => by cases o x <;> rfl
+
+/-- Convert an option to a zero- or one-element list in linear time and space, without assuming `α`
+is inhabited. -/
+theorem optionToList : ComputableInO (Option.toList (α := α)) (encOption enc) (encList enc)
+    (fun o => (encOption enc o).length) fun o => (encOption enc o).length := by
+  rcases isEmpty_or_nonempty α with h | h
+  · exact (const []).of_enc_eq fun | none => rfl | some a => isEmptyElim a
+  · obtain ⟨d⟩ := h
+    have hsingle : ComputableInO (fun a : α => [a]) enc (encList enc)
+        (fun a => (enc a).length) fun a => (enc a).length :=
+      of_linear (.of_frame fun _ => by rw [encList_cons, encList_nil, List.append_nil])
+    refine (((optionIsSome id').ite (hsingle.comp_linear (optionGetD d id'))
+      (const [])).of_enc_eq fun o => by cases o <;> rfl).mono 2 (fun _ => ?_) fun _ => ?_
+    all_goals split_ifs <;> omega
+
+/-- Convert a computed option to a zero- or one-element list, within the bounds of the option. -/
+@[fun_prop]
+theorem optionToList' {o : γ → Option α} (h : ComputableInO o encIn (encOption enc) T S) :
+    ComputableInO (fun x => (o x).toList) encIn (encList enc) T S :=
+  optionToList.comp_linear h
+
+/-- Concatenate two computed framed lists, adding their bounds. -/
+@[fun_prop]
+theorem listAppend' {u v : γ → List α} (hu : ComputableInO u encIn (encList enc) T₁ S₁)
+    (hv : ComputableInO v encIn (encList enc) T₂ S₂) :
+    ComputableInO (fun x => u x ++ v x) encIn (encList enc) (fun x => T₁ x + T₂ x)
+      fun x => S₁ x + S₂ x :=
+  (ComputableInDegree.listAppend enc).inO_one.comp_linear (hu.prod hv)
+
+/-- Frame a computed bit string, within its bounds. -/
+@[fun_prop]
+theorem frame' {w : γ → List Bool} (hw : ComputableInO w encIn encBits T S) :
+    ComputableInO (fun x => frame (w x)) encIn encBits T S :=
+  (of_linear (ComputableInDegree.of_frame (encIn := encBits) (encMid := encBits)
+    fun _ => rfl)).comp_linear hw
+
+/-- Read the first framed word of a computed bit string, within its bounds. -/
+@[fun_prop]
+theorem unframe' {w : γ → List Bool} (hw : ComputableInO w encIn encBits T S) :
+    ComputableInO (fun x => unframe (w x)) encIn encBits T S :=
+  (of_linear (ComputableInDegree.of_unframe (encIn := encBits) (encMid := encBits)
+    fun _ => rfl)).comp_linear hw
+
+/-- Drop the first framed word of a computed bit string, within its bounds. -/
+@[fun_prop]
+theorem dropFrame' {w : γ → List Bool} (hw : ComputableInO w encIn encBits T S) :
+    ComputableInO (fun x => dropFrame (w x)) encIn encBits T S :=
+  (of_linear (ComputableInDegree.of_dropFrame (encIn := encBits) (encMid := encBits)
+    fun _ => rfl)).comp_linear hw
+
+/-- Concatenate two computed bit strings, adding their bounds. -/
+@[fun_prop]
+theorem bitsAppend' {u v : γ → List Bool} (hu : ComputableInO u encIn encBits T₁ S₁)
+    (hv : ComputableInO v encIn encBits T₂ S₂) :
+    ComputableInO (fun x => u x ++ v x) encIn encBits (fun x => T₁ x + T₂ x)
+      fun x => S₁ x + S₂ x :=
+  hu.append hv fun _ => rfl
+
+/-- The unary length of a computed bit string, within its bounds. -/
+@[fun_prop]
+theorem bitsLengthUnary' {w : γ → List Bool} (hw : ComputableInO w encIn encBits T S) :
+    ComputableInO (fun x => (w x).length) encIn encUnary T S :=
+  lengthUnary.comp_linear hw
 
 /-- Whether a computed value of a finite type equals a fixed value. -/
 @[fun_prop]

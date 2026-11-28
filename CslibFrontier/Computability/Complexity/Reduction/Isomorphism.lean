@@ -36,6 +36,13 @@ This module formalizes:
    polynomial-time left inverse [Berman and Hartmanis][BermanHartmanis1977], [Ladner, Lynch and
    Selman][LadnerLynchSelman1975].
 
+Each of the three strengthened one-one reducibilities is by definition an instance of
+`Cslib.Complexity.ManyOneReducibleBy`
+(`Cslib.Complexity.polyTimeInvertibleOneOneReducible_iff_manyOneReducibleBy`,
+`Cslib.Complexity.polyTimeLengthIncreasingOneOneReducible_iff_manyOneReducibleBy`,
+`Cslib.Complexity.polyTimeInvertibleLengthIncreasingOneOneReducible_iff_manyOneReducibleBy`), so
+reflexivity, transitivity, complementation, and forgetful projections follow from the kernel API.
+
 ## Main definitions
 
 * `Cslib.Complexity.PolyTimeIsomorphic`: polynomial-time isomorphism (`≅ᵖ`).
@@ -52,10 +59,6 @@ This module formalizes:
   `Cslib.Complexity.PolyTimeIsomorphic.refl`,
   `Cslib.Complexity.PolyTimeIsomorphic.symm`,
   `Cslib.Complexity.PolyTimeIsomorphic.trans`.
-* The three one-one variants are instances of `Cslib.Complexity.ManyOneReducibleBy`:
-  `Cslib.Complexity.polyTimeInvertibleOneOneReducible_iff_manyOneReducibleBy`,
-  `Cslib.Complexity.polyTimeLengthIncreasingOneOneReducible_iff_manyOneReducibleBy`,
-  `Cslib.Complexity.polyTimeInvertibleLengthIncreasingOneOneReducible_iff_manyOneReducibleBy`.
 * Reflexivity and transitivity of `≤₁,ᵢ`; transitivity of `≤₁,ₗᵢ` and `≤₁,ᵢₗ`:
   `Cslib.Complexity.PolyTimeInvertibleOneOneReducible.refl`,
   `Cslib.Complexity.PolyTimeInvertibleOneOneReducible.trans`,
@@ -149,15 +152,15 @@ theorem PolyTimeIsomorphic.trans (hAB : PolyTimeIsomorphic encA encB A B)
 
 /-- A polynomial-time isomorphism between `A` and `B` is one between `Aᶜ` and `Bᶜ`. -/
 theorem PolyTimeIsomorphic.compl (h : PolyTimeIsomorphic encA encB A B) :
-    PolyTimeIsomorphic encA encB Aᶜ Bᶜ := by
-  obtain ⟨e, he, hAB⟩ := h
-  exact ⟨e, he, fun a => not_congr (hAB a)⟩
+    PolyTimeIsomorphic encA encB Aᶜ Bᶜ :=
+  let ⟨e, he, hAB⟩ := h
+  ⟨e, he, fun a => not_congr (hAB a)⟩
 
 /-- A polynomial-time isomorphism is a one-one reduction. -/
 theorem PolyTimeIsomorphic.polyTimeOneOneReducible (h : PolyTimeIsomorphic encA encB A B) :
-    PolyTimeOneOneReducible encA encB A B := by
-  obtain ⟨e, ⟨he, _⟩, hAB⟩ := h
-  exact ⟨e, ⟨he, e.injective⟩, hAB⟩
+    PolyTimeOneOneReducible encA encB A B :=
+  let ⟨e, ⟨he, _⟩, hAB⟩ := h
+  ⟨e, ⟨he, e.injective⟩, hAB⟩
 
 /-- A polynomial-time isomorphism is a many-one reduction. -/
 theorem PolyTimeIsomorphic.polyTimeReducible (h : PolyTimeIsomorphic encA encB A B) :
@@ -225,9 +228,9 @@ theorem PolyTimeInvertibleOneOneReducible.compl
 /-- A polynomial-time isomorphism is an invertible one-one reduction. -/
 theorem PolyTimeIsomorphic.polyTimeInvertibleOneOneReducible
     (h : PolyTimeIsomorphic encA encB A B) :
-    PolyTimeInvertibleOneOneReducible encA encB A B := by
-  obtain ⟨e, ⟨he, hsymm⟩, hAB⟩ := h
-  exact ⟨e, ⟨e.symm, he, hsymm, e.symm_apply_apply⟩, hAB⟩
+    PolyTimeInvertibleOneOneReducible encA encB A B :=
+  let ⟨e, ⟨he, hsymm⟩, hAB⟩ := h
+  ⟨e, ⟨e.symm, he, hsymm, e.symm_apply_apply⟩, hAB⟩
 
 /-- An invertible one-one reduction is an injective one-one reduction. -/
 theorem PolyTimeInvertibleOneOneReducible.polyTimeOneOneReducible

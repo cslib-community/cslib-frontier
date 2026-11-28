@@ -97,6 +97,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from aggregate_order import import_key  # noqa: E402
 from proof_lengths import masks  # noqa: E402  (the shared Lean comment and string lexer)
 
 TOOL = Path(__file__).resolve()
@@ -717,10 +718,10 @@ def aggregate_specs(lakefile: str) -> list[tuple[str, str, str]]:
 
 
 def render_aggregate(existing: str, files, below: str, prefix: str) -> str:
-    """What `lake exe mk_all` writes: the sorted imports of every module below the root, in the
-    style (module with `public import`, or plain `import`) of the existing file."""
-    modules = sorted(p[len(prefix):-5].replace("/", ".") for p in files
-                     if p.startswith(below) and p.endswith(".lean"))
+    """What `lake exe mk_all` writes: the imports of every module below the root, in its hash order
+    and in the style (module with `public import`, or plain `import`) of the existing file."""
+    modules = sorted((p[len(prefix):-5].replace("/", ".") for p in files
+                      if p.startswith(below) and p.endswith(".lean")), key=import_key)
     if existing.lstrip().startswith("module"):
         return MODULE_PREAMBLE + "".join(f"public import {m}\n" for m in modules)
     return "".join(f"import {m}\n" for m in modules)

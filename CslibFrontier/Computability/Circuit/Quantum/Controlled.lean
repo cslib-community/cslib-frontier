@@ -50,7 +50,7 @@ Controlled circuits compose (`Cslib.Quantum.Circuit.IsControlled.append`).
   computation*][Shi2003], §4.2 (arXiv:quant-ph/0205115v2)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Quantum
 
@@ -89,55 +89,29 @@ theorem Circuit.eval_projOutcomes {C : Circuit m} (p : (Fin m → Bool) → Prop
     eval C (projOutcomes p ψ) = projOutcomes p (eval C ψ) := by
   ext y
   simp only [eval, unitaryEquiv_apply, projOutcomes_apply, mulVec, dotProduct]
-  split_ifs with hy
-  · refine sum_congr rfl fun x _ => ?_
-    by_cases hx : p x
-    · rw [ite_eq_left hx]
-    · rw [ite_eq_right hx, not_imp_comm.mp (hp y x) (fun h => hx (h.mp hy)), zero_mul, zero_mul]
-  · refine sum_eq_zero fun x _ => ?_
-    by_cases hx : p x
-    · rw [not_imp_comm.mp (hp y x) (fun h => hy (h.mpr hx)), zero_mul]
-    · rw [ite_eq_right hx, mul_zero]
+  rw [show (if p y then ∑ x, (matrix C : Matrix _ _ ℂ) y x * ψ x else 0) =
+    ∑ x, if p y then (matrix C : Matrix _ _ ℂ) y x * ψ x else 0 by split_ifs <;> simp]
+  refine sum_congr rfl fun x _ => ?_
+  by_cases h0 : (matrix C : Matrix _ _ ℂ) y x = 0
+  · simp [h0]
+  · simp [hp y x h0]
 
 /-- A circuit none of whose gates acts on qubit `j` commutes with projecting onto a value of
 `j`. -/
 theorem Circuit.eval_projOutcomes_bit {C : Circuit m} {j : Fin m}
     (hC : ∀ g ∈ C, ∀ i, g.wires i ≠ j) (b : Bool) (ψ : Qubits m) :
     eval C (projOutcomes (fun y => y j = b) ψ) = projOutcomes (fun y => y j = b) (eval C ψ) :=
-  eval_projOutcomes _ (fun y x hyx => by
-    rw [not_not.mp (mt (matrix_eq_zero_of_ne hC) hyx)]) ψ
+  eval_projOutcomes _ (fun _ _ hyx => by rw [not_not.mp (mt (matrix_eq_zero_of_ne hC) hyx)]) ψ
 
 namespace GateCode
 
 /-- The qubits of the gate denoted by a code are among the qubits the code names. -/
-theorem wires_mem_of_toPlacedGate? {g : GateCode} {pg : PlacedGate m}
-    (h : toPlacedGate? m g = some pg) (i : Fin pg.arity) :
-    (pg.wires i : ℕ) ∈ g.2.1 :: g.2.2 := by
-  match g, h with
-  | (true, t, []), h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i
-    exact List.mem_cons_self ..
-  | (false, t, []), h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i
-    exact List.mem_cons_self ..
-  | (false, t, [c]), h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i <;> simp
-  | (false, t, [c₁, c₂]), h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i <;> simp
-  | (true, t, _ :: _), h => simp [toPlacedGate?] at h
-  | (false, t, _ :: _ :: _ :: _), h => simp [toPlacedGate?] at h
+theorem wires_mem_of_toPlacedGate? {b : Bool} {t : ℕ} {cs : List ℕ} {pg : PlacedGate m}
+    (h : toPlacedGate? m (b, t, cs) = some pg) (i : Fin pg.arity) :
+    (pg.wires i : ℕ) ∈ t :: cs := by
+  (rcases b with _ | _ <;> rcases cs with _ | ⟨c₁, _ | ⟨c₂, _ | _⟩⟩ <;>
+    simp only [toPlacedGate?] at h <;> try split_ifs at h) <;>
+    cases h <;> fin_cases i <;> first | exact List.mem_cons_self .. | simp
 
 /-- **A well-formed gate is its own inverse.** -/
 theorem eval_eval_of_toPlacedGate? {g : GateCode} {pg : PlacedGate m} (hg : WellFormed m g)
@@ -172,10 +146,11 @@ theorem classicalUnrun_reverse (gs : List GateCode) (y : Fin m → Bool) :
 
 /-- Classical codes none of which targets `q` leave bit `q` unchanged when undone. -/
 theorem readBit_classicalUnrun_of_forall_ne {gs : List GateCode} {q : ℕ}
-    (h : ∀ g ∈ gs, g.2.1 ≠ q) (y : Fin m → Bool) :
+    (h : ∀ b t cs, (b, t, cs) ∈ gs → t ≠ q) (y : Fin m → Bool) :
     readBit (classicalUnrun gs y) q = readBit y q := by
   rw [classicalUnrun_eq_classicalRun_reverse]
-  exact readBit_classicalRun_of_forall_ne (fun g hg => h g (List.mem_reverse.mp hg)) y
+  exact readBit_classicalRun_of_forall_ne
+    (fun ⟨b, t, cs⟩ hg => h b t cs (List.mem_reverse.mp hg)) y
 
 end GateCode
 
@@ -185,10 +160,11 @@ namespace Circuit
 
 /-- The gates of `ofCodes m gs` act only on qubits that the codes `gs` name. -/
 theorem wires_ne_of_ofCodes {gs : List GateCode} {j : Fin m}
-    (h : ∀ g ∈ gs, (j : ℕ) ∉ g.2.1 :: g.2.2) : ∀ pg ∈ ofCodes m gs, ∀ i, pg.wires i ≠ j := by
+    (h : ∀ b t cs, (b, t, cs) ∈ gs → (j : ℕ) ∉ t :: cs) :
+    ∀ pg ∈ ofCodes m gs, ∀ i, pg.wires i ≠ j := by
   intro pg hpg i hi
-  obtain ⟨g, hg, hpg⟩ := List.mem_filterMap.mp hpg
-  exact h g hg (hi ▸ wires_mem_of_toPlacedGate? hpg i)
+  obtain ⟨⟨b, t, cs⟩, hg, hpg⟩ := List.mem_filterMap.mp hpg
+  exact h b t cs hg (hi ▸ wires_mem_of_toPlacedGate? hpg i)
 
 /-- **Running well-formed codes backwards undoes them.** -/
 theorem eval_ofCodes_reverse {gs : List GateCode} (h : ∀ g ∈ gs, WellFormed m g)
@@ -215,7 +191,7 @@ theorem eval_ofCodes_of_reverse {gs : List GateCode} (h : ∀ g ∈ gs, WellForm
 
 /-- The circuit `C` is the circuit `D` **controlled by qubit `c`**: it does nothing on the basis
 strings with `c = 0` and runs `D` on those with `c = 1`. -/
-def IsControlled (c : Fin m) (C D : Circuit m) : Prop :=
+@[expose] def IsControlled (c : Fin m) (C D : Circuit m) : Prop :=
   ∀ ψ, eval C ψ =
     projOutcomes (fun y => y c = false) ψ + eval D (projOutcomes (fun y => y c = true) ψ)
 
@@ -243,7 +219,7 @@ theorem IsControlled.append {c : Fin m} {C₁ C₂ D₁ D₂ : Circuit m} (h₁ 
 /-- **Conjugating a controlled circuit** by well-formed codes that do not touch the control qubit
 gives the conjugated circuit, controlled. -/
 theorem IsControlled.conj {c : Fin m} {A : List GateCode} {C D : Circuit m}
-    (hA : ∀ g ∈ A, WellFormed m g) (hAc : ∀ g ∈ A, (c : ℕ) ∉ g.2.1 :: g.2.2)
+    (hA : ∀ g ∈ A, WellFormed m g) (hAc : ∀ b t cs, (b, t, cs) ∈ A → (c : ℕ) ∉ t :: cs)
     (h : IsControlled c C D) :
     IsControlled c (ofCodes m A ++ C ++ ofCodes m A.reverse)
       (ofCodes m A ++ D ++ ofCodes m A.reverse) := fun ψ => by
@@ -257,45 +233,37 @@ namespace GateCode
 
 /-- The classical code `g` with the extra control qubit `c`: NOT becomes CNOT and CNOT becomes
 Toffoli. -/
-def addControl (c : ℕ) (g : GateCode) : GateCode := (g.1, g.2.1, c :: g.2.2)
+@[expose] def addControl (c : ℕ) : GateCode → GateCode
+  | (b, t, cs) => (b, t, c :: cs)
 
 /-- An extra control qubit `c` makes a classical code act only when `c` is one. -/
 theorem classicalStep_addControl (g : GateCode) (c : Fin m) (y : Fin m → Bool) :
     classicalStep (addControl c g) y = if y c then classicalStep g y else y := by
+  obtain ⟨b, t, cs⟩ := g
   refine funext_readBit fun j => ?_
-  rw [readBit_classicalStep]
-  by_cases hc : y c
-  · rw [ite_eq_left hc, readBit_classicalStep]
-    by_cases h₁ : j = g.2.1 <;> by_cases h₂ : g.2.1 < m <;> simp [addControl, hc, h₁, h₂]
-  · rw [ite_eq_right hc]
-    simp [addControl, hc]
+  by_cases hc : y c <;> by_cases h₁ : j = t <;> by_cases h₂ : t < m <;>
+    simp [readBit_classicalStep, addControl, hc, h₁, h₂]
 
 theorem classicalUnrun_addControl {gs : List GateCode} {c : Fin m}
-    (h : ∀ g ∈ gs, g.2.1 ≠ c) (y : Fin m → Bool) :
+    (h : ∀ b t cs, (b, t, cs) ∈ gs → t ≠ c) (y : Fin m → Bool) :
     classicalUnrun (gs.map (addControl c)) y = if y c then classicalUnrun gs y else y := by
   induction gs with
   | nil => simp
   | cons g gs ih =>
-    rw [List.map_cons, classicalUnrun_cons, classicalUnrun_cons,
-      ih (fun g' hg' => h g' (List.mem_cons_of_mem _ hg')), classicalStep_addControl]
-    by_cases hc : y c
-    · have hU : classicalUnrun gs y c = y c := by
-        simpa using readBit_classicalUnrun_of_forall_ne
-          (fun g' hg' => h g' (List.mem_cons_of_mem _ hg')) y
-      simp only [hc, ite_true, hU]
-    · simp only [hc, Bool.false_eq_true, ite_false]
+    have hgs := fun b t cs hg' => h b t cs (List.mem_cons_of_mem _ hg')
+    have hU : classicalUnrun gs y c = y c :=
+      by simpa using readBit_classicalUnrun_of_forall_ne hgs y
+    rw [List.map_cons, classicalUnrun_cons, classicalUnrun_cons, ih hgs, classicalStep_addControl]
+    cases hc : y c <;> simp [hc, hU]
 
 /-- Classical codes with an extra control are classical only if the codes without it are, and
 then no code targets the control. -/
 theorem isClassical_of_addControl {gs : List GateCode} {c : ℕ}
-    (h : IsClassical m (gs.map (addControl c))) : IsClassical m gs ∧ ∀ g ∈ gs, g.2.1 ≠ c := by
-  refine ⟨fun g hg => ?_, fun g hg => ?_⟩ <;>
-  · obtain ⟨b, t, cs⟩ := g
-    obtain ⟨h₁, hw⟩ := h _ (List.mem_map_of_mem hg)
-    simp only [addControl] at h₁ hw
-    subst h₁
-    obtain ⟨hlen, hnd, hlt⟩ := hw
-    simp only [List.length_cons, List.nodup_cons, List.mem_cons, not_or, List.mem_cons,
+    (h : IsClassical m (gs.map (addControl c))) :
+    IsClassical m gs ∧ ∀ b t cs, (b, t, cs) ∈ gs → t ≠ c := by
+  refine ⟨fun ⟨b, t, cs⟩ hg => ?_, fun b t cs hg => ?_⟩ <;>
+  · obtain ⟨rfl, hlen, hnd, hlt⟩ := h _ (List.mem_map_of_mem hg)
+    simp only [List.length_cons, List.nodup_cons, List.mem_cons, not_or,
       forall_eq_or_imp] at hlen hnd hlt
     first
     | exact ⟨rfl, by omega, List.nodup_cons.mpr ⟨hnd.1.2, hnd.2.2⟩,

@@ -10,17 +10,18 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperserCore.State
 
 /-!
-# States of `4n - 10d` gate elimination with zero-locus pair semantics
+# States of `4n - 9d` gate elimination with zero-locus pair semantics
 
 Specialization of the pair-type-generic gate-elimination state
-(`Cslib.Circuits.Boolean.AffineDisperserCore.State`) for the `4n - 10d` lower bound of
-[Mishra and Santhanam][MishraSanthanam2027]:
+(`Cslib.Circuits.Boolean.AffineDisperserCore.State`) for the `4n` zero-locus gate-elimination
+framework of [Mishra and Santhanam][MishraSanthanam2027] (issue `#4322`), refined here from
+`(α, β, ca) = (6, 4, 10)` (`4n - 10d`) to `(5, 3, 9)` (`4n - 9d`):
 
 * pairs are zero-locus pairs `ZeroPair` constraining parameter assignments to `Z(P)`
   (`ZeroPair.Holds`);
-* unpaired parameters have `0/6` degree weights (`weight`);
-* the potential is `W = s + 4 q + 6 · #{used unpaired parameters}`, with coefficient `ca = 10` for
-  `ΔW ≤ 10 Δa`;
+* unpaired parameters have `0/5` degree weights (`weight`);
+* the potential is `W = s + 3 q + 5 · #{used unpaired parameters}`, with coefficient `ca = 9` for
+  `ΔW ≤ 9 Δa`;
 * `Φ` is globally affine (`IsAffine`), giving Lemma 2.2 (`State.Valid.exists_affine_embedding`)
   and the hyperplane / non-affinity lemmas (`State.Valid.false_of_fix`,
   `State.Valid.out_not_affine`).
@@ -33,7 +34,7 @@ Specialization of the pair-type-generic gate-elimination state
   `Cslib.Circuits.Boolean.AffineDisperser4n.ZeroPair.bias`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.ZeroPair.partner`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.ZeroPair.partnerBias`: zero-locus pairs and accessors.
-* `Cslib.Circuits.Boolean.AffineDisperser4n.weight`: the `0/6` degree weight.
+* `Cslib.Circuits.Boolean.AffineDisperser4n.weight`: the `0/5` degree weight.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.config`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.State`: the `4n` configuration and state abbreviation.
 
@@ -61,16 +62,16 @@ open Finset Cslib.BitString SemiCircuit AffineDisperserCore
 
 /-! ### Weights -/
 
-/-- The `0/6` weight of an unpaired parameter of degree `k`: `0` if unused (`k = 0`) and `6` if
+/-- The `0/5` weight of an unpaired parameter of degree `k`: `0` if unused (`k = 0`) and `5` if
 used (`k ≥ 1`). -/
 @[expose] def weight (k : ℕ) : ℕ :=
-  if k = 0 then 0 else 6
+  if k = 0 then 0 else 5
 
 /-- An unused parameter (`k = 0`) has weight `0`. -/
 @[simp] theorem weight_zero : weight 0 = 0 := rfl
 
-/-- A used parameter (`1 ≤ k`) has weight `6`. -/
-theorem weight_of_one_le {k : ℕ} (hk : 1 ≤ k) : weight k = 6 := by
+/-- A used parameter (`1 ≤ k`) has weight `5`. -/
+theorem weight_of_one_le {k : ℕ} (hk : 1 ≤ k) : weight k = 5 := by
   unfold weight
   split_ifs <;> omega
 
@@ -79,8 +80,8 @@ theorem weight_mono {k l : ℕ} (h : k ≤ l) : weight k ≤ weight l := by
   unfold weight
   split_ifs <;> omega
 
-/-- Every degree weight `weight k` is at most `6`. -/
-theorem weight_le_six (k : ℕ) : weight k ≤ 6 := by
+/-- Every degree weight `weight k` is at most `5`. -/
+theorem weight_le_five (k : ℕ) : weight k ≤ 5 := by
   unfold weight
   split_ifs <;> omega
 
@@ -98,7 +99,13 @@ structure ZeroPair where
   snd : ℕ
   /-- The bias of the second parameter. -/
   sndBias : Bool
-  deriving DecidableEq
+
+/-- Decidable equality on `ZeroPair`. -/
+instance : DecidableEq ZeroPair := fun a b =>
+  if h : a.fst = b.fst ∧ a.fstBias = b.fstBias ∧ a.snd = b.snd ∧ a.sndBias = b.sndBias then
+    isTrue (by cases a; cases b; simp_all)
+  else
+    isFalse (by rintro rfl; exact h ⟨rfl, rfl, rfl, rfl⟩)
 
 namespace ZeroPair
 
@@ -199,20 +206,20 @@ end ZeroPair
 
 /-! ### `4n` configuration and state -/
 
-/-- Configuration for `4n - 10d` gate elimination: zero-locus pairs, `0/6` weights, potential
-`s + 4 q + ∑ wt`, potential slope `10`, and global affinity of `Φ`. -/
+/-- Configuration for `4n - 9d` gate elimination: zero-locus pairs, `0/5` weights, potential
+`s + 3 q + ∑ wt`, potential slope `9`, and global affinity of `Φ`. -/
 @[expose, reducible] def config : AffineDisperserCore.Config where
   Pair := ZeroPair
   fst := ZeroPair.fst
   snd := ZeroPair.snd
   cs := 1
-  cq := 4
-  ca := 10
+  cq := 3
+  ca := 9
   weight := weight
   weight_mono := weight_mono
   weight_zero := weight_zero
-  weightBound := 6
-  weight_le := weight_le_six
+  weightBound := 5
+  weight_le := weight_le_five
   locus P val := ∀ pr ∈ P, pr.Holds val
   locus_congr hagree hlocus pr hpr :=
     (ZeroPair.holds_congr (hagree pr hpr).1 (hagree pr hpr).2).1 (hlocus pr hpr)
@@ -220,20 +227,20 @@ end ZeroPair
 
 /-- The size coefficient in the `4n` potential `W` is `1`. -/
 theorem config_cs : config.cs = 1 := rfl
-/-- The pair coefficient in the `4n` potential `W` is `4`. -/
-theorem config_cq : config.cq = 4 := rfl
-/-- The potential slope in the `4n` gate elimination step is `10`. -/
-theorem config_ca : config.ca = 10 := rfl
+/-- The pair coefficient in the `4n` potential `W` is `3`. -/
+theorem config_cq : config.cq = 3 := rfl
+/-- The potential slope in the `4n` gate elimination step is `9`. -/
+theorem config_ca : config.ca = 9 := rfl
 /-- The `4n` degree weight function is `weight`. -/
 theorem config_weight : config.weight = weight := rfl
-/-- The `4n` degree weight upper bound is `6`. -/
-theorem config_weightBound : config.weightBound = 6 := rfl
+/-- The `4n` degree weight upper bound is `5`. -/
+theorem config_weightBound : config.weightBound = 5 := rfl
 /-- The first projection of `4n` pairs is `ZeroPair.fst`. -/
 theorem config_fst : config.fst = ZeroPair.fst := rfl
 /-- The second projection of `4n` pairs is `ZeroPair.snd`. -/
 theorem config_snd : config.snd = ZeroPair.snd := rfl
 
-/-- A state of `4n - 10d` gate elimination for a Boolean function on `n` bits. -/
+/-- A state of `4n - 9d` gate elimination for a Boolean function on `n` bits. -/
 abbrev State (n : ℕ) : Type := AffineDisperserCore.State config n
 
 namespace State
@@ -307,10 +314,8 @@ theorem Valid.exists_affine_embedding {f : BooleanFunction n} (hS : S.Valid f) :
     rwa [S.locusAssign_of_mem hF hFdisj u hi, S.locusAssign_of_mem hF hFdisj v hi] at hi'
   · obtain ⟨val, hval, hcons⟩ := hS.wf.exists_consistent (σ u)
     refine ⟨val, hcons, fun pr hpr => ?_, (hS.phi_congr val _ hval).symm⟩
-    exact ZeroPair.holds_of_eq_bias (hrep pr hpr)
-      (by rw [hval _ (by rcases hrep pr hpr with h | h <;> rw [← h] <;>
-            [exact (hS.pair_mem pr hpr).1; exact (hS.pair_mem pr hpr).2.1])]
-          exact locusAssign_rep hS hrep hF hFdisj u hpr)
+    exact ZeroPair.holds_of_eq_bias (hrep pr hpr) ((hval _ (hS.mem_params_of_contains hpr
+      (hrep pr hpr))).trans (locusAssign_rep hS hrep hF hFdisj u hpr))
 
 private theorem Valid.exists_affine_subspace_const_of_family {f : BooleanFunction n} {d k : ℕ}
     (hS : S.Valid f) (σ : BitString k → ℕ → Bool) (hσ : IsAffine σ) (hlocus : ∀ u, S.Locus (σ u))
@@ -416,21 +421,15 @@ theorem Valid.exists_affine_subspace_const_of_fix {f : BooleanFunction n} {d : �
     have hpr0_ne : pr₀.fst ≠ pr₀.snd := (hS.pair_mem pr₀ hpr₀).2.2
     have hy0 : pr₀.Contains y := pr₀.contains_partner hx0
     have hyx : y ≠ x := pr₀.partner_ne hpr0_ne hx0
-    have hyp : y ∈ S.params := by
-      rcases hy0 with h | h <;> rw [← h]
-      · exact (hS.pair_mem pr₀ hpr₀).1
-      · exact (hS.pair_mem pr₀ hpr₀).2.1
+    have hyp : y ∈ S.params := hS.mem_params_of_contains hpr₀ hy0
     let rep : ZeroPair → ℕ := fun pr => if pr.Contains x then x else pr.fst
     have hrep : ∀ pr ∈ S.pairs, pr.Contains (rep pr) := fun pr _ => by
-      by_cases h : pr.Contains x
-      · simp [rep, h]
-      · simp only [rep, h, ite_false]; exact Or.inl rfl
+      dsimp only [rep]; split_ifs with h
+      exacts [h, Or.inl rfl]
     have hrepy : ∀ pr ∈ S.pairs, rep pr ≠ y := fun pr hpr => by
-      by_cases h : pr.Contains x
-      · simp only [rep, h, ite_true]
-        exact hyx.symm
-      · simp only [rep, h, ite_false]
-        intro heq
+      dsimp only [rep]; split_ifs with h
+      · exact hyx.symm
+      · intro heq
         have hne : pr ≠ pr₀ := fun h' => h (h' ▸ hx0)
         have hdisj := hS.pairs_disjoint pr hpr pr₀ hpr₀ hne
         rcases hy0 with h1 | h1 <;> rw [← h1] at heq <;> tauto
@@ -449,18 +448,11 @@ theorem Valid.exists_affine_subspace_const_of_fix {f : BooleanFunction n} {d : �
   · push Not at hcase
     let rep : ZeroPair → ℕ := fun pr => if pr.Contains x then pr.partner x else pr.fst
     have hrep : ∀ pr ∈ S.pairs, pr.Contains (rep pr) := fun pr _ => by
-      by_cases h : pr.Contains x
-      · simp only [rep, h, ite_true]
-        exact pr.contains_partner h
-      · simp only [rep, h, ite_false]
-        exact Or.inl rfl
+      dsimp only [rep]; split_ifs with h
+      exacts [pr.contains_partner h, Or.inl rfl]
     have hrepx : ∀ pr ∈ S.pairs, rep pr ≠ x := fun pr hpr => by
-      by_cases h : pr.Contains x
-      · simp only [rep, h, ite_true]
-        exact pr.partner_ne (hS.pair_mem pr hpr).2.2 h
-      · simp only [rep, h, ite_false]
-        intro heq
-        exact h (Or.inl heq)
+      dsimp only [rep]; split_ifs with h
+      exacts [pr.partner_ne (hS.pair_mem pr hpr).2.2 h, fun heq => h (Or.inl heq)]
     refine Valid.exists_affine_subspace_const_of_erased hS ha c hx hR b hout rep hrep hx hrepx
       (fun g => c + ∑ j ∈ R, g j)
       (fun hg => isAffine_const_add_sum hg c R) fun g _ => by

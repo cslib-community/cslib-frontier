@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Propagate
 
 /-!
@@ -40,12 +41,7 @@ theorem find?_filter_of_imp {α : Type*} {p q : α → Bool} (l : List α) (h : 
     (l.filter q).find? p = l.find? p := by
   induction l with
   | nil => rfl
-  | cons a l ih =>
-    by_cases hq : q a
-    · simp [hq, List.find?_cons, ih]
-    · have : p a = false := by
-        by_contra hp; exact hq (h a (by simpa using hp))
-      simp [hq, this, ih]
+  | cons a l ih => cases hq : q a <;> cases hp : p a <;> simp_all
 
 /-- Recording the address `a` of the encoding of `c` under number `i` adds `(i, c)` to the
 database. -/
@@ -59,21 +55,16 @@ theorem TableAt.cons {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
   by_cases hj : i = j
   · subst hj
     refine ⟨fun hn => by simp at hn, fun e he => ?_⟩
-    simp only [List.find?_cons, beq_self_eq_true, Option.some.injEq] at he
-    subst he
-    simp only [Function.update_self]
+    obtain rfl : (i, c) = e := by simpa using he
+    rw [Function.update_self]
     refine ⟨ha, haT, hc.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
-  · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
-    have hfind : ((i, c) :: db).find? (·.1 == j) = db.find? (·.1 == j) := by
-      simp [hj]
-    rw [hfind, Function.update_of_ne hne]
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb; omega
+  · have hfind : ((i, c) :: db).find? (·.1 == j) = db.find? (·.1 == j) := by simp [hj]
+    rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb; omega
 
 /-- Clearing the cell of number `i` deletes the clauses numbered `i`. -/
 theorem TableAt.erase {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ)} (h : TableAt mem T db)
@@ -84,24 +75,16 @@ theorem TableAt.erase {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause �
   intro j
   by_cases hj : i = j
   · subst hj
-    have : (db.filter fun e => !(e.1 == i)).find? (·.1 == i) = none := by
-      rw [List.find?_eq_none]
-      intro e he
-      simp only [List.mem_filter, Bool.not_eq_eq_eq_not, Bool.not_true, beq_eq_false_iff_ne] at he
-      simpa using he.2
-    simp [this]
-  · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
-    have hfind : (db.filter fun e => !(e.1 == i)).find? (·.1 == j) = db.find? (·.1 == j) :=
-      find?_filter_of_imp db fun e he => by
-        simp only [beq_iff_eq] at he
-        simp only [he, Bool.not_eq_true', beq_eq_false_iff_ne, ne_eq]
-        exact fun h' => hj h'.symm
-    rw [hfind, Function.update_of_ne hne]
+    have hnone : (db.filter fun e => !(e.1 == i)).find? (·.1 == i) = none :=
+      List.find?_eq_none.mpr fun e he => by simpa using (List.mem_filter.mp he).2
+    simp [hnone]
+  · have hfind : (db.filter fun e => !(e.1 == i)).find? (·.1 == j) = db.find? (·.1 == j) :=
+      find?_filter_of_imp db fun e he => by simpa [beq_iff_eq.mp he] using Ne.symm hj
+    rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb; omega
 
 /-! ### The trail -/
 
@@ -175,38 +158,21 @@ theorem assumeLoop_spec (ls : List (Literal ℕ)) (trail : List (Literal ℕ)) (
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp (by simpa using hl)
     have hMl := hM l (by simp)
     have hx1 : litCode (Std.Sat.Literal.negate l) ≤ litCode l + 1 := litCodeBy_negate_le _root_.id l
-    have : Fits w (litCode l) := hw.of_le (by omega)
-    have : Fits w (litCode (Std.Sat.Literal.negate l)) := hw.of_le (by omega)
-    have : Fits w (litCode (Std.Sat.Literal.negate l) + litCode (Std.Sat.Literal.negate l)) :=
-      hw.of_le (by omega)
-    have : Fits w (litCode (Std.Sat.Literal.negate l) + litCode (Std.Sat.Literal.negate l) + 1) :=
-      hw.of_le (by omega)
-    have : Fits w (T + (litCode (Std.Sat.Literal.negate l) +
-        litCode (Std.Sat.Literal.negate l) + 1)) := hw.of_le (by omega)
-    have : Fits w (x.regs lptr + 1) := hw.of_le (by omega)
     have hOA : OnlyAsg T x.mem
         (Function.update x.mem (acell T (litCode (Std.Sat.Literal.negate l))) s) :=
       OnlyAsg.update T _ s x.mem
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold assumeBody
     wram_exec [hlit, hone, litCodeBy_xor_one, hT, hst]
-    refine WP.name fun x' hx' => ?_
-    obtain ⟨z, hz, hzp, hzoa, hztr, hz1, hzT, hzs, hze⟩ :=
-      ih (Std.Sat.Literal.negate l :: trail) x' (by subst hx'; wram_simp [hone])
-        (by subst hx'; wram_simp [hT]) (by subst hx'; wram_simp [hst])
-        (by
-          subst hx'; wram_simp
-          exact hrest.frame fun a _ ha => hOA.eq_of_lt (by
-            simp only [List.length_map] at ha; omega))
-        (by subst hx'; wram_simp [hle]; omega) (by subst hx'; wram_simp; omega)
-        (by subst hx'; wram_simp; exact htr.update _)
-        (fun l' hl' => hM l' (by simp [hl']))
-    subst hx'
-    refine WP.of_execWithin hz ?_
-    wram_simp at hzp hzoa hze
-    refine ⟨by simp only [List.length_cons]; omega, by rw [hzp], hOA.trans hzoa, ?_, hz1, hzT,
-      hzs, hze⟩
-    simpa using hztr
+    · wram_call (ih (Std.Sat.Literal.negate l :: trail) _)
+        [hone, hT, hst, hle, htr.update _] with z ⟨hzp, hzoa, hztr, hz1, hzT, hzs, hze⟩
+      · wram_simp at hzp hzoa hze
+        exact ⟨by simp only [List.length_cons]; omega, by rw [hzp], hOA.trans hzoa,
+          by simpa using hztr, hz1, hzT, hzs, hze⟩
+      · wram_simp
+        exact hrest.frame fun a _ ha => hOA.eq_of_lt (by simp only [List.length_map] at ha; omega)
+      · exact fun l' hl' => hM l' (by simp [hl'])
+    all_goals exact hw.of_le (by dsimp only [litCode] at hMl hx1 ⊢; omega)
 
 /-- **A RUP step** on the words `i :: encodeClause c ++ encodeNums hints` at `ptr`: when
 propagation from the negated clause along the hints succeeds, it adds `(i, c)` to the database,
@@ -231,30 +197,15 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
       else y.regs out = 0 ∧ y.regs ptr = T := by
   simp only [List.cons_append, List.length_cons, List.length_append, encodeClause, encodeClauseBy,
     encodeNums, List.length_map] at hl hpT
-  obtain ⟨hli, hl⟩ := holdsList_cons_iff.mp hl
-  obtain ⟨hlen, hl⟩ := holdsList_cons_iff.mp hl
-  obtain ⟨hlits, hl⟩ := holdsList_append_iff.mp hl
+  rw [holdsList_cons_iff, holdsList_cons_iff, holdsList_append_iff] at hl
+  obtain ⟨hli, hlen, hlits, hl⟩ := hl
   simp only [List.length_map] at hl
-  have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + 1 + c.length) := hw.of_le (by omega)
-  have : Fits w i := hw.of_le (by omega)
-  have : Fits w (i + i) := hw.of_le (by omega)
-  have : Fits w (T + (i + i)) := hw.of_le (by omega)
-  have : Fits w (s + 1) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold rupStep
   wram_exec [hli, hone, hlen]
-  wram_call (exists_execWithin_preserves (assumeLoop_spec (w := w) c [] _ M T s
-    (by wram_simp [hone]) (by wram_simp [hT]) (by wram_simp [hst]) (by wram_simp; exact hlits)
-    (by wram_simp) (by wram_simp; omega) (by wram_simp; exact hfr.trailAt) hcM hw))
-    with y ⟨⟨hyp, hyoa, hytr, hy1, hyT, hys, hye⟩, hpres⟩
-  have hy0 := hpres zero (by decide)
-  have hyE := hpres endp (by decide)
-  have hyid := hpres Reg.id (by decide)
-  have hyc := hpres caddr (by decide)
-  have hyo := hpres out (by decide)
-  wram_simp at hyp hyoa hye hy0 hyE hyid hyc hyo
+  wram_call (assumeLoop_spec (w := w) c [] _ M T s) [hone, hT, hst, hlits, hfr.trailAt, hcM, hw]
+    with y ⟨hyp, hyoa, hytr, hy1, hyT, hys, hye⟩
+  wram_simp at hyp hyoa hye
   have htr' : TrailAt y.mem T s (c.map Std.Sat.Literal.negate) :=
     hytr.congr fun l => by simp
   wram_exec [hyp, hye]
@@ -262,52 +213,40 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
     have := hl.frame (mem' := y.mem) fun a _ ha => hyoa.eq_of_lt (by
       simp only [List.length_cons] at ha; omega)
     simpa [encodeNums, Nat.add_assoc] using this
-  wram_call (exists_execWithin_preserves (propagate_spec (w := w) db hints
-    (c.map Std.Sat.Literal.negate) _ M T s (by wram_simp [hy0, hzero]) (by wram_simp [hy1])
-    (by wram_simp [hyT]) (by wram_simp [hys]) (by wram_simp; exact hlh) (by wram_simp; omega)
-    (by wram_simp; exact htab.of_onlyAsg hyoa) (by wram_simp; exact htr') hhM hdbM hw))
-    with z ⟨⟨hzres, hzp, hzoa, ⟨tr, hztr⟩, hz0, hz1, hzT, hzs⟩, hpres'⟩
-  have hzE := hpres' endp (by decide)
-  have hzid := hpres' Reg.id (by decide)
-  have hzc := hpres' caddr (by decide)
-  have hzo := hpres' out (by decide)
-  wram_simp at hzp hzoa hzE hzid hzc hzo
+  have hy0 : y.regs zero = 0 := by regs_frame
+  wram_call (propagate_spec (w := w) db hints (c.map Std.Sat.Literal.negate) _ M T s)
+    [hy0, hy1, hyT, hys, hlh, htab.of_onlyAsg hyoa, htr', hhM, hdbM, hw]
+    with z ⟨hzres, hzp, hzoa, ⟨tr, hztr⟩, hz0, hz1, hzT, hzs⟩
+  wram_simp at hzp hzoa
   cases hpr : CNF.propagateHints db (c.map Std.Sat.Literal.negate) hints
-  · rw [hpr] at hzres
-    have hre : z.regs res = z.regs zero := by rw [hzres, hz0]; rfl
+  · have hre : z.regs res = z.regs zero := by simp [hzres, hpr, hz0]
     unfold reject
     wram_exec [hre]
     simp only [Bool.false_eq_true, ↓reduceIte]
     wram_simp
-    have hzE' : z.regs endp = T := hzE.trans (hyE.trans hE)
-    simp only [hz0, hz1, hzE', hzT, and_self]
-  · rw [hpr] at hzres
-    have hzres' : z.regs res ≠ z.regs zero := by rw [hzres, hz0]; decide
-    wram_exec [hzres', hzid, hyid, hzT, hzc, hyc, hzs, hz1]
+    exact ⟨hz0, hz1, by regs_frame, hzT, by regs_frame⟩
+  · have hzres' : z.regs res ≠ z.regs zero := by simp [hzres, hpr, hz0]
+    have hzid : z.regs Reg.id = i := by regs_frame
+    have hzc : z.regs caddr = x.regs ptr + 1 := by regs_frame
+    wram_exec * [hzres', hzid, hzc]
     simp only [↓reduceIte]
     wram_simp
-    have hzE' : z.regs endp = T := hzE.trans (hyE.trans hE)
     have hOA := hyoa.trans hzoa
-    have hcz : HoldsList (x.regs ptr + 1) (encodeClause c) z.mem := by
-      have hc0 : HoldsList (x.regs ptr + 1) (encodeClause c) x.mem :=
-        holdsList_cons_iff.mpr ⟨hlen, hlits⟩
-      exact hc0.frame fun a _ ha => hOA.eq_of_lt (by
-        simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at ha; omega)
-    refine ⟨hz0, hz1, hzE', hzT, ?_, hzo.trans (hyo), ?_, ?_, fun a ha => ?_⟩
+    have hcz : HoldsList (x.regs ptr + 1) (encodeClause c) z.mem :=
+      (holdsList_cons_iff.mpr ⟨hlen, hlits⟩).frame fun a _ ha => hOA.eq_of_lt (by
+        simp only [List.length_cons, List.length_map] at ha; omega)
+    refine ⟨hz0, hz1, by regs_frame, hzT, ?_, by regs_frame, ?_, ?_, fun a ha => ?_⟩
     · rw [hzp]; simp [encodeClause, encodeClauseBy, encodeNums]; omega
     · exact (htab.of_onlyAsg hOA).cons i c _ (by omega) (by omega) hcz
     · exact hztr.fresh_succ.of_tcell i _
-    · simp only [Data.set_mem, Data.write_mem]
-      rw [Function.update_of_ne (by omega)]; exact hOA.eq_of_lt ha
+    · have := hOA.eq_of_lt ha; mem_frame
 
 theorem filter_contains_cons (db : List (ℕ × Clause ℕ)) (h : ℕ) (hs : List ℕ) :
     (db.filter fun e => !(e.1 == h)).filter (fun e => !hs.contains e.1) =
       db.filter fun e => !(h :: hs).contains e.1 := by
   rw [List.filter_filter]
-  congr 1
-  funext e
-  simp only [List.contains_cons, Bool.not_or]
-  rw [Bool.and_comm]
+  exact congrArg db.filter (funext fun e => by
+    simp only [List.contains_cons, Bool.not_or, Bool.and_comm])
 
 /-- **The deletion loop** clears the table cells of the numbers in `[ptr, hend)`. -/
 theorem delLoop_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 28) (M T s : ℕ)
@@ -330,29 +269,18 @@ theorem delLoop_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 
     have hc : (Cond.lt ptr hend).Holds x := by simp only [Cond.holds_lt, hhe]; omega
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp hl
     have hhM := hM h (by simp)
-    have : Fits w (h + h) := hw.of_le (by omega)
-    have : Fits w (T + (h + h)) := hw.of_le (by omega)
-    have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold delBody
     wram_exec [hlit, hT, hzero, hone]
-    refine WP.name fun x' hx' => ?_
-    obtain ⟨z, hz, hzp, hztab, hzfr, hz0, hz1, hzT, hzm⟩ :=
-      ih (db.filter fun e => !(e.1 == h)) x' (by subst hx'; wram_simp [hzero])
-        (by subst hx'; wram_simp [hone]) (by subst hx'; wram_simp [hT])
-        (by
-          subst hx'; wram_simp
-          exact hrest.frame fun a _ ha => Function.update_of_ne (by omega) _ _)
-        (by subst hx'; wram_simp [hhe]; omega) (by subst hx'; wram_simp; omega)
-        (by subst hx'; wram_simp; exact htab.erase h)
-        (by subst hx'; wram_simp; exact hfr.of_tcell h 0)
-        (fun i hi => hM i (by simp [hi]))
-    subst hx'
-    refine WP.of_execWithin hz ?_
-    wram_simp at hzp hzm
-    refine ⟨by simp only [List.length_cons]; omega, hzp, ?_, hzfr, hz0, hz1, hzT, fun a ha => ?_⟩
-    · rw [← filter_contains_cons]; exact hztab
-    · rw [hzm a ha]; exact Function.update_of_ne (by omega) _ _
+    wram_call (ih (db.filter fun e => !(e.1 == h)) _)
+      [hzero, hone, hT, hhe, htab.erase h, hfr.of_tcell h 0]
+      with z ⟨hzp, hztab, hzfr, hz0, hz1, hzT, hzm⟩
+    · wram_simp at hzp hzm
+      refine ⟨by simp only [List.length_cons]; omega, hzp, ?_, hzfr, hz0, hz1, hzT, by mem_frame⟩
+      rw [← filter_contains_cons]; exact hztab
+    · wram_simp
+      exact hrest.frame fun a _ ha => Function.update_of_ne (by omega) _ _
+    · exact fun i hi => hM i (by simp [hi])
 
 /-- **A deletion step** on the words `encodeNums ids` at `ptr`. -/
 theorem delStep_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 28) (M T s : ℕ)
@@ -366,14 +294,10 @@ theorem delStep_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 
       TableAt y.mem T (db.filter fun e => !ids.contains e.1) ∧ Fresh y.mem T s ∧
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = T ∧ ∀ a < T, y.mem a = x.mem a := by
   obtain ⟨hlen, hrest⟩ := holdsList_cons_iff.mp hl
-  have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + ids.length) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold delStep
   wram_exec [hlen, hone]
-  wram_call (delLoop_spec (w := w) db ids _ M T s (by wram_simp [hzero]) (by wram_simp [hone])
-    (by wram_simp [hT]) (by wram_simp; exact hrest) (by wram_simp) (by wram_simp; omega)
-    (by wram_simp; exact htab) (by wram_simp; exact hfr) hM hw)
+  wram_call (delLoop_spec (w := w) db ids _ M T s) [hzero, hone, hT, hrest, htab, hfr, hM, hw]
     with y ⟨hyp, hytab, hyfr, hy0, hy1, hyT, hym⟩
   wram_simp at hyp hym
   exact ⟨by omega, hyp, hytab, hyfr, hy0, hy1, hyT, hym⟩
@@ -421,18 +345,14 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
   induction rest generalizing db s x with
   | nil =>
     refine ⟨x, (ExecWithin.loop_exit ?_).mono (by omega), by simp [hinv.out, CNF.checkLRATAux]⟩
-    simp only [stepWords, List.flatMap_nil, List.length_nil, Nat.add_zero] at hpT
-    simp [Cond.holds_lt, hpT, hinv.endp]
+    simp [stepWords, Cond.holds_lt, ← hpT, hinv.endp]
   | cons a rest ih =>
-    have hwords : stepWords (a :: rest) = encodeAction a ++ stepWords rest := by
-      simp [stepWords]
-    rw [hwords] at hl hpT hM
+    rw [stepWords, List.flatMap_cons, ← stepWords] at hl hpT hM
     simp only [List.length_append] at hpT
     obtain ⟨hla, hlr⟩ := holdsList_append_iff.mp hl
     have hpos : 0 < (encodeAction a).length := by cases a <;> simp [encodeAction]
     have hc : (Cond.lt ptr endp).Holds x := by simp only [Cond.holds_lt, hinv.endp]; omega
     have hw := hinv.fits
-    have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     have hMa : ∀ v ∈ encodeAction a, v + 1 ≤ M := fun v hv => hM v (List.mem_append_left _ hv)
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold stepBody
@@ -442,26 +362,17 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
       obtain ⟨htag, hla⟩ := holdsList_cons_iff.mp hla
       wram_exec [htag, hinv.zero, hinv.one]
       unfold emptyStep
-      refine WP.name fun x' hx' => ?_
-      have hp := propagate_spec (w := w) db hints.toList [] x' M T s
-        (by subst hx'; wram_simp [hinv.zero]) (by subst hx'; wram_simp [hinv.one])
-        (by subst hx'; wram_simp [hinv.tbase])
-        (by subst hx'; wram_simp [hinv.stamp]) (by subst hx'; wram_simp; exact hla)
-        (by subst hx'; wram_simp; simp [encodeAction, encodeNums] at hpT ⊢; omega)
-        (by subst hx'; wram_simp; exact hinv.table)
-        (by subst hx'; wram_simp; exact hinv.fresh.trailAt)
-        (fun h hh => by have := hMa h (by simp [encodeNums, hh]); omega) hinv.dbM hw
-      subst hx'
-      obtain ⟨y, hy, ⟨hyres, -, -, -, -, -, -, -⟩, hpres⟩ := exists_execWithin_preserves hp
-      refine WP.seq (WP.of_execWithin hy ?_)
-      have hyE := hpres endp (by decide)
-      wram_simp at hyE
-      wram_exec [hyE, hinv.endp]
-      refine WP.of_execWithin
-        (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt, hyE, hinv.endp])) ?_
-      wram_simp
-      refine ⟨?_, by rw [hyres]; rfl⟩
-      simp [stepsWork, encodeAction, encodeNums]; omega
+      wram_call (propagate_spec (w := w) db hints.toList [] _ M T s)
+        [hinv.zero, hinv.one, hinv.tbase, hinv.stamp, hla, hinv.table, hinv.fresh.trailAt,
+          hinv.dbM, hw]
+        with y ⟨hyres, -, -, -, -, -, -, -⟩
+      · have hyE : y.regs endp = T := by regs_frame
+        wram_exec [hyE]
+        refine WP.loop_exit (by wram_simp [Cond.holds_lt, hyE]) ?_
+        wram_simp
+        exact ⟨by simp [stepsWork, encodeAction, encodeNums]; omega, by rw [hyres]; rfl⟩
+      · wram_simp; simp [encodeAction, encodeNums] at hpT ⊢; omega
+      · intro h hh; have := hMa h (by simp [encodeNums, hh]); omega
     | addRup i c hints =>
       set c' := Clause.ofDIMACS c.toList with hc'
       have hea : (encodeAction (.addRup i c hints)).length = c'.length + hints.size + 4 := by
@@ -481,102 +392,69 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
       have hhM : ∀ h ∈ hints.toList, h + 1 ≤ M := fun h hh =>
         hMa h (List.mem_append_right _ (List.mem_cons_of_mem _ hh))
       wram_exec [htag, hinv.zero, hinv.one]
-      refine WP.name fun x' hx' => ?_
-      have hp := rupStep_spec (w := w) db i c' hints.toList x' M T s
-        (by subst hx'; wram_simp [hinv.zero]) (by subst hx'; wram_simp [hinv.one])
-        (by subst hx'; wram_simp [hinv.endp]) (by subst hx'; wram_simp [hinv.tbase])
-        (by subst hx'; wram_simp [hinv.stamp]) (by subst hx'; wram_simp; exact hla)
-        (by subst hx'; wram_simp; rw [hwl]; omega)
-        (by subst hx'; wram_simp; exact hinv.table) (by subst hx'; wram_simp; exact hinv.fresh)
-        (by omega) hcl (fun h hh => by have := hhM h hh; omega) hinv.dbM hw
-        (by have := hinv.stamp_le; omega)
-      subst hx'
-      obtain ⟨y, hy, ⟨hy0, hy1, hyE, hyT, hyif⟩, hpres⟩ := exists_execWithin_preserves hp
-      have hy3 := hpres three (by decide)
-      wram_simp at hy3 hyif
-      refine WP.of_execWithin hy ?_
-      cases hpr : CNF.propagateHints db (c'.map Std.Sat.Literal.negate) hints.toList
-      · simp only [hpr, Bool.false_eq_true, ↓reduceIte] at hyif
-        obtain ⟨hyo, hyp⟩ := hyif
-        refine WP.of_execWithin
-          (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt, hyp, hyE])) ?_
-        refine ⟨?_, ?_⟩
-        · simp only [stepsWork, stepWords, List.flatMap_cons, List.length_append, hea,
-            Array.length_toList, ← hc']
+      wram_call (rupStep_spec (w := w) db i c' hints.toList _ M T s)
+        [hinv.zero, hinv.one, hinv.endp, hinv.tbase, hinv.stamp, hla, hinv.table, hinv.fresh,
+          hinv.dbM, hw, hcl]
+        with y ⟨hy0, hy1, hyE, hyT, hyif⟩
+      · wram_simp at hyif
+        cases hpr : CNF.propagateHints db (c'.map Std.Sat.Literal.negate) hints.toList
+        · obtain ⟨hyo, hyp⟩ : y.regs out = 0 ∧ y.regs ptr = T := by simpa [hpr] using hyif
+          refine WP.loop_exit (by wram_simp [Cond.holds_lt, hyp, hyE]) ⟨?_, ?_⟩
+          · simp only [stepsWork, stepWords, List.flatMap_cons, List.length_append, hea,
+              Array.length_toList, ← hc']
+            omega
+          · rw [hyo]; simp [CNF.checkLRATAux, hpr, c']
+        · obtain ⟨hyp, hys, hyo, hytab, hyfr, hym⟩ := ite_eq_left hpr ▸ hyif
+          have hyp' : y.regs ptr = x.regs ptr + (encodeAction (.addRup i c hints)).length := by
+            rw [hyp, hwl, hea]; omega
+          have hs_le := hinv.stamp_le
+          obtain ⟨z, hz, hzo⟩ := ih ((i, c') :: db) y (s + 1)
+            ⟨hy0, hy1, by regs_frame, hyE, hyT, hys, by rw [hyo, hinv.out], hytab, hyfr,
+              List.forall_mem_cons.mpr ⟨hcl, hinv.dbM⟩,
+              hw, by rw [hyp', hea]; omega⟩
+            (hyp'.symm ▸ hlr.frame fun a _ ha =>
+              hym a (by simp only [stepWords, hea] at ha; omega))
+            (by simp only [hyp', hea, stepWords]; omega)
+            (fun v hv => hM v (List.mem_append_right _ hv))
+          refine WP.of_execWithin hz ⟨?_, by rw [hzo]; simp [CNF.checkLRATAux, hpr, c']⟩
+          simp only [stepsWork, stepWords, List.flatMap_cons, List.length_append, hea,
+            Array.length_toList, ← hc'] at hz ⊢
           omega
-        · rw [hyo]; simp [CNF.checkLRATAux, hpr, c']
-      · simp only [hpr, ↓reduceIte] at hyif
-        obtain ⟨hyp, hys, hyo, hytab, hyfr, hym⟩ := hyif
-        obtain ⟨z, hz, hzo⟩ := ih ((i, c') :: db) y (s + 1)
-          ⟨hy0, hy1, by rw [hy3, hinv.three], hyE, hyT, hys, by rw [hyo, hinv.out], hytab, hyfr,
-            fun e he l hl => by
-              rcases List.mem_cons.mp he with rfl | he
-              · exact hcl l hl
-              · exact hinv.dbM e he l hl,
-            hw, by rw [hyp]; have := hinv.stamp_le; omega⟩
-          (by
-            rw [hyp]
-            have := hlr.frame (mem' := y.mem) fun a _ ha => hym a (by
-              simp only [stepWords, hea] at ha; omega)
-            convert this using 1
-            rw [hea]; omega)
-          (by rw [hyp]; simp only [stepWords]; omega)
-          (fun v hv => hM v (List.mem_append_right _ hv))
-        refine WP.of_execWithin hz ?_
-        refine ⟨?_, by rw [hzo]; simp [CNF.checkLRATAux, hpr, c']⟩
-        simp only [stepsWork, stepWords, List.flatMap_cons, List.length_append, hea,
-          Array.length_toList, ← hc'] at hz ⊢
-        omega
+      · intro h hh; have := hhM h hh; omega
+      · have := hinv.stamp_le; omega
     | addRat i c p hints rh =>
       simp only [encodeAction] at hla hMa hpT
       obtain ⟨htag, -⟩ := holdsList_cons_iff.mp hla
       unfold reject
       wram_exec [htag, hinv.zero, hinv.one, hinv.three, hinv.endp]
-      refine WP.of_execWithin
-        (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt, hinv.endp])) ?_
+      refine WP.loop_exit (by wram_simp [Cond.holds_lt, hinv.endp]) ?_
       wram_simp
-      refine ⟨?_, by simp [CNF.checkLRATAux]⟩
-      simp [stepsWork, encodeAction]; omega
+      exact ⟨by simp [stepsWork, encodeAction]; omega, by simp [CNF.checkLRATAux]⟩
     | del ids =>
       simp only [encodeAction] at hla hMa hpT
       obtain ⟨htag, hla⟩ := holdsList_cons_iff.mp hla
       have hlen : (encodeNums ids.toList).length = ids.size + 1 := by simp [encodeNums]
       simp only [List.length_cons, hlen] at hpT
       wram_exec [htag, hinv.zero, hinv.one, hinv.three]
-      refine WP.name fun x' hx' => ?_
-      have hp := delStep_spec (w := w) db ids.toList x' M T s
-        (by subst hx'; wram_simp [hinv.zero]) (by subst hx'; wram_simp [hinv.one])
-        (by subst hx'; wram_simp [hinv.tbase]) (by subst hx'; wram_simp; exact hla)
-        (by subst hx'; wram_simp; simp; omega)
-        (by subst hx'; wram_simp; exact hinv.table) (by subst hx'; wram_simp; exact hinv.fresh)
-        (fun h hh => by have := hMa h (by simp [encodeNums, hh]); omega) hw
-      subst hx'
-      obtain ⟨y, hy, ⟨hyp, hytab, hyfr, hy0, hy1, hyT, hym⟩, hpres⟩ :=
-        exists_execWithin_preserves hp
-      have hy3 := hpres three (by decide)
-      have hyE := hpres endp (by decide)
-      have hys := hpres stamp (by decide)
-      have hyo := hpres out (by decide)
-      wram_simp at hyp hy3 hyE hys hyo hym
-      refine WP.of_execWithin hy ?_
-      obtain ⟨z, hz, hzo⟩ := ih (db.filter fun e => !ids.toList.contains e.1) y s
-        ⟨hy0, hy1, by rw [hy3, hinv.three], by rw [hyE, hinv.endp], hyT,
-          by rw [hys, hinv.stamp], by rw [hyo, hinv.out], hytab, hyfr,
-          fun e he l hl => hinv.dbM e (List.mem_of_mem_filter he) l hl, hw,
-          by rw [hyp]; have := hinv.stamp_le; omega⟩
-        (by
-          rw [hyp]
-          have hea : (encodeAction (.del ids)).length = ids.size + 2 := by
-            simp [encodeAction, encodeNums]
-          have := hlr.frame (mem' := y.mem) fun a _ ha => hym a (by
-            simp only [stepWords] at hpT ha; omega)
-          convert this using 1
-          simp; omega)
-        (by rw [hyp]; simp at hpT ⊢; omega)
-        (fun v hv => hM v (List.mem_append_right _ hv))
-      refine WP.of_execWithin hz ?_
-      refine ⟨?_, by rw [hzo]; simp [CNF.checkLRATAux]⟩
-      simp [stepsWork, encodeAction, encodeNums]; omega
+      wram_call (delStep_spec (w := w) db ids.toList _ M T s)
+        [hinv.zero, hinv.one, hinv.tbase, hla, hinv.table, hinv.fresh, hw]
+        with y ⟨hyp, hytab, hyfr, hy0, hy1, hyT, hym⟩
+      · wram_simp at hyp hym
+        have hyp' : y.regs ptr = x.regs ptr + (encodeAction (.del ids)).length := by
+          simp [hyp, encodeAction, encodeNums]; omega
+        obtain ⟨z, hz, hzo⟩ := ih (db.filter fun e => !ids.toList.contains e.1) y s
+          ⟨hy0, hy1, by regs_frame, by regs_frame, hyT, by regs_frame, by regs_frame,
+            hytab, hyfr,
+            fun e he l hl => hinv.dbM e (List.mem_of_mem_filter he) l hl, hw,
+            by rw [hyp]; have := hinv.stamp_le; omega⟩
+          (hyp'.symm ▸ hlr.frame fun a _ ha =>
+            hym a (by simp only [stepWords, encodeAction, List.length_cons, hlen] at *; omega))
+          (by rw [hyp]; simp at hpT ⊢; omega)
+          (fun v hv => hM v (List.mem_append_right _ hv))
+        refine WP.of_execWithin hz ⟨?_, by rw [hzo]; simp [CNF.checkLRATAux]⟩
+        simp [stepsWork, encodeAction, encodeNums]; omega
+      · wram_simp; simp; omega
+      · intro h hh; have := hMa h (by simp [encodeNums, hh]); omega
 
 end Specs
 

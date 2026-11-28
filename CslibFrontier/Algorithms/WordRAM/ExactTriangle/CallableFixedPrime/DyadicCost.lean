@@ -34,11 +34,9 @@ open Filter Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open ParameterChoice
 
-private noncomputable def weightExponent (n F : ℕ) : ℝ :=
-  1 + Real.logb n (F + 1)
+private noncomputable def weightExponent (n F : ℕ) : ℝ := 1 + Real.logb n (F + 1)
 
-private def setupLog (n F : ℕ) : ℕ :=
-  Nat.clog 2 (4 * n + 3 * (n * n) * (2 * F + 1) + 4)
+private def setupLog (n F : ℕ) : ℕ := Nat.clog 2 (4 * n + 3 * (n * n) * (2 * F + 1) + 4)
 
 private noncomputable def upperTime (n F : ℕ) : ℝ :=
   3 * DyadicCost.costCoefficient (weightExponent n F) n * ((n : ℝ) ^ 3 / groups n) +
@@ -52,11 +50,9 @@ noncomputable def dyadicTime (n F : ℕ) : ℕ := ⌈upperTime n F⌉₊ + 16
 private theorem one_le_weightExponent {n : ℕ} (hn : 2 ≤ n) (F : ℕ) :
     1 ≤ weightExponent n F := by
   have hlog : 0 < Real.log (n : ℝ) := Real.log_pos (by exact_mod_cast hn)
-  have hF : 0 ≤ Real.log (F + 1 : ℝ) :=
-    Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
-  have hdiv := div_nonneg hF hlog.le
+  have hF : 0 ≤ Real.log (F + 1 : ℝ) := Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
   unfold weightExponent Real.logb
-  linarith only [hdiv]
+  linarith [div_nonneg hF hlog.le]
 
 private theorem bound_le_rpow_weightExponent {n : ℕ} (hn : 2 ≤ n) (F : ℕ) :
     (F : ℝ) ≤ (n : ℝ) ^ weightExponent n F := by
@@ -73,14 +69,11 @@ private theorem original_weights {n F : ℕ} (values : List ℤ)
       (fun u v : Fin n => values.getD (pairIndex (u, v)) 0)
       (fun u v => values.getD (n * n + pairIndex (u, v)) 0)
       (fun u v => values.getD (2 * (n * n) + pairIndex (u, v)) 0) (F : ℝ) := by
-  have hlookup (q : ℕ) : (values.getD q 0).natAbs ≤ F := by
-    by_cases hq : q < 3 * (n * n)
-    · exact RecordWitness.original_magnitude values hlen hv hq
-    · rw [List.getD_eq_default values 0 (by omega : values.length ≤ q), Int.natAbs_zero]
-      exact Nat.zero_le F
   have hw (q : ℕ) : ((|values.getD q 0| : ℤ) : ℝ) ≤ F := by
     rw [← Int.natCast_natAbs, Int.cast_natCast]
-    exact_mod_cast hlookup q
+    by_cases hq : q < 3 * (n * n)
+    · exact_mod_cast RecordWitness.original_magnitude values hlen hv hq
+    · simp [List.getElem?_eq_none (hlen.trans_le (Nat.not_lt.mp hq))]
   exact ⟨fun _ _ => hw _, fun _ _ => hw _, fun _ _ => hw _⟩
 
 private theorem scalar_bounds {n p : ℕ} (hn : 0 < n)
@@ -120,56 +113,34 @@ theorem timeBound_le_dyadicTime {n F p : ℕ} (hf : 0 < blocks n) (values : List
     values mem hv' hp
   change (_ : ℝ) ≤ DyadicCost.costCoefficient (weightExponent n F) n *
     ((n : ℝ) ^ 3 / groups n) at hc
-  have hraw := rawTotal_le values hlen hv
-  have hlog : Nat.clog 2 (n + window n + groups n + p + rawTotal n values + 4) ≤ setupLog n F :=
-    Nat.clog_mono_right 2 (by omega)
-  have hparam := DyadicParameters.timeBound_le n
-  have hnat : DyadicParameters.timeBound n + PrimeSelection.timeBound n (window n) +
-      timeBound (m := level n) hn (groups n) p values mem + 42 ≤
-    3 * (16 * Nat.log 2 n + 36 + (PrimeSelection.timeBound n (window n) + 16) +
-      FixedPrime.timeBound (m := level n) hn (groups n) p values mem) +
-        24 * (n * n) + 24669 * setupLog n F + 497 + 16 := by
-    unfold timeBound
-    dsimp only [D, window] at *
-    nlinarith only [hlog, hparam]
-  have hreal := (Nat.cast_le (α := ℝ)).mpr hnat
+  have hlog : (Nat.clog 2 (n + window n + groups n + p + rawTotal n values + 4) : ℝ) ≤
+      setupLog n F := by
+    have := rawTotal_le values hlen hv
+    exact_mod_cast Nat.clog_mono_right 2 (by omega)
+  have hparam := (Nat.cast_le (α := ℝ)).mpr (DyadicParameters.timeBound_le n)
   have hceil : upperTime n F ≤ (⌈upperTime n F⌉₊ : ℝ) := Nat.le_ceil _
-  apply (Nat.cast_le (α := ℝ)).mp
-  unfold dyadicTime
-  push_cast at hreal hc ⊢
+  rw [← Nat.cast_le (α := ℝ)]
+  unfold timeBound dyadicTime
+  dsimp only [D, window] at hlog hc ⊢
+  push_cast at hparam hc ⊢
   unfold upperTime at hceil ⊢
-  nlinarith only [hreal, hc, hceil]
+  nlinarith only [hlog, hparam, hc, hceil]
 
 private theorem setupLog_le_log {n F κ : ℕ} (hF : F ≤ (n + 2) ^ κ) :
     setupLog n F ≤ (κ + 7) * Nat.clog 2 (n + 2) := by
-  let B := n + 2
-  have hb : 2 ≤ B := by dsimp only [B]; omega
-  have hb1 : 1 ≤ B := by omega
-  have hnB : n ≤ B := by dsimp only [B]; omega
-  have hn2 : n * n ≤ B ^ 2 := (Nat.mul_le_mul hnB hnB).trans_eq (by ring)
-  have hunit : 1 ≤ B ^ κ := Nat.one_le_pow _ _ hb1
-  have hcoef : 2 * F + 1 ≤ 3 * B ^ κ := by
-    have : F ≤ B ^ κ := hF
-    omega
-  have hterm : 3 * (n * n) * (2 * F + 1) ≤ 9 * B ^ (κ + 2) := by
-    calc
-      _ ≤ (3 * B ^ 2) * (3 * B ^ κ) :=
-        Nat.mul_le_mul (Nat.mul_le_mul_left 3 hn2) hcoef
-      _ = _ := by rw [pow_add]; ring
-  have hB : B ≤ B ^ (κ + 2) := Nat.le_self_pow (by omega) _
-  have hlinear : 4 * n + 4 ≤ 8 * B ^ (κ + 2) := by nlinarith only [hnB, hb1, hB]
-  have hsum : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * B ^ (κ + 2) := by
-    omega
-  have h17 : 17 ≤ B ^ 5 := (by decide : 17 ≤ (2 : ℕ) ^ 5).trans
-    (Nat.pow_le_pow_left hb 5)
-  have hpoly : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ B ^ (κ + 7) := by
-    calc
-      _ ≤ 17 * B ^ (κ + 2) := hsum
-      _ ≤ B ^ 5 * B ^ (κ + 2) := Nat.mul_le_mul_right _ h17
-      _ = _ := by rw [← pow_add]; congr 1; omega
+  have h2 : 2 ≤ n + 2 := by omega
+  have h1 : 1 ≤ (n + 2) ^ κ := Nat.one_le_pow _ _ (by omega)
+  have hn2 : n * n ≤ (n + 2) ^ 2 := by nlinarith
+  have hAB : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * ((n + 2) ^ κ * (n + 2) ^ 2) := by
+    nlinarith
+  have h5 : 17 ≤ (n + 2) ^ 5 := Nat.le_trans (by decide) (Nat.pow_le_pow_left h2 5)
+  have hexp : κ + 7 = κ + 2 + 5 := by omega
+  have hpoly : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ (n + 2) ^ (κ + 7) := by
+    rw [hexp, pow_add, pow_add]
+    exact hAB.trans ((Nat.mul_le_mul_right _ h5).trans_eq (mul_comm _ _))
   have h := hpoly.trans (Nat.pow_le_pow_left
-    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) B) (κ + 7))
-  rw [← pow_mul, Nat.mul_comm (Nat.clog 2 B) (κ + 7)] at h
+    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) (n + 2)) (κ + 7))
+  rw [← pow_mul, Nat.mul_comm (Nat.clog 2 (n + 2)) (κ + 7)] at h
   exact Nat.clog_le_of_le_pow h
 
 private theorem weightExponent_le {n F κ : ℕ} (hn : 2 ≤ n) (hF : F ≤ (n + 2) ^ κ) :
@@ -182,8 +153,7 @@ private theorem weightExponent_le {n F κ : ℕ} (hn : 2 ≤ n) (hF : F ≤ (n +
     rw [pow_succ]
     nlinarith only [hpow, hunit, hn]
   have hF1R : (F + 1 : ℝ) ≤ (n : ℝ) ^ ((2 * κ + 1 : ℕ) : ℝ) := by
-    rw [Real.rpow_natCast]
-    exact_mod_cast hF1
+    rw [Real.rpow_natCast]; exact_mod_cast hF1
   have hnR : (1 : ℝ) < n := by exact_mod_cast hn
   have hlog := (Real.logb_le_iff_le_rpow hnR (by positivity : (0 : ℝ) < F + 1)).mpr hF1R
   unfold weightExponent
@@ -223,35 +193,28 @@ theorem exists_dyadicTime_subcubic_bound {κ : ℕ} (hκ : 1 ≤ κ) :
       calc
         _ ≤ 3 * (n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ) * ((n : ℝ) ^ 3 / groups n) := by gcongr
         _ ≤ 3 * (n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ) *
-            (16 * (n : ℝ) ^ (3 - 2 / 1197 : ℝ)) := by
-          exact mul_le_mul_of_nonneg_left (cubic_div_groups_le (by omega)) (by positivity)
+            (16 * (n : ℝ) ^ (3 - 2 / 1197 : ℝ)) :=
+          mul_le_mul_of_nonneg_left (cubic_div_groups_le (by omega)) (by positivity)
         _ = _ := by
           rw [mul_assoc, mul_left_comm ((n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ)) 16,
             ← mul_assoc, ← Real.rpow_add (by exact_mod_cast (by omega : 0 < n))]
           norm_num
-    have hlog := setupLog_le_log hF
-    have hclog : Nat.clog 2 (n + 2) ≤ n + 2 :=
-      Nat.clog_le_of_le_pow (show n + 2 ≤ 2 ^ (n + 2) from Nat.lt_two_pow_self.le)
-    have hn2' : n + 2 ≤ 2 * (n * n) := by nlinarith
-    have hsetup := hlog.trans (Nat.mul_le_mul_left (κ + 7) (hclog.trans hn2'))
-    have hsmallNat : 24 * (n * n) + 24669 * setupLog n F + 514 ≤
-        (49338 * (κ + 7) + 538) * (n * n) := by
-      have hunit : 1 ≤ n * n := by nlinarith
-      nlinarith only [hsetup, hunit]
-    have hsmallR := (Nat.cast_le (α := ℝ)).mpr hsmallNat
+    have hsetup : (setupLog n F : ℝ) ≤ 2 * (κ + 7 : ℕ) * (n : ℝ) ^ 2 := by
+      have hclog : Nat.clog 2 (n + 2) ≤ 2 * (n * n) :=
+        (Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le).trans (by nlinarith)
+      exact_mod_cast ((setupLog_le_log hF).trans (Nat.mul_le_mul_left (κ + 7) hclog)).trans_eq
+        (by ring)
     have hpow : (n : ℝ) ^ 2 ≤ (n : ℝ) ^ (3 - 33 / 20000 : ℝ) := by
       rw [← Real.rpow_natCast]
       exact Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hn1) (by norm_num)
-    have hscaled := mul_le_mul_of_nonneg_left hpow
-      (show (0 : ℝ) ≤ (49338 * (κ + 7) + 538 : ℕ) by positivity)
+    have h1n : (1 : ℝ) ≤ (n : ℝ) ^ 2 := by exact_mod_cast (by nlinarith : 1 ≤ n ^ 2)
     have hceil := (Nat.ceil_lt_add_one (upperTime_nonneg hn2 F)).le
     unfold dyadicTime C
-    push_cast at hsmallR hscaled ⊢
+    push_cast at hsetup ⊢
     unfold upperTime at hceil ⊢
-    nlinarith only [hmain, hsmallR, hscaled, hceil]
+    nlinarith only [hmain, hsetup, hpow, h1n, hceil, Nat.cast_nonneg (α := ℝ) κ]
   obtain ⟨N, hN⟩ := eventually_atTop.mp hfinal
-  refine ⟨C, by dsimp only [C]; positivity, max N (2 ^ 2394), le_max_right _ _, ?_⟩
-  intro n hn
-  exact hN n ((le_max_left _ _).trans hn)
+  exact ⟨C, by dsimp only [C]; positivity, max N (2 ^ 2394), le_max_right _ _,
+    fun n hn => hN n ((le_max_left _ _).trans hn)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

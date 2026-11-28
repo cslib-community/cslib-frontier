@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.NatCodec
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian
 public import Mathlib.Data.Set.Card
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Directed
@@ -14,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import Mathlib.Data.List.Permutation
 import Mathlib.Data.List.Rotate
 import Mathlib.Data.List.Sublists
@@ -57,8 +59,9 @@ choice of bits gives a simple cycle of the gadget graph, and different bits give
 
 * `Cslib.Complexity.Graph.IsSimpleCycle`: simple directed cycles.
 * `Cslib.Complexity.SharpCycle`: the number of simple directed cycles.
-* `Cslib.Complexity.SharpCycle.gadgetGraph`, `Cslib.Complexity.SharpCycle.layers`,
-  `Cslib.Complexity.SharpCycle.reduce`: the gadget graph with `n * n + n + 3` layers.
+* `Cslib.Complexity.SharpCycle.nodeCodec`, `Cslib.Complexity.SharpCycle.gadgetGraph`,
+  `Cslib.Complexity.SharpCycle.layers`, `Cslib.Complexity.SharpCycle.reduce`: the gadget graph with
+  `n * n + n + 3` layers.
 
 ## Main results
 
@@ -121,12 +124,11 @@ private theorem mem_nodupLists {l p : List ℕ} (hp : p.Nodup) (h : ∀ v ∈ p,
 private theorem length_nodupLists_le (l : List ℕ) :
     (nodupLists l).length ≤ 2 ^ l.length * l.length.factorial := by
   rw [nodupLists, List.length_flatMap, ← List.length_sublists]
-  have := List.sum_le_length_nsmul (l.sublists.map fun a => a.permutations.length)
+  simpa using List.sum_le_length_nsmul (l.sublists.map fun a => a.permutations.length)
     l.length.factorial fun x hx => by
       obtain ⟨s, hs, rfl⟩ := List.mem_map.1 hx
       rw [List.length_permutations]
       exact Nat.factorial_le (List.mem_sublists.1 hs).length_le
-  simpa using this
 
 /-- Every simple cycle of `G` is a list of distinct declared vertices up to rotation. -/
 private theorem exists_eq_coe_of_isSimpleCycle {G : Graph} {c : Cycle ℕ} (hc : G.IsSimpleCycle c) :
@@ -145,11 +147,18 @@ theorem finite_setOf_isSimpleCycle (G : Graph) : {c : Cycle ℕ | G.IsSimpleCycl
 
 /-! ### The gadget graph -/
 
+/-- Codec partitioning the nodes of `gadgetGraph` into original vertices (`.inl v`) and
+arc-gadget layer nodes (`.inr ((u, v), if b then .inr j else .inl j)`). -/
+def nodeCodec : NatCodec (ℕ ⊕ ((ℕ × ℕ) × (ℕ ⊕ ℕ))) :=
+  NatCodec.nat.sum ((NatCodec.nat.pair .nat).pair (NatCodec.nat.sum .nat))
+
 /-- The node of the original vertex `v` in the gadget graph. -/
-def origNode (v : ℕ) : ℕ := 2 * v
+def origNode (v : ℕ) : ℕ :=
+  nodeCodec (.inl v)
 
 /-- Node `b` of layer `j` of the gadget of the arc `(u, v)`. -/
-def gadgetNode (u v j : ℕ) (b : Bool) : ℕ := 2 * Nat.pair (Nat.pair u v) (2 * j + b.toNat) + 1
+def gadgetNode (u v j : ℕ) (b : Bool) : ℕ :=
+  nodeCodec (.inr ((u, v), if b then .inr j else .inl j))
 
 /-- The `2 * m` nodes of the gadget of the arc `e`. -/
 def gadgetVertices (m : ℕ) (e : ℕ × ℕ) : List ℕ :=
@@ -178,22 +187,16 @@ def reduce (G : Graph) : Graph := gadgetGraph (layers G) G
 
 /-! ### Nodes and arcs of the gadget graph -/
 
-theorem origNode_injective : Function.Injective origNode := fun _ _ h => by
-  simp only [origNode] at h; omega
+theorem origNode_injective : Function.Injective origNode :=
+  fun _ _ h => Sum.inl.inj (nodeCodec.injective h)
 
-theorem origNode_ne_gadgetNode (a u v j : ℕ) (b : Bool) : origNode a ≠ gadgetNode u v j b := by
-  simp only [origNode, gadgetNode]; omega
+theorem origNode_ne_gadgetNode (a u v j : ℕ) (b : Bool) : origNode a ≠ gadgetNode u v j b :=
+  NatCodec.sum_inl_ne_inr _ _ _ _
 
 theorem gadgetNode_inj {u v j u' v' j' : ℕ} {b b' : Bool} :
     gadgetNode u v j b = gadgetNode u' v' j' b' ↔ u = u' ∧ v = v' ∧ j = j' ∧ b = b' := by
-  refine ⟨fun h => ?_, by rintro ⟨rfl, rfl, rfl, rfl⟩; rfl⟩
-  simp only [gadgetNode] at h
-  have h1 : Nat.pair (Nat.pair u v) (2 * j + b.toNat) =
-      Nat.pair (Nat.pair u' v') (2 * j' + b'.toNat) := by omega
-  obtain ⟨h2, h3⟩ := Nat.pair_eq_pair.1 h1
-  obtain ⟨rfl, rfl⟩ := Nat.pair_eq_pair.1 h2
-  cases b <;> cases b' <;> simp only [Bool.toNat_false, Bool.toNat_true] at h3 <;>
-    first | exact ⟨rfl, rfl, by omega, rfl⟩ | (exfalso; omega)
+  simp only [gadgetNode, nodeCodec.apply_eq_iff, Sum.inr.injEq, Prod.mk.injEq]
+  cases b <;> cases b' <;> simp [and_assoc]
 
 variable {m : ℕ} {G : Graph}
 
@@ -365,8 +368,7 @@ private theorem isChain_walk (hm : 0 < m) :
       simp only [layerNodes, List.cons_append] at h1 ⊢
       exact List.IsChain.cons_cons
         (mem_edges_gadgetGraph.2 ⟨(u, v), huv, mem_gadgetArcs.2 (.inl ⟨b, rfl, rfl⟩)⟩) h1
-    have := h2.append_overlap (l₃ := l) (by simpa using ih) (by simp)
-    simpa using this
+    simpa using h2.append_overlap (l₃ := l) (by simpa using ih) (by simp)
 
 /-! ### Decomposing paths of the gadget graph -/
 
@@ -441,7 +443,10 @@ private theorem decompose (hm : 0 < m) (L : List ℕ) (u t : ℕ)
 /-! ### Nodes of walks -/
 
 /-- The original vertex of a node of the gadget graph. -/
-private def origOf (x : ℕ) : Option ℕ := if x % 2 = 0 then some (x / 2) else none
+private def origOf (x : ℕ) : Option ℕ :=
+  match nodeCodec.decode? x with
+  | some (.inl v) => some v
+  | _ => none
 
 @[simp] private theorem origOf_origNode (v : ℕ) : origOf (origNode v) = some v := by
   simp [origOf, origNode]
@@ -452,7 +457,15 @@ private def origOf (x : ℕ) : Option ℕ := if x % 2 = 0 then some (x / 2) else
 
 private theorem eq_origNode_of_origOf {x v : ℕ} (h : origOf x = some v) : x = origNode v := by
   simp only [origOf] at h
-  split at h <;> simp_all [origNode]; omega
+  cases hd : nodeCodec.decode? x with
+  | none => simp [hd] at h
+  | some s =>
+    cases s with
+    | inl w =>
+      simp only [hd, Option.some.injEq] at h
+      subst h
+      exact (nodeCodec.decode?_eq_some_iff.mp hd).symm
+    | inr _ => simp [hd] at h
 
 @[simp] private theorem filterMap_layerNodes (u v j : ℕ) (c : List Bool) :
     (layerNodes u v j c).filterMap origOf = [] := by
@@ -625,8 +638,7 @@ private theorem isSimpleCycle_cycleWalk (hm : 0 < m) {r : List ℕ}
   refine Graph.isSimpleCycle_coe.2 ⟨?_, ?_, ?_, ?_⟩
   · rw [cycleWalk, hs]; simp [walk]
   · refine nodup_walk ?_
-    rw [map_fst_steps, headD_cons_rotate_one hne, List.dropLast_concat]
-    exact hnd
+    rwa [map_fst_steps, headD_cons_rotate_one hne, List.dropLast_concat]
   · refine mem_vertices_of_mem_walk (fun p hp => length_snd_of_mem_steps hp) hchain ?_
     rw [map_fst_steps, headD_cons_rotate_one hne]
     intro a ha
@@ -638,8 +650,7 @@ private theorem isSimpleCycle_cycleWalk (hm : 0 < m) {r : List ℕ}
   · refine Cycle.chain_coe_iff_isChain_append_take_one.2 ?_
     have : (cycleWalk m r γ).take 1 = [origNode (r.headD 0)] := by
       rw [cycleWalk, hs]; simp [walk]
-    rw [this]
-    exact hpath
+    rwa [this]
 
 /-- A cycle of the gadget graph contains an original vertex: the layer index grows along arcs
 between gadget nodes. -/
@@ -648,13 +659,13 @@ private theorem exists_origNode_mem {p : List ℕ} (hp : p ≠ [])
     ∃ v, origNode v ∈ p := by
   by_contra hno
   push Not at hno
-  let f : ℕ → ℕ := fun x => (Nat.unpair (x / 2)).2 / 2
+  let f : ℕ → ℕ := fun x =>
+    match nodeCodec.decode? x with
+    | some (.inr (_, .inl j)) | some (.inr (_, .inr j)) => j
+    | _ => 0
   have hf : ∀ u v j b, f (gadgetNode u v j b) = j := by
     intro u v j b
-    simp only [f, gadgetNode]
-    rw [show (2 * Nat.pair (Nat.pair u v) (2 * j + b.toNat) + 1) / 2 =
-      Nat.pair (Nat.pair u v) (2 * j + b.toNat) by omega, Nat.unpair_pair]
-    cases b <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> omega
+    cases b <;> simp [f, gadgetNode]
   have hgad : ∀ x ∈ p, ∀ y, (x, y) ∈ (gadgetGraph m G).edges → y ∈ p →
       f y = f x + 1 := by
     intro x hx y hxy hy
@@ -753,8 +764,7 @@ private theorem exists_eq_cycleWalk (hm : 0 < m) {c : Cycle ℕ}
       have ha : a = u := by rw [← hrhead, hr']; rfl
       rw [hr', ha] at hru ⊢
       simp only [List.take_succ_cons, List.take_zero]
-      rw [hru]
-      exact hsc
+      rwa [hru]
   · rw [cycleWalk, hrhead, ← hrot, steps_eq hsm, hws]
 
 /-! ### Counting -/
@@ -926,7 +936,7 @@ open Turing.MultiTapeTM ComputableInPolyTime
 theorem computableInPolyTime_origNode {α : Type} {enc : α ↪ List Bool} {v : α → ℕ}
     (hv : ComputableInPolyTime v enc encNat) :
     ComputableInPolyTime (fun a => origNode (v a)) enc encNat := by
-  unfold origNode
+  simp only [origNode, nodeCodec, NatCodec.sum_inl, NatCodec.nat_apply]
   fun_prop
 
 /-- The gadget nodes are computable in polynomial time, from binary arc ends and a unary layer. -/
@@ -936,7 +946,15 @@ theorem computableInPolyTime_gadgetNode {α : Type} {enc : α ↪ List Bool} {u 
     (hv : ComputableInPolyTime v enc encNat) (hj : ComputableInPolyTime j enc encUnary)
     (hb : ComputableInPolyTime b enc encBool) :
     ComputableInPolyTime (fun a => gadgetNode (u a) (v a) (j a) (b a)) enc encNat := by
-  unfold gadgetNode
+  have hbit : ComputableInPolyTime (fun a => if b a then Sum.inr (j a) else Sum.inl (j a))
+      enc (encSum encUnary encUnary) :=
+    ite' hb ((sumInr encUnary encUnary).comp hj) ((sumInl encUnary encUnary).comp hj)
+  have hinner : ComputableInPolyTime
+      (fun a => (NatCodec.nat.sum .nat) (if b a then Sum.inr (j a) else Sum.inl (j a)))
+      enc encNat :=
+    (NatCodec.computableInPolyTime_sum NatCodec.computableInPolyTime_nat_unary
+      NatCodec.computableInPolyTime_nat_unary).comp hbit
+  simp only [gadgetNode, nodeCodec, NatCodec.sum_inr, NatCodec.pair_apply, NatCodec.nat_apply]
   fun_prop
 
 /-- The number of layers is computable in polynomial time in unary. -/
@@ -967,14 +985,11 @@ theorem DirHamCycle_mem_P_of_approx {A : Graph → ℕ}
   have hiff : ∀ G, G ∈ DirHamCycle ↔
       2 ^ (layers G * G.distinctVertices.length) ≤ 2 * A (reduce G) := by
     intro G
-    constructor
-    · intro hG
-      exact (two_pow_le_of_mem_DirHamCycle (by simp [layers]) hG).trans (hlo _)
-    · intro hG
-      by_contra hn
-      have := four_mul_lt_two_pow_of_notMem_DirHamCycle hn
-      have := hhi (reduce G)
-      omega
+    refine ⟨fun hG => (two_pow_le_of_mem_DirHamCycle (by simp [layers]) hG).trans (hlo _),
+      fun hG => of_not_not fun hn => ?_⟩
+    have := four_mul_lt_two_pow_of_notMem_DirHamCycle hn
+    have := hhi (reduce G)
+    omega
   refine ⟨fun G => !decide (2 * A (reduce G) <
     2 ^ (layers G * G.distinctVertices.length)), ?_, fun G => by simp [hiff]⟩
   have := hA.comp computableInPolyTime_reduce

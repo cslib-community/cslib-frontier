@@ -44,10 +44,12 @@ private theorem editedCounter_disagreement :
 -- The same bound works for every signed exponent, including inverses.
 example (T : ℤ) :
     (∃ out : Circuit signature 2 2,
-      out.Computes interpretation (fun x i => ((editedCounter ^ T) (word x)).getLsbD i.val) ∧
+      out.Computes interpretation (fun x i =>
+        ((editedCounter ^ T) (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ 900) ∧
     (∃ out : Circuit signature 2 2,
-      out.Computes interpretation (fun x i => (editedCounter.symm (word x)).getLsbD i.val) ∧
+      out.Computes interpretation (fun x i =>
+        (editedCounter.symm (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ 900) := by
   have h1 := sparse_counter_power editedCounter T
   have h2 := sparse_counter_power editedCounter (-1)
@@ -56,13 +58,14 @@ example (T : ℤ) :
 
 -- Coordinate transfer is applicable to actual conversion circuits.
 example (T : ℤ) : ∃ out : Circuit signature 2 2,
-    out.Computes interpretation (fun x i => ((editedCounter ^ T) (word x)).getLsbD i.val) ∧
+    out.Computes interpretation (fun x i =>
+      ((editedCounter ^ T) (BitString.equivBitVec x)).getLsbD i.val) ∧
     out.size ≤ 900 := by
   have hid : (Circuit.id signature 2).Computes interpretation
-      (fun x i => ((Equiv.refl (BitVec 2)) (word x)).getLsbD i.val) := by
+      (fun x i => ((Equiv.refl (BitVec 2)) (BitString.equivBitVec x)).getLsbD i.val) := by
     intro x
     funext i
-    exact (getLsbD_word x i).symm
+    exact (BitString.getLsbD_equivBitVec x i).symm
   have h := sparse_coordinate_power editedCounter (Equiv.addRight 1) (Equiv.refl _)
       (fun _ => rfl) (Circuit.id signature 2) (Circuit.id signature 2) hid hid T
   have hdiff : disagreement editedCounter (Equiv.addRight (1 : BitVec 2)) = {0, 1} :=

@@ -115,35 +115,22 @@ theorem permOn_add_of_gadget {P Q : Type*} [Fintype V] [Fintype P] [Fintype Q] (
     refine hnot (mem_image.2 ⟨(univ.filter fun q => g (exit q) ∉ S',
       univ.filter fun p => g (entry p) ∉ T'), mem_univ _, ?_⟩)
     simp only [φ, Prod.mk.injEq]
-    constructor
-    · ext u
+    have hpart {I : Type*} [Fintype I] (emb : I ↪ W) (U' : Finset V) (hU'G : U' ⊆ G)
+        (hmem : ∀ a, (∀ p, a ≠ emb p) → g a ∈ U') :
+        G \ ((univ.filter fun p => g (emb p) ∉ U').map emb).map g = U' := by
+      ext u
       simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
       constructor
       · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hex : ∃ q, a = exit q
-        · obtain ⟨q, rfl⟩ := hex
+        by_cases hex : ∃ p, a = emb p
+        · obtain ⟨p, rfl⟩ := hex
           by_contra h'
-          exact h ⟨exit q, ⟨q, h', rfl⟩, rfl⟩
-        · exact hrow a fun q hq => hex ⟨q, hq⟩
+          exact h ⟨emb p, ⟨p, h', rfl⟩, rfl⟩
+        · exact hmem a fun p hp => hex ⟨p, hp⟩
       · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hS'G hu)
-        refine ⟨⟨a, rfl⟩, ?_⟩
-        rintro ⟨b, ⟨q, hq, rfl⟩, hb⟩
-        exact hq (g.injective hb ▸ hu)
-    · ext u
-      simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
-      constructor
-      · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hen : ∃ p, a = entry p
-        · obtain ⟨p, rfl⟩ := hen
-          by_contra h'
-          exact h ⟨entry p, ⟨p, h', rfl⟩, rfl⟩
-        · exact hcol a fun p hp => hen ⟨p, hp⟩
-      · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hT'G hu)
-        refine ⟨⟨a, rfl⟩, ?_⟩
-        rintro ⟨b, ⟨p, hp, rfl⟩, hb⟩
-        exact hp (g.injective hb ▸ hu)
+        obtain ⟨a, -, rfl⟩ := mem_map.1 (hU'G hu)
+        exact ⟨⟨a, rfl⟩, fun ⟨_, ⟨p, hp, rfl⟩, hb⟩ => hp (g.injective hb ▸ hu)⟩
+    exact ⟨hpart exit S' hS'G hrow, hpart entry T' hT'G hcol⟩
   have hφ : Set.InjOn φ ↑(univ ×ˢ univ : Finset (Finset Q × Finset P)) := by
     rintro ⟨O₁, I₁⟩ - ⟨O₂, I₂⟩ - h
     simp only [φ, Prod.mk.injEq] at h

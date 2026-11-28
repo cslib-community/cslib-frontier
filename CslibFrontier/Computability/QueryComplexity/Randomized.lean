@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.DecisionTree.Basic
+public import CslibFrontier.Computability.RandomizedCost
 public import CslibFrontier.Probability.Minimax
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Basic.NNReal.Basic
@@ -53,6 +54,8 @@ correctness (`RandomizedDecisionTree.errorProb_mapTree_le`).
 
 ## Main definitions
 
+* `Cslib.DecisionTree.randomizedCost`: deterministic decision trees as a `Cslib.RandomizedCost`
+  model.
 * `Cslib.RandomizedDecisionTree`: randomized decision trees, as finitely supported distributions
   over decision trees, with `RandomizedDecisionTree.depth`, `RandomizedDecisionTree.errorProb` and
   `RandomizedDecisionTree.Computes`.
@@ -97,6 +100,12 @@ finitely supported probability distribution over decision trees. It draws a tree
 distribution and runs it. -/
 abbrev RandomizedDecisionTree (ι β : Type*) : Type _ :=
   StdSimplex ℝ (DecisionTree ι β)
+
+/-- Deterministic decision trees as a `RandomizedCost` model with evaluation `DecisionTree.eval`
+and worst-case cost `DecisionTree.depth`. -/
+def DecisionTree.randomizedCost (ι β : Type*) :
+    RandomizedCost (DecisionTree ι β) (ι → Bool) β :=
+  ⟨DecisionTree.eval, DecisionTree.depth⟩
 
 namespace DecisionTree
 
@@ -242,7 +251,7 @@ against `g` on `x`. -/
 theorem errorProb_mapTree_eq_zero {γ : Type*} (φ : DecisionTree ι β → DecisionTree ι γ)
     (μ : RandomizedDecisionTree ι β) (g : (ι → Bool) → γ) (x : ι → Bool)
     (hφ : ∀ t : DecisionTree ι β, (φ t).eval x = g x) : (mapTree φ μ).errorProb g x = 0 :=
-  errorProb_eq_zero_iff.mpr fun u hu => by
+  errorProb_eq_zero_iff.mpr fun _ hu => by
     obtain ⟨t, -, rfl⟩ := exists_of_mem_support_mapTree hu
     exact hφ t
 
@@ -281,21 +290,20 @@ ensure that a feasible tree exists. -/
 -- Finiteness restricts the public domain; `sInf` itself does not require it.
 @[nolint unusedArguments]
 noncomputable def randomizedComplexity [Finite ι] (ε : ℝ≥0) (f : (ι → Bool) → β) : ℕ :=
-  sInf {d | ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth ≤ d}
+  (DecisionTree.randomizedCost ι β).simplexComplexity ε (fun x z => z = f x)
 
 variable [Finite ι]
 
 theorem randomizedComplexity_le_depth (h : μ.Computes ε f) : randomizedComplexity ε f ≤ μ.depth :=
-  Nat.sInf_le_of_le h
+  RandomizedCost.simplexComplexity_le_maxCost h
 
 /-- For `ε ≥ 0` the randomized complexity is attained: some randomized decision tree of depth
 `R_ε(f)` computes `f` with error `ε`. -/
 theorem exists_computes_depth_eq_randomizedComplexity (f : (ι → Bool) → β) :
     ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth = randomizedComplexity ε f :=
-  Nat.exists_eq_sInf_of_exists depth
-    ⟨StdSimplex.single (DecisionTree.exists_computes_depth_eq_complexity f).choose,
-      computes_single (DecisionTree.exists_computes_depth_eq_complexity f).choose_spec.1
-        ε.coe_nonneg⟩
+  RandomizedCost.exists_simplexComplexity_eq (C := DecisionTree.randomizedCost ι β)
+    (R := fun x z => z = f x) (ε := ε)
+    (let ⟨t, ht, _⟩ := DecisionTree.exists_computes_depth_eq_complexity f; ⟨t, ht⟩)
 
 theorem randomizedComplexity_le_iff :
     randomizedComplexity ε f ≤ d ↔ ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth ≤ d :=
@@ -311,7 +319,7 @@ theorem le_randomizedComplexity_iff :
 theorem randomizedComplexity_antitone (hεε' : ε ≤ ε') :
     randomizedComplexity ε' f ≤ randomizedComplexity ε f :=
   Nat.sInf_mono_of_exists (exists_computes_depth_eq_randomizedComplexity (ε := ε) f)
-    fun _ hμ => hμ.mono hεε'
+    fun _ hμ => Computes.mono hμ hεε'
 
 /-- With error `0` randomness does not help: `R_0(f) = D(f)`. The cost here is the worst case over
 the coins, unlike the expected number of queries of zero-error (Las Vegas) complexity. -/
@@ -320,10 +328,9 @@ theorem randomizedComplexity_zero (f : (ι → Bool) → β) :
   obtain ⟨t, ht, hd⟩ := DecisionTree.exists_computes_depth_eq_complexity f
   obtain ⟨μ, hμ, hμd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := 0) f
   obtain ⟨s, hs⟩ := μ.support_weights_nonempty
-  refine le_antisymm ((randomizedComplexity_le_depth (computes_single ht le_rfl)).trans_eq
-    (by rw [depth_single, hd])) ?_
-  rw [← hμd]
-  exact (DecisionTree.complexity_le_depth (computes_zero_iff.mp hμ s hs)).trans (depth_le_depth hs)
+  exact le_antisymm ((randomizedComplexity_le_depth (computes_single ht le_rfl)).trans_eq
+    (by rw [depth_single, hd])) (hμd ▸ (DecisionTree.complexity_le_depth
+      (computes_zero_iff.mp hμ s hs)).trans (depth_le_depth hs))
 
 omit [Finite ι] in
 /-- A fair coin computes any Boolean-valued function with error at most `1/2`, without a query.
@@ -336,19 +343,16 @@ theorem exists_computes_depth_zero_of_le {ε : ℝ} (hε : 1 / 2 ≤ ε)
     (s := 1 / 2) (t := 1 / 2) (by norm_num) (by norm_num) (by norm_num)
   have hsupp : μ.weights.support ⊆ {DecisionTree.leaf false, DecisionTree.leaf true} := by
     simp only [μ, StdSimplex.weights_duple]
-    exact Finsupp.support_add.trans (Finset.union_subset_union Finsupp.support_single_subset
-      Finsupp.support_single_subset)
-  have hdepth : μ.depth = 0 := Nat.le_zero.mp <| depth_le_iff.mpr fun t ht => by
-    rcases Finset.mem_insert.mp (hsupp ht) with rfl | ht
+    exact Finsupp.support_add.trans
+      (Finset.union_subset_union Finsupp.support_single_subset Finsupp.support_single_subset)
+  refine ⟨μ, fun x => (le_of_eq ?_).trans hε, Nat.le_zero.mp <| depth_le_iff.mpr fun t ht => ?_⟩
+  · simp only [errorProb, StdSimplex.errorProb, μ, StdSimplex.weights_duple]
+    rw [Finsupp.sum_add_index' (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
+      Finsupp.sum_single_index (zero_mul _), Finsupp.sum_single_index (zero_mul _)]
+    cases f x <;> simp
+  · rcases Finset.mem_insert.mp (hsupp ht) with rfl | ht
     · rfl
-    · rw [Finset.mem_singleton.mp ht]
-      rfl
-  refine ⟨μ, fun x => ?_, hdepth⟩
-  refine le_trans (le_of_eq ?_) hε
-  simp only [errorProb, StdSimplex.errorProb, μ, StdSimplex.weights_duple]
-  rw [Finsupp.sum_add_index' (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
-    Finsupp.sum_single_index (zero_mul _), Finsupp.sum_single_index (zero_mul _)]
-  cases f x <;> simp
+    · rw [Finset.mem_singleton.mp ht]; rfl
 
 /-- From `ε = 1/2` on, a fair coin computes every Boolean-valued function: `R_ε(f) = 0`. -/
 theorem randomizedComplexity_eq_zero_of_le (hε : (1 / 2 : ℝ) ≤ ε) (f : (ι → Bool) → Bool) :

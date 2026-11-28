@@ -84,12 +84,10 @@ theorem gaussianQuantile_cdf (x : ℝ) : gaussianQuantile (Φ x) = x :=
 theorem cdf_gaussianQuantile {α : ℝ} (hα : α ∈ Ioo 0 1) : Φ (gaussianQuantile α) = α := by
   refine Function.invFun_eq (mem_range_of_exists_le_of_exists_ge
     (continuous_cdf_gaussianReal 0 one_ne_zero) ?_ ?_)
-  · obtain ⟨x, hx⟩ := ((tendsto_cdf_atBot (gaussianReal 0 1)).eventually
-      (Iio_mem_nhds hα.1)).exists
-    exact ⟨x, hx.le⟩
-  · obtain ⟨x, hx⟩ := ((tendsto_cdf_atTop (gaussianReal 0 1)).eventually
-      (Ioi_mem_nhds hα.2)).exists
-    exact ⟨x, hx.le⟩
+  · exact (((tendsto_cdf_atBot (gaussianReal 0 1)).eventually (Iio_mem_nhds hα.1)).mono
+      fun _ => le_of_lt).exists
+  · exact (((tendsto_cdf_atTop (gaussianReal 0 1)).eventually (Ioi_mem_nhds hα.2)).mono
+      fun _ => le_of_lt).exists
 
 /-- `Φ⁻¹ (1 / 2) = 0`. -/
 theorem gaussianQuantile_half : gaussianQuantile 2⁻¹ = 0 := by
@@ -106,12 +104,9 @@ theorem continuousAt_gaussianQuantile {α : ℝ} (hα : α ∈ Ioo 0 1) :
     ContinuousAt gaussianQuantile α := by
   refine continuousAt_of_monotoneOn_of_image_mem_nhds strictMonoOn_gaussianQuantile.monotoneOn
     (Ioo_mem_nhds hα.1 hα.2) ?_
-  have : gaussianQuantile '' Ioo 0 1 = univ := by
-    refine eq_univ_of_forall fun x => ⟨Φ x, ⟨cdf_pos ?_ x, cdf_lt_one ?_ x⟩,
-      gaussianQuantile_cdf x⟩ <;>
-    exact gaussianReal_absolutelyContinuous' 0 one_ne_zero
-  rw [this]
-  exact univ_mem
+  have h := gaussianReal_absolutelyContinuous' 0 one_ne_zero
+  exact mem_of_superset univ_mem fun x _ =>
+    ⟨Φ x, ⟨cdf_pos h x, cdf_lt_one h x⟩, gaussianQuantile_cdf x⟩
 
 /-- `Φ⁻¹` is continuous on `(0, 1)`. -/
 theorem continuousOn_gaussianQuantile : ContinuousOn gaussianQuantile (Ioo 0 1) :=
@@ -132,10 +127,9 @@ theorem contDiffOn_gaussianQuantile : ContDiffOn ℝ ∞ gaussianQuantile (Ioo 0
   | zero => exact contDiffOn_zero.2 continuousOn_gaussianQuantile
   | succ n ih =>
     rw [Nat.cast_succ, contDiffOn_succ_iff_deriv_of_isOpen isOpen_Ioo]
-    refine ⟨fun α hα => (hasDerivAt_gaussianQuantile hα).differentiableAt.differentiableWithinAt,
-      by simp, ?_⟩
-    refine ContDiffOn.congr ?_ fun α hα => (hasDerivAt_gaussianQuantile hα).deriv
-    exact ((contDiff_gaussianPDFReal 0 1).comp_contDiffOn ih).inv
-      fun _ _ => (gaussianPDFReal_pos _ _ _ one_ne_zero).ne'
+    exact ⟨fun _ hα => (hasDerivAt_gaussianQuantile hα).differentiableAt.differentiableWithinAt,
+      by simp, (((contDiff_gaussianPDFReal 0 1).comp_contDiffOn ih).inv
+        fun _ _ => (gaussianPDFReal_pos _ _ _ one_ne_zero).ne').congr
+        fun _ hα => (hasDerivAt_gaussianQuantile hα).deriv⟩
 
 end ProbabilityTheory

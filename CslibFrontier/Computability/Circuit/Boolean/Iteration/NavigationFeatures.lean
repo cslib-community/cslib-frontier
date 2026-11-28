@@ -61,31 +61,26 @@ abbrev inputRight (z : BitString (n + n)) : BitString n :=
 /-- Evaluate a depth circuit on an available state and widen its output to `n + 3` bits. -/
 theorem synthesis_depthWord (f : BitString n → BitString n)
     (depth : Circuit signature n (n + 2))
-    (hd : ∀ x, word (depth.eval interpretation x) =
+    (hd : ∀ x, BitString.equivBitVec (depth.eval interpretation x) =
       BitVec.ofNat (n + 2) (transientDepth f x))
     (s : Set (BooleanFunction (n + n))) (x : BitString (n + n) → BitString n)
     (hx : wires x ⊆ s) (hz : (fun _ => false) ∈ s) :
     Synthesis interpretation s (wordWires fun z => depthWord f (x z)) depth.size := by
   have hc := Synthesis.circuit (I := interpretation) (s := s) depth
     (fun i z => x z i) (fun bit => hx ⟨bit, rfl⟩)
-  let raw := fun z => word (depth.eval interpretation (x z))
+  let raw := fun z => BitString.equivBitVec (depth.eval interpretation (x z))
   have hraw : wordWires raw ⊆ s ∪ Set.range (fun j z => depth.eval interpretation (x z) j) := by
     rintro _ ⟨bit, rfl⟩
-    simp only [raw, getLsbD_word]
-    exact Or.inr ⟨bit, rfl⟩
-  have hresize := wordWires_setWidth_subset (v := n + 3)
-    (s := s ∪ Set.range (fun j z => depth.eval interpretation (x z) j))
-    hraw (Or.inl hz)
-  have he : (fun z => (raw z).setWidth (n + 3)) = fun z => depthWord f (x z) := by
-    funext z
+    simpa only [raw, BitString.getLsbD_equivBitVec, Set.mem_union] using Or.inr ⟨bit, rfl⟩
+  have hresize := wordWires_setWidth_subset (v := n + 3) hraw (Or.inl hz)
+  have he : (fun z => (raw z).setWidth (n + 3)) = fun z => depthWord f (x z) := funext fun z => by
     apply BitVec.eq_of_toNat_eq
     have hlt := transientDepth_lt_two_pow f (x z)
     have hpow2 : 2 ^ (n + 2) = 4 * 2 ^ n := by rw [pow_add]; ring
     have hpow3 : 2 ^ (n + 3) = 8 * 2 ^ n := by rw [pow_add]; ring
-    have hraw_toNat : (raw z).toNat = transientDepth f (x z) := by grind
-    rw [BitVec.toNat_setWidth, toNat_depthWord, hraw_toNat, Nat.mod_eq_of_lt (by omega)]
-  rw [he] at hresize
-  exact hc.trans (Synthesis.of_subset hresize)
+    rw [BitVec.toNat_setWidth, toNat_depthWord,
+      show (raw z).toNat = transientDepth f (x z) by grind, Nat.mod_eq_of_lt (by omega)]
+  exact hc.trans (Synthesis.of_subset (he ▸ hresize))
 
 /-- Evaluate a cycle-label circuit on an available state and unpack its three fields. -/
 theorem synthesis_label_parts (f : BitString n → BitString n)
@@ -110,22 +105,17 @@ theorem synthesis_label_parts (f : BitString n → BitString n)
   have hlen : wordWires (fun z => lengthWord f (x z)) ⊆ src := by
     rintro _ ⟨bit, rfl⟩
     refine Or.inr ⟨Fin.natAdd n (Fin.castAdd (n + 3) bit), funext fun z => ?_⟩
-    have h := congrArg (fun v => v.getLsbD bit.val)
-      (labelLength_labelBits (canonicalCycle f (x z))
-        (BitVec.ofNat (n + 3) (cycleLength f (x z))) (BitVec.ofNat (n + 3) (phase f (x z))))
-    simpa only [labelLength, canonicalLabel, lengthWord, hl (x z), getLsbD_word] using h
+    have h := congrArg (·.getLsbD bit.val) (labelLength_labelBits (canonicalCycle f (x z))
+      (BitVec.ofNat (n + 3) (cycleLength f (x z))) (BitVec.ofNat (n + 3) (phase f (x z))))
+    simpa only [labelLength, canonicalLabel, lengthWord, hl (x z),
+      BitString.getLsbD_equivBitVec] using h
   have hphase : wordWires (fun z => phaseWord f (x z)) ⊆ src := by
     rintro _ ⟨bit, rfl⟩
     refine Or.inr ⟨Fin.natAdd n (Fin.natAdd (n + 3) bit), funext fun z => ?_⟩
-    have h := congrArg (fun v => v.getLsbD bit.val)
-      (labelPhase_labelBits (canonicalCycle f (x z))
-        (BitVec.ofNat (n + 3) (cycleLength f (x z))) (BitVec.ofNat (n + 3) (phase f (x z))))
-    simpa only [labelPhase, canonicalLabel, phaseWord, hl (x z), getLsbD_word] using h
-  refine hc.trans (Synthesis.of_subset ?_)
-  intro g hg
-  rcases hg with (hg | hg) | hg
-  · exact hrep hg
-  · exact hlen hg
-  · exact hphase hg
+    have h := congrArg (·.getLsbD bit.val) (labelPhase_labelBits (canonicalCycle f (x z))
+      (BitVec.ofNat (n + 3) (cycleLength f (x z))) (BitVec.ofNat (n + 3) (phase f (x z))))
+    simpa only [labelPhase, canonicalLabel, phaseWord, hl (x z),
+      BitString.getLsbD_equivBitVec] using h
+  exact hc.trans (Synthesis.of_subset (Set.union_subset (Set.union_subset hrep hlen) hphase))
 
 end Cslib.Circuits.Boolean.Iteration

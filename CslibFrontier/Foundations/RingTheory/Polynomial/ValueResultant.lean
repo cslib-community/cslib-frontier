@@ -123,10 +123,8 @@ theorem coeffNorm1_valueResultant_le (p g : ℤ[X]) :
     exact (natAbs_coeff_le_coeffNorm1 p k).trans (le_max_left _ _)
   have hq (k : ℕ) : (q.coeff k).coeffNorm1 ≤ A := by
     rw [coeff_sub, coeff_map]
-    have hX : (X : ℤ[X]).coeffNorm1 = 1 := by
-      rw [← mul_one (X : ℤ[X]), coeffNorm1_X_mul, coeffNorm1_one]
     have hC : ((C X : ℤ[X][X]).coeff k).coeffNorm1 ≤ 1 := by
-      by_cases hk : k = 0 <;> simp [coeff_C, hk, hX, coeffNorm1_zero]
+      by_cases hk : k = 0 <;> simp [coeff_C, hk]
     have hg : (C (g.coeff k)).coeffNorm1 ≤ g.coeffNorm1 := by
       rw [coeffNorm1_C]
       exact natAbs_coeff_le_coeffNorm1 g k

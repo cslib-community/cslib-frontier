@@ -94,22 +94,16 @@ theorem IsMatching.exists_of_mem_oddComponents [Finite V] (hM : M.IsMatching) {U
   by_contra! h
   have hmatch : (M.induce (Subtype.val '' c.supp)).IsMatching := by
     rintro _ ⟨⟨v, hv'⟩, hv, rfl⟩
-    have hvM : v ∈ M.verts := by
-      by_contra hvM
-      exact (h v (Or.inl hvM) ⟨v, hv'⟩ hv).1 rfl
-    obtain ⟨w, hw, hwu⟩ := hM hvM
+    obtain ⟨w, hw, hwu⟩ := hM (by_contra fun hvM => (h v (Or.inl hvM) ⟨v, hv'⟩ hv).1 rfl)
     have hwU : w ∉ U := fun hwU => (h w (Or.inr hwU) ⟨v, hv'⟩ hv).2 hw
-    have hw' : w ∈ ((⊤ : G.Subgraph).deleteVerts U).verts := ⟨trivial, hwU⟩
-    have hwc : (⟨w, hw'⟩ : ((⊤ : G.Subgraph).deleteVerts U).verts) ∈ c.supp := by
+    have hwc : (⟨w, trivial, hwU⟩ : ((⊤ : G.Subgraph).deleteVerts U).verts) ∈ c.supp := by
       rw [ConnectedComponent.mem_supp_iff, ← (ConnectedComponent.mem_supp_iff _ _).mp hv]
-      refine (ConnectedComponent.connectedComponentMk_eq_of_adj ?_).symm
-      exact Subgraph.Adj.coe (deleteVerts_adj.mpr ⟨trivial, hv'.2, trivial, hwU, M.adj_sub hw⟩)
-    refine ⟨w, ⟨⟨⟨v, hv'⟩, hv, rfl⟩, ⟨⟨w, hw'⟩, hwc, rfl⟩, hw⟩, fun y hy => hwu y hy.2.2⟩
-  have hodd : Odd c.supp.ncard := hc
+      exact (ConnectedComponent.connectedComponentMk_eq_of_adj
+        (Subgraph.Adj.coe (deleteVerts_adj.mpr ⟨trivial, hv'.2, trivial, hwU, M.adj_sub hw⟩))).symm
+    exact ⟨w, ⟨⟨⟨v, hv'⟩, hv, rfl⟩, ⟨⟨w, trivial, hwU⟩, hwc, rfl⟩, hw⟩, fun y hy => hwu y hy.2.2⟩
   have hcard := hmatch.ncard_verts_eq_two_mul
   rw [induce_verts, Set.ncard_image_of_injective _ Subtype.val_injective] at hcard
-  rw [hcard] at hodd
-  exact Nat.not_even_iff_odd.mpr hodd (even_two_mul _)
+  exact Nat.not_even_iff_odd.mpr (hcard ▸ show Odd c.supp.ncard from hc) (even_two_mul _)
 
 /-- **Tutte–Berge, weak duality** ([Schrijver2017], Theorem 5.1, easy direction): a matching `M`
 and a vertex set `U` of a finite graph satisfy `|V(M)| + o(G - U) ≤ |V| + |U|`. -/
@@ -119,24 +113,22 @@ theorem IsMatching.ncard_verts_add_ncard_oddComponents_le [Finite V] (hM : M.IsM
       Nat.card V + U.ncard := by
   choose g hgmem v hvc hv using fun c : ((⊤ : G.Subgraph).deleteVerts U).coe.oddComponents =>
     hM.exists_of_mem_oddComponents c.1 c.2
-  have hnot : ∀ c, (v c : V) = g c → g c ∉ M.verts := fun c hc' => by
-    refine (hgmem c).elim id fun h => ?_
-    rw [← hc'] at h
-    exact absurd h (v c).2.2
+  have hnot (c) (hc' : (v c : V) = g c) : g c ∉ M.verts :=
+    (hgmem c).elim id fun h => absurd (hc' ▸ h) (v c).2.2
   have hinj : Function.Injective fun c => (⟨g c, hgmem c⟩ : (M.vertsᶜ ∪ U : Set V)) := by
     intro c d hcd
     have hcd : g c = g d := congrArg Subtype.val hcd
     have key : v c = v d := by
       rcases hv c with hc' | hc' <;> rcases hv d with hd' | hd'
       · exact Subtype.val_injective (hc'.trans (hcd.trans hd'.symm))
-      · exact (hnot c hc' (by rw [hcd]; exact M.edge_vert hd'.symm)).elim
-      · exact (hnot d hd' (by rw [← hcd]; exact M.edge_vert hc'.symm)).elim
+      · exact (hnot c hc' (hcd ▸ M.edge_vert hd'.symm)).elim
+      · exact (hnot d hd' (hcd.symm ▸ M.edge_vert hc'.symm)).elim
       · exact Subtype.val_injective (hM.eq_of_adj_right hc' (hcd ▸ hd'))
     exact Subtype.val_injective (ConnectedComponent.eq_of_common_vertex (hvc c) (key ▸ hvc d))
   have hle := Nat.card_le_card_of_injective _ hinj
   rw [Nat.card_coe_set_eq, Nat.card_coe_set_eq] at hle
-  have hunion := Set.ncard_union_le M.vertsᶜ U
-  have hcompl := Set.ncard_add_ncard_compl M.verts
+  have := Set.ncard_union_le M.vertsᶜ U
+  have := Set.ncard_add_ncard_compl M.verts
   omega
 
 
@@ -191,8 +183,7 @@ private theorem ncard_oddComponents_deleteVerts_addUniversalVerts [Finite V] {d 
       U'.ncard = (Sum.inl ⁻¹' U' : Set V).ncard + d := by
   refine ⟨(Iso.ncard_oddComponents_eq (deleteVertsAddUniversalVertsIso U' hU')).symm, ?_⟩
   have hU'eq : U' = Sum.inl '' (Sum.inl ⁻¹' U') ∪ Set.range Sum.inr := by
-    ext x
-    rcases x with x | i
+    ext (_ | i)
     · simp
     · simpa using hU' ⟨i, rfl⟩
   rw [hU'eq, Set.ncard_union_eq, Set.ncard_image_of_injective _ Sum.inl_injective,
@@ -200,7 +191,7 @@ private theorem ncard_oddComponents_deleteVerts_addUniversalVerts [Finite V] {d 
     Fintype.card_fin, Set.preimage_union, Set.preimage_image_eq _ Sum.inl_injective]
   · simp
   · rw [Set.disjoint_left]
-    rintro _ ⟨v, -, rfl⟩ ⟨i, hi⟩
+    rintro _ ⟨_, -, rfl⟩ ⟨_, hi⟩
     exact Sum.inr_ne_inl hi
 
 /-- If `U'` misses a new vertex of `G.addUniversalVerts d`, then deleting `U'` leaves a connected
@@ -210,15 +201,13 @@ private theorem ncard_oddComponents_deleteVerts_addUniversalVerts_le_one {d : �
     {U' : Set (V ⊕ Fin d)} {i : Fin d} (hi : Sum.inr i ∉ U') :
     ((⊤ : (G.addUniversalVerts d).Subgraph).deleteVerts U').coe.oddComponents.ncard ≤ 1 := by
   set H := ((⊤ : (G.addUniversalVerts d).Subgraph).deleteVerts U').coe
-  have hi' : Sum.inr i ∈ ((⊤ : (G.addUniversalVerts d).Subgraph).deleteVerts U').verts :=
-    ⟨trivial, hi⟩
   have hreach (x : ((⊤ : (G.addUniversalVerts d).Subgraph).deleteVerts U').verts) :
-      H.Reachable x ⟨_, hi'⟩ := by
-    by_cases h : x = ⟨_, hi'⟩
+      H.Reachable x ⟨_, trivial, hi⟩ := by
+    by_cases h : x = ⟨_, trivial, hi⟩
     · rw [h]
     · refine (Subgraph.Adj.coe (Subgraph.deleteVerts_adj.mpr
         ⟨trivial, x.2.2, trivial, hi, ?_⟩)).reachable
-      rcases x with ⟨x | j, hx'⟩
+      rcases x with ⟨_ | j, _⟩
       · trivial
       · exact fun hji => h (by subst hji; rfl)
   have hpre : H.Preconnected := fun x y => (hreach x).trans (hreach y).symm
@@ -250,14 +239,14 @@ private theorem not_isTutteViolator_addUniversalVerts [Finite V] {U₀ : Set V} 
     have hpar := odd_ncard_oddComponents ((⊤ : G.Subgraph).deleteVerts U₀).coe
     rw [hd, card_verts_deleteVerts_top, Nat.odd_iff, Nat.odd_iff] at hpar
     have hU₀V := Set.ncard_le_card U₀
+    rw [Set.ncard_empty] at hU'
     have h := odd_ncard_oddComponents
       ((⊤ : (G.addUniversalVerts d).Subgraph).deleteVerts (∅ : Set (V ⊕ Fin d))).coe
-    rw [Set.ncard_empty] at hU'
     have h1 : ((⊤ : (G.addUniversalVerts d).Subgraph).deleteVerts
         (∅ : Set (V ⊕ Fin d))).coe.oddComponents.ncard = 1 := by omega
     rw [h1, card_verts_deleteVerts_top, Set.ncard_empty, Nat.card_sum,
       Nat.card_eq_fintype_card (α := Fin d), Fintype.card_fin] at h
-    have hodd := Nat.odd_iff.mp (h.mp odd_one)
+    have := Nat.odd_iff.mp (h.mp odd_one)
     omega
   · have := (Set.ncard_pos (Set.toFinite _)).mpr hne
     omega
@@ -302,8 +291,8 @@ theorem exists_isMatching_ncard_verts_add_ncard_oddComponents_eq [Finite V] (G :
     (fun U => ((⊤ : G.Subgraph).deleteVerts U).coe.oddComponents.ncard + (Nat.card V - U.ncard))
     ⟨∅, Finset.mem_univ _⟩
   have hU₀V := Set.ncard_le_card U₀
-  have hmax : ∀ U : Set V, ((⊤ : G.Subgraph).deleteVerts U).coe.oddComponents.ncard + U₀.ncard ≤
-      ((⊤ : G.Subgraph).deleteVerts U₀).coe.oddComponents.ncard + U.ncard := fun U => by
+  have hmax (U : Set V) : ((⊤ : G.Subgraph).deleteVerts U).coe.oddComponents.ncard + U₀.ncard ≤
+      ((⊤ : G.Subgraph).deleteVerts U₀).coe.oddComponents.ncard + U.ncard := by
     have := hU₀ U (Finset.mem_univ _)
     have := Set.ncard_le_card U
     omega
@@ -331,7 +320,7 @@ theorem IsMaximumMatching.exists_ncard_verts_add_ncard_oddComponents_eq [Finite 
     ∃ U : Set V, M.verts.ncard + ((⊤ : G.Subgraph).deleteVerts U).coe.oddComponents.ncard =
       Nat.card V + U.ncard := by
   obtain ⟨M₀, U, hM₀, heq⟩ := G.exists_isMatching_ncard_verts_add_ncard_oddComponents_eq
-  have h₀ := (hM.1.isMaximumMatching_iff_ncard_verts.mp hM) M₀ hM₀
+  have := (hM.1.isMaximumMatching_iff_ncard_verts.mp hM) M₀ hM₀
   exact ⟨U, le_antisymm (hM.1.ncard_verts_add_ncard_oddComponents_le U) (by omega)⟩
 
 /-- A matching of a finite graph is maximum iff some vertex set `U` attains the Tutte–Berge bound
@@ -340,11 +329,11 @@ theorem IsMatching.isMaximumMatching_iff_exists_ncard_verts_add_ncard_oddCompone
     [Finite V] (hM : M.IsMatching) :
     M.IsMaximumMatching ↔ ∃ U : Set V,
       M.verts.ncard + ((⊤ : G.Subgraph).deleteVerts U).coe.oddComponents.ncard =
-        Nat.card V + U.ncard := by
-  refine ⟨IsMaximumMatching.exists_ncard_verts_add_ncard_oddComponents_eq, fun ⟨U, hU⟩ => ?_⟩
-  refine hM.isMaximumMatching_iff_ncard_verts.mpr fun M' hM' => ?_
-  have := hM'.ncard_verts_add_ncard_oddComponents_le U
-  omega
+        Nat.card V + U.ncard :=
+  ⟨IsMaximumMatching.exists_ncard_verts_add_ncard_oddComponents_eq, fun ⟨U, hU⟩ =>
+    hM.isMaximumMatching_iff_ncard_verts.mpr fun _ hM' => by
+      have := hM'.ncard_verts_add_ncard_oddComponents_le U
+      omega⟩
 
 /-- **The Tutte–Berge formula** ([Berge1958]; [Schrijver2017], Theorem 5.1): twice the size of a
 maximum matching `M` of a finite graph is the least value of `|V| + |U| - o(G - U)` over vertex
@@ -358,8 +347,7 @@ theorem IsMaximumMatching.isLeast_two_mul_ncard_edgeSet [Finite V] (hM : M.IsMax
   refine ⟨⟨U, by dsimp only; omega⟩, ?_⟩
   rintro _ ⟨U', rfl⟩
   have := hM.1.ncard_verts_add_ncard_oddComponents_le U'
-  dsimp only
-  omega
+  dsimp only; omega
 
 end Subgraph
 

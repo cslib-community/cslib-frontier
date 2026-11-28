@@ -12,6 +12,7 @@ public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Combinatorics.SimpleGraph.Finite
 public import Mathlib.Combinatorics.SimpleGraph.Metric
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 
 /-!
@@ -111,7 +112,7 @@ private theorem edist_eq_dist_of_le {v z : V} {n : ℕ} (h : G.edist v z ≤ n) 
     (ne_top_of_le_ne_top (ENat.natCast_ne_top n) h)).coe_dist_eq_edist.symm
 
 /-- `κ = 2 q / (1 + q ^ 2)` is at most one. -/
-private theorem two_mul_div_one_add_sq_le_one (q : ℝ) : 2 * q / (1 + q ^ 2) ≤ 1 := by
+theorem two_mul_div_one_add_sq_le_one (q : ℝ) : 2 * q / (1 + q ^ 2) ≤ 1 := by
   rw [div_le_one (by positivity)]
   nlinarith [sq_nonneg (q - 1)]
 
@@ -154,15 +155,13 @@ private theorem kernelRow_defect_le {q : ℝ} (R : ℕ) {u v : V} (huv : G.Adj u
   · -- Only the entry of `u` is nonzero, so `z` lies on the sphere of radius `R` around `u`.
     have hd := edist_eq_dist_of_le hu
     rw [hd] at h hu ⊢
-    have hR : G.dist u z = R := by
-      have hlt : R < G.dist u z + 1 := by exact_mod_cast (lt_of_not_ge hv).trans_le h
-      have hle : G.dist u z ≤ R := by exact_mod_cast hu
-      omega
-    rw [hR, ite_eq_left le_rfl, ite_eq_left rfl, ← pow_mul, mul_comm R 2, pow_mul]
+    have hlt : R < G.dist u z + 1 := by exact_mod_cast (lt_of_not_ge hv).trans_le h
+    have hle : G.dist u z ≤ R := by exact_mod_cast hu
+    rw [show G.dist u z = R by omega, ite_eq_left le_rfl, ite_eq_left rfl,
+      ← pow_mul, mul_comm R 2, pow_mul]
     have hP : 0 ≤ (q ^ 2) ^ R := by positivity
     nlinarith [mul_le_mul_of_nonneg_right hκ hP, mul_nonneg hP hIv]
-  · rw [ite_eq_right hu]
-    simpa using hRHS
+  · simpa [hu] using hRHS
 
 variable [Fintype V]
 
@@ -172,7 +171,7 @@ private theorem one_le_norm_kernelRow (q : ℝ) (R : ℕ) (v : V) : 1 ≤ ‖ker
     rw [EuclideanSpace.real_norm_sq_eq]
     calc (1 : ℝ) = kernelRow G q R v v ^ 2 := by rw [kernelRow_self, one_pow]
       _ ≤ ∑ z, kernelRow G q R v z ^ 2 :=
-        single_le_sum (f := fun z => kernelRow G q R v z ^ 2) (fun z _ => sq_nonneg _)
+        single_le_sum (f := fun z => kernelRow G q R v z ^ 2) (fun _ _ => sq_nonneg _)
           (mem_univ v)
   nlinarith [norm_nonneg (kernelRow G q R v)]
 
@@ -206,19 +205,14 @@ private theorem card_edist_eq_le {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degre
     (d : ℕ) : #{v | G.edist u v = d} ≤ D * (D - 1) ^ d := by
   cases d with
   | zero =>
-    have h0 : ({v | G.edist u v = ((0 : ℕ) : ℕ∞)} : Finset V) = {u} := by
-      ext v
-      simp only [mem_filter, mem_univ, true_and, mem_singleton, Nat.cast_zero,
-        SimpleGraph.edist_eq_zero_iff]
-      exact eq_comm
-    rw [h0, card_singleton, pow_zero, mul_one]
-    omega
+    refine (card_le_one.mpr fun v hv w hw => ?_).trans (by simpa using by omega)
+    simp only [mem_filter, mem_univ, true_and, Nat.cast_zero,
+      SimpleGraph.edist_eq_zero_iff] at hv hw
+    exact hv.symm.trans hw
   | succ d =>
-    have h := SimpleGraph.card_edist_eq_add_one_le hdeg u d
-    rw [Nat.cast_add, Nat.cast_one]
-    refine h.trans (Nat.mul_le_mul_left D ?_)
-    rw [pow_succ]
-    exact Nat.le_mul_of_pos_right _ (by omega)
+    rw [Nat.cast_add, Nat.cast_one, pow_succ]
+    exact (SimpleGraph.card_edist_eq_add_one_le hdeg u d).trans
+      (Nat.mul_le_mul_left D (Nat.le_mul_of_pos_right _ (by omega)))
 
 /-- **Correlation of adjacent kernel rows.** In a graph of maximum degree `D ≥ 2`, the kernel
 rows of adjacent vertices have inner product at least `κ = 2 q / (1 + q ^ 2)` times the mean of
@@ -236,25 +230,14 @@ theorem le_inner_kernelRow {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degree v �
         kernelRow G q R u z * kernelRow G q R v z) := by
     rw [sum_sub_distrib, ← sum_div, ← mul_sum, sum_add_distrib]
     simp only [mul_comm (kernelRow G q R v _)]
-  have hle := sum_le_sum fun z (_ : z ∈ univ) => kernelRow_defect_le (q := q) R huv z
-  have hcount : ∑ z, (q ^ 2) ^ R / 2 *
-        ((if G.edist u z = R then (1 : ℝ) else 0) + (if G.edist v z = R then 1 else 0)) =
-      (q ^ 2) ^ R / 2 * ((#{z | G.edist u z = R} : ℝ) + #{z | G.edist v z = R}) := by
-    rw [← mul_sum, sum_add_distrib, sum_boole, sum_boole]
-  have hD' : ((D - 1 : ℕ) : ℝ) = D - 1 := by
-    rw [Nat.cast_sub (by omega), Nat.cast_one]
-  have hu : (#{z | G.edist u z = R} : ℝ) ≤ D * (D - 1) ^ R := by
-    rw [← hD']
-    exact_mod_cast card_edist_eq_le hD hdeg u R
-  have hv : (#{z | G.edist v z = R} : ℝ) ≤ D * (D - 1) ^ R := by
-    rw [← hD']
-    exact_mod_cast card_edist_eq_le hD hdeg v R
-  have hP : 0 ≤ (q ^ 2) ^ R := by positivity
-  have hbound : (q ^ 2) ^ R / 2 * ((#{z | G.edist u z = R} : ℝ) + #{z | G.edist v z = R}) ≤
-      D * ((D - 1) * q ^ 2) ^ R := by
-    rw [mul_pow]
-    nlinarith [mul_le_mul_of_nonneg_left (add_le_add hu hv) hP]
-  linarith
+  have hle := (sum_le_sum fun z (_ : z ∈ univ) => kernelRow_defect_le (q := q) R huv z).trans_eq
+    (by rw [← mul_sum, sum_add_distrib, sum_boole, sum_boole])
+  have hsphere (x : V) : (#{z | G.edist x z = R} : ℝ) ≤ D * (D - 1) ^ R := by
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
+    exact_mod_cast card_edist_eq_le hD hdeg x R
+  rw [mul_pow]
+  nlinarith [mul_le_mul_of_nonneg_left (add_le_add (hsphere u) (hsphere v))
+    (by positivity : 0 ≤ (q ^ 2) ^ R)]
 
 /-- **Correlation of adjacent unit kernel rows.** In a graph of maximum degree `D ≥ 2` and for a
 nonnegative ratio `q`, the unit kernel rows of adjacent vertices have inner product at least
@@ -272,9 +255,7 @@ theorem le_inner_unitKernelRow {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degree 
   generalize ‖kernelRow G q R u‖ = s at hs hC ⊢
   generalize ‖kernelRow G q R v‖ = t at ht hC ⊢
   have hκ : 0 ≤ 2 * q / (1 + q ^ 2) := by positivity
-  have hD1 : (0 : ℝ) ≤ D - 1 := by
-    have : (2 : ℝ) ≤ D := by exact_mod_cast hD
-    linarith
+  have hD1 : (0 : ℝ) ≤ D - 1 := by cast_linarith [hD]
   have he : 0 ≤ (D : ℝ) * ((D - 1) * q ^ 2) ^ R := by positivity
   have hamgm : 2 * (s * t) ≤ s ^ 2 + t ^ 2 := by nlinarith [sq_nonneg (s - t)]
   have h1 : 1 ≤ s * t := by nlinarith

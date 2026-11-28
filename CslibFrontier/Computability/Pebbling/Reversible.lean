@@ -131,11 +131,7 @@ theorem RevStep.blackStep {C D : Finset V} {m : Move V} (h : RevStep G C m D) :
 theorem RevStep.forall_adj_of_mem_iff {C D : Finset V} {m : Move V} (h : RevStep G C m D)
     {x : V} (hx : ¬ (x ∈ C ↔ x ∈ D)) : ∀ u, G.Adj u x → u ∈ C := by
   cases h with
-  | @place v _ h =>
-    by_cases hxv : x = v
-    · exact hxv ▸ h
-    · simp [hxv] at hx
-  | @remove v _ h =>
+  | @place v _ h | @remove v _ h =>
     by_cases hxv : x = v
     · exact hxv ▸ h
     · simp [hxv] at hx
@@ -145,14 +141,13 @@ theorem RevStep.swap (hG : ∀ v, ¬ G.Adj v v) {C D : Finset V} {m : Move V}
     (h : RevStep G C m D) : RevStep G D m.swap C := by
   cases h with
   | @place v hv h =>
-    have h' : ∀ u, G.Adj u v → u ∈ insert v C := fun u hu => Finset.mem_insert_of_mem (h u hu)
-    have := RevStep.remove (G := G) (Finset.mem_insert_self v C) h'
-    rwa [Finset.erase_insert hv] at this
+    simpa only [Move.swap, Finset.erase_insert hv] using
+      RevStep.remove (G := G) (Finset.mem_insert_self v C)
+        fun u hu => Finset.mem_insert_of_mem (h u hu)
   | @remove v hv h =>
-    have h' : ∀ u, G.Adj u v → u ∈ C.erase v := fun u hu =>
-      Finset.mem_erase.2 ⟨fun huv => hG v (huv ▸ hu), h u hu⟩
-    have := RevStep.place (G := G) (Finset.notMem_erase v C) h'
-    rwa [Finset.insert_erase hv] at this
+    simpa only [Move.swap, Finset.insert_erase hv] using
+      RevStep.place (G := G) (Finset.notMem_erase v C)
+        fun u hu => Finset.mem_erase.2 ⟨fun huv => hG u (huv ▸ hu), h u hu⟩
 
 /-- Restricting a move to a set of vertices closed under predecessors gives either a move or no
 change. -/

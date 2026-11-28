@@ -12,6 +12,7 @@ public import Mathlib.Order.Filter.AtTopBot.Defs
 public import Mathlib.SetTheory.Cardinal.Finite
 import Mathlib.Algebra.BigOperators.Fin
 import CslibFrontier.Computability.Circuit.Boolean.Hastad
+import CslibFrontier.Computability.Circuit.Simps
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import Mathlib.Tactic.Linarith
@@ -134,12 +135,8 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
   let sub : Fin (Fintype.card (Atom L n)) → Circuits.Formula Unbounded.signature n := fun j =>
     if (e.symm j).1 = ⟨1, P⟩ then .gate (.and _) fun i => .input ((e.symm j).2 i)
     else constUnbounded (decide (N.RelMap (e.symm j).1.2 (e.symm j).2))
-  have hsubd : ∀ j, (sub j).depth ≤ 1 := fun j => by
-    simp only [sub, constUnbounded]
-    split_ifs <;> simp
-  have hsubs : ∀ j, (sub j).size ≤ 1 := fun j => by
-    simp only [sub, constUnbounded]
-    split_ifs <;> simp
+  have hsubd : ∀ j, (sub j).depth ≤ 1 := fun j => by circuit_bound [sub, constUnbounded]
+  have hsubs : ∀ j, (sub j).size ≤ 1 := fun j => by circuit_bound [sub, constUnbounded]
   refine ⟨.gate .not ![G.bind sub], fun y => ?_, ?_, ?_⟩
   · -- the formula computes parity
     set S : Finset (Fin n) := {i | y i = true}
@@ -149,15 +146,12 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
       simp only [sub, Function.comp_apply, atomsOf]
       obtain ⟨⟨l, R⟩, t⟩ := e.symm j
       by_cases hR : (⟨l, R⟩ : Σ l, L.Relations l) = ⟨1, P⟩
-      · rw [ite_eq_left hR]
-        refine Bool.eq_iff_iff.2 ?_
+      · rcases hR with ⟨rfl, rfl⟩
+        rw [ite_eq_left rfl, Bool.eq_iff_iff]
         simp only [Circuits.Formula.eval_gate, Circuits.Formula.eval_input,
-          Unbounded.interpretation_and, decide_eq_true_iff]
-        change _ ↔ (if _ then _ else _)
-        rw [ite_eq_left hR]
-        refine forall_congr' fun i => ?_
-        change _ ↔ t i ∈ S
-        simp [S]
+          Unbounded.interpretation_and, decide_eq_true_iff, Fin.forall_fin_one,
+          Expansion.relMap_self]
+        exact (by simp [S] : t 0 ∈ S ↔ y (t 0) = true).symm
       · rw [ite_eq_right hR]
         refine Bool.eq_iff_iff.2 ?_
         simp only [eval_constUnbounded, decide_eq_true_iff]
@@ -169,24 +163,17 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
     change _ = decide (#S % 2 = 1)
     rw [Nat.even_iff] at hreal
     cases hv : (G.bind sub).eval Unbounded.interpretation y
-    · rw [hv] at hreal
-      have : #S % 2 = 1 := by grind
+    · have : #S % 2 = 1 := by simp only [hv, Bool.false_eq_true, false_iff] at hreal; omega
       simp [this]
-    · have := hreal.1 hv
-      simp [this]
+    · simp [hreal.1 hv]
   · -- depth
-    have h := Circuits.Formula.depth_bind_le hsubd G
-    have hG : G.depth ≤ foDepth φ := depth_toUnbounded_le e φ Fin.elim0
-    simp only [Circuits.Formula.depth_gate, Finset.univ_unique, Finset.sup_singleton,
-      Fin.default_eq_zero, Matrix.cons_val_zero]
-    omega
+    have := depth_toUnbounded_le e φ Fin.elim0
+    circuit_bound
   · -- size
-    have h := Circuits.Formula.size_bind_le hsubs G
-    have hs : G.size ≤ foSize φ * (n + 2) ^ foSize φ := size_toUnbounded_le e φ Fin.elim0
-    have hl : G.leafSize ≤ (n + 2) ^ foSize φ := leafSize_toUnbounded_le e φ Fin.elim0
-    have hpos : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-    simp only [Circuits.Formula.size_gate, Fin.sum_univ_one, Matrix.cons_val_zero]
-    nlinarith
+    have := size_toUnbounded_le e φ Fin.elim0
+    have := leafSize_toUnbounded_le e φ Fin.elim0
+    have : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
+    circuit_bound
 
 /-- **Parity is not first-order definable, with arbitrary numerical relations**
 [FurstSaxeSipser1984], [Ajtai1983], [Immerman1999]. Let `L` be a relational
@@ -231,11 +218,9 @@ theorem not_forall_realize_iff_even_card [Finite (Σ l, L.Relations l)] (P : L.R
     (Filter.eventually_atTop.2 ⟨n₀, fun n hn => ?_⟩)
   intro S
   have : Finite (Expansion P (N n) S) := inferInstanceAs (Finite (Fin n))
-  have hcard : Nat.card {m : Expansion P (N n) S // Structure.RelMap P ![m]} = #S := by
-    rw [← Nat.card_eq_finsetCard S]
-    refine Nat.card_congr (Equiv.subtypeEquivRight fun m => ?_)
-    rw [Expansion.relMap_self]
-    rfl
+  have hcard : Nat.card {m : Expansion P (N n) S // Structure.RelMap P ![m]} = #S :=
+    (Nat.card_congr (Equiv.subtypeEquivRight fun m => Expansion.relMap_self ![m])).trans
+      (Nat.card_eq_finsetCard S)
   have hn' : Nat.card (Expansion P (N n) S) = n :=
     (Nat.card_eq_fintype_card (α := Fin n)).trans (Fintype.card_fin n)
   rw [← hcard]

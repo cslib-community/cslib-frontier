@@ -36,7 +36,9 @@ lake exe checkInitImports
 ```
 
 `scripts/check.sh` runs every locally reproducible step of CI's `source-checks` and `lean-checks`
-jobs, whose results feed the required `ci-checks` aggregator. `scripts/full_check.py` lists the
+jobs, whose results feed the required `ci-checks` aggregator (`lean-checks` and `full_check.py`
+pass `CslibFrontierTests`, `lake test`'s library driver, directly to `lake build --wfail --iofail`
+so ready test modules overlap with library compilation). `scripts/full_check.py` lists the
 steps and records why the remaining ones stay CI-only. The manual checks catch source and link
 drift in the maintained manual pages.
 For Lean, dependency or build changes, all of these must pass on the final source revision before
@@ -46,15 +48,25 @@ repeat it locally merely to satisfy a second reporting requirement. Run local fu
 to validation machinery also need direct checks of the changed behavior. The required `ci-checks` always
 checks source validation. A PR confined to allowlisted prose
 can skip the Lean job. Merge groups still run it. The HTTP origin suite runs on main and on
-PR or queue changes outside the known Lean, bibliography and prose paths. Set the repository
-variable `FORCE_FULL_CI=1` to schedule both jobs on every event. On `pull_request` runs,
+PR or queue changes outside the known Lean, bibliography and prose paths, and `lean-checks` skips
+its Lean-fixture Python tooling unit tests on PR and merge-group diffs confined to library, test and
+result-entry Lean modules (excluding `CslibFrontierResults/Registry.lean`), `references.bib`,
+`prose_path` and `manual/` Markdown (`main` pushes and manual runs always run them, and
+`source-checks` always runs the non-Lean Python unit tests). Set the repository
+variable `FORCE_FULL_CI=1` to schedule full selection on every event. On `pull_request` runs,
 `lean-checks` runs declaration linting scoped to affected library modules (`scripts/quick_check.py
 --lint-only`, falling back to whole-library `lake lint` when changes are unsupported or exceed
-thresholds; `#5163`), `source-checks` posts an advisory notice (`scripts/check_hub_impact.py`)
+thresholds; `#5163`) and uploads `lean-advisory-notices` right after linting, `pr-notices` posts
+early source and PR-description advisory notices (`scripts/proof_copies.py`,
+`scripts/check_hub_impact.py`, `scripts/check_pr_names.py`), including
 when a PR modifies an existing module with `>= 500` transitive importers, and the `Guide` workflow
 (`scripts/ci/select_guide.py`) skips `.lake` restoration and compilation when a PR touches nothing
 in `CslibFrontierGuide`'s transitive import closure. Merge groups, pushes to `main`, and manual
-runs continue to run whole-library `lake lint`.
+runs continue to run whole-library `lake lint` so non-local linters check the combined library
+environment, while the whole-library advisory security-premise and reduction-witness reports run on
+`main` pushes (PRs check changed modules). Merge groups build the same targets with Lake's
+`--fail-fast`, so the first failed module ends the build and a breaking entry is ejected sooner;
+pull requests, pushes and manual runs build every target and report every error.
 
 During development, check affected modules and representative clients before requesting review;
 a PR may use CI for the full run. For documentation-only changes, check consistency, links and

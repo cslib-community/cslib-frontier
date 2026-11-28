@@ -53,7 +53,7 @@ variable {n : ℕ}
 reachability bit and first hitting time. -/
 theorem synthesis_navigation_given_flag (f : BitString n → BitString n)
     (depth : Circuit signature n (n + 2))
-    (hd : ∀ x, word (depth.eval interpretation x) =
+    (hd : ∀ x, BitString.equivBitVec (depth.eval interpretation x) =
       BitVec.ofNat (n + 2) (transientDepth f x))
     (label : Circuit signature n (labelWidth n))
     (hl : ∀ x, label.eval interpretation x = canonicalLabel f x)
@@ -107,12 +107,10 @@ theorem synthesis_navigation_given_flag (f : BitString n → BitString n)
     · simp only [hz, ite_true, reaches]
       exact decide_eq_decide.mpr Iff.rfl
     · simp only [hz, ite_false]
-      apply Bool.eq_iff_iff.mpr
-      rw [htr z (Nat.pos_of_ne_zero hz), ← reaches_iff]
+      exact Bool.eq_iff_iff.mpr (by rw [htr z (Nat.pos_of_ne_zero hz), ← reaches_iff])
   have htimeEq : (fun z => if decide (depthWord f (inputRight z) = 0) then cycTime z else diff z) =
-      fun z => navigationTime f (inputLeft z) (inputRight z) := by
-    funext z
-    simp only [navigationTime, cycTime, cycDist, diff, decide_eq_true_eq]
+      fun z => navigationTime f (inputLeft z) (inputRight z) :=
+    funext fun z => by simp only [navigationTime, cycTime, cycDist, diff, decide_eq_true_eq]
   rw [hflagEq] at hflagMux
   rw [htimeEq] at htimeMux
   let b := b.add (hflagMux.union htimeMux)
@@ -134,7 +132,7 @@ theorem synthesis_navigation (f : BitString n → BitString n) (K : ℕ)
     (hpowers : ∀ j < n + 1, ∃ pow : Circuit signature n n,
       pow.Computes interpretation f^[2 ^ j] ∧ pow.size ≤ K)
     (depth : Circuit signature n (n + 2))
-    (hd : ∀ x, word (depth.eval interpretation x) =
+    (hd : ∀ x, BitString.equivBitVec (depth.eval interpretation x) =
       BitVec.ofNat (n + 2) (transientDepth f x))
     (label : Circuit signature n (labelWidth n))
     (hl : ∀ x, label.eval interpretation x = canonicalLabel f x) :
@@ -163,9 +161,9 @@ theorem synthesis_navigation (f : BitString n → BitString n) (K : ℕ)
   synthesis_step b using
     synthesis_binary_powering (m := n + 1) f K hpowers b.wires inputLeft diffBits
   synthesis_step b using synthesis_bits_eq b.wires
-      (fun z => f^[(word (diffBits z)).toNat] (inputLeft z)) inputRight
+      (fun z => f^[(BitString.equivBitVec (diffBits z)).toNat] (inputLeft z)) inputRight
   let transientFlag := fun z => (!(depthWord f (inputLeft z)).ult (depthWord f (inputRight z))) &&
-    decide (f^[(word (diffBits z)).toNat] (inputLeft z) = inputRight z)
+    decide (f^[(BitString.equivBitVec (diffBits z)).toNat] (inputLeft z) = inputRight z)
   have htrFlag : Synthesis interpretation b.wires {transientFlag} 1 :=
     (Synthesis.of_mem (by synthesis_available)).and (Synthesis.of_mem (by synthesis_available))
   let b := b.add htrFlag
@@ -176,19 +174,19 @@ theorem synthesis_navigation (f : BitString n → BitString n) (K : ℕ)
         ∃ t, f^[t] (inputLeft z) = inputRight z := by
     rw [htrEval z]
     change ((!(depthWord f (inputLeft z)).ult (depthWord f (inputRight z))) &&
-      decide (f^[(word (diffBits z)).toNat] (inputLeft z) = inputRight z)) = true ↔ _
+      decide (f^[(BitString.equivBitVec (diffBits z)).toNat] (inputLeft z) =
+        inputRight z)) = true ↔ _
     rw [Bool.and_eq_true, Bool.not_eq_true', BitVec.ult, decide_eq_false_iff_not, not_lt,
       toNat_depthWord, toNat_depthWord, decide_eq_true_eq]
     have hnotper : inputRight z ∉ Function.periodicPts f :=
       fun h => ne_of_gt hy ((transientDepth_eq_zero_iff f (inputRight z)).mpr h)
     rw [exists_iterate_eq_iff_of_not_mem_periodicPts f (inputLeft z) (inputRight z) hnotper]
     have hdiffToNat (hle : transientDepth f (inputRight z) ≤ transientDepth f (inputLeft z)) :
-        (word (diffBits z)).toNat =
+        (BitString.equivBitVec (diffBits z)).toNat =
           transientDepth f (inputLeft z) - transientDepth f (inputRight z) := by
-      have hw : word (diffBits z) = (diff z).setWidth (n + 1) := by
-        apply BitVec.eq_of_getLsbD_eq
-        intro i hi
-        rw [getLsbD_word _ ⟨i, hi⟩]
+      have hw : BitString.equivBitVec (diffBits z) = (diff z).setWidth (n + 1) := by
+        refine BitVec.eq_of_getLsbD_eq fun i hi => ?_
+        rw [BitString.getLsbD_equivBitVec _ ⟨i, hi⟩]
         simp [diffBits, hi]
       have hlt :
           transientDepth f (inputLeft z) - transientDepth f (inputRight z) < 2 ^ (n + 1) := by
@@ -196,11 +194,7 @@ theorem synthesis_navigation (f : BitString n → BitString n) (K : ℕ)
         have hpow1 : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
         lia
       rw [hw, BitVec.toNat_setWidth, toNat_navigationGap f _ _ hle, Nat.mod_eq_of_lt hlt]
-    constructor
-    · rintro ⟨hle, he⟩
-      exact ⟨hle, by rwa [hdiffToNat hle] at he⟩
-    · rintro ⟨hle, he⟩
-      exact ⟨hle, by rwa [hdiffToNat hle]⟩
+    exact and_congr_right fun hle => by rw [hdiffToNat hle]
   have hmain := synthesis_navigation_given_flag f depth hd label hl transientReach htrSpec
   refine hmain.mono Set.Subset.rfl Set.Subset.rfl ?_
   dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start] at htrSize

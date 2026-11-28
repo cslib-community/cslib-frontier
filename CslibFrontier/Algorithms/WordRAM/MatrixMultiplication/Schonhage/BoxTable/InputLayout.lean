@@ -66,10 +66,8 @@ theorem input_fits {w L m t A B : ℕ} (a b : Fin (10 ^ L) → ℤ)
     exact haddr.of_le (by unfold addressBound; omega)
   · intro v hv
     simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with ((rfl | rfl | rfl) | hv) | hv
-    · exact haddr.of_le (by unfold addressBound; omega)
-    · exact haddr.of_le (by unfold addressBound; omega)
-    · exact haddr.of_le (by unfold addressBound; omega)
+    rcases hv with (h | hv) | hv
+    · rcases h with rfl | rfl | rfl <;> exact haddr.of_le (by dsimp only [addressBound]; omega)
     · obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
       exact (Signed.encode_fits (hmag.of_natAbs_le ((ha i).trans
         (by unfold magnitudeBound; omega)))).mono (by omega)
@@ -85,19 +83,16 @@ theorem input_readback (L m t : ℕ) (a b : Fin (10 ^ L) → ℤ) :
       (∀ i : Fin (10 ^ L), x.mem (4 + 10 ^ L + i.val) = Signed.encode (b i)) := by
   dsimp only
   refine ⟨by simp [State.init, Data.init, input], by simp [State.init, Data.init, input],
-    by simp [State.init, Data.init, input], ?_, ?_⟩
-  · intro i
-    have h := Data.init_realizes_append (r := registers) [L, m, t]
-      (List.ofFn (fun j => Signed.encode (a j))) (List.ofFn (fun j => Signed.encode (b j)))
-    have hr := h ⟨i.val, by simp⟩
-    simpa [State.init, input, Block.read, List.append_assoc] using hr
-  · intro i
-    have hfour (n : ℕ) : 1 + (1 + (1 + (1 + n))) = 4 + n := by omega
-    have h := Data.init_realizes_append (r := registers)
-      ([L, m, t] ++ List.ofFn (fun j => Signed.encode (a j)))
-      (List.ofFn (fun j => Signed.encode (b j))) []
-    have hr := h ⟨i.val, by simp⟩
+    by simp [State.init, Data.init, input], fun i => ?_, fun i => ?_⟩
+  · simpa [State.init, input, Block.read, List.append_assoc] using
+      Data.init_realizes_append (r := registers) [L, m, t]
+        (List.ofFn fun j => Signed.encode (a j)) (List.ofFn fun j => Signed.encode (b j))
+        ⟨i.val, by simp⟩
+  · have hfour (n : ℕ) : 1 + (1 + (1 + (1 + n))) = 4 + n := by omega
     simpa [State.init, input, Block.read, List.append_assoc, Nat.add_assoc,
-      Nat.add_comm, Nat.add_left_comm, hfour] using hr
+      Nat.add_comm, Nat.add_left_comm, hfour] using
+      Data.init_realizes_append (r := registers)
+        ([L, m, t] ++ List.ofFn fun j => Signed.encode (a j))
+        (List.ofFn fun j => Signed.encode (b j)) [] ⟨i.val, by simp⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

@@ -123,22 +123,13 @@ theorem iterate_spec {initial : α → σ} {count : α → ℕ}
       ((ComputableInPolyTime.of_eq (encIn := encode) (encOut := encBits) (f := encode)
         fun _ => rfl).comp (hcount.prod hinitial))
   let tp (a : α) : ℕ := cp * ((input a).length + 1) ^ dp
-  have htp : PolyBounded (fun a => (input a).length) tp := .of_forall_le cp dp fun _ => le_rfl
-  have hcountPoly := Turing.MultiTapeTM.ComputableInPolyTime.polyBounded hcount
   let bound (a : α) : ℕ := 2 * count a + 1 + size a
   let roundTime (a : α) : ℕ := cB * (bound a + 1) ^ dB
   let loopTime (a : α) : ℕ := (count a + 1) * (roundTime a + 10 * bound a + 23) + 8 * bound a + 17
-  -- Kept for the `growth_poly` in `hloopPoly`, which elaborates faster with them in context.
-  have hboundPoly : PolyBounded (fun a => (input a).length) bound :=
-    ((PolyBounded.const 2).mul hcountPoly |>.add (.const 1)).add hsize
-  have hroundPoly : PolyBounded (fun a => (input a).length) roundTime :=
-    PolyBounded.comp (size' := id) (v := fun n => cB * (n + 1) ^ dB)
-      (.of_forall_le cB dB fun _ => le_rfl) hboundPoly
-  have hloopPoly : PolyBounded (fun a => (input a).length) loopTime := by growth_poly
   have hfinal : IsTidyOraclePPTOn input encode
       (fun a => (fun final => (0, final)) <$> OracleComp.iterate (count a) step (initial a)) := by
     refine of_polyBounded ((machine.iterateWhile true).tidyComp prepare true)
-      (((PolyBounded.const 5).mul htp).add hloopPoly |>.add (.const 9)) fun a => ?_
+      (time := fun a => 5 * tp a + loopTime a + 9) (by growth_poly) fun a => ?_
     let start := encode (count a, initial a)
     have hrun : (machine.iterateWhile true).ComputesTidily start (loopTime a)
         (OracleComp.iterate (count a) wordStep start) := by

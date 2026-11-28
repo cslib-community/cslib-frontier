@@ -79,4 +79,41 @@ an end with the second prescribed edge direction. -/
     ∃ s t, x.graph.graph.Legal s ∧ s ⟨x.first.edge, hA⟩ = x.first.dir ∧
       t ⟨x.second.edge, hB⟩ = x.second.dir ∧ x.graph.graph.Reachable s t}
 
+namespace AndOrGraph
+
+/-- Finite graph serialization preserves configuration-to-configuration membership. -/
+theorem ofFinite_mem_AndOrNCL_iff {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
+    (hv : (ofFinite G).Valid) (s t : List Bool) :
+    ⟨ofFinite G, s, t⟩ ∈ AndOrNCL ↔ s.length = m ∧ t.length = m ∧
+      G.Legal ((ofFinite G).config s) ∧
+      G.Reachable ((ofFinite G).config s) ((ofFinite G).config t) := by
+  change ((ofFinite G).Valid ∧ _) ↔ _
+  rw [and_iff_right hv]
+  exact and_congr_right fun _ => and_congr_right fun _ =>
+    and_congr ((ofFiniteSimulation G).legal_enc_iff (s := (ofFinite G).config s))
+      ((ofFiniteSimulation G).reachable_enc_iff
+        (a := (ofFinite G).config s) (a' := (ofFinite G).config t))
+
+/-- Finite graph serialization preserves configuration-to-edge membership. -/
+theorem ofFinite_mem_AndOrNCLEdge_iff {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
+    (hv : (ofFinite G).Valid) (s : List Bool) (e : Fin m) :
+    ⟨ofFinite G, s, e.val⟩ ∈ AndOrNCLEdge ↔ s.length = m ∧
+      G.Legal ((ofFinite G).config s) ∧ G.CanReverse ((ofFinite G).config s) e := by
+  have hlegal := (ofFiniteSimulation G).legal_enc_iff (s := (ofFinite G).config s)
+  have hreverse := (ofFiniteSimulation G).canReverse_enc_iff
+    (e := e) (e' := e) (fun _ => rfl) (s := (ofFinite G).config s)
+  exact ⟨fun ⟨_, _, hs, hl, hr⟩ => ⟨hs, hlegal.1 hl, hreverse.1 hr⟩,
+    fun ⟨hs, hl, hr⟩ => ⟨e.isLt, hv, hs, hlegal.2 hl, hreverse.2 hr⟩⟩
+
+/-- Finite graph serialization preserves directional edge-to-edge membership. -/
+theorem ofFinite_mem_AndOrNCLEdgeToEdge_iff {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
+    (hv : (ofFinite G).Valid) (eA eB : Fin m) (dA dB : Bool) :
+    ⟨ofFinite G, ⟨eA.val, dA⟩, ⟨eB.val, dB⟩⟩ ∈ AndOrNCLEdgeToEdge ↔
+      ∃ s t, G.Legal s ∧ s eA = dA ∧ t eB = dB ∧ G.Reachable s t := by
+  have hsem := (ofFiniteSimulation G).exists_legal_reachable_iff
+    (eA := eA) (eB := eB) (eA' := eA) (eB' := eB) (fun _ => rfl) (fun _ => rfl) dA dB
+  exact ⟨fun ⟨_, _, _, h⟩ => hsem.1 h, fun h => ⟨eA.isLt, eB.isLt, hv, hsem.2 h⟩⟩
+
+end AndOrGraph
+
 end Cslib.Complexity.NCL

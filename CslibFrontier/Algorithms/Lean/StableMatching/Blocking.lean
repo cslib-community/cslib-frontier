@@ -64,10 +64,8 @@ theorem recvRank_deferredAcceptance_lt {q r : Fin n}
     rw [← propRank_deferredAcceptance]; exact h
   obtain ⟨y, hy, hyq⟩ := I.inv_finalState.rejected q _ hk
   rw [propPref_propRank] at hy hyq
-  have hy' : I.deferredAcceptance y = r := hy
-  subst hy'
-  rw [Equiv.symm_apply_apply]
-  exact hyq
+  obtain rfl : I.deferredAcceptance y = r := hy
+  rwa [Equiv.symm_apply_apply]
 
 /-- First case of the blocking lemma: some proposer that prefers `μ` is matched in `μ` to the
 deferred-acceptance partner of a proposer that does not. -/
@@ -85,10 +83,8 @@ private theorem blocking_of_not_better {μ : Matching n} {q : Fin n}
   push Not at hx
   rw [hDx] at hx
   refine ⟨lt_of_le_of_ne hx fun h => hμx (I.propRank_injective x h).symm, ?_⟩
-  have h := I.recvRank_deferredAcceptance_lt hq
-  rw [RecvPrefers, ← hxdef, Equiv.symm_apply_apply]
-  rw [hxdef] at h ⊢
-  exact h
+  rw [RecvPrefers, Equiv.symm_apply_apply, ← hxdef]
+  exact I.recvRank_deferredAcceptance_lt hq
 
 /-- If `σ` is injective and maps the finite set `B` into itself, it maps `B` onto itself. -/
 private theorem exists_eq_of_mapsTo {σ : Fin n → Fin n} (hσ : Function.Injective σ)
@@ -108,21 +104,16 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
   have hT : T.Nonempty := by
     by_contra hT
     rw [Finset.not_nonempty_iff_eq_empty, Finset.filter_eq_empty_iff] at hT
+    simp only [Finset.mem_range, not_exists, not_and, Classical.not_not] at hT
     have key : ∀ k ≤ N, I.run k p₀ = 0 := by
       intro k hk
       induction k with
       | zero => rfl
-      | succ k ih =>
-        have h1 := hT (Finset.mem_range.2 (show k < N by omega))
-        push Not at h1
-        rw [← h1 p₀ hp₀, ih (by omega)]
-    have := key N le_rfl
-    rw [← finalState] at this
-    omega
+      | succ k ih => rw [← hT (by omega) p₀ hp₀, ih (by omega)]
+    exact absurd (key N le_rfl) hpos.ne'
   set t := T.max' hT
-  have ht : t ∈ T := T.max'_mem hT
-  rw [Finset.mem_filter, Finset.mem_range] at ht
-  obtain ⟨htN, p, hpB, hp⟩ := ht
+  obtain ⟨htN, p, hpB, hp⟩ : t < N ∧ ∃ p ∈ B, I.run t p ≠ I.run (t + 1) p := by
+    simpa only [T, Finset.mem_filter, Finset.mem_range] using T.max'_mem hT
   refine ⟨t, htN, p, hpB, hp, fun q hq => ?_⟩
   have stable : ∀ k, t + 1 ≤ k → k ≤ N → I.run (t + 1) q = I.run k q := by
     intro k hk hkN
@@ -130,14 +121,10 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
     | base => rfl
     | succ k hk ih =>
       rw [ih (by omega)]
-      by_contra hne
-      have hmem : k ∈ T := by
-        rw [Finset.mem_filter, Finset.mem_range]
-        exact ⟨by omega, q, hq, hne⟩
-      have := T.le_max' k hmem
-      omega
-  rw [stable N (by omega) le_rfl]
-  rfl
+      exact Classical.byContradiction fun hne => absurd
+        (T.le_max' k (Finset.mem_filter.2 ⟨Finset.mem_range.2 (by omega), q, hq, hne⟩))
+        (not_le.2 hk)
+  exact stable N (by omega) le_rfl
 
 /-- The step taken at a time when proposer `p₀` changes is the one turning `p₀` down. -/
 private theorem run_succ_eq_update_of_ne {t : ℕ} {p₀ : Fin n}
@@ -146,13 +133,8 @@ private theorem run_succ_eq_update_of_ne {t : ℕ} {p₀ : Fin n}
       I.run (t + 1) = Function.update (I.run t) p₀ (I.run t p₀ + 1) := by
   rw [run_succ] at h ⊢
   rcases I.step_cases (I.run t) with ⟨hs, -⟩ | ⟨p, hp, hs⟩
-  · rw [hs] at h
-    exact absurd rfl h
-  · have hpp : p₀ = p := by
-      by_contra hne
-      rw [hs, Function.update_of_ne hne] at h
-      exact h rfl
-    subst hpp
+  · rw [hs] at h; exact absurd rfl h
+  · obtain rfl : p₀ = p := of_not_not fun hne => h (by rw [hs, Function.update_of_ne hne])
     exact ⟨hp, hs⟩
 
 /-- Proposer `p` currently proposes to its choice of rank `s p`. -/
@@ -193,13 +175,7 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
     (fun a b h => μ.injective (D.symm.injective h)) (B := {q | q ∈ B})
     (fun q hq => (hB _).2 (hcl q ((hB q).1 hq))) (p := p₀) hp₀B
   have hμq : μ q = D p₀ := by rw [← hq]; exact (D.apply_symm_apply _).symm
-  have hqp : q ≠ p₀ := by
-    intro hqp
-    have h := (hB q).1 hqB
-    rw [hμq, hqp] at h
-    exact lt_irrefl _ h
-  have hDeq : ∀ y, D y = I.target I.finalState y := fun y => by
-    rw [hD, deferredAcceptance_apply]
+  have hqp : q ≠ p₀ := by rintro rfl; exact ((hB q).1 hqB).ne (by rw [hμq])
   have hrun : ∀ y, y ≠ p₀ → I.run (t + 1) y = I.run t y := fun y hy => by
     rw [hupd, Function.update_of_ne hy]
   have htarget : ∀ y, y ≠ p₀ → I.target (I.run (t + 1)) y = I.target (I.run t) y :=
@@ -207,41 +183,27 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
   -- `q` had already been turned down by `D p₀` before step `t`
   have hk : (I.propRank q (D p₀)).val < I.run t q := by
     have h := (hB q).1 hqB
-    rw [hμq, Fin.lt_def, hD, propRank_deferredAcceptance, ← hfin q hqB, hrun q hqp] at h
-    exact h
+    rwa [hμq, Fin.lt_def, hD, propRank_deferredAcceptance, ← hfin q hqB, hrun q hqp] at h
   obtain ⟨x, hx, hxq⟩ := hsI.rejected q _ hk
   rw [propPref_propRank] at hx hxq
   have hxp : x ≠ p₀ := by
-    intro hxp
-    rw [hxp] at hx
-    have h1 := I.propRank_target hsI p₀
-    have h2 := I.propRank_target hs'I p₀
-    rw [hx] at h1
-    rw [← hDp₀, h1, hupd, Function.update_self] at h2
+    rintro rfl
+    have h1 := hx ▸ I.propRank_target hsI x
+    have h2 := hDp₀ ▸ I.propRank_target hs'I x
+    rw [h1, hupd, Function.update_self] at h2
     omega
   have hx' : I.target (I.run (t + 1)) x = D p₀ := by rw [htarget x hxp, hx]
-  have hxB : x ∉ B := by
-    intro hxB
-    refine hxp (D.injective ?_)
-    rw [hDeq x, ← hx']
-    simp only [target, hfin x hxB]
+  have hxB : x ∉ B := fun hxB => hxp (D.injective
+    (by simpa only [hD, deferredAcceptance_apply, target, hfin x hxB] using hx'))
   have hxle : I.propRank x (D x) ≤ I.propRank x (μ x) :=
     le_of_not_gt (mt (hB x).2 hxB)
   have hxlt : I.propRank x (D p₀) < I.propRank x (D x) := by
-    have h1 := I.propRank_target hs'I x
-    rw [hx'] at h1
-    have h2 : (I.propRank x (D x)).val = I.finalState x := by
-      rw [hD, propRank_deferredAcceptance]
-    rw [Fin.lt_def, h1, h2]
+    rw [Fin.lt_def, ← hx', I.propRank_target hs'I x, hD, propRank_deferredAcceptance]
     refine lt_of_le_of_ne (I.run_le_finalState (t + 1) x) fun heq => hxp (D.injective ?_)
-    rw [hDeq x, ← hx']
+    rw [hD, deferredAcceptance_apply, ← hx']
     simp only [target, heq]
-  have hμsymm : μ.symm (μ q) = q := μ.symm_apply_apply q
-  refine ⟨x, q, (hB q).1 hqB, hxle, ?_, ?_⟩
-  · rw [PropPrefers, hμq]
-    exact lt_of_lt_of_le hxlt hxle
-  · rw [RecvPrefers, hμsymm, hμq]
-    exact hxq
+  exact ⟨x, q, (hB q).1 hqB, hxle, by rw [PropPrefers, hμq]; exact hxlt.trans_le hxle,
+    by rw [RecvPrefers, μ.symm_apply_apply, hμq]; exact hxq⟩
 
 /-- The blocking lemma (Hwang; [GaleSotomayor1985]): if some proposer strictly prefers a matching
 `μ` to its deferred-acceptance partner, then `μ` is blocked by a pair `(x, μ q)` where `q`
@@ -286,17 +248,9 @@ theorem not_forall_mem_propRank_lt_of_isStable {J : Instance n} {C : Set (Fin n)
   obtain ⟨p₀, hp₀⟩ := hC
   obtain ⟨x, q, -, hx, hblock⟩ := I.exists_isBlockingPair_of_lt (h p₀ hp₀)
   have hxC : x ∉ C := fun hxC => absurd (h x hxC) (not_lt_of_ge hx)
-  refine hμ x (μ q) ?_
-  have hpx : ∀ r, J.propRank x r = I.propRank x r := fun r => by
-    rw [propRank, propRank, hprop x hxC]
-  have hrq : ∀ p, J.recvRank (μ q) p = I.recvRank (μ q) p := fun p => by
-    rw [recvRank, recvRank, hrecv]
-  obtain ⟨h1, h2⟩ := hblock
-  refine ⟨?_, ?_⟩
-  · rw [PropPrefers, hpx, hpx]
-    exact h1
-  · rw [RecvPrefers, hrq, hrq]
-    exact h2
+  refine hμ x (μ q) ⟨?_, ?_⟩
+  · simpa only [PropPrefers, propRank, hprop x hxC] using hblock.1
+  · simpa only [RecvPrefers, recvRank, hrecv] using hblock.2
 
 /-- Individual strategy-proofness of deferred acceptance for the proposers ([DubinsFreedman1981],
 [Roth1982]): if proposer `p` reports the list `π` instead of its true list, then in every matching
@@ -306,9 +260,7 @@ theorem propRank_deferredAcceptance_le_of_isStable_updatePropPref (p : Fin n)
     (π : Equiv.Perm (Fin n)) {μ : Matching n} (hμ : (I.updatePropPref p π).IsStable μ) :
     I.propRank p (I.deferredAcceptance p) ≤ I.propRank p (μ p) := by
   refine le_of_not_gt fun h => I.not_forall_mem_propRank_lt_of_isStable (J := I.updatePropPref p π)
-    (C := {p}) rfl (fun q hq => Function.update_of_ne hq _ _) ⟨p, rfl⟩ hμ ?_
-  rintro q rfl
-  exact h
+    (C := {p}) rfl (fun q hq => Function.update_of_ne hq _ _) ⟨p, rfl⟩ hμ fun _ hq => hq ▸ h
 
 /-- Truthful reporting is a dominant strategy for each proposer under deferred acceptance
 ([DubinsFreedman1981]; [Roth1982], Theorem 5). -/

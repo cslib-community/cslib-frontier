@@ -75,12 +75,10 @@ theorem runList_source (machine : MultiTapeCTM k₀ Symbol State₀) (k₁ fuel 
     runList (source machine k₁) fuel ((source machine k₁).initialConfig input).tapes =
       (machine.runList fuel (machine.initialConfig input).tapes).map
         (fun cfg => (buffer k₁ (Config.emptyOracleEquiv.symm cfg)).tapes) := by
-  have h := congrArg
-    (OracleComp.interpret (fun n => List.ofFn (id : Fin n → Fin n)))
-    (runConfigFrom_source chooseOccurrence chooseOccurrence_map machine k₁ fuel input)
-  have hm := congrArg (List.map Config.tapes) h
-  simpa [interpret_runConfigFrom_eq_map_runList, OracleComp.interpret_map,
-    List.map_map, Function.comp_def, Config.emptyOracleEquiv] using hm
+  simpa [interpret_runConfigFrom_eq_map_runList, OracleComp.interpret_map, List.map_map,
+    Function.comp_def, Config.emptyOracleEquiv] using congrArg (List.map Config.tapes) <|
+      congrArg (OracleComp.interpret fun n => List.ofFn (id : Fin n → Fin n))
+        (runConfigFrom_source chooseOccurrence chooseOccurrence_map machine k₁ fuel input)
 
 /-- The consumer keeps every source scratch cell and every continuation occurrence. -/
 theorem runList_consumer (machine : MultiTapeCTM k₁ Symbol State₁) (mark : Symbol)
@@ -89,12 +87,10 @@ theorem runList_consumer (machine : MultiTapeCTM k₁ Symbol State₁) (mark : S
     runList (consumer machine k₀) fuel (consumerConfig mark cfg₀ cfg₁).tapes =
       (machine.runList fuel cfg₁.tapes).map
         (fun cfg => (consumerConfig mark cfg₀ (Config.emptyOracleEquiv.symm cfg)).tapes) := by
-  have h := congrArg
-    (OracleComp.interpret (fun n => List.ofFn (id : Fin n → Fin n)))
-    (runConfigFrom_consumer chooseOccurrence chooseOccurrence_map machine mark cfg₀ cfg₁ fuel)
-  have hm := congrArg (List.map Config.tapes) h
-  simpa [interpret_runConfigFrom_eq_map_runList, OracleComp.interpret_map,
-    List.map_map, Function.comp_def, Config.emptyOracleEquiv] using hm
+  simpa [interpret_runConfigFrom_eq_map_runList, OracleComp.interpret_map, List.map_map,
+    Function.comp_def, Config.emptyOracleEquiv] using congrArg (List.map Config.tapes) <|
+      congrArg (OracleComp.interpret fun n => List.ofFn (id : Fin n → Fin n))
+        (runConfigFrom_consumer chooseOccurrence chooseOccurrence_map machine mark cfg₀ cfg₁ fuel)
 
 /-- Buffering the source preserves the explicit no-stuck table condition. -/
 theorem nonblocking_source {machine : MultiTapeCTM k₀ Symbol State₀}
@@ -121,7 +117,7 @@ theorem haltsWithin_consumer {machine : MultiTapeCTM k₁ Symbol State₁}
     MultiTapeCTM.HaltsWithin (consumer machine k₀) fuel
       (consumerConfig mark cfg₀ cfg₁).tapes := by
   apply haltsWithin_of_halted _ (nonblocking_consumer hnon k₀).actions_ne_nil
-  intro final hfinal
+  intro _ hfinal
   rw [runList_consumer] at hfinal
   obtain ⟨result, hresult, rfl⟩ := List.mem_map.mp hfinal
   exact h.halted_of_mem_runList hresult
@@ -139,29 +135,22 @@ theorem runList_continuation (machine : MultiTapeCTM k₁ Symbol State₁)
           (consumerConfig mark cfg (Config.emptyOracleEquiv.symm final))).tapes) := by
   let prep := MultiTapeTM.prepareInput (k₁ + k₀) mark
   let initial := Sequential.start (ofDeterministic prep) (buffer k₁ cfg)
-  have hdet := runFrom_prepare mark k₁ cfg
-  change prep.runFrom initial.tapes (cfg.tapes.output.length + 4) = _ at hdet
+  have hdet : prep.runFrom initial.tapes (cfg.tapes.output.length + 4) = _ :=
+    runFrom_prepare mark k₁ cfg
   have hprep : prep.runFrom initial.tapes prepareTime = (ready mark k₁ cfg).tapes := by
     rw [prep.runFrom_eq_of_halt initial.tapes hprepare (by rw [hdet]; rfl), hdet]
   have hstate : (ofDeterministic prep).runList prepareTime initial.tapes =
-      [(ready mark k₁ cfg).tapes] := by
-    rw [runList_ofDeterministic, hprep]
-  have hhalt : (ofDeterministic prep).HaltsWithin prepareTime initial.tapes := by
-    rw [haltsWithin_ofDeterministic_iff, hprep]
-    rfl
-  have hstart := congrArg Config.tapes (start_ready machine mark cfg)
-  change (ready mark k₁ cfg).tapes.withState (some (consumer machine k₀).initial) = _ at hstart
-  have hconsumer : ∀ result ∈ (ofDeterministic prep).runList prepareTime initial.tapes,
-      MultiTapeCTM.HaltsWithin (consumer machine k₀) runTime
-        (result.withState (some (consumer machine k₀).initial)) := by
-    intro result hresult
-    have hr : result = (ready mark k₁ cfg).tapes := by simpa [hstate] using hresult
-    rw [hr, hstart]
-    exact haltsWithin_consumer hnon mark cfg _ runTime hrun
+      [(ready mark k₁ cfg).tapes] := by rw [runList_ofDeterministic, hprep]
+  have hstart : (ready mark k₁ cfg).tapes.withState (some (consumer machine k₀).initial) = _ :=
+    congrArg Config.tapes (start_ready machine mark cfg)
   change runList ((ofDeterministic prep).seq (consumer machine k₀)) _
     (Sequential.left (consumer machine k₀) initial).tapes = _
-  rw [runList_seq _ _ _ prepareTime runTime hhalt hconsumer, hstate,
-    List.flatMap_singleton, hstart, runList_consumer, List.map_map]
+  rw [runList_seq _ _ _ prepareTime runTime (by rw [haltsWithin_ofDeterministic_iff, hprep]; rfl)
+    (fun result hr => by
+      have hr' : result = (ready mark k₁ cfg).tapes := by simpa [hstate] using hr
+      rw [hr', hstart]
+      exact haltsWithin_consumer hnon mark cfg _ runTime hrun),
+    hstate, List.flatMap_singleton, hstart, runList_consumer, List.map_map]
   rfl
 
 /-- The singleton handoff and consumer halt natively within the charged combined bound. -/
@@ -173,12 +162,11 @@ theorem haltsWithin_continuation (machine : MultiTapeCTM k₁ Symbol State₁)
     (continuation machine k₀ mark).HaltsWithin (prepareTime + runTime)
       (Sequential.start (continuation machine k₀ mark) (buffer k₁ cfg)).tapes := by
   apply haltsWithin_of_halted _ (nonblocking_continuation hnon k₀ mark).actions_ne_nil
-  intro final hfinal
+  intro _ hfinal
   rw [runList_continuation machine hnon mark cfg prepareTime runTime hprepare hrun] at hfinal
   obtain ⟨result, hresult, rfl⟩ := List.mem_map.mp hfinal
   change result.state.map Sum.inr = none
-  rw [hrun.halted_of_mem_runList hresult]
-  rfl
+  simpa using hrun.halted_of_mem_runList hresult
 
 end Composition
 
@@ -217,19 +205,20 @@ theorem runList_comp :
         (second.runList secondTime (second.initialConfig result.output).tapes).map
           (fun final => (finalConfig mark (Config.emptyOracleEquiv.symm result)
             (Config.emptyOracleEquiv.symm final)).tapes)) := by
-  have hlength (result : Cfg k₀ Symbol State₀ input)
+  have hprep (result : Cfg k₀ Symbol State₀ input)
       (hresult : result ∈ first.runList firstTime (first.initialConfig input).tapes) :
-      result.output.length ≤ firstTime := by
-    simpa only [initialConfig, Cfg.init, List.length_nil, Nat.zero_add] using
-      first.length_output_of_mem_runList firstTime _ result hresult
+      (Config.emptyOracleEquiv.symm result).tapes.output.length + 4 ≤ firstTime + 4 :=
+    Nat.add_le_add_right (show result.output.length ≤ firstTime by
+      simpa only [initialConfig, Cfg.init, List.length_nil, Nat.zero_add] using
+        first.length_output_of_mem_runList firstTime _ result hresult) 4
   have hsource : MultiTapeCTM.HaltsWithin (source first k₁) firstTime
       ((source first k₁).initialConfig input).tapes := by
     apply haltsWithin_of_halted _ (Composition.nonblocking_source hnonfirst k₁).actions_ne_nil
-    intro final hfinal
+    intro _ hfinal
     rw [Composition.runList_source] at hfinal
     obtain ⟨result, hresult, rfl⟩ := List.mem_map.mp hfinal
     exact hfirst.halted_of_mem_runList hresult
-  have hcontinuation : ∀ result ∈ runList (source first k₁) firstTime
+  have hcont : ∀ result ∈ runList (source first k₁) firstTime
       ((source first k₁).initialConfig input).tapes,
       (Composition.continuation second k₀ mark).HaltsWithin (firstTime + 4 + secondTime)
         (result.withState (some (Composition.continuation second k₀ mark).initial)) := by
@@ -237,25 +226,18 @@ theorem runList_comp :
     rw [Composition.runList_source] at hfinal
     obtain ⟨result, hresult, rfl⟩ := List.mem_map.mp hfinal
     exact Composition.haltsWithin_continuation second hnonsecond mark _
-      (firstTime + 4) secondTime (by
-        change result.output.length + 4 ≤ firstTime + 4
-        exact Nat.add_le_add_right (hlength result hresult) 4)
-      (hsecond result hresult)
+      (firstTime + 4) secondTime (hprep result hresult) (hsecond result hresult)
   change runList ((source first k₁).seq (Composition.continuation second k₀ mark)) _
     (Sequential.left (Composition.continuation second k₀ mark)
       ((source first k₁).initialConfig input)).tapes = _
-  rw [runList_seq _ _ _ firstTime (firstTime + 4 + secondTime) hsource hcontinuation,
+  rw [runList_seq _ _ _ firstTime (firstTime + 4 + secondTime) hsource hcont,
     Composition.runList_source, List.flatMap_map]
-  apply List.flatMap_congr
-  intro result hresult
+  refine List.flatMap_congr fun result hresult => ?_
   change List.map _ ((Composition.continuation second k₀ mark).runList _
     (Sequential.start (Composition.continuation second k₀ mark)
       (buffer k₁ (Config.emptyOracleEquiv.symm result))).tapes) = _
   rw [Composition.runList_continuation second hnonsecond mark _ (firstTime + 4) secondTime
-    (by
-      change result.output.length + 4 ≤ firstTime + 4
-      exact Nat.add_le_add_right (hlength result hresult) 4) (hsecond result hresult),
-    List.map_map]
+    (hprep result hresult) (hsecond result hresult), List.map_map]
   rfl
 
 /-- The compiled machine halts on every native branch within the charged combined clock. -/
@@ -263,13 +245,13 @@ theorem HaltsWithin.comp :
     (second.comp first mark).HaltsWithin (firstTime + (firstTime + 4 + secondTime))
       ((second.comp first mark).initialConfig input).tapes := by
   apply haltsWithin_of_halted _ (hnonfirst.comp hnonsecond mark).actions_ne_nil
-  intro final hfinal
+  intro _ hfinal
   rw [runList_comp first second hnonfirst hnonsecond mark input firstTime secondTime
     hfirst hsecond] at hfinal
-  obtain ⟨source, hsource, hfinal⟩ := List.mem_flatMap.mp hfinal
+  obtain ⟨src, hsource, hfinal⟩ := List.mem_flatMap.mp hfinal
   obtain ⟨target, htarget, rfl⟩ := List.mem_map.mp hfinal
   change (target.state.map Sum.inr).map Sum.inr = none
-  rw [(hsecond source hsource).halted_of_mem_runList htarget]
+  rw [(hsecond src hsource).halted_of_mem_runList htarget]
   rfl
 
 /-- Native terminal counts compose by summing the consumer count once per source occurrence.

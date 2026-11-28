@@ -24,7 +24,10 @@ public section
 
 namespace CslibFrontierTests.SpernerHardness
 
-open Cslib Cslib.BitString Cslib.Complexity Turing.MultiTapeTM
+open Cslib Cslib.BitString Cslib.Circuits.Boolean Cslib.Complexity Turing.MultiTapeTM
+
+example (m : ℕ) (c : CircuitCode) :
+    encSperner2D { gridExp := m, circuit := c } = encPair encUnary encCode (m, c) := rfl
 
 /-- Constant predecessor map sending both 1-bit vertices to `0`. -/
 def oneBitPred (_ : Bool × List Bool) : List Bool := [false]

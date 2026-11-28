@@ -191,16 +191,11 @@ theorem Xofs.signDigestQueriesWithMask_bounded {α : Type} (H : Xofs) (s : Level
     (prepare : PrivateKey s → List Bool → α) (expand) :
     (H.signDigestQueriesWithMask s key q prepare expand).IsQueryBounded 815 := by
   unfold Xofs.signDigestQueriesWithMask
+  split <;> try exact .pure _ _
+  split <;> try exact .pure _ _
   split
-  · split
-    · exact .pure _ _
-    · split
-      · exact .pure _ _
-      · apply OracleComp.IsCostBounded.bind (n := 1) (m := 814)
-        · apply rep_bounded
-        · intro μ
-          apply Xofs.retryDigestQueries_bounded
   · exact .pure _ _
+  · exact (rep_bounded ..).bind fun _ => Xofs.retryDigestQueries_bounded ..
 
 /-- A native hedge selects one mask schedule and hence has the same 815-query bound. -/
 theorem Xofs.signDigestQueries_bounded (H : Xofs) (s : Level) (key q rnd) :
@@ -255,19 +250,15 @@ theorem Xofs.evalPure_signDigestQueries (H : Xofs) (s : Level) (D) (key : List B
   simp only [Xofs.signDigestQueries, Xofs.evalPure_signDigestQueriesWithMask, Xofs.sign,
     Xofs.signInternal, Xofs.runSigning, Xofs.startSigning, Xofs.startSigningWithSeed,
     Xofs.startDecodedSigning, bind_assoc, pure_bind]
-  apply Option.bind_congr
-  intro _ _
-  apply Option.bind_congr
-  intro sk hd
-  apply Option.bind_congr
-  intro A _
+  refine Option.bind_congr fun _ _ => Option.bind_congr fun sk hd =>
+    Option.bind_congr fun A _ => ?_
   let μ := G.representativeFromTr sk.tr (formatMessage q.message q.context)
   have len : μ.length = 512 := by
     simp [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read]
-  have keyLen := (lengths_of_decodePrivate hd).2.1
   have seed := read_off H s D (maskSeedInput sk.key rnd μ) 64 (by
+    have := (lengths_of_decodePrivate hd).2.1
+    have : 1024 < s.commitmentInputBits := by cases s <;> decide
     rw [length_maskSeedInput, len]
-    have lower : 1024 < s.commitmentInputBits := by cases s <;> decide
     lia)
   change G.signingRetries s sk A μ (H.expandMask s _) = G.signingRetries s sk A μ _
   rw [seed, mask_off H s D _ (H.h256.length_read ..)]
@@ -307,15 +298,11 @@ a representative input that itself has the commitment length. -/
 theorem Xofs.verifyDigestQueries_bounded (H : Xofs) (s : Level) (pk f) :
     (H.verifyDigestQueries s pk f).IsQueryBounded 2 := by
   unfold Xofs.verifyDigestQueries
+  split <;> try exact .pure _ _
+  split <;> try exact .pure _ _
+  split <;> try exact .pure _ _
   split
-  · exact .pure _ _
-  split
-  · exact .pure _ _
-  split
-  · exact .pure _ _
-  split
-  · apply (rep_bounded ..).bind (m := 1)
-    exact fun _ => .liftBind _ _ 0 fun _ => .pure _ _
+  · exact (rep_bounded ..).bind (m := 1) fun _ => .liftBind _ _ 0 fun _ => .pure _ _
   · exact .pure _ _
 
 /-- The two-read verifier preserves all three possible FIPS results at the installed raw XOFs. -/
@@ -393,8 +380,7 @@ theorem maskCommitmentAddress_mass_le (s : Level) (A : PublicMatrix s) (m : BitS
       PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
     apply mask.toOuterMeasure.mono
     intro z hz
-    have eq : addr z = addr y := hz
-    have bits := congrArg List.ofFn eq
+    have bits := congrArg List.ofFn (hz : addr z = addr y)
     simp only [addr, maskCommitmentAddress, BitString.ofFn_ofList
       (commitmentInput_length s _ List.length_ofFn)] at bits
     have range (v : Fin s.params.ℓ → Poly) (j k) : 0 ≤ w v j k ∧

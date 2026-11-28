@@ -73,6 +73,31 @@ enc_structure encAndOrNCLEdge : AndOrNCLEdge.Instance where
 enc_structure encAndOrNCLEdgeToEdge : AndOrNCLEdgeToEdge.Instance where
   graph : encAndOrGraph, first : (encPort encNat), second : (encPort encNat)
 
+/-- Rename every edge of a computed vertex by a jointly polynomial-time function. -/
+@[fun_prop]
+theorem Vertex.computableInPolyTime_mapWithInput {E α : Type} {input : α ↪ List Bool}
+    {encE : E ↪ List Bool} {v : α → Vertex E} {f : α → E → ℕ}
+    (hv : ComputableInPolyTime v input (encVertex encE))
+    (hf : ComputableInPolyTime (fun p : α × E => f p.1 p.2) (encPair input encE) encNat) :
+    ComputableInPolyTime (fun x => (v x).map (f x)) input (encVertex encNat) := by
+  have he : ComputableInPolyTime
+      (Function.uncurry (fun x (p : WeightedPort E) =>
+        (⟨⟨f x p.port.edge, p.port.dir⟩, p.weight⟩ : WeightedPort ℕ)))
+      (encPair input (encWeightedPort encE)) (encWeightedPort encNat) := by
+    have hp : ComputableInPolyTime (fun p : α × WeightedPort E => (p.1, p.2.port.edge))
+        (encPair input (encWeightedPort encE)) (encPair input encE) := by fun_prop
+    have hh := hf.comp hp
+    change ComputableInPolyTime (fun p : α × WeightedPort E =>
+      (⟨⟨f p.1 p.2.port.edge, p.2.port.dir⟩, p.2.weight⟩ : WeightedPort ℕ)) _ _
+    fun_prop
+  have hp : ComputableInPolyTime (fun x => (v x).ports) input (encWeightedPorts encE) := by
+    fun_prop
+  have hm := ComputableInPolyTime.mapWithInput (f := fun x => WeightedPort.map (f x)) hp he
+  have hn : ComputableInPolyTime (fun x => (v x).minInflow) input encNat := by fun_prop
+  change ComputableInPolyTime (fun x =>
+    (⟨(v x).ports.map (WeightedPort.map (f x)), (v x).minInflow⟩ : Vertex ℕ)) _ _
+  fun_prop
+
 /-- Checking the declared bounds of every port is polynomial-time on explicit graph data. -/
 @[fun_prop]
 theorem AndOrGraph.computableInPolyTime_checkBounded :

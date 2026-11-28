@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Pol
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Tactic.OptionMatch
 
 /-!
 # Strict partial decoders
@@ -150,14 +151,8 @@ The added `true` bit is the existing `encOption` tag and is not part of the scal
 private theorem optionToList_computable (encoding : α ↪ List Bool) :
     ComputableInPolyTime (fun value : Option α => value.toList) (encOption encoding)
       (encList encoding) := by
-  have h := (ComputableInPolyTime.id' (encIn := encOption encoding)).optionElimWithInput
-    (body := fun (_ : Option α) (value : α) => [value])
-    (ComputableInPolyTime.const ([] : List α))
-    (ComputableInPolyTime.cons' (ComputableInPolyTime.snd (encOption encoding) encoding)
-      (ComputableInPolyTime.const []))
-  convert h using 1
-  funext value
-  cases value <;> rfl
+  option_match_to_elim
+  fun_prop
 
 /-- Decode every framed element with the supplied scalar codec and check the complete list
 word. Empty element types are supported, and malformed final frames are rejected. -/

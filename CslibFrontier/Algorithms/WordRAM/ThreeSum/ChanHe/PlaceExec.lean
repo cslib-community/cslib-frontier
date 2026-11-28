@@ -37,37 +37,17 @@ theorem tagged_encode (neg : Bool) (z : ℤ) (t : ℕ) (ht : z.natAbs ≤ t) :
       if encode z % 2 = (if neg then 1 else 0) then
         2 * t + (encode z / 2 + encode z / 2)
       else 2 * t - (encode z / 2 + encode z / 2) := by
-  cases neg <;> by_cases hz : z < 0
-  · have he : (z.natAbs : ℤ) = -z := Int.ofNat_natAbs_of_nonpos (by omega)
-    have hnon : 0 ≤ z + (t : ℤ) := by omega
-    simp only [signedValue, Bool.false_eq_true, ↓reduceIte, encode_mod_two, hz,
-      encode_div_two, Nat.reduceEqDiff]
-    unfold encode
-    rw [ite_eq_right (by omega)]
-    have hm := Int.natAbs_of_nonneg hnon
-    omega
-  · have he : (z.natAbs : ℤ) = z := (Int.eq_natAbs_of_nonneg (by omega)).symm
-    have hnon : 0 ≤ z + (t : ℤ) := by omega
-    simp only [signedValue, Bool.false_eq_true, ↓reduceIte, encode_mod_two, hz,
-      encode_div_two]
-    unfold encode
-    rw [ite_eq_right (by omega)]
-    have hm := Int.natAbs_of_nonneg hnon
-    omega
-  · have he : (z.natAbs : ℤ) = -z := Int.ofNat_natAbs_of_nonpos (by omega)
-    have hnon : 0 ≤ -z + (t : ℤ) := by omega
-    simp only [signedValue, ↓reduceIte, encode_mod_two, hz, encode_div_two]
-    unfold encode
-    rw [ite_eq_right (by omega)]
-    have hm := Int.natAbs_of_nonneg hnon
-    omega
-  · have he : (z.natAbs : ℤ) = z := (Int.eq_natAbs_of_nonneg (by omega)).symm
-    have hnon : 0 ≤ -z + (t : ℤ) := by omega
-    simp only [signedValue, ↓reduceIte, encode_mod_two, hz, encode_div_two, Nat.reduceEqDiff]
-    unfold encode
-    rw [ite_eq_right (by omega)]
-    have hm := Int.natAbs_of_nonneg hnon
-    omega
+  have hbounds : (z.natAbs : ℤ) = z ∨ (z.natAbs : ℤ) = -z := by
+    rcases Int.natAbs_eq z with h | h <;> [exact Or.inl h.symm; exact Or.inr (by omega)]
+  have hnon : ¬(signedValue neg z + (t : ℤ) < 0) := by
+    cases neg <;> simp only [signedValue, Bool.false_eq_true, ↓reduceIte] <;>
+      rcases hbounds with h | h <;> omega
+  simp only [encode_mod_two, encode_div_two]
+  rw [encode, ite_eq_right hnon]
+  have hm := Int.natAbs_of_nonneg (Int.not_lt.mp hnon)
+  cases neg <;> by_cases hz : z < 0 <;>
+    simp only [signedValue, hz, Bool.false_eq_true, Nat.reduceEqDiff, ↓reduceIte] at hm ⊢ <;>
+    rcases hbounds with h | h <;> omega
 
 /-- A polynomial envelope for every value and address produced by the placement scan.
 The caller supplies a fit for this sum; no fit of an uncomputed output is assumed. -/
@@ -100,84 +80,42 @@ theorem exec_body {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : 
       y.regs idx = x.regs idx + 1 ∧
       (∀ i, (9 ≤ i.val ∧ i.val ≤ 19) ∨ i = one ∨ i = two ∨ i = four ∨ i = zero →
         y.regs i = x.regs i) := by
-  let k := x.regs idx
-  let n := x.regs len
-  let r := residueKey M (values k)
-  let c := Histogram.count (fun j => residueKey M (values j)) n r
-  have hr : r < M := residueKey_lt hM _
-  have hr' : targetKey M neg (values k) < M := by
-    rw [targetKey_eq hM]
-    exact residueKey_lt hM _
-  have f (v : ℕ) (hv : v ≤ budget x M N U t) : Fits w v := hfit.of_le hv
-  have fone : Fits w 1 := f _ (by dsimp only [budget]; omega)
-  have fzero : Fits w 0 := fits_zero _
-  have fs : Fits w (x.regs src + k) := f _ (by dsimp only [budget, k]; omega)
-  have fk : Fits w (x.regs keys + k) := f _ (by dsimp only [budget, k]; omega)
-  have fh : Fits w (x.regs hist + r) := f _ (by dsimp only [budget]; omega)
-  have fo : Fits w (x.regs heavy + x.regs count) := f _ (by
-    have hl := length_heavyList_le values n M k
-    dsimp only [n, k] at hl
-    dsimp only [budget]
-    omega)
-  have fcount : Fits w (x.regs count + 1) := f _ (by
-    have hl := length_heavyList_le values n M k
-    dsimp only [n, k] at hl
-    dsimp only [budget]
-    omega)
-  have fi : Fits w (k + 1) := f _ (by dsimp only [budget, k]; omega)
-  have fm : Fits w (M - r) := f _ (by dsimp only [budget]; omega)
-  have fr : Fits w ((M - r) % M) := f _ (by
-    have := Nat.mod_lt (M - r) hM
-    dsimp only [budget]
-    omega)
-  have fmag : Fits w (values k).natAbs := f _ (by dsimp only [budget, k]; omega)
-  have fmag2 : Fits w ((values k).natAbs + (values k).natAbs) :=
-    f _ (by dsimp only [budget, k]; omega)
-  have fsign : Fits w (encode (values k) % 2) := f _ (by
-    have := Nat.mod_lt (encode (values k)) (by decide : 0 < 2)
-    dsimp only [budget]
-    omega)
-  have fadd : Fits w (2 * t + ((values k).natAbs + (values k).natAbs)) :=
-    f _ (by dsimp only [budget, k]; omega)
-  have fsub : Fits w (2 * t - ((values k).natAbs + (values k).natAbs)) :=
-    f _ (by dsimp only [budget]; omega)
-  have fa : Fits w (4 * targetKey M neg (values k)) :=
-    f _ (by dsimp only [budget]; omega)
-  have fb : Fits w (x.regs packed + 4 * targetKey M neg (values k)) :=
-    f _ (by dsimp only [budget]; omega)
-  have fc : Fits w (x.regs packed + 4 * targetKey M neg (values k) + x.regs column) :=
-    f _ (by dsimp only [budget]; omega)
-  have fd : Fits w (x.regs packed + 4 * targetKey M neg (values k) + x.regs column +
-      x.regs distance) := f _ (by dsimp only [budget]; omega)
-  have hv := tagged_encode neg (values k) t (hbdd.trans ht)
-  have hcp : 0 < c := count_residue_pos values n M (show k < n from hi)
-  by_cases hh : 1 < c
-  · refine WP.exists_execWithin ?_
-    unfold body heavyCode
-    wram_exec [h1, hinput, hkey, hhist, hh, fs, fk, fh, fo, fcount, fi, k, n, r, c]
-    refine ⟨?_, ?_, by wram_simp [k], fun i hi => ?_⟩
-    · wram_simp
-      simp [write, hh, k, n, r, c, hcount]
-    · wram_simp [hcount]
-      simp [heavyList, hh, k, n, r, c]
-    · fin_cases i <;> norm_num [one, two, four, zero] at hi <;> wram_simp
-  · have hc1 : c = 1 := by omega
-    cases neg <;> by_cases hs : values k < 0
-    all_goals
-      simp only [targetKey, Bool.false_eq_true, ↓reduceIte] at fa fb fc fd
-      refine WP.exists_execWithin ?_
-      unfold body lightCode
-      wram_exec [h1, h2, h4, h0, hmod, htag, hneg, hinput, hkey, hhist, hh, hc1, hs,
-        encode_div_two, encode_mod_two, fs, fk, fh, fi, fm, fr, fmag, fmag2, fsign, fadd,
-        fsub, fone, fzero, fa, fb, fc, fd, targetKey, k, n, r, c]
-      refine ⟨?_, ?_, by wram_simp [k], fun i hi => ?_⟩
-      · wram_simp
-        simp only [write, show ¬1 < Histogram.count (fun i => residueKey M (values i))
-          (x.regs len) (residueKey M (values (x.regs idx))) from hh, ↓reduceIte]
-        simp +decide [targetKey, k, hs, encode_div_two, encode_mod_two, hv]
-      · wram_simp [hcount]
-        simp [heavyList, hh, k, n, r, c]
-      · fin_cases i <;> norm_num [one, two, four, zero] at hi <;> wram_simp
+  have hpres : ∀ i : Fin 32,
+      (9 ≤ i.val ∧ i.val ≤ 19) ∨ i = one ∨ i = two ∨ i = four ∨ i = zero →
+        body.Preserves i := by decide +kernel
+  have hr : residueKey M (values (x.regs idx)) < M := residueKey_lt hM _
+  have hhl := length_heavyList_le values (x.regs len) M (x.regs idx)
+  have hmodr := Nat.mod_lt (M - residueKey M (values (x.regs idx))) hM
+  have hmod2 := Nat.mod_lt (encode (values (x.regs idx))) (by decide : 0 < 2)
+  have hv := tagged_encode neg (values (x.regs idx)) t (hbdd.trans ht)
+  have hcp : 0 < Histogram.count (fun j => residueKey M (values j)) (x.regs len)
+      (residueKey M (values (x.regs idx))) := count_residue_pos values _ M hi
+  dsimp only [budget] at hfit
+  obtain ⟨y, he, hym, hyc, hyi⟩ : ∃ y, ExecWithin w body x y 30 ∧
+      y.mem = write x.mem values (x.regs len) M (x.regs heavy) (x.regs packed)
+        (x.regs column) (x.regs distance) t neg (x.regs idx) ∧
+      y.regs count = (heavyList values (x.regs len) M (x.regs idx + 1)).length ∧
+      y.regs idx = x.regs idx + 1 := by
+    by_cases hh : 1 < Histogram.count (fun j => residueKey M (values j)) (x.regs len)
+        (residueKey M (values (x.regs idx)))
+    · refine WP.exists_execWithin ?_
+      unfold body heavyCode
+      wram_exec [h1, hinput, hkey, hhist, hh]
+      exact ⟨by wram_simp; simp [write, hh, hcount],
+        by wram_simp [hcount]; simp [heavyList, hh], by wram_simp⟩
+    · have hc1 : Histogram.count (fun j => residueKey M (values j)) (x.regs len)
+          (residueKey M (values (x.regs idx))) = 1 := by omega
+      cases neg <;> by_cases hs : values (x.regs idx) < 0
+      all_goals
+        refine WP.exists_execWithin ?_
+        unfold body lightCode
+        wram_exec [h1, h2, h4, h0, hmod, htag, hneg, hinput, hkey, hhist, hh, hc1, hs,
+          encode_div_two, encode_mod_two]
+        refine ⟨?_, by wram_simp [hcount]; simp [heavyList, hh], by wram_simp⟩
+        wram_simp
+        simp only [write, hh, ↓reduceIte]
+        simp +decide [targetKey, hs, encode_div_two, encode_mod_two, hv]
+  exact ⟨y, he, hym, hyc, hyi, fun i hi => he.regs_eq (hpres i hi)⟩
 
 
 /-- Complete native placement in at most `32n+8` instructions, excluding halt. All input,
@@ -247,13 +185,15 @@ theorem exec {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : Bool)
     rw [hzm, hl, ho, hp, hcol, hdist, hm]
     rfl
   have f4 : Fits w 4 := hfit.of_le (by dsimp only [budget]; omega)
-  have f2 : Fits w 2 := f4.of_le (by decide)
-  have f1 : Fits w 1 := f4.of_le (by decide)
   refine WP.exists_execWithin ?_
   unfold program
-  wram_exec [f1, f2, f4]
+  wram_exec
   wram_call (ExecWithin.loop_count Inv (fun _ hy => hy.1 len (by decide)) hbody
-    (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num [P] at hi <;> wram_simp,
+    (by wram_simp; omega) ⟨fun i hi => by
+      dsimp only [P] at hi
+      simp only [Data.set_regs, Function.update_apply, Fin.ext_iff,
+        idx, count, one, two, four, zero]
+      split_ifs <;> omega,
       by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [heavyList, List.length_nil], by wram_simp [memory]⟩)
     with y ⟨⟨hr, _, _, _, _, hcount, hm⟩, _⟩

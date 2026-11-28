@@ -148,148 +148,6 @@ def DemoteStepGenPre (w : ℕ) (x : (DictParams × (ℕ × ℕ)) × ℕ) (s : Me
     DemoteStepGenPre w ((mkDictParams U V w₀ n_max h_space, d1), d2) s ↔
       DemoteStepPre U V w₀ n_max h_space w d1.1 d1.2 d2 s := Iff.rfl
 
-/-- Under `DemoteStepInv U V w n_max h_space base b k s` (`k < slabSize n_max`,
-`gm (gmRIdx b) = k`, `1 ≤ gm (gmQIdx b)`), `demoteStepProg` returns `k + 1` in `memoryCost = 48`
-(`memoryCost_demoteStepProg`). It preserves `frontier`, `lmAt`, and memory outside
-`[base + offQuot h_space, base + totalSpace U V w n_max h_space)`. It copies entry
-`u = (slabSize n_max - 1) - k` of the last full slab `p_last = gm 0 - 1` into `p_del =
-gm (gmSlabTopIdx b)`, moves the old entry of `p_del` into the new tail slot
-`g_tail = (n_max - 1) - gm 1`, and updates `gmAt` to `gmAppendTail n_max gm b`. -/
-theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
-    (hw : 0 < w) (hb_pos : 0 < bucketBits n_max)
-    (s : Memory.State)
-    (hpre : DemoteStepInv U V w n_max h_space base b k s) :
-    let gm := gmAt base U V w n_max h_space s.mem
-    let qA := quotAt base U w n_max h_space s.mem
-    let vA := valAt base U V w n_max h_space s.mem
-    let u := (slabSize n_max - 1) - k
-    let p_del := gm (gmSlabTopIdx b)
-    let p_last := gm 0 - 1
-    let g_del := p_del * slabSize n_max + u
-    let g_last := p_last * slabSize n_max + u
-    let g_tail := (n_max - 1) - gm 1
-    let s' := (Memory.spec 0).clientState s
-      (demoteStepProg U V w n_max h_space ((base, b), k))
-    (Memory.spec 0).clientResult s
-      (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 ∧
-    s'.frontier = s.frontier ∧
-    (∀ a, ¬(base + offQuot h_space ≤ a ∧
-        a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a) ∧
-    quotAt base U w n_max h_space s'.mem =
-      Function.update (Function.update qA g_del (qA g_last)) g_tail (qA g_del) ∧
-    valAt base U V w n_max h_space s'.mem =
-      Function.update (Function.update vA g_del (vA g_last)) g_tail (vA g_del) ∧
-    lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
-    gmAt base U V w n_max h_space s'.mem = gmAppendTail n_max gm b := by
-  intro gm qA vA u p_del p_last g_del g_last g_tail s'
-  rcases hpre with ⟨hb, hk, htail, hslab, hrb, hqb_pos, htot⟩
-  change TailBijection n_max gm (fun b' => gm (gmRIdx b')) (gm 1) at htail
-  change SlabBijection n_max gm (fun b' => gm (gmQIdx b')) (gm 0) at hslab
-  change gm (gmRIdx b) = k at hrb
-  change 1 ≤ gm (gmQIdx b) at hqb_pos
-  change (gm 0 - 1) * slabSize n_max + (slabSize n_max - k) + gm 1 ≤ n_max at htot
-  have hb0 : bucketBits n_max ≠ 0 := by omega
-  have hK_pos : 0 < slabSize n_max := slabSize_pos n_max
-  have hu_lt : u < slabSize n_max := by omega
-  have hp_del_lt : p_del < gm 0 := hslab.top_lt hb (by omega)
-  have hgm0_pos : 1 ≤ gm 0 := by omega
-  have hp_last_lt : p_last < gm 0 := by omega
-  have htop_idx_lt : 4 + 3 * b + 2 < globalMetaLen n_max := gmSlabTopIdx_lt hb_pos hb
-  have h0_idx_lt : 0 < globalMetaLen n_max := by wram_omega
-  have hg_last_lt : g_last < n_max := by
-    dsimp only [g_last, p_last, u]; omega
-  have hg_del_lt : g_del < n_max := by
-    have hle : p_del ≤ p_last := by omega
-    have hmul : p_del * slabSize n_max ≤ p_last * slabSize n_max := Nat.mul_le_mul_right _ hle
-    omega
-  have hr_cap : gm (gmRIdx b) < tailCapPerBucket n_max := by
-    unfold tailCapPerBucket; rw [ite_eq_right hb0, hrb]; omega
-  have ht_cap : gm 1 < maxTailItems n_max := ntails_lt_maxTailItems_of_r_lt hb hr_cap htail
-  have hg_tail_lt : g_tail < n_max := by
-    have : (gm 0 - 1) * slabSize n_max ≥ 0 := Nat.zero_le _
-    omega
-  have hq_del_lt : qA g_del < 2 ^ quotientBits U n_max := quotAt_lt _ _ _ _ _ _ _
-  have hv_del_lt : vA g_del < 2 ^ valBits V := valAt_lt _ _ _ _ _ _ _ _
-  have hq_last_lt : qA g_last < 2 ^ quotientBits U n_max := quotAt_lt _ _ _ _ _ _ _
-  have hv_last_lt : vA g_last < 2 ^ valBits V := valAt_lt _ _ _ _ _ _ _ _
-  let s₁ := (Memory.spec 0).clientState s
-    (appendTailItemProg U V w n_max h_space (base, b))
-  obtain ⟨hres_app, hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
-    appendTailItemProg_effect (U := U) (V := V) (h_space := h_space)
-      hw hb_pos hb s htail hr_cap
-  let s₂ := (Memory.spec 0).clientState s₁
-    (writeQuotProg U w n_max h_space ((base, g_del), qA g_last))
-  obtain ⟨hf2, hout2, hq2, hv2, hl2, hg2⟩ :=
-    writeQuotProg_effect (base := base) (V := V) (h_space := h_space)
-      hw hg_del_lt hq_last_lt s₁
-  let s₃ := (Memory.spec 0).clientState s₂
-    (writeValProg U V w n_max h_space ((base, g_del), vA g_last))
-  obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
-    writeValProg_effect (base := base) (h_space := h_space)
-      hw hg_del_lt hv_last_lt s₂
-  let s₄ := (Memory.spec 0).clientState s₃
-    (writeQuotProg U w n_max h_space ((base, g_tail), qA g_del))
-  obtain ⟨hf4, hout4, hq4, hv4, hl4, hg4⟩ :=
-    writeQuotProg_effect (base := base) (V := V) (h_space := h_space)
-      hw hg_tail_lt hq_del_lt s₃
-  let s₅ := (Memory.spec 0).clientState s₄
-    (writeValProg U V w n_max h_space ((base, g_tail), vA g_del))
-  obtain ⟨hf5, hout5, hq5, hv5, hl5, hg5⟩ :=
-    writeValProg_effect (base := base) (h_space := h_space)
-      hw hg_tail_lt hv_del_lt s₄
-  have hres_eq : (Memory.spec 0).clientResult s
-      (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 := by
-    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
-      writeValGenProg_mk, appendTailItemGenProg_mk]
-    rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s (by exact htop_idx_lt),
-      StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s (by exact h0_idx_lt),
-      StateTransitionSpec.clientResult_bind, clientState_readQuotProg,
-      clientResult_readQuotProg s (by exact hg_del_lt),
-      StateTransitionSpec.clientResult_bind, clientState_readValProg,
-      clientResult_readValProg s (by exact hg_del_lt),
-      StateTransitionSpec.clientResult_bind, clientState_readQuotProg,
-      clientResult_readQuotProg s (by exact hg_last_lt),
-      StateTransitionSpec.clientResult_bind, clientState_readValProg,
-      clientResult_readValProg s (by exact hg_last_lt)]
-    simp only [StateTransitionSpec.clientResult_bind]
-    rfl
-  have hst : s' = s₅ := by
-    change (Memory.spec 0).clientState s
-      (demoteStepProg U V w n_max h_space ((base, b), k)) = s₅
-    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
-      writeValGenProg_mk, appendTailItemGenProg_mk]
-    rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
-      clientResult_readGMProg s (by exact htop_idx_lt),
-      StateTransitionSpec.clientState_bind, clientState_readGMProg,
-      clientResult_readGMProg s (by exact h0_idx_lt),
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg,
-      clientResult_readQuotProg s (by exact hg_del_lt),
-      StateTransitionSpec.clientState_bind, clientState_readValProg,
-      clientResult_readValProg s (by exact hg_del_lt),
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg,
-      clientResult_readQuotProg s (by exact hg_last_lt),
-      StateTransitionSpec.clientState_bind, clientState_readValProg,
-      clientResult_readValProg s (by exact hg_last_lt),
-      StateTransitionSpec.clientState_bind, hres_app]
-    repeat rw [StateTransitionSpec.clientState_bind]
-    rfl
-  rw [hst]
-  refine ⟨hres_eq, by rw [hf5, hf4, hf3, hf2, hf1], ?_,
-    by rw [hq5, hq4, hq3, hq2, hq1],
-    by rw [hv5, hv4, hv3, hv2, hv1],
-    by rw [hl5, hl4, hl3, hl2, hl1],
-    by rw [hg5, hg4, hg3, hg2, hg1]⟩
-  intro a ha
-  rw [hout5 a (by wram_omega [ha]),
-    hout4 a (by wram_omega [ha]),
-    hout3 a (by wram_omega [ha]),
-    hout2 a (by wram_omega [ha]),
-    hout1 a (by wram_omega [ha])]
-
 /-- Bounds for the reads and writes of `demoteStepProg`, stated on the results of its reads,
 together with the precondition (apart from `DictEnvGen`) of its `appendTailItemProg` call; shared
 by `realizes_demoteStepGen` and `validProg_demoteStep`. -/
@@ -337,50 +195,150 @@ private theorem demoteStep_bounds {U V w₀ n_max h_space base b k : ℕ}
     k + 1 ≤ max n_max 1 := by
   rcases h with ⟨⟨hb, hk, htail, hslab, hrb, hqb_pos, htot⟩, hb_pos⟩
   intro u e_pdel s1 e_nslabs s2 e_plast g_del g_last s3 s4 s5 s6 e_tnew g_tail
-  let gm := gmAt base U V w₀ n_max h_space s.mem
-  change b < numBuckets n_max at hb
-  change k < slabSize n_max at hk
-  change TailBijection n_max gm (fun b' => gm (gmRIdx b')) (gm 1) at htail
-  change SlabBijection n_max gm (fun b' => gm (gmQIdx b')) (gm 0) at hslab
-  change gm (gmRIdx b) = k at hrb
-  change 1 ≤ gm (gmQIdx b) at hqb_pos
-  change (gm 0 - 1) * slabSize n_max + (slabSize n_max - k) + gm 1 ≤ n_max at htot
   have hb0 : bucketBits n_max ≠ 0 := by omega
   have hK_pos : 0 < slabSize n_max := slabSize_pos n_max
   have hK_le : slabSize n_max ≤ max n_max 1 := slabSize_le_max_n_one n_max
-  have hp_del_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb (by omega)
-  have hgm0_pos : 1 ≤ gm 0 := by omega
+  have hp_del_lt := hslab.top_lt hb (by omega)
+  have hgm0_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem 0 := by omega
   have htop_idx_lt : 4 + 3 * b + 2 < globalMetaLen n_max := gmSlabTopIdx_lt hb_pos hb
   have h0_idx_lt : 0 < globalMetaLen n_max := by wram_omega
-  have hr_cap : gm (gmRIdx b) < tailCapPerBucket n_max := by
+  have hr_cap : gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) < tailCapPerBucket n_max := by
     unfold tailCapPerBucket; rw [ite_eq_right hb0, hrb]; omega
-  have hepdel : e_pdel = gm (gmSlabTopIdx b) := clientResult_readGMProg s htop_idx_lt
-  have hs1 : s1 = s := rfl
-  have henslabs : e_nslabs = gm 0 := by
-    dsimp only [e_nslabs]; rw [hs1]; exact clientResult_readGMProg s h0_idx_lt
-  have hs2 : s2 = s := rfl
-  have hg_last_lt : g_last < n_max := by
-    dsimp only [g_last, e_plast, u]; rw [henslabs]; omega
-  have hg_del_lt : g_del < n_max := by
-    have hle : e_pdel ≤ e_plast := by dsimp only [e_plast]; rw [hepdel, henslabs]; omega
-    have hmul : e_pdel * slabSize n_max ≤ e_plast * slabSize n_max :=
-      Nat.mul_le_mul_right _ hle
+  have hepdel : e_pdel = gmAt base U V w₀ n_max h_space s.mem (gmSlabTopIdx b) :=
+    clientResult_readGMProg s htop_idx_lt
+  have henslabs : e_nslabs = gmAt base U V w₀ n_max h_space s.mem 0 :=
+    clientResult_readGMProg s h0_idx_lt
+  have hmul : e_pdel * slabSize n_max ≤ e_plast * slabSize n_max :=
+    Nat.mul_le_mul_right _ (by dsimp only [e_plast]; rw [hepdel, henslabs]; omega)
+  have hg_last_lt : g_last < n_max := by dsimp only [g_last, e_plast, u]; rw [henslabs]; omega
+  have hg_del_lt : g_del < n_max := by omega
+  obtain ⟨hres_app, _⟩ := appendTailItemProg_effect (U := U) (V := V) (h_space := h_space)
+    hw hb_pos hb s htail hr_cap
+  have hetnew : e_tnew = gmAt base U V w₀ n_max h_space s.mem 1 := hres_app
+  have ht_lt_n : gmAt base U V w₀ n_max h_space s.mem 1 < n_max := by
+    have : (gmAt base U V w₀ n_max h_space s.mem 0 - 1) * slabSize n_max ≥ 0 := Nat.zero_le _
     omega
-  have hs6 : s6 = s := rfl
-  obtain ⟨hres_app, _⟩ :=
+  refine ⟨by omega, htop_idx_lt, h0_idx_lt, by omega, hg_del_lt, hg_last_lt,
+    ⟨htail, hb, hr_cap, hb_pos⟩, by omega, by dsimp only [g_tail]; omega, by omega⟩
+
+/-- Under `DemoteStepInv U V w n_max h_space base b k s` (`k < slabSize n_max`,
+`gm (gmRIdx b) = k`, `1 ≤ gm (gmQIdx b)`), `demoteStepProg` returns `k + 1` in `memoryCost = 48`
+(`memoryCost_demoteStepProg`). It preserves `frontier`, `lmAt`, and memory outside
+`[base + offQuot h_space, base + totalSpace U V w n_max h_space)`. It copies entry
+`u = (slabSize n_max - 1) - k` of the last full slab `p_last = gm 0 - 1` into `p_del =
+gm (gmSlabTopIdx b)`, moves the old entry of `p_del` into the new tail slot
+`g_tail = (n_max - 1) - gm 1`, and updates `gmAt` to `gmAppendTail n_max gm b`. -/
+theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
+    (hw : 0 < w) (hb_pos : 0 < bucketBits n_max)
+    (s : Memory.State)
+    (hpre : DemoteStepInv U V w n_max h_space base b k s) :
+    let gm := gmAt base U V w n_max h_space s.mem
+    let qA := quotAt base U w n_max h_space s.mem
+    let vA := valAt base U V w n_max h_space s.mem
+    let u := (slabSize n_max - 1) - k
+    let p_del := gm (gmSlabTopIdx b)
+    let p_last := gm 0 - 1
+    let g_del := p_del * slabSize n_max + u
+    let g_last := p_last * slabSize n_max + u
+    let g_tail := (n_max - 1) - gm 1
+    let s' := (Memory.spec 0).clientState s
+      (demoteStepProg U V w n_max h_space ((base, b), k))
+    (Memory.spec 0).clientResult s
+      (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 ∧
+    s'.frontier = s.frontier ∧
+    (∀ a, ¬(base + offQuot h_space ≤ a ∧
+        a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a) ∧
+    quotAt base U w n_max h_space s'.mem =
+      Function.update (Function.update qA g_del (qA g_last)) g_tail (qA g_del) ∧
+    valAt base U V w n_max h_space s'.mem =
+      Function.update (Function.update vA g_del (vA g_last)) g_tail (vA g_del) ∧
+    lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
+    gmAt base U V w n_max h_space s'.mem = gmAppendTail n_max gm b := by
+  intro gm qA vA u p_del p_last g_del g_last g_tail s'
+  obtain ⟨_, htop_idx_lt, h0_idx_lt, _, hg_del_lt, hg_last_lt,
+    ⟨htail, hb, hr_cap, _⟩, _, hg_tail_lt, _⟩ := demoteStep_bounds hw ⟨hpre, hb_pos⟩
+  have hr_top := clientResult_readGMProg (U := U) (V := V) (w := w) (h_space := h_space)
+    (base := base) s htop_idx_lt
+  have hr_0 := clientResult_readGMProg (U := U) (V := V) (w := w) (h_space := h_space)
+    (base := base) s h0_idx_lt
+  have hg_del_lt : g_del < n_max := by
+    dsimp only [g_del, p_del, gmSlabTopIdx, gm]
+    rwa [← hr_top]
+  have hg_last_lt : g_last < n_max := by
+    have h' : ((Memory.spec 0).clientResult s
+        (readGMProg U V w n_max h_space (base, 0)) - 1) * slabSize n_max + u < n_max :=
+      hg_last_lt
+    rwa [hr_0] at h'
+  let s₁ := (Memory.spec 0).clientState s (appendTailItemProg U V w n_max h_space (base, b))
+  obtain ⟨hres_app, hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
     appendTailItemProg_effect (U := U) (V := V) (h_space := h_space)
       hw hb_pos hb s htail hr_cap
-  have hetnew : e_tnew = gm 1 := by
-    dsimp only [e_tnew]; rw [hs6]; exact hres_app
-  have ht_lt_n : gm 1 < n_max := by
-    have : (gm 0 - 1) * slabSize n_max ≥ 0 := Nat.zero_le _
-    omega
-  refine ⟨by omega, htop_idx_lt, h0_idx_lt, by rw [henslabs]; exact hgm0_pos,
-    hg_del_lt, hg_last_lt,
-    by rw [hs6]; exact ⟨htail, hb, hr_cap, hb_pos⟩,
-    by rw [hetnew]; omega,
-    by dsimp only [g_tail]; rw [hetnew]; omega,
-    by omega⟩
+  have hg_tail_lt : g_tail < n_max := by
+    have h' : (n_max - 1) - (Memory.spec 0).clientResult s
+        (appendTailItemProg U V w n_max h_space (base, b)) < n_max := hg_tail_lt
+    rwa [hres_app] at h'
+  let s₂ := (Memory.spec 0).clientState s₁
+    (writeQuotProg U w n_max h_space ((base, g_del), qA g_last))
+  obtain ⟨hf2, hout2, hq2, hv2, hl2, hg2⟩ :=
+    writeQuotProg_effect (U := U) (base := base) (V := V) (h_space := h_space)
+      hw hg_del_lt (quotAt_lt _ _ _ _ _ _ _) s₁
+  let s₃ := (Memory.spec 0).clientState s₂
+    (writeValProg U V w n_max h_space ((base, g_del), vA g_last))
+  obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
+    writeValProg_effect (U := U) (V := V) (base := base) (h_space := h_space)
+      hw hg_del_lt (valAt_lt _ _ _ _ _ _ _ _ : vA g_last < 2 ^ valBits V) s₂
+  let s₄ := (Memory.spec 0).clientState s₃
+    (writeQuotProg U w n_max h_space ((base, g_tail), qA g_del))
+  obtain ⟨hf4, hout4, hq4, hv4, hl4, hg4⟩ :=
+    writeQuotProg_effect (U := U) (base := base) (V := V) (h_space := h_space)
+      hw hg_tail_lt (quotAt_lt _ _ _ _ _ _ _ : qA g_del < 2 ^ quotientBits U n_max) s₃
+  let s₅ := (Memory.spec 0).clientState s₄
+    (writeValProg U V w n_max h_space ((base, g_tail), vA g_del))
+  obtain ⟨hf5, hout5, hq5, hv5, hl5, hg5⟩ :=
+    writeValProg_effect (U := U) (V := V) (base := base) (h_space := h_space)
+      hw hg_tail_lt (valAt_lt _ _ _ _ _ _ _ _ : vA g_del < 2 ^ valBits V) s₄
+  have hr_qd := clientResult_readQuotProg (U := U) (w := w) (h_space := h_space)
+    (base := base) s hg_del_lt
+  have hr_vd := clientResult_readValProg (U := U) (V := V) (w := w) (h_space := h_space)
+    (base := base) s hg_del_lt
+  have hr_ql := clientResult_readQuotProg (U := U) (w := w) (h_space := h_space)
+    (base := base) s hg_last_lt
+  have hr_vl := clientResult_readValProg (U := U) (V := V) (w := w) (h_space := h_space)
+    (base := base) s hg_last_lt
+  dsimp only [g_del, p_del, gmSlabTopIdx, gm, g_last, p_last, u] at hr_qd hr_vd hr_ql hr_vl
+  have hres_eq : (Memory.spec 0).clientResult s
+      (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 := by
+    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
+      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
+      writeValGenProg_mk, appendTailItemGenProg_mk]
+    rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg, hr_top,
+      StateTransitionSpec.clientResult_bind, clientState_readGMProg, hr_0,
+      StateTransitionSpec.clientResult_bind, clientState_readQuotProg, hr_qd,
+      StateTransitionSpec.clientResult_bind, clientState_readValProg, hr_vd,
+      StateTransitionSpec.clientResult_bind, clientState_readQuotProg, hr_ql,
+      StateTransitionSpec.clientResult_bind, clientState_readValProg, hr_vl]
+    simp only [StateTransitionSpec.clientResult_bind]
+    rfl
+  have hst : s' = s₅ := by
+    dsimp only [s']
+    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
+      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
+      writeValGenProg_mk, appendTailItemGenProg_mk]
+    rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hr_top,
+      StateTransitionSpec.clientState_bind, clientState_readGMProg, hr_0,
+      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hr_qd,
+      StateTransitionSpec.clientState_bind, clientState_readValProg, hr_vd,
+      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hr_ql,
+      StateTransitionSpec.clientState_bind, clientState_readValProg, hr_vl,
+      StateTransitionSpec.clientState_bind, hres_app]
+    repeat rw [StateTransitionSpec.clientState_bind]
+    rfl
+  rw [hst]
+  refine ⟨hres_eq, by rw [hf5, hf4, hf3, hf2, hf1], fun a ha => ?_,
+    by rw [hq5, hq4, hq3, hq2, hq1], by rw [hv5, hv4, hv3, hv2, hv1],
+    by rw [hl5, hl4, hl3, hl2, hl1], by rw [hg5, hg4, hg3, hg2, hg1]⟩
+  rw [hout5 a (by wram_omega [ha]), hout4 a (by wram_omega [ha]), hout3 a (by wram_omega [ha]),
+    hout2 a (by wram_omega [ha]), hout1 a (by wram_omega [ha])]
 
 theorem realizes_demoteStepGen :
     Realizes .exact demoteStepGenProg
@@ -395,26 +353,24 @@ theorem realizes_demoteStepGen :
     let d := (d1, d2)
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [demoteStepGenPre_mk, appendTailItemGenPre_mk, appendTailItemGenProg_mk]
+    obtain ⟨hk_le, htop_lt, h0_lt, hnslabs, hgdel, hglast, happ, htnew, hgtail, hk1_le⟩ :=
+      demoteStep_bounds hw h.2
   )
-  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU
-      (le_of_lt (demoteStep_bounds hw h.2).2.1)
+  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU htop_lt.le
   · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
-  · exact (demoteStep_bounds hw h.2).2.1
-  · exact (demoteStep_bounds hw h.2).2.2.1
-  · exact (demoteStep_bounds hw h.2).1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU
-      (le_trans (le_of_lt (demoteStep_bounds hw h.2).2.2.2.2.1) (le_max_left n_max 1))
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.1
-  · exact (demoteStep_bounds hw h.2).2.2.2.1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU
-      (le_trans (le_of_lt (demoteStep_bounds hw h.2).2.2.2.2.2.1) (le_max_left n_max 1))
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.2.1
-  · exact ⟨h.1, (demoteStep_bounds hw h.2).2.2.2.2.2.2.1⟩
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.1
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.2.1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU
-      (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.2.2
+  · exact htop_lt
+  · exact h0_lt
+  · exact hk_le
+  · exact fits_of_le_max_n_one h.1 hw hnU hU (hgdel.le.trans (le_max_left n_max 1))
+  · exact hgdel
+  · exact hnslabs
+  · exact fits_of_le_max_n_one h.1 hw hnU hU (hglast.le.trans (le_max_left n_max 1))
+  · exact hglast
+  · exact ⟨h.1, happ⟩
+  · exact htnew
+  · exact hgtail
+  · exact fits_of_le_max_n_one h.1 hw hnU hU hk1_le
 
 /-! ## Section 2: `DemoteArrInv`, `DemoteLoopInv`, and `demoteSlabProg` -/
 
@@ -471,81 +427,55 @@ theorem demoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → ℕ
   have hr_cap : gm (gmRIdx b) < tailCapPerBucket n_max := by
     unfold tailCapPerBucket; rw [ite_eq_right hb0, hr_b]; omega
   have ht_cap : gm 1 < maxTailItems n_max := ntails_lt_maxTailItems_of_r_lt hb hr_cap htail
-  have hpres := gmAppendTail_preserves_nonTail gm hb hr_cap ht_cap
   obtain ⟨hptr_val, _⟩ := gmAppendTail_tail gm hb hr_cap ht_cap
-  have hg_del_le_last : g_del ≤ g_last := by
-    have hle : gm (gmSlabTopIdx b) ≤ gm 0 - 1 := by omega
-    have hmul : gm (gmSlabTopIdx b) * slabSize n_max ≤ (gm 0 - 1) * slabSize n_max :=
-      Nat.mul_le_mul_right _ hle
-    omega
+  have hle_mul : gm (gmSlabTopIdx b) * slabSize n_max ≤ (gm 0 - 1) * slabSize n_max :=
+    Nat.mul_le_mul_right _ (by omega)
+  have hg_del_le_last : g_del ≤ g_last := by dsimp only [g_del, g_last]; omega
   have hg_last_le_tail : g_last ≤ g_tail := by omega
   have harr_del : arr g_del = arr₀ (gm₀ (gmSlabTopIdx b) * slabSize n_max + u_k) := by
     dsimp only [g_del]; rw [htop_b]; exact harr.rem_del u_k hu_k_lt
   have harr_last : arr g_last = arr₀ ((gm₀ 0 - 1) * slabSize n_max + u_k) := by
     dsimp only [g_last]; rw [h0]; exact harr.rem_last u_k hu_k_lt
+  have harr_ne (a : ℕ) (h1 : a ≠ g_tail) (h2 : a ≠ g_del) : arr' a = arr a := by
+    dsimp only [arr']; rw [Function.update_of_ne h1, Function.update_of_ne h2]
+  have haddr_inj {p₁ p₂ u₁ u₂ : ℕ} (hu₁ : u₁ < slabSize n_max) (hu₂ : u₂ < slabSize n_max)
+      (heq : p₁ * slabSize n_max + u₁ = p₂ * slabSize n_max + u₂) : p₁ = p₂ ∧ u₁ = u₂ := by
+    refine ⟨?_, ?_⟩
+    · have h1 := congrArg (· / slabSize n_max) heq
+      rwa [Nat.mul_comm p₁, Nat.mul_add_div hK_pos, Nat.div_eq_of_lt hu₁, Nat.add_zero,
+        Nat.mul_comm p₂, Nat.mul_add_div hK_pos, Nat.div_eq_of_lt hu₂, Nat.add_zero] at h1
+    · have h2 := congrArg (· % slabSize n_max) heq
+      rwa [Nat.mul_comm p₁, Nat.mul_add_mod, Nat.mod_eq_of_lt hu₁,
+        Nat.mul_comm p₂, Nat.mul_add_mod, Nat.mod_eq_of_lt hu₂] at h2
+  have hlt_last {p u : ℕ} (hp : p < gm 0 - 1) (hu : u < slabSize n_max) :
+      p * slabSize n_max + u < g_last := by
+    have := Nat.mul_le_mul_right (slabSize n_max) hp; rw [Nat.add_one_mul] at this; omega
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp hp_ne u hu
-    have hp_mul : (p + 1) * slabSize n_max ≤ (gm 0 - 1) * slabSize n_max :=
-      Nat.mul_le_mul_right _ (by omega)
-    rw [Nat.add_one_mul] at hp_mul
-    have hlt_last : p * slabSize n_max + u < g_last := by omega
-    have hne_tail : p * slabSize n_max + u ≠ g_tail := by omega
-    have hne_del : p * slabSize n_max + u ≠ g_del := by
-      intro heq
-      apply hp_ne
-      have hdiv1 : (p * slabSize n_max + u) / slabSize n_max = p := by
-        rw [Nat.mul_comm, Nat.mul_add_div hK_pos, Nat.div_eq_of_lt hu, Nat.add_zero]
-      have hdiv2 : g_del / slabSize n_max = gm₀ (gmSlabTopIdx b) := by
-        dsimp only [g_del]
-        rw [htop_b, Nat.mul_comm, Nat.mul_add_div hK_pos,
-          Nat.div_eq_of_lt hu_k_slab, Nat.add_zero]
-      rw [← hdiv1, heq, hdiv2]
-    dsimp only [arr']
-    rw [Function.update_of_ne hne_tail, Function.update_of_ne hne_del]
+    have := hlt_last (h0 ▸ hp) hu
+    rw [harr_ne _ (by omega) (fun heq => hp_ne (by
+      have := (haddr_inj hu hu_k_slab heq).1; rw [← htop_b, this]))]
     exact harr.other_slabs p hp hp_ne u hu
   · intro t ht
-    have hgt : g_tail < (n_max - 1) - t := by omega
-    dsimp only [arr']
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    rw [harr_ne _ (by omega) (by omega)]
     exact harr.other_tails t ht
   · intro u hu
-    have hu_lt_uk : u < u_k := by omega
-    have hlt_del : gm₀ (gmSlabTopIdx b) * slabSize n_max + u < g_del := by
-      dsimp only [g_del]; rw [htop_b]; omega
-    dsimp only [arr']
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    rw [harr_ne _ (by rw [← htop_b]; omega) (by dsimp only [g_del]; rw [htop_b]; omega)]
     exact harr.rem_del u (by omega)
   · intro u hu
-    have hu_lt_uk : u < u_k := by omega
-    have hlt_last : (gm₀ 0 - 1) * slabSize n_max + u < g_last := by
-      dsimp only [g_last]; rw [h0]; omega
-    have hne_del : (gm₀ 0 - 1) * slabSize n_max + u ≠ g_del := by
-      intro heq
-      have hmod1 : ((gm₀ 0 - 1) * slabSize n_max + u) % slabSize n_max = u := by
-        rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt (by omega)]
-      have hmod2 : g_del % slabSize n_max = u_k := by
-        dsimp only [g_del]
-        rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hu_k_slab]
-      rw [heq, hmod2] at hmod1
-      omega
-    dsimp only [arr']
-    rw [Function.update_of_ne (by omega), Function.update_of_ne hne_del]
+    rw [harr_ne _ (by rw [← h0]; dsimp only [g_last] at *; omega) (fun heq => by
+      have := (haddr_inj (by omega) hu_k_slab heq).2; omega)]
     exact harr.rem_last u (by omega)
   · intro hp_lt_last u hu_ge hu_lt
-    have hp_mul : (gm₀ (gmSlabTopIdx b) + 1) * slabSize n_max ≤ (gm 0 - 1) * slabSize n_max :=
-      Nat.mul_le_mul_right _ (by omega)
-    rw [Nat.add_one_mul] at hp_mul
-    have hlt_last : gm₀ (gmSlabTopIdx b) * slabSize n_max + u < g_last := by omega
+    have := hlt_last (h0 ▸ hp_lt_last) hu_lt
     dsimp only [arr']
     rw [Function.update_of_ne (by omega)]
     by_cases hueq : u = u_k
     · subst hueq
-      have heq_del : gm₀ (gmSlabTopIdx b) * slabSize n_max + u_k = g_del := by
-        dsimp only [g_del]; rw [htop_b]
-      rw [heq_del, Function.update_self, harr_last]
-    · have hne_del : gm₀ (gmSlabTopIdx b) * slabSize n_max + u ≠ g_del := by
-        dsimp only [g_del]; rw [htop_b]; omega
-      rw [Function.update_of_ne hne_del]
+      rw [show gm₀ (gmSlabTopIdx b) * slabSize n_max + u_k = g_del by
+          dsimp only [g_del]; rw [htop_b],
+        Function.update_self, harr_last]
+    · rw [Function.update_of_ne (by dsimp only [g_del]; rw [htop_b]; omega)]
       exact harr.moved_last hp_lt_last u (by omega) hu_lt
   · intro r hr
     have hr_cap' : r < tailCapPerBucket n_max := by
@@ -555,21 +485,12 @@ theorem demoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → ℕ
     rw [gmTailPtrIdx, hptr_val _ hd_lt]
     by_cases hreq : r = k
     · subst hreq
-      have hd_eq : b * tailCapPerBucket n_max + r =
-          b * tailCapPerBucket n_max + gm (gmRIdx b) := by rw [hr_b]
-      rw [ite_eq_left hd_eq]
-      dsimp only [arr', g_tail]
-      rw [Function.update_self, harr_del]
-    · have hr_lt_k : r < k := by omega
-      have hd_ne : b * tailCapPerBucket n_max + r ≠
-          b * tailCapPerBucket n_max + gm (gmRIdx b) := by rw [hr_b]; omega
-      rw [ite_eq_right hd_ne, ← gmTailPtrIdx]
-      have ht_r_lt : gm (gmTailPtrIdx n_max b r) < gm 1 :=
-        htail.ptr_lt b hb r (by rw [hr_b]; exact hr_lt_k)
-      have hgt : g_tail < (n_max - 1) - gm (gmTailPtrIdx n_max b r) := by omega
-      dsimp only [arr']
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      exact harr.demoted_tail r hr_lt_k
+      rw [ite_eq_left (by rw [hr_b])]
+      dsimp only [arr', g_tail]; rw [Function.update_self, harr_del]
+    · rw [ite_eq_right (by rw [hr_b]; omega), ← gmTailPtrIdx]
+      have ht_r_lt := htail.ptr_lt b hb r (by rw [hr_b]; omega)
+      rw [harr_ne _ (by omega) (by omega)]
+      exact harr.demoted_tail r (by omega)
 
 /-- Full loop invariant for `k ≤ slabSize n_max` iterations of `demoteStepProg` starting from
 `s₀`. -/
@@ -634,55 +555,44 @@ theorem demoteLoopInv_step {U V w₀ n_max h_space base b k : ℕ}
     DemoteLoopInv U V w₀ n_max h_space base b s₀ (k + 1) s' := by
   intro s'
   have hb0 : bucketBits n_max ≠ 0 := by omega
-  have hstep := demoteLoopInv_to_stepInv hloop hk
   obtain ⟨hres, hf, hout, hq, hv, hl, hgm⟩ :=
-    demoteStepProg_effect hw hb_pos s hstep
+    demoteStepProg_effect hw hb_pos s (demoteLoopInv_to_stepInv hloop hk)
   let gm := gmAt base U V w₀ n_max h_space s.mem
   let gm₀ := gmAt base U V w₀ n_max h_space s₀.mem
   have hr_cap : gm (gmRIdx b) < tailCapPerBucket n_max := by
     unfold tailCapPerBucket; dsimp only [gm]; rw [ite_eq_right hb0, hloop.rb_eq]; omega
   have ht_cap : gm 1 < maxTailItems n_max :=
     ntails_lt_maxTailItems_of_r_lt hloop.b_lt hr_cap hloop.tail_bij
-  have hpres := gmAppendTail_preserves_nonTail gm hloop.b_lt hr_cap ht_cap
+  obtain ⟨h0', h1', hrb', hr_other', hq', htop', -⟩ :=
+    gmAppendTail_preserves_nonTail gm hloop.b_lt hr_cap ht_cap
   obtain ⟨hptr_val, _⟩ := gmAppendTail_tail gm hloop.b_lt hr_cap ht_cap
-  have htail' := tailBijection_gmAppendTail hloop.b_lt hr_cap ht_cap hloop.tail_bij
-  have ⟨hptr_slab, hslab'⟩ := slabBijection_gmAppendTail hloop.b_lt hr_cap ht_cap hloop.slab_bij
-  have h1_ge : gm₀ 1 ≤ gm 1 := by
-    have := hloop.gm1_eq; dsimp only [gm, gm₀]; omega
+  obtain ⟨hptr_slab, hslab'⟩ := slabBijection_gmAppendTail hloop.b_lt hr_cap ht_cap hloop.slab_bij
+  have h1_ge : gm₀ 1 ≤ gm 1 := by have := hloop.gm1_eq; dsimp only [gm, gm₀]; omega
   have hq_inv' := demoteArrInv_step hb_pos hloop.b_lt hk hloop.tail_bij hloop.slab_bij
     hloop.gm0_eq h1_ge hloop.top_b_eq hloop.rb_eq hloop.qb_pos hloop.tot_le hloop.quot_inv
   have hv_inv' := demoteArrInv_step hb_pos hloop.b_lt hk hloop.tail_bij hloop.slab_bij
     hloop.gm0_eq h1_ge hloop.top_b_eq hloop.rb_eq hloop.qb_pos hloop.tot_le hloop.val_inv
-  refine ⟨hres, hloop.b_lt, by omega,
-    by rw [hf, hloop.frontier_eq],
-    fun a ha => by rw [hout a ha, hloop.mem_out a ha],
-    by rw [hl, hloop.lm_eq],
-    by rw [hgm]; exact htail',
+  refine ⟨hres, hloop.b_lt, by omega, by rw [hf, hloop.frontier_eq],
+    fun a ha => by rw [hout a ha, hloop.mem_out a ha], by rw [hl, hloop.lm_eq],
+    by rw [hgm]; exact tailBijection_gmAppendTail hloop.b_lt hr_cap ht_cap hloop.tail_bij,
     by rw [hgm]; exact hslab',
-    by rw [hgm, hpres.1]; exact hloop.gm0_eq,
-    by rw [hgm, hpres.2.1]; dsimp only [gm, gm₀] at *; rw [hloop.gm1_eq]; omega,
-    by rw [hgm, hpres.2.2.1]; dsimp only [gm]; rw [hloop.rb_eq],
-    by rw [hgm, hpres.2.2.2.2.1 b hloop.b_lt]; exact hloop.qb_pos,
-    by rw [hgm, hpres.2.2.2.2.2.1 b hloop.b_lt]; exact hloop.top_b_eq,
-    fun b' hb' hne => by rw [hgm, hpres.2.2.2.1 b' hb' hne]; exact hloop.r_other b' hb' hne,
-    fun b' hb' => by rw [hgm, hpres.2.2.2.2.1 b' hb']; exact hloop.q_eq b' hb',
+    by rw [hgm, h0']; exact hloop.gm0_eq,
+    by rw [hgm, h1']; dsimp only [gm, gm₀] at *; rw [hloop.gm1_eq]; omega,
+    by rw [hgm, hrb']; dsimp only [gm]; rw [hloop.rb_eq],
+    by rw [hgm, hq' b hloop.b_lt]; exact hloop.qb_pos,
+    by rw [hgm, htop' b hloop.b_lt]; exact hloop.top_b_eq,
+    fun b' hb' hne => by rw [hgm, hr_other' b' hb' hne]; exact hloop.r_other b' hb' hne,
+    fun b' hb' => by rw [hgm, hq' b' hb']; exact hloop.q_eq b' hb',
     fun b' s_idx => by rw [hgm, hptr_slab]; exact hloop.slabPtr_eq b' s_idx,
     fun b' hb' hne r hr => ?_,
-    by rw [hgm, hpres.1, hpres.2.1]; have := hloop.tot_le; dsimp only [gm] at *; omega,
-    by rw [hgm, hq]; exact hq_inv',
-    by rw [hgm, hv]; exact hv_inv'⟩
-  have hr_cap' : r < tailCapPerBucket n_max := by
-    have hr_eq := hloop.r_other b' hb' hne
-    have hr_le := hloop.tail_bij.r_le b' hb'
-    omega
-  have hd_lt : b' * tailCapPerBucket n_max + r < maxTailItems n_max :=
-    mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap'
-  have hd_ne : b' * tailCapPerBucket n_max + r ≠
-      b * tailCapPerBucket n_max + gm (gmRIdx b) := by
-    intro heq
-    obtain ⟨hbeq, _⟩ := flat_descriptor_inj hr_cap' hr_cap heq
-    exact hne hbeq
-  rw [hgm, gmTailPtrIdx, hptr_val _ hd_lt, ite_eq_right hd_ne, ← gmTailPtrIdx]
+    by rw [hgm, h0', h1']; have := hloop.tot_le; dsimp only [gm] at *; omega,
+    by rw [hgm, hq]; exact hq_inv', by rw [hgm, hv]; exact hv_inv'⟩
+  have hr_cap' : r < tailCapPerBucket n_max :=
+    lt_of_lt_of_le (hloop.r_other b' hb' hne ▸ hr) (hloop.tail_bij.r_le b' hb')
+  have hd_ne : b' * tailCapPerBucket n_max + r ≠ b * tailCapPerBucket n_max + gm (gmRIdx b) :=
+    fun heq => hne (flat_descriptor_inj hr_cap' hr_cap heq).1
+  rw [hgm, gmTailPtrIdx, hptr_val _ (mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap'),
+    ite_eq_right hd_ne, ← gmTailPtrIdx]
   exact hloop.tail_other b' hb' hne r hr
 
 /-- Parameter-free `Memory.Prog` loop executing `n` iterations of `demoteStepGenProg` starting
@@ -736,26 +646,21 @@ theorem iterate_demoteStepProg_spec {U V w₀ n_max h_space base b w : ℕ} {s�
     exact ⟨hloop, trivial, fun _ => trivial⟩
   | succ n ih =>
     have hk : k < slabSize n_max := by omega
-    have hstep := demoteLoopInv_to_stepInv hloop hk
     obtain ⟨hres, hloop'⟩ := demoteLoopInv_step hw hb_pos hloop hk
-    let s' := (Memory.spec 0).clientState s
-      (demoteStepProg U V w₀ n_max h_space ((base, b), k))
+    let s' := (Memory.spec 0).clientState s (demoteStepProg U V w₀ n_max h_space ((base, b), k))
     obtain ⟨hfinal, hcost', hsafe'⟩ := ih (k + 1) s' (by omega) hloop'
     rw [show k + 1 + n = k + (n + 1) by omega] at hfinal
-    refine ⟨?_, ?_, ?_⟩
+    refine ⟨?_, ?_, fun hdict => ?_⟩
     · simp only [iterate]
       rw [StateTransitionSpec.clientState_bind, hres]
       exact hfinal
-    · simp only [iterate]
-      rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_demoteStepProg, hres]
+    · simp only [iterate, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+        memoryCost_demoteStepProg, hres]
       change 48 + memoryCost
         (iterate (demoteStepProg U V w₀ n_max h_space) (base, b) n (k + 1)) s' = 48 * (n + 1)
-      rw [hcost']
-      omega
-    · intro hdict
-      simp only [iterationSafe]
-      rw [hres]
-      exact ⟨⟨hdict, hstep, hb_pos⟩, hsafe' hdict⟩
+      rw [hcost']; omega
+    · simp only [iterationSafe, hres]
+      exact ⟨⟨hdict, demoteLoopInv_to_stepInv hloop hk, hb_pos⟩, hsafe' hdict⟩
 
 theorem realizes_demoteLoopGen :
     Realizes .exact demoteLoopGenProg
@@ -825,11 +730,9 @@ theorem demoteLoopInv_zero {U V w₀ n_max h_space base b : ℕ} {s₀ : Memory.
     DemoteLoopInv U V w₀ n_max h_space base b s₀ 0 s₀ := by
   rcases hpre with ⟨hb, htail, hslab, hrb, hqb_pos, _, htot⟩
   set gm₀ := gmAt base U V w₀ n_max h_space s₀.mem
-  have hp_del_lt : gm₀ (gmSlabTopIdx b) < gm₀ 0 := hslab.top_lt hb (by omega)
-  have hgm0_eq : gm₀ 0 - 1 + 1 = gm₀ 0 := by omega
+  have hp_del_lt := hslab.top_lt hb (by omega)
   have htot' : (gm₀ 0 - 1) * slabSize n_max + (slabSize n_max - 0) + gm₀ 1 ≤ n_max := by
-    rw [Nat.sub_zero, ← Nat.add_one_mul, hgm0_eq]
-    exact htot
+    rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]; exact htot
   refine ⟨hb, Nat.zero_le _, rfl, fun _ _ => rfl, rfl, htail, hslab, rfl,
     (Nat.add_zero _).symm, hrb, hqb_pos, rfl, fun _ _ _ => rfl, fun _ _ => rfl,
     fun _ _ => rfl, fun _ _ _ _ _ => rfl, htot',
@@ -857,10 +760,13 @@ theorem slotOf_gmPopSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ �
   have hb0 : bucketBits n_max ≠ 0 := by omega
   have hK_pos : 0 < slabSize n_max := slabSize_pos n_max
   have hqb_pos' : 1 ≤ gm (gmQIdx b) := by rw [hq b hb]; exact hqb_pos
-  have hf := gmPopSlab_preserves_tail hb hslab
-  have ⟨hptr, _⟩ := slabBijection_gmPopSlab hb hqb_pos' hslab
+  obtain ⟨-, -, hfr, hfq, hftail⟩ := gmPopSlab_preserves_tail hb hslab
+  obtain ⟨hptr, _⟩ := slabBijection_gmPopSlab hb hqb_pos' hslab
   have htop_eq0 := hslab₀.top_eq b hb (gm₀ (gmQIdx b) - 1) (by omega) (by omega)
-  have hp_del_lt0 : gm₀ (gmSlabTopIdx b) < gm₀ 0 := hslab₀.top_lt hb (by omega)
+  have hp_del_lt0 := hslab₀.top_lt hb (by omega)
+  have hmul : gm₀ (gmQIdx b) * slabSize n_max =
+      (gm₀ (gmQIdx b) - 1) * slabSize n_max + slabSize n_max := by
+    rw [← Nat.add_one_mul, Nat.sub_add_cancel hqb_pos]
   intro b' hb' j hj
   unfold bCount at hj
   simp only [hb0, ↓reduceIte, hb'] at hj
@@ -876,82 +782,57 @@ theorem slotOf_gmPopSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ �
     have hu_lt : slabSize n_max - 1 - j % slabSize n_max < slabSize n_max := by
       have := Nat.mod_lt j hK_pos; omega
     have hne_top : ¬(b' = b ∧ j / slabSize n_max = gm₀ (gmQIdx b) - 1) := by
-      rintro ⟨hbeq, hseq⟩
-      subst hbeq
-      rw [hf.2.2.2.1 b' hb', ite_eq_left rfl, hq b' hb'] at hs_lt
+      rintro ⟨rfl, _⟩
+      rw [hfq b' hb', ite_eq_left rfl, hq b' hb'] at hs_lt
       omega
     have hp_ne_del : slabPtrOf n_max gm₀ b' (j / slabSize n_max) ≠ gm₀ (gmSlabTopIdx b) := by
       intro heq
       rw [htop_eq0] at heq
-      have hB1 := hslab₀.ownerB_ptr b' hb' (j / slabSize n_max) hs_lt0
-      have hB2 := hslab₀.ownerB_ptr b hb (gm₀ (gmQIdx b) - 1) (by omega)
-      have hS1 := hslab₀.ownerS_ptr b' hb' (j / slabSize n_max) hs_lt0
-      have hS2 := hslab₀.ownerS_ptr b hb (gm₀ (gmQIdx b) - 1) (by omega)
-      rw [heq] at hB1 hS1
-      exact hne_top ⟨hB1.symm.trans hB2, hS1.symm.trans hS2⟩
+      exact hne_top
+        ⟨(hslab₀.ownerB_ptr b' hb' (j / slabSize n_max) hs_lt0).symm.trans
+          (by rw [heq]; exact hslab₀.ownerB_ptr b hb (gm₀ (gmQIdx b) - 1) (by omega)),
+        (hslab₀.ownerS_ptr b' hb' (j / slabSize n_max) hs_lt0).symm.trans
+          (by rw [heq]; exact hslab₀.ownerS_ptr b hb (gm₀ (gmQIdx b) - 1) (by omega))⟩
     rw [hptr b' hb' (j / slabSize n_max) hs_lt, hslabPtr, h0, htop_b]
     split_ifs with hp_last
     · rw [hp_last]
-      have hp_del_lt_last : gm₀ (gmSlabTopIdx b) < gm₀ 0 - 1 := by
-        rw [hp_last] at hp_ne_del; omega
-      exact harr.moved_last hp_del_lt_last _ (by omega) hu_lt
-    · have hp_lt0 : slabPtrOf n_max gm₀ b' (j / slabSize n_max) < gm₀ 0 :=
-        hslab₀.ptr_lt b' hb' (j / slabSize n_max) hs_lt0
+      exact harr.moved_last (by rw [hp_last] at hp_ne_del; omega) _ (by omega) hu_lt
+    · have := hslab₀.ptr_lt b' hb' (j / slabSize n_max) hs_lt0
       exact harr.other_slabs _ (by omega) hp_ne_del _ hu_lt
-  · exfalso
-    rw [hf.2.2.2.1 b' hb'] at hj_slab
-    split_ifs at hj_slab with hbeq
-    · subst hbeq
-      rw [hq b' hb'] at hj_slab
-      have hle_mul : (gm₀ (gmQIdx b') - 1) * slabSize n_max ≤ gm₀ (gmQIdx b') * slabSize n_max :=
-        Nat.mul_le_mul_right _ (by omega)
-      omega
-    · rw [hq b' hb'] at hj_slab
-      omega
+  · rw [hfq b' hb'] at hj_slab
+    have hle := Nat.mul_le_mul_right (slabSize n_max)
+      (show gm₀ (gmQIdx b') - 1 ≤ gm₀ (gmQIdx b') by omega)
+    split_ifs at hj_slab with hbeq <;> [subst hbeq; skip] <;> rw [hq b' hb'] at hj_slab <;> omega
   · by_cases hbeq : b' = b
     · subst hbeq
-      rw [hf.2.2.2.1 b' hb', ite_eq_left rfl, hq b' hb'] at hj_slab hj ⊢
-      rw [hf.2.2.1 b' hb', hr_b] at hj
+      rw [hfq b' hb', ite_eq_left rfl, hq b' hb'] at hj_slab hj ⊢
+      rw [hfr b' hb', hr_b] at hj
       set r := j - (gm₀ (gmQIdx b') - 1) * slabSize n_max
-      have hr_lt : r < slabSize n_max := by
-        have hmul : gm₀ (gmQIdx b') * slabSize n_max =
-            (gm₀ (gmQIdx b') - 1) * slabSize n_max + slabSize n_max := by
-          rw [← Nat.add_one_mul, Nat.sub_add_cancel hqb_pos]
-        omega
-      have hj_eq : j = (gm₀ (gmQIdx b') - 1) * slabSize n_max + r := by omega
+      have hr_lt : r < slabSize n_max := by omega
       have hr_cap : r < tailCapPerBucket n_max := by
         unfold tailCapPerBucket; rw [ite_eq_right hb0]; omega
-      have hd_lt : b' * tailCapPerBucket n_max + r < maxTailItems n_max :=
-        mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap
-      rw [hf.2.2.2.2 _ (by wram_omega)
-        (by wram_omega)]
-      rw [harr.demoted_tail r hr_lt, htop_eq0]
-      have hs_eq : j / slabSize n_max = gm₀ (gmQIdx b') - 1 := by
-        rw [hj_eq, Nat.mul_comm, Nat.mul_add_div hK_pos,
-          Nat.div_eq_of_lt hr_lt, Nat.add_zero]
-      have hmod_eq : j % slabSize n_max = r := by
-        rw [hj_eq, Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hr_lt]
-      rw [hs_eq, hmod_eq]
+      have hd_lt := mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap
+      rw [hftail _ (by wram_omega) (by wram_omega), harr.demoted_tail r hr_lt, htop_eq0,
+        show j / slabSize n_max = gm₀ (gmQIdx b') - 1 by
+          rw [show j = (gm₀ (gmQIdx b') - 1) * slabSize n_max + r by omega, Nat.mul_comm,
+            Nat.mul_add_div hK_pos, Nat.div_eq_of_lt hr_lt, Nat.add_zero],
+        show j % slabSize n_max = r by
+          rw [show j = (gm₀ (gmQIdx b') - 1) * slabSize n_max + r by omega, Nat.mul_comm,
+            Nat.mul_add_mod, Nat.mod_eq_of_lt hr_lt]]
     · exfalso
-      rw [hf.2.2.2.1 b' hb', ite_eq_right hbeq, hq b' hb'] at hj_slab
+      rw [hfq b' hb', ite_eq_right hbeq, hq b' hb'] at hj_slab
       exact hj_slab hj_slab0
   · by_cases hbeq : b' = b
-    · exfalso
-      subst hbeq
-      rw [hf.2.2.2.1 b' hb', ite_eq_left rfl, hf.2.2.1 b' hb', hq b' hb', hr_b] at hj
-      have hmul : gm₀ (gmQIdx b') * slabSize n_max =
-          (gm₀ (gmQIdx b') - 1) * slabSize n_max + slabSize n_max := by
-        rw [← Nat.add_one_mul, Nat.sub_add_cancel hqb_pos]
+    · subst hbeq
+      rw [hfq b' hb', ite_eq_left rfl, hfr b' hb', hq b' hb', hr_b] at hj
       omega
-    · rw [hf.2.2.2.1 b' hb', ite_eq_right hbeq, hq b' hb'] at hj_slab hj ⊢
-      rw [hf.2.2.1 b' hb', hr_other b' hb' hbeq] at hj
+    · rw [hfq b' hb', ite_eq_right hbeq, hq b' hb'] at hj_slab hj ⊢
+      rw [hfr b' hb', hr_other b' hb' hbeq] at hj
       set r := j - gm₀ (gmQIdx b') * slabSize n_max
       have hr_lt : r < gm₀ (gmRIdx b') := by omega
-      have hr_cap : r < tailCapPerBucket n_max := lt_of_lt_of_le hr_lt (htail₀.r_le b' hb')
-      have hd_lt : b' * tailCapPerBucket n_max + r < maxTailItems n_max :=
-        mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap
-      rw [hf.2.2.2.2 _ (by wram_omega) (by wram_omega),
-        htail_other b' hb' hbeq r hr_lt]
+      have hd_lt := mul_tailCapPerBucket_add_lt_maxTailItems hb'
+        (lt_of_lt_of_le hr_lt (htail₀.r_le b' hb'))
+      rw [hftail _ (by wram_omega) (by wram_omega), htail_other b' hb' hbeq r hr_lt]
       exact harr.other_tails _ (htail₀.ptr_lt b' hb' r hr_lt)
 
 /-- Under `DemoteSlabInv U V w n_max h_space base b s` (`gm (gmRIdx b) = 0` and
@@ -988,11 +869,11 @@ theorem demoteSlabProg_effect {U V w n_max h_space base b : ℕ}
   intro gm₀ s' gm'
   have hb0 : bucketBits n_max ≠ 0 := by omega
   have hK_pos : 0 < slabSize n_max := slabSize_pos n_max
-  have hloop0 := demoteLoopInv_zero hpre
   obtain ⟨hloopK, hcost_loop, _⟩ :=
     iterate_demoteStepProg_spec (w := w) hw hb_pos (slabSize n_max) 0 s
-      (by omega) hloop0
+      (by omega) (demoteLoopInv_zero hpre)
   rw [Nat.zero_add] at hloopK
+  rcases hpre with ⟨hb, htail₀, hslab₀, hrb₀, hqb₀, hother₀, -⟩
   set s₁ := (Memory.spec 0).clientState s
     (demoteLoopProg U V w n_max h_space (((base, b), 0), slabSize n_max))
   change DemoteLoopInv U V w n_max h_space base b s (slabSize n_max) s₁ at hloopK
@@ -1006,67 +887,42 @@ theorem demoteSlabProg_effect {U V w n_max h_space base b : ℕ}
       gmPopSlabGenProg_mk]
     rw [StateTransitionSpec.clientState_bind]
   let gm₁ := gmAt base U V w n_max h_space s₁.mem
-  have hgm'_eq : gm' = gmPopSlab n_max gm₁ b := by
-    dsimp only [gm']; rw [hst, hgm_pop]
-  have hf_fields := gmPopSlab_preserves_tail hloopK.b_lt hloopK.slab_bij
-  have ⟨_, hslab2⟩ := slabBijection_gmPopSlab hloopK.b_lt hloopK.qb_pos hloopK.slab_bij
+  have hgm'_eq : gm' = gmPopSlab n_max gm₁ b := by dsimp only [gm']; rw [hst, hgm_pop]
+  obtain ⟨hf0, hf1, hfr, hfq, -⟩ := gmPopSlab_preserves_tail hloopK.b_lt hloopK.slab_bij
+  obtain ⟨_, hslab2⟩ := slabBijection_gmPopSlab hloopK.b_lt hloopK.qb_pos hloopK.slab_bij
   have htail2 := tailBijection_gmPopSlab hloopK.b_lt hloopK.slab_bij hloopK.tail_bij
   have hqb : gm' (gmQIdx b) = gm₀ (gmQIdx b) - 1 := by
-    rw [hgm'_eq, hf_fields.2.2.2.1 b hloopK.b_lt, ite_eq_left rfl]
-    dsimp only [gm₁, gm₀]
-    rw [hloopK.q_eq b hloopK.b_lt]
+    rw [hgm'_eq, hfq b hloopK.b_lt, ite_eq_left rfl, hloopK.q_eq b hloopK.b_lt]
   have hrb : gm' (gmRIdx b) = slabSize n_max := by
-    rw [hgm'_eq, hf_fields.2.2.1 b hloopK.b_lt]
-    exact hloopK.rb_eq
+    rw [hgm'_eq, hfr b hloopK.b_lt]; exact hloopK.rb_eq
   have hother : ∀ b' < numBuckets n_max, b' ≠ b →
-      gm' (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₀ (gmRIdx b') := by
-    intro b' hb' hne
-    rw [hgm'_eq, hf_fields.2.2.2.1 b' hb', ite_eq_right hne, hf_fields.2.2.1 b' hb']
-    dsimp only [gm₁, gm₀]
-    rw [hloopK.q_eq b' hb', hloopK.r_other b' hb' hne]
-    exact ⟨rfl, rfl⟩
+      gm' (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₀ (gmRIdx b') := fun b' hb' hne => by
+    rw [hgm'_eq, hfq b' hb', ite_eq_right hne, hfr b' hb']
+    exact ⟨hloopK.q_eq b' hb', hloopK.r_other b' hb' hne⟩
   have hinv2 : SlotStoreInv n_max gm' := by
-    refine ⟨fun h0 => by omega, fun _ => by rw [hgm'_eq]; exact htail2,
-      fun _ => by rw [hgm'_eq]; exact hslab2, fun _ b' hb' => ?_, fun _ => ?_⟩
-    · by_cases hbeq : b' = b
-      · subst b'
-        rw [hrb]
-        unfold tailCapPerBucket
-        rw [ite_eq_right hb0]
-        omega
-      · rw [(hother b' hb' hbeq).1, (hother b' hb' hbeq).2]
-        exact hpre.2.2.2.2.2.1 b' hb' hbeq
-    · rw [hgm'_eq, hf_fields.1, hf_fields.2.1]
-      have := hloopK.tot_le
-      omega
-  have hbc : ∀ b' < numBuckets n_max, bCount n_max gm' b' = bCount n_max gm₀ b' := by
-    intro b' hb'
-    unfold bCount
-    simp only [hb0, ↓reduceIte, hb']
+    refine ⟨fun _ => by omega, fun _ => by rw [hgm'_eq]; exact htail2,
+      fun _ => by rw [hgm'_eq]; exact hslab2, fun _ b' hb' => ?_,
+      fun _ => by rw [hgm'_eq, hf0, hf1]; have := hloopK.tot_le; omega⟩
     by_cases hbeq : b' = b
-    · subst b'
-      rw [hqb, hrb]
-      dsimp only [gm₀]
-      have hqb0 : 1 ≤ gm₀ (gmQIdx b) := hpre.2.2.2.2.1
-      rw [hpre.2.2.2.1, Nat.add_zero, ← Nat.add_one_mul, Nat.sub_add_cancel hqb0]
+    · subst b'; rw [hrb]; unfold tailCapPerBucket; rw [ite_eq_right hb0]; omega
+    · rw [(hother b' hb' hbeq).1, (hother b' hb' hbeq).2]; exact hother₀ b' hb' hbeq
+  have hbc : ∀ b' < numBuckets n_max, bCount n_max gm' b' = bCount n_max gm₀ b' := fun b' hb' => by
+    unfold bCount; simp only [hb0, ↓reduceIte, hb']
+    by_cases hbeq : b' = b
+    · subst b'; rw [hqb, hrb]; dsimp only [gm₀]
+      rw [hrb₀, Nat.add_zero, ← Nat.add_one_mul, Nat.sub_add_cancel hqb₀]
     · rw [(hother b' hb' hbeq).1, (hother b' hb' hbeq).2]
-  have hq_slot := slotOf_gmPopSlab_preserve hb_pos hloopK.b_lt hpre.2.1 hloopK.tail_bij
-    hpre.2.2.1 hloopK.slab_bij hloopK.gm0_eq hloopK.q_eq hloopK.top_b_eq hloopK.r_other
-    hloopK.rb_eq hpre.2.2.2.1 hpre.2.2.2.2.1 hloopK.slabPtr_eq hloopK.tail_other hloopK.quot_inv
-  have hv_slot := slotOf_gmPopSlab_preserve hb_pos hloopK.b_lt hpre.2.1 hloopK.tail_bij
-    hpre.2.2.1 hloopK.slab_bij hloopK.gm0_eq hloopK.q_eq hloopK.top_b_eq hloopK.r_other
-    hloopK.rb_eq hpre.2.2.2.1 hpre.2.2.2.2.1 hloopK.slabPtr_eq hloopK.tail_other hloopK.val_inv
+  have hslot {arr₀ arr : ℕ → ℕ}
+      (harr : DemoteArrInv n_max b gm₀ arr₀ (slabSize n_max) gm₁ arr) :=
+    slotOf_gmPopSlab_preserve hb_pos hloopK.b_lt htail₀ hloopK.tail_bij
+      hslab₀ hloopK.slab_bij hloopK.gm0_eq hloopK.q_eq hloopK.top_b_eq hloopK.r_other
+      hloopK.rb_eq hrb₀ hqb₀ hloopK.slabPtr_eq hloopK.tail_other harr
   refine ⟨by rw [hst, hf_pop, hloopK.frontier_eq],
-    fun a ha => by
-      have ha' : ¬(base + offGM U V w n_max h_space ≤ a ∧
-          a < base + totalSpace U V w n_max h_space) := by wram_omega [ha]
-      rw [hst, hout_pop a ha', hloopK.mem_out a ha],
-    by rw [hst, hl_pop, hloopK.lm_eq],
-    hinv2, hqb, hrb, hother, hbc,
+    fun a ha => by rw [hst, hout_pop a (by wram_omega [ha]), hloopK.mem_out a ha],
+    by rw [hst, hl_pop, hloopK.lm_eq], hinv2, hqb, hrb, hother, hbc,
     fun b' hb' j hj => ?_, ?_⟩
-  · rw [hst, hq_pop, hv_pop, hgm'_eq]
-    rw [hgm'_eq] at hj
-    exact ⟨hq_slot b' hb' j hj, hv_slot b' hb' j hj⟩
+  · rw [hst, hq_pop, hv_pop, hgm'_eq]; rw [hgm'_eq] at hj
+    exact ⟨hslot hloopK.quot_inv b' hb' j hj, hslot hloopK.val_inv b' hb' j hj⟩
   · simp only [demoteSlabProg, demoteSlabGenProg, p_slabSize_mk,
       demoteLoopGenProg_mk, gmPopSlabGenProg_mk]
     unfold demoteLoopProg
@@ -1075,7 +931,7 @@ theorem demoteSlabProg_effect {U V w n_max h_space base b : ℕ}
         (iterate (demoteStepProg U V w n_max h_space) (base, b) (slabSize n_max) 0) s +
       memoryCost (gmPopSlabProg U V w n_max h_space (base, b)) s₁ ≤ _
     rw [hcost_loop]
-    have hpop_cost := memoryCost_gmPopSlabProg_le U V w n_max h_space (base, b) s₁
+    have := memoryCost_gmPopSlabProg_le U V w n_max h_space (base, b) s₁
     omega
 
 theorem realizes_demoteSlabGen :
@@ -1085,11 +941,6 @@ theorem realizes_demoteSlabGen :
       (fun _ _ => 0) := by
   have hloop := realizes_demoteLoopGen
   have hpop := realizes_gmPopSlabGen
-  refine Realizes.congr (p := fun d : DictParams × (ℕ × ℕ) => do
-      let k0 ← pure 0
-      let _ ← demoteLoopGenProg ((d, k0), dpSlabSize d.1)
-      gmPopSlabGenProg d) ?_
-    (fun d => by simp only [demoteSlabGenProg, pure_bind])
   realizeDictWith [demoteSlabGenPre_mk, iterationSafe_demoteStepGenProg_mk,
     demoteLoopGenProg_mk, gmPopSlabGenPre_mk, gmPopSlabGenProg_mk]
   · exact (iterate_demoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s
@@ -1099,8 +950,6 @@ theorem realizes_demoteSlabGen :
     have hloopK := (iterate_demoteStepProg_spec (w := w) hw h.2.2 (slabSize n_max) 0 s
       (by omega) (demoteLoopInv_zero h.2.1)).1
     rw [Nat.zero_add] at hloopK
-    unfold GmPopSlabPre demoteLoopProg
-    dsimp only
     exact ⟨h.1, hloopK.slab_bij, h.2.1.1, hloopK.qb_pos, h.2.2⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct
