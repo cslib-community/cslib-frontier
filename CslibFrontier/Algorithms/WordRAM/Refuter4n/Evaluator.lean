@@ -135,8 +135,8 @@ structure EvalPost {r : ℕ} (f : BooleanFunction n) (inp base out : Fin r) (spa
 /-- A **framed Word-RAM evaluator** for `f : BooleanFunction n`: a fixed standard-basis program
 on `r` registers with its calling convention and per-call instruction bound. The certificate
 `exec` holds at every width `w ≥ n + 1`, from any data whose register `inp` holds the packed
-point and register `base` the workspace base `b`, with all other registers and all memory
-arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
+point and register `base` a workspace base `b` with `Fits w (b + space)`, with all other
+registers and all memory arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
 `cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window
 (`EvalPost`). -/
 structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
@@ -157,7 +157,8 @@ structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
   /-- The workspace is at most the cost, so a large window cannot raise the admitted widths for
   free. -/
   space_le_cost : space ≤ cost
-  /-- The execution certificate, for every width `w ≥ n + 1`, point, base and data. -/
+  /-- The execution certificate, for every width `w ≥ n + 1`, point and data whose window at the
+  base held in `base` fits. -/
   exec : ∀ {w : ℕ} (x : BitString n) (s : Data r), n + 1 ≤ w →
     Fits w (s.regs base + space) → s.regs inp = pointWord x →
     ∃ t, ExecWithin w code s t cost ∧ EvalPost f inp base out space x s t
