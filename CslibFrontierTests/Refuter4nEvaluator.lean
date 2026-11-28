@@ -177,16 +177,6 @@ example (x : BitString 4) (s : Data 7) (hx : s.regs 0 = pointWord x) (hb : s.reg
     (show 4 + 1 ≤ 5 by decide) (by simp [parityEvaluator, Fits]) hx hb
   exact ⟨t, ht, hout, hmem 9 (by simp [parityEvaluator])⟩
 
-/-- `FramedEvaluator.exec_rename` for the parity evaluator in the bank of `evalMany`: the result
-lands in caller register `2`, and a caller register outside the bank is kept. -/
-example (x : BitString 3) (s : Data 13) (hx : s.regs 0 = pointWord x) (hb : s.regs 1 = 0) :
-    ∃ t, ExecWithin 4 ((parityEvaluator 3).code.rename (bank 7)) s t 24 ∧
-      t.regs 2 = (parity 3 x).toNat ∧ t.regs (cSrc 7) = s.regs (cSrc 7) := by
-  have hfit : Fits 4 (s.regs 1 + 0) := by rw [hb]; decide
-  obtain ⟨t, ht, hout, -, -, hregs, -⟩ := (parityEvaluator 3).exec_rename
-    (Fin.castAdd_injective 7 6) x s (show 3 + 1 ≤ 4 by decide) hfit hx
-  exact ⟨t, ht, hout, hregs _ fun j => bank_ne j 2⟩
-
 /-- `exec_evalMany` for the parity evaluator: `k` calls charged `k * (6 n + 13) + 4`. -/
 example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ w)
     (hcnt : s.regs 8 = xs.length) (hsrc : s.regs 9 = src) (hdst : s.regs 10 = dst)

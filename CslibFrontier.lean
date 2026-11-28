@@ -3591,6 +3591,7 @@ public import CslibFrontier.Crypto.Negligible.InversePolynomial
 public import CslibFrontier.Foundations.Analysis.ODE.LaplaceTransferFunction
 public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
 public import CslibFrontier.Computability.Circuit.Boolean.Broadcast
+public import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Computability.PolyTime.ZMod.ModulusSwitch
 public import CslibFrontier.Computability.Probabilistic.IntBox
@@ -6728,7 +6729,6 @@ public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.O
 public import CslibFrontier.Computability.LogSpaceDerandomization.RootMetric
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDH
 public import CslibFrontier.Algorithms.WordRAM.Refuter4n.PackedState
-public import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Order
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.BfsSemantics
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ProgressEmpty

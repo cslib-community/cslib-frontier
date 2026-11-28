@@ -20,7 +20,10 @@ import Mathlib.Tactic.Ring
 
 Natural numbers represent bit strings, with an explicit width for bounded-word comparisons.
 Projections retain selected positions in list order; finite-set sketches sort those positions
-by significance. Prefix boundaries replace the low bits with fixed masks.
+by significance. Prefix boundaries replace the low bits with fixed masks. Two helpers about
+single bits of a natural number support these: `Nat.testBit_eq_false_of_lt_two_pow` (bits at or
+above the width of a bounded word vanish) and `Nat.shiftRight_and_one` (a right shift masked
+with `1` reads one bit).
 
 ## Main definitions
 

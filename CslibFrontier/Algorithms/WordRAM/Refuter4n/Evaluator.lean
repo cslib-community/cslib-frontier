@@ -7,10 +7,11 @@ Authors: Christian Reitwiessner, Ryan Anderson
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.WordRAM.Call
-public import CslibFrontier.Computability.WordRAM.CountingLoop
+public import CslibFrontier.Computability.WordRAM.Structured
 public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Parity
+import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.Data.BitString.ListParity
@@ -67,13 +68,12 @@ a caller's registers and memory, so its certificate carries a frame and starts f
 data.
 
 **Calls.** A caller runs `code` in an injective register bank `g` of its own register file
-(`Code.rename`). `FramedEvaluator.exec_rename` gives the call postcondition `CallPost`: the
-result in `g out`, `g inp` and `g base` kept, every caller register outside the bank kept and
-memory outside the window kept, within `cost`. `FramedEvaluator.exec_loop` runs a counting loop
-whose body is a charged preparation, one call and a charged continuation (`ExecWithin.call`):
-from index `i₀` up
-to the limit `N` it costs `(N - i₀) * (tPrep + cost + tCont + 2) + 2` instructions, overhead
-plus the number of calls times the cost of evaluation and setup.
+(`Code.rename`). The call postcondition `CallPost` records the result in `g out`, `g inp` and
+`g base` kept, every caller register outside the bank kept and memory outside the window kept.
+`FramedEvaluator.exec_loop` runs a counting loop whose body is a charged preparation, one call
+and a charged continuation (`ExecWithin.call`): from index `i₀` up to the limit `N` it costs
+`(N - i₀) * (tPrep + cost + tCont + 2) + 2` instructions, overhead plus the number of calls
+times the cost of evaluation and setup.
 
 **Instance.** `parityEvaluator n` evaluates `Cslib.parity n` by a shift-and-mask loop over the
 `n` bits of the packed point, with no workspace, at the widths `w ≥ n + 1`, within `6 n + 6`
@@ -90,10 +90,6 @@ instructions.
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.Refuter4n.fits_pointWord`: the packed word fits at every width
-  `w ≥ n`.
-* `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_rename`: one call in a caller's
-  register bank, within `cost`.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_loop`: a counting loop with one call
   per iteration, every call charged.
 * `Cslib.Algorithms.WordRAM.Refuter4n.exec_parityCode`: the certificate of the parity instance.
@@ -159,21 +155,17 @@ variable {f : BooleanFunction n} {r r' : ℕ} (E : FramedEvaluator n f r)
 `s` on the point `x` to caller data `t`: the result is in `g E.out`, the registers `g E.inp`
 and `g E.base` are kept, every caller register outside the bank is kept, and every memory cell
 outside the window at the base held in `g E.base` is kept. -/
-@[expose] def CallPost (g : Fin r → Fin r') (x : BitString n) (s t : Data r') : Prop :=
-  t.regs (g E.out) = (f x).toNat ∧ t.regs (g E.inp) = s.regs (g E.inp) ∧
-    t.regs (g E.base) = s.regs (g E.base) ∧ (∀ i, (∀ j, g j ≠ i) → t.regs i = s.regs i) ∧
-    ∀ a, (a < s.regs (g E.base) ∨ s.regs (g E.base) + E.space ≤ a) → t.mem a = s.mem a
-
-/-- **One call in a caller's register bank.** If the caller's register `g E.inp` holds the packed
-point `x` and the window at the base held in `g E.base` fits, the renamed program runs within
-`E.cost` instructions and establishes `CallPost`. -/
-theorem exec_rename {g : Fin r → Fin r'} (hg : g.Injective) {w : ℕ} (x : BitString n)
-    (s : Data r') (hw : n + 1 ≤ w) (hfit : Fits w (s.regs (g E.base) + E.space))
-    (hx : s.regs (g E.inp) = pointWord x) :
-    ∃ t, ExecWithin w (E.code.rename g) s t E.cost ∧ E.CallPost g x s t := by
-  obtain ⟨t, ht, ⟨hout, hinp, hbase, hmem⟩, hframe⟩ := ExecWithin.rename_post hg
-    (E.exec x (s.comap g) hw hfit hx rfl)
-  exact ⟨t, ht, hout, hinp, hbase, hframe, hmem⟩
+structure CallPost (g : Fin r → Fin r') (x : BitString n) (s t : Data r') : Prop where
+  /-- The result is in the bank's result register. -/
+  result : t.regs (g E.out) = (f x).toNat
+  /-- The bank's input register is kept. -/
+  inp_eq : t.regs (g E.inp) = s.regs (g E.inp)
+  /-- The bank's base register is kept. -/
+  base_eq : t.regs (g E.base) = s.regs (g E.base)
+  /-- Every caller register outside the bank is kept. -/
+  regs_eq : ∀ i, (∀ j, g j ≠ i) → t.regs i = s.regs i
+  /-- Every memory cell outside the window is kept. -/
+  mem_eq : ∀ a, (a < s.regs (g E.base) ∨ s.regs (g E.base) + E.space ≤ a) → t.mem a = s.mem a
 
 /-- **A counting loop with one call per iteration.** The body is a charged preparation `prep`,
 one call of `E` in the bank `g` and a charged continuation `cont`, at a width `w ≥ n + 1`. At
