@@ -31,10 +31,12 @@ directed cycles) forms a directed out-forest whose underlying undirected graph
 `SimpleGraph.fromRel B.Adj` is acyclic (`Digraph.IsBranching.toSimpleGraph_isAcyclic`).
 
 On a finite vertex type `V`, every branching admits a strict root-distance ranking
-(`Digraph.IsBranching.exists_rank`). Along each rooted component tree, bottom-up dynamic
-programming tracks the unchosen-root ratio `p(T_u) = i₀(T_u) / i(T_u) ∈ [1 / 2, 4 / 5]` against the
-quadratic potential `f(p) = (2 / 5) * (p - 1 / 2) + (3 / 10) * (p - 1 / 2) ^ 2`, establishing the
-rational entropy bound
+(`Digraph.IsBranching.exists_rank`). In the degree-capped forest, every non-root vertex `u` has at
+most two children. The fraction `p(T_u) = i₀(T_u) / i(T_u)` of independent sets of its subtree
+that omit `u` lies in `[1 / 2, 4 / 5]`. The induction uses the quadratic potential
+`f(p) = (2 / 5) * (p - 1 / 2) + (3 / 10) * (p - 1 / 2) ^ 2`. At a component root the proof
+combines the ratios of up to three children and subtracts the active-root penalty whenever there
+is a child. The resulting entropy bound is
 
 `Real.logb 2 i(G) ≤ |V| - (53 / 200) * cappedEdges(B) - (33 / 1000) * |activeRoots(B)|`
 
@@ -627,7 +629,9 @@ private noncomputable def subIndepCount [Fintype V] (arc : V → V → Prop) (u 
   (indepPowerset (SimpleGraph.fromRel arc) (arcSubtree arc u)).card
 
 open Classical in
-/-- Number of independent sets in the subtree rooted at `u` omitting `u`. -/
+/-- Number of independent sets on the vertices reachable from a child of `u`.
+When a rank strictly increases along each arc, these are exactly the independent sets on the
+subtree of `u` that omit `u`. -/
 private noncomputable def subUnchosenCount [Fintype V] (arc : V → V → Prop) (u : V) : ℕ :=
   (indepPowerset (SimpleGraph.fromRel arc) ((arcKids arc u).biUnion (arcSubtree arc))).card
 
@@ -635,7 +639,8 @@ private noncomputable def subUnchosenCount [Fintype V] (arc : V → V → Prop) 
 private noncomputable def subEdges [Fintype V] (arc : V → V → Prop) (u : V) : ℕ :=
   ∑ w ∈ arcSubtree arc u, (arcKids arc w).card
 
-/-- Fraction of independent sets in the subtree rooted at `u` that omit `u`. -/
+/-- Ratio of the independent-set count on the union of the child subtrees to the count on
+the subtree of `u`. Under a strictly increasing rank it is the fraction of sets omitting `u`. -/
 private noncomputable def subRootRatio [Fintype V] (arc : V → V → Prop) (u : V) : ℝ :=
   (subUnchosenCount arc u : ℝ) / (subIndepCount arc u : ℝ)
 
