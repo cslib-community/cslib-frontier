@@ -24,6 +24,8 @@ Mathlib's `div_pow` needs a `DivisionCommMonoid`, which `ℝ≥0∞` is not (`0 
 
 * `ENNReal.natCast_div_le_natCast_div_iff`: for `b, d ≠ 0`, `a / b ≤ c / d ↔ a * d ≤ c * b`.
 * `ENNReal.div_pow`: `(a / b) ^ n = a ^ n / b ^ n` for all `a b : ℝ≥0∞`.
+* `ENNReal.mul_two_div_le_one_third`: `N * (2 / p) ≤ 1 / 3` when `6 * N ≤ p`.
+* `ENNReal.three_mul_le_of_div_le`: `3 * a ≤ b` when `a / b ≤ 1 / 3` for natural numbers.
 * `ENNReal.one_sub_pow_succ_le`: for `δ ≤ 1`, the recursion
   `1 - (1 - δ) ^ (n + 1) ≤ (1 - δ) (1 - (1 - δ) ^ n) + δ` behind the probability `1 - (1 - δ) ^ n`
   that one of `n` independent trials with probability `δ` succeeds.
@@ -48,6 +50,21 @@ theorem natCast_div_le_natCast_div_iff {a b c d : ℕ} (hb : b ≠ 0) (hd : d �
 /-- A power of a quotient in `ℝ≥0∞` is the quotient of the powers, with no side conditions. -/
 protected theorem div_pow (a b : ℝ≥0∞) (n : ℕ) : (a / b) ^ n = a ^ n / b ^ n := by
   simp only [div_eq_mul_inv, mul_pow, ENNReal.inv_pow]
+
+/-- A soundness error `N * (2 / p)` is at most `1 / 3` when `6 * N ≤ p`. -/
+theorem mul_two_div_le_one_third {N p : ℕ} (hp : p ≠ 0) (h : 6 * N ≤ p) :
+    (N : ℝ≥0∞) * (2 / p) ≤ 1 / 3 := by
+  rw [← mul_div_assoc, ENNReal.div_le_iff (by exact_mod_cast hp) (ENNReal.natCast_ne_top p),
+    one_div, ← ENNReal.div_eq_inv_mul, ENNReal.le_div_iff_mul_le (Or.inl (by norm_num))
+      (Or.inl (by norm_num))]
+  exact_mod_cast (show N * 2 * 3 ≤ p by omega)
+
+/-- A fraction `a / b` of natural numbers that is at most `1 / 3` has `3 * a ≤ b`. -/
+theorem three_mul_le_of_div_le {a b : ℕ} (hb : b ≠ 0) (h : (a : ℝ≥0∞) / b ≤ 1 / 3) :
+    3 * a ≤ b := by
+  rw [show (1 / 3 : ℝ≥0∞) = ((1 : ℕ) : ℝ≥0∞) / ((3 : ℕ) : ℝ≥0∞) by norm_num,
+    ENNReal.natCast_div_le_natCast_div_iff hb (by norm_num)] at h
+  omega
 
 /-- One more round at flip probability `δ`: the recursion behind `1 - (1 - δ) ^ n`. -/
 theorem one_sub_pow_succ_le {δ : ℝ≥0∞} (hδ : δ ≤ 1) (n : ℕ) :

@@ -58,7 +58,8 @@ every step adds at most a polynomial amount of storage
 ## Main definitions
 
 * `Cslib.Complexity.QBFProtocol.Machine.step`, `Cslib.Complexity.QBFProtocol.Machine.loop`: the
-  stack machine.
+  stack machine, and `Cslib.Complexity.QBFProtocol.Machine.loopFrom`, the machine started at any
+  claim.
 * `Cslib.Complexity.QBFProtocol.loopInput`: the parameters and tokens computed from a formula.
 * `Cslib.Complexity.QBFProtocol.verifier`: the verifier.
 
@@ -66,6 +67,8 @@ every step adds at most a polynomial amount of storage
 
 * `Cslib.Complexity.QBFProtocol.lt_modulus`, `Cslib.Complexity.QBFProtocol.prime_modulus`: the
   modulus is a prime above the bound.
+* `Cslib.Complexity.QBFProtocol.Machine.isOraclePPTOn_loopFrom`: the machine, started at any
+  claim, is strict oracle PPT.
 * `Cslib.Complexity.QBFProtocol.isOraclePPTOn_verifier`: the verifier is strict oracle PPT.
 
 ## References
@@ -154,7 +157,7 @@ enc_structure encVState : VState where
 abbrev StepData := LoopInput × VState
 
 /-- The encoding of the data of a step. -/
-private abbrev encStepData : StepData ↪ List Bool := encPair encLoopInput encVState
+abbrev encStepData : StepData ↪ List Bool := encPair encLoopInput encVState
 
 namespace StepData
 
@@ -266,6 +269,18 @@ def init (I : LoopInput) : VState := ⟨I.tokens, [⟨I.xs.map fun x => (x, 0), 
 noncomputable def loop (I : LoopInput) : WordOracleComp Unit VState :=
   OracleComp.iterate I.tokens.length (step I) (init I)
 
+/-- The input of the machine started at a claim: the parameters and tokens of the machine, and the
+claim to check. -/
+abbrev ClaimInput := LoopInput × Claim
+
+/-- The encoding of the input of the machine started at a claim: the loop input, then the claim. -/
+abbrev encClaimInput : ClaimInput ↪ List Bool := encPair encLoopInput encClaim
+
+/-- The machine started at the claim `J.2`: one step per token from the state with all the tokens
+and the single pending claim. -/
+noncomputable def loopFrom (J : ClaimInput) : WordOracleComp Unit VState :=
+  OracleComp.iterate J.1.tokens.length (step J.1) ⟨J.1.tokens, [J.2], true⟩
+
 /-! ### The step in polynomial time -/
 
 section PolyTime
@@ -369,7 +384,7 @@ private lemma stepAt_pt (k : ArithQBF.Kind) :
   | lin => exact ask_pt.bind_with (opCont_pt .lin)
 
 /-- **A step of the machine is strict oracle PPT** in the encoded input and state. -/
-private theorem isOraclePPTOn_step :
+theorem isOraclePPTOn_step :
     IsOraclePPTOn encStepData encVState (fun a : StepData => step a.1 a.2) := by
   unfold step
   exact IsOraclePPTOn.cond (by fun_prop)
@@ -477,20 +492,37 @@ section LoopPolyTime
 
 open ComputableInPolyTime
 
-private lemma init_pt : ComputableInPolyTime init encLoopInput encVState := by
-  unfold init
-  fun_prop
-
-private lemma growth_polyBounded :
+/-- The growth of the storage of a step is polynomial in the encoded input of the loop. -/
+private lemma polyBounded_claimBound :
     PolyBounded (fun I => (encLoopInput I).length) (fun I => 8 * claimBound I + 8) := by
   growth_poly
 
-/-- **The machine is strict oracle PPT** in its encoded input. -/
-private theorem isOraclePPTOn_loop : IsOraclePPTOn encLoopInput encVState loop := by
-  unfold loop
-  exact IsOraclePPTOn.iterateWith_of_bounded_growth (count := fun I => I.tokens.length)
-    (by fun_prop) init_pt isOraclePPTOn_step growth_polyBounded
-    fun I st _ h => length_encVState_le_of_mem_support_step I st h
+/-- The growth of the storage of a step, in the encoded input and claim. -/
+private lemma growth_claimBound :
+    PolyBounded (fun J : ClaimInput => (encClaimInput J).length)
+      (fun J => 8 * claimBound J.1 + 8) :=
+  polyBounded_claimBound.comp (g := fun J : ClaimInput => J.1)
+    (PolyBounded.self.mono fun J => by
+      simp only [length_encPair]
+      omega)
+
+/-- **The machine started at any claim is strict oracle PPT** in its encoded input and claim. -/
+theorem isOraclePPTOn_loopFrom : IsOraclePPTOn encClaimInput encVState loopFrom := by
+  have hstep : IsOraclePPTOn (encPair encClaimInput encVState) encVState
+      (fun pair : ClaimInput × VState => step pair.1.1 pair.2) :=
+    isOraclePPTOn_step.preprocess
+      (prepare := fun pair : ClaimInput × VState => (pair.1.1, pair.2)) (by fun_prop)
+  exact IsOraclePPTOn.iterateWith_of_bounded_growth (count := fun J => J.1.tokens.length)
+    (initial := fun J => (⟨J.1.tokens, [J.2], true⟩ : VState))
+    (step := fun J st => step J.1 st) (by fun_prop) (by fun_prop) hstep growth_claimBound
+    fun J st _ h => length_encVState_le_of_mem_support_step J.1 st h
+
+/-- **The machine is strict oracle PPT** in its encoded input: it is the machine started at the
+claim that the formula has value `1` at the origin. -/
+private theorem isOraclePPTOn_loop : IsOraclePPTOn encLoopInput encVState loop :=
+  isOraclePPTOn_loopFrom.preprocess
+    (prepare := fun I : LoopInput => (I, (⟨I.xs.map fun x => (x, 0), 1⟩ : Claim)))
+    (by fun_prop)
 
 end LoopPolyTime
 
@@ -553,13 +585,16 @@ private lemma lin_pt {α : Type} {enc : α ↪ List Bool} :
 
 attribute [local fun_prop] isQuantifier_pt arith_pt lin_pt
 
+/-- The linearized variables of a formula are computable in polynomial time. -/
 private lemma linVars_pt : ComputableInPolyTime linVars encQBF (encList encNat) := by
   unfold linVars
   fun_prop
 
+/-- The modulus of a formula is computable in polynomial time, in unary. -/
 private lemma modulus_qbf_pt : ComputableInPolyTime modulus encQBF encUnary :=
   unary_bertrandPrime (by unfold primeBound; fun_prop)
 
+/-- The parameters and tokens of the machine are computable in polynomial time. -/
 private lemma loopInput_pt : ComputableInPolyTime loopInput encQBF encLoopInput := by
   have := linVars_pt
   have := modulus_qbf_pt
@@ -569,6 +604,21 @@ private lemma loopInput_pt : ComputableInPolyTime loopInput encQBF encLoopInput 
     fun_prop
   unfold loopInput degreeBound
   fun_prop
+
+variable {γ : Type} {encIn : γ ↪ List Bool}
+
+/-- The parameters and tokens of the machine are computable in polynomial time from the
+formula. -/
+@[fun_prop]
+theorem computableInPolyTime_loopInput {ψ : γ → QBF ℕ} (h : ComputableInPolyTime ψ encIn encQBF) :
+    ComputableInPolyTime (fun x => loopInput (ψ x)) encIn encLoopInput :=
+  loopInput_pt.comp h
+
+/-- The modulus of the formula is computable in polynomial time from the formula. -/
+@[fun_prop]
+theorem computableInPolyTime_modulus {ψ : γ → QBF ℕ} (h : ComputableInPolyTime ψ encIn encQBF) :
+    ComputableInPolyTime (fun x => modulus (ψ x)) encIn encUnary :=
+  modulus_qbf_pt.comp h
 
 /-- **The verifier is strict oracle PPT**: one fair-coin oracle machine with a polynomial clock
 realizes it against every stateful prover. -/

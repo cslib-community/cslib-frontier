@@ -840,6 +840,7 @@ public import CslibFrontier.Computability.Distributed.Paxos.Liveness.SoleLeaderD
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.ProbeRestriction
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
 public import CslibFrontier.Crypto.Computational.Encryption.IdentityBased
+public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.ValueInstance
 public import CslibFrontier.Foundations.BooleanAnalysis.DeterministicEstimation
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Bilinear
 public import CslibFrontier.Foundations.Data.ZMod.Multiples
@@ -4633,6 +4634,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamon
 public import CslibFrontier.DataStructure.BallsToSlots.Spec
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restoration
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledTwoBlockDecision
+public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.ClaimVerifier
 public import CslibFrontier.Computability.Complexity.Fagin.Ordered.Problems
 public import CslibFrontier.Logics.Propositional.CSP.CNFTemplate
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.MinPQ
@@ -9153,6 +9155,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 public import CslibFrontier.DataStructure.Stack.Spec
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.CounterBounds
+public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.AnchoredLanguage
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Decoder.Assembly
 public import CslibFrontier.Algorithms.ThreeSum.ChanHe.ConvolutionSizes
 public import CslibFrontier.Computability.Complexity.Classes.Constructible
