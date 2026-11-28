@@ -15,7 +15,8 @@ import CslibFrontier.Computability.MCSP.PartialNP
 Concrete tests for `PartialMCSP`, `PartialMCSP.BinaryGate`, `PartialMCSP.MonotoneReadOnce`,
 the binary-gate fan-in and threshold-$n-1$ rigidity bridges, `PartialMCSP.verifier` certificates,
 `BipartitePermutationIndependentSet` (directed and undirected LMS formulations), and Ilango's
-$6n$-variable reduction (`ilangoGamma` Clauses (1)–(7), `ilangoPosFormula`, and `ilangoReduction`).
+$6n$-variable reduction (`ilangoGamma` Clauses (1)–(7), `ilangoPosFormula`, and `ilangoReduction`),
+including the transfer of upper bounds along it for all three models.
 -/
 
 namespace CslibFrontierTests.PartialMCSP
@@ -264,14 +265,36 @@ example : PartialMCSP.ilangoReduction bpisG2 ∈ PartialMCSP.MonotoneReadOnce �
 example : ComputableInPolyTime id PartialMCSP.enc PartialMCSP.encBinary :=
   PartialMCSP.computableInPolyTime_id_enc_encBinary
 
-/-- Under `ETH`, `PartialMCSP.MonotoneReadOnce` is not decidable in time $2^{o(m \log m)}$ under
-either unary or binary threshold encoding. -/
-example (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.enc
-      (fun I => I.arity * Nat.log 2 I.arity) ∧
-    ¬DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.encBinary
-      (fun I => I.arity * Nat.log 2 I.arity) :=
-  ⟨h.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce,
-    h.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce_encBinary⟩
+/-! ### Transfer of upper bounds along `ilangoReduction`
+
+The transfer applies to each of the three circuit and formula models, through the correctness
+theorem for that model. -/
+
+/-- Composing the two rate-by-rate transfers: if for every $\delta > 0$ `PartialMCSP` is decidable
+within time $2^{\delta m \log_2 m}$ times a polynomial, then so is
+`BipartitePermutationIndependentSet` in $n \log_2 n$, and hence `ThreeColoring` in $|V|$. The
+machine and the polynomial degree may depend on $\delta$. -/
+example (h : DecidableInSubexpTime PartialMCSP PartialMCSP.enc
+      (fun I => I.arity * Nat.log 2 I.arity)) :
+    DecidableInSubexpTime ThreeColoring encGraph fun H => H.vertices.length :=
+  (PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction
+    PartialMCSP.mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem
+    h).threeColoring_of_bipartitePermutationIndependentSet
+
+/-- The same transfer for binary-gate cost. -/
+example (h : DecidableInSubexpTime PartialMCSP.BinaryGate PartialMCSP.enc
+      (fun I => I.arity * Nat.log 2 I.arity)) :
+    DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      fun G => G.1 * Nat.log 2 G.1 :=
+  PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction
+    PartialMCSP.mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_binaryGate h
+
+/-- The same transfer for monotone read-once formulas. -/
+example (h : DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.enc
+      (fun I => I.arity * Nat.log 2 I.arity)) :
+    DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      fun G => G.1 * Nat.log 2 G.1 :=
+  PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction
+    PartialMCSP.mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_monotoneReadOnce h
 
 end CslibFrontierTests.PartialMCSP
