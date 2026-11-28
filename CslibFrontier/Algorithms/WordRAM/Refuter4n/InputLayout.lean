@@ -45,8 +45,11 @@ gate-table builder of `SemiCircuit.ofCircuitBinary`: line `j` reads the literal 
 (`litCode`) of the earlier lines, absorbs the negations of its operands into its
 truth table, and is either a function of one operand (`unaryLit`) or the binary gate `n + j` with
 gate row `⟨tt, left, right⟩`. The arithmetic decoder that the program computes is private and is
-proved equal to the builder line by line (literal codes and gate rows) through the builder's own
-definitions, so the public statement is about `initialPacked C` itself.
+proved equal to the builder line by line (literal codes and gate rows) through the builder's public
+prefix and last-line lemmas (`programGateLit_castSucc`, `programGateLit_last`,
+`mem_programBinaryGates_gate_of_lt`, `mem_programBinaryGates_gate_last`,
+`programBinaryGate_gate_of_ne`, `programBinaryGate_gate_last`), so the public statement is about
+`initialPacked C` itself.
 
 **Memory image** (`Layout`, `Stored`). From a base address, the parameter mask, auxiliary mask,
 gate mask, output literal and number of pairs, then `N` gate rows of three words, `E` equation

@@ -41,11 +41,11 @@ circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuit
 ## Main results
 
 * `Cslib.Circuits.Boolean.SemiCircuit.programGateLit_castSucc`, `programGateLit_last`,
-  `programWireLit_gate_castSucc`, `programWireLit_gate_last`, `mem_programBinaryGates_gate_of_lt`,
-  `programBinaryGate_gate_of_ne`, `mem_programBinaryGates_gate_last`,
-  `programBinaryGate_gate_last`: appending a line keeps the earlier literals, binary gates and
-  gate map; the new gate carries the literal of its line, the new name is a binary gate exactly
-  when the line has binary cost `1`, and the gate map gives it the gate of its line.
+  `mem_programBinaryGates_gate_of_lt`, `programBinaryGate_gate_of_ne`,
+  `mem_programBinaryGates_gate_last`, `programBinaryGate_gate_last`: appending a line keeps the
+  earlier literals, binary gates and gate map; the new gate carries the literal of its line, the
+  new name is a binary gate exactly when the line has binary cost `1`, and the gate map gives it
+  the gate of its line.
 * `Cslib.Circuits.Boolean.SemiCircuit.programWireLit_input`, `programWireLit_gate`: the literals
   of input and gate wires.
 * `Cslib.Circuits.Boolean.SemiCircuit.mem_programBinaryGates_bounds`, `reads_programWireLit`:
@@ -168,14 +168,12 @@ theorem programGateLit_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n 
     programGateLit (p.gate line) j.castSucc = programGateLit p j := by
   exact Vector.getElem_push_lt j.isLt
 
-/-- **Last line**, on wires: `programGateLit_last`. -/
-theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+private theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
     programWireLit (p.gate line) (.gate (Fin.last g)) = lineBinaryLit (programWireLit p) line :=
   programGateLit_last p line
 
-/-- **Prefix**, on wires: `programGateLit_castSucc`. -/
-theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+private theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
     programWireLit (p.gate line) (.gate j.castSucc) = programWireLit p (.gate j) :=
   programGateLit_castSucc p line j
