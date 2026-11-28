@@ -116,12 +116,10 @@ private theorem sum_cylinderIntersection_eq_sum_rectangle (ν : PMF (∀ i, X i)
       ∑ a ∈ A, ∑ b ∈ B, ((ν.map (piFinTwoEquiv X)) (a, b)).toReal *
         signVal (f ((piFinTwoEquiv X).symm (a, b))) := by
   rw [← sum_product']
-  refine sum_nbij' (piFinTwoEquiv X) (piFinTwoEquiv X).symm
-    (fun x hx => by simpa [mem_product] using (hφ x).mp (mem_filter.mp hx).2)
-    (fun q hq => mem_filter.mpr ⟨mem_univ _, (hφ _).mpr (by simpa [mem_product] using hq)⟩)
-    (fun x _ => (piFinTwoEquiv X).symm_apply_apply x)
-    (fun q _ => (piFinTwoEquiv X).apply_symm_apply q) fun x _ => ?_
-  simp only [PMF.map_equiv_apply, Prod.mk.eta, Equiv.symm_apply_apply]
+  refine sum_equiv (piFinTwoEquiv X) (fun x => ?_) fun x _ => ?_
+  · simp only [mem_filter, mem_univ, true_and, mem_product]
+    exact hφ x
+  · simp only [PMF.map_equiv_apply, Prod.mk.eta, Equiv.symm_apply_apply]
 
 /-- **With two players the NOF discrepancy is the two-party discrepancy**: the cylinder
 intersections of two players are the rectangles. -/

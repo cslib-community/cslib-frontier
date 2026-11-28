@@ -719,8 +719,7 @@ theorem card_measurementIndices_add_card_mem_Ico (Q r A₀ R : ℕ) :
 theorem two_mul_card_antisymPair_add_eq_sq (r : ℕ) :
     2 * #{p : Fin r × Fin r | p.2 < p.1} + r = r ^ 2 := by
   have hswap : #{p : Fin r × Fin r | p.2 < p.1} = #{p : Fin r × Fin r | p.1 < p.2} :=
-    card_nbij' Prod.swap Prod.swap (fun p hp => by simpa using hp) (fun p hp => by simpa using hp)
-      (fun _ _ => rfl) (fun _ _ => rfl)
+    card_equiv (Equiv.prodComm _ _) fun p => by simp
   have hdiag : #{p : Fin r × Fin r | p.1 = p.2} = r := by
     rw [show (univ.filter fun p : Fin r × Fin r => p.1 = p.2) = (univ : Finset (Fin r)).diag by
       ext; simp [mem_diag], diag_card, card_univ, Fintype.card_fin]

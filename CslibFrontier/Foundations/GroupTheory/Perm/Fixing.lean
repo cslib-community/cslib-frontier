@@ -60,18 +60,10 @@ theorem card_filter_forall_eq_of_injOn (U : Finset α) (f : α → α) (hf : Set
         exact ⟨⟨x, hx⟩, rfl⟩⟩
   have hτ : ∀ u ∈ U, e.extendSubtype u = f u := fun u hu => extendSubtype_apply_of_mem e u hu
   rw [← card_filter_forall_eq_self U]
-  refine card_bij (fun σ _ => e.extendSubtype⁻¹ * σ) ?_ ?_ ?_
-  · intro σ hσ
-    simp only [mem_filter, mem_univ, true_and] at hσ ⊢
-    intro u hu
-    rw [Perm.mul_apply, hσ u hu, ← hτ u hu]
-    exact Equiv.symm_apply_apply _ u
-  · intro σ _ σ' _ h
-    exact mul_left_cancel h
-  · intro σ hσ
-    refine ⟨e.extendSubtype * σ, ?_, by rw [inv_mul_cancel_left]⟩
-    simp only [mem_filter, mem_univ, true_and] at hσ ⊢
-    intro u hu
-    rw [Perm.mul_apply, hσ u hu, hτ u hu]
+  refine card_equiv (Equiv.mulLeft e.extendSubtype⁻¹) fun σ => ?_
+  simp only [mem_filter, mem_univ, true_and, Equiv.coe_mulLeft, Perm.mul_apply]
+  refine forall_congr' fun u => imp_congr_right fun hu => ?_
+  rw [← hτ u hu]
+  exact e.extendSubtype.symm_apply_eq.symm
 
 end Equiv.Perm

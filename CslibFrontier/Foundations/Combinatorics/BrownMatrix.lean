@@ -179,12 +179,9 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
 theorem card_row_brownMatrix (hp : p % 4 = 3) (x : Fin 3 → ZMod p) :
     #(univ.filter fun y : Fin 3 → ZMod p => brownMatrix p x y = true) = p * (p - 1) := by
   rw [← card_unitSphere_three hp]
-  refine card_bij (fun y _ => x - y)
-    (fun y hy => by simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply,
-      decide_eq_true_eq, Pi.sub_apply] using hy)
-    (fun _ _ _ _ h => sub_right_injective h) fun z hz => ⟨x - z, ?_, sub_sub_cancel x z⟩
-  simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
-    Pi.sub_apply, sub_sub_cancel] using hz
+  refine card_equiv (Function.Involutive.toPerm (x - ·) (sub_sub_cancel x)) fun y => ?_
+  change y ∈ (_ : Finset _) ↔ (x - y) ∈ (_ : Finset _)
+  simp only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq, Pi.sub_apply]
 
 /-- For prime `p ≡ 3 (mod 4)`, `brownMatrix p` has exact weight `p ^ 4 * (p - 1)` (twice the
 undirected edge count `(p ^ 5 - p ^ 4) / 2` of [Brown1966], §2, p. 282;
