@@ -66,6 +66,13 @@ holomorphic on `re s > -1` although `A` has the eigenvalue `1` (for instance whe
 
 ## References
 
+* [Widder1941], Chapter II, for scalar functions and Laplace integrals that may converge
+  conditionally. Compare §12, Theorem 12.1a, pp. 91–92: the transform of the resultant
+  `∫₀^t a(t - u) b(u) du` is the product of the transforms (the scalar counterpart of
+  `laplace_causalConvolution`, through which `y = D u + h ∗ u` is transformed); and §5,
+  Theorem 5a, p. 57: a Laplace integral is analytic in its half-plane of convergence (the scalar
+  counterpart of `LTISystem.differentiableOn_laplace_responseKernel`, from which the bound on
+  the poles follows).
 * S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
   "Linear dynamical systems with inputs & outputs" (Stanford Engineering Everywhere handout
   `13-lin-sys.pdf`), slides 13–6 to 13–8: the transform of the forced solution, the transfer

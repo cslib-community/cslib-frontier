@@ -29,8 +29,7 @@ theorem exec_inputHeaders {w L m t : ℕ} (x : Data registers)
     (hfit : Fits w 3) :
     ∃ y, ExecWithin w inputHeaders x y 6 ∧ y.regs Reg.levels = L ∧
       y.regs Reg.inner = m ∧ y.regs Reg.threshold = t ∧ y.mem = x.mem := by
-  unfold inputHeaders
-  wram_exec [hL, hm, ht]
+  wram_exec [inputHeaders, hL, hm, ht]
   wram_simp
 
 /-- Complete native initialization from the three actual input header words. -/

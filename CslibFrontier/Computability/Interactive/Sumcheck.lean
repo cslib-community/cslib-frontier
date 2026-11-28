@@ -168,7 +168,7 @@ private theorem natDegree_aeval_le (k : Fin n) (φ : Fin n → Polynomial F)
 
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial has degree at most `d`. -/
-private theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
+theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
     (r : Fin i → F) : (roundPoly P r).natDegree ≤ d :=
   Polynomial.natDegree_sum_le_of_forall_le _ _ fun _ _ =>
     (natDegree_aeval_le P ⟨i, hi⟩ _
@@ -186,7 +186,7 @@ private theorem snoc_mk {i : ℕ} (r : Fin i → F) (z : F) {j : ℕ} (hj : j < 
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial at `z` is the partial sum of the next round at the point extended
 by `z`. -/
-private theorem eval_roundPoly_eq {i : ℕ} (r : Fin i → F) (z : F) :
+theorem eval_roundPoly_eq {i : ℕ} (r : Fin i → F) (z : F) :
     (roundPoly P r).eval z = partialSum P (Fin.snoc r z) := by
   rw [roundPoly, Polynomial.eval_finsetSum, partialSum]
   refine Finset.sum_congr rfl fun b _ => ?_
@@ -220,7 +220,7 @@ private theorem point_snoc {i : ℕ} (r : Fin i → F) (c : Bool) (b : Fin (n - 
 omit [Fintype F] [DecidableEq F] in
 /-- The verifier's test passes on the honest round polynomial: its values at `0` and `1` sum to
 the partial sum. -/
-private theorem roundPoly_eval_zero_add_one {i : ℕ} (hi : i < n) (r : Fin i → F) :
+theorem roundPoly_eval_zero_add_one {i : ℕ} (hi : i < n) (r : Fin i → F) :
     (roundPoly P r).eval 0 + (roundPoly P r).eval 1 = partialSum P r := by
   rw [eval_roundPoly_eq, eval_roundPoly_eq, add_comm]
   conv_rhs => rw [partialSum, sum_bool_succ (show n - i = n - (i + 1) + 1 by omega),

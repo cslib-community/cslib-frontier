@@ -50,6 +50,7 @@ hidden in the statements.
 
 ## Main results
 
+* `Cslib.Complexity.polynomialPadded_eq_setOf_exists`: the padded language as guess and verify.
 * `Cslib.Complexity.polynomialPadded_mem_NTIME`: padding into nondeterministic time.
 * `Cslib.Complexity.mem_NTIME_of_polynomialPadded_mem`: unpadding out of nondeterministic time.
 * `Cslib.Complexity.NTIME_pow_mul_subset_of_subset`: a nondeterministic polynomial-time collapse
@@ -67,6 +68,28 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM
 
+/-- **The padded language as guess and verify, for any certificate length.** If `V` verifies `A`
+with every certificate length `L ≥ c * t |a| + c`, and `Lc m` is such a length for every instance
+length `m`, then the padded language with exponent `k + 1` is the set of words with a certificate
+of the length `Lc |y|` (for the framed word `y`) accepted by `V` on `y` once the padding is long
+enough, and with the empty certificate length otherwise. -/
+theorem polynomialPadded_eq_setOf_exists {A : Set (List Bool)} {k c : ℕ} {t Lc : ℕ → ℕ}
+    {V : List Bool × List Bool → Bool}
+    (hc : ∀ a L, c * t (encBits a).length + c ≤ L →
+      (a ∈ A ↔ ∃ w : List Bool, w.length = L ∧ V (a, w) = true))
+    (hL : ∀ m, c * t m + c ≤ Lc m) :
+    polynomialPadded A (k + 1) = {x | ∃ w : List Bool,
+      w.length = (if decide (((unframe x).length + 1) ^ (k + 1) ≤ x.length) then
+        Lc (unframe x).length else 0) ∧
+      (if decide (((unframe x).length + 1) ^ (k + 1) ≤ x.length) then V (unframe x, w)
+        else false) = true} := by
+  ext x
+  simp only [mem_polynomialPadded_iff, Set.mem_ofPred_eq]
+  by_cases hg : ((unframe x).length + 1) ^ (k + 1) ≤ x.length
+  · simp only [hg, decide_true, ↓reduceIte, true_and]
+    exact hc (unframe x) (Lc _) (by simpa only [encBits_apply] using hL _)
+  · simp [hg]
+
 /-- **Padding into nondeterministic time.** If `A` is in nondeterministic time
 `O((n + 1) ^ (b * k))`, with `2 ≤ b` and `1 ≤ k`, then its padded language with exponent `k + 1`,
 of the words carrying a word `y` of `A` framed at their start padded to a length of at least
@@ -81,24 +104,19 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
   let L (x : List Bool) : ℕ := 2 ^ (b * k * Nat.size ((unframe x).length + 1) + (c + 1))
   let ℓ (x : List Bool) : ℕ := if guard x then L x else 0
   let V' (p : List Bool × List Bool) : Bool := if guard p.1 then V (unframe p.1, p.2) else false
-  have hL (x : List Bool) :
-      c * ((unframe x).length + 1) ^ (b * k) + c ≤ L x := by
-    have hp := (polynomialPaddingPower_bounds (b * k) (unframe x).length).1
+  have hL (m : ℕ) : c * (m + 1) ^ (b * k) + c ≤ 2 ^ (b * k * Nat.size (m + 1) + (c + 1)) := by
+    have hp := (polynomialPaddingPower_bounds (b * k) m).1
     have hc' : 2 * c ≤ 2 ^ (c + 1) := (Nat.mul_le_mul_left 2 Nat.lt_two_pow_self.le).trans_eq
       (pow_succ' 2 c).symm
-    have h1 : 1 ≤ ((unframe x).length + 1) ^ (b * k) := Nat.one_le_pow _ _ (by omega)
+    have h1 : 1 ≤ (m + 1) ^ (b * k) := Nat.one_le_pow _ _ (by omega)
     calc
-      _ ≤ 2 * c * ((unframe x).length + 1) ^ (b * k) := by nlinarith
-      _ ≤ 2 ^ (c + 1) * 2 ^ (b * k * Nat.size ((unframe x).length + 1)) := Nat.mul_le_mul hc' hp
-      _ = L x := by rw [Nat.mul_comm, ← pow_add]
+      _ ≤ 2 * c * (m + 1) ^ (b * k) := by nlinarith
+      _ ≤ 2 ^ (c + 1) * 2 ^ (b * k * Nat.size (m + 1)) := Nat.mul_le_mul hc' hp
+      _ = _ := by rw [Nat.mul_comm, ← pow_add]
   have hset : polynomialPadded A (k + 1) =
-      {x | ∃ w : List Bool, w.length = ℓ x ∧ V' (x, w) = true} := by
-    ext x
-    simp only [mem_polynomialPadded_iff, Set.mem_ofPred_eq, ℓ, V', guard]
-    by_cases hg : ((unframe x).length + 1) ^ (k + 1) ≤ x.length
-    · simp only [hg, decide_true, ↓reduceIte, true_and]
-      exact hc (unframe x) (L x) (by simpa only [encBits_apply] using hL x)
-    · simp [hg]
+      {x | ∃ w : List Bool, w.length = ℓ x ∧ V' (x, w) = true} :=
+    polynomialPadded_eq_setOf_exists (t := fun n => (n + 1) ^ (b * k))
+      (Lc := fun m => 2 ^ (b * k * Nat.size (m + 1) + (c + 1))) hc hL
   rw [hset]
   -- the certificate length and the verifier, as plain computations
   have hlen := ComputableInO.lengthNat.comp ComputableInO.unframe

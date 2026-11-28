@@ -20,7 +20,10 @@ import Mathlib.Tactic.Ring
 
 Natural numbers represent bit strings, with an explicit width for bounded-word comparisons.
 Projections retain selected positions in list order; finite-set sketches sort those positions
-by significance. Prefix boundaries replace the low bits with fixed masks.
+by significance. Prefix boundaries replace the low bits with fixed masks. The module also keeps
+two facts about single bits of a natural number: `Nat.testBit_eq_false_of_lt_two_pow` (bits at
+or above the width of a bounded word vanish) and `Nat.shiftRight_and_one` (a right shift masked
+with `1` reads one bit, as Word-RAM bit tests compute it).
 
 ## Main definitions
 
@@ -58,6 +61,10 @@ def highestDiff (w x y : ℕ) : ℕ :=
 theorem _root_.Nat.testBit_eq_false_of_lt_two_pow {w x i : ℕ} (hx : x < 2 ^ w) (hi : w ≤ i) :
     x.testBit i = false :=
   Nat.testBit_eq_false_of_lt (hx.trans_le (Nat.pow_le_pow_right (by decide) hi))
+
+/-- Masking a right shift by `c` with `1` reads bit `c`, as a number. -/
+theorem _root_.Nat.shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
+  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.toNat_testBit]
 
 /-- Distinct bounded words have a differing bit below their word width. -/
 private theorem differingBits_nonempty {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)

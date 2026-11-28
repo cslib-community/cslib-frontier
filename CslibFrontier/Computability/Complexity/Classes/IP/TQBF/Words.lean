@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.Tokens
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Polynomial.Modular
 public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
@@ -34,7 +35,7 @@ chosen of polynomial size. This file gives the arithmetic it performs and its wo
 
 * the operations of the arithmetization modulo `p` (`Cslib.Complexity.QBFProtocol.subMod`,
   `Cslib.Complexity.QBFProtocol.connectiveMod`, `Cslib.Complexity.QBFProtocol.operatorMod`) and
-  Horner's rule modulo `p` (`Cslib.Complexity.QBFProtocol.hornerMod`), which compute in `ZMod p`;
+  Horner's rule modulo `p` (`Polynomial.evalCoeffListMod`), which compute in `ZMod p`;
 * points as lists of pairs of a variable and its value (`Cslib.Complexity.QBFProtocol.lookupPt`,
   `Cslib.Complexity.QBFProtocol.normPt`, `Cslib.Complexity.QBFProtocol.updatePt`), which agree
   with the point of the protocol on the variables of a list `xs`
@@ -51,7 +52,7 @@ All are polynomial-time in their unary or binary inputs.
 ## Main definitions
 
 * `Cslib.Complexity.QBFProtocol.connectiveMod`, `Cslib.Complexity.QBFProtocol.operatorMod`,
-  `Cslib.Complexity.QBFProtocol.hornerMod`: arithmetic modulo `p`.
+  `Polynomial.evalCoeffListMod`: arithmetic modulo `p`.
 * `Cslib.Complexity.QBFProtocol.canonPt`, `Cslib.Complexity.QBFProtocol.updatePt`,
   `Cslib.Complexity.QBFProtocol.encPt`: points and their encoding.
 * `Cslib.Complexity.QBFProtocol.decodeReply`, `Cslib.Complexity.QBFProtocol.encodeReply`: replies.
@@ -60,7 +61,7 @@ All are polynomial-time in their unary or binary inputs.
 ## Main results
 
 * `Cslib.Complexity.QBFProtocol.natCast_operatorMod`,
-  `Cslib.Complexity.QBFProtocol.natCast_hornerMod`: the arithmetic computes in `ZMod p`.
+  `Polynomial.natCast_evalCoeffListMod`: the arithmetic computes in `ZMod p`.
 * `Cslib.Complexity.QBFProtocol.updatePt_canonPt`: updating a point.
 * `Cslib.Complexity.QBFProtocol.decodeReply_encodeReply`: decoding inverts the honest encoding.
 * `Cslib.Complexity.QBFProtocol.eval_sampleMod_le`: the samples are nearly uniform.
@@ -95,11 +96,6 @@ def operatorMod (p : ℕ) : ArithQBF.Operator → ℕ → ℕ → ℕ → ℕ
   | .all, _, a, b => a * b % p
   | .lin, t, a, b => (subMod p 1 t * a + t * b) % p
 
-/-- The value at `z` of a coefficient list modulo `p`, by Horner's rule from the last
-coefficient. The modulus `0` is read as `1`, so that the intermediate values stay small. -/
-def hornerMod (p z : ℕ) (l : List ℕ) : ℕ :=
-  l.reverse.foldl (fun acc a => (a + z * acc) % (p - 1 + 1)) 0
-
 variable {p : ℕ}
 
 theorem natCast_subMod [NeZero p] (a b : ℕ) : ((subMod p a b : ℕ) : ZMod p) = a - b := by
@@ -124,17 +120,6 @@ theorem natCast_operatorMod [NeZero p] (o : ArithQBF.Operator) (t a b : ℕ) :
   · rw [operatorMod, ZMod.natCast_mod, Nat.cast_add, Nat.cast_mul, Nat.cast_mul, natCast_subMod,
       ArithQBF.Operator.apply, Nat.cast_one]
 
-/-- For `p ≠ 0`, Horner's rule modulo `p` evaluates the coefficient list `l` at `z` in
-`ZMod p`. -/
-theorem natCast_hornerMod [NeZero p] (z : ℕ) (l : List ℕ) :
-    ((hornerMod p z l : ℕ) : ZMod p) = evalCoeffList (z : ZMod p) (l.map Nat.cast) := by
-  rw [hornerMod, List.foldl_reverse, Nat.sub_add_cancel NeZero.one_le]
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    rw [List.foldr_cons, ZMod.natCast_mod, Nat.cast_add, Nat.cast_mul, ih, List.map_cons,
-      evalCoeffList_cons]
-
 theorem subMod_lt [NeZero p] (a b : ℕ) : subMod p a b < p := Nat.mod_lt _ (NeZero.pos p)
 
 theorem connectiveMod_lt [NeZero p] (o : ArithQBF.Connective) (a b : ℕ) :
@@ -144,12 +129,6 @@ theorem connectiveMod_lt [NeZero p] (o : ArithQBF.Connective) (a b : ℕ) :
 theorem operatorMod_lt [NeZero p] (o : ArithQBF.Operator) (t a b : ℕ) :
     operatorMod p o t a b < p := by
   cases o <;> exact Nat.mod_lt _ (NeZero.pos p)
-
-theorem hornerMod_lt [NeZero p] (z : ℕ) (l : List ℕ) : hornerMod p z l < p := by
-  rw [hornerMod, List.foldl_reverse, Nat.sub_add_cancel NeZero.one_le]
-  cases l with
-  | nil => exact NeZero.pos p
-  | cons a l => exact Nat.mod_lt _ (NeZero.pos p)
 
 /-- A residue below `p` compares with an element of `ZMod p` through its value. -/
 theorem mod_eq_val_mod_iff [NeZero p] (a : ℕ) (c : ZMod p) :
@@ -367,20 +346,6 @@ theorem computableInPolyTime_operatorMod (o : ArithQBF.Operator) {p t a b : γ �
     (hb : ComputableInPolyTime b encIn encUnary) :
     ComputableInPolyTime (fun x => operatorMod (p x) o (t x) (a x) (b x)) encIn encUnary := by
   cases o <;> simp only [operatorMod] <;> fun_prop
-
-@[fun_prop]
-theorem computableInPolyTime_hornerMod {p z : γ → ℕ} {l : γ → List ℕ}
-    (hp : ComputableInPolyTime p encIn encUnary)
-    (hz : ComputableInPolyTime z encIn encUnary)
-    (hl : ComputableInPolyTime l encIn (encList encUnary)) :
-    ComputableInPolyTime (fun x => hornerMod (p x) (z x) (l x)) encIn encUnary := by
-  unfold hornerMod
-  refine foldlWithInput_of_bounded_growth (encA := encUnary) (encL := encList encUnary)
-    (const 0) ⟨by fun_prop, by fun_prop, inferInstance, inferInstance⟩
-    (growth := fun x => p x + 1) ⟨(polyBounded hp).add (.const 1), fun x acc a _ => ?_⟩
-  simp only [encUnary_apply, List.length_replicate]
-  have := Nat.mod_lt (a + z x * acc) (by omega : 0 < p x - 1 + 1)
-  omega
 
 @[fun_prop]
 theorem computableInPolyTime_lookupPt {pt : γ → List (ℕ × ℕ)} {w : γ → ℕ}

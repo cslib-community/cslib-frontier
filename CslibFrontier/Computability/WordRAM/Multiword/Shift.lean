@@ -80,8 +80,7 @@ private theorem exec_cell {w : ℕ} (x : Data (r + 4))
     exact hf.of_le (Nat.div_le_self _ _)
   have hr := hf.of_le (Nat.mod_le (x.regs carry * radix w + x.regs a) (2 ^ x.regs total))
   refine WP.Exact.exists_exec ?_
-  unfold cell
-  wram_exec [hb, hz, hf, hq, hr]
+  wram_exec [cell, hb, hz, hf, hq, hr]
   refine ⟨?_, ?_, ?_, by wram_simp, ⟨rfl, fun i hi _ hic => by
     simp only [List.mem_singleton] at hi; wram_simp⟩⟩
   · wram_simp [Nat.shiftRight_eq_div_pow]
@@ -127,8 +126,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
     | cons => simp_all
     | nil =>
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec [List.length_nil]
+      wram_exec [digits, List.length_nil]
       refine ⟨by simp [Bounded], by wram_simp; exact Nat.two_pow_pos _, by simp [value],
         by wram_simp, frame_set_carry x 0 []⟩
   | cons d ds ih =>
@@ -139,8 +137,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
     cases as with
     | nil =>
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec
+      wram_exec [digits]
       wram_call (ih [] (by simp) (by simp) hds hnd' (by simp) x hb hz hs
         (by simp [Bounded])) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
       wram_exec [List.length_cons, List.length_nil]
@@ -156,8 +153,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
       have hdis' : List.Disjoint ds as := List.disjoint_left.mpr fun i hi hj =>
         List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (List.mem_cons_of_mem a hj)
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec
+      wram_exec [digits]
       wram_call (ih as (by simpa using hlen) (fun i hi => hin i (by simp [hi])) hds hnd' hdis'
         x hb hz hs (fun i hi => ha i (by simp [hi]))) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
       have hza : z.regs a = x.regs a := hzf.digit_regs (hin a (by simp))
@@ -194,8 +190,7 @@ private theorem exec_finish {w : ℕ} (hw : 2 ≤ w)
   have hshift : 1 <<< x.regs total = 2 ^ x.regs total := by
     rw [Nat.shiftLeft_eq, one_mul]
   refine WP.Exact.exists_exec ?_
-  unfold finish
-  wram_exec [h1, hpow, hshift]
+  wram_exec [finish, h1, hpow, hshift]
   refine WP.Exact.name fun z hzx => ?_
   have hzf : Frame x z [zero] := by
     rw [hzx, Data.set_set]
@@ -248,8 +243,7 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
   induction as generalizing x with
   | nil =>
     refine WP.exists_execWithin (WP.Exact.toWP ?_)
-    unfold dispatch
-    wram_exec
+    wram_exec [dispatch]
     wram_call (exec_finish hw [] ds (by simp) (by simp) hout hnd (by simp) _
       (by wram_simp [hb]) (by wram_simp; omega) (by simp [Bounded])) with y ⟨hyb, hyv, hyf⟩
     refine ⟨by simp only [List.length_nil]; omega, hyb, ?_,
@@ -262,8 +256,7 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
       List.disjoint_left.mp hdis hi (List.mem_cons_of_mem a hj)
     have hf : Fits w (x.regs total - w / 2) := hs.of_le (Nat.sub_le _ _)
     refine WP.exists_execWithin ?_
-    unfold dispatch
-    wram_exec [hz, hf]
+    wram_exec [dispatch, hz, hf]
     case pos =>
       obtain ⟨y, he, hyb, hyv, hyf⟩ :=
         exec_finish hw (a :: as) ds hlen hin hout hnd hdis x hb hc ha
@@ -316,8 +309,7 @@ theorem exec {w : ℕ} (hw : 2 ≤ w)
   have hhalf := (fits_self w).of_le (Nat.div_le_self w 2)
   have hβ := radix_fits hw
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec [hhalf, hβ]
+  wram_exec [program, hhalf, hβ]
   refine WP.name fun z hzx => ?_
   have hzi (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
     obtain ⟨ht, _, hb, hz⟩ := digit_ne hi

@@ -19,6 +19,7 @@ import CslibFrontier.Probability.MinEntropy
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import Mathlib.GroupTheory.Perm.Support
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Inner Communication Game and Consistency Probability Bound
@@ -704,9 +705,7 @@ private theorem isSlotPerm_slotPerm {n : ℕ} (t₀ m : ℕ) (ht : t₀ + m ≤ 
 private theorem sdiff_union_sdiff_cancel {α : Type*} [DecidableEq α] {K D A : Finset α}
     (hDK : D ⊆ K) (hAK : Disjoint A K) : (((K \ D) ∪ A) \ A) ∪ D = K := by
   ext x; simp only [Finset.mem_union, Finset.mem_sdiff]
-  have h1 : x ∈ A → x ∉ K := fun h => Finset.disjoint_left.mp hAK h
-  have h2 : x ∈ D → x ∈ K := fun h => hDK h
-  tauto
+  lrat_tauto [(Finset.disjoint_left.mp hAK) (a := x), @hDK x]
 
 private theorem innerTarget_mk_eq {U V n m g : ℕ} {c₁ c₂ : InnerKeyConfig U n m g}
     {kv₁ kv₂ : Fin U → Fin V} (hc : c₁ = c₂) (hv : ∀ u ∈ c₁.K ∪ c₁.B, kv₁ u = kv₂ u) :

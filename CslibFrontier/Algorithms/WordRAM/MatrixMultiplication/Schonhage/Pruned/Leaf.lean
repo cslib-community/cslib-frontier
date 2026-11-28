@@ -45,8 +45,7 @@ theorem exec_leafProduct {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
       y.mem = Function.update x.mem (x.regs valueBase) (encode (a * b)) ∧
       (∀ i, ¬LeafLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold leafProduct leafLoad
-  wram_exec [hleft, hright, hp, hq]
+  wram_exec [leafProduct, leafLoad, hleft, hright, hp, hq]
   wram_call (Signed.exec_multiply (r := 87) ha hb hab _ (by wram_simp) (by wram_simp))
     with u ⟨hproduct, hmem, hreg⟩
   have hv : u.regs valueBase = x.regs valueBase := by
@@ -90,8 +89,7 @@ theorem exec_leaf {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
       y.regs active = (if x.regs level = 0 then 0 else x.regs active) ∧
       (∀ i, ¬LeafReturnLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold leaf
-  wram_exec [h0]
+  wram_exec [leaf, h0]
   · have hne : x.regs count ≠ 0 := Nat.ne_of_gt hc
     wram_call (exec_leafProduct ha hb hab x hleft hright hp hq) with v ⟨hmem, hreg⟩
     have hvd : v.regs level = x.regs level := hreg level (by decide)

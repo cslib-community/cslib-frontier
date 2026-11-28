@@ -11,7 +11,7 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
 public meta import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Numbered
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Watched
-public meta import CslibFrontier.Logics.Propositional.CNF.LRATFast
+public meta import CslibFrontier.Logics.Propositional.CNF.LRATTrim
 public meta import Mathlib.Util.AtomM
 public meta import Lean.Elab.Tactic.ElabTerm
 
@@ -22,17 +22,17 @@ public meta import Lean.Elab.Tactic.ElabTerm
 propositions, the *atoms*, from an LRAT certificate `cert : Array LRAT.IntAction`: one generated
 at elaboration time by the CDCL solver, or one supplied as `lrat_tauto using cert`. The kernel
 checks the certificate; the proof uses no native evaluation, and its axioms are those of
-`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT`.
+`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRATRat`.
 
 The tactic reads the goal `P` as a proposition `A : Proposition (Fin n)` and a valuation
 `v : Fin n → Prop` of its atoms, with `A.eval v ↔ P`. It then applies
-`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT` to `A` and `v`. Its hypothesis, that
-`Cslib.Logic.PL.CNF.checkLRAT` accepts `cert` on `(imp A falsum).plaistedGreenbaumNumberedCNF`,
+`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRATRat` to `A` and `v`. Its hypothesis, that
+`Cslib.Logic.PL.CNF.checkLRATRat` accepts `cert` on `(imp A falsum).plaistedGreenbaumNumberedCNF`,
 is proved by `decide` for the checker built for kernel reduction,
 `Cslib.Logic.PL.CNF.checkLRATKernel`, and rewritten with
-`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`. So the kernel runs that checker, and only that
-run is trusted; where the certificate came from does not matter. The goals proved are the
-classical tautologies, since `eval_prop_of_checkLRAT` decides each atom classically. Without
+`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRATRat`. So the kernel runs that checker, and only
+that run is trusted; where the certificate came from does not matter. The goals proved are the
+classical tautologies, since `eval_prop_of_checkLRATRat` decides each atom classically. Without
 `using`, `P` is `P₁ → ⋯ → Pₖ → G` for the goal `G` and the premises `Pᵢ` that the tactic finds
 in the context or is given as `lrat_tauto [t₁, …, tₙ]` (see "Hypotheses and leaves"); the trusted
 step is the same, on a larger formula.
@@ -53,6 +53,12 @@ step is the same, on a larger formula.
   numbered from `0` in order of first occurrence, left to right, in the goal and then in the
   premises, and two atoms are the same when they are definitionally equal at reducible
   transparency.
+* An equation is the same atom as its swap: `b = a` is read as the atom `a = b` when that atom
+  occurs first, and `HEq b a` as `HEq a b`. The orientation of the atom is the one in which it
+  first occurs, so `h : b = a` fixes the atom `a = b` of the goal, and `a ≠ b` and `b ≠ a` are the
+  negations of one atom. The valuation sends the atom to its first orientation, and the proof
+  rewrites each swapped occurrence by `eq_comm` (`HEq.comm`), so the theorem proved is the goal as
+  written. No other theory of equality is used: `a = b → b = c → a = c` is not proved.
 
 ## Hypotheses and leaves
 
@@ -127,10 +133,12 @@ for `∀ n : ℕ, 0 + n = n`, the one atom `0 + n = n`, which the reflexivity ch
 is assigned `False`. Otherwise the solver
 returns a certificate, which is proved correct (`Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`)
 but is not trusted here: the kernel checks it as it checks a supplied one. The certificate is first
-trimmed to the steps that the empty clause depends on, without the deletions, and the clauses it
-adds are renumbered `n + 1, n + 2, …` after the `n` clauses of the formula, which keeps the
-kernel checker's trie shallow. The untrimmed certificate is used if the result fails the
-array-based checker `Cslib.Logic.PL.CNF.checkLRATFast`, evaluated in the interpreter.
+trimmed to the steps that the empty clause depends on, without the deletions
+(`Cslib.Logic.PL.CNF.trimCert`), and the clauses it adds are renumbered `n + 1, n + 2, …` after
+the `n` clauses of the formula (`Cslib.Logic.PL.CNF.renumberCert`), which keeps the kernel
+checker's trie shallow. Both are proved to preserve acceptance
+(`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`), so the result is not checked before the
+kernel checks it.
 `set_option trace.lrat_tauto true` reports the sizes of the formula and of the certificate and
 the times taken.
 
@@ -186,10 +194,11 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
   five pigeons in four holes, with twenty irrelevant hypotheses of three connectives each in the
   context, the tactic took about 1.6 seconds against 1.4 without them, the kernel time being the
   same, and about 2.1 seconds when every hypothesis was kept.
-* Atoms are compared at reducible transparency only, and equations are not oriented:
-  `h : b = a` does not prove the atom `a = b`, and `a ≠ b → b = c → a ≠ c` is not proved, since
-  its atoms are independent. A hypothesis whose type is only definitionally equal to a formula at
-  a higher transparency is an atom.
+* Atoms are compared at reducible transparency only, and equations are identified only with their
+  swaps: `a ≠ b → b = c → a ≠ c` is not proved, since its atoms `a = b`, `b = c` and `a = c` are
+  independent, and neither are facts such as `0 ≠ 1` or `x ∉ []`, which `tauto` gets from
+  `contradiction`. A hypothesis whose type is only definitionally equal to a formula at a higher
+  transparency is an atom.
 -/
 
 public section
@@ -207,7 +216,8 @@ the goal does not follow propositionally from the hypotheses, the error shows an
 atoms, read as independent propositions, under which it is false and they are true. The kernel
 checks the certificate by evaluating `Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over
 non-propositions, such as `∀ p q : Prop`, are introduced first. `a ≠ b` is read as `¬a = b`. The
-atoms are the maximal subterms that are not connectives, compared at reducible transparency.
+atoms are the maximal subterms that are not connectives, compared at reducible transparency, and
+an equation `b = a` is the same atom as `a = b`.
 
 Without `using`, the propositional hypotheses of the context are premises, then the terms of
 `lrat_tauto [t₁, …, tₙ]`, proofs of propositions that must elaborate without metavariables, with
@@ -242,6 +252,9 @@ open Std.Tactic.BVDecide (LRAT.IntAction LRAT.Action)
 read from. -/
 private inductive Shape where
   | atom (i : ℕ) (e : Expr)
+  /-- The atom `i`, an equation `a = b` or `HEq a b`, read from the swapped `e`: `b = a` or
+  `HEq b a`. -/
+  | swapped (i : ℕ) (e : Expr)
   | falsum
   | verum
   | and (a b : Shape)
@@ -253,8 +266,36 @@ private inductive Shape where
 /-- `partial` definitions returning formulas need a default one. -/
 private instance : Inhabited Shape := ⟨.falsum⟩
 
+/-- The equation `e` with its sides swapped, `b = a` for `a = b` and `HEq b a` for `HEq a b`;
+`none` if `e` is neither. -/
+private def swapEq? (e : Expr) : Option Expr :=
+  match e.getAppFnArgs with
+  | (``Eq, #[α, a, b]) => some (mkApp3 e.getAppFn α b a)
+  | (``HEq, #[α, a, β, b]) => some (mkApp4 e.getAppFn β b α a)
+  | _ => none
+
+/-- The index of the atom already read that `e` is definitionally equal to at the transparency of
+`AtomM`, if any. -/
+private def findAtom? (e : Expr) : AtomM (Option ℕ) := do
+  let c ← get
+  for h : i in [:c.atoms.size] do
+    if ← withTransparency (← read).red <| isDefEqSafe e c.atoms[i] then
+      return some i
+  return none
+
+/-- Reads an atom. An equation `b = a` or `HEq b a` that is not an atom already read, but whose
+swap `a = b` or `HEq a b` is, is read as that atom (`Shape.swapped`); so the orientation of an
+atom is the one in which it occurs first. -/
+private def reifyAtom (e : Expr) : AtomM Shape := do
+  if let some i ← findAtom? e then return .atom i e
+  if let some e' := swapEq? e then
+    if let some i ← findAtom? e' then return .swapped i e
+  let i ← modifyGet fun c => (c.atoms.size, { c with atoms := c.atoms.push e })
+  return .atom i e
+
 /-- Reads a proposition as a formula over its atoms. `a ≠ b` is read as `¬a = b`, which it
-unfolds to at reducible transparency, and a β-redex `(fun x => P x) a` as `P a`. -/
+unfolds to at reducible transparency, and a β-redex `(fun x => P x) a` as `P a`. An equation is
+the same atom as its swap (`reifyAtom`). -/
 private partial def reify (e : Expr) : AtomM Shape := do
   let e := e.consumeMData.headBeta
   match e.getAppFnArgs with
@@ -270,11 +311,11 @@ private partial def reify (e : Expr) : AtomM Shape := do
     if let .forallE _ a b _ := e then
       if !b.hasLooseBVars && (← isProp a) then
         return .imp (← reify a) (← reify b)
-    return .atom (← AtomM.addAtom e).1 e
+    reifyAtom e
 
 /-- The formula as a `Proposition` over `Fin n`, with the encodings of `¬`, `True` and `↔`. -/
 private def Shape.toProposition (n : ℕ) : Shape → Proposition (Fin n)
-  | .atom i _ => if h : i < n then .atom ⟨i, h⟩ else .falsum
+  | .atom i _ | .swapped i _ => if h : i < n then .atom ⟨i, h⟩ else .falsum
   | .falsum => .falsum
   | .verum => .imp .falsum .falsum
   | .and a b => .and (a.toProposition n) (b.toProposition n)
@@ -298,10 +339,18 @@ private def propositionToExpr {n : ℕ} : Proposition (Fin n) → Expr
     (propositionToExpr a) (propositionToExpr b)
 
 /-- For a formula, the proposition `X` that its encoding evaluates to, definitionally, under the
-valuation sending each atom to the expression it was read from; the proposition `P` it was read
-from; and a proof of `X ↔ P`. -/
+valuation sending each atom to the expression it was first read from; the proposition `P` it was
+read from; and a proof of `X ↔ P`. An atom read from its swap `b = a` has `X` the equation `a = b`
+and the proof `eq_comm` (`HEq.comm` for `HEq b a`). -/
 private partial def Shape.iffGoal : Shape → MetaM (Expr × Expr × Expr)
   | .atom _ e => return (e, e, mkApp (mkConst ``Iff.refl) e)
+  | .swapped _ e => do
+    let us := e.getAppFn.constLevels!
+    match e.getAppFnArgs with
+    | (``Eq, #[α, b, a]) => return (mkApp3 e.getAppFn α a b, e, mkApp3 (.const ``eq_comm us) α a b)
+    | (``HEq, #[β, b, α, a]) =>
+      return (mkApp4 e.getAppFn α a β b, e, mkApp4 (.const ``HEq.comm us) α β a b)
+    | _ => throwError "lrat_tauto: {e} is not an equation"
   | .falsum =>
     return (mkConst ``False, mkConst ``False, mkApp (mkConst ``Iff.refl) (mkConst ``False))
   | .verum => do
@@ -540,50 +589,6 @@ module docstring states this contract. -/
 private def generateCert (φ : CNF ℕ) : Cslib.Algorithms.Lean.DPLL.Result :=
   Cslib.Algorithms.Lean.CDCL.solveCompact φ
 
-/-- The steps of a certificate that the empty clause depends on, through the hints, in order;
-deletions are dropped. The kernel checker accepts the result whenever it accepts the
-certificate, since a deleted clause is never hinted again. Dropping the deletions measured faster
-than keeping the solver's or deleting each clause after its last hint: the checker's trie does
-not get shallower when clauses are deleted, and each deletion costs a step. -/
-private def trimCert (cert : Array LRAT.IntAction) : Array LRAT.IntAction := Id.run do
-  let mut needed : Std.HashSet ℕ := {}
-  let mut kept : Array LRAT.IntAction := #[]
-  -- The steps after the first empty clause are never checked.
-  let stop := (cert.findIdx? fun | .addEmpty .. => true | _ => false).getD cert.size
-  for a in (cert.extract 0 (stop + 1)).reverse do
-    match a with
-    | .addEmpty _ hints =>
-      needed := hints.foldl (·.insert ·) needed
-      kept := kept.push a
-    | .addRup id _ hints =>
-      if needed.contains id then
-        needed := hints.foldl (·.insert ·) needed
-        kept := kept.push a
-    | .addRat .. => kept := kept.push a
-    | .del _ => pure ()
-  return kept.reverse
-
-/-- Renumbers the clauses that a certificate adds as `n + 1, n + 2, …` in order, after the `n`
-clauses of the formula, and its hints and deletions accordingly, so that the kernel checker's
-trie stays shallow. A hint to a number the certificate has not added keeps that number. -/
-private def renumberCert (n : ℕ) (cert : Array LRAT.IntAction) : Array LRAT.IntAction :=
-  Id.run do
-  let mut m : Std.HashMap ℕ ℕ := {}
-  let mut next := n + 1
-  let mut out : Array LRAT.IntAction := #[]
-  for a in cert do
-    match a with
-    | .addRup id c hints =>
-      out := out.push (.addRup next c (hints.map fun h => m.getD h h))
-      m := m.insert id next
-      next := next + 1
-    | .addEmpty _ hints =>
-      out := out.push (.addEmpty next (hints.map fun h => m.getD h h))
-      next := next + 1
-    | .del ids => out := out.push (.del (ids.map fun h => m.getD h h))
-    | .addRat .. => out := out.push a
-  return out
-
 /-- A certificate as an expression, with its numbers as raw literals. -/
 private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
   let natE (n : ℕ) : Expr := mkRawNatLit n
@@ -610,18 +615,17 @@ private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
     (cert.toList.map action)
 
 /-- The certificate for the numbered Plaisted–Greenbaum transformation `φ` of a negated formula,
-from the generator (`generateCert`), trimmed when the trimmed one is accepted; or, if `φ` is
-satisfiable, the assignment the generator found. -/
+from the generator (`generateCert`), trimmed and renumbered; or, if `φ` is satisfiable, the
+assignment the generator found. The trimmed certificate is accepted whenever the generator's is
+(`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`), so it is not checked here. -/
 private def certFor (φ : CNF ℕ) : MetaM (Except (ℕ → Bool) (Array LRAT.IntAction)) := do
   let start ← IO.monoMsNow
   match ← IO.lazyPure fun _ => generateCert φ with
   | .unsat cert =>
-    let trimmed := renumberCert φ.length (trimCert cert)
-    let ok := CNF.checkLRATFast φ trimmed
+    let trimmed := CNF.renumberCert φ.length (CNF.trimCert cert)
     trace[lrat_tauto] "{φ.length} clauses; the solver's certificate has {cert.size} steps, \
-      {trimmed.size} after trimming{if ok then "" else ", rejected, so it is not used"}; \
-      {(← IO.monoMsNow) - start} ms"
-    return .ok (if ok then trimmed else cert)
+      {trimmed.size} after trimming; {(← IO.monoMsNow) - start} ms"
+    return .ok trimmed
   | .sat σ => return .error σ
 
 /-- The error for a formula that the assignment `σ` falsifies: the goal is false and the premises
@@ -716,10 +720,10 @@ private def closeGoal (g : MVarId) (cert : Option Expr) (hyps : Bool) (terms : A
     catch ex => throwError (← explainRejection checkE cert ex)
   trace[lrat_tauto] "the kernel checked the certificate in {(← IO.monoMsNow) - start} ms"
   let v := valuation atoms
-  -- `checkLRATKernel φ cert = true`, rewritten to `checkLRAT φ cert = true`
-  let hcheck ← mkEqTrans (← mkEqSymm (← mkAppM ``CNF.checkLRATKernel_eq_checkLRAT #[φE, cert]))
-    hcheck
-  let hA ← mkAppM ``Proposition.eval_prop_of_checkLRAT #[hcheck, v]
+  -- `checkLRATKernel φ cert = true`, rewritten to `checkLRATRat φ cert = true`
+  let hcheck ← mkEqTrans
+    (← mkEqSymm (← mkAppM ``CNF.checkLRATKernel_eq_checkLRATRat #[φE, cert])) hcheck
+  let hA ← mkAppM ``Proposition.eval_prop_of_checkLRATRat #[hcheck, v]
   let (_, p, hiff) ← s.iffGoal
   -- `hiff : X ↔ P`, where `X` is `A.eval v` up to unfolding `eval` and the valuation, and `P` is
   -- `P₁ → ⋯ → Pₖ → G` for the premises `Pᵢ`.

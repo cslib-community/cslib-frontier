@@ -163,8 +163,7 @@ theorem exec_layout_at {w N U src : ℕ} (x : Data 64)
   dsimp only [sideLength] at hsize
   have ht2 : Nat.sqrt N + 1 ≤ (Nat.sqrt N + 1) * (Nat.sqrt N + 1) := Nat.le_mul_self _
   refine WP.exists_execWithin ?_
-  unfold layout
-  wram_exec [hr, ho, hN, hU, hb]
+  wram_exec [layout, hr, ho, hN, hU, hb]
   refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
     by wram_simp, by wram_simp, by wram_simp⟩
   all_goals wram_simp [hN, hU, hb, ho, sideLength]

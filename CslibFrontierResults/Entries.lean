@@ -2476,25 +2476,6 @@ register_result "subexponential-sat-count" where
     number of variables, L the length of encCNF φ and s(n) = n(log log(n + 16))²/√log(n + 16) \
     the interpolation scale. Not the manuscript's sharper headline runtime."
 
-register_result "partial-mcsp" where
-  title := "Ilango: Partial MCSP is hard under the Exponential Time Hypothesis"
-  topic := "meta-complexity"
-  sources := [
-    { paper := Ilango2020FOCS, theorem := unverified, locator := unverified }
-  ]
-  theorems := [
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_tableSize,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_encBinary,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate_encBinary
-  ]
-  scope := "Under the library's ETH, PartialMCSP on m-variable partial truth tables is not \
-    decidable by deterministic multi-tape machines in time 2^o(m log m) = N^o(log log N), \
-    N = 2^m, with explicit unary or binary size-threshold encodings and De Morgan all-gate or \
-    binary-gate cost. Conditional: the library also refutes ETH (subexponential-sat), so the \
-    premise is false; the implications remain valid."
-
 register_result "partial-mcsp-rp-hard" where
   title := "Hirahara: Partial MCSP is NP-hard under randomized reductions"
   topic := "meta-complexity"
@@ -2696,8 +2677,7 @@ register_result "hitting-set-multilinear-any-order-roabp" where
   theorems := [
     Cslib.Circuits.Arithmetic.isHittingSet_anyOrderHittingSet_roabp,
     Cslib.Circuits.Arithmetic.isHittingSet_anyOrderHittingSet,
-    Cslib.Circuits.Arithmetic.card_anyOrderHittingSet_le,
-    Cslib.Circuits.Arithmetic.IsAnyOrderROABP.splitRankLE
+    Cslib.Circuits.Arithmetic.card_anyOrderHittingSet_le
   ]
   scope := "Over a field of characteristic zero, an explicit set of points in Fⁿ, of size \
     bounded by an explicit polynomial in n and w, that contains a non-root of every nonzero \
@@ -2707,8 +2687,8 @@ register_result "hitting-set-multilinear-any-order-roabp" where
     source's positive-characteristic case rests on an unpublished hitting set. The perfect \
     hash family and the shifts are the library's own constructions, so the size bound \
     differs from the source's. Existence and size of an explicit set only: no bit \
-    complexity and no black-box algorithm model. The converse of Nisan's characterisation \
-    is not proved."
+    complexity and no black-box algorithm model. IsAnyOrderROABP.splitRankLE supplies the \
+    forward direction of Nisan's characterisation; the converse is not proved."
 
 register_result "hitting-set-set-multilinear-depth-three" where
   title := "Hitting sets for set-multilinear depth-3 circuits with small variable sets"
@@ -9669,25 +9649,6 @@ register_result "product-relation-simulation-privacy" where
     source, and interpolate with Lagrange.interpolate (noncomputable); no running time is \
     claimed for the simulators (#5829)."
 
-register_result "clique-eth-lower-bound" where
-  title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
-  topic := "fine-grained complexity"
-  sources := [
-    { paper := CyganEtAl2015, theorem := "Theorem 14.21", locator := "p.485" }
-  ]
-  theorems := [
-    Cslib.Complexity.ETH.not_clique_subexpVertex,
-    Cslib.Complexity.ETH.not_clique_subexpEnc,
-    Cslib.Complexity.ETH.clique_not_mem_FPT,
-    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpVertex
-  ]
-  scope := "Clause-grouping reduction SAT.groupClique on Clique encCliqueInstance and \
-    ThreeSAT (encCNF). Under ETH (relative to the library's native DecidableInTimeO model), no \
-    decider for Clique runs in time f(k) · (|V| + 1)^o(k) · poly(|enc|) or f(k) · (|enc| + 1)^o(k) \
-    with arbitrary f and real exponent g(k) satisfying g(k) ≤ ε k for large k; in particular \
-    Clique ∉ FPT. Unconditional subexponential-time transfers to ThreeSAT hold without ETH. \
-    This adapts the source's 3-Coloring vertex grouping to 3-CNF clauses and arbitrary f."
-
 register_result "csp-bounded-treewidth" where
   title := "Exact counting and decision for finite-domain CSPs over bounded treewidth"
   topic := "parameterized algorithms"
@@ -13442,8 +13403,9 @@ register_result "btree-rank-comparison-lower-bound" where
     FreeM (LEQuery α) query model: on any duplicate-free tree (rank_lowerBound_infinite), over \
     general (BTree α β × α) inputs (IsRank.lowerBound_infinite), and over well-formed B-trees \
     WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
-    comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
-    comparison lower bound for lookup remains open under #3674."
+    comparison queries in FreeM (LEQuery α) rather than machine instructions. The companion \
+    lookup bound is in the LookupLowerBound module, proved for trees with distinct values \
+    (IsLookup.lowerBound_wfInput_infinite assumes an infinite value type)."
 
 register_result "nexp-bounded-acceptance-complete" where
   title := "Bounded nondeterministic acceptance is NEXP-complete, and its EXP membership \

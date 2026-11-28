@@ -71,8 +71,7 @@ theorem exec_matrixStep {w n p k source destination table i : ℕ}
   have hmul := Nat.mul_le_mul_right p (Nat.succ_le_of_lt hzlt)
   rw [Nat.succ_mul] at hmul
   refine WP.exists_execWithin_preserves (fun j hj => matrixStep_preserves transpose j hj) ?_
-  unfold matrixStep
-  wram_exec [hindex, hN]
+  wram_exec [matrixStep, hindex, hN]
   wram_call (exec_morton (k := k) _ (by wram_simp [h2]) (by wram_simp; exact hrlt)
     (by wram_simp; exact hclt) (by wram_simp [ht]; exact htable)
     (by wram_simp [ht]; exact hw.of_le (by omega))) with s ⟨sm, spos, sr⟩

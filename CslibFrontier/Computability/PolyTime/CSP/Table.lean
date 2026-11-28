@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Native polynomial-time explicit relation tables
@@ -118,9 +119,7 @@ theorem computableInPolyTime_tableValidPositions :
 theorem computableInPolyTime_tableOutsidePositions :
     ComputableInPolyTime (fun p : ℕ × List ℕ => outsidePositions p.1 p.2)
       (encPair encUnary (encList encNat)) (encList encNat) := by
-  have hrange : ComputableInPolyTime List.range encUnary (encList encNat) := by
-    have h := ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary
-    simpa only [Function.comp_def, List.map_id'] using h.comp ComputableInPolyTime.range
+  have hrange := ComputableInPolyTime.range.reencodeList ComputableInPolyTime.unary_to_binary
   unfold outsidePositions
   simp only [List.contains_eq_mem]
   apply ComputableInPolyTime.filterWithInput (hrange.comp (by fun_prop))
@@ -204,8 +203,6 @@ theorem computableInPolyTime_tableExactlyOne :
 theorem length_encTable {table : Cslib.Logic.PL.CSP.Table} (h : table.wellFormed = true) :
     (encTable table).length = 2 * (encNat table.arity).length + 1 +
       table.rows.length * (6 * table.arity + 1) := by
-  have hbits (row : List Bool) : (encList encBool row).length = 3 * row.length := by
-    simp [length_encList, Nat.mul_comm]
   have hrows : (encList (encList encBool) table.rows).length =
       table.rows.length * (6 * table.arity + 1) := by
     rw [length_encList]
@@ -214,7 +211,7 @@ theorem length_encTable {table : Cslib.Logic.PL.CSP.Table} (h : table.wellFormed
         congr 1
         apply List.map_congr_left
         intro row hr
-        rw [hbits, wellFormed_eq_true.mp h row hr]
+        rw [length_encList_encBool, wellFormed_eq_true.mp h row hr]
         omega
       _ = _ := by simp [Nat.mul_comm]
   rw [encTable_apply, length_encPair, hrows]

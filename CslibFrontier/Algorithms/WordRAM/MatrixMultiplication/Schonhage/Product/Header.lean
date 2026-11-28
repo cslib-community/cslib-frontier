@@ -40,11 +40,10 @@ public theorem exec_layout {w L m N Q : ℕ} (x : Data 160)
       Fits w v := hl.of_le hv
   have reg {r v} (h : (x.comap bank).regs r = v) : x.regs (bank r) = v := h
   refine WP.exists_execWithin ?_
-  unfold layout
   wram_exec (disch := refine hsmall _ ?_; simp only [memoryEnd, stampBase, scratchBase,
     outputBase, groupedBase, originalBase, codeBase, offsetBase, snapshotBase, inputEnd,
     BandPreparation.memoryEnd, Wanted.memoryLimit_eq]; ring_nf; omega)
-    [hQ, reg hp.fixed.levels, reg hp.fixed.inner, reg hp.fixed.rows, reg hp.columns,
+    [layout, hQ, reg hp.fixed.levels, reg hp.fixed.inner, reg hp.fixed.rows, reg hp.columns,
       reg hp.masks, reg hp.cells, reg hp.leaves, reg hp.bands, reg hp.catalogue]
   refine ⟨?_, rfl⟩
   constructor <;> solve

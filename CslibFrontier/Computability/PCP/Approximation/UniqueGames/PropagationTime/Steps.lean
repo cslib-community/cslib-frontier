@@ -119,8 +119,7 @@ theorem resetStateCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x2 : Data
     (hzero2 : ∀ a, visBase g ≤ a → x2.mem a = 0) :
     ∃ x3, ExecWithin w resetStateCode x2 x3 3 ∧
       TableStateAt g (init g) x3 ∧ x3.regs rOuterIdx = 0 := by
-  unfold resetStateCode
-  wram_exec [hc2.zero]
+  wram_exec [resetStateCode, hc2.zero]
   refine ⟨⟨by wram_simp [hc2],
     by simpa only [Data.set_mem] using hinp2,
     by simpa only [Data.set_mem] using hbkt2, List.length_replicate,
@@ -161,8 +160,7 @@ private theorem visitListLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       have : Fits w (j * (L + 2)) := hw.of_le (by omega)
       have : Fits w (4 + j * (L + 2)) := hw.of_le (by omega)
       have : Fits w (4 + j * (L + 2) + 1) := hw.of_le (by omega)
-      unfold visitListHead
-      wram_exec [hS.consts.one, hS.consts.stride, hS.consts.edgeB, hp0,
+      wram_exec [visitListHead, hS.consts.one, hS.consts.stride, hS.consts.edgeB, hp0,
         hS.inp.edge_src j hj, hS.inp.edge_dst j hj]
       exact ⟨hS.of_eq (by wram_simp [hS.consts]) (by wram_simp [hS.stack_len])
           (by wram_simp [hS.comp_len]) (by wram_simp),
@@ -221,8 +219,7 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
     have : Fits w (headBase g + u) := fits_top hw (by wram_omega)
     have hfr_hb : Function.update x.mem (compBase g + S.comp.length) u (headBase g + u) =
         x.mem (headBase g + u) := Function.update_of_ne (by wram_omega) _ _
-    unfold scanPop
-    wram_exec [hS.consts.one, hS.consts.headB, hS.consts.stackB, hS.consts.compB,
+    wram_exec [scanPop, hS.consts.one, hS.consts.headB, hS.consts.stackB, hS.consts.compB,
       hlen_u, Nat.add_sub_cancel rest.length 1, (holdsList_cons_iff.mp hstk2).1, hS.comp_len,
       hfr_hb]
     exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp, by wram_simp [hfr_hb],
@@ -389,8 +386,7 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         ∃ z1, ExecWithin w stepHead z z1 5 ∧
           TableStateAt g S z1 ∧ z1.regs rSrc = e.src ∧ z1.regs rTmp1 = z.mem (visBase g + e.src) ∧
           z1.regs rOuterIdx = j := by
-      unfold stepHead
-      wram_exec [hzT.consts.stride, hzT.consts.edgeB, hzT.consts.visB, hzIdx,
+      wram_exec [stepHead, hzT.consts.stride, hzT.consts.edgeB, hzT.consts.visB, hzIdx,
         hzT.inp.edge_src j hj]
       exact ⟨hzT.of_eq (by wram_simp [hzT.consts]) (by wram_simp),
         by wram_simp; rfl, by wram_simp; rfl, by wram_simp [hzIdx]⟩

@@ -79,6 +79,8 @@ every step adds at most a polynomial amount of storage
 
 namespace Cslib.Complexity.QBFProtocol
 
+open Polynomial (evalCoeffListMod evalCoeffListMod_lt_modulus)
+
 open Cslib.Logic.PL Turing.MultiTapeTM Cslib.Probability
 
 namespace Machine
@@ -205,14 +207,15 @@ def binNext (o : ArithQBF.Connective) (a : StepData) (word : List Bool) : VState
 /-- Whether the reply `word` to an operator `o` passes the check against the top claim. -/
 def opCheck (o : ArithQBF.Operator) (a : StepData) (word : List Bool) : Bool :=
   decide (operatorMod a.modulus o (lookupPt a.top.point a.head.2 % a.modulus)
-    (hornerMod a.modulus 0 (replyOf a word)) (hornerMod a.modulus 1 (replyOf a word)) %
+    (evalCoeffListMod a.modulus 0 (replyOf a word))
+    (evalCoeffListMod a.modulus 1 (replyOf a word)) %
       a.modulus = a.top.value % a.modulus)
 
 /-- The state after the reply `word` to an operator and the random point `z`: the claim that the
 body has the value of the reply at `z`, with the variable set to `z`. -/
 def opNext (a : StepData) (word : List Bool) (z : ℕ) : VState :=
   ⟨a.tokens.tail, ⟨updatePt a.modulus a.xs a.top.point a.head.2 z,
-    hornerMod a.modulus z (replyOf a word)⟩ :: a.below, true⟩
+    evalCoeffListMod a.modulus z (replyOf a word)⟩ :: a.below, true⟩
 
 /-- The reply to the message of a step, of which `D + 1` rows are read. -/
 noncomputable def ask (a : StepData) : WordOracleComp Unit (List Bool) :=
@@ -448,7 +451,7 @@ theorem length_encVState_le_of_mem_support_step (I : LoopInput) (st : VState) {n
     · refine length_encVState_push_le st [_] true (by simp) ?_
       simp only [List.mem_singleton, forall_eq]
       exact length_encClaim_map_le I _ (fun x => by split_ifs <;> exact Nat.mod_lt _ hq) _
-        (hornerMod_lt _ _)
+        (evalCoeffListMod_lt_modulus _ _)
     · exact hrej
   unfold step at h
   split_ifs at h with hactive

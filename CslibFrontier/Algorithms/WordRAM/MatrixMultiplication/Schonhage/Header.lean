@@ -91,8 +91,7 @@ theorem exec_setup {w : ℕ} (L : ℕ) (x : Data 32) (hheader : x.mem 1 = L)
       hcap ▸ pow_succ 10 (y.regs stage) ▸ hpow 10 _ (by decide) (by omega)
     have hjfit : Fits w (y.regs stage + 1) := haddr.of_le (by rw [addressBound]; omega)
     refine WP.exists_execWithin ?_
-    unfold powerBody
-    wram_exec [hi, hcap, ho, hs, ht, hpi, hpc, hjfit]
+    wram_exec [powerBody, hi, hcap, ho, hs, ht, hpi, hpc, hjfit]
     dsimp only [P]
     wram_simp [hd, ho, hs, ht, pow_succ]
     exact hm

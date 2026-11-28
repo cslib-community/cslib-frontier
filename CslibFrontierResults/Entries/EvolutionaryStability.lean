@@ -27,5 +27,7 @@ register_result "suri-ess-nash-characterization" where
     invasion threshold ε₀ > 0) if and only if (s, s) is a Nash equilibrium (G.IsNash s s) and \
     every best response t ≠ s to s satisfies G.payoff₁ t t < G.payoff₁ s t. The 2×2 \
     characterizations and Hawks and Doves examples in Evolutionary.Basic are unregistered; \
-    Section 29.2 clique hardness (Theorems 29.8–29.9), Section 29.3 routing dynamics \
-    (Theorem 29.12), and Section 29.4 graphical ESS (Theorem 29.16) remain open under #7789."
+    Section 29.2 clique hardness (Theorems 29.8–29.9) is registered separately in \
+    EvolutionaryCliqueHardness, Section 29.3 routing dynamics (Theorem 29.12, Exercise 29.6) \
+    in EvolutionaryRoutingDynamics, and Section 29.4 graphical ESS (Theorems 29.16 and 29.18, \
+    Lemma 29.17, Exercise 29.7) in EvolutionaryGraphESS."

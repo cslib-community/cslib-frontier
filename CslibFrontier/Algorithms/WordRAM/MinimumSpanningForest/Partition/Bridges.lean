@@ -30,9 +30,13 @@ round witnesses (`PartitionRoundWitness`), connecting `PartitionRoundWitness` li
   `Cslib.Algorithms.WordRAM.MinimumSpanningForest.PartitionRoundWitness.compGlobal`,
   `Cslib.Algorithms.WordRAM.MinimumSpanningForest.PartitionRoundWitness.verts`: mathematical
   witness for one dynamic-DJP partition round, its lifted global edge list, and its vertex set.
+* `Cslib.Algorithms.WordRAM.MinimumSpanningForest.PartitionRoundMeta`: shared per-round metadata
+  and structural invariants for partition rounds stored in memory.
 
 ## Main results
 
+* `Cslib.Algorithms.WordRAM.MinimumSpanningForest.PartitionRoundMeta.congr`: frame-preservation
+  lemma lifting `PartitionRoundMeta` across memory states agreeing below `bound`.
 * `Cslib.Algorithms.WordRAM.MinimumSpanningForest.partition_optDepth_sum_le`: decision-tree
   depth sum bound `(rounds.map ...).sum ≤ optDepthMN es.length n`.
 * `Cslib.Algorithms.WordRAM.MinimumSpanningForest.partition_conglom_active_verts_le`: active
@@ -77,6 +81,79 @@ structure PartitionRoundWitness (n : ℕ) where
 @[expose] def PartitionRoundWitness.verts {n : ℕ} (r : PartitionRoundWitness n) :
     Finset (Fin n) :=
   r.tree.treeVerts r.tree.numSteps
+
+/-- Shared per-round metadata and structural invariants for `rounds` stored at `compMetaBase` and
+`liftMetaBase` in memory `mem`. -/
+structure PartitionRoundMeta {n : ℕ} (maxsize compMetaBase liftMetaBase : ℕ)
+    (rounds : List (PartitionRoundWitness n)) (mem : ℕ → ℕ) : Prop where
+  /-- Component vertex count recorded at `compMetaBase + 3 * i`. -/
+  numVerts_eq : ∀ i : Fin rounds.length,
+    mem (compMetaBase + 3 * i.val) = (rounds[i.val]'i.isLt).numVerts
+  /-- Component edge count recorded at `compMetaBase + 3 * i + 1`. -/
+  numEdges_eq : ∀ i : Fin rounds.length,
+    mem (compMetaBase + 3 * i.val + 1) = (rounds[i.val]'i.isLt).compLocal.length
+  /-- Stride-4 local edge array stored at `mem (compMetaBase + 3 * i + 2)`. -/
+  holdsEdges : ∀ i : Fin rounds.length,
+    HoldsIndexedEdges (mem (compMetaBase + 3 * i.val + 2))
+      (rounds[i.val]'i.isLt).compLocal mem
+  /-- Local-to-global vertex lift map stored at `mem (liftMetaBase + i)`. -/
+  lift_eq : ∀ i : Fin rounds.length, ∀ k : Fin (rounds[i.val]'i.isLt).numVerts,
+    mem (mem (liftMetaBase + i.val) + k.val) = ((rounds[i.val]'i.isLt).lift k).val
+  /-- Each component has at most `maxsize` vertices. -/
+  numVerts_le : ∀ i : Fin rounds.length, (rounds[i.val]'i.isLt).numVerts ≤ maxsize
+  /-- Non-empty edge components have at most `2 * compLocal.length` vertices. -/
+  numVerts_le_two_mul : ∀ i : Fin rounds.length,
+    1 ≤ (rounds[i.val]'i.isLt).compLocal.length →
+    (rounds[i.val]'i.isLt).numVerts ≤ 2 * (rounds[i.val]'i.isLt).compLocal.length
+  /-- The local-to-global vertex lift map of each round is injective. -/
+  lift_injective : ∀ i : Fin rounds.length, Function.Injective (rounds[i.val]'i.isLt).lift
+  /-- Each component's local edge multigraph is simple. -/
+  isSimple : ∀ i : Fin rounds.length,
+    IsSimple (edgeEnds ((rounds[i.val]'i.isLt).compLocal.map IndexedEdge.toWeighted))
+  /-- Every lifted edge has both endpoints in that round's vertex set `verts`. -/
+  compGlobal_verts : ∀ i : Fin rounds.length,
+    ∀ e ∈ (rounds[i.val]'i.isLt).compGlobal,
+      e.u ∈ (rounds[i.val]'i.isLt).verts ∧ e.v ∈ (rounds[i.val]'i.isLt).verts
+  /-- Each round intersects previous rounds' vertices in at most one vertex. -/
+  inter_prev_card_le_one : ∀ i : Fin rounds.length,
+    ((rounds[i.val]'i.isLt).verts ∩ (Finset.univ.filter fun j : Fin rounds.length =>
+      j.val < i.val).biUnion (fun j => (rounds[j.val]'j.isLt).verts)).card ≤ 1
+
+/-- Frame-preservation lemma for `PartitionRoundMeta`: lifts metadata and structural invariants from
+`mem₁` to `mem₂` when `mem₂` agrees with `mem₁` below `bound`. -/
+theorem PartitionRoundMeta.congr {n maxsize compMetaBase liftMetaBase bound : ℕ}
+    {rounds : List (PartitionRoundWitness n)} {mem₁ mem₂ : ℕ → ℕ}
+    (hagree : ∀ a < bound, mem₂ a = mem₁ a)
+    (hcomp : compMetaBase + 3 * rounds.length ≤ bound)
+    (hlift : liftMetaBase + rounds.length ≤ bound)
+    (hbounds : ∀ i : Fin rounds.length,
+      let r := rounds[i.val]'i.isLt
+      mem₁ (compMetaBase + 3 * i.val + 2) + 4 * r.compLocal.length ≤ bound ∧
+      mem₁ (liftMetaBase + i.val) + r.numVerts ≤ bound)
+    (h : PartitionRoundMeta maxsize compMetaBase liftMetaBase rounds mem₁) :
+    PartitionRoundMeta maxsize compMetaBase liftMetaBase rounds mem₂ := by
+  refine
+    { numVerts_eq := fun i => (hagree _ (by have := i.isLt; omega)).trans (h.numVerts_eq i)
+      numEdges_eq := fun i => (hagree _ (by have := i.isLt; omega)).trans (h.numEdges_eq i)
+      holdsEdges := fun i => by
+        have heb : mem₂ (compMetaBase + 3 * i.val + 2) = mem₁ (compMetaBase + 3 * i.val + 2) :=
+          hagree _ (by have := i.isLt; omega)
+        rw [heb]
+        have hbi := (hbounds i).1
+        exact (h.holdsEdges i).congr fun a ha1 ha2 => hagree a (by omega)
+      lift_eq := fun i k => by
+        have hlb : mem₂ (liftMetaBase + i.val) = mem₁ (liftMetaBase + i.val) :=
+          hagree _ (by have := i.isLt; omega)
+        rw [hlb]
+        have hk := k.isLt
+        have hbi := (hbounds i).2
+        exact (hagree _ (by omega)).trans (h.lift_eq i k)
+      numVerts_le := h.numVerts_le
+      numVerts_le_two_mul := h.numVerts_le_two_mul
+      lift_injective := h.lift_injective
+      isSimple := h.isSimple
+      compGlobal_verts := h.compGlobal_verts
+      inter_prev_card_le_one := h.inter_prev_card_le_one }
 
 /-! ## Section 2: Decision-Tree Depth Sum Bridge -/
 

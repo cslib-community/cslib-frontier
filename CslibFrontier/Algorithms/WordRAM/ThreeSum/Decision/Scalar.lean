@@ -54,8 +54,7 @@ theorem exec_power {w B E : ℕ} (x : Data 16)
       exact hfit.of_le (Nat.pow_le_pow_right hB (by omega))
     have hdec : Fits w (y.regs remaining - 1) := hcount.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold powerBody
-    wram_exec [hyv, hys, hyo, hmul, hdec]
+    wram_exec [powerBody, hyv, hys, hyo, hmul, hdec]
     exact ⟨⟨by wram_simp; omega, by wram_simp; rw [← pow_succ, hexp],
       fun i hie hir => by wram_simp [hie, hir]; exact hyr i hie hir, by wram_simp [hym]⟩,
       by wram_simp; omega⟩

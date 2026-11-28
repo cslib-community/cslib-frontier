@@ -198,6 +198,8 @@ structure StateTransitionImpl {cells w : ℕ}
           ∑' q, μ_step t q * (potential q.seed q.mem : ℝ≥0∞))) ≤
         ∑' t, ν t * ((charge t.state o : ℝ≥0∞) + (potential t.seed t.mem : ℝ≥0∞))
 
+initialize_simps_projections StateTransitionImpl (Seed → seed)
+
 end Cslib.DataStructure.CellProbe.Randomized
 
 /-! ### Deterministic-to-randomized lifting -/
@@ -212,7 +214,8 @@ universe u v
 /-- Canonical embedding of any deterministic `CellProbe.StateTransitionImpl` into
 `CellProbe.Randomized.StateTransitionImpl` over `Randomized.Scheme.ofDeterministic P`
 (`Seed := Unit`, `seedLaw := PMF.pure ()`, `seedSlack := 1`). -/
-@[expose] noncomputable def toRandomized {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
+@[expose, simps -fullyApplied seed seedLaw seedSlack initPotential charge]
+noncomputable def toRandomized {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
     {P : Scheme D.Op D.Result cells w} {s₀ : D.State}
     (C : StateTransitionImpl D P s₀) :
     Randomized.StateTransitionImpl D (Cslib.CellProbe.Randomized.Scheme.ofDeterministic P) s₀ where
@@ -275,36 +278,6 @@ universe u v
         simp only [PMF.pure_apply_self, one_mul]
         exact_mod_cast hpot
       · rw [(PMF.apply_eq_zero_iff _ _).mpr ht_mem, zero_mul, zero_mul]
-
-@[simp]
-theorem toRandomized_seed {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
-    {P : Scheme D.Op D.Result cells w} {s₀ : D.State} (C : StateTransitionImpl D P s₀) :
-    C.toRandomized.Seed = Unit :=
-  rfl
-
-@[simp]
-theorem toRandomized_seedLaw {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
-    {P : Scheme D.Op D.Result cells w} {s₀ : D.State} (C : StateTransitionImpl D P s₀) :
-    C.toRandomized.seedLaw = PMF.pure () :=
-  rfl
-
-@[simp]
-theorem toRandomized_seedSlack {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
-    {P : Scheme D.Op D.Result cells w} {s₀ : D.State} (C : StateTransitionImpl D P s₀) :
-    C.toRandomized.seedSlack = 1 :=
-  rfl
-
-@[simp]
-theorem toRandomized_initPotential {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
-    {P : Scheme D.Op D.Result cells w} {s₀ : D.State} (C : StateTransitionImpl D P s₀) :
-    C.toRandomized.initPotential = C.initPotential :=
-  rfl
-
-@[simp]
-theorem toRandomized_charge {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
-    {P : Scheme D.Op D.Result cells w} {s₀ : D.State} (C : StateTransitionImpl D P s₀) :
-    C.toRandomized.charge = C.charge :=
-  rfl
 
 @[simp]
 theorem toRandomized_rep {cells w : ℕ} {D : StateTransitionSpec.{u, v, 0}}
@@ -441,20 +414,7 @@ theorem ofFn_seed {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).Seed = Seed :=
   rfl
@@ -464,20 +424,7 @@ theorem ofFn_seedLaw {f : (s : D.State) → (o : D.Op) → D.State × D.Result o
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).seedLaw = seedLaw :=
   rfl
@@ -487,20 +434,7 @@ theorem ofFn_seedSlack {f : (s : D.State) → (o : D.Op) → D.State × D.Result
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).seedSlack = seedSlack :=
   rfl
@@ -510,20 +444,7 @@ theorem ofFn_initPotential {f : (s : D.State) → (o : D.Op) → D.State × D.Re
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).initPotential = initPotential :=
   rfl
@@ -533,20 +454,7 @@ theorem ofFn_charge {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).charge = charge :=
   rfl
@@ -556,20 +464,7 @@ theorem ofFn_rep {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).rep = rep :=
   rfl
@@ -579,20 +474,7 @@ theorem ofFn_potential {f : (s : D.State) → (o : D.Op) → D.State × D.Result
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).potential = potential :=
   rfl
@@ -602,20 +484,7 @@ theorem ofFn_singleState {f : (s : D.State) → (o : D.Op) → D.State × D.Resu
     [D.HasStepFn f] (Seed : Type) (seedLaw : PMF Seed) (charge : D.State → D.Op → ℕ)
     (rep : Seed → D.State → Mem cells w → Prop) (seedSlack : ℝ≥0∞)
     (seedSlack_ne_top : seedSlack ≠ ⊤) (initPotential : ℕ)
-    (potential : Seed → Mem cells w → ℕ) (init_exec)
-    (step_exec : ∀ (s : D.State) (o : D.Op) (ν : PMF (Seed × Mem cells w)),
-      D.valid s o →
-      (∀ θ, (ν.map Prod.fst) θ ≤ seedSlack * seedLaw θ) →
-      (∀ p ∈ ν.support, rep p.1 s p.2) →
-      ∃ μ_step : Seed × Mem cells w → PMF (Seed × Mem cells w),
-        (∀ p ∈ ν.support,
-          ((P.step o).run p.2).map Prod.fst =
-            (μ_step p).map (fun q => ((D.stepFn s o).2, q.2)) ∧
-          ∀ q ∈ (μ_step p).support, rep q.1 (D.stepFn s o).1 q.2) ∧
-        (∀ θ', ((ν.bind μ_step).map Prod.fst) θ' ≤ seedSlack * seedLaw θ') ∧
-        (∑' p, ν p * ((P.step o).expectedProbes p.2 +
-            ∑' q, μ_step p q * (potential q.1 q.2 : ℝ≥0∞))) ≤
-          (charge s o : ℝ≥0∞) + ∑' p, ν p * (potential p.1 p.2 : ℝ≥0∞)) :
+    (potential : Seed → Mem cells w → ℕ) (init_exec step_exec) :
     (ofFn (P := P) (s₀ := s₀) Seed seedLaw charge rep seedSlack seedSlack_ne_top initPotential
       potential init_exec step_exec).singleState ↔ True :=
   Iff.rfl
@@ -624,7 +493,8 @@ theorem ofFn_singleState {f : (s : D.State) → (o : D.Op) → D.State × D.Resu
 
 /-- Lift a `Randomized.StateTransitionImpl` from `cells` cells to `cells'` cells (`cells ≤ cells'`)
 via `Cslib.CellProbe.Randomized.Scheme.padCells`, preserving `initPotential` and `charge`. -/
-@[expose] noncomputable def padCells (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
+@[expose, simps -fullyApplied seed seedLaw seedSlack initPotential charge]
+noncomputable def padCells (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
     StateTransitionImpl D (P.padCells h) s₀ where
   Seed := C.Seed
   seedLaw := C.seedLaw
@@ -761,31 +631,6 @@ via `Cslib.CellProbe.Randomized.Scheme.padCells`, preserving `initPotential` and
           (C.charge t.state o : ℝ≥0∞) + (C.potential t.seed t.mem : ℝ≥0∞)
       rw [hLHS, ← hRHS]
       exact hamort
-
-@[simp]
-theorem padCells_seed (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).Seed = C.Seed :=
-  rfl
-
-@[simp]
-theorem padCells_seedLaw (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).seedLaw = C.seedLaw :=
-  rfl
-
-@[simp]
-theorem padCells_seedSlack (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).seedSlack = C.seedSlack :=
-  rfl
-
-@[simp]
-theorem padCells_initPotential (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).initPotential = C.initPotential :=
-  rfl
-
-@[simp]
-theorem padCells_charge (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).charge = C.charge :=
-  rfl
 
 @[simp]
 theorem padCells_rep (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) (θ : C.Seed)

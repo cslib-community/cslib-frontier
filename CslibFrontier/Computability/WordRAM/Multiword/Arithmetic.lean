@@ -173,8 +173,7 @@ private theorem exec_borrow_framed {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (
         Multiword.value (radix w) x ds + radix w ^ ds.length * y.regs borrow ∧
       Arithmetic.Frame x y ds := by
   refine WP.Exact.exists_exec ?_
-  unfold program
-  wram_exec [radix_fits hw]
+  wram_exec [program, radix_fits hw]
   refine WP.Exact.name fun z hzx => ?_
   have hz (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
     obtain ⟨_, hc, hb, ho⟩ := digit_ne hi

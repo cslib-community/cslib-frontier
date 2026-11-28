@@ -9,10 +9,16 @@ module
 public import CslibFrontier.Computability.BranchingProgram.Nondeterministic
 public import Mathlib.Data.Fin.VecNotation
 public import Mathlib.Data.Fintype.Pi
+public meta import CslibFrontier.Computability.BranchingProgram.Nondeterministic
+public meta import Mathlib.Data.Fin.VecNotation
 
 /-! Concrete `module` clients for nondeterministic branching programs (`NBP`): contact counts,
 path counts, nondeterministic and parity acceptance, and the nondeterministic program of a
-deterministic one (`BranchingProgram.toNBP`). -/
+deterministic one (`BranchingProgram.toNBP`). The `#guard` checks run the compiled path counts,
+including on a deep ladder program whose path count has exponentially many paths, and on sources
+above a deep ladder that reach at most its two lowest nodes. -/
+
+set_option linter.hashCommand false
 
 public section
 
@@ -31,6 +37,9 @@ example : twoContacts.size = 2 := by
 
 example : twoContacts.pathCount ![true, true] = 2 := by
   decide
+
+#guard twoContacts.pathCount ![true, true] == 2
+#guard decide (twoContacts.Accepts ![true, false]) && !decide (twoContacts.Accepts ![false, false])
 
 /-- With nondeterministic acceptance the two contacts compute the disjunction. -/
 example : ∀ x : Fin 2 → Bool, twoContacts.Accepts x ↔ (x 0 || x 1) = true := by
@@ -65,7 +74,47 @@ example : ∀ x : Fin 3 → Bool,
 example : majorityThree.pathCount ![true, true, true] = 3 := by
   decide
 
-/-! ### 3. Deterministic programs -/
+#guard majorityThree.pathCount ![true, true, true] == 3
+#guard decide (majorityThree.Accepts ![true, false, true]) &&
+  !decide (majorityThree.Accepts ![false, false, true])
+
+/-! ### 3. A deep ladder program -/
+
+/-- The ladder program with `n + 1` nodes: node `k ≥ 2` has rectifiers to nodes `k - 1` and
+`k - 2`, and node `1` has a rectifier to the target. Its path count is the Fibonacci number
+`F (n + 1)`, and the number of paths grows exponentially in `n`. -/
+def ladder : (n : ℕ) → NBP Unit Bool (n + 1)
+  | 0 => .target
+  | n + 1 =>
+    .node (ladder n) <|
+      if h : 1 ≤ n then [⟨⟨n, by omega⟩, none⟩, ⟨⟨n - 1, by omega⟩, none⟩]
+      else [⟨⟨n, by omega⟩, none⟩]
+
+#guard (ladder 10).pathCount (fun _ => true) == 89
+#guard (ladder 30).pathCount (fun _ => true) == 1346269
+#guard decide ((ladder 30).Accepts fun _ => true)
+#guard (ladder 30).paths (fun _ => true) (Fin.last 30) == 1346269
+
+/-- A source without wires, above a deep ladder: no path leaves the source. -/
+def deadSource : NBP Unit Bool 32 := .node (ladder 30) []
+
+/-- A source with one rectifier straight to the target, above a deep ladder whose only node it
+reaches is the target. -/
+def directSource : NBP Unit Bool 32 := .node (ladder 30) [⟨0, none⟩]
+
+#guard deadSource.pathCount (fun _ => true) == 0
+#guard !decide (deadSource.Accepts fun _ => true)
+#guard directSource.pathCount (fun _ => true) == 1
+#guard decide (directSource.Accepts fun _ => true)
+#guard (NBP.node (ladder 30) [⟨1, none⟩, ⟨0, none⟩, ⟨0, none⟩]).pathCount (fun _ => true) == 3
+
+/-- A source whose only wire leads to a node with one rectifier to the target, above a deep ladder
+whose only node any path reaches is the target. -/
+def highSource : NBP Unit Bool 32 := .node (.node (ladder 29) [⟨0, none⟩]) [⟨30, none⟩]
+
+#guard highSource.pathCount (fun _ => true) == 1
+
+/-! ### 4. Deterministic programs -/
 
 /-- A deterministic program computing `x 0 && x 1` with two query nodes and two sinks. -/
 def andProgram : BranchingProgram (Fin 2) Bool where

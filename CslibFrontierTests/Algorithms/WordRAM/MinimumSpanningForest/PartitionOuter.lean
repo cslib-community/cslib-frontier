@@ -66,11 +66,6 @@ private theorem isSimple_of_pairs {n : ℕ} {es : List (IndexedEdge n)}
     · exact hinj ⟨j.val, by simpa using j.isLt⟩ ⟨i.val, by simpa using i.isLt⟩ hgt
         (Sym2.eq_iff.mp h_sym.symm)
 
-private theorem isMinSpanningForest_nil {n : ℕ} :
-    IsMinSpanningForest ([] : List (WeightedEdge n ℕ)) [] := by
-  simpa [kruskalEdges, sortEdges, kruskalScan] using
-    kruskalEdges_isMinSpanningForest ([] : List (WeightedEdge n ℕ))
-
 private theorem edgePartitionFrom_fin1_eq {xs : List (WeightedEdge 1 ℕ)}
     (p : Partition 1) : edgePartitionFrom p xs = p := by
   induction xs generalizing p with
@@ -184,7 +179,7 @@ example :
     (by rw [hinit.2.1]; dsimp only [es]; decide) (by rw [hinit.2.1]; dsimp only [es]; decide) hsimp
   rcases hspec with ⟨hsafe, hvh, hwf', _, _, hfr_ub, hcost, hnc_le, hmc_le, hrem_le, hcg_le,
     _, _, _, _, _, _, rounds, H_rem, conglomFn, hrl, hhl, _, hperm, hmc_len,
-    _, _, _, _, hrel, hcov, hmeta, _, huncorr_rem, hstop_prev, huncorr_tree⟩
+    _, _, _, _, hrel, hcov, hmeta, hround_ext, _, huncorr_rem, hstop_prev, huncorr_tree⟩
   have hmc0 : r.1.mcLen = 0 :=
     Nat.eq_zero_of_le_zero (by simpa [r, execWordRAM, s0, d, es] using hmc_le)
   have hrem0 : r.1.hRemLen = 0 :=
@@ -205,7 +200,7 @@ example :
   have hqt_nil : ∀ q ∈ rounds, q.tree.treeEdges = [] := fun q hq => by
     have hsub := List.getElem_of_mem hq
     rcases hsub with ⟨i, hi, rfl⟩
-    rcases hmeta ⟨i, hi⟩ with ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, hts, _⟩
+    rcases hround_ext ⟨i, hi⟩ with ⟨_, _, _, _, _, hts⟩
     have h1 := hts.length_le
     rw [hq_nil _ hq] at h1
     exact List.eq_nil_of_length_eq_zero (by simpa using h1)
@@ -220,13 +215,12 @@ example :
       Fintype.card_le_of_injective conglomFn hinj_cg
   have hcg_eq : r.1.nConglom = 3 :=
     le_antisymm (by simpa [r, execWordRAM, s0, d, es] using hcg_le) h3_le
-  have hopt := partition_optDepth_sum_le hsimp (subperm_compGlobal_of_perm hperm) fun i => by
-    rcases hmeta i with ⟨_, _, _, _, _, _, _, _, _, _, _, hinj_i, _, hgv_i, _, hbi_i⟩
-    exact ⟨hinj_i, hgv_i, hbi_i⟩
+  have hopt := partition_optDepth_sum_le hsimp (subperm_compGlobal_of_perm hperm) fun i =>
+    ⟨hmeta.lift_injective i, hmeta.compGlobal_verts i, hmeta.inter_prev_card_le_one i⟩
   have hmsf := partition_isMinSpanningForest (F_comps := List.replicate rounds.length [])
     (H_lift := []) (F := []) (hperm.map IndexedEdge.toWeighted)
     hcov hrel (fun i => by
-      rcases hmeta i with ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, hts_i, _⟩
+      rcases hround_ext i with ⟨_, _, _, _, _, hts_i⟩
       exact ⟨hts_i, hstop_prev i⟩)
     huncorr_rem huncorr_tree (by simp)
     (fun i => by
@@ -382,7 +376,7 @@ example :
   have hspec := partitionProg_spec (by decide) hinit.1 (maxsize := 4) (by decide) hinit.2.2
     (by rw [hinit.2.1]; decide) (by rw [hinit.2.1]; decide) isSimple_esK3
   rcases hspec with ⟨hsafe_p, hvh_p, _, _, _, _, _, hnc_le, hmc_le, _, _, _, _, _, _, _, _,
-    rounds, H_rem, conglomFn, hrl, _, _, hperm_p, _, _, _, _, _, _, hcov_p, hmeta_p, _, _, _, _⟩
+    rounds, H_rem, conglomFn, hrl, _, _, hperm_p, _, _, _, _, _, _, hcov_p, hmeta_p, _, _, _, _, _⟩
   have hmc0 : rProg.1.mcLen = 0 :=
     Nat.eq_zero_of_le_zero (by simpa [rProg, execWordRAM, s0, esK3] using hmc_le)
   have h1_le : 1 ≤ rProg.1.numComps := by
@@ -390,9 +384,8 @@ example :
     exact Nat.succ_le_of_lt (by
       simpa [rProg, execWordRAM, s0, esK3, hrl] using List.length_pos_of_mem hq)
   have hopt := partition_optDepth_sum_le isSimple_esK3 (subperm_compGlobal_of_perm hperm_p)
-    fun i => by
-      rcases hmeta_p i with ⟨_, _, _, _, _, _, _, _, _, _, _, hinj_i, _, hgv_i, _, hbi_i⟩
-      exact ⟨hinj_i, hgv_i, hbi_i⟩
+    fun i => ⟨hmeta_p.lift_injective i, hmeta_p.compGlobal_verts i,
+      hmeta_p.inter_prev_card_le_one i⟩
   have hL_env' : L.toEnv = setup.env := by simpa [setup, s0, esK3] using hL_env
   refine ⟨by dsimp only [prog]; rw [← hL_env']; exact hvh_r,
     ⟨r, corrIdx.map (Fin.cast hm3), hnv3, huniv, by simp [hcorr_nil], hcg_perm, hsteps2⟩,
@@ -893,7 +886,7 @@ example :
   have hspec := partitionProg_spec (by decide) hinit.1 (maxsize := 2) (by decide) hinit.2.2
     (by rw [hinit.2.1]; decide) (by rw [hinit.2.1]; decide) isSimple_esK3
   rcases hspec with ⟨hsafe_p, _, _, _, _, _, _, hnc_le, hmc_le, _, _, _, _, _, _, _, _,
-    p_rounds, _, _, hrl_p, _, _, _, _, _, _, _, _, _, hcov_p, hmeta_p, _, _, _, _⟩
+    p_rounds, _, _, hrl_p, _, _, _, _, _, _, _, _, _, hcov_p, hmeta_p, hround_p, _, _, _, _⟩
   have hmc0_p : rProg.1.mcLen = 0 :=
     Nat.eq_zero_of_le_zero (by simpa [rProg, execWordRAM, s0, esK3] using hmc_le)
   have h2_le_p : 2 ≤ rProg.1.numComps := by
@@ -911,7 +904,8 @@ example :
         2 * p_rounds.length := by
       calc (∑ i : Fin p_rounds.length, (p_rounds[i.val]'i.isLt).verts.card)
           ≤ ∑ _i : Fin p_rounds.length, 2 := Finset.sum_le_sum fun i _ => by
-            rcases hmeta_p i with ⟨_, _, _, _, _, _, _, hvc, _, hnv_m, _⟩
+            have hvc := (hround_p i).2.2.2.1
+            have hnv_m := hmeta_p.numVerts_le i
             omega
         _ = 2 * p_rounds.length := by simp [Finset.sum_const, Nat.mul_comm]
     rw [Finset.card_fin] at hcov_card
@@ -1139,7 +1133,7 @@ example :
   have hspec := partitionProg_spec (by decide) hinit.1 (maxsize := 4) (by decide) hinit.2.2
     (by rw [hinit.2.1]; decide) (by rw [hinit.2.1]; decide) isSimple_esK4m1
   rcases hspec with ⟨hsafe, hvh, hwf', _, _, _, hcost, hnc_le, hmc_le, _, _, _, _, _, _, _, _,
-    rounds, _, _, hrl, _, _, hperm, _, _, _, _, _, _, hcov, hmeta, _, _, _, _⟩
+    rounds, _, _, hrl, _, _, hperm, _, _, _, _, _, _, hcov, hmeta, _, _, _, _, _⟩
   have hmc0 : r.1.mcLen = 0 :=
     Nat.eq_zero_of_le_zero (by simpa [r, execWordRAM, s0, d, esK4m1] using hmc_le)
   have h1_le : 1 ≤ r.1.numComps := by
@@ -1147,9 +1141,8 @@ example :
     exact Nat.succ_le_of_lt (by
       simpa [r, execWordRAM, s0, d, esK4m1, hrl] using List.length_pos_of_mem hq)
   have hopt := partition_optDepth_sum_le isSimple_esK4m1 (subperm_compGlobal_of_perm hperm)
-    fun i => by
-      rcases hmeta i with ⟨_, _, _, _, _, _, _, _, _, _, _, hinj_i, _, hgv_i, _, hbi_i⟩
-      exact ⟨hinj_i, hgv_i, hbi_i⟩
+    fun i => ⟨hmeta.lift_injective i, hmeta.compGlobal_verts i,
+      hmeta.inter_prev_card_le_one i⟩
   exact ⟨by simpa [s0, d, esK4m1] using hsafe, by simpa [s0, d, esK4m1] using hvh,
     by simpa [r, execWordRAM, s0, d, esK4m1] using hwf',
     by simpa [r, execWordRAM, s0, d, esK4m1] using hcost,

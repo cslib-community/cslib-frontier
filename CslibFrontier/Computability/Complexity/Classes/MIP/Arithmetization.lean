@@ -60,7 +60,8 @@ two-prover simulation:
    on unsatisfiable formulas induces a nonzero multilinear polynomial detected by Schwartz–Zippel
    and `Cslib.Interactive.Sumcheck.proof`.
 
-The class containment and the assembled verifier are tracked in #892.
+The proof-oracle verifier in `Cslib.Complexity.NEXP_subset_PCPPoly` applies this arithmetization
+to the uniformly constructed succinct decoder for every `NEXP` language.
 
 ## Main definitions
 

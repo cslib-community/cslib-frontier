@@ -40,6 +40,24 @@ example {b : ℕ} (h₀ : P.instr b = .assign 1 (const 3) (b + 1))
   cp_step
   cp_step
 
+-- Symbolic oblivious registers use the optional module's rule and retain the non-choice premise.
+example {b next r : ℕ} (hi : P.instr b = .assign 1 (add (reg r) (const 1)) next)
+    (hr : r ≠ 0) (regs : List ℕ) (hB : ∀ x ∈ regs, x ≤ B) :
+    P.Reaches w (P.Oblivious B) (b, regs) (next, regs.set 1 (regs.getD r 0 + 1)) := by
+  cp_step
+
+-- Reading register zero makes an assignment depend on the choice.
+/--
+error: cp_step: could not prove the side condition
+  ((reg 0).add (const 1)).readsChoice = false
+of `Turing.CounterProgram.Reaches.oassign`. Add it as a hypothesis.
+-/
+#guard_msgs in
+example {b next : ℕ} (hi : P.instr b = .assign 1 (add (reg 0) (const 1)) next)
+    (regs : List ℕ) (hB : ∀ x ∈ regs, x ≤ B) :
+    P.Reaches w (P.Oblivious B) (b, regs) (next, regs.set 1 (regs.getD 0 0 + 1)) := by
+  cp_step
+
 -- A comparison decided by the value of a register, and a label written `c + 1 + 1`.
 example {c : ℕ} (h₀ : P.instr (c + 1 + 1) = .lt (reg 0) (const 3) (c + 3) (c + 4))
     (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) (h0 : regs.getD 0 0 = 5) :

@@ -130,8 +130,7 @@ theorem solver_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.
   have hmem : MemAt φ N T (Data.init input : Data 32).mem [] := hT ▸ hL ▸ memAt_init N φ hN
   obtain ⟨k, hk, hrun⟩ := Trail.run_answer φ
   refine WP.exists_execWithin ?_
-  unfold solver setup
-  wram_exec [Data.init_regs, hm0, hm1]
+  wram_exec [solver, setup, Data.init_regs, hm0, hm1]
   wram_call (mainLoop_spec φ N T hfit' k [] _ (Trail.answer φ) ..) framed
     [hmem, Data.init_regs, List.length_nil] with v m ⟨ho, hl⟩
   refine ⟨?_, by omega, by rw [ho, hl, answerList_answer]⟩

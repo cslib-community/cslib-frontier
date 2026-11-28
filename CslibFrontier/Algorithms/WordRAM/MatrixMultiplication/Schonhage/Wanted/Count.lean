@@ -69,8 +69,7 @@ theorem exec_clearCounts {w L m N Q : ℕ} (x : Data 96) (hx : Parameters L m N 
       wram_simp [hne]
       exact hza a ha
   refine WP.exists_execWithin ?_
-  unfold clearCounts
-  wram_exec
+  wram_exec [clearCounts]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.tileCount) hb
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩)
@@ -112,8 +111,7 @@ theorem exec_countQueries {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ 
     rw [hf _ (Or.inl (by omega)), hf _ (Or.inl ha)]
     exact hz.2.1 i hi
   refine WP.exists_execWithin ?_
-  unfold countQueries
-  wram_exec
+  wram_exec [countQueries]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hb
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, hinput, fun t ht => by wram_simp [hzero t ht, Nat.count_zero],

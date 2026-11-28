@@ -421,8 +421,8 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
           (stackPairs[y.regs idx]'hlt_st).2.val :=
       (hf_y _ (by omega)).trans (hstackM (y.regs idx) hlt).2
     refine WP.exists_execWithin ?_
-    unfold copyAugBody
-    wram_exec [hby.hbStackU, hby.hbAugU, hby.hbStackV, hby.hbAugV, hby.hone, hal_y, hsu, hsv]
+    wram_exec [copyAugBody,
+      hby.hbStackU, hby.hbAugU, hby.hbStackV, hby.hbAugV, hby.hone, hal_y, hsu, hsv]
     have htake_eq : augPairs ++ stackPairs.take (y.regs idx + 1) =
         (augPairs ++ stackPairs.take (y.regs idx)) ++ [stackPairs[y.regs idx]'hlt_st] := by
       rw [List.take_add_one, List.getElem?_eq_getElem hlt_st, Option.toList_some,
@@ -772,8 +772,7 @@ theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}
           a < bOff + inst.m + 1 + inst.numEdges + 4 * inst.r + 6 * inst.m + 6) →
         z.mem a = x.mem a) := by
     refine WP.exists_execWithin ?_
-    unfold dfsStepBody
-    wram_exec [hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges,
+    wram_exec [dfsStepBody, hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges,
       hfr.hb.hbVis, hfr.hb.hbColMate, hfr.hb.hbStackV, hfr.hb.hrm, hfr.hb.hone, hfr.hb.hzero,
       hfr.hrd, hfr.hrk, hfr.hsu, hoff_u1, hfr.hsp, hlt_lim, hedge_v, hvis_v, hmate_v, henc_m]
     refine WP.name fun x_mid hx_mid => ?_
@@ -868,8 +867,8 @@ theorem exec_dfsStep_push {w bOff k d : ℕ} {inst : SparseInstance}
         inst.offset w₀.val ∧
       (∀ a, DfsSubtreeOutside inst bOff d a → x_push.mem a = x.mem a) := by
     refine WP.exists_execWithin ?_
-    unfold dfsStepBody
-    wram_exec [hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges, hfr.hb.hbVis,
+    wram_exec [dfsStepBody,
+      hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges, hfr.hb.hbVis,
       hfr.hb.hbColMate, hfr.hb.hbDist, hfr.hb.hbStackV, hfr.hb.hrm, hfr.hb.hone, hfr.hb.hzero,
       hfr.hb.htwo, hfr.hrd, hfr.hrk, hd_lt_k, hfr.hsu, hoff_u1, hfr.hsp, hlt_lim, hedge_v,
       hvis_v, hmate_v, henc_m, hw_ne, hdist_w, henc_dw, hoff_w]

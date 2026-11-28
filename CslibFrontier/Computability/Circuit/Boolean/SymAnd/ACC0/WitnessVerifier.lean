@@ -688,7 +688,6 @@ private theorem code_padInputs {q : ℕ} (C : Circuit Unbounded.extSignature q 1
       (f := Fin.castLE (le_max_left q n)) (g := id) fun _ => rfl
   simp only [padInputs, Circuit.code_comp, hw]
 
-attribute [local irreducible] ComputableInPolyTime in
 private theorem computableInPolyTime_padCertificateCircuitExt
     {q r : List Bool → ℕ}
     (D : (x : List Bool) → Circuit Unbounded.extSignature (q x) (3 * (r x + 1)))

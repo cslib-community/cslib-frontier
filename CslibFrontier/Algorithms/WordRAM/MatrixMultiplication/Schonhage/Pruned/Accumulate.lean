@@ -121,8 +121,7 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
       by_cases he : a = x.regs valueBase + input (y.regs index) <;>
       simp [hs, he, Finset.piecewise, newValue]
   refine WP.exists_execWithin ?_
-  unfold accumulateLoop
-  wram_exec
+  wram_exec [accumulateLoop]
   wram_call (ExecWithin.loop_count P (fun _ hy => (hy.2 count (by decide)).trans hN) hstep
     (by wram_simp; exact Nat.zero_le _)
     ⟨by wram_simp; funext a; simp [written, Finset.piecewise], fun i hi => by

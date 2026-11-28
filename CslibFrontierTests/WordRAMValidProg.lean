@@ -7,10 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (regression tests for `ProgFrame`, `ValidProg`, and `realize` upgrades)
 
+public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Structure
 public import CslibFrontier.DataStructure.Memory.Record
-public import CslibFrontier.Tactic.Realize
 public import CslibFrontier.Tactic.ValidProg
 
 /-!
@@ -184,5 +184,91 @@ theorem realizes_swapCaller :
   realize [realizes_swapIfZero]
   · exact h.2
   · exact h.1
+
+private def tailCall (sub : ℕ → Record.Prog PairCell ℕ) (v : ℕ) : Record.Prog PairCell ℕ :=
+  sub (v + 1)
+
+variable (sub : ℕ → Record.Prog PairCell ℕ) (P : ℕ → ℕ → Memory.State → Prop)
+
+-- After unfolding the wrapper, the tactic needs the certificate because sub is a parameter.
+example (hs : Realizes .exact
+    (fun v => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub v))
+    WordEncoding.encode WordEncoding.encode P (fun _ _ => 0)) :
+    Realizes .exact (fun d => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (tailCall sub d))
+      WordEncoding.encode WordEncoding.encode
+      (fun w d s => Fits w (d + 1) ∧ P w (d + 1) s) (fun _ _ => 0) := by
+  realize <;> first | exact h.1 | exact h.2
+
+example (hs : RealizesBounded .exact
+    (fun v => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub v))
+    WordEncoding.encode WordEncoding.encode P (fun _ _ => 0)) :
+    RealizesBounded .exact
+      (fun d => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (tailCall sub d))
+      WordEncoding.encode WordEncoding.encode
+      (fun w d s => Fits w (d + 1) ∧ P w (d + 1) s) (fun _ _ => 0) := by
+  realize <;> first | exact h.1 | exact h.2
+
+-- Moving a result map into a link and back across an opaque source uses bounded congruence.
+example (hs : RealizesBounded .exact
+    (fun v => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub v))
+    WordEncoding.encode WordEncoding.encode P (fun _ _ => 0)) :
+    RealizesBounded .exact
+      (fun d => (fun v => v) <$> link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub d))
+      WordEncoding.encode WordEncoding.encode P (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- Reducing the let exposes liftM while the certificate is stated on link.
+example (hs : Realizes .exact
+    (fun v => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub v))
+    WordEncoding.encode WordEncoding.encode P (fun _ _ => 0)) :
+    Realizes .exact (fun d =>
+      let p := sub d
+      PFunctor.FreeM.liftM (m := Memory.Prog) ((pairLayout 0).methods 0) p)
+      WordEncoding.encode WordEncoding.encode P (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- Arithmetic on the word read back makes the intermediate memory visible in the second goal.
+example : Realizes .exact
+    (fun d : ℕ => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (do
+      let a ← pure (d + 1)
+      Record.write .fst a
+      let v ← Record.read .fst
+      pure (v + 1)))
+    WordEncoding.encode WordEncoding.encode
+    (fun w d s => Fits w (d + 1) ∧ Fits w (Function.update s.mem 0 (d + 1) 0 + 1))
+    (fun _ _ => 0) := by
+  realize
+  · guard_target = Fits w (d + 1)
+    exact h.1
+  · guard_target = Fits w (Function.update s.mem 0 (d + 1) 0 + 1)
+    exact h.2
+
+-- The continuation sees each branch's own reply, including a source liftBind constructor.
+example : Realizes .exact
+    (fun d : ℕ => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (do
+      let v ← if d = 0 then
+        (.liftBind (.read .fst) (fun n => pure n) : Record.Prog PairCell ℕ)
+      else pure d
+      pure (v + 1)))
+    WordEncoding.encode WordEncoding.encode
+    (fun w d s => Fits w (s.mem 0 + 1) ∧ Fits w (d + 1)) (fun _ _ => 0) := by
+  realize
+  · guard_target = Fits w (s.mem 0 + 1)
+    exact h.1
+  · guard_target = Fits w (d + 1)
+    exact h.2
+
+private def innerLayout (d : ℕ) := pairLayout d
+private def outerLayout (d : ℕ) := innerLayout d
+
+-- The second cell's address needs arithmetic after reducing both layout aliases.
+example : Realizes .exact
+    (fun d : ℕ => link (E := Memory.spec 0) ((outerLayout d).methods 0) (Record.read .snd))
+    WordEncoding.encode WordEncoding.encode (fun w d _ => Fits w (d + 1)) (fun _ _ => 0) := by
+  realize
+  guard_target = Fits w (d + 1)
+  exact h
 
 end CslibFrontierTests.WordRAMValidProg

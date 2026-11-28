@@ -118,10 +118,10 @@ example {list : α → List β} {f : α → β → List Bool}
     have : ComputableInPolyTime (fun a => (list a).flatMap (f a)) input encBits := by polytime
   trivial
 
--- Making the `Prop`-valued predicate irreducible keeps the shared classifications and outcomes.
+-- Making an imported `Prop`-valued definition irreducible keeps the shared classifications.
 section
 
-attribute [local irreducible] ComputableInPolyTime
+attribute [local irreducible] ComputableInTimeAndSpace
 
 example (f g : List Bool → List Bool)
     (hf : ComputableInPolyTime f encBits encBits)

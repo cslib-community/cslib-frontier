@@ -46,8 +46,7 @@ theorem exec_setup {W : ℕ} (A : Args) (x : Data 32) (v : ℤ)
     simpa only [Nat.add_comm] using hread
   dsimp only [Args.addressBound] at hfit
   refine WP.exists_execWithin ?_
-  unfold setup
-  wram_exec [hab, hbc, hac, hn, ha', hb', hf, hl, hread']
+  wram_exec [setup, hab, hbc, hac, hn, ha', hb', hf, hl, hread']
   unfold Args.InRegisters
   wram_simp [hab, hbc, hac, hn, ha', hb', hf, hl]
   exact ⟨by omega, by omega⟩

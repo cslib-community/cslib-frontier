@@ -106,8 +106,7 @@ theorem exec_sumCode {w : ℕ} (hw : 0 < w) (pairs : List (Fin 7 × ℤ))
   induction pairs generalizing x a with
   | nil =>
     refine WP.exists_execWithin ?_
-    unfold sumCode
-    wram_exec [hacc]
+    wram_exec [sumCode, hacc]
     exact ⟨by wram_simp; simp, rfl, fun i _ _ hi _ => by wram_simp⟩
   | cons sc rest ih =>
     obtain ⟨s, c⟩ := sc
@@ -143,8 +142,7 @@ theorem exec_form {w : ℕ} (hw : 0 < w) (side : Bool) (t : Fin 10)
     ∃ y, ExecWithin (w + 2) (form side t) x y 163 ∧
       y.regs accumulator = encode (∑ s, coefficients side t s * v s) ∧ FormFrame x y := by
   refine WP.exists_execWithin ?_
-  unfold form
-  wram_exec
+  wram_exec [form]
   wram_call (exec_sumCode hw (List.ofFn fun s => (s, coefficients side t s)) _ 0 B base n v
     (by intro sc hsc; obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hsc; exact coefficients_values side t s)
     (by wram_simp; rfl) (by wram_simp [hbase]) (by wram_simp [hn]) hmem
@@ -170,8 +168,7 @@ theorem exec_dispatch {w : ℕ} (hw : 0 < w) (side : Bool) (rows : List (Fin 10)
   | cons q rest ih =>
     have hqfit : Fits (w + 2) q.val := hten.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold dispatch
-    wram_exec [hterm, hqfit]
+    wram_exec [dispatch, hterm, hqfit]
     · have hqt : t = q := Fin.ext hc
       subst hqt
       wram_call (exec_form hw side t _ B base n v (by wram_simp [hbase]) (by wram_simp [hn])

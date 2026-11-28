@@ -126,17 +126,6 @@ theorem exists_runSteps_contra {db : List (ℕ × PBConstr)} {n : ℕ} (hid : Id
   simp only [namesContra, hc, Option.any_some, decide_eq_true_eq]
   exact hcI.isContradiction
 
-theorem runTop_append (F : List PBConstr) (obj : Option Objective) (s : State)
-    (ts ts' : List TopStep) :
-    runTop F obj s (ts ++ ts') = (runTop F obj s ts).bind fun s' => runTop F obj s' ts' := by
-  induction ts generalizing s with
-  | nil => simp [runTop_nil]
-  | cons t ts ih =>
-    rw [List.cons_append, runTop_cons, runTop_cons]
-    rcases stepTop F obj s t with _ | s₁
-    · rfl
-    · exact ih s₁
-
 /-- Implicational steps other than deletions change only the database and the next number of a
 state of `checkRed`. -/
 theorem runTop_map_step_of_ne_del (F : List PBConstr) (obj : Option Objective) (s : State)

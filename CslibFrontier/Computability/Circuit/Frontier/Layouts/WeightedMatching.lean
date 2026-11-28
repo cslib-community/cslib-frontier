@@ -24,7 +24,7 @@ Extends `CslibFrontier.Computability.Circuit.Frontier.Layouts.Matching` to fract
 straddle weights `λ ∈ [0, 1]` on a clean sub-matching `M_clean ⊆ M` of a loopless cubic multigraph:
 
 * Lifting `SimpleGraph.exists_isMatching_mul_eight_ge` to loopless edge-simple cubic multigraphs
-  (`Multigraph.exists_isMatching_mul_eight_ge`).
+  (`Multigraph.exists_isMatching_seven_eighths`).
 * An exact natural-number prefix slack bound (`ncard_edgeCut_add_inactive_le_matchingCost`) showing
   that every clean `(1, 1)` pair whose high-score outer edges do *not* both stay on the prefix cut
   already saves at least `1` cut edge below `matchingCost`.
@@ -51,8 +51,9 @@ equal-key `PairNode` layout (`exists_u2_pairNode_layout`) are original to this l
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_mul_eight_ge`: `7/8` vertex-coverage
-  matching on loopless edge-simple cubic multigraphs.
+* `Cslib.Circuits.Frontier.Multigraph.ncard_matchedVertices_eq_two_mul`,
+  `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_seven_eighths`: `7/8` vertex-coverage and
+  `7/16` edge-count matching bounds on loopless edge-simple cubic multigraphs.
 * `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_add_inactive_le_matchingCost`,
   `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_sub_active_le_weightedMatchingCost`:
   natural-number prefix slack and real effective-cut bounds.
@@ -70,11 +71,48 @@ section CubicMatching
 
 variable {V E : Type*} (G : Multigraph V E)
 
-/-- Lift the `7/8` vertex-coverage matching theorem from `SimpleGraph` to a cubic `Multigraph`
-without loops or parallel edges. -/
-theorem exists_isMatching_mul_eight_ge [Finite V] (hloop : G.Loopless)
+/-- A matching `M` in a loopless multigraph covers `2 * M.ncard` vertices. -/
+theorem ncard_matchedVertices_eq_two_mul (hloop : G.Loopless) {M : Set E} (hM : G.IsMatching M) :
+    (G.matchedVertices M).ncard = 2 * M.ncard := by
+  classical
+  let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
+    if b then ⟨G.src e.1, e.1, e.2, Or.inl rfl⟩ else ⟨G.tgt e.1, e.1, e.2, Or.inr rfl⟩
+  have hbij : Function.Bijective f := by
+    refine ⟨?_, ?_⟩
+    · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq
+      have hval := congrArg Subtype.val heq
+      have he_eq : e₁ = e₂ := by
+        by_contra hne
+        have hdis := hM e₁.2 e₂.2 fun h => hne (Subtype.ext h)
+        have hm₁ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) := by
+          cases b₁ <;> simp [f]
+        have hm₂ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) := by
+          rw [hval]; cases b₂ <;> simp [f]
+        exact Set.disjoint_left.mp hdis hm₁ hm₂
+      subst he_eq
+      cases b₁ <;> cases b₂
+      · rfl
+      · exfalso; exact hloop e₁.1 (by simpa [f] using hval.symm)
+      · exfalso; exact hloop e₁.1 (by simpa [f] using hval)
+      · rfl
+    · rintro ⟨v, e, heM, hev⟩
+      rcases hev with rfl | rfl
+      · exact ⟨⟨⟨e, heM⟩, true⟩, rfl⟩
+      · exact ⟨⟨⟨e, heM⟩, false⟩, rfl⟩
+  have hcard := Nat.card_congr (Equiv.ofBijective f hbij)
+  rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
+    Nat.card_coe_set_eq, Nat.card_coe_set_eq] at hcard
+  omega
+
+/-- **The `7 / 8` matching bound for simple cubic multigraphs.** Every finite loopless multigraph
+without parallel edges in which every vertex has degree three has a matching `M` covering at least
+`7 / 8` of the vertices (`7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard`, equivalently
+`7 * Nat.card V ≤ 16 * M.ncard`). -/
+theorem exists_isMatching_seven_eighths [Finite V] (hloop : G.Loopless)
     (hinj : Function.Injective G.ends) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) :
-    ∃ M : Set E, G.IsMatching M ∧ 7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard := by
+    ∃ M : Set E, G.IsMatching M ∧
+      7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard ∧
+      7 * Nat.card V ≤ 16 * M.ncard := by
   classical
   let otherEnd (v : V) (e : E) : V := if G.src e = v then G.tgt e else G.src e
   have hends_other {v : V} {e : E} (he : e ∈ G.incidenceSet v) :
@@ -129,7 +167,9 @@ theorem exists_isMatching_mul_eight_ge [Finite V] (hloop : G.Loopless)
       · exact ⟨e, by change M_sg.Adj _ _; rwa [hs, ht], Or.inl hs⟩
       · exact ⟨e, by change M_sg.Adj _ _; rw [hs, ht]; exact M_sg.symm.symm _ _ hvw, Or.inr ht⟩
   rw [← hverts] at h78
-  exact ⟨M, hM, h78⟩
+  refine ⟨M, hM, h78, ?_⟩
+  rw [G.ncard_matchedVertices_eq_two_mul hloop hM] at h78
+  omega
 
 end CubicMatching
 

@@ -670,9 +670,8 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
     · dsimp only [gnMap]
       rw [← sum_div, sum_add_distrib, hp_sum, ← mul_sum]
       exact div_self hden_pos.ne'
-  -- Compose onto `Unit → G → ℝ` and apply `Cslib.Brouwer.exists_isFixedPt_pi_simplex`.
-  let F : (Unit → G → ℝ) → Unit → G → ℝ :=
-    fun y _ => fromTrimmed (gnMap (toTrimmed (y ())))
+  -- Apply `Cslib.Brouwer.exists_isFixedPt_simplex` to the conjugated map on the simplex.
+  let F : (G → ℝ) → G → ℝ := fun y => fromTrimmed (gnMap (toTrimmed y))
   have htoTrimmed : ∀ y : G → ℝ, (∀ g, 0 ≤ y g) → ∑ g : G, y g = 1 →
       (∀ g, δ ≤ toTrimmed y g) ∧ ∑ g : G, toTrimmed y g = 1 := fun y hy0 hy1 =>
     ⟨fun g => le_add_of_nonneg_right (mul_nonneg h1_sub_pos.le (hy0 g)), by
@@ -680,12 +679,13 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
         mul_one, n]
       ring⟩
   have hF_maps : Set.MapsTo F
-      {y | ∀ i : Unit, (∀ g, 0 ≤ y i g) ∧ ∑ g, y i g = 1}
-      {y | ∀ i : Unit, (∀ g, 0 ≤ y i g) ∧ ∑ g, y i g = 1} := fun y hy _ => by
-    have ht := htoTrimmed (y ()) (hy ()).1 (hy ()).2
-    have hg := hgn_maps (toTrimmed (y ())) ht.1 ht.2
+      {y : G → ℝ | (∀ g, 0 ≤ y g) ∧ ∑ g, y g = 1}
+      {y : G → ℝ | (∀ g, 0 ≤ y g) ∧ ∑ g, y g = 1} := fun y hy => by
+    have ht := htoTrimmed y hy.1 hy.2
+    have hg := hgn_maps (toTrimmed y) ht.1 ht.2
     refine ⟨fun g => div_nonneg (sub_nonneg.2 (hg.1 g)) h1_sub_pos.le, ?_⟩
-    simp only [F, fromTrimmed, ← sum_div, sum_sub_distrib, hg.2, sum_const, card_univ, nsmul_eq_mul]
+    simp only [F, fromTrimmed, ← sum_div, sum_sub_distrib, hg.2, sum_const, card_univ,
+      nsmul_eq_mul]
     exact div_self h1_sub_pos.ne'
   have hcont_Z : ContinuousOn Z {p : G → ℝ | ∀ g, 0 < p g} := by
     refine continuousOn_pi.2 fun g => ?_
@@ -709,25 +709,23 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
         fun p _ => by
           have : 0 ≤ ∑ k : G, posPart p k := sum_nonneg fun k _ => le_max_left 0 _
           positivity
-  have hF_cont : ContinuousOn F {y | ∀ i : Unit, (∀ g, 0 ≤ y i g) ∧ ∑ g, y i g = 1} := by
-    have hto_cont : Continuous (fun y : Unit → G → ℝ => toTrimmed (y ())) :=
-      continuous_pi fun g => continuous_const.add
-        (continuous_const.mul ((continuous_apply g).comp (continuous_apply ())))
+  have hF_cont : ContinuousOn F {y : G → ℝ | (∀ g, 0 ≤ y g) ∧ ∑ g, y g = 1} := by
+    have hto_cont : Continuous toTrimmed :=
+      continuous_pi fun g => continuous_const.add (continuous_const.mul (continuous_apply g))
     have hfrom_cont : Continuous fromTrimmed :=
       continuous_pi fun g => ((continuous_apply g).sub continuous_const).div_const _
-    have hto_maps : Set.MapsTo (fun y : Unit → G → ℝ => toTrimmed (y ()))
-        {y | ∀ i : Unit, (∀ g, 0 ≤ y i g) ∧ ∑ g, y i g = 1}
+    have hto_maps : Set.MapsTo toTrimmed
+        {y : G → ℝ | (∀ g, 0 ≤ y g) ∧ ∑ g, y g = 1}
         {p : G → ℝ | ∀ g, 0 < p g} := fun y hy g =>
-      hδ_pos.trans_le ((htoTrimmed (y ()) (hy ()).1 (hy ()).2).1 g)
-    have hcomp := hfrom_cont.comp_continuousOn (hcont_gn.comp hto_cont.continuousOn hto_maps)
-    exact continuous_pi (fun _ => continuous_id) |>.comp_continuousOn hcomp
-  obtain ⟨yFix, hyFix_mem, hyFix_pt⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex hF_maps hF_cont
-  set pFix := toTrimmed (yFix ())
+      hδ_pos.trans_le ((htoTrimmed y hy.1 hy.2).1 g)
+    exact hfrom_cont.comp_continuousOn (hcont_gn.comp hto_cont.continuousOn hto_maps)
+  obtain ⟨yFix, hyFix_mem, hyFix_pt⟩ := Cslib.Brouwer.exists_isFixedPt_simplex hF_maps hF_cont
+  set pFix := toTrimmed yFix
   -- Deduce `Z pFix g ≤ 0` for all `g` from `gnMap pFix = pFix` and Walras's law `hWZ`.
   have hpFix_pos : ∀ g, 0 < pFix g := fun g =>
-    hδ_pos.trans_le ((htoTrimmed (yFix ()) (hyFix_mem ()).1 (hyFix_mem ()).2).1 g)
+    hδ_pos.trans_le ((htoTrimmed yFix hyFix_mem.1 hyFix_mem.2).1 g)
   have hgn_fix : gnMap pFix = pFix := funext fun g => by
-    have hfg := congrFun (congrFun hyFix_pt ()) g
+    have hfg := congrFun hyFix_pt g
     dsimp only [F, fromTrimmed, pFix, toTrimmed] at hfg ⊢
     linarith [(div_eq_iff h1_sub_pos.ne').1 hfg]
   have hpFix_eq : IsWalrasianEquilibrium Z pFix := by

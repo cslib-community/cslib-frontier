@@ -16,35 +16,48 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
+import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 import CslibFrontier.Probability.PMF.Map
 
 /-!
 # Binary word presentation of typed UC interfaces
 
-Library infrastructure toward #6043 (no cited result): typed UC machines and environments
+Library infrastructure toward #6043 and #8377 (no cited result): typed UC machines and environments
 communicate over indexed query-reply specifications `E : ι → Type` (`partySpec`, `netSpec`,
 `protocolSpec`, `execSpec`), whereas `WordOracleComp` and `IsOraclePPTOn` execute on finite channel
 tags carrying `List Bool` payloads. This module supplies the lowering from typed `ProbOracleComp`
 programs to `WordOracleComp` programs over finitely many channels, together with the dual encoded
-oracle and single-query strict oracle PPT certificate.
+oracle, canonical-request normalizer, and strict oracle PPT preservation certificates.
 
 ## Modelling decisions and restrictions
 
 * **Named structures.** `WordPort` packages total polynomial-time decoders for queries and replies
   on a single `netSpec Q R` port, and `WordInterface` packages channel routing, total query/reply
   decoding, and per-channel normalization cost certificates (`replyNormalize`, `requestNormalize`).
-* **Relation to `Cslib.OracleCodec`.** `WordInterface.toOracleCodec` builds a partial
-  `OracleCodec I.Channel ι E` whose `decodeQuery` recognizes valid `(I.channel q, I.request q)`
-  requests. `WordInterface.encodeOracle` normalizes each incoming word with `I.requestNormalize`
-  and delegates to `I.toOracleCodec.wordOracle`; by `I.request_decodeQuery`, the normalized pair is
-  the encoded query of `I.decodeQuery cw.1 cw.2`, so off-image requests still call `oracle` once
-  (`WordInterface.encodeOracle_apply`), while canonical requests agree directly with
-  `I.toOracleCodec.wordOracle` (`WordInterface.encodeOracle_eq_wordOracle`). Total request/reply
-  decoders and the finite `Channel` normalization certificates (`replyNormalize`,
-  `requestNormalize`) are needed so a word machine can normalize arbitrary incoming or outgoing
-  words in polynomial time.
+* **Relation to `Cslib.OracleCodec` and off-image requests.** `WordInterface.toOracleCodec` builds
+  a partial `OracleCodec I.Channel ι E` whose `decodeQuery` recognizes valid
+  `(I.channel q, I.request q)` requests. `WordInterface.encodeOracle` normalizes each incoming word
+  with `I.requestNormalize` and delegates to `I.toOracleCodec.wordOracle`; by
+  `I.request_decodeQuery`, the normalized pair is the encoded query of `I.decodeQuery cw.1 cw.2`,
+  so off-image requests still call `oracle` once (`WordInterface.encodeOracle_apply`), while
+  canonical requests agree directly with `I.toOracleCodec.wordOracle`
+  (`WordInterface.encodeOracle_eq_wordOracle`). Conversely, `WordInterface.normalizeRequests`
+  rewrites every query `(c, w)` of an arbitrary word program to `(c, I.requestNormalize c w)`, so
+  interacting with `I.encodeOracle oracle` has the exact same joint output and oracle-state law as
+  running the canonicalized program against `I.toOracleCodec.wordOracle` (which leaves oracle state
+  unchanged on off-image requests)
+  (`WordInterface.runWith_encodeOracle_eq_wordOracle_normalizeRequests`), while preserving strict
+  oracle PPT (`WordInterface.isOraclePPTOn_normalizeRequests`) without extra reply-length bounds.
+  Total request/reply decoders and the finite `Channel` normalization certificates
+  (`replyNormalize`, `requestNormalize`) are needed so a word machine can normalize arbitrary
+  incoming or outgoing words in polynomial time.
 * **Unary `Fin n` party rank (`[NeZero n]`).** `WordPort.party` encodes party indices in unary
   and decodes arbitrary words modulo `n`. Because a total decoder requires a nonempty target type,
   `n ≥ 1` (`[NeZero n]`) is required on `WordPort.party`.
@@ -66,8 +79,9 @@ oracle and single-query strict oracle PPT certificate.
 * `Cslib.Crypto.Protocols.UC.WordInterface`: finite-channel word presentation of a typed interface.
 * `Cslib.Crypto.Protocols.UC.WordInterface.empty`, `.net`, `.sum`, `.protocol`, `.exec`,
   `WordPort.sum`, `WordPort.party`: constructors and UC interface abbreviations.
-* `Cslib.Crypto.Protocols.UC.WordInterface.toOracleCodec`, `.encodeOracle`, `.lowerQuery`:
-  `OracleCodec` view, total channel-encoded oracle, and single-query lowering handler.
+* `Cslib.Crypto.Protocols.UC.WordInterface.toOracleCodec`, `.encodeOracle`, `.lowerQuery`,
+  `.normalizeRequests`: `OracleCodec` view, total channel-encoded oracle, single-query lowering
+  handler, and canonical-request normalizer.
 * `Cslib.ProbOracleComp.lowerWith`: lower a typed `ProbOracleComp` via
   `ProbOracleComp.simulate (I.lowerQuery limit)`.
 
@@ -87,6 +101,16 @@ oracle and single-query strict oracle PPT certificate.
   `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_decodeQuery`: lowered, re-encoded
   queries (and decoded `(channel, word)` queries) are uniform strict oracle PPT when their channel,
   request/word, and reply bound are polynomial time.
+* `Cslib.Crypto.Protocols.UC.WordInterface.runWith_encodeOracle_eq_wordOracle_normalizeRequests`:
+  running any word program against `I.encodeOracle oracle` has the same joint output and state law
+  as running `I.normalizeRequests program` against `I.toOracleCodec.wordOracle oracle` (which leaves
+  oracle state unchanged on off-image requests).
+* `Cslib.Crypto.Protocols.UC.WordInterface.queriesSatisfy_normalizeRequests`,
+  `Cslib.Crypto.Protocols.UC.WordInterface.normalizeRequests_idempotent`, and
+  `Cslib.Crypto.Protocols.UC.WordInterface.normalizeRequests_lowerWith`: normalized programs issue
+  only canonical requests, normalization is idempotent, and lowered programs are fixed points.
+* `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_normalizeRequests`: canonical-request
+  normalization preserves uniform strict oracle PPT for arbitrary word adversaries.
 -/
 
 @[expose] public section
@@ -311,6 +335,25 @@ theorem encodeOracle_apply {ι : Type} {E : ι → Type} {σ : Type}
   rw [hreq, OracleCodec.wordOracle_encodeQuery]
   rfl
 
+/-- Library infrastructure (no cited result): `I.requestNormalize` fixes every canonical request
+word `I.request q` on its channel `I.channel q`. -/
+@[simp] theorem requestNormalize_request {ι : Type} {E : ι → Type}
+    (I : WordInterface E) (q : ι) :
+    I.requestNormalize (I.channel q) (I.request q) = I.request q := by
+  rw [← (I.request_decodeQuery (I.channel q) (I.request q)).2, I.decodeQuery_request]
+
+/-- Library infrastructure (no cited result): `I.requestNormalize` is idempotent on every channel
+and word. -/
+@[simp] theorem requestNormalize_idem {ι : Type} {E : ι → Type}
+    (I : WordInterface E) (c : I.Channel) (w : List Bool) :
+    I.requestNormalize c (I.requestNormalize c w) = I.requestNormalize c w := by
+  have ⟨hch, hreq⟩ := I.request_decodeQuery c w
+  calc I.requestNormalize c (I.requestNormalize c w)
+      = I.requestNormalize (I.channel (I.decodeQuery c w)) (I.request (I.decodeQuery c w)) := by
+        rw [hch, hreq]
+    _ = I.request (I.decodeQuery c w) := I.requestNormalize_request _
+    _ = I.requestNormalize c w := hreq
+
 /-- Library infrastructure (no cited result): on every canonical query request
 `(I.channel q, I.request q)`, the total channel-encoded oracle agrees with
 `I.toOracleCodec.wordOracle`. Off-image requests differ: `encodeOracle` normalizes the request via
@@ -321,7 +364,7 @@ theorem encodeOracle_eq_wordOracle {ι : Type} {E : ι → Type} {σ : Type}
     I.encodeOracle oracle (I.channel q, I.request q) =
       I.toOracleCodec.wordOracle oracle (I.channel q, I.request q) := by
   dsimp only [encodeOracle]
-  rw [← (I.request_decodeQuery (I.channel q) (I.request q)).2, I.decodeQuery_request]
+  rw [I.requestNormalize_request]
 
 /-- Library infrastructure (no cited result): the encoded oracle of a sum interface routes left and
 right channel requests to the respective component encoded oracles. -/
@@ -479,6 +522,196 @@ theorem isOraclePPTOn_lowerWith_decodeQuery {ι α : Type} {E : ι → Type}
   · simpa only [fun a => (I.request_decodeQuery (ch a) (word a)).1] using hch
   · simpa only [Function.comp_def, ← fun a => (I.request_decodeQuery (ch a) (word a)).2] using
       I.computable_requestNormalize.comp (hch.prod hword)
+
+/-! ### Canonical-request normalizer -/
+
+/-- Rewrite every external word query `(c, w)` of a word program to its canonical representative
+`(c, I.requestNormalize c w)`, preserving private coin draws and returning oracle replies
+verbatim. -/
+def normalizeRequests {ι α : Type} {E : ι → Type} (I : WordInterface E)
+    (program : WordOracleComp I.Channel α) : WordOracleComp I.Channel α :=
+  ProbOracleComp.simulate
+    (fun cw => ProbOracleComp.query (cw.1, I.requestNormalize cw.1 cw.2)) program
+
+/-- Request normalization preserves returned values. -/
+@[simp] theorem normalizeRequests_pure {ι α : Type} {E : ι → Type} (I : WordInterface E)
+    (a : α) : I.normalizeRequests (pure a) = pure a := rfl
+
+/-- Request normalization distributes over bind. -/
+@[simp] theorem normalizeRequests_bind {ι α β : Type} {E : ι → Type} (I : WordInterface E)
+    (program : WordOracleComp I.Channel α) (next : α → WordOracleComp I.Channel β) :
+    I.normalizeRequests (program >>= next) =
+      (I.normalizeRequests program >>= fun a => I.normalizeRequests (next a)) :=
+  ProbOracleComp.simulate_bind _ _ _
+
+/-- Request normalization commutes with mapping. -/
+@[simp] theorem normalizeRequests_map {ι α β : Type} {E : ι → Type} (I : WordInterface E)
+    (f : α → β) (program : WordOracleComp I.Channel α) :
+    I.normalizeRequests (f <$> program) = f <$> I.normalizeRequests program :=
+  ProbOracleComp.simulate_map _ _ _
+
+/-- Request normalization preserves private samples. -/
+@[simp] theorem normalizeRequests_sample {ι α : Type} {E : ι → Type} (I : WordInterface E)
+    (program : ProbComp α) :
+    I.normalizeRequests (ProbOracleComp.sample program) = ProbOracleComp.sample program :=
+  ProbOracleComp.simulate_sample _ _
+
+/-- Request normalization rewrites a single query `(c, w)` to `(c, I.requestNormalize c w)`. -/
+@[simp] theorem normalizeRequests_query {ι : Type} {E : ι → Type} (I : WordInterface E)
+    (cw : I.Channel × List Bool) :
+    I.normalizeRequests (ProbOracleComp.query cw) =
+      ProbOracleComp.query (cw.1, I.requestNormalize cw.1 cw.2) :=
+  ProbOracleComp.simulate_query _ _
+
+/-- Interacting with the total normalized oracle `I.encodeOracle oracle` produces the exact same
+joint output and oracle-state distribution as running `I.normalizeRequests program` against
+`I.toOracleCodec.wordOracle oracle` (which leaves oracle state unchanged on off-image requests),
+for every word program (including off-image queries). -/
+theorem runWith_encodeOracle_eq_wordOracle_normalizeRequests {ι α σ : Type} {E : ι → Type}
+    (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
+    (program : WordOracleComp I.Channel α) (s : σ) :
+    ProbOracleComp.runWith (I.encodeOracle oracle) program s =
+      ProbOracleComp.runWith (I.toOracleCodec.wordOracle oracle)
+        (I.normalizeRequests program) s := by
+  rw [normalizeRequests, ProbOracleComp.runWith_simulate]
+  congr 1
+  funext cw t
+  rw [ProbOracleComp.runWith_query]
+  rfl
+
+/-- Interacting with `I.encodeOracle oracle` produces the same joint output and oracle-state law as
+running the typed adaptation `I.toOracleCodec.adapt (I.normalizeRequests program)` directly against
+`oracle`. -/
+theorem runWith_encodeOracle_eq_adapt_normalizeRequests {ι α σ : Type} {E : ι → Type}
+    (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
+    (program : WordOracleComp I.Channel α) (s : σ) :
+    ProbOracleComp.runWith (I.encodeOracle oracle) program s =
+      ProbOracleComp.runWith oracle (I.toOracleCodec.adapt (I.normalizeRequests program)) s := by
+  rw [I.runWith_encodeOracle_eq_wordOracle_normalizeRequests, I.toOracleCodec.runWith_adapt]
+
+/-- Every external query issued by `I.normalizeRequests program` is a canonical
+`(I.channel q, I.request q)` pair. -/
+theorem queriesSatisfy_normalizeRequests {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) (program : WordOracleComp I.Channel α) :
+    (I.normalizeRequests program).QueriesSatisfy
+      (fun cw => ∃ q : ι, cw = (I.channel q, I.request q)) := by
+  refine ProbOracleComp.queriesSatisfy_simulate (fun cw => ?_) program
+  exact ProbOracleComp.QueriesSatisfy.query
+    ⟨I.decodeQuery cw.1 cw.2,
+      Prod.ext (I.request_decodeQuery cw.1 cw.2).1.symm
+        (I.request_decodeQuery cw.1 cw.2).2.symm⟩
+
+/-- Any word program whose queries are already canonical is fixed identically by
+`I.normalizeRequests`. -/
+theorem normalizeRequests_eq_self {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) {program : WordOracleComp I.Channel α}
+    (h : program.QueriesSatisfy (fun cw => ∃ q : ι, cw = (I.channel q, I.request q))) :
+    I.normalizeRequests program = program := by
+  rw [normalizeRequests, ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  refine (OracleComp.QueriesSatisfy.interpret_congr h fun q hq => ?_).trans
+    (OracleComp.interpret_query_eq_self program)
+  cases q with
+  | inl n => exact ProbOracleComp.sample_unifFin n
+  | inr cw =>
+    rcases hq with ⟨q, rfl⟩
+    simp only [OracleComp.sumHandler, I.requestNormalize_request]
+    rfl
+
+/-- Canonical-request normalization is idempotent. -/
+@[simp] theorem normalizeRequests_idempotent {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) (program : WordOracleComp I.Channel α) :
+    I.normalizeRequests (I.normalizeRequests program) = I.normalizeRequests program :=
+  I.normalizeRequests_eq_self (I.queriesSatisfy_normalizeRequests program)
+
+/-- Every external query issued by a lowered typed program `program.lowerWith I limit` is
+canonical. -/
+theorem queriesSatisfy_lowerWith {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) (limit : ℕ) (program : ProbOracleComp E α) :
+    (program.lowerWith I limit).QueriesSatisfy
+      (fun cw => ∃ q : ι, cw = (I.channel q, I.request q)) := by
+  refine ProbOracleComp.queriesSatisfy_simulate (fun q => ?_) program
+  simp only [lowerQuery, OracleComp.queriesSatisfy_map_iff]
+  exact ProbOracleComp.QueriesSatisfy.query ⟨q, rfl⟩
+
+/-- Lowered typed programs are already canonical and therefore fixed by `I.normalizeRequests`. -/
+@[simp] theorem normalizeRequests_lowerWith {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) (limit : ℕ) (program : ProbOracleComp E α) :
+    I.normalizeRequests (program.lowerWith I limit) = program.lowerWith I limit :=
+  I.normalizeRequests_eq_self (I.queriesSatisfy_lowerWith limit program)
+
+/-- For any word program whose queries are all canonical, `I.encodeOracle oracle` and
+`I.toOracleCodec.wordOracle oracle` induce the same joint output and oracle-state law. -/
+theorem runWith_encodeOracle_eq_wordOracle_of_queriesSatisfy {ι α σ : Type} {E : ι → Type}
+    (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
+    {program : WordOracleComp I.Channel α}
+    (h : program.QueriesSatisfy (fun cw => ∃ q : ι, cw = (I.channel q, I.request q)))
+    (s : σ) :
+    ProbOracleComp.runWith (I.encodeOracle oracle) program s =
+      ProbOracleComp.runWith (I.toOracleCodec.wordOracle oracle) program s := by
+  rw [I.runWith_encodeOracle_eq_wordOracle_normalizeRequests, I.normalizeRequests_eq_self h]
+
+/-- Canonical-request normalization preserves external query budgets. -/
+theorem isQueryBounded_normalizeRequests {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) {program : WordOracleComp I.Channel α} {n : ℕ}
+    (h : program.IsQueryBounded n) :
+    (I.normalizeRequests program).IsQueryBounded n :=
+  h.simulate fun cw => ProbOracleComp.IsQueryBounded.query (cw.1, I.requestNormalize cw.1 cw.2)
+
+/-- Canonical-request normalization preserves uniform strict oracle PPT for arbitrary word
+adversaries, with no extra reply-length assumption: a polynomial-time realizing machine running for
+`T` steps cannot inspect beyond the first `T` bits of any oracle reply
+(`Turing.MultiTapePTM.runOracle_eq_simulate_take`), so normalizing each request and taking `T`
+reply bits realizes `I.normalizeRequests` identically against every stateful external oracle. -/
+theorem isOraclePPTOn_normalizeRequests {ι α β : Type} {E : ι → Type}
+    (I : WordInterface E) {input : α ↪ List Bool} {output : β ↪ List Bool}
+    {program : α → WordOracleComp I.Channel β}
+    (hprogram : IsOraclePPTOn input output program) :
+    IsOraclePPTOn input output (fun a => I.normalizeRequests (program a)) := by
+  obtain ⟨_, k, Control, hfiniteC, machine, c, d, hrealize⟩ := hprogram
+  let _ := hfiniteC
+  let fuel (a : α) : ℕ := c * ((input a).length + 1) ^ d
+  have hfuel : ComputableInPolyTime fuel input encUnary :=
+    (by fun_prop : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary).comp
+      (ComputableInPolyTime.length_bits.comp
+        ((ComputableInPolyTime.id' (encIn := input)).of_enc_eq fun _ => rfl))
+  let handler (a : α) (cw : I.Channel × List Bool) : WordOracleComp I.Channel (List Bool) :=
+    List.take (fuel a) <$> ProbOracleComp.query (cw.1, I.requestNormalize cw.1 cw.2)
+  have hhandler :
+      IsOraclePPTOn (encPair input (encPair (encFinite I.Channel) encBits)) encBits
+        (fun p => handler p.1 p.2) :=
+    IsOraclePPTOn.query_take_with (opEncoding := encFinite I.Channel)
+      ((ComputableInPolyTime.fst (encFinite I.Channel) encBits).comp
+        (ComputableInPolyTime.snd input (encPair (encFinite I.Channel) encBits)))
+      (I.computable_requestNormalize.comp
+        (ComputableInPolyTime.snd input (encPair (encFinite I.Channel) encBits)))
+      (hfuel.comp (ComputableInPolyTime.fst input (encPair (encFinite I.Channel) encBits)))
+  have hsim :=
+    (IsOraclePPTOn.of_machine (input := input) machine c d).interpret_preprocess_open'
+      (operationEncoding := encFinite I.Channel)
+      (handler := handler) (prepare := id) (resources := fun a _ => fuel a)
+      ComputableInPolyTime.id' hhandler
+      (hfuel.comp (ComputableInPolyTime.fst input encBits))
+      (fun _ _ _ hmem => by
+        obtain ⟨w, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hmem
+        exact List.length_take_le _ _)
+  refine IsOraclePPTOn.iff_encoded.mpr (hsim.congr fun a State oracle s => ?_)
+  let normOracle : I.Channel × List Bool → StateT State PMF (List Bool) :=
+    fun cw => oracle (cw.1, I.requestNormalize cw.1 cw.2)
+  have hstep : (fun cw => ProbOracleComp.runWith oracle (handler a cw)) =
+      (fun cw => ProbOracleComp.runWith normOracle
+        (List.take (fuel a) <$> ProbOracleComp.query cw)) := by
+    funext cw t
+    simp only [handler, normOracle, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
+  rw [← OracleComp.substitute_eq_interpret]
+  change ProbOracleComp.runWith oracle
+      (ProbOracleComp.simulate (handler a) (machine.runOracle (fuel a) (input a))) s = _
+  rw [ProbOracleComp.runWith_simulate, hstep, ← ProbOracleComp.runWith_simulate,
+    ← Turing.MultiTapePTM.runOracle_eq_simulate_take machine (fuel a) (input a),
+    ← hrealize a State normOracle s, ← I.normalizeRequests_map,
+    normalizeRequests, ProbOracleComp.runWith_simulate]
+  congr 1
+  funext cw t
+  rw [ProbOracleComp.runWith_query]
 
 end Crypto.Protocols.UC.WordInterface
 

@@ -21,6 +21,7 @@ public section
 namespace CslibFrontierTests.Algorithms.WordRAM.MinimumSpanningForest.GraphOpsTestSupport
 
 open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure Cslib.DataStructure.Memory
+open Cslib.Algorithms.Lean.Kruskal
 open Cslib.Algorithms.WordRAM.MinimumSpanningForest
 
 /-- Flatten `es : List (IndexedEdge n)` into stride-4 words `[u, v, weight, id, ...]`. -/
@@ -139,5 +140,11 @@ theorem mkInitState_spec {w n : ℕ} (es : List (IndexedEdge n))
 @[expose] def execWordRAM {α : Type} (s : Memory.State) (prog : Memory.Prog α) :
     α × Memory.State × ℕ :=
   ((Memory.spec 0).clientResult s prog, (Memory.spec 0).clientState s prog, memoryCost prog s)
+
+/-- The empty edge set is a minimum spanning forest of an empty graph. -/
+theorem isMinSpanningForest_nil {n : ℕ} :
+    IsMinSpanningForest (n := n) ([] : List (WeightedEdge n ℕ)) [] :=
+  ⟨⟨List.Subperm.refl _, isAcyclic_nil, rfl⟩, fun _ hF' => by
+    rw [List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hF'.1.length_le)]⟩
 
 end CslibFrontierTests.Algorithms.WordRAM.MinimumSpanningForest.GraphOpsTestSupport
