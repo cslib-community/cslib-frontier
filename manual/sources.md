@@ -778,6 +778,13 @@ It outputs `tM/v`, where `v` is the `t`-th smallest value.
 Each tail is bounded by `1/6` via Chebyshev, plus `1/m` for collisions, and the median of `O(log(1/δ))` copies gives `O(1/ε² · log m · log(1/δ))` bits.
 The LNCS page numbers come from the DOI record and were not checked against the typeset volume.
 
+<a id="bks13-prefix"></a>
+## bks13-prefix
+
+Widmer Bland, Gregory Kucherov and W. F. Smyth.
+“Prefix Table Construction and Conversion.” *Combinatorial Algorithms*, IWOCA 2013, LNCS 8288, pp. 41–53.
+The publisher’s abstract describes conversion in both directions for ordinary strings. Its prefix table records the longest match starting at each position (the Z-table), and its border array is the KMP prefix table. The Lean development uses zero-based indices. [Published abstract](https://doi.org/10.1007/978-3-642-45278-9_5)
+
 <a id="bland77"></a>
 ## bland77
 

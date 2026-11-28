@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.KMP.Search
 public import CslibFrontier.Algorithms.Lean.ZFunction.Basic
 

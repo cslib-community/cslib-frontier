@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.KMP.Search
-public import CslibFrontier.Algorithms.Lean.ZFunction.Basic
+public import CslibFrontier.Init
+public import CslibFrontier.Algorithms.Lean.ZFunction.ToPrefix
 
 /-!
 # From a KMP prefix table to a Z-array
@@ -19,7 +19,12 @@ corresponding prefix. A zero entry leaves the position free to introduce a fresh
 
 `fromPrefix_computePrefix` proves that the existing Z algorithm on this word recovers the Z-array
 of every original word realizing the table. Representatives may distinguish equal original
-letters, but they preserve every match against the start of the word.
+letters. They preserve every match against the start of the word.
+
+The abstract of [Bland, Kucherov and Smyth][BlandKucherovSmyth2013] describes conversion between
+their prefix table (the Z-array here) and their border array (the KMP prefix table here).
+We use zero-based arrays, including `z[0] = n` for a nonempty word. `prefixTableEquiv` pairs
+the two executable conversions on tables realized over any fixed alphabet.
 -/
 
 public section
@@ -86,17 +91,6 @@ theorem getElem_prefixWord (pi : Array ℕ) (i : ℕ) (hi : i < pi.size) :
 of representative indices. -/
 @[expose] def fromPrefix (pi : Array ℕ) : Array ℕ := zArray (prefixWord pi)
 
-private theorem border_iff_letters {α : Type*} (s : Array α) {k q : ℕ} (hk : k < q)
-    (hq : q ≤ s.size) :
-    KMP.IsProperBorderLen (s.toList.take q) k ↔
-      ∀ j (hj : j < k), s[j]'(by omega) = s[q - k + j]'(by omega) := by
-  rw [KMP.isProperBorderLen_iff_isPeriod]
-  have hlen : (s.toList.take q).length = q := List.length_take_of_le (by simpa only
-    [Array.length_toList] using hq)
-  simp only [KMP.IsPeriod, hlen, hk, true_and, List.getElem_take, Array.getElem_toList]
-  exact ⟨fun h j hj => by simpa only [Nat.add_comm] using h j (by omega),
-    fun h j hj => by simpa only [Nat.add_comm] using h j (by omega)⟩
-
 private theorem le_lcpLen_iff_letters {α : Type*} [DecidableEq α] (s : Array α)
     {t k : ℕ} (h : t + k ≤ s.size) :
     k ≤ List.lcpLen s.toList (s.toList.drop t) ↔
@@ -107,6 +101,14 @@ private theorem le_lcpLen_iff_letters {α : Type*} [DecidableEq α] (s : Array �
     Array.length_toList, Nat.min_eq_left hk, Nat.min_eq_left hdrop, hk, hdrop, true_and,
     List.getElem_take, List.getElem_drop, Array.getElem_toList]
   exact ⟨fun h j hj => h j hj hj, fun h j hj _ => h j hj⟩
+
+private theorem border_iff_letters {α : Type*} (s : Array α) {k q : ℕ} (hk : k < q)
+    (hq : q ≤ s.size) :
+    KMP.IsProperBorderLen (s.toList.take q) k ↔
+      ∀ j (hj : j < k), s[j]'(by omega) = s[q - k + j]'(by omega) := by
+  classical
+  rw [isProperBorderLen_take_iff_le_lcpLen (by simpa using hq) hk]
+  exact le_lcpLen_iff_letters s (by omega)
 
 variable {α : Type*} [DecidableEq α]
 
@@ -227,5 +229,27 @@ theorem fromPrefix_computePrefix (s : Array α) :
     intro j hj
     have heq := representative_match s (by omega) hlen (le_refl k) j hj
     simpa only [letter_at s j (by omega), letter_at s (t + j) (by omega)] using heq
+
+/-- Z-tables and KMP prefix tables realizable over the same alphabet are in bijection.
+Both directions compute on the numeric table alone. A word witnessing realizability is used
+only to prove that the outputs belong to the stated ranges and that the conversions are inverse. -/
+@[expose] def prefixTableEquiv (α : Type*) [DecidableEq α] :
+    Set.range (zArray (α := α)) ≃ Set.range (KMP.computePrefix (α := α)) where
+  toFun z := ⟨zToPrefix z.val, by
+    obtain ⟨p, hp⟩ := z.property
+    exact ⟨p, hp ▸ (zToPrefix_zArray p).symm⟩⟩
+  invFun pi := ⟨fromPrefix pi.val, by
+    obtain ⟨p, hp⟩ := pi.property
+    exact ⟨p, hp ▸ (fromPrefix_computePrefix p).symm⟩⟩
+  left_inv z := by
+    apply Subtype.ext
+    obtain ⟨p, hp⟩ := z.property
+    change fromPrefix (zToPrefix z.val) = z.val
+    rw [← hp, zToPrefix_zArray, fromPrefix_computePrefix]
+  right_inv pi := by
+    apply Subtype.ext
+    obtain ⟨p, hp⟩ := pi.property
+    change zToPrefix (fromPrefix pi.val) = pi.val
+    rw [← hp, fromPrefix_computePrefix, zToPrefix_zArray]
 
 end Cslib.Algorithms.Lean.ZFunction
