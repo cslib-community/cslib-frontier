@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.IndepScan
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.WeightScan
 import CslibFrontier.Foundations.Data.List.FoldMax
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -144,85 +145,43 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
       rootPassInst inst.adj inst.wt L0 arr0 args.tbl0Len ∧
     memoryCost (rootPassProg args) s ≤
       args.tbl0Len * (args.bag0Len * (2 * args.bag0Len + 1) + args.bag0Len * 2 + 1) := by
-  let stepCost := args.bag0Len * (2 * args.bag0Len + 1) + args.bag0Len * 2 + 1
   have hnil : HoldsIn args.bag0Ptr [] s := HoldsIn.nil (by have := hL0.1; omega)
   have hL0_lt_wt : ∀ u ∈ L0, u < inst.weights.length := inst.weights_len.symm ▸ hL0_lt
-  suffices ∀ rem curC,
-      curC + rem = args.tbl0Len →
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate rootPassStep args rem ⟨curC, rootPassInst inst.adj inst.wt L0 arr0 curC⟩)) ∧
-      ((Memory.spec 0).clientResult s
-        (iterate rootPassStep args rem ⟨curC, rootPassInst inst.adj inst.wt L0 arr0 curC⟩)).best =
-        rootPassInst inst.adj inst.wt L0 arr0 (curC + rem) ∧
-      memoryCost
-        (iterate rootPassStep args rem ⟨curC, rootPassInst inst.adj inst.wt L0 arr0 curC⟩) s ≤
-        rem * stepCost by
-    obtain ⟨hv_run, hr_run, hc_run⟩ := this args.tbl0Len 0 (Nat.zero_add _)
-    rw [Nat.zero_add] at hr_run
-    unfold rootPassProg
-    exact ⟨validHistory_bind_step hv_run (validHistory_pure w _ _), rootPassProg_state args s,
-      by rwa [StateTransitionSpec.clientResult_bind],
-      by rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]⟩
-  intro rem curC hsum
-  induction rem generalizing curC with
-  | zero => exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
-  | succ rem ih =>
-    let bCur := rootPassInst inst.adj inst.wt L0 arr0 curC
-    have hcur_lt : curC < args.tbl0Len := by omega
-    have hcur_tbl : curC < tbl0.length := by omega
-    obtain ⟨hv_ind, hst_ind, hr_ind, hc_ind⟩ :=
-      indepBagProg_spec (w := w) ⟨args.numVerts, args.adjPtr, args.bag0Ptr, args.bag0Len, curC⟩
-        hadj inst.adjMatrix_len hnv hL0 hlen0 hL0_lt
-    obtain ⟨hv_fw, hst_fw, hr_fw, hc_fw⟩ :=
-      forgetWeightProg_spec (w := w)
-        ⟨args.wtPtr, args.bag0Ptr, 0, args.bag0Ptr, args.bag0Len, curC⟩
-        hwt hnil rfl hL0 hlen0 hL0_lt_wt
-    dsimp only at hr_ind hc_ind hr_fw hc_fw
-    have hfc_addr : args.tbl0Ptr + curC < s.frontier := by have := htbl0.1; omega
-    have hfc_eq : s.mem (args.tbl0Ptr + curC) = arr0.getD curC 0 := by
-      rw [htbl0.get curC hcur_tbl, ← harr0 curC hcur_lt, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hcur_tbl, Option.getD_some]
-    obtain ⟨hst_step, hres_step⟩ := rootPassStep_eval args ⟨curC, bCur⟩ s
-    have hb_next : (if (if indepInst inst.adj L0 curC then 1 else 0) = 1 then
-          if bCur < forgetWeight inst.wt [] L0 curC + s.mem (args.tbl0Ptr + curC) then
-            forgetWeight inst.wt [] L0 curC + s.mem (args.tbl0Ptr + curC)
-          else bCur
-        else bCur) = rootPassInst inst.adj inst.wt L0 arr0 (curC + 1) := by
-      dsimp only [rootPassInst, bCur]
+  have htf := htbl0.1
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (s := s) (body := rootPassStep)
+    (c := args.bag0Len * (2 * args.bag0Len + 1) + args.bag0Len * 2 + 1) (S := ∅)
+    (safe := fun _ _ _ => True) (d := args) (n := args.tbl0Len) (a₀ := ⟨0, 0⟩)
+    (Q := fun st _ => st.best = rootPassInst inst.adj inst.wt L0 arr0 args.tbl0Len)
+    (fun k st t => t = s ∧ st = ⟨k, rootPassInst inst.adj inst.wt L0 arr0 k⟩) ⟨rfl, rfl⟩
+    (fun k hk st t ⟨ht, hst⟩ _ => ⟨trivial, by
+      subst t hst
+      obtain ⟨hv_ind, hst_ind, hr_ind, hc_ind⟩ :=
+        indepBagProg_spec (w := w) ⟨args.numVerts, args.adjPtr, args.bag0Ptr, args.bag0Len, k⟩
+          hadj inst.adjMatrix_len hnv hL0 hlen0 hL0_lt
+      have hind := Memory.FramedTriple.of_readOnly hv_ind hst_ind hr_ind hc_ind
+      obtain ⟨hv_fw, hst_fw, hr_fw, hc_fw⟩ := forgetWeightProg_spec (w := w)
+        ⟨args.wtPtr, args.bag0Ptr, 0, args.bag0Ptr, args.bag0Len, k⟩ hwt hnil rfl hL0 hlen0
+        hL0_lt_wt
+      have hfw := Memory.FramedTriple.of_readOnly hv_fw hst_fw hr_fw hc_fw
+      unfold rootPassStep
+      framed_triple
+      have hfc_eq : s.mem (args.tbl0Ptr + k) = arr0.getD k 0 := by
+        rw [htbl0.get k (by omega), ← harr0 k hk, List.getD_eq_getElem?_getD,
+          List.getElem?_eq_getElem (by omega), Option.getD_some]
+      refine ⟨rfl, congrArg _ ?_⟩
+      dsimp only [rootPassInst]
+      unfold MWISInstance.adj MWISInstance.wt
       rw [hfc_eq]
-      cases indepInst inst.adj L0 curC <;> simp [Nat.max_def]
-      split_ifs <;> omega
-    unfold MWISInstance.adj MWISInstance.wt at hb_next
-    dsimp only at hres_step
-    rw [hr_ind, hr_fw, hb_next] at hres_step
-    have hv_step : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (rootPassStep (args, ⟨curC, bCur⟩))) := by
-      unfold rootPassStep
-      dsimp only
-      refine validHistory_read_bind hfc_addr (validHistory_bind_step hv_ind ?_)
-      rw [hst_ind, hr_ind]
-      exact validHistory_bind_step hv_fw (validHistory_pure w _ _)
-    have hc_step : memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s ≤ stepCost := by
-      unfold rootPassStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read]
-      change 1 + memoryCost _ s ≤ stepCost
-      rw [memoryCost_bind', hst_ind, hr_ind, memoryCost_bind', hst_fw, memoryCost_pure]
-      omega
-    obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (curC + 1) (by omega)
-    dsimp only [iterate]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, ← Nat.add_assoc,
-        Nat.add_right_comm]
-      exact hr_rem
-    · rw [memoryCost_bind', hst_step, hres_step]
-      calc memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s +
-            memoryCost
-              (iterate rootPassStep args rem
-                ⟨curC + 1, rootPassInst inst.adj inst.wt L0 arr0 (curC + 1)⟩) s
-          ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
+      cases indepInst _ L0 k <;> simp [Nat.max_def]
+      split_ifs <;> omega⟩)
+    fun st t ⟨_, h⟩ _ => by rw [h]
+  have hft : Memory.FramedTriple w s (rootPassProg args)
+      (args.tbl0Len * (args.bag0Len * (2 * args.bag0Len + 1) + args.bag0Len * 2 + 1)) ∅
+      fun r _ => r = rootPassInst inst.adj inst.wt L0 arr0 args.tbl0Len :=
+    Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+      fun st _ h _ => Memory.FramedTriple.pure h) (by rw [Nat.mul_comm]; omega) fun _ _ => id
+  obtain ⟨hv, hc, -, hres⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, rootPassProg_state args s, hres, hc⟩
 
 /-- Exact-basis Word-RAM realization certificate for `rootPassProg`. -/
 theorem rootPassProg_realizes :

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Horner
 import CslibFrontier.Foundations.Data.List.FoldMax
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.Order.BigOperators.Group.List
 
@@ -84,91 +85,61 @@ private theorem mul_getD_zero_le {acc B : ℕ} {f : FactorTable ℕ ℕ}
     ((Nat.mul_assoc _ _ _).trans_le h)
 
 /-- The conditional entry-`0` read of `finalProdStep` on a descriptor for `f`. -/
-private theorem finalProdBranch_spec {w cur : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
+private theorem finalProdBranch_framed {w cur : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
     (hf : HoldsFactor cur f s) :
-    let br : Memory.Prog ℕ :=
-      if s.mem (cur + 3) = 0 then pure 0 else Memory.read (s.mem (cur + 2))
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s br) ∧
-      (Memory.spec 0).clientState s br = s ∧
-      (Memory.spec 0).clientResult s br = f.entries.getD 0 0 ∧
-      memoryCost br s ≤ 1 := by
+    Memory.FramedTriple w s (if s.mem (cur + 3) = 0 then pure 0 else Memory.read (s.mem (cur + 2)))
+      1 ∅ fun r t => r = f.entries.getD 0 0 ∧ t = s := by
   obtain ⟨-, -, hel, -, hent⟩ := hf
-  dsimp only
-  by_cases hz : s.mem (cur + 3) = 0
-  · rw [ite_eq_left hz]
-    have hsz0 : ¬ (0 < f.entries.size) := by omega
-    exact ⟨validHistory_pure w s 0, rfl, (by simp [Array.getD, hsz0] : f.entries.getD 0 0 = 0).symm,
-      by rw [memoryCost_pure]; omega⟩
-  · rw [ite_eq_right hz]
-    have hsz_pos : 0 < f.entries.size := by omega
-    have hbd := hent.1
-    rw [Array.length_toList] at hbd
-    have h0 := hent.2.get 0 (by rw [Array.length_toList]; exact hsz_pos)
+  have hbd := hent.1
+  rw [Array.length_toList] at hbd
+  framed_triple
+  · exact ⟨by simp [Array.getD, show ¬0 < f.entries.size by omega], rfl⟩
+  · have h0 := hent.2.get 0 (by rw [Array.length_toList]; omega)
     simp only [Nat.add_zero, Array.getElem_toList] at h0
-    refine ⟨validHistory_read (by omega), rfl, ?_, (memoryCost_read _ _).le⟩
-    change s.mem (s.mem (cur + 2)) = _
-    simp only [Array.getD, hsz_pos, ↓reduceDIte]
+    refine ⟨?_, rfl⟩
+    simp only [Array.getD, show 0 < f.entries.size by omega, ↓reduceDIte]
     exact h0
 
-private theorem finalProdStep_spec {w cur acc : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
+private theorem finalProdStep_framed {w cur acc : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
     (hf : HoldsFactor cur f s) :
-    let p := finalProdStep ((), (cur, acc))
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p) ∧
-      (Memory.spec 0).clientState s p = s ∧
-      (Memory.spec 0).clientResult s p = (cur + 4, acc * f.entries.getD 0 0) ∧
-      memoryCost p s ≤ 3 := by
-  obtain ⟨hv, hst, hres, hcost⟩ := finalProdBranch_spec (w := w) hf
+    Memory.FramedTriple w s (finalProdStep ((), (cur, acc))) 3 ∅ fun r t =>
+      r = (cur + 4, acc * f.entries.getD 0 0) ∧ t = s := by
+  have hbr := finalProdBranch_framed (w := w) hf
   have hd := hf.1
   unfold finalProdStep
-  dsimp only at hv hst hres hcost ⊢
-  rw [clientState_bind_read, clientState_bind_read, clientResult_bind_read, clientResult_bind_read,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hst, hres,
-    memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, memoryCost_bind',
-    memoryCost_read, clientState_read, clientResult_read, memoryCost_bind', hst, hres]
-  exact ⟨validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
-    (validHistory_bind_step hv (by rw [hst]; exact validHistory_pure _ _ _))), rfl, rfl,
-    by rw [memoryCost_pure]; omega⟩
+  framed_triple
 
-private theorem finalResultProd_aux {w B : ℕ} (hB : Fits w B) {s : Memory.State} :
-    ∀ (rem : List (FactorTable ℕ ℕ)) (cur acc : ℕ),
-      HoldsFactorList cur rem s →
-      acc * (rem.map capFactor).prod ≤ B →
-      let p := iterate finalProdStep () rem.length (cur, acc)
-      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p) ∧
-        (Memory.spec 0).clientState s p = s ∧
-        ((Memory.spec 0).clientResult s p).2 =
-          acc * (rem.map fun f => f.entries.getD 0 0).prod ∧
-        memoryCost p s ≤ 3 * rem.length
-  | [], _, acc, _, _ => by
-      simp only [List.length_nil, List.map_nil, List.prod_nil, Nat.mul_one, Nat.mul_zero]
-      exact ⟨validHistory_pure w s _, rfl, rfl, (memoryCost_pure _ _).le⟩
-  | f :: rest, cur, acc, ⟨hf, hrest⟩, hcap => by
-      simp only [List.map_cons, List.prod_cons] at hcap ⊢
-      obtain ⟨hv, hst, hres, hcost⟩ := finalProdStep_spec (w := w) (acc := acc) hf
-      obtain ⟨hv', hst', hres', hcost'⟩ :=
-        finalResultProd_aux hB rest (cur + 4) _ hrest (mul_getD_zero_le hcap)
-      rw [List.length_cons, iterate, StateTransitionSpec.clientState_bind,
-        StateTransitionSpec.clientResult_bind, memoryCost_bind', hst, hres, hst', hres',
-        Nat.mul_assoc]
-      exact ⟨validHistory_bind_step hv (by rwa [hst, hres]), rfl, rfl, by omega⟩
-
-theorem finalResultProd_spec {w B : ℕ} {args : FinalProdArgs}
+theorem finalResultProd_spec {w : ℕ} {args : FinalProdArgs}
     {es : ElimState ℕ ℕ} {s : Memory.State}
-    (hB : Fits w B) (hcap : stateCap es ≤ B)
     (hsc : args.scalar = es.scalar) (hlen : args.liveLen = es.live.length)
     (hlive : HoldsFactorList args.livePtr es.live s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (finalResultProd args)) ∧
       (Memory.spec 0).clientState s (finalResultProd args) = s ∧
       (Memory.spec 0).clientResult s (finalResultProd args) = es.result ∧
       memoryCost (finalResultProd args) s ≤ 3 * args.liveLen := by
-  unfold finalResultProd
-  rw [hlen, hsc]
-  obtain ⟨hval, hst, hres, hcost⟩ := finalResultProd_aux hB es.live args.livePtr es.scalar
-    hlive ((Nat.mul_le_mul_right _ (le_max_right 1 es.scalar)).trans hcap)
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hst,
-    StateTransitionSpec.clientState_pure, StateTransitionSpec.clientResult_pure, hres,
-    memoryCost_bind', hst, memoryCost_pure, Nat.add_zero]
-  exact ⟨validHistory_bind_step hval (by rw [hst]; exact validHistory_pure w s _), rfl, rfl, hcost⟩
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (w := w) (s := s) (body := finalProdStep)
+    (safe := fun _ _ _ => True) (d := ()) (n := args.liveLen) (c := 3) (S := ∅)
+    (a₀ := (args.livePtr, args.scalar)) (Q := fun st t => st.2 = es.result ∧ t = s)
+    (fun k st t => t = s ∧ ∃ rem, rem.length + k = args.liveLen ∧ HoldsFactorList st.1 rem s ∧
+      st.2 * (rem.map fun f => f.entries.getD 0 0).prod = es.result)
+    ⟨rfl, es.live, by omega, hlive, by rw [hsc]; rfl⟩
+    (fun k _ ⟨cur, acc⟩ t ⟨ht, rem, hl, hrem, hres⟩ _ => by
+      subst ht
+      rcases rem with _ | ⟨f, rest⟩
+      · simp at hl; omega
+      refine ⟨trivial, (finalProdStep_framed hrem.1).mono le_rfl fun _ _ ⟨hr, ht⟩ =>
+        ⟨ht, rest, by simp at hl; omega, hr ▸ hrem.2, ?_⟩⟩
+      rw [hr, ← hres, List.map_cons, List.prod_cons, Nat.mul_assoc])
+    fun _ t ⟨ht, rem, hl, _, hres⟩ _ => by
+      obtain rfl : rem = [] := List.eq_nil_of_length_eq_zero (by omega)
+      simpa [ht] using hres
+  have hft : Memory.FramedTriple w s (finalResultProd args) (3 * args.liveLen) ∅
+      fun r t => r = es.result ∧ t = s := by
+    unfold finalResultProd
+    exact Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+      fun _ _ h _ => Memory.FramedTriple.pure h) (by omega) fun _ _ => id
+  obtain ⟨hv, hc, -, hres, hst⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, hst, hres, hc⟩
 
 theorem finalResultProd_realizes :
     Realizes .exact finalResultProd WordEncoding.encode WordEncoding.encode
@@ -200,8 +171,10 @@ theorem finalResultProd_realizes :
   have h1 : 1 ≤ (rest.map capFactor).prod :=
     List.one_le_prod_of_one_le (by simp [one_le_capFactor])
   have hprod_le : acc * f.entries.getD 0 0 ≤ B := (Nat.le_mul_of_pos_right _ h1).trans hcap'
-  obtain ⟨-, -, hbr_res, -⟩ := finalProdBranch_spec (w := w) hf
-  obtain ⟨-, hst, hres, -⟩ := finalProdStep_spec (w := w) (acc := acc) hf
+  obtain ⟨-, -, -, hbr_res, -⟩ :=
+    framedTriple_iff_realization.mp (finalProdBranch_framed (w := w) hf)
+  obtain ⟨-, -, -, hres, hst⟩ :=
+    framedTriple_iff_realization.mp (finalProdStep_framed (w := w) (acc := acc) hf)
   have hd := hf.1
   dsimp only at hbr_res ⊢
   rw [hst, hres]

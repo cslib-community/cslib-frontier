@@ -15,7 +15,7 @@ import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.DenseCase.Driver
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.GraphOps.Components
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.BaseOps
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.DjpLoop
-import CslibFrontier.Computability.WordRAM.Realization.LoopFrame
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Foundations.Data.List.Subperm
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
@@ -332,12 +332,8 @@ private theorem readCompMeta_spec {w : ℕ} (a : CompMetaArgs) {s : Memory.State
         s.mem (a.compMetaBase + 3 * a.idx + 2), s.mem (a.liftMetaBase + a.idx)⟩ ∧
       s' = s := by
   refine ⟨⟨h16, hlt1, hlt2⟩, ?_⟩
-  dsimp only [readCompMeta]
-  exact Memory.FramedTriple.read_bind (by omega) <|
-    Memory.FramedTriple.read_bind (by omega) <|
-    Memory.FramedTriple.read_bind (by omega) <|
-    Memory.FramedTriple.read_bind (by omega) <|
-    Memory.FramedTriple.pure ⟨rfl, rfl⟩
+  unfold readCompMeta
+  framed_triple
 
 private def evalAndLiftNonEmptyRaw (d : EvalAndLiftArgs) : Memory.Prog ℕ := do
   let tmpOut ← Memory.allocDirty (4 * d.numEdges)
@@ -434,14 +430,9 @@ private theorem evalAndLiftDTComp_spec {w r0 tableFrontier n : ℕ}
   · have hm_pos : 0 < r.compLocal.length := Nat.pos_of_ne_zero hm0
     have hprog : evalAndLiftDTComp d = evalAndLiftNonEmptyRaw d := by
       simp [evalAndLiftDTComp, d, hm0]
-    have hraw_eq : evalAndLiftNonEmptyRaw d =
-        (Memory.allocDirty (4 * r.compLocal.length) >>= fun tmpOut =>
-          evalDecisionTreeProg ⟨tableBase, r.numVerts, r.compLocal.length, eb, tmpOut⟩ >>=
-            fun fLen => liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen⟩) := rfl
     let tmpOut := s.frontier
     let s₁ : Memory.State := ⟨s.mem, s.frontier + 4 * r.compLocal.length⟩
     have hfit_alloc : Fits w (s.frontier + 4 * r.compLocal.length) := hfit.of_le (by omega)
-    have hwf₁ : Memory.WellFormed w s₁ := ⟨hfit_alloc, hwf.mem_fits⟩
     have hchoose : r.numVerts.choose 2 ≤ r.compLocal.length * r0 := by
       have hv2m := hnoiso hm_pos
       rw [Nat.choose_two_right]
@@ -453,20 +444,18 @@ private theorem evalAndLiftDTComp_spec {w r0 tableFrontier n : ℕ}
             rw [Nat.mul_assoc, Nat.mul_div_right _ (by decide)]
     let dq : DTQuery := ⟨tableBase, r.numVerts, r.compLocal.length, eb, tmpOut⟩
     have hdt := evalDecisionTreeProg_spec (w := w) (r0 := r0) (tableFrontier := tableFrontier)
-      (d := dq) (C := r.compLocal) (s := s₁) h16 hwf₁ hr_le rfl hsimp heb
+      (d := dq) (C := r.compLocal) (s := s₁) h16 ⟨hfit_alloc, hwf.mem_fits⟩ hr_le rfl hsimp heb
       (by dsimp only [s₁, dq]; omega) (by dsimp only [s₁, dq, tmpOut]; omega)
       (Or.inl (by dsimp only [dq, tmpOut]; exact heb_fr)) htab htib
       (htf.trans (by dsimp only [s₁]; omega))
       (fun x hx _ => by dsimp only [dq, tmpOut] at *; omega)
       (hfit.of_le (by dsimp only [s₁, dq]; omega))
     dsimp only at hdt
-    have hdt_fr := framedTriple_iff_realization.mp hdt
+    obtain ⟨-, -, hmod_dt, hsafe_dt, hwf₂, hs2_fr, -,
+      F_loc, hFloc_len, hFloc_sub, hFloc_holds, hFloc_msf⟩ := framedTriple_iff_realization.mp hdt
     set fLen := (Memory.spec 0).clientResult s₁ (evalDecisionTreeProg dq)
     set s₂ := (Memory.spec 0).clientState s₁ (evalDecisionTreeProg dq)
-    obtain ⟨hv_dt, hcost_dt, hmod_dt, hsafe_dt, hwf₂, hs2_fr, hflen_le,
-      F_loc, hFloc_len, hFloc_sub, hFloc_holds, hFloc_msf⟩ := hdt_fr
-    have hfLen_eq : fLen = F_loc.length := hFloc_len.symm
-    have hs2_ge : s₁.frontier ≤ s₂.frontier := hmod_dt.1
+    have hs2_ge : s.frontier + 4 * r.compLocal.length ≤ s₂.frontier := hmod_dt.1
     have hlb2 : ∀ k : Fin r.numVerts, s₂.mem (lb + k.val) = (r.lift k).val := fun k =>
       (hmod_dt.mem_eq_of_not_mem (by dsimp only [s₁]; omega)
         (by simp only [Set.mem_Ico, not_and, not_lt, dq, tmpOut]; omega)).trans (hlb k)
@@ -489,26 +478,16 @@ private theorem evalAndLiftDTComp_spec {w r0 tableFrontier n : ℕ}
       have hacyc : IsAcyclic (List.map IndexedEdge.toWeighted F_i) := hFi_msf.1.2.1
       simpa using isAcyclic_length_le_finset_sub_one r.verts _ hacyc hsub_mem
     have hFloc_card : F_loc.length ≤ r.verts.card - 1 := by simpa [F_i] using hFi_card
+    have hF_le : F_loc.length ≤ r.compLocal.length := hFloc_sub.length_le
     have hdisj_lift : tmpOut + 4 * F_loc.length ≤ fcBase + 4 * fcLen ∨
         fcBase + 4 * (fcLen + F_loc.length) ≤ tmpOut :=
       Or.inr (by dsimp only [tmpOut]; omega)
-    have hlb_lift : lb + r.numVerts ≤ fcBase + 4 * fcLen ∨
-        fcBase + 4 * (fcLen + F_loc.length) ≤ lb :=
-      Or.inl (by omega)
-    have hFloc_end : tmpOut + 4 * F_loc.length ≤ s₂.frontier := by
-      dsimp only [tmpOut]; dsimp only [s₁] at hs2_ge; omega
-    have hfc_end : fcBase + 4 * (fcLen + F_loc.length) ≤ s₂.frontier := by
-      dsimp only [s₁] at hs2_ge; omega
+    have hFloc_end : tmpOut + 4 * F_loc.length ≤ s₂.frontier := by dsimp only [tmpOut]; omega
+    have hfc_end : fcBase + 4 * (fcLen + F_loc.length) ≤ s₂.frontier := by omega
     have hlift := liftEdgesProg_spec (w := w) (nLoc := r.numVerts) (nGlob := n)
       (srcBase := tmpOut) (liftBase := lb) (dstBase := fcBase) (dstOff := fcLen)
       (C := F_loc) (lift := r.lift) (s := s₂) h16 hwf₂ hFloc_holds hFloc_end
-      hlb2 (by dsimp only [s₁] at hs2_ge; omega) hfc_end hdisj_lift hlb_lift
-    have hlift_fr := framedTriple_iff_realization.mp hlift
-    set fcLen' := (Memory.spec 0).clientResult s₂
-      (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, F_loc.length⟩)
-    set s₃ := (Memory.spec 0).clientState s₂
-      (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, F_loc.length⟩)
-    obtain ⟨hv_l, hcost_l, hmod_l, hfc'_eq, hs3_fr, hwf₃, hholds_l⟩ := hlift_fr
+      hlb2 (by omega) hfc_end hdisj_lift (Or.inl (by omega))
     have hsafe_l : liftEdgesProgSafe w ⟨tmpOut, lb, fcBase, fcLen, F_loc.length⟩ s₂ := by
       refine ⟨h16, hFloc_end, hdisj_lift, fun k hk => ?_, hfc_end⟩
       obtain ⟨hu, hv, _, _⟩ := hFloc_holds k hk
@@ -516,76 +495,25 @@ private theorem evalAndLiftDTComp_spec {w r0 tableFrontier n : ℕ}
       have hu_lt := F_loc[k].u.isLt
       have hv_lt := F_loc[k].v.isLt
       dsimp only [dq] at hu_lt hv_lt
-      dsimp only [s₁] at hs2_ge
       dsimp only
       exact ⟨by omega, by omega⟩
-    have hsafe_ne : evalAndLiftDTCompSafe w d s := by
-      refine ⟨h16, fun h => by dsimp only [d] at h; omega, fun _ => ?_⟩
-      refine ⟨h16, hfit_alloc, hsafe_dt, ?_⟩
+    refine ⟨⟨h16, fun h => by dsimp only [d] at h; omega, fun _ => ?_⟩, ?_⟩
+    · refine ⟨h16, hfit_alloc, hsafe_dt, ?_⟩
       change liftEdgesProgSafe w ⟨tmpOut, lb, fcBase, fcLen, fLen⟩ s₂
-      rw [hfLen_eq]; exact hsafe_l
-    have hres_eq : (Memory.spec 0).clientResult s (evalAndLiftDTComp d) = fcLen' := by
-      rw [hprog, hraw_eq, clientResult_bind_allocDirty]
-      change (Memory.spec 0).clientResult s₁
-        (evalDecisionTreeProg dq >>= fun fLen_1 =>
-          liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen_1⟩) = fcLen'
-      rw [StateTransitionSpec.clientResult_bind]
-      change (Memory.spec 0).clientResult s₂
-        (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen⟩) = fcLen'
-      rw [hfLen_eq]
-    have hst_eq : (Memory.spec 0).clientState s (evalAndLiftDTComp d) = s₃ := by
-      rw [hprog, hraw_eq, clientState_bind_allocDirty]
-      change (Memory.spec 0).clientState s₁
-        (evalDecisionTreeProg dq >>= fun fLen_1 =>
-          liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen_1⟩) = s₃
-      rw [StateTransitionSpec.clientState_bind]
-      change (Memory.spec 0).clientState s₂
-        (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen⟩) = s₃
-      rw [hfLen_eq]
-    refine ⟨hsafe_ne, framedTriple_iff_realization.mpr ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
-    · rw [hprog, hraw_eq]
-      refine validHistory_allocDirty_bind hfit_alloc ?_
-      change (Memory.spec w).ValidHistory s₁
-        ((Memory.spec w).clientHistory s₁
-          (evalDecisionTreeProg dq >>= fun fLen_1 =>
-            liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen_1⟩))
-      refine validHistory_bind_step hv_dt ?_
-      change (Memory.spec w).ValidHistory s₂
-        ((Memory.spec w).clientHistory s₂
-          (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen⟩))
-      rw [hfLen_eq]
-      exact hv_l
-    · rw [hprog, hraw_eq, memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty,
-        clientState_allocDirty]
-      change 1 + memoryCost
-        (evalDecisionTreeProg dq >>= fun fLen_1 =>
-          liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen_1⟩) s₁ ≤ _
-      rw [memoryCost_bind']
-      change 1 + (memoryCost (evalDecisionTreeProg dq) s₁ +
-        memoryCost (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen⟩) s₂) ≤ _
-      rw [hfLen_eq]
-      have hF_le : F_loc.length ≤ r.compLocal.length := hFloc_sub.length_le
-      omega
-    · rw [hst_eq]
-      refine ⟨by dsimp only [s₁] at hs2_ge; omega, fun x hx hnot => ?_⟩
-      have hx2 : x < s₁.frontier := by dsimp only [s₁]; omega
-      have hmod2' : s₃.mem x = s₂.mem x := hmod_l.mem_eq_of_not_mem
-        (by dsimp only [s₁] at hs2_ge; omega)
-        (by
-          simp only [Set.mem_Ico, not_and, not_lt] at hnot ⊢
-          intro hle; have := hnot hle; omega)
-      have hmod1' : s₂.mem x = s₁.mem x := hmod_dt.mem_eq_of_not_mem hx2
-        (by simp only [Set.mem_Ico, not_and, not_lt, dq, tmpOut]; omega)
-      exact hmod2'.trans hmod1'
-    · rw [hres_eq]; omega
-    · rw [hres_eq]; omega
-    · rw [hres_eq]; have := hFloc_sub.length_le; omega
-    · rw [hst_eq, hs3_fr]; dsimp only [s₁] at hs2_ge; omega
-    · rw [hst_eq, hs3_fr]; dsimp only [s₁, dq] at hs2_fr; omega
-    · rw [hst_eq]; exact hwf₃
-    · refine ⟨F_i, ?_, hFi_sub, ?_, hFi_msf⟩
-      · rw [hres_eq]; simp [F_i]; omega
-      · rw [hst_eq]; simpa [F_i] using hholds_l
+      rw [← hFloc_len]; exact hsafe_l
+    rw [hprog]
+    refine Memory.FramedTriple.drop_fresh (Memory.FramedTriple.mono
+      (Memory.FramedTriple.allocDirty_bind hfit_alloc
+        (Memory.FramedTriple.seq (c₂ := 10 * F_loc.length) hdt (by region_omega) ?_))
+      (by omega) fun _ _ => id)
+    change Memory.FramedTriple w s₂ (liftEdgesProg ⟨tmpOut, lb, fcBase, fcLen, fLen⟩) _ _ _
+    rw [← hFloc_len]
+    refine (hlift.frame_mono ?_).mono le_rfl ?_
+    · region_omega
+    rintro res s' ⟨hres, hfr, hwf', hholds⟩
+    dsimp only [s₁, dq] at hs2_fr
+    exact ⟨by omega, by omega, by omega, by omega, by omega, hwf', F_i, by simp [F_i]; omega,
+      hFi_sub, by simpa [F_i] using hholds, hFi_msf⟩
 
 /-! ## Partition Decision-Tree Evaluation Loop (`pr02EvalDTLoop`) -/
 
@@ -726,11 +654,9 @@ theorem pr02EvalDTLoop_spec {w r0 tableFrontier n m' : ℕ}
     st.idx = k ∧
     ∃ (hk_le : k ≤ rounds.length),
     st.fcLen ≤ ((rounds.take k).map fun r => r.verts.card - 1).sum ∧
-    s.frontier ≤ t.frontier ∧
     t.frontier ≤ s.frontier + 5 * ((rounds.take k).map fun r => r.compLocal.length).sum +
       ((rounds.take k).map fun r => r.compLocal.length).sum * r0 ∧
     Memory.WellFormed w t ∧
-    (∀ a < fcBase, t.mem a = s.mem a) ∧
     ∃ F_comps : List (List (IndexedEdge n)),
       ∃ (hF_len : F_comps.length = k),
         F_comps.flatten.length = st.fcLen ∧
@@ -740,21 +666,18 @@ theorem pr02EvalDTLoop_spec {w r0 tableFrontier n m' : ℕ}
           IsMinSpanningForest
             ((rounds[i]'(by omega)).compGlobal.map IndexedEdge.toWeighted)
             ((F_comps[i]'(by omega)).map IndexedEdge.toWeighted)
-  let pot (k : ℕ) (_ : EvalDTLoopState) (_ : Memory.State) : ℕ :=
+  let pot (k : ℕ) : ℕ :=
     25 * ((rounds.drop k).map fun r => r.compLocal.length).sum +
       15 * ((rounds.drop k).map fun r =>
         optDepth (edgeEnds (r.compLocal.map IndexedEdge.toWeighted))).sum
-  have hstep : ∀ k < rounds.length, ∀ st t, inv k st t →
-      pr02EvalDTLoopStepSafe w (env, st) t ∧
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (pr02EvalDTLoopStep (env, st))) ∧
-      let st' := (Memory.spec 0).clientResult t (pr02EvalDTLoopStep (env, st))
-      let t' := (Memory.spec 0).clientState t (pr02EvalDTLoopStep (env, st))
-      memoryCost (pr02EvalDTLoopStep (env, st)) t + pot (k + 1) st' t' ≤ pot k st t + 20 ∧
-      Memory.Modifies S t t' ∧
-      inv (k + 1) st' t' := by
-    intro k hk st t ⟨hidx, _, hfc_le, hs_t, ht_fr, htwf, hframe, F_comps, hF_len, hF_flat,
-      hF_holds, hF_msf⟩
+  have hstep : ∀ k < rounds.length, ∀ st t, inv k st t → Memory.Modifies S s t →
+      pr02EvalDTLoopStepSafe w (env, st) t ∧ ∃ c, c + pot (k + 1) ≤ pot k + 20 ∧
+        Memory.FramedTriple w t (pr02EvalDTLoopStep (env, st)) c S (inv (k + 1)) := by
+    intro k hk st t ⟨hidx, _, hfc_le, ht_fr, htwf, F_comps, hF_len, hF_flat, hF_holds, hF_msf⟩
+      hmod
+    have hs_t : s.frontier ≤ t.frontier := hmod.1
+    have hframe : ∀ a < fcBase, t.mem a = s.mem a := fun a ha =>
+      hmod.mem_eq_of_not_mem (by omega) (by simp only [S, Set.mem_Ico]; omega)
     rcases st with ⟨idx, fcLen⟩
     dsimp only at hidx hfc_le hF_flat ⊢
     subst idx
@@ -828,57 +751,27 @@ theorem pr02EvalDTLoop_spec {w r0 tableFrontier n m' : ℕ}
       (fcLen := fcLen) h16 htwf hr_le hlift_inj hverts_r hnoiso hsimp_r heb_t
       (by omega) hlb_t (by omega) htab_t htib_t (by omega) (by omega) (by omega) htf_fc hfit_eval
     obtain ⟨hsafe_ev, hev_ft⟩ := hev
-    obtain ⟨hv_ev, hcost_ev, hmod_ev, hfcl_le, hfcl_ub, _, hs'_ge, hs'_fr, hwf',
-      F_k, hFk_len, hFk_sub, hFk_holds, hFk_msf⟩ := framedTriple_iff_realization.mp hev_ft
-    set fcLen' := (Memory.spec 0).clientResult t (evalAndLiftDTComp
-      ⟨tableBase, r.numVerts, r.compLocal.length, eb, lb, fcBase, fcLen⟩)
-    set t' := (Memory.spec 0).clientState t (evalAndLiftDTComp
-      ⟨tableBase, r.numVerts, r.compLocal.length, eb, lb, fcBase, fcLen⟩)
-    have hstep_eq : pr02EvalDTLoopStep (env, ⟨k, fcLen⟩) =
-        (readCompMeta ⟨compMetaBase, liftMetaBase, k⟩ >>= fun cm =>
-          evalAndLiftDTComp
-            ⟨tableBase, cm.numVerts, cm.numEdges, cm.edgeBase, cm.liftBase, fcBase, fcLen⟩ >>=
-            fun x => pure ⟨k + 1, x⟩) := rfl
     have hfit_k1 : Fits w (k + 1) := hfit_tot.of_le (by omega)
-    have hsafe_step : pr02EvalDTLoopStepSafe w (env, ⟨k, fcLen⟩) t := by
-      refine ⟨h16, hfit_k1, hsafe_rc, ?_⟩
-      dsimp only [env]
+    have hdrop_eq : rounds.drop k = r :: rounds.drop (k + 1) := List.drop_eq_getElem_cons hk
+    refine ⟨⟨h16, hfit_k1, hsafe_rc, ?_⟩, 4 + ((25 * r.compLocal.length +
+      15 * optDepth (edgeEnds (r.compLocal.map IndexedEdge.toWeighted)) + 16) + 0), ?_, ?_⟩
+    · dsimp only [env]
       rw [hres_rc', hst_rc]
       exact hsafe_ev
-    have hv_step : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (pr02EvalDTLoopStep (env, ⟨k, fcLen⟩))) := by
-      rw [hstep_eq]
-      refine validHistory_bind_step hv_rc ?_
-      rw [hres_rc', hst_rc]
-      exact validHistory_bind_step hv_ev (validHistory_pure w _ _)
-    have hres_step : (Memory.spec 0).clientResult t (pr02EvalDTLoopStep (env, ⟨k, fcLen⟩)) =
-        ⟨k + 1, fcLen'⟩ := by
-      rw [hstep_eq, StateTransitionSpec.clientResult_bind, hres_rc', hst_rc,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-    have hst_step : (Memory.spec 0).clientState t (pr02EvalDTLoopStep (env, ⟨k, fcLen⟩)) =
-        t' := by
-      rw [hstep_eq, StateTransitionSpec.clientState_bind, hres_rc', hst_rc,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    have hdrop_eq : rounds.drop k = r :: rounds.drop (k + 1) := List.drop_eq_getElem_cons hk
-    have hpot_step : memoryCost (pr02EvalDTLoopStep (env, ⟨k, fcLen⟩)) t +
-        pot (k + 1) ⟨k + 1, fcLen'⟩ t' ≤ pot k ⟨k, fcLen⟩ t + 20 := by
-      rw [hstep_eq, memoryCost_bind', hres_rc', hst_rc, memoryCost_bind',
-        memoryCost_pure, add_zero]
-      dsimp only [pot]
+    · dsimp only [pot]
       rw [hdrop_eq, List.map_cons, List.map_cons, List.sum_cons, List.sum_cons]
       omega
-    have hmod_step : Memory.Modifies S t t' :=
-      hmod_ev.mono fun a ha => by
-        simp only [Set.mem_Ico] at ha ⊢
-        exact ⟨by omega, by omega⟩
-    have hframe' : ∀ a < fcBase, t'.mem a = s.mem a := fun a ha =>
-      (hmod_step.mem_eq_of_not_mem (by omega)
-        (by simp only [S, Set.mem_Ico, not_and, not_lt]; omega)).trans (hframe a ha)
+    dsimp only [pr02EvalDTLoopStep, env]
+    refine Memory.FramedTriple.seq hrc_ft (Set.empty_subset _) ?_
+    rw [hres_rc', hst_rc]
+    refine Memory.FramedTriple.call hev_ft ?_ fun fcLen' t' hpost hm => ?_
+    · region_omega
+    obtain ⟨hfcl_le, hfcl_ub, -, hs'_ge, hs'_fr, hwf', F_k, hFk_len, hFk_sub, hFk_holds,
+      hFk_msf⟩ := hpost
     have hF_holds_t' : HoldsIndexedEdges fcBase F_comps.flatten t'.mem :=
       hF_holds.congr fun a ha ha2 => by
         rw [hF_flat] at ha2
-        exact hmod_ev.mem_eq_of_not_mem (by omega)
-          (by simp only [Set.mem_Ico, not_and, not_lt]; omega)
+        exact hm.mem_eq_of_not_mem (by omega) (by simp only [Set.mem_Ico, not_and, not_lt]; omega)
     have hF_holds' : HoldsIndexedEdges fcBase (F_comps ++ [F_k]).flatten t'.mem := by
       rw [List.flatten_concat]
       rw [← hF_flat] at hFk_holds
@@ -901,50 +794,26 @@ theorem pr02EvalDTLoop_spec {w r0 tableFrontier n m' : ℕ}
       · have hik' : i < k := by omega
         rw [List.getElem_append_left (by omega)]
         exact hF_msf i hik'
-    refine ⟨hsafe_step, hv_step, ?_, hst_step ▸ hmod_step, ?_⟩
-    · rw [hres_step, hst_step]; exact hpot_step
-    · rw [hres_step, hst_step]
-      exact ⟨rfl, by omega,
-        by change fcLen' ≤ fcLen + (r.verts.card - 1) at hfcl_ub
-           linarith [hfcl_ub, hfc_le, hsum_take1_eq],
-        hs_t.trans hs'_ge,
-        by linarith [hs'_fr, ht_fr, h5_add, hmul_take_add], hwf', hframe',
-        F_comps ++ [F_k], by simp [hF_len], hF_flat', hF_holds', hF_msf'⟩
+    exact Memory.FramedTriple.pure ⟨rfl, by omega,
+      by change fcLen' ≤ fcLen + (r.verts.card - 1) at hfcl_ub
+         linarith [hfcl_ub, hfc_le, hsum_take1_eq],
+      by linarith [hs'_fr, ht_fr, h5_add, hmul_take_add], hwf',
+      F_comps ++ [F_k], by simp [hF_len], hF_flat', hF_holds', hF_msf'⟩
   have hinv0 : inv 0 ⟨0, 0⟩ s :=
-    ⟨rfl, Nat.zero_le _, by simp, le_rfl, by simp, hwf, fun _ _ => rfl, [], rfl, rfl,
+    ⟨rfl, Nat.zero_le _, by simp, by simp, hwf, [], rfl, rfl,
       by simp [HoldsIndexedEdges], fun _ hi => absurd hi (Nat.not_lt_zero _)⟩
-  obtain ⟨hsafe_it, hv_it, hcost_it, hmod_it, ⟨_, _, hfc_le, hs_s', hs'_fr, hwf', _,
-      F_comps, hF_len, hF_flat, hF_holds, hF_msf⟩⟩ :=
-    iterate_potential_spec pr02EvalDTLoopStep pr02EvalDTLoopStepSafe w env 20 rounds.length
-      inv pot S hstep ⟨0, 0⟩ s hinv0
-  have hsum_le : ((rounds.take rounds.length).map fun r => r.verts.card - 1).sum ≤ n :=
-    sum_verts_sub_one_take_le rounds hinter rounds.length
-  have htake_all : rounds.take rounds.length = rounds := List.take_length
-  rw [htake_all] at hsum_le hfc_le hs'_fr
-  have hprog : pr02EvalDTLoop env =
-      (iterate pr02EvalDTLoopStep env rounds.length ⟨0, 0⟩ >>= fun res => pure res.fcLen) := rfl
-  refine ⟨⟨h16, hsafe_it⟩, framedTriple_iff_realization.mpr ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
-  · rw [hprog]; exact validHistory_bind_step hv_it (validHistory_pure w _ _)
-  · rw [hprog, memoryCost_bind', memoryCost_pure, add_zero]
-    dsimp only [pot] at hcost_it
-    simp only [List.drop_zero, List.drop_length, List.map_nil, List.sum_nil, mul_zero,
-      add_zero] at hcost_it
-    linarith [hcost_it, hopt_sum, hsum_edges_le, hrounds_le]
-  · rw [hprog, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    exact hmod_it
-  · rw [hprog, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-    exact hfc_le.trans hsum_le
-  · rw [hprog, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    exact hs_s'
-  · rw [hprog, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    linarith [hs'_fr, hsum_edges_le, hmul_edges_le]
-  · rw [hprog, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    exact hwf'
-  · refine ⟨F_comps, hF_len, ?_, ?_, fun i => hF_msf i.val i.isLt⟩
-    · rw [hprog, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-      exact hF_flat
-    · rw [hprog, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-      exact hF_holds
+  obtain ⟨hsafe_it, hit⟩ := Memory.FramedTriple.iterate_potential (Q := inv rounds.length) pot inv
+    hinv0 hstep fun _ _ h _ => h
+  have hsum_le : (rounds.map fun r => r.verts.card - 1).sum ≤ n := by
+    simpa using sum_verts_sub_one_take_le rounds hinter rounds.length
+  refine ⟨⟨h16, hsafe_it⟩, Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hit
+    subset_rfl fun st t hinv hm => Memory.FramedTriple.pure ?_) ?_ fun _ _ => id⟩
+  · obtain ⟨_, _, hfc_le, hs'_fr, hwf', F_comps, hF_len, hF_flat, hF_holds, hF_msf⟩ := hinv
+    rw [List.take_length] at hfc_le hs'_fr
+    exact ⟨hfc_le.trans hsum_le, hm.1, by linarith [hs'_fr, hsum_edges_le, hmul_edges_le], hwf',
+      F_comps, hF_len, hF_flat, hF_holds, fun i => hF_msf i.val i.isLt⟩
+  · simp only [pot, List.drop_zero]
+    linarith [hopt_sum, hsum_edges_le, hrounds_le]
 
 /-! ## Remainder-Graph Contraction and MSF Solver (`pr02SolveHRemProg`) -/
 
@@ -1111,7 +980,7 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
     have h1_fr := framedTriple_iff_realization.mp h1
     set rb := (Memory.spec 0).clientResult s (retagIndexedProg ⟨hRemBase, H_rem.length⟩)
     set s₁ := (Memory.spec 0).clientState s (retagIndexedProg ⟨hRemBase, H_rem.length⟩)
-    obtain ⟨hv1, hcost1, hmod1, hrb_eq, hs1_fr, hwf1, hholds1⟩ := h1_fr
+    obtain ⟨-, -, hmod1, hrb_eq, hs1_fr, hwf1, hholds1⟩ := h1_fr
     let H_retag := H_rem.mapIdx fun i e => (⟨e.u, e.v, e.weight, i⟩ : IndexedEdge n')
     have hretag_len : H_retag.length = H_rem.length := by simp [H_retag]
     have hcon_s1 : ∀ u : Fin n', s₁.mem (conglomBase + u.val) = (conglomFn u).val := fun u =>
@@ -1127,7 +996,7 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
       (contractEdgesProg ⟨H_rem.length, rb, conglomBase⟩)
     set s₂ := (Memory.spec 0).clientState s₁
       (contractEdgesProg ⟨H_rem.length, rb, conglomBase⟩)
-    obtain ⟨hv2, hcost2, hmod2, hceb_eq, hs2_fr, hwf2, H_conglom, hHcon_len, hholds2,
+    obtain ⟨-, -, hmod2, hceb_eq, hs2_fr, hwf2, H_conglom, hHcon_len, hholds2,
       hHcon_entries⟩ := h2_fr
     have h3 := compactVerticesProg_spec (w := w) (n := nConglom) (edgeBase := ceb)
       (es := H_conglom) (s := s₂) h16 hwf2 hholds2 (by rw [hceb_eq, hs2_fr, hHcon_len])
@@ -1138,7 +1007,7 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
       (compactVerticesProg ⟨nConglom, H_rem.length, ceb⟩)
     set s₃ := (Memory.spec 0).clientState s₂
       (compactVerticesProg ⟨nConglom, H_rem.length, ceb⟩)
-    obtain ⟨hv3, hcost3, hmod3, _, hcr1_eq, hcr2_le, hs3_fr, hwf3, lift_a, H_a, hlift_a_inj,
+    obtain ⟨-, -, hmod3, _, hcr1_eq, hcr2_le, hs3_fr, hwf3, lift_a, H_a, hlift_a_inj,
       hHa_len, hholds3, _, hHa_cov, hHa_lift⟩ := h3_fr
     have hretag_get : ∀ i (hi : i < H_rem.length),
         H_retag[i]'(by omega) =
@@ -1200,7 +1069,7 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
       (denseCaseProg ⟨cr.numVertices, H_rem.length, cr.edgeBase⟩)
     set s₄ := (Memory.spec 0).clientState s₃
       (denseCaseProg ⟨cr.numVertices, H_rem.length, cr.edgeBase⟩)
-    obtain ⟨hv4, hcost4, hmod4, _, hdr_fr_ge, hdr_fr_ed, hs4_fr, hwf4,
+    obtain ⟨-, -, hmod4, _, hdr_fr_ge, hdr_fr_ed, hs4_fr, hwf4,
       msf_a, hmsfa_len, hmsfa_holds, hmsfa_sub, hmsfa_msf⟩ := h4_fr
     have hHa_id_range : H_a.map IndexedEdge.id = List.range H_rem.length := by
       apply List.ext_getElem
@@ -1263,27 +1132,13 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
       hmsfa_holds (by rw [hmsfa_len]; exact hdr_fr_ed)
       (fun e he => (hmsfa_ids e he).1) (hfit.of_le (by rw [hmsfa_len]; omega))
     rw [hmsfa_len] at h5
-    let prog5 := liftHRemProg ⟨hRemBase, dr.edgeBase, dr.numEdges⟩
-    change Memory.FramedTriple w s₄ prog5 _ ∅ _ at h5
-    have h5_fr := framedTriple_iff_realization.mp h5
-    set lb := (Memory.spec 0).clientResult s₄ prog5
-    set s₅ := (Memory.spec 0).clientState s₄ prog5
-    obtain ⟨hv5, hcost5, hmod5, hlb_eq, hs5_fr, hwf5, hlift_holds⟩ := h5_fr
-    have hprep_eq : pr02SolveHRemPrep d =
-        (retagIndexedProg ⟨hRemBase, H_rem.length⟩ >>= fun rb' =>
-          contractEdgesProg ⟨H_rem.length, rb', conglomBase⟩ >>= fun ceb' =>
-            compactVerticesProg ⟨nConglom, H_rem.length, ceb'⟩) := rfl
-    have hvh_prep : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (pr02SolveHRemPrep d)) := by
-      rw [hprep_eq]
-      refine validHistory_bind_step hv1 ?_
-      refine validHistory_bind_step hv2 hv3
-    have hres_prep : (Memory.spec 0).clientResult s (pr02SolveHRemPrep d) = cr := by
-      rw [hprep_eq, StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientResult_bind]
-    have hst_prep : (Memory.spec 0).clientState s (pr02SolveHRemPrep d) = s₃ := by
-      rw [hprep_eq, StateTransitionSpec.clientState_bind,
-        StateTransitionSpec.clientState_bind]
+    have hprep : Memory.FramedTriple w s (pr02SolveHRemPrep d) (32 * H_rem.length + 3 * n' + 4) ∅
+        fun r' t' => r' = cr ∧ t' = s₃ :=
+      Memory.FramedTriple.mono (Memory.FramedTriple.seq h1 subset_rfl
+        (Memory.FramedTriple.seq h2 subset_rfl (Memory.FramedTriple.mono
+          (framedTriple_with_realization h3) le_rfl fun _ _ h => ⟨h.1, h.2.1⟩)))
+        (by omega) fun _ _ => id
+    obtain ⟨-, -, -, hres_prep, hst_prep⟩ := framedTriple_iff_realization.mp hprep
     have hrb_fold : (Memory.spec 0).clientResult s
         (retagIndexedProg ⟨hRemBase, H_rem.length⟩) = rb := rfl
     have hs1_fold : (Memory.spec 0).clientState s
@@ -1309,31 +1164,6 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
         rw [hu, hv]
         exact ⟨(H_conglom[j]'(by rw [hHcon_len]; exact hj)).u.isLt,
           (H_conglom[j]'(by rw [hHcon_len]; exact hj)).v.isLt⟩
-    have hcost_prep : memoryCost (pr02SolveHRemPrep d) s ≤
-        32 * H_rem.length + 3 * n' + 4 := by
-      rw [hprep_eq, memoryCost_bind', hrb_fold, hs1_fold, memoryCost_bind', hceb_fold, hs2_fold]
-      omega
-    have hne_eq : pr02SolveHRemNonEmpty d =
-        (pr02SolveHRemPrep d >>= fun cr' =>
-          denseCaseProg ⟨cr'.numVertices, H_rem.length, cr'.edgeBase⟩ >>= fun dr' =>
-            liftHRemProg ⟨hRemBase, dr'.edgeBase, dr'.numEdges⟩ >>= fun lb' =>
-              pure ⟨lb', dr'.numEdges⟩) := rfl
-    have hvh_ne : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (pr02SolveHRemNonEmpty d)) := by
-      rw [hne_eq]
-      refine validHistory_bind_step hvh_prep ?_
-      rw [hres_prep, hst_prep]
-      refine validHistory_bind_step hv4 ?_
-      exact validHistory_bind_step hv5 (validHistory_pure w _ _)
-    have hres_ne : (Memory.spec 0).clientResult s (pr02SolveHRemNonEmpty d) =
-        ⟨lb, dr.numEdges⟩ := by
-      rw [hne_eq, StateTransitionSpec.clientResult_bind, hres_prep, hst_prep,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientResult_pure]
-    have hst_ne : (Memory.spec 0).clientState s (pr02SolveHRemNonEmpty d) = s₅ := by
-      rw [hne_eq, StateTransitionSpec.clientState_bind, hres_prep, hst_prep,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-        StateTransitionSpec.clientState_pure]
     have hdr_fold : (Memory.spec 0).clientResult s₃
         (denseCaseProg ⟨cr.numVertices, H_rem.length, cr.edgeBase⟩) = dr := rfl
     have hs4_fold : (Memory.spec 0).clientState s₃
@@ -1356,17 +1186,6 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
         rw [hid_eq]
         rw [hs3_fr, hs2_fr, hs1_fr] at hs3_le_s4
         omega
-    have hcost4_le : memoryCost (denseCaseProg ⟨cr.numVertices, H_rem.length, cr.edgeBase⟩) s₃ ≤
-        3618 * H_rem.length + 17798 * n' + 11 := by
-      have h889 := Nat.mul_le_mul_left 889 hiter_a
-      rw [Nat.mul_assoc] at hcost4
-      omega
-    have hcost_ne : memoryCost (pr02SolveHRemNonEmpty d) s ≤
-        3659 * H_rem.length + 17801 * n' + 16 := by
-      rw [hne_eq, memoryCost_bind', hres_prep, hst_prep, memoryCost_bind',
-        hdr_fold, hs4_fold, memoryCost_bind', memoryCost_pure, add_zero]
-      dsimp only [prog5] at hcost5
-      omega
     let H_lift := msf_a.pmap (fun e he => H_rem[e.id]'(hmsfa_ids e he).1) (fun _ he => he)
     have hHlift_sub : H_lift.Subperm H_rem := by
       have hids_sub : (msf_a.map IndexedEdge.id).Subperm (List.range H_rem.length) := by
@@ -1422,20 +1241,19 @@ theorem pr02SolveHRemProg_spec {w n' nConglom n₀ r0 hRemBase conglomBase : ℕ
     have hmul_dr2 : dr.numEdges * r0 ≤ n' := by
       rw [← hmsfa_len]
       exact (Nat.mul_le_mul_right r0 hmsfa_card).trans hna_mul
-    have hmod_ne : Memory.Modifies ∅ s s₅ := hmod14.trans hmod5
-    refine ⟨⟨h16, fun h => absurd h (by dsimp only [d]; omega), fun _ => hsafe_ne⟩,
-      framedTriple_iff_realization.mpr ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
-    · rw [hprog_ne]; exact hvh_ne
-    · rw [hprog_ne]; exact hcost_ne
-    · rw [hprog_ne, hst_ne]; exact hmod_ne
-    · rw [hprog_ne, hres_ne, hst_ne]; dsimp only; rw [hlb_eq, hs5_fr]
-    · rw [hprog_ne, hres_ne]; exact hmul_dr2
-    · rw [hprog_ne, hres_ne]; exact hdr2_le_rem
-    · rw [hprog_ne, hst_ne, hs5_fr]; rw [hs3_fr, hs2_fr, hs1_fr] at hs3_le_s4; omega
-    · rw [hprog_ne, hst_ne, hs5_fr]; omega
-    · rw [hprog_ne, hst_ne]; exact hwf5
-    · refine ⟨H_lift, ?_, ?_, hHlift_sub, hHlift_msf⟩
-      · rw [hprog_ne, hres_ne]; simp [H_lift, hmsfa_len]
-      · rw [hprog_ne, hres_ne, hst_ne]; dsimp only; exact hlift_holds
+    have h889 : 889 * H_rem.length * Nat.iterClogBeta ((2 * H_rem.length) / cr.numVertices)
+        cr.numVertices ≤ 889 * (4 * H_rem.length + 20 * n') := by
+      rw [Nat.mul_assoc]; exact Nat.mul_le_mul_left 889 hiter_a
+    refine ⟨⟨h16, fun h => absurd h (by dsimp only [d]; omega), fun _ => hsafe_ne⟩, ?_⟩
+    rw [hprog_ne]
+    refine Memory.FramedTriple.mono (Memory.FramedTriple.call_eq hprep subset_rfl
+      (Memory.FramedTriple.seq (c₂ := 9 * dr.numEdges + 1 + 0) h4 subset_rfl ?_)) (by omega)
+      fun _ _ => id
+    rw [hdr_fold, hs4_fold]
+    refine Memory.FramedTriple.call h5 subset_rfl fun lb s₅ hpost _ => Memory.FramedTriple.pure ?_
+    obtain ⟨hlb_eq, hs5_fr, hwf5, hlift_holds⟩ := hpost
+    rw [hs3_fr, hs2_fr, hs1_fr] at hs3_le_s4
+    exact ⟨by dsimp only; omega, hmul_dr2, hdr2_le_rem, by omega, by omega, hwf5, H_lift,
+      by simp [H_lift, hmsfa_len], hlift_holds, hHlift_sub, hHlift_msf⟩
 
 end Cslib.Algorithms.WordRAM.MinimumSpanningForest

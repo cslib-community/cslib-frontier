@@ -20,7 +20,7 @@ import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.GraphOps.IndexedEd
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.BaseOps
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.BoruvkaStages
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.PartitionRound
-import CslibFrontier.Computability.WordRAM.Realization.LoopFrame
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.NatLog
 import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 import CslibFrontier.Tactic.Fits
@@ -592,16 +592,15 @@ private theorem optimalMSFBranchA_spec {w nOrig n₀ edgeBase₀ : ℕ}
       s.mem (edgeBase₀ + 4 * j) < n₀ ∧ s.mem (edgeBase₀ + 4 * j + 1) < n₀ := fun j hj => by
     obtain ⟨hu, hv, _, _⟩ := hes0_holds j hj
     exact ⟨hu ▸ (es₀[j]'hj).u.isLt, hv ▸ (es₀[j]'hj).v.isLt⟩
-  have h1 := framedTriple_iff_realization.mp
-    (denseCaseProg_spec h16 hwf hes0_holds hes0_fr hfit_dc)
+  have h1ft := denseCaseProg_spec h16 hwf hes0_holds hes0_fr hfit_dc
+  have h1 := framedTriple_iff_realization.mp h1ft
   generalize h_dc : (Memory.spec 0).clientResult s
     (denseCaseProg ⟨n₀, es₀.length, edgeBase₀⟩) = dc at h1
   generalize h_s1 : (Memory.spec 0).clientState s
     (denseCaseProg ⟨n₀, es₀.length, edgeBase₀⟩) = s₁ at h1
-  rcases h1 with ⟨hv1, hc1, hmod1, _, hdc1_ge_s, hdc_fr, hs1_fr, hwf1,
+  rcases h1 with ⟨-, -, hmod1, _, hdc1_ge_s, hdc_fr, hs1_fr, hwf1,
     ⟨msf0, hmsf0_len, hmsf0_holds, hmsf0_sub, hmsf0_msf⟩⟩
   rw [Nat.mul_assoc 76] at hs1_fr
-  rw [Nat.mul_assoc 889] at hc1
   obtain ⟨remIds, hrem_val, hrem_msf⟩ := hinv0.2.2.2.2 msf0 hmsf0_sub hmsf0_msf
   simp only [List.nil_append] at hrem_msf
   have hrem_len : remIds.length = dc.numEdges := by
@@ -616,13 +615,12 @@ private theorem optimalMSFBranchA_spec {w nOrig n₀ edgeBase₀ : ℕ}
   set s₂ := (Memory.spec 0).clientState s₁ (Memory.allocDirty es.length)
   have hmsf0_holds2 : HoldsIndexedEdges dc.edgeBase msf0 s₂.mem := by
     rw [hs2_mem]; exact hmsf0_holds
-  have h2 := framedTriple_iff_realization.mp
-    (@appendSelIdsProg_spec w n₀ dc.edgeBase selBuf 0 msf0 s₂ h16 hwf2 hmsf0_holds2
-      (by omega) (by rw [hs2_fr, hselBuf_eq, hmsf0_len]; omega)
-      (Or.inl (by rw [hselBuf_eq]; omega)))
+  have h2ft := @appendSelIdsProg_spec w n₀ dc.edgeBase selBuf 0 msf0 s₂ h16 hwf2 hmsf0_holds2
+    (by omega) (by rw [hs2_fr, hselBuf_eq, hmsf0_len]; omega) (Or.inl (by rw [hselBuf_eq]; omega))
+  have h2 := framedTriple_iff_realization.mp h2ft
   generalize h_s3 : (Memory.spec 0).clientState s₂
     (appendSelIdsProg ⟨dc.edgeBase, selBuf, 0, msf0.length⟩) = s₃ at h2
-  rcases h2 with ⟨hv2, hc2, hmod2, _, hs3_fr, hwf3, hset3⟩
+  rcases h2 with ⟨-, -, hmod2, _, hs3_fr, hwf3, hset3⟩
   have hsafe2 : appendSelIdsProgSafe w ⟨dc.edgeBase, selBuf, 0, msf0.length⟩ s₂ :=
     ⟨h16, by dsimp only; omega, by dsimp only; rw [hs2_fr, hselBuf_eq, hmsf0_len]; omega⟩
   have hraw3 : HoldsEdges 3 es s₃.mem :=
@@ -647,53 +645,41 @@ private theorem optimalMSFBranchA_spec {w nOrig n₀ edgeBase₀ : ℕ}
     rw [hrem_mem3 j hj]
     have := remIds[j].isLt
     rw [hs3_fr, hs2_fr]; omega
-  have h3 := framedTriple_iff_realization.mp
-    (emitMSFEdges_spec (w := w) (n := nOrig) (d := ⟨3, selBuf, remIds.length⟩) (es := es)
-      (selIds := remIds) (s := s₃) h16 hwf3 hraw3 (by dsimp only; rw [hs3_fr, hs2_fr]; omega)
-      hrem_mem3 (by dsimp only; rw [hs3_fr, hs2_fr, hselBuf_eq, hrem_len]; omega) rfl hfit_emit)
-  dsimp only at h3
-  rcases h3 with ⟨hv3, hc3, _, hout_eq, _, _, hout_list⟩
+  have h3ft := emitMSFEdges_spec (w := w) (n := nOrig) (d := ⟨3, selBuf, remIds.length⟩) (es := es)
+    (selIds := remIds) (s := s₃) h16 hwf3 hraw3 (by dsimp only; rw [hs3_fr, hs2_fr]; omega)
+    hrem_mem3 (by dsimp only; rw [hs3_fr, hs2_fr, hselBuf_eq, hrem_len]; omega) rfl hfit_emit
   have hsafe3 : emitMSFEdgesSafe w ⟨3, selBuf, remIds.length⟩ s₃ :=
     ⟨h16, by dsimp only; rw [hs3_fr, hs2_fr, hselBuf_eq, hrem_len]; omega, hfit_emit, hsrc_lt3⟩
-  have hprog : optimalMSFBranchA ⟨es.length, n₀, es₀.length, edgeBase₀⟩ =
-      (denseCaseProg ⟨n₀, es₀.length, edgeBase₀⟩ >>= fun dc' =>
-        Memory.allocDirty es.length >>= fun selBuf' =>
-        appendSelIdsProg ⟨dc'.edgeBase, selBuf', 0, dc'.numEdges⟩ >>= fun _ =>
-        emitMSFEdges ⟨3, selBuf', dc'.numEdges⟩) := rfl
-  rw [hmsf0_len] at h_s3 hsafe2 hv2 hc2
-  rw [hrem_len] at hv3 hsafe3 hout_eq hout_list hc3
   have hs2_eq : s₂ = ⟨s₁.mem, s₁.frontier + es.length⟩ := by rw [← hs2_mem, ← hs2_fr]
-  refine ⟨⟨h16, hfit.of_le (by dsimp only; omega), ⟨h16, hes0_fr, hfit_dc, hes0_bd⟩, ?_⟩, ?_, ?_⟩
-  · dsimp only
-    rw [h_dc, h_s1]
-    refine ⟨hfit_alloc, ?_⟩
-    rw [← hs2_eq, ← hselBuf_eq]
-    refine ⟨hsafe2, ?_⟩
-    rw [h_s3]
-    exact hsafe3
-  · rw [hprog]
-    refine validHistory_bind_step hv1 ?_
-    rw [h_dc, h_s1]
-    refine validHistory_allocDirty_bind hfit_alloc ?_
-    rw [← hs2_eq, ← hselBuf_eq]
-    refine validHistory_bind_step hv2 ?_
-    rw [h_s3]
-    exact hv3
-  · refine ⟨remIds.map fun i => es[i.val], hrem_msf, by simp [hrem_len, hdc2_le], ?_, ?_, ?_⟩
-    · rw [hprog, StateTransitionSpec.clientResult_bind, h_dc, h_s1, clientResult_bind_allocDirty,
-        StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientState_bind, h_dc, h_s1, clientState_bind_allocDirty,
-        ← hs2_eq, ← hselBuf_eq, StateTransitionSpec.clientState_bind, h_s3, hout_list]
-    · rw [hprog, StateTransitionSpec.clientResult_bind, h_dc, h_s1, clientResult_bind_allocDirty,
-        ← hs2_eq, ← hselBuf_eq, StateTransitionSpec.clientResult_bind, h_s3, hout_eq,
-        hs3_fr, hs2_fr]
-      exact hfit.of_le (by simp only [List.length_map]; omega)
-    · rw [hprog, memoryCost_bind', h_dc, h_s1, memoryCost_bind', memoryCost_allocDirty]
-      change memoryCost (denseCaseProg ⟨n₀, es₀.length, edgeBase₀⟩) s +
-          (1 + memoryCost (appendSelIdsProg ⟨dc.edgeBase, selBuf, 0, dc.numEdges⟩ >>= fun _ =>
-            emitMSFEdges ⟨3, selBuf, dc.numEdges⟩) s₂) ≤ _
-      rw [memoryCost_bind', h_s3]
-      omega
+  have h889 : 889 * es₀.length * Nat.iterClogBeta ((2 * es₀.length) / n₀) n₀ ≤
+      889 * (4 * es₀.length + 460 * n₀) := by rw [Nat.mul_assoc]; exact Nat.mul_le_mul_left _ hbeta
+  have hft : Memory.FramedTriple w s (optimalMSFBranchA ⟨es.length, n₀, es₀.length, edgeBase₀⟩)
+      (3628 * es.length + 408958 * nOrig + 16) Set.univ fun outBase s' =>
+        outputList s'.mem outBase = Kruskal.encodeEdges (remIds.map fun i => es[i.val]) ∧
+        Fits w (outBase + 3 * (remIds.map fun i => es[i.val]).length) := by
+    unfold optimalMSFBranchA
+    eapply Memory.FramedTriple.mono (hQ := fun _ _ => id)
+    · eapply Memory.FramedTriple.seq (h1ft.frame_mono (Set.subset_univ _)) subset_rfl
+      on_goal 1 => rw [h_dc, h_s1]
+      eapply Memory.FramedTriple.allocDirty_bind hfit_alloc
+      on_goal 1 => rw [← hs2_eq, ← hselBuf_eq, ← hmsf0_len]
+      eapply Memory.FramedTriple.seq (h2ft.frame_mono (Set.subset_univ _)) subset_rfl
+      on_goal 1 => rw [h_s3, hmsf0_len, ← hrem_len]
+      exact (h3ft.frame_mono (Set.subset_univ _)).mono le_rfl fun _ _ ⟨hout, _, _, hlist⟩ =>
+        ⟨hlist, hout ▸ hfit.of_le (by simp only [List.length_map]; omega)⟩
+    · dsimp only; omega
+  obtain ⟨hv, hc, -, hlist, hfit_out⟩ := framedTriple_iff_realization.mp hft
+  rw [hmsf0_len] at h_s3 hsafe2
+  rw [hrem_len] at hsafe3
+  refine ⟨⟨h16, hfit.of_le (by dsimp only; omega), ⟨h16, hes0_fr, hfit_dc, hes0_bd⟩, ?_⟩, hv,
+    remIds.map fun i => es[i.val], hrem_msf, by simp [hrem_len, hdc2_le], hlist, hfit_out, hc⟩
+  dsimp only
+  rw [h_dc, h_s1]
+  refine ⟨hfit_alloc, ?_⟩
+  rw [← hs2_eq, ← hselBuf_eq]
+  refine ⟨hsafe2, ?_⟩
+  rw [h_s3]
+  exact hsafe3
 
 private def optimalMSFBranchB (a : OptimalMSFBranchBArgs) : Memory.Prog ℕ := do
   let tableBase ← precomputeDTProg a.r0
@@ -794,11 +780,11 @@ private theorem optimalMSFBranchB_spec {w nOrig n₀ edgeBase₀ : ℕ}
   have hmul_r0 : es₀.length * r0 ≤ es.length * max 1 (Nat.iterLog 3 nOrig) :=
     Nat.mul_le_mul hm₀_le hr0_le_max
   have hfit_dt : Fits w (s.frontier + dtPrecompCost r0) := hfit.of_le (by omega)
-  have h1 := framedTriple_iff_realization.mp
-    (precomputeDTProg_spec hwf ((precomputeDTProgSafe_iff w r0 s).mpr hfit_dt))
+  have h1ft := precomputeDTProg_spec hwf ((precomputeDTProgSafe_iff w r0 s).mpr hfit_dt)
+  have h1 := framedTriple_iff_realization.mp h1ft
   generalize h_tb : (Memory.spec 0).clientResult s (precomputeDTProg r0) = tableBase at h1
   generalize h_s1 : (Memory.spec 0).clientState s (precomputeDTProg r0) = s₁ at h1
-  rcases h1 with ⟨hv1, hc1, hmod1, hwf1, hs1_fr, htab1, htib1⟩
+  rcases h1 with ⟨-, -, hmod1, hwf1, hs1_fr, htab1, htib1⟩
   have hs_le_s1 : s.frontier ≤ s₁.frontier := hmod1.1
   have hfit_alloc : Fits w (s₁.frontier + es.length) := hfit.of_le (by omega)
   obtain ⟨hselBuf_eq, hs2_fr, hs2_mem, hwf2⟩ := allocDirty_state_props hwf1 hfit_alloc
@@ -955,55 +941,43 @@ private theorem optimalMSFBranchB_spec {w nOrig n₀ edgeBase₀ : ℕ}
   have hopt_init : pot ⟨1, n₀, es₀.length, edgeBase₀, 0⟩ s₂ =
       20000 * es₀.length + 5000 * n₀ + 30 * optDepthMN es₀.length n₀ + 110 := by
     simp [pot]
-  have hprog : optimalMSFBranchB ⟨es.length, n₀, es₀.length, edgeBase₀, r0⟩ =
-      (precomputeDTProg r0 >>= fun tableBase' =>
-        Memory.allocDirty es.length >>= fun selBuf' =>
-        boundedWhile guard pr02LoopBodyProg ⟨r0, tableBase', selBuf'⟩ (es.length + 1)
-          ⟨1, n₀, es₀.length, edgeBase₀, 0⟩ >>= fun stFin' =>
-        optimalMSFFinishProg ⟨selBuf', stFin'.numVerts, stFin'.numEdges, stFin'.edgeBase,
-          stFin'.selLen⟩) := rfl
   have hopt_le : optDepthMN es₀.length n₀ ≤ optDepthMN es.length nOrig :=
     (optDepthMN_mono_m hm₀_le).trans (optDepthMN_mono_n hn₀_le)
   have hs2_eq : s₂ = ⟨s₁.mem, s₁.frontier + es.length⟩ := by rw [← hs2_mem, ← hs2_fr]
+  have hpot0 : pot stFin s₃ = 0 := by simp [pot, hst0]
+  dsimp only [env] at hcost_loop
+  rw [hopt_init, hpot0, Nat.zero_mul, Nat.add_zero, Nat.add_zero] at hcost_loop
+  have h30_opt : 30 * optDepthMN es₀.length n₀ ≤ 30 * optDepthMN es.length nOrig :=
+    Nat.mul_le_mul_left 30 hopt_le
+  have hft : Memory.FramedTriple w s (optimalMSFBranchB ⟨es.length, n₀, es₀.length, edgeBase₀, r0⟩)
+      (30 * optDepthMN es.length nOrig + 59200 * es.length + 5020 * nOrig + 1138055) Set.univ
+      fun outBase s' =>
+        outputList s'.mem outBase = Kruskal.encodeEdges msfEs ∧
+          Fits w (outBase + 3 * msfEs.length) := by
+    unfold optimalMSFBranchB
+    eapply Memory.FramedTriple.mono (hQ := fun _ _ => id)
+    · eapply Memory.FramedTriple.seq (h1ft.frame_mono (Set.empty_subset _)) subset_rfl
+      on_goal 1 => rw [h_tb, h_s1]
+      eapply Memory.FramedTriple.allocDirty_bind hfit_alloc
+      on_goal 1 => rw [← hs2_eq, ← hselBuf_eq]
+      eapply Memory.FramedTriple.call_eq
+        (Memory.FramedTriple.univ_of_realization hv_loop hcost_loop h_stFin h_s3) subset_rfl
+      exact Memory.FramedTriple.call_eq_tail
+        (Memory.FramedTriple.univ_of_realization hv_fin hc_fin rfl rfl) subset_rfl
+        ⟨hout_list, hfit_out⟩
+    · omega
+  obtain ⟨hv, hc, -, hlist, hfit'⟩ := framedTriple_iff_realization.mp hft
   refine ⟨⟨h16, hfit.of_le (by dsimp only; omega), hfit.of_le (by dsimp only; omega),
       hfit.of_le (by dsimp only; omega), hfit.of_le (by dsimp only; omega),
-      hfit.of_le (by dsimp only; omega), (precomputeDTProgSafe_iff w r0 s).mpr hfit_dt, ?_⟩, ?_, ?_⟩
-  · dsimp only
-    rw [h_tb, h_s1]
-    refine ⟨hfit_alloc, ?_⟩
-    rw [← hs2_eq, ← hselBuf_eq]
-    refine ⟨hsafe_loop, ?_⟩
-    rw [h_stFin, h_s3]
-    exact hsafe_fin
-  · rw [hprog]
-    refine validHistory_bind_step hv1 ?_
-    rw [h_tb, h_s1]
-    refine validHistory_allocDirty_bind hfit_alloc ?_
-    rw [← hs2_eq, ← hselBuf_eq]
-    refine validHistory_bind_step hv_loop ?_
-    rw [h_stFin, h_s3]
-    exact hv_fin
-  · refine ⟨msfEs, hmsf_msf, hmsf_len, ?_, ?_, ?_⟩
-    · rw [hprog, StateTransitionSpec.clientResult_bind, h_tb, h_s1, clientResult_bind_allocDirty,
-        ← hs2_eq, ← hselBuf_eq, StateTransitionSpec.clientResult_bind, h_stFin,
-        StateTransitionSpec.clientState_bind, h_tb, h_s1, clientState_bind_allocDirty,
-        ← hs2_eq, ← hselBuf_eq, StateTransitionSpec.clientState_bind, h_stFin, h_s3, hout_list]
-    · rw [hprog, StateTransitionSpec.clientResult_bind, h_tb, h_s1, clientResult_bind_allocDirty,
-        ← hs2_eq, ← hselBuf_eq, StateTransitionSpec.clientResult_bind, h_stFin, h_s3]
-      exact hfit_out
-    · rw [hprog, memoryCost_bind', h_tb, h_s1, memoryCost_bind', memoryCost_allocDirty]
-      change memoryCost (precomputeDTProg r0) s +
-          (1 + memoryCost (boundedWhile guard pr02LoopBodyProg ⟨r0, tableBase, selBuf⟩
-            (es.length + 1) ⟨1, n₀, es₀.length, edgeBase₀, 0⟩ >>= fun stFin' =>
-            optimalMSFFinishProg ⟨selBuf, stFin'.numVerts, stFin'.numEdges, stFin'.edgeBase,
-              stFin'.selLen⟩) s₂) ≤ _
-      rw [memoryCost_bind', h_stFin, h_s3]
-      have hpot0 : pot stFin s₃ = 0 := by simp [pot, hst0]
-      dsimp only [env] at hcost_loop
-      rw [hopt_init, hpot0, Nat.zero_mul, Nat.add_zero, Nat.add_zero] at hcost_loop
-      have h30_opt : 30 * optDepthMN es₀.length n₀ ≤ 30 * optDepthMN es.length nOrig :=
-        Nat.mul_le_mul_left 30 hopt_le
-      omega
+      hfit.of_le (by dsimp only; omega), (precomputeDTProgSafe_iff w r0 s).mpr hfit_dt, ?_⟩, hv,
+    msfEs, hmsf_msf, hmsf_len, hlist, hfit', hc⟩
+  dsimp only
+  rw [h_tb, h_s1]
+  refine ⟨hfit_alloc, ?_⟩
+  rw [← hs2_eq, ← hselBuf_eq]
+  refine ⟨hsafe_loop, ?_⟩
+  rw [h_stFin, h_s3]
+  exact hsafe_fin
 
 /-! ## Section 5: Private Dispatch (`optimalMSFPositiveProg`, `optimalMSFNonEmptyProg`) -/
 

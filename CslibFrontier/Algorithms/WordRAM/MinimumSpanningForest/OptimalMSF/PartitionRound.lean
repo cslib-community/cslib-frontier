@@ -16,7 +16,7 @@ import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.BaseOps
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.PartitionEval
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.Bridges
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.Outer
-import CslibFrontier.Computability.WordRAM.Realization.LoopFrame
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Foundations.Data.List.Subperm
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
@@ -290,7 +290,8 @@ private theorem pr02MergeNextProg_spec {w n_orig n' nConglom fcBase hlBase mcBas
     (dedupSimpleEdgesProg ⟨n', F_C.length + H_lift.length + M_C.length, merged.base⟩)
   set s₂ := (Memory.spec 0).clientState s₁
     (dedupSimpleEdgesProg ⟨n', F_C.length + H_lift.length + M_C.length, merged.base⟩)
-  obtain ⟨_, _, _, hdd_n, hdd_end, hs2_fr, hwf2, es_dd, hdd_len, hdd_sub, hholds2, _, _, _⟩ := h2r
+  obtain ⟨_, _, hmod2, hdd_n, hdd_end, hs2_fr, hwf2, es_dd, hdd_len, hdd_sub, hholds2, hdedup_rep,
+    hsimp2, _⟩ := h2r
   have hbd2 : ∀ j < dd.numEdges, s₂.mem (dd.edgeBase + 4 * j) < dd.numVertices ∧
       s₂.mem (dd.edgeBase + 4 * j + 1) < dd.numVertices := fun j hj => by
     have hj' : j < es_dd.length := hdd_len.symm ▸ hj
@@ -310,47 +311,18 @@ private theorem pr02MergeNextProg_spec {w n_orig n' nConglom fcBase hlBase mcBas
       exact hfit.of_le
         (by rw [hs1_fr] at hs2_fr; rw [hdd_n, ← hdd_len]; dsimp only [F_C, M_C] at *; omega)
   refine ⟨hsafe_mrg, ?_⟩
-  dsimp only [pr02MergeNextProg]
-  refine (Memory.FramedTriple.bind_same
-    (c₂ := 55 * (F_C.length + H_lift.length + M_C.length) + 9 * n' + 8)
-    (h1.mono le_rfl fun blk₁ t₁ ⟨hblk₁, _, ht1_fr, hwt1, hth1⟩ => ?_)).mono
-    (by dsimp only [F_C, M_C]; omega) fun _ _ h => h
-  have hs_le_t1 : s.frontier ≤ t₁.frontier := by rw [ht1_fr]; omega
-  have h2' := dedupSimpleEdgesProg_spec (w := w) (n := n') (edgeBase := blk₁.base) (es := L_merged)
-    (s := t₁) h16 hwt1 hth1 (by rw [hblk₁, ht1_fr, hmg_len])
-    (hfit.of_le (by rw [ht1_fr, hmg_len]; dsimp only [F_C, M_C]; omega))
-  rw [hmg_len] at h2'
-  have h2'm : Memory.FramedTriple w t₁
-      (dedupSimpleEdgesProg ⟨n', F_C.length + H_lift.length + M_C.length, blk₁.base⟩)
-      (41 * (F_C.length + H_lift.length + M_C.length) + 6 * n' + 6) ∅ fun dd' t₂ =>
-        Memory.Modifies ∅ t₁ t₂ ∧ dd'.numVertices = n' ∧
-        dd'.edgeBase + 4 * dd'.numEdges ≤ t₂.frontier ∧
-        t₂.frontier ≤ t₁.frontier + (13 * (F_C.length + H_lift.length + M_C.length) + 2 * n') ∧
-        Memory.WellFormed w t₂ ∧ ∃ esOut : List (IndexedEdge n'), esOut.length = dd'.numEdges ∧
-          esOut.Subperm L_merged ∧ HoldsIndexedEdges dd'.edgeBase esOut t₂.mem ∧
-          esOut.map IndexedEdge.toWeighted =
-            dedupSimpleEdges (L_merged.map IndexedEdge.toWeighted) ∧
-          IsSimple (edgeEnds (esOut.map IndexedEdge.toWeighted)) ∧
-          ∀ e ∈ L_merged, e.u ≠ e.v → ∃ e' ∈ esOut, s(e'.u, e'.v) = s(e.u, e.v) ∧
-            e'.weight ≤ e.weight :=
-    Memory.Triple.mono h2' le_rfl fun _ _ ⟨hm, hq⟩ => ⟨hm, hm, hq⟩
-  refine (Memory.FramedTriple.bind_same
-    (c₂ := 14 * (F_C.length + H_lift.length + M_C.length) + 3 * n' + 2)
-    (h2'm.mono le_rfl fun dd' t₂
-        ⟨hmod_t1_t2, hdd'_n, hdd'_end, ht2_fr, hwt2, es_dd', hdd'_len, hdd'_sub, hholds2',
-          hdedup_rep, hsimp2', _⟩ => ?_)).mono (by omega) fun _ _ h => h
-  have hdd'_le : es_dd'.length ≤ L_merged.length := hdd'_sub.length_le
-  have hm_dd'_le : es_dd'.length ≤ F_C.length + H_lift.length + M_C.length := by
-    rw [← hmg_len]; exact hdd'_le
-  have h3 := compactVerticesProg_spec (w := w) (n := n') (edgeBase := dd'.edgeBase)
-    (es := es_dd') (s := t₂) h16 hwt2 hholds2' (by rw [hdd'_len]; exact hdd'_end)
+  have hdd_eq : (⟨n', es_dd.length, dd.edgeBase⟩ : GraphSlice) = dd := by rw [hdd_len, ← hdd_n]
+  have h3 := compactVerticesProg_spec (w := w) (n := n') (edgeBase := dd.edgeBase)
+    (es := es_dd) (s := s₂) h16 hwf2 hholds2 (by rw [hdd_len]; exact hdd_end)
     (hfit.of_le (by dsimp only [F_C, M_C] at *; omega))
-  have hdd'_eq : (⟨n', es_dd'.length, dd'.edgeBase⟩ : GraphSlice) = dd' := by
-    cases dd'; simp only at hdd'_n hdd'_len; rw [hdd'_n, hdd'_len]
-  rw [hdd'_eq] at h3
-  refine (Memory.FramedTriple.bind_same (c₂ := 0) (h3.mono le_rfl fun cp t₃
-    ⟨_, hcp_eb, hcp_n, ht3_fr, hwt3, lift_next, esNext, hlift_inj, hnext_len, hholds3, _, hnoiso,
-      hlift_eq⟩ => ?_)).mono (by omega) fun _ _ h => h
+  rw [hdd_eq] at h3
+  dsimp only [pr02MergeNextProg]
+  refine Memory.FramedTriple.mono (Memory.FramedTriple.seq h1 subset_rfl
+    (Memory.FramedTriple.seq h2 subset_rfl (Memory.FramedTriple.call (c₂ := 0) h3 subset_rfl
+      fun cp t₃ hpost _ => Memory.FramedTriple.pure ?_)))
+    (by dsimp only [F_C, M_C] at *; omega) fun _ _ => id
+  obtain ⟨_, hcp_eb, hcp_n, ht3_fr, hwt3, lift_next, esNext, hlift_inj, hnext_len, hholds3, _,
+    hnoiso, hlift_eq⟩ := hpost
   have hinv_next : MSFLiftInv es accIds esNext := by
     have hFC_sub : F_C.Subperm (rounds.flatMap PartitionRoundWitness.compGlobal) := by
       rw [List.flatMap_def]
@@ -362,10 +334,10 @@ private theorem pr02MergeNextProg_spec {w n_orig n' nConglom fcBase hlBase mcBas
         hFC_sub.append hHL_sub
       exact (h1_sub.append (List.Subperm.refl M_C)).trans hperm.subperm
     have hnext_id_sub : (esNext.map IndexedEdge.id).Subperm (es'.map IndexedEdge.id) := by
-      have heq_id : esNext.map IndexedEdge.id = es_dd'.map IndexedEdge.id := by
+      have heq_id : esNext.map IndexedEdge.id = es_dd.map IndexedEdge.id := by
         rw [← hlift_eq, List.map_map]; rfl
       rw [heq_id]
-      exact List.subperm_map IndexedEdge.id (hdd'_sub.trans hmerged_sub)
+      exact List.subperm_map IndexedEdge.id (hdd_sub.trans hmerged_sub)
     refine ⟨hinv.1, hnext_id_sub.nodup hinv.2.1, fun e he => ?_, fun i hi e he => ?_,
       fun L_next hL_sub hL_msf => ?_⟩
     · have hid := hnext_id_sub.subset (List.mem_map.mpr ⟨e, he, rfl⟩)
@@ -376,14 +348,14 @@ private theorem pr02MergeNextProg_spec {w n_orig n' nConglom fcBase hlBase mcBas
       exact heq ▸ hinv.2.2.2.1 i hi e' he'
     · let L_dd : List (IndexedEdge n') :=
         L_next.map fun e => ⟨lift_next e.u, lift_next e.v, e.weight, e.id⟩
-      have hLdd_sub_dd : L_dd.Subperm es_dd' := by
+      have hLdd_sub_dd : L_dd.Subperm es_dd := by
         rw [← hlift_eq]; exact List.subperm_map _ hL_sub
-      have hLdd_sub_es' : L_dd.Subperm es' := (hLdd_sub_dd.trans hdd'_sub).trans hmerged_sub
+      have hLdd_sub_es' : L_dd.Subperm es' := (hLdd_sub_dd.trans hdd_sub).trans hmerged_sub
       have hm1 : L_dd.map IndexedEdge.toWeighted =
           contractEdgeList lift_next (L_next.map IndexedEdge.toWeighted) := by
         simp [L_dd, contractEdgeList, List.map_map, Function.comp, contractEdge,
           IndexedEdge.toWeighted]
-      have hLdd_msf_dd : IsMinSpanningForest (es_dd'.map IndexedEdge.toWeighted)
+      have hLdd_msf_dd : IsMinSpanningForest (es_dd.map IndexedEdge.toWeighted)
           (L_dd.map IndexedEdge.toWeighted) := by
         rw [hm1]; exact compactVertices_isMinSpanningForest hlift_inj hlift_eq hL_msf
       have hLdd_msf_merged : IsMinSpanningForest (L_merged.map IndexedEdge.toWeighted)
@@ -403,16 +375,14 @@ private theorem pr02MergeNextProg_spec {w n_orig n' nConglom fcBase hlBase mcBas
           (List.subperm_map _ hHL_sub) hHL_msf hLdd_msf_merged
       obtain ⟨remIds, hrem_val, hrem_msf⟩ := hinv.2.2.2.2 L_dd hLdd_sub_es' hLdd_msf_es'
       exact ⟨remIds, hrem_val.trans (by simp [L_dd, List.map_map, Function.comp]), hrem_msf⟩
-  have ht1_le_t2 : t₁.frontier ≤ t₂.frontier := hmod_t1_t2.1
-  dsimp only [F_C, M_C] at hm_dd'_le ht1_fr ht2_fr
-  refine Memory.FramedTriple.pure ⟨?_, hcp_n, by dsimp only; omega, ?_, ?_, ?_, hwt3,
-    esNext, hnext_len.trans hdd'_len, hholds3, compactVertices_isSimple hlift_eq hsimp2', hinv_next⟩
-  · have hc := card_le_two_mul_of_noIsolated hnoiso
-    dsimp only
-    omega
-  · dsimp only; rw [hcp_eb]; omega
-  · dsimp only; rw [hcp_eb]; omega
-  · omega
+  have hm_le : dd.numEdges ≤ F_C.length + H_lift.length + M_C.length := hdd_len ▸ hm_dd_le
+  dsimp only [F_C, M_C] at hm_dd_le hs1_fr hs2_fr
+  have hc := card_le_two_mul_of_noIsolated hnoiso
+  have hs12 : s₁.frontier ≤ s₂.frontier := hmod2.1
+  have h2m : cp.numVertices ≤ 2 * dd.numEdges := by omega
+  have hend : cp.edgeBase + 4 * dd.numEdges ≤ t₃.frontier := by omega
+  exact ⟨h2m, hcp_n, hm_le, by dsimp only; omega, hend, by omega, hwt3, esNext,
+    hnext_len.trans hdd_len, hholds3, compactVertices_isSimple hlift_eq hsimp2, hinv_next⟩
 
 private def pr02LoopAfterBoruvka (p : PR02LoopEnv × BoruvkaStageResult) :
     Memory.Prog PR02LoopState := do
@@ -563,7 +533,7 @@ private theorem pr02LoopAfterBoruvka_spec {w n_orig n₀ r0 tableFrontier n_prev
   generalize h_s4 : (Memory.spec 0).clientState s₃
     (pr02EvalDTLoop ⟨rounds.length, env.tableBase, part.compMetaBase, part.liftMetaBase, fcBase⟩) =
     s₄ at hev_r
-  rcases hev_r with ⟨hv_ev, hcost_ev, hmod_ev, hfcl_le, hs4_ge, hs4_fr, hwf₄,
+  rcases hev_r with ⟨-, -, hmod_ev, hfcl_le, hs4_ge, hs4_fr, hwf₄,
     F_comps, hF_len, hF_flat, hF_holds, hF_msf⟩
   have hmod₄ : ∀ a < s₃.frontier, a ∉ Set.Ico fcBase (fcBase + 4 * b3.numVertices) →
       s₄.mem a = s₃.mem a := hmod_ev.2
@@ -602,7 +572,7 @@ private theorem pr02LoopAfterBoruvka_spec {w n_orig n₀ r0 tableFrontier n_prev
   generalize h_s5 : (Memory.spec 0).clientState s₄
     (pr02SolveHRemProg ⟨part.nConglom, part.hRemBase, part.hRemLen, part.conglomBase⟩) =
     s₅ at hrem_r
-  rcases hrem_r with ⟨hv_hr, hcost_hr, hmod_hr, hhl_end, hhl_mul, hhl_le_rem, hs5_ge, hs5_fr,
+  rcases hrem_r with ⟨-, -, hmod_hr, hhl_end, hhl_mul, hhl_le_rem, hs5_ge, hs5_fr,
     hwf₅, H_lift, hHl_len, hHl_holds, hHl_sub, hHl_msf⟩
   have h96_sum : 96 * (F_comps.flatten.length + H_lift.length +
       (rounds.flatMap PartitionRoundWitness.corrEdges).length) ≤ 37 * m_prev := by
@@ -651,7 +621,7 @@ private theorem pr02LoopAfterBoruvka_spec {w n_orig n₀ r0 tableFrontier n_prev
   generalize h_s6 : (Memory.spec 0).clientState s₅
     (pr02MergeNextProg ⟨b3.numVertices, fcBase, fcLen, hl.edgeBase, hl.numEdges, part.mcBase,
       part.mcLen⟩) = s₆ at hmrg_r
-  rcases hmrg_r with ⟨hv_mg, hcost_mg, hmod_mg, hnxt_2m, hnxt_n', hnxt_m, _,
+  rcases hmrg_r with ⟨-, -, hmod_mg, hnxt_2m, hnxt_n', hnxt_m, _,
     hnxt_end, hs6_fr, hwf₆, esNext, hnext_len, hnext_holds, hnext_simp, hinv_next⟩
   have hs6_ge : s₅.frontier ≤ s₆.frontier := hmod_mg.1
   have hsafe_after : pr02LoopAfterBoruvkaSafe w (env, b3) s := by
@@ -660,69 +630,17 @@ private theorem pr02LoopAfterBoruvka_spec {w n_orig n₀ r0 tableFrontier n_prev
     refine ⟨hfit_s3, hrounds_len ▸ hsafe_ev, ?_⟩
     rw [← hrounds_len, h_fcl, h_s4]
     refine ⟨hsafe_hr, ?_⟩
-    rw [h_hl, h_s5]
+    on_goal 1 => rw [h_hl, h_s5]
     exact hsafe_mg
   refine ⟨hsafe_after, ?_⟩
-  have hafter_eq : pr02LoopAfterBoruvka (env, b3) =
-      (partitionProg ⟨b3.numVertices, b3.numEdges, b3.edgeBase, env.r0⟩ >>= fun part' =>
-        Memory.allocDirty (4 * b3.numVertices) >>= fun fcBase' =>
-          pr02EvalDTLoop ⟨part'.numComps, env.tableBase, part'.compMetaBase, part'.liftMetaBase,
-            fcBase'⟩ >>= fun fcLen' =>
-            pr02SolveHRemProg ⟨part'.nConglom, part'.hRemBase, part'.hRemLen, part'.conglomBase⟩ >>=
-              fun hl' =>
-                pr02MergeNextProg ⟨b3.numVertices, fcBase', fcLen', hl'.edgeBase, hl'.numEdges,
-                  part'.mcBase, part'.mcLen⟩ >>= fun nxt' =>
-                    pure (α := PR02LoopState)
-                      ⟨1, nxt'.numVertices, nxt'.numEdges, nxt'.edgeBase, b3.selOff⟩) := rfl
-  have hvh_after : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (pr02LoopAfterBoruvka (env, b3))) := by
-    rw [hafter_eq]
-    refine validHistory_bind_step hv_p ?_
-    rw [h_part, h_s2]
-    refine validHistory_allocDirty_bind hfit_s3 ?_
-    change (Memory.spec w).ValidHistory s₃ _
-    rw [← hrounds_len]
-    refine validHistory_bind_step hv_ev ?_
-    rw [h_fcl, h_s4]
-    refine validHistory_bind_step hv_hr ?_
-    rw [h_hl, h_s5]
-    exact validHistory_bind_step hv_mg (validHistory_pure w _ _)
-  have hres_after : (Memory.spec 0).clientResult s (pr02LoopAfterBoruvka (env, b3)) =
-      ⟨1, nxt.numVertices, nxt.numEdges, nxt.edgeBase, b3.selOff⟩ := by
-    rw [hafter_eq, StateTransitionSpec.clientResult_bind, h_part, h_s2,
-      clientResult_bind_allocDirty]
-    change (Memory.spec 0).clientResult s₃ _ = _
-    rw [← hrounds_len, StateTransitionSpec.clientResult_bind, h_fcl, h_s4,
-      StateTransitionSpec.clientResult_bind, h_hl, h_s5,
-      StateTransitionSpec.clientResult_bind, h_nxt, StateTransitionSpec.clientResult_pure]
-  have hst_after : (Memory.spec 0).clientState s (pr02LoopAfterBoruvka (env, b3)) = s₆ := by
-    rw [hafter_eq, StateTransitionSpec.clientState_bind, h_part, h_s2,
-      clientState_bind_allocDirty]
-    change (Memory.spec 0).clientState s₃ _ = _
-    rw [← hrounds_len, StateTransitionSpec.clientState_bind, h_fcl, h_s4,
-      StateTransitionSpec.clientState_bind, h_hl, h_s5,
-      StateTransitionSpec.clientState_bind, h_s6, StateTransitionSpec.clientState_pure]
-  have hcost_after : memoryCost (pr02LoopAfterBoruvka (env, b3)) s ≤
-      9747 * m_prev + 2982 * n_prev + 15 * optDepthMN m_prev n_prev + 26 := by
-    have hopt_cur : optDepthMN b3.numEdges b3.numVertices ≤ optDepthMN m_prev n_prev :=
-      (optDepthMN_mono_m hm_le_prev).trans (optDepthMN_mono_n (by omega))
-    rw [hafter_eq, memoryCost_bind', h_part, h_s2, memoryCost_bind', memoryCost_allocDirty,
-      clientResult_allocDirty, clientState_allocDirty]
-    rw [← hrounds_len, memoryCost_bind', h_fcl, h_s4, memoryCost_bind', h_hl, h_s5,
-      memoryCost_bind', h_nxt, memoryCost_pure, add_zero]
-    dsimp only [fcBase, s₃] at hcost_ev hcost_mg
-    rw [hF_flat, hHl_len, hMC_len] at hsum_le_es
-    omega
-  have hmod_after : Memory.Modifies ∅ s s₆ := by
-    refine ⟨hs2_ge.trans (by dsimp only [s₃] at hs4_ge; omega), fun a ha _ => ?_⟩
-    have h1 := hmod₂ a ha
-    have h4 := hmod₄ a (by dsimp only [s₃]; omega)
-      (by simp only [Set.mem_Ico]; dsimp only [fcBase]; omega)
-    have h5 := hmod_hr.2 a (by dsimp only [s₃, fcBase] at hs4_ge; omega) (by simp)
-    have h6 := hmod_mg.2 a (by dsimp only [s₃, fcBase] at hs4_ge; omega) (by simp)
-    exact h6.trans (h5.trans (h4.trans h1))
-  refine framedTriple_iff_realization.mpr ⟨hvh_after, hcost_after, hst_after ▸ hmod_after, ?_⟩
-  rw [hres_after, hst_after]
+  have hp_ft : Memory.FramedTriple w s
+      (partitionProg ⟨b3.numVertices, b3.numEdges, b3.edgeBase, env.r0⟩)
+      (memoryCost (partitionProg ⟨b3.numVertices, b3.numEdges, b3.edgeBase, env.r0⟩) s) ∅
+      fun r t => r = part ∧ t = s₂ :=
+    framedTriple_iff_realization.mpr ⟨hv_p, le_rfl, by rw [h_s2]; exact ⟨hs2_ge, fun a ha _ =>
+      hmod₂ a ha⟩, h_part, h_s2⟩
+  have hopt_cur : optDepthMN b3.numEdges b3.numVertices ≤ optDepthMN m_prev n_prev :=
+    (optDepthMN_mono_m hm_le_prev).trans (optDepthMN_mono_n (by omega))
   have hnxt_2m_prev : 2 * nxt.numEdges ≤ m_prev := by
     rw [← hF_flat, ← hHl_len, ← hMC_len] at hnxt_m; omega
   have hnxt_8n_prev : 8 * nxt.numVertices ≤ n_prev := by omega
@@ -731,10 +649,24 @@ private theorem pr02LoopAfterBoruvka_spec {w n_orig n₀ r0 tableFrontier n_prev
     dsimp only [s₃] at hs4_fr
     rw [← hF_flat, ← hHl_len, ← hMC_len] at hs6_fr
     omega
-  refine ⟨rfl, rfl, hnxt_8n_prev, hnxt_2m_prev, hnxt_2m, by dsimp only; omega, hmod_after.1,
-    hs6_fr_bound, hnxt_end, hwf₆, fun a ha => hmod_after.2 a ha (by simp),
-    optDepthMN_halves_potential hnxt_2m_prev hnxt_8n_prev,
-    esNext, hnext_len, hnext_holds, hnext_simp, hinv_next⟩
+  rw [hF_flat, hHl_len, hMC_len] at hsum_le_es
+  apply Memory.FramedTriple.post_modifies
+  apply Memory.FramedTriple.drop_fresh
+  eapply Memory.FramedTriple.mono (hQ := fun _ _ => id)
+  · eapply Memory.FramedTriple.call_eq hp_ft (Set.empty_subset _)
+    eapply Memory.FramedTriple.allocDirty_bind hfit_s3
+    on_goal 1 => rw [← hrounds_len]
+    eapply Memory.FramedTriple.seq hev_ft (by region_omega)
+    on_goal 1 => rw [h_fcl, h_s4]
+    eapply Memory.FramedTriple.seq hrem_ft (Set.empty_subset _)
+    on_goal 1 => rw [h_hl, h_s5]
+    eapply Memory.FramedTriple.seq hmrg_ft (Set.empty_subset _)
+    on_goal 1 => rw [h_nxt, h_s6]
+    exact Memory.FramedTriple.pure (c := 0) fun hm => ⟨rfl, rfl, hnxt_8n_prev, hnxt_2m_prev,
+      hnxt_2m, by dsimp only; omega, hm.1, hs6_fr_bound, hnxt_end, hwf₆,
+      fun a ha => hm.2 a ha (by simp), optDepthMN_halves_potential hnxt_2m_prev hnxt_8n_prev,
+      esNext, hnext_len, hnext_holds, hnext_simp, hinv_next⟩
+  · omega
 
 /-! ## Section 2: Outer Loop Body (`pr02LoopBodyProg`) and Framed Potential Specification -/
 

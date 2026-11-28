@@ -192,10 +192,9 @@ private theorem runProg_final {w : ℕ} (inst : ElimInstance)
     (Memory.spec w).ValidHistory s₂ ((Memory.spec w).clientHistory s₂ p₃) ∧
       (Memory.spec 0).clientResult s₂ p₃ = inst.result ∧ memoryCost p₃ s₂ ≤ 3 * M := by
   intro s₀ R T M p₁ s₁ p₂ r s₂ p₃
-  obtain ⟨-, hB, -⟩ := runProg_bounds inst hw
-  obtain ⟨-, -, hsc, hlen, hlive, hcap⟩ := runProg_loop inst hwf hw
+  obtain ⟨-, -, hsc, hlen, hlive, -⟩ := runProg_loop inst hwf hw
   obtain ⟨hv, -, hres, hcost⟩ :=
-    finalResultProd_spec (args := ⟨r.livePtr, r.liveLen, r.scalar⟩) hB hcap hsc hlen hlive
+    finalResultProd_spec (w := w) (args := ⟨r.livePtr, r.liveLen, r.scalar⟩) hsc hlen hlive
   exact ⟨hv, hres, hcost.trans
     (Nat.mul_le_mul_left 3 (hlen.trans_le (liveLength_eliminateOrder_le _ _ _)))⟩
 

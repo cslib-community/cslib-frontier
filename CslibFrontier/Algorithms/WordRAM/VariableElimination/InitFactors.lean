@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Instance
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Memory
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -65,77 +66,43 @@ def initFactors (args : ℕ × ℕ) : Memory.Prog ℕ :=
   iterate initFactorStep () args.2 (args.1, descBase) >>= fun _ =>
   pure descBase
 
-/-- One `initFactorStep`: read the two length words of the record at `curRaw` and write its
-4-word descriptor at `curDesc`, leaving everything below `curDesc` untouched. -/
-private theorem initFactorStep_spec {w curRaw curDesc : ℕ} {f : FactorTable ℕ ℕ}
-    {rest : List (FactorTable ℕ ℕ)} {s₀ t : Memory.State} (hwf : Memory.WellFormed w t)
-    (hF : s₀.frontier ≤ curDesc) (hdst : curDesc + 4 ≤ t.frontier)
-    (hpres : PreservesBelow s₀.frontier s₀ t)
-    (hraw : HoldsIn curRaw ((f :: rest).flatMap encodeFactor) s₀) :
-    let p := initFactorStep ((), (curRaw, curDesc))
-    let t₁ := (Memory.spec 0).clientState t p
-    (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
-      (Memory.spec 0).clientResult t p =
-        (curRaw + 2 + f.scope.length + f.entries.size, curDesc + 4) ∧
-      t₁.frontier = t.frontier ∧ Memory.WellFormed w t₁ ∧ PreservesBelow curDesc t t₁ ∧
-      PreservesBelow s₀.frontier s₀ t₁ ∧
-      (∀ t', PreservesBelow (curDesc + 4) t₁ t' → HoldsFactor curDesc f t') ∧
-      memoryCost p t = 6 ∧
-      HoldsIn (curRaw + 2 + f.scope.length + f.entries.size) (rest.flatMap encodeFactor) s₀ := by
-  obtain ⟨h1, h2, hm_sc, hm_en, hsc, hen, hrest⟩ := holdsIn_encodeFactor_cons hraw
-  have hen_bd := hen.1
-  rw [Array.length_toList] at hen_bd
-  have hr₀ : t.mem curRaw = f.scope.length := (hpres.2.2 _ h1).trans hm_sc
-  have hr₁ : t.mem (curRaw + 1) = f.entries.size := (hpres.2.2 _ h2).trans hm_en
-  obtain ⟨hv, hfr, hwf₁, hpF, hout, hhf, hm0, hm2⟩ := writeDesc_spec (w := w) (F := s₀.frontier)
-    ⟨curDesc, curRaw + 2, f.scope.length, curRaw + 2 + f.scope.length, f.entries.size⟩ hwf hF
-    hdst hsc.1 hen_bd rfl rfl (hsc.mono_frontier hpres) (hen.mono_frontier hpres)
-  dsimp only at hout hhf hm0 hm2
-  have hst : (Memory.spec 0).clientState t (initFactorStep ((), (curRaw, curDesc))) =
-      (Memory.spec 0).clientState t (writeDesc ⟨curDesc, curRaw + 2, t.mem curRaw,
-        curRaw + 2 + t.mem curRaw, t.mem (curRaw + 1)⟩) := rfl
-  rw [hr₀, hr₁] at hst
-  dsimp only
-  rw [hst]
-  refine ⟨?_, ?_, hfr, hwf₁, ⟨by omega, hfr.ge, fun a ha => hout a (Or.inl ha)⟩, hpres.trans hpF,
-    fun t' hp => hhf.mono (by omega) (by rw [hm0]; omega) (by rw [hm2]; omega) hp, rfl, hrest⟩
-  · refine validHistory_read_bind (lt_of_lt_of_le h1 hpres.2.1) ?_
-    refine validHistory_read_bind (lt_of_lt_of_le h2 hpres.2.1) ?_
-    rw [hr₀, hr₁]
-    exact validHistory_bind_step hv (validHistory_pure _ _ _)
-  · change (curRaw + 2 + t.mem curRaw + t.mem (curRaw + 1), curDesc + 4) = _
-    rw [hr₀, hr₁]
+/-- Invariant of the loop of `initFactors` after `k` records, for the input state `s`: the
+descriptors of the first `k` factors sit at `s.frontier` and survive every later step that keeps
+the cells below the next descriptor. -/
+private abbrev InitInv (w L : ℕ) (factors : List (FactorTable ℕ ℕ)) (s : Memory.State) (k : ℕ)
+    (st : ℕ × ℕ) (t : Memory.State) : Prop :=
+  Memory.WellFormed w t ∧ t.frontier = s.frontier + 4 * L ∧ st.2 = s.frontier + 4 * k ∧
+    HoldsIn st.1 ((factors.drop k).flatMap encodeFactor) s ∧
+    ∀ t', PreservesBelow st.2 t t' → HoldsFactorList s.frontier (factors.take k) t'
 
-private theorem initFactors_loop {w : ℕ} {s₀ : Memory.State} :
-    ∀ (rem : List (FactorTable ℕ ℕ)) (curRaw curDesc : ℕ) (t : Memory.State),
-      Memory.WellFormed w t →
-      s₀.frontier ≤ curDesc →
-      curDesc + 4 * rem.length ≤ t.frontier →
-      PreservesBelow s₀.frontier s₀ t →
-      HoldsIn curRaw (rem.flatMap encodeFactor) s₀ →
-      let p := iterate initFactorStep () rem.length (curRaw, curDesc)
-      let t' := (Memory.spec 0).clientState t p
-      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
-        t'.frontier = t.frontier ∧
-        PreservesBelow curDesc t t' ∧
-        PreservesBelow s₀.frontier s₀ t' ∧
-        HoldsFactorList curDesc rem t' ∧
-        memoryCost p t ≤ 6 * rem.length
-  | [], _, curDesc, t, _, _, hbd, hpres, _ => by
-      simp only [List.length_nil] at hbd
-      exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega), hpres,
-        show curDesc ≤ t.frontier by omega, (memoryCost_pure _ _).le⟩
-  | f :: rest, curRaw, curDesc, t, hwf, hF, hbd, hpres, hraw => by
-      simp only [List.length_cons] at hbd ⊢
-      obtain ⟨hv, hres, hfr, hwf₁, hpcd, hpF, hhf, hcost, hrest⟩ :=
-        initFactorStep_spec hwf hF (by omega) hpres hraw
-      obtain ⟨hv', hfr', hpcd', hpF', hholds, hcost'⟩ :=
-        initFactors_loop rest _ (curDesc + 4) _ hwf₁ (by omega) (by rw [hfr]; omega) hpF hrest
-      rw [show iterate initFactorStep () (rest.length + 1) (curRaw, curDesc) =
-          (initFactorStep ((), (curRaw, curDesc)) >>= iterate initFactorStep () rest.length)
-          from rfl, StateTransitionSpec.clientState_bind, memoryCost_bind', hres]
-      exact ⟨validHistory_bind_step hv (by rwa [hres]), hfr'.trans hfr,
-        hpcd.trans (hpcd'.mono_bound (by omega)), hpF', ⟨hhf _ hpcd', hholds⟩, by omega⟩
+private theorem initFactorStep_framed {w L k : ℕ} {factors : List (FactorTable ℕ ℕ)}
+    {s t : Memory.State} {st : ℕ × ℕ} (hlen : factors.length = L) (hk : k < L)
+    (hpres : PreservesBelow s.frontier s t) (hinv : InitInv w L factors s k st t) :
+    Memory.FramedTriple w t (initFactorStep ((), st)) 6 (Set.Ici s.frontier)
+      (InitInv w L factors s (k + 1)) := by
+  obtain ⟨cur, desc⟩ := st
+  obtain ⟨hwf_t, hfr, hd, hraw_t, hhold⟩ := hinv
+  dsimp only at hd hraw_t hhold; subst hd
+  rw [List.drop_eq_getElem_cons (by omega)] at hraw_t
+  obtain ⟨h1, h2, hm_sc, hm_en, hsc, hen, hrest⟩ := holdsIn_encodeFactor_cons hraw_t
+  have hen_bd := hen.1
+  simp only [Array.length_toList] at hen_bd
+  have hr₀ : t.mem cur = factors[k].scope.length := (hpres.2.2 _ h1).trans hm_sc
+  have hr₁ : t.mem (cur + 1) = factors[k].entries.size := (hpres.2.2 _ h2).trans hm_en
+  obtain ⟨hv, hfr₁, hwf₁, -, hout, hhf, hm0, hm2⟩ := writeDesc_spec (w := w) (F := s.frontier)
+    ⟨s.frontier + 4 * k, cur + 2, t.mem cur, cur + 2 + t.mem cur, t.mem (cur + 1)⟩ hwf_t
+    (Nat.le_add_right _ _) (by dsimp only; omega) hsc.1 (by dsimp only; omega) hr₀ hr₁
+    (hsc.mono_frontier hpres) (hr₀ ▸ hen.mono_frontier hpres)
+  have hwd := writeDesc_framed (F := s.frontier) _ hv (Nat.le_add_right _ _)
+  dsimp only at hout hhf hm0 hm2
+  unfold initFactorStep
+  framed_triple
+  · refine ⟨hwf₁, hfr₁.trans hfr, by omega, by rw [hr₀, hr₁]; exact hrest, fun t' hp => ?_⟩
+    rw [List.take_add_one, List.getElem?_eq_getElem (by omega), Option.toList_some,
+      holdsFactorList_append, List.length_take_of_le (by omega)]
+    have hf := hhf.mono le_rfl (by rw [hm0]; omega) (by rw [hm2]; omega) hp
+    exact ⟨hhold t' (PreservesBelow.trans ⟨by omega, hfr₁.ge, fun a ha => hout a (Or.inl ha)⟩
+      (hp.mono_bound (by omega))), hf, hf.1⟩
 
 theorem initFactors_spec {w : ℕ} {rawPtr facLen : ℕ}
     {factors : List (FactorTable ℕ ℕ)} {s : Memory.State}
@@ -153,18 +120,26 @@ theorem initFactors_spec {w : ℕ} {rawPtr facLen : ℕ}
       HoldsFactorList res factors s' ∧
       memoryCost (initFactors (rawPtr, facLen)) s ≤ 1 + 6 * facLen := by
   subst hlen
-  obtain ⟨hv, hfr, -, hpres, hholds, hcost⟩ :=
-    initFactors_loop factors rawPtr s.frontier ⟨s.mem, s.frontier + 4 * factors.length⟩
-      ⟨hfit, hwf.mem_fits⟩ le_rfl (by dsimp only; omega)
-      ⟨le_rfl, by dsimp only; omega, fun _ _ => rfl⟩ hraw
-  dsimp only [initFactors]
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    clientState_allocDirty, clientResult_allocDirty, StateTransitionSpec.clientState_bind,
-    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_pure,
-    StateTransitionSpec.clientResult_pure, memoryCost_bind', memoryCost_allocDirty,
-    clientState_allocDirty, clientResult_allocDirty, memoryCost_bind', memoryCost_pure]
-  exact ⟨validHistory_allocDirty_bind hfit (validHistory_bind_step hv (validHistory_pure w _ _)),
-    hfr, hpres, rfl, hholds, by omega⟩
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (w := w) (body := initFactorStep)
+    (safe := fun _ _ _ => True) (d := ()) (n := factors.length) (c := 6)
+    (s := ⟨s.mem, s.frontier + 4 * factors.length⟩) (a₀ := (rawPtr, s.frontier))
+    (S := Set.Ici s.frontier) (InitInv w factors.length factors s)
+    ⟨⟨hfit, hwf.mem_fits⟩, rfl, rfl, by simpa using hraw, fun t' hp => by
+      simpa [HoldsFactorList] using (Nat.le_add_right _ _).trans hp.2.1⟩
+    (fun k hk _ t hinv hmod => ⟨trivial, initFactorStep_framed rfl hk
+      (preservesBelow_of_modifies hmod ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩) hinv⟩)
+    fun _ _ h _ => h
+  have hft : Memory.FramedTriple w s (initFactors (rawPtr, factors.length))
+      (1 + 6 * factors.length) (Set.Ici s.frontier) fun r t =>
+        t.frontier = s.frontier + 4 * factors.length ∧ r = s.frontier ∧
+        HoldsFactorList r factors t := by
+    dsimp only [initFactors]
+    exact Memory.FramedTriple.mono (Memory.FramedTriple.allocDirty_bind hfit
+      (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl fun _ t h _ =>
+        Memory.FramedTriple.pure ⟨h.2.1, rfl, by
+          simpa using h.2.2.2.2 t (PreservesBelow.refl (by omega))⟩)) (by omega) fun _ _ => id
+  obtain ⟨hv, hc, hm, hfr, hres, hholds⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, hfr, preservesBelow_of_modifies hm (.refl le_rfl), hres, hholds, hc⟩
 
 theorem initFactors_realizes :
     Realizes .exact initFactors WordEncoding.encode WordEncoding.encode
@@ -180,29 +155,22 @@ theorem initFactors_realizes :
   · obtain ⟨_, _, hfit, _, _⟩ := h; exact hfit.of_le (by omega)
   · obtain ⟨_, h4, _, _, _⟩ := h; exact h4
   · obtain ⟨factors₀, _, hfit, hlen₀, hraw₀⟩ := h
-    refine iterationSafe_of_stepInv _ _ w _
-      (fun (j : ℕ) (st : ℕ × ℕ) (t : Memory.State) =>
-        Memory.WellFormed w t ∧ s.frontier ≤ st.2 ∧ st.2 + 4 * j ≤ t.frontier ∧
-          PreservesBelow s.frontier s t ∧
-          ∃ rem : List (FactorTable ℕ ℕ), rem.length = j ∧
-            HoldsIn st.1 (rem.flatMap encodeFactor) s)
-      (fun j st t ⟨hwf_t, hlo_t, hbd_t, hpres_t, rem, hrem_l, hraw_t⟩ => ?_)
-      ⟨⟨hfit, hmem.mem_fits⟩, le_rfl, by dsimp only; omega,
-        ⟨le_rfl, by dsimp only; omega, fun _ _ => rfl⟩, factors₀, hlen₀, hraw₀⟩
-    rcases rem with _ | ⟨f, rest⟩
-    · cases hrem_l
-    simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
-    subst hrem_l
+    refine (Memory.FramedTriple.iterate (w := w) (s := ⟨s.mem, s.frontier + 4 * d.2⟩) (c := 6)
+      (S := Set.Ici s.frontier) (Q := fun _ _ => True) (InitInv w d.2 factors₀ s)
+      ⟨⟨hfit, hmem.mem_fits⟩, rfl, rfl, by simpa using hraw₀, fun t' hp => by
+        simpa [HoldsFactorList] using (Nat.le_add_right _ _).trans hp.2.1⟩
+      (fun k hk st t hinv hmod => ?_) fun _ _ _ _ => trivial).1
+    have hpres : PreservesBelow s.frontier s t :=
+      preservesBelow_of_modifies hmod ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩
+    refine ⟨?_, initFactorStep_framed hlen₀ hk hpres hinv⟩
+    obtain ⟨hwf_t, hfr, hd, hraw_t, -⟩ := hinv
+    rw [List.drop_eq_getElem_cons (by omega)] at hraw_t
     obtain ⟨h1, h2, hm_sc, hm_en, -, hen, -⟩ := holdsIn_encodeFactor_cons hraw_t
     have hen_bd := hen.1
-    rw [Array.length_toList] at hen_bd
-    have hle := hpres_t.2.1
-    obtain ⟨-, hres, hfr, hwf₁, -, hpF, -, -, hrest⟩ :=
-      initFactorStep_spec hwf_t hlo_t (by omega) hpres_t hraw_t
+    simp only [Array.length_toList] at hen_bd
     dsimp only
-    rw [hpres_t.2.2 _ h1, hpres_t.2.2 _ h2, hm_sc, hm_en, hres]
-    refine ⟨⟨hwf_t.frontier_fits.of_le (by omega), ?_⟩, hwf₁, by omega, by rw [hfr]; omega, hpF,
-      rest, rfl, hrest⟩
+    rw [hpres.2.2 _ h1, hpres.2.2 _ h2, hm_sc, hm_en]
+    refine ⟨hwf_t.frontier_fits.of_le (by omega), ?_⟩
     repeat (any_goals refine ⟨?_, ?_⟩)
     all_goals exact hwf_t.frontier_fits.of_le (by omega)
 

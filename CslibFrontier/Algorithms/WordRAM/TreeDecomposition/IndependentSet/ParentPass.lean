@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.MaskOps
 import CslibFrontier.Foundations.Data.List.FoldMax
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 import Mathlib.Data.List.OfFn
 
@@ -171,6 +172,12 @@ private theorem parentPassStep_eval (a : ParentPassArgs) (curS : ℕ) (t : Memor
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
   exact ⟨rfl, rfl⟩
 
+/-- A represented list outside the modified set survives a `Memory.Modifies` frame. -/
+private theorem holdsIn_of_modifies {base : ℕ} {xs : List ℕ} {S : Set ℕ} {s t : Memory.State}
+    (h : HoldsIn base xs s) (hmod : Memory.Modifies S s t)
+    (hS : ∀ a, base ≤ a → a < base + xs.length → a ∉ S) : HoldsIn base xs t :=
+  ⟨h.1.trans hmod.1, h.2.frame fun a h1 h2 => hmod.2 a (by have := h.1; omega) (hS a h1 h2)⟩
+
 /-- Correctness, outside-table framing, and memory-cost bound for `parentPassProg`. -/
 theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
     {LB LP oldL bestL : List ℕ} {capO capB : ℕ} {s : Memory.State}
@@ -192,101 +199,57 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
       ((Memory.spec 0).clientState s (parentPassProg args)) ∧
     memoryCost (parentPassProg args) s ≤
       args.tblPLen * (args.bagPLen * (args.bagBLen + 1) + 3) := by
-  let stepCost := args.bagPLen * (args.bagBLen + 1) + 3
-  suffices ∀ rem curS st,
-      curS + rem = args.tblPLen →
-      st.frontier = s.frontier →
-      (∀ addr, (addr < args.tblPPtr ∨ args.tblPPtr + args.tblPLen ≤ addr) →
-        st.mem addr = s.mem addr) →
-      HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL curS) st →
-      (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (iterate parentPassStep args rem curS)) ∧
-      ((Memory.spec 0).clientState st (iterate parentPassStep args rem curS)).frontier =
-        s.frontier ∧
-      (∀ addr, (addr < args.tblPPtr ∨ args.tblPPtr + args.tblPLen ≤ addr) →
-        ((Memory.spec 0).clientState st (iterate parentPassStep args rem curS)).mem addr =
-          s.mem addr) ∧
-      HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL (curS + rem))
-        ((Memory.spec 0).clientState st (iterate parentPassStep args rem curS)) ∧
-      memoryCost (iterate parentPassStep args rem curS) st ≤ rem * stepCost by
-    obtain ⟨hv_run, hfr_run, hout_run, hpfx_run, hc_run⟩ :=
-      this args.tblPLen 0 s (Nat.zero_add _) rfl (fun _ _ => rfl)
-        (by rwa [parentPassPrefix_zero])
-    rw [Nat.zero_add] at hpfx_run
-    unfold parentPassProg
-    refine ⟨validHistory_bind_step hv_run (validHistory_pure w _ ()), ?_, ?_, ?_,
-      by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hc_run⟩
-    all_goals rwa [StateTransitionSpec.clientState_bind]
-  intro rem
-  induction rem with
-  | zero =>
-    intro curS st _ hfr hout hcur_st
-    dsimp only [iterate, Nat.add_zero]
-    exact ⟨validHistory_pure w st curS, hfr, hout, hcur_st, by simp [memoryCost_pure]⟩
-  | succ rem ih =>
-    intro curS st hsum hfr hout hcur_st
-    have hcur_lt : curS < oldL.length := by omega
-    have hLB_st : HoldsIn args.bagBPtr LB st :=
-      ⟨hfr ▸ hLB.1, hLB.2.frame fun a _ ha => hout a (.inl (by omega))⟩
-    have hLP_st : HoldsIn args.bagPPtr LP st :=
-      ⟨hfr ▸ hLP.1, hLP.2.frame fun a _ ha => hout a (.inl (by omega))⟩
-    have hbest_st : HoldsIn args.bestPtr bestL st :=
-      ⟨hfr ▸ hbest.1, hbest.2.frame fun a ha _ => hout a (.inr (by omega))⟩
-    obtain ⟨hv_rk, hst_rk, hr_rk, hc_rk⟩ :=
-      restrictMaskProg_spec (w := w)
-        ⟨args.bagBPtr, args.bagBLen, args.bagPPtr, args.bagPLen, curS⟩
-        hLB_st hlenB hLP_st hlenP
-    dsimp only at hr_rk hc_rk
-    let rKey := restrictMask LB LP curS
-    have hrk_lt : rKey < bestL.length := hbest_len ▸ restrictMask_lt_two_pow LB LP curS
-    have hcur_pfx_lt : curS < (parentPassPrefix LB LP oldL bestL curS).length :=
-      (length_parentPassPrefix LB LP oldL bestL curS).symm ▸ hcur_lt
-    have hold_addr_lt : args.tblPPtr + curS < st.frontier := by have := hcur_st.1; omega
-    have hbest_addr_lt : args.bestPtr + rKey < st.frontier := by have := hbest_st.1; omega
-    have holdVal_eq : st.mem (args.tblPPtr + curS) = oldL[curS] := by
-      simpa [parentPassPrefix] using hcur_st.get curS hcur_pfx_lt
-    have hbestVal_eq : st.mem (args.bestPtr + rKey) = bestL.getD rKey 0 := by
-      simp [hbest_st.get rKey hrk_lt, List.getD_eq_getElem?_getD, hrk_lt]
-    have hnew_fit : Fits w (st.mem (args.tblPPtr + curS) + st.mem (args.bestPtr + rKey)) := by
-      rw [holdVal_eq, hbest_st.get rKey hrk_lt]
-      exact hfit_sum.of_le (Nat.add_le_add (hold_le _ (List.getElem_mem hcur_lt))
-        (hbest_le _ (List.getElem_mem hrk_lt)))
-    let newVal := st.mem (args.tblPPtr + curS) + st.mem (args.bestPtr + rKey)
-    let st₁ : Memory.State := ⟨Function.update st.mem (args.tblPPtr + curS) newVal, st.frontier⟩
-    obtain ⟨hst_step, hres_step⟩ := parentPassStep_eval args curS st
-    rw [hr_rk] at hst_step
-    have hv_step : (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (parentPassStep (args, curS))) := by
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (s := s) (body := parentPassStep)
+    (c := args.bagPLen * (args.bagBLen + 1) + 3)
+    (S := Set.Ico args.tblPPtr (args.tblPPtr + args.tblPLen)) (safe := fun _ _ _ => True)
+    (d := args) (n := args.tblPLen) (a₀ := 0)
+    (Q := fun _ t => t.frontier = s.frontier ∧
+      HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL args.tblPLen) t)
+    (fun k c t => t.frontier = s.frontier ∧ c = k ∧
+      HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL k) t)
+    ⟨rfl, rfl, by rwa [parentPassPrefix_zero]⟩
+    (fun k hk c t ⟨hfr, hc, hcur_st⟩ hmod => ⟨trivial, by
+      subst hc
+      have hLB_st := holdsIn_of_modifies hLB hmod fun _ _ _ => by region_omega
+      have hLP_st := holdsIn_of_modifies hLP hmod fun _ _ _ => by region_omega
+      have hbest_st := holdsIn_of_modifies hbest hmod fun _ _ _ => by region_omega
+      obtain ⟨hv_rk, hst_rk, hr_rk, hc_rk⟩ :=
+        restrictMaskProg_spec (w := w) ⟨args.bagBPtr, args.bagBLen, args.bagPPtr, args.bagPLen, c⟩
+          hLB_st hlenB hLP_st hlenP
+      dsimp only at hr_rk hc_rk
+      have hrk := Memory.FramedTriple.of_readOnly hv_rk hst_rk hr_rk hc_rk
+      have hcur_lt : c < oldL.length := by omega
+      have hrk_lt : restrictMask LB LP c < bestL.length :=
+        hbest_len ▸ restrictMask_lt_two_pow LB LP c
+      have hcur_pfx_lt : c < (parentPassPrefix LB LP oldL bestL c).length :=
+        (length_parentPassPrefix LB LP oldL bestL c).symm ▸ hcur_lt
+      have hcf := hcur_st.1
+      have hbf := hbest_st.1
+      have holdVal_eq : t.mem (args.tblPPtr + c) = oldL[c] := by
+        simpa [parentPassPrefix] using hcur_st.get c hcur_pfx_lt
+      have hbestVal_eq : t.mem (args.bestPtr + restrictMask LB LP c) =
+          bestL.getD (restrictMask LB LP c) 0 := by
+        simp [hbest_st.get _ hrk_lt, List.getD_eq_getElem?_getD, hrk_lt]
+      have hnew_fit : Fits w (t.mem (args.tblPPtr + c) +
+          t.mem (args.bestPtr + restrictMask LB LP c)) := by
+        rw [holdVal_eq, hbest_st.get _ hrk_lt]
+        exact hfit_sum.of_le (Nat.add_le_add (hold_le _ (List.getElem_mem hcur_lt))
+          (hbest_le _ (List.getElem_mem hrk_lt)))
       unfold parentPassStep
-      dsimp only
-      refine validHistory_read_bind hold_addr_lt (validHistory_bind_step hv_rk ?_)
-      rw [hst_rk, hr_rk]
-      exact validHistory_read_bind hbest_addr_lt
-        (validHistory_write_bind hold_addr_lt hnew_fit (validHistory_pure w st₁ _))
-    have hout₁ : ∀ addr, (addr < args.tblPPtr ∨ args.tblPPtr + args.tblPLen ≤ addr) →
-        st₁.mem addr = s.mem addr := fun addr haddr =>
-      (Function.update_of_ne (by omega) _ _).trans (hout addr haddr)
-    have hpfx_next : HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL (curS + 1)) st₁ := by
-      rw [← parentPassPrefix_step LB LP oldL bestL hcur_lt]
-      dsimp only [st₁, newVal, rKey]
-      rw [holdVal_eq, hbestVal_eq]
-      exact holdsIn_set hcur_st
-    have hc_step : memoryCost (parentPassStep (args, curS)) st ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
-      have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      simp only [parentPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_rk, hr_rk,
-        memoryCost_write, memoryCost_pure, stepCost]
-      omega
-    obtain ⟨hv_rem, hfr_rem, hout_rem, hpfx_rem, hc_rem⟩ :=
-      ih (curS + 1) st₁ (by omega) hfr hout₁ hpfx_next
-    dsimp only [iterate]
-    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), hfr_rem, hout_rem,
-      by rwa [← Nat.add_assoc, Nat.add_right_comm curS rem 1], ?_⟩
-    calc memoryCost (parentPassStep (args, curS)) st +
-          memoryCost (iterate parentPassStep args rem (curS + 1)) st₁
-        ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
-      _ = (rem + 1) * stepCost := by ring
+      framed_walk
+      refine ⟨hfr, rfl, ?_⟩
+      rw [← parentPassPrefix_step LB LP oldL bestL hcur_lt, holdVal_eq, hbestVal_eq]
+      exact holdsIn_set hcur_st⟩)
+    fun _ t ⟨hfr, _, h⟩ _ => ⟨hfr, h⟩
+  have hft : Memory.FramedTriple w s (parentPassProg args)
+      (args.tblPLen * (args.bagPLen * (args.bagBLen + 1) + 3))
+      (Set.Ico args.tblPPtr (args.tblPPtr + args.tblPLen)) fun _ t => t.frontier = s.frontier ∧
+        HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL args.tblPLen) t :=
+    Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+      fun _ _ h _ => Memory.FramedTriple.pure h) (by rw [Nat.mul_comm]; omega) fun _ _ => id
+  obtain ⟨hv, hc, hfr, hS, hpfx⟩ := Memory.FramedTriple.realization_of_frontier_eq hft
+  exact ⟨hv, hfr, fun addr haddr => by_contra fun hne => by
+    have := hS addr hne; simp only [Set.mem_Ico] at this; omega, hpfx, hc⟩
 
 /-- Exact-basis Word-RAM realization certificate for `parentPassProg`. -/
 theorem parentPassProg_realizes :

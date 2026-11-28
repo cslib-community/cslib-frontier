@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP.NodeDesc
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP.Radix
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -152,23 +153,15 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
     simp only [entryVal, targetTbl, dpInstTree, mr, List.getElem_ofFn]
   have hentry_fit : Fits w entryVal :=
     hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.join left right) _ (List.getElem_mem _))
-  obtain ⟨hst_ev, hres_ev⟩ := joinFillStep_eval a m t
-  dsimp only [mr] at hprod_eq
-  have hv_step : (Memory.spec w).ValidHistory t
-      ((Memory.spec w).clientHistory t (joinFillStep (a, m))) := by
-    dsimp only [joinFillStep]
-    refine validHistory_read_bind (by rw [hfr_t]; omega) (validHistory_bind_step hv_rp ?_)
-    rw [hst_rp, hr_rp]
-    exact validHistory_read_bind (by rw [hfr_t]; omega)
-      (hprod_eq.symm ▸ validHistory_write_bind (by rw [hfr_t]; omega) hentry_fit
-        (validHistory_pure w _ _))
-  have hc_step : memoryCost (joinFillStep (a, m)) t ≤ stepCost := by
-    dsimp only [joinFillStep, stepCost]
-    rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind', hst_rp,
-      memoryCost_bind', memoryCost_read, clientState_read,
-      memoryCost_bind', memoryCost_write, memoryCost_pure]
-    omega
-  exact ⟨hv_step, by rw [hst_ev, hr_rp, hprod_eq], hres_ev, trivial, hc_step⟩
+  have hprod_fit : Fits w (t.mem (a.lTblPtr + m) * t.mem (a.rTblPtr + mr)) := hprod_eq ▸ hentry_fit
+  have hrp := Memory.FramedTriple.of_readOnly hv_rp hst_rp hr_rp hc_rp
+  obtain ⟨hv, hc, -, hr, hst⟩ := framedTriple_iff_realization.mp (show Memory.FramedTriple w t
+      (joinFillStep (a, m)) (a.rBagLen * (a.lBagLen + 1) + 3) Set.univ
+      fun r t' => r = m + 1 ∧ t' = ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ by
+    unfold joinFillStep
+    framed_walk
+    exact ⟨rfl, by rw [hprod_eq]⟩)
+  exact ⟨hv, hst, hr, trivial, hc⟩
 
 private theorem joinFillProg_realizes :
     Realizes .exact joinFillProg WordEncoding.encode WordEncoding.encode

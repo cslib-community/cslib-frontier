@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -128,65 +129,31 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
     (Memory.spec 0).clientResult s (subsetBagProg args) =
       (if decide (scopeL.toFinset ⊆ bagL.toFinset) then 1 else 0) ∧
     memoryCost (subsetBagProg args) s ≤ args.scopeLen * (args.bagLen + 1) := by
-  let stepCost := args.bagLen + 1
-  suffices ∀ ys cur ok,
-      HoldsIn cur ys s →
-      (ok = 0 ∨ ok = 1) →
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate subsetBagStep (args.bagPtr, args.bagLen) ys.length ⟨cur, ok⟩)) ∧
-      ((Memory.spec 0).clientResult s
-        (iterate subsetBagStep (args.bagPtr, args.bagLen) ys.length ⟨cur, ok⟩)).found =
-        (if ok = 1 ∧ ∀ u ∈ ys, u ∈ bagL then 1 else 0) ∧
-      memoryCost (iterate subsetBagStep (args.bagPtr, args.bagLen) ys.length ⟨cur, ok⟩) s ≤
-        ys.length * stepCost by
-    have hrun := this scopeL args.scopePtr 1 hscope (.inr rfl)
-    rw [hscope_len] at hrun
-    unfold subsetBagProg
-    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), subsetBagProg_state args s, ?_,
-      by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hrun.2.2⟩
-    rw [StateTransitionSpec.clientResult_bind, hrun.2.1]
-    exact if_congr (by simp [Finset.subset_iff]) rfl rfl
-  intro ys
-  induction ys with
-  | nil =>
-    rintro cur _ _ (rfl | rfl) <;>
-      exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
-  | cons u rest ih =>
-    intro cur ok hcur hok
-    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
-    have hlt : cur < s.frontier := by omega
-    obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
-      bagMemProg_spec (w := w) ⟨u, args.bagPtr, args.bagLen⟩ hbag hbag_len
-    dsimp only at hr_bm hc_bm
-    let ok' := if (if memBag u bagL then 1 else 0) = 1 then ok else 0
-    have hok' : ok' = 0 ∨ ok' = 1 := by dsimp only [ok']; split_ifs <;> omega
-    obtain ⟨hst_step, hres_step⟩ := subsetBagStep_eval args.bagPtr args.bagLen ⟨cur, ok⟩ s
-    have hres_step' :
-        (Memory.spec 0).clientResult s
-          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) = ⟨cur + 1, ok'⟩ :=
-      hres_step.trans (by simp only [hmem_u, hr_bm, ok'])
-    have hv_step : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩))) :=
-      validHistory_read_bind hlt (hmem_u.symm ▸ validHistory_bind_step hv_bm
-        (validHistory_pure w _ _))
-    have hc_step :
-        memoryCost (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) s ≤ stepCost := by
-      dsimp only [subsetBagStep, stepCost]
-      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u,
-        memoryCost_bind', hst_bm, memoryCost_pure]
-      omega
-    obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (cur + 1) ok' hrest hok'
-    simp only [List.length_cons, iterate]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step', hr_rem]
-      refine if_congr ?_ rfl rfl
-      dsimp only [ok']
-      rw [memBag_eq_decide]
-      rcases hok with rfl | rfl <;> by_cases hu : u ∈ bagL <;> simp [hu]
-    · rw [memoryCost_bind', hst_step, hres_step', Nat.succ_mul, Nat.add_comm _ stepCost]
-      exact Nat.add_le_add hc_step hc_rem
+  have hsc := hscope.1
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (s := s) (body := subsetBagStep)
+    (c := args.bagLen + 1) (S := ∅) (safe := fun _ _ _ => True) (d := (args.bagPtr, args.bagLen))
+    (n := args.scopeLen) (a₀ := ⟨args.scopePtr, 1⟩)
+    (Q := fun st _ => st.found = if ∀ u ∈ scopeL, u ∈ bagL then 1 else 0)
+    (fun k st t => t = s ∧ st.cur = args.scopePtr + k ∧
+      st.found = if ∀ u ∈ scopeL.take k, u ∈ bagL then 1 else 0) ⟨rfl, rfl, by simp⟩
+    (fun k hk st t ⟨ht, hcur, hfd⟩ _ => ⟨trivial, by
+      subst t
+      have hbm := bagMemProg_framed (w := w) ⟨s.mem st.cur, args.bagPtr, args.bagLen⟩ hbag hbag_len
+      unfold subsetBagStep
+      framed_triple
+      refine ⟨rfl, by dsimp only; omega, ?_⟩
+      rw [hfd, hcur, hscope.get k (by omega), List.take_add_one,
+        List.getElem?_eq_getElem (by omega), memBag_eq_decide]
+      simp only [Option.toList_some, List.forall_mem_append, List.forall_mem_singleton]
+      by_cases hu : scopeL[k] ∈ bagL <;> simp [hu]⟩)
+    fun st t ⟨_, _, hfd⟩ _ => by rwa [← hscope_len, List.take_length] at hfd
+  have hft : Memory.FramedTriple w s (subsetBagProg args) (args.scopeLen * (args.bagLen + 1)) ∅
+      fun r _ => r = if decide (scopeL.toFinset ⊆ bagL.toFinset) then 1 else 0 :=
+    Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+      fun st _ h _ => Memory.FramedTriple.pure (by simp [h, Finset.subset_iff]))
+      (by rw [Nat.mul_comm]; omega) fun _ _ => id
+  obtain ⟨hv, hc, -, hres⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, subsetBagProg_state args s, hres, hc⟩
 
 /-- Exact-basis Word-RAM realization certificate for `subsetBagProg`. -/
 theorem subsetBagProg_realizes :
@@ -250,28 +217,11 @@ private theorem eraseCopyStep_eval (target : ℕ) (st : EraseState) (t : Memory.
        else ⟨Function.update t.mem st.dstCur x, t.frontier⟩) ∧
     (Memory.spec 0).clientResult t (eraseCopyStep (target, st)) =
       (if st.skipped = 0 ∧ x = target then ⟨st.srcCur + 1, st.dstCur, 1⟩
-       else ⟨st.srcCur + 1, st.dstCur + 1, st.skipped⟩) ∧
-    memoryCost (eraseCopyStep (target, st)) t ≤ 2 := by
+       else ⟨st.srcCur + 1, st.dstCur + 1, st.skipped⟩) := by
   unfold eraseCopyStep
   dsimp only
-  rw [clientState_bind_read, clientResult_bind_read, memoryCost_bind', memoryCost_read,
-    clientState_read, clientResult_read]
-  split_ifs
-  · exact ⟨rfl, rfl, by rw [memoryCost_pure]; omega⟩
-  · rw [memoryCost_bind', memoryCost_write, memoryCost_pure]
-    exact ⟨rfl, rfl, le_rfl⟩
-
-private theorem eraseCopyStep_valid {w target : ℕ} {st : EraseState} {t : Memory.State}
-    (hsrc : st.srcCur < t.frontier) (hfit : Fits w (t.mem st.srcCur))
-    (hdst : ¬(st.skipped = 0 ∧ t.mem st.srcCur = target) → st.dstCur < t.frontier) :
-    (Memory.spec w).ValidHistory t
-      ((Memory.spec w).clientHistory t (eraseCopyStep (target, st))) := by
-  unfold eraseCopyStep
-  dsimp only
-  refine validHistory_read_bind hsrc ?_
-  split_ifs with hc
-  · exact validHistory_pure w t _
-  · exact validHistory_write_bind (hdst hc) hfit (validHistory_pure w _ _)
+  rw [clientState_bind_read, clientResult_bind_read]
+  split_ifs <;> exact ⟨rfl, rfl⟩
 
 private theorem sub_memBag_eq_length_erase {xs : List ℕ} {n target : ℕ} (hlen : xs.length = n) :
     n - (if memBag target xs then 1 else 0) = (xs.erase target).length := by
@@ -301,132 +251,64 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
     PreservesBelow s.frontier s s₁ ∧
     HoldsIn s.frontier (xs.erase args.target) s₁ ∧
     memoryCost (eraseBagProg args) s ≤ 3 * args.len + 1 := by
-  obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ := bagMemProg_spec (w := w) args hxs hlen
-  have hlen_er := sub_memBag_eq_length_erase (target := args.target) hlen
-  let bagLen := (xs.erase args.target).length
-  let bagPtr := s.frontier
-  let s_a := (Memory.spec 0).clientState s (Memory.allocDirty bagLen)
-  have hp_a : PreservesBelow bagPtr s s_a := preservesBelow_allocDirty s bagLen
-  have hv_a : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (Memory.allocDirty bagLen)) :=
-    validHistory_allocDirty hfit_fr
-  suffices ∀ ys srcCur written skipped t,
-      (∀ u ∈ ys, Fits w u) →
-      srcCur + ys.length ≤ bagPtr →
-      t.frontier = bagPtr + bagLen →
-      PreservesBelow bagPtr s t →
-      HoldsIn srcCur ys t →
-      HoldsIn bagPtr written t →
-      (skipped = 0 ∨ skipped = 1) →
-      written ++ (if skipped = 1 then ys else ys.erase args.target) = xs.erase args.target →
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t
-          (iterate eraseCopyStep args.target ys.length
-            ⟨srcCur, bagPtr + written.length, skipped⟩)) ∧
-      (let tEnd := (Memory.spec 0).clientState t
-         (iterate eraseCopyStep args.target ys.length
-           ⟨srcCur, bagPtr + written.length, skipped⟩)
-       tEnd.frontier = bagPtr + bagLen ∧
-       PreservesBelow bagPtr s tEnd ∧
-       HoldsIn bagPtr (xs.erase args.target) tEnd) ∧
-      memoryCost
-        (iterate eraseCopyStep args.target ys.length
-          ⟨srcCur, bagPtr + written.length, skipped⟩) t ≤ 2 * ys.length by
-    have hrun := this xs args.base [] 0 s_a hfit_elems hxs.1 rfl hp_a
-      (hxs.mono_frontier hp_a) (HoldsIn.nil (Nat.le_add_right _ _)) (.inl rfl)
-      (by simp)
-    simp only [List.length_nil, Nat.add_zero, hlen] at hrun
-    obtain ⟨hv_loop, ⟨hfr_end, hp_end, hbag_end⟩, hc_loop⟩ := hrun
-    have ha : (Memory.spec 0).clientState s (Memory.allocDirty bagLen) = s_a ∧
-        (Memory.spec 0).clientResult s (Memory.allocDirty bagLen) = bagPtr := ⟨rfl, rfl⟩
-    have hstate : (Memory.spec 0).clientState s (eraseBagProg args) =
-        (Memory.spec 0).clientState s_a
-          (iterate eraseCopyStep args.target args.len ⟨args.base, bagPtr, 0⟩) := by
-      simp only [eraseBagProg]
-      rw [StateTransitionSpec.clientState_bind, hst_bm, hr_bm, hlen_er,
-        StateTransitionSpec.clientState_bind, ha.1, ha.2, StateTransitionSpec.clientState_bind]
-      rfl
-    dsimp only
-    rw [hstate]
-    simp only [eraseBagProg]
-    refine ⟨validHistory_bind_step hv_bm ?_, ?_, hfr_end, hp_end, hbag_end, ?_⟩
-    · rw [hst_bm, hr_bm, hlen_er]
-      exact validHistory_bind_step hv_a (validHistory_bind_step hv_loop (validHistory_pure w _ _))
-    · rw [StateTransitionSpec.clientResult_bind, hst_bm, hr_bm, hlen_er,
-        StateTransitionSpec.clientResult_bind, ha.1, ha.2, StateTransitionSpec.clientResult_bind]
-      rfl
-    · rw [memoryCost_bind', hst_bm, hr_bm, hlen_er, memoryCost_bind', memoryCost_allocDirty,
-        ha.1, ha.2, memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      omega
-  intro ys
-  induction ys with
-  | nil =>
-    intro srcCur written skipped t _ _ hfr hpres _ hwr hsk hconcat
-    obtain rfl : written = xs.erase args.target := by
-      rcases hsk with rfl | rfl <;> simpa using hconcat
-    exact ⟨validHistory_pure w t _, ⟨hfr, hpres, hwr⟩, by simp [iterate, memoryCost_pure]⟩
-  | cons x rest ih =>
-    intro srcCur written skipped t hfit_ys hsrc_end hfr hpres hys hwr hsk hconcat
-    obtain ⟨_, hmem_x, hrest⟩ := HoldsIn.cons_iff.mp hys
-    have hsrc_lt : srcCur < t.frontier := by simp only [List.length_cons] at hsrc_end; omega
-    have hx_fit : Fits w (t.mem srcCur) := hmem_x ▸ hfit_ys x List.mem_cons_self
-    have hfit_rest : ∀ u ∈ rest, Fits w u := fun u hu => hfit_ys u (List.mem_cons_of_mem _ hu)
-    simp only [List.length_cons, iterate] at hsrc_end ⊢
-    obtain ⟨hst_ev, hres_ev, hc_step⟩ :=
-      eraseCopyStep_eval args.target ⟨srcCur, bagPtr + written.length, skipped⟩ t
-    dsimp only at hst_ev hres_ev
-    rw [hmem_x] at hst_ev hres_ev
-    by_cases hskip_cond : skipped = 0 ∧ x = args.target
-    · rw [ite_eq_left hskip_cond] at hst_ev hres_ev
-      obtain ⟨rfl, rfl⟩ := hskip_cond
-      have hv_step := eraseCopyStep_valid (target := args.target)
-        (st := ⟨srcCur, bagPtr + written.length, 0⟩) hsrc_lt hx_fit fun h => (h ⟨rfl, hmem_x⟩).elim
-      have hconcat' : written ++ (if (1 : ℕ) = 1 then rest else rest.erase args.target) =
-          xs.erase args.target := by
-        simpa [List.erase_cons] using hconcat
-      obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
-        ih (srcCur + 1) written 1 t hfit_rest (by omega) hfr hpres hrest hwr (.inr rfl) hconcat'
-      refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev]),
-        by rwa [StateTransitionSpec.clientState_bind, hst_ev, hres_ev], ?_⟩
-      rw [memoryCost_bind', hst_ev, hres_ev]
-      omega
-    · rw [ite_eq_right hskip_cond] at hst_ev hres_ev
-      have htail_eq :
-          (if skipped = 1 then x :: rest else (x :: rest).erase args.target) =
-            x :: (if skipped = 1 then rest else rest.erase args.target) := by
+  intro bagLen s₁
+  have hxsf := hxs.1
+  have hlen_er : args.len - (if memBag args.target xs then 1 else 0) = bagLen :=
+    sub_memBag_eq_length_erase hlen
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (s := ⟨s.mem, s.frontier + bagLen⟩)
+    (body := eraseCopyStep) (c := 2) (S := Set.Ico s.frontier (s.frontier + bagLen))
+    (safe := fun _ _ _ => True) (d := args.target) (n := args.len)
+    (a₀ := ⟨args.base, s.frontier, 0⟩)
+    (Q := fun _ t => t.frontier = s.frontier + bagLen ∧ HoldsIn s.frontier (xs.erase args.target) t)
+    (fun k st t => t.frontier = s.frontier + bagLen ∧ ∃ written sk,
+      st = ⟨args.base + k, s.frontier + written.length, sk⟩ ∧ (sk = 0 ∨ sk = 1) ∧
+      HoldsIn s.frontier written t ∧ written ++
+        (if sk = 1 then xs.drop k else (xs.drop k).erase args.target) = xs.erase args.target)
+    ⟨rfl, [], 0, rfl, .inl rfl, HoldsIn.nil (by dsimp only; omega), by simp⟩
+    (fun k hk st t ⟨htf, written, sk, hst, hsk, hwr, hcat⟩ hmod => ⟨trivial, by
+      subst hst
+      have hxk : t.mem (args.base + k) = xs[k] :=
+        (hmod.2 _ (by dsimp only; omega) (by region_omega)).trans (hxs.get k (by omega))
+      have hfitx : Fits w (t.mem (args.base + k)) := hxk ▸ hfit_elems _ (List.getElem_mem _)
+      rw [List.drop_eq_getElem_cons (by omega)] at hcat
+      have hlt : ¬(sk = 0 ∧ t.mem (args.base + k) = args.target) →
+          written.length < bagLen := fun hc => by
+        have := congrArg List.length hcat
+        rw [hxk] at hc
         rcases hsk with rfl | rfl
-        · simp [beq_eq_false_iff_ne.2 fun hx => hskip_cond ⟨rfl, hx⟩]
-        · simp
-      have hc_len : written.length +
-          ((if skipped = 1 then rest else rest.erase args.target).length + 1) =
-          (xs.erase args.target).length := by
-        simpa only [htail_eq, List.length_append, List.length_cons] using
-          congrArg List.length hconcat
-      have hdst_lt : bagPtr + written.length < t.frontier := by omega
-      let t₁ : Memory.State := ⟨Function.update t.mem (bagPtr + written.length) x, t.frontier⟩
-      have hres_ev' : (Memory.spec 0).clientResult t
-          (eraseCopyStep (args.target, ⟨srcCur, bagPtr + written.length, skipped⟩)) =
-          ⟨srcCur + 1, bagPtr + (written ++ [x]).length, skipped⟩ := by
-        simp [hres_ev, Nat.add_assoc]
-      have hv_step := eraseCopyStep_valid (target := args.target)
-        (st := ⟨srcCur, bagPtr + written.length, skipped⟩) hsrc_lt hx_fit fun _ => hdst_lt
-      have hp₁ : PreservesBelow bagPtr t t₁ :=
-        preservesBelow_write (Nat.le_add_right _ _) hdst_lt
-      have hrest₁ : HoldsIn (srcCur + 1) rest t₁ :=
-        hrest.mono (F := bagPtr) (by omega) hp₁
-      have hwr₁ : HoldsIn bagPtr (written ++ [x]) t₁ :=
-        holdsIn_append_one hwr (by omega)
-      have hconcat₁ : (written ++ [x]) ++ (if skipped = 1 then rest else rest.erase args.target) =
-          xs.erase args.target := by
-        simpa only [List.append_assoc, List.singleton_append, ← htail_eq] using hconcat
-      obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
-        ih (srcCur + 1) (written ++ [x]) skipped t₁ hfit_rest (by omega) hfr
-          (hpres.trans hp₁) hrest₁ hwr₁ hsk hconcat₁
-      refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev']),
-        by rwa [StateTransitionSpec.clientState_bind, hst_ev, hres_ev'], ?_⟩
-      rw [memoryCost_bind', hst_ev, hres_ev']
-      dsimp only [t₁] at hc_rem
-      omega
+        · rw [ite_eq_right (by omega), List.erase_cons_tail (by simpa using hc)] at this
+          simp only [List.length_append, List.length_cons] at this; omega
+        · simp only [↓reduceIte, List.length_append, List.length_cons] at this; omega
+      unfold eraseCopyStep
+      framed_walk
+      · rename_i hc
+        refine ⟨htf, written, 1, rfl, .inr rfl, hwr, ?_⟩
+        obtain ⟨rfl, hx⟩ := hc
+        rw [hxk] at hx
+        simpa [hx] using hcat
+      · rename_i hc
+        refine ⟨htf, written ++ [t.mem (args.base + k)], sk, by simp [Nat.add_assoc], hsk,
+          holdsIn_append_one hwr (by omega), ?_⟩
+        rw [hxk] at hc ⊢
+        rcases hsk with rfl | rfl
+        · rw [ite_eq_right (by omega), List.erase_cons_tail (by simpa using hc)] at hcat
+          simpa using hcat
+        · simpa using hcat⟩)
+    fun st t ⟨htf, written, sk, _, _, hwr, hcat⟩ _ => ⟨htf, by
+      rw [← hcat, ← hlen, List.drop_length]; split <;> simpa using hwr⟩
+  have hft : Memory.FramedTriple w s (eraseBagProg args) (3 * args.len + 1)
+      (Set.Ico s.frontier (s.frontier + bagLen)) fun r t =>
+        r = (s.frontier, bagLen) ∧ t.frontier = s.frontier + bagLen ∧
+          HoldsIn s.frontier (xs.erase args.target) t := by
+    unfold eraseBagProg
+    exact Memory.FramedTriple.mono (Memory.FramedTriple.call_eq
+      (bagMemProg_framed (w := w) args hxs hlen) (Set.empty_subset _) (by
+        dsimp only; rw [hlen_er]
+        exact Memory.FramedTriple.allocDirty_bind hfit_fr (Memory.FramedTriple.call (c₂ := 0)
+          hloop subset_rfl fun _ t h _ => Memory.FramedTriple.pure ⟨rfl, h⟩)))
+      (by omega) fun _ _ => id
+  obtain ⟨hv, hc, hm, hres, hfr, hhold⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, hres, hfr, ⟨le_rfl, hm.1, fun a ha => hm.2 a ha (by simp; omega)⟩, hhold, hc⟩
 
 /-- Exact-basis Word-RAM realization certificate for `eraseBagProg`. -/
 theorem eraseBagProg_realizes :
@@ -479,7 +361,7 @@ theorem eraseBagProg_realizes :
     have hfit_dst : Fits w st.dstCur := hfit_fr.of_le (by omega)
     have hfit_dst1 : Fits w (st.dstCur + 1) := hfit_fr.of_le (by omega)
     have hfit_sk : Fits w st.skipped := h1.of_le hsk_le
-    obtain ⟨hst_ev, hres_ev, _⟩ := eraseCopyStep_eval d.target st t
+    obtain ⟨hst_ev, hres_ev⟩ := eraseCopyStep_eval d.target st t
     dsimp only at hst_ev hres_ev
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_⟩
     · dsimp only [eraseCopyStep]

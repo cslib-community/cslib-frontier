@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Memory
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -91,49 +92,30 @@ theorem copyWords_spec {w : ℕ} (args : CopyArgs) {xs : List ℕ} {F : ℕ} {s 
       s'.frontier = s.frontier ∧
       PreservesBelow F s s' ∧
       Block.HoldsList args.dst xs s'.mem := by
-  dsimp only
-  unfold copyWords
-  rw [StateTransitionSpec.clientState_bind]
-  have haux : ∀ (ys : List ℕ) (src dst G : ℕ) (t : Memory.State),
-      Memory.WellFormed w t →
-      Block.HoldsList src ys t.mem →
-      src + ys.length ≤ G → G ≤ dst → dst + ys.length ≤ t.frontier →
-      let t' := (Memory.spec 0).clientState t (iterate copyWordsStep () ys.length ⟨src, dst⟩)
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate copyWordsStep () ys.length ⟨src, dst⟩)) ∧
-      t'.frontier = t.frontier ∧
-      PreservesBelow G t t' ∧
-      Block.HoldsList dst ys t'.mem := by
-    intro ys src dst G t hwf_t hys hsrcG hGdst hdstF
-    induction ys generalizing src dst G t with
-    | nil =>
-      exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega),
-        Block.holdsList_nil dst t.mem⟩
-    | cons v rest ih =>
-      simp only [List.length_cons] at hsrcG hdstF
-      obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
-      have hsrc_lt : src < t.frontier := by omega
-      have hdst_lt : dst < t.frontier := by omega
-      obtain ⟨hval_rest, hfr_rest, hpres_rest, hholds_rest⟩ :=
-        ih (src + 1) (dst + 1) (dst + 1) ⟨Function.update t.mem dst v, t.frontier⟩
-          (hwf_t.step (o := .write dst v) ⟨hdst_lt, hhead ▸ hwf_t.mem_fits src⟩)
-          (htail.frame fun a _ hhi => Function.update_of_ne (by omega) v t.mem) (by omega) le_rfl
-          (by dsimp only; omega)
-      have hstep_st : (Memory.spec 0).clientState t (copyWordsStep ((), ⟨src, dst⟩)) =
-          ⟨Function.update t.mem dst v, t.frontier⟩ := hhead ▸ rfl
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (w := w) (s := s) (body := copyWordsStep)
+    (safe := fun _ _ _ => True) (d := ()) (n := args.len) (a₀ := ⟨args.src, args.dst⟩) (c := 2)
+    (S := Set.Ico args.dst (args.dst + args.len))
+    (fun k st t => t.frontier = s.frontier ∧ st.src = args.src + k ∧ st.dst = args.dst + k ∧
+      ∀ j < k, t.mem (args.dst + j) = s.mem (args.src + j))
+    ⟨rfl, rfl, rfl, by simp⟩ (fun k hk ⟨src, dst⟩ t ⟨hfr, hs, hd, hdone⟩ hmod => by
+      dsimp only at hs hd; subst hs hd
+      have hsrc := hmod.2 (args.src + k) (by omega) (by simp; omega)
+      have hval : Fits w (t.mem (args.src + k)) := hsrc ▸ hwf.mem_fits _
+      refine ⟨trivial, ?_⟩
+      unfold copyWordsStep
+      framed_triple
       dsimp only
-      rw [List.length_cons, iterate, validHistory_bind', StateTransitionSpec.clientState_bind,
-        hstep_st]
-      refine ⟨⟨validHistory_read_bind hsrc_lt
-          (validHistory_write_bind hdst_lt (hwf_t.mem_fits src) (validHistory_pure w _ _)),
-          hval_rest⟩, hfr_rest,
-        ⟨by omega, hfr_rest.ge, fun a ha =>
-          (hpres_rest.2.2 a (by omega)).trans (Function.update_of_ne (by omega) v t.mem)⟩,
-        Block.holdsList_cons_iff.mpr
-          ⟨(hpres_rest.2.2 dst (by omega)).trans (Function.update_self dst v t.mem), hholds_rest⟩⟩
-  rw [← hlen] at hsrcF hdst ⊢
-  obtain ⟨hv, hfr, hpres, hholds⟩ := haux xs args.src args.dst F s hwf hxs hsrcF hFdst hdst
-  exact ⟨validHistory_bind_step hv (validHistory_pure w _ _), hfr, hpres, hholds⟩
+      refine ⟨hfr, by omega, by omega, Nat.forall_lt_succ_right.2 ⟨fun j hj => ?_, by simp [hsrc]⟩⟩
+      simp [hj.ne, hdone j hj]) fun _ t h _ => h
+  have hft : Memory.FramedTriple w s (copyWords args) (2 * args.len)
+      (Set.Ico args.dst (args.dst + args.len)) fun _ t => t.frontier = s.frontier ∧
+        ∀ j < args.len, t.mem (args.dst + j) = s.mem (args.src + j) := by
+    unfold copyWords
+    exact Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl
+      fun _ _ h _ => Memory.FramedTriple.pure ⟨h.1, h.2.2.2⟩) (by omega) fun _ _ => id
+  obtain ⟨hv, -, hm, hfr, hpost⟩ := framedTriple_iff_realization.mp hft
+  exact ⟨hv, hfr, ⟨by omega, hm.1, fun a ha => hm.2 a (by omega) (by simp; omega)⟩,
+    fun ⟨i, hi⟩ => (hpost i (hlen ▸ hi)).trans (hxs ⟨i, hi⟩)⟩
 
 theorem copyWords_realizes :
     Realizes .exact copyWords WordEncoding.encode WordEncoding.encode
@@ -210,68 +192,51 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       res.1 = s.frontier ∧
       res.2 = out.length ∧
       HoldsIn res.1 out s' := by
-  simp only [filterNe]
-  have haux : ∀ (ys : List ℕ) (src dst cnt G : ℕ) (t : Memory.State),
-      Memory.WellFormed w t →
-      Block.HoldsList src ys t.mem →
-      src + ys.length ≤ G → G ≤ dst → dst + ys.length ≤ t.frontier →
-      let p := iterate filterNeStep args.target ys.length ⟨src, dst, cnt⟩
-      let r := (Memory.spec 0).clientResult t p
-      let t' := (Memory.spec 0).clientState t p
-      let out := ys.filter fun v => decide (v ≠ args.target)
-      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
-      t'.frontier = t.frontier ∧
-      PreservesBelow G t t' ∧
-      r.count = cnt + out.length ∧
-      Block.HoldsList dst out t'.mem := by
-    intro ys src dst cnt G t hwf_t hys hsrcG hGdst hdstF
-    induction ys generalizing src dst cnt G t with
-    | nil =>
-      exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega), rfl,
-        Block.holdsList_nil dst t.mem⟩
-    | cons v rest ih =>
-      simp only [List.length_cons] at hsrcG hdstF
-      obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
-      have hsrc_lt : src < t.frontier := by omega
-      obtain ⟨hres, hst⟩ := filterNeStep_eval args.target ⟨src, dst, cnt⟩ t
-      dsimp only at hres hst ⊢
-      rw [List.length_cons, iterate, validHistory_bind', StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientState_bind, hres, hst, hhead]
-      by_cases hvx : v = args.target
-      · obtain ⟨hval_r, hfr_r, hpres_r, hcnt_r, hholds_r⟩ :=
-          ih (src + 1) dst cnt G t hwf_t htail (by omega) hGdst (by omega)
-        rw [ite_eq_left hvx, ite_eq_left hvx, List.filter_cons_of_neg (by simp [hvx])]
-        exact ⟨⟨validHistory_read_bind hsrc_lt
-          (by simpa only [hhead, hvx, ↓reduceIte] using validHistory_pure w t _), hval_r⟩,
-          hfr_r, hpres_r, hcnt_r, hholds_r⟩
-      · have hdst_lt : dst < t.frontier := by omega
-        have hv_fit : Fits w v := hhead ▸ hwf_t.mem_fits src
-        obtain ⟨hval_r, hfr_r, hpres_r, hcnt_r, hholds_r⟩ :=
-          ih (src + 1) (dst + 1) (cnt + 1) (dst + 1) ⟨Function.update t.mem dst v, t.frontier⟩
-            (hwf_t.step (o := .write dst v) ⟨hdst_lt, hv_fit⟩)
-            (htail.frame fun a _ hhi => Function.update_of_ne (by omega) v t.mem) (by omega) le_rfl
-            (by dsimp only; omega)
-        rw [ite_eq_right hvx, ite_eq_right hvx, List.filter_cons_of_pos (by simpa using hvx),
-          List.length_cons]
-        refine ⟨⟨validHistory_read_bind hsrc_lt ?_, hval_r⟩, hfr_r,
-          ⟨by omega, hfr_r.ge, fun a ha =>
-            (hpres_r.2.2 a (by omega)).trans (Function.update_of_ne (by omega) v t.mem)⟩, by omega,
-          Block.holdsList_cons_iff.mpr
-            ⟨(hpres_r.2.2 dst (by omega)).trans (Function.update_self dst v t.mem), hholds_r⟩⟩
-        rw [hhead, ite_eq_right hvx]
-        exact validHistory_write_bind hdst_lt hv_fit (validHistory_pure w _ _)
-  obtain ⟨hv, hfr, hpres, hcnt, hholds⟩ :=
-    haux xs args.base s.frontier 0 s.frontier ⟨s.mem, s.frontier + xs.length⟩
-      (by rw [hlen]; exact hwf.step (o := .allocDirty args.len) hfit) hxs.2 hxs.1 le_rfl le_rfl
-  have hout_le := List.length_filter_le (fun v => decide (v ≠ args.target)) xs
-  rw [← hlen] at hfit ⊢
-  rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    clientResult_allocDirty, clientState_allocDirty, StateTransitionSpec.clientResult_bind,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_pure,
-    StateTransitionSpec.clientState_pure]
-  dsimp only at hfr hcnt
-  exact ⟨validHistory_allocDirty_bind hfit (validHistory_bind_step hv (validHistory_pure w _ _)),
-    hfr, ⟨le_rfl, by omega, hpres.2.2⟩, rfl, by omega, ⟨by omega, hholds⟩⟩
+  let pre (k : ℕ) := (xs.take k).filter fun v => decide (v ≠ args.target)
+  have hb := hxs.1
+  obtain ⟨-, hloop⟩ := Memory.FramedTriple.iterate (w := w) (body := filterNeStep)
+    (safe := fun _ _ _ => True) (d := args.target) (n := args.len) (c := 2)
+    (s := ⟨s.mem, s.frontier + args.len⟩) (a₀ := ⟨args.base, s.frontier, 0⟩)
+    (S := Set.Ici s.frontier)
+    (fun k st t => t.frontier = s.frontier + args.len ∧ st.src = args.base + k ∧
+      st.dst = s.frontier + st.count ∧ st.count = (pre k).length ∧ (pre k).length ≤ k ∧
+      Block.HoldsList s.frontier (pre k) t.mem)
+    ⟨rfl, rfl, rfl, by simp [pre], by simp [pre], by simpa [pre] using Block.holdsList_nil _ _⟩
+    (fun k hk ⟨src, dst, cnt⟩ t ⟨hfr, hs, hd, hc, hle, hacc⟩ hmod => by
+      dsimp only at hs hd hc; subst hs hc; subst hd
+      have hkx : k < xs.length := by omega
+      have hv : t.mem (args.base + k) = xs[k] :=
+        (hmod.2 _ (by dsimp only; omega) (by simp; omega)).trans (hxs.get k hkx)
+      have hvfit : Fits w (t.mem (args.base + k)) := hv ▸ hxs.get k hkx ▸ hwf.mem_fits _
+      have hpre : pre (k + 1) = pre k ++ (if xs[k] = args.target then [] else [xs[k]]) := by
+        simp only [pre, List.take_add_one, List.getElem?_eq_getElem hkx, Option.toList_some,
+          List.filter_append, List.filter_cons, List.filter_nil]
+        split_ifs <;> simp_all
+      refine ⟨trivial, ?_⟩
+      unfold filterNeStep
+      framed_triple
+      · rename_i hc; rw [hv] at hc
+        dsimp only; rw [hpre, ite_eq_left hc, List.append_nil]
+        exact ⟨hfr, by omega, rfl, rfl, by omega, hacc⟩
+      · rename_i hc; rw [hv] at hc
+        dsimp only; rw [hpre, ite_eq_right hc, List.length_append, List.length_singleton]
+        refine ⟨hfr, by omega, by omega, rfl, by omega, Block.holdsList_append_iff.mpr
+          ⟨hacc.frame fun a _ ha => Function.update_of_ne (by omega) _ _, ?_⟩⟩
+        exact Block.holdsList_cons_iff.mpr ⟨by rw [hv]; exact Function.update_self ..,
+          Block.holdsList_nil _ _⟩)
+    fun _ _ h _ => h
+  have hft : Memory.FramedTriple w s (filterNe args) (1 + 2 * args.len) (Set.Ici s.frontier)
+      fun r t => t.frontier = s.frontier + args.len ∧ r.1 = s.frontier ∧
+        r.2 = (pre args.len).length ∧ Block.HoldsList s.frontier (pre args.len) t.mem := by
+    unfold filterNe
+    exact Memory.FramedTriple.mono (Memory.FramedTriple.allocDirty_bind hfit
+      (Memory.FramedTriple.call (c₂ := 0) hloop subset_rfl fun _ _ h _ =>
+        Memory.FramedTriple.pure ⟨h.1, rfl, h.2.2.2.1, h.2.2.2.2.2⟩)) (by omega) fun _ _ => id
+  obtain ⟨hv, -, hm, hfr, hr1, hr2, hh⟩ := framedTriple_iff_realization.mp hft
+  simp only [pre, ← hlen, List.take_length] at hr2 hh
+  have := List.length_filter_le (fun v => decide (v ≠ args.target)) xs
+  exact ⟨hv, hfr, preservesBelow_of_modifies hm (.refl le_rfl), hr1, hr2,
+    ⟨by omega, hr1 ▸ hh⟩⟩
 
 theorem filterNe_realizes :
     Realizes .exact filterNe WordEncoding.encode WordEncoding.encode

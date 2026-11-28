@@ -82,12 +82,22 @@ cost, and leaves the postcondition of the step.
   predicate.
 * `Cslib.DataStructure.Memory.FramedTriple.iterate_sum`: bounded iteration whose step `k` costs
   `cost k`, for a total of `∑ k ∈ Finset.range n, cost k`.
+* `Cslib.DataStructure.Memory.FramedTriple.iterate_potential`: bounded iteration amortized by a
+  potential `Φ` of the step index, for a total of `Φ 0 + B * n`.
 * `Cslib.DataStructure.Memory.FramedTriple.call`, `Cslib.DataStructure.Memory.FramedTriple.call_eq`,
   `Cslib.DataStructure.Memory.FramedTriple.seq`,
   `Cslib.DataStructure.Memory.FramedTriple.call_eq_tail`: calling a sub-program through its triple.
 * `Cslib.DataStructure.Memory.FramedTriple.ite_max`,
   `Cslib.DataStructure.Memory.FramedTriple.dite_max`: conditionals with branch costs combined by
   `max`.
+* `Cslib.DataStructure.Memory.FramedTriple.drop_fresh`,
+  `Cslib.DataStructure.Memory.FramedTriple.post_modifies`,
+  `Cslib.DataStructure.Memory.FramedTriple.weaken`: dropping the cells above the initial frontier
+  from a frame, and postconditions that use the frame.
+* `Cslib.DataStructure.Memory.FramedTriple.of_readOnly`: a read-only program specified in the
+  older form (history, unchanged state, result, cost) as a framed triple with an empty frame.
+* `Cslib.DataStructure.Memory.FramedTriple.univ_of_realization`: a program specified in the older
+  form (history, cost) as a framed triple over all of memory that fixes its result and state.
 
 ## Main definitions
 
@@ -157,6 +167,26 @@ theorem dite_max {cond : Prop} [Decidable cond] {p₁ : cond → Prog α} {p₂ 
   dite (fun h => (h₁ h).mono (le_max_left _ _) fun _ _ => id)
     fun h => (h₂ h).mono (le_max_right _ _) fun _ _ => id
 
+/-- Cells at or above the initial frontier are not allocated there, so a frame may drop them. A
+sub-program that works in a block allocated by the caller is called with the block in the
+caller's frame, which this rule then removes. -/
+theorem drop_fresh {p : Prog α} (h : FramedTriple w s p c (S ∪ Set.Ici s.frontier) Q) :
+    FramedTriple w s p c S Q :=
+  Triple.mono h le_rfl fun _ _ ⟨hm, hq⟩ =>
+    ⟨⟨hm.1, fun a ha haS => hm.2 a ha fun h => h.elim haS fun h' => absurd h' (not_le.2 ha)⟩, hq⟩
+
+/-- A postcondition may assume the frame of the whole program. -/
+theorem post_modifies {p : Prog α}
+    (h : FramedTriple w s p c S fun r t => Memory.Modifies S s t → Q r t) :
+    FramedTriple w s p c S Q :=
+  Triple.mono h le_rfl fun _ _ ⟨hm, hq⟩ => ⟨hm, hq hm⟩
+
+/-- Weaken a postcondition with the help of the triple's own frame, and enlarge the frame. -/
+theorem weaken {p : Prog α} {Q₁ : α → State → Prop} (h : FramedTriple w s p c S₁ Q₁)
+    (hS : S₁ ⊆ S) (hQ : ∀ r t, Q₁ r t → Memory.Modifies S₁ s t → Q r t) :
+    FramedTriple w s p c S Q :=
+  Triple.mono h le_rfl fun r t ⟨hm, hq⟩ => ⟨hm.mono hS, hQ r t hq hm⟩
+
 /-- **Bounded iteration.** Each of the `n` steps, run from a state satisfying the invariant and
 reached from `s` within the frame `S`, meets the body's realization safety predicate and a framed
 triple of cost `c` re-establishing the invariant. The loop then meets its iteration safety
@@ -199,6 +229,27 @@ theorem iterate_sum {δ σ : Type} {body : δ × σ → Prog σ} {safe : ℕ →
   exact ⟨hsafe, framedTriple_iff_realization.mpr
     ⟨hv, by simpa using hc, hm, hpost _ _ hi hm'⟩⟩
 
+/-- **Bounded iteration amortized by a potential of the step index.** As
+`FramedTriple.iterate`, but step `k` meets a framed triple of some cost `c'` with
+`c' + Φ (k + 1) ≤ Φ k + B`, and the loop costs `Φ 0 + B * n`. -/
+theorem iterate_potential {δ σ : Type} {body : δ × σ → Prog σ}
+    {safe : ℕ → δ × σ → State → Prop} {d : δ} {n B : ℕ} {a₀ : σ} {Q : σ → State → Prop}
+    (Φ : ℕ → ℕ) (inv : ℕ → σ → State → Prop) (h₀ : inv 0 a₀ s)
+    (hstep : ∀ k < n, ∀ a t, inv k a t → Memory.Modifies S s t →
+      safe w (d, a) t ∧ ∃ c', c' + Φ (k + 1) ≤ Φ k + B ∧
+        FramedTriple w t (body (d, a)) c' S (inv (k + 1)))
+    (hpost : ∀ a t, inv n a t → Memory.Modifies S s t → Q a t) :
+    iterationSafe body safe w d n a₀ s ∧
+      FramedTriple w s (Realization.iterate body d n a₀) (Φ 0 + B * n) S Q := by
+  obtain ⟨hsafe, hv, hc, hm, hi, hm'⟩ := iterate_potential_spec body safe w d B n
+    (fun k a t => inv k a t ∧ Memory.Modifies S s t) (fun k _ _ => Φ k) S
+    (fun k hk a t ⟨hi, hm⟩ => by
+      obtain ⟨hs, c', hle, hft⟩ := hstep k hk a t hi hm
+      obtain ⟨hv, hc, hm', hi'⟩ := framedTriple_iff_realization.mp hft
+      exact ⟨hs, hv, by omega, hm', hi', hm.trans hm'⟩)
+    a₀ s ⟨h₀, Modifies.refl S s⟩
+  exact ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv, by omega, hm, hpost _ _ hi hm'⟩⟩
+
 /-- Allocate a dirty block of `k` cells at a frontier `fr` known by an equation, then continue
 from the enlarged state with the block `⟨fr, k⟩`. Stating the frontier as `fr` avoids rewriting a
 frontier expression inside the program. -/
@@ -232,6 +283,25 @@ theorem of_realization {p : Prog α}
       r = (spec 0).clientResult s p ∧ t = (spec 0).clientState s p :=
   framedTriple_iff_realization.mpr
     ⟨hv, le_rfl, ⟨hfr.ge, fun a _ haS => by_contra fun h => haS (hS a h)⟩, rfl, rfl⟩
+
+/-- A read-only program specified in the older form (admissible history, unchanged state, result
+`r`, cost at most `c`) meets a framed triple with an empty frame that fixes its result and leaves
+the state unchanged, so that `FramedTriple.call_eq` and `framed_triple` can call it. -/
+theorem of_readOnly {p : Prog α} {r : α}
+    (hv : (spec w).ValidHistory s ((spec w).clientHistory s p))
+    (hst : (spec 0).clientState s p = s) (hr : (spec 0).clientResult s p = r)
+    (hc : memoryCost p s ≤ c) : FramedTriple w s p c ∅ fun r' t => r' = r ∧ t = s :=
+  framedTriple_iff_realization.mpr ⟨hv, hc, by rw [hst]; exact .refl _ _, hr, hst⟩
+
+/-- A program specified in the older form (admissible history, cost at most `c`, result `r`, final
+state `t`) meets a framed triple over all of memory that fixes its result and final state; no
+frame or frontier fact is needed, since no program lowers the frontier. -/
+theorem univ_of_realization {p : Prog α} {r : α} {t : State}
+    (hv : (spec w).ValidHistory s ((spec w).clientHistory s p)) (hc : memoryCost p s ≤ c)
+    (hr : (spec 0).clientResult s p = r) (ht : (spec 0).clientState s p = t) :
+    FramedTriple w s p c Set.univ fun r' t' => r' = r ∧ t' = t :=
+  framedTriple_iff_realization.mpr
+    ⟨hv, hc, ⟨frontier_le_clientState (w := 0) s p, fun _ _ h => (h trivial).elim⟩, hr, ht⟩
 
 end Cslib.DataStructure.Memory.FramedTriple
 
