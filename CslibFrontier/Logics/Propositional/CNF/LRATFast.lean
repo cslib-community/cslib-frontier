@@ -42,11 +42,11 @@ The checker agrees with `checkLRATRat` on every formula and certificate
 `Cslib.Algorithms.Lean.DPLL.exists_checkLRATRat_iff` with `checkLRATFast_eq_checkLRATRat` shows
 that a formula has a certificate this checker accepts exactly when it is unsatisfiable.
 
-It is the checker for compiled and interpreted code. No library code calls it since `lrat_tauto`
-stopped checking its trimmed certificates, whose acceptance is now proved
+It is the checker for compiled and interpreted code. `lrat_tauto` no longer calls it, since the
+acceptance of its trimmed certificates is now proved
 (`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`); it is kept for compiled checking of large
-certificates, such as the LRAT file checker planned in
-[#8790](https://github.com/cslib-community/cslib-frontier/issues/8790). On 2026-11-26,
+certificates, and the LRAT file checker `Cslib.Logic.PL.CNF.checkDIMACSLRAT` (`lake exe lrat_check`,
+[#8790](https://github.com/cslib-community/cslib-frontier/issues/8790)) runs it. On 2026-11-26,
 compiled, `checkLRATKernel` took 4.4 to 6.0 times as long on the CDCL solver's certificates for
 PHP(7, 6), PHP(8, 7) and unsatisfiable random 3-CNFs of 150 and 200 variables (on 118705 steps,
 2.73 s against 0.49 s). The kernel's `Array` wraps a list, so the
