@@ -72,25 +72,9 @@ def zMatches (p t : List α) : List ℕ :=
 `i`. -/
 theorem mem_zMatches_iff (p t : List α) (i : ℕ) :
     i ∈ zMatches p t ↔ i ≤ t.length ∧ p <+: t.drop i := by
-  have hsize : (zArray (p.toArray ++ t.toArray)).size = p.length + t.length := by
-    rw [size_zArray, Array.size_append, List.size_toArray, List.size_toArray]
-  simp only [zMatches, zMatchesArray, List.mem_filter, List.mem_range, decide_eq_true_eq,
-    List.size_toArray]
-  by_cases hi : i < t.length
-  · have hidx : p.length + i < (zArray (p.toArray ++ t.toArray)).size := by omega
-    have hget : (zArray (p.toArray ++ t.toArray)).getD (p.length + i) 0 =
-        List.lcpLen (p ++ t) (t.drop i) := by
-      rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hidx, Option.getD_some,
-        getElem_zArray]
-      simp only [Array.toList_append, List.drop_append,
-        List.drop_eq_nil_of_le (Nat.le_add_right p.length i), List.nil_append,
-        Nat.add_sub_cancel_left]
-    rw [hget, List.length_le_lcpLen_append_iff]
-    exact ⟨fun ⟨_, h⟩ => ⟨by omega, h⟩, fun ⟨_, h⟩ => ⟨by omega, h⟩⟩
-  · rcases eq_or_gt_of_not_lt hi with rfl | hgt
-    · rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by omega), Option.getD_none]
-      simp
-    · simp [Nat.not_lt.mpr (Nat.succ_le_of_lt hgt), Nat.not_le.mpr hgt]
+  simp only [zMatches, zMatchesArray, List.mem_filter, List.mem_range, Nat.lt_succ_iff,
+    decide_eq_true_eq, List.size_toArray, getD_zArray, Array.toList_append,
+    List.drop_length_add_append, List.length_le_lcpLen_append_iff]
 
 /-- `zMatches p t` lists the shifts in strictly increasing order. -/
 theorem pairwise_lt_zMatches (p t : List α) : (zMatches p t).Pairwise (· < ·) :=

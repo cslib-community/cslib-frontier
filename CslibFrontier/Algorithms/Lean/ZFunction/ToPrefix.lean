@@ -72,16 +72,6 @@ theorem isProperBorderLen_take_iff_le_lcpLen {s : List α} {t k : ℕ} (ht : t �
   have hdrop : k ≤ s.length - (t - k) := by omega
   simp only [hk, hlen, hdrop, true_and]
 
-private theorem getD_zArray (p : Array α) (j : ℕ) :
-    (zArray p).getD j 0 = List.lcpLen p.toList (p.toList.drop j) := by
-  rw [Array.getD_eq_getD_getElem?]
-  by_cases hj : j < (zArray p).size
-  · rw [Array.getElem?_eq_getElem hj, Option.getD_some, getElem_zArray]
-  · have hlen : p.toList.length ≤ j := by
-      simpa only [size_zArray, Array.length_toList, not_lt] using hj
-    rw [Array.getElem?_eq_none (Nat.le_of_not_gt hj), Option.getD_none,
-      List.drop_eq_nil_of_le hlen, List.lcpLen_nil_right]
-
 private theorem borderLen_of_first_start (p : Array α) {t j : ℕ} (ht : t ≤ p.size)
     (hj : 0 < j) (hjt : j ≤ t) (hit : t - j ≤ (zArray p).getD j 0)
     (miss : ∀ i, 0 < i → i < j → (zArray p).getD i 0 < t - i) :
