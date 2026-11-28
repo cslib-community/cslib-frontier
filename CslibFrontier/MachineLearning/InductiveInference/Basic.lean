@@ -55,9 +55,9 @@ and its union.
 
 The model is the ineffective one: a learner is any function on finite sequences, computable or
 not, and conjectures a language rather than a name (grammar index) for one; the two come to the
-same when effectiveness is not required. Gold's learners output names, and Angluin's
-characterization [Angluin1980] concerns effective learners of indexed families of recursive
-languages, which additionally need the telltales to be uniformly enumerable. Neither the
+same when effectiveness is not required. In the classical formulation learners output names;
+Angluin's characterization [Angluin1980] concerns effective learners of indexed families of
+recursive languages, which additionally need the telltales to be uniformly enumerable. Neither the
 effective model nor Angluin's theorem is formalized here; `identifiable_iff` is the ineffective
 counterpart of Angluin's condition. A pause lets the empty language have a text; on nonempty
 languages pauses change nothing, since a learner can treat a pause as a repetition of the previous
@@ -339,10 +339,11 @@ theorem identifiable_setOf_finite : Identifiable {L : Set α | L.Finite} :=
 and all its finite subsets is not identifiable in the limit from text. In particular no class
 containing every finite language and an infinite one is ("superfinite" classes).
 
-Deviations from the source: learners are arbitrary functions conjecturing languages rather than
-names, which strengthens the impossibility (it holds even for non-effective learners); texts may
-contain pauses, which changes nothing for the nonempty languages involved; and strings form an
-arbitrary countable type rather than the words over a finite alphabet. -/
+Relative to the classical formulation (the model in the source has not been checked against this
+statement): learners are arbitrary functions conjecturing languages rather than names, which
+strengthens the impossibility, since it holds even for non-effective learners; texts may contain
+pauses, which changes nothing for the nonempty languages involved; and strings form an arbitrary
+countable type rather than the words over a finite alphabet. -/
 theorem not_identifiable_of_finite_subsets [Countable α] {𝓛 : Set (Set α)} {L : Set α}
     (hL : L ∈ 𝓛) (hinf : L.Infinite) (hfin : ∀ T ⊆ L, T.Finite → T ∈ 𝓛) : ¬Identifiable 𝓛 :=
   fun h ↦ by

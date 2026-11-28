@@ -34,8 +34,8 @@ obstruction is the infinite language together with its finite subsets.
 
 Languages over `T` are taken as sets of words `Set (List T)`, the type of the general theory;
 Mathlib's `Language T` is a definition over the same type, and the classes are written with a
-type ascription to it. The alphabet is any countable nonempty type, which includes Gold's finite
-alphabets; countability is what makes every language have a text.
+type ascription to it. The alphabet is any countable nonempty type, which includes the finite
+alphabets of the classical setting; countability is what makes every language have a text.
 
 ## References
 
