@@ -1,5 +1,5 @@
 /-
-Copyright (c) 2026 Ryan Anderson. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Ryan Anderson. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner, Ryan Anderson
 -/
@@ -103,6 +103,12 @@ example : ∃ y, ExecWithin 7 initCode (.init (encode projCircuit)) y (initTime 
     ∀ a, (a < (layout projCircuit).base ∨ workEnd projCircuit ≤ a) →
       y.mem a = (Data.init (encode projCircuit) : Data 24).mem a :=
   exec_initCode _ ⟨by decide, by decide⟩
+
+/-- The same for the circuit with no inputs (the `phi` loop runs no iteration), at width `7`. -/
+example : ∃ y, ExecWithin 7 initCode (.init (encode constCircuit)) y (initTime constCircuit) ∧
+    Stored (layout constCircuit) (initialPacked constCircuit) y.mem := by
+  obtain ⟨y, he, hs, -⟩ := exec_initCode constCircuit (w := 7) ⟨by decide, by decide⟩
+  exact ⟨y, he, hs⟩
 
 /-- The same for `mixCircuit`, at width `7`, in at most `6 · 2 + 73 · 3 + 50 = 281`
 instructions. -/
