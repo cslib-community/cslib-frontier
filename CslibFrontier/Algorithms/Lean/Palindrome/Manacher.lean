@@ -27,6 +27,9 @@ grows the palindrome of radius `b` about `c` outward letter by letter.
 
 Linear `O(|w|)` machine-level running time for both all-centers radii and the longest palindromic
 factor on word arrays is proved in `CslibFrontier.Algorithms.WordRAM.Manacher`.
+For distinct palindromic words, `List.card_palindromicFactors_le` counts the empty factor as
+well. The palindromic tree uses this result in `Eertree.vertexCount_le` to bound its number of
+vertices, including both roots.
 
 ## Source Conventions
 
