@@ -115,15 +115,15 @@ variable (oracle : {ι : Type} → LEQuery α ι → ι)
 or not, under every oracle. -/
 theorem countQueries_slotBinM_le (k : α) (rest : List (Triple α β)) :
     (slotBinM LEQuery.ask k rest).countQueries oracle ≤ Nat.clog 2 (rest.length + 1) := by
-  induction hn : rest.length using Nat.strong_induction_on generalizing rest with
-  | _ n ih =>
+  induction rest using (_root_.measure List.length).wf.induction with
+  | h rest ih =>
     rcases rest with _ | ⟨e, l⟩
     · simp
-    · simp only [List.length_cons] at hn
-      have hsub : ∀ l' : List (Triple α β), l'.length ≤ (l.length + 1) / 2 →
-          (slotBinM LEQuery.ask k l').countQueries oracle + 1 ≤ Nat.clog 2 (n + 1) :=
-        fun l' hl' => (Nat.add_le_add_right (ih _ (by omega) l' rfl) 1).trans
-          (Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega))
+    · have hsub : ∀ l' : List (Triple α β), l'.length ≤ (l.length + 1) / 2 →
+          (slotBinM LEQuery.ask k l').countQueries oracle + 1 ≤ Nat.clog 2 (l.length + 1 + 1) :=
+        fun l' hl' =>
+          (Nat.add_le_add_right (ih l' (show l'.length < (e :: l).length by simp; omega)) 1).trans
+            (Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega))
       have ht := hsub ((e :: l).take ((l.length + 1) / 2)) (by simp)
       have hd := hsub (l.drop ((l.length + 1) / 2)) (by simp; omega)
       rw [slotBinM_cons]

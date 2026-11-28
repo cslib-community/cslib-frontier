@@ -140,14 +140,15 @@ same endpoints, no repeated vertex and no larger weight. -/
 theorem exists_nodup_walk (hW : NoNegCycle W) (i : V) (l : List V) :
     ∃ l' : List V, (i :: l').Nodup ∧ l'.getLastD i = l.getLastD i ∧
       walkWeight W i l' ≤ walkWeight W i l := by
-  induction hn : l.length using Nat.strong_induction_on generalizing l with
-  | _ n ih =>
+  induction l using (_root_.measure List.length).wf.induction with
+  | h l ih =>
     by_cases hnd : (i :: l).Nodup
     · exact ⟨l, hnd, rfl, le_rfl⟩
     · obtain ⟨u, p, c, s, rfl, hp, hc, hcu⟩ := exists_split_of_not_nodup i l hnd
       have hcpos : 0 < c.length := List.length_pos_iff.2 hc
       obtain ⟨l', hnd', hlast, hw⟩ :=
-        ih (p ++ s).length (by simp only [List.length_append] at hn ⊢; omega) (p ++ s) rfl
+        ih (p ++ s) (show (p ++ s).length < (p ++ c ++ s).length by
+          simp only [List.length_append]; omega)
       refine ⟨l', hnd', by rw [hlast, getLastD_split hp hcu], hw.trans ?_⟩
       rw [walkWeight_split hp hcu]
       exact le_mul_of_one_le_right' (hW u c hcu)
@@ -157,23 +158,25 @@ theorem noNegCycle_of_forall_length_le [Fintype V]
     (h : ∀ (i : V) (l : List V), l.length ≤ Fintype.card V → l.getLastD i = i →
       1 ≤ walkWeight W i l) : NoNegCycle W := by
   intro i l hl
-  induction hn : l.length using Nat.strong_induction_on generalizing i l with
-  | _ n ih =>
+  induction l using (_root_.measure List.length).wf.induction generalizing i with
+  | h l ih =>
     by_cases hnd : l.Nodup
-    · exact h i l (hn ▸ hnd.length_le_card) hl
+    · exact h i l hnd.length_le_card hl
     · rcases l with _ | ⟨v, l'⟩
       · exact absurd List.nodup_nil hnd
       obtain ⟨u, p, c, s, rfl, hp, hc, hcu⟩ := exists_split_of_not_nodup v l' hnd
       have hp' : (v :: p).getLastD i = u := by rw [List.getLastD_cons, hp]
       change ((v :: p) ++ c ++ s).getLastD i = i at hl
-      change ((v :: p) ++ c ++ s).length = n at hn
       change 1 ≤ walkWeight W i ((v :: p) ++ c ++ s)
       have hcpos : 0 < c.length := List.length_pos_iff.2 hc
       rw [walkWeight_split hp' hcu]
+      have hshort : ((v :: p) ++ s).length < ((v :: p) ++ c ++ s).length := by
+        simp only [List.length_append]; omega
+      have hcycle : c.length < ((v :: p) ++ c ++ s).length := by
+        simp only [List.length_append, List.length_cons]; omega
       exact one_le_mul
-        (ih ((v :: p) ++ s).length (by simp only [List.length_append] at hn ⊢; omega) i _
-          (by rw [← getLastD_split hp' hcu, hl]) rfl)
-        (ih c.length (by simp only [List.length_append, List.length_cons] at hn; omega) u c hcu rfl)
+        (ih ((v :: p) ++ s) hshort i (by rw [← getLastD_split hp' hcu, hl]))
+        (ih c hcycle u hcu)
 
 /-- Relabelling the vertices preserves the absence of negative cycles. -/
 theorem NoNegCycle.submatrix {U : Type*} (hW : NoNegCycle W) (e : U ≃ V) :

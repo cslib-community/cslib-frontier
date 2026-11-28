@@ -321,12 +321,11 @@ potential `Φ` pays for it. -/
 theorem loop_potential (P : I.Data → Prop) (Φ : I.Data → ℕ)
     (hbody : ∀ x, P x → I.Holds t x → ∃ y T, ExecWithin I body x y T ∧ P y ∧ T + 2 + Φ y ≤ Φ x)
     (hx : P x) : ∃ y, ExecWithin I (.loop t body) x y (Φ x + 2) ∧ P y ∧ ¬I.Holds t y := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
+  induction x using (_root_.measure Φ).wf.induction with
+  | h x ih =>
     by_cases ht : I.Holds t x
     · obtain ⟨y, T, hy, hPy, hΦ⟩ := hbody x hx ht
-      obtain ⟨z, hz, hPz, htz⟩ := ih (Φ y) (by omega) hPy rfl
+      obtain ⟨z, hz, hPz, htz⟩ := ih y (show Φ y < Φ x by omega) hPy
       exact ⟨z, (loop_iter ht hy hz).mono (by omega), hPz, htz⟩
     · exact ⟨x, (loop_exit ht).mono (by omega), hx, ht⟩
 
@@ -357,13 +356,12 @@ in data satisfying `P` and the test. -/
 theorem loopUntil_potential (P : I.Data → Prop) (Φ : I.Data → ℕ)
     (hbody : ∀ x, P x → ¬I.Holds t x → ∃ y T, ExecWithin I body x y T ∧ P y ∧ T + 2 + Φ y ≤ Φ x)
     (hx : P x) : ∃ y, ExecWithin I (.loopUntil t body) x y (Φ x + 1) ∧ P y ∧ I.Holds t y := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
+  induction x using (_root_.measure Φ).wf.induction with
+  | h x ih =>
     by_cases ht : I.Holds t x
     · exact ⟨x, (loopUntil_exit ht).mono (by omega), hx, ht⟩
     · obtain ⟨y, T, hy, hPy, hΦ⟩ := hbody x hx ht
-      obtain ⟨z, hz, hPz, htz⟩ := ih (Φ y) (by omega) hPy rfl
+      obtain ⟨z, hz, hPz, htz⟩ := ih y (show Φ y < Φ x by omega) hPy
       exact ⟨z, (loopUntil_iter ht hy hz).mono (by omega), hPz, htz⟩
 
 /-- **Until rule, invariant and measure.** If the body leads every data satisfying the invariant

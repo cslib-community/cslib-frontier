@@ -154,30 +154,29 @@ theorem reindex_inNormalForm {C : LayeredSemiUnboundedCircuit G} (h : C.InNormal
 /-- Reindexing along a bijection preserves Boolean gate evaluation at every gate. -/
 theorem reindex_eval_iff (C : LayeredSemiUnboundedCircuit G) (e : G ≃ G') (g : G) :
     (C.reindex e).Eval (e g) ↔ C.Eval g := by
-  induction hn : C.layer g using Nat.strong_induction_on generalizing g with
-  | ind n ih =>
-    subst hn
+  induction g using (_root_.measure C.layer).wf.induction with
+  | h g ih =>
     match hk : C.kind g with
     | .leaf b =>
       rw [(C.reindex e).eval_leaf (b := b) (by simp [reindex, hk, GateKind.map]), C.eval_leaf hk]
     | .and (.unary c) =>
       rw [(C.reindex e).eval_andUnary (c := e c)
         (by simp [reindex, hk, GateKind.map, AndInputs.map]), C.eval_andUnary hk]
-      exact ih _ (Nat.lt_of_succ_le (C.layer_andUnary hk).le) c rfl
+      exact ih c (Nat.lt_of_succ_le (C.layer_andUnary hk).le)
     | .and (.binary l r) =>
       have hbin := C.layer_andBinary hk
       rw [(C.reindex e).eval_andBinary (l := e l) (r := e r)
         (by simp [reindex, hk, GateKind.map, AndInputs.map]), C.eval_andBinary hk]
-      exact and_congr (ih _ (Nat.lt_of_succ_le hbin.1.le) l rfl)
-        (ih _ (Nat.lt_of_succ_le hbin.2.le) r rfl)
+      exact and_congr (ih l (Nat.lt_of_succ_le hbin.1.le))
+        (ih r (Nat.lt_of_succ_le hbin.2.le))
     | .or =>
       rw [(C.reindex e).eval_or (by simp [reindex, hk, GateKind.map]), C.eval_or hk]
       refine ⟨fun ⟨c', hch', hev'⟩ => ?_, fun ⟨c, hch, hev⟩ => ?_⟩
       · have hch : C.orChild g (e.symm c') := by simpa [reindex] using hch'
         exact ⟨e.symm c', hch,
-          (ih _ (Nat.lt_of_succ_le (C.layer_orChild hk hch).le) _ rfl).mp (by simpa using hev')⟩
+          (ih (e.symm c') (Nat.lt_of_succ_le (C.layer_orChild hk hch).le)).mp (by simpa using hev')⟩
       · exact ⟨e c, by simpa [reindex] using hch,
-          (ih _ (Nat.lt_of_succ_le (C.layer_orChild hk hch).le) c rfl).mpr hev⟩
+          (ih c (Nat.lt_of_succ_le (C.layer_orChild hk hch).le)).mpr hev⟩
 
 end LayeredSemiUnboundedCircuit
 

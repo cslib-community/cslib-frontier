@@ -295,15 +295,15 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
           (∀ z ∈ hT.treeSide v (hT.parent r v),
             M.IsApproxBestResponse ε z (q z) (fun j => q j.1)) := by
   -- Well-founded induction on `Fintype.card ι - (hT.pathTo r v).length`.
-  generalize hn : Fintype.card ι - (hT.pathTo r v).length = n
-  induction n using Nat.strong_induction_on generalizing v with
-  | ind n ih =>
+  let rank (v : ι) := Fintype.card ι - (hT.pathTo r v).length
+  induction v using (_root_.measure rank).wf.induction with
+  | h v ih =>
     rw [treePassTable_iff_exists_witness hv]
     have hadj_vp : M.graph.Adj v (hT.parent r v) := hT.adj_parent r hv
     have hp_notMem : hT.parent r v ∉ hT.treeSide v (hT.parent r v) :=
       hT.not_mem_treeSide_other hadj_vp
-    have hlt_up : ∀ c : UpstreamNeighbors hT r v,
-        Fintype.card ι - (hT.pathTo r c.1).length < n := fun c => hn ▸ c.card_sub_length_pathTo_lt
+    have hlt_up : ∀ c : UpstreamNeighbors hT r v, rank c.1 < rank v :=
+      fun c => c.card_sub_length_pathTo_lt
     have hsub_up : ∀ c : UpstreamNeighbors hT r v,
         hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun c => c.treeSide_subset hv
     constructor
@@ -314,7 +314,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
             (∀ z ∈ hT.treeSide c.1 v, qc z ∈ allowed z) ∧
             (∀ z ∈ hT.treeSide c.1 v, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.1)) := by
         rintro ⟨c, hc_ne, rfl⟩
-        exact ((ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne rfl).mp (hchild ⟨c, hc_ne, rfl⟩)).2
+        exact ((ih c (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne).mp (hchild ⟨c, hc_ne, rfl⟩)).2
       classical
       choose qc hqc_par hqc_c hqc_allow hqc_br using hchild_eq
       -- Glue `qc` across the disjoint upstream subtrees, placing `xv` at `v` and `xw` elsewhere
@@ -367,7 +367,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
       refine ⟨fun c => q c.1, hxw, hq_v ▸ hq_allow v hv_mem, fun c => ?_, ?_⟩
       · have hsub := hsub_up c
         rcases c with ⟨c, hc_ne, rfl⟩
-        exact (ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne rfl).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v,
+        exact (ih c (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v,
           rfl, fun z hz => hq_allow z (hsub hz), fun z hz => hq_br z (hsub hz)⟩
       · simpa only [← hq_p, assembleNeighbors_restrict, ← hq_v] using hq_br v hv_mem
 

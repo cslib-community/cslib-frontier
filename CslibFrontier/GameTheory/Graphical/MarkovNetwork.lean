@@ -1402,12 +1402,12 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
       if edgeMarginal G q v (hT.parent r v) (hT.adj_parent r hv) (s₀ v) (s₀ (hT.parent r v)) = 0
       then 0 else 1 := by
   classical
-  generalize hn : Fintype.card ι - (hT.pathTo r v).length = n
-  induction n using Nat.strong_induction_on generalizing v s₀ with
-  | ind n ih =>
+  let rank (v : ι) := Fintype.card ι - (hT.pathTo r v).length
+  induction v using (_root_.measure rank).wf.induction generalizing s₀ with
+  | h v ih =>
     have hadj_vp : G.Adj v (hT.parent r v) := hT.adj_parent r hv
-    have hlt_up : ∀ c : UpstreamNeighbors hT r v,
-        Fintype.card ι - (hT.pathTo r c.1).length < n := fun c => hn ▸ c.card_sub_length_pathTo_lt
+    have hlt_up : ∀ c : UpstreamNeighbors hT r v, rank c.1 < rank v :=
+      fun c => c.card_sub_length_pathTo_lt
     have hadj_cv : ∀ c : UpstreamNeighbors hT r v, G.Adj c.1 v := fun c => by
       simpa [c.2.2] using hT.adj_parent r c.2.1
     have hsub_up : ∀ c : UpstreamNeighbors hT r v,
@@ -1566,7 +1566,7 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
               treePotential hT q r z (fun j => override (sMid a) x j.1)) =
           if edgeMarginal G q c.1 v (hadj_cv c) (a c) (s₀ v) = 0 then 0 else 1 := by
         rintro ⟨c, hc_ne, rfl⟩
-        have hstep := ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne (sMid a) rfl
+        have hstep := ih c (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne (sMid a)
         have hsmid_c : sMid a c = a ⟨c, hc_ne, rfl⟩ := by
           exact override_of_pos s₀ (P := Qv) a ⟨hc_ne, rfl⟩
         have hsmid_p : sMid a (hT.parent r c) = s₀ (hT.parent r c) := by
