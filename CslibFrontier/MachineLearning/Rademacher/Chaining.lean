@@ -79,15 +79,16 @@ private theorem sum_sq_signVal_sub_signVal {m : ℕ} (u v : Fin m → Bool) :
 /-- `∑_{n < K} (n + 7) / 2 ^ n ≤ 16`. -/
 private theorem sum_range_add_seven_div_two_pow_le (K : ℕ) :
     ∑ n ∈ range K, ((n : ℝ) + 7) / 2 ^ n ≤ 16 := by
-  have h (K : ℕ) : ∑ n ∈ range K, ((n : ℝ) + 7) / 2 ^ n = 16 - (2 * K + 16) / 2 ^ K := by
-    induction K with
-    | zero => norm_num
-    | succ K ih =>
-      rw [sum_range_succ, ih, pow_succ]
-      push_cast
-      field_simp; ring
-  rw [h]
-  linarith [show (0 : ℝ) ≤ (2 * K + 16) / 2 ^ K by positivity]
+  let f (n : ℕ) : ℝ := (2 * n + 16) / 2 ^ n
+  calc
+    _ = ∑ n ∈ range K, (f n - f (n + 1)) := sum_congr rfl fun n _ => by
+      simp only [f, Nat.cast_add, Nat.cast_one, pow_succ]
+      field_simp
+      ring
+    _ = f 0 - f K := sum_range_sub' f K
+    _ ≤ _ := by
+      rw [show f 0 = 16 by norm_num [f]]
+      exact sub_le_self _ (by dsimp only [f]; positivity)
 
 /-- **Chaining over the labelings of a VC class**, derived from the chaining bound
 [ShalevShwartzBenDavid2014, Lemma 27.4] as in [Vershynin2018, Section 8.3]: let every finite set

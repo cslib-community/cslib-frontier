@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Algebra.Ring.GeomSum
 import CslibFrontier.GameTheory.LoadBalancing.PurePoA
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -457,15 +458,10 @@ private theorem le_layer_cake_sum {x u : ℝ} (hu : 0 < u) {S : ℕ}
 /-- Geometric sum bound `∑ r ∈ range S, (1 / 2) ^ (r + 1) ≤ 1`. -/
 private theorem sum_half_pow_succ_le_one (S : ℕ) :
     ∑ r ∈ range S, (1 / 2 : ℝ) ^ (r + 1) ≤ 1 := by
-  have hclosed : ∑ r ∈ range S, (1 / 2 : ℝ) ^ (r + 1) = 1 - (1 / 2 : ℝ) ^ S := by
-    induction S with
-    | zero => simp
-    | succ n ih =>
-      rw [sum_range_succ, ih, pow_succ]
-      ring
-  rw [hclosed]
-  have : 0 ≤ (1 / 2 : ℝ) ^ S := by positivity
-  linarith
+  have hsum := geom_sum_mul_neg (1 / 2 : ℝ) S
+  rw [show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num] at hsum
+  simp only [pow_succ, ← sum_mul, hsum]
+  exact sub_le_self _ (by positivity)
 
 /-- **Uniformly related mixed price of anarchy upper bound** ([CzumajVocking2002]; [Vocking2007],
 Theorem 20.15; locator not re-verified against primary PDF): for every load-balancing game on

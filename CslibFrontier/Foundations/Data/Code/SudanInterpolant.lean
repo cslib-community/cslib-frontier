@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 public import CslibFrontier.Foundations.LinearAlgebra.KernelVector
 public import Mathlib.Algebra.Polynomial.Bivariate
 public import Mathlib.Algebra.Polynomial.Roots
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
@@ -131,15 +132,6 @@ theorem mem_monomials {d D : ℕ} {ab : ℕ × ℕ} :
     ab ∈ monomials d D ↔ ab.1 ≤ D ∧ ab.2 ≤ D ∧ ab.1 + d * ab.2 ≤ D := by
   simp only [monomials, mem_filter, mem_product, mem_range, Nat.lt_succ_iff, and_assoc]
 
-/-- `∑ j < n, 2 * (j + 1) = n * (n + 1)`. -/
-private theorem sum_range_two_mul_add_one (n : ℕ) :
-    ∑ j ∈ range n, 2 * (j + 1) = n * (n + 1) := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [sum_range_succ, ih]
-    ring
-
 /-- **Counting monomials.** For `w ≥ 1` there are at least `(D + 1) * (D + 2) / (2 * w)` monomials
 of `(1, w)`-weighted degree at most `D`: for each `j ≤ D` there are `j / w + 1 ≥ (j + 1) / w` of
 weighted degree exactly `j`. -/
@@ -161,7 +153,10 @@ theorem add_one_mul_add_two_le_two_mul_mul_card_monomials {w : ℕ} (hw : 1 ≤ 
             (Nat.mul_le_mul_left w (Nat.lt_succ_iff.1 (mem_range.1 hb))).trans (Nat.mul_div_le j w)
           have hbj : b ≤ j := (Nat.le_mul_of_pos_left b hw).trans hb
           refine mem_filter.2 ⟨mem_monomials.2 ⟨?_, ?_, ?_⟩, ?_⟩ <;> dsimp only <;> omega
-  calc (D + 1) * (D + 2) = ∑ j ∈ range (D + 1), 2 * (j + 1) := (sum_range_two_mul_add_one _).symm
+  calc
+    (D + 1) * (D + 2) = ∑ j ∈ range (D + 1), 2 * (j + 1) := by
+      rw [← mul_sum]
+      exact (Finset.two_mul_sum_range_natCast_succ (R := ℕ) _).symm
     _ ≤ ∑ j ∈ range (D + 1), 2 * w * #(fiber j) := by
         refine sum_le_sum fun j hj => ?_
         rw [mul_assoc]

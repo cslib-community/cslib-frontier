@@ -22,6 +22,8 @@ import Mathlib.Tactic.Abel
 A finite-vector sum agrees with a shorter range sum when all omitted summands vanish.
 `Finset.sum_range_mul_blocks` splits a range into consecutive blocks, and
 `Finset.sum_range_mul_div` sums a function that is constant on each block.
+`Finset.two_mul_sum_range_natCast_succ` computes the sum of the first positive integers
+without division.
 `sum_univ_adjacent_differences` telescopes differences along a sequence of indexed pairs.
 `sum_univ_smul_by_parts_prefix` and `sum_univ_smul_by_parts_tail` express summation by parts
 using cumulative sums from the left or from the right.
@@ -48,6 +50,16 @@ theorem Finset.sum_range_mul_div {M : Type*} [AddCommMonoid M] (f : ℕ → M) (
       rw [Nat.add_comm, Nat.add_mul_div_right _ _ (Nat.zero_lt_of_lt r.isLt),
         Nat.div_eq_of_lt r.isLt, Nat.zero_add]
     _ = _ := by simp
+
+/-- Twice the sum of the positive integers from `1` through `n`, cast into a semiring. -/
+theorem Finset.two_mul_sum_range_natCast_succ {R : Type*} [Semiring R] (n : ℕ) :
+    2 * (∑ i ∈ range n, ((i : R) + 1)) = (n : R) * (n + 1) := by
+  have h := sum_range_id_mul_two (n + 1)
+  rw [sum_range_succ' (fun i => i), add_zero, Nat.add_sub_cancel] at h
+  have hcast := congrArg (fun k : ℕ => (k : R))
+    ((Nat.mul_comm 2 _).trans (h.trans (Nat.mul_comm _ _)))
+  push_cast at hcast
+  exact hcast
 
 namespace Fin
 

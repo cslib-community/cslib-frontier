@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.DecisionTree.Canonical
 public import CslibFrontier.Foundations.Data.Nat.IterLog
+import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Data.Nat.Log
@@ -705,11 +706,8 @@ theorem walkCompleteTree_eval {e dInit intBase leafBase : ℕ} {mem : ℕ → �
 
 private theorem sum_range_shift_mul (B N : ℕ) (g : ℕ → ℕ) :
     ∑ k ∈ Finset.range N, g k * B ^ (k + 1) = B * ∑ k ∈ Finset.range N, g k * B ^ k := by
-  induction N with
-  | zero => simp
-  | succ N ih =>
-    rw [Finset.sum_range_succ, Finset.sum_range_succ, ih]
-    ring
+  rw [Finset.mul_sum]
+  exact Finset.sum_congr rfl fun k _ => by rw [pow_succ', mul_left_comm]
 
 private theorem baseB_digit_decode (B N : ℕ) (f : ℕ → ℕ) (hf : ∀ k < N, f k < B) :
     ∀ m < N, ((∑ k ∈ Finset.range N, f k * B ^ k) / B ^ m) % B = f m := by
