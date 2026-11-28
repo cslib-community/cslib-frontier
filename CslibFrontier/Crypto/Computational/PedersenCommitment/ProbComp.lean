@@ -124,11 +124,7 @@ theorem isPPTOn_pedersenCommitProb :
       F.pedersenScheme.encodeKey (encPair F.encDesc encBits) := .of_eq fun _ => rfl
   have hd : ComputableInPolyTime (fun x : ℕ × F.PedersenKey × List Bool => x.2.1.1) E F.encDesc :=
     (hkey.comp (by fun_prop)).fst'
-  have hr : ComputableInPolyTime
-      (fun p : (ℕ × F.PedersenKey × List Bool) × ℕ => p.2.bits)
-      (encPair E encNat) encBits :=
-    (ComputableInPolyTime.of_eq (f := Nat.bits) fun _ => rfl).comp
-      (ComputableInPolyTime.snd E encNat)
+  have hr := (ComputableInPolyTime.snd E encNat).encoding_comp
   have heval := F.pedersenPublicOperations.computableInPolyTime_commit
     (key := fun p : (ℕ × F.PedersenKey × List Bool) × ℕ => p.1.2.1)
     (message := fun p => p.1.2.2) (by fun_prop) (by fun_prop) hr

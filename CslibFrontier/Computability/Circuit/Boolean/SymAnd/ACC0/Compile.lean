@@ -495,8 +495,6 @@ theorem computableInPolyTime_extCircuit_depth :
 
 section Internals
 
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 /-- Op tag of an extended operation: `0` = NOT, `1` = AND, `2` = OR, `3` = `MOD_m` gate. -/
 private def extOpTag : Unbounded.ExtOp → ℕ
   | .ac .not => 0

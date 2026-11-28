@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Oracle
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 
 /-!
 # External query bounds from the machine clock
@@ -31,6 +32,8 @@ therefore yields the exact same `OracleComp` program as `machine.run`.
 * `Turing.MultiTapePTM.query_bounds_runOracle`: the clock bounds calls and request lengths.
 * `Turing.MultiTapePTM.finiteRunFrom_take_init`: truncating replies to the clock preserves the
   exact typed program.
+* `Turing.MultiTapePTM.runOracle_eq_simulate_take`: simulating `machine.runOracle` with
+  clock-truncated external replies preserves the exact `ProbOracleComp` program.
 
 ## References
 
@@ -275,5 +278,57 @@ theorem finiteRunFrom_take_runOracle (machine : MultiTapePTM k Symbol Control Op
         (FiniteConfig.init machine.initial input) =
       machine.runOracle fuel input :=
   finiteRunFrom_take_init machine _ _ fuel input
+
+/-- Truncating every external reply to `fuel` symbols via `ProbOracleComp.simulate` leaves
+`machine.runOracle fuel input` unchanged. -/
+theorem runOracle_eq_simulate_take (machine : MultiTapePTM k Symbol Control Operation)
+    (fuel : ℕ) (input : List Symbol) :
+    machine.runOracle fuel input =
+      ProbOracleComp.simulate (fun cw => List.take fuel <$> ProbOracleComp.query cw)
+        (machine.runOracle fuel input) := by
+  have htake :
+      machine.runOracle fuel input =
+        MultiTapeMachine.run machine
+          (fun choices => choices <$> ProbOracleComp.sample (ProbComp.uniform Bool))
+          (fun op word => List.take fuel <$> ProbOracleComp.query (op, word)) fuel input :=
+    (finiteRunFrom_take_runOracle machine fuel input).symm.trans
+      (MultiTapeMachine.finiteRunFrom_init machine _ _ fuel input)
+  conv_rhs =>
+    simp only [runOracle, MultiTapePTM.run, MultiTapePTM.runFrom, MultiTapePTM.runConfigFrom,
+      ProbOracleComp.simulate, OracleComp.substitute_eq_interpret, OracleComp.interpret_map,
+      MultiTapeMachine.interpret_runConfigFrom]
+  have hsample :
+      OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n =>
+            ProbOracleComp.sample (spec := fun _ : Operation × List Symbol => List Symbol)
+              (ProbComp.unifFin n))
+          (fun cw =>
+            List.take fuel <$> ProbOracleComp.query
+              (spec := fun _ : Operation × List Symbol => List Symbol) cw))
+        (ProbOracleComp.sample (spec := fun _ : Operation × List Symbol => List Symbol)
+          (ProbComp.uniform Bool)) =
+      ProbOracleComp.sample (spec := fun _ : Operation × List Symbol => List Symbol)
+        (ProbComp.uniform Bool) := by
+    rw [← OracleComp.substitute_eq_interpret]
+    exact ProbOracleComp.simulate_sample _ _
+  have hquery : ∀ (oracle : Operation) (word : List Symbol),
+      OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n =>
+            ProbOracleComp.sample (spec := fun _ : Operation × List Symbol => List Symbol)
+              (ProbComp.unifFin n))
+          (fun cw =>
+            List.take fuel <$> ProbOracleComp.query
+              (spec := fun _ : Operation × List Symbol => List Symbol) cw))
+        (ProbOracleComp.query (spec := fun _ : Operation × List Symbol => List Symbol)
+          (oracle, word)) =
+      List.take fuel <$> ProbOracleComp.query
+        (spec := fun _ : Operation × List Symbol => List Symbol) (oracle, word) :=
+    fun oracle word => by
+      rw [← OracleComp.substitute_eq_interpret]
+      exact ProbOracleComp.simulate_query _ (oracle, word)
+  simp only [hsample, hquery]
+  exact htake
 
 end Turing.MultiTapePTM

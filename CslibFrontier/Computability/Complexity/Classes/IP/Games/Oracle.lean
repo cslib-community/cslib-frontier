@@ -547,9 +547,7 @@ private theorem computableInPolyTime_simMsg {enc : α ↪ List Bool} {k : ℕ} {
     ComputableInPolyTime (simMsg enc MUnit t) (IPGame.encMsgInput enc) encBits := by
   have ha : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => x.1)
       (IPGame.encMsgInput enc) enc := .fst _ _
-  have hxa : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => enc x.1)
-      (IPGame.encMsgInput enc) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp ha
+  have hxa := ha.encoding_comp
   have htn := ht.comp ((ComputableInPolyTime.encoding_length enc).comp ha)
   have hc : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => x.2.1)
       (IPGame.encMsgInput enc) encBits := (ComputableInPolyTime.snd _ _).fst'
@@ -573,9 +571,7 @@ private theorem computableInPolyTime_simDec {enc : α ↪ List Bool} {k : ℕ} {
     ComputableInPolyTime (simDec enc MUnit t) (IPGame.encDecInput enc) encBool := by
   have ha : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.1)
       (IPGame.encDecInput enc) enc := .fst _ _
-  have hxa : ComputableInPolyTime (fun x : α × List Bool × List Bool => enc x.1)
-      (IPGame.encDecInput enc) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp ha
+  have hxa := ha.encoding_comp
   have hc : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.2.1)
       (IPGame.encDecInput enc) encBits := (ComputableInPolyTime.snd _ _).fst'
   have hp : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.2.2)

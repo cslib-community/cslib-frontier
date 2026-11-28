@@ -74,10 +74,11 @@ Theorem 9 for general `m`. The statement for sparse graphs in the introduction o
 [RodittyVassilevskaWilliams2013] is not covered: it needs dimension `c log N`, that is the
 low-dimension form of the orthogonal vectors hypothesis, which this library does not state.
 
-**The hypothesis is unresolved.** This library neither proves nor refutes `OVH`; it refutes
-`SETH` (`Cslib.Complexity.CountingNativeEndpoint.not_SETH`), so the hardness from `SETH`, through
-`Cslib.Complexity.OVH_of_SETH`, holds vacuously. The transfer from a fast diameter procedure to a
-fast `OV` decider is unconditional.
+**The hypothesis is unresolved.** This library neither proves nor refutes `OVH`. It refutes
+`SETH` (`Cslib.Complexity.CountingNativeEndpoint.not_SETH`), so `OVH` is not derived from it;
+`Cslib.Complexity.OVH_of_not_decidableInExpTime_SAT` derives `OVH` from a hypothesis on
+unrestricted `SAT` that is open. The transfer from a fast diameter procedure to a fast `OV` decider
+is unconditional.
 
 ## Main definitions
 

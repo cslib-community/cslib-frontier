@@ -82,8 +82,6 @@ namespace Cslib.Complexity
 
 open Circuits Circuits.Boolean Turing.MultiTapeTM ComputableInPolyTime
 
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 variable {α : Type} {enc : α ↪ List Bool}
 
 /-- **Preimages of `P/poly` are closed under polynomial-time reductions.** If `A` reduces to `B`

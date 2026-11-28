@@ -247,8 +247,7 @@ example (k : ℕ) (P : GapKSATSpec) :
     (SETH ↔ (⨆ m : {m : ℕ // 3 ≤ m}, satExponent m.val) = 1) ∧
     (SharpSETH ↔ (⨆ m : {m : ℕ // 3 ≤ m}, sharpSatExponent m.val) = 1) ∧
     (rSETH ↔ (⨆ m : {m : ℕ // 3 ≤ m}, rSatExponent m.val) = 1) ∧
-    (⨆ m : ℕ, satExponent m) ≤ unrestrictedSatExponent ∧
-    (SETH → unrestrictedSatExponent = 1) :=
+    (⨆ m : ℕ, satExponent m) ≤ unrestrictedSatExponent :=
   ⟨rateExponent_eq_sInf_pos (fun _ _ hle h => h.mono hle) (KSAT_decidableInExpTime_one k),
     rateExponent_eq_sInf_pos (fun _ _ hle h => h.mono hle) (SharpKSAT_computableInExpTime_one k),
     rateExponent_eq_sInf_pos (fun _ _ hle h => h.mono hle)
@@ -256,7 +255,7 @@ example (k : ℕ) (P : GapKSATSpec) :
     rateExponent_eq_sInf_pos (fun _ _ hle h => h.mono hle) (GapKSAT_solvesPromiseInExpTime_one P),
     SETH_iff_iSup_ge_three_eq_one,
     SharpSETH_iff_iSup_ge_three_eq_one, rSETH_iff_iSup_ge_three_eq_one,
-    iSup_satExponent_le_unrestrictedSatExponent, SETH.unrestrictedSatExponent_eq_one⟩
+    iSup_satExponent_le_unrestrictedSatExponent⟩
 
 -- Effectively uniform rate-family converse (`DecidableInSingleSubexpTime.of_uniformFamily`):
 -- a uniform family deciding `Set.univ : Set ℕ` (unary input `n`, parameter `μ n = n`) converts to

@@ -477,8 +477,6 @@ private theorem orExpandCodeFromRaw_eq (ℓ : ℕ) (c : Σ n, Circuit Unbounded.
 
 section OrExpandPolyTime
 
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 private theorem computableInPolyTime_orExpandWire :
     ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ => orExpandWire q.1.1.1 q.1.1.2 q.1.2.1 q.1.2.2 q.2)
@@ -1182,8 +1180,6 @@ private theorem acc0Guard_of_rpow {d q : ℕ} (hq : q ≠ 0)
   exact_mod_cast hsize.trans hpow
 
 section GuardPolyTime
-
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
 
 private theorem computableInPolyTime_acc0GuardRaw (d q : ℕ) :
     ComputableInPolyTime (acc0GuardRaw d q)

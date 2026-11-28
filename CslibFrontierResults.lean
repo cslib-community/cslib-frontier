@@ -22,11 +22,13 @@ import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.SaksZhouLogSpace
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.StatisticalDifference
+import CslibFrontierResults.Entries.RoutingBeckmann
 import CslibFrontierResults.Entries.SponsoredSearch
 import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.ODonnellStableInfluenceBound
+import CslibFrontierResults.Entries.YaoNextBit
 import CslibFrontierResults.Entries.ODonnellHastadTest
 import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.SinglePeaked

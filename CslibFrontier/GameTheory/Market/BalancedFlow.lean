@@ -58,8 +58,9 @@ Saberi–Vazirani (DPSV) algorithm for linear Fisher markets ([Vazirani2007], Ch
   for general rational inputs: existence of rational equilibrium prices and allocations with
   explicit polynomial-bit numerator and denominator bounds).
 
-The full DPSV phase loop, potential drop analysis, and polynomial-time termination theorem
-([Vazirani2007], Sections 5.8 and 5.10, `Theorem 5.22`) remain open under `#7789`.
+The full DPSV phase loop, potential drop analysis, and polynomial max-flow termination theorem
+([Vazirani2007], Sections 5.8 and 5.10, `Theorem 5.22`) are formalized in
+`CslibFrontier.GameTheory.Market.DPSVAlgorithm`.
 
 ## References
 
@@ -928,6 +929,32 @@ theorem subset_maximalTightSet [DecidableEq G] {M : LinearFisherMarket I G} {p :
   classical
   intro g hg
   exact Finset.mem_biUnion.2 ⟨S, Finset.mem_filter.2 ⟨Finset.mem_univ S, hS⟩, hg⟩
+
+/-- Under the Invariant (`M.SatisfiesInvariant p`) at nonnegative prices `p`, every maximum
+equality flow `f` in `N(p)` saturates every good (`∑ i, f g i = p g * M.supply g`). -/
+theorem IsMaxEqualityFlow.sum_buyer_eq [DecidableEq I] [DecidableEq G] {M : LinearFisherMarket I G}
+    {p : G → ℝ} (hp : ∀ g, 0 ≤ p g) (hinv : M.SatisfiesInvariant p)
+    {f : G → I → ℝ} (hf : M.IsMaxEqualityFlow p f) (g : G) :
+    ∑ i : I, f g i = p g * M.supply g := by
+  have hW_nn := M.equalityNetwork_nonneg hp
+  obtain ⟨F, hF, hFmax⟩ := exists_isMaxRealFlow hW_nn .source .sink
+  obtain ⟨hf0_bip, -, -, hFval⟩ := isBipFlow_ofRealFlow hF
+  have hf0 : M.IsEqualityFlow p (ofRealFlow F) := (isEqualityFlow_iff_isBipFlow M p _).2 hf0_bip
+  have hval_eq : flowValue (ofRealFlow F) = ∑ g' : G, p g' * M.supply g' := by
+    have hnet : realNetOut F .source = minRealCutBetween (M.equalityNetwork p) .source .sink :=
+      IsGreatest.unique hFmax (isMaxRealFlow_minRealCutBetween hW_nn (by simp))
+    rw [← cutWeight_equalityNetwork_source M p, hinv, ← hnet, hFval]
+    rfl
+  have hle1 : flowValue (ofRealFlow F) ≤ flowValue f := hf.2 _ hf0
+  have hle2 : flowValue f ≤ ∑ g' : G, p g' * M.supply g' :=
+    Finset.sum_le_sum fun g' _ => hf.1.2.2.1 g'
+  have hdiff : ∑ g' : G, (p g' * M.supply g' - ∑ i : I, f g' i) = 0 := by
+    rw [Finset.sum_sub_distrib]
+    change (∑ g' : G, p g' * M.supply g') - flowValue f = 0
+    linarith
+  have h0 := (Finset.sum_eq_zero_iff_of_nonneg fun g' _ =>
+    sub_nonneg.2 (hf.1.2.2.1 g')).1 hdiff g (Finset.mem_univ g)
+  linarith
 
 end TightSets
 

@@ -391,6 +391,67 @@ private theorem getElem_rrvFunctions_prefix {t d : ℕ} (hd : 0 < d) :
       rw [List.getElem_append_left (by rw [length_rrvFunctions]; exact lt_of_lt_of_le hi hk)]
       exact ih i hi
 
+/-! Executed, `rrvBuildPrefix` redoes the greedy choice of its last coordinate on every lookup,
+and that choice looks up the earlier coordinates and the functions of `prev` again, so applying
+the functions of `rrvFunctions` can take time exponential in `t`. The versions below store each
+chosen function as a vector, built in one pass, as `Program.evalVector` does for circuits.
+`rrvWeakDesign` reads block `i` from the first `i + 1` of them directly rather than through
+`@[csimp]`, which would need a public lemma about the private `rrvFunctions` and would build all
+`m` functions for every block. -/
+
+/-- `rrvBuildPrefix` stored as a vector, one greedy choice per coordinate. -/
+private def rrvPrefixVector {t d : ℕ} (hd : 0 < d) (prev : List (Fin t → Fin d)) :
+    (u : ℕ) → u ≤ t → Vector (Fin d) u
+  | 0, _ => #v[]
+  | u + 1, hu =>
+      let chosen := rrvPrefixVector hd prev u (Nat.le_of_succ_le hu)
+      chosen.push (argMinFin d hd fun v =>
+        rrvPotential prev (u + 1) hu (Fin.snoc (α := fun _ => Fin d) chosen.get v))
+
+private theorem get_rrvPrefixVector {t d : ℕ} (hd : 0 < d) (prev : List (Fin t → Fin d)) :
+    ∀ (u : ℕ) (hu : u ≤ t), (rrvPrefixVector hd prev u hu).get = rrvBuildPrefix hd prev u hu
+  | 0, _ => funext fun a => a.elim0
+  | u + 1, hu => by
+      have ih := get_rrvPrefixVector hd prev u (Nat.le_of_succ_le hu)
+      funext a
+      change (rrvPrefixVector hd prev (u + 1) hu)[a] = _
+      simp only [rrvPrefixVector, rrvBuildPrefix, ih]
+      refine Fin.lastCases ?_ (fun a => ?_) a
+      · simp
+      · have h : (rrvPrefixVector hd prev u (Nat.le_of_succ_le hu))[a] =
+            rrvBuildPrefix hd prev u (Nat.le_of_succ_le hu) a := congrFun ih a
+        simpa using h
+
+/-- `rrvFunctions` with every function stored as a vector. -/
+private def rrvFunctionsVector (t d : ℕ) (hd : 0 < d) : (m : ℕ) → List (Vector (Fin d) t)
+  | 0 => []
+  | m + 1 =>
+      let prev := rrvFunctionsVector t d hd m
+      prev ++ [rrvPrefixVector hd (prev.map Vector.get) t le_rfl]
+
+/-- The functions of `rrvFunctionsVector`, read from their vectors. -/
+private def rrvFunctionsImpl (t d : ℕ) (hd : 0 < d) (m : ℕ) : List (Fin t → Fin d) :=
+  (rrvFunctionsVector t d hd m).map Vector.get
+
+private theorem rrvFunctions_eq_rrvFunctionsImpl (t d : ℕ) (hd : 0 < d) (m : ℕ) :
+    rrvFunctions t d hd m = rrvFunctionsImpl t d hd m := by
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+      simp only [rrvFunctionsImpl] at ih ⊢
+      simp only [rrvFunctions, rrvFunctionsVector, List.map_append, List.map_cons, List.map_nil,
+        ← ih, get_rrvPrefixVector]
+
+private theorem length_rrvFunctionsImpl (t d : ℕ) (hd : 0 < d) (m : ℕ) :
+    (rrvFunctionsImpl t d hd m).length = m := by
+  rw [← rrvFunctions_eq_rrvFunctionsImpl, length_rrvFunctions]
+
+private theorem getElem_rrvFunctionsImpl_succ {t d m : ℕ} (hd : 0 < d) (i : Fin m) :
+    (rrvFunctionsImpl t d hd (i.1 + 1))[i.1]'(by rw [length_rrvFunctionsImpl]; omega) =
+      (rrvFunctions t d hd m)[i.1]'(by rw [length_rrvFunctions]; exact i.2) := by
+  simp only [← rrvFunctions_eq_rrvFunctionsImpl]
+  exact (getElem_rrvFunctions_prefix hd (Nat.succ_le_of_lt i.2) i.1 (Nat.lt_succ_self i.1)).symm
+
 /-- The graph of `f : Fin t → Fin d` embedded in `Fin (t * d)`. -/
 private def graphBlock {t d : ℕ} (f : Fin t → Fin d) : Finset (Fin (t * d)) :=
   Finset.univ.map ⟨fun u : Fin t => finProdFinEquiv (u, f u),
@@ -441,9 +502,11 @@ private theorem list_sum_eq_sum_fin {l : List ℕ} :
 produces a `WeakDesign (t * d) t m (((d + 1 : ℝ) / d) ^ t)` via conditional expectations. -/
 def rrvWeakDesign (t d m : ℕ) (hd : 0 < d) :
     WeakDesign (t * d) t m (((d + 1 : ℝ) / d) ^ t) where
-  block i := graphBlock ((rrvFunctions t d hd m)[i.val]'(by rw [length_rrvFunctions]; exact i.isLt))
+  block i := graphBlock ((rrvFunctionsImpl t d hd (i.val + 1))[i.val]'(by
+    rw [length_rrvFunctionsImpl]; omega))
   card_block i := card_graphBlock _
   sum_two_pow_inter_le i := by
+    simp only [getElem_rrvFunctionsImpl_succ]
     set prev := rrvFunctions t d hd i.val
     have hfi : (rrvFunctions t d hd m)[i.val]'(by rw [length_rrvFunctions]; exact i.isLt) =
         rrvBuildPrefix hd prev t le_rfl := by

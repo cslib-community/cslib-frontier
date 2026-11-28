@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Foundations.Data.BitString.Counter
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Foundations.Data.List.Forall2
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import Mathlib.Data.List.GetD
@@ -282,10 +283,6 @@ private abbrev rOk : Fin 14 := 12
 /-- Scratch register. -/
 private abbrev rT : Fin 14 := 13
 
-/-- Bit `c` of `x`, as a word. -/
-private theorem shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
-  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.toNat_testBit]
-
 /-- One step of the pivot search: remember row `k` if it is the first with bit `c` set. -/
 private def searchBody : Code .standard 14 := ram[
   rA ← rBase + rK; rX ← *rA; rB ← rX >>> rC; rB ← rB &&& rOne;
@@ -308,7 +305,7 @@ private theorem exec_searchBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hs : Fits w (v >>> y.regs rC) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
   unfold searchBody
-  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, shiftRight_and_one]
+  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
   all_goals
     refine ⟨by wram_simp, fun i hi => by
         fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -416,7 +413,7 @@ private theorem exec_elimBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hs : Fits w (v >>> y.regs rC) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
   unfold elimBody
-  wram_exec [hone, ha, hk, hv, hvf, hb, hs, h1, hx, shiftRight_and_one]
+  wram_exec [hone, ha, hk, hv, hvf, hb, hs, h1, hx, Nat.shiftRight_and_one]
   all_goals
     refine ⟨?_, fun i hi => by
       rcases hi with hi | rfl
@@ -544,7 +541,7 @@ private theorem exec_checkBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hs : Fits w (v >>> y.regs rN) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
   unfold checkBody
-  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, shiftRight_and_one]
+  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
   all_goals
     refine ⟨by wram_simp, fun i hi => by
         fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,

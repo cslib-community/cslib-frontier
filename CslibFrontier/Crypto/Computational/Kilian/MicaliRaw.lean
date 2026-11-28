@@ -408,7 +408,6 @@ private theorem computableInPolyTime_micaliHasRootPrefix :
           (ComputableInPolyTime.const 1)))
       ((ComputableInPolyTime.bitsFrame encBits).comp hroot))
 
-attribute [local irreducible] ComputableInPolyTime in
 theorem computableInPolyTime_micaliMaxProofCap
     {V : PCPVerifier α} (hV : V.PolyTime enc) {c d : ℕ}
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :

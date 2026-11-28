@@ -1310,8 +1310,7 @@ theorem isPPTOn_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger
     IsPPTOn encUnary encBool (M.blockwiseGame E F.toAdversary) := by
   obtain ⟨cs, ds, hlens⟩ := (M.isPPTOn_blockwiseSign hE).length_le
   have hrp := id' (encIn := encPair (encPair encUnary encBits) encBits)
-  have hsignLen := length_bits.comp (of_eq (encIn := encSignInput) (fun _ => rfl) |>.comp
-    (hrp.fst'.fst'.prod (hrp.fst'.snd'.prod hrp.snd')))
+  have hsignLen := length_bits.comp (hrp.fst'.fst'.prod (hrp.fst'.snd'.prod hrp.snd')).encoding_comp
   have hres := unary_add' (unary_mul' (.const 2) (unary_add' (unary_add'
     (unary_mul' (.const 2) (length_bits.comp hrp.snd'))
     (unary_mul' (.const cs) ((unary_pow ds).comp (unary_add' hsignLen (.const 1)))))

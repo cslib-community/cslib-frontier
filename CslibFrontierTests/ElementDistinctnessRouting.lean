@@ -9,8 +9,10 @@ module
 
 import Cslib.Computability.Circuit.Full
 import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.RoutingNetwork
+import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.BatchPrice
 import CslibFrontier.Computability.Circuit.InnerSize
 import Mathlib.Data.ZMod.Basic
+import Mathlib.Tactic.NormNum
 
 /-! The incoming records can be distinct while both tags request address zero. One unused
 selector cancels the sum in characteristic two. Swapping the two addresses is a valid routing. -/
@@ -60,6 +62,15 @@ example :
       unfold TaggedPermutation Function.Bijective Function.Injective Function.Surjective
       decide
     simp [heval, hrepeat]
+
+-- The source's maximum batch t = 2n fits the numerical compiler transfer.
+example : (1 : ℝ) * (4 * (3 * 2 * 1) : ℕ) ≤ 4 * 1 * 24 := by
+  apply BatchPrice.gain_mul_ports_le_four_mul_volume_of_compiler
+    (n := 2) (h := 1) (t := 4) (ℓ := 6) (volume := 24) (D := 1) (rounds := 2)
+    (x := fun _ => 2) (gain := 1) (boundary := 0) (K := 1) <;> norm_num
+  intro j _ _
+  refine ⟨1, le_rfl, le_rfl, ?_⟩
+  positivity
 
 example : (∑ S : Finset (Fin 2), if test Fin.rev (payload ∘ Fin.rev) S then (-1 : ℤ) ^ #S else 0)
     = 1 := by decide

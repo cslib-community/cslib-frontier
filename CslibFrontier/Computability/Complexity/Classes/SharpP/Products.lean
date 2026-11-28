@@ -47,8 +47,6 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM Finset
 
-attribute [local irreducible] ComputableInPolyTime
-
 variable {α : Type} {enc : α ↪ List Bool}
 
 namespace SharpP

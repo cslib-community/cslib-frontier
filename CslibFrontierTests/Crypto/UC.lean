@@ -36,7 +36,7 @@ def bitFunc (b : Bool) : IdealFunctionality 1 Unit Bool Unit Unit where
 
 /-- Activate party `0` once and output whether it answered `true`. -/
 def askParty {AdvQ AdvR : Type} : Environment 1 Unit Bool AdvQ AdvR := fun _ _ => do
-  let r ← ProbOracleComp.query (spec := execSpec 1 Unit Bool AdvQ AdvR) (Sum.inl (0, ()))
+  let r ← queryParty 0 ()
   return decide (r = some true)
 
 /-- The forwarding (dummy) adversary. -/
@@ -123,11 +123,70 @@ example (b : Bool) (C : Finset (Fin 1)) (s : Unit) :
     ((corruptRouter C ((bitFunc b).toProtocol 0 C)).handle (.inr (.inl (0, ())))).run s =
       if (0 : Fin 1) ∈ C then pure (.inl (some b), s) else pure (.inl none, s) := by
   by_cases h : (0 : Fin 1) ∈ C
-  · simp only [corruptRouter, IdealFunctionality.toProtocol, bitFunc, h, ↓reduceIte,
-      StateT.run_map, StateT.run_pure, ProbOracleComp.sample_pure]
-    simp [StateT.run]
-  · simp only [corruptRouter, h, ↓reduceIte]
+  · simp only [h, ↓reduceIte, corruptRouter_handle_inr_inl_of_mem C _ h]
+    dsimp only [IdealFunctionality.toProtocol, bitFunc, StateT.run, Functor.map, StateT.map]
+    simp only [bind_pure_comp]
     rfl
+  · simp only [h, ↓reduceIte, corruptRouter_handle_inr_inl_of_notMem C _ h]
+    rfl
+
+/-- Stateless adversary that forwards one backdoor query to the protocol's network port via
+`queryNet` and returns whether it received a network reply. -/
+def pingNetAdv :
+    ExecAdversary 1 Unit Bool Unit Unit Unit Bool := fun _ _ =>
+  { State := Unit
+    init := pure ()
+    handle := fun () s => do
+      let r ← queryNet (.inr ())
+      return (match r with | .inr () => true | .inl _ => false, s) }
+
+/-- Environment that queries the adversary port once via `queryAdv`. -/
+def askAdv : Environment 1 Unit Bool Unit Bool := fun _ _ =>
+  queryAdv ()
+
+/-- `execMachine_handle_inr` and `corruptRouter_handle_inr_inr` step a `queryAdv` -> `queryNet`
+round trip against `bitFunc` to `PMF.pure true`. -/
+theorem eval_exec_askAdv_pingNet (b : Bool) (C : Finset (Fin 1)) (κ : ℕ) (z : List Bool) :
+    (exec (bitFunc b).toProtocol pingNetAdv C askAdv κ z).eval = PMF.pure true := by
+  simp only [exec, Machine.run, Machine.link, askAdv, Machine.runFrom_query,
+    Machine.closeProgram_bind, Machine.closeProgram_sample, ProbComp.eval_bind]
+  let s₀ : (execMachine (bitFunc b).toProtocol pingNetAdv κ C).State := ((), ())
+  have hinit : (execMachine (bitFunc b).toProtocol pingNetAdv κ C).init = pure s₀ := by
+    simp [s₀, execMachine, Machine.comp, liftAdversary, Machine.liftRight, pingNetAdv,
+      corruptRouter, IdealFunctionality.toProtocol, bitFunc]
+  rw [hinit, ProbComp.eval_pure, PMF.pure_bind, execMachine_handle_inr]
+  have hnet : ((pingNetAdv κ C).handle ()).run s₀.1 =
+      (do
+        let r ← queryNet (NetQ := RoutedNetQ 1 Unit Unit) (NetR := RoutedNetR Bool Unit) (.inr ())
+        return (match r with | .inr () => true | .inl _ => false, s₀.1)) := rfl
+  rw [hnet]
+  simp only [liftNet, Machine.liftRightProgram, OracleComp.interpret_bind,
+    OracleComp.interpret_pure, ProbOracleComp.interpret_query,
+    Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
+    corruptRouter_handle_inr_inr]
+  dsimp only [IdealFunctionality.toProtocol, bitFunc, StateT.run, Functor.map, StateT.map,
+    Pure.pure, StateT.pure]
+  erw [ProbOracleComp.sample_pure, pure_bind]
+  dsimp only [PFunctor.FreeM.map]
+  erw [Machine.closeProgram_pure, ProbComp.eval_pure]
+
+/-- `execMachine_handle_inl_of_notMem` and `execMachine_handle_inl_of_mem` step `queryParty` on an
+honest vs corrupted party directly. -/
+example (b : Bool) (S : ExecAdversary 1 Unit Bool Unit Unit Unit Unit) (κ : ℕ)
+    (s : (execMachine (bitFunc b).toProtocol S κ ∅).State) :
+    ((execMachine (bitFunc b).toProtocol S κ ∅).handle (.inl (0, ()))).run s =
+      pure (some b, s) := by
+  have h0 : (0 : Fin 1) ∉ (∅ : Finset (Fin 1)) := by decide
+  rw [execMachine_handle_inl_of_notMem _ _ _ _ h0]
+  rcases s with ⟨sA, sP⟩
+  simp [IdealFunctionality.toProtocol, bitFunc, StateT.run]
+
+example (b : Bool) (S : ExecAdversary 1 Unit Bool Unit Unit Unit Unit) (κ : ℕ)
+    (C : Finset (Fin 1)) (h0 : (0 : Fin 1) ∈ C)
+    (s : (execMachine (bitFunc b).toProtocol S κ C).State) :
+    ((execMachine (bitFunc b).toProtocol S κ C).handle (.inl (0, ()))).run s =
+      pure (none, s) := by
+  simp [h0]
 
 /-- Asymptotic emulation also fails for distinguishable functionalities. -/
 theorem not_emulates_bitFunc : ¬ Emulates (bitFunc true).toProtocol (bitFunc false).toProtocol := by

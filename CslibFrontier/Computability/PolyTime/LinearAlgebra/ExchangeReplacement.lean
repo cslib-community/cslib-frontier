@@ -990,7 +990,7 @@ theorem sum_row_natAbs_auxReplacementRowCoeffs_le {Q r A₀ R : ℕ} (hQ : 0 < Q
 section PolyTime
 open ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime encIntBin encNat encUnary
+attribute [local irreducible] encIntBin encNat encUnary
 
 local notation "CPT" => ComputableInPolyTime
 variable {α : Type} {input : α ↪ List Bool}

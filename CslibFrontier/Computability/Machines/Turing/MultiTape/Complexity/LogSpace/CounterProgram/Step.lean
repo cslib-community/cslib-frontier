@@ -115,17 +115,19 @@ private partial def closeBound (g : MVarId) : TacticM Bool := do
     return false
 
 /-- Prove a side condition of a stepping rule: a bound on the registers, `c ≤ B` or `i ≠ 0` by a
-hypothesis, `Nat.zero_le` or `omega`, or `e.readsChoice = false` by evaluation. -/
+hypothesis, `Nat.zero_le` or `omega`, or `e.readsChoice = false` by evaluation, with `r ≠ 0` for
+each register `r` of `e` that is not a numeral by `omega`. -/
 private def closeSide (g : MVarId) : TacticM Bool := do
   if ← g.isAssigned then return true
   if (boundList? (← instantiateMVars (← g.getType))).isSome then return ← closeBound g
   if ← byAssumption g then return true
+  let readsChoice := mkCIdent `Turing.CounterProgram.Expr.readsChoice
   closesWith (← `(tactic| first
     | exact Nat.zero_le _
     | decide
     | omega
-    | (simp only [Turing.CounterProgram.Expr.readsChoice, Bool.or_eq_false_iff,
-        beq_eq_false_iff_ne, ne_eq] <;> omega))) g
+    | (simp only [$readsChoice:ident, Bool.or_eq_false_iff,
+        beq_eq_false_iff_ne, ne_eq, and_true, true_and] <;> omega))) g
 
 /-- Apply the rule `rule` to `g` if the instruction at the label of `g` is that of the rule: by a
 hypothesis, or, when `eval` is set, by evaluation. Returns the side conditions and the goal after
@@ -272,7 +274,8 @@ the step, and after the step that of either configuration when the label of the 
 The side conditions of the rule must be proved automatically: a bound `∀ r ∈ regs, r ≤ B` on the
 registers by a hypothesis, or entry by entry for `regs'.set i x` (from a bound on `regs'`) and for
 a list written out, with the bounds on the entries by a hypothesis or `omega`; `c ≤ B` and `i ≠ 0`
-by a hypothesis, `decide` or `omega`; and `e.readsChoice = false` by evaluation. Otherwise
+by a hypothesis, `decide` or `omega`; and `e.readsChoice = false` by evaluation, where a register
+`r` of `e` that is not a numeral needs `r ≠ 0` to follow from the hypotheses by `omega`. Otherwise
 `cp_step` fails and names the rule and the condition. The rules are those of running
 configurations (`Reaches.assign`, `Reaches.lt`, `Reaches.read`), and, when their modules are
 imported, of oblivious configurations (`Reaches.oassign`, `Reaches.olt`, `Reaches.oread`) and of

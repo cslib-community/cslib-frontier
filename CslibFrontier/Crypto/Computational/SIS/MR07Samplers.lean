@@ -123,7 +123,7 @@ open Mathlib.Tactic.Matrix ZLattice
 open scoped IntTable RatTable LinearSystemInput LinearSolveResult SampleZInput
 open scoped ENNReal RealInnerProductSpace _root_.Matrix
 
-attribute [local irreducible] ComputableInPolyTime SampleZInput.enc IntTable.enc RatTable.enc
+attribute [local irreducible] SampleZInput.enc IntTable.enc RatTable.enc
   LinearSystemInput.enc LinearSolveResult.enc encRat encIntBin encNat encUnary
 
 /-! ### 1. Shared linear-algebra helpers (`ListMatrix.dotProduct`, `Rat.floor`, `solveFloorMul`) -/
