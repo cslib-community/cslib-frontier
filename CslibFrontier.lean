@@ -180,6 +180,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ca
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.CrossingRows
 public import CslibFrontier.Foundations.Data.Finsupp.OddSupport
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ConstraintParity
+public import CslibFrontier.GameTheory.Market.Leontief
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Neighbors
 public import CslibFrontier.Computability.Circuit.Boolean.Tournament
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
@@ -1447,6 +1448,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGrap
 public import CslibFrontier.Computability.GenericRAM.Native.ExpTimePolySpace
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Sheppard
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.PP
+public import CslibFrontier.GameTheory.Market.HomogeneousFisher
 public import CslibFrontier.Foundations.LinearAlgebra.MultiplicationCharacter
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.GroupProgram.Group
 public import CslibFrontier.Foundations.NumberTheory.Harmonic
@@ -3406,6 +3408,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.InPlace
 public import CslibFrontier.Logics.Propositional.Resolution.Space
 public import CslibFrontier.Computability.PolyTime.GreedyLabelSchedule
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Input
+public import CslibFrontier.GameTheory.Market.ConvexExchange
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Entry
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseQuadratic
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Fine
