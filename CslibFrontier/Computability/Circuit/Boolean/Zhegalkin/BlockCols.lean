@@ -62,7 +62,7 @@ theorem all_group_subSums {k width : ℕ} (hw : 0 < width)
     (v : Fin k → (Fin n → G) → G) (hv : ∀ j, v j ∈ s) :
     CostSynthesis I w s
       {f | ∃ (q : ℕ) (T : Finset (Fin k)),
-        T.Nonempty ∧ (∀ j ∈ T, j.1 / width = q) ∧ f = fun x => ∑ j ∈ T, v j x}
+        T.Nonempty ∧ (∀ j ∈ T, j.val / width = q) ∧ f = fun x => ∑ j ∈ T, v j x}
       ((k * 2 ^ width) / width) 0 := by
   let B (q : ℕ) := blockIndices k width q
   let emb (q : ℕ) : Fin #(B q) ↪o Fin k := (B q).orderEmbOfFin rfl
@@ -112,19 +112,19 @@ variable {G : Type*} [AddCommMonoid G] {m n : ℕ}
 
 /-- Injects within-block index `a : Fin s` into block `q`'s global column index in `Fin n`. -/
 @[expose] def fullBlockEmb {n s : ℕ} (q : Fin (n / s)) : Fin s ↪ Fin n where
-  toFun a := ⟨q.1 * s + a.1, by
-    have hq : (q.1 + 1) * s ≤ n :=
+  toFun a := ⟨q.val * s + a.val, by
+    have hq : (q.val + 1) * s ≤ n :=
       (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
     have := a.isLt
     nlinarith⟩
   inj' a₁ a₂ h := Fin.ext (by
-    have hv : q.1 * s + a₁.1 = q.1 * s + a₂.1 := congrArg Fin.val h
+    have hv : q.val * s + a₁.val = q.val * s + a₂.val := congrArg Fin.val h
     omega)
 
 theorem fullBlockEmb_div {n s : ℕ} (q : Fin (n / s)) (a : Fin s) :
-    (fullBlockEmb q a).1 / s = q.1 := by
+    (fullBlockEmb q a).val / s = q.val := by
   have hs : 0 < s := Nat.zero_lt_of_lt a.isLt
-  change (q.1 * s + a.1) / s = q.1
+  change (q.val * s + a.val) / s = q.val
   rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
 
 /-- Subset of `Fin s` where row `r` of `A` has `true` in full width-`s` block `q < n / s`. -/
@@ -140,13 +140,13 @@ abbrev FullCol (n s : ℕ) := Fin (n / s) × {T : Finset (Fin s) // T.Nonempty}
 abbrev FullCol.block {n s : ℕ} (c : FullCol n s) : Fin (n / s) := c.1
 
 /-- Nonempty set of local offsets within `c.block` selected by full-block column `c`. -/
-abbrev FullCol.subset {n s : ℕ} (c : FullCol n s) : Finset (Fin s) := c.2.1
+abbrev FullCol.subset {n s : ℕ} (c : FullCol n s) : Finset (Fin s) := c.2.val
 
 theorem card_nonempty_finset_fin (s : ℕ) :
     Fintype.card {T : Finset (Fin s) // T.Nonempty} = 2 ^ s - 1 := by
   have heq : univ.filter (fun T : Finset (Fin s) => T.Nonempty) = univ.erase ∅ := by
     ext T
-    simp [nonempty_iff_ne_empty]
+    simp
   rw [Fintype.card_subtype, heq, card_erase_of_mem (mem_univ ∅), card_univ,
     Fintype.card_finset, Fintype.card_fin]
 
@@ -173,25 +173,26 @@ theorem card_fullCol_le (n s : ℕ) (hs : 0 < s) :
 /-- Trailing active column indices `j` of row `r` with `j / s = n / s`. -/
 @[expose] def matrixTailSet (A : Matrix (Fin m) (Fin n) Bool) (s : ℕ) (r : Fin m) :
     Finset (Fin n) :=
-  univ.filter fun j : Fin n => n / s ≤ j.1 / s ∧ A r j = true
+  univ.filter fun j : Fin n => n / s ≤ j.val / s ∧ A r j = true
 
 theorem div_eq_of_mem_matrixTailSet {A : Matrix (Fin m) (Fin n) Bool} {s : ℕ}
-    {r : Fin m} {j : Fin n} (hj : j ∈ matrixTailSet A s r) : j.1 / s = n / s := by
-  have hge : n / s ≤ j.1 / s := (mem_filter.mp hj).2.1
-  have hle : j.1 / s ≤ n / s := Nat.div_le_div_right j.isLt.le
+    {r : Fin m} {j : Fin n} (hj : j ∈ matrixTailSet A s r) : j.val / s = n / s := by
+  have hge : n / s ≤ j.val / s := (mem_filter.mp hj).2.1
+  have hle : j.val / s ≤ n / s := Nat.div_le_div_right j.isLt.le
   omega
 
 theorem sum_fullCol_lt_eq {m K s Q : ℕ} (A : Matrix (Fin m) (Fin K) Bool)
     (hs : 0 < s) (hQ : Q ≤ K / s) (r : Fin m) (v : Fin K → G) :
-    (∑ c : FullCol K s with decide (c.block.1 < Q ∧ fullRowPattern A s r c.block = c.subset) = true,
+    (∑ c : FullCol K s with
+        decide (c.block.val < Q ∧ fullRowPattern A s r c.block = c.subset) = true,
       fullColVal c v) =
-    ∑ j ∈ univ.filter (fun j : Fin K => j.1 / s < Q ∧ A r j = true), v j := by
+    ∑ j ∈ univ.filter (fun j : Fin K => j.val / s < Q ∧ A r j = true), v j := by
   have hblock (q : Fin (K / s)) :
       (∑ T : {T : Finset (Fin s) // T.Nonempty},
-        if decide (q.1 < Q ∧ fullRowPattern A s r q = T.1) = true then fullColVal (q, T) v
+        if decide (q.val < Q ∧ fullRowPattern A s r q = T.val) = true then fullColVal (q, T) v
         else 0) =
-      if q.1 < Q then ∑ a ∈ fullRowPattern A s r q, v (fullBlockEmb q a) else 0 := by
-    by_cases hq : q.1 < Q
+      if q.val < Q then ∑ a ∈ fullRowPattern A s r q, v (fullBlockEmb q a) else 0 := by
+    by_cases hq : q.val < Q
     · simp only [hq, true_and, ↓reduceIte]
       rcases (fullRowPattern A s r q).eq_empty_or_nonempty with hempty | hne
       · rw [hempty, sum_empty, sum_eq_zero]
@@ -206,7 +207,7 @@ theorem sum_fullCol_lt_eq {m K s Q : ℕ} (A : Matrix (Fin m) (Fin K) Bool)
   let blockJ (q : Fin (K / s)) : Finset (Fin K) :=
     (fullRowPattern A s r q).map (fullBlockEmb q)
   have hdisj_q :
-      ((univ.filter fun q : Fin (K / s) => q.1 < Q) :
+      ((univ.filter fun q : Fin (K / s) => q.val < Q) :
         Set (Fin (K / s))).PairwiseDisjoint blockJ := by
     intro q₁ _ q₂ _ hne
     change Disjoint _ _
@@ -216,18 +217,18 @@ theorem sum_fullCol_lt_eq {m K s Q : ℕ} (A : Matrix (Fin m) (Fin K) Bool)
     obtain ⟨a₂, _, heq⟩ := mem_map.mp hj₂
     exact hne (Fin.ext (by rw [← fullBlockEmb_div q₁ a₁, ← heq, fullBlockEmb_div q₂ a₂]))
   have hbi :
-      (univ.filter fun q : Fin (K / s) => q.1 < Q).biUnion blockJ =
-        univ.filter (fun j : Fin K => j.1 / s < Q ∧ A r j = true) := by
+      (univ.filter fun q : Fin (K / s) => q.val < Q).biUnion blockJ =
+        univ.filter (fun j : Fin K => j.val / s < Q ∧ A r j = true) := by
     ext j
     simp only [mem_biUnion, mem_filter, mem_univ, true_and, blockJ, mem_map, fullRowPattern]
     constructor
     · rintro ⟨q, hq, a, hA, rfl⟩
       exact ⟨by rwa [fullBlockEmb_div], hA⟩
     · rintro ⟨hlt, hA⟩
-      refine ⟨⟨j.1 / s, lt_of_lt_of_le hlt hQ⟩, hlt, ⟨j.1 % s, Nat.mod_lt _ hs⟩, ?_, ?_⟩
+      refine ⟨⟨j.val / s, lt_of_lt_of_le hlt hQ⟩, hlt, ⟨j.val % s, Nat.mod_lt _ hs⟩, ?_, ?_⟩
       · convert hA using 2
-        exact Fin.ext (Nat.div_add_mod' j.1 s)
-      · exact Fin.ext (Nat.div_add_mod' j.1 s)
+        exact Fin.ext (Nat.div_add_mod' j.val s)
+      · exact Fin.ext (Nat.div_add_mod' j.val s)
   rw [← hbi, sum_biUnion hdisj_q]
   exact sum_congr rfl fun q _ => (sum_map _ _ _).symm
 
@@ -238,17 +239,17 @@ theorem sum_row_eq_fullCol_add_tail (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ} 
       ∑ j ∈ matrixTailSet A s r, x j := by
   have hsplit_j :
       (∑ j : Fin n, if A r j then x j else 0) =
-        (∑ j ∈ univ.filter (fun j : Fin n => j.1 / s < n / s ∧ A r j = true), x j) +
+        (∑ j ∈ univ.filter (fun j : Fin n => j.val / s < n / s ∧ A r j = true), x j) +
         ∑ j ∈ matrixTailSet A s r, x j := by
     unfold matrixTailSet
     rw [← sum_filter]
     have hunion :
         (univ.filter fun j : Fin n => A r j = true) =
-          (univ.filter fun j : Fin n => j.1 / s < n / s ∧ A r j = true) ∪
-          (univ.filter fun j : Fin n => n / s ≤ j.1 / s ∧ A r j = true) := by
+          (univ.filter fun j : Fin n => j.val / s < n / s ∧ A r j = true) ∪
+          (univ.filter fun j : Fin n => n / s ≤ j.val / s ∧ A r j = true) := by
       ext j
       simp only [mem_filter, mem_univ, true_and, mem_union]
-      by_cases h : j.1 / s < n / s
+      by_cases h : j.val / s < n / s
       · simp [h]
       · simp [h, Nat.le_of_not_lt h]
     rw [hunion, sum_union (disjoint_left.mpr fun j hj1 hj2 => by

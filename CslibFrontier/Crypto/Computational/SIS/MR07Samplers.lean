@@ -955,14 +955,14 @@ noncomputable def gridEmbed (n q : ℕ) (hq : 0 < q) : (Fin n → ℤ) ≃ gridL
       exact Int.cast_injective (congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hvec),
      by
       intro x
-      obtain ⟨r', hr'⟩ := (mem_gridLattice_iff x.1).1 x.2
+      obtain ⟨r', hr'⟩ := (mem_gridLattice_iff x.val).1 x.property
       exact ⟨r', Subtype.ext hr'.symm⟩⟩
 
 /-- Canonical injective encoding of a typed `GridRep B q × intLattice B` sample into
 `List ℤ × List ℤ`. -/
 noncomputable def gridPairToLists {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} :
     GridRep B q × intLattice B → List ℤ × List ℤ
-  | (g, y) => (List.ofFn g.1, List.ofFn fun i => Int.floor ((y : EuclideanSpace ℝ (Fin n)) i))
+  | (g, y) => (List.ofFn g.val, List.ofFn fun i => Int.floor ((y : EuclideanSpace ℝ (Fin n)) i))
 
 /-- `gridPairToLists` is injective on `GridRep B q × intLattice B`. -/
 theorem gridPairToLists_injective {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} :
@@ -974,14 +974,14 @@ theorem gridPairToLists_injective {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q 
     have hi := congrArg (fun l : List ℤ => l.getD i.val 0) h.1
     simpa [getD_ofFn_eq] using hi
   have hy : y₁ = y₂ := by
-    obtain ⟨m₁, hm₁⟩ := (mem_intLattice_iff B y₁.1).1 y₁.2
-    obtain ⟨m₂, hm₂⟩ := (mem_intLattice_iff B y₂.1).1 y₂.2
+    obtain ⟨m₁, hm₁⟩ := (mem_intLattice_iff B y₁.val).1 y₁.property
+    obtain ⟨m₂, hm₂⟩ := (mem_intLattice_iff B y₂.val).1 y₂.property
     apply Subtype.ext; ext i
     have hi := congrArg (fun l : List ℤ => l.getD i.val 0) h.2
-    have hfl : Int.floor (y₁.1 i) = Int.floor (y₂.1 i) := by
+    have hfl : Int.floor (y₁.val i) = Int.floor (y₂.val i) := by
       simpa [getD_ofFn_eq] using hi
-    have h1 : y₁.1 i = ((B *ᵥ m₁) i : ℝ) := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hm₁
-    have h2 : y₂.1 i = ((B *ᵥ m₂) i : ℝ) := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hm₂
+    have h1 : y₁.val i = ((B *ᵥ m₁) i : ℝ) := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hm₁
+    have h2 : y₂.val i = ((B *ᵥ m₂) i : ℝ) := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hm₂
     rw [h1, h2, Int.floor_intCast, Int.floor_intCast] at hfl
     rw [h1, h2, hfl]
   exact Prod.ext hc hy
@@ -1010,13 +1010,13 @@ theorem piFin_discreteGaussianInt_map_gridEmbed {n q : ℕ} (hq : 0 < q)
   have hqR : (0 : ℝ) < (q : ℝ) := Nat.cast_pos.mpr hq
   have hweight : ∀ r' : Fin n → ℤ,
       ∏ i : Fin n, ProbabilityTheory.gaussianWeight ((q : ℝ) * s) ((r' i : ℝ) - (q : ℝ) * t i) =
-        ProbabilityTheory.gaussianWeight s ((gridEmbed n q hq r').1 - t) := by
+        ProbabilityTheory.gaussianWeight s ((gridEmbed n q hq r').val - t) := by
     intro r'
     simp only [ProbabilityTheory.gaussianWeight, ← Real.exp_sum]
     congr 1
     rw [EuclideanSpace.norm_sq_eq, Finset.mul_sum, Finset.sum_div]
     refine Finset.sum_congr rfl fun i _ => ?_
-    have hcoord : ((gridEmbed n q hq r').1 - t) i =
+    have hcoord : ((gridEmbed n q hq r').val - t) i =
         ((r' i : ℝ) - (q : ℝ) * t i) / (q : ℝ) := by
       change (q : ℝ)⁻¹ * (r' i : ℝ) - t i = _
       field_simp [hqR.ne']
@@ -1030,7 +1030,7 @@ theorem piFin_discreteGaussianInt_map_gridEmbed {n q : ℕ} (hq : 0 < q)
   have hLHS_apply : ∀ x : gridLattice n q,
       ((PMF.piFin fun i : Fin n => discreteGaussianInt ((q : ℝ) * s) hqs ((q : ℝ) * t i)).map
           (gridEmbed n q hq)) x =
-        ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.1 - t)) / ENNReal.ofReal Zprod := by
+        ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.val - t)) / ENNReal.ofReal Zprod := by
     intro x
     set r' := (gridEmbed n q hq).symm x
     rw [PMF.map_apply, tsum_eq_single r']
@@ -1056,24 +1056,24 @@ theorem piFin_discreteGaussianInt_map_gridEmbed {n q : ℕ} (hq : 0 < q)
       simp [hne]
   have hZ_eq : ENNReal.ofReal Zprod = ENNReal.ofReal Zgrid := by
     have hsum1 : ∑' x : gridLattice n q,
-        ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.1 - t)) /
+        ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.val - t)) /
           ENNReal.ofReal Zprod = 1 := by
       simp_rw [← hLHS_apply]; exact PMF.tsum_coe _
     have hsum2 : ∑' x : gridLattice n q,
-        ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.1 - t)) /
+        ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.val - t)) /
           ENNReal.ofReal Zgrid = 1 := by
       have : ∀ x : gridLattice n q,
           ZLattice.discreteGaussian (gridLattice n q) s hs t x =
-            ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.1 - t)) /
+            ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.val - t)) /
               ENNReal.ofReal Zgrid :=
         fun x => ZLattice.discreteGaussian_apply _ s hs t x
       simp_rw [← this]; exact PMF.tsum_coe _
     simp_rw [div_eq_mul_inv] at hsum1 hsum2
     rw [ENNReal.tsum_mul_right] at hsum1 hsum2
     have hcancel : ∀ {Z : ℝ}, 0 < Z →
-        (∑' x : gridLattice n q, ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.1 - t))) *
+        (∑' x : gridLattice n q, ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.val - t))) *
           (ENNReal.ofReal Z)⁻¹ = 1 →
-        ∑' x : gridLattice n q, ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.1 - t)) =
+        ∑' x : gridLattice n q, ENNReal.ofReal (ProbabilityTheory.gaussianWeight s (x.val - t)) =
           ENNReal.ofReal Z := fun {Z} hZ h => by
       have h' := congrArg (· * ENNReal.ofReal Z) h
       rwa [mul_assoc, ENNReal.inv_mul_cancel (ENNReal.ofReal_pos.mpr hZ).ne'
@@ -1150,14 +1150,14 @@ theorem map_gridReduceInt_piFin_eq_map_idealGridSample {n q : ℕ}
   intro hqs
   have hEx : ∀ r : gridLattice n q, ∃ gy : GridRep B q × intLattice B,
       gridReduceInt n q T (List.ofFn ((gridEmbed n q hq).symm r)) = gridPairToLists gy ∧
-        gy.1.toVec = modParallelepiped B (-r.1) ∧
-        (gy.2 : EuclideanSpace ℝ (Fin n)) = r.1 + gy.1.toVec := by
+        gy.1.toVec = modParallelepiped B (-r.val) ∧
+        (gy.2 : EuclideanSpace ℝ (Fin n)) = r.val + gy.1.toVec := by
     intro r
     have hr_eq : ((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2
-        (fun i : Fin n => ((List.ofFn ((gridEmbed n q hq).symm r)).getD i.val 0 : ℝ)) = r.1 := by
+        (fun i : Fin n => ((List.ofFn ((gridEmbed n q hq).symm r)).getD i.val 0 : ℝ)) = r.val := by
       have h := (gridEmbed n q hq).apply_symm_apply r
       have h1 : ((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2
-          (fun i : Fin n => (((gridEmbed n q hq).symm r) i : ℝ)) = r.1 :=
+          (fun i : Fin n => (((gridEmbed n q hq).symm r) i : ℝ)) = r.val :=
         congrArg Subtype.val h
       convert h1 using 3
       ext i; exact congrArg Int.cast (getD_ofFn_eq _ 0 i)
@@ -1245,7 +1245,7 @@ theorem closeTo_eval_sampleGridGaussian_idealGridSample_of_smoothingParameter_le
 /-- Canonical injective encoding of a typed `SublatticeQuot B S` element into `List ℤ`. -/
 def sublatticeQuotToList {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     (q : SublatticeQuot B S) : List ℤ :=
-  List.ofFn q.1
+  List.ofFn q.val
 
 /-- `sublatticeQuotToList` is injective on `SublatticeQuot B S`. -/
 theorem sublatticeQuotToList_injective {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ} :
@@ -1360,7 +1360,7 @@ theorem quotientReduceInt_eq_quotientHom {n : ℕ} (TB TS : IntTable)
   have hi_v := congrArg (fun w : EuclideanSpace ℝ (Fin n) => w ⟨i, hi'⟩) hvec_eq
   simp only [SublatticeQuot.toVec, WithLp.ofLp_toLp] at hi_v
   have hZ : (quotientReduceInt n TB TS xNat).getD i 0 =
-      (quotientHom B S hS hSB z).1 ⟨i, hi'⟩ := Int.cast_injective hi_v
+      (quotientHom B S hS hSB z).val ⟨i, hi'⟩ := Int.cast_injective hi_v
   have hi_len : i < (quotientReduceInt n TB TS xNat).length := hv_len.symm ▸ hi'
   simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi_len, Option.getD_some] at hZ
   simpa [sublatticeQuotToList] using hZ

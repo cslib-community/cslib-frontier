@@ -190,7 +190,7 @@ theorem splitRootCode_spec {w base capNodes t oldRoot cnt : ℕ} {x : Data 20}
   have hfull : ExecWithin w splitRootCode x y (21 * t + 88) :=
     (he1.seq he2).mono (by omega)
   exact ⟨y, hfull, hfull.bounded hbdd, hymem,
-    by simpa only [Finset.union_idempotent] using hmod₁.trans hmod₂,
+    by simpa only [Finset.union_self] using hmod₁.trans hmod₂,
     hz_y, ho_y, hb_y, hd_y, hst_y, hk_y, hv_y, hcur_y, hcnt_y⟩
 
 theorem not_readsWidth_splitRootCode : ¬splitRootCode.ReadsWidth := by

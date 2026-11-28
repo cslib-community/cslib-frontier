@@ -390,7 +390,7 @@ theorem sum_filter_not_disjoint_le_of_spread (hr : 0 < r)
     · simp
   refine (sum_le_sum hfib).trans_eq ?_
   rw [← sum_filter, show t.powerset.filter (fun T => T.Nonempty) = t.powerset.erase ∅ by
-    ext T; simp [nonempty_iff_ne_empty, and_comm], ← mul_sum,
+    ext T; simp [and_comm], ← mul_sum,
     sum_erase_eq_sub (empty_mem_powerset t)]
   have hbin := sum_pow_mul_eq_add_pow (1 / r) (1 / 2 : ℝ) t
   rw [ht] at hbin

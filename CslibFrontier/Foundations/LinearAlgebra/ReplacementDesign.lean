@@ -421,7 +421,7 @@ structure ReplacementDesign {F : Type*} [Fintype F]
   card_varGroup_le : ∀ (t : Fin Q) (g : Fin r), #(varGroup varAssign t g) ≤ 2 * n / r
   /-- Section 4.1 / Lemma 4.5: factors with empty scope are assigned to group `0` at every
   point. -/
-  factorAssign_of_empty : ∀ (f : F), scope f = ∅ → ∀ t : Fin Q, (factorAssign f t).1 = 0
+  factorAssign_of_empty : ∀ (f : F), scope f = ∅ → ∀ t : Fin Q, (factorAssign f t).val = 0
   /-- Section 4.5: all occupied positions `(c(f,v), u_{f,v})` in `[h] × B` are distinct. -/
   injective_place : Function.Injective place
   /-- Section 4.4–4.5: the auxiliary label of incidence `e = (f, v)` is `(a_v, d_f)`. -/

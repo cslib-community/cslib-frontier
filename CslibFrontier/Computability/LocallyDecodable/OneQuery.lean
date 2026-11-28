@@ -208,7 +208,7 @@ theorem IsSmoothDecoder.four_mul_card_mul_sq_le [DecidableEq P] [Nonempty Γ]
     set φ : (ι → Bool) → ℝ := fun x => -signVal (x i)
     have hφ : ∑ x, φ x = 0 := by
       have h := sum_chi (ι := ι) {i}
-      simp only [chi_singleton, singleton_ne_empty, ite_false] at h
+      simp only [chi_singleton, (singleton_nonempty _).ne_empty, ite_false] at h
       simp only [φ, sum_neg_distrib, h, neg_zero]
     have hcorr (x : ι → Bool) :
         ε + φ x / 2 ≤ φ x * (decodeLaw (A i) (C x) true).toReal := by

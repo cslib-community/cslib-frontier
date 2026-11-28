@@ -93,14 +93,14 @@ noncomputable def satisfiedPairsEquiv {U : Type*} (c : Circuit σ n m)
     (I : Interpretation σ U) (Acc : Fin m → Set U) :
     {p : (Fin n → U) × (Edge c → U) // (network c I Acc).Satisfies p.1 p.2} ≃
       (network c I Acc).accepted where
-  toFun p := ⟨p.1.1, p.1.2, p.2⟩
+  toFun p := ⟨p.val.1, p.val.2, p.property⟩
   invFun x :=
-    ⟨(x.1, fun e => c.program.trace I x.1 e.signal.1),
+    ⟨(x.val, fun e => c.program.trace I x.val e.signal.val),
       satisfies_trace (by
-        have hx : x.1 ∈ {y : Fin n → U | ∀ o, c.eval I y o ∈ Acc o} :=
-          accepted_network (c := c) (I := I) (Acc := Acc) ▸ x.2
+        have hx : x.val ∈ {y : Fin n → U | ∀ o, c.eval I y o ∈ Acc o} :=
+          accepted_network (c := c) (I := I) (Acc := Acc) ▸ x.property
         exact hx)⟩
-  left_inv p := Subtype.ext (Prod.ext rfl (satisfies_iff.mp p.2).2.symm)
+  left_inv p := Subtype.ext (Prod.ext rfl (satisfies_iff.mp p.property).2.symm)
   right_inv _ := Subtype.ext rfl
 
 end FrontierBounds
@@ -374,15 +374,17 @@ theorem vars_toCNF_subset (c : Circuit σ n m) (I : Interpretation σ Bool)
 theorem card_reachWiresCode_toFinset (c : Circuit σ n m) :
     (reachWiresCode n c.code).toFinset.card = Nat.card (Signal c) := by
   let e : Signal c ≃ {i : ℕ // i ∈ (reachWiresCode n c.code).toFinset} :=
-    { toFun := fun w => ⟨w.1.toNat,
-        List.mem_toFinset.mpr ((mem_reachWiresCode_iff c w.1.toNat).mpr ⟨w.1, rfl, w.2⟩)⟩
+    { toFun := fun w => ⟨w.val.toNat,
+        List.mem_toFinset.mpr ((mem_reachWiresCode_iff c w.val.toNat).mpr ⟨w.val, rfl, w.property⟩)⟩
       invFun := fun i =>
-        let hlt : i.1 < n + c.size := by
-          obtain ⟨w, hw_eq, _⟩ := (mem_reachWiresCode_iff c i.1).mp (List.mem_toFinset.mp i.2)
+        let hlt : i.val < n + c.size := by
+          obtain ⟨w, hw_eq, _⟩ :=
+            (mem_reachWiresCode_iff c i.val).mp (List.mem_toFinset.mp i.property)
           exact hw_eq ▸ w.toNat_lt
-        ⟨Wire.ofNat i.1 hlt, by
-          obtain ⟨w, hw_eq, hw⟩ := (mem_reachWiresCode_iff c i.1).mp (List.mem_toFinset.mp i.2)
-          have hof : Wire.ofNat i.1 hlt = w := by
+        ⟨Wire.ofNat i.val hlt, by
+          obtain ⟨w, hw_eq, hw⟩ :=
+            (mem_reachWiresCode_iff c i.val).mp (List.mem_toFinset.mp i.property)
+          have hof : Wire.ofNat i.val hlt = w := by
             apply Wire.toNat_injective
             simp [hw_eq]
           exact hof.symm ▸ hw⟩
@@ -518,7 +520,7 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
     (acc : Fin m → Bool → Bool) (τ : ℕ → Bool) :
     (toCSP c).eval (circuitSem I acc) τ = true ↔
       (network c I (accSet acc)).Satisfies (fun i => τ i.val)
-        (fun e => τ e.signal.1.toNat) := by
+        (fun e => τ e.signal.val.toNat) := by
   have hout_iff :
       (∀ con ∈ (List.finRange m).map (fun o => ⟨Sum.inr o, [c.code.2.getD o.val 0]⟩),
         Cslib.Logic.PL.Constraint.eval (circuitSem I acc) τ con = true) ↔
@@ -553,7 +555,7 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
         | succ _ => cases he; rfl
       · cases he; rfl
     | output o =>
-      change τ (outEdge c o).signal.1.toNat ∈ accSet acc o
+      change τ (outEdge c o).signal.val.toNat ∈ accSet acc o
       rw [signal_deliverEdge]
       exact houts o
   · intro hsat
@@ -561,18 +563,18 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
     · have hw_reach := (any_reachWiresCode_iff c g).mp hany
       rw [eval_gateConstraint_eq_true_iff I acc (Line.length_code_snd _) τ]
       have hsig : τ (n + g) =
-          I (c.program.lines g).op (fun a => τ (argEdge hw_reach a).signal.1.toNat) :=
+          I (c.program.lines g).op (fun a => τ (argEdge hw_reach a).signal.val.toNat) :=
         hsat (.signal ⟨.gate g, hw_reach⟩)
       refine hsig.trans (congrArg (I (c.program.lines g).op) (funext fun a => ?_))
       simp only [Line.code, List.getElem_ofFn, argEdge, signal_deliverEdge, consumed]
-    · have hout : τ (outEdge c o).signal.1.toNat ∈ accSet acc o := hsat (.output o)
+    · have hout : τ (outEdge c o).signal.val.toNat ∈ accSet acc o := hsat (.output o)
       rwa [signal_deliverEdge] at hout
 
 private theorem eval_toCNF_iff_satisfies_network (c : Circuit σ n m) (I : Interpretation σ Bool)
     (acc : Fin m → Bool → Bool) (τ : ℕ → Bool) :
     (toCNF c I acc).eval τ = true ↔
       (network c I (accSet acc)).Satisfies (fun i => τ i.val)
-        (fun e => τ e.signal.1.toNat) := by
+        (fun e => τ e.signal.val.toNat) := by
   change ((toCSP c).toCNF (circuitSem I acc)).eval τ = true ↔ _
   rw [CSP.eval_toCNF, eval_toCSP_iff_satisfies_network]
 
@@ -598,10 +600,10 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
   have hmodelOn : (toCNF c I acc).modelCountOn S =
       (Finset.univ.filter fun x₀ : R → Bool => extendR x₀ ∈ N.accepted).card := by
     let toR (τ : S → Bool) (i : R) : Bool :=
-      τ ⟨i.1.val, (hmemS_input i.1).mpr i.2⟩
+      τ ⟨i.val.val, (hmemS_input i.val).mpr i.property⟩
     have hext_eq (τ : S → Bool) (i : Fin n) : extendR (toR τ) i = extendS τ i.val := by grind
     have hsat (τ : S → Bool) (h : (toCNF c I acc).eval (extendS τ) = true) :
-        N.Satisfies (extendR (toR τ)) fun e => extendS τ e.signal.1.toNat := by
+        N.Satisfies (extendR (toR τ)) fun e => extendS τ e.signal.val.toNat := by
       have := (eval_toCNF_iff_satisfies_network c I acc (extendS τ)).mp h
       rwa [show (fun i : Fin n => extendS τ i.val) = extendR (toR τ) from
         funext fun i => (hext_eq τ i).symm] at this
@@ -621,14 +623,16 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
     · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx₀
       have hacc : ∀ o, c.eval I (extendR x₀) o ∈ accSet acc o := by grind [accepted_network]
       let τ : S → Bool := fun v =>
-        let hlt : v.1 < n + c.size := by
-          obtain ⟨w, hw_eq, _⟩ := (mem_reachWiresCode_iff c v.1).mp (List.mem_toFinset.mp v.2)
+        let hlt : v.val < n + c.size := by
+          obtain ⟨w, hw_eq, _⟩ :=
+            (mem_reachWiresCode_iff c v.val).mp (List.mem_toFinset.mp v.property)
           exact hw_eq ▸ w.toNat_lt
-        c.program.trace I (extendR x₀) (Wire.ofNat v.1 hlt)
+        c.program.trace I (extendR x₀) (Wire.ofNat v.val hlt)
       have hτ_wire (w : Signal c) :
-          extendS τ w.1.toNat = c.program.trace I (extendR x₀) w.1 := by
-        have hwS : w.1.toNat ∈ S :=
-          List.mem_toFinset.mpr ((mem_reachWiresCode_iff c w.1.toNat).mpr ⟨w.1, rfl, w.2⟩)
+          extendS τ w.val.toNat = c.program.trace I (extendR x₀) w.val := by
+        have hwS : w.val.toNat ∈ S :=
+          List.mem_toFinset.mpr
+            ((mem_reachWiresCode_iff c w.val.toNat).mpr ⟨w.val, rfl, w.property⟩)
         simp [extendS, hwS, τ]
       have htoR : toR τ = x₀ := by
         funext ⟨i, hi⟩
@@ -641,8 +645,8 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
       have hfun : (fun i : Fin n => extendS τ i.val) = extendR x₀ := by
         rw [← htoR]
         exact funext fun i => (hext_eq τ i).symm
-      have hedge : (fun e : Edge c => extendS τ e.signal.1.toNat) =
-          fun e => c.program.trace I (extendR x₀) e.signal.1 :=
+      have hedge : (fun e : Edge c => extendS τ e.signal.val.toNat) =
+          fun e => c.program.trace I (extendR x₀) e.signal.val :=
         funext fun e => hτ_wire e.signal
       rw [hfun, hedge]
       exact satisfies_trace hacc
@@ -663,12 +667,12 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
       simp [extendR, split, hiR]
     let bij : {x : Fin n → Bool // ∀ o : Fin m, acc o (c.eval I x o) = true} ≃
         {x₀ : R → Bool // extendR x₀ ∈ N.accepted} × ({i : Fin n // i ∉ R} → Bool) :=
-      { toFun := fun x => (⟨(split x.1).1, (hdep x.1).mp x.2⟩, (split x.1).2)
+      { toFun := fun x => (⟨(split x.val).1, (hdep x.val).mp x.property⟩, (split x.val).2)
         invFun := fun p =>
-          ⟨split.symm (p.1.1, p.2), by
+          ⟨split.symm (p.1.val, p.2), by
             rw [hdep, Equiv.apply_symm_apply]
-            exact p.1.2⟩
-        left_inv := fun x => Subtype.ext (split.symm_apply_apply x.1)
+            exact p.1.property⟩
+        left_inv := fun x => Subtype.ext (split.symm_apply_apply x.val)
         right_inv := fun p => by simp only [Equiv.apply_symm_apply] }
     have hcard := Fintype.card_congr bij
     rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, Fintype.card_subtype_compl,

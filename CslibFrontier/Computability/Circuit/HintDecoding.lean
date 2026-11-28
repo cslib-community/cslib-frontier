@@ -271,7 +271,7 @@ private theorem full_kernelVecUpTo (α : ι → F) (w : ι → (Fin N → F) →
         refine (full_kernelVec (s := s ∪ Set.range E)
           (fun t m x => Sudan.interpMatrix α (fun i => w i x) (Sudan.monomialsUpTo d D j) t m)
           fun t m => Set.mem_union_right _ ⟨((Fintype.equivFin ι).symm t,
-            ⟨_, hsubM j ((Sudan.monomialsUpTo d D j).equivFin.symm m).2⟩), rfl⟩).mono
+            ⟨_, hsubM j ((Sudan.monomialsUpTo d D j).equivFin.symm m).property⟩), rfl⟩).mono
           Set.Subset.rfl (by rintro _ ⟨m, rfl⟩; exact ⟨m, rfl⟩) ?_
         unfold kernelVecCost
         have : #(Sudan.monomialsUpTo d D j) ≤ #M := card_le_card (hsubM j)

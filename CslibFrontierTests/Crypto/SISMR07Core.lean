@@ -107,7 +107,7 @@ private theorem dual_toyB_gap
   have hint : ∀ j : Fin 2, ∃ k : ℤ, (w : EuclideanSpace ℝ (Fin 2)) j = (k : ℝ) := by
     intro j
     have hmem : intCol toyB j ∈ intLattice toyB := Submodule.subset_span ⟨j, rfl⟩
-    obtain ⟨k, hk⟩ := w.2 (intCol toyB j) hmem
+    obtain ⟨k, hk⟩ := w.property (intCol toyB j) hmem
     refine ⟨k, ?_⟩
     simp only [LinearMap.toSpanSingleton_apply, zsmul_eq_mul, mul_one, innerₗ_apply_apply] at hk
     have hinner : ⟪(w : EuclideanSpace ℝ (Fin 2)), intCol toyB j⟫ =
@@ -163,7 +163,7 @@ private theorem toyB_dual_mass_le :
   have hpow : (2 : ℝ) ^ (40 : ℕ) ≤ Real.exp 40 := by
     calc (2 : ℝ) ^ (40 : ℕ) ≤ (Real.exp 1) ^ (40 : ℕ) :=
           pow_le_pow_left₀ (by norm_num) h2le 40
-      _ = Real.exp ((40 : ℕ) * (1 : ℝ)) := (Real.exp_nat_mul 1 40).symm
+      _ = Real.exp ((40 : ℕ) * (1 : ℝ)) := (Real.exp_natCast_mul 40 1).symm
       _ = Real.exp 40 := by norm_num
   have hexp_le : Real.exp (-40 : ℝ) ≤ ((2 : ℝ) ^ (40 : ℕ))⁻¹ := by
     rw [Real.exp_neg]
@@ -246,8 +246,8 @@ theorem test_part2_part3_interfaces
     (v : SublatticeQuot toyB toyS) (c : GridRep toyB 4) (k : Fin 2)
     (t : EuclideanSpace ℝ (Fin 2))
     (f : gridLattice 2 4 → GridRep toyB 4 × intLattice toyB)
-    (hf_fst : ∀ r, (f r).1.toVec = modParallelepiped toyB (-r.1))
-    (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin 2)) = r.1 + (f r).1.toVec) :
+    (hf_fst : ∀ r, (f r).1.toVec = modParallelepiped toyB (-r.val))
+    (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin 2)) = r.val + (f r).1.toVec) :
     idealGridSample toyB toyB_det_ne 4 (by decide) 6 (by norm_num) t =
       (ZLattice.discreteGaussian (gridLattice 2 4) 6 (by norm_num) t).map f ∧
     (quotientHom toyB toyS toyS_det_ne toyS_le_toyB x).toVec =

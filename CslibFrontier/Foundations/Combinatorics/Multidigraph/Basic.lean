@@ -65,11 +65,11 @@ abbrev Arc (G : Digraph V) : Type _ :=
 
 /-- Source map of the canonical multidigraph of `G : Digraph V`. -/
 @[expose] def arcSrc (G : Digraph V) (e : Arc G) : V :=
-  e.1.1
+  e.val.1
 
 /-- Target map of the canonical multidigraph of `G : Digraph V`. -/
 @[expose] def arcTgt (G : Digraph V) (e : Arc G) : V :=
-  e.1.2
+  e.val.2
 
 @[simp]
 theorem arcSrc_mk {G : Digraph V} (e : V × V) (he : G.Adj e.1 e.2) :

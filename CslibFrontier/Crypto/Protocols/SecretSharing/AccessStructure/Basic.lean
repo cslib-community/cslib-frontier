@@ -224,8 +224,8 @@ end Basic
 coalition `s`, and `secret`, supporting party-indexed share types. -/
 @[expose] noncomputable def viewDistOf {Secret Key Party : Type*} {Share : Party → Type*}
     (source : PMF Key) (share : Key → Secret → (i : Party) → Share i)
-    (s : Finset Party) (secret : Secret) : PMF ((i : s) → Share i.1) :=
-  source.map fun k i => share k secret i.1
+    (s : Finset Party) (secret : Secret) : PMF ((i : s) → Share i.val) :=
+  source.map fun k i => share k secret i.val
 
 end AccessStructure
 
@@ -264,11 +264,11 @@ structure AccessScheme (Secret Key Party : Type*) (Share : Party → Type*) wher
   /-- Sharing algorithm mapping a key, a secret, and a party to that party's share. -/
   share : Key → Secret → (i : Party) → Share i
   /-- Reconstruction algorithm from a coalition's observed shares. -/
-  reconstruct (s : Finset Party) : ((i : s) → Share i.1) → Secret
+  reconstruct (s : Finset Party) : ((i : s) → Share i.val) → Secret
   /-- Every authorized coalition reconstructs the secret for every key. -/
   correct :
     ∀ (k : Key) (secret : Secret) (s : Finset Party),
-      access.authorized s → reconstruct s (fun i => share k secret i.1) = secret
+      access.authorized s → reconstruct s (fun i => share k secret i.val) = secret
   /-- For every allowed key source, unauthorized coalitions receive secret-independent views. -/
   view_indist :
     ∀ P ∈ sources, ∀ (s : Finset Party), ¬ access.authorized s →
@@ -284,13 +284,13 @@ variable {Secret Key Party : Type*} {Share : Party → Type*}
 
 /-- The restricted shares observed by coalition `s`. -/
 @[expose] def view (scheme : AccessScheme Secret Key Party Share) (s : Finset Party)
-    (k : Key) (secret : Secret) : (i : s) → Share i.1 :=
-  fun i => scheme.share k secret i.1
+    (k : Key) (secret : Secret) : (i : s) → Share i.val :=
+  fun i => scheme.share k secret i.val
 
 @[simp]
 theorem view_apply (scheme : AccessScheme Secret Key Party Share) (s : Finset Party)
     (k : Key) (secret : Secret) (i : s) :
-    scheme.view s k secret i = scheme.share k secret i.1 :=
+    scheme.view s k secret i = scheme.share k secret i.val :=
   rfl
 
 /-- The full share distribution for a fixed key source `P` and `secret`. -/
@@ -300,7 +300,7 @@ theorem view_apply (scheme : AccessScheme Secret Key Party Share) (s : Finset Pa
 
 /-- The coalition view distribution induced by key source `P` on coalition `s`. -/
 @[expose] noncomputable def viewDist (scheme : AccessScheme Secret Key Party Share)
-    (P : PMF Key) (s : Finset Party) (secret : Secret) : PMF ((i : s) → Share i.1) :=
+    (P : PMF Key) (s : Finset Party) (secret : Secret) : PMF ((i : s) → Share i.val) :=
   AccessStructure.viewDistOf P scheme.share s secret
 
 /-- Authorized coalitions reconstruct the secret from their view. -/
@@ -400,14 +400,14 @@ theorem comapKey_sources {Key' : Type*} (scheme : AccessScheme Secret Key Party 
   access := scheme.access
   sources := scheme.sources
   share k m i := e i (scheme.share k m i)
-  reconstruct s v := scheme.reconstruct s fun i => (e i.1).symm (v i)
+  reconstruct s v := scheme.reconstruct s fun i => (e i.val).symm (v i)
   correct k m s hs := by
     simp only [Equiv.symm_apply_apply]
     exact scheme.correct k m s hs
   view_indist P hP s hs m₀ m₁ := by
     have hmap (m : Secret) :
         AccessStructure.viewDistOf P (fun k m' i => e i (scheme.share k m' i)) s m =
-          (scheme.viewDist P s m).map (fun v i => e i.1 (v i)) := by
+          (scheme.viewDist P s m).map (fun v i => e i.val (v i)) := by
       simp only [AccessStructure.viewDistOf, viewDist, PMF.map_comp]
       rfl
     rw [hmap m₀, hmap m₁]
@@ -430,24 +430,24 @@ private theorem eqRec_share {Party : Type*} {Share : Party → Type*}
   share k m i' := scheme.share k m (e i')
   reconstruct s' v' :=
     scheme.reconstruct (s'.map e.toEmbedding) fun i =>
-      (e.apply_symm_apply i.1) ▸ v' ⟨e.symm i.1, by
-        obtain ⟨j', hj', he⟩ := Finset.mem_map.mp i.2
+      (e.apply_symm_apply i.val) ▸ v' ⟨e.symm i.val, by
+        obtain ⟨j', hj', he⟩ := Finset.mem_map.mp i.property
         simpa [← he] using hj'⟩
   correct k m s' hs' := by
     have hcongr :
         (fun i : s'.map e.toEmbedding =>
-          (e.apply_symm_apply i.1) ▸
-            scheme.share k m (e (e.symm i.1))) =
-          fun i : s'.map e.toEmbedding => scheme.share k m i.1 := by
+          (e.apply_symm_apply i.val) ▸
+            scheme.share k m (e (e.symm i.val))) =
+          fun i : s'.map e.toEmbedding => scheme.share k m i.val := by
       ext i
-      exact eqRec_share (e.apply_symm_apply i.1) (scheme.share k m)
+      exact eqRec_share (e.apply_symm_apply i.val) (scheme.share k m)
     change scheme.reconstruct (s'.map e.toEmbedding)
-        (fun i => (e.apply_symm_apply i.1) ▸ scheme.share k m (e (e.symm i.1))) = m
+        (fun i => (e.apply_symm_apply i.val) ▸ scheme.share k m (e (e.symm i.val))) = m
     rw [hcongr]
     exact scheme.correct k m (s'.map e.toEmbedding) hs'
   view_indist P hP s' hs' m₀ m₁ := by
-    let proj : ((i : s'.map e.toEmbedding) → Share i.1) → ((i' : s') → Share (e i')) :=
-      fun v i' => v ⟨e i', Finset.mem_map_of_mem e.toEmbedding i'.2⟩
+    let proj : ((i : s'.map e.toEmbedding) → Share i.val) → ((i' : s') → Share (e i')) :=
+      fun v i' => v ⟨e i', Finset.mem_map_of_mem e.toEmbedding i'.property⟩
     have hmap (m : Secret) :
         AccessStructure.viewDistOf P (fun k m' i' => scheme.share k m' (e i')) s' m =
           (scheme.viewDist P (s'.map e.toEmbedding) m).map proj := by

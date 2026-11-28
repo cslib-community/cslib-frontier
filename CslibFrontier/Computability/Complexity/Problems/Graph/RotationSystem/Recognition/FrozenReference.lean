@@ -616,8 +616,8 @@ private theorem same_center_contacts {I : FixedRotationInput} (hI : Valid I)
     rw [← hzero', zero_smul] at hvec
     exact hzero ((smul_eq_zero.mp hvec).resolve_right hva)
   have harg := congrArg Complex.arg hvec
-  simp only [Complex.real_smul, Complex.arg_real_mul _ hσpos,
-    Complex.arg_real_mul _ hτpos] at harg
+  simp only [Complex.real_smul, Complex.arg_ofReal_mul hσpos _,
+    Complex.arg_ofReal_mul hτpos _] at harg
   obtain ⟨word, hw, ham⟩ := fixed_end_word hI a ha
   have hbm : b.index ∈ word :=
     ((hI.2.2.2 a.vertex word hw).2 b.index).mpr (by simpa only [hv] using index_mem_fiber b)

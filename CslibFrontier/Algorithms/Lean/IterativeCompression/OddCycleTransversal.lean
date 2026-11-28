@@ -85,18 +85,18 @@ variable {n : ℕ}
 
 /-- The subgraph of `G` spanned by the vertices `0, …, m - 1`. The other vertices are isolated. -/
 @[expose] def prefixGraph (G : SimpleGraph (Fin n)) (m : ℕ) : SimpleGraph (Fin n) where
-  Adj u v := G.Adj u v ∧ u.1 < m ∧ v.1 < m
+  Adj u v := G.Adj u v ∧ u.val < m ∧ v.val < m
   symm := ⟨fun _ _ ⟨hadj, hu, hv⟩ => ⟨hadj.symm, hv, hu⟩⟩
   loopless := ⟨fun v h => G.loopless.irrefl v h.1⟩
 
 @[simp]
 theorem prefixGraph_adj {G : SimpleGraph (Fin n)} {m : ℕ} {u v : Fin n} :
-    (prefixGraph G m).Adj u v ↔ G.Adj u v ∧ u.1 < m ∧ v.1 < m :=
+    (prefixGraph G m).Adj u v ↔ G.Adj u v ∧ u.val < m ∧ v.val < m :=
   Iff.rfl
 
 instance (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (m : ℕ) :
     DecidableRel (prefixGraph G m).Adj :=
-  fun u v => inferInstanceAs (Decidable (G.Adj u v ∧ u.1 < m ∧ v.1 < m))
+  fun u v => inferInstanceAs (Decidable (G.Adj u v ∧ u.val < m ∧ v.val < m))
 
 theorem prefixGraph_le (G : SimpleGraph (Fin n)) (m : ℕ) : prefixGraph G m ≤ G :=
   fun _ _ h => h.1
@@ -377,7 +377,7 @@ variable (G)
   | some (S, c) =>
     let W := if i ∈ S then S else i :: S
     if W.length ≤ k then some (W, c)
-    else compress (prefixGraph G (i.1 + 1)) k W c
+    else compress (prefixGraph G (i.val + 1)) k W c
 
 /-- The first `i` steps of the iteration, starting from `∅` and the all-`false` colouring. -/
 @[expose] def loop (k : ℕ) : (i : ℕ) → i ≤ n → Option (List (Fin n) × Vector Bool n)
@@ -398,7 +398,7 @@ private def Inv (G : SimpleGraph (Fin n)) (k i : ℕ) : Option (List (Fin n) × 
   | some (S, c) => S.Nodup ∧ S.length ≤ k ∧ IsProperOff (prefixGraph G i) c S
 
 private theorem inv_step {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vector Bool n)}
-    (h : Inv G k i.1 r) : Inv G k (i.1 + 1) (step G k i r) := by
+    (h : Inv G k i.val r) : Inv G k (i.val + 1) (step G k i r) := by
   rcases r with _ | ⟨S, c⟩
   · exact fun T hT => h T (hT.anti (prefixGraph_mono G (Nat.le_succ _)))
   obtain ⟨hS, _, hc⟩ := h
@@ -412,7 +412,7 @@ private theorem inv_step {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vect
     by_cases hi : i ∈ S
     · simpa only [hWdef, hi, ↓reduceIte] using hS
     · simpa only [hWdef, hi, ↓reduceIte] using List.nodup_cons.mpr ⟨hi, hS⟩
-  have hcW : IsProperOff (prefixGraph G (i.1 + 1)) c W := by
+  have hcW : IsProperOff (prefixGraph G (i.val + 1)) c W := by
     intro u v ⟨hadj, hu_lt, hv_lt⟩ hu hv
     rw [hWS, not_or] at hu hv
     exact hc ⟨hadj, by have := Fin.val_ne_of_ne hu.1; omega,
@@ -421,7 +421,7 @@ private theorem inv_step {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vect
   rw [← hWdef]
   split_ifs with hk
   · exact ⟨hW, hk, hcW⟩
-  · rcases hr : compress (prefixGraph G (i.1 + 1)) k W c with _ | ⟨S', c'⟩
+  · rcases hr : compress (prefixGraph G (i.val + 1)) k W c with _ | ⟨S', c'⟩
     · exact compress_complete hcW hW hr
     · exact compress_sound hcW hW hr
 

@@ -959,7 +959,7 @@ theorem succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le {n : �
   let test : Bool → QuadBool → Bool := fun b q =>
     if b then !isXor4 q.1 q.2.1 q.2.2.1 q.2.2.2 else !isAnd4 q.1 q.2.1 q.2.2.1 q.2.2.2
   let P : PairLt × Bool → BooleanFunction n → Bool := fun idx f =>
-    decide (∀ t : Fin n, test idx.2 (evalPairHom n idx.1.1.1 idx.1.1.2 f t) = true)
+    decide (∀ t : Fin n, test idx.2 (evalPairHom n idx.1.val.1 idx.1.val.2 f t) = true)
   have heq : booleanPRFIdealGame criticalPathDistinguisher n =
       (PMF.uniformOfFintype (BooleanFunction n)).map fun f =>
         decide (∃ idx : PairLt × Bool, P idx f = true) := by
@@ -984,14 +984,14 @@ theorem succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le {n : �
   have hAnd (p : PairLt) :
       ((PMF.uniformOfFintype (BooleanFunction n)).map (P (p, false)) true).toNNReal =
         (1 / 2 : ℝ≥0) ^ n := by
-    rw [uniformOfFintype_hom_forall_fin_eq (evalPairHom n p.1.1 p.1.2)
-      (evalPairHom_surjective hn p.2) (test false) 8 (by decide), hc2]
+    rw [uniformOfFintype_hom_forall_fin_eq (evalPairHom n p.val.1 p.val.2)
+      (evalPairHom_surjective hn p.property) (test false) 8 (by decide), hc2]
     norm_num
   have hXor (p : PairLt) :
       ((PMF.uniformOfFintype (BooleanFunction n)).map (P (p, true)) true).toNNReal =
         (7 / 8 : ℝ≥0) ^ n := by
-    rw [uniformOfFintype_hom_forall_fin_eq (evalPairHom n p.1.1 p.1.2)
-      (evalPairHom_surjective hn p.2) (test true) 14 (by decide), hc2]
+    rw [uniformOfFintype_hom_forall_fin_eq (evalPairHom n p.val.1 p.val.2)
+      (evalPairHom_surjective hn p.property) (test true) 14 (by decide), hc2]
     norm_num
   rw [Fintype.sum_prod_type]
   simp_rw [Fintype.sum_bool, hXor, hAnd, add_comm]

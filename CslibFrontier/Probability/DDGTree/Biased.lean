@@ -294,8 +294,8 @@ variable {ρ : I}
 private theorem coin_sq_add_sq (ρ : I) :
     PMF.coin ρ true * PMF.coin ρ true + PMF.coin ρ false * PMF.coin ρ false =
       ENNReal.ofReal (ρ ^ 2 + (1 - ρ) ^ 2) := by
-  have h0 : (0 : ℝ) ≤ ρ := ρ.2.1
-  have h1 : (0 : ℝ) ≤ 1 - ρ := sub_nonneg.mpr ρ.2.2
+  have h0 : (0 : ℝ) ≤ ρ := ρ.property.1
+  have h1 : (0 : ℝ) ≤ 1 - ρ := sub_nonneg.mpr ρ.property.2
   rw [PMF.coin_apply, PMF.coin_apply, ite_eq_left rfl, ite_eq_right Bool.false_ne_true,
     ← ENNReal.ofReal_mul h0, ← ENNReal.ofReal_mul h1,
     ← ENNReal.ofReal_add (mul_nonneg h0 h0) (mul_nonneg h1 h1), sq, sq]
@@ -351,9 +351,9 @@ theorem exists_generatesWith_coin_iff :
   refine ⟨fun ⟨T, hT⟩ => ?_, fun h => ⟨vonNeumann, vonNeumann_generatesWith_coin h.1 h.2⟩⟩
   by_contra hρ
   rcases not_and_or.mp hρ with h0 | h1
-  · rw [PMF.coin_eq_pure_false (le_antisymm (not_lt.mp h0) ρ.2.1)] at hT
+  · rw [PMF.coin_eq_pure_false (le_antisymm (not_lt.mp h0) ρ.property.1)] at hT
     exact not_generatesWith_pure_uniform false T hT
-  · rw [PMF.coin_eq_pure_true (le_antisymm ρ.2.2 (not_lt.mp h1))] at hT
+  · rw [PMF.coin_eq_pure_true (le_antisymm ρ.property.2 (not_lt.mp h1))] at hT
     exact not_generatesWith_pure_uniform true T hT
 
 end DDGTree

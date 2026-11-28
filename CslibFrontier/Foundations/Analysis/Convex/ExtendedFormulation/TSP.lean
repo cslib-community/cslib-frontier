@@ -142,9 +142,9 @@ private theorem extensionComplexity_tspPolytope_inter_map_congr
     {V₁ V₂ : Type*} [Fintype V₁] [Fintype V₂] [DecidableEq V₁] [DecidableEq V₂]
     (e : V₁ ≃ V₂) (G : SimpleGraph V₁)
     [DecidableRel G.Adj] [DecidableRel (G.map e.toEmbedding).Adj] :
-    let c₁ : ↥(⊤ : SimpleGraph V₁).edgeSet → K := fun a => if a.1 ∈ G.edgeSet then 0 else -1
+    let c₁ : ↥(⊤ : SimpleGraph V₁).edgeSet → K := fun a => if a.val ∈ G.edgeSet then 0 else -1
     let c₂ : ↥(⊤ : SimpleGraph V₂).edgeSet → K :=
-      fun b => if b.1 ∈ (G.map e.toEmbedding).edgeSet then 0 else -1
+      fun b => if b.val ∈ (G.map e.toEmbedding).edgeSet then 0 else -1
     extensionComplexity (tspPolytope K V₁ ∩ {x | c₁ ⬝ᵥ x = 0}) =
       extensionComplexity (tspPolytope K V₂ ∩ {x | c₂ ⬝ᵥ x = 0}) := by
   intro c₁ c₂
@@ -216,7 +216,7 @@ private theorem extensionComplexity_corrPolytope_le_splitV_face
     [DecidableRel (paddedSplitGraph v₀ pad (corrDigraphAdj p hp)).Adj] :
     let W := SplitV (CorrDigraphV p) v₀ pad
     let c : ↥(⊤ : SimpleGraph W).edgeSet → K :=
-      fun e => if e.1 ∈ (paddedSplitGraph v₀ pad (corrDigraphAdj p hp)).edgeSet then 0 else -1
+      fun e => if e.val ∈ (paddedSplitGraph v₀ pad (corrDigraphAdj p hp)).edgeSet then 0 else -1
     extensionComplexity (corrPolytope K (Fin p)) ≤
       extensionComplexity (tspPolytope K W ∩ {x | c ⬝ᵥ x = 0}) := by
   classical
@@ -298,7 +298,7 @@ theorem extensionComplexity_corrPolytope_le_tspHardGraph_face
     {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     (m : ℕ) (hm : 69 ≤ m) [DecidableRel (tspHardGraph m).Adj] :
     let c : ↥(⊤ : SimpleGraph (Fin m)).edgeSet → K :=
-      fun e => if e.1 ∈ (tspHardGraph m).edgeSet then 0 else -1
+      fun e => if e.val ∈ (tspHardGraph m).edgeSet then 0 else -1
     extensionComplexity (corrPolytope K (Fin (Nat.sqrt (m / 69)))) ≤
       extensionComplexity (tspPolytope K (Fin m) ∩ {x | c ⬝ᵥ x = 0}) := by
   classical
@@ -312,7 +312,7 @@ theorem extensionComplexity_corrPolytope_le_tspHardGraph_face
   let G : SimpleGraph (SplitV (CorrDigraphV p) v₀ pad) :=
     paddedSplitGraph v₀ pad (corrDigraphAdj p hp)
   have hmap : tspHardGraph m = G.map e.toEmbedding := by rw [tspHardGraph, dite_eq_left hm]
-  have hc_eq : c = fun b => if b.1 ∈ (G.map e.toEmbedding).edgeSet then (0 : K) else -1 :=
+  have hc_eq : c = fun b => if b.val ∈ (G.map e.toEmbedding).edgeSet then (0 : K) else -1 :=
     funext fun b => if_congr (by rw [hmap]) rfl rfl
   rw [hc_eq, ← extensionComplexity_tspPolytope_inter_map_congr (K := K) e G]
   exact extensionComplexity_corrPolytope_le_splitV_face p hp v₀ pad

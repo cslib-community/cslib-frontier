@@ -342,12 +342,12 @@ theorem bernoulliProb_eq_bernoulliAverage [DecidableEq α] (U : Finset α) (r : 
   unfold BitString.bernoulliAverage BitString.bernoulliWeight
   symm
   refine sum_nbij' (fun s => ({i | s i} : Finset U).map (Function.Embedding.subtype (· ∈ U)))
-    (fun S i => decide (i.1 ∈ S)) ?_ ?_ ?_ ?_ ?_
+    (fun S i => decide (i.val ∈ S)) ?_ ?_ ?_ ?_ ?_
   · intro s _
     rw [mem_powerset]
     intro a ha
     obtain ⟨i, -, rfl⟩ := mem_map.1 ha
-    exact i.2
+    exact i.property
   · intro _ _
     exact mem_univ _
   · intro s _
@@ -777,14 +777,14 @@ private theorem card_filter_comp_eq {α ι : Type*} [Fintype α] [DecidableEq α
   have he' : ∀ a, f (e.symm a) = g a := fun a => by rw [← he, e.apply_symm_apply]
   rw [← Fintype.card_subtype, ← DomMulAct.stabilizer_card f]
   exact Fintype.card_congr
-    { toFun := fun σ => ⟨σ.1.trans e.symm, by
+    { toFun := fun σ => ⟨σ.val.trans e.symm, by
         funext a
         simp only [Function.comp_apply, Equiv.trans_apply, he']
-        exact congrFun σ.2 a⟩
-      invFun := fun τ => ⟨τ.1.trans e, by
+        exact congrFun σ.property a⟩
+      invFun := fun τ => ⟨τ.val.trans e, by
         funext a
         simp only [Function.comp_apply, Equiv.trans_apply, he]
-        exact congrFun τ.2 a⟩
+        exact congrFun τ.property a⟩
       left_inv := fun σ => by
         ext a
         simp

@@ -114,18 +114,19 @@ theorem hasMistakeTree_thresholdConcept_orderEmb (k : ℕ) (e : Fin (2 ^ k) ↪o
     refine hasMistakeTree_succ_bool.mpr ⟨e ⟨2 ^ k - 1, by rw [pow_succ]; omega⟩, fun y => ?_⟩
     cases y
     · refine (ih (OrderEmbedding.ofStrictMono
-        (fun i => e ⟨i.1, by rw [pow_succ]; omega⟩) fun _ _ h => e.strictMono h)).mono ?_
+        (fun i => e ⟨i.val, by rw [pow_succ]; omega⟩) fun _ _ h => e.strictMono h)).mono ?_
       rintro _ ⟨_, ⟨i, rfl⟩, rfl⟩
-      have hi : i.1 < 2 ^ (k + 1) := by have := i.2; rw [pow_succ]; omega
-      refine mem_versionSpace_singleton.mpr ⟨⟨e ⟨i.1, hi⟩, ⟨⟨i.1, hi⟩, rfl⟩, rfl⟩, ?_⟩
+      have hi : i.val < 2 ^ (k + 1) := by have := i.isLt; rw [pow_succ]; omega
+      refine mem_versionSpace_singleton.mpr ⟨⟨e ⟨i.val, hi⟩, ⟨⟨i.val, hi⟩, rfl⟩, rfl⟩, ?_⟩
       simp only [thresholdConcept_apply, decide_eq_false_iff_not, not_lt]
-      exact e.le_iff_le.mpr (Fin.mk_le_mk.mpr (by have := i.2; omega))
+      exact e.le_iff_le.mpr (Fin.mk_le_mk.mpr (by have := i.isLt; omega))
     · refine (ih (OrderEmbedding.ofStrictMono
-        (fun i => e ⟨2 ^ k + i.1, by rw [pow_succ]; omega⟩) fun _ _ h =>
+        (fun i => e ⟨2 ^ k + i.val, by rw [pow_succ]; omega⟩) fun _ _ h =>
           e.strictMono (Nat.add_lt_add_left h _))).mono ?_
       rintro _ ⟨_, ⟨i, rfl⟩, rfl⟩
-      have hi : 2 ^ k + i.1 < 2 ^ (k + 1) := by have := i.2; rw [pow_succ]; omega
-      refine mem_versionSpace_singleton.mpr ⟨⟨e ⟨2 ^ k + i.1, hi⟩, ⟨⟨2 ^ k + i.1, hi⟩, rfl⟩, rfl⟩,
+      have hi : 2 ^ k + i.val < 2 ^ (k + 1) := by have := i.isLt; rw [pow_succ]; omega
+      refine mem_versionSpace_singleton.mpr
+        ⟨⟨e ⟨2 ^ k + i.val, hi⟩, ⟨⟨2 ^ k + i.val, hi⟩, rfl⟩, rfl⟩,
         ?_⟩
       simp only [thresholdConcept_apply, decide_eq_true_eq]
       exact e.lt_iff_lt.mpr (Fin.mk_lt_mk.mpr (by omega))
@@ -219,11 +220,11 @@ tree. -/
 theorem hasMistakeTree_thresholdConcept_Icc (k lo : ℕ) :
     HasMistakeTree k (thresholdConcept '' Set.Icc lo (lo + 2 ^ k - 1)) := by
   let e : Fin (2 ^ k) ↪o ℕ :=
-    OrderEmbedding.ofStrictMono (fun i : Fin (2 ^ k) => lo + i.1) fun _ _ h =>
+    OrderEmbedding.ofStrictMono (fun i : Fin (2 ^ k) => lo + i.val) fun _ _ h =>
       Nat.add_lt_add_left h lo
   refine (hasMistakeTree_thresholdConcept_orderEmb k e).mono ?_
   rintro _ ⟨_, ⟨i, rfl⟩, rfl⟩
-  exact ⟨lo + i.1, ⟨Nat.le_add_right lo i.1, by have := i.2; omega⟩, rfl⟩
+  exact ⟨lo + i.val, ⟨Nat.le_add_right lo i.val, by have := i.isLt; omega⟩, rfl⟩
 
 /-- The thresholds `θ ≤ N` on `ℕ` have Littlestone dimension `⌊log₂ (N + 1)⌋`. -/
 theorem littlestoneDim_thresholdClassUpTo (N : ℕ) :

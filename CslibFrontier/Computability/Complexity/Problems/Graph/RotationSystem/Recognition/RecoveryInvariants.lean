@@ -157,10 +157,10 @@ theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List �
 /-- Explicit polynomial storage for a recovered binary dart word, including its list framing. -/
 theorem length_enc_recoverWord {I : FixedRotationInput} {v : ℕ} {word : List ℕ}
     (h : recoverWord I v = some word) :
-    (encList encNat word).length ≤ 2 * I.graph.2.length * (4 * I.graph.2.length + 1) := by
+    (encList encNat word).length ≤ 2 * I.graph.edges.length * (4 * I.graph.edges.length + 1) := by
   obtain ⟨_, hm, hl⟩ := recoverWord_invariant h
   have hw := hl.trans (length_fiber_le I.graph v)
-  have hb : ∀ d ∈ word, (encNat d).length ≤ 2 * I.graph.2.length := by
+  have hb : ∀ d ∈ word, (encNat d).length ≤ 2 * I.graph.edges.length := by
     intro d hd
     have hlt := (mem_fiber.mp (hm d hd)).1
     rw [encNat_apply, Nat.size_eq_bits_len]
@@ -171,7 +171,7 @@ theorem length_enc_recoverWord {I : FixedRotationInput} {v : ℕ} {word : List �
 The bound applies to every accumulator, including malformed or oversized blocks. -/
 theorem length_enc_advance (I : FixedRotationInput) (v : ℕ) (state : Option (List ℕ)) :
     (encOption (encList encNat) (advance I v state)).length ≤
-      (encOption (encList encNat) state).length + 4 * I.graph.2.length + 1 := by
+      (encOption (encList encNat) state).length + 4 * I.graph.edges.length + 1 := by
   cases state with
   | none => simp [advance]
   | some block =>
@@ -181,7 +181,7 @@ theorem length_enc_advance (I : FixedRotationInput) (v : ℕ) (state : Option (L
       rcases advance_some hs with ⟨_, rfl⟩ | ⟨d, hd, _, rfl⟩
       · omega
       · have hlt := (mem_fiber.mp (mem_remaining.mp hd).1).1
-        have hb : (encNat d).length ≤ 2 * I.graph.2.length := by
+        have hb : (encNat d).length ≤ 2 * I.graph.edges.length := by
           rw [encNat_apply, Nat.size_eq_bits_len]
           exact (Nat.size_le_self _).trans hlt.le
         simp only [encOption_some, List.length_cons, length_encList, List.map_append,
@@ -225,7 +225,7 @@ theorem completeVertex_some {I J : FixedRotationInput} {v : ℕ}
     (h : completeVertex (some I) v = some J) :
     J.graph = I.graph ∧ J.orders.length = I.orders.length ∧
       (encFixedRotationInput J).length ≤ (encFixedRotationInput I).length + I.orders.length *
-        (2 * (2 * I.graph.2.length * (4 * I.graph.2.length + 1) + 1)) := by
+        (2 * (2 * I.graph.edges.length * (4 * I.graph.edges.length + 1) + 1)) := by
   unfold completeVertex at h
   simp only [Option.elim_some] at h
   split at h
@@ -245,7 +245,7 @@ theorem completeVertex_some {I J : FixedRotationInput} {v : ℕ}
 
 /-- One outer step's explicit all-raw encoded-storage growth budget. -/
 @[expose] def outerGrowth (I : FixedRotationInput) : ℕ :=
-  I.orders.length * (2 * (2 * I.graph.2.length * (4 * I.graph.2.length + 1) + 1))
+  I.orders.length * (2 * (2 * I.graph.edges.length * (4 * I.graph.edges.length + 1) + 1))
 
 /-- Every finite prefix of the outer fold retains the original graph and order width, with
 only polynomial storage growth. No query histories or split graphs are retained. -/
@@ -277,7 +277,7 @@ theorem completeVertex_fold (I : FixedRotationInput) (vertices : List ℕ) :
 order recovery. Its table width is unchanged even on malformed input. -/
 theorem recoverOrders_some {I J : FixedRotationInput} (h : recoverOrders I = some J) :
     J.graph = I.graph ∧ J.orders.length = I.orders.length := by
-  rcases completeVertex_fold I (List.range I.graph.1.length) with hn | ⟨K, hk, hg, hl, _⟩
+  rcases completeVertex_fold I (List.range I.graph.vertices.length) with hn | ⟨K, hk, hg, hl, _⟩
   · rw [← recoverOrders] at hn
     rw [h] at hn
     contradiction
@@ -348,7 +348,7 @@ theorem verifyFixed_realizes {I : FixedRotationInput} {c : RotationCertificate}
 
 /-- A returned table has exactly one successor per original dart. -/
 theorem length_recover_successor {I : FixedRotationInput} {c : RotationCertificate}
-    (h : recover I = some c) : c.successor.length = 2 * I.graph.2.length := by
+    (h : recover I = some c) : c.successor.length = 2 * I.graph.edges.length := by
   unfold recover at h
   split at h
   · cases hx : recoverOrders I with
@@ -364,7 +364,7 @@ theorem length_recover_successor {I : FixedRotationInput} {c : RotationCertifica
 
 /-- A returned successor is an actual original dart index, even on raw malformed input. -/
 theorem mem_recover_successor_lt {I : FixedRotationInput} {c : RotationCertificate}
-    (h : recover I = some c) {d : ℕ} (hd : d ∈ c.successor) : d < 2 * I.graph.2.length := by
+    (h : recover I = some c) {d : ℕ} (hd : d ∈ c.successor) : d < 2 * I.graph.edges.length := by
   have hlen := length_recover_successor h
   obtain ⟨hrot, _⟩ := (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mp (recover_sound h).1
   obtain ⟨i, hi⟩ := List.mem_iff_get.mp hd
@@ -382,8 +382,9 @@ theorem mem_recover_successor_lt {I : FixedRotationInput} {c : RotationCertifica
 the original edge count. No trace or query system is included in the output. -/
 theorem length_enc_recover_le {I : FixedRotationInput} {c : RotationCertificate}
     (h : recover I = some c) :
-    (encRotationCertificate c).length ≤ 2 * I.graph.2.length * (4 * I.graph.2.length + 1) := by
-  have hbits : ∀ d ∈ c.successor, (encNat d).length ≤ 2 * I.graph.2.length := by
+    (encRotationCertificate c).length ≤
+        2 * I.graph.edges.length * (4 * I.graph.edges.length + 1) := by
+  have hbits : ∀ d ∈ c.successor, (encNat d).length ≤ 2 * I.graph.edges.length := by
     intro d hd
     rw [encNat_apply, Nat.size_eq_bits_len]
     exact (Nat.size_le_self _).trans (mem_recover_successor_lt h hd).le

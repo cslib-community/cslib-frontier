@@ -44,7 +44,7 @@ theorem germ_restoreFirst_true (u v w : ℕ) (a b : ℂ) (p : Route) :
 /-- Each restored incident end has its own actual straight spoke as outgoing germ. -/
 theorem germ_restoredRoute_active {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
-    (ρ : ℝ) (a b : ℂ) (e : Fin G.2.length) (side : Bool)
+    (ρ : ℝ) (a b : ℂ) (e : Fin G.edges.length) (side : Bool)
     (hactive : Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v) :
     (D.restoredRoute ρ a b e).germ side = D.cutPort ρ (contractedIndex G u v e, side) -
       D.restoredVertex a b (Dart.vertex (G := G) (e, side)) := by
@@ -68,7 +68,7 @@ theorem germ_restoredRoute_active {G : Graph} {u v : ℕ}
 /-- An unaffected end retains the outgoing germ of its exterior piece. -/
 theorem germ_restoredRoute_inactive {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) (side : Bool)
+    (e : Fin G.edges.length) (side : Bool)
     (hinactive : ¬(Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v)) :
     (D.restoredRoute ρ a b e).germ side =
       (D.outsideRoute v ρ (contractedIndex G u v e)).germ side := by
@@ -80,7 +80,7 @@ theorem germ_restoredRoute_inactive {G : Graph} {u v : ℕ}
 theorem IsEmbedding.arg_germ_outsideRoute {H : Graph} {D : PolygonalDrawing H}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
     (hlen : ∀ d : Dart H, d.vertex = v → 3 * ρ < ‖D.germ d‖)
-    (e : Fin H.2.length) (side : Bool) :
+    (e : Fin H.edges.length) (side : Bool) :
     ((D.outsideRoute v ρ e).germ side).arg = (D.germ (e, side)).arg := by
   obtain ⟨h₀, h₁, hsum⟩ := hD.restrictionTime_bounds v hρ hlen e
   exact (D.route e).arg_germ_cutEnds h₀ h₁ hsum side

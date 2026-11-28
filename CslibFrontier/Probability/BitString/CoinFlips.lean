@@ -75,7 +75,7 @@ theorem prefixCylinder_eq_pi {N : ℕ} (y : Fin N → Bool) :
     rw [extend_val_of_lt y hi]
     exact h ⟨i, hi⟩
   · intro h i
-    rw [h i i.2, extend_val_of_lt y i.2]
+    rw [h i i.isLt, extend_val_of_lt y i.isLt]
 
 theorem measurableSet_prefixCylinder {N : ℕ} (y : Fin N → Bool) :
     MeasurableSet (prefixCylinder y) := by

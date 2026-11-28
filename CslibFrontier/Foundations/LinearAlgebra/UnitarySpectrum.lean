@@ -91,7 +91,7 @@ theorem exists_orthonormalBasis_eigenvectors
     have hre : (μ k : ℂ) = ((e.symm k).1 : ℂ) :=
       Complex.conj_eq_iff_re.mp (hHsym.conj_eigenvalue_eq_self (e.symm k).1.property)
     rw [hre, hb_eq k]
-    exact Module.End.mem_eigenspace_iff.mp (v_family (e.symm k).1 (e.symm k).2).2
+    exact Module.End.mem_eigenspace_iff.mp (v_family (e.symm k).1 (e.symm k).2).property
   have hvK : ∀ k, K (b k) = (ν k : ℂ) • b k := fun k => by
     rw [hb_eq k]
     exact congrArg Subtype.val ((hK_S (e.symm k).1).apply_eigenvectorBasis rfl (e.symm k).2)

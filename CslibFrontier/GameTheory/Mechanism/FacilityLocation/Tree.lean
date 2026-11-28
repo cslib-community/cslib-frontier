@@ -753,12 +753,12 @@ private lemma proj_removeBranch_step_in
   have hmono : (E_P.eval (Function.update b_base j c₀) : ℝ) ≤
       E_P.eval (Function.update b_base j m₀) := E_P.eval_mono fun i => by
     by_cases hi : i = j
-    · subst hi; simp only [Function.update_self, c₀]; exact m₀.2.1
+    · subst hi; simp only [Function.update_self, c₀]; exact m₀.property.1
     · simp only [Function.update_of_ne hi, le_rfl]
   rw [h0_eq, hm_eq] at hmono
   exact hm_ne_y' (hm₀_eq.symm.trans (by
     rw [show m₀ = ⟨dist (vertex c : MetricGraph W) y', dist_nonneg, le_rfl⟩ from
-      Subtype.ext (le_antisymm m₀.2.2 hmono), hφd]))
+      Subtype.ext (le_antisymm m₀.property.2 hmono), hφd]))
 
 omit [Finite ι] [Nonempty ι] in
 open Classical in
@@ -1071,7 +1071,7 @@ private lemma two_val_win_mono
   have hmono : (E_I.eval (c S) : ℝ) ≤ E_I.eval (c T) := E_I.eval_mono fun i => by
     dsimp only [c]; split_ifs with h1 h2
     exacts [le_rfl, absurd (hST h1) h2, dist_nonneg, le_rfl]
-  have hpos1 : (0 : ℝ) < E_I.eval (c S) := lt_of_le_of_ne (E_I.eval (c S)).2.1 fun h0 => by
+  have hpos1 : (0 : ℝ) < E_I.eval (c S) := lt_of_le_of_ne (E_I.eval (c S)).property.1 fun h0 => by
     have hfx : f (fun i => if i ∈ S then q else y) = y := by
       rw [hf_eq S, show E_I.eval (c S) = ⟨0, le_rfl, dist_nonneg⟩ from Subtype.ext h0.symm, hφ0]
     rw [hfx] at hwinS

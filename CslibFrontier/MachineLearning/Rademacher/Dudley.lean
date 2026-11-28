@@ -493,7 +493,7 @@ theorem empiricalRademacherComplexity_le_dudley_integral {Z : Type*} {F : Set (Z
   have ha : ∀ f : F, (∑ i, ((f : Z → ℝ) (S i) - f₀ (S i)) ^ 2) / m ≤ R ^ 2 := by
     intro f
     rw [← dist_sq_empiricalL2Vec hm S f f₀]
-    exact (sq_le_sq₀ dist_nonneg hR).2 (hF f f.2)
+    exact (sq_le_sq₀ dist_nonneg hR).2 (hF f f.property)
   have hrange : (Set.range fun f : F => WithLp.toLp 2 fun i => (f : Z → ℝ) (S i) / Real.sqrt m) =
       empiricalL2Vec S '' F := by
     ext y

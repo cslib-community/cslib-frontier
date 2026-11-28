@@ -114,7 +114,7 @@ theorem IsSensitiveBlock.exists_isMinimalSensitiveBlock_subset {B : Block n}
 
 /-- A sensitive block is nonempty. -/
 theorem IsSensitiveBlock.nonempty {B : Block n} (hB : IsSensitiveBlock f x B) : B.Nonempty :=
-  nonempty_iff_ne_empty.2 fun h => hB (by rw [h, flipBlock_empty])
+  ne_empty_iff_nonempty.1 fun h => hB (by rw [h, flipBlock_empty])
 
 /-- A minimal sensitive block at `x` has at most `s_{¬f(x)}(f)` coordinates: they are all
 sensitive at `x` with the block flipped, where `f` has the other value. -/

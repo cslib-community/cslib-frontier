@@ -147,7 +147,7 @@ noncomputable abbrev critterWeight (E : Finset (Fin n →₀ ℕ)) (m : ℕ) : �
 /-- Critter's monomial chain equation for `e`: `K b_e - K a_l b_{e - 1_l}` for a variable `l` with
 `e_l ≥ 1` and `e - 1_l ∈ E`, and `K b_e - 1` if there is none. -/
 noncomputable def chainEq (e : E) : MvPolynomial (Coord E m) ℝ :=
-  if h : ∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E then
+  if h : ∃ l, e.val l ≠ 0 ∧ e.val - Finsupp.single l 1 ∈ E then
     C (bobScale E) * X (bCoord e) -
       C (bobScale E) * (X (aCoord h.choose) * X (bCoord ⟨_, h.choose_spec.2⟩))
   else C (bobScale E) * X (bCoord e) - 1
@@ -266,15 +266,15 @@ theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
 
 /-- On a table closed downwards, the only `e` without a lowered neighbour in the table is `0`. -/
 private theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)))
-    {e : E} (h : ¬∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E) : e.1 = 0 := by
+    {e : E} (h : ¬∃ l, e.val l ≠ 0 ∧ e.val - Finsupp.single l 1 ∈ E) : e.val = 0 := by
   ext l
-  exact by_contra fun hl => h ⟨l, hl, hE tsub_le_self e.2⟩
+  exact by_contra fun hl => h ⟨l, hl, hE tsub_le_self e.property⟩
 
 /-- On a table closed downwards, the monomial chain forces `K b_e = xᵉ`. -/
 theorem bobScale_mul_eq_expoPow (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {q : Coord E m → ℝ}
     (h : ∀ e, eval q (chainEq (m := m) e) = 0) (e : E) :
     bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
-  induction hk : ∑ i, e.1 i using Nat.strong_induction_on generalizing e with
+  induction hk : ∑ i, e.val i using Nat.strong_induction_on generalizing e with
   | _ k ih =>
     have he := h e
     unfold chainEq at he
@@ -415,7 +415,7 @@ theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)
     · rw [← eval_encode (hF j) hchain]
       exact heq .critter (.inr j)
     · simpa only [equation, map_sub, eval_X, eval_C, sub_eq_zero] using heq .bob e
-    · simpa only [equation, j.2, ↓reduceDIte, map_sub, eval_X, eval_C, sub_eq_zero] using
+    · simpa only [equation, j.isLt, ↓reduceDIte, map_sub, eval_X, eval_C, sub_eq_zero] using
         heq .alice ⟨j, hj⟩
   · rintro ⟨_ | _ | _, t⟩
     · exact ha t
@@ -430,7 +430,7 @@ theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)
   · rintro (_ | _ | _) t
     · simp only [equation]
       split_ifs with h
-      · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.2)]
+      · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.isLt)]
       · simp
     · simp [equation, hcb]
     · rcases t with e | j

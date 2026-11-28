@@ -157,7 +157,7 @@ example : ¬CNF.IsExactDistinct 3 ([[(0, true), (1, true)]] : CNF (Fin 2)) := by
 with the seven others. -/
 def χ : CNF (Fin 3) :=
   (List.finRange 8).map fun i =>
-    [(0, i.1.testBit 0), (1, i.1.testBit 1), (2, i.1.testBit 2)]
+    [(0, i.val.testBit 0), (1, i.val.testBit 1), (2, i.val.testBit 2)]
 
 example : χ.IsExactDistinct 3 := by decide
 

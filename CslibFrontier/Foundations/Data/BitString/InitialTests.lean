@@ -92,10 +92,10 @@ private theorem shift_condition {B μ ℓ : ℕ} (hB : 1 ≤ B) (hμ : 1 ≤ μ)
     exact pow_le_pow_right₀ (by norm_num) (by omega)
   have he4 : (8 : ℝ) < Real.exp 4 := by
     have := Real.exp_one_gt_two
-    have h4 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_nat_mul]; norm_num
+    have h4 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_natCast_mul]; norm_num
     rw [h4]; cast_nlinarith [hB, pow_lt_pow_left₀ this (by norm_num) (by norm_num : (4 : ℕ) ≠ 0)]
   have hpow : (8 : ℝ) ^ μ < Real.exp (4 * μ) := by
-    rw [show (4 : ℝ) * μ = μ * 4 by ring, Real.exp_nat_mul]
+    rw [show (4 : ℝ) * μ = μ * 4 by ring, Real.exp_natCast_mul]
     exact pow_lt_pow_left₀ he4 (by norm_num) (by omega)
   have hpos := Real.exp_pos (4 * μ)
   rw [Real.exp_neg]
@@ -217,7 +217,7 @@ theorem exists_initialTests {n m B : ℕ} (hn : 1 ≤ n) (hB : 1 ≤ B) (hm : m 
     rcases Nat.eq_zero_or_pos ℓ with h0 | hpos
     · refine ⟨fun _ => 0, fun S hS => ?_⟩
       obtain ⟨i, -⟩ := hS
-      exact absurd i.2 (by omega)
+      exact absurd i.isLt (by omega)
     · refine exists_isSmallBias_map_of_exp_lt (by positivity) ?_
       have := shift_condition hB hμ hℓμ
       rwa [show ((320000 * B ^ 2 * μ ^ 3 : ℕ) : ℝ) = (d : ℝ) by rw [hℓd hpos]] at this

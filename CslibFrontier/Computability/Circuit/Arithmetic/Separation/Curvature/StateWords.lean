@@ -53,7 +53,7 @@ variable {μ e : ℕ}
 
 theorem states_prop (s : ↥(states μ e)) :
     s.val.1.card = μ ∧ s.val.2.card = μ ∧ energy s.val.1 + energy s.val.2 = e :=
-        (mem_filter.1 s.2).2
+        (mem_filter.1 s.property).2
 
 theorem card_fst_of_mem_states (s : ↥(states μ e)) : s.val.1.card = μ := (states_prop s).1
 

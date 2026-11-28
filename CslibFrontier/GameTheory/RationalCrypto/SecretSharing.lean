@@ -1333,19 +1333,19 @@ abbrev Strategy (i : ι) := ℕ → Share i → Bool
 /-- Joint multi-round strategy of a coalition `C : Finset ι`: at round `r : ℕ`, all members of `C`
 pool their round-`r` shares `(j : C) → Share j.1` and jointly choose each member's broadcast
 action `C → Bool`. -/
-abbrev CoalitionStrategy (C : Finset ι) := ℕ → ((j : C) → Share j.1) → (C → Bool)
+abbrev CoalitionStrategy (C : Finset ι) := ℕ → ((j : C) → Share j.val) → (C → Bool)
 
 /-- Lift an individual strategy family `τ` to a `CoalitionStrategy` where each member `j ∈ C`
 depends solely on its own share. -/
 def CoalitionStrategy.ofProfile (C : Finset ι) (τ : ∀ i, Strategy (Share := Share) i) :
     CoalitionStrategy (Share := Share) C :=
-  fun r v j => τ j.1 r (v j)
+  fun r v j => τ j.val r (v j)
 
 omit [Fintype ι] [DecidableEq ι] in
 @[simp]
 theorem CoalitionStrategy.ofProfile_apply (C : Finset ι)
-    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) (v : (j : C) → Share j.1) (j : C) :
-    CoalitionStrategy.ofProfile C τ r v j = τ j.1 r (v j) := by
+    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) (v : (j : C) → Share j.val) (j : C) :
+    CoalitionStrategy.ofProfile C τ r v j = τ j.val r (v j) := by
   rfl
 
 /-- The **honest simultaneous broadcast profile**: every party broadcasts its share in every active
@@ -1926,7 +1926,7 @@ theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_uni
   let bC : ι → Bool := fun j => decide (j ∉ C)
   have hdist (r) (payload) :
       proto.roundCoalitionBroadcastDist C (fun _ _ _ => false) r payload = PMF.pure bC := by
-    have hfn : (fun (_ : (j : C) → Share j.1) (j : ι) =>
+    have hfn : (fun (_ : (j : C) → Share j.val) (j : ι) =>
         if hj : j ∈ C then false else true) = fun _ => bC :=
       funext₂ fun _ j => by by_cases hj : j ∈ C <;> simp [bC, hj]
     rw [roundCoalitionBroadcastDist, hfn]

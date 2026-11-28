@@ -132,12 +132,12 @@ private theorem connected_union_of_edgeCut_inter {S T : Set V}
   obtain ⟨e, heS, heT⟩ := hjoin
   obtain ⟨u₀, hu₀⟩ := hS.nonempty
   let inL : (G.induce S).toSimpleGraph →g (G.induce (S ∪ T)).toSimpleGraph :=
-    { toFun := fun x => ⟨x.1, Or.inl x.2⟩
+    { toFun := fun x => ⟨x.val, Or.inl x.property⟩
       map_rel' := fun hab => by
         rw [toSimpleGraph_induce] at hab ⊢
         exact hab }
   let inR : (G.induce T).toSimpleGraph →g (G.induce (S ∪ T)).toSimpleGraph :=
-    { toFun := fun x => ⟨x.1, Or.inr x.2⟩
+    { toFun := fun x => ⟨x.val, Or.inr x.property⟩
       map_rel' := fun hab => by
         rw [toSimpleGraph_induce] at hab ⊢
         exact hab }
@@ -264,15 +264,16 @@ noncomputable def blockOf (v : V) : c.blocks :=
   ⟨(c.exists_mem v).choose, (c.exists_mem v).choose_spec.1⟩
 
 /-- Every vertex belongs to its assigned block. -/
-theorem mem_blockOf (v : V) : v ∈ (c.blockOf v).1 :=
+theorem mem_blockOf (v : V) : v ∈ (c.blockOf v).val :=
   (c.exists_mem v).choose_spec.2
 
 /-- A vertex belongs to a block `B` if and only if `c.blockOf v = B`. -/
-theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.1 ↔ c.blockOf v = B :=
-  ⟨fun h => Subtype.ext (c.eq_of_mem _ (c.blockOf v).2 _ B.2 v (c.mem_blockOf v) h),
+theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.val ↔ c.blockOf v = B :=
+  ⟨fun h => Subtype.ext (c.eq_of_mem _ (c.blockOf v).property _ B.property v (c.mem_blockOf v) h),
     fun h => h ▸ c.mem_blockOf v⟩
 
-private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} = {v | v ∈ B.1} := by
+private theorem preimage_blockOf_singleton (B : c.blocks) :
+    c.blockOf ⁻¹' {B} = {v | v ∈ B.val} := by
   ext v
   simp [c.mem_iff_blockOf_eq]
 
@@ -280,28 +281,28 @@ private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B}
 theorem card_blocks_le [Finite V] : c.blocks.card ≤ Nat.card V := by
   calc c.blocks.card = Nat.card c.blocks := by simp
     _ ≤ Nat.card V := Nat.card_le_card_of_surjective c.blockOf fun B =>
-      let ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil B.1 B.2)
+      let ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil B.val B.property)
       ⟨v, c.mem_iff_blockOf_eq.mp hv⟩
 
 /-- Distinct blocks are disjoint. -/
 theorem disjoint_of_ne {B B' : c.blocks} (h : B ≠ B') :
-    Disjoint {v | v ∈ B.1} {v | v ∈ B'.1} :=
+    Disjoint {v | v ∈ B.val} {v | v ∈ B'.val} :=
   disjoint_left.mpr fun _ hv hv' =>
     h ((c.mem_iff_blockOf_eq.mp hv).symm.trans (c.mem_iff_blockOf_eq.mp hv'))
 
 /-- The total `w`-weight of a block. -/
 @[expose] def blockWeight (B : c.blocks) : ℕ :=
-  (B.1.map w).sum
+  (B.val.map w).sum
 
 /-- Every block has `blockWeight` at most `M`. -/
 theorem blockWeight_le (B : c.blocks) : c.blockWeight B ≤ M :=
-  c.weight_le B.1 B.2
+  c.weight_le B.val B.property
 
 /-- The cardinality of `{v | v ∈ B.1}` equals `B.1.length`. -/
-theorem ncard_block_eq_length (B : c.blocks) : {v | v ∈ B.1}.ncard = B.1.length := by
+theorem ncard_block_eq_length (B : c.blocks) : {v | v ∈ B.val}.ncard = B.val.length := by
   classical
-  have : {v | v ∈ B.1} = (B.1.toFinset : Set V) := by ext; simp
-  rw [this, ncard_coe_finset, List.toFinset_card_of_nodup (c.nodup B.1 B.2)]
+  have : {v | v ∈ B.val} = (B.val.toFinset : Set V) := by ext; simp
+  rw [this, ncard_coe_finset, List.toFinset_card_of_nodup (c.nodup B.val B.property)]
 
 /-- Summing `blockWeight` over a set of blocks equals summing `w` over the vertices in their
 preimage. -/
@@ -310,10 +311,10 @@ theorem sum_blockWeight_eq [Fintype V] [DecidableEq V] (S : Finset c.blocks) :
   classical
   have hB (B : c.blocks) : c.blockWeight B =
       ∑ v ∈ Finset.univ.filter (fun v => c.blockOf v = B), w v := by
-    have hfin : B.1.toFinset = Finset.univ.filter (fun v => c.blockOf v = B) := by
+    have hfin : B.val.toFinset = Finset.univ.filter (fun v => c.blockOf v = B) := by
       ext v
       simp [c.mem_iff_blockOf_eq]
-    rw [blockWeight, ← List.sum_toFinset _ (c.nodup B.1 B.2), hfin]
+    rw [blockWeight, ← List.sum_toFinset _ (c.nodup B.val B.property), hfin]
   simp_rw [hB]
   rw [← Finset.sum_biUnion]
   · congr 1
@@ -336,18 +337,18 @@ theorem sum_blockWeight_univ [Fintype V] :
 
 /-- The *quotient* multigraph on `c.blocks`, whose edges are `c.external`. -/
 @[expose] noncomputable def quotient : Multigraph c.blocks c.external where
-  src e := c.blockOf (G.src e.1)
-  tgt e := c.blockOf (G.tgt e.1)
+  src e := c.blockOf (G.src e.val)
+  tgt e := c.blockOf (G.tgt e.val)
 
-@[simp] theorem quotient_src (e : c.external) : c.quotient.src e = c.blockOf (G.src e.1) :=
+@[simp] theorem quotient_src (e : c.external) : c.quotient.src e = c.blockOf (G.src e.val) :=
   rfl
 
-@[simp] theorem quotient_tgt (e : c.external) : c.quotient.tgt e = c.blockOf (G.tgt e.1) :=
+@[simp] theorem quotient_tgt (e : c.external) : c.quotient.tgt e = c.blockOf (G.tgt e.val) :=
   rfl
 
 /-- The quotient multigraph is loopless. -/
 theorem quotient_loopless : c.quotient.Loopless :=
-  fun e => e.2
+  fun e => e.property
 
 private theorem edgeCut_preimage (T : Set c.blocks) :
     G.edgeCut (c.blockOf ⁻¹' T) = Subtype.val '' c.quotient.edgeCut T := by
@@ -373,13 +374,13 @@ theorem ncard_crossEdges_preimage [Finite E] {S T : Set c.blocks} (hST : Disjoin
 
 /-- The degree of a block in the quotient is the number of edges leaving it in `G`. -/
 theorem ncard_incidenceSet_quotient (B : c.blocks) :
-    (c.quotient.incidenceSet B).ncard = (G.edgeCut {v | v ∈ B.1}).ncard := by
+    (c.quotient.incidenceSet B).ncard = (G.edgeCut {v | v ∈ B.val}).ncard := by
   rw [← edgeCut_singleton _ c.quotient_loopless, ← c.ncard_edgeCut_preimage,
     c.preimage_blockOf_singleton]
 
 /-- Every block in the quotient has degree at most `d`. -/
 theorem quotient_maxDegreeLE [Finite E] : c.quotient.MaxDegreeLE d := fun B =>
-  (c.ncard_incidenceSet_quotient B).trans_le (c.ncard_edgeCut_le _ B.2)
+  (c.ncard_incidenceSet_quotient B).trans_le (c.ncard_edgeCut_le _ B.property)
 
 /-- In a connected multigraph with at least two blocks, every block has positive degree in the
 quotient. -/
@@ -388,10 +389,10 @@ theorem incidenceSet_quotient_nonempty [Finite E] (hG : G.toSimpleGraph.Connecte
     (c.quotient.incidenceSet B).Nonempty := by
   have := Finite.one_lt_card_iff_nontrivial.mp two
   obtain ⟨B', hB'⟩ := exists_ne B
-  obtain ⟨u, hu⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B.2)
-  obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B'.2)
-  have hne : (G.edgeCut {z | z ∈ B.1}).Nonempty := by
-    refine Multigraph.edgeCut_nonempty hG (S := {z | z ∈ B.1}) (v := v) hu fun h => hB' ?_
+  obtain ⟨u, hu⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B.property)
+  obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B'.property)
+  have hne : (G.edgeCut {z | z ∈ B.val}).Nonempty := by
+    refine Multigraph.edgeCut_nonempty hG (S := {z | z ∈ B.val}) (v := v) hu fun h => hB' ?_
     rw [mem_ofPred_eq, c.mem_iff_blockOf_eq] at h
     exact (c.mem_iff_blockOf_eq.mp hv).symm.trans h
   rw [← ncard_pos (toFinite _), c.ncard_incidenceSet_quotient]
@@ -433,20 +434,21 @@ theorem Saturated.card_deg_one_two_mul_le [Fintype V] [Finite E] (hc : c.Saturat
       refine ⟨e, he, B', ?_, heB'⟩
       simp only [H, Finset.mem_filter, Finset.mem_univ, true_and]
       have hmemCut (B₀ : c.blocks) (h : e ∈ c.quotient.incidenceSet B₀) :
-          e.1 ∈ G.edgeCut {v | v ∈ B₀.1} := by
+          e.val ∈ G.edgeCut {v | v ∈ B₀.val} := by
         simp only [mem_edgeCut, mem_ofPred_eq, c.mem_iff_blockOf_eq, ← c.quotient_src e,
           ← c.quotient_tgt e]
         rcases h with hs | ht
         · exact fun h => hloop (hs.trans (h.mp hs).symm)
         · exact fun h => hloop ((h.mpr ht).trans ht.symm)
-      have hjoin : (G.edgeCut {v | v ∈ B.1} ∩ G.edgeCut {v | v ∈ B'.1}).Nonempty :=
-        ⟨e.1, hmemCut B he, hmemCut B' heB'⟩
-      rcases hc B.1 B.2 B'.1 B'.2 (fun h => hne (Subtype.ext h.symm)) hjoin with hcut | hwt
+      have hjoin : (G.edgeCut {v | v ∈ B.val} ∩ G.edgeCut {v | v ∈ B'.val}).Nonempty :=
+        ⟨e.val, hmemCut B he, hmemCut B' heB'⟩
+      rcases hc B.val B.property B'.val B'.property
+        (fun h => hne (Subtype.ext h.symm)) hjoin with hcut | hwt
       · exfalso
         have hu := G.ncard_edgeCut_union_add (c.disjoint_of_ne hne.symm) (toFinite _) (toFinite _)
-        have hdB : (G.edgeCut {v | v ∈ B.1}).ncard ≤ 2 :=
+        have hdB : (G.edgeCut {v | v ∈ B.val}).ncard ≤ 2 :=
           (c.ncard_incidenceSet_quotient B).symm.trans_le h2
-        have hdB' : (G.edgeCut {v | v ∈ B'.1}).ncard ≤ 3 := c.ncard_edgeCut_le B'.1 B'.2
+        have hdB' : (G.edgeCut {v | v ∈ B'.val}).ncard ≤ 3 := c.ncard_edgeCut_le B'.val B'.property
         have hjpos := hjoin.ncard_pos
         omega
       · change M < c.blockWeight B + c.blockWeight B' at hwt
@@ -471,8 +473,8 @@ theorem Saturated.card_deg_one_two_mul_le [Fintype V] [Finite E] (hc : c.Saturat
           (he₂.resolve_right fun h => hB'2 (ht'.symm.trans h))
     have hcard_le : (L \ H).card ≤ incH.card := by
       have hc := Fintype.card_le_of_injective (fun x : {B // B ∈ L \ H} =>
-        (⟨f x.1 x.2, hmaps x.1 x.2⟩ : incH)) fun x y h =>
-          Subtype.ext (hinj' x.1 x.2 y.1 y.2 (congrArg Subtype.val h))
+        (⟨f x.val x.property, hmaps x.val x.property⟩ : incH)) fun x y h =>
+          Subtype.ext (hinj' x.val x.property y.val y.property (congrArg Subtype.val h))
       rwa [Fintype.card_coe, Fintype.card_coe] at hc
     refine hcard_le.trans ((Finset.card_biUnion_le_card_mul _ _ 3 fun B' _ => ?_).trans_eq
       (Nat.mul_comm _ _))
@@ -509,13 +511,13 @@ private theorem sum_internal_edges_ge [Finite V] [Finite E] (hloop : G.Loopless)
         0 < (c.quotient.incidenceSet B).ncard).card +
       (Finset.univ.filter fun B : c.blocks =>
         (c.quotient.incidenceSet B).ncard = 0 ∧
-          ∃ v ∈ B.1, (G.incidenceSet v).ncard < 2).card +
+          ∃ v ∈ B.val, (G.incidenceSet v).ncard < 2).card +
       (Nat.card E - Nat.card c.external) := by
   classical
   have := Fintype.ofFinite V
   have := Fintype.ofFinite E
   let intEdges (B : c.blocks) : Finset E :=
-    Finset.univ.filter fun e => G.src e ∈ B.1 ∧ G.tgt e ∈ B.1
+    Finset.univ.filter fun e => G.src e ∈ B.val ∧ G.tgt e ∈ B.val
   have hdisj : (↑(Finset.univ : Finset c.blocks) : Set c.blocks).PairwiseDisjoint intEdges := by
     intro B₁ _ B₂ _ hne
     refine Finset.disjoint_left.mpr fun e he₁ he₂ => ?_
@@ -533,7 +535,7 @@ private theorem sum_internal_edges_ge [Finite V] [Finite E] (hloop : G.Loopless)
     have h1 := ncard_add_ncard_compl c.external
     rw [Nat.card_coe_set_eq]
     omega
-  have hv_sum : ∑ B : c.blocks, {v | v ∈ B.1}.ncard = Nat.card V := by
+  have hv_sum : ∑ B : c.blocks, {v | v ∈ B.val}.ncard = Nat.card V := by
     rw [Nat.card_eq_fintype_card, ← Finset.card_univ,
       Finset.card_eq_sum_card_fiberwise (f := c.blockOf) (t := Finset.univ) fun _ _ =>
         Finset.mem_coe.2 (Finset.mem_univ _)]
@@ -543,55 +545,57 @@ private theorem sum_internal_edges_ge [Finite V] [Finite E] (hloop : G.Loopless)
     ext
     simp
   have hB_le (B : c.blocks) :
-      {v | v ∈ B.1}.ncard ≤ (intEdges B).card +
+      {v | v ∈ B.val}.ncard ≤ (intEdges B).card +
         (if 0 < (c.quotient.incidenceSet B).ncard then 1 else 0) +
         (if (c.quotient.incidenceSet B).ncard = 0 ∧
-            ∃ v ∈ B.1, (G.incidenceSet v).ncard < 2 then 1 else 0) := by
-    have he_eq : Nat.card {e // G.src e ∈ {v | v ∈ B.1} ∧ G.tgt e ∈ {v | v ∈ B.1}} =
+            ∃ v ∈ B.val, (G.incidenceSet v).ncard < 2 then 1 else 0) := by
+    have he_eq : Nat.card {e // G.src e ∈ {v | v ∈ B.val} ∧ G.tgt e ∈ {v | v ∈ B.val}} =
         (intEdges B).card := by
-      change Nat.card ↑{e : E | G.src e ∈ B.1 ∧ G.tgt e ∈ B.1} = (intEdges B).card
+      change Nat.card ↑{e : E | G.src e ∈ B.val ∧ G.tgt e ∈ B.val} = (intEdges B).card
       rw [Nat.card_coe_set_eq, ← ncard_coe_finset]
       congr 1
       ext e
       simp [intEdges]
-    have hconn_le : {v | v ∈ B.1}.ncard ≤ (intEdges B).card + 1 := by
-      have hcB := (G.induce {v | v ∈ B.1}).card_le_card_add_one_of_connected (c.connected B.1 B.2)
+    have hconn_le : {v | v ∈ B.val}.ncard ≤ (intEdges B).card + 1 := by
+      have hcB := (G.induce {v | v ∈ B.val}).card_le_card_add_one_of_connected
+        (c.connected B.val B.property)
       rw [Nat.card_coe_set_eq] at hcB
       omega
     by_cases hpos : 0 < (c.quotient.incidenceSet B).ncard
     · simp only [hpos, ite_true]
       omega
     · have h0 : (c.quotient.incidenceSet B).ncard = 0 := by omega
-      by_cases hlow : ∃ v ∈ B.1, (G.incidenceSet v).ncard < 2
+      by_cases hlow : ∃ v ∈ B.val, (G.incidenceSet v).ncard < 2
       · simp only [h0, lt_self_iff_false, ite_false, hlow, and_self, ite_true]
         omega
       · simp only [h0, lt_self_iff_false, ite_false, hlow, and_false, add_zero]
         push Not at hlow
-        have hcut0 : G.edgeCut {v | v ∈ B.1} = ∅ := by
+        have hcut0 : G.edgeCut {v | v ∈ B.val} = ∅ := by
           rw [← ncard_eq_zero (hs := toFinite _), ← c.ncard_incidenceSet_quotient]
           exact h0
         have hclosed := G.edgeCut_eq_empty_iff.mp hcut0
         -- On the closed block, `G` and `G.induce B` have the same degrees; apply the handshake.
-        have hdeg (v : {v | v ∈ B.1}) :
-            (G.incidenceSet v.1).ncard = ((G.induce {v | v ∈ B.1}).incidenceSet v).ncard := by
+        have hdeg (v : {v | v ∈ B.val}) :
+            (G.incidenceSet v.val).ncard = ((G.induce {v | v ∈ B.val}).incidenceSet v).ncard := by
           rw [← ncard_image_of_injective _ Subtype.val_injective]
           congr 1
           ext e
           constructor
           · intro he
-            have hW : G.src e ∈ B.1 ∧ G.tgt e ∈ B.1 := by
+            have hW : G.src e ∈ B.val ∧ G.tgt e ∈ B.val := by
               rcases he with h | h
-              · exact ⟨h ▸ v.2, (hclosed e).mp (h ▸ v.2)⟩
-              · exact ⟨(hclosed e).mpr (h ▸ v.2), h ▸ v.2⟩
+              · exact ⟨h ▸ v.property, (hclosed e).mp (h ▸ v.property)⟩
+              · exact ⟨(hclosed e).mpr (h ▸ v.property), h ▸ v.property⟩
             exact ⟨⟨e, hW⟩, he.imp Subtype.ext Subtype.ext, rfl⟩
           · rintro ⟨e', he', rfl⟩
             exact he'.imp (congrArg Subtype.val) (congrArg Subtype.val)
-        have hhs := (G.induce {v | v ∈ B.1}).sum_ncard_incidenceSet (hloop.induce _)
+        have hhs := (G.induce {v | v ∈ B.val}).sum_ncard_incidenceSet (hloop.induce _)
         simp only [← hdeg, he_eq] at hhs
-        have h2 : 2 * {v | v ∈ B.1}.ncard ≤ ∑ v : {v | v ∈ B.1}, (G.incidenceSet v.1).ncard := by
+        have h2 : 2 * {v | v ∈ B.val}.ncard ≤
+            ∑ v : {v | v ∈ B.val}, (G.incidenceSet v.val).ncard := by
           rw [← Nat.card_coe_set_eq, Nat.card_eq_fintype_card, ← Finset.card_univ, mul_comm,
             ← smul_eq_mul]
-          exact Finset.card_nsmul_le_sum _ _ _ fun v _ => hlow v.1 v.2
+          exact Finset.card_nsmul_le_sum _ _ _ fun v _ => hlow v.val v.property
         omega
   have hsum := Finset.sum_le_sum fun B (_ : B ∈ Finset.univ) => hB_le B
   rw [hv_sum, Finset.sum_add_distrib, Finset.sum_add_distrib, hint_card,
@@ -650,7 +654,7 @@ theorem card_deg_three_le_of_connected [Finite V] [Finite E] (hloop : G.Loopless
   classical
   have hq0 : (Finset.univ.filter fun B : c.blocks =>
       (c.quotient.incidenceSet B).ncard = 0 ∧
-        ∃ v ∈ B.1, (G.incidenceSet v).ncard < 2).card = 0 := by
+        ∃ v ∈ B.val, (G.incidenceSet v).ncard < 2).card = 0 := by
     rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
     intro B _ ⟨h0, _⟩
     exact absurd h0 (c.incidenceSet_quotient_nonempty hconn two B).ncard_pos.ne'
@@ -675,7 +679,7 @@ theorem card_deg_three_add_le_of_two_le_deg [Finite V] [Finite E] (hloop : G.Loo
   classical
   have hq0 : (Finset.univ.filter fun B : c.blocks =>
       (c.quotient.incidenceSet B).ncard = 0 ∧
-        ∃ v ∈ B.1, (G.incidenceSet v).ncard < 2).card = 0 := by
+        ∃ v ∈ B.val, (G.incidenceSet v).ncard < 2).card = 0 := by
     rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
     rintro B _ ⟨_, v, _, hv⟩
     exact absurd hv (not_lt.mpr (hmin v))

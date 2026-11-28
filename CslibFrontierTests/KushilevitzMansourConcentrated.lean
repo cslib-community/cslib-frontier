@@ -142,7 +142,7 @@ theorem uniform_abs_bucketEstimate_parityOn_empty_ge_le (m : ℕ) {γ : ℝ} (h�
       {ω | γ ≤ |bucketEstimate (parityOn ({0} : Finset (Fin 2))) ω ∅ {0}|} ≤
         ENNReal.ofReal (2 * Real.exp (-(m * γ ^ 2) / 2)) := by
   have hW : bucketWeight (fun x => signVal (parityOn ({0} : Finset (Fin 2)) x)) ∅ {0} = 0 := by
-    simp [bucketWeight]
+    simp [bucketWeight, (Finset.singleton_nonempty (0 : Fin 2)).ne_empty.symm]
   have h := uniform_abs_bucketEstimate_sub_ge_le (m := m) (parityOn ({0} : Finset (Fin 2))) ∅ {0} hγ
   simpa only [hW, sub_zero] using h
 

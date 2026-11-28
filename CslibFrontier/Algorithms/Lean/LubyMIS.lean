@@ -266,7 +266,7 @@ theorem Invariant.maximal_iff {s : State V} (h : Invariant G s) :
   constructor
   · intro hmax
     by_contra hne
-    obtain ⟨v, hv⟩ := nonempty_iff_ne_empty.2 hne
+    obtain ⟨v, hv⟩ := ne_empty_iff_nonempty.1 hne
     have hind : G.IsIndepSet (insert v (s.chosen : Set V)) := by
       refine Set.pairwise_insert.2 ⟨h.isIndepSet, fun u hu _ => ⟨fun hvu => ?_, fun huv => ?_⟩⟩
       · exact (h.disjoint v hv u hu).1 hvu.symm
@@ -520,7 +520,7 @@ theorem toOuterMeasure_not_maximal_lubyMIS_le {m : ℕ} (hm : G.edgeFinset.card 
     rintro s ⟨hs, hsupp⟩
     simp only [Set.mem_preimage, Set.mem_ofPred_eq,
       (invariant_of_mem_support_run G hsupp).maximal_iff] at hs ⊢
-    exact nonempty_iff_ne_empty.2 hs
+    exact ne_empty_iff_nonempty.1 hs
   refine (PMF.toOuterMeasure_mono _ hsub).trans ?_
   have h := two_pow_mul_toOuterMeasure_live_nonempty_le G (m + t)
   ennreal_to_real at h ⊢

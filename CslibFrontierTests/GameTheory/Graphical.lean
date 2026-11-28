@@ -479,7 +479,7 @@ theorem corrSame_corrDiff_localNeighborhood :
     classical
     rw [neighborhoodMarginal_def, neighborhoodMarginal_def, hrew, hrew, corrSame_sum, corrDiff_sum]
     have heq_cond : ∀ s : Fin 2 → Bool,
-        ((fun j : ClosedNeighborhood (⊥ : SimpleGraph (Fin 2)) i => s j.1) = u) ↔
+        ((fun j : ClosedNeighborhood (⊥ : SimpleGraph (Fin 2)) i => s j.val) = u) ↔
           s i = u ⟨i, Or.inl rfl⟩ := by
       intro s
       constructor
@@ -500,7 +500,7 @@ theorem corrSame_corrDiff_localNeighborhood :
     rw [neighborhoodMarginal_def, neighborhoodMarginal_def, hrew, hrew,
       corrSame_sum, corrDiff_sum] at h0
     have hcond : ∀ s : Fin 2 → Bool,
-        ((fun j : ClosedNeighborhood (⊤ : SimpleGraph (Fin 2)) 0 => s j.1) = u₀) ↔
+        ((fun j : ClosedNeighborhood (⊤ : SimpleGraph (Fin 2)) 0 => s j.val) = u₀) ↔
           s = ![false, false] := by
       intro s
       constructor
@@ -674,14 +674,14 @@ noncomputable abbrev nashPropCycleGame : GraphicalGame (Fin 4) (fun _ => Bool) w
 theorem nashPropCycleGame_branch_tables_inconsistent :
     (∃ qTop : Fin 4 → Bool → ℝ,
       qTop 0 = Pi.single true 1 ∧ qTop 1 = Pi.single true 1 ∧
-      nashPropCycleGame.IsBestResponse 0 (qTop 0) (fun j => qTop j.1) ∧
-      nashPropCycleGame.IsBestResponse 1 (qTop 1) (fun j => qTop j.1) ∧
-      nashPropCycleGame.IsBestResponse 2 (qTop 2) (fun j => qTop j.1)) ∧
+      nashPropCycleGame.IsBestResponse 0 (qTop 0) (fun j => qTop j.val) ∧
+      nashPropCycleGame.IsBestResponse 1 (qTop 1) (fun j => qTop j.val) ∧
+      nashPropCycleGame.IsBestResponse 2 (qTop 2) (fun j => qTop j.val)) ∧
     (∃ qBot : Fin 4 → Bool → ℝ,
       qBot 0 = Pi.single true 1 ∧ qBot 3 = Pi.single true 1 ∧
-      nashPropCycleGame.IsBestResponse 0 (qBot 0) (fun j => qBot j.1) ∧
-      nashPropCycleGame.IsBestResponse 3 (qBot 3) (fun j => qBot j.1) ∧
-      nashPropCycleGame.IsBestResponse 2 (qBot 2) (fun j => qBot j.1)) ∧
+      nashPropCycleGame.IsBestResponse 0 (qBot 0) (fun j => qBot j.val) ∧
+      nashPropCycleGame.IsBestResponse 3 (qBot 3) (fun j => qBot j.val) ∧
+      nashPropCycleGame.IsBestResponse 2 (qBot 2) (fun j => qBot j.val)) ∧
     ¬ ∃ p : Fin 4 → Bool → ℝ,
       nashPropCycleGame.toCostGame.IsMixedNash p ∧
       p 1 = Pi.single true 1 ∧ p 3 = Pi.single true 1 := by
@@ -689,11 +689,11 @@ theorem nashPropCycleGame_branch_tables_inconsistent :
       (∀ a : Bool, nashPropCycleGame.toCostGame.cost i s ≤
         nashPropCycleGame.toCostGame.cost i (update s i a)) →
       nashPropCycleGame.IsBestResponse i (Pi.single (s i) 1)
-        (fun j => Pi.single (s j.1) 1) := by
+        (fun j => Pi.single (s j.val) 1) := by
     intro s i hi
     refine ⟨isMixedStrategy_single _, fun a => ?_⟩
     have hdev : ∀ b, nashPropCycleGame.localDeviationPayoff i b
-        (fun j => Pi.single (s j.1) 1) = nashPropCycleGame.payoff i (update s i b) := by
+        (fun j => Pi.single (s j.val) 1) = nashPropCycleGame.payoff i (update s i b) := by
       intro b
       rw [← nashPropCycleGame.deviationPayoff_eq_localDeviationPayoff
         (fun k _ => (isMixedStrategy_single (s k)).sum_eq_one)]

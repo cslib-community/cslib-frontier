@@ -176,15 +176,15 @@ private theorem natCard_nodup_mem_head {α : Type*} {s : Finset α} {x : α} (hx
   have hcons : ∀ l : List α, l.head? = some x → l = x :: l.tail := fun l h =>
     List.eq_cons_of_mem_head? h
   refine Nat.card_congr
-    { toFun := fun l => ⟨l.1.tail, ?_, ?_⟩
-      invFun := fun t => ⟨x :: t.1, ?_, ?_, rfl⟩
-      left_inv := fun l => Subtype.ext (hcons l.1 l.2.2.2).symm
+    { toFun := fun l => ⟨l.val.tail, ?_, ?_⟩
+      invFun := fun t => ⟨x :: t.val, ?_, ?_, rfl⟩
+      left_inv := fun l => Subtype.ext (hcons l.val l.property.2.2).symm
       right_inv := fun t => rfl }
-  · exact l.2.1.sublist (List.tail_sublist _)
+  · exact l.property.1.sublist (List.tail_sublist _)
   · intro e
-    have hn := l.2.1
-    have hm := l.2.2.1
-    rw [hcons l.1 l.2.2.2] at hn hm
+    have hn := l.property.1
+    have hm := l.property.2.1
+    rw [hcons l.val l.property.2.2] at hn hm
     rw [Finset.mem_erase, ← hm, List.mem_cons]
     constructor
     · intro he
@@ -192,10 +192,10 @@ private theorem natCard_nodup_mem_head {α : Type*} {s : Finset α} {x : α} (hx
     · rintro ⟨hne, rfl | he⟩
       · exact absurd rfl hne
       · exact he
-  · refine List.nodup_cons.mpr ⟨fun h => ?_, t.2.1⟩
-    exact (Finset.notMem_erase x s) ((t.2.2 x).mp h)
+  · refine List.nodup_cons.mpr ⟨fun h => ?_, t.property.1⟩
+    exact (Finset.notMem_erase x s) ((t.property.2 x).mp h)
   · intro e
-    rw [List.mem_cons, t.2.2, Finset.mem_erase]
+    rw [List.mem_cons, t.property.2, Finset.mem_erase]
     by_cases he : e = x
     · subst he; simp only [ne_eq, not_true_eq_false, false_and, or_false, hx]
     · simp only [ne_eq, he, not_false_eq_true, true_and, false_or]
@@ -206,12 +206,12 @@ private theorem natCard_nodup_mem_getLast {α : Type*} {s : Finset α} {x : α} 
       (s.card - 1).factorial := by
   rw [← natCard_nodup_mem_head hx]
   refine Nat.card_congr
-    { toFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
-        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
-        by rw [List.head?_reverse]; exact l.2.2.2⟩
-      invFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
-        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
-        by rw [List.getLast?_reverse]; exact l.2.2.2⟩
+    { toFun := fun l => ⟨l.val.reverse, List.nodup_reverse.mpr l.property.1,
+        fun e => by simpa only [List.mem_reverse] using l.property.2.1 e,
+        by rw [List.head?_reverse]; exact l.property.2.2⟩
+      invFun := fun l => ⟨l.val.reverse, List.nodup_reverse.mpr l.property.1,
+        fun e => by simpa only [List.mem_reverse] using l.property.2.1 e,
+        by rw [List.getLast?_reverse]; exact l.property.2.2⟩
       left_inv := fun l => Subtype.ext (List.reverse_reverse _)
       right_inv := fun l => Subtype.ext (List.reverse_reverse _) }
 
@@ -612,28 +612,28 @@ theorem natCard_isEulerianCircuit
   let Tour := {l : List E // IsEulerianCircuit src tgt e₀ l}
   let Arb := {f : {v // v ≠ src e₀} → E // IsInArborescence src tgt (src e₀) f}
   let φ : Tour → Arb := fun l =>
-    ⟨fun v => lastExit src e₀ l.1 v, isInArborescence_lastExit src tgt e₀ l.2 hpos⟩
+    ⟨fun v => lastExit src e₀ l.val v, isInArborescence_lastExit src tgt e₀ l.property hpos⟩
   have hfib : ∀ a : Arb, Nat.card {l // φ l = a} =
       ∏ v, ((univ.filter fun e => src e = v).card - 1).factorial := by
     intro a
-    let Ψ : {l // φ l = a} → ((v : V) → {l // Fib src e₀ a.1 v l}) := fun l v =>
-      ⟨l.1.1.filter fun e => src e = v,
-        fib_filter src tgt l.1.2 hpos (congrArg Subtype.val l.2).symm v⟩
+    let Ψ : {l // φ l = a} → ((v : V) → {l // Fib src e₀ a.val v l}) := fun l v =>
+      ⟨l.val.val.filter fun e => src e = v,
+        fib_filter src tgt l.val.property hpos (congrArg Subtype.val l.property).symm v⟩
     rw [Nat.card_eq_of_bijective Ψ ⟨?_, ?_⟩, Nat.card_pi]
-    · exact Finset.prod_congr rfl fun v _ => natCard_fib src tgt a.2 v
+    · exact Finset.prod_congr rfl fun v _ => natCard_fib src tgt a.property v
     · exact fun l₁ l₂ h => Subtype.ext (Subtype.ext (IsEulerianCircuit.eq_of_filter_eq src tgt
-        l₁.1.2 l₂.1.2 fun v => congrArg Subtype.val (congrFun h v)))
+        l₁.val.property l₂.val.property fun v => congrArg Subtype.val (congrFun h v)))
     · intro g
-      have hhead : ((g (src e₀)).1).head? = some e₀ := by simpa using (g (src e₀)).2.2.2
-      have hlast : ∀ v : {v // v ≠ src e₀}, ((g v).1).getLast? = some (a.1 v) := fun v => by
-        simpa [v.2] using (g v).2.2.2
-      obtain ⟨l, hl, hls⟩ := exists_isEulerianCircuit src tgt hbal a.2 (fun v => (g v).1)
-        (fun v => (g v).2.1) (fun v => (g v).2.2.1) hhead hlast
+      have hhead : ((g (src e₀)).val).head? = some e₀ := by simpa using (g (src e₀)).property.2.2
+      have hlast : ∀ v : {v // v ≠ src e₀}, ((g v).val).getLast? = some (a.val v) := fun v => by
+        simpa [v.property] using (g v).property.2.2
+      obtain ⟨l, hl, hls⟩ := exists_isEulerianCircuit src tgt hbal a.property (fun v => (g v).val)
+        (fun v => (g v).property.1) (fun v => (g v).property.2.1) hhead hlast
       have hφ : φ ⟨l, hl⟩ = a := Subtype.ext (funext fun v => Option.some.inj <| by
         rw [← getLast?_filter_eq_lastExit src e₀ hl.mem (hpos v), hls, hlast v])
       exact ⟨⟨⟨l, hl⟩, hφ⟩, funext fun v => Subtype.ext (hls v)⟩
   have : Finite Tour :=
-    Finite.of_injective (fun l : Tour => (⟨l.1, l.2.nodup⟩ : {l : List E // l.Nodup}))
+    Finite.of_injective (fun l : Tour => (⟨l.val, l.property.nodup⟩ : {l : List E // l.Nodup}))
       fun l₁ l₂ h => Subtype.ext (Subtype.mk.inj h)
   change Nat.card Tour = Nat.card Arb * _
   rw [← Nat.card_congr (Equiv.sigmaFiberEquiv φ), Nat.card_sigma,
@@ -742,23 +742,23 @@ circuits starting with `e₁` ([Stanley2013], proof of Corollary 10.3, p. 193). 
 def IsEulerianCircuit.equivRotate [DecidableEq E] (e₀ e₁ : E) :
     {l : List E // IsEulerianCircuit src tgt e₀ l} ≃
       {l : List E // IsEulerianCircuit src tgt e₁ l} where
-  toFun l := ⟨rotateTo e₁ l.1, isEulerianCircuit_rotateTo l.2⟩
-  invFun l := ⟨rotateTo e₀ l.1, isEulerianCircuit_rotateTo l.2⟩
-  left_inv l := Subtype.ext (rotateTo_rotateTo l.2)
-  right_inv l := Subtype.ext (rotateTo_rotateTo l.2)
+  toFun l := ⟨rotateTo e₁ l.val, isEulerianCircuit_rotateTo l.property⟩
+  invFun l := ⟨rotateTo e₀ l.val, isEulerianCircuit_rotateTo l.property⟩
+  left_inv l := Subtype.ext (rotateTo_rotateTo l.property)
+  right_inv l := Subtype.ext (rotateTo_rotateTo l.property)
 
 @[simp]
 theorem IsEulerianCircuit.coe_equivRotate [DecidableEq E] (e₀ e₁ : E)
     (l : {l : List E // IsEulerianCircuit src tgt e₀ l}) :
     (IsEulerianCircuit.equivRotate e₀ e₁ l : List E) =
-      l.1.drop (l.1.idxOf e₁) ++ l.1.take (l.1.idxOf e₁) := by
+      l.val.drop (l.val.idxOf e₁) ++ l.val.take (l.val.idxOf e₁) := by
   rfl
 
 @[simp]
 theorem IsEulerianCircuit.coe_equivRotate_symm [DecidableEq E] (e₀ e₁ : E)
     (l : {l : List E // IsEulerianCircuit src tgt e₁ l}) :
     ((IsEulerianCircuit.equivRotate e₀ e₁).symm l : List E) =
-      l.1.drop (l.1.idxOf e₀) ++ l.1.take (l.1.idxOf e₀) := by
+      l.val.drop (l.val.idxOf e₀) ++ l.val.take (l.val.idxOf e₀) := by
   rfl
 
 end Rotate

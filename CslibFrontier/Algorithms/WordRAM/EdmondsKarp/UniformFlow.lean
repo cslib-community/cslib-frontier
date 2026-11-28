@@ -55,7 +55,7 @@ section UniformEK
 /-- Word-RAM input `n :: s :: t :: flattenMatrix N.cap`: vertex count at address `1`, source at `2`,
 sink at `3`, and row-major capacity matrix `N.cap u v` at `4 + u * n + v`. -/
 @[expose] def encodeFlowInput {n : ℕ} (N : Network (Fin n)) : List ℕ :=
-  n :: N.s.1 :: N.t.1 :: flattenMatrix N.cap
+  n :: N.s.val :: N.t.val :: flattenMatrix N.cap
 
 /-- Output address of the final flow value `f u v` left by `exists_edmondsKarp_program`. -/
 @[expose] def ekFlowAddr (n u v : ℕ) : ℕ := 4 + n * n + u * n + v
@@ -225,8 +225,8 @@ private theorem flowInit_mem_matrix {n : ℕ} (N : Network (Fin n)) {i : ℕ} (h
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem, Option.getD_some]
 
 private theorem flowInit_mat_eq {n : ℕ} (N : Network (Fin n)) (u v : Fin n) :
-    (Memory.State.init (encodeFlowInput N)).mem (4 + u.1 * n + v.1) = N.cap u v := by
-  have hlt := List.mul_add_lt_sq u.2 v.2
+    (Memory.State.init (encodeFlowInput N)).mem (4 + u.val * n + v.val) = N.cap u v := by
+  have hlt := List.mul_add_lt_sq u.isLt v.isLt
   rw [Nat.add_assoc, flowInit_mem_matrix N hlt, getElem_flattenMatrix]
 
 private theorem flowInit_le {n B : ℕ} {N : Network (Fin n)} (hB : ∀ u v, N.cap u v ≤ B)
@@ -234,7 +234,7 @@ private theorem flowInit_le {n B : ℕ} {N : Network (Fin n)} (hB : ∀ u v, N.c
   have hn : 0 < n := Nat.pos_of_ne_zero fun h => by simp [h] at hi
   have hu : i / n < n := Nat.div_lt_of_lt_mul hi
   have hv : i % n < n := Nat.mod_lt i hn
-  have hidx : 4 + i = 4 + (⟨i / n, hu⟩ : Fin n).1 * n + (⟨i % n, hv⟩ : Fin n).1 := by
+  have hidx : 4 + i = 4 + (⟨i / n, hu⟩ : Fin n).val * n + (⟨i % n, hv⟩ : Fin n).val := by
     dsimp only
     rw [Nat.add_assoc, Nat.div_add_mod']
   rw [hidx, flowInit_mat_eq N]
@@ -250,8 +250,8 @@ private theorem inputFits_encodeFlowInput {n B w : ℕ} (N : Network (Fin n))
   · simp only [encodeFlowInput, List.mem_cons] at hx
     rcases hx with rfl | rfl | rfl | hx
     · exact hw.of_le (by dsimp only [ekWorkspace]; omega)
-    · exact hw.of_le (by have := N.s.2; dsimp only [ekWorkspace]; omega)
-    · exact hw.of_le (by have := N.t.2; dsimp only [ekWorkspace]; omega)
+    · exact hw.of_le (by have := N.s.isLt; dsimp only [ekWorkspace]; omega)
+    · exact hw.of_le (by have := N.t.isLt; dsimp only [ekWorkspace]; omega)
     · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
       rw [length_flattenMatrix] at hi
       rw [← flowInit_mem_matrix N hi]
@@ -270,8 +270,8 @@ private theorem validHistory_ekFullProg {n B w : ℕ} (N : Network (Fin n))
       (hw.of_le (by simp only [encodeFlowInput, List.length_cons, length_flattenMatrix,
         ekWorkspace]; omega))
   have h1 : st.mem 1 = n := by simp [st, Memory.State.init, encodeFlowInput]
-  have h2 : st.mem 2 = N.s.1 := by simp [st, Memory.State.init, encodeFlowInput]
-  have h3 : st.mem 3 = N.t.1 := by simp [st, Memory.State.init, encodeFlowInput]
+  have h2 : st.mem 2 = N.s.val := by simp [st, Memory.State.init, encodeFlowInput]
+  have h3 : st.mem 3 = N.t.val := by simp [st, Memory.State.init, encodeFlowInput]
   unfold ekFullProg
   iterate 3 refine validHistory_read_bind (by omega) ?_
   rw [h1, h2, h3]
@@ -307,7 +307,7 @@ private theorem validHistory_ekFullProg {n B w : ℕ} (N : Network (Fin n))
     ⟨by dsimp only; omega,
       hw.of_le (by dsimp only [ekScratch, ekWorkspace]; omega),
       hwB.of_le (by dsimp only [ekBound]; gcongr)⟩
-    N.s.2 N.t.2 hwf1
+    N.s.isLt N.t.isLt hwf1
     (by dsimp only [ekScratch, ekWorkspace] at hfr1 ⊢; omega)
 
 /-- **Dense Edmonds–Karp on the Word-RAM** ([EdmondsKarp1972], Theorem 1; [CLRS2009],
@@ -323,11 +323,11 @@ theorem exists_edmondsKarp_program :
       ∀ {n : ℕ} (N : Network (Fin n)) (B w : ℕ), N.s ≠ N.t →
         (∀ u v, N.cap u v ≤ B) → Fits w (ekWorkspace n) → Fits w (ekBound n B) →
         ∃ (y : Data R) (steps res : ℕ) (f : N.Flow),
-          let C_cut : Finset (Fin n) := Finset.univ.filter fun x => y.mem (ekCutAddr n x.1) < n
+          let C_cut : Finset (Fin n) := Finset.univ.filter fun x => y.mem (ekCutAddr n x.val) < n
           Runs w prog (State.init (encodeFlowInput N)) ⟨pc, y⟩ steps ∧
           step w prog ⟨pc, y⟩ = .halt res ∧
           steps + 1 ≤ C * (n + 1) ^ 5 ∧
-          (∀ u v : Fin n, y.mem (ekFlowAddr n u.1 v.1) = f u v) ∧
+          (∀ u v : Fin n, y.mem (ekFlowAddr n u.val v.val) = f u v) ∧
           f.IsMaxFlow ∧ N.IsMinCut C_cut ∧ C_cut = f.reachableCut ∧
           f.value = (N.cutCapacity C_cut : ℤ) ∧ res = N.cutCapacity C_cut := by
   obtain ⟨R, C₀, pc, prog, _, _, hprog⟩ :=
@@ -339,8 +339,8 @@ theorem exists_edmondsKarp_program :
     simp only [st, Memory.State.init, encodeFlowInput, List.length_cons, length_flattenMatrix]
     omega
   have h1 : st.mem 1 = n := by simp [st, Memory.State.init, encodeFlowInput]
-  have h2 : st.mem 2 = N.s.1 := by simp [st, Memory.State.init, encodeFlowInput]
-  have h3 : st.mem 3 = N.t.1 := by simp [st, Memory.State.init, encodeFlowInput]
+  have h2 : st.mem 2 = N.s.val := by simp [st, Memory.State.init, encodeFlowInput]
+  have h3 : st.mem 3 = N.t.val := by simp [st, Memory.State.init, encodeFlowInput]
   have hlen : Fits w ((encodeFlowInput N).length + 1) := hw.of_le (by
     simp only [encodeFlowInput, List.length_cons, length_flattenMatrix, ekWorkspace]; omega)
   obtain ⟨y, steps, hruns, hhalt, hmem, _, hbound⟩ :=
@@ -352,8 +352,8 @@ theorem exists_edmondsKarp_program :
   rw [clientState_width w (ekFullProg ())] at hmem
   rw [clientResult_width w (ekFullProg ())] at hhalt
   set st1 := (Memory.spec 0).clientState st (Memory.alloc (ekScratch n))
-  have hmat1 : ∀ u v : Fin n, st1.mem (4 + u.1 * n + v.1) = N.cap u v := fun u v => by
-    have hidx := List.mul_add_lt_sq u.2 v.2
+  have hmat1 : ∀ u v : Fin n, st1.mem (4 + u.val * n + v.val) = N.cap u v := fun u v => by
+    have hidx := List.mul_add_lt_sq u.isLt v.isLt
     exact (Memory.mem_step_of_lt_frontier st (.alloc (ekScratch n)) (by rw [hfr]; omega)
       (by simp)).trans (flowInit_mat_eq N u v)
   have hal : ∀ i < n * n, st1.mem (4 + i) ≤ B := fun i hi =>
@@ -361,27 +361,28 @@ theorem exists_edmondsKarp_program :
       (by simp)).trans_le (flowInit_le hB hi)
   set M := ((Memory.spec 0).clientResult st1 (iterate ekMaxStep 4 (n * n) (0, 0))).2
   have hM_ge : ∀ u v : Fin n, N.cap u v ≤ M := fun u v => by
-    have h := (ekMaxScan_spec hal).2 (u.1 * n + v.1) (List.mul_add_lt_sq u.2 v.2)
-    rw [show 4 + (u.1 * n + v.1) = 4 + u.1 * n + v.1 by omega, hmat1 u v] at h
+    have h := (ekMaxScan_spec hal).2 (u.val * n + v.val) (List.mul_add_lt_sq u.isLt v.isLt)
+    rw [show 4 + (u.val * n + v.val) = 4 + u.val * n + v.val by omega, hmat1 u v] at h
     exact h
   have hst_ek : (Memory.spec 0).clientState st (ekFullProg ()) =
-      (Memory.spec 0).clientState st1 (ekProg (⟨n, 4, 4 + n * n, M⟩, (N.s.1, N.t.1))) := by
+      (Memory.spec 0).clientState st1 (ekProg (⟨n, 4, 4 + n * n, M⟩, (N.s.val, N.t.val))) := by
     unfold ekFullProg
     rw [clientState_bind_read, clientState_bind_read, clientState_bind_read, h1, h2, h3]
     unfold ekFullMain
     dsimp only
-    rw [clientState_bind, ite_eq_left ⟨N.s.2, N.t.2⟩, clientState_bind, ekMaxScan_state]
+    rw [clientState_bind, ite_eq_left ⟨N.s.isLt, N.t.isLt⟩, clientState_bind, ekMaxScan_state]
   have hres_ek : (Memory.spec 0).clientResult st (ekFullProg ()) =
-      (Memory.spec 0).clientResult st1 (ekProg (⟨n, 4, 4 + n * n, M⟩, (N.s.1, N.t.1))) := by
+      (Memory.spec 0).clientResult st1 (ekProg (⟨n, 4, 4 + n * n, M⟩, (N.s.val, N.t.val))) := by
     unfold ekFullProg
     rw [clientResult_bind_read, clientResult_bind_read, clientResult_bind_read, h1, h2, h3]
     unfold ekFullMain
     dsimp only
-    rw [clientResult_bind, ite_eq_left ⟨N.s.2, N.t.2⟩, clientResult_bind, ekMaxScan_state]
+    rw [clientResult_bind, ite_eq_left ⟨N.s.isLt, N.t.isLt⟩, clientResult_bind, ekMaxScan_state]
   obtain ⟨_, f, hflow, _, hmax, hmin, hC_eq, hval, hres⟩ :=
     ekProg_flow_spec N hst hM_ge (le_refl (4 + n * n)) hmat1
   have hymem : y.mem =
-      ((Memory.spec 0).clientState st1 (ekProg (⟨n, 4, 4 + n * n, M⟩, (N.s.1, N.t.1)))).mem := by
+      ((Memory.spec 0).clientState st1
+          (ekProg (⟨n, 4, 4 + n * n, M⟩, (N.s.val, N.t.val)))).mem := by
     rw [← hst_ek]
     exact congrArg Memory.State.mem hmem
   have hmc : memoryCost (ekFullProg ()) st ≤ 25 * (n + 1) ^ 5 := by

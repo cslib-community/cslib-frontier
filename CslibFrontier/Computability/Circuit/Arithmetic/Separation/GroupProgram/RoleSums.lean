@@ -299,12 +299,12 @@ theorem simulates_role (hkey : key.Injective) (hub : 0 < ub) {r : M.Role}
   simp only [scriptSem_nil, List.weightedSum_singleton_one, roleInstruction, instructionSem, hkind,
     roleSem]
   have hcond : (∀ es ∈ (slotList (M.law r.1) r.2).map fun e =>
-      ((P.ids n o ⟨r.1, e.1⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse,
+      ((P.ids n o ⟨r.1, e.val⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse,
       ∀ k ∈ es, (tget k t).path ≠ []) ↔
-      ∀ e : (M.law r.1).SlotAt r.2, ∀ u ∈ P.ids n o ⟨r.1, e.1⟩, σ ⟨M.roleParty r, u⟩ ≠ none := by
+      ∀ e : (M.law r.1).SlotAt r.2, ∀ u ∈ P.ids n o ⟨r.1, e.val⟩, σ ⟨M.roleParty r, u⟩ ≠ none := by
     simp [slotList, hct, bits_eq_nil hub]
   simp only [roleWriteStep]
-  by_cases hp : ∀ e : (M.law r.1).SlotAt r.2, ∀ u ∈ P.ids n o ⟨r.1, e.1⟩,
+  by_cases hp : ∀ e : (M.law r.1).SlotAt r.2, ∀ u ∈ P.ids n o ⟨r.1, e.val⟩,
     σ ⟨M.roleParty r, u⟩ ≠ none
   swap
   · rw [ite_eq_right (hcond.not.2 hp)]
@@ -315,17 +315,17 @@ theorem simulates_role (hkey : key.Injective) (hub : 0 < ub) {r : M.Role}
     fun ig j => ⟨ig.1 j, ig.2 j⟩, fun _ => rfl, fun _ => rfl⟩ _ _ fun f => ?_
   have hins (e : (M.law r.1).SlotAt r.2) (j : ℕ) :
       ((((slotList (M.law r.1) r.2).map fun e =>
-        ((P.ids n o ⟨r.1, e.1⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse).map
+        ((P.ids n o ⟨r.1, e.val⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse).map
           fun es => es.reverse.flatMap fun k => (tget k t).path).getD (slotIndex _ _ e) []).getD
-            j false = (slotBits (P.count n o r.1) (P.ids n o ⟨r.1, e.1⟩)
+            j false = (slotBits (P.count n o r.1) (P.ids n o ⟨r.1, e.val⟩)
               fun u => σ ⟨M.roleParty r, u⟩).getD j false := by
     conv_lhs => arg 1; rw [List.getD_eq_getElem _ _ (by simp),
       List.getElem_map, List.getElem_map]
     simp only [slotIndex, List.getElem_idxOf, List.reverse_reverse, List.flatMap_map, hct,
       slotBits, List.getD_append_replicate]
   set W := (channelList (M.law r.1) r.2).map fun ν =>
-    ((indicesBelow (o ⟨r.1, ν.1⟩).succ).map fun k =>
-      (⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩ : Cell M U0 U1), roleString f ν) with hWdef
+    ((indicesBelow (o ⟨r.1, ν.val⟩).succ).map fun k =>
+      (⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩ : Cell M U0 U1), roleString f ν) with hWdef
   have hnd : (W.flatMap Prod.fst).Nodup := by
     rw [hWdef, List.flatMap_map]
     exact List.nodup_flatMap_map (nodup_toList _) (fun _ => nodup_indicesBelow _)
@@ -337,14 +337,14 @@ theorem simulates_role (hkey : key.Injective) (hub : 0 < ub) {r : M.Role}
       obtain ⟨ν, -, rfl⟩ := List.mem_map.1 hw
       simp [roleContents_new]) t
   have hW : putStrings ub ((channelList (M.law r.1) r.2).map fun ν =>
-      (indicesBelow (o ⟨r.1, ν.1⟩).succ).map fun k => key ⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩)
+      (indicesBelow (o ⟨r.1, ν.val⟩).succ).map fun k => key ⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩)
       (List.ofFn fun j => (roleString f ((channelList (M.law r.1) r.2).get j)) ++ [true]) t =
       putStrings ub (W.map fun w => w.1.map key) (W.map fun w => w.2 ++ [true]) t := by
     simp [W, ← List.ofFn_getElem_eq_map]
   simp only [Equiv.coe_fn_mk, hins, eq_true hp, true_and, List.weightedSum_map_one, List.append_nil,
     List.reverse_reverse, hW, h2]
   have hc : (∀ w ∈ W, unitCount ub w.2 = w.1.length) ↔
-      ∀ ν : (M.law r.1).ChannelAt r.2, unitCount ub (roleString f ν) = o ⟨r.1, ν.1⟩ + 1 := by
+      ∀ ν : (M.law r.1).ChannelAt r.2, unitCount ub (roleString f ν) = o ⟨r.1, ν.val⟩ + 1 := by
     simp only [W, List.forall_mem_map, List.length_map, length_indicesBelow, Fin.val_succ,
       channelList, Finset.mem_toList, Finset.mem_univ, forall_const]
   have hcells (c : Cell M U0 U1) : c ∈ W.flatMap Prod.fst ↔ c ∈ roleCells n o grp g r := by

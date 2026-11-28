@@ -341,7 +341,7 @@ theorem isPACLearnerFor_prefixMajority {A : OnlineLearner α Bool} (hA : IsMeasu
   refine ⟨prefixMajority A, fun D _ hD => ?_⟩
   rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
   set μ := Measure.pi (fun _ : Fin m => D)
-  have hε : (ε.val : ℝ≥0∞) ≠ 0 := by simpa using ε.2.1.ne'
+  have hε : (ε.val : ℝ≥0∞) ≠ 0 := by simpa using ε.property.1.ne'
   have hpos : ((m + 1 : ℝ≥0∞)) ≠ 0 := by positivity
   have hmeas := (hA.measurable_sum_error_prefix D m).const_mul 2
   have hint := lintegral_two_mul_sum_error_prefix_le hA hM hD m
@@ -375,7 +375,7 @@ theorem isPACLearnable_of_mistakeBound_le {A : OnlineLearner α Bool} (hA : IsMe
     IsPACLearnable C (realizableDistributions C) := by
   intro ε δ
   refine ⟨⌈2 * (M : ℝ≥0) / (ε.val * δ.val)⌉₊, isPACLearnerFor_prefixMajority hA hM ?_⟩
-  have hεδ : 0 < ε.val * δ.val := mul_pos ε.2.1 δ.2.1
+  have hεδ : 0 < ε.val * δ.val := mul_pos ε.property.1 δ.property.1
   have h := Nat.le_ceil (2 * (M : ℝ≥0) / (ε.val * δ.val))
   rw [div_le_iff₀' hεδ] at h
   exact h.trans (by gcongr; exact le_self_add)

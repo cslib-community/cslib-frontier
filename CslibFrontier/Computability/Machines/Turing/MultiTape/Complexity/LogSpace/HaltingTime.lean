@@ -165,8 +165,8 @@ theorem runsInTime_of_runsInSpace {s t : ℕ} (hs : ntm.RunsInSpace input s)
     simp only [Function.Injective, not_forall] at hnotnodup
     obtain ⟨a, b, hab, hne'⟩ := hnotnodup
     rcases lt_or_gt_of_ne (fun h => hne' (Fin.ext h)) with h | h
-    · exact ⟨a, b, h, b.2, hab⟩
-    · exact ⟨b, a, h, a.2, hab.symm⟩
+    · exact ⟨a, b, h, b.isLt, hab⟩
+    · exact ⟨b, a, h, a.isLt, hab.symm⟩
   -- the cycle at the repeated view, pumped to length at least `t`
   have hpre :
       Relation.RelatesInSteps ntm.ViewStep (ntm.initView input) (views[i]'(by omega)) i := by

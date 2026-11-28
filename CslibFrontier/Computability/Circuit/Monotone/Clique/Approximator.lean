@@ -76,16 +76,17 @@ theorem Accepts.of_forall_exists_subset {F G : Finset (Finset (Fin n))}
 theorem contains_of_card_le_one (x : Fin (edgeCount n) → Bool) {s : Finset (Fin n)}
     (hs : s.card ≤ 1) : Contains x s := fun e he => by
   have := card_le_card he
-  rw [Sym2.card_toFinset_of_not_isDiag _ e.2] at this
+  rw [Sym2.card_toFinset_of_not_isDiag _ e.property] at this
   omega
 
 /-- The input `x` contains all edges inside the vertices of an edge exactly when it has the
 edge. -/
 theorem contains_toFinset_iff {x : Fin (edgeCount n) → Bool} {e : Edge n} :
-    Contains x e.1.toFinset ↔ x (edgeEquiv n e) = true := by
+    Contains x e.val.toFinset ↔ x (edgeEquiv n e) = true := by
   refine ⟨fun h => h e subset_rfl, fun h e' he' => ?_⟩
-  have heq : e'.1.toFinset = e.1.toFinset := eq_of_subset_of_card_le he' (by
-    rw [Sym2.card_toFinset_of_not_isDiag _ e.2, Sym2.card_toFinset_of_not_isDiag _ e'.2])
+  have heq : e'.val.toFinset = e.val.toFinset := eq_of_subset_of_card_le he' (by
+    rw [Sym2.card_toFinset_of_not_isDiag _ e.property,
+      Sym2.card_toFinset_of_not_isDiag _ e'.property])
   have : e' = e := Subtype.ext (Sym2.ext fun v => by
     rw [← Sym2.mem_toFinset, heq, Sym2.mem_toFinset])
   rwa [this]
@@ -154,7 +155,7 @@ variable [Fact (2 ≤ p)]
 
 /-- The approximator of an input variable: its edge, if `2 ≤ w`. -/
 noncomputable def input (i : Fin (edgeCount n)) : Approximator n p w where
-  terms := ({((edgeEquiv n).symm i).1.toFinset} : Finset (Finset (Fin n))).filter (·.card ≤ w)
+  terms := ({((edgeEquiv n).symm i).val.toFinset} : Finset (Finset (Fin n))).filter (·.card ≤ w)
   card_le_of_mem _ hs := (mem_filter.1 hs).2
   card_le := (card_filter_le _ _).trans ((card_singleton _).trans_le
     (sunflowerBound_pos Fact.out w))
@@ -162,8 +163,8 @@ noncomputable def input (i : Fin (edgeCount n)) : Approximator n p w where
 /-- When `2 ≤ w`, the input approximator `input i` decodes to `x i`. -/
 theorem decode_input (hw : 2 ≤ w) (i : Fin (edgeCount n)) (x : Fin (edgeCount n) → Bool) :
     (input i : Approximator n p w).decode x = x i := by
-  have hcard : (((edgeEquiv n).symm i).1.toFinset).card ≤ w := by
-    rw [Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).2]
+  have hcard : (((edgeEquiv n).symm i).val.toFinset).card ≤ w := by
+    rw [Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).property]
     exact hw
   rw [Bool.eq_iff_iff, decode_eq_true, Accepts]
   simp only [input, filter_singleton, hcard, ite_true, mem_singleton, exists_eq_left,

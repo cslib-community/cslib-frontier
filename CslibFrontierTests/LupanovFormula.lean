@@ -50,7 +50,7 @@ example : (Formula.neighborSelector center {0, 2}).eval interpretation
 
 -- The r = 0 partition still has two centers and covers both one-bit assignments exactly once.
 example : ∃ C : Finset (BitString 1), C.card = 2 ∧
-    Function.Bijective (fun p : {c // c ∈ C} × Fin 1 => BitString.flipOn {p.2} p.1.1) := by
+    Function.Bijective (fun p : {c // c ∈ C} × Fin 1 => BitString.flipOn {p.2} p.1.val) := by
   simpa using BitString.exists_openSpherePartition 0
 
 private def acrossBlocks (x : BitString 7) : Bool := x 0 ^^ x 6

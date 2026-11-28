@@ -154,7 +154,7 @@ theorem exists_isSimple_toSimpleGraph_eq {H : SimpleGraph V} [H.LocallyFinite] {
     ∃ G : RotationMap V (Fin d), G.IsSimple ∧ G.toSimpleGraph = H := by
   let e (v : V) : Fin d ≃ H.neighborFinset v := (equivFinOfCardEq (hH v)).symm
   have mem (v : V) (i : Fin d) : v ∈ H.neighborFinset (e v i) :=
-    (H.mem_neighborFinset _ _).2 ((H.mem_neighborFinset _ _).1 (e v i).2).symm
+    (H.mem_neighborFinset _ _).2 ((H.mem_neighborFinset _ _).1 (e v i).property).symm
   let rot (p : V × Fin d) : V × Fin d := ((e p.1 p.2 : V), (e (e p.1 p.2)).symm ⟨p.1, mem p.1 p.2⟩)
   have hrot : Function.Involutive rot := fun ⟨v, i⟩ ↦ by
     have key (x : V) (hx : x = v) (w : V) (hw : w ∈ H.neighborFinset x) :
@@ -166,11 +166,11 @@ theorem exists_isSimple_toSimpleGraph_eq {H : SimpleGraph V} [H.LocallyFinite] {
     · simp
     · simp
   refine ⟨⟨rot, hrot⟩, ⟨fun v i ↦ ?_, fun v i j h ↦ ?_⟩, ?_⟩
-  · exact H.ne_of_adj ((H.mem_neighborFinset _ _).1 (e v i).2) |>.symm
+  · exact H.ne_of_adj ((H.mem_neighborFinset _ _).1 (e v i).property) |>.symm
   · exact (e v).injective (Subtype.ext h)
   · ext u v
-    refine ⟨fun ⟨_, i, hi⟩ ↦ hi ▸ (H.mem_neighborFinset _ _).1 (e u i).2, fun h ↦ ⟨H.ne_of_adj h,
-      (e u).symm ⟨v, (H.mem_neighborFinset _ _).2 h⟩, ?_⟩⟩
+    refine ⟨fun ⟨_, i, hi⟩ ↦ hi ▸ (H.mem_neighborFinset _ _).1 (e u i).property,
+      fun h ↦ ⟨H.ne_of_adj h, (e u).symm ⟨v, (H.mem_neighborFinset _ _).2 h⟩, ?_⟩⟩
     simp [neighbor, rot]
 
 end Cslib.RotationMap

@@ -258,11 +258,11 @@ theorem sum_wordWeight_le (hp : p.Good) :
   have h₂ : (1 + y⁻¹) ^ p.n ≤ Real.exp y := by
     calc (1 + y⁻¹) ^ p.n ≤ Real.exp y⁻¹ ^ p.n :=
           pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp y⁻¹]) _
-      _ = Real.exp y := by rw [← Real.exp_nat_mul, hyy]; congr 1; field_simp
+      _ = Real.exp y := by rw [← Real.exp_natCast_mul, hyy]; congr 1; field_simp
   have h₃ : (1 + 2 * y / p.n) ^ p.n ≤ Real.exp (2 * y) := by
     calc (1 + 2 * y / p.n) ^ p.n ≤ Real.exp (2 * y / p.n) ^ p.n :=
           pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp (2 * y / p.n)]) _
-      _ = Real.exp (2 * y) := by rw [← Real.exp_nat_mul]; congr 1; field_simp
+      _ = Real.exp (2 * y) := by rw [← Real.exp_natCast_mul]; congr 1; field_simp
   have h₄ : (2 * y) ^ 2 * 2 ≤ Real.exp (4 * y) := by
     nlinarith [Real.quadratic_le_exp_of_nonneg (x := 4 * y) (by positivity)]
   calc ∑ τ : Fin p.n → Bool, p.wordWeight τ

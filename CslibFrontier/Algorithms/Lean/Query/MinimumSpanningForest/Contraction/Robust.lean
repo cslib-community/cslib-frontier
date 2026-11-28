@@ -186,7 +186,7 @@ theorem DynamicDJPTree.rel_treeEdges_filter_of_border {n : ℕ} (D : DynamicDJPT
     rw [Finset.coe_empty, Cslib.Multigraph.joins_empty_iff] at hP_conn
     subst hP_conn
     exact (edgePartition _).refl _
-  · have hP_ne : P.Nonempty := Finset.nonempty_iff_ne_empty.mpr hPe
+  · have hP_ne : P.Nonempty := Finset.ne_empty_iff_nonempty.mp hPe
     let key : Fin D.numSteps → ℕ := fun s => D.wPop s * (D.numSteps + 1) + s.val
     obtain ⟨sStar, hsStar_mem, hsStar_max⟩ := Finset.exists_max_image P key hP_ne
     let A := D.treeVerts sStar.val

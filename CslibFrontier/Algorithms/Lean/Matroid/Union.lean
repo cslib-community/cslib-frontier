@@ -143,8 +143,8 @@ private theorem isUnionIndep_iff_exists_commonIndep [DecidableEq α]
   classical
   constructor
   · rintro ⟨f, hf, hI⟩
-    choose g hg using fun x : {x // x ∈ I} => Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.2)
-    refine ⟨I.attach.image fun x => (g x, x.1), by simp [Finset.image_image, Function.comp_def],
+    choose g hg using fun x : {x // x ∈ I} => Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.property)
+    refine ⟨I.attach.image fun x => (g x, x.val), by simp [Finset.image_image, Function.comp_def],
       ?_, ?_⟩
     · refine Matroid.sum'_indep_iff.2 fun i => (hf i).subset fun x hx => ?_
       rw [Set.mem_preimage, Finset.mem_coe, Finset.mem_image] at hx

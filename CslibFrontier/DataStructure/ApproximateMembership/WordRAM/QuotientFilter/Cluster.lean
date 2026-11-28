@@ -349,7 +349,7 @@ private theorem realizes_writeFull :
     Realizes .exact writeFullProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 < 2) (fun _ _ => 0) := by
   realize; exacts [masked_addr_lt h.1.full_lt,
-    fits_writeBit_newWord (hmem.2 _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
+    fits_writeBit_newWord (hmem.mem_fits _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
     fits_writeBit_diff_sh (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2, h.1.one_lt_two_pow]
 
 /-- Write `isOcc` at slot index `slot &&& d.slotMask` with bit `bit`. -/
@@ -368,7 +368,7 @@ private theorem realizes_writeOcc :
     Realizes .exact writeOccProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 < 2) (fun _ _ => 0) := by
   realize; exacts [masked_addr_lt h.1.occ_lt,
-    fits_writeBit_newWord (hmem.2 _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
+    fits_writeBit_newWord (hmem.mem_fits _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
     fits_writeBit_diff_sh (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2, h.1.one_lt_two_pow]
 
 /-- Write `isRunStart` at slot index `slot &&& d.slotMask` with bit `bit`. -/
@@ -387,7 +387,7 @@ private theorem realizes_writeRunStart :
     Realizes .exact writeRunStartProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 < 2) (fun _ _ => 0) := by
   realize; exacts [masked_addr_lt h.1.run_lt,
-    fits_writeBit_newWord (hmem.2 _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
+    fits_writeBit_newWord (hmem.mem_fits _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
     fits_writeBit_diff_sh (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2, h.1.one_lt_two_pow]
 
 private theorem fits_rem_sh {w idx mask f : ℕ} (hf : f < w) (hm : (mask + 1) * f ≤ w) :
@@ -438,7 +438,7 @@ private theorem realizes_writeRem :
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 ≤ x.1.fMask) (fun _ _ => 0) := by
   realize
   · exact masked_addr_lt h.1.rem_lt
-  · exact Nat.xor_lt_two_pow (hmem.2 _)
+  · exact Nat.xor_lt_two_pow (hmem.mem_fits _)
       (fits_writeRem_diff_sh h.1.remPack_le h.1.fMask_lt_f h.2)
   · exact fits_writeRem_diff_sh h.1.remPack_le h.1.fMask_lt_f h.2
   · exact (fits_rem_sh h.1.f_lt h.1.remPack_le).trans Nat.lt_two_pow_self
@@ -1573,7 +1573,8 @@ private theorem validHistory_writeBit {w : ℕ} {d : ClusterInput} {s : Memory.S
       let oldWord ← Memory.read addr
       Memory.write addr (oldWord ^^^ (((oldWord >>> sh) &&& 1 ^^^ val) <<< sh)))) :=
   have hlt := masked_addr_lt (idx := slot) harr
-  ⟨hlt, ⟨hlt, fits_writeBit_newWord (hwf.2 _) (Nat.and_le_right.trans_lt hcs.pBitMask_lt) hbit⟩,
+  ⟨hlt, ⟨hlt,
+      fits_writeBit_newWord (hwf.mem_fits _) (Nat.and_le_right.trans_lt hcs.pBitMask_lt) hbit⟩,
     trivial⟩
 
 @[local valid_prog]
@@ -1599,7 +1600,7 @@ private theorem validHistory_writeRem {w : ℕ} {s : Memory.State} {x : ClusterI
     (hcs : ClusterSafe w x.1) (hms : ClusterMemSafe w x.1 s) (hval : x.2.2 ≤ x.1.fMask) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeRemProg x)) :=
   have hlt := masked_addr_lt (idx := x.2.1) hms.2.2.2.2
-  ⟨hlt, ⟨hlt, Nat.xor_lt_two_pow (hms.1.2 _)
+  ⟨hlt, ⟨hlt, Nat.xor_lt_two_pow (hms.1.mem_fits _)
     (fits_writeRem_diff_sh hcs.remPack_le hcs.fMask_lt_f hval)⟩, trivial⟩
 
 private abbrev copySlotProg (d : ClusterInput) (src dst next : ℕ) : Memory.Prog ℕ := do

@@ -35,7 +35,7 @@ variable {X Y : Type*}
 
 /-- The additional erasure rate is half the final anchor probability. -/
 noncomputable def noise (α : I) : I :=
-  ⟨(α : ℝ) / 2, by constructor <;> linarith [α.2.1, α.2.2]⟩
+  ⟨(α : ℝ) / 2, by constructor <;> linarith [α.property.1, α.property.2]⟩
 
 /-- The extra erase probability as a real number. -/
 @[simp] theorem coe_noise (α : I) : (noise α : ℝ) = (α : ℝ) / 2 := by
@@ -45,12 +45,12 @@ noncomputable def noise (α : I) : I :=
 /-- The reveal's anchor probability is `(α - η) / (1 - η)` for `η = α / 2`. -/
 noncomputable def messageRate (α : I) : I :=
   ⟨(α : ℝ) / (2 - α), by
-    have hd : 0 < 2 - (α : ℝ) := by linarith [α.2.2]
-    exact ⟨div_nonneg α.2.1 hd.le, (div_le_one hd).mpr (by linarith [α.2.2])⟩⟩
+    have hd : 0 < 2 - (α : ℝ) := by linarith [α.property.2]
+    exact ⟨div_nonneg α.property.1 hd.le, (div_le_one hd).mpr (by linarith [α.property.2])⟩⟩
 
 private theorem coin_messageRate_or_noise (α : I) :
     (coin (messageRate α)).bind (fun i => (coin (noise α)).map fun k => i || k) = coin α := by
-  have h := α.2.2
+  have h := α.property.2
   have hd : (2 : ℝ) - α ≠ 0 := by linarith
   ext b
   apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp

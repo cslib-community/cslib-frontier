@@ -26,7 +26,7 @@ namespace Cslib.Complexity.Graph.RotationCertificate
 canonical table. This includes singleton vertex cycles and requires an actual dart. -/
 theorem idxOf_ofRotation {G : Graph} (r : RotationSystem G) (d : Dart G) :
     (ofRotation r).successor.idxOf d.index = (r.rotate.symm d).index := by
-  have hi : Function.Injective (fun i : Fin (2 * G.2.length) =>
+  have hi : Function.Injective (fun i : Fin (2 * G.edges.length) =>
       (r.rotate ((Dart.indexEquiv G).symm i)).index) := by
     intro i j he
     apply (Dart.indexEquiv G).symm.injective

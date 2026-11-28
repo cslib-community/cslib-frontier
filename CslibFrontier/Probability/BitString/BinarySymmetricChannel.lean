@@ -135,7 +135,7 @@ theorem bsc_apply_toReal_anti (p : I) (hp : (p : ℝ) ≤ 1 / 2) {x x' y : ι �
   rw [bsc_apply_toReal, bsc_apply_toReal]
   obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le h
   obtain ⟨l, hl⟩ := Nat.exists_eq_add_of_le (hammingDist_le_card_fintype (x := x') (y := y))
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
   have hpq : (p : ℝ) ≤ 1 - p := by linarith
   rw [hl, Nat.add_sub_cancel_left, hk, show hammingDist x y + k + l - hammingDist x y = k + l by
     omega, pow_add, pow_add]
@@ -163,10 +163,11 @@ theorem bscNoise_toOuterMeasure_lt_weight_toReal_le (p : I) {r : ℕ}
     ((bscNoise p).toOuterMeasure {e : ι → Bool | r < weight e}).toReal ≤
       Real.exp (-2 * (r + 1 - Fintype.card ι * (p : ℝ)) ^ 2 / Fintype.card ι) := by
   rw [bscNoise_toOuterMeasure_lt_weight_toReal]
-  have hp1 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr p.2.2
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
+  have hp1 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr p.property.2
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
   refine (sum_le_sum_of_subset_of_nonneg (fun k hk => ?_) fun k _ _ => by positivity).trans
-    (sum_filter_le_sub_choose_mul_pow_le (Fintype.card ι) p.2.1 p.2.2 (sub_nonneg.mpr hr))
+    (sum_filter_le_sub_choose_mul_pow_le (Fintype.card ι) p.property.1 p.property.2
+      (sub_nonneg.mpr hr))
   obtain ⟨hk, hrk⟩ := mem_filter.mp hk
   refine mem_filter.mpr ⟨hk, ?_⟩
   have : (r + 1 : ℝ) ≤ k := by exact_mod_cast hrk
@@ -214,7 +215,8 @@ theorem decodingError_nonneg (p : I) (E : M → ι → Bool) (D : (ι → Bool) 
   classical
   rw [decodingError_eq_bernoulliAverage]
   simpa only [bernoulliAverage_const] using
-    bernoulliAverage_mono p.2.1 p.2.2 (f := fun _ => 0) fun e => by split_ifs <;> norm_num
+    bernoulliAverage_mono p.property.1 p.property.2 (f := fun _ => 0) fun e => by
+      split_ifs <;> norm_num
 
 omit [DecidableEq ι] in
 /-- Error probabilities are at most one. -/
@@ -223,7 +225,8 @@ theorem decodingError_le_one (p : I) (E : M → ι → Bool) (D : (ι → Bool) 
   classical
   rw [decodingError_eq_bernoulliAverage]
   simpa only [bernoulliAverage_const] using
-    bernoulliAverage_mono p.2.1 p.2.2 (g := fun _ => 1) fun e => by split_ifs <;> norm_num
+    bernoulliAverage_mono p.property.1 p.property.2 (g := fun _ => 1) fun e => by
+      split_ifs <;> norm_num
 
 omit [DecidableEq ι] in
 /-- **Flipping every received bit turns `BSC_p` into `BSC_{1 - p}`**: a decoder `D` errs on `BSC_p`

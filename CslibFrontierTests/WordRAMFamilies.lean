@@ -158,12 +158,18 @@ example {α : Type} [Nonempty α] (A : Set α) (encode : ℕ → α → List ℕ
   obtain ⟨_, n, he, hn, _⟩ := hp a w hw hfit
   exact (Nat.not_lt_of_ge hn) he.pos
 
-/-- info: 'Cslib.WordRAM.UniformDecidableInTime.decidableInTime' depends on axioms: [propext] -/
-#guard_msgs in
+/--
+info: 'Cslib.WordRAM.UniformDecidableInTime.decidableInTime' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms Cslib.WordRAM.UniformDecidableInTime.decidableInTime
 
-/-- info: 'Cslib.WordRAM.UniformDecidableInO.decidableInO' depends on axioms: [propext] -/
-#guard_msgs in
+/--
+info: 'Cslib.WordRAM.UniformDecidableInO.decidableInO' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms Cslib.WordRAM.UniformDecidableInO.decidableInO
 
 end CslibFrontierTests.WordRAMFamilies

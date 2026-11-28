@@ -96,7 +96,7 @@ theorem card_filter_holds_seenAt (x : ℕ) (p : Fin (A + A')) :
   · refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
     simp only [init_mem_seenAt, UnitId.holds_init]
     by_cases hp : p = Fin.castAdd A' a ∨ p = Fin.castAdd A' b <;>
-      simp [hp, Fin.card_filter_val_lt, Nat.le_of_lt_succ (n a b).2]
+      simp [hp, Fin.card_filter_val_lt, Nat.le_of_lt_succ (n a b).isLt]
   · refine sum_congr rfl fun ν _ => ?_
     have hne : M.channelParty ν false ≠ M.channelParty ν true := fun h =>
       (M.law ν.1).channelEnd_ne ν.2 (M.party_injective ν.1 h)
@@ -263,7 +263,7 @@ private theorem jointTable_end : jointTable P n o init E = fun y =>
     rw [prod_comm, Fintype.prod_sigma]
     exact congrArg _ (prod_congr rfl fun x _ => prod_congr rfl fun p _ =>
       Fintype.prod_ite_eq (M.party x p) fun a => roleTableAt P n o ⟨x, p⟩ (y a))
-  rw [jointTable, filter_true_of_mem fun x' _ => x'.2, h]
+  rw [jointTable, filter_true_of_mem fun x' _ => x'.isLt, h]
   simp only [moveTable, prod_ite_zero, mem_univ, forall_true_left, mul_ite, mul_zero]
 
 /-- The joint weight before the move `x` depends on the outcomes of earlier moves only. -/

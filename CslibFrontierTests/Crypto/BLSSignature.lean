@@ -64,25 +64,25 @@ open scoped ENNReal NNReal
 
 /-- Canonical decoder for `primeFields`: accepts `w` iff it equals the canonical binary encoding of
 its reduced residue modulo `p.1`. -/
-private def primeDecode (p : PrimeDesc) (w : List Bool) : Option (ZMod p.1) :=
-  if w == ((ofBits w % p.1).bits) then some (ofBits w : ZMod p.1) else none
+private def primeDecode (p : PrimeDesc) (w : List Bool) : Option (ZMod p.val) :=
+  if w == ((ofBits w % p.val).bits) then some (ofBits w : ZMod p.val) else none
 
-private theorem primeDecode_encode (p : PrimeDesc) (x : ZMod p.1) :
+private theorem primeDecode_encode (p : PrimeDesc) (x : ZMod p.val) :
     primeDecode p (primeFields.encode p x) = some x := by
-  have : NeZero p.1 := ⟨p.2.ne_zero⟩
-  have hxlt : x.val < p.1 := ZMod.val_lt x
+  have : NeZero p.val := ⟨p.property.ne_zero⟩
+  have hxlt : x.val < p.val := ZMod.val_lt x
   simp only [primeDecode, ofBits_bits, Nat.mod_eq_of_lt hxlt, beq_self_eq_true,
     ↓reduceIte, ZMod.natCast_zmod_val]
 
-private theorem primeEncode_eq_of_decode_eq_some {p : PrimeDesc} {w : List Bool} {x : ZMod p.1}
+private theorem primeEncode_eq_of_decode_eq_some {p : PrimeDesc} {w : List Bool} {x : ZMod p.val}
     (h : primeDecode p w = some x) : w = primeFields.encode p x := by
-  have : NeZero p.1 := ⟨p.2.ne_zero⟩
+  have : NeZero p.val := ⟨p.property.ne_zero⟩
   simp only [primeDecode] at h
   split at h
   · rename_i heq
     rw [Option.some.injEq] at h
-    have hw : w = (ofBits w % p.1).bits := beq_iff_eq.mp heq
-    have hval : x.val = ofBits w % p.1 := by
+    have hw : w = (ofBits w % p.val).bits := beq_iff_eq.mp heq
+    have hval : x.val = ofBits w % p.val := by
       rw [← h, ZMod.val_natCast]
     simpa only [primeFields, hval] using hw
   · cases h
@@ -95,13 +95,13 @@ private theorem computableInPolyTime_primeIsElem :
   have h2 : ComputableInPolyTime (fun p : PrimeDesc × List Bool => p.2)
       (encPair encPrime encBits) encBits := by fun_prop
   have hmodBits :
-      ComputableInPolyTime (fun p : PrimeDesc × List Bool => ((ofBits p.2 % p.1.1).bits))
+      ComputableInPolyTime (fun p : PrimeDesc × List Bool => ((ofBits p.2 % p.1.val).bits))
         (encPair encPrime encBits) encBits :=
     ((Decoder.nat.computableInPolyTime.comp h2).binary_mod'
       (computableInPolyTime_val.comp h1)).encoding_comp
   refine (h2.beq hmodBits).of_enc_eq fun p => ?_
   dsimp only [primeDecode]
-  cases hbeq : p.2 == ((ofBits p.2 % p.1.1).bits) <;> simp
+  cases hbeq : p.2 == ((ofBits p.2 % p.1.val).bits) <;> simp
 
 /-- `primeFields` equipped with its canonical bit-string decoder and polynomial-time membership
 test. -/
@@ -113,17 +113,17 @@ private abbrev primeDecodableFields : DecodablePrimeOrderGroupFamily where
   computableInPolyTime_isElem := computableInPolyTime_primeIsElem
 
 private def primePairEncoded : PrimeDesc × List Bool × List Bool → List Bool
-  | (p, x, y) => ((ofBits x * ofBits y) % p.1).bits
+  | (p, x, y) => ((ofBits x * ofBits y) % p.val).bits
 
 /-- Symmetric decodable pairing family over `ZMod p` (`G₀ = G₁ = GT = ZMod p` with generator `1`
 and pairing `(u, v) ↦ u * v`). -/
 private abbrev primeDecodablePairing : DecodablePairingGroupFamily :=
   DecodablePairingGroupFamily.ofDecodable primeDecodableFields primeFields.self primeFields.self
-    (fun d => LinearMap.mul (ZMod d.1) (ZMod d.1))
+    (fun d => LinearMap.mul (ZMod d.val) (ZMod d.val))
     (fun _ => by simp [primeDecodableFields, primeFields, self])
     primePairEncoded
     (fun p u v => by
-      have : NeZero p.1 := ⟨p.2.ne_zero⟩
+      have : NeZero p.val := ⟨p.property.ne_zero⟩
       simp [primePairEncoded, primeFields, self, primeDecodableFields, ofBits_bits, ZMod.val_mul])
     (by
       have hp := ComputableInPolyTime.id' (encIn := encDescBitsPair encPrime)
@@ -310,7 +310,7 @@ private theorem polynomiallyBounded_bertrandPrime :
 
 private instance instFintypePrimeCarrier (p : PrimeDesc) :
     Fintype (primeDecodablePairing.G₀.Carrier p) :=
-  @ZMod.fintype p.1 ⟨p.2.ne_zero⟩
+  @ZMod.fintype p.val ⟨p.property.ne_zero⟩
 
 -- Discharging parameter bounds with Bertrand primes leaves only the co-CDH assumption for
 -- `[BonehShoup2023]` Theorem 15.1 (which itself fails on `primeFields`, so this checks consistency

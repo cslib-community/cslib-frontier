@@ -45,12 +45,12 @@ complexity is `1`. -/
 theorem empiricalRademacherComplexity_pm : empiricalRademacherComplexity pm ![()] = 1 := by
   have : Nonempty pm := ⟨⟨fun _ => 1, Or.inl rfl⟩⟩
   have hbdd (σ : Fin 1 → Bool) := bddAbove_range_expect_signVal_mul
-    (fun (f : pm) i => (f : Unit → ℝ) (![()] i)) (fun f _ => abs_le_one_of_mem_pm f.2 _) σ
+    (fun (f : pm) i => (f : Unit → ℝ) (![()] i)) (fun f _ => abs_le_one_of_mem_pm f.property _) σ
   have h (σ : Fin 1 → Bool) :
       ⨆ f : pm, 𝔼 i, signVal (σ i) * (f : Unit → ℝ) (![()] i) = 1 := by
     refine le_antisymm (ciSup_le fun f => ?_) ?_
     · have hs := abs_le.1 (abs_signVal (σ 0)).le
-      rcases f.2 with hf | hf
+      rcases f.property with hf | hf
       · simp [hf, hs.2]
       · rw [Set.mem_singleton_iff] at hf
         simp only [hf, Matrix.cons_val_fin_one, mul_neg, mul_one, Finset.univ_unique,

@@ -31,10 +31,10 @@ open Equiv
 of the original graph, retaining every old edge position. The bit on the removed edge is
 constructed from face-dart potentials; no lifting or embedding provider is a premise. -/
 theorem exists_faceEven_extension_deleteLastEdge {G : Graph} {u v : ℕ}
-    (r : RotationSystem (lastEdgeGraph G u v)) (x : Fin G.2.length → Bool)
+    (r : RotationSystem (lastEdgeGraph G u v)) (x : Fin G.edges.length → Bool)
     (hx : r.deleteLastEdge.FaceEven x) :
-    ∃ y : Fin (lastEdgeGraph G u v).2.length → Bool, r.FaceEven y ∧
-      ∀ i : Fin G.2.length, y (retainedLastEdgeDart G u v (i, false)).1 = x i := by
+    ∃ y : Fin (lastEdgeGraph G u v).edges.length → Bool, r.FaceEven y ∧
+      ∀ i : Fin G.edges.length, y (retainedLastEdgeDart G u v (i, false)).1 = x i := by
   obtain ⟨p, hp⟩ := r.deleteLastEdge.exists_facePotential_of_faceEven x hx
   let e := lastEdgeDartEquiv G u v
   let f := e.permCongr r.faceNext
@@ -61,16 +61,16 @@ theorem exists_faceEven_extension_deleteLastEdge {G : Graph} {u v : ℕ}
   have hrestore (z : Option (Option (Dart G))) : f z = g (swap (some none) none z) := by
     simp only [g, Perm.coe_mul, Function.comp_apply, swap_apply_self]
   let bit := P (some none) ^^ P none
-  let y (i : Fin (lastEdgeGraph G u v).2.length) : Bool :=
-    if h : i.val < G.2.length then x ⟨i.val, h⟩ else bit
+  let y (i : Fin (lastEdgeGraph G u v).edges.length) : Bool :=
+    if h : i.val < G.edges.length then x ⟨i.val, h⟩ else bit
   have hyOuter : y (e.symm none).1 = bit := by
-    change (if _ : G.2.length < G.2.length then _ else bit) = bit
+    change (if _ : G.edges.length < G.edges.length then _ else bit) = bit
     rw [dite_eq_right (Nat.lt_irrefl _)]
   have hyInner : y (e.symm (some none)).1 = bit := by
-    change (if _ : G.2.length < G.2.length then _ else bit) = bit
+    change (if _ : G.edges.length < G.edges.length then _ else bit) = bit
     rw [dite_eq_right (Nat.lt_irrefl _)]
   have hyOld (a : Dart G) : y (e.symm (some (some a))).1 = x a.1 := by
-    change (if h : a.1.val < G.2.length then x ⟨a.1.val, h⟩ else bit) = x a.1
+    change (if h : a.1.val < G.edges.length then x ⟨a.1.val, h⟩ else bit) = x a.1
     rw [dite_eq_left a.1.isLt]
   refine ⟨y, ?_, fun i => hyOld (i, false)⟩
   apply r.faceEven_of_facePotential y (fun d => P (e d))

@@ -84,7 +84,7 @@ theorem add {f g : MvPolynomial σ ℝ} (hf : IsMultilinear f) (hg : IsMultiline
 
 theorem neg {f : MvPolynomial σ ℝ} (hf : IsMultilinear f) : IsMultilinear (-f) := by
   intro m hm
-  rw [mem_support_iff, coeff_neg, neg_ne_zero, ← mem_support_iff] at hm
+  rw [MvPolynomial.support_neg] at hm
   exact hf m hm
 
 theorem sub {f g : MvPolynomial σ ℝ} (hf : IsMultilinear f) (hg : IsMultilinear g) :

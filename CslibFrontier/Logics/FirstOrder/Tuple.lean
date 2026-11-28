@@ -53,7 +53,7 @@ theorem tupleIndex_apply {n k : ℕ} (x : Fin k → Fin n) :
 
 /-- Every `k`-tuple over `Fin n` has `tupleIndex` strictly less than `n ^ k`. -/
 theorem tupleIndex_lt {n k : ℕ} (x : Fin k → Fin n) : tupleIndex x < n ^ k :=
-  (finFunctionFinEquiv x).2
+  (finFunctionFinEquiv x).isLt
 
 /-- `tupleIndex` is injective. -/
 theorem tupleIndex_injective {n k : ℕ} : Function.Injective (tupleIndex (n := n) (k := k)) :=

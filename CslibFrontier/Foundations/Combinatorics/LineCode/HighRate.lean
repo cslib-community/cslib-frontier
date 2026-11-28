@@ -132,7 +132,7 @@ theorem exists_lineCode [DecidableEq K] [CharP K 2] (h m : ℕ) (hℓ : ℓ ≤ 
   classical
   -- The retained monomials, indexed by digit matrices with a zero column.
   let e : {D : Fin m → Fin ℓ → Fin (2 ^ h) // ∃ j, D j = 0} → Fin ℓ → ℕ :=
-    fun D i => finFunctionFinEquiv fun k => D.1 k i
+    fun D i => finFunctionFinEquiv fun k => D.val k i
   have he : Function.Injective e := fun D D' hD => Subtype.ext <| funext fun k => funext fun i =>
     congrFun (finFunctionFinEquiv.injective (Fin.ext (congrFun hD i))) k
   have hlt (D) (i) : e D i < Fintype.card K := by
@@ -141,8 +141,8 @@ theorem exists_lineCode [DecidableEq K] [CharP K 2] (h m : ℕ) (hℓ : ℓ ≤ 
   obtain ⟨C, hC⟩ := exists_card_info_eq_of_linearIndependent
     (fun D (x : Fin ℓ → K) => ∏ i, x i ^ e D i) (FiniteField.linearIndependent_prod_pow e he hlt)
     fun D u v _ => by
-      obtain ⟨j, hj⟩ := D.2
-      have hline := sum_prod_digits_eq_zero hℓ hK D.1 hj u v
+      obtain ⟨j, hj⟩ := D.property
+      have hline := sum_prod_digits_eq_zero hℓ hK D.val hj u v
       rw [← Finset.add_sum_erase _ _ (mem_univ 0), CharTwo.add_eq_zero] at hline
       simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, zero_mul, add_zero] at hline ⊢
       exact hline.symm

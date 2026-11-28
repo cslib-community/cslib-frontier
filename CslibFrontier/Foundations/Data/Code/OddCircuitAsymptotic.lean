@@ -251,7 +251,7 @@ theorem exists_parityCheckCode_of_fourierBounds {ε : ℝ} (hε : 0 < ε) (hε2 
     intro i hi; simp only [mem_Ico, mem_range] at hi ⊢; omega
   have hV2n : (#B : ℝ) ≤ 2 ^ n := by
     refine hVexp.trans ?_
-    rw [← exp_log (by norm_num : (0 : ℝ) < 2), ← exp_nat_mul]
+    rw [← exp_log (by norm_num : (0 : ℝ) < 2), ← exp_natCast_mul]
     gcongr
     exact binEntropy_le_log_two
   have hR : δ * n ≤ n * log 2 - log #B := by

@@ -198,7 +198,7 @@ private theorem card_filter_ofBits_mod_mem_le {k N : ℕ} (hN : 0 < N) (S : Fins
           simp only [Finset.coe_filter, Finset.mem_filter, Finset.mem_univ, true_and,
             Set.mem_ofPred_eq] at hr
           simp only [Finset.coe_filter, Finset.mem_range, Set.mem_ofPred_eq, ofBits_ofFn]
-          refine ⟨(BitString.equivFin k r).2, ?_⟩
+          refine ⟨(BitString.equivFin k r).isLt, ?_⟩
           rw [← ofBits_ofFn r, Nat.ModEq, ← hr.2, Nat.mod_mod]
         · exact fun r _ r' _ h => (BitString.equivFin k).injective
             (Fin.ext (by simpa only [ofBits_ofFn] using h))

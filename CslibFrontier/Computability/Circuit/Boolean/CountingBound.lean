@@ -31,7 +31,7 @@ union bounds over small circuits need.
 ## Main results
 
 * `Cslib.Circuits.Boolean.card_computableFunctions_le_two_pow`:
-  `(computableFunctions n s).card ≤ 2 ^ computableFunctionsLogBound n s`.
+  `(computableFunctions n s).ncard ≤ 2 ^ computableFunctionsLogBound n s`.
 * `Cslib.Circuits.Boolean.computableFunctionsLogBound_le_poly`: the exponent is at most
   `(s + 1) (2 (n + s + 1) + 3)`.
 * `Cslib.Circuits.Boolean.card_computableFunctions_two_pow_div_five_mul_le`: for `n ≥ 16`, at most
@@ -48,7 +48,7 @@ public section
 
 namespace Cslib.Circuits.Boolean
 
-/-- An explicit `s log(n + s)` upper bound on `log₂ (computableFunctions n s).card`, derived from
+/-- An explicit `s log(n + s)` upper bound on `log₂ (computableFunctions n s).ncard`, derived from
 `card_computableFunctions_mul_factorial_le`. -/
 @[expose] def computableFunctionsLogBound (n s : ℕ) : ℕ :=
   (s + 1) * (2 * Nat.clog 2 (n + s + 1) + 3)
@@ -56,7 +56,7 @@ namespace Cslib.Circuits.Boolean
 /-- The number of `n`-input Boolean functions of De Morgan circuit complexity at most `s` is at most
 `2 ^ computableFunctionsLogBound n s`. -/
 theorem card_computableFunctions_le_two_pow (n s : ℕ) :
-    (computableFunctions n s).card ≤ 2 ^ computableFunctionsLogBound n s := by
+    (computableFunctions n s).ncard ≤ 2 ^ computableFunctionsLogBound n s := by
   set L := Nat.clog 2 (n + s + 1)
   have hns : n + s + 1 ≤ 2 ^ L := Nat.le_pow_clog (by decide) (n + s + 1)
   have hs1 : s + 1 ≤ 2 ^ L := (by omega : s + 1 ≤ n + s + 1).trans hns
@@ -76,8 +76,8 @@ theorem card_computableFunctions_le_two_pow (n s : ℕ) :
         ≤ 2 ^ L * 2 ^ L := Nat.mul_le_mul hs1 hns0
       _ = 2 ^ (2 * L) := by rw [← pow_add, two_mul]
       _ ≤ 2 ^ (2 * L + 3) := Nat.pow_le_pow_right (by decide) (by omega)
-  calc (computableFunctions n s).card
-      ≤ (computableFunctions n s).card * s.factorial :=
+  calc (computableFunctions n s).ncard
+      ≤ (computableFunctions n s).ncard * s.factorial :=
         Nat.le_mul_of_pos_right _ (Nat.factorial_pos s)
     _ ≤ (s + 1) * (5 * (n + s + 1) ^ 2) ^ s * (n + s) :=
         card_computableFunctions_mul_factorial_le n s
@@ -119,9 +119,9 @@ fails (at `n = 100`, `3 s log₂ s ≈ 0.27 · 2 ^ n`), but any bound `2 ^ (c ·
 proves the theorem. Here the factorial count `card_computableFunctions_mul_factorial_le` gives
 `c = 1 / 4`. -/
 theorem card_computableFunctions_two_pow_div_five_mul_le {n : ℕ} (hn : 16 ≤ n) :
-    (computableFunctions n (2 ^ n / (5 * n))).card ≤ 2 ^ (2 ^ n / 4) := by
+    (computableFunctions n (2 ^ n / (5 * n))).ncard ≤ 2 ^ (2 ^ n / 4) := by
   set s := 2 ^ n / (5 * n)
-  set c := (computableFunctions n s).card
+  set c := (computableFunctions n s).ncard
   have h64 := mul_sq_le_two_pow hn
   have hsn : 5 * n * s ≤ 2 ^ n := Nat.mul_div_le _ _
   have hs : n + 1 ≤ s := (Nat.le_div_iff_mul_le (by omega)).mpr (by nlinarith)

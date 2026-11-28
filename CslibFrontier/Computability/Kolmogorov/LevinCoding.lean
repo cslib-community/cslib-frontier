@@ -94,7 +94,7 @@ namespace DescriptionMethod
 /-- Algorithmic (*a priori*) probability `m_M(x) = ∑' {p // M.Produces p x}, 2⁻¹ ^ |p|`
 [LiVitanyi2019]. -/
 @[expose] noncomputable def universalProb {α : Type*} (M : DescriptionMethod α) (x : α) : ℝ :=
-  ∑' p : {p : List Bool // M.Produces p x}, (2 : ℝ)⁻¹ ^ p.1.length
+  ∑' p : {p : List Bool // M.Produces p x}, (2 : ℝ)⁻¹ ^ p.val.length
 
 theorem universalProb_nonneg {α : Type*} (M : DescriptionMethod α) (x : α) :
     0 ≤ M.universalProb x :=
@@ -102,17 +102,17 @@ theorem universalProb_nonneg {α : Type*} (M : DescriptionMethod α) (x : α) :
 
 theorem IsPrefixFree.summable_universalProb_program {α : Type*} {M : DescriptionMethod α}
     (hM : M.IsPrefixFree) (x : α) :
-    Summable fun p : {p : List Bool // M.Produces p x} => (2 : ℝ)⁻¹ ^ p.1.length := by
-  let f : {p : List Bool // M.Produces p x} → M.haltingSet := fun p => ⟨p.1, x, p.2⟩
+    Summable fun p : {p : List Bool // M.Produces p x} => (2 : ℝ)⁻¹ ^ p.val.length := by
+  let f : {p : List Bool // M.Produces p x} → M.haltingSet := fun p => ⟨p.val, x, p.property⟩
   have hf : Function.Injective f := fun _ _ hab =>
-    Subtype.ext (congrArg (fun z : M.haltingSet => z.1) hab)
+    Subtype.ext (congrArg (fun z : M.haltingSet => z.val) hab)
   exact hM.summable_two_inv_pow_length.comp_injective hf
 
 theorem IsPrefixFree.universalProb_le_chaitinOmega {α : Type*} {M : DescriptionMethod α}
     (hM : M.IsPrefixFree) (x : α) : M.universalProb x ≤ M.chaitinOmega := by
-  let f : {p : List Bool // M.Produces p x} → M.haltingSet := fun p => ⟨p.1, x, p.2⟩
+  let f : {p : List Bool // M.Produces p x} → M.haltingSet := fun p => ⟨p.val, x, p.property⟩
   have hf : Function.Injective f := fun _ _ h =>
-    Subtype.ext (congrArg (fun z : M.haltingSet => z.1) h)
+    Subtype.ext (congrArg (fun z : M.haltingSet => z.val) h)
   exact (hM.summable_universalProb_program x).tsum_le_tsum_of_inj f hf
     (fun _ _ => by positivity) (fun _ => le_rfl) hM.summable_two_inv_pow_length
 
@@ -128,8 +128,8 @@ private theorem sigma_subtype_ext {α β : Type*} {P : α → β → Prop}
 
 private noncomputable def haltingSigmaEquiv {α : Type*} (M : DescriptionMethod α) :
     (x : α) × {p : List Bool // M.Produces p x} ≃ M.haltingSet where
-  toFun xp := ⟨xp.2.1, xp.1, xp.2.2⟩
-  invFun q := ⟨q.2.choose, q.1, q.2.choose_spec⟩
+  toFun xp := ⟨xp.2.val, xp.1, xp.2.property⟩
+  invFun q := ⟨q.property.choose, q.val, q.property.choose_spec⟩
   left_inv xp := by
     rcases xp with ⟨x, ⟨p, hp⟩⟩
     exact sigma_subtype_ext (P := fun x p => M.Produces p x)
@@ -141,7 +141,7 @@ private noncomputable def haltingSigmaEquiv {α : Type*} (M : DescriptionMethod 
 private theorem summable_haltingSigmaEquiv {α : Type*} {M : DescriptionMethod α}
     (hM : M.IsPrefixFree) :
     Summable fun xp : (x : α) × {p : List Bool // M.Produces p x} =>
-      (2 : ℝ)⁻¹ ^ xp.2.1.length :=
+      (2 : ℝ)⁻¹ ^ xp.2.val.length :=
   (Equiv.summable_iff (haltingSigmaEquiv M)).mpr hM.summable_two_inv_pow_length
 
 theorem IsPrefixFree.summable_universalProb {α : Type*} {M : DescriptionMethod α}
@@ -155,10 +155,10 @@ theorem IsPrefixFree.tsum_universalProb_eq_chaitinOmega {α : Type*} {M : Descri
     (hM : M.IsPrefixFree) : ∑' x : α, M.universalProb x = M.chaitinOmega := by
   classical
   calc ∑' x : α, M.universalProb x
-      = ∑' xp : (x : α) × {p : List Bool // M.Produces p x}, (2 : ℝ)⁻¹ ^ xp.2.1.length :=
+      = ∑' xp : (x : α) × {p : List Bool // M.Produces p x}, (2 : ℝ)⁻¹ ^ xp.2.val.length :=
         ((summable_haltingSigmaEquiv hM).tsum_sigma'
           (fun x => hM.summable_universalProb_program x)).symm
-    _ = M.chaitinOmega := (haltingSigmaEquiv M).tsum_eq fun q => (2 : ℝ)⁻¹ ^ q.1.length
+    _ = M.chaitinOmega := (haltingSigmaEquiv M).tsum_eq fun q => (2 : ℝ)⁻¹ ^ q.val.length
 
 private def natPairSigmaEquiv : (Σ _ : ℕ, ℕ) ≃ ℕ where
   toFun xy := Nat.pair xy.1 xy.2
@@ -403,7 +403,7 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
     {flt : β → ℕ → Bool} (hflt : Primrec₂ flt) :
     IsLowerSemicomputable fun b : β =>
       ∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ flt b y = true},
-        (2 : ℝ)⁻¹ ^ p.1.length := by
+        (2 : ℝ)⁻¹ ^ p.val.length := by
   let L : β → ℕ → List (List Bool) := fun b n =>
     ((codeProgramTable c n).filter fun qy => flt b qy.2).map Prod.fst
   have hL : Primrec fun bx : β × ℕ => L bx.1 bx.2 :=
@@ -431,13 +431,14 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
       positivity
   have htend : ∀ b, Tendsto (fun n => (num b n : ℝ) / (den b n : ℝ)) atTop
       (𝓝 (∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ flt b y = true},
-        (2 : ℝ)⁻¹ ^ p.1.length)) := by
+        (2 : ℝ)⁻¹ ^ p.val.length)) := by
     intro b
     let S := {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ flt b y = true}
-    let embS : S → (ofCode c).haltingSet := fun p => ⟨p.1, p.2.choose, p.2.choose_spec.1⟩
+    let embS : S → (ofCode c).haltingSet :=
+      fun p => ⟨p.val, p.property.choose, p.property.choose_spec.1⟩
     have hembS : Function.Injective embS := fun _ _ h =>
-      Subtype.ext (congrArg (fun z : (ofCode c).haltingSet => z.1) h)
-    have hs : Summable fun p : S => (2 : ℝ)⁻¹ ^ p.1.length :=
+      Subtype.ext (congrArg (fun z : (ofCode c).haltingSet => z.val) h)
+    have hs : Summable fun p : S => (2 : ℝ)⁻¹ ^ p.val.length :=
       hpf.summable_two_inv_pow_length.comp_injective hembS
     have hsub_fin : ∀ n, ((L b n).toFinset : Set (List Bool)) ⊆
         {p : List Bool | ∃ y, (ofCode c).Produces p y ∧ flt b y = true} := by
@@ -456,15 +457,15 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
         exact List.Sublist.map Prod.fst List.filter_sublist
       exact (List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) hnodup).symm
     have hle_tsum : ∀ n, (num b n : ℝ) / (den b n : ℝ) ≤
-        ∑' p : S, (2 : ℝ)⁻¹ ^ p.1.length := by
+        ∑' p : S, (2 : ℝ)⁻¹ ^ p.val.length := by
       intro n
       rw [hsum_eq n]
       classical
       let fEmbed : {w : List Bool // w ∈ (L b n).toFinset} ↪ S :=
-        ⟨fun x => ⟨x.1, hsub_fin n x.2⟩,
-          fun _ _ h => Subtype.ext (congrArg (fun z : S => z.1) h)⟩
+        ⟨fun x => ⟨x.val, hsub_fin n x.property⟩,
+          fun _ _ h => Subtype.ext (congrArg (fun z : S => z.val) h)⟩
       let F : Finset S := (L b n).toFinset.attach.map fEmbed
-      have hF : ∑ p ∈ F, (2 : ℝ)⁻¹ ^ p.1.length =
+      have hF : ∑ p ∈ F, (2 : ℝ)⁻¹ ^ p.val.length =
           ∑ w ∈ (L b n).toFinset, (2 : ℝ)⁻¹ ^ w.length := by
         rw [Finset.sum_map]
         exact Finset.sum_attach (L b n).toFinset fun w => (2 : ℝ)⁻¹ ^ w.length
@@ -472,11 +473,11 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
       exact hs.sum_le_tsum F fun _ _ => by positivity
     rw [Metric.tendsto_atTop]
     intro ε hε
-    obtain ⟨F₀, hF₀⟩ : ∃ F₀ : Finset S, (∑' p : S, (2 : ℝ)⁻¹ ^ p.1.length) - ε <
-        ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length := by
+    obtain ⟨F₀, hF₀⟩ : ∃ F₀ : Finset S, (∑' p : S, (2 : ℝ)⁻¹ ^ p.val.length) - ε <
+        ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.val.length := by
       by_contra! hall
       linarith [hs.tsum_le_of_sum_le hall]
-    have hex_n : ∀ p : S, ∃ n, p.1 ∈ L b n := fun ⟨p, y, hp, hy⟩ =>
+    have hex_n : ∀ p : S, ∃ n, p.val ∈ L b n := fun ⟨p, y, hp, hy⟩ =>
       let ⟨n, hn⟩ := produces_iff_exists_mem_codeProgramTable.mp hp
       ⟨n, List.mem_map.mpr ⟨(p, y), List.mem_filter.mpr ⟨hn, hy⟩, rfl⟩⟩
     classical
@@ -487,7 +488,7 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
         have hm := Nat.find_spec (hex_n p)
         dsimp only [L] at hm ⊢
         exact List.mem_toFinset.mpr (by simp [← ht, List.filter_append, hm])
-    have hle_approx : ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length ≤ (num b n : ℝ) / (den b n : ℝ) := by
+    have hle_approx : ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.val.length ≤ (num b n : ℝ) / (den b n : ℝ) := by
       rw [← Finset.sum_image (f := fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length)
         fun _ _ _ _ h => Subtype.ext h, hsum_eq n]
       exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
@@ -516,18 +517,18 @@ theorem isLowerSemicomputable_universalProb_of_partrec_eval {α : Type*} [Primco
   refine (isLowerSemicomputable_code_filtered hpf_c hflt).of_eq fun ⟨x, a, b⟩ => ?_
   have heq : M.universalProb x =
       ∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ decide (y = encode x) = true},
-        (2 : ℝ)⁻¹ ^ p.1.length := by
+        (2 : ℝ)⁻¹ ^ p.val.length := by
     let e : {p : List Bool // M.Produces p x} ≃
         {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ decide (y = encode x) = true} :=
-      { toFun p := ⟨p.1, encode x, (hcode_eq p.1 (encode x)).mpr ⟨x, rfl, p.2⟩, by simp⟩
-        invFun p := ⟨p.1, by
-          obtain ⟨y, hy, hyx⟩ := p.2
-          obtain ⟨x', rfl, hx'⟩ := (hcode_eq p.1 y).mp hy
+      { toFun p := ⟨p.val, encode x, (hcode_eq p.val (encode x)).mpr ⟨x, rfl, p.property⟩, by simp⟩
+        invFun p := ⟨p.val, by
+          obtain ⟨y, hy, hyx⟩ := p.property
+          obtain ⟨x', rfl, hx'⟩ := (hcode_eq p.val y).mp hy
           simp only [decide_eq_true_eq] at hyx
           rwa [encode_injective hyx] at hx'⟩
         left_inv _ := rfl
         right_inv _ := rfl }
-    exact e.tsum_eq fun p => (2 : ℝ)⁻¹ ^ p.1.length
+    exact e.tsum_eq fun p => (2 : ℝ)⁻¹ ^ p.val.length
   change _ ↔ (a : ℝ) / ((b + 1 : ℕ) : ℝ) < M.universalProb x
   rw [heq]
 
@@ -560,10 +561,10 @@ theorem isLowerSemicomputable_universalProb_universalPrefixBits :
 private noncomputable def marginalSigmaEquiv (x : ℕ) :
     (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} ≃
       {p : List Bool // ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x} where
-  toFun yp := ⟨yp.2.1, Nat.pair x yp.1, yp.2.2, by simp⟩
-  invFun p := ⟨p.2.choose.unpair.2, p.1, by
-    have hz := p.2.choose_spec
-    have heq : Nat.pair x p.2.choose.unpair.2 = p.2.choose :=
+  toFun yp := ⟨yp.2.val, Nat.pair x yp.1, yp.2.property, by simp⟩
+  invFun p := ⟨p.property.choose.unpair.2, p.val, by
+    have hz := p.property.choose_spec
+    have heq : Nat.pair x p.property.choose.unpair.2 = p.property.choose :=
       (congrArg (Nat.pair · _) hz.2.symm).trans (Nat.pair_unpair _)
     rw [heq]
     exact hz.1⟩
@@ -587,9 +588,9 @@ theorem summable_universalPrefix_produces_pair (x : ℕ) :
       (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} → ℝ) := by
   let emb : {p : List Bool // ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x} →
       universalPrefix.haltingSet :=
-    fun p => ⟨p.1, p.2.choose, p.2.choose_spec.1⟩
+    fun p => ⟨p.val, p.property.choose, p.property.choose_spec.1⟩
   have hemb : Function.Injective emb := fun _ _ h =>
-    Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.1) h)
+    Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.val) h)
   exact (Equiv.summable_iff (marginalSigmaEquiv x)).mpr
     (isPrefixFree_universalPrefix.summable_two_inv_pow_length.comp_injective hemb)
 
@@ -608,14 +609,14 @@ theorem isLowerSemicomputable_universalProb_marginal :
   have heq :
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) =
         ∑' p : {p : List Bool // ∃ z, (ofCode c).Produces p z ∧
-          decide (z.unpair.1 = x) = true}, (2 : ℝ)⁻¹ ^ p.1.length := by
+          decide (z.unpair.1 = x) = true}, (2 : ℝ)⁻¹ ^ p.val.length := by
     let e0 :
         {p : List Bool // ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x} ≃
           {p : List Bool // ∃ z, (ofCode c).Produces p z ∧ decide (z.unpair.1 = x) = true} :=
-      { toFun p := ⟨p.1, p.2.choose, (hc _ _).mp p.2.choose_spec.1,
-          by simp [p.2.choose_spec.2]⟩
-        invFun p := ⟨p.1, p.2.choose, (hc _ _).mpr p.2.choose_spec.1,
-          by simpa using p.2.choose_spec.2⟩
+      { toFun p := ⟨p.val, p.property.choose, (hc _ _).mp p.property.choose_spec.1,
+          by simp [p.property.choose_spec.2]⟩
+        invFun p := ⟨p.val, p.property.choose, (hc _ _).mpr p.property.choose_spec.1,
+          by simpa using p.property.choose_spec.2⟩
         left_inv _ := rfl
         right_inv _ := rfl }
     let e : (y : ℕ) ×
@@ -624,15 +625,15 @@ theorem isLowerSemicomputable_universalProb_marginal :
       (marginalSigmaEquiv x).trans e0
     have hs_prog : ∀ y : ℕ,
         Summable fun p : {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} =>
-          (2 : ℝ)⁻¹ ^ p.1.length :=
+          (2 : ℝ)⁻¹ ^ p.val.length :=
       fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
     calc ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y)
         = ∑' yp : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-            (2 : ℝ)⁻¹ ^ yp.2.1.length :=
+            (2 : ℝ)⁻¹ ^ yp.2.val.length :=
           ((summable_universalPrefix_produces_pair x).tsum_sigma' hs_prog).symm
       _ = ∑' p : {p : List Bool // ∃ z, (ofCode c).Produces p z ∧
-            decide (z.unpair.1 = x) = true}, (2 : ℝ)⁻¹ ^ p.1.length :=
-          e.tsum_eq fun p => (2 : ℝ)⁻¹ ^ p.1.length
+            decide (z.unpair.1 = x) = true}, (2 : ℝ)⁻¹ ^ p.val.length :=
+          e.tsum_eq fun p => (2 : ℝ)⁻¹ ^ p.val.length
   change _ ↔ (a : ℝ) / ((b + 1 : ℕ) : ℝ) <
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y)
   rw [heq]
@@ -772,10 +773,10 @@ theorem exists_le_complexity_of_isLowerSemicomputable {α : Type*} [Primcodable 
     classical
     let I := (Finset.range n).filter fun i => (req i).isSome
     let tag (i : I) : α × ℕ :=
-      let ℓx := (req i.1).get (Finset.mem_filter.mp i.2).2
+      let ℓx := (req i.val).get (Finset.mem_filter.mp i.property).2
       (ℓx.2, ℓx.1 - 2)
-    have htag_spec (i : I) : req i.1 = some ((tag i).2 + 2, (tag i).1) := by
-      obtain ⟨⟨ℓ, x⟩, hsi⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp i.2).2
+    have htag_spec (i : I) : req i.val = some ((tag i).2 + 2, (tag i).1) := by
+      obtain ⟨⟨ℓ, x⟩, hsi⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp i.property).2
       obtain ⟨k, rfl, -, -⟩ := hreq_eq.mp hsi
       simp [tag, hsi]
     have htag_inj : Function.Injective tag := fun i₁ i₂ hteq =>

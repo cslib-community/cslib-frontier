@@ -499,17 +499,17 @@ theorem nonempty_disputeWheel_of_isStable_ne (S : SPP V) {π₁ π₂ : V → Op
     · obtain ⟨x, _, R, _, hx_ne, hπ₁x, _, hlt⟩ :=
         exists_flip_along_better S h₂ h₁ (Ne.symm hu) hle
       exact ⟨⟨(true, x), Ne.symm hx_ne, ⟨R, hπ₁x⟩, hlt⟩⟩
-  have hpivot_exists : ∀ s : State, ∃ R, (if s.1.1 then π₁ s.1.2 else π₂ s.1.2) = some R := by
+  have hpivot_exists : ∀ s : State, ∃ R, (if s.val.1 then π₁ s.val.2 else π₂ s.val.2) = some R := by
     intro s
-    have h := s.2.2
-    cases hb : s.1.1 <;> simp_all
+    have h := s.property.2
+    cases hb : s.val.1 <;> simp_all
   let pivotOf : State → List V := fun s => (hpivot_exists s).choose
   have hpivot_eq : ∀ s : State,
-      (if s.1.1 then π₁ s.1.2 else π₂ s.1.2) = some (pivotOf s) :=
+      (if s.val.1 then π₁ s.val.2 else π₂ s.val.2) = some (pivotOf s) :=
     fun s => (hpivot_exists s).choose_spec
   have hstep_exists : ∀ s : State,
       ∃ s' : State, ∃ Q : List V, Q ≠ [] ∧
-        (if s.1.1 then π₂ s.1.2 else π₁ s.1.2) = some (Q ++ pivotOf s') := by
+        (if s.val.1 then π₂ s.val.2 else π₁ s.val.2) = some (Q ++ pivotOf s') := by
     intro ⟨⟨b, u⟩, hu_ne, hb⟩
     cases b with
     | true =>
@@ -531,9 +531,9 @@ theorem nonempty_disputeWheel_of_isStable_ne (S : SPP V) {π₁ π₂ : V → Op
   let step : State → State := fun s => (hstep_exists s).choose
   let rimOf : State → List V := fun s => (hstep_exists s).choose_spec.choose
   have hbetter_eq : ∀ s : State,
-      (if s.1.1 then π₂ s.1.2 else π₁ s.1.2) = some (rimOf s ++ pivotOf (step s)) :=
+      (if s.val.1 then π₂ s.val.2 else π₁ s.val.2) = some (rimOf s ++ pivotOf (step s)) :=
     fun s => (hstep_exists s).choose_spec.choose_spec.2
-  exact exists_disputeWheel_of_step (fun s => s.1.2) pivotOf step rimOf
+  exact exists_disputeWheel_of_step (fun s => s.val.2) pivotOf step rimOf
     (fun s => by
       have hp := hpivot_eq s
       split_ifs at hp
@@ -546,7 +546,7 @@ theorem nonempty_disputeWheel_of_isStable_ne (S : SPP V) {π₁ π₂ : V → Op
     (fun s => by
       have hp := hpivot_eq s
       have hbt := hbetter_eq s
-      have hlt := s.2.2
+      have hlt := s.property.2
       split_ifs at hp hbt hlt <;> rw [← hp, ← hbt] <;> exact hlt.2)
 
 /-- Without a dispute wheel, an `SPP` has at most one stable path assignment. -/
@@ -819,41 +819,42 @@ private theorem exists_extendable_of_isEmpty_disputeWheel {S : SPP V} (st : Elim
     obtain ⟨u, _, huA, hperm, w, hwA, q, hadj, hqw, rfl⟩ := hne
     exact ⟨⟨(u, w), huA, hwA, hadj, q, hqw, hperm⟩⟩
   let pivotOf : Cand → List V := fun c =>
-    c.1.1 :: c.2.2.2.2.choose
-  have hpivot_dir : ∀ c : Cand, IsDirectCand st c.1.1 (pivotOf c) := fun c =>
-    ⟨c.2.1, c.2.2.2.2.choose_spec.2, c.1.2, c.2.2.1, c.2.2.2.2.choose, c.2.2.2.1,
-      c.2.2.2.2.choose_spec.1, rfl⟩
+    c.val.1 :: c.property.2.2.2.choose
+  have hpivot_dir : ∀ c : Cand, IsDirectCand st c.val.1 (pivotOf c) := fun c =>
+    ⟨c.property.1, c.property.2.2.2.choose_spec.2, c.val.2, c.property.2.1,
+      c.property.2.2.2.choose, c.property.2.2.1,
+      c.property.2.2.2.choose_spec.1, rfl⟩
   have hstep_exists : ∀ c : Cand,
       ∃ c' : Cand, ∃ Q : List V, Q ≠ [] ∧
-        S.permitted c.1.1 (Q ++ pivotOf c') ∧
-        S.rank c.1.1 (some (pivotOf c)) < S.rank c.1.1 (some (Q ++ pivotOf c')) := by
+        S.permitted c.val.1 (Q ++ pivotOf c') ∧
+        S.rank c.val.1 (some (pivotOf c)) < S.rank c.val.1 (some (Q ++ pivotOf c')) := by
     intro c
     obtain ⟨pbest, hbest_dir, hbest_max⟩ := exists_bestDirectCand st ⟨pivotOf c, hpivot_dir c⟩
-    obtain ⟨p', hp'_surv, hlt_best⟩ := hno c.1.1 pbest hbest_dir
-    have hlt : S.rank c.1.1 (some (pivotOf c)) < S.rank c.1.1 (some p') :=
+    obtain ⟨p', hp'_surv, hlt_best⟩ := hno c.val.1 pbest hbest_dir
+    have hlt : S.rank c.val.1 (some (pivotOf c)) < S.rank c.val.1 (some p') :=
       lt_of_le_of_lt (hbest_max (pivotOf c) (hpivot_dir c)) hlt_best
     obtain ⟨Q, x, y, t, hsplit, hxA, hyA, hadj, hperm_x, hπy⟩ :=
-      surviving_split_directCand st c.2.1 hp'_surv
+      surviving_split_directCand st c.property.1 hp'_surv
     have hQ_ne : Q ≠ [] := by
       intro hQ
       rw [hQ, List.nil_append] at hsplit
-      have hsp := S.permitted_isSimplePath c.1.1 p' hp'_surv.1
-      have hxu : x = c.1.1 := Option.some.inj (by simpa [hsplit] using hsp.1)
-      have hdir' : IsDirectCand st c.1.1 p' :=
-        ⟨c.2.1, hp'_surv.1, y, hyA, y :: t, hxu ▸ hadj, hπy, hxu ▸ hsplit⟩
+      have hsp := S.permitted_isSimplePath c.val.1 p' hp'_surv.1
+      have hxu : x = c.val.1 := Option.some.inj (by simpa [hsplit] using hsp.1)
+      have hdir' : IsDirectCand st c.val.1 p' :=
+        ⟨c.property.1, hp'_surv.1, y, hyA, y :: t, hxu ▸ hadj, hπy, hxu ▸ hsplit⟩
       have hle := hbest_max p' hdir'
       omega
     let c' : Cand := ⟨(x, y), hxA, hyA, hadj, y :: t, hπy, hperm_x⟩
     have hpiv' : pivotOf c' = x :: y :: t := by
-      have h1 : st.assign y = some c'.2.2.2.2.choose := c'.2.2.2.2.choose_spec.1
-      have hq : c'.2.2.2.2.choose = y :: t := Option.some.inj (h1.symm.trans hπy)
-      change x :: c'.2.2.2.2.choose = x :: y :: t
+      have h1 : st.assign y = some c'.property.2.2.2.choose := c'.property.2.2.2.choose_spec.1
+      have hq : c'.property.2.2.2.choose = y :: t := Option.some.inj (h1.symm.trans hπy)
+      change x :: c'.property.2.2.2.choose = x :: y :: t
       rw [hq]
     refine ⟨c', Q, hQ_ne, ?_, ?_⟩
     · rw [hpiv', ← hsplit]; exact hp'_surv.1
     · rw [hpiv', ← hsplit]; exact hlt
   obtain ⟨W⟩ := exists_disputeWheel_of_step
-    (fun c : Cand => c.1.1) pivotOf (fun c => (hstep_exists c).choose)
+    (fun c : Cand => c.val.1) pivotOf (fun c => (hstep_exists c).choose)
     (fun c => (hstep_exists c).choose_spec.choose)
     (fun c => (hpivot_dir c).2.1)
     (fun c => (hstep_exists c).choose_spec.choose_spec.1)

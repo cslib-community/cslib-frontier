@@ -241,7 +241,8 @@ theorem sqrtMod_sq (hP : P.Prime) (hs : IsSquare (s : ZMod P))
     (ht : P % 4 = 3 ∨ (t : ZMod P) ^ (P / 2) = -1) : (sqrtMod P s t : ZMod P) ^ 2 = s := by
   have hcast : (sqrtMod P s t : ZMod P) = (s : ZMod P) ^ (((descentExponents P s t).1 + 1) / 2) *
       (t : ZMod P) ^ ((descentExponents P s t).2 / 2) := by
-    rw [sqrtMod, powMod_of_ne_zero hP.ne_zero, powMod_of_ne_zero hP.ne_zero]
+    dsimp only [sqrtMod]
+    rw [powMod_of_ne_zero hP.ne_zero, powMod_of_ne_zero hP.ne_zero]
     push_cast [ZMod.natCast_mod]
     rfl
   rw [hcast]

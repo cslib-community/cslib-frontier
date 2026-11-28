@@ -294,18 +294,18 @@ subset `{ρ 0, ρ 1}` and Bob receives `ρ 2`. -/
 
 /-- Support characterization for `deal211Unordered`: `(s, b)` occurs iff `b ∉ s.1`. -/
 theorem mem_support_deal211Unordered {s : {s : Finset (Fin 4) // s.card = 2}} {b : Fin 4} :
-    (s, b) ∈ deal211Unordered.support ↔ b ∉ s.1 := by
+    (s, b) ∈ deal211Unordered.support ↔ b ∉ s.val := by
   rw [deal211Unordered, PMF.mem_support_map_iff]
   constructor
   · rintro ⟨ρ, _, hρ⟩
-    have hs : ({ρ 0, ρ 1} : Finset (Fin 4)) = s.1 := congrArg (fun p => p.1.1) hρ
+    have hs : ({ρ 0, ρ 1} : Finset (Fin 4)) = s.val := congrArg (fun p => p.1.val) hρ
     have hb : ρ 2 = b := congrArg Prod.snd hρ
     rw [← hs, ← hb, Finset.mem_insert, Finset.mem_singleton]
     rintro (h | h)
     · exact (ρ.injective.ne (by decide : (2 : Fin 4) ≠ 0)) h
     · exact (ρ.injective.ne (by decide : (2 : Fin 4) ≠ 1)) h
   · intro hb
-    obtain ⟨a₀, a₁, ha_ne, hs_eq⟩ := Finset.card_eq_two.mp s.2
+    obtain ⟨a₀, a₁, ha_ne, hs_eq⟩ := Finset.card_eq_two.mp s.property
     simp only [hs_eq, Finset.mem_insert, Finset.mem_singleton, not_or] at hb
     have hsupp : ((a₀, a₁), b) ∈ deal211.support := mem_support_deal211.mpr ⟨ha_ne, hb⟩
     rw [deal211, PMF.mem_support_map_iff] at hsupp
@@ -323,12 +323,12 @@ theorem deal211Unordered_map_snd :
 
 private noncomputable def unseenUnordered (s : {s : Finset (Fin 4) // s.card = 2}) :
     Finset (Fin 4) :=
-  Finset.univ \ s.1
+  Finset.univ \ s.val
 
 private theorem unseenUnordered_card (s : {s : Finset (Fin 4) // s.card = 2}) :
     (unseenUnordered s).card = 2 := by
   dsimp only [unseenUnordered]
-  rw [Finset.card_sdiff, Finset.inter_univ, Finset.card_univ, Fintype.card_fin, s.2]
+  rw [Finset.card_sdiff, Finset.inter_univ, Finset.card_univ, Fintype.card_fin, s.property]
 
 private theorem deal211Unordered_const_on_unseen (s : {s : Finset (Fin 4) // s.card = 2})
     {b₀ b₁ : Fin 4} (hb₀ : b₀ ∈ unseenUnordered s) (hb₁ : b₁ ∈ unseenUnordered s) :
@@ -338,7 +338,7 @@ private theorem deal211Unordered_const_on_unseen (s : {s : Finset (Fin 4) // s.c
   let σ := Equiv.swap b₀ b₁
   have hσσ : ∀ z : Fin 4, σ (σ z) = z := Equiv.swap_apply_self b₀ b₁
   let mapSet : {t : Finset (Fin 4) // t.card = 2} → {t : Finset (Fin 4) // t.card = 2} :=
-    fun t => ⟨t.1.map σ.toEmbedding, by rw [Finset.card_map, t.2]⟩
+    fun t => ⟨t.val.map σ.toEmbedding, by rw [Finset.card_map, t.property]⟩
   have hinv_set : Function.LeftInverse mapSet mapSet := fun t =>
     Subtype.ext <| Finset.ext fun x => by simp [mapSet, σ]
   let g : ({t : Finset (Fin 4) // t.card = 2} × Fin 4) ≃

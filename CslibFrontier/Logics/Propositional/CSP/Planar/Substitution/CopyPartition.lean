@@ -56,21 +56,21 @@ theorem nodup_shifted_boundaryBlocks
           (occurrencePrefix (fun r => (gadgets r).template) F i + ·)).Nodup := by
   refine List.nodup_flatMap.mpr
     ⟨fun entry _ =>
-      (nodup_flatten_boundaryBlocks (gadgets entry.1.1) (witnesses entry.1.1)).map
+      (nodup_flatten_boundaryBlocks (gadgets entry.1.rel) (witnesses entry.1.rel)).map
         fun _ _ => Nat.add_left_cancel,
      List.pairwise_iff_getElem.mpr fun i j hi hj hij =>
       List.disjoint_left.mpr fun index hleft hright => ?_⟩
   have hl := (shifted_boundaryBlocks_perm_range gadgets witnesses F
-    F.zipIdx[i].1.1 F.zipIdx[i].2).mem_iff.mp hleft
+    F.zipIdx[i].1.rel F.zipIdx[i].2).mem_iff.mp hleft
   have hr := (shifted_boundaryBlocks_perm_range gadgets witnesses F
-    F.zipIdx[j].1.1 F.zipIdx[j].2).mem_iff.mp hright
+    F.zipIdx[j].1.rel F.zipIdx[j].2).mem_iff.mp hright
   simp only [List.mem_map, List.mem_range, List.getElem_zipIdx, Nat.zero_add] at hl hr
   obtain ⟨p, hp, he⟩ := hl
   obtain ⟨q, hq, he'⟩ := hr
   have hiF : i < F.length := by simpa only [List.length_zipIdx] using hi
   have hp' : p < (gadgets F[i].rel).template.vars.length := by
     have hl := congrArg (fun entry : Constraint Src ℕ × ℕ =>
-      (gadgets entry.1.1).template.vars.length) (List.getElem_zipIdx (l := F) (i := i) hi)
+      (gadgets entry.1.rel).template.vars.length) (List.getElem_zipIdx (l := F) (i := i) hi)
     exact hl ▸ hp
   have hpos := List.flatMap_prefix_add_lt_of_lt (q := q) F
     (fun c => (gadgets c.rel).template.vars)
@@ -91,7 +91,7 @@ theorem mem_shifted_boundaryBlocks_iff
   · intro hm
     obtain ⟨entry, he, hm⟩ := List.mem_flatMap.mp hm
     have hp :=
-      (shifted_boundaryBlocks_perm_range gadgets witnesses F entry.1.1 entry.2).mem_iff.mp hm
+      (shifted_boundaryBlocks_perm_range gadgets witnesses F entry.1.rel entry.2).mem_iff.mp hm
     obtain ⟨hi, hentry⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
     obtain ⟨j, hj, hindex⟩ := List.mem_map.mp hp
     rw [← hindex]

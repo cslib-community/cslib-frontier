@@ -213,7 +213,7 @@ example :
     intro d
     obtain ⟨hs, ht, ⟨a, ha, he⟩, hsim, hb⟩ := hT d
     refine ⟨hs, ht, ?_, hsim, hb⟩
-    simp only [he, Complex.real_smul, Complex.arg_real_mul _ ha, PolygonalDrawing.direction]
+    simp only [he, Complex.real_smul, Complex.arg_ofReal_mul ha _, PolygonalDrawing.direction]
   · obtain ⟨ε, hε, hall⟩ := exists_subdivision_embedding_with_reference_spokes hI hD
       (PolygonalDrawing.bouquet_realizes r hloop) hfix
     obtain ⟨E, F, _, hF, hvertices, hcenter, hports, hmiddle, _, hfixed⟩ :=
@@ -226,7 +226,7 @@ example :
         fin_cases e <;> cases b <;> decide +kernel
       obtain ⟨a, ha, hger⟩ := hfixed d hd
       refine ⟨hports d, ?_⟩
-      simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
+      simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_ofReal_mul ha _]
     · exact exists_contracted_subdivision_embedding hI hF
   · obtain ⟨H, hH, hcenters, hspokes⟩ :=
       exists_subdivision_embedding_with_frozen_reference_routes hI hD

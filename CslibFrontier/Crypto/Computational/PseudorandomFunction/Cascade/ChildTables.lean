@@ -54,7 +54,9 @@ private theorem cascadeFamily_oneBlock {inLen : ℕ → ℕ}
     cascadeFamily inLen family key block = family key block := by
   have hrows : BitString.listRows 1 (inLen key.length) block = [block] := by
     simpa [BitString.listRows] using BitString.listRows_succ_append 0 _ hblock []
-  rw [cascadeFamily, hblock, Nat.div_self hwidth, hrows]
+  rw [cascadeFamily]
+  dsimp only
+  rw [hblock, Nat.div_self hwidth, hrows]
   rfl
 
 private theorem add_width_le_of_dvd {width depth length : ℕ} (hdvd : width ∣ length)

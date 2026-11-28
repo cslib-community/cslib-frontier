@@ -82,7 +82,7 @@ noncomputable def coinProgram {input : List Bool} {V : Finset (FiniteCfg k Bool 
     (hV : ∀ finite ∈ V, ∀ bit, machine.viewCoinStep finite bit ∈ V)
     (hinit : machine.toNTM.initView input ∈ V) (t : ℕ) : ReadOnceProgram t V Bool where
   start := ⟨_, hinit⟩
-  step _ v bit := ⟨machine.viewCoinStep v bit, hV _ v.2 bit⟩
+  step _ v bit := ⟨machine.viewCoinStep v bit, hV _ v.property bit⟩
   accept v := decide ((v : FiniteCfg k Bool State).state = none ∧
     (v : FiniteCfg k Bool State).output = [true])
 
@@ -111,7 +111,7 @@ theorem eval_coinProgram_iff {input : List Bool} {V : Finset (FiniteCfg k Bool S
       (machine.stepCoins (List.ofFn w) (machine.toNTM.initCfg input)).Halted ∧
         (machine.stepCoins (List.ofFn w) (machine.toNTM.initCfg input)).output = [true] := by
   have hrun : ∀ (l : List Bool) (v : V),
-      ((l.foldl (fun v bit => (⟨machine.viewCoinStep v bit, hV _ v.2 bit⟩ : V)) v : V) :
+      ((l.foldl (fun v bit => (⟨machine.viewCoinStep v bit, hV _ v.property bit⟩ : V)) v : V) :
         FiniteCfg k Bool State) = l.foldl machine.viewCoinStep v := by
     intro l
     induction l with

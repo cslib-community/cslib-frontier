@@ -173,7 +173,8 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
     unfold spin
     rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)),
       List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem))]
-  have hσ (i : Fin (polygonGraph F).2.length) : σ i.val = (polygonGraph F).edgeGradient spin i := by
+  have hσ (i : Fin (polygonGraph F).edges.length) :
+      σ i.val = (polygonGraph F).edgeGradient spin i := by
     unfold σ
     rw [List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using i.isLt)]
     simp only [List.getElem_ofFn]
@@ -201,7 +202,7 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
       simpa only [incidenceGraph_edges, List.length_map] using hlt)
     have hface := (polygonRotation (decode _ cert h)).faceEven_edgeGradient spin
       (Quotient.mk _ (polygonDart o true))
-    rw [← show (fun i : Fin (polygonGraph F).2.length => σ i.val) = _ from funext hσ,
+    rw [← show (fun i : Fin (polygonGraph F).edges.length => σ i.val) = _ from funext hσ,
       faceParity_white cert h] at hface
     simpa only [ho] using hface
   have hbound : ∀ scope ∈ whiteScopes F cert, ∀ v ∈ scope, v < F.occurrences.length := by

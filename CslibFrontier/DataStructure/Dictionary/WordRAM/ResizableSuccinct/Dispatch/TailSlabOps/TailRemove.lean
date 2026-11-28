@@ -474,7 +474,7 @@ private theorem realizesBounded_compRemoveTailReadGM2 :
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
     have hptr_lt : gmTailPtrBase N + (b * tailCapPerBucket N + (r_b - 1)) < globalMetaLen N :=
       gmTailPtrIdx_lt hb_pos hb (by omega)
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     try simp only [cpGmTailPtrBase_mk, cpTailCap_mk, cpSlabSize_mk,
       StateTransitionSpec.clientState, runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg h1_lt] at *)

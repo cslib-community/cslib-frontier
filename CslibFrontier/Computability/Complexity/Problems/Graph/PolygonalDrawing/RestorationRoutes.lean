@@ -31,11 +31,11 @@ open Polygonal RotationSystem
 
 /-- The retained edge occurrence after contracting a last nonloop edge. -/
 @[expose] def contractedIndex (G : Graph) (u v : ℕ) :
-    Fin G.2.length ≃ Fin (contractLastEdgeGraph G u v).2.length :=
+    Fin G.edges.length ≃ Fin (contractLastEdgeGraph G u v).edges.length :=
   finCongr (by simp [contractLastEdgeGraph, Graph.relabel])
 
 /-- Both endpoint occurrences retain their tag and undergo the prescribed name update. -/
-theorem vertex_contractedIndex (G : Graph) (u v : ℕ) (i : Fin G.2.length) (b : Bool) :
+theorem vertex_contractedIndex (G : Graph) (u v : ℕ) (i : Fin G.edges.length) (b : Bool) :
     Dart.vertex (G := contractLastEdgeGraph G u v) (contractedIndex G u v i, b) =
       Function.update id u v (Dart.vertex (G := G) (i, b)) :=
   Dart.vertex_relabelEquiv G (Function.update id u v) (i, b)
@@ -111,7 +111,7 @@ theorem restoreLast_eq_self (u v w : ℕ) (hw : ¬(w = u ∨ w = v)) (a b : ℂ)
 /-- Exterior retained route with its two original source endpoint occurrences restored. -/
 @[expose] noncomputable def restoredRoute {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) : Route :=
+    (e : Fin G.edges.length) : Route :=
   restoreLast u v (Dart.vertex (e, true)) a b
     (restoreFirst u v (Dart.vertex (e, false)) a b
       (D.outsideRoute v ρ (contractedIndex G u v e)))
@@ -119,7 +119,7 @@ theorem restoreLast_eq_self (u v w : ℕ) (hw : ¬(w = u ∨ w = v)) (a b : ℂ)
 /-- The two restored end occurrences contribute their new segments independently. -/
 theorem segments_restoredRoute {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) :
+    (e : Fin G.edges.length) :
     (D.restoredRoute ρ a b e).segments =
       (D.outsideRoute v ρ (contractedIndex G u v e)).segments +
         attachmentCount u v (Dart.vertex (e, false)) +
@@ -150,7 +150,7 @@ theorem endpoint_restoreLast (u v w : ℕ) (a b : ℂ) (p : Route) (side : Bool)
 /-- The restored exterior piece has exactly the two named source endpoints. -/
 theorem endpoint_restoredRoute {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) (side : Bool) :
+    (e : Fin G.edges.length) (side : Bool) :
     (D.restoredRoute ρ a b e).endpoint side = D.restoredVertex a b (Dart.vertex (e, side)) := by
   have hfirst (p : Route) : (restoreFirst u v (Dart.vertex (e, false)) a b p).start =
       if Dart.vertex (e, false) = u then a else
@@ -186,7 +186,7 @@ This constructor does not assert nonintersection or clockwise realization. -/
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
     (ρ : ℝ) (a b : ℂ) : PolygonalDrawing (lastEdgeGraph G u v) where
   vertex := D.restoredVertex a b
-  route e := if h : e.val < G.2.length then D.restoredRoute ρ a b ⟨e.val, h⟩
+  route e := if h : e.val < G.edges.length then D.restoredRoute ρ a b ⟨e.val, h⟩
     else Route.line a b
   endpoint_eq e side := by
     split_ifs with hi
@@ -198,7 +198,7 @@ This constructor does not assert nonintersection or clockwise realization. -/
           rfl
         · rfl
       rw [he, vertex_retainedLastEdgeDart]
-    · have hlast : e.val = G.2.length := by
+    · have hlast : e.val = G.edges.length := by
         have he := e.isLt
         simp only [lastEdgeGraph, List.length_append, List.length_singleton] at he
         omega

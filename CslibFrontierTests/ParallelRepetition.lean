@@ -82,7 +82,7 @@ example {X Y A B : Type*} [Fintype X] [Fintype Y] [Fintype A] [Fintype B]
     (ha : (Fin n → X) → Fin n → A) (hb : (Fin n → Y) → Fin n → B) :
     ∃ j : Fin n, G.winProbOn ha hb {j} ≤ G.value := by
   have hne : (∅ : Finset (Fin n)) ≠ Finset.univ := by
-    rw [ne_comm, ← Finset.nonempty_iff_ne_empty, Finset.univ_nonempty_iff]
+    rw [ne_comm, Finset.ne_empty_iff_nonempty, Finset.univ_nonempty_iff]
     exact ⟨⟨0, hn⟩⟩
   obtain ⟨j, -, hj⟩ := G.exists_winProbOn_insert_le ha hb hne
   refine ⟨j, ?_⟩

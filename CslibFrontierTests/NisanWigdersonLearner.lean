@@ -36,7 +36,8 @@ with `false`, and the input. With `a = 0` it costs at most nine gates more than 
 example (t : Trial 2 2) : ∃ F : BooleanFunction (2 + 1),
     complexity interpretation (single F) ≤ complexity interpretation (single test) + 9 ∧
       ∀ (f : BooleanFunction 1) x, trialGuess D f test t x = F (Fin.append (fun i =>
-        if h : i.1 < (trialPoints D t).length then f ((trialPoints D t)[i.1]) else false) x) := by
+        if h : i.val < (trialPoints D t).length then f ((trialPoints D t)[i.val])
+        else false) x) := by
   obtain ⟨F, hF, hev⟩ := complexity_trialGuess_answers_le (q := 2) D test t
     ((length_trialPoints_le D t).trans (by norm_num))
   exact ⟨F, hF.trans (by norm_num), fun f x => hev f _ (fun i hi => dite_eq_left hi) x⟩

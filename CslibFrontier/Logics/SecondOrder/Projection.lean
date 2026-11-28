@@ -103,8 +103,8 @@ def sumAssoc :
     | .inr f => isEmptyElim f
   onRelation _ r := match r with
     | .inl (.inl r) => .inl r
-    | .inl (.inr r) => .inr ⟨.inl r.1, r.2⟩
-    | .inr r => .inr ⟨.inr r.1, r.2⟩
+    | .inl (.inr r) => .inr ⟨.inl r.val, r.property⟩
+    | .inr r => .inr ⟨.inr r.val, r.property⟩
 
 /-- The structure for `Sum.rec R₁ R₂` is an expansion along `sumAssoc` of the iterated sum
 structure for `R₁` and `R₂`. -/

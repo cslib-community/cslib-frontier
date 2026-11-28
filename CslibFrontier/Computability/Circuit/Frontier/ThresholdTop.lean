@@ -434,8 +434,8 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
       (Fintype.equivFinOfCardEq (by rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq])).symm
     let eB : Fin k₂ ≃ B :=
       (Fintype.equivFinOfCardEq (by rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq])).symm
-    let a : Fin k₁ → X → Bool := fun i => (eA i).1
-    let c : Fin k₂ → ↥Xᶜ → Bool := fun j => (eB j).1
+    let a : Fin k₁ → X → Bool := fun i => (eA i).val
+    let c : Fin k₂ → ↥Xᶜ → Bool := fun j => (eB j).val
     have ha_inj : Function.Injective a := Subtype.val_injective.comp eA.injective
     have hc_inj : Function.Injective c := Subtype.val_injective.comp eB.injective
     have ha_eq : range a = A := by
@@ -681,8 +681,8 @@ private def unitLedger {σ : Signature.{v}} {U : Type u} {n g : ℕ}
     (p : Program σ n g) (I : Interpretation σ U) :
     Ledger (fun _ : Fin g => False) p I Unit where
   contribution _ _ := ()
-  readout _ h := h.2.elim
-  readout_prod _ h := h.2.elim
+  readout _ h := h.property.elim
+  readout_prod _ h := h.property.elim
 
 private theorem unitLedger_run_eq_trace {σ : Signature.{v}} {U : Type u} {n g : ℕ}
     (p : Program σ n g) (I : Interpretation σ U) (x : Fin n → U) :
@@ -701,13 +701,13 @@ private theorem exists_isHalfspaceComb_on_cut {σ : Signature.{v}} {U : Type u}
       IsHalfspaceComb t f ∧
       ∀ z : Fin n → U,
         (fun e => if e ∈ (liveNetwork p (fun _ => False) U).edgeCut P then
-          some (p.trace I z e.signal.1) else none) = τ →
+          some (p.trace I z e.signal.val) else none) = τ →
           T.eval p I z = f (((liveNetwork p (fun _ => False) U).readIn P).domRestrict z)
             (((liveNetwork p (fun _ => False) U).readIn P)ᶜ.domRestrict z) := by
   set X := (liveNetwork p (fun _ => False) U).readIn P
   set Ecut := (liveNetwork p (fun _ => False) U).edgeCut P
   let matchesCut (x : Fin n → U) : Prop :=
-    (fun e => if e ∈ Ecut then some (p.trace I x e.signal.1) else none) = τ
+    (fun e => if e ∈ Ecut then some (p.trace I x e.signal.val) else none) = τ
   let φ : Fin t → (X → U) → ℝ := fun r a =>
     if ha : ∃ x : Fin n → U, matchesCut x ∧ X.domRestrict x = a then
       T.bias r + ∑ w ∈ Finset.univ.filter (· ∈ wiresIn P),
@@ -726,7 +726,8 @@ private theorem exists_isHalfspaceComb_on_cut {σ : Signature.{v}} {U : Type u}
   obtain ⟨hby_cut, hby_dom⟩ := Classical.choose_spec hb
   set x₀ := Classical.choose ha
   set y₀ := Classical.choose hb
-  have hcut_xy : EqOn (fun e => p.trace I x₀ e.signal.1) (fun e => p.trace I y₀ e.signal.1) Ecut :=
+  have hcut_xy : EqOn (fun e => p.trace I x₀ e.signal.val)
+      (fun e => p.trace I y₀ e.signal.val) Ecut :=
     fun e he => by
       have h1 := congrFun hax_cut e
       have h2 := congrFun hby_cut e
@@ -945,12 +946,13 @@ private theorem ncard_realizedEdge_le_min {σ : Signature.{v}} {U : Type u} [Fin
       exact ⟨lay.symm ⟨s, hs⟩, (liveNetwork p (fun _ => False) U).mem_component_self _, hi'⟩
     have hpath_eq (x : Fin n → U) (hx : x ∈ B₀.accepted) (hr : ℕ)
         (hhr : hr ≤ Nat.card (Compiler.Vertex (liveCircuit p (fun _ => False)))) :
-        B₀.path x hr = (L.network ()).frontierValues lay hr (fun e => p.trace I x e.signal.1) := by
+        B₀.path x hr =
+            (L.network ()).frontierValues lay hr (fun e => p.trace I x e.signal.val) := by
       obtain ⟨α, hα, hfv⟩ := (L.network ()).exists_satisfies_of_isAcceptingPath lay
         (B₀.isAcceptingPath_path hx)
       rw [hfv hr (Nat.le_succ_of_le hhr), Network.frontierValues_eq_iff]
       intro e _
-      have h : α e = L.run () x e.signal.1 := Compiler.eq_trace hα e
+      have h : α e = L.run () x e.signal.val := Compiler.eq_trace hα e
       rwa [unitLedger_run_eq_trace] at h
     calc (B₀.edgeOf s '' B₀.accepted).ncard
         ≤ (((liveNetwork p (fun _ => False) U).readIn W).domRestrict '' B₀.accepted).ncard := by
@@ -959,7 +961,7 @@ private theorem ncard_realizedEdge_le_min {σ : Signature.{v}} {U : Type u} [Fin
             domRestrict_eq_domRestrict_iff.mp hxy
           have hrun_eq {e : Compiler.Edge (liveCircuit p (fun _ => False))}
               (he : e ∈ (liveNetwork p (fun _ => False) U).touching W) :
-              p.trace I x e.signal.1 = p.trace I y e.signal.1 := by
+              p.trace I x e.signal.val = p.trace I y e.signal.val := by
             have h := L.run_eq_of_eqOn_readIn () hW_closed hxx' he
             rwa [unitLedger_run_eq_trace, unitLedger_run_eq_trace] at h
           refine Prod.ext ?_ (Prod.ext ?_ ?_)
@@ -1143,13 +1145,14 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
         simp only [Network.revealedBy, hsV', ↓reduceIte]
         rfl
       have hpath_eq (y : Fin n → U) :
-          B₀.path y s = (L.network ()).frontierValues lay s (fun e => p.trace I y e.signal.1) := by
+          B₀.path y s =
+              (L.network ()).frontierValues lay s (fun e => p.trace I y e.signal.val) := by
         have hy : y ∈ B₀.accepted := hB₀_acc.symm ▸ mem_univ y
         obtain ⟨α, hα, hfv⟩ := (L.network ()).exists_satisfies_of_isAcceptingPath lay
           (B₀.isAcceptingPath_path hy)
         rw [hfv s hs, Network.frontierValues_eq_iff]
         intro e _
-        have h : α e = L.run () y e.signal.1 := Compiler.eq_trace hα e
+        have h : α e = L.run () y e.signal.val := Compiler.eq_trace hα e
         rwa [unitLedger_run_eq_trace] at h
       obtain ⟨fcomb, hfcomb, hfeval⟩ := exists_isHalfspaceComb_on_cut T p I (lay.initial s)
         (B₀.path x s)
@@ -1397,7 +1400,7 @@ private theorem exists_mul_signRepresents_of_isHalfspaceComb_one {α β : Type*}
 
 /-- **Sign-rank of a two-party halfspace (`t = 1`).** Every `1`-halfspace combination over finite
 domains has sign-rank at most `2`. -/
-theorem signRank_le_two_of_isHalfspaceComb_one {α β : Type*} [Finite α] [Fintype β]
+theorem signRank_le_two_of_isHalfspaceComb_one {α β : Type*} [Finite α] [Finite β]
     {f : α → β → Bool} (hf : IsHalfspaceComb 1 f) :
     Communication.signRank f ≤ 2 := by
   obtain ⟨U_mat, V_mat, hrep⟩ := exists_mul_signRepresents_of_isHalfspaceComb_one hf
@@ -1427,7 +1430,7 @@ theorem signRank_thresholdTop_le {σ : Signature.{v}} {U : Type u} [Fintype U]
     congrArg Prod.fst ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => U).apply_symm_apply (a, b))
   have hglue_Xc (a : X → U) (b : ↥Xᶜ → U) : Xᶜ.domRestrict (glue (a, b)) = b :=
     congrArg Prod.snd ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => U).apply_symm_apply (a, b))
-  let cutVal (z : Fin n → U) : Ecut → U := fun e => p.trace I z e.1.signal.1
+  let cutVal (z : Fin n → U) : Ecut → U := fun e => p.trace I z e.val.signal.val
   let Aset (τ : Ecut → U) : Set (X → U) :=
     {a | ∃ x : Fin n → U, X.domRestrict x = a ∧ cutVal x = τ}
   let Bset (τ : Ecut → U) : Set (↥Xᶜ → U) :=
@@ -1437,8 +1440,8 @@ theorem signRank_thresholdTop_le {σ : Signature.{v}} {U : Type u} [Fintype U]
       (a ∈ Aset τ ∧ b ∈ Bset τ) ↔ cutVal (glue (a, b)) = τ := by
     constructor
     · rintro ⟨⟨x, hxa, hxτ⟩, ⟨y, hyb, hyτ⟩⟩
-      have hcut_xy : EqOn (fun e => p.trace I x e.signal.1)
-          (fun e => p.trace I y e.signal.1) Ecut :=
+      have hcut_xy : EqOn (fun e => p.trace I x e.signal.val)
+          (fun e => p.trace I y e.signal.val) Ecut :=
         fun e he => (congrFun hxτ ⟨e, he⟩).trans (congrFun hyτ ⟨e, he⟩).symm
       have hzx : EqOn (glue (a, b)) x X :=
         domRestrict_eq_domRestrict_iff.mp ((hglue_X a b).trans hxa.symm)
@@ -1446,9 +1449,9 @@ theorem signRank_thresholdTop_le {σ : Signature.{v}} {U : Type u} [Fintype U]
         domRestrict_eq_domRestrict_iff.mp ((hglue_Xc a b).trans hyb.symm)
       have hsp := (unitLedger p I).trace_of_splice (x := x) (y := y) rfl rfl hcut_xy hzx hzy
       ext e
-      by_cases hw : e.1.signal.1 ∈ wiresIn P
-      · exact ((hsp e.1.signal.1).1 hw).trans (congrFun hxτ e)
-      · exact ((hsp e.1.signal.1).2 hw).trans (congrFun hyτ e)
+      by_cases hw : e.val.signal.val ∈ wiresIn P
+      · exact ((hsp e.val.signal.val).1 hw).trans (congrFun hxτ e)
+      · exact ((hsp e.val.signal.val).2 hw).trans (congrFun hyτ e)
     · intro hτ
       exact ⟨⟨glue (a, b), hglue_X a b, hτ⟩, ⟨glue (a, b), hglue_Xc a b, hτ⟩⟩
   -- For each `τ : Ecut → U`, pick a rank-2 sign-representation on the slice of `τ`.

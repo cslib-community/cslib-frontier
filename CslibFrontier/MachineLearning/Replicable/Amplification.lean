@@ -120,7 +120,7 @@ private theorem exp_decay_exists (M : ℝ) {δ : ℝ} (hδ : 0 < δ) {ε : ℝ} 
     Real.exp_lt_one_iff.mpr (by nlinarith [sq_pos_of_pos hδ])
   obtain ⟨k, hk, hle⟩ := exists_neZero_mul_pow_le (M * 2) (Real.exp_nonneg _) hr hε
   refine ⟨k, hk, ?_⟩
-  rwa [show -2 * (k : ℝ) * δ ^ 2 = k * (-2 * δ ^ 2) by ring, Real.exp_nat_mul, ← mul_assoc]
+  rwa [show -2 * (k : ℝ) * δ ^ 2 = k * (-2 * δ ^ 2) by ring, Real.exp_natCast_mul, ← mul_assoc]
 
 private theorem exists_nat_div_le (M : ℝ) {ε : ℝ} (hε : 0 < ε) :
     ∃ (N : ℕ) (_ : NeZero N), M / N ≤ ε := by

@@ -1117,7 +1117,7 @@ theorem initClear_exec (C : HighProbStateTransitionImpl P D w base params s₀) 
   · have := hT₁ z hz
     wram_omega
   · obtain ⟨hfr₃, hrep, hmod₃⟩ := hsupp₀ p hp
-    exact ⟨hfr₃, hrep, by simpa only [hm₁, Finset.union_idempotent] using hmod₂.trans hmod₃⟩
+    exact ⟨hfr₃, hrep, by simpa only [hm₁, Finset.union_self] using hmod₂.trans hmod₃⟩
 
 /-! ### Per-operation with-high-probability worst-case bounds (`step_whp`, `step_whp_ofFn`) -/
 

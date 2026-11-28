@@ -88,9 +88,9 @@ noncomputable def goemansWilliamsonDicutConstant : ℝ :=
 private theorem dicut_term_nonneg (θ : Ico (0 : ℝ) (arccos (-1 / 3))) :
     0 ≤ 2 / π * (2 * π - 3 * (θ : ℝ)) / (1 + 3 * cos θ) := by
   have hnum : 0 ≤ 2 * π - 3 * (θ : ℝ) := by
-    linarith [θ.2.2.trans arccos_neg_third_lt_two_pi_div_three]
+    linarith [θ.property.2.trans arccos_neg_third_lt_two_pi_div_three]
   exact div_nonneg (mul_nonneg (div_nonneg zero_le_two pi_pos.le) hnum)
-    (one_add_three_cos_pos θ.2.1 θ.2.2).le
+    (one_add_three_cos_pos θ.property.1 θ.property.2).le
 
 private theorem dicut_bddBelow :
     BddBelow (range fun θ : Ico (0 : ℝ) (arccos (-1 / 3)) =>
@@ -257,10 +257,10 @@ theorem lt_goemansWilliamsonDicutConstant :
     ⟨⟨0, le_rfl, (div_pos pi_pos zero_lt_two).trans pi_div_two_lt_arccos_neg_third⟩⟩
   refine lt_of_lt_of_le (by norm_num : (0.79607 : ℝ) < 79607001 / 100000000) ?_
   refine le_ciInf fun θ => ?_
-  rw [le_div_iff₀ (one_add_three_cos_pos θ.2.1 θ.2.2)]
+  rw [le_div_iff₀ (one_add_three_cos_pos θ.property.1 θ.property.2)]
   rcases le_or_gt (θ : ℝ) (π / 2) with h | h
-  · exact dicut_lower_first θ.2.1 h
-  · exact dicut_lower_second h.le (θ.2.2.trans arccos_neg_third_lt_two_pi_div_three)
+  · exact dicut_lower_first θ.property.1 h
+  · exact dicut_lower_second h.le (θ.property.2.trans arccos_neg_third_lt_two_pi_div_three)
 
 /-! ### Lemma 7.3.2: inequality over the spherical-triangle angle set -/
 

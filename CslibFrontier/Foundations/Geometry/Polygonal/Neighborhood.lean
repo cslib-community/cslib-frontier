@@ -75,7 +75,7 @@ theorem exists_openSegment_crossing_neighborhoods {ι : Type*} [Finite ι] (a b 
   have hC : C = ⋃ p : P, T p := Set.ext fun z =>
     ⟨fun ⟨i, j, hij, hi, hj⟩ => Set.mem_iUnion.mpr ⟨⟨(i, j), hij⟩, hi, hj⟩, fun hz =>
       let ⟨p, hi, hj⟩ := Set.mem_iUnion.mp hz
-      ⟨p.1.1, p.1.2, p.2, hi, hj⟩⟩
+      ⟨p.val.1, p.val.2, p.property, hi, hj⟩⟩
   have hfinite : C.Finite := hC ▸ Set.finite_iUnion fun p =>
     (hpair p.val.1 p.val.2 p.property).finite
   obtain ⟨U, hU, hdisj⟩ := hfinite.t2_separation

@@ -56,7 +56,7 @@ def testEquiv96 :
     ↥((univ : Finset (Fin 2)) \
       heavyVars univ (univ : Finset (Fin testRows.length))
         (fun j => equationScope (testCNF.parityRowSystem testRows j)) 96) ≃ Fin 2 where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by decide +revert⟩
   left_inv v := by ext; rfl
   right_inv v := rfl
@@ -103,7 +103,7 @@ def emptyCNFEquiv (n b₀ : ℕ) :
     ↥((univ : Finset (Fin n)) \
       heavyVars (univ : Finset (Fin n)) (univ : Finset (Fin ([] : List (Fin 0 → Bool)).length))
         (fun j => equationScope ((emptyCNF n).parityRowSystem [] j)) b₀) ≃ Fin n where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by rw [heavyVars_emptyCNF_eq_empty]; simp⟩
   left_inv v := by ext; rfl
   right_inv v := rfl

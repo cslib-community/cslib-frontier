@@ -202,12 +202,12 @@ theorem isGδ_dom_evalStream (p : ℕ → ℕ) (c : Code) : IsGδ (evalStream p 
 /-- A partial map on Baire space is continuous on its domain if and only if each output entry is
 constant on the inputs of the domain in some cylinder around each point of the domain. -/
 theorem continuous_get_iff_forall_exists_cylinder {F : (ℕ → ℕ) →. (ℕ → ℕ)} :
-    (Continuous fun x : F.Dom => (F x).get x.2) ↔
+    (Continuous fun x : F.Dom => (F x).get x.property) ↔
       ∀ x, ∀ y ∈ F x, ∀ n, ∃ k, ∀ x' ∈ cylinder x k, ∀ y' ∈ F x', y' n = y n := by
   refine ⟨fun hF x y hy n => ?_, fun h => continuous_pi fun n => IsLocallyConstant.continuous <|
     (IsLocallyConstant.iff_eventually_eq _).2 fun x => ?_⟩
   · have hx : x ∈ F.Dom := Part.dom_iff_mem.2 ⟨y, hy⟩
-    have hopen : IsOpen ((fun z : F.Dom => (F z).get z.2 n) ⁻¹' {y n}) :=
+    have hopen : IsOpen ((fun z : F.Dom => (F z).get z.property n) ⁻¹' {y n}) :=
       (isOpen_discrete _).preimage (continuous_pi_iff.1 hF n)
     obtain ⟨U, hU, hpre⟩ := isOpen_induced_iff.1 hopen
     have hxU : x ∈ U := by
@@ -223,11 +223,11 @@ theorem continuous_get_iff_forall_exists_cylinder {F : (ℕ → ℕ) →. (ℕ �
       hsub (by rwa [← mem_cylinder_iff_eq.1 hxz])
     rw [hpre] at hx'U
     exact (congrFun (Part.get_eq_of_mem hy' hx'dom) n).symm.trans hx'U
-  · obtain ⟨k, hk⟩ := h x.1 ((F x.1).get x.2) (Part.get_mem x.2) n
-    have hU : cylinder x.1 k ∈ nhds x.1 :=
-      (isOpen_cylinder _ x.1 k).mem_nhds (self_mem_cylinder x.1 k)
-    filter_upwards [continuous_subtype_val.continuousAt.preimage_mem_nhds hU] with z hz
-    exact hk z.1 hz _ (Part.get_mem z.2)
+  · obtain ⟨k, hk⟩ := h x.val ((F x.val).get x.property) (Part.get_mem x.property) n
+    have hU : cylinder x.val k ∈ nhds x.val :=
+      (isOpen_cylinder _ x.val k).mem_nhds (self_mem_cylinder x.val k)
+    filter_upwards [continuous_subtypeVal.continuousAt.preimage_mem_nhds hU] with z hz
+    exact hk z.val hz _ (Part.get_mem z.property)
 
 private noncomputable def partialNbhd (F : (ℕ → ℕ) →. (ℕ → ℕ)) (n : ℕ) (σ : List ℕ) : ℕ :=
   open Classical in
@@ -258,7 +258,7 @@ computes every partial map `F` on Baire space that is continuous on its domain, 
 join of an oracle `p` encoding `F` with the input. -/
 theorem exists_code_continuous_get :
     ∃ e : Code, ∀ F : (ℕ → ℕ) →. (ℕ → ℕ),
-      (Continuous fun x : F.Dom => (F x).get x.2) →
+      (Continuous fun x : F.Dom => (F x).get x.property) →
       ∃ p : ℕ → ℕ, ComputesStream (p : ℕ →. ℕ) e F := by
   obtain ⟨e, he⟩ := exists_code_search
   refine ⟨e, fun F hF => ⟨fun m => partialNbhd F m.unpair.1 (ofNat (List ℕ) m.unpair.2),
@@ -316,14 +316,14 @@ theorem streamComputable_iff_exists_computable {F : (ℕ → ℕ) →. (ℕ → 
 /-- **Computable maps are continuous on their domain.** A map computable relative to a total
 oracle, restricted to its domain, is continuous. -/
 theorem StreamComputableIn.continuous_get {p : ℕ → ℕ} {F : (ℕ → ℕ) →. (ℕ → ℕ)}
-    (hF : StreamComputableIn p F) : Continuous fun x : F.Dom => (F x).get x.2 := by
+    (hF : StreamComputableIn p F) : Continuous fun x : F.Dom => (F x).get x.property := by
   obtain ⟨c, hc⟩ := hF
   exact Code.continuous_get_iff_forall_exists_cylinder.2 fun _ _ hy n => hc.exists_cylinder hy n
 
 /-- **The continuity theorem for partial maps.** A partial map on Baire space is continuous on its
 domain if and only if it is computable relative to some total oracle. -/
 theorem continuous_get_iff_streamComputableIn {F : (ℕ → ℕ) →. (ℕ → ℕ)} :
-    (Continuous fun x : F.Dom => (F x).get x.2) ↔ ∃ p : ℕ → ℕ, StreamComputableIn p F := by
+    (Continuous fun x : F.Dom => (F x).get x.property) ↔ ∃ p : ℕ → ℕ, StreamComputableIn p F := by
   refine ⟨fun hF => ?_, fun ⟨_, hF⟩ => hF.continuous_get⟩
   obtain ⟨e, he⟩ := Code.exists_code_continuous_get
   obtain ⟨p, hp⟩ := he F hF
@@ -333,12 +333,12 @@ theorem continuous_get_iff_streamComputableIn {F : (ℕ → ℕ) →. (ℕ → �
 continuous on its domain extends to a partial map with a Gδ domain that is computable relative to
 a total oracle and continuous on its extended domain. -/
 theorem exists_gδ_extension_of_continuous_get {F : (ℕ → ℕ) →. (ℕ → ℕ)}
-    (hF : Continuous fun x : F.Dom => (F x).get x.2) :
+    (hF : Continuous fun x : F.Dom => (F x).get x.property) :
     ∃ (p : ℕ → ℕ) (F' : (ℕ → ℕ) →. (ℕ → ℕ)),
       IsGδ F'.Dom ∧
       (∀ x, ∀ y ∈ F x, y ∈ F' x) ∧
       StreamComputableIn p F' ∧
-      Continuous fun x : F'.Dom => (F' x).get x.2 := by
+      Continuous fun x : F'.Dom => (F' x).get x.property := by
   obtain ⟨p, c, hc⟩ := continuous_get_iff_streamComputableIn.1 hF
   exact ⟨p, Code.evalStream p c, Code.isGδ_dom_evalStream p c, fun _ _ hy => hc.mem_evalStream hy,
     ⟨c, Code.computesStream_evalStream p c⟩,

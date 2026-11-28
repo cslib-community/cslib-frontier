@@ -93,8 +93,9 @@ theorem correctionAnswer_extendCorrectionTable {p n : ℕ} [Fact p.Prime]
   have replace {a b : List Bool} (h : decodeReply p n a = decodeReply p n b) (reads : List ℕ) :
       checkLineReply p n a reads = checkLineReply p n b reads := by
     rw [checkLineReply, checkLineReply, h]
-  rw [correctionAnswer, hword, hpoint, replace (decodeReply_replyWord hf x v), ite_eq_left hcheck,
-    decodeReply_replyWord]
+  rw [correctionAnswer, hword, hpoint]
+  dsimp only
+  rw [replace (decodeReply_replyWord hf x v), ite_eq_left hcheck, decodeReply_replyWord]
   exact congrArg some ((ZMod.val_natCast_of_lt (evalCoeffListMod_lt_modulus _ _)).symm.trans
     (congrArg ZMod.val heval))
 

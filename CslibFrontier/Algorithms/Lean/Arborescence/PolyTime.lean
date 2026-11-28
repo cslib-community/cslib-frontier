@@ -229,15 +229,15 @@ enc_structure encContractWork : ContractWork where
 
 /-- Digraph on `Fin a.length` defined by `adjAt a`. -/
 @[expose] def tableDigraph (a : List (List Bool)) : Digraph (Fin a.length) where
-  Adj u w := adjAt a u.1 w.1 = true
+  Adj u w := adjAt a u.val w.val = true
 
 instance instDecidableRelTableDigraphAdj (a : List (List Bool)) :
     DecidableRel (tableDigraph a).Adj :=
-  fun u w => inferInstanceAs (Decidable (adjAt a u.1 w.1 = true))
+  fun u w => inferInstanceAs (Decidable (adjAt a u.val w.val = true))
 
 /-- Integer arc-cost function on `Fin n` extracted from `costAt c`. -/
 @[expose] def tableCost (c : List (List ℤ)) {n : ℕ} (u w : Fin n) : ℤ :=
-  costAt c u.1 w.1
+  costAt c u.val w.val
 
 /-- Decision language for minimum-cost spanning in-arborescence (`arcCost T ≤ threshold`). -/
 @[expose] def minArborescenceDec : Set ArborescenceDecInstance :=
@@ -1454,8 +1454,8 @@ private theorem map_val_finRange (n : ℕ) : (List.finRange n).map Fin.val = Lis
 
 private theorem foldl_argMinStep_fin {n : ℕ} (pred : Fin n → Bool) (key : Fin n → ℤ)
     (predN : ℕ → Bool) (keyN : ℕ → ℤ)
-    (hpred : ∀ w : Fin n, pred w = predN w.1)
-    (hkey : ∀ w : Fin n, pred w = true → key w = keyN w.1) :
+    (hpred : ∀ w : Fin n, pred w = predN w.val)
+    (hkey : ∀ w : Fin n, pred w = true → key w = keyN w.val) :
     ∀ (l : List (Fin n)) (acc : Option (Fin n)), (∀ a, acc = some a → pred a = true) →
       ((l.filter pred).foldl (List.argAux fun a b => key a < key b) acc).map Fin.val =
         (l.map Fin.val).foldl (argMinStep predN keyN) (acc.map Fin.val)
@@ -1463,18 +1463,18 @@ private theorem foldl_argMinStep_fin {n : ℕ} (pred : Fin n → Bool) (key : Fi
   | x :: xs, acc, hacc => by
     simp only [List.map_cons, List.foldl_cons, argMinStep]
     by_cases hx : pred x = true
-    · have hxn : predN x.1 = true := (hpred x).symm.trans hx
+    · have hxn : predN x.val = true := (hpred x).symm.trans hx
       rw [List.filter_cons_of_pos (by simp [hx])]
       simp only [List.foldl_cons, hxn, ↓reduceIte]
       have hstep : (List.argAux (fun a b => key a < key b) acc x).map Fin.val =
-          (acc.map Fin.val).elim (some x.1)
-            (fun cur => if decide (keyN x.1 < keyN cur) then some x.1 else some cur) := by
+          (acc.map Fin.val).elim (some x.val)
+            (fun cur => if decide (keyN x.val < keyN cur) then some x.val else some cur) := by
         cases acc with
         | none => rfl
         | some a =>
           have ha := hacc a rfl
           simp only [List.argAux, Option.map_some, Option.elim_some, hkey x hx, hkey a ha]
-          by_cases hlt : keyN x.1 < keyN a.1 <;> simp [hlt]
+          by_cases hlt : keyN x.val < keyN a.val <;> simp [hlt]
       have hacc' : ∀ b, List.argAux (fun a b => key a < key b) acc x = some b → pred b = true := by
         intro b hb
         cases acc with
@@ -1488,15 +1488,15 @@ private theorem foldl_argMinStep_fin {n : ℕ} (pred : Fin n → Bool) (key : Fi
           · exact hb ▸ hacc a rfl
       rw [foldl_argMinStep_fin pred key predN keyN hpred hkey xs _ hacc', hstep]
     · have hxf : pred x = false := Bool.eq_false_iff.mpr hx
-      have hxn : predN x.1 = false := (hpred x).symm.trans hxf
+      have hxn : predN x.val = false := (hpred x).symm.trans hxf
       rw [List.filter_cons_of_neg (by simp [hxf])]
       simp only [hxn, Bool.false_eq_true, ↓reduceIte]
       exact foldl_argMinStep_fin pred key predN keyN hpred hkey xs acc hacc
 
 private theorem argMinRange_fin {n : ℕ} (pred : Fin n → Bool) (key : Fin n → ℤ)
     (predN : ℕ → Bool) (keyN : ℕ → ℤ)
-    (hpred : ∀ w : Fin n, pred w = predN w.1)
-    (hkey : ∀ w : Fin n, pred w = true → key w = keyN w.1) :
+    (hpred : ∀ w : Fin n, pred w = predN w.val)
+    (hkey : ∀ w : Fin n, pred w = true → key w = keyN w.val) :
     (((List.finRange n).filter pred).argmin key).map Fin.val = argMinRange n predN keyN := by
   have h := foldl_argMinStep_fin pred key predN keyN hpred hkey (List.finRange n) none
     fun _ h => by simp at h
@@ -1504,52 +1504,52 @@ private theorem argMinRange_fin {n : ℕ} (pred : Fin n → Bool) (key : Fin n �
 
 /-- Boolean adjacency relation on `Fin n × Fin n` read from row-major table `a`. -/
 private def tableAdj (n : ℕ) (a : List (List Bool)) (u w : Fin n) : Bool :=
-  adjAt a u.1 w.1
+  adjAt a u.val w.val
 
 private theorem decide_congr_inst {p : Prop} (d₁ d₂ : Decidable p) :
     @decide p d₁ = @decide p d₂ := by
   cases Subsingleton.elim d₁ d₂
   rfl
 
-private theorem fin_val_beq {n : ℕ} (a b : Fin n) : (a.1 == b.1) = decide (a = b) :=
+private theorem fin_val_beq {n : ℕ} (a b : Fin n) : (a.val == b.val) = decide (a = b) :=
   Bool.eq_iff_iff.mpr (by simp [Fin.ext_iff])
 
 private theorem sum_range_filter_map {n : ℕ} (p : ℕ → Bool) (g : ℕ → ℤ) :
     (((List.range n).filter p).map g).sum =
-      ∑ v ∈ Finset.univ.filter (fun v : Fin n => p v.1 = true), g v.1 := by
+      ∑ v ∈ Finset.univ.filter (fun v : Fin n => p v.val = true), g v.val := by
   rw [← map_val_finRange n, List.filter_map, List.map_map]
   have hnd : ((List.finRange n).filter (p ∘ Fin.val)).Nodup := (List.nodup_finRange n).filter _
-  change (((List.finRange n).filter (p ∘ Fin.val)).map (fun v : Fin n => g v.1)).sum = _
-  rw [← List.sum_toFinset (fun v : Fin n => g v.1) hnd]
+  change (((List.finRange n).filter (p ∘ Fin.val)).map (fun v : Fin n => g v.val)).sum = _
+  rw [← List.sum_toFinset (fun v : Fin n => g v.val) hnd]
   congr 1; ext v; simp
 
 private theorem selectParentsList_eq {n : ℕ} [FinEnum (Fin n)]
     (htl : FinEnum.toList (Fin n) = List.finRange n)
     {a : List (List Bool)} (ha : a.length = n) (c : List (List ℤ)) (r : Fin n) :
-    match selectParentsList a c r.1 with
+    match selectParentsList a c r.val with
     | none => ¬ ∀ v : Fin n, v ≠ r → candidates (tableAdj n a) v ≠ []
     | some f =>
       (∀ v : Fin n, v ≠ r → candidates (tableAdj n a) v ≠ []) ∧
         f.length = n ∧ (∀ i < n, f.getD i 0 < n) ∧
-        ∀ v : Fin n, f.getD v.1 0 = (cheapestParent (tableAdj n a) (tableCost c) r v).1 := by
+        ∀ v : Fin n, f.getD v.val 0 = (cheapestParent (tableAdj n a) (tableCost c) r v).val := by
   have hcand_eq (v : Fin n) :
-      ((List.finRange n).filter fun w : Fin n => adjAt a v.1 w.1 && (w != v)) =
+      ((List.finRange n).filter fun w : Fin n => adjAt a v.val w.val && (w != v)) =
         candidates (tableAdj n a) v := by
     unfold candidates; rw [htl]
     refine List.filter_congr fun w _ => ?_
     simp only [tableAdj, _root_.bne, BEq.beq]
-    exact congrArg (adjAt a v.1 w.1 && ·) (congrArg not (decide_congr_inst _ _))
+    exact congrArg (adjAt a v.val w.val && ·) (congrArg not (decide_congr_inst _ _))
   have harg (v : Fin n) :
       ((candidates (tableAdj n a) v).argmin (tableCost c v)).map Fin.val =
-        argMinRange n (fun w => adjAt a v.1 w && (w != v.1)) (fun w => costAt c v.1 w) := by
+        argMinRange n (fun w => adjAt a v.val w && (w != v.val)) (fun w => costAt c v.val w) := by
     rw [← hcand_eq v]
     exact argMinRange_fin _ _ _ _
       (fun w => congrArg (_ && ·) (Bool.eq_iff_iff.mpr (by simp [Fin.ext_iff]))) (fun _ _ => rfl)
   unfold selectParentsList; dsimp only; rw [ha]
-  let fopt (v : ℕ) := if v == r.1 then some r.1
+  let fopt (v : ℕ) := if v == r.val then some r.val
     else argMinRange n (fun w => adjAt a v w && (w != v)) (fun w => costAt c v w)
-  have hfopt (v : Fin n) : fopt v.1 =
-      if v = r then some r.1
+  have hfopt (v : Fin n) : fopt v.val =
+      if v = r then some r.val
       else ((candidates (tableAdj n a) v).argmin (tableCost c v)).map Fin.val := by
     simp only [fopt, fin_val_beq, ← harg v]; split_ifs <;> simp_all
   have hall_iff : ((List.range n).map fopt).all Option.isSome = true ↔
@@ -1557,16 +1557,17 @@ private theorem selectParentsList_eq {n : ℕ} [FinEnum (Fin n)]
     simp only [List.all_eq_true, List.mem_map, List.mem_range, forall_exists_index, and_imp,
       forall_apply_eq_imp_iff₂]
     refine ⟨fun h v hvr hnil => ?_, fun h k hk => ?_⟩
-    · have := h v.1 v.2; rw [hfopt v, ite_eq_right (fun e => hvr e), hnil] at this; simp at this
+    · have := h v.val v.isLt; rw [hfopt v, ite_eq_right (fun e => hvr e),
+        hnil] at this; simp at this
     · rw [hfopt ⟨k, hk⟩]; by_cases hvr : (⟨k, hk⟩ : Fin n) = r
       · simp [hvr]
       · obtain ⟨m, hm⟩ := List.exists_argmin_eq_some (f := tableCost c ⟨k, hk⟩) (h ⟨k, hk⟩ hvr)
         simp [hvr, hm]
   split_ifs with hall
   · have hcond := hall_iff.mp hall
-    have hval (v : Fin n) : (((List.range n).map fopt).map fun o => o.getD 0).getD v.1 0 =
-        (cheapestParent (tableAdj n a) (tableCost c) r v).1 := by
-      rw [List.map_map, List.getD_map_range _ _ v.2]; dsimp only [Function.comp_apply]
+    have hval (v : Fin n) : (((List.range n).map fopt).map fun o => o.getD 0).getD v.val 0 =
+        (cheapestParent (tableAdj n a) (tableCost c) r v).val := by
+      rw [List.map_map, List.getD_map_range _ _ v.isLt]; dsimp only [Function.comp_apply]
       rw [hfopt v]; unfold cheapestParent; by_cases hvr : v = r
       · simp [hvr]
       · obtain ⟨m, hm⟩ := List.exists_argmin_eq_some (f := tableCost c v) (hcond v hvr)
@@ -1575,8 +1576,8 @@ private theorem selectParentsList_eq {n : ℕ} [FinEnum (Fin n)]
   · exact fun h => hall (hall_iff.mpr h)
 
 private theorem followParent_iterate_eq {n : ℕ} (f : List ℕ) (fV : Fin n → Fin n)
-    (hf : ∀ v : Fin n, f.getD v.1 0 = (fV v).1) (v : Fin n) :
-    ∀ k, (followParent f)^[k] v.1 = (fV^[k] v).1
+    (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val) (v : Fin n) :
+    ∀ k, (followParent f)^[k] v.val = (fV^[k] v).val
   | 0 => rfl
   | k + 1 => by
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply',
@@ -1585,8 +1586,8 @@ private theorem followParent_iterate_eq {n : ℕ} (f : List ℕ) (fV : Fin n →
 private theorem findCycleList_eq {n : ℕ} [FinEnum (Fin n)]
     (htl : FinEnum.toList (Fin n) = List.finRange n)
     (hcard : FinEnum.card (Fin n) = n)
-    (f : List ℕ) (fV : Fin n → Fin n) (hf : ∀ v : Fin n, f.getD v.1 0 = (fV v).1) (r : Fin n) :
-    findCycleList n r.1 f = (findCycle r fV).map Fin.val := by
+    (f : List ℕ) (fV : Fin n → Fin n) (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val) (r : Fin n) :
+    findCycleList n r.val f = (findCycle r fV).map Fin.val := by
   unfold findCycleList findCycle
   rw [htl, ← map_val_finRange n, List.find?_map]
   congr 1; refine congrArg (fun p => (List.finRange n).find? p) (funext fun x => ?_)
@@ -1601,20 +1602,21 @@ private theorem finset_erase_eq_of_dec {α : Type*} (d₁ d₂ : DecidableEq α)
 
 private theorem cycleMaskList_eq {n : ℕ} [FinEnum (Fin n)]
     (hcard : FinEnum.card (Fin n) = n)
-    (f : List ℕ) (fV : Fin n → Fin n) (hf : ∀ v : Fin n, f.getD v.1 0 = (fV v).1) (x0 y : Fin n) :
-    (cycleMaskList n f x0.1).getD y.1 false = true ↔ y ∈ cycleOf fV x0 := by
+    (f : List ℕ) (fV : Fin n → Fin n) (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val)
+    (x0 y : Fin n) :
+    (cycleMaskList n f x0.val).getD y.val false = true ↔ y ∈ cycleOf fV x0 := by
   unfold cycleMaskList
-  rw [List.getD_map_range _ _ y.2, List.any_eq_true, mem_cycleOf]
+  rw [List.getD_map_range _ _ y.isLt, List.any_eq_true, mem_cycleOf]
   simp only [List.mem_range, beq_iff_eq, hcard, Fin.ext_iff, followParent_iterate_eq f fV hf x0]
 
 private theorem otherCycleCostList_eq {n : ℕ} (c : List (List ℤ)) (f : List ℕ) (fV : Fin n → Fin n)
     (inCycle : List Bool) (C : Finset (Fin n))
-    (hf : ∀ v : Fin n, f.getD v.1 0 = (fV v).1)
-    (hmask : ∀ y : Fin n, inCycle.getD y.1 false = true ↔ y ∈ C)
+    (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val)
+    (hmask : ∀ y : Fin n, inCycle.getD y.val false = true ↔ y ∈ C)
     {x : Fin n} (hx : x ∈ C) :
-    (otherCycleCostList n c f inCycle).getD x.1 0 = ∑ y ∈ C.erase x, tableCost c y (fV y) := by
+    (otherCycleCostList n c f inCycle).getD x.val 0 = ∑ y ∈ C.erase x, tableCost c y (fV y) := by
   unfold otherCycleCostList
-  rw [List.getD_map_range _ _ x.2, (hmask x).mpr hx]
+  rw [List.getD_map_range _ _ x.isLt, (hmask x).mpr hx]
   simp only [↓reduceIte, sum_range_filter_map]
   refine Finset.sum_congr (by
     ext y; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Bool.and_eq_true, bne_iff_ne,
@@ -1625,18 +1627,18 @@ private theorem contractAdjList_eq {n : ℕ} [FinEnum (Fin n)]
     (htl : FinEnum.toList (Fin n) = List.finRange n)
     {a : List (List Bool)} {inCycle : List Bool} {bEntry bExit : List (Option ℕ)}
     {C : Finset (Fin n)} {x0 r : Fin n}
-    (hin : ∀ y : Fin n, inCycle.getD y.1 false = decide (y ∈ C))
-    (hbe_some : ∀ u : Fin n, (bEntry.getD u.1 none).isSome =
+    (hin : ∀ y : Fin n, inCycle.getD y.val false = decide (y ∈ C))
+    (hbe_some : ∀ u : Fin n, (bEntry.getD u.val none).isSome =
       (List.finRange n).any fun y => decide (y ∈ C) && tableAdj n a u y)
-    (hbx_some : ∀ w : Fin n, (bExit.getD w.1 none).isSome =
+    (hbx_some : ∀ w : Fin n, (bExit.getD w.val none).isSome =
       (List.finRange n).any fun x => decide (x ∈ C) && tableAdj n a x w) :
-    tableAdj n (contractAdjList n inCycle a bEntry bExit x0.1 r.1) =
+    tableAdj n (contractAdjList n inCycle a bEntry bExit x0.val r.val) =
       contractAdj (tableAdj n a) C x0 r := by
   funext u w
-  change adjAt (contractAdjList n inCycle a bEntry bExit x0.1 r.1) u.1 w.1 =
+  change adjAt (contractAdjList n inCycle a bEntry bExit x0.val r.val) u.val w.val =
     contractAdj (tableAdj n a) C x0 r u w
   unfold adjAt contractAdjList contractAdj
-  rw [List.getD_map_range _ _ u.2, List.getD_map_range _ _ w.2,
+  rw [List.getD_map_range _ _ u.isLt, List.getD_map_range _ _ w.isLt,
     htl, hin u, hin w, fin_val_beq, fin_val_beq, fin_val_beq, hbx_some w, hbe_some u]
   have dec_congr (f : Fin n → Bool) :
       (List.finRange n).any (fun y => decide (y ∈ C) && f y) =
@@ -1662,19 +1664,19 @@ private theorem contractAdjList_eq {n : ℕ} [FinEnum (Fin n)]
 private theorem contractCostList_eq {n : ℕ} [FinEnum (Fin n)]
     {a : List (List Bool)} {c : List (List ℤ)} {inCycle : List Bool} {other : List ℤ}
     {bEntry bExit : List (Option ℕ)} {fV : Fin n → Fin n} {C : Finset (Fin n)} {x0 : Fin n}
-    (hin : ∀ y : Fin n, inCycle.getD y.1 false = decide (y ∈ C))
-    (hother : ∀ {x : Fin n}, x ∈ C → other.getD x.1 0 = ∑ y ∈ C.erase x, tableCost c y (fV y))
-    (hbe : ∀ u : Fin n, bEntry.getD u.1 none =
+    (hin : ∀ y : Fin n, inCycle.getD y.val false = decide (y ∈ C))
+    (hother : ∀ {x : Fin n}, x ∈ C → other.getD x.val 0 = ∑ y ∈ C.erase x, tableCost c y (fV y))
+    (hbe : ∀ u : Fin n, bEntry.getD u.val none =
       (bestEntry (tableAdj n a) (tableCost c) C u).map Fin.val)
-    (hbx : ∀ w : Fin n, bExit.getD w.1 none =
+    (hbx : ∀ w : Fin n, bExit.getD w.val none =
       (bestExit (tableAdj n a) (tableCost c) fV C w).map Fin.val) :
-    tableCost (contractCostList n inCycle c other bEntry bExit x0.1) =
+    tableCost (contractCostList n inCycle c other bEntry bExit x0.val) =
       contractCost (tableAdj n a) (tableCost c) fV C x0 := by
   funext u w
-  change costAt (contractCostList n inCycle c other bEntry bExit x0.1) u.1 w.1 =
+  change costAt (contractCostList n inCycle c other bEntry bExit x0.val) u.val w.val =
     contractCost (tableAdj n a) (tableCost c) fV C x0 u w
   unfold costAt contractCostList contractCost
-  rw [List.getD_map_range _ _ u.2, List.getD_map_range _ _ w.2,
+  rw [List.getD_map_range _ _ u.isLt, List.getD_map_range _ _ w.isLt,
     hin u, fin_val_beq, fin_val_beq]
   by_cases huC : u ∈ C
   · simp only [huC, decide_true, ↓reduceIte]
@@ -1699,18 +1701,18 @@ private theorem expandLevelList_eq {n : ℕ} [FinEnum (Fin n)]
     {a : List (List Bool)} {c : List (List ℤ)} {f qL : List ℕ} {inCycle : List Bool}
     {bEntry bExit : List (Option ℕ)} {fV qV : Fin n → Fin n} {C : Finset (Fin n)} {x0 : Fin n}
     (hic_len : inCycle.length = n)
-    (hin : ∀ y : Fin n, inCycle.getD y.1 false = decide (y ∈ C))
-    (hf : ∀ v : Fin n, f.getD v.1 0 = (fV v).1)
-    (hq : ∀ v : Fin n, qL.getD v.1 0 = (qV v).1)
-    (hbe : ∀ u : Fin n, bEntry.getD u.1 none =
+    (hin : ∀ y : Fin n, inCycle.getD y.val false = decide (y ∈ C))
+    (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val)
+    (hq : ∀ v : Fin n, qL.getD v.val 0 = (qV v).val)
+    (hbe : ∀ u : Fin n, bEntry.getD u.val none =
       (bestEntry (tableAdj n a) (tableCost c) C u).map Fin.val)
-    (hbx : ∀ w : Fin n, bExit.getD w.1 none =
+    (hbx : ∀ w : Fin n, bExit.getD w.val none =
       (bestExit (tableAdj n a) (tableCost c) fV C w).map Fin.val) :
-    ∀ v : Fin n, (expandLevelList ⟨f, inCycle, bEntry, bExit, x0.1⟩ qL).getD v.1 0 =
-      (expandParent (tableAdj n a) (tableCost c) fV C x0 qV v).1 := by
+    ∀ v : Fin n, (expandLevelList ⟨f, inCycle, bEntry, bExit, x0.val⟩ qL).getD v.val 0 =
+      (expandParent (tableAdj n a) (tableCost c) fV C x0 qV v).val := by
   intro v
   unfold expandLevelList expandParent
-  rw [List.getD_map_range _ _ (hic_len.symm ▸ v.2)]
+  rw [List.getD_map_range _ _ (hic_len.symm ▸ v.isLt)]
   dsimp only
   rw [hin v, hq x0, hq v, hbx (qV x0), fin_val_beq (qV v) x0]
   by_cases hvC : v ∈ C
@@ -1732,59 +1734,59 @@ private theorem runListAux_eq_edmondsAux {n : ℕ} [FinEnum (Fin n)]
     (htl : FinEnum.toList (Fin n) = List.finRange n)
     (hcard : FinEnum.card (Fin n) = n) (r : Fin n) :
     ∀ (fuel : ℕ) (a : List (List Bool)) (c : List (List ℤ)), a.length = n →
-      match runListAux r.1 fuel a c,
+      match runListAux r.val fuel a c,
           edmondsAux r fuel (tableAdj n a) (tableCost c) with
       | none, none => True
       | some pL, some pV =>
-        pL.length = n ∧ ∀ v : Fin n, pL.getD v.1 0 = (pV v).1
+        pL.length = n ∧ ∀ v : Fin n, pL.getD v.val 0 = (pV v).val
       | _, _ => False
   | 0, _, _, _ => trivial
   | fuel + 1, a, c, ha_len => by
     have hsel := selectParentsList_eq htl ha_len c r
     unfold runListAux edmondsAux
-    cases hselL : selectParentsList a c r.1 with
+    cases hselL : selectParentsList a c r.val with
     | none => rw [hselL] at hsel; dsimp only at hsel; simp only [hsel, ↓reduceIte]
     | some f =>
       rw [hselL] at hsel; obtain ⟨hcond, hf_len, _, hf_eq⟩ := hsel
       set fV := cheapestParent (tableAdj n a) (tableCost c) r
       split_ifs; simp only [ha_len]
       have hcyc := findCycleList_eq htl hcard f fV hf_eq r
-      cases hcycL : findCycleList n r.1 f with
+      cases hcycL : findCycleList n r.val f with
       | none =>
         rw [hcycL] at hcyc
         have hcycV : findCycle r fV = none := by cases h : findCycle r fV <;> simp_all
         rw [hcycV]; exact ⟨hf_len, hf_eq⟩
       | some x0N =>
         rw [hcycL] at hcyc
-        obtain ⟨x0, hx0V, rfl⟩ : ∃ x0 : Fin n, findCycle r fV = some x0 ∧ x0.1 = x0N := by
+        obtain ⟨x0, hx0V, rfl⟩ : ∃ x0 : Fin n, findCycle r fV = some x0 ∧ x0.val = x0N := by
           cases h : findCycle r fV <;> simp_all
         rw [hx0V]; dsimp only
         set C := cycleOf fV x0
-        set inCycle := cycleMaskList n f x0.1
+        set inCycle := cycleMaskList n f x0.val
         set other := otherCycleCostList n c f inCycle
         set bEntry := bestEntryList n a c inCycle
         set bExit := bestExitList n a c inCycle other
-        set a' := contractAdjList n inCycle a bEntry bExit x0.1 r.1
-        set c' := contractCostList n inCycle c other bEntry bExit x0.1
-        have hmask (y : Fin n) : inCycle.getD y.1 false = true ↔ y ∈ C :=
+        set a' := contractAdjList n inCycle a bEntry bExit x0.val r.val
+        set c' := contractCostList n inCycle c other bEntry bExit x0.val
+        have hmask (y : Fin n) : inCycle.getD y.val false = true ↔ y ∈ C :=
           cycleMaskList_eq hcard f fV hf_eq x0 y
-        have hin (y : Fin n) : inCycle.getD y.1 false = decide (y ∈ C) :=
+        have hin (y : Fin n) : inCycle.getD y.val false = decide (y ∈ C) :=
           Bool.eq_iff_iff.mpr (by simpa using hmask y)
         have hother {x : Fin n} (hx : x ∈ C) :
-            other.getD x.1 0 = ∑ y ∈ C.erase x, tableCost c y (fV y) :=
+            other.getD x.val 0 = ∑ y ∈ C.erase x, tableCost c y (fV y) :=
           otherCycleCostList_eq c f fV inCycle C hf_eq hmask hx
         have hbe (u : Fin n) :
-            bEntry.getD u.1 none = (bestEntry (tableAdj n a) (tableCost c) C u).map Fin.val := by
+            bEntry.getD u.val none = (bestEntry (tableAdj n a) (tableCost c) C u).map Fin.val := by
           unfold bEntry bestEntryList bestEntry
-          rw [List.getD_map_range _ _ u.2, htl]
+          rw [List.getD_map_range _ _ u.isLt, htl]
           exact (argMinRange_fin _ _ _ _ (fun y => by
             rw [tableAdj, hin]; exact congrArg (· && _) (decide_congr_inst _ _))
             (fun _ _ => rfl)).symm
         have hbx (w : Fin n) :
-            bExit.getD w.1 none =
+            bExit.getD w.val none =
               (bestExit (tableAdj n a) (tableCost c) fV C w).map Fin.val := by
           unfold bExit bestExitList bestExit
-          rw [List.getD_map_range _ _ w.2, htl]
+          rw [List.getD_map_range _ _ w.isLt, htl]
           refine (argMinRange_fin _ _ _ _ (fun x => by
             rw [tableAdj, hin]; exact congrArg (· && _) (decide_congr_inst _ _))
             fun x hx => ?_).symm
@@ -1805,7 +1807,7 @@ private theorem runListAux_eq_edmondsAux {n : ℕ} [FinEnum (Fin n)]
             (fun u => isSome_argmin (tableAdj n a u) _ _ (hbe u))
             (fun w => isSome_argmin (fun x => tableAdj n a x w) _ _ (hbx w)),
           contractCostList_eq hin hother hbe hbx] at hih
-        cases hrL : runListAux r.1 fuel a' c' <;>
+        cases hrL : runListAux r.val fuel a' c' <;>
           cases hrV : edmondsAux r fuel (contractAdj (tableAdj n a) C x0 r)
             (contractCost (tableAdj n a) (tableCost c) fV C x0) <;>
           simp only [hrL, hrV] at hih ⊢
@@ -1814,11 +1816,11 @@ private theorem runListAux_eq_edmondsAux {n : ℕ} [FinEnum (Fin n)]
             expandLevelList_eq (by simp [inCycle, cycleMaskList]) hin hf_eq hih.2 hbe hbx⟩
 
 private theorem arcCost_parentDigraph_eq_sum_range {n : ℕ} {c : Fin n → Fin n → ℤ}
-    {cL : ℕ → ℕ → ℤ} (hc : ∀ u w : Fin n, c u w = cL u.1 w.1)
+    {cL : ℕ → ℕ → ℤ} (hc : ∀ u w : Fin n, c u w = cL u.val w.val)
     (r : Fin n) (p : Fin n → Fin n) (pL : List ℕ)
-    (hp : ∀ v : Fin n, pL.getD v.1 0 = (p v).1) :
+    (hp : ∀ v : Fin n, pL.getD v.val 0 = (p v).val) :
     arcCost (Digraph.parentDigraph r p) c =
-      (((List.range n).filter fun v => v != r.1).map fun v => cL v (pL.getD v 0)).sum := by
+      (((List.range n).filter fun v => v != r.val).map fun v => cL v (pL.getD v 0)).sum := by
   rw [arcCost_parentDigraph, sum_range_filter_map]
   refine Finset.sum_congr (by ext v; simp [Fin.ext_iff]) fun v _ => by rw [hc, hp v]
 
@@ -1828,17 +1830,17 @@ spanning in-arborescence rooted at `r` of cost at most `θ`. -/
 private theorem elim_decide_iff_of_spec {n : ℕ} {fi : Fintype (Fin n)}
     {de : DecidableEq (Fin n)} {G : Digraph (Fin n)}
     {c : Fin n → Fin n → ℤ} {r : Fin n} {cL : ℕ → ℕ → ℤ}
-    (hc : ∀ u w : Fin n, c u w = cL u.1 w.1) {o : Option (List ℕ)}
+    (hc : ∀ u w : Fin n, c u w = cL u.val w.val) {o : Option (List ℕ)}
     {oV : Option (Fin n → Fin n)}
     (ho : match o, oV with
       | none, none => True
-      | some pL, some pV => pL.length = n ∧ ∀ v : Fin n, pL.getD v.1 0 = (pV v).1
+      | some pL, some pV => pL.length = n ∧ ∀ v : Fin n, pL.getD v.val 0 = (pV v).val
       | _, _ => False)
     (hspec : (∀ p, oV = some p → IsInArborescenceParent G.Adj r p ∧
         ∀ t, IsInArborescenceParent G.Adj r t →
           @parentCost _ _ fi de _ c r p ≤ @parentCost _ _ fi de _ c r t) ∧
       (oV = none → ∀ t, ¬ IsInArborescenceParent G.Adj r t)) (θ : ℤ) :
-    o.elim false (fun pL => decide ((((List.range n).filter fun v => v != r.1).map fun v =>
+    o.elim false (fun pL => decide ((((List.range n).filter fun v => v != r.val).map fun v =>
         cL v (pL.getD v 0)).sum ≤ θ)) = true ↔
       ∃ T : Digraph (Fin n), T.IsInArborescence r ∧ T ≤ G ∧
         @arcCost (Fin n) ℤ (Fin.fintype n) _ T (Classical.decRel _) c ≤ θ := by
@@ -1863,7 +1865,7 @@ private theorem elim_decide_iff_of_spec {n : ℕ} {fi : Fintype (Fin n)}
 
 /-- `adjAt a` as the Boolean form of a relation `R` that it decides. -/
 private theorem tableAdj_eq_decide {n : ℕ} {a : List (List Bool)} {R : Fin n → Fin n → Prop}
-    [DecidableRel R] (h : ∀ u w, R u w ↔ adjAt a u.1 w.1 = true) :
+    [DecidableRel R] (h : ∀ u w, R u w ↔ adjAt a u.val w.val = true) :
     tableAdj n a = fun u w => decide (R u w) := by
   funext u w
   simp [tableAdj, h]
@@ -1889,8 +1891,8 @@ theorem minArborescenceDec_mem_P :
 
 private theorem transposeBoolTable_adj {a : List (List Bool)} {n : ℕ} (ha : a.length = n)
     (u w : Fin n) : tableAdj n (transposeBoolTable a) u w = tableAdj n a w u := by
-  have hu : u.1 < a.length := ha.symm ▸ u.2
-  have hw : w.1 < a.length := ha.symm ▸ w.2
+  have hu : u.val < a.length := ha.symm ▸ u.isLt
+  have hw : w.val < a.length := ha.symm ▸ w.isLt
   unfold tableAdj adjAt transposeBoolTable
   rw [List.getD_map_range _ _ hu, List.getD_map_range _ _ hw]
   rfl
@@ -1898,7 +1900,7 @@ private theorem transposeBoolTable_adj {a : List (List Bool)} {n : ℕ} (ha : a.
 private theorem transposeIntTable_cost {n : ℕ} (c : List (List ℤ)) (u w : Fin n) :
     tableCost (transposeIntTable n c) u w = tableCost c w u := by
   unfold tableCost costAt transposeIntTable
-  rw [List.getD_map_range _ _ u.2, List.getD_map_range _ _ w.2]
+  rw [List.getD_map_range _ _ u.isLt, List.getD_map_range _ _ w.isLt]
   rfl
 
 private theorem arcCost_reverse {V β : Type*} [Fintype V] [AddCommMonoid β]
@@ -2002,24 +2004,24 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
   let G' : Digraph (Fin (n + 1)) := ⟨fun u w => tableAdj (n + 1) adj' u w = true⟩
   let e : Fin (n + 1) ≃ Option (Fin n) := finSuccEquivLast
   have he_none : e r = none := by simp [e, r]
-  have hcase (u : Fin (n + 1)) : (∃ h : u.1 < n, (u.1 == n) = false ∧ e u = some ⟨u.1, h⟩) ∨
-      ((u.1 == n) = true ∧ e u = none) := by
-    rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ u.2) with hu | hu
+  have hcase (u : Fin (n + 1)) : (∃ h : u.val < n, (u.val == n) = false ∧ e u = some ⟨u.val, h⟩) ∨
+      ((u.val == n) = true ∧ e u = none) := by
+    rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ u.isLt) with hu | hu
     · exact .inl ⟨hu, beq_false_of_ne hu.ne, by
-        simpa [e] using (finSuccEquivLast_castSucc ⟨u.1, hu⟩)⟩
+        simpa [e] using (finSuccEquivLast_castSucc ⟨u.val, hu⟩)⟩
     · exact .inr ⟨beq_iff_eq.mpr hu, by rw [← he_none]; congr 1; exact Fin.ext hu⟩
   have hsuper_adj (u w : Fin (n + 1)) :
       G'.Adj u w ↔ (tableDigraph d.inst.adj).superRootDigraph.Adj (e u) (e w) := by
-    change adjAt adj' u.1 w.1 = true ↔ _
-    rw [superRootAdjList_getD d.inst.adj u.2 w.2]
+    change adjAt adj' u.val w.val = true ↔ _
+    rw [superRootAdjList_getD d.inst.adj u.isLt w.isLt]
     rcases hcase u with ⟨_, hu, heu⟩ | ⟨hu, heu⟩ <;>
       rcases hcase w with ⟨_, hw, hew⟩ | ⟨hw, hew⟩ <;>
       dsimp only [n] at hu hw <;>
       simp [hu, hw, heu, hew, Digraph.superRootDigraph, tableDigraph]
   have hsuper_cost (u w : Fin (n + 1)) :
       tableCost wt' u w = superRootCost (tableCost d.inst.weight) (e u) (e w) := by
-    change costAt wt' u.1 w.1 = _
-    rw [superRootWeightList_getD n d.inst.weight u.2 w.2]
+    change costAt wt' u.val w.val = _
+    rw [superRootWeightList_getD n d.inst.weight u.isLt w.isLt]
     rcases hcase u with ⟨_, hu, heu⟩ | ⟨hu, heu⟩ <;>
       rcases hcase w with ⟨_, hw, hew⟩ | ⟨hw, hew⟩ <;>
       simp [hu, hw, heu, hew, superRootCost, tableCost]
@@ -2043,9 +2045,9 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
   rw [hpV'] at hrun_eq
   obtain ⟨pL, hpL_eq, _, hpL_val⟩ :
       ∃ pL, edmondsTableAuxList (n + 1) n adj' wt' = some pL ∧
-        pL.length = n + 1 ∧ ∀ v : Fin (n + 1), pL.getD v.1 0 = (pV v).1 := by
+        pL.length = n + 1 ∧ ∀ v : Fin (n + 1), pL.getD v.val 0 = (pV v).val := by
     rw [edmondsTableAuxList_eq_runListAux]
-    cases hL : runListAux r.1 (n + 1) adj' wt' with
+    cases hL : runListAux r.val (n + 1) adj' wt' with
     | none => simp [hL] at hrun_eq
     | some pL => exact ⟨pL, by simpa only [r, Fin.val_last] using hL, by
         simp only [hL] at hrun_eq; exact hrun_eq⟩
@@ -2078,45 +2080,45 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
       fun v => costAt d.inst.weight ((optimumBranchingList d.inst).getD v 0) v).sum =
       @arcCost (Fin n) ℤ (Fin.fintype n) _ Bstar (Classical.decRel _)
         (tableCost d.inst.weight) := by
-    have hopt_get (v : Fin n) : (optimumBranchingList d.inst).getD v.1 0 =
-        if pL.getD v.1 0 == n then v.1 else pL.getD v.1 0 := by
+    have hopt_get (v : Fin n) : (optimumBranchingList d.inst).getD v.val 0 =
+        if pL.getD v.val 0 == n then v.val else pL.getD v.val 0 := by
       unfold optimumBranchingList
-      change ((edmondsTableAuxList (n + 1) n adj' wt').elim [] _).getD v.1 0 = _
-      rw [hpL_eq, Option.elim_some, List.getD_map_range _ _ v.2]
-    have hno_loop (v : Fin n) : pL.getD v.1 0 ≠ v.1 := fun h => by
+      change ((edmondsTableAuxList (n + 1) n adj' wt').elim [] _).getD v.val 0 = _
+      rw [hpL_eq, Option.elim_some, List.getD_map_range _ _ v.isLt]
+    have hno_loop (v : Fin n) : pL.getD v.val 0 ≠ v.val := fun h => by
       have hself : pV v.castSucc = v.castSucc := Fin.ext ((hpL_val v.castSucc).symm.trans h)
       have hadj : Bstar.Adj v v := by
         simpa [Bstar, mapDigraph, e] using
           show (Digraph.parentDigraph r pV).Adj v.castSucc v.castSucc from
-            ⟨Fin.ne_of_val_ne (by simpa [r] using v.2.ne), hself⟩
+            ⟨Fin.ne_of_val_ne (by simpa [r] using v.isLt.ne), hself⟩
       exact hB_branch.acyclic (Relation.TransGen.single hadj)
     have hpar := arcCost_parentDigraph_eq_sum_range (c := tableCost wt') (cL := costAt wt')
       (fun _ _ => rfl) r pV pL hpL_val
     rw [arcCost_congr (T₁ := Digraph.parentDigraph r pV) FinEnum.instFintype _ _ _ rfl _]
       at hneg_star
     have hsum_parent :
-        (((List.range (n + 1)).filter fun v => v != r.1).map fun v =>
+        (((List.range (n + 1)).filter fun v => v != r.val).map fun v =>
             costAt wt' v (pL.getD v 0)).sum =
           -(((List.range n).filter fun v => (optimumBranchingList d.inst).getD v 0 != v).map
             fun v => costAt d.inst.weight ((optimumBranchingList d.inst).getD v 0) v).sum := by
       rw [sum_range_filter_map, sum_range_filter_map,
-        show (Finset.univ.filter fun v : Fin (n + 1) => (v.1 != r.1) = true) =
+        show (Finset.univ.filter fun v : Fin (n + 1) => (v.val != r.val) = true) =
           Finset.univ.map Fin.castSuccEmb by
             ext v; simp only [Finset.mem_filter, Finset.mem_univ, true_and, bne_iff_ne, r,
               Fin.val_last, Finset.mem_map, Fin.castSuccEmb_apply, Fin.ext_iff, Fin.val_castSucc]
-            exact ⟨fun h => ⟨⟨v.1, lt_of_le_of_ne (Nat.le_of_lt_succ v.2) h⟩, rfl⟩,
-              fun ⟨w, hw⟩ => hw ▸ w.2.ne⟩,
+            exact ⟨fun h => ⟨⟨v.val, lt_of_le_of_ne (Nat.le_of_lt_succ v.isLt) h⟩, rfl⟩,
+              fun ⟨w, hw⟩ => hw ▸ w.isLt.ne⟩,
         Finset.sum_map, Finset.sum_filter, ← Finset.sum_neg_distrib]
       refine Finset.sum_congr rfl fun v _ => ?_
-      have hlt : pL.getD v.1 0 < n + 1 := by
-        simpa only [Fin.val_castSucc] using hpL_val v.castSucc ▸ (pV v.castSucc).2
-      change costAt wt' v.1 (pL.getD v.1 0) = -if _ then _ else _
+      have hlt : pL.getD v.val 0 < n + 1 := by
+        simpa only [Fin.val_castSucc] using hpL_val v.castSucc ▸ (pV v.castSucc).isLt
+      change costAt wt' v.val (pL.getD v.val 0) = -if _ then _ else _
       rw [superRootWeightList_getD n d.inst.weight (by omega) hlt,
-        show (v.1 == n) = false from beq_false_of_ne v.2.ne, hopt_get v]
-      by_cases hpn : pL.getD v.1 0 = n
+        show (v.val == n) = false from beq_false_of_ne v.isLt.ne, hopt_get v]
+      by_cases hpn : pL.getD v.val 0 = n
       · simp only [hpn, beq_self_eq_true, ↓reduceIte, bne_self_eq_false, Bool.false_eq_true,
           neg_zero]
-      · simp only [show (pL.getD v.1 0 == n) = false from beq_false_of_ne hpn,
+      · simp only [show (pL.getD v.val 0 == n) = false from beq_false_of_ne hpn,
           Bool.false_eq_true, ↓reduceIte, bne_iff_ne, ne_eq, hno_loop v, not_false_eq_true]
     omega
   unfold maxBranchingDecide maxBranchingDec; dsimp only

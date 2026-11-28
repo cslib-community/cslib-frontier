@@ -180,7 +180,7 @@ private theorem four_pow_lt_exp_two_mul {n : ℕ} (hn : 0 < n) :
     have h2 : Real.exp 2 = Real.exp 1 * Real.exp 1 := by
       rw [← Real.exp_add]; norm_num
     nlinarith
-  rw [mul_comm, Real.exp_nat_mul]
+  rw [mul_comm, Real.exp_natCast_mul]
   exact pow_lt_pow_left₀ h4 (by norm_num) hn.ne'
 
 /-- **Newman's theorem** for inputs of at most `n` bits: for `δ > 0`, private coins cost at most

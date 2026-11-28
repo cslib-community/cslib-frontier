@@ -88,10 +88,10 @@ structure Tower (h b D J r : ℕ) where
   n_ne : ∀ ν, cN ν ≠ dN ν
   /-- the edges of types other than `i` are the near pairs at the vertices of type `i` -/
   nr : ∀ {j}, j ≤ J → ∀ i, {e : Ed j // ty e ≠ i} ≃ V j i × Nr
-  nr_vx0 : ∀ {j} (hj : j ≤ J) i (e : {e : Ed j // ty e ≠ i}), vx i (e0 e.1) = (nr hj i e).1
-  nr_vx1 : ∀ {j} (hj : j ≤ J) i (e : {e : Ed j // ty e ≠ i}), vx i (e1 e.1) = (nr hj i e).1
+  nr_vx0 : ∀ {j} (hj : j ≤ J) i (e : {e : Ed j // ty e ≠ i}), vx i (e0 e.val) = (nr hj i e).1
+  nr_vx1 : ∀ {j} (hj : j ≤ J) i (e : {e : Ed j // ty e ≠ i}), vx i (e1 e.val) = (nr hj i e).1
   nr_co : ∀ {j} (hj : j ≤ J) i (e : {e : Ed j // ty e ≠ i}),
-    s(co i (e0 e.1), co i (e1 e.1)) = s(cN (nr hj i e).2, dN (nr hj i e).2)
+    s(co i (e0 e.val), co i (e1 e.val)) = s(cN (nr hj i e).2, dN (nr hj i e).2)
   /-- the covering -/
   π : ∀ {j}, X j → X (j + 1)
   /-- the covering on edges -/

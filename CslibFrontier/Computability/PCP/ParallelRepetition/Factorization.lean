@@ -250,7 +250,7 @@ private theorem map_condLaw_apply
   subst hsq hsa
   have hW : q ∈ winsOnPairs G C ha hb ↔
       ∀ i : C, G.accepts (q i).1 (q i).2 (ha (Prod.fst ∘ q) i) (hb (Prod.snd ∘ q) i) :=
-    ⟨fun h i => h i i.2, fun h i hi => h ⟨i, hi⟩⟩
+    ⟨fun h i => h i i.property, fun h i hi => h ⟨i, hi⟩⟩
   simp only [shared, revealed, Shared.ofRevealed, Shared.mk.injEq, answers, hW, true_and, and_true,
     and_self, funext_iff, implies_true, ↓reduceIte]
   by_cases hacc : ∀ i : C, G.accepts (q i).1 (q i).2 (ha (Prod.fst ∘ q) i) (hb (Prod.snd ∘ q) i)

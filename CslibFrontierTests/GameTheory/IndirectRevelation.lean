@@ -779,7 +779,7 @@ example :
     refine Vickrey.mechanism_isDSIC i (Function.update t i (z : ℝ)) v ?_ hv.1
     intro j
     rcases eq_or_ne j i with rfl | hj
-    · simpa only [Function.update_self, Pi.zero_apply] using Set.mem_Ici.1 z.2
+    · simpa only [Function.update_self, Pi.zero_apply] using Set.mem_Ici.1 z.property
     · simpa only [Function.update_of_ne hj, Pi.zero_apply] using hnonneg_t j
   have hVickrey_BN : Vickrey.mechanism.IsBayesNash μ (fun _ => 2) (fun _ v => v) :=
     (Vickrey.mechanism.isBayesNash_iff_toBayesianGame μ (fun _ => 2) (fun _ v => v) hsupp

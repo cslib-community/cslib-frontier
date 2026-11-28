@@ -314,7 +314,7 @@ private theorem auxDim_le_of_twenty_le {n' : ℕ} (hn : 20 ≤ n') :
   calc ReplacementParams.auxDim n'
       ≤ 2 ^ (Nat.clog 2 n' / 128) := ReplacementParams.auxDim_le_two_pow n'
     _ ≤ 2 ^ (Nat.clog 2 n' - 1) := Nat.pow_le_pow_right (by omega) hdiv
-    _ ≤ n' := (Nat.pow_pred_clog_lt_self (by omega : 1 < 2) (by omega : 1 < n')).le
+    _ ≤ n' := (Nat.pow_pred_clog_lt_self 2 (by omega : 1 < n')).le
 
 private theorem scheduleParams_bounds_of_feasible {β n' b w M' : ℕ}
     (hF : ReplacementParams.Feasible β n' b w M') :
@@ -357,7 +357,8 @@ theorem validBranchEvalParams_prepare_of_feasible {N₀_branch n' : ℕ}
 
 private theorem listScopeFamily_map_equationVars (n' : ℕ) (eqs' : List (List (List ℕ)))
     (f : Fin eqs'.length) :
-    listScopeFamily n' (eqs'.map equationVars) ⟨f.1, by simp only [List.length_map]; exact f.2⟩ =
+    listScopeFamily n' (eqs'.map equationVars)
+        ⟨f.val, by simp only [List.length_map]; exact f.isLt⟩ =
       equationScope (HeavyBranchFold.toFinsetEquation n' eqs'[f]) := by
   ext v
   simp only [listScopeFamily, mem_filter, mem_univ, true_and, Fin.getElem_fin, List.getElem_map,
@@ -398,11 +399,11 @@ private theorem varIncidence_listScopeFamily_augScopes_le (n' : ℕ) (eqs' : Lis
   change varIncidence univ (listScopeFamily n' (withNeutralScopesList scopes n')) v ≤ _
   rw [varIncidence_listScopeFamily_withNeutralScopesList, branchMaxFactorIncidence]
   refine Nat.succ_le_succ ?_
-  have hdeg : varIncidence univ (listScopeFamily n' scopes) v = varDegree v.1 eqs' := by
+  have hdeg : varIncidence univ (listScopeFamily n' scopes) v = varDegree v.val eqs' := by
     have hfil : ({f ∈ (List.finRange scopes.length).toFinset |
         v ∈ listScopeFamily n' scopes f} : Finset (Fin scopes.length)) =
         ((List.finRange scopes.length).filter fun f =>
-          decide (v.1 ∈ scopes[f])).toFinset := by
+          decide (v.val ∈ scopes[f])).toFinset := by
       ext f
       simp only [mem_filter, List.mem_toFinset, List.mem_filter, listScopeFamily, mem_univ,
         true_and, decide_eq_true_eq]
@@ -411,7 +412,7 @@ private theorem varIncidence_listScopeFamily_augScopes_le (n' : ℕ) (eqs' : Lis
       ← List.countP_eq_length_filter, varDegree]
     have hmap : eqs'.map equationVars = scopes := rfl
     conv_rhs =>
-      change List.countP ((fun vs => decide (v.1 ∈ vs)) ∘ equationVars) eqs'
+      change List.countP ((fun vs => decide (v.val ∈ vs)) ∘ equationVars) eqs'
       rw [← List.countP_map, hmap,
         ← (List.ofFn_eq_map.symm.trans (List.ofFn_getElem (xs := scopes))), List.countP_map]
     exact List.countP_congr fun i _ => by simp only [Function.comp_apply, Fin.getElem_fin]
@@ -430,8 +431,8 @@ private theorem card_listScopeFamily_augScopes_le (n' : ℕ) (eqs' : List (List 
   rw [hf_eq, listScopeFamily_withNeutralScopesList]
   rcases eqv.symm f with g | v
   · dsimp only [withNeutralScope]
-    have hg : g.1 < eqs'.length := by simpa only [scopes, List.length_map] using g.2
-    have hsc := listScopeFamily_map_equationVars n' eqs' ⟨g.1, hg⟩
+    have hg : g.val < eqs'.length := by simpa only [scopes, List.length_map] using g.isLt
+    have hsc := listScopeFamily_map_equationVars n' eqs' ⟨g.val, hg⟩
     change listScopeFamily n' scopes g = _ at hsc
     rw [hsc, card_equationScope_toFinsetEquation, branchMaxFactorWidth]
     exact List.le_max_of_mem (List.mem_cons_of_mem _ (List.mem_map_of_mem (List.getElem_mem hg)))
@@ -441,12 +442,13 @@ private theorem card_listScopeFamily_augScopes_le (n' : ℕ) (eqs' : List (List 
 
 private theorem getD_normalizeScheduleWord_eq_wordToSchedule {Q r : ℕ} (hr : 1 ≤ r)
     {w : List ℕ} (hw : ∀ x ∈ w, x < max r 1) (t : Fin Q) :
-    (normalizeScheduleWord Q r w).getD t.1 0 = (BalancedSchedules.wordToSchedule hr Q w t).1 := by
-  have hx : w.getD t.1 0 < r := by
-    by_cases ht : t.1 < w.length
+    (normalizeScheduleWord Q r w).getD t.val 0 =
+      (BalancedSchedules.wordToSchedule hr Q w t).val := by
+  have hx : w.getD t.val 0 < r := by
+    by_cases ht : t.val < w.length
     · simpa only [Nat.max_eq_left hr] using hw _ (List.getD_mem 0 ht)
     · rw [List.getD_eq_default _ 0 (not_lt.mp ht)]; exact hr
-  simp only [normalizeScheduleWord, List.getD_map_range _ 0 t.2, Nat.max_eq_left hr,
+  simp only [normalizeScheduleWord, List.getD_map_range _ 0 t.isLt, Nat.max_eq_left hr,
     Nat.mod_eq_of_lt hx, BalancedSchedules.wordToSchedule, hx, ↓reduceDIte]
 
 private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
@@ -479,7 +481,7 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
       (fun e' he' => by
         rw [mem_coe, mem_filter] at he'
         exact mem_filter.mpr ⟨mem_univ _, by
-          rw [← he'.2]; exact (finToScopeIncidence n' augScopes e').2.2⟩)
+          rw [← he'.2]; exact (finToScopeIncidence n' augScopes e').2.property⟩)
       (fun e₁ he₁ e₂ he₂ hf_eq => by
         rw [mem_coe, mem_filter] at he₁ he₂
         exact hinj_edge (Prod.ext hf_eq (he₁.2.trans he₂.2.symm)))).trans (hb (edge e).2)
@@ -488,7 +490,7 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
     (Finset.card_le_card_of_injOn (fun e' => (edge e').2)
       (fun e' he' => by
         rw [mem_coe, mem_filter] at he'
-        rw [← he'.2]; exact (finToScopeIncidence n' augScopes e').2.2)
+        rw [← he'.2]; exact (finToScopeIncidence n' augScopes e').2.property)
       (fun e₁ he₁ e₂ he₂ hv_eq => by
         rw [mem_coe, mem_filter] at he₁ he₂
         exact hinj_edge (Prod.ext (he₁.2.trans he₂.2.symm) hv_eq))).trans (hw (edge e).1)
@@ -503,9 +505,9 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
   let d := BalancedSchedules.constructedFactorSchedule hr n' augScopes.length Q (b + w) edges
   have ha_eq : varAssignOfList hr n' Q scheds.1 = a := by
     funext v t; apply Fin.ext
-    have hv_lt : v.1 < scheds.1.length := by
-      rw [BalancedSchedules.length_fst_constructBalancedSchedules]; exact v.2
-    rw [val_varAssignOfList, normalizeVarSchedules, List.getD_map_range _ [] v.2]
+    have hv_lt : v.val < scheds.1.length := by
+      rw [BalancedSchedules.length_fst_constructBalancedSchedules]; exact v.isLt
+    rw [val_varAssignOfList, normalizeVarSchedules, List.getD_map_range _ [] v.isLt]
     dsimp only [scheds]
     rw [getD_normalizeScheduleWord_eq_wordToSchedule hr (hwf.1 _ (List.getD_mem [] hv_lt)).2 t]
     simp only [a, BalancedSchedules.constructedVarSchedule]
@@ -514,17 +516,17 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
     by_cases hemp : scope f = ∅
     · have hno_e : ¬ ∃ e : Fin edges.length, (edge e).1 = f := by
         rintro ⟨e, rfl⟩
-        have hmem : (edge e).2 ∈ scope (edge e).1 := (finToScopeIncidence n' augScopes e).2.2
+        have hmem : (edge e).2 ∈ scope (edge e).1 := (finToScopeIncidence n' augScopes e).2.property
         rw [hemp] at hmem
         exact notMem_empty _ hmem
       have hd0 : d f = fun _ => ⟨0, hr⟩ := by
         dsimp only [d]; rw [← hedges_eq]; exact hempty f hno_e
       rw [factorAssignOfList_of_empty hr n' Q augScopes _ hemp t, hd0]
-    · have hf_lt : f.1 < scheds.2.length := by
-        rw [BalancedSchedules.length_snd_constructBalancedSchedules]; exact f.2
-      have hfalse : (canonicalScopeVars n' (augScopes.getD f.1 [])).isEmpty = false :=
+    · have hf_lt : f.val < scheds.2.length := by
+        rw [BalancedSchedules.length_snd_constructBalancedSchedules]; exact f.isLt
+      have hfalse : (canonicalScopeVars n' (augScopes.getD f.val [])).isEmpty = false :=
         Bool.eq_false_iff.mpr fun h => hemp ((canonicalScopeVars_isEmpty_iff n' augScopes f).mp h)
-      rw [val_factorAssignOfList, normalizeScopeSchedules, List.getD_map_range _ [] f.2]
+      rw [val_factorAssignOfList, normalizeScopeSchedules, List.getD_map_range _ [] f.isLt]
       simp only [hfalse, Bool.false_eq_true, ↓reduceIte]
       dsimp only [scheds]
       rw [getD_normalizeScheduleWord_eq_wordToSchedule hr (hwf.2 _ (List.getD_mem [] hf_lt)).2 t]
@@ -653,25 +655,25 @@ private theorem groupMeasurementMatrices_spec {n' D_cap Q r A₀ R : ℕ}
     (augScopes sv ss : List (List ℕ)) (hr : 1 ≤ r) (hD_cap : r ^ (2 * Q) ≤ D_cap)
     (t : Fin Q) (g : Fin r) :
     let data := buildReplacementDesignData n' D_cap Q r A₀ R augScopes sv ss
-    let Vg := (data.varGroups.getD t.1 []).getD g.1 []
-    let Ctg := (data.groupMeasurementMatrices.getD t.1 []).getD g.1 []
+    let Vg := (data.varGroups.getD t.val []).getD g.val []
+    let Ctg := (data.groupMeasurementMatrices.getD t.val []).getD g.val []
     (∀ w ∈ Vg, w < n') ∧ Ctg.length = data.measurementMatrix.length ∧
       ∀ row ∈ Ctg, row.length = Vg.length ∧ (row.map Int.natAbs).sum ≤ r ^ (2 * Q) := by
   intro data Vg Ctg
   let varScheds := normalizeVarSchedules n' Q r sv
-  have hVg_eq : Vg = CopyPlacement.varGroupList varScheds t.1 g.1 := by
+  have hVg_eq : Vg = CopyPlacement.varGroupList varScheds t.val g.val := by
     dsimp only [Vg, data, buildReplacementDesignData, varScheds]
-    rw [List.getD_map_range _ [] t.2, List.getD_map_range _ [] g.2]
+    rw [List.getD_map_range _ [] t.isLt, List.getD_map_range _ [] g.isLt]
   have hVg_lt : ∀ w ∈ Vg, w < n' := fun w hw => by
     rw [hVg_eq, CopyPlacement.mem_varGroupList] at hw
     simpa only [varScheds, length_normalizeVarSchedules] using hw.1
   have hVg_nodup : Vg.Nodup := by
     rw [hVg_eq]
-    exact CopyPlacement.nodup_varGroupList varScheds t.1 g.1
+    exact CopyPlacement.nodup_varGroupList varScheds t.val g.val
   have hCtg_eq : Ctg = CopyPlacement.restrictGroupColumns Vg data.measurementMatrix := by
     dsimp only [Ctg, data, buildReplacementDesignData]
-    rw [List.map_map, List.getD_map_range _ [] t.2, Function.comp_apply, List.map_map,
-      List.getD_map_range _ [] g.2, Function.comp_apply, ← hVg_eq]
+    rw [List.map_map, List.getD_map_range _ [] t.isLt, Function.comp_apply, List.map_map,
+      List.getD_map_range _ [] g.isLt, Function.comp_apply, ← hVg_eq]
   refine ⟨hVg_lt, ?_, fun row hrow => ?_⟩
   · rw [hCtg_eq, CopyPlacement.restrictGroupColumns, List.length_map]
   · rw [hCtg_eq, CopyPlacement.restrictGroupColumns, List.mem_map] at hrow
@@ -728,14 +730,15 @@ private theorem foldl_applyGroupBits_of_ne {n' v : ℕ} (Vg : List ℕ) (ug : Li
 
 private theorem getD_applyGroupBits_mem {n' : ℕ} {Vg : List ℕ} (hnodup : Vg.Nodup)
     (hlt : ∀ w ∈ Vg, w < n') (ug base : List Bool) (j₀ : Fin Vg.length) :
-    (applyGroupBits n' Vg ug base).getD Vg[j₀] false = ug.getD j₀.1 false := by
-  have hv_lt : Vg[j₀] < n' := hlt Vg[j₀] (List.getElem_mem j₀.2)
+    (applyGroupBits n' Vg ug base).getD Vg[j₀] false = ug.getD j₀.val false := by
+  have hv_lt : Vg[j₀] < n' := hlt Vg[j₀] (List.getElem_mem j₀.isLt)
   have hsplit : List.range Vg.length =
-      List.range j₀.1 ++ [j₀.1] ++ (List.range (Vg.length - (j₀.1 + 1))).map (j₀.1 + 1 + ·) := by
-    conv_lhs => rw [show Vg.length = j₀.1 + 1 + (Vg.length - (j₀.1 + 1)) by omega]
+      List.range j₀.val ++ [j₀.val] ++
+        (List.range (Vg.length - (j₀.val + 1))).map (j₀.val + 1 + ·) := by
+    conv_lhs => rw [show Vg.length = j₀.val + 1 + (Vg.length - (j₀.val + 1)) by omega]
     rw [List.range_add, List.range_succ]
   rw [applyGroupBits, List.getD_map_range _ false hv_lt, hsplit, List.foldl_append,
-    List.foldl_append, List.foldl_cons, List.foldl_nil, List.getD_eq_getElem Vg n' j₀.2]
+    List.foldl_append, List.foldl_cons, List.foldl_nil, List.getD_eq_getElem Vg n' j₀.isLt]
   simp only [Fin.getElem_fin, beq_self_eq_true, ↓reduceIte]
   refine foldl_applyGroupBits_of_ne Vg ug (fun k hk => ?_) _
   obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hk
@@ -752,118 +755,120 @@ private theorem getD_applyGroupBits_not_mem {n' v : ℕ} {Vg : List ℕ} (hv_lt 
 
 private noncomputable def groupIdxEquiv {n' r : ℕ} {vGroups_t : List (List ℕ)}
     {varAssign : Fin n' → Fin r}
-    (hVG : ∀ g : Fin r, (vGroups_t.getD g.1 []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.1 [], w < n') ∧
-      ∀ v : Fin n', v.1 ∈ vGroups_t.getD g.1 [] ↔ varAssign v = g)
+    (hVG : ∀ g : Fin r, (vGroups_t.getD g.val []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.val [], w < n') ∧
+      ∀ v : Fin n', v.val ∈ vGroups_t.getD g.val [] ↔ varAssign v = g)
     (g : Fin r) :
-    Fin (vGroups_t.getD g.1 []).length ≃ {v : Fin n' // varAssign v = g} :=
+    Fin (vGroups_t.getD g.val []).length ≃ {v : Fin n' // varAssign v = g} :=
   Equiv.ofBijective
-    (fun j => ⟨⟨(vGroups_t.getD g.1 [])[j], (hVG g).2.1 _ (List.getElem_mem j.2)⟩,
-      ((hVG g).2.2 _).mp (List.getElem_mem j.2)⟩)
-    ⟨fun j₁ j₂ heq => Fin.ext (((hVG g).1.getElem_inj_iff (hi := j₁.2) (hj := j₂.2)).mp
-        (congrArg (fun x => x.1.1) heq)),
+    (fun j => ⟨⟨(vGroups_t.getD g.val [])[j], (hVG g).2.1 _ (List.getElem_mem j.isLt)⟩,
+      ((hVG g).2.2 _).mp (List.getElem_mem j.isLt)⟩)
+    ⟨fun j₁ j₂ heq => Fin.ext (((hVG g).1.getElem_inj_iff (hi := j₁.isLt) (hj := j₂.isLt)).mp
+        (congrArg (fun x => x.val.val) heq)),
      fun ⟨v, hv⟩ => by
        obtain ⟨j, hj, hj_eq⟩ := List.getElem_of_mem (((hVG g).2.2 v).mpr hv)
        exact ⟨⟨j, hj⟩, Subtype.ext (Fin.ext hj_eq)⟩⟩
 
 private theorem val_groupIdxEquiv {n' r : ℕ} {vGroups_t : List (List ℕ)}
     {varAssign : Fin n' → Fin r}
-    (hVG : ∀ g : Fin r, (vGroups_t.getD g.1 []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.1 [], w < n') ∧
-      ∀ v : Fin n', v.1 ∈ vGroups_t.getD g.1 [] ↔ varAssign v = g)
-    (g : Fin r) (j : Fin (vGroups_t.getD g.1 []).length) :
-    ((groupIdxEquiv hVG g j).1 : ℕ) = (vGroups_t.getD g.1 [])[j] :=
+    (hVG : ∀ g : Fin r, (vGroups_t.getD g.val []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.val [], w < n') ∧
+      ∀ v : Fin n', v.val ∈ vGroups_t.getD g.val [] ↔ varAssign v = g)
+    (g : Fin r) (j : Fin (vGroups_t.getD g.val []).length) :
+    ((groupIdxEquiv hVG g j).val : ℕ) = (vGroups_t.getD g.val [])[j] :=
   rfl
 
 private noncomputable def localBitsEquiv {n' r : ℕ} {vGroups_t : List (List ℕ)}
     {varAssign : Fin n' → Fin r}
-    (hVG : ∀ g : Fin r, (vGroups_t.getD g.1 []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.1 [], w < n') ∧
-      ∀ v : Fin n', v.1 ∈ vGroups_t.getD g.1 [] ↔ varAssign v = g) :
-    (∀ g : Fin r, BitString (vGroups_t.getD g.1 []).length) ≃ (Fin n' → Bool) :=
+    (hVG : ∀ g : Fin r, (vGroups_t.getD g.val []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.val [], w < n') ∧
+      ∀ v : Fin n', v.val ∈ vGroups_t.getD g.val [] ↔ varAssign v = g) :
+    (∀ g : Fin r, BitString (vGroups_t.getD g.val []).length) ≃ (Fin n' → Bool) :=
   (Equiv.piCongrRight fun g => Equiv.arrowCongr (groupIdxEquiv hVG g) (Equiv.refl Bool)).trans
     (Cslib.ReplacementCounting.piGroupEquiv varAssign)
 
 private theorem localBitsEquiv_apply {n' r : ℕ} {vGroups_t : List (List ℕ)}
     {varAssign : Fin n' → Fin r}
-    (hVG : ∀ g : Fin r, (vGroups_t.getD g.1 []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.1 [], w < n') ∧
-      ∀ v : Fin n', v.1 ∈ vGroups_t.getD g.1 [] ↔ varAssign v = g)
-    (u : ∀ g : Fin r, BitString (vGroups_t.getD g.1 []).length) (v : Fin n') :
+    (hVG : ∀ g : Fin r, (vGroups_t.getD g.val []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.val [], w < n') ∧
+      ∀ v : Fin n', v.val ∈ vGroups_t.getD g.val [] ↔ varAssign v = g)
+    (u : ∀ g : Fin r, BitString (vGroups_t.getD g.val []).length) (v : Fin n') :
     localBitsEquiv hVG u v =
       u (varAssign v) ((groupIdxEquiv hVG (varAssign v)).symm ⟨v, rfl⟩) :=
   Cslib.ReplacementCounting.piGroupEquiv_apply_of_eq varAssign _ rfl
 
 private theorem getD_buildBaseAssignment {n' r : ℕ} {vGroups_t : List (List ℕ)}
     {varAssign : Fin n' → Fin r}
-    (hVG : ∀ g : Fin r, (vGroups_t.getD g.1 []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.1 [], w < n') ∧
-      ∀ v : Fin n', v.1 ∈ vGroups_t.getD g.1 [] ↔ varAssign v = g)
-    (rep : ∀ g : Fin r, BitString (vGroups_t.getD g.1 []).length) {reps : List (List Bool)}
-    (hreps : ∀ g : Fin r, reps.getD g.1 [] = List.ofFn (rep g)) (v : Fin n') :
-    (buildBaseAssignment n' r vGroups_t reps).getD v.1 false = localBitsEquiv hVG rep v := by
+    (hVG : ∀ g : Fin r, (vGroups_t.getD g.val []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.val [], w < n') ∧
+      ∀ v : Fin n', v.val ∈ vGroups_t.getD g.val [] ↔ varAssign v = g)
+    (rep : ∀ g : Fin r, BitString (vGroups_t.getD g.val []).length) {reps : List (List Bool)}
+    (hreps : ∀ g : Fin r, reps.getD g.val [] = List.ofFn (rep g)) (v : Fin n') :
+    (buildBaseAssignment n' r vGroups_t reps).getD v.val false = localBitsEquiv hVG rep v := by
   let g₀ := varAssign v
   let j₀ := (groupIdxEquiv hVG g₀).symm ⟨v, rfl⟩
-  have hj₀_val : (vGroups_t.getD g₀.1 [])[j₀] = v.1 :=
-    congrArg (fun x => (x.1 : ℕ)) ((groupIdxEquiv hVG g₀).apply_symm_apply ⟨v, rfl⟩)
+  have hj₀_val : (vGroups_t.getD g₀.val [])[j₀] = v.val :=
+    congrArg (fun x => (x.val : ℕ)) ((groupIdxEquiv hVG g₀).apply_symm_apply ⟨v, rfl⟩)
   rw [localBitsEquiv_apply hVG rep v, buildBaseAssignment]
   suffices ∀ k ≤ r,
       ((List.range k).foldl
         (fun acc g => applyGroupBits n' (vGroups_t.getD g []) (reps.getD g []) acc)
-        (List.replicate n' false)).getD v.1 false =
-      if g₀.1 < k then rep g₀ j₀ else false by
-    simpa only [g₀.2, ↓reduceIte] using this r le_rfl
+        (List.replicate n' false)).getD v.val false =
+      if g₀.val < k then rep g₀ j₀ else false by
+    simpa only [g₀.isLt, ↓reduceIte] using this r le_rfl
   intro k hk
   induction k with
   | zero =>
     simp only [List.range_zero, List.foldl_nil, Nat.not_lt_zero, ↓reduceIte]
-    rw [List.getD_eq_getElem _ false (by simp only [List.length_replicate]; exact v.2),
+    rw [List.getD_eq_getElem _ false (by simp only [List.length_replicate]; exact v.isLt),
       List.getElem_replicate]
   | succ k ih =>
     have hk_lt : k < r := by omega
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    by_cases hkg : k = g₀.1
+    by_cases hkg : k = g₀.val
     · subst hkg
       rw [← hj₀_val, getD_applyGroupBits_mem (hVG g₀).1 (hVG g₀).2.1, hreps g₀]
       simp only [Nat.lt_succ_self, ↓reduceIte]
-      rw [List.getD_eq_getElem _ false (by simp only [List.length_ofFn]; exact j₀.2),
+      rw [List.getD_eq_getElem _ false (by simp only [List.length_ofFn]; exact j₀.isLt),
         List.getElem_ofFn]
     · have hne : varAssign v ≠ ⟨k, hk_lt⟩ := fun heq => hkg (congrArg Fin.val heq).symm
-      have hnot : v.1 ∉ vGroups_t.getD k [] := fun hm => hne (((hVG ⟨k, hk_lt⟩).2.2 v).mp hm)
-      rw [getD_applyGroupBits_not_mem v.2 hnot, ih (by omega)]
-      have hiff : (g₀.1 < k + 1) ↔ (g₀.1 < k) := by omega
+      have hnot : v.val ∉ vGroups_t.getD k [] := fun hm => hne (((hVG ⟨k, hk_lt⟩).2.2 v).mp hm)
+      rw [getD_applyGroupBits_not_mem v.isLt hnot, ih (by omega)]
+      have hiff : (g₀.val < k + 1) ↔ (g₀.val < k) := by omega
       simp only [hiff]
 
 private theorem getD_applyGroupBits_buildBaseAssignment {n' r : ℕ} {vGroups_t : List (List ℕ)}
     {varAssign : Fin n' → Fin r}
-    (hVG : ∀ g : Fin r, (vGroups_t.getD g.1 []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.1 [], w < n') ∧
-      ∀ v : Fin n', v.1 ∈ vGroups_t.getD g.1 [] ↔ varAssign v = g)
-    (rep : ∀ g : Fin r, BitString (vGroups_t.getD g.1 []).length) {reps : List (List Bool)}
-    (hreps : ∀ g : Fin r, reps.getD g.1 [] = List.ofFn (rep g))
-    (g : Fin r) (ug : BitString (vGroups_t.getD g.1 []).length) (v : Fin n') :
-    (applyGroupBits n' (vGroups_t.getD g.1 []) (List.ofFn ug)
-      (buildBaseAssignment n' r vGroups_t reps)).getD v.1 false =
+    (hVG : ∀ g : Fin r, (vGroups_t.getD g.val []).Nodup ∧ (∀ w ∈ vGroups_t.getD g.val [], w < n') ∧
+      ∀ v : Fin n', v.val ∈ vGroups_t.getD g.val [] ↔ varAssign v = g)
+    (rep : ∀ g : Fin r, BitString (vGroups_t.getD g.val []).length) {reps : List (List Bool)}
+    (hreps : ∀ g : Fin r, reps.getD g.val [] = List.ofFn (rep g))
+    (g : Fin r) (ug : BitString (vGroups_t.getD g.val []).length) (v : Fin n') :
+    (applyGroupBits n' (vGroups_t.getD g.val []) (List.ofFn ug)
+      (buildBaseAssignment n' r vGroups_t reps)).getD v.val false =
       localBitsEquiv hVG (Function.update rep g ug) v := by
   rw [localBitsEquiv_apply hVG]
   by_cases hvg : varAssign v = g
   · subst hvg
     let j₀ := (groupIdxEquiv hVG (varAssign v)).symm ⟨v, rfl⟩
-    have hj₀_val : (vGroups_t.getD (varAssign v).1 [])[j₀] = v.1 :=
-      congrArg (fun x => (x.1 : ℕ)) ((groupIdxEquiv hVG (varAssign v)).apply_symm_apply ⟨v, rfl⟩)
+    have hj₀_val : (vGroups_t.getD (varAssign v).val [])[j₀] = v.val :=
+      congrArg (fun x => (x.val : ℕ)) ((groupIdxEquiv hVG (varAssign v)).apply_symm_apply ⟨v, rfl⟩)
     rw [← hj₀_val, getD_applyGroupBits_mem (hVG _).1 (hVG _).2.1, Function.update_self,
-      List.getD_eq_getElem _ false (by simp only [List.length_ofFn]; exact j₀.2), List.getElem_ofFn]
-  · have hnot : v.1 ∉ vGroups_t.getD g.1 [] := fun hm => hvg (((hVG g).2.2 v).mp hm)
-    rw [getD_applyGroupBits_not_mem v.2 hnot, getD_buildBaseAssignment hVG rep hreps v,
+      List.getD_eq_getElem _ false (by simp only [List.length_ofFn]; exact j₀.isLt),
+      List.getElem_ofFn]
+  · have hnot : v.val ∉ vGroups_t.getD g.val [] := fun hm => hvg (((hVG g).2.2 v).mp hm)
+    rw [getD_applyGroupBits_not_mem v.isLt hnot, getD_buildBaseAssignment hVG rep hreps v,
       localBitsEquiv_apply hVG, Function.update_of_ne hvg]
 
 private theorem checkRestrictedGroup_ofFn_iff {n' : ℕ} (indE : List Bool) {Vg : List ℕ}
     (hlt : ∀ w ∈ Vg, w < n') (ug : BitString Vg.length) :
     checkRestrictedGroup n' indE Vg (List.ofFn ug) = true ↔
       ∀ j : Fin Vg.length,
-        (⟨Vg[j], hlt _ (List.getElem_mem j.2)⟩ : Fin n') ∈ supportOfList n' indE →
+        (⟨Vg[j], hlt _ (List.getElem_mem j.isLt)⟩ : Fin n') ∈ supportOfList n' indE →
           ug j = true := by
   simp only [checkRestrictedGroup, List.all_eq_true, List.mem_range, Bool.or_eq_true,
     Bool.not_eq_true', mem_supportOfList]
   refine ⟨fun h j hj => ?_, fun h j hj => ?_⟩
-  · rcases h j.1 j.2 with hfalse | htrue
-    · rw [List.getD_eq_getElem Vg n' j.2, ← Fin.getElem_fin, hj] at hfalse
+  · rcases h j.val j.isLt with hfalse | htrue
+    · rw [List.getD_eq_getElem Vg n' j.isLt, ← Fin.getElem_fin, hj] at hfalse
       cases hfalse
-    · rwa [List.getD_eq_getElem (List.ofFn ug) false (by simp only [List.length_ofFn]; exact j.2),
+    · rwa [List.getD_eq_getElem (List.ofFn ug) false
+          (by simp only [List.length_ofFn]; exact j.isLt),
         List.getElem_ofFn] at htrue
   · rw [List.getD_eq_getElem Vg n' hj,
       List.getD_eq_getElem (List.ofFn ug) false (by simp only [List.length_ofFn]; exact hj),

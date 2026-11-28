@@ -224,7 +224,7 @@ theorem matchingPairs_eq_mate_filterMap (inst : SparseInstance) :
         | some u => some (u, v)
         | none => none := by
   unfold matchingPairs
-  refine List.filterMap_congr fun v _ => ?_
+  refine List.filterMap_congr rfl fun v _ => ?_
   rw [inst.find_mate_eq v]
 
 /-- `inst.matchingPairs.toFinset` equals `(hopcroftKarp inst.graph inst.adj).matching`, hence is a

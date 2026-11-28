@@ -144,7 +144,7 @@ theorem one_sub_two_mul_mul_blockSensitivity_le_of_mem_Icc {p : BitString n → 
   · rw [hm, Nat.cast_zero, mul_zero]
     exact mul_nonneg hδ (by positivity)
   set B : Fin m → Block n := fun j => (F.equivFin.symm j : Block n)
-  have hBF (j : Fin m) : B j ∈ F := (F.equivFin.symm j).2
+  have hBF (j : Fin m) : B j ∈ F := (F.equivFin.symm j).property
   have hBinj : Function.Injective B := fun j j' h =>
     F.equivFin.symm.injective (Subtype.ext h)
   have hB : Pairwise fun j j' => Disjoint (B j) (B j') := fun j j' hjj =>

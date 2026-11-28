@@ -133,8 +133,8 @@ theorem rootCount_eq_commonZeroCount {n : ℕ} {sys : List (List (List ℕ))}
   ext σ
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, evalSystem_eq_true_iff, IsCommonZero]
   refine ⟨fun h i _ => ?_, fun h eq heq => ?_⟩
-  · rw [monomialSum_toFinsetEquation (hcan sys[i] (List.getElem_mem i.2))
-      (hvars sys[i] (List.getElem_mem i.2)) σ, h sys[i] (List.getElem_mem i.2), bitVal_false]
+  · rw [monomialSum_toFinsetEquation (hcan sys[i] (List.getElem_mem i.isLt))
+      (hvars sys[i] (List.getElem_mem i.isLt)) σ, h sys[i] (List.getElem_mem i.isLt), bitVal_false]
   · obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem heq
     have hz := (monomialSum_toFinsetEquation (hcan sys[k] heq) (hvars sys[k] heq) σ).symm.trans
       (h ⟨k, hk⟩ trivial)
@@ -237,10 +237,10 @@ private theorem card_freeVars {n : ℕ} {S : List ℕ} (hS : S.Nodup) (hSn : ∀
 noncomputable def freeVarEquiv {n : ℕ} {S : List ℕ} (hS : S.Nodup) (hSn : ∀ s ∈ S, s < n) :
     {i : Fin n // (i : ℕ) ∉ S} ≃ Fin (n - S.length) :=
   Equiv.ofBijective
-    (fun i => ⟨relabelFreeVar S i.1, relabelFreeVar_lt_sub hS hSn i.2 i.1.isLt⟩)
+    (fun i => ⟨relabelFreeVar S i.val, relabelFreeVar_lt_sub hS hSn i.property i.val.isLt⟩)
     ((Fintype.bijective_iff_injective_and_card _).mpr
       ⟨fun i j hij => Subtype.ext <| Fin.ext <|
-        relabelFreeVar_injOn hS i.2 j.2 (congrArg Fin.val hij),
+        relabelFreeVar_injOn hS i.property j.property (congrArg Fin.val hij),
        by rw [card_freeVars hS hSn, Fintype.card_fin]⟩)
 
 /-! ### 3. Multi-Variable Substitution, Canonicalization, and `prepareBranch` -/
@@ -462,9 +462,10 @@ theorem prepareBranch_reduced_varDegree_le {n b₀ : ℕ} {S : List ℕ} {vals :
     ∀ u' < n', varDegree u' sys' ≤ b₀ := by
   have hn' := prepareBranch_freeVars_eq.2 sys' hred; subst hn'
   intro u' hu'; let i := (freeVarEquiv hS hSn).symm ⟨u', hu'⟩
-  have hrel : relabelFreeVar S i.1 = u' :=
+  have hrel : relabelFreeVar S i.val = u' :=
     congrArg Fin.val ((freeVarEquiv hS hSn).apply_symm_apply ⟨u', hu'⟩)
-  rw [← hrel]; exact (varDegree_relabelFreeVar_le hS i.2 hred).trans (hinc i.1 i.1.isLt i.2)
+  rw [← hrel]
+  exact (varDegree_relabelFreeVar_le hS i.property hred).trans (hinc i.val i.val.isLt i.property)
 
 /-! ### 4. Exact Common-Zero Count Preservation -/
 
@@ -543,10 +544,10 @@ private noncomputable def fiberEquiv {n : ℕ} {S : List ℕ} {vals : List Bool}
     (hS : S.Nodup) (hSn : ∀ s ∈ S, s < n) (hvals : vals.length = S.length) :
     BitString (n - S.length) ≃ {σ : BitString n // S.map (extendAssignment σ) = vals} where
   toFun τ := ⟨mergeAssignment hS hSn vals τ, map_extend_mergeAssignment hS hSn hvals τ⟩
-  invFun σ := fun j => σ.1 ((freeVarEquiv hS hSn).symm j).1
+  invFun σ := fun j => σ.val ((freeVarEquiv hS hSn).symm j).val
   left_inv τ := by
     funext j; let u := (freeVarEquiv hS hSn).symm j
-    simp only [mergeAssignment, u.2, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply, u]
+    simp only [mergeAssignment, u.property, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply, u]
   right_inv := fun ⟨σ, hσ⟩ => by
     apply Subtype.ext; funext i; simp only [mergeAssignment]; split_ifs with hiS
     · rw [← hσ]
@@ -610,16 +611,16 @@ theorem branchRootCount_prepareBranch {n : ℕ} {S : List ℕ} {vals : List Bool
       (Finset.univ.filter fun τ : BitString (n - S.length) =>
         evalSystem sys (extendAssignment (mergeAssignment hS hSn vals τ)) = true).card := by
     symm
-    refine Finset.card_bij (fun τ _ => (fiberEquiv hS hSn hvals τ).1)
-      (fun τ hτ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (fiberEquiv hS hSn hvals τ).2,
+    refine Finset.card_bij (fun τ _ => (fiberEquiv hS hSn hvals τ).val)
+      (fun τ hτ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (fiberEquiv hS hSn hvals τ).property,
         (Finset.mem_filter.mp hτ).2⟩)
       (fun _ _ _ _ h => (fiberEquiv hS hSn hvals).injective (Subtype.ext h)) fun σ hσ => ?_
     obtain ⟨-, hmap, hev⟩ := Finset.mem_filter.mp hσ
     let τ := (fiberEquiv hS hSn hvals).symm ⟨σ, hmap⟩
-    have hτ : (fiberEquiv hS hSn hvals τ).1 = σ :=
+    have hτ : (fiberEquiv hS hSn hvals τ).val = σ :=
       congrArg Subtype.val ((fiberEquiv hS hSn hvals).apply_symm_apply ⟨σ, hmap⟩)
     refine ⟨τ, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hτ⟩
-    change evalSystem sys (extendAssignment (fiberEquiv hS hSn hvals τ).1) = true
+    change evalSystem sys (extendAssignment (fiberEquiv hS hSn hvals τ).val) = true
     rwa [hτ]
   rw [hbij]
   simp only [fun τ => evalSystem_mergeAssignment (vals := vals) hS hSn hvars τ]

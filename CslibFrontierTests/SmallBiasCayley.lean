@@ -30,7 +30,7 @@ example : ∃ s : Fin 64 → Fin 1 → Bool,
     IsSmallBias (1 / 2) ((uniformOfFintype (Fin 64)).map s) := by
   refine exists_isSmallBias_map_of_exp_lt (by norm_num) ?_
   have h8 : Real.exp (-((1 / 2 : ℝ) ^ 2 * (64 : ℕ) / 2)) = Real.exp (-1) ^ 8 := by
-    rw [← Real.exp_nat_mul]; norm_num
+    rw [← Real.exp_natCast_mul]; norm_num
   rw [Fintype.card_fin, h8]
   have h := Real.exp_neg_one_lt_half
   have h0 := (Real.exp_pos (-1)).le

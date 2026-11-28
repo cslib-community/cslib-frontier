@@ -396,7 +396,7 @@ theorem isLinearWeakSeedCB_blockDot {D ℓ : ℕ} (hD : 1 ≤ D) (t : ℕ) {kSrc
     rw [hblock, add_dotProduct]
   intro r _ α α' hα' B J hB hJ
   let Other := {j : Fin D // j ≠ α} → BitString ℓ
-  let leak : BitString (D * ℓ) → Other := fun b j => BitString.block b j.1
+  let leak : BitString (D * ℓ) → Other := fun b j => BitString.block b j.val
   let JB : PMF (Other × BitString (D * ℓ)) := B.map fun b => (leak b, b)
   let μ : PMF Other := JB.map Prod.fst
   have hJB_snd : JB.map Prod.snd = B := map_snd_pair B leak
@@ -712,10 +712,10 @@ theorem isKWiseSmallBias_sumsetTable_restrict_compl {n m t : ℕ} {Seed : Type*}
     omega
   let e : Fin S'.card ≃ S' := (Fintype.equivFinOfCardEq (Fintype.card_coe S')).symm
   let s' : Fin S'.card → Seed := fun j => let ⟨⟨x, _⟩, _⟩ := e j; x
-  have hs'_ne : ∀ j, s' j ≠ x₀.1 := fun j h =>
-    (Finset.mem_erase.mp (e j).2).1 (Subtype.ext h)
-  have hx₀_good : dist (A.map fun a => LExt a x₀.1) (PMF.uniformOfFintype (BitString m)) ≤ γ := by
-    have hnot : x₀.1 ∉ Q := Finset.mem_compl.mp x₀.2
+  have hs'_ne : ∀ j, s' j ≠ x₀.val := fun j h =>
+    (Finset.mem_erase.mp (e j).property).1 (Subtype.ext h)
+  have hx₀_good : dist (A.map fun a => LExt a x₀.val) (PMF.uniformOfFintype (BitString m)) ≤ γ := by
+    have hnot : x₀.val ∉ Q := Finset.mem_compl.mp x₀.property
     simp only [Q, Finset.mem_filter, Finset.mem_univ, true_and, not_lt] at hnot
     exact hnot
   have hcoord := dist_sumsetTable_coord_le hLExt hCB hB hγ1 hδA hδB hεCB hkSrc hkSeed
@@ -725,7 +725,7 @@ theorem isKWiseSmallBias_sumsetTable_restrict_compl {n m t : ℕ} {Seed : Type*}
   have hscore_bound (p : Bool × (Fin S'.card → Bool)) : |score p| ≤ 1 := by
     simp [score, Finset.abs_prod, abs_signVal]
   set X := A.bind fun a => B.map fun b => a + b
-  let P := X.map fun x => (sumsetTable LExt LCB x x₀.1, fun j => sumsetTable LExt LCB x (s' j))
+  let P := X.map fun x => (sumsetTable LExt LCB x x₀.val, fun j => sumsetTable LExt LCB x (s' j))
   let R := (PMF.uniformOfFintype Bool).bind fun u =>
     X.map fun x => (u, fun j => sumsetTable LExt LCB x (s' j))
   have hP_exp : ∑ p, (P p).toReal * score p =
@@ -786,7 +786,7 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
   intro S hS hSk
   by_cases hsub : S ⊆ Qᶜ
   · let S' : Finset ↥Qᶜ := S.attach.map
-      ⟨fun i => ⟨i.1, hsub i.2⟩, fun _ _ h => Subtype.ext (Subtype.mk.inj h)⟩
+      ⟨fun i => ⟨i.val, hsub i.property⟩, fun _ _ h => Subtype.ext (Subtype.mk.inj h)⟩
     have hS'_map : S'.map (Function.Embedding.subtype (· ∈ Qᶜ)) = S := by
       ext i
       simp only [S', Finset.mem_map, Finset.mem_attach, Function.Embedding.subtype_apply,

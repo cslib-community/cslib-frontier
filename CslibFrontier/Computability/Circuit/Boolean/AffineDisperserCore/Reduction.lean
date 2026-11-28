@@ -401,7 +401,7 @@ private theorem Valid.reduction_dropTrivialEqn {S : State cfg n} (hS : S.Valid f
 theorem Valid.terms_eq_empty_of_subset {S : State cfg n} (hS : S.Valid f) {e : ℕ} (he : e ∈ S.eqns)
     (hsub : (S.eqn e).terms ⊆ S.params) : (S.eqn e).terms = ∅ := by
   by_contra hne
-  obtain ⟨x, hx⟩ := Finset.nonempty_iff_ne_empty.2 hne
+  obtain ⟨x, hx⟩ := Finset.ne_empty_iff_nonempty.1 hne
   obtain ⟨val, hval, heq⟩ := hS.wf.solvable 0
   obtain ⟨val', hval', heq'⟩ := hS.wf.solvable (Function.update val x (!val x))
   have h1 := heq e he

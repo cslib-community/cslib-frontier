@@ -63,13 +63,13 @@ theorem uniformOfFintype_map_of_isKWise {ι : Type u} {X : Type v} {Y : Type w}
   ext y
   apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
   rw [toReal_uniformOfFintype_map_apply]
-  let y' : (x : (Finset.univ : Finset X)) → Y := fun x => y x.1
+  let y' : (x : (Finset.univ : Finset X)) → Y := fun x => y x.val
   have hcard : (Finset.univ : Finset X).card ≤ k := by simpa using hX
   have hset : (Finset.univ.filter fun s : ι => h s = y) =
       (Finset.univ.filter fun s : ι => (Finset.univ : Finset X).restrict (h s) = y') := by
     ext s
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, funext_iff, Finset.restrict]
-    exact ⟨fun hs x => hs x.1, fun hs x => hs ⟨x, Finset.mem_univ x⟩⟩
+    exact ⟨fun hs x => hs x.val, fun hs x => hs ⟨x, Finset.mem_univ x⟩⟩
   rw [hset, hh.dens_filter_restrict_eq hcard y']
   simp [PMF.uniformOfFintype_apply, Fintype.card_pi]
 

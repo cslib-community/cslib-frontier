@@ -370,10 +370,10 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
   -- with input zero labels `X - x • Δ`.
   have hmat (Δ : {Δ : L // col Δ = 1}) (X : Fin n → L) :
       OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ.1 q))
+        (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ.val q))
         (reduceGates H col σ 0 S.gates (Sum.elim X 0)) =
-      pure (garbleWith S H col Δ.1 fun i => X i - x i • Δ.1).material :=
-    interpret_reduceGates_real H col Δ.2 0 S.gates _ _ _
+      pure (garbleWith S H col Δ.val fun i => X i - x i • Δ.val).material :=
+    interpret_reduceGates_real H col Δ.property 0 S.gates _ _ _
       (by
         rintro _ ⟨i, rfl⟩
         simp [wireLabel, hσ.1 i]) hS hσ.2
@@ -384,7 +384,7 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
   simp only [CCR.Arithmetic.realGame, PRF.realExperiment, ProbOracleComp.run, realGame, garble,
     reduction, interp_norm, hmat, pure_bind, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
   refine congrArg _ (funext fun Δ => ?_)
-  conv_lhs => rw [← hshift Δ.1, PMF.bind_map]
+  conv_lhs => rw [← hshift Δ.val, PMF.bind_map]
   exact congrArg _ (funext fun K => by
     simp only [Function.comp_apply, add_sub_cancel_right, garbleWith]
     rfl)

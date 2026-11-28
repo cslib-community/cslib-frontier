@@ -554,10 +554,11 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
     have hreach : ∀ w ∈ closedNbhd, ∃ k, w ∈ (progressiveStep G q)^[k] (S : Set V) :=
       fun w _ => (hS w).imp fun k hk => hk k le_rfl
     choose f hf using hreach
-    let ℓ : ℕ := closedNbhd.attach.sup fun x => f x.1 x.2
+    let ℓ : ℕ := closedNbhd.attach.sup fun x => f x.val x.property
     have hclosed : (closedNbhd : Set V) ⊆ (progressiveStep G q)^[ℓ] (S : Set V) := by
       intro w hw
-      have hle : f w hw ≤ ℓ := Finset.le_sup (f := fun x : {x // x ∈ closedNbhd} => f x.1 x.2)
+      have hle : f w hw ≤ ℓ :=
+        Finset.le_sup (f := fun x : {x // x ∈ closedNbhd} => f x.val x.property)
         (Finset.mem_attach closedNbhd ⟨w, hw⟩)
       exact progressiveStep_iterate_mono G q (S : Set V) hle (hf w hw)
     have hstep_eq : ∀ j, ℓ ≤ j →
@@ -672,7 +673,7 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
     have hdisj : Disjoint X D := Finset.disjoint_sdiff
     have hunion : X ∪ D = Sfin (j + 1) := Finset.union_sdiff_of_subset (hSfin_sub j)
     have hDne : D.Nonempty :=
-      Finset.nonempty_iff_ne_empty.2 fun hemp => hne (by rw [← hunion, hemp, Finset.union_empty])
+      Finset.ne_empty_iff_nonempty.1 fun hemp => hne (by rw [← hunion, hemp, Finset.union_empty])
     have hlt_each : ∀ u ∈ D,
         (G.neighborFinset u \ (X ∪ D)).card < (G.neighborFinset u ∩ X).card := by
       intro u hu

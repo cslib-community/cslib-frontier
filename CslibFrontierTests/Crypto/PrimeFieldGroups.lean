@@ -37,36 +37,36 @@ theorem computableInPolyTime_val :
 
 /-- Addition modulo `p` of binary residues. -/
 def primeAdd : PrimeDesc × List Bool × List Bool → List Bool
-  | (p, x, y) => ((ofBits x + ofBits y) % p.1).bits
+  | (p, x, y) => ((ofBits x + ofBits y) % p.val).bits
 
 /-- Multiplication modulo `p` of a binary residue by a natural number. -/
 def primeSMul : PrimeDesc × ℕ × List Bool → List Bool
-  | (p, a, x) => (a * ofBits x % p.1).bits
+  | (p, a, x) => (a * ofBits x % p.val).bits
 
 /-- The additive groups `ZMod p` of prime order `p`, with generator `1` and residues encoded in
 binary. -/
 abbrev primeFields : PrimeOrderGroupFamily where
   Desc := PrimeDesc
   encDesc := encPrime
-  order p := p.1
-  prime_order p := p.2
-  Carrier p := ZMod p.1
+  order p := p.val
+  prime_order p := p.property
+  Carrier p := ZMod p.val
   generator _ := 1
-  card_carrier p := Nat.card_zmod p.1
+  card_carrier p := Nat.card_zmod p.val
   generator_ne_zero p := by
-    have := Fact.mk p.2
+    have := Fact.mk p.property
     exact one_ne_zero
   encode _ x := x.val.bits
   encode_injective p x y h := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
+    have : NeZero p.val := ⟨p.property.ne_zero⟩
     exact ZMod.val_injective _ (encNat.injective h)
   add := primeAdd
   add_encode p x y := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
+    have : NeZero p.val := ⟨p.property.ne_zero⟩
     simp only [primeAdd, ofBits_bits, ZMod.val_add]
   smul := primeSMul
   smul_encode p a x := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
+    have : NeZero p.val := ⟨p.property.ne_zero⟩
     simp only [primeSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
       Nat.mod_mul_mod]
   computableInPolyTime_order := computableInPolyTime_val

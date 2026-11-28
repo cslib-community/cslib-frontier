@@ -199,7 +199,7 @@ theorem satisfiable_iff_restrict (φ : CNF V) (v : V) :
 /-- Extend a restricted assignment on `declared.erase v` to `declared` by fixing `v ↦ b`. -/
 private def extendAt (declared : Finset V) (v : V) (b : Bool)
     (σ : ↥(declared.erase v) → Bool) : ↥declared → Bool :=
-  fun u => if h : u.1 = v then b else σ ⟨u.1, Finset.mem_erase.mpr ⟨h, u.2⟩⟩
+  fun u => if h : u.val = v then b else σ ⟨u.val, Finset.mem_erase.mpr ⟨h, u.property⟩⟩
 
 private theorem extendAt_self {declared : Finset V} (v : V) (hv : v ∈ declared) (b : Bool)
     (σ : ↥(declared.erase v) → Bool) : extendAt declared v b σ ⟨v, hv⟩ = b := by
@@ -226,24 +226,25 @@ def restrictModelsEquiv (φ : CNF V) (declared : Finset V) {v : V} (hv : v ∈ d
       φ.eval (fun u => if h : u ∈ declared then τ ⟨u, h⟩ else false) = true ∧
         τ ⟨v, hv⟩ = b} where
   toFun σ :=
-    ⟨extendAt declared v b σ.1,
-      ⟨by rw [← eval_restrict_eq_eval_extendAt φ declared v hv b σ.1]; exact σ.2,
-       extendAt_self v hv b σ.1⟩⟩
+    ⟨extendAt declared v b σ.val,
+      ⟨by rw [← eval_restrict_eq_eval_extendAt φ declared v hv b σ.val]; exact σ.property,
+       extendAt_self v hv b σ.val⟩⟩
   invFun τ :=
-    ⟨fun u => τ.1 ⟨u.1, Finset.mem_of_mem_erase u.2⟩, by
+    ⟨fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩, by
       have heval := eval_restrict_eq_eval_extendAt φ declared v hv b
-        (fun u => τ.1 ⟨u.1, Finset.mem_of_mem_erase u.2⟩)
-      have hext : extendAt declared v b (fun u => τ.1 ⟨u.1, Finset.mem_of_mem_erase u.2⟩) =
-          τ.1 := by
+        (fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩)
+      have hext :
+          extendAt declared v b (fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩) =
+            τ.val := by
         funext u
-        by_cases huv : u.1 = v
+        by_cases huv : u.val = v
         · have hu : u = ⟨v, hv⟩ := Subtype.ext huv
           subst hu
-          simp [extendAt, τ.2.2]
+          simp [extendAt, τ.property.2]
         · simp [extendAt, huv]
       rw [hext] at heval
       rw [heval]
-      exact τ.2.1⟩
+      exact τ.property.1⟩
   left_inv σ := by
     ext ⟨u, hu⟩
     have huv : u ≠ v := (Finset.mem_erase.mp hu).1
@@ -253,7 +254,7 @@ def restrictModelsEquiv (φ : CNF V) (declared : Finset V) {v : V} (hv : v ∈ d
     by_cases huv : u = v
     · have heq : (⟨u, hu⟩ : ↥declared) = ⟨v, hv⟩ := Subtype.ext huv
       rw [heq]
-      simpa [extendAt] using τ.2.2.symm
+      simpa [extendAt] using τ.property.2.symm
     · simp [extendAt, huv]
 
 /-- Explicit disjoint sum equivalence splitting declared models of `φ` into those extending
@@ -275,45 +276,45 @@ def modelsSplitEquiv (φ : CNF V) (declared : Finset V) {v : V} (hv : v ∈ decl
       match restrictModelsEquiv φ declared hv true σ with
       | ⟨val, hval, _⟩ => ⟨val, hval⟩
   invFun τ :=
-    if h : τ.1 ⟨v, hv⟩ = false then
-      Sum.inl ((restrictModelsEquiv φ declared hv false).symm ⟨τ.1, τ.2, h⟩)
+    if h : τ.val ⟨v, hv⟩ = false then
+      Sum.inl ((restrictModelsEquiv φ declared hv false).symm ⟨τ.val, τ.property, h⟩)
     else
-      Sum.inr ((restrictModelsEquiv φ declared hv true).symm ⟨τ.1, τ.2, by
-        cases hτ : τ.1 ⟨v, hv⟩
+      Sum.inr ((restrictModelsEquiv φ declared hv true).symm ⟨τ.val, τ.property, by
+        cases hτ : τ.val ⟨v, hv⟩
         · exact absurd hτ h
         · rfl⟩)
   left_inv s := by
     rcases s with σ | σ
-    · have hself : (restrictModelsEquiv φ declared hv false σ).1 ⟨v, hv⟩ = false :=
-        (restrictModelsEquiv φ declared hv false σ).2.2
+    · have hself : (restrictModelsEquiv φ declared hv false σ).val ⟨v, hv⟩ = false :=
+        (restrictModelsEquiv φ declared hv false σ).property.2
       dsimp only
       rw [dite_eq_left hself]
       congr 1
       exact (restrictModelsEquiv φ declared hv false).left_inv σ
-    · have hself : (restrictModelsEquiv φ declared hv true σ).1 ⟨v, hv⟩ = true :=
-        (restrictModelsEquiv φ declared hv true σ).2.2
-      have hne : ¬ (restrictModelsEquiv φ declared hv true σ).1 ⟨v, hv⟩ = false := by
+    · have hself : (restrictModelsEquiv φ declared hv true σ).val ⟨v, hv⟩ = true :=
+        (restrictModelsEquiv φ declared hv true σ).property.2
+      have hne : ¬ (restrictModelsEquiv φ declared hv true σ).val ⟨v, hv⟩ = false := by
         simp [hself]
       dsimp only
       rw [dite_eq_right hne]
       congr 1
       exact (restrictModelsEquiv φ declared hv true).left_inv σ
   right_inv τ := by
-    by_cases h : τ.1 ⟨v, hv⟩ = false
+    by_cases h : τ.val ⟨v, hv⟩ = false
     · dsimp only
       rw [dite_eq_left h]
       dsimp only
-      exact Subtype.ext (congrArg (fun x => x.1)
-        ((restrictModelsEquiv φ declared hv false).right_inv ⟨τ.1, τ.2, h⟩))
-    · have ht : τ.1 ⟨v, hv⟩ = true := by
-        cases hv0 : τ.1 ⟨v, hv⟩
+      exact Subtype.ext (congrArg (fun x => x.val)
+        ((restrictModelsEquiv φ declared hv false).right_inv ⟨τ.val, τ.property, h⟩))
+    · have ht : τ.val ⟨v, hv⟩ = true := by
+        cases hv0 : τ.val ⟨v, hv⟩
         · exact absurd hv0 h
         · rfl
       dsimp only
       rw [dite_eq_right h]
       dsimp only
-      exact Subtype.ext (congrArg (fun x => x.1)
-        ((restrictModelsEquiv φ declared hv true).right_inv ⟨τ.1, τ.2, ht⟩))
+      exact Subtype.ext (congrArg (fun x => x.val)
+        ((restrictModelsEquiv φ declared hv true).right_inv ⟨τ.val, τ.property, ht⟩))
 
 /-- Forward action of `restrictModelsEquiv` extends `σ` at `v` by `b`. -/
 theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
@@ -322,8 +323,8 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
       (φ.restrict v b).eval (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) =
         true})
     (u : ↥declared) :
-    (restrictModelsEquiv φ declared hv b σ).1 u =
-      if h : u.1 = v then b else σ.1 ⟨u.1, Finset.mem_erase.mpr ⟨h, u.2⟩⟩ := by
+    (restrictModelsEquiv φ declared hv b σ).val u =
+      if h : u.val = v then b else σ.val ⟨u.val, Finset.mem_erase.mpr ⟨h, u.property⟩⟩ := by
   rfl
 
 /-- At the restricted variable `v`, `restrictModelsEquiv` yields `b`. -/
@@ -332,7 +333,7 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
     (σ : {σ : ↥(declared.erase v) → Bool //
       (φ.restrict v b).eval (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) =
         true}) :
-    (restrictModelsEquiv φ declared hv b σ).1 ⟨v, hv⟩ = b := by
+    (restrictModelsEquiv φ declared hv b σ).val ⟨v, hv⟩ = b := by
   rw [restrictModelsEquiv_apply_val]
   exact dite_eq_left rfl
 
@@ -342,8 +343,9 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
     (σ : {σ : ↥(declared.erase v) → Bool //
       (φ.restrict v b).eval (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) =
         true})
-    {u : ↥declared} (hu : u.1 ≠ v) :
-    (restrictModelsEquiv φ declared hv b σ).1 u = σ.1 ⟨u.1, Finset.mem_erase.mpr ⟨hu, u.2⟩⟩ := by
+    {u : ↥declared} (hu : u.val ≠ v) :
+    (restrictModelsEquiv φ declared hv b σ).val u =
+      σ.val ⟨u.val, Finset.mem_erase.mpr ⟨hu, u.property⟩⟩ := by
   rw [restrictModelsEquiv_apply_val]
   exact dite_eq_right hu
 
@@ -353,8 +355,8 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
     (τ : {τ : ↥declared → Bool //
       φ.eval (fun u => if h : u ∈ declared then τ ⟨u, h⟩ else false) = true ∧ τ ⟨v, hv⟩ = b})
     (u : ↥(declared.erase v)) :
-    ((restrictModelsEquiv φ declared hv b).symm τ).1 u =
-      τ.1 ⟨u.1, Finset.mem_of_mem_erase u.2⟩ := by
+    ((restrictModelsEquiv φ declared hv b).symm τ).val u =
+      τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩ := by
   rfl
 
 /-- Left branch of `modelsSplitEquiv` agrees with `restrictModelsEquiv ... false`. -/
@@ -363,8 +365,8 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
     (σ : {σ : ↥(declared.erase v) → Bool //
       (φ.restrict v false).eval
         (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) = true}) :
-    (modelsSplitEquiv φ declared hv (Sum.inl σ)).1 =
-      (restrictModelsEquiv φ declared hv false σ).1 := by
+    (modelsSplitEquiv φ declared hv (Sum.inl σ)).val =
+      (restrictModelsEquiv φ declared hv false σ).val := by
   rfl
 
 /-- Right branch of `modelsSplitEquiv` agrees with `restrictModelsEquiv ... true`. -/
@@ -373,8 +375,8 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
     (σ : {σ : ↥(declared.erase v) → Bool //
       (φ.restrict v true).eval
         (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) = true}) :
-    (modelsSplitEquiv φ declared hv (Sum.inr σ)).1 =
-      (restrictModelsEquiv φ declared hv true σ).1 := by
+    (modelsSplitEquiv φ declared hv (Sum.inr σ)).val =
+      (restrictModelsEquiv φ declared hv true σ).val := by
   rfl
 
 /-- Inverse of `modelsSplitEquiv` on an assignment setting `v ↦ false`. -/
@@ -382,9 +384,9 @@ theorem modelsSplitEquiv_symm_of_eq_false (φ : CNF V) (declared : Finset V) {v 
     (hv : v ∈ declared)
     (τ : {τ : ↥declared → Bool //
       φ.eval (fun u => if h : u ∈ declared then τ ⟨u, h⟩ else false) = true})
-    (h : τ.1 ⟨v, hv⟩ = false) :
+    (h : τ.val ⟨v, hv⟩ = false) :
     (modelsSplitEquiv φ declared hv).symm τ =
-      Sum.inl ((restrictModelsEquiv φ declared hv false).symm ⟨τ.1, τ.2, h⟩) := by
+      Sum.inl ((restrictModelsEquiv φ declared hv false).symm ⟨τ.val, τ.property, h⟩) := by
   exact dite_eq_left h
 
 /-- Inverse of `modelsSplitEquiv` on an assignment setting `v ↦ true`. -/
@@ -392,10 +394,10 @@ theorem modelsSplitEquiv_symm_of_eq_true (φ : CNF V) (declared : Finset V) {v :
     (hv : v ∈ declared)
     (τ : {τ : ↥declared → Bool //
       φ.eval (fun u => if h : u ∈ declared then τ ⟨u, h⟩ else false) = true})
-    (h : τ.1 ⟨v, hv⟩ = true) :
+    (h : τ.val ⟨v, hv⟩ = true) :
     (modelsSplitEquiv φ declared hv).symm τ =
-      Sum.inr ((restrictModelsEquiv φ declared hv true).symm ⟨τ.1, τ.2, h⟩) := by
-  have hne : τ.1 ⟨v, hv⟩ ≠ false := by simp [h]
+      Sum.inr ((restrictModelsEquiv φ declared hv true).symm ⟨τ.val, τ.property, h⟩) := by
+  have hne : τ.val ⟨v, hv⟩ ≠ false := by simp [h]
   exact dite_eq_right hne
 
 /-! ### Branching additivity for model counts -/

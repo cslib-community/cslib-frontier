@@ -279,10 +279,10 @@ theorem ecomplexityFun_le_of_spaceLE {p m b : ℕ} (hp : 0 < p) (hA : A.SpaceLE 
           exact hst' j (by omega)
       refine ⟨w, fun k => ?_, fun k => ?_, q, ?_, hqz⟩
       · change dec (enc (mid k)) ∈ _
-        rw [hmid k k.2, hstart k k.2]
-        exact (hchain k k.2).1
+        rw [hmid k k.isLt, hstart k k.isLt]
+        exact (hchain k k.isLt).1
       · change dec (enc (st (k + 1))) ∈ A.pass (v y) (dec (enc (mid k)))
-        rw [hst' k k.2, hmid k (by omega)]
+        rw [hst' k k.isLt, hmid k (by omega)]
         exact (hchain k (by omega)).2
       · change q ∈ A.pass (v y) (dec (enc (mid n)))
         rw [hmid n (by omega), ← hst]

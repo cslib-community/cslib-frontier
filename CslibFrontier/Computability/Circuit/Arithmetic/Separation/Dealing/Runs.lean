@@ -182,9 +182,9 @@ private theorem exec_gateStep (x : PlanInput M U0 U1) (k : Fin pS)
   · rw [Codes.exec_constStep hz, congrFun h2.choose_spec x]
   · obtain ⟨hi, hj, hφ⟩ := h3.choose_spec.choose_spec.choose_spec
     rw [Codes.exec_binaryStep (hprev _ hi) (hprev _ hj), ← hφ x]
-  · rcases tab.isSlpStep k k.2 with h | h | ⟨i, hi, j, hj, φ, hφ⟩
+  · rcases tab.isSlpStep k k.isLt with h | h | ⟨i, hi, j, hj, φ, hφ⟩
     exacts [(h1 h).elim, (h2 h).elim,
-      (h3 ⟨⟨i, hi.trans k.2⟩, ⟨j, hj.trans k.2⟩, φ, hi, hj, hφ⟩).elim]
+      (h3 ⟨⟨i, hi.trans k.isLt⟩, ⟨j, hj.trans k.isLt⟩, φ, hi, hj, hφ⟩).elim]
 
 omit [Fintype S] [DecidableEq S] in
 private theorem execAll_gateSteps (x : PlanInput M U0 U1) {st : PlanName S M U0 U1 pS → Tree}

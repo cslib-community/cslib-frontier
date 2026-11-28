@@ -97,7 +97,7 @@ theorem integerMap_mem (x : AdjoinRoot (f.map (Int.castRingHom (Rat.padicValuati
   intro i
   rw [modByMonicHom_mk, ← map_subtype_map_integer p f,
     ← map_modByMonic _ (hf.map (Int.castRingHom (Rat.padicValuation p).integer)), coeff_map]
-  exact ((P %ₘ f.map (Int.castRingHom (Rat.padicValuation p).integer)).coeff i).2
+  exact ((P %ₘ f.map (Int.castRingHom (Rat.padicValuation p).integer)).coeff i).property
 
 /-- Every element of the valuation ring comes from `ℤ_(p)[X] / (f)`. -/
 theorem exists_integerMap_eq {x : AdjoinRoot (f.map (Int.castRingHom ℚ))}
@@ -119,7 +119,7 @@ noncomputable def integerEquiv :
   RingEquiv.ofBijective ((integerMap p f).codRestrict _ (integerMap_mem hf hirr))
     (show Function.Bijective _ from
       ⟨fun _ _ h => integerMap_injective hf (congrArg Subtype.val h), fun x => by
-        obtain ⟨y, hy⟩ := exists_integerMap_eq hf hirr x.2
+        obtain ⟨y, hy⟩ := exists_integerMap_eq hf hirr x.property
         exact ⟨y, Subtype.ext hy⟩⟩)
 
 theorem coe_integerEquiv (y : AdjoinRoot (f.map (Int.castRingHom (Rat.padicValuation p).integer))) :

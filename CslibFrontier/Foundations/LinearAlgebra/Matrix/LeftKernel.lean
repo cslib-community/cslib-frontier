@@ -47,8 +47,8 @@ noncomputable def leftKernelDim (F : Matrix (Fin m) (Fin n) K) : ℕ :=
 theorem leftKernelDim_add_rank (F : Matrix (Fin m) (Fin n) K) :
     leftKernelDim F + F.rank = m := by
   have hrn := Fᵀ.mulVecLin.finrank_range_add_finrank_ker
-  change Fᵀ.rank + leftKernelDim F = Module.finrank K (Fin m → K) at hrn
-  rw [Matrix.rank_transpose, Module.finrank_fin_fun] at hrn
+  rw [Matrix.finrank_range_mulVecLin, Matrix.rank_transpose, Module.finrank_fin_fun] at hrn
+  rw [leftKernelDim]
   omega
 
 /-- Any `m × n` matrix over a field has left-kernel dimension at least `m - n`. -/
@@ -86,7 +86,7 @@ theorem exists_parityCheckMatrix (F : Matrix (Fin m) (Fin n) K) :
       ext i
       exact linearIndependent_iff'.mp b.linearIndependent Finset.univ c hsum i (Finset.mem_univ i)
     have hrank := leftKernelDim_add_rank H
-    rw [leftKernelDim, hHT_inj, finrank_bot, zero_add] at hrank
+    rw [leftKernelDim, hHT_inj, finrank_bot, zero_add, ← Matrix.finrank_range_mulVecLin] at hrank
     exact LinearMap.range_eq_top.mp (Submodule.eq_top_of_finrank_eq
       (hrank.trans (Module.finrank_fin_fun K).symm))
 

@@ -25,8 +25,8 @@ namespace CslibFrontierTests.Crypto.PrefixFreeEncoding
 
 open Cslib Cslib.Crypto Cslib.Crypto.PRF Cslib.Probability
 
-private def blk01 : BitString 2 := fun i => decide (i.1 = 1)
-private def blk10 : BitString 2 := fun i => decide (i.1 = 0)
+private def blk01 : BitString 2 := fun i => decide (i.val = 1)
+private def blk10 : BitString 2 := fun i => decide (i.val = 0)
 
 /-- Concrete `decide` evaluation of `stopBitEncode` on two 2-bit blocks, showing stop bit `false`
 on the first block, stop bit `true` on the second block, and no prefix collision with `[blk01]`. -/
@@ -46,14 +46,14 @@ theorem not_isPrefixFreeEncoding_stopBitEncode_list (n : ℕ) :
 bound `length_stopBitEncode`. -/
 example (n ℓ : ℕ) :
     IsPrefixFreeEncoding
-      (fun m : {m : List (BitString n) // m ≠ [] ∧ m.length ≤ ℓ} => stopBitEncode m.1) ∧
+      (fun m : {m : List (BitString n) // m ≠ [] ∧ m.length ≤ ℓ} => stopBitEncode m.val) ∧
     ∀ m : {m : List (BitString n) // m ≠ [] ∧ m.length ≤ ℓ},
-      (stopBitEncode m.1).length ≤ ℓ := by
+      (stopBitEncode m.val).length ≤ ℓ := by
   refine ⟨(isPrefixFreeEncoding_stopBitEncode n).comp_injective
-      (e := fun m : {m : List (BitString n) // m ≠ [] ∧ m.length ≤ ℓ} => ⟨m.1, m.2.1⟩)
+      (e := fun m : {m : List (BitString n) // m ≠ [] ∧ m.length ≤ ℓ} => ⟨m.val, m.property.1⟩)
       fun _ _ h =>
-        Subtype.ext (congrArg (fun x : {m : List (BitString n) // m ≠ []} => x.1) h),
-    fun m => by rw [length_stopBitEncode]; exact m.2.2⟩
+        Subtype.ext (congrArg (fun x : {m : List (BitString n) // m ≠ []} => x.val) h),
+    fun m => by rw [length_stopBitEncode]; exact m.property.2⟩
 
 /-- Method 1 (`isPrefixFreeEncoding_prependLength`) instantiated with `blockCountBlock`
 (`3 < 2 ^ 8`). -/

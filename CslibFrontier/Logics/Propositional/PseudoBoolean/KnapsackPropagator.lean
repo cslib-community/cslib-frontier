@@ -1056,7 +1056,7 @@ private theorem remClause_ofFin (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n �
       (if h : k < n then dom ⟨k, h⟩ else none).map fun c => (k, c)).map Std.Sat.Literal.negate =
       (List.finRange n).filterMap fun i => (dom i).map fun c => (i.val, !c) := by
     rw [← List.map_coe_finRange_eq_range, List.filterMap_map, List.map_filterMap]
-    refine List.filterMap_congr fun i _ => ?_
+    refine List.filterMap_congr rfl fun i _ => ?_
     rcases h : dom i with _ | c <;> simp [i.isLt, h, Std.Sat.Literal.negate]
   simp only [Inst.remClause, Inst.negD, Inst.fixedLits, Inst.ofFin, remClause, clause, key]
 

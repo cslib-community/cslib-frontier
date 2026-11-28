@@ -97,7 +97,7 @@ private noncomputable def ballBound [Fintype M] [DecidableEq M] (p : I) (r : ℕ
 /-- The probability of an event under the noise of `BSC_p` is nonnegative. -/
 private theorem bernoulliAverage_ite_nonneg (p : I) (P : (ι → Bool) → Prop) [DecidablePred P] :
     0 ≤ bernoulliAverage p (fun e => if P e then (1 : ℝ) else 0) := by
-  simpa only [bernoulliAverage_const] using bernoulliAverage_mono p.2.1 p.2.2
+  simpa only [bernoulliAverage_const] using bernoulliAverage_mono p.property.1 p.property.2
     (f := fun _ => 0) (g := fun e => if P e then (1 : ℝ) else 0)
     fun e => by split_ifs <;> norm_num
 
@@ -115,7 +115,7 @@ private theorem decodingError_le_ballBound {E : M → ι → Bool} {D : (ι → 
     decodingError p E D m ≤ ballBound p r E m := by
   rw [decodingError_eq_bernoulliAverage, ballBound, ← bernoulliAverage_sum,
     ← bernoulliAverage_add]
-  refine bernoulliAverage_mono p.2.1 p.2.2 fun e => ?_
+  refine bernoulliAverage_mono p.property.1 p.property.2 fun e => ?_
   have hnn : 0 ≤ ∑ m' ∈ univ.erase m,
       (if hammingDist (E m') (E m + e) ≤ r then (1 : ℝ) else 0) :=
     sum_nonneg fun _ _ => by split_ifs <;> norm_num
@@ -259,8 +259,8 @@ theorem exists_code_decodingError_le (p : I) (r K : ℕ) :
       ((Fintype.card ι).choose j : ℝ) * p ^ j * (1 - p) ^ (Fintype.card ι - j) +
     (2 * K - 1 : ℕ) * (∑ j ∈ range (r + 1), ((Fintype.card ι).choose j : ℝ)) /
       2 ^ Fintype.card ι with hβ
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
-  have hp1 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr p.2.2
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
+  have hp1 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr p.property.2
   have hβ0 : 0 ≤ β := add_nonneg (sum_nonneg fun j _ => by positivity) (by positivity)
   -- Markov: at most `K` messages have union bound above `2 β`
   set B : Finset (Fin (2 * K)) := {m | 2 * β < ballBound p r E m} with hB
@@ -325,11 +325,11 @@ private theorem sum_filter_lt_choose_mul_pow_le {n r : ℕ} (p : I) {ρ : ℝ} (
     (hr : ρ * n < r + 1) :
     ∑ k ∈ range (n + 1) with r < k, (n.choose k : ℝ) * p ^ k * (1 - p) ^ (n - k) ≤
       Real.exp (-(2 * (ρ - p) ^ 2 * n)) := by
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
-  have hp1 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr p.2.2
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
+  have hp1 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr p.property.2
   have h0 : 0 ≤ (ρ - p) * n := mul_nonneg (by linarith) n.cast_nonneg
   refine (sum_le_sum_of_subset_of_nonneg (fun k hk => ?_) fun k _ _ => by positivity).trans
-    ((sum_filter_le_sub_choose_mul_pow_le n p.2.1 p.2.2 h0).trans_eq ?_)
+    ((sum_filter_le_sub_choose_mul_pow_le n p.property.1 p.property.2 h0).trans_eq ?_)
   · obtain ⟨hk, hrk⟩ := mem_filter.mp hk
     refine mem_filter.mpr ⟨hk, ?_⟩
     have : (r + 1 : ℝ) ≤ k := by exact_mod_cast hrk
@@ -352,7 +352,7 @@ theorem exists_pos_forall_exists_code_decodingError_le_exp (p : I) (hp : (p : �
     ∃ δ > 0, ∀ n : ℕ, ∃ E : Fin (2 ^ ⌈R * n⌉₊) → BitString n, ∀ D, IsNearestDecoder E D →
       ∀ k, decodingError p E D k ≤ 10 * Real.exp (-(δ * n)) := by
   have hL : 0 < Real.log 2 := Real.log_pos one_lt_two
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
   -- work with a nonnegative rate
   have hcap : 0 < 1 - Real.binEntropy p / Real.log 2 := by
     rw [sub_pos, div_lt_one hL]

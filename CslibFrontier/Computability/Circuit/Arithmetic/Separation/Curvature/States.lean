@@ -124,7 +124,7 @@ private theorem lem_count_upper {E : ℕ} (hE : 1 ≤ E) : Real.log (stateCount 
     calc (t ^ E)⁻¹ = t⁻¹ ^ E := (inv_pow _ _).symm
       _ ≤ Real.exp (1 / √(E : ℝ)) ^ E := pow_le_pow_left₀ (by positivity) h4 _
       _ = Real.exp √(E : ℝ) := by
-          rw [← Real.exp_nat_mul, mul_one_div, (div_eq_iff hs0.ne').2 hss.symm]
+          rw [← Real.exp_natCast_mul, mul_one_div, (div_eq_iff hs0.ne').2 hss.symm]
   have h2 : ((lowSets E).card : ℝ) ≤ Real.exp (5 * √(E : ℝ)) := by
     have h5 := lem_count_sets E ht0 ht1
     have h6 : 1 / (1 - t) = 2 * √(E : ℝ) := by rw [ht, sub_sub_cancel, one_div_one_div]

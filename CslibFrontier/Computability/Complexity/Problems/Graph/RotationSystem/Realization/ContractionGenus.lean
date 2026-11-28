@@ -32,7 +32,7 @@ namespace Cslib.Complexity.Graph.RotationSystem
 two cyclic vertex blocks and connector recovered by automatic polygonal restoration. -/
 theorem numericalGenusZero_of_contractLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (huv : u ≠ v)
-    (hG : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ G.1)
+    (hG : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ G.vertices)
     (hr : (r.contractLastEdge huv).NumericalGenusZero) : r.NumericalGenusZero := by
   obtain ⟨D, hD, hR⟩ := (r.contractLastEdge huv).exists_polygonalDrawing
     (endpoints_declared_contractLastEdge hG) hr
@@ -43,7 +43,7 @@ theorem numericalGenusZero_of_contractLastEdge {G : Graph} {u v : ℕ}
 contraction, including loops elsewhere, parallel edges, closed components and isolates. -/
 theorem numericalGenusZero_contractLastEdge_iff {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (huv : u ≠ v)
-    (hG : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ G.1) :
+    (hG : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ G.vertices) :
     (r.contractLastEdge huv).NumericalGenusZero ↔ r.NumericalGenusZero :=
   ⟨r.numericalGenusZero_of_contractLastEdge huv hG,
     r.numericalGenusZero_contractLastEdge huv hG⟩

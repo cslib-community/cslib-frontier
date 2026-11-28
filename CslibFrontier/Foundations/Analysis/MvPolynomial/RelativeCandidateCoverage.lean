@@ -87,7 +87,7 @@ theorem exists_degreePiece_coordinateRootGrid_of_emptyFiber (hell : 1 ≤ ell)
     eval₂ (Int.castRingHom ℝ) (Fin.addCases z (r y)) P = 0}
   have hG : IsClopen G := by
     have hr : Continuous r :=
-      continuous_pi fun i => (continuous_apply i.succ).comp continuous_subtype_val
+      continuous_pi fun i => (continuous_apply i.succ).comp continuous_subtypeVal
     refine isClopen_relative_emptyFibers_of_fixed_degree hell he P hP r hr
       (fun y z => hpos (r y) z) k ?_ (fun y => left_ne_zero_of_mul_eq_one (hpiece y).1)
     intro y

@@ -34,9 +34,9 @@ open Equiv
 edge and the original labels on all retained indexed occurrences. -/
 theorem exists_faceEven_extension_contractLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (huv : u ≠ v)
-    (x : Fin (contractLastEdgeGraph G u v).2.length → Bool)
+    (x : Fin (contractLastEdgeGraph G u v).edges.length → Bool)
     (hx : (r.contractLastEdge huv).FaceEven x) :
-    ∃ y : Fin (lastEdgeGraph G u v).2.length → Bool, r.FaceEven y ∧
+    ∃ y : Fin (lastEdgeGraph G u v).edges.length → Bool, r.FaceEven y ∧
       y (lastEdgeDart G u v false).1 = false ∧
       ∀ d : Dart (contractLastEdgeGraph G u v),
         y (((contractLastEdgeDartEquiv G u v).trans
@@ -72,19 +72,19 @@ theorem exists_faceEven_extension_contractLastEdge {G : Graph} {u v : ℕ}
   have hrestore (z : Option (Option (Dart (contractLastEdgeGraph G u v)))) :
       A (f z) = g (A z) := by
     simp only [g, Perm.coe_mul, Function.comp_apply, A, swap_apply_self]
-  let y (i : Fin (lastEdgeGraph G u v).2.length) : Bool :=
-    if h : i.val < (contractLastEdgeGraph G u v).2.length then x ⟨i.val, h⟩ else false
+  let y (i : Fin (lastEdgeGraph G u v).edges.length) : Bool :=
+    if h : i.val < (contractLastEdgeGraph G u v).edges.length then x ⟨i.val, h⟩ else false
   have hyOuter : y (e.symm none).1 = false := by
-    change (if h : (contractLastEdgeGraph G u v).2.length <
-      (contractLastEdgeGraph G u v).2.length then _ else false) = false
+    change (if h : (contractLastEdgeGraph G u v).edges.length <
+      (contractLastEdgeGraph G u v).edges.length then _ else false) = false
     rw [dite_eq_right (Nat.lt_irrefl _)]
   have hyInner : y (e.symm (some none)).1 = false := by
-    change (if h : (contractLastEdgeGraph G u v).2.length <
-      (contractLastEdgeGraph G u v).2.length then _ else false) = false
+    change (if h : (contractLastEdgeGraph G u v).edges.length <
+      (contractLastEdgeGraph G u v).edges.length then _ else false) = false
     rw [dite_eq_right (Nat.lt_irrefl _)]
   have hyOld (a : Dart (contractLastEdgeGraph G u v)) :
       y (e.symm (some (some a))).1 = x a.1 := by
-    change (if h : a.1.val < (contractLastEdgeGraph G u v).2.length then x ⟨a.1.val, h⟩
+    change (if h : a.1.val < (contractLastEdgeGraph G u v).edges.length then x ⟨a.1.val, h⟩
       else false) = x a.1
     rw [dite_eq_left a.1.isLt]
   refine ⟨y, ?_, ?_, hyOld⟩
@@ -100,14 +100,15 @@ theorem exists_faceEven_extension_contractLastEdge {G : Graph} {u v : ℕ}
     · rw [show A (some (some a)) = some (some a) from
         swap_apply_of_ne_of_ne (by simp) (by simp), hnext, hold, hyOld]
       exact hp a
-  · change (if h : G.2.length < (contractLastEdgeGraph G u v).2.length then _ else false) = false
+  · change (if h : G.edges.length < (contractLastEdgeGraph G u v).edges.length then _ else false) =
+      false
     rw [dite_eq_right (by simp [contractLastEdgeGraph, Graph.relabel])]
 
 /-- All retained endpoints remain declared after contracting an actual nonloop edge. -/
 theorem endpoints_declared_contractLastEdge {G : Graph} {u v : ℕ}
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1) :
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices) :
     ∀ w ∈ (contractLastEdgeGraph G u v).incidenceVertices,
-      w ∈ (contractLastEdgeGraph G u v).1 :=
+      w ∈ (contractLastEdgeGraph G u v).vertices :=
   G.endpoints_declared_relabel (Function.update id u v) (endpoints_declared_deleteLastEdge hH)
 
 /-- Contracting any actual indexed nonloop edge preserves componentwise numerical genus
@@ -115,7 +116,7 @@ zero. No bridge, cofacial, connectedness or face-even lifting provider is a prem
 point convention is handled by the existing algebraic characterization, without new darts. -/
 theorem numericalGenusZero_contractLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (huv : u ≠ v)
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1)
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices)
     (hr : r.NumericalGenusZero) : (r.contractLastEdge huv).NumericalGenusZero := by
   apply (r.contractLastEdge huv).numericalGenusZero_of_faceEven_lifts
     (endpoints_declared_contractLastEdge hH)

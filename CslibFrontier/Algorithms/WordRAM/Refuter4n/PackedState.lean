@@ -132,7 +132,7 @@ private theorem sort_eq_filter_range {s : Finset ℕ} {N : ℕ} (hs : ∀ i ∈ 
 theorem find?_sort_eq_find?_range {s : Finset ℕ} {N : ℕ} (hs : ∀ i ∈ s, i < N) (p : ℕ → Bool) :
     (s.sort (· ≤ ·)).find? p = (List.range N).find? fun i => (maskOf s).testBit i && p i := by
   rw [sort_eq_filter_range hs, List.find?_filter]
-  exact List.find?_congr fun i _ => by simp
+  exact List.find?_congr rfl fun i _ => by simp
 
 private theorem findSome?_filter {α β : Type*} (l : List α) (q : α → Bool) (g : α → Option β) :
     (l.filter q).findSome? g = l.findSome? fun a => if q a then g a else none := by
@@ -614,7 +614,7 @@ theorem Rep.pFindD1_eq {N E : ℕ} {P : PackedState} {S : State n} (h : Rep N E 
     pFindD1 P = findD1 S := by
   rw [findD1, find?_sort_eq_find?_range fun i => h.lt_of_mem_gates, pFindD1,
     h.gateRows_length, h.gates]
-  refine List.find?_congr fun J _ => ?_
+  refine List.find?_congr rfl fun J _ => ?_
   rw [testBit_maskOf]
   by_cases hJ : J ∈ S.gates
   · rw [h.gateRow J hJ, isDegenerateRow_rowOf]

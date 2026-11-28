@@ -856,7 +856,8 @@ private theorem naorReingoldWordSuffix_eq_tableEval (F : PrimeOrderGroupFamily) 
         (if h : k + 1 ≤ (e (Sum.inl i)).val then
           suffix ⟨(e (Sum.inl i)).val - (k + 1), by omega⟩ else 1)
       else 1) = 1 :=
-    Finset.prod_eq_one fun i _ => by simp [Nat.not_le.mpr (show (e (.inl i)).val < k + 1 from i.2)]
+    Finset.prod_eq_one fun i _ => by
+      simp [Nat.not_le.mpr (show (e (.inl i)).val < k + 1 from i.isLt)]
   rw [hleft, one_mul]
   refine Finset.prod_congr rfl fun j _ => ?_
   have he_eq : e (Sum.inr j) = ⟨k + 1 + j.val, by omega⟩ := by ext; rfl

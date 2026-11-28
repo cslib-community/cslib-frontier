@@ -103,7 +103,7 @@ theorem term_eq_zero_of_degree_lt {ell : ℕ} (hell : 1 ≤ ell)
     simp only [term, add_mul, AddMonoidAlgebra.coeff_add, Finsupp.add_apply,
       Finset.sum_add_distrib]
   map_smul' c v := by
-    simp only [term, smul_mul_assoc, MvPolynomial.coeff_smul, RingHom.id_apply,
+    simp only [term, smul_mul_assoc, AddMonoidAlgebra.coeff_smul_apply, RingHom.id_apply,
       smul_eq_mul, Finset.mul_sum]
 
 /-- All truncations above the numerator's degree give the same finite sum. -/

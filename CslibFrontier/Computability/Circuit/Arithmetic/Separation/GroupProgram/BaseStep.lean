@@ -229,7 +229,8 @@ theorem simulates_base (hκ : Function.Injective (Sum.elim key dkey)) (hub : 0 <
   induction p using Fin.addCases with
   | left κ =>
     rw [Fin.addCases_left, instructionSem, dite_eq_left_of_eq_true
-      (eq_true ⟨(Fintype.equivFin Q _).2, (Fintype.equivFin Q _).2⟩), List.weightedSum_weightedBind]
+      (eq_true ⟨(Fintype.equivFin Q _).isLt, (Fintype.equivFin Q _).isLt⟩),
+      List.weightedSum_weightedBind]
     simp only [Fin.eta]
     rw [weightedSum_simSem mu cb hmu]
     refine (sum_congr rfl fun u _ => by rw [weightedSum_packSem_base mu cb kinds hκ hub hp hρ

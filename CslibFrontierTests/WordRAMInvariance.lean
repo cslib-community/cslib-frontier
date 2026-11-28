@@ -47,7 +47,7 @@ example : UniformPolynomialTime .arithmetic (Language.ofSlices parity : Set (Lis
 open Cslib.Algorithms.WordRAM.ElementDistinctness in
 /-- Element distinctness, in `P` from a word-RAM algorithm on its words, has an additive word-RAM
 decider on the bits of its encoding. -/
-example : UniformPolynomialTime .additive {l : Input | l.1.Nodup}
+example : UniformPolynomialTime .additive {l : Input | l.val.Nodup}
     (fun _ l => (inputEncoding l).map Bool.toNat) (fun l => (inputEncoding l).length) :=
   uniformPolynomialTime_of_mem_P nodup_mem_P
 

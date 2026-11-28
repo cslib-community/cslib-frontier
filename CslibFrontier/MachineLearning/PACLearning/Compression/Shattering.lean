@@ -61,14 +61,14 @@ theorem two_pow_card_le_of_setShatters (κ : SampleCompressionScheme C k) {W : F
   have hS (v : Fin n → Bool) : Realizable C (S v) := by
     obtain ⟨c, hc, hcW⟩ := hW ((fun i => (e i : α)) '' {i | v i = true}) (by
       rintro _ ⟨i, -, rfl⟩
-      exact (e i).2)
+      exact (e i).property)
     refine ⟨c, hc, fun i => ?_⟩
     have hmem : (e i : α) ∈ c ⁻¹' {true} ∩ ↑W ↔
         (e i : α) ∈ (fun i => (e i : α)) '' {i | v i = true} := by
       rw [hcW]
     have hinj : ∀ j, (e j : α) = (e i : α) → j = i := fun j h => e.injective (Subtype.ext h)
-    simp only [mem_inter_iff, mem_preimage, mem_singleton_iff, Finset.mem_coe, (e i).2, and_true,
-      mem_image, mem_ofPred_eq] at hmem
+    simp only [mem_inter_iff, mem_preimage, mem_singleton_iff, Finset.mem_coe, (e i).property,
+      and_true, mem_image, mem_ofPred_eq] at hmem
     change v i = c (e i)
     cases hv : v i <;> cases hc' : c (e i) <;> simp_all
   -- The encoding: the kept indices, each with its label.

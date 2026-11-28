@@ -75,10 +75,10 @@ noncomputable def ofInverse (f : (σ → ℝ) → τ → ℝ) (g : (τ → ℝ) 
     (hfg : ∀ y ∈ B, f (g y) = y) (hfc : ContinuousOn f A) (hgc : ContinuousOn g B)
     (hgraph : IsSemialgebraic {z : σ ⊕ τ → ℝ | z ∘ Sum.inr ∈ B ∧ g (z ∘ Sum.inr) = z ∘ Sum.inl}) :
     SemialgebraicHomeomorph A B where
-  toFun x := ⟨f x, hf x x.2⟩
-  invFun y := ⟨g y, hg y y.2⟩
-  left_inv x := Subtype.ext (hgf x x.2)
-  right_inv y := Subtype.ext (hfg y y.2)
+  toFun x := ⟨f x, hf x x.property⟩
+  invFun y := ⟨g y, hg y y.property⟩
+  left_inv x := Subtype.ext (hgf x x.property)
+  right_inv y := Subtype.ext (hfg y y.property)
   continuous_toFun := (continuousOn_iff_continuous_domRestrict.1 hfc).subtype_mk _
   continuous_invFun := (continuousOn_iff_continuous_domRestrict.1 hgc).subtype_mk _
   isSemialgebraic_graph := by
@@ -186,8 +186,8 @@ theorem nonempty_iff {σ τ : Type u} {A : Set (σ → ℝ)} {B : Set (τ → �
     (h : StablyIsomorphic A B) : A.Nonempty ↔ B.Nonempty := by
   induction h with
   | of_homeomorph e =>
-    exact ⟨fun ⟨a, ha⟩ => ⟨_, (e.toHomeomorph ⟨a, ha⟩).2⟩,
-      fun ⟨b, hb⟩ => ⟨_, (e.toHomeomorph.symm ⟨b, hb⟩).2⟩⟩
+    exact ⟨fun ⟨a, ha⟩ => ⟨_, (e.toHomeomorph ⟨a, ha⟩).property⟩,
+      fun ⟨b, hb⟩ => ⟨_, (e.toHomeomorph.symm ⟨b, hb⟩).property⟩⟩
   | prod_fin V k =>
     exact ⟨fun ⟨z, hz⟩ => ⟨z ∘ Sum.inl, hz⟩,
       fun ⟨v, hv⟩ => ⟨Sum.elim v 0, by simpa [Set.mem_ofPred_eq] using hv⟩⟩

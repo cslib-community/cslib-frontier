@@ -1363,7 +1363,7 @@ private theorem length_encList_of_mem_support_mapM_query_take (k : ℕ) (xs : Li
     intro tag htag
     obtain ⟨i, rfl⟩ := List.mem_iff_get.mp htag
     obtain ⟨raw, -, hraw⟩ :=
-      OracleComp.mem_supportWith_map_iff.mp (hrel.get (hrel.length_eq.symm ▸ i.2) i.2)
+      OracleComp.mem_supportWith_map_iff.mp (hrel.get (hrel.length_eq.symm ▸ i.isLt) i.isLt)
     simpa only [encBits_apply, ← hraw] using List.length_take_le k raw
   refine (Turing.MultiTapeTM.length_encList_le encBits tags htagLen).trans ?_
   rw [← hrel.length_eq]

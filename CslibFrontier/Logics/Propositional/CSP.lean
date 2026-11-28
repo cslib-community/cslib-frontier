@@ -245,14 +245,15 @@ theorem modelCountOn_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List 
   classical
   let S := F.vars.toFinset
   let R := Finset.range F.numVars
-  let f : S → R := fun v => ⟨F.distinctVars.idxOf v.1, Finset.mem_range.mpr
+  let f : S → R := fun v => ⟨F.distinctVars.idxOf v.val, Finset.mem_range.mpr
     (F.length_distinctVars ▸ List.idxOf_lt_length_iff.mpr
-      (mem_distinctVars.mpr (List.mem_toFinset.mp v.2)))⟩
+      (mem_distinctVars.mpr (List.mem_toFinset.mp v.property)))⟩
   let eVar : S ≃ R := Equiv.ofBijective f
     ⟨fun v w h => Subtype.ext ((List.idxOf_inj
-        (mem_distinctVars.mpr (List.mem_toFinset.mp v.2))).mp (Subtype.mk.inj h)),
+        (mem_distinctVars.mpr (List.mem_toFinset.mp v.property))).mp (Subtype.mk.inj h)),
       fun i => by
-        have hi : i.1 ∈ F.denseRelabel.vars.toFinset := F.vars_denseRelabel_toFinset.symm ▸ i.2
+        have hi : i.val ∈ F.denseRelabel.vars.toFinset :=
+          F.vars_denseRelabel_toFinset.symm ▸ i.property
         rw [denseRelabel, vars_relabel, List.mem_toFinset, List.mem_map] at hi
         obtain ⟨v, hv, hvi⟩ := hi
         exact ⟨⟨v, List.mem_toFinset.mpr hv⟩, Subtype.ext hvi⟩⟩
@@ -263,7 +264,7 @@ theorem modelCountOn_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List 
   rw [denseRelabel, eval_relabel]
   refine eval_congr fun v hv => ?_
   have hidx : List.idxOf v F.distinctVars ∈ Finset.range F.numVars :=
-    (f ⟨v, List.mem_toFinset.mpr hv⟩).2
+    (f ⟨v, List.mem_toFinset.mpr hv⟩).property
   simp only [Function.comp_apply, List.mem_toFinset.mpr hv, hidx, dite_true]
   rfl
 
@@ -278,7 +279,7 @@ theorem modelCount_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List D 
 theorem modelCount_pos_iff [Fintype D] [Inhabited D] {sem : Rel → List D → Bool} {F : CSP Rel V} :
     0 < F.modelCount sem ↔ F.Satisfiable sem := by
   rw [modelCount, modelCountOn, Finset.card_pos, Finset.filter_nonempty_iff]
-  refine ⟨fun ⟨_, _, hσ⟩ => ⟨_, hσ⟩, fun ⟨σ, hσ⟩ => ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩⟩
+  refine ⟨fun ⟨_, _, hσ⟩ => ⟨_, hσ⟩, fun ⟨σ, hσ⟩ => ⟨fun v => σ v.val, Finset.mem_univ _, ?_⟩⟩
   exact (eval_congr fun v hv => by simp [List.mem_toFinset.mpr hv]).trans hσ
 
 /-- Guard checking that every constraint scope in `F` has length `≤ k` and every occurring variable

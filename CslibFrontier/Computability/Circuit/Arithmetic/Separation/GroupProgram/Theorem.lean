@@ -73,7 +73,7 @@ theorem exists_group (mu : Tape.Letter S Unit Γ → Matrix Q Q F) (cb : Option 
             BitString.binaryValue bub + (K + K))) ∧
         ∀ r : M.Role, grp (M.roleParty r) = g →
           ∃ ι : Fin (P.count n o r.1 * BitString.binaryValue bub) → (M.law r.1).Index,
-            ∀ ν : (M.law r.1).ChannelAt r.2, (o ⟨r.1, ν.1⟩ : ℕ) =
+            ∀ ν : (M.law r.1).ChannelAt r.2, (o ⟨r.1, ν.val⟩ : ℕ) =
               (∑ k, ((M.law r.1).labelLength + (M.law r.1).length (ι k) ν)) /
                 BitString.binaryValue bub) := by
   obtain ⟨GROUP, κ, hF⟩ := exists_formula_scriptSem (θ := θ) (S := S) mu cb kinds

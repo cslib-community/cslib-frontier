@@ -82,7 +82,7 @@ private theorem lintegral_gaussianWeight_discreteGaussian (r s t : ℝ)
         gaussianMass L (r * s / t) ((r / t) ^ 2 • x - u) /
           (s ^ finrank ℝ E * gaussianMass L r (-u))) := by
   rw [lintegral_map (by unfold gaussianWeight; fun_prop)
-    (measurable_subtype_coe.add_const u), lintegral_countable']
+    (measurable_subtypeVal.add_const u), lintegral_countable']
   have hp : 0 < s ^ finrank ℝ E := pow_pos hs _
   have hmass := gaussianMass_pos L r hr (-u)
   have hh : 0 < r * s / t := div_pos (mul_pos hr hs) ht

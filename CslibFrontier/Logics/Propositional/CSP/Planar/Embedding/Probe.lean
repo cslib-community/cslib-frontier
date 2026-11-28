@@ -182,7 +182,7 @@ theorem probeBody_certificate_short_returns (F : CSP Rel V) (ports : List V)
       c.successor.getD i 0 < 2 * F.occurrences.length ∨
         c.successor.getD (c.successor.getD i 0) 0 < 2 * F.occurrences.length := by
   intro i hi
-  have hb : i < 2 * (incidenceGraph (probeBody F ports)).2.length := by
+  have hb : i < 2 * (incidenceGraph (probeBody F ports)).edges.length := by
     rw [incidenceGraph_edges, List.length_map, length_occurrences_probeBody]
     omega
   let r := RotationCertificate.decode (incidenceGraph (probeBody F ports)) c h
@@ -211,7 +211,7 @@ theorem restrictPrefix_eq_self_of_verifyRotation {G : Graph} {c : RotationCertif
     restrictPrefix c.successor.length c = c := by
   apply restrictPrefix_eq_self
   intro i hi
-  have hb : i < 2 * G.2.length := by rwa [RotationCertificate.length_of_verifyRotation h] at hi
+  have hb : i < 2 * G.edges.length := by rwa [RotationCertificate.length_of_verifyRotation h] at hi
   let d := (Dart.indexEquiv G).symm ⟨i, hb⟩
   have hd : d.index = i := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨i, hb⟩)
   rw [← hd, ← RotationCertificate.index_decode_rotate h d]

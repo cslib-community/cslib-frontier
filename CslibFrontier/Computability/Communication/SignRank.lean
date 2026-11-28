@@ -130,8 +130,6 @@ theorem signRepresents_signMatrix (f : X → Y → Bool) : SignRepresents (signM
   intro x y
   by_cases h : f x y <;> simp [h]
 
-variable [Fintype Y]
-
 /-- The *sign-rank* of a Boolean function `f`: the least rank of a real matrix that
 sign-represents `f` [Sherstov and Wu, §2.8][SherstovWu2019]. The sign matrix itself is such a
 matrix, so the infimum is attained (`exists_signRepresents_rank_eq`). -/
@@ -162,13 +160,13 @@ theorem le_signRank_iff {r : ℕ} :
   exact hr ▸ h A hA
 
 /-- A sign-representation by a product through `k` dimensions bounds the sign-rank by `k`. -/
-theorem signRank_le_card_of_mul {ι : Type*} [Fintype ι] {U : Matrix X ι ℝ} {V : Matrix ι Y ℝ}
-    (h : SignRepresents (U * V) f) : signRank f ≤ Fintype.card ι :=
+theorem signRank_le_card_of_mul [Finite Y] {ι : Type*} [Fintype ι] {U : Matrix X ι ℝ}
+    {V : Matrix ι Y ℝ} (h : SignRepresents (U * V) f) : signRank f ≤ Fintype.card ι :=
   (signRank_le_rank h).trans ((Matrix.rank_mul_le_left U V).trans (Matrix.rank_le_card_width U))
 
 /-- **Sign-rank factorization**: `f` is sign-represented by a product through `signRank f`
 dimensions. -/
-theorem exists_mul_signRepresents (f : X → Y → Bool) :
+theorem exists_mul_signRepresents [Finite Y] (f : X → Y → Bool) :
     ∃ (U : Matrix X (Fin (signRank f)) ℝ) (V : Matrix (Fin (signRank f)) Y ℝ),
       SignRepresents (U * V) f := by
   obtain ⟨A, hA, hr⟩ := exists_signRepresents_rank_eq f
@@ -184,12 +182,12 @@ theorem signRank_le_rank_signMatrix (f : X → Y → Bool) :
   signRank_le_rank (signRepresents_signMatrix f)
 
 /-- The sign-rank is at most the rank of the communication matrix plus one. -/
-theorem signRank_le_rank_communicationMatrix_add_one (f : X → Y → Bool) :
+theorem signRank_le_rank_communicationMatrix_add_one [Finite Y] (f : X → Y → Bool) :
     signRank f ≤ (communicationMatrix ℝ f).rank + 1 :=
   (signRank_le_rank_signMatrix f).trans (rank_signMatrix_le f)
 
 /-- The sign-rank is at most the number of columns. -/
-theorem signRank_le_card_right (f : X → Y → Bool) : signRank f ≤ Fintype.card Y :=
+theorem signRank_le_card_right [Fintype Y] (f : X → Y → Bool) : signRank f ≤ Fintype.card Y :=
   (signRank_le_rank_signMatrix f).trans (Matrix.rank_le_card_width _)
 
 /-- The sign-rank is at most the number of rows. -/
@@ -198,39 +196,41 @@ theorem signRank_le_card_left [Fintype X] (f : X → Y → Bool) : signRank f �
 
 /-- **Monotonicity under submatrices**: restricting (or repeating) rows and columns does not
 increase the sign-rank. -/
-theorem signRank_comap_le [Fintype Y'] (f : X → Y → Bool) (a : X' → X) (b : Y' → Y) :
+theorem signRank_comap_le [Finite Y] [Finite Y'] (f : X → Y → Bool) (a : X' → X) (b : Y' → Y) :
     signRank (fun x y => f (a x) (b y)) ≤ signRank f := by
   obtain ⟨A, hA, hr⟩ := exists_signRepresents_rank_eq f
   exact (signRank_le_rank (hA.submatrix a b)).trans (hr ▸ Matrix.rank_submatrix_le A a b)
 
 /-- Negating a function does not change its sign-rank. -/
-@[simp] theorem signRank_not (f : X → Y → Bool) : signRank (fun x y => !f x y) = signRank f := by
+@[simp] theorem signRank_not [Finite Y] (f : X → Y → Bool) :
+    signRank (fun x y => !f x y) = signRank f := by
   have key (g : X → Y → Bool) : signRank (fun x y => !g x y) ≤ signRank g := by
     obtain ⟨A, hA, hr⟩ := exists_signRepresents_rank_eq g
     exact (signRank_le_rank hA.neg).trans (by rw [Matrix.rank_neg, hr])
   refine le_antisymm (key f) ?_
   simpa using key fun x y => !f x y
 
-private theorem signRank_swap_le [Fintype X] (f : X → Y → Bool) :
+private theorem signRank_swap_le [Finite Y] [Finite X] (f : X → Y → Bool) :
     signRank (fun y x => f x y) ≤ signRank f := by
   obtain ⟨A, hA, hr⟩ := exists_signRepresents_rank_eq f
   exact (signRank_le_rank hA.transpose).trans (by rw [Matrix.rank_transpose, hr])
 
 /-- Exchanging the arguments does not change the sign-rank. -/
-theorem signRank_swap [Fintype X] (f : X → Y → Bool) :
+theorem signRank_swap [Finite Y] [Finite X] (f : X → Y → Bool) :
     signRank (fun y x => f x y) = signRank f :=
   le_antisymm (signRank_swap_le f) (signRank_swap_le fun y x => f x y)
 
 /-- When both players have inputs, the sign-rank is positive: the zero matrix sign-represents
 nothing. -/
-theorem signRank_pos [Nonempty X] [Nonempty Y] (f : X → Y → Bool) : 0 < signRank f := by
+theorem signRank_pos [Finite Y] [Nonempty X] [Nonempty Y] (f : X → Y → Bool) :
+    0 < signRank f := by
   obtain ⟨x⟩ := ‹Nonempty X›
   obtain ⟨y⟩ := ‹Nonempty Y›
   refine le_signRank_iff.mpr fun A hA => Nat.pos_of_ne_zero fun h => ?_
   exact hA.ne_zero x y (by rw [Matrix.rank_eq_zero_iff.mp h, Matrix.zero_apply])
 
 /-- If `f` has sign-rank at most one, it is sign-represented by a product `u x * v y`. -/
-theorem exists_mul_of_signRank_le_one [Nonempty X] [Nonempty Y] (h : signRank f ≤ 1) :
+theorem exists_mul_of_signRank_le_one [Finite Y] [Nonempty X] [Nonempty Y] (h : signRank f ≤ 1) :
     ∃ (u : X → ℝ) (v : Y → ℝ), ∀ x y, 0 < signMatrix ℝ f x y * (u x * v y) := by
   have h1 : signRank f = 1 := le_antisymm h (signRank_pos f)
   obtain ⟨U, V, hUV⟩ := exists_mul_signRepresents f
@@ -257,7 +257,6 @@ private theorem tendsto_floor_mul_div (z : ℝ) :
     rw [div_le_iff₀ hN']
     linarith [Int.floor_le ((N : ℝ) * z)]
 
-omit [Fintype Y] in
 /-- **Integer sign-representations.** If a product `U * V` of real matrices through `ι`
 sign-represents `f` on finite sets of inputs, so does a product of integer matrices through the
 same `ι`: for large `N`, the matrices `⌊N U⌋` and `⌊N V⌋` have a product within `o(N ^ 2)` of
@@ -291,8 +290,10 @@ theorem exists_int_mul_signRepresents [Finite X] [Finite Y] {ι : Type*} [Fintyp
 
 /-- **Equality has sign-rank at most three**: for an injective numbering `e` of the inputs, the
 matrix `(e x - e y) ^ 2 - 1 / 4` sign-represents equality and has rank at most three. -/
-theorem signRank_equality_le_three [DecidableEq Y] : signRank (equality (X := Y)) ≤ 3 := by
+theorem signRank_equality_le_three [Finite Y] [DecidableEq Y] :
+    signRank (equality (X := Y)) ≤ 3 := by
   classical
+  have := Fintype.ofFinite Y
   let e : Y → ℝ := fun y => (Fintype.equivFin Y y : ℕ)
   have he : ∀ x y, x ≠ y → 1 ≤ (e x - e y) ^ 2 := by
     intro x y hxy
@@ -324,7 +325,7 @@ theorem signRank_equality_le_three [DecidableEq Y] : signRank (equality (X := Y)
 /-- On three or more inputs, equality has sign-rank at least two: a product `u x * v y` takes the
 same sign on two rows `x₁ ≠ x₂` with `u x₁`, `u x₂` of the same sign, but equality separates them
 in column `x₁`. -/
-theorem two_le_signRank_equality [DecidableEq Y] (hY : 2 < Fintype.card Y) :
+theorem two_le_signRank_equality [Fintype Y] [DecidableEq Y] (hY : 2 < Fintype.card Y) :
     2 ≤ signRank (equality (X := Y)) := by
   by_contra! hlt
   obtain ⟨a, b, c, hab, hac, hbc⟩ := Fintype.two_lt_card_iff.mp hY
@@ -348,7 +349,7 @@ theorem two_le_signRank_equality [DecidableEq Y] (hY : 2 < Fintype.card Y) :
 testing that relation against the fourth column of `V` rules out coefficients all of one sign, and
 testing against the first three columns rules out a single positive or single negative
 coefficient. -/
-theorem three_le_signRank_equality [DecidableEq Y] (hY : 3 < Fintype.card Y) :
+theorem three_le_signRank_equality [Fintype Y] [DecidableEq Y] (hY : 3 < Fintype.card Y) :
     3 ≤ signRank (equality (X := Y)) := by
   obtain ⟨e⟩ : Nonempty (Fin 4 ↪ Y) :=
     Function.Embedding.nonempty_of_card_le (by rw [Fintype.card_fin]; omega)
@@ -431,7 +432,7 @@ source states Claim 3 for the `N × N` signed identity matrix (`+1` on the diago
 the diagonal, i.e. `-signMatrix ℝ equality`, which has the same sign-rank by `signRank_not`), and
 pairs it with a VC-dimension assertion not formalized here (see
 [#3262](https://github.com/cslib-community/cslib-frontier/issues/3262)). -/
-theorem signRank_equality_eq_three [DecidableEq Y] (hY : 3 < Fintype.card Y) :
+theorem signRank_equality_eq_three [Fintype Y] [DecidableEq Y] (hY : 3 < Fintype.card Y) :
     signRank (equality (X := Y)) = 3 :=
   le_antisymm signRank_equality_le_three (three_le_signRank_equality hY)
 

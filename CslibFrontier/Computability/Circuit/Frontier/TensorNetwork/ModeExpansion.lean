@@ -268,7 +268,7 @@ product of the picked terms. It depends only on the exponents of the modes of `k
   ∑ φ : {e // S.rowBlock e = k} → Option M,
     if (∀ e Z, φ e = some Z → S.targetBlock Z = k) ∧
         ∀ Z, S.targetBlock Z = k → #{e | φ e = some Z} = β Z then
-      ∏ e, S.choiceTerm Y X e.1 (φ e)
+      ∏ e, S.choiceTerm Y X e.val (φ e)
     else 0
 
 /-- The tensor at the vertex of packet `q` in the child of group `g`: the coefficient of the mode
@@ -338,7 +338,7 @@ theorem pow_dvd_blockCoeff (w : M → ℕ) {π : R} (hdiv : ∀ e Z, π ^ w Z �
     refine prod_dvd_prod_of_dvd _ _ fun e _ => ?_
     cases φ e with
     | none => simp only [Option.elim, pow_zero, one_dvd]
-    | some Z => exact Dvd.dvd.mul_left (hdiv e.1 Z) _
+    | some Z => exact Dvd.dvd.mul_left (hdiv e.val Z) _
   · exact dvd_zero _
 
 /-- The product of the block coefficients vanishes when the total weight reaches `p`, if
@@ -403,8 +403,8 @@ private theorem prod_block (Y X : E → Bool) (k : P × G) :
     refine mul_eq_zero_of_left (prod_eq_zero (mem_univ e) ?_) _
     rw [he, choiceTerm]
     refine mul_eq_zero_of_right _ (by_contra fun h0 => hZ ?_)
-    rw [targetBlock, (S.coeff_ne_zero e.1 Z h0).1, (S.coeff_ne_zero e.1 Z h0).2]
-    exact e.2
+    rw [targetBlock, (S.coeff_ne_zero e.val Z h0).1, (S.coeff_ne_zero e.val Z h0).2]
+    exact e.property
 
 omit [Fintype E] [DecidableEq E] in
 /-- Sums over the tuples supported on each block combine into one sum over all tuples. -/
@@ -488,23 +488,26 @@ is `packetTensor`. -/
 @[expose] def child (β : M → ℕ) (g : G) :
     TensorNetwork R Bool ({v // S.group v = g} ⊕ P)
       ({e // S.group (N.src e) = g} ⊕ {e // S.group (N.tgt e) = g}) where
-  src := Sum.elim (fun e => .inl ⟨N.src e.1, e.2⟩) (fun e => .inl ⟨N.tgt e.1, e.2⟩)
-  tgt := Sum.elim (fun e => .inr (S.packet e.1)) (fun e => .inr (S.packet e.1))
+  src := Sum.elim (fun e => .inl ⟨N.src e.val, e.property⟩)
+    (fun e => .inl ⟨N.tgt e.val, e.property⟩)
+  tgt := Sum.elim (fun e => .inr (S.packet e.val)) (fun e => .inr (S.packet e.val))
   tensor
     | .inl v, y =>
-      if S.side v.1 then
-        N.tensor v.1 fun e => if h : N.src e = v.1 then y (.inl ⟨e, h ▸ v.2⟩) else false
+      if S.side v.val then
+        N.tensor v.val fun e => if h : N.src e = v.val then y (.inl ⟨e, h ▸ v.property⟩) else false
       else
-        N.tensor v.1 fun e => if h : N.tgt e = v.1 then y (.inr ⟨e, h ▸ v.2⟩) else false
+        N.tensor v.val fun e => if h : N.tgt e = v.val then y (.inr ⟨e, h ▸ v.property⟩) else false
     | .inr q, y =>
       S.packetTensor β q g (fun e => if h : S.group (N.src e) = g then y (.inl ⟨e, h⟩) else false)
         (fun e => if h : S.group (N.tgt e) = g then y (.inr ⟨e, h⟩) else false)
   tensor_congr := by
     rintro (v | q) y y' h
-    · have hs : ∀ e (he : N.src e = v.1), y (.inl ⟨e, he ▸ v.2⟩) = y' (.inl ⟨e, he ▸ v.2⟩) := by
+    · have hs : ∀ e (he : N.src e = v.val),
+          y (.inl ⟨e, he ▸ v.property⟩) = y' (.inl ⟨e, he ▸ v.property⟩) := by
         intro e he
         exact h _ (Or.inl (congrArg Sum.inl (Subtype.ext he)))
-      have ht : ∀ e (he : N.tgt e = v.1), y (.inr ⟨e, he ▸ v.2⟩) = y' (.inr ⟨e, he ▸ v.2⟩) := by
+      have ht : ∀ e (he : N.tgt e = v.val),
+          y (.inr ⟨e, he ▸ v.property⟩) = y' (.inr ⟨e, he ▸ v.property⟩) := by
         intro e he
         exact h _ (Or.inl (congrArg Sum.inl (Subtype.ext he)))
       simp only
@@ -522,19 +525,19 @@ is `packetTensor`. -/
         exact h _ (Or.inr (by simp only [Sum.elim_inr, hq]))
 
 @[simp] theorem child_src_inl (β : M → ℕ) (g : G) (e : {e // S.group (N.src e) = g}) :
-    (S.child β g).src (.inl e) = .inl ⟨N.src e.1, e.2⟩ :=
+    (S.child β g).src (.inl e) = .inl ⟨N.src e.val, e.property⟩ :=
   rfl
 
 @[simp] theorem child_src_inr (β : M → ℕ) (g : G) (e : {e // S.group (N.tgt e) = g}) :
-    (S.child β g).src (.inr e) = .inl ⟨N.tgt e.1, e.2⟩ :=
+    (S.child β g).src (.inr e) = .inl ⟨N.tgt e.val, e.property⟩ :=
   rfl
 
 @[simp] theorem child_tgt_inl (β : M → ℕ) (g : G) (e : {e // S.group (N.src e) = g}) :
-    (S.child β g).tgt (.inl e) = .inr (S.packet e.1) :=
+    (S.child β g).tgt (.inl e) = .inr (S.packet e.val) :=
   rfl
 
 @[simp] theorem child_tgt_inr (β : M → ℕ) (g : G) (e : {e // S.group (N.tgt e) = g}) :
-    (S.child β g).tgt (.inr e) = .inr (S.packet e.1) :=
+    (S.child β g).tgt (.inr e) = .inr (S.packet e.val) :=
   rfl
 
 /-- **Children are bipartite**, with the old vertices on one side and the packets on the other;
@@ -552,20 +555,20 @@ theorem card_edges_child (g : G) :
 /-- The bits of the ports of group `g`, read off the row bits `Y` and the column bits `X`. -/
 private abbrev groupBits (Y X : E → Bool) (g : G) :
     {e // S.group (N.src e) = g} ⊕ {e // S.group (N.tgt e) = g} → Bool :=
-  Sum.elim (fun e => Y e.1) (fun e => X e.1)
+  Sum.elim (fun e => Y e.val) (fun e => X e.val)
 
 /-- On the bits of its group, an old vertex of a child reads the row bits if it is a row and the
 column bits if it is a column. -/
 private theorem child_tensor_inl_groupBits (β : M → ℕ) (g : G) (v : {v // S.group v = g})
     (Y X : E → Bool) :
     (S.child β g).tensor (.inl v) (S.groupBits Y X g) =
-      if S.side v.1 then N.tensor v.1 Y else N.tensor v.1 X := by
+      if S.side v.val then N.tensor v.val Y else N.tensor v.val X := by
   simp only [child]
-  split_ifs with hv <;> refine N.tensor_congr v.1 _ _ fun e he => ?_
-  · by_cases hs : N.src e = v.1
+  split_ifs with hv <;> refine N.tensor_congr v.val _ _ fun e he => ?_
+  · by_cases hs : N.src e = v.val
     · simp [hs]
     · exact absurd (he.resolve_left hs ▸ S.side_tgt e) (by simp [hv])
-  · by_cases ht : N.tgt e = v.1
+  · by_cases ht : N.tgt e = v.val
     · simp [ht]
     · exact absurd (he.resolve_right ht ▸ S.side_src e) hv
 

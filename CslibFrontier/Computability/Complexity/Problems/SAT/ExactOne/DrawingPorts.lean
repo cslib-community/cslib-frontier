@@ -123,14 +123,14 @@ theorem sourceOccurrence_mem (φ : CNF ℕ) {i j : ℕ} (hi : i < φ.length)
 
 /-- Every actual source occurrence has a valid incidence-list index. -/
 theorem sourceEdgeIndex_lt (φ : CNF ℕ) {i j : ℕ} (hi : i < φ.length)
-    (hj : j < φ[i].length) : sourceEdgeIndex φ i j < (SAT.incidenceGraph φ).2.length := by
+    (hj : j < φ[i].length) : sourceEdgeIndex φ i j < (SAT.incidenceGraph φ).edges.length := by
   have h := List.idxOf_lt_length_of_mem (sourceOccurrence_mem φ hi hj)
   simpa only [sourceEdgeIndex, SAT.incidenceGraph, List.length_map] using h
 
 /-- Source edge lookup recovers the actual variable and clause endpoints. -/
 theorem sourceEdgeIndex_edge (φ : CNF ℕ) {i j : ℕ} (hi : i < φ.length)
     (hj : j < φ[i].length) :
-    (SAT.incidenceGraph φ).2.getD (sourceEdgeIndex φ i j) (0, 0) =
+    (SAT.incidenceGraph φ).edges.getD (sourceEdgeIndex φ i j) (0, 0) =
       (φ.distinctVars.idxOf φ[i][j].1, φ.distinctVars.length + i) := by
   have hm := sourceOccurrence_mem φ hi hj
   have hindex := List.idxOf_lt_length_of_mem hm

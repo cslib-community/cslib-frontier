@@ -96,7 +96,7 @@ variable {n s : ℕ}
 theorem mem_iff_exists_mem_computableFunctions {x : Instance} :
     x ∈ SuccinctMCSP ↔
       ∃ g ∈ computableFunctions x.arity x.threshold, ∀ p ∈ x.samples, g p.1 = p.2 := by
-  simp only [mem_computableFunctions, Circuit.computes_single_iff]
+  simp only [Boolean.mem_computableFunctions, Circuit.computes_single_iff]
   exact ⟨fun ⟨c, hc, hp⟩ => ⟨fun y => c.eval interpretation y 0, ⟨c, fun _ => rfl, hc⟩, hp⟩,
     fun ⟨g, ⟨c, hcg, hc⟩, hp⟩ => ⟨c, hc, fun p hpx => (hcg p.1).trans (hp p hpx)⟩⟩
 

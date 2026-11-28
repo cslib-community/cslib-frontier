@@ -333,7 +333,7 @@ abbrev Adversary (R L : Type) := PRF.Adversary (Query L R) L
 `1`, answering with `oracle`. -/
 @[expose] noncomputable def realGame (H : L → ℕ → L) (col : L →+ ZMod 2) [Fintype L]
     [Nonempty {Δ : L // col Δ = 1}] (adversary : Adversary R L) : Game :=
-  ProbComp.eval (PRF.realExperiment (fun Δ : {Δ : L // col Δ = 1} => oracle H Δ.1) adversary)
+  ProbComp.eval (PRF.realExperiment (fun Δ : {Δ : L // col Δ = 1} => oracle H Δ.val) adversary)
 
 /-- The ideal experiment: answer every query with a fresh uniform label. -/
 @[expose] noncomputable def idealGame [Fintype L] (adversary : Adversary R L) : Game :=

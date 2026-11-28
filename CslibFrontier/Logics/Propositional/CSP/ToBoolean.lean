@@ -464,7 +464,7 @@ private theorem modelCountOn_range_pos_iff {D Rel' : Type*} [Fintype D] [Inhabit
     (hG : ∀ v ∈ G.vars, v < M) :
     0 < G.modelCountOn sem' (Finset.range M) ↔ G.Satisfiable sem' := by
   rw [CSP.modelCountOn, Finset.card_pos, Finset.filter_nonempty_iff]
-  refine ⟨fun ⟨σ, _, hσ⟩ => ⟨_, hσ⟩, fun ⟨σ, hσ⟩ => ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩⟩
+  refine ⟨fun ⟨σ, _, hσ⟩ => ⟨_, hσ⟩, fun ⟨σ, hσ⟩ => ⟨fun v => σ v.val, Finset.mem_univ _, ?_⟩⟩
   refine (CSP.eval_congr fun v hv => ?_).trans hσ
   simp [Finset.mem_range.mpr (hG v hv)]
 

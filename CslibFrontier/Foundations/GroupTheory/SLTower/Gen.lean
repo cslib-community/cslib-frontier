@@ -80,7 +80,7 @@ private theorem el_comm {i k j : Fin h} (hik : i < k) (hkj : k < j) :
   simp
 
 /-- `1 + E_{i,i+1}` is a simple root element. -/
-private theorem el_mem_of_succ {i j : Fin h} (hij : i < j) (hd : j.1 = i.1 + 1) :
+private theorem el_mem_of_succ {i j : Fin h} (hij : i < j) (hd : j.val = i.val + 1) :
     el hij ∈ closure (Set.range (x h)) := by
   refine subset_closure ⟨⟨i, by omega⟩, Subtype.ext (Subtype.ext ?_)⟩
   simp only [x_val, coe_el, transvection]
@@ -88,12 +88,13 @@ private theorem el_mem_of_succ {i j : Fin h} (hij : i < j) (hd : j.1 = i.1 + 1) 
   exact Fin.ext (by simp [hi, hd])
 
 private theorem el_mem {i j : Fin h} (hij : i < j) : el hij ∈ closure (Set.range (x h)) := by
-  obtain ⟨d, hd⟩ : ∃ d, j.1 = i.1 + d + 1 := ⟨j.1 - i.1 - 1, by have := Fin.lt_def.1 hij; omega⟩
+  obtain ⟨d, hd⟩ : ∃ d, j.val = i.val + d + 1 :=
+    ⟨j.val - i.val - 1, by have := Fin.lt_def.1 hij; omega⟩
   induction d generalizing j with
   | zero => exact el_mem_of_succ hij hd
   | succ d ih =>
-    have hkj : (⟨j.1 - 1, by omega⟩ : Fin h) < j := Fin.lt_def.2 (by simp; omega)
-    have hik : i < ⟨j.1 - 1, by omega⟩ := Fin.lt_def.2 (by simp; omega)
+    have hkj : (⟨j.val - 1, by omega⟩ : Fin h) < j := Fin.lt_def.2 (by simp; omega)
+    have hik : i < ⟨j.val - 1, by omega⟩ := Fin.lt_def.2 (by simp; omega)
     have h1 := ih hik (by simp; omega)
     have h2 := el_mem_of_succ hkj (by simp; omega)
     rw [← el_comm hik hkj]
@@ -120,8 +121,8 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
     by simpa [D] using hp
   have hij : i < j := lt_of_not_ge fun hji => hM <| by
     rcases hji.lt_or_eq with hji | rfl
-    · simpa [one_apply_ne hji.ne'] using (mem_U.1 A.2 i j).1 hji
-    · simpa using (mem_U.1 A.2 j j).2
+    · simpa [one_apply_ne hji.ne'] using (mem_U.1 A.property i j).1 hji
+    · simpa using (mem_U.1 A.property j j).2
   have hrow (b : Fin h) : ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) j b =
       (1 : Matrix _ _ (ZMod 2)) j b :=
     of_not_not fun hb => (hmax (j, b) (by simpa [D] using hb)).not_gt hij

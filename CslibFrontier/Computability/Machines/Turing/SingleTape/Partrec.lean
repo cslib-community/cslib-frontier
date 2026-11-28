@@ -83,7 +83,7 @@ attribute [local instance] Encodable.decidableEqOfEncodable
 /-- Equivalence between `StackTape Symbol` and its underlying subtype of `List (Option Symbol)`. -/
 def equivSubtype : StackTape Symbol ≃ { l : List (Option Symbol) // l.getLast? ≠ some none } where
   toFun t := ⟨t.toList, t.toList_getLast?_ne_some_none⟩
-  invFun s := ⟨s.1, s.2⟩
+  invFun s := ⟨s.val, s.property⟩
   left_inv t := by cases t; rfl
   right_inv s := by cases s; rfl
 
@@ -104,7 +104,7 @@ theorem primrec_toList_iff {α : Type*} [Primcodable α] [Primcodable Symbol]
     (Primrec fun a => (f a).toList) ↔ Primrec f := by
   let : Primcodable { l : List (Option Symbol) // l.getLast? ≠ some none } :=
     Primcodable.subtype primrecPred_getLast?_ne_some_none
-  exact Primrec.subtype_val_iff.trans (Primrec.of_equiv_iff equivSubtype)
+  exact Primrec.subtypeVal_iff.trans (Primrec.of_equiv_iff equivSubtype)
 
 theorem primrec_toList [Primcodable Symbol] :
     Primrec (StackTape.toList : StackTape Symbol → List (Option Symbol)) :=

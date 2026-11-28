@@ -330,7 +330,7 @@ theorem finFunctionFinEquiv_lt_pow_iff {n a : ℕ} :
       (finFunctionFinEquiv x : ℕ) < n ^ a ↔ ∀ i : Fin k, a ≤ (i : ℕ) → (x i : ℕ) = 0
   | k, ha, x => by
     obtain rfl | hlt := eq_or_lt_of_le ha
-    · exact ⟨fun _ i hi => absurd i.2 (by omega), fun _ => (finFunctionFinEquiv x).2⟩
+    · exact ⟨fun _ i hi => absurd i.isLt (by omega), fun _ => (finFunctionFinEquiv x).isLt⟩
     · cases k with
       | zero => omega
       | succ k =>
@@ -351,7 +351,7 @@ theorem finFunctionFinEquiv_lt_pow_iff {n a : ℕ} :
               (by simpa only [Fin.val_castSucc] using hi)
         · intro hx
           rw [finFunctionFinEquiv_eq_of_high_zero ha hx]
-          exact (finFunctionFinEquiv _).2
+          exact (finFunctionFinEquiv _).isLt
 
 /-- The numerical order on `finFunctionFinEquiv` is the colexicographic order on `Fin k → Fin n`
 (comparing at the most significant coordinate where the tuples differ). -/
@@ -362,8 +362,8 @@ theorem finFunctionFinEquiv_lt_iff {n : ℕ} :
   | 0, x, y => ⟨fun h => absurd (Subsingleton.elim x y ▸ h) (lt_irrefl _), fun ⟨i, _⟩ => i.elim0⟩
   | k + 1, x, y => by
     rw [← Fin.val_fin_lt, finFunctionFinEquiv_snoc x, finFunctionFinEquiv_snoc y]
-    have hx := (finFunctionFinEquiv (x ∘ Fin.castSucc)).2
-    have hy := (finFunctionFinEquiv (y ∘ Fin.castSucc)).2
+    have hx := (finFunctionFinEquiv (x ∘ Fin.castSucc)).isLt
+    have hy := (finFunctionFinEquiv (y ∘ Fin.castSucc)).isLt
     have hsplit : (finFunctionFinEquiv (x ∘ Fin.castSucc) : ℕ) + (x (Fin.last k) : ℕ) * n ^ k <
         (finFunctionFinEquiv (y ∘ Fin.castSucc) : ℕ) + (y (Fin.last k) : ℕ) * n ^ k ↔
         x (Fin.last k) < y (Fin.last k) ∨

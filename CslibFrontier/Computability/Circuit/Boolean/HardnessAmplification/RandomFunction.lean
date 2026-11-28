@@ -124,13 +124,22 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
     rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
     norm_num
   -- `2 ^ n ≤ S ^ 10` and `(S - 1) ^ 10 < 2 ^ n`
-  have hlow : 2 ^ n ≤ S ^ 10 := by exact_mod_cast hpow ▸ pow_le_pow_left₀ hpos.le hS₁ 10
-  have hS1 : 1 ≤ S := Nat.one_le_iff_ne_zero.mpr fun h => by simp [h] at hlow
+  have hlow : 2 ^ n ≤ S ^ 10 := by
+    have h := pow_le_pow_left₀ hpos.le hS₁ 10
+    rw [hpow] at h
+    exact_mod_cast h
+  have hS1 : 1 ≤ S := by
+    by_contra h
+    have h0 : S = 0 := by omega
+    rw [h0] at hlow
+    simp at hlow
   have hhigh : (S - 1) ^ 10 < 2 ^ n := by
     have h1 : ((S - 1 : ℕ) : ℝ) < 2 ^ ((n : ℝ) / 10) := by
       rw [Nat.cast_sub hS1, Nat.cast_one]
       linarith
-    exact_mod_cast hpow ▸ pow_lt_pow_left₀ h1 (Nat.cast_nonneg _) (by norm_num : (10 : ℕ) ≠ 0)
+    have h := pow_lt_pow_left₀ h1 (Nat.cast_nonneg _) (by norm_num : (10 : ℕ) ≠ 0)
+    rw [hpow] at h
+    exact_mod_cast h
   -- `n ≤ S` and `16 ≤ S`, from `n ^ 10 ≤ 2 ^ n` for `n ≥ 400`
   have hn10 : n ^ 10 ≤ 2 ^ n := Nat.pow_le_two_pow (by norm_num) (by omega)
   have hnS : n ≤ S := by
@@ -161,22 +170,23 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
           calc (2 : ℝ) ^ L ≤ exp 1 ^ L := by
                 gcongr
                 exact (by norm_num : (2 : ℝ) ≤ 1 + 1).trans (add_one_le_exp 1)
-            _ = exp L := by rw [← exp_nat_mul, mul_one]
+            _ = exp L := by rw [← exp_natCast_mul, mul_one]
       _ = exp (L - 2 * t ^ 2 / 2 ^ n) := by rw [← exp_add]; ring_nf
       _ < exp 0 := exp_lt_exp.mpr (by linarith)
       _ = 1 := exp_zero
-  let bad : Finset (BooleanFunction n) := (computableFunctions n S).biUnion fun g =>
+  have hfin := (computableFunctions n S).toFinite
+  let bad : Finset (BooleanFunction n) := hfin.toFinset.biUnion fun g =>
     {f | (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x}}
   have hbad : (#bad : ℝ) < 2 ^ 2 ^ n := by
-    have hU : #bad ≤ ∑ g ∈ computableFunctions n S,
+    have hU : #bad ≤ ∑ g ∈ hfin.toFinset,
         #{f : BooleanFunction n | (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x}} := card_biUnion_le
-    calc (#bad : ℝ) ≤ ∑ g ∈ computableFunctions n S,
+    calc (#bad : ℝ) ≤ ∑ g ∈ hfin.toFinset,
           (#{f : BooleanFunction n | (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x}} : ℝ) := by
           exact_mod_cast hU
-      _ ≤ ∑ _g ∈ computableFunctions n S, (2 : ℝ) ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n)) :=
+      _ ≤ ∑ _g ∈ hfin.toFinset, (2 : ℝ) ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n)) :=
           sum_le_sum fun g _ => card_filter_add_le_card_agree_le g ht
-      _ = (#(computableFunctions n S) : ℝ) * (2 ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n))) := by
-          rw [sum_const, nsmul_eq_mul]
+      _ = ((computableFunctions n S).ncard : ℝ) * (2 ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n))) := by
+          rw [sum_const, nsmul_eq_mul, Set.ncard_eq_toFinset_card _ hfin]
       _ ≤ (2 : ℝ) ^ L * (2 ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n))) := by
           gcongr
           exact_mod_cast card_computableFunctions_le_two_pow n S
@@ -190,11 +200,15 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
     exact_mod_cast hbad
   obtain ⟨f, -, hf⟩ := exists_mem_notMem_of_card_lt_card hlt
   refine ⟨f, S, hS₁, fun g hg => ?_⟩
+  have hgmem : g ∈ hfin.toFinset :=
+    hfin.mem_toFinset.mpr (mem_computableFunctions_iff_complexity_le.mpr hg)
+  have hnot : ¬ (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x} := fun h =>
+    hf (mem_biUnion.mpr ⟨g, hgmem, by simpa using h⟩)
+  rw [div_lt_iff₀ hN]
   have : (1 / 2 + 1 / (S : ℝ)) * 2 ^ n = 2 ^ n / 2 + t := by
     simp only [t]
     ring
-  rw [div_lt_iff₀ hN, this]
-  exact lt_of_not_ge fun h => hf (mem_biUnion.mpr
-    ⟨g, mem_computableFunctions_iff_complexity_le.mpr hg, by simpa using h⟩)
+  rw [this]
+  exact lt_of_not_ge hnot
 
 end Cslib.Circuits.Boolean

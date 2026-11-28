@@ -517,7 +517,7 @@ theorem mixedPotential_def (Φ : (∀ i, S i) → ℝ) (p : ∀ i, S i → ℝ) 
 `{ q : S i → ℝ // IsMixedStrategy q }` of mixed strategies, with expected cost `G.expectedCost`. -/
 @[expose] def mixedExtension (G : CostGame ι S) :
     CostGame ι (fun i => { q : S i → ℝ // IsMixedStrategy q }) where
-  cost i p := G.expectedCost (fun j => (p j).1) i
+  cost i p := G.expectedCost (fun j => (p j).val) i
 
 private theorem expectedCost_update_sub_eq (H : CostGame ι S) {p : ∀ i, S i → ℝ}
     (hp : ∀ j, ∑ a, p j a = 1) (i : ι) {q : S i → ℝ} (hq : ∑ a, q a = 1) :
@@ -551,10 +551,10 @@ theorem IsWeightedPotential.expectedCost_update_sub {G : CostGame ι S} {w : ι 
 `w`-potential for `G.mixedExtension` ([MondererShapley1996], equation (2.4), p. 132). -/
 theorem IsWeightedPotential.mixedExtension {G : CostGame ι S} {w : ι → ℝ} {Φ : (∀ i, S i) → ℝ}
     (hΦ : G.IsWeightedPotential w Φ) :
-    G.mixedExtension.IsWeightedPotential w (fun p => mixedPotential Φ (fun j => (p j).1)) := by
+    G.mixedExtension.IsWeightedPotential w (fun p => mixedPotential Φ (fun j => (p j).val)) := by
   intro p i q
   simp only [CostGame.mixedExtension, funext (apply_update (fun _ => Subtype.val) p i q)]
-  exact hΦ.expectedCost_update_sub (fun j => (p j).2.sum_eq_one) i q.2.sum_eq_one
+  exact hΦ.expectedCost_update_sub (fun j => (p j).property.sum_eq_one) i q.property.sum_eq_one
 
 /-- **[MondererShapley1996], Lemma 2.10 (pp. 131–132)**: a finite game `G` is a `w`-potential game
 if and only if its mixed extension `G.mixedExtension` is a `w`-potential game. -/

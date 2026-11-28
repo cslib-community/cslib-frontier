@@ -153,7 +153,7 @@ private theorem pairwiseDisjoint_componentGates :
   rw [Function.onFun, disjoint_left]
   intro j hj hj'
   rw [mem_componentGates] at hj hj'
-  obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hj.1
+  obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hj.1
   have h1 := (mem_componentInputs p).mp (hj.2 hu)
   have h2 := (mem_componentInputs p).mp (hj'.2 hu)
   exact hcc' (h1.symm.trans h2)
@@ -166,7 +166,7 @@ private theorem inputGates_eq_biUnion_componentGates :
   simp only [mem_biUnion, mem_univ, true_and, mem_componentGates, ← inputSupport_ne_empty_iff]
   constructor
   · intro hj
-    obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hj
+    obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hj
     exact ⟨_, hj, inputSupport_subset_componentInputs p hu⟩
   · rintro ⟨_, hj, -⟩
     exact hj
@@ -185,8 +185,8 @@ private theorem exists_gate_of_edge (h2 : ∀ j, (inputSupport p j).card ≤ 2)
   induction e using Sym2.ind with
   | h a b =>
     rw [SimpleGraph.mem_edgeSet] at he
-    obtain ⟨hne, j, ha, hb⟩ : (supportGraph p).Adj a.1 b.1 := he
-    have hab : ({a.1, b.1} : Finset (Fin n)) = inputSupport p j := by
+    obtain ⟨hne, j, ha, hb⟩ : (supportGraph p).Adj a.val b.val := he
+    have hab : ({a.val, b.val} : Finset (Fin n)) = inputSupport p j := by
       apply eq_of_subset_of_card_le
       · intro u hu
         rw [mem_insert, mem_singleton] at hu
@@ -195,12 +195,12 @@ private theorem exists_gate_of_edge (h2 : ∀ j, (inputSupport p j).card ≤ 2)
         exact h2 j
     refine ⟨j, ?_, fun u => ?_⟩
     · rw [mem_componentGates]
-      refine ⟨nonempty_iff_ne_empty.mp ⟨_, ha⟩, fun u hu => ?_⟩
+      refine ⟨ne_empty_iff_nonempty.mpr ⟨_, ha⟩, fun u hu => ?_⟩
       rw [← hab, mem_insert, mem_singleton] at hu
       rw [mem_componentInputs]
       rcases hu with rfl | rfl
-      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp a.2
-      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp b.2
+      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp a.property
+      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp b.property
     · rw [← hab, Sym2.map_mk, mem_insert, mem_singleton, Sym2.mem_iff]
 
 /-- When every gate has aggregated input support of size at most `2`, every connected component
@@ -216,13 +216,13 @@ theorem card_componentInputs_le (h2 : ∀ j, (inputSupport p j).card ≤ 2)
   have hE : Nat.card c.toSimpleGraph.edgeSet ≤ (componentGates p c).card := by
     rw [← Nat.card_eq_finsetCard]
     refine Nat.card_le_card_of_injective
-      (fun e => ⟨(exists_gate_of_edge p h2 c e.1 e.2).choose,
-        (exists_gate_of_edge p h2 c e.1 e.2).choose_spec.1⟩) ?_
+      (fun e => ⟨(exists_gate_of_edge p h2 c e.val e.property).choose,
+        (exists_gate_of_edge p h2 c e.val e.property).choose_spec.1⟩) ?_
     intro e e' hee'
-    have hj := (exists_gate_of_edge p h2 c e.1 e.2).choose_spec.2
-    have hj' := (exists_gate_of_edge p h2 c e'.1 e'.2).choose_spec.2
-    have heq : (exists_gate_of_edge p h2 c e.1 e.2).choose =
-        (exists_gate_of_edge p h2 c e'.1 e'.2).choose := congrArg Subtype.val hee'
+    have hj := (exists_gate_of_edge p h2 c e.val e.property).choose_spec.2
+    have hj' := (exists_gate_of_edge p h2 c e'.val e'.property).choose_spec.2
+    have heq : (exists_gate_of_edge p h2 c e.val e.property).choose =
+        (exists_gate_of_edge p h2 c e'.val e'.property).choose := congrArg Subtype.val hee'
     rw [heq] at hj
     apply Subtype.ext
     apply Sym2.map.injective Subtype.val_injective
@@ -259,7 +259,7 @@ theorem exists_split_of_inputSupport_card_le_two (p : Program signature n g)
   refine ⟨𝒯.biUnion (componentInputs p), fun j => ?_, ?_⟩
   · by_cases hj : inputSupport p j = ∅
     · exact Or.inl (hj ▸ empty_subset _)
-    obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hj
+    obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hj
     have hsub := inputSupport_subset_componentInputs p hu
     by_cases hc : (supportGraph p).connectedComponentMk u ∈ 𝒯
     · left
@@ -283,7 +283,7 @@ theorem exists_split_of_inputSupport_card_le_two (p : Program signature n g)
       simp only [mem_filter, mem_univ, true_and, mem_biUnion, mem_componentGates]
       constructor
       · rintro ⟨hsub, hne⟩
-        obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hne
+        obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hne
         obtain ⟨c, hc, huc⟩ := mem_biUnion.mp (hsub hu)
         rw [mem_componentInputs] at huc
         refine ⟨c, hc, hne, ?_⟩

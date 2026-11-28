@@ -325,6 +325,7 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
     rw [peelSCCs]
     change (let comps := if s.finished.isEmpty then peelSCCs rev k s.visited rs
       else s.finished :: peelSCCs rev k s.visited rs; _)
+    dsimp only
     split_ifs with he
     · have hnil : s.finished = [] := List.isEmpty_iff.1 he
       have hall_vis : ∀ w, Relation.ReflTransGen (Edge adj) w r → w ∈ vis := fun w hwr =>

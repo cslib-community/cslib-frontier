@@ -35,7 +35,7 @@ def prog : NoncommABP ℚ (Fin 2) 2 where
 theorem polynomial_prog : prog.polynomial = ι ℚ 0 * ι ℚ 1 := by
   have h : ∀ (k : ℕ) (j : Fin (prog.width k)), Finset.univ = {j} := fun k j =>
     Finset.eq_singleton_iff_unique_mem.2 ⟨Finset.mem_univ _, fun i _ =>
-      Fin.ext ((Nat.lt_one_iff.1 i.2).trans (Nat.lt_one_iff.1 j.2).symm)⟩
+      Fin.ext ((Nat.lt_one_iff.1 i.isLt).trans (Nat.lt_one_iff.1 j.isLt).symm)⟩
   have h2 : (Finset.univ : Finset (Fin (prog.width 2))) = {⟨0, Nat.one_pos⟩} := h 2 _
   have h1 : (Finset.univ : Finset (Fin (prog.width 1))) = {⟨0, Nat.one_pos⟩} := h 1 _
   have h0 : (Finset.univ : Finset (Fin (prog.width 0))) = {⟨0, Nat.one_pos⟩} := h 0 _

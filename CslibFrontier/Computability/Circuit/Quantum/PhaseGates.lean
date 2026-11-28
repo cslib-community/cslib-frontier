@@ -65,7 +65,7 @@ noncomputable def controlled (V : Gate 1) : Gate 2 :=
       else 0, by
     let vMat : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ := V
     rw [Matrix.mem_unitaryGroup_iff]
-    have hV : vMat * star vMat = 1 := Matrix.mem_unitaryGroup_iff.mp V.2
+    have hV : vMat * star vMat = 1 := Matrix.mem_unitaryGroup_iff.mp V.property
     ext y x
     rw [Matrix.mul_apply, Matrix.one_apply]
     simp only [Matrix.star_apply, Matrix.of_apply]

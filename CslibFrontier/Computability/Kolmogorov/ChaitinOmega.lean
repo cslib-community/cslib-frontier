@@ -362,8 +362,8 @@ theorem universalPrefixApprox_le_chaitinOmega (n : ℕ) :
   have hT : (T : Set (List Bool)) ⊆ universalPrefix.haltingSet := fun w hw =>
     haltingSet_iff_exists_mem_universalPrefixTable.mpr ⟨n, List.mem_toFinset.mp hw⟩
   let fEmbed : {w : List Bool // w ∈ T} ↪ universalPrefix.haltingSet :=
-    ⟨fun x => ⟨x.1, hT x.2⟩,
-      fun a b h => Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.1) h)⟩
+    ⟨fun x => ⟨x.val, hT x.property⟩,
+      fun a b h => Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.val) h)⟩
   let F : Finset universalPrefix.haltingSet := T.attach.map fEmbed
   have hF : ∑ w ∈ F, (2 : ℝ)⁻¹ ^ (w : List Bool).length = ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length := by
     rw [Finset.sum_map]
@@ -388,8 +388,8 @@ theorem tendsto_universalPrefixApprox :
     linarith
   obtain ⟨F₀, hF₀⟩ := htend
   have hex_n : ∀ q : universalPrefix.haltingSet,
-      ∃ n, q.1 ∈ (universalPrefixTable n).map Prod.fst := fun q =>
-    haltingSet_iff_exists_mem_universalPrefixTable.mp q.2
+      ∃ n, q.val ∈ (universalPrefixTable n).map Prod.fst := fun q =>
+    haltingSet_iff_exists_mem_universalPrefixTable.mp q.property
   let N : ℕ := F₀.sup fun q => Nat.find (hex_n q)
   refine ⟨N, fun n hn => ?_⟩
   have hsub : F₀.image Subtype.val ⊆ ((universalPrefixTable n).map Prod.fst).toFinset := by
@@ -1103,9 +1103,9 @@ theorem prefixCylinderList_subset_of_isPrefix {u v : List Bool} (huv : u <+: v) 
   intro x hx
   rw [mem_prefixCylinderList] at hx ⊢
   intro i
-  have hi : (i : ℕ) < v.length := i.2.trans_le huv.length_le
-  rw [hx ⟨i.1, hi⟩]
-  exact (List.IsPrefix.getElem huv i.2).symm
+  have hi : (i : ℕ) < v.length := i.isLt.trans_le huv.length_le
+  rw [hx ⟨i.val, hi⟩]
+  exact (List.IsPrefix.getElem huv i.isLt).symm
 
 theorem disjoint_prefixCylinderList_of_prefixDisjoint {u v : List Bool}
     (huv : PrefixDisjoint u v) : Disjoint (prefixCylinderList u) (prefixCylinderList v) := by

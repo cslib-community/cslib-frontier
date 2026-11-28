@@ -107,7 +107,8 @@ theorem card_ker_mul_two_pow_rank [Fintype α] [Fintype β] [DecidableEq β]
     exact Fintype.card_congr (Equiv.subtypeEquivRight fun _ => by simp)
   have hrn := LinearMap.finrank_range_add_finrank_ker B.mulVecLin
   rw [Module.finrank_fintype_fun_eq_card] at hrn
-  rw [hker, Module.card_eq_pow_finrank (K := ZMod 2), ZMod.card, rank, ← pow_add, ← hrn, add_comm]
+  rw [hker, Module.card_eq_pow_finrank (K := ZMod 2), ZMod.card, ← finrank_range_mulVecLin,
+    ← pow_add, ← hrn, add_comm]
 
 /-- The matrices with `m` rows that kill every vector of `S` are the tuples of rows orthogonal
 to `S`. -/

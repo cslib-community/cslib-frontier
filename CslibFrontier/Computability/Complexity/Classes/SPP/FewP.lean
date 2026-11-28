@@ -267,7 +267,7 @@ theorem signedSum_eq (k : ℕ) (s : State)
           · rw [ite_eq_right fun h => Finset.not_nonempty_iff_eq_empty.2 (hiff.2 hmax) h.2,
               ite_eq_left ⟨hmem, hmax⟩]
             cases par <;> rfl
-          · rw [ite_eq_left ⟨rfl, Finset.nonempty_iff_ne_empty.2 fun h => hmax (hiff.1 h)⟩,
+          · rw [ite_eq_left ⟨rfl, Finset.ne_empty_iff_nonempty.1 fun h => hmax (hiff.1 h)⟩,
               ite_eq_right fun h => hmax h.2]
         · have hcond : (acc (List.ofFn c) &&
               (!started || decide (binaryValue prev < binaryValue (List.ofFn c)))) = false :=

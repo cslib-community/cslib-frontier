@@ -69,8 +69,9 @@ variable {m n K α : Type*}
 /-- The number of entries where the matrices `A` and `B` differ.
 
 This counts differing positions with `Set.ncard`, which returns `0` on infinite sets.
-`Matrix.rigidity` and all rigidity results below therefore require `[Finite m]` alongside
-`[Fintype n]`, so that `diffCount` equals the true Hamming distance on `m × n`. -/
+`Matrix.rigidity` and the rigidity results below are therefore meant for finite `m` and `n`,
+where `diffCount` equals the true Hamming distance on `m × n`; each result assumes as much
+finiteness (`[Finite _]` or `[Fintype _]`) as its proof needs. -/
 noncomputable def diffCount (A B : Matrix m n α) : ℕ :=
   {p : m × n | A p.1 p.2 ≠ B p.1 p.2}.ncard
 
@@ -111,10 +112,12 @@ be changed to make its rank at most `r`. -/
 noncomputable def rigidity [Finite m] (A : Matrix m n K) (r : ℕ) : ℕ :=
   sInf (diffCount A '' {B | B.rank ≤ r})
 
+omit [Fintype n] in
 private theorem nonempty_rigiditySet (A : Matrix m n K) (r : ℕ) :
     (diffCount A '' {B : Matrix m n K | B.rank ≤ r}).Nonempty :=
   ⟨_, 0, by simp, rfl⟩
 
+omit [Fintype n] in
 /-- A matrix `B` of rank at most `r` that differs from `A` in `diffCount A B` entries bounds the
 rigidity of `A`. -/
 theorem rigidity_le [Finite m] {A B : Matrix m n K} {r : ℕ} (hB : B.rank ≤ r) :
@@ -128,6 +131,7 @@ theorem rigidity_le_card [Fintype m] (A : Matrix m n K) (r : ℕ) :
 
 section FiniteRows
 
+omit [Fintype n]
 variable [Finite m]
 
 /-- Some matrix of rank at most `r` differs from `A` in exactly `A.rigidity r` entries. -/
@@ -149,6 +153,8 @@ theorem rigidity_antitone (A : Matrix m n K) : Antitone A.rigidity := fun r _ hr
   let ⟨_, hB, hAB⟩ := exists_rigidity_eq A r
   hAB ▸ rigidity_le (hB.trans hr)
 
+variable [Finite n]
+
 /-- At target rank zero, the rigidity is the number of nonzero entries. -/
 theorem rigidity_zero (A : Matrix m n K) : A.rigidity 0 = diffCount A 0 :=
   let ⟨_, hB, hAB⟩ := exists_rigidity_eq A 0
@@ -167,6 +173,7 @@ theorem rigidity_eq_zero_iff {A : Matrix m n K} {r : ℕ} : A.rigidity r = 0 ↔
 theorem rank_le_diffCount_zero (C : Matrix m n K) : C.rank ≤ diffCount C 0 := by
   classical
   have := Fintype.ofFinite m
+  have := Fintype.ofFinite n
   refine (rank_le_card_of_support_subset C
     ((Finset.univ.filter fun p : m × n => C p.1 p.2 ≠ 0).image Prod.fst) fun i hi => ?_).trans
     (Finset.card_image_le.trans_eq (diffCount_eq_card_filter C 0).symm)
@@ -203,7 +210,7 @@ private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : �
   have : Finite κ := Finite.of_injective a ha
   have := Fintype.ofFinite κ
   have hκ : r ≤ Fintype.card κ := by
-    rwa [← finrank_span_eq_card hli, hspan, ← A.rank_eq_finrank_span_row]
+    rwa [← finrank_span_eq_card hli, hspan, A.finrank_span_range_row]
   let e₁ : Fin r → κ := (Fintype.equivFin κ).symm ∘ Fin.castLE hκ
   have he₁ : Function.Injective e₁ := (Equiv.injective _).comp (Fin.castLE_injective hκ)
   have hf_rank : (A.submatrix (a ∘ e₁) id).rank = r :=
@@ -213,7 +220,7 @@ private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : �
   have : Finite κ' := Finite.of_injective b hb
   have := Fintype.ofFinite κ'
   have hκ' : Fintype.card κ' = r := by
-    rw [← finrank_span_eq_card hli', hspan', ← rank_eq_finrank_span_cols, hf_rank]
+    rw [← finrank_span_eq_card hli', hspan', finrank_span_range_col, hf_rank]
   let e₂ : Fin r ≃ κ' := Fintype.equivOfCardEq (by rw [Fintype.card_fin, hκ'])
   obtain ⟨M', hMM'⟩ := exists_mul_eq_one_of_rank_eq_card <|
     (rank_transpose (A.submatrix (a ∘ e₁) (b ∘ e₂))).symm.trans

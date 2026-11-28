@@ -91,7 +91,7 @@ private theorem card_fin_filter_subtype_eq {xs : List ℕ} {ys : List (ℕ × �
     (hp : ∀ e ∈ ys, p e ∈ xs) (v : {x // x ∈ xs}) :
     (Finset.univ.filter fun i : Fin ys.length =>
       (⟨p ys[i], hp _ (List.getElem_mem i.isLt)⟩ : {x // x ∈ xs}) = v).card =
-      ys.countP fun e => decide (p e = v.1) := by
+      ys.countP fun e => decide (p e = v.val) := by
   rw [List.countP_eq_card_filter_getElem]
   exact congrArg Finset.card (Finset.ext fun _ => by simp [Subtype.ext_iff])
 
@@ -141,10 +141,10 @@ theorem eulerianCircuitCount_eq_natCard (G : Graph) (eIdx : ℕ) :
         rw [card_fin_filter_subtype_eq Prod.fst (fun e h => (harcs e h).1) v,
           card_fin_filter_subtype_eq Prod.snd (fun e h => (harcs e h).2) v]
         simp only [isBalancedBool, List.all_eq_true, decide_eq_true_eq] at hbalB
-        exact hbalB v.1 (List.mem_filter.1 v.2).1
+        exact hbalB v.val (List.mem_filter.1 v.property).1
       have hpos_act (v : {v // v ∈ G.activeVertices}) : ∃ e, srcAct e = v := by
-        have hpos : 0 < G.outdeg v.1 :=
-          Nat.pos_of_ne_zero (of_decide_eq_true (List.mem_filter.1 v.2).2)
+        have hpos : 0 < G.outdeg v.val :=
+          Nat.pos_of_ne_zero (of_decide_eq_true (List.mem_filter.1 v.property).2)
         obtain ⟨e, he_mem, he_fst⟩ := List.countP_pos_iff.1 hpos
         obtain ⟨i, hi, hget⟩ := List.mem_iff_getElem.1 he_mem
         exact ⟨⟨i, hi⟩, Subtype.ext (by simpa [srcAct, hget] using of_decide_eq_true he_fst)⟩
@@ -165,8 +165,8 @@ theorem eulerianCircuitCount_eq_natCard (G : Graph) (eIdx : ℕ) :
     · simp only [eulerianCircuitCount, hbalB, Bool.and_false, Bool.false_eq_true, ↓reduceIte]
       have : IsEmpty {l // Multidigraph.IsEulerianCircuit G.arcSrc G.arcTgt ⟨eIdx, he⟩ l} :=
         ⟨fun ⟨l, hl⟩ => hbalB <| List.all_eq_true.2 fun v hv => decide_eq_true <| by
-          let vSub : {x // x ∈ G.1} := ⟨v, Graph.mem_distinctVertices.1 hv⟩
-          rw [outdeg, indeg, show v = vSub.1 from rfl,
+          let vSub : {x // x ∈ G.vertices} := ⟨v, Graph.mem_distinctVertices.1 hv⟩
+          rw [outdeg, indeg, show v = vSub.val from rfl,
             ← card_fin_filter_subtype_eq Prod.fst (fun _ h => (mem_validArcs.1 h).2.1) vSub,
             ← card_fin_filter_subtype_eq Prod.snd (fun _ h => (mem_validArcs.1 h).2.2) vSub]
           exact hl.card_filter_src_eq vSub⟩

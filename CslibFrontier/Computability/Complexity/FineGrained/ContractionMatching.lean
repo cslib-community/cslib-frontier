@@ -207,7 +207,7 @@ theorem boolTableMatrix_eq_rowEntry (rows : List (List Bool)) :
     boolTableMatrix rows =
       Matrix.of fun i j : Fin rows.length => if rowEntry rows i j then 1 else 0 := by
   ext i j
-  simp only [boolTableMatrix_apply, rowEntry, Matrix.of_apply, List.getD_eq_getElem _ _ i.2]
+  simp only [boolTableMatrix_apply, rowEntry, Matrix.of_apply, List.getD_eq_getElem _ _ i.isLt]
   cases rows[i].getD j false <;> rfl
 
 /-- The nonzero entries of `boolTableMatrix rows` are the `true` entries of the rows. -/

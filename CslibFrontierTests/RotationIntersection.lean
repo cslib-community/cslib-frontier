@@ -48,7 +48,7 @@ private def torusRotation : RotationSystem bouquet where
   sameCycle_iff := by decide
 
 private theorem genus_of_verify {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (h : RotationCertificate.verifyEuler G (RotationCertificate.ofRotation r) = true) :
     r.NumericalGenusZero := by
   have he := (RotationCertificate.verifyEuler_eq_true_iff
@@ -83,8 +83,8 @@ example (q : bridgeRotation.Face → Bool) : bridgeRotation.faceBoundary q 0 = f
   simp [RotationSystem.faceBoundary, hf]
 
 private theorem loops_even {G : Graph}
-    (h : ∀ i : Fin G.2.length, Dart.vertex (G := G) (i, false) = Dart.vertex (i, true))
-    (x : Fin G.2.length → Bool) : G.VertexEven x := by
+    (h : ∀ i : Fin G.edges.length, Dart.vertex (G := G) (i, false) = Dart.vertex (i, true))
+    (x : Fin G.edges.length → Bool) : G.VertexEven x := by
   intro v
   simp only [vertexParity, Dart, Fintype.sum_prod_type, Fintype.sum_bool]
   apply Finset.sum_eq_zero

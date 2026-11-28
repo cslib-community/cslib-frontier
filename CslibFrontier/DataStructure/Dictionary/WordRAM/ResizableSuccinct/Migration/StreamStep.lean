@@ -112,7 +112,7 @@ private theorem realizesBounded_copyRightStep :
     rcases d with ⟨⟨srcBase, ⟨dstBase, len⟩⟩, k⟩
     obtain ⟨hle, hk, hfr, hfit1⟩ := h
     dsimp only at *
-    have hfit_fr : Fits w s.frontier := hmem.1)
+    have hfit_fr : Fits w s.frontier := hmem.frontier_fits)
   all_goals (
     first
     | omega
@@ -199,7 +199,7 @@ theorem realizesBounded_copyRightward :
   realize
   rcases d with ⟨⟨srcBase, dstBase⟩, len⟩
   obtain ⟨hle, hfr, hfit1⟩ := h
-  exact (copyRightLoop_spec (fun a _ => hmem.2 a) hle hfr hfit1).1
+  exact (copyRightLoop_spec (fun a _ => hmem.mem_fits a) hle hfr hfit1).1
 
 theorem copyRightwardProg_spec {w srcBase dstBase len : ℕ} {s₀ : Memory.State}
     (hwf : ∀ a < s₀.frontier, Fits w (s₀.mem a))
@@ -245,7 +245,7 @@ private theorem realizesBounded_copyLeftStep :
     rcases d with ⟨⟨srcBase, dstBase⟩, k⟩
     obtain ⟨hle, hlt, hfit1⟩ := h
     dsimp only at *
-    have hfit_fr : Fits w s.frontier := hmem.1)
+    have hfit_fr : Fits w s.frontier := hmem.frontier_fits)
   all_goals (refine hfit_fr.of_le ?_; omega)
 
 private theorem memoryCost_copyLeftStep_ge_one (x : (ℕ × ℕ) × ℕ) (s : Memory.State) :
@@ -326,7 +326,7 @@ theorem realizesBounded_copyLeftward :
   realize
   rcases d with ⟨⟨srcBase, dstBase⟩, len⟩
   obtain ⟨hle, hfr, hfit1⟩ := h
-  exact (copyLeftLoop_spec (fun a _ => hmem.2 a) hle hfr hfit1).1
+  exact (copyLeftLoop_spec (fun a _ => hmem.mem_fits a) hle hfr hfit1).1
 
 theorem copyLeftwardProg_spec {w srcBase dstBase len : ℕ} {s₀ : Memory.State}
     (hwf : ∀ a < s₀.frontier, Fits w (s₀.mem a))

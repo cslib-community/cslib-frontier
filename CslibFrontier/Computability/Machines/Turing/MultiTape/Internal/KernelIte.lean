@@ -253,7 +253,7 @@ lemma eqWordT_run_none (w u : List Bool) : (eqWordT w).run none u = [] := by
   induction u <;> simp [eqWordT_step, eqWordT_final, *]
 
 lemma eqWordT_run (w : List Bool) (u : List Bool) (v : {v // v ∈ w.tails}) :
-    (eqWordT w).run (some v) u = if u = v.1 then [true] else [] := by
+    (eqWordT w).run (some v) u = if u = v.val then [true] else [] := by
   obtain ⟨v, hv⟩ := v
   induction u generalizing v with
   | nil => cases v <;> simp [eqWordT_final]

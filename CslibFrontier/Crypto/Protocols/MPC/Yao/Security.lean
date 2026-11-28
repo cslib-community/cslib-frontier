@@ -694,7 +694,7 @@ private theorem idealJoint_oneSided_empty (hproj : G.encode = projectiveEncode)
     (PMF.bind_const _ _)
   simp only [Function.comp_apply,
     runOutput_eq hproj hcorrect hn c x (BitString.mem_support_uniformList_iff.mp hcoins)]
-  exact congrArg PMF.pure (Prod.ext (funext fun i => nomatch i.2) rfl)
+  exact congrArg PMF.pure (Prod.ext (funext fun i => nomatch i.property) rfl)
 
 /-- Simulator for `I = Finset.univ` (both parties corrupted) in `oneSidedFamily`: draws `G.coins`
 fair coins and constructs both parties' exact views from their inputs. -/
@@ -762,7 +762,7 @@ private theorem isPPT_oneSidedFullSim {encFn : Fn ↪ List Bool}
               G.encode (G.gb p.1.secParam p.1.desc.fn p.2).encInfo
                 (List.ofFn (p.1.inputs ⟨0, Finset.mem_univ 0⟩) ++
                   List.ofFn (p.1.inputs ⟨1, Finset.mem_univ 1⟩)),
-              (G.gb p.1.secParam p.1.desc.fn p.2).decInfo⟩) i.1)
+              (G.gb p.1.secParam p.1.desc.fn p.2).decInfo⟩) i.val)
       P (encDPi fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i) := by
     refine ComputableInPolyTime.dpi fun ⟨j, hj⟩ => ?_
     fin_cases j

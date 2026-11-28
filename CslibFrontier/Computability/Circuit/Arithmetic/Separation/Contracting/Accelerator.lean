@@ -76,9 +76,9 @@ private theorem phiLits_ne_nil (i e : Q) (κ) :
   rcases κ with ((((r | r) | r) | d | p) | b)
   · simp [withInputs, oneHotLits, runLits, stepLits]
   · rcases r <;> simp [withInputs, oneHotLits, runLits, ruleLits]
-  · rcases r <;> simp [withInputs, oneHotLits, codeLits, univ_eq_empty_iff]
+  · rcases r <;> simp [withInputs, oneHotLits, codeLits]
   · have : Nonempty Q := ⟨i⟩
-    rcases d <;> simp [withInputs, oneHotLits, univ_eq_empty_iff]
+    rcases d <;> simp [withInputs, oneHotLits]
   · simp [withInputs, oneHotLits]
   · simp [withInputs]
 

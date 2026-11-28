@@ -127,15 +127,15 @@ private theorem step_map (g : CNF ℕ → Bool) (stk : List {ψ : CNF ℕ // Nor
     (acc : Bool) :
     step K α g (stk.map Subtype.val, acc) =
       Prod.map (List.map Subtype.val) id
-        ((rule hK hα).tree.searchStep (fun acc t => acc || g t.1) (stk, acc)) := by
+        ((rule hK hα).tree.searchStep (fun acc t => acc || g t.val) (stk, acc)) := by
   cases stk with
   | nil => rfl
   | cons s rest =>
-    have hiff := isSparse_eq_true_iff (one_le_threshold hK hα) s.2
-    by_cases hs : ClauseSet.Sparsification.Sparse (threshold K α) s.1.toClauseSet
-    · have hs' : isSparse (threshold K α) K s.1 = true := hiff.mpr hs
+    have hiff := isSparse_eq_true_iff (one_le_threshold hK hα) s.property
+    by_cases hs : ClauseSet.Sparsification.Sparse (threshold K α) s.val.toClauseSet
+    · have hs' : isSparse (threshold K α) K s.val = true := hiff.mpr hs
       simp [step, BinaryBranching.searchStep, hs, hs', CNF.Sparsification.rule]
-    · have hs' : isSparse (threshold K α) K s.1 = false := by
+    · have hs' : isSparse (threshold K α) K s.val = false := by
         simpa using fun h => hs (hiff.mp h)
       simp [step, BinaryBranching.searchStep, hs, hs', rule, CNF.Sparsification.rule]
 
@@ -145,12 +145,12 @@ private theorem iterate_step_map (g : CNF ℕ → Bool) (n : ℕ)
     (acc : Bool) :
     (step K α g)^[n] (stk.map Subtype.val, acc) =
       Prod.map (List.map Subtype.val) id
-        (((rule hK hα).tree.searchStep (fun acc t => acc || g t.1))^[n] (stk, acc)) := by
+        (((rule hK hα).tree.searchStep (fun acc t => acc || g t.val))^[n] (stk, acc)) := by
   induction n generalizing stk acc with
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply, Function.iterate_succ_apply, step_map hK hα]
-    obtain ⟨stk', acc'⟩ := (rule hK hα).tree.searchStep (fun acc t => acc || g t.1) (stk, acc)
+    obtain ⟨stk', acc'⟩ := (rule hK hα).tree.searchStep (fun acc t => acc || g t.val) (stk, acc)
     exact ih stk' acc'
 
 private theorem iterate_step_nil (g : CNF ℕ → Bool) (n : ℕ) (acc : Bool) :
@@ -208,7 +208,7 @@ include hK hα hkK
 
 /-- Every clause of a state of the tree has its literals in a clause of the formula. -/
 private theorem exists_of_mem_walk (hw : (rule hK hα).tree.IsNodeWord (rootState hkK φ) w)
-    {C : Clause ℕ} (hC : C ∈ ((rule hK hα).tree.walk (rootState hkK φ) w).1) :
+    {C : Clause ℕ} (hC : C ∈ ((rule hK hα).tree.walk (rootState hkK φ) w).val) :
     ∃ D ∈ φ, C.toFinset ⊆ D.toFinset := by
   obtain ⟨D', hD', hCD'⟩ := BranchingRule.refines_walk (one_le_threshold hK hα) hw
     C.toFinset (mem_toClauseSet.mpr ⟨C, hC, rfl⟩)
@@ -218,27 +218,27 @@ private theorem exists_of_mem_walk (hw : (rule hK hα).tree.IsNodeWord (rootStat
 
 /-- The states of the tree have at most `m + n K X ^ (2 K)` clauses. -/
 private theorem length_walk_le (hw : (rule hK hα).tree.IsNodeWord (rootState hkK φ) w) :
-    ((rule hK hα).tree.walk (rootState hkK φ) w).1.length ≤
+    ((rule hK hα).tree.walk (rootState hkK φ) w).val.length ≤
       φ.length + φ.numVars * (K * base K α ^ (2 * K)) := by
-  have h : (((rule hK hα).tree.walk (rootState hkK φ) w).1.toClauseSet).card ≤
-      (rootState hkK φ).1.toClauseSet.card + φ.vars.toFinset.card * (K * base K α ^ (2 * K)) :=
-    BranchingRule.card_walk_le hK hα (rootState hkK φ).2.reduced
-      (rootState hkK φ).2.card_le φ.vars.toFinset mem_vars_of_mem_root hw
-  rw [Normalized.card_toClauseSet ((rule hK hα).tree.walk (rootState hkK φ) w).2] at h
+  have h : (((rule hK hα).tree.walk (rootState hkK φ) w).val.toClauseSet).card ≤
+      (rootState hkK φ).val.toClauseSet.card + φ.vars.toFinset.card * (K * base K α ^ (2 * K)) :=
+    BranchingRule.card_walk_le hK hα (rootState hkK φ).property.reduced
+      (rootState hkK φ).property.card_le φ.vars.toFinset mem_vars_of_mem_root hw
+  rw [Normalized.card_toClauseSet ((rule hK hα).tree.walk (rootState hkK φ) w).property] at h
   refine h.trans (Nat.add_le_add_right ?_ _)
-  rw [Normalized.card_toClauseSet (rootState hkK φ).2]
+  rw [Normalized.card_toClauseSet (rootState hkK φ).property]
   exact length_root_le k φ
 
 /-- **The leaves are small.** The sparse states of the tree have at most `c * n + 1` clauses, for
 `c = occBound K α`. -/
 private theorem length_walk_le_of_isSparse (hw : (rule hK hα).tree.IsNodeWord (rootState hkK φ) w)
-    (hs : isSparse (threshold K α) K ((rule hK hα).tree.walk (rootState hkK φ) w).1 = true) :
-    ((rule hK hα).tree.walk (rootState hkK φ) w).1.length ≤ occBound K α * φ.numVars + 1 := by
+    (hs : isSparse (threshold K α) K ((rule hK hα).tree.walk (rootState hkK φ) w).val = true) :
+    ((rule hK hα).tree.walk (rootState hkK φ) w).val.length ≤ occBound K α * φ.numVars + 1 := by
   set ψ := (rule hK hα).tree.walk (rootState hkK φ) w
-  have hsparse := (isSparse_eq_true_iff (one_le_threshold hK hα) ψ.2).mp hs
-  rw [← Normalized.card_toClauseSet ψ.2]
-  refine ClauseSet.Sparsification.card_le_of_sparse (one_le_threshold hK hα) hsparse ψ.2.card_le
-    φ.vars.toFinset fun C' hC' l hl => ?_
+  have hsparse := (isSparse_eq_true_iff (one_le_threshold hK hα) ψ.property).mp hs
+  rw [← Normalized.card_toClauseSet ψ.property]
+  refine ClauseSet.Sparsification.card_le_of_sparse (one_le_threshold hK hα) hsparse
+    ψ.property.card_le φ.vars.toFinset fun C' hC' l hl => ?_
   obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_walk hK hα hkK hw hC
   have hl' := List.mem_toFinset.mp (hCD hl)
@@ -247,9 +247,10 @@ private theorem length_walk_le_of_isSparse (hw : (rule hK hα).tree.IsNodeWord (
 /-- The states of the tree from a formula of width `k` have width `k`. -/
 private theorem length_le_of_mem_walk (hφ : ∀ c ∈ φ, c.length ≤ k)
     (hw : (rule hK hα).tree.IsNodeWord (rootState hkK φ) w) {C : Clause ℕ}
-    (hC : C ∈ ((rule hK hα).tree.walk (rootState hkK φ) w).1) : C.length ≤ k := by
+    (hC : C ∈ ((rule hK hα).tree.walk (rootState hkK φ) w).val) : C.length ≤ k := by
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_walk hK hα hkK hw hC
-  rw [← List.toFinset_card_of_nodup (((rule hK hα).tree.walk (rootState hkK φ) w).2.nodup C hC)]
+  rw [← List.toFinset_card_of_nodup
+      (((rule hK hα).tree.walk (rootState hkK φ) w).property.nodup C hC)]
   exact (Finset.card_le_card hCD).trans ((List.toFinset_card_le D).trans (hφ D hD))
 
 end Tree
@@ -270,7 +271,7 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
     (φ : CNF ℕ) :
     (step K α g)^[rounds M φ] ([root k φ], false) =
       ([], decide (∃ w, (rule hK hα).tree.IsLeafWord (rootState hkK φ) w ∧
-        g ((rule hK hα).tree.walk (rootState hkK φ) w).1 = true)) ∧
+        g ((rule hK hα).tree.walk (rootState hkK φ) w).val = true)) ∧
     ∀ i, ∃ (stk : List {ψ : CNF ℕ // Normalized K ψ}) (acc : Bool),
       (step K α g)^[i] ([root k φ], false) = (stk.map Subtype.val, acc) ∧
       stk.length ≤ φ.numVars * (K * base K α ^ (2 * K)) + 1 ∧
@@ -278,13 +279,13 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
         (rule hK hα).tree.walk (rootState hkK φ) w = t := by
   set R := rule hK hα
   set s₀ := rootState hkK φ
-  have hred := s₀.2.reduced
-  have hk0 := s₀.2.card_le
+  have hred := s₀.property.reduced
+  have hk0 := s₀.property.card_le
   have hlen : ∀ w, R.tree.IsLeafWord s₀ w → w.length ≤ φ.numVars * (K * base K α ^ (2 * K)) :=
     fun w hw => BranchingRule.length_le_of_isLeafWord hK hα hred hk0 φ.vars.toFinset
       mem_vars_of_mem_root hw
   obtain ⟨L, hnd, hL, N, hN, h⟩ := R.tree.exists_iterate_searchStep
-    (BranchingRule.tree_terminating (one_le_threshold hK hα)) (fun acc t => acc || g t.1) s₀ hlen
+    (BranchingRule.tree_terminating (one_le_threshold hK hα)) (fun acc t => acc || g t.val) s₀ hlen
   have hLcard : L.length ≤ 2 ^ (φ.numVars / M + 1) := by
     rw [← List.toFinset_card_of_nodup hnd]
     exact (BranchingRule.card_le_of_isLeafWord hK hα hred hk0 φ.vars.toFinset mem_vars_of_mem_root
@@ -292,13 +293,13 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
   have hNr : N ≤ rounds M φ := by grind [rounds, CNF.length_distinctVars, pow_succ]
   have hinit : ([root k φ], false) = ([s₀].map Subtype.val, false) := rfl
   obtain ⟨hfin, hmid⟩ := h [] false
-  have hacc : (L.map (R.tree.walk s₀)).foldl (fun acc t => acc || g t.1) false =
-      decide (∃ w, R.tree.IsLeafWord s₀ w ∧ g (R.tree.walk s₀ w).1 = true) := by
+  have hacc : (L.map (R.tree.walk s₀)).foldl (fun acc t => acc || g t.val) false =
+      decide (∃ w, R.tree.IsLeafWord s₀ w ∧ g (R.tree.walk s₀ w).val = true) := by
     rw [List.foldl_or_eq, Bool.false_or, List.any_map, Bool.eq_iff_iff, List.any_eq_true,
       decide_eq_true_iff]
     simp only [hL, Function.comp_apply]
   have hN' : (step K α g)^[N] ([root k φ], false) = ([], decide (∃ w, R.tree.IsLeafWord s₀ w ∧
-      g (R.tree.walk s₀ w).1 = true)) := by
+      g (R.tree.walk s₀ w).val = true)) := by
     rw [hinit, iterate_step_map hK hα, hfin, hacc]
     simp
   refine ⟨?_, fun i => ?_⟩
@@ -306,13 +307,13 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
       iterate_step_nil]
   · by_cases hi : i ≤ N
     · obtain ⟨stk, L', -, heq, hstk, hmem⟩ := hmid i hi
-      refine ⟨stk, (L'.map (R.tree.walk s₀)).foldl (fun acc t => acc || g t.1) false, ?_, hstk,
+      refine ⟨stk, (L'.map (R.tree.walk s₀)).foldl (fun acc t => acc || g t.val) false, ?_, hstk,
         fun t ht => ?_⟩
       · rw [hinit, iterate_step_map hK hα, heq]
         simp
       · obtain ⟨w, hw, -, rfl⟩ := hmem t ht
         exact ⟨w, hw, rfl⟩
-    · refine ⟨[], decide (∃ w, R.tree.IsLeafWord s₀ w ∧ g (R.tree.walk s₀ w).1 = true), ?_,
+    · refine ⟨[], decide (∃ w, R.tree.IsLeafWord s₀ w ∧ g (R.tree.walk s₀ w).val = true), ?_,
         by simp, by simp⟩
       rw [show i = (i - N) + N by omega, Function.iterate_add_apply, hN', iterate_step_nil]
       rfl
@@ -332,7 +333,7 @@ theorem search_eq_true_iff {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M) {
     change (root k φ).toClauseSet.Sat x ↔ φ.eval x = true
     rw [hroot, sat_toClauseSet_normalize_iff]
   have hleaf {w : List Bool} (hw : R.tree.IsLeafWord s₀ w) :
-      g (R.tree.walk s₀ w).1 = true ↔ ∃ x, (R.toClauseSet (R.tree.walk s₀ w)).Sat x :=
+      g (R.tree.walk s₀ w).val = true ↔ ∃ x, (R.toClauseSet (R.tree.walk s₀ w)).Sat x :=
     (hg _ fun c hc => length_le_of_mem_walk hK hα hkK hφ hw.isNodeWord hc).trans
       (exists_congr fun x => (CNF.sat_toClauseSet_iff _ x).symm)
   rw [search, (iterate_step hK hα hkK hM g φ).1, decide_eq_true_iff]
@@ -442,12 +443,12 @@ include hK hα hkK
 
 private theorem length_encCNF_walk_le {w : List Bool}
     (hw : (rule hK hα).tree.IsNodeWord (rootState hkK φ) w) :
-    (encCNF ((rule hK hα).tree.walk (rootState hkK φ) w).1).length ≤ nodeBound K α φ := by
+    (encCNF ((rule hK hα).tree.walk (rootState hkK φ) w).val).length ≤ nodeBound K α φ := by
   set ψ := (rule hK hα).tree.walk (rootState hkK φ) w
-  refine (length_encList_le _ ψ.1 (b := K * (2 * (encCNF φ).length + 1)) fun C hC => ?_).trans
+  refine (length_encList_le _ ψ.val (b := K * (2 * (encCNF φ).length + 1)) fun C hC => ?_).trans
     (Nat.mul_le_mul_right _ (length_walk_le hK hα hkK hw))
   refine (length_encList_le _ C (b := (encCNF φ).length) fun l hl => ?_).trans
-    (Nat.mul_le_mul_right _ (ψ.2.length_le C hC))
+    (Nat.mul_le_mul_right _ (ψ.property.length_le C hC))
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_walk hK hα hkK hw hC
   exact length_encLiteral_le hD (List.mem_toFinset.mp (hCD (List.mem_toFinset.mpr hl)))
 
@@ -511,7 +512,7 @@ private theorem exists_computableInO_search {k M : ℕ} (hkK : k ≤ K) (hM : Le
         simp only [List.map_cons, List.headD_cons] at hc ⊢
         have hlen := length_walk_le_of_isSparse hK hα hkK hw hc.2
         have henc := length_encCNF_walk_le hK hα hkK hw
-        set ψ := ((rule hK hα).tree.walk (rootState hkK φ) w).1
+        set ψ := ((rule hK hα).tree.walk (rootState hkK φ) w).val
         have h₁ : (2 : ℝ) ^ (δ * ψ.length) ≤
             2 ^ (δ * ((occBound K α * φ.numVars + 1 : ℕ) : ℝ)) :=
           Real.rpow_le_rpow_of_exponent_le (by norm_num)

@@ -527,7 +527,7 @@ theorem Circuit.exists_balanced_cuts [Fintype τ] (c : Circuit (arithSignature F
       exact ⟨le_max_right _ _, max_le hS'card hab⟩
     | cast j =>
       simp only [Fin.lastCases_castSucc]
-      exact p.card_exitCut hab ha (e j).2
+      exact p.card_exitCut hab ha (e j).property
   · have hsumE (f : ℕ × Fin 2 → MvPolynomial τ K) :
         ∑ x ∈ E, f x = ∑ j : Fin E.card, f (e j) := by
       rw [← Finset.sum_coe_sort E]
@@ -540,12 +540,12 @@ theorem Circuit.exists_balanced_cuts [Fintype τ] (c : Circuit (arithSignature F
         | last => simp
         | cast j =>
           simp only [Fin.lastCases_castSucc]
-          exact p.vars_exitPoly_subset hV hvars hdeg hab hc _ (e j).2
+          exact p.vars_exitPoly_subset hV hvars hdeg hab hc _ (e j).property
       · induction j using Fin.lastCases with
         | last => simp
         | cast j =>
           simp only [Fin.lastCases_castSucc]
-          exact (hM _ (e j).2).1
+          exact (hM _ (e j).property).1
       · change p.trace _ ρ (c.outputs 0) = _
         rw [hsum, Fin.sum_univ_castSucc, hsumE]
         simp only [Fin.lastCases_castSucc, Fin.lastCases_last, mul_zero, add_zero]

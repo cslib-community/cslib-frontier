@@ -236,7 +236,7 @@ noncomputable def coloringInterpretation :
 
 /-- An edge from `a` to `c` given by a template of the kind of `a`. -/
 private def Edge (a c : coloringInterpretation.Model M) : Prop :=
-  ∃ τ ∈ coloringEdges a.1, τ.Holds a.2.1 c.toSigma
+  ∃ τ ∈ coloringEdges a.1, τ.Holds a.2.val c.toSigma
 
 private theorem relMap_adj_iff (a c : coloringInterpretation.Model M) :
     RelMap adj ![a, c] ↔ Edge a c ∨ Edge c a := by
@@ -555,7 +555,7 @@ def coloringSubsingleton : Interpretation cnf Language.graph Unit where
 private theorem colorable_coloringSubsingleton_iff [Subsingleton M] [Nonempty M] :
     graph.Colorable 3 (coloringSubsingleton.Model M) ↔ IsThreeCNF M ∧ Satisfiable M := by
   obtain ⟨e⟩ := ‹Nonempty M›
-  have hv (v : coloringSubsingleton.Model M) : v.1 () = e := Subsingleton.elim _ _
+  have hv (v : coloringSubsingleton.Model M) : v.val () = e := Subsingleton.elim _ _
   have hadj (v w : coloringSubsingleton.Model M) :
       RelMap adj ![v, w] ↔ ¬(RelMap cnf.pos ![e, e] ∨ RelMap cnf.neg ![e, e]) := by
     fo_simp [hv]
@@ -582,7 +582,7 @@ private theorem simpleGraph_coloringSubsingleton [Subsingleton M] [Nonempty M] (
     coloringSubsingleton.Model M ⊨ Theory.simpleGraph := by
   obtain ⟨e⟩ := ‹Nonempty M›
   have hno (v w : coloringSubsingleton.Model M) : ¬RelMap adj ![v, w] := by
-    fo_simp [Subsingleton.elim (v.1 ()) e]
+    fo_simp [Subsingleton.elim (v.val ()) e]
     obtain ⟨A, hA⟩ := h
     obtain ⟨x, ⟨hx, -⟩ | ⟨hx, -⟩⟩ := hA e
     · exact .inl (Subsingleton.elim x e ▸ hx)
@@ -599,7 +599,7 @@ theorem reduces_ThreeSAT_ThreeColorable : Reduces ThreeSAT.{w} graph.ThreeColora
     coloringInterpretation coloringSubsingleton
     (fun M _ _ => colorable_coloringInterpretation_iff.symm) (fun M _ hM => ?_)
   rcases isEmpty_or_nonempty M with hM' | hM'
-  · have : IsEmpty (coloringSubsingleton.Model M) := ⟨fun x => isEmptyElim (x.1 ())⟩
+  · have : IsEmpty (coloringSubsingleton.Model M) := ⟨fun x => isEmptyElim (x.val ())⟩
     exact iff_of_true ⟨isThreeCNF_of_isEmpty, satisfiable_of_isEmpty⟩
       (graph.colorable_of_isEmpty (M := coloringSubsingleton.Model M))
   · exact colorable_coloringSubsingleton_iff.symm
@@ -614,7 +614,7 @@ theorem reduces_ThreeSAT_SimpleThreeColorable :
       colorable_coloringInterpretation_iff.2 h⟩,
       fun h => colorable_coloringInterpretation_iff.1 h.2⟩) (fun M _ hM => ?_)
   rcases isEmpty_or_nonempty M with hM' | hM'
-  · have : IsEmpty (coloringSubsingleton.Model M) := ⟨fun x => isEmptyElim (x.1 ())⟩
+  · have : IsEmpty (coloringSubsingleton.Model M) := ⟨fun x => isEmptyElim (x.val ())⟩
     refine iff_of_true ⟨isThreeCNF_of_isEmpty, satisfiable_of_isEmpty⟩ ⟨?_,
       graph.colorable_of_isEmpty (M := coloringSubsingleton.Model M)⟩
     rw [Theory.simpleGraph_model_iff]

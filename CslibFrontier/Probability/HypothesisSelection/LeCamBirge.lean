@@ -390,7 +390,7 @@ private theorem toOuterMeasure_iid_birgeWeight_ge_one_le_exp [Finite α]
         toOuterMeasure_iid_birgeWeight_ge_one_le p q₀ q₁ n
     _ ≤ Real.exp (-hellingerSq q₀ q₁ / 25) ^ n := pow_le_pow_left₀ hsum_nonneg hexp_base n
     _ = Real.exp (-(n : ℝ) * hellingerSq q₀ q₁ / 25) := by
-        rw [← Real.exp_nat_mul]
+        rw [← Real.exp_natCast_mul]
         congr 1
         ring
 

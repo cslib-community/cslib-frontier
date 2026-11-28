@@ -148,7 +148,7 @@ theorem add_two_of_mem (hArity : σ.Arity addOp = 2)
     (hf : f ∈ s) (hg : g ∈ s) :
     CostSynthesis I w s {fun x => f x + g x} 1 0 := by
   let args : Fin (σ.Arity addOp) → (Fin n → G) → G :=
-    fun i => if i.1 = 0 then f else g
+    fun i => if i.val = 0 then f else g
   have h := CostSynthesis.gate (I := I) (w := w) (s := s) addOp args fun i => by
     dsimp only [args]
     split_ifs <;> assumption
@@ -228,7 +228,7 @@ theorem block_nonempty_subSums (hArity : σ.Arity addOp = 2)
     have hstep (T' : Finset (Fin b)) (hT' : T' ∈ nonempB) :
         CostSynthesis I w (s ∪ prevSet)
           {fun x => v (Fin.last b) x + ∑ j ∈ T', v' j x} 1 0 := by
-      have hne : T'.Nonempty := nonempty_iff_ne_empty.mpr (mem_erase.mp hT').1
+      have hne : T'.Nonempty := ne_empty_iff_nonempty.mp (mem_erase.mp hT').1
       exact add_two_of_mem hArity hEval hZeroW
         (Or.inl (hv (Fin.last b))) (Or.inr ⟨T', hne, rfl⟩)
     have hall := CostSynthesis.biUnion nonempB
