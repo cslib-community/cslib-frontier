@@ -115,8 +115,7 @@ private theorem writeCompLoop_spec {N w : ℕ} (finAddr compAddr : ℕ) (hdisj :
         x₁.regs pReg = F₀ + (k + 1) ∧
         (∀ r : Fin 28, r ≠ addr → r ≠ vReg → r ≠ pReg → x₁.regs r = x.regs r)
     have hstep : ∃ x₁, ExecWithin w writeCompBody x x₁ 5 ∧ StepPost x₁ := by
-      unfold writeCompBody
-      wram_exec [hc1, hfb, hcb, hcIdx, hp, hm_v, hf_fa, hf_ca, hf_p1]
+      wram_exec [writeCompBody, hc1, hfb, hcb, hcIdx, hp, hm_v, hf_fa, hf_ca, hf_p1]
       dsimp only [StepPost]
       refine ⟨fun u => ?_, fun a ha => ?_, by wram_simp; omega, fun r h1 h2 h3 => ?_⟩
       · mem_upd

@@ -631,8 +631,7 @@ theorem initTableCode_exec {w base w₀ b b' k : ℕ} {x : Data 240}
   change Fits w (base + s) at hfit_tBase
   have hfit_2c_sub : Fits w (2 ^ (2 * c) - 1) := hfit_2c.of_le (Nat.sub_le _ _)
   have hfit_end : Fits w (tabBase base w₀ b b' k + reducedTableWords t w) := by wram_omega
-  unfold initTableCode initTableSetupCode
-  wram_exec [hbase, ← ht, ← hc_def, ← hp_def, ← hs]
+  wram_exec [initTableCode, initTableSetupCode, hbase, ← ht, ← hc_def, ← hp_def, ← hs]
   wram_call (clmulTabLoop_exec (tBase := tabBase base w₀ b b' k) (t := t) hc_lt hfit_end
     (2 ^ (2 * c)) 0 _ (Nat.zero_add _) rfl (by wram_simp [tabBase, s]) (by wram_simp)
     (by wram_simp [c, t]) (by wram_simp [c, t]) (by wram_simp [c, t]) (by wram_simp)
@@ -986,8 +985,7 @@ theorem reduceKeyCode_exec {w w₀ b : ℕ} (hw₀_pos : 0 < w₀) (hw₀ : w₀
   have hpow_m : 2 ^ (w₀ - 1) < 2 ^ w₀ := Nat.pow_lt_pow_right one_lt_two (by omega)
   have hα_w : x.mem (x.regs 0) < 2 ^ w₀ := hα.trans hpow_m
   obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hodd⟩ := oddMulModWord_parts_lt hw₀_pos hα hu
-  unfold reduceKeyCode halfMulSetupCode halfMulCombineCode finishReduceCode
-  wram_exec
+  wram_exec [reduceKeyCode, halfMulSetupCode, halfMulCombineCode, finishReduceCode]
   wram_simp [oddMulModWord, halfMulMod]
 
 /-- Step `m` of Stage 2 (`5` instructions): extracts limb `m` of `r_val` from `reg 3` into `xReg m`,
@@ -1026,8 +1024,8 @@ private theorem initLimbsCode_exec {w t r_val : ℕ} (hc_lt : 2 * reducedChunkBi
       have hi54 : i < 54 := hi.trans_le hL_le
       have hfit_limb : Fits w (getLimb c r_val i) := by stride_omega [getLimb_lt c r_val i]
       have hfit_shr : Fits w (r_val >>> ((i + 1) * c)) := (Nat.shiftRight_le _ _).trans_lt hr
-      unfold initLimbStep
-      wram_exec [hz3, show (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i from rfl,
+      wram_exec [initLimbStep,
+        hz3, show (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i from rfl,
         show (r_val >>> (i * c)) >>> c = r_val >>> ((i + 1) * c) by
           rw [← Nat.shiftRight_add, ← Nat.succ_mul]]
       refine ⟨by wram_simp [hz0], by wram_simp, fun m hm => ?_, fun m hm => ?_, hzmem⟩
@@ -1074,8 +1072,7 @@ private theorem hornerSetupCode_exec {w base w₀ b b' k : ℕ}
   obtain ⟨hfit_2c, hfit_s, hfit_tBase, hfit_c, hfit_mask_c, hfit_p, hfit_mask_p, hfit_2c_val⟩ :=
     tableSetup_fits hc_lt hfit_space
   simp only [t, c, p] at *
-  unfold hornerSetupCode
-  wram_exec [h0, show base + seedWords w₀ b b' k = tabBase base w₀ b b' k from rfl]
+  wram_exec [hornerSetupCode, h0, show base + seedWords w₀ b b' k = tabBase base w₀ b b' k from rfl]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun r hr => ?_, rfl⟩ <;> wram_simp [h0, t, c, p]
 
 /-- Register invariant preserved across all Stage 3 Horner operations. -/
@@ -1263,8 +1260,7 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
   have _ : Fits w (x.regs (prodReg (i + m + 1)) ^^^ hi_part) := by stride_omega
   have hu_reg : x.regs (accReg i) = u := haccReg i hi
   have hv_reg : x.regs (xReg m) = v := hxReg m hm
-  unfold innerClmulStep
-  wram_exec [show x.regs 4 = tBase from h4, show x.regs 5 = c from h5,
+  wram_exec [innerClmulStep, show x.regs 4 = tBase from h4, show x.regs 5 = c from h5,
     show x.regs 6 = 2 ^ c - 1 from h6, show x.regs 7 = p from h7,
     show x.regs 8 = 2 ^ p - 1 from h8, show x.regs 9 = 2 * c from h9,
     show x.regs 18 = 2 ^ (2 * c) - 1 from h18, hu_reg, hv_reg,
@@ -1614,8 +1610,7 @@ private theorem packOutStep_exec {w t b' evalVal : ℕ}
       ((getLimb c evalVal m &&& reducedOutMask c b' m) <<< reducedOutShift c b' m) =
       packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1) := by
     rw [h2, ← packLimbs_and_mask_succ c b' m (getLimb c evalVal)]
-  unfold packOutStep
-  wram_exec [hacc m hm, hnext_eq]
+  wram_exec [packOutStep, hacc m hm, hnext_eq]
   exact ⟨by wram_simp, by wram_simp, by wram_simp, fun i hi => by wram_simp [hacc i hi], rfl⟩
 
 private theorem packOutCode_exec {w t b' evalVal : ℕ}
@@ -1639,8 +1634,7 @@ private theorem packOutCode_exec {w t b' evalVal : ℕ}
     z.regs 2 = packLimbs c n (getLimb c evalVal) &&& (2 ^ b' - 1) ∧
     (∀ i < L, z.regs (accReg i) = getLimb c evalVal i) ∧
     z.mem = x.mem
-  unfold packOutCode
-  wram_exec
+  wram_exec [packOutCode]
   wram_call (seqAsc_exec (w := w) (packOutStep c b') 5 P L
     (fun m hm z ⟨hz0, hz1, hz2, hz_acc, hz_mem⟩ => by
       obtain ⟨z', hz'_exec, hz'0, hz'1, hz'2, hz'_acc, hz'_mem⟩ :=

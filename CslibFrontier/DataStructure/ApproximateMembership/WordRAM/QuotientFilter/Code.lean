@@ -216,8 +216,7 @@ theorem remEvalCode_exec {base w U w₀ n k : ℕ}
   have hsub : remSeedAddr base w w₀ n - remSeedOff w w₀ n = base := by
     simp [remSeedAddr, remSeedOff]
   have hk1 : kwiseMap 1 = qfReg 1 := rfl
-  unfold remEvalCode
-  wram_exec [h0, show base + remSeedOff w w₀ n = remSeedAddr base w w₀ n from rfl]
+  wram_exec [remEvalCode, h0, show base + remSeedOff w w₀ n = remSeedAddr base w w₀ n from rfl]
   wram_call (ReducedKWise.reduceKeyCode_exec (b := w₀) hw₀_pos hw₀
     (((x.set (qfReg 30) (remSeedOff w w₀ n)).set (qfReg 0) (remSeedAddr base w w₀ n)).comap
       kwiseMap)
@@ -248,8 +247,7 @@ private theorem loadOffCode_exec {base w off : ℕ} {d : Fin 248} (hd : d ≠ 0)
     (hfit : Fits w (base + off)) {x : Data rQF} (h0 : x.regs (qfReg 0) = base) :
     Exec w (loadOffCode d off) x (x.set (qfReg d) (base + off)) 2 := by
   have hd' : qfReg 0 ≠ qfReg d := by simp [qfReg_inj, hd.symm]
-  unfold loadOffCode
-  wram_exec [h0]
+  wram_exec [loadOffCode, h0]
   cases x
   simp [Data.set]
 
@@ -324,8 +322,7 @@ private theorem loadClusterInputCode_exec {base w w₀ n k : ℕ}
   have hf14 : Fits w (2 ^ remBits w₀ k - 1) := hfit_i 14
   refine ⟨?_, rfl, by simp +decide [x₁, loadClusterInputData, h0],
     by simp +decide [x₁, loadClusterInputData, hfr], ?_⟩
-  · unfold loadClusterInputCode
-    wram_exec [h2, h3, h247]
+  · wram_exec [loadClusterInputCode, h2, h3, h247]
     refine WP.Exact.of_exec (loadOffCode_exec (d := 15) (by decide)
       (by rw [base_add_fullOff]; exact hfit_i 5) (by wram_simp [h0])) ?_
     wram_exec

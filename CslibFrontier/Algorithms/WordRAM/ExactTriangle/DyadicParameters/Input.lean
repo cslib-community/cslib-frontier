@@ -63,8 +63,7 @@ theorem exec_input {W n : ℕ} (hW : admissionWidth n ≤ W) :
   have hfull : ∃ y, ExecWithin W entryProgram (.init [n]) y (timeBound n + 2) ∧
       Post n (.init [n]) y := by
     refine WP.exists_execWithin ?_
-    unfold entryProgram
-    wram_exec [hmem1]
+    wram_exec [entryProgram, hmem1]
     wram_call (exec _ (by wram_simp) hfit) with y hy
     exact ⟨by wram_simp; omega, by simpa only [Post, Data.set_mem] using hy⟩
   obtain ⟨y, full, hs, hb, hl, hd, hg, hL, hf, hm⟩ := hfull

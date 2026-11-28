@@ -785,8 +785,7 @@ private theorem innerLoop_exec {w base c d b U r2 r4 r5 : ℕ} {x_init : Data 12
         dsimp only [space]
         omega)
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
-    unfold innerBody
-    wram_exec [h3, h6, h7, h8, h10, hch_eq, hmem_at, hxor_eq, hshift_eq,
+    wram_exec [innerBody, h3, h6, h7, h8, h10, hch_eq, hmem_at, hxor_eq, hshift_eq,
       show base + (j.val * c + i) * 2 ^ b + ch.val = topAddr base c b ⟨i, hi_lt⟩ j ch from rfl]
     wram_call (ih (i + 1) _ (by omega) (by exact hmem) (by wram_simp [h0]) (by wram_simp [h1])
       (by wram_simp [h2]) (by wram_simp; ring) (by wram_simp [h4]) (by wram_simp [h5])
@@ -861,8 +860,7 @@ private theorem outerLoop_exec {w base c d b U M : ℕ} {x_init : Data 12}
             Nat.add_le_add_left (Nat.mul_le_mul_right _ hj_succ) _
         _ = base + (c + 1) * d * 2 ^ b := by ring
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
-    unfold outerBody
-    wram_exec [h1]
+    wram_exec [outerBody, h1]
     wram_call (innerLoop_exec (r2 := (outerPrefixXor T₁ T₂ u j (by omega)).val)
       (r4 := base + c * d * 2 ^ b + j * 2 ^ b) (r5 := base + c * d * 2 ^ b + d * 2 ^ b)
       htop u ⟨j, hj_lt⟩ hfit_space hfit_pow_b hfit_u c 0 _ (by omega) (by exact hmem)

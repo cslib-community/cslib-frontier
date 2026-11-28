@@ -75,8 +75,7 @@ theorem exec_count {w n p k : ℕ} (x : Data 128) (keys values : ℕ → ℕ)
       by omega, ?_⟩, by omega⟩
     rw [zi, Finset.sum_range_succ, zr]
   refine WP.exists_execWithin ?_
-  unfold count
-  wram_exec
+  wram_exec [count]
   wram_call (ExecWithin.loop_invariant I (fun y => n * n - y.regs Reg.index) body
     ⟨fun j hj => by
       have hi : j ≠ Reg.index := fun h => hj (by subst j; decide)

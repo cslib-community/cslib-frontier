@@ -178,8 +178,7 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
       cases tree <;> simp_all [Tree.bounds, Tree.insert, Tree.withBounds]
     apply insertLoop_finish hs
     apply WP.exists_execWithin
-    unfold insertBody writeAt
-    wram_exec [hp, hx, hz, ho, htwo, hempty]
+    wram_exec [insertBody, writeAt, hp, hx, hz, ho, htwo, hempty]
     refine ⟨by wram_simp [hz], by wram_simp, ?_, ?_⟩
     · rw [hins]
       simpa only [writeBounds, Data.write_mem, Data.set_mem] using
@@ -195,8 +194,7 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
       cases tree <;> simp_all [Tree.bounds, Tree.insert, min_self]
     apply insertLoop_finish hs
     apply WP.exists_execWithin
-    unfold insertBody readAt
-    wram_exec [hp, hx, hz, ho, hpres, hm, heq]
+    wram_exec [insertBody, readAt, hp, hx, hz, ho, hpres, hm, heq]
     exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hins, hr], fun _ _ => by wram_simp⟩
   cases tree with
   | leaf b =>
@@ -208,8 +206,7 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
     have hy_q : y.mem (base + 3) = 0 := by
       rw [hy_mem, writeBounds_away _ (Or.inr (by omega))]
       exact hq
-    unfold insertTail readAt
-    wram_exec [hy_p, hy_0, hy_3, hy_q]
+    wram_exec [insertTail, readAt, hy_p, hy_0, hy_3, hy_q]
     refine ⟨by wram_simp [hy_0], by wram_simp, ?_, ?_⟩
     · simpa only [Data.set_mem, hy_mem, Tree.insert, Tree.withBounds] using
         rep_writeBounds hr (some (min m key, max M key))
@@ -260,8 +257,8 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         have hy_0 := hy.zero_eq; have hy_1 := hy.one_eq; have hy_2 := hy.two_eq
         have hy_3 := hy.three_eq; have hy_4 := hy.four_eq; have hy_5 := hy.five_eq
         have hy_p := hy.p_eq; have hy_x := hy.x_eq; have hy_run := hy.runFlag_eq
-        unfold insertTail readAt writeAt coordinates
-        wram_exec [hy_0, hy_1, hy_2, hy_3, hy_4, hy_5, hy_p, hy_x, hy_q, hy_t, hqne, hy_ch0]
+        wram_exec [insertTail, readAt, writeAt, coordinates,
+          hy_0, hy_1, hy_2, hy_3, hy_4, hy_5, hy_p, hy_x, hy_q, hy_t, hqne, hy_ch0]
         refine ⟨by struct_frame hy, ?_⟩
         simp only [Data.set_mem, Data.write_mem, hy_mem, m₁, writeBounds, ch, clusterOffset, i, lo,
           Nat.add_assoc]
@@ -299,8 +296,8 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         have hy_0 := hy.zero_eq; have hy_1 := hy.one_eq; have hy_2 := hy.two_eq
         have hy_3 := hy.three_eq; have hy_4 := hy.four_eq; have hy_5 := hy.five_eq
         have hy_p := hy.p_eq; have hy_x := hy.x_eq; have hy_run := hy.runFlag_eq
-        unfold insertTail readAt coordinates
-        wram_exec [hy_0, hy_1, hy_2, hy_3, hy_4, hy_5, hy_p, hy_x, hy_q, hy_t, hqne, hy_ch_ne0]
+        wram_exec [insertTail, readAt, coordinates,
+          hy_0, hy_1, hy_2, hy_3, hy_4, hy_5, hy_p, hy_x, hy_q, hy_t, hqne, hy_ch_ne0]
         exact ⟨by struct_frame hy; wram_simp [ch, clusterOffset, i, Nat.add_assoc],
           by wram_simp [hy_mem]; rfl⟩
       obtain ⟨next, he_step, hentry, hnext_mem⟩ := hstep

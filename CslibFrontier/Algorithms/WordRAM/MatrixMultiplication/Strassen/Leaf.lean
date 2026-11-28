@@ -52,8 +52,7 @@ theorem exec_leaf {w p A B : ℕ} (x : Data 64) (u v : ℕ → ℤ)
       y.regs Reg.active =
         (if x.regs Reg.frames < x.regs Reg.frame then x.regs Reg.active else 0) ∧
       ∀ i, 32 ≤ i.val → i ≠ Reg.frame → i ≠ Reg.active → y.regs i = x.regs i := by
-  unfold leaf
-  wram_exec [hlen]
+  wram_exec [leaf, hlen]
   wram_call (CyclicConvolution.exec _ u v
     (by wram_simp [CyclicConvolution.Reg.length]) hbound hu hv
     (by wram_simp [CyclicConvolution.Reg.inputA]; exact hA)

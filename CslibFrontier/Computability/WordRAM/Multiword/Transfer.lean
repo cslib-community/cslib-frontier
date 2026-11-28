@@ -175,8 +175,7 @@ private theorem exec_accumulate {w : ℕ} (hw : 2 ≤ w) (as : List (Fin (r + 4)
   induction as generalizing x with
   | nil =>
     refine WP.Exact.exists_exec ?_
-    unfold accumulate
-    wram_exec [List.length_nil]
+    wram_exec [accumulate, List.length_nil]
     exact ⟨by simp [value], rfl, fun _ _ => by wram_simp⟩
   | cons a as ih =>
     have hv : value (radix w) x as ≤ value (radix w) x (a :: as) := by
@@ -255,14 +254,12 @@ private theorem exec_extract {w : ℕ} (ds : List (Fin (r + 4)))
   induction ds generalizing x with
   | nil =>
     refine WP.Exact.exists_exec ?_
-    unfold extract
-    wram_exec [List.length_nil]
+    wram_exec [extract, List.length_nil]
     exact ⟨by simp [Bounded], by simp [value], hfit, rfl, fun _ _ _ => by simp⟩
   | cons d ds ih =>
     obtain ⟨hdt, _, hdb, _⟩ := digit_ne (hout d List.mem_cons_self)
     refine WP.Exact.exists_exec ?_
-    unfold extract
-    wram_exec [hbase, hfit]
+    wram_exec [extract, hbase, hfit]
     wram_call (ih (fun i hi => hout i (List.mem_cons_of_mem d hi))
       (List.nodup_cons.mp hnd).2 _ (by wram_simp [hbase])
       (by wram_simp; exact hfit.of_le (Nat.div_le_self _ _)))

@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.IP
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
@@ -51,12 +53,18 @@ deterministic machine evaluates it.
 * `Cslib.Complexity.Interaction.acceptFrom`: the probability that a prover accepts from a state.
 * `Cslib.Complexity.Interaction.value`: the value of a history.
 * `Cslib.Complexity.Interaction.IsBounded`: bounds on rounds, messages and the replies read.
+* `Cslib.Complexity.Prover.ofHistoryFun`: the deterministic prover answering every message by a
+  function of the history and the message.
+* `Cslib.Complexity.Interaction.encReplyInput`: the encoding of the input of a computation of a
+  reply.
 * `Cslib.Complexity.Interaction.optimalProver`: the prover answering with best replies.
 * `Cslib.Complexity.Interaction.replay`: a run against a history.
 
 ## Main results
 
 * `Cslib.Complexity.Interaction.sum_acceptFrom_le_value`: no prover beats the value.
+* `Cslib.Complexity.Interaction.sum_acceptFrom_ofHistoryFun`: a reply function attaining the best
+  value attains the value.
 * `Cslib.Complexity.Interaction.sum_acceptFrom_optimalProver`: the optimal prover attains it.
 * `Cslib.Complexity.Interaction.value_le_card`: the value is at most the number of coin values.
 * `Cslib.Complexity.Interaction.outcome_eq_replay`: outcomes are replays.
@@ -246,7 +254,7 @@ theorem value_le_card (n : ℕ) (h : History) :
 
 /-- One round of a prover against a program: if the program has finished, it accepts or not; if
 it sends a message of length at most `L`, the prover answers and what remains continues. -/
-private theorem acceptFrom_after_eq (P : Prover Unit) (s : P.State) (p : WordQueryComp Unit Bool)
+theorem acceptFrom_after_eq (P : Prover Unit) (s : P.State) (p : WordQueryComp Unit Bool)
     (h : History) (hp : ∀ m, outcome p h = .ask m → m.length ≤ L) :
     acceptFrom P s (after p h) = (if outcome p h = .done true then 1 else 0) +
       ∑ m ∈ BitString.shortWords L, ∑' ys : List Bool × P.State,
@@ -269,7 +277,7 @@ private theorem acceptFrom_after_eq (P : Prover Unit) (s : P.State) (p : WordQue
 omit [Fintype R] in
 /-- With no rounds left (`D ≤ h.length`), a program of a bounded family sends no further message,
 so a prover makes it accept exactly when it has already accepted. -/
-private theorem acceptFrom_after_of_le (hF : IsBounded F D L) (P : Prover Unit) (s : P.State)
+theorem acceptFrom_after_of_le (hF : IsBounded F D L) (P : Prover Unit) (s : P.State)
     (r : R) {h : History} (hD : D ≤ h.length) :
     acceptFrom P s (after (F r) h) = if outcome (F r) h = .done true then 1 else 0 := by
   unfold outcome
@@ -332,6 +340,56 @@ theorem sum_acceptFrom_le_value (hF : IsBounded F D L) (P : Prover Unit) :
 
 /-! ### The optimal prover -/
 
+omit [Fintype R] in
+/-- Once `D` messages are exchanged, no program continues. -/
+private theorem outcome_append_singleton_invalid (hF : IsBounded F D L) {h : History}
+    (hD : D ≤ h.length) (r : R) (x : List Bool × List Bool) :
+    outcome (F r) (h ++ [x]) = .invalid := by
+  unfold outcome
+  rw [after_append]
+  rcases hah : after (F r) h with _ | ⟨b⟩ | ⟨q, next⟩
+  · simp only [Option.bind_none]
+  · simp only [Option.bind_some]
+    rfl
+  · have hask : outcome (F r) h = .ask q.2 := by unfold outcome; rw [hah]
+    have := hF.rounds r h q.2 hask
+    lia
+
+/-- With `D ≤ h.length`, the value of `h` is the number of accepting programs, whatever the number
+of rounds to go. -/
+theorem value_eq_accepted_of_le (hF : IsBounded F D L) {h : History} (hD : D ≤ h.length)
+    (n : ℕ) : value F L n h = accepted F h := by
+  cases n with
+  | zero => rfl
+  | succ n =>
+    have hz (m : List Bool) :
+        (BitString.shortWords L).sup (fun y => value F L n (h ++ [(m, y)])) = 0 := by
+      refine Nat.le_zero.mp (Finset.sup_le fun y _ => ?_)
+      refine (value_le_card n _).trans ?_
+      simp [outcome_append_singleton_invalid hF hD]
+    simp only [value, hz, Finset.sum_const_zero, add_zero]
+
+/-- **The value depends only on the rounds that remain** of the `D` allowed. -/
+theorem value_eq_of_le (hF : IsBounded F D L) (n : ℕ) :
+    ∀ h : History, D ≤ h.length + n → value F L n h = value F L (D - h.length) h := by
+  induction n with
+  | zero =>
+    intro h hn
+    rw [Nat.sub_eq_zero_of_le (by lia)]
+  | succ n ih =>
+    intro h hn
+    by_cases hD : D ≤ h.length
+    · rw [value_eq_accepted_of_le hF hD, value_eq_accepted_of_le hF hD]
+    · obtain ⟨k, hk⟩ : ∃ k, D - h.length = k + 1 := ⟨D - h.length - 1, by lia⟩
+      rw [hk]
+      simp only [value]
+      congr 1
+      refine Finset.sum_congr rfl fun m _ => Finset.sup_congr rfl fun y _ => ?_
+      rw [ih _ (by simp only [List.length_append, List.length_singleton]; lia)]
+      congr 1
+      simp only [List.length_append, List.length_singleton]
+      lia
+
 section Optimal
 
 variable (F L)
@@ -342,13 +400,14 @@ noncomputable def bestReply (n : ℕ) (h : History) (m : List Bool) : List Bool 
   ((BitString.shortWords L).exists_max_image (fun y => value F L n (h ++ [(m, y)]))
     ⟨[], BitString.nil_mem_shortWords L⟩).choose
 
-private theorem bestReply_mem (n : ℕ) (h : History) (m : List Bool) :
+/-- A best reply is a short word. -/
+theorem bestReply_mem (n : ℕ) (h : History) (m : List Bool) :
     bestReply F L n h m ∈ BitString.shortWords L :=
   ((BitString.shortWords L).exists_max_image (fun y => value F L n (h ++ [(m, y)]))
     ⟨[], BitString.nil_mem_shortWords L⟩).choose_spec.1
 
 /-- The best reply attains the best value. -/
-private theorem value_bestReply (n : ℕ) (h : History) (m : List Bool) :
+theorem value_bestReply (n : ℕ) (h : History) (m : List Bool) :
     value F L n (h ++ [(m, bestReply F L n h m)]) =
       (BitString.shortWords L).sup fun y => value F L n (h ++ [(m, y)]) :=
   le_antisymm (Finset.le_sup (f := fun y => value F L n (h ++ [(m, y)]))
@@ -357,47 +416,76 @@ private theorem value_bestReply (n : ℕ) (h : History) (m : List Bool) :
       ((BitString.shortWords L).exists_max_image (fun y => value F L n (h ++ [(m, y)]))
         ⟨[], BitString.nil_mem_shortWords L⟩).choose_spec.2 y hy)
 
-/-- The optimal prover: its state is the history so far, and it answers every message with a best
-reply for the rounds left of `D`. -/
-noncomputable def optimalProver (D : ℕ) : Prover Unit where
+open Turing.MultiTapeTM in
+/-- The input of a computation of a reply, encoded by its fields: the instance (or advice word),
+the history, and the message, in this order, with no tag bits: the bit list is
+`frame (enc a) ++ frame (encHistory h) ++ m`, where `frame` is the framing of the first component
+of `encPair` and the trailing message `m` is not framed. The history is encoded as the list of its
+pairs of message and reply. -/
+abbrev encReplyInput {α : Type} (enc : α ↪ List Bool) : α × (History × List Bool) ↪ List Bool :=
+  encPair enc (encPair (encList (encPair encBits encBits)) encBits)
+
+/-- The deterministic prover answering every message `m` after the history `h` with `g h m`; its
+state is the history. -/
+noncomputable abbrev _root_.Cslib.Complexity.Prover.ofHistoryFun
+    (g : History → List Bool → List Bool) : Prover Unit where
   State := History
   init := []
-  respond q h :=
-    let y := bestReply F L (D - h.length - 1) h q.2
-    PMF.pure (y, h ++ [(q.2, y)])
+  respond q h := PMF.pure (g h q.2, h ++ [(q.2, g h q.2)])
 
 variable {F L}
 
-/-- **The optimal prover attains the value** from every history it is in. -/
-private theorem sum_acceptFrom_optimalProver_after (hF : IsBounded F D L) (n : ℕ) (h : History)
-    (hn : h.length + n = D) :
-    ∑ r, acceptFrom (optimalProver F L D) h (after (F r) h) = value F L n h := by
+/-- **A reply function attaining the best value attains the value from every history it is in.** -/
+private theorem sum_acceptFrom_ofHistoryFun_after (hF : IsBounded F D L)
+    (g : History → List Bool → List Bool)
+    (hg : ∀ h m, h.length < D → value F L (D - h.length - 1) (h ++ [(m, g h m)]) =
+      (BitString.shortWords L).sup fun y => value F L (D - h.length - 1) (h ++ [(m, y)]))
+    (n : ℕ) (h : History) (hn : h.length + n = D) :
+    ∑ r, acceptFrom (Prover.ofHistoryFun g) h (after (F r) h) = value F L n h := by
   induction n generalizing h with
   | zero =>
     rw [value, Finset.sum_congr rfl fun r _ =>
-      acceptFrom_after_of_le hF (optimalProver F L D) h r (by omega)]
+      acceptFrom_after_of_le hF (Prover.ofHistoryFun g) h r (by lia)]
     exact sum_ite_outcome_eq_accepted h
   | succ n ih =>
     classical
-    rw [sum_acceptFrom_after_eq hF (optimalProver F L D) h h]
+    rw [sum_acceptFrom_after_eq hF (Prover.ofHistoryFun g) h h]
     simp only [value, Nat.cast_add, Nat.cast_sum]
-    refine congrArg _ (Finset.sum_congr rfl fun m _ => ?_)
-    have hD : D - h.length - 1 = n := by omega
-    have hrespond : (optimalProver F L D).respond ((), m) h =
-        (PMF.pure (bestReply F L n h m, h ++ [(m, bestReply F L n h m)]) :
-          PMF (List Bool × (optimalProver F L D).State)) := by
-      simp only [optimalProver, hD]
-    simp only [StateT.run, hrespond, PMF.pure_apply, ite_mul, one_mul, zero_mul]
-    rw [Finset.sum_congr rfl fun r _ => tsum_ite_eq _ _, ← value_bestReply]
-    exact_mod_cast ih _ (by simp; omega)
+    congr 1
+    refine Finset.sum_congr rfl fun m _ => ?_
+    have hD : D - h.length - 1 = n := by lia
+    have hbest := hg h m (by lia)
+    rw [hD] at hbest
+    simp only [StateT.run, PMF.pure_apply, ite_mul, one_mul, zero_mul]
+    rw [Finset.sum_congr rfl fun r _ => tsum_ite_eq _ _, ← hbest]
+    exact_mod_cast ih _ (by
+      simp only [List.length_append, List.length_cons, List.length_nil, zero_add]
+      lia)
+
+/-- **A reply function attaining the best value attains the value of the empty history**: the
+deterministic prover answering by `g` makes the programs accept with probabilities summing to the
+value. -/
+theorem sum_acceptFrom_ofHistoryFun (hF : IsBounded F D L) (g : History → List Bool → List Bool)
+    (hg : ∀ h m, h.length < D → value F L (D - h.length - 1) (h ++ [(m, g h m)]) =
+      (BitString.shortWords L).sup fun y => value F L (D - h.length - 1) (h ++ [(m, y)])) :
+    ∑ r, acceptFrom (Prover.ofHistoryFun g) (Prover.ofHistoryFun g).init (some (F r)) =
+      value F L D [] := by
+  have := sum_acceptFrom_ofHistoryFun_after hF g hg D [] (by simp)
+  simp only [after_nil] at this
+  exact this
+
+variable (F L) in
+/-- The optimal prover: its state is the history so far, and it answers every message with a best
+reply for the rounds left of `D`. -/
+noncomputable def optimalProver (D : ℕ) : Prover Unit :=
+  Prover.ofHistoryFun fun h m => bestReply F L (D - h.length - 1) h m
 
 /-- **The optimal prover attains the value**: for a bounded family, it makes the programs accept
 with probabilities summing to the value of the empty history. -/
 theorem sum_acceptFrom_optimalProver (hF : IsBounded F D L) :
     ∑ r, acceptFrom (optimalProver F L D) (optimalProver F L D).init (some (F r)) =
       value F L D [] :=
-  (Finset.sum_congr rfl fun r _ => congrArg (acceptFrom _ _) (after_nil (F r)).symm).trans
-    (sum_acceptFrom_optimalProver_after hF D [] (by simp))
+  sum_acceptFrom_ofHistoryFun hF _ fun h m _ => value_bestReply F L _ h m
 
 end Optimal
 

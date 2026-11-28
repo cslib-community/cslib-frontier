@@ -57,8 +57,7 @@ theorem exec_product {w p k : ℕ} (x : Data 128) (u v : ℕ → ℤ)
     simp [Strassen.magnitudeBound,
       CyclicConvolution.magnitudeBound, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm]
   refine WP.exists_execWithin ?_
-  unfold product
-  wram_exec [hpr, hkr]
+  wram_exec [product, hpr, hkr]
   wram_call (Strassen.exec _ u v hp (by wram_simp) (by wram_simp)
     (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
     (by omega) (by omega) hRS (Or.inl (by omega)) (Or.inl hQR)

@@ -86,8 +86,7 @@ theorem exec_clearValueStep {w : ℕ} (x : Data registers) (q : ℕ)
       y.mem = Function.update x.mem (x.regs valueBase + q) 0 ∧
       (∀ i, ¬ClearLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold clearValueStep
-  wram_exec [hq, h0, h1, hr, hv, hi]
+  wram_exec [clearValueStep, hq, h0, h1, hr, hv, hi]
   refine ⟨by wram_simp, by wram_simp, fun i h => ?_⟩
   simp only [ClearLocal, not_or] at h
   rcases h with ⟨h1', h2', h3'⟩
@@ -130,8 +129,7 @@ theorem exec_clearRequested {w N capacity : ℕ} (x : Data registers) (input : �
     refine ⟨z, hz, ⟨?_, fun i hi => (hregs i hi).trans (hf i hi)⟩, hi⟩
     rw [hmem, hm, hv, zeroQueryPrefix_succ]
   refine WP.exists_execWithin ?_
-  unfold clearRequested
-  wram_exec
+  wram_exec [clearRequested]
   wram_call (ExecWithin.loop_count P (fun _ hy => (hy.2 count (by decide)).trans hN) hstep
     (by wram_simp; exact Nat.zero_le _)
     ⟨by wram_simp; exact (zeroQueryPrefix_zero _ _ _).symm, fun i hi => by

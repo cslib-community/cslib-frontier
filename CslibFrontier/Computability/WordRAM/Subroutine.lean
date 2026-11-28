@@ -296,8 +296,7 @@ theorem zeroFillCode_exec (P : SubroutineCode B r_ds k_init)
     all_goals simp only [Cond.holds_lt, xs]; wram_simp [x_c, hfr₁]
     omega
   refine WP.exists_execWithin (WP.bounded hx₁ ?_)
-  unfold zeroFillCode
-  wram_exec [hb₁, hfr₁]
+  wram_exec [zeroFillCode, hb₁, hfr₁]
   case pos =>
     refine WP.of_execWithin hloop fun hb => ⟨by omega, hb, ?_, ?_, fun j => ?_,
       fun a ha => clear_of_owns (Block.mem_footprint.mp ha),

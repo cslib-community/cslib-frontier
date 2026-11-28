@@ -91,8 +91,7 @@ private theorem exec_singleton {w : ℕ} (x : Data 48) (rs : List (ℕ × ℕ))
     ∃ y, ExecWithin w singleton x y 2 ∧
       Block.HoldsList (x.regs dst) [0] y.mem ∧ y.regs out = 1 ∧
       Modifies (Block.mk (x.regs dst) (rs.length + 1)).footprint x.mem y.mem := by
-  unfold singleton
-  wram_exec [h.constants.1, h.constants.2.1]
+  wram_exec [singleton, h.constants.1, h.constants.2.1]
   wram_simp
   refine ⟨fun i => by simp [Block.read], fun a ha => ?_⟩
   apply Function.update_of_ne (fun he => ha ?_)

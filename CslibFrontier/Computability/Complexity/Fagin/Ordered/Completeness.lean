@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Complexity.Classes.NP.Witness
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Fagin.Ordered.Problems
 import CslibFrontier.Computability.Complexity.Fagin.Ordered.Verifier
+import CslibFrontier.Foundations.Data.List.FlatMapRange
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -399,14 +400,6 @@ canonically ordered `FO.cnf` structure encoding. -/
 
 section CnfToOrderedProofs
 
-private theorem length_flatMap_range {α : Type*} (n : ℕ) {g : ℕ → List α}
-    (hg : ∀ y, (g y).length = n) :
-    ∀ k : ℕ, ((List.range k).flatMap g).length = k * n
-  | 0 => by simp
-  | k + 1 => by
-    rw [List.range_succ, List.flatMap_append, List.length_append, length_flatMap_range n hg k,
-      List.flatMap_singleton, hg k, Nat.add_one_mul]
-
 private theorem getD_flatMap_range {α : Type*} (n : ℕ) {g : ℕ → List α}
     (hg : ∀ y, (g y).length = n) (d : α) :
     ∀ {k c v : ℕ}, c < n → v < k →
@@ -414,7 +407,8 @@ private theorem getD_flatMap_range {α : Type*} (n : ℕ) {g : ℕ → List α}
   | 0, _, _, _, hv => absurd hv (Nat.not_lt_zero _)
   | k + 1, c, v, hc, hv => by
     rw [List.range_succ, List.flatMap_append, List.flatMap_singleton]
-    have hlen : ((List.range k).flatMap g).length = k * n := length_flatMap_range n hg k
+    have hlen : ((List.range k).flatMap g).length = k * n := by
+      rw [List.length_flatMap_range hg k, Nat.mul_comm]
     rcases Nat.lt_succ_iff_lt_or_eq.mp hv with hlt | heq
     · have hidx : c + v * n < ((List.range k).flatMap g).length := by
         rw [hlen]
@@ -431,7 +425,7 @@ private theorem getD_flatMap_range {α : Type*} (n : ℕ) {g : ℕ → List α}
 
 private theorem length_cnfToOrderedTable (b : Bool) (φ : PL.CNF ℕ) :
     (cnfToOrderedTable b φ).length = cnfToOrderedSize φ ^ 2 := by
-  rw [cnfToOrderedTable, length_flatMap_range (cnfToOrderedSize φ)
+  rw [cnfToOrderedTable, List.length_flatMap_range (K := cnfToOrderedSize φ)
     (fun _ => by simp only [List.length_map, List.length_range]), sq]
 
 private theorem tupleIndex_pair {n : ℕ} (c v : Fin n) :

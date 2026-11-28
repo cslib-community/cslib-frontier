@@ -9,14 +9,15 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
 /-!
 # Finite values and conditions within a fixed workspace budget
 
 These `fun_prop` rules extend those of `InSpace.FunProp` to values of finite types. A function of
 a value of a finite type (`budget_finite`) costs no workspace beyond the value. Conditions may be
-decidable propositions (`budget_iteProp`), their negations (`budget_decideNot`), equalities on a
-finite type (`budget_decideEq`) or Boolean connectives.
+decidable propositions (`budget_iteProp`), their negations (`budget_decideNot`), equalities of
+values with a common encoding (`budget_decideEq`) or Boolean connectives.
 
 The rules reach `fun_prop` only where this module is imported, directly or through
 `CslibFrontier.Tactic.Space`. A direct `fun_prop` client that needs them imports this module.
@@ -68,12 +69,13 @@ theorem budget_decideNot {p : α → Prop} [DecidablePred p]
   (budget_finite (encC := encBool) (fun b : Bool => !b) hp).of_enc_eq fun x => by
     simp only [decide_not]
 
-/-- Equality of two values of a finite type, within the budget. -/
+/-- Equality of two values with a common encoding, within the budget: the encoded words are
+compared, in space linear in them. The type need not be finite. -/
 @[fun_prop]
-theorem budget_decideEq [Finite β] [DecidableEq β] {f g : α → β}
+theorem budget_decideEq [DecidableEq β] {f g : α → β}
     (hf : ComputableInSpace f encIn encB Bs) (hg : ComputableInSpace g encIn encB Bs) :
     ComputableInSpace (fun x => decide (f x = g x)) encIn encBool Bs :=
-  budget_finite (fun p : β × β => decide (p.1 = p.2)) (budget_prod hf hg)
+  budget_comp_linear (of_inO (ComputableInO.eq encB)) (budget_prod hf hg)
 
 /-- The negation of a Boolean, within the budget. -/
 @[fun_prop]

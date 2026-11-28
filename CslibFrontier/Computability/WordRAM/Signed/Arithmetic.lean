@@ -170,16 +170,14 @@ private theorem exec_unpack {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w
       y.mem = x.mem := by
   have : Fits (w + 2) (if a < 0 then 1 else 0) := by split_ifs <;> fits
   have : Fits (w + 2) (if b < 0 then 1 else 0) := by split_ifs <;> fits
-  unfold unpack
-  wram_exec [hxa, hxb, encode_div_two, encode_mod_two]
+  wram_exec [unpack, hxa, hxb, encode_div_two, encode_mod_two]
   wram_simp [hxa]
 
 private theorem exec_finish {w : ℕ} (x : Data (r + 9)) {m s : ℕ}
     (hm : x.regs result = m) (hs : x.regs signA = s) (hz : x.regs zero = 0)
     (hfit : Fits w (2 * m + s)) :
     ∃ y, ExecWithin w finish x y 4 ∧ y.regs result = packed m s ∧ y.mem = x.mem := by
-  unfold finish
-  wram_exec [hm, hs, hz]
+  wram_exec [finish, hm, hs, hz]
   · wram_simp [packed, hc]
   · wram_simp [packed, hc, two_mul]
 
@@ -371,8 +369,7 @@ theorem exec_divide {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
       ∃ q, ExecWithin (w + 2) divideMagnitudes z q 10 ∧
         q.regs result = divMagnitude a.natAbs b.natAbs sa ∧
         q.regs signA = divSign b.natAbs sa sb ∧ q.regs zero = 0 ∧ q.mem = z.mem := by
-    unfold divideMagnitudes
-    wram_exec [hz0, hma, hmb, hsa', hsb'] <;>
+    wram_exec [divideMagnitudes, hz0, hma, hmb, hsa', hsb'] <;>
       · wram_simp [hz0]
         dsimp only [divMagnitude, divSign]
         split_ifs <;> omega

@@ -202,8 +202,7 @@ private theorem setup_spec (hw : Fits w (2 * l.length + 1)) :
     ∃ y, ExecWithin w setup (.init l) y (4 * l.length + 13) ∧ Invariant l y := by
   have h1 : Fits w 1 := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold setup
-  wram_exec [Data.init_regs, Data.init_mem_zero]
+  wram_exec [setup, Data.init_regs, Data.init_mem_zero]
   refine WP.of_execWithin (alloc_exec (w := w) (frontier := front) (count := cnt) (result := base)
     (cur := cur) (zero := zero) (one := one) (by decide) h1
     (hw.of_le (by wram_simp; omega))).within ?_
@@ -236,8 +235,7 @@ private theorem body_spec (hl : ∀ v ∈ l, v < l.length) (hw : Fits w (2 * l.l
   have hyt : y.mem (t + 1) = l[t] := hy.input t htn
   have hfit (v : ℕ) (h : v ≤ 2 * l.length + 1) : Fits w v := hw.of_le h
   refine WP.exists_execWithin ?_
-  unfold body readAt writeAt
-  wram_exec [hbase, hone, ht, hyt, hseen _ hv, hfit]
+  wram_exec [body, readAt, writeAt, hbase, hone, ht, hyt, hseen _ hv, hfit]
   · have hfound : l[t] ∈ l.take t := by
       by_contra hnf; simp only [hnf, ↓reduceIte] at *; omega
     refine ⟨⟨?_, ?_, ?_, ?_, fun j hj => by simpa using hy.input j hj,

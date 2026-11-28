@@ -46,8 +46,7 @@ theorem exec_keep {w : ℕ} (x : Data 160) (hz : x.regs Reg.zero = 0)
           x.regs Reg.countResult else x.regs Reg.bestCount) ∧
       y.regs Reg.found = 1 ∧ y.mem = x.mem ∧
       ∀ i, i ≠ Reg.best → i ≠ Reg.bestCount → i ≠ Reg.found → y.regs i = x.regs i := by
-  unfold keep
-  wram_exec [hz, ho]
+  wram_exec [keep, hz, ho]
   · exact ⟨by wram_simp [hc, true_or], by wram_simp [hc, true_or], by wram_simp, rfl,
       fun i hb hc' hf' => by wram_simp [hb, hc', hf']⟩
   · rename_i h0

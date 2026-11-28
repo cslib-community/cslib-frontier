@@ -363,8 +363,7 @@ theorem storeCursor_exec {k w : ℕ} [inst : NeZero k] (cursor one : Fin r) (fie
   | k + 2, _, fields, hfields_ne, hfit =>
     have := hfit.of_le (show x.regs cursor + 1 ≤ _ by omega)
     refine WP.Exact.exists_exec ?_
-    unfold storeCursor
-    wram_exec [hone]
+    wram_exec [storeCursor, hone]
     refine WP.Exact.name fun x₂ hx₂ => ?_
     obtain ⟨y, hy, hymem, hycur, hyregs⟩ := storeCursor_exec (k := k + 1) cursor one
       (fun i => fields i.succ) x₂ hone_ne (fun i => hfields_ne i.succ) (by wram_simp [hx₂, hone])
@@ -440,8 +439,7 @@ theorem loadCursor_exec {k w : ℕ} [inst : NeZero k] (cursor one : Fin r) (fiel
   | k + 2, _, fields, hfields_cur, hfields_one, hinj, hfit =>
     have := hfit.of_le (show x.regs cursor + 1 ≤ _ by omega)
     refine WP.Exact.exists_exec ?_
-    unfold loadCursor
-    wram_exec [hone]
+    wram_exec [loadCursor, hone]
     refine WP.Exact.name fun x₂ hx₂ => ?_
     obtain ⟨y, hy, hymem, hyfields, hycur, hyregs⟩ :=
       loadCursor_exec (k := k + 1) cursor one (fun i => fields i.succ) x₂

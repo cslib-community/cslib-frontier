@@ -106,8 +106,7 @@ theorem exec {w : ℕ} (x : Data 29) {a b t r n A₀ : ℕ} (ha : x.regs R = a) 
     obtain ⟨V, hV⟩ : ∃ V, y.regs av = V := ⟨_, rfl⟩
     have hVA : V ≤ A₀ := by rw [hV] at hlt; omega
     rw [hV] at hv1 hyiff
-    unfold body cong
-    wram_exec
+    wram_exec [body, cong]
     wram_call (Congruence.exec (y.comap congMap) hyR hyB hyT hyr hyn hV hr0 hn0 hab hta htb
       hfa hfb hft hf2 hfn (hfA.of_le (by omega)))
       renamed congMap_injective with y₁ ⟨⟨hle, hiff, hkeep⟩, hout₁⟩
@@ -133,8 +132,7 @@ theorem exec {w : ℕ} (x : Data 29) {a b t r n A₀ : ℕ} (ha : x.regs R = a) 
       wram_exec [hf1, hy₁1, hy₁v]
       wram_simp [P, hy₁R, hy₁B, hy₁T, hy₁r, hy₁n, hy₁l, hy₁1, hV, hall_iff]
       simp [hC]
-  unfold program
-  wram_exec [hA]
+  wram_exec [program, hA]
   refine WP.name fun x₀ hx₀ => ?_
   have hv₀ : x₀.regs av = 1 := by subst hx₀; wram_simp
   have hx₀P : P (x₀.regs av) x₀ := by

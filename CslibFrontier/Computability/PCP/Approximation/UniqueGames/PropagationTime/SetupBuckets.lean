@@ -146,8 +146,7 @@ private theorem initSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
   have : Fits w 2 := hfit_hb.of_le (by wram_omega)
   have : Fits w 1 := hfit_hb.of_le (by wram_omega)
   have : Fits w (L + 2) := hfit_hb.of_le (by wram_omega)
-  unfold initSetupCode
-  wram_exec [Data.init_regs, hinp.mem1, hinp.mem2, hinp.mem3]
+  wram_exec [initSetupCode, Data.init_regs, hinp.mem1, hinp.mem2, hinp.mem3]
   wram_simp
 
 private theorem layoutSetupA_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Data 34)
@@ -168,8 +167,7 @@ private theorem layoutSetupA_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x :
     fits_top hw (by wram_omega)
   have : Fits w (3 + g.edges.length * (L + 2) + 1 + slots g + 4 * g.edges.length + slots g) :=
     fits_top hw (by wram_omega)
-  unfold layoutSetupA
-  wram_exec [hz0, hz1, hzN, hzE, hm0]
+  wram_exec [layoutSetupA, hz0, hz1, hzN, hzE, hm0]
   refine ⟨by wram_simp [hz0], by wram_simp [hz1], by wram_simp [hz2], by wram_simp [hzL],
     by wram_simp [hzSt], by wram_simp [hzN], by wram_simp [hzE], by wram_simp [hzEB],
     by wram_simp; wram_omega, by wram_simp; wram_omega,
@@ -190,8 +188,7 @@ private theorem layoutSetupB_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x :
   have : Fits w (tabBase g + slots g * L + L + L) := fits_top hw (by wram_omega)
   have : Fits w (tabBase g + slots g * L + L + L + slots g) := fits_top hw (by wram_omega)
   have : Fits w (tabBase g + slots g * L + L + L + slots g + slots g) := fits_top hw (by wram_omega)
-  unfold layoutSetupB
-  wram_exec [hz0, hzL, hzN, hzNB, hzTB]
+  wram_exec [layoutSetupB, hz0, hzL, hzN, hzNB, hzTB]
   refine ⟨?_, by wram_simp, by wram_simp, by wram_simp⟩
   apply ConstRegs.mk <;>
     wram_simp [hz0, hz1, hz2, hzL, hzSt, hzN, hzE, hzEB, hzHB, hzNB, hzVB, hzTB]
@@ -230,8 +227,7 @@ theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
         have : Fits w (g.edges[k].src + 1) := hw.of_le (by omega)
         have : Fits w (g.edges[k].dst + 1) := hw.of_le (by omega)
         have : Fits w (k + 1) := hw.of_le (by omega)
-        unfold slotsBody
-        wram_exec [h0, h1, h2, hL, hSt, hN, hE, hEB, hk_reg.symm, hsrc_mem, hdst_mem]
+        wram_exec [slotsBody, h0, h1, h2, hL, hSt, hN, hE, hEB, hk_reg.symm, hsrc_mem, hdst_mem]
         all_goals
           refine ⟨⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2], by wram_simp [hL],
             by wram_simp [hSt], ?_, by wram_simp [hE], by wram_simp [hEB],
@@ -320,8 +316,7 @@ private theorem prependToSlot_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (sl
     simp only [Function.update_apply, hzero a ha]
     split_ifs <;> omega
   rcases hsr with rfl | rfl <;>
-  · unfold prependToSlot
-    wram_exec [hc.one, hc.two, hc.headB, hslot, hj_reg]
+  · wram_exec [prependToSlot, hc.one, hc.two, hc.headB, hslot, hj_reg]
     refine ⟨by wram_simp [hc], by wram_simp; exact hinp.frame hfr_inp,
       by wram_simp, by wram_simp, by wram_simp [hj_reg], by wram_simp, by wram_simp,
       ?_, ?_⟩
@@ -381,8 +376,8 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
               ConstRegs g y1 ∧ y1.regs rEdgeIdx = j ∧ y1.regs rSrc = g.edges[j].src ∧
               y1.regs rDst = g.edges[j].dst ∧ y1.regs rNodeFree = y.regs rNodeFree ∧
               y1.regs rOuterIdx = k ∧ y1.mem = y.mem := by
-          unfold bucketsHead
-          wram_exec [hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg.symm, hj_def.symm,
+          wram_exec [bucketsHead,
+            hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg.symm, hj_def.symm,
             hyInp.edge_src j hj, hyInp.edge_dst j hj]
           exact ⟨by wram_simp [hyC], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
             by wram_simp [hk_reg.symm],

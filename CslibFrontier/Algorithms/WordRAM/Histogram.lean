@@ -290,8 +290,7 @@ private theorem exec_insert {w : ℕ} (x : Data 11) (keys : ℕ → ℕ)
     have hcount : Fits w (count keys (y.regs idx) (keys (y.regs idx)) + 1) :=
       ht.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold body
-    wram_exec [ha, hb, hn, ho, hread, hbucket, hp, ht₁, ht₂, hcount]
+    wram_exec [body, ha, hb, hn, ho, hread, hbucket, hp, ht₁, ht₂, hcount]
     refine ⟨⟨fun i hi => by
       have hri := hr i hi
       fin_cases i <;> norm_num at hi <;> wram_simp [hri],
@@ -301,8 +300,7 @@ private theorem exec_insert {w : ℕ} (x : Data 11) (keys : ℕ → ℕ)
     · wram_simp
       rw [hm, hdst, ← memory_succ _ _ _ _ _ hkey]
   refine WP.exists_execWithin ?_
-  unfold insert
-  wram_exec
+  wram_exec [insert]
   wram_call (ExecWithin.loop_count P (fun y hy => hy.1 len (by decide)) hbody
     (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
       by wram_simp [ho], by wram_simp [pairs], by
