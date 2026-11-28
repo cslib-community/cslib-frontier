@@ -3435,6 +3435,7 @@ public import CslibFrontier.Probability.KWiseIndependent.TugOfWar
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.OfFinite
 public import CslibFrontier.Computability.WordRAM.Realization.RandomLoop
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeDecode
+public import CslibFrontier.GameTheory.PredictionMarket.BooleanAggregation
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.DecisionTree
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.DataStructure.Queue.WordRAM.RegisterMethods
