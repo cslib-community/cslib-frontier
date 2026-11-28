@@ -351,7 +351,12 @@ example : let u : Finset (Fin 2) → ℝ := fun _ => 0
     let v : Finset (Fin 2) → ℝ := fun _ => 1
     let uDual : Finset (Fin 2) → ℝ := fun S => 1 - u Sᶜ
     let vDual : Finset (Fin 2) → ℝ := fun S => 1 - v Sᶜ
-    let a : Allocation (Fin 2) (Fin 2) := partitionAlloc Finset.univ
+    let a : Allocation (Fin 2) (Fin 2) :=
+      ⟨![Finset.univ, ∅], fun i₁ i₂ hne => by
+        fin_cases i₁ <;> fin_cases i₂ <;> first
+          | exact absurd rfl hne
+          | exact Finset.disjoint_empty_right _
+          | exact Finset.disjoint_empty_left _⟩
     u ≠ v ∧
     OptimalTwoBidderAlloc v vDual a ∧
     OptimalTwoBidderAlloc u uDual a ∧

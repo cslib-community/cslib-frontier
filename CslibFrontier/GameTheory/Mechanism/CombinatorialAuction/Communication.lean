@@ -62,9 +62,8 @@ every pair of normalized monotone `0/1` valuations over a nonempty finite item s
 
 ## Main results
 
-* `MonotoneZeroOneVal.toReal_empty`, `MonotoneZeroOneVal.toReal_monotone`,
-  `MonotoneZeroOneVal.toReal_add_dual_compl`: normalization, monotonicity, and partition
-  complementarity `v(S) + v*(Sᶜ) = 1` ([BlumrosenNisan2007], §11.6.2, p. 288).
+* `MonotoneZeroOneVal.toReal_monotone`, `MonotoneZeroOneVal.toReal_add_dual_compl`: monotonicity
+  and partition complementarity `v(S) + v*(Sᶜ) = 1` ([BlumrosenNisan2007], §11.6.2, p. 288).
 * `leaf_dual_ne_of_ne`: **Lemma 11.26** ([BlumrosenNisan2007], §11.6.2, pp. 288–289): distinct
   normalized monotone `0/1` valuations `u ≠ v` with `u(M) = v(M) = 1` cannot lead to the same
   protocol leaf on `(v, v*)` and `(u, u*)`.

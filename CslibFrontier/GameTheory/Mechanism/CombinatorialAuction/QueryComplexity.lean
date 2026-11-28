@@ -88,7 +88,6 @@ No running-time claims are made in this module: all bounds are exact oracle quer
   `Cslib.GameTheory.CombinatorialAuction.IsSeparatorClassVal`,
   `Cslib.GameTheory.CombinatorialAuction.complementThresholdVal`,
   `Cslib.GameTheory.CombinatorialAuction.separatorPrice`,
-  `Cslib.GameTheory.CombinatorialAuction.partitionAlloc`,
   `Cslib.GameTheory.CombinatorialAuction.oneDemandQueryOptimalAlloc`: adversarial valuation class,
   separating price vector, and 1-demand-query optimal allocation program (Lemma 11.23 and
   Exercise 11.3, pp. 284 and 298).
@@ -654,7 +653,7 @@ theorem choose_half_le_countQueries_demandSim (hm : 2 ≤ Fintype.card M)
 
 /-- Two-bidder partition allocation assigning `D` to bidder `0` and its complement `Dᶜ` to
 bidder `1`. -/
-def partitionAlloc [DecidableEq M] (D : Finset M) : Allocation (Fin 2) M where
+private def partitionAlloc [DecidableEq M] (D : Finset M) : Allocation (Fin 2) M where
   bundle := ![D, Dᶜ]
   disjoint i₁ i₂ hne := by
     fin_cases i₁ <;> fin_cases i₂
@@ -856,10 +855,10 @@ private theorem eval_dlprBidderCheckProg {M : Type} [DecidableEq M]
   unfold dlprBidderCheckProg DemandQuery.ask
   rw [FreeM.eval_liftBind, FreeM.eval_bind, FreeM.eval_pure]
 
-/-- **Step of [BlumrosenNisan2007], §11.5.2 (p. 285)** (not Theorem 11.24): for a normalized
-monotone `t`-bit integer-valued valuation `v_i` and valid demand oracle `oracle`,
-`dlprBidderCheckProg t u_i p` returns `none` iff every bundle `S` satisfies DLPR constraint (11.8)
-`v_i S ≤ u_i + ∑ j ∈ S, p j`. -/
+/-- **Step of [BlumrosenNisan2007], §11.5.2 (p. 285)** (not Theorem 11.24, which remains open under
+issue `#7789`): for a normalized monotone `t`-bit integer-valued valuation `v_i` and valid demand
+oracle `oracle`, `dlprBidderCheckProg t u_i p` returns `none` iff every bundle `S` satisfies DLPR
+constraint (11.8) `v_i S ≤ u_i + ∑ j ∈ S, p j`. -/
 theorem dlprBidderCheckProg_eq_none_iff {M : Type} [DecidableEq M]
     {v_i : Finset M → ℝ} {t : ℕ}
     (h0 : v_i ∅ = 0) (hmono : Monotone v_i)
@@ -879,9 +878,9 @@ theorem dlprBidderCheckProg_eq_none_iff {M : Type} [DecidableEq M]
     simp only [false_iff, not_forall, not_le]
     exact ⟨oracle (.demand p), by linarith⟩
 
-/-- **Step of [BlumrosenNisan2007], §11.5.2 (p. 285)** (not Theorem 11.24): whenever
-`dlprBidderCheckProg t u_i p` returns `some D`, the bundle `D` strictly violates DLPR constraint
-(11.8): `u_i + ∑ j ∈ D, p j < v_i D`. -/
+/-- **Step of [BlumrosenNisan2007], §11.5.2 (p. 285)** (not Theorem 11.24, which remains open under
+issue `#7789`): whenever `dlprBidderCheckProg t u_i p` returns `some D`, the bundle `D` strictly
+violates DLPR constraint (11.8): `u_i + ∑ j ∈ D, p j < v_i D`. -/
 theorem dlprBidderCheckProg_eq_some_violated {M : Type} [DecidableEq M]
     {v_i : Finset M → ℝ} {t : ℕ}
     (h0 : v_i ∅ = 0) (hmono : Monotone v_i)
