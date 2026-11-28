@@ -31,8 +31,8 @@ reads the numeric permutation from the buffer named by `resultReg` after the las
 
 * `code_exec`, `pointer_exec`, and `pointer_exec_small`: instruction bounds for the
   structured sorter and its compiled pointer-machine program.
-* `wordRAM_address_arithmetic`, `wordRAM_offsets`: fixed-offset arithmetic in the
-  ordinary word-RAM program.
+* `wordRAM_executes`: the instruction bound for the interleaved standard word-RAM program.
+* `wordRAM_address_arithmetic`, `wordRAM_offsets`: fixed-offset arithmetic in that program.
 -/
 
 public section
@@ -128,8 +128,8 @@ private def mergePair : SortCode :=
   takeRun lcount ▷ takeRun rcount ▷
   copyRef right left ▷ copyScalar walk lcount ▷
   .loopUntil (less walk one) (next right ▷ dec walk) ▷
-  .loopUntil (less lcount one) mergeStep ▷
-  .loopUntil (less rcount one) drainRight ▷ copyRef left right
+  ((.loopUntil (less lcount one) mergeStep ▷
+    .loopUntil (less rcount one) drainRight) ▷ copyRef left right)
 
 private def swapBuffers : SortCode :=
   copyRef left src ▷ copyRef src dst ▷ copyRef dst left
@@ -396,13 +396,13 @@ private theorem drainRight_exec {cells : ℕ} (x : MachineState cells)
 
 private theorem mergeSuffix_exec {cells : ℕ} (x : MachineState cells)
     (hzero : x.scalars zero = 0) (hone : x.scalars one = 1) :
-    ∃ y, within (.loopUntil (less lcount one) mergeStep ▷
-      .loopUntil (less rcount one) drainRight ▷ copyRef left right)
+    ∃ y, within ((.loopUntil (less lcount one) mergeStep ▷
+      .loopUntil (less rcount one) drainRight) ▷ copyRef left right)
       x y (15 * mergeSize x + 3) ∧ mergeFrame x y := by
   obtain ⟨a, t, ha, hf, ht⟩ := mergeLeft_exec x hzero hone
   obtain ⟨b, hb, hg⟩ := drainRight_exec a
     ((hf one (by decide) (by decide) (by decide) (by decide)).trans hone)
-  refine ⟨(Op.copyAddr left right).eval b, (ha.seq (hb.seq (primitive _ b))).mono (by omega), ?_⟩
+  refine ⟨(Op.copyAddr left right).eval b, ((ha.seq hb).seq (primitive _ b)).mono (by omega), ?_⟩
   exact mergeFrame_trans hf hg
 
 private def passFrame {cells : ℕ} (x y : MachineState cells) : Prop :=
@@ -606,11 +606,11 @@ private theorem init_exec {cells : ℕ} (x : MachineState cells) (ho : x.scalars
 
 -- At width 2^k the quotient bounds the remaining geometric sum of pair counts.
 -- The linear term pays the scan, one pair per pass, and the fixed pass overhead.
-private def outerBudget (n k : ℕ) : ℕ :=
-  (Nat.clog 2 n - k) * (19 * n + 26) + 16 * ((n - 1) / 2 ^ k) + 2
+private def outerBudget (p n k : ℕ) : ℕ :=
+  (Nat.clog 2 n - k) * (p * n + 26) + 16 * ((n - 1) / 2 ^ k) + 2
 
-private theorem outerBudget_step {n k : ℕ} (hn : 0 < n) (hk : k < Nat.clog 2 n) :
-    (19 * n + 16 * pairs n (2 ^ k) + 8) + 2 + outerBudget n (k + 1) ≤ outerBudget n k := by
+private theorem outerBudget_step {p n k : ℕ} (hn : 0 < n) (hk : k < Nat.clog 2 n) :
+    (p * n + 16 * pairs n (2 ^ k) + 8) + 2 + outerBudget p n (k + 1) ≤ outerBudget p n k := by
   let q := (n - 1) / 2 ^ k
   have hdiv : (n - 1) / (2 * 2 ^ k) = q / 2 := by
     rw [Nat.mul_comm, ← Nat.div_div_eq_div_mul]
@@ -625,7 +625,7 @@ private theorem outerBudget_step {n k : ℕ} (hn : 0 < n) (hk : k < Nat.clog 2 n
 private theorem outer_exec {cells n k : ℕ} (x : MachineState cells)
     (hz : x.scalars zero = 0) (ho : x.scalars one = 1)
     (hn : x.scalars len = n) (hw : x.scalars width = 2 ^ k) :
-    ∃ y, within (.loop (less width len) mergePass) x y (outerBudget n k) := by
+    ∃ y, within (.loop (less width len) mergePass) x y (outerBudget 19 n k) := by
   induction h : Nat.clog 2 n - k using Nat.strong_induction_on generalizing k x with
   | _ remaining ih =>
     by_cases ht : (instructionSet model cells 8 11).Holds (less width len) x
@@ -641,7 +641,7 @@ private theorem outer_exec {cells n k : ℕ} (x : MachineState cells)
         (hlen.trans hn) hpow rfl
       have he' := Program.ExecWithin.loop_iter ht he hy
       rw [hn, hw] at he'
-      have hbound := outerBudget_step (Nat.zero_lt_of_lt hlt) hk
+      have hbound := outerBudget_step (p := 19) (Nat.zero_lt_of_lt hlt) hk
       exact ⟨y, he'.mono (by omega)⟩
     · exact ⟨x, (Program.ExecWithin.loop_exit ht).mono (by unfold outerBudget; omega)⟩
 
@@ -672,7 +672,7 @@ theorem code_exec (keys : List ℕ) (hn : 3 ≤ keys.length) :
   refine ⟨y, ?_⟩
   unfold code
   apply (Program.ExecWithin.branch_pos ht (ha.seq (hb.seq hy))).mono
-  change 8 * n + 3 + (1 + outerBudget n 0) + 1 ≤
+  change 8 * n + 3 + (1 + outerBudget 19 n 0) + 1 ≤
     19 * n * Nat.clog 2 n + 24 * n + 26 * Nat.clog 2 n - 9
   unfold outerBudget
   simp only [Nat.sub_zero, pow_zero, Nat.div_one, Nat.mul_add]
@@ -892,6 +892,1010 @@ theorem wordRAM_offsets {w t : ℕ} {keys : List ℕ} {y : Cslib.WordRAM.State 2
   | tail _ _ _ _ hs ih =>
     exact ⟨(step_offsets hs 9 (Or.inl rfl)).trans ih.1,
       (step_offsets hs 18 (Or.inr rfl)).trans ih.2⟩
+
+private abbrev WordData := Cslib.WordRAM.Data 20
+
+private abbrev wordWithin (w : ℕ) (c : FlatCode) (x y : WordData) (t : ℕ) :=
+  Cslib.Program.ExecWithin (Cslib.WordRAM.instructionSet w .standard 20) c x y t
+
+private theorem wordPrimitive {w : ℕ} {o : Cslib.WordRAM.Op .standard 20} {x y : WordData}
+    (h : o.eval w x = some y) : wordWithin w (wordOp o) x y 1 :=
+  Cslib.Program.ExecWithin.op h
+
+private def wordStride (r : Fin 8) : ℕ := if r = key then 1 else 2
+
+private def wordWriteEntry (x : WordData) (head item : Fin 8) : WordData :=
+  let p := x.regs (ptrReg out)
+  let v := x.regs (scalarReg lvalue)
+  let ref := x.regs (ptrReg item)
+  let y := ((x.write p v).set fieldAddr (p + 1)).write (p + 1) ref
+  (y.set (ptrReg out) (p + 2)).set (ptrReg head) (x.regs (ptrReg head) + wordStride head)
+
+private theorem wordWriteEntry_exec {w : ℕ} (x : WordData) (head item : Fin 8)
+    (hhead : head ≠ out) (hitem : ptrReg item ≠ fieldAddr)
+    (hone : x.regs (scalarReg one) = 1) (htwo : x.regs (scalarReg two) = 2)
+    (hout : Fits w (x.regs (ptrReg out) + 2))
+    (hnext : Fits w (x.regs (ptrReg head) + wordStride head)) :
+    wordWithin w (lowerWordCode (writeEntry head item)) x (wordWriteEntry x head item) 5 := by
+  let p := x.regs (ptrReg out)
+  let a := x.write p (x.regs (scalarReg lvalue))
+  let b := a.set fieldAddr (p + 1)
+  let c := b.write (p + 1) (x.regs (ptrReg item))
+  let d := c.set (ptrReg out) (p + 2)
+  have hreg (i : Fin 20) (hi : i ≠ fieldAddr) : c.regs i = x.regs i := by
+    simp [c, b, a, Function.update_of_ne hi]
+  have hdreg (i : Fin 20) (hi : i ≠ fieldAddr) (hj : i ≠ ptrReg out) :
+      d.regs i = x.regs i := by
+    simpa [d, Function.update_of_ne hj] using hreg i hi
+  have hptr (i : Fin 8) : ptrReg i ≠ fieldAddr :=
+    fun h => by have := i.isLt; have he := congrArg Fin.val h; change i.val = 19 at he; omega
+  have h₁ : wordWithin w (wordOp (.store (ptrReg out) (scalarReg lvalue))) x a 1 :=
+    wordPrimitive rfl
+  have h₂ : wordWithin w (wordOp (.bin .add fieldAddr (ptrReg out) (scalarReg one))) a b 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, Cslib.WordRAM.Data.write_regs, hone]
+    exact Data.put_of_fits (hout.of_le (by change p + 1 ≤ p + 2; omega))
+  have h₃ : wordWithin w (wordOp (.store fieldAddr (ptrReg item))) b c 1 := by
+    apply wordPrimitive
+    simp [c, b, a, Function.update_of_ne hitem]
+  have h₄ : wordWithin w (wordOp (.bin .add (ptrReg out) (ptrReg out) (scalarReg two))) c d 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, hreg _ (hptr out), hreg _ (by decide : scalarReg two ≠ fieldAddr), htwo]
+    exact Data.put_of_fits hout
+  let stride := if head = key then one else two
+  have hstride : d.regs (scalarReg stride) = wordStride head := by
+    by_cases hh : head = key
+    · simpa only [stride, wordStride, ite_eq_left hh] using
+        (hdreg _ (by decide : scalarReg one ≠ fieldAddr) (by decide)).trans hone
+    · simpa only [stride, wordStride, ite_eq_right hh] using
+        (hdreg _ (by decide : scalarReg two ≠ fieldAddr) (by decide)).trans htwo
+  have hn : ptrReg head ≠ ptrReg out :=
+    fun h => hhead (Fin.ext (congrArg (fun r : Fin 20 => r.val) h))
+  have h₅ : wordWithin w (wordOp (.bin .add (ptrReg head) (ptrReg head) (scalarReg stride)))
+      d (wordWriteEntry x head item) 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, hdreg _ (hptr head) hn, hstride]
+    exact Data.put_of_fits hnext
+  exact h₁.seq ((h₂.seq h₃).seq (h₄.seq h₅))
+
+-- The cursor equations are stated for the processed prefix, including the one-past position.
+private structure WordInitInv (keys : List ℕ) (k : ℕ) (x : WordData) : Prop where
+  le_length : k ≤ keys.length
+  len_eq : x.regs (scalarReg len) = keys.length
+  remain_eq : x.regs (scalarReg remain) = keys.length - k
+  zero_eq : x.regs (scalarReg zero) = 0
+  one_eq : x.regs (scalarReg one) = 1
+  two_eq : x.regs (scalarReg two) = 2
+  source_eq : x.regs (ptrReg src) = keys.length
+  dest_eq : x.regs (ptrReg dst) = 3 * keys.length
+  key_eq : x.regs (ptrReg key) = k
+  out_eq : x.regs (ptrReg out) = keys.length + 2 * k
+  keys_eq : ∀ i (hi : i < keys.length), x.mem i = keys[i]
+  entries_eq : ∀ i, i < k →
+    x.mem (keys.length + 2 * i) = i ∧ x.mem (keys.length + 2 * i + 1) = i
+
+private theorem wordInitStep_exec {w k : ℕ} {keys : List ℕ} {x : WordData}
+    (hfit : Fits w (5 * keys.length + 2)) (hx : WordInitInv keys k x) (hk : k < keys.length) :
+    ∃ y, wordWithin w (lowerWordCode initStep) x y 7 ∧ WordInitInv keys (k + 1) y := by
+  let n := keys.length
+  let p := n + 2 * k
+  let a := x.set (scalarReg lvalue) k
+  let b := a.write p k
+  let c := b.set fieldAddr (p + 1)
+  let d := c.write (p + 1) k
+  let e := d.set (ptrReg out) (p + 2)
+  let f := e.set (ptrReg key) (k + 1)
+  let y := f.set (scalarReg remain) (n - (k + 1))
+  have h₁ : wordWithin w (wordOp (.bin .sub (scalarReg lvalue) (scalarReg len)
+      (scalarReg remain))) x a 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, hx.len_eq, hx.remain_eq]
+    change x.put w (scalarReg lvalue) (n - (n - k)) = some a
+    rw [show n - (n - k) = k by omega]
+    exact Data.put_of_fits (hfit.of_le (by omega))
+  have hframeA (i : Fin 20) (hi : i ≠ scalarReg lvalue) : a.regs i = x.regs i :=
+    Function.update_of_ne hi _ _
+  have hout : a.regs (ptrReg out) = p :=
+    (hframeA _ (by decide)).trans hx.out_eq
+  have hkey : a.regs (ptrReg key) = k :=
+    (hframeA _ (by decide)).trans hx.key_eq
+  have hone : a.regs (scalarReg one) = 1 :=
+    (hframeA _ (by decide)).trans hx.one_eq
+  have htwo : a.regs (scalarReg two) = 2 :=
+    (hframeA _ (by decide)).trans hx.two_eq
+  have haw : wordWithin w (lowerWordCode (writeEntry key key)) a f 5 := by
+    have h : wordWriteEntry a key key = f := by
+      unfold wordWriteEntry
+      rw [hout, hkey, show a.regs (scalarReg lvalue) = k by simp [a]]
+      rfl
+    rw [← h]
+    exact wordWriteEntry_exec a key key (by decide) (by decide) hone htwo
+      (hfit.of_le (by rw [hout]; omega))
+      (hfit.of_le (by rw [hkey]; simp only [wordStride, ite_true]; omega))
+  have h₇ : wordWithin w (wordOp (.bin .sub (scalarReg remain) (scalarReg remain)
+      (scalarReg one))) f y 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin]
+    have hr : f.regs (scalarReg remain) = n - k := by
+      simpa [f, e, d, c, b, a, ptrReg, scalarReg, key, out, remain, lvalue, fieldAddr]
+        using hx.remain_eq
+    have hone : f.regs (scalarReg one) = 1 := by
+      simpa [f, e, d, c, b, a, ptrReg, scalarReg, key, out, one, lvalue, fieldAddr] using hx.one_eq
+    rw [hr, hone]
+    change f.put w (scalarReg remain) (n - k - 1) = some y
+    rw [Nat.sub_sub]
+    exact Data.put_of_fits (hfit.of_le (by omega))
+  refine ⟨y, h₁.seq (haw.seq h₇), ?_⟩
+  have hframe (i : Fin 20) (hl : i ≠ scalarReg lvalue) (hc : i ≠ fieldAddr)
+      (ho : i ≠ ptrReg out) (hj : i ≠ ptrReg key) (hr : i ≠ scalarReg remain) :
+      y.regs i = x.regs i := by
+    simp [y, f, e, d, c, b, a, Function.update_of_ne, hl, hc, ho, hj, hr]
+  refine ⟨by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact (hframe _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.len_eq
+  · simp [y, n]
+  · exact (hframe _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.zero_eq
+  · exact (hframe _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.one_eq
+  · exact (hframe _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.two_eq
+  · exact (hframe _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.source_eq
+  · exact (hframe _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.dest_eq
+  · simp [y, f, ptrReg, scalarReg, key, remain]
+  · have h : p + 2 = n + 2 * (k + 1) := by dsimp [p]; omega
+    simpa [y, f, e, ptrReg, scalarReg, key, out, remain, n] using h
+  · intro i hi
+    have hp : i ≠ p := by dsimp [p, n]; omega
+    have hp' : i ≠ p + 1 := by dsimp [p, n]; omega
+    simpa [y, f, e, d, c, b, a, Function.update_of_ne hp, Function.update_of_ne hp']
+      using hx.keys_eq i hi
+  · intro i hi
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
+    · have h₁ : n + 2 * i ≠ p := by dsimp [p]; omega
+      have h₂ : n + 2 * i ≠ p + 1 := by dsimp [p]; omega
+      have h₃ : n + 2 * i + 1 ≠ p := by dsimp [p]; omega
+      have h₄ : n + 2 * i + 1 ≠ p + 1 := by dsimp [p]; omega
+      simpa [y, f, e, d, c, b, a, ← show n = keys.length from rfl,
+        Function.update_of_ne h₁, Function.update_of_ne h₂,
+        Function.update_of_ne h₃, Function.update_of_ne h₄] using hx.entries_eq i hlt
+    · have h : p ≠ p + 1 := by omega
+      change Function.update (Function.update x.mem p i) (p + 1) i p = i ∧
+        Function.update (Function.update x.mem p i) (p + 1) i (p + 1) = i
+      simp
+
+private theorem wordInitEntries_exec {w : ℕ} (keys : List ℕ)
+    (hfit : Fits w (5 * keys.length + 2)) :
+    ∃ y, wordWithin w (lowerWordCode initEntries) (wordRAMInput keys).data y
+      (9 * keys.length + 3) ∧ WordInitInv keys keys.length y := by
+  let x := (wordRAMInput keys).data
+  let a := x.set (ptrReg out) keys.length
+  let b := a.set (scalarReg remain) keys.length
+  have ha : wordWithin w (wordOp (.copy (ptrReg out) (ptrReg src))) x a 1 :=
+    wordPrimitive rfl
+  have hb : wordWithin w (wordOp (.copy (scalarReg remain) (scalarReg len))) a b 1 :=
+    wordPrimitive rfl
+  have hinit : WordInitInv keys 0 b := by
+    refine ⟨Nat.zero_le _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_, ?_, ?_⟩
+    · simp [b, a, scalarReg, ptrReg, remain, out]
+    · intro i hi
+      simp [b, a, x, wordRAMInput, List.getElem?_eq_getElem hi]
+    · intro i hi
+      omega
+  let P (s : WordData) := ∃ k, WordInitInv keys k s
+  let cond := Cond.lt (scalarReg remain) (scalarReg one)
+  have hs (s : WordData) (hp : P s) (ht : ¬cond.Holds s) :
+      ∃ y, wordWithin w (lowerWordCode initStep) s y 7 ∧ P y ∧
+        y.regs (scalarReg remain) < s.regs (scalarReg remain) := by
+    obtain ⟨k, hk⟩ := hp
+    change ¬s.regs (scalarReg remain) < s.regs (scalarReg one) at ht
+    rw [hk.remain_eq, hk.one_eq] at ht
+    have hlt : k < keys.length := by omega
+    obtain ⟨y, he, hy⟩ := wordInitStep_exec hfit hk hlt
+    exact ⟨y, he, ⟨k + 1, hy⟩, by rw [hy.remain_eq, hk.remain_eq]; omega⟩
+  obtain ⟨y, hy, ⟨k, hk⟩, hstop⟩ :=
+    Cslib.Program.ExecWithin.loopUntil_invariant
+      (I := Cslib.WordRAM.instructionSet w .standard 20) (t := cond)
+      P (fun s => s.regs (scalarReg remain)) hs (show P b from ⟨0, hinit⟩)
+  change y.regs (scalarReg remain) < y.regs (scalarReg one) at hstop
+  rw [hk.remain_eq, hk.one_eq] at hstop
+  have hdone : k = keys.length := by have := hk.le_length; omega
+  refine ⟨y, (ha.seq (hb.seq hy)).mono ?_, hdone ▸ hk⟩
+  rw [hinit.remain_eq, Nat.sub_zero]
+  omega
+
+private def wordLoadRef (x : WordData) (d r : Fin 8) : WordData :=
+  let a := x.regs (ptrReg r) + 1
+  (x.set fieldAddr a).set (ptrReg d) (x.mem a)
+
+private theorem wordLoadRef_exec {w : ℕ} (x : WordData) (d r : Fin 8)
+    (hone : x.regs (scalarReg one) = 1) (hfit : Fits w (x.regs (ptrReg r) + 1)) :
+    wordWithin w (lowerWordCode (instr (.loadAddr d r))) x (wordLoadRef x d r) 2 := by
+  let a := x.set fieldAddr (x.regs (ptrReg r) + 1)
+  have h₁ : wordWithin w (wordOp (.bin .add fieldAddr (ptrReg r) (scalarReg one))) x a 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, hone]
+    exact Data.put_of_fits hfit
+  have h₂ : wordWithin w (wordOp (.load (ptrReg d) fieldAddr)) a (wordLoadRef x d r) 1 := by
+    apply wordPrimitive
+    simp [a, wordLoadRef]
+  exact h₁.seq h₂
+
+private def wordEmit (x : WordData) (head item : Fin 8) (count : Fin 11) : WordData :=
+  let a := x.set (scalarReg lvalue) (x.mem (x.regs (ptrReg head)))
+  (wordWriteEntry a head item).set (scalarReg count)
+    (x.regs (scalarReg count) - 1)
+
+private theorem wordEmit_exec {w : ℕ} (x : WordData) (head item : Fin 8) (count : Fin 11)
+    (hhead : head ≠ out) (hitem : ptrReg item ≠ fieldAddr)
+    (hc : scalarReg count ≠ scalarReg lvalue)
+    (hone : x.regs (scalarReg one) = 1) (htwo : x.regs (scalarReg two) = 2)
+    (hout : Fits w (x.regs (ptrReg out) + 2))
+    (hnext : Fits w (x.regs (ptrReg head) + wordStride head))
+    (hcount : Fits w (x.regs (scalarReg count))) :
+    wordWithin w (lowerWordCode (emit head item count)) x (wordEmit x head item count) 7 := by
+  let a := x.set (scalarReg lvalue) (x.mem (x.regs (ptrReg head)))
+  let b := wordWriteEntry a head item
+  have ha : wordWithin w (wordOp (.load (scalarReg lvalue) (ptrReg head))) x a 1 :=
+    wordPrimitive rfl
+  have hptr (r : Fin 8) (s : Fin 11) : ptrReg r ≠ scalarReg s := by
+    intro h
+    have hr := r.isLt
+    have he := congrArg (fun r : Fin 20 => r.val) h
+    change r.val = 8 + s.val at he
+    omega
+  have hscalar (s : Fin 11) : scalarReg s ≠ fieldAddr := by
+    intro h
+    have hs := s.isLt
+    have he := congrArg (fun r : Fin 20 => r.val) h
+    change 8 + s.val = 19 at he
+    omega
+  have hb : wordWithin w (lowerWordCode (writeEntry head item)) a b 5 :=
+    wordWriteEntry_exec a head item hhead hitem
+      (by simpa [a, Function.update_of_ne (by decide : scalarReg one ≠ scalarReg lvalue)])
+      (by simpa [a, Function.update_of_ne (by decide : scalarReg two ≠ scalarReg lvalue)])
+      (by simpa [a, Function.update_of_ne (hptr out lvalue)])
+      (by simpa [a, Function.update_of_ne (hptr head lvalue)])
+  have hframe (s : Fin 11) (hs : scalarReg s ≠ scalarReg lvalue) :
+      b.regs (scalarReg s) = x.regs (scalarReg s) := by
+    simp [b, wordWriteEntry, a, Function.update_of_ne hs, Function.update_of_ne (hscalar s),
+      Function.update_of_ne (hptr out s).symm, Function.update_of_ne (hptr head s).symm]
+  have hd : wordWithin w (lowerWordCode (dec count)) b (wordEmit x head item count) 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, hframe count hc, hframe one (by decide), hone]
+    exact Data.put_of_fits (hcount.of_le (Nat.sub_le _ _))
+  exact ha.seq (hb.seq hd)
+
+private def wordMergeSize (x : WordData) : ℕ :=
+  x.regs (scalarReg lcount) + x.regs (scalarReg rcount)
+
+-- The room inequalities ensure that the next entry can be accessed and advanced
+-- whenever its run still has an entry. They include each run's one-past position.
+private structure WordMergeRoom (limit : ℕ) (x : WordData) : Prop where
+  left_room : x.regs (ptrReg left) + 2 * x.regs (scalarReg lcount) ≤ limit
+  right_room : x.regs (ptrReg right) + 2 * x.regs (scalarReg rcount) ≤ limit
+  out_room : x.regs (ptrReg out) + 2 * wordMergeSize x ≤ limit
+  zero_eq : x.regs (scalarReg zero) = 0
+  one_eq : x.regs (scalarReg one) = 1
+  two_eq : x.regs (scalarReg two) = 2
+
+-- A merge consumes entries without changing either run's end, or the end of its output.
+private structure WordMergeFrame (x y : WordData) : Prop where
+  right_end : y.regs (ptrReg right) + 2 * y.regs (scalarReg rcount) =
+    x.regs (ptrReg right) + 2 * x.regs (scalarReg rcount)
+  out_end : y.regs (ptrReg out) + 2 * wordMergeSize y =
+    x.regs (ptrReg out) + 2 * wordMergeSize x
+  left_zero : x.regs (scalarReg lcount) = 0 → y.regs (scalarReg lcount) = 0
+  fixed : ∀ i ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width,
+    scalarReg remain} : Finset (Fin 20)), y.regs i = x.regs i
+
+private theorem WordMergeFrame.refl (x : WordData) : WordMergeFrame x x :=
+  ⟨rfl, rfl, id, fun _ _ => rfl⟩
+
+private theorem WordMergeFrame.trans {x y z : WordData}
+    (hxy : WordMergeFrame x y) (hyz : WordMergeFrame y z) : WordMergeFrame x z :=
+  ⟨hyz.right_end.trans hxy.right_end, hyz.out_end.trans hxy.out_end,
+    fun hx => hyz.left_zero (hxy.left_zero hx),
+    fun i hi => (hyz.fixed i hi).trans (hxy.fixed i hi)⟩
+
+private abbrev sideHead (rightSide : Bool) := if rightSide then right else left
+private abbrev sideItem (rightSide : Bool) := if rightSide then rkey else lkey
+private abbrev sideCount (rightSide : Bool) := if rightSide then rcount else lcount
+
+private theorem wordEmit_room {w limit : ℕ} {x : WordData} (rightSide : Bool)
+    (hfit : Fits w limit) (hx : WordMergeRoom limit x)
+    (hpos : 0 < x.regs (scalarReg (sideCount rightSide))) :
+    ∃ y, wordWithin w (lowerWordCode (emit (sideHead rightSide) (sideItem rightSide)
+      (sideCount rightSide))) x y 7 ∧ WordMergeRoom limit y ∧
+      wordMergeSize y + 1 = wordMergeSize x ∧
+      WordMergeFrame x y := by
+  have htotal : 0 < wordMergeSize x := by
+    cases rightSide <;> simp [sideCount] at hpos <;> unfold wordMergeSize <;> omega
+  have hout := hfit.of_le
+    (show x.regs (ptrReg out) + 2 ≤ limit by have := hx.out_room; omega)
+  let head := sideHead rightSide
+  let item := sideItem rightSide
+  let count := sideCount rightSide
+  have hroom : x.regs (ptrReg head) + 2 * x.regs (scalarReg count) ≤ limit := by
+    cases rightSide
+    · exact hx.left_room
+    · exact hx.right_room
+  have hstride : wordStride head = 2 := by cases rightSide <;> decide
+  have he := wordEmit_exec x head item count
+    (by cases rightSide <;> decide) (by cases rightSide <;> decide)
+    (by cases rightSide <;> decide) hx.one_eq hx.two_eq hout
+    (hfit.of_le (by rw [hstride]; change 0 < x.regs (scalarReg count) at hpos; omega))
+    (hfit.of_le (by omega))
+  let y := wordEmit x head item count
+  have hroom' := hx.out_room
+  have hl := hx.left_room
+  have hr := hx.right_room
+  have hconst : y.regs (scalarReg zero) = x.regs (scalarReg zero) ∧
+      y.regs (scalarReg one) = x.regs (scalarReg one) ∧
+      y.regs (scalarReg two) = x.regs (scalarReg two) := by
+    cases rightSide <;>
+      simp (config := { decide := true }) [y, head, item, count, sideHead, sideItem, sideCount,
+        wordEmit, wordWriteEntry, wordStride, ptrReg, scalarReg, fieldAddr]
+  obtain ⟨hz, ho, ht⟩ := hconst
+  have hfixed (i : Fin 20) (hi : i ∈ ({ptrReg src, ptrReg dst, scalarReg len,
+      scalarReg width, scalarReg remain} : Finset (Fin 20))) : y.regs i = x.regs i := by
+    have htest : ∀ j ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width,
+        scalarReg remain} : Finset (Fin 20)), j ≠ fieldAddr ∧ j ≠ scalarReg lvalue ∧
+        j ≠ ptrReg out ∧ j ≠ ptrReg left ∧ j ≠ ptrReg right ∧
+        j ≠ scalarReg lcount ∧ j ≠ scalarReg rcount := by decide
+    obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇⟩ := htest i hi
+    cases rightSide <;>
+      simp [y, head, item, count, sideHead, sideCount, wordEmit, wordWriteEntry,
+        Function.update_of_ne h₁, Function.update_of_ne h₂, Function.update_of_ne h₃,
+        Function.update_of_ne h₄, Function.update_of_ne h₅, Function.update_of_ne h₆,
+        Function.update_of_ne h₇]
+  refine ⟨y, he, ⟨?_, ?_, ?_, hz.trans hx.zero_eq, ho.trans hx.one_eq,
+    ht.trans hx.two_eq⟩, ?_, ⟨?_, ?_, ?_, hfixed⟩⟩ <;>
+    cases rightSide <;>
+      simp (config := { decide := true }) [y, head, item, count, sideHead, sideItem, sideCount,
+        wordEmit, wordWriteEntry, wordStride, wordMergeSize, ptrReg, scalarReg, fieldAddr]
+        at hpos hl hr hroom' ⊢ <;> omega
+
+private def wordMergeReadFrame (x y : WordData) : Prop :=
+  ∀ i, i ≠ fieldAddr → i ≠ ptrReg lkey → i ≠ ptrReg rkey →
+    i ≠ scalarReg lvalue → i ≠ scalarReg rvalue → y.regs i = x.regs i
+
+private theorem wordMergeReadFrame.room {limit : ℕ} {x y : WordData}
+    (h : wordMergeReadFrame x y) (hx : WordMergeRoom limit x) : WordMergeRoom limit y := by
+  have hleft : y.regs (ptrReg left) = x.regs (ptrReg left) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  have hright : y.regs (ptrReg right) = x.regs (ptrReg right) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  have hout : y.regs (ptrReg out) = x.regs (ptrReg out) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  have hl : y.regs (scalarReg lcount) = x.regs (scalarReg lcount) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  have hr : y.regs (scalarReg rcount) = x.regs (scalarReg rcount) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  refine ⟨?_, ?_, ?_,
+    (h _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.zero_eq,
+    (h _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.one_eq,
+    (h _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.two_eq⟩
+  · simpa only [hleft, hl] using hx.left_room
+  · simpa only [hright, hr] using hx.right_room
+  · simpa only [wordMergeSize, hout, hl, hr] using hx.out_room
+
+private theorem wordMergeReadFrame.left_count {x y : WordData} (h : wordMergeReadFrame x y) :
+    y.regs (scalarReg lcount) = x.regs (scalarReg lcount) :=
+  h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+
+private theorem wordMergeReadFrame.right_count {x y : WordData} (h : wordMergeReadFrame x y) :
+    y.regs (scalarReg rcount) = x.regs (scalarReg rcount) :=
+  h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+
+private theorem wordMergeReadFrame.size {x y : WordData} (h : wordMergeReadFrame x y) :
+    wordMergeSize y = wordMergeSize x := by
+  simp only [wordMergeSize, h.left_count, h.right_count]
+
+private theorem wordMergeReadFrame.frame {x y : WordData} (h : wordMergeReadFrame x y) :
+    WordMergeFrame x y := by
+  have hr : y.regs (ptrReg right) = x.regs (ptrReg right) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  have ho : y.regs (ptrReg out) = x.regs (ptrReg out) :=
+    h _ (by decide) (by decide) (by decide) (by decide) (by decide)
+  refine ⟨by rw [hr, h.right_count], by rw [ho, h.size], by rw [h.left_count]; exact id, ?_⟩
+  intro i hi
+  have good : ∀ j ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width,
+      scalarReg remain} : Finset (Fin 20)), j ≠ fieldAddr ∧ j ≠ ptrReg lkey ∧
+      j ≠ ptrReg rkey ∧ j ≠ scalarReg lvalue ∧ j ≠ scalarReg rvalue := by decide
+  obtain ⟨a, b, c, d, e⟩ := good i hi
+  exact h i a b c d e
+
+private theorem wordMergeStep_exec {w limit : ℕ} {x : WordData}
+    (hfit : Fits w limit) (hx : WordMergeRoom limit x)
+    (hl : 0 < x.regs (scalarReg lcount)) :
+    ∃ y, wordWithin w (lowerWordCode mergeStep) x y 16 ∧ WordMergeRoom limit y ∧
+      wordMergeSize y + 1 = wordMergeSize x ∧ WordMergeFrame x y := by
+  let a := wordLoadRef x lkey left
+  have ha := wordLoadRef_exec x lkey left hx.one_eq
+    (hfit.of_le (by have := hx.left_room; omega))
+  have haf : wordMergeReadFrame x a := by
+    intro i h₁ h₂ _ _ _
+    simp [a, wordLoadRef, Function.update_of_ne h₁, Function.update_of_ne h₂]
+  have haroom := haf.room hx
+  let t := Cond.lt (scalarReg zero) (scalarReg rcount)
+  by_cases hr : 0 < x.regs (scalarReg rcount)
+  · have ht : t.Holds a := by
+      change a.regs (scalarReg zero) < a.regs (scalarReg rcount)
+      rwa [haroom.zero_eq, haf.right_count]
+    let b := wordLoadRef a rkey right
+    let c := b.set (scalarReg lvalue) (b.mem (b.regs (ptrReg lkey)))
+    let d := c.set (scalarReg rvalue) (c.mem (c.regs (ptrReg rkey)))
+    have hb := wordLoadRef_exec a rkey right haroom.one_eq
+      (hfit.of_le (by have := haroom.right_room; rw [haf.right_count] at this; omega))
+    have hc : wordWithin w (wordOp (.load (scalarReg lvalue) (ptrReg lkey))) b c 1 :=
+      wordPrimitive rfl
+    have hd : wordWithin w (wordOp (.load (scalarReg rvalue) (ptrReg rkey))) c d 1 :=
+      wordPrimitive rfl
+    have hdf : wordMergeReadFrame x d := by
+      intro i h₁ h₂ h₃ h₄ h₅
+      simp [d, c, b, wordLoadRef, Function.update_of_ne h₁, Function.update_of_ne h₃,
+        Function.update_of_ne h₄, Function.update_of_ne h₅, haf i h₁ h₂ h₃ h₄ h₅]
+    have hcompare : wordWithin w (lowerWordCode compareHeads) a d 4 :=
+      hb.seq (hc.seq hd)
+    let cmp := Cond.lt (scalarReg rvalue) (scalarReg lvalue)
+    by_cases hcmp : cmp.Holds d
+    · obtain ⟨y, hy, hyr, hs, hf⟩ := wordEmit_room true hfit (hdf.room hx)
+        (by simpa only [sideCount, ite_true, hdf.right_count] using hr)
+      have hbranch := Cslib.Program.ExecWithin.branch_pos (t := cmp)
+        (neg := lowerWordCode (emit left lkey lcount)) hcmp hy
+      refine ⟨y, ?_, hyr, hs.trans hdf.size, hdf.frame.trans hf⟩
+      exact (ha.seq (Cslib.Program.ExecWithin.branch_pos (t := t)
+        (neg := lowerWordCode (emit left lkey lcount)) ht (hcompare.seq hbranch))).mono
+        (show 15 ≤ 16 by decide)
+    · obtain ⟨y, hy, hyr, hs, hf⟩ := wordEmit_room false hfit (hdf.room hx)
+        (by simpa only [sideCount, Bool.false_eq_true, ite_false, hdf.left_count] using hl)
+      have hbranch := Cslib.Program.ExecWithin.branch_neg (t := cmp)
+        (pos := lowerWordCode (emit right rkey rcount)) hcmp hy
+      refine ⟨y, ?_, hyr, hs.trans hdf.size, hdf.frame.trans hf⟩
+      have houter := Cslib.Program.ExecWithin.branch_pos (t := t)
+        (neg := lowerWordCode (emit left lkey lcount)) ht (hcompare.seq hbranch)
+      exact ha.seq houter
+  · have ht : ¬t.Holds a := by
+      change ¬a.regs (scalarReg zero) < a.regs (scalarReg rcount)
+      rwa [haroom.zero_eq, haf.right_count]
+    obtain ⟨y, hy, hyr, hs, hf⟩ := wordEmit_room false hfit haroom
+      (by simpa only [sideCount, Bool.false_eq_true, ite_false, haf.left_count] using hl)
+    have hbranch := Cslib.Program.ExecWithin.branch_neg (t := t)
+      (pos := lowerWordCode (compareHeads ▷
+        .branch (less rvalue lvalue) (emit right rkey rcount) (emit left lkey lcount))) ht hy
+    exact ⟨y, (ha.seq hbranch).mono (show 11 ≤ 16 by decide), hyr, hs.trans haf.size,
+      haf.frame.trans hf⟩
+
+private theorem wordDrainRight_exec {w limit : ℕ} {x : WordData}
+    (hfit : Fits w limit) (hx : WordMergeRoom limit x)
+    (hr : 0 < x.regs (scalarReg rcount)) :
+    ∃ y, wordWithin w (lowerWordCode drainRight) x y 16 ∧ WordMergeRoom limit y ∧
+      wordMergeSize y + 1 = wordMergeSize x ∧ WordMergeFrame x y := by
+  let a := wordLoadRef x rkey right
+  have ha := wordLoadRef_exec x rkey right hx.one_eq
+    (hfit.of_le (by have := hx.right_room; omega))
+  have hf : wordMergeReadFrame x a := by
+    intro i h₁ _ h₃ _ _
+    simp [a, wordLoadRef, Function.update_of_ne h₁, Function.update_of_ne h₃]
+  obtain ⟨y, he, hy, hs, hg⟩ := wordEmit_room true hfit (hf.room hx)
+    (by simpa only [sideCount, ite_true, hf.right_count] using hr)
+  exact ⟨y, (ha.seq he).mono (show 9 ≤ 16 by decide), hy, hs.trans hf.size, hf.frame.trans hg⟩
+
+private theorem wordMergeLoop_exec {w limit : ℕ} (counter : Fin 11) (body : FlatCode)
+    (step : ∀ x, WordMergeRoom limit x → 0 < x.regs (scalarReg counter) →
+      ∃ y, wordWithin w body x y 16 ∧ WordMergeRoom limit y ∧
+        wordMergeSize y + 1 = wordMergeSize x ∧ WordMergeFrame x y)
+    (x : WordData) (hx : WordMergeRoom limit x) :
+    ∃ y t, wordWithin w (.loopUntil (.lt (scalarReg counter) (scalarReg one)) body) x y t ∧
+      WordMergeRoom limit y ∧ y.regs (scalarReg counter) = 0 ∧
+      t + 18 * wordMergeSize y ≤ 18 * wordMergeSize x + 1 ∧ WordMergeFrame x y := by
+  induction hn : wordMergeSize x using Nat.strong_induction_on generalizing x with
+  | _ n ih =>
+    let cond := Cond.lt (scalarReg counter) (scalarReg one)
+    by_cases hzero : x.regs (scalarReg counter) = 0
+    · have ht : cond.Holds x := by
+        change x.regs (scalarReg counter) < x.regs (scalarReg one)
+        rw [hzero, hx.one_eq]
+        decide
+      exact ⟨x, 1, Cslib.Program.ExecWithin.loopUntil_exit
+        (I := Cslib.WordRAM.instructionSet w .standard 20) (body := body) (t := cond) ht,
+        hx, hzero, by omega, WordMergeFrame.refl x⟩
+    · have hpos := Nat.pos_of_ne_zero hzero
+      have ht : ¬cond.Holds x := by
+        change ¬x.regs (scalarReg counter) < x.regs (scalarReg one)
+        rw [hx.one_eq]
+        exact Nat.not_lt_of_ge hpos
+      obtain ⟨y, he, hy, hsmall, hxy⟩ := step x hx hpos
+      obtain ⟨z, t, hz, hroom, hstop, htime, hyz⟩ := ih (wordMergeSize y)
+        (by omega) y hy rfl
+      refine ⟨z, 16 + t + 2, Cslib.Program.ExecWithin.loopUntil_iter (t := cond) ht he hz,
+        hroom, hstop, ?_, hxy.trans hyz⟩
+      omega
+
+private theorem wordMergeLoops_exec {w limit : ℕ} {x : WordData}
+    (hfit : Fits w limit) (hx : WordMergeRoom limit x) :
+    ∃ y, wordWithin w (lowerWordCode (.loopUntil (less lcount one) mergeStep ▷
+      .loopUntil (less rcount one) drainRight)) x y (18 * wordMergeSize x + 2) ∧
+      WordMergeRoom limit y ∧ wordMergeSize y = 0 ∧ WordMergeFrame x y := by
+  obtain ⟨y, t₁, hy, hyroom, hyleft, ht₁, hxy⟩ :=
+    wordMergeLoop_exec lcount (lowerWordCode mergeStep)
+      (fun _ hs hpos => wordMergeStep_exec hfit hs hpos) x hx
+  obtain ⟨z, t₂, hz, hzroom, hzright, ht₂, hyz⟩ :=
+    wordMergeLoop_exec rcount (lowerWordCode drainRight)
+      (fun _ hs hpos => wordDrainRight_exec hfit hs hpos) y hyroom
+  exact ⟨z, (hy.seq hz).mono (by omega), hzroom,
+    by simp [wordMergeSize, hyz.left_zero hyleft, hzright], hxy.trans hyz⟩
+
+private def wordTakeRun (x : WordData) (count : Fin 11) : WordData :=
+  let k := min (x.regs (scalarReg remain)) (x.regs (scalarReg width))
+  (x.set (scalarReg count) k).set (scalarReg remain) (x.regs (scalarReg remain) - k)
+
+private theorem wordTakeRun_exec {w : ℕ} (x : WordData) (count : Fin 11)
+    (hc : scalarReg remain ≠ scalarReg count)
+    (hfit : Fits w (x.regs (scalarReg remain))) :
+    wordWithin w (lowerWordCode (takeRun count)) x (wordTakeRun x count) 4 := by
+  let r := x.regs (scalarReg remain)
+  let k := min r (x.regs (scalarReg width))
+  let a := x.set (scalarReg count) k
+  let t := Cond.lt (scalarReg remain) (scalarReg width)
+  let cp := wordOp (.copy (scalarReg count) (scalarReg remain))
+  let cn := wordOp (.copy (scalarReg count) (scalarReg width))
+  have hs : wordWithin w (wordOp (.bin .sub (scalarReg remain) (scalarReg remain)
+      (scalarReg count))) a (wordTakeRun x count) 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin]
+    have hr : a.regs (scalarReg remain) = r := Function.update_of_ne hc _ _
+    have hk : a.regs (scalarReg count) = k := by simp [a]
+    rw [hr, hk]
+    exact Data.put_of_fits (hfit.of_le (Nat.sub_le _ _))
+  have hb : wordWithin w (.branch t cp cn) x a 3 := by
+    by_cases ht : r < x.regs (scalarReg width)
+    · have hmin : k = r := min_eq_left ht.le
+      have hcopy : wordWithin w cp x a 1 := by
+        apply wordPrimitive
+        rw [Op.eval_copy]
+        simp only [a, hmin]
+        rfl
+      have h := Cslib.Program.ExecWithin.branch_pos (t := t) (neg := cn) ht hcopy
+      exact h.mono (by decide)
+    · have hmin : k = x.regs (scalarReg width) := min_eq_right (Nat.le_of_not_gt ht)
+      have hcopy : wordWithin w cn x a 1 := by
+        apply wordPrimitive
+        rw [Op.eval_copy]
+        simp only [a, hmin]
+      exact Cslib.Program.ExecWithin.branch_neg (t := t) (pos := cp) ht hcopy
+  exact hb.seq hs
+
+private theorem wordWalk_exec {w limit : ℕ} (x : WordData)
+    (hfit : Fits w limit) (hone : x.regs (scalarReg one) = 1)
+    (htwo : x.regs (scalarReg two) = 2)
+    (hroom : x.regs (ptrReg right) + 2 * x.regs (scalarReg walk) ≤ limit) :
+    ∃ y, wordWithin w (lowerWordCode (.loopUntil (less walk one) (next right ▷ dec walk)))
+        x y (4 * x.regs (scalarReg walk) + 1) ∧
+      y.regs (ptrReg right) = x.regs (ptrReg right) + 2 * x.regs (scalarReg walk) ∧
+      ∀ i, i ≠ ptrReg right → i ≠ scalarReg walk → y.regs i = x.regs i := by
+  let endpoint := x.regs (ptrReg right) + 2 * x.regs (scalarReg walk)
+  let P (s : WordData) := s.regs (ptrReg right) + 2 * s.regs (scalarReg walk) = endpoint ∧
+    ∀ i, i ≠ ptrReg right → i ≠ scalarReg walk → s.regs i = x.regs i
+  let t := Cond.lt (scalarReg walk) (scalarReg one)
+  let body := lowerWordCode (next right ▷ dec walk)
+  have hs (s : WordData) (h : P s) (ht : ¬t.Holds s) :
+      ∃ y, wordWithin w body s y 2 ∧ P y ∧
+        y.regs (scalarReg walk) < s.regs (scalarReg walk) := by
+    have h₁ := (h.2 _ (by decide : scalarReg one ≠ ptrReg right) (by decide)).trans hone
+    have h₂ := (h.2 _ (by decide : scalarReg two ≠ ptrReg right) (by decide)).trans htwo
+    change ¬s.regs (scalarReg walk) < s.regs (scalarReg one) at ht
+    rw [h₁] at ht
+    let r := s.regs (ptrReg right)
+    let k := s.regs (scalarReg walk)
+    let a := s.set (ptrReg right) (r + 2)
+    let y := a.set (scalarReg walk) (k - 1)
+    have hbound : r + 2 * k ≤ limit := h.1.le.trans hroom
+    have ha : wordWithin w (wordOp (.bin .add (ptrReg right) (ptrReg right)
+        (scalarReg two))) s a 1 := by
+      apply wordPrimitive
+      rw [Op.eval_bin, h₂]
+      exact Data.put_of_fits (hfit.of_le (by change r + 2 ≤ limit; omega))
+    have hb : wordWithin w (wordOp (.bin .sub (scalarReg walk) (scalarReg walk)
+        (scalarReg one))) a y 1 := by
+      apply wordPrimitive
+      rw [Op.eval_bin]
+      have hk : a.regs (scalarReg walk) = k :=
+        Function.update_of_ne (by decide : scalarReg walk ≠ ptrReg right) (r + 2) s.regs
+      have ho : a.regs (scalarReg one) = 1 :=
+        (show a.regs (scalarReg one) = s.regs (scalarReg one) from
+          Function.update_of_ne (by decide : scalarReg one ≠ ptrReg right) (r + 2) s.regs).trans h₁
+      rw [hk, ho]
+      exact Data.put_of_fits (hfit.of_le (by change k - 1 ≤ limit; omega))
+    have hright : y.regs (ptrReg right) = r + 2 := by
+      simp [y, a, Function.update_of_ne (by decide : ptrReg right ≠ scalarReg walk)]
+    have hwalk : y.regs (scalarReg walk) = k - 1 := by simp [y]
+    refine ⟨y, ha.seq hb, ⟨?_, ?_⟩, ?_⟩
+    · rw [hright, hwalk, ← h.1]
+      change r + 2 + 2 * (k - 1) = r + 2 * k
+      omega
+    · intro i hi hj
+      simp [y, a, Function.update_of_ne hi, Function.update_of_ne hj, h.2 i hi hj]
+    · rw [hwalk]
+      change k - 1 < k
+      omega
+  obtain ⟨y, hy, hf, ht⟩ := Cslib.Program.ExecWithin.loopUntil_invariant
+    (I := Cslib.WordRAM.instructionSet w .standard 20) (t := t)
+    P (fun s => s.regs (scalarReg walk)) hs (show P x from ⟨rfl, fun _ _ _ => rfl⟩)
+  change y.regs (scalarReg walk) < y.regs (scalarReg one) at ht
+  rw [(hf.2 _ (by decide : scalarReg one ≠ ptrReg right) (by decide)).trans hone] at ht
+  have hzero : y.regs (scalarReg walk) = 0 := Nat.lt_one_iff.mp ht
+  exact ⟨y, hy.mono (by omega), by simpa only [hzero, Nat.mul_zero, Nat.add_zero] using hf.1,
+    hf.2⟩
+
+private structure WordPassRoom (limit : ℕ) (x : WordData) : Prop where
+  left_room : x.regs (ptrReg left) + 2 * x.regs (scalarReg remain) ≤ limit
+  out_room : x.regs (ptrReg out) + 2 * x.regs (scalarReg remain) ≤ limit
+  zero_eq : x.regs (scalarReg zero) = 0
+  one_eq : x.regs (scalarReg one) = 1
+  two_eq : x.regs (scalarReg two) = 2
+
+private def wordPassFrame (x y : WordData) : Prop :=
+  ∀ i ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width} : Finset (Fin 20)),
+    y.regs i = x.regs i
+
+private theorem wordMergePair_exec {w limit : ℕ} {x : WordData}
+    (hfit : Fits w limit) (hx : WordPassRoom limit x) :
+    ∃ y, wordWithin w (lowerWordCode mergePair) x y
+        (22 * min (x.regs (scalarReg remain)) (2 * x.regs (scalarReg width)) + 14) ∧
+      WordPassRoom limit y ∧ wordPassFrame x y ∧
+      y.regs (scalarReg remain) = x.regs (scalarReg remain) - 2 * x.regs (scalarReg width) := by
+  let r := x.regs (scalarReg remain)
+  let widthVal := x.regs (scalarReg width)
+  let l := min r widthVal
+  let b := min (r - l) widthVal
+  let a₁ := wordTakeRun x lcount
+  let a₂ := wordTakeRun a₁ rcount
+  let a₃ := a₂.set (ptrReg right) (a₂.regs (ptrReg left))
+  let a₄ := a₃.set (scalarReg walk) (a₃.regs (scalarReg lcount))
+  have hleftroom := hx.left_room
+  have houtroom := hx.out_room
+  have haRem : a₁.regs (scalarReg remain) = r - l := by simp [a₁, wordTakeRun, r, l, widthVal]
+  have haWidth : a₁.regs (scalarReg width) = widthVal := by
+    simp [a₁, wordTakeRun, scalarReg, width, remain, lcount, widthVal]
+  have hbReg : a₂.regs (scalarReg rcount) = b := by
+    change ((a₁.set (scalarReg rcount) _).set (scalarReg remain) _).regs (scalarReg rcount) = b
+    rw [Cslib.WordRAM.Data.set_regs, Function.update_of_ne (by decide :
+      scalarReg rcount ≠ scalarReg remain), Cslib.WordRAM.Data.set_regs, Function.update_self]
+    rw [haRem, haWidth]
+  have hbRem : a₂.regs (scalarReg remain) = r - l - b := by
+    simp [a₂, wordTakeRun, haRem, haWidth, b]
+  have hbFrame (i : Fin 20) (hi : i ≠ scalarReg remain) (hl : i ≠ scalarReg lcount)
+      (hr : i ≠ scalarReg rcount) : a₂.regs i = x.regs i := by
+    simp [a₂, a₁, wordTakeRun, Function.update_of_ne hi, Function.update_of_ne hl,
+      Function.update_of_ne hr]
+  have ha₁ := wordTakeRun_exec x lcount (by decide) (hfit.of_le (by change r ≤ _; omega))
+  have ha₂ := wordTakeRun_exec a₁ rcount (by decide) (hfit.of_le (by rw [haRem]; omega))
+  have ha₃ : wordWithin w (lowerWordCode (copyRef right left)) a₂ a₃ 1 := wordPrimitive rfl
+  have ha₄ : wordWithin w (lowerWordCode (copyScalar walk lcount)) a₃ a₄ 1 := wordPrimitive rfl
+  have hdFrame (i : Fin 20) (hi : i ≠ ptrReg right) (hw : i ≠ scalarReg walk) :
+      a₄.regs i = a₂.regs i := by
+    simp [a₄, a₃, Function.update_of_ne hi, Function.update_of_ne hw]
+  have hdL : a₄.regs (scalarReg lcount) = l := by
+    rw [hdFrame _ (by decide) (by decide)]
+    simp [a₂, a₁, wordTakeRun, r, l, widthVal, scalarReg, remain, lcount, rcount]
+  have hdR : a₄.regs (ptrReg right) = x.regs (ptrReg left) := by
+    have h : a₄.regs (ptrReg right) = a₂.regs (ptrReg left) := by
+      simp [a₄, a₃, ptrReg, right, scalarReg, walk]
+    exact h.trans (hbFrame _ (by decide) (by decide) (by decide))
+  have hdWalk : a₄.regs (scalarReg walk) = l := by
+    rw [← hdL]
+    simp [a₄, scalarReg, walk, lcount]
+  have same (i : Fin 20) (h₁ : i ≠ ptrReg right) (h₂ : i ≠ scalarReg walk)
+      (h₃ : i ≠ scalarReg remain) (h₄ : i ≠ scalarReg lcount) (h₅ : i ≠ scalarReg rcount) :
+      a₄.regs i = x.regs i :=
+    (hdFrame i h₁ h₂).trans (hbFrame i h₃ h₄ h₅)
+  have hlr : l + b = min r (2 * widthVal) := by
+    dsimp [l, b]
+    omega
+  obtain ⟨e, he, heR, hef⟩ := wordWalk_exec a₄ hfit
+    ((same _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.one_eq)
+    ((same _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.two_eq)
+    (by rw [hdR, hdWalk]; omega)
+  rw [hdR, hdWalk] at heR
+  have heq (i : Fin 20) (hi : i ≠ ptrReg right) (hw : i ≠ scalarReg walk) :
+      e.regs i = a₂.regs i := (hef i hi hw).trans (hdFrame i hi hw)
+  have held : e.regs (ptrReg left) = x.regs (ptrReg left) :=
+    (heq _ (by decide) (by decide)).trans (hbFrame _ (by decide) (by decide) (by decide))
+  have heout : e.regs (ptrReg out) = x.regs (ptrReg out) :=
+    (heq _ (by decide) (by decide)).trans (hbFrame _ (by decide) (by decide) (by decide))
+  have hel : e.regs (scalarReg lcount) = l := (hef _ (by decide) (by decide)).trans hdL
+  have herb : e.regs (scalarReg rcount) = b := (heq _ (by decide) (by decide)).trans hbReg
+  have hsize : wordMergeSize e = l + b := by rw [wordMergeSize, hel, herb]
+  have heFrame (i : Fin 20) (h₁ : i ≠ ptrReg right) (h₂ : i ≠ scalarReg walk)
+      (h₃ : i ≠ scalarReg remain) (h₄ : i ≠ scalarReg lcount) (h₅ : i ≠ scalarReg rcount) :
+      e.regs i = x.regs i := (heq i h₁ h₂).trans (hbFrame i h₃ h₄ h₅)
+  have heRoom : WordMergeRoom limit e := by
+    refine ⟨by rw [held, hel]; omega, by rw [heR, herb]; omega,
+      by rw [heout, hsize]; omega, ?_, ?_, ?_⟩
+    · exact (heFrame _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.zero_eq
+    · exact (heFrame _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.one_eq
+    · exact (heFrame _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.two_eq
+  obtain ⟨f, hf, hfRoom, hfsize, hff⟩ := wordMergeLoops_exec hfit heRoom
+  let y := f.set (ptrReg left) (f.regs (ptrReg right))
+  have hy : wordWithin w (lowerWordCode (copyRef left right)) f y 1 := wordPrimitive rfl
+  have hyR : y.regs (scalarReg remain) = r - l - b := by
+    have eq : y.regs (scalarReg remain) = f.regs (scalarReg remain) :=
+      Function.update_of_ne (by decide : scalarReg remain ≠ ptrReg left)
+        (f.regs (ptrReg right)) f.regs
+    exact eq.trans ((hff.fixed _ (by decide)).trans ((heq _ (by decide) (by decide)).trans hbRem))
+  have hyL : y.regs (ptrReg left) = x.regs (ptrReg left) + 2 * (l + b) := by
+    have hr0 : f.regs (scalarReg rcount) = 0 := by unfold wordMergeSize at hfsize; omega
+    have hr := hff.right_end
+    rw [hr0, heR, herb] at hr
+    change y.regs (ptrReg left) = _
+    rw [show y.regs (ptrReg left) = f.regs (ptrReg right) by simp [y]]
+    omega
+  have hyO : y.regs (ptrReg out) = x.regs (ptrReg out) + 2 * (l + b) := by
+    have ho := hff.out_end
+    rw [hfsize, heout, hsize] at ho
+    have eq : y.regs (ptrReg out) = f.regs (ptrReg out) :=
+      Function.update_of_ne (by decide : ptrReg out ≠ ptrReg left) (f.regs (ptrReg right)) f.regs
+    rw [eq]
+    omega
+  have hframe (i : Fin 20) (hi : i ≠ ptrReg left) : y.regs i = f.regs i :=
+    Function.update_of_ne hi _ _
+  refine ⟨y, ?_, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+  · apply (ha₁.seq (ha₂.seq (ha₃.seq (ha₄.seq (he.seq ((hf.seq hy))))))).mono
+    rw [hdWalk, hsize, ← hlr]
+    omega
+  · rw [hyL, hyR]
+    omega
+  · rw [hyO, hyR]
+    omega
+  · exact (hframe _ (by decide)).trans hfRoom.zero_eq
+  · exact (hframe _ (by decide)).trans hfRoom.one_eq
+  · exact (hframe _ (by decide)).trans hfRoom.two_eq
+  · intro i hi
+    have good : ∀ j ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width} : Finset (Fin 20)),
+        j ≠ ptrReg left ∧ j ≠ ptrReg right ∧ j ≠ scalarReg walk ∧
+        j ≠ scalarReg remain ∧ j ≠ scalarReg lcount ∧ j ≠ scalarReg rcount := by decide
+    obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆⟩ := good i hi
+    have hm : i ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width,
+        scalarReg remain} : Finset (Fin 20)) := by
+      simpa only [Finset.mem_insert, Finset.mem_singleton] using
+        (show i = ptrReg src ∨ i = ptrReg dst ∨ i = scalarReg len ∨
+          i = scalarReg width ∨ i = scalarReg remain from by
+            simp only [Finset.mem_insert, Finset.mem_singleton] at hi
+            tauto)
+    exact (hframe i h₁).trans ((hff.fixed i hm).trans (heFrame i h₂ h₃ h₄ h₅ h₆))
+  · rw [hyR, Nat.sub_sub, hlr]
+    omega
+
+private theorem wordPassLoop_exec {w limit : ℕ} (x : WordData)
+    (hfit : Fits w limit) (hx : WordPassRoom limit x) (hw : 0 < x.regs (scalarReg width)) :
+    ∃ y, wordWithin w (lowerWordCode (.loopUntil (less remain one) mergePair)) x y
+        (22 * x.regs (scalarReg remain) +
+          16 * pairs (x.regs (scalarReg remain)) (x.regs (scalarReg width)) + 1) ∧
+      WordPassRoom limit y ∧ wordPassFrame x y := by
+  let W := x.regs (scalarReg width)
+  let P (s : WordData) := WordPassRoom limit s ∧ wordPassFrame x s
+  let pot (s : WordData) :=
+    22 * s.regs (scalarReg remain) + 16 * pairs (s.regs (scalarReg remain)) W
+  let t := Cond.lt (scalarReg remain) (scalarReg one)
+  have step (s : WordData) (h : P s) (ht : ¬t.Holds s) :
+      ∃ y c, wordWithin w (lowerWordCode mergePair) s y c ∧ P y ∧ c + 2 + pot y ≤ pot s := by
+    have hsW : s.regs (scalarReg width) = W := h.2 _ (by decide)
+    change ¬s.regs (scalarReg remain) < s.regs (scalarReg one) at ht
+    rw [h.1.one_eq] at ht
+    obtain ⟨y, he, hroom, hframe, hrem⟩ := wordMergePair_exec hfit h.1
+    refine ⟨y, _, he, ⟨hroom, fun i hi => (hframe i hi).trans (h.2 i hi)⟩, ?_⟩
+    have hpair := pairs_step (w := W) (Nat.le_of_not_gt ht) hw
+    dsimp only [pot]
+    rw [hsW, hrem, hsW, hpair]
+    omega
+  obtain ⟨y, hy, hframe, _⟩ := Cslib.Program.ExecWithin.loopUntil_potential
+    (I := Cslib.WordRAM.instructionSet w .standard 20) (t := t)
+    P pot step (show P x from ⟨hx, fun _ _ => rfl⟩)
+  exact ⟨y, hy, hframe.1, hframe.2⟩
+
+private structure WordPassState (n : ℕ) (x : WordData) : Prop where
+  source_bound : x.regs (ptrReg src) ≤ 3 * n
+  dest_bound : x.regs (ptrReg dst) ≤ 3 * n
+  len_eq : x.regs (scalarReg len) = n
+  zero_eq : x.regs (scalarReg zero) = 0
+  one_eq : x.regs (scalarReg one) = 1
+  two_eq : x.regs (scalarReg two) = 2
+
+private theorem wordPass_exec {w n : ℕ} {x : WordData}
+    (hfit : Fits w (5 * n + 2)) (hx : WordPassState n x)
+    (hw : 0 < x.regs (scalarReg width)) (hwn : x.regs (scalarReg width) < n) :
+    ∃ y, wordWithin w (lowerWordCode mergePass) x y
+        (22 * n + 16 * pairs n (x.regs (scalarReg width)) + 8) ∧
+      WordPassState n y ∧ y.regs (scalarReg width) = x.regs (scalarReg width) * 2 := by
+  let a := x.set (scalarReg remain) n
+  let b := a.set (ptrReg left) (x.regs (ptrReg src))
+  let c := b.set (ptrReg out) (x.regs (ptrReg dst))
+  have ha : wordWithin w (lowerWordCode (copyScalar remain len)) x a 1 := by
+    apply wordPrimitive
+    rw [Op.eval_copy, hx.len_eq]
+  have hb : wordWithin w (lowerWordCode (copyRef left src)) a b 1 := wordPrimitive (by
+    rw [Op.eval_copy]
+    have hs : a.regs (ptrReg src) = x.regs (ptrReg src) :=
+      Function.update_of_ne (by decide : ptrReg src ≠ scalarReg remain) n x.regs
+    rw [hs])
+  have hc : wordWithin w (lowerWordCode (copyRef out dst)) b c 1 := wordPrimitive (by
+    simp [a, b, c, scalarReg, ptrReg, remain, left, dst])
+  have hcrem : c.regs (scalarReg remain) = n := by
+    simp [c, b, a, scalarReg, ptrReg, remain, out, left]
+  have hframe (i : Fin 20) (h₁ : i ≠ ptrReg out) (h₂ : i ≠ ptrReg left)
+      (h₃ : i ≠ scalarReg remain) : c.regs i = x.regs i := by
+    simp [c, b, a, Function.update_of_ne h₁, Function.update_of_ne h₂, Function.update_of_ne h₃]
+  have hcleft : c.regs (ptrReg left) = x.regs (ptrReg src) := by
+    simp [c, b, ptrReg, out, left]
+  have hcout : c.regs (ptrReg out) = x.regs (ptrReg dst) := by simp [c]
+  have hcwidth := hframe (scalarReg width) (by decide) (by decide) (by decide)
+  have hroom : WordPassRoom (5 * n + 2) c := by
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · rw [hcleft, hcrem]
+      have := hx.source_bound
+      omega
+    · rw [hcout, hcrem]
+      have := hx.dest_bound
+      omega
+    · exact (hframe _ (by decide) (by decide) (by decide)).trans hx.zero_eq
+    · exact (hframe _ (by decide) (by decide) (by decide)).trans hx.one_eq
+    · exact (hframe _ (by decide) (by decide) (by decide)).trans hx.two_eq
+  obtain ⟨d, hd, hdr, hdf⟩ := wordPassLoop_exec c hfit hroom (by rw [hcwidth]; exact hw)
+  have dd (i : Fin 20) (hi : i ∈ ({ptrReg src, ptrReg dst, scalarReg len,
+      scalarReg width} : Finset (Fin 20))) : d.regs i = x.regs i := by
+    have check : ∀ j ∈ ({ptrReg src, ptrReg dst, scalarReg len, scalarReg width} : Finset (Fin 20)),
+        j ≠ ptrReg out ∧ j ≠ ptrReg left ∧ j ≠ scalarReg remain := by decide
+    have ⟨h₁, h₂, h₃⟩ := check i hi
+    exact (hdf i hi).trans (hframe i h₁ h₂ h₃)
+  let e := d.set (ptrReg left) (d.regs (ptrReg src))
+  let f := e.set (ptrReg src) (d.regs (ptrReg dst))
+  let g := f.set (ptrReg dst) (d.regs (ptrReg src))
+  let y := g.set (scalarReg width) (x.regs (scalarReg width) * 2)
+  have he : wordWithin w (lowerWordCode (copyRef left src)) d e 1 := wordPrimitive rfl
+  have hf : wordWithin w (lowerWordCode (copyRef src dst)) e f 1 := wordPrimitive (by
+    simp [e, f, ptrReg, left, dst])
+  have hg : wordWithin w (lowerWordCode (copyRef dst left)) f g 1 := wordPrimitive (by
+    rw [Op.eval_copy]
+    have he' : f.regs (ptrReg left) = d.regs (ptrReg src) := by
+      simp [f, e, Function.update_of_ne (by decide : ptrReg left ≠ ptrReg src)]
+    rw [he'])
+  have hswap : wordWithin w (lowerWordCode swapBuffers) d g 3 := he.seq (hf.seq hg)
+  have hgf (i : Fin 20) (h₁ : i ≠ ptrReg left) (h₂ : i ≠ ptrReg src) (h₃ : i ≠ ptrReg dst) :
+      g.regs i = d.regs i := by
+    simp [g, f, e, Function.update_of_ne h₁, Function.update_of_ne h₂, Function.update_of_ne h₃]
+  have hwidth := (hgf (scalarReg width) (by decide) (by decide) (by decide)).trans
+    (dd (scalarReg width) (by decide))
+  have hwiden : wordWithin w (lowerWordCode doubleWidth) g y 1 := by
+    apply wordPrimitive
+    rw [Op.eval_bin, hwidth]
+    change g.put w (scalarReg width)
+      (x.regs (scalarReg width) + x.regs (scalarReg width)) = some y
+    rw [← Nat.mul_two]
+    exact Data.put_of_fits (hfit.of_le (by omega))
+  have hsource : y.regs (ptrReg src) = x.regs (ptrReg dst) := by
+    have eq : y.regs (ptrReg src) = d.regs (ptrReg dst) := by
+      simp [y, g, f, Function.update_of_ne (by decide : ptrReg src ≠ scalarReg width),
+        Function.update_of_ne (by decide : ptrReg src ≠ ptrReg dst)]
+    exact eq.trans (dd _ (by decide))
+  have hdest : y.regs (ptrReg dst) = x.regs (ptrReg src) := by
+    have eq : y.regs (ptrReg dst) = d.regs (ptrReg src) := by
+      simp [y, g, ptrReg, scalarReg, dst, width]
+    exact eq.trans (dd _ (by decide))
+  have hyframe (i : Fin 20) (h₁ : i ≠ ptrReg left) (h₂ : i ≠ ptrReg src) (h₃ : i ≠ ptrReg dst)
+      (h₄ : i ≠ scalarReg width) : y.regs i = d.regs i :=
+    (show y.regs i = g.regs i from Function.update_of_ne h₄ _ _).trans (hgf i h₁ h₂ h₃)
+  refine ⟨y, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+  · have run := ha.seq (hb.seq (hc.seq (hd.seq (hswap.seq hwiden))))
+    rw [hcrem, hcwidth] at run
+    exact run.mono (by omega)
+  · rw [hsource]
+    exact hx.dest_bound
+  · rw [hdest]
+    exact hx.source_bound
+  · exact (hyframe _ (by decide) (by decide) (by decide) (by decide)).trans
+      ((dd _ (by decide)).trans hx.len_eq)
+  · exact (hyframe _ (by decide) (by decide) (by decide) (by decide)).trans hdr.zero_eq
+  · exact (hyframe _ (by decide) (by decide) (by decide) (by decide)).trans hdr.one_eq
+  · exact (hyframe _ (by decide) (by decide) (by decide) (by decide)).trans hdr.two_eq
+  · simp [y]
+
+private theorem wordOuter_exec {w n k : ℕ} {x : WordData}
+    (hfit : Fits w (5 * n + 2)) (hx : WordPassState n x)
+    (hw : x.regs (scalarReg width) = 2 ^ k) :
+    ∃ y, wordWithin w (lowerWordCode (.loop (less width len) mergePass)) x y
+      (outerBudget 22 n k) := by
+  induction hd : Nat.clog 2 n - k using Nat.strong_induction_on generalizing k x with
+  | _ d ih =>
+    let t := Cond.lt (scalarReg width) (scalarReg len)
+    have hreg : 0 < x.regs (scalarReg width) := by rw [hw]; positivity
+    by_cases ht : t.Holds x
+    · have hlt : (2 : ℕ) ^ k < n := by
+        change x.regs (scalarReg width) < x.regs (scalarReg len) at ht
+        rwa [hw, hx.len_eq] at ht
+      have hk := (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).2 hlt
+      obtain ⟨y, hy, hyState, hyWidth⟩ := wordPass_exec hfit hx hreg (by rw [hw]; exact hlt)
+      have hwidth : y.regs (scalarReg width) = (2 : ℕ) ^ (k + 1) := by
+        rw [hyWidth, hw, pow_succ]
+      have hsmall : Nat.clog 2 n - (k + 1) < d := by omega
+      obtain ⟨z, hz⟩ := ih _ hsmall hyState hwidth rfl
+      have hz' : wordWithin w (.loop t (lowerWordCode mergePass)) y z
+          (outerBudget 22 n (k + 1)) := hz
+      have he := Cslib.Program.ExecWithin.loop_iter (t := t) ht hy hz'
+      rw [hw] at he
+      have hbudget := outerBudget_step (p := 22) (Nat.zero_lt_of_lt hlt) hk
+      exact ⟨z, he.mono (by omega)⟩
+    · have he : wordWithin w (.loop t (lowerWordCode mergePass)) x x 2 :=
+        Cslib.Program.ExecWithin.loop_exit
+          (I := Cslib.WordRAM.instructionSet w .standard 20) (t := t) ht
+      exact ⟨x, he.mono (by unfold outerBudget; omega)⟩
+
+private theorem wordCode_exec {w : ℕ} (keys : List ℕ) (hn : 3 ≤ keys.length)
+    (hfit : Fits w (5 * keys.length + 2)) :
+    ∃ y, wordWithin w (lowerWordCode code) (wordRAMInput keys).data y
+      (22 * keys.length * Nat.clog 2 keys.length + 25 * keys.length +
+        26 * Nat.clog 2 keys.length - 9) := by
+  let n := keys.length
+  let x := (wordRAMInput keys).data
+  have ht : (Cond.lt (scalarReg two) (scalarReg len)).Holds x := show 2 < n from hn
+  obtain ⟨a, ha, hinit⟩ := wordInitEntries_exec keys hfit
+  let b := a.set (scalarReg width) 1
+  have hb : wordWithin w (lowerWordCode (copyScalar width one)) a b 1 := by
+    apply wordPrimitive
+    rw [Op.eval_copy, hinit.one_eq]
+  have frame (i : Fin 20) (hi : i ≠ scalarReg width) : b.regs i = a.regs i :=
+    Function.update_of_ne hi _ _
+  have hstate : WordPassState n b := by
+    refine ⟨?_, ?_, (frame _ (by decide)).trans hinit.len_eq,
+      (frame _ (by decide)).trans hinit.zero_eq, (frame _ (by decide)).trans hinit.one_eq,
+      (frame _ (by decide)).trans hinit.two_eq⟩
+    · rw [frame _ (by decide), hinit.source_eq]
+      omega
+    · rw [frame _ (by decide), hinit.dest_eq]
+  have hw : b.regs (scalarReg width) = 2 ^ (0 : ℕ) := by simp [b]
+  obtain ⟨y, hy⟩ := wordOuter_exec hfit hstate hw
+  refine ⟨y, ?_⟩
+  have he : wordWithin w (lowerWordCode code) x y
+      (9 * n + 3 + (1 + outerBudget 22 n 0) + 1) := by
+    unfold code lowerWordCode
+    exact Cslib.Program.ExecWithin.branch_pos
+      (t := Cond.lt (scalarReg two) (scalarReg len)) ht (ha.seq (hb.seq hy))
+  apply he.mono
+  change 9 * n + 3 + (1 + outerBudget 22 n 0) + 1 ≤
+    22 * n * Nat.clog 2 n + 25 * n + 26 * Nat.clog 2 n - 9
+  unfold outerBudget
+  simp only [Nat.sub_zero, pow_zero, Nat.div_one, Nat.mul_add]
+  rw [Nat.mul_comm (Nat.clog 2 n) (22 * n), Nat.mul_comm (Nat.clog 2 n) 26]
+  change 3 ≤ n at hn
+  omega
+
+private theorem wordAssemble_width (c : FlatCode) (w pc : ℕ) :
+    c.assemble (flatMachine w .standard 20) pc = c.assemble (flatMachine 0 .standard 20) pc := by
+  induction c generalizing pc with
+  | op o => rcases o with _ | ⟨_, _⟩ <;> rfl
+  | _ => simp [Cslib.Program.Code.assemble, flatMachine, *]
+
+/-- The direct word-RAM implementation halts from the prepared input within the stated
+instruction count, including halt. The word must hold the addresses of the interleaved
+buffers and the input keys. -/
+theorem wordRAM_executes {w : ℕ} (keys : List ℕ) (hn : 3 ≤ keys.length)
+    (hfit : Fits w (5 * keys.length + 2)) (_hkeys : ∀ k ∈ keys, Fits w k) :
+    ∃ base t, Cslib.WordRAM.Executes w wordRAMProgram (wordRAMInput keys) base t ∧
+      t ≤ 22 * keys.length * Nat.clog 2 keys.length + 25 * keys.length +
+        26 * Nat.clog 2 keys.length - 8 := by
+  obtain ⟨y, t, ht, he⟩ := wordCode_exec keys hn hfit
+  let finish := (lowerWordCode code).size
+  let z : Cslib.WordRAM.State 20 := ⟨finish, y⟩
+  have run := he.runs (flatMachine w .standard 20) [] [.halt (ptrReg resultReg)]
+  have hrun : Cslib.WordRAM.Runs w wordRAMProgram (wordRAMInput keys) z t := by
+    simp only [List.nil_append, List.length_nil, Nat.zero_add, wordAssemble_width] at run
+    exact run.map (r' := Next w wordRAMProgram)
+      (fun a : ℕ × WordData => (⟨a.1, a.2⟩ : Cslib.WordRAM.State 20)) (fun _ _ h => h)
+  have hend : Cslib.WordRAM.step w wordRAMProgram z = .halt (y.regs (ptrReg resultReg)) := by
+    apply step_halt
+    let ops := (lowerWordCode code).assemble (flatMachine 0 .standard 20) 0
+    have hlen : ops.length = finish := Cslib.Program.Code.length_assemble _ _ _
+    change (ops ++ [.halt (ptrReg resultReg)])[finish]? = _
+    rw [← hlen, List.getElem?_append_right (Nat.le_refl _), Nat.sub_self]
+    rfl
+  exact ⟨_, t + 1, ⟨z, t, hrun, hend, rfl⟩, by omega⟩
 
 end WordRAM
 
