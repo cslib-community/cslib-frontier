@@ -14,6 +14,7 @@ public import Mathlib.Order.FixedPoints
 public import CslibFrontier.Foundations.Relation.FiniteClosure
 import CslibFrontier.Foundations.Order.FiniteFixedPoint
 import CslibFrontier.Foundations.Data.List.ListsUpTo
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-! # Computing well-nested reachability
 
@@ -53,6 +54,9 @@ counterexample.
 - `MPDA.mem_wellNestedPairs`: `(s, s') ∈ WR` exactly when `MPDA.WellNestedReach M s s'`. With
   `MPDA.wellNestedReach_iff`, this is Lemma 1 of [AkshayGastinKrishnaRoychowdhury2020] for the
   computed set.
+- `MPDA.card_explore_le`, `MPDA.card_successors_le`: the search visits at most
+  `(n |S|² + 1)ᴷ |S|` lists, and each list has at most `n (|S|² + 2 |S|)` children. These are the
+  counts behind the complexity bound stated after Theorem 1.
 
 ## References
 
@@ -511,6 +515,78 @@ theorem mem_explore {K : ℕ} {init : Finset (HoleList n State)}
     (fun ν hν hνt => absurd hν hνt) (fun _ => ?_) μ
   · have := card_listsUpTo_le (n := n) (State := State) K
     omega
+
+/-! ## The size of the search
+
+The complexity paragraph after Theorem 1 of [AkshayGastinKrishnaRoychowdhury2020] bounds the
+running time by the number of lists the search may generate, times the work per list. The search
+visits at most `(n |S|² + 1)ᴷ |S|` lists, the lists with at most `K` holes, and each list has at
+most `n (|S|² + 2 |S|)` children. -/
+
+/-- **The number of lists of the search**: it visits at most `(n |S|² + 1)ᴷ |S|` lists. -/
+theorem card_explore_le {K : ℕ} {init : Finset (HoleList n State)}
+    (hinit : ∀ μ ∈ init, μ.holes = []) :
+    (M.explore K (listBound n State K) init init).card ≤
+      (n * Fintype.card State ^ 2 + 1) ^ K * Fintype.card State := by
+  have hsub : M.explore K (listBound n State K) init init ⊆ listsUpTo n State K := fun μ hμ =>
+    mem_listsUpTo_of_length_le ((mem_explore hinit).mp hμ |>.length_le hinit)
+  have := card_listsUpTo_le (n := n) (State := State) K
+  have := Finset.card_le_card hsub
+  unfold listBound at *
+  omega
+
+omit [Fintype Symbol] [Fintype Γ] [DecidableEq Γ] [∀ s μ s', Decidable (M.Tr s μ s')] in
+theorem card_addHole_le [Fintype Symbol] [Fintype Γ] [DecidableEq Γ]
+    [∀ s μ s', Decidable (M.Tr s μ s')] (i : Fin n) (μ : HoleList n State) :
+    (M.addHole i μ).card ≤ Fintype.card State := by
+  calc (M.addHole i μ).card
+      ≤ (Finset.univ.image fun t : State => (⟨μ.holes ++ [⟨i, μ.last, t⟩], t⟩ :
+          HoleList n State)).card := by
+        refine Finset.card_le_card fun ν hν => ?_
+        obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hν
+        obtain ⟨-, hp⟩ := Finset.mem_filter.mp hp
+        exact Finset.mem_image.mpr ⟨p.2, Finset.mem_univ _, by rw [← hp]⟩
+    _ ≤ Fintype.card State := Finset.card_image_le.trans (by rw [Finset.card_univ])
+
+theorem card_addPop_le (i : Fin n) (μ : HoleList n State) :
+    (M.addPop i μ).card ≤ Fintype.card State ^ 2 + Fintype.card State := by
+  unfold addPop
+  split
+  · simp
+  next pre s₁ s₃ post _ =>
+    refine (Finset.card_union_le _ _).trans (Nat.add_le_add ?_ ?_)
+    · calc _ ≤ (Finset.univ.image fun p : State × State =>
+              (⟨pre ++ ⟨i, s₁, p.1⟩ :: post, p.2⟩ : HoleList n State)).card := by
+            refine Finset.card_le_card fun ν hν => ?_
+            obtain ⟨⟨s₂, γ, s', s''⟩, -, rfl⟩ := Finset.mem_image.mp hν
+            exact Finset.mem_image.mpr ⟨(s₂, s''), Finset.mem_univ _, rfl⟩
+        _ ≤ Fintype.card State ^ 2 := Finset.card_image_le.trans
+            (by rw [Finset.card_univ, Fintype.card_prod, pow_two])
+    · calc _ ≤ (Finset.univ.image fun s'' : State =>
+              (⟨pre ++ post, s''⟩ : HoleList n State)).card := by
+            refine Finset.card_le_card fun ν hν => ?_
+            obtain ⟨⟨s₂, γ, s', s''⟩, -, rfl⟩ := Finset.mem_image.mp hν
+            exact Finset.mem_image.mpr ⟨s'', Finset.mem_univ _, rfl⟩
+        _ ≤ Fintype.card State := Finset.card_image_le.trans (by rw [Finset.card_univ])
+
+/-- **The children of a list**: a list has at most `n (|S|² + 2 |S|)` children in the search. -/
+theorem card_successors_le (K : ℕ) (μ : HoleList n State) :
+    (M.successors K μ).card ≤
+      n * (Fintype.card State ^ 2 + 2 * Fintype.card State) := by
+  set c := Fintype.card State
+  have hhole : (if μ.holes.length < K then Finset.univ.biUnion fun i => M.addHole i μ
+      else ∅).card ≤ n * c := by
+    split_ifs
+    · simpa using Finset.card_biUnion_le_card_mul Finset.univ (fun i => M.addHole i μ) c
+        fun i _ => M.card_addHole_le i μ
+    · simp
+  have hpop : (Finset.univ.biUnion fun i => M.addPop i μ).card ≤ n * (c ^ 2 + c) := by
+    simpa using Finset.card_biUnion_le_card_mul Finset.univ (fun i => M.addPop i μ) (c ^ 2 + c)
+      fun i _ => M.card_addPop_le i μ
+  have heq : n * (c ^ 2 + 2 * c) = n * c + n * (c ^ 2 + c) := by
+    rw [Nat.two_mul, ← Nat.add_assoc, Nat.mul_add n (c ^ 2 + c) c, Nat.add_comm]
+  rw [heq]
+  exact (Finset.card_union_le _ _).trans (Nat.add_le_add hhole hpop)
 
 end Reach
 

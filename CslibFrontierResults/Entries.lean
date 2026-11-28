@@ -13173,11 +13173,36 @@ register_result "mpda-hole-bounded-emptiness" where
     printed-start variant answers true and repaired Algorithm 1 false. There the initial state \
     has no push and no pop, so the variant only opens empty holes there, and the well-nested \
     acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
-    termination and correctness; the complexity bound given in the paragraph after it is \
-    not formalized, and witness generation is the entry mpda-hole-bounded-witness. Source \
+    termination and correctness; the counts behind the complexity bound given in the paragraph \
+    after it are the entry mpda-hole-bounded-emptiness-search-size, and witness generation is \
+    the entry mpda-hole-bounded-witness. Source \
     check: outside-fleet agent review (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, \
     against arXiv:2002.05950v2, printed pp. 5, 8, 10 and 22-23: \
     https://github.com/cslib-community/cslib-frontier/pull/6748#pullrequestreview-5998692474."
+
+register_result "mpda-hole-bounded-emptiness-search-size" where
+  title := "The emptiness search for K-hole-bounded MPDAs visits at most (n|S|^2 + 1)^K |S| lists"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020,
+      theorem := "Complexity of the Algorithm (paragraph after Theorem 1, unnumbered)",
+      locator := "arXiv:2002.05950v2, Section 3, paragraph \"Complexity of the Algorithm\", \
+        printed p. 10" }
+  ]
+  theorems := [Cslib.Automata.MPDA.card_explore_le, Cslib.Automata.MPDA.card_successors_le]
+  scope := "For every MPDA with n stacks and finitely many control states S, input letters and \
+    stack symbols, with decidable transitions, every K, and every set of initial lists without \
+    holes: the worklist loop of repaired Algorithm 1 (the mpda-hole-bounded-emptiness entry), \
+    run with its fuel, returns at most (n |S|^2 + 1)^K |S| lists, and every list has at most \
+    n (|S|^2 + 2 |S|) children under AddHole and AddPop. These are the counts behind the \
+    source's time bound: the source counts at most |S|^(2K+3) n^(K+1) lists and multiplies by \
+    the work per list. The Lean count is of lists of hole triples with at most K holes and a \
+    last state, as the search represents them; it is not compared formally with the source's \
+    count. The source's count fits the lists with exactly K holes: for n = |S| = 1 there are \
+    K + 1 lists with at most K holes, more than |S|^(2K+3) n^(K+1) = 1. Running time is not \
+    formalized: there is no cost model for the search, so the source's bound \
+    O(|S|^(2K+3) n^(K+1) + |S|^5 + |S|^3 |Delta|), and the costs of Floyd-Warshall and of \
+    computing WR, AHS and HS that it adds up, are not stated. Source check: pending."
 
 register_result "mpda-hole-bounded-witness" where
   title := "Generating a K-hole-bounded accepting run of an MPDA from the emptiness search"
