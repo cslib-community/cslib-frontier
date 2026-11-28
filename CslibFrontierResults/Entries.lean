@@ -105,7 +105,7 @@ import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction.Efficient
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction.Sound
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.UniqueResponses
-import CslibFrontier.Computability.Complexity.ProofSystem.Exhaustive
+import CslibFrontier.Computability.Complexity.ProofSystem
 import CslibFrontier.Computability.Circuit.Arithmetic.BitBlast
 import CslibFrontier.Computability.Circuit.Arithmetic.CircuitLowerBound
 import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.LowerBound
@@ -9863,8 +9863,8 @@ register_result "arora-barak-exact-indset-dp-hard" where
     Completeness combines the hardness proof with the membership theorem from §8(a). \
     Outside-fleet source check: review 5958802809 on PR #6462."
 
-register_result "goldreich-fixed-proof-system-np-conp" where
-  title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
+register_result "goldreich-proof-system-np-conp" where
+  title := "A polynomially bounded refutation system for unsatisfiable CNF formulas exists iff \
     NP = coNP"
   topic := "proof complexity"
   sources := [
@@ -9872,21 +9872,18 @@ register_result "goldreich-fixed-proof-system-np-conp" where
       locator := "May 2007 draft r6.pdf, PDF p. 19; printed p. 527" }
   ]
   theorems := [
-    Cslib.Complexity.ProofSystem.exists_polynomiallyBounded_iff_NP_eq_coNP
+    Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded
   ]
-  scope := "CNF refutation form: proof systems for the unsatisfiable CNF formulas (encCNF) \
-    instead of tautologies, which the draft discusses as refutations later in Appendix B.4. \
-    Proof systems are Cook–Reckhow polynomial-time functions from proof words onto the set, not \
-    Definition B.12 verifiers on a proof and a formula measured in their combined length. A \
-    verifier becomes such a function by encoding both the formula and its certificate in the \
-    proof word, and a function gives a verifier by evaluating it and comparing; polynomial \
-    boundedness transfers between the two, but the proofs and their exact lengths need not \
-    agree. PolynomiallyBounded bounds a shortest proof of each member by a polynomial in its \
-    encoded length, the per-instance form of the bound on L_M(n). NP = coNP is stated for every \
-    instance type and encoding. The Lean proof chooses M by cases on NP = coNP (the draft \
-    invokes coNP-completeness): a polynomially bounded system if they are equal, otherwise the \
-    exhaustive system ProofSystem.exhaustive. Outside-fleet six-point source check: review \
-    5947873862 on PR #6300."
+  scope := "CNF refutation form of the Cook–Reckhow equivalence: NP = coNP (quantified over \
+    every instance type and encoding) iff there exists a polynomially bounded proof system for \
+    the unsatisfiable CNF formulas (encCNF), instead of tautologies, matching the refutation \
+    view adopted later in Appendix B.4. Proof systems are Cook–Reckhow polynomial-time \
+    surjections from proof words onto the set, rather than Definition B.12 verifiers on a \
+    proof and formula measured in their combined length; polynomial boundedness transfers in \
+    both directions, though proofs and exact lengths need not agree. PolynomiallyBounded \
+    bounds a shortest proof of each member by a polynomial in its encoded length, the \
+    per-instance form of the bound on L_M(n). The proof uses Cook–Levin coNP-completeness of \
+    UNSAT (coNP_subset_NP_iff_exists_polynomiallyBounded)."
 
 register_result "bounded-termination-exponential-completeness" where
   title := "Any-output bounded termination is in E but outside P and is EXP-complete"

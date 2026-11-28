@@ -67,13 +67,17 @@ that instance when the verifier and certificate-length checks pass, and a fixed 
 * `Cslib.Complexity.ProofSystem.coNP_subset_NP_iff_exists_polynomiallyBounded`: `coNP ⊆ NP`
   exactly when a `coNP`-complete set has a polynomially bounded proof system.
 * `Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded`: `NP = coNP` exactly
-  when `UNSAT` has a polynomially bounded proof system [CookReckhow1979].
+  when `UNSAT` has a polynomially bounded proof system ([CookReckhow1979];
+  [Goldreich, Theorem B.13][Goldreich2007DraftR6]).
 
 ## References
 
 * [S. A. Cook, R. A. Reckhow, *The relative efficiency of propositional proof
   systems*][CookReckhow1979]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, May 2007 draft `r6.pdf`,
+  Appendix B.4][Goldreich2007DraftR6], Definition B.12 and Theorem B.13 (printed p. 527,
+  PDF p. 19)
 -/
 
 @[expose] public section
@@ -294,9 +298,17 @@ theorem coNP_subset_NP_iff_exists_polynomiallyBounded {β : Type} {encB : β ↪
   rw [exists_polynomiallyBounded_iff_mem_NP D hne]
   exact ⟨fun h => h encB hB.1, fun h _ encC _ hA => (hB.2 encC _ hA).mem_NP h⟩
 
-/-- **The theorem of Cook and Reckhow** [CookReckhow1979], for refutations: `NP = coNP`, for
-problems with every encoding of their instances, exactly when some proof system for the
-unsatisfiable formulas in conjunctive normal form is polynomially bounded. -/
+/-- **The theorem of Cook and Reckhow** ([CookReckhow1979];
+[Goldreich, Appendix B.4, Theorem B.13 with Definition B.12][Goldreich2007DraftR6], printed
+p. 527 / PDF p. 19), for refutations: `NP = coNP`, for problems with every encoding of their
+instances, exactly when some proof system for the unsatisfiable formulas in conjunctive normal
+form is polynomially bounded.
+
+Compared with [Goldreich2007DraftR6], which states Theorem B.13 for propositional tautologies and
+verifier-style proof systems (Definition B.12): proofs here refute unsatisfiable CNF formulas
+(the refutation view adopted later in Appendix B.4), proof systems are Cook–Reckhow
+polynomial-time surjections onto the set (`ProofSystem`), and `PolynomiallyBounded` bounds a
+shortest proof of each member by a polynomial in its encoded length. -/
 theorem NP_eq_coNP_iff_exists_polynomiallyBounded :
     (∀ {γ : Type} (encC : γ ↪ List Bool), NP encC = coNP encC) ↔
       ∃ P : ProofSystem encCNF UNSAT, P.PolynomiallyBounded := by

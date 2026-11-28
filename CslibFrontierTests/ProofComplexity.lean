@@ -11,8 +11,8 @@ import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 # Tests: proof systems
 
 A concrete proof system on all words and its simulations; the proof system of the `SAT` verifier
-on accepted and rejected certificates; total decoding of a malformed word; and the existence of a
-polynomially bounded proof system for `SAT`.
+on accepted and rejected certificates; total decoding of a malformed word; the existence of a
+polynomially bounded proof system for `SAT`; and a client of Cook–Reckhow / Goldreich Theorem B.13.
 -/
 
 namespace CslibFrontierTests.ProofComplexity
@@ -78,6 +78,13 @@ example : ∃ P : ProofSystem encCNF SAT, P.PolynomiallyBounded :=
   (ProofSystem.exists_polynomiallyBounded_iff_mem_NP (L := SAT) cnfDecoder
     ⟨φ, fun _ => true, rfl⟩).2
     SAT.mem_NP
+
+/-- Any polynomially bounded refutation system for `UNSAT` collapses `NP` to `coNP` on bit
+languages, exercising the `(∃ P, P.PolynomiallyBounded) → NP = coNP` direction of Cook–Reckhow /
+Goldreich Theorem B.13. -/
+example (P : ProofSystem encCNF UNSAT) (hP : P.PolynomiallyBounded) :
+    NP encBits = coNP encBits :=
+  ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded.mpr ⟨P, hP⟩ encBits
 
 /-! ### Total decoding of malformed words -/
 
