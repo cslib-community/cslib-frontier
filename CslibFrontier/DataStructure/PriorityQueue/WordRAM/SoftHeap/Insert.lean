@@ -1213,7 +1213,6 @@ private theorem shInsertLinkRoot_spec {w nodeBase : ℕ} {s : Memory.State}
     simp +decide only [List.head?_nil, Option.elim_none, Matrix.cons_val_zero,
       Matrix.cons_val_one, Matrix.cons_val, ↓reduceIte]
     framed_triple
-    all_goals try (simp; done)
     exact ⟨rfl, hrk, by simp, by simp, by simp [suffixMinTree], trivial⟩
   | cons r0 rest =>
     obtain ⟨hr0_ck, hr0_pos, hr0_lt⟩ := hinfo r0 (by simp)
