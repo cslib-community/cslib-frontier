@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Foundations.Data.Finset.CountSum
 import Mathlib.Data.Fintype.Card
 
 /-!
@@ -73,14 +73,13 @@ private theorem LayerTranscript.eq_of_matching_tally [Fintype G] {w : G → ℕ}
     obtain ⟨p, _⟩ := (mem_selected candidate g).mp hg
     obtain ⟨q, hq, _⟩ := hmin g ((C.eval_iff_nonempty_proofTree _).mpr ⟨p⟩)
     exact (mem_selected canonical g).mpr ⟨q, hq⟩
-  have hsame := Finset.eq_of_subset_of_card_le hsubset hcount.ge
   have hle (g : {g // C.layer g = k}) (hg : g ∈ candidate.selected) :
       canonical.weightAt w g ≤ candidate.weightAt w g := by
     obtain ⟨p, hp⟩ := (mem_selected candidate g).mp hg
     obtain ⟨q, hq, hqmin⟩ := hmin g ((C.eval_iff_nonempty_proofTree _).mpr ⟨p⟩)
     simpa only [LayerTranscript.weightAt, hp, hq, Option.map_some, Option.getD_some] using
       isMinOn_univ_iff.mp hqmin p
-  have heq := (Finset.sum_eq_sum_iff_of_le hle).mp (hsame ▸ hsum.symm)
+  obtain ⟨hsame, heq⟩ := Finset.eq_and_eqOn_of_card_eq_of_sum_eq hsubset hle hcount hsum
   funext g
   by_cases hg : g ∈ candidate.selected
   · obtain ⟨p, hp⟩ := (mem_selected candidate g).mp hg
@@ -88,7 +87,7 @@ private theorem LayerTranscript.eq_of_matching_tally [Fintype G] {w : G → ℕ}
     obtain ⟨q, hq, hqmin⟩ := hmin g htrue
     have hweight : q.weight w = p.weight w := by
       simpa only [LayerTranscript.weightAt, hp, hq, Option.map_some, Option.getD_some] using
-        heq g hg
+        heq hg
     have hpmin : IsMinOn (ProofTree.weight w) Set.univ p :=
       isMinOn_univ_iff.mpr fun r => hweight ▸ isMinOn_univ_iff.mp hqmin r
     obtain ⟨_, _, huniq⟩ := hisolated g htrue

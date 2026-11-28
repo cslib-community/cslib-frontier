@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Foundations.Data.Finset.CountSum
 import Mathlib.Data.Nat.Find
 import Mathlib.Logic.Equiv.List
 
@@ -162,18 +162,19 @@ theorem passes_iff {w : Transcript α} :
     have hsteps (v : α) (p : List α) (hp : w v = some p) :
         RelatesInSteps r s v (guessedLength w v) :=
       (hwalk v p hp).1.relatesInSteps (guessedLength_spec hp (hwalk v p hp).1)
-    have hselected : selected w = round r s k :=
-      Finset.eq_of_subset_of_card_le
-        (fun v hv => let ⟨p, hp⟩ := mem_selected.mp hv
-          mem_round.mpr ⟨_, (hwalk v p hp).2, hsteps v p hp⟩) hcount.ge
+    have hsub : selected w ⊆ round r s k := by
+      intro v hv
+      obtain ⟨p, hp⟩ := mem_selected.mp hv
+      exact mem_round.mpr ⟨_, (hwalk v p hp).2, hsteps v p hp⟩
     have hle (v : α) (hv : v ∈ selected w) : distance r s v ≤ guessedLength w v := by
       obtain ⟨p, hp⟩ := mem_selected.mp hv
       exact distance_le (hsteps v p hp)
+    obtain ⟨hselected, hweight⟩ := Finset.eq_and_eqOn_of_card_eq_of_sum_eq hsub hle hcount hsum
     refine ⟨fun v hv => ?_, fun v hv => ?_⟩
     · have hmem : v ∈ selected w := hselected ▸ hv
       obtain ⟨p, hp⟩ := mem_selected.mp hmem
-      have heq := (Finset.sum_eq_sum_iff_of_le hle).mp (hselected ▸ hsum.symm) v hmem
-      exact ⟨p, hp, (hwalk v p hp).1, by rw [guessedLength_spec hp (hwalk v p hp).1, heq]⟩
+      exact ⟨p, hp, (hwalk v p hp).1,
+        by rw [guessedLength_spec hp (hwalk v p hp).1, hweight hmem]⟩
     · exact Option.eq_none_iff_forall_not_mem.mpr fun p hp =>
         hv (hselected ▸ mem_selected.mpr ⟨p, hp⟩)
   · rintro ⟨hin, hout⟩

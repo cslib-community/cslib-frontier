@@ -4396,6 +4396,7 @@ public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.CompressSpec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Flat
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.EpochTick
+public import CslibFrontier.Foundations.Data.Finset.CountSum
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.Schedule
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Description
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
