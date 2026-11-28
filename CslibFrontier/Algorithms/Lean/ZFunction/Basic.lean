@@ -41,8 +41,8 @@ Machine-level `O(|s|)` and `O(|p| + |t|)` running-time bounds on word arrays are
 
 * `Cslib.Algorithms.Lean.ZFunction.min_lcpLen_zBox`: inside a valid Z-box `[l, r)`, `s.drop (i - l)`
   and `s.drop i` have the same longest common prefix with `s` up to `r - i`.
-* `Cslib.Algorithms.Lean.ZFunction.zArray_toList`, `size_zArray`, `getElem_zArray`, and
-  `zAlgorithm_eq_zFunction`: the algorithm computes the Z-function on every input.
+* `Cslib.Algorithms.Lean.ZFunction.zArray_toList`, `size_zArray`, `getElem_zArray`,
+  `getD_zArray`, and `zAlgorithm_eq_zFunction`: the computed table agrees with the Z-function.
 
 ## References
 
@@ -192,6 +192,18 @@ theorem getElem_zArray (s : Array α) (i : ℕ) (hi : i < (zArray s).size) :
     (by rwa [length_zFunction, Array.length_toList, ← size_zArray])]
   congr 1
   exact zArray_toList s
+
+/-- Reading the Z table with default zero gives the common prefix length at every position.
+At and beyond the end of the array the remaining suffix is empty. -/
+theorem getD_zArray (p : Array α) (j : ℕ) :
+    (zArray p).getD j 0 = List.lcpLen p.toList (p.toList.drop j) := by
+  rw [Array.getD_eq_getD_getElem?]
+  by_cases hj : j < (zArray p).size
+  · rw [Array.getElem?_eq_getElem hj, Option.getD_some, getElem_zArray]
+  · have hlen : p.toList.length ≤ j := by
+      simpa only [size_zArray, Array.length_toList, not_lt] using hj
+    rw [Array.getElem?_eq_none (Nat.le_of_not_gt hj), Option.getD_none,
+      List.drop_eq_nil_of_le hlen, List.lcpLen_nil_right]
 
 /-- **Correctness of the Z-algorithm** on lists. -/
 theorem zAlgorithm_eq_zFunction (s : List α) : zAlgorithm s = zFunction s :=

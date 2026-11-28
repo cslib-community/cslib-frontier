@@ -9064,6 +9064,7 @@ public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.Computability.PostCorrespondence.Modified
 public import CslibFrontier.Foundations.Analysis.ODE.LinearLyapunov
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindowBounds
+public import CslibFrontier.Algorithms.Lean.ZFunction.FromPrefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OLoops
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceRelabel
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Compilation
@@ -11074,6 +11075,7 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.FrameSubstitutio
 public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchySourceSampling
 public import CslibFrontier.Crypto.Computational.RSAUnitInversion
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
+public import CslibFrontier.Algorithms.Lean.ZFunction.ToPrefix
 public import CslibFrontier.Computability.Circuit.Boolean.CodeComposition
 public import CslibFrontier.Computability.Circuit.Boolean.RepeatedSquaring
 public import CslibFrontier.Foundations.Data.Rat.ClearDenom
