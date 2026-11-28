@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Nat.Bits
 public import Batteries.Data.Nat.Basic
 public import Mathlib.Algebra.BigOperators.Ring.Finset
+import CslibFrontier.Foundations.Data.Nat.Radix
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -201,34 +202,21 @@ theorem packWords_readPackedField {h B s : ℕ} (hh : 0 < h) (hs : 0 < s)
 def packRadix (base n : ℕ) (f : ℕ → ℕ) : ℕ :=
   ∑ i ∈ Finset.range n, f i * base ^ i
 
-private theorem packRadix_succ (base n : ℕ) (f : ℕ → ℕ) :
-    packRadix base (n + 1) f = f 0 + base * packRadix base n (fun i => f (i + 1)) := by
-  simp only [packRadix, Finset.sum_range_succ', pow_succ, pow_zero, mul_one, Finset.mul_sum]
-  exact (add_comm _ _).trans (congrArg (f 0 + ·) (Finset.sum_congr rfl fun _ _ => by ring))
-
 /-- Bounded fields fit the total radix capacity, including the empty tuple. -/
 theorem packRadix_lt {base n : ℕ} (f : ℕ → ℕ)
     (hf : ∀ i < n, f i < base) : packRadix base n f < base ^ n := by
-  induction n with
-  | zero => simp [packRadix]
-  | succ n ih =>
-    rw [packRadix, Finset.sum_range_succ, ← packRadix, pow_succ]
-    nlinarith [ih fun i hi => hf i (by omega), hf n (Nat.lt_succ_self n)]
+  have h := (finFunctionFinEquiv (fun i : Fin n => (⟨f i, hf i i.isLt⟩ : Fin base))).isLt
+  rw [finFunctionFinEquiv_apply] at h
+  rw [packRadix, ← Fin.sum_univ_eq_sum_range (fun i => f i * base ^ i)]
+  exact h
 
 /-- Reading a radix field recovers its entire value, with no contributions from other fields. -/
 theorem packRadix_field {base n i : ℕ} (hb : 0 < base) (f : ℕ → ℕ)
     (hf : ∀ j < n, f j < base) (hi : i < n) :
     packRadix base n f / base ^ i % base = f i := by
-  induction n generalizing i f with
-  | zero => omega
-  | succ n ih =>
-    rw [packRadix_succ]
-    have h0 := hf 0 (by omega)
-    cases i with
-    | zero => simp [Nat.add_mod, Nat.mod_eq_of_lt h0]
-    | succ i =>
-      rw [pow_succ, Nat.mul_comm (base ^ i) base, ← Nat.div_div_eq_div_mul,
-        Nat.add_mul_div_left _ _ hb, Nat.div_eq_of_lt h0, zero_add]
-      exact ih _ (fun j hj => hf (j + 1) (by omega)) (by omega)
+  have h := Cslib.Radix.digit_ofDigits hb (List.ofFn fun j : Fin n => f j)
+    (by simpa using fun j : Fin n => hf j j.isLt) i (by simpa using hi)
+  simpa only [Cslib.Radix.digit_eq_div_pow_mod, Nat.ofDigits_ofFn_eq_sum,
+    Fin.sum_univ_eq_sum_range (fun j => f j * base ^ j), List.getElem_ofFn, packRadix] using h
 
 end Cslib.BitString

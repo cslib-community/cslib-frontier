@@ -10,9 +10,8 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Foundations.Data.Nat.Radix.Unique
 import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Data.Nat.Digits.Defs
-import Mathlib.Tactic.Ring
 
 /-!
 # Sums of numbers with digits zero and one
@@ -26,7 +25,6 @@ sum [Sipser, Theorem 7.56][Sipser2013].
 ## Main results
 
 * `Nat.sum_range_mul_pow_inj`: base-`b` digits below `b` are determined by the number.
-* `Nat.sum_range_mul_pow_lt`: a number with `N` base-`b` digits is less than `b ^ N`.
 * `Cslib.Complexity.sum_sum_pow_eq_iff`: without carries, a subfamily sums to the number with
   digits `T` exactly when, at each position, `T` of its members have the digit one there.
 
@@ -41,36 +39,13 @@ open Finset
 
 namespace Nat
 
-private theorem sum_range_mul_pow_eq_ofDigits (b N : ℕ) (a : ℕ → ℕ) :
-    ∑ p ∈ range N, a p * b ^ p = ofDigits b ((List.range N).map a) := by
-  induction N with
-  | zero => rfl
-  | succ N ih =>
-    rw [sum_range_succ, ih, List.range_succ, List.map_append, List.map_singleton, ofDigits_append]
-    simp [mul_comm]
-
 /-- Base-`b` digits that are less than `b` are determined by the number they represent. -/
 theorem sum_range_mul_pow_inj {b N : ℕ} {a c : ℕ → ℕ} (ha : ∀ p < N, a p < b)
     (hc : ∀ p < N, c p < b) :
     ∑ p ∈ range N, a p * b ^ p = ∑ p ∈ range N, c p * b ^ p ↔ ∀ p < N, a p = c p := by
-  refine ⟨fun h p hp => ?_, fun h => sum_congr rfl fun p hp => by rw [h p (mem_range.1 hp)]⟩
-  rcases le_or_gt b 1 with hb | hb
-  · have := ha p hp; have := hc p hp; omega
-  · rw [sum_range_mul_pow_eq_ofDigits, sum_range_mul_pow_eq_ofDigits] at h
-    have hL := ofDigits_inj_of_len_eq hb (by simp) (by simpa using ha) (by simpa using hc) h
-    have := congrArg (·[p]?) hL
-    simpa [hp] using this
-
-/-- A number with base-`b` digits below `b` at the positions below `N` is less than `b ^ N`. -/
-theorem sum_range_mul_pow_lt {b N : ℕ} {a : ℕ → ℕ} (ha : ∀ p < N, a p < b) :
-    ∑ p ∈ range N, a p * b ^ p < b ^ N := by
-  rcases N.eq_zero_or_pos with rfl | hN
-  · simp
-  rcases le_or_gt b 1 with hb | hb
-  · obtain rfl : b = 1 := by have := ha 0 hN; omega
-    simpa using fun i hi => by have := ha i hi; omega
-  · rw [sum_range_mul_pow_eq_ofDigits]
-    simpa using ofDigits_lt_base_pow_length (l := (List.range N).map a) hb (by simpa using ha)
+  refine ⟨fun h p hp => ?_, fun h => sum_congr rfl fun p hp => by rw [h p (mem_range.mp hp)]⟩
+  exact eq_of_sum_mul_pow_eq (e := id) Function.injective_id.injOn
+    (fun j hj => ha j (mem_range.mp hj)) (fun j hj => hc j (mem_range.mp hj)) h p (mem_range.mpr hp)
 
 end Nat
 
