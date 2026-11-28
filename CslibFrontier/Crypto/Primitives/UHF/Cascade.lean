@@ -23,7 +23,8 @@ ideal birthday term.
 ## Main results
 
 * `Cslib.Crypto.PseudorandomFunctionOver.isMultiQueryUHF_cascade` proves the asymptotic
-  cascade case of Corollary 7.5. `UHF.IsMultiQueryUHF.isComputationalUHF` gives single-pair security.
+  cascade case of Corollary 7.5. For single-pair security, apply
+  `UHF.IsMultiQueryUHF.isComputationalUHF`.
 * `Cslib.Crypto.UHF.succProbability_multiQueryGame_cascade_le_pointwise` proves (7.11)
   with the exact unordered-pair birthday term.
 -/
