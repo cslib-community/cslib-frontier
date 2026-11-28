@@ -9,12 +9,14 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
+public import CslibFrontier.Foundations.Data.MvPolynomial.PowerSection
 public import CslibFrontier.Foundations.Data.MvPolynomial.Substitution
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 public import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.Algebra.MvPolynomial.Rename
 public import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic
 public import Mathlib.Algebra.Polynomial.Eval.Defs
+public import Mathlib.Logic.Equiv.Fin.Basic
 import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
 
 /-!
@@ -30,6 +32,9 @@ polynomial of the corresponding normalized quotient over the target ring.
 The relative construction retains a whole parameter block in the coefficients, so
 specialization gives the critical-value polynomial for an individual witness fiber.
 Evaluation of the flattened relative polynomial agrees with evaluation in that fiber.
+`finiteRelativeValuePolynomial` orders the variables for evaluation from coordinate lists.
+Its fixed-power section `finiteRelativeValueSection` substitutes a power of the critical value
+for the penalty.
 The lower relations and deformed objective have parameter degree at most the source degree
 plus one in each coefficient of the witness variables.
 
@@ -209,6 +214,38 @@ is indexed by `none`, the penalty by `some none`, and parameter `i` by `some (so
     MvPolynomial (Option (Option κ)) ℤ :=
   (optionEquivLeft ℤ (Option κ)).symm (relativeValuePolynomial hell F hF)
 
+/-- The critical value is at slot zero, the penalty at slot one, and the retained parameters
+follow at slots `i + 2`. The source variables are the witness block followed by the parameters. -/
+@[expose] noncomputable def finiteRelativeValuePolynomial {m : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) :
+    MvPolynomial (Fin (m + 2)) ℤ :=
+  rename (fun i : Option (Option (Fin m)) =>
+    i.elim ⟨0, by omega⟩ (fun j => j.elim ⟨1, by omega⟩ (fun k => k.succ.succ)))
+    (flattenedRelativeValuePolynomial hell (rename finSumFinEquiv.symm F)
+      ((totalDegree_rename_le _ _).trans hF))
+
+/-- The finite list-order polynomial evaluates as the flattened polynomial with its first slots
+read individually and its parameter block read from the remaining list. -/
+theorem eval₂_finiteRelativeValuePolynomial {m : ℕ} (φ : ℤ →+* T) (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (z : List ℕ) :
+    eval₂ φ (fun i => ((z[i.val]?.getD 0 : ℕ) : T)) (finiteRelativeValuePolynomial hell F hF) =
+      eval₂ φ
+        (fun i : Option (Option (Fin m)) => i.elim ((z[0]?.getD 0 : ℕ) : T)
+          (fun j => j.elim ((z[1]?.getD 0 : ℕ) : T)
+            (fun k => (((z.drop 2)[k.val]?.getD 0 : ℕ) : T))))
+        (flattenedRelativeValuePolynomial hell (rename finSumFinEquiv.symm F)
+          ((totalDegree_rename_le _ _).trans hF)) := by
+  rw [finiteRelativeValuePolynomial, eval₂_rename]
+  congr 2
+  funext i
+  rcases i with _ | (_ | k)
+  · rfl
+  · rfl
+  · have hi : k.succ.succ.val = 2 + k.val := by
+      simp only [Fin.val_succ]
+      omega
+    simp only [Function.comp_apply, Option.elim_some, List.getElem?_drop, hi]
+
 private theorem relativeSource_map (F : MvPolynomial (Fin n ⊕ κ) ℤ) (u : T) (x : κ → T) :
     (relativeSource F).map (eval₂Hom (Int.castRingHom T) (fun i => i.elim u x)) =
       (sumRingEquiv ℤ (Fin n) κ F).map (eval₂Hom (Int.castRingHom T) x) := by
@@ -250,6 +287,30 @@ theorem eval₂_flattenedRelativeValuePolynomial (hell : 1 ≤ ell)
       ((totalDegree_map_le _ _).trans ((totalDegree_sumRingEquiv_le F).trans hF))).eval y := by
   rw [flattenedRelativeValuePolynomial, eval₂_optionEquivLeft_symm, ← Polynomial.eval_map,
     relativeValuePolynomial_map]
+
+/-- Substitute the critical value to the power of the witness quotient dimension plus one
+for the penalty in the relative critical-value polynomial. The parameters remain in order. -/
+@[expose] noncomputable def finiteRelativeValueSection {m : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) :
+    MvPolynomial (Fin (m + 1)) ℤ :=
+  powerSection (ell ^ n + 1) (finiteRelativeValuePolynomial hell F hF)
+
+/-- Evaluating the fixed-power section gives the characteristic polynomial of the specialized
+fiber evaluated at the chosen critical value, with the penalty set to the prescribed power. -/
+theorem eval₂_finiteRelativeValueSection {m : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (y : T) (x : Fin m → T) :
+    eval₂ (Int.castRingHom T) (Fin.cons y x) (finiteRelativeValueSection hell F hF) =
+    (valuePolynomial hell (fun _ => 0) (y ^ (ell ^ n + 1))
+      ((sumRingEquiv ℤ (Fin n) (Fin m) (rename finSumFinEquiv.symm F)).map
+        (eval₂Hom (Int.castRingHom T) x))
+      ((totalDegree_map_le _ _).trans ((totalDegree_sumRingEquiv_le _).trans
+        ((totalDegree_rename_le _ _).trans hF)))).eval y := by
+  rw [finiteRelativeValueSection, eval₂_powerSection, finiteRelativeValuePolynomial, eval₂_rename]
+  refine Eq.trans ?_ (eval₂_flattenedRelativeValuePolynomial hell (rename finSumFinEquiv.symm F)
+    ((totalDegree_rename_le _ _).trans hF) y (y ^ (ell ^ n + 1)) x)
+  congr 2
+  funext i
+  rcases i with _ | (_ | i) <;> rfl
 
 end Relative
 

@@ -184,22 +184,6 @@ def ensureAndSplitRootGenProg :
       else
         pure hdr
 
-/-- Running a program `p` that leaves the state unchanged and returns `r`, then `k`, has the
-state, result, validity and (up to the cost of `p`) cost of running `k r`. -/
-private theorem bind_of_readOnly {α : Type} {w B : ℕ} {s : Memory.State} {p : Memory.Prog α}
-    {r : α} (hst : (Memory.spec 0).clientState s p = s)
-    (hres : (Memory.spec 0).clientResult s p = r)
-    (hvp : ValidProg w B s p) : ∀ (β : Type) (k : α → Memory.Prog β),
-    (Memory.spec 0).clientState s (p >>= k) = (Memory.spec 0).clientState s (k r) ∧
-    (Memory.spec 0).clientResult s (p >>= k) = (Memory.spec 0).clientResult s (k r) ∧
-    memoryCost (p >>= k) s = memoryCost p s + memoryCost (k r) s ∧
-    (ValidProg w B s (p >>= k) ↔ ValidProg w B s (k r)) := fun _ k => by
-  refine ⟨by rw [clientState_bind, hst, hres], by rw [clientResult_bind, hst, hres],
-    by rw [memoryCost_bind', hst, hres], fun h hm => ?_, fun h => validProg_bind hvp ?_⟩
-  · have := ((validHistory_bind' w p k s).mp (h hm)).2
-    rwa [hst, hres] at this
-  · rwa [hst, hres]
-
 theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
     {sl : BTreeSlice} {mapFn : ℕ → Option ℕ} {s : Memory.State}
     (henv : WhpLargeEnv c U V w n_max w base)

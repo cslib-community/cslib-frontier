@@ -339,7 +339,7 @@ theorem classicalRun_prep (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p
     omega
 
 /-- The state after the classical preparation: the witness on the witness qubits of the copies. -/
-theorem eval_prep (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p ≤ W) (hW0 : 0 < W)
+theorem eval_prep (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p ≤ W)
     (X : Fin (Amplify.width W (2 * R) R) → Bool) (hX : ∀ c, n ≤ c → readBit X c = false)
     (Ψ : Qubits (2 * R * p)) :
     Circuit.eval (Circuit.ofCodes (Amplify.width W (2 * R) R)
@@ -348,7 +348,8 @@ theorem eval_prep (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p ≤ W) 
         (embedState (blockEmb n (witBlock_le hW)) X Ψ) =
       embedState (slotsEmb hnp hm) (classicalRun (Amplify.copyCodes n W (2 * R)) X) Ψ :=
   Circuit.eval_ofCodes_embedState (IsClassical.append.mpr ⟨isClassical_moveCodes hW,
-    Amplify.isClassical_copyCodes (by omega) hW0⟩) _ _ _ _ (classicalRun_prep hnp hm hW X hX) Ψ
+    Amplify.isClassical_copyCodes (by omega) Amplify.base_lt_width.le⟩) _ _ _ _
+    (classicalRun_prep hnp hm hW X hX) Ψ
 
 /-- The bits of a copy after writing the witness blocks: the witness on its witness qubits. -/
 theorem glue_slotsEmb_comp_block (hnp : n + p ≤ m) (hm : m ≤ W) (Z : Fin (2 * R * p) → Bool)
@@ -415,7 +416,7 @@ theorem measureProb_codes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p
   have hX1copy (j : Fin (2 * R)) : X1 ∘ Amplify.block (t := R) hm j = inputState m x :=
     Amplify.classicalRun_copyCodes_comp_block (by omega) hm hx.le j
   have hX1high (c : ℕ) (hc : Amplify.base W (2 * R) ≤ c) : readBit X1 c = false :=
-    Amplify.readBit_classicalRun_copyCodes_of_base_le (by omega) hW0 hx.le hc
+    Amplify.readBit_classicalRun_copyCodes_of_base_le (by omega) hx.le hc
   set T := tensorPowerApply (amp hnp gs x) (Ψ.ofLp ∘ BitString.blocksEquiv.symm) with hT
   -- off the copies, writing the witness blocks changes nothing
   have hoff (Z : Fin (2 * R * p) → Bool) (c : Fin (Amplify.width W (2 * R) R))
@@ -462,7 +463,7 @@ theorem measureProb_codes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p
           swapCodes (Amplify.answer W (2 * R) R)))
       (Circuit.eval (Circuit.ofCodes (Amplify.width W (2 * R) R) (Amplify.copiesCodes W (2 * R) gs))
         (embedState (slotsEmb hnp hm) X1 Ψ)) := by
-    rw [codes_eq, Circuit.ofCodes_append, Circuit.eval_append, eval_prep hnp hm hW hW0 X0 hX0high,
+    rw [codes_eq, Circuit.ofCodes_append, Circuit.eval_append, eval_prep hnp hm hW X0 hX0high,
       Circuit.ofCodes_append, Circuit.eval_append]
   rw [hsplit, Circuit.measureProb_eval_ofCodes (Amplify.isClassical_counter_swap hW0)]
   have hnorm (Y : Fin (Amplify.width W (2 * R) R) → Bool) :
@@ -550,7 +551,7 @@ def amplify (r : ℕ → ℕ) (hr : ComputableInPolyTime r encUnary encUnary) :
     rcases List.mem_append.mp hg with hg | hg
     · rcases List.mem_append.mp hg with hg | hg
       · exact (isClassical_moveCodes (by omega) g hg).2
-      · exact (Amplify.isClassical_copyCodes (by omega) (by omega) g hg).2
+      · exact (Amplify.isClassical_copyCodes (by omega) Amplify.base_lt_width.le g hg).2
     rcases List.mem_append.mp hg with hg | hg
     · obtain ⟨j, hj, hg⟩ := List.mem_flatMap.mp hg
       obtain ⟨g, hg', rfl⟩ := List.mem_map.mp hg

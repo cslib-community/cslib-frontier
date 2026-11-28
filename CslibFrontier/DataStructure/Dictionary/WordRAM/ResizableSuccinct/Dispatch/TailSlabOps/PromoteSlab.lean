@@ -147,6 +147,48 @@ private def CompPromoteSlabPre (w : ℕ) : (CompParams × (ℕ × ℕ)) × ℕ �
       FixedCoupled metaBase itemBase U V w N s_fix s ∧
       totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap
 
+private theorem compPromoteSlabLoop_spec {metaBase itemBase U V w N m_cap b : ℕ}
+    {s_fix s : Memory.State}
+    (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
+    (hb_pos : 0 < bucketBits N)
+    (hpre : PromoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix)
+    (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s)
+    (hm_cap : totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap) :
+    let hspace := epochHashSpace U (ghostW w) N
+    let d := ((mkCompParams U V w N, (metaBase, itemBase)), b)
+    let loop := iterate compPromoteStepGenProg d (slabSize N) 0
+    let s' := (Memory.spec 0).clientState s loop
+    let s_fix' := (Memory.spec 0).clientState s_fix
+      (iterate (promoteStepProg U V (ghostW w) N hspace) (0, b) (slabSize N) 0)
+    let gm := compGmAt metaBase U w N s'.mem
+    let promoted := gm 0 * slabSize N + slabSize N
+    CompOpFrame metaBase itemBase U V w N m_cap s s' ∧
+    WindowCoupled metaBase itemBase U V w N promoted (gm 1) (promoted + gm 1) s_fix' s' ∧
+    PromoteLoopInv U V (ghostW w) N hspace 0 b s_fix (slabSize N) s_fix' ∧
+    gm 0 < maxFullSlabs N ∧
+    memoryCost loop s = 98 * slabSize N ∧
+    iterationSafe compPromoteStepGenProg CompPromoteStepPre w d (slabSize N) 0 s := by
+  have hb0 := hb_pos.ne'
+  have hwg : 0 < ghostW w := by unfold ghostW; lia
+  have hloop0 := promoteLoopInv_zero hpre
+  have hcpl0 : WindowCoupled metaBase itemBase U V w N
+      (compGmAt metaBase U w N s.mem 0 * slabSize N + 0) (compGmAt metaBase U w N s.mem 1)
+      ((compGmAt metaBase U w N s.mem 0 * slabSize N + 0) + compGmAt metaBase U w N s.mem 1)
+      s_fix s := by
+    simpa only [FixedCoupled, epochTotalSlots, hb0, ↓reduceIte, Nat.add_zero] using hcpl
+  have hm_cap0 : (compGmAt metaBase U w N s.mem 0 * slabSize N + 0) +
+      compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
+    simpa only [totalSlots, hb0, ↓reduceIte, Nat.add_zero] using hm_cap
+  obtain ⟨hframe, hcoupled, hcost, hsafe⟩ := iterate_compPromoteStep_spec hb_pos
+    (slabSize N) 0 s_fix s (Nat.zero_add _).le henv hloop0 hcpl0 hm_cap0
+  obtain ⟨hloop, _, _⟩ := iterate_promoteStepProg_spec (w := ghostW w) hwg hb_pos
+    (slabSize N) 0 s_fix (Nat.zero_add _).le hloop0
+  rw [Nat.zero_add] at hcoupled hloop
+  refine ⟨hframe, hcoupled, hloop, ?_, hcost, hsafe⟩
+  rw [hcoupled.gm_eq]
+  exact nslabs_lt_maxFullSlabs_of_mul_le hb_pos
+    (by simpa only [Nat.add_one_mul] using Nat.le_of_add_right_le hloop.tot_le)
+
 private theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
@@ -162,33 +204,14 @@ private theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     FixedCoupled metaBase itemBase U V w N s_fix' s' ∧
     memoryCost (compPromoteSlabGenProg d) s ≤ 98 * slabSize N + 38 := by
   intro d s' s_fix'
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hwg : 0 < ghostW w := by
-    unfold ghostW
-    omega
-  have hloop0 := promoteLoopInv_zero hpre
-  have hcpl0 : WindowCoupled metaBase itemBase U V w N
-      (compGmAt metaBase U w N s.mem 0 * slabSize N + 0)
-      (compGmAt metaBase U w N s.mem 1)
-      ((compGmAt metaBase U w N s.mem 0 * slabSize N + 0) + compGmAt metaBase U w N s.mem 1)
-      s_fix s := by
-    simpa only [FixedCoupled, epochTotalSlots, hb0, ↓reduceIte, Nat.add_zero] using hcpl
-  have hm_cap0 : (compGmAt metaBase U w N s.mem 0 * slabSize N + 0) +
-      compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
-    simpa only [totalSlots, hb0, ↓reduceIte, Nat.add_zero] using hm_cap
-  obtain ⟨hfr_loop, hcpl_loop, hcost_loop, _⟩ :=
-    iterate_compPromoteStep_spec hb_pos (slabSize N) 0 s_fix s (by omega) henv hloop0 hcpl0 hm_cap0
-  obtain ⟨hloopK, _, _⟩ :=
-    iterate_promoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega) hloop0
-  rw [Nat.zero_add] at hcpl_loop hloopK
+  have hb0 := hb_pos.ne'
+  have hwg : 0 < ghostW w := by unfold ghostW; lia
+  obtain ⟨hfr_loop, hcpl_loop, hloopK, hp_lt1, hcost_loop, _⟩ :=
+    compPromoteSlabLoop_spec henv hb_pos hpre hcpl hm_cap
   set s₁ := (Memory.spec 0).clientState s (iterate compPromoteStepGenProg d (slabSize N) 0)
   set s_fix₁ := (Memory.spec 0).clientState s_fix
     (iterate (promoteStepProg U V (ghostW w) N (epochHashSpace U (ghostW w) N))
       (0, b) (slabSize N) 0)
-  have htot1 : (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix₁.mem 0 + 1) *
-      slabSize N ≤ N := by
-    simpa only [Nat.add_one_mul] using Nat.le_of_add_right_le hloopK.tot_le
-  have hp_lt1 := nslabs_lt_maxFullSlabs_of_mul_le hb_pos htot1
   have hslab1 : SlabBijection N (compGmAt metaBase U w N s₁.mem)
       (fun b' => compGmAt metaBase U w N s₁.mem (gmQIdx b'))
       (compGmAt metaBase U w N s₁.mem 0) :=
@@ -197,11 +220,11 @@ private theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     (itemBase := itemBase) (U := U) (V := V) (w := w) (N := N)
     (m_items := (compGmAt metaBase U w N s₁.mem 0 * slabSize N + slabSize N) +
       compGmAt metaBase U w N s₁.mem 1) (b := b)
-    henv.pos_w henv.meta_le_item hb_pos hloopK.b_lt s₁ hslab1 (hcpl_loop.gm_eq ▸ hp_lt1)
+    henv.pos_w henv.meta_le_item hb_pos hloopK.b_lt s₁ hslab1 hp_lt1
   obtain ⟨_, _, hq_fpush, hv_fpush, hl_fpush, hgm_fpush⟩ :=
     gmPushSlabProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
       (h_space := epochHashSpace U (ghostW w) N) hwg hb_pos hloopK.b_lt s_fix₁
-      hloopK.slab_bij hp_lt1
+      hloopK.slab_bij (hcpl_loop.gm_eq ▸ hp_lt1)
   set s₂ := (Memory.spec 0).clientState s₁
     (compGmPushSlabGenProg ((mkCompParams U V w N, metaBase), b))
   have hs'_eq : s' = s₂ := by
@@ -249,35 +272,12 @@ private theorem compPromoteSlab_subgoals {w : ℕ} {d : (CompParams × (ℕ × �
       ((Memory.spec 0).clientState s (compPromoteLoopGenProg ((d, 0), cpSlabSize d.1.1))) := by
   rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
   obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hpre, hcpl, hm_cap⟩ := h
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hwg : 0 < ghostW w := by
-    unfold ghostW
-    omega
-  have hloop0 := promoteLoopInv_zero hpre
-  have hcpl0 : WindowCoupled metaBase itemBase U V w N
-      (compGmAt metaBase U w N s.mem 0 * slabSize N + 0)
-      (compGmAt metaBase U w N s.mem 1)
-      ((compGmAt metaBase U w N s.mem 0 * slabSize N + 0) + compGmAt metaBase U w N s.mem 1)
-      s_fix s := by
-    simpa only [FixedCoupled, epochTotalSlots, hb0, ↓reduceIte, Nat.add_zero] using hcpl
-  have hm_cap0 : (compGmAt metaBase U w N s.mem 0 * slabSize N + 0) +
-      compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
-    simpa only [totalSlots, hb0, ↓reduceIte, Nat.add_zero] using hm_cap
-  obtain ⟨hfr_loop, hcpl_loop, _, hsafe_loop⟩ :=
-    iterate_compPromoteStep_spec hb_pos (slabSize N) 0 s_fix s (by omega) henv hloop0 hcpl0 hm_cap0
-  obtain ⟨hloopK, _, _⟩ :=
-    iterate_promoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega) hloop0
-  rw [Nat.zero_add] at hcpl_loop hloopK
-  have htot1 : (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-      ((Memory.spec 0).clientState s_fix
-        (iterate (promoteStepProg U V (ghostW w) N (epochHashSpace U (ghostW w) N))
-          (0, b) (slabSize N) 0)).mem 0 + 1) * slabSize N ≤ N := by
-    simpa only [Nat.add_one_mul] using Nat.le_of_add_right_le hloopK.tot_le
-  have hp_lt1 := nslabs_lt_maxFullSlabs_of_mul_le hb_pos htot1
+  obtain ⟨hfr_loop, hcpl_loop, hloopK, hp_lt1, _, hsafe_loop⟩ :=
+    compPromoteSlabLoop_spec henv hb_pos hpre hcpl hm_cap
   simp only [cpSlabSize_mk, compPromoteLoopGenProg]
   exact ⟨hsafe_loop, U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
     hfr_loop.frontier_eq ▸ henv.meta_le_frontier, hb_pos, hloopK.b_lt,
-    slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij, hcpl_loop.gm_eq ▸ hp_lt1⟩
+    slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij, hp_lt1⟩
 
 private theorem realizesBounded_compPromoteSlabGen :
     RealizesBounded .exact compPromoteSlabGenProg

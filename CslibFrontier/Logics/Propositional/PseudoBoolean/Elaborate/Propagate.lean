@@ -26,7 +26,8 @@ the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). It is written for compiled exe
 is one value, private to this module, held by a mutable reference in `ST` and updated in place by
 pure functions while it is uniquely referenced, and the kernel cannot evaluate it. The engine's
 interface is `Cslib.Logic.PL.VeriPB.Elab.Engine.new` and the operations `add`, `kill`, `rupHints`
-and `extend`.
+and `extend`. Its loops are total: those over arrays by well-founded recursion, and the
+processing of the trail and the conflict analysis with fuel above the length the trail can reach.
 
 **Data.** A constraint is stored as its literal codes (`2 i` for the `i`-th variable met, `2 i + 1`
 for its negation) and coefficients, sorted by decreasing coefficient, in two arrays shared by all
@@ -155,15 +156,18 @@ structure Engine (σ : Type) where
 /-- Propagate the non-clause constraint `c` with slack `sl` on the assignment `a`: make true every
 unassigned term whose coefficient exceeds `sl`. -/
 private def propagatePB (cons : Array CRec) (lits coeffs : Array ℕ) (c : ℕ) (sl : ℤ) (a : Asg) :
-    Asg := Id.run do
+    Asg :=
   let r := cons[c]!
-  let mut a := a
-  let mut k := r.start
-  while k < r.start + r.size && (coeffs[k]! : ℤ) > sl do
-    let l := lits[k]!
-    if litVal a.value l == 0 then a := a.assign l c
-    k := k + 1
-  return a
+  go (r.start + r.size) r.start a
+where
+  /-- The terms from position `k` below `e`, while their coefficient exceeds `sl`. -/
+  go (e k : ℕ) (a : Asg) : Asg :=
+    if k < e && (coeffs[k]! : ℤ) > sl then
+      let l := lits[k]!
+      go e (k + 1) (if litVal a.value l == 0 then a.assign l c else a)
+    else a
+  termination_by e - k
+  decreasing_by grind
 
 /-- The results of the hot loops: a conflict, if any, the changed arrays, and the assignment,
 whose parts are passed separately so that no structure is rebuilt per step. -/
@@ -184,7 +188,7 @@ private instance : Inhabited Hot := ⟨⟨none, #[], #[], #[], #[], .empty, #[],
 coefficient from `i` on, the live ones written back from `j`. Every live slack is updated, so that
 backtracking can undo it; the first constraint whose slack becomes negative is the conflict. The
 result carries `os` as `arr`. -/
-private partial def pbLoop (cons : Array CRec) (alive : ByteArray) (lits coeffs : Array ℕ)
+private def pbLoop (cons : Array CRec) (alive : ByteArray) (lits coeffs : Array ℕ)
     (watches : Array (Array ℕ)) (os : Array ℕ) (i j : ℕ) (confl : Option ℕ) (slack : Array ℤ)
     (value : ByteArray) (reason tpos trail : Array ℕ) : Hot :=
   if i + 1 < os.size then
@@ -207,26 +211,31 @@ private partial def pbLoop (cons : Array CRec) (alive : ByteArray) (lits coeffs 
       else
         pbLoop cons alive lits coeffs watches os (i + 2) (j + 2) confl slack value reason tpos trail
   else ⟨confl, os.shrink j, lits, watches, slack, value, reason, tpos, trail⟩
+termination_by os.size - i
+decreasing_by all_goals ((try simp only [Array.set!, Array.size_setIfInBounds]); omega)
 
 /-- The first position from `k` below `e` whose literal is not false, or `e`. -/
-private partial def nonFalse (lits : Array ℕ) (value : ByteArray) (k e : ℕ) : ℕ :=
+private def nonFalse (lits : Array ℕ) (value : ByteArray) (k e : ℕ) : ℕ :=
   if k < e then if litVal value lits[k]! != 2 then k else nonFalse lits value (k + 1) e
   else e
+termination_by e - k
 
 /-- Copy the live entries of `ws` from `i` on to `j` on. -/
-private partial def keepLive (alive : ByteArray) (ws : Array ℕ) (i j : ℕ) : Array ℕ :=
+private def keepLive (alive : ByteArray) (ws : Array ℕ) (i j : ℕ) : Array ℕ :=
   if i < ws.size then
     let c := ws[i]!
     if alive.get! c == 0 then keepLive alive ws (i + 1) j
     else keepLive alive (ws.set! j c) (i + 1) (j + 1)
   else ws.shrink j
+termination_by ws.size - i
+decreasing_by all_goals ((try simp only [Array.set!, Array.size_setIfInBounds]); omega)
 
 /-- The clause part of processing the falsified literal `f`: the clauses `ws` watched by `f` from
 `i` on, those still watched by `f` written back from `j`. A clause whose other watch is true stays;
 else its watch moves to a literal that is not false, or else the other watch is propagated or the
 clause conflicts. After a conflict, the remaining live clauses stay. The result carries `ws` as
 `arr`. -/
-private partial def watchLoop (cpos : Array ℕ) (alive : ByteArray) (f : ℕ) (ws : Array ℕ)
+private def watchLoop (cpos : Array ℕ) (alive : ByteArray) (f : ℕ) (ws : Array ℕ)
     (i j : ℕ) (lits : Array ℕ) (watches : Array (Array ℕ)) (slack : Array ℤ) (value : ByteArray)
     (reason tpos trail : Array ℕ) : Hot :=
   if i < ws.size then
@@ -261,15 +270,22 @@ private partial def watchLoop (cpos : Array ℕ) (alive : ByteArray) (f : ℕ) (
             ⟨some c, keepLive alive ws (i + 1) (j + 1), lits, watches, slack, value, reason, tpos,
               trail⟩
   else ⟨none, ws.shrink j, lits, watches, slack, value, reason, tpos, trail⟩
+termination_by ws.size - i
+decreasing_by all_goals ((try simp only [Array.set!, Array.size_setIfInBounds]); omega)
 
 /-- Process the trail from `qhead` until a conflict or until every entry is processed: for each
 entry, the slacks of the non-clause constraints containing its negation, then the clauses
 watching it. The slack updates of an entry are always completed, so that backtracking can undo
-them. Returns the new `qhead` and the occurrence lists with the other results. -/
-private partial def propLoop (cons : Array CRec) (cpos : Array ℕ) (alive : ByteArray)
-    (coeffs : Array ℕ)
+them. Returns the new `qhead` and the occurrence lists with the other results. The number of
+entries processed is bounded by `fuel`, which the caller takes above the number of literal codes,
+a bound on the length of the trail: with the fuel spent, the entries left are not processed. -/
+private def propLoop (cons : Array CRec) (cpos : Array ℕ) (alive : ByteArray)
+    (coeffs : Array ℕ) (fuel : ℕ)
     (qhead : ℕ) (lits : Array ℕ) (watches occ : Array (Array ℕ)) (slack : Array ℤ)
     (value : ByteArray) (reason tpos trail : Array ℕ) : ℕ × Array (Array ℕ) × Hot :=
+  match fuel with
+  | 0 => (qhead, occ, ⟨none, #[], lits, watches, slack, value, reason, tpos, trail⟩)
+  | fuel + 1 =>
   if qhead < trail.size then
     let f := trail[qhead]! ^^^ 1
     let (os, occ) := occ.swapAt! f #[]
@@ -286,8 +302,8 @@ private partial def propLoop (cons : Array CRec) (cpos : Array ℕ) (alive : Byt
           if confl.isSome then
             (qhead + 1, occ, ⟨confl, #[], lits, watches, slack, value, reason, tpos, trail⟩)
           else
-            propLoop cons cpos alive coeffs (qhead + 1) lits watches occ slack value reason tpos
-              trail
+            propLoop cons cpos alive coeffs fuel (qhead + 1) lits watches occ slack value reason
+              tpos trail
   else (qhead, occ, ⟨none, #[], lits, watches, slack, value, reason, tpos, trail⟩)
 
 namespace EState
@@ -336,8 +352,8 @@ private def propagate (s : EState) : EState × Option ℕ :=
   match s with
   | ⟨varIdx, vars, cons, cpos, alive, lits, coeffs, watches, occ, roots,
       ⟨value, reason, tpos, trail⟩, qhead, slack, rootReason, rootLen, rootConflict, dirty, seen⟩ =>
-    match propLoop cons cpos alive coeffs qhead lits watches occ slack value reason tpos trail
-      with
+    match propLoop cons cpos alive coeffs (value.size + 1) qhead lits watches occ slack value
+      reason tpos trail with
     | (qhead, occ, ⟨confl, _, lits, watches, slack, value, reason, tpos, trail⟩) =>
       (⟨varIdx, vars, cons, cpos, alive, lits, coeffs, watches, occ, roots,
         ⟨value, reason, tpos, trail⟩, qhead, slack, rootReason, rootLen, rootConflict, dirty,
@@ -345,7 +361,7 @@ private def propagate (s : EState) : EState × Option ℕ :=
 
 /-- Undo the trail from position `i` down to length `n`, restoring the slacks of the entries
 below `q`, which were processed. -/
-private partial def undo (occ : Array (Array ℕ)) (q n i : ℕ) (slack : Array ℤ) (a : Asg) :
+private def undo (occ : Array (Array ℕ)) (q n i : ℕ) (slack : Array ℤ) (a : Asg) :
     Array ℤ × Asg :=
   if n < i then
     let i := i - 1
@@ -353,10 +369,12 @@ private partial def undo (occ : Array (Array ℕ)) (q n i : ℕ) (slack : Array 
     let slack := if i < q then restore occ[t ^^^ 1]! 0 slack else slack
     undo occ q n i slack { a with value := (a.value.set! t 0).set! (t ^^^ 1) 0 }
   else (slack, { a with trail := a.trail.shrink n })
+termination_by i
 where
   /-- Add back the coefficients of the pairs `os` from `k` on. -/
   restore (os : Array ℕ) (k : ℕ) (slack : Array ℤ) : Array ℤ :=
     if k + 1 < os.size then restore os (k + 2) (slack.modify os[k]! (· + os[k + 1]!)) else slack
+  termination_by os.size - k
 
 /-- Undo the trail down to length `n`, restoring the slacks of the processed entries. -/
 private def backtrack (s : EState) (n : ℕ) : EState :=
@@ -490,22 +508,26 @@ private def rebuild (s : EState) : EState := Id.run do
   return { s with dirty := false }
 
 /-- Restore the max-heap order of `h` above position `i`. -/
-private partial def siftUp (h : Array ℕ) (i : ℕ) : Array ℕ :=
+private def siftUp (h : Array ℕ) (i : ℕ) : Array ℕ :=
   if 0 < i && h[(i - 1) / 2]! < h[i]! then siftUp (h.swapIfInBounds i ((i - 1) / 2)) ((i - 1) / 2)
   else h
+termination_by i
+decreasing_by grind
 
 /-- Restore the max-heap order of `h` below position `i`. -/
-private partial def siftDown (h : Array ℕ) (i : ℕ) : Array ℕ :=
+private def siftDown (h : Array ℕ) (i : ℕ) : Array ℕ :=
   let l := 2 * i + 1
   let r := 2 * i + 2
   let m := if l < h.size && h[i]! < h[l]! then l else i
   let m := if r < h.size && h[m]! < h[r]! then r else m
-  if m == i then h else siftDown (h.swapIfInBounds i m) m
+  if _hm : m == i then h else siftDown (h.swapIfInBounds i m) m
+termination_by h.size - i
+decreasing_by simp only [Array.size_swapIfInBounds]; grind
 
 /-- Mark the variables of the false literals at positions `[q, e)` of `lits` assigned below the
 trail position `lim` and not marked yet (`seen`), pushing their trail positions onto the
 max-heap `heap`. -/
-private partial def markLits (lits tpos : Array ℕ) (value : ByteArray) (q e lim : ℕ)
+private def markLits (lits tpos : Array ℕ) (value : ByteArray) (q e lim : ℕ)
     (seen : ByteArray) (heap : Array ℕ) : ByteArray × Array ℕ :=
   if q < e then
     let l := lits[q]!
@@ -514,12 +536,18 @@ private partial def markLits (lits tpos : Array ℕ) (value : ByteArray) (q e li
       markLits lits tpos value (q + 1) e lim (seen.set! v 1) (siftUp (heap.push tpos[v]!) heap.size)
     else markLits lits tpos value (q + 1) e lim seen heap
   else (seen, heap)
+termination_by e - q
 
 /-- Process the marked trail positions `heap`, latest first: record the reason of each (once for
 consecutive repeats) and mark the false literals of the reason assigned before it; unmark the
-variables processed. -/
-private partial def collect (cons : Array CRec) (lits tpos reason trail : Array ℕ)
-    (value : ByteArray) (seen : ByteArray) (heap out : Array ℕ) : ByteArray × Array ℕ :=
+variables processed. The number of positions processed is bounded by `fuel`, which the caller
+takes above the length of the trail: each position is pushed at most once. -/
+private def collect (cons : Array CRec) (lits tpos reason trail : Array ℕ)
+    (value : ByteArray) (fuel : ℕ) (seen : ByteArray) (heap out : Array ℕ) :
+    ByteArray × Array ℕ :=
+  match fuel with
+  | 0 => (seen, out)
+  | fuel + 1 =>
   if h : 0 < heap.size then
     let p := heap[0]
     let heap := siftDown (heap.swapIfInBounds 0 (heap.size - 1)).pop 0
@@ -528,7 +556,7 @@ private partial def collect (cons : Array CRec) (lits tpos reason trail : Array 
     let out := if out.size == 0 || out[out.size - 1]! != r then out.push r else out
     let rc := cons[r]!
     match markLits lits tpos value rc.start (rc.start + rc.size) p (seen.set! v 0) heap with
-    | (seen, heap) => collect cons lits tpos reason trail value seen heap out
+    | (seen, heap) => collect cons lits tpos reason trail value fuel seen heap out
   else (seen, out)
 
 /-- The kernel hints of a conflict at the constraint `k`: the reasons of the needed literals, in
@@ -544,7 +572,8 @@ private def analyze (s : EState) (k : ℕ) : EState × Array Hint :=
   let a := s.asg
   let (seen, heap) :=
     markLits s.lits a.tpos a.value rk.start (rk.start + rk.size) a.trail.size seen #[]
-  let (seen, out) := collect s.cons s.lits a.tpos a.reason a.trail a.value seen heap #[]
+  let (seen, out) :=
+    collect s.cons s.lits a.tpos a.reason a.trail a.value (a.trail.size + 1) seen heap #[]
   ({ s with seen := seen }, (out.reverse.map (s.cons[·]!.hint)).push rk.hint)
 
 /-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,

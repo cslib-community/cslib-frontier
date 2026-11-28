@@ -47,6 +47,8 @@ function usually sees an array. It realizes `Block.HoldsList`.
 * `Cslib.WordRAM.Block.holdsList_entries`: the list view realizes `Block.HoldsList`.
 * `Cslib.DataStructure.Memory.runClient_allocBlock_bind`: allocation hands out a zeroed,
   allocated block at the frontier.
+* `Cslib.DataStructure.Memory.clientResult_allocBlockDirty`,
+  `Cslib.DataStructure.Memory.clientState_allocBlockDirty`: evaluation of `allocBlockDirty`.
 -/
 
 @[expose] public section
@@ -167,6 +169,16 @@ frontier past it. -/
     (spec w).runClient s (allocBlockDirty k >>= next) =
       let (v, s', os) := (spec w).runClient ⟨s.mem, s.frontier + k⟩ (next ⟨s.frontier, k⟩)
       (v, s', .allocDirty k :: os) := rfl
+
+/-- `allocBlockDirty k` returns the freshly allocated block starting at `s.frontier`. -/
+theorem clientResult_allocBlockDirty (w : ℕ) (s : State) (k : ℕ) :
+    (spec w).clientResult s (allocBlockDirty k) = ⟨s.frontier, k⟩ :=
+  rfl
+
+/-- `allocBlockDirty k` leaves memory unchanged and advances the frontier by `k`. -/
+theorem clientState_allocBlockDirty (w : ℕ) (s : State) (k : ℕ) :
+    (spec w).clientState s (allocBlockDirty k) = ⟨s.mem, s.frontier + k⟩ :=
+  rfl
 
 /-- A freshly allocated block is allocated in the new state. -/
 theorem allocated_alloc (s : State) (k : ℕ) :

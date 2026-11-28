@@ -31,10 +31,12 @@ directed cycles) forms a directed out-forest whose underlying undirected graph
 `SimpleGraph.fromRel B.Adj` is acyclic (`Digraph.IsBranching.toSimpleGraph_isAcyclic`).
 
 On a finite vertex type `V`, every branching admits a strict root-distance ranking
-(`Digraph.IsBranching.exists_rank`). Along each rooted component tree, bottom-up dynamic
-programming tracks the unchosen-root ratio `p(T_u) = i₀(T_u) / i(T_u) ∈ [1 / 2, 4 / 5]` against the
-quadratic potential `f(p) = (2 / 5) * (p - 1 / 2) + (3 / 10) * (p - 1 / 2) ^ 2`, establishing the
-rational entropy bound
+(`Digraph.IsBranching.exists_rank`). In the degree-capped forest, every non-root vertex `u` has at
+most two children. The fraction `p(T_u) = i₀(T_u) / i(T_u)` of independent sets of its subtree
+that omit `u` lies in `[1 / 2, 4 / 5]`. The induction uses the quadratic potential
+`f(p) = (2 / 5) * (p - 1 / 2) + (3 / 10) * (p - 1 / 2) ^ 2`. At a component root the proof
+combines the ratios of up to three children and subtracts the active-root penalty whenever there
+is a child. The resulting entropy bound is
 
 `Real.logb 2 i(G) ≤ |V| - (53 / 200) * cappedEdges(B) - (33 / 1000) * |activeRoots(B)|`
 
@@ -609,6 +611,464 @@ private theorem exists_root_reaches {arc : V → V → Prop} {rk : V → ℕ}
       exact ⟨r, hr, hru.tail huw⟩
     · exact ⟨w, h, .refl⟩
 
+section ArcSubtree
+
+open Classical in
+/-- Out-neighbors of `u` along `arc` as a `Finset`. -/
+private noncomputable def arcKids [Fintype V] (arc : V → V → Prop) (u : V) : Finset V :=
+  Finset.univ.filter (arc u ·)
+
+open Classical in
+/-- Vertices reachable from `u` along zero or more `arc`-steps as a `Finset`. -/
+private noncomputable def arcSubtree [Fintype V] (arc : V → V → Prop) (u : V) : Finset V :=
+  Finset.univ.filter (Relation.ReflTransGen arc u ·)
+
+open Classical in
+/-- Number of independent sets in the subtree rooted at `u`. -/
+private noncomputable def subIndepCount [Fintype V] (arc : V → V → Prop) (u : V) : ℕ :=
+  (indepPowerset (SimpleGraph.fromRel arc) (arcSubtree arc u)).card
+
+open Classical in
+/-- Number of independent sets on the vertices reachable from a child of `u`.
+When a rank strictly increases along each arc, these are exactly the independent sets on the
+subtree of `u` that omit `u`. -/
+private noncomputable def subUnchosenCount [Fintype V] (arc : V → V → Prop) (u : V) : ℕ :=
+  (indepPowerset (SimpleGraph.fromRel arc) ((arcKids arc u).biUnion (arcSubtree arc))).card
+
+/-- Total outgoing `arc`-edges summed over the subtree rooted at `u`. -/
+private noncomputable def subEdges [Fintype V] (arc : V → V → Prop) (u : V) : ℕ :=
+  ∑ w ∈ arcSubtree arc u, (arcKids arc w).card
+
+/-- Ratio of the independent-set count on the union of the child subtrees to the count on
+the subtree of `u`. Under a strictly increasing rank it is the fraction of sets omitting `u`. -/
+private noncomputable def subRootRatio [Fintype V] (arc : V → V → Prop) (u : V) : ℝ :=
+  (subUnchosenCount arc u : ℝ) / (subIndepCount arc u : ℝ)
+
+/-- Distinct children of `u` have pairwise disjoint subtrees. -/
+private theorem arcSubtree_pairwiseDisjoint_kids [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    (arcKids arc u : Set V).PairwiseDisjoint (arcSubtree arc) := by
+  classical
+  intro v₁ hv₁ v₂ hv₂ hne
+  rw [Function.onFun, Finset.disjoint_left]
+  intro z hz1 hz2
+  simp only [arcSubtree, Finset.mem_filter, Finset.mem_univ, true_and] at hz1 hz2
+  simp only [Finset.mem_coe, arcKids, Finset.mem_filter, Finset.mem_univ, true_and] at hv₁ hv₂
+  exact Set.disjoint_left.mp (subtree_disjoint_children hrank hin hv₁ hv₂ hne) hz1 hz2
+
+/-- Disjoint subtrees carry no undirected `SimpleGraph.fromRel arc` edge between them. -/
+private theorem no_adj_of_disjoint_arcSubtree [Fintype V] {arc : V → V → Prop} {v₁ v₂ : V}
+    (hd : Disjoint (arcSubtree arc v₁) (arcSubtree arc v₂))
+    {x y : V} (hx : x ∈ arcSubtree arc v₁) (hy : y ∈ arcSubtree arc v₂) :
+    ¬(SimpleGraph.fromRel arc).Adj x y := by
+  classical
+  intro hadj
+  simp only [arcSubtree, Finset.mem_filter, Finset.mem_univ, true_and] at hx hy
+  rw [fromRel_adj] at hadj
+  rcases hadj.2 with hxy | hyx
+  · exact Finset.disjoint_left.mp hd
+      (show y ∈ arcSubtree arc v₁ by simp [arcSubtree, hx.tail hxy])
+      (show y ∈ arcSubtree arc v₂ by simp [arcSubtree, hy])
+  · exact Finset.disjoint_left.mp hd
+      (show x ∈ arcSubtree arc v₁ by simp [arcSubtree, hx])
+      (show x ∈ arcSubtree arc v₂ by simp [arcSubtree, hy.tail hyx])
+
+open Classical in
+/-- No vertex lies inside the union of its own children's subtrees. -/
+private theorem notMem_biUnion_arcSubtree_kids [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (u : V) :
+    u ∉ (arcKids arc u).biUnion (arcSubtree arc) := by
+  intro hmem
+  obtain ⟨v, hv, huv⟩ := Finset.mem_biUnion.mp hmem
+  simp only [arcKids, arcSubtree, Finset.mem_filter, Finset.mem_univ, true_and] at hv huv
+  exact absurd (rk_le_of_reflTransGen hrank huv) (not_le_of_gt (hrank hv))
+
+open Classical in
+/-- Subtree decomposition: `arcSubtree arc u` is `u` inserted into the union of child subtrees. -/
+private theorem arcSubtree_eq_insert_biUnion [Fintype V] (arc : V → V → Prop) (u : V) :
+    arcSubtree arc u = insert u ((arcKids arc u).biUnion (arcSubtree arc)) := by
+  ext z
+  simp only [arcSubtree, arcKids, Finset.mem_filter, Finset.mem_univ, true_and,
+    Finset.mem_insert, Finset.mem_biUnion]
+  constructor
+  · intro huz
+    rcases Relation.reflTransGen_iff_eq_or_transGen.mp huz with rfl | htr
+    · exact Or.inl rfl
+    · obtain ⟨v, huv, hvz⟩ := Relation.TransGen.head'_iff.mp htr
+      exact Or.inr ⟨v, huv, hvz⟩
+  · rintro (rfl | ⟨v, huv, hvz⟩)
+    · exact .refl
+    · exact hvz.head huv
+
+open Classical in
+/-- No vertex is adjacent in `SimpleGraph.fromRel arc` to a proper descendant of a child. -/
+private theorem not_adj_grandchild [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton)
+    {u v z : V} (hv : v ∈ arcKids arc u)
+    (hz : z ∈ (arcKids arc v).biUnion (arcSubtree arc)) :
+    ¬(SimpleGraph.fromRel arc).Adj u z := by
+  intro hadj
+  obtain ⟨w, hw, hwz⟩ := Finset.mem_biUnion.mp hz
+  have hv_arc : arc u v := by simpa [arcKids] using hv
+  simp only [arcKids, arcSubtree, Finset.mem_filter, Finset.mem_univ, true_and] at hw hwz
+  rw [fromRel_adj] at hadj
+  rcases hadj.2 with huz | hzu
+  · have hz_kid : z ∈ arcKids arc u := by simp [arcKids, huz]
+    have hz_sub_v : z ∈ arcSubtree arc v := by simp [arcSubtree, hwz.head hw]
+    have hz_sub_z : z ∈ arcSubtree arc z := by simp [arcSubtree, Relation.ReflTransGen.refl]
+    by_cases hvz : v = z
+    · subst hvz
+      exact absurd (rk_le_of_reflTransGen hrank hwz) (not_le_of_gt (hrank hw))
+    · exact Finset.disjoint_left.mp
+        (arcSubtree_pairwiseDisjoint_kids hrank hin u hv hz_kid hvz) hz_sub_v hz_sub_z
+  · have hlt : rk u < rk z :=
+      (hrank hv_arc).trans ((hrank hw).trans_le (rk_le_of_reflTransGen hrank hwz))
+    exact absurd (hrank hzu) (not_lt_of_gt hlt)
+
+/-- Independent sets omitting `u` factor as the product of child subtree counts. -/
+private theorem subUnchosenCount_eq_prod [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    subUnchosenCount arc u = ∏ v ∈ arcKids arc u, subIndepCount arc v := by
+  classical
+  exact card_indepPowerset_biUnion (arcKids arc u) (arcSubtree arc)
+    (arcSubtree_pairwiseDisjoint_kids hrank hin u)
+    fun _ hv₁ _ hv₂ hne _ hx _ hy =>
+      no_adj_of_disjoint_arcSubtree
+        (arcSubtree_pairwiseDisjoint_kids hrank hin u hv₁ hv₂ hne) hx hy
+
+open Classical in
+/-- Independent sets in `arcSubtree arc u` containing `u` biject with independent sets in the
+grandchild forest `⋃_{v ∈ kids u} (kids v).biUnion sub`. -/
+private theorem card_indepPowerset_mem_root [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    ((indepPowerset (SimpleGraph.fromRel arc)
+        (insert u ((arcKids arc u).biUnion (arcSubtree arc)))).filter fun I => u ∈ I).card =
+      ∏ v ∈ arcKids arc u, subUnchosenCount arc v := by
+  let G := SimpleGraph.fromRel arc
+  let grand : V → Finset V := fun v => (arcKids arc v).biUnion (arcSubtree arc)
+  have hgrand_sub (v : V) : grand v ⊆ arcSubtree arc v := by
+    intro z hz
+    rw [arcSubtree_eq_insert_biUnion]
+    exact Finset.mem_insert_of_mem hz
+  have hdisj_G : (arcKids arc u : Set V).PairwiseDisjoint grand := fun v₁ hv₁ v₂ hv₂ hne =>
+    Disjoint.mono (hgrand_sub v₁) (hgrand_sub v₂)
+      (arcSubtree_pairwiseDisjoint_kids hrank hin u hv₁ hv₂ hne)
+  have hcross_G : ∀ v₁ ∈ arcKids arc u, ∀ v₂ ∈ arcKids arc u, v₁ ≠ v₂ →
+      ∀ x ∈ grand v₁, ∀ y ∈ grand v₂, ¬G.Adj x y := fun v₁ hv₁ v₂ hv₂ hne _ hx _ hy =>
+    no_adj_of_disjoint_arcSubtree (arcSubtree_pairwiseDisjoint_kids hrank hin u hv₁ hv₂ hne)
+      (hgrand_sub v₁ hx) (hgrand_sub v₂ hy)
+  have hGsub_B : (arcKids arc u).biUnion grand ⊆ (arcKids arc u).biUnion (arcSubtree arc) :=
+    fun z hz => by
+      obtain ⟨v, hv, hzv⟩ := Finset.mem_biUnion.mp hz
+      exact Finset.mem_biUnion.mpr ⟨v, hv, hgrand_sub v hzv⟩
+  change _ = ∏ v ∈ arcKids arc u, (indepPowerset G (grand v)).card
+  rw [← card_indepPowerset_biUnion (arcKids arc u) grand hdisj_G hcross_G]
+  refine Finset.card_bij (fun I _ => I.erase u) ?_ ?_ ?_
+  · intro I hI
+    simp only [indepPowerset, Finset.mem_filter, Finset.mem_powerset] at hI ⊢
+    obtain ⟨⟨hIsub, hIind⟩, huI⟩ := hI
+    refine ⟨fun z hz => ?_, fun x hx y hy =>
+      hIind x (Finset.mem_of_mem_erase hx) y (Finset.mem_of_mem_erase hy)⟩
+    obtain ⟨v, hv, hzv⟩ := Finset.mem_biUnion.mp ((Finset.subset_insert_iff.mp hIsub) hz)
+    rw [arcSubtree_eq_insert_biUnion] at hzv
+    rcases Finset.mem_insert.mp hzv with rfl | hz_grand
+    · have hvk : arc u z := by simpa [arcKids] using hv
+      have huv : G.Adj u z := by
+        rw [fromRel_adj]
+        exact ⟨fun h => (hrank hvk).ne (congrArg rk h), Or.inl hvk⟩
+      exact False.elim (hIind u huI z (Finset.mem_of_mem_erase hz) huv)
+    · exact Finset.mem_biUnion.mpr ⟨v, hv, hz_grand⟩
+  · intro I₁ h1 I₂ h2 heq
+    rw [← Finset.insert_erase (Finset.mem_filter.mp h1).2,
+      ← Finset.insert_erase (Finset.mem_filter.mp h2).2, heq]
+  · intro J hJ
+    simp only [indepPowerset, Finset.mem_filter, Finset.mem_powerset] at hJ
+    have huJ : u ∉ J := fun huJ => notMem_biUnion_arcSubtree_kids hrank u (hGsub_B (hJ.1 huJ))
+    refine ⟨insert u J, ?_, Finset.erase_insert huJ⟩
+    simp only [indepPowerset, Finset.mem_filter, Finset.mem_powerset]
+    refine ⟨⟨Finset.insert_subset_insert u (hJ.1.trans hGsub_B), fun x hx y hy hadj => ?_⟩,
+      Finset.mem_insert_self u J⟩
+    rcases Finset.mem_insert.mp hx with rfl | hxJ <;>
+      rcases Finset.mem_insert.mp hy with rfl | hyJ
+    · exact G.ne_of_adj hadj rfl
+    · obtain ⟨v, hv, hyv⟩ := Finset.mem_biUnion.mp (hJ.1 hyJ)
+      exact not_adj_grandchild hrank hin hv hyv hadj
+    · obtain ⟨v, hv, hxv⟩ := Finset.mem_biUnion.mp (hJ.1 hxJ)
+      exact not_adj_grandchild hrank hin hv hxv hadj.symm
+    · exact hJ.2 x hxJ y hyJ hadj
+
+/-- Tree-DP recurrence: `subIndepCount arc u = subUnchosenCount arc u + ∏ v ∈ kids u, i₀(v)`. -/
+private theorem subIndepCount_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    subIndepCount arc u =
+      subUnchosenCount arc u + ∏ v ∈ arcKids arc u, subUnchosenCount arc v := by
+  classical
+  unfold subIndepCount
+  rw [arcSubtree_eq_insert_biUnion]
+  set S := indepPowerset (SimpleGraph.fromRel arc)
+    (insert u ((arcKids arc u).biUnion (arcSubtree arc)))
+  rw [← Finset.card_filter_add_card_filter_not (s := S) (p := fun I => u ∉ I)]
+  congr 1
+  · refine congrArg Finset.card (Finset.ext fun I => ?_)
+    simp only [S, indepPowerset, Finset.mem_filter, Finset.mem_powerset, Finset.subset_insert_iff]
+    constructor
+    · rintro ⟨⟨hsub, hind⟩, hnu⟩
+      rw [Finset.erase_eq_of_notMem hnu] at hsub
+      exact ⟨hsub, hind⟩
+    · rintro ⟨hsub, hind⟩
+      exact ⟨⟨(Finset.erase_subset u I).trans hsub, hind⟩,
+        fun huI => notMem_biUnion_arcSubtree_kids hrank u (hsub huI)⟩
+  · simpa only [not_not] using card_indepPowerset_mem_root hrank hin u
+
+/-- Every subtree has at least one independent set (`∅`). -/
+private theorem subIndepCount_pos [Fintype V] (arc : V → V → Prop) (u : V) :
+    0 < subIndepCount arc u := by
+  classical
+  exact Finset.card_pos.mpr ⟨∅, by simp [indepPowerset]⟩
+
+/-- Vertex-count recurrence for subtrees: `|sub u| = 1 + ∑ v ∈ kids u, |sub v|`. -/
+private theorem card_arcSubtree_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    (arcSubtree arc u).card = 1 + ∑ v ∈ arcKids arc u, (arcSubtree arc v).card := by
+  classical
+  rw [arcSubtree_eq_insert_biUnion,
+    Finset.card_insert_of_notMem (notMem_biUnion_arcSubtree_kids hrank u),
+    Finset.card_biUnion (arcSubtree_pairwiseDisjoint_kids hrank hin u), Nat.add_comm]
+
+/-- Edge-count recurrence for subtrees: `subEdges u = |kids u| + ∑ v ∈ kids u, subEdges v`. -/
+private theorem subEdges_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    subEdges arc u = (arcKids arc u).card + ∑ v ∈ arcKids arc u, subEdges arc v := by
+  classical
+  dsimp only [subEdges]
+  conv_lhs => rw [arcSubtree_eq_insert_biUnion]
+  rw [Finset.sum_insert (notMem_biUnion_arcSubtree_kids hrank u),
+    Finset.sum_biUnion (arcSubtree_pairwiseDisjoint_kids hrank hin u)]
+
+/-- Real-valued factorization of `subIndepCount` via child ratios `subRootRatio`. -/
+private theorem subIndepCount_cast_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    (subIndepCount arc u : ℝ) =
+      (∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ)) *
+        (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v) := by
+  have h1 : (subUnchosenCount arc u : ℝ) = ∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ) := by
+    exact_mod_cast subUnchosenCount_eq_prod hrank hin u
+  have h2 : (∏ v ∈ arcKids arc u, (subUnchosenCount arc v : ℝ)) =
+      (∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ)) *
+        (∏ v ∈ arcKids arc u, subRootRatio arc v) := by
+    rw [← Finset.prod_mul_distrib]
+    refine Finset.prod_congr rfl fun v _ => ?_
+    have hpos : (subIndepCount arc v : ℝ) ≠ 0 :=
+      (Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne'
+    dsimp only [subRootRatio]
+    field_simp [hpos]
+  have hcast : (subIndepCount arc u : ℝ) =
+      (subUnchosenCount arc u : ℝ) + ∏ v ∈ arcKids arc u, (subUnchosenCount arc v : ℝ) := by
+    exact_mod_cast subIndepCount_eq hrank hin u
+  rw [hcast, h1, h2]
+  ring
+
+/-- Ratio recurrence `p(u) = 1 / (1 + ∏_{v ∈ kids u} p(v))`. -/
+private theorem subRootRatio_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    subRootRatio arc u = 1 / (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v) := by
+  have h1 : (subUnchosenCount arc u : ℝ) = ∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ) := by
+    exact_mod_cast subUnchosenCount_eq_prod hrank hin u
+  have hne : (∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ)) ≠ 0 :=
+    (Finset.prod_pos fun v _ => Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne'
+  dsimp only [subRootRatio]
+  calc (subUnchosenCount arc u : ℝ) / (subIndepCount arc u : ℝ)
+      = ((∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ)) * 1) /
+          ((∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ)) *
+            (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v)) := by
+        rw [h1, subIndepCount_cast_eq hrank hin u, mul_one]
+    _ = 1 / (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v) := mul_div_mul_left 1 _ hne
+
+/-- Log-count recurrence `log₂ i(T_u) = ∑_{v ∈ kids u} log₂ i(T_v) + log₂ (1 + ∏ p(v))`. -/
+private theorem logb_subIndepCount_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
+    Real.logb 2 (subIndepCount arc u : ℝ) =
+      (∑ v ∈ arcKids arc u, Real.logb 2 (subIndepCount arc v : ℝ)) +
+        Real.logb 2 (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v) := by
+  have hprod_ne : (∏ v ∈ arcKids arc u, (subIndepCount arc v : ℝ)) ≠ 0 :=
+    (Finset.prod_pos fun v _ => Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne'
+  have h1p_ne : (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v) ≠ 0 := by
+    have : 0 ≤ ∏ v ∈ arcKids arc u, subRootRatio arc v :=
+      Finset.prod_nonneg fun v _ => div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+    linarith
+  rw [subIndepCount_cast_eq hrank hin u, Real.logb_mul hprod_ne h1p_ne,
+    Real.logb_prod _ _ fun v _ => (Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne']
+
+/-- When `s` has at most `2` elements with `p v ∈ [1 / 2, 4 / 5]`, the updated ratio
+`1 / (1 + ∏ v ∈ s, p v)` remains in `[1 / 2, 4 / 5]`. -/
+private theorem one_div_one_add_prod_mem_Icc {s : Finset V} {p : V → ℝ}
+    (hs : s.card ≤ 2) (hp : ∀ v ∈ s, 1 / 2 ≤ p v ∧ p v ≤ 4 / 5) :
+    1 / 2 ≤ 1 / (1 + ∏ v ∈ s, p v) ∧ 1 / (1 + ∏ v ∈ s, p v) ≤ 4 / 5 := by
+  have hlo : (1 / 2 : ℝ) ^ s.card ≤ ∏ v ∈ s, p v := by
+    simpa only [Finset.prod_const] using
+      Finset.prod_le_prod₀ (fun _ _ => by norm_num) fun v hv => (hp v hv).1
+  have hhi : ∏ v ∈ s, p v ≤ 1 :=
+    Finset.prod_le_one₀ (fun v hv => by linarith [(hp v hv).1]) fun v hv =>
+      by linarith [(hp v hv).2]
+  have hpow : (1 / 2 : ℝ) ^ 2 ≤ (1 / 2 : ℝ) ^ s.card :=
+    pow_le_pow_of_le_one (by norm_num) (by norm_num) hs
+  have hpos : 0 < 1 + ∏ v ∈ s, p v := by linarith
+  exact ⟨(le_div_iff₀ hpos).mpr (by linarith), (div_le_iff₀ hpos).mpr (by linarith)⟩
+
+/-- `Finset`-indexed internal-vertex potential step for `s.card ≤ 2`. -/
+private theorem step_finset_le_two {s : Finset V} {p : V → ℝ}
+    (hs : s.card ≤ 2) (hp : ∀ v ∈ s, 1 / 2 ≤ p v ∧ p v ≤ 4 / 5) :
+    Real.logb 2 (1 + ∏ v ∈ s, p v) + treePot (1 / (1 + ∏ v ∈ s, p v)) -
+        ∑ v ∈ s, treePot (p v) ≤
+      1 - (53 / 200 : ℝ) * (s.card : ℝ) := by
+  classical
+  have hcases : s.card = 0 ∨ s.card = 1 ∨ s.card = 2 := by omega
+  rcases hcases with h0 | h1 | h2
+  · obtain rfl := Finset.card_eq_zero.mp h0
+    simp only [Finset.prod_empty, Finset.sum_empty, Finset.card_empty, Nat.cast_zero, mul_zero,
+      sub_zero]
+    rw [show (1 + 1 : ℝ) = 2 by norm_num, treePot_half, Real.logb_self_eq_one (by norm_num)]
+    linarith
+  · obtain ⟨v₁, rfl⟩ := Finset.card_eq_one.mp h1
+    obtain ⟨hp1_lo, hp1_hi⟩ := hp v₁ (Finset.mem_singleton_self v₁)
+    simpa using step_one_child hp1_lo hp1_hi
+  · obtain ⟨v₁, v₂, hne, rfl⟩ := Finset.card_eq_two.mp h2
+    obtain ⟨hp1_lo, hp1_hi⟩ := hp v₁ (Finset.mem_insert_self v₁ {v₂})
+    obtain ⟨hp2_lo, hp2_hi⟩ := hp v₂ (Finset.mem_insert_of_mem (Finset.mem_singleton_self v₂))
+    have hstep := step_two_children hp1_lo hp1_hi hp2_lo hp2_hi
+    rw [Finset.prod_pair hne, Finset.sum_pair hne, Finset.card_pair hne]
+    push_cast
+    linarith
+
+/-- `Finset`-indexed root potential step for `s.card ≤ 3`. -/
+private theorem root_finset_le_three {s : Finset V} {p : V → ℝ}
+    (hs : s.card ≤ 3) (hp : ∀ v ∈ s, 1 / 2 ≤ p v ∧ p v ≤ 4 / 5) :
+    Real.logb 2 (1 + ∏ v ∈ s, p v) + (if s.Nonempty then (33 / 1000 : ℝ) else 0) -
+        ∑ v ∈ s, treePot (p v) ≤
+      1 - (53 / 200 : ℝ) * (s.card : ℝ) := by
+  classical
+  have hcases : s.card = 0 ∨ s.card = 1 ∨ s.card = 2 ∨ s.card = 3 := by omega
+  rcases hcases with h0 | h1 | h2 | h3
+  · obtain rfl := Finset.card_eq_zero.mp h0
+    simp only [Finset.prod_empty, Finset.not_nonempty_empty, ↓reduceIte, Finset.sum_empty,
+      Finset.card_empty, Nat.cast_zero, mul_zero, add_zero, sub_zero]
+    rw [show (1 + 1 : ℝ) = 2 by norm_num, Real.logb_self_eq_one (by norm_num)]
+  · obtain ⟨v₁, rfl⟩ := Finset.card_eq_one.mp h1
+    obtain ⟨hp1_lo, hp1_hi⟩ := hp v₁ (Finset.mem_singleton_self v₁)
+    have hstep := root_one_child hp1_lo hp1_hi
+    simp only [Finset.prod_singleton, Finset.sum_singleton, Finset.card_singleton,
+      Finset.singleton_nonempty, ↓reduceIte, Nat.cast_one]
+    linarith
+  · obtain ⟨v₁, v₂, hne, rfl⟩ := Finset.card_eq_two.mp h2
+    obtain ⟨hp1_lo, hp1_hi⟩ := hp v₁ (Finset.mem_insert_self v₁ {v₂})
+    obtain ⟨hp2_lo, hp2_hi⟩ := hp v₂ (Finset.mem_insert_of_mem (Finset.mem_singleton_self v₂))
+    have hstep := root_two_children hp1_lo hp1_hi hp2_lo hp2_hi
+    simp only [Finset.prod_pair hne, Finset.sum_pair hne, Finset.card_pair hne,
+      Finset.insert_nonempty, ↓reduceIte]
+    push_cast
+    linarith
+  · obtain ⟨v₁, v₂, v₃, hne12, hne13, hne23, rfl⟩ := Finset.card_eq_three.mp h3
+    obtain ⟨hp1_lo, hp1_hi⟩ := hp v₁ (Finset.mem_insert_self v₁ _)
+    obtain ⟨hp2_lo, hp2_hi⟩ := hp v₂ (Finset.mem_insert_of_mem (Finset.mem_insert_self v₂ _))
+    obtain ⟨hp3_lo, hp3_hi⟩ :=
+      hp v₃ (Finset.mem_insert_of_mem (Finset.mem_insert_of_mem (Finset.mem_singleton_self v₃)))
+    have hnot1 : v₁ ∉ ({v₂, v₃} : Finset V) := by
+      simp [Finset.mem_insert, Finset.mem_singleton, hne12, hne13]
+    have hstep := root_three_children hp1_lo hp1_hi hp2_lo hp2_hi hp3_lo hp3_hi
+    simp only [Finset.prod_insert hnot1, Finset.prod_pair hne23,
+      Finset.sum_insert hnot1, Finset.sum_pair hne23,
+      Finset.card_insert_of_notMem hnot1, Finset.card_pair hne23,
+      Finset.insert_nonempty, ↓reduceIte]
+    push_cast
+    rw [← mul_assoc]
+    linarith
+
+/-- Propagates the subtree entropy bound from children `arcKids arc u` to `u` given a local
+potential step `hstep`. Shared between internal vertices and roots. -/
+private theorem logb_subIndepCount_le_of_step [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton)
+    {u : V} {δ : ℝ}
+    (hchild : ∀ v ∈ arcKids arc u,
+      Real.logb 2 (subIndepCount arc v : ℝ) ≤
+        ((arcSubtree arc v).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc v : ℝ) -
+          treePot (subRootRatio arc v))
+    (hstep : Real.logb 2 (1 + ∏ v ∈ arcKids arc u, subRootRatio arc v) + δ -
+        ∑ v ∈ arcKids arc u, treePot (subRootRatio arc v) ≤
+      1 - (53 / 200 : ℝ) * ((arcKids arc u).card : ℝ)) :
+    Real.logb 2 (subIndepCount arc u : ℝ) ≤
+      ((arcSubtree arc u).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc u : ℝ) - δ := by
+  have hsum : ∑ v ∈ arcKids arc u, Real.logb 2 (subIndepCount arc v : ℝ) ≤
+      (∑ v ∈ arcKids arc u, ((arcSubtree arc v).card : ℝ)) -
+        (53 / 200 : ℝ) * (∑ v ∈ arcKids arc u, (subEdges arc v : ℝ)) -
+        ∑ v ∈ arcKids arc u, treePot (subRootRatio arc v) := by
+    calc ∑ v ∈ arcKids arc u, Real.logb 2 (subIndepCount arc v : ℝ)
+        ≤ ∑ v ∈ arcKids arc u,
+            (((arcSubtree arc v).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc v : ℝ) -
+              treePot (subRootRatio arc v)) := Finset.sum_le_sum hchild
+      _ = _ := by
+        rw [Finset.sum_sub_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum]
+  have hcard_r : ((arcSubtree arc u).card : ℝ) =
+      1 + ∑ v ∈ arcKids arc u, ((arcSubtree arc v).card : ℝ) := by
+    exact_mod_cast card_arcSubtree_eq hrank hin u
+  have hedges_r : (subEdges arc u : ℝ) =
+      ((arcKids arc u).card : ℝ) + ∑ v ∈ arcKids arc u, (subEdges arc v : ℝ) := by
+    exact_mod_cast subEdges_eq hrank hin u
+  rw [logb_subIndepCount_eq hrank hin u, hcard_r, hedges_r]
+  linarith
+
+/-- Bottom-up Tree-DP invariant: every internal vertex `u` satisfies `p(T_u) ∈ [1 / 2, 4 / 5]`
+and the quadratic-potential entropy bound. -/
+private theorem treeDP_internal_bound [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton)
+    (hout_int : ∀ w, (∃ u, arc u w) → (arcKids arc w).card ≤ 2)
+    (u : V) (hin_u : ∃ w, arc w u) :
+    (1 / 2 ≤ subRootRatio arc u ∧ subRootRatio arc u ≤ 4 / 5) ∧
+      Real.logb 2 (subIndepCount arc u : ℝ) ≤
+        ((arcSubtree arc u).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc u : ℝ) -
+          treePot (subRootRatio arc u) := by
+  let M_rk : ℕ := Finset.univ.sup rk
+  suffices h : ∀ d : ℕ, ∀ u : V, M_rk - rk u = d → (∃ w, arc w u) →
+      (1 / 2 ≤ subRootRatio arc u ∧ subRootRatio arc u ≤ 4 / 5) ∧
+        Real.logb 2 (subIndepCount arc u : ℝ) ≤
+          ((arcSubtree arc u).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc u : ℝ) -
+            treePot (subRootRatio arc u) from
+    h (M_rk - rk u) u rfl hin_u
+  intro d
+  induction d using Nat.strong_induction_on with
+  | ind d ih =>
+    intro u hd hin_u
+    have hchild : ∀ v ∈ arcKids arc u,
+        (1 / 2 ≤ subRootRatio arc v ∧ subRootRatio arc v ≤ 4 / 5) ∧
+          Real.logb 2 (subIndepCount arc v : ℝ) ≤
+            ((arcSubtree arc v).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc v : ℝ) -
+              treePot (subRootRatio arc v) := by
+      intro v hv
+      have harc : arc u v := by simpa [arcKids] using hv
+      have hlt_rk : rk u < rk v := hrank harc
+      have hv_le : rk v ≤ M_rk := Finset.le_sup (f := rk) (Finset.mem_univ v)
+      exact ih (M_rk - rk v) (by omega) v rfl ⟨u, harc⟩
+    have hdeg := hout_int u hin_u
+    have hrat := subRootRatio_eq hrank hin u
+    refine ⟨hrat ▸ one_div_one_add_prod_mem_Icc hdeg (fun v hv => (hchild v hv).1),
+      logb_subIndepCount_le_of_step hrank hin (fun v hv => (hchild v hv).2) ?_⟩
+    rw [hrat]
+    exact step_finset_le_two hdeg fun v hv => (hchild v hv).1
+
+/-- Active-root entropy bound discharging the `33 / 1000` penalty at each root `r` of
+out-degree at most `3`. -/
+private theorem treeDP_root_bound [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton)
+    (hout_int : ∀ w, (∃ u, arc u w) → (arcKids arc w).card ≤ 2)
+    (hout_root : ∀ r, (¬∃ u, arc u r) → (arcKids arc r).card ≤ 3)
+    (r : V) (hr : ¬∃ u, arc u r) :
+    Real.logb 2 (subIndepCount arc r : ℝ) ≤
+      ((arcSubtree arc r).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc r : ℝ) -
+        if (arcKids arc r).Nonempty then (33 / 1000 : ℝ) else 0 := by
+  have hchild (v : V) (hv : v ∈ arcKids arc r) :=
+    treeDP_internal_bound hrank hin hout_int v ⟨r, by simpa [arcKids] using hv⟩
+  exact logb_subIndepCount_le_of_step hrank hin (fun v hv => (hchild v hv).2)
+    (root_finset_le_three (hout_root r hr) fun v hv => (hchild v hv).1)
+
 /-- Core bounded-degree Tree-DP theorem on `SimpleGraph.fromRel arc`. -/
 private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V → Prop}
     [DecidableRel arc] {rk : V → ℕ}
@@ -621,401 +1081,66 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
         (33 / 1000 : ℝ) *
           ((Finset.univ.filter fun r => (¬∃ u, arc u r) ∧ ∃ v, arc r v).card : ℝ) := by
   classical
-  let G := SimpleGraph.fromRel arc
-  let kids : V → Finset V := fun u => Finset.univ.filter (arc u ·)
-  let sub : V → Finset V := fun u => Finset.univ.filter (Relation.ReflTransGen arc u ·)
-  -- Disjointness of child subtrees as `Finset`s:
-  have hsub_disj : ∀ u : V, (kids u : Set V).PairwiseDisjoint sub := by
-    intro u v₁ hv₁ v₂ hv₂ hne
-    change Disjoint (sub v₁) (sub v₂)
-    rw [Finset.disjoint_left]
-    intro z hz1 hz2
-    simp only [sub, Finset.mem_filter, Finset.mem_univ, true_and] at hz1 hz2
-    simp only [Finset.mem_coe, kids, Finset.mem_filter, Finset.mem_univ, true_and] at hv₁ hv₂
-    exact Set.disjoint_left.mp (subtree_disjoint_children hrank hin hv₁ hv₂ hne) hz1 hz2
-  have no_cross_of_disjoint {v₁ v₂ : V} (hd : Disjoint (sub v₁) (sub v₂))
-      {x y : V} (hx : x ∈ sub v₁) (hy : y ∈ sub v₂) : ¬G.Adj x y := by
-    intro hadj
-    simp only [sub, Finset.mem_filter, Finset.mem_univ, true_and] at hx hy
-    rw [fromRel_adj] at hadj
-    rcases hadj.2 with hxy | hyx
-    · exact Finset.disjoint_left.mp hd
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ y, hx.tail hxy⟩)
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ y, hy⟩)
-    · exact Finset.disjoint_left.mp hd
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hx⟩)
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hy.tail hyx⟩)
-  have hsub_cross : ∀ u : V, ∀ v₁ ∈ kids u, ∀ v₂ ∈ kids u, v₁ ≠ v₂ →
-      ∀ x ∈ sub v₁, ∀ y ∈ sub v₂, ¬G.Adj x y :=
-    fun u _ hv₁ _ hv₂ hne _ hx _ hy => no_cross_of_disjoint (hsub_disj u hv₁ hv₂ hne) hx hy
-  have hu_not_mem_biUnion : ∀ u : V, u ∉ (kids u).biUnion sub := by
-    intro u hmem
-    obtain ⟨v, hv, huv⟩ := Finset.mem_biUnion.mp hmem
-    simp only [kids, sub, Finset.mem_filter, Finset.mem_univ, true_and] at hv huv
-    exact absurd (rk_le_of_reflTransGen hrank huv) (not_le_of_gt (hrank hv))
-  have hsub_eq : ∀ u : V, sub u = insert u ((kids u).biUnion sub) := by
-    intro u
-    ext z
-    simp only [sub, kids, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-      Finset.mem_biUnion]
-    constructor
-    · intro huz
-      rcases Relation.reflTransGen_iff_eq_or_transGen.mp huz with rfl | htr
-      · exact Or.inl rfl
-      · obtain ⟨v, huv, hvz⟩ := Relation.TransGen.head'_iff.mp htr
-        exact Or.inr ⟨v, huv, hvz⟩
-    · rintro (rfl | ⟨v, huv, hvz⟩)
-      · exact .refl
-      · exact hvz.head huv
-  -- Subtree independent-set counts `i_tot u` and `i_zero u` (`u` unchosen):
-  let i_tot : V → ℕ := fun u => (indepPowerset G (sub u)).card
-  let i_zero : V → ℕ := fun u => (indepPowerset G ((kids u).biUnion sub)).card
-  have hi_zero_eq : ∀ u : V, i_zero u = ∏ v ∈ kids u, i_tot v := fun u =>
-    card_indepPowerset_biUnion (kids u) sub (hsub_disj u) (hsub_cross u)
-  -- Subtree without root `u`: when `u` is chosen (`u ∈ I`), no `v ∈ kids u` can be in `I`, while
-  -- `u` has no edges to `(kids v).biUnion sub`!
-  have hu_no_edge_grand : ∀ u : V, ∀ v ∈ kids u, ∀ z ∈ (kids v).biUnion sub, ¬G.Adj u z := by
-    intro u v hv z hz hadj
-    obtain ⟨w, hw, hwz⟩ := Finset.mem_biUnion.mp hz
-    have hv_arc : arc u v := by simpa [kids] using hv
-    simp only [kids, sub, Finset.mem_filter, Finset.mem_univ, true_and] at hw hwz
-    rw [fromRel_adj] at hadj
-    rcases hadj.2 with huz | hzu
-    · -- If `arc u z`, then `z ∈ kids u`; since `z ∈ sub v`, `v = z` by `hsub_disj`, impossible!
-      have hz_kid : z ∈ kids u := by simp [kids, huz]
-      have hz_sub_v : z ∈ sub v := by simp [sub, hwz.head hw]
-      have hz_sub_z : z ∈ sub z := by simp [sub, Relation.ReflTransGen.refl]
-      by_cases hvz : v = z
-      · subst hvz
-        exact absurd (rk_le_of_reflTransGen hrank hwz) (not_le_of_gt (hrank hw))
-      · exact Finset.disjoint_left.mp (hsub_disj u hv hz_kid hvz) hz_sub_v hz_sub_z
-    · have hlt : rk u < rk z :=
-        (hrank hv_arc).trans ((hrank hw).trans_le (rk_le_of_reflTransGen hrank hwz))
-      exact absurd (hrank hzu) (not_lt_of_gt hlt)
-  have hi_tot_eq : ∀ u : V, i_tot u = i_zero u + ∏ v ∈ kids u, i_zero v := by
-    intro u
-    dsimp only [i_tot]
-    rw [hsub_eq u]
-    set B := (kids u).biUnion sub
-    set S := indepPowerset G (insert u B)
-    rw [← Finset.card_filter_add_card_filter_not (s := S) (p := fun I => u ∉ I)]
-    congr 1
-    · refine congrArg Finset.card (Finset.ext fun I => ?_)
-      simp only [S, indepPowerset, Finset.mem_filter, Finset.mem_powerset, Finset.subset_insert_iff]
-      constructor
-      · rintro ⟨⟨hsub, hind⟩, hnu⟩
-        rw [Finset.erase_eq_of_notMem hnu] at hsub
-        exact ⟨hsub, hind⟩
-      · rintro ⟨hsub, hind⟩
-        exact ⟨⟨(Finset.erase_subset u I).trans hsub, hind⟩,
-          fun huI => hu_not_mem_biUnion u (hsub huI)⟩
-    · -- Sets in `S` containing `u` biject via `erase u` with grandchild independent sets:
-      set Gsub := (kids u).biUnion fun v => (kids v).biUnion sub
-      have hGsub_B : Gsub ⊆ B := by
-        intro z hz
-        obtain ⟨v, hv, hzv⟩ := Finset.mem_biUnion.mp hz
-        refine Finset.mem_biUnion.mpr ⟨v, hv, ?_⟩
-        rw [hsub_eq v]
-        exact Finset.mem_insert_of_mem hzv
-      have hdisj_G : (kids u : Set V).PairwiseDisjoint (fun v => (kids v).biUnion sub) := by
-        intro v₁ hv₁ v₂ hv₂ hne
-        refine Disjoint.mono ?_ ?_ (hsub_disj u hv₁ hv₂ hne) <;>
-        · intro z hz
-          rw [hsub_eq]
-          exact Finset.mem_insert_of_mem hz
-      have hcross_G : ∀ v₁ ∈ kids u, ∀ v₂ ∈ kids u, v₁ ≠ v₂ →
-          ∀ x ∈ (kids v₁).biUnion sub, ∀ y ∈ (kids v₂).biUnion sub, ¬G.Adj x y := by
-        intro v₁ hv₁ v₂ hv₂ hne x hx y hy
-        exact hsub_cross u v₁ hv₁ v₂ hv₂ hne x (by rw [hsub_eq]; exact Finset.mem_insert_of_mem hx)
-          y (by rw [hsub_eq]; exact Finset.mem_insert_of_mem hy)
-      rw [← card_indepPowerset_biUnion (kids u) (fun v => (kids v).biUnion sub) hdisj_G hcross_G]
-      refine Finset.card_bij (fun I _ => I.erase u) ?_ ?_ ?_
-      · intro I hI
-        simp only [S, indepPowerset, Finset.mem_filter, Finset.mem_powerset, not_not] at hI ⊢
-        obtain ⟨⟨hIsub, hIind⟩, huI⟩ := hI
-        refine ⟨fun z hz => ?_, fun x hx y hy =>
-          hIind x (Finset.mem_of_mem_erase hx) y (Finset.mem_of_mem_erase hy)⟩
-        have hzB : z ∈ B := (Finset.subset_insert_iff.mp hIsub) hz
-        obtain ⟨v, hv, hzv⟩ := Finset.mem_biUnion.mp hzB
-        rw [hsub_eq v] at hzv
-        rcases Finset.mem_insert.mp hzv with rfl | hz_grand
-        · have huv : G.Adj u z := by
-            rw [fromRel_adj]
-            have hvk : arc u z := by simpa [kids] using hv
-            exact ⟨fun h => (hrank hvk).ne (congrArg rk h), Or.inl hvk⟩
-          exact False.elim (hIind u huI z (Finset.mem_of_mem_erase hz) huv)
-        · exact Finset.mem_biUnion.mpr ⟨v, hv, hz_grand⟩
-      · intro I₁ h1 I₂ h2 heq
-        simp only [Finset.mem_filter, not_not] at h1 h2
-        rw [← Finset.insert_erase h1.2, ← Finset.insert_erase h2.2, heq]
-      · intro J hJ
-        simp only [indepPowerset, Finset.mem_filter, Finset.mem_powerset] at hJ
-        have huJ : u ∉ J := fun huJ => hu_not_mem_biUnion u (hGsub_B (hJ.1 huJ))
-        refine ⟨insert u J, ?_, Finset.erase_insert huJ⟩
-        simp only [S, indepPowerset, Finset.mem_filter, Finset.mem_powerset, not_not]
-        refine ⟨⟨Finset.insert_subset_insert u (hJ.1.trans hGsub_B), fun x hx y hy hadj => ?_⟩,
-          Finset.mem_insert_self u J⟩
-        rcases Finset.mem_insert.mp hx with hx_eq | hxJ <;>
-          rcases Finset.mem_insert.mp hy with hy_eq | hyJ
-        · rw [hx_eq, hy_eq] at hadj
-          exact G.ne_of_adj hadj rfl
-        · rw [hx_eq] at hadj
-          obtain ⟨v, hv, hyv⟩ := Finset.mem_biUnion.mp (hJ.1 hyJ)
-          exact hu_no_edge_grand u v hv y hyv hadj
-        · rw [hy_eq] at hadj
-          obtain ⟨v, hv, hxv⟩ := Finset.mem_biUnion.mp (hJ.1 hxJ)
-          exact hu_no_edge_grand u v hv x hxv hadj.symm
-        · exact hJ.2 x hxJ y hyJ hadj
-  have hi_zero_pos : ∀ u : V, 0 < i_zero u := fun _ =>
-    Finset.card_pos.mpr ⟨∅, by simp [indepPowerset]⟩
-  have hi_tot_pos : ∀ u : V, 0 < i_tot u := fun u => by
-    rw [hi_tot_eq u]
-    exact Nat.add_pos_left (hi_zero_pos u) _
-  -- Edge count in `sub u`: `edges_sub u = ∑ w ∈ sub u, (kids w).card`:
-  let edges_sub : V → ℕ := fun u => ∑ w ∈ sub u, (kids w).card
-  have hedges_sub_eq : ∀ u : V, edges_sub u = (kids u).card + ∑ v ∈ kids u, edges_sub v := by
-    intro u
-    dsimp only [edges_sub]
-    conv_lhs => rw [hsub_eq u]
-    rw [Finset.sum_insert (hu_not_mem_biUnion u), Finset.sum_biUnion (hsub_disj u)]
-  have hcard_sub_eq : ∀ u : V, (sub u).card = 1 + ∑ v ∈ kids u, (sub v).card := by
-    intro u
-    rw [hsub_eq u, Finset.card_insert_of_notMem (hu_not_mem_biUnion u),
-      Finset.card_biUnion (hsub_disj u), Nat.add_comm]
-  -- Ratio `p_rat u = i_zero u / i_tot u`:
-  let p_rat : V → ℝ := fun u => (i_zero u : ℝ) / (i_tot u : ℝ)
-  have htot_real : ∀ u : V,
-      (i_tot u : ℝ) = (∏ v ∈ kids u, (i_tot v : ℝ)) * (1 + ∏ v ∈ kids u, p_rat v) := by
-    intro u
-    have h1 : (i_zero u : ℝ) = ∏ v ∈ kids u, (i_tot v : ℝ) := by exact_mod_cast hi_zero_eq u
-    have h2 : (∏ v ∈ kids u, (i_zero v : ℝ)) =
-        (∏ v ∈ kids u, (i_tot v : ℝ)) * (∏ v ∈ kids u, p_rat v) := by
-      rw [← Finset.prod_mul_distrib]
-      refine Finset.prod_congr rfl fun v _ => ?_
-      have hpos : (i_tot v : ℝ) ≠ 0 := (Nat.cast_pos.mpr (hi_tot_pos v)).ne'
-      dsimp only [p_rat]
-      field_simp [hpos]
-    have hcast : (i_tot u : ℝ) = (i_zero u : ℝ) + ∏ v ∈ kids u, (i_zero v : ℝ) := by
-      exact_mod_cast hi_tot_eq u
-    rw [hcast, h1, h2]
-    ring
-  have hlog_prod : ∀ s : Finset V,
-      Real.logb 2 (∏ v ∈ s, (i_tot v : ℝ)) = ∑ v ∈ s, Real.logb 2 (i_tot v : ℝ) := by
-    intro s
-    induction s using Finset.induction_on with
-    | empty => simp
-    | @insert a s ha ih =>
-      rw [Finset.prod_insert ha, Finset.sum_insert ha,
-        Real.logb_mul (Nat.cast_pos.mpr (hi_tot_pos a)).ne'
-          (Finset.prod_pos fun v _ => Nat.cast_pos.mpr (hi_tot_pos v)).ne', ih]
-  have hp_rat_eq : ∀ u : V, p_rat u = 1 / (1 + ∏ v ∈ kids u, p_rat v) := by
-    intro u
-    have h1 : (i_zero u : ℝ) = ∏ v ∈ kids u, (i_tot v : ℝ) := by exact_mod_cast hi_zero_eq u
-    have hne : (∏ v ∈ kids u, (i_tot v : ℝ)) ≠ 0 :=
-      (Finset.prod_pos fun v _ => Nat.cast_pos.mpr (hi_tot_pos v)).ne'
-    change (i_zero u : ℝ) / (i_tot u : ℝ) = 1 / (1 + ∏ v ∈ kids u, p_rat v)
-    calc (i_zero u : ℝ) / (i_tot u : ℝ)
-        = ((∏ v ∈ kids u, (i_tot v : ℝ)) * 1) /
-            ((∏ v ∈ kids u, (i_tot v : ℝ)) * (1 + ∏ v ∈ kids u, p_rat v)) := by
-          rw [h1, htot_real u, mul_one]
-      _ = 1 / (1 + ∏ v ∈ kids u, p_rat v) := mul_div_mul_left 1 _ hne
-  have hlog_itot : ∀ u : V, Real.logb 2 (i_tot u : ℝ) =
-      (∑ v ∈ kids u, Real.logb 2 (i_tot v : ℝ)) + Real.logb 2 (1 + ∏ v ∈ kids u, p_rat v) := by
-    intro u
-    have hprod_ne : (∏ v ∈ kids u, (i_tot v : ℝ)) ≠ 0 :=
-      (Finset.prod_pos fun v _ => Nat.cast_pos.mpr (hi_tot_pos v)).ne'
-    have h1p_ne : (1 + ∏ v ∈ kids u, p_rat v) ≠ 0 := by
-      have : 0 ≤ ∏ v ∈ kids u, p_rat v :=
-        Finset.prod_nonneg fun v _ => div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-      linarith
-    rw [htot_real u, Real.logb_mul hprod_ne h1p_ne, hlog_prod (kids u)]
-  -- Bottom-up induction on `M_rk - rk u` for every internal vertex (`∃ w, arc w u`):
-  let M_rk : ℕ := Finset.univ.sup rk
-  have hint_dp : ∀ d : ℕ, ∀ u : V, M_rk - rk u = d → (∃ w, arc w u) →
-      (1 / 2 ≤ p_rat u ∧ p_rat u ≤ 4 / 5) ∧
-      Real.logb 2 (i_tot u : ℝ) ≤
-        ((sub u).card : ℝ) - (53 / 200 : ℝ) * (edges_sub u : ℝ) - treePot (p_rat u) := by
-    intro d
-    induction d using Nat.strong_induction_on with
-    | ind d ih =>
-      intro u hd hin_u
-      have hdeg : (kids u).card ≤ 2 := hout_int u hin_u
-      have hchild_ih : ∀ v ∈ kids u, (1 / 2 ≤ p_rat v ∧ p_rat v ≤ 4 / 5) ∧
-          Real.logb 2 (i_tot v : ℝ) ≤
-            ((sub v).card : ℝ) - (53 / 200 : ℝ) * (edges_sub v : ℝ) - treePot (p_rat v) := by
-        intro v hv
-        have harc : arc u v := by simpa [kids] using hv
-        have hlt_rk : rk u < rk v := hrank harc
-        have hv_le : rk v ≤ M_rk := Finset.le_sup (f := rk) (Finset.mem_univ v)
-        have hd_lt : M_rk - rk v < d := by omega
-        exact ih (M_rk - rk v) hd_lt v rfl ⟨u, harc⟩
-      have hcard_r : ((sub u).card : ℝ) = 1 + ∑ v ∈ kids u, ((sub v).card : ℝ) := by
-        exact_mod_cast hcard_sub_eq u
-      have hedges_r : (edges_sub u : ℝ) =
-          ((kids u).card : ℝ) + ∑ v ∈ kids u, (edges_sub v : ℝ) := by
-        exact_mod_cast hedges_sub_eq u
-      have hcases : (kids u).card = 0 ∨ (kids u).card = 1 ∨ (kids u).card = 2 := by omega
-      rcases hcases with h0 | h1 | h2
-      · -- Leaf (`kids u = ∅`):
-        have hemp : kids u = ∅ := Finset.card_eq_zero.mp h0
-        have hp : p_rat u = 1 / 2 := by rw [hp_rat_eq u, hemp]; norm_num
-        refine ⟨⟨by linarith, by linarith⟩, ?_⟩
-        rw [hlog_itot u, hcard_r, hedges_r, hemp, hp, treePot_half]
-        simp only [Finset.sum_empty, Finset.prod_empty, Finset.card_empty, Nat.cast_zero,
-          mul_zero, sub_zero, zero_add]
-        rw [show (1 + 1 : ℝ) = 2 by norm_num, Real.logb_self_eq_one (by norm_num)]
-        linarith
-      · -- 1 child (`kids u = {v₁}`):
-        obtain ⟨v₁, hv₁_eq⟩ := Finset.card_eq_one.mp h1
-        have hv₁_mem : v₁ ∈ kids u := hv₁_eq ▸ Finset.mem_singleton_self v₁
-        obtain ⟨⟨hp1_lo, hp1_hi⟩, hlog1⟩ := hchild_ih v₁ hv₁_mem
-        have hp : p_rat u = 1 / (1 + p_rat v₁) := by rw [hp_rat_eq u, hv₁_eq, Finset.prod_singleton]
-        refine ⟨⟨?_, ?_⟩, ?_⟩
-        · rw [hp]; rw [le_div_iff₀ (by linarith)]; linarith
-        · rw [hp]; rw [div_le_iff₀ (by linarith)]; linarith
-        · have hstep := step_one_child hp1_lo hp1_hi
-          rw [hlog_itot u, hcard_r, hedges_r, hp, hv₁_eq]
-          simp only [Finset.sum_singleton, Finset.prod_singleton, Finset.card_singleton,
-            Nat.cast_one]
-          linarith
-      · -- 2 children (`kids u = {v₁, v₂}` with `v₁ ≠ v₂`):
-        obtain ⟨v₁, v₂, hne, hv_eq⟩ := Finset.card_eq_two.mp h2
-        have hv₁_mem : v₁ ∈ kids u := hv_eq ▸ Finset.mem_insert_self v₁ {v₂}
-        have hv₂_mem : v₂ ∈ kids u :=
-          hv_eq ▸ Finset.mem_insert_of_mem (Finset.mem_singleton_self v₂)
-        obtain ⟨⟨hp1_lo, hp1_hi⟩, hlog1⟩ := hchild_ih v₁ hv₁_mem
-        obtain ⟨⟨hp2_lo, hp2_hi⟩, hlog2⟩ := hchild_ih v₂ hv₂_mem
-        have hp : p_rat u = 1 / (1 + p_rat v₁ * p_rat v₂) := by
-          rw [hp_rat_eq u, hv_eq, Finset.prod_pair hne]
-        have hprod_pos : 0 < 1 + p_rat v₁ * p_rat v₂ := by nlinarith
-        refine ⟨⟨?_, ?_⟩, ?_⟩
-        · rw [hp, le_div_iff₀ hprod_pos]
-          nlinarith
-        · rw [hp, div_le_iff₀ hprod_pos]
-          nlinarith
-        · have hstep := step_two_children hp1_lo hp1_hi hp2_lo hp2_hi
-          rw [hlog_itot u, hcard_r, hedges_r, hp, hv_eq, Finset.sum_pair hne,
-            Finset.sum_pair hne, Finset.sum_pair hne, Finset.prod_pair hne, Finset.card_pair hne]
-          push_cast
-          linarith
-  -- Now evaluate at every root `r ∈ roots` (`¬∃ u, arc u r`, `(kids r).card ≤ 3`):
+  have hkids_eq : ∀ w : V, Finset.univ.filter (arc w ·) = arcKids arc w := fun w => by
+    ext v; simp [arcKids]
+  simp_rw [hkids_eq] at hout_int hout_root ⊢
   let roots : Finset V := Finset.univ.filter fun r => ¬∃ u, arc u r
-  have hroot_bound : ∀ r ∈ roots,
-      Real.logb 2 (i_tot r : ℝ) ≤
-        ((sub r).card : ℝ) - (53 / 200 : ℝ) * (edges_sub r : ℝ) -
-          if (kids r).Nonempty then (33 / 1000 : ℝ) else 0 := by
-    intro r hr
-    have hr_no_in : ¬∃ u, arc u r := (Finset.mem_filter.mp hr).2
-    have hdeg : (kids r).card ≤ 3 := hout_root r hr_no_in
-    have hchild : ∀ v ∈ kids r, (1 / 2 ≤ p_rat v ∧ p_rat v ≤ 4 / 5) ∧
-        Real.logb 2 (i_tot v : ℝ) ≤
-          ((sub v).card : ℝ) - (53 / 200 : ℝ) * (edges_sub v : ℝ) - treePot (p_rat v) := by
-      intro v hv
-      have harc : arc r v := by simpa [kids] using hv
-      exact hint_dp (M_rk - rk v) v rfl ⟨r, harc⟩
-    have hcard_r : ((sub r).card : ℝ) = 1 + ∑ v ∈ kids r, ((sub v).card : ℝ) := by
-      exact_mod_cast hcard_sub_eq r
-    have hedges_r : (edges_sub r : ℝ) = ((kids r).card : ℝ) + ∑ v ∈ kids r, (edges_sub v : ℝ) := by
-      exact_mod_cast hedges_sub_eq r
-    have hcases : (kids r).card = 0 ∨ (kids r).card = 1 ∨
-        (kids r).card = 2 ∨ (kids r).card = 3 := by
-      omega
-    rcases hcases with h0 | h1 | h2 | h3
-    · have hemp : kids r = ∅ := Finset.card_eq_zero.mp h0
-      rw [hlog_itot r, hcard_r, hedges_r, hemp]
-      simp only [Finset.not_nonempty_empty, ↓reduceIte, Finset.sum_empty, Finset.prod_empty,
-        Finset.card_empty, Nat.cast_zero, mul_zero, sub_zero, zero_add]
-      rw [show (1 + 1 : ℝ) = 2 by norm_num, Real.logb_self_eq_one (by norm_num)]
-      linarith
-    · obtain ⟨v₁, hv₁_eq⟩ := Finset.card_eq_one.mp h1
-      have hv₁_mem : v₁ ∈ kids r := hv₁_eq ▸ Finset.mem_singleton_self v₁
-      obtain ⟨⟨hp1_lo, hp1_hi⟩, hlog1⟩ := hchild v₁ hv₁_mem
-      have hstep := root_one_child hp1_lo hp1_hi
-      have hne : (kids r).Nonempty := ⟨v₁, hv₁_mem⟩
-      simp only [hne, ↓reduceIte]
-      rw [hlog_itot r, hcard_r, hedges_r, hv₁_eq]
-      simp only [Finset.sum_singleton, Finset.prod_singleton, Finset.card_singleton, Nat.cast_one]
-      linarith
-    · obtain ⟨v₁, v₂, hne12, hv_eq⟩ := Finset.card_eq_two.mp h2
-      have hv₁_mem : v₁ ∈ kids r := hv_eq ▸ Finset.mem_insert_self v₁ {v₂}
-      have hv₂_mem : v₂ ∈ kids r :=
-        hv_eq ▸ Finset.mem_insert_of_mem (Finset.mem_singleton_self v₂)
-      obtain ⟨⟨hp1_lo, hp1_hi⟩, hlog1⟩ := hchild v₁ hv₁_mem
-      obtain ⟨⟨hp2_lo, hp2_hi⟩, hlog2⟩ := hchild v₂ hv₂_mem
-      have hstep := root_two_children hp1_lo hp1_hi hp2_lo hp2_hi
-      have hne : (kids r).Nonempty := ⟨v₁, hv₁_mem⟩
-      simp only [hne, ↓reduceIte]
-      rw [hlog_itot r, hcard_r, hedges_r, hv_eq, Finset.sum_pair hne12,
-        Finset.sum_pair hne12, Finset.sum_pair hne12, Finset.prod_pair hne12,
-        Finset.card_pair hne12]
-      push_cast
-      linarith
-    · obtain ⟨v₁, v₂, v₃, hne12, hne13, hne23, hv_eq⟩ := Finset.card_eq_three.mp h3
-      have hv₁_mem : v₁ ∈ kids r := hv_eq ▸ Finset.mem_insert_self v₁ {v₂, v₃}
-      have hv₂_mem : v₂ ∈ kids r :=
-        hv_eq ▸ Finset.mem_insert_of_mem (Finset.mem_insert_self v₂ {v₃})
-      have hv₃_mem : v₃ ∈ kids r := hv_eq ▸ Finset.mem_insert_of_mem
-        (Finset.mem_insert_of_mem (Finset.mem_singleton_self v₃))
-      obtain ⟨⟨hp1_lo, hp1_hi⟩, hlog1⟩ := hchild v₁ hv₁_mem
-      obtain ⟨⟨hp2_lo, hp2_hi⟩, hlog2⟩ := hchild v₂ hv₂_mem
-      obtain ⟨⟨hp3_lo, hp3_hi⟩, hlog3⟩ := hchild v₃ hv₃_mem
-      have hstep := root_three_children hp1_lo hp1_hi hp2_lo hp2_hi hp3_lo hp3_hi
-      have hne : (kids r).Nonempty := ⟨v₁, hv₁_mem⟩
-      have hnot1 : v₁ ∉ ({v₂, v₃} : Finset V) := by
-        simp [Finset.mem_insert, Finset.mem_singleton, hne12, hne13]
-      simp only [hne, ↓reduceIte]
-      rw [hlog_itot r, hcard_r, hedges_r, hv_eq, Finset.sum_insert hnot1,
-        Finset.sum_pair hne23, Finset.sum_insert hnot1, Finset.sum_pair hne23,
-        Finset.sum_insert hnot1, Finset.sum_pair hne23, Finset.prod_insert hnot1,
-        Finset.prod_pair hne23, Finset.card_insert_of_notMem hnot1, Finset.card_pair hne23,
-        ← mul_assoc]
-      push_cast
-      linarith
-  -- Finally, `Finset.univ = roots.biUnion sub` with pairwise disjointness and zero cross-edges:
-  have hroots_disj : (roots : Set V).PairwiseDisjoint sub := by
+  have hroots_disj : (roots : Set V).PairwiseDisjoint (arcSubtree arc) := by
     intro r₁ hr₁ r₂ hr₂ hne
-    change Disjoint (sub r₁) (sub r₂)
-    rw [Finset.disjoint_left]
+    rw [Function.onFun, Finset.disjoint_left]
     intro z hz1 hz2
-    simp only [sub, Finset.mem_filter, Finset.mem_univ, true_and] at hz1 hz2
+    simp only [arcSubtree, Finset.mem_filter, Finset.mem_univ, true_and] at hz1 hz2
     simp only [Finset.mem_coe, roots, Finset.mem_filter, Finset.mem_univ, true_and] at hr₁ hr₂
     exact Set.disjoint_left.mp (subtree_disjoint_roots hrank hin hr₁ hr₂ hne) hz1 hz2
   have hroots_cross : ∀ r₁ ∈ roots, ∀ r₂ ∈ roots, r₁ ≠ r₂ →
-      ∀ x ∈ sub r₁, ∀ y ∈ sub r₂, ¬G.Adj x y :=
-    fun _ hr₁ _ hr₂ hne _ hx _ hy => no_cross_of_disjoint (hroots_disj hr₁ hr₂ hne) hx hy
-  have huniv_eq : (Finset.univ : Finset V) = roots.biUnion sub := by
+      ∀ x ∈ arcSubtree arc r₁, ∀ y ∈ arcSubtree arc r₂,
+        ¬(SimpleGraph.fromRel arc).Adj x y :=
+    fun _ hr₁ _ hr₂ hne _ hx _ hy =>
+      no_adj_of_disjoint_arcSubtree (hroots_disj hr₁ hr₂ hne) hx hy
+  have huniv_eq : (Finset.univ : Finset V) = roots.biUnion (arcSubtree arc) := by
     ext z
-    simp only [Finset.mem_univ, true_iff, Finset.mem_biUnion, roots, sub, Finset.mem_filter,
-      true_and]
+    simp only [Finset.mem_univ, true_iff, Finset.mem_biUnion, roots, arcSubtree,
+      Finset.mem_filter, true_and]
     exact exists_root_reaches hrank z
-  have hindep_prod : G.indepSetCount = ∏ r ∈ roots, i_tot r := by
-    rw [← card_indepPowerset_univ G, huniv_eq,
-      card_indepPowerset_biUnion roots sub hroots_disj hroots_cross]
-  have hlog_G : Real.logb 2 (G.indepSetCount : ℝ) = ∑ r ∈ roots, Real.logb 2 (i_tot r : ℝ) := by
+  have hindep_prod : (SimpleGraph.fromRel arc).indepSetCount =
+      ∏ r ∈ roots, subIndepCount arc r := by
+    rw [← card_indepPowerset_univ (SimpleGraph.fromRel arc), huniv_eq,
+      card_indepPowerset_biUnion roots (arcSubtree arc) hroots_disj hroots_cross]
+    refine Finset.prod_congr rfl fun r _ => ?_
+    exact congrArg Finset.card (Finset.ext fun I => by simp [indepPowerset])
+  have hlog_G : Real.logb 2 ((SimpleGraph.fromRel arc).indepSetCount : ℝ) =
+      ∑ r ∈ roots, Real.logb 2 (subIndepCount arc r : ℝ) := by
     rw [hindep_prod, Nat.cast_prod]
-    exact hlog_prod roots
-  have hsum_V : (Fintype.card V : ℝ) = ∑ r ∈ roots, ((sub r).card : ℝ) := by
+    exact Real.logb_prod _ _ fun v _ => (Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne'
+  have hsum_V : (Fintype.card V : ℝ) = ∑ r ∈ roots, ((arcSubtree arc r).card : ℝ) := by
     rw [← Nat.cast_sum, ← Finset.card_univ, huniv_eq, Finset.card_biUnion hroots_disj]
-  have hsum_E : (∑ w : V, ((kids w).card : ℝ)) = ∑ r ∈ roots, (edges_sub r : ℝ) := by
+  have hsum_E : (∑ w : V, ((arcKids arc w).card : ℝ)) =
+      ∑ r ∈ roots, (subEdges arc r : ℝ) := by
     rw [← Nat.cast_sum, ← Nat.cast_sum]
     congr 1
     conv_lhs => rw [huniv_eq]
     rw [Finset.sum_biUnion hroots_disj]
-  have hsum_R : ((Finset.univ.filter fun r => (¬∃ u, arc u r) ∧ ∃ v, arc r v).card : ℝ) =
-      ∑ r ∈ roots, (if (kids r).Nonempty then (1 : ℝ) else 0) := by
+    rfl
+  have hsum_R :
+      ((Finset.univ.filter fun r => (¬∃ u, arc u r) ∧ ∃ v, arc r v).card : ℝ) =
+        ∑ r ∈ roots, (if (arcKids arc r).Nonempty then (1 : ℝ) else 0) := by
     rw [Finset.sum_boole]
     congr 2
     ext r
-    simp [roots, kids, Finset.Nonempty]
+    simp [roots, arcKids, Finset.Nonempty]
   rw [hlog_G, hsum_V, hsum_E, hsum_R]
-  calc ∑ r ∈ roots, Real.logb 2 (i_tot r : ℝ)
-      ≤ ∑ r ∈ roots, (((sub r).card : ℝ) - (53 / 200 : ℝ) * (edges_sub r : ℝ) -
-          if (kids r).Nonempty then (33 / 1000 : ℝ) else 0) :=
-        Finset.sum_le_sum hroot_bound
-    _ = (∑ r ∈ roots, ((sub r).card : ℝ)) -
-          (53 / 200 : ℝ) * (∑ r ∈ roots, (edges_sub r : ℝ)) -
-          (33 / 1000 : ℝ) * ∑ r ∈ roots, (if (kids r).Nonempty then (1 : ℝ) else 0) := by
+  calc ∑ r ∈ roots, Real.logb 2 (subIndepCount arc r : ℝ)
+      ≤ ∑ r ∈ roots, (((arcSubtree arc r).card : ℝ) -
+          (53 / 200 : ℝ) * (subEdges arc r : ℝ) -
+          if (arcKids arc r).Nonempty then (33 / 1000 : ℝ) else 0) :=
+        Finset.sum_le_sum fun r hr =>
+          treeDP_root_bound hrank hin hout_int hout_root r (Finset.mem_filter.mp hr).2
+    _ = (∑ r ∈ roots, ((arcSubtree arc r).card : ℝ)) -
+          (53 / 200 : ℝ) * (∑ r ∈ roots, (subEdges arc r : ℝ)) -
+          (33 / 1000 : ℝ) * ∑ r ∈ roots, (if (arcKids arc r).Nonempty then (1 : ℝ) else 0) := by
         simp only [Finset.sum_sub_distrib, Finset.mul_sum, mul_ite, mul_one, mul_zero]
+
+end ArcSubtree
 
 end TreeDP
 

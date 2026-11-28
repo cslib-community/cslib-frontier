@@ -93,12 +93,10 @@ theorem btreeUpdateGenProg_spec {c U V w n_max base sIdx insCount q newVal : ℕ
   simp only [wp_large_wVal hth, pure_bind]
   rcases hres with ⟨hres0, _, _, hupd0⟩ |
       ⟨leafIdx, r, hres1, hleaf_lt, hrc, hcnt_le, hm_lt, hk_lt, _, hvw_cnt, _, _, hupd1⟩
-  · rw [hupd0 newVal, clientState_bind, hst, hres0]
-    refine ⟨rfl, ?_, ?_, hrep, fun _ _ _ _ hr => hr, fun _ _ => rfl⟩
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres0]
-      simp only [↓reduceIte, memoryCost_pure]; omega
-    · refine validProg_bind hvp ?_
-      rw [hst, hres0]; exact validProg_pure _
+  · have hloc := bind_of_readOnly hst hres0 hvp
+    rw [hupd0 newVal, (hloc _ _).1, (hloc _ _).2.2.1, (hloc _ _).2.2.2]
+    simp only [↓reduceIte, memoryCost_pure, Nat.add_zero]
+    exact ⟨rfl, hmc.trans (by decide), validProg_pure _, hrep, fun _ _ _ _ hr => hr, fun _ _ => rfl⟩
   · set nd := sl.nodes leafIdx
     set cnt := metaCount nd.metaWord
     let nd' : BTreeNode :=
@@ -108,21 +106,17 @@ theorem btreeUpdateGenProg_spec {c U V w n_max base sIdx insCount q newVal : ℕ
       exact (wordUpdateAt_lt hrc hval hvw_cnt).trans_le
         (Nat.pow_le_pow_right (by decide)
           (Nat.mul_le_mul_right _ (hcnt_le.trans (Nat.sub_le _ _))))
-    obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_rep, hwn_other, hwn_out⟩ :=
+    obtain ⟨hwn_fr, _, hwn_vp, hwn_rep, hwn_other, hwn_out⟩ :=
       writeBTreeNodeGenProg_inPlace_sliceRep (nd' := nd') henv hsIdx hrep hleaf_lt
         hm_lt hk_lt hv'_lt (s := s)
-    rw [hupd1 newVal, clientState_bind, hst, hres1]
+    have hloc := bind_of_readOnly hst hres1 hvp
+    rw [hupd1 newVal, (hloc _ _).1, (hloc _ _).2.2.1, (hloc _ _).2.2.2]
     simp only [Nat.one_ne_zero, ↓reduceIte]
     rw [clientState_bind, clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg]
     refine ⟨hwn_fr, ?_, ?_, hwn_rep, hwn_other, hwn_out⟩
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres1]
-      simp only [Nat.one_ne_zero, ↓reduceIte]
-      rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, clientState_wordUpdateAtGenProg,
-        memoryCost_wordUpdateAtGenProg, memoryCost_writeBTreeNodeGenProg]
-      omega
-    · refine validProg_bind hvp ?_
-      rw [hst, hres1]; simp only [Nat.one_ne_zero, ↓reduceIte]
-      refine validProg_bind (validWhpProg_wordUpdateAtGenProg _) ?_
+    · simpa only [memoryCost_bind', memoryCost_wordUpdateAtGenProg,
+        memoryCost_writeBTreeNodeGenProg, Nat.zero_add] using Nat.add_le_add_right hmc 12
+    · refine validProg_bind (validWhpProg_wordUpdateAtGenProg _) ?_
       rw [clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg]
       exact hwn_vp
 

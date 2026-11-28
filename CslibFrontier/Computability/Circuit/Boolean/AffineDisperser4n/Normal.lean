@@ -71,8 +71,7 @@ private theorem bias_eq_of_mem {S : State n} {f : BooleanFunction n} (hS : S.Val
 private theorem bias_partner_eq_of_mem {S : State n} {f : BooleanFunction n} (hS : S.Valid f)
     {pr pr' : ZeroPair} (hpr : pr ∈ S.pairs) {p : ℕ} (hp : pr.Contains p) (hpr' : pr' ∈ S.pairs)
     (hr' : pr'.Contains (pr.partner p)) : pr.partnerBias p = pr'.bias (pr.partner p) := by
-  have heq := hS.pair_unique hpr' hpr hr' (pr.contains_partner hp)
-  rw [heq]
+  rw [hS.pair_unique hpr' hpr hr' (pr.contains_partner hp)]
   exact (ZeroPair.bias_partner (hS.pair_mem pr hpr).2.2 hp).symm
 
 /-! ### Moving affine gates -/
@@ -99,23 +98,17 @@ theorem Valid.preparation_moveAffine {S : State n} {f : BooleanFunction n} (hS :
     let S' := S.moveAffine J S.freshEqn
     Preparation f S S' ∧ S'.gates.card < S.gates.card := by
   have hm : S.MoveOK J S.freshEqn := ⟨hJ, freshEqn_notMem S, haff, hin⟩
-  let S' := S.moveAffine J S.freshEqn
+  intro S'
   have hs : S'.s = S.s := moveAffine_size hm
-  have hq : S'.q = S.q := by simp only [q, S', moveAffine_pairs]
-  have hW : S'.W ≤ S.W := by
-    have h := W_add_le (S := S) (S' := S') (N := S.params) le_rfl
-      (by rw [moveAffine_params]) (fun _ => 0) (fun _ => 0) fun u hu => by
-        simp only [add_zero]
-        by_cases hup : S.Paired u
-        · have hup' : S'.Paired u := (paired_congr (moveAffine_pairs S J S.freshEqn)).2 hup
-          rw [wt_of_paired hup', wt_of_paired hup]
-        · have hu' : u ∈ S'.unpaired := mem_unpaired.2 ⟨by rwa [moveAffine_params],
-            fun hp => hup ((paired_congr (moveAffine_pairs S _ _)).1 hp)⟩
-          rw [wt_of_mem hu', wt_of_mem (mem_unpaired.2 ⟨hu, hup⟩)]
-          exact weight_mono (moveAffine_deg_le hS hm hu)
-    simp only [Finset.sum_const_zero, add_zero, hs, hq] at h
-    omega
-  exact ⟨⟨hS.moveAffine hm, rfl, hs, hq, hW⟩, Nat.lt_of_succ_le (moveAffine_gates_card hm).le⟩
+  have h := W_add_le (S := S) (S' := S') (N := S.params) le_rfl le_rfl (fun _ => 0) (fun _ => 0)
+    fun u hu => by
+      unfold wt
+      rw [unpaired_congr (moveAffine_params S J _) (moveAffine_pairs S J _)]
+      split_ifs
+      exacts [Nat.add_le_add_right (weight_mono (moveAffine_deg_le hS hm hu)) 0, le_rfl]
+  have hcard : S'.gates.card + 1 = S.gates.card := moveAffine_gates_card hm
+  rw [hs, show S'.q = S.q from rfl] at h
+  exact ⟨⟨hS.moveAffine hm, rfl, hs, rfl, by omega⟩, by omega⟩
 
 /-! ### Case 2: Degenerate paired parameter -/
 
@@ -151,39 +144,53 @@ private theorem step_of_reduction_wt_le {S S₂ : State n} {f : BooleanFunction 
   rw [config_ca]
   omega
 
-private lemma partner_properties {n} {S : State n} {f : BooleanFunction n}
-    (hS : S.Valid f) {pr : ZeroPair}
-    (hpr : pr ∈ S.pairs) {p : ℕ} (hprp : pr.Contains p) :
-    let r := pr.partner p
-    r ≠ p ∧ pr.Contains r ∧ r ∈ S.params := by
-  let r := pr.partner p
-  have hne : pr.fst ≠ pr.snd := (hS.pair_mem pr hpr).2.2
-  exact ⟨pr.partner_ne hne hprp, pr.contains_partner hprp,
-    hS.mem_params_of_contains hpr (pr.contains_partner hprp)⟩
+/-- A reduction freeing one paired parameter `x` with partner `y` meets one pair and satisfies
+`W' + |D| + 3 ≤ W + wt' y`. -/
+private theorem Reduction.W_le_of_isPartner {S S' : State n} {f : BooleanFunction n} {x y : ℕ}
+    {D T : List (ℕ ⊕ ℕ)} (h : Reduction f S S' {x} D T) (hS : S.Valid f)
+    (hxy : S.IsPartner x y) :
+    (S.pairsMeeting {x}).card = 1 ∧ S'.W + D.length + 3 ≤ S.W + S'.wt y := by
+  have hk : (S.pairsMeeting {x}).card = 1 := by
+    rw [hS.card_pairsMeeting_singleton x, ite_eq_left hxy.paired]
+  have hW := h.W_le (fun _ => 0) (fun u => if u = y then S'.wt y else 0) fun u hu => by
+    split_ifs with huy
+    · subst huy; omega
+    · exact Nat.add_le_add_right (Reduction.wt_le h hS fun x' hx' hxu =>
+        huy (hS.isPartner_unique (Finset.mem_singleton.1 hx' ▸ hxu) hxy)) 0
+  have hsum : ∑ u ∈ S.params \ {x}, (if u = y then S'.wt y else 0) ≤ S'.wt y := by
+    rw [Finset.sum_ite_eq']
+    split_ifs <;> simp
+  simp only [Finset.sum_const_zero, hk] at hW
+  exact ⟨hk, by omega⟩
+
+/-- A reduction freeing one paired parameter `x` is a valid step once the new weight of its
+partner `y` is at most `|D| + 3`. -/
+private theorem Reduction.step_of_isPartner {S S' : State n} {f : BooleanFunction n} {x y : ℕ}
+    {D T : List (ℕ ⊕ ℕ)} (h : Reduction f S S' {x} D T) (hS : S.Valid f)
+    (hxy : S.IsPartner x y) (hy : S'.wt y ≤ D.length + 3) : Step f S S' := by
+  obtain ⟨hk, hW⟩ := Reduction.W_le_of_isPartner h hS hxy
+  refine h.step hS (by rw [Finset.card_singleton, hk]; omega) (by simp) ?_
+  rw [Finset.card_singleton, hk, config_ca]
+  omega
+
+private theorem partner_properties {S : State n} {f : BooleanFunction n} (hS : S.Valid f)
+    {pr : ZeroPair} (hpr : pr ∈ S.pairs) {p : ℕ} (hprp : pr.Contains p) :
+    pr.partner p ≠ p ∧ pr.Contains (pr.partner p) ∧ pr.partner p ∈ S.params ∧
+      S.IsPartner (pr.partner p) p :=
+  have hrp := pr.partner_ne (hS.pair_mem pr hpr).2.2 hprp
+  have hprr := pr.contains_partner hprp
+  ⟨hrp, hprr, hS.mem_params_of_contains hpr hprr, isPartner_of_contains hpr hprr hprp hrp⟩
 
 /-- Fixing the partner of a paired parameter `p` of degree `0` to its bias gives a valid step with
 `Δa = 0` and `ΔW ≤ 0` (Case 2). -/
 theorem Valid.step_degeneratePair_zero {S : State n} {f : BooleanFunction n} (hS : S.Valid f)
     {pr : ZeroPair} (hpr : pr ∈ S.pairs) {p : ℕ} (hprp : pr.Contains p) (hp0 : S.deg p = 0) :
     Step f S (S.fixConst (pr.partner p) (pr.partnerBias p)) := by
-  let r := pr.partner p
-  have ⟨hrp, hprr, hrpar⟩ := partner_properties hS hpr hprp
-  have hpr_part : S.IsPartner p r := isPartner_of_contains hpr hprp hprr hrp.symm
-  have hred := Valid.reduction_fixConst hS hrpar
-    fun pr' hpr' hcr => bias_partner_eq_of_mem hS hpr hprp hpr' hcr
-  have hk : (S.pairsMeeting {r}).card = 1 := by
-    rw [hS.card_pairsMeeting_singleton r, ite_eq_left ⟨pr, hpr, hprr⟩]
-  have hp_wt : (S.fixConst r (pr.partnerBias p)).wt p = 0 := by
-    by_cases hu_mem : p ∈ (S.fixConst r (pr.partnerBias p)).unpaired
-    · rw [wt_of_mem hu_mem, deg, fixConst_children S (pr.partnerBias p) hrp.symm, ← deg,
-        hp0, config_weight, weight_zero]
-    · exact wt_of_notMem hu_mem
-  refine step_of_reduction_wt_le hS hred hp_wt (fun _ => 0) (G := 0)
-    (fun u _ hup => Reduction.wt_le hred hS fun x hx hxu => by
-      rcases Finset.mem_singleton.1 hx with rfl
-      exact hup (hS.isPartner_unique_right hxu.symm hpr_part))
-    (by simp) (by rw [Finset.card_singleton, hk]; omega) (by simp)
-    (by rw [Finset.card_singleton, hk]; omega)
+  obtain ⟨-, -, hrpar, hpart⟩ := partner_properties hS hpr hprp
+  have hred := Valid.reduction_fixConst hS hrpar fun pr' hpr' hcr =>
+    bias_partner_eq_of_mem hS hpr hprp hpr' hcr
+  have h0 := hred.wt_eq_zero_of_subset (u := p) (by simp [Finset.card_eq_zero.1 hp0]) (by simp)
+  exact Reduction.step_of_isPartner hred hS hpart (by omega)
 
 /-- Fixing a paired parameter `p` to its bias and deleting two distinct children `N₁ ≠ N₂` of `p`
 gives a valid step with `Δa = 0` and `ΔW ≤ 0` (Case 2). -/
@@ -191,29 +198,17 @@ theorem Valid.step_degeneratePair_two {S : State n} {f : BooleanFunction n} (hS 
     {pr : ZeroPair} (hpr : pr ∈ S.pairs) {p : ℕ} (hprp : pr.Contains p) {N₁ N₂ : ℕ ⊕ ℕ}
     (hN₁ : N₁ ∈ S.children p) (hN₂ : N₂ ∈ S.children p) (hN₁₂ : N₁ ≠ N₂) :
     Step f S (((S.fixConst p (pr.bias p)).deleteConstraint N₁).deleteConstraint N₂) := by
-  have hppar : p ∈ S.params := hS.mem_params_of_contains hpr hprp
-  have hred₁ := Valid.reduction_fixConst hS hppar fun pr' hpr' hcp =>
-    bias_eq_of_mem hS hpr hprp hpr' hcp
+  have hred₁ := Valid.reduction_fixConst hS (hS.mem_params_of_contains hpr hprp)
+    fun pr' hpr' hcp => bias_eq_of_mem hS hpr hprp hpr' hcp
   have hred₂ := hred₁.valid.reduction_deleteConstraint
     (deletable_fixConst_child hS (S.pairsAvoid p) (pr.bias p) hN₁)
   have hred₃ := hred₂.valid.reduction_deleteConstraint <| hred₂.deletable N₂
     (by simp [hN₁₂.symm]) (deletable_fixConst_child hS (S.pairsAvoid p) (pr.bias p) hN₂)
-  have hred := (hred₁.trans_delete hred₂).trans_delete hred₃
-  have hk : (S.pairsMeeting {p}).card = 1 := by
-    rw [hS.card_pairsMeeting_singleton p, ite_eq_left ⟨pr, hpr, hprp⟩]
-  refine hred.step hS (by rw [Finset.card_singleton, hk]; omega) (by simp) ?_
-  let gain : ℕ → ℕ := fun u => if S.IsPartner p u then 5 else 0
-  have hW := hred.W_le (fun _ => 0) gain fun u _ => by
-    by_cases hup : S.IsPartner p u
-    · simp only [gain, ite_eq_left hup, add_zero]
-      exact (State.wt_le_bound _ u).trans (Nat.le_add_left _ _)
-    · simp only [gain, ite_eq_right hup, add_zero]
-      exact Reduction.wt_le hred hS fun x hx hxu => hup (Finset.mem_singleton.1 hx ▸ hxu)
-  have hgain : ∑ u ∈ S.params \ {p}, gain u ≤ 5 := hS.sum_partner_le p (S.params \ {p}) 5
-  rw [hk] at hW ⊢
-  simp only [Finset.card_singleton, List.nil_append, List.singleton_append, List.length_cons,
-    List.length_nil, Finset.sum_const_zero] at hW ⊢
-  omega
+  obtain ⟨-, hprr, -, hpart⟩ := partner_properties hS hpr hprp
+  have hwt := wt_le_bound (((S.fixConst p (pr.bias p)).deleteConstraint N₁).deleteConstraint N₂)
+    (pr.partner p)
+  exact Reduction.step_of_isPartner ((hred₁.trans_delete hred₂).trans_delete hred₃) hS hpart.symm
+    (by rw [config_weightBound] at hwt; simpa using hwt.trans (by omega))
 
 /-- Eliminating a degenerate paired parameter gives a valid step with `Δa = 0` and `ΔW ≤ 0`. -/
 theorem Valid.step_of_degeneratePair {S : State n} {f : BooleanFunction n} (hS : S.Valid f)
@@ -243,34 +238,19 @@ private theorem bool_triangle_pair (φ : Bool → Bool → Bool) (α β : Bool) 
   have h := bool_triangle_aux (φ false false) (φ false true) (φ true false) (φ true true) α β
   simpa only [← hφ] using h
 
-private theorem step_of_partnersShareChild_finish {S : State n} {f : BooleanFunction n}
-    (hS : S.Valid f) {pr : ZeroPair} (hpr : pr ∈ S.pairs) {p r : ℕ}
-    (hcp : pr.Contains p) (hcr : pr.Contains r) (hpr_ne : p ≠ r)
-    {S₂ : State n} {L T : List (ℕ ⊕ ℕ)} (hL : L.length = 1)
-    (hred : Reduction f S S₂ {p} L T) (hr_wt : S₂.wt r = 0) : Step f S S₂ := by
-  have hpr_part : S.IsPartner r p := isPartner_of_contains hpr hcr hcp hpr_ne.symm
-  have hk : (S.pairsMeeting {p}).card = 1 := by
-    rw [hS.card_pairsMeeting_singleton p, ite_eq_left ⟨pr, hpr, hcp⟩]
-  refine step_of_reduction_wt_le hS hred hr_wt (fun _ => 0) (G := 0)
-    (fun u _ hur => Reduction.wt_le hred hS fun x hx hxu =>
-      hur (hS.isPartner_unique_right (Finset.mem_singleton.1 hx ▸ IsPartner.symm hxu) hpr_part))
-    (by simp) (by rw [Finset.card_singleton, hk]; omega) (by simp)
-    (by rw [Finset.card_singleton, hk, hL]; omega)
-
 private theorem partnersShareChild_reduction_restrict {S : State n} {f : BooleanFunction n}
     (hS : S.Valid f) {pr : ZeroPair} (hpr : pr ∈ S.pairs)
     (hp_par : pr.fst ∈ S.params) (hr_par : pr.snd ∈ S.params) (hpr_ne : pr.fst ≠ pr.snd)
     (hsub : S.children pr.fst ⊆ S.children pr.snd) :
     Reduction f S (S.restrict pr.fst ⟨.node pr.snd, !(pr.fstBias ^^ pr.sndBias)⟩
       (S.pairsAvoid pr.fst)) {pr.fst} [] [] := by
-  refine Valid.reduction_restrict hS hp_par (fun y hy => ?_) fun pr₁ hpr₁ hc val => ?_
-  · cases hy
-    exact ⟨hr_par, hpr_ne.symm, hsub⟩
-  · rw [hS.pair_unique hpr₁ hpr hc (Or.inl rfl), ZeroPair.holds_iff_and_eq_false,
-      Function.update_self, Function.update_of_ne hpr_ne.symm]
-    dsimp only [Lit.eval, Arg.eval_node]
-    generalize val pr.snd = b
-    cases pr.fstBias <;> cases pr.sndBias <;> cases b <;> decide
+  refine Valid.reduction_restrict hS hp_par
+    (fun y hy => by cases hy; exact ⟨hr_par, hpr_ne.symm, hsub⟩) fun pr₁ hpr₁ hc val => ?_
+  rw [hS.pair_unique hpr₁ hpr hc (Or.inl rfl), ZeroPair.holds_iff_and_eq_false,
+    Function.update_self, Function.update_of_ne hpr_ne.symm]
+  dsimp only [Lit.eval, Arg.eval_node]
+  generalize val pr.snd = b
+  cases pr.fstBias <;> cases pr.sndBias <;> cases b <;> decide
 
 private theorem step_of_partnersShareChild_fix {S : State n} {f : BooleanFunction n}
     (hS : S.Valid f) {pr : ZeroPair} (hpr : pr ∈ S.pairs) {p r G : ℕ} {b c : Bool}
@@ -284,8 +264,8 @@ private theorem step_of_partnersShareChild_fix {S : State n} {f : BooleanFunctio
   have hred := hred₁.trans_delete <| hred₁.valid.reduction_deleteConst hG fun val _ _ => by
     rw [fixConst_gate, Gate.eval_subst_const]
     exact hconst val
-  exact step_of_partnersShareChild_finish hS hpr hcp hcr hpr_ne (by simp) hred
-    (hred.wt_eq_zero_of_subset (by simp [hcrG]) nofun)
+  exact Reduction.step_of_isPartner hred hS (isPartner_of_contains hpr hcp hcr hpr_ne)
+    ((hred.wt_eq_zero_of_subset (by simp [hcrG]) nofun).trans_le (Nat.zero_le _))
 
 private theorem eq_of_eq_false_true {g : Bool → Bool} (h : g false = g true) (a b : Bool) :
     g a = g b := by
@@ -365,8 +345,8 @@ private theorem step_partnersShareChild_inr {S : State n} {f : BooleanFunction n
   have hr_wt₂ : (S₁.deleteConstraint (.inr e)).wt pr.snd = 0 :=
     Nat.eq_zero_of_le_zero <| (Reduction.wt_le hred₂ hred₁.valid
       fun _ hx _ => absurd hx (Finset.notMem_empty _)).trans_eq hr_wt₁
-  exact step_of_partnersShareChild_finish hS hpr (Or.inl rfl) (Or.inr rfl) hpr_ne
-    rfl (hred₁.trans_delete hred₂) hr_wt₂
+  exact Reduction.step_of_isPartner (hred₁.trans_delete hred₂) hS
+    (isPartner_of_contains hpr (Or.inl rfl) (Or.inr rfl) hpr_ne) (hr_wt₂.trans_le (Nat.zero_le _))
 
 /-- Eliminating a shared child `H` of paired partners by `S.partnersShareChildStep pr H` gives a
 valid step with `Δa = 0` and `ΔW ≤ -4`, provided every paired parameter has degree `1` and every
@@ -419,8 +399,9 @@ theorem Valid.step_partnersShareChild_of {S : State n} {f : BooleanFunction n} (
           Function.update_self, Function.update_of_ne hpr_ne.symm]
         exact h3 (val pr.snd)
       have hred := hred₁.trans_delete hred₂
-      exact step_of_partnersShareChild_finish hS hpr (Or.inl rfl) (Or.inr rfl) hpr_ne rfl hred
-        (hred.wt_eq_zero_of_subset (by simp [hcrH]) nofun)
+      exact Reduction.step_of_isPartner hred hS
+        (isPartner_of_contains hpr (Or.inl rfl) (Or.inr rfl) hpr_ne)
+        ((hred.wt_eq_zero_of_subset (by simp [hcrH]) nofun).trans_le (Nat.zero_le _))
   · obtain ⟨he, hep⟩ := (SemiCircuit.inr_mem_children _).1 hHp
     obtain ⟨_, her⟩ := (SemiCircuit.inr_mem_children _).1 hHr
     exact step_partnersShareChild_inr hS hD3 hpr hpr_ne he hep her hcpH hcrH hred₁
@@ -443,31 +424,24 @@ theorem Valid.step_of_partnersShareChild {S : State n} {f : BooleanFunction n}
 
 /-- Fixing a parameter to a constant makes the output read no new name. -/
 private theorem out_reads_of_fixConst {S : State n} {w : ℕ} {b : Bool} {t : ℕ}
-    (h : (S.fixConst w b).out.Reads t) : S.out.Reads t := by
-  rcases Lit.reads_of_reads_subst (show (S.out.subst w (Lit.const b)).Reads t from h)
-    with h | ⟨-, h⟩
-  · exact h
-  · simp [Lit.Reads, Lit.const] at h
+    (h : (S.fixConst w b).out.Reads t) : S.out.Reads t :=
+  (Lit.reads_of_reads_subst (show (S.out.subst w (Lit.const b)).Reads t from h)).elim id
+    fun h => by simp [Lit.Reads, Lit.const] at h
 
 /-- After deleting a deletable constraint `N`, the output reads only names that it read before or
 that `N` reads. -/
 private theorem out_reads_of_deleteConstraint {S : State n} {N : ℕ ⊕ ℕ} (hN : S.Deletable N)
     {t : ℕ} (h : (S.deleteConstraint N).out.Reads t) : S.out.Reads t ∨ N ∈ S.children t := by
   rcases N with J | e
-  · rcases Lit.reads_of_reads_subst (show (S.out.subst J (S.gate J).lit).Reads t from h)
-      with h | ⟨-, h⟩
-    · exact Or.inl h
-    · exact Or.inr ((SemiCircuit.inl_mem_children _).2 ⟨hN.1, Gate.reads_of_lit_reads h⟩)
+  · exact (Lit.reads_of_reads_subst (show (S.out.subst J (S.gate J).lit).Reads t from h)).imp_right
+      fun h => (SemiCircuit.inl_mem_children _).2 ⟨hN.1, Gate.reads_of_lit_reads h.2⟩
   · dsimp only [deleteConstraint] at h
     split_ifs at h with hA hR
-    · rcases Lit.reads_of_reads_subst h with h | ⟨-, h⟩
-      · exact Or.inl h
-      · cases h
-        exact Or.inr ((SemiCircuit.inr_mem_children _).2
-          ⟨hN.1, Finset.mem_of_mem_erase (Finset.min'_mem _ hR)⟩)
-    · rcases Lit.reads_of_reads_subst h with h | ⟨-, h⟩
-      · exact Or.inl h
-      · simp [Lit.Reads, Lit.const] at h
+    · refine (Lit.reads_of_reads_subst h).imp_right fun h => ?_
+      cases h.2
+      exact (SemiCircuit.inr_mem_children _).2
+        ⟨hN.1, Finset.mem_of_mem_erase (Finset.min'_mem _ hR)⟩
+    · exact (Lit.reads_of_reads_subst h).imp_right fun h => by simp [Lit.Reads, Lit.const] at h
     · exact Or.inl h
 
 
@@ -500,64 +474,41 @@ theorem Valid.step_pairInSystem_of {S : State n} {f : BooleanFunction n} (hS : S
       (S₂.deg p ≠ 0 → ∀ Q c T, Q ∈ S₂.aux → S₂.AffineIn Q c T → p ∈ T →
         Step f S ((S₂.swap p Q c T).dropEqn e p)) := by
   intro S₂
-  let r := pr.partner p
-  have ⟨hrp, hprr, hrpar⟩ := partner_properties hS hpr hprp
-  have hppar : p ∈ S.params := hS.mem_params_of_contains hpr hprp
-  have hpp : S.Paired p := ⟨pr, hpr, hprp⟩
-  have hpr_part : S.IsPartner p r := isPartner_of_contains hpr hprp hprr hrp.symm
-  have hp_ch : S.children p = {.inr e} :=
-    Paired.children_eq_singleton hndeg hpp ((SemiCircuit.inr_mem_children _).2 ⟨he, hpe⟩)
+  obtain ⟨hrp, hprr, hrpar, hpart⟩ := partner_properties hS hpr hprp
+  have hp_ch : S.children p = {.inr e} := Paired.children_eq_singleton hndeg ⟨pr, hpr, hprp⟩
+    ((SemiCircuit.inr_mem_children _).2 ⟨he, hpe⟩)
   have hHr_ne : Hr ≠ .inr e := child_ne_of_partner_share_child hnsh hpr hprp hprr hrp hp_ch hHr
-  have hred₁ := Valid.reduction_fixConst hS hrpar
-    fun pr' hpr' hcr => bias_partner_eq_of_mem hS hpr hprp hpr' hcr
-  have hdel : (S.fixConst r (pr.partnerBias p)).Deletable Hr :=
-    deletable_fixConst_child hS (S.pairsAvoid r) (pr.partnerBias p) hHr
-  have hred : Reduction f S S₂ {r} ([] ++ [Hr]) ([] ++ [Hr]) :=
+  have hred₁ := Valid.reduction_fixConst hS hrpar fun pr' hpr' hcr =>
+    bias_partner_eq_of_mem hS hpr hprp hpr' hcr
+  have hdel : (S.fixConst (pr.partner p) (pr.partnerBias p)).Deletable Hr :=
+    deletable_fixConst_child hS (S.pairsAvoid (pr.partner p)) (pr.partnerBias p) hHr
+  have hred : Reduction f S S₂ {pr.partner p} [Hr] [Hr] :=
     hred₁.trans_delete (hred₁.valid.reduction_deleteConstraint hdel)
-  have hp_mem₂ : p ∈ S₂.params :=
-    hred.params ▸ Finset.mem_sdiff.2 ⟨hppar, Finset.notMem_singleton.2 hrp.symm⟩
-  have hp_unp₂ : p ∈ S₂.unpaired := mem_unpaired.2 ⟨hp_mem₂, fun ⟨pr', hpr', hc⟩ => by
-    rw [hred.pairs, Finset.mem_filter] at hpr'
-    rw [hS.pair_unique hpr'.1 hpr hc hprp] at hpr'
-    exact hpr'.2 (hprr.elim (Or.inl ∘ Finset.mem_singleton.2) (Or.inr ∘ Finset.mem_singleton.2))⟩
-  have hchp₂ : S₂.children p ⊆ {.inr e} := by
-    rcases hred.children p hp_mem₂ with h | ⟨N, hN, hNp⟩
-    · exact h.trans (hp_ch ▸ Finset.sdiff_subset)
-    · exact absurd (Finset.mem_singleton.1 (hp_ch ▸ hNp))
-        ((List.mem_singleton.1 hN) ▸ hHr_ne)
-  have hout₂ : ¬ S₂.out.Reads p := fun h =>
-    (out_reads_of_deleteConstraint hdel h).elim (hout ∘ out_reads_of_fixConst) fun h' => by
-      rw [fixConst_children S _ hrp.symm, hp_ch, Finset.mem_singleton] at h'
-      exact hHr_ne h'
-  have hk : (S.pairsMeeting {r}).card = 1 := by
-    rw [hS.card_pairsMeeting_singleton r, ite_eq_left ⟨pr, hpr, hprr⟩]
-  have hW₂ := hred.W_le (fun _ => 0) (fun u => if u = p then S₂.wt p else 0) fun u hu => by
-    by_cases hup : u = p
-    · subst hup; simp only [ite_eq_left, add_zero]; exact Nat.le_add_left _ _
-    · simp only [ite_eq_right hup, add_zero]
-      exact Reduction.wt_le hred hS fun x hx hxu =>
-        hup (hS.isPartner_unique_right (Finset.mem_singleton.1 hx ▸ IsPartner.symm hxu) hpr_part)
-  have hsum_gain : ∑ u ∈ S.params \ {r}, (if u = p then S₂.wt p else 0) = S₂.wt p := by
-    simp [Finset.mem_sdiff, hppar, r, hrp.symm]
-  rw [hk, hsum_gain] at hW₂
-  simp only [List.nil_append, List.length_singleton, Finset.sum_const_zero] at hW₂
+  have hp_unp₂ : p ∈ S₂.unpaired := (hred.mem_unpaired_iff hS).2
+    ⟨hS.mem_params_of_contains hpr hprp, by simpa using hrp.symm,
+      Or.inr ⟨_, Finset.mem_singleton_self _, hpart⟩⟩
+  have hchp₂ : S₂.children p ⊆ {.inr e} :=
+    (hred.children_subset (mem_unpaired.1 hp_unp₂).1 (by simpa [hp_ch] using hHr_ne)).trans
+      (hp_ch ▸ Finset.sdiff_subset)
+  have hout₂ : ¬ S₂.out.Reads p := fun h => by
+    rcases out_reads_of_deleteConstraint hdel h with h | h
+    · exact hout (out_reads_of_fixConst h)
+    · rw [fixConst_children S _ hrp.symm, hp_ch, Finset.mem_singleton] at h
+      exact hHr_ne h
   refine ⟨hred.valid, hp_unp₂, hchp₂, fun h0 => ?_, fun h0 Q c T hQ haff hpT => ?_⟩
-  · have hp_wt₂ : S₂.wt p = 0 := by rw [wt_of_mem hp_unp₂, h0, config_weight, weight_zero]
-    rw [hp_wt₂] at hW₂
-    exact hred.step hS (by rw [Finset.card_singleton, hk]; omega) (by simp)
-      (by rw [hk, Finset.card_singleton]; omega)
-  · have hcp₂_eq : S₂.children p = {.inr e} :=
-      (Finset.subset_singleton_iff.1 hchp₂).resolve_left fun h => h0 (by simp [deg, h])
+  · exact Reduction.step_of_isPartner hred hS hpart
+      (by rw [wt_of_mem hp_unp₂, h0, config_weight, weight_zero]; omega)
+  · obtain ⟨hS₃, hm₃, hs₃, -, ha₃, hW₃⟩ := Valid.unitDelete hred.valid hp_unp₂
+      ((Finset.card_pos.1 (Nat.pos_of_ne_zero h0)).subset_singleton_iff.1 hchp₂) hout₂ hQ haff hpT
+    obtain ⟨hk, hW₂⟩ := Reduction.W_le_of_isPartner hred hS hpart
     have ha_rel := hred.a_add hS
-    rw [hk, Finset.card_singleton] at ha_rel
-    obtain ⟨hS₃, hm₃, hs₃, hq₃, ha₃, hW₃⟩ :=
-      Valid.unitDelete hred.valid hp_unp₂ hcp₂_eq hout₂ hQ haff hpT
-    have hm_rel := hred.m_add; have hs_rel := hred.s_add
+    have hm_rel := hred.m_add
+    have hs_rel := hred.s_add
     have hwt_le := S₂.wt_le_bound p
     rw [config_weightBound] at hwt_le
-    simp only [Finset.card_singleton, List.nil_append, List.length_singleton] at hm_rel hs_rel
-    exact ⟨hS₃, by omega, by omega, by omega,
-      by rw [show ((S₂.swap p Q c T).dropEqn e p).a = S.a by omega]; omega⟩
+    simp only [hk, Finset.card_singleton, List.length_singleton] at ha_rel hm_rel hs_rel hW₂
+    have ha_eq : ((S₂.swap p Q c T).dropEqn e p).a = S.a := by omega
+    exact ⟨hS₃, by omega, by omega, by omega, by rw [ha_eq]; omega⟩
 
 /-- Eliminating a paired parameter in an equation (and unit-deleting if its partner's degree
 stays `1`) gives a valid step with `Δa = 0` and `ΔW ≤ 0`. -/
@@ -838,7 +789,7 @@ theorem Valid.step_andOnPair_of {S : State n} {f : BooleanFunction n} (hS : S.Va
     (hHw' : ∀ q, prw = some q → b ≠ q.bias w → Hw' ∈ S.children (q.partner w)) :
     Step f S (S.andOnPairStep G pr p w prw b c Hr K Hw') := by
   let r := pr.partner p
-  have ⟨hrp, hprr, hrpar⟩ := partner_properties hS hpr hprp
+  obtain ⟨hrp, hprr, hrpar, -⟩ := partner_properties hS hpr hprp
   have hpp : S.Paired p := ⟨pr, hpr, hprp⟩
   have hpr' : S.Paired r := ⟨pr, hpr, hprr⟩
   have hpr_part : S.IsPartner p r := isPartner_of_contains hpr hprp hprr hrp.symm
@@ -885,7 +836,7 @@ theorem Valid.step_andOnPair_of {S : State n} {f : BooleanFunction n} (hS : S.Va
   · obtain ⟨hpr_w, hpr_w_c⟩ := hprw_some pr_w rfl
     dsimp only [andOnPairStep]
     let w' := pr_w.partner w
-    have ⟨hww', hpr_w_c', hw'_par⟩ := partner_properties hS hpr_w hpr_w_c
+    obtain ⟨hww', hpr_w_c', hw'_par, -⟩ := partner_properties hS hpr_w hpr_w_c
     have hw_part : S.IsPartner w' w := isPartner_of_contains hpr_w hpr_w_c' hpr_w_c hww'
     have hpr_w_ne : pr_w ≠ pr := fun he => by
       subst he

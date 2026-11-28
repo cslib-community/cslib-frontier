@@ -42,11 +42,13 @@ reductions (`Cslib.Complexity.NPHard`), several structural collapses and class s
 
    The Lean theorems here assume full `NPHard MCSP.encInstance MCSP` (which implies the hypothesis
    for every language in `NP`, and in particular every tally/sparse language in `NP`), so they
-   formalize the full-`NPHard` specialization of Theorem 4.1. For any problem `A ∈ NEXP`, its
-   exponentially padded version `ntm.padded c` lies in `NP`, and the `NP`-hardness reduction `R`
-   (applied only to `ntm.padded c`) maps padded instances `z (enc a)` of length `2 ^ poly(|enc a|)`
-   to `MCSP` instances `R (z (enc a))`. Reading the `(R (z (enc a))).table` bit at position `y`
-   defines a problem in `EXP` on pairs `(enc a, y)`, hence in `P/poly` when `EXP ⊆ P/poly`.
+   formalize the full-`NPHard` specialization of Theorem 4.1. For any problem `A ∈ NEXP`, a
+   problem `Bpad ∈ NP` decides `A` on exponentially padded instances
+   (`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`), and the `NP`-hardness
+   reduction `R` (applied only to `Bpad`) maps padded instances `z (enc a)` of length
+   `2 ^ poly(|enc a|)` to `MCSP` instances `R (z (enc a))`. Reading the
+   `(R (z (enc a))).table` bit at position `y` defines a problem in `EXP` on pairs `(enc a, y)`,
+   hence in `P/poly` when `EXP ⊆ P/poly`.
    Hardwiring `enc a` into the `P/poly` circuits bounds the circuit complexity of
    `(R (z (enc a))).function` by a fixed polynomial `s_bound |enc a|` on arity `m_bound |enc a|`.
    Consequently, membership of `R (z (enc a))` in `MCSP` depends only on the capped threshold
@@ -338,17 +340,18 @@ open _root_.Turing _root_.Turing.MultiTapeTM Circuits Circuits.Boolean MCSP
 
 This theorem assumes full `NPHard MCSP.encInstance MCSP` (which implies the hypothesis for every
 language in `NP`, and in particular every tally/sparse language in `NP`; the proof applies `hHard`
-only to the unary-padded language `ntm.padded c`), and shows that if `EXP encBits ⊆ PPolyOn encBits`
-then `NEXP enc ⊆ EXP enc` for every encoding `enc` of instances. -/
+only to the padded language `Bpad ∈ NP` given by
+`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`), and shows that if
+`EXP encBits ⊆ PPolyOn encBits` then `NEXP enc ⊆ EXP enc` for every encoding `enc` of
+instances. -/
 theorem NEXP_subset_EXP_of_MCSP_npHard_of_EXP_subset_PPoly
     (hHard : NPHard MCSP.encInstance MCSP) (hEXP : EXP encBits ⊆ PPolyOn encBits)
     {α : Type} (enc : α ↪ List Bool) :
     NEXP enc ⊆ EXP enc := by
   intro A hA
   obtain ⟨k, hk⟩ := mem_NEXP_iff.mp hA
-  obtain ⟨c₁, c₂, k_tapes, State, hfinite, ntm, hdec⟩ := hk
-  set c := Nat.card (Turing.Action k_tapes Bool State) * (c₁ + c₂)
-  obtain ⟨R, hR, hR_iff⟩ := hHard encBits (ntm.padded c) (ntm.padded_mem_NP c)
+  obtain ⟨Bpad, hBpad, hABpad⟩ := exists_mem_NP_frame_append_mem_iff_of_mem_NTIME hk
+  obtain ⟨R, hR, hR_iff⟩ := hHard encBits Bpad hBpad
   let f (n : ℕ) : ℕ := n ^ (k + 1) + 1
   have hf : ComputableInPolyTime f encUnary encUnary := by
     unfold f
@@ -483,19 +486,14 @@ theorem NEXP_subset_EXP_of_MCSP_npHard_of_EXP_subset_PPoly
       simp only [z, unframe_frame_append, n]
       rw [boundedMCSPSearch_ofFn_eq_true_iff (R (z x)) hcert_le, le_min_iff, MCSP.mem_iff]
       exact ⟨And.right, fun h => ⟨hcomp_le x, h⟩⟩
-    have hpad_iff : a ∈ A ↔ z x ∈ ntm.padded c := by
-      refine (hdec.frame_append_mem_padded_iff ?_).symm
-      change Nat.card (Turing.Action k_tapes Bool State) * (c₁ * 2 ^ n ^ k + c₂) ≤
-        c * (frame x ++ List.replicate (2 ^ f n) true).length
-      simp only [List.length_append, length_frame, List.length_replicate]
-      have hpow_le : 2 ^ n ^ k ≤ 2 ^ f n := by
-        refine Nat.pow_le_pow_right (by norm_num) ?_
-        rcases Nat.eq_zero_or_pos n with h0 | hpos
-        · cases k <;> simp [f, h0]
-        · exact (Nat.pow_le_pow_right hpos (Nat.le_succ k)).trans (Nat.le_succ _)
-      have h1 : 1 ≤ 2 * n + 1 + 2 ^ f n := Nat.succ_le_of_lt (by positivity)
-      rw [Nat.mul_assoc]
-      exact Nat.mul_le_mul_left _ (by nlinarith)
+    have hpad_iff : a ∈ A ↔ z x ∈ Bpad := by
+      refine (hABpad a _ ?_).symm
+      change 2 ^ n ^ k ≤ (List.replicate (2 ^ f n) true).length
+      rw [List.length_replicate]
+      refine Nat.pow_le_pow_right (by norm_num) ?_
+      rcases Nat.eq_zero_or_pos n with h0 | hpos
+      · cases k <;> simp [f, h0]
+      · exact (Nat.pow_le_pow_right hpos (Nat.le_succ k)).trans (Nat.le_succ _)
     exact (hpad_iff.trans (hR_iff (z x))).trans hsearch_iff.symm
   exact hA_eq ▸ hEXP_pre
 

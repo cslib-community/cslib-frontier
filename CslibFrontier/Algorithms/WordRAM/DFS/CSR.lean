@@ -132,17 +132,16 @@ theorem csrOffset_succ {N : ℕ} (adj : Fin N → List (Fin N)) {u : ℕ} (hu : 
 
 theorem csrOffset_mono {N : ℕ} (adj : Fin N → List (Fin N)) {a b : ℕ} (hab : a ≤ b) :
     csrOffset adj a ≤ csrOffset adj b := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hab
-  induction d with
-  | zero => simp
-  | succ d ih =>
-    by_cases hlt : a + d < N
-    · rw [Nat.add_succ, csrOffset_succ adj hlt]
-      exact (ih (Nat.le_add_right a d)).trans (Nat.le_add_right _ _)
-    · have hge : (List.finRange N).length ≤ a + d := by simp only [List.length_finRange]; omega
-      simpa only [csrOffset, Nat.add_succ, List.take_of_length_le hge,
-        List.take_of_length_le (hge.trans (Nat.le_succ _))] using
-        ih (Nat.le_add_right a d)
+  obtain ⟨rest, h⟩ := List.take_prefix_take_left (l := List.finRange N) hab
+  unfold csrOffset
+  rw [← h, List.map_append, List.sum_append]
+  exact Nat.le_add_right _ _
+
+private theorem csrOffset_add_lt {N : ℕ} (adj : Fin N → List (Fin N)) (u : Fin N)
+    {k : ℕ} (hk : k < (adj u).length) : csrOffset adj u.val + k < csrOffset adj N := by
+  refine (Nat.add_lt_add_left hk _).trans_le ?_
+  rw [← csrOffset_succ adj u.isLt]
+  exact csrOffset_mono adj u.isLt
 
 theorem csrOffset_eq_outDegreeSum {N : ℕ} (adj : Fin N → List (Fin N)) :
     csrOffset adj N = outDegreeSum adj (List.finRange N) := by
@@ -162,12 +161,7 @@ private theorem CSRAt.of_eqOn {N : ℕ} {adj : Fin N → List (Fin N)} {offBase 
     (hedge : ∀ e < csrOffset adj N, mem₂ (edgeBase + e) = mem₁ (edgeBase + e)) :
     CSRAt adj offBase edgeBase mem₂ := by
   refine ⟨fun u hu => (hoff u hu).trans (h.1 u hu), fun u k hk => ?_⟩
-  have hk_lt : csrOffset adj u.val + k < csrOffset adj N := by
-    have h1 := csrOffset_succ adj u.isLt
-    simp only [Fin.eta] at h1
-    have h2 := csrOffset_mono adj (by omega : u.val + 1 ≤ N)
-    omega
-  rw [Nat.add_assoc, hedge _ hk_lt, ← Nat.add_assoc]
+  rw [Nat.add_assoc, hedge _ (csrOffset_add_lt adj u hk), ← Nat.add_assoc]
   exact h.2 u k hk
 
 /-- Invariant of the backward CSR fill: the successor lists `part` written so far end at the cursors
@@ -178,6 +172,42 @@ private theorem CSRAt.of_eqOn {N : ℕ} {adj : Fin N → List (Fin N)} {offBase 
     (∀ w : Fin N, mem (curBase + w.val) + (part w).length = csrOffset targetAdj (w.val + 1)) ∧
     ∀ (w : Fin N) (k : ℕ) (hk : k < (part w).length),
       mem (edgeBase + mem (curBase + w.val) + k) = ((part w)[k]).val
+
+-- The cursor leaves one position for every successor still to be written.
+private theorem PartialCSRAt.cursor_eq {N : ℕ} {targetAdj part : Fin N → List (Fin N)}
+    {curBase edgeBase : ℕ} {mem : ℕ → ℕ} (hp : PartialCSRAt targetAdj part curBase edgeBase mem)
+    (u : Fin N) :
+    mem (curBase + u.val) =
+      csrOffset targetAdj u.val + ((targetAdj u).length - (part u).length) := by
+  refine Nat.add_right_cancel (m := (part u).length) ?_
+  simpa only [csrOffset_succ targetAdj u.isLt, Fin.eta, Nat.add_assoc,
+    Nat.sub_add_cancel (hp.1 u)] using hp.2.1 u
+
+private theorem PartialCSRAt.edge_in_row {N : ℕ} {targetAdj part : Fin N → List (Fin N)}
+    {curBase edgeBase : ℕ} {mem : ℕ → ℕ} (hp : PartialCSRAt targetAdj part curBase edgeBase mem)
+    (u : Fin N) {k : ℕ} (hk : k < (part u).length) :
+    csrOffset targetAdj u.val ≤ mem (curBase + u.val) + k ∧
+      mem (curBase + u.val) + k < csrOffset targetAdj (u.val + 1) := by
+  constructor
+  · rw [hp.cursor_eq u]
+    exact (Nat.le_add_right _ _).trans (Nat.le_add_right _ _)
+  · rw [← hp.2.1 u]
+    exact Nat.add_lt_add_left hk _
+
+private theorem PartialCSRAt.backfill_bounds {N : ℕ} {targetAdj part : Fin N → List (Fin N)}
+    {curBase edgeBase : ℕ} {mem : ℕ → ℕ} (hp : PartialCSRAt targetAdj part curBase edgeBase mem)
+    (u : Fin N) (hroom : (part u).length + 1 ≤ (targetAdj u).length) :
+    let c := mem (curBase + u.val) - 1
+    c + 1 = mem (curBase + u.val) ∧
+      csrOffset targetAdj u.val ≤ c ∧ c < csrOffset targetAdj (u.val + 1) := by
+  dsimp only
+  have hbefore : csrOffset targetAdj u.val < mem (curBase + u.val) := by
+    rw [hp.cursor_eq u]
+    exact Nat.lt_add_of_pos_right (Nat.sub_pos_of_lt hroom)
+  have hpos := (Nat.zero_le _).trans_lt hbefore
+  refine ⟨Nat.sub_add_cancel hpos, Nat.le_pred_of_lt hbefore, ?_⟩
+  rw [← hp.2.1 u]
+  exact (Nat.sub_lt hpos Nat.zero_lt_one).trans_le (Nat.le_add_right _ _)
 
 theorem partialCSRAt_init {N : ℕ} (targetAdj : Fin N → List (Fin N))
     (curBase edgeBase : ℕ) (mem : ℕ → ℕ)
@@ -191,10 +221,7 @@ theorem csrAt_of_partialCSRAt {N : ℕ} (targetAdj : Fin N → List (Fin N))
     (hp : PartialCSRAt targetAdj targetAdj curBase edgeBase mem) :
     CSRAt targetAdj offBase edgeBase mem := by
   refine ⟨hoff, fun u k hk => ?_⟩
-  have hcur_u := hp.2.1 u
-  have hoff_u := csrOffset_succ targetAdj u.isLt
-  simp only [Fin.eta] at hoff_u
-  simpa only [show mem (curBase + u.val) = csrOffset targetAdj u.val by omega] using hp.2.2 u k hk
+  simpa only [hp.cursor_eq u, Nat.sub_self, Nat.add_zero] using hp.2.2 u k hk
 
 /-- Zero `[baseReg, baseReg + nVerts)` in `4 * N + 4` instructions via `Cslib.WordRAM.zeroFill`. -/
 def zeroBlockCode (baseReg : Fin 28) : Code .standard 28 :=
@@ -381,10 +408,8 @@ private theorem csrOffset_disjoint {N : ℕ} (adj : Fin N → List (Fin N)) {u v
     (hq1 : csrOffset adj v.val ≤ q) (hq2 : q < csrOffset adj (v.val + 1)) : p ≠ q := by
   have hval : u.val ≠ v.val := fun h => hne (Fin.ext h)
   rcases Nat.lt_or_gt_of_ne hval with hlt | hgt
-  · have := csrOffset_mono adj (by omega : u.val + 1 ≤ v.val)
-    omega
-  · have := csrOffset_mono adj (by omega : v.val + 1 ≤ u.val)
-    omega
+  · exact (hp2.trans_le ((csrOffset_mono adj hlt).trans hq1)).ne
+  · exact (hq2.trans_le ((csrOffset_mono adj hgt).trans hp1)).ne'
 
 private theorem partialCSRAt_step {N : ℕ}
     (targetAdj part : Fin N → List (Fin N))
@@ -400,19 +425,12 @@ private theorem partialCSRAt_step {N : ℕ}
       (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + N) ∨
           (edgeBase ≤ a ∧ a < edgeBase + csrOffset targetAdj N)) → mem' a = mem a) := by
   dsimp only
-  have hsrc_lt := src.isLt
-  have hcur_eq := hp.2.1 src
-  have hoff_src : csrOffset targetAdj (src.val + 1) =
-      csrOffset targetAdj src.val + (targetAdj src).length := by
-    simpa using csrOffset_succ targetAdj hsrc_lt
-  have hoff_le_N := csrOffset_mono targetAdj (by omega : src.val + 1 ≤ N)
   set c := mem (curBase + src.val) - 1
   set mem₁ := Function.update mem (curBase + src.val) c
   set mem' := Function.update mem₁ (edgeBase + c) dst.val
-  have hc_pos : 1 ≤ mem (curBase + src.val) := by omega
-  have hc_low : csrOffset targetAdj src.val ≤ c := by omega
-  have hc_high : c < csrOffset targetAdj (src.val + 1) := by omega
-  have hc_lt_N : c < csrOffset targetAdj N := lt_of_lt_of_le hc_high hoff_le_N
+  obtain ⟨hc_succ, hc_low, hc_high⟩ := hp.backfill_bounds src hroom
+  have hsrc_lt := src.isLt
+  have hc_lt_N := hc_high.trans_le (csrOffset_mono targetAdj hsrc_lt)
   have hm_cur (u : Fin N) : mem' (curBase + u.val) = mem₁ (curBase + u.val) :=
     Function.update_of_ne (by have := u.isLt; omega) _ _
   have hm_edge (p : ℕ) (hp_lt : p < csrOffset targetAdj N) (hpc : p ≠ c) :
@@ -423,7 +441,8 @@ private theorem partialCSRAt_step {N : ℕ}
   · by_cases hu : u = src <;> simp [*, hp.1 u]
   · rw [hm_cur]
     by_cases hu : u = src
-    · simp only [hu, mem₁, Function.update_self, List.length_cons]; omega
+    · simp only [hu, mem₁, Function.update_self, List.length_cons]
+      rw [← Nat.add_assoc, Nat.add_right_comm c _ 1, hc_succ, hp.2.1 src]
     · have hne : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega))
       simp [mem₁, Function.update_of_ne hu, Function.update_of_ne hne, hp.2.1 u]
   · rw [hm_cur]
@@ -433,21 +452,19 @@ private theorem partialCSRAt_step {N : ℕ}
       cases k with
       | zero => exact Function.update_self (edgeBase + c) dst.val mem₁
       | succ k' =>
-        have hk' : k' < (part u).length := by simpa using hk
-        rw [show edgeBase + c + (k' + 1) = edgeBase + (mem (curBase + u.val) + k') by omega,
-          hm_edge _ (by omega) (by omega), ← Nat.add_assoc]
+        have hk' : k' < (part u).length := Nat.lt_of_succ_lt_succ hk
+        have hq := (hp.edge_in_row u hk').2.trans_le (csrOffset_mono targetAdj u.isLt)
+        have hne := ((Nat.lt_succ_self c).trans_eq hc_succ).trans_le (Nat.le_add_right _ k')
+        change mem' (edgeBase + c + (k' + 1)) = ((part u)[k']).val
+        rw [Nat.add_assoc edgeBase c, Nat.add_comm k' 1, ← Nat.add_assoc c, hc_succ,
+          hm_edge _ hq hne.ne', ← Nat.add_assoc]
         exact hp.2.2 u k' hk'
     · have hne_c : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega))
       simp only [Function.update_of_ne hu] at hk ⊢
       simp only [mem₁, Function.update_of_ne hne_c]
-      have hu_cur := hp.2.1 u
-      have hu_len := hp.1 u
-      have hu_off := csrOffset_succ targetAdj u.isLt
-      simp only [Fin.eta] at hu_off
-      have hq_high : mem (curBase + u.val) + k < csrOffset targetAdj (u.val + 1) := by omega
-      have hne_edge : mem (curBase + u.val) + k ≠ c :=
-        csrOffset_disjoint targetAdj hu (by omega) hq_high hc_low hc_high
-      have hq_lt_N := lt_of_lt_of_le hq_high (csrOffset_mono targetAdj (by omega : u.val + 1 ≤ N))
+      obtain ⟨hq_low, hq_high⟩ := hp.edge_in_row u hk
+      have hne_edge := csrOffset_disjoint targetAdj hu hq_low hq_high hc_low hc_high
+      have hq_lt_N := hq_high.trans_le (csrOffset_mono targetAdj u.isLt)
       rw [Nat.add_assoc, hm_edge _ hq_lt_N hne_edge, ← Nat.add_assoc]
       exact hp.2.2 u k hk
 
@@ -467,15 +484,11 @@ theorem backfillStepCode_spec {N w : ℕ}
       (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + N) ∨
           (edgeBase ≤ a ∧ a < edgeBase + csrOffset targetAdj N)) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r) := by
-  have hsrc_lt := src.isLt
-  have hcur_eq := hp.2.1 src
-  have hoff_src : csrOffset targetAdj (src.val + 1) =
-      csrOffset targetAdj src.val + (targetAdj src).length := csrOffset_succ targetAdj hsrc_lt
-  have hoff_le_N := csrOffset_mono targetAdj hsrc_lt
   set c := x.mem (curBase + src.val) - 1
-  have hc_pos : 1 ≤ x.mem (curBase + src.val) := by omega
-  have hc_lt_N : c < csrOffset targetAdj N :=
-    lt_of_lt_of_le (by omega : c < csrOffset targetAdj (src.val + 1)) hoff_le_N
+  obtain ⟨hc_succ, _, hc_high⟩ := hp.backfill_bounds src hroom
+  have hc_pos : 1 ≤ x.mem (curBase + src.val) := hc_succ ▸ Nat.le_add_left 1 c
+  have hsrc_lt := src.isLt
+  have hc_lt_N := hc_high.trans_le (csrOffset_mono targetAdj hsrc_lt)
   have hstep := partialCSRAt_step targetAdj part curBase edgeBase Mc hdisj hmc src dst hroom
     x.mem hp
   unfold backfillStepCode

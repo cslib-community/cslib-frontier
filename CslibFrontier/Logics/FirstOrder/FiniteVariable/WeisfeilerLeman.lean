@@ -141,7 +141,8 @@ private theorem update_snoc_castSucc_comp_swap {α : Type*} {k : ℕ} (u : Fin k
     (i : Fin k) :
     Function.update (Fin.snoc u v) i.castSucc c ∘ Equiv.swap i.castSucc (Fin.last k) =
       Fin.snoc (Function.update u i v) c := by
-  rw [← Fin.snoc_update, snoc_comp_swap_castSucc_last, Function.update_idem, Function.update_self]
+  rw [Function.update_comp_equiv, Equiv.symm_swap, Equiv.swap_apply_left,
+    snoc_comp_swap_castSucc_last, Fin.update_snoc_last]
 
 end TupleHelpers
 
@@ -214,11 +215,10 @@ theorem bijPebbleWins_graph_range_castSucc_iff (n : ℕ) (u : Fin k → V) (w : 
     simp only [insert_last_range_castSucc, Fin.update_snoc_last, bijPebbleWins_graph_univ_snoc_iff,
       exists_equiv_stepProfile_iff v₀ n u w, insert_castSucc_range_castSucc, ← Fin.snoc_update, ih]
     refine ⟨fun ⟨_, hlast, _⟩ => hlast, fun hcol => ?_⟩
-    obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
-    obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
+    obtain ⟨f, hf⟩ := (exists_equiv_stepProfile_iff v₀ n u w).2 hcol
     exact ⟨(congrFun wlColoring_zero u).symm.trans
       ((wlColoring_eq_of_le (Nat.zero_le _) hcol).trans (congrFun wlColoring_zero w)), hcol,
-      fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩⟩
+      fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).2).2 i⟩⟩
 
 /-- Duplicator wins the infinite bijective `(k + 1)`-pebble game from `(Set.range Fin.castSucc,
 Fin.snoc u v₀, Fin.snoc w w₀)` if and only if `u` and `w` receive the same `k`-WL color in every
@@ -258,11 +258,8 @@ private theorem prefixPebbles_zero (k : ℕ) : prefixPebbles k 0 = ∅ := by
   simp only [prefixPebbles, Set.mem_ofPred_eq, Nat.not_lt_zero, Set.mem_empty_iff_false]
 
 private theorem prefixPebbles_self (k : ℕ) :
-    prefixPebbles k k = Set.range (Fin.castSucc : Fin k → Fin (k + 1)) := by
-  ext j
-  simp only [prefixPebbles, Set.mem_ofPred_eq, Set.mem_range]
-  refine Fin.lastCases ?_ (fun i => iff_of_true i.isLt ⟨i, rfl⟩) j
-  simp [Fin.castSucc_ne_last]
+    prefixPebbles k k = Set.range (Fin.castSucc : Fin k → Fin (k + 1)) :=
+  Fin.range_castSucc.symm
 
 private theorem insert_prefixPebbles {k m : ℕ} (hm : m < k) :
     insert (⟨m, by omega⟩ : Fin (k + 1)) (prefixPebbles k m) = prefixPebbles k (m + 1) := by

@@ -138,6 +138,7 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ### Constructive probabilistic methods
 
+- **Talagrand thinning consequences** ([#4330](https://github.com/cslib-community/cslib-frontier/issues/4330)): use the thinning corollary in [#2525](https://github.com/cslib-community/cslib-frontier/pull/2525) to establish Conjecture 7.8, then apply the finite spread and smallness reductions to Conjectures 7.3 and 7.11.
 - **Planted-clique recovery** ([#6238](https://github.com/cslib-community/cslib-frontier/issues/6238)): certify a finite-precision realization of the raw-adjacency second-eigenvector algorithm in the native computation model, and sharpen its constants to match Alon–Krivelevich–Sudakov.
   See the [proof and module guide](../CslibFrontier/Algorithms/PlantedClique/README.md).
 - **Moser–Tardos resampling** ([#3096](https://github.com/cslib-community/cslib-frontier/issues/3096)): the derandomized algorithm of Theorem 1.4, and native sampling and event-detection costs for the resampling algorithms.

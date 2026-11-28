@@ -30,6 +30,8 @@ succeeds (`RefuterSearch.lean`).
 
 * `Cslib.Circuits.Boolean.AffineDisperser4n.applyStep_valid`: one refuter step.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop_valid`: the refuter loop.
+* `Cslib.Circuits.Boolean.AffineDisperser4n.mem_gates_of_chooseStep?_moveAffine`: a chosen
+  `moveAffine` step moves a gate of the state.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refute_correct_of_cost_lt`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.refute_correct`: `refute` finds a disagreeing input
   for any circuit with `C.program.cost binaryB2Cost + 9 * d < 4 * n` (or `C.size + 9 * d < 4 * n`)
@@ -692,17 +694,25 @@ theorem refuterLoop_valid {n} {f : BooleanFunction n} {S : State n}
     (refuterLoop S fuel).Valid f ∧
     (refuterLoop S fuel).W + 9 * S.a ≤ S.W + 9 * (refuterLoop S fuel).a ∧
     (refuterLoop S fuel).a ≤ S.a := by
-  fun_induction refuterLoop S fuel with
-  | case1 S => -- fuel exhausted
+  unfold refuterLoop
+  generalize 0 = steps
+  fun_induction refuterRun S fuel steps with
+  | case1 S _ => -- fuel exhausted
     refine ⟨?_, hS, le_rfl, le_rfl⟩
     rcases hc : chooseStep? S with _ | c
     · rfl
     · exact absurd (refuterStep_applyStep hS hc).spec.1 (by omega)
-  | case2 S k c hc ih => -- chooseStep? S = some c: step and recurse
+  | case2 S _ k c hc ih => -- chooseStep? S = some c: step and recurse
     obtain ⟨hlt, hS', hpot, ha⟩ := (refuterStep_applyStep hS hc).spec
     obtain ⟨h1, h2, h3, h4⟩ := ih hS' (by omega)
     exact ⟨h1, h2, by omega, by omega⟩
-  | case3 S k hc => exact ⟨hc, hS, le_rfl, le_rfl⟩ -- chooseStep? S = none
+  | case3 S _ k hc => exact ⟨hc, hS, le_rfl, le_rfl⟩ -- chooseStep? S = none
+
+/-- A `moveAffine` step chosen by the refuter moves a gate of the state. -/
+theorem mem_gates_of_chooseStep?_moveAffine {n} {S : State n} {J : ℕ}
+    (h : chooseStep? S = some (.moveAffine J)) : J ∈ S.gates := by
+  obtain ⟨_, -, -, hspec⟩ := chooseStep?_spec h
+  exact (findMovable_eq_some hspec.2.2.2.2).1
 
 /-- The refuter finds an input on which any circuit satisfying
 `C.program.cost binaryB2Cost + 9 * d < 4 * n` disagrees with a `d`-affine disperser. -/

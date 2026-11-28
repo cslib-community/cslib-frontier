@@ -1461,6 +1461,8 @@ theorem streamAllItemsProg_spec {U V w N_old N_new n oldMetaBase newMetaBase are
   have hN_new : 1 ≤ N_new := henv.pos_n.trans henv.le_new
   have hfit_old : Fits w (oldMetaBase + offCompItems U w N_old) :=
     henv.fits_new_meta.of_le (henv.old_le_newMeta.trans (Nat.le_add_right _ _))
+  have hnew_ge_old225 : oldMetaBase + 225 ≤ newMetaBase :=
+    (Nat.add_le_add_left (le_offCompItems_225 U w N_old) oldMetaBase).trans henv.old_le_newMeta
   have hfit1 : Fits w 1 := fits_const_of_offCompItems henv.fits_new_meta (by decide)
   obtain ⟨s_fix_old, hinv_old, htot_old, hcpl_old⟩ := henv.old_coupled
   obtain ⟨L_old, hb_old⟩ := hinv_old.hbucket
@@ -1574,12 +1576,8 @@ theorem streamAllItemsProg_spec {U V w N_old N_new n oldMetaBase newMetaBase are
       rw [hrec_eq_k, hv_old_k] at hres_ro
       set s_mid := (Memory.spec 0).clientState s_k
         (readOldItemKeyValGenProg (((oldHp, oldCp), (oldMetaBase, oldItemBase)), k))
-      have hnew_ge_old225 : oldMetaBase + 225 ≤ newMetaBase := by
-        have : 225 ≤ offCompItems U w N_old := by
-          unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
-        have := henv.old_le_newMeta; omega
       have habove_mid : ∀ a, newMetaBase ≤ a → s_mid.mem a = s_k.mem a := fun a ha =>
-        hout_ro a (by omega)
+        hout_ro a fun hregion => (not_lt_of_ge (hnew_ge_old225.trans ha)) hregion.2
       have hrep_new_mid : ReducedKWise.Rep (newMetaBase + epochHdrWords) w (qBits U N_new)
           (hashB N_new) (totalMicroBits N_new) 3 θ_new s_mid.mem :=
         ⟨ReducedKWise.tableRep_congr hrep_new_k.1 (fun a h1 _ =>
@@ -1690,10 +1688,7 @@ theorem streamAllItemsProg_spec {U V w N_old N_new n oldMetaBase newMetaBase are
   refine ⟨hsafe_all, hvp_all, hc_all, hfr_end, hrep_end, htot_end,
     ⟨s_fix_end, hinv_end, hcpl_end⟩,
     fun a ha => hlo_end a ha,
-    fun a ha => hmid_end a ⟨by
-      have : 225 ≤ offCompItems U w N_old := by
-        unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
-      have := henv.old_le_newMeta; omega, ha.2⟩⟩
+    fun a ha => hmid_end a ⟨hnew_ge_old225.trans ha.1, ha.2⟩⟩
 
 /-- Relocate an active compacted epoch representation from `(srcMetaBase, srcItemBase)` to
 `(base, base + offCompItems U w N)` after leftward block copy. -/
@@ -1720,7 +1715,7 @@ theorem compactedSplitRep_of_reloc {U V w N n n_init srcMetaBase srcItemBase bas
   have h2_off : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
   have h3_off : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
   have h4_off : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  have h225_le : 225 ≤ offCompItems U w N := by omega
+  have h225_le := le_offCompItems_225 U w N
   let mem_meta (a : ℕ) : ℕ := s_dst.mem (base + (a - srcMetaBase))
   let mem_item (a : ℕ) : ℕ := s_dst.mem (base + offCompItems U w N + (a - srcItemBase))
   have hmeta_congr : ∀ a, srcMetaBase ≤ a ∧ a < srcMetaBase + offCompItems U w N →

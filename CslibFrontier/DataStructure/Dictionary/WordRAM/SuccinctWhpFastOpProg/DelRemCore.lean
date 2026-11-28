@@ -62,7 +62,7 @@ private theorem inLiveTag_reads_step {c U V w n_max base b : ℕ} {fs : FastStat
     CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), 8)) s
       (fs.rebDoneFlag b) 2 := by
-  have : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have := headerWords_le_largeSpaceWhp c U V w n_max
   exact ⟨hrep.2.2.2.2.2.1 ▸ .of (readHdrProg_spec (w := w) (base := base) (hdrOff := hdrRebStage)
       (by dsimp [hdrRebStage]; omega)),
     .of (readOldEpProg_spec (w := w) (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1),
