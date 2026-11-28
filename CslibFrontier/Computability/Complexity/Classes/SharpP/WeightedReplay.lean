@@ -79,7 +79,7 @@ theorem GapP.weightedReplay_mem [Finite Control] [Finite Operation]
       (encPair (encPair enc encBits) encUnary) (encPair (encPair encBits encBits) encUnary) := by
     fun_prop
   have hquery := machine.replayPrefix_isQuery_pt.comp hreplay
-  have hrequest := ((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod
+  have hrequest := (ComputableInPolyTime.fst _ _).fst'.prod
     (machine.replayPrefix_pendingRequest_pt.comp hreplay)
   let p : (α × List Bool) × ℕ → ℤ := fun x =>
     let cfg := machine.replayPrefix (input x.1.1) x.1.2 x.2

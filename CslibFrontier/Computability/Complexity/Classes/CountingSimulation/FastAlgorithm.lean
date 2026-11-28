@@ -151,25 +151,20 @@ theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encExplicitRowNetwor
   have hvs : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.vertices)
       encExplicitRowNetwork (encList (encPair (encList encNat) (encList encNat))) :=
     DescribedNetwork.vertices_polyTime.comp hd
-  -- Rows first.
   -- Full tables.
   have htab : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
       G.2.vertices.all (fun v => decide (v.2.length = 2 ^ v.1.length)))
-      encExplicitRowNetwork encBool :=
-    let hv := ComputableInPolyTime.snd encExplicitRowNetwork
-      (encPair (encList encNat) (encList encNat))
-    ComputableInPolyTime.allWithInput hvs <| ComputableInPolyTime.decide_eq'
-      (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
-        ((ComputableInPolyTime.snd _ _).comp hv)))
-      (ComputableInPolyTime.binary_two_pow.comp ((ComputableInPolyTime.length_list _).comp
-        ((ComputableInPolyTime.fst _ _).comp hv)))
+      encExplicitRowNetwork encBool := by
+    refine ComputableInPolyTime.allWithInput hvs ?_
+    exact ComputableInPolyTime.decide_eq'
+      (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
+      (ComputableInPolyTime.binary_two_pow.comp (by fun_prop))
   -- The degree bound.
   have hdeg : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
       G.2.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.2.numEdges)))
-      encExplicitRowNetwork encBool :=
-    ComputableInPolyTime.allWithInput hvs <| ComputableInPolyTime.binary_le'
-      (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))))
+      encExplicitRowNetwork encBool := by
+    refine ComputableInPolyTime.allWithInput hvs ?_
+    exact ComputableInPolyTime.binary_le' (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
       (degreeBound_polyTime.comp (hm.comp (ComputableInPolyTime.fst _ _)))
   refine (ComputableInPolyTime.bool_and.comp (DescribedNetwork.rowsFirst_polyTime.prod
     (ComputableInPolyTime.bool_and.comp (htab.prod hdeg)))).of_enc_eq fun G => ?_

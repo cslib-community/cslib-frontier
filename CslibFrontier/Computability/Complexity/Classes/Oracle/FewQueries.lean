@@ -306,8 +306,7 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
   let ok : α × ℕ → Bool := fun x => (cand x).elim false fun w => V (x.1, w)
   have hok : ComputableInPolyTime ok (encPair enc encUnary) encBool :=
     ComputableInPolyTime.optionElimWithInput hcand (ComputableInPolyTime.const _)
-      (hV.comp (((ComputableInPolyTime.fst _ _).comp
-        (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)))
+      (hV.comp (by fun_prop))
   let N : α → ℕ := fun a => P.eval (enc a).length
   let g : α → Option (List Bool) := fun a =>
     ((List.range (N a)).find? fun j => ok (a, j)).elim none fun j => cand (a, j)
