@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Derandomizing `BPTIME(t)` with generators running in time exponential in the seed
@@ -152,13 +153,12 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
     simp only [Set.mem_ofPred_eq]
     set n := (enc x).length
     set L := ℓ (seed x)
-    have hL : E * (c₀ + 2) * (t n + n + 1) ≤ L := hkℓ n
-    have hmt : c₀ * t n + c₀ ≤ L / E := (Nat.le_div_iff_mul_le hE0).2 (le_trans (by
-      rw [show (c₀ * t n + c₀) * E = E * c₀ * (t n + 1) by ring]
-      exact Nat.mul_le_mul (Nat.mul_le_mul_left E (by omega)) (by omega)) hL)
-    have hn1 : n + 1 ≤ L / E := (Nat.le_div_iff_mul_le hE0).2 (le_trans (by
-      rw [show (n + 1) * E = E * 1 * (n + 1) by ring]
-      exact Nat.mul_le_mul (Nat.mul_le_mul_left E (by omega)) (by omega)) hL)
+    have hmt : c₀ * t n + c₀ ≤ L / E := (Nat.le_div_iff_mul_le hE0).2 <| by
+      rw [← Nat.mul_succ, mul_comm _ E, ← mul_assoc]
+      exact (Nat.mul_le_mul (Nat.mul_le_mul_left E (c₀.le_add_right 2)) (by omega)).trans (hkℓ n)
+    have hn1 : n + 1 ≤ L / E := (Nat.le_div_iff_mul_le hE0).2 <| by
+      rw [← Nat.one_mul (n + 1), mul_comm _ E, ← mul_assoc]
+      exact (Nat.mul_le_mul (Nat.mul_le_mul_left E (by omega)) (by omega)).trans (hkℓ n)
     have hmL : L / E ≤ L := Nat.div_le_self _ _
     obtain ⟨hyes, hno⟩ := hcount x (L / E) hmt
     have hcirc : IsCircuitTest (L ^ 2) fun y : BitString L =>
@@ -170,11 +170,8 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
         _ ≤ L ^ 2 := Nat.pow_le_pow_left (Nat.mul_div_le L E) 2
     refine (seedDecider_eq_true_iff_of_advantage_lt hyes (fun hx => ?_) hG.length_eq gen seed
       (fun z => ?_) hmL (hG.fools _ _ hcirc)).symm
-    · have h := hno hx
-      have hsum := acceptCount_add_acceptCount_not V x (L / E)
-      omega
-    · simp only [gen, hG.length_eq, List.length_ofFn]
-      rfl
+    · linarith [hno hx, acceptCount_add_acceptCount_not V x (L / E)]
+    · simp only [gen, hG.length_eq, List.length_ofFn, L]
   -- the running time: the decider is polynomial-time on instances padded to `2 ^ seed x`
   obtain ⟨D₀, hGO⟩ := hG.time
   set encP := encPair enc encUnary
@@ -186,24 +183,7 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
       (Nat.add_le_add_right (hG.monotone h) 1)) D₀
   have hbound : PolyBounded (fun q : α × ℕ => (encP q).length)
       fun q => (2 ^ Nat.log 2 q.2 * (ℓ (Nat.log 2 q.2) + 1)) ^ D₀ := by
-    refine ((PolyBounded.const (4 ^ D₀)).mul
-      ((PolyBounded.self.add (.const 1)).pow (2 * D₀))).mono fun q => ?_
-    set j := Nat.log 2 q.2
-    have hN : q.2 ≤ (encP q).length := by
-      simp only [encP, length_encPair, encUnary_apply, List.length_replicate]; omega
-    have hj : 2 ^ j ≤ (encP q).length + 1 := by
-      rcases Nat.eq_zero_or_pos q.2 with h0 | h0
-      · simp [j, h0]
-      · exact (Nat.pow_log_le_self 2 h0.ne').trans (hN.trans (Nat.le_succ _))
-    have hℓ := hG.le_two_pow j
-    calc (2 ^ j * (ℓ j + 1)) ^ D₀ ≤ (2 ^ j * (4 * 2 ^ j)) ^ D₀ := by
-          refine Nat.pow_le_pow_left (Nat.mul_le_mul_left _ ?_) D₀
-          rw [pow_succ] at hℓ
-          have := Nat.one_le_two_pow (n := j)
-          omega
-      _ = 4 ^ D₀ * (2 ^ j) ^ (2 * D₀) := by ring
-      _ ≤ 4 ^ D₀ * ((encP q).length + 1) ^ (2 * D₀) :=
-          Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hj _)
+    growth_poly [hG.le_two_pow]
   have hGq : ComputableInPolyTime (fun q : (α × ℕ) × List Bool => G (q.2.take (Nat.log 2 q.1.2)))
       (encPair encP encBits) encBits :=
     ComputableInO.computableInPolyTime_take hT hGO hlog hbound
@@ -220,11 +200,9 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
     (fun q z => (G (z.take (Nat.log 2 q.2))).take ((G (z.take (Nat.log 2 q.2))).length / E)) hV
     hgen (fun x z hz => by simp only [gen, Nat.log_pow Nat.one_lt_two, ← hz, List.take_length])
     hseed
-  have hmem := setOf_mem_DTIME_of_computableInO hO
-    (t := fun n => C * 2 ^ (D * k n) * (n + 1) ^ D) fun x => le_rfl
-  refine ⟨D, ?_⟩
-  rw [hAeq]
-  exact DTIME_mono_of_le_mul_add (C := C) (fun n => by rw [mul_assoc]; omega) hmem
+  exact ⟨D, hAeq ▸ DTIME_mono_of_le_mul_add (C := C) (fun n => by rw [mul_assoc]; omega)
+    (setOf_mem_DTIME_of_computableInO hO
+      (t := fun n => C * 2 ^ (D * k n) * (n + 1) ^ D) fun _ => le_rfl)⟩
 
 /-- **Not Goldreich's Proposition 8.15: a conditional result under a growth hypothesis and a
 polynomial-time seed schedule.** [Goldreich, Proposition 8.15][Goldreich2007DraftR4] (draft r4,
@@ -258,14 +236,11 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
     have h1 : 3 * c * ℓ (k n) ≤ ℓ (d * (k n + 1) + e) :=
       (hd (k n)).trans (hG.monotone (Nat.le_add_right _ _))
     have h2 : ℓ e ≤ ℓ (d * (k n + 1) + e) := hG.monotone (Nat.le_add_left _ _)
-    have h3 := hkt n
-    have h4 := ht n
     rcases Nat.eq_zero_or_pos (t n) with h0 | h0
-    · have hn0 : n = 0 := by omega
-      subst hn0
-      rw [h0]
-      omega
-    · nlinarith [Nat.mul_le_mul_left c h3, Nat.mul_le_mul_left c h4, Nat.mul_le_mul_left c h0]
+    · obtain rfl : n = 0 := by linarith [ht n]
+      simpa [h0] using he.trans h2
+    · nlinarith [Nat.mul_le_mul_left c (hkt n), Nat.mul_le_mul_left c (ht n),
+        Nat.mul_le_mul_left c h0]
   refine Set.mem_iUnion.2 ⟨D * d + D,
     DTIME_mono_of_le_mul_add (C := 2 ^ (D * d + D * e)) (fun n => ?_) hD⟩
   set P := 2 ^ k n * (t n + 1)
@@ -276,8 +251,7 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
       = 2 ^ (D * d + D * e) * ((2 ^ k n) ^ (D * d) * (n + 1) ^ D) := by
         rw [← pow_mul, mul_left_comm, ← mul_assoc, ← pow_add]
         ring_nf
-    _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) :=
-        by gcongr
+    _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) := by gcongr
     _ = 2 ^ (D * d + D * e) * P ^ (D * d + D) := by rw [pow_add P]
     _ ≤ _ := Nat.le_add_right _ _
 
@@ -331,12 +305,9 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
   obtain ⟨ε, hε, hev⟩ := h
   obtain ⟨M, hM⟩ := eventually_atTop.1 hev
   obtain ⟨e, he, heε⟩ := Real.exists_nat_pos_inv_lt hε
-  have heε : 1 ≤ (e : ℝ) * ε := by
-    rw [inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)] at heε
-    exact heε.le
+  have heε : 1 ≤ (e : ℝ) * ε := ((inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)).1 heε).le
   refine ⟨e, M, he, fun X => ?_⟩
   set m := X ^ e + M
-  have hm := hM m (Nat.le_add_left _ _)
   have hXm : (X : ℝ) ≤ (m : ℝ) ^ ε := by
     rcases Nat.eq_zero_or_pos X with rfl | hX
     · simpa using Real.rpow_nonneg (Nat.cast_nonneg m) ε
@@ -346,11 +317,9 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
       _ = ((X : ℝ) ^ e) ^ ε := Real.rpow_natCast_mul (by positivity) e ε
       _ ≤ (m : ℝ) ^ ε := Real.rpow_le_rpow (by positivity)
           (by simp only [m]; push_cast; linarith [(Nat.cast_nonneg M : (0 : ℝ) ≤ M)]) hε.le
-  have : (2 : ℝ) ^ X ≤ S m := by
-    calc (2 : ℝ) ^ X = (2 : ℝ) ^ (X : ℝ) := (Real.rpow_natCast _ _).symm
-      _ ≤ (2 : ℝ) ^ ((m : ℝ) ^ ε) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hXm
-      _ ≤ S m := hm
-  exact_mod_cast this
+  exact_mod_cast calc (2 : ℝ) ^ X = (2 : ℝ) ^ (X : ℝ) := (Real.rpow_natCast _ _).symm
+    _ ≤ (2 : ℝ) ^ ((m : ℝ) ^ ε) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hXm
+    _ ≤ S m := hM m (Nat.le_add_left _ _)
 
 /-- Eventually `Q (log₂ n + 1) ^ e ≤ (log₂ n) ^ (e + 1)`. -/
 private theorem eventually_mul_log_succ_pow_le (Q e : ℕ) :
@@ -391,15 +360,14 @@ theorem BPP_subset_quasiPoly_of_exponentialTimePRG {G : List Bool → List Bool}
     -- `2 ^ (b (log₂ n + 1)) ≥ 2 ^ (3 c) (n + 1) ^ (a + 1) ≥ c (n ^ a + n + 1)`
     set L := Nat.log 2 n + 1
     have hn1 : n + 1 ≤ 2 ^ L := Nat.lt_pow_succ_log_self Nat.one_lt_two n
-    have hpow : (n + 1) ^ (a + 1) ≤ 2 ^ (L * (a + 1)) := by
-      rw [pow_mul]; exact Nat.pow_le_pow_left hn1 _
     have h3c : 3 * c ≤ 2 ^ (3 * c * L) :=
       Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_right _
         (Nat.succ_pos _)))
     calc c * (n ^ a + n + 1) ≤ c * (3 * (n + 1) ^ (a + 1)) :=
           Nat.mul_le_mul_left _ (pow_add_add_one_le n a)
       _ = 3 * c * (n + 1) ^ (a + 1) := by ring
-      _ ≤ 2 ^ (3 * c * L) * 2 ^ (L * (a + 1)) := Nat.mul_le_mul h3c hpow
+      _ ≤ 2 ^ (3 * c * L) * 2 ^ (L * (a + 1)) :=
+          Nat.mul_le_mul h3c (pow_mul 2 L _ ▸ Nat.pow_le_pow_left hn1 _)
       _ = 2 ^ (b * L) := by rw [← pow_add]; congr 1; simp only [b]; ring
       _ ≤ S ((b * L) ^ e + M) := hM _
   refine Set.mem_iUnion.2 ⟨e + 1, ?_⟩
@@ -447,7 +415,6 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_exponentialTimePRG {G : List Bool → L
   set K := K₀ + 3 * c + 1
   obtain ⟨D, hD⟩ := hc (fun n => r n + K) (by fun_prop) fun n => by
     -- `c (n ^ a + n + 1) ≤ k ^ (d (a + 1) + 1) ≤ S k` for the seed length `k`
-    have hk := hK₀ (r n + K) (by omega)
     have h1 : n + 1 ≤ (r n + K) ^ d := (hroot n).trans (Nat.pow_le_pow_left (by omega) d)
     calc c * (n ^ a + n + 1) ≤ c * (3 * (n + 1) ^ (a + 1)) :=
           Nat.mul_le_mul_left _ (pow_add_add_one_le n a)
@@ -455,7 +422,7 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_exponentialTimePRG {G : List Bool → L
       _ ≤ (r n + K) * ((r n + K) ^ d) ^ (a + 1) :=
           Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left h1 _)
       _ = (r n + K) ^ (d * (a + 1) + 1) := by rw [← pow_mul, pow_succ, mul_comm]
-      _ ≤ S (r n + K) := hk
+      _ ≤ S (r n + K) := hK₀ (r n + K) (by omega)
   exact hsub enc 1 D K (DTIME_mono (fun n => by rw [one_mul]) hD)
 
 end Cslib.Complexity

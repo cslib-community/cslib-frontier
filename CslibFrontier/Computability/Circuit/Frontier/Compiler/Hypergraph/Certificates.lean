@@ -677,12 +677,19 @@ private theorem le_qMomentLower_of_check (lo_n : ℤ) (lo_d : ℕ) (gn : ℤ) (g
 
 /-! ### Algebraic bridges for `HyperEdgeBound` constructors -/
 
+private theorem cast_mul_pred_eq {r k : ℕ} (hk : 1 ≤ k) :
+    (r : ℝ) * ((k : ℝ) - 1) = ((r * (k - 1) : ℕ) : ℝ) := by
+  rw [Nat.cast_mul, Nat.cast_sub hk, Nat.cast_one]
+
+private theorem rat_cast_linear_le {k : ℕ} {q a b : ℚ} (hp : q ≤ a * (k : ℕ) + b) :
+    (q : ℝ) ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := by
+  have hR : (q : ℝ) ≤ ((a * (k : ℕ) + b : ℚ) : ℝ) := Rat.cast_le.mpr hp
+  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using hR
+
 private theorem twoStepCorr_eq {r k : ℕ} (hr : 2 ≤ r) (hk : 2 ≤ k) :
     twoStepCorr r k = 2 * √((r * (k - 1) : ℕ) : ℝ) / (((r * (k - 1) : ℕ) : ℝ) + 1) := by
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm_pos : 0 < (m : ℝ) := by
     dsimp only [m]
     exact_mod_cast Nat.mul_pos (by omega) (by omega)
@@ -717,9 +724,7 @@ private theorem coneMeanSq_and_coneCorr_eq {r k : ℕ} (hr : 2 ≤ r) (hk : 3 �
         (2 * √((r * (k - 1) : ℕ) : ℝ) + ((k : ℝ) - 2)) /
           (((r * (k - 1) : ℕ) : ℝ) + (k : ℝ) - 1) := by
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm_pos : 0 < (m : ℝ) := by
     dsimp only [m]
     exact_mod_cast Nat.mul_pos (by omega) (by omega)
@@ -741,28 +746,25 @@ private theorem coneMeanSq_and_coneCorr_eq {r k : ℕ} (hr : 2 ≤ r) (hk : 3 �
     rw [sq_sqrt hm_pos.le]
     ring
 
-private theorem hyperEdgeBound_of_linear {r k : ℕ} {a b : ℚ}
-    (h : HyperEdgeBound r k ((a * (k : ℕ) + b : ℚ) : ℝ)) :
-    HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
-
 private theorem mul_arccos_le_of_qCosUpper {k : ℕ} {θ ρ_lo a b : ℚ} {ρ : ℝ}
     (hθ0 : 0 ≤ θ) (hθ2 : θ ≤ 2)
     (hcos : 0 ≤ qCosPoly (θ / 2) - qCosErr (θ / 2) ∧ qCosUpper θ ≤ ρ_lo)
     (hρ_m1 : -1 ≤ ρ_lo) (hρ_lo : (ρ_lo : ℝ) ≤ ρ) (hρ1 : ρ ≤ 1)
     (hp : (k : ℚ) / 2 * (θ / piLo) ≤ a * (k : ℕ) + b) :
-    (k : ℝ) / (2 * π) * arccos ρ ≤ ((a * (k : ℕ) + b : ℚ) : ℝ) := by
+    (k : ℝ) / (2 * π) * arccos ρ ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := by
   have harc := arccos_div_pi_le_of_qCosUpper hθ0 hθ2 hcos.1 hcos.2 hρ_m1 hρ_lo hρ1
   calc (k : ℝ) / (2 * π) * arccos ρ
       = ((k : ℝ) / 2) * (arccos ρ / π) := by ring
     _ ≤ ((k : ℝ) / 2) * ((θ / piLo : ℚ) : ℝ) :=
         mul_le_mul_of_nonneg_left harc (by positivity)
-    _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by push_cast; ring
-    _ ≤ ((a * (k : ℕ) + b : ℚ) : ℝ) := Rat.cast_le.mpr hp
+    _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by
+        push_cast
+        ring
+    _ ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_pairwise_three_two {a b : ℚ} (hp : 1 / 6 ≤ a * (2 : ℕ) + b) :
     HyperEdgeBound 3 2 ((a : ℝ) * (2 : ℕ) + (b : ℝ)) := by
-  refine hyperEdgeBound_of_linear (HyperEdgeBound.pairwise ?_)
+  refine HyperEdgeBound.pairwise ?_
   have hcorr : twoStepCorr 3 2 = cos (π / 6) := by
     rw [twoStepCorr_eq (by decide) (by decide), cos_pi_div_six]
     norm_num
@@ -773,7 +775,7 @@ private theorem hyperEdgeBound_pairwise_three_two {a b : ℚ} (hp : 1 / 6 ≤ a 
     push_cast
     field_simp [hpi]
   rw [hsimp]
-  exact Rat.cast_le.mpr hp
+  exact rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_pairwise_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 2 ≤ k)
     {s_lo θ a b : ℚ} (hs0 : 0 ≤ s_lo) (hsq : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
@@ -785,8 +787,8 @@ private theorem hyperEdgeBound_pairwise_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 
   obtain ⟨hρ_lo, hρ_lt⟩ := le_twoStepCorr_and_lt_one hr hk hs0 hsq
   have hρ_m1 : (-1 : ℚ) ≤ 2 * s_lo / ((r * (k - 1) : ℕ) + 1) :=
     le_trans (b := 0) (by norm_num) (by positivity)
-  exact hyperEdgeBound_of_linear (HyperEdgeBound.pairwise
-    (mul_arccos_le_of_qCosUpper hθ0 hθ2 hcos hρ_m1 hρ_lo hρ_lt.le hp))
+  exact HyperEdgeBound.pairwise
+    (mul_arccos_le_of_qCosUpper hθ0 hθ2 hcos hρ_m1 hρ_lo hρ_lt.le hp)
 
 private theorem hyperEdgeBound_starCone_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤ k)
     {s_lo s_hi θ a b : ℚ} (hs0 : 0 ≤ s_lo) (hsq_lo : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
@@ -801,9 +803,7 @@ private theorem hyperEdgeBound_starCone_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 
     HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   obtain ⟨hQ_eq, hC_eq⟩ := coneMeanSq_and_coneCorr_eq hr hk
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm2 : 2 ≤ m :=
     le_trans (by decide : 2 ≤ 2 * 1) (Nat.mul_le_mul hr (by omega))
   have hm_pos : 0 < (m : ℝ) := by exact_mod_cast (by omega : 0 < m)
@@ -811,7 +811,7 @@ private theorem hyperEdgeBound_starCone_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 
   have hQ₀_pos : 0 < Q₀ := by
     dsimp only [Q₀]
     positivity
-  refine hyperEdgeBound_of_linear (HyperEdgeBound.starCone hk ?_ ?_ ?_)
+  refine HyperEdgeBound.starCone hk ?_ ?_ ?_
   · rw [hm_eq, hQ_eq]
     have h1 : 1 < (Q₀ : ℝ) ^ 2 * (m : ℝ) := by exact_mod_cast hcone_lo
     have hsq_pos : 0 < √(m : ℝ) := sqrt_pos.mpr hm_pos
@@ -876,9 +876,7 @@ private theorem hyperEdgeBound_cap_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤
     (hp : (k : ℚ) / 2 * (θ / piLo) ≤ a * (k : ℕ) + b) :
     HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm2 : 2 ≤ m :=
     le_trans (by decide : 2 ≤ 2 * 1) (Nat.mul_le_mul hr (by omega))
   have hm1 : (1 : ℝ) ≤ √(m : ℝ) :=
@@ -905,10 +903,12 @@ private theorem hyperEdgeBound_cap_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤
     nlinarith [sq_nonneg (√(m : ℝ) - 1)]
   have hcap_half : 1 / 2 < capSq r k := by
     have h12 : (1 / 2 : ℝ) < ((4 * s_hi / (s_hi + 1) ^ 2 : ℚ) : ℝ) := by
-      rw [show (1 / 2 : ℝ) = ((1 / 2 : ℚ) : ℝ) by norm_num]
-      exact Rat.cast_lt.mpr hcap_gt
+      have hq : ((1 / 2 : ℚ) : ℝ) < ((4 * s_hi / (s_hi + 1) ^ 2 : ℚ) : ℝ) :=
+        Rat.cast_lt.mpr hcap_gt
+      norm_num at hq ⊢
+      exact hq
     exact h12.trans_le hcap_ge
-  refine hyperEdgeBound_of_linear (HyperEdgeBound.cap hcap_half ?_)
+  refine HyperEdgeBound.cap hcap_half ?_
   have hk3R : (3 : ℝ) ≤ k := Nat.ofNat_le_cast.mpr hk
   have hρ_lo : ((((k : ℚ) * (4 * s_hi / (s_hi + 1) ^ 2) - 1) / ((k : ℚ) - 1) : ℚ) : ℝ) ≤
       capCorr r k := by
@@ -936,7 +936,7 @@ private theorem hyperEdgeBound_slepian_three_of_rat {r : ℕ} (hr : 2 ≤ r)
     le_trans (by positivity) hρ_lo
   have hρ_m1 : (-1 : ℚ) ≤ 2 * s_lo / ((r * 2 : ℕ) + 1) :=
     le_trans (b := 0) (by norm_num) (by positivity)
-  refine hyperEdgeBound_of_linear (HyperEdgeBound.slepian ?_)
+  refine HyperEdgeBound.slepian ?_
   rw [equicorrStraddle_three hρ0 hρ_lt]
   simpa only [Nat.cast_ofNat] using
     mul_arccos_le_of_qCosUpper (k := 3) hθ0 hθ2 hcos hρ_m1 hρ_lo hρ_lt.le
@@ -956,13 +956,12 @@ private theorem hyperEdgeBound_slepian_of_rat {r k m_in m_out S_out : ℕ}
     (hin_pos : 0 ≤ qEval (qExpOddPoly m_in (γ_lo ^ 2 / 2)) (B ^ 2))
     (hout_pos : 0 ≤ qEval (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) (B ^ 2))
     (hI4 : I4_lo ≤ qMomentLower 4 m_in m_out S_out γ_lo B sqrtTwoPiHi)
-    (hI6 : if 6 ≤ k then I6_lo ≤ qMomentLower 6 m_in m_out S_out γ_lo B sqrtTwoPiHi
-      else I6_lo = 0)
+    (hI6 : 6 ≤ k → I6_lo ≤ qMomentLower 6 m_in m_out S_out γ_lo B sqrtTwoPiHi)
     (hp : 1 - (1 / 2 ^ (k - 1) +
       2 * (k.choose 2 : ℚ) / 2 ^ (k - 2) * (1 / 4 - (θ / piLo) / 2) +
       2 * (k.choose 4 : ℚ) / 2 ^ (k - 4) * I4_lo +
       (if 6 ≤ k then 2 * (k.choose 6 : ℚ) / 2 ^ (k - 6) * I6_lo else 0)) ≤
-      a * (k : ℕ) + b) :
+        a * (k : ℕ) + b) :
     HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   have hk2 : 2 ≤ k := by omega
   obtain ⟨hρ_lo, hρ_lt⟩ := le_twoStepCorr_and_lt_one hr hk2 hs0.le hsq
@@ -988,15 +987,31 @@ private theorem hyperEdgeBound_slepian_of_rat {r k m_in m_out S_out : ℕ}
     have hc4 : 0 ≤ 2 * (k.choose 4 : ℚ) / 2 ^ (k - 4) := by positivity
     have hm4 := mul_le_mul_of_nonneg_left hI4 hc4
     by_cases hk6 : 6 ≤ k
-    · simp only [hk6, ↓reduceIte] at hI6 hp ⊢
+    · simp only [hk6, ↓reduceIte] at hp ⊢
       have hc6 : 0 ≤ 2 * (k.choose 6 : ℚ) / 2 ^ (k - 6) := by positivity
-      have hm6 := mul_le_mul_of_nonneg_left hI6 hc6
+      have hm6 := mul_le_mul_of_nonneg_left (hI6 hk6) hc6
       linarith
     · simp only [hk6, ↓reduceIte] at hp ⊢
       linarith
-  exact hyperEdgeBound_of_linear (HyperEdgeBound.slepian (hsl.trans (Rat.cast_le.mpr hcert_le)))
+  exact HyperEdgeBound.slepian (hsl.trans (rat_cast_linear_le hcert_le))
 
 /-! ### The six verified `HyperDualCert` theorems -/
+
+private theorem hedge_six {r : ℕ} {a b : ℚ}
+    (h2 : HyperEdgeBound r 2 ((a : ℝ) * (2 : ℕ) + (b : ℝ)))
+    (h3 : HyperEdgeBound r 3 ((a : ℝ) * (3 : ℕ) + (b : ℝ)))
+    (h4 : HyperEdgeBound r 4 ((a : ℝ) * (4 : ℕ) + (b : ℝ)))
+    (h5 : HyperEdgeBound r 5 ((a : ℝ) * (5 : ℕ) + (b : ℝ)))
+    (h6 : HyperEdgeBound r 6 ((a : ℝ) * (6 : ℕ) + (b : ℝ))) :
+    ∀ k ∈ Finset.Icc 2 6, HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
+  intro k hk
+  rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
+  interval_cases k
+  · exact h2
+  · exact h3
+  · exact h4
+  · exact h5
+  · exact h6
 
 private theorem edge_starCone_r3_k3 {a b : ℚ}
     (hp : (3 : ℚ) / 2 * ((9270307 / 12500000) / piLo) ≤ a * (3 : ℕ) + b) :
@@ -1056,15 +1071,8 @@ theorem cert_r3_sheppard :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_sheppard_r3_k2
-    · exact edge_sheppard_r3_k3
-    · exact edge_sheppard_r3_k4
-    · exact edge_sheppard_r3_k5
-    · exact edge_sheppard_r3_k6
+  hedge := hedge_six edge_sheppard_r3_k2 edge_sheppard_r3_k3 edge_sheppard_r3_k4
+    edge_sheppard_r3_k5 edge_sheppard_r3_k6
 
 private theorem edge_slepian_r3_k2 :
     HyperEdgeBound 3 2
@@ -1095,7 +1103,7 @@ private theorem edge_slepian_r3_k4 :
     (qEval_qExpOddPoly_nonneg 3749970169 5000000000 2 1)
     (qEval_qExpOddPoly_nonneg 1 4 2 1)
     mom4_slepian_r3_k4
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r3_k5 :
@@ -1117,7 +1125,7 @@ private theorem edge_slepian_r3_k5 :
     (qEval_qExpOddPoly_nonneg 11410298761 20000000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r3_k5
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r3_k6 :
@@ -1144,7 +1152,7 @@ private theorem edge_slepian_r3_k6 :
     (qEval_qExpOddPoly_nonneg 9384378129 20000000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r3_k6
-    (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r3_k6)
+    (fun _ => mom6_slepian_r3_k6)
     (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 3` (`K₀ = 6`). -/
@@ -1157,15 +1165,8 @@ theorem cert_r3_slepian :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_slepian_r3_k2
-    · exact edge_slepian_r3_k3
-    · exact edge_slepian_r3_k4
-    · exact edge_slepian_r3_k5
-    · exact edge_slepian_r3_k6
+  hedge := hedge_six edge_slepian_r3_k2 edge_slepian_r3_k3 edge_slepian_r3_k4
+    edge_slepian_r3_k5 edge_slepian_r3_k6
 
 private theorem edge_sheppard_r4_k2 :
     HyperEdgeBound 4 2
@@ -1226,15 +1227,8 @@ theorem cert_r4_sheppard :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_sheppard_r4_k2
-    · exact edge_sheppard_r4_k3
-    · exact edge_sheppard_r4_k4
-    · exact edge_sheppard_r4_k5
-    · exact edge_sheppard_r4_k6
+  hedge := hedge_six edge_sheppard_r4_k2 edge_sheppard_r4_k3 edge_sheppard_r4_k4
+    edge_sheppard_r4_k5 edge_sheppard_r4_k6
 
 private theorem edge_slepian_r8_k2 :
     HyperEdgeBound 8 2
@@ -1275,7 +1269,7 @@ private theorem edge_slepian_r8_k4 :
     (qEval_qExpOddPoly_nonneg 6445038961 20000000000 5 2)
     (qEval_qExpOddPoly_nonneg 1 4 5 2)
     mom4_slepian_r8_k4
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r8_k5 :
@@ -1297,7 +1291,7 @@ private theorem edge_slepian_r8_k5 :
     (qEval_qExpOddPoly_nonneg 326055249 1250000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r8_k5
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r8_k6 :
@@ -1324,7 +1318,7 @@ private theorem edge_slepian_r8_k6 :
     (qEval_qExpOddPoly_nonneg 178462881 800000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r8_k6
-    (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r8_k6)
+    (fun _ => mom6_slepian_r8_k6)
     (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 8` (`K₀ = 6`). -/
@@ -1337,15 +1331,8 @@ theorem cert_r8_slepian :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_slepian_r8_k2
-    · exact edge_slepian_r8_k3
-    · exact edge_slepian_r8_k4
-    · exact edge_slepian_r8_k5
-    · exact edge_slepian_r8_k6
+  hedge := hedge_six edge_slepian_r8_k2 edge_slepian_r8_k3 edge_slepian_r8_k4
+    edge_slepian_r8_k5 edge_slepian_r8_k6
 
 private theorem edge_slepian_r16_k2 :
     HyperEdgeBound 16 2
@@ -1386,7 +1373,7 @@ private theorem edge_slepian_r16_k4 :
     (qEval_qExpOddPoly_nonneg 1095200 5555449 39 10)
     (qEval_qExpOddPoly_nonneg 1 10 39 10)
     mom4_slepian_r16_k4
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r16_k5 :
@@ -1408,7 +1395,7 @@ private theorem edge_slepian_r16_k5 :
     (qEval_qExpOddPoly_nonneg 8 49 21 5)
     (qEval_qExpOddPoly_nonneg 1 12 21 5)
     mom4_slepian_r16_k5
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r16_k6 :
@@ -1435,7 +1422,7 @@ private theorem edge_slepian_r16_k6 :
     (qEval_qExpOddPoly_nonneg 2834391121 20000000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r16_k6
-    (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r16_k6)
+    (fun _ => mom6_slepian_r16_k6)
     (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 16` (`K₀ = 6`). -/
@@ -1448,15 +1435,8 @@ theorem cert_r16_slepian :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_slepian_r16_k2
-    · exact edge_slepian_r16_k3
-    · exact edge_slepian_r16_k4
-    · exact edge_slepian_r16_k5
-    · exact edge_slepian_r16_k6
+  hedge := hedge_six edge_slepian_r16_k2 edge_slepian_r16_k3 edge_slepian_r16_k4
+    edge_slepian_r16_k5 edge_slepian_r16_k6
 
 private theorem edge_slepian_r64_k2 :
     HyperEdgeBound 64 2
@@ -1495,7 +1475,7 @@ private theorem edge_slepian_r64_k4 :
     (qEval_qExpOddPoly_nonneg 419143729 5000000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r64_k4
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r64_k5 :
@@ -1517,7 +1497,7 @@ private theorem edge_slepian_r64_k5 :
     (qEval_qExpOddPoly_nonneg 110889 1559378 47 10)
     (qEval_qExpOddPoly_nonneg 1 14 47 10)
     mom4_slepian_r64_k5
-    (by simp)
+    (by omega)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r64_k6 :
@@ -1544,7 +1524,7 @@ private theorem edge_slepian_r64_k6 :
     (qEval_qExpOddPoly_nonneg 289 4608 23 5)
     (qEval_qExpOddPoly_nonneg 1 14 23 5)
     mom4_slepian_r64_k6
-    (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r64_k6)
+    (fun _ => mom6_slepian_r64_k6)
     (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r64_k7 :
@@ -1571,7 +1551,7 @@ private theorem edge_slepian_r64_k7 :
     (qEval_qExpOddPoly_nonneg 45333289 800000000 3 5)
     (qEval_qExpOddPoly_nonneg 1 2 3 5)
     mom4_slepian_r64_k7
-    (by simp only [show (6 ≤ 7) by decide, ↓reduceIte]; exact mom6_slepian_r64_k7)
+    (fun _ => mom6_slepian_r64_k7)
     (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 64` (`K₀ = 7`). -/

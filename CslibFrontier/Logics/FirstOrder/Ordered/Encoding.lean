@@ -89,7 +89,7 @@ private theorem realize_frameEnd {α : Type*}
     (hdom : ∀ j : Fin B, dom.Realize ![j] ↔ (j : ℕ) < len) :
     (v.frameEnd dom base last).Realize env ↔
       (base.realize env).val + 2 * len + 1 = (last.realize env).val := by
-  fo_simp [frameEnd, FO.realize_isFirstOut hlt hlen hdom, Function.comp_def, and_assoc]
+  fo_simp [frameEnd, FO.realize_isFirstOut hlt hlen hdom, and_assoc]
   constructor
   · rintro ⟨u, hu, hd, hb, he⟩
     change (base.realize env).val + (u 1).val = (u 2).val at hb
@@ -108,7 +108,7 @@ private theorem realize_frameBit {α : Type*}
     (v.frameBit dom bit base pos).Realize env ↔
       ∃ j < w.length, (pos.realize env).val = (base.realize env).val + 2 * j ∨
         (w[j]? = some true ∧ (pos.realize env).val = (base.realize env).val + 2 * j + 1) := by
-  fo_simp [frameBit, Function.comp_def, Fin.ext_iff, and_assoc]
+  fo_simp [frameBit, Fin.ext_iff, and_assoc]
   constructor
   · rintro ⟨u, hd, hs, hb, he⟩
     change (base.realize env).val + (u 1).val = (u 2).val at hb
@@ -124,10 +124,8 @@ private theorem realize_frameBit {α : Type*}
     have hbound : (base.realize env).val + 2 * j < B := by rcases he with h | ⟨_, h⟩ <;> omega
     let u : Fin 3 → Fin B :=
       ![⟨j, by omega⟩, ⟨2 * j, by omega⟩, ⟨(base.realize env).val + 2 * j, hbound⟩]
-    refine ⟨u, (hdom (u 0)).mpr hj, rfl, rfl, ?_⟩
-    rcases he with he | ⟨hw, he⟩
-    · exact Or.inl he
-    · exact Or.inr ⟨(hbit (u 0) hj).mpr hw, he.symm⟩
+    exact ⟨u, (hdom (u 0)).mpr hj, rfl, rfl,
+      he.imp id fun ⟨hw, he⟩ => ⟨(hbit (u 0) hj).mpr hw, he.symm⟩⟩
 
 end Semantics
 
@@ -163,22 +161,18 @@ private theorem frame_true_iff (w : List Bool) (p : ℕ) :
   · intro h
     have hp := (List.getElem?_eq_some_iff.mp h).choose
     rw [length_frame] at hp
-    have hne : p ≠ 2 * w.length := by
-      intro he
-      rw [he, getElem?_frame_two_mul_length] at h
-      contradiction
+    have hne : p ≠ 2 * w.length := fun he => by
+      rw [he, getElem?_frame_two_mul_length] at h; contradiction
     have hj : p / 2 < w.length := by omega
     refine ⟨p / 2, hj, ?_⟩
     rcases Nat.mod_two_eq_zero_or_one p with hm | hm
     · exact Or.inl (by omega)
     · have he : p = 2 * (p / 2) + 1 := by omega
-      have hb : (frame w)[2 * (p / 2) + 1]? = some true := by rw [← he]; exact h
-      rw [getElem?_frame_two_mul_add_one hj] at hb
-      exact Or.inr ⟨hb, he⟩
+      rw [he, getElem?_frame_two_mul_add_one hj] at h
+      exact Or.inr ⟨h, he⟩
   · rintro ⟨j, hj, he | ⟨hb, he⟩⟩
     · rw [he, getElem?_frame_two_mul hj]
-    · rw [he, getElem?_frame_two_mul_add_one hj]
-      exact hb
+    · rw [he, getElem?_frame_two_mul_add_one hj, hb]
 
 private theorem shifted_frame_true_iff (w : List Bool) (base p : ℕ) :
     base ≤ p ∧ (frame w)[p - base]? = some true ↔
@@ -187,11 +181,9 @@ private theorem shifted_frame_true_iff (w : List Bool) (base p : ℕ) :
   rw [frame_true_iff]
   constructor
   · rintro ⟨hp, j, hj, he | ⟨hb, he⟩⟩
-    · exact ⟨j, hj, Or.inl (by omega)⟩
-    · exact ⟨j, hj, Or.inr ⟨hb, by omega⟩⟩
+    exacts [⟨j, hj, Or.inl (by omega)⟩, ⟨j, hj, Or.inr ⟨hb, by omega⟩⟩]
   · rintro ⟨j, hj, he | ⟨hb, he⟩⟩
-    · exact ⟨by omega, j, hj, Or.inl (by omega)⟩
-    · exact ⟨by omega, j, hj, Or.inr ⟨hb, by omega⟩⟩
+    exacts [⟨by omega, j, hj, Or.inl (by omega)⟩, ⟨by omega, j, hj, Or.inr ⟨hb, by omega⟩⟩]
 
 private theorem append_true_iff (u w : List Bool) (p : ℕ) :
     (u ++ w)[p]? = some true ↔
@@ -223,38 +215,29 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
   | succ m ih =>
     have hm' : m < v.count := by omega
     let i : Fin v.count := ⟨m, hm'⟩
+    have hi : m + 1 = i.val + 1 := rfl
     have hp := v.prefix_length_lt ha hB (Nat.le_of_lt hm')
     have hs := v.prefix_length_lt ha hB hm
-    have hs' : (v.encStructurePrefix a m).length +
-        2 * (v.table a (v.symbol i)).length + 1 < B := by
-      simpa only [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ,
-        List.length_append, length_frame, Nat.add_assoc] using hs
+    rw [hi, v.encStructurePrefix_succ, List.length_append, length_frame] at hs
     have hlen : (v.table a (v.symbol i)).length < B := by omega
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
-        j.val < (v.table a (v.symbol i)).length := by
-      rw [ha.length_table]
-      exact Iff.rfl
-    rw [prefixEnd, dite_eq_left hm']
-    fo_simp
+        j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
+    fo_simp [prefixEnd, dite_eq_left hm']
     constructor
     · rintro ⟨u, hu, hf⟩
       have hb := (ih (Nat.le_of_lt hm') _ (Sum.elim env u)).mp hu
       have he := (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mp hf
-      fo_simp [Function.comp_def] at hb he
-      change (u ()).val + 2 * (v.table a (v.symbol i)).length + 1 =
-        (last.realize env).val at he
-      rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, List.length_append,
-        length_frame]
-      change (v.encStructurePrefix a m).length +
-        (2 * (v.table a (v.symbol i)).length + 1) = (last.realize env).val
-      omega
+      fo_simp at hb he
+      simpa only [hi, v.encStructurePrefix_succ, List.length_append, length_frame, Nat.add_assoc,
+        ← (hb : (v.encStructurePrefix a i.val).length = (u ()).val)] using
+        (he : (u ()).val + 2 * (v.table a (v.symbol i)).length + 1 = (last.realize env).val)
     · intro he
-      let u : Unit → Fin B := fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩
-      refine ⟨u, (ih (Nat.le_of_lt hm') _ _).mpr rfl, ?_⟩
-      apply (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mpr
-      fo_simp [Function.comp_def]
-      simpa only [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ,
-        List.length_append, length_frame, Nat.add_assoc] using he
+      refine ⟨fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩,
+        (ih (Nat.le_of_lt hm') _ _).mpr rfl,
+        (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mpr ?_⟩
+      fo_simp
+      simpa only [hi, v.encStructurePrefix_succ, List.length_append, length_frame, Nat.add_assoc]
+        using he
 
 /-- The direct first-order length formula equals the length of the native machine input.
 The endpoint must be an element of the canonical power universe. -/
@@ -278,13 +261,12 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
   induction m generalizing α with
   | zero =>
     have hdom (j : Fin B) : v.elementDomain.Realize ![j] ↔ j.val < (encUnary a.1).length := by
-      simp only [encUnary_apply, List.length_replicate]
-      exact Iff.rfl
+      simp only [encUnary_apply, List.length_replicate]; rfl
     have hbit (j : Fin B) (hj : j.val < (encUnary a.1).length) :
         (⊤ : v.inputLanguage.Formula (Fin 1)).Realize ![j] ↔
           (encUnary a.1)[j.val]? = some true := by
-      have hj' : j.val < a.1 := by simpa using hj
-      fo_simp [encUnary_apply, List.getElem?_replicate, ite_eq_left hj']
+      fo_simp [encUnary_apply, List.getElem?_replicate,
+        ite_eq_left (by simpa using hj : j.val < a.1)]
     have hf := realize_frameBit v.elementDomain ⊤ (zero v.powerLanguage) pos env
       (encUnary a.1) hdom hbit
     fo_simp [Nat.zero_add] at hf
@@ -293,34 +275,27 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
   | succ m ih =>
     have hm' : m < v.count := by omega
     let i : Fin v.count := ⟨m, hm'⟩
+    have hi : m + 1 = i.val + 1 := rfl
     have hp := v.prefix_length_lt ha hB (Nat.le_of_lt hm')
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
-        j.val < (v.table a (v.symbol i)).length := by
-      rw [ha.length_table]
-      exact Iff.rfl
+        j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
     have hbit (j : Fin B) (hj : j.val < (v.table a (v.symbol i)).length) :
         (v.tableBit i).Realize ![j] ↔ (v.table a (v.symbol i))[j.val]? = some true := by
       change (j.val < a.1 ^ (v.symbol i).1 ∧
         (v.table a (v.symbol i)).getD j.val false = true) ↔ _
-      rw [← WellFormed.length_table v ha (v.symbol i)]
-      simp [hj]
-    rw [prefixBit, dite_eq_left hm', Formula.realize_sup, Formula.realize_iExs]
-    fo_simp
-    rw [show m + 1 = i.val + 1 from rfl,
-      encStructurePrefix_succ, append_true_iff]
-    apply or_congr (ih (Nat.le_of_lt hm') pos env)
-    constructor
+      simp [← ha.length_table, hj]
+    fo_simp [prefixBit, dite_eq_left hm']
+    rw [hi, v.encStructurePrefix_succ, append_true_iff]
+    refine or_congr (ih (Nat.le_of_lt hm') pos env) ⟨?_, fun hf => ?_⟩
     · rintro ⟨u, hu, hf⟩
       have hb := (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mp hu
       have hf' := (realize_frameBit _ _ _ _ _ _ hdom hbit).mp hf
-      fo_simp [Function.comp_def] at hb hf'
-      rw [← hb] at hf'
-      exact (shifted_frame_true_iff _ _ _).mpr hf'
-    · intro hf
-      let u : Unit → Fin B := fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩
-      refine ⟨u, (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mpr rfl, ?_⟩
-      apply (realize_frameBit _ _ _ _ _ _ hdom hbit).mpr
-      fo_simp [Function.comp_def]
+      fo_simp at hb hf'
+      exact (shifted_frame_true_iff _ _ _).mpr (hb ▸ hf')
+    · refine ⟨fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩,
+        (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mpr rfl,
+        (realize_frameBit _ _ _ _ _ _ hdom hbit).mpr ?_⟩
+      fo_simp
       exact (shifted_frame_true_iff _ _ _).mp hf
 
 /-- The direct first-order input-bit formula recognizes precisely the set bits of the existing

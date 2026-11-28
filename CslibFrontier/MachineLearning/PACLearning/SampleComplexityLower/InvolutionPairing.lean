@@ -60,14 +60,10 @@ theorem involution_half_count {ι : Type*}
     F.card / 2 ≤ (F.filter P).card := by
   set G := F \ F.filter P
   have hG_sub : G ⊆ F := sdiff_subset
-  have hσ_G_to_F : ∀ x ∈ G, σ x ∈ F.filter P := by
-    intro x hxG
-    have hx_pw := hG_sub hxG
-    have hx_nF : x ∉ F.filter P := (Finset.mem_sdiff.mp hxG).2
-    have hx_not_P : ¬P x := fun h => hx_nF (Finset.mem_filter.mpr ⟨hx_pw, h⟩)
-    rcases hpair x hx_pw with h | h
-    · exact absurd h hx_not_P
-    · exact Finset.mem_filter.mpr ⟨hσ_mem x hx_pw, h⟩
+  have hσ_G_to_F : ∀ x ∈ G, σ x ∈ F.filter P := fun x hxG => by
+    obtain ⟨hxF, hx_nF⟩ := Finset.mem_sdiff.mp hxG
+    exact Finset.mem_filter.mpr ⟨hσ_mem x hxF,
+      (hpair x hxF).resolve_left fun hp => hx_nF (Finset.mem_filter.mpr ⟨hxF, hp⟩)⟩
   have hσ_inj_G : Set.InjOn σ (G : Set ι) := by
     intro x₁ hx₁ x₂ hx₂ hσeq
     calc x₁ = σ (σ x₁) := (hσ_self x₁ (hG_sub hx₁)).symm
@@ -93,24 +89,17 @@ theorem concepts_agree_of_seen_inter
     (hinter : S₁ ∩ seenElements W' xs = S₂ ∩ seenElements W' xs)
     (hxs : ∀ i, xs i ∈ (↑W : Set α)) :
     ∀ i, xs i ∈ cMap S₁ hS₁ ↔ xs i ∈ cMap S₂ hS₂ := by
-  set T := seenElements W' xs
   intro i
-  have hxiW := hxs i
-  have step : ∀ {Sa Sb : Finset α} (hSa : Sa ∈ W'.powerset) (hSb : Sb ∈ W'.powerset),
-      Sa ∩ T = Sb ∩ T → xs i ∈ cMap Sa hSa → xs i ∈ cMap Sb hSb := by
-    intro Sa Sb hSa hSb hint hxi
-    have hxi_inter : xs i ∈ cMap Sa hSa ∩ ↑W := ⟨hxi, hxiW⟩
-    rw [hcMap_eq] at hxi_inter
-    rcases hxi_inter with hw0 | hxiSa
-    · have : xs i ∈ ({w₀} ∪ ↑Sb : Set α) := Or.inl hw0
-      rw [← hcMap_eq Sb hSb] at this; exact this.1
-    · have hxiW' : xs i ∈ W' := (Finset.mem_powerset.mp hSa) (mem_coe.mp hxiSa)
-      have hxiT : xs i ∈ T := Finset.mem_filter.mpr ⟨hxiW', ⟨i, rfl⟩⟩
-      have hxiSb : xs i ∈ Sb :=
-        (Finset.mem_inter.mp (hint ▸ Finset.mem_inter.mpr ⟨mem_coe.mp hxiSa, hxiT⟩)).1
-      have : xs i ∈ ({w₀} ∪ ↑Sb : Set α) := Or.inr (mem_coe.mpr hxiSb)
-      rw [← hcMap_eq Sb hSb] at this; exact this.1
-  exact ⟨step hS₁ hS₂ hinter, step hS₂ hS₁ hinter.symm⟩
+  have hmem (S : Finset α) (hS : S ∈ W'.powerset) :
+      xs i ∈ cMap S hS ↔ xs i = w₀ ∨ xs i ∈ S ∩ seenElements W' xs := by
+    have hc : xs i ∈ cMap S hS ↔ xs i ∈ ({w₀} ∪ ↑S : Set α) := by
+      rw [← hcMap_eq S hS]
+      exact ⟨fun h => ⟨h, hxs i⟩, And.left⟩
+    rw [hc, Set.mem_union, Set.mem_singleton_iff, mem_coe]
+    exact or_congr_right ⟨fun hxS => Finset.mem_inter.mpr
+        ⟨hxS, Finset.mem_filter.mpr ⟨Finset.mem_powerset.mp hS hxS, i, rfl⟩⟩,
+      fun hx => (Finset.mem_inter.mp hx).1⟩
+  rw [hmem S₁ hS₁, hmem S₂ hS₂, hinter]
 
 variable [MeasurableSpace α]
 

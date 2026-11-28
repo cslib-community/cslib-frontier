@@ -69,23 +69,16 @@ theorem rejection_pauliBraidingDiagonalGame_le
   let game := pauliBraidingGame n G special decode
   let seedLaw := Probability.PMF.uniformOfFintype (SymmetricLinearitySeed n)
   let fixedBasis := game.pullbackSeed seedLaw (PauliBraidingSeed.linearity basis)
-  let diagonal := pauliBraidingDiagonalGame n G special decode roles basis
-  let linearity := pauliBraidingBranchGame n G special decode 0
   have hbasis := game.weighted_rejection_le_of_bind_seed (Probability.PMF.uniformOfFintype Bool)
     (fun basis => seedLaw.map (PauliBraidingSeed.linearity basis)) answer basis
-  have hmass : ((Probability.PMF.uniformOfFintype Bool) basis).toReal = (2 : ℝ)⁻¹ := by
-    rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
-    norm_num
-  rw [hmass, ← game.answersWinProb_pullbackSeed seedLaw (PauliBraidingSeed.linearity basis) answer]
+  rw [Probability.PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat,
+    ENNReal.toReal_inv, ENNReal.toReal_ofNat,
+    ← game.answersWinProb_pullbackSeed seedLaw (PauliBraidingSeed.linearity basis) answer]
     at hbasis
-  change (2 : ℝ)⁻¹ * (1 - fixedBasis.answersWinProb answer) ≤
-    1 - linearity.answersWinProb answer at hbasis
   have hdiag := fixedBasis.weighted_rejection_pullback_uniform_le
     (SymmetricLinearitySeed.diagonal n roles) answer
   let size : ℝ := Fintype.card (Fin n → Bool)
-  have hsize : size ≠ 0 := by
-    dsimp [size]
-    exact_mod_cast Fintype.card_ne_zero
+  have hsize : size ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
   have hcard :
       (Fintype.card (Fin 3 × (Fin n → Bool) × (Fin n → Bool)) : ℝ) /
         Fintype.card (SymmetricLinearitySeed n) = (2 * size)⁻¹ := by
@@ -94,13 +87,9 @@ theorem rejection_pauliBraidingDiagonalGame_le
     change 3 * (size * size) / (2 * (3 * (size * (size * size)))) = _
     field_simp
   rw [hcard] at hdiag
-  change (2 * size)⁻¹ * (1 - diagonal.answersWinProb answer) ≤
-    1 - fixedBasis.answersWinProb answer at hdiag
-  have h := (mul_le_mul_of_nonneg_left hdiag (by norm_num : 0 ≤ (2 : ℝ)⁻¹)).trans hbasis
-  change (1 - diagonal.answersWinProb answer) / (4 * size) ≤ 1 - linearity.answersWinProb answer
-  convert h using 1
-  rw [div_eq_mul_inv, ← mul_assoc, ← mul_inv]
-  ring
+  have h := (mul_le_mul_of_nonneg_left hdiag (by positivity : 0 ≤ (2 : ℝ)⁻¹)).trans hbasis
+  have h4 : (2 : ℝ) * 2 = 4 := by norm_num
+  rwa [inv_mul_eq_div, inv_mul_eq_div, div_div, mul_right_comm (2 : ℝ) size 2, h4] at h
 
 open Finset Quantum in
 /-- Average a pointwise bound by the three check losses at the sampling weight of
@@ -124,18 +113,14 @@ theorem expect_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [Ri
   let lose (r : Fin 3 × (Fin n → Bool) × (Fin n → Bool)) :=
     1 - ({ game with seed := PMF.pure r }).commutingWinProb S
   have havg : (𝔼 a, 𝔼 dummy, bad a dummy) ≤ 3 * (𝔼 r, lose r) := by
-    have h := expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun a _ =>
-      expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun dummy _ => hlocal a dummy
-    refine h.trans_eq ?_
-    rw [Fintype.expect_prod_type]
+    refine (expect_le_expect fun a _ =>
+      expect_le_expect fun dummy _ => hlocal a dummy).trans_eq ?_
     simp_rw [Fintype.expect_prod_type]
     rw [Finset.expect_comm univ univ (fun k a => 𝔼 d, lose (k, a, d)), Finset.mul_expect]
     refine expect_congr rfl fun a _ => ?_
     rw [Finset.expect_comm univ univ (fun k d => lose (k, a, d)), Finset.mul_expect]
     refine expect_congr rfl fun d _ => ?_
-    rw [Fintype.expect_eq_sum_div_card, Fin.sum_univ_three, Fintype.card_fin]
-    push_cast
-    ring
+    simp [Fintype.expect_eq_sum_div_card, Fin.sum_univ_three]; ring
   have hscore : (𝔼 r, lose r) = 1 - game.commutingWinProb S := by
     unfold SeededGame.commutingWinProb
     rw [SeededGame.rejection_eq_sum]
@@ -143,14 +128,14 @@ theorem expect_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [Ri
     simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, ← mul_sum, Fintype.expect_eq_sum_div_card]
     ring
-  rw [hscore] at havg
   have hbudget := rejection_pauliBraidingDiagonalGame_le G special decode roles basis S.answers
-  change (1 - game.commutingWinProb S) / (4 * Fintype.card (Fin n → Bool)) ≤ _ at hbudget
-  change (𝔼 a, 𝔼 dummy, bad a dummy) / Fintype.card (Fin n → Bool) ≤ _
-  refine (div_le_div_of_nonneg_right havg (by positivity)).trans ?_
-  rw [show 3 * (1 - game.commutingWinProb S) / (Fintype.card (Fin n → Bool) : ℝ) =
-      12 * ((1 - game.commutingWinProb S) / (4 * Fintype.card (Fin n → Bool))) by ring]
-  exact mul_le_mul_of_nonneg_left hbudget (by norm_num)
+  change (1 - game.commutingWinProb S) / (4 * Fintype.card (Fin n → Bool)) ≤
+    1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S at hbudget
+  rw [div_mul_eq_div_div_swap] at hbudget
+  have hdiv := div_le_div_of_nonneg_right (hscore ▸ havg)
+    (Nat.cast_nonneg (Fintype.card (Fin n → Bool)))
+  rw [mul_div_assoc] at hdiv
+  linarith
 
 open BitString Finset Quantum in
 /-- Two checks with the same visible questions charge the probability of any pair
@@ -189,8 +174,8 @@ theorem prob_bad_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [
         Bool.cond_true, id_eq, Prod.swap_prod_mk, question, pointQuestion]
   have hloss (i : Fin 3) (hi : linearityQuery i a a = c) :
       loss i = ∑ p, ∑ q, if accepted i p q then 0 else logical.prob question pointQuestion p q := by
-    rw [show loss i = _ from game.one_sub_commutingWinProb_pure_seed (i, a, dummy) S,
-      hquestions i hi]
+    dsimp only [loss]
+    rw [game.one_sub_commutingWinProb_pure_seed (i, a, dummy) S, hquestions i hi]
     cases roles
     · rfl
     · simp only [accepted, logical, Bool.cond_true, Prod.swap_prod_mk, S.prob_swap]
@@ -225,13 +210,7 @@ theorem prob_bad_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [
   simp only [← sum_add_distrib]
   refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
   have hn := logical.prob_nonneg question pointQuestion p q
-  by_cases hp : bad p = true
-  · have h := hchecks p q hp
-    by_cases hk : accepted k p q <;> by_cases hl : accepted l p q <;>
-      simp only [hp, hk, hl, ite_true, ite_false] at *
-    all_goals first | contradiction | linarith
-  · simp only [hp]
-    positivity
+  split_ifs with hp hk hl <;> first | linarith | exact absurd ⟨hk, hl⟩ (hchecks p q hp)
 
 open Quantum in
 /-- If the two bits of the duplicated pair answer differ, at least one of the two
@@ -251,17 +230,14 @@ theorem expect_prob_mismatch_pauliBraidingDiagonal_le {𝒜 : Type*} [Fintype A]
   intro logical
   let bad (a : Fin n → Bool) := ((logical.alice (.basis basis (a, a))).map
     (Sum.elim (fun bits => bits.1 ^^ bits.2) (fun _ => false))).prob logical.state true
-  have h := expect_le_of_pauliBraidingDiagonal_checks G special decode roles basis S
-    (fun a _ => bad a) (fun a d => by
+  simpa only [Fintype.expect_const] using expect_le_of_pauliBraidingDiagonal_checks G special
+    decode roles basis S (fun a _ => bad a) fun a d => by
       have h01 := prob_bad_le_of_pauliBraidingDiagonal_checks G special decode roles basis S a d 0 1
         (fun bits => bits.1 ^^ bits.2) (by simp [linearityQuery]) (by decide)
       have h₂ := sub_nonneg.mpr (SeededGame.answersWinProb_le_one
         ({ pauliBraidingDiagonalGame n G special decode roles basis with
             seed := PMF.pure (2, a, d) }) S.answers)
-      dsimp only at h01 h₂
-      change bad a ≤ _ at h01
       simp only [SeededGame.commutingWinProb] at h01 ⊢
-      linarith only [h01, h₂])
-  simpa only [Fintype.expect_const] using h
+      linarith only [h01, h₂]
 
 end Cslib.PCP

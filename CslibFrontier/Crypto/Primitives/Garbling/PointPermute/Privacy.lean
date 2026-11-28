@@ -78,29 +78,25 @@ theorem PseudorandomFunction.negligible_prvSimAdvantage_simWord
     have h₂ := n_add_q_le_length_encValidCircuit query.fn
     have h₃ : (encValidCircuit query.fn).length ≤
         (encPair (encQuery ValidCircuit encValidCircuit) encσ (query, state)).length := by
-      simp only [length_encPair, encQuery_apply]
-      omega
+      simp only [length_encPair, encQuery_apply]; omega
     have h₄ : (encPair encUnary encUnit (k, ())).length + 1 ≤ 4 * (k + 1) := by
-      have hu : (encUnit ()).length = 0 := rfl
-      simp only [length_encPair, encUnary_apply, List.length_replicate, hu]
+      simp only [length_encPair, encUnary_apply, List.length_replicate,
+        show (encUnit ()).length = 0 from rfl]
       omega
     calc query.fn.1.n + query.fn.1.q
         ≤ c * ((encPair encUnary encUnit (k, ())).length + 1) ^ d := by omega
       _ ≤ P k := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left h₄ _)
   have hW := isOraclePPT_prvSimReduction h.polyTime hB hPpoly
   have hneg := h.indistinguishable_label _ hW
-  have hbound : ∀ k, (4 * (k + 1)) ^ d = 4 ^ d * (k + 1) ^ d := fun k => mul_pow _ _ _
   have hcap : PolynomiallyBounded fun k => dyadicSize (P k) := by
     refine polynomiallyBounded_iff_le.mpr ⟨2 * c * 4 ^ d + 2, d, fun k => ?_⟩
     have h₁ := dyadicSize_le (P k)
     have h₂ : 1 ≤ (k + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos k)
-    simp only [P, hbound] at h₁ ⊢
+    simp only [P, mul_pow] at h₁ ⊢
     nlinarith
-  have hsmall : PolynomiallyBounded fun k => 8 * P k := by
-    refine polynomiallyBounded_iff_le.mpr ⟨8 * c * 4 ^ d, d, fun k => ?_⟩
-    simp only [P, hbound]
-    ring_nf
-    exact le_rfl
+  have hsmall : PolynomiallyBounded fun k => 8 * P k :=
+    polynomiallyBounded_iff_le.mpr ⟨8 * c * 4 ^ d, d, fun k =>
+      le_of_eq (by simp only [P, mul_pow]; ring)⟩
   have hev : ∀ᶠ k in atTop, 8 * P k ≤ 2 ^ k :=
     hsmall.eventually_lt_two_pow.mono fun _ hk => hk.le
   refine negligible_of_eventually_le (hneg.polynomiallyBounded_mul hcap) ?_

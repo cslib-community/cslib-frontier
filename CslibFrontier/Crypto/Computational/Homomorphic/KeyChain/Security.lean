@@ -61,15 +61,11 @@ theorem negligible_publicKeyChainHybrid {E : Scheme}
       (ProbComp.eval (E.publicKeyChainHybrid n (depth n) (depth n) >>= test n))
       (ProbComp.eval (E.publicKeyChainHybrid n (depth n) 0 >>= test n))) := by
   obtain ⟨c, d, hcapacity, hbound⟩ := Encryption.exists_keyLength_bound hkeyGen
-  let capacity := fun n => c * (n + 1) ^ d
-  have hwidth_le (n : ℕ) : width n ≤ capacity n := by
+  have hwidth_le (n : ℕ) : width n ≤ c * (n + 1) ^ d := by
     obtain ⟨keys, hkeys⟩ := (ProbComp.eval (E.keyGen n)).support_nonempty
-    have h := hbound n keys hkeys
-    rw [hwidth n keys hkeys] at h
-    exact (Nat.le_add_left _ _).trans h
-  have hred := isPPT_linkAdversary hkeyGen hencrypt htest hdepth hcapacity
-  have hneg := hsecure _ hred
-  negligible using fun n => (E.publicKeyChainHybrid_advantage_linkAdversary depth capacity test n
-    (width n) (hwidth n) (hwidth_le n)).le
+    exact (Nat.le_add_left _ _).trans (hwidth n keys hkeys ▸ hbound n keys hkeys)
+  have hneg := hsecure _ (isPPT_linkAdversary hkeyGen hencrypt htest hdepth hcapacity)
+  negligible using fun n => (E.publicKeyChainHybrid_advantage_linkAdversary depth
+    (fun n => c * (n + 1) ^ d) test n (width n) (hwidth n) (hwidth_le n)).le
 
 end Cslib.Crypto.Homomorphic.Scheme

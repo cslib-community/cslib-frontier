@@ -4,22 +4,24 @@
 Usage: python3 scripts/restack_mechanical.py PR --approved-head SHA [--approved-base REF]
                                              [--dry-run | --push] [--allow-clean]
 
-GitHub ignores the local `leanagg` and `bibkeys` merge drivers (`.gitattributes`), so the merge
-queue ejects a PR when `main` adds lines next to the PR's in the `mk_all` aggregates
-(`CslibFrontier.lean`, `CslibFrontierResults.lean`) or in `references.bib`. This script makes
-that restack one command. It runs no code from the PR: only Git, this script and `origin/main`'s
+GitHub ignores the local `leanagg`, `bibkeys` and `sourcesmd` merge drivers (`.gitattributes`),
+so the merge queue ejects a PR when `main` adds lines next to the PR's in the `mk_all` aggregates
+(`CslibFrontier.lean`, `CslibFrontierResults.lean`), in `references.bib` or in
+`manual/sources.md`. This script makes that restack one command. It runs no code from the PR: only Git, this script and `origin/main`'s
 scripts. After fetching `origin/main` and the PR head, it
 
 1. runs `origin/main`'s `scripts/check_restack.py APPROVED HEAD` (with `--approved-base`) from a
    temporary checkout of `origin/main`, labels its output as the approval pre-check, and refuses
    unless the PR head is the approved change or an earlier restack of it;
 2. lists the paths on which the head conflicts with `origin/main` under a plain text merge, as on
-   GitHub, and refuses unless every one is an aggregate or `references.bib` (`--allow-clean` also
-   restacks a PR with no conflict, for a lower PR that landed or a fix on `main` it needs);
+   GitHub, and refuses unless every one is an aggregate, `references.bib` or `manual/sources.md`
+   (`--allow-clean` also restacks a PR with no conflict, for a lower PR that landed or a fix on
+   `main` it needs);
 3. merges `origin/main` into the head with `git merge-tree` from the temporary checkout, using
-   two drivers for that merge only: `origin/main`'s `scripts/resolve_aggregate_conflict.py` and
-   `scripts/resolve_bib_conflict.py`, assigned by `origin/main`'s `.gitattributes`. A
-   `references.bib` conflict that the driver refuses (both sides changed one entry) is refused;
+   three drivers for that merge only: `origin/main`'s `scripts/resolve_aggregate_conflict.py`,
+   `scripts/resolve_bib_conflict.py` and `scripts/resolve_sources_conflict.py`, assigned by
+   `origin/main`'s `.gitattributes`. A `references.bib` or `manual/sources.md` conflict that its
+   driver refuses (both sides changed one entry, or one line of an entry) is refused;
 4. writes each aggregate exactly as `lake exe mk_all` would for the merged tree, as
    `check_restack.py` derives it (from `lakefile.toml` and the module files, without running
    Lake), and commits the merge with `git commit-tree`, so no hook runs and no ref changes. CI's
@@ -60,8 +62,9 @@ import check_restack as cr  # noqa: E402
 
 REPOSITORY = "cslib-community/cslib-frontier"
 BIB = "references.bib"
+SOURCES = "manual/sources.md"
 # The only paths whose conflicts this script resolves.
-GENERATED = frozenset((*cr.AGGREGATES, BIB))
+GENERATED = frozenset((*cr.AGGREGATES, BIB, SOURCES))
 PR_FIELDS = ("number", "state", "baseRefName", "headRefName", "headRefOid", "isCrossRepository",
              "headRepositoryOwner", "headRepository", "maintainerCanModify")
 
@@ -129,14 +132,17 @@ def driver_merge(root: Path, head: str, main: str, scripts: Path) -> str:
     if conflicts - set(cr.AGGREGATES):
         raise Refused("the merge drivers left conflicts in "
                       + ", ".join(sorted(conflicts - set(cr.AGGREGATES)))
-                      + " (a `references.bib` entry both sides changed needs a person)")
+                      + " (an entry of `references.bib`, or a line of `manual/sources.md`, that "
+                      "both sides changed needs a person)")
     return tree
 
 
 def write_aggregates(root: Path, tree: str, sides: tuple[str, str, str]) -> str:
     """`tree` with each aggregate replaced by what `lake exe mk_all` writes for it, as
-    `check_restack` derives it; `sides` (merge base, `main`, head) settle the module style."""
+    `check_restack` derives it; `sides` (merge base, `main`, head) settle the module style
+    and import order."""
     entries = cr.tree_entries(root, tree)
+    hash_order = cr.aggregate_hash_order(tuple(cr.commit_hash_order(root, side) for side in sides))
     try:
         roots = cr.library_roots(root, tree, entries)
         replaced = {}
@@ -148,7 +154,7 @@ def write_aggregates(root: Path, tree: str, sides: tuple[str, str, str]) -> str:
                                      "here")
             style, _ = cr.aggregate_style(tuple(cr.blob(root, side, path) for side in sides),
                                           cr.blob(root, tree, path) or b"")
-            content = cr.canonical_aggregate(entries, *roots[path], style)
+            content = cr.canonical_aggregate(entries, *roots[path], style, hash_order=hash_order)
             replaced[path] = git_input(root, content, "hash-object", "-w", "--stdin")
     except cr.Underivable as error:
         raise Refused(f"cannot derive what `mk_all` writes: {error}") from None
@@ -168,7 +174,7 @@ def merge(root: Path, head: str, main: str, scripts: Path, branch: str) -> str:
     """Merge `main` into `head`, write the aggregates and commit; returns the merge commit."""
     tree = driver_merge(root, head, main, scripts)
     tree = write_aggregates(root, tree, (cr.merge_base(root, main, head), main, head))
-    for path in (*cr.AGGREGATES, BIB):
+    for path in (*cr.AGGREGATES, BIB, SOURCES):
         content = cr.blob(root, tree, path) or b""
         if any(cr.CONFLICT_MARKER.match(line) for line in content.splitlines()):
             raise Refused(f"{path} still has conflict markers")

@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Un
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingParameters
 import Mathlib.Tactic.IntervalCases
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -61,16 +62,11 @@ private theorem max_one_numGroups_mul_clog_le (n : ℕ) :
               (Nat.clog_mono_right 2 (by omega)) 1)
         _ ≤ Nat.clog 2 n := numGroups_mul_clog_le_clog hn
         _ ≤ Nat.clog 2 n + 1 := Nat.le_succ _
-    · have hs0 : numGroups n = 0 := by omega
-      simp [hs0]
-  · have hn' : n < 5 := by omega
-    interval_cases n
-    · decide
-    · decide
-    · decide
-    · rw [show numGroups 3 = 1 from (numGroups_eq_iff (by decide)).mpr (by decide)]
-      decide
-    · rw [show numGroups 4 = 1 from (numGroups_eq_iff (by decide)).mpr (by decide)]
+    · simp [Nat.eq_zero_of_not_pos hs]
+  · interval_cases n
+    all_goals try decide
+    all_goals
+      rw [show numGroups _ = 1 from (numGroups_eq_iff (by decide)).mpr (by decide)]
       decide
 
 /-- For fixed width at least two, the same constant bounds the numerical first-success base
@@ -106,12 +102,7 @@ theorem polyBounded_countingDepthCoeff_numGroups {α : Type*} {size N : α → �
     PolyBounded size (fun x =>
       countingDepthCoeff k (countingThresholdBase k (max 1 (numGroups (N x))))) := by
   obtain ⟨D, hD⟩ := exists_countingDepthCoeff_numGroups_le_pow_clog hk
-  have h : PolyBounded id (fun n =>
-      countingDepthCoeff k (countingThresholdBase k (max 1 (numGroups n)))) := by
-    refine PolyBounded.of_forall_le D (k - 2) fun n => (hD n).trans ?_
-    have hn : Nat.clog 2 n ≤ n := Nat.clog_le_of_le_pow n.lt_two_pow_self.le
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.add_le_add_right hn 1) _)
-  exact h.comp hN
+  growth_poly [hD]
 
 /-- A retained context, external unary declared size and encoded input charge the numerical
 depth coefficient uniformly. The context and input encodings are arbitrary; the declared size
@@ -119,10 +110,7 @@ is not replaced by the input's occurring support or its binary bit length. -/
 theorem polyBounded_countingDepthCoeff_numGroups_encPair {α β : Type}
     (encC : α ↪ List Bool) (encInput : β ↪ List Bool) {k : ℕ} (hk : 2 ≤ k) :
     PolyBounded (fun x : α × ℕ × β => (encPair encC (encPair encUnary encInput) x).length)
-      (fun x => countingDepthCoeff k (countingThresholdBase k (max 1 (numGroups x.2.1)))) := by
-  apply polyBounded_countingDepthCoeff_numGroups hk
-  apply PolyBounded.self.mono
-  intro x
-  enc_len
+      (fun x => countingDepthCoeff k (countingThresholdBase k (max 1 (numGroups x.2.1)))) :=
+  polyBounded_countingDepthCoeff_numGroups hk (by growth_poly)
 
 end Cslib.Complexity.SubexponentialSAT.SparseCountingScale

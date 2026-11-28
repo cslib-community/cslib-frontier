@@ -42,48 +42,38 @@ theorem trace_sub_mul_self_le_traceNorm_mul_self_sub (P Q : Matrix ι ι ℂ)
   let Y := F Q
   let e := hd.eigenvalues
   let D := diagonal (fun i => (e i : ℂ))
-  have hXY : X - Y = D := by
-    dsimp only [X, Y]
-    rw [← map_sub]
-    exact hd.conjStarAlgAut_star_eigenvectorUnitary
+  have hXY : X - Y = D :=
+    (map_sub F P Q).symm.trans hd.conjStarAlgAut_star_eigenvectorUnitary
   have hX : X.PosSemidef := hP.mul_mul_conjTranspose_same (U : Matrix ι ι ℂ)
   have hY : Y.PosSemidef := hQ.mul_mul_conjTranspose_same (U : Matrix ι ι ℂ)
   let s (i : ι) : ℝ := if 0 ≤ e i then 1 else -1
   let S := diagonal (fun i => (s i : ℂ))
   have hS : S ∈ unitaryGroup ι ℂ := by
-    rw [mem_unitaryGroup_iff', star_eq_conjTranspose]
-    unfold S
-    rw [diagonal_conjTranspose, diagonal_mul_diagonal, ← diagonal_one]
-    congr 1
-    funext i
+    rw [mem_unitaryGroup_iff', star_eq_conjTranspose, diagonal_conjTranspose,
+      diagonal_mul_diagonal, ← diagonal_one]
+    refine congrArg diagonal (funext fun i => ?_)
     by_cases hi : 0 ≤ e i <;> simp [s, hi]
   have hs : Sᴴ = S := by
-    unfold S
     rw [diagonal_conjTranspose]
-    congr 1
-    funext i
-    exact Complex.conj_ofReal (s i)
+    exact congrArg diagonal (funext fun i => Complex.conj_ofReal (s i))
   have hdiag (i : ι) : (X i i).re - (Y i i).re = e i := by
-    have h := congrArg (fun M : Matrix ι ι ℂ => (M i i).re) hXY
     simpa only [Matrix.sub_apply, Complex.sub_re, D, diag_diagonal, diagonal_apply_eq,
-      Complex.ofReal_re] using h
+      Complex.ofReal_re] using congrArg (fun M : Matrix ι ι ℂ => (M i i).re) hXY
   have hid : X * X - Y * Y = D * X + Y * D := by
     rw [← hXY]
     noncomm_ring
   have hterm (i : ι) :
       (e i) ^ 2 ≤ ((S * (X * X - Y * Y)) i i).re := by
     rw [hid]
-    simp only [S, diagonal_mul, Matrix.add_apply, D, mul_diagonal]
+    simp only [S, diagonal_mul, Matrix.add_apply, D, mul_diagonal, Complex.mul_re,
+      Complex.add_re, Complex.ofReal_re, Complex.ofReal_im, zero_mul, mul_zero, sub_zero]
     have hxi := (Complex.nonneg_iff.mp (hX.diag_nonneg (i := i))).1
     have hyi := (Complex.nonneg_iff.mp (hY.diag_nonneg (i := i))).1
-    simp only [Complex.mul_re, Complex.add_re, Complex.ofReal_re, Complex.ofReal_im,
-      zero_mul, mul_zero, sub_zero]
     by_cases h : 0 ≤ e i
     · simp only [s, ite_eq_left h, one_mul]
       nlinarith [hdiag i, mul_nonneg h hyi]
-    · have hn := le_of_lt (lt_of_not_ge h)
-      simp only [s, ite_eq_right h, neg_mul, one_mul]
-      nlinarith [hdiag i, mul_nonpos_of_nonpos_of_nonneg hn hxi]
+    · simp only [s, ite_eq_right h, neg_mul, one_mul]
+      nlinarith [hdiag i, mul_nonpos_of_nonpos_of_nonneg (not_le.mp h).le hxi]
   have hleft : ((P - Q) * (P - Q)).trace.re = ∑ i, (e i) ^ 2 := by
     rw [← trace_conjStarAlgAut U, map_mul, map_sub]
     change ((X - Y) * (X - Y)).trace.re = _

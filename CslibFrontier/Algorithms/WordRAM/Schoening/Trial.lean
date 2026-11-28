@@ -13,8 +13,7 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
-public import CslibFrontier.Computability.WordRAM.Randomized.Law
-import CslibFrontier.Probability.Product
+public import CslibFrontier.Computability.WordRAM.Randomized.SampleBits
 
 /-!
 # One trial of Schöning's algorithm on the randomized word RAM
@@ -79,17 +78,6 @@ variable {n : ℕ}
 
 /-! ### Reading assignments -/
 
-/-- Writing `v` at the cell of variable `i` updates the assignment read back. -/
-theorem assignmentAt_update_self (mem : ℕ → ℕ) (base : ℕ) (i : Fin n) (v : ℕ) :
-    assignmentAt (Function.update mem (base + i) v) base n =
-      Function.update (assignmentAt mem base n) i (decide (v = 1)) := by
-  funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [assignmentAt]
-  · have hne : base + j.val ≠ base + i.val := fun h => hj (Fin.ext (by omega))
-    simp [assignmentAt, Function.update_of_ne hne, Function.update_of_ne hj]
-
 /-- The assignment left by a halting run: read from address `base`. -/
 def cfgAssignment {r : ℕ} (base n : ℕ) : RandCfg r → (Fin n → Bool)
   | .halted _ d => assignmentAt d.mem base n
@@ -110,12 +98,8 @@ theorem ScanResult.found_eq {σ : Fin n → Bool} {φ : CNF (Fin n)} {mem : ℕ 
   unfold ScanResult at h
   rcases hfu : firstUnsat φ σ with _ | c <;> simp only [hfu] at h
   · simp [h, (firstUnsat_eq_none_iff _ _).mp hfu]
-  · have : φ.eval σ = false := by
-      rcases he : φ.eval σ
-      · rfl
-      · rw [← firstUnsat_eq_none_iff] at he; rw [he] at hfu; cases hfu
-    rw [h.1, this]
-    rfl
+  · have hf : φ.eval σ ≠ true := mt (firstUnsat_eq_none_iff _ _).mpr (by simp [hfu])
+    simp [h.1, Bool.eq_false_iff.mpr hf]
 
 /-- On the initial machine data for `encode φ`, the encoded clauses start at address `2`. -/
 theorem holdsList_encodeClauses_init {r : ℕ} (φ : CNF (Fin n)) :
@@ -190,102 +174,9 @@ private theorem Frame.set {φ : CNF (Fin n)} {C A : ℕ} {M : ℕ → ℕ} {x : 
 
 /-! ### The random initial assignment -/
 
-/-- Draw a bit and store it as variable `cnt`. -/
-def initBody : Code .standard 24 := ram[
-  val ← rand one; addr ← aBase + cnt; *addr ← val; cnt ← cnt + one ]
-
-/-- Draw the variables `cnt, …, n - 1`. -/
-def initLoop : Code .standard 24 := .loop (.lt cnt nReg) initBody
-
-/-- **The random initial assignment**: draw all `n` variables. -/
-def initAssign : Code .standard 24 := ram[ cnt ← zero; ⟪initLoop⟫ ]
-
-/-- The rest of the initial assignment from variable `j`: the first `j` variables are kept and
-the others are uniform. -/
-private theorem initLoop_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
-    (hw : Fits w (A + 3 * n))
-    (hA : 1 ≤ A) : ∀ (d : ℕ) (x : Data 24), Frame φ C A M x → x.regs cnt + d = n →
-      (∀ i < x.regs cnt, x.mem (A + i) ≤ 1) →
-      ExecRandLaw w initLoop x
-        (fun y => Frame φ C A M y ∧ ∀ i < n, y.mem (A + i) ≤ 1) (6 * d + 2) d
-        (fun y => assignmentAt y.mem A n)
-        ((Probability.PMF.uniformOfFintype (Fin n → Bool)).map fun τ i =>
-          if i.val < x.regs cnt then assignmentAt x.mem A n i else τ i)
-  | 0, x, hx, hd, hbits => by
-    have hc : ¬(Cond.lt cnt nReg).Holds x := by simp [Cond.holds_lt, hx.nReg_eq]; omega
-    have hconst : (fun τ : Fin n → Bool => fun i : Fin n =>
-        if i.val < x.regs cnt then assignmentAt x.mem A n i else τ i) =
-        Function.const _ (assignmentAt x.mem A n) := by
-      funext τ i
-      simp only [Function.const_apply, show i.val < x.regs cnt by omega, ↓reduceIte]
-    rw [hconst, PMF.map_const]
-    exact ExecRandLaw.loop_exit hc ⟨hx, fun i hi => hbits i (by omega)⟩
-  | d + 1, x, hx, hd, hbits => by
-    obtain ⟨j, hj⟩ : ∃ j, x.regs cnt = j := ⟨_, rfl⟩
-    rw [hj] at hd hbits ⊢
-    have hjn : j < n := by omega
-    have hc : (Cond.lt cnt nReg).Holds x := by simp [Cond.holds_lt, hx.nReg_eq, hj]; omega
-    have hf1 : Fits w (A + j) := hw.of_le (by omega)
-    have hf2 : Fits w (j + 1) := hw.of_le (by omega)
-    let Y : ℕ → Data 24 := fun k =>
-      (((x.set val k).set addr (A + j)).write (A + j) k).set cnt (j + 1)
-    have hrest : ∀ k : Fin (x.regs one + 1),
-        ExecWithin w (ram[ addr ← aBase + cnt; *addr ← val; cnt ← cnt + one ])
-          (x.set val k.val) (Y k.val) 3 := fun _ =>
-      WP.execWithin (by wram_exec [hx.aBase_eq, hx.one_eq, hj]; rfl)
-    have hbody := ExecRandLaw.rand_seq (w := w) (f := fun y => assignmentAt y.mem A n)
-      (P := fun y => ∃ k ≤ 1, y = Y k) (y := fun k => Y k.val)
-      (by rw [hx.one_eq]; exact hw.of_le (by omega)) hrest
-      (fun k => ⟨k.val, by have := k.isLt; have h1 := hx.one_eq; omega, rfl⟩)
-    have hlaw := ExecRandLaw.loop_iter (κ := fun σ' =>
-        (Probability.PMF.uniformOfFintype (Fin n → Bool)).map fun τ i =>
-          if i.val < j + 1 then σ' i else τ i) hc hbody (fun y ⟨k, hk, hy⟩ => by
-      subst hy
-      have hYc : (Y k).regs cnt = j + 1 := by wram_simp [Y]
-      have h := initLoop_law hw hA d (Y k) (by dsimp only [Y]; struct_frame hx)
-        (by rw [hYc]; omega)
-        (fun i hi => by
-          rw [hYc] at hi
-          simp only [Y, Data.set_mem, Data.write_mem, Function.update_apply]
-          split_ifs with h
-          · exact hk
-          · exact hbits i (by omega))
-      rw [hYc] at h
-      exact h)
-    refine (hlaw.congr_law ?_).mono (fun _ h => h) (by omega) (by omega)
-    -- the law: a fresh uniform bit at coordinate `j`
-    rw [hx.one_eq, PMF.bind_map]
-    have hYa (k : ℕ) : assignmentAt (Y k).mem A n =
-        Function.update (assignmentAt x.mem A n) ⟨j, hjn⟩ (decide (k = 1)) := by
-      simp only [Y, Data.set_mem, Data.write_mem]
-      exact assignmentAt_update_self x.mem A ⟨j, hjn⟩ k
-    let G : (Fin n → Bool) → (Fin n → Bool) := fun τ i =>
-      if i.val < j then assignmentAt x.mem A n i else τ i
-    have hcomp (b : Bool) : (fun τ : Fin n → Bool => fun i : Fin n =>
-        if i.val < j + 1 then Function.update (assignmentAt x.mem A n) ⟨j, hjn⟩ b i else τ i) =
-        G ∘ fun τ => Function.update τ ⟨j, hjn⟩ b := by
-      funext τ i
-      simp only [G, Function.comp_apply, Function.update_apply, Fin.ext_iff]
-      by_cases h1 : i.val < j
-      · simp [h1, show i.val < j + 1 by omega, show i.val ≠ j by omega]
-      · by_cases h2 : i.val = j
-        · simp [h2]
-        · simp [h1, h2, show ¬i.val < j + 1 by omega]
-    calc (Probability.PMF.uniformOfFintype (Fin (1 + 1))).bind
-          ((fun σ' => (Probability.PMF.uniformOfFintype (Fin n → Bool)).map fun τ i =>
-            if i.val < j + 1 then σ' i else τ i) ∘ fun k => assignmentAt (Y k.val).mem A n)
-        = (Probability.PMF.uniformOfFintype (Fin (1 + 1))).bind (fun k =>
-            ((Probability.PMF.uniformOfFintype (Fin n → Bool)).map
-              fun τ => Function.update τ ⟨j, hjn⟩ (finTwoEquiv k)).map G) := by
-          congr 1 with k : 1
-          have hk : decide (k.val = 1) = finTwoEquiv k := by fin_cases k <;> rfl
-          simp only [Function.comp_apply, hYa, hk, hcomp, PMF.map_comp]
-      _ = ((Probability.PMF.uniformOfFintype Bool).bind fun b =>
-            (Probability.PMF.uniformOfFintype (Fin n → Bool)).map
-              fun τ => Function.update τ ⟨j, hjn⟩ b).map G := by
-          rw [← Probability.PMF.uniformOfFintype_map_equiv finTwoEquiv, PMF.bind_map, PMF.map_bind]
-          rfl
-      _ = _ := by rw [Probability.PMF.uniformOfFintype_update]
+/-- **The random initial assignment**: draw all `n` variables via `Cslib.WordRAM.sampleBits`. -/
+def initAssign : Code .standard 24 :=
+  sampleBits zero one aBase nReg cnt val addr
 
 /-- **The random initial assignment** is uniform, takes `6 n + 3` instructions and `n` `rand`
 calls, and keeps the frame. -/
@@ -295,13 +186,19 @@ theorem initAssign_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
     ExecRandLaw w initAssign x (fun y => Frame φ C A M y ∧ ∀ i < n, y.mem (A + i) ≤ 1)
       (6 * n + 3) n (fun y => assignmentAt y.mem A n)
       (Probability.PMF.uniformOfFintype (Fin n → Bool)) := by
-  have h := initLoop_law (φ := φ) hw hA n (x.set cnt 0) (hx.set (by decide) 0) (by simp) (by simp)
-  simp only [Data.set_regs, Function.update_self, Nat.not_lt_zero, ↓reduceIte] at h
-  rw [show (fun τ : Fin n → Bool => fun i => τ i) = id from rfl, PMF.map_id] at h
-  have hz : x.regs zero = 0 := hx.zero_eq
-  have h0 := ExecWithin.copy (B := .standard) (w := w) (d := cnt) (s := zero) (x := x)
-  rw [hz] at h0
-  exact (ExecRandLaw.seq_det h0 h).mono (fun _ h => h) (by omega) le_rfl
+  have h := sampleBits_law (r := 24) (w := w) (base := A) (n := n)
+    (zero := zero) (one := one) (baseReg := aBase) (nReg := nReg)
+    (cnt := cnt) (val := val) (addr := addr) (by decide)
+    (hw.of_le (by omega)) (hw.of_le (by omega))
+    hx.zero_eq hx.one_eq hx.aBase_eq hx.nReg_eq
+  exact h.mono (fun y ⟨hyb, hym, hyr⟩ =>
+    ⟨hx.congr (hyr zero (by decide) (by decide) (by decide))
+      (hyr one (by decide) (by decide) (by decide))
+      (hyr cBeg (by decide) (by decide) (by decide))
+      (hyr aBase (by decide) (by decide) (by decide))
+      (hyr nReg (by decide) (by decide) (by decide))
+      (fun a ha => hym a (by omega)),
+     hyb⟩) le_rfl le_rfl
 
 /-! ### Flipping a literal of a falsified clause -/
 
@@ -373,19 +270,19 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
       unfold flipRest
       wram_exec [x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hσ l.1]
       refine ⟨⟨by dsimp only [x₂]; struct_frame hx, fun i hi => ?_⟩, ?_⟩
-      · dsimp only [x₂]
-        simp only [Data.set_mem, Data.write_mem, Function.update_apply]
+      · simp only [x₂, Data.set_mem, Data.write_mem, Function.update_apply]
         split_ifs
         · omega
         · exact hbits i hi
-      · dsimp only [x₂]
-        simp only [Data.set_mem, Data.write_mem, assignmentAt_update_self x.mem A l.1,
+      · have hupd : assignmentAt (Function.update x.mem (A + l.1.val) (1 - (σ l.1).toNat)) A n =
+            Function.update (assignmentAt x.mem A n) l.1 (decide (1 - (σ l.1).toNat = 1)) :=
+          bitsAt_update_self x.mem A l.1 (1 - (σ l.1).toNat)
+        simp only [x₂, Data.set_mem, Data.write_mem, hupd,
           assignmentAt_eq hσ, F, hk, ↓reduceDIte, ← hl]
         funext i
-        rw [flipOn_apply, Function.update_apply]
-        by_cases hi : i = l.1
-        · subst hi; cases σ l.1 <;> simp
-        · simp [hi]
+        rcases eq_or_ne i l.1 with rfl | hi
+        · cases hb : σ l.1 <;> simp [flipOn_apply, hb]
+        · simp [flipOn_apply, hi]
     choose y hy hpost hlaw using hrest
     have hrand := ExecRandLaw.rand_seq (w := w) (f := fun y => assignmentAt y.mem A n)
       (P := fun y => Frame φ C A M y ∧ ∀ i < n, y.mem (A + i) ≤ 1) (dst := var) (src := len)
@@ -570,16 +467,11 @@ theorem trialCore_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
       split_ifs <;> rfl
     have hrest := ExecRandLaw.seq_det hpre (ExecRandLaw.seq_det_right hwalk hpost)
     simpa [y₃] using hrest
-  have hR : n + 3 * n ≤ 4 * n := by omega
   have hT : 6 * n + 3 + (3 + (3 * n * (12 * (encodeClauses φ).length + 20) + 2 +
       (12 * (encodeClauses φ).length + 5))) ≤ trialCoreTime n (encodeClauses φ).length := by
     simp only [trialCoreTime]
-    ring_nf
-    omega
-  have hlaw : (Probability.PMF.uniformOfFintype (Fin n → Bool)).bind (walk φ (3 * n)) =
-      trial φ := by
-    simp only [trial, Fintype.card_fin]
-  exact (h.congr_law hlaw).mono (fun _ h => h) hT hR
+    linarith
+  exact (h.congr_law (by simp only [trial, Fintype.card_fin])).mono (fun _ h => h) hT (by omega)
 
 /-! ### The program -/
 

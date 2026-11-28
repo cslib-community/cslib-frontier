@@ -53,13 +53,11 @@ private theorem nextInCycles_cons_of_mem (word : List α) (cycles : List (List �
     (hw : word.Nodup) (ha : a ∈ word) :
     nextInCycles (word :: cycles) a = word.formPerm a := by
   have hi : word.idxOf a < word.length := List.idxOf_lt_length_of_mem ha
-  have hpos : 0 < word.length := Nat.zero_le _ |>.trans_lt hi
   have hmod : (word.idxOf a + 1) % word.length =
       if word.idxOf a + 1 < word.length then word.idxOf a + 1 else 0 := by
     split_ifs with h
     · exact Nat.mod_eq_of_lt h
-    · have he : word.idxOf a + 1 = word.length := by omega
-      rw [he, Nat.mod_self]
+    · rw [show word.idxOf a + 1 = word.length by omega, Nat.mod_self]
   rw [← List.getElem_idxOf hi, List.formPerm_apply_getElem word hw _ hi]
   simp only [List.getElem_idxOf hi, nextInCycles, ha, decide_true, List.find?_cons_of_pos,
     Option.getD_some, hmod]
@@ -71,23 +69,15 @@ theorem cyclePermutation_apply_of_not_mem (cycles : List (List α)) (a : α)
   induction cycles with
   | nil => rfl
   | cons word cycles ih =>
-    have hn : a ∉ word ∧ a ∉ cycles.flatten := by simpa only [flatten_cons,
-      mem_append, not_or] using ha
-    change word.formPerm (cyclePermutation cycles a) = a
-    rw [ih hn.2, List.formPerm_apply_of_notMem hn.1]
+    obtain ⟨hn1, hn2⟩ := not_or.mp (mt List.mem_append.mpr ha)
+    exact (congrArg word.formPerm (ih hn2)).trans (List.formPerm_apply_of_notMem hn1)
 
 /-- The product preserves membership in the union of its words, even if they overlap. -/
 theorem cyclePermutation_mem_flatten_iff (cycles : List (List α)) (a : α) :
-    cyclePermutation cycles a ∈ cycles.flatten ↔ a ∈ cycles.flatten := by
-  constructor
-  · intro hm
-    by_contra ha
-    exact ha (by rwa [cyclePermutation_apply_of_not_mem cycles a ha] at hm)
-  · intro ha
-    by_contra hm
-    have hfix := cyclePermutation_apply_of_not_mem cycles (cyclePermutation cycles a) hm
-    have he : cyclePermutation cycles a = a := (cyclePermutation cycles).injective hfix
-    exact hm (he.symm ▸ ha)
+    cyclePermutation cycles a ∈ cycles.flatten ↔ a ∈ cycles.flatten :=
+  ⟨fun hm => by_contra fun ha => ha (cyclePermutation_apply_of_not_mem cycles a ha ▸ hm),
+    fun ha => by_contra fun hm => hm <| by
+      rwa [(cyclePermutation cycles).injective (cyclePermutation_apply_of_not_mem cycles _ hm)]⟩
 
 /-- A partition into directed words executes precisely the product of its cycle permutations.
 In particular the total lookup routine is a permutation on every covered finite carrier. -/
@@ -100,19 +90,13 @@ theorem nextInCycles_eq_cyclePermutation (cycles : List (List α))
     have hnd := List.nodup_append'.mp (show (word ++ cycles.flatten).Nodup from hc)
     by_cases ha : a ∈ word
     · rw [nextInCycles_cons_of_mem word cycles a hnd.1 ha]
-      change word.formPerm a = word.formPerm (cyclePermutation cycles a)
-      rw [cyclePermutation_apply_of_not_mem cycles a
-        (fun hm => List.disjoint_left.mp hnd.2.2 ha hm)]
+      exact congrArg word.formPerm
+        (cyclePermutation_apply_of_not_mem cycles a (List.disjoint_left.mp hnd.2.2 ha)).symm
     · rw [nextInCycles_cons_of_not_mem word cycles a ha, ih hnd.2.1]
-      change cyclePermutation cycles a = word.formPerm (cyclePermutation cycles a)
-      symm
-      apply List.formPerm_apply_of_notMem
-      intro hm
-      have hfix := cyclePermutation_apply_of_not_mem cycles
-        (cyclePermutation cycles a) (fun hn => List.disjoint_left.mp hnd.2.2 hm hn)
-      have he : a = cyclePermutation cycles a :=
-        (cyclePermutation cycles).injective (by rw [hfix])
-      exact ha (he.symm ▸ hm)
+      exact (List.formPerm_apply_of_notMem fun hm => ha <|
+        cyclePermutation_apply_of_not_mem cycles a
+          (mt (cyclePermutation_mem_flatten_iff cycles a).mpr
+            (List.disjoint_left.mp hnd.2.2 hm)) ▸ hm).symm
 
 /-- The product follows each constituent word's own directed successor. -/
 theorem cyclePermutation_apply_of_mem (cycles : List (List α))
@@ -123,15 +107,11 @@ theorem cyclePermutation_apply_of_mem (cycles : List (List α))
   | cons head cycles ih =>
     have hnd := List.nodup_append'.mp (show (head ++ cycles.flatten).Nodup from hc)
     rcases List.mem_cons.mp hw with rfl | hw
-    · change word.formPerm (cyclePermutation cycles a) = word.formPerm a
-      rw [cyclePermutation_apply_of_not_mem cycles a
-        (fun hm => List.disjoint_left.mp hnd.2.2 ha hm)]
-    · change head.formPerm (cyclePermutation cycles a) = word.formPerm a
-      rw [ih hnd.2.1 hw]
-      apply List.formPerm_apply_of_notMem
-      intro hm
-      exact List.disjoint_left.mp hnd.2.2 hm
-        (List.mem_flatten.mpr ⟨word, hw, List.formPerm_apply_mem_of_mem ha⟩)
+    · exact congrArg word.formPerm
+        (cyclePermutation_apply_of_not_mem cycles a (List.disjoint_left.mp hnd.2.2 ha))
+    · exact (congrArg head.formPerm (ih hnd.2.1 hw)).trans <|
+        List.formPerm_apply_of_notMem fun hm => List.disjoint_left.mp hnd.2.2 hm
+          (List.mem_flatten.mpr ⟨word, hw, List.formPerm_apply_mem_of_mem ha⟩)
 
 /-- Each nonempty listed word is a complete orbit of the product. Singleton words give
 fixed-point orbits; empty words make the assertion vacuous. -/
@@ -139,16 +119,13 @@ theorem isCycleOn_cyclePermutation (cycles : List (List α))
     (hc : cycles.flatten.Nodup) (word : List α) (hw : word ∈ cycles) :
     (cyclePermutation cycles).IsCycleOn {a | a ∈ word} := by
   have hword : word.Nodup := (List.nodup_flatten.mp hc).1 word hw
-  have hmaps : Set.MapsTo (cyclePermutation cycles) {a | a ∈ word} {a | a ∈ word} := by
-    intro a ha
+  have hmaps : Set.MapsTo (cyclePermutation cycles) {a | a ∈ word} {a | a ∈ word} := fun a ha => by
     change cyclePermutation cycles a ∈ word
     rw [cyclePermutation_apply_of_mem cycles hc word hw a ha]
     exact List.formPerm_apply_mem_of_mem ha
-  have hfinite : Set.Finite {a | a ∈ word} := word.finite_toSet
-  refine ⟨(hfinite.injOn_iff_bijOn_of_mapsTo hmaps).mp
-    (cyclePermutation cycles).injective.injOn, ?_⟩
-  intro a ha b hb
-  obtain ⟨n, hn⟩ := hword.isCycleOn_formPerm.exists_pow_eq' hfinite ha hb
+  refine ⟨(word.finite_toSet.injOn_iff_bijOn_of_mapsTo hmaps).mp
+    (cyclePermutation cycles).injective.injOn, fun a ha b hb => ?_⟩
+  obtain ⟨n, hn⟩ := hword.isCycleOn_formPerm.exists_pow_eq' word.finite_toSet ha hb
   have hp (k : ℕ) : (cyclePermutation cycles ^ k) a = (word.formPerm ^ k) a := by
     induction k with
     | zero => rfl
@@ -165,11 +142,7 @@ theorem sameCycle_cyclePermutation_iff_of_mem (cycles : List (List α))
     (hc : cycles.flatten.Nodup) (word : List α) (hw : word ∈ cycles) (a b : α)
     (ha : a ∈ word) : (cyclePermutation cycles).SameCycle a b ↔ b ∈ word := by
   have hcycle := isCycleOn_cyclePermutation cycles hc word hw
-  constructor
-  · rintro ⟨k, rfl⟩
-    exact (hcycle.1.perm_zpow k).mapsTo ha
-  · intro hb
-    exact hcycle.2 ha hb
+  exact ⟨fun ⟨k, h⟩ => h ▸ (hcycle.1.perm_zpow k).mapsTo ha, fun hb => hcycle.2 ha hb⟩
 
 /-- Restrict the listed cycle product to a completely covered finite interval. This is a
 proof-side permutation of actual positions; the executed successor remains `nextInCycles`. -/

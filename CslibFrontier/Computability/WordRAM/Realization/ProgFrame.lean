@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.Memory.Frame
+public import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Admissibility and loop-invariant combinators for `Memory.Prog`
@@ -29,19 +30,32 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 ## Main definitions
 
 * `MonotoneMemInv`: memory-state invariant preserved by any admissible `Memory.Prog` step.
+* `PreservesAt`: a program leaves one memory address unchanged.
 
 ## Main results
 
-* `clientState_read`, `clientResult_read`, `memoryCost_read`, `memoryCost_write`,
+* `clientState_read`, `clientResult_read`, `clientState_write`, `clientResult_write`,
+  `clientState_allocDirty`, `clientResult_allocDirty`,
+  `runClient_allocDirty`, `runClient_ite`, `prog_clientState_ite`, `prog_clientResult_ite`,
+  `state_frontier_ite`, `state_mem_ite`, `memoryCost_read`, `memoryCost_write`,
   `memoryCost_alloc`, `memoryCost_allocDirty`, `memoryCost_ite`: primitive state, result, and cost
   equations.
 * `wellFormed_clientState`, `validHistory_pure`, `validHistory_read`, `validHistory_write`,
-  `validHistory_alloc`, `validHistory_allocDirty`, `validHistory_bind_step`,
-  `validHistory_read_bind`, `validHistory_write_bind`, `validHistory_ite`, `validHistory_dite`,
-  `validHistory_iterate_inv`, `validHistory_boundedWhile_inv`: monadic admissibility combinators.
+  `validHistory_alloc`, `validHistory_allocDirty`, `validHistory_allocDirty_bind`,
+  `validHistory_bind_step`, `validHistory_read_bind`, `validHistory_write_bind`,
+  `validHistory_ite`, `validHistory_dite`, `validHistory_iterate_inv`,
+  `validHistory_boundedWhile_inv`: monadic admissibility combinators.
 * `boundedWhile_invariant_of`, `iterate_invariant_of`, `iterationSafe_of_stepInv`,
-  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`:
-  generic loop invariant and cost lemmas.
+  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
+  `memoryCost_iterate_le_potential`: generic loop invariant and cost lemmas, including an amortized
+  bound with a potential.
+* `clientResult_bind_read`, `clientState_bind_write`, `runClient_read`, `runClient_write`,
+  `memoryCost_bind_le`,
+  `memoryCost_read_bind_le`, `memoryCost_write_bind_le`, `memoryCost_ite_le`,
+  `validHistory_iterate_nat`, `validHistory_iterate_fst`: reductions through primitive steps and
+  cost and admissibility combinators for counting loops.
+* `PreservesAt`, `preservesAt_bind`, `preservesAt_iterate`, `preservesAt_iterate_nat`:
+  single-address frames.
 -/
 
 public section
@@ -55,8 +69,68 @@ open Cslib.DataStructure
 theorem clientState_read (w : ℕ) (s : Memory.State) (a : ℕ) :
     (Memory.spec w).clientState s (Memory.read a) = s := rfl
 
-theorem clientResult_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    (Memory.spec w).clientResult s (Memory.read a) = s.mem a := rfl
+@[simp, client_simps] theorem clientResult_read (w : ℕ) (s : Memory.State) (a : ℕ) :
+    (Memory.spec w).clientResult s (Memory.read a) = s.mem a := Eq.trans rfl rfl
+
+theorem clientState_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
+    (Memory.spec w).clientState s (Memory.write a v) =
+      ⟨Function.update s.mem a v, s.frontier⟩ :=
+  Eq.trans rfl rfl
+
+@[simp, client_simps] theorem clientResult_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
+    (Memory.spec w).clientResult s (Memory.write a v) = () :=
+  Eq.trans rfl rfl
+
+theorem clientState_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
+    (Memory.spec w).clientState s (Memory.allocDirty k) = ⟨s.mem, s.frontier + k⟩ :=
+  Eq.trans rfl rfl
+
+@[simp, client_simps] theorem clientResult_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
+    (Memory.spec w).clientResult s (Memory.allocDirty k) = s.frontier :=
+  Eq.trans rfl rfl
+
+/-- Running `Memory.allocDirty` advances the frontier by `k` and returns the old frontier. -/
+theorem runClient_allocDirty (w : ℕ) (s : (Memory.spec w).State) (k : ℕ) :
+    (Memory.spec w).runClient s (Memory.allocDirty k) =
+      (s.frontier, ⟨s.mem, s.frontier + k⟩, [Memory.Op.allocDirty k]) :=
+  rfl
+
+theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
+    (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    (Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α) =
+      if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ := by
+  split_ifs <;> rfl
+
+theorem prog_clientState_ite {α : Type} (w : ℕ)
+    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    (Memory.spec w).clientState s (if c then p₁ else p₂ : Memory.Prog α) =
+      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
+  split_ifs <;> rfl
+
+@[simp, client_simps] theorem prog_clientResult_ite {α : Type} (w : ℕ)
+    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    (Memory.spec w).clientResult s (if c then p₁ else p₂ : Memory.Prog α) =
+      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ := by
+  split_ifs <;> rfl
+
+@[simp, client_simps] theorem state_frontier_ite
+    (c : Prop) [Decidable c] (s₁ s₂ : Memory.State) :
+    (if c then s₁ else s₂).frontier = if c then s₁.frontier else s₂.frontier := by
+  split_ifs <;> rfl
+
+@[simp, client_simps] theorem state_mem_ite
+    (c : Prop) [Decidable c] (s₁ s₂ : Memory.State) (x : ℕ) :
+    (if c then s₁ else s₂).mem x = if c then s₁.mem x else s₂.mem x := by
+  split_ifs <;> rfl
+
+/-- Split `ValidHistory` across `Memory.allocDirty k >>= q` directly in closed form. -/
+theorem validHistory_allocDirty_bind {α : Type} {w : ℕ} {s : Memory.State} {k : ℕ}
+    {q : ℕ → Memory.Prog α} (hk : Fits w (s.frontier + k))
+    (hq : (Memory.spec w).ValidHistory ⟨s.mem, s.frontier + k⟩
+      ((Memory.spec w).clientHistory ⟨s.mem, s.frontier + k⟩ (q s.frontier))) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (Memory.allocDirty k >>= q)) :=
+  ⟨hk, hq⟩
 
 @[simp, client_simps] theorem memoryCost_read (a : ℕ) (s : Memory.State) :
     memoryCost (Memory.read a) s = 1 := rfl
@@ -321,5 +395,185 @@ theorem memoryCost_iterate_le_of {δ σ : Type} (body : δ × σ → Memory.Prog
       ((Memory.spec 0).clientState s (body (d, a)))
     rw [Nat.mul_succ]
     omega
+
+/-- Amortized `memoryCost` bound for `iterate`: if every step from a state satisfying the
+step-indexed invariant `I` costs at most `c` plus the drop of the potential `Φ`, and preserves `I`,
+then `m` steps cost at most `c * m` plus the initial potential. -/
+theorem memoryCost_iterate_le_potential {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ)
+    (I : ℕ → σ → Memory.State → Prop) (Φ : σ → Memory.State → ℕ) (c : ℕ)
+    (hstep : ∀ j a s, I (j + 1) a s →
+      I j ((Memory.spec 0).clientResult s (body (d, a)))
+          ((Memory.spec 0).clientState s (body (d, a))) ∧
+        memoryCost (body (d, a)) s +
+            Φ ((Memory.spec 0).clientResult s (body (d, a)))
+              ((Memory.spec 0).clientState s (body (d, a))) ≤
+          c + Φ a s)
+    (m : ℕ) (a : σ) (s : Memory.State) (hi : I m a s) :
+    memoryCost (iterate body d m a) s ≤ c * m + Φ a s := by
+  induction m generalizing a s with
+  | zero => simp [iterate]
+  | succ m ih =>
+    change memoryCost (body (d, a) >>= iterate body d m) s ≤ c * (m + 1) + Φ a s
+    rw [memoryCost_bind']
+    obtain ⟨hi', h1⟩ := hstep m a s hi
+    have h2 := ih _ _ hi'
+    rw [Nat.mul_succ]
+    omega
+
+/-! ## Reductions through `read`, `write`, `map`, and cost combinators -/
+
+theorem clientResult_bind_read {α : Type} (w : ℕ) (s : Memory.State) (a : ℕ)
+    (k : ℕ → Memory.Prog α) :
+    (Memory.spec w).clientResult s (Memory.read a >>= k) =
+      (Memory.spec w).clientResult s (k (s.mem a)) :=
+  rfl
+
+theorem clientState_bind_read {α : Type} (w : ℕ) (s : Memory.State) (a : ℕ)
+    (k : ℕ → Memory.Prog α) :
+    (Memory.spec w).clientState s (Memory.read a >>= k) =
+      (Memory.spec w).clientState s (k (s.mem a)) :=
+  rfl
+
+theorem clientResult_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : ℕ)
+    (k : Unit → Memory.Prog α) :
+    (Memory.spec w).clientResult s (Memory.write a v >>= k) =
+      (Memory.spec w).clientResult ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
+  rfl
+
+theorem clientState_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : ℕ)
+    (k : Unit → Memory.Prog α) :
+    (Memory.spec w).clientState s (Memory.write a v >>= k) =
+      (Memory.spec w).clientState ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
+  rfl
+
+/-- Running `Memory.read` returns the stored word, leaves memory unchanged, and logs the read.
+Add this and `runClient_write` with `attribute [local client_simps]` when simplifying `runClient`
+projections directly. -/
+theorem runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
+    (Memory.spec w).runClient s (Memory.read a) = (s.mem a, s, [Memory.Op.read a]) :=
+  rfl
+
+/-- Running `Memory.write` updates the cell at `a`, preserves the frontier, and logs the write. -/
+theorem runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
+    (Memory.spec w).runClient s (Memory.write a v) =
+      ((), ⟨Function.update s.mem a v, s.frontier⟩, [Memory.Op.write a v]) :=
+  rfl
+
+theorem memoryCost_bind_le {α β : Type} {p : Memory.Prog α} {q : α → Memory.Prog β}
+    {s : Memory.State} {k₁ k₂ : ℕ} (h₁ : memoryCost p s ≤ k₁)
+    (h₂ : ∀ x t, memoryCost (q x) t ≤ k₂) :
+    memoryCost (p >>= q) s ≤ k₁ + k₂ := by
+  rw [memoryCost_bind']
+  have := h₂ ((Memory.spec 0).clientResult s p) ((Memory.spec 0).clientState s p)
+  omega
+
+/-- A read followed by a continuation of cost at most `k` costs at most `k + 1`. -/
+theorem memoryCost_read_bind_le {α : Type} {a : ℕ} {q : ℕ → Memory.Prog α}
+    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
+    memoryCost (Memory.read a >>= q) s ≤ k + 1 := by
+  have := memoryCost_bind_le (memoryCost_read a s).le h
+  omega
+
+/-- A write followed by a continuation of cost at most `k` costs at most `k + 1`. -/
+theorem memoryCost_write_bind_le {α : Type} {a v : ℕ} {q : Unit → Memory.Prog α}
+    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
+    memoryCost (Memory.write a v >>= q) s ≤ k + 1 := by
+  have := memoryCost_bind_le (memoryCost_write a v s).le h
+  omega
+
+theorem memoryCost_ite_le {α : Type} {c : Prop} [Decidable c]
+    {p₁ p₂ : Memory.Prog α} {s : Memory.State} {k : ℕ}
+    (h₁ : memoryCost p₁ s ≤ k) (h₂ : memoryCost p₂ s ≤ k) :
+    memoryCost (if c then p₁ else p₂) s ≤ k := by
+  rw [memoryCost_ite]
+  split_ifs <;> assumption
+
+/-- `ValidHistory` of a counting `iterate` loop whose step returns its index plus one. -/
+theorem validHistory_iterate_nat {w : ℕ} {Inv : Memory.State → Prop} [MonotoneMemInv w Inv]
+    {δ : Type} {body : δ × ℕ → Memory.Prog ℕ} {d : δ}
+    (m i₀ : ℕ) (hstep : ∀ i, i < i₀ + m → ∀ t, Inv t →
+      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, i))) ∧
+        (Memory.spec 0).clientResult t (body (d, i)) = i + 1)
+    {s : Memory.State} (hinv : Inv s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (iterate body d m i₀)) := by
+  induction m generalizing i₀ s with
+  | zero => exact validHistory_pure w s i₀
+  | succ m ih =>
+    obtain ⟨hv, hr⟩ := hstep i₀ (by omega) s hinv
+    refine validHistory_bind_step hv ?_
+    rw [hr]
+    exact ih (i₀ + 1) (fun i hi => hstep i (by omega)) (MonotoneMemInv.pres hinv hv)
+
+/-- `ValidHistory` of an `iterate` loop whose state carries a counter in its first component. -/
+theorem validHistory_iterate_fst {w : ℕ} {Inv : Memory.State → Prop} [MonotoneMemInv w Inv]
+    {δ β : Type} {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}
+    (m i₀ : ℕ) (b₀ : β) (hstep : ∀ i, i < i₀ + m → ∀ b t, Inv t →
+      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, (i, b)))) ∧
+        ((Memory.spec 0).clientResult t (body (d, (i, b)))).1 = i + 1)
+    {s : Memory.State} (hinv : Inv s) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (iterate body d m (i₀, b₀))) := by
+  induction m generalizing i₀ b₀ s with
+  | zero => exact validHistory_pure w s (i₀, b₀)
+  | succ m ih =>
+    obtain ⟨hv, hr⟩ := hstep i₀ (by omega) b₀ s hinv
+    refine validHistory_bind_step hv ?_
+    have hpair : (Memory.spec 0).clientResult s (body (d, (i₀, b₀))) =
+        (i₀ + 1, ((Memory.spec 0).clientResult s (body (d, (i₀, b₀)))).2) :=
+      Prod.ext hr rfl
+    rw [hpair]
+    exact ih (i₀ + 1) _ (fun i hi => hstep i (by omega)) (MonotoneMemInv.pres hinv hv)
+
+/-! ## Single-address frames -/
+
+/-- `p` leaves memory address `a` unchanged from every starting state. -/
+@[expose] def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
+  ∀ s, ((Memory.spec 0).clientState s p).mem a = s.mem a
+
+theorem preservesAt_pure (a : ℕ) {α : Type} (x : α) :
+    PreservesAt a (pure x : Memory.Prog α) :=
+  fun _ => rfl
+
+theorem preservesAt_read (a b : ℕ) : PreservesAt a (Memory.read b) :=
+  fun _ => rfl
+
+theorem preservesAt_write {a b : ℕ} (v : ℕ) (hne : a ≠ b) :
+    PreservesAt a (Memory.write b v) := fun s => by
+  change Function.update s.mem b v a = s.mem a
+  exact Function.update_of_ne hne v s.mem
+
+theorem preservesAt_bind {a : ℕ} {α β : Type} {p : Memory.Prog α} {k : α → Memory.Prog β}
+    (hp : PreservesAt a p) (hk : ∀ x, PreservesAt a (k x)) :
+    PreservesAt a (p >>= k) := fun s => by
+  rw [StateTransitionSpec.clientState_bind, hk, hp]
+
+theorem preservesAt_map {a : ℕ} {α β : Type} (f : α → β) {p : Memory.Prog α}
+    (hp : PreservesAt a p) : PreservesAt a (f <$> p) := fun s => by
+  rw [StateTransitionSpec.clientState_map, hp]
+
+theorem preservesAt_ite {a : ℕ} {α : Type} (c : Prop) [Decidable c]
+    {p₁ p₂ : Memory.Prog α} (h₁ : PreservesAt a p₁) (h₂ : PreservesAt a p₂) :
+    PreservesAt a (if c then p₁ else p₂) := by
+  split_ifs
+  · exact h₁
+  · exact h₂
+
+theorem preservesAt_iterate {a : ℕ} {δ σ : Type} {body : δ × σ → Memory.Prog σ} {d : δ}
+    (hstep : ∀ st, PreservesAt a (body (d, st))) (m : ℕ) (st₀ : σ) :
+    PreservesAt a (iterate body d m st₀) := fun s =>
+  iterate_invariant_of body d (fun _ _ t => t.mem a = s.mem a)
+    (fun _ st t ht => (hstep st t).trans ht) rfl
+
+/-- Frame of a counting `iterate` loop whose step returns its index plus one: only the steps
+`i < m` that actually run need to preserve `a`. -/
+theorem preservesAt_iterate_nat {a : ℕ} {δ : Type} {body : δ × ℕ → Memory.Prog ℕ} {d : δ}
+    {m : ℕ} (hstep : ∀ i < m, PreservesAt a (body (d, i)) ∧
+      ∀ s, (Memory.spec 0).clientResult s (body (d, i)) = i + 1) :
+    PreservesAt a (iterate body d m 0) := fun s =>
+  (iterate_invariant_of body d (fun rem (i : ℕ) t => i + rem = m ∧ t.mem a = s.mem a)
+    (fun rem i t ⟨hsum, hmem⟩ => by
+      obtain ⟨hp, hr⟩ := hstep i (by omega)
+      exact ⟨by rw [hr]; omega, (hp t).trans hmem⟩)
+    ⟨Nat.zero_add _, rfl⟩).2
 
 end Cslib.WordRAM.Realization

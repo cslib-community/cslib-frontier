@@ -437,7 +437,7 @@ theorem mem_support_simSessionStep {tapes : ℕ} {Control : Type}
   rcases firstSuccess_eq_or_mem st xs with h | h
   · exact Or.inl h
   · exact Or.inr (mem_support_gmwSimAttempt generator s m φ _
-      (mem_support_of_mem_replicate hxs h))
+      (((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).2 _ h))
 
 theorem isPPTOn_iterate_simSessionStep_finishSessionRun {α Param : Type}
     {enc : α ↪ List Bool} {input : Param ↪ List Bool}

@@ -88,7 +88,7 @@ private theorem Clause.eval_of_eval_splitAux (fresh : ℕ → W) (σ : W → Boo
     (carry : Literal W) (rest : Clause W) (h : (Clause.splitAux fresh j carry rest).eval σ = true) :
     Clause.eval σ (carry :: rest) = true := by
   fun_induction Clause.splitAux fresh j carry rest with
-  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
+  | case1 j _ _ _ _ _ ih => -- b :: c :: d :: rest: emit a clause
     rw [CNF.eval_cons, Bool.and_eq_true] at h
     have h₂ := ih h.2
     have h₁ := h.1
@@ -109,8 +109,7 @@ private theorem Clause.eval_splitAux (fresh : ℕ → W) (σ : W → Bool) (j : 
     (Clause.splitAux fresh j carry rest).eval σ = true := by
   fun_induction Clause.splitAux fresh j carry rest with
   | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
-    have hj : σ (fresh j) = Clause.eval σ (c :: d :: rest) := by
-      simpa using hfresh j (Nat.le_refl j)
+    have hj : σ (fresh j) = Clause.eval σ (c :: d :: rest) := by simpa using hfresh j le_rfl
     rw [CNF.eval_cons, Bool.and_eq_true]
     refine ⟨?_, ih (fun k hk => ?_) ?_⟩
     · simp only [Clause.eval_cons, Literal.eval, Clause.eval_nil, Bool.or_false, beq_true,
@@ -119,9 +118,7 @@ private theorem Clause.eval_splitAux (fresh : ℕ → W) (σ : W → Bool) (j : 
     · rw [hfresh k (by omega), show k - j + 1 = (k - (j + 1) + 1) + 1 by omega,
         List.drop_succ_cons]
     · rw [Clause.eval_cons]
-      cases hc : Clause.eval σ (c :: d :: rest)
-      · simp [Literal.eval, hj, hc]
-      · simp
+      cases hc : Clause.eval σ (c :: d :: rest) <;> simp [Literal.eval, hj, hc]
   | case2 => simpa using h -- at most two literals after carry
 
 /-! ### Formulas -/
@@ -152,20 +149,14 @@ theorem Clause.eval_of_eval_split3 (fresh : ℕ → W) (σ : W → Bool) (j : �
   | nil => simp [Clause.split3] at h
   | cons carry rest => exact Clause.eval_of_eval_splitAux fresh σ j carry rest h
 
-private theorem Clause.relabel_drop (f : V → W) (c : Clause V) (n : ℕ) :
-    (c.relabel f).drop n = Clause.relabel f (c.drop n) :=
-  (List.map_drop ..).symm
-
 /-- **Splitting, backward witnesses.** An assignment satisfying the split formula satisfies the
 original formula on the original variables. -/
 theorem CNF.eval_comp_inl_of_eval_to3CNF {φ : CNF V} {τ : V ⊕ (ℕ × ℕ) → Bool}
     (hτ : φ.to3CNF.eval τ = true) : φ.eval (τ ∘ Sum.inl) = true := by
   refine (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_
-  obtain ⟨i, hi⟩ := List.mem_iff_getElem.1 hc
-  have hmem : (c, i) ∈ φ.zipIdx := by
-    rw [List.mem_zipIdx_iff_getElem?]; simp [← hi.2]
-  have := (CNF.eval_flatMap_eq_true_iff τ _ _).1 hτ _ hmem
-  simpa using Clause.eval_of_eval_split3 _ _ _ _ this
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hc
+  have hmem : (φ[i], i) ∈ φ.zipIdx := List.mem_zipIdx_iff_getElem?.2 (by simp [hi])
+  simpa using Clause.eval_of_eval_split3 _ _ _ _ ((CNF.eval_flatMap_eq_true_iff τ _ _).1 hτ _ hmem)
 
 /-- The explicit extension of an assignment `σ` of `φ` to the variables of `φ.to3CNF`: the
 auxiliary variable `(i, k)` of clause `i` says that one of the literals of clause `i` after
@@ -187,26 +178,20 @@ theorem CNF.to3CNFAssignment_inr (φ : CNF V) (σ : V → Bool) (i k : ℕ) :
 satisfies the split formula. -/
 theorem CNF.eval_to3CNF_to3CNFAssignment {φ : CNF V} {σ : V → Bool} (hσ : φ.eval σ = true) :
     φ.to3CNF.eval (φ.to3CNFAssignment σ) = true := by
-  refine (CNF.eval_flatMap_eq_true_iff _ _ _).2 fun x hx => ?_
-  obtain ⟨c, i⟩ := x
-  have hci : φ.getD i [] = c := by
-    rw [List.mem_zipIdx_iff_getElem?] at hx
-    simp [List.getD_eq_getElem?_getD, hx]
-  have hmem : c ∈ φ := by
-    rw [List.mem_zipIdx_iff_getElem?] at hx
-    exact List.mem_of_getElem? (by simpa using hx)
-  have hc : c.eval σ = true := (CNF.eval_eq_true_iff _ _).1 hσ c hmem
+  refine (CNF.eval_flatMap_eq_true_iff _ _ _).2 fun ⟨c, i⟩ hx => ?_
+  rw [List.mem_zipIdx_iff_getElem?] at hx
+  have hci : φ.getD i [] = c := by simp [List.getD_eq_getElem?_getD, hx]
+  have hc : c.eval σ = true :=
+    (CNF.eval_eq_true_iff _ _).1 hσ c (List.mem_of_getElem? (by simpa using hx))
   cases c with
   | nil => simp at hc
   | cons carry rest =>
-    refine Clause.eval_splitAux (rest := Clause.relabel Sum.inl rest) _ _ 0 _
-      (fun k _ => ?_) ?_
-    · rw [Clause.relabel_drop, Clause.eval_relabel, CNF.to3CNFAssignment_inr, hci,
-        Nat.sub_zero]
+    refine Clause.eval_splitAux (rest := Clause.relabel Sum.inl rest) _ _ 0 _ (fun k _ => ?_) ?_
+    · rw [show (Clause.relabel Sum.inl rest).drop (k - 0 + 1) =
+          Clause.relabel Sum.inl (rest.drop (k + 1)) by simp [Clause.relabel, List.map_drop],
+        Clause.eval_relabel, CNF.to3CNFAssignment_inr, hci]
       rfl
-    · change (Clause.relabel Sum.inl (carry :: rest)).eval _ = true
-      rw [Clause.eval_relabel]
-      exact hc
+    · exact (Clause.eval_relabel Sum.inl _ (carry :: rest)).trans hc
 
 /-- Splitting the clauses of a formula preserves satisfiability. -/
 theorem CNF.satisfiable_to3CNF (φ : CNF V) : φ.to3CNF.Satisfiable ↔ φ.Satisfiable :=
@@ -218,10 +203,10 @@ private theorem Clause.length_splitAux (fresh : ℕ → W) (j : ℕ) (carry : Li
     (rest : Clause W) :
     (Clause.splitAux fresh j carry rest).length = max 1 (rest.length - 1) := by
   fun_induction Clause.splitAux fresh j carry rest with
-  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
+  | case1 _ _ _ _ _ _ ih => -- b :: c :: d :: rest: emit a clause
     simp only [List.length_cons] at ih ⊢
     omega
-  | case2 j carry rest hrest => -- at most two literals after carry
+  | case2 _ _ rest hrest => -- at most two literals after carry
     match rest, hrest with
     | [], _ | [_], _ | [_, _], _ => simp
     | _ :: _ :: _ :: _, hrest => exact absurd rfl (hrest _ _ _ _)
@@ -240,20 +225,16 @@ theorem CNF.length_to3CNF (φ : CNF V) :
     φ.to3CNF.length = (φ.map fun c => max 1 (c.length - 2)).sum := by
   rw [CNF.to3CNF, List.length_flatMap]
   conv_rhs => rw [← List.zipIdx_map_fst 0 φ, List.map_map]
-  congr 1
-  refine List.map_congr_left fun x _ => ?_
-  rw [Clause.length_split3, Function.comp_apply, Clause.length_relabel]
+  exact congrArg List.sum (List.map_congr_left fun _ _ => by
+    rw [Clause.length_split3, Function.comp_apply, Clause.length_relabel])
 
 /-- **Splitting keeps falsified clauses falsified**: an assignment of the split formula falsifies
 at least as many clauses as its restriction to the original variables falsifies in the original
 formula. -/
 theorem CNF.countUnsat_comp_inl_le_countUnsat_to3CNF (φ : CNF V) (τ : V ⊕ (ℕ × ℕ) → Bool) :
     φ.countUnsat (τ ∘ Sum.inl) ≤ φ.to3CNF.countUnsat τ := by
-  have hφ : φ.countUnsat (τ ∘ Sum.inl) =
-      φ.zipIdx.countP fun x => !x.1.eval (τ ∘ Sum.inl) := by
-    rw [CNF.countUnsat]
-    conv_lhs => rw [← List.zipIdx_map_fst 0 φ]
-    rw [List.countP_map]
+  have hφ : φ.countUnsat (τ ∘ Sum.inl) = φ.zipIdx.countP fun x => !x.1.eval (τ ∘ Sum.inl) := by
+    conv_lhs => rw [CNF.countUnsat, ← List.zipIdx_map_fst 0 φ, List.countP_map]
     rfl
   rw [hφ, CNF.countUnsat, CNF.to3CNF, List.countP_flatMap]
   refine List.countP_le_sum_map fun x _ hx => Nat.one_le_iff_ne_zero.2 fun h0 => ?_

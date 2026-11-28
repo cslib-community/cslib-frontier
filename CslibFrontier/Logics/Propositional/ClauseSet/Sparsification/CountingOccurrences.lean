@@ -51,25 +51,21 @@ theorem card_lt_of_mem_countingIntro {θ : ℕ → ℕ} {ψ : ClauseSet V} {c : 
     have hCH : C = H := by simpa only [countingIntro, mem_singleton] using hC
     simpa only [hCH] using h.2.1
   | true =>
+    have := h.1
+    have := h.2.1
     rcases mem_union.mp hC with hC | hC
     · rw [card_of_mem_petals hC]
-      have := h.1
-      have := h.2.1
       omega
     · obtain ⟨l, -, rfl⟩ := mem_image.mp hC
       simp only [card_singleton]
-      have := h.1
-      have := h.2.1
       omega
 
 private theorem mem_petals_of_mem_countingIntro_true {ψ : ClauseSet V} {c : ℕ}
     {H C : Finset (Literal V)} (hC : C ∈ countingIntro ψ c H true) (hwidth : 2 ≤ C.card) :
     C ∈ petals ψ c H := by
-  rcases mem_union.mp hC with hC | hC
-  · exact hC
-  · obtain ⟨l, -, hCl⟩ := mem_image.mp hC
-    have hcard : C.card = 1 := by rw [← hCl]; exact card_singleton _
-    omega
+  refine (mem_union.mp hC).resolve_right fun hC' => ?_
+  obtain ⟨l, -, rfl⟩ := mem_image.mp hC'
+  simp at hwidth
 
 /-- At every prefix of an actual counting path, fewer than `2 * θ (j - |S|)` root-absent clauses
 of width `j` containing a fixed nonempty proper literal set `S` are present.

@@ -184,10 +184,8 @@ the round. -/
 theorem IsRoundList.setOf_mem_eq {l : List α} (hl : IsRoundList r a n l) :
     {b | b ∈ l} = reachableWithin r a n := by
   classical
-  have hl' : {b | b ∈ l} = (l.toFinset : Set α) := by
-    ext
-    simp
-  rw [hl']
+  have hset : {b | b ∈ l} = (l.toFinset : Set α) := Set.ext fun _ => List.mem_toFinset.symm
+  rw [hset]
   refine l.toFinset.finite_toSet.eq_of_subset_of_encard_le
     (fun b hb => hl.relatesWithinSteps b (by simpa using hb)) ?_
   rw [Set.encard_coe_eq_coe_finsetCard, List.toFinset_card_of_nodup hl.nodup]
@@ -204,9 +202,7 @@ theorem IsRoundList.length_eq {l : List α} (hl : IsRoundList r a n l) :
     l.length = (reachableWithin r a n).ncard := by
   classical
   rw [← hl.setOf_mem_eq, ← List.toFinset_card_of_nodup hl.nodup, ← Set.ncard_coe_finset]
-  congr 1
-  ext
-  simp
+  exact congrArg Set.ncard (Set.ext fun _ => List.mem_toFinset)
 
 /-- **Round lists are complete.** A finite round can always be listed. -/
 theorem exists_isRoundList (hfin : (reachableWithin r a n).Finite) :

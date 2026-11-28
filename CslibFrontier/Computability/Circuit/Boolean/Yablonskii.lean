@@ -104,17 +104,13 @@ theorem leafSize_yablonskiiFormula_le (k r o : ℕ) (hr : r ≤ 2 ^ k) (h : o + 
   induction k generalizing r o with
   | zero =>
     rw [pow_zero] at hr
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hr with rfl | rfl
-    · simp [yablonskiiFormula]
-    · simp [yablonskiiFormula]
+    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hr with rfl | rfl <;> simp [yablonskiiFormula]
   | succ k ih =>
-    rw [yablonskiiFormula, Formula.leafSize_xor]
     have e : 2 ^ (k + 1) * (2 ^ (k + 1) + 3 * r) =
         2 * (2 ^ k * (2 ^ k + 3 * (r / 2))) + 2 * (2 ^ k * (2 ^ k + 3 * (r - r / 2))) := by
-      have hr2 : r = r / 2 + (r - r / 2) := by omega
-      conv_lhs => rw [hr2]
+      conv_lhs => rw [show r = r / 2 + (r - r / 2) by omega]
       ring
-    rw [e]
+    rw [yablonskiiFormula, Formula.leafSize_xor, e]
     exact Nat.add_le_add (Nat.mul_le_mul_left 2 (ih ..)) (Nat.mul_le_mul_left 2 (ih ..))
 
 /-- Counting only AND and OR gates, Yablonskii's formula has depth `2 k` for `r = 0` and

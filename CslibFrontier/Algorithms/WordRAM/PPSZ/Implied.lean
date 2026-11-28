@@ -228,8 +228,8 @@ variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {
   {C Tb s Db : ℕ}
 
 /-- Shared specification for filling `d` consecutive words starting at `dBase + jR` with the
-register value `valR` up to limit register `limR`, used by both `initDLoop_spec` and
-`zeroLoop_spec`. -/
+register value `valR` up to limit register `limR`, used by both `initD_spec` and
+`zeroScratch_spec`. -/
 private theorem fillDLoop_spec {limR valR : Fin 32} (hlim_ne : limR ≠ jR ∧ limR ≠ adr)
     (hval_ne : valR ≠ jR ∧ valR ≠ adr) {lim val : ℕ}
     (hle_lim : lim ≤ 2 * s) (hfit_val : Fits w val) :
@@ -273,26 +273,17 @@ private theorem clauseCons_step {a : ℕ} {u : List ℕ} {y : Data 32}
   exact ⟨by simp [Cond.holds_lt, hf.s_eq, hj]; simp at hd; omega,
     haA, (bounds_of_mem_clauseAddrs haA).2, hla, hlu, mem_clauseAddr hf.clauses haA⟩
 
-/-- **The start loop of the clause odometer** from entry `j`: it stores the first clause address
-in `D[j], …, D[s - 1]` and keeps the memory outside them. -/
-private theorem initDLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
-    y.regs jR + d = s →
-    ∃ z, ExecWithin w initDLoop y z (5 * d + 2) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
-      HoldsList (Db + y.regs jR) (List.replicate d C) z.mem ∧
-      ∀ a, a < Db + y.regs jR ∨ Db + s ≤ a → z.mem a = y.mem a :=
-  fun d y hf hd =>
-    fillDLoop_spec ⟨by decide, by decide⟩ ⟨by decide, by decide⟩ (by omega)
-      (hf.fits_le (by have := hf.clauses_le; omega)) d y hf hf.s_eq hf.cBeg_eq hd
-
 /-- **Start the clause odometer**: `D` holds `s` copies of the first clause address, and the
 memory outside `D` is unchanged, within `5 s + 3` instructions. -/
 theorem initD_spec (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y) :
     ∃ z, ExecWithin w initD y z (5 * s + 3) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
       HoldsList Db (List.replicate s C) z.mem ∧
       ∀ a, a < Db ∨ Db + s ≤ a → z.mem a = y.mem a := by
-  unfold initD
+  unfold initD initDLoop initDBody
   wram_exec [hf.zero_eq]
-  wram_call (initDLoop_spec s _ (by struct_frame hf) ..) framed with v m ⟨hzf, hzl, hzm⟩
+  wram_call (fillDLoop_spec (s := s) (lim := s) (val := C) ⟨by decide, by decide⟩
+    ⟨by decide, by decide⟩ (by omega) (hf.fits_le (by have := hf.clauses_le; omega)) s _
+    (by struct_frame hf) ..) framed [hf.s_eq, hf.cBeg_eq] with v m ⟨hzf, hzl, hzm⟩
   exact ⟨by omega, hzf, hzl, hzm⟩
 
 /-- **The carry loop of the clause odometer** from entry `j`, on a choice `u` of clause addresses
@@ -414,53 +405,6 @@ section LiteralOdometer
 variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {b : Bool}
   {C Tb s Db : ℕ}
 
-/-- **The start loop of the literal odometer** from entry `j`, on the clause addresses `u` in
-`D[j], …`: it stores their first literal addresses in `E[j], …` and clears `sat` if one of the
-clauses is empty. The memory outside `E[j], …, E[s - 1]` is unchanged. -/
-private theorem initELoop_spec : ∀ (u : List ℕ) (f : Bool) (y : Data 32),
-    ImpFrame w φ τ x b C Tb s Db y → y.regs jR + u.length = s →
-    (∀ a ∈ u, a ∈ clauseAddrs C φ) → HoldsList (Db + y.regs jR) u y.mem →
-    y.regs sat = f.toNat →
-    ∃ z, ExecWithin w initELoop y z (12 * u.length + 2) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
-      (∀ a, a < Db + s + y.regs jR ∨ Db + 2 * s ≤ a → z.mem a = y.mem a) ∧
-      HoldsList (Db + s + y.regs jR) (u.map (· + 1)) z.mem ∧
-      HoldsList (Db + y.regs jR) u z.mem ∧
-      z.regs sat = (f && u.all fun a => (clauseOf C φ a).length != 0).toNat
-  | [], f, y, hf, hd, _, _, hs => by
-    simp only [List.length_nil, Nat.add_zero] at hd
-    have hc : ¬(Cond.lt jR sReg).Holds y := by simp [Cond.holds_lt, hf.s_eq]; omega
-    exact ⟨y, (ExecWithin.loop_exit hc).mono (by omega), hf, fun _ _ => rfl,
-      by simp [holdsList_nil], by simp [holdsList_nil], by simpa using hs⟩
-  | a :: u, f, y, hf, hd, hA, hl, hs => by
-    obtain ⟨j, hj⟩ : ∃ j, y.regs jR = j := ⟨_, rfl⟩
-    rw [hj] at hd hl ⊢
-    obtain ⟨hc, haA, hb_hi, hla, hlu, hlen⟩ := clauseCons_step hf j hj hd hA hl
-    simp only [List.length_cons] at hd
-    have hcl_le := hf.clauses_le
-    set len := (clauseOf C φ a).length with hlen_def
-    refine WP.exists_execWithin (WP.loop_iter hc ?_)
-    refine WP.cut (fun y₁ t => t ≤ 10 ∧ ImpFrame w φ τ x b C Tb s Db y₁ ∧
-      y₁.regs jR = j + 1 ∧ y₁.regs sat = (f && len != 0).toNat ∧
-      y₁.mem (Db + s + j) = a + 1 ∧ ∀ a', a' ≠ Db + s + j → y₁.mem a' = y.mem a') ?_ ?_
-    · unfold initEBody
-      wram_exec [hf.fits_le, hf.dBase_eq, hj, hla, hlen, hf.zero_eq, hf.one_eq, hf.eBase_eq, hs]
-      · exact ⟨by struct_frame hf, by wram_simp, by wram_simp; simp [hc],
-          by wram_simp, fun a' ha' => by mem_frame⟩
-      · exact ⟨by struct_frame hf, by wram_simp,
-          by wram_simp; simp [bne_iff_ne.mpr hc],
-          by wram_simp, fun a' ha' => by mem_frame⟩
-    · rintro y₁ t₁ ⟨ht₁, hy₁, hj₁, hs₁, hmem_self, hy₁m⟩
-      wram_call (initELoop_spec u (f && len != 0) y₁ hy₁ (by rw [hj₁]; omega)
-        (fun a' h => hA a' (by simp [h])) (by rw [hj₁]; ram_keep hlu using hy₁m) hs₁)
-        with z ⟨hzf, hzm, hze, hzd, hzs⟩
-      rw [hj₁] at hzm hze hzd
-      refine ⟨by simp only [List.length_cons]; omega, hzf, fun a' ha' => by mem_frame, ?_, ?_, ?_⟩
-      · rw [List.map_cons, holdsList_cons_iff]
-        exact ⟨by mem_frame, by simpa [Nat.add_assoc] using hze⟩
-      · rw [holdsList_cons_iff]
-        exact ⟨by mem_frame, by simpa [Nat.add_assoc] using hzd⟩
-      · rw [hzs, List.all_cons, Bool.and_assoc]
-
 /-- **Start the literal odometer** on a choice `t` of `s` clause addresses in `D`: `E` holds their
 first literal addresses, `sat = 1` exactly when none of the clauses is empty, `D` is kept, and the
 memory outside `E` is unchanged, within `12 s + 4` instructions. -/
@@ -471,11 +415,62 @@ theorem initE_spec (t : List ℕ) (y : Data 32) (hf : ImpFrame w φ τ x b C Tb 
       HoldsList (Db + s) (t.map (· + 1)) z.mem ∧
       z.regs sat = (t.all fun a => (clauseOf C φ a).length != 0).toNat := by
   obtain ⟨hlen, hA⟩ := mem_sections_replicate.mp ht
-  unfold initE
+  have hcl_le := hf.clauses_le
+  unfold initE initELoop
   wram_exec [hf.one_eq, hf.zero_eq]
-  wram_call (initELoop_spec t true _ (by struct_frame hf) _ hA ..) framed [hlen]
-    with v m ⟨hzf, hzm, hze, -, hzs⟩
-  exact ⟨le_rfl, hzf, hzm, hze, by simpa using hzs⟩
+  wram_fold (fun rest z => z.regs jR + rest.length = s ∧
+      (∀ a ∈ rest, a ∈ clauseAddrs C φ) ∧
+      HoldsList (Db + z.regs jR) rest z.mem ∧
+      (∀ i < z.regs jR, z.mem (Db + s + i) = t.getD i 0 + 1) ∧
+      (∀ a, a < Db + s ∨ Db + s + z.regs jR ≤ a → z.mem a = y.mem a) ∧
+      ∃ g : Bool, z.regs sat = g.toNat ∧
+        (g && rest.all fun a => (clauseOf C φ a).length != 0) =
+          t.all fun a => (clauseOf C φ a).length != 0)
+    over t cost (fun _ => 10)
+  case init =>
+    exact ⟨by wram_simp [hlen], hA, by wram_simp [hl],
+      fun _ hi => by wram_simp at hi, fun _ _ => rfl, true, by wram_simp; rfl, by simp⟩
+  case exit =>
+    rintro v m hI
+    rw [hf.s_eq]; omega
+  case step =>
+    rintro a u v m ⟨hd, hAu, hlu, hE, hkeep, g, hg, hgt⟩
+    have haA : a ∈ clauseAddrs C φ := hAu a (by simp)
+    have hb_hi := (bounds_of_mem_clauseAddrs haA).2
+    obtain ⟨hla, hlu'⟩ := holdsList_cons_iff.mp hlu
+    have hlen_a : m a = (clauseOf C φ a).length := by
+      rw [hkeep a (Or.inl (by omega))]
+      exact mem_clauseAddr hf.clauses haA
+    have hta : a = t.getD (v jR) 0 := by
+      have hget := hl.get (v jR) (by omega)
+      rw [← hkeep (Db + v jR) (Or.inl (by omega)), hla] at hget
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some]
+      exact hget
+    refine ⟨by rw [hf.s_eq]; omega, ?_⟩
+    unfold initEBody
+    wram_exec [hf.fits_le, hf.dBase_eq, hla, hlen_a, hf.zero_eq, hf.one_eq, hf.eBase_eq, hg]
+    all_goals
+      refine ⟨by wram_simp; omega, fun a' h => hAu a' (List.mem_cons_of_mem _ h),
+        by wram_simp; simpa [Nat.add_assoc] using (by ram_keep hlu' : HoldsList _ u _),
+        fun i hi => ?_, fun a' ha' => by wram_simp at ha'; mem_frame, ?_⟩
+      · wram_simp at hi
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
+        · rw [← hE i hlt]; mem_frame
+        · wram_simp [hta]
+    · exact ⟨false, by wram_simp; rfl, by rw [← hgt]; simp [hc]⟩
+    · exact ⟨g, by wram_simp, by rw [← hgt]; simp [bne_iff_ne.mpr hc]⟩
+  case post =>
+    rintro v m ⟨hd, -, -, hE, hkeep, g, hg, hgt⟩
+    have hj : v jR = s := by omega
+    rw [hj] at hE hkeep
+    have hm : ∀ a < Db, m a = y.mem a := fun a ha => hkeep a (Or.inl (by omega))
+    refine ⟨by simp [hlen]; omega, by struct_frame hf,
+      fun a ha => hkeep a (ha.imp id fun h => by omega), fun ⟨i, hi⟩ => ?_,
+      by rw [hg, ← hgt]; simp⟩
+    simp only [List.length_map, hlen] at hi
+    change m (Db + s + i) = (t.map (· + 1))[i]
+    simpa [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (show i < t.length by omega)]
+      using hE i hi
 
 /-- **The carry loop of the literal odometer** from entry `j`, on clause addresses `du` in
 `D[j], …` and a choice `eu` of one literal address of each in `E[j], …`: if the odometer step on
@@ -666,28 +661,14 @@ private theorem litTest_spec (El : List ℕ) (f : Bool) (y : Data 32)
     unfold litHead
     wram_exec [hf.fits_le, hf.eBase_eq, hjj, hpE, ← hc_def, hf.one_eq, hf.x_eq, hf.b_eq,
       hf.tBase_eq, hf.zero_eq, hs]
-    · rename_i hvar_eq
-      exact ⟨rfl, by
-        wram_simp
-        simp only [g, litFine, hvar_eq, hc, ↓reduceIte, bne_self_eq_false, Bool.and_false]
-        rfl,
-        by wram_simp⟩
-    · rename_i hvar_eq
-      exact ⟨rfl, by
-        wram_simp
-        simp only [g, litFine, hvar_eq, bne_iff_ne.mpr hc, ↓reduceIte, Bool.and_true],
-        by wram_simp⟩
-    · rename_i hvar_eq
-      exact ⟨rfl, by
-        wram_simp
-        simp only [g, litFine, hvar_eq, hc, ↓reduceIte, bne_self_eq_false, Bool.and_false]
-        rfl,
-        by wram_simp⟩
-    · rename_i hvar_eq
-      exact ⟨rfl, by
-        wram_simp
-        simp only [g, litFine, hvar_eq, bne_iff_ne.mpr hc, ↓reduceIte, Bool.and_true],
-        by wram_simp⟩
+    all_goals
+      rename_i hvar_eq
+      refine ⟨rfl, ?_, by wram_simp⟩
+      wram_simp
+      simp only [g, litFine, hvar_eq, ↓reduceIte]
+      first
+      | simp only [hc, bne_self_eq_false, Bool.and_false, Bool.toNat_false]
+      | simp only [bne_iff_ne.mpr hc, Bool.and_true]
   unfold litTest
   refine WP.exists_execWithin (WP.seq ?_)
   wram_call hhead framed with v₁ m₁ ⟨rfl, hs₁, hl₁⟩
@@ -918,27 +899,16 @@ theorem litOk_congr {t : List ℕ} (ht : t ∈ (List.replicate s (clauseAddrs C 
 in `E`, followed by the choices `xs`: `sat = 1` exactly when one of them is compatible. The memory
 outside `E` is unchanged. -/
 private theorem innerLoop_spec (t : List ℕ)
-    (ht : t ∈ (List.replicate s (clauseAddrs C φ)).sections) :
-    ∀ (xs : List (List ℕ)) (e : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
-      HoldsList Db t y.mem → HoldsList (Db + s) e y.mem → y.regs contI = 1 →
-      Enumerates (t.map (litAddrs C φ)) (e :: xs) →
-      (∀ e' ∈ e :: xs, e' ∈ (t.map (litAddrs C φ)).sections) →
-      ∃ z, ExecWithin w innerLoop y z ((xs.length + 1) * innerIter s + 2) ∧
-        ImpFrame w φ τ x b C Tb s Db z ∧
-        (∀ a, a < Db + s ∨ Db + 2 * s ≤ a → z.mem a = y.mem a) ∧
-        z.regs sat = ((e :: xs).any (litOk y.mem Tb x b)).toNat := by
+    (ht : t ∈ (List.replicate s (clauseAddrs C φ)).sections)
+    (xs : List (List ℕ)) (e : List ℕ) (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y)
+    (ht' : HoldsList Db t y.mem) (he : HoldsList (Db + s) e y.mem) (hc : y.regs contI = 1)
+    (hen : Enumerates (t.map (litAddrs C φ)) (e :: xs))
+    (hmem : ∀ e' ∈ e :: xs, e' ∈ (t.map (litAddrs C φ)).sections) :
+    ∃ z, ExecWithin w innerLoop y z ((xs.length + 1) * innerIter s + 2) ∧
+      ImpFrame w φ τ x b C Tb s Db z ∧
+      (∀ a, a < Db + s ∨ Db + 2 * s ≤ a → z.mem a = y.mem a) ∧
+      z.regs sat = ((e :: xs).any (litOk y.mem Tb x b)).toNat := by
   obtain ⟨htlen, htA⟩ := mem_sections_replicate.mp ht
-  intro xs
-  refine Nat.strongRecOn (motive := fun k => ∀ xs : List (List ℕ), xs.length = k →
-    ∀ (e : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
-      HoldsList Db t y.mem → HoldsList (Db + s) e y.mem → y.regs contI = 1 →
-      Enumerates (t.map (litAddrs C φ)) (e :: xs) →
-      (∀ e' ∈ e :: xs, e' ∈ (t.map (litAddrs C φ)).sections) →
-      ∃ z, ExecWithin w innerLoop y z ((xs.length + 1) * innerIter s + 2) ∧
-        ImpFrame w φ τ x b C Tb s Db z ∧
-        (∀ a, a < Db + s ∨ Db + 2 * s ≤ a → z.mem a = y.mem a) ∧
-        z.regs sat = ((e :: xs).any (litOk y.mem Tb x b)).toNat)
-    xs.length (fun k ih xs hk e y hf ht' he hc hen hmem => ?_) xs rfl
   have he' := hmem e (by simp)
   have hcond : (Cond.lt zero contI).Holds y := by simp [Cond.holds_lt, hf.zero_eq, hc]
   have hlen : e.length = s := by rw [List.mem_sections_length he', List.length_map, htlen]
@@ -955,14 +925,16 @@ private theorem innerLoop_spec (t : List ℕ)
     wram_exec [hz₁s, hok, hf.one_eq]
     wram_call (incE_spec t e _ (by struct_frame hf) ht ..) framed
       with v₂ m₂ ⟨hz₂f, hz₂m, hz₂s, hz₂n⟩
-    rcases xs with _ | ⟨e', xs⟩
-    · have hn : nextSection (t.map (litAddrs C φ)) e = none := by simpa using hen.head
+    match hxs : xs with
+    | [] =>
+      have hn : nextSection (t.map (litAddrs C φ)) e = none := by simpa using hen.head
       refine WP.loop_exit (by wram_simp [Cond.holds_lt, hf.zero_eq, hz₂n hn]) ?_
       exact ⟨by simp only [innerIter, List.length_nil]; omega, hz₂f,
         fun a ha => by mem_frame, by wram_simp [hz₁s]; simp [hok]⟩
-    · have hn : nextSection (t.map (litAddrs C φ)) e = some e' := by simpa using hen.head
+    | e' :: xs' =>
+      have hn : nextSection (t.map (litAddrs C φ)) e = some e' := by simpa using hen.head
       obtain ⟨hc₂, he₂⟩ := hz₂s e' hn
-      wram_call (ih xs.length (by simp [← hk]) xs rfl e' _ hz₂f
+      wram_call (innerLoop_spec t ht xs' e' _ hz₂f
         (by wram_simp; ram_keep ht' using hz₂m) _ _ hen.tail
         fun e'' h => hmem e'' (List.mem_cons_of_mem _ h)) framed with v₃ m₃ ⟨hz₃f, hz₃m, hz₃s⟩
       refine ⟨by simp only [innerIter, List.length_cons]; ring_nf; omega, hz₃f,
@@ -979,6 +951,8 @@ private theorem innerLoop_spec (t : List ℕ)
       Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
     exact ⟨by simp only [innerIter] at hiter ⊢; omega, by struct_frame hf,
       fun a _ => by mem_frame, by wram_simp [hz₁s]; simp [hok]⟩
+termination_by xs.length
+decreasing_by simp
 
 /-- **The literal search** on a choice `t` of `s` clause addresses in `D`: `sat = 1` exactly when
 some choice of one literal address from each clause is compatible, within `innerTime s E`
@@ -1083,27 +1057,15 @@ def clauseOk (m : ℕ → ℕ) (C Tb : ℕ) (φ : CNF (Fin n)) (x : Fin n) (b : 
 /-- **The loop of the clause search**, from the choice `t` in `D`, followed by the choices `xs`:
 `sat = 1` exactly when each of them has a compatible choice of literals. The memory outside `D`
 and `E` is unchanged. -/
-private theorem outerLoop_spec : ∀ (xs : List (List ℕ)) (t : List ℕ) (y : Data 32),
-    ImpFrame w φ τ x b C Tb s Db y → HoldsList Db t y.mem → y.regs contO = 1 →
-    Enumerates (List.replicate s (clauseAddrs C φ)) (t :: xs) →
-    (∀ t' ∈ t :: xs, t' ∈ (List.replicate s (clauseAddrs C φ)).sections) →
+private theorem outerLoop_spec (xs : List (List ℕ)) (t : List ℕ) (y : Data 32)
+    (hf : ImpFrame w φ τ x b C Tb s Db y) (hl : HoldsList Db t y.mem) (hc : y.regs contO = 1)
+    (hen : Enumerates (List.replicate s (clauseAddrs C φ)) (t :: xs))
+    (hmem : ∀ t' ∈ t :: xs, t' ∈ (List.replicate s (clauseAddrs C φ)).sections) :
     ∃ z, ExecWithin w outerLoop y z
         ((xs.length + 1) * outerIter s (encodeClauses φ).length + 2) ∧
       ImpFrame w φ τ x b C Tb s Db z ∧
       (∀ a, a < Db ∨ Db + 2 * s ≤ a → z.mem a = y.mem a) ∧
       z.regs sat = ((t :: xs).all (clauseOk y.mem C Tb φ x b)).toNat := by
-  intro xs
-  refine Nat.strongRecOn (motive := fun k => ∀ xs : List (List ℕ), xs.length = k →
-    ∀ (t : List ℕ) (y : Data 32),
-      ImpFrame w φ τ x b C Tb s Db y → HoldsList Db t y.mem → y.regs contO = 1 →
-      Enumerates (List.replicate s (clauseAddrs C φ)) (t :: xs) →
-      (∀ t' ∈ t :: xs, t' ∈ (List.replicate s (clauseAddrs C φ)).sections) →
-      ∃ z, ExecWithin w outerLoop y z
-          ((xs.length + 1) * outerIter s (encodeClauses φ).length + 2) ∧
-        ImpFrame w φ τ x b C Tb s Db z ∧
-        (∀ a, a < Db ∨ Db + 2 * s ≤ a → z.mem a = y.mem a) ∧
-        z.regs sat = ((t :: xs).all (clauseOk y.mem C Tb φ x b)).toNat)
-    xs.length (fun k ih xs hk t y hf hl hc hen hmem => ?_) xs rfl
   have ht := hmem t (by simp)
   have hcond : (Cond.lt zero contO).Holds y := by simp [Cond.holds_lt, hf.zero_eq, hc]
   refine WP.exists_execWithin (WP.loop_iter hcond ?_)
@@ -1124,16 +1086,18 @@ private theorem outerLoop_spec : ∀ (xs : List (List ℕ)) (t : List ℕ) (y : 
     have htlen := (mem_sections_replicate.mp ht).1
     wram_call (incD_spec t _ hz₁f ht (by wram_simp; ram_keep hl using hz₁m)) framed
       with v₂ m₂ ⟨hz₂f, hz₂m, hz₂s, hz₂n⟩
-    rcases xs with _ | ⟨t', xs⟩
-    · have hn : nextSection (List.replicate s (clauseAddrs C φ)) t = none := by
+    match hxs : xs with
+    | [] =>
+      have hn : nextSection (List.replicate s (clauseAddrs C φ)) t = none := by
         simpa using hen.head
       refine WP.loop_exit (by wram_simp [Cond.holds_lt, hf.zero_eq, hz₂n hn]) ?_
       exact ⟨by simp only [outerIter, List.length_nil]; omega, hz₂f,
         fun a ha => by mem_frame, by wram_simp [hz₁s]; simp [hok]⟩
-    · have hn : nextSection (List.replicate s (clauseAddrs C φ)) t = some t' := by
+    | t' :: xs' =>
+      have hn : nextSection (List.replicate s (clauseAddrs C φ)) t = some t' := by
         simpa using hen.head
       obtain ⟨hc₂, hl₂⟩ := hz₂s t' hn
-      wram_call (ih xs.length (by simp [← hk]) xs rfl t' _ hz₂f _ _ hen.tail
+      wram_call (outerLoop_spec xs' t' _ hz₂f _ _ hen.tail
         fun t'' h => hmem t'' (List.mem_cons_of_mem _ h)) framed with v₃ m₃ ⟨hz₃f, hz₃m, hz₃s⟩
       refine ⟨by simp only [outerIter, List.length_cons]; ring_nf; omega, hz₃f,
         fun a ha => by mem_frame, ?_⟩
@@ -1143,6 +1107,8 @@ private theorem outerLoop_spec : ∀ (xs : List (List ℕ)) (t : List ℕ) (y : 
       have ht'' := hmem t'' (List.mem_cons_of_mem _ h)
       exact any_congr_of_mem fun e he =>
         litOk_congr ht'' hf.clauses hf.clauses_le hf.stored_le (fun a ha => by mem_frame) he
+termination_by xs.length
+decreasing_by simp
 
 /-- **The clause search**, on a nonempty formula: `sat = 1` exactly when every choice of `s`
 clause addresses has a compatible choice of literals, within `outerTime s E` instructions. The
@@ -1332,30 +1298,18 @@ theorem ImpFrame.setB {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) (b' :
     ImpFrame w φ τ x b' C Tb s Db (y.set bReg b'.toNat) := by
   struct_frame h
 
-/-- **The clearing loop** from word `j`: the words `j, …, 2 s - 1` after `Db` become zero, and
-the other memory is unchanged. -/
-private theorem zeroLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
-    y.regs stop = 2 * s → y.regs jR + d = 2 * s →
-    ∃ z, ExecWithin w zeroLoop y z (5 * d + 2) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
-      (∀ i, y.regs jR ≤ i → i < 2 * s → z.mem (Db + i) = 0) ∧
-      ∀ a, a < Db + y.regs jR ∨ Db + 2 * s ≤ a → z.mem a = y.mem a := by
-  intro d y hf hst hd
-  obtain ⟨z, hz, hzf, hzl, hzm⟩ :=
-    fillDLoop_spec ⟨by decide, by decide⟩ ⟨by decide, by decide⟩ le_rfl (fits_zero w)
-      d y hf hst hf.zero_eq hd
-  refine ⟨z, hz, hzf, fun i h1 h2 => ?_, hzm⟩
-  have hget := hzl.get (i - y.regs jR) (by simp; omega)
-  simpa [show Db + y.regs jR + (i - y.regs jR) = Db + i by omega] using hget
-
 /-- **Clear the scratch memory**: the `2 s` words of `D` and `E` become zero, and the other memory
 is unchanged, within `10 s + 4` instructions. -/
 private theorem zeroScratch_spec (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y) :
     ∃ z, ExecWithin w zeroScratch y z (10 * s + 4) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
       (∀ i < 2 * s, z.mem (Db + i) = 0) ∧ ∀ a, a < Db ∨ Db + 2 * s ≤ a → z.mem a = y.mem a := by
-  unfold zeroScratch
+  unfold zeroScratch zeroLoop zeroBody
   wram_exec [hf.fits_le, hf.zero_eq, hf.s_eq]
-  wram_call (zeroLoop_spec (2 * s) _ (by struct_frame hf) ..) framed with v m ⟨hzf, hz0, hzm⟩
-  exact ⟨by omega, hzf, fun i hi => hz0 i (Nat.zero_le _) hi, hzm⟩
+  wram_call (fillDLoop_spec (s := s) (lim := 2 * s) (val := 0) ⟨by decide, by decide⟩
+    ⟨by decide, by decide⟩ le_rfl (fits_zero w) (2 * s) _ (by struct_frame hf) ..) framed
+    [hf.zero_eq] with v m ⟨hzf, hzl, hzm⟩
+  refine ⟨by omega, hzf, fun i hi => ?_, hzm⟩
+  exact (hzl.get i (by simp; omega)).trans (List.getElem_replicate ..)
 
 /-- **The value w-implied on `x`.** From the clauses of `φ` stored in `[cBeg, cEnd)` below the
 partial assignment `τ` stored at `tBase = Tb`, the bound `s` stored at `Tb + 2 n` and `2 s` zero

@@ -65,8 +65,8 @@ example
   have hfinish := sumElim (of_inO (ComputableInDegree.id' (enc := encOption encBool)).inO_one)
     (budget_optionSome (of_inO (ComputableInDegree.id' (enc := encBool)).inO_one))
   have hhalt := sumElim (encE := encBool)
-    (budget_const (encIn := encOption encBool) true (.refl _))
-    (budget_const (encIn := encBool) true (.refl _))
+    (budget_const (encIn := encOption encBool) true)
+    (budget_const (encIn := encBool) true)
   have hnext := reply.dispatch_next_inSpace membershipReply (encOption encBool) encBool
     (fst (encOption encBool) encReadChoice) (fst encBool encReadChoice)
   exact machine_next_inSpace _ context mixedReply mixedStart mixedFinish hentry hfinish hhalt hnext
@@ -245,10 +245,10 @@ private theorem nativeRoutines :
   · exact constZero context |>.mono_le (fun _ => by decide)
   · intro b
     cases b <;> decide
-  · exact (budget_const (some true) (.refl _)).of_enc_eq fun _ => rfl
+  · exact (budget_const (some true)).of_enc_eq fun _ => rfl
   · exact of_inO (ComputableInDegree.id' (enc := encOption encBool)).inO_one
-  · exact (budget_const 0 (.refl _)).of_enc_eq fun _ => rfl
-  · exact (budget_const true (.refl _)).of_enc_eq fun _ => rfl
+  · exact (budget_const 0).of_enc_eq fun _ => rfl
+  · exact (budget_const true).of_enc_eq fun _ => rfl
   · exact (fst (encOption encBool) NondeterministicQueryMachine.encReadChoice).of_enc_eq
       fun _ => rfl
   · refine ⟨roundStateBound context 2, fun a bits => ?_⟩

@@ -104,19 +104,17 @@ theorem uncompressedRow_preloadedIncrement {Δ : ℕ → ι → Fin 2 → ℝ}
     {raw₀ : ι → Fin 2 → ℝ} (j : ℕ) {r : ℕ} (hr : 0 < r) :
     uncompressedRow (preloadedIncrement Δ j) (uncompressedRow Δ raw₀ (j + 1)) r =
       uncompressedRow Δ raw₀ (j + r) := by
-  cases r with
-  | zero => omega
-  | succ r =>
-    clear hr
-    induction r with
-    | zero =>
-      funext y ν
-      simp only [uncompressedRow_succ, uncompressedRow_zero, preloadedIncrement_zero,
-        Pi.zero_apply, add_zero]
-    | succ r ih =>
-      funext y ν
-      rw [uncompressedRow_succ, ih]
-      simp only [preloadedIncrement_succ, Nat.add_succ, uncompressedRow_succ]
+  rcases r with _ | r
+  · omega
+  clear hr
+  induction r with
+  | zero =>
+    ext
+    simp [uncompressedRow_succ]
+  | succ r ih =>
+    ext
+    rw [uncompressedRow_succ, ih]
+    simp only [preloadedIncrement_succ, Nat.add_succ, uncompressedRow_succ]
 
 /-- The adjacent-prefix budget for a preloaded restart is at most four times the original
 weighted tail budget. The estimate does not require any error bound before group `j`. -/

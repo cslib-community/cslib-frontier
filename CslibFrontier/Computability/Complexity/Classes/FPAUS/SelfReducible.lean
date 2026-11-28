@@ -87,27 +87,16 @@ include R
 /-- The witnesses of `x` beginning with `b` are counted by `child x b`. -/
 theorem card_filter_head {x : α} (hx : 0 < R.len x) (b : Bool) :
     ((W x).filter (fun w => w.head? = some b)).card = (W (R.child x b)).card := by
-  refine Finset.card_bij' (fun w _ => w.tail) (fun w _ => b :: w) ?_ ?_ ?_ ?_
-  · intro w hw
-    rw [Finset.mem_filter] at hw
-    obtain ⟨hw, hhead⟩ := hw
-    cases w with
-    | nil => simp at hhead
-    | cons c w =>
-      simp only [List.head?_cons, Option.some.injEq] at hhead
-      subst hhead
-      exact (R.cons_mem_iff x hx c w).1 hw
-  · intro w hw
-    exact Finset.mem_filter.2 ⟨(R.cons_mem_iff x hx b w).2 hw, rfl⟩
-  · intro w hw
-    rw [Finset.mem_filter] at hw
-    cases w with
-    | nil => simp at hw
-    | cons c w =>
-      simp only [List.head?_cons, Option.some.injEq] at hw
-      simp [hw.2]
-  · intro w _
-    rfl
+  refine Finset.card_bij' (fun w _ => w.tail) (fun w _ => b :: w) ?_
+    (fun w hw => Finset.mem_filter.2 ⟨(R.cons_mem_iff x hx b w).2 hw, rfl⟩) ?_ fun _ _ => rfl
+  · rintro (_ | ⟨c, w⟩) hw
+    · simp at hw
+    · obtain ⟨hw', hhead⟩ := Finset.mem_filter.1 hw
+      obtain rfl := Option.some.inj hhead
+      exact (R.cons_mem_iff x hx c w).1 hw'
+  · rintro (_ | ⟨c, w⟩) hw
+    · simp at hw
+    · simpa [eq_comm] using (Finset.mem_filter.1 hw).2
 
 /-- **Self-reducibility splits the count**: for `len x > 0`,
 `|W x| = |W (child x false)| + |W (child x true)|`. -/

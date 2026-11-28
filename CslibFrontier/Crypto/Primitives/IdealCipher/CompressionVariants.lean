@@ -82,9 +82,8 @@ theorem isQueryBounded_keyMaskedAdversary [Sub Block] (k1 k2 y : Block) :
 theorem keyMaskedAdversary_wins [DecidableEq Block] [Fintype Block] [AddGroup Block]
     {k1 k2 : Block} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (keyMasked (B := Block)) (keyMaskedAdversary k1 k2 y) = PMF.pure true := by
-  unfold collisionGame keyMaskedAdversary
-  simp only [IdealCipher.complete_nil, interp_norm, pmf_norm]
-  simp [evalPerm, collides, keyMasked_symm, hk]
+  simp [collisionGame, keyMaskedAdversary, IdealCipher.complete_nil, interp_norm, pmf_norm,
+    evalPerm, collides, keyMasked_symm, hk]
 
 /-- Existential summary for `keyMasked` (`h₄` with its two arguments swapped) over any nontrivial
 finite additive group: there is a `2`-query ideal-cipher collision finder winning with probability
@@ -94,9 +93,8 @@ theorem exists_collisionFinder_keyMasked [DecidableEq Block] [Fintype Block] [Ad
     ∃ A : CollisionFinder Block Block,
       A.IsQueryBounded 2 ∧ Pr[collisionGame (keyMasked (B := Block)) A] = 1 := by
   obtain ⟨k1, k2, hk⟩ := exists_pair_ne Block
-  refine ⟨keyMaskedAdversary k1 k2 0, isQueryBounded_keyMaskedAdversary k1 k2 0, ?_⟩
-  rw [keyMaskedAdversary_wins hk 0]
-  simp
+  exact ⟨keyMaskedAdversary k1 k2 0, isQueryBounded_keyMaskedAdversary k1 k2 0,
+    by simp [keyMaskedAdversary_wins hk 0]⟩
 
 /-- An explicit ideal-cipher collision finder for `keyMaskedInput` (`h₅`, [BonehShoup2023],
 Section 8.5.2, p. 301 and Exercise 8.11, p. 349) using two inverse queries with distinct keys
@@ -120,9 +118,8 @@ theorem keyMaskedInputAdversary_wins [DecidableEq Block] [Fintype Block] [AddGro
     {k1 k2 : Block} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (keyMaskedInput (B := Block)) (keyMaskedInputAdversary k1 k2 y) =
       PMF.pure true := by
-  unfold collisionGame keyMaskedInputAdversary
-  simp only [IdealCipher.complete_nil, interp_norm, pmf_norm]
-  simp [evalPerm, collides, keyMaskedInput_symm, hk]
+  simp [collisionGame, keyMaskedInputAdversary, IdealCipher.complete_nil, interp_norm, pmf_norm,
+    evalPerm, collides, keyMaskedInput_symm, hk]
 
 /-- Existential summary for `keyMaskedInput` (`h₅`) over any nontrivial finite additive group:
 there is a `2`-query ideal-cipher collision finder winning with probability `1`. -/
@@ -131,8 +128,7 @@ theorem exists_collisionFinder_keyMaskedInput [DecidableEq Block] [Fintype Block
     ∃ A : CollisionFinder Block Block,
       A.IsQueryBounded 2 ∧ Pr[collisionGame (keyMaskedInput (B := Block)) A] = 1 := by
   obtain ⟨k1, k2, hk⟩ := exists_pair_ne Block
-  refine ⟨keyMaskedInputAdversary k1 k2 0, isQueryBounded_keyMaskedInputAdversary k1 k2 0, ?_⟩
-  rw [keyMaskedInputAdversary_wins hk 0]
-  simp
+  exact ⟨keyMaskedInputAdversary k1 k2 0, isQueryBounded_keyMaskedInputAdversary k1 k2 0,
+    by simp [keyMaskedInputAdversary_wins hk 0]⟩
 
 end Cslib.IdealCipher

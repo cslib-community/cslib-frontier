@@ -71,8 +71,7 @@ private theorem area_of_mem_Icc {x : ℝ} (hx : x ∈ Set.Icc 0 1) :
     area x = (1 - x) ^ 2 / 2 := by
   unfold area
   split_ifs with h
-  · have : x = 0 := le_antisymm h hx.1
-    subst x
+  · cases le_antisymm h hx.1
     norm_num
   · rw [max_eq_right (by linarith [hx.2] : 0 ≤ 1 - x)]
 
@@ -129,8 +128,8 @@ noncomputable def potential (rate margin : ℝ) : ℝ :=
   if margin ≤ 0 then 1 / (2 * rate) - margin else (max 0 (1 - rate * margin)) ^ 2 / (2 * rate)
 
 /-- Weights are probabilities. -/
-theorem weight_mem_Icc (rate margin : ℝ) : weight rate margin ∈ Set.Icc 0 1 := by
-  exact ⟨le_min zero_le_one (le_max_left _ _), min_le_left _ _⟩
+theorem weight_mem_Icc (rate margin : ℝ) : weight rate margin ∈ Set.Icc 0 1 :=
+  ⟨le_min zero_le_one (le_max_left _ _), min_le_left _ _⟩
 
 /-- Increasing a margin can only decrease its weight. -/
 theorem weight_antitone {rate : ℝ} (hrate : 0 ≤ rate) : Antitone (weight rate) := fun _ _ hxy =>
@@ -149,13 +148,9 @@ theorem potential_of_nonpos (rate : ℝ) {margin : ℝ} (hmargin : margin ≤ 0)
 private theorem potential_eq_area {rate : ℝ} (hrate : 0 < rate) (margin : ℝ) :
     potential rate margin = area (rate * margin) / rate := by
   unfold potential area
-  by_cases hmargin : margin ≤ 0
-  · rw [ite_eq_left hmargin,
-      ite_eq_left (mul_nonpos_of_nonneg_of_nonpos hrate.le hmargin)]
-    field_simp
-  · rw [ite_eq_right hmargin,
-      ite_eq_right (not_le.mpr (mul_pos hrate (not_le.mp hmargin)))]
-    ring
+  by_cases hm : margin ≤ 0
+  · rw [ite_eq_left hm, ite_eq_left (mul_nonpos_of_nonneg_of_nonpos hrate.le hm)]; field_simp
+  · rw [ite_eq_right hm, ite_eq_right (not_le.mpr (mul_pos hrate (not_le.mp hm)))]; ring
 
 /-- The potential is nonnegative. -/
 theorem potential_nonneg {rate : ℝ} (hrate : 0 < rate) (margin : ℝ) :

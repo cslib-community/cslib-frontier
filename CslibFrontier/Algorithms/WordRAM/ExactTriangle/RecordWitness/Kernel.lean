@@ -29,10 +29,8 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
 
 open Cslib.WordRAM
 
-private theorem scanBank_injective : Function.Injective scanBank := by
-  intro i j h
-  apply Fin.ext
-  simpa only [scanBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
+private theorem scanBank_injective : Function.Injective scanBank := fun _ _ h =>
+  Fin.ext (by simpa only [scanBank, Nat.add_left_cancel_iff] using congrArg Fin.val h)
 
 /-- Execute the real original-weight verifier on the disjoint bank. Every scanned weight
 comes from the original arrays; a nonzero product answer supplies no original-weight witness. -/
@@ -65,20 +63,12 @@ theorem exec_scan {w U n first length out queries count a b : ℕ}
           AC a (y.regs (scanBank WitnessScan.Reg.witness)) = 0) ∧
       ∀ i : Fin 400, i.val < 336 ∨ 368 ≤ i.val → y.regs i = x.regs i := by
   let A : WitnessScan.Args := ⟨5, 5 + n * n, 5 + n * n + n * n, n, a, b, first, length⟩
-  have hargs : A.InRegisters (x.comap scanBank) :=
-    ⟨hx.ab, hx.bc, hx.ac, hx.scanSize, hargA, hargB, hx.scanFirst, hx.scanLength⟩
-  obtain ⟨y, he, ⟨sa, sm, sf, si, sw⟩, _⟩ :=
+  obtain ⟨y, he, ⟨⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩, sm, sf, si, sw⟩, _⟩ :=
     ExecWithin.rename_post scanBank_injective (WitnessScan.exec A AB BC AC (x.comap scanBank)
-      hargs ha hb hc hmem hmag hU (hfit.of_le (by
-        dsimp only [A, WitnessScan.Args.addressBound]; omega)))
-  have frame (i : Fin 400) (hi : i.val < 336 ∨ 368 ≤ i.val) : y.regs i = x.regs i := by
-    exact he.regs_eq (Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi)
-  obtain ⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩ := sa
-  refine ⟨y, he, ?_, sm, sa', sb', ?_, ?_, ?_, frame⟩
-  · regs_frame
-  · exact sf
-  · exact si
-  · exact sw
+      ⟨hx.ab, hx.bc, hx.ac, hx.scanSize, hargA, hargB, hx.scanFirst, hx.scanLength⟩ ha hb hc
+      hmem hmag hU (hfit.of_le (by dsimp only [A, WitnessScan.Args.addressBound]; omega)))
+  exact ⟨y, he, by regs_frame, sm, sa', sb', sf, si, sw,
+    fun i hi => he.regs_eq (Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi)⟩
 
 /-- Load the actual query occurrence into the verifier arguments and increment the native
 scan count. No query enumeration or pair supplied as an algorithm argument replaces the loads. -/

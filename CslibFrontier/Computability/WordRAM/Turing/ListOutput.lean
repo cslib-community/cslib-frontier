@@ -93,12 +93,9 @@ theorem parkedRegister_eq {L : ℕ} {s : FiniteState B.genericModel r} {i : Fin 
   | j :: l, h => by
     unfold parkedRegister
     split
+    · next hj => exact congrArg s.regs (Fin.ext (by omega))
     · next hj =>
-      have hji : j = i := Fin.ext (by omega)
-      rw [hji]
-    · next hj =>
-      have hij : i ≠ j := fun e => hj (e ▸ hpc)
-      exact parkedRegister_eq hpc ((List.mem_cons.mp h).resolve_left hij)
+      exact parkedRegister_eq hpc ((List.mem_cons.mp h).resolve_left fun e => hj (e ▸ hpc))
 
 theorem parkedRegister_lt {L w : ℕ} {s : FiniteState B.genericModel r}
     (hs : ∀ i, s.regs i < 2 ^ w) : ∀ l, parkedRegister L s l < 2 ^ w
@@ -226,8 +223,7 @@ theorem parkedOutputCertificate_isPolynomial (L : ℕ)
       (prod_isPolynomial _ _ (prod_isPolynomial _ _ hc hc)
         (prod_isPolynomial _ _ hv (const_isPolynomial _)))
       readRoundCertificate_isPolynomial ?_ hB ?_)))
-  · refine hlen.mono fun a => ?_
-    simp [parkedOutput]
+  · exact hlen.mono fun a => by simp [parkedOutput]
   · intro a j hj
     rw [iterate_readRound]
     have hsa := hs a
@@ -236,31 +232,23 @@ theorem parkedOutputCertificate_isPolynomial (L : ℕ)
     have hlenEq : (parkedOutput L (s a)).length =
         SparseMemory.read (s a).default v (s a).memory := by
       simp [parkedOutput, ← hv_def]
-    have hjlt : j < 2 ^ W a := lt_of_le_of_lt (hj.trans_eq rfl) (hsa.read_lt v)
+    have hjlt : j < 2 ^ W a := lt_of_le_of_lt hj (hsa.read_lt v)
     have haddr : (encNat (v + 1 + j)).length ≤ W a + 1 :=
       length_encNat_le_of_lt_two_pow (by rw [Nat.pow_succ]; omega)
     have hd : (encNat (s a).default).length ≤ W a := length_encNat_le_of_lt_two_pow hsa.default_lt
     have hacc : (encList encNat ((List.range j).map fun i =>
         SparseMemory.read (s a).default (v + 1 + i) (s a).memory)).length ≤ j * (2 * W a + 1) := by
-      rw [length_encList]
-      calc (((List.range j).map fun i =>
-              SparseMemory.read (s a).default (v + 1 + i) (s a).memory).map
-              fun x => 2 * (encNat x).length + 1).sum
-          ≤ (((List.range j).map fun i =>
-              SparseMemory.read (s a).default (v + 1 + i) (s a).memory).map
-              fun _ => 2 * W a + 1).sum :=
-            List.sum_le_sum fun x hx => by
-              obtain ⟨i, -, rfl⟩ := List.mem_map.mp hx
-              have := length_encNat_le_of_lt_two_pow (hsa.read_lt (v + 1 + i))
-              omega
-        _ = j * (2 * W a + 1) := by simp [Function.comp_def]
+      rw [length_encList, List.map_map]
+      refine (List.sum_le_length_nsmul _ (2 * W a + 1) fun x hx => ?_).trans (by simp)
+      obtain ⟨i, -, rfl⟩ := List.mem_map.mp hx
+      dsimp only [Function.comp_apply]
+      have := length_encNat_le_of_lt_two_pow (hsa.read_lt (v + 1 + i))
+      omega
     have hmem : 2 * (encNat (s a).default).length +
         (SparseMemory.encoding encNat encNat (s a).memory).length + 3 ≤
           (FiniteState.encoding B.encoding (s a)).length := by
-      have := FiniteState.length_encoding B.encoding (s a)
-      change _ = 2 * (encNat (s a).pc).length + 2 * (encPi encNat (s a).regs).length +
-        2 * (encNat (s a).default).length +
-        (SparseMemory.encoding encNat encNat (s a).memory).length + 3 at this
+      have h := FiniteState.length_encoding B.encoding (s a)
+      dsimp only [Basis.encoding] at h ⊢
       omega
     have hjL : j * (2 * W a + 1) ≤ (parkedOutput L (s a)).length * (2 * W a + 1) :=
       Nat.mul_le_mul_right _ (by rw [hlenEq]; exact hj)
@@ -322,28 +310,22 @@ theorem Program.ComputesListInTime.turingComputableInPolyTime_of_width
       WordBounded (width a) (final a) ∧ f a = parkedOutput p.length (final a) := by
     obtain ⟨m, hm, hle⟩ := h a (width a) (hallowed a) (hfits a)
     obtain ⟨i, x, hruns, hout⟩ := hm.runs_parkHalts (hle.trans (hsteps a))
-    have hg := runs_toGeneric_iff.2 hruns
-    rw [← denote_initState] at hg
-    obtain ⟨t, hrun, hden⟩ := exists_run_eq_inl_of_runs hg
+    obtain ⟨t, hrun, hden⟩ := exists_run_eq_inl_of_runs
+      (denote_initState (B := B) (r := r) (encode (width a) a) ▸ runs_toGeneric_iff.2 hruns)
     have hfa : final a = t := by simp only [final, q, hrun]; rfl
     have hwb := ((wordBounded_initState (B := B) (r := r) (hfits a)).run (p := q) (by simp)
       (steps a)).1 t hrun
     refine ⟨hfa ▸ hwb.1, ?_⟩
-    rw [hfa, ← hout]
-    have hpc : t.pc = p.length + i := congrArg GenericRAM.State.pc hden
-    have hregs : t.regs = x.regs := congrArg (fun g => g.data.regs) hden
-    have hmem : (fun a => SparseMemory.read t.default a t.memory) = x.mem :=
-      congrArg (fun g => g.data.mem) hden
-    rw [parkedOutput_eq hpc, hregs, hmem]
+    rw [hfa, ← hout, parkedOutput_eq (congrArg GenericRAM.State.pc hden)]
+    exact congrArg₂ outputList (congrArg (fun g => g.data.mem) hden).symm
+      (congrArg (fun g => g.data.regs i) hden).symm
   -- Every simulated outcome is bounded by a polynomial in the input length.
   obtain ⟨bound, hbound, hOutLen⟩ := exists_polyBounded_resultEncoding_run_le q hwidth hencode
     hfits hstepsU.polyBounded
-  have hRun : cRun.IsPolynomial :=
-    runCertificateOf_isPolynomial _ _ _ _ _ _ (B.nativePrimitivesOfPolyTime_isPolynomial hop)
+  have hOut := parkedOutputCertificate_isPolynomial p.length cFinal
+    (runCertificateOf_isPolynomial _ _ _ _ _ _ (B.nativePrimitivesOfPolyTime_isPolynomial hop)
       (ofPolyTime_isPolynomial hstepsT) (ofPolyTime_isPolynomial hwidth) hInit
-      hstepsU.polyBounded hbound hOutLen
-  have hFinal : cFinal.IsPolynomial := hRun
-  have hOut := parkedOutputCertificate_isPolynomial p.length cFinal hFinal hwidth.polyBounded
+      hstepsU.polyBounded hbound hOutLen) hwidth.polyBounded
     (fun a => (hfinal a).1) (hlen.mono fun a => by rw [(hfinal a).2])
   exact ((parkedOutputCertificate p.length cFinal).congr fun a => ((hfinal a).2).symm).polyTime
     (congr_isPolynomial _ _ hOut)

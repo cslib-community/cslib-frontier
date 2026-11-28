@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.ConstraintGraph
 public import CslibFrontier.Logics.Propositional.CNF
 public import Mathlib.Data.Fintype.Prod
 import CslibFrontier.Logics.Propositional.CNF.UnsatVal
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # From 3-SAT to constraint graphs
@@ -125,13 +126,11 @@ theorem countUnsat_cnfAssignment_le_card_unsatEdges (A : V ⊕ Fin φ.length →
     φ.countUnsat (cnfAssignment A) ≤ #((ofCNF φ).unsatEdges A) := by
   classical
   rw [CNF.countUnsat_eq_card]
-  refine (card_le_card fun j hj ↦ ?_).trans (card_image_le (f := Prod.fst))
-  rw [mem_filter] at hj
-  rw [mem_image]
+  refine (card_le_card fun j hj ↦ mem_image.2 ?_).trans (card_image_le (f := Prod.fst))
   by_contra! h
-  refine Bool.false_ne_true (hj.2.symm.trans (eval_cnfAssignment_of_forall_satisfies fun q ↦ ?_))
-  by_contra hq
-  exact h (j, q) (mem_unsatEdges.2 hq) rfl
+  exact Bool.false_ne_true ((mem_filter.1 hj).2.symm.trans
+    (eval_cnfAssignment_of_forall_satisfies fun q ↦ by_contra fun hq ↦
+      h (j, q) (mem_unsatEdges.2 hq) rfl))
 
 variable (φ)
 
@@ -153,9 +152,7 @@ private theorem satisfies_cnfLabelling (h3 : ∀ c ∈ φ, c.length ≤ 3) {τ :
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hl
   have hi3 : i < 3 := hi.trans_le (h3 _ (List.getElem_mem _))
   refine ⟨⟨i, hi3⟩, φ[e.1][i], List.getElem?_eq_getElem hi, ?_⟩
-  change φ[e.1][i]?.elim false (fun l ↦ τ l.1) = φ[e.1][i].2
-  rw [List.getElem?_eq_getElem hi]
-  exact hτ
+  simpa only [cnfLabelling, ofCNF, List.getElem?_eq_getElem hi, Option.elim_some] using hτ
 
 /-- **Completeness, counted**: if the clauses of `φ` have at most three literals, the labelling by
 an assignment violates at most three edges per clause the assignment falsifies. -/
@@ -165,12 +162,9 @@ theorem card_unsatEdges_cnfLabelling_le (h3 : ∀ c ∈ φ, c.length ≤ 3) (τ 
   rw [CNF.countUnsat_eq_card]
   calc #((ofCNF φ).unsatEdges (cnfLabelling φ τ))
       ≤ #(({j : Fin φ.length | φ[j].eval τ = false} : Finset _) ×ˢ (univ : Finset (Fin 3))) := by
-        refine card_le_card fun e he ↦ ?_
+        refine card_le_card fun e he ↦ mem_product.2 ⟨mem_filter.2 ⟨mem_univ _, ?_⟩, mem_univ _⟩
         rw [mem_unsatEdges] at he
-        rw [mem_product, mem_filter]
-        refine ⟨⟨mem_univ _, ?_⟩, mem_univ _⟩
-        by_contra h
-        exact he (satisfies_cnfLabelling φ h3 (Bool.not_eq_false _ ▸ h))
+        exact by_contra fun h ↦ he (satisfies_cnfLabelling φ h3 (Bool.not_eq_false _ ▸ h))
     _ = 3 * #{j : Fin φ.length | φ[j].eval τ = false} := by simp [card_product, mul_comm]
 
 /-- **The reduction preserves satisfiability**: the constraint graph of a formula whose clauses
@@ -180,12 +174,11 @@ theorem satisfiable_ofCNF_iff (h3 : ∀ c ∈ φ, c.length ≤ 3) :
   constructor
   · rintro ⟨A, hA⟩
     refine ⟨cnfAssignment A, CNF.countUnsat_eq_zero_iff.1 (Nat.le_zero.1 ?_)⟩
-    refine (countUnsat_cnfAssignment_le_card_unsatEdges A).trans_eq ?_
-    rw [card_eq_zero, unsatEdges_eq_empty_iff]
-    exact hA
+    simpa only [(unsatEdges_eq_empty_iff (ofCNF φ)).2 hA, card_empty] using
+      countUnsat_cnfAssignment_le_card_unsatEdges A
   · rintro ⟨τ, hτ⟩
-    refine ⟨cnfLabelling φ τ, fun e ↦ satisfies_cnfLabelling φ h3 ?_⟩
-    exact (CNF.eval_eq_true_iff _ _).1 hτ _ (List.getElem_mem _)
+    exact ⟨cnfLabelling φ τ, fun e ↦
+      satisfies_cnfLabelling φ h3 ((CNF.eval_eq_true_iff _ _).1 hτ _ (List.getElem_mem _))⟩
 
 /-- The constraint graph of a formula with `m` clauses has `3 m` edges. -/
 private theorem card_edges_ofCNF : Fintype.card (Fin φ.length × Fin 3) = 3 * φ.length := by
@@ -218,8 +211,7 @@ theorem unsatVal_ofCNF_le (h3 : ∀ c ∈ φ, c.length ≤ 3) (τ : V → Bool) 
   have h1 : (#((ofCNF φ).unsatEdges (cnfLabelling φ τ)) : ℝ) ≤ 3 * φ.countUnsat τ := by
     exact_mod_cast card_unsatEdges_cnfLabelling_le φ h3 τ
   have := mul_le_mul_of_nonneg_right h1 (Nat.cast_nonneg (α := ℝ) φ.length)
-  push_cast
-  linarith
+  cast_linarith
 
 end ConstraintGraph
 

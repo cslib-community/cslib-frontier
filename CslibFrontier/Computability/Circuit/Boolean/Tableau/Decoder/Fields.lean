@@ -68,32 +68,24 @@ def AllGates (p : ℕ → Op × List ℕ → Prop) (base : ℕ) (gates : List (O
 
 theorem allGates_append {p : ℕ → Op × List ℕ → Prop} {b : ℕ} {l₁ l₂ : List (Op × List ℕ)} :
     AllGates p b (l₁ ++ l₂) ↔ AllGates p b l₁ ∧ AllGates p (b + l₁.length) l₂ := by
-  constructor
-  · intro h
-    refine ⟨fun g hg => ?_, fun g hg => ?_⟩
-    · have := h g (by simp only [List.length_append]; omega)
-      rwa [List.getElem_append_left hg] at this
-    · have := h (l₁.length + g) (by simp only [List.length_append]; omega)
-      simpa [List.getElem_append_right, Nat.add_assoc] using this
-  · rintro ⟨h₁, h₂⟩ g hg
-    by_cases hg₁ : g < l₁.length
-    · rw [List.getElem_append_left hg₁]
-      exact h₁ g hg₁
-    · rw [List.getElem_append_right (by omega)]
-      have := h₂ (g - l₁.length) (by simp only [List.length_append] at hg; omega)
-      rwa [show b + l₁.length + (g - l₁.length) = b + g by omega] at this
+  refine ⟨fun h => ⟨fun g hg => ?_, fun g hg => ?_⟩, fun ⟨h₁, h₂⟩ g hg => ?_⟩
+  · exact List.getElem_append_left hg ▸ h g (by simp; omega)
+  · have := h (l₁.length + g) (by simp; omega)
+    simpa [List.getElem_append_right, Nat.add_assoc] using this
+  · by_cases hg₁ : g < l₁.length
+    · exact List.getElem_append_left hg₁ ▸ h₁ g hg₁
+    · have hb : b + l₁.length + (g - l₁.length) = b + g := by omega
+      simpa only [AllGates, List.getElem_append_right (Nat.le_of_not_lt hg₁), hb] using
+        h₂ (g - l₁.length) (by simp at hg; omega)
 
 @[simp] theorem allGates_nil {p : ℕ → Op × List ℕ → Prop} {b : ℕ} : AllGates p b [] := by
   simp [AllGates]
 
 theorem allGates_cons {p : ℕ → Op × List ℕ → Prop} {b : ℕ} {g : Op × List ℕ}
     {l : List (Op × List ℕ)} : AllGates p b (g :: l) ↔ p b g ∧ AllGates p (b + 1) l := by
-  have := allGates_append (p := p) (b := b) (l₁ := [g]) (l₂ := l)
-  simp only [List.singleton_append, List.length_singleton] at this
-  rw [this]
-  refine and_congr_left' ⟨fun h => by simpa using h 0 (by simp), fun h g hg => ?_⟩
-  obtain rfl : g = 0 := by simpa using hg
-  simpa using h
+  rw [← List.singleton_append, allGates_append, List.length_singleton]
+  exact and_congr_left' ⟨fun h => by simpa using h 0 Nat.zero_lt_one,
+    fun h g hg => by simpa [Nat.lt_one_iff.1 hg] using h⟩
 
 theorem allGates_map_range {p : ℕ → Op × List ℕ → Prop} {b w : ℕ} {f : ℕ → Op × List ℕ} :
     AllGates p b ((List.range w).map f) ↔ ∀ i < w, p (b + i) (f i) := by
@@ -108,12 +100,8 @@ theorem allGates_flatMap_range {p : ℕ → Op × List ℕ → Prop} {b w : ℕ}
   | succ w ih =>
     rw [List.range_succ, List.flatMap_append, allGates_append, ih, List.flatMap_singleton,
       List.length_flatMap]
-    constructor
-    · rintro ⟨h₁, h₂⟩ i hi
-      rcases Nat.lt_succ_iff_lt_or_eq.1 hi with hi | rfl
-      · exact h₁ i hi
-      · exact h₂
-    · exact fun h => ⟨fun i hi => h i (by omega), h w (by omega)⟩
+    exact ⟨fun ⟨h₁, h₂⟩ i hi => (Nat.lt_succ_iff_lt_or_eq.1 hi).elim (h₁ i) (· ▸ h₂),
+      fun h => ⟨fun i hi => h i (Nat.lt_succ_of_lt hi), h w (Nat.lt_succ_self w)⟩⟩
 
 /-- Blocks of a common length `len` start at multiples of `len`. -/
 theorem sum_range_map_const {len : ℕ} {f : ℕ → List (Op × List ℕ)} (hf : ∀ j, (f j).length = len)
@@ -127,9 +115,9 @@ theorem sum_range_two_pow (i : ℕ) : ((List.range i).map fun j => 2 ^ j).sum = 
   induction i with
   | zero => simp
   | succ i ih =>
-    rw [List.range_succ, List.map_append, List.sum_append, ih]
     have := Nat.one_le_two_pow (n := i)
-    simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.pow_succ]
+    simp only [List.range_succ, List.map_append, List.sum_append, ih, List.map_cons, List.map_nil,
+      List.sum_cons, List.sum_nil, Nat.pow_succ]
     omega
 
 /-- A gate reads only wires below its own, with the arity of its operation. -/
@@ -371,31 +359,20 @@ theorem fieldVal_true (idx : ℕ) : fieldVal s cb tb x n T idx (4 + (s + cb + tb
 
 theorem fieldVal_not (idx : ℕ) {j : ℕ} (hj : j < 4 + (s + cb + tb)) :
     fieldVal s cb tb x n T idx (4 + (s + cb + tb) + 2 + j) = !idx.testBit j := by
-  have h₁ : ¬ 4 + (s + cb + tb) + 2 + j < 4 + (s + cb + tb) := by omega
-  have h₂ : 4 + (s + cb + tb) + 2 + j ≠ 4 + (s + cb + tb) := by omega
-  have h₃ : 4 + (s + cb + tb) + 2 + j ≠ 4 + (s + cb + tb) + 1 := by omega
-  have h₄ : 4 + (s + cb + tb) + 2 + j < chainBase (4 + (s + cb + tb)) := by
-    simp only [chainBase]; omega
-  simp only [fieldVal, h₁, h₂, h₃, h₄, ↓reduceIte, Nat.add_sub_cancel_left]
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by omega)]
+  rw [ite_eq_left (by simp only [chainBase]; omega), Nat.add_sub_cancel_left]
 
 theorem fieldVal_chain (idx : ℕ) {k i : ℕ} (hk : k < 14) (hi : i < s + cb + tb) :
     fieldVal s cb tb x n T idx (chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i) =
       chainVal (chain s cb tb x.length n T k) idx (i + 1) := by
   have hw := chainWire_lt hk hi
-  have h₁ : ¬ chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i < 4 + (s + cb + tb) := by
-    simp only [chainBase]; omega
-  have h₂ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i ≠ 4 + (s + cb + tb) := by
-    simp only [chainBase]; omega
-  have h₃ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i ≠ 4 + (s + cb + tb) + 1 := by
-    simp only [chainBase]; omega
-  have h₄ : ¬ chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i <
-      chainBase (4 + (s + cb + tb)) := by omega
-  have h₅ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i <
-      treeBase (4 + (s + cb + tb)) (s + cb + tb) := by simp only [treeBase]; omega
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by simp only [chainBase]; omega)]
+  rw [ite_eq_left (by simp only [treeBase]; omega)]
   have h₆ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i -
       chainBase (4 + (s + cb + tb)) = k * (s + cb + tb) + i := by omega
-  simp only [fieldVal, h₁, h₂, h₃, h₄, h₅, h₆, ↓reduceIte,
-    Nat.mul_add_div_of_lt k hi, Nat.mul_add_mod_of_lt hi]
+  simp only [h₆, Nat.mul_add_div_of_lt k hi, Nat.mul_add_mod_of_lt hi]
 
 theorem fieldVal_tree (idx : ℕ) {ℓ q : ℕ} (hℓ : ℓ ≤ Nat.size x.length) (hq : q < 2 ^ ℓ) :
     fieldVal s cb tb x n T idx (treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q) =
@@ -404,43 +381,22 @@ theorem fieldVal_tree (idx : ℕ) {ℓ q : ℕ} (hℓ : ℓ ≤ Nat.size x.lengt
     calc 2 ^ ℓ + q < 2 ^ (ℓ + 1) := by rw [Nat.pow_succ]; omega
       _ ≤ 2 ^ (Nat.size x.length + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
   have h1 := Nat.one_le_two_pow (n := ℓ)
-  have h₀ : ¬ treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      treeBase (4 + (s + cb + tb)) (s + cb + tb) := by omega
-  have h₁ : ¬ treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      4 + (s + cb + tb) := by simp only [treeBase, chainBase]; omega
-  have h₂ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q ≠ 4 + (s + cb + tb) := by
-    simp only [treeBase, chainBase]; omega
-  have h₃ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q ≠
-      4 + (s + cb + tb) + 1 := by simp only [treeBase, chainBase]; omega
-  have h₄ : ¬ treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      chainBase (4 + (s + cb + tb)) := by simp only [treeBase]; omega
-  have h₅ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) := by
-    simp only [orBase]; omega
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by simp only [treeBase, chainBase]; omega)]
+  rw [ite_eq_left (by simp only [orBase]; omega)]
   have h₆ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q -
       treeBase (4 + (s + cb + tb)) (s + cb + tb) + 1 = 2 ^ ℓ + q := by omega
   have hlog : Nat.log 2 (2 ^ ℓ + q) = ℓ :=
     Nat.log_eq_of_pow_le_of_lt_pow (by omega) (by rw [Nat.pow_succ]; omega)
-  simp only [fieldVal, h₀, h₁, h₂, h₃, h₄, h₅, h₆, ↓reduceIte, hlog,
-    Nat.add_sub_cancel_left]
+  simp only [h₆, hlog, Nat.add_sub_cancel_left]
 
 theorem fieldVal_or (idx : ℕ) (i : ℕ) :
     fieldVal s cb tb x n T idx (orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i) =
       (decide (idx / 16 % 2 ^ Nat.size x.length ≤ i) &&
         x.getD (idx / 16 % 2 ^ Nat.size x.length) false) := by
-  have h₀ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) := by omega
-  have h₁ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      4 + (s + cb + tb) := by simp only [orBase, treeBase, chainBase]; omega
-  have h₂ : orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i ≠
-      4 + (s + cb + tb) := by simp only [orBase, treeBase, chainBase]; omega
-  have h₃ : orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i ≠
-      4 + (s + cb + tb) + 1 := by simp only [orBase, treeBase, chainBase]; omega
-  have h₄ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      chainBase (4 + (s + cb + tb)) := by simp only [orBase, treeBase]; omega
-  have h₅ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      treeBase (4 + (s + cb + tb)) (s + cb + tb) := by simp only [orBase]; omega
-  simp only [fieldVal, h₀, h₁, h₂, h₃, h₄, h₅, ↓reduceIte, Nat.add_sub_cancel_left]
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by simp only [orBase, treeBase, chainBase]; omega)]
+  rw [Nat.add_sub_cancel_left]
 
 /-- The literal of a chain gate is the bit of its field, or its negation. -/
 private theorem fieldVal_chainLit (idx : ℕ) (k i : ℕ) :
@@ -460,14 +416,10 @@ private theorem fieldVal_chainLit (idx : ℕ) (k i : ℕ) :
   obtain ⟨off, w, gt, K, init⟩ := spec
   simp only at hle ⊢
   by_cases hi : i < w
-  · cases gt
-    · simp [hi, fieldVal_not idx (show off + i < 4 + (s + cb + tb) by omega),
-        Nat.testBit_div_two_pow, Nat.add_comm i off]
-    · simp [hi, fieldVal_input idx (show off + i < 4 + (s + cb + tb) by omega),
-        Nat.testBit_div_two_pow, Nat.add_comm i off]
-  · cases gt
-    · simp [hi, fieldVal_true]
-    · simp [hi, fieldVal_false]
+  · have hlt : off + i < 4 + (s + cb + tb) := by omega
+    cases gt <;> simp [hi, fieldVal_not idx hlt, fieldVal_input idx hlt,
+      Nat.testBit_div_two_pow, Nat.add_comm i off]
+  · cases gt <;> simp [hi, fieldVal_true, fieldVal_false]
 
 /-- **The gates of the field stage, region by region.** -/
 theorem allGates_fieldGates {p : ℕ → Op × List ℕ → Prop}
@@ -485,41 +437,24 @@ theorem allGates_fieldGates {p : ℕ → Op × List ℕ → Prop}
         (orGate (4 + (s + cb + tb)) (treeBase (4 + (s + cb + tb)) (s + cb + tb))
           (Nat.size x.length) (orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length)) x i)) :
     AllGates p (4 + (s + cb + tb)) (fieldGates s cb tb x n T) := by
-  have hlen : ((List.range 14).flatMap fun k => (List.range (s + cb + tb)).map
-      (chainGate (4 + (s + cb + tb)) (s + cb + tb) k (chain s cb tb x.length n T k))).length =
-      14 * (s + cb + tb) := by
-    simp only [List.length_flatMap, List.length_map, List.length_range, List.map_const',
-      List.sum_replicate, smul_eq_mul]
   simp only [fieldGates, allGates_append, List.length_append, List.length_cons, List.length_nil,
-    List.length_map, List.length_range, hlen, length_treeGates, allGates_cons, allGates_nil,
-    and_true]
+    List.length_map, List.length_range, List.length_flatMap, List.map_const', List.sum_replicate,
+    smul_eq_mul, length_treeGates, allGates_cons, allGates_nil, and_true]
   refine ⟨⟨⟨⟨⟨hc₀, hc₁⟩, ?_⟩, ?_⟩, ?_⟩, ?_⟩
-  · rw [allGates_map_range]
+  · exact allGates_map_range.2 fun i hi => by simpa [Nat.add_assoc] using hnot i hi
+  · refine allGates_flatMap_range.2 fun k hk => ?_
+    rw [sum_range_map_const (len := s + cb + tb) (fun _ => by simp), allGates_map_range]
     intro i hi
-    simpa [Nat.add_assoc] using hnot i hi
-  · rw [allGates_flatMap_range]
-    intro k hk
-    rw [sum_range_map_const (len := s + cb + tb) (fun j => by simp), allGates_map_range]
-    intro i hi
-    have := hchain k hk i hi
-    convert this using 2
-    simp only [chainBase]
-    omega
-  · rw [treeGates, allGates_flatMap_range]
-    intro ℓ hℓ
-    simp only [List.length_map, List.length_range]
-    rw [sum_range_two_pow, allGates_map_range]
-    intro q hq
-    have := htree ℓ (by omega) q hq
-    convert this using 2
-    simp only [treeBase, chainBase]
-    omega
-  · rw [allGates_map_range]
-    intro i hi
-    have := hor i hi
-    convert this using 2
-    simp only [orBase, treeBase, chainBase]
-    omega
+    convert hchain k hk i hi using 2
+    simp only [chainBase]; omega
+  · simp only [treeGates, allGates_flatMap_range, List.length_map, List.length_range,
+      sum_range_two_pow, allGates_map_range]
+    intro ℓ hℓ q hq
+    convert htree ℓ (by omega) q hq using 2
+    simp only [treeBase, chainBase]; omega
+  · refine allGates_map_range.2 fun i hi => ?_
+    convert hor i hi using 2
+    simp only [orBase, treeBase, chainBase]; omega
 
 /-- **The field stage is a well-formed gate list**, when the decoder tree reads only payload
 bits. -/
@@ -538,7 +473,7 @@ theorem allGates_wellFormedAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
     all_goals
       have hq' := Nat.mod_lt q (Nat.two_pow_pos (ℓ - 1))
       have hpow : 2 ^ ℓ = 2 * 2 ^ (ℓ - 1) := by
-        rw [← Nat.pow_succ']; congr 1; omega
+        rw [← pow_succ', Nat.sub_add_cancel (Nat.pos_of_ne_zero h₀)]
       refine wellFormedAt_two rfl ?_ ?_ <;> simp only [treeBase, chainBase] <;> omega
   · have hpow : 2 ^ (Nat.size x.length + 1) = 2 * 2 ^ Nat.size x.length := Nat.pow_succ'
     refine wellFormedAt_two rfl ?_ ?_ <;> simp only [orBase, treeBase, chainBase] <;>
@@ -551,9 +486,7 @@ theorem mod_two_pow_succ_eq_iff {p q ℓ : ℕ} (hq : q < 2 ^ (ℓ + 1)) :
   conv_lhs => rw [← Nat.mod_eq_of_lt hq, mod_two_pow_succ p, mod_two_pow_succ q]
   have ha := Nat.mod_lt p (Nat.two_pow_pos ℓ)
   have hb := Nat.mod_lt q (Nat.two_pow_pos ℓ)
-  generalize p % 2 ^ ℓ = a at ha ⊢
-  generalize q % 2 ^ ℓ = b at hb ⊢
-  generalize 2 ^ ℓ = X at ha hb ⊢
+  generalize p % 2 ^ ℓ = a, q % 2 ^ ℓ = b, 2 ^ ℓ = X at ha hb ⊢
   cases p.testBit ℓ <;> cases q.testBit ℓ <;> simp <;> omega
 
 /-- **The intended values are consistent with the gates** of the field stage. -/
@@ -571,36 +504,27 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
           else 4 + (s + cb + tb))
         else chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + (i - 1)) =
         chainVal (chain s cb tb x.length n T k) idx i := by
-      by_cases h₀ : i = 0
-      · subst h₀
-        cases h₁ : (chain s cb tb x.length n T k).init
-        · simp only [↓reduceIte, Bool.false_eq_true, fieldVal_false, chainVal, cmp, pow_zero,
-            Nat.mod_one, h₁]
-          simp
-        · simp only [↓reduceIte, fieldVal_true, chainVal, cmp, pow_zero, Nat.mod_one, h₁]
-          simp
-      · simp only [h₀, ↓reduceIte]
-        rw [fieldVal_chain idx hk (by omega), Nat.sub_add_cancel (by omega)]
+      cases i with
+      | zero =>
+        cases h₁ : (chain s cb tb x.length n T k).init <;>
+          simp [fieldVal_false, fieldVal_true, chainVal, cmp, Nat.mod_one, h₁]
+      | succ i =>
+        simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
+        exact fieldVal_chain idx hk (by omega)
     rw [hprev, chainVal, chainVal, cmp_succ]
   · rw [treeGate]
-    by_cases h₀ : ℓ = 0
-    · subst h₀
-      simp only [↓reduceIte]
-      rw [consistentAt_const, fieldVal_tree idx hℓ hq]
-      simp only [pow_zero, Nat.lt_one_iff] at hq
-      simp [hq, Nat.mod_one]
-    · simp only [h₀, ↓reduceIte]
-      obtain ⟨ℓ, rfl⟩ : ∃ ℓ', ℓ = ℓ' + 1 := ⟨ℓ - 1, by omega⟩
-      simp only [Nat.add_sub_cancel]
+    cases ℓ with
+    | zero =>
+      rw [ite_eq_left rfl, consistentAt_const, fieldVal_tree idx hℓ hq]
+      simp [Nat.lt_one_iff.1 hq, Nat.mod_one]
+    | succ ℓ =>
+      simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
       have hlit : fieldVal s cb tb x n T idx (if q.testBit ℓ then 4 + ℓ else 4 + (s + cb + tb) + 2 +
           (4 + ℓ)) = decide ((idx / 16).testBit ℓ = q.testBit ℓ) := by
+        have h4ℓ : 4 + ℓ < 4 + (s + cb + tb) := by omega
         have h16 : idx / 16 = idx / 2 ^ 4 := rfl
         rw [h16, Nat.testBit_div_two_pow, Nat.add_comm ℓ 4]
-        split_ifs with hb
-        · rw [fieldVal_input idx (by omega), hb]; cases idx.testBit (4 + ℓ) <;> rfl
-        · rw [fieldVal_not idx (by omega)]
-          simp only [Bool.not_eq_true] at hb
-          rw [hb]; cases idx.testBit (4 + ℓ) <;> rfl
+        split_ifs with hb <;> simp [hb, fieldVal_input idx h4ℓ, fieldVal_not idx h4ℓ]
       rw [consistentAt_two, fieldVal_tree idx hℓ hq,
         fieldVal_tree idx (by omega) (Nat.mod_lt q (Nat.two_pow_pos ℓ)), hlit]
       simp only [Op.value, Bool.decide_and, mod_two_pow_succ_eq_iff hq]
@@ -609,28 +533,17 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
         treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ Nat.size x.length - 1) + i
           else 4 + (s + cb + tb)) =
         (x.getD i false && decide (idx / 16 % 2 ^ Nat.size x.length = i)) := by
-      split_ifs with hxi
-      · rw [fieldVal_tree idx le_rfl (by omega), hxi, Bool.true_and]
-      · simp only [Bool.not_eq_true] at hxi
-        rw [fieldVal_false, hxi, Bool.false_and]
+      have hi2 : i < 2 ^ Nat.size x.length := by omega
+      cases hxi : x.getD i false <;> simp [fieldVal_false, fieldVal_tree idx le_rfl hi2]
     rw [hsel]
-    by_cases h₀ : i = 0
-    · subst h₀
-      simp only [↓reduceIte]
-      rw [fieldVal_false]
-      cases h : decide (idx / 16 % 2 ^ Nat.size x.length = 0) <;> simp_all [Op.value]
-    · simp only [h₀, ↓reduceIte]
-      rw [fieldVal_or idx]
-      by_cases hlt : idx / 16 % 2 ^ Nat.size x.length < i
-      · have h₁ : idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
-        have h₂ : idx / 16 % 2 ^ Nat.size x.length ≠ i := by omega
-        simp [Op.value, h₁, hlt.le, h₂]
-      · by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i
-        · have h₁ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
-          simp [Op.value, heq]
-        · have h₁ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
-          have h₂ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i := by omega
-          simp [Op.value, h₁, h₂, heq]
+    cases i with
+    | zero =>
+      cases h : decide (idx / 16 % 2 ^ Nat.size x.length = 0) <;>
+        simp_all [fieldVal_false, Op.value]
+    | succ i =>
+      rw [ite_eq_right (Nat.succ_ne_zero i), Nat.add_sub_cancel, fieldVal_or idx]
+      by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i + 1 <;>
+        simp [Op.value, heq, Nat.le_succ_iff]
 
 /-- **The field stage computes the intended values** of its wires on the bits of a clause
 number. -/
@@ -638,11 +551,11 @@ theorem getD_evalCode_fieldGates (hm : Nat.size x.length ≤ s + cb + tb) (idx :
     (hw : w < 4 + (s + cb + tb) + (fieldGates s cb tb x n T).length) :
     (evalCode interpretation false (List.ofFn fun i : Fin (4 + (s + cb + tb)) => idx.testBit i)
       (fieldGates s cb tb x n T)).getD w false = fieldVal s cb tb x n T idx w := by
-  have h := getD_evalCode_of_allGates (allGates_wellFormedAt_fieldGates hm) _
+  have hin : (List.ofFn fun i : Fin (4 + (s + cb + tb)) => fieldVal s cb tb x n T idx i) =
+      List.ofFn fun i => idx.testBit i :=
+    congrArg List.ofFn (funext fun i => fieldVal_input idx i.isLt)
+  exact hin ▸ getD_evalCode_of_allGates (allGates_wellFormedAt_fieldGates hm) _
     (allGates_consistentAt_fieldGates (n := n) (T := T) hm idx) hw
-  rwa [show (List.ofFn fun i : Fin (4 + (s + cb + tb)) => fieldVal s cb tb x n T idx i) =
-    List.ofFn fun i => idx.testBit i from
-      congrArg List.ofFn (funext fun i => fieldVal_input idx i.isLt)] at h
 
 end Correctness
 

@@ -99,10 +99,8 @@ theorem NodeReady.image_read {L f a0 b0 n d p E : ℕ} {S : Finset (OutStr n)}
 /-- Every occupied source-list word comes from one of the requested mathematical outputs. -/
 theorem NodeReady.exists_of_read {L f a0 b0 n d p E i : ℕ} {S : Finset (OutStr n)}
     {x : Data registers} (h : NodeReady L f a0 b0 n d p E S x) (hi : i < S.card) :
-    ∃ q ∈ S, (queryIndex q).val = x.mem (f + 4 * (L + 1) + d * 10 ^ L + i) := by
-  apply Finset.mem_image.mp
-  rw [← h.image_read]
-  exact Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hi, rfl⟩
+    ∃ q ∈ S, (queryIndex q).val = x.mem (f + 4 * (L + 1) + d * 10 ^ L + i) :=
+  Finset.mem_image.mp (h.image_read ▸ Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hi, rfl⟩)
 
 /-- Actual query words fit the remaining query space, not only the original workspace row. -/
 theorem NodeReady.read_lt {L f a0 b0 n d p E i : ℕ} {S : Finset (OutStr n)}
@@ -115,10 +113,7 @@ theorem NodeReady.read_lt {L f a0 b0 n d p E i : ℕ} {S : Finset (OutStr n)}
 theorem NodeReady.exists_read {L f a0 b0 n d p E : ℕ} {S : Finset (OutStr n)}
     {x : Data registers} (h : NodeReady L f a0 b0 n d p E S x) {q : OutStr n} (hq : q ∈ S) :
     ∃ i < S.card, x.mem (f + 4 * (L + 1) + d * 10 ^ L + i) = (queryIndex q).val := by
-  have hm : (queryIndex q).val ∈ S.image (fun v => (queryIndex v).val) :=
-    Finset.mem_image.mpr ⟨q, hq, rfl⟩
-  rw [← h.image_read] at hm
-  obtain ⟨i, hi, he⟩ := Finset.mem_image.mp hm
+  obtain ⟨i, hi, he⟩ := Finset.mem_image.mp (h.image_read ▸ Finset.mem_image.mpr ⟨q, hq, rfl⟩)
   exact ⟨i, Finset.mem_range.mp hi, he⟩
 
 /-- Distinct occupied positions cannot name the same parent query. -/
@@ -148,32 +143,27 @@ theorem exec_ready_zero {w L f a0 b0 d p E A B : ℕ} (S : Finset (OutStr 0))
     ∃ y, NodeResult L f a0 b0 0 d E S a b x y ∧
       ∀ z U, ExecWithin (w + 2) controller y z U →
         ExecWithin (w + 2) controller x z (traceWeight S + U) := by
-  have hd : d = L := by have := hx.depth_add; omega
-  subst d
+  obtain rfl : d = L := (Nat.add_zero d).symm.trans hx.depth_add
   have henv := magnitudeBound_fits hw hmag
   have hi : (Encoding.leafIndex (Fin.elim0 : Leaf 0)).val = 0 := by decide
-  have hcount : x.mem (f + 4 * L) = S.card := hx.frame 0
-  have hpref : x.mem (f + 4 * L + 1) = p := hx.frame 1
   have hA : x.mem (a0 + p) = encode (a Fin.elim0) := by
     simpa only [hi, Nat.mul_zero, Nat.add_zero] using hleft Fin.elim0
   have hB : x.mem (b0 + p) = encode (b Fin.elim0) := by
     simpa only [hi, Nat.mul_zero, Nat.add_zero] using hright Fin.elim0
-  have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
-  have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
+  have hpref : x.mem (f + 4 * d + 1) = p := hx.frame 1
+  have hpow : 1 ≤ (10 : ℕ) ^ d := Nat.one_le_pow d _ (by decide)
+  have hL : d + 1 ≤ (d + 1) * 10 ^ d := by nlinarith only [hpow]
   obtain ⟨y, hregs, hyl, hym, hya, hye, hmarks, hvalue, hframe, _, hrun⟩ :=
     exec_node_zero (fits_left henv (ha Fin.elim0)) (fits_right henv (hb Fin.elim0))
       (fits_product henv (ha Fin.elim0) (hb Fin.elim0)) S x hx.regs hx.level_eq
-      hx.mode_eq hx.active_eq hcount hpref hA hB hx.epoch_eq hx.requests.stamp_le
+      hx.mode_eq hx.active_eq (hx.frame 0) hpref hA hB hx.epoch_eq hx.requests.stamp_le
       (hfit.of_le (by
         unfold nodeBudget
         rw [epochAllowance_zero]
         nlinarith only [hpow, hL, hx.prefix_lt]))
-  refine ⟨y, ⟨hregs, hyl, ?_, hya, ?_, ?_, ?_, hvalue, hframe⟩, hrun⟩
-  · intro hLpos
-    simpa only [ite_eq_right (by omega : L ≠ 0)] using hym
-  · omega
+  refine ⟨y, ⟨hregs, hyl, fun hLpos => ?_, hya, by omega, ?_, fun q hq => hye ▸ hmarks q hq,
+    hvalue, hframe⟩, hrun⟩
+  · simpa only [ite_eq_right hLpos.ne'] using hym
   · simp only [hye, epochAllowance_zero, Nat.add_zero, le_refl]
-  · intro q hq
-    simpa only [hye] using hmarks q hq
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

@@ -16,7 +16,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Fun
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 import CslibFrontier.Foundations.Data.Nat.Doubling
@@ -90,25 +89,15 @@ theorem SigmaTwoTIME_subset_NTIME {t t' τ : ℕ → ℕ} (ht : TimeConstructibl
   intro A hA
   obtain ⟨V, c, hV, hmem⟩ := mem_SigmaTwoTIME_iff.mp hA
   -- the universal block, as a verifier on the framed instance followed by the certificate
-  have hunframe : ComputableInO (fun x : List Bool × List Bool => unframe x.1)
-      (encPair encBits encBits) encBits (fun x => (encPair encBits encBits x).length)
-      (fun x => (encPair encBits encBits x).length) :=
-    (ComputableInO.of_linear (ComputableInDegree.of_unframe fun _ => rfl)).comp_linear
-      (ComputableInO.fst encBits encBits)
-  have hdrop : ComputableInO (fun x : List Bool × List Bool => dropFrame x.1)
-      (encPair encBits encBits) encBits (fun x => (encPair encBits encBits x).length)
-      (fun x => (encPair encBits encBits x).length) :=
-    (ComputableInO.of_linear (ComputableInDegree.of_dropFrame fun _ => rfl)).comp_linear
-      (ComputableInO.fst encBits encBits)
-  have htriple := (hunframe.prod (hdrop.prod (ComputableInO.snd encBits encBits))).mono
-    (T' := fun x => (encPair encBits encBits x).length)
-    (S' := fun x => (encPair encBits encBits x).length) 3
-    (fun _ => by omega) fun _ => by omega
+  have htriple : ComputableInO
+      (fun x : List Bool × List Bool => (unframe x.1, dropFrame x.1, x.2))
+      (encPair encBits encBits) (encPair encBits (encPair encBits encBits))
+      (fun x => (encPair encBits encBits x).length)
+      fun x => (encPair encBits encBits x).length :=
+    .mono (by fun_prop) 3 (fun _ => by omega) fun _ => by omega
   have hW := (hV.comp_linear htriple).not'
   have hℓ : ComputableInO (fun z : List Bool => (dropFrame z).length) encBits encUnary
-      (fun z => z.length) fun z => z.length :=
-    ComputableInO.lengthUnary.comp_linear
-      (ComputableInO.of_linear (ComputableInDegree.of_dropFrame fun _ => rfl))
+      (fun z => z.length) fun z => z.length := by fun_prop
   have hB := setOf_exists_mem_NTIME (t := id) (C := 5) hℓ hW fun z v hv => by
     have := length_dropFrame_le z
     enc_len [id_eq] at hv ⊢
@@ -123,27 +112,18 @@ theorem SigmaTwoTIME_subset_NTIME {t t' τ : ℕ → ℕ} (ht : TimeConstructibl
   obtain ⟨D, hD⟩ := hτ (2 * c + 3)
   have hbound (n : ℕ) : c * t n + c ≤ c * 2 ^ Nat.size (t n) ∧
       c * 2 ^ Nat.size (t n) ≤ 2 * c * t n + c := by
-    have h₁ := Nat.lt_size_self (t n)
-    have h₂ := Nat.two_pow_size_le (t n)
-    constructor
-    · have := Nat.mul_le_mul_left c (Nat.succ_le_of_lt h₁)
-      rw [Nat.mul_succ] at this
-      exact this
-    · have := Nat.mul_le_mul_left c h₂
-      rw [Nat.mul_add, Nat.mul_one, ← Nat.mul_assoc, Nat.mul_comm c 2] at this
-      exact this
+    have := Nat.mul_le_mul_left c (Nat.succ_le_of_lt (Nat.lt_size_self (t n)))
+    have := Nat.mul_le_mul_left c (Nat.two_pow_size_le (t n))
+    exact ⟨by linarith, by linarith⟩
   have hN₂ := setOf_exists_mem_NTIME (t := τ) (C := D) hL hV₂ fun y u hu => by
-    obtain ⟨-, hup⟩ := hbound y.length
     have hlen : (frame y ++ u).length ≤ (2 * c + 3) * (y.length + t y.length) + (2 * c + 3) := by
-      rw [List.length_append, length_frame, hu]
-      nlinarith
+      rw [List.length_append, length_frame, hu]; nlinarith [(hbound y.length).2]
     have := hD y.length _ hlen
     simp only [Function.comp_apply, encBits_apply]
     omega
   convert hN₂ using 1
   refine Set.ext fun y => ?_
-  obtain ⟨hlow, -⟩ := hbound y.length
-  rw [hmem y _ hlow]
+  rw [hmem y _ (hbound y.length).1]
   refine exists_congr fun u => and_congr_right fun hu => ?_
   have hind (z : List Bool) {B : Set (List Bool)} : indicator B z = true ↔ z ∈ B := by
     unfold indicator

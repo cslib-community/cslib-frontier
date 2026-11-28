@@ -121,6 +121,49 @@ private theorem edgeStraddles_iff_ncard [Finite E] {G : Multigraph V E} {v : V}
       (by omega : 0 < {f ∈ G.incidenceSet v | t ≤ score f}.ncard)
     exact ⟨⟨e, he, hlt⟩, ⟨e', he', hge⟩⟩
 
+/-- Every edge in `G.edgeCut Y` has a canonical endpoint inside `Y`. -/
+private noncomputable def endIn (G : Multigraph V E) (Y : Set V) (e : E) : V :=
+  open Classical in
+  if G.src e ∈ Y then G.src e else G.tgt e
+
+/-- For `e ∈ G.edgeCut Y`, `endIn G Y e` is the unique endpoint of `e` lying in `Y`. -/
+private theorem endIn_mem {G : Multigraph V E} {Y : Set V} {e : E} (he : e ∈ G.edgeCut Y) :
+    endIn G Y e ∈ Y ∧ e ∈ G.incidenceSet (endIn G Y e) ∧
+      (∀ v ∈ Y, e ∈ G.incidenceSet v → v = endIn G Y e) := by
+  rw [mem_edgeCut] at he
+  dsimp only [endIn]
+  split_ifs with hs
+  · refine ⟨hs, Or.inl rfl, fun v hv hvinc => ?_⟩
+    rcases hvinc with rfl | rfl
+    · rfl
+    · exfalso; exact he (iff_of_true hs hv)
+  · have ht : G.tgt e ∈ Y := by tauto
+    refine ⟨ht, Or.inr rfl, fun v hv hvinc => ?_⟩
+    rcases hvinc with rfl | rfl
+    · exfalso; exact hs hv
+    · rfl
+
+/-- Inject cut edges satisfying a predicate `p` into their `T`-endpoints whenever every vertex in
+`D ∩ T` has at most one incident edge satisfying `p`. -/
+private theorem ncard_edgeCut_inter_le_of_ncard_le_one [Finite V] [Finite E] {G : Multigraph V E}
+    {D T : Set V} (p : E → Prop)
+    (hle : ∀ v ∈ D, v ∈ T → {f ∈ G.incidenceSet v | p f}.ncard ≤ 1) :
+    {e ∈ G.edgeCut T | G.src e ∈ D ∧ G.tgt e ∈ D ∧ p e}.ncard ≤
+      {v ∈ D | v ∈ T ∧ 1 ≤ {f ∈ G.incidenceSet v | p f}.ncard}.ncard := by
+  refine ncard_le_ncard_of_injOn (endIn G T) ?_ ?_ (toFinite _)
+  · rintro e ⟨he, hsD, htD, hp⟩
+    obtain ⟨hwT, hwinc, _⟩ := endIn_mem he
+    have hwD : endIn G T e ∈ D := by
+      rcases hwinc with h | h <;> rw [← h] <;> assumption
+    exact ⟨hwD, hwT, (ncard_pos (toFinite _)).mpr ⟨e, hwinc, hp⟩⟩
+  · rintro e₁ ⟨he₁, hs₁, ht₁, hp₁⟩ e₂ ⟨he₂, -, -, hp₂⟩ heq
+    obtain ⟨hwT, hwinc₁, _⟩ := endIn_mem he₁
+    have hwD : endIn G T e₁ ∈ D := by
+      rcases hwinc₁ with h | h <;> rw [← h] <;> assumption
+    have hwinc₂ : e₂ ∈ G.incidenceSet (endIn G T e₁) := by
+      rw [heq]; exact (endIn_mem he₂).2.1
+    exact (ncard_le_one (toFinite _)).mp (hle _ hwD hwT) _ ⟨hwinc₁, hp₁⟩ _ ⟨hwinc₂, hp₂⟩
+
 /-- **Restricted single-threshold cut-to-straddle injection.** Let `D : Set V` consist of vertices
 of degree `3` in `G`, and let `S : Set V` agree with `lowSide G score t` on `D`. Every cut edge of
 `S` with both endpoints in `D` maps injectively to a straddling endpoint in `D \ S` (if
@@ -131,79 +174,47 @@ private theorem ncard_edgeCut_inter_le_straddles [Finite V] [Finite E] {G : Mult
     {e ∈ G.edgeCut S | G.src e ∈ D ∧ G.tgt e ∈ D}.ncard ≤
       {v ∈ D | v ∉ S ∧ G.EdgeStraddles score t v}.ncard +
         {v ∈ D | v ∈ S ∧ G.EdgeStraddles score t v}.ncard := by
-  classical
   set Ec := {e ∈ G.edgeCut S | G.src e ∈ D ∧ G.tgt e ∈ D}
-  have hpart : Ec ⊆ {e ∈ Ec | score e < t} ∪ {e ∈ Ec | t ≤ score e} := fun e he => by
+  have hpart : Ec ⊆ {e ∈ G.edgeCut Sᶜ | G.src e ∈ D ∧ G.tgt e ∈ D ∧ score e < t} ∪
+      {e ∈ G.edgeCut S | G.src e ∈ D ∧ G.tgt e ∈ D ∧ t ≤ score e} := by
+    intro e ⟨he, hsD, htD⟩
     rcases lt_or_ge (score e) t with h | h
-    · exact Or.inl ⟨he, h⟩
-    · exact Or.inr ⟨he, h⟩
+    · exact Or.inl ⟨by rwa [G.edgeCut_compl], hsD, htD, h⟩
+    · exact Or.inr ⟨he, hsD, htD, h⟩
+  have hlo : ∀ v ∈ D, v ∈ Sᶜ → {f ∈ G.incidenceSet v | score f < t}.ncard ≤ 1 := fun v hv hns => by
+    have hlt := mt (hS v hv).mpr hns
+    simp only [lowSide, mem_ofPred_eq, not_le] at hlt
+    omega
+  have hhi : ∀ v ∈ D, v ∈ S → {f ∈ G.incidenceSet v | t ≤ score f}.ncard ≤ 1 := fun v hv hs => by
+    have hsum := ncard_lt_add_ncard_ge (hD v hv) score t
+    have hge2 : 2 ≤ {f ∈ G.incidenceSet v | score f < t}.ncard := (hS v hv).mp hs
+    omega
   refine ((ncard_le_ncard hpart (toFinite _)).trans (ncard_union_le _ _)).trans
     (Nat.add_le_add ?_ ?_)
-  · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ S then G.tgt e else G.src e)
-      ?_ ?_ (toFinite _)
-    · rintro e ⟨⟨he, hsD, htD⟩, hlt⟩
-      rw [mem_edgeCut] at he
-      set w := if G.src e ∈ S then G.tgt e else G.src e
-      have hw : w ∈ D ∧ w ∉ S ∧ e ∈ G.incidenceSet w := by
-        dsimp [w]
-        split_ifs with hs
-        · exact ⟨htD, fun ht => he (iff_of_true hs ht), Or.inr rfl⟩
-        · exact ⟨hsD, hs, Or.inl rfl⟩
-      have hge1 : 1 ≤ {f ∈ G.incidenceSet w | score f < t}.ncard :=
-        (ncard_pos (toFinite _)).mpr ⟨e, hw.2.2, hlt⟩
-      have hlt2 : {f ∈ G.incidenceSet w | score f < t}.ncard < 2 := by
-        have := mt (hS w hw.1).mpr hw.2.1
-        simp only [lowSide, mem_ofPred_eq, not_le] at this
-        exact this
-      exact ⟨hw.1, hw.2.1, (edgeStraddles_iff_ncard (hD w hw.1) score t).mpr ⟨hge1, by omega⟩⟩
-    · rintro e₁ ⟨⟨he₁, hs₁, ht₁⟩, hlt₁⟩ e₂ ⟨⟨he₂, _, _⟩, hlt₂⟩ heq
-      dsimp only at heq
-      set w := if G.src e₁ ∈ S then G.tgt e₁ else G.src e₁
-      have hw1 : w ∈ D ∧ w ∉ S ∧ e₁ ∈ G.incidenceSet w := by
-        rw [mem_edgeCut] at he₁
-        dsimp [w]
-        split_ifs with hs
-        · exact ⟨ht₁, fun ht => he₁ (iff_of_true hs ht), Or.inr rfl⟩
-        · exact ⟨hs₁, hs, Or.inl rfl⟩
-      have hw2 : e₂ ∈ G.incidenceSet w := by
-        rw [heq]
-        split_ifs <;> [exact Or.inr rfl; exact Or.inl rfl]
-      have hle1 : {f ∈ G.incidenceSet w | score f < t}.ncard ≤ 1 := by
-        have := mt (hS w hw1.1).mpr hw1.2.1
-        simp only [lowSide, mem_ofPred_eq, not_le] at this
-        omega
-      exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hw1.2.2, hlt₁⟩ _ ⟨hw2, hlt₂⟩
-  · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ S then G.src e else G.tgt e)
-      ?_ ?_ (toFinite _)
-    · rintro e ⟨⟨he, hsD, htD⟩, hge⟩
-      rw [mem_edgeCut] at he
-      set u := if G.src e ∈ S then G.src e else G.tgt e
-      have hu : u ∈ D ∧ u ∈ S ∧ e ∈ G.incidenceSet u := by
-        dsimp [u]
-        split_ifs with hs
-        · exact ⟨hsD, hs, Or.inl rfl⟩
-        · exact ⟨htD, by tauto, Or.inr rfl⟩
-      have hsum := ncard_lt_add_ncard_ge (hD u hu.1) score t
-      have hge1 : 1 ≤ {f ∈ G.incidenceSet u | t ≤ score f}.ncard :=
-        (ncard_pos (toFinite _)).mpr ⟨e, hu.2.2, hge⟩
-      have hge2 : 2 ≤ {f ∈ G.incidenceSet u | score f < t}.ncard := (hS u hu.1).mp hu.2.1
-      exact ⟨hu.1, hu.2.1, (edgeStraddles_iff_ncard (hD u hu.1) score t).mpr ⟨by omega, by omega⟩⟩
-    · rintro e₁ ⟨⟨he₁, hs₁, ht₁⟩, hge₁⟩ e₂ ⟨⟨he₂, _, _⟩, hge₂⟩ heq
-      dsimp only at heq
-      set u := if G.src e₁ ∈ S then G.src e₁ else G.tgt e₁
-      have hu1 : u ∈ D ∧ u ∈ S ∧ e₁ ∈ G.incidenceSet u := by
-        rw [mem_edgeCut] at he₁
-        dsimp [u]
-        split_ifs with hs
-        · exact ⟨hs₁, hs, Or.inl rfl⟩
-        · exact ⟨ht₁, by tauto, Or.inr rfl⟩
-      have hu2 : e₂ ∈ G.incidenceSet u := by
-        rw [heq]
-        split_ifs <;> [exact Or.inl rfl; exact Or.inr rfl]
-      have hsum := ncard_lt_add_ncard_ge (hD u hu1.1) score t
-      have hge2 : 2 ≤ {f ∈ G.incidenceSet u | score f < t}.ncard := (hS u hu1.1).mp hu1.2.1
-      have hle1 : {f ∈ G.incidenceSet u | t ≤ score f}.ncard ≤ 1 := by omega
-      exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hu1.2.2, hge₁⟩ _ ⟨hu2, hge₂⟩
+  · refine (ncard_edgeCut_inter_le_of_ncard_le_one (fun e => score e < t) hlo).trans
+      (ncard_le_ncard (fun v ⟨hv, hns, hpos⟩ => ?_) (toFinite _))
+    exact ⟨hv, hns, (edgeStraddles_iff_ncard (hD v hv) score t).mpr
+      ⟨hpos, (hlo v hv hns).trans (by decide)⟩⟩
+  · refine (ncard_edgeCut_inter_le_of_ncard_le_one (fun e => t ≤ score e) hhi).trans
+      (ncard_le_ncard (fun v ⟨hv, hs, hpos⟩ => ?_) (toFinite _))
+    have hsum := ncard_lt_add_ncard_ge (hD v hv) score t
+    have hge2 : 2 ≤ {f ∈ G.incidenceSet v | score f < t}.ncard := (hS v hv).mp hs
+    exact ⟨hv, hs, (edgeStraddles_iff_ncard (hD v hv) score t).mpr ⟨by omega, by omega⟩⟩
+
+/-- Combined form of `ncard_edgeCut_inter_le_straddles`: cut edges with both endpoints in `D` are
+at most the number of straddling vertices in `D`. -/
+private theorem ncard_edgeCut_inter_le_straddling [Finite V] [Finite E] {G : Multigraph V E}
+    {D S : Set V} (hD : ∀ v ∈ D, (G.incidenceSet v).ncard = 3) (score : E → ℝ) (t : ℝ)
+    (hS : ∀ v ∈ D, v ∈ S ↔ v ∈ lowSide G score t) :
+    {e ∈ G.edgeCut S | G.src e ∈ D ∧ G.tgt e ∈ D}.ncard ≤
+      {v ∈ D | G.EdgeStraddles score t v}.ncard := by
+  have hdisj : Disjoint
+      {v ∈ D | v ∉ S ∧ G.EdgeStraddles score t v}
+      {v ∈ D | v ∈ S ∧ G.EdgeStraddles score t v} :=
+    disjoint_left.mpr fun _ h1 h2 => h1.2.1 h2.2.1
+  refine (ncard_edgeCut_inter_le_straddles hD score t hS).trans ?_
+  rw [← ncard_union_eq hdisj (toFinite _) (toFinite _)]
+  exact ncard_le_ncard (by rintro _ (h | h) <;> exact ⟨h.1, h.2.2⟩) (toFinite _)
 
 /-- **Zero-window single-threshold cut bound.** On a cubic multigraph, the cut of
 `lowSide G score t` is at most the number of vertices straddling `t`. -/
@@ -287,6 +298,16 @@ private theorem two_mul_ncard_score_lt_eq [Finite V] [Finite E] {G : Multigraph 
     congr 1; ext e; simp
   omega
 
+/-- Handshaking lemma on a finite loopless cubic multigraph: `2 * |E| = 3 * |V|`. -/
+private theorem two_mul_card_edges_eq_cubic [Finite V] [Finite E] {G : Multigraph V E}
+    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) :
+    2 * Nat.card E = 3 * Nat.card V := by
+  have := Fintype.ofFinite V
+  have hsum := G.sum_ncard_incidenceSet hloop
+  simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul,
+    ← Nat.card_eq_fintype_card] at hsum
+  omega
+
 end SingleThreshold
 
 /-! ### Lyapunov potential and greedy `1`-vertex flips -/
@@ -311,11 +332,11 @@ private theorem ncard_edgeCut_insert_add [Finite E] {G : Multigraph V E} (hloop 
   exact hu
 
 /-- **Greedy `1`-vertex flips.** Starting from any subset `A₀` of a finite loopless cubic
-multigraph `G` and any `0 ≤ μ ≤ 3 / 20`, repeatedly moving vertices with at least two incident cut
+multigraph `G` and any `μ ≤ 3 / 20`, repeatedly moving vertices with at least two incident cut
 edges to the opposite side yields `A*` such that both `A*` and `A*ᶜ` have at most one cut edge per
 vertex, without increasing `|G.edgeCut|`, `lyap μ G`, or `|X| + |G.edgeCut X|` on either side. -/
 private theorem exists_greedy_flipped [Finite V] [Finite E] {G : Multigraph V E}
-    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {μ : ℝ} (hμ0 : 0 ≤ μ)
+    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {μ : ℝ}
     (hμ : μ ≤ 3 / 20) (A₀ : Set V) :
     ∃ A : Set V,
       (G.edgeCut A).ncard ≤ (G.edgeCut A₀).ncard ∧
@@ -325,88 +346,40 @@ private theorem exists_greedy_flipped [Finite V] [Finite E] {G : Multigraph V E}
       (Aᶜ).ncard + (G.edgeCut A).ncard ≤ (A₀ᶜ).ncard + (G.edgeCut A₀).ncard ∧
       (∀ v ∈ A, (G.incidenceSet v ∩ G.edgeCut A).ncard ≤ 1) ∧
       (∀ v ∈ Aᶜ, (G.incidenceSet v ∩ G.edgeCut A).ncard ≤ 1) := by
-  classical
-  have := Fintype.ofFinite V
-  let Adm : Set (Finset V) := {F : Finset V |
-    let A : Set V := (F : Set V)
-    (G.edgeCut A).ncard ≤ (G.edgeCut A₀).ncard ∧
-    lyap μ G A ≤ lyap μ G A₀ ∧
-    lyap μ G Aᶜ ≤ lyap μ G A₀ᶜ ∧
-    A.ncard + (G.edgeCut A).ncard ≤ A₀.ncard + (G.edgeCut A₀).ncard ∧
-    (Aᶜ).ncard + (G.edgeCut A).ncard ≤ (A₀ᶜ).ncard + (G.edgeCut A₀).ncard}
-  have hA₀_mem : A₀.toFinset ∈ Adm := by
-    have hcoe : ((A₀.toFinset : Finset V) : Set V) = A₀ := Set.coe_toFinset A₀
-    dsimp only [Adm]
-    rw [mem_ofPred_eq]
-    simp only [hcoe]
-    exact ⟨le_rfl, le_rfl, le_rfl, le_rfl, le_rfl⟩
-  obtain ⟨F, hF, hmin⟩ :=
-    (measure fun F : Finset V => (G.edgeCut (F : Set V)).ncard).wf.has_min
-      Adm ⟨A₀.toFinset, hA₀_mem⟩
-  set A : Set V := (F : Set V)
-  obtain ⟨hb, hLA, hLAc, hsumA, hsumAc⟩ := hF
-  -- Flipping `v ∉ S` into `S` when `2 ≤ |inc(v) ∩ ∂S|` strictly decreases cut, `lyap`, and `|·|+b`.
+  -- `Le T S`: `T` is no worse than `S` in each of the five tracked quantities.
+  let Le (T S : Set V) : Prop :=
+    (G.edgeCut T).ncard ≤ (G.edgeCut S).ncard ∧ lyap μ G T ≤ lyap μ G S ∧
+      lyap μ G Tᶜ ≤ lyap μ G Sᶜ ∧ T.ncard + (G.edgeCut T).ncard ≤ S.ncard + (G.edgeCut S).ncard ∧
+      (Tᶜ).ncard + (G.edgeCut T).ncard ≤ (Sᶜ).ncard + (G.edgeCut S).ncard
+  have le_compl {S T : Set V} (h : Le T S) : Le Tᶜ Sᶜ := by
+    simp only [Le, compl_compl, G.edgeCut_compl]
+    exact ⟨h.1, h.2.2.1, h.2.1, h.2.2.2.2, h.2.2.2.1⟩
+  obtain ⟨A, hA, hmin⟩ := (measure fun S : Set V => (G.edgeCut S).ncard).wf.has_min
+    {S | Le S A₀} ⟨A₀, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl⟩
+  have hno {T : Set V} (hT : Le T A) (hlt : (G.edgeCut T).ncard < (G.edgeCut A).ncard) : False :=
+    hmin T ⟨hT.1.trans hA.1, hT.2.1.trans hA.2.1, hT.2.2.1.trans hA.2.2.1,
+      hT.2.2.2.1.trans hA.2.2.2.1, hT.2.2.2.2.trans hA.2.2.2.2⟩ hlt
+  -- Flipping `v ∉ S` into `S` when `2 ≤ |inc(v) ∩ ∂S|` strictly decreases the cut, keeping `Le`.
   have step_insert {S : Set V} {v : V} (hv : v ∉ S)
       (h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut S).ncard) :
-      (G.edgeCut (insert v S)).ncard < (G.edgeCut S).ncard ∧
-      lyap μ G (insert v S) ≤ lyap μ G S ∧
-      lyap μ G (insert v S)ᶜ ≤ lyap μ G Sᶜ ∧
-      (insert v S).ncard + (G.edgeCut (insert v S)).ncard ≤ S.ncard + (G.edgeCut S).ncard ∧
-      ((insert v S)ᶜ).ncard + (G.edgeCut (insert v S)).ncard ≤
-        (Sᶜ).ncard + (G.edgeCut S).ncard := by
+      (G.edgeCut (insert v S)).ncard < (G.edgeCut S).ncard ∧ Le (insert v S) S := by
     have hcut := ncard_edgeCut_insert_add hloop h3 hv
-    have hlt_cut : (G.edgeCut (insert v S)).ncard + 1 ≤ (G.edgeCut S).ncard := by omega
-    have hcard_ins : (insert v S).ncard = S.ncard + 1 := ncard_insert_of_notMem hv (toFinite S)
-    have hcompl_eq : Sᶜ = insert v (insert v S)ᶜ := by
-      ext x; simp only [mem_compl_iff, mem_insert_iff]; by_cases hx : x = v <;> simp [hx, hv]
-    have hcard_compl : (Sᶜ).ncard = ((insert v S)ᶜ).ncard + 1 := by
-      rw [hcompl_eq, ncard_insert_of_notMem (by simp) (toFinite _)]
-    have hlt_real : ((G.edgeCut (insert v S)).ncard : ℝ) + 1 ≤ ((G.edgeCut S).ncard : ℝ) := by
-      exact_mod_cast hlt_cut
-    have hins_real : ((insert v S).ncard : ℝ) = (S.ncard : ℝ) + 1 := by exact_mod_cast hcard_ins
-    have hc_real : (((insert v S)ᶜ).ncard : ℝ) + 1 = ((Sᶜ).ncard : ℝ) := by
-      exact_mod_cast hcard_compl.symm
-    refine ⟨by omega, ?_, ?_, by omega, by omega⟩
-    · simp only [lyap, hins_real]
-      nlinarith
-    · simp only [lyap, G.edgeCut_compl]
-      nlinarith
-  refine ⟨A, hb, hLA, hLAc, hsumA, hsumAc, ?_, ?_⟩
-  · intro v hv
+    have hins : (insert v S).ncard = S.ncard + 1 := ncard_insert_of_notMem hv (toFinite S)
+    have hcompl : (Sᶜ).ncard = ((insert v S)ᶜ).ncard + 1 := by
+      rw [← ncard_insert_of_notMem (show v ∉ (insert v S)ᶜ by simp) (toFinite _)]
+      congr 1; ext x; by_cases hx : x = v <;> simp [hx, hv]
+    have hlt : ((G.edgeCut (insert v S)).ncard : ℝ) + 1 ≤ (G.edgeCut S).ncard := by
+      exact_mod_cast (by omega : (G.edgeCut (insert v S)).ncard + 1 ≤ (G.edgeCut S).ncard)
+    refine ⟨by omega, by omega, ?_, ?_, by omega, by omega⟩ <;>
+      simp only [lyap, G.edgeCut_compl, hins, hcompl, Nat.cast_add, Nat.cast_one] <;> nlinarith
+  refine ⟨A, hA.1, hA.2.1, hA.2.2.1, hA.2.2.2.1, hA.2.2.2.2, fun v hv => ?_, fun v hv => ?_⟩ <;>
     by_contra hgt
-    have h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut Aᶜ).ncard := by
-      rw [G.edgeCut_compl]; omega
-    have hv_not : v ∉ Aᶜ := by simp [hv]
-    obtain ⟨hlt, hL1, hL2, hs1, hs2⟩ := step_insert hv_not h2
-    have hcompl : (insert v Aᶜ)ᶜ = (F.erase v : Set V) := by
-      ext x
-      simp only [A, mem_compl_iff, mem_insert_iff, Finset.mem_coe, Finset.mem_erase, not_or,
-        not_not, ne_eq]
-    let F' := F.erase v
-    have hA' : (F' : Set V) = (insert v Aᶜ)ᶜ := hcompl.symm
-    have hcut_eq : (G.edgeCut (F' : Set V)).ncard = (G.edgeCut (insert v Aᶜ)).ncard := by
-      rw [hA', G.edgeCut_compl]
-    have hlt' : (G.edgeCut (F' : Set V)).ncard < (G.edgeCut A).ncard := by
-      rw [hcut_eq]; rw [G.edgeCut_compl] at hlt; exact hlt
-    rw [compl_compl] at hL2 hs2
-    rw [G.edgeCut_compl] at hs1 hs2
-    refine hmin F' ⟨hlt'.le.trans hb, ?_, ?_, ?_, ?_⟩ hlt'
-    · rw [hA']; exact hL2.trans hLA
-    · rw [hA', compl_compl]; exact hL1.trans hLAc
-    · rw [hA', G.edgeCut_compl]; exact hs2.trans hsumA
-    · rw [hA', compl_compl, G.edgeCut_compl]; exact hs1.trans hsumAc
-  · intro v hv
-    by_contra hgt
-    have h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut A).ncard := by omega
-    obtain ⟨hlt, hL1, hL2, hs1, hs2⟩ := step_insert hv h2
-    let F' := insert v F
-    have hA' : (F' : Set V) = insert v A := by simp [F', A]
-    have hlt' : (G.edgeCut (F' : Set V)).ncard < (G.edgeCut A).ncard := by rwa [hA']
-    refine hmin F' ⟨hlt'.le.trans hb, ?_, ?_, ?_, ?_⟩ hlt'
-    · rw [hA']; exact hL1.trans hLA
-    · rw [hA']; exact hL2.trans hLAc
-    · rw [hA']; exact hs1.trans hsumA
-    · rw [hA']; exact hs2.trans hsumAc
+  · obtain ⟨hlt, hle⟩ :=
+      step_insert (S := Aᶜ) (v := v) (by simpa using hv) (by rw [G.edgeCut_compl]; omega)
+    rw [G.edgeCut_compl] at hlt
+    exact hno (by simpa only [compl_compl] using le_compl hle) (by rwa [G.edgeCut_compl])
+  · obtain ⟨hlt, hle⟩ := step_insert hv (by omega)
+    exact hno hle hlt
 
 end GreedyFlips
 
@@ -577,28 +550,6 @@ private theorem dependsOn_lowSide {V E : Type*} [Fintype V] (G : Multigraph V E)
     ext e
     exact and_congr_right fun he => by rw [edgeScore_congr he hω]
   rw [hset]
-
-/-- Every edge in `G.edgeCut Y` has a canonical endpoint inside `Y`. -/
-private noncomputable def endIn {V E : Type*} (G : Multigraph V E) (Y : Set V) (e : E) : V :=
-  open Classical in
-  if G.src e ∈ Y then G.src e else G.tgt e
-
-private theorem endIn_mem {V E : Type*} {G : Multigraph V E} {Y : Set V} {e : E}
-    (he : e ∈ G.edgeCut Y) :
-    endIn G Y e ∈ Y ∧ e ∈ G.incidenceSet (endIn G Y e) ∧
-      (∀ v ∈ Y, e ∈ G.incidenceSet v → v = endIn G Y e) := by
-  rw [mem_edgeCut] at he
-  dsimp only [endIn]
-  split_ifs with hs
-  · refine ⟨hs, Or.inl rfl, fun v hv hvinc => ?_⟩
-    rcases hvinc with rfl | rfl
-    · rfl
-    · exfalso; exact he (iff_of_true hs hv)
-  · have ht : G.tgt e ∈ Y := by tauto
-    refine ⟨ht, Or.inr rfl, fun v hv hvinc => ?_⟩
-    rcases hvinc with rfl | rfl
-    · exfalso; exact hs hv
-    · rfl
 
 /-- Decompose `G.edgeCut Y₁` for a subset `Y₁ ⊆ Y` into internal edges of `Y` crossing `Y₁` and
 boundary edges of `Y` whose `Y`-endpoint lies in `Y₁`. -/
@@ -777,6 +728,481 @@ private theorem ncard_edgeCut_endIn_eq_sub {V E : Type*} [Finite E] {G : Multigr
   rcases (hu ▸ (endIn_mem he).1 : endIn G X e ∈ X₁ ∪ X₂) with h | h
   exacts [Or.inl ⟨he, h⟩, Or.inr ⟨he, h⟩]
 
+/-- Two complementary parts summing to `t` with `|a - t / 2| < c` are each at most
+`t / 2 + c`. -/
+private theorem le_half_add_of_abs_lt {a b t c : ℝ} (hb : b = t - a)
+    (habs : |a - 1 / 2 * t| < c) :
+    a ≤ 1 / 2 * t + c ∧ b ≤ 1 / 2 * t + c := by
+  have ⟨h1, h2⟩ := abs_lt.mp habs
+  exact ⟨by linarith only [h2], by linarith only [h1, hb]⟩
+
+/-- Real-cast decomposition of `G.edgeCut Y₁` for a subset `Y₁ ⊆ Y`. -/
+private theorem ncard_edgeCut_sub_cast_eq {V E : Type*} [Finite E] {G : Multigraph V E}
+    {Y Y₁ : Set V} (hY₁ : Y₁ ⊆ Y) :
+    ((G.edgeCut Y₁).ncard : ℝ) =
+      (((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard : ℝ) +
+        ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
+  exact_mod_cast ncard_edgeCut_sub_eq (G := G) hY₁
+
+/-! #### Paired Gaussian events on a subcubic quotient multigraph -/
+
+/-- First-coordinate projection of a paired Gaussian sample. -/
+private abbrev fstProj {β : Type*} (ω : β → ℝ × ℝ) : β → ℝ :=
+  fun B => (ω B).1
+
+/-- Projecting each block coordinate `(g, h) ↦ g` preserves the product Gaussian law. -/
+private theorem measurePreserving_fstProj {β : Type*} [Fintype β] :
+    MeasurePreserving (fstProj (β := β))
+      (Measure.pi fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1))
+      (Measure.pi fun _ : β => gaussianReal 0 1) := by
+  refine ⟨by fun_prop, ?_⟩
+  have h1 := Measure.pi_map_pi
+    (μ := fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1))
+    (f := fun _ (z : ℝ × ℝ) => z.1) fun _ => measurable_fst.aemeasurable
+  simpa [fstProj, Measure.fst_prod] using h1
+
+/-- Symmetric (`t = 0`) side event on a subcubic multigraph `Q`: degree-`3` vertices follow the
+Gaussian `lowSide` score using the first coordinate, while lower-degree vertices use an independent
+fair sign `(ω B).2 < 0`. -/
+private noncomputable def blockSideEvent {β ε : Type*} [Fintype β] (Q : Multigraph β ε)
+    (q : ℝ) (R : ℕ) (B : β) : Set (β → ℝ × ℝ) :=
+  if (Q.incidenceSet B).ncard = 3 then
+    {ω | B ∈ lowSide Q (edgeScore Q q R (fstProj ω)) 0}
+  else
+    {ω | (ω B).2 < 0}
+
+/-- Measurability of `blockSideEvent`. -/
+private theorem measurableSet_blockSideEvent {β ε : Type*} [Fintype β] [Finite ε]
+    (Q : Multigraph β ε) (q : ℝ) (R : ℕ) (B : β) :
+    MeasurableSet (blockSideEvent Q q R B) := by
+  dsimp only [blockSideEvent]
+  split_ifs
+  · exact (measurableSet_lowSide Q q R 0 B).preimage (by fun_prop)
+  · exact measurableSet_lt (measurable_snd.comp (measurable_pi_apply B)) measurable_const
+
+/-- Locality of `blockSideEvent`: depends only on coordinates inside `closedBall _ B (R + 1)`. -/
+private theorem dependsOn_blockSideEvent {β ε : Type*} [Fintype β] (Q : Multigraph β ε)
+    (q : ℝ) (R : ℕ) (B : β) :
+    DependsOn (· ∈ blockSideEvent Q q R B) (closedBall Q.toSimpleGraph B (R + 1)) := by
+  intro ω₁ ω₂ hω
+  dsimp only [blockSideEvent]
+  split_ifs
+  · exact dependsOn_lowSide Q q R 0 B fun z hz => congrArg Prod.fst (hω z hz)
+  · have hB_mem : B ∈ closedBall Q.toSimpleGraph B (R + 1) := by simp [closedBall]
+    simp [congrArg Prod.snd (hω B hB_mem)]
+
+/-- Every vertex `B` of a loopless subcubic multigraph enters `blockSideEvent` with probability
+`1 / 2`. -/
+private theorem measureReal_blockSideEvent_eq_half {β ε : Type*} [Fintype β] [Finite ε]
+    {Q : Multigraph β ε} (hloop : Q.Loopless) (hdeg : Q.MaxDegreeLE 3) {q : ℝ} (hq : 0 ≤ q)
+    {R : ℕ} {ρ₀ : ℝ} (hρ₀ : 0 ≤ ρ₀)
+    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R) (B : β) :
+    (Measure.pi fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1)).real
+      (blockSideEvent Q q R B) = 1 / 2 := by
+  dsimp only [blockSideEvent]
+  split_ifs with hdegB
+  · have hpre : {ω : β → ℝ × ℝ | B ∈ lowSide Q (edgeScore Q q R (fstProj ω)) 0} =
+        fstProj ⁻¹' {ω' | B ∈ lowSide Q (edgeScore Q q R ω') 0} := rfl
+    rw [hpre, measurePreserving_fstProj.measureReal_preimage
+      (measurableSet_lowSide Q q R 0 B).nullMeasurableSet]
+    exact measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith) hρ hdegB
+  · have hsnd : MeasurePreserving Prod.snd ((gaussianReal 0 1).prod (gaussianReal 0 1))
+        (gaussianReal 0 1) := ⟨measurable_snd, Measure.snd_prod⟩
+    have hproj_mp := hsnd.comp
+      (measurePreserving_eval (fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1)) B)
+    have hpre : {ω : β → ℝ × ℝ | (ω B).2 < 0} =
+        (Prod.snd ∘ Function.eval B) ⁻¹' Iio 0 := rfl
+    have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
+    rw [hpre, hproj_mp.measureReal_preimage measurableSet_Iio.nullMeasurableSet,
+      measureReal_congr Iio_ae_eq_Iic, ← cdf_eq_real, cdf_gaussianReal_zero_zero one_ne_zero]
+    norm_num
+
+/-- Straddling event on degree-`3` vertices of a subcubic multigraph under the paired Gaussian
+sample (empty on vertices of degree `< 3`). -/
+private noncomputable def blockStradEvent {β ε : Type*} [Fintype β] (Q : Multigraph β ε)
+    (q : ℝ) (R : ℕ) (B : β) : Set (β → ℝ × ℝ) :=
+  if (Q.incidenceSet B).ncard = 3 then
+    fstProj ⁻¹' straddleEvent Q q R 0 B
+  else
+    ∅
+
+/-- Measurability of `blockStradEvent`. -/
+private theorem measurableSet_blockStradEvent {β ε : Type*} [Fintype β] [Finite ε]
+    (Q : Multigraph β ε) (q : ℝ) (R : ℕ) (B : β) :
+    MeasurableSet (blockStradEvent Q q R B) := by
+  dsimp only [blockStradEvent]
+  split_ifs
+  · exact (measurableSet_straddleEvent 0 B (q := q) (R := R)).preimage (by fun_prop)
+  · exact MeasurableSet.empty
+
+/-- Locality of `blockStradEvent`: depends only on coordinates inside `closedBall _ B (R + 1)`. -/
+private theorem dependsOn_blockStradEvent {β ε : Type*} [Fintype β] (Q : Multigraph β ε)
+    (q : ℝ) (R : ℕ) (B : β) :
+    DependsOn (· ∈ blockStradEvent Q q R B) (closedBall Q.toSimpleGraph B (R + 1)) := by
+  intro ω₁ ω₂ hω
+  dsimp only [blockStradEvent]
+  split_ifs
+  · exact dependsOn_straddleEvent q R 0 B fun z hz => congrArg Prod.fst (hω z hz)
+  · rfl
+
+/-- Single-vertex straddle probability bound for `blockStradEvent`. -/
+private theorem measureReal_blockStradEvent_le {β ε : Type*} [Fintype β] [Finite ε]
+    {Q : Multigraph β ε} (hloop : Q.Loopless) (hdeg : Q.MaxDegreeLE 3) {q : ℝ} (hq : 0 ≤ q)
+    {R : ℕ} {ρ₀ : ℝ} (hρ₀ : 0 ≤ ρ₀)
+    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R) (B : β) :
+    (Measure.pi fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1)).real
+        (blockStradEvent Q q R B) ≤
+      if (Q.incidenceSet B).ncard = 3 then straddleBound ρ₀ else 0 := by
+  dsimp only [blockStradEvent]
+  split_ifs with hdegB
+  · rw [measurePreserving_fstProj.measureReal_preimage
+      (measurableSet_straddleEvent q R 0 B).nullMeasurableSet]
+    have hb := measureReal_straddleEvent_le_of_ncard_eq_three hloop hdeg hq hρ₀ hρ 0 hdegB
+    simpa using hb
+  · simp
+
+/-- Cut bound on `blockSideEvent`: cut edges of `S_Q = {B | ω ∈ blockSideEvent Q q R B}` either
+touch a block of degree `1` or `2` (at most `2` each) or join two degree-`3` blocks (injected into
+`blockStradEvent`). -/
+private theorem ncard_edgeCut_blockSideEvent_le {β ε : Type*} [Fintype β] [Finite ε]
+    {Q : Multigraph β ε} (hdeg : Q.MaxDegreeLE 3) (q : ℝ) (R : ℕ) (ω : β → ℝ × ℝ) :
+    (Q.edgeCut {B | ω ∈ blockSideEvent Q q R B}).ncard ≤
+      2 * (Finset.univ.filter fun B : β =>
+          1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2).card +
+        {B : β | ω ∈ blockStradEvent Q q R B}.ncard := by
+  classical
+  have := Fintype.ofFinite ε
+  set S_Q : Set β := {B | ω ∈ blockSideEvent Q q R B}
+  set Lset := Finset.univ.filter fun B : β =>
+    1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2
+  set E_low := {e ∈ Q.edgeCut S_Q | Q.src e ∈ Lset ∨ Q.tgt e ∈ Lset}
+  set E_33 := {e ∈ Q.edgeCut S_Q | (Q.incidenceSet (Q.src e)).ncard = 3 ∧
+    (Q.incidenceSet (Q.tgt e)).ncard = 3}
+  have hcover : Q.edgeCut S_Q ⊆ E_low ∪ E_33 := by
+    intro e he
+    have hs0 : 1 ≤ (Q.incidenceSet (Q.src e)).ncard := (ncard_pos (toFinite _)).mpr ⟨e, Or.inl rfl⟩
+    have ht0 : 1 ≤ (Q.incidenceSet (Q.tgt e)).ncard := (ncard_pos (toFinite _)).mpr ⟨e, Or.inr rfl⟩
+    have hs3 := hdeg (Q.src e)
+    have ht3 := hdeg (Q.tgt e)
+    by_cases hsL : (Q.incidenceSet (Q.src e)).ncard ≤ 2
+    · exact Or.inl ⟨he, Or.inl (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hs0, hsL⟩)⟩
+    by_cases htL : (Q.incidenceSet (Q.tgt e)).ncard ≤ 2
+    · exact Or.inl ⟨he, Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, ht0, htL⟩)⟩
+    · exact Or.inr ⟨he, by omega, by omega⟩
+  have hlow_bound : E_low.ncard ≤ 2 * Lset.card := by
+    have hsub : E_low ⊆ ↑(Lset.biUnion fun B => (Q.incidenceSet B).toFinset) := by
+      rintro e ⟨-, hs | ht⟩
+      · exact Finset.mem_coe.mpr (Finset.mem_biUnion.mpr ⟨Q.src e, hs,
+          Set.mem_toFinset.mpr (Or.inl rfl)⟩)
+      · exact Finset.mem_coe.mpr (Finset.mem_biUnion.mpr ⟨Q.tgt e, ht,
+          Set.mem_toFinset.mpr (Or.inr rfl)⟩)
+    refine (ncard_le_ncard hsub (toFinite _)).trans ?_
+    rw [ncard_coe_finset]
+    refine Finset.card_biUnion_le.trans ?_
+    calc ∑ B ∈ Lset, (Q.incidenceSet B).toFinset.card
+        ≤ ∑ _B ∈ Lset, 2 := Finset.sum_le_sum fun B hB => by
+          rw [← Set.ncard_eq_toFinset_card']
+          exact (Finset.mem_filter.mp hB).2.2
+      _ = 2 * Lset.card := by simp [Nat.mul_comm]
+  have h33_bound : E_33.ncard ≤ {B : β | ω ∈ blockStradEvent Q q R B}.ncard := by
+    set D3 : Set β := {B | (Q.incidenceSet B).ncard = 3}
+    have hcut := ncard_edgeCut_inter_le_straddling (G := Q) (D := D3) (S := S_Q)
+      (fun _ h => h) (edgeScore Q q R (fstProj ω)) 0 fun B hB => by
+        simp only [D3, mem_ofPred_eq] at hB
+        simp [S_Q, blockSideEvent, hB, lowSide]
+    refine hcut.trans (ncard_le_ncard ?_ (toFinite _))
+    rintro B ⟨hB, hstrad⟩
+    simp only [D3, mem_ofPred_eq] at hB
+    simpa [blockStradEvent, hB, straddleEvent] using hstrad
+  exact ((ncard_le_ncard hcover (toFinite _)).trans (ncard_union_le _ _)).trans
+    (Nat.add_le_add hlow_bound h33_bound)
+
+/-- Simultaneous second-moment concentration on `Q` for two bounded vertex-weight functions `vWt`
+and `bWt` on `blockSideEvent` and the unweighted count of `blockStradEvent`. -/
+private theorem exists_concentrated_blockSample {β ε : Type*} [Fintype β] [Finite ε]
+    {Q : Multigraph β ε} (hdeg : Q.MaxDegreeLE 3) (q : ℝ) (R : ℕ)
+    {M : ℕ} (hM1 : (1 : ℝ) ≤ M) {h η : ℝ} (hη : 0 < η) (hcard : (Fintype.card β : ℝ) ≤ h)
+    (large : 4 * (M : ℝ) ^ 2 * (vertexOverlap 3 R : ℝ) / η ^ 2 < h)
+    {vWt bWt : β → ℝ} (hvWt : ∀ B, 0 ≤ vWt B ∧ vWt B ≤ M) (hbWt : ∀ B, 0 ≤ bWt B ∧ bWt B ≤ M) :
+    let P := Measure.pi fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1)
+    ∃ ω : β → ℝ × ℝ,
+      ω ∉ weightedDeviation P Finset.univ vWt (blockSideEvent Q q R) (η * h) ∧
+      ω ∉ weightedDeviation P Finset.univ bWt (blockSideEvent Q q R) (η * h) ∧
+      ω ∉ weightedDeviation P Finset.univ 1 (blockStradEvent Q q R) (η * h) := by
+  intro P
+  set c : ℝ := η * h
+  set D := vertexOverlap 3 R
+  have hh_pos : 0 < h := lt_of_le_of_lt (by positivity) large
+  have hdev (w : β → ℝ) {A : β → Set (β → ℝ × ℝ)} (hA : ∀ B, MeasurableSet (A B))
+      (hAd : ∀ B, DependsOn (· ∈ A B) (closedBall Q.toSimpleGraph B (R + 1)))
+      (hw : ∀ B, 0 ≤ w B ∧ w B ≤ M) :
+      P.real (weightedDeviation P Finset.univ w A c) ≤ h * M ^ 2 * D / c ^ 2 :=
+    (measureReal_weightedDeviation_le _ (fun B _ => hA B) (fun B _ => (hw B).1)
+      (fun B _ => (hw B).2) _ (fun B _ => hAd B)
+      (fun B _ => card_not_disjoint_closedBall_le hdeg (by norm_num) R B)
+      (by positivity)).trans (by gcongr; simpa using hcard)
+  have hdevV := hdev vWt (measurableSet_blockSideEvent Q q R) (dependsOn_blockSideEvent Q q R) hvWt
+  have hdevB := hdev bWt (measurableSet_blockSideEvent Q q R) (dependsOn_blockSideEvent Q q R) hbWt
+  have hdevS := hdev 1 (measurableSet_blockStradEvent Q q R) (dependsOn_blockStradEvent Q q R)
+    fun _ => ⟨zero_le_one, hM1⟩
+  obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
+    (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdevV hdevB)) hdevS)).trans_lt
+    (by calc _ = 3 * (M : ℝ) ^ 2 * D * h / c ^ 2 := by ring
+      _ < 1 := mul_div_mul_sq_lt_one hη.ne' hh_pos
+        ((by gcongr; norm_num : 3 * (M : ℝ) ^ 2 * D / η ^ 2 ≤ _).trans_lt large)))
+  simp only [mem_union, not_or] at hω
+  exact ⟨ω, hω.1.1, hω.1.2, hω.2⟩
+
+/-- Extract the upper bound on `{B | ω ∈ blockStradEvent Q q R B}.ncard` from non-membership in the
+unweighted `weightedDeviation` bad event. -/
+private theorem ncard_blockStradEvent_le {β ε : Type*} [Fintype β] [Finite ε]
+    {Q : Multigraph β ε} (hloop : Q.Loopless) (hdeg : Q.MaxDegreeLE 3) {q : ℝ} (hq : 0 ≤ q)
+    {R : ℕ} {ρ₀ : ℝ} (hρ₀ : 0 ≤ ρ₀)
+    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R) {c : ℝ} {ω : β → ℝ × ℝ}
+    (hω : ω ∉ weightedDeviation
+      (Measure.pi fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1))
+      Finset.univ 1 (blockStradEvent Q q R) c) :
+    ({B : β | ω ∈ blockStradEvent Q q R B}.ncard : ℝ) ≤
+      ((Finset.univ.filter fun B : β => (Q.incidenceSet B).ncard = 3).card : ℝ) *
+        straddleBound ρ₀ + c := by
+  classical
+  set P := Measure.pi fun _ : β => (gaussianReal 0 1).prod (gaussianReal 0 1)
+  simp only [weightedDeviation, mem_ofPred_eq, not_le, Pi.one_apply, one_mul] at hω
+  have hmean_le : ∑ B : β, P.real (blockStradEvent Q q R B) ≤
+      ((Finset.univ.filter fun B : β => (Q.incidenceSet B).ncard = 3).card : ℝ) *
+        straddleBound ρ₀ := by
+    calc ∑ B : β, P.real (blockStradEvent Q q R B)
+        ≤ ∑ B : β, if (Q.incidenceSet B).ncard = 3 then straddleBound ρ₀ else 0 :=
+          Finset.sum_le_sum fun B _ => measureReal_blockStradEvent_le hloop hdeg hq hρ₀ hρ B
+      _ = ((Finset.univ.filter fun B : β => (Q.incidenceSet B).ncard = 3).card : ℝ) *
+          straddleBound ρ₀ := by
+          rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul]
+  rw [← ncard_eq_sum_indicator] at hω
+  linarith only [(abs_lt.mp hω).2, hmean_le]
+
+/-! #### Saturated compression counts and lifted block weights -/
+
+/-- Low-degree (`1 ≤ deg ≤ 2`) and degree-`3` block count bounds for a saturated weight-capped
+compression of `G.induce X` with vertex weights `w x = 1 + |inc_G(x) ∩ ∂X|`. -/
+private theorem saturated_block_count_bounds {V E : Type*} [Finite V] [Finite E]
+    {G : Multigraph V E} (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
+    {X : Set V} [Fintype X] (hH_min : ∀ x : X, 2 ≤ ((G.induce X).incidenceSet x).ncard)
+    (hH_hand : 2 * Nat.card {e : E // G.src e ∈ X ∧ G.tgt e ∈ X} + (G.edgeCut X).ncard =
+      3 * Nat.card X)
+    (hH_cut_sum : ∑ x : X, (G.incidenceSet x.1 ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard)
+    {M : ℕ} (hM : 0 < M)
+    {cmp : CappedCompression (G.induce X)
+      (fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) 3 M}
+    (hsat : cmp.Saturated) :
+    let Q := cmp.quotient
+    let Lset := Finset.univ.filter fun B : cmp.blocks =>
+      1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2
+    let Q3set := Finset.univ.filter fun B : cmp.blocks => (Q.incidenceSet B).ncard = 3
+    (Lset.card : ℝ) ≤ 32 / (M : ℝ) * (Nat.card V : ℝ) ∧
+      (Q3set.card : ℝ) + ((G.edgeCut X).ncard : ℝ) ≤ (X.ncard : ℝ) + (Lset.card : ℝ) := by
+  classical
+  have := Fintype.ofFinite E
+  have hH_loop : (G.induce X).Loopless := fun e he => hloop e.1 (congrArg Subtype.val he)
+  have hcard_X : Nat.card X = X.ncard := Nat.card_coe_set_eq X
+  have hsum_w_le : ∑ x : X, (1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) ≤ 4 * Nat.card V := by
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
+      ← Nat.card_eq_fintype_card, hcard_X, hH_cut_sum]
+    have hE := two_mul_card_edges_eq_cubic hloop h3
+    have hcut_le : (G.edgeCut X).ncard ≤ Nat.card E := ncard_le_card _
+    have hX_le : X.ncard ≤ Nat.card V := ncard_le_card X
+    omega
+  refine ⟨?_, ?_⟩
+  · have hsat_bound := hsat.mul_card_deg_one_two_le
+    rw [div_mul_eq_mul_div, le_div_iff₀ (Nat.cast_pos.mpr hM)]
+    exact_mod_cast (by linarith : _ * M ≤ 32 * Nat.card V)
+  · have hdeg3 := cmp.card_deg_three_add_le_of_two_le_deg hH_loop hH_min hH_hand
+    have hQ1_sub : (Finset.univ.filter fun B : cmp.blocks =>
+        (cmp.quotient.incidenceSet B).ncard = 1).card ≤
+        (Finset.univ.filter fun B : cmp.blocks =>
+          1 ≤ (cmp.quotient.incidenceSet B).ncard ∧
+            (cmp.quotient.incidenceSet B).ncard ≤ 2).card :=
+      Finset.card_le_card fun B hB => by
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hB ⊢
+        omega
+    rw [hcard_X] at hdeg3
+    exact_mod_cast (by omega :
+      (Finset.univ.filter fun B : cmp.blocks =>
+        (cmp.quotient.incidenceSet B).ncard = 3).card + (G.edgeCut X).ncard ≤ X.ncard + _)
+
+/-- Number of vertices in a compression block `B`, as a real weight. -/
+private noncomputable def blockVertexWeight {V E : Type*} {G : Multigraph V E} {X : Set V}
+    [Fintype X] {w : X → ℕ} {d M : ℕ} (cmp : CappedCompression (G.induce X) w d M)
+    (B : cmp.blocks) : ℝ :=
+  open Classical in
+  ((Finset.univ.filter fun x : X => cmp.blockOf x = B).card : ℝ)
+
+/-- Number of `G.edgeCut X` boundary edges incident to a compression block `B`, as a real
+weight. -/
+private noncomputable def blockCutWeight {V E : Type*} {G : Multigraph V E} {X : Set V}
+    [Fintype X] {w : X → ℕ} {d M : ℕ} (cmp : CappedCompression (G.induce X) w d M)
+    (B : cmp.blocks) : ℝ :=
+  open Classical in
+  ((∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
+    (G.incidenceSet x.1 ∩ G.edgeCut X).ncard : ℕ) : ℝ)
+
+/-- Bounds and sum identity for `blockVertexWeight`. -/
+private theorem blockVertexWeight_spec {V E : Type*} {G : Multigraph V E} {X : Set V}
+    [Fintype X] {M : ℕ}
+    (cmp : CappedCompression (G.induce X)
+      (fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) 3 M) :
+    (∀ B : cmp.blocks, 0 ≤ blockVertexWeight cmp B ∧ blockVertexWeight cmp B ≤ M) ∧
+      ∑ B : cmp.blocks, blockVertexWeight cmp B = (X.ncard : ℝ) := by
+  classical
+  have hcard_eq (B : cmp.blocks) :
+      (Finset.univ.filter fun x : X => cmp.blockOf x = B).card = ({x : X | x ∈ B.1}).ncard := by
+    rw [← ncard_coe_finset]; congr 1; ext x; simp [cmp.mem_iff_blockOf_eq]
+  refine ⟨fun B => ⟨Nat.cast_nonneg _, ?_⟩, ?_⟩
+  · refine Nat.cast_le.mpr (le_trans ?_ (cmp.blockWeight_le B))
+    rw [hcard_eq B, cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
+    exact (by simp : B.1.length = (B.1.map fun _ => 1).sum) ▸
+      List.sum_le_sum (l := B.1) (f := fun _ => 1)
+        (g := fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard)
+        fun _ _ => Nat.le_add_right _ _
+  · simp only [blockVertexWeight]
+    rw [← Nat.cast_sum, Finset.sum_card_fiberwise_eq_card_filter,
+      Finset.filter_true_of_mem fun _ _ => Finset.mem_univ _, Finset.card_univ,
+      ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+
+/-- Bounds and sum identity for `blockCutWeight`. -/
+private theorem blockCutWeight_spec {V E : Type*} {G : Multigraph V E} {X : Set V}
+    [Fintype X] {M : ℕ}
+    (cmp : CappedCompression (G.induce X)
+      (fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) 3 M)
+    (hcut_sum : ∑ x : X, (G.incidenceSet x.1 ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard) :
+    (∀ B : cmp.blocks, 0 ≤ blockCutWeight cmp B ∧ blockCutWeight cmp B ≤ M) ∧
+      ∑ B : cmp.blocks, blockCutWeight cmp B = ((G.edgeCut X).ncard : ℝ) := by
+  classical
+  refine ⟨fun B => ⟨Nat.cast_nonneg _, ?_⟩, ?_⟩
+  · have hfin : B.1.toFinset = Finset.univ.filter (fun x : X => cmp.blockOf x = B) := by
+      ext x; simp [cmp.mem_iff_blockOf_eq]
+    have hle : (∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
+        (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) ≤ cmp.blockWeight B := by
+      rw [CappedCompression.blockWeight, ← List.sum_toFinset _ (cmp.nodup B.1 B.2), hfin]
+      exact Finset.sum_le_sum fun _ _ => Nat.le_add_left _ _
+    exact Nat.cast_le.mpr (hle.trans (cmp.blockWeight_le B))
+  · simp only [blockCutWeight]
+    rw [← Nat.cast_sum, Finset.sum_fiberwise, hcut_sum]
+
+/-- Vertex count of the lift `Subtype.val '' (cmp.blockOf ⁻¹' {B | ω ∈ A B})` as an
+indicator-weighted sum of `blockVertexWeight`. -/
+private theorem ncard_lifted_eq_sum_vertexWeight {V E Ω : Type*} {G : Multigraph V E}
+    {X : Set V} [Fintype X] {w : X → ℕ} {d M : ℕ}
+    (cmp : CappedCompression (G.induce X) w d M) (A : cmp.blocks → Set Ω) (ω : Ω) :
+    ((Subtype.val '' (cmp.blockOf ⁻¹' {B : cmp.blocks | ω ∈ A B})).ncard : ℝ) =
+      ∑ B : cmp.blocks, blockVertexWeight cmp B * (A B).indicator 1 ω := by
+  classical
+  set S : Set cmp.blocks := {B | ω ∈ A B}
+  rw [ncard_image_of_injective _ Subtype.val_injective]
+  have hpre_fin : (cmp.blockOf ⁻¹' S).ncard =
+      ∑ B ∈ Finset.univ.filter (· ∈ S),
+        (Finset.univ.filter fun x : X => cmp.blockOf x = B).card := by
+    rw [Finset.sum_card_fiberwise_eq_card_filter, ← ncard_coe_finset]
+    congr 1; ext x; simp
+  rw [hpre_fin]
+  push_cast
+  rw [Finset.sum_filter]
+  refine Finset.sum_congr rfl fun B _ => ?_
+  dsimp [blockVertexWeight]
+  by_cases hB : ω ∈ A B <;> simp [S, hB]
+
+/-- Boundary-edge count `{e ∈ ∂X | endIn G X e ∈ X₁}` for a lifted block set `X₁` as an
+indicator-weighted sum of `blockCutWeight`. -/
+private theorem ncard_endIn_lifted_eq_sum_cutWeight {V E Ω : Type*} [Finite E]
+    {G : Multigraph V E} {X : Set V} [Fintype X] {w : X → ℕ} {d M : ℕ}
+    (cmp : CappedCompression (G.induce X) w d M) (A : cmp.blocks → Set Ω) (ω : Ω) :
+    ({e ∈ G.edgeCut X | endIn G X e ∈
+        Subtype.val '' (cmp.blockOf ⁻¹' {B : cmp.blocks | ω ∈ A B})}.ncard : ℝ) =
+      ∑ B : cmp.blocks, blockCutWeight cmp B * (A B).indicator 1 ω := by
+  classical
+  have := Fintype.ofFinite E
+  set S : Set cmp.blocks := {B | ω ∈ A B}
+  have hpart_cut : {e ∈ G.edgeCut X | endIn G X e ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)}.ncard =
+      ∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x ∈ S),
+        (G.incidenceSet x.1 ∩ G.edgeCut X).ncard := by
+    have h1 (x : X) : (G.incidenceSet x.1 ∩ G.edgeCut X).ncard =
+        (Finset.univ.filter fun e : E => e ∈ G.incidenceSet x.1 ∧ e ∈ G.edgeCut X).card := by
+      rw [← ncard_coe_finset]; congr 1; ext e; simp
+    simp_rw [h1]
+    rw [← Finset.card_biUnion]
+    · rw [← ncard_coe_finset]
+      congr 1; ext e
+      simp only [Finset.mem_coe, Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ,
+        true_and, mem_ofPred_eq]
+      constructor
+      · rintro ⟨heCut, x, hxS, heqx⟩
+        obtain ⟨hm, hinc, _⟩ := endIn_mem heCut
+        have hxeq : x = ⟨endIn G X e, hm⟩ := Subtype.ext heqx
+        subst hxeq
+        exact ⟨⟨endIn G X e, hm⟩, hxS, hinc, heCut⟩
+      · rintro ⟨x, hxS, hinc, heCut⟩
+        obtain ⟨_, _, hunq⟩ := endIn_mem heCut
+        exact ⟨heCut, x, hxS, hunq x.1 x.2 hinc⟩
+    · intro x₁ _ x₂ _ hne
+      refine Finset.disjoint_left.mpr fun e h1' h2' => hne ?_
+      obtain ⟨hi1, hc1⟩ := (Finset.mem_filter.mp h1').2
+      obtain ⟨hi2, _⟩ := (Finset.mem_filter.mp h2').2
+      obtain ⟨_, _, hunq⟩ := endIn_mem hc1
+      exact Subtype.ext ((hunq x₁.1 x₁.2 hi1).trans (hunq x₂.1 x₂.2 hi2).symm)
+  rw [hpart_cut]
+  have hgrp : (Finset.univ.filter fun x : X => cmp.blockOf x ∈ S) =
+      {x ∈ (Finset.univ : Finset X) | cmp.blockOf x ∈ Finset.univ.filter (· ∈ S)} := by
+    ext x; simp
+  rw [hgrp, ← Finset.sum_fiberwise_eq_sum_filter]
+  push_cast
+  rw [Finset.sum_filter]
+  refine Finset.sum_congr rfl fun B _ => ?_
+  dsimp [blockCutWeight]
+  by_cases hB : ω ∈ A B <;> simp [S, hB]
+
+/-- Internal edge-cut size in `G.induce X` of a lifted block set `Subtype.val ''` matches the
+quotient edge cut `(cmp.quotient.edgeCut S).ncard`. -/
+private theorem ncard_edgeCut_lifted_eq {V E : Type*} {G : Multigraph V E}
+    {X : Set V} {w : X → ℕ} {d M : ℕ}
+    (cmp : CappedCompression (G.induce X) w d M) (S : Set cmp.blocks) :
+    ((G.induce X).edgeCut {x : X | x.1 ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)}).ncard =
+      (cmp.quotient.edgeCut S).ncard := by
+  have hset : {x : X | x.1 ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)} = cmp.blockOf ⁻¹' S := by
+    ext x
+    exact ⟨by rintro ⟨x', hx', heq⟩; rwa [← Subtype.ext heq], fun hx => ⟨x, hx, rfl⟩⟩
+  rw [hset, cmp.ncard_edgeCut_preimage]
+
+/-! #### Depth-one bisection inequality and assembly -/
+
+/-- Algebraic reduction bounding the real quotient cut against `lyap gaussianCoefficient G X` minus
+the half-boundary share and slack `η * h`. -/
+private theorem quotient_cut_add_slack_le_lyap {qCut lCard q3Card xCard cutX sBound δ M η h : ℝ}
+    (hδ : 0 < δ) (hh_pos : 0 < h) (hM_pos : 0 < M) (hM_real : 768 / δ ≤ M) (hηδ : η ≤ δ / 16)
+    (hstrad : sBound ≤ gaussianCoefficient + δ / 8)
+    (hL_nonneg : 0 ≤ lCard) (hq3_nonneg : 0 ≤ q3Card) (hq3_le_h : q3Card ≤ h)
+    (hL_le : lCard ≤ 32 / M * h) (hq3_le : q3Card + cutX ≤ xCard + lCard)
+    (hqCut : qCut ≤ 2 * lCard + (q3Card * sBound + η * h)) :
+    qCut + (1 / 2 * cutX + η * h) ≤
+      gaussianCoefficient * xCard + (1 / 2 - gaussianCoefficient) * cutX + δ / 2 * h := by
+  have hp_pos := gaussianCoefficient_pos
+  have hp_lt1 : gaussianCoefficient ≤ 1 :=
+    gaussianCoefficient_lt_three_twentieths.le.trans (by norm_num)
+  have hprod : q3Card * sBound ≤ q3Card * gaussianCoefficient + δ / 8 * h := by
+    linarith only [mul_le_mul_of_nonneg_left hstrad hq3_nonneg,
+      mul_le_mul_of_nonneg_right hq3_le_h (by positivity : (0 : ℝ) ≤ δ / 8)]
+  have hq3_p : q3Card * gaussianCoefficient ≤ (xCard - cutX) * gaussianCoefficient + lCard := by
+    have hmul := mul_le_mul_of_nonneg_right
+      (by linarith only [hq3_le] : q3Card ≤ xCard - cutX + lCard) hp_pos.le
+    have hL1 : lCard * gaussianCoefficient ≤ lCard := mul_le_of_le_one_right hL_nonneg hp_lt1
+    linarith only [hmul, hL1]
+  have h32 : 3 * (32 / M) ≤ δ / 8 := by
+    rw [mul_div_assoc', div_le_iff₀ hM_pos]
+    have hm := mul_le_mul_of_nonneg_left hM_real hδ.le
+    rw [mul_div_cancel₀ _ hδ.ne'] at hm
+    linarith only [hm]
+  have hslack : (δ / 8 + 3 * (32 / M) + 2 * η) * h ≤ δ / 2 * h :=
+    mul_le_mul_of_nonneg_right (by linarith only [h32, hηδ, hδ]) hh_pos.le
+  linarith only [hqCut, hprod, hq3_p, hL_le, hslack]
+
 /-- **Depth-one `CappedCompression` bisection.** For a subset `X ⊆ V` of a loopless cubic
 multigraph `G` where every vertex in `X` has at most one incident edge in `G.edgeCut X`, a
 weight-capped compression of `G.induce X` followed by a symmetric (`t = 0`) Gaussian cut bisects
@@ -803,7 +1229,6 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   set h : ℝ := (Nat.card V : ℝ)
   have hh_pos : 0 < h := lt_of_le_of_lt (by positivity) large
   set H := G.induce X
-  have hH_loop : H.Loopless := fun e he => hloop e.1 (congrArg Subtype.val he)
   obtain ⟨hH_deg_eq, hH_hand, hH_cut_sum⟩ := induce_degree_and_handshake hloop h3 X
   have hH_max : H.MaxDegreeLE 3 := fun x => by
     have h1 : (H.incidenceSet x).ncard + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard = 3 := hH_deg_eq x
@@ -817,439 +1242,99 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     have := hminX x.1 x.2; dsimp [w]; omega
   obtain ⟨cmp, hsat⟩ := CappedCompression.exists_saturated (d := 3) (M := M) hH_max hw_le_M
   set Q := cmp.quotient
-  have hQ_loop : Q.Loopless := cmp.quotient_loopless
-  have hQ_deg : Q.MaxDegreeLE 3 := cmp.quotient_maxDegreeLE
-  have hcard_X : Nat.card X = X.ncard := Nat.card_coe_set_eq X
-  have hblocks_le_X : cmp.blocks.card ≤ X.ncard := hcard_X ▸ cmp.card_blocks_le
-  have hX_le_V : X.ncard ≤ Nat.card V := ncard_le_card X
-  -- Low-degree and degree-3 block counts on `Q`.
-  set Lset := Finset.univ.filter fun B : cmp.blocks =>
-    1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2
-  set Q3set := Finset.univ.filter fun B : cmp.blocks => (Q.incidenceSet B).ncard = 3
-  have hsum_w_le : ∑ x : X, w x ≤ 4 * Nat.card V := by
-    dsimp [w]
-    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
-      ← Nat.card_eq_fintype_card, hcard_X, hH_cut_sum]
-    have hcut_le : (G.edgeCut X).ncard ≤ 3 * Nat.card V := by
-      have hE := G.sum_ncard_incidenceSet hloop
-      simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul,
-        ← Nat.card_eq_fintype_card] at hE
-      have := ncard_le_card (G.edgeCut X)
-      omega
-    omega
-  have hL_le : (Lset.card : ℝ) ≤ 32 / (M : ℝ) * h := by
-    have hsat_bound : M * Lset.card ≤ 8 * ∑ x : X, w x := hsat.mul_card_deg_one_two_le
-    rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity), show h = Nat.card V from rfl]
-    exact_mod_cast (by linarith : Lset.card * M ≤ 32 * Nat.card V)
-  have hQ3_le : (Q3set.card : ℝ) + ((G.edgeCut X).ncard : ℝ) ≤ (X.ncard : ℝ) + (Lset.card : ℝ) := by
-    have hdeg3 : Q3set.card + (G.edgeCut X).ncard ≤
-        Nat.card X + (Finset.univ.filter fun B : cmp.blocks =>
-          (Q.incidenceSet B).ncard = 1).card :=
-      cmp.card_deg_three_add_le_of_two_le_deg hH_loop hH_min hH_hand
-    have hQ1_sub : (Finset.univ.filter fun B : cmp.blocks =>
-        (Q.incidenceSet B).ncard = 1).card ≤ Lset.card :=
-      Finset.card_le_card fun B hB => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hB
-        simp [Lset, hB]
-    rw [hcard_X] at hdeg3
-    exact_mod_cast (by omega : Q3set.card + (G.edgeCut X).ncard ≤ X.ncard + Lset.card)
-  -- Product probability space `(gaussianReal 0 1).prod (gaussianReal 0 1)` at each block of `Q`.
-  let μB : cmp.blocks → Measure (ℝ × ℝ) := fun _ => (gaussianReal 0 1).prod (gaussianReal 0 1)
-  set P := Measure.pi μB
-  let fstProj : (cmp.blocks → ℝ × ℝ) → (cmp.blocks → ℝ) := fun ω B => (ω B).1
-  have hfst_mp :
-      MeasurePreserving fstProj P (Measure.pi fun _ : cmp.blocks => gaussianReal 0 1) := by
-    refine ⟨by fun_prop, ?_⟩
-    have h1 := Measure.pi_map_pi (μ := μB) (f := fun _ (z : ℝ × ℝ) => z.1)
-      fun _ => measurable_fst.aemeasurable
-    simpa [μB, fstProj, Measure.fst_prod] using h1
-  let inSide : cmp.blocks → Set (cmp.blocks → ℝ × ℝ) := fun B =>
-    if (Q.incidenceSet B).ncard = 3 then
-      {ω | B ∈ lowSide Q (edgeScore Q q R (fstProj ω)) 0}
-    else
-      {ω | (ω B).2 < 0}
-  have hinSide_meas (B : cmp.blocks) : MeasurableSet (inSide B) := by
-    dsimp only [inSide]
-    split_ifs
-    · exact (measurableSet_lowSide Q q R 0 B).preimage (by fun_prop)
-    · exact measurableSet_lt (measurable_snd.comp (measurable_pi_apply B)) measurable_const
-  have hinSide_dep (B : cmp.blocks) :
-      DependsOn (· ∈ inSide B) (closedBall Q.toSimpleGraph B (R + 1)) := by
-    intro ω₁ ω₂ hω
-    dsimp only [inSide]
-    split_ifs
-    · exact dependsOn_lowSide Q q R 0 B fun z hz => congrArg Prod.fst (hω z hz)
-    · have hB_mem : B ∈ closedBall Q.toSimpleGraph B (R + 1) := by
-        simp [closedBall]
-      simp [congrArg Prod.snd (hω B hB_mem)]
-  have hinSide_prob (B : cmp.blocks) : P.real (inSide B) = 1 / 2 := by
-    dsimp only [inSide]
-    split_ifs with hdegB
-    · have hpre : {ω : cmp.blocks → ℝ × ℝ | B ∈ lowSide Q (edgeScore Q q R (fstProj ω)) 0} =
-          fstProj ⁻¹' {ω' | B ∈ lowSide Q (edgeScore Q q R ω') 0} := rfl
-      rw [hpre, hfst_mp.measureReal_preimage (measurableSet_lowSide Q q R 0 B).nullMeasurableSet]
-      exact measureReal_lowSide_zero_eq_half hQ_loop hQ_deg hq (by linarith) hρ hdegB
-    · have hproj_mp : MeasurePreserving (fun ω : cmp.blocks → ℝ × ℝ => (ω B).2) P
-          (gaussianReal 0 1) := by
-        have hcomp : (fun ω : cmp.blocks → ℝ × ℝ => (ω B).2) = Prod.snd ∘ Function.eval B := rfl
-        rw [hcomp]
-        have hsnd : MeasurePreserving Prod.snd ((gaussianReal 0 1).prod (gaussianReal 0 1))
-            (gaussianReal 0 1) := ⟨measurable_snd, Measure.snd_prod⟩
-        exact hsnd.comp (measurePreserving_eval μB B)
-      have hpre : {ω : cmp.blocks → ℝ × ℝ | (ω B).2 < 0} =
-          (fun ω : cmp.blocks → ℝ × ℝ => (ω B).2) ⁻¹' Iio 0 := rfl
-      have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-      rw [hpre, hproj_mp.measureReal_preimage measurableSet_Iio.nullMeasurableSet,
-        measureReal_congr Iio_ae_eq_Iic, ← cdf_eq_real, cdf_gaussianReal_zero_zero one_ne_zero]
-      norm_num
-  -- Straddle event on degree-3 blocks of `Q`.
-  let stradQ : cmp.blocks → Set (cmp.blocks → ℝ × ℝ) := fun B =>
-    if (Q.incidenceSet B).ncard = 3 then
-      fstProj ⁻¹' straddleEvent Q q R 0 B
-    else ∅
-  have hstradQ_meas (B : cmp.blocks) : MeasurableSet (stradQ B) := by
-    dsimp only [stradQ]
-    split_ifs
-    · exact (measurableSet_straddleEvent 0 B (q := q) (R := R)).preimage (by fun_prop)
-    · exact MeasurableSet.empty
-  have hstradQ_dep (B : cmp.blocks) :
-      DependsOn (· ∈ stradQ B) (closedBall Q.toSimpleGraph B (R + 1)) := by
-    intro ω₁ ω₂ hω
-    dsimp only [stradQ]
-    split_ifs
-    · exact dependsOn_straddleEvent q R 0 B fun z hz => congrArg Prod.fst (hω z hz)
-    · rfl
-  have hstradQ_le (B : cmp.blocks) :
-      P.real (stradQ B) ≤ if (Q.incidenceSet B).ncard = 3 then straddleBound ρ₀ else 0 := by
-    dsimp only [stradQ]
-    split_ifs with hdegB
-    · rw [hfst_mp.measureReal_preimage
-        (measurableSet_straddleEvent q R 0 B).nullMeasurableSet]
-      have hb := measureReal_straddleEvent_le_of_ncard_eq_three hQ_loop hQ_deg hq hρ₀ hρ 0 hdegB
-      simpa using hb
-    · simp
-  -- Block weights for vertex count and `G.edgeCut X` count.
-  let vWt : cmp.blocks → ℝ := fun B => ({x : X | x ∈ B.1}.ncard : ℝ)
-  let bWt : cmp.blocks → ℝ := fun B =>
-    ((∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
-      (G.incidenceSet x.1 ∩ G.edgeCut X).ncard : ℕ) : ℝ)
-  have hvWt_le (B : cmp.blocks) : 0 ≤ vWt B ∧ vWt B ≤ M := by
-    refine ⟨Nat.cast_nonneg _, Nat.cast_le.mpr (le_trans ?_ (cmp.blockWeight_le B))⟩
-    rw [cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
-    simpa using List.sum_le_sum (l := B.1) (f := fun _ => 1) (g := w) fun a _ => by
-      dsimp [w]; omega
-  have hbWt_le (B : cmp.blocks) : 0 ≤ bWt B ∧ bWt B ≤ M := by
-    refine ⟨Nat.cast_nonneg _, ?_⟩
-    have hfin : B.1.toFinset = Finset.univ.filter (fun x : X => cmp.blockOf x = B) := by
-      ext x; simp [cmp.mem_iff_blockOf_eq]
-    have hle : (∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
-        (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) ≤ cmp.blockWeight B := by
-      rw [CappedCompression.blockWeight, ← List.sum_toFinset _ (cmp.nodup B.1 B.2), hfin]
-      refine Finset.sum_le_sum fun x _ => ?_
-      change (G.incidenceSet x.1 ∩ G.edgeCut X).ncard ≤ 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard
-      omega
-    exact Nat.cast_le.mpr (hle.trans (cmp.blockWeight_le B))
-  -- Concentration of the three block sums with threshold `c = η * h`.
-  set c : ℝ := η * h
-  set D := vertexOverlap 3 R
-  have hcards_le_h : (cmp.blocks.card : ℝ) ≤ h :=
-    Nat.cast_le.mpr (hblocks_le_X.trans hX_le_V)
-  have hdev (w : cmp.blocks → ℝ) {A : cmp.blocks → Set (cmp.blocks → ℝ × ℝ)}
-      (hA : ∀ B, MeasurableSet (A B))
-      (hAd : ∀ B, DependsOn (· ∈ A B) (closedBall Q.toSimpleGraph B (R + 1)))
-      (hw : ∀ B, 0 ≤ w B ∧ w B ≤ M) :
-      P.real (weightedDeviation P Finset.univ w A c) ≤ h * M ^ 2 * D / c ^ 2 :=
-    (measureReal_weightedDeviation_le _ (fun B _ => hA B) (fun B _ => (hw B).1)
-      (fun B _ => (hw B).2) _ (fun B _ => hAd B)
-      (fun B _ => card_not_disjoint_closedBall_le hQ_deg (by norm_num) R B)
-      (by positivity)).trans (by gcongr; simpa using hcards_le_h)
-  have hM1 : (1 : ℝ) ≤ M := by exact_mod_cast (by omega : 1 ≤ M)
-  have hdevV := hdev vWt hinSide_meas hinSide_dep hvWt_le
-  have hdevB := hdev bWt hinSide_meas hinSide_dep hbWt_le
-  have hdevS := hdev 1 hstradQ_meas hstradQ_dep fun _ => ⟨zero_le_one, hM1⟩
-  obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
-    (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdevV hdevB)) hdevS)).trans_lt
-    (by calc _ = 3 * (M : ℝ) ^ 2 * D * h / c ^ 2 := by ring
-      _ < 1 := mul_div_mul_sq_lt_one hη.ne' hh_pos
-        ((by gcongr; norm_num : 3 * (M : ℝ) ^ 2 * D / η ^ 2 ≤ _).trans_lt large)))
-  simp only [mem_union, not_or] at hω
-  obtain ⟨⟨hωV, hωB⟩, hωS⟩ := hω
-  set S_Q : Set cmp.blocks := {B | ω ∈ inSide B}
+  have hcards_le_h : (Fintype.card cmp.blocks : ℝ) ≤ h := by
+    have hblocks_le : cmp.blocks.card ≤ X.ncard := Nat.card_coe_set_eq X ▸ cmp.card_blocks_le
+    rw [Fintype.card_coe]
+    exact Nat.cast_le.mpr (hblocks_le.trans (ncard_le_card X))
+  obtain ⟨hL_le, hQ3_le⟩ :=
+    saturated_block_count_bounds hloop h3 hH_min hH_hand hH_cut_sum (by omega) hsat
+  obtain ⟨hvWt_le, hvWt_sum⟩ := blockVertexWeight_spec cmp
+  obtain ⟨hbWt_le, hbWt_sum⟩ := blockCutWeight_spec cmp hH_cut_sum
+  obtain ⟨ω, hωV, hωB, hωS⟩ := exists_concentrated_blockSample cmp.quotient_maxDegreeLE q R
+    (by exact_mod_cast (by omega : 1 ≤ M)) hη hcards_le_h large hvWt_le hbWt_le
+  set S_Q : Set cmp.blocks := {B | ω ∈ blockSideEvent Q q R B}
   set X₁ : Set V := Subtype.val '' (cmp.blockOf ⁻¹' S_Q)
   set X₂ : Set V := Subtype.val '' (cmp.blockOf ⁻¹' S_Qᶜ)
   have hX₁_sub : X₁ ⊆ X := by rintro _ ⟨x, -, rfl⟩; exact x.2
   have hX₂_sub : X₂ ⊆ X := by rintro _ ⟨x, -, rfl⟩; exact x.2
-  have hdisjX : Disjoint X₁ X₂ := by
-    refine disjoint_left.mpr ?_
-    rintro _ ⟨x₁, hx₁, rfl⟩ ⟨x₂, hx₂, heq⟩
-    have : x₁ = x₂ := Subtype.ext heq.symm
-    subst this
-    exact hx₂ hx₁
+  have hdisjX : Disjoint X₁ X₂ := disjoint_left.mpr fun _ ⟨x₁, hx₁, h1⟩ ⟨x₂, hx₂, h2⟩ =>
+    hx₂ (Subtype.ext (h1.trans h2.symm) ▸ hx₁)
   have hunionX : X₁ ∪ X₂ = X := by
     ext v
-    constructor
-    · rintro (hv | hv)
-      exacts [hX₁_sub hv, hX₂_sub hv]
-    · intro hv
-      by_cases hB : cmp.blockOf ⟨v, hv⟩ ∈ S_Q
-      · exact Or.inl ⟨⟨v, hv⟩, hB, rfl⟩
-      · exact Or.inr ⟨⟨v, hv⟩, hB, rfl⟩
-  -- Sum identities for `vWt` and `bWt`.
-  have hvWt_block (B : cmp.blocks) :
-      vWt B = ((Finset.univ.filter fun x : X => cmp.blockOf x = B).card : ℝ) := by
-    dsimp [vWt]
-    congr 1
-    rw [← ncard_coe_finset]
-    congr 1; ext x; simp [cmp.mem_iff_blockOf_eq]
-  have hvWt_sum_univ : ∑ B : cmp.blocks, vWt B = (X.ncard : ℝ) := by
-    simp_rw [hvWt_block]
-    rw [← Nat.cast_sum, Finset.sum_card_fiberwise_eq_card_filter, Finset.filter_true_of_mem
-      fun _ _ => Finset.mem_univ _, Finset.card_univ, ← Nat.card_eq_fintype_card, hcard_X]
-  have hbWt_sum_univ : ∑ B : cmp.blocks, bWt B = ((G.edgeCut X).ncard : ℝ) := by
-    simp only [bWt]
-    rw [← Nat.cast_sum, Finset.sum_fiberwise, hH_cut_sum]
-  have hX₁_card_sum : (X₁.ncard : ℝ) = ∑ B : cmp.blocks, vWt B * (inSide B).indicator 1 ω := by
-    rw [ncard_image_of_injective _ Subtype.val_injective]
-    have hpre_fin : (cmp.blockOf ⁻¹' S_Q).ncard =
-        ∑ B ∈ Finset.univ.filter (· ∈ S_Q),
-          (Finset.univ.filter fun x : X => cmp.blockOf x = B).card := by
-      rw [Finset.sum_card_fiberwise_eq_card_filter, ← ncard_coe_finset]
-      congr 1; ext x; simp
-    rw [hpre_fin]
-    push_cast
-    rw [Finset.sum_filter]
-    refine Finset.sum_congr rfl fun B _ => ?_
-    rw [hvWt_block]
-    by_cases hB : ω ∈ inSide B <;> simp [S_Q, hB]
-  have hX₂_card_eq : (X₂.ncard : ℝ) = (X.ncard : ℝ) - (X₁.ncard : ℝ) :=
-    ncard_eq_sub_of_union hdisjX hunionX
-  have hv_abs :
-      |∑ B : cmp.blocks, vWt B * (inSide B).indicator 1 ω - 1 / 2 * (X.ncard : ℝ)| < c := by
-    have hmean : ∑ B : cmp.blocks, vWt B * P.real (inSide B) = 1 / 2 * (X.ncard : ℝ) := by
-      simp_rw [hinSide_prob, ← Finset.sum_mul, hvWt_sum_univ]; ring
+    refine ⟨by rintro (hv | hv); exacts [hX₁_sub hv, hX₂_sub hv], fun hv => ?_⟩
+    by_cases hB : cmp.blockOf ⟨v, hv⟩ ∈ S_Q
+    · exact Or.inl ⟨⟨v, hv⟩, hB, rfl⟩
+    · exact Or.inr ⟨⟨v, hv⟩, hB, rfl⟩
+  have hprob (B : cmp.blocks) :
+      (Measure.pi fun _ : cmp.blocks => (gaussianReal 0 1).prod (gaussianReal 0 1)).real
+        (blockSideEvent Q q R B) = 1 / 2 :=
+    measureReal_blockSideEvent_eq_half cmp.quotient_loopless cmp.quotient_maxDegreeLE hq hρ₀ hρ B
+  have habs_of_sum {f : cmp.blocks → ℝ} {total : ℝ} (hsum : ∑ B, f B = total)
+      (hω : ω ∉ weightedDeviation
+        (Measure.pi fun _ : cmp.blocks => (gaussianReal 0 1).prod (gaussianReal 0 1))
+        Finset.univ f (blockSideEvent Q q R) (η * h)) :
+      |∑ B : cmp.blocks, f B * (blockSideEvent Q q R B).indicator 1 ω - 1 / 2 * total| < η * h := by
+    have hmean : ∑ B : cmp.blocks, f B *
+        (Measure.pi fun _ : cmp.blocks => (gaussianReal 0 1).prod (gaussianReal 0 1)).real
+          (blockSideEvent Q q R B) = 1 / 2 * total := by
+      simp_rw [hprob, ← Finset.sum_mul, hsum]; ring
     rw [← hmean]
-    exact not_le.mp hωV
-  have hX₁_size : (X₁.ncard : ℝ) ≤ 1 / 2 * (X.ncard : ℝ) + c := by
-    rw [← hX₁_card_sum] at hv_abs
-    have h2 := (abs_lt.mp hv_abs).2
-    linarith only [h2]
-  have hX₂_size : (X₂.ncard : ℝ) ≤ 1 / 2 * (X.ncard : ℝ) + c := by
-    rw [← hX₁_card_sum] at hv_abs
-    rw [hX₂_card_eq]
-    have h1 := (abs_lt.mp hv_abs).1
-    linarith only [h1]
-  -- Boundary split of `G.edgeCut X` across `X₁` and `X₂`.
-  have hbdry_X₁ : ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) =
-      ∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω := by
-    have hpart_cut : {e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard =
-        ∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x ∈ S_Q),
-          (G.incidenceSet x.1 ∩ G.edgeCut X).ncard := by
-      have h1 (x : X) : (G.incidenceSet x.1 ∩ G.edgeCut X).ncard =
-          (Finset.univ.filter fun e : E => e ∈ G.incidenceSet x.1 ∧ e ∈ G.edgeCut X).card := by
-        rw [← ncard_coe_finset]; congr 1; ext e; simp
-      simp_rw [h1]
-      rw [← Finset.card_biUnion]
-      · rw [← ncard_coe_finset]
-        congr 1; ext e
-        simp only [Finset.mem_coe, Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ,
-          true_and, mem_ofPred_eq]
-        constructor
-        · rintro ⟨heCut, hx₁⟩
-          obtain ⟨x, hxS, heqx⟩ := hx₁
-          obtain ⟨hm, hinc, hunq⟩ := endIn_mem heCut
-          have hxeq : x = ⟨endIn G X e, hm⟩ := Subtype.ext (heqx.trans rfl)
-          subst hxeq
-          exact ⟨⟨endIn G X e, hm⟩, hxS, hinc, heCut⟩
-        · rintro ⟨x, hxS, hinc, heCut⟩
-          obtain ⟨_, _, hunq⟩ := endIn_mem heCut
-          exact ⟨heCut, x, hxS, hunq x.1 x.2 hinc⟩
-      · intro x₁ _ x₂ _ hne
-        refine Finset.disjoint_left.mpr fun e h1' h2' => hne ?_
-        obtain ⟨hi1, hc1⟩ := (Finset.mem_filter.mp h1').2
-        obtain ⟨hi2, _⟩ := (Finset.mem_filter.mp h2').2
-        obtain ⟨_, _, hunq⟩ := endIn_mem hc1
-        exact Subtype.ext ((hunq x₁.1 x₁.2 hi1).trans (hunq x₂.1 x₂.2 hi2).symm)
-    rw [hpart_cut]
-    have hgrp : (Finset.univ.filter fun x : X => cmp.blockOf x ∈ S_Q) =
-        {x ∈ (Finset.univ : Finset X) | cmp.blockOf x ∈ Finset.univ.filter (· ∈ S_Q)} := by
-      ext x; simp
-    rw [hgrp, ← Finset.sum_fiberwise_eq_sum_filter]
-    push_cast
-    rw [Finset.sum_filter]
-    refine Finset.sum_congr rfl fun B _ => ?_
-    dsimp [bWt]
-    by_cases hB : ω ∈ inSide B <;> simp [S_Q, hB]
-  have hbdry_X₂ : ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) =
-      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) :=
-    ncard_edgeCut_endIn_eq_sub hdisjX hunionX
-  have hb_abs : |∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω -
-      1 / 2 * ((G.edgeCut X).ncard : ℝ)| < c := by
-    have hmean : ∑ B : cmp.blocks, bWt B * P.real (inSide B) =
-        1 / 2 * ((G.edgeCut X).ncard : ℝ) := by
-      simp_rw [hinSide_prob, ← Finset.sum_mul, hbWt_sum_univ]; ring
-    rw [← hmean]
-    exact not_le.mp hωB
-  have hbdry1_le : ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) ≤
-      1 / 2 * ((G.edgeCut X).ncard : ℝ) + c := by
-    rw [← hbdry_X₁] at hb_abs
-    have h2 := (abs_lt.mp hb_abs).2
-    linarith only [h2]
-  have hbdry2_le : ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) ≤
-      1 / 2 * ((G.edgeCut X).ncard : ℝ) + c := by
-    rw [← hbdry_X₁] at hb_abs
-    rw [hbdry_X₂]
-    have h1 := (abs_lt.mp hb_abs).1
-    linarith only [h1]
-  -- Quotient cut `(Q.edgeCut S_Q).ncard ≤ 2 * #Lset + #{B ∈ Q3set | ω ∈ stradQ B}`.
-  have hQ_cut_le : (Q.edgeCut S_Q).ncard ≤
-      2 * Lset.card + {B : cmp.blocks | ω ∈ stradQ B}.ncard := by
-    set E_low := {e ∈ Q.edgeCut S_Q | Q.src e ∈ Lset ∨ Q.tgt e ∈ Lset}
-    set E_33 := {e ∈ Q.edgeCut S_Q | (Q.incidenceSet (Q.src e)).ncard = 3 ∧
-      (Q.incidenceSet (Q.tgt e)).ncard = 3}
-    have hcover : Q.edgeCut S_Q ⊆ E_low ∪ E_33 := by
-      intro e he
-      have hs0 : 1 ≤ (Q.incidenceSet (Q.src e)).ncard :=
-        (ncard_pos (toFinite _)).mpr ⟨e, Or.inl rfl⟩
-      have ht0 : 1 ≤ (Q.incidenceSet (Q.tgt e)).ncard :=
-        (ncard_pos (toFinite _)).mpr ⟨e, Or.inr rfl⟩
-      have hs3 := hQ_deg (Q.src e)
-      have ht3 := hQ_deg (Q.tgt e)
-      by_cases hsL : (Q.incidenceSet (Q.src e)).ncard ≤ 2
-      · exact Or.inl ⟨he, Or.inl (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hs0, hsL⟩)⟩
-      by_cases htL : (Q.incidenceSet (Q.tgt e)).ncard ≤ 2
-      · exact Or.inl ⟨he, Or.inr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, ht0, htL⟩)⟩
-      · exact Or.inr ⟨he, by omega, by omega⟩
-    have hlow_bound : E_low.ncard ≤ 2 * Lset.card := by
-      have hsub : E_low ⊆ ↑(Lset.biUnion fun B => (Q.incidenceSet B).toFinset) := by
-        rintro e ⟨-, hs | ht⟩
-        · exact Finset.mem_coe.mpr (Finset.mem_biUnion.mpr ⟨Q.src e, hs,
-            Set.mem_toFinset.mpr (Or.inl rfl)⟩)
-        · exact Finset.mem_coe.mpr (Finset.mem_biUnion.mpr ⟨Q.tgt e, ht,
-            Set.mem_toFinset.mpr (Or.inr rfl)⟩)
-      refine (ncard_le_ncard hsub (toFinite _)).trans ?_
-      rw [ncard_coe_finset]
-      refine Finset.card_biUnion_le.trans ?_
-      calc ∑ B ∈ Lset, (Q.incidenceSet B).toFinset.card
-          ≤ ∑ _B ∈ Lset, 2 := Finset.sum_le_sum fun B hB => by
-            rw [← Set.ncard_eq_toFinset_card']
-            exact (Finset.mem_filter.mp hB).2.2
-        _ = 2 * Lset.card := by simp [Nat.mul_comm]
-    have h33_bound : E_33.ncard ≤ {B : cmp.blocks | ω ∈ stradQ B}.ncard := by
-      set D3 : Set cmp.blocks := {B | (Q.incidenceSet B).ncard = 3}
-      have hcut := ncard_edgeCut_inter_le_straddles (G := Q) (D := D3) (S := S_Q)
-        (fun _ h => h) (edgeScore Q q R (fstProj ω)) 0 fun B hB => by
-          simp only [D3, mem_ofPred_eq] at hB
-          simp [S_Q, inSide, hB, lowSide]
-      have hdisjS : Disjoint
-          {B ∈ D3 | B ∉ S_Q ∧ Q.EdgeStraddles (edgeScore Q q R (fstProj ω)) 0 B}
-          {B ∈ D3 | B ∈ S_Q ∧ Q.EdgeStraddles (edgeScore Q q R (fstProj ω)) 0 B} :=
-        disjoint_left.mpr fun _ h1 h2 => h1.2.1 h2.2.1
-      refine hcut.trans ?_
-      rw [← ncard_union_eq hdisjS (toFinite _) (toFinite _)]
-      refine ncard_le_ncard ?_ (toFinite _)
-      rintro B (⟨hB, -, hstrad⟩ | ⟨hB, -, hstrad⟩) <;>
-        · simp only [D3, mem_ofPred_eq] at hB
-          simpa [stradQ, hB, straddleEvent] using hstrad
-    exact ((ncard_le_ncard hcover (toFinite _)).trans (ncard_union_le _ _)).trans
-      (Nat.add_le_add hlow_bound h33_bound)
-  -- Bound `{B | ω ∈ stradQ B}.ncard` via `hωS`.
-  have hstradQ_count : ({B : cmp.blocks | ω ∈ stradQ B}.ncard : ℝ) ≤
-      (Q3set.card : ℝ) * straddleBound ρ₀ + c := by
-    simp only [weightedDeviation, mem_ofPred_eq, not_le, Pi.one_apply, one_mul] at hωS
-    have hmean_le : ∑ B : cmp.blocks, P.real (stradQ B) ≤ (Q3set.card : ℝ) * straddleBound ρ₀ := by
-      calc ∑ B : cmp.blocks, P.real (stradQ B)
-          ≤ ∑ B : cmp.blocks, if (Q.incidenceSet B).ncard = 3 then straddleBound ρ₀ else 0 :=
-            Finset.sum_le_sum fun B _ => hstradQ_le B
-        _ = (Q3set.card : ℝ) * straddleBound ρ₀ := by
-            rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul]
-    rw [← ncard_eq_sum_indicator] at hωS
-    linarith only [(abs_lt.mp hωS).2, hmean_le]
-  -- Combine internal quotient cut and external boundary cut for `X₁` and `X₂`.
-  have hQ_cut_real : ((Q.edgeCut S_Q).ncard : ℝ) ≤
-      ((X.ncard : ℝ) - ((G.edgeCut X).ncard : ℝ)) * gaussianCoefficient +
-        (δ / 8 + 3 * (32 / (M : ℝ)) + η) * h := by
-    have h1 : ((Q.edgeCut S_Q).ncard : ℝ) ≤
-        2 * (Lset.card : ℝ) + ((Q3set.card : ℝ) * straddleBound ρ₀ + c) := by
-      have hc1 : ((Q.edgeCut S_Q).ncard : ℝ) ≤
-          ((2 * Lset.card + {B : cmp.blocks | ω ∈ stradQ B}.ncard : ℕ) : ℝ) :=
-        Nat.cast_le.mpr hQ_cut_le
-      push_cast at hc1
-      linarith only [hc1, hstradQ_count]
-    have hQ3_nonneg : 0 ≤ (Q3set.card : ℝ) := Nat.cast_nonneg _
-    have hQ3_le_h : (Q3set.card : ℝ) ≤ h := by
-      have hcard_le : Q3set.card ≤ cmp.blocks.card :=
-        (Finset.card_filter_le _ _).trans_eq (by simp)
-      exact (Nat.cast_le.mpr hcard_le).trans hcards_le_h
-    have hprod1 : (Q3set.card : ℝ) * straddleBound ρ₀ ≤
-        (Q3set.card : ℝ) * gaussianCoefficient + δ / 8 * h := by
-      calc (Q3set.card : ℝ) * straddleBound ρ₀
-          ≤ (Q3set.card : ℝ) * (gaussianCoefficient + δ / 8) :=
-            mul_le_mul_of_nonneg_left hstrad hQ3_nonneg
-        _ = (Q3set.card : ℝ) * gaussianCoefficient + (Q3set.card : ℝ) * (δ / 8) := by ring
-        _ ≤ (Q3set.card : ℝ) * gaussianCoefficient + h * (δ / 8) := by gcongr
-        _ = (Q3set.card : ℝ) * gaussianCoefficient + δ / 8 * h := by ring
-    have hp_lt1 : gaussianCoefficient ≤ 1 :=
-      gaussianCoefficient_lt_three_twentieths.le.trans (by norm_num)
-    have hp_pos := gaussianCoefficient_pos
-    have hQ3_p : (Q3set.card : ℝ) * gaussianCoefficient ≤
-        ((X.ncard : ℝ) - ((G.edgeCut X).ncard : ℝ)) * gaussianCoefficient + (Lset.card : ℝ) := by
-      have hsub : (Q3set.card : ℝ) ≤
-          (X.ncard : ℝ) - ((G.edgeCut X).ncard : ℝ) + (Lset.card : ℝ) := by
-        linarith only [hQ3_le]
-      have hmul := mul_le_mul_of_nonneg_right hsub hp_pos.le
-      have hL1 : (Lset.card : ℝ) * gaussianCoefficient ≤ (Lset.card : ℝ) :=
-        mul_le_of_le_one_right (Nat.cast_nonneg _) hp_lt1
-      linarith only [hmul, hL1]
-    have hc_eq : c = η * h := rfl
-    linarith only [h1, hprod1, hQ3_p, hL_le, hc_eq]
-  have hslack : (δ / 8 + 3 * (32 / (M : ℝ)) + 2 * η) * h ≤ δ / 2 * h := by
-    refine mul_le_mul_of_nonneg_right ?_ hh_pos.le
-    have hMpos : (0 : ℝ) < M := by positivity
-    have h32 : 3 * (32 / (M : ℝ)) ≤ δ / 8 := by
-      rw [mul_div_assoc', div_le_iff₀ hMpos]
-      have hm := mul_le_mul_of_nonneg_left hM_real hδ.le
-      rw [mul_div_cancel₀ _ hδ.ne'] at hm
-      linarith only [hm]
-    linarith only [h32, hηδ, hδ]
-  have hH_cut1 : (H.edgeCut {x : X | x.1 ∈ X₁}).ncard = (Q.edgeCut S_Q).ncard := by
-    have hset : {x : X | x.1 ∈ X₁} = cmp.blockOf ⁻¹' S_Q := by
-      ext x
-      exact ⟨by rintro ⟨x', hx', heq⟩; rwa [← Subtype.ext heq], fun hx => ⟨x, hx, rfl⟩⟩
-    rw [hset, cmp.ncard_edgeCut_preimage]
-  have hH_cut2 : (H.edgeCut {x : X | x.1 ∈ X₂}).ncard = (Q.edgeCut S_Q).ncard := by
-    have hset : {x : X | x.1 ∈ X₂} = cmp.blockOf ⁻¹' S_Qᶜ := by
-      ext x
-      exact ⟨by rintro ⟨x', hx', heq⟩; rwa [← Subtype.ext heq], fun hx => ⟨x, hx, rfl⟩⟩
-    rw [hset, cmp.ncard_edgeCut_preimage, Q.edgeCut_compl]
-  refine ⟨X₁, X₂, hdisjX, hunionX, hX₁_size, hX₂_size, ?_, ?_⟩
-  · have hdec := ncard_edgeCut_sub_eq (G := G) hX₁_sub
-    rw [hH_cut1] at hdec
-    have hcast : ((G.edgeCut X₁).ncard : ℝ) =
-        ((Q.edgeCut S_Q).ncard : ℝ) + ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) := by
-      exact_mod_cast hdec
-    rw [hcast]
-    have hlyap_eq : lyap gaussianCoefficient G X =
-        gaussianCoefficient * (X.ncard : ℝ) +
-          (1 / 2 - gaussianCoefficient) * ((G.edgeCut X).ncard : ℝ) := rfl
-    have hc_eq : c = η * h := rfl
-    linarith only [hQ_cut_real, hbdry1_le, hslack, hlyap_eq, hc_eq]
-  · have hdec := ncard_edgeCut_sub_eq (G := G) hX₂_sub
-    rw [hH_cut2] at hdec
-    have hcast : ((G.edgeCut X₂).ncard : ℝ) =
-        ((Q.edgeCut S_Q).ncard : ℝ) + ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) := by
-      exact_mod_cast hdec
-    rw [hcast]
-    have hlyap_eq : lyap gaussianCoefficient G X =
-        gaussianCoefficient * (X.ncard : ℝ) +
-          (1 / 2 - gaussianCoefficient) * ((G.edgeCut X).ncard : ℝ) := rfl
-    have hc_eq : c = η * h := rfl
-    linarith only [hQ_cut_real, hbdry2_le, hslack, hlyap_eq, hc_eq]
+    exact not_le.mp hω
+  have hv_abs : |(X₁.ncard : ℝ) - 1 / 2 * (X.ncard : ℝ)| < η * h := by
+    rw [ncard_lifted_eq_sum_vertexWeight cmp (blockSideEvent Q q R) ω]
+    exact habs_of_sum hvWt_sum hωV
+  have hb_abs : |({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) -
+      1 / 2 * ((G.edgeCut X).ncard : ℝ)| < η * h := by
+    rw [ncard_endIn_lifted_eq_sum_cutWeight cmp (blockSideEvent Q q R) ω]
+    exact habs_of_sum hbWt_sum hωB
+  obtain ⟨hX₁_sz, hX₂_sz⟩ := le_half_add_of_abs_lt (ncard_eq_sub_of_union hdisjX hunionX) hv_abs
+  obtain ⟨hbdry1_le, hbdry2_le⟩ :=
+    le_half_add_of_abs_lt (ncard_edgeCut_endIn_eq_sub hdisjX hunionX) hb_abs
+  have hqCut_le : ((Q.edgeCut S_Q).ncard : ℝ) ≤
+      2 * ((Finset.univ.filter fun B : cmp.blocks =>
+          1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2).card : ℝ) +
+        (((Finset.univ.filter fun B : cmp.blocks =>
+          (Q.incidenceSet B).ncard = 3).card : ℝ) * straddleBound ρ₀ + η * h) := by
+    have hnat : ((Q.edgeCut S_Q).ncard : ℝ) ≤
+        ((2 * (Finset.univ.filter fun B : cmp.blocks =>
+            1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2).card +
+          {B : cmp.blocks | ω ∈ blockStradEvent Q q R B}.ncard : ℕ) : ℝ) :=
+      Nat.cast_le.mpr (ncard_edgeCut_blockSideEvent_le cmp.quotient_maxDegreeLE q R ω)
+    have hst := ncard_blockStradEvent_le cmp.quotient_loopless cmp.quotient_maxDegreeLE hq hρ₀
+      hρ hωS
+    push_cast at hnat
+    linarith only [hnat, hst]
+  have hq3_le_h : ((Finset.univ.filter fun B : cmp.blocks =>
+      (Q.incidenceSet B).ncard = 3).card : ℝ) ≤ h :=
+    (Nat.cast_le.mpr ((Finset.card_filter_le _ _).trans_eq (by simp))).trans hcards_le_h
+  have hlyap_comb := quotient_cut_add_slack_le_lyap hδ hh_pos (by positivity) hM_real hηδ hstrad
+    (Nat.cast_nonneg _) (Nat.cast_nonneg _) hq3_le_h hL_le hQ3_le hqCut_le
+  have cut_side {Z : Set V} (hZ : Z ⊆ X)
+      (hint : (H.edgeCut {x : X | x.1 ∈ Z}).ncard = (Q.edgeCut S_Q).ncard)
+      (hbd : ({e ∈ G.edgeCut X | endIn G X e ∈ Z}.ncard : ℝ) ≤
+        1 / 2 * ((G.edgeCut X).ncard : ℝ) + η * h) :
+      ((G.edgeCut Z).ncard : ℝ) ≤ lyap gaussianCoefficient G X + δ / 2 * h := by
+    rw [ncard_edgeCut_sub_cast_eq hZ, hint]
+    change _ ≤ gaussianCoefficient * (X.ncard : ℝ) +
+      (1 / 2 - gaussianCoefficient) * ((G.edgeCut X).ncard : ℝ) + δ / 2 * h
+    linarith only [hbd, hlyap_comb]
+  refine ⟨X₁, X₂, hdisjX, hunionX, hX₁_sz, hX₂_sz,
+    cut_side hX₁_sub (ncard_edgeCut_lifted_eq cmp S_Q) hbdry1_le,
+    cut_side hX₂_sub ?_ hbdry2_le⟩
+  rw [ncard_edgeCut_lifted_eq cmp S_Qᶜ, Q.edgeCut_compl]
 
 end DepthOne
 
 /-! ### Depths two through five (`t = 0` subset bisections on `G`) and leaf peeling -/
 
 section DeeperLevels
+
+/-- The number of indices in `F` whose event holds at `ω`, as a sum of indicators over `F`. -/
+private theorem ncard_mem_and_eq_sum_indicator {κ Ω : Type*} (F : Finset κ) (A : κ → Set Ω)
+    (ω : Ω) : ({k | k ∈ F ∧ ω ∈ A k}.ncard : ℝ) = ∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω := by
+  classical
+  simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
+  rw [← ncard_coe_finset, Finset.coe_filter]
 
 /-- **Single-step `t = 0` subset bisection on `G`.** Any subset `Y ⊆ V` of a large loopless cubic
 multigraph `G` splits into `Y₁ ⊔ Y₂` with `|Y_i| ≤ |Y| / 2 + η |V|` and
@@ -1327,17 +1412,11 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     rw [← Set.ncard_eq_toFinset_card']
     exact Nat.cast_le.mpr (ncard_le_card Y)
   have hFe_le : (Fe.card : ℝ) ≤ 3 / 2 * h := by
+    have h2r : (2 * (G.edgeCut Y).ncard : ℝ) ≤ 3 * Nat.card V := by
+      exact_mod_cast (Nat.mul_le_mul_left 2 (ncard_le_card (G.edgeCut Y))).trans
+        (two_mul_card_edges_eq_cubic hloop h3).le
     rw [← Set.ncard_eq_toFinset_card']
-    have hE := G.sum_ncard_incidenceSet hloop
-    simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul,
-      ← Nat.card_eq_fintype_card] at hE
-    have hleE : (G.edgeCut Y).ncard ≤ Nat.card E := ncard_le_card _
-    have h2 : 2 * (G.edgeCut Y).ncard ≤ 3 * Nat.card V := by omega
-    have h2r : ((2 * (G.edgeCut Y).ncard : ℕ) : ℝ) ≤ ((3 * Nat.card V : ℕ) : ℝ) :=
-      Nat.cast_le.mpr h2
-    push_cast at h2r
-    have hh_def : h = (Nat.card V : ℝ) := rfl
-    linarith only [h2r, hh_def]
+    linarith only [h2r, (rfl : h = (Nat.card V : ℝ))]
   obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
     (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdevV hdevE)) hdevS)).trans_lt
     (by
@@ -1356,11 +1435,6 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
   have hdisjY : Disjoint Y₁ Y₂ := disjoint_left.mpr fun _ h1 h2 => h2.2 h1.2
   have hunionY : Y₁ ∪ Y₂ = Y := inter_union_sdiff Y L0
   -- Vertex sizes of `Y₁` and `Y₂`.
-  have hY₁_sum : (Y₁.ncard : ℝ) = ∑ v ∈ Fv, (Av v).indicator (1 : (V → ℝ) → ℝ) ω := by
-    have h1 : Y₁.ncard = (Fv.filter fun v => ω ∈ Av v).card := by
-      rw [← ncard_coe_finset]; congr 1; ext v; simp [Y₁, L0, Fv, Av]
-    rw [h1]
-    simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
   have hmeanV : ∑ v ∈ Fv, P.real (Av v) = 1 / 2 * (Y.ncard : ℝ) := by
     have hpv (v : V) : P.real (Av v) = 1 / 2 :=
       measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith only [hρ₀]) hρ (h3 v)
@@ -1368,21 +1442,11 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card']
     ring
   have hv_abs : |(Y₁.ncard : ℝ) - 1 / 2 * (Y.ncard : ℝ)| < c := by
-    rwa [← hY₁_sum, hmeanV] at hωV
+    have hY₁ : Y₁ = {v | v ∈ Fv ∧ ω ∈ Av v} := by ext v; simp [Y₁, L0, Fv, Av]
+    rwa [hY₁, ncard_mem_and_eq_sum_indicator, ← hmeanV]
   have hY₂_eq : (Y₂.ncard : ℝ) = (Y.ncard : ℝ) - (Y₁.ncard : ℝ) :=
     ncard_eq_sub_of_union hdisjY hunionY
   -- External boundary edges of `Y` landing in `Y₁` and `Y₂`.
-  have hE₁_sum : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) =
-      ∑ e ∈ Fe, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω := by
-    have h1 : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard =
-        (Fe.filter fun e => ω ∈ Ae e).card := by
-      rw [← ncard_coe_finset]
-      congr 1; ext e
-      simp only [Finset.mem_coe, Finset.mem_filter, Fe, Set.mem_toFinset, mem_ofPred_eq, Y₁,
-        mem_inter_iff, Ae, L0]
-      exact ⟨fun ⟨he, _, hl⟩ => ⟨he, hl⟩, fun ⟨he, hl⟩ => ⟨he, (endIn_mem he).1, hl⟩⟩
-    rw [h1]
-    simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
   have hmeanE : ∑ e ∈ Fe, P.real (Ae e) = 1 / 2 * ((G.edgeCut Y).ncard : ℝ) := by
     have hpe (e : E) : P.real (Ae e) = 1 / 2 :=
       measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith only [hρ₀]) hρ (h3 (endIn G Y e))
@@ -1391,7 +1455,11 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     ring
   have he_abs : |({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) -
       1 / 2 * ((G.edgeCut Y).ncard : ℝ)| < c := by
-    rwa [← hE₁_sum, hmeanE] at hωE
+    have hE₁ : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁} = {e | e ∈ Fe ∧ ω ∈ Ae e} := by
+      ext e
+      simp only [Fe, Set.mem_toFinset, mem_ofPred_eq, Y₁, mem_inter_iff, Ae, L0]
+      exact ⟨fun ⟨he, _, hl⟩ => ⟨he, hl⟩, fun ⟨he, hl⟩ => ⟨he, (endIn_mem he).1, hl⟩⟩
+    rwa [hE₁, ncard_mem_and_eq_sum_indicator, ← hmeanE]
   have hE₂_eq : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) =
       ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) :=
     ncard_edgeCut_endIn_eq_sub hdisjY hunionY
@@ -1405,66 +1473,67 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
       change ¬(G.src e ∈ Y₁ ↔ G.tgt e ∈ Y₁) at heCut
       simp only [Y₁, mem_inter_iff, hsY, htY, true_and] at heCut
       exact ⟨heCut, hsY, htY⟩
-    have hcut := ncard_edgeCut_inter_le_straddles (G := G) (D := Y) (S := L0)
-      (fun v _ => h3 v) (edgeScore G q R ω) 0 (fun _ _ => Iff.rfl)
-    have hdS : Disjoint
-        {v ∈ Y | v ∉ L0 ∧ G.EdgeStraddles (edgeScore G q R ω) 0 v}
-        {v ∈ Y | v ∈ L0 ∧ G.EdgeStraddles (edgeScore G q R ω) 0 v} :=
-      disjoint_left.mpr fun _ h1 h2 => h1.2.1 h2.2.1
-    refine ((ncard_le_ncard hsub (toFinite _)).trans hcut).trans ?_
-    rw [← ncard_union_eq hdS (toFinite _) (toFinite _)]
-    exact ncard_le_ncard (by rintro _ (h | h) <;> exact ⟨h.1, h.2.2⟩) (toFinite _)
+    exact ((ncard_le_ncard hsub (toFinite _)).trans
+      (ncard_edgeCut_inter_le_straddling (G := G) (D := Y) (S := L0)
+        (fun v _ => h3 v) (edgeScore G q R ω) 0 fun _ _ => Iff.rfl))
   have hstrad_Y : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) ≤
       straddleBound ρ₀ * (Y.ncard : ℝ) + c := by
-    have hsum_eq : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) =
-        ∑ v ∈ Fv, (As v).indicator (1 : (V → ℝ) → ℝ) ω := by
-      have h1 : {v : V | v ∈ Y ∧ ω ∈ As v}.ncard = (Fv.filter fun v => ω ∈ As v).card := by
-        rw [← ncard_coe_finset]; congr 1; ext v; simp [Fv]
-      rw [h1]
-      simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
-    have hmeanS : ∑ v ∈ Fv, P.real (As v) ≤ straddleBound ρ₀ * (Y.ncard : ℝ) := by
-      calc ∑ v ∈ Fv, P.real (As v)
-          ≤ ∑ _v ∈ Fv, straddleBound ρ₀ :=
-            Finset.sum_le_sum fun v _ => measureReal_straddleEvent_le hloop h3 hq hρ₀ hρ 0 v
-        _ = straddleBound ρ₀ * (Y.ncard : ℝ) := by
-            rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card', mul_comm]
-    rw [← hsum_eq] at hωS
+    have hmeanS : ∑ v ∈ Fv, P.real (As v) ≤ straddleBound ρ₀ * (Y.ncard : ℝ) :=
+      (Finset.sum_le_sum fun v _ => measureReal_straddleEvent_le hloop h3 hq hρ₀ hρ 0 v).trans_eq
+        (by rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card', mul_comm])
+    have hY : {v : V | v ∈ Y ∧ ω ∈ As v} = {v | v ∈ Fv ∧ ω ∈ As v} := by
+      simp only [Fv, Set.mem_toFinset]
+    rw [hY, ncard_mem_and_eq_sum_indicator]
     linarith only [(abs_lt.mp hωS).2, hmeanS]
   have hint_cut_compl : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₂}).ncard =
       ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard := by
-    have hcompl : {x : Y | x.1 ∈ Y₂} = {x : Y | x.1 ∈ Y₁}ᶜ := by
-      ext x; simp [Y₁, Y₂]
+    have hcompl : {x : Y | x.1 ∈ Y₂} = {x : Y | x.1 ∈ Y₁}ᶜ := by ext x; simp [Y₁, Y₂]
     rw [hcompl, (G.induce Y).edgeCut_compl]
   have hint_real : (((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard : ℝ) ≤
       straddleBound ρ₀ * (Y.ncard : ℝ) + c :=
     (Nat.cast_le.mpr hint_cut_le).trans hstrad_Y
-  refine ⟨Y₁, Y₂, hdisjY, hunionY, ?_, ?_, ?_, ?_⟩
-  · have hv2 := (abs_lt.mp hv_abs).2
+  obtain ⟨hY₁_le, hY₂_le⟩ := le_half_add_of_abs_lt hY₂_eq hv_abs
+  obtain ⟨hE₁_le, hE₂_le⟩ := le_half_add_of_abs_lt hE₂_eq he_abs
+  have cut_side {Z : Set V} (hZ : Z ⊆ Y)
+      (hint : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Z}).ncard =
+        ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard)
+      (hbd : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Z}.ncard : ℝ) ≤
+        1 / 2 * ((G.edgeCut Y).ncard : ℝ) + c) :
+      ((G.edgeCut Z).ncard : ℝ) ≤
+        straddleBound ρ₀ * (Y.ncard : ℝ) + 1 / 2 * ((G.edgeCut Y).ncard : ℝ) +
+          2 * η * Nat.card V := by
+    rw [ncard_edgeCut_sub_cast_eq hZ, hint]
     have hc_eq : c = η * (Nat.card V : ℝ) := rfl
-    linarith only [hv2, hc_eq]
-  · rw [hY₂_eq]
-    have hv1 := (abs_lt.mp hv_abs).1
-    have hc_eq : c = η * (Nat.card V : ℝ) := rfl
-    linarith only [hv1, hc_eq]
-  · have hdec := ncard_edgeCut_sub_eq inter_subset_left (G := G) (Y₁ := Y₁)
-    have hcast : ((G.edgeCut Y₁).ncard : ℝ) =
-        (((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard : ℝ) +
-          ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
-      exact_mod_cast hdec
-    rw [hcast]
-    have he2 := (abs_lt.mp he_abs).2
-    have hc_eq : c = η * (Nat.card V : ℝ) := rfl
-    linarith only [hint_real, he2, hc_eq]
-  · have hdec := ncard_edgeCut_sub_eq sdiff_subset (G := G) (Y₁ := Y₂)
-    rw [hint_cut_compl] at hdec
-    have hcast : ((G.edgeCut Y₂).ncard : ℝ) =
-        (((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard : ℝ) +
-          ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) := by
-      exact_mod_cast hdec
-    rw [hcast, hE₂_eq]
-    have he1 := (abs_lt.mp he_abs).1
-    have hc_eq : c = η * (Nat.card V : ℝ) := rfl
-    linarith only [hint_real, he1, hc_eq]
+    linarith only [hint_real, hbd, hc_eq]
+  exact ⟨Y₁, Y₂, hdisjY, hunionY, hY₁_le, hY₂_le,
+    cut_side inter_subset_left rfl hE₁_le, cut_side sdiff_subset hint_cut_compl hE₂_le⟩
+
+/-- Joins two `BinTree.IsPartition` trees for disjoint subsets `Y₁` and `Y₂` with subtree edge cuts
+bounded by `C` into one for `Y = Y₁ ∪ Y₂`, given `|G.edgeCut Y| ≤ C`. -/
+private theorem joinOpt_isPartition_cut {V E : Type*} {G : Multigraph V E} {C : ℝ}
+    {Y₁ Y₂ Y : Set V} (hdisj : Disjoint Y₁ Y₂) (hunion : Y₁ ∪ Y₂ = Y)
+    (hcutY : ((G.edgeCut Y).ncard : ℝ) ≤ C) {o₁ o₂ : Option (BinTree V)}
+    (ho₁ : match o₁ with
+      | none => Y₁ = ∅
+      | some t => t.IsPartition Y₁ ∧ ∀ S, t.IsSubtreeSet S → ((G.edgeCut S).ncard : ℝ) ≤ C)
+    (ho₂ : match o₂ with
+      | none => Y₂ = ∅
+      | some t => t.IsPartition Y₂ ∧ ∀ S, t.IsSubtreeSet S → ((G.edgeCut S).ncard : ℝ) ≤ C) :
+    match BinTree.joinOpt o₁ o₂ with
+    | none => Y = ∅
+    | some t => t.IsPartition Y ∧ ∀ S, t.IsSubtreeSet S → ((G.edgeCut S).ncard : ℝ) ≤ C := by
+  have hjoin := BinTree.joinOpt_spec hdisj (o₁ := o₁) (o₂ := o₂)
+    (by cases h1 : o₁ <;> rw [h1] at ho₁; exacts [ho₁, ho₁.1])
+    (by cases h2 : o₂ <;> rw [h2] at ho₂; exacts [ho₂, ho₂.1])
+  cases hj : BinTree.joinOpt o₁ o₂ with
+  | none => rw [hj] at hjoin; rwa [← hunion]
+  | some t =>
+    rw [hj, hunion] at hjoin
+    refine ⟨hjoin.1, fun S hS => ?_⟩
+    rcases hjoin.2 S hS with rfl | ⟨t₁, ht₁, hs₁⟩ | ⟨t₂, ht₂, hs₂⟩
+    · exact hcutY
+    · rw [ht₁] at ho₁; exact ho₁.2 S hs₁
+    · rw [ht₂] at ho₂; exact ho₂.2 S hs₂
 
 private noncomputable def stepAlpha : ℕ → ℝ → ℝ
   | 0, α => α
@@ -1557,21 +1626,7 @@ private theorem exists_binTree_of_subset {V E : Type*} [Finite V] [Finite E] {G 
       linarith
     obtain ⟨o₁, ho₁⟩ := ih hα' hpeel Y₁ (by linarith) (hcut_step Y₁ hcY₁)
     obtain ⟨o₂, ho₂⟩ := ih hα' hpeel Y₂ (by linarith) (hcut_step Y₂ hcY₂)
-    refine ⟨BinTree.joinOpt o₁ o₂, ?_⟩
-    have hjoin := BinTree.joinOpt_spec hdisj (o₁ := o₁) (o₂ := o₂)
-      (by cases h1 : o₁ <;> rw [h1] at ho₁; exacts [ho₁, ho₁.1])
-      (by cases h2 : o₂ <;> rw [h2] at ho₂; exacts [ho₂, ho₂.1])
-    cases hj : BinTree.joinOpt o₁ o₂ with
-    | none =>
-      rw [hj] at hjoin
-      rwa [← hunion]
-    | some t =>
-      rw [hj, hunion] at hjoin
-      refine ⟨hjoin.1, fun S hS => ?_⟩
-      rcases hjoin.2 S hS with rfl | ⟨t₁, ht₁, hs₁⟩ | ⟨t₂, ht₂, hs₂⟩
-      · exact hcutY
-      · rw [ht₁] at ho₁; exact ho₁.2 S hs₁
-      · rw [ht₂] at ho₂; exact ho₂.2 S hs₂
+    exact ⟨BinTree.joinOpt o₁ o₂, joinOpt_isPartition_cut hdisj hunion hcutY ho₁ ho₂⟩
 
 end DeeperLevels
 
@@ -1627,10 +1682,8 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
       (fun v => closedBall G.toSimpleGraph v (R + 1)) (fun v => dependsOn_straddleEvent q R t₀ v)
       (fun v => card_not_disjoint_closedBall_le hdeg (by norm_num) R v) hc_pos
   have hE_card : (Fintype.card E : ℝ) = 3 / 2 * h := by
-    have hsum := G.sum_ncard_incidenceSet hloop
-    simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul,
-      ← Nat.card_eq_fintype_card] at hsum
-    have hr : ((Nat.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
+    have hr : ((2 * Nat.card E : ℕ) : ℝ) = ((3 * Nat.card V : ℕ) : ℝ) := by
+      exact_mod_cast two_mul_card_edges_eq_cubic hloop h3
     rw [Nat.card_eq_fintype_card (α := E)] at hr
     push_cast at hr; linarith
   have hV_card : (Fintype.card V : ℝ) = h := by rw [← Nat.card_eq_fintype_card]
@@ -1653,10 +1706,6 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
   have hcut_A₀ : (G.edgeCut A₀).ncard ≤ k₁ + k₂ := ncard_edgeCut_lowSide_le h3 score t₀
   have hhalf_edge : 2 * E_lt + k₂ = 3 * A₀.ncard + k₁ :=
     two_mul_ncard_score_lt_eq hloop h3 score t₀
-  have hcompl_card : A₀.ncard + (A₀ᶜ).ncard = Nat.card V := by
-    have hn := ncard_union_eq disjoint_compl_right (s := A₀) (t := A₀ᶜ) (toFinite _) (toFinite _)
-    rw [union_compl_self, ncard_univ] at hn
-    exact hn.symm
   -- Two-sided deviation on `E_lt` and upper deviation on `S_tot`.
   have hmean_E : ∑ e : E, P.real (Ae e) = 3 / 2 * h * cdf (gaussianReal 0 1) t₀ := by
     have hpe (e : E) : P.real (Ae e) = cdf (gaussianReal 0 1) t₀ :=
@@ -1667,31 +1716,20 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
     have hnot : ¬c ≤ |∑ e : E, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω - ∑ e : E, P.real (Ae e)| :=
       hωE
     rwa [not_le, ← ncard_eq_sum_indicator, hmean_E] at hnot
+  have hexp_le1 : exp (-t₀ ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith only)
   have hS_upper : (S_tot : ℝ) ≤ (exp (-t₀ ^ 2 / 2) * gaussianCoefficient + 3 * δ / 16) * h := by
-    have hcnt := ncard_lt_of_notMem_deviation hωS
-    have hmean_S : ∑ v : V, P.real (As v) ≤ h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) := by
-      calc ∑ v : V, P.real (As v)
-          ≤ ∑ _v : V, exp (-t₀ ^ 2 / 2) * straddleBound ρ₀ :=
-            Finset.sum_le_sum fun v _ =>
-              measureReal_straddleEvent_le_exp_mul hloop h3 hq hρ₀ hρ t₀ v
-        _ = h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) := by
-            rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hV_card]
-    have hexp_le1 : exp (-t₀ ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith only)
-    have hexp_pos : 0 ≤ exp (-t₀ ^ 2 / 2) := (exp_pos _).le
+    have hmean_S : ∑ v : V, P.real (As v) ≤ h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) :=
+      (Finset.sum_le_sum fun v _ =>
+        measureReal_straddleEvent_le_exp_mul hloop h3 hq hρ₀ hρ t₀ v).trans_eq
+        (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hV_card])
     have hprod : exp (-t₀ ^ 2 / 2) * straddleBound ρ₀ ≤
         exp (-t₀ ^ 2 / 2) * gaussianCoefficient + δ / 8 := by
-      calc exp (-t₀ ^ 2 / 2) * straddleBound ρ₀
-          ≤ exp (-t₀ ^ 2 / 2) * (gaussianCoefficient + δ / 8) :=
-            mul_le_mul_of_nonneg_left hstrad hexp_pos
-        _ = exp (-t₀ ^ 2 / 2) * gaussianCoefficient + exp (-t₀ ^ 2 / 2) * (δ / 8) := by ring
-        _ ≤ exp (-t₀ ^ 2 / 2) * gaussianCoefficient + 1 * (δ / 8) := by gcongr
-        _ = exp (-t₀ ^ 2 / 2) * gaussianCoefficient + δ / 8 := by ring
+      linarith only [mul_le_mul_of_nonneg_left hstrad (exp_pos (-t₀ ^ 2 / 2)).le,
+        mul_le_mul_of_nonneg_right hexp_le1 (by positivity : (0 : ℝ) ≤ δ / 8)]
+    have hcnt := ncard_lt_of_notMem_deviation hωS
     have h1 : (S_tot : ℝ) < ∑ v : V, P.real (As v) + c := hcnt
-    have h2 : h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) ≤
-        h * (exp (-t₀ ^ 2 / 2) * gaussianCoefficient + δ / 8) :=
-      mul_le_mul_of_nonneg_left hprod hh_pos.le
     have hc_eq : c = δ / 16 * h := rfl
-    linarith only [h1, hmean_S, h2, hc_eq]
+    linarith only [h1, hmean_S, mul_le_mul_of_nonneg_left hprod hh_pos.le, hc_eq]
   -- Bounds on `A₀` and `A₀ᶜ` before flips.
   set μ := gaussianCoefficient
   have hμ_pos : 0 < μ := gaussianCoefficient_pos
@@ -1707,16 +1745,10 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
   have hhalf_r : 2 * (E_lt : ℝ) + (k₂ : ℝ) = 3 * (A₀.ncard : ℝ) + (k₁ : ℝ) := by
     exact_mod_cast hhalf_edge
   have hcompl_r : (A₀.ncard : ℝ) + ((A₀ᶜ).ncard : ℝ) = h := by
-    have hr : ((A₀.ncard + (A₀ᶜ).ncard : ℕ) : ℝ) = ((Nat.card V : ℕ) : ℝ) :=
-      congrArg Nat.cast hcompl_card
-    push_cast at hr
-    exact hr
+    rw [← Nat.cast_add, ncard_add_ncard_compl]
   have hk1_0 : 0 ≤ (k₁ : ℝ) := Nat.cast_nonneg _
   have hk2_0 : 0 ≤ (k₂ : ℝ) := Nat.cast_nonneg _
-  have hE_hi : (E_lt : ℝ) ≤ 3 / 2 * h * cdf (gaussianReal 0 1) t₀ + c := by
-    have h2 := (abs_lt.mp hE_abs).2; linarith only [h2]
-  have hE_lo : 3 / 2 * h * cdf (gaussianReal 0 1) t₀ - c ≤ (E_lt : ℝ) := by
-    have h1 := (abs_lt.mp hE_abs).1; linarith only [h1]
+  obtain ⟨hE_lo, hE_hi⟩ := abs_lt.mp hE_abs
   have hc_eq : c = δ / 16 * h := rfl
   have hμ_δ : μ * (δ / 16 * h) ≤ 3 / 20 * (δ / 16 * h) :=
     mul_le_mul_of_nonneg_right hμ_lt.le (by positivity)
@@ -1732,71 +1764,46 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
       (by linarith only [hμ_lt] : 0 ≤ 1 / 2 - 2 / 3 * μ)
     linarith only [hm, hcoef_δ]
   have hδh_nonneg : 0 ≤ δ * h := mul_nonneg hδ.le hh_pos.le
+  have hlyap_side (sCard bCard base kOut kIn : ℝ) (hkOut0 : 0 ≤ kOut)
+      (hcut_b : bCard ≤ kOut + kIn) (hksum : kOut + kIn = (S_tot : ℝ))
+      (hs_eq : sCard = base + 1 / 3 * kIn - 1 / 3 * kOut)
+      (hbase : base ≤ (1 - cdf (gaussianReal 0 1) t₀) * h + δ / 16 * h) :
+      μ * sCard + (1 / 2 - μ) * bCard ≤ (carvingAt t₀ + δ / 4) * h := by
+    have hcut_m : (1 / 2 - μ) * bCard ≤ (1 / 2 - μ) * (kOut + kIn) :=
+      mul_le_mul_of_nonneg_left hcut_b (by linarith only [hμ_lt])
+    have hk_m : μ * (1 / 3 * kIn - 1 / 3 * kOut) + (1 / 2 - μ) * (kOut + kIn) ≤
+        (1 / 2 - 2 / 3 * μ) * (kOut + kIn) := by
+      have hp : 0 ≤ μ * kOut := mul_nonneg hμ_pos.le hkOut0
+      linarith only [hp]
+    have hbase_m : μ * base ≤
+        μ * ((1 - cdf (gaussianReal 0 1) t₀) * h) + 3 / 20 * (δ / 16 * h) := by
+      have hm := mul_le_mul_of_nonneg_left hbase hμ_pos.le
+      linarith only [hm, hμ_δ]
+    have hsplit : μ * sCard = μ * base + μ * (1 / 3 * kIn - 1 / 3 * kOut) := by
+      rw [hs_eq]; ring
+    rw [hsplit]
+    have hm_eq : (1 / 2 - 2 / 3 * μ) * (kOut + kIn) = (1 / 2 - 2 / 3 * μ) * (S_tot : ℝ) := by
+      rw [hksum]
+    linarith only [hcut_m, hk_m, hm_eq, hbase_m, h4, hcarv_r, hδh_nonneg]
+  have hcomm : h * cdf (gaussianReal 0 1) t₀ = cdf (gaussianReal 0 1) t₀ * h := mul_comm _ _
   have hlyap_A₀ : lyap μ G A₀ ≤ (carvingAt t₀ + δ / 4) * h := by
-    have hA_eq : (A₀.ncard : ℝ) = 2 / 3 * (E_lt : ℝ) + 1 / 3 * (k₂ : ℝ) - 1 / 3 * (k₁ : ℝ) := by
-      linarith only [hhalf_r]
-    have h1 : lyap μ G A₀ ≤ μ * (2 / 3 * (E_lt : ℝ)) + (1 / 2 - 2 / 3 * μ) * (S_tot : ℝ) := by
-      have hlyap_eq : lyap μ G A₀ = μ * (A₀.ncard : ℝ) + (1 / 2 - μ) * ((G.edgeCut A₀).ncard : ℝ) :=
-        rfl
-      have hcut_m : (1 / 2 - μ) * ((G.edgeCut A₀).ncard : ℝ) ≤
-          (1 / 2 - μ) * ((k₁ : ℝ) + (k₂ : ℝ)) :=
-        mul_le_mul_of_nonneg_left hcut_r (by linarith only [hμ_lt])
-      have hk_m : μ * (1 / 3 * (k₂ : ℝ) - 1 / 3 * (k₁ : ℝ)) +
-          (1 / 2 - μ) * ((k₁ : ℝ) + (k₂ : ℝ)) ≤ (1 / 2 - 2 / 3 * μ) * ((k₁ : ℝ) + (k₂ : ℝ)) := by
-        have hp1 : 0 ≤ μ * (k₁ : ℝ) := mul_nonneg hμ_pos.le hk1_0
-        linarith only [hp1]
-      rw [hlyap_eq, hA_eq, ← hk_sum_r]
-      linarith only [hcut_m, hk_m]
-    have h2 : 2 / 3 * (E_lt : ℝ) ≤ (1 - cdf (gaussianReal 0 1) t₀) * h + δ / 16 * h := by
-      have hcdf_le : cdf (gaussianReal 0 1) t₀ * h ≤ (1 - cdf (gaussianReal 0 1) t₀) * h :=
-        mul_le_mul_of_nonneg_right (by linarith only [hcdf_half]) hh_pos.le
-      have hcomm : h * cdf (gaussianReal 0 1) t₀ = cdf (gaussianReal 0 1) t₀ * h := mul_comm _ _
-      linarith only [hE_hi, hc_eq, hcdf_le, hcomm, hδh_nonneg]
-    have h3 : μ * (2 / 3 * (E_lt : ℝ)) ≤
-        μ * ((1 - cdf (gaussianReal 0 1) t₀) * h) + 3 / 20 * (δ / 16 * h) := by
-      have hm := mul_le_mul_of_nonneg_left h2 hμ_pos.le
-      linarith only [hm, hμ_δ]
-    linarith only [h1, h3, h4, hcarv_r, hδh_nonneg]
+    have hcdf_le : cdf (gaussianReal 0 1) t₀ * h ≤ (1 - cdf (gaussianReal 0 1) t₀) * h :=
+      mul_le_mul_of_nonneg_right (by linarith only [hcdf_half]) hh_pos.le
+    exact hlyap_side (A₀.ncard : ℝ) ((G.edgeCut A₀).ncard : ℝ) (2 / 3 * (E_lt : ℝ)) (k₁ : ℝ)
+      (k₂ : ℝ) hk1_0 hcut_r hk_sum_r (by linarith only [hhalf_r])
+      (by linarith only [hE_hi, hc_eq, hcdf_le, hcomm, hδh_nonneg])
   have hlyap_R₀ : lyap μ G A₀ᶜ ≤ (carvingAt t₀ + δ / 4) * h := by
-    have hR_eq : ((A₀ᶜ).ncard : ℝ) =
-        h - 2 / 3 * (E_lt : ℝ) - 1 / 3 * (k₂ : ℝ) + 1 / 3 * (k₁ : ℝ) := by
-      linarith only [hcompl_r, hhalf_r]
-    have h1 : lyap μ G A₀ᶜ ≤
-        μ * (h - 2 / 3 * (E_lt : ℝ)) + (1 / 2 - 2 / 3 * μ) * (S_tot : ℝ) := by
-      have hlyap_eq : lyap μ G A₀ᶜ =
-          μ * ((A₀ᶜ).ncard : ℝ) + (1 / 2 - μ) * ((G.edgeCut A₀).ncard : ℝ) := by
-        simp only [lyap, G.edgeCut_compl]
-      have hcut_m : (1 / 2 - μ) * ((G.edgeCut A₀).ncard : ℝ) ≤
-          (1 / 2 - μ) * ((k₁ : ℝ) + (k₂ : ℝ)) :=
-        mul_le_mul_of_nonneg_left hcut_r (by linarith only [hμ_lt])
-      have hk_m : μ * (-1 / 3 * (k₂ : ℝ) + 1 / 3 * (k₁ : ℝ)) +
-          (1 / 2 - μ) * ((k₁ : ℝ) + (k₂ : ℝ)) ≤ (1 / 2 - 2 / 3 * μ) * ((k₁ : ℝ) + (k₂ : ℝ)) := by
-        have hp2 : 0 ≤ μ * (k₂ : ℝ) := mul_nonneg hμ_pos.le hk2_0
-        linarith only [hp2]
-      rw [hlyap_eq, hR_eq, ← hk_sum_r]
-      linarith only [hcut_m, hk_m]
-    have h2 : h - 2 / 3 * (E_lt : ℝ) ≤ (1 - cdf (gaussianReal 0 1) t₀) * h + δ / 16 * h := by
-      have hcomm : h * cdf (gaussianReal 0 1) t₀ = cdf (gaussianReal 0 1) t₀ * h := mul_comm _ _
-      linarith only [hE_lo, hc_eq, hcomm, hδh_nonneg]
-    have h3 : μ * (h - 2 / 3 * (E_lt : ℝ)) ≤
-        μ * ((1 - cdf (gaussianReal 0 1) t₀) * h) + 3 / 20 * (δ / 16 * h) := by
-      have hm := mul_le_mul_of_nonneg_left h2 hμ_pos.le
-      linarith only [hm, hμ_δ]
-    linarith only [h1, h3, h4, hcarv_r, hδh_nonneg]
+    simp only [lyap, G.edgeCut_compl]
+    exact hlyap_side ((A₀ᶜ).ncard : ℝ) ((G.edgeCut A₀).ncard : ℝ) (h - 2 / 3 * (E_lt : ℝ))
+      (k₂ : ℝ) (k₁ : ℝ) hk2_0 (by linarith only [hcut_r]) (by linarith only [hk_sum_r])
+      (by linarith only [hcompl_r, hhalf_r]) (by linarith only [hE_lo, hc_eq, hcomm, hδh_nonneg])
   have hδh : δ * h ≤ 1 / 1000 * h := mul_le_mul_of_nonneg_right hδ_small hh_pos.le
   have hS_151 : (S_tot : ℝ) ≤ 151 / 1000 * h := by
-    have hexp : exp (-t₀ ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith only)
-    have hexp1 : exp (-t₀ ^ 2 / 2) * μ ≤ 3 / 20 := by
-      calc exp (-t₀ ^ 2 / 2) * μ ≤ 1 * (3 / 20) :=
-            mul_le_mul hexp hμ_lt.le hμ_pos.le zero_le_one
-        _ = 3 / 20 := one_mul _
-    have hexph : exp (-t₀ ^ 2 / 2) * μ * h ≤ 3 / 20 * h :=
-      mul_le_mul_of_nonneg_right hexp1 hh_pos.le
-    linarith only [hS_upper', hexph, hδh]
+    linarith only [hS_upper', hδh, mul_le_mul_of_nonneg_right
+      (mul_le_mul hexp_le1 hμ_lt.le hμ_pos.le zero_le_one) hh_pos.le]
   have hsum_A₀_b : (A₀.ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) ≤ 43 / 50 * h := by
-    have hcdf_h : h * cdf (gaussianReal 0 1) t₀ ≤ 1 / 2 * h := by
-      rw [mul_comm]; exact mul_le_mul_of_nonneg_right hcdf_half hh_pos.le
-    linarith only [hhalf_r, hk_sum_r, hcut_r, hk1_0, hk2_0, hE_hi, hc_eq, hcdf_h, hδh, hS_151]
+    linarith only [hhalf_r, hk_sum_r, hcut_r, hk1_0, hk2_0, hE_hi, hc_eq, hδh, hS_151,
+      mul_le_mul_of_nonneg_left hcdf_half hh_pos.le]
   have hsum_R₀_b : ((A₀ᶜ).ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) ≤ 43 / 50 * h := by
     have hcdf_h : (1 - cdf (gaussianReal 0 1) t₀) * h ≤ 13 / 20 * h :=
       mul_le_mul_of_nonneg_right hcdf_13_20 hh_pos.le
@@ -1808,21 +1815,16 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
     linarith only [hcut_r, hk_sum_r, hS_upper', hcarv_h, hδh_nonneg]
   -- Apply greedy flips to `A₀`.
   obtain ⟨A, hbA, hLA, hLAc, hsumA, hsumAc, hminA, hminAc⟩ :=
-    exists_greedy_flipped hloop h3 hμ_pos.le hμ_lt.le A₀
+    exists_greedy_flipped hloop h3 hμ_lt.le A₀
   refine ⟨A, Aᶜ, disjoint_compl_right, union_compl_self A, ?_, ?_, ?_,
-    hLA.trans hlyap_A₀, hLAc.trans hlyap_R₀, hminA, ?_⟩
+    hLA.trans hlyap_A₀, hLAc.trans hlyap_R₀, hminA, by simpa only [G.edgeCut_compl] using hminAc⟩
   · have hr : (A.ncard : ℝ) + ((G.edgeCut A).ncard : ℝ) ≤
         (A₀.ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) := by exact_mod_cast hsumA
-    have hb0 : 0 ≤ ((G.edgeCut A).ncard : ℝ) := Nat.cast_nonneg _
-    linarith only [hr, hb0, hsum_A₀_b]
+    linarith only [hr, Nat.cast_nonneg (α := ℝ) (G.edgeCut A).ncard, hsum_A₀_b]
   · have hr : ((Aᶜ).ncard : ℝ) + ((G.edgeCut A).ncard : ℝ) ≤
         ((A₀ᶜ).ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) := by exact_mod_cast hsumAc
-    have hb0 : 0 ≤ ((G.edgeCut A).ncard : ℝ) := Nat.cast_nonneg _
-    linarith only [hr, hb0, hsum_R₀_b]
+    linarith only [hr, Nat.cast_nonneg (α := ℝ) (G.edgeCut A).ncard, hsum_R₀_b]
   · exact (Nat.cast_le.mpr hbA).trans hcut_carv
-  · intro v hv
-    rw [G.edgeCut_compl]
-    exact hminAc v hv
 
 end LevelZero
 
@@ -1877,11 +1879,7 @@ theorem exists_carvingWidth_le_carvingAt {t₀ : ℝ} (ht₀ : t₀ ∈ Icc (-3 
   obtain ⟨A, Rset, hdisjAR, hunionAR, hA_sz, hR_sz, hA_cut, hLA, hLR, hminA, hminR⟩ :=
     exists_levelZero_partition hloop h3 ht₀ hδ hδ_small hq₁ hρ₁ hcorr₁ hstrad₁ hlarge0
   have hR_cut : ((G.edgeCut Rset).ncard : ℝ) ≤ β * Nat.card V := by
-    have hcompl : Rset = Aᶜ := by
-      ext v
-      exact ⟨fun hv ha => disjoint_left.mp hdisjAR ha hv,
-        fun hna => (hunionAR.ge (trivial : v ∈ Set.univ)).resolve_left hna⟩
-    rwa [hcompl, G.edgeCut_compl]
+    rwa [← (IsCompl.of_eq hdisjAR.eq_bot hunionAR).compl_eq, G.edgeCut_compl]
   -- Step 2: Build carving subtree on each half `X ∈ {A, Rset}` via Depth 1 + Depths 2–5 + peeling.
   have build_half (X : Set V) (hX_sz : (X.ncard : ℝ) ≤ 43 / 50 * Nat.card V)
       (hX_cut : ((G.edgeCut X).ncard : ℝ) ≤ β * Nat.card V)
@@ -1911,38 +1909,22 @@ theorem exists_carvingWidth_le_carvingAt {t₀ : ℝ} (ht₀ : t₀ ∈ Icc (-3 
       hβ_ge 4 le_rfl hpeel X₁ hsz1 hct1
     obtain ⟨o₂, ho₂⟩ := exists_binTree_of_subset hloop h3 hq₂ hρ₂ hcorr₂ hstrad₂' hlarge2
       hβ_ge 4 le_rfl hpeel X₂ hsz2 hct2
-    refine ⟨BinTree.joinOpt o₁ o₂, ?_⟩
-    have hjoin := BinTree.joinOpt_spec hdX (o₁ := o₁) (o₂ := o₂)
-      (by cases h1 : o₁ <;> rw [h1] at ho₁; exacts [ho₁, ho₁.1])
-      (by cases h2 : o₂ <;> rw [h2] at ho₂; exacts [ho₂, ho₂.1])
-    cases hj : BinTree.joinOpt o₁ o₂ with
-    | none => rw [hj] at hjoin; rwa [← huX]
-    | some t =>
-      rw [hj, huX] at hjoin
-      refine ⟨hjoin.1, fun S hS => ?_⟩
-      rcases hjoin.2 S hS with rfl | ⟨t₁, ht₁, hs₁⟩ | ⟨t₂, ht₂, hs₂⟩
-      · exact hX_cut
-      · rw [ht₁] at ho₁; exact ho₁.2 S hs₁
-      · rw [ht₂] at ho₂; exact ho₂.2 S hs₂
+    exact ⟨BinTree.joinOpt o₁ o₂, joinOpt_isPartition_cut hdX huX hX_cut ho₁ ho₂⟩
   obtain ⟨oA, hoA⟩ := build_half A hA_sz hA_cut hLA hminA
   obtain ⟨oR, hoR⟩ := build_half Rset hR_sz hR_cut hLR hminR
-  have hjoin_top := BinTree.joinOpt_spec hdisjAR (o₁ := oA) (o₂ := oR)
-    (by cases h1 : oA <;> rw [h1] at hoA; exacts [hoA, hoA.1])
-    (by cases h2 : oR <;> rw [h2] at hoR; exacts [hoR, hoR.1])
+  have hcut_univ : ((G.edgeCut Set.univ).ncard : ℝ) ≤ β * Nat.card V := by
+    simp only [Multigraph.edgeCut_univ, ncard_empty, Nat.cast_zero]
+    positivity
+  have htop_spec := joinOpt_isPartition_cut hdisjAR hunionAR hcut_univ hoA hoR
   cases htop : BinTree.joinOpt oA oR with
   | none =>
-    rw [htop, hunionAR] at hjoin_top
-    exact absurd hjoin_top Set.univ_nonempty.ne_empty
+    rw [htop] at htop_spec
+    exact absurd htop_spec Set.univ_nonempty.ne_empty
   | some t_all =>
-    rw [htop, hunionAR] at hjoin_top
+    rw [htop] at htop_spec
     set k_cap : ℕ := ⌊β * Nat.card V⌋₊
-    have hcw_nat : G.carvingWidth ≤ k_cap := by
-      refine G.carvingWidth_le_of_binTree hjoin_top.1 fun S hS => Nat.le_floor ?_
-      rcases hjoin_top.2 S hS with rfl | ⟨t₁, ht₁, hs₁⟩ | ⟨t₂, ht₂, hs₂⟩
-      · simp only [Multigraph.edgeCut_univ, ncard_empty, Nat.cast_zero]
-        positivity
-      · rw [ht₁] at hoA; exact hoA.2 S hs₁
-      · rw [ht₂] at hoR; exact hoR.2 S hs₂
+    have hcw_nat : G.carvingWidth ≤ k_cap :=
+      G.carvingWidth_le_of_binTree htop_spec.1 fun S hS => Nat.le_floor (htop_spec.2 S hS)
     calc (G.carvingWidth : ℝ) ≤ (k_cap : ℝ) := Nat.cast_le.mpr hcw_nat
       _ ≤ β * Nat.card V := Nat.floor_le (by positivity)
       _ ≤ (carvingAt t₀ + ξ) * Nat.card V :=

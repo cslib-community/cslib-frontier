@@ -48,9 +48,7 @@ variable {V : Type*} {G : LayeredDigraph V} {a b v : V}
 theorem comp_mem_pathsThrough (q : G.Path a v) (r : G.Path v b)
     (ha : G.layer a < G.layer v) (hb : G.layer v < G.layer b) :
     q.comp r ∈ G.pathsThrough a b v := by
-  change v ∈ (q.comp r).internalVertices
-  rw [Path.internalVertices_comp q r ha hb]
-  exact List.mem_append_right _ (List.mem_cons_self)
+  simp [pathsThrough, Path.internalVertices_comp q r ha hb]
 
 variable (weight : V → ℕ)
 
@@ -62,22 +60,15 @@ theorem isMinOn_pathsThrough_comp_iff (q : G.Path a v) (r : G.Path v b)
       IsMinOn (Path.internalWeight weight) Set.univ q ∧
         IsMinOn (Path.internalWeight weight) Set.univ r := by
   rw [isMinOn_univ_iff, isMinOn_univ_iff, isMinOn_iff]
-  constructor
-  · intro h
-    refine ⟨fun q' ↦ ?_, fun r' ↦ ?_⟩
-    · have hq := h (q'.comp r) (comp_mem_pathsThrough q' r ha hb)
-      rw [Path.internalWeight_comp weight q r ha hb,
-        Path.internalWeight_comp weight q' r ha hb] at hq
-      omega
-    · have hr := h (q.comp r') (comp_mem_pathsThrough q r' ha hb)
-      rw [Path.internalWeight_comp weight q r ha hb,
-        Path.internalWeight_comp weight q r' ha hb] at hr
-      omega
-  · rintro ⟨hq, hr⟩ p hp
-    change v ∈ p.internalVertices at hp
-    let _ := G.toQuiver
-    obtain ⟨q', r', rfl⟩ :=
-      p.exists_eq_comp_of_mem_vertices (p.mem_internalVertices_iff.mp hp).1
+  refine ⟨fun h => ⟨fun q' => ?_, fun r' => ?_⟩, fun ⟨hq, hr⟩ p hp => ?_⟩
+  · have hq := h (q'.comp r) (comp_mem_pathsThrough q' r ha hb)
+    rw [Path.internalWeight_comp weight q r ha hb, Path.internalWeight_comp weight q' r ha hb] at hq
+    omega
+  · have hr := h (q.comp r') (comp_mem_pathsThrough q r' ha hb)
+    rw [Path.internalWeight_comp weight q r ha hb, Path.internalWeight_comp weight q r' ha hb] at hr
+    omega
+  · let _ := G.toQuiver
+    obtain ⟨q', r', rfl⟩ := p.exists_eq_comp_of_mem_vertices (p.mem_internalVertices_iff.mp hp).1
     rw [Path.internalWeight_comp weight q r ha hb, Path.internalWeight_comp weight q' r' ha hb]
     exact Nat.add_le_add (Nat.add_le_add_right (hq q') _) (hr r')
 
@@ -99,42 +90,29 @@ theorem isMinIsolating_of_separated (G : LayeredDigraph V)
             IsMinOn (Path.internalWeight weight) (G.pathsThrough a b v) q →
             p.internalWeight weight ≠ q.internalWeight weight) :
     G.IsMinIsolating weight := by
-  have existsMin (a b : V) [Nonempty (G.Path a b)] :
-      ∃ p : G.Path a b, IsMinOn (Path.internalWeight weight) Set.univ p :=
-    ⟨Function.argmin _, isMinOn_univ_iff.mpr fun q ↦
-      le_of_not_gt (Function.not_lt_argmin _ q)⟩
-  suffices h : ∀ n a b, G.layer b - G.layer a = n →
-      ∀ [Nonempty (G.Path a b)], ∃! p : G.Path a b,
-        IsMinOn (Path.internalWeight weight) Set.univ p by
-    intro a b hab
-    let _ := hab
-    exact h _ a b rfl
-  intro n
-  induction n using Nat.strong_induction_on with
+  intro a b hab
+  generalize hn : G.layer b - G.layer a = n
+  induction n using Nat.strong_induction_on generalizing a b with
   | ind n ih =>
-    intro a b hn hab
-    obtain ⟨p, hp⟩ := existsMin a b
-    refine ⟨p, hp, fun q hq ↦ ?_⟩
+    let _ := hab
+    have ⟨p, hp⟩ : ∃ p : G.Path a b, IsMinOn (Path.internalWeight weight) Set.univ p :=
+      ⟨Function.argmin _, isMinOn_univ_iff.mpr fun q =>
+        le_of_not_gt (Function.not_lt_argmin _ q)⟩
+    refine ⟨p, hp, fun q hq => ?_⟩
     by_cases hs : G.layer b ≤ G.layer a + 1
     · exact Path.eq_of_layer_le_succ hs q p
     obtain ⟨k, ha, hb, hsep⟩ := separated a b (by omega)
     obtain ⟨u, p₁, p₂, rfl, hu⟩ := p.exists_eq_comp_of_layer ha.le hb.le
     obtain ⟨v, q₁, q₂, rfl, hv⟩ := q.exists_eq_comp_of_layer ha.le hb.le
-    have hau : G.layer a < G.layer u := by rwa [hu]
-    have hub : G.layer u < G.layer b := by rwa [hu]
-    have hpu := comp_mem_pathsThrough p₁ p₂ hau hub
-    have hqv := comp_mem_pathsThrough q₁ q₂ (by rwa [hv]) (by rwa [hv])
+    have hau : G.layer a < G.layer u := hu ▸ ha
+    have hub : G.layer u < G.layer b := hu ▸ hb
     have hpmin := hp.of_subset (Set.subset_univ (G.pathsThrough a b u))
     have hqmin := hq.of_subset (Set.subset_univ (G.pathsThrough a b v))
-    have huv : u = v := by
-      by_contra hne
-      apply hsep hu hv hne hpu hqv hpmin hqmin
-      exact le_antisymm (isMinOn_univ_iff.mp hp _) (isMinOn_univ_iff.mp hq _)
-    subst v
-    have hleft : G.layer u - G.layer a < n := by omega
-    have hright : G.layer b - G.layer u < n := by omega
-    obtain ⟨_, _, h₁⟩ := @ih _ hleft a u rfl ⟨p₁⟩
-    obtain ⟨_, _, h₂⟩ := @ih _ hright u b rfl ⟨p₂⟩
+    obtain rfl : u = v := not_ne_iff.mp fun hne => hsep hu hv hne
+      (comp_mem_pathsThrough p₁ p₂ hau hub) (comp_mem_pathsThrough q₁ q₂ (hv ▸ ha) (hv ▸ hb))
+      hpmin hqmin (le_antisymm (isMinOn_univ_iff.mp hp _) (isMinOn_univ_iff.mp hq _))
+    obtain ⟨_, _, h₁⟩ := ih (G.layer u - G.layer a) (by omega) a u ⟨p₁⟩ rfl
+    obtain ⟨_, _, h₂⟩ := ih (G.layer b - G.layer u) (by omega) u b ⟨p₂⟩ rfl
     obtain ⟨hp₁, hp₂⟩ := (isMinOn_pathsThrough_comp_iff weight p₁ p₂ hau hub).mp hpmin
     obtain ⟨hq₁, hq₂⟩ := (isMinOn_pathsThrough_comp_iff weight q₁ q₂ hau hub).mp hqmin
     rw [(h₁ _ hq₁).trans (h₁ _ hp₁).symm, (h₂ _ hq₂).trans (h₂ _ hp₂).symm]

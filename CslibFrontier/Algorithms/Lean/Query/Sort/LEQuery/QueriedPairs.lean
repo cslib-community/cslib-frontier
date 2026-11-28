@@ -60,13 +60,11 @@ def LEQuery.queriedPairs (oracle : {ι : Type} → LEQuery α ι → ι) :
     (p : FreeM (LEQuery α) γ) :
     (LEQuery.queriedPairs oracle p).length = p.countQueries oracle := by
   induction p with
-  | pure x => rfl
+  | pure => rfl
   | lift_bind op cont ih =>
-    cases op with
-    | le a b =>
-      change ((a, b) :: LEQuery.queriedPairs oracle (cont (oracle (.le a b)))).length =
-        (FreeM.lift (.le a b) >>= cont).countQueries oracle
-      rw [FreeM.countQueries_liftBind, List.length_cons, ih, Nat.add_comm]
+    rcases op with ⟨a, b⟩
+    simp only [FreeM.bind_eq_bind, LEQuery.queriedPairs_liftBind, FreeM.countQueries_liftBind,
+      List.length_cons, ih, Nat.add_comm]
 
 /-- If `oracle'` answers every comparison along `oracle`'s path of `p` as `oracle` does, then it
 drives `p` along the same path and makes the same comparisons. -/
@@ -76,14 +74,12 @@ theorem LEQuery.queriedPairs_eq_of_agree (oracle oracle' : {ι : Type} → LEQue
       oracle (.le a b) = oracle' (.le a b)) :
     LEQuery.queriedPairs oracle' p = LEQuery.queriedPairs oracle p := by
   induction p with
-  | pure x => rfl
+  | pure => rfl
   | lift_bind op cont ih =>
-    cases op with
-    | le a b =>
-      change (a, b) :: LEQuery.queriedPairs oracle' (cont (oracle' (.le a b))) =
-        (a, b) :: LEQuery.queriedPairs oracle (cont (oracle (.le a b)))
-      have hab := hagree a b (List.mem_cons_self ..)
-      rw [← hab, ih _ fun c d hcd => hagree c d (List.mem_cons_of_mem _ hcd)]
+    rcases op with ⟨a, b⟩
+    rw [FreeM.bind_eq_bind, LEQuery.queriedPairs_liftBind, LEQuery.queriedPairs_liftBind,
+      ← hagree a b (List.mem_cons_self ..),
+      ih _ fun c d hcd => hagree c d (List.mem_cons_of_mem _ hcd)]
 
 /-- If `oracle'` answers every comparison along `oracle`'s path of `p` as `oracle` does, then `p`
 evaluates to the same result under both. -/
@@ -93,14 +89,11 @@ theorem LEQuery.eval_eq_of_agree (oracle oracle' : {ι : Type} → LEQuery α ι
       oracle (.le a b) = oracle' (.le a b)) :
     p.eval oracle' = p.eval oracle := by
   induction p with
-  | pure x => rfl
+  | pure => rfl
   | lift_bind op cont ih =>
-    cases op with
-    | le a b =>
-      change (FreeM.lift (.le a b) >>= cont).eval oracle' =
-        (FreeM.lift (.le a b) >>= cont).eval oracle
-      have hab := hagree a b (List.mem_cons_self ..)
-      rw [FreeM.eval_liftBind, FreeM.eval_liftBind, ← hab]
-      exact ih _ fun c d hcd => hagree c d (List.mem_cons_of_mem _ hcd)
+    rcases op with ⟨a, b⟩
+    rw [FreeM.bind_eq_bind, FreeM.eval_liftBind, FreeM.eval_liftBind,
+      ← hagree a b (List.mem_cons_self ..)]
+    exact ih _ fun c d hcd => hagree c d (List.mem_cons_of_mem _ hcd)
 
 end Cslib.Query

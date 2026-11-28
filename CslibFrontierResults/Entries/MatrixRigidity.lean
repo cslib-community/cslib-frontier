@@ -8,6 +8,7 @@ Authors: Samuel Schlesinger
 import CslibFrontierResults.Registry
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Random
+import CslibFrontier.Foundations.Data.MvPolynomial.ConsecutiveLayers
 
 register_result "lokam-matrix-rigidity-upper-bound" where
   title := "Every n × n matrix over a field has rigidity at most (n - r)²"
@@ -59,3 +60,18 @@ register_result "lokam-random-matrix-rigidity-finite-field" where
     was cited through Lokam §2.1 and not inspected directly. Outside-fleet source check \
     (reviewer-codex-edemaine): \
     https://github.com/cslib-community/cslib-frontier/pull/7534#pullrequestreview-6013716059"
+
+register_result "alman-williams-consecutive-layer-interpolation" where
+  title := "Integer multilinear interpolation on consecutive Hamming layers"
+  topic := "algebraic complexity"
+  sources := [
+    { paper := AlmanWilliams2017, theorem := "Lemma 3.2",
+      locator := "§3, arXiv v2, printed p. 6 (PDF p. 7)" }
+  ]
+  theorems := [Cslib.exists_multilinear_of_consecutive_weights]
+  scope := "Prescribes any integer value per weight on a band of t consecutive layers. \
+    The polynomial has total degree at most t - 1 and individual degree at most one. \
+    Lean uses k ≤ |x| < k + t where the paper uses k + 1 ≤ |z| ≤ k + r, and drops the \
+    dimension hypothesis n ≥ k + t by prescribing values only on existing layers. \
+    Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7803#pullrequestreview-6016309173"

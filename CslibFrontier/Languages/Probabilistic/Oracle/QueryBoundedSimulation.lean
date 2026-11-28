@@ -76,41 +76,32 @@ theorem IsQueryBounded.run_interpret_bind_comm_of_invariant {σ₁ σ₂ γ : Ty
       obtain ⟨_, rfl⟩ := Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hm)
       exact hzero rem _ hinv
   | liftBind q cont rem _ ih =>
-    have hcall :
-        ((OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) h₁ q s).bind
-          fun x => (exp x.2).map fun k => (k, x.1, rep x.2)) =
-          ((exp s).bind fun k =>
-            (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k) q
-              (rep s)).map fun y => (k, y.1, y.2)) ∧
-        ∀ ans s', (ans, s') ∈
-          (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) h₁ q s).support →
-            inv rem s' := by
+    have hcall : Probability.PMF.HiddenCoupling
+        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) h₁ q s) (exp s)
+        (fun x => exp x.2) (fun x => (x.1, rep x.2))
+        (fun k => OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k) q
+          (rep s))
+        (fun x => inv rem x.2) := by
       cases q with
       | inl n =>
         simp only [Sum.elim_inl, Nat.add_zero] at hinv
-        refine ⟨?_, fun ans s' hm => ?_⟩
+        refine ⟨?_, fun ⟨ans, s'⟩ hm => ?_⟩
         · change ((ProbComp.unifOracle n).map (·, s)).bind _ =
             (exp s).bind fun k => ((ProbComp.unifOracle n).map (·, rep s)).map _
           simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
           exact PMF.bind_comm _ _ _
         · change (ans, s') ∈ ((ProbComp.unifOracle n).map (·, s)).support at hm
           obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hm
-          obtain ⟨-, rfl⟩ := Prod.mk.inj heq
-          exact hinv
+          exact (Prod.mk.inj heq).2 ▸ hinv
       | inr q =>
         simp only [Sum.elim_inr] at hinv
-        exact hstep rem q s hinv
+        exact ⟨(hstep rem q s hinv).1, fun x hx => (hstep rem q s hinv).2 x.1 x.2 hx⟩
     simp only [interp_norm, Probability.PMF.monad_bind_eq_bind]
-    refine (fun h => ⟨h.1, fun res s' hm => h.2 (res, s') hm⟩)
-      (Probability.PMF.bind_bind_comm_of_invariant _ (fun x => exp x.2) (fun x => (x.1, rep x.2))
-        (fun k => OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k) q
-          (rep s))
-        (fun x => inv rem x.2) (exp s) _ (fun x => exp x.2) (fun x => (x.1, rep x.2))
-        (fun k y => (OracleComp.interpret
-          (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k))
-          (cont y.1)).run y.2)
-        (fun x => inv 0 x.2) ⟨hcall.1, fun x hx => hcall.2 x.1 x.2 hx⟩
-        fun x _ hx => ⟨(ih x.1 hx).1, fun b hb => (ih x.1 hx).2 b.1 b.2 hb⟩)
+    have h := hcall.bind (f₂ := fun k y => (OracleComp.interpret
+        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k))
+        (cont y.1)).run y.2)
+      fun x _ hx => ⟨(ih x.1 hx).1, fun b hb => (ih x.1 hx).2 b.1 b.2 hb⟩
+    exact ⟨h.1, fun res s' hm => h.2 (res, s') hm⟩
 
 /-- A budget-indexed invariant holds after a query-bounded program when every external query from
 a state satisfying `inv (rem + 1)` leads to states satisfying `inv rem`. Private samples leave the

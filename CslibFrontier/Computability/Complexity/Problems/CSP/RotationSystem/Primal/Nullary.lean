@@ -74,23 +74,17 @@ private theorem positive_of_sameComponent (root : ℕ) (hr : root < F.numVars)
     (i : Fin F.length) (hi : SameComponent (incidenceGraph F) root (F.numVars + i.val)) :
     0 < F[i.val].scope.length := by
   obtain ⟨o, ho⟩ := exists_occurrence_dense root hr
-  have hroot : (incidenceDart o false).vertex = root := by
-    simpa only [vertex_incidenceDart, Bool.false_eq_true, ↓reduceIte] using ho
   obtain ⟨d, hd⟩ := Graph.Dart.exists_of_sameComponent (incidenceDart o false)
-    (F.numVars + i.val) (by rwa [hroot])
+    (F.numVars + i.val) (by simpa only [vertex_incidenceDart, Bool.false_eq_true, ↓reduceIte, ho]
+      using hi)
   obtain ⟨p, hp⟩ := exists_incidenceDart d
   have hvertex := vertex_incidenceDart p d.2
   rw [hp, hd] at hvertex
-  have hv : F.distinctVars.idxOf p.var < F.numVars := by
-    rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr p.var_mem)
-  cases hb : d.2
-  · simp only [hb, Bool.false_eq_true, ↓reduceIte] at hvertex
-    omega
-  · simp only [hb, ↓reduceIte] at hvertex
-    have he : p.1 = i := Fin.ext (by omega)
-    have := Nat.zero_lt_of_lt p.2.isLt
-    simpa only [he] using this
+  have hv : F.distinctVars.idxOf p.var < F.numVars :=
+    CSP.length_distinctVars F ▸ List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr p.var_mem)
+  cases hb : d.2 <;> simp only [hb, Bool.false_eq_true, ↓reduceIte] at hvertex
+  · omega
+  · exact Fin.ext (by omega : p.1.val = i.val) ▸ Nat.zero_lt_of_lt p.2.isLt
 
 /-- Nullary vertices are absent from every component rooted at an occurring variable. -/
 theorem polygon_component_face_card_with_nullaries

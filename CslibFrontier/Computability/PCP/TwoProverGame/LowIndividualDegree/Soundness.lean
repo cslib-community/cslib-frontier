@@ -61,35 +61,20 @@ theorem exists_polynomial_POVMs_of_winProb {k : ℕ}
       (S.isProjective_alice_dilate a₀ a₀) (S.isProjective_bob_dilate a₀ a₀)
   let Pₐ := L.restrictBasis (ancillaBasis a₀)
   let Pᵦ := R.restrictBasis (ancillaBasis a₀)
-  let f (u : Pt) (g : Poly) := MvPolynomial.eval u g.val
-  have hA (u : Pt) : Measurement.agreement T.toCommuting.state
-      (decodedPoint T.toCommuting.alice u)
-      ((QuantumStrategy.rightMeasurement (ι := ι × Ans) R).map (f u)) =
-        Measurement.agreement C.state (decodedPoint C.alice u)
-          ((QuantumStrategy.rightMeasurement (ι := ι) Pᵦ).map (f u)) := by
-    simpa only [T, C, Pᵦ, decodedPoint, QuantumStrategy.toCommuting, QuantumStrategy.dilate,
-      POVM.restrictBasis_dilate] using
-      S.agreement_dilate_restrictBasis a₀ a₀ ((S.alice (.point u)).dilate a₀) R decodePoint (f u)
-  have hB (u : Pt) : Measurement.agreement T.toCommuting.state
-      ((QuantumStrategy.leftMeasurement (κ := κ × Ans) L).map (f u))
-      (decodedPoint T.toCommuting.bob u) =
-        Measurement.agreement C.state ((QuantumStrategy.leftMeasurement (κ := κ) Pₐ).map (f u))
-          (decodedPoint C.bob u) := by
-    simpa only [T, C, Pₐ, decodedPoint, QuantumStrategy.toCommuting, QuantumStrategy.dilate,
-      POVM.restrictBasis_dilate] using
-      S.agreement_dilate_restrictBasis a₀ a₀ L ((S.bob (.point u)).dilate a₀) (f u) decodePoint
-  have hPoly : Measurement.agreement T.toCommuting.state
-      (QuantumStrategy.leftMeasurement (κ := κ × Ans) L)
-      (QuantumStrategy.rightMeasurement (ι := ι × Ans) R) =
-        Measurement.agreement C.state (QuantumStrategy.leftMeasurement (κ := κ) Pₐ)
-          (QuantumStrategy.rightMeasurement (ι := ι) Pᵦ) := by
-    simpa only [Measurement.map_id] using S.agreement_dilate_restrictBasis a₀ a₀ L R id id
-  have hscore : (game (F := F) n d).quantumWinProb T = (game (F := F) n d).quantumWinProb S :=
-    (game n d).quantumWinProb_dilate S a₀ a₀
-  simp only [f] at hA hB
+  have hA (u : Pt) := S.agreement_dilate_restrictBasis a₀ a₀
+    ((S.alice (.point u)).dilate a₀) R decodePoint (fun g => MvPolynomial.eval u g.val)
+  have hB (u : Pt) := S.agreement_dilate_restrictBasis a₀ a₀
+    L ((S.bob (.point u)).dilate a₀) (fun g => MvPolynomial.eval u g.val) decodePoint
+  have hPoly := S.agreement_dilate_restrictBasis a₀ a₀ L R id id
+  simp only [POVM.restrictBasis_dilate, QuantumStrategy.toCommuting,
+    QuantumStrategy.dilate] at hA hB
+  simp only [Measurement.map_id] at hPoly
+  rw [(game n d).quantumWinProb_dilate S a₀ a₀] at h₁ h₂ h₃
   refine ⟨Pₐ, Pᵦ, ?_, ?_, ?_⟩
-  · simpa only [hscore, hA] using h₁
-  · simpa only [hscore, hB] using h₂
-  · simpa only [hscore, hPoly] using h₃
+  · simpa only [T, C, Pᵦ, errors, decodedPoint, QuantumStrategy.toCommuting,
+      QuantumStrategy.dilate, hA] using h₁
+  · simpa only [T, C, Pₐ, errors, decodedPoint, QuantumStrategy.toCommuting,
+      QuantumStrategy.dilate, hB] using h₂
+  · simpa only [T, C, Pₐ, Pᵦ, errors, hPoly] using h₃
 
 end Cslib.PCP.LowIndividualDegree

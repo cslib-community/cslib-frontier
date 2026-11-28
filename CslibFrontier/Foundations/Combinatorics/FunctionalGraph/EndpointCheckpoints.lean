@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
 public import Mathlib.Logic.Function.Iterate
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.Basic
@@ -49,23 +49,19 @@ theorem isEndpointCheckpoint_of_min {L : ℕ} {x : α}
   let idx (j : Fin (L + 1)) : Fin (2 * L) := ⟨j.val + d, by have := j.isLt; lia⟩
   have hshift (j : Fin (L + 1)) : f^[j.val] (f^[d] x) = f^[(idx j).val] x :=
     (Function.iterate_add_apply f j.val d x).symm
-  change IsEndpointCheckpoint f rank L (f^[d] x)
-  constructor
-  · intro j k heq
-    have h := congrArg Fin.val (hinj ((hshift j).symm.trans (heq.trans (hshift k))))
-    apply Fin.ext
-    change j.val + d = k.val + d at h
+  refine ⟨fun j k heq => Fin.ext ?_, ?_⟩
+  · have h : j.val + d = k.val + d :=
+      congrArg Fin.val (hinj ((hshift j).symm.trans (heq.trans (hshift k))))
     lia
   · by_cases hi : i.val < L
-    · left
-      intro j
+    · refine .inl fun j => ?_
       rw [hshift]
       simpa only [d, ite_eq_left hi] using hmin (idx j)
-    · right
-      intro j
-      rw [hshift, ← Function.iterate_add_apply]
-      have he : L + d = i.val := by simp only [d, ite_eq_right hi]; lia
-      rw [he]
+    · refine .inr fun j => ?_
+      have he : L + d = i.val := by
+        simp only [d, ite_eq_right hi]
+        lia
+      rw [hshift, ← Function.iterate_add_apply, he]
       exact hmin (idx j)
 
 /-- Every simple prefix of length `2 * L` reaches an endpoint checkpoint within its first
@@ -79,5 +75,43 @@ theorem exists_endpointCheckpoint {L : ℕ} (hL : 0 < L) {x : α}
     (fun j : Fin (2 * L) => rank (f^[j.val] x)) hne
   exact ⟨_, by split <;> have := i.isLt <;> lia,
     isEndpointCheckpoint_of_min f rank hinj i (fun j => hi j (Finset.mem_univ j))⟩
+
+/-- For an orbit still in its transient part after at least `2 * L` steps, some checkpoint
+on that orbit is at most `2 * L` steps before the target. The first inequality on depths
+ensures that a forward walk from the checkpoint can reach the target. -/
+theorem exists_endpointCheckpoint_near_transient [Finite α] {L t : ℕ} (hL : 0 < L)
+    (x : α) (hfar : 2 * L ≤ t) (ht : t ≤ transientDepth f x) :
+    ∃ a, IsEndpointCheckpoint f rank L a ∧
+      (∃ j ≤ transientDepth f x, f^[j] x = a) ∧
+      transientDepth f (f^[t] x) ≤ transientDepth f a ∧
+      transientDepth f a ≤ transientDepth f (f^[t] x) + 2 * L := by
+  let b := t - 2 * L
+  let z := f^[b] x
+  have hb : b + 2 * L = t := Nat.sub_add_cancel hfar
+  have hz : transientDepth f z = transientDepth f x - b := transientDepth_iterate f x b
+  have hinj : Function.Injective (fun i : Fin (2 * L) => f^[i.val] z) := fun i j he => by
+    have hd := congrArg (transientDepth f) he
+    simp only [transientDepth_iterate, hz] at hd
+    have := i.isLt
+    have := j.isLt
+    exact Fin.ext (by lia)
+  obtain ⟨d, hd, ha⟩ := exists_endpointCheckpoint f rank hL hinj
+  refine ⟨f^[d] z, ha, ⟨d + b, by lia, Function.iterate_add_apply f d b x⟩, ?_⟩
+  simp only [transientDepth_iterate, hz]
+  lia
+
+/-- Every ancestor in the target depth window yields the same answer. Taking the difference
+of depths gives the exact suffix length to walk, bounded by the width of the window. -/
+theorem iterate_of_ancestor_depth_window [Finite α] {x a : α} {t K : ℕ}
+    (ht : t ≤ transientDepth f x) (ha : ∃ j ≤ transientDepth f x, f^[j] x = a)
+    (hlo : transientDepth f (f^[t] x) ≤ transientDepth f a)
+    (hhi : transientDepth f a ≤ transientDepth f (f^[t] x) + K) :
+    let k := transientDepth f a - transientDepth f (f^[t] x)
+    k ≤ K ∧ f^[k] a = f^[t] x := by
+  obtain ⟨j, hj, rfl⟩ := ha
+  simp only [transientDepth_iterate] at hlo hhi ⊢
+  refine ⟨by lia, ?_⟩
+  rw [← Function.iterate_add_apply]
+  exact congrArg (f^[·] x) (by lia)
 
 end Cslib.FunctionalGraph

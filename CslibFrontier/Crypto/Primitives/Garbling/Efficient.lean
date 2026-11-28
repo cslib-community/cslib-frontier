@@ -17,6 +17,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Computability.Probabilistic.Sampling
+public import CslibFrontier.Languages.Probabilistic.Iteration
+public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -40,7 +42,8 @@ For circuit garbling, `encConventionalCircuit` encodes a conventional circuit by
 unary followed by its gates, each the binary numbers of its two argument wires and its truth table
 as four bits; `encValidCircuit` restricts it to valid circuits. `encValidTopo` encodes the
 topology `(n, m, q, A, B)` revealed by `phiTopo` in the same layout without the truth tables, and
-`encPrvView` encodes the view `(F, X, d)` of a privacy adversary.
+`encPrvView` and `encObvView` encode the views `(F, X, d)` of a privacy adversary and `(F, X)` of an
+obliviousness or authenticity adversary.
 
 The plaintext wire values and the semantics `evalCirc` of a valid circuit are computed in
 polynomial time from its word (`wires_polyTime`, `evalCirc_polyTime`), by a fold over the gates
@@ -56,8 +59,9 @@ scheme whose semantics is `evalCirc`.
   conventional circuits as data.
 * `Cslib.Crypto.Garbling.Topo.gateList`, `Cslib.Crypto.Garbling.encTopo`,
   `Cslib.Crypto.Garbling.encValidTopo`: topologies, the side information of `phiTopo`, as data.
-* `Cslib.Crypto.Garbling.encPrvView`, `Cslib.Crypto.Garbling.encQuery`: the encodings of a
-  privacy view `(F, X, d)` and of a query `(f, x)`.
+* `Cslib.Crypto.Garbling.encPrvView`, `Cslib.Crypto.Garbling.encObvView`,
+  `Cslib.Crypto.Garbling.encQuery`: the encodings of a privacy view `(F, X, d)`, of an
+  obliviousness or authenticity view `(F, X)` and of a query `(f, x)`.
 
 ## Main results
 
@@ -164,6 +168,11 @@ def encConventionalCircuit : ConventionalCircuit ↪ List Bool :=
 def encValidCircuit : ValidCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encConventionalCircuit
 
+/-- Specification of `encValidCircuit` in terms of `encCircuitData`. -/
+theorem encValidCircuit_apply (f : ValidCircuit) :
+    encValidCircuit f = encCircuitData (f.1.n, f.1.m, f.1.gateList) := by
+  rfl
+
 /-- A valid circuit's word has at least `n + q` bits: `n` in unary and at least one bit per
 gate. -/
 theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
@@ -256,30 +265,13 @@ garbling schemes over conventional circuits, is computed in polynomial time. -/
 theorem evalCirc_polyTime :
     ComputableInPolyTime (fun (f, x) => f.1.evalCirc x) (encPair encValidCircuit encBits)
       encBits := by
-  have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
-      (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
-    circuitData_polyTime.comp (ComputableInPolyTime.fst _ _)
-  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.n)
-      (encPair encValidCircuit encBits) encUnary := hd.fst'
-  have hm : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.m)
-      (encPair encValidCircuit encBits) encUnary := hd.snd'.fst'
-  have hq := (ComputableInPolyTime.length_list _).comp
-    (hd.snd'.snd' : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.gateList)
-      (encPair encValidCircuit encBits) (encList (encPair encNat (encPair encNat encBits))))
-  have hc : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
-      p.1.1.n + p.1.1.gateList.length - p.1.1.m) (encPair encValidCircuit encBits) encUnary :=
-    ComputableInPolyTime.unary_sub.comp
-      ((ComputableInPolyTime.unary_add.comp (hn.prod hq)).prod hm)
-  have hdrop : ComputableInPolyTime (fun p : List Bool × ℕ => p.1.drop p.2)
-      (encPair encBits encUnary) encBits := by
-    polytime
-  have heq : (fun (f, x) => f.1.evalCirc x) = fun p : ValidCircuit × List Bool =>
-      (p.1.1.wires p.2 p.1.1.q).drop (p.1.1.n + p.1.1.gateList.length - p.1.1.m) := by
-    funext p
-    obtain ⟨f, x⟩ := p
-    simp only [ConventionalCircuit.evalCirc, ConventionalCircuit.length_gateList]
-  rw [heq]
-  exact hdrop.comp (wires_polyTime.prod hc)
+  have hd := circuitData_polyTime.comp (ComputableInPolyTime.fst encValidCircuit encBits)
+  have hq := (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
+  have hc := ComputableInPolyTime.unary_sub' (ComputableInPolyTime.unary_add' hd.fst' hq)
+    hd.snd'.fst'
+  convert wires_polyTime.bitsDropWithInput hc using 1
+  funext ⟨f, x⟩
+  simp [ConventionalCircuit.evalCirc]
 
 namespace Topo
 
@@ -322,6 +314,11 @@ def encTopo : Topo ↪ List Bool :=
 def encValidTopo : ValidTopo ↪ List Bool :=
   (Function.Embedding.subtype _).trans encTopo
 
+/-- Specification of `encValidTopo` in terms of `encTopoData`. -/
+theorem encValidTopo_apply (t : ValidTopo) :
+    encValidTopo t = encTopoData (t.1.n, t.1.m, t.1.gateList) := by
+  rfl
+
 /-- The data of a valid topology is read from its word in polynomial time. -/
 theorem topoData_polyTime :
     ComputableInPolyTime (fun t : ValidTopo => (t.1.n, t.1.m, t.1.gateList)) encValidTopo
@@ -343,6 +340,10 @@ theorem phiTopo_polyTime : ComputableInPolyTime phiTopo.phi encValidCircuit encV
 /-- The encoding of a privacy view `(F, X, d)`: `F` and `X` framed, then `d`. -/
 enc_structure encPrvView : PrvView where
   fn : encBits, input : encBits, decInfo : encBits
+
+/-- The encoding of an obliviousness or authenticity view `(F, X)`: `F` framed, then `X`. -/
+enc_structure encObvView : ObvView where
+  fn : encBits, input : encBits
 
 /-- The encoding of a query `(f, x)`: `f` by `encFn`, framed, then `x`. -/
 enc_structure encQuery (Fn : Type) (encFn : Fn ↪ List Bool) : Query Fn where
@@ -467,5 +468,43 @@ theorem length_le_of_mem_support_replyStepWord {len : ℕ} {req : List Bool}
   simp only [length_encList, List.map_append, List.sum_append, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, encBits_apply, List.length_take]
   omega
+
+/-- Library infrastructure (no cited result): iterating `replyStepWord len (req ·.length)` from
+`[]` for `c` steps against a pure-answering word oracle collects `(List.range c).map` of the
+replies truncated to `len` bits. -/
+theorem run_iterate_replyStepWord (len c : ℕ) (req : ℕ → List Bool)
+    (O : Unit × List Bool → ProbComp (List Bool)) (ans : ℕ → List Bool)
+    (hO : ∀ idx < c, O ((), req idx) = pure (ans idx)) :
+    ProbOracleComp.run
+        (OracleComp.iterate c (fun rs => replyStepWord len (req rs.length) rs) []) O =
+      pure ((List.range c).map fun idx => (ans idx).take len) := by
+  induction c with
+  | zero => simp
+  | succ c ih =>
+    rw [OracleComp.iterate_succ, ProbOracleComp.run_bind, ih fun idx h => hO idx (by omega),
+      pure_bind]
+    simp [replyStepWord, ProbOracleComp.run_map, ProbOracleComp.run_query,
+      hO c (Nat.lt_succ_self c), List.range_succ]
+
+/-- Library infrastructure (no cited result): iterating `replyStepWord` from `[]` for a
+polynomial-time unary count `count` is uniform strict oracle PPT whenever the reply cap `len` and
+request function `req` are computed in polynomial time. -/
+theorem isOraclePPTOn_iterate_replyStepWord {γ : Type} {encIn : γ ↪ List Bool}
+    {count len : γ → ℕ} {req : γ × List (List Bool) → List Bool}
+    (hcount : ComputableInPolyTime count encIn encUnary)
+    (hlen : ComputableInPolyTime len encIn encUnary)
+    (hreq : ComputableInPolyTime req (encPair encIn (encList encBits)) encBits) :
+    Probability.IsOraclePPTOn encIn (encList encBits)
+      (fun p : γ => OracleComp.iterate (count p)
+        (fun rs => replyStepWord (len p) (req (p, rs)) rs) []) := by
+  have hgrowth : ComputableInPolyTime (fun p => 2 * len p + 2) encIn encUnary :=
+    ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hlen)
+      (ComputableInPolyTime.const 2)
+  exact Probability.IsOraclePPTOn.iterateWith_of_bounded_growth (Operation := Unit)
+    (stateEncoding := encList encBits) hcount (ComputableInPolyTime.const [])
+    (isOraclePPTOn_replyStepWord hlen hreq)
+    (hgrowth.polyBounded_length.mono fun _ => by simp)
+    (fun _ _ _ hnext => length_le_of_mem_support_replyStepWord hnext)
 
 end Cslib.Crypto.Garbling

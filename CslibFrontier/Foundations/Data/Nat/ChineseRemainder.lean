@@ -71,9 +71,8 @@ theorem crtCombine_modEq_right {D L inv : ℕ} (hL : 0 < L) (hinv : (inv : ZMod 
 /-- Whenever `a < D` and `0 < L`, `crtCombine D L a xL inv < D * L`. -/
 theorem crtCombine_lt {D L a : ℕ} (ha : a < D) (hL : 0 < L) (xL inv : ℕ) :
     crtCombine D L a xL inv < D * L := by
-  have hu : (xL + (L - a % L)) * inv % L < L := Nat.mod_lt _ hL
   unfold crtCombine
-  nlinarith
+  nlinarith [Nat.mod_lt ((xL + (L - a % L)) * inv) hL]
 
 /-- **Chinese Remainder Theorem reconstruction** (the two-modulus case of the CRT used in
 [KatzLindell2020], Section 10.2.1, p. 374): for `x < D * L`, `a = x % D`, `xL = x % L`, and
@@ -82,17 +81,14 @@ theorem crtCombine_lt {D L a : ℕ} (ha : a < D) (hL : 0 < L) (xL inv : ℕ) :
 theorem crtCombine_eq {D L x a xL : ℕ} (hx : x < D * L) (ha : a = x % D) (hxL : xL = x % L)
     (inv : ℕ) (hinv : (inv : ZMod L) * D = 1) :
     crtCombine D L a xL inv = x := by
-  have hD : 0 < D := Nat.pos_of_ne_zero fun h => by simp [h] at hx
-  have hL : 0 < L := Nat.pos_of_ne_zero fun h => by simp [h] at hx
+  subst ha hxL
+  have hpos := (Nat.zero_le x).trans_lt hx
   have hcop : Nat.Coprime D L := Nat.coprime_of_mul_modEq_one inv <| by
-    rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm]
-    exact hinv
-  have h1 : crtCombine D L a xL inv ≡ x [MOD D] :=
-    (crtCombine_modEq_left D L a xL inv).trans (ha ▸ Nat.mod_modEq x D)
-  have h2 : crtCombine D L a xL inv ≡ x [MOD L] :=
-    (crtCombine_modEq_right hL hinv a xL).trans (hxL ▸ Nat.mod_modEq x L)
-  have hlt : crtCombine D L a xL inv < D * L := crtCombine_lt (ha ▸ Nat.mod_lt _ hD) hL xL inv
-  have := (Nat.modEq_and_modEq_iff_modEq_mul hcop).1 ⟨h1, h2⟩
-  rwa [Nat.ModEq, Nat.mod_eq_of_lt hlt, Nat.mod_eq_of_lt hx] at this
+    rwa [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm]
+  have hmod := (Nat.modEq_and_modEq_iff_modEq_mul hcop).1
+    ⟨(crtCombine_modEq_left ..).trans (Nat.mod_modEq x D),
+     (crtCombine_modEq_right (Nat.pos_of_mul_pos_left hpos) hinv ..).trans (Nat.mod_modEq x L)⟩
+  rwa [Nat.ModEq, Nat.mod_eq_of_lt (crtCombine_lt (Nat.mod_lt _ (Nat.pos_of_mul_pos_right hpos))
+    (Nat.pos_of_mul_pos_left hpos) _ _), Nat.mod_eq_of_lt hx] at hmod
 
 end Cslib

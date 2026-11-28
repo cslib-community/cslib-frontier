@@ -48,14 +48,10 @@ theorem product_ne_zero_iff {m n g p : ℕ} (values : ℕ → ℤ)
   let Rright (q : ℕ) := (values (n * n + q) % (p : ℤ)).toNat
   have hpad : A.length * p ≤ D m := pieceLength_mul_le_of_mem_sqrtPrimeWindow hg hp
   have hp0 : 0 < p := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.pos
-  have loadLeft (u c : Fin n) : Rleft (u.val * n + c.val) = (wAC u c).natMod p := by
-    change (values (2 * (n * n) + pairIndex (u, c)) % (p : ℤ)).toNat = _
-    rw [hAC]
-    rfl
-  have loadRight (u c : Fin n) : Rright (u.val * n + c.val) = (wBC u c).natMod p := by
-    change (values (n * n + pairIndex (u, c)) % (p : ℤ)).toNat = _
-    rw [hBC]
-    rfl
+  have loadLeft (u c : Fin n) : Rleft (u.val * n + c.val) = (wAC u c).natMod p :=
+    congrArg (fun x => (x % (p : ℤ)).toNat) (hAC u c)
+  have loadRight (u c : Fin n) : Rright (u.val * n + c.val) = (wBC u c).natMod p :=
+    congrArg (fun x => (x % (p : ℤ)).toNat) (hBC u c)
   have edges (c : Fin n) (hc : c ∈ piece n (D m) g idx.piece)
       (v : Fin A.length) (label : Fin p) (j : Fin (D m))
       (hv : A.first + v.val = c.val) (hj : j.val = v.val * p + label.val) :
@@ -73,31 +69,21 @@ theorem product_ne_zero_iff {m n g p : ℕ} (values : ℕ → ℤ)
       rw [hj]
       exact_mod_cast hr
   obtain ⟨hX, hY⟩ := matrices_zero_one m n g p values idx
-  have hx : ∀ a j, X a j = 0 ∨ X a j = 1 := by
-    intro a j
-    have := hX a j
-    change 0 ≤ X a j ∧ X a j ≤ 1 at this
-    omega
-  have hy : ∀ j b, Y j b = 0 ∨ Y j b = 1 := by
-    intro j b
-    have := hY j b
-    change 0 ≤ Y j b ∧ Y j b ≤ 1 at this
-    omega
-  rw [LopsidedGraph.mul_apply_eq_commonNeighborCount_ofMatrices X Y ∅ hx hy]
-  have hnz := (LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount_ne_zero_iff a b
-  rw [show ((LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount a b : ℤ) ≠ 0 ↔
-      (LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount a b ≠ 0 by exact_mod_cast Iff.rfl]
-  rw [hnz]
+  have hx (a j) : X a j = 0 ∨ X a j = 1 := by
+    have := hX a j; change 0 ≤ X a j ∧ X a j ≤ 1 at this; omega
+  have hy (j b) : Y j b = 0 ∨ Y j b = 1 := by
+    have := hY j b; change 0 ≤ Y j b ∧ Y j b ≤ 1 at this; omega
+  rw [LopsidedGraph.mul_apply_eq_commonNeighborCount_ofMatrices X Y ∅ hx hy, Nat.cast_ne_zero,
+    (LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount_ne_zero_iff a b]
   change (∃ j : Fin (D m), X a j = 1 ∧ Y j b = 1) ↔ G.HasCommonNeighbor a b
   constructor
   · rintro ⟨j, hleft, hright⟩
     have hj : j.val / p < A.length := by
       by_contra h
-      have hz := MatrixSpec.left_padding A Rleft a j (by change A.length ≤ j.val / p; omega)
-      change WriteMatrices.entry false A Rleft (a.val * D m + j.val) = 0 at hz
-      have hl : (WriteMatrices.entry false A Rleft (a.val * D m + j.val) : ℤ) = 1 := hleft
-      rw [hz] at hl
-      norm_num at hl
+      have hz : WriteMatrices.entry false A Rleft (a.val * D m + j.val) = 0 :=
+        MatrixSpec.left_padding A Rleft a j (Nat.not_lt.mp h)
+      change (WriteMatrices.entry false A Rleft (a.val * D m + j.val) : ℤ) = 1 at hleft
+      norm_num [hz] at hleft
     let v : Fin A.length := ⟨j.val / p, hj⟩
     let label : Fin p := ⟨j.val % p, Nat.mod_lt _ hp0⟩
     have hn : A.first + v.val < n := by
@@ -108,8 +94,6 @@ theorem product_ne_zero_iff {m n g p : ℕ} (values : ℕ → ℤ)
     let c : Fin n := ⟨A.first + v.val, hn⟩
     have hc : c ∈ piece n (D m) g idx.piece := by
       apply (mem_piece_iff_interval hD hg c).mpr
-      change idx.piece * pieceSize (D m) g ≤ A.first + v.val ∧
-        A.first + v.val < idx.piece * pieceSize (D m) g + A.length
       change A.first ≤ A.first + v.val ∧ A.first + v.val < A.first + A.length
       exact ⟨by omega, Nat.add_lt_add_left v.isLt _⟩
     have he : j.val = v.val * p + label.val := by
@@ -175,16 +159,11 @@ theorem failed_occurrences_le {m n g p : ℕ} (values : ℕ → ℤ)
       apply Finset.mem_filter.mpr
       refine ⟨mem_acceptedPairs.mpr ⟨hidx, ?_, ?_⟩, ?_⟩
       · exact hquery _ (List.get_mem _ _)
-      · have he := i.prop.2.1
-        simpa only [ans, decide_eq_true_eq, hget i.val i.prop.1] using he
-      · have he := i.prop.2.2
-        simpa only [scanOf, hget i.val i.prop.1] using he⟩
-  have hf : Function.Injective f := by
-    intro i j hij
-    have hpair : qs.get ⟨i.val, i.prop.1⟩ = qs.get ⟨j.val, j.prop.1⟩ :=
-      congrArg (fun s => s.val.2) hij
-    have hi := List.nodup_iff_injective_get.mp hqs hpair
-    exact Subtype.ext (congrArg Fin.val hi)
+      · simpa only [ans, decide_eq_true_eq, hget i.val i.prop.1] using i.prop.2.1
+      · simpa only [scanOf, hget i.val i.prop.1] using i.prop.2.2⟩
+  have hf : Function.Injective f := fun i j hij =>
+    Subtype.ext <| congrArg Fin.val <|
+      List.nodup_iff_injective_get.mp hqs (congrArg (fun s => s.val.2) hij)
   change Nat.count P qs.length ≤ _
   rw [Nat.count_eq_card_fintype]
   calc

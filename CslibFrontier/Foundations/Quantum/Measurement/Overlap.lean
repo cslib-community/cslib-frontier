@@ -70,18 +70,11 @@ theorem norm_inner_sq_add_sq_measureProb_sub_le_one {ι : Type*} [Fintype ι]
     rw [hsplit, ← hp1, ← hq1]
     exact (norm_add_le _ _).trans (add_le_add (hcs S) (hcs Sᶜ))
   -- the algebra of two unit vectors in the plane
-  have hp0 : 0 ≤ p := measureProb_nonneg _ _
-  have hq0 : 0 ≤ q := measureProb_nonneg _ _
-  have hp1' : 0 ≤ 1 - p := hp1 ▸ measureProb_nonneg _ _
-  have hq1' : 0 ≤ 1 - q := hq1 ▸ measureProb_nonneg _ _
-  set a := √p
-  set a' := √(1 - p)
-  set b := √q
-  set b' := √(1 - q)
-  have ha : a ^ 2 = p := Real.sq_sqrt hp0
-  have ha' : a' ^ 2 = 1 - p := Real.sq_sqrt hp1'
-  have hb : b ^ 2 = q := Real.sq_sqrt hq0
-  have hb' : b' ^ 2 = 1 - q := Real.sq_sqrt hq1'
+  set a := √p; set a' := √(1 - p); set b := √q; set b' := √(1 - q)
+  have ha : a ^ 2 = p := Real.sq_sqrt (measureProb_nonneg _ _)
+  have ha' : a' ^ 2 = 1 - p := Real.sq_sqrt (hp1 ▸ measureProb_nonneg _ _)
+  have hb : b ^ 2 = q := Real.sq_sqrt (measureProb_nonneg _ _)
+  have hb' : b' ^ 2 = 1 - q := Real.sq_sqrt (hq1 ▸ measureProb_nonneg _ _)
   have hn : a ^ 2 + a' ^ 2 = 1 := by rw [ha, ha']; ring
   have hm : b ^ 2 + b' ^ 2 = 1 := by rw [hb, hb']; ring
   have hsum : (a * b + a' * b') ^ 2 + (a * b' - a' * b) ^ 2 = 1 := by
@@ -89,9 +82,8 @@ theorem norm_inner_sq_add_sq_measureProb_sub_le_one {ι : Type*} [Fintype ι]
   have hcross : (a * b' + a' * b) ^ 2 ≤ 1 := calc
     _ ≤ (a * b - a' * b') ^ 2 + _ := le_add_of_nonneg_left (sq_nonneg _)
     _ = 1 := by rw [← sq_add_sq_mul_sq_add_sq, hn, hm, one_mul]
-  have hdiff : p - q = (a * b' - a' * b) * (a * b' + a' * b) := calc
-    _ = p * (1 - q) - (1 - p) * q := by ring
-    _ = _ := by rw [← hb', ← ha', ← ha, ← hb]; ring
+  have hdiff : p - q = (a * b' - a' * b) * (a * b' + a' * b) := by
+    rw [show p - q = p * (1 - q) - (1 - p) * q by ring, ← hb', ← ha', ← ha, ← hb]; ring
   have h₁ : ‖inner ℂ ψ φ‖ ^ 2 ≤ (a * b + a' * b') ^ 2 := by gcongr
   have h₂ : (p - q) ^ 2 ≤ (a * b' - a' * b) ^ 2 := by
     rw [hdiff, mul_pow]
@@ -106,13 +98,11 @@ theorem abs_measureProb_sub_le_norm_sub {ι : Type*} [Fintype ι]
     |measureProb ψ S - measureProb φ S| ≤ ‖ψ - φ‖ := by
   have hov := norm_inner_sq_add_sq_measureProb_sub_le_one hψ hφ S
   have hnorm : ‖ψ - φ‖ ^ 2 = 2 - 2 * RCLike.re (inner ℂ ψ φ) := by
-    rw [@norm_sub_sq ℂ, hψ, hφ]
-    ring
+    rw [@norm_sub_sq ℂ, hψ, hφ]; ring
   have hre : RCLike.re (inner ℂ ψ φ) ≤ ‖inner ℂ ψ φ‖ := RCLike.re_le_norm _
-  have hle : ‖inner ℂ ψ φ‖ ≤ 1 := by
-    simpa [hψ, hφ] using norm_inner_le_norm (𝕜 := ℂ) ψ φ
   have hsq : (measureProb ψ S - measureProb φ S) ^ 2 ≤ ‖ψ - φ‖ ^ 2 := by
-    nlinarith [norm_nonneg (inner ℂ ψ φ)]
+    linarith [sq_nonneg (1 - ‖inner ℂ ψ φ‖),
+      show (1 - ‖inner ℂ ψ φ‖) ^ 2 = 1 - 2 * ‖inner ℂ ψ φ‖ + ‖inner ℂ ψ φ‖ ^ 2 by ring]
   exact abs_le_of_sq_le_sq hsq (norm_nonneg _)
 
 /-- **Distinguishable states have small overlap** [Ambainis2002], Lemma 1: if a measurement
@@ -123,23 +113,19 @@ theorem norm_inner_le_two_mul_sqrt_of_measureProb {ι : Type*} [Fintype ι]
     (h₁ : 1 - ε ≤ measureProb ψ S) (h₂ : measureProb φ S ≤ ε) (hε : 2 * ε ≤ 1) :
     ‖inner ℂ ψ φ‖ ≤ 2 * √(ε * (1 - ε)) := by
   have hov := norm_inner_sq_add_sq_measureProb_sub_le_one hψ hφ S
-  have hle : measureProb ψ S ≤ 1 := by
-    have := measureProb_le_measureProb_univ ψ S
-    rwa [measureProb_univ, hψ, one_pow] at this
   have hε0 : 0 ≤ ε := (measureProb_nonneg φ S).trans h₂
   have hgap : (1 - 2 * ε) ^ 2 ≤ (measureProb ψ S - measureProb φ S) ^ 2 :=
     pow_le_pow_left₀ (by linarith) (by linarith) 2
   have hc : (2 * √(ε * (1 - ε))) ^ 2 = 4 * (ε * (1 - ε)) := by
-    rw [mul_pow, Real.sq_sqrt (mul_nonneg hε0 (by linarith))]
-    norm_num
+    rw [mul_pow, Real.sq_sqrt (mul_nonneg hε0 (by linarith))]; norm_num
   refine (pow_le_pow_iff_left₀ (norm_nonneg _) (by positivity) two_ne_zero).1 ?_
   rw [hc]
-  nlinarith
+  linarith [show 4 * (ε * (1 - ε)) = 1 - (1 - 2 * ε) ^ 2 by ring]
 
 /-- The factor `1 - 2√(ε(1-ε))` of the adversary bounds is nonnegative, as `ε (1 - ε) ≤ 1/4`. -/
 theorem one_sub_two_mul_sqrt_nonneg (ε : ℝ) : 0 ≤ 1 - 2 * √(ε * (1 - ε)) := by
-  have : √(ε * (1 - ε)) ≤ 1 / 2 :=
-    (Real.sqrt_le_left (by norm_num)).2 (by nlinarith [sq_nonneg (1 - 2 * ε)])
+  have : √(ε * (1 - ε)) ≤ 1 / 2 := (Real.sqrt_le_left (by norm_num)).2 <| by
+    linarith [sq_nonneg (1 - 2 * ε), show (1 - 2 * ε) ^ 2 = 1 - 4 * (ε * (1 - ε)) by ring]
   linarith
 
 end Cslib.Quantum
@@ -150,6 +136,7 @@ theorem two_mul_mul_le_of_sq_le_mul {w x y a b : ℝ}
     2 * w * (x * y) ≤ a * x ^ 2 + b * y ^ 2 := by
   have hw : w ≤ √a * √b := (Real.le_sqrt_of_sq_le h).trans_eq (Real.sqrt_mul ha b)
   calc
-    2 * w * (x * y) ≤ 2 * (√a * x) * (√b * y) := by nlinarith [mul_nonneg hx hy]
+    2 * w * (x * y) ≤ 2 * (√a * √b) * (x * y) := by gcongr
+    _ = 2 * (√a * x) * (√b * y) := by ring
     _ ≤ (√a * x) ^ 2 + (√b * y) ^ 2 := two_mul_le_add_sq _ _
     _ = a * x ^ 2 + b * y ^ 2 := by simp [mul_pow, Real.sq_sqrt ha, Real.sq_sqrt hb]

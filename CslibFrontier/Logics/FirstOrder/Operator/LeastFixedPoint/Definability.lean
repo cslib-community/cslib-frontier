@@ -48,15 +48,10 @@ theorem definable_lfp (F : ∀ i, (α → M i) → Set (Fin k → M i) →o Set 
     Operator.Definable (L := L) policy M (fun _ => interpretation) ρ
       (fun i v => (fun j => (args j).realize v) ∈ (F i v).lfp) := by
   obtain ⟨body, hwf, hpos, hbody⟩ := hF
-  refine ⟨lfp body args, (wellFormed_lfp _ _).2 ⟨hwf, hpos⟩, ?_⟩
-  intro i v
-  rw [realize_lfp body hpos args (ρ i) v]
-  have hstep : stepHom body hpos (ρ i) v = F i v := by
-    apply OrderHom.ext
-    funext R
-    ext xs
-    exact hbody ⟨i, R⟩ (Sum.elim v xs)
-  rw [hstep]
+  refine ⟨lfp body args, (wellFormed_lfp _ _).2 ⟨hwf, hpos⟩, fun i v => ?_⟩
+  have hstep : stepHom body hpos (ρ i) v = F i v :=
+    OrderHom.ext _ _ (funext fun R => Set.ext fun xs => hbody ⟨i, R⟩ (Sum.elim v xs))
+  rw [realize_lfp body hpos args (ρ i) v, hstep]
 
 /-- Free-variable tuples provide a directly matching synthesis rule for LFP membership. -/
 @[aesop safe apply (rule_sets := [FODefinable])]
@@ -80,11 +75,9 @@ theorem definable_lfp_unary
       (fun j v => (v ∘ Sum.inr) ∈ F j.1 (v ∘ Sum.inl) j.2)) :
     Operator.Definable (L := L) policy M (fun _ => interpretation) ρ
       (fun i v => ![v a] ∈ (F i v).lfp) := by
-  apply (definable_lfp F ![.var a] hF).congr
-  intro i v
-  have htuple : (fun j => ((![.var a] : Fin 1 → L.Term α) j).realize v) = ![v a] := by
-    funext j
-    simp only [Matrix.cons_val_fin_one, Term.realize_var]
+  refine (definable_lfp F ![.var a] hF).congr fun i v => ?_
+  have htuple : (fun j => ((![.var a] : Fin 1 → L.Term α) j).realize v) = ![v a] :=
+    funext fun j => by simp only [Matrix.cons_val_fin_one, Term.realize_var]
   rw [htuple]
 
 end Cslib.Logic.FO.LFP

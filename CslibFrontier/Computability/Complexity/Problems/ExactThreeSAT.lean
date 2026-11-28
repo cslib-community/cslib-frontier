@@ -71,10 +71,7 @@ private theorem mem_padClause (c : Clause ℕ) (l : Literal ℕ) : l ∈ padClau
   rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, t⟩⟩⟩
   · simp [padClause]
   · simp [padClause]
-  · simp only [padClause, List.length_cons, List.length_nil, Nat.reduceAdd,
-      OfNat.ofNat_ne_one, ↓reduceIte, List.headD_cons, List.cons_append, List.nil_append,
-      List.mem_cons, List.not_mem_nil, or_false]
-    tauto
+  · simp [padClause]; tauto
   · simp [padClause]
 
 /-- Padding a clause does not shorten it. -/
@@ -87,17 +84,16 @@ theorem length_padClause {c : Clause ℕ} (h0 : c ≠ []) (h3 : c.length ≤ 3) 
     (padClause c).length = 3 := by
   rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, _ | ⟨e, t⟩⟩⟩⟩
   · exact absurd rfl h0
-  · simp [padClause]
-  · simp [padClause]
-  · simp [padClause]
-  · simp only [List.length_cons] at h3
-    omega
+  · rfl
+  · rfl
+  · rfl
+  · simp only [List.length_cons] at h3; omega
 
 /-- Repeating literals does not change the value of a clause. -/
 theorem eval_padClause (σ : ℕ → Bool) (c : Clause ℕ) :
     Clause.eval σ (padClause c) = Clause.eval σ c := by
-  rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-  simp only [mem_padClause]
+  rw [Bool.eq_iff_iff]
+  simp only [Clause.eval_eq_true_iff, mem_padClause]
 
 /-- Padding a clause is polynomial-time. -/
 @[fun_prop]
@@ -115,11 +111,10 @@ def verifier (x : CNF ℕ × List Bool) : Bool :=
 /-- `ExactThreeSAT.verifier` verifies `ExactThreeSAT` with certificates as long as the encoded
 formula: it is `SAT.verifier` guarded by the clause-width test. -/
 theorem isVerifier : IsVerifier encCNF Polynomial.X verifier ExactThreeSAT := by
-  have h : ExactThreeSAT = {φ | (φ.all fun c => c.length == 3) = true ∧ φ ∈ SAT} := by
-    ext φ
-    simp only [ExactThreeSAT, Set.mem_ofPred_eq, List.all_eq_true, beq_iff_eq, mem_SAT]
-  rw [h]
-  exact SAT.isVerifier.guard
+  suffices ExactThreeSAT = {φ | (φ.all fun c => c.length == 3) = true ∧ φ ∈ SAT} from
+    this ▸ SAT.isVerifier.guard
+  ext φ
+  simp only [ExactThreeSAT, Set.mem_ofPred_eq, List.all_eq_true, beq_iff_eq, mem_SAT]
 
 /-- Checking the clause widths and evaluating the formula is polynomial-time. -/
 @[fun_prop]
@@ -150,17 +145,13 @@ theorem mem_ExactThreeSAT_toExactThreeSAT_iff (φ : CNF ℕ) :
     toExactThreeSAT φ ∈ ExactThreeSAT ↔ φ ∈ ThreeSAT := by
   have heval (σ : ℕ → Bool) : CNF.eval σ (toExactThreeSAT φ) = CNF.eval σ φ := by
     simp only [toExactThreeSAT, CNF.eval, List.all_map, Function.comp_def, eval_padClause]
-  constructor
-  · rintro ⟨hlen, σ, hσ⟩
-    refine ⟨fun c hc => ?_, σ, by rw [← heval]; exact hσ⟩
-    exact (length_le_length_padClause c).trans (hlen _ (List.mem_map_of_mem hc)).le
-  · rintro ⟨hlen, σ, hσ⟩
-    refine ⟨fun c' hc' => ?_, σ, by rw [heval]; exact hσ⟩
-    obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hc'
-    refine length_padClause (fun h0 => ?_) (hlen c hc)
-    have := (CNF.eval_eq_true_iff σ _).1 hσ c hc
-    rw [h0, Clause.eval_nil] at this
-    exact Bool.false_ne_true this
+  refine ⟨fun ⟨hlen, σ, hσ⟩ => ⟨fun c hc => (length_le_length_padClause c).trans
+      (hlen _ (List.mem_map_of_mem hc)).le, σ, heval σ ▸ hσ⟩,
+    fun ⟨hlen, σ, hσ⟩ => ⟨?_, σ, (heval σ).symm ▸ hσ⟩⟩
+  intro d hd
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hd
+  exact length_padClause (fun h0 => by simpa [h0] using (CNF.eval_eq_true_iff σ _).1 hσ c hc)
+    (hlen c hc)
 
 /-- `ThreeSAT` reduces to `ExactThreeSAT` in polynomial time via `toExactThreeSAT`. -/
 theorem polyTimeReducible_ThreeSAT_ExactThreeSAT :
