@@ -15,13 +15,17 @@ register_result "gold-superfinite-not-identifiable" where
     identifiable from text"
   topic := "inductive inference"
   sources := [
-    { paper := Gold1967, theorem := unverified, locator := unverified }
+    { paper := Gold1967,
+      theorem := "§8, Language identifiability (arbitrary text): every proper superclass of \
+        the finite languages is not ineffectively identifiable",
+      locator := "Information and Control 10 (1967), printed p. 460; construction in §9, \
+        pp. 460–461" }
   ]
   theorems := [Cslib.MachineLearning.InductiveInference.not_identifiable_of_finite_subsets]
-  scope := "Ineffective learners: any function from finite sequences of presentations to \
-    conjectured languages, which strengthens the impossibility. Texts may contain pauses. \
-    Strings form an arbitrary countable type rather than words over a finite alphabet; the \
-    corollaries for regular and context-free languages are in \
+  scope := "Ineffective learners, as in Gold's §8: any function from finite sequences of \
+    presentations to conjectured languages rather than names. Texts may contain pauses, which \
+    Gold's (§2, p. 450) do not. Strings form an arbitrary countable type rather than words \
+    over a finite alphabet; the corollaries for regular and context-free languages are in \
     `CslibFrontier.MachineLearning.InductiveInference.FormalLanguages`. The general statement \
     assumes the class contains one infinite language and all of its finite subsets."
 
