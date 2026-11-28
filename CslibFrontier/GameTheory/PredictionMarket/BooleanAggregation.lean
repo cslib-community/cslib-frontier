@@ -26,7 +26,7 @@ import Mathlib.Tactic.Ring
 # Distributed computation through Boolean prediction markets
 
 This module formalizes the synchronous Shapley–Shubik Boolean prediction market model and its
-information-aggregation characterization from [PennockSami2007, §26.5, pp. 666–670].
+information-aggregation characterization from [PennockSami2007, §26.5, pp. 665–669].
 
 ## Model and conventions
 
@@ -71,9 +71,11 @@ true state `x : Fin n → Bool`, and a Boolean security `f : (Fin n → Bool) �
   equilibrium common-knowledge set `S^∞` and equilibrium price `p^∞`.
 * `Cslib.GameTheory.PredictionMarket.IsWeightedThreshold`: weighted threshold functions
   `f x = true ↔ 1 ≤ w₀ + ∑ i, w i * x_i` [PennockSami2007, Definition 26.11, p. 669].
-* `Cslib.GameTheory.PredictionMarket.carryChain`, `Cslib.GameTheory.PredictionMarket.carryPrior`:
-  the `2n`-input nested carry-chain threshold function `Cₙ` and inductive prior `Pₙ` realizing the
-  worst-case `n`-round lower bound [PennockSami2007, Theorem 26.15, p. 669].
+* `Cslib.GameTheory.PredictionMarket.carryChain`, `Cslib.GameTheory.PredictionMarket.carryPrior`,
+  `Cslib.GameTheory.PredictionMarket.carryInputFalse`,
+  `Cslib.GameTheory.PredictionMarket.carryInputTrue`: the `2n`-input nested carry-chain threshold
+  function `Cₙ`, inductive prior `Pₙ`, and witness inputs realizing the worst-case `n`-round lower
+  bound [PennockSami2007, Theorem 26.15, p. 669].
 
 ## Main results
 
@@ -107,7 +109,7 @@ true state `x : Fin n → Bool`, and a Boolean security `f : (Fin n → Bool) �
 ## References
 
 * [D. M. Pennock, R. Sami, *Computational Aspects of Prediction Markets*, Chapter 26 of
-  *Algorithmic Game Theory*, §26.5, pp. 666–670][PennockSami2007]
+  *Algorithmic Game Theory*, §26.5, pp. 665–669][PennockSami2007]
 -/
 
 public section
