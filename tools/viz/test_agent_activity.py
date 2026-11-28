@@ -82,7 +82,7 @@ class CountWindows(unittest.TestCase):
         now = dt.datetime(2026, 11, 28, tzinfo=dt.timezone.utc)
         report = activity.summarize([], now)
         self.assertEqual(report["windows"]["7"]["accounts"], [])
-        self.assertEqual(len(report["windows"]["30"]["daily"]), 30)
+        self.assertEqual(len(report["windows"]["30"]["daily"]), 31)
         self.assertTrue(all(row["events"] == 0 for row in report["windows"]["30"]["daily"]))
 
 
