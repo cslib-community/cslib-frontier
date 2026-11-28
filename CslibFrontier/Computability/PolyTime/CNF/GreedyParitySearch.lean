@@ -262,10 +262,9 @@ abbrev encTestPairs : List (ℕ × Bool) ↪ List Bool :=
       rw [List.replicate_succ, List.foldl_cons, ih, decodeTestTuple_succ,
         List.append_assoc, List.singleton_append]
   have hq1 := ComputableInPolyTime.fst (encPair encUnary encState) encBool
-  have hm_q := (ComputableInPolyTime.fst encUnary encState).comp' hq1
-  have hst_q := (ComputableInPolyTime.snd encUnary encState).comp' hq1
-  have hcur := (ComputableInPolyTime.fst encNat (encList encElem)).comp' hst_q
-  have hacc := (ComputableInPolyTime.snd encNat (encList encElem)).comp' hst_q
+  have hm_q := hq1.fst'
+  have hcur := hq1.snd'.fst'
+  have hacc := hq1.snd'.snd'
   have hm0 := ComputableInPolyTime.decide_eq' hm_q (ComputableInPolyTime.const 0)
   have h2m := ComputableInPolyTime.unary_to_binary.comp'
     (ComputableInPolyTime.unary_mul' (.const 2) hm_q)
@@ -291,11 +290,10 @@ abbrev encTestPairs : List (ℕ × Bool) ↪ List Bool :=
       (fun q : (ℕ × (ℕ × List (ℕ × Bool))) × Bool => step q.1.1 q.1.2) encQ encState :=
     hdiv2m.prod hsnoc
   have hfst_in := ComputableInPolyTime.fst (encPair encUnary encUnary) encNat
-  have hlist := (ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits)
-    fun _ => rfl).comp' ((ComputableInPolyTime.snd encUnary encUnary).comp' hfst_in)
+  have hlist := hfst_in.snd'.encoding_comp
   have hinit := (ComputableInPolyTime.snd (encPair encUnary encUnary) encNat).prod
     (ComputableInPolyTime.const (encOut := encList encElem) [])
-  have hpar := (ComputableInPolyTime.fst encUnary encUnary).comp' hfst_in
+  have hpar := hfst_in.fst'
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBool) (encL := encBits) (encB := encState) (encP := encUnary)
     (par := fun p : (ℕ × ℕ) × ℕ => p.1.1) (step := fun m state _ => step m state)
@@ -312,8 +310,10 @@ abbrev encTestPairs : List (ℕ × Bool) ↪ List Bool :=
         simp only [encNat_apply, Nat.size_eq_bits_len]
         exact Nat.size_le_size (Nat.div_le_self _ _)
       enc_len [step, encState, encElem, encList_append, encList_cons, encList_nil, List.append_nil])
-  have hres := (ComputableInPolyTime.snd encNat (encList encElem)).comp' hfold
-  convert hres using 1; funext p; simp only [hfold_acc, List.nil_append]
+  have hres := hfold.snd'
+  convert hres using 1
+  funext p
+  simp only [encUnary_apply, hfold_acc, List.nil_append]
 
 @[fun_prop] theorem computableInPolyTime_decodeTestTuple' {α : Type} {input : α ↪ List Bool}
     {m P j : α → ℕ} (hm : ComputableInPolyTime m input encUnary)
@@ -392,21 +392,16 @@ theorem count_true_materializeTestRow_decodeTestTuple_le (m P j : ℕ) :
   let encElem := encPair encUnary encBool; let encIn := encPair encUnary (encList encElem)
   have hrange := ComputableInPolyTime.range.comp'
     (ComputableInPolyTime.fst encUnary (encList encElem))
-  have hlist := (ComputableInPolyTime.snd encUnary (encList encElem)).comp'
-    (ComputableInPolyTime.fst encIn encUnary)
+  have hlist := (ComputableInPolyTime.fst encIn encUnary).snd'
   have hr1 := ComputableInPolyTime.fst (encPair encUnary encBool) encElem
   have hr2 := ComputableInPolyTime.snd (encPair encUnary encBool) encElem
-  have heq := ComputableInPolyTime.decide_eq'
-    ((ComputableInPolyTime.fst encUnary encBool).comp' hr2)
-    ((ComputableInPolyTime.fst encUnary encBool).comp' hr1)
-  have hacc_b := (ComputableInPolyTime.snd encUnary encBool).comp' hr1
-  have hp_b := (ComputableInPolyTime.snd encUnary encBool).comp' hr2
+  have heq := ComputableInPolyTime.decide_eq' hr2.fst' hr1.fst'
   have hxor := (ComputableInPolyTime.of_finite (encOut := encBool)
-    (fun b : Bool × Bool => xor b.1 b.2)).comp' (hacc_b.prod hp_b)
+    (fun b : Bool × Bool => xor b.1 b.2)).comp' (hr1.snd'.prod hr2.snd')
   have hstep : ComputableInPolyTime
       (fun r : (ℕ × Bool) × (ℕ × Bool) => if r.2.1 = r.1.1 then xor r.1.2 r.2.2 else r.1.2)
       (encPair (encPair encUnary encBool) encElem) encBool := by
-    convert heq.ite hxor hacc_b using 1; funext r; simp only [decide_eq_true_eq]
+    convert heq.ite hxor hr1.snd' using 1; funext r; simp only [decide_eq_true_eq]
   exact ComputableInPolyTime.mapToBitsWithInput hrange
     (ComputableInPolyTime.foldlWith
       (encA := encElem) (encL := encList encElem) (encB := encBool) (encP := encUnary)
@@ -778,11 +773,9 @@ theorem computableInPolyTime_candRowOfState :
   let encRest := encPair (encList encBits) (encOption (encPair encBits encNat))
   let encAcc := encPair (encPair encUnary encUnary) encRest
   have hj := ComputableInPolyTime.fst encNat encAcc
-  have hmP := (ComputableInPolyTime.fst (encPair encUnary encUnary) encRest).comp'
-    (ComputableInPolyTime.snd encNat encAcc)
-  have hm := (ComputableInPolyTime.fst encUnary encUnary).comp' hmP
-  have hP := (ComputableInPolyTime.snd encUnary encUnary).comp' hmP
-  exact computableInPolyTime_materializeTestRow' hm (computableInPolyTime_decodeTestTuple' hm hP hj)
+  have hmP := (ComputableInPolyTime.snd encNat encAcc).fst'
+  exact computableInPolyTime_materializeTestRow' hmP.fst'
+    (computableInPolyTime_decodeTestTuple' hmP.fst' hmP.snd' hj)
 
 /-- Existing parity-test rows extended with the candidate row at `IndexFold` state `s`. -/
 @[expose] def augCandidateRows (s : ℕ × SelectBestAcc) : List (List Bool) :=
@@ -820,20 +813,17 @@ theorem computableInPolyTime_finishSelectBestStep :
   let encIn := encPair (encPair encNat encAcc) encNat
   have hs := ComputableInPolyTime.fst (encPair encNat encAcc) encNat
   have hval := ComputableInPolyTime.snd (encPair encNat encAcc) encNat
-  have hacc := (ComputableInPolyTime.snd encNat encAcc).comp' hs
-  have hmP := (ComputableInPolyTime.fst (encPair encUnary encUnary) encRest).comp' hacc
-  have hrest := (ComputableInPolyTime.snd (encPair encUnary encUnary) encRest).comp' hacc
-  have hrows := (ComputableInPolyTime.fst (encList encBits) (encOption eBest)).comp' hrest
-  have hbestOpt := (ComputableInPolyTime.snd (encList encBits) (encOption eBest)).comp' hrest
+  have hacc := hs.snd'
+  have hmP := hacc.fst'
+  have hrest := hacc.snd'
   have hsomeCand := (ComputableInPolyTime.optionSome eBest).comp' ((hcand0.comp' hs).prod hval)
   have hq_in := ComputableInPolyTime.fst encIn eBest
   have hq_best := ComputableInPolyTime.snd encIn eBest
-  have hlt := ComputableInPolyTime.binary_lt' (hval.comp' hq_in)
-    ((ComputableInPolyTime.snd encBits encNat).comp' hq_best)
+  have hlt := ComputableInPolyTime.binary_lt' (hval.comp' hq_in) hq_best.snd'
   have hsome_q := hsomeCand.comp' hq_in
   have hbest_q := (ComputableInPolyTime.optionSome eBest).comp' hq_best
-  exact hmP.prod (hrows.prod
-    (ComputableInPolyTime.optionElimWithInput hbestOpt hsomeCand (hlt.ite hsome_q hbest_q)))
+  exact hmP.prod (hrest.fst'.prod
+    (ComputableInPolyTime.optionElimWithInput hrest.snd' hsomeCand (hlt.ite hsome_q hbest_q)))
 
 /-- Native callback certificate for one candidate step `selectBestStep countSys`. -/
 noncomputable def selectBestStepCertificate {countSys : List (List Bool) → ℕ}
@@ -880,14 +870,9 @@ private theorem computableInPolyTime_extractSelectBestRow :
   let eBest := encPair encBits encNat; let encRest := encPair (encList encBits) (encOption eBest)
   let encAcc := encPair (encPair encUnary encUnary) encRest
   have hacc := ComputableInPolyTime.snd encNat encAcc
-  have hm := (ComputableInPolyTime.fst encUnary encUnary).comp'
-    ((ComputableInPolyTime.fst (encPair encUnary encUnary) encRest).comp' hacc)
-  have hopt := (ComputableInPolyTime.snd (encList encBits) (encOption eBest)).comp'
-    ((ComputableInPolyTime.snd (encPair encUnary encUnary) encRest).comp' hacc)
-  have hrep := (ComputableInPolyTime.bitsReplicate false).comp' hm
-  have hsnd := (ComputableInPolyTime.fst encBits encNat).comp'
-    (ComputableInPolyTime.snd (encPair encNat encAcc) eBest)
-  exact ComputableInPolyTime.optionElimWithInput hopt hrep hsnd
+  have hrep := (ComputableInPolyTime.bitsReplicate false).comp' hacc.fst'.fst'
+  exact ComputableInPolyTime.optionElimWithInput hacc.snd'.snd' hrep
+    (ComputableInPolyTime.snd (encPair encNat encAcc) eBest).fst'
 
 /-- Native streaming machine certificate for `selectBestTestRow` via `IndexFold.certificate`, for a
 fixed counter `(countSys, cCount)` supplied before runtime inputs `(m, P, rows)`. -/
@@ -916,12 +901,9 @@ private theorem computableInPolyTime_appendSelectedRow :
   let encS := encPair encUnary encTail
   have hs := ComputableInPolyTime.fst encS encBits
   have hrow := ComputableInPolyTime.snd encS encBits
-  have hm := (ComputableInPolyTime.fst encUnary encTail).comp' hs
-  have htail := (ComputableInPolyTime.snd encUnary encTail).comp' hs
-  have hP := (ComputableInPolyTime.fst encUnary (encList encBits)).comp' htail
-  have hrows := (ComputableInPolyTime.snd encUnary (encList encBits)).comp' htail
-  have hsnoc := (ComputableInPolyTime.snoc encBits).comp' (hrows.prod hrow)
-  exact hm.prod (hP.prod hsnoc)
+  have htail := hs.snd'
+  have hsnoc := (ComputableInPolyTime.snoc encBits).comp' (htail.snd'.prod hrow)
+  exact hs.fst'.prod (htail.fst'.prod hsnoc)
 
 private def greedyOuterStep (countSys : List (List Bool) → ℕ)
     (s : ℕ × ℕ × List (List Bool)) : ℕ × ℕ × List (List Bool) :=

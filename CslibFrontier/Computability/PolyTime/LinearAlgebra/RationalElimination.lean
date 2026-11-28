@@ -466,10 +466,7 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
     (step := fun _ st c => bareissStep st c)
     (.const false) (unary_range' hcolLimit)
     (by fun_prop)
-    (bareissStep_poly
-      ((ComputableInPolyTime.snd encBool BareissState.enc).comp
-        (ComputableInPolyTime.fst (encPair encBool BareissState.enc) encUnary))
-      (ComputableInPolyTime.snd (encPair encBool BareissState.enc) encUnary))
+    (bareissStep_poly (by fun_prop) (by fun_prop))
     (fun x consumed st =>
       ∃ k ≤ colLimit x, consumed = List.range k ∧ BareissInv (toTable x) k st)
     (fun x => ⟨0, Nat.zero_le _, rfl, bareissInv_init (hwf x)⟩)
