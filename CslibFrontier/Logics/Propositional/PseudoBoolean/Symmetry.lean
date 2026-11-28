@@ -7,6 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Data.BitString.Counter
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 -- `import all`: the acceptance proofs unfold `stepTop`, `domCheck`, `Order.defCheck` and the
 -- private subproof runner and order lemmas of the checker.
@@ -87,8 +88,10 @@ namespace PBConstr
 
 /-! ### Slack -/
 
-/-- The slack `∑ aᵢ ℓᵢ - d` of a constraint at an assignment: the constraint holds exactly where
-its slack is nonnegative (`Cslib.Logic.PL.PBConstr.holds_iff_slack`). -/
+/-- The slack `∑ aᵢ ℓᵢ - d` of a constraint at a total assignment: the constraint holds exactly
+where its slack is nonnegative (`Cslib.Logic.PL.PBConstr.holds_iff_slack`). This is not the
+propagation slack `Cslib.Logic.PL.VeriPB.slack ρ` of the checker, which is taken over a partial
+trail `ρ`. -/
 def slack (c : PBConstr) (σ : ℕ → Bool) : ℤ := (lhs σ c.terms : ℤ) - c.degree
 
 theorem holds_iff_slack {c : PBConstr} {σ : ℕ → Bool} : c.Holds σ ↔ 0 ≤ c.slack σ := by
@@ -214,68 +217,8 @@ end PBConstr
 namespace VeriPB
 
 open PBConstr
-
-/-! ### Binary values -/
-
-/-- The value of a list of bits read as a binary number, the first bit most significant. -/
-def binVal : List Bool → ℕ
-  | [] => 0
-  | b :: bs => 2 ^ bs.length * b.toNat + binVal bs
-
-theorem binVal_lt (bs : List Bool) : binVal bs < 2 ^ bs.length := by
-  induction bs with
-  | nil => simp [binVal]
-  | cons b bs ih =>
-    simp only [binVal, List.length_cons, pow_succ]
-    cases b <;> simp <;> omega
-
-/-- **Binary values order lists of bits of the same length lexicographically**, `false` before
-`true`. -/
-theorem binVal_lt_binVal_iff {x y : List Bool} (h : x.length = y.length) :
-    binVal x < binVal y ↔ x < y := by
-  induction x generalizing y with
-  | nil => cases y <;> simp_all [binVal]
-  | cons a x ih =>
-    cases y with
-    | nil => simp at h
-    | cons b y =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-      have hx := binVal_lt x
-      have hy := binVal_lt y
-      simp only [binVal, List.cons_lt_cons_iff, h] at hx ⊢
-      generalize 2 ^ y.length = p at *
-      have hft : false < true := by decide
-      have htf : ¬ true < false := by decide
-      cases a <;> cases b <;> simp [ih h, hft, htf] <;> omega
-
-theorem binVal_le_binVal_iff {x y : List Bool} (h : x.length = y.length) :
-    binVal x ≤ binVal y ↔ x ≤ y := by
-  rw [← not_lt, binVal_lt_binVal_iff h.symm]
-  exact not_lt
-
-/-- A list of bits all `true` has the largest binary value of its length. -/
-theorem binVal_le_of_forall_true {x y : List Bool} (h : x.length = y.length)
-    (hy : ∀ b ∈ y, b = true) : binVal x ≤ binVal y := by
-  induction x generalizing y with
-  | nil => simp [binVal]
-  | cons a x ih =>
-    cases y with
-    | nil => simp at h
-    | cons b y =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-      simp only [List.mem_cons, forall_eq_or_imp] at hy
-      have := ih h hy.2
-      simp only [binVal, hy.1, h]
-      generalize 2 ^ y.length = p
-      cases a <;> simp <;> omega
-
-/-- A list of bits all `false` has value `0`. -/
-theorem binVal_eq_zero {x : List Bool} (h : ∀ b ∈ x, b = false) : binVal x = 0 := by
-  induction x with
-  | nil => rfl
-  | cons a x ih =>
-    simp only [List.mem_cons, forall_eq_or_imp] at h
-    simp [binVal, h.1, ih h.2]
+open Cslib.BitString (msbValue msbValue_lt_msbValue_iff msbValue_le_msbValue_iff
+  msbValue_le_of_forall_true msbValue_eq_zero)
 
 /-! ### The lexicographic constraint -/
 
@@ -293,16 +236,16 @@ def lexConstr (as bs : List (Literal ℕ)) : PBConstr := ⟨lexTerms as bs, 2 ^ 
 
 private theorem lhs_lexTerms (σ : ℕ → Bool) :
     ∀ {as bs : List (Literal ℕ)}, as.length = bs.length →
-      (lhs σ (lexTerms as bs) : ℤ) + binVal (as.map (Literal.eval σ)) =
-        2 ^ as.length - 1 + binVal (bs.map (Literal.eval σ))
-  | [], [], _ => by simp [lexTerms, binVal]
+      (lhs σ (lexTerms as bs) : ℤ) + msbValue (as.map (Literal.eval σ)) =
+        2 ^ as.length - 1 + msbValue (bs.map (Literal.eval σ))
+  | [], [], _ => by simp [lexTerms, msbValue]
   | a :: as, b :: bs, h => by
     simp only [List.length_cons, Nat.add_right_cancel_iff] at h
     have ih := lhs_lexTerms σ h
     have hna : Literal.eval σ (Std.Sat.Literal.negate a) = !Literal.eval σ a := by
       obtain ⟨v, p⟩ := a
       cases p <;> simp [Literal.eval, Std.Sat.Literal.negate]
-    simp only [lexTerms, lhs_cons, List.map_cons, binVal, List.length_map, List.length_cons,
+    simp only [lexTerms, lhs_cons, List.map_cons, msbValue, List.length_map, List.length_cons,
       ← h] at ih ⊢
     unfold termVal
     rw [hna, pow_succ]
@@ -313,7 +256,7 @@ private theorem lhs_lexTerms (σ : ℕ → Bool) :
 /-- **The slack of the lexicographic constraint** is the difference of the binary values. -/
 theorem slack_lexConstr {as bs : List (Literal ℕ)} (h : as.length = bs.length) (σ : ℕ → Bool) :
     (lexConstr as bs).slack σ =
-      binVal (bs.map (Literal.eval σ)) - binVal (as.map (Literal.eval σ)) := by
+      msbValue (bs.map (Literal.eval σ)) - msbValue (as.map (Literal.eval σ)) := by
   have := lhs_lexTerms σ h
   have hp : 1 ≤ 2 ^ as.length := Nat.one_le_two_pow
   simp only [PBConstr.slack, lexConstr]
@@ -423,7 +366,7 @@ and `v` by the literals `b`, the definition of `lexOrder n` has slack `b - a` in
 theorem slack_instC_lexOrder {n : ℕ} {a b : List WVal} (ha : a.length = n) (hb : b.length = n)
     (hal : ∀ w ∈ a, ∃ l, w = .lit l) (hbl : ∀ w ∈ b, ∃ l, w = .lit l) {G : PBConstr}
     (hG : G ∈ (lexOrder n).instC a b []) (σ : ℕ → Bool) :
-    G.slack σ = binVal (b.map (WVal.eval σ)) - binVal (a.map (WVal.eval σ)) := by
+    G.slack σ = msbValue (b.map (WVal.eval σ)) - msbValue (a.map (WVal.eval σ)) := by
   simp only [Order.instC, lexOrder, List.map_cons, List.map_nil, List.mem_singleton] at hG
   subst hG
   rw [slack_substC (subst_lits hal hbl (by simp)),
@@ -448,7 +391,7 @@ private theorem exists_slack_instC_le {n : ℕ} {a b : List WVal} (ha : a.length
   rcases hpos with hpos | hpos
   · refine ⟨fun _ => true, ?_⟩
     rw [slack_instC_lexOrder ha hb hal hbl hG]
-    have := binVal_le_of_forall_true (x := b.map (WVal.eval fun _ => true))
+    have := msbValue_le_of_forall_true (x := b.map (WVal.eval fun _ => true))
       (y := a.map (WVal.eval fun _ => true)) (by simp [ha, hb]) (by
         simp only [List.mem_map]
         rintro _ ⟨w, hw, rfl⟩
@@ -456,7 +399,7 @@ private theorem exists_slack_instC_le {n : ℕ} {a b : List WVal} (ha : a.length
         rfl)
     omega
   · refine ⟨fun _ => false, ?_⟩
-    rw [slack_instC_lexOrder ha hb hal hbl hG, binVal_eq_zero (x := b.map _) (by
+    rw [slack_instC_lexOrder ha hb hal hbl hG, msbValue_eq_zero (x := b.map _) (by
       simp only [List.mem_map]
       rintro _ ⟨w, hw, rfl⟩
       obtain ⟨x, rfl⟩ := hpos w hw
@@ -470,7 +413,7 @@ theorem defCheck_lexOrder (n : ℕ) :
     (lexOrder n).defCheck [] (lexTransVars n) lexTransProof lexReflProof = true := by
   have key : ∀ a b : List ℕ, a.length = n → b.length = n →
       ∀ G ∈ (lexOrder n).instC (posVals a) (posVals b) [], ∀ σ,
-        G.slack σ = binVal (b.map σ) - binVal (a.map σ) := fun a b ha hb G hG σ => by
+        G.slack σ = msbValue (b.map σ) - msbValue (a.map σ) := fun a b ha hb G hG σ => by
     rw [slack_instC_lexOrder (by simp [posVals, ha]) (by simp [posVals, hb]) (posVals_lits a)
       (posVals_lits b) hG, map_eval_posVals, map_eval_posVals]
   have kex : ∀ a b : List ℕ, a.length = n → b.length = n →
@@ -544,7 +487,7 @@ theorem lexOrder_le_iff {n : ℕ} {x y : List Bool} (hx : x.length = n) (hy : y.
       ((lexOrder n).inst x y []) ↔ x ≤ y := by
     rw [holds_iff_slack, slack_lexConstr (by simp [posLits]), map_eval_posLits,
       map_eval_posLits]
-    rw [h1, h2, ← binVal_le_binVal_iff (hx.trans hy.symm)]
+    rw [h1, h2, ← msbValue_le_msbValue_iff (hx.trans hy.symm)]
     omega
   constructor
   · rintro ⟨ρ, hρ, h⟩
@@ -609,7 +552,7 @@ theorem holds_lexLeader_iff (xs : List ℕ) (π : List (ℕ × Literal ℕ)) (σ
   rw [holds_iff_slack, lexLeader, slack_lexConstr (by simp), List.map_map,
     Function.comp_def]
   simp only [eval_litImage_ofLits]
-  rw [map_eval_posLits, map_eval_posLits, ← binVal_le_binVal_iff (by simp)]
+  rw [map_eval_posLits, map_eval_posLits, ← msbValue_le_msbValue_iff (by simp)]
   omega
 
 /-- The subproof of the `dom` step of `Cslib.Logic.PL.VeriPB.lexLeaderStep`, for the next
@@ -705,24 +648,24 @@ theorem domCheck_lexLeader {pres : Option (List ℕ)} {obj : Option Objective} {
         ((posLits xs).map WVal.lit) ((posLits xs).map (Witness.litVal ω)) [] := rfl
     rw [← this, hG₂]; exact List.mem_singleton_self _
   -- The slacks, as binary values of `z` and of `z↾ω`.
-  have hC : ∀ σ, C.slack σ = binVal ((posLits xs).map (Literal.eval (Witness.apply σ ω))) -
-      binVal ((posLits xs).map (Literal.eval σ)) := fun σ => by
+  have hC : ∀ σ, C.slack σ = msbValue ((posLits xs).map (Literal.eval (Witness.apply σ ω))) -
+      msbValue ((posLits xs).map (Literal.eval σ)) := fun σ => by
     change (lexConstr (posLits xs) ((posLits xs).map (Witness.litImage ω))).slack σ = _
     rw [slack_lexConstr (by simp), List.map_map, Function.comp_def]
     simp only [ω, eval_litImage_ofLits]
-  have h₁ : ∀ σ, G₁.slack σ = binVal ((posLits xs).map (Literal.eval σ)) -
-      binVal ((posLits xs).map (Literal.eval (Witness.apply σ ω))) := fun σ => by
+  have h₁ : ∀ σ, G₁.slack σ = msbValue ((posLits xs).map (Literal.eval σ)) -
+      msbValue ((posLits xs).map (Literal.eval (Witness.apply σ ω))) := fun σ => by
     rw [slack_instC_lexOrder (by simp [posLits]) (by simp [posLits]) hlv hl hm1,
       LoadedOrder.map_eval_lit,
       LoadedOrder.map_eval_litVal]
-  have h₂ : ∀ σ, G₂.slack σ = binVal ((posLits xs).map (Literal.eval (Witness.apply σ ω))) -
-      binVal ((posLits xs).map (Literal.eval σ)) := fun σ => by
+  have h₂ : ∀ σ, G₂.slack σ = msbValue ((posLits xs).map (Literal.eval (Witness.apply σ ω))) -
+      msbValue ((posLits xs).map (Literal.eval σ)) := fun σ => by
     rw [slack_instC_lexOrder (by simp [posLits]) (by simp [posLits]) hl hlv hm2,
       LoadedOrder.map_eval_lit,
       LoadedOrder.map_eval_litVal]
   have hCex : ∃ τ, C.slack τ ≤ 0 := ⟨fun _ => true, by
     rw [hC]
-    have := binVal_le_of_forall_true
+    have := msbValue_le_of_forall_true
       (x := (posLits xs).map (Literal.eval (Witness.apply (fun _ => true) ω)))
       (y := (posLits xs).map (Literal.eval fun _ => true)) (by simp)
       (by simp [posLits, Literal.eval])
