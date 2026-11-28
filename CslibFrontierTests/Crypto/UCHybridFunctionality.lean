@@ -7,7 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Protocols.UC.Commitment
+import CslibFrontier.Crypto.Protocols.UC.Functionality.Commitment
 import CslibFrontier.Crypto.Protocols.UC.HybridFunctionality
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
@@ -30,8 +30,8 @@ This test suite exercises `UC.HybridFunctionality` on two concrete 2-party witne
    (`p = 1`, `q = 0`) and `fairCoinResource` (`p = 1`, `q = 1`), and that
    `HybridFunctionality.isQueryBounded_closeReduction` bounds the reduction program.
 2. **Round trip on `UC.fcom`:** converting the 2-party commitment ideal functionality `UC.fcom` from
-   `CslibFrontier.Crypto.Protocols.UC.Commitment` via `IdealFunctionality.toHybrid` and
-   `HybridFunctionality.toMachine` recovers `fcom.toProtocol` definitionally, and a full 2-party
+   `CslibFrontier.Crypto.Protocols.UC.Functionality.Commitment` via `IdealFunctionality.toHybrid`
+   and `HybridFunctionality.toMachine` recovers `fcom.toProtocol` definitionally, and a full 2-party
    commit-and-open execution yields identical output distributions under both.
 -/
 

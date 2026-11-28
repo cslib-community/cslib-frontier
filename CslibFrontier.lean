@@ -3887,6 +3887,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Sparse
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Reachability
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound.ZeroThreshold
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.CommonPrefix
+public import CslibFrontier.Crypto.Protocols.UC.Functionality.Commitment
 public import CslibFrontier.Computability.PCP.Approximation.AssignmentGraph
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Place
 public import CslibFrontier.Logics.FirstOrder.Ordered.Projection
@@ -9706,6 +9707,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.C
 public import CslibFrontier.Foundations.Data.List.OfFnGetD
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Equality
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
+public import CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment
 public import CslibFrontier.Probability.LocalitySensitiveHash
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 public import CslibFrontier.Algorithms.LinearAlgebra.LDLCertificate
