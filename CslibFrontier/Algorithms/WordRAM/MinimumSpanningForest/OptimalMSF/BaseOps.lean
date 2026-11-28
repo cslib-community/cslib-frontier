@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.GraphOps.IndexedEdges
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Tactic.UpdateSimp
@@ -292,42 +293,6 @@ private instance : WordEncoding Stride4Words := ⟨4, encStride4Words⟩
 
 /-! ## Section 2: Word-RAM Edge Subroutines and Specifications -/
 
-private theorem iterate_bind_snd_ft {w C : ℕ} {S : Set ℕ} {s : Memory.State}
-    {p : Memory.Prog (ℕ × ℕ)}
-    (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p))
-    (hm : memoryCost p s ≤ C)
-    (hmod : Memory.Modifies S s ((Memory.spec 0).clientState s p))
-    {Q : ℕ → Memory.State → Prop}
-    (hq : Q ((Memory.spec 0).clientResult s p).2 ((Memory.spec 0).clientState s p)) :
-    Memory.FramedTriple w s (p >>= fun st => pure st.2) C S Q := by
-  refine framedTriple_iff_realization.mpr ⟨validHistory_bind_step hv (validHistory_pure w _ _),
-    ?_, ?_, ?_⟩
-  · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hm
-  · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]; exact hmod
-  · rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]; exact hq
-
-private theorem allocDirty4_bind_pure_ft {w count C : ℕ} {S : Set ℕ} {s : Memory.State}
-    {f : ℕ → Memory.Prog ℕ}
-    (hfit : Fits w (s.frontier + 4 * count)) (hS : ∀ a ∈ S, s.frontier ≤ a)
-    (hv : (Memory.spec w).ValidHistory ⟨s.mem, s.frontier + 4 * count⟩
-      ((Memory.spec w).clientHistory ⟨s.mem, s.frontier + 4 * count⟩ (f s.frontier)))
-    (hm : memoryCost (f s.frontier) ⟨s.mem, s.frontier + 4 * count⟩ ≤ C)
-    (hmod : Memory.Modifies S ⟨s.mem, s.frontier + 4 * count⟩
-      ((Memory.spec 0).clientState ⟨s.mem, s.frontier + 4 * count⟩ (f s.frontier)))
-    {Q : ℕ → Memory.State → Prop}
-    (hq : Q s.frontier
-      ((Memory.spec 0).clientState ⟨s.mem, s.frontier + 4 * count⟩ (f s.frontier))) :
-    Memory.FramedTriple w s (Memory.allocDirty (4 * count) >>= fun ob =>
-      f ob >>= fun _ => pure ob) (C + 1) ∅ Q := by
-  have hft : Memory.FramedTriple w ⟨s.mem, s.frontier + 4 * count⟩ (f s.frontier) C S
-      fun _ s' => Memory.FramedTriple w s' (pure s.frontier) 0 S Q :=
-    framedTriple_iff_realization.mpr ⟨hv, hm, hmod, Memory.FramedTriple.pure hq⟩
-  exact ((Memory.FramedTriple.allocDirty_bind hfit
-    ((Memory.FramedTriple.bind_same hft).mono (Nat.add_zero _).le
-      fun _ _ h => h)).frame_empty_of_ge_frontier hS).mono (by omega : C + 0 + 1 ≤ C + 1)
-    fun _ _ h => h
-
 /-! ### `appendSelIdsProg`: Append Edge IDs from Stride-4 Array -/
 
 private def appendSelIdStep (d : AppendSelEnv × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
@@ -386,69 +351,32 @@ private theorem appendSelIdsProg_word_spec {w srcBase dstBase dstOff count : ℕ
         res = dstOff + count ∧ s'.frontier = s.frontier ∧ Memory.WellFormed w s' ∧
         ((srcBase + 4 * count ≤ dstBase + dstOff ∨ dstBase + dstOff + count ≤ srcBase) →
           ∀ j < count, s'.mem (dstBase + dstOff + j) = s.mem (srcBase + 4 * j + 3)) := by
-  let e : AppendSelEnv := ⟨srcBase, dstBase⟩
-  let S : Set ℕ := Set.Ico (dstBase + dstOff) (dstBase + dstOff + count)
-  let inv (k : ℕ) (a : ℕ × ℕ) (t : Memory.State) : Prop :=
-    a = (k, dstOff + k) ∧ t.frontier = s.frontier ∧ Memory.WellFormed w t ∧
-    (∀ x, x ∉ S → t.mem x = s.mem x) ∧
-    ((srcBase + 4 * count ≤ dstBase + dstOff ∨ dstBase + dstOff + count ≤ srcBase) →
-      ∀ j < k, t.mem (dstBase + dstOff + j) = s.mem (srcBase + 4 * j + 3))
-  have hstep : ∀ k < count, ∀ a t, inv k a t →
-      appendSelIdStepSafe w (e, a) t ∧
-      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (appendSelIdStep (e, a))) ∧
-      let a' := (Memory.spec 0).clientResult t (appendSelIdStep (e, a))
-      let t' := (Memory.spec 0).clientState t (appendSelIdStep (e, a))
-      memoryCost (appendSelIdStep (e, a)) t + 0 ≤ 0 + 2 ∧
-      Memory.Modifies S t t' ∧
-      inv (k + 1) a' t' := by
-    intro k hk a t ⟨ha, htfr, hwt, hframe, hpref⟩
-    subst a
-    have hfit_k1 : Fits w (k + 1) := hwf.frontier_fits.of_le (by omega)
-    have hfit_ok1 : Fits w (dstOff + k + 1) := hwf.frontier_fits.of_le (by omega)
-    have hmem_t : ∀ x, Fits w (t.mem x) := hwt.mem_fits
-    have hvh : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (appendSelIdStep (e, (k, dstOff + k)))) := by
-      dsimp only [appendSelIdStep, e]
-      valid_prog
-      all_goals first | exact hmem_t _ | omega
-    have hcost : memoryCost (appendSelIdStep (e, (k, dstOff + k))) t ≤ 2 := by
-      dsimp only [appendSelIdStep, e]
-      prog_cost
-    have hres : (Memory.spec 0).clientResult t (appendSelIdStep (e, (k, dstOff + k))) =
-        (k + 1, dstOff + (k + 1)) := by
-      dsimp only [appendSelIdStep, e]
-      simp only [clientResult_bind_read, clientResult_bind_write,
-        StateTransitionSpec.clientResult_pure, Nat.add_assoc]
-    have hst : (Memory.spec 0).clientState t (appendSelIdStep (e, (k, dstOff + k))) =
-        ⟨Function.update t.mem (dstBase + (dstOff + k)) (t.mem (srcBase + 4 * k + 3)),
-          t.frontier⟩ := by
-      dsimp only [appendSelIdStep, e]
-      rw [clientState_bind_read, clientState_bind_write, StateTransitionSpec.clientState_pure]
-    have hupd_out : ∀ x, x ∉ S →
-        ((Memory.spec 0).clientState t (appendSelIdStep (e, (k, dstOff + k)))).mem x =
-          t.mem x := by
-      intro x hx
-      rw [hst]
-      simp only [S, Set.mem_Ico, not_and_or, not_le, not_lt] at hx
-      update_simp
-    refine ⟨⟨h16, hfit_k1, hfit_ok1, by dsimp only [e]; omega, by dsimp only [e]; omega⟩,
-      hvh, by omega, ⟨by rw [hst], fun x _ hx => hupd_out x hx⟩,
-      hres, by rw [hst]; exact htfr, wellFormed_clientState hwt hvh,
-      fun x hx => (hupd_out x hx).trans (hframe x hx), fun hd j hj => ?_⟩
-    rw [hst]; dsimp only
-    by_cases hjk : j = k
-    · subst j
-      have hin_src : t.mem (srcBase + 4 * k + 3) = s.mem (srcBase + 4 * k + 3) :=
-        hframe _ (by simp only [S, Set.mem_Ico]; rcases hd with hdl | hdr <;> omega)
-      rw [show dstBase + (dstOff + k) = dstBase + dstOff + k by omega, Function.update_self,
-        hin_src]
-    · update_simp; exact hpref hd j (by omega)
-  obtain ⟨hsafe_it, hv_it, hm_it, hmod_it, hres_it, hfr_it, hwf_it, _, hvals_it⟩ :=
-    iterate_potential_spec appendSelIdStep appendSelIdStepSafe w e 2 count inv (fun _ _ _ => 0)
-      S hstep (0, dstOff) s
-      ⟨rfl, rfl, hwf, fun _ _ => rfl, fun _ _ h => absurd h (Nat.not_lt_zero _)⟩
-  exact ⟨hsafe_it, iterate_bind_snd_ft hv_it (by simpa using hm_it) hmod_it
-    ⟨congrArg Prod.snd hres_it, hfr_it, hwf_it, hvals_it⟩⟩
+  have ⟨hsafe, h⟩ := Memory.FramedTriple.iterate (w := w) (body := appendSelIdStep)
+    (safe := appendSelIdStepSafe) (d := ⟨srcBase, dstBase⟩) (c := 2) (n := count)
+    (a₀ := (0, dstOff)) (S := Set.Ico (dstBase + dstOff) (dstBase + dstOff + count))
+    (fun k a t => (a = (k, dstOff + k) ∧ t.frontier = s.frontier ∧
+      ((srcBase + 4 * count ≤ dstBase + dstOff ∨ dstBase + dstOff + count ≤ srcBase) →
+        ∀ j < k, t.mem (dstBase + dstOff + j) = s.mem (srcBase + 4 * j + 3))) ∧
+      Memory.WellFormed w t)
+    ⟨⟨rfl, rfl, fun _ _ h => absurd h (Nat.not_lt_zero _)⟩, hwf⟩
+    (fun k hk a t ⟨⟨ha, htfr, hpref⟩, hwt⟩ ⟨_, hframe⟩ => by
+      subst a
+      refine ⟨?_, Memory.FramedTriple.wellFormed hwt ?_⟩
+      · dsimp only [appendSelIdStepSafe]
+        exact ⟨h16, hwf.frontier_fits.of_le (by omega), hwf.frontier_fits.of_le (by omega),
+          by omega, by omega⟩
+      unfold appendSelIdStep
+      framed_walk
+      all_goals try exact hwt.mem_fits _
+      refine ⟨by simp only [Nat.add_assoc], htfr, fun hd j hj => ?_⟩
+      dsimp only; rw [Function.update_apply]
+      split_ifs
+      · rw [show j = k by omega]; exact hframe _ (by omega) (by region_omega)
+      · exact hpref hd j (by omega))
+    fun _ _ h _ => h
+  exact ⟨hsafe, Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) h subset_rfl
+    fun _ _ ⟨⟨ha, hfr, hv⟩, hw⟩ _ => Memory.FramedTriple.pure ⟨by rw [ha], hfr, hw, hv⟩)
+    (by omega) fun _ _ => id⟩
 
 /-- Uniform `Realizes .exact` certificate (`work = 0`) for `appendSelIdsProg`. -/
 theorem realizes_appendSelIdsProg : Realizes .exact
@@ -547,31 +475,11 @@ private theorem writeStride4_spec {w dst idx : ℕ} {ew : Stride4Words} {s : Mem
     Memory.FramedTriple w s (writeStride4 ((dst, idx), ew)) 4 S fun res s' =>
       res = idx + 1 ∧ s'.frontier = s.frontier ∧ Memory.WellFormed w s' ∧
       stride4At dst idx ew s'.mem := by
-  have hprog : writeStride4 ((dst, idx), ew) =
-      (Memory.write (dst + 4 * idx) ew.u >>= fun _ =>
-        Memory.write (dst + 4 * idx + 1) ew.v >>= fun _ =>
-          Memory.write (dst + 4 * idx + 2) ew.wt >>= fun _ =>
-            Memory.write (dst + 4 * idx + 3) ew.eid >>= fun _ => pure (idx + 1)) := rfl
-  have hvh : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (writeStride4 ((dst, idx), ew))) := by
-    rw [hprog]; valid_prog; all_goals (try dsimp only); omega
-  have hst : (Memory.spec 0).clientState s (writeStride4 ((dst, idx), ew)) =
-      ⟨Function.update (Function.update (Function.update (Function.update s.mem
-        (dst + 4 * idx) ew.u) (dst + 4 * idx + 1) ew.v) (dst + 4 * idx + 2) ew.wt)
-        (dst + 4 * idx + 3) ew.eid, s.frontier⟩ := by
-    rw [hprog]; repeat rw [clientState_bind_write]; rfl
-  have hmod : Memory.Modifies (Set.Ico (dst + 4 * idx) (dst + 4 * idx + 4)) s
-      ((Memory.spec 0).clientState s (writeStride4 ((dst, idx), ew))) := by
-    refine ⟨by rw [hst], fun x _ hx => ?_⟩
-    rw [hst]
-    simp only [Set.mem_Ico, not_and_or, not_le, not_lt] at hx
-    update_simp
-  refine framedTriple_iff_realization.mpr ⟨hvh, ?_, hmod, ?_, by rw [hst],
-    wellFormed_clientState hwf hvh, ?_⟩
-  · rw [hprog]; prog_cost
-  · rw [hprog]; simp only [clientResult_bind_write, StateTransitionSpec.clientResult_pure]
-  · rw [hst]; dsimp only [stride4At]
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> update_simp
+  unfold writeStride4
+  framed_walk
+  refine ⟨rfl, rfl, ⟨hwf.frontier_fits, fun a => ?_⟩, ?_⟩
+  · simp only [Function.update_apply]; split_ifs <;> first | assumption | exact hwf.mem_fits a
+  · dsimp only [stride4At]; refine ⟨?_, ?_, ?_, ?_⟩ <;> update_simp
 
 private def readStride4 (d : ℕ × ℕ) : Memory.Prog Stride4Words := do
   let u ← Memory.read (d.1 + 4 * d.2)
@@ -608,12 +516,9 @@ private theorem readStride4_spec {w base idx : ℕ} {s : Memory.State}
     (hlt : base + 4 * idx + 3 < s.frontier) :
     Memory.FramedTriple w s (readStride4 (base, idx)) 4 ∅ fun res s' =>
       res = ⟨s.mem (base + 4 * idx), s.mem (base + 4 * idx + 1),
-        s.mem (base + 4 * idx + 2), s.mem (base + 4 * idx + 3)⟩ ∧ s' = s :=
-  Memory.FramedTriple.read_bind (by omega) <|
-    Memory.FramedTriple.read_bind (by omega) <|
-      Memory.FramedTriple.read_bind (by omega) <|
-        Memory.FramedTriple.read_bind hlt <|
-          Memory.FramedTriple.pure ⟨rfl, rfl⟩
+        s.mem (base + 4 * idx + 2), s.mem (base + 4 * idx + 3)⟩ ∧ s' = s := by
+  unfold readStride4
+  framed_triple
 
 private theorem stride4WriteAfterRead_ft {w cRead outBase k frEnd : ℕ} {t : Memory.State}
     {rd : Memory.Prog Stride4Words} {adj : Stride4Words → Stride4Words}
@@ -628,18 +533,11 @@ private theorem stride4WriteAfterRead_ft {w cRead outBase k frEnd : ℕ} {t : Me
       (cRead + 4) Sk fun a' t' =>
         a' = k + 1 ∧ t'.frontier = frEnd ∧ Memory.WellFormed w t' ∧
         stride4At outBase k ewGoal t'.mem := by
-  intro Sk
-  have hsub : Memory.FramedTriple w t rd cRead Sk fun ew t₁ =>
-      Memory.FramedTriple w t₁ (writeStride4 ((outBase, k), adj ew)) 4 Sk fun a' t' =>
-        a' = k + 1 ∧ t'.frontier = frEnd ∧ Memory.WellFormed w t' ∧
-        stride4At outBase k ewGoal t'.mem := by
-    refine (hr.frame_mono (Set.empty_subset Sk)).mono le_rfl fun ew t₁ ⟨hew, ht₁⟩ => ?_
-    rw [ht₁, hew, hadj]
-    have hw := writeStride4_spec (w := w) (dst := outBase) (idx := k) (ew := ewGoal)
-      hwt hu hv hwtF heid (by rw [hfr]; exact hlt)
-    exact hw.mono le_rfl fun res t' ⟨hres, hfr', hwt', hstr⟩ =>
+  refine Memory.FramedTriple.call_eq hr (Set.empty_subset _) ?_
+  rw [hadj]
+  exact (writeStride4_spec (w := w) (dst := outBase) (idx := k) hwt hu hv hwtF heid
+    (by rw [hfr]; exact hlt)).mono le_rfl fun _ _ ⟨hres, hfr', hwt', hstr⟩ =>
       ⟨hres, hfr'.trans hfr, hwt', hstr⟩
-  exact hsub.bind_same
 
 private theorem allocDirty_stride4_loop_spec {w count stepCost : ℕ} {Γ : Type} {s : Memory.State}
     (ctx : ℕ → Γ) (step : Γ × ℕ → Memory.Prog ℕ)
@@ -661,48 +559,30 @@ private theorem allocDirty_stride4_loop_spec {w count stepCost : ℕ} {Γ : Type
       (stepCost * count + 1) ∅ fun outBase s' =>
         outBase = s.frontier ∧ s'.frontier = s.frontier + 4 * count ∧ Memory.WellFormed w s' ∧
         ∀ i < count, stride4At outBase i (target i) s'.mem := by
-  let s₀ : Memory.State := ⟨s.mem, s.frontier + 4 * count⟩
-  let S : Set ℕ := Set.Ico s.frontier (s.frontier + 4 * count)
-  have hwf₀ : Memory.WellFormed w s₀ := ⟨hfit, hwf.mem_fits⟩
-  let inv (k a : ℕ) (t : Memory.State) : Prop :=
-    a = k ∧ t.frontier = s₀.frontier ∧ Memory.WellFormed w t ∧
-    (∀ x < s.frontier, t.mem x = s.mem x) ∧
-    ∀ i < k, stride4At s.frontier i (target i) t.mem
-  have hstep : ∀ k < count, ∀ a t, inv k a t →
-      stepSafe w (ctx s.frontier, a) t ∧
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (step (ctx s.frontier, a))) ∧
-      let a' := (Memory.spec 0).clientResult t (step (ctx s.frontier, a))
-      let t' := (Memory.spec 0).clientState t (step (ctx s.frontier, a))
-      memoryCost (step (ctx s.frontier, a)) t + 0 ≤ 0 + stepCost ∧
-      Memory.Modifies S t t' ∧
-      inv (k + 1) a' t' := by
-    intro k hk a t ⟨ha, htfr, hwt, hframe, hpref⟩
-    subst a
-    obtain ⟨hsafe_s, hft_s⟩ := hstep_spec k hk t htfr hwt hframe
-    obtain ⟨hv_s, hc_s, hmod_s, hres_s, ht'_fr, hwt', hstr_k⟩ :=
-      framedTriple_iff_realization.mp hft_s
-    have hmod_S : Memory.Modifies S t
-        ((Memory.spec 0).clientState t (step (ctx s.frontier, k))) :=
-      hmod_s.mono fun x hx => by simp only [S, Set.mem_Ico] at hx ⊢; omega
-    have hmem_keep : ∀ x < s.frontier,
-        ((Memory.spec 0).clientState t (step (ctx s.frontier, k))).mem x = t.mem x :=
-      fun x hx => hmod_s.mem_eq_of_not_mem (by rw [htfr]; change x < s.frontier + 4 * count; omega)
-        (by simp only [Set.mem_Ico]; omega)
-    refine ⟨hsafe_s, hv_s, by omega, hmod_S,
-      hres_s, ht'_fr, hwt', fun x hx => (hmem_keep x hx).trans (hframe x hx), fun i hi => ?_⟩
-    by_cases hik : i = k
-    · subst i; exact hstr_k
-    · exact stride4At_congr (fun q hq => hmod_s.mem_eq_of_not_mem
-        (by rw [htfr]; change s.frontier + 4 * i + q < s.frontier + 4 * count; omega)
-        (by simp only [Set.mem_Ico]; omega)) (hpref i (by omega))
-  obtain ⟨hsafe_it, hv_it, hm_it, hmod_it, _, hfr_it, hwf_it, _, hvals_it⟩ :=
-    iterate_potential_spec step stepSafe w (ctx s.frontier) stepCost count
-      inv (fun _ _ _ => 0) S hstep 0 s₀
-      ⟨rfl, rfl, hwf₀, fun _ _ => rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
-  exact ⟨hsafe_it, allocDirty4_bind_pure_ft (S := S)
-    (f := fun ob => iterate step (ctx ob) count 0)
-    hfit (fun _ ha => ha.1) hv_it (by simpa using hm_it) hmod_it ⟨rfl, hfr_it, hwf_it, hvals_it⟩⟩
+  have ⟨hsafe, h⟩ := Memory.FramedTriple.iterate (w := w) (s := ⟨s.mem, s.frontier + 4 * count⟩)
+    (body := step) (safe := stepSafe) (d := ctx s.frontier) (c := stepCost) (n := count)
+    (a₀ := 0) (S := Set.Ico s.frontier (s.frontier + 4 * count))
+    (fun k a t => a = k ∧ t.frontier = s.frontier + 4 * count ∧ Memory.WellFormed w t ∧
+      ∀ i < k, stride4At s.frontier i (target i) t.mem)
+    ⟨rfl, rfl, ⟨hfit, hwf.mem_fits⟩, fun _ h => absurd h (Nat.not_lt_zero _)⟩
+    (fun k hk a t ⟨ha, htfr, hwt, hpref⟩ ⟨_, hframe⟩ => by
+      subst a
+      obtain ⟨hsafe_s, hft_s⟩ := hstep_spec k hk t htfr hwt fun x hx =>
+        hframe x (by dsimp only; omega) (by region_omega)
+      refine ⟨hsafe_s, Memory.FramedTriple.weaken hft_s ?_ fun a' t' hq hm => ?_⟩
+      · region_omega
+      obtain ⟨ha', ht'fr, hwt', hstr⟩ := hq
+      refine ⟨ha', ht'fr, hwt', fun i hi => ?_⟩
+      by_cases hik : i = k
+      · subst i; exact hstr
+      · exact stride4At_congr (fun q hq => hm.mem_eq_of_not_mem (by rw [htfr]; omega)
+          (by region_omega)) (hpref i (by omega)))
+    fun _ _ h _ => h
+  refine ⟨hsafe, Memory.FramedTriple.frame_empty_of_ge_frontier
+    (S := Set.Ico s.frontier (s.frontier + 4 * count)) ?_ fun _ ha => ha.1⟩
+  exact Memory.FramedTriple.mono (Memory.FramedTriple.allocDirty_bind hfit
+    (Memory.FramedTriple.call (c₂ := 0) h subset_rfl fun _ _ ⟨_, hfr, hwt, hv⟩ _ =>
+      Memory.FramedTriple.pure ⟨rfl, hfr, hwt, hv⟩)) (by omega) fun _ _ => id
 
 /-! ### `retagIndexedProg`: Retag Edge IDs `0..m-1` -/
 
@@ -1010,14 +890,8 @@ private theorem liftEdgeRead_spec {w srcBase liftBase dstBase idx : ℕ} {s : Me
       res = ⟨s.mem (liftBase + s.mem (srcBase + 4 * idx)),
         s.mem (liftBase + s.mem (srcBase + 4 * idx + 1)),
         s.mem (srcBase + 4 * idx + 2), s.mem (srcBase + 4 * idx + 3)⟩ ∧ s' = s := by
-  dsimp only [liftEdgeRead]
-  exact Memory.FramedTriple.read_bind (by omega) <|
-    Memory.FramedTriple.read_bind (by omega) <|
-      Memory.FramedTriple.read_bind hu_lt <|
-        Memory.FramedTriple.read_bind hv_lt <|
-          Memory.FramedTriple.read_bind (by omega) <|
-            Memory.FramedTriple.read_bind hlt <|
-              Memory.FramedTriple.pure ⟨rfl, rfl⟩
+  unfold liftEdgeRead
+  framed_triple
 
 private def liftEdgeStep (d : LiftEdgesEnv × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let ew ← liftEdgeRead (d.1, d.2.1)
@@ -1077,103 +951,68 @@ private theorem liftEdgesProg_word_spec {w srcBase liftBase dstBase dstOff count
             ⟨s.mem (liftBase + s.mem (srcBase + 4 * i)),
               s.mem (liftBase + s.mem (srcBase + 4 * i + 1)),
               s.mem (srcBase + 4 * i + 2), s.mem (srcBase + 4 * i + 3)⟩ s'.mem) := by
-  let e : LiftEdgesEnv := ⟨srcBase, liftBase, dstBase⟩
-  let S : Set ℕ := Set.Ico (dstBase + 4 * dstOff) (dstBase + 4 * (dstOff + count))
-  let inv (k : ℕ) (a : ℕ × ℕ) (t : Memory.State) : Prop :=
-    a = (k, dstOff + k) ∧ t.frontier = s.frontier ∧ Memory.WellFormed w t ∧
-    (∀ x, x ∉ S → t.mem x = s.mem x) ∧
-    ((∀ j < count, liftBase + s.mem (srcBase + 4 * j) ∉ S ∧
-      liftBase + s.mem (srcBase + 4 * j + 1) ∉ S) →
-      ∀ i < k, stride4At (dstBase + 4 * dstOff) i
-        ⟨s.mem (liftBase + s.mem (srcBase + 4 * i)),
-          s.mem (liftBase + s.mem (srcBase + 4 * i + 1)),
-          s.mem (srcBase + 4 * i + 2), s.mem (srcBase + 4 * i + 3)⟩ t.mem)
-  have hstep : ∀ k < count, ∀ a t, inv k a t →
-      liftEdgeStepSafe w (e, a) t ∧
-      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (liftEdgeStep (e, a))) ∧
-      let a' := (Memory.spec 0).clientResult t (liftEdgeStep (e, a))
-      let t' := (Memory.spec 0).clientState t (liftEdgeStep (e, a))
-      memoryCost (liftEdgeStep (e, a)) t + 0 ≤ 0 + 10 ∧
-      Memory.Modifies S t t' ∧
-      inv (k + 1) a' t' := by
-    intro k hk a t ⟨ha, htfr, hwt, hframe, hpref⟩
-    subst a
-    have hsrc_mem : ∀ q < 4, t.mem (srcBase + 4 * k + q) = s.mem (srcBase + 4 * k + q) :=
-      fun q hq => hframe _ (by simp only [S, Set.mem_Ico]; rcases hdisj_e with hd | hd <;> omega)
-    have hlu_eq : t.mem (srcBase + 4 * k) = s.mem (srcBase + 4 * k) := by
-      simpa using hsrc_mem 0 (by decide)
-    have hlv_eq : t.mem (srcBase + 4 * k + 1) = s.mem (srcBase + 4 * k + 1) :=
-      hsrc_mem 1 (by decide)
-    have hu_lt : liftBase + t.mem (srcBase + 4 * k) < t.frontier := by
-      rw [hlu_eq, htfr]; exact (hlb k hk).1
-    have hv_lt : liftBase + t.mem (srcBase + 4 * k + 1) < t.frontier := by
-      rw [hlv_eq, htfr]; exact (hlb k hk).2
-    have hr := liftEdgeRead_spec (w := w) (srcBase := srcBase) (liftBase := liftBase)
-      (dstBase := dstBase) (idx := k) (s := t) (by omega) hu_lt hv_lt
-    have hmem_t := hwt.mem_fits
-    have hfit_k1 : Fits w (k + 1) := hwf.frontier_fits.of_le (by omega)
-    have hfit_ok1 : Fits w (dstOff + k + 1) := hwf.frontier_fits.of_le (by omega)
-    let ew_t : Stride4Words :=
-      ⟨t.mem (liftBase + t.mem (srcBase + 4 * k)),
-        t.mem (liftBase + t.mem (srcBase + 4 * k + 1)),
-        t.mem (srcBase + 4 * k + 2), t.mem (srcBase + 4 * k + 3)⟩
-    let Sk := Set.Ico (dstBase + 4 * (dstOff + k)) (dstBase + 4 * (dstOff + k) + 4)
-    have hft_s : Memory.FramedTriple w t (liftEdgeStep (e, (k, dstOff + k))) 10 Sk fun a' t' =>
-        a' = (k + 1, dstOff + (k + 1)) ∧ t'.frontier = s.frontier ∧ Memory.WellFormed w t' ∧
-        stride4At dstBase (dstOff + k) ew_t t'.mem := by
-      have hsub : Memory.FramedTriple w t (liftEdgeRead (e, k)) 6 Sk fun ew t₁ =>
-          Memory.FramedTriple w t₁ (writeStride4 ((dstBase, dstOff + k), ew) >>= fun nextOff =>
-            pure (k + 1, nextOff)) 4 Sk fun a' t' =>
-              a' = (k + 1, dstOff + (k + 1)) ∧ t'.frontier = s.frontier ∧ Memory.WellFormed w t' ∧
-              stride4At dstBase (dstOff + k) ew_t t'.mem := by
-        refine (hr.frame_mono (Set.empty_subset Sk)).mono le_rfl fun ew t₁ ⟨hew, ht₁⟩ => ?_
-        subst ht₁; rw [hew]
-        have hw := writeStride4_spec (w := w) (dst := dstBase) (idx := dstOff + k) (ew := ew_t)
-          hwt (hmem_t _) (hmem_t _) (hmem_t _) (hmem_t _) (by rw [htfr]; omega)
-        exact ((hw.mono le_rfl fun nextOff t' ⟨hnext, hfr', hwt', hstr⟩ =>
-          Memory.FramedTriple.pure (c := 0) (a := (k + 1, nextOff))
-            ⟨by rw [hnext, Nat.add_assoc], hfr'.trans htfr, hwt', hstr⟩).bind_same).mono
-          (Nat.add_zero 4).le fun _ _ h => h
-      exact hsub.bind_same.mono (by omega) fun _ _ h => h
-    obtain ⟨hv_s, hc_s, hmod_s, hres_s, ht'_fr, hwt', hstr_k⟩ :=
-      framedTriple_iff_realization.mp hft_s
-    have hr_spec := framedTriple_iff_realization.mp hr
-    obtain ⟨hr_ew, hr_st⟩ := hr_spec.2.2.2
-    have hsafe_s : liftEdgeStepSafe w (e, (k, dstOff + k)) t := by
-      refine ⟨h16, hfit_k1, ⟨h16, by rw [htfr]; dsimp only [e]; omega, hu_lt, hv_lt⟩, ?_⟩
-      rw [hr_st, hr_ew]
-      exact ⟨h16, hfit_ok1, hmem_t _, hmem_t _, hmem_t _, hmem_t _,
-        by rw [htfr]; dsimp only [e]; omega⟩
-    have hmod_S : Memory.Modifies S t
-        ((Memory.spec 0).clientState t (liftEdgeStep (e, (k, dstOff + k)))) :=
-      hmod_s.mono fun x hx => by simp only [Sk, S, Set.mem_Ico] at hx ⊢; omega
-    have hmem_keep : ∀ x, x ∉ S →
-        ((Memory.spec 0).clientState t (liftEdgeStep (e, (k, dstOff + k)))).mem x = t.mem x :=
-      fun x hx => hft_s.mem_eq_of_frontier_eq (ht'_fr.trans htfr.symm) x fun hxk => by
-        simp only [Sk, S, Set.mem_Ico] at hx hxk; omega
-    refine ⟨hsafe_s, hv_s, by omega, hmod_S, ?_⟩
-    dsimp only [inv]
-    refine ⟨hres_s, ht'_fr, hwt', fun x hx => (hmem_keep x hx).trans (hframe x hx),
-      fun hl i hi => ?_⟩
-    by_cases hik : i = k
-    · subst i
-      have ha0 : dstBase + 4 * (dstOff + k) = dstBase + 4 * dstOff + 4 * k := by omega
-      have hl0 : t.mem (liftBase + s.mem (srcBase + 4 * k)) =
-          s.mem (liftBase + s.mem (srcBase + 4 * k)) := hframe _ (hl k hk).1
-      have hl1 : t.mem (liftBase + s.mem (srcBase + 4 * k + 1)) =
-          s.mem (liftBase + s.mem (srcBase + 4 * k + 1)) := hframe _ (hl k hk).2
-      dsimp only [stride4At, ew_t] at hstr_k ⊢
-      rw [ha0, hlu_eq, hlv_eq, hl0, hl1, hsrc_mem 2 (by decide),
-        hsrc_mem 3 (by decide)] at hstr_k
-      exact hstr_k
-    · exact stride4At_congr (fun q hq => hft_s.mem_eq_of_frontier_eq (ht'_fr.trans htfr.symm) _
-        (by simp only [Sk, Set.mem_Ico]; omega)) (hpref hl i (by omega))
-  obtain ⟨hsafe_it, hv_it, hm_it, hmod_it, hres_it, hfr_it, hwf_it, _, hvals_it⟩ :=
-    iterate_potential_spec liftEdgeStep liftEdgeStepSafe w e 10 count inv (fun _ _ _ => 0)
-      S hstep (0, dstOff) s
-      ⟨rfl, rfl, hwf, fun _ _ => rfl, fun _ _ h => absurd h (Nat.not_lt_zero _)⟩
-  exact ⟨hsafe_it, iterate_bind_snd_ft hv_it (by simpa using hm_it) hmod_it
-    ⟨congrArg Prod.snd hres_it, hfr_it, hwf_it, hvals_it⟩⟩
+  have ⟨hsafe, h⟩ := Memory.FramedTriple.iterate (w := w) (body := liftEdgeStep)
+    (safe := liftEdgeStepSafe) (d := ⟨srcBase, liftBase, dstBase⟩) (c := 10) (n := count)
+    (a₀ := (0, dstOff)) (S := Set.Ico (dstBase + 4 * dstOff) (dstBase + 4 * (dstOff + count)))
+    (fun k a t => (a = (k, dstOff + k) ∧ t.frontier = s.frontier ∧
+      ((∀ j < count,
+        liftBase + s.mem (srcBase + 4 * j) ∉
+          Set.Ico (dstBase + 4 * dstOff) (dstBase + 4 * (dstOff + count)) ∧
+        liftBase + s.mem (srcBase + 4 * j + 1) ∉
+          Set.Ico (dstBase + 4 * dstOff) (dstBase + 4 * (dstOff + count))) →
+        ∀ i < k, stride4At (dstBase + 4 * dstOff) i
+          ⟨s.mem (liftBase + s.mem (srcBase + 4 * i)),
+            s.mem (liftBase + s.mem (srcBase + 4 * i + 1)),
+            s.mem (srcBase + 4 * i + 2), s.mem (srcBase + 4 * i + 3)⟩ t.mem)) ∧
+      Memory.WellFormed w t)
+    ⟨⟨rfl, rfl, fun _ _ h => absurd h (Nat.not_lt_zero _)⟩, hwf⟩
+    (fun k hk a t ⟨⟨ha, htfr, hpref⟩, hwt⟩ ⟨_, hframe⟩ => by
+      subst a
+      have hsrc_mem : ∀ q < 4, t.mem (srcBase + 4 * k + q) = s.mem (srcBase + 4 * k + q) :=
+        fun q hq => hframe _ (by omega) (by region_omega)
+      have hlu_eq : t.mem (srcBase + 4 * k) = s.mem (srcBase + 4 * k) := by
+        simpa using hsrc_mem 0 (by decide)
+      have hlv_eq := hsrc_mem 1 (by decide)
+      have hu_lt : liftBase + t.mem (srcBase + 4 * k) < t.frontier := by
+        rw [hlu_eq, htfr]; exact (hlb k hk).1
+      have hv_lt : liftBase + t.mem (srcBase + 4 * k + 1) < t.frontier := by
+        rw [hlv_eq, htfr]; exact (hlb k hk).2
+      have hr := liftEdgeRead_spec (w := w) (srcBase := srcBase) (liftBase := liftBase)
+        (dstBase := dstBase) (idx := k) (s := t) (by omega) hu_lt hv_lt
+      have hmem_t := hwt.mem_fits
+      have hfit_k1 : Fits w (k + 1) := hwf.frontier_fits.of_le (by omega)
+      have hfit_ok1 : Fits w (dstOff + k + 1) := hwf.frontier_fits.of_le (by omega)
+      obtain ⟨hr_ew, hr_st⟩ := (framedTriple_iff_realization.mp hr).2.2.2
+      refine ⟨⟨h16, hfit_k1, ⟨h16, by dsimp only; omega, hu_lt, hv_lt⟩, ?_⟩, ?_⟩
+      · dsimp only; rw [hr_st, hr_ew]
+        exact ⟨h16, hfit_ok1, hmem_t _, hmem_t _, hmem_t _, hmem_t _, by dsimp only; omega⟩
+      unfold liftEdgeStep
+      refine Memory.FramedTriple.mono (c := 6 + (4 + 0)) ?_ le_rfl fun _ _ => id
+      refine Memory.FramedTriple.call_eq hr (Set.empty_subset _) ?_
+      refine Memory.FramedTriple.call (c₂ := 0) (writeStride4_spec (w := w) (dst := dstBase)
+        (idx := dstOff + k) hwt (hmem_t _) (hmem_t _) (hmem_t _) (hmem_t _) (by omega)) ?_
+        fun nextOff t' hq hm => Memory.FramedTriple.pure ?_
+      · region_omega
+      obtain ⟨hnext, hfr', hwt', hstr⟩ := hq
+      refine ⟨⟨by rw [hnext, Nat.add_assoc], hfr'.trans htfr, fun hl i hi => ?_⟩, hwt'⟩
+      by_cases hik : i = k
+      · subst i
+        have ha0 : dstBase + 4 * (dstOff + k) = dstBase + 4 * dstOff + 4 * k := by omega
+        have hl0 : t.mem (liftBase + s.mem (srcBase + 4 * k)) =
+            s.mem (liftBase + s.mem (srcBase + 4 * k)) :=
+          hframe _ (by have := (hlb k hk).1; omega) (hl k hk).1
+        have hl1 : t.mem (liftBase + s.mem (srcBase + 4 * k + 1)) =
+            s.mem (liftBase + s.mem (srcBase + 4 * k + 1)) :=
+          hframe _ (by have := (hlb k hk).2; omega) (hl k hk).2
+        dsimp only [stride4At] at hstr ⊢
+        rw [ha0, hlu_eq, hlv_eq, hl0, hl1, hsrc_mem 2 (by decide), hsrc_mem 3 (by decide)] at hstr
+        exact hstr
+      · exact stride4At_congr (fun q hq => hm.mem_eq_of_not_mem (by omega) (by region_omega))
+          (hpref hl i (by omega)))
+    fun _ _ h _ => h
+  exact ⟨hsafe, Memory.FramedTriple.mono (Memory.FramedTriple.call (c₂ := 0) h subset_rfl
+    fun _ _ ⟨⟨ha, hfr, hv⟩, hw⟩ _ => Memory.FramedTriple.pure ⟨by rw [ha], hfr, hw, hv⟩)
+    (by omega) fun _ _ => id⟩
 
 /-- Uniform `Realizes .exact` certificate (`work = 0`) for `liftEdgesProg`. -/
 theorem realizes_liftEdgesProg : Realizes .exact
