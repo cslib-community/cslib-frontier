@@ -35,14 +35,23 @@ SIGNATURES = {
         rf"^— `?({SESSION})`?, queue coordinator\b",
         re.I | re.M),
 }
+SELF_IDENTIFICATION = {
+    "worker": re.compile(
+        rf"^Worker `?(codex-{SESSION})`? is taking\b|"
+        r"^awaiting review[^\n]*\(worker session `?([0-9a-f]{8,64})`?\)",
+        re.I,
+    ),
+    "coordinator": re.compile(
+        rf"^I[’']m taking [^\n]+? as coordinator `(codex-{SESSION})`", re.I,
+    ),
+}
 DISCLOSED_ROLE = re.compile(
     r"^\*?AI (?:assistance|disclosure): (?:written|authored) by an? (?:AI )?"
     r"(?:coding )?agent acting as (?:a )?(worker|coordinator)\b",
     re.I | re.M,
 )
 DISCLOSURE = re.compile(
-    r"^\*?Authored by an AI agent\b|^\*\*(?:APPROVE|REQUEST_CHANGES)\*\* at "
-    r"`?[0-9a-f]{7,40}`? by \S+|^\*?\(?Independent non-author(?:ing)? (?:agent|AI)\b",
+    r"^\*?Authored by an AI agent\b|^\*?\(?Independent non-author(?:ing)? (?:agent|AI)\b",
     re.I | re.M,
 )
 
@@ -51,7 +60,7 @@ def disclosure(body: str) -> tuple[str | None, str | None] | None:
     """Return an explicitly disclosed session and role, or no recognizable AI disclosure."""
     # Ignore quoted messages and fenced examples. A review label may name a task rather than
     # a session, and a review can come from either operational role.
-    body = body.replace("\r\n", "\n")
+    body = re.sub(r"(?s)<!--.*?(?:-->|\Z)", "", body.replace("\r\n", "\n"))
     body = re.sub(r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?(?:^[ \t]*\1[ \t]*$|\Z)", "", body)
     sessions = {s.lower() for s in FIELDS.findall(body)}
     roles = {r.lower() for pattern in (ROLE, DISCLOSED_ROLE) for r in pattern.findall(body)}
@@ -59,10 +68,11 @@ def disclosure(body: str) -> tuple[str | None, str | None] | None:
         for match in signature.finditer(body):
             sessions.add(next(s for s in match.groups() if s).lower())
             roles.add(role)
-    claim = WORKER.match(body.lstrip())
-    if claim:
-        sessions.add(next(s for s in claim.groups() if s).lower())
-        roles.add("worker")
+    for role, pattern in (("worker", WORKER), *SELF_IDENTIFICATION.items()):
+        claim = pattern.match(body.lstrip("\n"))
+        if claim:
+            sessions.add(next(s for s in claim.groups() if s).lower())
+            roles.add(role)
     if sessions or roles or DISCLOSURE.search(body):
         return (next(iter(sessions)) if len(sessions) == 1 else None,
                 next(iter(roles)) if len(roles) == 1 else None)
@@ -192,6 +202,7 @@ def summarize(events: list[dict], now: dt.datetime) -> dict:
     day = 86400
     ordered = sorted(events, key=lambda event: (event["time"], event["url"]), reverse=True)
     windows = {}
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     for days in WINDOWS:
         recent = [event for event in ordered if end - day * days < event["time"] <= end]
         by_account = defaultdict(list)
@@ -205,15 +216,14 @@ def summarize(events: list[dict], now: dt.datetime) -> dict:
             evidence = list(dict.fromkeys(e["url"] for e in evidence + activity if e))[:3]
             accounts.append({"login": login, **_counts(activity), "evidence": evidence})
         accounts.sort(key=lambda row: (-row["sessions"], -row["events"], row["login"] or ""))
-        windows[str(days)] = {**_counts(recent), "accounts": accounts}
-
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    daily = []
-    for offset in reversed(range(max(WINDOWS))):
-        date = midnight - dt.timedelta(days=offset)
-        start = int(date.timestamp())
-        daily.append({"date": date.date().isoformat(), **_counts([
-            event for event in ordered if start <= event["time"] < start + day
-            and event["time"] <= end
-        ])})
-    return {"as_of": end, "windows": windows, "daily": daily}
+        daily = []
+        for offset in reversed(range(days + 1)):
+            date = midnight - dt.timedelta(days=offset)
+            start = int(date.timestamp())
+            if start + day <= end - day * days:
+                continue
+            daily.append({"date": date.date().isoformat(), **_counts([
+                event for event in recent if start <= event["time"] < start + day
+            ])})
+        windows[str(days)] = {**_counts(recent), "accounts": accounts, "daily": daily}
+    return {"as_of": end, "windows": windows}

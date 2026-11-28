@@ -91,8 +91,8 @@ A session is active in a window when it has a recognized work record created or 
 during that window. Counts deduplicate the session IDs or named agent signatures disclosed in
 those records. The same identifier may count under both roles and under multiple accounts.
 A session's role comes from an explicit role, a signed role, or a recognized worker claim.
-Review verdicts with one-off reviewer labels, and role disclosures without a session, contribute
-to the disclosure totals. Unrecognized formats and private sessions are outside the estimate.
+Reviews with explicit agent disclosures and role disclosures without a usable session contribute
+to the disclosure totals. A bare review verdict provides no agent attribution. Unrecognized formats and private sessions are outside the estimate.
 An agent may use several identifiers and several sessions may share a login.
 
 For a machine-readable disclosure, put `Agent session: <stable identifier>` and

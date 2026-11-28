@@ -15,7 +15,7 @@
   document.getElementById("as-of").textContent = "As of " + when(activity.as_of);
 
   const tilesToShow = [
-    ["sessions", "Active sessions", "var(--s1)"],
+    ["sessions", "Observed session IDs", "var(--s1)"],
     ["worker", "Worker sessions", "var(--s2)"],
     ["coordinator", "Coordinator sessions", "var(--s3)"],
     ["without_session", "Records without a session", "var(--other)"],
@@ -23,7 +23,7 @@
 
   function render(days) {
     const summary = activity.windows[days];
-    const daily = activity.daily.slice(-Number(days));
+    const daily = summary.daily;
     const dates = daily.map((row) => row.date);
     const maxRole = Math.max(1, ...summary.accounts.map((row) => Math.max(row.worker, row.coordinator)));
 
@@ -36,8 +36,10 @@
       sparkline(svg, dates, daily.map((row) => row[key]));
       svg.querySelector("polyline").setAttribute("stroke", color);
     });
-    coverage.textContent = `${int(summary.events)} disclosed records · ${int(summary.without_role)} ` +
-      `without a role · ${int(summary.both)} sessions observed in both roles`;
+    coverage.textContent = `${int(summary.events)} disclosed records · ` +
+      `${int(summary.events - summary.without_session)} with a usable session ID · ` +
+      `${int(summary.events - summary.without_role)} with a usable role · ` +
+      `${int(summary.both)} session IDs observed in both roles`;
 
     function roleCell(value, color) {
       return `<td class="r"><span class="agent-role" style="--role-color:${color};--role-width:${100 * value / maxRole}%">

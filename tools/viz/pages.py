@@ -128,7 +128,7 @@ appear in both roles or use more than one login.</p>
 <div class="card agent-table" tabindex="0" role="region" aria-label="GitHub account activity">
 <table>
   <thead><tr><th scope="col">Account</th><th scope="col" class="r">Sessions</th>
-    <th scope="col" class="r">Workers</th><th scope="col" class="r">Coordinators</th>
+    <th scope="col" class="r">Worker sessions</th><th scope="col" class="r">Coordinator sessions</th>
     <th scope="col" class="r">Records</th><th scope="col">Evidence</th></tr></thead>
   <tbody id="accounts"></tbody>
 </table>
@@ -138,10 +138,11 @@ appear in both roles or use more than one login.</p>
   <summary>How activity is counted</summary>
   <p>An active session had at least one recognized disclosure in a public issue or pull request
   description, conversation comment, or submitted review during the selected period. Counts use
-  creation or submission time. The mini charts show daily counts in UTC, with today partial.</p>
+  creation or submission time. Edits can change historical counts because the build reads current
+  record text. The mini charts group the selected window by UTC date, including partial dates.</p>
   <p>Recognized disclosures include named session fields, role signatures, worker claims in known
-  formats, and explicit agent or role statements. A review verdict can disclose agent work
-  with no session or role attached.
+  formats, and explicit agent or role statements. A review with an explicit agent disclosure
+  can still lack a usable session or role.
   Unrecognized wording and private work are outside the estimate. Session counts can differ
   from the number of distinct agents in either direction.</p>
   <a href="agent-activity.json">Download summary data (JSON)</a>

@@ -23,7 +23,14 @@ class Disclosures(unittest.TestCase):
             ("— codex-example, queue coordinator", ("codex-example", "coordinator")),
             ("AI assistance: written by an AI coding agent acting as coordinator.",
              (None, "coordinator")),
-            ("**APPROVE** at `abcd1234` by `reviewer-1-abcd1234`", (None, None)),
+            ("**APPROVE** at `abcd1234` by `reviewer-1-abcd1234`", None),
+            ("**APPROVE** at abcd1234 by helper\nIndependent non-author agent review.",
+             (None, None)),
+            ("<!-- Agent session: fake-session\nAgent role: worker -->", None),
+            ("Worker codex-bf12f189 is taking this task.", ("codex-bf12f189", "worker")),
+            ("awaiting review at abcdef12 (worker session 2680eecf).", ("2680eecf", "worker")),
+            ("I’m taking the author-side restack as coordinator `codex-5b83`.",
+             ("codex-5b83", "coordinator")),
             ("Agent session: session-1\nAgent role: coordinator", ("session-1", "coordinator")),
         ]
         for body, expected in cases:
@@ -65,15 +72,18 @@ class CountWindows(unittest.TestCase):
                          (6, 2, 1))
         self.assertEqual([row["sessions"] for row in week["accounts"]], [2, 1])
         self.assertEqual(report["windows"]["30"]["sessions"], 3)
-        self.assertEqual(report["daily"][-1]["sessions"], 1)
+        self.assertEqual(week["daily"][-1]["sessions"], 1)
+        self.assertEqual(len(week["daily"]), 8)
+        self.assertEqual(week["daily"][0]["events"], 0)
+        self.assertEqual(sum(row["events"] for row in week["daily"]), week["events"])
         self.assertNotIn("first-session", json.dumps(report))
 
     def test_empty_report_has_both_windows_and_daily_zeroes(self):
         now = dt.datetime(2026, 11, 28, tzinfo=dt.timezone.utc)
         report = activity.summarize([], now)
         self.assertEqual(report["windows"]["7"]["accounts"], [])
-        self.assertEqual(len(report["daily"]), 30)
-        self.assertTrue(all(row["events"] == 0 for row in report["daily"]))
+        self.assertEqual(len(report["windows"]["30"]["daily"]), 30)
+        self.assertTrue(all(row["events"] == 0 for row in report["windows"]["30"]["daily"]))
 
 
 class Collection(unittest.TestCase):
