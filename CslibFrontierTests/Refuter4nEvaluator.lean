@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
 public meta import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
+import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
 
 /-!
 # Tests for framed Word-RAM evaluators
@@ -18,6 +20,9 @@ public meta import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
   `FramedEvaluator.exec_loop`, within `k * (E.cost + 7) + 4` instructions: every call charged.
   Memory outside the window and the output block is kept (`exec_evalMany`).
 * `exec_evalMany` instantiated with `parityEvaluator` as an ordinary module client.
+* `windowEvaluator`: an evaluator with a one-cell window that it writes before reading, with
+  `exec_evalMany` at a window disjoint from the source and output blocks, and interpreter runs
+  from a dirty window.
 * Runs of the interpreter `Code.eval` on `parityCode n` and on `evalMany (parityEvaluator n)`
   for concrete points, with dirty memory and registers: results and instruction counts within
   the proved bounds.
@@ -123,7 +128,8 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     refine ⟨_, xs[k], ((Exec.bin hsrcf).within.seq Exec.load.within), ?_, ?_, ?_⟩
     · simpa [Function.update_apply, Ne.symm hib, hyb] using hfb
     · simp [hys, hk, hsk]
-    intro t ⟨hout, _, hbase, hregs, hmem⟩
+    intro t ⟨⟨hout, _, hbase, hmem⟩, hregs⟩
+    simp only [Data.comap_regs, Data.comap_mem] at hout hbase hmem
     have hta (i : Fin 6) (hi : i ≠ 4) : t.regs (Fin.natAdd r i) = y.regs (Fin.natAdd r i) := by
       rw [hregs _ fun j => bank_ne j i]
       simp [hi]
@@ -173,9 +179,10 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
 example (x : BitString 4) (s : Data 7) (hx : s.regs 0 = pointWord x) (hb : s.regs 1 = 0) :
     ∃ t, ExecWithin 5 (parityEvaluator 4).code s t 30 ∧ t.regs 2 = (parity 4 x).toNat ∧
       t.mem 9 = s.mem 9 := by
-  obtain ⟨t, ht, hout, -, -, hmem⟩ := (parityEvaluator 4).exec (w := 5) (b := 0) x s
-    (show 4 + 1 ≤ 5 by decide) (by simp [parityEvaluator, Fits]) hx hb
-  exact ⟨t, ht, hout, hmem 9 (by simp [parityEvaluator])⟩
+  have hfit : Fits 5 (s.regs 1 + 0) := by rw [hb]; decide
+  obtain ⟨t, ht, hout, -, -, hmem⟩ := (parityEvaluator 4).exec (w := 5) x s
+    (show 4 + 1 ≤ 5 by decide) hfit hx
+  exact ⟨t, ht, hout, hmem 9 (Or.inr (show s.regs 1 + 0 ≤ 9 by rw [hb]; decide))⟩
 
 /-- `exec_evalMany` for the parity evaluator: `k` calls charged `k * (6 n + 13) + 4`. -/
 example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ w)
@@ -191,6 +198,47 @@ example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ 
     (fun j _ => show dst + j < b ∨ b + 0 ≤ dst + j by omega)
     hsd
   exact ⟨t, ht, hres⟩
+
+/-! ### An evaluator with a workspace
+
+`windowEvaluator` reads bit `0` of a one-bit point through its one-cell window: it stores the
+packed point at the base address, loads it back and masks it. It writes its window before reading
+it, so the dirty window contents never matter, and it keeps every other cell. -/
+
+/-- The window evaluator's program on registers `0` (point), `1` (base), `2` (result) and `3`
+(constant one). -/
+def windowCode : Code .standard 4 :=
+  .seq (.op (.const 3 1)) (.seq (.op (.store 1 0)) (.seq (.op (.load 2 1)) (.op (.bin .and 2 2 3))))
+
+/-- The window evaluator's certificate: at every width `w ≥ 2`, from any data with the packed
+point in register `0`, `windowCode` leaves bit `0` of the point in register `2` within four
+instructions, keeps registers `0` and `1`, and keeps every cell but the one at the base. -/
+theorem exec_windowCode {w : ℕ} (x : BitString 1) (s : Data 4) (hw : 1 + 1 ≤ w)
+    (hx : s.regs 0 = pointWord x) :
+    ∃ t, ExecWithin w windowCode s t 4 ∧ EvalPost (fun x : BitString 1 => x 0) 0 1 2 1 x s t := by
+  have h1 : Fits w 1 := fits_one (by omega)
+  have hbit : pointWord x &&& 1 = (x 0).toNat := by
+    rw [← Nat.shiftRight_zero (n := pointWord x), Nat.shiftRight_and_one]
+    exact congrArg Bool.toNat (testBit_equivFin x 0)
+  refine ⟨_, (Exec.const h1).within.seq (Exec.store.within.seq (Exec.load.within.seq
+    (Exec.bin (h1.of_le Nat.and_le_right)).within)), ⟨?_, ?_, ?_, fun a ha => ?_⟩⟩
+  · simp [hx, hbit, BinOp.eval]
+  · simp
+  · simp
+  · have hne : a ≠ s.regs 1 := by omega
+    simp [hne]
+
+/-- The window evaluator: `f x = x 0` on one bit, a one-cell window, four instructions. -/
+def windowEvaluator : FramedEvaluator 1 (fun x => x 0) 4 where
+  code := windowCode
+  inp := 0
+  base := 1
+  out := 2
+  space := 1
+  cost := 4
+  inp_ne_base := by decide
+  space_le_cost := by decide
+  exec x s hw _ hx := exec_windowCode x s hw hx
 
 /-- A point of `BitString n` from the low bits of `v`. -/
 def ofWord (n v : ℕ) : BitString n := fun i => v.testBit i
@@ -236,5 +284,41 @@ def manyOk (n : ℕ) (vs : List ℕ) : Bool :=
 #guard manyOk 3 []
 #guard manyOk 3 [0, 1, 2, 3, 4, 5, 6, 7]
 #guard manyOk 5 [31, 17, 8, 0, 21]
+
+/-- Caller data for `evalMany windowEvaluator`: one-bit points `vs` at `src = 40`, output at
+`dst = 60`, window base `30`, junk elsewhere (the window cell included). -/
+def windowCallerData (vs : List ℕ) : Data 10 :=
+  ⟨fun i => if i = 5 then vs.length else if i = 6 then 40 else if i = 7 then 60
+      else if i = 1 then 30 else 5 * i.val + 2,
+    fun a => if 40 ≤ a ∧ a < 40 + vs.length then vs.getD (a - 40) 0 % 2 else 3 * a + 11⟩
+
+/-- Run `evalMany windowEvaluator` at width `8`: every output is the point's bit, memory outside
+the window cell `30` and the output block is kept, and the count is within `k * 11 + 4`. -/
+def windowManyOk (vs : List ℕ) : Bool :=
+  let s := windowCallerData vs
+  match (evalMany windowEvaluator).eval 8 1000 s with
+  | some (y, t) =>
+    ((List.range vs.length).all fun j => y.mem (60 + j) == vs.getD j 0 % 2) &&
+      ((List.range 100).all fun a =>
+        a == 30 || (60 ≤ a ∧ a < 60 + vs.length) || y.mem a == s.mem a) &&
+      t ≤ vs.length * (windowEvaluator.cost + 7) + 4
+  | none => false
+
+#guard windowManyOk [1, 0, 1, 1]
+#guard windowManyOk []
+
+/-- `exec_evalMany` for the window evaluator, with the window at a base `b` disjoint from the
+source and output blocks. -/
+example {w b src dst : ℕ} (xs : List (BitString 1)) (s : Data 10) (hw : 2 ≤ w)
+    (hcnt : s.regs 5 = xs.length) (hsrc : s.regs 6 = src) (hdst : s.regs 7 = dst)
+    (hb : s.regs 1 = b) (hpts : ∀ (j : ℕ) (hj : j < xs.length), s.mem (src + j) = pointWord xs[j])
+    (hfb : Fits w (b + 1)) (hfs : Fits w (src + xs.length)) (hfd : Fits w (dst + xs.length))
+    (hbs : src + xs.length ≤ b) (hbd : b + 1 ≤ dst)
+    (hsd : ∀ i < xs.length, ∀ j < xs.length, dst + i ≠ src + j) :
+    ∃ t, ExecWithin w (evalMany windowEvaluator) s t (xs.length * 11 + 4) ∧
+      ∀ (j : ℕ) (hj : j < xs.length), t.mem (dst + j) = (xs[j] 0).toNat := by
+  obtain ⟨t, ht, hres, -⟩ := exec_evalMany windowEvaluator xs s hw hcnt hsrc hdst hb hpts hfb
+    hfs hfd (fun j hj => Or.inl (by omega)) (fun j _ => Or.inr (show b + 1 ≤ dst + j by omega)) hsd
+  exact ⟨t, ht, hres⟩
 
 end CslibFrontierTests.Refuter4nEvaluator

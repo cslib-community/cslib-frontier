@@ -36,12 +36,13 @@ so it fits at every width `w ≥ n` (`fits_pointWord`).
 **Contract.** A `FramedEvaluator n f r` is a fixed standard-basis program `code` on `r`
 registers, with an input register `inp`, a workspace base register `base`, a result register
 `out` (`inp ≠ base`), a workspace size `space` and a per-call instruction bound `cost`. The
-certificate `exec` holds at every word width `w ≥ n + 1`, for every point `x`, every base
-address `b` with `Fits w (b + space)`, and every data whose register `inp` holds `pointWord x`
-and register `base` holds `b`; the other registers and all memory, including the workspace
-window `[b, b + space)`, are arbitrary. From such data `code` runs within `cost` instructions to
-data with `(f x).toNat` in `out`, registers `inp` and `base` unchanged, and every memory cell
-outside the window unchanged. Window cells and the other registers are left unspecified.
+certificate `exec` holds at every word width `w ≥ n + 1`, for every point `x` and every data
+whose register `inp` holds `pointWord x` and whose register `base` holds an address `b` with
+`Fits w (b + space)`; the other registers and all memory, including the workspace window
+`[b, b + space)`, are arbitrary. From such data `code` runs within `cost` instructions to data
+satisfying `EvalPost`: `(f x).toNat` in `out`, registers `inp` and `base` unchanged, and every
+memory cell outside the window unchanged. Window cells and the other registers are left
+unspecified.
 
 The admitted widths are fixed rather than chosen by the evaluator: every `w ≥ n + 1`, the
 widths at which the packed point fits and, even for `n = 0`, so does the constant `1`. A caller
@@ -68,8 +69,8 @@ a caller's registers and memory, so its certificate carries a frame and starts f
 data.
 
 **Calls.** A caller runs `code` in an injective register bank `g` of its own register file
-(`Code.rename`). The call postcondition `CallPost` records the result in `g out`, `g inp` and
-`g base` kept, every caller register outside the bank kept and memory outside the window kept.
+(`Code.rename`). The call postcondition `CallPost` is `EvalPost` read through the bank, plus
+every caller register outside the bank kept.
 `FramedEvaluator.exec_loop` runs a counting loop whose body is a charged preparation, one call
 and a charged continuation (`ExecWithin.call`): from index `i₀` up to the limit `N` it costs
 `(N - i₀) * (tPrep + cost + tCont + 2) + 2` instructions, overhead plus the number of calls
@@ -82,6 +83,7 @@ instructions.
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.Refuter4n.pointWord`: the packed word of a point.
+* `Cslib.Algorithms.WordRAM.Refuter4n.EvalPost`: the postcondition of one evaluation.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator`: a fixed Word-RAM program for `f` with
   its calling convention, cost and execution certificate.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.CallPost`: the postcondition of one call
@@ -115,13 +117,28 @@ theorem fits_pointWord {w : ℕ} (x : BitString n) (h : n ≤ w) : Fits w (point
 
 /-! ### The evaluator contract -/
 
+/-- The postcondition of one evaluation of `f` on `x`, from data `s` to data `t`, for the input
+register `inp`, the base register `base`, the result register `out` and a window of `space`
+cells at the base held in `base`. "Outside the window" is written `a < b ∨ b + space ≤ a`, as in
+the frames of `MemoryWindow`. -/
+structure EvalPost {r : ℕ} (f : BooleanFunction n) (inp base out : Fin r) (space : ℕ)
+    (x : BitString n) (s t : Data r) : Prop where
+  /-- The result register holds `(f x).toNat`. -/
+  result : t.regs out = (f x).toNat
+  /-- The input register is kept. -/
+  inp_eq : t.regs inp = s.regs inp
+  /-- The base register is kept. -/
+  base_eq : t.regs base = s.regs base
+  /-- Every memory cell outside the window is kept. -/
+  mem_eq : ∀ a, (a < s.regs base ∨ s.regs base + space ≤ a) → t.mem a = s.mem a
+
 /-- A **framed Word-RAM evaluator** for `f : BooleanFunction n`: a fixed standard-basis program
 on `r` registers with its calling convention and per-call instruction bound. The certificate
 `exec` holds at every width `w ≥ n + 1`, from any data whose register `inp` holds the packed
 point and register `base` the workspace base `b`, with all other registers and all memory
 arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
-`cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window.
-"Outside" is written `a < b ∨ b + space ≤ a`, as in the frames of `MemoryWindow`. -/
+`cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window
+(`EvalPost`). -/
 structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
   /-- The fixed program. -/
   code : Code .standard r
@@ -141,31 +158,22 @@ structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
   free. -/
   space_le_cost : space ≤ cost
   /-- The execution certificate, for every width `w ≥ n + 1`, point, base and data. -/
-  exec : ∀ {w b : ℕ} (x : BitString n) (s : Data r), n + 1 ≤ w → Fits w (b + space) →
-    s.regs inp = pointWord x → s.regs base = b →
-    ∃ t, ExecWithin w code s t cost ∧ t.regs out = (f x).toNat ∧
-      t.regs inp = s.regs inp ∧ t.regs base = s.regs base ∧
-      ∀ a, (a < b ∨ b + space ≤ a) → t.mem a = s.mem a
+  exec : ∀ {w : ℕ} (x : BitString n) (s : Data r), n + 1 ≤ w →
+    Fits w (s.regs base + space) → s.regs inp = pointWord x →
+    ∃ t, ExecWithin w code s t cost ∧ EvalPost f inp base out space x s t
 
 namespace FramedEvaluator
 
 variable {f : BooleanFunction n} {r r' : ℕ} (E : FramedEvaluator n f r)
 
 /-- The postcondition of one call of `E` in the register bank `g` of a caller, from caller data
-`s` on the point `x` to caller data `t`: the result is in `g E.out`, the registers `g E.inp`
-and `g E.base` are kept, every caller register outside the bank is kept, and every memory cell
-outside the window at the base held in `g E.base` is kept. -/
-structure CallPost (g : Fin r → Fin r') (x : BitString n) (s t : Data r') : Prop where
-  /-- The result is in the bank's result register. -/
-  result : t.regs (g E.out) = (f x).toNat
-  /-- The bank's input register is kept. -/
-  inp_eq : t.regs (g E.inp) = s.regs (g E.inp)
-  /-- The bank's base register is kept. -/
-  base_eq : t.regs (g E.base) = s.regs (g E.base)
+`s` on the point `x` to caller data `t`: `EvalPost` read through the bank (the result in
+`g E.out`, `g E.inp` and `g E.base` kept, memory outside the window kept), and every caller
+register outside the bank kept. -/
+structure CallPost (g : Fin r → Fin r') (x : BitString n) (s t : Data r') : Prop
+    extends EvalPost f E.inp E.base E.out E.space x (s.comap g) (t.comap g) where
   /-- Every caller register outside the bank is kept. -/
   regs_eq : ∀ i, (∀ j, g j ≠ i) → t.regs i = s.regs i
-  /-- Every memory cell outside the window is kept. -/
-  mem_eq : ∀ a, (a < s.regs (g E.base) ∨ s.regs (g E.base) + E.space ≤ a) → t.mem a = s.mem a
 
 /-- **A counting loop with one call per iteration.** The body is a charged preparation `prep`,
 one call of `E` in the bank `g` and a charged continuation `cont`, at a width `w ≥ n + 1`. At
@@ -188,8 +196,8 @@ theorem exec_loop {g : Fin r → Fin r'} (hg : g.Injective) {w N tPrep tCont : �
       ((N - s.regs index) * (tPrep + E.cost + tCont + 2) + 2) ∧ P N y ∧ y.regs index = N :=
   ExecWithin.loop_count P hlimit (fun y hy hlt => by
     obtain ⟨a, x, hprep, hfit, hx, hcont⟩ := hstep y hy hlt
-    exact ExecWithin.call hg hprep (E.exec x (a.comap g) hw hfit hx rfl)
-      fun t ⟨hout, hinp, hbase, hmem⟩ hframe => hcont t ⟨hout, hinp, hbase, hframe, hmem⟩) hle hs
+    exact ExecWithin.call hg hprep (E.exec x (a.comap g) hw hfit hx)
+      fun t hpost hframe => hcont t ⟨hpost, hframe⟩) hle hs
 
 end FramedEvaluator
 
@@ -288,9 +296,9 @@ workspace, at the widths `w ≥ n + 1`, within `6 n + 6` instructions per call. 
   cost := 6 * n + 6
   inp_ne_base := by decide
   space_le_cost := Nat.zero_le _
-  exec x s hw _ hx _ := by
+  exec x s hw _ hx := by
     obtain ⟨t, ht, hout, hinp, hbase, hmem⟩ := exec_parityCode x s hw hx
-    exact ⟨t, ht, hout, hinp, hbase, fun a _ => by rw [hmem]⟩
+    exact ⟨t, ht, ⟨hout, hinp, hbase, fun a _ => by rw [hmem]⟩⟩
 
 end Parity
 
