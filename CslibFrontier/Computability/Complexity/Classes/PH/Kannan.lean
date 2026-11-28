@@ -11,9 +11,11 @@ public import CslibFrontier.Computability.Circuit.Boolean.PPoly
 public import CslibFrontier.Computability.Circuit.Boolean.Substitution
 public import CslibFrontier.Computability.Complexity.Classes.NP.Image
 public import CslibFrontier.Computability.Complexity.Classes.PH
+public import CslibFrontier.Computability.Complexity.Classes.Space
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.MCSP.NP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Complexity.Classes.PH.KarpLipton
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -65,7 +67,10 @@ not say which of the two languages witnesses the theorem.
 
 * `Cslib.Complexity.Kannan.language_notMem_SIZE`: Kannan's language has no circuits of size
   `O(n ^ k)`.
-* `Cslib.Complexity.Kannan.language_mem_SigmaP_three`: Kannan's language is in `Σ₃`.
+* `Cslib.Complexity.Kannan.eventually_lt_complexity_slice`: its slices need more than
+  `(n + 1) ^ k` gates at all large lengths.
+* `Cslib.Complexity.Kannan.language_mem_SigmaP_three`: Kannan's language is in `Σ₃`, hence in
+  `PSPACE` (`Cslib.Complexity.Kannan.language_mem_PSPACE`).
 * `Cslib.Complexity.exists_mem_SigmaP_two_inter_PiP_two_notMem_SIZE`: **Kannan's theorem**, for
   every `k` some language in `Σ₂ ∩ Π₂` has no circuits of size `O(n ^ k)`.
 * `Cslib.Complexity.exists_mem_SigmaP_two_notMem_SIZE`: its `Σ₂` form.
@@ -193,25 +198,15 @@ private theorem slice_language {k n : ℕ} {T : List Bool} (hT : IsFirstHard k n
   simp only [List.length_ofFn]
   exact ⟨fun ⟨T', hT', h⟩ => hT.unique hT' ▸ h, fun h => ⟨T, hT, h⟩⟩
 
-/-- Feeding the first `m ≤ n` inputs from `m` variables and the others with `false`. -/
-private def restriction (m n : ℕ) (j : Fin n) : Fin m ⊕ Bool :=
-  if h : j.val < m then .inl ⟨j.val, h⟩ else .inr false
-
-private theorem take_ofFn_substitute_restriction {m n : ℕ} (h : m ≤ n) (y : Fin m → Bool) :
-    (List.ofFn (substitute (restriction m n) y)).take m = List.ofFn y := by
-  refine List.ext_getElem (by simp [h]) fun i h₁ h₂ => ?_
-  simp only [List.length_ofFn] at h₂
-  simp [restriction, substitute, h₂]
-
 /-- The slices of Kannan's language need more than `threshold k n - 2` gates where a hard truth
 table exists on at most `n` inputs. -/
 private theorem threshold_lt_complexity_slice {k n : ℕ} {T : List Bool} (hT : IsFirstHard k n T)
     (hm : arity k n ≤ n) :
     threshold k n < complexity interpretation (single ((language k).slice n)) + 2 := by
   refine hT.1.2.trans_le (le_of_eq_of_le ?_
-    (complexity_substitute_le (restriction (arity k n) n) ((language k).slice n)))
+    (complexity_substitute_le (padInputs (arity k n) n) ((language k).slice n)))
   congr 2 with y : 1
-  rw [slice_language hT, take_ofFn_substitute_restriction hm]
+  rw [slice_language hT, take_ofFn_substitute_padInputs hm]
   rfl
 
 /-- **Kannan's language has no circuits of size `O(n ^ k)`.** -/
@@ -227,6 +222,22 @@ theorem language_notMem_SIZE (k c : ℕ) : language k ∉ SIZE fun n => c * (n +
     exact Nat.mul_le_mul_left _ (by omega)
   have hpos : 1 ≤ (n + 1) ^ k := Nat.one_le_pow _ _ (by omega)
   nlinarith
+
+/-- **Kannan's language is hard at all large lengths**: its slices need more than `(n + 1) ^ k`
+gates for every large `n`. -/
+theorem eventually_lt_complexity_slice (k : ℕ) :
+    ∀ᶠ n in atTop, (n + 1) ^ k < complexity interpretation (single ((language k).slice n)) := by
+  filter_upwards [eventually_exists_isHard k, eventually_arity_le k] with n hT hm
+  obtain ⟨T, hT⟩ := exists_isFirstHard hT
+  have hlt := threshold_lt_complexity_slice hT hm
+  have hpos : 1 ≤ (n + 1) ^ k := Nat.one_le_pow _ _ (by omega)
+  have hn : 4 ≤ n + 1 := by
+    have h3 : k + 3 ≤ arity k n := Nat.le_mul_of_pos_right _ (Nat.succ_pos _)
+    omega
+  have hle : (n + 1) ^ k + 2 ≤ threshold k n := by
+    rw [threshold, pow_succ]
+    nlinarith
+  omega
 
 /-! ### The `Σ₃` verifier -/
 
@@ -446,6 +457,10 @@ theorem language_mem_SigmaP_three (k : ℕ) :
     (language k : Set (List Bool)) ∈ SigmaP 3 encBits :=
   ⟨_, verifier k, rfl, computableInPolyTime_verifier k,
     isAlternatingVerifier_verifier k⟩
+
+/-- **Kannan's language is in `PSPACE`**, since `Σ₃ ⊆ PSPACE`. -/
+theorem language_mem_PSPACE (k : ℕ) : (language k : Set (List Bool)) ∈ PSPACE encBits :=
+  SigmaP_subset_PSPACE 3 (language_mem_SigmaP_three k)
 
 end Kannan
 

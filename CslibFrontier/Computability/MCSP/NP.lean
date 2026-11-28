@@ -271,6 +271,16 @@ theorem tableValue_ofFn (x : Instance) (y : BitString x.arity) :
   funext y
   exact (tableValue_ofFn ⟨m, truthTable m f, 0⟩ y).trans (by simp [Instance.function])
 
+/-- A list of `2 ^ m` bits is the truth table of the function it encodes. -/
+theorem ofFn_truthTable_tableFunction {m : ℕ} {T : List Bool} (hT : T.length = 2 ^ m) :
+    List.ofFn (truthTable m (tableFunction m T)) = T := by
+  obtain ⟨T', rfl⟩ : ∃ T' : Fin (2 ^ m) → Bool, List.ofFn T' = T :=
+    ⟨BitString.ofList _ T, BitString.ofFn_ofList hT⟩
+  congr 1
+  funext i
+  simp only [truthTable_apply, tableFunction, tableValue, getD_boundedBinaryValue_reverse_ofFn,
+    Equiv.apply_symm_apply]
+
 /-- The polynomial bounding the length of certificates. -/
 noncomputable def certPolynomial : Polynomial ℕ := 40 * (Polynomial.X + 1) ^ 4
 
