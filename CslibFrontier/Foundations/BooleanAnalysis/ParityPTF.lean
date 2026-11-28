@@ -16,10 +16,11 @@ import Mathlib.Algebra.Order.BigOperators.Expect
 Every polynomial threshold representation of the parity `parityOn S` of a set `S` of coordinates,
 over a family `T` of monomials, must include `S` in `T`, and in particular any polynomial threshold
 function computing `parity n` has degree at least `n`
-[Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
-[O'Donnell, Exercise 5.10(a)][ODonnell2014]. Since `signVal (parityOn S x) = χ_S(x)`, `parityOn S`
-is a polynomial threshold function over `{S}`, so the degree bound `n` is tight, including the
-constant case `n = 0` (`Cslib.BitString.isPTF_parity_iff`).
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
+[O'Donnell, Exercise 5.10(a)][ODonnell2014] (the locator in the 1969 printing remains unverified).
+Since `signVal (parityOn S x) = χ_S(x)`, `parityOn S` is a polynomial threshold function over `{S}`,
+so the degree bound `n` is tight, including the constant case `n = 0`
+(`Cslib.BitString.isPTF_parity_iff`).
 
 Following `CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold`,
 the lower bound is stated both for nowhere-vanishing representations (`Cslib.BitString.IsPTFOn`,
@@ -45,6 +46,8 @@ condition for every `f` and every `T`.
 ## References
 
 * [M. Minsky, S. Papert, *Perceptrons: An Introduction to Computational Geometry*][MinskyPapert1969]
+  (original 1969; verified in the 1988 expanded edition, Ch. 3, §3.1, Theorem 3.1.1, pp. 56–57;
+  1969 printing locator unverified)
 * [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]
 -/
 
@@ -60,7 +63,7 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-- **Minsky–Papert correlation positivity for parity**: if `p` is not identically zero and
 `0 ≤ signVal (parityOn S x) * p x` for every `x`, then `p` has strictly positive Fourier
 coefficient on `S`, because `𝔼 x, χ_S(x) p(x) = 𝔼 x, |p(x)| > 0`
-[Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem fourierCoeff_pos_of_nonneg_mul_parityOn {S : Finset ι} {p : (ι → Bool) → ℝ}
     (hp₀ : p ≠ 0) (hp : ∀ x, 0 ≤ signVal (parityOn S x) * p x) :
@@ -75,7 +78,8 @@ theorem fourierCoeff_pos_of_nonneg_mul_parityOn {S : Finset ι} {p : (ι → Boo
 
 /-- **Monomial-support lower bound for parity (zeros allowed)**: if a nonzero `p` whose Fourier
 coefficients vanish outside `T` satisfies `0 ≤ signVal (parityOn S x) * p x` everywhere, then
-`S ∈ T` [Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+`S ∈ T`
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem mem_of_nonneg_mul_parityOn {T : Finset (Finset ι)} {S : Finset ι}
     {p : (ι → Bool) → ℝ} (hpT : ∀ U ∉ T, fourierCoeff p U = 0)
@@ -83,8 +87,8 @@ theorem mem_of_nonneg_mul_parityOn {T : Finset (Finset ι)} {S : Finset ι}
   by_contra fun hS => (fourierCoeff_pos_of_nonneg_mul_parityOn hp₀ hp).ne' (hpT S hS)
 
 /-- **Minsky–Papert degree lower bound for `parityOn S` (zeros allowed)**: if a nonzero `p` of
-Fourier degree at most `k` satisfies `0 ≤ signVal (parityOn S x) * p x` everywhere, then
-`#S ≤ k` [Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+Fourier degree at most `k` satisfies `0 ≤ signVal (parityOn S x) * p x` everywhere, then `#S ≤ k`
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem card_le_of_nonneg_mul_parityOn {S : Finset ι} {k : ℕ} {p : (ι → Bool) → ℝ}
     (hpk : ∀ U, k < #U → fourierCoeff p U = 0)
@@ -93,7 +97,8 @@ theorem card_le_of_nonneg_mul_parityOn {S : Finset ι} {k : ℕ} {p : (ι → Bo
 
 /-- **Minsky–Papert degree-`n` PTF lower bound for `parity` (zeros allowed)**: if a nonzero
 `p : BitString n → ℝ` of Fourier degree at most `k` satisfies `0 ≤ signVal (parity n x) * p x`
-for every `x`, then `n ≤ k` [Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+for every `x`, then `n ≤ k`
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem le_of_nonneg_mul_parity {n k : ℕ} {p : BitString n → ℝ}
     (hpk : ∀ S : Finset (Fin n), k < #S → fourierCoeff p S = 0)
@@ -102,7 +107,7 @@ theorem le_of_nonneg_mul_parity {n k : ℕ} {p : BitString n → ℝ}
 
 /-- **Exact PTF family characterization for `parityOn S`**: `parityOn S` is a polynomial
 threshold function over `T` if and only if `S ∈ T`
-[Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem isPTFOn_parityOn_iff {T : Finset (Finset ι)} {S : Finset ι} :
     IsPTFOn T (parityOn S) ↔ S ∈ T := by
@@ -115,7 +120,7 @@ theorem isPTFOn_parityOn_iff {T : Finset (Finset ι)} {S : Finset ι} :
 
 /-- **Tight PTF degree characterization for `parityOn S`**: `parityOn S` is a polynomial
 threshold function of degree at most `k` if and only if `#S ≤ k`
-[Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem isPTF_parityOn_iff {k : ℕ} {S : Finset ι} :
     IsPTF k (parityOn S) ↔ #S ≤ k := by
@@ -123,7 +128,7 @@ theorem isPTF_parityOn_iff {k : ℕ} {S : Finset ι} :
 
 /-- **Minsky–Papert theorem**: the `n`-bit parity function is a polynomial threshold function of
 degree at most `k` if and only if `n ≤ k`
-[Minsky and Papert, Theorem 3.1.1][MinskyPapert1969]
+[Minsky and Papert (1969); 1988 expanded edition, Theorem 3.1.1, §3.1, pp. 56–57][MinskyPapert1969]
 [O'Donnell, Exercise 5.10(a)][ODonnell2014]. -/
 theorem isPTF_parity_iff {n k : ℕ} :
     IsPTF k (parity n) ↔ n ≤ k := by

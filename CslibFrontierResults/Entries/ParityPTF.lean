@@ -17,7 +17,8 @@ register_result "minsky-papert-parity-ptf-degree" where
   topic := "analysis of Boolean functions"
   sources := [
     { paper := MinskyPapert1969, theorem := "Theorem 3.1.1",
-      locator := "Ch. 3, §3.1" },
+      locator := "1988 expanded edition, Ch. 3, §3.1, printed pp. 56–57 \
+        (original 1969; locator in the 1969 printing not verified)" },
     { paper := ODonnell2014, theorem := "Exercise 5.10(a)",
       locator := "arXiv:2105.10386v1, §5.6, printed p. 135" }
   ]
