@@ -52,26 +52,22 @@ theorem splitFullNode_bits_lt {c n_max : ℕ} {nd : BTreeNode}
   obtain ⟨ht3, hmeta_cap, _, _⟩ := (btree_slice_param_bounds hth).1
   have hsep_lt : laneGet (fpBitsWhp n_max + 2) nd.keysWord (tMinWhp n_max - 1) <
       2 ^ keyLaneBitsWhp n_max := by
-    rw [laneGet_eq_div_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have htk_lt (m : ℕ) (hm : m ≤ tMinWhp n_max) :
-      wordTakeLow (fpBitsWhp n_max + 2) m nd.keysWord < 2 ^ keysWordBitsWhp n_max := by
-    unfold keysWordBitsWhp keyLaneBitsWhp
-    exact (wordTakeLow_lt _ _ _).trans_le
-      (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
-  have htv_lt : wordTakeLow (valLaneBitsWhp n_max) (tMinWhp n_max) nd.valsWord <
-      2 ^ valsWordBitsWhp n_max := by
-    unfold valsWordBitsWhp
-    exact (wordTakeLow_lt _ _ _).trans_le
-      (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
+    rw [laneGet_eq_div_mod]
+    exact Nat.mod_lt _ (Nat.two_pow_pos _)
+  have htake {wL m x : ℕ} (hm : m ≤ 2 * tMinWhp n_max) :
+      wordTakeLow wL m x < 2 ^ (2 * tMinWhp n_max * wL) :=
+    (wordTakeLow_lt wL m x).trans_le (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right wL hm))
   have hdk_lt : wordDropLow (fpBitsWhp n_max + 2) (tMinWhp n_max) nd.keysWord <
       2 ^ keysWordBitsWhp n_max := by
-    rw [wordDropLow_eq_div]; exact (Nat.div_le_self _ _).trans_lt hk
+    rw [wordDropLow_eq_div]
+    exact (Nat.div_le_self _ _).trans_lt hk
   have hdv_lt : wordDropLow (valLaneBitsWhp n_max) (tMinWhp n_max) nd.valsWord <
       2 ^ valsWordBitsWhp n_max := by
-    rw [wordDropLow_eq_div]; exact (Nat.div_le_self _ _).trans_lt hv
-  unfold splitFullNode mkNodeMeta
-  split_ifs <;> dsimp only <;> refine ⟨by omega, htk_lt _ ?_, htv_lt, hsep_lt,
-    by omega, hdk_lt, hdv_lt⟩ <;> omega
+    rw [wordDropLow_eq_div]
+    exact (Nat.div_le_self _ _).trans_lt hv
+  unfold splitFullNode mkNodeMeta keysWordBitsWhp keyLaneBitsWhp valsWordBitsWhp
+  split_ifs <;> dsimp only <;> refine ⟨by omega, htake (by omega), htake (by omega), hsep_lt,
+    by omega, hdk_lt, hdv_lt⟩
 
 /-- Shared 4-write frame lemma for proactive root/child splits: writing 3 nodes `(idx1, nd1)`,
 `(idx2, nd2)`, `(idx3, nd3)` below `newA` followed by `writeSliceAllocGenProg` establishes

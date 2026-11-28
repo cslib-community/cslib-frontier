@@ -392,11 +392,9 @@ theorem IntervalValid.calcDeleteStop_spec {U b f : ℕ} {S : Finset (Fin U)}
     obtain ⟨hpw₁, _⟩ := List.pairwise_cons.mp
       (hL ▸ List.pairwise_lt_range.filter _ : (e₀ :: rest).Pairwise (· < ·))
     refine ⟨ha_e, he_lt.le, (hinv.runOffset_eq_self_iff hocc he_lt.le).mpr (Or.inr he_c),
-      fun m hm hm1 => hstep m hm (by simp at hm1; omega) fun hmem => ?_⟩
+      fun m hm hm1 => hstep m hm (hm1.trans he_lt) fun hmem => ?_⟩
     rcases List.mem_cons.mp (hL ▸ hmem) with rfl | h
-    · simp at hm1
-    · have := hpw₁ _ h
-      simp at hm1; omega
+    exacts [hm1.false, (hm1.trans (hpw₁ _ h)).false]
 
 /-! ## Section 4: Slot-stream list lemmas for `shiftRight` and `shiftLeft` -/
 
@@ -958,8 +956,7 @@ theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
   have hempty_e1 : bucketRun (S.erase u) quot rem (probeSlot b o (e - 1)) = [] := by
     have h1 := hrun_erase e he_le
     rw [ite_eq_left ha_lt_e, he_run, ← he1, runOffset_succ] at h1
-    have := hrun_ge (e - 1) le_rfl
-    exact List.eq_nil_of_length_eq_zero (by omega)
+    exact List.eq_nil_of_length_eq_zero (by have := hrun_ge (e - 1) le_rfl; omega)
   set pref := taggedPrefix S quot rem o a
   set suff := taggedSuffix S quot rem o a e
   have hpref_len : pref.length = s₀ := hs₀_eq.symm
@@ -1344,11 +1341,9 @@ theorem FilterInv.deleteState_filterInv {U b f n : ℕ} {S : Finset (Fin U)}
       rw [hst'_def, isOcc_deleteCluster_of_ne st o₀ a ℓ₀ (rem u) (hp_out a ha_lt_e), hout.1, hout.2]
       exact hinv.empty_slot p hp_empty
   · have hfilt : (Finset.univ.filter fun p : Fin (2 ^ b) => st'.isFull p = true) =
-        (Finset.univ.filter fun p => st.isFull p = true).erase p_end := by
-      ext p
-      dsimp only [p_end, e]
-      by_cases hp : p = probeSlot b o₀ (calcDeleteStop st o₀ a ℓ₀ - 1) <;>
-        simp [hst'_def, isFull_deleteCluster, hp]
+        (Finset.univ.filter fun p => st.isFull p = true).erase p_end :=
+      Finset.ext fun p => by
+        by_cases hp : p = p_end <;> simp [p_end, e, hst'_def, isFull_deleteCluster, hp]
     have hmem_end : p_end ∈ Finset.univ.filter fun p => st.isFull p = true := by
       simp [p_end, hvalid₀.full_of_lt (e - 1) (by omega)]
     rw [hfilt, Finset.card_erase_of_mem hmem_end, hinv.card_full_eq, Finset.card_erase_of_mem hu]

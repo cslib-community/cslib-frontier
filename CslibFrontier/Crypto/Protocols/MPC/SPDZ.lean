@@ -527,11 +527,10 @@ theorem sum_checkResidual_eq_neg_mul {p n T : ℕ} {alpha : ZMod p}
     calc (∑ l : Fin T, ∑ i : Fin n, e l * (shares l).macShares i)
         = ∑ l : Fin T, e l * (shares l).macSum :=
             Finset.sum_congr rfl fun l _ => (Finset.mul_sum ..).symm
-      _ = alpha * ∑ l : Fin T, e l * ((shares l).secret + (shares l).delta) := by
-            rw [Finset.mul_sum]
-            refine Finset.sum_congr rfl fun l _ => ?_
-            rw [hauth.valid_shares l]
-            ring
+      _ = alpha * ∑ l : Fin T, e l * ((shares l).secret + (shares l).delta) :=
+            (Finset.sum_congr rfl fun l _ =>
+              (congrArg (e l * ·) (hauth.valid_shares l)).trans (mul_left_comm ..)).trans
+              (Finset.mul_sum ..).symm
   have h2 : (∑ i : Fin n, (inp i).keyShare *
         ∑ l : Fin T, (inp i).weights l * (((inp i).opened l).value + ((inp i).opened l).delta)) =
       alpha * ∑ l : Fin T, e l * ((opened l).value + (shares l).delta) := by
@@ -608,10 +607,9 @@ theorem eval_snd_macCheckProtocol_eq_pure_true {p n T : ℕ} {Coins Comm : Type}
     (hhon : PartyCheckInput.Honest alpha shares opened e inp) :
     ((macCheckProtocol p n T sampleCoins commit).evalWith noOracleWorld inp).map Prod.snd =
       PMF.pure (fun _ => true) := by
-  set P := macCheckProtocol p n T sampleCoins commit
   rw [Protocol.evalWith_eq, PMF.map_bind]
   convert PMF.bind_const _ (PMF.pure (fun _ : Fin n => true)) with r
-  simp only [P, macCheckProtocol, Steps.evalWith_append, evalWith_broadcastSteps,
+  simp only [macCheckProtocol, Steps.evalWith_append, evalWith_broadcastSteps,
     outputAt_broadcastSteps, PMF.pure_bind, PMF.pure_map, Protocol.outputOfView,
     Steps.outputAt_append]
   congr 1
@@ -742,10 +740,9 @@ theorem probability_macCheckSoundnessGame_le {p T : ℕ} [Fact (Nat.Prime p)]
     (deltaShift : (Fin T → ZMod p) → ZMod p) :
     Pr[macCheckSoundnessGame p T err deltaShift] ≤ 2 / p := by
   have h := eval_macCheckSoundnessGame_le herr deltaShift
-  have hne_top : (2 : ℝ≥0∞) / (p : ℝ≥0∞) ≠ ⊤ := by
-    rw [div_eq_mul_inv]
-    exact ENNReal.mul_ne_top ENNReal.ofNat_ne_top
-      (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr (Fact.out : Nat.Prime p).pos.ne'))
+  have hne_top : (2 : ℝ≥0∞) / (p : ℝ≥0∞) ≠ ⊤ :=
+    ENNReal.div_ne_top ENNReal.ofNat_ne_top
+      (Nat.cast_ne_zero.mpr (Fact.out : Nat.Prime p).ne_zero)
   ennreal_to_real using h
 
 /-- Standalone `MACCheck` cheating-equation bound against any prior randomized adversary
@@ -755,8 +752,7 @@ theorem eval_macCheckSoundnessAdvGame_le {p T : ℕ} [Fact (Nat.Prime p)] {S : T
     (adv : ProbComp S) (err : S → Fin T → ZMod p)
     (deltaShift : S → (Fin T → ZMod p) → ZMod p) :
     (ProbComp.eval (macCheckSoundnessAdvGame p T adv err deltaShift)) true ≤ 2 / (p : ℝ≥0∞) := by
-  unfold macCheckSoundnessAdvGame
-  rw [ProbComp.eval_bind]
+  rw [macCheckSoundnessAdvGame, ProbComp.eval_bind]
   refine Cslib.Probability.PMF.bind_apply_le_on_support _ fun s _ => ?_
   by_cases herr : err s = 0
   · simp [herr]

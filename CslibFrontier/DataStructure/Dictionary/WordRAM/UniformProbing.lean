@@ -1096,9 +1096,8 @@ private theorem extractSlots_insertSlotMem {base c_exp U n_max : ℕ} {mem : ℕ
     extractSlots base c_exp U n_max (insertSlotMem base c_exp n_max mem slot u.val v) =
       Function.update (extractSlots base c_exp U n_max mem) slot (some (u, v)) := by
   funext j
-  by_cases hjs : j = slot
-  · subst hjs
-    rw [Function.update_self, extractSlots_eq_some_iff (slotArrayWF_insertSlotMem hwf j u v)]
+  rcases eq_or_ne j slot with rfl | hjs
+  · rw [Function.update_self, extractSlots_eq_some_iff (slotArrayWF_insertSlotMem hwf j u v)]
     exact insertSlotMem_self
   · have ⟨h0, h1, h2⟩ := insertSlotMem_eq_self_of_ne (base := base) (c_exp := c_exp) (mem := mem)
       (u := u.val) (v := v) hjs
@@ -1319,13 +1318,7 @@ def decodeOp {U V n_max : ℕ} : (op : Dictionary.Op U) → (Fin 16 → ℕ) →
 theorem encode_matches {c_exp U n_max : ℕ} (op : Dictionary.Op U) (regs : Fin 16 → ℕ) :
     argMatch op
       (fun i => if (subroutineCode c_exp n_max).input i then encodeOp op i else regs i) := by
-  cases op with
-  | query u =>
-    exact ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey], fun _ _ h => nomatch h⟩
-  | insert u v =>
-    refine ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey], ?_⟩
-    rintro _ _ ⟨⟩
-    simp +decide [subroutineCode, encodeOp]
+  cases op <;> simp +decide [argMatch, subroutineCode, encodeOp, opTag, opKey]
 
 theorem arguments_fit {w base c_exp U V n_max : ℕ}
     (hS : Fits w (base + space c_exp n_max))

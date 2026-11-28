@@ -167,16 +167,11 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     streamInsertFreshGenProg_spec (s₀ := ⟨z₂.mem, fr₁⟩) u.isLt henv_si hfit_off
       hrep_im hinv₀ hcpl₀ (htot_im.symm ▸ hN₁_pos) (htot_im.symm ▸ le_rfl) hv_lt
       (by simp [Dictionary.empty])
-  have hv_si : (Memory.spec w).ValidHistory (memoryState mFr z₂.toData)
-      ((Memory.spec w).clientHistory (memoryState mFr z₂.toData)
-        (streamInsertFreshGenProg d_si)) := by
-    have hwf₂ : Memory.WellFormed w (memoryState mFr z₂.toData) := wellFormed_memoryState hz₂b.1
-    rw [hms₂] at hwf₂ ⊢
-    exact hvp_si ⟨hwf₂, Nat.zero_le _⟩
   obtain ⟨z, hex_si, hzb, hzf, hm_si, _, hframe_reg_si⟩ :=
     execWitness wStreamIns factor_wStreamIns_le mFr srcStreamIns tmpStreamIns
       tmpStreamIns_inj srcStreamIns_ne_tmp tmpStreamIns_ne_mFr srcStreamIns_ne_mFr
-      d_si hz₂b hz₂f_eq.le hin_si (hms₂ ▸ hpre_si) hv_si
+      d_si hz₂b hz₂f_eq.le hin_si (hms₂ ▸ hpre_si)
+      (hms₂.symm ▸ hvp_si ⟨hms₂ ▸ wellFormed_memoryState hz₂b.1, Nat.zero_le _⟩)
       (by rw [hms₂, hfr_si]; exact hz₂f_eq.symm.le)
   rw [hms₂] at hm_si hex_si
   have hzf_eq : z.frontier = fr₁ := hzf.trans hz₂f_eq
@@ -203,10 +198,9 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     rw [Dictionary.dom_insert, Dictionary.dom_empty]; rfl
   have hvals₁ : Dictionary.ValuesBounded V (Function.update (Dictionary.empty U) u (some v)) :=
     fun k val hk => by
-      rcases eq_or_ne k u with rfl | hku
-      · rw [Function.update_self, Option.some.injEq] at hk
-        exact hk ▸ hv_lt
-      · simp [Function.update_of_ne hku, Dictionary.empty] at hk
+      simp only [Function.update_apply, Dictionary.empty] at hk
+      split_ifs at hk
+      exact Option.some.inj hk ▸ hv_lt
   have hcpl_z : FixedCoupled base (base + off₁) U V w N₁ s_fix₁ ⟨z.mem, z.frontier⟩ :=
     hs_z_eq ▸ hcpl₁
   have htot_z : totalSlots N₁ (compGmAt base U w N₁ z.mem) = 1 :=
@@ -216,9 +210,8 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
       hkeep_set_2 reg (by omega) (by simp [Fin.ext_iff] at hfr ⊢; omega)
   have hf1 := one_le_migFactor
   have hpot_le : inEpochPotential U w N₁ base z ≤
-      (98 * migFactor) * slotPotential N₁ (compGmAt base U w N₁ z.mem) := by
-    unfold inEpochPotential
-    exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 98 inEpochFactor_le_migFactor)
+      (98 * migFactor) * slotPotential N₁ (compGmAt base U w N₁ z.mem) :=
+    Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 98 inEpochFactor_le_migFactor)
   have hsi_pot : migFactor * (memoryCost (streamInsertFreshGenProg d_si) ⟨z₂.mem, fr₁⟩ + 1) +
       inEpochPotential U w N₁ base z ≤ 45361 * migFactor := by
     dsimp only at hc_si

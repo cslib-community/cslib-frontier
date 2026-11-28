@@ -108,15 +108,12 @@ private theorem measurePreserving_comp_castSucc (μ : Measure ℝ) [IsProbabilit
     refine Measure.pi_eq fun s hs => ?_
     rw [Measure.map_apply (measurable_pi_iff.2 fun j => measurable_pi_apply j.castSucc)
       (MeasurableSet.univ_pi hs)]
-    let s' : Fin (n + 1) → Set ℝ := Fin.snoc s Set.univ
     have hpre : (fun (v : Fin (n + 1) → ℝ) (j : Fin n) => v j.castSucc) ⁻¹' Set.univ.pi s =
-        Set.univ.pi s' := by
+        Set.univ.pi (Fin.snoc s Set.univ) := by
       ext v
-      simp only [Set.mem_preimage, Set.mem_univ_pi]
-      exact ⟨fun hv i => Fin.lastCases (by simp [s']) (fun j => by simpa [s'] using hv j) i,
-        fun hv j => by simpa [s'] using hv j.castSucc⟩
+      simp [Fin.forall_fin_succ']
     rw [hpre, Measure.pi_pi, Fin.prod_univ_castSucc]
-    simp only [s', Fin.snoc_castSucc, Fin.snoc_last, measure_univ, mul_one]
+    simp only [Fin.snoc_castSucc, Fin.snoc_last, measure_univ, mul_one]
 
 private theorem measurable_auxAllocation {n : ℕ} {φ : ℝ → ℝ} (hφ : Measurable φ)
     (i : Fin (n + 1)) : Measurable fun v : Fin (n + 1) → ℝ => auxAllocation φ v i := by
@@ -179,10 +176,8 @@ theorem integral_sum_payment_reserve_le_vickrey_succ
     let Φ : (Fin (n + 1) → ℝ) → ℝ → ℝ := fun v z => φ z * auxAllocation φ v (Fin.last n)
     have hΦ (v : Fin (n + 1) → ℝ) (z : ℝ) : Φ (Function.update v (Fin.last n) z) = Φ v := by
       funext w
-      have hproj : (fun j : Fin n => Function.update v (Fin.last n) z j.castSucc) =
-          fun j : Fin n => v j.castSucc :=
-        funext fun j => Function.update_of_ne (Fin.castSucc_lt_last j).ne _ _
-      simp only [Φ, auxAllocation, Fin.snoc_last, hproj]
+      simp only [Φ, auxAllocation, Fin.snoc_last,
+        Function.update_of_ne (Fin.castSucc_lt_last _).ne]
     rw [integral_apply_eval_eq_integral_integral (μ := fun _ : Fin (n + 1) => μ) hΦ
       (haux_int (Fin.last n))]
     simp [Φ, φ, integral_mul_const, hμ.integral_virtualValue_eq_zero]

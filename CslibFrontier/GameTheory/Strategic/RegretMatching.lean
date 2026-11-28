@@ -179,21 +179,12 @@ theorem isApproxInternalCorrelatedEquilibrium_iff_switchAction [∀ i, Decidable
       ∀ i (a b : S i),
         σ.weights.sum (fun s w => w * G.cost i s) ≤
           σ.weights.sum (fun s w => w * G.cost i (update s i (switchAction a b (s i)))) + ε i := by
-  have hsplit (i : ι) (a b : S i) :
-      σ.weights.sum (fun s w => w * G.cost i s) =
-        σ.weights.sum (fun s w => w * if s i = a then G.cost i s else 0) +
-          σ.weights.sum (fun s w => w * if s i = a then 0 else G.cost i s) ∧
-      σ.weights.sum (fun s w => w * G.cost i (update s i (switchAction a b (s i)))) =
-        σ.weights.sum (fun s w => w * if s i = a then G.cost i (update s i b) else 0) +
-          σ.weights.sum (fun s w => w * if s i = a then 0 else G.cost i s) := by
-    refine ⟨?_, ?_⟩ <;> rw [← Finsupp.sum_add] <;> refine Finsupp.sum_congr fun s _ => ?_
-    · split_ifs <;> ring
-    · split_ifs with hs
-      · rw [hs, switchAction_self]; ring
-      · rw [switchAction_of_ne hs, update_eq_self]; ring
-  refine forall_congr' fun i => forall_congr' fun a => forall_congr' fun b => ?_
-  obtain ⟨h1, h2⟩ := hsplit i a b
-  constructor <;> intro h <;> linarith
+  refine forall₃_congr fun i a b => ?_
+  rw [← sub_le_iff_le_add', ← sub_le_iff_le_add', ← Finsupp.sum_sub, ← Finsupp.sum_sub]
+  refine (congrArg (· ≤ ε i) (Finsupp.sum_congr fun s _ => ?_)).to_iff
+  split_ifs with hs
+  · rw [hs, switchAction_self]
+  · rw [switchAction_of_ne hs, update_eq_self]; ring
 
 /-- At zero slack, Hart and Mas-Colell's pairwise correlated `0`-equilibrium coincides with
 `IsCorrelatedEquilibrium`. -/

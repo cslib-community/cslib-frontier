@@ -135,9 +135,8 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
             rebInsCount := fs.rebInsCount + 1 }
         refine ih fs1 hcoll0 hcnt_le (by dsimp only [fs1]; omega) hinj_all
           ⟨Function.update rm0 fp (some cur), ?_, ?_⟩
-        · change ValidWhpSlice n_max (fs.rebInsCount + 1)
-            (Function.update fs.slices rIdx sl' rIdx) _
-          rw [Function.update_self]; exact hins.2
+        · simpa only [fs1, rIdx, FastState.rebSliceIdx, FastState.rebRole, Function.update_self]
+            using hins.2
         · rw [Nat.min_eq_right hact.1.le] at hrr0
           change SliceMapRel (fs.fpAt c U n_max θ fs.rebCandSalt b) _
             (min (fs.bktCount b) (cur + 1)) _
@@ -147,9 +146,7 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
     · rw [ite_eq_right hact]
       let fs1 : FastState := { fs with rebScanCursor := cur + 1 }
       refine ih fs1 hcoll0 hcnt_le (by dsimp only [fs1]; omega) hinj_all ⟨rm0, hvr0, ?_⟩
-      change SliceMapRel (fs.fpAt c U n_max θ fs.rebCandSalt b)
-        (fun loc => fs.locState b loc = 1 ∨ fs.locState b loc = 2 + fs.oldEp)
-        (min (fs.bktCount b) (cur + 1)) rm0
+      dsimp only [fs1, FastState.fpAt, FastState.oldEp]
       by_cases hlt_cnt : cur < fs.bktCount b
       · rw [Nat.min_eq_right hlt_cnt.le] at hrr0
         rw [Nat.min_eq_right (Nat.succ_le_of_lt hlt_cnt)]
@@ -208,13 +205,8 @@ theorem rebScanSteps_cursor_of_zero (c U n_max b : ℕ) (θ : SeedWhp c U n_max)
         (s.fpAt c U n_max θ s.rebCandSalt b s.rebScanCursor)
       · rw [hlk] at hcz; dsimp only at hcz ⊢
         have h := ih _ hcz; dsimp only at h; omega
-      · rw [hlk] at hcz; dsimp only at hcz
-        have h1 : ∀ m (t : FastState), t.rebCollision = 1 →
-            (rebScanSteps c U n_max θ b m t).rebCollision = 1 := by
-          intro m; induction m <;> intro t ht
-          · exact ht
-          · dsimp only [rebScanSteps]; rw [ite_eq_left (by omega)]; exact ht
-        have := h1 k { s with rebCollision := 1 } rfl; rw [hcz] at this; cases this
+      · rw [hlk] at hcz
+        cases k <;> simp [rebScanSteps] at hcz
     · have h := ih _ hcz; dsimp only at h; omega
 
 private theorem overmarsScanSteps_meta (c U n_max b : ℕ) (θ : SeedWhp c U n_max) :

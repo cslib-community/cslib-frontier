@@ -350,16 +350,10 @@ private theorem csrToFast_phases_A_to_E1 {c U V w n_max base : ℕ}
     ?_, ?_, ?_, ?_, ?_, hras_sl, ?_, hras_outside,
     hvp_w0, hvp_bp, hvp_fbp, hvp_pt, hvp_po, hvp_fs, hvp_ls, hvp_ras⟩
   · intro x hx
-    have ha_fn : ∀ a, base + offFbStart c U V w n_max ≤ a →
-        a < base + offFbStart c U V w n_max + packedWords (M + 1) gBits w →
-        s_ras.mem a = s_pt.mem a := by
-      intro a ha1 ha2
-      refine hras_to_pt a (Or.inr (Or.inl ⟨ha1, ?_⟩))
-      dsimp only [M, cb, gBits] at hl_bp hl_ba hl_ps ha2; omega
-    exact (readPacked_congr hw (hidx := show x < M + 1 by omega)
-        (fun a ⟨ha1, ha2⟩ => ha_fn a ha1 ha2)).trans
-      ((readPacked_congr hw (hidx := show x < M + 1 by omega)
-        (fun a ⟨ha1, _⟩ => hout_pt a (Or.inr (by omega)))).trans (hfb_fbp x hx))
+    exact (readPacked_congr hw (hidx := show x < M + 1 by omega) fun a ⟨ha1, ha2⟩ =>
+      (hras_to_pt a (Or.inr (Or.inl ⟨ha1, by
+        dsimp only [M, cb, gBits] at hl_bp hl_ba hl_ps ha2; omega⟩))).trans
+        (hout_pt a (Or.inr (by omega)))).trans (hfb_fbp x hx)
   · intro i hi
     exact ⟨(readPacked_congr hw (hidx := hi)
         (fun a ⟨_, ha2⟩ => hras_to_pt a (Or.inl (by omega)))).trans (hpt_qv i hi).1,
@@ -371,17 +365,10 @@ private theorem csrToFast_phases_A_to_E1 {c U V w n_max base : ℕ}
       hls_loc b hb loc hloc]
     dsimp only [bktCnt]; simp only [hb, ↓reduceIte]
   · intro b hb k hk
-    have ha_fn : ∀ a, base + offBackPtr c U V w n_max ≤ a →
-        a < base + offBackPtr c U V w n_max + packedWords (M * cb) gBits w →
-        s_ras.mem a = s_pt.mem a := by
-      intro a ha1 ha2
-      refine hras_to_pt a (Or.inr (Or.inl ⟨by omega, ?_⟩))
-      dsimp only [M, cb, gBits] at hl_ba hl_ps ha2; omega
-    rw [readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hk)
-        (fun a ⟨ha1, ha2⟩ => ha_fn a ha1 ha2),
-      readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hk)
-        (fun a ⟨ha1, _⟩ => hout_pt a (Or.inr (by omega))),
-      hfbp_k b hb k hk]
+    refine ((readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hk) fun a ⟨ha1, ha2⟩ =>
+      (hras_to_pt a (Or.inr (Or.inl ⟨by omega,
+        by dsimp only [M, cb, gBits] at hl_ba hl_ps ha2; omega⟩))).trans
+        (hout_pt a (Or.inr (by omega)))).trans (hfbp_k b hb k hk)).trans ?_
     simp only [backPtr, bktCnt, hb, true_and, ↓reduceIte]; rfl
   · intro j hj
     exact ⟨(readPacked_congr hw (hidx := hj) (fun a ⟨ha1, _⟩ =>
@@ -786,7 +773,6 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
   have htot_step : StepSpec w (base + largeSpaceWhp c U V w n_max) s
       (csrToFastGenProg (mkWhpParams c U V w n_max, base)) s_fin () := by
     unfold csrToFastGenProg
-    dsimp only
     simp only [pure_bind, hwp1]
     dsimp only [cp] at hmr_st hmr_res hmr_vp
     refine hp1_step.bind <| StepSpec.bind ⟨hmr_st, hmr_res, hmr_vp⟩ <|
@@ -859,11 +845,10 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
       have hbt_eq_bab : ∀ a, base + offBtMeta c U V w n_max ≤ a →
           a < base + offTrieChild0 c U V w n_max → s_fin.mem a = s_bab.mem a :=
         fun a ha1 ha2 => (hfin_to_ffm a (by omega) ha2).trans (hout_ffm a (Or.inr (by omega)))
-      have hsl_fin := bTreeSliceMemRep_congr hw hsIdx
-        ⟨hbm_eq_bab _ (by omega) (by omega), hbm_eq_bab _ (by omega) (by omega)⟩
-        hbt_eq_bab hsl_bab
-      have hdiv_lt' : sIdx / 3 < numBucketsWhp n_max := hdiv_lt
-      simpa only [backPtr, bktCnt, hdiv_lt, hdiv_lt', true_and, ↓reduceIte] using hsl_fin
+      simpa only [backPtr, bktCnt, M, hdiv_lt, true_and, ↓reduceIte] using
+        bTreeSliceMemRep_congr hw hsIdx
+          ⟨hbm_eq_bab _ (by omega) (by omega), hbm_eq_bab _ (by omega) (by omega)⟩
+          hbt_eq_bab hsl_bab
     · dsimp only [BufTrieMemRep, emptyBufTrie]
       refine ⟨hmt_pos, Nat.zero_le _, hm12, hm13, fun u hu ch hch => ?_,
         fun _ h1 h2 => absurd h1 (Nat.not_le.mpr h2), fun u hu => ?_,

@@ -385,9 +385,8 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             bufOld_valid := hc.bufOld_valid }
         have hSw_om : ∀ b' < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fsSw b' := by
           intro b' hb'
-          by_cases hbb : b' = b
-          · subst hbb
-            exact .inl (by simp [fsSw, epochTickStage2Swap, fsScan, hins'_lt5])
+          rcases eq_or_ne b' b with rfl | hbb
+          · exact .inl (by simp [fsSw, epochTickStage2Swap, fsScan, hins'_lt5])
           · have hne_om2 : fs.overmarsSliceIdx b' ≠ fs.overmarsSliceIdx b :=
               sliceIdx_ne (hc.roles_valid b' hb').2.1 hor_b fun h => absurd h hbb
             have hu_ne : ∀ (f : ℕ → ℕ) v, Function.update f b v b' = f b' :=
@@ -405,11 +404,8 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             (fs.dirtyIdx + 1 ≤ j → fsSw.rebDoneFlag (fs.dirtyBuckets j) = 0) := by
           intro j hj
           dsimp only [fsSw, epochTickStage2Swap, fsScan]
-          by_cases hjd : j = fs.dirtyIdx
-          · subst hjd
-            change (fs.dirtyIdx < fs.dirtyIdx + 1 → Function.update fs.rebDoneFlag b 1 b = 1) ∧
-              (fs.dirtyIdx + 1 ≤ fs.dirtyIdx → Function.update fs.rebDoneFlag b 1 b = 0)
-            rw [Function.update_self]; exact ⟨fun _ => rfl, fun h => by omega⟩
+          rcases eq_or_ne j fs.dirtyIdx with rfl | hjd
+          · simp [b]
           · have hdb_ne : fs.dirtyBuckets j ≠ b := fun heq => hjd (hd4 j hj fs.dirtyIdx hd2 heq)
             rw [Function.update_of_ne hdb_ne]
             exact ⟨fun hlt => (hd5 j hj).1 (by omega), fun hge => (hd5 j hj).2 (by omega)⟩

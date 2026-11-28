@@ -254,10 +254,8 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
       rw [hpot0, Nat.mul_zero]
     · simp only [Block.mem_footprint, Block.Owns] at ha
       refine (hq_mod a ?_).trans (hy_mod a ?_)
-      · simp only [Block.mem_footprint, Block.Owns]
-        omega
-      · simp only [ReducedKWise.tabBase, hashSpace, ReducedKWise.space] at hhs ⊢
-        omega
+      · simp only [Block.mem_footprint, Block.Owns]; omega
+      · simp only [ReducedKWise.tabBase, hashSpace, ReducedKWise.space] at hhs ⊢; omega
 
 theorem tsum_mul_probeExcess_le {U V w n_max base : ℕ} (hnU : n_max ≤ U)
     {s_abs : Dictionary.State U} (u : Fin U)
@@ -281,10 +279,7 @@ theorem tsum_mul_probeExcess_le {U V w n_max base : ℕ} (hnU : n_max ≤ U)
   let E (θ : QuotHashSeed U n_max) : ℝ≥0∞ :=
     (probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
       (Dictionary.dom s_abs) u : ℝ≥0∞)
-  calc _ = ∑' p, ν p * ((8 * opFactor : ℝ≥0∞) * E p.1) := by
-        refine tsum_congr fun p => ?_
-        push_cast
-        rfl
+  calc _ = ∑' p, ν p * ((8 * opFactor : ℝ≥0∞) * E p.1) := tsum_congr fun _ => by push_cast; rfl
     _ = (8 * opFactor : ℝ≥0∞) * ∑' θ, (ν.map Prod.fst) θ * E θ := by
         rw [← ENNReal.tsum_mul_left,
           ← Cslib.Probability.PMF.tsum_map_mul ν Prod.fst (fun θ => (8 * opFactor : ℝ≥0∞) * E θ)]
@@ -318,12 +313,9 @@ theorem input_argVReg (U V w n_max : ℕ) :
 theorem input_sReg_eq_false {U V w n_max : ℕ} {i : Fin 292}
     (h1 : i ≠ 244) (h2 : i ≠ 245) (h3 : i ≠ 246) :
     (subroutineCode U V w n_max).input (sReg i) = false := by
-  dsimp only [subroutineCode]
-  rw [decide_eq_false_iff_not]
+  rw [subroutineCode, decide_eq_false_iff_not]
   rintro (h | h | h)
-  · exact h1 (sReg_injective h)
-  · exact h2 (sReg_injective h)
-  · exact h3 (sReg_injective h)
+  exacts [h1 (sReg_injective h), h2 (sReg_injective h), h3 (sReg_injective h)]
 
 /-- Reusable `Randomized.StateTransitionImpl` certificate over `Basis.exact` for the fixed-capacity
 succinct dynamic dictionary (`Dynamic.spec U V n_max`). -/

@@ -93,13 +93,8 @@ private theorem sat_vertex_enc (n : E → ℕ) (v : Vertex E) (s : E → Bool) :
 private theorem sat_wire_iff {n : E → ℕ} (w : ℕ) (hw : 0 < w)
     (a b : Segment n) (s : Segment n → Bool) :
     (wire w a b).Sat s ↔ s b ≤ s a := by
-  change w ≤ (if s a = true then w else 0) + ((if s b = false then w else 0) + 0) ↔ _
-  cases s a <;> cases s b <;>
-    simp only [Bool.false_eq_true, Bool.true_eq_false, ite_true, ite_false,
-      Nat.add_zero, Nat.zero_add]
-  all_goals first
-    | exact ⟨fun _ => by decide, fun _ => by omega⟩
-    | exact ⟨fun _ => by omega, fun h => absurd (h rfl) Bool.false_ne_true⟩
+  cases ha : s a <;> cases hb : s b <;>
+    simp [wire, Vertex.Sat, Vertex.inflow, Port.In, ha, hb, hw.ne']
 
 private theorem legal_enc (G : ConstraintGraph V E) (n w : E → ℕ) {s : E → Bool}
     (hs : G.Legal s) : (graph G n w).Legal (enc n s) := by
@@ -147,10 +142,8 @@ theorem loopFree (G : ConstraintGraph V E) (n w : E → ℕ) (hl : G.LoopFree) :
   · refine List.Nodup.of_map Sigma.fst ?_
     change ((vertex n (G v)).ports.map (fun p => p.port.edge)).map Sigma.fst |>.Nodup
     simpa only [vertex, List.map_map, Function.comp_def, port_edge_fst] using hl v
-  · change ([⟨e, j.castSucc⟩, ⟨e, j.succ⟩] : List (Segment n)).Nodup
-    simp only [List.nodup_cons, List.mem_singleton, Sigma.mk.injEq, heq_eq_eq, true_and,
-      List.not_mem_nil, not_false_eq_true, List.nodup_nil, and_true]
-    exact fun h => (Nat.lt_succ_self j.val).ne (congrArg Fin.val h)
+  · simpa [graph] using fun h : j.castSucc = j.succ =>
+      (Nat.lt_succ_self j.val).ne (congrArg Fin.val h)
 
 private def portMap (n : E → ℕ) :
     Multiset (WeightedPort E) →+ Multiset (WeightedPort (Segment n)) :=
@@ -281,9 +274,8 @@ private theorem ramp_succ (n : E → ℕ) (s : E → Bool) (e : E) (k : ℕ)
     (hk : k < n e + 1) :
     ramp n s e (k + 1) = reverse (ramp n s e k) ⟨e, ⟨k, hk⟩⟩ := by
   funext ⟨f, j⟩
-  by_cases hf : f = e
-  · subst f
-    by_cases hj : j.val = k
+  rcases eq_or_ne f e with rfl | hf
+  · by_cases hj : j.val = k
     · obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
       simp [ramp, reverse_self]
     · rw [reverse_of_ne _ fun h => hj (congrArg (·.2.val) h)]

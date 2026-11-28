@@ -79,10 +79,7 @@ private theorem realizes_delRemCoreGen :
           fp_live_u < 2 ^ fpBitsWhp n_max)
       (fun _ _ => 0) := by
   unfold delRemCoreGenProg
-  have db1 := realizes_delRemBufGen
-  have db2 := realizes_delRemLiveGen
-  have db3 := realizes_delRemOmGen
-  realize
+  realize [realizes_delRemBufGen, realizes_delRemLiveGen, realizes_delRemOmGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, loc_del⟩, ⟨st_del, ⟨rKey_u, fp_live_u⟩⟩⟩
     dsimp only at *
@@ -248,10 +245,7 @@ theorem realizes_fastDeleteRemoveGen :
           u_val < U)
       (fun _ _ => 0) := by
   unfold fastDeleteRemoveGenProg
-  have hri := realizes_delRemReadInfoGen
-  have hdc := realizes_delRemCoreGen
-  have db4 := realizes_delRemRebGen
-  realize
+  realize [realizes_delRemReadInfoGen, realizes_delRemCoreGen, realizes_delRemRebGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, u_val⟩
     dsimp only at *
