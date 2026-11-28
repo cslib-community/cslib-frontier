@@ -3487,6 +3487,7 @@ public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.Berlekam
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificatePredecessor
 public import CslibFrontier.Crypto.Computational.HQC.DQCSD
 public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
+public import CslibFrontier.GameTheory.Bimatrix.NashHardness
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingTree
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.LetterSubst
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.PaddedClock

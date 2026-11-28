@@ -76,8 +76,6 @@ polynomial-time reductions prove:
 * `Cslib.GameTheory.BimatrixGame.cliqueESSGame`: Nisan's clique-to-ESS symmetric game
   ([Suri2007], Section 29.2, p. 721).
 * `Cslib.GameTheory.BimatrixGame.cliqueUniformStrategy`: uniform mixed strategy on a vertex set.
-* `Cslib.GameTheory.BimatrixCode.IsSymmetric`, `Cslib.GameTheory.BimatrixCode.toSymGame`:
-  symmetric rational bimatrix codes (`B = Aᵀ`) and their induced symmetric games.
 * `Cslib.GameTheory.BimatrixCode.SymGameHasESS`: existence of an ESS in a symmetric rational game.
 * `Cslib.GameTheory.SymGameStrategyInstance`, `Cslib.GameTheory.encSymGameStrategyInstance`,
   `Cslib.GameTheory.BimatrixCode.SymGameIsESS`: recognition of an ESS in a symmetric rational game.
@@ -907,22 +905,6 @@ attribute [fun_prop] encSymGameStrategyInstance_game_polyTime
   encSymGameStrategyInstance_strategy_polyTime encSymGameStrategyInstance_mk_polyTime
 
 namespace BimatrixCode
-
-/-- Predicate asserting that `c : BimatrixCode` encodes a finite symmetric two-player game:
-nonempty, square (`rows = cols`), and with player 2's payoff matrix equal to the transpose of
-player 1's (`B = Aᵀ`). -/
-@[expose] def IsSymmetric (c : BimatrixCode) : Prop :=
-  c.WellFormed ∧ c.rows = c.cols ∧
-    ∀ i j : Fin c.rows, (c.matB.getD i.1 []).getD j.1 0 = (c.matA.getD j.1 []).getD i.1 0
-
-/-- The symmetric two-player game `⟨A, Aᵀ⟩` on `Fin c.rows` extracted from player 1's payoff
-matrix `c.matA`. When `c.IsSymmetric`, this coincides with `c.toGame` up to casting
-`Fin c.rows` to `Fin c.cols`. -/
-@[expose] noncomputable def toSymGame (c : BimatrixCode) :
-    BimatrixGame (Fin c.rows) (Fin c.rows) :=
-  let A : Matrix (Fin c.rows) (Fin c.rows) ℝ :=
-    fun i j => ((c.matA.getD i.1 []).getD j.1 0 : ℝ)
-  ⟨A, Aᵀ⟩
 
 /-- The decision problem **ESS Existence** for two-player symmetric rational games
 ([Suri2007], Theorem 29.8, p. 723): well-formed symmetric bimatrix codes (`B = Aᵀ`) admitting an

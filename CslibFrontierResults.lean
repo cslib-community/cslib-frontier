@@ -107,4 +107,5 @@ import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.ODonnellBiasedFourier
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
+import CslibFrontierResults.Entries.BimatrixNashHardness
 import CslibFrontierResults.Entries.SatisfiabilityHypothesis
