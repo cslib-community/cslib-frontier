@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.WordKEM
 public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
+import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
+import CslibFrontier.Crypto.Game.FourHop
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -17,13 +19,14 @@ import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Asymptotic ROM IND-CCA security of the Diffie–Hellman KEM under Gap-CDH
 
-This module bridges the word-level random-oracle DH-KEM (`dhKEMCCAWordGame`) and its certified
-word-level reduction (`dhKEMToGapCDHWord`) from
+This module bridges the fair-coin word-level random-oracle DH-KEM (`dhKEMCCAWordGame`) and its
+certified word-level reduction (`dhKEMToGapCDHWord`) from
 `CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.WordKEM` to the typed per-group games and
 reduction (`PrimeOrderGroupFamily.dhKEMCCAGame`, `PrimeOrderGroupFamily.gapCDHGame`,
 `PrimeOrderGroupFamily.dhKEMToGapCDH`) of
@@ -36,14 +39,18 @@ coin-tape machine whose fixed-coin replays `savedCoinDHKEMAdversary` instantiate
 finite, every challenge word at `(n, d)` has bounded length, so padding the coin tape to
 `dhKEMCoinBudget` makes the coin draw independent of `(x, y, H, key)`. Query-by-query simulation
 through `routeToTypedQuery` and `tableRep` equates:
-1. `dhKEMCCAWordGameAt` with the coin-averaged typed `dhKEMCCAGame`, and
+1. the ideal-exponent-sampling step `dhKEMCCAWordIdealGameAt` with the coin-averaged typed
+   `dhKEMCCAGame`, and
 2. the execution of `dhKEMToGapCDHWord` on every encoded Gap-CDH instance (and hence
    `gapCDHWordGame`) with the coin-averaged typed `dhKEMToGapCDH` (`eval_run_dhKEMToGapCDHWord_eq`
    and `gapCDHWordGame_dhKEMToGapCDHWord_eq`).
 
-Averaging `PrimeOrderGroupFamily.advantage_dhKEMCCAGame_le` over the coin tape and `setup n` yields
-the exact concrete family bound `advantage_dhKEMCCAWordGame_le` (with multiplicative factor `1` and
-zero additive loss), from which `GapCDH.dhKEMROMINDCCA` follows directly.
+Averaging `PrimeOrderGroupFamily.advantage_dhKEMCCAGame_le_ideal` over the coin tape and `setup n`
+bounds the advantage in the ideal-exponent-sampling game `dhKEMCCAWordIdealGame`.
+Replacing the two exact uniform exponent draws in each world by `dhKEMKeyGenWordProb` and
+`dhKEMEncapsWordProb` (`PrimeOrderGroupFamily.sampleExp`) via `advantage_bind_sampleExp_pair_le` and
+`Game.advantage_four_hop_le` adds at most `4 / 2 ^ n` (`advantage_dhKEMCCAWordGame_le`), yielding
+`GapCDH.dhKEMROMINDCCA`.
 
 ## Main definitions
 
@@ -58,17 +65,18 @@ zero additive loss), from which `GapCDH.dhKEMROMINDCCA` follows directly.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.eval_run_dhKEMToGapCDHWord_eq`: exact distributional
   equality between `dhKEMToGapCDHWord` and the coin-averaged typed `dhKEMToGapCDH` on every encoded
   Gap-CDH challenge.
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.advantage_dhKEMCCAWordGame_le`: concrete family
-  bound `Adv_CCA(A) ≤ Succ_GapCDH(dhKEMToGapCDHWord A)` at every `n`.
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.advantage_dhKEMCCAWordGame_le`: concrete fair-coin
+  family bound `Adv_CCA(A) ≤ Succ_GapCDH(dhKEMToGapCDHWord A) + 4 / 2 ^ n` at every `n`.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`: **[KatzLindell2020],
-  Theorem 12.22** — under `F.GapCDH setup`, Construction 12.19 is ROM IND-CCA secure for any
-  polynomial-time `keyLen` (`keyLen = id` gives the `n`-bit keys of Definition 12.13).
+  Theorem 12.22** — under `F.GapCDH setup`, the fair-coin word-level Construction 12.19 is ROM
+  IND-CCA secure for any polynomial-time `keyLen` (`keyLen = id` gives the `n`-bit keys of
+  Definition 12.13).
 
 ## References
 
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*][KatzLindell2020], 3rd edition,
-  Definition 12.13 (p. 425), Construction 12.19 (p. 431), §12.4.4 (p. 434), and Theorem 12.22
-  (p. 435).
+  Definition 12.13 (p. 425), Construction 12.19 (p. 431), §12.4.4 (p. 434), Theorem 12.22
+  (p. 435), and Construction 12.23 (pp. 435–436).
 -/
 
 @[expose] public section
@@ -184,7 +192,7 @@ private theorem interpret_routeToTypedQuery_dhKEMAnswer (d : F.Desc) {m : ℕ}
       PMF.pure (F.dhKEMCCAWordAnswer d H x (F.encode d (y • F.generator d)) (op, w)) := by
   cases op with
   | hash =>
-    simp only [routeToTypedQuery, dhKEMCCAWordAnswer]
+    simp only [routeToTypedQuery, dhKEMCCAWordAnswer, dhKEMROAnswer]
     cases F.decode d w <;>
       simp [OracleComp.interpret_map, OracleComp.interpret_query,
         PrimeOrderGroupFamily.dhKEMAnswer]
@@ -408,7 +416,41 @@ private theorem replay_runWith_eq (keyLen : ℕ → ℕ)
     ← F.run_runCoins_routeToTypedQuery d rep handler' handler hstep machine _ _ s, PMF.map_comp]
   rfl
 
-private theorem dhKEMCCAWordGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
+/-- The fixed-group word-level ROM IND-CCA game for Construction 12.19 at parameter `n` and group
+`d` once the key exponent `x` and the encapsulation exponent `y` are fixed: draw the random oracle
+`H` and the random key, build the challenge, and run the adversary against
+`dhKEMCCAWordAnswer`. Shared by the ideal game and the fair-coin sampling comparison. -/
+private noncomputable def dhKEMCCAWordGameGivenExps (keyLen : ℕ → ℕ)
+    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ)
+    (d : F.Desc) (x y : ZMod (F.order d)) : Game :=
+  letI : Fintype (F.Carrier d) := F.fintypeCarrier d
+  (Probability.PMF.pi fun _ : F.Carrier d =>
+    ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun H =>
+    (ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun random =>
+      let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
+      let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
+        ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
+      ProbComp.eval ((adversary n challenge).run
+        fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
+
+/-- Ideal-sampling fixed-group word-level ROM IND-CCA game for Construction 12.19 at parameter `n`
+and group `d`, drawing `x, y : ZMod (F.order d)` from `PMF.uniformOfFintype` rather than
+`sampleExp`; intermediate step toward `dhKEMCCAWordGameAt`. -/
+private noncomputable def dhKEMCCAWordIdealGameAt (keyLen : ℕ → ℕ)
+    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ)
+    (d : F.Desc) : Game :=
+  (PMF.uniformOfFintype (ZMod (F.order d))).bind fun x =>
+    (PMF.uniformOfFintype (ZMod (F.order d))).bind fun y =>
+      F.dhKEMCCAWordGameGivenExps keyLen adversary bit n d x y
+
+/-- Ideal-sampling word-level ROM IND-CCA game over `setup` and `keyLen`, drawing the key and
+encapsulation exponents from `PMF.uniformOfFintype (ZMod (F.order d))`; intermediate step toward
+`dhKEMCCAWordGame`. -/
+private noncomputable def dhKEMCCAWordIdealGame (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
+    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ) : Game :=
+  (setup n).bind (F.dhKEMCCAWordIdealGameAt keyLen adversary bit n)
+
+private theorem dhKEMCCAWordIdealGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
     {adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool}
     {k : ℕ} {Control : Type} (machine : _root_.Turing.MultiTapePTM k Bool Control DHKEMOp)
     (c deg : ℕ)
@@ -420,14 +462,14 @@ private theorem dhKEMCCAWordGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
             (machine.runCoins (fun op word => ProbOracleComp.query (op, word)) coins
               (encPair encUnary encBits x)) s)
     (bit : Bool) (n : ℕ) (d : F.Desc) :
-    F.dhKEMCCAWordGameAt keyLen adversary bit n d =
+    F.dhKEMCCAWordIdealGameAt keyLen adversary bit n d =
       letI : Fintype (F.Carrier d) := F.fintypeCarrier d
       (BitString.uniformList (F.dhKEMCoinBudget keyLen c deg n d)).bind fun coins =>
         F.toPrimeOrderGroupFamily.dhKEMCCAGame d (ProbComp.uniform (BitString (keyLen n)))
           (F.savedCoinDHKEMAdversary machine keyLen c deg n d coins) bit := by
   let _ : Fintype (F.Carrier d) := F.fintypeCarrier d
-  simp only [dhKEMCCAWordGameAt, PrimeOrderGroupFamily.dhKEMCCAGame, dhKEMEncapsWord,
-    PrimeOrderGroupFamily.dhKEMEncaps, Probability.PMF.monad_bind_eq_bind]
+  simp only [dhKEMCCAWordIdealGameAt, dhKEMCCAWordGameGivenExps, PrimeOrderGroupFamily.dhKEMCCAGame,
+    dhKEMEncapsWord, PrimeOrderGroupFamily.dhKEMEncaps, Probability.PMF.monad_bind_eq_bind]
   have hite (kReal kRand : BitString (keyLen n)) :
       (if bit = true then List.ofFn kReal else List.ofFn kRand) =
         List.ofFn (if bit = true then kReal else kRand) := by
@@ -552,54 +594,130 @@ theorem gapCDHWordGame_dhKEMToGapCDHWord_eq (setup : ℕ → PMF F.Desc) (keyLen
     (F.encode_injective d).eq_iff]
   pmf_swap
 
-/-- **Concrete family-level reduction** for [KatzLindell2020], Theorem 12.22 (p. 435): for every
-setup distribution, key length, uniform strict oracle-PPT adversary `adversary`, and security
-parameter `n`, the word-level ROM IND-CCA advantage is at most the Gap-CDH success probability of
-`dhKEMToGapCDHWord`. -/
-theorem advantage_dhKEMCCAWordGame_le (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
+/-- Ideal-sampling step toward [KatzLindell2020], Theorem 12.22 (p. 435), not the cited result: in
+`dhKEMCCAWordIdealGame`, whose secret key and challenge encapsulation exponents are drawn from
+`PMF.uniformOfFintype (ZMod (F.order d))` at the `PMF` level rather than via fair coins, the ROM
+IND-CCA advantage of every uniform strict oracle-PPT adversary `adversary` is at most the Gap-CDH
+success probability of `dhKEMToGapCDHWord`. Consumed by `advantage_dhKEMCCAWordGame_le`. -/
+private theorem advantage_dhKEMCCAWordIdealGame_le (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
     {adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool}
     (hA : IsOraclePPT encBool adversary) (n : ℕ) :
-    Game.advantage (F.dhKEMCCAWordGame setup keyLen adversary true n)
-        (F.dhKEMCCAWordGame setup keyLen adversary false n) ≤
+    Game.advantage (F.dhKEMCCAWordIdealGame setup keyLen adversary true n)
+        (F.dhKEMCCAWordIdealGame setup keyLen adversary false n) ≤
       Game.succProbability
         (F.gapCDHWordGame setup (F.dhKEMToGapCDHWord keyLen adversary) n) := by
   obtain ⟨k, Control, _, machine, c, deg, _, hrun⟩ := hA.on.exists_savedCoins
   rw [F.gapCDHWordGame_dhKEMToGapCDHWord_eq setup keyLen machine c deg hrun n]
-  simp only [dhKEMCCAWordGame]
+  simp only [dhKEMCCAWordIdealGame]
   refine Game.advantage_bind_le_succProbability_bind (setup n) _ _ _ fun d => ?_
   let _ : Fintype (F.Carrier d) := F.fintypeCarrier d
-  have hle_d : Game.advantage (F.dhKEMCCAWordGameAt keyLen adversary true n d)
-      (F.dhKEMCCAWordGameAt keyLen adversary false n d) ≤
+  have hle_d : Game.advantage (F.dhKEMCCAWordIdealGameAt keyLen adversary true n d)
+      (F.dhKEMCCAWordIdealGameAt keyLen adversary false n d) ≤
       Game.succProbability
         ((BitString.uniformList (F.dhKEMCoinBudget keyLen c deg n d)).bind fun coins =>
           F.toPrimeOrderGroupFamily.gapCDHGame d
             (F.toPrimeOrderGroupFamily.dhKEMToGapCDH d
               (ProbComp.uniform (BitString (keyLen n)))
               (F.savedCoinDHKEMAdversary machine keyLen c deg n d coins))) := by
-    rw [F.dhKEMCCAWordGameAt_eq_savedCoin keyLen machine c deg hrun true n d,
-      F.dhKEMCCAWordGameAt_eq_savedCoin keyLen machine c deg hrun false n d]
+    rw [F.dhKEMCCAWordIdealGameAt_eq_savedCoin keyLen machine c deg hrun true n d,
+      F.dhKEMCCAWordIdealGameAt_eq_savedCoin keyLen machine c deg hrun false n d]
     refine Game.advantage_bind_le_succProbability_bind _ _ _ _ fun coins => ?_
     have hadv := Game.apply_true_le_of_advantage_le
-      (F.toPrimeOrderGroupFamily.advantage_dhKEMCCAGame_le d
+      (F.toPrimeOrderGroupFamily.advantage_dhKEMCCAGame_le_ideal d
         (ProbComp.uniform (BitString (keyLen n)))
         (F.savedCoinDHKEMAdversary machine keyLen c deg n d coins))
     rwa [ENNReal.coe_toNNReal (PMF.apply_ne_top _ true)] at hadv
   have hadv_d := Game.apply_true_le_of_advantage_le hle_d
   rwa [ENNReal.coe_toNNReal (PMF.apply_ne_top _ true)] at hadv_d
 
-/-- **[KatzLindell2020], Theorem 12.22 (p. 435).** If Gap-CDH is hard relative to `(F, setup)` and
-`keyLen` is computable in polynomial time in unary, then the word-level random-oracle Diffie–Hellman
-KEM (Construction 12.19) is IND-CCA secure in the random-oracle model; taking `keyLen = id` gives
-the `n`-bit keys of Definition 12.13 (p. 425). -/
+private theorem advantage_dhKEMCCAWordGame_ideal_le (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
+    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ) :
+    Game.advantage (F.dhKEMCCAWordGame setup keyLen adversary bit n)
+        (F.dhKEMCCAWordIdealGame setup keyLen adversary bit n) ≤
+      2 / 2 ^ n := by
+  simp only [dhKEMCCAWordGame, dhKEMCCAWordIdealGame]
+  refine Game.advantage_bind_le_nnreal (setup n) _ _ fun d => ?_
+  let _ : Fintype (F.Carrier d) := F.fintypeCarrier d
+  have hprob : F.dhKEMCCAWordGameAt keyLen adversary bit n d =
+      (ProbComp.eval (F.toPrimeOrderGroupFamily.sampleExp n d)).bind fun x =>
+        (ProbComp.eval (F.toPrimeOrderGroupFamily.sampleExp n d)).bind fun y =>
+          F.dhKEMCCAWordGameGivenExps keyLen adversary bit n d (x : ZMod (F.order d))
+            (y : ZMod (F.order d)) := by
+    simp only [dhKEMCCAWordGameAt, dhKEMKeyGenWordProb, Probability.PMF.monad_bind_eq_bind,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, F.smul_encode,
+      F.run_dhKEMEncapsWordProb, ProbComp.eval_map, PMF.bind_map, Function.comp_def,
+      dhKEMCCAWordGameGivenExps]
+    pmf_swap
+    congr 2
+    funext ⟨op, w⟩
+    cases op with
+    | hash => rfl
+    | decaps =>
+      dsimp only [dhKEMCCAWordAnswer]
+      rw [F.run_dhKEMDecapsWordOracle, map_pure]
+      split_ifs <;> rfl
+  rw [hprob]
+  exact F.toPrimeOrderGroupFamily.advantage_bind_sampleExp_pair_le n d
+    (F.dhKEMCCAWordGameGivenExps keyLen adversary bit n d)
+
+/-- **Concrete family-level reduction** for [KatzLindell2020], Theorem 12.22 (p. 435): for every
+setup distribution, key length, uniform strict oracle-PPT adversary `adversary`, and security
+parameter `n`, the fair-coin word-level ROM IND-CCA advantage is at most the Gap-CDH success
+probability of `dhKEMToGapCDHWord` plus the `4 / 2 ^ n` exponent-sampling loss (`2 / 2 ^ n` in each
+of the real-key and random-key worlds). -/
+theorem advantage_dhKEMCCAWordGame_le (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
+    {adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool}
+    (hA : IsOraclePPT encBool adversary) (n : ℕ) :
+    Game.advantage (F.dhKEMCCAWordGame setup keyLen adversary true n)
+        (F.dhKEMCCAWordGame setup keyLen adversary false n) ≤
+      Game.succProbability
+        (F.gapCDHWordGame setup (F.dhKEMToGapCDHWord keyLen adversary) n) +
+      4 / 2 ^ n := by
+  have htrue := F.advantage_dhKEMCCAWordGame_ideal_le setup keyLen adversary true n
+  have hfalse := F.advantage_dhKEMCCAWordGame_ideal_le setup keyLen adversary false n
+  have hideal := F.advantage_dhKEMCCAWordIdealGame_le setup keyLen hA n
+  have h4 := Game.advantage_four_hop_le htrue hfalse
+  calc Game.advantage (F.dhKEMCCAWordGame setup keyLen adversary true n)
+        (F.dhKEMCCAWordGame setup keyLen adversary false n)
+      ≤ 2 / 2 ^ n + Game.advantage (F.dhKEMCCAWordIdealGame setup keyLen adversary true n)
+          (F.dhKEMCCAWordIdealGame setup keyLen adversary false n) + 2 / 2 ^ n := h4
+    _ ≤ 2 / 2 ^ n + Game.succProbability
+          (F.gapCDHWordGame setup (F.dhKEMToGapCDHWord keyLen adversary) n) + 2 / 2 ^ n := by
+        gcongr
+    _ = Game.succProbability
+          (F.gapCDHWordGame setup (F.dhKEMToGapCDHWord keyLen adversary) n) + 4 / 2 ^ n := by
+        ext
+        push_cast
+        ring
+
+/-- **[KatzLindell2020], Theorem 12.22 (p. 435).**
+If Gap-CDH is hard relative to `(F, setup)` and `keyLen` is computable in polynomial time in unary,
+then the fair-coin word-level random-oracle Diffie–Hellman KEM (Construction 12.19, p. 431) is
+IND-CCA secure in the random-oracle model (`DHKEMROMINDCCA`); taking `keyLen = id` gives the
+`n`-bit keys of Definition 12.13 (p. 425).
+
+Model and deviations from [KatzLindell2020], Theorem 12.22:
+* Group parameters are drawn from an arbitrary `setup : ℕ → PMF F.Desc` rather than an efficient
+  group generator `G(1^n)` (§12.4.1, p. 427), matching `DiscreteLog`, `CDH`, `DDH`, and `GapCDH`.
+* Honest key generation (`dhKEMKeyGenWordProb`) and encapsulation (`dhKEMEncapsWordProb`) sample
+  their exponents in uniform strict (oracle) PPT over fair coins via
+  `PrimeOrderGroupFamily.sampleExp` (within statistical distance `1 / 2 ^ n` of uniform on
+  `ZMod (F.order d)`), incurring the negligible `4 / 2 ^ n` additive loss in
+  `advantage_dhKEMCCAWordGame_le`.
+* Decapsulation (`dhKEMDecapsWordOracle`) validates canonical group membership via `F.isElem`,
+  rejecting non-group words with `none` (encoded as `[]` alongside `c = cStar`) as in the
+  ciphertext-validation remark of Construction 12.23 (pp. 435–436); hash queries outside
+  `Set.range (F.encode d)` return `[]`.
+* `DHKEMROMINDCCA` bounds the two-world distinguishing advantage (`Game.Indistinguishable`), twice
+  the textbook's hidden-bit bias `|Pr[KEM^cca = 1] - 1/2|`. -/
 theorem GapCDH.dhKEMROMINDCCA {F : DecodablePrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {keyLen : ℕ → ℕ}
     (hGap : F.GapCDH setup)
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary) :
     F.DHKEMROMINDCCA setup keyLen := by
   intro adversary hA
-  exact negligible_of_le
-    (hGap (F.dhKEMToGapCDHWord keyLen adversary)
-      (F.isOraclePPTOn_dhKEMToGapCDHWord hA hkeyLen))
-    (F.advantage_dhKEMCCAWordGame_le setup keyLen hA)
+  have hred := hGap (F.dhKEMToGapCDHWord keyLen adversary)
+    (F.isOraclePPTOn_dhKEMToGapCDHWord hA hkeyLen)
+  negligible using F.advantage_dhKEMCCAWordGame_le setup keyLen hA
 
 end Cslib.Crypto.DecodablePrimeOrderGroupFamily

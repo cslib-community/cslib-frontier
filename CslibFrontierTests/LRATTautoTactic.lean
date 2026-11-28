@@ -649,6 +649,56 @@ example (p : Prop) (a : ℕ) : a ≠ a → p := by
 example (p : Prop) (a : ℕ) (h : a ≠ a) : p := by
   lrat_tauto
 
+/-! ### Swapped equations -/
+
+/-- `b = a` is read as the atom `a = b`, which occurs first. -/
+example (p : Prop) (a b : ℕ) : (a = b → p) → b = a → p := by
+  lrat_tauto
+
+/-- A hypothesis `h : b = a` fixes the atom `a = b` of the goal, and a term's `f b = f a` the atom
+`f a = f b` of a hypothesis. -/
+example (p : Prop) (a b : ℕ) (f : ℕ → ℕ) (h : b = a) (hp : a = b → f a = f b → p)
+    (hf : ∀ x y, x = y → f x = f y) : p ∧ a = b := by
+  lrat_tauto [hf b a h]
+
+/-- `a ≠ b` and `b ≠ a` are the negations of one atom. -/
+example (a b : ℕ) : a ≠ b → b ≠ a := by
+  lrat_tauto
+
+example (a b : ℕ) (h : a ≠ b) (h' : b = a ∨ a < b) : a < b := by
+  lrat_tauto
+
+/-- The same for `HEq`. -/
+example {α β : Type} (a : α) (b : β) (p : Prop) : (HEq a b → p) → HEq b a → p := by
+  lrat_tauto
+
+/-- The identity on `ℕ`, which unfolds at reducible transparency. -/
+private abbrev swapTestId (n : ℕ) : ℕ := n
+
+/-- `b = a` is read as the atom `a = swapTestId b`, whose swap it equals only after unfolding
+`swapTestId`; the kernel checks the proof up to that unfolding. -/
+example (p : Prop) (a b : ℕ) : (a = swapTestId b → p) → b = a → p := by
+  lrat_tauto
+
+-- A goal false under independent atoms is still refuted: `a = b` is the atom `b = a`, so the
+-- assignment has two atoms.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: b = a := True p := False
+-/
+#guard_msgs (whitespace := lax) in
+example (p : Prop) (a b : ℕ) : b = a → a = b ∧ p := by
+  lrat_tauto
+
+-- Only the swap is identified: `b = a → c = b → a = c` needs transitivity.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: b = a := True c = b := True a = c := False
+-/
+#guard_msgs (whitespace := lax) in
+example (a b c : ℕ) : b = a → c = b → a = c := by
+  lrat_tauto
+
 /-- A β-redex is reduced before it is read, so it is a formula over the atoms `a ∈ s` and
 `a ∈ t`. -/
 example (s t : Set ℕ) (a : ℕ) : (fun x => x ∈ s → x ∈ t) a ↔ ¬a ∈ s ∨ a ∈ t := by

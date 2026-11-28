@@ -12,7 +12,8 @@ public import CslibFrontier.Foundations.Analysis.ODE.StateSpace
 import Mathlib.Analysis.Calculus.Deriv.Add
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Prod
-import Mathlib.Data.Matrix.ColumnRowPartitioned
+public import Mathlib.Data.Matrix.ColumnRowPartitioned
+import Mathlib.LinearAlgebra.Matrix.Block
 
 /-!
 # Linear descriptor systems and their index-one decoupling
@@ -61,6 +62,10 @@ every consistent initial state (`IndexOneDecoupling.exists_isSolutionOn_Ici_iff`
   `DescriptorSystem.deviation`, `DescriptorSystem.IsExponentiallyStableAt`.
 * `DescriptorSystem.IndexOneDecoupling`, with the reduced matrices `A`, `B`, `c`, the
   reconstruction `reconstruct` and the realization `realization H` for an output map `H`.
+* `DescriptorSystem.IndexOneDecoupling.ofPartitioned`: a decoupling from square `P` and `Q` in
+  partitioned form; `DescriptorSystem.IndexOneDecoupling.ofSchur`: a decoupling in *Schur form*,
+  from invertible transforms `T`, `U` with `T E U = [[E₁₁, 0], [0, 0]]`, given only `E₁₁`, the
+  blocks of `T F U` and `K = F₂₂⁻¹ F₂₁`.
 
 ## Main results
 
@@ -80,6 +85,8 @@ every consistent initial state (`IndexOneDecoupling.exists_isSolutionOn_Ici_iff`
   `ẋ = A x + B u`, `y = (H Q₁) x - (H Q₂ P₂ G) u` with output `H (z - z₀)`.
 * `DescriptorSystem.IndexOneDecoupling.isExponentiallyStableAt`: if `ẋ = A x` is exponentially
   stable, so is every equilibrium of `S`.
+* `DescriptorSystem.IndexOneDecoupling.A_ofSchur`, `Q₁'_ofSchur`: the state matrix
+  `E₁₁⁻¹ (F₁₁ - F₁₂ K)` and the differential coordinates of the Schur-form decoupling.
 -/
 
 public section
@@ -491,6 +498,153 @@ theorem isExponentiallyStableAt {z₀ : ι → ℝ} (hz₀ : S.IsEquilibrium z�
         refine h3.trans (mul_le_mul_of_nonneg_left (h1.trans ?_) (abs_nonneg _))
         exact mul_le_mul_of_nonneg_left h2 (by positivity)
     _ = |K₁| * |M| * |K₂| * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (z 0 - z₀)‖ := by ring
+
+end IndexOneDecoupling
+
+end DescriptorSystem
+
+/-! ### Decouplings from block transforms -/
+
+namespace DescriptorSystem
+
+namespace IndexOneDecoupling
+
+variable {ι m κ ρ : Type*} [Fintype ι] [Fintype m] [Fintype κ] [Fintype ρ] [DecidableEq ι]
+  [DecidableEq κ] [DecidableEq ρ] {S : DescriptorSystem ι m}
+
+omit [Fintype κ] [Fintype ρ] [DecidableEq ι] [DecidableEq κ] [DecidableEq ρ] in
+/-- `P X Q` in blocks, for `P` partitioned by rows and `Q` by columns. -/
+private theorem mul_mul_eq_fromBlocks (P : Matrix (κ ⊕ ρ) ι ℝ) (X : Matrix ι ι ℝ)
+    (Q : Matrix ι (κ ⊕ ρ) ℝ) :
+    P * X * Q = fromBlocks (P.toRows₁ * X * Q.toCols₁) (P.toRows₁ * X * Q.toCols₂)
+      (P.toRows₂ * X * Q.toCols₁) (P.toRows₂ * X * Q.toCols₂) := by
+  conv_lhs => rw [← fromRows_toRows P, ← fromCols_toCols Q]
+  rw [fromRows_mul, fromRows_mul_fromCols]
+
+omit [Fintype κ] [Fintype ρ] [DecidableEq ι] [DecidableEq κ] [DecidableEq ρ] in
+/-- The blocks of `P X Q = [[A, B], [C, D]]`. -/
+private theorem blocks_of_eq (P : Matrix (κ ⊕ ρ) ι ℝ) (X : Matrix ι ι ℝ) (Q : Matrix ι (κ ⊕ ρ) ℝ)
+    {A : Matrix κ κ ℝ} {B : Matrix κ ρ ℝ} {C : Matrix ρ κ ℝ} {D : Matrix ρ ρ ℝ}
+    (h : P * X * Q = fromBlocks A B C D) :
+    P.toRows₁ * X * Q.toCols₁ = A ∧ P.toRows₁ * X * Q.toCols₂ = B ∧
+      P.toRows₂ * X * Q.toCols₁ = C ∧ P.toRows₂ * X * Q.toCols₂ = D :=
+  fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P X Q).symm.trans h)
+
+/-- An index-one decoupling from square `P` and `Q` in partitioned form: `P' P = 1`, `Q Q' = 1`,
+`P E Q = [[1, 0], [0, 0]]` and `P F Q = [[A, 0], [0, 1]]`. -/
+@[expose] def ofPartitioned (e : ι ≃ κ ⊕ ρ) (P : Matrix (κ ⊕ ρ) ι ℝ) (P' : Matrix ι (κ ⊕ ρ) ℝ)
+    (Q : Matrix ι (κ ⊕ ρ) ℝ) (Q' : Matrix (κ ⊕ ρ) ι ℝ) (A : Matrix κ κ ℝ) (hP : P' * P = 1)
+    (hQ : Q * Q' = 1) (hE : P * S.E * Q = fromBlocks 1 0 0 0)
+    (hF : P * S.F * Q = fromBlocks A 0 0 1) : S.IndexOneDecoupling κ ρ where
+  P₁ := Matrix.toRows₁ P
+  P₂ := Matrix.toRows₂ P
+  P₁' := Matrix.toCols₁ P'
+  P₂' := Matrix.toCols₂ P'
+  Q₁ := Matrix.toCols₁ Q
+  Q₂ := Matrix.toCols₂ Q
+  Q₁' := Matrix.toRows₁ Q'
+  Q₂' := Matrix.toRows₂ Q'
+  E₁₁ := by obtain ⟨h, -, -, -⟩ := blocks_of_eq P S.E Q hE; exact h
+  E₁₂ := by obtain ⟨-, h, -, -⟩ := blocks_of_eq P S.E Q hE; exact h
+  E₂₁ := by obtain ⟨-, -, h, -⟩ := blocks_of_eq P S.E Q hE; exact h
+  E₂₂ := by obtain ⟨-, -, -, h⟩ := blocks_of_eq P S.E Q hE; exact h
+  F₁₂ := by obtain ⟨-, h, -, -⟩ := blocks_of_eq P S.F Q hF; exact h
+  F₂₁ := by obtain ⟨-, -, h, -⟩ := blocks_of_eq P S.F Q hF; exact h
+  F₂₂ := by obtain ⟨-, -, -, h⟩ := blocks_of_eq P S.F Q hF; exact h
+  P_inv := by rw [← fromCols_mul_fromRows, fromCols_toCols, fromRows_toRows, hP]
+  Q_inv := by rw [← fromCols_mul_fromRows, fromCols_toCols, fromRows_toRows, hQ]
+  Q₁'_Q₁ := by
+    have h := (mul_eq_one_comm_of_equiv e).1 hQ
+    rw [← fromRows_toRows Q', ← fromCols_toCols Q, fromRows_mul_fromCols, ← fromBlocks_one]
+      at h
+    obtain ⟨h, -, -, -⟩ := fromBlocks_inj.1 h
+    exact h
+  Q₁'_Q₂ := by
+    have h := (mul_eq_one_comm_of_equiv e).1 hQ
+    rw [← fromRows_toRows Q', ← fromCols_toCols Q, fromRows_mul_fromCols, ← fromBlocks_one]
+      at h
+    obtain ⟨-, h, -, -⟩ := fromBlocks_inj.1 h
+    exact h
+
+omit [Fintype m] in
+/-- The state matrix of `ofPartitioned` is the block `A` of `P F Q`. -/
+theorem A_ofPartitioned (e : ι ≃ κ ⊕ ρ) (P : Matrix (κ ⊕ ρ) ι ℝ) (P' : Matrix ι (κ ⊕ ρ) ℝ)
+    (Q : Matrix ι (κ ⊕ ρ) ℝ) (Q' : Matrix (κ ⊕ ρ) ι ℝ) (A : Matrix κ κ ℝ) (hP : P' * P = 1)
+    (hQ : Q * Q' = 1) (hE : P * S.E * Q = fromBlocks 1 0 0 0)
+    (hF : P * S.F * Q = fromBlocks A 0 0 1) :
+    (ofPartitioned e P P' Q Q' A hP hQ hE hF).A = A :=
+  (blocks_of_eq P S.F Q hF).1
+
+/-- **Decoupling in Schur form.** Let `T`, `U` be invertible transforms of the rows and of the
+unknowns with `T E U = [[E₁₁, 0], [0, 0]]` and `T F U = [[F₁₁, F₁₂], [F₂₁, F₂₂]]`, where `E₁₁`
+and `F₂₂` are invertible, and let `F₂₂ K = F₂₁`. Then
+`P = [[E₁₁⁻¹, -E₁₁⁻¹ F₁₂ F₂₂⁻¹], [0, F₂₂⁻¹]] T` and `Q = U [[1, 0], [-K, 1]]` decouple `S`, with
+state matrix `E₁₁⁻¹ (F₁₁ - F₁₂ K)` (`A_ofSchur`). -/
+@[expose] noncomputable def ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
+    (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ) (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ)
+    (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ) (F₂₂ : Matrix ρ ρ ℝ)
+    (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1) (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0)
+    (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂) (hE₁₁ : IsUnit E₁₁.det)
+    (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁) : S.IndexOneDecoupling κ ρ :=
+  ofPartitioned e (fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T)
+    (Tᵢ * fromBlocks E₁₁ F₁₂ 0 F₂₂) (U * fromBlocks 1 0 (-K) 1) (fromBlocks 1 0 K 1 * Uᵢ)
+    (E₁₁⁻¹ * (F₁₁ - F₁₂ * K))
+    (by
+      rw [Matrix.mul_assoc, ← Matrix.mul_assoc (fromBlocks E₁₁ F₁₂ 0 F₂₂), fromBlocks_multiply,
+        mul_nonsing_inv _ hE₁₁, mul_nonsing_inv _ hF₂₂]
+      simp only [Matrix.mul_zero, add_zero, Matrix.zero_mul, Matrix.mul_neg,
+        ← Matrix.mul_assoc, mul_nonsing_inv _ hE₁₁, Matrix.one_mul, neg_add_cancel, neg_zero,
+        zero_add, fromBlocks_one, hT])
+    (by
+      rw [Matrix.mul_assoc, ← Matrix.mul_assoc (fromBlocks 1 0 (-K) 1), fromBlocks_multiply]
+      simp only [Matrix.mul_one, Matrix.mul_zero, add_zero, Matrix.one_mul, Matrix.zero_mul,
+        zero_add, neg_add_cancel, fromBlocks_one, hU])
+    (by
+      rw [show fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T * S.E *
+          (U * fromBlocks 1 0 (-K) 1) = fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ *
+          (T * S.E * U) * fromBlocks 1 0 (-K) 1 by simp only [Matrix.mul_assoc],
+        hE, fromBlocks_multiply, fromBlocks_multiply]
+      simp [nonsing_inv_mul _ hE₁₁])
+    (by
+      rw [show fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T * S.F *
+          (U * fromBlocks 1 0 (-K) 1) = fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ *
+          (T * S.F * U) * fromBlocks 1 0 (-K) 1 by simp only [Matrix.mul_assoc],
+        hF, fromBlocks_multiply, fromBlocks_multiply]
+      congr 1
+      · have h1 : F₂₂⁻¹ * (F₂₂ * K) = K := by
+          rw [← Matrix.mul_assoc, nonsing_inv_mul _ hF₂₂, Matrix.one_mul]
+        rw [← hK]
+        simp only [Matrix.mul_one, Matrix.neg_mul, Matrix.mul_assoc, h1, Matrix.mul_neg,
+          Matrix.mul_sub, Matrix.add_mul]
+        abel
+      · simp only [Matrix.mul_one, Matrix.mul_zero, add_zero, Matrix.neg_mul, Matrix.mul_assoc,
+          nonsing_inv_mul _ hF₂₂, Matrix.mul_one, add_neg_cancel]
+      · simp [Matrix.mul_assoc, hK]
+      · simp [nonsing_inv_mul _ hF₂₂])
+
+omit [Fintype m] in
+/-- The state matrix of the Schur-form decoupling. -/
+theorem A_ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
+    (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ) (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ)
+    (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ) (F₂₂ : Matrix ρ ρ ℝ)
+    (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1) (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0)
+    (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂) (hE₁₁ : IsUnit E₁₁.det)
+    (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁) :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).A =
+      E₁₁⁻¹ * (F₁₁ - F₁₂ * K) :=
+  A_ofPartitioned ..
+
+omit [Fintype m] in
+/-- The differential coordinates of the Schur-form decoupling are the first rows of `Uᵢ`. -/
+theorem Q₁'_ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
+    (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ) (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ)
+    (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ) (F₂₂ : Matrix ρ ρ ℝ)
+    (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1) (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0)
+    (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂) (hE₁₁ : IsUnit E₁₁.det)
+    (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁) :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₁' = Uᵢ.toRows₁ := by
+  ext i j
+  simp [ofSchur, ofPartitioned, Matrix.mul_apply, Fintype.sum_sum_type, Matrix.one_apply]
 
 end IndexOneDecoupling
 

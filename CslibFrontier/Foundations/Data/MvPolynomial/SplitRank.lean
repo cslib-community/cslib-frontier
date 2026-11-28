@@ -33,6 +33,8 @@ substitution that keeps the two sets of variables apart, with no matrix in sight
 * `MvPolynomial.aeval_congr_of_mem_supported`: a substitution into a polynomial in the variables
   of `s` depends only on the values on `s`.
 * `MvPolynomial.SplitRankLE.shift`: shifting the variables preserves the split rank.
+* `MvPolynomial.SplitRankLE.pderiv`, `MvPolynomial.SplitRankLE.iteratedPDeriv`: partial
+  derivatives preserve the split rank.
 * `MvPolynomial.aeval_mem_of_mem_supported`: such a substitution lands in a subalgebra that
   contains the values on `s`.
 * `MvPolynomial.iteratedPDeriv_mul_of_mem_supported`: partial derivatives along variables outside
@@ -90,6 +92,11 @@ theorem pderiv_mem_supported (hp : p ∈ supported R s) (i : σ) : pderiv i p �
   rw [Finsupp.add_apply]
   omega
 
+/-- A polynomial supported away from a variable has zero derivative in that variable. -/
+theorem pderiv_eq_zero_of_mem_supported {s : Set σ} {p : MvPolynomial σ R}
+    (hp : p ∈ supported R s) {v : σ} (hv : v ∉ s) : pderiv v p = 0 :=
+  pderiv_eq_zero_of_notMem_vars fun h => hv (mem_supported.1 hp (Finset.mem_coe.2 h))
+
 /-- An iterated partial derivative of a polynomial in the variables of `s` is a polynomial in the
 variables of `s`. -/
 theorem iteratedPDeriv_mem_supported (hp : p ∈ supported R s) {k : ℕ} (α : Fin k → σ) :
@@ -106,8 +113,8 @@ theorem iteratedPDeriv_mul_of_mem_supported (hp : p ∈ supported R s) (q : MvPo
   | zero => rfl
   | succ k ih =>
     rw [iteratedPDeriv_succ_apply, ih (α := Fin.tail α) fun i => hα i.succ, Derivation.leibniz,
-      iteratedPDeriv_succ_apply, pderiv_eq_zero_of_notMem_vars fun h =>
-        hα 0 (mem_supported.1 hp (Finset.mem_coe.2 h)), smul_zero, add_zero, smul_eq_mul]
+      iteratedPDeriv_succ_apply, pderiv_eq_zero_of_mem_supported hp (hα 0),
+      smul_zero, add_zero, smul_eq_mul]
 
 /-- A shift of a polynomial in the variables of `s` is a polynomial in the variables of `s`. -/
 theorem shift_mem_supported (hp : p ∈ supported R s) (a : σ → A) :
@@ -155,5 +162,32 @@ theorem SplitRankLE.shift {U : Set σ} {w : ℕ} {f : MvPolynomial σ R} (h : Sp
   exact ⟨fun i => MvPolynomial.shift a (p i), fun i => MvPolynomial.shift a (q i),
     fun i => shift_mem_supported (hp i) a, fun i => shift_mem_supported (hq i) a,
     by simp only [map_sum, map_mul]⟩
+
+/-- A partial derivative preserves the split rank: it differentiates the factors on the side of
+its variable and leaves the others. -/
+theorem SplitRankLE.pderiv {U : Set σ} {w : ℕ} {f : MvPolynomial σ R} (h : SplitRankLE U w f)
+    (i : σ) : SplitRankLE U w (pderiv i f) := by
+  obtain ⟨p, q, hp, hq, rfl⟩ := h
+  by_cases hi : i ∈ U
+  · refine ⟨fun k => MvPolynomial.pderiv i (p k), q, fun k => pderiv_mem_supported (hp k) i, hq,
+      ?_⟩
+    rw [map_sum]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    rw [Derivation.leibniz, pderiv_eq_zero_of_mem_supported (hq k) (fun h => h hi),
+      smul_zero, zero_add, smul_eq_mul, mul_comm]
+  · refine ⟨p, fun k => MvPolynomial.pderiv i (q k), hp, fun k => pderiv_mem_supported (hq k) i,
+      ?_⟩
+    rw [map_sum]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    rw [Derivation.leibniz, pderiv_eq_zero_of_mem_supported (hp k) hi,
+      smul_zero, add_zero, smul_eq_mul]
+
+/-- Iterated partial derivatives preserve the split rank. -/
+theorem SplitRankLE.iteratedPDeriv {U : Set σ} {w : ℕ} {f : MvPolynomial σ R}
+    (h : SplitRankLE U w f) {k : ℕ} (α : Fin k → σ) :
+    SplitRankLE U w (MvPolynomial.iteratedPDeriv α f) := by
+  induction k with
+  | zero => exact h
+  | succ k ih => exact (ih (Fin.tail α)).pderiv _
 
 end MvPolynomial

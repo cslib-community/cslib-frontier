@@ -61,37 +61,25 @@ private theorem slotBinM_mapKeysRest (le : α' → α' → m Bool) (g : α → �
     (rest : List (Triple α β)) :
     slotBinM le (g k) (mapKeysRest g rest) =
       slotBinM (fun a b => le (g a) (g b)) k rest := by
-  induction h : rest.length using Nat.strong_induction_on generalizing rest with
-  | _ n ih =>
-    rcases rest with _ | ⟨e, l⟩
-    · simp only [mapKeysRest_eq_map, List.map_nil, slotBinM_nil]
-    · have hm : mapKeysRest g (e :: l) =
-          (g e.1, e.val, e.child.mapKeys g) :: mapKeysRest g l := by
-        simp only [mapKeysRest_eq_map, List.map_cons]
-      have hl : (mapKeysRest g l).length = l.length := by
-        rw [mapKeysRest_eq_map, List.length_map]
-      rw [hm, slotBinM_cons, slotBinM_cons]
-      simp only [hl, ← hm]
-      have hlen : (l.length + 1) / 2 < (e :: l).length := by
-        simp only [List.length_cons]; omega
-      have hget : ((mapKeysRest g (e :: l))[(l.length + 1) / 2]'(by
-          rw [mapKeysRest_eq_map, List.length_map]; exact hlen)).1 =
-          g ((e :: l)[(l.length + 1) / 2]'hlen).1 := by
-        simp only [mapKeysRest_eq_map, List.getElem_map]
-      have htake (j : ℕ) : (mapKeysRest g (e :: l)).take j = mapKeysRest g ((e :: l).take j) := by
-        simp only [mapKeysRest_eq_map, List.map_take]
-      have hdrop (j : ℕ) : (mapKeysRest g (e :: l)).drop j = mapKeysRest g ((e :: l).drop j) := by
-        simp only [mapKeysRest_eq_map, List.map_drop]
-      have hlt : (e :: l).length < n + 1 := by omega
-      simp only [hget, htake, hdrop]
-      have h1 := ih _ (by simp only [List.length_take, List.length_cons] at hlt ⊢; omega)
-        ((e :: l).take ((l.length + 1) / 2)) rfl
-      have h3 := ih _ (by simp only [List.length_drop, List.length_cons] at hlt ⊢; omega)
-        ((e :: l).drop ((l.length + 1) / 2 + 1)) rfl
-      refine bind_congr fun b => ?_
-      cases b
-      · simp only [Bool.false_eq_true, ite_false, h3]
-      · exact h1
+  cases rest with
+  | nil => simp only [mapKeysRest_eq_map, List.map_nil, slotBinM_nil]
+  | cons e l =>
+    have hm : mapKeysRest g (e :: l) =
+        (g e.1, e.val, e.child.mapKeys g) :: mapKeysRest g l := by
+      simp only [mapKeysRest_eq_map, List.map_cons]
+    have hl : (mapKeysRest g l).length = l.length := by
+      rw [mapKeysRest_eq_map, List.length_map]
+    rw [hm, slotBinM_cons, slotBinM_cons]
+    simp only [hl, ← hm]
+    simp only [mapKeysRest_eq_map, List.getElem_map, ← List.map_take, ← List.map_drop]
+    simp only [← mapKeysRest_eq_map]
+    rw [slotBinM_mapKeysRest le g k ((e :: l).take ((l.length + 1) / 2)),
+      slotBinM_mapKeysRest le g k ((e :: l).drop ((l.length + 1) / 2 + 1))]
+termination_by rest.length
+decreasing_by
+  all_goals
+    simp only [List.length_take, List.length_drop, List.length_cons]
+    omega
 
 /-- Lookup with binary in-node search in a tree with mapped keys, compared through the key
 function, is lookup in the original tree under the pulled-back comparison. -/

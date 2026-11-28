@@ -142,37 +142,6 @@ jobs:
       - name: "Projection chain report"
         if: github.event_name != 'pull_request'
         run: python3 -B scripts/check_projection_chains.py --report
-      # Advisory only: tactic blocks on lines a pull request adds or changes that repeat a block
-      # of another proof in the same file or directory nearly verbatim (#3725). Candidates go to
-      # the job summary and appear as notices; the step never fails the job. Sources only: no
-      # Lean, so it runs before the build. Its tests run with the Python tests above. See
-      # scripts/proof_copies.py. The base is the first parent of the merge commit, as above.
-      - name: "Repeated-proof-block notice (advisory)"
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        timeout-minutes: 5
-        env:
-          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
-          BASE=${BASE:-$RECORDED_BASE}
-          git fetch --no-tags --depth=1 origin "$BASE"
-          python3 -B scripts/proof_copies.py --base "$BASE" --github
-      # Advisory only: reports existing library modules modified by the pull request that have
-      # high transitive fan-in (>= 500 importers across `CslibFrontier` and `CslibFrontierTests`),
-      # reminding authors and reviewers when new helper lemmas may belong in a smaller topic module
-      # (AGENTS.md, "Placement and reuse"). Sources only; never fails the job.
-      - name: "High-fan-in module impact (advisory)"
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        timeout-minutes: 5
-        env:
-          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
-          BASE=${BASE:-$RECORDED_BASE}
-          git fetch --no-tags --depth=1 origin "$BASE"
-          python3 -B scripts/check_hub_impact.py --base "$BASE" --github
       # The API documentation (docbuild/) and the guide (guide/) are separate Lake projects that
       # share the library's toolchain and `.lake/packages`, so their lockfiles must follow the root
       # pins. Checking here makes a root cslib or Mathlib bump without matching lockfile updates
@@ -365,6 +334,62 @@ jobs:
       - name: "lake lint"
         if: github.event_name != 'pull_request'
         run: lake lint
+      # Advisory only: public definitions that a pull request adds or changes and that share a
+      # large anonymized subterm with an existing definition, or only rename one (AGENTS.md, "New
+      # statements and definitions"), and theorems it adds or changes whose statement the library
+      # or a dependency already proves (#949). Run right after build and lint, and also upload a
+      # small summary artifact (`lean-advisory-notices`), so reviewers can inspect these notices
+      # before the remaining whole-library post-build checks finish and hand off to
+      # `queue_pr.py --wait`. Candidates also go to the job summary and appear as notices; the step
+      # never fails the job. See scripts/parallel_defs.py.
+      - name: "Parallel-definition and duplicate-statement notices (advisory)"
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          SUMMARY_COPY="$RUNNER_TEMP/lean-advisory-notices.md"
+          : > "$SUMMARY_COPY"
+          record_incomplete() {
+            printf '%s\n' "$1" >> "$SUMMARY_COPY"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            printf '%s\n' "$1"
+          }
+          status=0
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          fetch_status=0
+          git fetch --no-tags --depth=1 origin "$BASE" || fetch_status=$?
+          if [ "$fetch_status" -ne 0 ]; then
+            record_incomplete "$(printf '### Parallel-definition and duplicate-statement notices (incomplete)\n\n**Incomplete advisory check:** `git fetch` of comparison base `%s` failed (exit %s); neither duplication scan ran.\n' "$BASE" "$fetch_status")"
+            exit "$fetch_status"
+          fi
+          defs_status=0
+          python3 -B scripts/parallel_defs.py --base "$BASE" --github --no-build-check --summary-file "$SUMMARY_COPY" || defs_status=$?
+          if [ "$defs_status" -ne 0 ]; then
+            status=$defs_status
+            record_incomplete "$(printf '\n**Incomplete advisory check:** `parallel_defs.py` exited with status %s.\n' "$defs_status")"
+          fi
+          thms_status=0
+          python3 -B scripts/parallel_defs.py --theorems --base "$BASE" --github --no-build-check --summary-file "$SUMMARY_COPY" || thms_status=$?
+          if [ "$thms_status" -ne 0 ]; then
+            status=$thms_status
+            record_incomplete "$(printf '\n**Incomplete advisory check:** `parallel_defs.py --theorems` exited with status %s.\n' "$thms_status")"
+          fi
+          exit "$status"
+      - name: Upload early Lean advisory notices
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lean-advisory-notices
+          path: ${{ runner.temp }}/lean-advisory-notices.md
+          if-no-files-found: ignore
+          retention-days: 2
       # Compiled-fixture unit tests for the post-build Python checkers. `source-checks` already runs
       # every non-Lean unit test on every event; this step runs the Lean-dependent fixture suites on
       # pushes, manual runs, and PR/queue diffs that can affect tooling or build configuration.
@@ -475,44 +500,6 @@ jobs:
           BASE=${BASE:-$RECORDED_BASE}
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B scripts/check_changed_files.py --base "$BASE"
-      # Advisory only: public definitions that a pull request adds or changes and that share a
-      # large anonymized subterm with an existing definition, or only rename one (AGENTS.md, "New
-      # statements and definitions"), and theorems it adds or changes whose statement the library
-      # or a dependency already proves (#949). Candidates go to the job summary and appear as
-      # notices; the step never fails the job. See scripts/parallel_defs.py. The comparison
-      # base is the first parent of the checked-out merge commit: `pull_request.base.sha` can be an
-      # older tip of the base branch, and comparing with it would attribute later base commits to
-      # the PR.
-      - name: "Parallel-definition and duplicate-statement notices (advisory)"
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        timeout-minutes: 10
-        env:
-          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
-          BASE=${BASE:-$RECORDED_BASE}
-          git fetch --no-tags --depth=1 origin "$BASE"
-          python3 -B scripts/parallel_defs.py --base "$BASE" --github --no-build-check
-          python3 -B scripts/parallel_defs.py --theorems --base "$BASE" --github --no-build-check
-      # Advisory only: backticked Lean names in the PR description that the checked-out merge
-      # commit does not declare (renamed or dropped while the PR evolved). It reads the sources of
-      # the library, the tests, `.lake/packages` and the toolchain, so it runs after
-      # the build; names that the base declared are marked as removed by the PR. Findings go to the
-      # job summary and a notice; the step never fails the job. The body is the event payload's,
-      # i.e. as of the latest push; after editing the description, run
-      # `scripts/check_pr_names.py --pr N` locally. Its tests run with the Python tests at the start.
-      - name: "PR description names (advisory)"
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        timeout-minutes: 5
-        env:
-          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
-          BASE=${BASE:-$RECORDED_BASE}
-          git fetch --no-tags --depth=1 origin "$BASE"
-          python3 -B scripts/check_pr_names.py --event "$GITHUB_EVENT_PATH" --base "$BASE" --github
       - name: "lake exe mk_all --check"
         run: |
           set -e
@@ -674,3 +661,53 @@ jobs:
         run: >-
           python3 scripts/cache/publish.py http "$CACHE_SERVER_URL"
           "$RUNNER_TEMP/lake-publication"
+
+  # Fast pull-request advisory job: surfaces source and PR-description notices in under a minute
+  # (with a completed job summary, annotations and logs) instead of waiting for `source-checks`'s
+  # Python test suite or the end of `lean-checks`. Non-blocking and excluded from `ci-checks`.
+  pr-notices:
+    if: github.event_name == 'pull_request'
+    name: PR advisory notices
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Advisory only: tactic blocks on lines a pull request adds or changes that repeat a block
+      # of another proof in the same file or directory nearly verbatim (#3725).
+      - name: "Repeated-proof-block notice (advisory)"
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/proof_copies.py --base "$BASE" --github
+      # Advisory only: reports existing library modules modified by the pull request that have
+      # high transitive fan-in (>= 500 importers across `CslibFrontier` and `CslibFrontierTests`).
+      - name: "High-fan-in module impact (advisory)"
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/check_hub_impact.py --base "$BASE" --github
+      # Advisory only: backticked Lean names in the PR description that the checked-out merge
+      # commit does not declare (`--fetch-deps` shallow-fetches package and core sources only when
+      # local sources leave unresolved tokens).
+      - name: "PR description names (advisory)"
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/check_pr_names.py --event "$GITHUB_EVENT_PATH" --base "$BASE" --fetch-deps --github

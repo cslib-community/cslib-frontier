@@ -40,7 +40,14 @@ The checker agrees with `checkLRAT` on every formula and certificate
 `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff` with `checkLRATFast_eq_checkLRAT` shows that a
 formula has a certificate this checker accepts exactly when it is unsatisfiable.
 
-It is the checker for compiled and interpreted code. The kernel's `Array` wraps a list, so the
+It is the checker for compiled and interpreted code. No library code calls it since `lrat_tauto`
+stopped checking its trimmed certificates, whose acceptance is now proved
+(`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`); it is kept for compiled checking of large
+certificates, such as the LRAT file checker planned in
+[#8790](https://github.com/cslib-community/cslib-frontier/issues/8790). On 2026-11-26,
+compiled, `checkLRATKernel` took 4.4 to 6.0 times as long on the CDCL solver's certificates for
+PHP(7, 6), PHP(8, 7) and unsatisfiable random 3-CNFs of 150 and 200 variables (on 118705 steps,
+2.73 s against 0.49 s). The kernel's `Array` wraps a list, so the
 kernel cannot evaluate it efficiently: for kernel reduction, `decide` uses
 `Cslib.Logic.PL.CNF.checkLRATKernel`, which checks the same certificates with a binary trie and a
 bitmask. Each wins in its own setting. Measured on one machine with the two checkers alternating
@@ -53,8 +60,7 @@ milestone 4):
   against 0.9 s), and 2 to 7 times as long on the trimmed certificates of `lrat_tauto`'s benchmark
   families. Almost half of its time is `Nat.testBit` on the bitmask, which is a multi-word number
   once there are more than about 30 variables;
-* interpreted, as in `lrat_tauto`'s check of its trimmed certificate, `checkLRATKernel` takes 1.8 to
-  4 times as long on those families;
+* interpreted, `checkLRATKernel` takes 1.8 to 4 times as long on those families;
 * in the kernel (`decide +kernel`), `checkLRATFast` took 62.8 s on `lrat_tauto`'s certificate for
   the chain of 80 implications, against 0.67 s for `checkLRATKernel` and 6.8 s for `checkLRAT`, and
   exceeded 14 GB of memory on those for `dist 5`, `iff 5`, `php 4` and `php 5`, which

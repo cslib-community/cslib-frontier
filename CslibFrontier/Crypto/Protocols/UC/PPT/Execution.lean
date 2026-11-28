@@ -34,6 +34,8 @@ certificate, call budget, or request-length bound.
 * `Cslib.Crypto.Protocols.UC.Environment.IsPPT.absorbHybrid`: absorbing a reply-bounded
   strict-PPT hybrid protocol into a strict-PPT environment (`absorbHybrid`) preserves
   `Environment.IsPPT`.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.absorbHybrid_of_reachable`: the wrapped parent's
+  replies may instead satisfy an efficiently computable bound along this caller's executions.
 * `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isPPT_run`: running a strict-PPT environment
   against a closed, reply-bounded strict-PPT machine family is `IsPPT encBool`.
 * `Cslib.Crypto.Protocols.UC.isPPT_exec`: UC execution of a strict-PPT protocol, adversary, and
@@ -125,5 +127,34 @@ theorem Environment.IsPPT.absorbHybrid
     (absorbHybrid C ρ Z).IsPPT subParty (WordPort.sum subParty nq) :=
   hZ.link ((hρ.hybridWrap (nq := WordPort.sum subParty nq)).routeCorrupt hparty)
     (hρR.hybridWrap (nq := WordPort.sum subParty nq)).routeCorrupt C
+
+/-- Library infrastructure toward #6043: the subroutine's environment is strict PPT when the
+outer caller has a polynomial-time computable cap on the wrapped parent's replies along all
+supported executions, for every stateful imported word oracle. -/
+theorem Environment.IsPPT.absorbHybrid_of_reachable
+    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
+    {Z : Environment n In Out (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))}
+    {party : WordPort (Fin n × In) (Option Out)} {net : WordPort NetQ NetR}
+    {subParty : WordPort (Fin n × SubIn) (Option SubOut)} {nq : WordPort NQ NR}
+    (hparty : ComputableInPolyTime (fun w => (party.queryDecoder.decode w).1)
+      encBits (encFinite (Fin n)))
+    (hZ : Z.IsPPT party (WordPort.sum party (WordPort.sum net (WordPort.sum subParty nq))))
+    (hρ : ρ.IsPPT party net subParty)
+    (C : Finset (Fin n)) (cap : EnvParam → ℕ)
+    (hcap : ComputableInPolyTime cap encEnvParam encUnary)
+    (hreach : ∀ (e : EnvParam) (State : Type)
+      (oracle : (WordInterface.exec subParty (WordPort.sum subParty nq)).Channel ×
+        List Bool → StateT State PMF (List Bool))
+      (sO : State) (s0 : (ρ e.secParam C).State), s0 ∈ (ρ e.secParam C).init.eval.support →
+      RepliesFitOn (routeCorrupt C (hybridWrap (ρ e.secParam C)))
+        (WordInterface.exec subParty (WordPort.sum subParty nq))
+        (WordInterface.exec party
+          (WordPort.sum party (WordPort.sum net (WordPort.sum subParty nq))))
+        e.replyBound (cap e) oracle (Z e.secParam e.aux) s0 sO) :
+    (UC.absorbHybrid C ρ Z).IsPPT subParty (WordPort.sum subParty nq) :=
+  hZ.link_of_reachable ((hρ.hybridWrap (nq := WordPort.sum subParty nq)).routeCorrupt hparty)
+    C cap hcap hreach
 
 end Cslib.Crypto.Protocols.UC
