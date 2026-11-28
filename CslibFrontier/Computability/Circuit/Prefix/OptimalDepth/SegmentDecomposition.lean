@@ -107,7 +107,7 @@ private theorem buildSegTree_props {N k : ℕ} (c : PrefixCircuit N) (a b D : �
   have hws : wireState c.program w = s := by simp only [wireState, hpw, List.length_range']
   have hmem (i : Fin (segChildren c a b root w).length) :
       (segChildren c a b root w)[i] ∈ segChildren c a b root w := List.getElem_mem _
-  rw [buildSegTree_eq]
+  rw [buildSegTree]
   refine ⟨⟨s, hs1, hs2, hpw, hws⟩, ⟨hws ▸ hs2, fun i => (ih _ (hmem i)).2.1⟩,
     ⟨(seg_fanout_bound c a b root w).trans (hfan w), fun i => (ih _ (hmem i)).2.2.1⟩,
     ⟨fun i => ?_, fun i => (ih _ (hmem i)).2.2.2.1⟩, ?_⟩
@@ -379,7 +379,7 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
     omega
   have hroot_bud : t.rootBudget + 1 ≤ k := by
     dsimp only [t]
-    rw [buildSegTree_eq]
+    rw [buildSegTree]
     exact (seg_root_fanout_bound c a b root sg
       (by simp only [hsg_line, firstInput, hsg_w0]) hsg_not).trans (hfan root)
   obtain ⟨hout_cnt, hout_at, hmul_cnt⟩ := buildSegTree_counts c a b root root

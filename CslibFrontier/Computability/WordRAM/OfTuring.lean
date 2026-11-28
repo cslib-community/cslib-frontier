@@ -519,8 +519,6 @@ private theorem dispatch_spec {reg : Fin (regs k)} (hreg : reg ≠ rTmp)
 private theorem symCode_le (s : Option Bool) : symCode s ≤ 2 := by
   rcases s with _ | _ | _ <;> simp [symCode]
 
-private theorem newTape_none (t : ℤ → Option Bool) (p : ℤ) : newTape t p none = t := rfl
-
 /-- Writing on tape `i`. -/
 private theorem writeCode_spec {x : Data (regs k)} {T : Fin k → ℤ → Option Bool} {P : Fin k → ℤ}
     (hT : TapesRel n x T P) (i : Fin k) (wr : Option (Option Bool)) (h2 : Fits w 2) :
@@ -530,7 +528,7 @@ private theorem writeCode_spec {x : Data (regs k)} {T : Fin k → ℤ → Option
   cases wr with
   | none =>
     refine ⟨x, execWithin_skip.mono (by omega), ?_, fun _ _ => rfl, fun _ _ => rfl⟩
-    rwa [newTape_none, Function.update_eq_self]
+    simpa only [newTape, Function.update_eq_self]
   | some s =>
     refine ⟨(x.set rTmp (symCode s)).write (tapeAddr k n i (P i)) (symCode s), ?_, ?_, ?_, ?_⟩
     · have h := (execWithin_const (d := rTmp) (x := x)
