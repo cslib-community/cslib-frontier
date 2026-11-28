@@ -155,7 +155,7 @@ theorem GridComplete.isAffineProjection_clauseSum {G : PolynomialFamily K} {c : 
   let N := Σ κ, Fin (lits κ).length
   let v : N → V := fun n => ((lits n.1).get n.2).1
   let W : N → Bool → Bool → MvPolynomial ι K := fun n x r =>
-    if r then (if x = ((lits n.1).get n.2).2 then (if n.2.1 = 0 then wt n.1 - 1 else 1) else 0)
+    if r then (if x = ((lits n.1).get n.2).2 then (if n.2.val = 0 then wt n.1 - 1 else 1) else 0)
     else 1
   let o : Θ → Option ι := fun κ => if h : ∃ i, wt κ = X i then some h.choose else none
   have hwt' (κ : Θ) : wt κ ∈ affineIn (o κ) := by

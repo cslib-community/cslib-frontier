@@ -318,7 +318,7 @@ private lemma exists_det_ne_zero_submatrix_of_linearIndependent_cols {κ ι' : T
     Module.Basis.mk hs_li (by rw [Subtype.range_coe_subtype]; exact le_of_eq hs_span.symm)
   let e : κ ≃ s := Fintype.equivOfCardEq <| by
     simpa [Module.finrank_pi] using (Module.finrank_eq_card_basis b)
-  choose ρ hρ using fun j : κ => hs_sub (e j).2
+  choose ρ hρ using fun j : κ => hs_sub (e j).property
   have hrows : LinearIndependent K (A.submatrix ρ id).row := by
     convert hs_li.comp e e.injective using 1; ext j c; exact congrFun (hρ j) c
   exact ⟨ρ, isUnit_iff_ne_zero.1 ((Matrix.isUnit_iff_isUnit_det _).1
@@ -326,11 +326,11 @@ private lemma exists_det_ne_zero_submatrix_of_linearIndependent_cols {κ ι' : T
 
 private lemma natDegree_cramer_le {κ : Type*} [Fintype κ] [DecidableEq κ]
     {C : Finset κ} {j₀ : κ} (hj₀ : j₀ ∉ C) (N : Matrix C C F[X]) (v : C → F[X])
-    (colDeg : κ → ℕ) (hN : ∀ a b : C, (N a b).natDegree ≤ colDeg b.1)
+    (colDeg : κ → ℕ) (hN : ∀ a b : C, (N a b).natDegree ≤ colDeg b.val)
     (hv : ∀ a : C, (v a).natDegree ≤ colDeg j₀) (c : C) :
-    (N.cramer v c).natDegree ≤ ∑ t ∈ Finset.univ.erase c.1, colDeg t := by
+    (N.cramer v c).natDegree ≤ ∑ t ∈ Finset.univ.erase c.val, colDeg t := by
   rw [Matrix.cramer_apply]
-  let d' : C → ℕ := fun b => if b = c then colDeg j₀ else colDeg b.1
+  let d' : C → ℕ := fun b => if b = c then colDeg j₀ else colDeg b.val
   have hM' : ∀ a b : C, ((N.updateCol c v) a b).natDegree ≤ d' b := fun a b => by
     by_cases hbc : b = c
     · simp only [d', hbc, ↓reduceIte, Matrix.updateCol_self]; exact hv a
@@ -338,13 +338,13 @@ private lemma natDegree_cramer_le {κ : Type*} [Fintype κ] [DecidableEq κ]
   refine (natDegree_det_le_sum (N.updateCol c v) d' hM').trans ?_
   rw [← Finset.add_sum_erase _ _ (mem_univ c)]
   have h1 : d' c = colDeg j₀ := by simp only [d', ↓reduceIte]
-  have hrest : ∑ b ∈ Finset.univ.erase c, d' b = ∑ t ∈ C.erase c.1, colDeg t := by
+  have hrest : ∑ b ∈ Finset.univ.erase c, d' b = ∑ t ∈ C.erase c.val, colDeg t := by
     calc ∑ b ∈ Finset.univ.erase c, d' b
-        = ∑ b ∈ Finset.univ.erase c, colDeg b.1 :=
+        = ∑ b ∈ Finset.univ.erase c, colDeg b.val :=
           Finset.sum_congr rfl fun b hb => by simp only [d', (mem_erase.1 hb).1, ↓reduceIte]
-      _ = ∑ t ∈ C.erase c.1, colDeg t :=
-          Finset.sum_bij (fun b _ => b.1)
-            (fun b hb => mem_erase.2 ⟨fun h => (mem_erase.1 hb).1 (Subtype.ext h), b.2⟩)
+      _ = ∑ t ∈ C.erase c.val, colDeg t :=
+          Finset.sum_bij (fun b _ => b.val)
+            (fun b hb => mem_erase.2 ⟨fun h => (mem_erase.1 hb).1 (Subtype.ext h), b.property⟩)
             (fun _ _ _ _ h => Subtype.ext h)
             (fun t ht => ⟨⟨t, (mem_erase.1 ht).2⟩, mem_erase.2
               ⟨fun h => (mem_erase.1 ht).1 (congrArg Subtype.val h), mem_univ _⟩, rfl⟩)
@@ -352,34 +352,35 @@ private lemma natDegree_cramer_le {κ : Type*} [Fintype κ] [DecidableEq κ]
   rw [h1, hrest, ← Finset.sum_insert (fun h => hj₀ (mem_erase.1 h).2)]
   exact Finset.sum_le_sum_of_subset fun t ht => by
     rcases mem_insert.1 ht with rfl | ht'
-    · exact mem_erase.2 ⟨fun h => hj₀ (h ▸ c.2), mem_univ _⟩
+    · exact mem_erase.2 ⟨fun h => hj₀ (h ▸ c.property), mem_univ _⟩
     · exact mem_erase.2 ⟨(mem_erase.1 ht').1, mem_univ _⟩
 
 private lemma exists_max_indep_cols {κ ι' : Type*} [Finite κ]
     {K : Type*} [Field K]
     (MK : Matrix ι' κ K) (hdep : ¬ LinearIndependent K fun j : κ => fun r : ι' => MK r j) :
     ∃ (C : Finset κ) (j₀ : κ) (w : C → K),
-      LinearIndependent K (fun c : C => fun r : ι' => MK r c.1) ∧
-      j₀ ∉ C ∧ ∑ c : C, w c • (fun r : ι' => MK r c.1) = fun r : ι' => MK r j₀ := by
+      LinearIndependent K (fun c : C => fun r : ι' => MK r c.val) ∧
+      j₀ ∉ C ∧ ∑ c : C, w c • (fun r : ι' => MK r c.val) = fun r : ι' => MK r j₀ := by
   classical
   let _ : Fintype κ := Fintype.ofFinite κ
   let indepSets : Finset (Finset κ) :=
-    Finset.univ.filter fun C => LinearIndependent K fun c : C => fun r : ι' => MK r c.1
+    Finset.univ.filter fun C => LinearIndependent K fun c : C => fun r : ι' => MK r c.val
   obtain ⟨C, hC_mem, hC_max⟩ := Finset.exists_max_image indepSets Finset.card
     ⟨∅, mem_filter.2 ⟨mem_univ _, linearIndependent_empty_type⟩⟩
-  have hC_li : LinearIndependent K fun c : C => fun r : ι' => MK r c.1 := (mem_filter.1 hC_mem).2
+  have hC_li : LinearIndependent K fun c : C => fun r : ι' => MK r c.val := (mem_filter.1 hC_mem).2
   have ⟨j₀, hj₀⟩ : ∃ j₀ : κ, j₀ ∉ C := by
     by_contra hall; push Not at hall
     have huniv : C = Finset.univ := Finset.eq_univ_iff_forall.2 hall
     exact hdep (hC_li.comp (fun j : κ => (⟨j, huniv.symm ▸ mem_univ j⟩ : C))
       fun _ _ h => congrArg Subtype.val h)
   have hspan : (fun r : ι' => MK r j₀) ∈
-      Submodule.span K (Set.range fun c : C => fun r : ι' => MK r c.1) := by
+      Submodule.span K (Set.range fun c : C => fun r : ι' => MK r c.val) := by
     by_contra hnot
     have hnot' : (fun r => MK r j₀) ∉ Submodule.span K ((fun j r => MK r j) '' (C : Set κ)) := by
       rwa [Set.image_eq_range]
     have hC_on : LinearIndepOn K (fun j r => MK r j) (C : Set κ) := hC_li
-    have hli' : LinearIndependent K fun c : (insert j₀ C : Finset κ) => fun r : ι' => MK r c.1 := by
+    have hli' :
+        LinearIndependent K fun c : (insert j₀ C : Finset κ) => fun r : ι' => MK r c.val := by
       have h := hC_on.insert hnot'
       rwa [← Finset.coe_insert] at h
     have hle := hC_max (insert j₀ C) (mem_filter.2 ⟨mem_univ _, hli'⟩)
@@ -402,9 +403,9 @@ private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableE
   let MK : Matrix ι' κ K := M.map iK
   obtain ⟨C, j₀, w, hC_li, hj₀, hw⟩ := exists_max_indep_cols MK (fun h => hdep h)
   obtain ⟨ρ, hρ_det⟩ := exists_det_ne_zero_submatrix_of_linearIndependent_cols
-    (MK.submatrix id (fun c : C => c.1)) hC_li
-  let N : Matrix C C F[X] := M.submatrix ρ (·.1)
-  have hNK_eq : N.map iK = (MK.submatrix id (fun c : C => c.1)).submatrix ρ id := by ext a b; rfl
+    (MK.submatrix id (fun c : C => c.val)) hC_li
+  let N : Matrix C C F[X] := M.submatrix ρ (·.val)
+  have hNK_eq : N.map iK = (MK.submatrix id (fun c : C => c.val)).submatrix ρ id := by ext a b; rfl
   have hNK_det : (N.map iK).det ≠ 0 := by rw [hNK_eq]; exact hρ_det
   have hN_det : N.det ≠ 0 := fun h0 => hNK_det <| by
     rw [show (N.map iK).det = iK N.det from (RingHom.map_det iK N).symm, h0, map_zero]
@@ -428,16 +429,17 @@ private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableE
     rw [← Finset.sum_subset hsub fun j hj hjC => by
       simp only [x, (mem_erase.1 hj).1, ↓reduceIte, hjC, ↓reduceDIte, map_zero, mul_zero],
       ← Finset.sum_attach C]
-    have hsum : ∑ c ∈ C.attach, iK (M r c.1) * iK (x c.1) =
-        -(iK N.det * ∑ c : C, w c * MK r c.1) := by
+    have hsum : ∑ c ∈ C.attach, iK (M r c.val) * iK (x c.val) =
+        -(iK N.det * ∑ c : C, w c * MK r c.val) := by
       rw [Finset.mul_sum, ← Finset.sum_neg_distrib]
       refine Finset.sum_congr rfl fun c _ => ?_
-      have hne : c.1 ≠ j₀ := fun h => hj₀ (h ▸ c.2)
-      simp only [x, hne, ↓reduceIte, c.2, ↓reduceDIte, map_neg, hcramer_eq c, MK, Matrix.map_apply]
-      rw [mul_neg, neg_inj, mul_comm (iK (M r c.1)), mul_assoc, mul_comm (w c)]
+      have hne : c.val ≠ j₀ := fun h => hj₀ (h ▸ c.property)
+      simp only [x, hne, ↓reduceIte, c.property, ↓reduceDIte, map_neg, hcramer_eq c, MK,
+        Matrix.map_apply]
+      rw [mul_neg, neg_inj, mul_comm (iK (M r c.val)), mul_assoc, mul_comm (w c)]
     have hrw := congrFun hw r
     simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hrw
-    change iK (M r j₀) * iK N.det + ∑ c ∈ C.attach, iK (M r c.1) * iK (x c.1) = 0
+    change iK (M r j₀) * iK N.det + ∑ c ∈ C.attach, iK (M r c.val) * iK (x c.val) = 0
     rw [hsum, hrw]
     change iK (M r j₀) * iK N.det + -(iK N.det * iK (M r j₀)) = 0
     rw [mul_comm (iK (M r j₀)), add_neg_cancel]
@@ -445,12 +447,12 @@ private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableE
     hMx, fun j => ?_⟩
   by_cases hj : j = j₀
   · subst hj; simp only [x, ↓reduceIte]
-    exact ((natDegree_det_le_sum N (fun c => colDeg c.1) fun a b => hM (ρ a) b.1).trans_eq
+    exact ((natDegree_det_le_sum N (fun c => colDeg c.val) fun a b => hM (ρ a) b.val).trans_eq
       (Finset.sum_attach C colDeg)).trans (Finset.sum_le_sum_of_subset
         fun c hc => mem_erase.2 ⟨fun h => hj₀ (h ▸ hc), mem_univ c⟩)
   · by_cases hm : j ∈ C
     · simp only [x, hj, ↓reduceIte, hm, ↓reduceDIte, natDegree_neg]
-      exact natDegree_cramer_le hj₀ N v colDeg (fun a b => hM (ρ a) b.1) (fun a => hM (ρ a) j₀)
+      exact natDegree_cramer_le hj₀ N v colDeg (fun a b => hM (ρ a) b.val) (fun a => hM (ρ a) j₀)
         ⟨j, hm⟩
     · simp only [x, hj, ↓reduceIte, hm, ↓reduceDIte, natDegree_zero, Nat.zero_le]
 
@@ -495,7 +497,7 @@ private lemma berlekampWelch_cols_not_linearIndependent [Fintype ι] [DecidableE
     rw [hammingDist_comm] at hdist
     obtain ⟨E, Q, hsol⟩ := BerlekampWelch.exists_isSolution (α := α)
       (w := ∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) hp_deg hdist
-    let y : Col → F := Sum.elim (fun t => Q.coeff t.1) (fun t => E.coeff t.1)
+    let y : Col → F := Sum.elim (fun t => Q.coeff t.val) (fun t => E.coeff t.val)
     have hy_ne : y ≠ 0 := fun hy0 => by
       have h1 := congrFun hy0 (Sum.inr ⟨e, Nat.lt_succ_self e⟩)
       simp only [y, Sum.elim_inr, Pi.zero_apply] at h1

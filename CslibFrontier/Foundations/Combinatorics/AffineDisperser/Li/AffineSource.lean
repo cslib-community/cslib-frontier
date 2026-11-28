@@ -93,12 +93,12 @@ section AffineSource
 private def uniformAffine_direction_equiv {n : ℕ} (A : AffineSubspace Bool (BitString n))
     {x₀ : BitString n} (hx₀ : x₀ ∈ A) :
     A.direction ≃ (Set.toFinite (A : Set (BitString n))).toFinset where
-  toFun v := ⟨v.1 +ᵥ x₀, (Set.Finite.mem_toFinset _).mpr
-    (AffineSubspace.vadd_mem_of_mem_direction v.2 hx₀)⟩
-  invFun y := ⟨y.1 -ᵥ x₀, AffineSubspace.vsub_mem_direction
-    ((Set.Finite.mem_toFinset _).mp y.2) hx₀⟩
-  left_inv v := Subtype.ext (vadd_vsub v.1 x₀)
-  right_inv y := Subtype.ext (vsub_vadd y.1 x₀)
+  toFun v := ⟨v.val +ᵥ x₀, (Set.Finite.mem_toFinset _).mpr
+    (AffineSubspace.vadd_mem_of_mem_direction v.property hx₀)⟩
+  invFun y := ⟨y.val -ᵥ x₀, AffineSubspace.vsub_mem_direction
+    ((Set.Finite.mem_toFinset _).mp y.property) hx₀⟩
+  left_inv v := Subtype.ext (vadd_vsub v.val x₀)
+  right_inv y := Subtype.ext (vsub_vadd y.val x₀)
 
 /-- The cardinality of the `Finset` of points of a nonempty affine subspace of `BitString n` equals
 `2 ^ finrank Bool A.direction`. -/
@@ -145,18 +145,18 @@ theorem mem_support_uniformAffine_iff {n : ℕ} (A : AffineSubspace Bool (BitStr
 private theorem uniformAffine_eq_map_direction {n : ℕ} (A : AffineSubspace Bool (BitString n))
     {x₀ : BitString n} (hx₀ : x₀ ∈ A) [Fintype A.direction] :
     uniformAffine A ⟨x₀, hx₀⟩ =
-      (PMF.uniformOfFintype A.direction).map fun v => x₀ + v.1 := by
+      (PMF.uniformOfFintype A.direction).map fun v => x₀ + v.val := by
   let S := (Set.toFinite (A : Set (BitString n))).toFinset
   have : Nonempty S := ⟨⟨x₀, (Set.Finite.mem_toFinset _).mpr hx₀⟩⟩
   change PMF.uniformOfFinset S _ = _
   rw [← uniformOfFintype_finset_map_val S,
     ← uniformOfFintype_map_equiv (uniformAffine_direction_equiv A hx₀), PMF.map_comp]
-  exact congrArg (PMF.map · _) (funext fun v => add_comm v.1 x₀)
+  exact congrArg (PMF.map · _) (funext fun v => add_comm v.val x₀)
 
 private theorem uniformAffine_mk'_eq_map {n : ℕ} (x₀ : BitString n)
     (V : Submodule Bool (BitString n)) [Fintype V] :
     uniformAffine (AffineSubspace.mk' x₀ V) ⟨x₀, AffineSubspace.self_mem_mk' x₀ V⟩ =
-      (PMF.uniformOfFintype V).map fun v => x₀ + v.1 := by
+      (PMF.uniformOfFintype V).map fun v => x₀ + v.val := by
   classical
   let e : V ≃ (AffineSubspace.mk' x₀ V).direction :=
     Equiv.subtypeEquivRight fun v => by rw [AffineSubspace.direction_mk']
@@ -167,17 +167,18 @@ private theorem uniformAffine_mk'_eq_map {n : ℕ} (x₀ : BitString n)
 private noncomputable def isCompl_prodEquiv {ι : Type*}
     {U K V : Submodule Bool (ι → Bool)} (hU : U ≤ V) (hK : K ≤ V)
     (hcompl : U ⊓ K = ⊥ ∧ U ⊔ K = V) : U × K ≃ V :=
-  Equiv.ofBijective (fun p => ⟨p.1.1 + p.2.1, V.add_mem (hU p.1.2) (hK p.2.2)⟩)
+  Equiv.ofBijective (fun p => ⟨p.1.val + p.2.val, V.add_mem (hU p.1.property) (hK p.2.property)⟩)
     ⟨fun ⟨u₁, k₁⟩ ⟨u₂, k₂⟩ h => by
-      have hv : u₁.1 + k₁.1 = u₂.1 + k₂.1 := congrArg Subtype.val h
-      have h0 : u₁.1 - u₂.1 = k₂.1 - k₁.1 := by
-        rw [sub_eq_sub_iff_add_eq_add, add_comm k₂.1 u₂.1, hv]
-      have hu : u₁.1 - u₂.1 ∈ U ⊓ K := ⟨U.sub_mem u₁.2 u₂.2, h0 ▸ K.sub_mem k₂.2 k₁.2⟩
+      have hv : u₁.val + k₁.val = u₂.val + k₂.val := congrArg Subtype.val h
+      have h0 : u₁.val - u₂.val = k₂.val - k₁.val := by
+        rw [sub_eq_sub_iff_add_eq_add, add_comm k₂.val u₂.val, hv]
+      have hu : u₁.val - u₂.val ∈ U ⊓ K :=
+          ⟨U.sub_mem u₁.property u₂.property, h0 ▸ K.sub_mem k₂.property k₁.property⟩
       rw [hcompl.1, Submodule.mem_bot] at hu
       exact Prod.ext (Subtype.ext (sub_eq_zero.mp hu))
         (Subtype.ext (sub_eq_zero.mp (hu ▸ h0.symm)).symm),
     fun v => by
-      have hv : v.1 ∈ U ⊔ K := hcompl.2.symm ▸ v.2
+      have hv : v.val ∈ U ⊔ K := hcompl.2.symm ▸ v.property
       obtain ⟨u, hu, k, hk, huk⟩ := Submodule.mem_sup.mp hv
       exact ⟨(⟨u, hu⟩, ⟨k, hk⟩), Subtype.ext huk⟩⟩
 
@@ -213,36 +214,37 @@ theorem uniformAffine_map_of_isAffine {n m : ℕ} (A : AffineSubspace Bool (BitS
   let K : Submodule Bool (BitString n) := A.direction ⊓ LinearMap.ker hL.linearMap
   obtain ⟨U, hU_le, hinf, hsup⟩ := exists_isCompl_submodule_bool (K := K) inf_le_left
   let eUA' : U ≃ A'.direction := Equiv.ofBijective
-    (fun u => ⟨hL.linearMap u.1, hdir'.symm ▸ Submodule.mem_map.mpr ⟨u.1, hU_le u.2, rfl⟩⟩)
+    (fun u =>
+        ⟨hL.linearMap u.val, hdir'.symm ▸ Submodule.mem_map.mpr ⟨u.val, hU_le u.property, rfl⟩⟩)
     ⟨fun u₁ u₂ h => Subtype.ext <| sub_eq_zero.mp <| by
-      have hd : u₁.1 - u₂.1 ∈ U ⊓ K := ⟨U.sub_mem u₁.2 u₂.2, A.direction.sub_mem
-        (hU_le u₁.2) (hU_le u₂.2), LinearMap.mem_ker.mpr <| by
+      have hd : u₁.val - u₂.val ∈ U ⊓ K := ⟨U.sub_mem u₁.property u₂.property, A.direction.sub_mem
+        (hU_le u₁.property) (hU_le u₂.property), LinearMap.mem_ker.mpr <| by
           rw [map_sub, sub_eq_zero]; exact congrArg Subtype.val h⟩
       rwa [hinf, Submodule.mem_bot] at hd,
     fun y => by
-      have hy : y.1 ∈ A.direction.map hL.linearMap := hdir' ▸ y.2
+      have hy : y.val ∈ A.direction.map hL.linearMap := hdir' ▸ y.property
       obtain ⟨v, hv, hvy⟩ := Submodule.mem_map.mp hy
       have hv' : v ∈ U ⊔ K := hsup.symm ▸ hv
       obtain ⟨u, hu, k, hk, huk⟩ := Submodule.mem_sup.mp hv'
       exact ⟨⟨u, hu⟩, Subtype.ext (by
         rw [← hvy, ← huk, map_add, LinearMap.mem_ker.mp hk.2, add_zero])⟩⟩
-  have hL_add : ∀ (u : U) (k : K), L (x₀ + u.1 + (0 + k.1)) = L x₀ + hL.linearMap u.1 :=
+  have hL_add : ∀ (u : U) (k : K), L (x₀ + u.val + (0 + k.val)) = L x₀ + hL.linearMap u.val :=
     fun u k => by
-      have h := hL.toAffineMap.map_vadd x₀ (u.1 + k.1)
+      have h := hL.toAffineMap.map_vadd x₀ (u.val + k.val)
       simp only [IsAffine.coe_toAffineMap, vadd_eq_add, map_add] at h
-      have hker : hL.toAffineMap.linear k.1 = 0 := k.2.2
-      rw [show x₀ + u.1 + (0 + k.1) = u.1 + k.1 + x₀ by abel, h, hker, add_zero, add_comm]
+      have hker : hL.toAffineMap.linear k.val = 0 := k.property.2
+      rw [show x₀ + u.val + (0 + k.val) = u.val + k.val + x₀ by abel, h, hker, add_zero, add_comm]
       rfl
   rw [uniformAffine_eq_bind_add_of_isCompl A hx₀ hU_le inf_le_left ⟨hinf, hsup⟩,
     PMF.map_bind, uniformAffine_mk'_eq_map x₀ U, PMF.bind_map,
     uniformAffine_eq_map_direction A' hLx₀, ← uniformOfFintype_map_equiv eUA', PMF.map_comp]
-  rw [show PMF.map ((fun v : A'.direction => L x₀ + v.1) ∘ eUA') (PMF.uniformOfFintype U) =
-      (PMF.uniformOfFintype U).bind fun u => PMF.pure (L x₀ + hL.linearMap u.1) from rfl]
+  rw [show PMF.map ((fun v : A'.direction => L x₀ + v.val) ∘ eUA') (PMF.uniformOfFintype U) =
+      (PMF.uniformOfFintype U).bind fun u => PMF.pure (L x₀ + hL.linearMap u.val) from rfl]
   refine congrArg (PMF.bind _) (funext fun u => ?_)
   dsimp only [Function.comp_def]
   rw [uniformAffine_mk'_eq_map 0 K, PMF.map_comp, PMF.map_comp]
-  have hfun : ((L ∘ fun b => x₀ + u.1 + b) ∘ fun v : K => 0 + v.1) =
-      Function.const K (L x₀ + hL.linearMap u.1) := funext fun k => hL_add u k
+  have hfun : ((L ∘ fun b => x₀ + u.val + b) ∘ fun v : K => 0 + v.val) =
+      Function.const K (L x₀ + hL.linearMap u.val) := funext fun k => hL_add u k
   rw [hfun]; exact PMF.map_const ..
 
 /-- An affine image of an affine source is an affine source whose dimension is the dimension of the
@@ -430,22 +432,22 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
   have hsum_single : ∀ (f : ∀ i : Fin t, BitString (b i)),
       (∑ i : Fin t, Pi.single i (f i)) = f := fun f => funext fun i => by
     simp [Finset.sum_apply]
-  have heW : ∀ w : ∀ i : Fin t, W i, eB (fun i => (w i).1) ∈ Wprod_flat := fun w =>
-    Submodule.mem_map.mpr ⟨_, hsum_single (fun i => (w i).1) ▸ Submodule.sum_mem Wprod fun i _ =>
-      Submodule.mem_iSup_of_mem i (Submodule.mem_map.mpr ⟨(w i).1, (w i).2, rfl⟩), rfl⟩
+  have heW : ∀ w : ∀ i : Fin t, W i, eB (fun i => (w i).val) ∈ Wprod_flat := fun w =>
+    Submodule.mem_map.mpr ⟨_, hsum_single (fun i => (w i).val) ▸ Submodule.sum_mem Wprod fun i _ =>
+      Submodule.mem_iSup_of_mem i (Submodule.mem_map.mpr ⟨(w i).val, (w i).property, rfl⟩), rfl⟩
   let e_dir : C_flat × (∀ i : Fin t, W i) ≃ V_flat :=
     (Equiv.prodCongr (Equiv.refl C_flat)
-      { toFun := fun w => ⟨eB (fun i => (w i).1), heW w⟩
-        invFun := fun wf => fun i => ⟨(eB.symm wf.1) i,
-          by obtain ⟨u, hu, huf⟩ := Submodule.mem_map.mp wf.2
-             have heq : eB.symm wf.1 = u := eB.injective (by
-               change eB (eB.symm wf.1) = eB u; rw [eB.apply_symm_apply]; exact huf.symm)
+      { toFun := fun w => ⟨eB (fun i => (w i).val), heW w⟩
+        invFun := fun wf => fun i => ⟨(eB.symm wf.val) i,
+          by obtain ⟨u, hu, huf⟩ := Submodule.mem_map.mp wf.property
+             have heq : eB.symm wf.val = u := eB.injective (by
+               change eB (eB.symm wf.val) = eB u; rw [eB.apply_symm_apply]; exact huf.symm)
              exact heq ▸ blockSlice_mem_of_iSup W hu i⟩
         left_inv := fun w => funext fun i => Subtype.ext (congrFun (eB.symm_apply_apply _) i)
-        right_inv := fun wf => Subtype.ext (eB.apply_symm_apply wf.1) }).trans
+        right_inv := fun wf => Subtype.ext (eB.apply_symm_apply wf.val) }).trans
       (isCompl_prodEquiv hC_le hWprod_flat_le ⟨hC_inf, hC_sup⟩)
   let P : C_flat → ∀ i : Fin t, PMF (BitString (b i)) := fun c i =>
-    uniformAffine (AffineSubspace.mk' (x₀ i + (piBlocksLinearEquiv b c.1) i) (W i))
+    uniformAffine (AffineSubspace.mk' (x₀ i + (piBlocksLinearEquiv b c.val) i) (W i))
       ⟨_, AffineSubspace.self_mem_mk' _ _⟩
   have hX_eq : X = (uniformAffine A_flat ⟨x₀_flat, hx₀_flat⟩).map (piBlocksLinearEquiv b) := by
     rw [← hX_flat, PMF.map_comp,
@@ -455,9 +457,9 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
     fun c i => ⟨finrank Bool (W i), blockSlice_codim_le V_flat eB (hdim_flat ▸ hr) i,
       _, _, by rw [AffineSubspace.direction_mk'], rfl⟩, ?_⟩
   have hpi (c : C_flat) : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
-      fun w i => x₀ i + piBlocksLinearEquiv b c.1 i + (w i).1 := by
+      fun w i => x₀ i + piBlocksLinearEquiv b c.val i + (w i).val := by
     have : P c = fun i => (PMF.uniformOfFintype (W i)).map
-        fun w => x₀ i + piBlocksLinearEquiv b c.1 i + w.1 :=
+        fun w => x₀ i + piBlocksLinearEquiv b c.val i + w.val :=
       funext fun i => uniformAffine_mk'_eq_map _ (W i)
     rw [this, PMF.pi_map, PMF.pi_uniformOfFintype]
   rw [hX_eq, uniformAffine_eq_map_direction A_flat hx₀_flat, PMF.map_comp]
@@ -466,7 +468,7 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
   funext i
   symm
   change (piBlocksLinearEquiv b
-    (x₀_flat + (cw.1.1 + (piBlocksLinearEquiv b).symm fun j => (cw.2 j).1))) i = _
+    (x₀_flat + (cw.1.val + (piBlocksLinearEquiv b).symm fun j => (cw.2 j).val))) i = _
   simp only [map_add, (piBlocksLinearEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc]
 
 /-! ### Bridges from affine and sumset extractors to `IsAffineDisperser` ([Li2023, Cor. 7.14]) -/
@@ -510,9 +512,9 @@ theorem isAffineDisperser_of_isAffineExtractor {n m k : ℕ} {ε : ℝ}
     have hpure : (uniformAffine A ⟨x₀, hx₀⟩).map (fun x => ext x ⟨0, hm⟩) = PMF.pure c := by
       classical
       rw [uniformAffine_eq_map_direction A hx₀, PMF.map_comp]
-      rw [show ((fun x => ext x ⟨0, hm⟩) ∘ fun v : A.direction => x₀ + v.1) =
+      rw [show ((fun x => ext x ⟨0, hm⟩) ∘ fun v : A.direction => x₀ + v.val) =
         Function.const A.direction c from funext fun v => hc _ (by
-          dsimp only; rw [add_comm]; exact AffineSubspace.vadd_mem_of_mem_direction v.2 hx₀)]
+          dsimp only; rw [add_comm]; exact AffineSubspace.vadd_mem_of_mem_direction v.property hx₀)]
       exact PMF.map_const ..
     rw [hpure, dist_uniformOfFintype_bool] at hdist
     cases c <;> simp at hdist <;> norm_num at hdist <;> linarith
@@ -522,7 +524,7 @@ theorem isAffineDisperser_of_isAffineExtractor {n m k : ℕ} {ε : ℝ}
       have : x = 0 := by simpa [AffineSubspace.mem_mk', vsub_eq_sub] using hx
       subst this; rfl⟩
   refine isAffineDisperser_of_forall_exists_ne fun A hdim => by
-    have hA : (A : Set (BitString n)).Nonempty := Set.nonempty_iff_ne_empty.mpr fun he => by
+    have hA : (A : Set (BitString n)).Nonempty := Set.ne_empty_iff_nonempty.mp fun he => by
       have hbot : A = ⊥ := SetLike.coe_injective he
       rw [hbot, AffineSubspace.direction_bot, finrank_bot] at hdim; omega
     by_contra hconst; push Not at hconst

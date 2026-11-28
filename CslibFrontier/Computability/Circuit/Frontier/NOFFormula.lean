@@ -299,7 +299,7 @@ background `z`. -/
 private noncomputable def reconstructFromView {k n : ℕ} {U : Type*} (X : Fin k → Finset (Fin n))
     (z : Fin n → U) (j : Fin k) (v : NOF.View (fun j' => X j' → U) j) (i : Fin n) : U := by
   classical
-  exact if h : ∃ j' : {j' : Fin k // j' ≠ j}, i ∈ X j'.1 then
+  exact if h : ∃ j' : {j' : Fin k // j' ≠ j}, i ∈ X j'.val then
     v (Classical.choose h) ⟨i, Classical.choose_spec h⟩
   else z i
 
@@ -311,11 +311,11 @@ private theorem reconstructFromView_eq_embedBlocks {k n : ℕ} {U : Type*}
   by_cases hex : ∃ j₀ : Fin k, i ∈ X j₀
   · obtain ⟨j₀, hj₀⟩ := hex
     have hne : j₀ ≠ j := fun heq => hi (heq ▸ hj₀)
-    have hex' : ∃ j' : {j' : Fin k // j' ≠ j}, i ∈ X j'.1 := ⟨⟨j₀, hne⟩, hj₀⟩
+    have hex' : ∃ j' : {j' : Fin k // j' ≠ j}, i ∈ X j'.val := ⟨⟨j₀, hne⟩, hj₀⟩
     rw [embedBlocks_of_mem hdisj z y hj₀]
     unfold reconstructFromView
     rw [dite_eq_left_of_eq_true (eq_true hex')]
-    have hview : ∀ (c : {j' : Fin k // j' ≠ j}) (hc : i ∈ X c.1),
+    have hview : ∀ (c : {j' : Fin k // j' ≠ j}) (hc : i ∈ X c.val),
         NOF.view j y c ⟨i, hc⟩ = y j₀ ⟨i, hj₀⟩ := by
       rintro ⟨cval, hcne⟩ hc
       have hval : cval = j₀ := by
@@ -326,7 +326,7 @@ private theorem reconstructFromView_eq_embedBlocks {k n : ℕ} {U : Type*}
     exact hview (Classical.choose hex') (Classical.choose_spec hex')
   · have hnot : ∀ j₀ : Fin k, i ∉ X j₀ := fun j₀ hj₀ => hex ⟨j₀, hj₀⟩
     rw [embedBlocks_of_notMem z y hnot]
-    have hne' : ¬∃ j' : {j' : Fin k // j' ≠ j}, i ∈ X j'.1 := fun ⟨j', hj'⟩ => hnot j'.1 hj'
+    have hne' : ¬∃ j' : {j' : Fin k // j' ≠ j}, i ∈ X j'.val := fun ⟨j', hj'⟩ => hnot j'.val hj'
     unfold reconstructFromView
     exact dite_eq_right_of_eq_false (eq_false hne')
 
@@ -473,9 +473,9 @@ private noncomputable def pluck {n m B : ℕ} (hB : 1 ≤ B) (T : ChopTree n m) 
     · let s₀ : Fin a := Classical.choose hex
       have hs₀ : B < (args s₀).leafCount := Classical.choose_spec hex
       let sub := pluck hB (args s₀) (hargs s₀) hs₀
-      let K := sub.1.1
-      let C₀ := sub.1.2
-      obtain ⟨hK_fan, hC₀_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := sub.2
+      let K := sub.val.1
+      let C₀ := sub.val.2
+      obtain ⟨hK_fan, hC₀_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := sub.property
       let args' : Fin a → ChopTree n (m + 1) :=
         fun s => if s = s₀ then C₀ else (args s).liftPrev
       refine ⟨(K, node a op args'), hK_fan, ⟨ha, fun s => ?_⟩, hK_gt, hK_le, ?_, ?_, ?_⟩
@@ -560,9 +560,9 @@ private noncomputable def chopAux {n : ℕ} (B : ℕ) (hB : 1 ≤ B) :
     if hle : T.leafCount ≤ 2 * B then root T
     else
       let res := T.pluck hB hfan (by omega)
-      step res.1.1 (chopAux B hB fuel res.1.2 res.2.2.1 (by
-        have hgt := res.2.2.2.1
-        have hsum := res.2.2.2.2.2.1
+      step res.val.1 (chopAux B hB fuel res.val.2 res.property.2.1 (by
+        have hgt := res.property.2.2.1
+        have hsum := res.property.2.2.2.2.1
         omega))
 
 private theorem chopAux_spec {n B : ℕ} (hB : 1 ≤ B) (fuel : ℕ) {m : ℕ} (T : ChopTree n m)
@@ -583,16 +583,16 @@ private theorem chopAux_spec {n B : ℕ} (hB : 1 ≤ B) (fuel : ℕ) {m : ℕ} (
     refine ⟨hle, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
     simp [steps]
   | case3 fuel T hfan hfuel hle res ih => -- pluck a piece, recurse on the rest
-    obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.2
-    have hC_fuel : res.1.2.leafCount ≤ fuel := by omega
+    obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.property
+    have hC_fuel : res.val.2.leafCount ≤ fuel := by omega
     obtain ⟨hbd, hsteps, htot, hat, hev⟩ := ih
-    have hpos : 1 ≤ (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by
-      cases chopAux B hB fuel res.1.2 hC_fan hC_fuel <;> simp [steps]
+    have hpos : 1 ≤ (chopAux B hB fuel res.val.2 hC_fan hC_fuel).steps := by
+      cases chopAux B hB fuel res.val.2 hC_fan hC_fuel <;> simp [steps]
     refine ⟨⟨hK_le, hbd⟩, ?_, ?_, ?_, ?_⟩
     · dsimp only [steps]
       rw [Nat.add_sub_cancel]
-      have hstep1 : ((chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps - 1 + 1) =
-          (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by omega
+      have hstep1 : ((chopAux B hB fuel res.val.2 hC_fan hC_fuel).steps - 1 + 1) =
+          (chopAux B hB fuel res.val.2 hC_fan hC_fuel).steps := by omega
       rw [← hstep1, Nat.succ_mul]
       omega
     · dsimp only [totalLeaves]
@@ -1034,17 +1034,17 @@ private noncomputable def equivBlocksRest {k n : ℕ} {X : Fin k → Finset (Fin
     ((∀ j : Fin k, X j → Bool) × (↥(Finset.univ.biUnion X)ᶜ → Bool)) ≃ (Fin n → Bool) where
   toFun yw := embedBlocks X
     (fun i => if hi : i ∈ (Finset.univ.biUnion X)ᶜ then yw.2 ⟨i, hi⟩ else false) yw.1
-  invFun x := (fun _ u => x u.1, fun w => x w.1)
+  invFun x := (fun _ u => x u.val, fun w => x w.val)
   left_inv := by
     rintro ⟨y, w⟩
     refine Prod.ext (funext fun j => funext fun u => ?_) (funext fun u => ?_)
     · dsimp only
-      exact embedBlocks_of_mem hdisj _ y u.2
+      exact embedBlocks_of_mem hdisj _ y u.property
     · dsimp only
-      have hnot : ∀ j : Fin k, u.1 ∉ X j := fun j hj =>
-        (Finset.mem_compl.mp u.2) (Finset.mem_biUnion.mpr ⟨j, Finset.mem_univ j, hj⟩)
+      have hnot : ∀ j : Fin k, u.val ∉ X j := fun j hj =>
+        (Finset.mem_compl.mp u.property) (Finset.mem_biUnion.mpr ⟨j, Finset.mem_univ j, hj⟩)
       rw [embedBlocks_of_notMem _ y hnot]
-      exact dite_eq_left_of_eq_true (eq_true u.2)
+      exact dite_eq_left_of_eq_true (eq_true u.property)
   right_inv := by
     intro x
     funext i
@@ -1216,8 +1216,8 @@ private theorem embedBlocks_injective {k n : ℕ} {U : Type*} {X : Fin k → Fin
     Function.Injective (embedBlocks X z) := by
   intro y₁ y₂ heq
   funext j u
-  have h := congrFun heq u.1
-  rwa [embedBlocks_of_mem hdisj z y₁ u.2, embedBlocks_of_mem hdisj z y₂ u.2] at h
+  have h := congrFun heq u.val
+  rwa [embedBlocks_of_mem hdisj z y₁ u.property, embedBlocks_of_mem hdisj z y₂ u.property] at h
 
 private theorem card_bad_cylinder_le {k n : ℕ} {X : Fin k → Finset (Fin n)}
     (hdisj : Pairwise fun j₁ j₂ => Disjoint (X j₁) (X j₂)) (z₀ : Fin n → Bool)
@@ -1393,8 +1393,8 @@ theorem exists_balanced_nof_discrepancy (n : ℕ) :
           intro i
           unfold NOF.View
           rw [Fintype.card_pi]
-          have hterm : ∀ j : {j : Fin (r + 1) // j ≠ i}, Fintype.card (X j.1 → Bool) = 2 ^ q :=
-            fun j => by simp [hcard j.1]
+          have hterm : ∀ j : {j : Fin (r + 1) // j ≠ i}, Fintype.card (X j.val → Bool) = 2 ^ q :=
+            fun j => by simp [hcard j.val]
           simp only [hterm, Finset.prod_const, Finset.card_univ]
           have hcompl : Fintype.card {j : Fin (r + 1) // j ≠ i} = r := by simp
           rw [hcompl, ← pow_mul, mul_comm]

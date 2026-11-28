@@ -2167,11 +2167,11 @@ private partial def splitDomain (g : MVarId) : MetaM (List MVarId) := g.withCont
     let c := t.getArg! 1
     let (gpos, gneg) ← g.byCases c `hc
     let pos ← gpos.mvarId.withContext do
-      let eq ← mkAppOptM ``if_pos
+      let eq ← mkAppOptM ``ite_eq_left
         #[c, t.getArg! 2, mkFVar gpos.fvarId, t.getArg! 0, t.getArg! 3, t.getArg! 4]
       gpos.mvarId.replaceTargetEq (t.getArg! 3) eq
     let neg ← gneg.mvarId.withContext do
-      let eq ← mkAppOptM ``if_neg
+      let eq ← mkAppOptM ``ite_eq_right
         #[c, t.getArg! 2, mkFVar gneg.fvarId, t.getArg! 0, t.getArg! 3, t.getArg! 4]
       gneg.mvarId.replaceTargetEq (t.getArg! 4) eq
     return (← splitDomain pos) ++ (← splitDomain neg)

@@ -114,7 +114,8 @@ theorem two_pow_le_card_subfunctions_elementDistinctness (hm : m ≤ 2 ^ t) (i :
     have key (l : Fin m) (hl : l ≠ i) (h : val u j = val u' l) : False := by
       obtain rfl := htag h
       exact hj (funext fun c => by
-        simpa only [val, Fin.append_right, w, j.2, ↓reduceDIte] using congrFun h (Fin.natAdd t c))
+        simpa only [val, Fin.append_right, w, j.property, ↓reduceDIte] using
+          congrFun h (Fin.natAdd t c))
     -- An input whose block `i` repeats block `j` of the first assignment.
     let x : BitString (m * (t + t)) := fun p => val u j (finProdFinEquiv.symm p).2
     have hx : ∀ l, block x l = val u j := fun l => funext fun b => by
@@ -122,7 +123,7 @@ theorem two_pow_le_card_subfunctions_elementDistinctness (hm : m ≤ 2 ^ t) (i :
     have h₁ : g u x = false := by
       rw [hg, decide_eq_false_iff_not]
       intro h
-      exact j.2 (@h i j (by simp [hx, val, w, j.2])).symm
+      exact j.property (@h i j (by simp [hx, val, w, j.property])).symm
     have h₂ : g u' x = true := by
       rw [hg, decide_eq_true_iff]
       intro l₁ l₂ h

@@ -436,7 +436,7 @@ theorem initClear_exec (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
     exact (ExecCodeDist.of_execWithin he_span).seq_pure
       ((ExecCodeDist.of_execWithin he_zero).seq_pure he_setup)
   · obtain ⟨hbdd_t, hfr_t, hmod_t⟩ := hsupp t ht
-    exact ⟨hbdd_t, hfr_t, by simpa only [Finset.union_idempotent] using hmod₂.trans hmod_t⟩
+    exact ⟨hbdd_t, hfr_t, by simpa only [Finset.union_self] using hmod₂.trans hmod_t⟩
 
 private theorem bounded_map_ofLatentState (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
     {ν₀ : PMF (LatentState C.Latent r_ds)} (hinv : C.initInv ν₀) :

@@ -202,7 +202,7 @@ private theorem pow_mul_rpow_le_and_pow_le {ε δ : ℝ} (hε₀ : 0 < ε) (hε�
           gcongr
           · linarith
           · linarith [add_one_le_exp (-δ)]
-      _ = exp (-δ * k) := by rw [← exp_nat_mul]; ring_nf
+      _ = exp (-δ * k) := by rw [← exp_natCast_mul]; ring_nf
       _ ≤ exp δ * exp (log ε * (δ / 3)) := by
           rw [← exp_add]
           exact exp_le_exp.2 (by simp only [L] at hLk; nlinarith)
@@ -226,7 +226,7 @@ theorem abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_of_lipschit
       15 * K * ε ^ (δ / 3) := by
   have hb (k : ℕ) := abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_add_pow μ hμ k
     hvar hε0 hδ0 (by linarith) hε hψ
-  have hK : (0 : ℝ) ≤ K := K.2
+  have hK : (0 : ℝ) ≤ K := K.property
   rcases hε0.eq_or_lt with rfl | hε0
   · rcases hδ0.eq_or_lt with rfl | hδ0
     · refine (hb 0).trans ?_

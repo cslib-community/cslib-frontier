@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.Karger.Memory.Contract
 public import CslibFrontier.DataStructure.Memory.Frame
 public import CslibFrontier.Foundations.Analysis.Asymptotics.CostBound
+import CslibFrontier.Probability.PMF.Expect
 
 /-!
 # The contraction structure over memory
@@ -226,8 +227,7 @@ theorem expectedCost_withCoins_query_bind {D : StateTransitionSpec.{0, 0, 0}}
   change D.toRandomized.withCoins.expectedCost _ (.liftBind (Sum.inr o) k) s = _
   rw [RandomizedSpec.expectedCost_liftBind]
   change (c s o : ENNReal) + ∑' x, PMF.pure ((D.stepFn s o).2, (D.stepFn s o).1) x * _ = _
-  rw [tsum_eq_single ((D.stepFn s o).2, (D.stepFn s o).1) fun x hx => by
-    simp [PMF.pure_apply, hx], PMF.pure_apply_self, one_mul]
+  rw [Probability.PMF.tsum_pure_mul]
 
 /-- **Expected calls of `karger` on the specification.** From a graph on `n` vertices, at one unit
 per coin and `K` per call of the structure, `karger` costs at most `(n - 2) (1 + 4 K) + 2 K` in

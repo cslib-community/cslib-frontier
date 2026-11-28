@@ -104,8 +104,8 @@ private theorem exists_theta_radius_twoStep_inner_ge {r k K₀ : ℕ} (hr : 2 �
     (hδ : 0 < δ) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k →
-          ∀ {u v : HyperNode c}, u ∈ hyperEdge c e.1 → v ∈ hyperEdge c e.1 →
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k →
+          ∀ {u v : HyperNode c}, u ∈ hyperEdge c e.val → v ∈ hyperEdge c e.val →
             twoStepCorr r k - 3 * δ / 4 ≤
               ⟪hyperUnitRow c K₀ r θ S u, hyperUnitRow c K₀ r θ S v⟫ := by
   set q₂ := 1 / √((r : ℝ) * ((k : ℝ) - 1))
@@ -119,7 +119,7 @@ private theorem exists_theta_radius_twoStep_inner_ge {r k K₀ : ℕ} (hr : 2 �
     (4 * max ((r : ℝ) + 1) (K₀ : ℝ)) (by positivity : 0 < δ / 4)
   refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq u v hu hv => ?_⟩
   have hcorr := twoStep_le_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ.2.le (hS₀.trans hS) e hu hv
-  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
+  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
     rw [hk_eq, mul_one_div]
   dsimp only at hcorr
   rw [hq_eq] at hcorr
@@ -127,21 +127,21 @@ private theorem exists_theta_radius_twoStep_inner_ge {r k K₀ : ℕ} (hr : 2 �
 
 private theorem measureReal_hyperedgeStraddles_le_of_sum_angle {r k K₀ S : ℕ} {θ ρ p η t : ℝ}
     (hk : 2 ≤ k) {σ : Signature} {n : ℕ} (c : Circuit σ n 1) (e : PrunedEdge c K₀)
-    (hk_eq : (hyperEdge c e.1).card = k)
-    (hsum : ∑ pq ∈ (hyperEdge c e.1).offDiag,
+    (hk_eq : (hyperEdge c e.val).card = k)
+    (hsum : ∑ pq ∈ (hyperEdge c e.val).offDiag,
         InnerProductGeometry.angle (hyperUnitRow c K₀ r θ S pq.1)
           (hyperUnitRow c K₀ r θ S pq.2) ≤ (k : ℝ) * ((k : ℝ) - 1) * arccos ρ)
     (harc : (k : ℝ) / (2 * π) * arccos ρ ≤ p + η) :
     (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-      {ω | HyperedgeStraddles (hyperEdge c e.1)
+      {ω | HyperedgeStraddles (hyperEdge c e.val)
         {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   subst hk_eq
   have hprob := measureReal_straddlesOn_le_of_sum_angle hk
     (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hsum t
-  have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+  have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.val)
       {v | hyperScore c K₀ r θ S ω v < t}} =
       {ω | StraddlesOn (fun v => ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫) t
-        ↑(hyperEdge c e.1)} := by
+        ↑(hyperEdge c e.val)} := by
     ext ω
     exact hyperedgeStraddles_threshold_iff _ _ _
   rw [hev]
@@ -157,9 +157,9 @@ private theorem exists_theta_radius_pairwise {r k K₀ : ℕ} (hr : 2 ≤ r) (hk
     {p η : ℝ} (hη : 0 < η) (hp : (k : ℝ) / (2 * π) * arccos (twoStepCorr r k) ≤ p) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k → ∀ t : ℝ,
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k → ∀ t : ℝ,
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   obtain ⟨δ, hδ, -, harc_le⟩ := exists_slack (x₀ := twoStepCorr r k)
     (F := fun ρ => (k : ℝ) / (2 * π) * arccos ρ) (v := p + η) (by fun_prop) (by linarith) one_pos
@@ -168,7 +168,7 @@ private theorem exists_theta_radius_pairwise {r k K₀ : ℕ} (hr : 2 ≤ r) (hk
   obtain ⟨S₀, hS₀, hS_sel⟩ := hθ_sel θ hθ
   refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
   refine measureReal_hyperedgeStraddles_le_of_sum_angle hk c e hk_eq ?_ harc_le
-  have hcard : ((hyperEdge c e.1).offDiag.card : ℝ) = (k : ℝ) * ((k : ℝ) - 1) := by
+  have hcard : ((hyperEdge c e.val).offDiag.card : ℝ) = (k : ℝ) * ((k : ℝ) - 1) := by
     rw [cast_card_offDiag, hk_eq]
   rw [← hcard, ← nsmul_eq_mul, ← Finset.sum_const]
   refine Finset.sum_le_sum fun pq hpq => ?_
@@ -181,9 +181,9 @@ private theorem exists_theta_radius_slepian {r k K₀ : ℕ} (hr : 2 ≤ r) (hk 
     {p η : ℝ} (hη : 0 < η) (hp : equicorrStraddle k (twoStepCorr r k) ≤ p) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k → ∀ t : ℝ,
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k → ∀ t : ℝ,
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   have hρ₀_pos := twoStepCorr_pos hr hk
   have hρ₀_lt := twoStepCorr_lt_one hr hk
@@ -193,13 +193,13 @@ private theorem exists_theta_radius_slepian {r k K₀ : ℕ} (hr : 2 ≤ r) (hk 
   refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
   obtain ⟨S₀, hS₀, hS_sel⟩ := hθ_sel θ hθ
   refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
-  have hprob := measureReal_straddlesOn_le_equicorr (s := hyperEdge c e.1) (hk_eq ▸ hk)
+  have hprob := measureReal_straddlesOn_le_equicorr (s := hyperEdge c e.val) (hk_eq ▸ hk)
     (fun v _ => norm_hyperUnitRow c K₀ r θ S v) (by linarith) (by linarith)
     (fun u hu v hv _ => hS_sel S hS c hfan e hk_eq hu hv) t
-  have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+  have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.val)
       {v | hyperScore c K₀ r θ S ω v < t}} =
-      {ω | (∃ v ∈ hyperEdge c e.1, ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫ < t) ∧
-        (∃ v ∈ hyperEdge c e.1, t ≤ ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫)} := by
+      {ω | (∃ v ∈ hyperEdge c e.val, ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫ < t) ∧
+        (∃ v ∈ hyperEdge c e.val, t ≤ ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫)} := by
     ext ω
     rw [mem_ofPred_eq, mem_ofPred_eq, hyperedgeStraddles_threshold_iff]
     simp only [StraddlesOn, Finset.mem_coe, hyperScore]
@@ -212,9 +212,9 @@ private theorem exists_theta_radius_cap {r k K₀ : ℕ} (hr : 2 ≤ r) (hk : 2 
     (hp : (k : ℝ) / (2 * π) * arccos (capCorr r k) ≤ p) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k → ∀ t : ℝ,
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k → ∀ t : ℝ,
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   have hkR : (2 : ℝ) ≤ k := by exact_mod_cast hk
   have hrR : (2 : ℝ) ≤ r := by exact_mod_cast hr
@@ -258,11 +258,11 @@ private theorem exists_theta_radius_cap {r k K₀ : ℕ} (hr : 2 ≤ r) (hk : 2 
   obtain ⟨w_e, hw_e_norm, hw_e_inner⟩ :=
     oneStep_le_inner_hyperUnitRow_center c K₀ hr hfan hθ0 hθ.2.le (hS₀.trans hS) e
   have hsw_eq : stepWeight c K₀ r θ (.inr e)
-      (.inl (Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1)))) = θ * q₁ := by
+      (.inl (Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1)))) = θ * q₁ := by
     dsimp only [stepWeight, bipBranch, q₁]
     rw [hk_eq, Nat.cast_sub (by omega), Nat.cast_one]
     ring
-  have hκ_inner (v : HyperNode c) (hv : v ∈ hyperEdge c e.1) :
+  have hκ_inner (v : HyperNode c) (hv : v ∈ hyperEdge c e.val) :
       κ₀ - 3 * δ / 4 ≤ ⟪hyperUnitRow c K₀ r θ S v, w_e⟫ := by
     have hcorr := hw_e_inner v hv
     have h := herr S hS (4 * S) (by omega)
@@ -282,9 +282,9 @@ private theorem exists_theta_radius_starCone {r k K₀ : ℕ} (hr : 2 ≤ r) (hk
     (hp : (k : ℝ) / (2 * π) * arccos (coneCorr r k) ≤ p) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k → ∀ t : ℝ,
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k → ∀ t : ℝ,
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   have hk3R : (3 : ℝ) ≤ k := by exact_mod_cast hk3
   have hm_pos : 0 < (r : ℝ) * ((k : ℝ) - 1) :=
@@ -326,7 +326,7 @@ private theorem exists_theta_radius_starCone {r k K₀ : ℕ} (hr : 2 ≤ r) (hk
   obtain ⟨S₀, hS₀, herr⟩ := exists_radius_mul_pow_lt hθ0 hθ.2
     (8 * √(max ((r : ℝ) + 1) (K₀ : ℝ))) (by positivity : 0 < δ / 4)
   refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
-  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = qf θ := by
+  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) = qf θ := by
     rw [hk_eq]
     exact (mul_one_div _ _).symm
   have hcone_sum := starCone_le_sum_offDiag_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ.2.le
@@ -335,7 +335,7 @@ private theorem exists_theta_radius_starCone {r k K₀ : ℕ} (hr : 2 ≤ r) (hk
   dsimp only at hcone_sum
   rw [hq_eq, hk_eq] at hcone_sum
   refine measureReal_hyperedgeStraddles_le_of_sum_angle hk c e hk_eq ?_ harc_le
-  have hcard : ((hyperEdge c e.1).offDiag.card : ℝ) = (k : ℝ) * ((k : ℝ) - 1) := by
+  have hcard : ((hyperEdge c e.val).offDiag.card : ℝ) = (k : ℝ) * ((k : ℝ) - 1) := by
     rw [cast_card_offDiag, hk_eq]
   rw [Finset.sum_congr rfl fun pq _ => InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one
     (norm_hyperUnitRow c K₀ r θ S pq.1) (norm_hyperUnitRow c K₀ r θ S pq.2), ← hcard]
@@ -355,9 +355,9 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
     {p η : ℝ} (hη : 0 < η) (hb : HyperEdgeBound r k p) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k → ∀ t : ℝ,
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k → ∀ t : ℝ,
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   cases hb with
   | pairwise hp => exact exists_theta_radius_pairwise hr hk hη hp
@@ -372,16 +372,16 @@ private theorem exists_uniform_theta_radius {r K₀ : ℕ} {a b : ℚ}
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
         ∀ (e : PrunedEdge c K₀) (t : ℝ),
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤
-            (a : ℝ) * (hyperEdge c e.1).card + b + η := by
+            (a : ℝ) * (hyperEdge c e.val).card + b + η := by
   choose θ₀ hθ₀ hθ using fun k : Finset.Icc 2 K₀ => exists_theta_radius_of_hyperEdgeBound
-    (K₀ := K₀) hcert.hr (Finset.mem_Icc.mp k.2).1 hη (hcert.hedge k.1 k.2)
+    (K₀ := K₀) hcert.hr (Finset.mem_Icc.mp k.property).1 hη (hcert.hedge k.val k.property)
   obtain ⟨θ, hθ_k, hθ_mem⟩ := ((eventually_all (p := fun k θ => θ ∈ Ioo (θ₀ k) 1)).mpr
     fun k => Ioo_mem_nhdsLT (hθ₀ k).2).and (Ioo_mem_nhdsLT zero_lt_one) |>.exists
   choose S₀ hS₀ hS using fun k => hθ k θ (hθ_k k)
   refine ⟨θ, hθ_mem, max 1 (Finset.univ.sup S₀), le_max_left _ _, fun c hfan e t => ?_⟩
-  exact hS ⟨_, Finset.mem_Icc.mpr ⟨e.2.1, e.2.2⟩⟩ _
+  exact hS ⟨_, Finset.mem_Icc.mpr ⟨e.property.1, e.property.2⟩⟩ _
     ((Finset.le_sup (Finset.mem_univ _)).trans (le_max_right _ _)) c hfan e rfl t
 
 end ParameterSelection

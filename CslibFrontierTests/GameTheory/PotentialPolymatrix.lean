@@ -94,7 +94,7 @@ example : ∃ Ψ, weightedOnlyGame.mixedExtension.IsWeightedPotential playerWeig
 
 example :
     weightedOnlyGame.mixedExtension.IsWeightedPotential playerWeights
-      (fun p => CostGame.mixedPotential mismatchPotential (fun j => (p j).1)) :=
+      (fun p => CostGame.mixedPotential mismatchPotential (fun j => (p j).val)) :=
   weightedOnlyGame_isWeightedPotential.mixedExtension
 
 example {Ψ : (Bool → Bool) → ℝ}

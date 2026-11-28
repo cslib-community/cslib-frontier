@@ -137,11 +137,11 @@ theorem wellFormed_iff_wellFormedB (c : BimatrixCode) : c.WellFormed ↔ c.wellF
 
 /-- Player 1's rational payoff matrix extracted from `c`. -/
 @[expose] def toMatA (c : BimatrixCode) : Matrix (Fin c.rows) (Fin c.cols) ℚ :=
-  fun i j => (c.matA.getD i.1 []).getD j.1 0
+  fun i j => (c.matA.getD i.val []).getD j.val 0
 
 /-- Player 2's rational payoff matrix extracted from `c`. -/
 @[expose] def toMatB (c : BimatrixCode) : Matrix (Fin c.rows) (Fin c.cols) ℚ :=
-  fun i j => (c.matB.getD i.1 []).getD j.1 0
+  fun i j => (c.matB.getD i.val []).getD j.val 0
 
 /-- The `BimatrixGame` induced by a `BimatrixCode`. -/
 @[expose] noncomputable def toGame (c : BimatrixCode) : BimatrixGame (Fin c.rows) (Fin c.cols) :=
@@ -152,7 +152,7 @@ nonempty, square (`rows = cols`), and with player 2's payoff matrix equal to the
 player 1's (`B = Aᵀ`). -/
 @[expose] def IsSymmetric (c : BimatrixCode) : Prop :=
   c.WellFormed ∧ c.rows = c.cols ∧
-    ∀ i j : Fin c.rows, (c.matB.getD i.1 []).getD j.1 0 = (c.matA.getD j.1 []).getD i.1 0
+    ∀ i j : Fin c.rows, (c.matB.getD i.val []).getD j.val 0 = (c.matA.getD j.val []).getD i.val 0
 
 /-- The symmetric two-player game `⟨A, Aᵀ⟩` on `Fin c.rows` extracted from player 1's payoff
 matrix `c.matA`. When `c.IsSymmetric`, this coincides with `c.toGame` up to casting
@@ -160,15 +160,15 @@ matrix `c.matA`. When `c.IsSymmetric`, this coincides with `c.toGame` up to cast
 @[expose] noncomputable def toSymGame (c : BimatrixCode) :
     BimatrixGame (Fin c.rows) (Fin c.rows) :=
   let A : Matrix (Fin c.rows) (Fin c.rows) ℝ :=
-    fun i j => ((c.matA.getD i.1 []).getD j.1 0 : ℝ)
+    fun i j => ((c.matA.getD i.val []).getD j.val 0 : ℝ)
   ⟨A, Aᵀ⟩
 
 /-- The real strategy vector `Fin n → ℝ` of a rational strategy list, padded with zeros. -/
-@[expose] def strategyVec {n : ℕ} (x : List ℚ) : Fin n → ℝ := fun i => (x.getD i.1 0 : ℝ)
+@[expose] def strategyVec {n : ℕ} (x : List ℚ) : Fin n → ℝ := fun i => (x.getD i.val 0 : ℝ)
 
 @[simp]
 theorem strategyVec_apply {n : ℕ} (x : List ℚ) (i : Fin n) :
-    strategyVec x i = (x.getD i.1 0 : ℝ) :=
+    strategyVec x i = (x.getD i.val 0 : ℝ) :=
   rfl
 
 /-- Pure rational Nash condition on strategy lists `x` (length `c.rows`) and `y`
@@ -178,11 +178,11 @@ theorem strategyVec_apply {n : ℕ} (x : List ℚ) (i : Fin n) :
     (∀ q ∈ x, 0 ≤ q) ∧ x.sum = 1 ∧
     (∀ q ∈ y, 0 ≤ q) ∧ y.sum = 1 ∧
     (∀ i : Fin c.rows,
-      (∑ j : Fin c.cols, c.toMatA i j * y.getD j.1 0) ≤
-        ∑ a : Fin c.rows, ∑ j : Fin c.cols, x.getD a.1 0 * c.toMatA a j * y.getD j.1 0) ∧
+      (∑ j : Fin c.cols, c.toMatA i j * y.getD j.val 0) ≤
+        ∑ a : Fin c.rows, ∑ j : Fin c.cols, x.getD a.val 0 * c.toMatA a j * y.getD j.val 0) ∧
     (∀ j : Fin c.cols,
-      (∑ i : Fin c.rows, x.getD i.1 0 * c.toMatB i j) ≤
-        ∑ i : Fin c.rows, ∑ b : Fin c.cols, x.getD i.1 0 * c.toMatB i b * y.getD b.1 0)
+      (∑ i : Fin c.rows, x.getD i.val 0 * c.toMatB i j) ≤
+        ∑ i : Fin c.rows, ∑ b : Fin c.cols, x.getD i.val 0 * c.toMatB i b * y.getD b.val 0)
 
 /-- A nonnegative rational list of length `n` summing to `1` is a mixed strategy on `Fin n`. -/
 theorem isMixedStrategy_strategyVec {n : ℕ} {x : List ℚ} (hlen : x.length = n)
@@ -576,16 +576,16 @@ theorem scaledEntry_cast {D : ℤ} {q : ℚ} (hdvd : (q.den : ℤ) ∣ D) :
 
 private lemma clearMat_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     (i : Fin c.rows) (j : Fin c.cols) :
-    (((clearMatA c).getD i.1 []).getD j.1 0 : ℚ) = (clearScale c : ℚ) * c.toMatA i j ∧
-      (((clearMatB c).getD i.1 []).getD j.1 0 : ℚ) = (clearScale c : ℚ) * c.toMatB i j := by
+    (((clearMatA c).getD i.val []).getD j.val 0 : ℚ) = (clearScale c : ℚ) * c.toMatA i j ∧
+      (((clearMatB c).getD i.val []).getD j.val 0 : ℚ) = (clearScale c : ℚ) * c.toMatB i j := by
   obtain ⟨_, _, hl2, hr1, hr2⟩ := hc
   have aux (M : List (List ℚ)) (hM : M = c.matA ∨ M = c.matB)
       (hlen : M.length = c.rows) (hrows : ∀ r ∈ M, r.length = c.cols) :
-      (((clearMat (clearScale c) M).getD i.1 []).getD j.1 0 : ℚ) =
-        (clearScale c : ℚ) * (M.getD i.1 []).getD j.1 0 := by
-    have hi : i.1 < M.length := by omega
-    have hrmem : M.getD i.1 [] ∈ M := List.getD_mem [] hi
-    have hj : j.1 < (M.getD i.1 []).length := by have := hrows _ hrmem; omega
+      (((clearMat (clearScale c) M).getD i.val []).getD j.val 0 : ℚ) =
+        (clearScale c : ℚ) * (M.getD i.val []).getD j.val 0 := by
+    have hi : i.val < M.length := by omega
+    have hrmem : M.getD i.val [] ∈ M := List.getD_mem [] hi
+    have hj : j.val < (M.getD i.val []).length := by have := hrows _ hrmem; omega
     rw [clearMat, List.getD_map_of_lt _ M [] [] hi, List.getD_map_of_lt _ _ 0 0 hj]
     exact scaledEntry_cast (den_dvd_clearScale hM hrmem (List.getD_mem 0 hj))
   exact ⟨aux c.matA (Or.inl rfl) rfl hr1, aux c.matB (Or.inr rfl) hl2 hr2⟩
@@ -603,15 +603,15 @@ private lemma den_dvd_vecProdDen {v : List (ℤ × ℕ)} {pq : ℤ × ℕ} (hpq 
 
 private lemma scaleVecNum_getD_cast {v : List (ℤ × ℕ)} (hv : v.all isCanonicalNonnegPair = true)
     {k : ℕ} (hk : v.length = k) (i : Fin k) :
-    ((scaleVecNum (vecProdDen v) v).getD i.1 0 : ℚ) =
-      (vecProdDen v : ℚ) * (v.map mkRatOfPair).getD i.1 0 := by
-  have hi : i.1 < v.length := by omega
-  have hpq : v.getD i.1 (0, 0) ∈ v := List.getD_mem (0, 0) hi
+    ((scaleVecNum (vecProdDen v) v).getD i.val 0 : ℚ) =
+      (vecProdDen v : ℚ) * (v.map mkRatOfPair).getD i.val 0 := by
+  have hi : i.val < v.length := by omega
+  have hpq : v.getD i.val (0, 0) ∈ v := List.getD_mem (0, 0) hi
   have hmem := (List.all_eq_true.1 hv) _ hpq
   simp only [isCanonicalNonnegPair, Bool.and_eq_true, decide_eq_true_eq] at hmem
   rcases den_dvd_vecProdDen hpq with ⟨t, ht⟩
-  have hneZ : ((v.getD i.1 (0, 0)).2 : ℤ) ≠ 0 := by omega
-  have hneQ : ((v.getD i.1 (0, 0)).2 : ℚ) ≠ 0 := Nat.cast_ne_zero.2 (by omega)
+  have hneZ : ((v.getD i.val (0, 0)).2 : ℤ) ≠ 0 := by omega
+  have hneQ : ((v.getD i.val (0, 0)).2 : ℚ) ≠ 0 := Nat.cast_ne_zero.2 (by omega)
   rw [scaleVecNum, List.getD_map_of_lt _ v (0, 0) 0 hi,
     List.getD_map_of_lt mkRatOfPair v (0, 0) 0 hi, ht, Int.mul_tdiv_cancel_left t hneZ]
   simp only [mkRatOfPair, Int.cast_mul, Int.cast_natCast]
@@ -619,52 +619,52 @@ private lemma scaleVecNum_getD_cast {v : List (ℤ × ℕ)} (hv : v.all isCanoni
 
 private lemma rowPayoffs_scaleVecNum_getD_cast {m n : ℕ} {M_int : List (List ℤ)}
     (hM_len : M_int.length = m) {C : ℚ} {entry : Fin m → Fin n → ℚ}
-    (hentry : ∀ (i : Fin m) (j : Fin n), ((M_int.getD i.1 []).getD j.1 0 : ℚ) = C * entry i j)
+    (hentry : ∀ (i : Fin m) (j : Fin n), ((M_int.getD i.val []).getD j.val 0 : ℚ) = C * entry i j)
     {vl : List (ℤ × ℕ)} (hvl_c : vl.all isCanonicalNonnegPair = true) (hvl_len : vl.length = n)
     (i : Fin m) :
-    ((rowPayoffs M_int n (scaleVecNum (vecProdDen vl) vl)).getD i.1 0 : ℚ) =
-      C * (vecProdDen vl : ℚ) * ∑ j : Fin n, entry i j * (vl.map mkRatOfPair).getD j.1 0 := by
-  have hi : i.1 < M_int.length := hM_len ▸ i.2
+    ((rowPayoffs M_int n (scaleVecNum (vecProdDen vl) vl)).getD i.val 0 : ℚ) =
+      C * (vecProdDen vl : ℚ) * ∑ j : Fin n, entry i j * (vl.map mkRatOfPair).getD j.val 0 := by
+  have hi : i.val < M_int.length := hM_len ▸ i.isLt
   rw [rowPayoffs, List.getD_map_of_lt _ M_int [] 0 hi,
     ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range]
   push_cast
   calc
-    ∑ j : Fin n, ((M_int.getD i.1 []).getD j.1 0 : ℚ) *
-        ((scaleVecNum (vecProdDen vl) vl).getD j.1 0 : ℚ)
+    ∑ j : Fin n, ((M_int.getD i.val []).getD j.val 0 : ℚ) *
+        ((scaleVecNum (vecProdDen vl) vl).getD j.val 0 : ℚ)
       = ∑ j : Fin n, (C * entry i j) *
-          ((vecProdDen vl : ℚ) * (vl.map mkRatOfPair).getD j.1 0) :=
+          ((vecProdDen vl : ℚ) * (vl.map mkRatOfPair).getD j.val 0) :=
         Finset.sum_congr rfl fun j _ => by
           rw [hentry i j, scaleVecNum_getD_cast hvl_c hvl_len j]
-    _ = C * (vecProdDen vl : ℚ) * ∑ j : Fin n, entry i j * (vl.map mkRatOfPair).getD j.1 0 := by
+    _ = C * (vecProdDen vl : ℚ) * ∑ j : Fin n, entry i j * (vl.map mkRatOfPair).getD j.val 0 := by
         rw [Finset.mul_sum]
         exact Finset.sum_congr rfl fun j _ => by ring
 
 private lemma pay1Vec_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     {yl : List (ℤ × ℕ)} (hyl_c : yl.all isCanonicalNonnegPair = true) (hyl_len : yl.length = c.cols)
     (i : Fin c.rows) :
-    ((pay1Vec c yl).getD i.1 0 : ℚ) =
+    ((pay1Vec c yl).getD i.val 0 : ℚ) =
       (clearScale c : ℚ) * (vecProdDen yl : ℚ) *
-        ∑ j : Fin c.cols, c.toMatA i j * (yl.map mkRatOfPair).getD j.1 0 :=
+        ∑ j : Fin c.cols, c.toMatA i j * (yl.map mkRatOfPair).getD j.val 0 :=
   rowPayoffs_scaleVecNum_getD_cast (by simp [clearMatA, clearMat, rows])
     (fun a b => (clearMat_getD_cast hc a b).1) hyl_c hyl_len i
 
 private lemma pay2Vec_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     {xl : List (ℤ × ℕ)} (hxl_c : xl.all isCanonicalNonnegPair = true) (hxl_len : xl.length = c.rows)
     (j : Fin c.cols) :
-    ((pay2Vec c xl).getD j.1 0 : ℚ) =
+    ((pay2Vec c xl).getD j.val 0 : ℚ) =
       (clearScale c : ℚ) * (vecProdDen xl : ℚ) *
-        ∑ i : Fin c.rows, (xl.map mkRatOfPair).getD i.1 0 * c.toMatB i j := by
+        ∑ i : Fin c.rows, (xl.map mkRatOfPair).getD i.val 0 * c.toMatB i j := by
   rw [pay2Vec, rowPayoffs_scaleVecNum_getD_cast (entry := fun b i => c.toMatB i b)
     (by simp [transposeRows])
     (fun b a => by
       simp only [transposeRows]
-      rw [List.getD_map_range _ [] b.2, List.getD_map_range _ 0 a.2]
+      rw [List.getD_map_range _ [] b.isLt, List.getD_map_range _ 0 a.isLt]
       exact (clearMat_getD_cast hc a b).2)
     hxl_c hxl_len j]
   exact congrArg _ (Finset.sum_congr rfl fun _ _ => mul_comm _ _)
 
 private lemma brCheck_iff {D mix : ℤ} {pays : List ℤ} {k : ℕ} (hk : pays.length = k) :
-    brCheck D mix pays = true ↔ ∀ i : Fin k, D * pays.getD i.1 0 ≤ mix := by
+    brCheck D mix pays = true ↔ ∀ i : Fin k, D * pays.getD i.val 0 ≤ mix := by
   simp only [brCheck, List.all_eq_true, decide_eq_true_eq]
   constructor
   · intro h i
@@ -677,24 +677,24 @@ private lemma brCheck_iff {D mix : ℤ} {pays : List ℤ} {k : ℕ} (hk : pays.l
 private lemma bilinear_dotProduct_eq_cast {m n : ℕ} (xl yl : List (ℤ × ℕ)) (pv : List ℤ)
     (C : ℚ) (M : Fin m → Fin n → ℚ)
     (hxl_c : xl.all isCanonicalNonnegPair = true) (hxl_len : xl.length = m)
-    (hpv : ∀ a : Fin m, (pv.getD a.1 0 : ℚ) =
-      C * (vecProdDen yl : ℚ) * ∑ j : Fin n, M a j * (yl.map mkRatOfPair).getD j.1 0) :
+    (hpv : ∀ a : Fin m, (pv.getD a.val 0 : ℚ) =
+      C * (vecProdDen yl : ℚ) * ∑ j : Fin n, M a j * (yl.map mkRatOfPair).getD j.val 0) :
     ((ListMatrix.dotProduct m (scaleVecNum (vecProdDen xl) xl) pv : ℤ) : ℚ) =
       (vecProdDen xl : ℚ) * C * (vecProdDen yl : ℚ) *
         ∑ a : Fin m, ∑ j : Fin n,
-          (xl.map mkRatOfPair).getD a.1 0 * M a j * (yl.map mkRatOfPair).getD j.1 0 := by
+          (xl.map mkRatOfPair).getD a.val 0 * M a j * (yl.map mkRatOfPair).getD j.val 0 := by
   rw [ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range]
   push_cast
   calc
-    ∑ a : Fin m, ((scaleVecNum (vecProdDen xl) xl).getD a.1 0 : ℚ) * (pv.getD a.1 0 : ℚ)
-      = ∑ a : Fin m, ((vecProdDen xl : ℚ) * (xl.map mkRatOfPair).getD a.1 0) *
+    ∑ a : Fin m, ((scaleVecNum (vecProdDen xl) xl).getD a.val 0 : ℚ) * (pv.getD a.val 0 : ℚ)
+      = ∑ a : Fin m, ((vecProdDen xl : ℚ) * (xl.map mkRatOfPair).getD a.val 0) *
           (C * (vecProdDen yl : ℚ) *
-            ∑ j : Fin n, M a j * (yl.map mkRatOfPair).getD j.1 0) := by
+            ∑ j : Fin n, M a j * (yl.map mkRatOfPair).getD j.val 0) := by
           refine Finset.sum_congr rfl fun a _ => ?_
           rw [scaleVecNum_getD_cast hxl_c hxl_len a, hpv a]
     _ = (vecProdDen xl : ℚ) * C * (vecProdDen yl : ℚ) *
           ∑ a : Fin m, ∑ j : Fin n,
-            (xl.map mkRatOfPair).getD a.1 0 * M a j * (yl.map mkRatOfPair).getD j.1 0 := by
+            (xl.map mkRatOfPair).getD a.val 0 * M a j * (yl.map mkRatOfPair).getD j.val 0 := by
           simp only [Finset.mul_sum]
           refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun j _ => by ring
 
@@ -706,7 +706,7 @@ private lemma mix1_eq_cast {c : BimatrixCode} (hc : c.WellFormed)
         (pay1Vec c yl) : ℤ) : ℚ) =
       (vecProdDen xl : ℚ) * (clearScale c : ℚ) * (vecProdDen yl : ℚ) *
         ∑ a : Fin c.rows, ∑ j : Fin c.cols,
-          (xl.map mkRatOfPair).getD a.1 0 * c.toMatA a j * (yl.map mkRatOfPair).getD j.1 0 :=
+          (xl.map mkRatOfPair).getD a.val 0 * c.toMatA a j * (yl.map mkRatOfPair).getD j.val 0 :=
   bilinear_dotProduct_eq_cast xl yl (pay1Vec c yl) (clearScale c) c.toMatA
     hxl_c hxl_len (pay1Vec_getD_cast hc hyl_c hyl_len)
 
@@ -718,7 +718,7 @@ private lemma mix2_eq_cast {c : BimatrixCode} (hc : c.WellFormed)
         (pay2Vec c xl) : ℤ) : ℚ) =
       (vecProdDen yl : ℚ) * (clearScale c : ℚ) * (vecProdDen xl : ℚ) *
         ∑ i : Fin c.rows, ∑ b : Fin c.cols,
-          (xl.map mkRatOfPair).getD i.1 0 * c.toMatB i b * (yl.map mkRatOfPair).getD b.1 0 := by
+          (xl.map mkRatOfPair).getD i.val 0 * c.toMatB i b * (yl.map mkRatOfPair).getD b.val 0 := by
   rw [bilinear_dotProduct_eq_cast yl xl (pay2Vec c xl) (clearScale c) (fun b i => c.toMatB i b)
       hyl_c hyl_len (fun b => by
         rw [pay2Vec_getD_cast hc hxl_c hxl_len b]
@@ -787,7 +787,7 @@ private lemma map_mkRatOfPair_pair_eq (l : List ℚ) :
 private lemma brCheck_dotProduct_iff {m : ℕ} {ul : List (ℤ × ℕ)} {pv : List ℤ}
     {S payMix : ℚ} {payPure : Fin m → ℚ}
     (hpv_len : pv.length = m) (hDu : 0 < (vecProdDen ul : ℚ)) (hS : 0 < S)
-    (hpv : ∀ i : Fin m, (pv.getD i.1 0 : ℚ) = S * payPure i)
+    (hpv : ∀ i : Fin m, (pv.getD i.val 0 : ℚ) = S * payPure i)
     (hmix : ((ListMatrix.dotProduct m (scaleVecNum (vecProdDen ul) ul) pv : ℤ) : ℚ) =
       ((vecProdDen ul : ℚ) * S) * payMix) :
     brCheck (vecProdDen ul)
@@ -819,13 +819,13 @@ private lemma verifiesDecoded_iff {c : BimatrixCode} (hc : c.WellFormed)
       (brCheck (vecProdDen dec.1)
           (ListMatrix.dotProduct c.rows (scaleVecNum (vecProdDen dec.1) dec.1) (pay1Vec c dec.2))
           (pay1Vec c dec.2) = true ↔
-        ∀ i : Fin c.rows, (∑ j : Fin c.cols, c.toMatA i j * y.getD j.1 0) ≤
-          ∑ a : Fin c.rows, ∑ j : Fin c.cols, x.getD a.1 0 * c.toMatA a j * y.getD j.1 0) ∧
+        ∀ i : Fin c.rows, (∑ j : Fin c.cols, c.toMatA i j * y.getD j.val 0) ≤
+          ∑ a : Fin c.rows, ∑ j : Fin c.cols, x.getD a.val 0 * c.toMatA a j * y.getD j.val 0) ∧
       (brCheck (vecProdDen dec.2)
           (ListMatrix.dotProduct c.cols (scaleVecNum (vecProdDen dec.2) dec.2) (pay2Vec c dec.1))
           (pay2Vec c dec.1) = true ↔
-        ∀ j : Fin c.cols, (∑ i : Fin c.rows, x.getD i.1 0 * c.toMatB i j) ≤
-          ∑ i : Fin c.rows, ∑ b : Fin c.cols, x.getD i.1 0 * c.toMatB i b * y.getD b.1 0) := by
+        ∀ j : Fin c.cols, (∑ i : Fin c.rows, x.getD i.val 0 * c.toMatB i j) ≤
+          ∑ i : Fin c.rows, ∑ b : Fin c.cols, x.getD i.val 0 * c.toMatB i b * y.getD b.val 0) := by
     have hDx : (0 : ℚ) < (vecProdDen dec.1 : ℚ) := by exact_mod_cast vecProdDen_pos hcx
     have hDy : (0 : ℚ) < (vecProdDen dec.2 : ℚ) := by exact_mod_cast vecProdDen_pos hcy
     refine ⟨brCheck_dotProduct_iff hlenA hDx (mul_pos hDc hDy) (pay1Vec_getD_cast hc hcy hdy)

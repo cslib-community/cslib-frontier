@@ -113,15 +113,8 @@ theorem disagreement_conjugate_card {β : Type*} [Fintype α] [Fintype β]
       (disagreement f g).card := by
   classical
   symm
-  apply Finset.card_bij (fun x _ => e x)
-  · intro x hx
-    simpa only [mem_disagreement, Function.comp_apply, Equiv.symm_apply_apply,
-      e.injective.ne_iff] using hx
-  · intro x _ y _ he
-    exact e.injective he
-  · intro y hy
-    refine ⟨e.symm y, ?_, by simp⟩
-    simpa only [mem_disagreement, Function.comp_apply, e.injective.ne_iff] using hy
+  refine Finset.card_equiv e fun x => ?_
+  simp only [mem_disagreement, Function.comp_apply, Equiv.symm_apply_apply, e.injective.ne_iff]
 
 /-- If the relabeling `e` carries `g` to `g'`, then relabeling `f` edits `g'` in as many
 places as `f` edits `g`. -/

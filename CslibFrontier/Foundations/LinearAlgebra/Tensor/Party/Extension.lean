@@ -73,7 +73,7 @@ private theorem exists_cover_of_coveredBy_push (ι : I → I') {A : PartyTensor 
     ∃ c : κ → PartyTensor K I, A.CoveredBy c ∧
       ∀ k, ∀ π : I' → I, (∀ i, π (ι i) = i) → c k ≤ push π (b k) := by
   obtain ⟨v, hv, hr⟩ := coveredBy_iff.1 h
-  let emb : (∀ i, A.Index i) → ∀ q, (push ι A).Index q := fun x _ j => x j.1
+  let emb : (∀ i, A.Index i) → ∀ q, (push ι A).Index q := fun x _ j => x j.val
   refine ⟨fun k => A.withEntry fun x => v k (emb x), CoveredBy.withEntry A _ fun x => hv (emb x),
     fun k π hπ => ?_⟩
   have h1 : push ι (A.withEntry fun x => v k (emb x)) ≤ (push ι A).withEntry (v k) :=

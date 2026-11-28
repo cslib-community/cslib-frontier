@@ -187,9 +187,9 @@ theorem dist_altExt_trevisanRRV_lookAhead_witness :
           (BitString d × (Fin 1 → BitString d))) :=
       let (x, x') := px
       let ((y, y'), (s0, s0')) := py
-      (py, (fun i : Fin 1 => altExtR ext ext x y s0 i.1,
+      (py, (fun i : Fin 1 => altExtR ext ext x y s0 i.val,
             fun i : Fin 2 => fun j : Fin 1 =>
-              altExtR ext ext (x' j) (y' j) (s0' j) i.1))
+              altExtR ext ext (x' j) (y' j) (s0' j) i.val))
     dist
       ((PMF.uniformOfFintype (BitString (2 ^ 18) × (Fin 1 → BitString (2 ^ 18)))).bind fun px =>
         let (x, _) := px
@@ -271,7 +271,7 @@ theorem dist_altExt_sumset_trevisanRRV_witness :
     let d := (64 + 64) * (2 * (64 + 64))
     let ext := trevisanRRVExt (2 ^ 18) d 64 (by omega)
     let view (a : BitString (2 ^ 18)) (bs : BitString (2 ^ 18) × BitString d) :=
-      (bs, fun i : Fin 1 => altExtR ext ext (a + bs.1) (a + bs.1) bs.2 i.1)
+      (bs, fun i : Fin 1 => altExtR ext ext (a + bs.1) (a + bs.1) bs.2 i.val)
     dist
       ((PMF.uniformOfFintype (BitString (2 ^ 18))).bind fun a =>
         (PMF.uniformOfFintype (BitString (2 ^ 18) × BitString d)).map fun bs =>
@@ -328,7 +328,7 @@ uniform `B : PMF (BitString 24)` and `J : PMF (BitString 8 × (Fin 2 → BitStri
 theorem dist_vanderCB_2_8_client :
     let α : BitString 8 := fun _ => false
     let α' : Fin 2 → BitString 8 :=
-      ![fun i => decide (i.1 = 0), fun i => decide (i.1 = 1)]
+      ![fun i => decide (i.val = 0), fun i => decide (i.val = 1)]
     let B := PMF.uniformOfFintype (BitString ((2 + 1) * 8))
     let J := PMF.uniformOfFintype (BitString 8 × (Fin 2 → BitString 8))
     dist

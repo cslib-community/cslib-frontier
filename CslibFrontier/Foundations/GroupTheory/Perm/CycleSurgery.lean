@@ -221,7 +221,7 @@ private theorem card_orbits_twoPoints (f : Perm α) (a b : α) (hab : a ≠ b)
   let e := Equiv.optionSubtypeNe a
   let f' := e.symm.permCongr f
   let : Subsingleton {x : α // x ≠ a} := ⟨fun x y => Subtype.ext <|
-    ((cover x).resolve_left x.2).trans ((cover y).resolve_left y.2).symm⟩
+    ((cover x).resolve_left x.property).trans ((cover y).resolve_left y.property).symm⟩
   let : Nonempty (Quotient (Perm.SameCycle.setoid (removeNone f'))) := ⟨Quotient.mk _ ⟨b, hab.symm⟩⟩
   have hc := card_orbits_removeNone_add f'
   have hfix : f' none = none ↔ f a = a := by

@@ -10,8 +10,9 @@ module
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 
 /-! A test-only printer of kernel proofs as VeriPB text, for the fragment that the certified
-dynamic programs write (`pol`, hinted `rup`, `red` with an empty subproof, `soli`, `deld` and a
-`BOUNDS` conclusion). The tests of the certified dynamic programs parse its output with the
+dynamic programs and the producers of complete certificates write (`pol`, hinted `rup`, `red` with
+an empty subproof, `soli`, `solx`, `deld`, and the conclusions `UNSAT`, `SAT : ρ`, `BOUNDS` and
+`ENUMERATION_COMPLETE`). The tests of the certified dynamic programs parse its output with the
 repository's text front end, and write it out for VeriPB and CakePB. -/
 
 public section
@@ -52,6 +53,7 @@ def stepText : TopStep → String
       " ".intercalate (hs.map fun | .neg => "~" | .id k => toString k) ++ " ;\n"
   | .red c ω (some []) none => s!"red {constrText c} : {witnessText ω} : subproof\nqed ;\n"
   | .soli ρ => s!"soli {" ".intercalate (ρ.map litText)} ;\n"
+  | .solx ρ => s!"solx {" ".intercalate (ρ.map litText)} ;\n"
   | .deld ids => s!"deld {" ".intercalate (ids.map toString)} ;\n"
   | _ => "unsupported ;\n"
 
@@ -66,6 +68,9 @@ def pbpText (m : ℕ) (P : RedProof) : String :=
     "output NONE ;\n" ++
     (match P.conclusion with
       | .bounds lb q ub none => s!"conclusion BOUNDS {boundText lb} : {q} {boundText ub} ;\n"
+      | .unsat q => s!"conclusion UNSAT : {q} ;\n"
+      | .sat (some ρ) => s!"conclusion SAT : {" ".intercalate (ρ.map litText)} ;\n"
+      | .enumComplete n q => s!"conclusion ENUMERATION_COMPLETE {n} : {q} ;\n"
       | _ => "conclusion NONE ;\n") ++
     "end pseudo-Boolean proof ;\n"
 

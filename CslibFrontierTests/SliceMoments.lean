@@ -59,11 +59,12 @@ generators, evaluated on the retention slice of `y`, have variance at most
 example {P L H : ℕ} [Fact P.Prime] [NeZero L] [NeZero H] (hH : 3 ≤ H) (hL : L ≤ P) (y : ZMod P)
     (f : FrameChannel P H 1 → ℝ) (t : ℕ) :
     𝔼 A : RetentionSlice P H 1 L y,
-        ((validatedStep L (affineGenerator H) (Fintype.piFinset fun _ ↦ Icc (-3) 3) y)^[t] f A.1 -
-          𝔼 B : RetentionSlice P H 1 L y, f B.1) ^ 2 ≤
+        ((validatedStep L (affineGenerator H) (Fintype.piFinset fun _ ↦ Icc (-3) 3) y)^[t] f A.val -
+          𝔼 B : RetentionSlice P H 1 L y, f B.val) ^ 2 ≤
       (1 - 1 / (155648 * H ^ 4)) ^ (2 * t) *
-        𝔼 A : RetentionSlice P H 1 L y, (f A.1 - 𝔼 B : RetentionSlice P H 1 L y, f B.1) ^ 2 := by
-  have h := expect_walk_pow_sliceGraph_affineMove_sub_expect_sq_le hH hL y (fun B ↦ f B.1) t
+        𝔼 A : RetentionSlice P H 1 L y, (f A.val -
+            𝔼 B : RetentionSlice P H 1 L y, f B.val) ^ 2 := by
+  have h := expect_walk_pow_sliceGraph_affineMove_sub_expect_sq_le hH hL y (fun B ↦ f B.val) t
   simp only [walk_pow_sliceGraph_lazy_affineMove_eq] at h
   exact h
 

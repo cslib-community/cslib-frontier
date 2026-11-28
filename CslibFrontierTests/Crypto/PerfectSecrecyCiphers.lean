@@ -57,12 +57,12 @@ example : (additiveOTP (ZMod 6)).CiphertextIndist :=
 /-! ### The variable-length one-time pad -/
 
 /-- Key `101`, word `11`: the word is XORed with the first two key bits, giving `01`. -/
-example : (varXor 3 ![true, false, true] ⟨[true, true], by simp⟩).1 = [false, true] := by
+example : (varXor 3 ![true, false, true] ⟨[true, true], by simp⟩).val = [false, true] := by
   rw [coe_varXor]
   decide
 
 /-- Every ciphertext of a 2-bit word has two bits. -/
-example (k : BitString 3) : (varXor 3 k ⟨[true, true], by simp⟩).1.length = 2 :=
+example (k : BitString 3) : (varXor 3 k ⟨[true, true], by simp⟩).val.length = 2 :=
   length_varXor 3 k _
 
 /-- Decrypting `01` with the key `101` gives back `11`. -/

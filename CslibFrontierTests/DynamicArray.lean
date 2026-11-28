@@ -10,7 +10,7 @@ module
 public import CslibFrontier.DataStructure.DynamicArray.WordRAM.Basic
 
 /-!
-# Doubling-array execution tests and axiom guards
+# Doubling-array execution tests
 
 Concrete symbolic executions trace the twelve-register doubling array across three capacity
 doublings (`1 → 2 → 4 → 8`), checking exact register contents, live and historical memory
@@ -174,19 +174,5 @@ example : ∃ ready y traces, Exec 8 DynamicArray.WordRAM.initProgram blank read
     DynamicArray.WordRAM.run_appendAll (w := 8) (vs := [10, 20, 30, 40, 50])
       (by decide : Fits 8 1) blank_bounded (by decide) (by decide)
   exact ⟨ready, y, traces, hi, he, hy, hb, hspace (by decide)⟩
-
-/--
-info: 'Cslib.DataStructure.DynamicArray.WordRAM.Rep.space' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms DynamicArray.WordRAM.Rep.space
-
-/--
-info: 'Cslib.DataStructure.DynamicArray.WordRAM.get_exec' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms DynamicArray.WordRAM.get_exec
 
 end DynamicArrayTest

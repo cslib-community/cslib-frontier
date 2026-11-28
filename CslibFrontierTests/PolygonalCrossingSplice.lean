@@ -186,7 +186,7 @@ theorem removes_orthogonal_crossing :
     hNondeg route_segments_nondegenerate, ?_, ?_, hparity r observer_disjoint_disk⟩
   · intro b
     obtain ⟨c, hc, he⟩ := hgerm b
-    rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
+    rw [he, Complex.real_smul, Complex.arg_ofReal_mul hc _]
   · exact Set.ssubset_iff_exists.mpr
       ⟨fun _ hw => (hcross hw).1, 0, hz,
         fun h => (hcross h).2 (Metric.mem_closedBall_self zero_le_one)⟩

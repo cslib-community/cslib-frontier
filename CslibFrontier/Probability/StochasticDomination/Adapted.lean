@@ -467,7 +467,7 @@ theorem ae_le_condExp_union_compl {Ω : Type*} [m : MeasurableSpace Ω]
   rw [hω]
   by_cases hmem : ω ∈ S
   · simp [hmem, hSω hmem]
-  · simp [hmem, p.2.2]
+  · simp [hmem, p.property.2]
 
 private theorem map_min_adaptedCount_eq {Ω : Type*} [m : MeasurableSpace Ω] {P : Measure Ω}
     (ℱ : Filtration ℕ m) {A B : ℕ → Set Ω} (hB : ∀ t, MeasurableSet[ℱ (t + 1)] (B t))
@@ -570,7 +570,7 @@ theorem poissonBinomial_stochasticallyDominates_adaptedCount_min {Ω : Type*} [m
     rw [hω]
     by_cases hmem : ω ∈ S
     · simpa [hmem] using hSω hmem
-    · simp [hmem, (ps[t]).2.1]
+    · simp [hmem, (ps[t]).property.1]
   have hmap := (poissonBinomial_stochasticallyDominates_adaptedCount ℱ hA'' ps hp'').map
     measurable_from_top (fun _ _ h => min_le_min_right r h)
   rwa [map_min_adaptedCount_eq ℱ hA'' ps.length r (adaptedCount_min_eq_of_inter A r ps.length),
@@ -797,7 +797,7 @@ noncomputable def seqCount {α : Type*} (E : ∀ t : ℕ, (Fin t → α) → Set
     (h : Fin n → α) : ℕ := by
   classical
   exact ∑ t : Fin n,
-    if h t ∈ E t.1 (fun j : Fin t.1 => h (Fin.castLT j (lt_trans j.isLt t.isLt))) then 1 else 0
+    if h t ∈ E t.val (fun j : Fin t.val => h (Fin.castLT j (lt_trans j.isLt t.isLt))) then 1 else 0
 
 @[simp]
 theorem seqCount_zero {α : Type*} (E : ∀ t : ℕ, (Fin t → α) → Set α) (h : Fin 0 → α) :
@@ -818,10 +818,10 @@ theorem seqCount_snoc {α : Type*} (E : ∀ t : ℕ, (Fin t → α) → Set α) 
     Fin.snoc_castSucc]
   congr 1
   · refine Finset.sum_congr rfl fun t _ => ?_
-    exact congrArg (fun p => if h t ∈ E t.1 p then 1 else 0)
-      (funext fun j => snoc_castLT h a j.1 (lt_trans j.isLt t.isLt) _)
+    exact congrArg (fun p => if h t ∈ E t.val p then 1 else 0)
+      (funext fun j => snoc_castLT h a j.val (lt_trans j.isLt t.isLt) _)
   · exact congrArg (fun p => if a ∈ E n p then 1 else 0)
-      (funext fun j => snoc_castLT h a j.1 j.isLt _)
+      (funext fun j => snoc_castLT h a j.val j.isLt _)
 
 private theorem abs_tsum_pmf_mul_le_one {α : Type*} (p : PMF α) (F : α → ℝ)
     (hF : ∀ a, |F a| ≤ 1) :
@@ -952,7 +952,7 @@ theorem seqCount_active_toReal_Iio_le {α : Type*}
         let _ : MeasurableSpace α := ⊤
         rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply (step t h) MeasurableSet.univ,
           measure_univ]
-      simpa [ps, E', hreach, huniv] using p.2.2
+      simpa [ps, E', hreach, huniv] using p.property.2
     · simpa [ps, E', hreach] using hp t (by simpa [ps] using ht) h (not_le.mp hreach)
   have hIio := ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top (poissonBinomial ps) (Set.Iio r))
     ((seqCount_stochasticallyDominates_poissonBinomial_of_length step E' n ps

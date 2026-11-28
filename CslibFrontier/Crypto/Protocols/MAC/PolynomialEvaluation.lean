@@ -82,7 +82,7 @@ abbrev Message (F : Type*) (ℓ : ℕ) := {m : List F // m.length < ℓ}
 encoding of its length. -/
 @[expose]
 def coefficients (encodeLength : Fin ℓ → F) (m : Message F ℓ) : List F :=
-  m.1 ++ [encodeLength ⟨m.1.length, m.2⟩]
+  m.val ++ [encodeLength ⟨m.val.length, m.property⟩]
 
 /-- Horner evaluation of `c₁ X + c₂ X ^ 2 + ⋯ + c_t X ^ t` at `k`: the coefficient list starts at
 the linear term, so there is no constant term. -/
@@ -100,7 +100,7 @@ def hash (encodeLength : Fin ℓ → F) (k : F) (m : Message F ℓ) : F :=
 that the first coefficient always multiplies `k ^ ℓ`. -/
 @[expose]
 def fixedTopHash (encodeLength : Fin ℓ → F) (k : F) (m : Message F ℓ) : F :=
-  k ^ (ℓ - (m.1.length + 1)) * hash encodeLength k m
+  k ^ (ℓ - (m.val.length + 1)) * hash encodeLength k m
 
 /-- Exercise 4.22(b): `m₁ k ^ (ℓ' - 1) + ⋯ + m_{ℓ'}`, with the length code as constant term. -/
 @[expose]
@@ -191,7 +191,7 @@ private theorem ascendingPoly_inj {cs cs' : List F} (hlen : cs.length = cs'.leng
 omit [Field F] in
 private theorem reverse_coefficients (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
     (coefficients encodeLength m).reverse =
-      encodeLength ⟨m.1.length, m.2⟩ :: m.1.reverse := by
+      encodeLength ⟨m.val.length, m.property⟩ :: m.val.reverse := by
   simp [coefficients]
 
 omit [Field F] in
@@ -202,7 +202,7 @@ private theorem message_eq_of_coefficients (encodeLength : Fin ℓ → F) {m m' 
 
 omit [Field F] in
 private theorem length_coefficients (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
-    (coefficients encodeLength m).length = m.1.length + 1 := by
+    (coefficients encodeLength m).length = m.val.length + 1 := by
   simp [coefficients]
 
 /-! ### Layouts whose linear coefficient fixes the length -/
@@ -237,17 +237,17 @@ private noncomputable def hashPoly (encodeLength : Fin ℓ → F) (m : Message F
   ascendingPoly (coefficients encodeLength m).reverse
 
 private theorem coeff_one_hashPoly (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
-    (hashPoly encodeLength m).coeff 1 = encodeLength ⟨m.1.length, m.2⟩ := by
+    (hashPoly encodeLength m).coeff 1 = encodeLength ⟨m.val.length, m.property⟩ := by
   rw [hashPoly, reverse_coefficients, coeff_one_ascendingPoly, List.headD_cons]
 
 private theorem natDegree_hashPoly_le (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
-    (hashPoly encodeLength m).natDegree ≤ m.1.length + 1 := by
+    (hashPoly encodeLength m).natDegree ≤ m.val.length + 1 := by
   simpa only [hashPoly, List.length_reverse, length_coefficients] using
     natDegree_ascendingPoly_le (coefficients encodeLength m).reverse
 
 /-- Two messages of the same length with the same polynomial are equal. -/
 private theorem eq_of_hashPoly_eq (encodeLength : Fin ℓ → F) {m m' : Message F ℓ}
-    (hlen : m.1.length = m'.1.length) (h : hashPoly encodeLength m = hashPoly encodeLength m') :
+    (hlen : m.val.length = m'.val.length) (h : hashPoly encodeLength m = hashPoly encodeLength m') :
     m = m' := by
   refine message_eq_of_coefficients encodeLength (List.reverse_injective ?_)
   exact ascendingPoly_inj (by simp [length_coefficients, hlen]) h
@@ -261,49 +261,51 @@ theorem isDeltaUniversalHash_hash [Fintype F] {encodeLength : Fin ℓ → F}
     (fun _ _ h => message_eq_of_coefficients encodeLength (List.reverse_injective h))
     (fun m m' h => by
       rw [reverse_coefficients, reverse_coefficients, List.headD_cons, List.headD_cons] at h
-      have h2 : m.1.length = m'.1.length := congrArg Fin.val (hencode h)
+      have h2 : m.val.length = m'.val.length := congrArg Fin.val (hencode h)
       simp only [List.length_reverse, length_coefficients, h2])
-    (fun m => by rw [List.length_reverse, length_coefficients]; exact m.2)
+    (fun m => by rw [List.length_reverse, length_coefficients]; exact m.property)
 
 /-! ### Exercise 4.22(a) -/
 
 /-- The polynomial of Exercise 4.22(a). -/
 private noncomputable def fixedTopPoly (encodeLength : Fin ℓ → F) (m : Message F ℓ) : F[X] :=
-  X ^ (ℓ - (m.1.length + 1)) * hashPoly encodeLength m
+  X ^ (ℓ - (m.val.length + 1)) * hashPoly encodeLength m
 
 /-- The lowest coefficient of the Exercise 4.22(a) polynomial sits at `ℓ - |m|`. -/
 private theorem coeff_fixedTopPoly (encodeLength : Fin ℓ → F) (m : Message F ℓ) (j : ℕ)
-    (hj : j ≤ ℓ - (m.1.length + 1)) : (fixedTopPoly encodeLength m).coeff j = 0 := by
+    (hj : j ≤ ℓ - (m.val.length + 1)) : (fixedTopPoly encodeLength m).coeff j = 0 := by
   rw [fixedTopPoly, coeff_X_pow_mul']
   split_ifs with h
-  · rw [show j - (ℓ - (m.1.length + 1)) = 0 by omega, hashPoly, coeff_zero_ascendingPoly]
+  · rw [show j - (ℓ - (m.val.length + 1)) = 0 by omega, hashPoly, coeff_zero_ascendingPoly]
   · rfl
 
 private theorem coeff_fixedTopPoly_length (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
-    (fixedTopPoly encodeLength m).coeff (ℓ - m.1.length) = encodeLength ⟨m.1.length, m.2⟩ := by
-  have hm := m.2
+    (fixedTopPoly encodeLength m).coeff (ℓ - m.val.length) =
+      encodeLength ⟨m.val.length, m.property⟩ := by
+  have hm := m.property
   rw [fixedTopPoly, coeff_X_pow_mul']
-  simp only [show ℓ - (m.1.length + 1) ≤ ℓ - m.1.length by omega, ↓reduceIte,
-    show ℓ - m.1.length - (ℓ - (m.1.length + 1)) = 1 by omega, coeff_one_hashPoly]
+  simp only [show ℓ - (m.val.length + 1) ≤ ℓ - m.val.length by omega, ↓reduceIte,
+    show ℓ - m.val.length - (ℓ - (m.val.length + 1)) = 1 by omega, coeff_one_hashPoly]
 
 /-- A longer message has a nonzero coefficient where a shorter one has none. -/
 private theorem fixedTopPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
-    (hlt : m.1.length < m'.1.length) : fixedTopPoly encodeLength m ≠ fixedTopPoly encodeLength m' :=
+    (hlt : m.val.length < m'.val.length) :
+    fixedTopPoly encodeLength m ≠ fixedTopPoly encodeLength m' :=
   fun h => by
-    have hc := congrArg (·.coeff (ℓ - m'.1.length)) h
-    have hm' := m'.2
+    have hc := congrArg (·.coeff (ℓ - m'.val.length)) h
+    have hm' := m'.property
     simp only [coeff_fixedTopPoly_length,
-      coeff_fixedTopPoly encodeLength m (ℓ - m'.1.length) (by omega)] at hc
+      coeff_fixedTopPoly encodeLength m (ℓ - m'.val.length) (by omega)] at hc
     exact hpos _ (by simp only; omega) hc.symm
 
 private theorem fixedTopPoly_injective {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) :
     Function.Injective (fixedTopPoly encodeLength) := fun m m' h => by
-  rcases lt_trichotomy m.1.length m'.1.length with hlt | hlen | hgt
+  rcases lt_trichotomy m.val.length m'.val.length with hlt | hlen | hgt
   · exact absurd h (fixedTopPoly_ne_of_lt hpos hlt)
   · exact eq_of_hashPoly_eq encodeLength hlen
-      (mul_left_cancel₀ (pow_ne_zero (ℓ - (m.1.length + 1)) X_ne_zero)
+      (mul_left_cancel₀ (pow_ne_zero (ℓ - (m.val.length + 1)) X_ne_zero)
         (by rwa [fixedTopPoly, fixedTopPoly, ← hlen] at h))
   · exact absurd h.symm (fixedTopPoly_ne_of_lt hpos hgt)
 
@@ -322,9 +324,9 @@ theorem isDeltaUniversalHash_fixedTopHash [Fintype F]
   exact isDeltaUniversalHash_of_polynomial (fixedTopPoly encodeLength) (fixedTopPoly_injective hpos)
     (fun m => coeff_fixedTopPoly encodeLength m 0 (Nat.zero_le _)) fun m =>
       natDegree_mul_le.trans <| by
-        have := m.2
+        have := m.property
         have := natDegree_hashPoly_le encodeLength m
-        have := natDegree_X_pow_le (R := F) (ℓ - (m.1.length + 1))
+        have := natDegree_X_pow_le (R := F) (ℓ - (m.val.length + 1))
         omega
 
 /-- The empty message, available when `0 < ℓ`. -/
@@ -370,37 +372,37 @@ private noncomputable def ascendingHashPoly (encodeLength : Fin ℓ → F) (m : 
 
 private theorem ascendingHashPoly_eq (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
     ascendingHashPoly encodeLength m =
-      ascendingPoly m.1 + C (encodeLength ⟨m.1.length, m.2⟩) * X ^ (m.1.length + 1) :=
+      ascendingPoly m.val + C (encodeLength ⟨m.val.length, m.property⟩) * X ^ (m.val.length + 1) :=
   ascendingPoly_append_singleton _ _
 
 /-- The top coefficient of the Exercise 4.22(c) polynomial is the length code. -/
 private theorem coeff_ascendingHashPoly_length (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
-    (ascendingHashPoly encodeLength m).coeff (m.1.length + 1) =
-      encodeLength ⟨m.1.length, m.2⟩ := by
-  have hdeg := natDegree_ascendingPoly_le m.1
+    (ascendingHashPoly encodeLength m).coeff (m.val.length + 1) =
+      encodeLength ⟨m.val.length, m.property⟩ := by
+  have hdeg := natDegree_ascendingPoly_le m.val
   rw [ascendingHashPoly_eq, coeff_add, coeff_eq_zero_of_natDegree_lt (by omega), coeff_C_mul,
     coeff_X_pow_self, mul_one, zero_add]
 
 /-- The Exercise 4.22(c) polynomial has degree at most `|m| + 1`. -/
 private theorem coeff_ascendingHashPoly_of_lt (encodeLength : Fin ℓ → F) (m : Message F ℓ)
-    {j : ℕ} (hj : m.1.length + 1 < j) : (ascendingHashPoly encodeLength m).coeff j = 0 := by
+    {j : ℕ} (hj : m.val.length + 1 < j) : (ascendingHashPoly encodeLength m).coeff j = 0 := by
   have hdeg := natDegree_ascendingPoly_le (coefficients encodeLength m)
   rw [length_coefficients] at hdeg
   exact coeff_eq_zero_of_natDegree_lt (by rw [ascendingHashPoly]; omega)
 
 private theorem ascendingHashPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
-    (hlt : m.1.length < m'.1.length) :
+    (hlt : m.val.length < m'.val.length) :
     ascendingHashPoly encodeLength m ≠ ascendingHashPoly encodeLength m' := fun h => by
-  have hc := congrArg (·.coeff (m'.1.length + 1)) h
-  simp only [coeff_ascendingHashPoly_of_lt encodeLength m (j := m'.1.length + 1) (by omega),
+  have hc := congrArg (·.coeff (m'.val.length + 1)) h
+  simp only [coeff_ascendingHashPoly_of_lt encodeLength m (j := m'.val.length + 1) (by omega),
     coeff_ascendingHashPoly_length] at hc
   exact hpos _ (by simp only; omega) hc.symm
 
 private theorem ascendingHashPoly_injective {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) :
     Function.Injective (ascendingHashPoly encodeLength) := fun m m' h => by
-  rcases lt_trichotomy m.1.length m'.1.length with hlt | hlen | hgt
+  rcases lt_trichotomy m.val.length m'.val.length with hlt | hlen | hgt
   · exact absurd h (ascendingHashPoly_ne_of_lt hpos hlt)
   · exact message_eq_of_coefficients encodeLength
       (ascendingPoly_inj (by simp [length_coefficients, hlen]) h)
@@ -419,7 +421,7 @@ theorem isDeltaUniversalHash_ascendingHash [Fintype F]
   exact isDeltaUniversalHash_of_polynomial (ascendingHashPoly encodeLength)
     (ascendingHashPoly_injective hpos) (fun _ => coeff_zero_ascendingPoly _) fun m => by
       have h := natDegree_ascendingPoly_le (coefficients encodeLength m)
-      exact (length_coefficients encodeLength m ▸ h).trans m.2
+      exact (length_coefficients encodeLength m ▸ h).trans m.property
 
 /-- **[KatzLindell2020], Exercise 4.22(c), negative part.** If the length `1` is encoded as zero
 and `ℓ ≥ 2`, the messages `[]` and `[e 0]` collide under every key. -/

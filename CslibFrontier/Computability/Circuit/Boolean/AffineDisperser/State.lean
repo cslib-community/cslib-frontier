@@ -247,7 +247,7 @@ theorem Valid.out_not_affine {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
   Valid.out_not_affine_of
     (fun hx c' R hR hxR b hout' => Valid.false_of_fix hS hf ha hx c' R hR hxR b
       fun val hcons hfix => hout' val hcons trivial hfix)
-    (Finset.nonempty_iff_ne_empty.2 fun h => by simp [a, m, h] at ha)
+    (Finset.ne_empty_iff_nonempty.1 fun h => by simp [a, m, h] at ha)
     c hT fun val hcons _ => hout val hcons
 
 end State

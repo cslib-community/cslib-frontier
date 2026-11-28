@@ -76,7 +76,7 @@ theorem expect_boole_eq_one_div_two_of_map_add {f : (ι → Bool) → Bool}
     𝔼 x, (if f x = true then (1 : ℝ) else 0) = 1 / 2 := by
   obtain ⟨S, rfl⟩ := exists_eq_parityOn_iff.2 hf
   have hS : S.Nonempty := by
-    rw [nonempty_iff_ne_empty]
+    rw [← ne_empty_iff_nonempty]
     rintro rfl
     simp at h
   rw [Fintype.expect_boole, dens_filter_parityOn_eq hS]

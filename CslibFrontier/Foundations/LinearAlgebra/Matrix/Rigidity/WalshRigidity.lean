@@ -33,7 +33,7 @@ namespace Cslib
 open Finset
 
 /-- Correcting exceptional rows and columns costs at most one rank per exceptional index. -/
-private theorem correct_rows_cols {ι K : Type*} [Fintype ι] [DecidableEq ι] [Field K]
+private theorem correct_rows_cols {ι K : Type*} [Finite ι] [DecidableEq ι] [Field K]
     (H A : Matrix ι ι K) (bad : Finset ι) :
     ∃ B : Matrix ι ι K, B.rank ≤ A.rank + 2 * bad.card ∧
       ∀ x y, B x y = if x ∈ bad ∨ y ∈ bad then H x y else A x y := by
@@ -134,9 +134,11 @@ private theorem walshBandRowWitness (K : Type*) [Field K] (n lo hi k t edits : �
 
 
 /-- Pulling back a matrix along an equivalence transports a minimum-edit witness. -/
-private theorem rigidity_submatrix_le {ι κ K : Type*} [Fintype ι] [Fintype κ] [Field K]
+private theorem rigidity_submatrix_le {ι κ K : Type*} [Finite ι] [Finite κ] [Field K]
     (A : Matrix ι ι K) (e : κ ≃ ι) (r : ℕ) : (A.submatrix e e).rigidity r ≤ A.rigidity r := by
   classical
+  have := Fintype.ofFinite ι
+  have := Fintype.ofFinite κ
   obtain ⟨B, hr, hdiff⟩ := A.exists_rigidity_eq r
   refine (Matrix.rigidity_le (B := B.submatrix e e) (by simpa using hr)).trans ?_
   rw [← hdiff, Matrix.diffCount_eq_card_filter, Matrix.diffCount_eq_card_filter]

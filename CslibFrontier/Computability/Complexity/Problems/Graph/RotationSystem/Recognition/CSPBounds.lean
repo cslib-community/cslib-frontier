@@ -46,8 +46,8 @@ theorem scopes_add_constraints_le {Rel V : Type} (encRel : Rel ↪ List Bool) (e
 /-- Dense incidence vertices and listed occurrences are each bounded by original encoded size. -/
 theorem incidence_sizes_le {Rel V : Type} [DecidableEq V]
     (encRel : Rel ↪ List Bool) (encV : V ↪ List Bool) (F : CSP Rel V) :
-    (CSP.incidenceGraph F).1.length ≤ (encCSP encRel encV F).length ∧
-      (CSP.incidenceGraph F).2.length ≤ (encCSP encRel encV F).length := by
+    (CSP.incidenceGraph F).vertices.length ≤ (encCSP encRel encV F).length ∧
+      (CSP.incidenceGraph F).edges.length ≤ (encCSP encRel encV F).length := by
   have hb := scopes_add_constraints_le encRel encV F
   have hn : F.numVars ≤ F.vars.length := List.toFinset_card_le _
   have hv : F.vars.length = (F.map fun c => c.scope.length).sum := by
@@ -59,7 +59,7 @@ theorem incidence_sizes_le {Rel V : Type} [DecidableEq V]
 /-- Any one-hub split of an original bounded graph has at most `3(B+1)` subdivided vertices
 and segments. The statement is all-raw and does not require a feasibility premise. -/
 theorem frame_sizes_split_le {I : FixedRotationInput} {B : ℕ}
-    (hn : I.graph.1.length ≤ B) (hm : I.graph.2.length ≤ B) (v : ℕ) (block : List ℕ) :
+    (hn : I.graph.vertices.length ≤ B) (hm : I.graph.edges.length ≤ B) (v : ℕ) (block : List ℕ) :
     (frame (split I v block)).vertexCount ≤ 3 * (B + 1) ∧
       (frame (split I v block)).segments.length ≤ 3 * (B + 1) := by
   simp only [frame, subdivisionSize, length_split_vertices, length_split_edges, length_subdivide]
@@ -124,10 +124,10 @@ theorem length_encoding_compile_ofCSP_le {Rel V : Type} [DecidableEq V]
         (32 * (Nat.log2 (9 * ((encCSP encRel encV F).length + 1) ^ 2) + 1) + 21) := by
   obtain ⟨hn, hm⟩ := incidence_sizes_le encRel encV F
   apply length_encoding_compile_le_of_sizes (valid_ofCSP F)
-  · change (CSP.incidenceGraph F).1.length + 2 * (CSP.incidenceGraph F).2.length ≤ _
+  · change (CSP.incidenceGraph F).vertices.length + 2 * (CSP.incidenceGraph F).edges.length ≤ _
     omega
   · simp only [frame, length_subdivide]
-    change 3 * (CSP.incidenceGraph F).2.length ≤ _
+    change 3 * (CSP.incidenceGraph F).edges.length ≤ _
     omega
 
 end Cslib.Complexity.Graph.RotationRecognition

@@ -57,13 +57,16 @@ calculation, weight addition, comparison, loop test, and final `halt`:
 * `Cslib.Algorithms.WordRAM.Huffman.fromSortedCode_exec`,
   `Cslib.Algorithms.WordRAM.Huffman.fromSortedProgram_spec`: `57 * n + 23` structured /
   `57 * n + 24` compiled Word-RAM instruction bounds, input-slice preservation, `ExecutesList`
-  codeword-length output, `IsHuffmanBuild` certificate, and uniquely decodable optimality on
-  pre-sorted weights at word widths fitting `6 * n + 2` and `ws.sum`.
+  codeword-length output, `IsHuffmanBuild` certificate (covering full-tree and `IsPrefixFree`
+  optimality for all `n ≥ 1`, with the degenerate `n = 1` case producing `lens = [0]` and
+  `CodeTree.leaf 0`), and uniquely decodable feasibility (`IsUniquelyDecodable T.codewordSet`) and
+  optimality for `2 ≤ n` on pre-sorted weights at word widths fitting `6 * n + 2` and `ws.sum`.
 * `Cslib.Algorithms.WordRAM.Huffman.huffmanCode_exec`,
   `Cslib.Algorithms.WordRAM.Huffman.huffmanProgram_spec`: `52 * n * Nat.clog 2 n + 82 * n + 46`
   structured / `+ 47` compiled Word-RAM instruction bounds, input-slice preservation,
-  `ExecutesList` codeword-length output, `IsHuffmanBuild` certificate, and uniquely decodable
-  optimality on arbitrary weights at word widths fitting `10 * n + 3` and `ws.sum`.
+  `ExecutesList` codeword-length output, `IsHuffmanBuild` certificate (with the same `n = 1`,
+  `lens = [0]` degeneracy), and uniquely decodable feasibility and optimality for `2 ≤ n` on
+  arbitrary weights at word widths fitting `10 * n + 3` and `ws.sum`.
 
 ## References
 
@@ -1128,7 +1131,11 @@ def fromSortedProgram : Program .standard 23 := fromSortedCode.program Reg.out
 
 /-- Structured `ExecWithin` specification of `fromSortedCode`: halts within `57 * n + 23`
 instructions, preserves the input weight slice `Block.HoldsList 1 ws y.mem`, and writes the
-Huffman codeword-length list at `y.regs Reg.out`. -/
+Huffman codeword-length list at `y.regs Reg.out`. For `ws ≠ []` this yields a tree `T` certified by
+`IsHuffmanBuild` (on the degenerate `n = 1` input, `lens = [0]` and `T = CodeTree.leaf 0`, whose
+codebook `{[]}` is `IsPrefixFree` in Mathlib but not `IsUniquelyDecodable`); for `2 ≤ ws.length`,
+`T.codewordSet` is `InformationTheory.IsUniquelyDecodable` and optimal over all injective
+`InformationTheory.IsUniquelyDecodable` binary codes. -/
 theorem fromSortedCode_exec {w : ℕ} (ws : List ℕ)
     (hfit_mem : Fits w (6 * ws.length + 2))
     (hfit_sum : Fits w ws.sum) :
@@ -1145,11 +1152,15 @@ theorem fromSortedCode_exec {w : ℕ} (ws : List ℕ)
           IsHuffmanBuild (symWeight ws) ((List.finRange ws.length).map .leaf) T ∧
           T.leaves.Perm (List.finRange ws.length) ∧
           (∀ i : Fin ws.length, ∃ c, T.encodeSym i = some c ∧ c.length = lens.getD i.val 0) ∧
-          (∀ code : Fin ws.length → List Bool,
-            Set.InjOn code {a | a ∈ List.finRange ws.length} →
-            InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ List.finRange ws.length}) →
-            T.weightedPathLength (symWeight ws) ≤
-              ((List.finRange ws.length).map fun a => (code a).length * symWeight ws a).sum)) := by
+          (2 ≤ ws.length →
+            InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+            ∀ code : Fin ws.length → List Bool,
+              Set.InjOn code {a | a ∈ List.finRange ws.length} →
+              InformationTheory.IsUniquelyDecodable
+                (code '' {a | a ∈ List.finRange ws.length}) →
+              T.weightedPathLength (symWeight ws) ≤
+                ((List.finRange ws.length).map
+                  fun a => (code a).length * symWeight ws a).sum)) := by
   have hinit_ws : Block.HoldsList 1 ws (Data.init ws : Data 23).mem :=
     (outputList_eq_iff.mp (outputList_init ws)).2
   have hsetup : ∃ x₁ : Data 23, ExecWithin w fromSortedSetup (Data.init ws) x₁ 5 ∧
@@ -1175,9 +1186,12 @@ theorem fromSortedCode_exec {w : ℕ} (ws : List ℕ)
   refine ⟨y, lens, hex_all, hy_ws, hout_reg,
     hout_eq, hlens_len, hnil, fun hne hs => ?_⟩
   obtain ⟨T, hT_eq, hT_build, hT_perm, hT_enc⟩ := hpos hne hs
-  refine ⟨T, hT_eq, hT_build, hT_perm, hT_enc, fun code hinj hud => ?_⟩
-  exact hT_build.weightedPathLength_le_of_isUniquelyDecodable
-    (by simp [hne]) (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud
+  refine ⟨T, hT_eq, hT_build, hT_perm, hT_enc, fun h2 => ?_⟩
+  have h2_fin : 2 ≤ (List.finRange ws.length).length := by simpa using h2
+  exact ⟨T.isUniquelyDecodable_codewordSet_iff.mpr (hT_perm.length_eq.symm ▸ h2_fin),
+    fun code hinj hud =>
+      (hT_build.weightedPathLength_le_of_isUniquelyDecodable
+        h2_fin (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud).2⟩
 
 /-- **Linear-Time `O(n)` Word-RAM Huffman Construction from Pre-Sorted Weights**
 ([VanLeeuwen1976]): on any list `ws : List ℕ` of `n = ws.length` nondecreasing symbol weights in
@@ -1185,8 +1199,11 @@ theorem fromSortedCode_exec {w : ℕ} (ws : List ℕ)
 `fromSortedProgram` halts within `57 * n + 24` instructions outputting a codeword-length list `lens`
 (`lens.length = n`) via `ExecutesList` such that (when `ws ≠ []`) there is a tree `T` produced by
 `huffmanFromSorted` certified by `IsHuffmanBuild` whose codeword for each symbol `i : Fin n` has
-length `lens.getD i 0` (hence minimizing weighted codeword length over all injective
-`IsUniquelyDecodable` and `IsPrefixFree` binary codes). -/
+length `lens.getD i 0` (optimal over all full binary code trees and injective `IsPrefixFree` binary
+codes; on the degenerate `n = 1` input, `lens = [0]` and `T = CodeTree.leaf 0`, whose codebook
+`{[]}` is `IsPrefixFree` in Mathlib but not `IsUniquelyDecodable`). Whenever `2 ≤ n`,
+`T.codewordSet` is `InformationTheory.IsUniquelyDecodable` and minimizes weighted codeword length
+over all injective `InformationTheory.IsUniquelyDecodable` binary codes. -/
 theorem fromSortedProgram_spec {w : ℕ} (ws : List ℕ)
     (hfit_mem : Fits w (6 * ws.length + 2))
     (hfit_sum : Fits w ws.sum) :
@@ -1201,11 +1218,15 @@ theorem fromSortedProgram_spec {w : ℕ} (ws : List ℕ)
           IsHuffmanBuild (symWeight ws) ((List.finRange ws.length).map .leaf) T ∧
           T.leaves.Perm (List.finRange ws.length) ∧
           (∀ i : Fin ws.length, ∃ c, T.encodeSym i = some c ∧ c.length = lens.getD i.val 0) ∧
-          (∀ code : Fin ws.length → List Bool,
-            Set.InjOn code {a | a ∈ List.finRange ws.length} →
-            InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ List.finRange ws.length}) →
-            T.weightedPathLength (symWeight ws) ≤
-              ((List.finRange ws.length).map fun a => (code a).length * symWeight ws a).sum)) := by
+          (2 ≤ ws.length →
+            InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+            ∀ code : Fin ws.length → List Bool,
+              Set.InjOn code {a | a ∈ List.finRange ws.length} →
+              InformationTheory.IsUniquelyDecodable
+                (code '' {a | a ∈ List.finRange ws.length}) →
+              T.weightedPathLength (symWeight ws) ≤
+                ((List.finRange ws.length).map
+                  fun a => (code a).length * symWeight ws a).sum)) := by
   obtain ⟨y, lens, ⟨t_exact, ht_le, hex_code⟩, _, hout_addr, hout_eq, hlens_len, hnil, hpos⟩ :=
     fromSortedCode_exec ws hfit_mem hfit_sum
   have hfit_out : Fits w (y.regs Reg.out + (outputList y.mem (y.regs Reg.out)).length) := by
@@ -1443,7 +1464,6 @@ private theorem huffmanSetup_exec {w : ℕ} (ws : List ℕ)
     by wram_simp; omega, by wram_simp; omega⟩
 
 private theorem transport_unsorted_huffman (ws perm sws sortedLens finalLens : List ℕ)
-    (hne : ws ≠ [])
     (hperm_range : perm.Perm (List.range ws.length))
     (hperm_len : perm.length = ws.length)
     (hperm_bound : ∀ v ∈ perm, v < ws.length)
@@ -1462,11 +1482,13 @@ private theorem transport_unsorted_huffman (ws perm sws sortedLens finalLens : L
       IsHuffmanBuild (symWeight ws) ((List.finRange ws.length).map .leaf) T ∧
       T.leaves.Perm (List.finRange ws.length) ∧
       (∀ i : Fin ws.length, ∃ c, T.encodeSym i = some c ∧ c.length = finalLens.getD i.val 0) ∧
-      (∀ code : Fin ws.length → List Bool,
-        Set.InjOn code {a | a ∈ List.finRange ws.length} →
-        InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ List.finRange ws.length}) →
-        T.weightedPathLength (symWeight ws) ≤
-          ((List.finRange ws.length).map fun a => (code a).length * symWeight ws a).sum) := by
+      (2 ≤ ws.length →
+        InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+        ∀ code : Fin ws.length → List Bool,
+          Set.InjOn code {a | a ∈ List.finRange ws.length} →
+          InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ List.finRange ws.length}) →
+          T.weightedPathLength (symWeight ws) ≤
+            ((List.finRange ws.length).map fun a => (code a).length * symWeight ws a).sum) := by
   let permFn : Fin sws.length → Fin ws.length := fun j =>
     ⟨perm[j.val]'(by omega), hperm_bound _ (List.getElem_mem (by omega))⟩
   have hpermFn_inj : Function.Injective permFn := by
@@ -1497,7 +1519,7 @@ private theorem transport_unsorted_huffman (ws perm sws sortedLens finalLens : L
   have hT_leaves : T.leaves.Perm (List.finRange ws.length) := by
     rw [CodeTree.leaves_map]
     exact (hTs_perm.map permFn).trans hmap_fin_perm
-  refine ⟨T, hT_build, hT_leaves, ?_, fun code hinj hud => ?_⟩
+  refine ⟨T, hT_build, hT_leaves, ?_, fun h2 => ?_⟩
   · intro i
     have hi_mem : i ∈ (List.finRange sws.length).map permFn :=
       hmap_fin_perm.symm.subset (List.mem_finRange i)
@@ -1508,8 +1530,11 @@ private theorem transport_unsorted_huffman (ws perm sws sortedLens finalLens : L
     have hfl_j : finalLens.getD (permFn j).val 0 = sortedLens.getD j.val 0 :=
       hfl_perm j.val (by omega) (by omega)
     exact ⟨c, hT_enc_j, hc_len.trans hfl_j.symm⟩
-  · exact hT_build.weightedPathLength_le_of_isUniquelyDecodable
-      (by simp [hne]) (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud
+  · have h2_fin : 2 ≤ (List.finRange ws.length).length := by simpa using h2
+    exact ⟨T.isUniquelyDecodable_codewordSet_iff.mpr (hT_leaves.length_eq.symm ▸ h2_fin),
+      fun code hinj hud =>
+        (hT_build.weightedPathLength_le_of_isUniquelyDecodable
+          h2_fin (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud).2⟩
 
 private theorem setupSortGather_exec {w : ℕ} (ws : List ℕ)
     (hfit_mem : Fits w (10 * ws.length + 3)) :
@@ -1590,7 +1615,12 @@ private theorem setupSortGather_exec {w : ℕ} (ws : List ℕ)
 
 /-- Structured `ExecWithin` specification of `huffmanCode`: halts within
 `52 * n * Nat.clog 2 n + 82 * n + 46` instructions, preserves the input weight slice
-`Block.HoldsList 1 ws yF.mem`, and writes the Huffman codeword-length list at `yF.regs Reg.out`. -/
+`Block.HoldsList 1 ws yF.mem`, and writes the Huffman codeword-length list at `yF.regs Reg.out`.
+For `ws ≠ []` this yields a tree `T` certified by `IsHuffmanBuild` (on the degenerate `n = 1`
+input, `finalLens = [0]` and `T = CodeTree.leaf 0`, whose codebook `{[]}` is `IsPrefixFree` in
+Mathlib but not `IsUniquelyDecodable`); for `2 ≤ ws.length`, `T.codewordSet` is
+`InformationTheory.IsUniquelyDecodable` and optimal over all injective
+`InformationTheory.IsUniquelyDecodable` binary codes. -/
 theorem huffmanCode_exec {w : ℕ} (ws : List ℕ)
     (hfit_mem : Fits w (10 * ws.length + 3))
     (hfit_sum : Fits w ws.sum) :
@@ -1607,11 +1637,15 @@ theorem huffmanCode_exec {w : ℕ} (ws : List ℕ)
           IsHuffmanBuild (symWeight ws) ((List.finRange ws.length).map .leaf) T ∧
           T.leaves.Perm (List.finRange ws.length) ∧
           (∀ i : Fin ws.length, ∃ c, T.encodeSym i = some c ∧ c.length = finalLens.getD i.val 0) ∧
-          (∀ code : Fin ws.length → List Bool,
-            Set.InjOn code {a | a ∈ List.finRange ws.length} →
-            InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ List.finRange ws.length}) →
-            T.weightedPathLength (symWeight ws) ≤
-              ((List.finRange ws.length).map fun a => (code a).length * symWeight ws a).sum)) := by
+          (2 ≤ ws.length →
+            InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+            ∀ code : Fin ws.length → List Bool,
+              Set.InjOn code {a | a ∈ List.finRange ws.length} →
+              InformationTheory.IsUniquelyDecodable
+                (code '' {a | a ∈ List.finRange ws.length}) →
+              T.weightedPathLength (symWeight ws) ≤
+                ((List.finRange ws.length).map
+                  fun a => (code a).length * symWeight ws a).sum)) := by
   obtain ⟨x₁, yS, yG, perm, sws, hex_setup, hex_sort, hex_gath,
     hyGz, hyGo, hyGn, hyGpb, hyGwtb, hyGwb, hyGfo,
     hperm_range, hperm_len, hperm_bound, hperm_nodup,
@@ -1651,7 +1685,7 @@ theorem huffmanCode_exec {w : ℕ} (ws : List ℕ)
     fun hne => ?_⟩
   have hsws_ne : sws ≠ [] := List.ne_nil_of_length_pos (hsws_len ▸ List.length_pos_iff.mpr hne)
   obtain ⟨T_s, _, hTs_build, hTs_perm, hTs_enc⟩ := hQ_pos hsws_ne hsws_sorted
-  refine transport_unsorted_huffman ws perm sws sortedLens finalLens hne
+  refine transport_unsorted_huffman ws perm sws sortedLens finalLens
     hperm_range hperm_len hperm_bound hperm_nodup hsws_def hsws_len hfl_len
     (fun j hj hjp => ?_) T_s hTs_build hTs_perm hTs_enc
   have hj_lt : perm[j] < finalLens.length := by
@@ -1670,8 +1704,12 @@ def huffmanProgram : Program .standard 23 := huffmanCode.program Reg.out
 `n = ws.length` nonnegative symbol weights in `State.init ws` at word width `w` satisfying
 `Fits w (10 * n + 3)` and `Fits w ws.sum`, `huffmanProgram` halts within
 `52 * n * Nat.clog 2 n + 82 * n + 47` instructions outputting a codeword-length list `lens`
-(`lens.length = n`) via `ExecutesList` certified by `IsHuffmanBuild` and optimal among all
-injective `IsUniquelyDecodable` (and `IsPrefixFree`) binary codes. -/
+(`lens.length = n`) via `ExecutesList` certified by `IsHuffmanBuild` (optimal over all full binary
+code trees and injective `IsPrefixFree` binary codes; on the degenerate `n = 1` input, `lens = [0]`
+and `T = CodeTree.leaf 0`, whose codebook `{[]}` is `IsPrefixFree` in Mathlib but not
+`IsUniquelyDecodable`). Whenever `2 ≤ n`, `T.codewordSet` is
+`InformationTheory.IsUniquelyDecodable` and minimizes weighted codeword length over all injective
+`InformationTheory.IsUniquelyDecodable` binary codes. -/
 theorem huffmanProgram_spec {w : ℕ} (ws : List ℕ)
     (hfit_mem : Fits w (10 * ws.length + 3))
     (hfit_sum : Fits w ws.sum) :
@@ -1685,11 +1723,15 @@ theorem huffmanProgram_spec {w : ℕ} (ws : List ℕ)
           IsHuffmanBuild (symWeight ws) ((List.finRange ws.length).map .leaf) T ∧
           T.leaves.Perm (List.finRange ws.length) ∧
           (∀ i : Fin ws.length, ∃ c, T.encodeSym i = some c ∧ c.length = lens.getD i.val 0) ∧
-          (∀ code : Fin ws.length → List Bool,
-            Set.InjOn code {a | a ∈ List.finRange ws.length} →
-            InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ List.finRange ws.length}) →
-            T.weightedPathLength (symWeight ws) ≤
-              ((List.finRange ws.length).map fun a => (code a).length * symWeight ws a).sum)) := by
+          (2 ≤ ws.length →
+            InformationTheory.IsUniquelyDecodable T.codewordSet ∧
+            ∀ code : Fin ws.length → List Bool,
+              Set.InjOn code {a | a ∈ List.finRange ws.length} →
+              InformationTheory.IsUniquelyDecodable
+                (code '' {a | a ∈ List.finRange ws.length}) →
+              T.weightedPathLength (symWeight ws) ≤
+                ((List.finRange ws.length).map
+                  fun a => (code a).length * symWeight ws a).sum)) := by
   obtain ⟨yF, finalLens, ⟨t_exact, ht_le, hex_code⟩, _, hyF_out, hout_eq, hfl_len, hnil, hpos⟩ :=
     huffmanCode_exec ws hfit_mem hfit_sum
   have hfit_out : Fits w (yF.regs Reg.out + (outputList yF.mem (yF.regs Reg.out)).length) := by

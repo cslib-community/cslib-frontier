@@ -153,7 +153,7 @@ theorem expected_realSampleEntropy_eq_conditionalEntropy {α β : Type*}
       (@PMF.uniformOfFintype {a : α // F a = F x} clsFin _) ⟨x, rfl⟩ := by
     rw [PMF.map_apply, tsum_eq_single ⟨x, rfl⟩]
     · simp
-    · exact fun b hb => by simp [show x ≠ b.1 from fun h => hb (Subtype.ext h.symm)]
+    · exact fun b hb => by simp [show x ≠ b.val from fun h => hb (Subtype.ext h.symm)]
   rw [realSampleEntropy, PMF.surprisal]
   change Real.logb 2 #(fiberSet F (F x)) =
     -Real.logb 2 (((@PMF.uniformOfFintype {a : α // F a = F x} clsFin _).map Subtype.val) x).toReal

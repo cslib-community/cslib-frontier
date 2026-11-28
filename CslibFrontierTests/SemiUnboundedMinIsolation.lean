@@ -6,6 +6,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 module
 
+import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.LayerTally
 import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.MinIsolation
 
 /-!
@@ -160,7 +161,8 @@ example :
     pt7Mixed.weight (exCircuit.seededGateWeight exCode exSeed) = 1 := by
   decide
 
-example : exCircuit.IsMinIsolating (exCircuit.seededGateWeight exCode exSeed) := by
+private theorem exCircuit_isMinIsolating :
+    exCircuit.IsMinIsolating (exCircuit.seededGateWeight exCode exSeed) := by
   apply exCircuit.isMinIsolating_of_separated
   intro g hgor u v hcu hcv hne tu tv _ _
   fin_cases g <;> cases hgor
@@ -210,6 +212,29 @@ example : exCircuit.IsMinIsolating (exCircuit.seededGateWeight exCode exSeed) :=
     · exact (hno5 tu).elim
   · rcases hcu with rfl; rcases hcv with rfl
     exact (hne rfl).elim
+
+-- Layer 2 contains the OR gate with alternative proof trees. The isolating weight makes the
+-- exact tally select a single transcript even though the gate admits multiple valid trees.
+open Classical in
+example :
+    let w := exCircuit.seededGateWeight exCode exSeed
+    let trueGates := Finset.univ.filter
+      (fun g : {g // exCircuit.layer g = 2} => exCircuit.Eval g.val)
+    ∃! t : LayerTranscript exCircuit 2, t.selected.card = trueGates.card ∧
+      (∑ g ∈ t.selected, t.weightAt w g) =
+        ∑ g ∈ trueGates, (LayerTranscript.minimum exCircuit 2 w).weightAt w g := by
+  simpa only [LayerTranscript.selected_minimum] using
+    exCircuit.existsUnique_layerTranscript_of_min_isolation 2 _
+      (fun g => exCircuit_isMinIsolating g.val)
+
+example :
+    let w := exCircuit.seededGateWeight exCode exSeed
+    (LayerTranscript.minimum exCircuit 2 w).weightAt w ⟨6, rfl⟩ = 0 := by
+  intro w
+  have htrue := (exCircuit.eval_iff_nonempty_proofTree 6).mpr ⟨pt6Via3⟩
+  obtain ⟨p, hp, heq⟩ := LayerTranscript.weightAt_minimum (k := 2) (w := w) ⟨6, rfl⟩ htrue
+  rw [heq]
+  exact Nat.eq_zero_of_le_zero (isMinOn_univ_iff.mp hp pt6Via3)
 
 -- The Justesen family isolates `exCircuit` with explicit seed-length and magnitude bounds.
 example :

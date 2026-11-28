@@ -196,7 +196,7 @@ noncomputable def gilboaZemelGame (N : ℕ) (φ : CNF (Fin N)) :
     | .lit _ _, _ => -2
     | .var v, .lit v' _ => if v = v' then 0 else (N : ℝ)
     | .var _, _ => -1
-    | .cl c, .lit v' b' => if (v', b') ∈ φ[c.1] then 0 else (N : ℝ)
+    | .cl c, .lit v' b' => if (v', b') ∈ φ[c.val] then 0 else (N : ℝ)
     | .cl _, _ => -1
 
 theorem isSymmetric_gilboaZemelGame (N : ℕ) (φ : CNF (Fin N)) :
@@ -250,7 +250,7 @@ theorem gilboaZemelGame_A_var_default (N : ℕ) (φ : CNF (Fin N)) (v : Fin N) :
 theorem gilboaZemelGame_A_cl_lit (N : ℕ) (φ : CNF (Fin N)) (c : Fin φ.length) (v' : Fin N)
     (b' : Bool) :
     (gilboaZemelGame N φ).A (.cl c) (.lit v' b') =
-      if (v', b') ∈ φ[c.1] then 0 else (N : ℝ) := by simp [gilboaZemelGame]
+      if (v', b') ∈ φ[c.val] then 0 else (N : ℝ) := by simp [gilboaZemelGame]
 
 @[simp]
 theorem gilboaZemelGame_A_cl_var (N : ℕ) (φ : CNF (Fin N)) (c : Fin φ.length) (v' : Fin N) :
@@ -422,8 +422,8 @@ private theorem mulVec_cl {N : ℕ} (φ : CNF (Fin N))
     {y : GilboaZemelStrategy N φ.length → ℝ} (hy : IsMixedStrategy y) (c : Fin φ.length) :
     ((gilboaZemelGame N φ).A *ᵥ y) (.cl c) =
       (∑ v' : Fin N,
-        ((if (v', true) ∈ φ[c.1] then (0 : ℝ) else (N : ℝ)) * y (.lit v' true) +
-          (if (v', false) ∈ φ[c.1] then (0 : ℝ) else (N : ℝ)) * y (.lit v' false))) -
+        ((if (v', true) ∈ φ[c.val] then (0 : ℝ) else (N : ℝ)) * y (.lit v' true) +
+          (if (v', false) ∈ φ[c.val] then (0 : ℝ) else (N : ℝ)) * y (.lit v' false))) -
         (1 - litMass y) := by
   change ∑ s, (gilboaZemelGame N φ).A (.cl c) s * y s = _
   rw [sum_gilboaZemelStrategy]
@@ -689,21 +689,21 @@ theorem isNash_gilboaZemelGame_iff {N : ℕ} (hN : 2 ≤ N) (φ : CNF (Fin N))
         intro cl hcl
         obtain ⟨c, rfl⟩ := List.mem_iff_get.1 hcl
         by_contra hfalse
-        have hnotMem : ∀ v : Fin N, (v, α v) ∉ φ[c.1] := fun v hv =>
-          hfalse (Clause.eval_eq_true_iff α φ[c.1] |>.2 ⟨(v, α v), hv, rfl⟩)
+        have hnotMem : ∀ v : Fin N, (v, α v) ∉ φ[c.val] := fun v hv =>
+          hfalse (Clause.eval_eq_true_iff α φ[c.val] |>.2 ⟨(v, α v), hv, rfl⟩)
         have hcl_le : ((gilboaZemelGame N φ).A *ᵥ y) (.cl c) ≤ (N : ℝ) - 1 := by
           rw [← hpay₁]; exact hbr₁.le_payoff₁ (.cl c)
         rw [mulVec_cl φ hy c, hyL1, sub_self, sub_zero, hyEq] at hcl_le
         have hterm (v : Fin N) :
-            (if (v, true) ∈ φ[c.1] then (0 : ℝ) else (N : ℝ)) *
+            (if (v, true) ∈ φ[c.val] then (0 : ℝ) else (N : ℝ)) *
                 gilboaZemelAssignmentStrategy φ.length α (.lit v true) +
-              (if (v, false) ∈ φ[c.1] then (0 : ℝ) else (N : ℝ)) *
+              (if (v, false) ∈ φ[c.val] then (0 : ℝ) else (N : ℝ)) *
                 gilboaZemelAssignmentStrategy φ.length α (.lit v false) = 1 := by
           cases hα : α v
-          · have hnm : (v, false) ∉ φ[c.1] := by simpa [hα] using hnotMem v
+          · have hnm : (v, false) ∉ φ[c.val] := by simpa [hα] using hnotMem v
             simp only [gilboaZemelAssignmentStrategy_lit, hα, Bool.false_eq_true, ↓reduceIte,
               mul_zero, zero_add, hnm, mul_one_div_cancel hNpos.ne']
-          · have hnm : (v, true) ∉ φ[c.1] := by simpa [hα] using hnotMem v
+          · have hnm : (v, true) ∉ φ[c.val] := by simpa [hα] using hnotMem v
             simp only [gilboaZemelAssignmentStrategy_lit, hα, Bool.true_eq_false, ↓reduceIte,
               mul_zero, add_zero, hnm, mul_one_div_cancel hNpos.ne']
         simp only [hterm, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
@@ -750,21 +750,21 @@ theorem isNash_gilboaZemelGame_iff {N : ℕ} (hN : 2 ≤ N) (φ : CNF (Fin N))
         linarith
       | cl c =>
         rw [mulVec_cl φ hx c, hxL, sub_self, sub_zero]
-        have hcSat : φ[c.1].eval α = true :=
-          (CNF.eval_eq_true_iff α φ).1 hα _ (List.getElem_mem c.2)
-        obtain ⟨⟨v₀, b₀⟩, hv₀mem, hv₀eq⟩ := (Clause.eval_eq_true_iff α φ[c.1]).1 hcSat
-        have hv₀mem' : (v₀, α v₀) ∈ φ[c.1] := hv₀eq ▸ hv₀mem
+        have hcSat : φ[c.val].eval α = true :=
+          (CNF.eval_eq_true_iff α φ).1 hα _ (List.getElem_mem c.isLt)
+        obtain ⟨⟨v₀, b₀⟩, hv₀mem, hv₀eq⟩ := (Clause.eval_eq_true_iff α φ[c.val]).1 hcSat
+        have hv₀mem' : (v₀, α v₀) ∈ φ[c.val] := hv₀eq ▸ hv₀mem
         have hle_term (v : Fin N) :
-            (if (v, true) ∈ φ[c.1] then (0 : ℝ) else (N : ℝ)) * x (.lit v true) +
-              (if (v, false) ∈ φ[c.1] then (0 : ℝ) else (N : ℝ)) * x (.lit v false) ≤
+            (if (v, true) ∈ φ[c.val] then (0 : ℝ) else (N : ℝ)) * x (.lit v true) +
+              (if (v, false) ∈ φ[c.val] then (0 : ℝ) else (N : ℝ)) * x (.lit v false) ≤
               if v = v₀ then 0 else 1 := by
           by_cases hvv : v = v₀
           · subst hvv
             cases hαv : α v
-            · have hm : (v, false) ∈ φ[c.1] := by simpa [hαv] using hv₀mem'
+            · have hm : (v, false) ∈ φ[c.val] := by simpa [hαv] using hv₀mem'
               simp only [x, gilboaZemelAssignmentStrategy_lit, hαv, Bool.false_eq_true, ↓reduceIte,
                 mul_zero, zero_add, hm, zero_mul, le_refl]
-            · have hm : (v, true) ∈ φ[c.1] := by simpa [hαv] using hv₀mem'
+            · have hm : (v, true) ∈ φ[c.val] := by simpa [hαv] using hv₀mem'
               simp only [x, gilboaZemelAssignmentStrategy_lit, hαv, Bool.true_eq_false, ↓reduceIte,
                 mul_zero, add_zero, hm, zero_mul, le_refl]
           · simp only [hvv, ↓reduceIte]
@@ -1004,9 +1004,9 @@ private theorem paddedCNFFin_length (φ : CNF ℕ) :
 
 private theorem mem_paddedCNFFin_getElem_iff (φ : CNF ℕ) (c : Fin (paddedCNFFin φ).length)
     (v : Fin (paddedNumVars φ)) (b : Bool) :
-    (v, b) ∈ (paddedCNFFin φ)[c.1] ↔
-      (v.1, b) ∈ (paddedCNF φ).getD c.1 [] := by
-  have hc' : c.1 < (paddedCNF φ).length := by rw [← paddedCNFFin_length]; exact c.2
+    (v, b) ∈ (paddedCNFFin φ)[c.val] ↔
+      (v.val, b) ∈ (paddedCNF φ).getD c.val [] := by
+  have hc' : c.val < (paddedCNF φ).length := by rw [← paddedCNFFin_length]; exact c.isLt
   rw [List.getD_eq_getElem _ _ hc']
   simp only [paddedCNFFin, CNF.relabel, List.getElem_map, Clause.relabel, List.mem_map]
   constructor
@@ -1016,14 +1016,14 @@ private theorem mem_paddedCNFFin_getElem_iff (φ : CNF ℕ) (c : Fin (paddedCNFF
     have hb : b₀ = b := (Prod.mk.inj heq).2
     subst hb
     have hu_lt : u < paddedNumVars φ :=
-      mem_vars_paddedCNF_lt φ (CNF.mem_vars.2 ⟨(paddedCNF φ)[c.1], List.getElem_mem hc', b₀, hu⟩)
-    have hval : (toFinVar (paddedNumVars φ) (by dsimp [paddedNumVars]; omega) u).1 = u := by
+      mem_vars_paddedCNF_lt φ (CNF.mem_vars.2 ⟨(paddedCNF φ)[c.val], List.getElem_mem hc', b₀, hu⟩)
+    have hval : (toFinVar (paddedNumVars φ) (by dsimp [paddedNumVars]; omega) u).val = u := by
       simp [toFinVar, hu_lt]
-    have huv : u = v.1 := by rw [← hval, hv]
+    have huv : u = v.val := by rw [← hval, hv]
     rwa [← huv]
   · intro hmem
-    refine ⟨(v.1, b), hmem, ?_⟩
-    ext <;> simp [toFinVar, v.2]
+    refine ⟨(v.val, b), hmem, ?_⟩
+    ext <;> simp [toFinVar, v.isLt]
 
 private theorem paddedCNFFin_eval_zero_true (φ : CNF ℕ) {α : Fin (paddedNumVars φ) → Bool}
     (hα : (paddedCNFFin φ).eval α = true) :
@@ -1044,14 +1044,14 @@ private theorem satisfiable_paddedCNFFin_iff (φ : CNF ℕ) :
       CNF.eval_relabel] at hα
     exact ⟨(α ∘ toFinVar (paddedNumVars φ) (by dsimp [paddedNumVars]; omega)) ∘ (· + 3), hα.2⟩
   · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => if v.1 < 3 then true else σ (v.1 - 3), ?_⟩
+    refine ⟨fun v => if v.val < 3 then true else σ (v.val - 3), ?_⟩
     rw [paddedCNFFin, CNF.eval_relabel, paddedCNF, CNF.eval_append, Bool.and_eq_true]
     refine ⟨?_, ?_⟩
     · simp [CNF.eval, Clause.eval, Literal.eval, toFinVar, paddedNumVars]
     · rw [CNF.eval_relabel]
       have hcongr :
           φ.compact.eval
-              (((fun v : Fin (paddedNumVars φ) => if v.1 < 3 then true else σ (v.1 - 3)) ∘
+              (((fun v : Fin (paddedNumVars φ) => if v.val < 3 then true else σ (v.val - 3)) ∘
                 toFinVar (paddedNumVars φ) (by dsimp [paddedNumVars]; omega)) ∘ (· + 3)) =
             φ.compact.eval σ := by
         apply CNF.eval_congr
@@ -1154,10 +1154,10 @@ private theorem gilboaZemelCode_isSymmetric (φ : CNF ℕ) :
   refine ⟨⟨by omega, by omega, by simp [gilboaZemelCode, rows, gzMatA, gzMatB],
       fun r hr => (hlenA r hr).trans hcols.symm,
       fun r hr => (hlenB r hr).trans hcols.symm⟩, hrows.trans hcols.symm, fun i j => ?_⟩
-  have hi : i.1 < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length := hrows ▸ i.2
-  have hj : j.1 < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length := hrows ▸ j.2
-  change ((gzMatB (paddedNumVars φ) (paddedCNF φ) _).getD i.1 []).getD j.1 0 =
-    ((gzMatA (paddedNumVars φ) (paddedCNF φ) _).getD j.1 []).getD i.1 0
+  have hi : i.val < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length := hrows ▸ i.isLt
+  have hj : j.val < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length := hrows ▸ j.isLt
+  change ((gzMatB (paddedNumVars φ) (paddedCNF φ) _).getD i.val []).getD j.val 0 =
+    ((gzMatA (paddedNumVars φ) (paddedCNF φ) _).getD j.val []).getD i.val 0
   rw [gzMatB_getD hi hj, gzMatA_getD hj hi]
 
 /-- Equivalence between `Fin (gilboaZemelCode φ).rows` and
@@ -1168,14 +1168,14 @@ private def gzEquiv (φ : CNF ℕ) :
       GilboaZemelStrategy (paddedNumVars φ) (paddedCNFFin φ).length where
   toFun i :=
     let N := paddedNumVars φ
-    if h0 : i.1 = 0 then .default
-    else if h1 : i.1 < 1 + 2 * N then
-      .lit ⟨(i.1 - 1) / 2, by omega⟩ (decide ((i.1 - 1) % 2 = 0))
-    else if h2 : i.1 < 1 + 3 * N then
-      .var ⟨i.1 - (1 + 2 * N), by omega⟩
+    if h0 : i.val = 0 then .default
+    else if h1 : i.val < 1 + 2 * N then
+      .lit ⟨(i.val - 1) / 2, by omega⟩ (decide ((i.val - 1) % 2 = 0))
+    else if h2 : i.val < 1 + 3 * N then
+      .var ⟨i.val - (1 + 2 * N), by omega⟩
     else
-      .cl ⟨i.1 - (1 + 3 * N), by
-        have hi : i.1 < 1 + 3 * N + (paddedCNF φ).length := gilboaZemelCode_rows φ ▸ i.2
+      .cl ⟨i.val - (1 + 3 * N), by
+        have hi : i.val < 1 + 3 * N + (paddedCNF φ).length := gilboaZemelCode_rows φ ▸ i.isLt
         rw [paddedCNFFin_length]; omega⟩
   invFun s :=
     let N := paddedNumVars φ
@@ -1183,19 +1183,19 @@ private def gzEquiv (φ : CNF ℕ) :
     have hlen := paddedCNFFin_length φ
     match s with
     | .default => ⟨0, by rw [hrows]; omega⟩
-    | .lit v true => ⟨1 + 2 * v.1, by rw [hrows]; omega⟩
-    | .lit v false => ⟨1 + 2 * v.1 + 1, by rw [hrows]; omega⟩
-    | .var v => ⟨1 + 2 * N + v.1, by rw [hrows]; omega⟩
-    | .cl c => ⟨1 + 3 * N + c.1, by rw [hrows, ← hlen]; omega⟩
+    | .lit v true => ⟨1 + 2 * v.val, by rw [hrows]; omega⟩
+    | .lit v false => ⟨1 + 2 * v.val + 1, by rw [hrows]; omega⟩
+    | .var v => ⟨1 + 2 * N + v.val, by rw [hrows]; omega⟩
+    | .cl c => ⟨1 + 3 * N + c.val, by rw [hrows, ← hlen]; omega⟩
   left_inv i := by
     ext
     dsimp only
     split_ifs with h0 h1 h2
     · exact h0.symm
-    · cases hmod : decide ((i.1 - 1) % 2 = 0)
-      · have : (i.1 - 1) % 2 ≠ 0 := of_decide_eq_false hmod
+    · cases hmod : decide ((i.val - 1) % 2 = 0)
+      · have : (i.val - 1) % 2 ≠ 0 := of_decide_eq_false hmod
         dsimp only; omega
-      · have : (i.1 - 1) % 2 = 0 := of_decide_eq_true hmod
+      · have : (i.val - 1) % 2 = 0 := of_decide_eq_true hmod
         dsimp only; omega
     · dsimp only; omega
     · dsimp only; omega
@@ -1204,24 +1204,24 @@ private def gzEquiv (φ : CNF ℕ) :
     | default => simp
     | lit v b =>
       cases b
-      · have h0 : ¬ (1 + 2 * v.1 + 1 = 0) := by omega
-        have h1 : 1 + 2 * v.1 + 1 < 1 + 2 * paddedNumVars φ := by omega
+      · have h0 : ¬ (1 + 2 * v.val + 1 = 0) := by omega
+        have h1 : 1 + 2 * v.val + 1 < 1 + 2 * paddedNumVars φ := by omega
         simp only [h0, ↓reduceDIte, h1, GilboaZemelStrategy.lit.injEq]
         exact ⟨Fin.ext (by dsimp; omega), decide_eq_false (by omega)⟩
-      · have h0 : ¬ (1 + 2 * v.1 = 0) := by omega
-        have h1 : 1 + 2 * v.1 < 1 + 2 * paddedNumVars φ := by omega
+      · have h0 : ¬ (1 + 2 * v.val = 0) := by omega
+        have h1 : 1 + 2 * v.val < 1 + 2 * paddedNumVars φ := by omega
         simp only [h0, ↓reduceDIte, h1, GilboaZemelStrategy.lit.injEq]
         exact ⟨Fin.ext (by dsimp; omega), decide_eq_true (by omega)⟩
     | var v =>
-      have h0 : ¬ (1 + 2 * paddedNumVars φ + v.1 = 0) := by omega
-      have h1 : ¬ (1 + 2 * paddedNumVars φ + v.1 < 1 + 2 * paddedNumVars φ) := by omega
-      have h2 : 1 + 2 * paddedNumVars φ + v.1 < 1 + 3 * paddedNumVars φ := by omega
+      have h0 : ¬ (1 + 2 * paddedNumVars φ + v.val = 0) := by omega
+      have h1 : ¬ (1 + 2 * paddedNumVars φ + v.val < 1 + 2 * paddedNumVars φ) := by omega
+      have h2 : 1 + 2 * paddedNumVars φ + v.val < 1 + 3 * paddedNumVars φ := by omega
       simp only [h0, ↓reduceDIte, h1, h2, GilboaZemelStrategy.var.injEq]
       exact Fin.ext (by dsimp; omega)
     | cl c =>
-      have h0 : ¬ (1 + 3 * paddedNumVars φ + c.1 = 0) := by omega
-      have h1 : ¬ (1 + 3 * paddedNumVars φ + c.1 < 1 + 2 * paddedNumVars φ) := by omega
-      have h2 : ¬ (1 + 3 * paddedNumVars φ + c.1 < 1 + 3 * paddedNumVars φ) := by omega
+      have h0 : ¬ (1 + 3 * paddedNumVars φ + c.val = 0) := by omega
+      have h1 : ¬ (1 + 3 * paddedNumVars φ + c.val < 1 + 2 * paddedNumVars φ) := by omega
+      have h2 : ¬ (1 + 3 * paddedNumVars φ + c.val < 1 + 3 * paddedNumVars φ) := by omega
       simp only [h0, ↓reduceDIte, h1, h2, GilboaZemelStrategy.cl.injEq]
       exact Fin.ext (by dsimp; omega)
 
@@ -1239,87 +1239,89 @@ private theorem gilboaZemelCode_A_eq (φ : CNF ℕ) (i j : Fin (gilboaZemelCode 
     (gilboaZemelCode φ).toSymGame.A i j =
       (gilboaZemelGame (paddedNumVars φ) (paddedCNFFin φ)).A (gzEquiv φ i) (gzEquiv φ j) := by
   have hN1 : 1 ≤ paddedNumVars φ := by have := paddedNumVars_ge_three φ; omega
-  have hi : i.1 < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length :=
-    gilboaZemelCode_rows φ ▸ i.2
-  have hj : j.1 < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length :=
-    gilboaZemelCode_rows φ ▸ j.2
+  have hi : i.val < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length :=
+    gilboaZemelCode_rows φ ▸ i.isLt
+  have hj : j.val < 1 + 3 * paddedNumVars φ + (paddedCNF φ).length :=
+    gilboaZemelCode_rows φ ▸ j.isLt
   have hA_lhs :
       (gilboaZemelCode φ).toSymGame.A i j =
-        (gzEntry (paddedNumVars φ) (paddedCNF φ) i.1 j.1 : ℝ) := by
-    change (((gzMatA (paddedNumVars φ) (paddedCNF φ) _).getD i.1 []).getD j.1 0 : ℝ) = _
+        (gzEntry (paddedNumVars φ) (paddedCNF φ) i.val j.val : ℝ) := by
+    change (((gzMatA (paddedNumVars φ) (paddedCNF φ) _).getD i.val []).getD j.val 0 : ℝ) = _
     rw [gzMatA_getD hi hj]
   rw [hA_lhs]
   dsimp only [gzEquiv, Equiv.coe_fn_mk, gzEntry]
-  by_cases hi0 : i.1 = 0
+  by_cases hi0 : i.val = 0
   · simp [hi0]
   · simp only [hi0, ↓reduceIte, ↓reduceDIte]
-    by_cases hi1 : i.1 < 1 + 2 * paddedNumVars φ
+    by_cases hi1 : i.val < 1 + 2 * paddedNumVars φ
     · simp only [hi1, ↓reduceIte, ↓reduceDIte]
-      by_cases hj0 : j.1 = 0
+      by_cases hj0 : j.val = 0
       · simp [hj0]
       · simp only [hj0, ↓reduceDIte]
-        by_cases hj1 : j.1 < 1 + 2 * paddedNumVars φ
-        · have hj_ok : 1 ≤ j.1 ∧ j.1 < 1 + 2 * paddedNumVars φ := by omega
+        by_cases hj1 : j.val < 1 + 2 * paddedNumVars φ
+        · have hj_ok : 1 ≤ j.val ∧ j.val < 1 + 2 * paddedNumVars φ := by omega
           simp only [hj1, ↓reduceDIte, hj_ok, and_self, ↓reduceIte, gilboaZemelGame_A_lit_lit,
             Fin.mk.injEq]
-          have hiff : ((i.1 - 1) / 2 = (j.1 - 1) / 2 ∧ i.1 ≠ j.1) ↔
-              ((i.1 - 1) / 2 = (j.1 - 1) / 2 ∧
-                decide ((i.1 - 1) % 2 = 0) ≠ decide ((j.1 - 1) % 2 = 0)) := by
+          have hiff : ((i.val - 1) / 2 = (j.val - 1) / 2 ∧ i.val ≠ j.val) ↔
+              ((i.val - 1) / 2 = (j.val - 1) / 2 ∧
+                decide ((i.val - 1) % 2 = 0) ≠ decide ((j.val - 1) % 2 = 0)) := by
             constructor
             · rintro ⟨hq, hne⟩
               refine ⟨hq, fun heq => hne ?_⟩
-              have hmod : ((i.1 - 1) % 2 = 0) ↔ ((j.1 - 1) % 2 = 0) :=
+              have hmod : ((i.val - 1) % 2 = 0) ↔ ((j.val - 1) % 2 = 0) :=
                 decide_eq_decide.1 heq
               omega
             · rintro ⟨hq, hne⟩
               exact ⟨hq, fun heq => hne (by rw [heq])⟩
-          by_cases hcond : (i.1 - 1) / 2 = (j.1 - 1) / 2 ∧ i.1 ≠ j.1
+          by_cases hcond : (i.val - 1) / 2 = (j.val - 1) / 2 ∧ i.val ≠ j.val
           · simp [hcond, hiff.1 hcond]
-          · have hcond' : ¬ ((i.1 - 1) / 2 = (j.1 - 1) / 2 ∧
-                decide ((i.1 - 1) % 2 = 0) ≠ decide ((j.1 - 1) % 2 = 0)) :=
+          · have hcond' : ¬ ((i.val - 1) / 2 = (j.val - 1) / 2 ∧
+                decide ((i.val - 1) % 2 = 0) ≠ decide ((j.val - 1) % 2 = 0)) :=
               fun h => hcond (hiff.2 h)
             simp only [hcond, hcond', ↓reduceIte, Rat.cast_natCast]
             rw [Nat.cast_sub hN1, Nat.cast_one]
         · simp only [hj1, ↓reduceDIte, and_false, ↓reduceIte]
-          by_cases hj2 : j.1 < 1 + 3 * paddedNumVars φ <;> simp [hj2]
+          by_cases hj2 : j.val < 1 + 3 * paddedNumVars φ <;> simp [hj2]
     · simp only [hi1, ↓reduceIte, ↓reduceDIte]
-      by_cases hi2 : i.1 < 1 + 3 * paddedNumVars φ
+      by_cases hi2 : i.val < 1 + 3 * paddedNumVars φ
       · simp only [hi2, ↓reduceIte, ↓reduceDIte]
-        by_cases hj0 : j.1 = 0
+        by_cases hj0 : j.val = 0
         · simp [hj0]
         · simp only [hj0, ↓reduceDIte]
-          by_cases hj1 : j.1 < 1 + 2 * paddedNumVars φ
-          · have hj_ok : 1 ≤ j.1 ∧ j.1 < 1 + 2 * paddedNumVars φ := by omega
+          by_cases hj1 : j.val < 1 + 2 * paddedNumVars φ
+          · have hj_ok : 1 ≤ j.val ∧ j.val < 1 + 2 * paddedNumVars φ := by omega
             simp only [hj1, ↓reduceDIte, hj_ok, and_self, ↓reduceIte, gilboaZemelGame_A_var_lit,
               Fin.mk.injEq]
             split_ifs <;> simp
           · simp only [hj1, ↓reduceDIte, and_false, ↓reduceIte]
-            by_cases hj2 : j.1 < 1 + 3 * paddedNumVars φ <;> simp [hj2]
+            by_cases hj2 : j.val < 1 + 3 * paddedNumVars φ <;> simp [hj2]
       · simp only [hi2, ↓reduceIte, ↓reduceDIte]
-        by_cases hj0 : j.1 = 0
+        by_cases hj0 : j.val = 0
         · simp [hj0]
         · simp only [hj0, ↓reduceDIte]
-          by_cases hj1 : j.1 < 1 + 2 * paddedNumVars φ
-          · have hj_ok : 1 ≤ j.1 ∧ j.1 < 1 + 2 * paddedNumVars φ := by omega
+          by_cases hj1 : j.val < 1 + 2 * paddedNumVars φ
+          · have hj_ok : 1 ≤ j.val ∧ j.val < 1 + 2 * paddedNumVars φ := by omega
             simp only [hj1, ↓reduceDIte, hj_ok, and_self, ↓reduceIte, gilboaZemelGame_A_cl_lit]
             let cFin : Fin (paddedCNFFin φ).length :=
-              ⟨i.1 - (1 + 3 * paddedNumVars φ), by rw [paddedCNFFin_length]; omega⟩
-            let vFin : Fin (paddedNumVars φ) := ⟨(j.1 - 1) / 2, by omega⟩
+              ⟨i.val - (1 + 3 * paddedNumVars φ), by rw [paddedCNFFin_length]; omega⟩
+            let vFin : Fin (paddedNumVars φ) := ⟨(j.val - 1) / 2, by omega⟩
             have hmemIff :=
-              mem_paddedCNFFin_getElem_iff φ cFin vFin (decide ((j.1 - 1) % 2 = 0))
-            by_cases hm : (vFin, decide ((j.1 - 1) % 2 = 0)) ∈ (paddedCNFFin φ)[cFin.1]
+              mem_paddedCNFFin_getElem_iff φ cFin vFin (decide ((j.val - 1) % 2 = 0))
+            by_cases hm : (vFin, decide ((j.val - 1) % 2 = 0)) ∈ (paddedCNFFin φ)[cFin.val]
             · have hm' :
-                  ((j.1 - 1) / 2, decide ((j.1 - 1) % 2 = 0)) ∈ (paddedCNF φ).getD cFin.1 [] :=
+                  ((j.val - 1) / 2, decide ((j.val - 1) % 2 = 0)) ∈
+                    (paddedCNF φ).getD cFin.val [] :=
                 hmemIff.1 hm
               simp only [cFin, vFin] at hm hm'
               simp only [hm, hm', ↓reduceIte, Rat.cast_zero]
             · have hm' :
-                  ((j.1 - 1) / 2, decide ((j.1 - 1) % 2 = 0)) ∉ (paddedCNF φ).getD cFin.1 [] :=
+                  ((j.val - 1) / 2, decide ((j.val - 1) % 2 = 0)) ∉
+                    (paddedCNF φ).getD cFin.val [] :=
                 fun h => hm (hmemIff.2 h)
               simp only [cFin, vFin] at hm hm'
               simp only [hm, hm', ↓reduceIte, Rat.cast_natCast]
           · simp only [hj1, ↓reduceDIte, and_false, ↓reduceIte]
-            by_cases hj2 : j.1 < 1 + 3 * paddedNumVars φ <;> simp [hj2]
+            by_cases hj2 : j.val < 1 + 3 * paddedNumVars φ <;> simp [hj2]
 
 /-- Classification of all mixed Nash equilibria of `(gilboaZemelCode φ).toSymGame` obtained by
 transporting `isNash_gilboaZemelGame_iff` along `gzEquiv φ`. -/

@@ -214,7 +214,7 @@ theorem IsEmbedding.exists_single_vertex_transport {G : Graph} {D : PolygonalDra
     exact ⟨c₂ * c₁, mul_pos hc₂ hc₁, by rw [he₂, he₁, mul_smul]⟩
   have hdir (x : Dart G) : D₂.direction x = D.direction x := by
     obtain ⟨c, hc, he⟩ := hg x
-    simp only [direction, he, Complex.real_smul, Complex.arg_real_mul _ hc]
+    simp only [direction, he, Complex.real_smul, Complex.arg_ofReal_mul hc _]
   refine ⟨D₂, hD₂, fun w hw => ?_, hg, fun x y z _ _ _ _ _ => by rw [hdir x, hdir y, hdir z],
     fun e => (hcount₂ e).trans (by nlinarith [hcount₁ e]), fun h => (hsame h).elim⟩
   rw [hpoint₂ w hw]

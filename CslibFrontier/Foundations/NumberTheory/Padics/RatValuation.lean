@@ -95,7 +95,7 @@ variable (p)
 
 /-- The inclusion of the `p`-integral rationals `ℤ_(p)` in the `p`-adic integers. -/
 noncomputable def padicIntegerToPadicInt : (Rat.padicValuation p).integer →+* ℤ_[p] where
-  toFun x := ⟨(x : ℚ), Padic.norm_rat_le_one (Rat.padicValuation_le_one_iff.mp x.2)⟩
+  toFun x := ⟨(x : ℚ), Padic.norm_rat_le_one (Rat.padicValuation_le_one_iff.mp x.property)⟩
   map_one' := Subtype.ext (by simp)
   map_mul' x y := Subtype.ext (by push_cast; rfl)
   map_zero' := Subtype.ext (by simp)

@@ -44,6 +44,8 @@ Lindeberg's replacement method.
   `∫ z, ∫ v, F (update v i z) ∂Measure.pi μ ∂μ i = ∫ v, F v ∂Measure.pi μ`.
 * `MeasureTheory.integral_apply_eval_eq_integral_integral`: if `Φ v` ignores coordinate `i`, then
   `∫ v, Φ v (v i) ∂Measure.pi μ = ∫ v, ∫ z, Φ v z ∂μ i ∂Measure.pi μ`.
+* `MeasureTheory.integral_finset_prod_pi_le`: bound a product of nonnegative adapted factors
+  by integrating one coordinate at a time.
 * `MeasureTheory.integral_pi_piecewise_insert_sub`: one step of the hybrid argument.
 * `MeasureTheory.abs_integral_pi_sub_le_sum`: the hybrid argument, bounding
   `|∫ F ∂Measure.pi ν - ∫ F ∂Measure.pi μ|` by a sum of one-coordinate bounds.
@@ -214,5 +216,40 @@ theorem abs_integral_pi_sub_le_sum {F : (∀ j, X j) → ℝ} (δ : ι → ℝ)
         (add_le_add (hδ s t ht) ih)
   have h := key Finset.univ
   rwa [Finset.piecewise_univ, abs_sub_comm] at h
+
+/-- A product of nonnegative adapted factors has integral at most the product of the uniform
+bounds on their one-coordinate integrals. -/
+theorem integral_finset_prod_pi_le [LinearOrder ι]
+    (F : ι → (∀ i, X i) → ℝ) (B : ι → ℝ)
+    (hF : ∀ i v, 0 ≤ F i v) (hB : ∀ i, 0 ≤ B i)
+    (hadapted : ∀ i j, i < j → ∀ v z, F i (Function.update v j z) = F i v)
+    (hint : ∀ s : Finset ι, Integrable (fun v => ∏ i ∈ s, F i v) (Measure.pi μ))
+    (hstep : ∀ i v, ∫ z, F i (Function.update v i z) ∂μ i ≤ B i)
+    (s : Finset ι) :
+    ∫ v, ∏ i ∈ s, F i v ∂Measure.pi μ ≤ ∏ i ∈ s, B i := by
+  induction s using Finset.induction_on_max with
+  | empty => simp
+  | insert j s hlt ih =>
+    have hj : j ∉ s := fun h => lt_irrefl j (hlt j h)
+    rw [← integral_integral_update μ (hint (insert j s)) j, Finset.prod_insert hj]
+    calc
+      _ = ∫ v, (∏ i ∈ s, F i v) * ∫ z, F j (Function.update v j z) ∂μ j ∂Measure.pi μ := by
+        congr 1 with v
+        rw [← integral_const_mul]
+        congr 1 with z
+        rw [Finset.prod_insert hj, mul_comm]
+        exact congrArg (· * F j (Function.update v j z))
+          (Finset.prod_congr rfl fun i hi => hadapted i j (hlt i hi) v z)
+      _ ≤ (∫ v, ∏ i ∈ s, F i v ∂Measure.pi μ) * B j := by
+        rw [← integral_mul_const]
+        exact integral_mono_of_nonneg
+          (Filter.Eventually.of_forall fun v =>
+            mul_nonneg (Finset.prod_nonneg fun i _ => hF i v)
+              (integral_nonneg fun z => hF j (Function.update v j z)))
+          ((hint s).mul_const _)
+          (Filter.Eventually.of_forall fun v =>
+            mul_le_mul_of_nonneg_left (hstep j v) (Finset.prod_nonneg fun i _ => hF i v))
+      _ ≤ (∏ i ∈ s, B i) * B j := mul_le_mul_of_nonneg_right ih (hB j)
+      _ = B j * ∏ i ∈ s, B i := mul_comm _ _
 
 end MeasureTheory

@@ -60,7 +60,7 @@ def strictOrderEquiv {L : Language.{u, v}} [L.IsRelational] (M : Ordered.Structu
   letI := ESO.varLanguage.structure (arity := fun _ : Unit => 2)
     (ESO.orderRelOfEquiv (Equiv.refl M))
   refine
-    { toFun := fun x => x.1 ()
+    { toFun := fun x => x.val ()
       invFun := fun x => ⟨fun _ => x, Formula.realize_top.2 trivial⟩
       left_inv := fun _ => FO.Interpretation.Model.ext rfl
       right_inv := fun _ => rfl
@@ -72,7 +72,7 @@ def strictOrderEquiv {L : Language.{u, v}} [L.IsRelational] (M : Ordered.Structu
   | inr r =>
     rcases r with ⟨⟨⟩, h⟩
     subst n
-    change (x 0).1 () < (x 1).1 () ↔ ¬ (x 1).1 () ≤ (x 0).1 ()
+    change (x 0).val () < (x 1).val () ↔ ¬ (x 1).val () ≤ (x 0).val ()
     exact not_le.symm
 
 /-- Pulling a relational strict-order formula back to the canonical ordered vocabulary preserves

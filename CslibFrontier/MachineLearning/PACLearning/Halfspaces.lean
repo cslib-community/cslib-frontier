@@ -86,16 +86,16 @@ theorem card_le_finrank_of_setShatters_positivityClass [FiniteDimensional ℝ V]
   classical
   by_contra hlt
   push Not at hlt
-  let ev : W → Dual ℝ V := fun x => (LinearMap.proj (R := ℝ) (φ := fun _ : α => ℝ) x.1).comp Φ
+  let ev : W → Dual ℝ V := fun x => (LinearMap.proj (R := ℝ) (φ := fun _ : α => ℝ) x.val).comp Φ
   have hdep : ¬ LinearIndependent ℝ ev := fun hli => by
     have := hli.fintype_card_le_finrank
     rw [Fintype.card_coe, Subspace.dual_finrank_eq] at this
     omega
   obtain ⟨g, hg, i₀, hi₀⟩ := Fintype.not_linearIndependent_iff.1 hdep
-  have hsum (v : V) : ∑ x, g x * Φ v x.1 = 0 := by
+  have hsum (v : V) : ∑ x, g x * Φ v x.val = 0 := by
     simpa [ev, LinearMap.sum_apply] using congrArg (fun f : Dual ℝ V => f v) hg
   -- Replace `g` by `-g` if needed so that some coefficient is positive.
-  obtain ⟨g, hsum, i₁, hi₁⟩ : ∃ g : W → ℝ, (∀ v, ∑ x, g x * Φ v x.1 = 0) ∧ ∃ i, 0 < g i :=
+  obtain ⟨g, hsum, i₁, hi₁⟩ : ∃ g : W → ℝ, (∀ v, ∑ x, g x * Φ v x.val = 0) ∧ ∃ i, 0 < g i :=
     hi₀.lt_or_gt.elim
       (fun h => ⟨-g, fun v => by
         simp only [Pi.neg_apply, neg_mul, Finset.sum_neg_distrib, hsum v, neg_zero], i₀,
@@ -103,9 +103,9 @@ theorem card_le_finrank_of_setShatters_positivityClass [FiniteDimensional ℝ V]
       (fun h => ⟨g, hsum, i₀, h⟩)
   -- Label `true` exactly the points with a positive coefficient.
   obtain ⟨c, ⟨v, rfl⟩, hc⟩ := hW {x | ∃ h : x ∈ W, 0 < g ⟨x, h⟩} fun x hx => hx.1
-  have hmem (x : W) : 0 < Φ v x.1 ↔ 0 < g x := by
-    simpa [x.2] using congrArg (fun s : Set α => x.1 ∈ s) hc
-  have hterm (x : W) : 0 ≤ g x * Φ v x.1 := by
+  have hmem (x : W) : 0 < Φ v x.val ↔ 0 < g x := by
+    simpa [x.property] using congrArg (fun s : Set α => x.val ∈ s) hc
+  have hterm (x : W) : 0 ≤ g x * Φ v x.val := by
     rcases le_or_gt (g x) 0 with h | h
     · exact mul_nonneg_of_nonpos_of_nonpos h (not_lt.1 fun h' => h.not_gt ((hmem x).1 h'))
     · exact (mul_pos h ((hmem x).2 h)).le

@@ -29,14 +29,14 @@ open Polygonal RotationSystem
 replacement neighborhood. Unchanged declared isolates stay outside it. -/
 theorem restoredVertex_active_of_mem_closedBall {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) {ρ : ℝ}
-    (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).1,
+    (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).vertices,
       D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v)
-    (a b : ℂ) (w : ℕ) (hw : w ∈ G.1)
+    (a b : ℂ) (w : ℕ) (hw : w ∈ G.vertices)
     (hin : D.restoredVertex a b w ∈ Metric.closedBall (D.vertex v) ρ) : w = u ∨ w = v := by
   by_contra hn
   have hwu : w ≠ u := fun h => hn (Or.inl h)
   have hwv : w ≠ v := fun h => hn (Or.inr h)
-  have hdecl : w ∈ (contractLastEdgeGraph G u v).1 := by
+  have hdecl : w ∈ (contractLastEdgeGraph G u v).vertices := by
     have h := List.mem_map_of_mem (f := Function.update id u v) hw
     simpa only [contractLastEdgeGraph, Graph.relabel, Function.update_of_ne hwu, id_eq] using h
   simp only [restoredVertex, ite_eq_right hwu, ite_eq_right hwv] at hin
@@ -46,15 +46,15 @@ theorem restoredVertex_active_of_mem_closedBall {G : Graph} {u v : ℕ}
 and repeated declarations. No enumeration of the ambient natural-number names is used. -/
 theorem IsEmbedding.restoredVertex_injective {G : Graph} {u v : ℕ}
     {D : PolygonalDrawing (contractLastEdgeGraph G u v)} (hD : D.IsEmbedding) (huv : u ≠ v)
-    {ρ : ℝ} (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).1,
+    {ρ : ℝ} (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).vertices,
       D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v)
     {a b : ℂ} (ha : a ∈ Metric.ball (D.vertex v) ρ) (hb : b ∈ Metric.ball (D.vertex v) ρ)
-    (hab : a ≠ b) : Set.InjOn (D.restoredVertex a b) {w | w ∈ G.1} := by
-  have hdecl (w : ℕ) (hw : w ∈ G.1) (hwu : w ≠ u) :
-      w ∈ (contractLastEdgeGraph G u v).1 := by
+    (hab : a ≠ b) : Set.InjOn (D.restoredVertex a b) {w | w ∈ G.vertices} := by
+  have hdecl (w : ℕ) (hw : w ∈ G.vertices) (hwu : w ≠ u) :
+      w ∈ (contractLastEdgeGraph G u v).vertices := by
     have h := List.mem_map_of_mem (f := Function.update id u v) hw
     simpa only [contractLastEdgeGraph, Graph.relabel, Function.update_of_ne hwu, id_eq] using h
-  have hactive (w : ℕ) (hw : w ∈ G.1)
+  have hactive (w : ℕ) (hw : w ∈ G.vertices)
       (hin : D.restoredVertex a b w ∈ Metric.ball (D.vertex v) ρ) : w = u ∨ w = v := by
     exact D.restoredVertex_active_of_mem_closedBall hpoints a b w hw
       (Metric.ball_subset_closedBall hin)
@@ -87,7 +87,7 @@ original end. This includes unused names and loops, with all real parameters che
 theorem IsEmbedding.restoredRoute_vertex_contacts {G : Graph} {u v : ℕ}
     {D : PolygonalDrawing (contractLastEdgeGraph G u v)} (hD : D.IsEmbedding) (huv : u ≠ v)
     {ρ : ℝ} (hρ : 0 < ρ)
-    (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).1,
+    (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).vertices,
       D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v)
     (hlen : ∀ d : Dart (contractLastEdgeGraph G u v), d.vertex = v → 3 * ρ < ‖D.germ d‖)
     (hcut : ∀ e (i : Fin (D.outsideRoute v ρ e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
@@ -100,8 +100,8 @@ theorem IsEmbedding.restoredRoute_vertex_contacts {G : Graph} {u v : ℕ}
       (contractionLift G u v d.val).vertex = u → f a < f (D.cutPort ρ d.val))
     (hpb : ∀ d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v},
       (contractionLift G u v d.val).vertex = v → f (D.cutPort ρ d.val) < f b)
-    (e : Fin G.2.length) (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ}
-    (ht : t ∈ Set.Icc 0 1) (w : ℕ) (hw : w ∈ G.1)
+    (e : Fin G.edges.length) (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ}
+    (ht : t ∈ Set.Icc 0 1) (w : ℕ) (hw : w ∈ G.vertices)
     (heq : (D.restoredRoute ρ a b e).eval i t = D.restoredVertex a b w) :
     ∃ side, (D.restoredRoute ρ a b e).AtEnd i t side ∧ Dart.vertex (G := G) (e, side) = w := by
   let j := contractedIndex G u v e
@@ -128,7 +128,7 @@ theorem IsEmbedding.restoredRoute_vertex_contacts {G : Graph} {u v : ℕ}
     · exact False.elim (hD.outsideRoute_not_mem_ball v hρ hcut j k ht
         (hEq.symm ▸ D.restoredVertex_mem_ball huv ha hb w hw'))
     · obtain ⟨hwu, hwv⟩ := not_or.mp hw'
-      have hdecl : w ∈ (contractLastEdgeGraph G u v).1 := by
+      have hdecl : w ∈ (contractLastEdgeGraph G u v).vertices := by
         have h := List.mem_map_of_mem (f := Function.update id u v) hw
         simpa only [contractLastEdgeGraph, Graph.relabel, Function.update_of_ne hwu, id_eq] using h
       have hOld : (D.outsideRoute v ρ j).eval k t = D.vertex w := by

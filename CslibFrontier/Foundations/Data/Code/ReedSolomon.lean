@@ -175,7 +175,8 @@ theorem finrank_reedSolomon (hα : Function.Injective α) (hkn : k ≤ Fintype.c
   have hinj : Function.Injective (f.domRestrict (degreeLT F k)) := fun p q h => Subtype.ext <|
     eq_of_degree_sub_lt_of_eval_finset_eq (univ.image α)
       (by rw [card_image_of_injective _ hα, card_univ]
-          exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.2 q.2)).trans_le (by exact_mod_cast hkn))
+          exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.property q.property)).trans_le
+            (by exact_mod_cast hkn))
       fun _ hx =>
         let ⟨i, _, hi⟩ := mem_image.1 hx
         hi ▸ congrFun h i

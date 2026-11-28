@@ -77,7 +77,7 @@ theorem shareDist_linearUniformAccessScheme_mulRight (P : MonotoneSpanProgram F 
       (linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P)) secret := by
   have hhead : ∀ x : Fin (P.tailDim + 1) → F, (R *ᵥ x) 0 = x 0 := by
     intro x
-    rw [Matrix.mulVec, htop, single_one_dotProduct]
+    rw [Matrix.mulVec_apply, Matrix.row_apply', htop, single_one_dotProduct]
   let T : LinearKey P → LinearKey P := fun k => Fin.tail (R *ᵥ Fin.cons secret k)
   have hcons : ∀ k : LinearKey P, R *ᵥ Fin.cons secret k = Fin.cons secret (T k) := by
     intro k
@@ -129,8 +129,8 @@ field-gate circuit for each shape of program; a uniform bound in bit operations 
 (#5293). -/
 theorem sum_recombination_dotProduct_linearShare (P : MonotoneSpanProgram F (Fin N))
     {s : Finset (Fin N)} (hs : P.Accepts s) (k : LinearKey P) (secret : F) :
-    ∑ i : s, P.recombination s i.1 ⬝ᵥ linearShare P k secret i.1 = secret :=
-  sum_dotProduct_linearShare_eq_secret P k secret (fun i => P.recombination s i.1)
+    ∑ i : s, P.recombination s i.val ⬝ᵥ linearShare P k secret i.val = secret :=
+  sum_dotProduct_linearShare_eq_secret P k secret (fun i => P.recombination s i.val)
     (P.sum_vecMul_recombination hs)
 
 /-- The equivalence of Theorem 22.14(b)(i), a step toward [BonehShoup2023], Theorem 22.14

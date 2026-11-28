@@ -199,14 +199,14 @@ noncomputable def recPoly (S : F[X][X][X]) (x₀ : F) (s : ℕ) : ℕ → F[X][X
   | n + 1 =>
     let S₀ := S.map (Polynomial.evalRingHom (C x₀))
     let γ := S₀.derivative
-    let U : (F[X][X])[X] := ∑ k ∈ (Icc 1 n).attach, C (recPoly S x₀ s k.1) * X ^ k.1
+    let U : (F[X][X])[X] := ∑ k ∈ (Icc 1 n).attach, C (recPoly S x₀ s k.val) * X ^ k.val
     Neg.neg (∑ a ∈ range (n + 2), ∑ j ∈ range (s + 1),
       if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
       else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
         (U ^ j).coeff (n + 1 - a))
 termination_by n => n
 decreasing_by
-  have := (Finset.mem_Icc.1 k.2).2
+  have := (Finset.mem_Icc.1 k.property).2
   omega
 
 /-- Truncated universal series `U_M(T) = ∑_{k=1}^M N_k(Z, Y) T^k ∈ (F[Z][Y])[T]`. -/

@@ -319,12 +319,12 @@ theorem validHistory_writePackedMemProg {w : ℕ} {d : ((ℕ × ℕ) × (ℕ × 
   have hw0 : Fits d.1.2.1 (s.mem (d.1.1.1 + wOff) ^^^
       ((((s.mem (d.1.1.1 + wOff) >>> bOff) &&& (2 ^ k₀ - 1)) ^^^
         (d.2 &&& (2 ^ k₀ - 1))) <<< bOff)) :=
-    Nat.xor_lt_two_pow (hwf.2 _) hsh0
+    Nat.xor_lt_two_pow (hwf.mem_fits _) hsh0
   let mem₁ := Function.update s.mem (d.1.1.1 + wOff)
     (s.mem (d.1.1.1 + wOff) ^^^ ((((s.mem (d.1.1.1 + wOff) >>> bOff) &&& (2 ^ k₀ - 1)) ^^^
       (d.2 &&& (2 ^ k₀ - 1))) <<< bOff))
   have hm1 : mem₁ (d.1.1.1 + wOff + 1) < 2 ^ d.1.2.1 := by
-    dsimp only [mem₁]; rw [Function.update_of_ne (by omega)]; exact hwf.2 _
+    dsimp only [mem₁]; rw [Function.update_of_ne (by omega)]; exact hwf.mem_fits _
   have hsh1 : (((mem₁ (d.1.1.1 + wOff + 1) >>> 0) &&& (2 ^ k₁ - 1)) ^^^
       ((d.2 >>> k₀) &&& (2 ^ k₁ - 1))) <<< 0 < 2 ^ d.1.2.1 := by
     refine shiftLeft_lt_two_pow_of_lt (a := k₁) (Nat.xor_lt_two_pow ?_ ?_) hk1_le <;>
@@ -363,7 +363,7 @@ theorem writePackedMemProg_realizesBounded :
     set k₀ := min d.1.1.2 (d.1.2.1 - bOff)
     have hk0_bOff : k₀ + bOff ≤ d.1.2.1 := by
       have : k₀ ≤ d.1.2.1 - bOff := Nat.min_le_right _ _; omega
-    refine Nat.xor_lt_two_pow (hmem.2 _)
+    refine Nat.xor_lt_two_pow (hmem.mem_fits _)
       (shiftLeft_lt_two_pow_of_lt (a := k₀) (Nat.xor_lt_two_pow ?_ ?_) hk0_bOff) <;>
     · rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos k₀)
   · set bOff := ((d.1.2.2 % d.1.2.1) * d.1.1.2) % d.1.2.1
@@ -379,7 +379,7 @@ theorem writePackedMemProg_realizesBounded :
     have hk1_le : k₁ + 0 ≤ d.1.2.1 := (Nat.add_zero k₁).le.trans ((Nat.sub_le _ _).trans hbw)
     refine Nat.xor_lt_two_pow ?_
       (shiftLeft_lt_two_pow_of_lt (a := k₁) (Nat.xor_lt_two_pow ?_ ?_) hk1_le)
-    · rw [Function.update_of_ne (by omega)]; exact hmem.2 _
+    · rw [Function.update_of_ne (by omega)]; exact hmem.mem_fits _
     · rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos k₁)
     · rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos k₁)
   · set bOff := ((d.1.2.2 % d.1.2.1) * d.1.1.2) % d.1.2.1

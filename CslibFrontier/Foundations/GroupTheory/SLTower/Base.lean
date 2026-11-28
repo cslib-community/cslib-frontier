@@ -48,7 +48,7 @@ theorem exists_transvections (A : SL2 h) : ∃ l : List (TransvectionStruct (Fin
       exact absurd h1 (by decide)
     have key : ∀ c : ZMod 2, c ≠ 0 → c = 1 := by decide
     exact key _ h4
-  have h5 : (⟨diagonal D, hD⟩ : SpecialLinearGroup (Fin h) (ZMod 2)) = (1 : SL2 h) := by
+  have h5 : SpecialLinearGroup.mk (diagonal D) hD = (1 : SL2 h) := by
     ext i j
     simp [diagonal_apply, h3, Matrix.one_apply]
   refine ⟨L ++ L', ?_⟩

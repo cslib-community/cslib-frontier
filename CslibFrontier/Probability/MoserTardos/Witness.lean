@@ -544,7 +544,7 @@ theorem exists_of_levelRel_ne_zero {R : ι → ι → Prop} [DecidableRel R] {j 
     {S : Finset (ι × ℕ)} (h : levelRel R j S ≠ 0) :
     ∃ q ∈ S, q.2 + 1 = levelRel R j S ∧ R q.1 j := by
   have hne : (S.filter fun p => R p.1 j).Nonempty :=
-    nonempty_iff_ne_empty.2 fun hc => h (by rw [levelRel, hc, sup_empty]; rfl)
+    ne_empty_iff_nonempty.1 fun hc => h (by rw [levelRel, hc, sup_empty]; rfl)
   obtain ⟨q, hq, he⟩ := exists_mem_eq_sup _ hne fun p : ι × ℕ => p.2 + 1
   rw [mem_filter] at hq
   exact ⟨q, hq.1, he.symm, hq.2⟩

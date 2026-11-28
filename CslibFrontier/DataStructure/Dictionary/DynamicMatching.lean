@@ -677,8 +677,8 @@ theorem rounds_le_card {U' n' : ℕ} (h : Scheme U' n')
 `Algorithm 1`) for any active ball set `A ⊆ Fin U'` of size `A.card ≤ n'`. -/
 def matching {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
     (hA : A.card ≤ n') : A ↪ Fin n' where
-  toFun a := (matchOpt h A a.1).get <|
-    (matchOptOn_isSome_iff h (by simpa using hA) a.1).mpr a.2
+  toFun a := (matchOpt h A a.val).get <|
+    (matchOptOn_isSome_iff h (by simpa using hA) a.val).mpr a.property
   inj' a₁ a₂ heq := Subtype.ext <|
     matchOptOn_injective h A Finset.univ
       ((Option.some_get _).symm.trans (congrArg some heq))
@@ -687,7 +687,7 @@ def matching {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
 @[simp]
 theorem matching_apply {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
     (hA : A.card ≤ n') (a : A) :
-    matchOpt h A a.1 = some (matching h A hA a) :=
+    matchOpt h A a.val = some (matching h A hA a) :=
   (Option.some_get _).symm
 
 /-! ### Expected round bound (`Claim 3.3`) -/
@@ -733,17 +733,14 @@ private theorem two_mul_sum_card_balls_roundStep_le {U' n' : ℕ} {A : Finset (F
   have hy₀ : y₀ ∈ S.erase x :=
     mem_erase.mpr ⟨(ballItem_ne_binItem a b₀).symm, binItem_mem_activeItems.mpr hb₀⟩
   let fiber (y : Fin (U' + n')) := Finset.univ.filter fun π : RoundPerm U' n' => nextItem π S x = y
-  have hfiber_card : ∀ y ∈ S.erase x, (fiber y).card = (fiber y₀).card := fun y hy =>
-    card_bij (fun π _ => π * Equiv.swap y y₀)
-      (fun π hπ => mem_filter.mpr ⟨mem_univ _, by
-        rw [nextItem_mul_swap π (mem_of_mem_erase hy) (mem_of_mem_erase hy₀)
-          (mem_erase.mp hy).1.symm (mem_erase.mp hy₀).1.symm, (mem_filter.mp hπ).2,
-          Equiv.swap_apply_left]⟩)
-      (fun _ _ _ _ h => mul_right_cancel h)
-      (fun π hπ => ⟨π * Equiv.swap y y₀, mem_filter.mpr ⟨mem_univ _, by
-        rw [nextItem_mul_swap π (mem_of_mem_erase hy) (mem_of_mem_erase hy₀)
-          (mem_erase.mp hy).1.symm (mem_erase.mp hy₀).1.symm, (mem_filter.mp hπ).2,
-          Equiv.swap_apply_right]⟩, by simp [mul_assoc]⟩)
+  have hfiber_card : ∀ y ∈ S.erase x, (fiber y).card = (fiber y₀).card := fun y hy => by
+    refine card_equiv (Equiv.mulRight (Equiv.swap y y₀)) fun π => ?_
+    simp only [fiber, mem_filter, mem_univ, true_and]
+    change nextItem π S x = y ↔ nextItem (π * Equiv.swap y y₀) S x = y₀
+    rw [nextItem_mul_swap π (mem_of_mem_erase hy) (mem_of_mem_erase hy₀)
+      (mem_erase.mp hy).1.symm (mem_erase.mp hy₀).1.symm]
+    exact ⟨fun h => h ▸ Equiv.swap_apply_left _ _,
+      fun h => (Equiv.swap y y₀).injective (h.trans (Equiv.swap_apply_left _ _).symm)⟩
   have htot : Fintype.card (RoundPerm U' n') = (A.card + B.card - 1) * (fiber y₀).card := by
     have hcard := card_eq_sum_card_fiberwise (s := (Finset.univ : Finset (RoundPerm U' n')))
       (t := S.erase x) (f := fun π => nextItem π S x) fun π _ => nextItem_mem_erase π hScard hxS
@@ -1192,7 +1189,7 @@ private theorem stateAt_balls_eq_empty_of_roundsOn_le {U' n' : ℕ} (h : Scheme 
       (t := (Finset.range U').filter fun j => (stateAt h A B j).1.Nonempty) fun j hj =>
       have hjle := Nat.lt_succ_iff.mp (mem_range.mp hj)
       mem_filter.mpr ⟨mem_range.mpr (hjle.trans_lt hiU),
-        (nonempty_iff_ne_empty.mpr hne).mono (stateAt_balls_mono h A B hjle)⟩
+        (ne_empty_iff_nonempty.mp hne).mono (stateAt_balls_mono h A B hjle)⟩
     rw [card_range] at hcard; dsimp only [roundsOn] at hi; omega
   · exact stateAt_balls_eq_empty h hle
       ((show A.card ≤ U' by simpa using A.card_le_univ).trans (Nat.le_of_not_lt hiU))

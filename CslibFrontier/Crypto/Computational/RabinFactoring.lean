@@ -567,29 +567,29 @@ private theorem not_dvd_add_of_modEq {p u x' : ℕ} (hp : p.Prime) (hp2 : p ≠ 
 private theorem exists_crt_root {p q : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q) (x' : ℕ) :
     ∃ r < p * q, r ≡ x' [MOD p] ∧ q ∣ r + x' := by
   let c := Nat.chineseRemainder ((Nat.coprime_primes hp hq).mpr hpq) x' ((q - 1) * x')
-  refine ⟨c, Nat.chineseRemainder_lt_mul _ _ _ hp.ne_zero hq.ne_zero, c.2.1, ?_⟩
+  refine ⟨c, Nat.chineseRemainder_lt_mul _ _ _ hp.ne_zero hq.ne_zero, c.property.1, ?_⟩
   have hq1 : (q - 1) * x' + x' = q * x' := by
     rw [Nat.sub_one_mul, Nat.sub_add_cancel (Nat.le_mul_of_pos_left x' hq.pos)]
   refine (Nat.modEq_zero_iff_dvd).mp ?_
-  calc (c : ℕ) + x' ≡ (q - 1) * x' + x' [MOD q] := c.2.2.add_right x'
+  calc (c : ℕ) + x' ≡ (q - 1) * x' + x' [MOD q] := c.property.2.add_right x'
     _ = q * x' := hq1
     _ ≡ 0 [MOD q] := (Nat.modEq_zero_iff_dvd).mpr (dvd_mul_right q x')
 
 /-- Each residue class modulo `N` contains at least `2 ^ L / N` numbers below `2 ^ L`. -/
 private theorem le_card_residueClass {N L r : ℕ} (hr : r < N) :
-    2 ^ L / N ≤ (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r)).card := by
+    2 ^ L / N ≤ (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r)).card := by
   have hN : 0 < N := lt_of_le_of_lt (Nat.zero_le r) hr
-  let θ : Fin (2 ^ L / N) → Fin (2 ^ L) := fun m => ⟨m.1 * N + r, by
-    have h1 : (m.1 + 1) * N ≤ 2 ^ L / N * N := Nat.mul_le_mul_right N m.2
+  let θ : Fin (2 ^ L / N) → Fin (2 ^ L) := fun m => ⟨m.val * N + r, by
+    have h1 : (m.val + 1) * N ≤ 2 ^ L / N * N := Nat.mul_le_mul_right N m.isLt
     have h2 : 2 ^ L / N * N ≤ 2 ^ L := Nat.div_mul_le_self _ _
     rw [Nat.add_mul, one_mul] at h1
     omega⟩
   have hmem : ∀ m ∈ (Finset.univ : Finset (Fin (2 ^ L / N))),
-      θ m ∈ Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r) := fun m _ => by
+      θ m ∈ Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r) := fun m _ => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, θ, Nat.mul_add_mod_self_right,
       Nat.mod_eq_of_lt hr]
   have hinj : Set.InjOn θ (Finset.univ : Finset (Fin (2 ^ L / N))) := fun m₁ _ m₂ _ h => by
-    have h' : m₁.1 * N + r = m₂.1 * N + r := congrArg Fin.val h
+    have h' : m₁.val * N + r = m₂.val * N + r := congrArg Fin.val h
     exact Fin.ext (Nat.eq_of_mul_eq_mul_right hN (Nat.add_right_cancel h'))
   simpa using Finset.card_le_card_of_injOn θ hmem hinj
 
@@ -597,13 +597,13 @@ private theorem le_card_residueClass {N L r : ℕ} (hr : r < N) :
 `p * q`: such an `x` is determined by its quotient by `p * q` and by whether it is `≡ x'`
 modulo `p` and modulo `q`. -/
 private theorem card_sq_modEq_le {p q L x' : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q) :
-    (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 ^ 2 ≡ x' ^ 2 [MOD p * q])).card ≤
+    (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val ^ 2 ≡ x' ^ 2 [MOD p * q])).card ≤
       4 * (2 ^ L / (p * q) + 1) := by
   let ψ : Fin (2 ^ L) → (Bool × Bool) × Fin (2 ^ L / (p * q) + 1) := fun x =>
-    ((decide (x.1 ≡ x' [MOD p]), decide (x.1 ≡ x' [MOD q])),
-      ⟨x.1 / (p * q), Nat.lt_succ_of_le (Nat.div_le_div_right x.2.le)⟩)
+    ((decide (x.val ≡ x' [MOD p]), decide (x.val ≡ x' [MOD q])),
+      ⟨x.val / (p * q), Nat.lt_succ_of_le (Nat.div_le_div_right x.isLt.le)⟩)
   have hinj : Set.InjOn ψ (Finset.univ.filter (fun x : Fin (2 ^ L) =>
-      x.1 ^ 2 ≡ x' ^ 2 [MOD p * q])) := by
+      x.val ^ 2 ≡ x' ^ 2 [MOD p * q])) := by
     intro x₁ hx₁ x₂ hx₂ heq
     simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hx₁ hx₂
     simp only [ψ, Prod.mk.injEq, Fin.mk.injEq, decide_eq_decide] at heq
@@ -612,10 +612,10 @@ private theorem card_sq_modEq_le {p q L x' : ℕ} (hp : p.Prime) (hq : q.Prime) 
       (hx₁.of_dvd (dvd_mul_right p q)) (hx₂.of_dvd (dvd_mul_right p q)) hbp
     have hmodq := modEq_of_sq_modEq_of_decide_eq hq
       (hx₁.of_dvd (dvd_mul_left q p)) (hx₂.of_dvd (dvd_mul_left q p)) hbq
-    have hmod : x₁.1 % (p * q) = x₂.1 % (p * q) :=
+    have hmod : x₁.val % (p * q) = x₂.val % (p * q) :=
       (Nat.modEq_and_modEq_iff_modEq_mul ((Nat.coprime_primes hp hq).mpr hpq)).mp ⟨hmodp, hmodq⟩
     ext
-    rw [← Nat.div_add_mod x₁.1 (p * q), ← Nat.div_add_mod x₂.1 (p * q), hdiv, hmod]
+    rw [← Nat.div_add_mod x₁.val (p * q), ← Nat.div_add_mod x₂.val (p * q), hdiv, hmod]
   have hcard := Finset.card_le_card_of_injOn ψ (fun _ _ => Finset.mem_univ _) hinj
   simpa [Fintype.card_prod, Fintype.card_bool, Fintype.card_fin] using hcard
 
@@ -636,15 +636,15 @@ private theorem sq_modEq_and_gcd_of_crt {p q x x' : ℕ} (hp : p.Prime) (hq : q.
 
 /-- At most `2 ^ L / N + 1` numbers below `2 ^ L` lie in a given residue class modulo `N`. -/
 private theorem card_residueClass_le {N L r : ℕ} :
-    (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r)).card ≤ 2 ^ L / N + 1 := by
+    (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r)).card ≤ 2 ^ L / N + 1 := by
   let θ : Fin (2 ^ L) → Fin (2 ^ L / N + 1) := fun x =>
-    ⟨x.1 / N, Nat.lt_succ_of_le (Nat.div_le_div_right x.2.le)⟩
-  have hinj : Set.InjOn θ (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r)) := by
+    ⟨x.val / N, Nat.lt_succ_of_le (Nat.div_le_div_right x.isLt.le)⟩
+  have hinj : Set.InjOn θ (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r)) := by
     intro x₁ hx₁ x₂ hx₂ heq
     simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hx₁ hx₂
-    have hdiv : x₁.1 / N = x₂.1 / N := congrArg Fin.val heq
+    have hdiv : x₁.val / N = x₂.val / N := congrArg Fin.val heq
     ext
-    rw [← Nat.div_add_mod x₁.1 N, ← Nat.div_add_mod x₂.1 N, hdiv, hx₁, hx₂]
+    rw [← Nat.div_add_mod x₁.val N, ← Nat.div_add_mod x₂.val N, hdiv, hx₁, hx₂]
   simpa using Finset.card_le_card_of_injOn θ (fun _ _ => Finset.mem_univ _) hinj
 
 /-- If `x % N = d` for a divisor `d` of `N`, then `gcd x N = d`. -/
@@ -657,33 +657,33 @@ number at most `k + 1`, while the classes of `p` and `q` modulo `p * q` contribu
 numbers with nontrivial gcd. -/
 private theorem card_not_coprime_le {p q L : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
     (hk : 1 ≤ 2 ^ L / (p * q)) :
-    (Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.1 (p * q) = 1)).card ≤
+    (Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.val (p * q) = 1)).card ≤
       2 * (Finset.univ.filter (fun x : Fin (2 ^ L) =>
-        1 < Nat.gcd x.1 (p * q) ∧ Nat.gcd x.1 (p * q) < p * q)).card := by
+        1 < Nat.gcd x.val (p * q) ∧ Nat.gcd x.val (p * q) < p * q)).card := by
   set N := p * q
-  set nt := Finset.univ.filter (fun x : Fin (2 ^ L) => 1 < Nat.gcd x.1 N ∧ Nat.gcd x.1 N < N)
+  set nt := Finset.univ.filter (fun x : Fin (2 ^ L) => 1 < Nat.gcd x.val N ∧ Nat.gcd x.val N < N)
   have hN : 0 < N := Nat.mul_pos hp.pos hq.pos
   -- A number sharing a factor with `N` is a multiple of `N` or has a nontrivial gcd.
-  have hsplit : Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.1 N = 1) ⊆
-      Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = 0) ∪ nt := by
+  have hsplit : Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.val N = 1) ⊆
+      Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = 0) ∪ nt := by
     intro x hx
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union, nt] at hx ⊢
-    have h1 := Nat.gcd_pos_of_pos_right x.1 hN
-    have h2 := Nat.le_of_dvd hN (Nat.gcd_dvd_right x.1 N)
+    have h1 := Nat.gcd_pos_of_pos_right x.val hN
+    have h2 := Nat.le_of_dvd hN (Nat.gcd_dvd_right x.val N)
     rcases h2.lt_or_eq with h2 | h2
     · exact Or.inr ⟨by omega, h2⟩
-    · exact Or.inl (Nat.mod_eq_zero_of_dvd (h2 ▸ Nat.gcd_dvd_left x.1 N))
+    · exact Or.inl (Nat.mod_eq_zero_of_dvd (h2 ▸ Nat.gcd_dvd_left x.val N))
   -- The classes of the proper divisors `p` and `q` modulo `N` lie in `nt`.
   have hclass : ∀ d, 1 < d → d < N → d ∣ N →
-      Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = d) ⊆ nt := by
+      Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = d) ⊆ nt := by
     intro d hd1 hdN hd x hx
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, nt] at hx ⊢
     rw [gcd_eq_of_mod_eq hd hx]
     exact ⟨hd1, hdN⟩
   have hpN : p < N := lt_mul_of_one_lt_right hp.pos hq.one_lt
   have hqN : q < N := lt_mul_of_one_lt_left hq.pos hp.one_lt
-  have hdisj : Disjoint (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = p))
-      (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = q)) := by
+  have hdisj : Disjoint (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = p))
+      (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = q)) := by
     rw [Finset.disjoint_filter]
     intro x _ h1 h2
     exact hpq (h1.symm.trans h2)
@@ -703,14 +703,15 @@ and the two mixed classes, `≡ x'` modulo one prime and `≡ -x'` modulo the ot
 least `2 * k` splitting ones. -/
 private theorem rabin_fiber_card_le {p q L x' : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
     (hp2 : p ≠ 2) (hq2 : q ≠ 2) (hk : 2 ≤ 2 ^ L / (p * q)) :
-    ((Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.1 (p * q) = 1)).filter
-        (fun x => x' ^ 2 % (p * q) = x.1 ^ 2 % (p * q))).card ≤
-      3 * (((Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.1 (p * q) = 1)).filter
-        (fun x => x' ^ 2 % (p * q) = x.1 ^ 2 % (p * q))).filter
-          (fun x => 1 < Nat.gcd (x.1 + x') (p * q) ∧ Nat.gcd (x.1 + x') (p * q) < p * q)).card := by
+    ((Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val (p * q) = 1)).filter
+        (fun x => x' ^ 2 % (p * q) = x.val ^ 2 % (p * q))).card ≤
+      3 * (((Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val (p * q) = 1)).filter
+        (fun x => x' ^ 2 % (p * q) = x.val ^ 2 % (p * q))).filter
+          (fun x => 1 < Nat.gcd (x.val + x') (p * q) ∧
+              Nat.gcd (x.val + x') (p * q) < p * q)).card := by
   set N := p * q
-  set S := (Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.1 N = 1)).filter
-    (fun x => x' ^ 2 % N = x.1 ^ 2 % N)
+  set S := (Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1)).filter
+    (fun x => x' ^ 2 % N = x.val ^ 2 % N)
   rcases S.eq_empty_or_nonempty with hempty | ⟨x₀, hx₀⟩
   · simp [hempty]
   simp only [S, Finset.mem_filter, Finset.mem_univ, true_and] at hx₀
@@ -728,14 +729,14 @@ private theorem rabin_fiber_card_le {p q L x' : ℕ} (hp : p.Prime) (hq : q.Prim
   -- Lower bound: each mixed CRT class lies in the splitting part of the fibre.
   have hclass : ∀ {a b : ℕ}, a.Prime → b.Prime → a ≠ b → a ≠ 2 → ¬a ∣ x' → a * b = N →
       ∀ r, r ≡ x' [MOD a] → b ∣ r + x' →
-        Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r) ⊆
-          S.filter (fun x => 1 < Nat.gcd (x.1 + x') N ∧ Nat.gcd (x.1 + x') N < N) := by
+        Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r) ⊆
+          S.filter (fun x => 1 < Nat.gcd (x.val + x') N ∧ Nat.gcd (x.val + x') N < N) := by
     intro a b ha hb hab ha2 hax habN r hra hrb x hx
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx
-    have hxr : x.1 ≡ r [MOD a * b] := by
+    have hxr : x.val ≡ r [MOD a * b] := by
       rw [habN, Nat.ModEq, ← hx, Nat.mod_mod]
-    have hxa : x.1 ≡ x' [MOD a] := (hxr.of_dvd (dvd_mul_right a b)).trans hra
-    have hxb : b ∣ x.1 + x' :=
+    have hxa : x.val ≡ x' [MOD a] := (hxr.of_dvd (dvd_mul_right a b)).trans hra
+    have hxb : b ∣ x.val + x' :=
       ((hxr.of_dvd (dvd_mul_left b a)).add_right x').dvd_iff dvd_rfl |>.mpr hrb
     obtain ⟨hsq, hgcd⟩ := habN ▸ sq_modEq_and_gcd_of_crt ha hb hab ha2 hax hxa hxb
     simp only [S, Finset.mem_filter, Finset.mem_univ, true_and]
@@ -743,8 +744,8 @@ private theorem rabin_fiber_card_le {p q L x' : ℕ} (hp : p.Prime) (hq : q.Prim
   obtain ⟨r₁, hr₁N, hr₁p, hr₁q⟩ := exists_crt_root hp hq hpq x'
   obtain ⟨r₂, hr₂N, hr₂q, hr₂p⟩ := exists_crt_root hq hp hpq.symm x'
   rw [mul_comm q p] at hr₂N
-  have hdisj : Disjoint (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r₁))
-      (Finset.univ.filter (fun x : Fin (2 ^ L) => x.1 % N = r₂)) := by
+  have hdisj : Disjoint (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r₁))
+      (Finset.univ.filter (fun x : Fin (2 ^ L) => x.val % N = r₂)) := by
     rw [Finset.disjoint_filter]
     rintro x - h1 h2
     exact not_dvd_add_of_modEq hp hp2 hpx hr₁p (h1.symm.trans h2 ▸ hr₂p)
@@ -762,17 +763,18 @@ distribution `P`: summed over the `2 ^ L` draws `x`, the probability that `P` in
 `gcd x N` directly or through `gcd (x + x') N` for the inverter's answer `x'`. -/
 private theorem sum_rabin_success_le {p q N L : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
     (hp2 : p ≠ 2) (hq2 : q ≠ 2) (hN : p * q = N) (hk : 2 ≤ 2 ^ L / N) (P : ℕ → PMF ℕ) :
-    ∑ x : Fin (2 ^ L), ∑' x', P (rabinEval N x.1) x' *
-        (if x' ^ 2 % N = rabinEval N x.1 then 1 else 0) ≤
+    ∑ x : Fin (2 ^ L), ∑' x', P (rabinEval N x.val) x' *
+        (if x' ^ 2 % N = rabinEval N x.val then 1 else 0) ≤
       3 * ∑ x : Fin (2 ^ L),
-        if 1 < Nat.gcd x.1 N ∧ Nat.gcd x.1 N < N then 1
-        else ∑' x', P (rabinEval N x.1) x' *
-          (if 1 < Nat.gcd (x.1 + x') N ∧ Nat.gcd (x.1 + x') N < N then 1 else 0) := by
+        if 1 < Nat.gcd x.val N ∧ Nat.gcd x.val N < N then 1
+        else ∑' x', P (rabinEval N x.val) x' *
+          (if 1 < Nat.gcd (x.val + x') N ∧ Nat.gcd (x.val + x') N < N then 1 else 0) := by
   subst hN
   set N := p * q
-  set U := Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.1 N = 1)
-  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun x : Fin (2 ^ L) => Nat.gcd x.1 N = 1),
-    ← Finset.sum_filter_add_sum_filter_not Finset.univ (fun x : Fin (2 ^ L) => Nat.gcd x.1 N = 1),
+  set U := Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1)
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
+      (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1),
+    ← Finset.sum_filter_add_sum_filter_not Finset.univ (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1),
     mul_add]
   refine add_le_add ?_ ?_
   · -- Units: compare fibre by fibre over the inverter's answer `x'`.
@@ -784,34 +786,34 @@ private theorem sum_rabin_success_le {p q N L : ℕ} (hp : p.Prime) (hq : q.Prim
     refine tsum_le_tsum fun x' => ?_
     simp only [mul_ite, mul_one, mul_zero]
     rw [← Finset.sum_filter, ← Finset.sum_filter]
-    set S := U.filter (fun x => x' ^ 2 % N = rabinEval N x.1)
-    set T := S.filter (fun x => 1 < Nat.gcd (x.1 + x') N ∧ Nat.gcd (x.1 + x') N < N)
-    have hP : ∀ x ∈ S, P (rabinEval N x.1) x' = P (x' ^ 2 % N) x' := fun x hx => by
+    set S := U.filter (fun x => x' ^ 2 % N = rabinEval N x.val)
+    set T := S.filter (fun x => 1 < Nat.gcd (x.val + x') N ∧ Nat.gcd (x.val + x') N < N)
+    have hP : ∀ x ∈ S, P (rabinEval N x.val) x' = P (x' ^ 2 % N) x' := fun x hx => by
       rw [(Finset.mem_filter.mp hx).2]
-    calc ∑ x ∈ S, P (rabinEval N x.1) x'
+    calc ∑ x ∈ S, P (rabinEval N x.val) x'
         ≤ S.card • P (x' ^ 2 % N) x' := Finset.sum_le_card_nsmul _ _ _ fun x hx => (hP x hx).le
       _ ≤ (3 * T.card) • P (x' ^ 2 % N) x' :=
           nsmul_le_nsmul_left zero_le (rabin_fiber_card_le hp hq hpq hp2 hq2 hk)
       _ = 3 * (T.card • P (x' ^ 2 % N) x') := by
           simp only [nsmul_eq_mul, Nat.cast_mul, Nat.cast_ofNat, mul_assoc]
-      _ ≤ 3 * ∑ x ∈ T, P (rabinEval N x.1) x' := by
+      _ ≤ 3 * ∑ x ∈ T, P (rabinEval N x.val) x' := by
           gcongr
           exact Finset.card_nsmul_le_sum _ _ _ fun x hx => (hP x (Finset.filter_subset _ _ hx)).ge
-      _ ≤ 3 * ∑ x ∈ U.filter (fun x => 1 < Nat.gcd (x.1 + x') N ∧ Nat.gcd (x.1 + x') N < N),
-            P (rabinEval N x.1) x' := by
+      _ ≤ 3 * ∑ x ∈ U.filter (fun x => 1 < Nat.gcd (x.val + x') N ∧ Nat.gcd (x.val + x') N < N),
+            P (rabinEval N x.val) x' := by
           gcongr
           exact Finset.filter_subset_filter _ (Finset.filter_subset _ _)
   · -- Non-units: each success probability is at most `1`, and at most twice as many draws
     -- share a factor with `N` as split it outright.
-    calc ∑ x ∈ Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.1 N = 1),
-          ∑' x', P (rabinEval N x.1) x' * (if x' ^ 2 % N = rabinEval N x.1 then 1 else 0)
-        ≤ ∑ _x ∈ Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.1 N = 1), (1 : ℝ≥0∞) := by
+    calc ∑ x ∈ Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.val N = 1),
+          ∑' x', P (rabinEval N x.val) x' * (if x' ^ 2 % N = rabinEval N x.val then 1 else 0)
+        ≤ ∑ _x ∈ Finset.univ.filter (fun x : Fin (2 ^ L) => ¬Nat.gcd x.val N = 1), (1 : ℝ≥0∞) := by
           refine Finset.sum_le_sum fun x _ => ?_
-          calc _ ≤ ∑' x', P (rabinEval N x.1) x' :=
+          calc _ ≤ ∑' x', P (rabinEval N x.val) x' :=
                 tsum_le_tsum fun x' => mul_le_of_le_one_right zero_le (by split_ifs <;> simp)
             _ = 1 := PMF.tsum_coe _
       _ ≤ 3 * ∑ _x ∈ Finset.univ.filter (fun x : Fin (2 ^ L) =>
-            1 < Nat.gcd x.1 N ∧ Nat.gcd x.1 N < N), (1 : ℝ≥0∞) := by
+            1 < Nat.gcd x.val N ∧ Nat.gcd x.val N < N), (1 : ℝ≥0∞) := by
           simp only [Finset.sum_const, nsmul_one]
           exact_mod_cast (card_not_coprime_le hp hq hpq (le_trans (by norm_num) hk)).trans
             (Nat.mul_le_mul_right _ (by norm_num))

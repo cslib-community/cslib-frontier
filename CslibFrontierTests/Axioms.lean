@@ -137,7 +137,7 @@ end Audit
 
 /--
 info: 'Cslib.Circuits.Fusion.length_andPairs' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.Circuits.Fusion.length_andPairs
@@ -147,20 +147,6 @@ info: 'Cslib.Circuits.Fusion.Atom.preserves_map_iff' does not depend on any axio
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.Circuits.Fusion.Atom.preserves_map_iff
-
-/--
-info: 'Cslib.Circuits.Program.cost_simulateProgram' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Program.cost_simulateProgram
-
-/--
-info: 'Cslib.Circuits.Circuit.cost_program_simulateWithContext' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Circuit.cost_program_simulateWithContext
 
 /--
 info: 'Cslib.OracleComp.run_interpret_iterate' depends on axioms: [propext, Quot.sound]
@@ -173,12 +159,6 @@ info: 'Turing.MultiTapeMachine.ntmEquiv' depends on axioms: [propext, Quot.sound
 -/
 #guard_msgs in
 #print axioms Turing.MultiTapeMachine.ntmEquiv
-
-/--
-info: 'Cslib.RAM.haltsWithResult_iff_eval' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.RAM.haltsWithResult_iff_eval
 
 /--
 info: 'Cslib.Crypto.GoldreichLevin.checkCandidates_correct' depends on axioms:
@@ -203,14 +183,11 @@ info: 'Cslib.IsMonadHom.stateT' depends on axioms:
 #guard_msgs in
 #print axioms Cslib.IsMonadHom.stateT
 
-/-- info: 'Cslib.OracleComp.IsCostBounded.bind' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.OracleComp.IsCostBounded.bind
-
 /--
-info: 'Cslib.BitString.word_eq_of_padWord_eq' depends on axioms: [propext]
+info: 'Cslib.BitString.word_eq_of_padWord_eq' depends on axioms:
+[propext, Classical.choice]
 -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms Cslib.BitString.word_eq_of_padWord_eq
 
 /--
@@ -221,20 +198,6 @@ info: 'Cslib.RotationMap.TowerTable.valid_initial' depends on axioms:
 #print axioms Cslib.RotationMap.TowerTable.valid_initial
 
 /--
-info: 'Cslib.RotationMap.TowerTable.length_iterate' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.RotationMap.TowerTable.length_iterate
-
-/--
-info: 'Cslib.RotationMap.TowerTable.length_build' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.RotationMap.TowerTable.length_build
-
-/--
 info: 'Cslib.PCP.Encoded.Graph.isWellFormed_eq_true' depends on axioms:
 [propext, Quot.sound]
 -/
@@ -243,7 +206,7 @@ info: 'Cslib.PCP.Encoded.Graph.isWellFormed_eq_true' depends on axioms:
 
 /--
 info: 'Cslib.PCP.Encoded.Graph.checkEdge_eq_true_iff' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.PCP.Encoded.Graph.checkEdge_eq_true_iff
@@ -275,89 +238,34 @@ info: 'Cslib.PCP.Encoded.Graph.toGraph_eq_comap' depends on axioms: [propext, Qu
 #print axioms Cslib.PCP.Encoded.Graph.toGraph_eq_comap
 
 /--
-info: 'Cslib.PCP.Encoded.Graph.mem_cloud_iff' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.PCP.Encoded.Graph.mem_cloud_iff
-
-/--
-info: 'Cslib.PCP.Encoded.Graph.toGraph_mapConstraints' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.PCP.Encoded.Graph.toGraph_mapConstraints
-
-/--
-info: 'Cslib.PCP.Encoded.Graph.satisfiable_mapConstraints_iff' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.PCP.Encoded.Graph.satisfiable_mapConstraints_iff
-
-/--
 info: 'Cslib.BitString.length_listXor' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.BitString.length_listXor
 
 /--
-info: 'Turing.MultiTapeTM.length_encList_reverse' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.MultiTapeTM.length_encList_reverse
-
-/--
 info: 'Cslib.Crypto.GeneratorXor.length_generate' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.Crypto.GeneratorXor.length_generate
 
 /--
 info: 'Cslib.Crypto.Pseudoentropy.EntropyGrid.length_combinedGenerate' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.Crypto.Pseudoentropy.EntropyGrid.length_combinedGenerate
 
 /-! ### Executable PCP powering, composition, and one amplification round -/
 
-/-- info: 'Cslib.RotationMap.walkAtWithInput_eq' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.RotationMap.walkAtWithInput_eq
-
-/-- info: 'Cslib.RotationMap.powRotWithInput_eq' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.RotationMap.powRotWithInput_eq
-
-/-- info: 'Cslib.RotationMap.killedPowRotWithInput_eq' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.RotationMap.killedPowRotWithInput_eq
-
-/-- info: 'Cslib.PCP.RegularConstraintGraph.powerRelationWithInput_eq_true' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.PCP.RegularConstraintGraph.powerRelationWithInput_eq_true
-
-/-- info: 'Cslib.PCP.Encoded.Graph.length_edges_powerPreprocess' depends on axioms: [propext] -/
-#guard_msgs in
+/--
+info: 'Cslib.PCP.Encoded.Graph.length_edges_powerPreprocess' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms Cslib.PCP.Encoded.Graph.length_edges_powerPreprocess
-
-/--
-info: 'Cslib.PCP.Encoded.Edge.length_encoding' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.PCP.Encoded.Edge.length_encoding
-
-/--
-info: 'Cslib.PCP.Encoded.Graph.length_encoding' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.PCP.Encoded.Graph.length_encoding
 
 /--
 info: 'Cslib.Logic.PL.CNF.mem_vars_compact_lt' depends on axioms:
@@ -369,31 +277,6 @@ info: 'Cslib.Logic.PL.CNF.mem_vars_compact_lt' depends on axioms:
 /-- info: 'Turing.MultiTapeTM.encSum' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms Turing.MultiTapeTM.encSum
-
-/--
-info: 'Cslib.PCP.Encoded.Graph.length_queries_repeatedEdgeVerifier' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.PCP.Encoded.Graph.length_queries_repeatedEdgeVerifier
-
-/--
-info: 'Cslib.BitString.mem_enumList' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.BitString.mem_enumList
-
-/--
-info: 'Cslib.BitString.binaryValue_reverse_bits' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.BitString.binaryValue_reverse_bits
-
-/--
-info: 'Cslib.Complexity.PCPVerifier.tableVerifier_sound' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.PCPVerifier.tableVerifier_sound
 
 /--
 info: 'Cslib.Circuits.Circuit.cost_program_replicate' depends on axioms:

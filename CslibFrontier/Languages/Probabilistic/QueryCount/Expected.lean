@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Semantics
+import CslibFrontier.Probability.PMF.Expect
 
 /-!
 # Expected query cost
@@ -95,9 +96,7 @@ theorem expectedCost_bind (program : OracleComp spec α) (next : α → OracleCo
         ∑' a, evalWith h program a * expectedCost h cost (next a) := by
   induction program using OracleComp.induction with
   | pure a =>
-    rw [pure_bind, evalWith_pure, expectedCost_pure, zero_add,
-      tsum_eq_single a fun b hb => by rw [PMF.pure_apply_of_ne _ _ hb, zero_mul],
-      PMF.pure_apply_self, one_mul]
+    rw [pure_bind, evalWith_pure, expectedCost_pure, zero_add, Probability.PMF.tsum_pure_mul]
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind, bind_assoc, expectedCost_query_bind, expectedCost_query_bind,
       evalWith_bind, evalWith_query, add_assoc]

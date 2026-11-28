@@ -71,7 +71,7 @@ bisecting symmetrically at deeper levels. -/
 /-- The cubic carving-width coefficient: the infimum of `carvingAt t` over nonpositive thresholds
 `t ≤ 0`. -/
 noncomputable def carvingCoefficient : ℝ :=
-  ⨅ t : {t : ℝ // t ≤ 0}, carvingAt t.1
+  ⨅ t : {t : ℝ // t ≤ 0}, carvingAt t.val
 
 /-- `carvingAt t` is bounded below by `(1 / 2) * gaussianCoefficient` for every `t ≤ 0`. -/
 theorem half_mul_gaussianCoefficient_le_carvingAt {t : ℝ} (ht : t ≤ 0) :
@@ -94,9 +94,9 @@ theorem half_mul_gaussianCoefficient_le_carvingAt {t : ℝ} (ht : t ≤ 0) :
   nlinarith
 
 /-- `carvingAt` is bounded below on `{t // t ≤ 0}`. -/
-theorem bddBelow_carvingAt : BddBelow (range fun t : {t : ℝ // t ≤ 0} => carvingAt t.1) :=
+theorem bddBelow_carvingAt : BddBelow (range fun t : {t : ℝ // t ≤ 0} => carvingAt t.val) :=
   ⟨1 / 2 * gaussianCoefficient, by
-    rintro _ ⟨t, rfl⟩; exact half_mul_gaussianCoefficient_le_carvingAt t.2⟩
+    rintro _ ⟨t, rfl⟩; exact half_mul_gaussianCoefficient_le_carvingAt t.property⟩
 
 /-- For any `t ≤ 0`, `carvingCoefficient ≤ carvingAt t`. -/
 theorem carvingCoefficient_le_carvingAt {t : ℝ} (ht : t ≤ 0) :
@@ -107,7 +107,7 @@ theorem carvingCoefficient_le_carvingAt {t : ℝ} (ht : t ≤ 0) :
 theorem carvingCoefficient_ge : 1 / 40 ≤ carvingCoefficient := by
   have : Nonempty {t : ℝ // t ≤ 0} := ⟨⟨0, le_rfl⟩⟩
   have h1 : (1 / 40 : ℝ) ≤ 1 / 2 * gaussianCoefficient := by linarith [gaussianCoefficient_ge]
-  exact h1.trans (le_ciInf fun t => half_mul_gaussianCoefficient_le_carvingAt t.2)
+  exact h1.trans (le_ciInf fun t => half_mul_gaussianCoefficient_le_carvingAt t.property)
 
 /-- `carvingCoefficient > 0`. -/
 theorem carvingCoefficient_pos : 0 < carvingCoefficient :=
@@ -519,7 +519,7 @@ theorem exists_mem_Icc_carvingAt_lt {ξ : ℝ} (hξ : 0 < ξ) :
   have : Nonempty {t : ℝ // t ≤ 0} := ⟨⟨0, le_rfl⟩⟩
   set δ := min ξ (1 / 2000)
   have hδ : 0 < δ := lt_min hξ (by norm_num)
-  have hlt_inf : ⨅ t : {t : ℝ // t ≤ 0}, carvingAt t.1 < carvingCoefficient + δ := by
+  have hlt_inf : ⨅ t : {t : ℝ // t ≤ 0}, carvingAt t.val < carvingCoefficient + δ := by
     rw [← carvingCoefficient]
     linarith
   obtain ⟨⟨t₀, ht₀⟩, hlt⟩ := exists_lt_of_ciInf_lt hlt_inf

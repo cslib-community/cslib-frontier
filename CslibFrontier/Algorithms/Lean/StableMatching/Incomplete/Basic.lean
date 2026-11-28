@@ -113,7 +113,8 @@ theorem mem_matchedReceivers {μ : PartialMatching m n} {r : Fin n} :
 /-- The receivers matched by `μ` are the partners of the proposers matched by `μ`. -/
 theorem matchedReceivers_eq_image (μ : PartialMatching m n) :
     matchedReceivers μ =
-      (matchedProposers μ).attach.image fun p => (μ p.1).get (mem_matchedProposers.1 p.2) := by
+      (matchedProposers μ).attach.image fun p =>
+        (μ p.val).get (mem_matchedProposers.1 p.property) := by
   ext r
   simp only [Finset.mem_image, Finset.mem_attach, true_and, Subtype.exists, mem_matchedReceivers]
   constructor

@@ -136,7 +136,7 @@ theorem coinOfDigits_generates {d : ℕ → Bool} {ρ : I}
     exact ENNReal.inv_mul_cancel two_ne_zero ENNReal.ofNat_ne_top
   intro x
   cases x
-  · rw [PMF.coin_apply, ite_eq_right Bool.false_ne_true, ENNReal.ofReal_sub _ ρ.2.1,
+  · rw [PMF.coin_apply, ite_eq_right Bool.false_ne_true, ENNReal.ofReal_sub _ ρ.property.1,
       ENNReal.ofReal_one, ← htrue, ← hall, ENNReal.add_sub_cancel_left]
     exact htrue ▸ ENNReal.ofReal_ne_top
   · rw [PMF.coin_apply, ite_eq_left rfl, htrue]

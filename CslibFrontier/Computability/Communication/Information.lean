@@ -596,12 +596,12 @@ upper bound on their information complexity. Inputs outside `A × B` carry no co
 requirement, so without that hypothesis it can be smaller. -/
 noncomputable def infoComplexity (ε : ℝ) (R : X → Y → Z → Prop) (A : Set X) (B : Set Y)
     (μ : PMF (X × Y)) : ℝ≥0∞ :=
-  ⨅ π : {π : PublicCoin X Y Z // π.Solves ε R A B}, π.1.internalInfoCost μ
+  ⨅ π : {π : PublicCoin X Y Z // π.Solves ε R A B}, π.val.internalInfoCost μ
 
 theorem infoComplexity_le_internalInfoCost {π : PublicCoin X Y Z} {ε : ℝ}
     {R : X → Y → Z → Prop} {A : Set X} {B : Set Y} (h : π.Solves ε R A B) (μ : PMF (X × Y)) :
     infoComplexity ε R A B μ ≤ π.internalInfoCost μ :=
-  iInf_le (fun π : {π : PublicCoin X Y Z // π.Solves ε R A B} => π.1.internalInfoCost μ) ⟨π, h⟩
+  iInf_le (fun π : {π : PublicCoin X Y Z // π.Solves ε R A B} => π.val.internalInfoCost μ) ⟨π, h⟩
 
 /-- Lower bounds on information complexity are lower bounds on the internal information cost of
 every public-coin protocol solving the relation, including when there is none. -/

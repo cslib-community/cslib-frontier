@@ -146,10 +146,10 @@ theorem rowSpace_zero : rowSpace (0 : Mt m) = ⊥ := by
   rw [rowSpace_eq, transpose_zero, colSpace_zero]
 
 theorem finrank_colSpace (W : Mt m) : Module.finrank F2 (colSpace W) = W.rank :=
-  (Matrix.rank_eq_finrank_span_cols W).symm
+  Matrix.finrank_span_range_col W
 
 theorem finrank_rowSpace (W : Mt m) : Module.finrank F2 (rowSpace W) = W.rank :=
-  (Matrix.rank_eq_finrank_span_row W).symm
+  Matrix.finrank_span_range_row W
 
 theorem rank_vec {u x : Fin m → F2} (hu : u ≠ 0) (hx : x ≠ 0) : (vecMulVec u x).rank = 1 := by
   rw [← finrank_colSpace, colSpace_vec u hx, finrank_span_singleton hu]

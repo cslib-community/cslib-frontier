@@ -116,10 +116,11 @@ theorem bipartitePerfectMatchingCount_eq_zeroOnePermanent (A : List (List Bool))
     BipartitePerfectMatchingCount]
   symm
   refine Nat.card_eq_of_bijective
-    (fun σ => ⟨permSubgraph A σ.1 σ.2, permSubgraph_isPerfectMatching A σ.1 σ.2⟩) ⟨?_, ?_⟩
+    (fun σ => ⟨permSubgraph A σ.val σ.property,
+      permSubgraph_isPerfectMatching A σ.val σ.property⟩) ⟨?_, ?_⟩
   · rintro ⟨σ, hσ⟩ ⟨τ, hτ⟩ h
     have h' := congrArg (fun M : {M : (bipartiteGraph A).Subgraph // M.IsPerfectMatching} =>
-      M.1.Adj) h
+      M.val.Adj) h
     simp only at h'
     refine Subtype.ext (Equiv.ext fun i => ?_)
     have := congrFun (congrFun h' (.inl i)) (.inr (σ i))

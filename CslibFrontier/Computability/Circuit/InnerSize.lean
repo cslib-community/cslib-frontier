@@ -209,14 +209,15 @@ private abbrev DedupTag (U : Type*) {g' : ℕ} (p' : Program σ n g') :=
 private def evalDedupTag {U : Type*} (I : Interpretation σ U) {g' : ℕ}
     (p' : Program σ n g') (x : Fin n → U) : DedupTag U p' → U
   | .inl u => u
-  | .inr (.inl k, f) => f (p'.trace I x (.gate k.1))
+  | .inr (.inl k, f) => f (p'.trace I x (.gate k.val))
   | .inr (.inr i, f) => f (x i)
 
 private def liftDedupTag {U : Type*} {g' : ℕ} (p' : Program σ n g')
     (line' : Line σ n g') : DedupTag U p' → DedupTag U (p'.gate line')
   | .inl u => .inl u
   | .inr (.inl k, f) =>
-    .inr (.inl ⟨k.1.castSucc, (Program.mem_multiaryGates_gate_castSucc p' line' k.1).mpr k.2⟩, f)
+    .inr (.inl ⟨k.val.castSucc,
+      (Program.mem_multiaryGates_gate_castSucc p' line' k.val).mpr k.property⟩, f)
   | .inr (.inr i, f) => .inr (.inr i, f)
 
 private theorem evalDedupTag_lift {U : Type*} (I : Interpretation σ U) {g' : ℕ}
@@ -224,7 +225,7 @@ private theorem evalDedupTag_lift {U : Type*} (I : Interpretation σ U) {g' : �
     evalDedupTag I (p'.gate line') x (liftDedupTag p' line' t) = evalDedupTag I p' x t := by
   rcases t with u | ⟨k | i, f⟩
   · rfl
-  · exact congrArg f (Program.trace_gate_castSucc p' line' I x (.gate k.1))
+  · exact congrArg f (Program.trace_gate_castSucc p' line' I x (.gate k.val))
   · rfl
 
 private theorem liftDedupTag_injective {U : Type*} {g' : ℕ} (p' : Program σ n g')

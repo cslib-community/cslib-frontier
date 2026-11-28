@@ -77,8 +77,9 @@ client is the `(D1)` search: `pFindD1` scans the gate mask and reads only packed
 * `Cslib.Algorithms.WordRAM.Refuter4n.testBit_maskOf`, `testBit_ttOf`,
   `testBit_rowWord_toDenseRow`, `eqnWord_mod`, `testBit_eqnWord_alive`: the encodings are
   faithful.
-* `Cslib.Algorithms.WordRAM.Refuter4n.maskOf_lt`, `rowLt_rowOf`, `rowWord_toDenseRow_lt`,
-  `eqnWord_lt`, `substWord_lt`, `litWord_lt`: the encodings fit in their bit ranges.
+* `Cslib.Algorithms.WordRAM.Refuter4n.maskOf_lt`, `ttOf_lt`, `argCode_lt`, `litCode_lt`,
+  `rowLt_rowOf`, `rowWord_toDenseRow_lt`, `eqnWord_lt`, `substWord_lt`, `litWord_lt`: the
+  encodings fit in their bit ranges.
 * `Cslib.Algorithms.WordRAM.Refuter4n.rowEval_two_pow`, `rowEval_rowWord`, `rowEval_litWord`:
   values of coordinate, equation and literal rows.
 * `Cslib.Algorithms.WordRAM.Refuter4n.rowEval_substWord`, `PhiWords.restrict`, `PhiWords.swap`:
@@ -132,7 +133,7 @@ private theorem sort_eq_filter_range {s : Finset ℕ} {N : ℕ} (hs : ∀ i ∈ 
 theorem find?_sort_eq_find?_range {s : Finset ℕ} {N : ℕ} (hs : ∀ i ∈ s, i < N) (p : ℕ → Bool) :
     (s.sort (· ≤ ·)).find? p = (List.range N).find? fun i => (maskOf s).testBit i && p i := by
   rw [sort_eq_filter_range hs, List.find?_filter]
-  exact List.find?_congr fun i _ => by simp
+  exact List.find?_congr rfl fun i _ => by simp
 
 private theorem findSome?_filter {α β : Type*} (l : List α) (q : α → Bool) (g : α → Option β) :
     (l.filter q).findSome? g = l.findSome? fun a => if q a then g a else none := by
@@ -171,7 +172,8 @@ theorem testBit_ttOf (op : Bool → Bool → Bool) (a b : Bool) :
     cases h3 : op true false <;> cases h4 : op true true <;>
     simp only [ttOf, idx, h1, h2, h3, h4] <;> decide
 
-private theorem ttOf_lt (op : Bool → Bool → Bool) : ttOf op < 16 := by
+/-- A truth table is a 4-bit word. -/
+theorem ttOf_lt (op : Bool → Bool → Bool) : ttOf op < 16 := by
   unfold ttOf
   have := Bool.toNat_le (op false false)
   have := Bool.toNat_le (op false true)
@@ -179,7 +181,8 @@ private theorem ttOf_lt (op : Bool → Bool → Bool) : ttOf op < 16 := by
   have := Bool.toNat_le (op true true)
   omega
 
-private theorem argCode_lt {a : Arg} {N : ℕ} (h : ∀ i, a = .node i → i < N) :
+/-- The code of an argument that reads only names below `N` is below `N + 2`. -/
+theorem argCode_lt {a : Arg} {N : ℕ} (h : ∀ i, a = .node i → i < N) :
     argCode a < N + 2 := by
   cases a with
   | const b => have := Bool.toNat_le b; simp only [argCode]; omega
@@ -212,6 +215,13 @@ theorem rowLt_rowOf {g : Gate} {N : ℕ} (h : ∀ i, g.Reads i → i < N) : RowL
 /-- The word code of a literal: `2 · argCode + neg`. -/
 @[expose] def litCode (ℓ : Lit) : ℕ :=
   2 * argCode ℓ.arg + ℓ.neg.toNat
+
+/-- The code of a literal that reads only names below `N` is below `2 N + 4`. -/
+theorem litCode_lt {ℓ : Lit} {N : ℕ} (h : ∀ i, ℓ.Reads i → i < N) : litCode ℓ < 2 * N + 4 := by
+  have := argCode_lt (a := ℓ.arg) h
+  have := Bool.toNat_le ℓ.neg
+  rw [litCode]
+  omega
 
 /-- The two-word record of a pair: `(2 fst + fstBias, 2 snd + sndBias)`. -/
 @[expose] def pairCode (pr : ZeroPair) : ℕ × ℕ :=
@@ -556,9 +566,8 @@ theorem fits (h : Rep N E P S) {f : BooleanFunction n} (hS : S.Valid f) {w : ℕ
   · rw [h.params]; exact (maskOf_lt fun i => h.lt_of_mem_params).trans_le hN0
   · rw [h.aux]; exact (maskOf_lt fun i => h.lt_of_mem_aux).trans_le hN0
   · rw [h.gates]; exact (maskOf_lt fun i => h.lt_of_mem_gates).trans_le hN0
-  · rw [h.out, litCode]
-    have := argCode_lt (a := S.out.arg) fun i hi => h.out_lt hS hi
-    have := Bool.toNat_le S.out.neg
+  · rw [h.out]
+    have := litCode_lt (ℓ := S.out) fun i hi => h.out_lt hS hi
     omega
   · intro r hr
     obtain ⟨h1, h2, h3⟩ := h.gateRow_lt r hr
@@ -614,7 +623,7 @@ theorem Rep.pFindD1_eq {N E : ℕ} {P : PackedState} {S : State n} (h : Rep N E 
     pFindD1 P = findD1 S := by
   rw [findD1, find?_sort_eq_find?_range fun i => h.lt_of_mem_gates, pFindD1,
     h.gateRows_length, h.gates]
-  refine List.find?_congr fun J _ => ?_
+  refine List.find?_congr rfl fun J _ => ?_
   rw [testBit_maskOf]
   by_cases hJ : J ∈ S.gates
   · rw [h.gateRow J hJ, isDegenerateRow_rowOf]

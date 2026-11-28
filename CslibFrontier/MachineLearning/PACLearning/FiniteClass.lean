@@ -140,7 +140,7 @@ private theorem one_sub_ofReal_pow_le (ε : ℝ) (hε : 0 ≤ ε) (m : ℕ) :
     exact ENNReal.ofReal_le_ofReal (Real.one_sub_le_exp_neg ε)
   calc (1 - ENNReal.ofReal ε) ^ m ≤ ENNReal.ofReal (Real.exp (-ε)) ^ m := by gcongr
     _ = ENNReal.ofReal (Real.exp (-(ε * m))) := by
-        rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_nat_mul]
+        rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_natCast_mul]
         congr 2
         ring
 
@@ -184,7 +184,7 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
     IsPACLearnerFor m ε δ (H : Set (α → β)) (realizableDistributions (H : Set (α → β))) := by
   rcases H.eq_empty_or_nonempty with rfl | hne
   · have hδ : 0 < Real.log (δ.val : ℝ)⁻¹ :=
-      Real.log_pos ((one_lt_inv₀ (mod_cast δ.2.1)).2 (mod_cast δ.2.2))
+      Real.log_pos ((one_lt_inv₀ (mod_cast δ.property.1)).2 (mod_cast δ.property.2))
     have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by
       subst h
       simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero] at hm; linarith
@@ -194,7 +194,7 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
   refine ⟨A, fun D _ hD => ?_⟩
   simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
     hA.measure_pi_lt_error_le_of_log_card_add_log_inv_le hH hD ε.val.coe_nonneg
-      (mod_cast δ.2.1) hm
+      (mod_cast δ.property.1) hm
 
 /-- The realizable sample complexity of a finite class `H` is at most
 `⌈(log |H| + log (1 / δ)) / ε⌉` [ShalevShwartzBenDavid2014, Corollary 2.3]. -/
@@ -206,7 +206,7 @@ theorem sampleComplexity_realizableDistributions_le_of_finite
       ⌈(Real.log H.card + Real.log (δ.val : ℝ)⁻¹) / ε.val⌉₊ := by
   refine Nat.sInf_le
     (isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le hH ?_)
-  have hε : (0 : ℝ) < ε.val := by exact_mod_cast ε.2.1
+  have hε : (0 : ℝ) < ε.val := by exact_mod_cast ε.property.1
   rw [mul_comm, ← div_le_iff₀ hε]
   exact Nat.le_ceil _
 

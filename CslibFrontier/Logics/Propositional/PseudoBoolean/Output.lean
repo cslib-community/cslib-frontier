@@ -317,11 +317,11 @@ private theorem exists_bijOn_of_injOn {α β : Type*} [Nonempty β] {A : Set α}
     (hgm : Set.MapsTo g B A) : ∃ h, Set.BijOn h A B := by
   classical
   obtain ⟨h, hh⟩ := Function.Embedding.schroeder_bernstein
-    (f := fun a : A => (⟨f a, hfm a.2⟩ : B)) (g := fun b : B => (⟨g b, hgm b.2⟩ : A))
-    (fun a b hab => Subtype.ext (hf a.2 b.2 (congrArg Subtype.val hab)))
-    (fun a b hab => Subtype.ext (hg a.2 b.2 (congrArg Subtype.val hab)))
+    (f := fun a : A => (⟨f a, hfm a.property⟩ : B)) (g := fun b : B => (⟨g b, hgm b.property⟩ : A))
+    (fun a b hab => Subtype.ext (hf a.property b.property (congrArg Subtype.val hab)))
+    (fun a b hab => Subtype.ext (hg a.property b.property (congrArg Subtype.val hab)))
   refine ⟨fun a => if ha : a ∈ A then (h ⟨a, ha⟩ : β) else Classical.arbitrary β,
-    fun a ha => by simp only [ha, ↓reduceDIte]; exact (h ⟨a, ha⟩).2,
+    fun a ha => by simp only [ha, ↓reduceDIte]; exact (h ⟨a, ha⟩).property,
     fun a ha b hb hab => congrArg Subtype.val (hh.1 (Subtype.ext (by
       simpa only [ha, hb, ↓reduceDIte] using hab))),
     fun b hb => ?_⟩

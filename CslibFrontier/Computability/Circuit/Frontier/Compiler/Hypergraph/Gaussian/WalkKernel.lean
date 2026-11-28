@@ -45,8 +45,8 @@ private abbrev BipNode : Type :=
 
 /-- Incidence adjacency on `BipNode c K₀`. -/
 private def bipAdj : BipNode c K₀ → BipNode c K₀ → Prop
-  | .inl v, .inr e => v ∈ hyperEdge c e.1
-  | .inr e, .inl v => v ∈ hyperEdge c e.1
+  | .inl v, .inr e => v ∈ hyperEdge c e.val
+  | .inr e, .inl v => v ∈ hyperEdge c e.val
   | _, _ => False
 
 private theorem bipAdj_symm {x y : BipNode c K₀} (h : bipAdj c K₀ x y) : bipAdj c K₀ y x := by
@@ -65,13 +65,13 @@ private def bipSimpleGraph : SimpleGraph (BipNode c K₀) where
 pruned hyperedges. -/
 private noncomputable def bipBranch (r : ℕ) : BipNode c K₀ → ℕ
   | .inl _ => r
-  | .inr e => (hyperEdge c e.1).card - 1
+  | .inr e => (hyperEdge c e.val).card - 1
 
 private theorem one_le_bipBranch {r : ℕ} (hr : 2 ≤ r) (x : BipNode c K₀) :
     1 ≤ bipBranch c K₀ r x := by
   rcases x with v | e
   · exact Nat.one_le_of_lt hr
-  · have := e.2.1
+  · have := e.property.1
     dsimp only [bipBranch]
     omega
 
@@ -172,13 +172,13 @@ private theorem card_bipAdj_inl_le {r : ℕ} (hfan : c.FanInAtMost r) (v : Hyper
     (Finset.univ.filter (bipAdj c K₀ (.inl v))).card ≤ r + 1 := by
   let f : {y : BipNode c K₀ // y ∈ Finset.univ.filter (bipAdj c K₀ (.inl v))} →
       {w : LiveSignal c // v ∈ hyperEdge c w} := fun ⟨y, hy⟩ =>
-    match y, (Finset.mem_filter.mp hy).2 with | .inr e', hadj => ⟨e'.1, hadj⟩
+    match y, (Finset.mem_filter.mp hy).2 with | .inr e', hadj => ⟨e'.val, hadj⟩
   have hf_inj : Function.Injective f := by
     rintro ⟨u₁ | e₁, h₁⟩ ⟨u₂ | e₂, h₂⟩ h
     · exact False.elim (Finset.mem_filter.mp h₁).2
     · exact False.elim (Finset.mem_filter.mp h₁).2
     · exact False.elim (Finset.mem_filter.mp h₂).2
-    · have he : e₁.1 = e₂.1 := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
+    · have he : e₁.val = e₂.val := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
       exact Subtype.ext (congrArg Sum.inr (Subtype.ext he))
   have hcard := Fintype.card_le_of_injective f hf_inj
   rw [Fintype.card_coe, Fintype.card_subtype] at hcard
@@ -186,7 +186,7 @@ private theorem card_bipAdj_inl_le {r : ℕ} (hfan : c.FanInAtMost r) (v : Hyper
 
 open Classical in
 private theorem card_bipAdj_inr_eq (e : PrunedEdge c K₀) :
-    (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.1).card := by
+    (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.val).card := by
   refine Finset.card_bij (fun y hy => match y, (Finset.mem_filter.mp hy).2 with
     | .inl v, _ => v) (fun y hy => ?_) (fun y₁ hy₁ y₂ hy₂ h => ?_) (fun v hv => ?_)
   · rcases y with v | e'
@@ -204,7 +204,7 @@ private theorem card_bipAdj_le {r : ℕ} (hfan : c.FanInAtMost r) (x : BipNode c
     (Finset.univ.filter (bipAdj c K₀ x)).card ≤ max (r + 1) K₀ := by
   rcases x with v | e
   · exact (card_bipAdj_inl_le c K₀ hfan v).trans (le_max_left _ _)
-  · exact ((card_bipAdj_inr_eq c K₀ e).trans_le e.2.2).trans (le_max_right _ _)
+  · exact ((card_bipAdj_inr_eq c K₀ e).trans_le e.property.2).trans (le_max_right _ _)
 
 open Classical in
 private theorem card_bipAdj_ne_le {r : ℕ} (hfan : c.FanInAtMost r) {prev x : BipNode c K₀}

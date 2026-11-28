@@ -59,7 +59,7 @@ theorem exists_countingDesign_singletonScope {n : ℕ} (hn : n = 16384) (s : Fin
     ∃ D : ReplacementDesign (singletonScope n) 3 2 0 2 (1 / 2),
       Nonempty
         (Design (Fin n) s (fun f => {v : Fin n // v ∈ singletonScope n f})
-          (fun _ v => v.1) 2 3 2 (2 ^ (2 * 3)) ((1 / 2 : ℚ) : ℝ)) ∧
+          (fun _ v => v.val) 2 3 2 (2 ^ (2 * 3)) ((1 / 2 : ℚ) : ℝ)) ∧
       D.h * 2 ^ (2 * 3) ≤ 2 * ∑ f : Fin n, #(singletonScope n f) ∧
       (∀ (f : Fin n) (v : {v : Fin n // v ∈ singletonScope n f}) (i : Fin n),
         (varReplacementRowScaledInt 3 2 0 2 D.place (scopeVarOf (singletonScope n)) ⟨f, v⟩ i).map
@@ -100,7 +100,7 @@ example {n : ℕ} (hn : n = 16384) (s : Finset (Fin n))
       let M := D.toCountingDesign s (by decide) (by decide) (by decide)
         (by norm_num) (by norm_num)
       (M.targetPoly Φ).eval 0 =
-        targetSum s (fun f (v : {v : Fin n // v ∈ singletonScope n f}) => v.1) Φ ∧
+        targetSum s (fun f (v : {v : Fin n // v ∈ singletonScope n f}) => v.val) Φ ∧
       (M.targetPoly Φ).natDegree ≤ d * 1 ∧
       0 < threeTermExponent 2 3 2 (2 ^ (2 * 3)) ((1 / 2 : ℚ) : ℝ) ∧
       (∑ t : Fin 3,

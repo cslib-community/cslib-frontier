@@ -357,11 +357,11 @@ abbrev Edges (G : V × V → Bool) := {e : V × V // G e = true}
 
 /-- The edges of the perfect matching `σ`. -/
 def matchingEdges (G : V × V → Bool) (σ : Perm V) : Finset (Edges G) :=
-  univ.filter fun e => σ e.1.1 = e.1.2
+  univ.filter fun e => σ e.val.1 = e.val.2
 
 /-- An edge `(i, j)` belongs to the matching `σ` when `σ i = j`. -/
 theorem mem_matchingEdges {G : V × V → Bool} {σ : Perm V} {e : Edges G} :
-    e ∈ matchingEdges G σ ↔ σ e.1.1 = e.1.2 := by
+    e ∈ matchingEdges G σ ↔ σ e.val.1 = e.val.2 := by
   simp [matchingEdges]
 
 /-- The weight `x + 1 ∈ {1, …, N}` on the edges of `G`, extended by `0` to all pairs. -/
@@ -395,7 +395,7 @@ theorem setWeight_matchingEdges {G : V × V → Bool} {σ : Perm V} (hσ : σ �
       matchingWeight (extendWeight w) σ := by
   rw [setWeight, matchingWeight]
   symm
-  refine sum_nbij' (fun v => ⟨(v, σ v), mem_perfectMatchings.1 hσ v⟩) (fun e => e.1.1)
+  refine sum_nbij' (fun v => ⟨(v, σ v), mem_perfectMatchings.1 hσ v⟩) (fun e => e.val.1)
     (fun v _ => by simp [matchingEdges]) (fun _ _ => mem_univ _) (fun v _ => rfl) ?_ ?_
   · intro e he
     simp only [matchingEdges, mem_filter, mem_univ, true_and] at he

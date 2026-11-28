@@ -97,15 +97,15 @@ public theorem finishArbProg_spec {w n ws M₀ : ℕ} (root : Fin n)
     (hs₃_fr : s₃.frontier = ws + wsSize n + (n + 1))
     (hwb : Fits w (wordBound n M₀))
     (ha₃ : ∀ u col : Fin n,
-      s₃.mem (curAdjBase ws n + u.1 * n + col.1) = if a₀[u.1][col.1] then 1 else 0)
+      s₃.mem (curAdjBase ws n + u.val * n + col.val) = if a₀[u.val][col.val] then 1 else 0)
     (hc₃ : ∀ u col : Fin n,
-      s₃.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c₀[u.1][col.1])
-    (hB₀ : ∀ u col : Fin n, (c₀[u.1][col.1]).natAbs ≤ M₀)
+      s₃.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c₀[u.val][col.val])
+    (hB₀ : ∀ u col : Fin n, (c₀[u.val][col.val]).natAbs ≤ M₀)
     (hexp : match edmondsTableAux root n a₀ c₀ with
-      | some pTab => expected = (List.finRange n).map fun v => (pTab[v.1]).1
+      | some pTab => expected = (List.finRange n).map fun v => (pTab[v.val]).val
       | none => expected = []) :
     let outAddr := ws + wsSize n
-    let fa : FinishArbArgs := ⟨n, root.1, ws, outAddr⟩
+    let fa : FinishArbArgs := ⟨n, root.val, ws, outAddr⟩
     let s' := (Memory.spec 0).clientState s₃ (finishArbProg fa)
     FinishArbSafe w fa s₃ ∧
       (Memory.spec w).ValidHistory s₃ ((Memory.spec w).clientHistory s₃ (finishArbProg fa)) ∧
@@ -114,18 +114,18 @@ public theorem finishArbProg_spec {w n ws M₀ : ℕ} (root : Fin n)
       outputList s'.mem outAddr = expected ∧
       Fits w (outAddr + expected.length) := by
   let outAddr := ws + wsSize n
-  let fa : FinishArbArgs := ⟨n, root.1, ws, outAddr⟩
+  let fa : FinishArbArgs := ⟨n, root.val, ws, outAddr⟩
   have hws_fit : WsFits w ws n := hfit_top.of_le (by omega)
   have hcore := edmondsCoreProg_spec root a₀ c₀ s₃ hws_fit
     (by rw [hs₃_fr]; omega) hwb ha₃ hc₃ hB₀
-  let ca : CoreArgs := ⟨n, root.1, ws⟩
+  let ca : CoreArgs := ⟨n, root.val, ws⟩
   let s₄ := (Memory.spec 0).clientState s₃ (edmondsCoreProg ca)
   have hs₄_fr : s₄.frontier = outAddr + (n + 1) := hcore.2.2.2.1.trans hs₃_fr
   cases haux : edmondsTableAux root n a₀ c₀ with
   | some pTab =>
     rw [haux] at hexp
     have hcore_res : (Memory.spec 0).clientResult s₃ (edmondsCoreProg ca) = 1 ∧
-        ∀ v : Fin n, s₄.mem (curParentBase ws n + v.1) = (pTab[v.1]).1 := by
+        ∀ v : Fin n, s₄.mem (curParentBase ws n + v.val) = (pTab[v.val]).val := by
       have h := hcore.2.2.2.2.2
       rwa [haux] at h
     let s₄w : Memory.State := ⟨Function.update s₄.mem outAddr n, s₄.frontier⟩
@@ -179,12 +179,12 @@ public theorem finishArbProg_spec {w n ws M₀ : ℕ} (root : Fin n)
       · simp only [List.length_map, List.length_finRange]
         rw [hcpOut_m (ws + wsSize n) (by omega)]
         exact Function.update_self _ _ _
-      · have hi : i.1 < n := by simpa using i.isLt
-        change ((Memory.spec 0).clientState _ _).mem (ws + wsSize n + 1 + i.1) =
-          ((List.finRange n).map fun v => (pTab[v.1]).1)[i.1]
+      · have hi : i.val < n := by simpa using i.isLt
+        change ((Memory.spec 0).clientState _ _).mem (ws + wsSize n + 1 + i.val) =
+          ((List.finRange n).map fun v => (pTab[v.val]).val)[i.val]
         simp only [List.getElem_map, List.getElem_finRange]
-        rw [hcpOut_v i.1 hi, Function.update_of_ne (by dsimp only [wsSize, curParentBase]; omega)]
-        exact (hcore_m ⟨i.1, hi⟩).trans (by simp)
+        rw [hcpOut_v i.val hi, Function.update_of_ne (by dsimp only [wsSize, curParentBase]; omega)]
+        exact (hcore_m ⟨i.val, hi⟩).trans (by simp)
     · rw [hexp]
       simp only [List.length_map, List.length_finRange]
       exact hfit_top.of_le (by omega)
@@ -259,7 +259,7 @@ public theorem edmondsProg_realizes :
 public theorem edmondsProg_spec {w M₀ : ℕ} (I : ArborescenceInput)
     (hM : ∀ u v, (I.cost u v).natAbs ≤ M₀) (hwb : Fits w (wordBound I.n M₀)) :
     let s₀ := Memory.State.init I.encode
-    let d := (I.n, I.root.1)
+    let d := (I.n, I.root.val)
     let outAddr := (Memory.spec 0).clientResult s₀ (edmondsProg d)
     let s' := (Memory.spec 0).clientState s₀ (edmondsProg d)
     EdmondsProgSafe w d s₀ ∧
@@ -299,31 +299,31 @@ public theorem edmondsProg_spec {w M₀ : ℕ} (I : ArborescenceInput)
   let a₀ := initAdjTable n fun u col => decide (I.digraph.Adj u col)
   let c₀ := initCostTable n cost
   have ha3 : ∀ u col : Fin n,
-      s3.mem (curAdjBase ws n + u.1 * n + col.1) = if a₀[u.1][col.1] then 1 else 0 := by
+      s3.mem (curAdjBase ws n + u.val * n + col.val) = if a₀[u.val][col.val] then 1 else 0 := by
     intro u col
-    have hlt : u.1 * n + col.1 < 2 * (n * n) := by
+    have hlt : u.val * n + col.val < 2 * (n * n) := by
       have := List.mul_add_lt_sq u.isLt col.isLt; omega
-    rw [show curAdjBase ws n + u.1 * n + col.1 = cp.dst + (u.1 * n + col.1) by
+    rw [show curAdjBase ws n + u.val * n + col.val = cp.dst + (u.val * n + col.val) by
         dsimp only [cp, ws, curAdjBase]; omega,
       hcp.2.2.2.2.2 _ hlt]
     dsimp only [cp, s1, a₀, initAdjTable, ArborescenceInput.digraph, I]
     simp only [Vector.getElem_ofFn]
     exact init_mem_encode_arb_adj I u col
   have hc3 : ∀ u col : Fin n,
-      s3.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c₀[u.1][col.1] := by
+      s3.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c₀[u.val][col.val] := by
     intro u col
-    have hlt : n * n + (u.1 * n + col.1) < 2 * (n * n) := by
+    have hlt : n * n + (u.val * n + col.val) < 2 * (n * n) := by
       have := List.mul_add_lt_sq u.isLt col.isLt; omega
-    rw [show curCostBase ws n + u.1 * n + col.1 = cp.dst + (n * n + (u.1 * n + col.1)) by
+    rw [show curCostBase ws n + u.val * n + col.val = cp.dst + (n * n + (u.val * n + col.val)) by
         dsimp only [cp, ws, curAdjBase, curCostBase]; omega,
       hcp.2.2.2.2.2 _ hlt]
     dsimp only [cp, s1, c₀, initCostTable]
     simp only [Vector.getElem_ofFn]
     simpa [Nat.add_assoc] using init_mem_encode_arb_cost I u col
-  have hB₀ : ∀ u col : Fin n, (c₀[u.1][col.1]).natAbs ≤ M₀ := by
+  have hB₀ : ∀ u col : Fin n, (c₀[u.val][col.val]).natAbs ≤ M₀ := by
     intro u col; simp [c₀, initCostTable, hM u col]
   have hexp : match edmondsTableAux root n a₀ c₀ with
-      | some pTab => I.expectedParentList = (List.finRange n).map fun v => (pTab[v.1]).1
+      | some pTab => I.expectedParentList = (List.finRange n).map fun v => (pTab[v.val]).val
       | none => I.expectedParentList = [] := by
     have hmap_eq := edmonds_fin_map_eq I.digraph cost root
     rw [show initAdjTable n _ = a₀ from rfl, show initCostTable n _ = c₀ from rfl] at hmap_eq

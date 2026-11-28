@@ -98,15 +98,15 @@ example : ¬∃ w : Fin 3 → ZMod 7,
 
 /-- Oriented `2`-edge path `0 → 1 → 2` on `Fin 3`. -/
 private def pathGraph : Multigraph (Fin 3) (Fin 2) where
-  src i := ⟨i.1, by omega⟩
-  tgt i := ⟨i.1 + 1, by omega⟩
+  src i := ⟨i.val, by omega⟩
+  tgt i := ⟨i.val + 1, by omega⟩
 
 private theorem pathGraph_isForest :
     pathGraph.IsForest univ univ (fun _ _ => ⟨trivial, trivial⟩) where
   loopless e := by
     obtain ⟨⟨i, hi⟩, _⟩ := e
     intro h
-    have := congrArg (fun x : {v : Fin 3 // v ∈ (univ : Set (Fin 3))} => x.1.1) h
+    have := congrArg (fun x : {v : Fin 3 // v ∈ (univ : Set (Fin 3))} => x.val.val) h
     dsimp [Multigraph.subgraph, pathGraph] at this
     omega
   ends_injOn e₁ _ e₂ _ h := by
@@ -144,18 +144,18 @@ example {A : Type*} [AddCommGroup A] (w₁ w₂ : Fin 2 → A)
 Across `P = {0, 4}`, all `6` edges cross `δ(P)` (`|δ(P)| = 6`), while simultaneous `COPY` +
 Kirchhoff deduplication compresses the cut to `6 - 2 - 2 = 2` bits (`≤ 4` states). -/
 private def dualGraph : Multigraph (Fin 8) (Fin 6) where
-  src e := if e.1 < 3 then 0 else 4
-  tgt e := if e.1 < 3 then ⟨e.1 + 1, by omega⟩ else ⟨e.1 + 2, by omega⟩
+  src e := if e.val < 3 then 0 else 4
+  tgt e := if e.val < 3 then ⟨e.val + 1, by omega⟩ else ⟨e.val + 2, by omega⟩
 
-private def copySet : Set (Fin 6) := {e | e.1 < 3}
-private def addVertSet : Set (Fin 8) := {v | 4 ≤ v.1}
-private def addEdgeSet : Set (Fin 6) := {e | 3 ≤ e.1}
+private def copySet : Set (Fin 6) := {e | e.val < 3}
+private def addVertSet : Set (Fin 8) := {v | 4 ≤ v.val}
+private def addEdgeSet : Set (Fin 6) := {e | 3 ≤ e.val}
 
 private noncomputable def dualNetwork : Network (ZMod 2) (Fin 8) (Fin 8) (Fin 6) where
   toMultigraph := dualGraph
   site i := some i
   Constraint v x α :=
-    if v.1 < 4 then
+    if v.val < 4 then
       (v = 0 → α 0 = x 0 ∧ α 1 = x 0 ∧ α 2 = x 0) ∧
       (v = 1 → α 0 = x 1) ∧ (v = 2 → α 1 = x 2) ∧ (v = 3 → α 2 = x 3)
     else
@@ -182,7 +182,7 @@ private theorem addEdgeSet_endpoints :
     ∀ ⦃e : Fin 6⦄, e ∈ addEdgeSet →
       dualNetwork.src e ∈ addVertSet ∧ dualNetwork.tgt e ∈ addVertSet := by
   intro e he
-  have he3 : ¬e.1 < 3 := by simp only [addEdgeSet, mem_ofPred_eq] at he; omega
+  have he3 : ¬e.val < 3 := by simp only [addEdgeSet, mem_ofPred_eq] at he; omega
   simp only [dualNetwork, dualGraph, addVertSet, he3, ↓reduceIte, mem_ofPred_eq]
   omega
 
@@ -191,7 +191,7 @@ private theorem addSubgraph_connected :
   let r : {v : Fin 8 // v ∈ addVertSet} := ⟨4, by simp [addVertSet]⟩
   refine (SimpleGraph.connected_iff_exists_forall_reachable _).mpr ⟨r, fun u => ?_⟩
   obtain ⟨uval, hu⟩ := u
-  have hu4 : 4 ≤ uval.1 := hu
+  have hu4 : 4 ≤ uval.val := hu
   fin_cases uval
   any_goals (dsimp at hu4; omega)
   · exact SimpleGraph.Reachable.refl r
@@ -220,7 +220,7 @@ private theorem addSubgraph_isForest :
         ∀ ⦃a b : {v : Fin 8 // v ∈ addVertSet}⦄, H.toSimpleGraph.Adj a b → a = r ∨ b = r := by
       intro a b hadj
       obtain ⟨_, ⟨e, he⟩, hends⟩ := Multigraph.toSimpleGraph_adj.mp hadj
-      have he3 : 3 ≤ e.1 := he
+      have he3 : 3 ≤ e.val := he
       have hsrc : H.src ⟨e, he⟩ = r := by
         fin_cases e <;> first | (dsimp at he3; omega) | rfl
       rcases Sym2.eq_iff.mp hends with ⟨ha, _⟩ | ⟨ha, _⟩
@@ -267,7 +267,7 @@ private noncomputable def dualDecomp : KirchhoffDecomposition dualNetwork Unit U
   demand v x _ := x v
   demand_congr _ v _ _ _ _ _ hx _ := hx v rfl
   constraint_add_iff _ v hv x α := by
-    have hv4 : ¬v.1 < 4 := by simp only [addVertSet, mem_ofPred_eq] at hv; omega
+    have hv4 : ¬v.val < 4 := by simp only [addVertSet, mem_ofPred_eq] at hv; omega
     simp [dualNetwork, hv4]
 
 /-- Across `P = {0, 4}`, all `6` edges cross `δ(P)`, while `dualDecomp.compressedWidth P = 2`,
@@ -319,7 +319,7 @@ example :
   refine ⟨hcut6, hcomp2, hstate4, hlog2, fun π => ⟨dualDecomp.accepted_branchingProgram π, ?_⟩⟩
   refine dualDecomp.unambiguous_branchingProgram π (fun _ => addSubgraph_isForest) ?_
   intro x α₁ α₂ h₁ h₂ e henot
-  have hlt3 : e.1 < 3 := by
+  have hlt3 : e.val < 3 := by
     by_contra hge
     exact henot (mem_iUnion.mpr ⟨(), by simp only [dualDecomp, addEdgeSet, mem_ofPred_eq]; omega⟩)
   have c₁ := (h₁ 0).1 rfl

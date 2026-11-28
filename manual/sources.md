@@ -778,6 +778,17 @@ It outputs `tM/v`, where `v` is the `t`-th smallest value.
 Each tail is bounded by `1/6` via Chebyshev, plus `1/m` for collisions, and the median of `O(log(1/δ))` copies gives `O(1/ε² · log m · log(1/δ))` bits.
 The LNCS page numbers come from the DOI record and were not checked against the typeset volume.
 
+<a id="bks13-prefix"></a>
+## bks13-prefix
+
+Widmer Bland, Gregory Kucherov and W. F. Smyth.
+“Prefix Table Construction and Conversion.”
+*Combinatorial Algorithms*, IWOCA 2013, LNCS 8288, pp. 41–53.
+The publisher’s abstract describes conversion in both directions for ordinary strings.
+Its prefix table records the longest match starting at each position (the Z-table), and its border array is the KMP prefix table.
+The Lean development uses zero-based indices.
+[Published abstract](https://doi.org/10.1007/978-3-642-45278-9_5)
+
 <a id="bland77"></a>
 ## bland77
 
@@ -3245,6 +3256,16 @@ As printed, Theorem 1.5 fails at degree `0`: for `f ≡ 1` and `i = 0` the `≥`
 The library's hypotheses therefore use a strict event and require `0 < w`.
 [Code/PuncturedBallFourier](../CslibFrontier/Foundations/Data/Code/PuncturedBallFourier.lean) states Corollary 1.4 (third moment) and Theorem 1.5 (tail) as hypotheses (`KSThirdMomentBound`, `KSTailBound`), in the specialization quoted in [Saglam](#saglam27), Appendix A. They are not proved.
 
+<a id="kislitsyn64"></a>
+## kislitsyn64
+
+S. S. Kislitsyn.
+“On the selection of the kth element of an ordered set by pairwise comparisons.”
+*Sibirskii Matematicheskii Zhurnal* 5(3), 557–564, 1964.
+Section 1, p. 557, defines the worst-case comparison count on distinct keys and observes that reversing the order exchanges the largest and smallest ranks.
+The corollary concluding §2, p. 562, gives the exact count for rank two as `n − 1 + ⌊log₂(n − 1)⌋`, equal to `n + ⌈log₂ n⌉ − 2` for `n ≥ 2`.
+[Original article](https://www.mathnet.ru/eng/smj5024)
+
 <a id="kleeminty72"></a>
 ## kleeminty72
 
@@ -4962,6 +4983,16 @@ The typeset FOCS version was not consulted.
 Uwe Schöning.
 *A Probabilistic Algorithm for k-SAT and Constraint Satisfaction Problems*. 40th Annual Symposium on Foundations of Computer Science (FOCS 1999), 410–414. https://doi.org/10.1109/SFFCS.1999.814612 . Bibliographic metadata taken from `references.bib` (`Schoening1999`); the paywalled conference proceedings were not directly inspected, and no internal theorem or page locators are claimed.
 Cited at paper level for the `3n`-step randomized local-search trial on width-`k` CNFs and its `(2 (k - 1) / k) ^ n` amplified decision algorithm (`(4 / 3) ^ n` for `3`-SAT).
+
+<a id="schreier32"></a>
+## schreier32
+
+Józef Schreier.
+“O systemach eliminacji w turniejach.”
+*Mathesis Polska* 7(9–10), 154–160, 1932.
+Page 156, preliminary remark 2, equation (1), counts the knockout games and the second tournament among the champion’s direct opponents.
+Page 157, remark 3, applies the construction to the heaviest two of a set of distinct weights.
+[Original article](https://mbc.cyfrowemazowsze.pl/Content/15767/PDF/15767.pdf#page=16)
 
 <a id="schrijver03"></a>
 ## schrijver03

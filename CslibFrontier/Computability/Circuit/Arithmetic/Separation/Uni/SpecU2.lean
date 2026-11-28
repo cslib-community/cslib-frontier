@@ -162,7 +162,7 @@ omit [DecidableEq K] in
 theorem bar_cOut (m : Bl K → List (NB M K)) : (Sy.bar : Sy M K) ∉ cOut m := by
   rw [cOut, List.mem_map]
   rintro ⟨γ, -, h⟩
-  exact γ.2 h
+  exact γ.property h
 
 /-- Tape-matching on the passes and final read forces both to be the canonical ones. -/
 theorem passes_iff {l : List (Rc n (Bl K))} (hl : l ≠ []) (k j : ℕ) (hjk : j + k = n)
@@ -258,7 +258,7 @@ theorem imu_iff {l : List (Rc n (Bl K))} (hl : l ≠ [])
     · obtain ⟨_, -, rfl⟩ := List.mem_map.mp hw
       intro hγ
       obtain ⟨γ, -, hg⟩ := List.mem_map.mp hγ
-      exact γ.2 hg
+      exact γ.property hg
   have e4 : (∀ k, emU x (.tp (.cm k) false) = emU x (.tp (.cm k) true)) ↔
       x.final = PlG x.cmp ∧ x.final = QlG x.cmp := by
     simp only [emU_cm_false, emU_cm_true]

@@ -170,7 +170,7 @@ private theorem split_spec {B : Finset V} {q : V} (tail : List (Finset V)) (hqB 
       ∀ p, p ≠ q → blocksSnapshot ({q} :: B.erase q :: tail) p = blocksSnapshot (B :: tail) p := by
   have hu : ({q} : Finset V) ∪ B.erase q = B := by rw [singleton_union, insert_erase hqB]
   have hBq : (B.erase q).Nonempty := by
-    rw [nonempty_iff_ne_empty, Ne, erase_eq_empty_iff, not_or]
+    rw [← ne_empty_iff_nonempty, Ne, erase_eq_empty_iff, not_or]
     exact ⟨(hne B List.mem_cons_self).ne_empty, hBs⟩
   simp only [List.pairwise_cons, List.forall_mem_cons] at hne hdisj ⊢
   refine ⟨⟨singleton_nonempty q, hBq, hne.2⟩,
@@ -410,12 +410,12 @@ theorem ISSchedule.notMem_snapshot_of_isBoundaryAt {U : Finset V} {q : V} (π : 
 `U.erase q`. -/
 def ISSchedule.boundaryEquiv {U : Finset V} {q : V} (hq : q ∈ U) :
     {π : ISSchedule U // π.IsBoundaryAt q} ≃ ISSchedule (U.erase q) where
-  toFun π := π.1.dropBoundary π.2
+  toFun π := π.val.dropBoundary π.property
   invFun π₀ := ⟨π₀.snocSingleton hq, π₀.isBoundaryAt_snocSingleton hq⟩
   left_inv π := by
     ext1
     ext1
-    obtain ⟨init, heq⟩ := (π.1.isBoundaryAt_iff_exists_append q).mp π.2
+    obtain ⟨init, heq⟩ := (π.val.isBoundaryAt_iff_exists_append q).mp π.property
     simp only [dropBoundary, snocSingleton]
     rw [heq, List.dropLast_concat]
   right_inv π₀ := by
@@ -536,12 +536,12 @@ theorem iisRun_flipIISExec_of_ne {Input : Type*} [DecidableEq Input] {U : Finset
 `IIS` executions on `U.erase q`. -/
 def boundaryExecEquiv {U : Finset V} {q : V} (hq : q ∈ U) (R : ℕ) :
     {E : Fin R → ISSchedule U // IsBoundaryExecAt q E} ≃ (Fin R → ISSchedule (U.erase q)) where
-  toFun E r := (E.1 r).dropBoundary (E.2 r)
+  toFun E r := (E.val r).dropBoundary (E.property r)
   invFun E₀ := ⟨fun r => (E₀ r).snocSingleton hq, fun r => (E₀ r).isBoundaryAt_snocSingleton hq⟩
   left_inv E := by
     ext1
     funext r
-    exact congrArg Subtype.val ((ISSchedule.boundaryEquiv hq).left_inv ⟨E.1 r, E.2 r⟩)
+    exact congrArg Subtype.val ((ISSchedule.boundaryEquiv hq).left_inv ⟨E.val r, E.property r⟩)
   right_inv E₀ := by
     funext r
     exact (ISSchedule.boundaryEquiv hq).right_inv (E₀ r)
@@ -621,12 +621,13 @@ private theorem odd_card_iisDoors_iff_panchromatic {U : Finset V} {inp : V → I
     (E : Fin R → ISSchedule U) :
     Odd #{k ∈ U | IsIISDoor U inp c q₀ E k} ↔ IsPanchromaticIIS U inp c E := by
   let f : U → U := fun x =>
-    ⟨c (iisRun inp E x.1), carrier_iisRun_subset inp E x.2 (hc U Subset.rfl E x.1 x.2)⟩
+    ⟨c (iisRun inp E x.val),
+      carrier_iisRun_subset inp E x.property (hc U Subset.rfl E x.val x.property)⟩
   let b₀ : U := ⟨q₀, hq₀⟩
   have hsperner := Cslib.Sperner.odd_card_doors_iff_surjective f b₀ rfl
   have hcard_eq : #{k : U | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} =
       #{k ∈ U | IsIISDoor U inp c q₀ E k} := by
-    refine card_nbij' (fun x => x.1)
+    refine card_nbij' (fun x => x.val)
       (fun k => if hk : k ∈ U then ⟨k, hk⟩ else b₀) ?_ ?_ ?_ ?_
     · rintro ⟨k, hk⟩ hx
       simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
@@ -746,7 +747,7 @@ private theorem odd_card_panchromatic_iis_of_on (U : Finset V) (inp : V → Inpu
                      fun _ hx => by simp only [hx, ↓reduceIte],
                      fun _ hx _ hy => by simp only [hx, hy, ↓reduceIte, Subset.rfl, or_self],
                      fun _ hx _ hy _ => by simp only [hx, hy, ↓reduceIte, Subset.rfl]⟩)
-        (fun E₀ => ((boundaryExecEquiv hq₀ R).symm E₀ |>.1, q₀)) ?_ ?_ ?_ ?_
+        (fun E₀ => ((boundaryExecEquiv hq₀ R).symm E₀ |>.val, q₀)) ?_ ?_ ?_ ?_
       · rintro ⟨E, k⟩ hp
         simp only [D, coe_filter, mem_filter, mem_product, S, mem_univ, true_and,
           Set.mem_ofPred_eq] at hp ⊢
@@ -764,8 +765,8 @@ private theorem odd_card_panchromatic_iis_of_on (U : Finset V) (inp : V → Inpu
       · intro E₀ hE₀
         simp only [D, coe_filter, mem_filter, mem_product, S, mem_univ, true_and,
           Set.mem_ofPred_eq] at hE₀ ⊢
-        set E := ((boundaryExecEquiv hq₀ R).symm E₀).1
-        have hbound : IsBoundaryExecAt q₀ E := ((boundaryExecEquiv hq₀ R).symm E₀).2
+        set E := ((boundaryExecEquiv hq₀ R).symm E₀).val
+        have hbound : IsBoundaryExecAt q₀ E := ((boundaryExecEquiv hq₀ R).symm E₀).property
         have hdrop : (fun r => (E r).dropBoundary (hbound r)) = E₀ :=
           (boundaryExecEquiv hq₀ R).right_inv E₀
         refine ⟨⟨hq₀, fun b hbU hbq₀ => ?_⟩, hbound⟩
@@ -782,8 +783,8 @@ private theorem odd_card_panchromatic_iis_of_on (U : Finset V) (inp : V → Inpu
         subst hkeq
         simp only [hbound, ↓reduceDIte, Equiv.symm_apply_apply]
       · intro E₀ _
-        have hbound : IsBoundaryExecAt q₀ ((boundaryExecEquiv hq₀ R).symm E₀).1 :=
-          ((boundaryExecEquiv hq₀ R).symm E₀).2
+        have hbound : IsBoundaryExecAt q₀ ((boundaryExecEquiv hq₀ R).symm E₀).val :=
+          ((boundaryExecEquiv hq₀ R).symm E₀).property
         dsimp only
         simp only [hbound, ↓reduceDIte]
         exact (boundaryExecEquiv hq₀ R).apply_symm_apply E₀
@@ -842,7 +843,7 @@ theorem not_solvesSetAgreement_iis {V Val : Type*} [Fintype V] [DecidableEq V] [
   obtain ⟨W, -, hW_card⟩ := exists_subset_card_eq (s := (univ : Finset Val)) hVal
   obtain ⟨p₀, hp₀⟩ := card_pos.mp (by omega : 0 < #U)
   let e : U ≃ W := Finset.equivOfCardEq (hU_card.trans hW_card.symm)
-  let inp : V → Val := fun p => if hp : p ∈ U then (e ⟨p, hp⟩).1 else (e ⟨p₀, hp₀⟩).1
+  let inp : V → Val := fun p => if hp : p ∈ U then (e ⟨p, hp⟩).val else (e ⟨p₀, hp₀⟩).val
   have hinj_U : ∀ {p₁ p₂ : V}, p₁ ∈ U → p₂ ∈ U → inp p₁ = inp p₂ → p₁ = p₂ := by
     intro p₁ p₂ hp₁ hp₂ heq
     dsimp only [inp] at heq

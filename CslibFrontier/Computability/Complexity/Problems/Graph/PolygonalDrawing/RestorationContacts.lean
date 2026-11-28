@@ -27,7 +27,7 @@ open Polygonal RotationSystem
 
 /-- The lifted original end of a retained contracted occurrence has its original name. -/
 theorem contractionLift_vertex_contractedIndex (G : Graph) (u v : ℕ)
-    (e : Fin G.2.length) (side : Bool) :
+    (e : Fin G.edges.length) (side : Bool) :
     (contractionLift G u v (contractedIndex G u v e, side)).vertex =
       Dart.vertex (G := G) (e, side) := by
   have h := contractionLift_relabelEquiv G u v (e, side)
@@ -146,7 +146,7 @@ theorem IsEmbedding.spoke_outsideRoute_contact {G : Graph} {D : PolygonalDrawing
         ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = v ∧
           (D.outsideRoute v ρ e).eval i t = D.cutPort ρ (e, side))
     {a : ℂ} (ha : a ∈ Metric.ball (D.vertex v) ρ)
-    (d : Dart G) (hd : d.vertex = v) (e : Fin G.2.length)
+    (d : Dart G) (hd : d.vertex = v) (e : Fin G.edges.length)
     (i : Fin (D.outsideRoute v ρ e).segments) {s t : ℝ}
     (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
     (heq : AffineMap.lineMap a (D.cutPort ρ d) s = (D.outsideRoute v ρ e).eval i t) :
@@ -173,7 +173,7 @@ theorem IsEmbedding.outsideRoute_not_mem_ball {G : Graph} {D : PolygonalDrawing 
       (D.outsideRoute v ρ e).eval i t ∈ Metric.closedBall (D.vertex v) ρ →
         ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = v ∧
           (D.outsideRoute v ρ e).eval i t = D.cutPort ρ (e, side))
-    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
+    (e : Fin G.edges.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
     (ht : t ∈ Set.Icc 0 1) : (D.outsideRoute v ρ e).eval i t ∉ Metric.ball (D.vertex v) ρ := by
   intro hin
   obtain ⟨side, _, hv, hp⟩ := hcut e i t ht (Metric.ball_subset_closedBall hin)
@@ -189,7 +189,7 @@ theorem outsideRoute_ne_center_of_contacts {G : Graph} (D : PolygonalDrawing G)
       (D.outsideRoute v ρ e).eval i t ∈ Metric.closedBall (D.vertex v) ρ →
         ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = v ∧
           (D.outsideRoute v ρ e).eval i t = D.cutPort ρ (e, side))
-    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
+    (e : Fin G.edges.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
     (ht : t ∈ Set.Icc 0 1) : (D.outsideRoute v ρ e).eval i t ≠ D.vertex v := by
   intro heq
   obtain ⟨side, _, hv, hp⟩ := hcut e i t ht (heq.symm ▸ Metric.mem_closedBall_self hρ.le)
@@ -202,15 +202,15 @@ Both real parameters are transported through the independent cut maps. -/
 theorem IsEmbedding.outsideRoute_edge_contacts {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
     (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖)
-    (e f : Fin G.2.length) (hef : e ≠ f)
+    (e f : Fin G.edges.length) (hef : e ≠ f)
     (i : Fin (D.outsideRoute v ρ e).segments) (j : Fin (D.outsideRoute v ρ f).segments)
     {s t : ℝ} (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
     (heq : (D.outsideRoute v ρ e).eval i s = (D.outsideRoute v ρ f).eval j t) :
     ∃ side tag, (D.outsideRoute v ρ e).AtEnd i s side ∧
       (D.outsideRoute v ρ f).AtEnd j t tag ∧ Dart.vertex (e, side) = Dart.vertex (f, tag) := by
-  let lo (e : Fin G.2.length) := D.restrictionTime v ρ (e, false)
-  let hi (e : Fin G.2.length) := D.restrictionTime v ρ (e, true)
-  have hbounds (e : Fin G.2.length) : 0 ≤ lo e ∧ 0 ≤ hi e ∧ lo e + hi e < 1 :=
+  let lo (e : Fin G.edges.length) := D.restrictionTime v ρ (e, false)
+  let hi (e : Fin G.edges.length) := D.restrictionTime v ρ (e, true)
+  have hbounds (e : Fin G.edges.length) : 0 ≤ lo e ∧ 0 ≤ hi e ∧ lo e + hi e < 1 :=
     hD.restrictionTime_bounds v hρ hlen e
   change Fin (D.route e).segments at i
   change Fin (D.route f).segments at j
@@ -231,8 +231,8 @@ end. The two independent cut maps preserve its endpoint occurrence. -/
 theorem IsEmbedding.outsideRoute_vertex_contacts {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
     (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖)
-    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
-    (ht : t ∈ Set.Icc 0 1) (w : ℕ) (hw : w ∈ G.1)
+    (e : Fin G.edges.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
+    (ht : t ∈ Set.Icc 0 1) (w : ℕ) (hw : w ∈ G.vertices)
     (heq : (D.outsideRoute v ρ e).eval i t = D.vertex w) :
     ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = w := by
   let lo := D.restrictionTime v ρ (e, false)
@@ -254,7 +254,7 @@ theorem IsEmbedding.prepend_outsideRoute_simple {G : Graph} {D : PolygonalDrawin
       (D.outsideRoute v ρ e).eval i t ∈ Metric.closedBall (D.vertex v) ρ →
         ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = v ∧
           (D.outsideRoute v ρ e).eval i t = D.cutPort ρ (e, side))
-    {a : ℂ} (ha : a ∈ Metric.ball (D.vertex v) ρ) (e : Fin G.2.length)
+    {a : ℂ} (ha : a ∈ Metric.ball (D.vertex v) ρ) (e : Fin G.edges.length)
     (he : Dart.vertex (e, false) = v) (hp : (D.outsideRoute v ρ e).IsSimple) :
     (Route.prepend a (D.outsideRoute v ρ e)).IsSimple := by
   have hstart : (D.outsideRoute v ρ e).start = D.cutPort ρ (e, false) := by
@@ -282,7 +282,7 @@ theorem IsEmbedding.append_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
       (D.outsideRoute v ρ e).eval i t ∈ Metric.closedBall (D.vertex v) ρ →
         ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = v ∧
           (D.outsideRoute v ρ e).eval i t = D.cutPort ρ (e, side))
-    {b : ℂ} (hb : b ∈ Metric.ball (D.vertex v) ρ) (e : Fin G.2.length)
+    {b : ℂ} (hb : b ∈ Metric.ball (D.vertex v) ρ) (e : Fin G.edges.length)
     (he : Dart.vertex (e, true) = v) (hp : (D.outsideRoute v ρ e).IsSimple) :
     ((D.outsideRoute v ρ e).append b).IsSimple := by
   have hfinish : (D.outsideRoute v ρ e).finish = D.cutPort ρ (e, true) := by
@@ -314,7 +314,7 @@ theorem IsEmbedding.attach_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
         ∃ side, (D.outsideRoute v ρ e).AtEnd i t side ∧ Dart.vertex (e, side) = v ∧
           (D.outsideRoute v ρ e).eval i t = D.cutPort ρ (e, side))
     {a b : ℂ} (ha : a ∈ Metric.ball (D.vertex v) ρ) (hb : b ∈ Metric.ball (D.vertex v) ρ)
-    (e : Fin G.2.length) (he₀ : Dart.vertex (e, false) = v) (he₁ : Dart.vertex (e, true) = v)
+    (e : Fin G.edges.length) (he₀ : Dart.vertex (e, false) = v) (he₁ : Dart.vertex (e, true) = v)
     (hp : (D.outsideRoute v ρ e).IsSimple)
     (hspokes : ∀ s t : ℝ, s ∈ Set.Icc 0 1 → t ∈ Set.Icc 0 1 →
       AffineMap.lineMap a (D.cutPort ρ (e, false)) s =

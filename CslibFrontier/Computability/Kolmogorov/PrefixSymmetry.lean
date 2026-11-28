@@ -953,27 +953,27 @@ private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
     exact ⟨z, mem_universalPrefixTable_produces hz, hzx⟩
   let emb : {w : List Bool // w ∈ T} →
       (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} := fun w =>
-    let z := (hT w.1 w.2).choose
-    ⟨z.unpair.2, w.1, by
-      obtain ⟨hp, hx⟩ := (hT w.1 w.2).choose_spec
+    let z := (hT w.val w.property).choose
+    ⟨z.unpair.2, w.val, by
+      obtain ⟨hp, hx⟩ := (hT w.val w.property).choose_spec
       rwa [show Nat.pair x z.unpair.2 = z by rw [← hx, Nat.pair_unpair]]⟩
   have hemb : Function.Injective emb := fun a b hab =>
     Subtype.ext (congrArg (fun q : (y : ℕ) ×
-      {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} => q.2.1) hab)
+      {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} => q.2.val) hab)
   let F := T.attach.map ⟨emb, hemb⟩
   have hs := summable_universalPrefix_produces_pair x
   have htsum : ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-      (2 : ℝ)⁻¹ ^ q.2.1.length = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) :=
+      (2 : ℝ)⁻¹ ^ q.2.val.length = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) :=
     hs.tsum_sigma' fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
-  have hsum_F : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := by
+  have hsum_F : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.val.length := by
     rw [Finset.sum_map]
     exact (Finset.sum_attach T fun w => (2 : ℝ)⁻¹ ^ w.length).symm
   have hsum_le : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length ≤
       (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := by
     calc ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length
-        = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := hsum_F
+        = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.val.length := hsum_F
       _ ≤ ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-            (2 : ℝ)⁻¹ ^ q.2.1.length :=
+            (2 : ℝ)⁻¹ ^ q.2.val.length :=
           hs.sum_le_tsum F fun _ _ => by positivity
       _ = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) := htsum
       _ ≤ (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := hmarg

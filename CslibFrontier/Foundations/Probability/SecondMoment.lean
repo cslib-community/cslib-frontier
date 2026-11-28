@@ -218,16 +218,16 @@ theorem indepFun_pi_of_dependsOn {β γ : Type*} [MeasurableSpace β] [Measurabl
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure (Measure.pi μ)
   let e := MeasurableEquiv.piEquivPiSubtypeProd Ω (· ∈ S)
   have he : MeasurePreserving e (Measure.pi μ)
-      ((Measure.pi fun i : {i // i ∈ S} => μ i.1).prod
-        (Measure.pi fun i : {i // i ∉ S} => μ i.1)) :=
+      ((Measure.pi fun i : {i // i ∈ S} => μ i.val).prod
+        (Measure.pi fun i : {i // i ∉ S} => μ i.val)) :=
     measurePreserving_piEquivPiSubtypeProd μ (· ∈ S)
   rw [indepFun_iff_measure_inter_preimage_eq_mul]
   intro A B _ _
-  let C : Set (Π i : {i // i ∈ S}, Ω i) := {x | f (e.symm (x, fun i => ω₀ i.1)) ∈ A}
-  let D : Set (Π i : {i // i ∉ S}, Ω i) := {y | g (e.symm (fun i => ω₀ i.1, y)) ∈ B}
-  have hf_eq (ω) : f ω = f (e.symm ((e ω).1, fun i => ω₀ i.1)) := hfS fun _ hi => by
+  let C : Set (Π i : {i // i ∈ S}, Ω i) := {x | f (e.symm (x, fun i => ω₀ i.val)) ∈ A}
+  let D : Set (Π i : {i // i ∉ S}, Ω i) := {y | g (e.symm (fun i => ω₀ i.val, y)) ∈ B}
+  have hf_eq (ω) : f ω = f (e.symm ((e ω).1, fun i => ω₀ i.val)) := hfS fun _ hi => by
     simp [e, MeasurableEquiv.piEquivPiSubtypeProd, Equiv.piEquivPiSubtypeProd_symm_apply, hi]
-  have hg_eq (ω) : g ω = g (e.symm (fun i => ω₀ i.1, (e ω).2)) := hgT fun _ hi => by
+  have hg_eq (ω) : g ω = g (e.symm (fun i => ω₀ i.val, (e ω).2)) := hgT fun _ hi => by
     simp [e, MeasurableEquiv.piEquivPiSubtypeProd, Equiv.piEquivPiSubtypeProd_symm_apply,
       Set.disjoint_right.1 hST hi]
   have hAB : f ⁻¹' A ∩ g ⁻¹' B = e ⁻¹' (C ×ˢ D) :=

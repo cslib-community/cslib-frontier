@@ -179,8 +179,8 @@ private theorem nodup_liftVertices {G : Graph} {p : List ℕ} (h : ∀ v ∈ p, 
   hp.pmap fun _ _ _ _ hab => congrArg Subtype.val hab
 
 private theorem mem_liftVertices {G : Graph} {p : List ℕ} (h : ∀ v ∈ p, v ∈ G.vertices)
-    (v : {v | v ∈ G.vertices}) : v ∈ liftVertices G p h ↔ v.1 ∈ p := by
-  refine ⟨fun hv => ?_, fun hv => List.mem_pmap.2 ⟨v.1, hv, rfl⟩⟩
+    (v : {v | v ∈ G.vertices}) : v ∈ liftVertices G p h ↔ v.val ∈ p := by
+  refine ⟨fun hv => ?_, fun hv => List.mem_pmap.2 ⟨v.val, hv, rfl⟩⟩
   have := List.mem_map_of_mem (f := Subtype.val) hv
   rwa [map_val_liftVertices] at this
 
@@ -193,7 +193,7 @@ theorem mem_HamPath_iff {G : Graph} {s t : ℕ} :
     refine ⟨w.support.map Subtype.val, hw.isPath.support_nodup.map Subtype.val_injective,
       fun v => ⟨fun hv => ?_, fun hv => ?_⟩, ?_, ?_, ?_⟩
     · obtain ⟨u, -, rfl⟩ := List.mem_map.1 hv
-      exact u.2
+      exact u.property
     · exact List.mem_map.2 ⟨⟨v, hv⟩, hw.mem_support _, rfl⟩
     · rw [List.head?_map, w.support.head?_eq_some_head w.support_ne_nil, w.head_support]
       rfl
@@ -219,7 +219,7 @@ theorem mem_HamPath_iff {G : Graph} {s t : ℕ} :
     intro v
     rw [SimpleGraph.Walk.support_copy, SimpleGraph.Walk.support_ofSupport]
     exact @List.count_eq_one_of_mem _ instBEqOfDecidableEq _ _ _ (nodup_liftVertices hV hnd)
-      ((mem_liftVertices hV v).2 ((hcov v).2 v.2))
+      ((mem_liftVertices hV v).2 ((hcov v).2 v.property))
 
 /-- Undirected Hamiltonian cycles as lists of vertices. -/
 theorem mem_HamCycle_iff {G : Graph} :
@@ -233,7 +233,7 @@ theorem mem_HamCycle_iff {G : Graph} :
       hw.isCycle.nodup_dropLast_support.map Subtype.val_injective,
       fun v => ⟨fun hv => ?_, fun hv => ?_⟩, ?_, ?_⟩
     · obtain ⟨u, -, rfl⟩ := List.mem_map.1 hv
-      exact u.2
+      exact u.property
     · refine List.mem_map.2 ⟨⟨v, hv⟩, ?_, rfl⟩
       rw [← SimpleGraph.Walk.support_dropLast hnil]
       exact hw.isHamiltonian_dropLast.mem_support _
@@ -262,7 +262,7 @@ theorem mem_HamCycle_iff {G : Graph} :
     set L := liftVertices G p hV with hL
     have hLne : L ≠ [] := by simpa [L, liftVertices] using hne
     set a := L.head hLne with ha
-    have hav : a.1 = p.head hne := by
+    have hav : a.val = p.head hne := by
       simpa only [List.head?_map, ← hL, List.head?_eq_some_head hLne, List.head?_eq_some_head hne,
         Option.map_some, Option.some.injEq] using congrArg List.head? (map_val_liftVertices G p hV)
     have hmap : (L ++ [a]).map Subtype.val = p ++ p.take 1 := by
@@ -292,7 +292,7 @@ theorem mem_HamCycle_iff {G : Graph} :
       exact nodup_liftVertices hV hnd
     · rw [hdrop]
       exact @List.count_eq_one_of_mem _ instBEqOfDecidableEq _ _ _ (nodup_liftVertices hV hnd)
-        ((mem_liftVertices hV v).2 ((hcov v).2 v.2))
+        ((mem_liftVertices hV v).2 ((hcov v).2 v.property))
 
 /-! ### Closing a path into a cycle -/
 

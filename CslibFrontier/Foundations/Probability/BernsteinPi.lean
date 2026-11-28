@@ -84,43 +84,15 @@ theorem mgf_sum_pi_le_exp_bennett {b : ℝ} {s2 : ι → ℝ} (hb : 0 < b)
       (Filter.Eventually.of_forall fun v => by
         calc ∑ i ∈ s, Y i v ≤ ∑ _ ∈ s, b := Finset.sum_le_sum fun i _ => hupper i v
           _ = s.card * b := by rw [Finset.sum_const, nsmul_eq_mul])
-  have key (s : Finset ι) :
-      ∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ ≤
-        exp (((∑ i ∈ s, s2 i) / b ^ 2) * (exp (t * b) - 1 - t * b)) := by
-    induction s using Finset.induction_on_max with
-    | empty => simp
-    | insert j s hlt ih =>
-      have hj : j ∉ s := fun h => lt_irrefl j (hlt j h)
-      calc ∫ v, exp (t * ∑ i ∈ insert j s, Y i v) ∂Measure.pi μ
-          = ∫ v, ∫ z, exp (t * ∑ i ∈ insert j s, Y i (Function.update v j z)) ∂μ j
-              ∂Measure.pi μ := (integral_integral_update μ (hint_s (insert j s)) j).symm
-        _ = ∫ v, exp (t * ∑ i ∈ s, Y i v) *
-              ∫ z, exp (t * Y j (Function.update v j z)) ∂μ j ∂Measure.pi μ := by
-            congr 1 with v
-            rw [← integral_const_mul]
-            congr 1 with z
-            rw [Finset.sum_insert hj,
-              Finset.sum_congr rfl fun i hi => hadapted i j (hlt i hi) v z,
-              mul_add, exp_add, mul_comm]
-        _ ≤ ∫ v, exp (t * ∑ i ∈ s, Y i v) * exp ((s2 j / b ^ 2) * (exp (t * b) - 1 - t * b))
-              ∂Measure.pi μ :=
-            integral_mono_of_nonneg
-              (Filter.Eventually.of_forall fun v =>
-                mul_nonneg (exp_pos _).le (integral_nonneg fun _ => (exp_pos _).le))
-              ((hint_s s).mul_const _)
-              (Filter.Eventually.of_forall fun v => mul_le_mul_of_nonneg_left
-                (mgf_le_exp_bennett_of_le (hint1 j v) (hint2 j v) (hmean j v) hb
-                  (Filter.Eventually.of_forall fun z => hupper j (Function.update v j z))
-                  (hvar j v) ht) (exp_pos _).le)
-        _ = (∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ) *
-              exp ((s2 j / b ^ 2) * (exp (t * b) - 1 - t * b)) := integral_mul_const _ _
-        _ ≤ exp (((∑ i ∈ s, s2 i) / b ^ 2) * (exp (t * b) - 1 - t * b)) *
-              exp ((s2 j / b ^ 2) * (exp (t * b) - 1 - t * b)) :=
-            mul_le_mul_of_nonneg_right ih (exp_pos _).le
-        _ = exp (((∑ i ∈ insert j s, s2 i) / b ^ 2) * (exp (t * b) - 1 - t * b)) := by
-            rw [← exp_add, Finset.sum_insert hj]
-            exact congrArg exp (by ring)
-  simpa only [mgf] using key Finset.univ
+  let B (i : ι) := (s2 i / b ^ 2) * (exp (t * b) - 1 - t * b)
+  have hstep (i : ι) (v) : ∫ z, exp (t * Y i (Function.update v i z)) ∂μ i ≤ exp (B i) :=
+    mgf_le_exp_bennett_of_le (hint1 i v) (hint2 i v) (hmean i v) hb
+      (Filter.Eventually.of_forall fun z => hupper i (Function.update v i z)) (hvar i v) ht
+  have h := integral_finset_prod_pi_le μ (fun i v => exp (t * Y i v)) (fun i => exp (B i))
+    (fun _ _ => (exp_pos _).le) (fun _ => (exp_pos _).le)
+    (fun i j hij v z => congrArg (fun y => exp (t * y)) (hadapted i j hij v z))
+    (fun s => by simpa only [← Real.exp_sum, ← Finset.mul_sum] using hint_s s) hstep Finset.univ
+  simpa only [mgf, ← Real.exp_sum, ← Finset.mul_sum, B, ← Finset.sum_mul, ← Finset.sum_div] using h
 
 /-- **Product-filtration Bennett–Freedman inequality**: under the hypotheses of
 `mgf_sum_pi_le_exp_bennett` with `V = ∑ i, s2 i > 0`, `b > 0`, and `ε ≥ 0`,

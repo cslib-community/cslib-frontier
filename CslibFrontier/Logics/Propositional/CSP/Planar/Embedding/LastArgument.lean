@@ -64,7 +64,7 @@ theorem ofRotation_deleteLastArgumentRotation (F : CSP Rel V) (r : Rel) (scope :
       (v := (F ++ [Constraint.mk r (scope ++ [v])]).numVars + F.length)).transport
         (lastArgumentDartEquiv F r scope v) (lastArgumentDartEquiv_vertex_eq_iff F r scope v)) = _
   rw [ofRotation_transport _ _ _ fun _ => rfl, ← restrictPrefix_ofRotation_deleteLastEdge,
-    show (lastArgumentPrefixGraph F r scope v).2.length =
+    show (lastArgumentPrefixGraph F r scope v).edges.length =
       (F ++ [Constraint.mk r scope]).occurrences.length by simp [lastArgumentPrefixGraph],
     lastArgumentSourceRotation, ofRotation_graphEqDartEquiv]
 

@@ -366,7 +366,7 @@ theorem trajMeasure_countHittingTime_mean_le {X : ℕ → Type*} [∀ n, Measura
             prob_compl_eq_one_sub (Filtration.piLE.le (t + 1) _ (hA' t)).compl, hcompl,
             tsub_zero]
         simp [measureReal_def, hprob]
-      simpa [ps, hfre] using p.2.2
+      simpa [ps, hfre] using p.property.2
   have hdom := trajMeasure_adaptedCount_stochasticallyDominates_poissonBinomial μ₀ κ hA' ps hp'
   have hsub : {x | (n : WithTop ℕ) < countHittingTime A r x} ⊆
       {x | adaptedCount A' n x < r} := by

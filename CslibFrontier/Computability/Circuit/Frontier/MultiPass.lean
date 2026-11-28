@@ -144,38 +144,38 @@ theorem extendAssign_injective (O : Set ι) (a : O → U) : Function.Injective (
 
 private def liftSliceLeft {O : Set ι} (Y : Set ↥Oᶜ) (u : Y → U) : (Subtype.val '' Y) → U :=
   fun x =>
-    have hxO : x.1 ∉ O := by
-      obtain ⟨w, _, heq⟩ := x.2
-      exact heq ▸ w.2
-    have hxY : (⟨x.1, hxO⟩ : ↥Oᶜ) ∈ Y := by
-      obtain ⟨w, hw, heq⟩ := x.2
-      have hw' : w = ⟨x.1, hxO⟩ := Subtype.ext heq
+    have hxO : x.val ∉ O := by
+      obtain ⟨w, _, heq⟩ := x.property
+      exact heq ▸ w.property
+    have hxY : (⟨x.val, hxO⟩ : ↥Oᶜ) ∈ Y := by
+      obtain ⟨w, hw, heq⟩ := x.property
+      have hw' : w = ⟨x.val, hxO⟩ := Subtype.ext heq
       exact hw' ▸ hw
-    u ⟨⟨x.1, hxO⟩, hxY⟩
+    u ⟨⟨x.val, hxO⟩, hxY⟩
 
 private theorem liftSliceLeft_injective {O : Set ι} (Y : Set ↥Oᶜ) :
     Function.Injective (liftSliceLeft (U := U) Y) := by
   intro u₁ u₂ h
   funext ⟨w, hw⟩
-  have hx := congrFun h ⟨w.1, ⟨w, hw, rfl⟩⟩
+  have hx := congrFun h ⟨w.val, ⟨w, hw, rfl⟩⟩
   simpa only [liftSliceLeft] using hx
 
 private noncomputable def liftSliceRight {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ) (v : ↥Yᶜ → U) :
     ↥(Subtype.val '' Y)ᶜ → U :=
   open Classical in
   fun x =>
-    if hO : x.1 ∈ O then a ⟨x.1, hO⟩
-    else v ⟨⟨x.1, hO⟩, fun hy => x.2 ⟨⟨x.1, hO⟩, hy, rfl⟩⟩
+    if hO : x.val ∈ O then a ⟨x.val, hO⟩
+    else v ⟨⟨x.val, hO⟩, fun hy => x.property ⟨⟨x.val, hO⟩, hy, rfl⟩⟩
 
 private theorem liftSliceRight_notMem {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ) (v : ↥Yᶜ → U)
-    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.1 ∉ O) :
-    liftSliceRight a Y v x = v ⟨⟨x.1, hO⟩, fun hy => x.2 ⟨⟨x.1, hO⟩, hy, rfl⟩⟩ := by
+    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.val ∉ O) :
+    liftSliceRight a Y v x = v ⟨⟨x.val, hO⟩, fun hy => x.property ⟨⟨x.val, hO⟩, hy, rfl⟩⟩ := by
   classical
   exact dite_eq_right hO
 
 private theorem liftSliceRight_mem {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ) (v : ↥Yᶜ → U)
-    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.1 ∈ O) :
-    liftSliceRight a Y v x = a ⟨x.1, hO⟩ := by
+    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.val ∈ O) :
+    liftSliceRight a Y v x = a ⟨x.val, hO⟩ := by
   classical
   exact dite_eq_left hO
 
@@ -183,11 +183,11 @@ private theorem liftSliceRight_injective {O : Set ι} (a : O → U) (Y : Set ↥
     Function.Injective (liftSliceRight a Y) := by
   intro v₁ v₂ h
   funext ⟨w, hw⟩
-  have hxX : w.1 ∉ Subtype.val '' Y := by
+  have hxX : w.val ∉ Subtype.val '' Y := by
     rintro ⟨w', hw', heq⟩
     exact hw (Subtype.ext heq ▸ hw')
-  have hx := congrFun h ⟨w.1, hxX⟩
-  rw [liftSliceRight_notMem _ _ _ _ w.2, liftSliceRight_notMem _ _ _ _ w.2] at hx
+  have hx := congrFun h ⟨w.val, hxX⟩
+  rw [liftSliceRight_notMem _ _ _ _ w.property, liftSliceRight_notMem _ _ _ _ w.property] at hx
   exact hx
 
 private theorem image_extendAssign_rectangle {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ)
@@ -199,12 +199,12 @@ private theorem image_extendAssign_rectangle {O : Set ι} (a : O → U) (Y : Set
   · rintro ⟨y, ⟨hyA, hyB⟩, rfl⟩
     refine ⟨⟨Y.domRestrict y, hyA, ?_⟩, ⟨Yᶜ.domRestrict y, hyB, ?_⟩⟩
     · funext x
-      obtain ⟨w, _, heq⟩ := x.2
-      have hxO : x.1 ∉ O := heq ▸ w.2
+      obtain ⟨w, _, heq⟩ := x.property
+      have hxO : x.val ∉ O := heq ▸ w.property
       simp only [liftSliceLeft, domRestrict]
       rw [extendAssign_notMem hxO]
     · funext x
-      by_cases hO : x.1 ∈ O
+      by_cases hO : x.val ∈ O
       · rw [liftSliceRight_mem _ _ _ _ hO]
         exact (extendAssign_mem hO).symm
       · rw [liftSliceRight_notMem _ _ _ _ hO]
@@ -213,23 +213,23 @@ private theorem image_extendAssign_rectangle {O : Set ι} (a : O → U) (Y : Set
     refine ⟨Oᶜ.domRestrict z, ⟨?_, ?_⟩, ?_⟩
     · have heq : Y.domRestrict (Oᶜ.domRestrict z) = u := by
         funext ⟨w, hw⟩
-        have hx := congrFun hzu ⟨w.1, ⟨w, hw, rfl⟩⟩
+        have hx := congrFun hzu ⟨w.val, ⟨w, hw, rfl⟩⟩
         simpa only [liftSliceLeft, domRestrict] using hx.symm
       exact heq ▸ huA
     · have heq : Yᶜ.domRestrict (Oᶜ.domRestrict z) = v := by
         funext ⟨w, hw⟩
-        have hxX : w.1 ∉ Subtype.val '' Y := by
+        have hxX : w.val ∉ Subtype.val '' Y := by
           rintro ⟨w', hw', heq'⟩
           exact hw (Subtype.ext heq' ▸ hw')
-        have hx := congrFun hzv ⟨w.1, hxX⟩
-        rw [liftSliceRight_notMem _ _ _ _ w.2] at hx
+        have hx := congrFun hzv ⟨w.val, hxX⟩
+        rw [liftSliceRight_notMem _ _ _ _ w.property] at hx
         exact hx.symm
       exact heq ▸ hvB
     · funext i
       by_cases hO : i ∈ O
       · have hiX : i ∉ Subtype.val '' Y := by
           rintro ⟨w, _, rfl⟩
-          exact w.2 hO
+          exact w.property hO
         have hx := congrFun hzv ⟨i, hiX⟩
         rw [extendAssign_mem hO, ← liftSliceRight_mem a Y v ⟨i, hiX⟩ hO]
         exact hx
@@ -559,10 +559,10 @@ theorem IsAcceptingPath.splice {P : AlternatingPassNBP ι U M} {x y z : ι → U
   have h2 : ¬P.length ≤ P.length - τ := by omega
   have hdomx {p s : ℕ} (h : passCoord P.length p s < τ) :
       (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict x :=
-    funext fun i => hzx (P.newly_subset_revealed h i.2)
+    funext fun i => hzx (P.newly_subset_revealed h i.property)
   have hdomy {p s : ℕ} (h : τ ≤ passCoord P.length p s) :
       (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict y :=
-    funext fun i => hzy (P.newly_subset_compl h i.2)
+    funext fun i => hzy (P.newly_subset_compl h i.property)
   refine ⟨by simp [hγ.start], ?_, fun p hp1 => ?_, fun p hp s hs => ?_⟩
   · by_cases hp : (P.passes - 1) % 2 = 0 <;> simp [hp, h1, h2, hγ.accept, hδ.accept]
   · by_cases hp : p % 2 = 0
@@ -644,7 +644,7 @@ theorem ncard_transition_sweep_le [Finite ι] [Finite U] [Finite M] {C : ℕ}
   let _ : Fintype (P.newly t → U) := Fintype.ofFinite _
   let castLabel (p : Fin P.passes) (a : P.newly t → U) :
       P.stepCoords p.val (passStep P.length p.val t) → U :=
-    fun i => a ⟨i.1, by simpa only [stepCoords, passCoord_passStep p.val ht] using i.2⟩
+    fun i => a ⟨i.val, by simpa only [stepCoords, passCoord_passStep p.val ht] using i.property⟩
   let fiber (p : Fin P.passes) (a : P.newly t → U) : Set (M × M) :=
     {q | P.Edge p.val (passStep P.length p.val t) q.1 (castLabel p a) q.2}
   let code (x : ι → U) : (P.newly t → U) × (Fin P.passes → M × M) :=
@@ -814,13 +814,13 @@ theorem IsAcceptingPath.splice {P : SameOrderPassNBP ι U M} {x y z : ι → U} 
     rcases lt_or_ge s τ with hst | hts
     · rw [ite_eq_left hst.le, ite_eq_left (by omega : s + 1 ≤ τ),
         show (P.newly s).domRestrict z = (P.newly s).domRestrict x from
-          funext fun i => hzx (P.newly_subset_revealed hst i.2)]
+          funext fun i => hzx (P.newly_subset_revealed hst i.property)]
       exact hγ.edge p hp s hs
     · have hsrc : (if s ≤ τ then γ p s else δ p s) = δ p s :=
         ite_eq_right_iff.2 fun hle => (le_antisymm hle hts) ▸ hmove p hp
       rw [hsrc, ite_eq_right (by omega : ¬s + 1 ≤ τ),
         show (P.newly s).domRestrict z = (P.newly s).domRestrict y from
-          funext fun i => hzy (P.newly_subset_compl hts i.2)]
+          funext fun i => hzy (P.newly_subset_compl hts i.property)]
       exact hδ.edge p hp s hs
 
 open Classical in
@@ -993,7 +993,7 @@ set. -/
   accept := P.accept
   Edge p s m a m' :=
     if hp : p = 0 then
-      P.Edge s m (fun i => a ⟨i.1, by subst hp; exact i.2⟩) m'
+      P.Edge s m (fun i => a ⟨i.val, by subst hp; exact i.property⟩) m'
     else False
 
 @[simp]

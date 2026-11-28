@@ -510,25 +510,25 @@ interval of `isolateRootsTotal cs`. -/
 noncomputable def totalIsolatedRoot {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     (i : Fin (isolateRootsTotal cs).length) :
     {x : ℝ // Polynomial.aeval x (ofCoeffList cs) = 0} :=
-  let i₀ : Fin (isolateRoots cs).length := ⟨i.1, (isolateRootsTotal_length_eq cs) ▸ i.2⟩
+  let i₀ : Fin (isolateRoots cs).length := ⟨i.val, (isolateRootsTotal_length_eq cs) ▸ i.isLt⟩
   let r := isolatedRoot hsep i₀
-  ⟨r.1, by
-    have h := r.2
+  ⟨r.val, by
+    have h := r.property
     rwa [IsRoot.def, Polynomial.eval_map_algebraMap] at h⟩
 
 /-- `totalIsolatedRoot hsep i` lies in the `i`-th closed interval of `isolateRootsTotal cs`. -/
 theorem totalIsolatedRoot_mem {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     (i : Fin (isolateRootsTotal cs).length) :
     let J := (isolateRootsTotal cs)[i]
-    (totalIsolatedRoot hsep i).1 ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) :=
-  let i₀ : Fin (isolateRoots cs).length := ⟨i.1, isolateRootsTotal_length_eq cs ▸ i.2⟩
-  let h := ((isolateRootsTotal_index_spec hsep i.1 i₀.2).2.2.2 _).mpr
-    ⟨(isolatedRoot_mem hsep i₀).1, (isolatedRoot_mem hsep i₀).2, (isolatedRoot hsep i₀).2⟩
+    (totalIsolatedRoot hsep i).val ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) :=
+  let i₀ : Fin (isolateRoots cs).length := ⟨i.val, isolateRootsTotal_length_eq cs ▸ i.isLt⟩
+  let h := ((isolateRootsTotal_index_spec hsep i.val i₀.isLt).2.2.2 _).mpr
+    ⟨(isolatedRoot_mem hsep i₀).1, (isolatedRoot_mem hsep i₀).2, (isolatedRoot hsep i₀).property⟩
   ⟨h.1, h.2.1⟩
 
 /-- The real roots indexed by `totalIsolatedRoot hsep` are strictly increasing. -/
 theorem totalIsolatedRoot_strictMono {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
-    StrictMono (fun i : Fin (isolateRootsTotal cs).length => (totalIsolatedRoot hsep i).1) :=
+    StrictMono (fun i : Fin (isolateRootsTotal cs).length => (totalIsolatedRoot hsep i).val) :=
   fun _ _ hij => isolatedRoot_strictMono hsep hij
 
 /-- Bijection between `Fin (isolateRootsTotal cs).length` and
@@ -537,13 +537,13 @@ theorem isolateRootsTotal_bijective {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
     Function.Bijective (totalIsolatedRoot hsep) := by
   have hbij := isolateRoots_bijective hsep
   refine ⟨fun i j hij => ?_, fun ⟨x, hx⟩ => ?_⟩
-  · have hv : (totalIsolatedRoot hsep i).1 = (totalIsolatedRoot hsep j).1 :=
+  · have hv : (totalIsolatedRoot hsep i).val = (totalIsolatedRoot hsep j).val :=
       congrArg Subtype.val hij
     have heq := hbij.1 (Subtype.ext hv)
     exact Fin.ext (congrArg (Fin.val : Fin (isolateRoots cs).length → ℕ) heq)
   · obtain ⟨i₀, hi₀⟩ := hbij.2 ⟨x, by rwa [IsRoot.def, Polynomial.eval_map_algebraMap]⟩
-    exact ⟨⟨i₀.1, (isolateRootsTotal_length_eq cs).symm ▸ i₀.2⟩,
-      Subtype.ext (show (isolatedRoot hsep i₀).1 = x from congrArg Subtype.val hi₀)⟩
+    exact ⟨⟨i₀.val, (isolateRootsTotal_length_eq cs).symm ▸ i₀.isLt⟩,
+      Subtype.ext (show (isolatedRoot hsep i₀).val = x from congrArg Subtype.val hi₀)⟩
 
 /-- Squarefree bijection form for `isolateRootsTotal cs`. -/
 theorem isolateRootsTotal_bijective_of_squarefree {cs : List ℚ}
@@ -590,10 +590,10 @@ theorem isolateRootsTotal_spec_of_eq {B : ℕ} {cs : List ℚ} {p : ℚ[X]}
       (Function.onFun Disjoint fun J => Set.Icc (J.lower : ℝ) (J.upper : ℝ)) ∧
     (∃ f : Fin (isolateRootsTotal cs).length → {x : ℝ // Polynomial.aeval x p = 0},
       Function.Bijective f ∧
-      StrictMono (fun i => (f i).1) ∧
+      StrictMono (fun i => (f i).val) ∧
       ∀ i,
         let J := (isolateRootsTotal cs)[i]
-        (f i).1 ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ)) ∧
+        (f i).val ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ)) ∧
     (∀ J ∈ isolateRootsTotal cs,
       let E := 3 * (cs.length + 2) ^ 2 * (B + 2)
       J.lower.den ≤ 2 ^ E ∧ J.upper.den ≤ 2 ^ E ∧
@@ -665,23 +665,24 @@ noncomputable def polyTotalIsolatedRoot {p : ℚ[X]} (hsq : Squarefree p)
     (i : Fin (isolatePolyRootsTotal p).length) :
     {x : ℝ // Polynomial.aeval x p = 0} :=
   let r := totalIsolatedRoot (polySeparable hsq) i
-  ⟨r.1, by
+  ⟨r.val, by
     have heq : ofCoeffList (p.coeffsBelow (p.natDegree + 1)) = p :=
       Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
-    simpa only [heq] using r.2⟩
+    simpa only [heq] using r.property⟩
 
 /-- Membership of `polyTotalIsolatedRoot hsq i` in the `i`-th closed interval of
 `isolatePolyRootsTotal p`. -/
 theorem polyTotalIsolatedRoot_mem {p : ℚ[X]} (hsq : Squarefree p)
     (i : Fin (isolatePolyRootsTotal p).length) :
     let J := (isolatePolyRootsTotal p)[i]
-    (polyTotalIsolatedRoot hsq i).1 ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) :=
+    (polyTotalIsolatedRoot hsq i).val ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) :=
   totalIsolatedRoot_mem (polySeparable hsq) i
 
 /-- `polyTotalIsolatedRoot hsq` is strictly increasing across
 `Fin (isolatePolyRootsTotal p).length`. -/
 theorem polyTotalIsolatedRoot_strictMono {p : ℚ[X]} (hsq : Squarefree p) :
-    StrictMono (fun i : Fin (isolatePolyRootsTotal p).length => (polyTotalIsolatedRoot hsq i).1) :=
+    StrictMono (fun i : Fin (isolatePolyRootsTotal p).length =>
+      (polyTotalIsolatedRoot hsq i).val) :=
   totalIsolatedRoot_strictMono (polySeparable hsq)
 
 /-- For every squarefree `p : ℚ[X]`, `polyTotalIsolatedRoot hsq` is a bijection onto
@@ -690,11 +691,11 @@ theorem isolatePolyRootsTotal_bijective {p : ℚ[X]} (hsq : Squarefree p) :
     Function.Bijective (polyTotalIsolatedRoot hsq) := by
   have hbij := isolateRootsTotal_bijective (polySeparable hsq)
   refine ⟨fun i j hij => ?_, fun ⟨x, hx⟩ => ?_⟩
-  · have hv : (polyTotalIsolatedRoot hsq i).1 = (polyTotalIsolatedRoot hsq j).1 :=
+  · have hv : (polyTotalIsolatedRoot hsq i).val = (polyTotalIsolatedRoot hsq j).val :=
       congrArg Subtype.val hij
     exact hbij.1 (Subtype.ext hv)
   · obtain ⟨i, hi⟩ := hbij.2 ⟨x, by rwa [Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self _)]⟩
-    exact ⟨i, Subtype.ext (show (polyTotalIsolatedRoot hsq i).1 = x from congrArg Subtype.val hi)⟩
+    exact ⟨i, Subtype.ext (show (polyTotalIsolatedRoot hsq i).val = x from congrArg Subtype.val hi)⟩
 
 private theorem hasCoeffBitBound_coeffsBelow {B : ℕ} {p : ℚ[X]}
     (hB : ∀ i ≤ p.natDegree, Int.natAbs (p.coeff i).num ≤ 2 ^ B ∧ (p.coeff i).den ≤ 2 ^ B) :

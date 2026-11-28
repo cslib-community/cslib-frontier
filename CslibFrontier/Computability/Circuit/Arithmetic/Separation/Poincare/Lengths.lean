@@ -156,7 +156,7 @@ supported before `k` and `φ` from `k` on has length at most `18 ∑_j |x_j|`. L
 index with `u a ≠ 0`; Lemma `Flag.lead_le` treats `φ` with `φ (a + 1) = 1`, and otherwise
 `φ = (φ + e_{a+1}) + e_{a+1}` gives a product of two such elements. -/
 private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : Fin n → F2}
-    (hu : ∀ i, u i ≠ 0 → i.1 < k) (hφ : ∀ j, φ j ≠ 0 → k ≤ j.1) (A : U n)
+    (hu : ∀ i, u i ≠ 0 → i.val < k) (hφ : ∀ j, φ j ≠ 0 → k ≤ j.val) (A : U n)
     (hA : mat A = 1 + vecMulVec u φ) : l A ≤ 18 * l.S := by
   have f2 : ∀ c : F2, c ≠ 0 → c = 1 := by decide
   have hS := l.S_nonneg
@@ -173,7 +173,7 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
   have ha0 : u a ≠ 0 := (mem_filter.1 ha).2
   have hak := hu a ha0
   have hjk := hφ j0 hj0
-  set j : Fin (n - 1) := ⟨a.1, by omega⟩
+  set j : Fin (n - 1) := ⟨a.val, by omega⟩
   have hu' : ∀ i, lo j < i → u i = 0 := fun i hi =>
     by_contra fun h => absurd (hmax i (by simpa using h)) hi.not_ge
   have hz : ∀ (ψ : Fin n → F2), (∀ i, i < hi j → ψ i = 0) → ∀ i c, c ≤ i → u i * ψ c = 0 :=
@@ -184,7 +184,7 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
           (Cslib.SLTower.lo_lt_hi j))), mul_zero]
   have hφ' : ∀ i, i < hi j → φ i = 0 := fun i hlt => by
     by_contra h
-    exact absurd (hφ i h) (by have : i.1 < a.1 + 1 := Fin.lt_def.1 hlt; omega)
+    exact absurd (hφ i h) (by have : i.val < a.val + 1 := Fin.lt_def.1 hlt; omega)
   -- `1 + u ψᵀ` is an element of length at most `9 ∑_j |x_j|`
   have key : ∀ ψ : Fin n → F2, (∀ i, i < hi j → ψ i = 0) → ψ (hi j) = 1 →
       ∃ B : U n, mat B = 1 + vecMulVec u ψ ∧ l B ≤ 9 * l.S := fun ψ h1 h2 =>
@@ -345,7 +345,7 @@ theorem exists_kappa_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hsm : s ^ 2 < μ) :
   have hni : n ≤ 2 ^ i := Nat.le_pow_clog one_lt_two n
   have hi2 : 2 ^ i ≤ 2 * n := by
     have hi0 : 0 < i := Nat.clog_pos one_lt_two (by omega)
-    have h : 2 ^ i.pred < n := Nat.pow_pred_clog_lt_self one_lt_two (by omega)
+    have h : 2 ^ i.pred < n := Nat.pow_pred_clog_lt_self 2 (by omega)
     rw [← Nat.succ_pred_eq_of_pos hi0, pow_succ']; omega
   have hLL : L₀ ≤ L := Nat.le_log_of_pow_le (by omega) (by omega)
   have hiL : (i : ℝ) ≤ μ * ((L : ℝ) + 1) := by

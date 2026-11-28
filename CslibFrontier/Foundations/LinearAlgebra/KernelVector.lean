@@ -245,7 +245,7 @@ private theorem spansKernel_kernelBasisUpTo (A : Matrix (Fin r) (Fin n) F) (k : 
 /-- The final family spans the kernel of `A`. -/
 private theorem spansKernel_kernelBasis (A : Matrix (Fin r) (Fin n) F) :
     SpansKernel (Set.range A) (kernelBasis A) :=
-  (Set.ext fun _ => ⟨fun ⟨l, _, hl⟩ => ⟨l, hl.symm⟩, fun ⟨l, hl⟩ => ⟨l, l.2, hl.symm⟩⟩ :
+  (Set.ext fun _ => ⟨fun ⟨l, _, hl⟩ => ⟨l, hl.symm⟩, fun ⟨l, hl⟩ => ⟨l, l.isLt, hl.symm⟩⟩ :
     {a | ∃ l : Fin r, (l : ℕ) < r ∧ a = A l} = Set.range A) ▸ spansKernel_kernelBasisUpTo A r
 
 /-- Every member of `kernelBasis A` lies in the kernel of `A`. -/

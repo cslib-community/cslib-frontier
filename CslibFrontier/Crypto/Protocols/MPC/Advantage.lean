@@ -124,7 +124,7 @@ theorem PerfectSemiHonestPrivateLe.semiHonestAdvantage_eq_zero
 /-- A single view of party `i` as a tuple over the coalition `{i}`. -/
 @[expose] def singletonView {i : Fin m} (v : PartyView In Coins sc i) :
     (j : ({i} : Finset (Fin m))) → PartyView In Coins sc j :=
-  fun j => (Finset.mem_singleton.mp j.2).symm ▸ v
+  fun j => (Finset.mem_singleton.mp j.property).symm ▸ v
 
 /-- Restricting a tuple of views to the coalition `{i}` keeps only the view of `i`. -/
 theorem restrict_singleton (i : Fin m) (v : (j : Fin m) → PartyView In Coins sc j) :

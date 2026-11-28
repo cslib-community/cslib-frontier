@@ -313,33 +313,34 @@ noncomputable def blockOf (v : V) : c.blocks :=
   ⟨(c.exists_mem v).choose, (c.exists_mem v).choose_spec.1⟩
 
 /-- Every vertex belongs to its assigned block. -/
-theorem mem_blockOf (v : V) : v ∈ (c.blockOf v).1 :=
+theorem mem_blockOf (v : V) : v ∈ (c.blockOf v).val :=
   (c.exists_mem v).choose_spec.2
 
 /-- A vertex belongs to a block `B` if and only if `c.blockOf v = B`. -/
-theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.1 ↔ c.blockOf v = B :=
-  ⟨fun h => Subtype.ext (c.eq_of_mem _ (c.blockOf v).2 _ B.2 v (c.mem_blockOf v) h),
+theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.val ↔ c.blockOf v = B :=
+  ⟨fun h => Subtype.ext (c.eq_of_mem _ (c.blockOf v).property _ B.property v (c.mem_blockOf v) h),
     fun h => h ▸ c.mem_blockOf v⟩
 
 /-- The vertices of a block are those it contains. -/
-private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} = {v | v ∈ B.1} := by
+private theorem preimage_blockOf_singleton (B : c.blocks) :
+    c.blockOf ⁻¹' {B} = {v | v ∈ B.val} := by
   ext v
   simp [c.mem_iff_blockOf_eq]
 
 /-- Distinct blocks are disjoint. -/
 theorem disjoint_of_ne {B B' : c.blocks} (h : B ≠ B') :
-    Disjoint {v | v ∈ B.1} {v | v ∈ B'.1} :=
+    Disjoint {v | v ∈ B.val} {v | v ∈ B'.val} :=
   disjoint_left.mpr fun _ hv hv' =>
     h ((c.mem_iff_blockOf_eq.mp hv).symm.trans (c.mem_iff_blockOf_eq.mp hv'))
 
 /-- An edge lies in the cut of a block `B` exactly when only one of its endpoints lies in `B`. -/
 theorem mem_edgeCut_block {B : c.blocks} {e : E} :
-    e ∈ G.edgeCut {v | v ∈ B.1} ↔ ¬(c.blockOf (G.src e) = B ↔ c.blockOf (G.tgt e) = B) := by
+    e ∈ G.edgeCut {v | v ∈ B.val} ↔ ¬(c.blockOf (G.src e) = B ↔ c.blockOf (G.tgt e) = B) := by
   simp only [mem_edgeCut, mem_ofPred_eq, c.mem_iff_blockOf_eq]
 
 /-- An edge leaving a block leaves another block too. -/
-theorem exists_ne_mem_edgeCut {B : c.blocks} {e : E} (he : e ∈ G.edgeCut {v | v ∈ B.1}) :
-    ∃ B' : c.blocks, B' ≠ B ∧ e ∈ G.edgeCut {v | v ∈ B'.1} := by
+theorem exists_ne_mem_edgeCut {B : c.blocks} {e : E} (he : e ∈ G.edgeCut {v | v ∈ B.val}) :
+    ∃ B' : c.blocks, B' ≠ B ∧ e ∈ G.edgeCut {v | v ∈ B'.val} := by
   rw [mem_edgeCut_block] at he
   by_cases hs : c.blockOf (G.src e) = B
   · refine ⟨c.blockOf (G.tgt e), fun h => he (iff_of_true hs h), ?_⟩
@@ -351,12 +352,12 @@ theorem exists_ne_mem_edgeCut {B : c.blocks} {e : E} (he : e ∈ G.edgeCut {v | 
 
 /-- In a connected multigraph, some edge leaves each block, unless there is only one. -/
 theorem edgeCut_nonempty (hG : G.toSimpleGraph.Connected) (two : 1 < Nat.card c.blocks)
-    (B : c.blocks) : (G.edgeCut {v | v ∈ B.1}).Nonempty := by
+    (B : c.blocks) : (G.edgeCut {v | v ∈ B.val}).Nonempty := by
   have := Finite.one_lt_card_iff_nontrivial.mp two
   obtain ⟨B', hB'⟩ := exists_ne B
-  obtain ⟨u, hu⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B.2)
-  obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B'.2)
-  refine Multigraph.edgeCut_nonempty hG (S := {v | v ∈ B.1}) (v := w) hu fun h => hB' ?_
+  obtain ⟨u, hu⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B.property)
+  obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil _ B'.property)
+  refine Multigraph.edgeCut_nonempty hG (S := {v | v ∈ B.val}) (v := w) hu fun h => hB' ?_
   rw [mem_ofPred_eq, c.mem_iff_blockOf_eq] at h
   rw [c.mem_iff_blockOf_eq] at hw
   exact hw.symm.trans h
@@ -371,27 +372,27 @@ theorem compl_external : c.externalᶜ = {e | ∃ B ∈ c.blocks, G.src e ∈ B 
   simp only [external, mem_compl_iff, mem_ofPred_eq, not_not]
   constructor
   · intro h
-    exact ⟨_, (c.blockOf (G.src e)).2, c.mem_blockOf _, h ▸ c.mem_blockOf _⟩
+    exact ⟨_, (c.blockOf (G.src e)).property, c.mem_blockOf _, h ▸ c.mem_blockOf _⟩
   · rintro ⟨B, hB, hs, ht⟩
     rw [(c.mem_iff_blockOf_eq (B := ⟨B, hB⟩)).1 hs, (c.mem_iff_blockOf_eq (B := ⟨B, hB⟩)).1 ht]
 
 /-- The *quotient* of a compression: the multigraph whose vertices are the blocks and whose
 edges are the external edges, each joining the blocks of its endpoints. -/
 noncomputable def quotient : Multigraph c.blocks c.external where
-  src e := c.blockOf (G.src e.1)
-  tgt e := c.blockOf (G.tgt e.1)
+  src e := c.blockOf (G.src e.val)
+  tgt e := c.blockOf (G.tgt e.val)
 
 /-- The source of an external edge in the quotient is the block of its source in `G`. -/
-@[simp] theorem quotient_src (e : c.external) : c.quotient.src e = c.blockOf (G.src e.1) :=
+@[simp] theorem quotient_src (e : c.external) : c.quotient.src e = c.blockOf (G.src e.val) :=
   rfl
 
 /-- The target of an external edge in the quotient is the block of its target in `G`. -/
-@[simp] theorem quotient_tgt (e : c.external) : c.quotient.tgt e = c.blockOf (G.tgt e.1) :=
+@[simp] theorem quotient_tgt (e : c.external) : c.quotient.tgt e = c.blockOf (G.tgt e.val) :=
   rfl
 
 /-- The quotient multigraph is loopless. -/
 theorem quotient_loopless : c.quotient.Loopless :=
-  fun e => e.2
+  fun e => e.property
 
 /-- The cut of a union of whole blocks consists of the edges of the cut of the quotient. -/
 private theorem edgeCut_preimage (T : Set c.blocks) :
@@ -411,17 +412,17 @@ theorem ncard_edgeCut_preimage (T : Set c.blocks) :
 
 /-- The edges at a block of the quotient are the edges leaving the block. -/
 theorem ncard_incidenceSet_quotient (B : c.blocks) :
-    (c.quotient.incidenceSet B).ncard = (G.edgeCut {v | v ∈ B.1}).ncard := by
+    (c.quotient.incidenceSet B).ncard = (G.edgeCut {v | v ∈ B.val}).ncard := by
   rw [← edgeCut_singleton _ c.quotient_loopless, ← c.ncard_edgeCut_preimage,
     c.preimage_blockOf_singleton]
 
 /-- Every block in the quotient multigraph has degree at most `d`. -/
 theorem quotient_maxDegreeLE [Finite E] : c.quotient.MaxDegreeLE d := fun B =>
-  (c.ncard_incidenceSet_quotient B).trans_le (c.ncard_edgeCut_le _ B.2)
+  (c.ncard_incidenceSet_quotient B).trans_le (c.ncard_edgeCut_le _ B.property)
 
 /-- The cuts of the blocks count every external edge twice. -/
 theorem sum_ncard_edgeCut [Finite E] :
-    ∑ B : c.blocks, (G.edgeCut {v | v ∈ B.1}).ncard = 2 * Nat.card c.external := by
+    ∑ B : c.blocks, (G.edgeCut {v | v ∈ B.val}).ncard = 2 * Nat.card c.external := by
   simp only [← c.ncard_incidenceSet_quotient]
   exact c.quotient.sum_ncard_incidenceSet c.quotient_loopless
 
@@ -445,7 +446,7 @@ theorem exists_width_le [Finite V] [Finite E] (σ : Layout c.blocks) :
     ∃ π : Layout V, G.width π ≤ c.quotient.width σ + d * Nat.log 2 (Nat.card V) := by
   classical
   have := Fintype.ofFinite V
-  let f (v : V) : ℕ ×ₗ ℕ := toLex ((σ (c.blockOf v) : ℕ), (c.blockOf v).1.idxOf v)
+  let f (v : V) : ℕ ×ₗ ℕ := toLex ((σ (c.blockOf v) : ℕ), (c.blockOf v).val.idxOf v)
   have hσ {B B' : c.blocks} : (σ B : ℕ) = σ B' ↔ B = B' :=
     Fin.val_inj.trans σ.injective.eq_iff
   have hf : f.Injective := by
@@ -461,7 +462,7 @@ theorem exists_width_le [Finite V] [Finite E] (σ : Layout c.blocks) :
   set B := c.blockOf w
   -- The frontier: the blocks before that of `w`, and the vertices of its block before `w`.
   have hL : π.initial t =
-      c.blockOf ⁻¹' σ.initial (σ B) ∪ {v | v ∈ B.1.take (B.1.idxOf w)} := by
+      c.blockOf ⁻¹' σ.initial (σ B) ∪ {v | v ∈ B.val.take (B.val.idxOf w)} := by
     rw [Layout.initial_eq_of_lt_iff hπ ht]
     ext v
     simp only [f, mem_ofPred_eq, mem_union, mem_preimage, Layout.mem_initial,
@@ -476,12 +477,12 @@ theorem exists_width_le [Finite V] [Finite E] (σ : Layout c.blocks) :
   have hwhole : (G.edgeCut (c.blockOf ⁻¹' σ.initial (σ B))).ncard ≤ c.quotient.width σ := by
     rw [c.ncard_edgeCut_preimage]
     exact c.quotient.ncard_frontier_le_width σ _
-  have hpart : (G.edgeCut {v | v ∈ B.1.take (B.1.idxOf w)}).ncard ≤
+  have hpart : (G.edgeCut {v | v ∈ B.val.take (B.val.idxOf w)}).ncard ≤
       d * Nat.log 2 (Nat.card V) := by
-    refine (c.ncard_edgeCut_take_le _ B.2 _ (List.idxOf_lt_length_of_mem
+    refine (c.ncard_edgeCut_take_le _ B.property _ (List.idxOf_lt_length_of_mem
       (c.mem_blockOf w))).trans (Nat.mul_le_mul_left d (Nat.log_mono_right ?_))
     rw [Nat.card_eq_fintype_card]
-    exact (c.nodup _ B.2).length_le_card
+    exact (c.nodup _ B.property).length_le_card
   rw [frontier, hL]
   exact (G.ncard_edgeCut_union_le _ _).trans (Nat.add_le_add hwhole hpart)
 
@@ -517,8 +518,8 @@ theorem LayoutBound.of_saturated {d : ℕ} {A : ℝ} (hA : 0 ≤ A)
       refine ⟨Classical.arbitrary _, ?_⟩
       have hw := Q.quotient.width_le_card (Classical.arbitrary _)
       have hsum := Q.sum_ncard_edgeCut
-      have hle : ∑ B : Q.blocks, (G.edgeCut {v | v ∈ B.1}).ncard ≤ ∑ _B : Q.blocks, d :=
-        Finset.sum_le_sum fun B _ => Q.ncard_edgeCut_le _ B.2
+      have hle : ∑ B : Q.blocks, (G.edgeCut {v | v ∈ B.val}).ncard ≤ ∑ _B : Q.blocks, d :=
+        Finset.sum_le_sum fun B _ => Q.ncard_edgeCut_le _ B.property
       rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, ← Nat.card_eq_fintype_card] at hle
       have hv := Nat.mul_le_mul_right d (show Nat.card Q.blocks ≤ N₀ + 1 by omega)
       have : Q.quotient.width (Classical.arbitrary _) ≤ d * (N₀ + 1) := by

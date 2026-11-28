@@ -411,8 +411,11 @@ example (budget : Unit → Data 1 → ℕ) (code : Code .standard 1) :
 /-- info: 'Cslib.WordRAM.Refines.bind_ofFn' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms Refines.bind_ofFn
-/-- info: 'Cslib.WordRAM.Refines.call' depends on axioms: [propext] -/
-#guard_msgs in
+/--
+info: 'Cslib.WordRAM.Refines.call' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms Refines.call
 
 end CslibFrontierTests.WordRAMController

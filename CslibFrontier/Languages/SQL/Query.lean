@@ -194,7 +194,7 @@ theorem toOption_filterRows (p : Expr n) (rs : List (Row n)) :
   simp only [key, Option.isSome_map]
   split_ifs
   · rw [← List.filterMap_eq_filter]
-    refine congrArg some (List.filterMap_congr fun r _ => ?_)
+    refine congrArg some (List.filterMap_congr rfl fun r _ => ?_)
     rcases h : p.evalTruth r with e | t
     · simp [h, Option.guard]
     · cases t <;> simp [h, Option.guard]

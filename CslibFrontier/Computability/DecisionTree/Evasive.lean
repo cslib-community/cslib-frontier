@@ -94,7 +94,7 @@ private theorem sum_filter_chi (S : Finset ι) (a : ι → Bool) :
       refine sum_congr rfl fun x hx => ?_
       have hxi : x i = b := by simpa using (mem_filter.1 hx).2 i hi
       rw [chi_eq_prod_signVal, chi_eq_prod_signVal, prod_insert hi, hxi]
-    rw [hchi, hchi, signVal_false, signVal_true, ite_eq_right (insert_ne_empty i S)]
+    rw [hchi, hchi, signVal_false, signVal_true, ite_eq_right (insert_nonempty i S).ne_empty]
     ring
 
 /-- **The subcube form of the parity criterion.** If on the inputs agreeing with `a` off `S` the

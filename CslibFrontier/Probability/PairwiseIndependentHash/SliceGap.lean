@@ -103,13 +103,13 @@ variable [Fact P.Prime]
 
 /-- **A frame of length one is a nonzero vector.** -/
 @[expose] def Frame.equivNeZero : Frame P H 1 ≃ {v : Fin H → ZMod P // v ≠ 0} where
-  toFun F := ⟨F.1 0, linearIndependent_unique_iff.1 F.2⟩
-  invFun v := ⟨fun _ ↦ v.1, linearIndependent_unique_iff.2 v.2⟩
+  toFun F := ⟨F.val 0, linearIndependent_unique_iff.1 F.property⟩
+  invFun v := ⟨fun _ ↦ v.val, linearIndependent_unique_iff.2 v.property⟩
   left_inv F := Subtype.ext <| funext fun i ↦ by rw [Subsingleton.elim i 0]
   right_inv _ := rfl
 
 @[simp]
-theorem Frame.equivNeZero_apply (F : Frame P H 1) : (Frame.equivNeZero F).1 = F.1 0 :=
+theorem Frame.equivNeZero_apply (F : Frame P H 1) : (Frame.equivNeZero F).val = F.val 0 :=
   rfl
 
 /-- There are `P ^ H - 1` frames of length one. -/
@@ -121,16 +121,16 @@ omit [Fact P.Prime] in
 /-- The elementary matrix `1 + E_ab` acts on a frame of length one by the elementary move
 `F ↦ F + F b • e a`. -/
 theorem Frame.mapSL_transvection_apply_zero {a b : Fin H} (h : a ≠ b) (F : Frame P H 1) :
-    (Frame.mapSL (SpecialLinearGroup.transvection h 1) F).1 0 =
-      RotationMap.elementaryMove a b (F.1 0) := by
+    (Frame.mapSL (SpecialLinearGroup.transvection h 1) F).val 0 =
+      RotationMap.elementaryMove a b (F.val 0) := by
   rw [Frame.mapSL_apply, SpecialLinearGroup.map_transvection,
     SpecialLinearGroup.transvection_mulVec, map_one, one_mul]
   rfl
 
 /-- A sum over the frames of length one is a sum over the nonzero vectors. -/
 theorem Frame.sum_one_eq {M : Type*} [AddCommMonoid M] (Φ : (Fin H → ZMod P) → M) :
-    ∑ F : Frame P H 1, Φ (F.1 0) = ∑ v, if v = 0 then 0 else Φ v := by
-  calc ∑ F : Frame P H 1, Φ (F.1 0) = ∑ v : {v : Fin H → ZMod P // v ≠ 0}, Φ v.1 := by
+    ∑ F : Frame P H 1, Φ (F.val 0) = ∑ v, if v = 0 then 0 else Φ v := by
+  calc ∑ F : Frame P H 1, Φ (F.val 0) = ∑ v : {v : Fin H → ZMod P // v ≠ 0}, Φ v.val := by
         rw [← Equiv.sum_comp Frame.equivNeZero.symm]
         rfl
     _ = _ := by
@@ -142,7 +142,7 @@ length one. -/
 private theorem expect_ite_eq (Φ : (Fin H → ZMod P) → ℝ) :
     𝔼 v, (if v = 0 then 0 else Φ v) =
       (Fintype.card (Frame P H 1) / Fintype.card (Fin H → ZMod P) : ℝ) *
-        𝔼 F : Frame P H 1, Φ (F.1 0) := by
+        𝔼 F : Frame P H 1, Φ (F.val 0) := by
   rw [Fintype.expect_eq_sum_div_card, Fintype.expect_eq_sum_div_card, ← Frame.sum_one_eq]
   rcases isEmpty_or_nonempty (Frame P H 1) with hF | hF
   · simp
@@ -151,7 +151,7 @@ private theorem expect_ite_eq (Φ : (Fin H → ZMod P) → ℝ) :
 
 /-- The sum over ordered pairs of distinct coordinates. -/
 private theorem sum_sum_erase_eq {M : Type*} [AddCommMonoid M] (ψ : Fin H → Fin H → M) :
-    ∑ a, ∑ b ∈ univ.erase a, ψ a b = ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2}, ψ p.1.1 p.1.2 := by
+    ∑ a, ∑ b ∈ univ.erase a, ψ a b = ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2}, ψ p.val.1 p.val.2 := by
   rw [← Finset.sum_subtype (univ.filter fun p : Fin H × Fin H ↦ p.1 ≠ p.2) (by simp)
     (fun p ↦ ψ p.1 p.2), sum_filter, Fintype.sum_prod_type]
   refine sum_congr rfl fun a _ ↦ ?_
@@ -165,13 +165,13 @@ a second moment at most `36864 H²` times its total squared change along the ele
 theorem exists_expect_sq_sub_le_mapSL_transvection (hH : 3 ≤ H) (g : Frame P H 1 → ℝ) :
     ∃ m : ℝ, 𝔼 F, (g F - m) ^ 2 ≤ 36864 * H ^ 2 *
       ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
-        𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.2 1) F) - g F) ^ 2 := by
+        𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.property 1) F) - g F) ^ 2 := by
   have := Frame.nonempty (P := P) (r := 1) (H := H) (by omega)
   -- `g` as a function on all vectors.
   set G : (Fin H → ZMod P) → ℝ := fun v ↦
     if h : v = 0 then 0 else g (Frame.equivNeZero.symm ⟨v, h⟩) with hG
-  have hGF (F : Frame P H 1) : G (F.1 0) = g F := by
-    have h := (Frame.equivNeZero F).2
+  have hGF (F : Frame P H 1) : G (F.val 0) = g F := by
+    have h := (Frame.equivNeZero F).property
     simp only [hG, Frame.equivNeZero_apply] at h ⊢
     simp only [h, dite_false]
     exact congrArg g (Frame.equivNeZero.symm_apply_apply F)
@@ -198,10 +198,10 @@ theorem exists_expect_sq_sub_le_mapSL_transvection (hH : 3 ≤ H) (g : Frame P H
   rw [hL, sum_sum_erase_eq (fun a b ↦ 𝔼 v, (G (RotationMap.elementaryMove a b v) - G v) ^ 2)]
     at hm
   have hsum : ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
-      𝔼 v, (G (RotationMap.elementaryMove p.1.1 p.1.2 v) - G v) ^ 2 =
+      𝔼 v, (G (RotationMap.elementaryMove p.val.1 p.val.2 v) - G v) ^ 2 =
         c * ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
-          𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.2 1) F) - g F) ^ 2 := by
-    rw [mul_sum]; exact sum_congr rfl fun p _ ↦ hR _ _ p.2
+          𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.property 1) F) - g F) ^ 2 := by
+    rw [mul_sum]; exact sum_congr rfl fun p _ ↦ hR _ _ p.property
   rw [hsum, mul_left_comm] at hm
   exact le_of_mul_le_mul_left hm hc
 
@@ -214,7 +214,7 @@ variable (H) in
 the unit translations by `e_i`. -/
 @[expose] def affineGenerator :
     {p : Fin H × Fin H // p.1 ≠ p.2} ⊕ Fin H → SpecialLinearGroup (Fin H) ℤ × (Fin H → ℤ) :=
-  Sum.elim (fun p ↦ (SpecialLinearGroup.transvection p.2 1, 0)) fun i ↦ (1, Pi.single i 1)
+  Sum.elim (fun p ↦ (SpecialLinearGroup.transvection p.property 1, 0)) fun i ↦ (1, Pi.single i 1)
 
 variable (P H L) in
 /-- **The affine moves on slice coordinates** `(F, w)`: the moves `coordMove` of the generators,
@@ -227,7 +227,7 @@ variable (P H L) in
 theorem affineMove_inl {r : ℕ} (p : {p : Fin H × Fin H // p.1 ≠ p.2})
     (q : Frame P H r × (Fin H → ZMod L)) :
     affineMove P H L r (.inl p) q =
-      (Frame.mapSL (SpecialLinearGroup.transvection p.2 1) q.1,
+      (Frame.mapSL (SpecialLinearGroup.transvection p.property 1) q.1,
         update q.2 p.val.1 (q.2 p.val.1 + q.2 p.val.2)) := by
   simp only [affineMove, affineGenerator, coordMove, Sum.elim_inl, Equiv.prodCongr_apply,
     Prod.map, affineSL_apply, SpecialLinearGroup.map_transvection,
@@ -322,7 +322,7 @@ theorem expect_sq_le_affineMove [Fact P.Prime] [NeZero L] (hH : 3 ≤ H)
     rw [h1, hg0, expect_add_distrib, Fintype.expect_const]
     nlinarith [sq_nonneg m]
   have hframe : ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
-      𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.2 1) F) - g F) ^ 2 ≤ D := by
+      𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.property 1) F) - g F) ^ 2 ≤ D := by
     calc _ ≤ ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
           𝔼 q, (f (affineMove P H L 1 (.inl p) q) - f q) ^ 2 := by
           refine sum_le_sum fun p _ ↦ ?_

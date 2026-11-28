@@ -181,7 +181,7 @@ theorem contraction_sampleDescNet_exact :
     DescribedNetwork.contraction tblEval sampleDescNet = 60 := by
   have heval : ∀ v ∈ sampleDescNet.vertices, ∀ bs : List Bool, bs.length = v.1.length →
       tblEval v.2 bs = (Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-        tblEval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0))).getD
+        tblEval v.2 ((lsbDecode 2 v.1.length i.val).map fun k => decide (k ≠ 0))).getD
           (Cslib.BitString.lsbValue bs) 0 := by
     intro v hv bs hlen
     simp only [sampleDescNet, List.mem_cons, List.not_mem_nil, or_false] at hv
@@ -194,7 +194,7 @@ theorem contraction_sampleDescNet_exact :
   let fs : List (FactorTable ℕ ℕ) := sampleDescNet.vertices.map fun v =>
     { scope := v.1
       entries := Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-        tblEval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0)) }
+        tblEval v.2 ((lsbDecode 2 v.1.length i.val).map fun k => decide (k ≠ 0)) }
   have h2 := result_eliminateOrder_of_subset (R := ℕ) 2
     (s := ElimState.ofFactors fs [0, 1]) (order := [0, 1]) (by decide)
   have hdec : ([0, 1] : List ℕ).toFinset = Finset.range sampleDescNet.numEdges := by

@@ -165,7 +165,7 @@ theorem realize_covByFormula_fin (v : α → Fin m) (x y : α) :
 /-- `isTopFormula` on `Fin m`, in terms of values. -/
 theorem realize_isTopFormula_fin (v : α → Fin m) (x : α) :
     (isTopFormula x).Realize v ↔ (v x : ℕ) + 1 = m := by
-  have := (v x).2
+  have := (v x).isLt
   rw [realize_isTopFormula]
   refine ⟨fun h => ?_, fun _ => by omega⟩
   have := h ⟨m - 1, by omega⟩
@@ -174,7 +174,7 @@ theorem realize_isTopFormula_fin (v : α → Fin m) (x : α) :
 /-- `isBotFormula` on `Fin m`, in terms of values. -/
 theorem realize_isBotFormula_fin (v : α → Fin m) (x : α) :
     (isBotFormula x).Realize v ↔ (v x : ℕ) = 0 := by
-  have := (v x).2
+  have := (v x).isLt
   rw [realize_isBotFormula]
   refine ⟨fun h => ?_, fun _ => by omega⟩
   have := h ⟨0, by omega⟩
@@ -185,7 +185,7 @@ theorem realize_twoAboveFormula_fin (v : α → Fin m) (x y : α) :
     (twoAboveFormula x y).Realize v ↔ (v x : ℕ) + 2 = v y := by
   rw [realize_twoAboveFormula]
   simp only [Fin.covBy_iff, Nat.covBy_iff_add_one_eq]
-  have := (v y).2
+  have := (v y).isLt
   exact ⟨fun ⟨z, h₁, h₂⟩ => by omega, fun h => ⟨⟨v x + 1, by omega⟩, rfl, by simp only; omega⟩⟩
 
 end Fin
@@ -235,14 +235,14 @@ noncomputable def graphInterpEquiv (δ : L.Formula (Fin 2)) :
     letI := (definedGraph M δ).structure
     (graphInterp δ).Model M ≃[Language.graph] M :=
   letI := (definedGraph M δ).structure
-  { toFun x := x.1 ()
+  { toFun x := x.val ()
     invFun y := Interpretation.Model.mk (fun _ => y) (Formula.realize_top.2 trivial)
     left_inv _ := Interpretation.Model.ext rfl
     right_inv _ := rfl
     map_fun' f := isEmptyElim f
     map_rel' {n} R x := by
       match n, R with
-      | 2, .adj => exact (realize_definedAdjFormula δ (fun p => (x p.1).1 p.2)).symm }
+      | 2, .adj => exact (realize_definedAdjFormula δ (fun p => (x p.1).val p.2)).symm }
 
 variable (M) in
 /-- An `L`-structure satisfies the pullback along `graphInterp δ` of a graph sentence exactly when

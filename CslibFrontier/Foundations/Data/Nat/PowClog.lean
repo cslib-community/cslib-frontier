@@ -31,7 +31,7 @@ namespace Nat
 theorem pow_clog_lt_mul {b n : ℕ} (hb : 1 < b) (hn : n ≠ 0) : b ^ clog b n < b * n := by
   rcases (one_le_iff_ne_zero.2 hn).eq_or_lt with rfl | hn
   · simpa using hb
-  · have h := pow_pred_clog_lt_self hb hn
+  · have h := pow_pred_clog_lt_self b hn
     rw [← succ_pred_eq_of_pos (clog_pos hb hn), pow_succ']
     exact Nat.mul_lt_mul_of_pos_left h (by omega)
 

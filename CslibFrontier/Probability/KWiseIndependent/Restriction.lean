@@ -67,9 +67,9 @@ theorem card_filter_eq_of_card_le [Fintype X] {k : ℕ} {h : ι → X → Y}
     #{i : ι | h i = y} * Fintype.card Y ^ Fintype.card X = Fintype.card ι := by
   let T : Finset X := Finset.univ
   have hT : #T ≤ k := by simpa [T] using hX
-  have h1 := hh.card_filter_restrict_eq hT (fun a => y a.1)
+  have h1 := hh.card_filter_restrict_eq hT (fun a => y a.val)
   have hset :
-      #{i : ι | T.restrict (h i) = fun a => y a.1} = #{i : ι | h i = y} := by
+      #{i : ι | T.restrict (h i) = fun a => y a.val} = #{i : ι | h i = y} := by
     congr 1
     ext i
     simp [T, funext_iff, Finset.restrict]
@@ -95,7 +95,7 @@ nonempty seed fiber `{θ : ι // h θ x = v₀}` carrying a `k`-wise independent
 theorem fiber {k : ℕ} {h : ι → X → Y} (hh : IsKWiseIndependentHash (k + 1) h) (x : X) (v₀ : Y) :
     Nonempty {θ : ι // h θ x = v₀} ∧
     IsKWiseIndependentHash k
-      (fun (θ : {θ : ι // h θ x = v₀}) (z : {z : X // z ≠ x}) => h θ.1 z.1) := by
+      (fun (θ : {θ : ι // h θ x = v₀}) (z : {z : X // z ≠ x}) => h θ.val z.val) := by
   classical
   have : Nonempty ι := hh.nonempty
   have hcard1 : Fintype.card Y * Fintype.card {θ : ι // h θ x = v₀} = Fintype.card ι :=
@@ -111,20 +111,20 @@ theorem fiber {k : ℕ} {h : ι → X → Y} (hh : IsKWiseIndependentHash (k + 1
   let y' : T' → Y := fun ⟨a, ha⟩ =>
     if hz : a = x then v₀ else y ⟨⟨a, hz⟩, hmemT hz ((Finset.mem_insert.mp ha).resolve_left hz)⟩
   have hcardT' := hh.card_filter_restrict_eq (T := T') (by simp [T', emb]; omega) y'
-  have hbij : #{θ : {θ : ι // h θ x = v₀} | T.restrict (fun z => h θ.1 z.1) = y} =
+  have hbij : #{θ : {θ : ι // h θ x = v₀} | T.restrict (fun z => h θ.val z.val) = y} =
       #{θ : ι | T'.restrict (h θ) = y'} := by
-    refine Finset.card_bij (fun θ _ => θ.1) ?_ (fun _ _ _ _ h => Subtype.ext h) ?_
+    refine Finset.card_bij (fun θ _ => θ.val) ?_ (fun _ _ _ _ h => Subtype.ext h) ?_
     · intro θ hθ; refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, funext fun ⟨a, ha⟩ => ?_⟩
       rcases eq_or_ne a x with rfl | hzx
-      · simp [Finset.restrict, y', θ.2]
+      · simp [Finset.restrict, y', θ.property]
       · simpa [Finset.restrict, y', hzx] using congrFun (Finset.mem_filter.mp hθ).2
           ⟨⟨a, hzx⟩, hmemT hzx ((Finset.mem_insert.mp ha).resolve_left hzx)⟩
     · intro θ hθ; rw [Finset.mem_filter] at hθ
       have hx0 : h θ x = v₀ := by
         simpa [Finset.restrict, y'] using congrFun hθ.2 ⟨x, Finset.mem_insert_self _ _⟩
       refine ⟨⟨θ, hx0⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, funext fun w => ?_⟩, rfl⟩
-      simpa [Finset.restrict, y', w.1.2] using
-        congrFun hθ.2 ⟨w.1.1, Finset.mem_insert_of_mem (Finset.mem_map_of_mem emb w.2)⟩
+      simpa [Finset.restrict, y', w.val.property] using
+        congrFun hθ.2 ⟨w.val.val, Finset.mem_insert_of_mem (Finset.mem_map_of_mem emb w.property)⟩
   rw [show #T' = #T + 1 by simp [T', emb], pow_succ, mul_comm (Fintype.card Y ^ #T), mul_assoc,
     ← hbij, ← hcard1] at hcardT'
   rw [Finset.dens_eq_card_div_card, div_eq_iff (by exact_mod_cast hF_pos.ne'),
@@ -145,8 +145,8 @@ theorem dens_le_of_hash_fiber {ι α Y : Type*} [Fintype ι] [Fintype Y] [Decida
     (Bad : ι → Prop) [DecidablePred Bad] {B : ℝ}
     (hfib : ∀ v₀ : Y, ∀ (_ : Nonempty {θ : ι // h θ x = v₀}),
       IsKWiseIndependentHash k (fun (θ : {θ : ι // h θ x = v₀}) (y : {y : α // y ≠ x}) =>
-        h θ.1 y.1) →
-      (dens {θ : {θ : ι // h θ x = v₀} | Bad θ.1} : ℝ) ≤ B) :
+        h θ.val y.val) →
+      (dens {θ : {θ : ι // h θ x = v₀} | Bad θ.val} : ℝ) ≤ B) :
     (dens {θ : ι | Bad θ} : ℝ) ≤ B := by
   classical
   have := hh.nonempty
@@ -166,9 +166,10 @@ theorem dens_le_of_hash_fiber {ι α Y : Type*} [Fintype ι] [Fintype Y] [Decida
   have hf := hfib v₀ hne_v₀ hind_v₀
   rw [Finset.dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
     div_le_iff₀ (by exact_mod_cast Fintype.card_pos)] at hf
-  rwa [show #{θ : {θ : ι // h θ x = v₀} | Bad θ.1} = #{θ : ι | Bad θ ∧ h θ x = v₀} from
-    Finset.card_bij (fun θ _ => θ.1)
-      (fun θ hθ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2, θ.2⟩)
+  rwa [show #{θ : {θ : ι // h θ x = v₀} | Bad θ.val} = #{θ : ι | Bad θ ∧ h θ x = v₀} from
+    Finset.card_bij (fun θ _ => θ.val)
+      (fun θ hθ => Finset.mem_filter.mpr
+        ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2, θ.property⟩)
       (fun _ _ _ _ h => Subtype.ext h)
       (fun θ hθ => ⟨⟨θ, (Finset.mem_filter.mp hθ).2.2⟩,
         Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2.1⟩, rfl⟩)] at hf

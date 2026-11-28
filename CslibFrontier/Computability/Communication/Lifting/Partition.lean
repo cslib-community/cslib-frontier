@@ -184,7 +184,7 @@ the original set is nonempty. -/
 theorem agreeOn_nonempty_of_card_le {W : Finset (Fin n → Fin m)} {I : Finset (Fin n)}
     {α : Fin n → Fin m} (hWne : W.Nonempty) (hW : (#W : ℝ) ≤ #(agreeOn W I α) * τ ^ #I) :
     (agreeOn W I α).Nonempty := by
-  refine nonempty_iff_ne_empty.2 fun h => ?_
+  refine ne_empty_iff_nonempty.1 fun h => ?_
   rw [h, card_empty, Nat.cast_zero, zero_mul] at hW
   exact not_le.2 (Nat.cast_pos.2 (card_pos.2 hWne)) hW
 
@@ -311,7 +311,7 @@ private theorem card_allowing_le_of_lt {X : Finset (Fin n → Fin m)}
     {β : Fin n → Bool} (h1 : (#(allowing Y q.I q.α β) : ℝ) * (4 * τ) ^ #q.I < #Y) :
     (#(allowing Y q.I q.α β) : ℝ) ≤ #Y * #q.P / (2 * #X) := by
   have hXpos : (0 : ℝ) < #X := by exact_mod_cast card_pos.mpr hX
-  have hIne : q.I.Nonempty := nonempty_iff_ne_empty.2 fun h => by simp [h, allowing] at h1
+  have hIne : q.I.Nonempty := ne_empty_iff_nonempty.1 fun h => by simp [h, allowing] at h1
   have h2 := hL.card_le q hq
   have h4 : (4 : ℝ) ≤ 4 ^ #q.I := le_self_pow₀ (by norm_num) (card_ne_zero.mpr hIne)
   have hτI : (0 : ℝ) < τ ^ #q.I := by positivity

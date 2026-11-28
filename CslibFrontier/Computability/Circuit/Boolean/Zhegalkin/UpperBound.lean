@@ -138,15 +138,15 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
   -- Inductive run across stages `q₀ = 0 .. M / s` (`Q = M / s + 1` stages).
   let Q := M / s + 1
   let stageTC (q₀ : ℕ) : ℕ :=
-    (∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
+    (∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.val / 2) / s = q₀),
         (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1)) +
-      (∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
+      (∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
         (#(oddCols (hasZhegCol d s) p r) - 1)) +
-      (∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) +
+      (∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀), (2 * (p + s) + 1)) +
       (if q₀ < M / s then 2 ^ s - s - 1 else 0)
   let stageWC (q₀ : ℕ) : ℕ :=
-    ∑ i ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀),
-      if i.1 < k then 1 else 0
+    ∑ i ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀),
+      if i.val < k then 1 else 0
   have hstages : ∀ T : ℕ,
       CostSynthesis interpretation andCost (stageSet d s p 0) (stageSet d s p T)
         (∑ q₀ ∈ range T, stageTC q₀) (∑ q₀ ∈ range T, stageWC q₀) := by
@@ -184,10 +184,10 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
   -- Sum the stage gate budgets and compare with `totalBound n M s p` and `k`.
   have hpair_sum :
       (∑ q₀ ∈ range Q,
-        ∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
+        ∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.val / 2) / s = q₀),
           (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1)) ≤
       (M * (M + 2 * n)) / (2 * s) := by
-    have hmaps : ∀ up ∈ zhegPairIdx d s p, (up.2.1.1 / 2) / s ∈ range Q := fun up _ =>
+    have hmaps : ∀ up ∈ zhegPairIdx d s p, (up.2.1.val / 2) / s ∈ range Q := fun up _ =>
       mem_range.mpr (hdiv_Q (by omega))
     rw [sum_fiberwise_of_maps_to hmaps]
     have h₁ : ∑ up ∈ zhegPairIdx d s p,
@@ -202,10 +202,10 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     nlinarith only [h₁, h₂, h₃]
   have hodd_sum :
       (∑ q₀ ∈ range Q,
-        ∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
+        ∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
           (#(oddCols (hasZhegCol d s) p r) - 1)) ≤
       ((2 * M) ⌈/⌉ p) * 2 ^ s * ((n + M) ⌈/⌉ s) := by
-    have hmaps : ∀ r ∈ zhegOddIdx d s p, (r.1 / 2) / s ∈ range Q := fun r _ =>
+    have hmaps : ∀ r ∈ zhegOddIdx d s p, (r.val / 2) / s ∈ range Q := fun r _ =>
       mem_range.mpr (hdiv_Q (by omega))
     rw [sum_fiberwise_of_maps_to hmaps]
     calc ∑ r ∈ zhegOddIdx d s p, (#(oddCols (hasZhegCol d s) p r) - 1)
@@ -217,11 +217,11 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
       _ ≤ ((2 * M) ⌈/⌉ p) * (2 ^ s * ((n + M) ⌈/⌉ s)) :=
           Nat.mul_le_mul_left _ (card_zhegCol_le n M s hs)
       _ = ((2 * M) ⌈/⌉ p) * 2 ^ s * ((n + M) ⌈/⌉ s) := by ring
-  have hmapsM : ∀ i ∈ (univ : Finset (Fin M)), i.1 / s ∈ range Q := fun i _ =>
+  have hmapsM : ∀ i ∈ (univ : Finset (Fin M)), i.val / s ∈ range Q := fun i _ =>
     mem_range.mpr (hdiv_Q i.isLt.le)
   have hgates_sum :
       (∑ q₀ ∈ range Q,
-        ∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) ≤
+        ∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀), (2 * (p + s) + 1)) ≤
       2 * M * (p + s + 1) := by
     rw [sum_fiberwise_of_maps_to hmapsM, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
@@ -248,7 +248,7 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     dsimp only [stageWC]
     rw [sum_fiberwise_of_maps_to hmapsM, sum_boole, Nat.cast_id]
     have hinj : Set.InjOn Fin.val
-        ((univ.filter fun i : Fin M => i.1 < k) : Set (Fin M)) :=
+        ((univ.filter fun i : Fin M => i.val < k) : Set (Fin M)) :=
       fun _ _ _ _ h => Fin.ext h
     exact (card_le_card_of_injOn Fin.val
       (fun i hi => mem_range.mpr (mem_filter.mp hi).2) hinj).trans_eq (card_range _)

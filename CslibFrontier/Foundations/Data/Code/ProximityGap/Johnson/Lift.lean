@@ -189,7 +189,7 @@ private theorem exists_pow_eq_poly_of_not_dvd {L : Type*} [Field L] [IsAlgClosed
   · exact ⟨Ψ, by simpa only [one_mul] using hΨ_deg, pow_one Ψ⟩
   · have : Fact p.Prime := ⟨hp⟩
     choose c hc using fun m : Fin (d + 1) =>
-      IsAlgClosed.exists_pow_nat_eq (Ψ.coeff (m.1 * p ^ e)) (pow_pos hp.pos e)
+      IsAlgClosed.exists_pow_nat_eq (Ψ.coeff (m.val * p ^ e)) (pow_pos hp.pos e)
     refine ⟨Polynomial.ofFn (d + 1) c,
       Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos d) c), ?_⟩
     rw [← Polynomial.map_iterateFrobenius_expand p (Polynomial.ofFn (d + 1) c) e]

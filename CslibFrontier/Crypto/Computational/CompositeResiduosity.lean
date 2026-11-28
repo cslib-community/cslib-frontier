@@ -104,8 +104,8 @@ abbrev Desc.totient (d : Desc) : ℕ := (d.p - 1) * (d.q - 1)
 
 /-- The modulus is greater than `1`. -/
 theorem Desc.one_lt_modulus (d : Desc) : 1 < d.modulus := by
-  have hp := d.2.two_lt_fst
-  have hq := d.2.two_lt_snd
+  have hp := d.property.two_lt_fst
+  have hq := d.property.two_lt_snd
   change 1 < d.val.1 * d.val.2
   nlinarith
 
@@ -116,13 +116,15 @@ instance (d : Desc) : NeZero (d.modulus ^ 2) := ⟨pow_ne_zero 2 (NeZero.ne _)�
 /-- The computed totient `(p - 1) * (q - 1)` is Euler's totient of `N = p * q`. -/
 theorem Desc.totient_eq (d : Desc) : d.totient = d.modulus.totient := by
   rw [Desc.totient, Desc.modulus,
-    Nat.totient_mul ((Nat.coprime_primes d.2.prime_fst d.2.prime_snd).mpr d.2.fst_ne_snd),
-    Nat.totient_prime d.2.prime_fst, Nat.totient_prime d.2.prime_snd]
+    Nat.totient_mul
+      ((Nat.coprime_primes d.property.prime_fst d.property.prime_snd).mpr d.property.fst_ne_snd),
+    Nat.totient_prime d.property.prime_fst, Nat.totient_prime d.property.prime_snd]
 
 /-- **Claim 15.7** ([KatzLindell2020]) for a valid description: `gcd(N, φ(N)) = 1`. -/
 theorem Desc.coprime_totient (d : Desc) : d.modulus.Coprime d.modulus.totient :=
-  Paillier.coprime_totient d.2.prime_fst d.2.prime_snd d.2.fst_ne_snd d.2.two_lt_fst
-    d.2.two_lt_snd d.2.size_eq
+  Paillier.coprime_totient d.property.prime_fst d.property.prime_snd
+    d.property.fst_ne_snd d.property.two_lt_fst
+    d.property.two_lt_snd d.property.size_eq
 
 /-- Descriptions are encoded as the binary pair `(p, q)`. -/
 def encDesc : Desc ↪ List Bool :=
@@ -239,7 +241,7 @@ private theorem dcrTotientTest_eq_decide (d : Desc) (u : (ZMod (d.modulus ^ 2))�
   refine and_congr_right fun ha => and_congr_right fun hb => and_congr_right fun hab => ?_
   have htot : (a - 1) * (b - 1) = d.modulus.totient := by
     rw [← d.totient_eq]
-    rcases mul_eq_mul_primes_cases d.2.prime_fst d.2.prime_snd ha hb hab with
+    rcases mul_eq_mul_primes_cases d.property.prime_fst d.property.prime_snd ha hb hab with
       ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · rfl
     · exact mul_comm _ _

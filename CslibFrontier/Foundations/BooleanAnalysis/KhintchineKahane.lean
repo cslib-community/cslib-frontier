@@ -153,7 +153,7 @@ theorem two_mul_expect_sub_expect_sq_le_totalInfluence_of_even {g : (ι → Bool
     refine sum_congr rfl fun S _ => ?_
     by_cases h1 : #S = 1
     · simp [fourierCoeff_eq_zero_of_odd_card hg (h1 ▸ odd_one : Odd #S)]
-    · have : S ≠ ∅ ↔ 1 < #S := by rw [← card_pos.trans nonempty_iff_ne_empty]; omega
+    · have : S ≠ ∅ ↔ 1 < #S := by rw [ne_empty_iff_nonempty, ← card_pos]; omega
       simp only [this]
   have h := add_one_mul_sum_fourierCoeff_sq_le_totalInfluence g 1
   rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq, hW]

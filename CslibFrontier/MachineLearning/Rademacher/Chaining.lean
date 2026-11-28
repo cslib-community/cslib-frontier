@@ -245,7 +245,7 @@ theorem empiricalRademacherComplexity_signClass_le_mul_sqrt {C : ConceptClass α
       rademacherAverage fun u : V => sp u := by
     rw [empiricalRademacherComplexity_def]
     refine rademacherAverage_le_of_forall_exists (fun u i => hsp_abs u i) fun f => ?_
-    obtain ⟨c, hc, hcf⟩ := mem_signClass.1 f.2
+    obtain ⟨c, hc, hcf⟩ := mem_signClass.1 f.property
     refine ⟨⟨fun i => c (S i), (Set.Finite.mem_toFinset _).2
       (mem_restriction.2 ⟨c, hc, fun _ => rfl⟩)⟩, ?_⟩
     funext i
@@ -254,7 +254,7 @@ theorem empiricalRademacherComplexity_signClass_le_mul_sqrt {C : ConceptClass α
   have hsq (u : Fin m → Bool) : ∑ i, sp u i ^ 2 = m := by
     simp [hsp, sq, signVal_mul_self]
   have h := expect_ciSup_sum_mul_signVal_le_of_hammingDist hC S (fun u : V => (u : Fin m → Bool))
-    (fun u => (Set.Finite.mem_toFinset _).1 u.2) (fun u : V => sp u) (r := √m)
+    (fun u => (Set.Finite.mem_toFinset _).1 u.property) (fun u : V => sp u) (r := √m)
     (Real.sqrt_nonneg _) (fun u => by rw [hsq, Real.sq_sqrt hm'.le]) fun u v => by
       change ∑ i, (signVal ((u : Fin m → Bool) i) - signVal ((v : Fin m → Bool) i)) ^ 2 ≤ _
       rw [sum_sq_signVal_sub_signVal, Real.sq_sqrt hm'.le, mul_div_assoc, div_self hm'.ne',

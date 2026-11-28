@@ -134,7 +134,7 @@ theorem trace_gate (I : Fin n → Bool) (g : Fin C.size) :
 abbrev Slot : Type := {g : Fin C.size // op C g = .and} × Bool
 
 /-- The AND gate of a slot. -/
-abbrev Slot.gate (p : Slot C) : Fin C.size := p.1.1
+abbrev Slot.gate (p : Slot C) : Fin C.size := p.1.val
 
 /-- **Two ciphertexts per AND gate**: the garbled table has `2 * #AND` entries. -/
 theorem card_slot :

@@ -60,20 +60,4 @@ example (v n : ℕ) :
     ¬Executes 3 ([.op (.const 0 8), .halt 0] : Program .standard 1) (State.init []) v n :=
   not_executes_of_fault rfl
 
-/-- info: 'Cslib.WordRAM.step_toGeneric' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.step_toGeneric
-
-/-- info: 'Cslib.WordRAM.executes_toGeneric_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.executes_toGeneric_iff
-
-/-- info: 'Cslib.GenericRAM.Executes.unique' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.GenericRAM.Executes.unique
-
-/-- info: 'Cslib.WordRAM.Executes.unique' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.Executes.unique
-
 end CslibFrontierTests.WordRAMGeneric

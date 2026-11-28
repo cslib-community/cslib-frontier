@@ -234,7 +234,8 @@ vertices, the radius-`r` ball is the path `c - r, …, c + r` on `2r + 1` vertic
 theorem exists_isBallPath_cycleGraph {N r : ℕ} (hN : 2 * r + 2 ≤ N) (c : Fin N) :
     ∃ φ : ℤ → Fin N, φ 0 = c ∧ IsBallPath (cycleGraph N) r (-r) r φ := by
   have : NeZero N := ⟨by omega⟩
-  exact ⟨_, Fin.ext (by simp [Fin.val_add, Nat.mod_eq_of_lt c.2]), isBallPath_cycleGraph_add hN c⟩
+  exact ⟨_, Fin.ext (by simp [Fin.val_add, Nat.mod_eq_of_lt c.isLt]),
+    isBallPath_cycleGraph_add hN c⟩
 
 end Cycle
 
@@ -242,7 +243,7 @@ section Path
 
 /-- The vertex of the path graph on `Fin N` at offset `s` from `j`, clamped to the vertex set. -/
 private def pathAt {N : ℕ} (j : Fin N) (s : ℤ) : Fin N :=
-  ⟨min (j + s).toNat (N - 1), by have := j.2; omega⟩
+  ⟨min (j + s).toNat (N - 1), by have := j.isLt; omega⟩
 
 /-- **Balls in path graphs.** Around vertex `j` of the path graph on `N` vertices, the radius-`r`
 ball is the path from `j - min r j` to `j + min r (N - 1 - j)`. -/
@@ -300,8 +301,8 @@ theorem edist_pathGraph {N : ℕ} (i j : Fin N) :
       rw [show (⟨j + (i - j), by omega⟩ : Fin N) = i by fin_index,
         edist_comm] at this
       rwa [show (j : ℕ) - i + (i - j) = i - j by omega]
-  · have : NeZero N := ⟨by have := i.2; omega⟩
-    obtain ⟨p, hp⟩ := ((connected_pathGraph.2 (by have := i.2; omega)).preconnected i j)
+  · have : NeZero N := ⟨by have := i.isLt; omega⟩
+    obtain ⟨p, hp⟩ := ((connected_pathGraph.2 (by have := i.isLt; omega)).preconnected i j)
       |>.exists_walk_length_eq_edist
     rw [← hp]
     exact_mod_cast pathGraph_length_walk p

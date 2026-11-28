@@ -243,7 +243,7 @@ private theorem eval_hashCNF (σ : Var → Bool) (vars : List ℕ) (k : ℕ) (w 
   simp only [hashCNF, CNF.eval_flatMap_eq_true_iff, Prod.forall, mem_zipIdx_listRows,
     forall_exists_index, eval_rowClauses]
   refine ⟨fun h i => ?_, fun h _ i hi hr => hr ▸ ?_⟩
-  · obtain ⟨h0, hL, hs⟩ := h _ i i.2 rfl
+  · obtain ⟨h0, hL, hs⟩ := h _ i i.isLt rfl
     exact ⟨h0, hL, fun j hj => (hs j hj).trans (by rw [List.getD_ofFn_of_lt _ hj]; rfl)⟩
   · obtain ⟨h0, hL, hs⟩ := h ⟨i, hi⟩
     exact ⟨h0, hL, fun j hj => (hs j hj).trans (by rw [List.getD_ofFn_of_lt _ hj]; rfl)⟩
@@ -292,8 +292,8 @@ private theorem eval_hashCNF_extend {vars : List ℕ} {k : ℕ} {w : List Bool} 
     (hashCNF vars k w).eval (Sum.elim σ fun p =>
       if hp : p.1 < k then auxValue vars k w σ ⟨p.1, hp⟩ p.2 else false) = true := by
   refine (eval_hashCNF _ vars k w).2 fun i => ⟨by simp [auxValue], ?_, fun j hj => ?_⟩
-  · simp only [Sum.elim_inr, i.2, dite_true, Fin.eta, auxValue_length, h]; rfl
-  · simp only [Sum.elim_inr, Sum.elim_inl, i.2, dite_true, Fin.eta, auxValue,
+  · simp only [Sum.elim_inr, i.isLt, dite_true, Fin.eta, auxValue_length, h]; rfl
+  · simp only [Sum.elim_inr, Sum.elim_inl, i.isLt, dite_true, Fin.eta, auxValue,
       Finset.sum_range_succ, hj, ← add_assoc]
     rfl
 
@@ -487,7 +487,7 @@ theorem matrix_take (k width : ℕ) (w : List Bool) :
   funext i j
   simp only [matrix, BitString.block_apply, BitString.ofList, List.getD_eq_getElem?_getD,
     List.getElem?_take]
-  rw [ite_eq_left (by have := (finProdFinEquiv (i, j)).2; omega)]
+  rw [ite_eq_left (by have := (finProdFinEquiv (i, j)).isLt; omega)]
 
 /-- The offsets only read the first `k * width + k` bits. -/
 theorem offset_take (k width : ℕ) (w : List Bool) :

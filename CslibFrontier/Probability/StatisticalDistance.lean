@@ -11,6 +11,7 @@ public import Cslib.Probability.StatisticalDistance
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 
 /-!
@@ -144,11 +145,7 @@ theorem dist_bind_left_le_of_le [Finite α] [Fintype β] (p : PMF α) (f : α �
   cases nonempty_fintype α
   calc
     dist (p.bind f) q ≤ ∑ a, (p a).toReal * dist (f a) q := dist_bind_left_le p f q
-    _ ≤ ∑ a, (p a).toReal * δ := by
-      refine Finset.sum_le_sum fun a _ => ?_
-      by_cases ha : a ∈ p.support
-      · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
-      · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
+    _ ≤ ∑ a, (p a).toReal * δ := sum_toReal_mul_mono_support p h
     _ = δ := by rw [← Finset.sum_mul, sum_toReal, one_mul]
 
 /-- Statistical distance on `Bool` from the uniform distribution is the bias `|p(true) - 1 / 2|`. -/

@@ -262,7 +262,7 @@ theorem rademacherAverage_comp_le_empiricalRademacherComplexity {Z : Type*} {F :
     rademacherAverage (fun (f : F) i => φ i ((f : Z → ℝ) (S i))) ≤
       K * empiricalRademacherComplexity F S := by
   rw [empiricalRademacherComplexity_def]
-  exact rademacherAverage_comp_le (fun (f : F) i => hF f.1 f.2 (S i)) hφ
+  exact rademacherAverage_comp_le (fun (f : F) i => hF f.val f.property (S i)) hφ
 
 /-- **Empirical Rademacher contraction under example-dependent Lipschitz maps**: if `F` is a
 uniformly bounded set of functions `X → ℝ`, `g : Z → X` extracts features from examples, and
@@ -277,7 +277,7 @@ theorem empiricalRademacherComplexity_image_comp_le_of_map {Z X : Type*} {F : Se
   rw [empiricalRademacherComplexity_def]
   have hcomp_bdd : ∀ (f : F) (i : Fin m),
       |φ (S i) ((f : X → ℝ) (g (S i)))| ≤ (∑ i' : Fin m, |φ (S i') 0|) + K * max B 0 :=
-    fun f i => abs_apply_le_of_lipschitzWith (fun i => hφ (S i)) i (hF f.1 f.2 (g (S i)))
+    fun f i => abs_apply_le_of_lipschitzWith (fun i => hφ (S i)) i (hF f.val f.property (g (S i)))
   refine (rademacherAverage_le_of_forall_exists hcomp_bdd ?_).trans
     (rademacherAverage_comp_le_empiricalRademacherComplexity hF (fun i => g (S i))
       fun i => hφ (S i))

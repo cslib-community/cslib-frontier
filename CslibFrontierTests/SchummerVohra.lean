@@ -487,7 +487,7 @@ private lemma dist_not_inTail_edgePoint (p : MetricGraph triTail) (hp : ¬ inTai
         (SimpleGraph.vertexDist triTail.graph triTail.weight u 3 + (1 - (τ : ℝ)) * 1) =
       SimpleGraph.vertexDist triTail.graph triTail.weight u 2 + (τ : ℝ)
     rw [hvd, mul_one, mul_one]
-    exact min_eq_left (by linarith [τ.2.2])
+    exact min_eq_left (by linarith [τ.property.2])
   | edgePoint d t ht0 ht1 =>
     intro hnp
     have hne : d.edge ≠ dart23.edge := by
@@ -531,11 +531,11 @@ private lemma dist_not_inTail_edgePoint (p : MetricGraph triTail) (hp : ¬ inTai
     have h1 : (t : ℝ) * 1 + SimpleGraph.vertexDist triTail.graph triTail.weight d.fst 2 +
         (τ : ℝ) * 1 ≤ (t : ℝ) * 1 +
           (SimpleGraph.vertexDist triTail.graph triTail.weight d.fst 2 + 1) +
-          (1 - (τ : ℝ)) * 1 := by linarith [τ.2.2]
+          (1 - (τ : ℝ)) * 1 := by linarith [τ.property.2]
     have h2 : (1 - (t : ℝ)) * 1 + SimpleGraph.vertexDist triTail.graph triTail.weight d.snd 2 +
         (τ : ℝ) * 1 ≤ (1 - (t : ℝ)) * 1 +
           (SimpleGraph.vertexDist triTail.graph triTail.weight d.snd 2 + 1) +
-          (1 - (τ : ℝ)) * 1 := by linarith [τ.2.2]
+          (1 - (τ : ℝ)) * 1 := by linarith [τ.property.2]
     rw [min_eq_left h1, min_eq_left h2]
     rcases le_total
         ((t : ℝ) * 1 + SimpleGraph.vertexDist triTail.graph triTail.weight d.fst 2)
@@ -576,8 +576,8 @@ private lemma dist_dart23_eq (s t : unitInterval) :
   rw [hw, h22, h33, h23, h32]
   simp only [mul_one, add_zero]
   refine min_eq_left (le_min (le_min ?_ ?_) (le_min ?_ ?_)) <;>
-    exact abs_le.mpr ⟨by linarith [s.2.1, s.2.2, t.2.1, t.2.2],
-      by linarith [s.2.1, s.2.2, t.2.1, t.2.2]⟩
+    exact abs_le.mpr ⟨by linarith [s.property.1, s.property.2, t.property.1, t.property.2],
+      by linarith [s.property.1, s.property.2, t.property.1, t.property.2]⟩
 
 private lemma tailPos_not_inTail {p : MetricGraph triTail} (hp : ¬ inTail p) :
     tailPos p = 0 := by
@@ -608,14 +608,14 @@ private lemma dist_triTail_edgePoint_le_iff (p : MetricGraph triTail) (τ₁ τ�
     obtain ⟨h2, _⟩ := dist_not_inTail_edgePoint p hp τ₂
     rw [h1, h2, tailPos_not_inTail hp]
     simp only [Subtype.dist_eq, Real.dist_eq, Set.Icc.coe_zero, zero_sub, abs_neg]
-    rw [abs_of_nonneg τ₁.2.1, abs_of_nonneg τ₂.2.1]
+    rw [abs_of_nonneg τ₁.property.1, abs_of_nonneg τ₂.property.1]
     constructor <;> intro h <;> linarith
 
 private lemma tailScheme2_eval_le_zero (y : Fin 2 → unitInterval) :
     tailScheme2.eval y ≤ y 0 := by
   rw [← not_lt, ← Subtype.coe_lt_coe, tailScheme2.lt_eval_iff y (y 0)]
   have h0 : (0 : Fin 2) ∈ Finset.univ.filter fun i : Fin 2 => (y i : ℝ) ≤ y 0 := by simp
-  simp [tailScheme2, (y 0).2.1]
+  simp [tailScheme2, (y 0).property.1]
 
 private theorem triTailMech_isGroupStrategyProof :
     (Mechanism.deterministic triTailMech).IsGroupStrategyProof := by
@@ -664,7 +664,7 @@ private theorem triTailMech_isGroupStrategyProof :
         simpa [ht0, tailPos_dart23] using h
       have hdist_x : dist (x 0) (triTailMech x) ≤ (t0 : ℝ) := by
         rw [hf, ht0, dist_dart23_eq, abs_of_nonneg (sub_nonneg.mpr hτ_le)]
-        linarith [(tailScheme2.eval fun i => tailPos (x i)).2.1]
+        linarith [(tailScheme2.eval fun i => tailPos (x i)).property.1]
       have hle0 := h_le 0 h0A
       linarith
   · have hfx : triTailMech x = x 0 := by simp only [triTailMech, hx0, ↓reduceIte]

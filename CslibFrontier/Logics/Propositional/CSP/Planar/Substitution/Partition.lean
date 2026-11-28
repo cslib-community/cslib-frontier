@@ -50,9 +50,9 @@ theorem flatten_replacementCycles_perm
   have hp := flatten_variableBlocks_perm templates free F c hc
   rw [flatten_incidenceBlocks_eq templates free F hfree] at hp
   have hj := List.flatMap_append_perm F.zipIdx
-    (fun entry => (free entry.1.1).flatMap
+    (fun entry => (free entry.1.rel).flatMap
       (shiftBlock (occurrencePrefix templates F entry.2)))
-    (fun entry => (aux entry.1.1).flatMap
+    (fun entry => (aux entry.1.rel).flatMap
       (shiftBlock (occurrencePrefix templates F entry.2)))
   have hr := shifted_boundaryBlocks_perm_target_range gadgets witnesses B F
   change (replacementCycles templates free aux F c).flatten.Perm _

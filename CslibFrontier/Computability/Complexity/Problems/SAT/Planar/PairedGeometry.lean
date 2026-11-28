@@ -317,7 +317,7 @@ theorem path_step_unit {φ : CNF ℕ} {e : Point × Point}
     (he : e ∈ (paths φ).flatMap List.consecutivePairs) : Orthogonal.length e.1 e.2 = 1 := by
   obtain ⟨r, hr, he⟩ := List.mem_flatMap.mp he
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
-  have hi' : i < (SAT.incidenceGraph φ).2.length := by
+  have hi' : i < (SAT.incidenceGraph φ).edges.length := by
     simpa only [PlanarCompile.paths_eq_unitPaths, Graph.unitPaths_length] using hi
   apply Graph.unitPath_unit _ (fun _ => SAT.incidenceGraph_endpoints)
     (fun _ => SAT.incidenceGraph_loopless) hi'
@@ -485,7 +485,7 @@ theorem variablePositions_nodup (φ : CNF ℕ) :
 
 /-- The actual drawing has exactly the compact incidence graph's number of vertices. -/
 theorem positions_length (φ : CNF ℕ) :
-    (positions φ).length = (SAT.incidenceGraph (formula φ)).1.length := by
+    (positions φ).length = (SAT.incidenceGraph (formula φ)).vertices.length := by
   rw [positions, SAT.incidenceGraph, List.length_range, formula, CNF.distinctVars_compact]
   simp only [CNF.compact, CNF.relabel, rawFormula, List.length_append, List.length_map]
 
@@ -536,7 +536,7 @@ theorem placedClause_route_count (φ : CNF ℕ) :
 
 /-- The actual route count is the edge count of the final compact incidence graph. -/
 theorem routes_length (φ : CNF ℕ) :
-    (routes φ).length = (SAT.incidenceGraph (formula φ)).2.length := by
+    (routes φ).length = (SAT.incidenceGraph (formula φ)).edges.length := by
   rw [SAT.length_edges_incidenceGraph, formula, CNF.compact, CNF.vars_relabel, List.length_map]
   simp only [routes, List.length_flatMap, CNF.vars, List.length_map,
     List.length_flatten, rawFormula, List.map_map, Function.comp_def]
@@ -640,7 +640,7 @@ theorem drawingPosition_raw_clause (φ : CNF ℕ) {i : ℕ} (hi : i < (placedCla
   rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hi), List.getElem_map]
 
 private theorem raw_edges_eq (φ : CNF ℕ) :
-    (SAT.incidenceGraph (rawFormula φ)).2 =
+    (SAT.incidenceGraph (rawFormula φ)).edges =
       (placedClauses φ).zipIdx.flatMap fun pci => pci.1.1.map fun l =>
         ((rawFormula φ).distinctVars.idxOf l.1, (rawFormula φ).distinctVars.length + pci.2) := by
   simp only [SAT.incidenceGraph, Cslib.Logic.PL.occurrences, rawFormula, List.zipIdx_map,
@@ -660,7 +660,7 @@ private theorem raw_routes_endpoints (φ : CNF ℕ) :
         (positions φ, routes φ) e.2) ∧
       r.getLast? = some (Graph.drawingPosition (SAT.incidenceGraph (rawFormula φ))
         (positions φ, routes φ) e.1))
-      (SAT.incidenceGraph (rawFormula φ)).2 (routes φ) := by
+      (SAT.incidenceGraph (rawFormula φ)).edges (routes φ) := by
   have hroutes : routes φ = (placedClauses φ).zipIdx.flatMap (·.1.2.2) := by
     simpa only [routes, List.flatMap_map] using (congrArg (List.flatMap (·.2.2))
       (List.zipIdx_map_fst (i := 0) (l := placedClauses φ))).symm
@@ -681,12 +681,12 @@ private theorem raw_routes_endpoints (φ : CNF ℕ) :
 /-- Actual indexed routes have the final compact incidence graph's endpoints, in clause-to-
 variable order, including repeated literal incidences. -/
 theorem routes_endpoints (φ : CNF ℕ) {i : ℕ}
-    (hi : i < (SAT.incidenceGraph (formula φ)).2.length) :
+    (hi : i < (SAT.incidenceGraph (formula φ)).edges.length) :
     let r := (routes φ).getD i []
     r.head? = some (Graph.drawingPosition (SAT.incidenceGraph (formula φ))
-      (positions φ, routes φ) (SAT.incidenceGraph (formula φ)).2[i].2) ∧
+      (positions φ, routes φ) (SAT.incidenceGraph (formula φ)).edges[i].2) ∧
     r.getLast? = some (Graph.drawingPosition (SAT.incidenceGraph (formula φ))
-      (positions φ, routes φ) (SAT.incidenceGraph (formula φ)).2[i].1) := by
+      (positions φ, routes φ) (SAT.incidenceGraph (formula φ)).edges[i].1) := by
   simp only [incidenceGraph_formula] at hi ⊢
   have hir : i < (routes φ).length := by rwa [routes_length, incidenceGraph_formula]
   simpa only [List.get_eq_getElem, List.getD_eq_getElem _ _ hir] using
@@ -1503,7 +1503,7 @@ theorem route_clause_contact {φ : CNF ℕ}
       exact congrArg (fun x => some (center x)) hcell.symm
 
 private theorem drawingPosition_eq_getD {φ : CNF ℕ} {v : ℕ}
-    (hv : v ∈ (SAT.incidenceGraph (formula φ)).1) :
+    (hv : v ∈ (SAT.incidenceGraph (formula φ)).vertices) :
     Graph.drawingPosition (SAT.incidenceGraph (formula φ)) (positions φ, routes φ) v =
       (positions φ).getD v (0, 0) := by
   simp only [Graph.drawingPosition, SAT.incidenceGraph]
@@ -1511,12 +1511,12 @@ private theorem drawingPosition_eq_getD {φ : CNF ℕ} {v : ℕ}
 
 private theorem drawingPosition_injective {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3)
-    {a b : ℕ} (ha : a ∈ (SAT.incidenceGraph (formula φ)).1)
-    (hb : b ∈ (SAT.incidenceGraph (formula φ)).1)
+    {a b : ℕ} (ha : a ∈ (SAT.incidenceGraph (formula φ)).vertices)
+    (hb : b ∈ (SAT.incidenceGraph (formula φ)).vertices)
     (heq : Graph.drawingPosition (SAT.incidenceGraph (formula φ)) (positions φ, routes φ) a =
       Graph.drawingPosition (SAT.incidenceGraph (formula φ)) (positions φ, routes φ) b) :
     a = b := by
-  have hlt {x} (hx : x ∈ (SAT.incidenceGraph (formula φ)).1) : x < (positions φ).length := by
+  have hlt {x} (hx : x ∈ (SAT.incidenceGraph (formula φ)).vertices) : x < (positions φ).length := by
     rw [positions_length]
     simpa only [SAT.incidenceGraph, List.mem_range, List.length_range] using hx
   rw [drawingPosition_eq_getD ha, drawingPosition_eq_getD hb,
@@ -1524,19 +1524,19 @@ private theorem drawingPosition_injective {φ : CNF ℕ}
   exact (positions_nodup hw hv).eq_of_getElem_eq (hlt ha) (hlt hb) heq
 
 private theorem indexed_route_mem {φ : CNF ℕ} {i : ℕ}
-    (hi : i < (SAT.incidenceGraph (formula φ)).2.length) :
+    (hi : i < (SAT.incidenceGraph (formula φ)).edges.length) :
     (routes φ).getD i [] ∈ routes φ :=
   List.getD_mem [] (by rwa [routes_length])
 
 /-- Actual indexed routes avoid all nonincident declared graph vertices. -/
 theorem routes_avoid_vertices {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3)
-    {i : ℕ} (hi : i < (SAT.incidenceGraph (formula φ)).2.length)
-    {v : ℕ} (hvertex : v ∈ (SAT.incidenceGraph (formula φ)).1)
+    {i : ℕ} (hi : i < (SAT.incidenceGraph (formula φ)).edges.length)
+    {v : ℕ} (hvertex : v ∈ (SAT.incidenceGraph (formula φ)).vertices)
     (hp : realPoint (Graph.drawingPosition (SAT.incidenceGraph (formula φ))
       (positions φ, routes φ) v) ∈ support ((routes φ).getD i [])) :
-    v = (SAT.incidenceGraph (formula φ)).2[i].1 ∨
-      v = (SAT.incidenceGraph (formula φ)).2[i].2 := by
+    v = (SAT.incidenceGraph (formula φ)).edges[i].1 ∨
+      v = (SAT.incidenceGraph (formula φ)).edges[i].2 := by
   have hend := routes_endpoints φ hi
   have hdecl := SAT.incidenceGraph_endpoints (List.getElem_mem hi)
   have hlt : v < (positions φ).length := by
@@ -1556,15 +1556,15 @@ theorem routes_avoid_vertices {φ : CNF ℕ}
 /-- Actual indexed incidence routes meet only at their shared declared graph endpoints. -/
 theorem routes_contacts {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3)
-    {i : ℕ} (hi : i < (SAT.incidenceGraph (formula φ)).2.length)
-    {j : ℕ} (hj : j < (SAT.incidenceGraph (formula φ)).2.length) (hij : i ≠ j)
+    {i : ℕ} (hi : i < (SAT.incidenceGraph (formula φ)).edges.length)
+    {j : ℕ} (hj : j < (SAT.incidenceGraph (formula φ)).edges.length) (hij : i ≠ j)
     {p : ℝ × ℝ} (hp : p ∈ support ((routes φ).getD i []))
     (hq : p ∈ support ((routes φ).getD j [])) :
-    ∃ v ∈ (SAT.incidenceGraph (formula φ)).1,
-      (v = (SAT.incidenceGraph (formula φ)).2[i].1 ∨
-        v = (SAT.incidenceGraph (formula φ)).2[i].2) ∧
-      (v = (SAT.incidenceGraph (formula φ)).2[j].1 ∨
-        v = (SAT.incidenceGraph (formula φ)).2[j].2) ∧
+    ∃ v ∈ (SAT.incidenceGraph (formula φ)).vertices,
+      (v = (SAT.incidenceGraph (formula φ)).edges[i].1 ∨
+        v = (SAT.incidenceGraph (formula φ)).edges[i].2) ∧
+      (v = (SAT.incidenceGraph (formula φ)).edges[j].1 ∨
+        v = (SAT.incidenceGraph (formula φ)).edges[j].2) ∧
       p = realPoint (Graph.drawingPosition (SAT.incidenceGraph (formula φ))
         (positions φ, routes φ) v) := by
   have hir : i < (routes φ).length := by rwa [routes_length]
@@ -1572,11 +1572,11 @@ theorem routes_contacts {φ : CNF ℕ}
   have hne : (routes φ).getD i [] ≠ (routes φ).getD j [] := by
     rw [List.getD_eq_getElem _ _ hir, List.getD_eq_getElem _ _ hjr]
     exact fun h => hij ((routes_nodup hw hv).eq_of_getElem_eq hir hjr h)
-  have end_decl {k : ℕ} (hk : k < (SAT.incidenceGraph (formula φ)).2.length) {a : Point}
+  have end_decl {k : ℕ} (hk : k < (SAT.incidenceGraph (formula φ)).edges.length) {a : Point}
       (ha : RouteEnd ((routes φ).getD k []) a) :
-      ∃ v ∈ (SAT.incidenceGraph (formula φ)).1,
-        (v = (SAT.incidenceGraph (formula φ)).2[k].1 ∨
-          v = (SAT.incidenceGraph (formula φ)).2[k].2) ∧
+      ∃ v ∈ (SAT.incidenceGraph (formula φ)).vertices,
+        (v = (SAT.incidenceGraph (formula φ)).edges[k].1 ∨
+          v = (SAT.incidenceGraph (formula φ)).edges[k].2) ∧
         a = Graph.drawingPosition (SAT.incidenceGraph (formula φ)) (positions φ, routes φ) v := by
     rcases ha with ha | ha
     · exact ⟨_, (SAT.incidenceGraph_endpoints (List.getElem_mem hk)).2, Or.inr rfl,

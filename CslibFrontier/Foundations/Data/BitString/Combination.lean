@@ -142,16 +142,16 @@ theorem rankCombination_unrankCombination {m k r : ℕ} (hr : r < m.choose k) :
 /-- Computable bijection between `k`-element subsets of `Fin m` and `Fin (m.choose k)`, obtained by
 composing `rankCombination` / `unrankCombination` with `supportOfList`. -/
 def subsetEquiv (m k : ℕ) : { S : Finset (Fin m) // S.card = k } ≃ Fin (m.choose k) where
-  toFun S := ⟨rankCombination (List.ofFn fun u : Fin m => decide (u ∈ S.1)), by
-    simpa only [List.length_ofFn, count_true_ofFn_decide_mem S.2] using
-      rankCombination_lt_choose (List.ofFn fun u : Fin m => decide (u ∈ S.1))⟩
+  toFun S := ⟨rankCombination (List.ofFn fun u : Fin m => decide (u ∈ S.val)), by
+    simpa only [List.length_ofFn, count_true_ofFn_decide_mem S.property] using
+      rankCombination_lt_choose (List.ofFn fun u : Fin m => decide (u ∈ S.val))⟩
   invFun r := ⟨supportOfList m (unrankCombination m k r.val), by
     rw [card_supportOfList_of_length (length_unrankCombination m k r.val)]
     exact count_true_unrankCombination r.isLt⟩
   left_inv S := Subtype.ext <| by
     dsimp only
-    have hunr := unrankCombination_rankCombination (List.ofFn fun u : Fin m => decide (u ∈ S.1))
-    rw [List.length_ofFn, count_true_ofFn_decide_mem S.2] at hunr
+    have hunr := unrankCombination_rankCombination (List.ofFn fun u : Fin m => decide (u ∈ S.val))
+    rw [List.length_ofFn, count_true_ofFn_decide_mem S.property] at hunr
     rw [hunr, supportOfList_ofFn_decide]
   right_inv r := Fin.ext <| by
     dsimp only
@@ -160,12 +160,12 @@ def subsetEquiv (m k : ℕ) : { S : Finset (Fin m) // S.card = k } ≃ Fin (m.ch
 
 @[simp]
 theorem val_subsetEquiv {m k : ℕ} (S : { S : Finset (Fin m) // S.card = k }) :
-    (subsetEquiv m k S).val = rankCombination (List.ofFn fun u : Fin m => decide (u ∈ S.1)) := by
+    (subsetEquiv m k S).val = rankCombination (List.ofFn fun u : Fin m => decide (u ∈ S.val)) := by
   simp [subsetEquiv]
 
 @[simp]
 theorem coe_subsetEquiv_symm {m k : ℕ} (r : Fin (m.choose k)) :
-    ((subsetEquiv m k).symm r).1 = supportOfList m (unrankCombination m k r.val) := by
+    ((subsetEquiv m k).symm r).val = supportOfList m (unrankCombination m k r.val) := by
   simp [subsetEquiv]
 
 end Cslib.BitString

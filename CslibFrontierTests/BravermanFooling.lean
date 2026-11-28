@@ -66,7 +66,8 @@ theorem isKWiseIndependent_evenParity (K : ℕ) : IsKWiseIndependent K (evenPari
 
 /-- The even-parity distribution has bias one at the set of all positions. -/
 theorem bias_evenParity_univ (n : ℕ) : bias (evenParity n) univ = 1 := by
-  have h (x : EvenParity n) : parityOn univ (x : Fin n → Bool) = false := AddMonoidHom.mem_ker.1 x.2
+  have h (x : EvenParity n) : parityOn univ (x : Fin n → Bool) = false :=
+      AddMonoidHom.mem_ker.1 x.property
   rw [evenParity, bias_uniformOfFintype_map]
   simp only [chi_eq_signVal_parityOn, h, signVal_false]
   exact Fintype.expect_const 1

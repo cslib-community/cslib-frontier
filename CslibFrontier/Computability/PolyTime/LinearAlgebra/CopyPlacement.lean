@@ -115,7 +115,7 @@ theorem getD_fiberRanks (labels : List ℕ) {e : ℕ} (he : e < labels.length) (
 private theorem count_take_eq_card_fin (labels : List ℕ) :
     ∀ {k : ℕ} (_ : k ≤ labels.length) (y : ℕ),
       (labels.take k).count y =
-        (Finset.univ.filter fun i : Fin labels.length => labels[i] = y ∧ i.1 < k).card
+        (Finset.univ.filter fun i : Fin labels.length => labels[i] = y ∧ i.val < k).card
   | 0, _, _ => by simp
   | k + 1, hk, y => by
     have hk' : k < labels.length := Nat.lt_of_succ_le hk
@@ -124,7 +124,7 @@ private theorem count_take_eq_card_fin (labels : List ℕ) :
     by_cases hy : labels[k] = y
     · subst hy
       let f := fun m =>
-        Finset.univ.filter fun i : Fin labels.length => labels[i] = labels[k] ∧ i.1 < m
+        Finset.univ.filter fun i : Fin labels.length => labels[i] = labels[k] ∧ i.val < m
       have hsplit : f (k + 1) = insert ⟨k, hk'⟩ (f k) := by
         ext ⟨i, hi⟩; simp only [f, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
           Fin.ext_iff]
@@ -143,9 +143,9 @@ private theorem count_take_eq_card_fin (labels : List ℕ) :
 /-- Entry `e` of `fiberRanks labels` agrees with `Cslib.LinearAlgebra.fiberRank` on
 `Fin labels.length`. -/
 theorem getElem_fiberRanks_eq_fiberRank (labels : List ℕ) (e : Fin labels.length) :
-    (fiberRanks labels)[e.1]'(by simp [e.2]) =
+    (fiberRanks labels)[e.val]'(by simp [e.isLt]) =
       Cslib.LinearAlgebra.fiberRank (fun i : Fin labels.length => labels[i]) e := by
-  rw [getElem_fiberRanks, count_take_eq_card_fin labels e.2.le, Cslib.LinearAlgebra.fiberRank]
+  rw [getElem_fiberRanks, count_take_eq_card_fin labels e.isLt.le, Cslib.LinearAlgebra.fiberRank]
   congr 1
 
 /-- **Unconditional injectivity of `(fiberRanks labels).zip labels`.** Distinct incidence
@@ -271,10 +271,10 @@ theorem sum_length_varGroupList {varSchedules : List (List ℕ)} {t r : ℕ}
 `a : Fin n → Fin Q → Fin r`. -/
 theorem mem_varGroupList_iff_mem_varGroup {n Q r : ℕ} {varSchedules : List (List ℕ)}
     {a : Fin n → Fin Q → Fin r} (hlen : varSchedules.length = n)
-    (ha : ∀ (v : Fin n) (t : Fin Q), (varSchedules.getD v.1 []).getD t.1 0 = (a v t).1)
+    (ha : ∀ (v : Fin n) (t : Fin Q), (varSchedules.getD v.val []).getD t.val 0 = (a v t).val)
     (t : Fin Q) (g : Fin r) (v : Fin n) :
-    v.1 ∈ varGroupList varSchedules t.1 g.1 ↔ v ∈ Cslib.LinearAlgebra.varGroup a t g := by
-  simp only [mem_varGroupList, Cslib.LinearAlgebra.mem_varGroup, hlen, v.2, true_and, ha,
+    v.val ∈ varGroupList varSchedules t.val g.val ↔ v ∈ Cslib.LinearAlgebra.varGroup a t g := by
+  simp only [mem_varGroupList, Cslib.LinearAlgebra.mem_varGroup, hlen, v.isLt, true_and, ha,
     Fin.ext_iff]
 
 /-! ### Executable copy-embedding and pullback of measurement and replacement rows -/
@@ -998,8 +998,8 @@ private theorem sum_map_zip_ofFn {M : ℕ} {K : Type*} [AddCommMonoid K] {α β 
   rw [sum_map_zip da db, hmin, ← Fin.sum_univ_eq_sum_range (fun i =>
     f ((List.ofFn fa).getD i da, (List.ofFn fb).getD i db)) M]
   refine Finset.sum_congr rfl fun e _ => ?_
-  have ha : e.1 < (List.ofFn fa).length := by simpa only [List.length_ofFn] using e.2
-  have hb : e.1 < (List.ofFn fb).length := by simpa only [List.length_ofFn] using e.2
+  have ha : e.val < (List.ofFn fa).length := by simpa only [List.length_ofFn] using e.isLt
+  have hb : e.val < (List.ofFn fb).length := by simpa only [List.length_ofFn] using e.isLt
   simp only [List.getD_eq_getElem _ _ ha, List.getD_eq_getElem _ _ hb, List.getElem_ofFn]
 
 /-- `copyEmbedExec` agrees with `Cslib.LinearAlgebra.copyProj ∘ Cslib.LinearAlgebra.copyEmbed`
@@ -1007,17 +1007,17 @@ under any injective integer encoding `code` of `AuxLabel Q r`. -/
 theorem copyEmbedExec_ofFn_eq_copyProj_copyEmbed {M n h Q r : ℕ} {K : Type*} [AddCommMonoid K]
     (place : Fin M → Fin h × Cslib.LinearAlgebra.AuxLabel Q r) (varOf : Fin M → Fin n)
     {code : Cslib.LinearAlgebra.AuxLabel Q r → ℕ} (hcode : Function.Injective code)
-    (x : Fin n → K) (xExec : ℕ → K) (hx : ∀ v : Fin n, xExec v.1 = x v)
+    (x : Fin n → K) (xExec : ℕ → K) (hx : ∀ v : Fin n, xExec v.val = x v)
     (c : Fin h) (u : Cslib.LinearAlgebra.AuxLabel Q r) :
     copyEmbedExec (List.ofFn fun e => ((place e).1.val, code (place e).2))
-        (List.ofFn fun e => (varOf e).1) xExec c.1 (code u) =
+        (List.ofFn fun e => (varOf e).val) xExec c.val (code u) =
       Cslib.LinearAlgebra.copyProj c (Cslib.LinearAlgebra.copyEmbed place varOf x) u := by
   classical
   rw [copyEmbedExec, sum_map_zip_ofFn (0, 0) 0, Cslib.LinearAlgebra.copyProj,
     Cslib.LinearAlgebra.copyEmbed, Finset.sum_filter]
   refine Finset.sum_congr rfl fun e _ => ?_
   dsimp only
-  have hiff : ((place e).1.1 = c.1 ∧ code (place e).2 = code u) ↔ place e = (c, u) := by
+  have hiff : ((place e).1.val = c.val ∧ code (place e).2 = code u) ↔ place e = (c, u) := by
     rw [Prod.ext_iff, Fin.ext_iff, hcode.eq_iff]
   by_cases hp : place e = (c, u)
   · rw [ite_eq_left (hiff.mpr hp), ite_eq_left hp, hx]
@@ -1034,14 +1034,15 @@ theorem getD_pullbackMeasurementRow_ofFn_eq_varMeasurementMatrix {M n h Q r A₀
       auxRow.getD (code u) 0 = Cslib.LinearAlgebra.measurementMatrix Q r A₀ R ℤ β u)
     (v : Fin n) :
     (pullbackMeasurementRow n (List.ofFn fun e => ((place e).1.val, code (place e).2))
-        (List.ofFn fun e => (varOf e).1) c.1 auxRow).getD v.1 0 =
+        (List.ofFn fun e => (varOf e).val) c.val auxRow).getD v.val 0 =
       Cslib.LinearAlgebra.varMeasurementMatrix Q r A₀ R ℤ place varOf (c, β) v := by
   classical
-  rw [pullbackMeasurementRow, List.getD_map_range _ 0 v.2, sum_map_zip_ofFn (0, 0) 0,
+  rw [pullbackMeasurementRow, List.getD_map_range _ 0 v.isLt, sum_map_zip_ofFn (0, 0) 0,
     Cslib.LinearAlgebra.varMeasurementMatrix, Finset.sum_filter]
   refine Finset.sum_congr rfl fun e _ => ?_
   dsimp only
-  have hiff : ((place e).1.1 = c.1 ∧ (varOf e).1 = v.1) ↔ ((place e).1 = c ∧ varOf e = v) := by
+  have hiff :
+      ((place e).1.val = c.val ∧ (varOf e).val = v.val) ↔ ((place e).1 = c ∧ varOf e = v) := by
     simp only [Fin.ext_iff]
   by_cases hm : (place e).1 = c ∧ varOf e = v
   · rw [ite_eq_left (hiff.mpr hm), ite_eq_left hm, hrow]
@@ -1060,20 +1061,20 @@ theorem getD_pullbackReplacementRow_ofFn_eq_coeffsBelow_varReplacementRowScaledI
         (Cslib.LinearAlgebra.auxReplacementRowScaledInt Q r A₀ R (place e).2 y).coeff k)
     (v : Fin n) :
     (pullbackReplacementRow n R (List.ofFn fun i => ((place i).1.val, code (place i).2))
-        (List.ofFn fun i => (varOf i).1) e.1 blockRepl).getD v.1 [] =
+        (List.ofFn fun i => (varOf i).val) e.val blockRepl).getD v.val [] =
       (Cslib.LinearAlgebra.varReplacementRowScaledInt Q r A₀ R place varOf e v).coeffsBelow R := by
   classical
-  have he_lt : e.1 < (List.ofFn fun i : Fin M => ((place i).1.1, code (place i).2)).length := by
-    simpa only [List.length_ofFn] using e.2
+  have he_lt : e.val < (List.ofFn fun i : Fin M => ((place i).1.val, code (place i).2)).length := by
+    simpa only [List.length_ofFn] using e.isLt
   rw [pullbackReplacementRow, Cslib.tabulateTable, List.getD_eq_getElem _ _ he_lt,
-    List.getElem_ofFn, List.getD_map_range _ [] v.2, Polynomial.coeffsBelow]
+    List.getElem_ofFn, List.getD_map_range _ [] v.isLt, Polynomial.coeffsBelow]
   refine List.map_congr_left fun k hk => ?_
   have hk' : k < R := List.mem_range.mp hk
   rw [sum_map_zip_ofFn (0, 0) 0, Cslib.LinearAlgebra.varReplacementRowScaledInt,
     Polynomial.finsetSum_coeff, Finset.sum_filter]
   refine Finset.sum_congr rfl fun i _ => ?_
   dsimp only
-  have hiff : ((place i).1.1 = (place e).1.1 ∧ (varOf i).1 = v.1) ↔
+  have hiff : ((place i).1.val = (place e).1.val ∧ (varOf i).val = v.val) ↔
       ((place i).1 = (place e).1 ∧ varOf i = v) := by simp only [Fin.ext_iff]
   by_cases hm : (place i).1 = (place e).1 ∧ varOf i = v
   · rw [ite_eq_left (hiff.mpr hm), ite_eq_left hm, hrepl _ hk']
@@ -1093,7 +1094,7 @@ theorem ofCoeffList_pullbackReplacementRow_ofFn_eq_varReplacementRowScaledInt
     (v : Fin n) :
     Polynomial.ofCoeffList
         ((pullbackReplacementRow n R (List.ofFn fun i => ((place i).1.val, code (place i).2))
-          (List.ofFn fun i => (varOf i).1) e.1 blockRepl).getD v.1 []) =
+          (List.ofFn fun i => (varOf i).val) e.val blockRepl).getD v.val []) =
       Cslib.LinearAlgebra.varReplacementRowScaledInt Q r A₀ R place varOf e v := by
   rw [getD_pullbackReplacementRow_ofFn_eq_coeffsBelow_varReplacementRowScaledInt place varOf code
     blockRepl e hrepl v]

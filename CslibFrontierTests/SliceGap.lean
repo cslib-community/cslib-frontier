@@ -34,7 +34,7 @@ def F : Frame 5 3 1 := Frame.equivNeZero.symm ⟨![1, 0, 4], by decide⟩
 
 -- `1 + E_02` adds the coordinate `2` to the coordinate `0`, on the frame modulo `5` and on the box
 -- coordinate modulo `4`, wrapping around in both.
-example : (affineMove 5 3 4 1 (.inl ⟨(0, 2), by decide⟩) (F, ![3, 1, 2])).1.1 0 = ![0, 0, 4] := by
+example : (affineMove 5 3 4 1 (.inl ⟨(0, 2), by decide⟩) (F, ![3, 1, 2])).1.val 0 = ![0, 0, 4] := by
   rw [affineMove_inl, Frame.mapSL_transvection_apply_zero]
   decide
 example : (affineMove 5 3 4 1 (.inl ⟨(0, 2), by decide⟩) (F, ![3, 1, 2])).2 = ![1, 1, 2] := by

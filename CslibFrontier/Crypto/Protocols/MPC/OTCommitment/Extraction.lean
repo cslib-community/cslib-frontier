@@ -82,7 +82,7 @@ theorem wrongOpening_bound {k : ℕ} (ts : Fin k → Fin 4 → Bool) (b : Bool)
   have hinj : Function.Injective
       (fun c : {c // Accepts c (fun i => ts i (boolPairToFin4 (false, c i))) b o} =>
         fun i : good => c.val i.val) := fun c d he =>
-    Subtype.ext (accepts_choices_eq ts b o c.2 d.2 fun i hi => congrFun he ⟨i, hi⟩)
+    Subtype.ext (accepts_choices_eq ts b o c.property d.property fun i hi => congrFun he ⟨i, hi⟩)
   have hg : Fintype.card good ≤ k / 2 := by
     simpa only [good, Fintype.card_subtype, Set.mem_ofPred_eq, Finset.card_univ, Fintype.card_fin]
       using BitString.card_filter_eq_le_half_of_strictMajorityOn_ne (Finset.univ : Finset (Fin k)) _

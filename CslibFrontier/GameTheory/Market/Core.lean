@@ -425,11 +425,7 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       intro i hi
       have hki_le : k i ≤ r := le_sup' k hi
       simp only [slice, card_map]
-      exact (Finset.card_bij (fun (c : Fin r) _ => c.val)
-        (fun c hc => mem_range.2 (mem_filter.1 hc).2)
-        (fun _ _ _ _ h => Fin.ext h)
-        (fun m hm => ⟨⟨m, lt_of_lt_of_le (mem_range.1 hm) hki_le⟩,
-          mem_filter.2 ⟨mem_univ _, mem_range.1 hm⟩, rfl⟩)).trans (card_range _)
+      rw [Fin.card_filter_val_lt, min_eq_right hki_le]
     have hmem_C : ∀ {ic : I × Fin r}, ic ∈ C ↔ ic.1 ∈ S ∧ ic.2.val < k ic.1 := by
       intro ⟨i, c⟩
       simp [C, slice]

@@ -334,7 +334,7 @@ private theorem capFactor_elimBucketTable (d x : ℕ) (bucket : List (FactorTabl
   simp only [elimBucketTable, Array.getElem_ofFn]
   have hsum : (∑ a : Fin d,
       (bucket.map fun f => f.evalAt d fun u =>
-        if u = x then a.1
+        if u = x then a.val
         else assignScope (bucketOutScope x bucket)
           (lsbDecode d (bucketOutScope x bucket).length i) u).prod) ≤
       ∑ _ : Fin d, (bucket.map capFactor).prod := by

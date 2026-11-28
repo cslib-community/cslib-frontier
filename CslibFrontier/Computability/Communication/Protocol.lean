@@ -184,7 +184,7 @@ variable {p : Protocol X Y Z} {R R' : X → Y → Z → Prop} {A A' : Set X} {B 
 /-- The communication complexity of `R` on `A × B`: the least depth of a protocol solving it, or
 `⊤` if there is none. -/
 noncomputable def ecomplexity (R : X → Y → Z → Prop) (A : Set X) (B : Set Y) : ℕ∞ :=
-  ⨅ p : {p : Protocol X Y Z // p.Solves R A B}, (p.1.depth : ℕ∞)
+  ⨅ p : {p : Protocol X Y Z // p.Solves R A B}, (p.val.depth : ℕ∞)
 
 theorem ecomplexity_le_depth (hp : p.Solves R A B) : ecomplexity R A B ≤ p.depth :=
   ENat.iInf_subtype_natCast_le hp

@@ -64,7 +64,7 @@ theorem countable_setOf_isComputable {β : Type*} (encIn : α ↪ List Bool)
   have : Countable Desc := eDesc.injective.countable
   have hdesc : ∀ f : {f : α → β // IsComputable f encIn encOut}, ∃ (k : ℕ) (State : Type)
       (_ : Fintype State) (tm : MultiTapeTM k Bool State),
-      (∀ a, tm.Computes (encIn a) (encOut (f.1 a))) := fun ⟨f, hf⟩ => by
+      (∀ a, tm.Computes (encIn a) (encOut (f.val a))) := fun ⟨f, hf⟩ => by
     obtain ⟨k, State, hfinite, tm, htm⟩ := isComputable_iff.mp hf
     exact ⟨k, State, Fintype.ofFinite State, tm, htm⟩
   choose k State hfin tm htm using hdesc

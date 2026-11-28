@@ -154,12 +154,12 @@ abbrev Path (i : ι) : Type _ :=
 
 /-- Underlying arc list of a player's simple path. -/
 @[expose] def Path.arcs {G : FairConnectionGame ι V E} {i : ι} (p : G.Path i) : List E :=
-  p.1
+  p.val
 
 /-- `Path.arcs p` is a valid simple dipath from `G.source i` to `G.sink i`. -/
 theorem Path.isDipath {G : FairConnectionGame ι V E} {i : ι} (p : G.Path i) :
     Multidigraph.IsDipath G.src G.tgt (G.source i) (G.sink i) (Path.arcs p) :=
-  p.2
+  p.property
 
 /-- Every strategy path uses each arc at most once. -/
 theorem Path.nodup {G : FairConnectionGame ι V E} {i : ι} (p : G.Path i) :

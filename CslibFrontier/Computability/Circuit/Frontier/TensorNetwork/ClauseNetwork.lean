@@ -711,7 +711,7 @@ theorem contraction_network (B m : ℕ) (row : ℕ → ℕ → ℕ)
     have := congrFun h ⟨3 * u, by omega⟩
     simpa [edgeAssignment, ext, show 3 * u / 3 = u by omega, hv] using this
   · obtain ⟨σ, rfl⟩ := (consistent_iff os x).mp (Finset.mem_filter.mp hx).2
-    refine ⟨fun v => σ v.1, Finset.mem_univ _, funext fun j => ?_⟩
+    refine ⟨fun v => σ v.val, Finset.mem_univ _, funext fun j => ?_⟩
     simp [edgeAssignment, ext, hmemS _ (show j.val / 3 < os.length by omega)]
   · congr 1
     refine List.map_congr_left fun i _ => congrArg (row i) (congrArg _ ?_)

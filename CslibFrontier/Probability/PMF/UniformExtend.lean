@@ -78,9 +78,9 @@ theorem uniformOfFintype_bind_bind_extend [Fintype ι] [DecidableEq ι] [Fintype
       (uniformOfFintype (ι' → κ)).bind fun t => g (Function.extend e t f)) =
       (uniformOfFintype (ι → κ)).bind g := by
   classical
-  let σ : {i // ∃ j, e j = i} → ι' := fun i => i.2.choose
+  let σ : {i // ∃ j, e j = i} → ι' := fun i => i.property.choose
   have hσ : Function.Injective σ := fun a b h =>
-    Subtype.ext (by rw [← a.2.choose_spec, ← b.2.choose_spec]; exact congrArg e h)
+    Subtype.ext (by rw [← a.property.choose_spec, ← b.property.choose_spec]; exact congrArg e h)
   have hext (t : ι' → κ) (f : ι → κ) :
       Function.extend e t f = Function.extend Subtype.val (t ∘ σ) f := by
     funext i

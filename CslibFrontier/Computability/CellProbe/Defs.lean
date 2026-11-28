@@ -125,7 +125,7 @@ theorem card_mem (S w : ℕ) : Fintype.card (Mem S w) = (2 ^ w) ^ S := by
 
 @[simp]
 theorem restrictMem_apply {S w : ℕ} (m : Mem S w) (I : Finset (Fin S)) (i : I) :
-    restrictMem m I i = m i.1 :=
+    restrictMem m I i = m i.val :=
   rfl
 
 /-- Two memories have equal snapshots on `I` iff they agree at every cell in `I`. -/
@@ -140,16 +140,16 @@ theorem restrictMem_eq_iff {S w : ℕ} {m₁ m₂ : Mem S w} {I : Finset (Fin S)
 
 /-- Pad an `S`-cell memory to `S'` cells (`S ≤ S'`) by filling cells `[S, S')` with `0`. -/
 @[expose] def padMem {S S' w : ℕ} (_h : S ≤ S') (m : Mem S w) : Mem S' w :=
-  fun i => if hi : i.1 < S then m ⟨i.1, hi⟩ else ⟨0, Nat.two_pow_pos w⟩
+  fun i => if hi : i.val < S then m ⟨i.val, hi⟩ else ⟨0, Nat.two_pow_pos w⟩
 
 @[simp]
 theorem padMem_castLE {S S' w : ℕ} (h : S ≤ S') (m : Mem S w) (i : Fin S) :
     padMem h m (Fin.castLE h i) = m i := by
   simp [padMem, i.isLt]
 
-theorem padMem_of_ge {S S' w : ℕ} (h : S ≤ S') (m : Mem S w) {i : Fin S'} (hi : S ≤ i.1) :
+theorem padMem_of_ge {S S' w : ℕ} (h : S ≤ S') (m : Mem S w) {i : Fin S'} (hi : S ≤ i.val) :
     padMem h m i = ⟨0, Nat.two_pow_pos w⟩ := by
-  have hnot : ¬ i.1 < S := Nat.not_lt.mpr hi
+  have hnot : ¬ i.val < S := Nat.not_lt.mpr hi
   simp [padMem, hnot]
 
 @[simp]
@@ -160,10 +160,10 @@ theorem padMem_update {S S' w : ℕ} (h : S ≤ S') (m : Mem S w) (i : Fin S) (v
   · subst hj
     simp [padMem, i.isLt]
   · rw [Function.update_of_ne hj]
-    by_cases hlt : j.1 < S
-    · have hij : (⟨j.1, hlt⟩ : Fin S) ≠ i := by
+    by_cases hlt : j.val < S
+    · have hij : (⟨j.val, hlt⟩ : Fin S) ≠ i := by
         intro heq
-        have hval : j.1 = i.1 := congrArg Fin.val heq
+        have hval : j.val = i.val := congrArg Fin.val heq
         exact hj (Fin.ext hval)
       simp [padMem, hlt, Function.update_of_ne hij]
     · simp [padMem, hlt]

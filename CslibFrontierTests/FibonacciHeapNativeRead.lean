@@ -95,10 +95,10 @@ example : ∃ y, ExecWithin 5 (realizes_getKey.code frontier source scratch) loa
     have := i.isLt
     omega
   have hb : loaded.Bounded 5 := by
-    refine ⟨fun i => ?_, planted_wellFormed.2⟩
+    refine ⟨fun i => ?_, planted_wellFormed.mem_fits⟩
     dsimp only [loaded]
     split_ifs
-    · exact planted_wellFormed.1
+    · exact planted_wellFormed.frontier_fits
     · decide
     · decide
   have hin : loaded.regs ∘ source = (![2, 2, 0] : Fin 3 → ℕ) := by

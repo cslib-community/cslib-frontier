@@ -217,13 +217,13 @@ theorem relativeEntropy_kraus_le [Fintype ι'] [DecidableEq ι']
     relativeEntropy (∑ a ∈ s, K a * ρ * (K a)ᴴ) (∑ a ∈ s, K a * σ * (K a)ᴴ) ≤
       relativeEntropy ρ σ := by
   classical
-  let V : Matrix (ι' × ↥s) ι ℂ := Matrix.of fun p j => K p.2.1 p.1 j
+  let V : Matrix (ι' × ↥s) ι ℂ := Matrix.of fun p j => K p.2.val p.1 j
   have hV : Vᴴ * V = 1 := by
     ext i j
     rw [Matrix.mul_apply, Fintype.sum_prod_type_right]
     calc
       ∑ a : ↥s, ∑ i' : ι', Vᴴ i (i', a) * V (i', a) j
-          = ∑ a : ↥s, ((K a.1)ᴴ * K a.1) i j := by
+          = ∑ a : ↥s, ((K a.val)ᴴ * K a.val) i j := by
             refine sum_congr rfl fun a _ => ?_
             simp only [Matrix.mul_apply, conjTranspose_apply, V, of_apply]
       _ = (∑ a ∈ s, (K a)ᴴ * K a) i j := by
@@ -618,8 +618,8 @@ theorem vonNeumannEntropy_subadditivity {ρ : Matrix (ι × κ) (ι × κ) ℂ}
   let hB := hρ.partialTraceLeft.posSemidef.isHermitian
   let U : Matrix ι ι ℂ := hA.eigenvectorUnitary
   let W : Matrix κ κ ℂ := hB.eigenvectorUnitary
-  have hU_mem : Uᴴ ∈ unitaryGroup ι ℂ := Unitary.star_mem hA.eigenvectorUnitary.2
-  have hW_mem : Wᴴ ∈ unitaryGroup κ ℂ := Unitary.star_mem hB.eigenvectorUnitary.2
+  have hU_mem : Uᴴ ∈ unitaryGroup ι ℂ := Unitary.star_mem hA.eigenvectorUnitary.property
+  have hW_mem : Wᴴ ∈ unitaryGroup κ ℂ := Unitary.star_mem hB.eigenvectorUnitary.property
   have hV_mem : (Uᴴ ⊗ₖ Wᴴ) ∈ unitaryGroup (ι × κ) ℂ := kronecker_mem_unitary hU_mem hW_mem
   let σ : Matrix (ι × κ) (ι × κ) ℂ := (Uᴴ ⊗ₖ Wᴴ) * ρ * (Uᴴ ⊗ₖ Wᴴ)ᴴ
   have hσ : IsDensityMatrix σ := hρ.conj_unitary hV_mem
@@ -1146,12 +1146,12 @@ theorem mutualInfo_unitary_onFirst_le [Fintype κ] [DecidableEq κ] [Finite X] [
       (M.measureDensity
         (((U x : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ)) * σ *
           ((U x : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ)
-        (hσ.conj_unitary (kronecker_mem_unitary (U x).2 (one_mem _)))).map (x, ·)) ≤
+        (hσ.conj_unitary (kronecker_mem_unitary (U x).property (one_mem _)))).map (x, ·)) ≤
       2 * Real.logb 2 (Fintype.card ι) := by
   have hK (x : X) :
       ∑ _j ∈ ({()} : Finset Unit), ((U x : Matrix ι ι ℂ))ᴴ * (U x : Matrix ι ι ℂ) = 1 := by
     rw [Finset.sum_singleton]
-    exact (mem_unitaryGroup_iff').mp (U x).2
+    exact (mem_unitaryGroup_iff').mp (U x).property
   have h := mutualInfo_entanglementAssisted_le ({()} : Finset Unit)
     (fun x _ => (U x : Matrix ι ι ℂ)) hK p hσ M
   simpa only [Finset.sum_singleton] using h

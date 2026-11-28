@@ -407,7 +407,7 @@ theorem surviving_vertices_mul_thresh_le {n nComp nOut thresh : ℕ}
       rcases hend with ⟨hu, hv⟩ | ⟨hv, hu⟩
       · exact ⟨(⟨i, hi⟩, true), hAy _ hu, hv⟩
       · exact ⟨(⟨i, hi⟩, false), hAy _ hv, hu⟩
-    choose f hf using fun z : {z // z ∈ Zy} => hchoose z.1 z.2
+    choose f hf using fun z : {z // z ∈ Zy} => hchoose z.val z.property
     refine ⟨Zy.attach.image f, ?_, ?_⟩
     · rw [Finset.card_image_of_injective _ fun a b hab => by
         have ha := (hf a).2

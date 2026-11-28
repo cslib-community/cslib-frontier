@@ -100,7 +100,8 @@ structure AnswersCorrect (n c : ℕ) (a : ℕ → Prop) : Prop where
 instance : Decidable (AnswersCorrect n c a) :=
   decidable_of_iff ((a 0 ↔ 0 < c) ∧ (∀ j ≤ n, 8 * 2 ^ j ≤ c → a j) ∧
     ∀ j ≤ n, 8 * c ≤ 2 ^ j → ¬ a j)
-    ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, h3⟩, fun h => ⟨h.1, h.2, h.3⟩⟩
+    ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, h3⟩,
+      fun h => ⟨h.apply_zero_iff, h.apply_of_le, h.not_apply_of_le⟩⟩
 
 /-- The estimate from correct answers is at most `8` times the size of the set. -/
 theorem AnswersCorrect.estimate_le (ha : AnswersCorrect n c a) : estimate n a ≤ 8 * c := by

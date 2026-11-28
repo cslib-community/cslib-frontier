@@ -275,8 +275,8 @@ private lemma walkPoint_cons_mul {u b v : V} (hadj : W.graph.Adj u b) (q : W.gra
     (d : W.graph.Dart) (hd : d = ⟨(u, b), hadj⟩) (t : unitInterval) :
     walkPoint (.cons hadj q) ((t : ℝ) * W.weight d.edge) = edgePoint d t := by
   have hw := W.dart_weight_pos d
-  have h0 : 0 ≤ (t : ℝ) * W.weight d.edge := mul_nonneg t.2.1 hw.le
-  have hle : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge := mul_le_of_le_one_left hw.le t.2.2
+  have h0 : 0 ≤ (t : ℝ) * W.weight d.edge := mul_nonneg t.property.1 hw.le
+  have hle : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge := mul_le_of_le_one_left hw.le t.property.2
   rw [walkPoint_cons_of_le hadj q d hd h0 hle (div_nonneg h0 hw.le) ((div_le_one hw).mpr hle)]
   congr 1
   ext
@@ -788,8 +788,8 @@ private lemma isCycle_min_arc_le_edge [DecidableEq V] {a w : V} {cₐ : W.graph.
     have hlen_lt := Walk.length_takeUntil_lt_length hw (Ne.symm haw)
     have hl3 := hcₐ.three_le_length
     have hlen_eq : (cₐ.takeUntil w hw).length = cₐ.length - 1 :=
-      hcₐ.getVert_injOn' (by simp only [Set.mem_ofPred_eq]; omega)
-        (by simp only [Set.mem_ofPred_eq]; omega)
+      hcₐ.getVert_injOn' (by simp only [Set.mem_Iio]; omega)
+        (by simp only [Set.mem_Iio]; omega)
         ((Walk.getVert_length_takeUntil hw).trans hpen_eq.symm)
     have hdrop_len : (cₐ.dropUntil w hw).length = 1 := by
       have h := congrArg Walk.length (cₐ.take_spec hw)
@@ -972,7 +972,7 @@ private lemma circleMap_dart_decomp [DecidableEq V] {v₀ : V} {c : W.graph.Walk
       ?_
     rw [hcd_s, zero_add, cycCoord_append_eq hc hc_eq Walk.not_nil_cons]
     refine (circleDist_le_abs hL _ _).trans_eq ?_
-    rw [add_sub_cancel_left, abs_of_nonneg (mul_nonneg t.2.1 (W.dart_weight_pos d).le)]
+    rw [add_sub_cancel_left, abs_of_nonneg (mul_nonneg t.property.1 (W.dart_weight_pos d).le)]
   have hsnd_le : circleDist L s (cycCoord c d.snd) ≤ (1 - (t : ℝ)) * W.weight d.edge := by
     refine (circleDist_triangle hL s (walkLength W.weight q₁ + (t : ℝ) * W.weight d.edge) _).trans
       ?_
@@ -1136,13 +1136,14 @@ private lemma circleMap_append_cons_mul {v₀ : V} {c : W.graph.Walk v₀ v₀} 
     (hadj : W.graph.Adj d.fst d.snd) (hd : d = ⟨(d.fst, d.snd), hadj⟩)
     (hc_eq : c = q₁.append (.cons hadj q₂)) (u : unitInterval) :
     circleMap hc (walkLength W.weight q₁ + (u : ℝ) * W.weight d.edge) = edgePoint d u := by
-  have hw_le : 0 ≤ (u : ℝ) * W.weight d.edge := mul_nonneg u.2.1 (W.dart_weight_pos d).le
+  have hw_le : 0 ≤ (u : ℝ) * W.weight d.edge := mul_nonneg u.property.1 (W.dart_weight_pos d).le
   have hsl : walkLength W.weight q₁ + (u : ℝ) * W.weight d.edge ≤ walkLength W.weight c := by
     have h := congrArg (walkLength W.weight) hc_eq
     rw [walkLength_append, walkLength_cons] at h
     have hwe : W.weight s(d.fst, d.snd) = W.weight d.edge := rfl
     rw [hwe] at h
-    nlinarith [u.2.2, (W.dart_weight_pos d).le, walkLength_nonneg W.weight W.weight_nonneg q₂]
+    nlinarith [u.property.2, (W.dart_weight_pos d).le,
+      walkLength_nonneg W.weight W.weight_nonneg q₂]
   rw [circleMap_eq_walkPoint hc (add_nonneg (walkLength_nonneg _ W.weight_nonneg _) hw_le) hsl]
   conv_lhs => arg 1; rw [hc_eq]
   rw [walkPoint_append_of_ge _ _ hw_le]
@@ -1303,8 +1304,8 @@ theorem circleMap_local_dichotomy {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : 
         (hc_eq ▸ Walk.support_subset_support_append_right _ _
           (List.mem_cons_of_mem _ (Walk.start_mem_support _)))
         ⌊s / L⌋ (by conv_lhs => rw [hs_r₀]; rw [hr_eq, ht1, one_mul, ← hcoord_snd]))
-  have ht_pos : 0 < (t : ℝ) := lt_of_le_of_ne t.2.1 (Ne.symm ht0)
-  have ht_lt1 : (t : ℝ) < 1 := lt_of_le_of_ne t.2.2 ht1
+  have ht_pos : 0 < (t : ℝ) := lt_of_le_of_ne t.property.1 (Ne.symm ht0)
+  have ht_lt1 : (t : ℝ) < 1 := lt_of_le_of_ne t.property.2 ht1
   have h1t : 0 < (1 - (t : ℝ)) * W.weight d.edge := mul_pos (sub_pos.mpr ht_lt1) hwpos
   let δ := min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge) / 2
   refine Or.inl ⟨d, (t : ℝ), δ, mem_darts_iff_exists_append.mpr ⟨q₁, q₂, hadj, hd, hc_eq⟩,

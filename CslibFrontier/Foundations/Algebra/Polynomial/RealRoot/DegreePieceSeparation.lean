@@ -53,7 +53,7 @@ theorem exists_eventually_eval_ne_zero_of_fixed_degree (P : A → Polynomial ℝ
     exact (hsup.div (hcoeff d).nnNorm (fun x => nnNorm_ne_zero_iff.mpr (hlead x))).add
       continuous_const
   have hreal : Continuous (fun x => ((P x).cauchyBound : ℝ)) :=
-    continuous_subtype_val.comp hbound
+    continuous_subtypeVal.comp hbound
   let R := ((P x₀).cauchyBound : ℝ) + 1
   refine ⟨R, by dsimp only [R]; positivity, ?_⟩
   have hnear : ∀ᶠ x in 𝓝 x₀, ((P x).cauchyBound : ℝ) < R :=

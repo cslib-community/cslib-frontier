@@ -116,7 +116,7 @@ theorem mistakes_eq_sum_expertLoss (E : ι → OnlineLearner α Bool) (S : List 
   rw [mistakes_eq_card, Finset.card_filter, Finset.sum_range]
   push_cast
   refine Finset.sum_congr rfl fun t _ => ?_
-  simp only [expertLoss, dite_eq_left t.2]
+  simp only [expertLoss, dite_eq_left t.isLt]
   split_ifs <;> simp_all
 
 variable [Fintype ι]
@@ -166,10 +166,10 @@ theorem expectedMistakes_hedgeLearner [Nonempty ι] (η : ℝ) (E : ι → Onlin
   rw [expectedMistakes, Finset.sum_range]
   refine Finset.sum_congr rfl fun t _ => ?_
   rw [toReal_hedgeLearner_apply]
-  have hlen : (S.take t).length = t := List.length_take_of_le t.2.le
+  have hlen : (S.take t).length = t := List.length_take_of_le t.isLt.le
   rw [hlen, Experts.prob_congr (fun s hs => expertLoss_take (S := S) hs)]
   refine Finset.sum_congr rfl fun i _ => ?_
-  simp only [expertLoss, dite_eq_left t.2]
+  simp only [expertLoss, dite_eq_left t.isLt]
   cases E i (S.take t) S[t].1 <;> cases S[t].2 <;> simp
 
 /-- **Regret of Hedge over deterministic experts.** For `N` experts and a horizon `T` with

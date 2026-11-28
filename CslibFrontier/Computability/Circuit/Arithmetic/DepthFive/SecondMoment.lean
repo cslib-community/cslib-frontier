@@ -167,11 +167,11 @@ polynomials of four paths is at most the dimension of the slice times the produc
 geometric moments. -/
 theorem sum_local_le (hp : p.Good) (hcard : (Finset.univ.filter fun t => p.isV t).card = p.k)
     (W : Quad p.n) :
-    ((∑ M : Slice p (p.a, p.b), ∏ t, W.local p M.1 t : ℕ) : ℝ) ≤
+    ((∑ M : Slice p (p.a, p.b), ∏ t, W.local p M.val t : ℕ) : ℝ) ≤
       p.D * ∏ t, W.weight p (W.type t) t := by
   have hSV : p.varV.Nonempty := Finset.card_pos.1 (card_varV hcard ▸ hp.v_pos)
   have hSU : p.varU.Nonempty := Finset.card_pos.1 (card_varU hcard ▸ hp.u_pos)
-  have hsplit : ∑ M : Slice p (p.a, p.b), ∏ t, W.local p M.1 t =
+  have hsplit : ∑ M : Slice p (p.a, p.b), ∏ t, W.local p M.val t =
       (∑ x ∈ p.varV.finsuppAntidiag p.a, ∏ s with p.isV s, W.local p x s) *
         ∑ y ∈ p.varU.finsuppAntidiag p.b, ∏ s with ¬ p.isV s, W.local p y s := by
     rw [← sum_slice_mul p.a p.b (fun x => ∏ s with p.isV s, W.local p x s)
@@ -206,7 +206,7 @@ theorem sum_local_le (hp : p.Good) (hcard : (Finset.univ.filter fun t => p.isV t
   rw [card_varU hcard] at hU
   rw [Finset.prod_congr rfl fun s hs => weight_of_isV hp W (Finset.mem_filter.1 hs).2] at hV
   rw [Finset.prod_congr rfl fun s hs => weight_of_not_isV hp W (Finset.mem_filter.1 hs).2] at hU
-  calc ((∑ M : Slice p (p.a, p.b), ∏ t, W.local p M.1 t : ℕ) : ℝ)
+  calc ((∑ M : Slice p (p.a, p.b), ∏ t, W.local p M.val t : ℕ) : ℝ)
       = ((∑ x ∈ p.varV.finsuppAntidiag p.a, ∏ s with p.isV s, W.local p x s : ℕ) : ℝ) *
           ((∑ y ∈ p.varU.finsuppAntidiag p.b, ∏ s with ¬ p.isV s, W.local p y s : ℕ) : ℝ) := by
         rw [hsplit, Nat.cast_mul]
@@ -273,7 +273,7 @@ theorem second_trace_le (hp : p.Good)
   have hβ := hp.β_pos
   have hμ : 0 ≤ p.μ ^ 2 * (1 + p.β) ^ p.m := by positivity
   have h₁ (W : Quad p.n) : ∑ M : Slice p (p.a, p.b),
-      (if W.HasType W.type then ((∏ t, W.local p M.1 t : ℕ) : ℝ) else 0) ≤
+      (if W.HasType W.type then ((∏ t, W.local p M.val t : ℕ) : ℝ) else 0) ≤
       ∑ τ : Fin p.n → Bool, if W.HasType τ then p.D * ∏ t, W.weight p (τ t) t else 0 := by
     have hnn (τ : Fin p.n → Bool) :
         0 ≤ if W.HasType τ then p.D * ∏ t, W.weight p (τ t) t else 0 := by

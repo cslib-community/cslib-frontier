@@ -92,7 +92,7 @@ theorem toOuterMeasure_apply_eq_comp [Nonempty ι] (hh : IsPairwiseIndependentHa
       Fintype.card Y := by
     rw [← Fintype.card_coe]
     exact Fintype.card_congr
-      { toFun := fun p => p.1.2
+      { toFun := fun p => p.val.2
         invFun := fun y => ⟨(g y, y), by simp⟩
         left_inv := fun ⟨⟨a, b⟩, hp⟩ => by
           simp only [mem_filter, mem_univ, Set.mem_ofPred_eq, true_and] at hp

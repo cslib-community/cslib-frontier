@@ -110,7 +110,7 @@ theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype ι] [Dec
   let j_L : F[X] →+* L := (algebraMap K L).comp (algebraMap F[X] K)
   have hj_L_inj : Function.Injective j_L :=
     (RingHom.injective (algebraMap K L)).comp (IsFractionRing.injective F[X] K)
-  choose P_of hP_deg hS_ev hF_ev hγ_ev hW_agree using fun z : T'' => hT''_mem z.1 z.2
+  choose P_of hP_deg hS_ev hF_ev hγ_ev hW_agree using fun z : T'' => hT''_mem z.val z.property
   let agree : F → ι → Prop := fun z i =>
     (if hz : z ∈ T'' then P_of ⟨z, hz⟩ else 0).eval (α i) = (curveWord u i).eval z
   have hW_Istar : B_W ≤ ∑ i ∈ Istar, W i :=
@@ -162,7 +162,7 @@ theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype ι] [Dec
   refine ⟨Istar, hW_Istar, v, fun j => mem_reedSolomon.2 ⟨Pj j, hPj_deg j, rfl⟩, fun i hi j => ?_⟩
   have hcw : curveWord v i = curveWord u i :=
     hj_L_inj (by rw [← hP_L_eval i, ← hPstar_eq, hIstar_agree i hi])
-  simpa only [curveWord, Polynomial.ofFn_coeff_eq_val_of_lt _ j.2] using
+  simpa only [curveWord, Polynomial.ofFn_coeff_eq_val_of_lt _ j.isLt] using
     (congrArg (fun p : F[X] => p.coeff (j : ℕ)) hcw).symm
 
 end Cslib.Code.ProximityGap

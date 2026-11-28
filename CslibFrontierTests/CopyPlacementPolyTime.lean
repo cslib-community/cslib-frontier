@@ -31,7 +31,7 @@ example :
       (∀ c ∈ fiberRanks [2, 0, 2, 1, 2], c < 3) ∧
       flatPlacement 4 [2, 0, 2, 1, 2] = [2, 0, 6, 1, 10] ∧
       (flatPlacement 4 [2, 0, 2, 1, 2]).Nodup ∧
-      (∀ e : Fin 5, (fiberRanks [2, 0, 2, 1, 2])[e.1] =
+      (∀ e : Fin 5, (fiberRanks [2, 0, 2, 1, 2])[e.val] =
         Cslib.LinearAlgebra.fiberRank (fun i : Fin 5 => [2, 0, 2, 1, 2][i]) e) :=
   ⟨rfl, rfl, rfl, by decide, by decide, rfl, by decide,
     fun e => getElem_fiberRanks_eq_fiberRank [2, 0, 2, 1, 2] e⟩
@@ -53,10 +53,10 @@ example :
       varGroupList testSchedules 0 1 = [1, 3] ∧
       varGroupList testSchedules 1 0 = [1, 2] ∧
       varGroupList testSchedules 1 1 = [0, 3] ∧
-      (∀ (t g : Fin 2) (v : Fin 4), v.1 ∈ varGroupList testSchedules t.1 g.1 ↔
+      (∀ (t g : Fin 2) (v : Fin 4), v.val ∈ varGroupList testSchedules t.val g.val ↔
         v ∈ Cslib.LinearAlgebra.varGroup
           (fun (v : Fin 4) (t : Fin 2) =>
-            ⟨(testSchedules.getD v.1 []).getD t.1 0, by revert v t; decide⟩) t g) :=
+            ⟨(testSchedules.getD v.val []).getD t.val 0, by revert v t; decide⟩) t g) :=
   ⟨rfl, rfl, rfl, rfl,
     fun t g v => mem_varGroupList_iff_mem_varGroup (n := 4) (Q := 2) (r := 2)
       (varSchedules := testSchedules) rfl (fun _ _ => rfl) t g v⟩

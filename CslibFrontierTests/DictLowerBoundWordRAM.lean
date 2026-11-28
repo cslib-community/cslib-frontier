@@ -73,12 +73,12 @@ open scoped BigOperators ENNReal
 /-- Word encoding of a single slot: `0` for empty, `(u.1 + 1) * V + v.1` for occupied `(u, v)`. -/
 def encodeSlot {U V : ℕ} : Option (Fin U × Fin V) → ℕ
   | none => 0
-  | some (u, v) => (u.1 + 1) * V + v.1
+  | some (u, v) => (u.val + 1) * V + v.val
 
 /-- Key tag of a slot (`0` for empty, `u.1 + 1` for key `u`). -/
 def slotKeyTag {U V : ℕ} : Option (Fin U × Fin V) → ℕ
   | none => 0
-  | some (u, _) => u.1 + 1
+  | some (u, _) => u.val + 1
 
 private theorem encodeSlot_fits {U V w : ℕ} (hfit : (U + 1) * V ≤ 2 ^ w)
     (e : Option (Fin U × Fin V)) : Fits w (encodeSlot e) := by
@@ -87,11 +87,11 @@ private theorem encodeSlot_fits {U V w : ℕ} (hfit : (U + 1) * V ≤ 2 ^ w)
   | some uv =>
     rcases uv with ⟨u, v⟩
     dsimp only [encodeSlot, Fits]
-    have hu := u.2
-    have hv := v.2
-    calc (u.1 + 1) * V + v.1
-      _ < (u.1 + 1) * V + V := by omega
-      _ = (u.1 + 2) * V := by ring
+    have hu := u.isLt
+    have hv := v.isLt
+    calc (u.val + 1) * V + v.val
+      _ < (u.val + 1) * V + V := by omega
+      _ = (u.val + 2) * V := by ring
       _ ≤ (U + 1) * V := Nat.mul_le_mul_right V (by omega)
       _ ≤ 2 ^ w := hfit
 
@@ -102,24 +102,24 @@ private theorem encodeSlot_div {U V : ℕ} (hV : 1 ≤ V) (e : Option (Fin U × 
   | some uv =>
     rcases uv with ⟨u, v⟩
     dsimp only [encodeSlot, slotKeyTag]
-    rw [Nat.mul_comm, Nat.mul_add_div (by omega), Nat.div_eq_of_lt v.2, add_zero]
+    rw [Nat.mul_comm, Nat.mul_add_div (by omega), Nat.div_eq_of_lt v.isLt, add_zero]
 
 private theorem encodeSlot_mod {U V : ℕ} (u : Fin U) (v : Fin V) :
-    encodeSlot (some (u, v)) % V = v.1 := by
+    encodeSlot (some (u, v)) % V = v.val := by
   dsimp only [encodeSlot]
-  rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt v.2]
+  rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt v.isLt]
 
 /-- Abstract dictionary state induced by two disjoint-key slots `e0, e1`. -/
 def slotsState {U V : ℕ} (e0 e1 : Option (Fin U × Fin V)) (u : Fin U) : Option ℕ :=
   match e0 with
   | some (u0, v0) =>
-      if u = u0 then some v0.1
+      if u = u0 then some v0.val
       else match e1 with
-        | some (u1, v1) => if u = u1 then some v1.1 else none
+        | some (u1, v1) => if u = u1 then some v1.val else none
         | none => none
   | none =>
       match e1 with
-      | some (u1, v1) => if u = u1 then some v1.1 else none
+      | some (u1, v1) => if u = u1 then some v1.val else none
       | none => none
 
 private theorem two_le_card_dom_slotsState {U V : ℕ} {u0 u1 : Fin U} (v0 v1 : Fin V)
@@ -217,11 +217,11 @@ def twoSlotEncode (U V base : ℕ) (o : Dynamic.Op U) (i : Fin 9) : ℕ :=
   else if i.val = 1 then
     match o with | .query _ => 0 | .insert _ _ => 1 | .delete _ => 2
   else if i.val = 2 then
-    match o with | .query u | .insert u _ | .delete u => u.1 + 1
+    match o with | .query u | .insert u _ | .delete u => u.val + 1
   else if i.val = 4 then 1
   else if i.val = 5 then V
   else if i.val = 6 then
-    match o with | .insert u v => if v < V then (u.1 + 1) * V + v else 0 | _ => 0
+    match o with | .insert u v => if v < V then (u.val + 1) * V + v else 0 | _ => 0
   else 0
 
 /-- Register-agreement predicate matching `r1`..`r6` against `twoSlotEncode`. -/
@@ -265,10 +265,10 @@ private theorem twoSlot_arguments_fit {U V w base : ℕ} (usePersBase : Bool)
         Fits w (twoSlotEncode U V base o i) := by
   obtain ⟨hf1, hf2, hfV, hfb, _, _⟩ := fits_from_params hU hw hUV hbase
   intro _ o _ i _
-  have hu_fit : ∀ u : Fin U, Fits w (u.1 + 1) := fun u => by
-    have hu := u.2
-    have : u.1 + 1 < (U + 1) * V := by
-      calc u.1 + 1 ≤ U * 1 := by omega
+  have hu_fit : ∀ u : Fin U, Fits w (u.val + 1) := fun u => by
+    have hu := u.isLt
+    have : u.val + 1 < (U + 1) * V := by
+      calc u.val + 1 ≤ U * 1 := by omega
         _ ≤ U * V := Nat.mul_le_mul_left U hV
         _ < U * V + V := Nat.lt_add_of_pos_right (by omega)
         _ = (U + 1) * V := (Nat.add_one_mul U V).symm
@@ -316,15 +316,15 @@ private theorem exec_queryExtract {U V w : ℕ} (hU : 1 ≤ U) (hUV : (U + 1) * 
     let d₁ := d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))
     let d₂ := d₁.set 8 (BinOp.add.eval (d₁.regs 8) (d₁.regs 4))
     ExecWithin w (.seq (.op (.bin .mod 8 8 5)) (.op (.bin .add 8 8 4))) d d₂ 2 ∧
-      d₂.Bounded w ∧ d₂.regs 8 = v.1 + 1 := by
-  have hmod_eq : BinOp.mod.eval (d.regs 8) (d.regs 5) = v.1 := by
+      d₂.Bounded w ∧ d₂.regs 8 = v.val + 1 := by
+  have hmod_eq : BinOp.mod.eval (d.regs 8) (d.regs 5) = v.val := by
     simp [BinOp.eval, hr8, hr5, encodeSlot_mod]
   have h2V : 2 * V ≤ 2 ^ w := (Nat.mul_le_mul_right V (by omega)).trans hUV
   have hmod_fit : Fits w (BinOp.mod.eval (d.regs 8) (d.regs 5)) := by
-    rw [hmod_eq]; dsimp [Fits]; have := v.2; omega
+    rw [hmod_eq]; dsimp [Fits]; have := v.isLt; omega
   have hadd_eq : BinOp.add.eval ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8)
-      ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4) = v.1 + 1 := by
-    have h1 : (d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8 = v.1 := by
+      ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4) = v.val + 1 := by
+    have h1 : (d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8 = v.val := by
       simp [Data.set, hr8, hr5, encodeSlot_mod]
     have h2 : (d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4 = 1 := by
       simp [Data.set, hr4]
@@ -332,12 +332,12 @@ private theorem exec_queryExtract {U V w : ℕ} (hU : 1 ≤ U) (hUV : (U + 1) * 
     rw [h1, h2]
   have hadd_fit : Fits w (BinOp.add.eval ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8)
       ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4)) := by
-    rw [hadd_eq]; dsimp [Fits]; have := v.2; omega
+    rw [hadd_eq]; dsimp [Fits]; have := v.isLt; omega
   exact ⟨(ExecWithin.bin hmod_fit).seq (ExecWithin.bin hadd_fit),
     (hd.set hmod_fit).set hadd_fit, by simpa [Data.set] using hadd_eq⟩
 
 private theorem slotsState_none_of_ne_tags {U V : ℕ} {e0 e1 : Option (Fin U × Fin V)} {u : Fin U}
-    (hk0 : slotKeyTag e0 ≠ u.1 + 1) (hk1 : slotKeyTag e1 ≠ u.1 + 1) :
+    (hk0 : slotKeyTag e0 ≠ u.val + 1) (hk1 : slotKeyTag e1 ≠ u.val + 1) :
     slotsState e0 e1 u = none := by
   cases e0 with
   | none =>
@@ -401,14 +401,14 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
   cases o with
   | query u =>
     have hr1 : x.regs 1 = 0 := by simpa [twoSlotEncode] using hmatch 1 (by decide)
-    have hr2 : x.regs 2 = u.1 + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
+    have hr2 : x.regs 2 = u.val + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
     have hc_op : (Cond.eq (1 : Fin 9) 3).Holds x₁ := by simp [x₁, hr1, hr3]
     let x₂ := x₁.set 8 (x₁.mem (x₁.regs 0))
     let x₃ := x₂.set 6 (BinOp.div.eval (x₂.regs 8) (x₂.regs 5))
     obtain ⟨he_load0, hx₃_bdd, hx₃_tag0⟩ :=
       exec_loadDiv hV hUV x₁ hx₁_bdd 8 6 0 (by decide) (by simpa [x₁] using hr5) e0
         (by simpa [x₁, hr0] using hm0)
-    by_cases hk0 : slotKeyTag e0 = u.1 + 1
+    by_cases hk0 : slotKeyTag e0 = u.val + 1
     · cases e0 with
       | none => simp [slotKeyTag] at hk0
       | some uv0 =>
@@ -428,7 +428,7 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
         refine ⟨x₅, (hs1.seq (ExecWithin.branch_pos hc_op he_q)).mono (by omega), ?_, ?_,
           Modifies.refl _ _⟩
         · change some (if x₅.regs 8 == 0 then none else some (x₅.regs 8 - 1)) = _
-          rw [show x₅.regs 8 = v0.1 + 1 from hx₅_r8]
+          rw [show x₅.regs 8 = v0.val + 1 from hx₅_r8]
           simp [hs_eq, slotsState, Dynamic.spec]
         · exact ⟨hx₅_bdd, fun _ => by simpa [x₅, x₄, x₃, x₂, x₁] using hr0,
             some (u, v0), e1, hdisj, hm0, hm1, hs_eq⟩
@@ -442,7 +442,7 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
           (by simpa [x₃, x₂, x₁, BinOp.eval, hr0, hr4] using hm1)
       have hs_not0 : ∀ u0 v0, e0 = some (u0, v0) → u ≠ u0 := by
         rintro u0 v0 rfl h_eq; subst h_eq; exact hk0 rfl
-      by_cases hk1 : slotKeyTag e1 = u.1 + 1
+      by_cases hk1 : slotKeyTag e1 = u.val + 1
       · cases e1 with
         | none => simp [slotKeyTag] at hk1
         | some uv1 =>
@@ -464,7 +464,7 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
           refine ⟨x₇, (hs1.seq (ExecWithin.branch_pos hc_op he_q)).mono (by omega), ?_, ?_,
             Modifies.refl _ _⟩
           · change some (if x₇.regs 8 == 0 then none else some (x₇.regs 8 - 1)) = _
-            rw [show x₇.regs 8 = v1.1 + 1 from hx₇_r8]
+            rw [show x₇.regs 8 = v1.val + 1 from hx₇_r8]
             cases e0 with
             | none => simp [hs_eq, slotsState, Dynamic.spec]
             | some uv0 =>
@@ -489,12 +489,12 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
     have hv_lt : v < V := hval.2
     let v_fin : Fin V := ⟨v, hv_lt⟩
     have hr1 : x.regs 1 = 1 := by simpa [twoSlotEncode] using hmatch 1 (by decide)
-    have hr2 : x.regs 2 = u.1 + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
+    have hr2 : x.regs 2 = u.val + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
     have hr6 : x.regs 6 = encodeSlot (some (u, v_fin)) := by
       simpa [twoSlotEncode, hv_lt, encodeSlot, v_fin] using hmatch 6 (by decide)
     have hc_not_q : ¬(Cond.eq (1 : Fin 9) 3).Holds x₁ := by simp [x₁, hr1, hr3]
     have hc_ins : (Cond.eq (1 : Fin 9) 4).Holds xu₃ := by simp [xu₃, xu₂, x₁, hr1, hr4]
-    by_cases hk0 : slotKeyTag e0 = u.1 + 1
+    by_cases hk0 : slotKeyTag e0 = u.val + 1
     · cases e0 with
       | none => simp [slotKeyTag] at hk0
       | some uv0 =>
@@ -526,7 +526,7 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
         rw [hxu₃_tag0]; simpa [xu₃, xu₂, x₁, hr2] using hk0
       have hs_not0 : ∀ u0 v0, e0 = some (u0, v0) → u ≠ u0 := by
         rintro u0 v0 rfl h_eq; subst h_eq; exact hk0 rfl
-      by_cases hk1 : slotKeyTag e1 = u.1 + 1
+      by_cases hk1 : slotKeyTag e1 = u.val + 1
       · cases e1 with
         | none => simp [slotKeyTag] at hk1
         | some uv1 =>
@@ -632,10 +632,10 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
                 hmod_write1 (xu₅.regs 6)
   | delete u =>
     have hr1 : x.regs 1 = 2 := by simpa [twoSlotEncode] using hmatch 1 (by decide)
-    have hr2 : x.regs 2 = u.1 + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
+    have hr2 : x.regs 2 = u.val + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
     have hc_not_q : ¬(Cond.eq (1 : Fin 9) 3).Holds x₁ := by simp [x₁, hr1, hr3]
     have hc_not_ins : ¬(Cond.eq (1 : Fin 9) 4).Holds xu₃ := by simp [xu₃, xu₂, x₁, hr1, hr4]
-    by_cases hk0 : slotKeyTag e0 = u.1 + 1
+    by_cases hk0 : slotKeyTag e0 = u.val + 1
     · cases e0 with
       | none => simp [slotKeyTag] at hk0
       | some uv0 =>
@@ -675,7 +675,7 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
         rw [hxu₃_tag0]; simpa [xu₃, xu₂, x₁, hr2] using hk0
       have hs_not0 : ∀ u0 v0, e0 = some (u0, v0) → u ≠ u0 := by
         rintro u0 v0 rfl h_eq; subst h_eq; exact hk0 rfl
-      by_cases hk1 : slotKeyTag e1 = u.1 + 1
+      by_cases hk1 : slotKeyTag e1 = u.val + 1
       · cases e1 with
         | none => simp [slotKeyTag] at hk1
         | some uv1 =>
@@ -899,7 +899,7 @@ noncomputable def twoSlotRandImpl {U V w base : ℕ} (usePersBase : Bool)
               (p.2.set 8 sample.val).regs 0 = base ∧
               twoSlotArgMatch U V base o (p.2.set 8 sample.val).regs := by
           intro sample
-          have hfs : Fits w sample.val := lt_of_le_of_lt (Nat.le_of_lt_succ sample.2) hfit4
+          have hfs : Fits w sample.val := lt_of_le_of_lt (Nat.le_of_lt_succ sample.isLt) hfit4
           refine ⟨⟨hrep.1.set hfs, fun hup => by simpa [Data.set] using hrep.2.1 hup, hrep.2.2⟩,
             by simpa [Data.set] using hr0,
             fun i hi => ?_⟩
@@ -985,8 +985,8 @@ theorem twoSlot_trace_and_rand_sanity :
           ⟨.insert 2 1, ()⟩, ⟨.query 0, none⟩, ⟨.query 2, some 1⟩] := by
     simp [sampleTwoSlotTrace, Dynamic.spec, StateTransitionSpec.run,
       StateTransitionSpec.ofFn, Dynamic.step]
-  exact ⟨by decide, ((sim0.2.1.runSeq_ofFn sampleTwoSlotTrace hv).1).trans hexp,
-    ((sim1.2.1.runSeq_ofFn sampleTwoSlotTrace hv).1).trans hexp⟩
+  exact ⟨by decide, ((sim0.2.val.runSeq_ofFn sampleTwoSlotTrace hv).1).trans hexp,
+    ((sim1.2.val.runSeq_ofFn sampleTwoSlotTrace hv).1).trans hexp⟩
 
 /-- Sanity check via `expectedFlatTime_ge_of_indexedScheme` and
 `ExecFlatProgramOps.tighten_actualBodyTime`: a probe-free `[Instr.halt retReg]` flat program with

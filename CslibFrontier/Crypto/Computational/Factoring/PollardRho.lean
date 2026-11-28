@@ -144,6 +144,7 @@ theorem rhoFactorLoop_eq_none_iff (N : ℕ) (F : (ZMod N)ˣ → (ZMod N)ˣ) :
   | 0, _, _ => by simp only [rhoFactorLoop, true_iff]; omega
   | B + 1, x, y => by
     rw [rhoFactorLoop]
+    dsimp only
     split_ifs with h1
     · refine ⟨?_, fun h => (h 1 le_rfl (by omega) ⟨Nat.gcd_dvd_right _ _, h1⟩).elim⟩
       rintro ⟨⟩

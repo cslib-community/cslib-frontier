@@ -145,14 +145,14 @@ theorem exists_computes_clique (n k : ℕ) :
     simpa [interpretation] using Synthesis.nullary (I := interpretation)
       (s := inputs (edgeCount n)) (.const b) rfl
   have h := Synthesis.finset_fold (· || ·) 1 hor ((univ : Finset (Fin n)).powersetCard k)
-    (f := fun t x => (univ.filter fun e : Edge n => e.1.toFinset ⊆ t).fold (· && ·) true
+    (f := fun t x => (univ.filter fun e : Edge n => e.val.toFinset ⊆ t).fold (· && ·) true
       fun e => x (edgeEquiv n e)) (hconst false) fun t _ =>
       Synthesis.finset_fold (· && ·) 1 hand _ (hconst true) fun e _ =>
         Synthesis.of_mem ⟨edgeEquiv n e, rfl⟩
   obtain ⟨C, hC, -⟩ := h.exists_circuit
   refine ⟨C, fun x => (hC x).trans (funext fun _ => ?_)⟩
   change (univ.powersetCard k).fold (· || ·) false (fun t =>
-    (univ.filter fun e : Edge n => e.1.toFinset ⊆ t).fold (· && ·) true
+    (univ.filter fun e : Edge n => e.val.toFinset ⊆ t).fold (· && ·) true
       fun e => x (edgeEquiv n e)) = clique n k x
   rw [Bool.eq_iff_iff, fold_or_eq_true, clique, decide_eq_true_iff]
   constructor

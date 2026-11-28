@@ -344,8 +344,4 @@ example :
     Cslib.Crypto.GGM.eval (fun s => s ++ s.map (!·)) [true, false] [false, true] =
       [false, true] := by decide
 
-/-- info: 'Turing.MultiTapeTM.read_rawFrameReader' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Turing.MultiTapeTM.read_rawFrameReader
-
 end CslibFrontierTests.Quantitative

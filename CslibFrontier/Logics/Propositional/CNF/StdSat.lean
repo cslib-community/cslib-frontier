@@ -271,7 +271,7 @@ theorem CNF.modelCountOn_ofStdSat_univ {n : ℕ} (f : Std.Sat.CNF (Fin n)) :
     CNF.eval_ofStdSat]
   exact Fintype.card_congr
     { toFun := fun ⟨σ, hσ⟩ => ⟨fun i => σ ⟨i, Finset.mem_univ i⟩, hσ⟩
-      invFun := fun ⟨a, ha⟩ => ⟨fun i => a i.1, ha⟩
+      invFun := fun ⟨a, ha⟩ => ⟨fun i => a i.val, ha⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
 
@@ -289,10 +289,10 @@ theorem CNF.card_eval_eq_modelCountOn_relabel_val {n : ℕ} (f : Std.Sat.CNF (Fi
       (CNF.ofStdSat (f.relabel Fin.val)).modelCountOn (Finset.range n) := by
   simp only [CNF.modelCountOn, ← Fintype.card_subtype, CNF.relabel_ofStdSat, CNF.eval_relabel]
   exact Fintype.card_congr
-    { toFun := fun ⟨a, ha⟩ => ⟨fun i => a ⟨i.1, Finset.mem_range.mp i.2⟩, by
+    { toFun := fun ⟨a, ha⟩ => ⟨fun i => a ⟨i.val, Finset.mem_range.mp i.property⟩, by
         rw [← CNF.eval_ofStdSat] at ha
         exact (CNF.eval_congr fun i _ => by simp [i.isLt]).trans ha⟩
-      invFun := fun ⟨τ, hτ⟩ => ⟨fun i => τ ⟨i.1, Finset.mem_range.mpr i.isLt⟩, by
+      invFun := fun ⟨τ, hτ⟩ => ⟨fun i => τ ⟨i.val, Finset.mem_range.mpr i.isLt⟩, by
         rw [← CNF.eval_ofStdSat]
         exact (CNF.eval_congr fun i _ => by simp [i.isLt]).trans hτ⟩
       left_inv := fun _ => rfl

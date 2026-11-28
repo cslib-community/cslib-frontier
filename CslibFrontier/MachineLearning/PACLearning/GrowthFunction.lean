@@ -126,7 +126,7 @@ theorem growthFunction_eq_two_pow_of_setShatters {C : ConceptClass α Bool} {W :
   refine le_antisymm (growthFunction_le_two_pow C _) ?_
   set x : Fin W.card → α := fun i => (W.equivFin.symm i : α)
   have hx : Function.Injective x := fun i j h => W.equivFin.symm.injective (Subtype.ext h)
-  have hxW : ∀ i, x i ∈ (W : Set α) := fun i => Finset.mem_coe.2 (W.equivFin.symm i).2
+  have hxW : ∀ i, x i ∈ (W : Set α) := fun i => Finset.mem_coe.2 (W.equivFin.symm i).property
   have huniv : restriction C x = Set.univ := by
     refine Set.eq_univ_of_forall fun v => ?_
     obtain ⟨c, hc, hcW⟩ := hW ((Finset.univ.filter fun i => v i = true).image x : Set α)

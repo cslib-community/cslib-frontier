@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs
 public import CslibFrontier.Foundations.Data.List.OrderStatistic
 public import Cslib.Algorithms.Lean.Query.Sort.Merge.Lemmas
+import Mathlib.Tactic.FinCases
 
 /-!
 # Correctness of deterministic selection
@@ -99,49 +100,61 @@ theorem le_countP_of_rel_eval_groupMedian (r : α → α → Prop) [DecidableRel
 @[simp] theorem length_eval_medians (oracle : {ι : Type} → LEQuery α ι → ι) (xs : List α) :
     ((medians xs).eval oracle).length = (xs.length + 4) / 5 := by
   fun_induction medians xs with
-  | case1 => simp -- []
-  | case2 x xs ih =>
-    simp only [FreeM.eval_bind, FreeM.eval_pure, List.length_cons, ih, List.length_drop]
-    omega
+  | case1 a b c d e rest ih =>
+    simp only [FreeM.eval_bind, FreeM.eval_pure, List.length_cons, ih]; omega
+  | case2 x xs hn =>
+    rcases xs with _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, rest⟩⟩⟩⟩ <;>
+      first | exact (hn _ _ _ _ _ rfl).elim | simp
+  | case3 => simp
 
 /-- Every group median is an element of the input, for every oracle. -/
 theorem mem_of_mem_eval_medians (oracle : {ι : Type} → LEQuery α ι → ι) {xs : List α} {m : α}
     (hm : m ∈ (medians xs).eval oracle) : m ∈ xs := by
   fun_induction medians xs with
-  | case1 => simp at hm -- []
-  | case2 x xs ih =>
+  | case1 a b c d e rest ih =>
     simp only [FreeM.eval_bind, FreeM.eval_pure, List.mem_cons] at hm
-    rcases hm with rfl | hm
-    · exact (List.cons_sublist_cons.mpr (List.take_sublist 4 xs)).subset
-        (eval_groupMedian_mem oracle x (xs.take 4))
-    · exact List.mem_cons_of_mem x ((List.drop_sublist 4 xs).subset (ih hm))
+    rcases hm with rfl | h
+    · obtain ⟨i, hi⟩ := eval_medianFive_mem_range oracle ![a, b, c, d, e]
+      rw [← hi]
+      fin_cases i <;> simp
+    · exact List.mem_append_right [a, b, c, d, e] (ih h)
+  | case2 x xs _ =>
+    simp only [FreeM.eval_bind, FreeM.eval_pure, List.mem_singleton] at hm
+    exact hm ▸ eval_groupMedian_mem oracle x xs
+  | case3 => simp at hm
 
-/-- Each group median satisfying `P` contributes `3` elements of its group satisfying `P`, up to
-the partial last group. -/
-private theorem three_mul_countP_eval_medians_le (oracle : {ι : Type} → LEQuery α ι → ι)
+/-- Each full group whose median satisfies `P` contributes three elements satisfying `P`.
+The last partial group can fall short by two. -/
+private theorem three_mul_countP_eval_medians_le (r : α → α → Prop) [DecidableRel r] [Std.Total r]
+    [IsTrans α r] (oracle : {ι : Type} → LEQuery α ι → ι)
+    (horacle : ∀ a b, oracle (.le a b) = decide (r a b))
     (P : α → Prop) [DecidablePred P]
     (hgroup : ∀ x xs, P ((groupMedian x xs).eval oracle) →
       (xs.length + 2) / 2 ≤ (x :: xs).countP (fun y => P y))
     (xs : List α) :
     3 * ((medians xs).eval oracle).countP (fun y => P y) ≤ xs.countP (fun y => P y) + 2 := by
   fun_induction medians xs with
-  | case1 => simp -- []
-  | case2 x xs ih =>
-    simp only [FreeM.eval_bind, FreeM.eval_pure]
-    have hsplit : (x :: xs).countP (fun y => P y) =
-        (x :: xs.take 4).countP (fun y => P y) + (xs.drop 4).countP (fun y => P y) := by
-      conv_lhs => rw [← List.take_append_drop 4 xs]
-      rw [← List.cons_append, List.countP_append]
-    rw [List.countP_cons (l := (medians (xs.drop 4)).eval oracle), hsplit]
-    have hg := hgroup x (xs.take 4)
-    rw [List.length_take] at hg
-    -- the last group may be partial, but then no medians follow it
-    have hms := ((medians (xs.drop 4)).eval oracle).countP_le_length (p := fun y => P y)
-    rw [length_eval_medians, List.length_drop] at hms
-    by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
-    · have := hg hP
-      simp only [hP, decide_true, ↓reduceIte]; omega
-    · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte]; omega
+  | case1 a b c d e rest ih =>
+    have he : (medianFive ![a, b, c, d, e]).eval oracle =
+        (groupMedian a [b, c, d, e]).eval oracle := by
+      simp [eval_medianFive r oracle horacle]
+    simp only [FreeM.eval_bind, FreeM.eval_pure, he]
+    change 3 * (_ :: _).countP _ ≤ ([a, b, c, d, e] ++ rest).countP _ + 2
+    rw [List.countP_append, List.countP_cons]
+    by_cases h : P ((groupMedian a [b, c, d, e]).eval oracle)
+    · have bound : 3 ≤ [a, b, c, d, e].countP (fun y => decide (P y)) := by
+        simpa only [List.length_cons, List.length_nil, Nat.reduceAdd, Nat.reduceDiv] using
+          hgroup a [b, c, d, e] h
+      simp only [h, decide_true, ↓reduceIte]; omega
+    · simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte]; omega
+  | case2 x xs _ =>
+    simp only [FreeM.eval_bind, FreeM.eval_pure, List.countP_cons, List.countP_nil]
+    by_cases h : P ((groupMedian x xs).eval oracle)
+    · have hg := hgroup x xs h
+      simp only [List.countP_cons] at hg
+      simp only [h, decide_true, ↓reduceIte]; omega
+    · simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte]; omega
+  | case3 => simp
 
 /-- Each group median at or above `p` contributes three elements of its group at or above `p`:
 `3 * #{medians ≥ p} ≤ #{xs ≥ p} + 2`. -/
@@ -149,7 +162,7 @@ theorem three_mul_countP_eval_medians_rel_le (r : α → α → Prop) [Decidable
     [IsTrans α r] (oracle : {ι : Type} → LEQuery α ι → ι)
     (horacle : ∀ a b, oracle (.le a b) = decide (r a b)) (p : α) (xs : List α) :
     3 * ((medians xs).eval oracle).countP (fun y => r p y) ≤ xs.countP (fun y => r p y) + 2 :=
-  three_mul_countP_eval_medians_le oracle (fun y => r p y)
+  three_mul_countP_eval_medians_le r oracle horacle (fun y => r p y)
     (fun x xs => (le_countP_of_rel_eval_groupMedian r oracle horacle x xs p).1) xs
 
 /-- Each group median at or below `p` contributes three elements of its group at or below `p`:
@@ -158,7 +171,7 @@ theorem three_mul_countP_eval_medians_rel_le' (r : α → α → Prop) [Decidabl
     [IsTrans α r] (oracle : {ι : Type} → LEQuery α ι → ι)
     (horacle : ∀ a b, oracle (.le a b) = decide (r a b)) (p : α) (xs : List α) :
     3 * ((medians xs).eval oracle).countP (fun y => r y p) ≤ xs.countP (fun y => r y p) + 2 :=
-  three_mul_countP_eval_medians_le oracle (fun y => r y p)
+  three_mul_countP_eval_medians_le r oracle horacle (fun y => r y p)
     (fun x xs => (le_countP_of_rel_eval_groupMedian r oracle horacle x xs p).2) xs
 
 /-- The three-way partition, as filters by the oracle's answers. -/

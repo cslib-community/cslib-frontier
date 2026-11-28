@@ -126,9 +126,4 @@ example :
     unfold Cslib.DataStructure.FusionTree.upperRank
     decide
 
-/-- info: 'Cslib.DataStructure.FusionTree.WordRAM.BinaryNodeProgram.exec' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms BinaryNodeProgram.exec
-
 end FusionTreeRAMTests

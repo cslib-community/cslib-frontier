@@ -129,8 +129,7 @@ private theorem keyRank_comp {k : Fin n → ℕ} (hk : Function.Injective k) (σ
       simp only [Finset.mem_filter, Finset.mem_univ, true_and]
       exact ⟨fun h => h.elim id fun ⟨he, hl⟩ => absurd (hk he ▸ hl) (lt_irrefl _), Or.inl⟩
   rw [hsimp _ (hk.comp σ.injective), hsimp _ hk]
-  exact Finset.card_bij (fun j _ => σ j) (by simp) (fun _ _ _ _ h => σ.injective h)
-    fun j hj => ⟨σ.symm j, by simpa using hj, by simp⟩
+  exact Finset.card_equiv σ fun j => by simp
 
 private theorem rankPerm_comp {k : Fin n → ℕ} (hk : Function.Injective k) (σ : Equiv.Perm (Fin n)) :
     rankPerm (k ∘ σ) = σ.trans (rankPerm k) := by

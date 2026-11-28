@@ -1454,8 +1454,8 @@ theorem val_nonneg (k : Fin (m + 1)) : 0 ≤ D.val k :=
 `φ(vₖ) = vₖ − (vₖ₊₁ − vₖ) · (∑_{j > k} fⱼ) / fₖ` for `k < m`, and `φ(vₘ) = vₘ` at the top grid
 point. -/
 @[expose] noncomputable def virtualValue (k : Fin (m + 1)) : ℝ :=
-  if hk : k.1 < m then
-    D.val k - (D.val ⟨k.1 + 1, Nat.succ_lt_succ hk⟩ - D.val k) *
+  if hk : k.val < m then
+    D.val k - (D.val ⟨k.val + 1, Nat.succ_lt_succ hk⟩ - D.val k) *
       (∑ j with k < j, D.prob j) / D.prob k
   else
     D.val k
@@ -1550,15 +1550,15 @@ theorem envelopePayment_isDiscreteDSIC_iff {x : Fin (m + 1) → ℝ} :
     linarith
   have hup : ∀ j : Fin (m + 1), j ≤ k → u j ≤ u k := by
     intro j hjk
-    obtain ⟨d, hd⟩ : ∃ d, k.1 - j.1 = d := ⟨_, rfl⟩
+    obtain ⟨d, hd⟩ : ∃ d, k.val - j.val = d := ⟨_, rfl⟩
     induction d generalizing j with
     | zero =>
       have hjk_eq : j = k := Fin.ext (by omega)
       rw [hjk_eq]
     | succ d ih =>
-      have hjlt : j.1 < m := lt_of_lt_of_le (by omega) (Nat.le_of_lt_succ k.isLt)
-      let i : Fin m := ⟨j.1, hjlt⟩
-      have hi_val : i.1 = j.1 := rfl
+      have hjlt : j.val < m := lt_of_lt_of_le (by omega) (Nat.le_of_lt_succ k.isLt)
+      let i : Fin m := ⟨j.val, hjlt⟩
+      have hi_val : i.val = j.val := rfl
       have hj_eq : j = i.castSucc := rfl
       have hisucc_le : i.succ ≤ k := by
         rw [Fin.le_def, Fin.val_succ, hi_val]
@@ -2003,7 +2003,7 @@ theorem dopMechanism_isNormalized {ι : Type*} [Fintype ι] [DecidableEq ι] :
 /-- Parametric `k²`-bidder worst-case bid family generalizing [HartlineKarlin2007], Example 13.23
 (p. 340, `k = 10`): among `k²` bidders, the first `k` bid `k` and the remaining `k² − k` bid `1`. -/
 def dopBadBids (k : ℕ) (i : Fin (k ^ 2)) : ℝ :=
-  if i.1 < k then k else 1
+  if i.val < k then k else 1
 
 private theorem mem_empiricalCandidatePrices_dopBadBids {k : ℕ} {S : Finset (Fin (k ^ 2))} {p : ℝ}
     (hp : p ∈ empiricalCandidatePrices S (dopBadBids k)) :
@@ -2081,17 +2081,17 @@ theorem dopMechanism_sum_payment_dopBadBids {k : ℕ} (hk : 2 ≤ k) :
         Nat.cast_sub hsq_pos, Nat.cast_pow, Nat.cast_one]
   have herase_k : ∀ i : Fin (k ^ 2),
       empiricalSinglePriceRevenue (Finset.univ.erase i) (dopBadBids k) k =
-        if i.1 < k then (k : ℝ) * (k - 1) else (k : ℝ) ^ 2 := fun i => by
+        if i.val < k then (k : ℝ) * (k - 1) else (k : ℝ) ^ 2 := fun i => by
     simp only [empiricalSinglePriceRevenue, Finset.filter_erase,
       filter_univ_coe_le_dopBadBids hk hk_lt_sq]
-    by_cases hi : i.1 < k
+    by_cases hi : i.val < k
     · have himem : i ∈ Finset.Iio cut := Finset.mem_Iio.2 hi
       simp only [hi, ↓reduceIte, Finset.card_erase_of_mem himem, Fin.card_Iio, cut,
         Nat.cast_sub hk_pos, Nat.cast_one]
     · have hinot : i ∉ Finset.Iio cut := by simpa only [Finset.mem_Iio, Fin.lt_def] using hi
       simp only [hi, ↓reduceIte, Finset.erase_eq_of_notMem hinot, Fin.card_Iio, cut]
       ring
-  have hemp_lt : ∀ i : Fin (k ^ 2), i.1 < k → empiricalMonopolyPrice (dopBadBids k) i = 1 := by
+  have hemp_lt : ∀ i : Fin (k ^ 2), i.val < k → empiricalMonopolyPrice (dopBadBids k) i = 1 := by
     intro i hi
     have hmem := empiricalMonopolyPriceOn_mem_candidates (Finset.univ.erase i) (dopBadBids k)
     have hge1 := empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn
@@ -2101,7 +2101,7 @@ theorem dopMechanism_sum_payment_dopBadBids {k : ℕ} (hk : 2 ≤ k) :
     · rw [h0, empiricalSinglePriceRevenue, zero_mul] at hge1; nlinarith
     · exact h1
     · rw [hk', herase_k i, ite_eq_left hi] at hge1; nlinarith
-  have hemp_ge : ∀ i : Fin (k ^ 2), ¬ i.1 < k → empiricalMonopolyPrice (dopBadBids k) i = k := by
+  have hemp_ge : ∀ i : Fin (k ^ 2), ¬ i.val < k → empiricalMonopolyPrice (dopBadBids k) i = k := by
     intro i hi
     have hmem := empiricalMonopolyPriceOn_mem_candidates (Finset.univ.erase i) (dopBadBids k)
     have hgek := empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn
@@ -2113,7 +2113,7 @@ theorem dopMechanism_sum_payment_dopBadBids {k : ℕ} (hk : 2 ≤ k) :
     · exact hk'
   have hpay : ∀ i : Fin (k ^ 2), dopMechanism.payment (dopBadBids k) i =
       if i ∈ Finset.Iio cut then 1 else 0 := fun i => by
-    by_cases hi : i.1 < k
+    by_cases hi : i.val < k
     · have himem : i ∈ Finset.Iio cut := Finset.mem_Iio.2 hi
       simp only [himem, ↓reduceIte, dopMechanism, hemp_lt i hi, dopBadBids, hi, hk1.le]
     · have hinot : i ∉ Finset.Iio cut := by simpa only [Finset.mem_Iio, Fin.lt_def] using hi

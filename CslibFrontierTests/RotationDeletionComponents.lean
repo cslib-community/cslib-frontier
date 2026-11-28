@@ -16,7 +16,7 @@ namespace CslibFrontierTests.RotationDeletionComponents
 open Cslib.Complexity Graph Graph.RotationSystem
 
 private theorem checkedGenus {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (h : RotationCertificate.verifyEuler G (RotationCertificate.ofRotation r) = true) :
     r.NumericalGenusZero := by
   have he := (RotationCertificate.verifyEuler_eq_true_iff
@@ -70,7 +70,7 @@ example : RotationCertificate.verifyGenusZero pendant
 private abbrev loopAndPoint : Graph := ⟨[0, 8], [(0, 0)]⟩
 
 private def sphereLoops : RotationSystem (lastEdgeGraph loopAndPoint 0 0) where
-  rotate := ((finCongr (show 4 = 2 * (lastEdgeGraph loopAndPoint 0 0).2.length by decide)).trans
+  rotate := ((finCongr (show 4 = 2 * (lastEdgeGraph loopAndPoint 0 0).edges.length by decide)).trans
     (Dart.indexEquiv (lastEdgeGraph loopAndPoint 0 0)).symm).permCongr (finRotate 4)
   sameCycle_iff := by decide +kernel
 

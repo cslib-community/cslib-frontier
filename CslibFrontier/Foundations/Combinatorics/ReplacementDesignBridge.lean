@@ -111,7 +111,7 @@ variable {Q r A₀ R n : ℕ}
 /-- The 1-based integer evaluation node `t.1 + 1 ∈ {1, …, Q}` associated to `t : Fin Q`
 ([OpenAI2026ETH], Definition 3.1 and Section 4.3, pp. 21, 29). -/
 def nodeInt {Q : ℕ} (t : Fin Q) : ℤ :=
-  (t.1 : ℤ) + 1
+  (t.val : ℤ) + 1
 
 /-- Casting `nodeInt t` to `ℚ` recovers `nodePoint t`. -/
 @[simp]
@@ -226,7 +226,7 @@ theorem sum_groupMeasurementRow_mul_eq_mulVec (t : Fin Q) (g : Fin r)
 def toCountingDesign (s : Finset F) (hr : 2 ≤ r) (hR : 1 ≤ R) (hRQ : R < Q)
     (hτ_pos : 0 < τ) (hτ_le : τ ≤ 1 / 2) :
     Cslib.ReplacementCounting.Design (Fin n) s (fun f => {v : Fin n // v ∈ scope f})
-      (fun _ v => v.1) r Q R (r ^ (2 * Q)) (τ : ℝ) where
+      (fun _ v => v.val) r Q R (r ^ (2 * Q)) (τ : ℝ) where
   two_le_r := hr
   one_le_D := Nat.one_le_pow (2 * Q) r (by omega)
   one_le_R := hR
@@ -424,11 +424,11 @@ theorem subsetPairCount_le_exp_mul_log_ratio {R Q n q : ℕ} {c : ℝ}
   set L := Real.log (2 * (Q : ℝ) / R)
   have hlog_one : 1 ≤ 2 * L := one_le_two_mul_log_two_mul_div hR hRQ
   have hpow_q : ((Q : ℝ) / R) ^ q ≤ Real.exp (q * L) := by
-    rw [Real.exp_nat_mul, Real.exp_log (by positivity)]
+    rw [Real.exp_natCast_mul, Real.exp_log (by positivity)]
     gcongr
     linarith
   have hpow_n : (1 + 2 * ((R : ℝ) / Q)) ^ n ≤ Real.exp (n * (2 * ((R : ℝ) / Q))) := by
-    rw [Real.exp_nat_mul]
+    rw [Real.exp_natCast_mul]
     gcongr
     linarith [Real.add_one_le_exp (2 * ((R : ℝ) / Q))]
   have hqL : (q : ℝ) * L ≤ c * n * ((R : ℝ) / Q) * L := by gcongr; linarith
@@ -570,9 +570,9 @@ theorem exists_countingDesign_of_scopes {F : Type*} [Fintype F]
     ∃ D : ReplacementDesign scope Q r A₀ R τ,
       Nonempty
         (Cslib.ReplacementCounting.Design (Fin n) s (fun f => {v : Fin n // v ∈ scope f})
-          (fun _ v => v.1) r Q R (r ^ (2 * Q)) (τ : ℝ)) ∧
+          (fun _ v => v.val) r Q R (r ^ (2 * Q)) (τ : ℝ)) ∧
       D.h * r ^ (2 * Q) ≤ 2 * ∑ f : F, #(scope f) ∧
-      (∀ f : F, scope f = ∅ → ∀ t : Fin Q, (D.factorAssign f t).1 = 0) ∧
+      (∀ f : F, scope f = ∅ → ∀ t : Fin Q, (D.factorAssign f t).val = 0) ∧
       (∀ (f : F) (v : {v : Fin n // v ∈ scope f}) (i : Fin n),
         (varReplacementRowScaledInt Q r A₀ R D.place (scopeVarOf scope) ⟨f, v⟩ i).map
             (Int.castRingHom ℚ) =

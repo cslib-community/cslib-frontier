@@ -99,31 +99,19 @@ theorem boolMatrixWeight_add_compl [Fintype α] [Fintype β] (A : Matrix α β B
 theorem boolMatrixWeight_eq_sum_row [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     boolMatrixWeight A = ∑ i : α, #(univ.filter fun j : β => A i j = true) := by
   rw [boolMatrixWeight, ← card_sigma]
-  refine card_bij (fun p _ => ⟨p.1, p.2⟩) ?_ ?_ ?_
-  · intro p hp
-    simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp
-  · rintro ⟨i₁, j₁⟩ - ⟨i₂, j₂⟩ - h
-    simp only [Sigma.mk.injEq, heq_eq_eq] at h
-    rw [h.1, h.2]
-  · rintro ⟨i, j⟩ hp
-    exact ⟨(i, j), by simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp, rfl⟩
+  refine card_equiv (Equiv.sigmaEquivProd _ _).symm fun p => ?_
+  simp only [mem_sigma, mem_univ, mem_filter, true_and]
+  rfl
 
 /-- Reindexing rows and columns by equivalences preserves Boolean matrix weight. -/
 theorem boolMatrixWeight_reindex [Fintype α] [Fintype β] [Fintype α'] [Fintype β']
     (e₁ : α ≃ α') (e₂ : β ≃ β') (A : Matrix α β Bool) :
     boolMatrixWeight (Matrix.reindex e₁ e₂ A) = boolMatrixWeight A := by
   unfold boolMatrixWeight
-  refine card_bij (fun p _ => (e₁.symm p.1, e₂.symm p.2)) ?_ ?_ ?_
-  · intro p hp
-    rw [mem_filter] at hp ⊢
-    exact ⟨mem_univ _, hp.2⟩
-  · rintro ⟨i₁, j₁⟩ - ⟨i₂, j₂⟩ - h
-    simp only [Prod.mk.injEq, Equiv.apply_eq_iff_eq] at h
-    rw [h.1, h.2]
-  · rintro ⟨i, j⟩ hp
-    rw [mem_filter] at hp
-    refine ⟨(e₁ i, e₂ j), mem_filter.mpr ⟨mem_univ _, ?_⟩, by simp only [Equiv.symm_apply_apply]⟩
-    simpa only [Matrix.reindex_apply, Matrix.submatrix_apply, Equiv.symm_apply_apply] using hp.2
+  refine card_equiv (e₁.symm.prodCongr e₂.symm) fun p => ?_
+  rw [mem_filter, mem_filter]
+  simp only [mem_univ, true_and]
+  rfl
 
 /-- A Boolean matrix `A` is *`k`-rectangle-free* (*`k`-free*) if no `k` rows and `k` columns form
 an all-`true` `k × k` submatrix ([Sergeev2014ORComplement], p. 1). -/
@@ -186,13 +174,13 @@ and `β`, with entry `(r, c)` equal to `true` iff `r × c` is an all-`true` `2 �
 ([Sergeev2014ORComplement], p. 2). -/
 @[expose] def twoRectMatrix (A : Matrix α β Bool) :
     Matrix {r : Finset α // #r = 2} {c : Finset β // #c = 2} Bool :=
-  Matrix.of fun r c => @decide (∀ (i) (_ : i ∈ r.1) (j) (_ : j ∈ c.1), A i j = true)
+  Matrix.of fun r c => @decide (∀ (i) (_ : i ∈ r.val) (j) (_ : j ∈ c.val), A i j = true)
     (Finset.decidableDforallFinset (_hp := fun _ _ => Finset.decidableDforallFinset))
 
 /-- Entry characterization of `twoRectMatrix`. -/
 @[simp] theorem twoRectMatrix_apply (A : Matrix α β Bool)
     (r : {r : Finset α // #r = 2}) (c : {c : Finset β // #c = 2}) :
-    twoRectMatrix A r c = true ↔ ∀ i ∈ r.1, ∀ j ∈ c.1, A i j = true := by
+    twoRectMatrix A r c = true ↔ ∀ i ∈ r.val, ∀ j ∈ c.val, A i j = true := by
   simp only [twoRectMatrix, Matrix.of_apply, decide_eq_true_eq]
 
 private theorem two_mul_choose_two_add (d : ℕ) : 2 * d.choose 2 + d = d ^ 2 := by
@@ -203,9 +191,10 @@ private theorem two_mul_choose_two_add (d : ℕ) : 2 * d.choose 2 + d = d ^ 2 :=
     linarith [ih, show (d + 1) ^ 2 = d ^ 2 + 2 * d + 1 by ring]
 
 private theorem card_twoSubsets_subset [Fintype α] [DecidableEq α] (S : Finset α) :
-    #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ S) = (#S).choose 2 := by
+    #(univ.filter fun r : {r : Finset α // #r = 2} => r.val ⊆ S) = (#S).choose 2 := by
   rw [← card_powersetCard 2 S]
-  refine card_bij (fun r _ => r.1) (fun r hr => mem_powersetCard.mpr ⟨(mem_filter.mp hr).2, r.2⟩)
+  refine card_bij (fun r _ => r.val)
+    (fun r hr => mem_powersetCard.mpr ⟨(mem_filter.mp hr).2, r.property⟩)
     (fun _ _ _ _ => Subtype.ext) fun s hs => ?_
   rw [mem_powersetCard] at hs
   exact ⟨⟨s, hs.2⟩, mem_filter.mpr ⟨mem_univ _, hs.1⟩, rfl⟩
@@ -219,7 +208,7 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
   classical
   intro σ n
   set colCov : {c : Finset β // #c = 2} → Finset α :=
-    fun c => univ.filter fun i : α => ∀ j ∈ c.1, A i j = true with hcolCov
+    fun c => univ.filter fun i : α => ∀ j ∈ c.val, A i j = true with hcolCov
   -- Double count `(i, c)` with `c.1 ⊆ {j | A i j = true}`.
   have hsum_b : ∑ c : {c : Finset β // #c = 2}, #(colCov c) = σ := by
     simp only [hcolCov, card_filter]
@@ -236,7 +225,7 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
     have hsplit : #(univ.filter fun p : {r : Finset α // #r = 2} × {c : Finset β // #c = 2} =>
         twoRectMatrix A p.1 p.2 = true) =
         ∑ c : {c : Finset β // #c = 2},
-          #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ colCov c) := by
+          #(univ.filter fun r : {r : Finset α // #r = 2} => r.val ⊆ colCov c) := by
       rw [← card_sigma]
       refine card_nbij' (fun p => ⟨p.2, p.1⟩) (fun p => (p.2, p.1)) ?_ ?_ (fun _ _ => rfl)
         (fun _ _ => rfl) <;> intro p hp <;> simpa only [mem_coe, mem_filter, mem_univ, true_and,
@@ -323,7 +312,7 @@ private theorem le_card_biUnion_of_card_twoSubsets [DecidableEq α]
     rw [← card_map ⟨Subtype.val, Subtype.val_injective⟩]
     refine card_le_card fun s hs => ?_
     obtain ⟨r, hr, rfl⟩ := mem_map.mp hs
-    exact mem_powersetCard.mpr ⟨subset_biUnion_of_mem Subtype.val hr, r.2⟩
+    exact mem_powersetCard.mpr ⟨subset_biUnion_of_mem Subtype.val hr, r.property⟩
   rw [card_powersetCard] at hinj
   have hch := hinj.trans (Nat.choose_le_choose 2 hle)
   omega

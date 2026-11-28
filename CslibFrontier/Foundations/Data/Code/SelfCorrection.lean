@@ -83,8 +83,8 @@ theorem exists_nonzero_nodes_of_le_card (hcard : d + 2 ≤ Fintype.card F) :
     omega
   obtain ⟨s, hs, hscard⟩ := exists_subset_card_eq hle
   let e : Fin (d + 1) ≃ s := (s.equivFinOfCardEq hscard).symm
-  refine ⟨⟨fun i => (e i).1, fun i j hij => e.injective (Subtype.ext hij)⟩, fun i => ?_⟩
-  exact ne_of_mem_erase (hs (e i).2)
+  refine ⟨⟨fun i => (e i).val, fun i j hij => e.injective (Subtype.ext hij)⟩, fun i => ?_⟩
+  exact ne_of_mem_erase (hs (e i).property)
 
 omit [DecidableEq F] in
 /-- Canonical choice of `d + 1` distinct nonzero evaluation nodes in `F` when

@@ -133,7 +133,7 @@ private theorem exp_five_gt_144 : (144 : ℝ) < Real.exp 5 := by
   have he : (2.718 : ℝ) < Real.exp 1 := lt_trans (by norm_num) Real.exp_one_gt_d9
   calc (144 : ℝ) < (2.718 : ℝ) ^ 5 := by norm_num
     _ < (Real.exp 1) ^ 5 := by gcongr
-    _ = Real.exp (5 : ℝ) := by rw [← Real.exp_nat_mul]; norm_num
+    _ = Real.exp (5 : ℝ) := by rw [← Real.exp_natCast_mul]; norm_num
 
 private theorem log_144_lt_five : Real.log 144 < 5 := by
   rw [← Real.log_exp (5 : ℝ)]
@@ -156,7 +156,7 @@ private theorem log_60_lt_nine_div_two : Real.log 60 < 9 / 2 := by
   refine log_lt_half_of_sq_lt_exp 9 (by norm_num) ?_
   calc (60 : ℝ) ^ 2 < (2.718 : ℝ) ^ 9 := by norm_num
     _ < (Real.exp 1) ^ 9 := by gcongr
-    _ = Real.exp ((9 : ℕ) : ℝ) := by rw [← Real.exp_nat_mul]; norm_num
+    _ = Real.exp ((9 : ℕ) : ℝ) := by rw [← Real.exp_natCast_mul]; norm_num
 
 private theorem vcSampleSize_one_third_half_pos (d : ℕ) :
     0 < vcSampleSize d (1 / 3) (1 / 2) := by
@@ -250,7 +250,7 @@ private def majorityReconstruct {s : ℕ} (A : Learner α Bool s) (t : ℕ)
     (xs : List (α × Bool)) (x : α) : Bool :=
   if h : xs.length = t * s then
     let sub : Fin t → LabeledSample α Bool s := fun j u =>
-      xs[(finProdFinEquiv (j, u)).1]'(by rw [h]; exact (finProdFinEquiv (j, u)).2)
+      xs[(finProdFinEquiv (j, u)).val]'(by rw [h]; exact (finProdFinEquiv (j, u)).isLt)
     decide (t < 2 * (Finset.univ.filter fun j : Fin t => A (sub j) x = true).card)
   else
     false
@@ -264,8 +264,8 @@ private theorem majorityReconstruct_map_flattenSubsamples {m t s : ℕ}
   unfold majorityReconstruct
   rw [dite_eq_left_of_eq_true (eq_true hlen)]
   have hsub : ∀ j : Fin t,
-      (fun u : Fin s => ((flattenSubsamples B).map S)[(finProdFinEquiv (j, u)).1]'(by
-        rw [hlen]; exact (finProdFinEquiv (j, u)).2)) = S ∘ B j := fun j => funext fun u => by
+      (fun u : Fin s => ((flattenSubsamples B).map S)[(finProdFinEquiv (j, u)).val]'(by
+        rw [hlen]; exact (finProdFinEquiv (j, u)).isLt)) = S ∘ B j := fun j => funext fun u => by
     simp only [flattenSubsamples, List.getElem_map, List.getElem_ofFn, Function.comp_apply,
       Fin.eta, Equiv.symm_apply_apply]
   refine congrArg (fun n => decide (t < 2 * n)) (congrArg Finset.card ?_)
@@ -387,7 +387,7 @@ private noncomputable def finsetSideReconstruct {s : ℕ} (A : Learner α Bool s
   if h : 0 < T.card then
     let e : T ≃ Fin T.card := Fintype.equivFinOfCardEq (Fintype.card_coe T)
     let sub : Fin t → LabeledSample α Bool s := fun j u =>
-      (e.symm ⟨(info j u).1 % T.card, Nat.mod_lt _ h⟩).1
+      (e.symm ⟨(info j u).val % T.card, Nat.mod_lt _ h⟩).val
     decide (t < 2 * (Finset.univ.filter fun j : Fin t => A (sub j) x = true).card)
   else
     false
@@ -437,13 +437,13 @@ theorem exists_finset_compression_of_dualVCDim {C : ConceptClass α Bool} {d dSt
       Finset.card_pos.2 ⟨S (B ⟨0, ht_pos⟩ ⟨0, hs_pos⟩), hmem _ _⟩
     let e : T ≃ Fin T.card := Fintype.equivFinOfCardEq (Fintype.card_coe T)
     let info : Fin t → Fin s → Fin (t * s) := fun j u =>
-      ⟨(e ⟨S (B j u), hmem j u⟩).1, lt_of_lt_of_le (e ⟨S (B j u), hmem j u⟩).2 hT_card⟩
+      ⟨(e ⟨S (B j u), hmem j u⟩).val, lt_of_lt_of_le (e ⟨S (B j u), hmem j u⟩).isLt hT_card⟩
     refine ⟨T, info, hT_sub, hT_card, fun i => ?_⟩
     have hsub : ∀ j : Fin t,
-        (fun u : Fin s => (e.symm ⟨(info j u).1 % T.card, Nat.mod_lt _ hT_pos⟩).1) =
+        (fun u : Fin s => (e.symm ⟨(info j u).val % T.card, Nat.mod_lt _ hT_pos⟩).val) =
           S ∘ B j := fun j => funext fun u => by
-      have hfin : (⟨(info j u).1 % T.card, Nat.mod_lt _ hT_pos⟩ : Fin T.card) =
-          e ⟨S (B j u), hmem j u⟩ := Fin.ext (Nat.mod_eq_of_lt (e ⟨S (B j u), hmem j u⟩).2)
+      have hfin : (⟨(info j u).val % T.card, Nat.mod_lt _ hT_pos⟩ : Fin T.card) =
+          e ⟨S (B j u), hmem j u⟩ := Fin.ext (Nat.mod_eq_of_lt (e ⟨S (B j u), hmem j u⟩).isLt)
       rw [hfin, Equiv.symm_apply_apply]
       rfl
     have heval : finsetSideReconstruct A t T info (S i).1 =

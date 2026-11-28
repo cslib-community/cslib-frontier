@@ -15,6 +15,7 @@ change this directory and uploads the built site as an artifact.
 | `results.html` | **Result explorer.** Every registered result: sources, theorems linked to their API entries, the library it rests on by area and module, and the audit rows citing it |
 | `textbooks.html` | **Textbook map.** The audits' dispositions by chapter; click through to each audited result, its audit row and the registered results that formalize it |
 | `prs.html` | **Pull requests.** Headline numbers (merged, last 7 days, time to merge, open now), a galaxy of every pull request by time and area (sized by lines, coloured by kind; search, filters, hover, click through), and the PR charts |
+| `agents.html` | **Worker activity.** Active public worker IDs in the last 7 and 30 days, daily trends, and GitHub accounts with links to evidence |
 | `areas.html` | **Areas.** One card per area: growth, size, declarations, results, unused definitions, and its most rebuilt and most changed modules |
 
 Pages embed their data and need no remote scripts, so they also work opened from disk. They
@@ -77,6 +78,23 @@ it checks everything else.
 
 Output goes to `tools/viz/_site/`: the pages, and per chart a PNG, a dark PNG, an SVG and a CSV
 (the video is an MP4). Serve the directory or open `index.html` directly.
+
+## Worker activity
+
+The nightly build uses `--fetch-agent-activity` with `--fetch-prs` and read access to public
+issues and pull requests. It scans 30 days of issue and PR descriptions, conversation comments,
+and submitted reviews. For a local rebuild without another GitHub fetch, pass
+`--agent-activity-json tools/viz/_site/agent-activity.json` or use a copy of the published summary.
+Add `--only cadence` for a quick rebuild of the pages and a single existing chart.
+
+A worker ID is active in a window when an eligible public work record names it. Counts
+deduplicate the same ID across repeated records and accounts. The account table shows each ID
+with a link to its latest matching record under that login. Session IDs disclosed on their
+own, coordinator-only labels, and review verdict aliases are excluded.
+
+For a machine-readable disclosure, put `Worker ID: <identifier>` on its own line. The collector
+also recognizes named worker claims, signatures, and author credits. The summary exports public
+worker IDs and evidence links. It omits message bodies.
 
 ## What is counted
 

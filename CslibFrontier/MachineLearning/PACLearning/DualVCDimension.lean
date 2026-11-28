@@ -112,7 +112,8 @@ private theorem exists_finset_of_setShatters_dualClass {C : ConceptClass α Bool
   classical
   have hw (G : F.powerset) :
       ∃ x : α, ∀ c ∈ F, (c : α → Bool) x = true ↔ c ∈ (G : Finset ↥C) := by
-    obtain ⟨_, ⟨x, rfl⟩, hx⟩ := hF ↑(G : Finset ↥C) (by exact_mod_cast Finset.mem_powerset.1 G.2)
+    obtain ⟨_, ⟨x, rfl⟩, hx⟩ :=
+      hF ↑(G : Finset ↥C) (by exact_mod_cast Finset.mem_powerset.1 G.property)
     refine ⟨x, fun c hc => ?_⟩
     have := Set.ext_iff.1 hx c
     simp only [mem_inter_iff, mem_preimage, mem_singleton_iff, Finset.mem_coe, hc,
@@ -164,7 +165,7 @@ theorem card_le_of_setShatters_dualClass {C : ConceptClass α Bool} {d : ℕ}
     obtain ⟨A, hA, hTA⟩ := hTs (show hVfin.toFinset ⊆ T from by
       intro x hx; exact hV (hVfin.mem_toFinset.1 hx))
     obtain ⟨c, -, rfl⟩ := Finset.mem_image.1 hA
-    refine ⟨c, c.2, Set.ext fun x => ?_⟩
+    refine ⟨c, c.property, Set.ext fun x => ?_⟩
     have := Finset.ext_iff.1 hTA x
     simp only [Finset.mem_inter, hτ, Set.Finite.mem_toFinset] at this
     simp only [mem_inter_iff, mem_preimage, mem_singleton_iff, Finset.mem_coe]

@@ -894,7 +894,7 @@ vector `o : Fin c → Fin w`. -/
 @[expose] noncomputable def plinkoSim (c w : ℕ) [NeZero w] : ProbComp (PlinkoQuery c w) := do
   let S ← ProbComp.uniform (HalfBlocks c)
   let o ← ProbComp.uniform (Fin c → Fin w)
-  pure ⟨S.1, o⟩
+  pure ⟨S.val, o⟩
 
 /-- `Preprocessing.Scheme` packaging of Plinko
 ([Hoover, Patel, Persiano and Yeo, Figure 7][HooverPatelPersianoYeo2025]). `HintInit` samples one
@@ -911,7 +911,7 @@ of querying a fresh index. -/
     let keys ← OracleComp.replicateFin c iF.gen
     let regB ← ProbComp.uniform (Fin (nReg + nBackup) → RegBlocks c)
     let bakB ← ProbComp.uniform (Fin (nReg + nBackup) → HalfBlocks c)
-    pure (streamPreprocess iF db keys (fun j => (regB j).1) (fun j => (bakB j).1))
+    pure (streamPreprocess iF db keys (fun j => (regB j).val) (fun j => (bakB j).val))
   query st x := do
     let b ← ProbComp.uniform Bool
     let r ← ProbComp.uniform (Fin w)
@@ -1033,16 +1033,16 @@ private theorem card_sdiff_univ_of_even {c : ℕ} (hc : Even c) {s : Finset (Fin
          · exact hP'
          · exact card_sdiff_univ_of_even hc hP'⟩
   invFun S :=
-    if hα : α ∈ S.1 then
-      (⟨insert α (Finset.univ \ S.1),
+    if hα : α ∈ S.val then
+      (⟨insert α (Finset.univ \ S.val),
         by
-          have hnot : α ∉ Finset.univ \ S.1 := by simp [hα]
-          rw [Finset.card_insert_of_notMem hnot, card_sdiff_univ_of_even hc S.2],
+          have hnot : α ∉ Finset.univ \ S.val := by simp [hα]
+          rw [Finset.card_insert_of_notMem hnot, card_sdiff_univ_of_even hc S.property],
         Finset.mem_insert_self α _⟩,
        true)
     else
-      (⟨insert α S.1,
-        by rw [Finset.card_insert_of_notMem hα, S.2],
+      (⟨insert α S.val,
+        by rw [Finset.card_insert_of_notMem hα, S.property],
         Finset.mem_insert_self α _⟩,
        false)
   left_inv := by
@@ -1079,28 +1079,28 @@ private theorem uniformOfFintype_bind_buildQuery {c w : ℕ} [Fact (Even c)] [Ne
       (PMF.uniformOfFintype (OffsetsContaining c w x)).bind fun o =>
         (PMF.uniformOfFintype Bool).bind fun b =>
           (PMF.uniformOfFintype (Fin w)).bind fun r =>
-            k (buildQuery x P.1 o.1 b r)) =
+            k (buildQuery x P.val o.val b r)) =
       (ProbComp.eval (plinkoSim c w)).bind k := by
   have hcomm (P : RegBlocksContaining c x.1) :
       ((PMF.uniformOfFintype (OffsetsContaining c w x)).bind fun o =>
         (PMF.uniformOfFintype Bool).bind fun b =>
           (PMF.uniformOfFintype (Fin w)).bind fun r =>
-            k (buildQuery x P.1 o.1 b r)) =
+            k (buildQuery x P.val o.val b r)) =
       (PMF.uniformOfFintype Bool).bind fun b =>
         (PMF.uniformOfFintype (Fin c → Fin w)).bind fun o' =>
-          k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).1, o'⟩ := by
+          k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).val, o'⟩ := by
     rw [PMF.bind_comm]
     congr 1; funext b
     exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_equiv (queryOffsetsEquiv x)
-      (fun o' => k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).1, o'⟩)
+      (fun o' => k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).val, o'⟩)
   simp only [plinkoSim, ProbComp.eval_uniform, pmf_norm]
   trans ((PMF.uniformOfFintype (RegBlocksContaining c x.1)).bind fun P =>
     (PMF.uniformOfFintype Bool).bind fun b =>
       (PMF.uniformOfFintype (Fin c → Fin w)).bind fun o' =>
-        k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).1, o'⟩)
+        k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).val, o'⟩)
   · congr 1; funext P; exact hcomm P
   · exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_equiv (queryBlocksEquiv Fact.out x.1)
-      (fun S => (PMF.uniformOfFintype (Fin c → Fin w)).bind fun o' => k ⟨S.1, o'⟩)
+      (fun S => (PMF.uniformOfFintype (Fin c → Fin w)).bind fun o' => k ⟨S.val, o'⟩)
 
 /-- Single-query distribution step for `buildQuery` under an assumed conditioned-uniform hint law
 (after [Hoover, Patel, Persiano and Yeo, Section 5.2, p. 22][HooverPatelPersianoYeo2025]; not
@@ -1115,7 +1115,7 @@ theorem eval_buildQuery_conditioned_eq_plinkoSim {c w : ℕ} [Fact (Even c)] [Ne
       let o ← ProbComp.uniform (OffsetsContaining c w x)
       let b ← ProbComp.uniform Bool
       let r ← ProbComp.uniform (Fin w)
-      pure (buildQuery x P.1 o.1 b r)) =
+      pure (buildQuery x P.val o.val b r)) =
       ProbComp.eval (plinkoSim c w) := by
   simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   exact (uniformOfFintype_bind_buildQuery x PMF.pure).trans (PMF.bind_pure _)
@@ -1137,7 +1137,7 @@ its privacy skips the hint-table refresh invariant and iPRF reduction of `plinko
     let o ← ProbComp.uniform (OffsetsContaining c w x)
     let b ← ProbComp.uniform Bool
     let r ← ProbComp.uniform (Fin w)
-    pure ((blockParity db P.1 o.1, b), buildQuery x P.1 o.1 b r)
+    pure ((blockParity db P.val o.val, b), buildQuery x P.val o.val b r)
   answer db q := plinkoAnswer db q
   reconstruct rec ans := plinkoReconstruct rec.1 rec.2 ans
   refresh db _ _ _ := pure db

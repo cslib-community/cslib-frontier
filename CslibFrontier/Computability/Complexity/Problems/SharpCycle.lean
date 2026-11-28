@@ -818,13 +818,13 @@ theorem two_pow_le_of_mem_DirHamCycle (hm : 0 < m) (h : G ∈ DirHamCycle) :
     have hs := walk_injective (m := m) (u := r.headD 0) (by simp)
       (fun p hp => length_snd_of_mem_steps hp) (fun p hp => length_snd_of_mem_steps hp) heq
     funext i j
-    have hi : i.1 < (steps m (r.rotate 1) (extend n m β)).length := by
+    have hi : i.val < (steps m (r.rotate 1) (extend n m β)).length := by
       simp [steps, hlen]
-    have hi' : i.1 < (steps m (r.rotate 1) (extend n m β')).length := by
+    have hi' : i.val < (steps m (r.rotate 1) (extend n m β')).length := by
       simp [steps, hlen]
-    have := congrArg (fun s => (s[i.1]?).map fun p => p.2[j.1]?) hs
+    have := congrArg (fun s => (s[i.val]?).map fun p => p.2[j.val]?) hs
     simp only [List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hi', getElem_steps,
-      Option.map_some, List.getElem?_map, List.getElem?_range j.2, Option.some.injEq] at this
+      Option.map_some, List.getElem?_map, List.getElem?_range j.isLt, Option.some.injEq] at this
     simpa [extend] using this
   have hfin := finite_setOf_isSimpleCycle (gadgetGraph m G)
   calc 2 ^ (m * n) = Nat.card (Fin n → Fin m → Bool) := by

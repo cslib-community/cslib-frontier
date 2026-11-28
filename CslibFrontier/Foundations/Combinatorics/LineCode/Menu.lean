@@ -117,7 +117,7 @@ theorem exists_isUniversalMenu {K : Type*} [Field K] [Fintype K] [DecidableEq K]
     exact Nat.sub_pos_of_lt (Nat.one_lt_pow hℓ hq))
   have hbad : ∀ s : (Fin g → Option ((Fin ℓ → K) × (Fin ℓ → K))) × (Fin k → Fin ℓ → K),
       #{d : Fin k → {v : Fin ℓ → K // v ≠ 0} |
-          ¬k ≤ 2 * #{i | IsClean (occupiedPoints s.1) s.2 (fun j => (d j).1) i}} * 2 ^ k ≤
+          ¬k ≤ 2 * #{i | IsClean (occupiedPoints s.1) s.2 (fun j => (d j).val) i}} * 2 ^ k ≤
         Fintype.card (Fin k → {v : Fin ℓ → K // v ≠ 0}) := by
     intro s
     have hO := card_occupiedPoints_le s.1
@@ -135,11 +135,11 @@ theorem exists_isUniversalMenu {K : Type*} [Field K] [Fintype K] [DecidableEq K]
   obtain ⟨menu, hmenu⟩ := exists_coveringMenu
     (σ := (Fin g → Option ((Fin ℓ → K) × (Fin ℓ → K))) × (Fin k → Fin ℓ → K))
     (α := Fin k → {v : Fin ℓ → K // v ≠ 0})
-    (fun s d => k ≤ 2 * #{i | IsClean (occupiedPoints s.1) s.2 (fun j => (d j).1) i})
+    (fun s d => k ≤ 2 * #{i | IsClean (occupiedPoints s.1) s.2 (fun j => (d j).val) i})
     k (menuLength g k (ℓ * b)) hbad
     ((card_state_le hK hkg).trans_lt
       (Nat.pow_lt_pow_right one_lt_two (lt_mul_menuLength g (ℓ * b) hk)))
-  refine ⟨fun e i => (menu e i).1, fun e i => (menu e i).2, fun lines targets => ?_⟩
+  refine ⟨fun e i => (menu e i).val, fun e i => (menu e i).property, fun lines targets => ?_⟩
   obtain ⟨e, he⟩ := hmenu (lines, targets)
   exact ⟨e, _, he, fun i hi => (mem_filter.mp hi).2⟩
 

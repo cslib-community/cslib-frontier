@@ -93,7 +93,7 @@ theorem dantzigEntering_eq_none_iff :
   · intro h
     by_contra hne
     obtain ⟨k, hk, hmax⟩ := D.enteringCandidates.exists_max_image D.objCoeff
-      (Finset.nonempty_iff_ne_empty.2 hne)
+      (Finset.ne_empty_iff_nonempty.1 hne)
     have : k ∈ D.enteringCandidates.filter fun j =>
         ∀ k ∈ D.enteringCandidates, D.objCoeff k ≤ D.objCoeff j :=
       Finset.mem_filter.2 ⟨hk, hmax⟩

@@ -63,15 +63,15 @@ theorem card_filter_least_mul_card {S : Finset α} {u : α} (hu : u ∈ S) :
     (univ.filter fun σ : α ≃ β => ∀ w ∈ S, w ≠ u → σ u < σ w).card * S.card =
       Fintype.card (α ≃ β) := by
   set E : α → Finset (α ≃ β) := fun x => univ.filter fun σ => ∀ w ∈ S, w ≠ x → σ x < σ w
-  have hconj {a b : α} (hb : b ∈ S) {σ : α ≃ β} (hσ : σ ∈ E a) :
-      (Equiv.swap a b).trans σ ∈ E b := by
-    simp only [E, mem_filter, mem_univ, true_and] at hσ ⊢
-    exact swap_least hb hσ
-  have heq : ∀ x ∈ S, (E x).card = (E u).card := fun x hx =>
-    card_nbij' (fun σ => (Equiv.swap x u).trans σ) (fun σ => (Equiv.swap u x).trans σ)
-      (fun σ hσ => hconj hu hσ) (fun σ hσ => hconj hx hσ)
-      (fun σ _ => by ext v; simp [Equiv.swap_comm u x])
-      (fun σ _ => by ext v; simp [Equiv.swap_comm u x])
+  have heq : ∀ x ∈ S, (E x).card = (E u).card := by
+    intro x hx
+    refine card_equiv (Equiv.equivCongr (Equiv.swap x u) (Equiv.refl _)) fun σ => ?_
+    simp only [E, mem_filter, mem_univ, true_and, Equiv.equivCongr_apply_apply, Equiv.refl_apply,
+      Equiv.symm_swap]
+    constructor
+    · exact swap_least hu
+    · intro h
+      simpa [Equiv.swap_comm u x] using swap_least hx (σ := (Equiv.swap x u).trans σ) h
   have hcover : (univ : Finset (α ≃ β)) = S.biUnion E := by
     ext σ
     simp only [mem_univ, mem_biUnion, true_iff]
@@ -93,11 +93,10 @@ theorem card_filter_greatest_mul_card {S : Finset α} {u : α} (hu : u ∈ S) :
     (univ.filter fun σ : α ≃ β => ∀ w ∈ S, w ≠ u → σ w < σ u).card * S.card =
       Fintype.card (α ≃ β) := by
   have hequiv : (univ.filter fun σ : α ≃ β => ∀ w ∈ S, w ≠ u → σ w < σ u).card =
-      (univ.filter fun σ : α ≃ OrderDual β => ∀ w ∈ S, w ≠ u → σ u < σ w).card :=
-    card_nbij' (fun σ => σ.trans OrderDual.toDual) (fun σ => σ.trans OrderDual.ofDual)
-      (fun σ hσ => by simpa [OrderDual.toDual_lt_toDual] using hσ)
-      (fun σ hσ => by simpa [OrderDual.toDual_lt_toDual] using hσ)
-      (fun σ _ => by ext; simp) (fun σ _ => by ext; simp)
+      (univ.filter fun σ : α ≃ OrderDual β => ∀ w ∈ S, w ≠ u → σ u < σ w).card := by
+    refine card_equiv (Equiv.equivCongr (Equiv.refl α) OrderDual.toDual) fun σ => ?_
+    simp only [mem_filter, mem_univ, true_and, Equiv.equivCongr_apply_apply, Equiv.refl_symm,
+      Equiv.refl_apply, OrderDual.toDual_lt_toDual]
   rw [hequiv, card_filter_least_mul_card (β := OrderDual β) hu]
   exact Fintype.card_congr (Equiv.equivCongr (Equiv.refl α) OrderDual.toDual)
 
@@ -127,9 +126,9 @@ theorem card_filter_perm_symm_greatest_mul_card [LinearOrder α] {S : Finset α}
       (Fintype.card α).factorial := by
   have hequiv : (univ.filter fun π : Equiv.Perm α => ∀ w ∈ S, w ≠ u → π.symm w < π.symm u).card =
       (univ.filter fun σ : Equiv.Perm α => ∀ w ∈ S, w ≠ u → σ w < σ u).card := by
-    refine card_nbij' (fun π => π.symm) (fun σ => σ.symm)
-      (fun π hπ => by simpa using hπ) (fun σ hσ => by simpa using hσ)
-      (fun π _ => π.symm_symm) (fun σ _ => σ.symm_symm)
+    refine card_equiv (Equiv.symmEquiv α α) fun π => ?_
+    simp only [mem_filter, mem_univ, true_and]
+    rfl
   rw [hequiv]
   exact card_filter_perm_greatest_mul_card hu
 

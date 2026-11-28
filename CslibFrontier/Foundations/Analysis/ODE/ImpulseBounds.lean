@@ -304,7 +304,7 @@ theorem integrableOn_Ioi_exp_smul_mulVec [DecidableEq n] {p : Type*} [Fintype p]
       (mul_le_mul_of_nonneg_left (K.le_opNorm y) (norm_nonneg y))
     rw [inner_toEuclideanCLM, dotProduct_transpose_mul_mulVec] at hq
     have he : Real.exp (-(α * t)) ^ 2 = Real.exp (-(2 * α) * t) := by
-      rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+      rw [← Real.exp_natCast_mul]; congr 1; push_cast; ring
     calc _ ≤ ‖y‖ * (‖K‖ * ‖y‖) := hq
       _ = ‖K‖ * ‖y‖ ^ 2 := by ring
       _ ≤ ‖K‖ * (M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 u‖) ^ 2 := by gcongr

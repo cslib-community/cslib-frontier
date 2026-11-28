@@ -113,7 +113,7 @@ theorem card_rowOfP_le (v : Fin r) :
       _ ≤ _ := List.toFinset_card_le _
   · have : #{e | rowOfP hD e = v} = 0 := by
       refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => hv ?_)
-      have := (D.srcFin hD e).2
+      have := (D.srcFin hD e).isLt
       rw [show (D.srcFin hD e : ℕ) = v from congrArg Fin.val he] at this
       exact this
     omega
@@ -121,7 +121,7 @@ theorem card_rowOfP_le (v : Fin r) :
 /-- A column of a rows-first network is the column of at most as many edges as it has ports. -/
 theorem card_colOfP_le (w : Fin (D.vertices.length - r)) :
     #{e | colOfP hD e = w} ≤ (D.vertices.getD (r + w) defaultVertex).1.length := by
-  have hv : r + (w : ℕ) < D.vertices.length := by have := w.2; omega
+  have hv : r + (w : ℕ) < D.vertices.length := by have := w.isLt; omega
   rw [List.getD_eq_getElem _ _ hv]
   calc #{e | colOfP hD e = w}
       ≤ #((D.vertices[r + (w : ℕ)]'hv).1.toFinset) := by
@@ -242,7 +242,7 @@ theorem length_le_of_mem_vertices_nativeChild (hK : 64 ^ a ≤ D.numEdges) (hia 
     rw [hcount, card_filter_sum]
     simp only [childTgt, Sum.elim_inl, Sum.elim_inr, Sum.inr.injEq]
     have h1 : ∀ (P : Fin D.numEdges → Prop) [DecidablePred P],
-        #{e : {e // P e} | (parentPacking hD a).packet e.1 = q} ≤ 2 ^ a := fun P _ =>
+        #{e : {e // P e} | (parentPacking hD a).packet e.val = q} ≤ 2 ^ a := fun P _ =>
       (card_le_card_of_injOn Subtype.val (fun e he => by
           simp only [coe_filter, Set.mem_ofPred_eq, mem_univ, true_and] at he ⊢
           exact he)

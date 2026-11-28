@@ -66,7 +66,7 @@ view distribution on `m₀` and `m₁`. -/
 theorem viewDistOf_eq_of_map_add_eq {Secret Key Party : Type*} {Share : Party → Type*} [Add Key]
     {Q : PMF Key} {δ : Key} (hQ : Q.map (· + δ) = Q)
     {share : Key → Secret → (i : Party) → Share i} {s : Finset Party} {m₀ m₁ : Secret}
-    (hshift : ∀ k, (fun i : s => share k m₀ i.1) = fun i : s => share (k + δ) m₁ i.1) :
+    (hshift : ∀ k, (fun i : s => share k m₀ i.val) = fun i : s => share (k + δ) m₁ i.val) :
     viewDistOf Q share s m₀ = viewDistOf Q share s m₁ := by
   conv_rhs => rw [← hQ]
   simp only [viewDistOf, PMF.map_comp]

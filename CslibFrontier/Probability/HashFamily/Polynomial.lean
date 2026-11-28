@@ -394,18 +394,19 @@ theorem isUniversalHash_polyHash [Fintype F] (ℓ : ℕ) :
       (fun k (m : {m : List F // m.length ≤ ℓ}) => polyHash k m) (ℓ / Fintype.card F) := by
   classical
   exact IsUniversalHash.of_card_le fun m m' hm => by
-    have hD : toPoly m.1 - toPoly m'.1 ≠ 0 :=
+    have hD : toPoly m.val - toPoly m'.val ≠ 0 :=
       sub_ne_zero.mpr (toPoly_injective.ne (Subtype.coe_injective.ne hm))
-    calc (Finset.univ.filter fun k => polyHash k m.1 = polyHash k m'.1).card
-        ≤ (toPoly m.1 - toPoly m'.1).roots.toFinset.card := by
+    calc (Finset.univ.filter fun k => polyHash k m.val = polyHash k m'.val).card
+        ≤ (toPoly m.val - toPoly m'.val).roots.toFinset.card := by
           refine Finset.card_le_card fun k hk => ?_
           rw [Multiset.mem_toFinset, mem_roots hD, IsRoot.def, eval_sub, eval_toPoly,
             eval_toPoly, sub_eq_zero]
           exact (Finset.mem_filter.mp hk).2
-      _ ≤ (toPoly m.1 - toPoly m'.1).roots.card := Multiset.toFinset_card_le _
-      _ ≤ (toPoly m.1 - toPoly m'.1).natDegree := card_roots' _
+      _ ≤ (toPoly m.val - toPoly m'.val).roots.card := Multiset.toFinset_card_le _
+      _ ≤ (toPoly m.val - toPoly m'.val).natDegree := card_roots' _
       _ ≤ ℓ := (natDegree_sub_le _ _).trans <| max_le
-          ((monic_toPoly m.1).2.trans_le m.2) ((monic_toPoly m'.1).2.trans_le m'.2)
+          ((monic_toPoly m.val).2.trans_le m.property)
+          ((monic_toPoly m'.val).2.trans_le m'.property)
 
 /-- For the hash of Equation 7.3 modulo `2^(n+1)`, the three-block messages
 `[2^n, -2^n, 0]` and `[0, 0, 0]` collide at every key. This gives the failure of
@@ -527,8 +528,8 @@ theorem isUniversalHash_polyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
   intro m m' hne
   have hℓ : 0 < ℓ := Nat.pos_of_ne_zero fun h => hne <| by
     subst h
-    exact Subtype.ext ((List.length_eq_zero_iff.mp (Nat.le_zero.mp m.2)).trans
-      (List.length_eq_zero_iff.mp (Nat.le_zero.mp m'.2)).symm)
+    exact Subtype.ext ((List.length_eq_zero_iff.mp (Nat.le_zero.mp m.property)).trans
+      (List.length_eq_zero_iff.mp (Nat.le_zero.mp m'.property)).symm)
   -- The empty message has no monic prefix. Its polynomial index is zero.
   let encode (w : {w : List (ZMod N) // w.length ≤ ℓ}) :
       {f : (ZMod p)[X] // f.natDegree ≤ ℓ - 1} × ZMod N :=

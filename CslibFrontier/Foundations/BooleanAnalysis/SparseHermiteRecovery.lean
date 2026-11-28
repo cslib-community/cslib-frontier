@@ -251,11 +251,11 @@ theorem taylorJet_targetPoly_eq_measurementFiberJet {A : Type*} [CommRing A] [Al
       (∀ g, ∃ u : M.LocalCube t g, M.localMeasure t g u = y g) → ∀ g, M.LocalCube t g)
     (valid : ∀ t y hy g, M.localMeasure t g (representative t y hy g) = y g) :
     Polynomial.taylorJet (fun t => (M.nodes t : A)) J (M.targetPoly Φ) =
-      fun p : Fin Q × Fin J => M.measurementFiberJet Φ q p.1 (representative p.1) p.2.1 := by
+      fun p : Fin Q × Fin J => M.measurementFiberJet Φ q p.1 (representative p.1) p.2.val := by
   funext p
   rw [Polynomial.taylorJet_apply]
   exact M.coeff_taylor_targetPoly_eq_measurementFiberJet Φ p.1
-    (Nat.le_of_lt_succ (lt_of_lt_of_le p.2.2 hJq)) (representative p.1) (valid p.1)
+    (Nat.le_of_lt_succ (lt_of_lt_of_le p.2.isLt hJq)) (representative p.1) (valid p.1)
 
 /-- **Proposition 3.4 complete algebraic recovery of `targetSum` from measurement-fiber Taylor
 jets** ([OpenAI2026ETH], §§3.4–3.5, pp. 24–25): whenever
@@ -271,7 +271,7 @@ theorem targetSum_eq_of_measurementFiberJet (A : Type*) [CommRing A] [Algebra �
     targetSum s scope Φ = ((Polynomial.hermiteMatrix M.nodes J).det : ℚ)⁻¹ •
       (((Polynomial.hermiteMatrix M.nodes J).map (Int.cast : ℤ → A)).updateCol
         (⟨0, M.Q_pos⟩, ⟨0, hJ⟩)
-        (fun p => M.measurementFiberJet Φ q p.1 (representative p.1) p.2.1)).det := by
+        (fun p => M.measurementFiberJet Φ q p.1 (representative p.1) p.2.val)).det := by
   rw [M.targetSum_eq_of_taylorJet A Φ hd hJ hQJ,
     M.taylorJet_targetPoly_eq_measurementFiberJet Φ hJq representative valid]
 
@@ -289,7 +289,7 @@ theorem targetSum_eq_of_measurementFiberJet_jetOrder (A : Type*) [CommRing A] [A
         (((Polynomial.hermiteMatrix M.nodes (jetOrder (d * R) Q)).map
           (Int.cast : ℤ → A)).updateCol (⟨0, M.Q_pos⟩, ⟨0, jetOrder_pos _ _⟩)
           (fun p => M.measurementFiberJet Φ ((d * R) / Q) p.1
-            (representative p.1) p.2.1)).det :=
+            (representative p.1) p.2.val)).det :=
   M.targetSum_eq_of_measurementFiberJet A Φ hd (jetOrder_pos _ _)
     (lt_mul_jetOrder (d * R) M.Q_pos) le_rfl representative valid
 

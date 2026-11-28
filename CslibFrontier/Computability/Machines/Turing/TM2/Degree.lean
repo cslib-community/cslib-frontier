@@ -264,11 +264,11 @@ private theorem stepCases_computableInDegree (M : Λ → Stmt Γ Λ σ) (Ls : Li
       have hr := hc.restrict (fun a => decide ((cfg a).l = l) = true)
       cases l with
       | none =>
-        exact hr.of_enc_eq fun a => by simp [stepTotal, of_decide_eq_true a.2]
+        exact hr.of_enc_eq fun a => by simp [stepTotal, of_decide_eq_true a.property]
       | some l =>
         exact (stepAux_computableInDegree (M l) (cfg_var_computableInDegree.comp hr).mono
           (cfg_stk_computableInDegree.comp hr).mono).of_enc_eq fun a => by
-          simp [stepTotal, of_decide_eq_true a.2]
+          simp [stepTotal, of_decide_eq_true a.property]
     have hno := ih (hc.restrict (fun a => decide ((cfg a).l = l) = false))
     have h := ComputableInDegree.ite (c := fun a => decide ((cfg a).l = l))
       (f := fun a => stepTotal M (cfg a)) (g := fun a => stepCases M Ls (cfg a)) hcond hyes hno

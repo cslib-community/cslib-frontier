@@ -92,10 +92,12 @@ theorem isHadamard_signMatrix_dotProduct (R : Type*) [Ring R] [StarRing R] :
 
 variable {R : Type*} [Field R] [NeZero (2 : R)]
 
+omit [DecidableEq ι] in
 /-- Over a field in which `2` is invertible, the sign matrix of the inner product on bit strings
 indexed by `ι` has full rank `2 ^ |ι|`. -/
 theorem rank_signMatrix_dotProduct :
     (signMatrix R fun x y : ι → Bool => x ⬝ᵥ y).rank = 2 ^ Fintype.card ι := by
+  classical
   set H := signMatrix R fun x y : ι → Bool => x ⬝ᵥ y
   have hunit : IsUnit H := by
     rw [Matrix.isUnit_iff_isUnit_det]
@@ -104,24 +106,26 @@ theorem rank_signMatrix_dotProduct :
       inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), one_smul]
   rw [Matrix.rank_of_isUnit H hunit, Fintype.card_fun, Fintype.card_bool]
 
+omit [DecidableEq ι] in
 /-- **The rank of the inner-product matrix**
 [Kushilevitz and Nisan, Chapter 1][KushilevitzNisan1997]: over a field in which `2` is
 invertible, such as `ℚ` or `ℝ`, the communication matrix of the inner product modulo two on bit
 strings indexed by `ι` has rank `2 ^ |ι| - 1`. -/
 theorem rank_communicationMatrix_dotProduct :
     (communicationMatrix R fun x y : ι → Bool => x ⬝ᵥ y).rank = 2 ^ Fintype.card ι - 1 := by
+  classical
   set M := communicationMatrix R fun x y : ι → Bool => x ⬝ᵥ y
   refine le_antisymm ?_ ?_
   · -- The row of `0` vanishes, so `M` factors through the other `2 ^ |ι| - 1` rows.
     let E : Matrix (ι → Bool) {x : ι → Bool // x ≠ 0} R :=
-      Matrix.of fun x j => if x = j.1 then 1 else 0
-    let N : Matrix {x : ι → Bool // x ≠ 0} (ι → Bool) R := Matrix.of fun j y => M j.1 y
+      Matrix.of fun x j => if x = j.val then 1 else 0
+    let N : Matrix {x : ι → Bool // x ≠ 0} (ι → Bool) R := Matrix.of fun j y => M j.val y
     have hEN : M = E * N := by
       ext x y
       simp only [Matrix.mul_apply, E, N, Matrix.of_apply, ite_mul, one_mul, zero_mul]
       by_cases hx : x = 0
       · subst hx
-        rw [sum_eq_zero fun j _ => ite_eq_right fun h => j.2 h.symm]
+        rw [sum_eq_zero fun j _ => ite_eq_right fun h => j.property h.symm]
         simp [M, zero_dotProduct]
       · rw [Fintype.sum_eq_single ⟨x, hx⟩ fun j hj => ite_eq_right fun h => hj (Subtype.ext h.symm)]
         simp

@@ -101,7 +101,7 @@ outputs), puts the given views of the pad transfer into the coalition's views an
     (op := ()) (parties := Function.Embedding.refl (Fin 2))
     (.message (fun ((m, r), _) => maskedOTMsg mask m r) (.done (maskedOTOutput unmask)))
     (fun i => (x i, c i))
-    (fun res => D (fun i : I => ⟨x i.1, (c i.1, (res.1 i).1), (res.1 i).2⟩, res.2))
+    (fun res => D (fun i : I => ⟨x i.val, (c i.val, (res.1 i).1), (res.1 i).2⟩, res.2))
 
 /-- **The masked transfer over a substituted pad transfer, for one distinguisher.** Step towards
 [LindellPinkas2009], Theorem 7, not the cited result (#6045): a concrete bound at a fixed instance
@@ -159,7 +159,8 @@ theorem semiHonestAdvantage_of_coalition_eq {m : ℕ} {spec : MultiOracleSpec}
     (h : J = I) (x : (i : Fin m) → In i)
     (D : ((i : J) → PartyView In Coins sc i) × ((i : Fin m) → Out i) → ProbComp Bool) :
     semiHonestAdvantage P W f J (S J) x D =
-      semiHonestAdvantage P W f I (S I) x fun r => D (fun s => r.1 ⟨s.1, h ▸ s.2⟩, r.2) := by
+      semiHonestAdvantage P W f I (S I) x
+        fun r => D (fun s => r.1 ⟨s.val, h ▸ s.property⟩, r.2) := by
   subst h
   rfl
 
@@ -180,7 +181,7 @@ to the pad-transfer distinguisher `maskedOTTransferDistinguisher` of `D`. -/
       ((i : Fin 2) → OTOut M i) → ProbComp Bool) : G → G → G → ProbComp Bool :=
   ddhOTReduction g q (fun s => maskedOTQuery s (x s, c s)) fun r =>
     maskedOTTransferDistinguisher mask unmask S₂ {1} x c D
-      (fun s => r.1 ⟨s.1, mem_subCoalition.1 s.2⟩, r.2)
+      (fun s => r.1 ⟨s.val, mem_subCoalition.1 s.property⟩, r.2)
 
 /-- **The masked transfer over the DDH transfer, corrupted receiver, for one distinguisher.** Step
 towards [LindellPinkas2009], Theorem 7, not the cited result (#6045): a concrete bound at a fixed

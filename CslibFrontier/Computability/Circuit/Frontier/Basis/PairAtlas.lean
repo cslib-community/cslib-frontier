@@ -185,7 +185,7 @@ theorem HasUnambiguousRectangles.nonnegRank_le (R : Type*) [Semiring R] [Partial
 /-- An unambiguous `k`-rectangle cover bounds the matrix rank over any commutative ring with the
 strong rank condition by `k`. -/
 theorem HasUnambiguousRectangles.rank_le (R : Type*) [CommRing R] [StrongRankCondition R]
-    [Fintype n] {M : Matrix m n Bool} {k : ℕ} (h : HasUnambiguousRectangles M k) :
+    [Finite n] {M : Matrix m n Bool} {k : ℕ} (h : HasUnambiguousRectangles M k) :
     (Communication.communicationMatrix R M).rank ≤ k := by
   obtain ⟨row, col, hcov⟩ := h
   rw [← hcov.mul_eq_communicationMatrix R]

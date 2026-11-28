@@ -128,16 +128,16 @@ this is the standard `[2 ^ m - 1, 2 ^ m - 1 - m, 3]` binary Hamming parity-check
 restriction `(c, 0⃗) ∈ C_s` of [Sergeev2026UniqueDisjointness, §2, Lemma 1, p. 3]. -/
 @[expose] def hammingCheckMatrix (n : ℕ) :
     Matrix (Fin (Nat.clog 2 (n + 1))) (Fin n) Bool :=
-  fun k i => BitString.indexBits (⟨i.1 + 1, Nat.succ_lt_succ i.2⟩ : Fin (n + 1)) k
+  fun k i => BitString.indexBits (⟨i.val + 1, Nat.succ_lt_succ i.isLt⟩ : Fin (n + 1)) k
 
 private theorem hammingCheckMatrix_col_ne_zero (n : ℕ) (i : Fin n) :
     (fun k => hammingCheckMatrix n k i) ≠ 0 := by
   intro h0
   have hval := congrArg (fun w => (BitString.equivFin (Nat.clog 2 (n + 1)) w : ℕ)) h0
   have h1 : (BitString.equivFin (Nat.clog 2 (n + 1)) (fun k => hammingCheckMatrix n k i) : ℕ) =
-      i.1 + 1 := by
-    change (BitString.equivFin _ (BitString.indexBits ⟨i.1 + 1, Nat.succ_lt_succ i.2⟩) : ℕ) =
-      i.1 + 1
+      i.val + 1 := by
+    change (BitString.equivFin _ (BitString.indexBits ⟨i.val + 1, Nat.succ_lt_succ i.isLt⟩) : ℕ) =
+      i.val + 1
     simp only [BitString.indexBits, Equiv.apply_symm_apply, Fin.val_castLE]
   have h2 : (BitString.equivFin (Nat.clog 2 (n + 1)) (0 : BitString _) : ℕ) = 0 :=
     BitString.val_equivFin_false _
@@ -168,7 +168,7 @@ theorem two_pow_clog_succ_le_two_mul {n : ℕ} (hn : 1 ≤ n) :
   have h1 : 1 < n + 1 := by omega
   have hpos : 1 ≤ Nat.clog 2 (n + 1) := Nat.clog_pos Nat.one_lt_two h1
   have hlt : 2 ^ (Nat.clog 2 (n + 1) - 1) < n + 1 :=
-    Nat.pow_pred_clog_lt_self Nat.one_lt_two h1
+    Nat.pow_pred_clog_lt_self 2 h1
   rw [← Nat.sub_add_cancel hpos, pow_succ']
   omega
 
@@ -239,21 +239,16 @@ theorem three_le_card_symmDiff_of_finsetHammingSyndrome_eq {α : Type*} [Decidab
       va rfl vb hsyn.symm hvne
   have heq : hammingDist va vb = (symmDiff a b).card := by
     rw [hammingDist]
-    refine Finset.card_bij (fun i _ => (S.equivFin.symm i : α))
-      (fun i hi => ?_) (fun i₁ _ i₂ _ h => ?_) (fun x hx => ?_)
-    · rw [Finset.mem_filter] at hi
-      rw [Finset.mem_symmDiff]
-      by_cases hia : (S.equivFin.symm i : α) ∈ a
-      · exact Or.inl ⟨hia, fun hib => hi.2 (by simp only [va, vb, hia, hib])⟩
-      · exact Or.inr ⟨Classical.byContradiction fun hib => hi.2 (by simp only [va, vb, hia, hib]),
-          hia⟩
-    · exact S.equivFin.symm.injective (Subtype.ext h)
-    · have hxS : x ∈ S := (Finset.symmDiff_subset_union.trans (Finset.union_subset ha hb)) hx
-      refine ⟨S.equivFin ⟨x, hxS⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, ?_⟩
-      · simp only [va, vb, Equiv.symm_apply_apply, Subtype.coe_mk, ne_eq, decide_eq_decide]
-        exact (Finset.mem_symmDiff.1 hx).elim (fun ⟨hxa, hxb⟩ h => hxb (h.1 hxa))
-          fun ⟨hxb, hxa⟩ h => hxa (h.2 hxb)
-      · simp only [Equiv.symm_apply_apply, Subtype.coe_mk]
+    calc
+      _ = (S.attach.filter fun x => x.val ∈ symmDiff a b).card := by
+        rw [← Finset.univ_eq_attach]
+        refine Finset.card_equiv S.equivFin.symm fun i => ?_
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, va, vb, ne_eq,
+          decide_eq_decide, Finset.mem_symmDiff, ← xor_def, xor_iff_not_iff]
+      _ = _ := by
+        have hsub := Finset.symmDiff_subset_union.trans (Finset.union_subset ha hb)
+        rw [Finset.filter_attach (fun x => x ∈ symmDiff a b), Finset.card_map, Finset.card_attach,
+          Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr hsub]
   exact heq ▸ hdist
 
 end Hamming

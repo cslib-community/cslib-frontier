@@ -140,7 +140,7 @@ theorem traceGap_mem_GapP (V : UniformVerifierFamily) {d : α → ℕ}
   · rw [← Fin.prod_univ_eq_prod_range]
     refine Finset.prod_congr rfl fun i _ => ?_
     dsimp only [gs, reg, reg']
-    rw [hblock i (Nat.lt_succ_of_lt i.2), hblock (i + 1) (Nat.succ_lt_succ i.2),
+    rw [hblock i (Nat.lt_succ_of_lt i.isLt), hblock (i + 1) (Nat.succ_lt_succ i.isLt),
       ofFn_inputState (hlen _), ofFn_inputState (hlen _)]
     simp only [List.length_append, List.length_ofFn]
     rfl

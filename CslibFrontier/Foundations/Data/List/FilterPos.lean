@@ -289,16 +289,16 @@ theorem map_eq_of_strictMono_surj {β γ : Type*} {src : List β} {dst : List γ
 
 private theorem exists_fin_idx_of_eq {α : Type*} {l₁ l₂ l : List α} (heq : l₁ = l₂)
     (h : ∃ idx : Fin l₂.length → Fin l.length,
-      (∀ i, l₂[i.1] = l[(idx i).1]) ∧ (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1)) :
+      (∀ i, l₂[i.val] = l[(idx i).val]) ∧ (∀ i j, i.val < j.val → (idx i).val < (idx j).val)) :
     ∃ idx : Fin l₁.length → Fin l.length,
-      (∀ i, l₁[i.1] = l[(idx i).1]) ∧ (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1) := by
+      (∀ i, l₁[i.val] = l[(idx i).val]) ∧ (∀ i j, i.val < j.val → (idx i).val < (idx j).val) := by
   subst heq; exact h
 
 /-- Every filtered sublist `l.filter pred` embeds into `l` via a strictly monotone index map. -/
 theorem filter_strictMono_indices {α : Type*} (l : List α) (pred : α → Bool) :
     ∃ idx : Fin (l.filter pred).length → Fin l.length,
-      (∀ i, (l.filter pred)[i.1] = l[(idx i).1]) ∧
-      (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1) := by
+      (∀ i, (l.filter pred)[i.val] = l[(idx i).val]) ∧
+      (∀ i j, i.val < j.val → (idx i).val < (idx j).val) := by
   induction l with
   | nil => exact ⟨Fin.elim0, fun i => i.elim0, fun i => i.elim0⟩
   | cons a rest ih =>

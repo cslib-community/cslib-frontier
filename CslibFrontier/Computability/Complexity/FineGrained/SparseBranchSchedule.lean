@@ -123,13 +123,13 @@ applying `Cslib.BitString.withNeutralScope` to `branchEquationScope` on the subt
 def branchAugmentedScope [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (e : ↥(univ \ S) ≃ Fin n') (I : Finset κ) (P : κ → Finset (Finset ι))
     (b : ι → Bool) : {i : κ // i ∈ I} ⊕ Fin n' → Finset (Fin n') :=
-  withNeutralScope fun i : {i : κ // i ∈ I} => branchEquationScope S e P b i.1
+  withNeutralScope fun i : {i : κ // i ∈ I} => branchEquationScope S e P b i.val
 
 @[simp]
 theorem branchAugmentedScope_inl [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (e : ↥(univ \ S) ≃ Fin n') (I : Finset κ) (P : κ → Finset (Finset ι))
     (b : ι → Bool) (i : {i : κ // i ∈ I}) :
-    branchAugmentedScope S e I P b (Sum.inl i) = branchEquationScope S e P b i.1 := by
+    branchAugmentedScope S e I P b (Sum.inl i) = branchEquationScope S e P b i.val := by
   unfold branchAugmentedScope withNeutralScope
   rfl
 
@@ -144,7 +144,7 @@ theorem branchAugmentedScope_inr [Fintype ι] [DecidableEq ι] (S : Finset ι)
 /-- Subtype-sum bridge: `totalIncidence` on `univ : Finset {i : κ // i ∈ I}` equals
 `totalIncidence` on `I`. -/
 private theorem totalIncidence_univ_subtype (I : Finset κ) (scope : κ → Finset (Fin n')) :
-    totalIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.1) =
+    totalIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.val) =
       totalIncidence I scope := by
   unfold totalIncidence
   rw [← sum_coe_sort I (fun i => #(scope i))]
@@ -153,7 +153,7 @@ private theorem totalIncidence_univ_subtype (I : Finset κ) (scope : κ → Fins
 `varIncidence` on `I`. -/
 private theorem varIncidence_univ_subtype (I : Finset κ) (scope : κ → Finset (Fin n'))
     (v : Fin n') :
-    varIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.1) v =
+    varIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.val) v =
       varIncidence I scope v := by
   unfold varIncidence
   rw [card_eq_sum_ones, card_eq_sum_ones, sum_filter, sum_filter,
@@ -257,7 +257,8 @@ theorem card_branchAugmentedScope_le [Fintype ι] [DecidableEq ι] (S : Finset �
     #(branchAugmentedScope S e I P b f) ≤ max w 1 := by
   cases f with
   | inl i =>
-    exact ((card_branchEquationScope_le S e P b i.1).trans (hw i.1 i.2)).trans (le_max_left w 1)
+    exact ((card_branchEquationScope_le S e P b i.val).trans
+      (hw i.val i.property)).trans (le_max_left w 1)
   | inr _ =>
     rw [branchAugmentedScope_inr, card_singleton]
     exact le_max_right w 1

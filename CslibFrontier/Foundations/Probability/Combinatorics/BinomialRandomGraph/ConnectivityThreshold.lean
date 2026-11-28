@@ -448,10 +448,10 @@ theorem binomialRandom_real_forall_not_isIsolated_and_not_connected_le [Fintype 
     have ht_in : t ⊆ S.sym2.filter (¬ ·.IsDiag) := fun e he => by
       obtain ⟨e', he', rfl⟩ := Finset.mem_image.mp he
       rw [Finset.mem_filter, Finset.mem_sym2_iff]
-      refine ⟨fun u hu => by obtain ⟨x, _, rfl⟩ := Sym2.mem_map.mp hu; exact x.2, ?_⟩
+      refine ⟨fun u hu => by obtain ⟨x, _, rfl⟩ := Sym2.mem_map.mp hu; exact x.property, ?_⟩
       induction e' using Sym2.ind with
       | _ a b =>
-        change ¬Sym2.IsDiag s(a.1, b.1)
+        change ¬Sym2.IsDiag s(a.val, b.val)
         simpa using Subtype.coe_ne_coe.mpr (htSedge _ he').2
     have ht_card : #t = #S - 1 := by
       rw [Finset.card_image_of_injective _ (Sym2.map.injective Subtype.val_injective), htScard]
@@ -525,7 +525,7 @@ private theorem tendsto_componentGap_pair {p : ℕ → I} {c : ℝ}
     linarith [Nat.cast_nonneg (α := ℝ) n]
   have hexp_eq : ((n : ℝ) * Real.exp (-((n : ℝ) * (p n : ℝ)))) ^ 2 * Real.exp (4 * (p n : ℝ)) =
       (n : ℝ) ^ 2 * Real.exp (-(2 * ((n : ℝ) - 2) * (p n : ℝ))) := by
-    rw [mul_pow, ← Real.exp_nat_mul, mul_assoc ((n : ℝ) ^ 2), ← Real.exp_add]
+    rw [mul_pow, ← Real.exp_natCast_mul, mul_assoc ((n : ℝ) ^ 2), ← Real.exp_add]
     congr 2; push_cast; ring
   have hp_nn : 0 ≤ (p n : ℝ) := unitInterval.nonneg _
   have hq_nn : 0 ≤ 1 - (p n : ℝ) := by linarith [unitInterval.le_one (p n)]
@@ -575,7 +575,7 @@ private theorem componentGapTerm_le {p : ℕ → I} {n k : ℕ} (hk3 : 3 ≤ k) 
     field_simp [hk0]
   have hexp_split : Real.exp (-(k * ((n : ℝ) / 2) * (p n : ℝ))) =
       Real.exp (-((n : ℝ) * (p n : ℝ) / 2)) * Real.exp (-((n : ℝ) * (p n : ℝ) / 2)) ^ (k - 1) := by
-    rw [← Real.exp_nat_mul, ← Real.exp_add, Nat.cast_sub (by omega : 1 ≤ k)]
+    rw [← Real.exp_natCast_mul, ← Real.exp_add, Nat.cast_sub (by omega : 1 ≤ k)]
     ring_nf
   have hAn_div : (n : ℝ) * Real.exp 1 / k ≤ (n : ℝ) * Real.exp 1 :=
     div_le_self (by positivity) (by exact_mod_cast (by omega : 1 ≤ k))
@@ -611,7 +611,7 @@ private theorem tendsto_componentGap_tail {p : ℕ → I} {c : ℝ}
     refine hsq_lim.congr' ?_
     filter_upwards [eventually_ge_atTop 1] with n hn
     have hexp2 : Real.exp (-((n : ℝ) * (p n : ℝ) / 2)) ^ 2 = Real.exp (-((n : ℝ) * (p n : ℝ))) := by
-      rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+      rw [← Real.exp_natCast_mul]; congr 1; push_cast; ring
     dsimp [r]; rw [mul_pow, mul_pow, hexp2]
     field_simp [Nat.cast_ne_zero.mpr (by omega : n ≠ 0)]; ring
   have htail : Tendsto (fun n : ℕ => 2 * A n * r n ^ 2) atTop (𝓝 0) := by
@@ -627,7 +627,7 @@ private theorem tendsto_componentGap_tail {p : ℕ → I} {c : ℝ}
     filter_upwards [eventually_ge_atTop 1] with n hn
     have hexp6 : Real.exp (-((n : ℝ) * (p n : ℝ) / 2)) ^ 6 =
         Real.exp (-((n : ℝ) * (p n : ℝ))) ^ 3 := by
-      rw [show (6 : ℕ) = 2 * 3 from rfl, pow_mul, ← Real.exp_nat_mul]; congr 2; push_cast; ring
+      rw [show (6 : ℕ) = 2 * 3 from rfl, pow_mul, ← Real.exp_natCast_mul]; congr 2; push_cast; ring
     dsimp [A, r]
     rw [show (2 * ((n : ℝ) * Real.exp 1 * Real.exp (-((n : ℝ) * (p n : ℝ) / 2))) *
           ((n : ℝ) * Real.exp 1 ^ 2 * (p n : ℝ) / 2 *

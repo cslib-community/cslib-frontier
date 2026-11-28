@@ -97,20 +97,20 @@ def encodeAuxDigits (r : ℕ) (u : List ℕ × List ℕ) : ℕ := Nat.ofDigits r
 
 /-- Convert `u : AuxLabel Q r` to its pair of length-`Q` natural-number digit lists. -/
 def auxLabelToDigits {Q r : ℕ} (u : AuxLabel Q r) : List ℕ × List ℕ :=
-  (List.ofFn (fun s => (u.1 s).1), List.ofFn (fun s => (u.2 s).1))
+  (List.ofFn (fun s => (u.1 s).val), List.ofFn (fun s => (u.2 s).val))
 
 /-- Pack `u : AuxLabel Q r` into its mixed-radix index `< r ^ (2 * Q)`. -/
 def encodeAuxLabel {Q r : ℕ} (u : AuxLabel Q r) : ℕ := encodeAuxDigits r (auxLabelToDigits u)
 
 private theorem pos_of_pow_two_mul_pos {Q r : ℕ} (hD : 0 < r ^ (2 * Q)) (s : Fin Q) : 0 < r := by
-  rcases Nat.eq_zero_or_pos r with rfl | hr; · rw [zero_pow (by have := s.2; omega)] at hD; omega
+  rcases Nat.eq_zero_or_pos r with rfl | hr; · rw [zero_pow (by have := s.isLt; omega)] at hD; omega
   exact hr
 
 /-- Decode an index `idx : ℕ` into `AuxLabel Q r` whenever `0 < r ^ (2 * Q)`. -/
 def decodeAuxLabel {Q r : ℕ} (hD : 0 < r ^ (2 * Q)) (idx : ℕ) : AuxLabel Q r :=
-  (fun s => ⟨Cslib.Radix.digit r idx s.1, by
+  (fun s => ⟨Cslib.Radix.digit r idx s.val, by
       rw [Cslib.Radix.digit_eq_div_pow_mod]; exact Nat.mod_lt _ (pos_of_pow_two_mul_pos hD s)⟩,
-   fun s => ⟨Cslib.Radix.digit r idx (Q + s.1), by
+   fun s => ⟨Cslib.Radix.digit r idx (Q + s.val), by
       rw [Cslib.Radix.digit_eq_div_pow_mod]; exact Nat.mod_lt _ (pos_of_pow_two_mul_pos hD s)⟩)
 
 /-- First coordinate list of `decodeAuxDigits Q r idx` has length `Q`. -/
@@ -204,17 +204,17 @@ theorem encodeAuxDigits_decodeAuxDigits {Q r idx : ℕ} (hidx : idx < r ^ (2 * Q
 theorem encodeAuxLabel_lt {Q r : ℕ} (u : AuxLabel Q r) : encodeAuxLabel u < r ^ (2 * Q) :=
   encodeAuxDigits_lt (by simp only [auxLabelToDigits, List.length_ofFn])
     (by simp only [auxLabelToDigits, List.length_ofFn])
-    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.1 s).2)
-    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.2 s).2)
-    (Nat.eq_zero_or_pos Q |>.imp id fun hpos => Nat.zero_lt_of_lt (u.1 ⟨0, hpos⟩).2)
+    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.1 s).isLt)
+    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.2 s).isLt)
+    (Nat.eq_zero_or_pos Q |>.imp id fun hpos => Nat.zero_lt_of_lt (u.1 ⟨0, hpos⟩).isLt)
 
 /-- Decoding `encodeAuxLabel u` yields `auxLabelToDigits u`. -/
 @[simp] theorem decodeAuxDigits_encodeAuxLabel {Q r : ℕ} (u : AuxLabel Q r) :
     decodeAuxDigits Q r (encodeAuxLabel u) = auxLabelToDigits u :=
   decodeAuxDigits_encodeAuxDigits (by simp only [auxLabelToDigits, List.length_ofFn])
     (by simp only [auxLabelToDigits, List.length_ofFn])
-    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.1 s).2)
-    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.2 s).2)
+    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.1 s).isLt)
+    (fun _ ha => by obtain ⟨s, rfl⟩ := List.mem_ofFn.1 ha; exact (u.2 s).isLt)
 
 /-- Left-inverse identity for `decodeAuxLabel` and `encodeAuxLabel`. -/
 @[simp] theorem decodeAuxLabel_encodeAuxLabel {Q r : ℕ} (hD : 0 < r ^ (2 * Q)) (u : AuxLabel Q r) :
@@ -233,9 +233,9 @@ theorem encodeAuxLabel_lt {Q r : ℕ} (u : AuxLabel Q r) : encodeAuxLabel u < r 
 /-- Computable mixed-radix equivalence between `AuxLabel Q r` and `Fin (r ^ (2 * Q))`. -/
 def auxLabelEquivFin (Q r : ℕ) : AuxLabel Q r ≃ Fin (r ^ (2 * Q)) where
   toFun u := ⟨encodeAuxLabel u, encodeAuxLabel_lt u⟩
-  invFun i := decodeAuxLabel (Nat.zero_lt_of_lt i.2) i.1
+  invFun i := decodeAuxLabel (Nat.zero_lt_of_lt i.isLt) i.val
   left_inv u := decodeAuxLabel_encodeAuxLabel (Nat.zero_lt_of_lt (encodeAuxLabel_lt u)) u
-  right_inv i := Fin.ext (encodeAuxLabel_decodeAuxLabel (Nat.zero_lt_of_lt i.2) i.2)
+  right_inv i := Fin.ext (encodeAuxLabel_decodeAuxLabel (Nat.zero_lt_of_lt i.isLt) i.isLt)
 
 /-! ### 2. Common denominator bit-length bounds (`commonDenom`) -/
 
@@ -289,7 +289,7 @@ def auxMeasurementRows (Q r A₀ R : ℕ) : List (List ℤ) :=
   auxMeasurementRowsBounded (r ^ (2 * Q)) Q r A₀ R
 
 private theorem pairBasisNat_fin {r : ℕ} (α δ x y : Fin r) :
-    pairBasisNat α.1 δ.1 x.1 y.1 = pairBasis α δ x y := by
+    pairBasisNat α.val δ.val x.val y.val = pairBasis α δ x y := by
   unfold pairBasisNat pairBasis pairInd; simp only [Fin.ext_iff, Fin.val_fin_lt]
 
 /-- Every value of `pairBasisNat` lies in `{0, 1, -1}`. -/
@@ -668,8 +668,8 @@ private theorem fallingProdMatrixInt_eq_fallingOrbitWeights (Q r A₀ j : ℕ) (
       IsSwapOrbit (fullSwap u) y := by
     unfold isSwapOrbitDigits IsSwapOrbit; rw [List.all_eq_true]; constructor
     · intro h s; simpa only [auxLabelToDigits, List.getD_ofFn, decide_eq_true_eq, fullSwap_fst,
-        fullSwap_snd, Fin.ext_iff] using h s.1 (List.mem_range.2 s.2)
-    · intro h s hs; let s' : Fin Q := ⟨s, List.mem_range.1 hs⟩; rw [show s = s'.1 from rfl]
+        fullSwap_snd, Fin.ext_iff] using h s.val (List.mem_range.2 s.isLt)
+    · intro h s hs; let s' : Fin Q := ⟨s, List.mem_range.1 hs⟩; rw [show s = s'.val from rfl]
       simpa only [auxLabelToDigits, List.getD_ofFn, decide_eq_true_eq, fullSwap_fst, fullSwap_snd,
         Fin.ext_iff] using h s'
   have hoff_eq : offDiagCountDigits Q (auxLabelToDigits u) = #(offDiagSet (fullSwap u)) := by
@@ -740,12 +740,12 @@ private theorem ofCoeffList_mismatchAnnihilatorCoeffsDigits_eq_prod (Q : ℕ)
   rw [ofCoeffList_mismatchAnnihilatorCoeffsDigits_eq_prod, ← Fin.prod_univ_eq_prod_range]
   have hcongr : (∏ s : Fin Q,
       if (auxLabelToDigits y).1.getD s 0 = (auxLabelToDigits u).2.getD s 0 then
-        C ((s.1 : ℤ) + 1) else C ((s.1 : ℤ) + 1) - X) =
-      ∏ s : Fin Q, if s ∈ mismatchSet u y then C ((s.1 : ℤ) + 1) - X else C ((s.1 : ℤ) + 1) :=
+        C ((s.val : ℤ) + 1) else C ((s.val : ℤ) + 1) - X) =
+      ∏ s : Fin Q, if s ∈ mismatchSet u y then C ((s.val : ℤ) + 1) - X else C ((s.val : ℤ) + 1) :=
     Finset.prod_congr rfl fun s _ => by
       simp only [auxLabelToDigits, List.getD_ofFn, mismatchSet, Finset.mem_filter, Finset.mem_univ,
         true_and, ne_eq, Fin.ext_iff]
-      by_cases h : (y.1 s).1 = (u.2 s).1 <;>
+      by_cases h : (y.1 s).val = (u.2 s).val <;>
         simp only [h, not_true_eq_false, not_false_eq_true, ↓reduceIte]
   have huniv : (univ : Finset (Fin Q)) = (mismatchSet u y)ᶜ ∪ mismatchSet u y := by
     ext s; simp only [Finset.mem_univ, Finset.mem_union, Finset.mem_compl]; tauto
@@ -757,9 +757,10 @@ private theorem ofCoeffList_mismatchAnnihilatorCoeffsDigits_eq_prod (Q : ℕ)
 private theorem eqAuxDigits_auxLabelToDigits {Q r : ℕ} (u y : AuxLabel Q r) :
     eqAuxDigits Q (auxLabelToDigits u) (auxLabelToDigits y) = decide (u = y) := by
   rw [Bool.eq_iff_iff, decide_eq_true_eq]; unfold eqAuxDigits; rw [List.all_eq_true]; constructor
-  · intro h; have hs : ∀ s : Fin Q, (u.1 s).1 = (y.1 s).1 ∧ (u.2 s).1 = (y.2 s).1 := fun s => by
+  · intro h
+    have hs : ∀ s : Fin Q, (u.1 s).val = (y.1 s).val ∧ (u.2 s).val = (y.2 s).val := fun s => by
       simpa only [auxLabelToDigits, List.getD_ofFn, decide_eq_true_eq] using
-        h s.1 (List.mem_range.2 s.2)
+        h s.val (List.mem_range.2 s.isLt)
     exact Prod.ext (funext fun s => Fin.ext (hs s).1) (funext fun s => Fin.ext (hs s).2)
   · rintro rfl _ _; simp only [decide_eq_true_eq, and_self]
 

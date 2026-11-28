@@ -373,7 +373,7 @@ example (t₀ : { z : MetricGraph constTri // z ∈ midpointPoints constTri })
 private theorem nat_card_fin3_edges_le : Nat.card asymTri.graph.edgeSet ≤ 3 := by
   classical
   let f : asymTri.graph.edgeSet → Fin 3 := fun e =>
-    if e.1 = s(0, 1) then 0 else if e.1 = s(0, 2) then 1 else 2
+    if e.val = s(0, 1) then 0 else if e.val = s(0, 2) then 1 else 2
   have hinj : Function.Injective f := by
     rintro ⟨e₁, he₁⟩ ⟨e₂, he₂⟩ heq
     have h1 : e₁ = s(0, 1) ∨ e₁ = s(0, 2) ∨ e₁ = s(1, 2) := by

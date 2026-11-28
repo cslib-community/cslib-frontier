@@ -272,7 +272,7 @@ theorem lineSums_eval_recoveryCircuit (scalar : Fin s ≃ {c : K // c ≠ 0})
   set point : Fin t → Fin s → Fin ℓ → K := fun i j => targets i + (scalar j : K) • dirs i
     with hpoint
   have hmem (i : Fin t) (j : Fin s) : point i j ∈ puncturedLine (targets i) (dirs i) :=
-    mem_image_of_mem _ (mem_erase.mpr ⟨(scalar j).2, mem_univ _⟩)
+    mem_image_of_mem _ (mem_erase.mpr ⟨(scalar j).property, mem_univ _⟩)
   -- Stage one.
   set M := blockMap (metadata bits C place) t (x ∘ prefixWires t p w) with hM
   have hMapply (i : Fin t) (k : Fin (metaWidth ℓ b copies)) :

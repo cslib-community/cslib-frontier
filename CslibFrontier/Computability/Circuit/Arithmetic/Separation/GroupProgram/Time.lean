@@ -170,22 +170,23 @@ private theorem cost_roleInstruction {cap : ℕ} (hP : P.Ok cap) (hk : ∀ c, (k
     (hcn : ∀ r : M.Role, Fintype.card ((M.law r.1).ChannelAt r.2) ≤ X) (r : M.Role) :
     (roleInstruction P n o key tg r).cost T ub + 1 ≤
       ((1 + Fintype.card ((M.law r.1).SlotAt r.2)) * P.count n o r.1 +
-        ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.1⟩ : ℕ) + 1)) * (ub + Lc + 1) + 2 * X + 2 := by
+        ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.val⟩ : ℕ) + 1)) *
+        (ub + Lc + 1) + 2 * X + 2 := by
   have h1 := putCost_le (ub := ub) (Lc := Lc) (kss := (slotList (M.law r.1) r.2).map fun e =>
-    ((P.ids n o ⟨r.1, e.1⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse) fun ks hks k hk' => by
+    ((P.ids n o ⟨r.1, e.val⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse) fun ks hks k hk' => by
       obtain ⟨e, -, rfl⟩ := List.mem_map.1 hks
       obtain ⟨u, -, rfl⟩ := List.mem_map.1 (List.mem_reverse.1 hk')
       exact hk _
   have h2 := putCost_le (ub := ub) (Lc := Lc) (kss := (channelList (M.law r.1) r.2).map fun ν =>
-    (indicesBelow (o ⟨r.1, ν.1⟩).succ).map fun k => key ⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩)
+    (indicesBelow (o ⟨r.1, ν.val⟩).succ).map fun k => key ⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩)
     fun ks hks k hk' => by
       obtain ⟨ν, -, rfl⟩ := List.mem_map.1 hks
       obtain ⟨u, -, rfl⟩ := List.mem_map.1 hk'
       exact hk _
-  have h3 : ∑ e : (M.law r.1).SlotAt r.2, (P.ids n o ⟨r.1, e.1⟩).length ≤
+  have h3 : ∑ e : (M.law r.1).SlotAt r.2, (P.ids n o ⟨r.1, e.val⟩).length ≤
       Fintype.card ((M.law r.1).SlotAt r.2) * P.count n o r.1 :=
     (sum_le_sum fun (e : (M.law r.1).SlotAt r.2) _ => (Plan.length_ids (P := P) (n := n)
-      (o := o) (z := ⟨r.1, e.1⟩)).trans_le (hP.card_given_le n o ⟨r.1, e.1⟩)).trans (by simp)
+      (o := o) (z := ⟨r.1, e.val⟩)).trans_le (hP.card_given_le n o ⟨r.1, e.val⟩)).trans (by simp)
   simp only [List.map_map, Function.comp_def, List.length_reverse, List.length_map,
     length_indicesBelow, Fin.val_succ, slotList, channelList, Finset.sum_map_toList,
     Finset.length_toList, card_univ] at h1 h2
@@ -199,14 +200,14 @@ omit [Fintype S] in
 /-- The new units of the channels of the roles of a group, at their parties, are cells of the
 group. -/
 private theorem sum_channels_le :
-    ∑ r with grp (M.roleParty r) = g, ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.1⟩ : ℕ) + 1) ≤
+    ∑ r with grp (M.roleParty r) = g, ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.val⟩ : ℕ) + 1) ≤
       cellCount n o grp g := by
   rw [← card_groupCells]
-  have e (r : M.Role) : ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.1⟩ : ℕ) + 1) =
-      #(univ.sigma fun ν : (M.law r.1).ChannelAt r.2 => Iic (o ⟨r.1, ν.1⟩)) := by
+  have e (r : M.Role) : ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.val⟩ : ℕ) + 1) =
+      #(univ.sigma fun ν : (M.law r.1).ChannelAt r.2 => Iic (o ⟨r.1, ν.val⟩)) := by
     simp [card_sigma]
   simp only [e, ← card_sigma]
-  refine card_le_card_of_injOn (fun z => ⟨M.roleParty z.1, .new ⟨z.1.1, z.2.1.1⟩ z.2.2⟩)
+  refine card_le_card_of_injOn (fun z => ⟨M.roleParty z.1, .new ⟨z.1.1, z.2.1.val⟩ z.2.2⟩)
     (fun z hz => ?_) ?_
   · simp only [coe_sigma, Set.mem_sigma_iff, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
       coe_univ, Set.mem_univ, coe_Iic, Set.mem_Iic] at hz

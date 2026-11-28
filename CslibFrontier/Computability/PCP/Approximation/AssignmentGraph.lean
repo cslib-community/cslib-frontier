@@ -318,7 +318,7 @@ theorem length_sub_countUnsat_le_indepNum_assignmentGraph {φ : CNF ℕ}
       φ[i].eval σ = true → clusterLabel φ[i] k = φ[i].map fun l => (l.1, σ l.1) := by
     intro i
     by_cases hs : φ[i].eval σ = true
-    · have h3i := h3 _ (List.getElem_mem i.2)
+    · have h3i := h3 _ (List.getElem_mem i.isLt)
       obtain ⟨k, hkl, hk⟩ := List.getElem_of_mem (map_mem_clauseAssignments h3i hs)
       exact ⟨k, hkl.trans_le (length_clauseAssignments_le h3i),
         fun _ => (clusterLabel_eq_getElem hkl).trans hk⟩
@@ -327,7 +327,7 @@ theorem length_sub_countUnsat_le_indepNum_assignmentGraph {φ : CNF ℕ}
   let r : Fin φ.length → AssignmentRecord :=
     fun i => ⟨i, K i, φ[i], clusterLabel φ[i] (K i)⟩
   have hr : ∀ i, r i ∈ assignmentRecords φ :=
-    fun i => mem_assignmentRecords.2 ⟨i, i.2, K i, hK7 i, rfl⟩
+    fun i => mem_assignmentRecords.2 ⟨i, i.isLt, K i, hK7 i, rfl⟩
   have hinj : Function.Injective fun i => recordVertex (r i) :=
     fun i j h => Fin.ext (Nat.pair_eq_pair.1 h).1
   set T : Finset (Fin φ.length) := Finset.univ.filter fun j : Fin φ.length => φ[j].eval σ = true

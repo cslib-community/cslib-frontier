@@ -137,22 +137,15 @@ theorem card_filter_commonNeighborhood {n m : ℕ} (S T : Finset (Fin n)) (hT : 
     (he : Finset.univ.image e = (sample S ω).commonNeighborhood T) :
     (Finset.univ.filter fun i => e i ∈ S).card = S.card - T.card := by
   rw [← Finset.card_sdiff_of_subset hT]
-  refine Finset.card_bij (fun i _ => e i) ?_ ?_ ?_
-  · intro i hi
-    have hu : e i ∈ (sample S ω).commonNeighborhood T := by
-      rw [← he]
-      exact Finset.mem_image_of_mem e (Finset.mem_univ i)
-    exact Finset.mem_sdiff.mpr ⟨(Finset.mem_filter.mp hi).2,
-      (sample S ω).not_mem_of_mem_commonNeighborhood hu⟩
-  · intro i _ j _ hij
-    exact e.injective hij
-  · intro v hv
-    have hclique : (sample S ω).IsClique (S : Set (Fin n)) :=
-      fun _ hi _ hj hij => sample_adj_of_mem S ω hi hj hij
-    have hu := (sample S ω).sdiff_subset_commonNeighborhood hT hclique hv
-    rw [← he] at hu
-    obtain ⟨i, _, hi⟩ := Finset.mem_image.mp hu
-    refine ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ i, ?_⟩, hi⟩
-    exact hi ▸ (Finset.mem_sdiff.mp hv).1
+  have hclique : (sample S ω).IsClique (S : Set (Fin n)) :=
+    fun _ hi _ hj hij => sample_adj_of_mem S ω hi hj hij
+  change (Finset.univ.filter ((· ∈ S) ∘ e)).card = _
+  rw [← Finset.card_map e, ← Finset.filter_map, Finset.map_eq_image, he]
+  congr 1
+  ext v
+  rw [Finset.mem_filter, Finset.mem_sdiff]
+  exact ⟨fun ⟨hv, hvS⟩ => ⟨hvS, (sample S ω).not_mem_of_mem_commonNeighborhood hv⟩,
+    fun hv => ⟨(sample S ω).sdiff_subset_commonNeighborhood hT hclique
+      (Finset.mem_sdiff.mpr hv), hv.1⟩⟩
 
 end Cslib.Probability.PlantedClique

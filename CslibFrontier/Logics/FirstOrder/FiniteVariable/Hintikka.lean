@@ -249,8 +249,9 @@ noncomputable def pebbleHintikka [Finite (Σ l, L.Relations l)] :
   | 0, S, T => pebbleAtomicDiagram S T
   | _ + 1, S, T =>
     pebbleAtomicDiagram S T.1 ⊓ FiniteVariable.GenFormula.iInf fun j : Fin k =>
-      FiniteVariable.GenFormula.iInf (fun T' : T.2 j => .ex j (pebbleHintikka (insert j S) T'.1)) ⊓
-        .all j (FiniteVariable.GenFormula.iSup fun T' : T.2 j => pebbleHintikka (insert j S) T'.1)
+      FiniteVariable.GenFormula.iInf
+          (fun T' : T.2 j => .ex j (pebbleHintikka (insert j S) T'.val)) ⊓
+        .all j (FiniteVariable.GenFormula.iSup fun T' : T.2 j => pebbleHintikka (insert j S) T'.val)
 
 theorem realize_pebbleHintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n : ℕ} (S : Set (Fin k)) (T : PebbleType L k n) (a : Fin k → M),
@@ -275,9 +276,9 @@ theorem quantifierRank_pebbleHintikka_le [Finite (Σ l, L.Relations l)] :
       FiniteVariable.GenFormula.quantifierRank_all]
     exact ⟨FiniteVariable.GenFormula.quantifierRank_iInf_le fun T' => by
         rw [FiniteVariable.GenFormula.quantifierRank_ex]
-        exact Nat.succ_le_succ (quantifierRank_pebbleHintikka_le _ T'.1),
+        exact Nat.succ_le_succ (quantifierRank_pebbleHintikka_le _ T'.val),
       Nat.succ_le_succ (FiniteVariable.GenFormula.quantifierRank_iSup_le fun T' =>
-        quantifierRank_pebbleHintikka_le _ T'.1)⟩
+        quantifierRank_pebbleHintikka_le _ T'.val)⟩
 
 theorem freeVars_pebbleHintikka_subset [Finite (Σ l, L.Relations l)] :
     ∀ {n : ℕ} (S : Set (Fin k)) (T : PebbleType L k n), ↑(pebbleHintikka S T).freeVars ⊆ S
@@ -293,9 +294,9 @@ theorem freeVars_pebbleHintikka_subset [Finite (Σ l, L.Relations l)] :
     exact ⟨FiniteVariable.GenFormula.freeVars_iInf_subset fun T' => by
         rw [FiniteVariable.GenFormula.freeVars_ex, Finset.coe_erase, Set.sdiff_subset_iff,
           ← Set.insert_eq]
-        exact freeVars_pebbleHintikka_subset _ T'.1,
+        exact freeVars_pebbleHintikka_subset _ T'.val,
       FiniteVariable.GenFormula.freeVars_iSup_subset fun T' =>
-        freeVars_pebbleHintikka_subset _ T'.1⟩
+        freeVars_pebbleHintikka_subset _ T'.val⟩
 
 /-! ### The pebble-game characterization of `FO^k` -/
 

@@ -91,10 +91,10 @@ theorem linkCount_le (φ : CNF ℕ) :
     _ = _ := by simp [Cslib.Logic.PL.length_occurrences, Nat.mul_comm]
 
 /-- Horizontal side of the actual tiled drawing, including its last square. -/
-def gridWidth (φ : CNF ℕ) : ℕ := 240 * (8 * (SAT.incidenceGraph φ).1.length + 1)
+def gridWidth (φ : CNF ℕ) : ℕ := 240 * (8 * (SAT.incidenceGraph φ).vertices.length + 1)
 /-- Vertical side of the actual tiled drawing, including its last square. -/
 def gridHeight (φ : CNF ℕ) : ℕ :=
-  240 * (8 * (SAT.incidenceGraph φ).1.length + 2 * (SAT.incidenceGraph φ).2.length + 1)
+  240 * (8 * (SAT.incidenceGraph φ).vertices.length + 2 * (SAT.incidenceGraph φ).edges.length + 1)
 
 /-- The horizontal grid side is at most 1920 times the source incidence size plus one. -/
 theorem gridWidth_le (φ : CNF ℕ) :

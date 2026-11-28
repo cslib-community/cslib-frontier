@@ -181,18 +181,19 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
   -- the barycenter `b̄` of the `u − 1` points `b_k`, `u < k < 2u`
   have : Nonempty Z := ⟨a⟩
   obtain ⟨b, hb⟩ := exists_isBarycenter (fun _ : Fin (u - 1) => (1 : ℝ)) (fun _ => zero_le_one)
-    fun i => B (u + 1 + i.1)
+    fun i => B (u + 1 + i.val)
   have hw : ((u - 1 : ℕ) : ℝ) = (u : ℝ) - 1 := by rw [Nat.cast_sub (by omega), Nat.cast_one]
   have hab : dist a b ≤ dist a (B u) := by
     have h1 := hb a
     simp only [one_mul, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one, hw] at h1
-    have h2 : ∑ i : Fin (u - 1), dist a (B (u + 1 + i.1)) ^ 2 ≤ ((u : ℝ) - 1) * dist a (B u) ^ 2 :=
+    have h2 : ∑ i : Fin (u - 1), dist a (B (u + 1 + i.val)) ^ 2 ≤
+        ((u : ℝ) - 1) * dist a (B u) ^ 2 :=
       (sum_le_sum fun i _ => pow_le_pow_left₀ dist_nonneg (hφ _ (by omega) (by omega)) 2).trans
         (by simp [hw])
     refine (pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1
       (le_of_mul_le_mul_left ?_ (by linarith : (0 : ℝ) < (u : ℝ) - 1))
     linarith [sum_nonneg fun (i : Fin (u - 1)) (_ : i ∈ univ) =>
-      sq_nonneg (dist b (B (u + 1 + i.1)))]
+      sq_nonneg (dist b (B (u + 1 + i.val)))]
   -- for `u < k < 2u` every generator of `[p, p + 3u)` fixes `b_k`, apart from `x_{p+k−1}`
   have he : ∀ t < 3 * u - 1, ∀ k, u + 1 ≤ k → k < 2 * u → k ≠ t + 1 → A.e (p + t) (B k) = 0 :=
     fun t ht k hk1 hk2 hkt => by

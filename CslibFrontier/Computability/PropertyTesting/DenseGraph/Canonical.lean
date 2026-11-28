@@ -318,11 +318,12 @@ private theorem exists_perm_extend {n s : ℕ} (hs : s ≤ n) (φ : Fin s ↪ Fi
     ∃ ρ : Equiv.Perm (Fin n), ∀ i : Fin s, ρ (Fin.castLE hs i) = φ i := by
   classical
   let e₀ : {x : Fin n // x.val < s} ≃ Fin s :=
-    ⟨fun x => ⟨x.1.val, x.2⟩, fun i => ⟨Fin.castLE hs i, i.2⟩, fun _ => rfl, fun _ => rfl⟩
+    ⟨fun x => ⟨x.val.val, x.property⟩, fun i => ⟨Fin.castLE hs i, i.isLt⟩, fun _ => rfl,
+      fun _ => rfl⟩
   let e : {x : Fin n // x.val < s} ≃ {y : Fin n // y ∈ Set.range φ} :=
     e₀.trans (Equiv.ofInjective φ φ.injective)
   refine ⟨e.extendSubtype, fun i => ?_⟩
-  rw [Equiv.extendSubtype_apply_of_mem e _ i.2]
+  rw [Equiv.extendSubtype_apply_of_mem e _ i.isLt]
   rfl
 
 /-- A canonical tester accepts every graph with property `P` with probability one if and only if
@@ -546,7 +547,7 @@ private theorem Good.mono {P : SimpleGraph (Fin n) → Prop} {G : SimpleGraph (F
 private theorem Good.of_min {P : SimpleGraph (Fin n) → Prop} {G : SimpleGraph (Fin n)}
     {σ : Equiv.Perm (Fin n)} {k : ℕ} (h : Good P G σ (min k n)) : Good P G σ k := by
   obtain ⟨H, hH, hadj⟩ := h
-  exact ⟨H, hH, fun i j hi hj => hadj i j (lt_min hi i.2) (lt_min hj j.2)⟩
+  exact ⟨H, hH, fun i j hi hj => hadj i j (lt_min hi i.isLt) (lt_min hj j.isLt)⟩
 
 private theorem toOuterMeasure_bind_le_bind_apply {α β γ : Type*} (p : PMF α) (f : α → PMF β)
     (g : α → PMF γ) (s : Set β) (b : γ)
@@ -682,7 +683,7 @@ private theorem inducedOf_comap_iff_good {n s : ℕ} (hs : s ≤ n) {P : SimpleG
     rw [comap_adj, hi', hj']
     exact f.map_adj_iff
   · rintro ⟨H, hH, hadj⟩
-    exact ⟨H, hH, ⟨⟨Fin.castLEEmb hs, fun {a b} => hadj _ _ a.2 b.2⟩⟩⟩
+    exact ⟨H, hH, ⟨⟨Fin.castLEEmb hs, fun {a b} => hadj _ _ a.isLt b.isLt⟩⟩⟩
 
 open Classical in
 /-- **Canonical testers**, the one-sided half of [Goldreich and Trevisan, Theorem 2 and

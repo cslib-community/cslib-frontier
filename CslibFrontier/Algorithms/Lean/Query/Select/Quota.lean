@@ -57,7 +57,7 @@ half, and recurses with the remaining quota on the upper half, without the passi
   `Cslib.Query.length_selected_quotaSelect` (`min k` the number of groups with an admissible item)
   and `Cslib.Query.nodup_selected_quotaSelect`. These assume an injective `w` and a
   duplicate-free input.
-* Comparisons: `Cslib.Query.countInl_quotaSelect_le`, at most `234 m` for every oracle.
+* Comparisons: `Cslib.Query.countInl_quotaSelect_le`, at most `204 m` for every oracle.
 * Successful tests: `Cslib.Query.cost_passWeight_quotaSelect_le`, at most `k (⌈log₂ m⌉ + 1)` for
   every oracle.
 * Failed tests, which the source charges separately (p. 15: a failure is stored and reused):
@@ -294,7 +294,7 @@ private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → 
 
 omit [DecidableEq α] in
 private theorem medianSplit_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι)
-    (xs : List α) : (medianSplit xs).countQueries oracle ≤ 39 * xs.length := by
+    (xs : List α) : (medianSplit xs).countQueries oracle ≤ 34 * xs.length := by
   have h1 := select_countQueries_le oracle (xs.length / 2) xs
   simp only [medianSplit, FreeM.countQueries_bind]
   split
@@ -431,7 +431,7 @@ private theorem sum_length_filter_le (g : α → γ) {P : List γ} (hP : P.Nodup
 private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι → ι) (g : α → γ)
     (c : α → ℕ) (n : ℕ) : ∀ (k : ℕ) (xs : List α), xs.length = n →
       SumQuery.countInl oracle (quotaSelect g k xs) ≤
-        (if k ≤ 1 then 117 else 234) * xs.length ∧
+        (if k ≤ 1 then 102 else 204) * xs.length ∧
       (quotaSelect g k xs).cost oracle (CmpTestQuery.passWeight oracle) ≤
         k * (Nat.clog 2 xs.length + 1) ∧
       (quotaSelect g k xs).cost oracle (CmpTestQuery.failCost oracle c) =
@@ -458,7 +458,7 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
     generalize x :: y :: zs = xs at *
     simp only [FreeM.cost_bind, FreeM.eval_bind, cost_liftInl, eval_liftInl]
     have hmsC : (medianSplit xs).cost (fun q => oracle (.inl q))
-        (fun q => (SumQuery.inl q : CmpTestQuery α _).weightInl) ≤ 39 * xs.length :=
+        (fun q => (SumQuery.inl q : CmpTestQuery α _).weightInl) ≤ 34 * xs.length :=
       medianSplit_countQueries_le _ xs
     have hmsP : (medianSplit xs).cost (fun q => oracle (.inl q))
         (fun q => CmpTestQuery.passWeight oracle (.inl q)) = 0 := FreeM.cost_zero _ _
@@ -508,12 +508,12 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
             (L'.filter (g · = c)) rfl
         refine ⟨?_, ?_, ?_⟩
         · have hsum : (P.map fun b => (quotaSelect g 1 (L'.filter (g · = b))).cost oracle
-              SumQuery.weightInl).sum ≤ 117 * L'.length :=
-            calc _ ≤ (P.map fun b => 117 * (L'.filter (g · = b)).length).sum :=
+              SumQuery.weightInl).sum ≤ 102 * L'.length :=
+            calc _ ≤ (P.map fun b => 102 * (L'.filter (g · = b)).length).sum :=
                   List.sum_le_sum fun c hc => (hrec c hc).1
-              _ = 117 * (P.map fun b => (L'.filter (g · = b)).length).sum :=
+              _ = 102 * (P.map fun b => (L'.filter (g · = b)).length).sum :=
                   List.sum_map_mul_left _ _ _
-              _ ≤ 117 * L'.length := Nat.mul_le_mul_left _ (sum_length_filter_le g sc5 L')
+              _ ≤ 102 * L'.length := Nat.mul_le_mul_left _ (sum_length_filter_le g sc5 L')
           by_cases hk1 : k ≤ 1
           · obtain rfl : P = [] := List.length_eq_zero_iff.mp (by omega)
             simp only [List.map_nil, List.sum_nil, zero_add, List.length_nil,
@@ -1181,9 +1181,9 @@ variable (g : α → γ) (k : ℕ) (xs : List α)
 
 /-- **Comparison bound for quota selection**, a step in the proof of Theorem 4.1 of
 [KhannaPuttermanSong2026] (the paper's Lemma 3.3, §3.2, p. 16). For every oracle,
-`quotaSelect g k xs` makes at most `234 * xs.length` comparisons. -/
+`quotaSelect g k xs` makes at most `204 * xs.length` comparisons. -/
 theorem countInl_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
-    SumQuery.countInl oracle (quotaSelect g k xs) ≤ 234 * xs.length := by
+    SumQuery.countInl oracle (quotaSelect g k xs) ≤ 204 * xs.length := by
   have h := (quotaSelect_cost oracle g (fun _ => 0) _ k xs rfl).1
   split_ifs at h <;> omega
 
