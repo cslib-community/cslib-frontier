@@ -36,9 +36,12 @@ codes and from real probability weights to arbitrary ordered additive commutativ
    characterization.
 3. **McMillan tree reduction (`exists_codeTree_of_isUniquelyDecodable`)**: combining Mathlib's
    `IsUniquelyDecodable.finsetSum_one_div_card_pow_length_le_one` with the binary Kraft converse and
-   `treeOfCodebook`, every finite injective uniquely decodable binary code admits a full binary
-   `CodeTree α` whose weighted path length is at most that of the original code over any ordered
-   additive commutative monoid `β`.
+   `treeOfCodebook`, every finite injective uniquely decodable binary code on at least two symbols
+   (`2 ≤ syms.length`) admits a full binary `CodeTree α` whose codebook is itself
+   `InformationTheory.IsUniquelyDecodable` and whose weighted path length is at most that of the
+   original code over any ordered additive commutative monoid `β`. (For a single symbol, the unique
+   full binary `CodeTree.leaf a` has `codewordSet = {[]}`, which is `IsPrefixFree` in Mathlib but
+   not `IsUniquelyDecodable`.)
 
 ## Main definitions
 
@@ -56,9 +59,9 @@ codes and from real probability weights to arbitrary ordered additive commutativ
   (`∃` injective prefix-free binary code of lengths `ℓ` `↔ ∑ a ∈ s, (1 / 2 : ℝ) ^ ℓ a ≤ 1`).
 * `Cslib.Algorithms.Lean.Huffman.exists_codeTree_of_isPrefixFree`: every nonempty finite injective
   prefix-free binary code is dominated in weighted path length by a full `CodeTree α`.
-* `Cslib.Algorithms.Lean.Huffman.exists_codeTree_of_isUniquelyDecodable`: every nonempty finite
-  injective uniquely decodable binary code is dominated in weighted path length by a full
-  `CodeTree α`.
+* `Cslib.Algorithms.Lean.Huffman.exists_codeTree_of_isUniquelyDecodable`: every finite injective
+  uniquely decodable binary code on at least two symbols (`2 ≤ syms.length`) is dominated in
+  weighted path length by a full `CodeTree α` whose own codebook is uniquely decodable.
 
 ## References
 
@@ -534,21 +537,30 @@ theorem exists_codeTree_of_isPrefixFree {α β : Type*}
 
 /-- **McMillan Code Tree Reduction** (derived from McMillan's forward inequality [McMillan1956] /
 [CoverThomas2006], Theorem 5.5.1 in Mathlib together with the finite binary Kraft converse of
-Theorem 5.2.1 and `exists_codeTree_of_isPrefixFree`): every nonempty finite injective uniquely
-decodable binary ($D = 2$) code on `syms` admits a full binary `CodeTree α` with the same leaf
-symbols and at most the same weighted path length under nonnegative weights over any ordered
-additive commutative monoid `β`. -/
+Theorem 5.2.1 and `exists_codeTree_of_isPrefixFree`): every finite injective uniquely decodable
+binary ($D = 2$) code on at least two distinct symbols (`2 ≤ syms.length`) admits a full binary
+`CodeTree α` with the same leaf symbols, a uniquely decodable codebook
+(`InformationTheory.IsUniquelyDecodable T.codewordSet`), and at most the same weighted path length
+under nonnegative weights over any ordered additive commutative monoid `β`.
+
+The hypothesis `2 ≤ syms.length` is necessary for the `CodeTree` representation: on a 1-symbol
+alphabet, the only full binary tree `CodeTree.leaf a` assigns the empty codeword `[]`
+(`codewordSet = {[]}`), which satisfies `InformationTheory.IsPrefixFree` in Mathlib but violates
+`InformationTheory.IsUniquelyDecodable.epsilon_notMem`, whereas every uniquely decodable 1-symbol
+code has length at least `1`. -/
 theorem exists_codeTree_of_isUniquelyDecodable {α β : Type*}
     [AddCommMonoid β] [PartialOrder β] [IsOrderedAddMonoid β]
-    {syms : List α} (hne : syms ≠ []) (hnodup : syms.Nodup)
+    {syms : List α} (h2 : 2 ≤ syms.length) (hnodup : syms.Nodup)
     {code : α → List Bool}
     (hinj : Set.InjOn code {a | a ∈ syms})
     (hud : InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ syms}))
     {w : α → β} (hw : ∀ a ∈ syms, 0 ≤ w a) :
     ∃ T : CodeTree α,
       T.leaves.Perm syms ∧
+      InformationTheory.IsUniquelyDecodable T.codewordSet ∧
       T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
   classical
+  have hne : syms ≠ [] := List.ne_nil_of_length_pos (by omega)
   have hS_ud : InformationTheory.IsUniquelyDecodable
       ((syms.toFinset.image code : Finset (List Bool)) : Set (List Bool)) := by
     simpa [Finset.coe_image, List.coe_toFinset] using hud
@@ -559,7 +571,7 @@ theorem exists_codeTree_of_isUniquelyDecodable {α β : Type*}
     with ⟨code', hinj', hpf', hlen'⟩
   rw [List.coe_toFinset] at hinj' hpf'
   rcases exists_codeTree_of_isPrefixFree hne hnodup hinj' hpf' hw with ⟨T, hperm, hwpl⟩
-  exact ⟨T, hperm, by
+  exact ⟨T, hperm, T.isUniquelyDecodable_codewordSet_iff.mpr (hperm.length_eq.symm ▸ h2), by
     rwa [← List.map_congr_left fun a ha =>
       congrArg (· • w a) (hlen' a (List.mem_toFinset.mpr ha))]⟩
 
