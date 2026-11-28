@@ -546,9 +546,6 @@ theorem mem_snapStates_iff_split [DecidableEq P] [DecidableRel sys.graph.Adj]
 
 /-! ### Projection to the underlying system & non-blocking simulation -/
 
-private lemma unmarker_singleton_marker {M : Type*} :
-    unmarker ([.marker] : List (WireMsg M)) = [] := rfl
-
 theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S₁ S₂ : SnapGlobalState P S M} {a : SnapEvent P S M}
     (htr : sys.snapLts.Tr S₁ a S₂) :
@@ -594,8 +591,8 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
         by_cases h₂ : u = src ∧ v = dest <;> simp [h₂, ht]
       simp only [project, stepSnap, applyRecvMarker]
       cases (S₁.proc dest).snapState <;>
-        simp only [apply_ite unmarker, unmarker_append, unmarker_singleton_marker, List.append_nil,
-          hpop, ite_self]
+        simp only [apply_ite unmarker, unmarker_append, unmarker_cons_marker, unmarker_nil,
+          List.append_nil, hpop, ite_self]
   | stutter => rfl
 
 /-- Erasing marker-control and stuttering steps maps any valid finite execution of `sys.snapLts`

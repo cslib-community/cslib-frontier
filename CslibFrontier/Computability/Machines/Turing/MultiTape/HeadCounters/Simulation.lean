@@ -70,9 +70,6 @@ private lemma digit_lt (s : Option Bool) : digit s < 3 := by
 private def symbol (n : ℕ) : Option Bool :=
   if n % 3 = 1 then some false else if n % 3 = 2 then some true else none
 
-private lemma symbol_mod (n : ℕ) : symbol (n % 3) = symbol n := by
-  simp [symbol]
-
 private lemma symbol_three_mul_add (L : ℕ) (s : Option Bool) : symbol (3 * L + digit s) = s := by
   rcases s with _ | _ | _ <;> simp [symbol, digit]
 
@@ -496,7 +493,7 @@ private lemma run_move (hd : dir tm q inp sc j ≠ 0) (cs : Fin (k + k + 1) → 
     ⟨_, run_restore tm pos out q inp sc cur j (cs (source j (dir tm q inp sc j)) / 3) _ _
       (by simp [moveCounters_zero, hx.symm, h0])⟩
   refine ⟨n, hn.trans ?_⟩
-  simp only [rem3, Nat.zero_add, symbol_mod]
+  simp only [rem3, Nat.zero_add, symbol, Nat.mod_mod]
   congr 1
   refine funext_two tmp (target j (dir tm q inp sc j))
     (by simp [moveCounters_zero, hx.symm, hy.symm, h0])

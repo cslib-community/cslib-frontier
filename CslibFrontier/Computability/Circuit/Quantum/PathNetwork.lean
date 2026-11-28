@@ -239,8 +239,6 @@ private theorem trajWeight_sum {R : Type*} [CommSemiring R] (neg : R) {ι : Type
     simp only [trajWeight]
     rw [ih, Finset.mul_sum]
 
-private theorem occurrences_nil : occurrences [] = [] := rfl
-
 private theorem occurrences_cons (g : GateCode) (gs : List GateCode) :
     occurrences (g :: gs) = qubits g ++ occurrences gs := List.flatMap_cons
 
@@ -454,7 +452,7 @@ private theorem prod_gateEntry_mul {R : Type*} [CommMonoidWithZero R] (neg : R)
   suffices h : ∀ n i, i + n = gs.length → ((List.range' i n).map F).prod *
       Φ (reg (occurrences gs) X y (occurrences gs).length) =
         trajWeight neg (gs.drop i) (reg (occurrences gs) X y (base gs i)) (ys.drop (base gs i)) Φ by
-    simpa [List.range_eq_range', base, reg_zero, occurrences_nil] using h gs.length 0 (zero_add _)
+    simpa [List.range_eq_range', base, occurrences, reg_zero] using h gs.length 0 (zero_add _)
   intro n
   induction n with
   | zero => intro i hi; subst hi; simp [trajWeight, base_length]

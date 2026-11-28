@@ -257,10 +257,6 @@ private theorem windowWord_encode {b : ℕ} (cells : List ℕ)
     List.map_ofFn]
   rfl
 
-private theorem ofFn_append {m n : ℕ} (x : Fin m → Bool) (y : Fin n → Bool) :
-    List.ofFn (Fin.append x y) = List.ofFn x ++ List.ofFn y := by
-  simp [List.ofFn_add]
-
 omit [Finite Q] in
 /-- Canonical window buffers serialize exactly as the existing positive-width codec. Head
 residues may be arbitrary naturals: runtime modular reduction agrees with `RawResult.toView`. -/
@@ -285,7 +281,7 @@ theorem payload_eq_encodePayload (e : Q ≃ Fin s) {b : ℕ} [NeZero b]
     simpa only [ZMod.val_natCast, fun r : Fin b => Nat.mod_eq_of_lt r.isLt] using
       windowWord_encode (cells i) (hlen i)
   unfold payloadBits
-  simp only [payload, RawResult.toView, encodePayload, ofFn_append, List.append_assoc]
+  simp only [payload, RawResult.toView, encodePayload, List.ofFn_fin_append, List.append_assoc]
   rw [hh, hw]
 
 omit [Finite Q] in
