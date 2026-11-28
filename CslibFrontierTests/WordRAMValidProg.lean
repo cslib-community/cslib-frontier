@@ -208,6 +208,16 @@ example (hs : RealizesBounded .exact
       (fun w d s => Fits w (d + 1) ∧ P w (d + 1) s) (fun _ _ => 0) := by
   realize <;> first | exact h.1 | exact h.2
 
+-- Moving a result map into a link and back across an opaque source uses bounded congruence.
+example (hs : RealizesBounded .exact
+    (fun v => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub v))
+    WordEncoding.encode WordEncoding.encode P (fun _ _ => 0)) :
+    RealizesBounded .exact
+      (fun d => (fun v => v) <$> link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub d))
+      WordEncoding.encode WordEncoding.encode P (fun _ _ => 0) := by
+  realize
+  exact h
+
 -- Reducing the let exposes liftM while the certificate is stated on link.
 example (hs : Realizes .exact
     (fun v => link (E := Memory.spec 0) ((pairLayout 0).methods 0) (sub v))
