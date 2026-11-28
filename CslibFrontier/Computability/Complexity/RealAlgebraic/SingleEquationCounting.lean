@@ -47,10 +47,8 @@ unary, the word length suffices as the ambient dimension. Malformed words are re
 private theorem exists_eval_eq_zero_rename {n m : ℕ} {f : Fin n → Fin m}
     (hf : Function.Injective f) (t : Term n) :
     (∃ x, (t.rename f).eval x = 0) ↔ ∃ x, t.eval x = 0 := by
-  simp only [Term.eval_rename]
-  refine ⟨fun ⟨x, hx⟩ => ⟨x ∘ f, hx⟩, fun ⟨y, hy⟩ => ?_⟩
-  obtain ⟨x, rfl⟩ := hf.surjective_comp_right y
-  exact ⟨x, hy⟩
+  simpa only [Formula.rename, Formula.solutionSet, Set.nonempty_def, Set.mem_ofPred_eq] using
+    Formula.solutionSet_nonempty_rename hf (.eqZero t)
 
 /-- Encoding a term preserves real feasibility, even when its ambient dimension contains
 unused coordinates and is larger than the encoding length. -/
