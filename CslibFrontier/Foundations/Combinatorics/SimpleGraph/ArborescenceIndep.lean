@@ -549,20 +549,14 @@ private theorem reaches_comparable {arc : V → V → Prop} {rk : V → ℕ}
     (hin : ∀ w, {u | arc u w}.Subsingleton) {u v z : V}
     (hu : Relation.ReflTransGen arc u z) (hv : Relation.ReflTransGen arc v z) :
     Relation.ReflTransGen arc u v ∨ Relation.ReflTransGen arc v u := by
-  have hmain : ∀ n : ℕ, ∀ z : V, rk z = n →
-      Relation.ReflTransGen arc u z → Relation.ReflTransGen arc v z →
-      Relation.ReflTransGen arc u v ∨ Relation.ReflTransGen arc v u := by
-    intro n
-    induction n using Nat.strong_induction_on with
-    | ind n ih =>
-      intro z hzn huz hvz
-      rcases huz.cases_tail with rfl | ⟨w₁, huw₁, hw₁z⟩
-      · exact Or.inr hvz
-      · rcases hvz.cases_tail with rfl | ⟨w₂, hvw₂, hw₂z⟩
-        · exact Or.inl huz
-        · cases hin z hw₁z hw₂z
-          exact ih (rk w₁) (hzn ▸ hrank hw₁z) w₁ rfl huw₁ hvw₂
-  exact hmain (rk z) z rfl hu hv
+  induction z using (_root_.measure rk).wf.induction
+  rename_i z ih
+  rcases hu.cases_tail with rfl | ⟨w₁, huw₁, hw₁z⟩
+  · exact Or.inr hv
+  · rcases hv.cases_tail with rfl | ⟨w₂, hvw₂, hw₂z⟩
+    · exact Or.inl hu
+    · cases hin z hw₁z hw₂z
+      exact ih w₁ (hrank hw₁z) huw₁ hvw₂
 
 private theorem subtree_disjoint_children {arc : V → V → Prop} {rk : V → ℕ}
     (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w)
@@ -599,17 +593,13 @@ private theorem subtree_disjoint_roots {arc : V → V → Prop} {rk : V → ℕ}
 private theorem exists_root_reaches {arc : V → V → Prop} {rk : V → ℕ}
     (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w)
     (z : V) : ∃ r : V, (¬∃ u, arc u r) ∧ Relation.ReflTransGen arc r z := by
-  suffices ∀ n : ℕ, ∀ w : V, rk w = n →
-      ∃ r : V, (¬∃ u, arc u r) ∧ Relation.ReflTransGen arc r w from this (rk z) z rfl
-  intro n
-  induction n using Nat.strong_induction_on with
-  | ind n ih =>
-    intro w hwn
-    by_cases h : ∃ u, arc u w
-    · obtain ⟨u, huw⟩ := h
-      obtain ⟨r, hr, hru⟩ := ih (rk u) (hwn ▸ hrank huw) u rfl
-      exact ⟨r, hr, hru.tail huw⟩
-    · exact ⟨w, h, .refl⟩
+  induction z using (_root_.measure rk).wf.induction
+  rename_i z ih
+  by_cases hz : ∃ u, arc u z
+  · obtain ⟨u, huz⟩ := hz
+    obtain ⟨r, hr, hru⟩ := ih u (hrank huz)
+    exact ⟨r, hr, hru.tail huz⟩
+  · exact ⟨z, hz, .refl⟩
 
 section ArcSubtree
 
@@ -1027,32 +1017,24 @@ private theorem treeDP_internal_bound [Fintype V] {arc : V → V → Prop} {rk :
         ((arcSubtree arc u).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc u : ℝ) -
           treePot (subRootRatio arc u) := by
   let M_rk : ℕ := Finset.univ.sup rk
-  suffices h : ∀ d : ℕ, ∀ u : V, M_rk - rk u = d → (∃ w, arc w u) →
-      (1 / 2 ≤ subRootRatio arc u ∧ subRootRatio arc u ≤ 4 / 5) ∧
-        Real.logb 2 (subIndepCount arc u : ℝ) ≤
-          ((arcSubtree arc u).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc u : ℝ) -
-            treePot (subRootRatio arc u) from
-    h (M_rk - rk u) u rfl hin_u
-  intro d
-  induction d using Nat.strong_induction_on with
-  | ind d ih =>
-    intro u hd hin_u
-    have hchild : ∀ v ∈ arcKids arc u,
-        (1 / 2 ≤ subRootRatio arc v ∧ subRootRatio arc v ≤ 4 / 5) ∧
-          Real.logb 2 (subIndepCount arc v : ℝ) ≤
-            ((arcSubtree arc v).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc v : ℝ) -
-              treePot (subRootRatio arc v) := by
-      intro v hv
-      have harc : arc u v := by simpa [arcKids] using hv
-      have hlt_rk : rk u < rk v := hrank harc
-      have hv_le : rk v ≤ M_rk := Finset.le_sup (f := rk) (Finset.mem_univ v)
-      exact ih (M_rk - rk v) (by omega) v rfl ⟨u, harc⟩
-    have hdeg := hout_int u hin_u
-    have hrat := subRootRatio_eq hrank hin u
-    refine ⟨hrat ▸ one_div_one_add_prod_mem_Icc hdeg (fun v hv => (hchild v hv).1),
-      logb_subIndepCount_le_of_step hrank hin (fun v hv => (hchild v hv).2) ?_⟩
-    rw [hrat]
-    exact step_finset_le_two hdeg fun v hv => (hchild v hv).1
+  induction u using (_root_.measure fun v => M_rk - rk v).wf.induction
+  rename_i u ih
+  have hchild : ∀ v ∈ arcKids arc u,
+      (1 / 2 ≤ subRootRatio arc v ∧ subRootRatio arc v ≤ 4 / 5) ∧
+        Real.logb 2 (subIndepCount arc v : ℝ) ≤
+          ((arcSubtree arc v).card : ℝ) - (53 / 200 : ℝ) * (subEdges arc v : ℝ) -
+            treePot (subRootRatio arc v) := by
+    intro v hv
+    have harc : arc u v := by simpa [arcKids] using hv
+    have hlt_rk : rk u < rk v := hrank harc
+    have hv_le : rk v ≤ M_rk := Finset.le_sup (f := rk) (Finset.mem_univ v)
+    exact ih v (show M_rk - rk v < M_rk - rk u by omega) ⟨u, harc⟩
+  have hdeg := hout_int u hin_u
+  have hrat := subRootRatio_eq hrank hin u
+  refine ⟨hrat ▸ one_div_one_add_prod_mem_Icc hdeg (fun v hv => (hchild v hv).1),
+    logb_subIndepCount_le_of_step hrank hin (fun v hv => (hchild v hv).2) ?_⟩
+  rw [hrat]
+  exact step_finset_le_two hdeg fun v hv => (hchild v hv).1
 
 /-- Active-root entropy bound discharging the `33 / 1000` penalty at each root `r` of
 out-degree at most `3`. -/

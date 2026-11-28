@@ -287,25 +287,26 @@ already vanishes to order `m` at `(x, y)`. -/
 theorem VanishesToOrder.of_mul_left_of_evalEval_ne_zero [NoZeroDivisors R] {m : ℕ} {x y : R}
     {Q₁ Q₂ : R[X][Y]} (h₁ : Q₁.evalEval x y ≠ 0) (h : VanishesToOrder m x y (Q₁ * Q₂)) :
     VanishesToOrder m x y Q₂ := by
-  intro i j hij
-  induction hk : i + j using Nat.strong_induction_on generalizing i j with
-  | ind k ih =>
-    have hB (a b : ℕ) (hab : a + b < k) : ((shift x y Q₂).coeff b).coeff a = 0 :=
-      ih _ hab a b (by omega) rfl
-    have h0 := h i j hij
-    rw [map_mul, coeff_mul, finsetSum_coeff, Finset.sum_eq_single (0, j), coeff_mul,
-      Finset.sum_eq_single (0, i), coeff_coeff_shift_zero] at h0
-    · exact (mul_eq_zero.1 h0).resolve_left h₁
-    all_goals first
-      | exact fun hn => absurd (mem_antidiagonal.2 (zero_add _)) hn
-      | intro p hp hne
-        rw [mem_antidiagonal] at hp
-        have hp1 : p.1 ≠ 0 := fun h0 => hne (Prod.ext h0 (by omega))
-        first
-          | exact mul_eq_zero_of_right _ (hB _ _ (by omega))
-          | rw [coeff_mul]
-            exact sum_eq_zero fun cd hcd => mul_eq_zero_of_right _
-              (hB _ _ (by rw [mem_antidiagonal] at hcd; omega))
+  intro i j
+  refine (_root_.measure fun p : ℕ × ℕ => p.1 + p.2).wf.induction
+    (C := fun p => p.1 + p.2 < m → ((shift x y Q₂).coeff p.2).coeff p.1 = 0) (i, j) ?_
+  rintro ⟨i, j⟩ ih hij
+  have hB (a b : ℕ) (hab : a + b < i + j) : ((shift x y Q₂).coeff b).coeff a = 0 :=
+    ih (a, b) hab (hab.trans hij)
+  have h0 := h i j hij
+  rw [map_mul, coeff_mul, finsetSum_coeff, Finset.sum_eq_single (0, j), coeff_mul,
+    Finset.sum_eq_single (0, i), coeff_coeff_shift_zero] at h0
+  · exact (mul_eq_zero.1 h0).resolve_left h₁
+  all_goals first
+    | exact fun hn => absurd (mem_antidiagonal.2 (zero_add _)) hn
+    | intro p hp hne
+      rw [mem_antidiagonal] at hp
+      have hp1 : p.1 ≠ 0 := fun h0 => hne (Prod.ext h0 (by omega))
+      first
+        | exact mul_eq_zero_of_right _ (hB _ _ (by omega))
+        | rw [coeff_mul]
+          exact sum_eq_zero fun cd hcd => mul_eq_zero_of_right _
+            (hB _ _ (by rw [mem_antidiagonal] at hcd; omega))
 
 /-- Over a commutative ring, if `P(x) = y` then `Y - C P` vanishes to order `1` at `(x, y)`. -/
 theorem vanishesToOrder_one_X_sub_C {R : Type*} [CommRing R] {x y : R} {P : R[X]}

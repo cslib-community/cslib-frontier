@@ -103,24 +103,23 @@ subset is a circuit: removing a nonempty zero-sum proper subset would leave a sm
 theorem exists_isZeroSumCircuit_odd {T : Finset G} (hT : ∑ x ∈ T, x = 0) (hodd : Odd #T) :
     ∃ S ⊆ T, IsZeroSumCircuit S ∧ Odd #S := by
   classical
-  induction hn : #T using Nat.strong_induction_on generalizing T with
-  | _ n ih =>
-    subst hn
-    by_cases hc : ∀ U ⊂ T, U.Nonempty → ∑ x ∈ U, x ≠ 0
-    · exact ⟨T, Subset.rfl, ⟨card_pos.1 hodd.pos, hT, hc⟩, hodd⟩
-    push Not at hc
-    obtain ⟨U, hUT, hU, hU0⟩ := hc
-    rcases Nat.even_or_odd #U with heven | hUodd
-    · -- The complement of an even zero-sum subset is a smaller odd zero-sum subset.
-      have hsub : T \ U ⊂ T := sdiff_ssubset hUT.subset hU
-      have hsum : ∑ x ∈ T \ U, x = 0 := by rw [sum_sdiff_eq_sub hUT.subset, hT, hU0, sub_zero]
-      have hcard : Odd #(T \ U) := by
-        rw [card_sdiff_of_subset hUT.subset]
-        exact Nat.Odd.sub_even (card_le_card hUT.subset) hodd heven
-      obtain ⟨S, hS, hSc, hSodd⟩ := ih _ (card_lt_card hsub) hsum hcard rfl
-      exact ⟨S, hS.trans hsub.subset, hSc, hSodd⟩
-    · obtain ⟨S, hS, hSc, hSodd⟩ := ih _ (card_lt_card hUT) hU0 hUodd rfl
-      exact ⟨S, hS.trans hUT.subset, hSc, hSodd⟩
+  induction T using (_root_.measure Finset.card).wf.induction
+  rename_i T ih
+  by_cases hc : ∀ U ⊂ T, U.Nonempty → ∑ x ∈ U, x ≠ 0
+  · exact ⟨T, Subset.rfl, ⟨card_pos.1 hodd.pos, hT, hc⟩, hodd⟩
+  push Not at hc
+  obtain ⟨U, hUT, hU, hU0⟩ := hc
+  rcases Nat.even_or_odd #U with heven | hUodd
+  · -- The complement of an even zero-sum subset is a smaller odd zero-sum subset.
+    have hsub : T \ U ⊂ T := sdiff_ssubset hUT.subset hU
+    have hsum : ∑ x ∈ T \ U, x = 0 := by rw [sum_sdiff_eq_sub hUT.subset, hT, hU0, sub_zero]
+    have hcard : Odd #(T \ U) := by
+      rw [card_sdiff_of_subset hUT.subset]
+      exact Nat.Odd.sub_even (card_le_card hUT.subset) hodd heven
+    obtain ⟨S, hS, hSc, hSodd⟩ := ih _ (card_lt_card hsub) hsum hcard
+    exact ⟨S, hS.trans hsub.subset, hSc, hSodd⟩
+  · obtain ⟨S, hS, hSc, hSodd⟩ := ih _ (card_lt_card hUT) hU0 hUodd
+    exact ⟨S, hS.trans hUT.subset, hSc, hSodd⟩
 
 end Circuit
 

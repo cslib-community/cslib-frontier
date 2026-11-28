@@ -77,16 +77,15 @@ theorem Isolates.of_span_lt (hS : S ⊆ T) (hinj : Set.InjOn wt S)
     (h : ∀ m ∈ T, m ∉ S → D m ∈ Submodule.span F (D '' {m' | m' ∈ T ∧ wt m' < wt m})) :
     Isolates F wt D T S := by
   refine ⟨hS, hinj, fun m => ?_⟩
-  induction hk : wt m using Nat.strong_induction_on generalizing m with
-  | _ k ih =>
-    subst hk
-    intro hm hmS
-    refine Submodule.span_le.2 ?_ (h m hm hmS)
-    rintro _ ⟨m', ⟨hm', hlt⟩, rfl⟩
-    by_cases hm'S : m' ∈ S
-    · exact Submodule.subset_span ⟨m', ⟨hm'S, hlt⟩, rfl⟩
-    · refine Submodule.span_mono (Set.image_mono ?_) (ih (wt m') hlt m' rfl hm' hm'S)
-      exact fun _ hx => ⟨hx.1, hx.2.trans hlt⟩
+  induction m using (_root_.measure wt).wf.induction
+  rename_i m ih
+  intro hm hmS
+  refine Submodule.span_le.2 ?_ (h m hm hmS)
+  rintro _ ⟨m', ⟨hm', hlt⟩, rfl⟩
+  by_cases hm'S : m' ∈ S
+  · exact Submodule.subset_span ⟨m', ⟨hm'S, hlt⟩, rfl⟩
+  · refine Submodule.span_mono (Set.image_mono ?_) (ih m' hlt hm' hm'S)
+    exact fun _ hx => ⟨hx.1, hx.2.trans hlt⟩
 
 /-- A weight that is injective on `T` isolates a subset of `T` with at most `Module.finrank F A`
 elements: go through `T` by increasing weight and keep the indices whose vector is not in the

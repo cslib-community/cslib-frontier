@@ -116,23 +116,19 @@ crossing from `z ∈ hT.treeSide v p` to `y ∉ hT.treeSide v p` is `(z, y) = (v
 theorem eq_of_mem_treeSide_of_adj_notMem {v p z y : ι} (hadj : T.Adj v p)
     (hz : z ∈ hT.treeSide v p) (hy : y ∉ hT.treeSide v p) (hzy : T.Adj z y) :
     z = v ∧ y = p := by
-  suffices h : ∀ n (v p : ι), T.Adj v p → (hT.pathTo z v).length = n →
-      z ∈ hT.treeSide v p → y ∉ hT.treeSide v p → z = v ∧ y = p from
-    h (hT.pathTo z v).length v p hadj rfl hz hy
-  intro n
-  induction n using Nat.strong_induction_on with
-  | ind n ih =>
-    intro v p hadj_vp hlen hz_vp hy_vp
-    have hsub {c} (hadj_vc : T.Adj v c) (hcp : c ≠ p) :
-        hT.treeSide c v ⊆ hT.treeSide v p := fun w hw => by
-      rw [hT.treeSide_eq_insert_biUnion hadj_vp]
-      exact Set.mem_insert_of_mem v (mem_iUnion₂.mpr ⟨c, ⟨hadj_vc, hcp⟩, hw⟩)
-    rcases mem_insert_iff.mp (hT.treeSide_eq_insert_biUnion hadj_vp ▸ hz_vp) with rfl | hzu
-    · exact ⟨rfl, Classical.byContradiction fun hyp =>
-        hy_vp (hsub hzy hyp (hT.self_mem_treeSide_of_adj hzy.symm))⟩
-    · obtain ⟨c, ⟨hadj_vc, hcp⟩, hzc⟩ := mem_iUnion₂.mp hzu
-      obtain ⟨_, rfl⟩ := ih _ (hlen ▸ hzc) c v hadj_vc.symm rfl hzc
-        fun hyc => hy_vp (hsub hadj_vc hcp hyc)
-      exact (hy_vp (hT.self_mem_treeSide_of_adj hadj_vp)).elim
+  induction v using (_root_.measure fun v => (hT.pathTo z v).length).wf.induction
+      generalizing p
+  rename_i v ih
+  have hsub {c} (hadj_vc : T.Adj v c) (hcp : c ≠ p) :
+      hT.treeSide c v ⊆ hT.treeSide v p := fun w hw => by
+    rw [hT.treeSide_eq_insert_biUnion hadj]
+    exact Set.mem_insert_of_mem v (mem_iUnion₂.mpr ⟨c, ⟨hadj_vc, hcp⟩, hw⟩)
+  rcases mem_insert_iff.mp (hT.treeSide_eq_insert_biUnion hadj ▸ hz) with rfl | hzu
+  · exact ⟨rfl, Classical.byContradiction fun hyp =>
+      hy (hsub hzy hyp (hT.self_mem_treeSide_of_adj hzy.symm))⟩
+  · obtain ⟨c, ⟨hadj_vc, hcp⟩, hzc⟩ := mem_iUnion₂.mp hzu
+    obtain ⟨_, rfl⟩ := @ih c hzc v hadj_vc.symm hzc
+      fun hyc => hy (hsub hadj_vc hcp hyc)
+    exact (hy (hT.self_mem_treeSide_of_adj hadj)).elim
 
 end SimpleGraph.IsTree
