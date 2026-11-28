@@ -97,19 +97,6 @@ private theorem ofReal_exp_smul_apply (A : Matrix n n ℝ) (t : ℝ) (i j : n) :
   rw [← map_algebraMap_exp_smul]
   rfl
 
-/-- The entries of the real flow are continuous in time. -/
-private theorem continuous_exp_smul_apply (A : Matrix n n ℝ) (i j : n) :
-    Continuous fun t : ℝ => exp (t • A) i j := by
-  have hc : Continuous fun t : ℝ => exp (t • toEuclideanCLM (𝕜 := ℝ) A) :=
-    (differentiable_exp_smul_const ℝ (toEuclideanCLM (𝕜 := ℝ) A)).continuous
-  have e : (fun t : ℝ => exp (t • A) i j) = fun t =>
-      (exp (t • toEuclideanCLM (𝕜 := ℝ) A) (WithLp.toLp 2 (Pi.single j 1))).ofLp i := by
-    funext t
-    rw [ofLp_exp_smul_toEuclideanCLM_apply, WithLp.ofLp_toLp, mulVec_single_one]
-    rfl
-  rw [e]
-  exact (continuous_apply i).comp ((PiLp.continuous_ofLp 2 _).comp (hc.clm_apply continuous_const))
-
 /-- **A decay bound on trajectories bounds the entries of the flow.** If every trajectory of
 `ẋ = A x` on `[0, ∞)` satisfies `‖x t‖ ≤ M exp (-α t) ‖x 0‖` in the Euclidean norm, then
 `|exp (t • A) i j| ≤ M exp (-α t)` for `t > 0` and all entries. -/
@@ -252,12 +239,6 @@ theorem laplace_responseKernel_eq_transferFunction_sub
       S.transferFunction s i j - S.D i j := by
   rw [laplace_responseKernel S hA hs]
   simp [transferFunction]
-
-private theorem continuous_responseKernel_apply (i : p) (j : m) :
-    Continuous fun t => S.responseKernel t i j := by
-  simp_rw [responseKernel_eq, Matrix.mul_apply]
-  exact continuous_finsetSum _ fun l _ => (continuous_finsetSum _ fun k _ =>
-    continuous_const.mul (continuous_exp_smul_apply S.A k l)).mul continuous_const
 
 /-! ### Poles and stability -/
 

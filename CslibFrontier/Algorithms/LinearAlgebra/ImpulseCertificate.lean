@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
-public import CslibFrontier.Foundations.Analysis.ODE.ImpulseBounds
+public import CslibFrontier.Foundations.Analysis.ODE.PulseContamination
 import Mathlib.Data.List.GetD
 
 /-!
@@ -88,7 +88,9 @@ settling check `γ β vmax² ≤ ε² expLower N (2 α T)` therefore certifies
   `DecayInequalities.responseKernel_mulVec_sq_le_peak`, `DecayInequalities.frobeniusSq_le`,
   `DecayInequalities.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le`,
   `DecayInequalities.responseKernel_mulVec_sq_le_of_impulseSettles`,
-  `DecayInequalities.dotProduct_self_le_of_stateSettles`.
+  `DecayInequalities.dotProduct_self_le_of_stateSettles`,
+  `DecayInequalities.sq_window_integral_le_of_tailBelow` (inter-pulse contamination of a later
+  measurement window, from `CslibFrontier.Foundations.Analysis.ODE.PulseContamination`).
 
 ## References
 
@@ -464,6 +466,42 @@ theorem integral_Ioi_frobeniusSq_le_of_tailBelow (h : DecayInequalities S P k τ
   refine (h.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le (by exact_mod_cast hT)).2.trans ?_
   refine le_of_eq_of_le ?_ (mul_exp_neg_le (by positivity) htail hs)
   push_cast; ring_nf
+
+/-- **Certified inter-pulse contamination bound.** For a single-input, single-output system
+with decay inequalities and a numerical tail `k.tailBelow τ tail T N`, an integrable input `p`
+that vanishes after time `a`, and the zero-state output `y t = ∫ s, h⁺ (t - s) * p s` with
+`h⁺ = (Set.Ici 0).indicator h`, every window `[a + T, a + T + W]` with `W ≥ 0` satisfies
+`(∫_{a+T}^{a+T+W} |y|)² ≤ ‖p‖₁² W tail` and `(∫_{a+T}^{a+T+W} y)² ≤ ‖p‖₁² W tail`, where
+`‖p‖₁ = ∫ s, |p s|`. With rational `‖p‖₁` and `W` the right-hand side is rational. This is
+`LTISystem.window_integral_bounds_of_tail` with the certified tail; it answers how much a pulse
+that ended at `a` can bias a gated or integrating reading taken `T` later, for a model at rest
+before the pulse and with no direct feedthrough (which `RatLTI.check` enforces). -/
+theorem sq_window_integral_le_of_tailBelow {n : ℕ} {S : LTISystem (Fin n) (Fin 1) (Fin 1)}
+    {P : Matrix (Fin n) (Fin n) ℝ} {k : DecayConstants} {τ : ℚ} (h : DecayInequalities S P k τ)
+    {tail T : ℚ} {N : ℕ} (hs : k.tailBelow τ tail T N = true) {p : ℝ → ℝ} {a W : ℝ}
+    (hp : Integrable p) (hpa : ∀ s, a < s → p s = 0) (hW : 0 ≤ W) :
+    (∫ t in (a + T)..(a + T + W),
+        |∫ s, (Ici 0).indicator (fun t => S.responseKernel t 0 0) (t - s) * p s|) ^ 2 ≤
+        (∫ s, |p s|) ^ 2 * (W * tail) ∧
+      (∫ t in (a + T)..(a + T + W),
+        ∫ s, (Ici 0).indicator (fun t => S.responseKernel t 0 0) (t - s) * p s) ^ 2 ≤
+        (∫ s, |p s|) ^ 2 * (W * tail) := by
+  have hs' := hs
+  simp only [DecayConstants.tailBelow, Bool.and_eq_true, decide_eq_true_eq] at hs'
+  obtain ⟨⟨hT, htail⟩, -⟩ := hs'
+  have hT' : (0 : ℝ) ≤ T := by exact_mod_cast hT
+  have hb := LTISystem.window_integral_bounds_of_tail hT'
+    (h.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le hT').1
+    (h.integral_Ioi_frobeniusSq_le_of_tailBelow hs) hp hpa hW
+  have hWt : (0 : ℝ) ≤ W * tail := mul_nonneg hW (by exact_mod_cast htail)
+  have hsq : ((∫ s, |p s|) * √(W * tail)) ^ 2 = (∫ s, |p s|) ^ 2 * (W * tail) := by
+    rw [mul_pow, Real.sq_sqrt hWt]
+  refine ⟨?_, ?_⟩
+  · rw [← hsq]
+    exact pow_le_pow_left₀ (intervalIntegral.integral_nonneg (by linarith)
+      fun _ _ => abs_nonneg _) hb.2.1 2
+  · rw [← hsq, ← sq_abs]
+    exact pow_le_pow_left₀ (abs_nonneg _) hb.2.2 2
 
 end DecayInequalities
 
