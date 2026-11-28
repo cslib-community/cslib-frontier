@@ -21,7 +21,9 @@ Exercises `OptimalMSF/Driver.lean` across:
 2. A nontrivial multigraph (`m = 7`, `n = 5`) containing a self-loop, parallel heavier edge,
    cycle chord, and isolated vertex via both `optimalMSFProg_spec` and `optimalMSF_wordRAM_spec`.
 3. Connected `SimpleGraph (Fin 4)` instantiation of `optimalMSF_simpleGraph_isMST_spec` and
-   `isMST_toSimpleGraph_of_isMinSpanningForest`, verifying Mathlib `SimpleGraph.IsMST`.
+   `isMST_toSimpleGraph_of_isMinSpanningForest`, verifying both `IsMinSpanningForest` (exact edge
+   count, total weight, and edge-weight preservation) and Mathlib `SimpleGraph.IsMST`, together
+   with boundary witnesses rejecting corrupted weights, self-loops, and duplicate edges.
 4. Direct width-blind `Program .standard` lowering from `realizes_optimalMSFProg` via
    `exists_standard_basis_init_program_state_from_words` and `stripRand`.
 -/
@@ -258,21 +260,114 @@ private theorem k4Wt_fit : ∀ e ∈ graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt
   rw [((mem_graphEdges _ _ e).mp he).2.2]
   exact fits24_of_le (by dsimp only [k4Wt]; split_ifs <;> decide)
 
+private def k4Ref : List (WeightedEdge 4 ℕ) :=
+  [⟨0, 1, 2⟩, ⟨1, 2, 3⟩, ⟨2, 3, 4⟩]
+
+private theorem k4Ref_isMSF :
+    IsMinSpanningForest (graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt) k4Ref := by
+  have hsub : k4Ref.Subperm (graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt) := by
+    refine List.subperm_of_subset (by decide) fun e he => ?_
+    simp only [k4Ref, List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl | rfl <;> rw [mem_graphEdges] <;> decide
+  have hac : IsAcyclic k4Ref := by rw [isAcyclic_iff]; decide
+  have hconn_part :
+      (edgePartition (graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt)).numComponents = 1 :=
+    (numComponents_edgePartition_eq_one_iff_connected _).mpr
+      (by rw [toSimpleGraph_graphEdges]; exact k4_connected)
+  have hsf : IsSpanningForest (graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt) k4Ref :=
+    (isSpanningTree_iff_isSpanningForest_of_connected hconn_part).mp ⟨hsub, hac, by decide⟩
+  refine ⟨hsf, fun F hF => ?_⟩
+  have hlenF : F.length = 3 := hF.length_eq hsf
+  have hnodupF : F.Nodup := hF.2.1.nodup_map_sym2.of_map _
+  have hnodupRef : k4Ref.Nodup := by decide
+  by_cases hsubF : ∀ e ∈ F, e ∈ k4Ref
+  · have hfin_sub : F.toFinset ⊆ k4Ref.toFinset := fun e he =>
+      List.mem_toFinset.mpr (hsubF e (List.mem_toFinset.mp he))
+    have hfin_eq : F.toFinset = k4Ref.toFinset := Finset.eq_of_subset_of_card_le hfin_sub (by
+      rw [List.toFinset_card_of_nodup hnodupF, List.toFinset_card_of_nodup hnodupRef, hlenF]
+      rfl)
+    have hsum_eq : totalWeight F = totalWeight k4Ref := by
+      rw [totalWeight, totalWeight, ← List.sum_toFinset WeightedEdge.weight hnodupF,
+        ← List.sum_toFinset WeightedEdge.weight hnodupRef, hfin_eq]
+    omega
+  · push Not at hsubF
+    obtain ⟨e, heF, henot⟩ := hsubF
+    have hwt10 : e.weight = 10 := by
+      obtain ⟨hlt, _, hwt⟩ := (mem_graphEdges _ _ e).mp (hF.1.subset heF)
+      rcases e with ⟨u, v, w⟩
+      fin_cases u <;> fin_cases v <;> simp_all [k4Ref, k4Wt]
+    have hle : e.weight ≤ totalWeight F :=
+      List.single_le_sum (fun _ _ => Nat.zero_le _) e.weight (List.mem_map_of_mem heF)
+    have htot9 : totalWeight k4Ref = 9 := rfl
+    omega
+
 private theorem k4_isMST_witness :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧ prog.IsRandFree ∧
       ∃ steps : ℕ, ∃ msfEs : List (WeightedEdge 4 ℕ),
         ExecutesList 24 prog
           (State.init (encode (graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt)))
           (encodeEdges msfEs) steps ∧
+        IsMinSpanningForest (graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt) msfEs ∧
         (⊤ : SimpleGraph (Fin 4)).IsMST k4Wt (toSimpleGraph msfEs) ∧
+        msfEs.length = 3 ∧
+        totalWeight msfEs = 9 ∧
+        (∀ e ∈ msfEs, e.weight = k4Wt e.sym2) ∧
         steps ≤ C * (optDepthMN (⊤ : SimpleGraph (Fin 4)).edgeFinset.card 4 + 1) := by
   obtain ⟨r, C, prog, hnw, hrf, hspec⟩ := optimalMSF_simpleGraph_isMST_spec
   have hfit : Fits 24 (optimalMSFWordBound 4 (⊤ : SimpleGraph (Fin 4)).edgeFinset.card) := by
     rw [show (⊤ : SimpleGraph (Fin 4)).edgeFinset.card = 6 by decide]
     exact fits24_wordBound (by omega) (by decide)
-  obtain ⟨steps, msfEs, hex, hmst, hsteps⟩ :=
+  obtain ⟨steps, msfEs, hex, hmsf, hmst, hsteps⟩ :=
     hspec 4 (⊤ : SimpleGraph (Fin 4)) k4Wt 24 k4_connected k4Wt_fit hfit
-  exact ⟨r, C, prog, hnw, hrf, steps, msfEs, hex, hmst, hsteps⟩
+  have hlen3 : msfEs.length = 3 := hmsf.1.length_eq k4Ref_isMSF.1
+  have htot9 : totalWeight msfEs = 9 := by
+    have h1 := hmsf.2 k4Ref k4Ref_isMSF.1
+    have h2 := k4Ref_isMSF.2 msfEs hmsf.1
+    have h3 : totalWeight k4Ref = 9 := rfl
+    omega
+  have hwt : ∀ e ∈ msfEs, e.weight = k4Wt e.sym2 := fun e he =>
+    ((mem_graphEdges _ _ e).mp (hmsf.1.1.subset he)).2.2
+  exact ⟨r, C, prog, hnw, hrf, steps, msfEs, hex, hmsf, hmst, hlen3, htot9, hwt, hsteps⟩
+
+private theorem k4_toSimpleGraph_loophole_rejected :
+    let G : SimpleGraph (Fin 4) := ⊤
+    let es := graphEdges G k4Wt
+    let zeroWt : List (WeightedEdge 4 ℕ) := k4Ref.map fun e => ⟨e.u, e.v, 0⟩
+    let withLoop : List (WeightedEdge 4 ℕ) := k4Ref ++ [⟨0, 0, 0⟩]
+    let dup : List (WeightedEdge 4 ℕ) := k4Ref ++ k4Ref
+    (G.IsMST k4Wt (toSimpleGraph zeroWt) ∧ ¬IsMinSpanningForest es zeroWt) ∧
+    (G.IsMST k4Wt (toSimpleGraph withLoop) ∧ ¬IsMinSpanningForest es withLoop) ∧
+    (G.IsMST k4Wt (toSimpleGraph dup) ∧ ¬IsMinSpanningForest es dup) := by
+  intro G es zeroWt withLoop dup
+  have hmst_ref : G.IsMST k4Wt (toSimpleGraph k4Ref) :=
+    isMST_toSimpleGraph_of_isMinSpanningForest k4_connected k4Ref_isMSF
+  have hzero_graph : toSimpleGraph zeroWt = toSimpleGraph k4Ref := by
+    ext x y
+    simp only [toSimpleGraph_adj, zeroWt, List.map_map]
+    rfl
+  have hloop_graph : toSimpleGraph withLoop = toSimpleGraph k4Ref := by
+    ext x y
+    simp only [toSimpleGraph_adj, withLoop, List.map_append, List.map_singleton, List.mem_append,
+      List.mem_singleton, WeightedEdge.sym2_eq, Sym2.eq_iff]
+    constructor
+    · rintro ⟨hmem | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩, hne⟩
+      · exact ⟨hmem, hne⟩
+      · exact absurd rfl hne
+      · exact absurd rfl hne
+    · rintro ⟨hmem, hne⟩
+      exact ⟨Or.inl hmem, hne⟩
+  have hdup_graph : toSimpleGraph dup = toSimpleGraph k4Ref := by
+    rw [toSimpleGraph_append, sup_idem]
+  refine ⟨⟨hzero_graph ▸ hmst_ref, fun h => ?_⟩,
+    ⟨hloop_graph ▸ hmst_ref, fun h => ?_⟩,
+    ⟨hdup_graph ▸ hmst_ref, fun h => ?_⟩⟩
+  · have hmem : (⟨0, 1, 0⟩ : WeightedEdge 4 ℕ) ∈ zeroWt := by simp [zeroWt, k4Ref]
+    have hwt := ((mem_graphEdges G k4Wt _).mp (h.1.1.subset hmem)).2.2
+    simp [k4Wt] at hwt
+  · have hlen := h.1.length_eq k4Ref_isMSF.1
+    simp [withLoop, k4Ref] at hlen
+  · have hlen := h.1.length_eq k4Ref_isMSF.1
+    simp [dup, k4Ref] at hlen
 
 private theorem k4_isMST_from_prog_spec :
     let es := graphEdges (⊤ : SimpleGraph (Fin 4)) k4Wt

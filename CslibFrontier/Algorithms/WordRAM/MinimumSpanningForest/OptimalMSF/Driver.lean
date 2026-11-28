@@ -54,7 +54,8 @@ width-blind (`¬prog.ReadsWidth`), random-free (`prog.IsRandFree`) `Program .sta
 `O(optDepthMN m n + m + n + 1)` instructions (`ExecutesList`) on raw multigraphs (where
 `optDepthMN` over simple graphs saturates once `m > n.choose 2`, and isolated vertices separately
 account for the vertex overhead), while `optimalMSF_simpleGraph_isMST_spec` realizes Theorem 5.8
-in `O(optDepthMN m n + 1)` instructions on connected simple graphs (`SimpleGraph.IsMST`).
+in `O(optDepthMN m n + 1)` instructions on connected simple graphs, certifying both
+`IsMinSpanningForest (graphEdges G wt) msfEs` and `SimpleGraph.IsMST`.
 
 ## Main definitions
 
@@ -81,7 +82,8 @@ in `O(optDepthMN m n + 1)` instructions on connected simple graphs (`SimpleGraph
   bridge from `IsMinSpanningForest` to Mathlib `SimpleGraph.IsMST` on connected graphs.
 * `Cslib.Algorithms.WordRAM.MinimumSpanningForest.optimalMSF_simpleGraph_isMST_spec`: Theorem 5.8
   of [PettieRamachandran2002] (Section 5.1, p. 27, #8624) on connected simple graphs
-  (`SimpleGraph.IsMST`) in `O(optDepthMN m n + 1)` `Program .standard` instructions.
+  (`IsMinSpanningForest` and `SimpleGraph.IsMST`) in `O(optDepthMN m n + 1)` `Program .standard`
+  instructions.
 
 ## References
 
@@ -1461,9 +1463,11 @@ with `m = G.edgeFinset.card` edges and natural weights `wt : Sym2 (Fin n) → �
 for every word width `w : ℕ` satisfying `Fits w (optimalMSFWordBound n m)` (logarithmic width
 suffices for this workspace threshold, with the additional `Fits w` condition for edge weights,
 and any larger width `w` is allowed), the width-blind, random-free standard-basis program `prog`
-computes `Kruskal.encodeEdges msfEs` for a `SimpleGraph.IsMST` in
-`steps ≤ C * (optDepthMN m n + 1)` instructions (`m ≤ n.choose 2` matches exact-`m` `optDepthMN`
-via `optDepthMN_eq_exact`, spanning-tree connectivity gives `n ≤ m + 1`, and
+computes `Kruskal.encodeEdges msfEs` in `steps ≤ C * (optDepthMN m n + 1)` instructions,
+certifying both `IsMinSpanningForest (graphEdges G wt) msfEs` (so `msfEs` consists of `n - 1`
+canonical, duplicate-free, loop-free edges of `G` with preserved weights `e.weight = wt e.sym2`
+and exact total weight) and `G.IsMST wt (toSimpleGraph msfEs)` (`m ≤ n.choose 2` matches exact-`m`
+`optDepthMN` via `optDepthMN_eq_exact`, spanning-tree connectivity gives `n ≤ m + 1`, and
 `le_two_mul_optDepthMN` absorbs `m` and `n` for `3 ≤ m`). -/
 theorem optimalMSF_simpleGraph_isMST_spec :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧ prog.IsRandFree ∧
@@ -1475,6 +1479,7 @@ theorem optimalMSF_simpleGraph_isMST_spec :
         ∃ steps : ℕ, ∃ msfEs : List (WeightedEdge n ℕ),
           ExecutesList w prog (State.init (Kruskal.encode (graphEdges G wt)))
             (Kruskal.encodeEdges msfEs) steps ∧
+          IsMinSpanningForest (graphEdges G wt) msfEs ∧
           G.IsMST wt (toSimpleGraph msfEs) ∧
           steps ≤ C * (optDepthMN G.edgeFinset.card n + 1) := by
   classical
@@ -1502,6 +1507,6 @@ theorem optimalMSF_simpleGraph_isMST_spec :
         have := hc n (by omega); omega
       have := le_two_mul_optDepthMN hm3 hn3 hm_le; omega
     · omega
-  exact ⟨steps, msfEs, hex, hmst, hst.trans (by nlinarith)⟩
+  exact ⟨steps, msfEs, hex, hmsf, hmst, hst.trans (by nlinarith)⟩
 
 end Cslib.Algorithms.WordRAM.MinimumSpanningForest
