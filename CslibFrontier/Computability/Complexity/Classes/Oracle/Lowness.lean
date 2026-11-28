@@ -148,7 +148,8 @@ theorem ComputableInPolyTimeWithOracle.encoded_mem_NP {f : α → β} {P : α ×
   have hF : F ∈ SharpP (encPair enc encBits) := SharpP.ite_mem hP SharpP.one_mem SharpP.zero_mem
   refine mem_NP_iff_exists_SharpP.mpr
     ⟨replayWeightedSum machine (fun a => enc a) T fYes fNo F,
-      replayWeightedSum_mem_SharpP machine (.of_eq fun _ => rfl) hT hYes_mem hNo_mem hF, fun a => ?_⟩
+      replayWeightedSum_mem_SharpP machine (.of_eq fun _ => rfl) hT hYes_mem hNo_mem hF,
+      fun a => ?_⟩
   rw [replayWeightedSum_pos_iff machine (fun a => enc a) T hYes' hNo' F a, hout a]
   by_cases h : P (a, output (f a)) = true <;> simp [F, h]
 
