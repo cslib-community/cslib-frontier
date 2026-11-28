@@ -489,12 +489,7 @@ private theorem toOuterMeasure_bad_eq_bind (s : S) (table : S → T)
         {z | s ∈ z.2.map Prod.fst} =
       ((ProbComp.eval (A.runLog fun q => pure (table q))).bind fun z =>
         PMF.pure (decide (s ∈ z.2.map Prod.fst))) true := by
-  rw [eval_runLog_pure_table, PMF.toOuterMeasure_apply, PMF.bind_apply]
-  refine tsum_congr fun z => ?_
-  rw [Set.indicator_apply]
-  split_ifs with hz
-  · simp [show s ∈ z.2.map Prod.fst from hz]
-  · simp [show s ∉ z.2.map Prod.fst from hz]
+  rw [eval_runLog_pure_table, Probability.PMF.bind_pure_decide_apply_true]
 
 end Tracking
 

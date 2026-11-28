@@ -175,12 +175,10 @@ theorem map_snd_bind_prodMk (μ : PMF V) (P : V → PMF X) :
 `(x, v)`. -/
 theorem toReal_bind_map_prodMk_apply (μ : PMF V) (P : V → PMF X) (x : X) (v : V) :
     ((μ.bind fun v => (P v).map (·, v)) (x, v)).toReal = (μ v).toReal * (P v x).toReal := by
-  classical
-  simp only [_root_.PMF.bind_apply, _root_.PMF.map_apply, Prod.mk.injEq]
-  have hsingle (w : V) : (μ w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
-      if w = v then μ v * P v x else 0 := by
-    by_cases hwv : w = v <;> simp [hwv, Ne.symm]
-  rw [tsum_congr hsingle, tsum_ite_eq, ENNReal.toReal_mul]
+  have h := congrArg ENNReal.toReal
+    (map_equiv_apply (μ.bind fun w => (P w).map (w, ·)) (Equiv.prodComm V X) (x, v))
+  simpa only [_root_.PMF.map_bind, _root_.PMF.map_comp, Function.comp_def, Equiv.prodComm_apply,
+    Equiv.prodComm_symm, Prod.swap_prod_mk, bind_map_prodMk_apply, ENNReal.toReal_mul] using h
 
 private theorem support_bind_subset_of_forall {μ : PMF V} {P : V → PMF X} {Q : PMF X}
     (hQ : ∀ v ∈ μ.support, (P v).support ⊆ Q.support) :
