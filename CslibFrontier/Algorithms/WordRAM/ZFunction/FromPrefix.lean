@@ -35,6 +35,7 @@ public section
 namespace Cslib.Algorithms.WordRAM.ZFunction
 
 open Cslib.WordRAM
+open Cslib.Algorithms.Lean
 open Cslib.Algorithms.Lean.ZFunction
 
 private abbrev zeroR : Fin 16 := 0
@@ -104,17 +105,17 @@ private theorem scanBody_exec {w : ℕ} (pi : Array ℕ) (hw : Fits w (2 * pi.si
   have hstep : ∃ z, ExecWithin w scanBody s z 9 ∧ z.regs indexR = i + 1 ∧
       z.mem = Function.update s.mem (i + 1) ((prefixWord pi).toList.getD i 0) := by
     refine WP.exists_execWithin ?_
-    unfold scanBody
     by_cases hcopy : 0 < k ∧ k ≤ i
     · have hprev : s.mem k = (prefixWord pi).toList.getD (k - 1) 0 := by
         simpa only [show 1 + (k - 1) = k by omega] using hs.prefix_eq (k - 1) (by omega)
       rw [ite_eq_left hcopy] at hv
-      wram_exec [hs.one_eq, hs.zero_eq, hread, haddr, hprev,
+      wram_exec [scanBody, hs.one_eq, hs.zero_eq, hread, haddr, hprev,
         show k ≠ 0 by omega, show ¬i < k by omega]
       exact ⟨by wram_simp [i], by wram_simp [i, hv, hread, hprev]⟩
     · rw [ite_eq_right hcopy] at hv
       have hlarge : k ≠ 0 → i < k := by omega
-      by_cases hz : k = 0 <;> wram_exec [hs.one_eq, hs.zero_eq, hread, haddr, hz, hlarge] <;>
+      by_cases hz : k = 0 <;>
+        wram_exec [scanBody, hs.one_eq, hs.zero_eq, hread, haddr, hz, hlarge] <;>
         exact ⟨by wram_simp [i], by wram_simp [i, hv]⟩
   obtain ⟨z, hexec, hindex, hmem⟩ := hstep
   rw [Nat.add_comm i 1] at hmem
@@ -130,8 +131,7 @@ private theorem scanCode_exec {w : ℕ} (pi : Array ℕ) (hw : Fits w (2 * pi.si
   have hsetup : ∃ x, ExecWithin w scanSetup (Data.init pi.toList) x 2 ∧
       x.regs indexR = 0 ∧ ScanState pi 0 x := by
     refine WP.exists_execWithin ?_
-    unfold scanSetup
-    wram_exec [Data.init_regs, Data.init_mem_zero, hf]
+    wram_exec [scanSetup, Data.init_regs, Data.init_mem_zero, hf]
     exact ⟨by wram_simp [Data.init_regs], ⟨by wram_simp [Data.init_regs], by wram_simp,
       by wram_simp [Array.length_toList], fun _ h => (Nat.not_lt_zero _ h).elim, fun _ _ => rfl⟩⟩
   obtain ⟨x, hsetup, hi, hs⟩ := hsetup
@@ -155,8 +155,7 @@ private theorem scanCode_exec {w : ℕ} (pi : Array ℕ) (hw : Fits w (2 * pi.si
     exact (hscan.regs_eq (hpres r hr)).trans (Data.init_regs _ _)
   have hclear : ∃ z, ExecWithin w clearScan y z 5 ∧ z = Data.init (prefixWord pi).toList := by
     refine WP.exists_execWithin ?_
-    unfold clearScan
-    wram_exec [hy.zero_eq]
+    wram_exec [clearScan, hy.zero_eq]
     apply Data.ext
     · funext r
       fin_cases r <;> wram_simp [Data.init_regs, hrest]
@@ -193,5 +192,22 @@ theorem fromPrefixProgram_computesListInTime :
   fromPrefixCode.computesListInTime_program Reg.out fun pi _ hw _ => by
     obtain ⟨y, hexec, hout, _, hf, _⟩ := fromPrefixCode_exec pi hw
     exact ⟨y, hexec, hout, by simpa only [Array.length_toList] using hf⟩
+
+/-- On the KMP table of any word, the program outputs its Z-table. Every proper border length
+fits when the final output address fits, regardless of the word's alphabet. -/
+theorem fromPrefixProgram_executes_computePrefix {α : Type*} [DecidableEq α] (p : Array α)
+    {w : ℕ} (hw : Fits w (2 * p.size + 1)) :
+    ∃ steps, ExecutesList w fromPrefixProgram (.init (KMP.computePrefix p).toList)
+      (zArray p).toList steps ∧ steps ≤ 50 * p.size + 19 := by
+  have hn : Fits w p.size := hw.of_le (by omega)
+  have hi : InputFits w (KMP.computePrefix p).toList := by
+    refine ⟨by simpa only [Array.length_toList, KMP.computePrefix_size] using hn, fun v hv => ?_⟩
+    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hv
+    rw [Array.getElem_toList]
+    exact hn.of_le ((KMP.isDecreasingTable_computePrefix p i hi).trans
+      (by simpa only [Array.length_toList, KMP.computePrefix_size] using hi.le))
+  simpa only [fromPrefix_computePrefix, KMP.computePrefix_size] using
+    fromPrefixProgram_computesListInTime (KMP.computePrefix p) w
+      (by simpa only [KMP.computePrefix_size] using hw) hi
 
 end Cslib.Algorithms.WordRAM.ZFunction

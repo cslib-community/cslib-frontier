@@ -2498,6 +2498,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSearch
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Geodesic
 public import CslibFrontier.GameTheory.Cooperative.Scarf
 public import CslibFrontier.Probability.HashFamily.Uniform
+public import CslibFrontier.Algorithms.WordRAM.ZFunction.FromPrefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Positions
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseLinear
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.DeleteHelpers
@@ -5634,6 +5635,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParam
 public import CslibFrontier.Computability.Circuit.Quantum.Teleportation
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Forest.Program
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Amplify
+public import CslibFrontier.Algorithms.WordRAM.ZFunction.ToPrefix
 public import CslibFrontier.Computability.Circuit.Rational.Certificates
 public import CslibFrontier.Logics.FirstOrder.Raw.FinSat
 public import CslibFrontier.Crypto.Computational.OneTimeSignature.DominationFree
