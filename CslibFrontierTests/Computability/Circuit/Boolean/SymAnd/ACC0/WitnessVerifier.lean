@@ -26,7 +26,8 @@ Covers model boundaries including:
 * depth-exceeding semantically satisfying `ACC⁰` witness circuit (`depth > d`,
   `decodeExtWitness = none`, verifier SAT);
 * non-vacuous instantiation of `smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT` and
-  `exists_hard_acc0Witness_of_quasilinear_reduction`.
+  `exists_hard_acc0Witness_of_quasilinear_reduction`, and a satisfying instance of
+  `CheckedACC0Decoders` for `checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT`.
 -/
 
 set_option linter.privateModule false
@@ -243,6 +244,36 @@ theorem nonvacuous_smallACC0WitnessLanguage_mem_NTIME :
       (ComputableInPolyTime.const testDecoder.code) (fun _ => depth_testDecoder)
       (fun x => by omega)⟩
 
+/-- A satisfying instance of `CheckedACC0Decoders`: a certificate of length `1`, the constant
+`false` check circuit and the decoder `testDecoder`. -/
+def testCheckedDecoders :
+    CheckedACC0Decoders 1 1 (fun _ => 1) (fun _ => 1) fun _ => 3 * (1 + 1) where
+  certLength _ := 1
+  slack := 1
+  check _ := Unbounded.constCircuit Unbounded.toExt false
+  decoder _ := testDecoder
+  certLength_polyTime := ComputableInPolyTime.const 1
+  certLength_le x := by simp
+  check_polyTime := ComputableInPolyTime.const _
+  decoder_polyTime := ComputableInPolyTime.const _
+  depth_check_le _ := Unbounded.depth_constCircuit_le false
+  depth_decoder_le _ := depth_testDecoder
+
+/-- Non-vacuous instantiation of `checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT` on
+`testCheckedDecoders`. -/
+theorem nonvacuous_checkedACC0WitnessLanguage_mem_NTIME :
+    ∃ (r_w : ℕ) (δ c₀ : ℝ), 0 < r_w ∧ 0 < δ ∧ δ < 1 ∧ 0 < c₀ ∧
+      checkedACC0WitnessLanguage 2 1 (q₁ := fun _ => 1) (q := fun _ => 1) (r := fun _ => 1)
+        testCheckedDecoders.check testCheckedDecoders.decoder testCheckedDecoders.certLength
+        (fun x => 2 ^ Nat.nthRoot r_w x.length) ∈
+        NTIME encBits fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ := by
+  obtain ⟨r_w, δ, c₀, hrw, hδ, hδ1, hc₀, hsim⟩ :=
+    checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT 1 1 1 (m := 2) (by decide)
+  exact ⟨r_w, δ, c₀, hrw, hδ, hδ1, hc₀,
+    hsim (r := fun _ => 1) testCheckedDecoders 1 (ComputableInPolyTime.const 1)
+      (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 1) (fun x => by omega)
+      (fun x => by omega)⟩
+
 /-- Non-vacuous instantiation of `exists_hard_acc0Witness_of_quasilinear_reduction`. -/
 example :
     ∃ (r_w : ℕ) (H : Set (List Bool)), 0 < r_w ∧ H ∈ NTIME encBits (fun n => 2 ^ n) ∧
@@ -255,7 +286,7 @@ example :
         (∀ x, (D x).depth ≤ 1) →
         (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
         (∀ x, x ∈ H ↔ (toCNFExt 2 (D x)).Satisfiable) →
-        ∃ x ∈ H, ¬ ∃ W : Circuit Unbounded.extSignature (r x) 1,
+        ∀ N₀ : ℕ, ∃ x ∈ H, N₀ ≤ x.length ∧ ¬ ∃ W : Circuit Unbounded.extSignature (r x) 1,
           W.depth ≤ 1 ∧
           (Circuit.encCode Unbounded.encExtOp W.code).length ≤ 2 ^ Nat.nthRoot r_w x.length ∧
           (toCNFExt 2 (D x)).eval
