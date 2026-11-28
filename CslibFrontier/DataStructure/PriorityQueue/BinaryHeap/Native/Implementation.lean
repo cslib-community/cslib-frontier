@@ -238,15 +238,10 @@ noncomputable def subroutineImpl {w n K base : ℕ}
     Cslib.DataStructure.WordRAM.StateTransitionImpl Program.code.toSubroutineCode
       (indexedMinPQSpec n K) w base ![n] (IndexedMinPQ.empty n) := implementationImpl hS hK
 
-private theorem subroutineImpl_toBase_aux {w n K base : ℕ}
-    (hS : Fits w (base + space n)) (hK : Fits w K) :
-    (subroutineImpl hS hK).toSubroutineBase = subroutineBase hS hK := rfl
-
 /-- Raw initialization, representation, charge and argument metadata are inherited unchanged. -/
 theorem subroutineImpl_toBase {w n K base : ℕ}
     (hS : Fits w (base + space n)) (hK : Fits w K) :
-    (subroutineImpl hS hK).toSubroutineBase = subroutineBase hS hK :=
-  subroutineImpl_toBase_aux hS hK
+    (subroutineImpl hS hK).toSubroutineBase = subroutineBase hS hK := (rfl)
 
 /-- An arbitrary actual raw execution leaves the complete state of the original source method,
 not merely a state with the same typed answer. Determinism transfers the certified execution's

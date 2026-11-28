@@ -205,15 +205,12 @@ theorem card_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
         exact_mod_cast hcount
     _ ≤ 4 ^ d * ε + 1 := hfin
 
-private theorem cast_dens_shift (d : ℕ) (s : Finset (Fin (2 ^ d))) :
-    (s.dens : ℝ) = #s / 2 ^ d := by
-  simp [Finset.dens]
-
 private theorem dens_shift_le_of_card_le (d : ℕ) {s : Finset (Fin (2 ^ d))} {c ε : ℝ}
     (h : (#s : ℝ) ≤ c * (4 ^ d * ε + 1)) :
     (s.dens : ℝ) ≤ c * (2 ^ d * ε + (2 ^ d)⁻¹) := by
   have htwo : (0 : ℝ) < 2 ^ d := pow_pos zero_lt_two d
-  rw [cast_dens_shift, div_le_iff₀ htwo, mul_assoc, add_mul,
+  rw [show (s.dens : ℝ) = #s / 2 ^ d by simp [Finset.dens],
+    div_le_iff₀ htwo, mul_assoc, add_mul,
     inv_mul_cancel₀ htwo.ne', mul_right_comm (2 ^ d), ← mul_pow]
   simpa only [show (2 : ℝ) * 2 = 4 by norm_num] using h
 

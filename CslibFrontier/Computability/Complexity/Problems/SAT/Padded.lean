@@ -80,10 +80,6 @@ theorem isWitness_paddedRelation_iff {φ : CNF ℕ} {w : List Bool} :
 private def canonicalize (φ : CNF ℕ) (w : List Bool) : List Bool :=
   (List.range w.length).map fun i => w.getD i false && SharpSAT.isFirst φ i
 
-private theorem length_canonicalize (φ : CNF ℕ) (w : List Bool) :
-    (canonicalize φ w).length = w.length := by
-  simp [canonicalize]
-
 private theorem getD_canonicalize (φ : CNF ℕ) (w : List Bool) (i : ℕ) :
     (canonicalize φ w).getD i false = (w.getD i false && SharpSAT.isFirst φ i) :=
   if hi : i < w.length then List.getD_map_range _ false hi
@@ -118,7 +114,7 @@ private noncomputable def toPaddedRelation : LevinReduction npRelation paddedRel
   isWitness_forwardWitness φ w h := by
     rw [isWitness_npRelation_iff] at h
     have hlen : (canonicalize φ w).length = (encCNF φ).length := by
-      rw [length_canonicalize, h.1]
+      simpa only [canonicalize, List.length_map, List.length_range] using h.1
     refine isWitness_paddedRelation_iff.2 ⟨by simp [hlen], ?_⟩
     rw [id, List.take_append_of_le_length hlen.ge, List.take_of_length_le hlen.le]
     simp [SharpSAT.verifier, verifier_canonicalize, h.2, canonical_canonicalize]

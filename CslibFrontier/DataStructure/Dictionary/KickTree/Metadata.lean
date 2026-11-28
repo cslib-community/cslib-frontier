@@ -360,16 +360,10 @@ theorem delimiters_length_eq_totalBits (A : MiniArray α K) (sizeOf : α → ℕ
   rw [delimiters, totalBits, List.length_flatten, List.map_ofFn, hlen, sum_ofFn_add_one,
     Nat.add_comm]
 
-private lemma filter_id_replicate_false_concat_true (s : ℕ) :
-    ((List.replicate s false).concat true).filter id = [true] := by
-  simp [List.concat_eq_append]
-
 /-- Delimiter count: the total number of delimiter 1-bits across all `K` items is exactly `K`. -/
 theorem delimiters_count_delimiters (A : MiniArray α K) (sizeOf : α → ℕ) :
     ((A.delimiters sizeOf).filter id).length = K := by
-  simp only [delimiters, List.filter_flatten, List.map_ofFn, Function.comp_def,
-    filter_id_replicate_false_concat_true, List.ofFn_const, List.flatten_replicate_singleton,
-    List.length_replicate]
+  simp [delimiters, List.filter_flatten, List.map_ofFn, List.concat_eq_append, Function.comp_def]
 
 end MiniArray
 

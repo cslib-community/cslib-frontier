@@ -187,12 +187,6 @@ private theorem boundary_index {n : ℕ} (hn : n ≤ q) (hσ : Prefix machine in
     (boundary machine input b (q := q) n).blockIndex b = scheduleBlock σ n :=
   machine.blockIndex_intervalStart_eq_scheduleBlock b _ σ hn hσ
 
-omit [NeZero b] in
-/-- The initial boundary contains blank work tapes. -/
-private theorem boundary_zero_cell (h : Fin k) (z : ℤ) :
-    (boundary machine input b (q := q) 0).workTapes h z = none := by
-  simp [boundary]
-
 /-- Last providers reconstruct the actual entering window whenever all prior labels agree. -/
 private theorem enteringWindow_true (i : Fin q) (hσ : Prefix machine input b σ i)
     (providers : Fin k → Fin 3 → Option (View k State b))
@@ -220,8 +214,8 @@ private theorem enteringWindow_true (i : Fin q) (hσ : Prefix machine input b σ
   cases hlast : lastBefore (InWindow σ h (portBlock σ i h d)) i with
   | none =>
     simp only
-    rw [huntouched 0 (Nat.zero_le _) (fun j _ hj => lastBefore_eq_none_iff.mp hlast j hj),
-      boundary_zero_cell]
+    rw [huntouched 0 (Nat.zero_le _) (fun j _ hj => lastBefore_eq_none_iff.mp hlast j hj)]
+    simp [boundary]
   | some j =>
     obtain ⟨hji, hin, hbetween⟩ := lastBefore_eq_some_iff.mp hlast
     rw [hp h d j hlast]

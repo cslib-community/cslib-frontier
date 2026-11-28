@@ -59,10 +59,6 @@ private def orderedOccurrenceEquiv (F : CSP Unit ℕ) (c : RotationCertificate)
     ((Equiv.prodCongr (finCongr (length_orderedConstraints F c).symm) (Equiv.refl _)).trans
       (ternaryCoordinates (orderedConstraints F c) (wellFormed_orderedConstraints F c hw)).symm))
 
-private theorem orderedOccurrence_constraint (F : CSP Unit ℕ) (c : RotationCertificate)
-    (hw : F.WellFormed arity) (o : F.Occurrence) :
-    (orderedOccurrenceEquiv F c hw o).1.val = o.1.val := rfl
-
 private theorem orderedOccurrence_var (F : CSP Unit ℕ) (c : RotationCertificate)
     (hw : F.WellFormed arity) (o : F.Occurrence) :
     (orderedOccurrenceEquiv F c hw o).var = o.var := by
@@ -89,7 +85,8 @@ private theorem variable_fibers (F : CSP Unit ℕ) (c : RotationCertificate)
 private theorem constraint_fibers (F : CSP Unit ℕ) (c : RotationCertificate)
     (hw : F.WellFormed arity) (o p : F.Occurrence) :
     (orderedOccurrenceEquiv F c hw o).1 = (orderedOccurrenceEquiv F c hw p).1 ↔ o.1 = p.1 := by
-  simp only [Fin.ext_iff, orderedOccurrence_constraint]
+  rw [Fin.ext_iff, Fin.ext_iff]
+  rfl
 
 private theorem index_coordinates (F : CSP Unit ℕ) (hw : F.WellFormed arity)
     (p : Fin F.length × Fin 3) (side : Bool) :

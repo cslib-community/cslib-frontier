@@ -199,8 +199,6 @@ private theorem eq_of_adj_out {G : Graph} {v x : ℕ} (hv : v ∈ G.vertices)
 private def gadgets (G : Graph) (p : List ℕ) : List ℕ :=
   p.flatMap fun v => [G.splitVertex v 0, G.splitVertex v 1, G.splitVertex v 2]
 
-private theorem split_fst (G : Graph) : G.split.vertices = gadgets G G.vertices := rfl
-
 private theorem gadgets_nil (G : Graph) : gadgets G [] = [] := rfl
 
 private theorem gadgets_cons (G : Graph) (v : ℕ) (p : List ℕ) :
@@ -245,7 +243,7 @@ private theorem nodup_gadgets_iff {G : Graph} {p : List ℕ} (hp : ∀ v ∈ p, 
 
 private theorem mem_gadgets_iff_of_forall_mem_iff {G : Graph} {p : List ℕ}
     (hp : ∀ v, v ∈ p ↔ v ∈ G.vertices) (x : ℕ) : x ∈ gadgets G p ↔ x ∈ G.split.vertices := by
-  simp only [split_fst, mem_gadgets, hp]
+  simp only [mem_split_fst_iff, mem_gadgets, hp]
 
 private theorem forall_mem_iff_of_mem_gadgets_iff {G : Graph} {p : List ℕ}
     (hp : ∀ v ∈ p, v ∈ G.vertices) (hcov : ∀ x, x ∈ gadgets G p ↔ x ∈ G.split.vertices) (v : ℕ) :

@@ -97,10 +97,6 @@ private def subPath [DecidableEq V] (f : N.Flow) (p : List V) (hp : f.IsFlowPath
       rw [Nat.cast_sum, Nat.cast_sum]; omega
     exact Int.ofNat.inj heq
 
-private theorem subPath_apply [DecidableEq V] (f : N.Flow) (p : List V) (hp : f.IsFlowPath p)
-    (u v : V) :
-    f.subPath p hp u v = if (u, v) ∈ pathArcs p then f u v - 1 else f u v := rfl
-
 private theorem value_subPath [DecidableEq V] (f : N.Flow) (hst : N.s ≠ N.t) (p : List V)
     (hp : f.IsFlowPath p) : (f.subPath p hp).value = f.value - 1 := by
   rw [value, netOut_eq_sum_sub]
@@ -160,8 +156,7 @@ theorem exists_flowPaths [DecidableEq V] (f : N.Flow) :
       omega
     obtain ⟨P, hP, hcount⟩ := ih g hg
     have hle : ∀ u v, g u v ≤ f u v := fun u v => by
-      change f.subPath p hp u v ≤ f u v
-      rw [subPath_apply]
+      dsimp only [g, subPath]
       split_ifs <;> omega
     refine ⟨Fin.cons p P, fun i => ?_, fun u v => ?_⟩
     · refine Fin.cases hp (fun j => ?_) i
@@ -175,8 +170,7 @@ theorem exists_flowPaths [DecidableEq V] (f : N.Flow) :
         simp only [Fin.cons_zero, Fin.cons_succ]
       rw [hsplit]
       have hc := hcount u v
-      change _ ≤ f.subPath p hp u v at hc
-      rw [subPath_apply] at hc
+      dsimp only [g, subPath] at hc
       split_ifs at hc ⊢ with huv
       · have := hp.2.2.2 (u, v) huv
         simp only at this

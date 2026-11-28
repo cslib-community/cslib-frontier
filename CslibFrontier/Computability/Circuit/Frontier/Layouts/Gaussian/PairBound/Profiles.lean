@@ -92,12 +92,6 @@ section RawBasic
 variable {V E : Type*} [Fintype V] {G : Multigraph V E}
 
 omit [Fintype V] in
-private theorem rawSum_apply (q : ℝ) (R : ℕ) (e : E) (z : V) :
-    rawSum G q R e z =
-      kernelRow G.toSimpleGraph q R (G.src e) z + kernelRow G.toSimpleGraph q R (G.tgt e) z :=
-  rfl
-
-omit [Fintype V] in
 private theorem rawSum_nonneg {q : ℝ} (hq : 0 ≤ q) (R : ℕ) (e : E) (z : V) :
     0 ≤ rawSum G q R e z :=
   add_nonneg (kernelRow_nonneg hq R _ z) (kernelRow_nonneg hq R _ z)
@@ -105,7 +99,7 @@ private theorem rawSum_nonneg {q : ℝ} (hq : 0 ≤ q) (R : ℕ) (e : E) (z : V)
 private theorem one_le_norm_rawSum {q : ℝ} (hq : 0 ≤ q) (R : ℕ) (e : E) :
     1 ≤ ‖rawSum G q R e‖ := by
   have h1 : 1 ≤ rawSum G q R e (G.src e) := by
-    rw [rawSum_apply, kernelRow_self]
+    rw [rawSum, PiLp.add_apply, kernelRow_self]
     linarith [kernelRow_nonneg (G := G.toSimpleGraph) hq R (G.tgt e) (G.src e)]
   have hsq : 1 ≤ ‖rawSum G q R e‖ ^ 2 := by
     rw [EuclideanSpace.real_norm_sq_eq]
@@ -132,7 +126,7 @@ theorem rawEdgeVector_apply_eq_zero {q : ℝ} {R : ℕ} {v : V} {e : E} (he : e 
       lt_of_not_ge fun hle => hz (closedBall_subset_of_mem_incidenceSet he hw R hle)
     rw [kernelRow_apply, ite_eq_right_iff.mpr fun h => (hlt.not_ge h).elim]
   have hsum : rawSum G q R e z = 0 := by
-    rw [rawSum_apply, hend _ (Or.inl rfl), hend _ (Or.inr rfl), add_zero]
+    rw [rawSum, PiLp.add_apply, hend _ (Or.inl rfl), hend _ (Or.inr rfl), add_zero]
   simp [rawEdgeVector, hsum]
 
 end RawBasic

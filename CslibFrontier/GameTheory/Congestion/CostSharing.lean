@@ -403,9 +403,6 @@ private theorem optOut_resources (i : Fin k) (b : Bool) :
     (optOut k ε).resources i b = if b then {some i} else {none} := by
   cases b <;> rfl
 
-private theorem optOut_latency (e : Option (Fin k)) (n : ℕ) :
-    (optOut k ε).latency e n = optOutCost k ε e / n := rfl
-
 /-- The private resource of player `j` has load `1` if `j` opts out and `0` otherwise. -/
 private theorem optOut_load_some (s : Fin k → Bool) (j : Fin k) :
     (optOut k ε).load s (some j) = if s j then 1 else 0 := by
@@ -429,7 +426,9 @@ theorem optOut_cost (s : Fin k → Bool) (i : Fin k) :
       = if s i then 1 / ((i : ℕ) + 1 : ℝ)
         else (1 + ε) / (Finset.univ.filter fun j => s j = false).card := by
   rw [toCostGame_cost, optOut_resources]
-  cases hi : s i <;> simp [optOut_latency, optOut_load_none, optOut_load_some, hi, optOutCost]
+  cases hi : s i <;>
+    simp only [hi, Bool.false_eq_true, ↓reduceIte, Finset.sum_singleton,
+      optOut_load_none, optOut_load_some] <;> simp [optOut_def, optOutCost]
 
 /-- **Some sharing player pays more than its private cost**: for `ε > 0`, if not every player opts
 out, then among the players that share, the one with the largest index `j` pays at least

@@ -416,10 +416,6 @@ private theorem partialGraph_degree_le (x : V → ℕ) (k : ℕ) (u : V) :
   exact Finset.card_le_card fun w hw =>
     (SimpleGraph.mem_neighborFinset _ _ _).2 ((SimpleGraph.mem_neighborFinset _ _ _).1 hw).1
 
-private theorem partialGraph_zero_not_adj (x : V → ℕ) (u v : V) :
-    ¬ (partialGraph G x 0).Adj u v := by
-  simp [partialGraph]
-
 private theorem partialGraph_eq_self {Δ : ℕ} (hΔ : G.maxDegree ≤ Δ) {x : V → ℕ}
     (hx : Function.Injective x) {u v : V} :
     (partialGraph G x Δ).Adj u v ↔ G.Adj u v := by
@@ -637,10 +633,11 @@ private theorem state_merge_phases {Δ C : ℕ} (hΔ : G.maxDegree ≤ Δ) {x : 
     (partialGraph_degree_le G x m w).trans ((G.degree_le_maxDegree w).trans hΔ)
   induction k with
   | zero =>
-    refine ⟨fun u v huv => absurd huv (partialGraph_zero_not_adj G x u v), fun u => ?_⟩
-    simp only [Nat.zero_mul, Nat.add_zero]
-    rw [hm0 u]
-    exact Nat.succ_pos Δ
+    refine ⟨fun u v huv => ?_, fun u => ?_⟩
+    · simp [partialGraph] at huv
+    · simp only [Nat.zero_mul, Nat.add_zero]
+      rw [hm0 u]
+      exact Nat.succ_pos Δ
   | succ k ih =>
     obtain ⟨ih_prop, ih_lt⟩ := ih (by omega)
     have hk_lt : k < Δ := by omega

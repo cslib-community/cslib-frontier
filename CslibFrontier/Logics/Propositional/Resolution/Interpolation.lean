@@ -236,10 +236,6 @@ variable {V : Type*}
 private def Satisfies (ρ : V → Option Bool) (c : Clause V) : Prop :=
   ∃ l ∈ c, ρ l.1 = some l.2
 
-/-- Nothing satisfies the empty clause. -/
-private theorem not_satisfies_nil (ρ : V → Option Bool) : ¬ Satisfies ρ [] := by
-  simp [Satisfies]
-
 /-- A clause relabelled along `g` is satisfied by `ρ` if one of its literals `l` has
 `ρ (g l.1) = some l.2`. -/
 private theorem satisfies_relabel {W : Type*} {ρ : V → Option Bool} {g : W → V} {c : Clause W}
@@ -316,10 +312,12 @@ variable {ρA : (X → Bool) → (Y → Bool) → X ⊕ (Y ⊕ Z) → Option Boo
 
 /-- At the empty clause the invariant is the interpolation property. -/
 private theorem isInterpolant_of_good {f : (X → Bool) → Bool} (h : Good ρA ρB A B [] f) :
-    A.IsInterpolant B f :=
-  ⟨fun a y hA => by_contra fun hf => not_satisfies_nil _ (h.1 a y hA (Bool.eq_false_iff.2 hf)),
-   fun a z hB => by_contra fun hf =>
-     not_satisfies_nil _ (h.2 a z hB (Bool.eq_true_of_not_eq_false hf))⟩
+    A.IsInterpolant B f := by
+  refine ⟨fun a y hA => ?_, fun a z hB => ?_⟩
+  · by_contra hf
+    simpa [Satisfies] using h.1 a y hA (Bool.eq_false_iff.2 hf)
+  · by_contra hf
+    simpa [Satisfies] using h.2 a z hB (Bool.eq_true_of_not_eq_false hf)
 
 /-- A clause of `A` gets the constant `false`, if `ρA a y` satisfies every literal of it true at
 `(a, y)`. -/

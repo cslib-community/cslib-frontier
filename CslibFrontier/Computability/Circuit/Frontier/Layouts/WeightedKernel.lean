@@ -209,10 +209,6 @@ section FiniteProps
 
 variable [Finite V] {H : SimpleGraph V} {deg : V → ℕ} {θ : ℝ}
 
-private theorem weightedKernelRow_apply (R : ℕ) (v z : V) :
-    weightedKernelRow H deg θ R v z = bestWalkWeight H deg θ R v z :=
-  rfl
-
 private theorem bestWalkWeight_succ (r : ℕ) (u z : V) :
     bestWalkWeight H deg θ (r + 1) u z =
       open Classical in
@@ -279,7 +275,7 @@ theorem weightedKernelRow_eq_zero_of_lt {R : ℕ} {v z : V} (h : R < H.edist v z
     weightedKernelRow H deg θ R v z = 0 := by
   classical
   let _ : Fintype V := Fintype.ofFinite V
-  rw [weightedKernelRow_apply]
+  rw [weightedKernelRow, PiLp.toLp_apply]
   induction R generalizing v with
   | zero =>
     rw [bestWalkWeight, ite_eq_right fun hvz => by simp [hvz] at h]
@@ -567,7 +563,7 @@ theorem le_inner_weightedKernelRow {d : ℕ} (hθ0 : 0 ≤ θ) (hθ1 : θ < 1) (
   dsimp only
   set q := edgeWeight deg θ u v
   rw [EuclideanSpace.real_norm_sq_eq, EuclideanSpace.real_norm_sq_eq, PiLp.inner_apply]
-  simp only [RCLike.inner_apply, conj_trivial, weightedKernelRow_apply]
+  simp only [RCLike.inner_apply, conj_trivial, weightedKernelRow, PiLp.toLp_apply]
   have hpt := Finset.sum_le_sum fun z (_ : z ∈ Finset.univ) =>
     weightedKernelRow_defect_le hθ0 hθ1.le hlo r huv z
   simp only [Finset.sum_sub_distrib, ← Finset.sum_div, ← Finset.mul_sum, Finset.sum_add_distrib,

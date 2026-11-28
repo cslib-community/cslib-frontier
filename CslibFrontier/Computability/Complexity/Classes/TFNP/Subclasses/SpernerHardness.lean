@@ -505,10 +505,6 @@ private theorem northPort_eq_southPort (N : ℕ) (P S : ℕ → ℕ) (X Y : ℕ)
   · simp only [↓reduceIte]
     split_ifs <;> first | rfl | omega
 
-private theorem westPort_zero (N : ℕ) (P S : ℕ → ℕ) (Y : ℕ) :
-    westPort N P S 0 Y = .none := by
-  simp [westPort]
-
 private theorem eastPort_top (N : ℕ) (P S : ℕ → ℕ) (Y : ℕ) (hY : Y < N) :
     eastPort N P S (N - 1) Y = .none := by
   unfold eastPort
@@ -612,8 +608,8 @@ private theorem graphColor_west_edge {N : ℕ} {P S : ℕ → ℕ} {M y : ℕ}
     graphColor N P S M (16, y) = 0 := by
   have hbnd : 16 < 16 * (N + 1) ∧ y / 16 - 1 < N := by omega
   rw [graphColor_eq_tile hM le_rfl hbnd.1 hy0 hy1, tileColor_west (Nat.mod_lt y (by decide)),
-    tilePorts_tileKind hN hbnd.2, westPort_zero]
-  rfl
+    tilePorts_tileKind hN hbnd.2]
+  simp [westPort, portColor]
 
 private theorem graphColor_south_edge {N : ℕ} {P S : ℕ → ℕ} {M x : ℕ}
     (hN : 1 ≤ N) (hM : 16 * (N + 1) ≤ M) (hx0 : 16 ≤ x) (hx1 : x < 16 * (N + 1)) :

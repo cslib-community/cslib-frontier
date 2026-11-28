@@ -304,10 +304,6 @@ private def checkedReturn (p d r : ℕ) (reply : Reply) (bank : List ℕ) (fr : 
         (fr.1, 0, true, fr.2.2.2.1, fr.2.2.2.2) :: st,
         some (p - 1, reg d fr.2.2.2.2 0))
 
-private theorem checkedReturn_reply (p d r : ℕ) (reply : Reply) (bank : List ℕ)
-    (fr : Frame) (st : List Frame) :
-    checkedReturn p d r reply bank fr st = checkedReturn p d r (0, reply.2) bank fr st := rfl
-
 private theorem return_budget {α : Type} {encIn : α ↪ List Bool} {S : α → ℕ}
     {p d r : α → ℕ} {bank values : α → List ℕ}
     {fr : α → Frame} {st : α → List Frame}
@@ -399,7 +395,7 @@ private theorem checkedStepCore_inSpace :
   refine (budget_comp_linear (optionElimSnd hstop hcall) (budget_prod hid hmode)).of_enc_eq ?_
   intro a
   cases hm : a.1.2.2.2 with
-  | none => simp [checkedStepCore, hm, checkedReturn_reply]
+  | none => simp [checkedStepCore, hm, checkedReturn]
   | some ct => simp [checkedStepCore, hm]
 
 private theorem checkedBeginRound_eq (p d r round c t : ℕ) (bank : List ℕ)

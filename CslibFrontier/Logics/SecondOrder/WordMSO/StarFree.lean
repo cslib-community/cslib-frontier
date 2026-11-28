@@ -154,14 +154,6 @@ private theorem upperCut_liftBound {m : ℕ} (v : Fin m → Fin ℓ) (p : Fin �
     upperCut (Fin.snoc v p) (liftBound b) = upperCut v b := by
   cases b <;> simp [liftBound, upperCut]
 
-private theorem lowerCut_some_last {m : ℕ} (v : Fin m → Fin ℓ) (p : Fin ℓ) :
-    lowerCut (Fin.snoc v p) (some (Fin.last m)) = p + 1 := by
-  simp [lowerCut]
-
-private theorem upperCut_some_last {m : ℕ} (v : Fin m → Fin ℓ) (p : Fin ℓ) :
-    upperCut (Fin.snoc v p) (some (Fin.last m)) = p + 1 := by
-  simp [upperCut]
-
 private theorem realize_inWindow (w : Fin ℓ → α) {m n : ℕ} (lo hi : Option (Fin m)) (x : Fin m)
     (v : Fin m → Fin ℓ) (V : Fin n → Set (Fin ℓ)) :
     (inWindow lo hi x : Formula α m n).Realize w v V ↔
@@ -260,11 +252,11 @@ private theorem realize_window (u : List α) : ∀ (e : StarFreeExpression α) {
       · simp
       · simpa only [↓reduceIte, true_and] using realize_window u f lo hi v V h
     · rw [realize_window u e _ _ _ V
-        (by simp only [lowerCut_liftBound, upperCut_some_last]; omega),
-        lowerCut_liftBound, upperCut_some_last]
+        (by simp only [lowerCut_liftBound, upperCut, Fin.snoc_last]; omega),
+        lowerCut_liftBound, upperCut, Fin.snoc_last]
     · rw [realize_window u f _ _ _ V
-        (by simp only [lowerCut_some_last, upperCut_liftBound]; omega),
-        lowerCut_some_last, upperCut_liftBound]
+        (by simp only [lowerCut, Fin.snoc_last, upperCut_liftBound]; omega),
+        lowerCut, Fin.snoc_last, upperCut_liftBound]
 
 /-! ### The translation -/
 

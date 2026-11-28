@@ -545,13 +545,10 @@ private def liftClone {M : ManyToOneMatching m n} (hM : I.IsStable M) :
           (ManyToOneMatching.mem_residents.2 h₁)
           (ManyToOneMatching.mem_residents.2 h₂) hpos_eq)
 
-private theorem liftClone_apply {M : ManyToOneMatching m n} (hM : I.IsStable M) (r : Fin m) :
-    I.liftClone hM r = I.liftCloneFun hM.1 r := rfl
-
 private theorem projectClone_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable M) :
     I.projectClone (I.liftClone hM) = M := by
   refine ManyToOneMatching.ext (funext fun r => ?_)
-  simp only [projectClone, liftClone_apply]
+  simp only [projectClone, liftClone, PartialMatching.ofInjOn_apply]
   cases hMr : M.hospital r with
   | none => rw [I.liftCloneFun_none hM.1 hMr]; rfl
   | some h => rw [I.liftCloneFun_some hM.1 hMr, Option.map_some, seat_symm_fst]
@@ -655,7 +652,8 @@ theorem resRank_deferredAcceptance_le_of_isStable {M : ManyToOneMatching m n} (h
   | some h₂ =>
     let j₂ : Fin (I.quota h₂) := ⟨I.hospPos M h₂ r,
       (I.hospPos_lt_card (ManyToOneMatching.mem_residents.2 hMr)).trans_le (hM.1 h₂)⟩
-    rw [liftClone_apply, I.liftCloneFun_some hM.1 hMr] at hda_le
+    change _ ≤ I.cloneInstance.propRank r (I.liftCloneFun hM.1 r) at hda_le
+    rw [I.liftCloneFun_some hM.1 hMr] at hda_le
     cases hdar : I.cloneInstance.deferredAcceptance r with
     | none =>
       refine absurd ((I.cloneInstance.propRank_some_lt_none_iff r _).2 ?_) (hdar ▸ hda_le).not_gt

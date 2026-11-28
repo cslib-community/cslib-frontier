@@ -726,12 +726,6 @@ private theorem edmondsAux_spec [IsOrderedAddMonoid β] (r : V) :
 
 variable [IsOrderedAddMonoid β] {G : Digraph V} [DecidableRel G.Adj] {c : V → V → β} {r : V}
 
-omit [FinEnum V] in
-private theorem isInArborescenceParent_decide {R : V → V → Prop} [DecidableRel R] {p : V → V} :
-    IsInArborescenceParent (fun u w => decide (R u w) = true) r p ↔
-      IsInArborescenceParent R r p := by
-  simp only [decide_eq_true_eq]
-
 /-- **Correctness of Chu–Liu/Edmonds.** If `edmonds G c r = some p`, then `p` is the parent
 function of a spanning in-arborescence of `G` rooted at `r` whose cost is at most that of every
 other one; if `edmonds G c r = none`, then `G` has no spanning in-arborescence rooted at `r`. -/
@@ -740,7 +734,7 @@ theorem edmonds_spec :
       IsInArborescenceParent G.Adj r p ∧
         ∀ t, IsInArborescenceParent G.Adj r t → parentCost c r p ≤ parentCost c r t) ∧
     (edmonds G c r = none → ∀ t, ¬ IsInArborescenceParent G.Adj r t) := by
-  simpa only [edmonds, isInArborescenceParent_decide] using
+  simpa only [edmonds, decide_eq_true_eq] using
     edmondsAux_spec r _ (fun u w => decide (G.Adj u w)) c (liveVertices_card_lt _ r)
 
 /-- `edmonds` fails exactly when there is no spanning in-arborescence rooted at `r`. -/
@@ -772,7 +766,7 @@ theorem edmondsOut_spec :
         ∀ t, IsInArborescenceParent (fun u w => G.Adj w u) r t →
           parentCost (fun u w => c w u) r p ≤ parentCost (fun u w => c w u) r t) ∧
     (edmondsOut G c r = none → ∀ t, ¬ IsInArborescenceParent (fun u w => G.Adj w u) r t) := by
-  simpa only [edmondsOut, isInArborescenceParent_decide] using edmondsAux_spec r _
+  simpa only [edmondsOut, decide_eq_true_eq] using edmondsAux_spec r _
     (fun u w => decide (G.Adj w u)) (fun u w => c w u) (liveVertices_card_lt _ r)
 
 end Main

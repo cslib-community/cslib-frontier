@@ -314,10 +314,6 @@ private theorem computableInPolyTime_esymmStep : ComputableInPolyTime
   unfold esymmStep
   fun_prop
 
-private theorem length_esymmStep (tab : List (List (List Bool))) (E : List (List Bool))
-    (z : List Bool) : (esymmStep tab E z).length = E.length := by
-  simp [esymmStep]
-
 /-- **The elementary symmetric polynomial `e_t` in coordinates**: the dynamic program keeps `t`
 words of at most `n` coordinates. -/
 private theorem computableInPolyTime_esymmCoords : ComputableInPolyTime
@@ -335,10 +331,11 @@ private theorem computableInPolyTime_esymmCoords : ComputableInPolyTime
     (by fun_prop) (by fun_prop) (by fun_prop) computableInPolyTime_esymmStep
     (fun p _ state => state.length = p.1.2 ∧ ∀ e ∈ state, e.length ≤ p.1.1.length)
     (fun p => by simp) (fun p consumed state value _ h => by
-      refine ⟨by rw [length_esymmStep, h.1], fun e he => ?_⟩
-      simp only [esymmStep, List.mem_map, List.mem_range] at he
-      obtain ⟨j, -, rfl⟩ := he
-      simp)
+      refine ⟨?_, fun e he => ?_⟩
+      · simpa only [esymmStep, List.length_map, List.length_range] using h.1
+      · simp only [esymmStep, List.mem_map, List.mem_range] at he
+        obtain ⟨j, -, rfl⟩ := he
+        simp)
     (size := fun p => p.1.2 * (2 * p.1.1.length + 1)) hsize.polyBounded
     (fun p consumed state _ h => by
       rw [length_encList, ← h.1]

@@ -149,11 +149,6 @@ private theorem count_eq_one_iff {n : ℕ} (x : Fin n → Bool) :
 private def outputEquiv (n : ℕ) : Fin n ⊕ Unit ≃ Fin (n + 1) :=
   (Equiv.sumCongr (Equiv.refl _) finOneEquiv.symm).trans finSumFinEquiv
 
-private theorem ofFn_output (n : ℕ) (x : Fin (n + 1) → Bool) :
-    List.ofFn x = List.ofFn (fun j => x (outputEquiv n (.inl j))) ++
-      [x (outputEquiv n (.inr ()))] := by
-  exact List.ofFn_succ_last
-
 private theorem mem_comp_starAt_iff {m n : ℕ} (R : Set ((Fin m ⊕ Fin n) → Bool))
     (reference : Fin n → Bool) (x : (Fin m ⊕ Unit) → Bool) :
     x ∈ comp R (starAt reference) ↔
@@ -191,7 +186,7 @@ theorem isEvenDeltaMatroid_contract {table : Table} {reference : List Bool}
   have hrow (y : Fin (contract table reference positions).arity → Bool) :
       List.ofFn y = List.ofFn (fun j => y (F (.inl j))) ++ [y (F (.inr ()))] := by
     rw [List.ofFn_congr hnew y]
-    exact ofFn_output m (fun j => y (Fin.cast hnew.symm j))
+    exact List.ofFn_succ_last
   have he : {y | (fun i => y (F i)) ∈ C} =
       booleanRelation arity sem (contract table reference positions) := by
     ext y

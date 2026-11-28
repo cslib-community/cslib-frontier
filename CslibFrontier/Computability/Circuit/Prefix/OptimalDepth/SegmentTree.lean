@@ -313,17 +313,6 @@ decreasing_by
   have hle := Wire.rank_le (Wire.gate (segChildren c a b root w)[i] : Wire N c.size)
   omega
 
-private theorem buildSegTree_eq {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
-    (root w : Wire N c.size) :
-    buildSegTree c a b root w =
-      GenPrefixTree.node
-        (wireState c.program w)
-        (segHasOut c a b w)
-        (segChildren c a b root w).length
-        (fun i => (c.program.lines (segChildren c a b root w)[i]).op == .mul)
-        (fun i => buildSegTree c a b root (.gate (segChildren c a b root w)[i])) := by
-  rw [buildSegTree]
-
 /-- Reachability along `segChildren` edges inside a principal-chain segment. -/
 inductive ReachesInSeg {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     (root : Wire N c.size) : Wire N c.size → Wire N c.size → Prop
@@ -405,14 +394,6 @@ decreasing_by
   have hle := Wire.rank_le (Wire.gate (segChildren c a b root w)[i] : Wire N c.size)
   omega
 
-private theorem countWireInSeg_def {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
-    (root target w : Wire N c.size) :
-    countWireInSeg c a b root target w =
-      (if w = target then 1 else 0) +
-        ∑ i : Fin (segChildren c a b root w).length,
-          countWireInSeg c a b root target (.gate (segChildren c a b root w)[i]) := by
-  rw [countWireInSeg]
-
 private theorem countWireInSeg_iff {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     (root target : Wire N c.size) :
     ∀ w : Wire N c.size,
@@ -423,7 +404,7 @@ private theorem countWireInSeg_iff {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     countWireInSeg_iff c a b root target (.gate (segChildren c a b root w)[i])
   have hmem (i : Fin (segChildren c a b root w).length) :
       (segChildren c a b root w)[i] ∈ segChildren c a b root w := List.getElem_mem _
-  rw [countWireInSeg_def]
+  rw [countWireInSeg.eq_def]
   refine ⟨fun hreach => ?_, fun hnreach => ?_⟩
   · by_cases hwt : w = target
     · rw [Finset.sum_eq_zero fun i _ => (ih i).2 fun hr =>
@@ -481,7 +462,7 @@ private theorem sum_countWireInSeg {N : ℕ} {ι : Type*} [Fintype ι] (c : Pref
           else 0 := by
   rw [Finset.sum_comm, ← Finset.sum_add_distrib]
   refine Finset.sum_congr rfl fun x _ => ?_
-  rw [countWireInSeg_def c a b root (e x) w]
+  rw [countWireInSeg.eq_def c a b root (e x) w]
   by_cases hP : P x <;> simp [hP]
 
 private theorem buildSegTree_counts {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
@@ -501,8 +482,8 @@ private theorem buildSegTree_counts {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
   have ih (i : Fin (segChildren c a b root w).length) :=
     buildSegTree_counts c a b root (.gate (segChildren c a b root w)[i])
   have hst (v : Wire N c.size) : (buildSegTree c a b root v).state = wireState c.program v := by
-    rw [buildSegTree_eq]; rfl
-  rw [buildSegTree_eq]
+    rw [buildSegTree]; rfl
+  rw [buildSegTree]
   refine ⟨?_, fun s => ?_, fun m => ?_⟩
   · rw [GenPrefixTree.outCount, sum_countWireInSeg]
     simp only [ite_and, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte, fun i => (ih i).1]

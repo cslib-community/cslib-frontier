@@ -290,18 +290,11 @@ private theorem leafBranches_nil (ss : List ℕ) :
     leafBranches ss ([] : List (α × β)) = [] := by
   simp [leafBranches]
 
-private theorem leafBranches_nil_cons (p : α × β) (l : List (α × β)) :
-    leafBranches [] (p :: l) = [(p.1, .leaf (p :: l))] :=
-  -- `Id.run` of `visit; pure` with `visit := pure ()` is the list, by `Id` defeq
-  rfl
-
 private theorem leafBranches_cons_cons (s : ℕ) (ss : List ℕ) (p : α × β) (l : List (α × β)) :
     leafBranches (s :: ss) (p :: l) =
       (p.1, .leaf ((p :: l).take s)) :: leafBranches ss ((p :: l).drop s) :=
   -- the `Id` binds reduce by `rfl`
   rfl
-
-private theorem leafLevel_nil (l : List (α × β)) : leafLevel [] l = (.leaf l, []) := rfl
 
 private theorem leafLevel_cons (s : ℕ) (ss : List ℕ) (l : List (α × β)) :
     leafLevel (s :: ss) l = (.leaf (l.take s), leafBranches ss (l.drop s)) := rfl
@@ -365,7 +358,7 @@ private theorem ofSortedList_eq_build (l : List (α × β)) :
 private theorem toList_leafBranches (ss : List ℕ) (l : List (α × β)) :
     ((leafBranches ss l).flatMap fun e => e.child.toList) = l := by
   induction ss generalizing l with
-  | nil => cases l <;> simp [leafBranches_nil, leafBranches_nil_cons]
+  | nil => cases l <;> simp [leafBranches, leafBranchesM]
   | cons s ss ih =>
     rcases l with _ | ⟨p, l⟩
     · simp [leafBranches_nil]
@@ -375,7 +368,7 @@ private theorem toList_leafBranches (ss : List ℕ) (l : List (α × β)) :
 private theorem toList_leafLevel (ss : List ℕ) (l : List (α × β)) :
     (leafLevel ss l).1.toList ++ ((leafLevel ss l).2.flatMap fun e => e.child.toList) = l := by
   cases ss with
-  | nil => simp [leafLevel_nil]
+  | nil => simp [leafLevel, leafLevelM]
   | cons s ss => rw [leafLevel_cons, toList_leafBranches, toList_leaf, List.take_append_drop]
 
 /-- Cutting a level keeps its entries in order. -/

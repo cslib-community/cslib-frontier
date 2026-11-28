@@ -113,68 +113,40 @@ noncomputable def subroutineBase {w n K base : ℕ}
 
 variable {w n K base : ℕ} (hS : Fits w (base + space n)) (hK : Fits w K)
 
-private theorem subroutineBase_space_aux : (subroutineBase hS hK).space = space n := rfl
-
 /-- The footprint is the original compact block. -/
-theorem subroutineBase_space : (subroutineBase hS hK).space = space n :=
-  subroutineBase_space_aux hS hK
-
-private theorem subroutineBase_initTime_aux : (subroutineBase hS hK).initTime =
-    2 * Initialize.realizes_reserve.factor + Initialize.realizes_metadata.factor := rfl
+theorem subroutineBase_space : (subroutineBase hS hK).space = space n := (rfl)
 
 /-- Fresh initialization pays the actual reservation and metadata setup. -/
 theorem subroutineBase_initTime : (subroutineBase hS hK).initTime =
-    2 * Initialize.realizes_reserve.factor + Initialize.realizes_metadata.factor :=
-  subroutineBase_initTime_aux hS hK
+    2 * Initialize.realizes_reserve.factor + Initialize.realizes_metadata.factor := (rfl)
 
 /-- The inherited representation is not replaced by an independent heap model. -/
 theorem subroutineBase_rep_iff {hn : Fits w n} (s : (indexedMinPQSpec n K).State)
     (x : Data Program.registers) :
     (subroutineBase hS hK).rep s x ↔ Representation.Rep base hn hK s x := Iff.rfl
 
-private theorem subroutineBase_charge_aux (s : (indexedMinPQSpec n K).State)
-    (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).charge s o = Backend.factor Program.family * (memoryBound o + 1) + 8 :=
-  rfl
-
 /-- The declared operation charge is metadata until the method-execution obligation is proved. -/
 theorem subroutineBase_charge (s : (indexedMinPQSpec n K).State) (o : IndexedMinPQ.Op n) :
     (subroutineBase hS hK).charge s o = Backend.factor Program.family * (memoryBound o + 1) + 8 :=
-  subroutineBase_charge_aux hS hK s o
-
-private theorem subroutineBase_potential_aux (x : Data Program.registers) :
-    (subroutineBase hS hK).potential x = 0 := rfl
+  (rfl)
 
 /-- The heap uses no amortized potential in this certificate. -/
 theorem subroutineBase_potential (x : Data Program.registers) :
-    (subroutineBase hS hK).potential x = 0 := subroutineBase_potential_aux hS hK x
-
-private theorem subroutineBase_initPotential_aux : (subroutineBase hS hK).initPotential = 0 := rfl
+    (subroutineBase hS hK).potential x = 0 := (rfl)
 
 /-- The initial potential is zero. -/
-theorem subroutineBase_initPotential : (subroutineBase hS hK).initPotential = 0 :=
-  subroutineBase_initPotential_aux hS hK
-
-private theorem subroutineBase_encode_aux (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).encode o = Program.code.encode o := rfl
+theorem subroutineBase_initPotential : (subroutineBase hS hK).initPotential = 0 := (rfl)
 
 /-- The standard argument encoding is the existing priority-queue encoding. -/
 theorem subroutineBase_encode (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).encode o = Program.code.encode o := subroutineBase_encode_aux hS hK o
-
-private theorem subroutineBase_argMatch_aux (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).argMatch o = Program.code.argMatch o := rfl
+    (subroutineBase hS hK).encode o = Program.code.encode o := (rfl)
 
 /-- Inline argument matching retains the existing priority-queue convention. -/
 theorem subroutineBase_argMatch (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).argMatch o = Program.code.argMatch o :=
-  subroutineBase_argMatch_aux hS hK o
-
-private theorem subroutineBase_decode_aux (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).decode o = Program.code.decode o := rfl
+    (subroutineBase hS hK).argMatch o = Program.code.argMatch o := (rfl)
 
 /-- The result decoder is the existing priority-queue decoder. -/
 theorem subroutineBase_decode (o : IndexedMinPQ.Op n) :
-    (subroutineBase hS hK).decode o = Program.code.decode o := subroutineBase_decode_aux hS hK o
+    (subroutineBase hS hK).decode o = Program.code.decode o := (rfl)
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native

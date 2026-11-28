@@ -425,16 +425,13 @@ polynomial with coefficient list `g`. -/
 def powerTable (g : List Bool) : List (List Bool) :=
   (List.range (2 * (g.length - 1))).map fun e => modBits g (List.replicate e false ++ [true])
 
-private theorem length_powerTable (g : List Bool) : (powerTable g).length = 2 * (g.length - 1) := by
-  simp [powerTable]
-
 /-- At a root `α` of the polynomial with coefficient list `l ++ [true]`, the power `α ^ e`,
 `e < 2 l.length`, is the combination of the powers below `l.length` given by `powerTable`. -/
 theorem pow_eq_sum_powerTable {A : Type*} [CommRing A] [Algebra (ZMod 2) A] (l : List Bool)
     {α : A} (hα : aeval α (polyOfBits (l ++ [true])) = 0) {e : ℕ} (he : e < 2 * l.length) :
     α ^ e = ∑ d ∈ Finset.range l.length,
       bitEquiv.symm (((powerTable (l ++ [true])).getD e []).getD d false) • α ^ d := by
-  rw [List.getD_eq_getElem _ _ (by simp [length_powerTable, he])]
+  rw [List.getD_eq_getElem _ _ (by simp [powerTable, he])]
   simp only [powerTable, List.getElem_map, List.getElem_range]
   rw [← length_modBits l _, ← aeval_polyOfBits]
   have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero (polyOfBits_replicate_append_true e ▸

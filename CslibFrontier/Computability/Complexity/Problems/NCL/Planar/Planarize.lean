@@ -98,35 +98,16 @@ theorem planarizeAlongSimulation_abs (hI : I.Forward)
     (D : Diagram Γ a b) (t : (planarizeAlong H D).Edge → Bool) (e : D.Edge) :
     (planarizeAlongSimulation hI hH D).abs t e = t (planarizeAlongEdge hH D e) := rfl
 
-private theorem planarizeAlong_gen
-    (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) (g : Γ a b) :
-    planarizeAlong H (gen g) = H g := rfl
-
-private theorem planarizeAlong_id (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b)
-    (a : List Color) : planarizeAlong H (Diagram.id a) = Diagram.id a := rfl
-
-private theorem planarizeAlong_swap (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b)
-    (c d : Color) : planarizeAlong H (swap c d) = Crossover.diagram c d := rfl
-
-private theorem planarizeAlong_comp (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b)
-    (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) :
-    planarizeAlong H (D₁.comp D₂) = (planarizeAlong H D₁).comp (planarizeAlong H D₂) := rfl
-
-private theorem planarizeAlong_tensor (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b)
-    (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d) :
-    planarizeAlong H (D₁.tensor D₂) = (planarizeAlong H D₁).tensor (planarizeAlong H D₂) := rfl
-
 /-- Local checks of source cells suffice after each crossover passes the same check. -/
 theorem checkGens_planarizeAlong (test : ∀ {a b : List Color}, Prim a b → Bool)
     (hc : ∀ c d, (Crossover.diagram c d).checkGens test = true)
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) (D : Diagram Γ a b) :
     (planarizeAlong H D).checkGens test = D.checkGens (fun g => (H g).checkGens test) := by
   induction D with
-  | gen _ => exact congrArg (checkGens test) (planarizeAlong_gen H _)
-  | id a => exact congrArg (checkGens test) (planarizeAlong_id H a)
-  | swap c d => exact (congrArg (checkGens test) (planarizeAlong_swap H c d)).trans (hc c d)
-  | comp D₁ D₂ ih₁ ih₂ => simp only [planarizeAlong_comp, checkGens, ih₁, ih₂]
-  | tensor D₁ D₂ ih₁ ih₂ => simp only [planarizeAlong_tensor, checkGens, ih₁, ih₂]
+  | gen _ | id _ => rfl
+  | swap c d => exact hc c d
+  | comp _ _ ih₁ ih₂ | tensor _ _ ih₁ ih₂ =>
+    simpa only [planarizeAlong, Route.diagram, subst, checkGens] using congrArg₂ (· && ·) ih₁ ih₂
 
 private theorem measure_planarizeAlong_le
     (μ : {a b : List Color} → Diagram Prim a b → ℕ) (k : ℕ)
@@ -138,12 +119,12 @@ private theorem measure_planarizeAlong_le
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) (D : Diagram Γ a b) :
     μ (planarizeAlong H D) ≤ μ (D.subst H) + k * Diagram.swapCount D := by
   induction D with
-  | gen _ | id _ => simp [planarizeAlong_gen, planarizeAlong_id, subst, Diagram.swapCount]
+  | gen _ | id _ => simp [planarizeAlong, subst, Routed.expand, Diagram.swapCount]
   | swap c d =>
-    have := hc c d
-    simp only [planarizeAlong_swap, subst, Diagram.swapCount, Nat.mul_one]; omega
+    simpa only [planarizeAlong, Route.diagram, subst, Routed.expand, Diagram.swapCount, Nat.mul_one]
+      using (hc c d).trans (Nat.le_add_left k (μ (swap c d)))
   | comp _ _ ih₁ ih₂ | tensor _ _ ih₁ ih₂ =>
-    simp only [planarizeAlong_comp, planarizeAlong_tensor, subst, hcomp, htensor,
+    simp only [planarizeAlong, subst, hcomp, htensor,
       Diagram.swapCount, Nat.mul_add] at ih₁ ih₂ ⊢
     omega
 

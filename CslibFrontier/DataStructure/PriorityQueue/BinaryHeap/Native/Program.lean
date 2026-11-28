@@ -59,12 +59,8 @@ noncomputable def argument (i : Fin 6) : Fin registers := Backend.src family (.i
 noncomputable def bank (i : Fin 4) : Fin registers :=
   Backend.tmp family (.inr 1) ⟨i.val, by have := i.isLt; change i.val < 3 + _ + 1; omega⟩
 
-private theorem argument_source_aux (i : Fin 6) :
-    argument i = Backend.src family (.inl 2) i := rfl
-
 /-- The persistent/payload ABI uses the existing common Backend source positions. -/
-theorem argument_source (i : Fin 6) : argument i = Backend.src family (.inl 2) i :=
-  argument_source_aux i
+theorem argument_source (i : Fin 6) : argument i = Backend.src family (.inl 2) i := (rfl)
 
 private theorem argument_injective : Function.Injective argument :=
   Backend.src_injective family (.inl 2)
@@ -164,20 +160,14 @@ noncomputable def code : PQCode .exact registers where
   argK_input := by simp
   output_eq := rfl
 
-private theorem code_frontier_aux : code.frontierReg = Backend.frontier family := rfl
-
 /-- The ABI uses the common native frontier register. -/
-theorem code_frontier : code.frontierReg = Backend.frontier family := code_frontier_aux
-
-private theorem code_nReg_aux : code.nReg = argument 0 := rfl
+theorem code_frontier : code.frontierReg = Backend.frontier family := (rfl)
 
 /-- The runtime dimension occupies the first method-argument position. -/
-theorem code_nReg : code.nReg = argument 0 := code_nReg_aux
-
-private theorem code_baseReg_aux : code.baseReg = argument 3 := rfl
+theorem code_nReg : code.nReg = argument 0 := (rfl)
 
 /-- The persistent compact base occupies the fourth method-argument position. -/
-theorem code_baseReg : code.baseReg = argument 3 := code_baseReg_aux
+theorem code_baseReg : code.baseReg = argument 3 := (rfl)
 
 /-- Operation argument delivery preserves the frontier. -/
 theorem code_input_frontier : code.input (Backend.frontier family) = false := by
@@ -195,18 +185,14 @@ theorem code_input_argument (i : Fin 4) : code.input (argument (i.castAdd 2)) = 
     (bank_ne_argument 2 (i.castAdd 2)).symm, argument_injective.ne (Fin.ne_of_lt i.isLt),
     argument_injective.ne (Fin.ne_of_lt (Nat.lt_succ_of_lt i.isLt))⟩
 
-private theorem code_outFlag_aux : code.outFlag = bank 0 := rfl
-private theorem code_outV_aux : code.outV = bank 1 := rfl
-private theorem code_outK_aux : code.outK = bank 2 := rfl
-
 /-- The optional-result presence flag uses the first common output slot. -/
-theorem code_outFlag : code.outFlag = bank 0 := code_outFlag_aux
+theorem code_outFlag : code.outFlag = bank 0 := (rfl)
 
 /-- An extracted handle uses the second common output slot. -/
-theorem code_outV : code.outV = bank 1 := code_outV_aux
+theorem code_outV : code.outV = bank 1 := (rfl)
 
 /-- The established PQ key output uses the third common output slot. -/
-theorem code_outK : code.outK = bank 2 := code_outK_aux
+theorem code_outK : code.outK = bank 2 := (rfl)
 
 private theorem output_bank_aux (i : Fin 5) (j : Fin (certificates i).l) (a : Fin 4)
     (he : j.val = a.val) :

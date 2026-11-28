@@ -147,11 +147,6 @@ theorem blockDegree_of_mem_support_deviationCostPoly {i : ι} {a : S i} {m : (Σ
 private noncomputable def massPoly (i : ι) : MvPolynomial (Σ i, S i) ℝ :=
   ∑ a, X ⟨i, a⟩
 
-omit [Fintype ι] [DecidableEq ι] [∀ i, DecidableEq (S i)] in
-private theorem eval_massPoly (x : (Σ i, S i) → ℝ) (i : ι) : eval x (massPoly (S := S) i) =
-    ∑ a, x ⟨i, a⟩ := by
-  simp [massPoly]
-
 /-- The polynomials whose nonnegativity cuts out the mixed Nash equilibria: the coordinates, the
 two inequalities `∑ a, x⟨i, a⟩ ≥ 1` and `≤ 1`, and `deviationCostPoly - expectedCostPoly`. -/
 private noncomputable def nashPoly : (Σ i, S i) ⊕ ι ⊕ ι ⊕ (Σ i, S i) → MvPolynomial (Σ i, S i) ℝ
@@ -164,7 +159,7 @@ private theorem setOf_isMixedNash_eq_nashPoly :
     {x : (Σ i, S i) → ℝ | G.IsMixedNash (Sigma.curry x)} =
       {x | ∀ k, 0 ≤ eval x (G.nashPoly k)} := by
   ext x
-  simp only [Set.mem_ofPred_eq, Sum.forall, nashPoly, eval_X, map_sub, map_one, eval_massPoly,
+  simp only [Set.mem_ofPred_eq, Sum.forall, nashPoly, eval_X, map_sub, map_one, massPoly, eval_sum,
     sub_nonneg, eval_expectedCostPoly, Sigma.forall]
   refine ⟨fun ⟨hmix, hnash⟩ => ?_, fun ⟨hnn, hge, hle, hdev⟩ => ?_⟩
   · refine ⟨fun i => (hmix i).nonneg, fun i => (hmix i).sum_eq_one.ge,
@@ -218,6 +213,6 @@ theorem isSemialgebraic_setOf_isTotallyMixedNash :
     (IsSemialgebraic.iInter fun i => IsSemialgebraic.iInter fun a =>
       IsSemialgebraic.iInter fun b => IsSemialgebraic.setOf_eq _ _)
   · simpa using IsSemialgebraic.setOf_pos (X v)
-  · simpa [eval_massPoly] using IsSemialgebraic.setOf_eq (massPoly (S := S) i) 1
+  · simpa [massPoly] using IsSemialgebraic.setOf_eq (massPoly (S := S) i) 1
 
 end Cslib.GameTheory.CostGame

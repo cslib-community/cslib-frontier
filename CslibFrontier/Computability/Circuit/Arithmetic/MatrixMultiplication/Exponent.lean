@@ -136,14 +136,6 @@ private theorem rightMatrix_matrixInputs (A B : Matrix (Fin n) (Fin n) K) :
     Equiv.symm_apply_apply]
 
 omit [CommSemiring K] in
-private theorem leftMatrix_apply (x : Fin (n * n + n * n) → K) (i j : Fin n) :
-    leftMatrix x i j = x (Fin.castAdd (n * n) (finProdFinEquiv (i, j))) := rfl
-
-omit [CommSemiring K] in
-private theorem rightMatrix_apply (x : Fin (n * n + n * n) → K) (i j : Fin n) :
-    rightMatrix x i j = x (Fin.natAdd (n * n) (finProdFinEquiv (i, j))) := rfl
-
-omit [CommSemiring K] in
 private theorem leftMatrix_mem_inputs (i j : Fin n) :
     (fun x : Fin (n * n + n * n) → K => leftMatrix x i j) ∈ inputs (n * n + n * n) :=
   ⟨Fin.castAdd (n * n) (finProdFinEquiv (i, j)), rfl⟩
@@ -228,9 +220,9 @@ private theorem matrixInputs_leftMatrix_rightMatrix (x : Fin (n * n + n * n) →
     matrixInputs K (leftMatrix x) (rightMatrix x) = x := by
   funext i
   refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-  · simp only [matrixInputs, Fin.append_left, entry, leftMatrix_apply, Prod.mk.eta,
+  · simp only [matrixInputs, Fin.append_left, entry, leftMatrix, Matrix.of_apply, Prod.mk.eta,
       Equiv.apply_symm_apply]
-  · simp only [matrixInputs, Fin.append_right, entry, rightMatrix_apply, Prod.mk.eta,
+  · simp only [matrixInputs, Fin.append_right, entry, rightMatrix, Matrix.of_apply, Prod.mk.eta,
       Equiv.apply_symm_apply]
 
 /-- Distinct entries of the product are distinct functions of the inputs. -/
