@@ -30,6 +30,7 @@ by significance. Prefix boundaries replace the low bits with fixed masks.
 
 ## Main results
 
+* `Nat.shiftRight_and_one`: masking a right shift with `1` reads one bit.
 * `highestDiff_spec`: distinct bounded words differ at their highest differing position.
 * `projectBits_lt`: a selected highest differing position preserves strict order.
 * `projectBits_ofFn_eq_sum`: the positional numeric value of a projection.
@@ -58,6 +59,10 @@ def highestDiff (w x y : ℕ) : ℕ :=
 theorem _root_.Nat.testBit_eq_false_of_lt_two_pow {w x i : ℕ} (hx : x < 2 ^ w) (hi : w ≤ i) :
     x.testBit i = false :=
   Nat.testBit_eq_false_of_lt (hx.trans_le (Nat.pow_le_pow_right (by decide) hi))
+
+/-- Masking a right shift by `c` with `1` reads bit `c`, as a number. -/
+theorem _root_.Nat.shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
+  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.toNat_testBit]
 
 /-- Distinct bounded words have a differing bit below their word width. -/
 private theorem differingBits_nonempty {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)

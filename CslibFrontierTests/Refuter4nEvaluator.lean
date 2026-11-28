@@ -92,7 +92,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     ∃ t, ExecWithin w (evalMany E) s t (xs.length * (E.cost + 7) + 4) ∧
       (∀ (j : ℕ) (hj : j < xs.length), t.mem (dst + j) = (f xs[j]).toNat) ∧
       ∀ a, Outside b E.space a → (a < dst ∨ dst + xs.length ≤ a) → t.mem a = s.mem a := by
-  have h1 : Fits w 1 := Nat.one_lt_two_pow (by omega)
+  have h1 : Fits w 1 := fits_one (by omega)
   have hib := E.inp_ne_base
   let P (k : ℕ) (z : Data (r + 6)) : Prop :=
     z.regs (cCnt r) = xs.length ∧ z.regs (cSrc r) = src ∧ z.regs (cDst r) = dst ∧
@@ -103,7 +103,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
   let s₀ : Data (r + 6) := (s.set (cK r) 0).set (cOne r) 1
   have he₀ : ExecWithin (B := .standard) w
       (.seq (.op (.const (cK r) 0)) (.op (.const (cOne r) 1))) s s₀ 2 :=
-    (Exec.const (Nat.two_pow_pos w)).within.seq (Exec.const h1).within
+    (Exec.const (fits_zero w)).within.seq (Exec.const h1).within
   have hk₀ : s₀.regs (cK r) = 0 := by simp [s₀]
   have hP₀ : P (s₀.regs (cK r)) s₀ := by
     rw [hk₀]
@@ -165,8 +165,8 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
   obtain ⟨y, hy, hP, -⟩ := E.exec_loop (g := bank r) (Fin.castAdd_injective r 6) hw
     (tPrep := 2) (tCont := 3) (index := cK r) (limit := cCnt r) (prep := evalPrep E)
     (cont := evalCont E) P (fun y hy => hy.1) hstep (by rw [hk₀]; omega) hP₀
-  refine ⟨y, (he₀.seq hy).mono (le_of_eq ?_), fun j hj => hP.2.2.2.2.2.1 j hj hj,
-    fun a ha had => hP.2.2.2.2.2.2 a ha had⟩
+  obtain ⟨-, -, -, -, -, hres, hfr⟩ := hP
+  refine ⟨y, (he₀.seq hy).mono (le_of_eq ?_), fun j hj => hres j hj hj, hfr⟩
   rw [hk₀, Nat.sub_zero]
   ring
 

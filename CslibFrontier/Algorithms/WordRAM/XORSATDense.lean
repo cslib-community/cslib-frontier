@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Foundations.Data.BitString.Counter
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Foundations.Data.List.Forall2
-import CslibFrontier.Foundations.Data.Nat.Bitwise.Sparse
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import Mathlib.Data.List.GetD
