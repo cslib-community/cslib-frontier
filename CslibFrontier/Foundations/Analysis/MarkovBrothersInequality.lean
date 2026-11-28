@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.Polynomial.Derivative
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Order.Interval.Set.Defs
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Data.Polynomial.LagrangeEval
 import Mathlib.Algebra.Polynomial.HasseDeriv
 import Mathlib.Algebra.Polynomial.Taylor
@@ -234,15 +235,6 @@ theorem abs_eval_le_mul_of_sqrt_mul_abs_eval_le {n : ℕ} (hn : 0 < n) {q : ℝ[
 
 /-! ### Bernstein's inequality -/
 
-/-- `∑_{j < 2n} g j` groups into the pairs `g (2m) + g (2m + 1)`. -/
-private theorem sum_range_two_mul {M : Type*} [AddCommMonoid M] (g : ℕ → M) (n : ℕ) :
-    ∑ j ∈ range (2 * n), g j = ∑ m ∈ range n, (g (2 * m) + g (2 * m + 1)) := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [show 2 * (n + 1) = 2 * n + 1 + 1 by ring, sum_range_succ, sum_range_succ, ih,
-      sum_range_succ, add_assoc]
-
 /-- The odd part of `p` along the circle through `a + b i`: the polynomial `r` with
 `s r(c) = (p(ac + bs) - p(ac - bs)) / 2` whenever `c² + s² = 1`. -/
 private noncomputable def oddPart (p : ℝ[X]) (n : ℕ) (a b : ℝ) : ℝ[X] :=
@@ -278,8 +270,9 @@ private theorem two_mul_mul_eval_oddPart {p : ℝ[X]} {n : ℕ} (hn : 0 < n) (hp
       ∑ j ∈ range (2 * n), (hasseDeriv j p).eval (a * c) * y ^ j := by
     rw [add_comm, ← taylor_eval, eval_eq_sum_range' (n := 2 * n) (by rw [natDegree_taylor]; omega)]
     simp only [taylor_coeff]
-  rw [sub_eq_add_neg _ (b * s), htaylor, htaylor, ← sum_sub_distrib, sum_range_two_mul, oddPart,
-    eval_finsetSum, mul_sum, mul_sum]
+  rw [sub_eq_add_neg _ (b * s), htaylor, htaylor, ← sum_sub_distrib, Nat.mul_comm 2 n,
+    Finset.sum_range_mul_blocks, oddPart, eval_finsetSum, mul_sum, mul_sum]
+  simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, add_zero, Nat.mul_comm _ 2]
   refine sum_congr rfl fun m _ => ?_
   simp only [eval_mul, eval_comp, eval_C, eval_X, eval_pow, eval_sub, eval_one,
     Odd.neg_pow ⟨m, rfl⟩, Even.neg_pow ⟨m, two_mul m⟩, ← hs]

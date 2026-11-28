@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Nat.ModEq
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 
 /-!
@@ -109,14 +110,11 @@ theorem sum_range_mul_ite_mod {M : Type*} [AddCommMonoid M] (n : ℕ) {i ℓ : �
     (F : ℕ → M) :
     ∑ q ∈ Finset.range (n * ℓ), (if q % ℓ = i then F q else 0) =
       ∑ k ∈ Finset.range n, F (k * ℓ + i) := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [Nat.succ_mul, Finset.sum_range_add, ih, Finset.sum_range_succ]
-    congr 1
-    have hmod (j : ℕ) (hj : j ∈ Finset.range ℓ) : (n * ℓ + j) % ℓ = j := by
-      rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt (Finset.mem_range.mp hj)]
-    rw [Finset.sum_congr rfl fun j hj => by rw [hmod j hj]]
-    simp [hi]
+  rw [Finset.sum_range_mul_blocks]
+  refine Finset.sum_congr rfl fun k _ => ?_
+  let r₀ : Fin ℓ := ⟨i, hi⟩
+  have hmod (r : Fin ℓ) : (k * ℓ + r.val) % ℓ = i ↔ r = r₀ := by
+    rw [Nat.mul_comm k ℓ, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt, Fin.ext_iff]
+  simp only [hmod, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte, r₀]
 
 end Nat

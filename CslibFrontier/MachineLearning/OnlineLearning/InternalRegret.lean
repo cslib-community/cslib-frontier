@@ -10,6 +10,8 @@ module
 public import CslibFrontier.MachineLearning.OnlineLearning.Greedy
 public import CslibFrontier.MachineLearning.OnlineLearning.Hedge
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeWeights
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
+import Mathlib.Algebra.Ring.Periodic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Field.GeomSum
@@ -377,17 +379,10 @@ private theorem ex42Play_add_six (t : ℕ) : ex42Play (t + 6) = ex42Play t := by
 
 private theorem sum_range_six_mul_of_periodic {g : ℕ → ℝ} (hg : ∀ t, g (t + 6) = g t) (m : ℕ) :
     ∑ t ∈ range (6 * m), g t = (m : ℝ) * ∑ r ∈ range 6, g r := by
-  have hshift : ∀ k r, g (6 * k + r) = g r := fun k r => by
-    induction k with
-    | zero => simp only [mul_zero, zero_add]
-    | succ k' ihk => rw [show 6 * (k' + 1) + r = (6 * k' + r) + 6 by omega, hg, ihk]
-  induction m with
-  | zero => simp only [mul_zero, range_zero, sum_empty, Nat.cast_zero, zero_mul]
-  | succ k ih =>
-    rw [show 6 * (k + 1) = 6 * k + 6 by omega, sum_range_add, ih,
-      sum_congr rfl fun r _ => hshift k r]
-    push_cast
-    ring
+  rw [Nat.mul_comm 6 m, Finset.sum_range_mul_blocks]
+  have hperiod (k r : ℕ) : g (r + k * 6) = g r := Function.Periodic.nat_mul hg k r
+  simp only [add_comm (_ * 6), hperiod, Fin.sum_univ_eq_sum_range, sum_const, card_range,
+    nsmul_eq_mul]
 
 private theorem ex42Play_binary (t : ℕ) (i : Fin 3) :
     ex42Play t i = 0 ∨ ex42Play t i = 1 := by
@@ -653,13 +648,9 @@ theorem exists_nonpos_external_regret_dominated_weight {ε : ℝ}
   have hpair : ∀ (f : ℕ → ℝ) (a b : ℝ),
       (∀ k, f (2 * k) = a) → (∀ k, f (2 * k + 1) = b) →
       ∑ t ∈ range (2 * m), f t = (m : ℝ) * (a + b) := fun f a b ha hb => by
-    induction m with
-    | zero => simp only [mul_zero, range_zero, sum_empty, Nat.cast_zero, zero_mul]
-    | succ k ih =>
-      rw [show 2 * (k + 1) = 2 * k + 1 + 1 by omega, sum_range_succ, sum_range_succ, ih,
-        ha k, hb k]
-      push_cast
-      ring
+    rw [Nat.mul_comm 2 m, Finset.sum_range_mul_blocks]
+    simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, add_zero, Nat.mul_comm _ 2,
+      ha, hb, sum_const, card_range, nsmul_eq_mul]
   have hp_sum : ∀ t, ∑ i : Fin 3, p t i = 1 := fun t => by
     by_cases he : t % 2 = 0 <;> norm_num [p, he, Fin.sum_univ_three]
   refine ⟨p, ℓ, ?_, ?_, ?_, ?_, ?_⟩

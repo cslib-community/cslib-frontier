@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.Matroid.PSystem
 public import CslibFrontier.Algorithms.Lean.Submodular.Greedy
 public import Cslib.Foundations.Control.Monad.IsMonadHom
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Data.List.EraseDups
 import Mathlib.Combinatorics.Matroid.IndepAxioms
 
@@ -498,20 +499,6 @@ private theorem sum_le_sum_range_card_div {O : Finset ι} {σ : ι → ℕ} {c :
     have := Nat.mul_div_le s.card p
     omega
 
-omit [PartialOrder β] [IsOrderedAddMonoid β] in
-/-- Block decomposition `∑ j < p * N, d (j / p) = p • ∑ s < N, d s`. -/
-private theorem sum_range_mul_div (d : ℕ → β) (p N : ℕ) (hp : 0 < p) :
-    ∑ j ∈ Finset.range (p * N), d (j / p) = p • ∑ s ∈ Finset.range N, d s := by
-  induction N with
-  | zero => simp
-  | succ N ih =>
-    rw [mul_add_one, Finset.sum_range_add, ih, Finset.sum_range_succ (fun s => d s), smul_add]
-    congr 1
-    rw [Finset.sum_congr rfl fun j hj => congrArg d (by
-      rw [Nat.mul_comm, Nat.add_comm, Nat.add_mul_div_right _ _ hp,
-        Nat.div_eq_of_lt (Finset.mem_range.mp hj), Nat.zero_add]),
-      Finset.sum_const, Finset.card_range]
-
 /-- Charging with stages bounded by `N`: `∑ O c ≤ p • ∑ s < N, d s` for nonnegative `d`. -/
 private theorem sum_le_nsmul_sum_range {O : Finset ι} {σ : ι → ℕ} {c : ι → β} {d : ℕ → β}
     {p N : ℕ} (hd : ∀ s, 0 ≤ d s) (hσ : ∀ o ∈ O, σ o ≤ N)
@@ -519,12 +506,10 @@ private theorem sum_le_nsmul_sum_range {O : Finset ι} {σ : ι → ℕ} {c : ι
     (hcount : ∀ t, (O.filter fun o => σ o ≤ t).card ≤ p * t) :
     ∑ o ∈ O, c o ≤ p • ∑ s ∈ Finset.range N, d s := by
   have hON : O.card ≤ p * N := by simpa only [Finset.filter_true_of_mem hσ] using hcount N
-  rcases Nat.eq_zero_or_pos p with rfl | hp
-  · simp [Finset.card_eq_zero.mp (by simpa using hON)]
-  · calc ∑ o ∈ O, c o ≤ ∑ j ∈ Finset.range O.card, d (j / p) := sum_le_sum_range_card_div hc hcount
-      _ ≤ ∑ j ∈ Finset.range (p * N), d (j / p) :=
-        Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono hON) fun _ _ _ => hd _
-      _ = p • ∑ s ∈ Finset.range N, d s := sum_range_mul_div d p N hp
+  calc ∑ o ∈ O, c o ≤ ∑ j ∈ Finset.range O.card, d (j / p) := sum_le_sum_range_card_div hc hcount
+    _ ≤ ∑ j ∈ Finset.range (p * N), d (j / p) :=
+      Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono hON) fun _ _ _ => hd _
+    _ = p • ∑ s ∈ Finset.range N, d s := Finset.sum_range_mul_div d N p
 
 end Charging
 

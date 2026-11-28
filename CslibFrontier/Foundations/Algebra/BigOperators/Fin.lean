@@ -20,6 +20,8 @@ import Mathlib.Tactic.Abel
 # Truncation, telescoping and summation by parts for finite sums
 
 A finite-vector sum agrees with a shorter range sum when all omitted summands vanish.
+`Finset.sum_range_mul_blocks` splits a range into consecutive blocks, and
+`Finset.sum_range_mul_div` sums a function that is constant on each block.
 `sum_univ_adjacent_differences` telescopes differences along a sequence of indexed pairs.
 `sum_univ_smul_by_parts_prefix` and `sum_univ_smul_by_parts_tail` express summation by parts
 using cumulative sums from the left or from the right.
@@ -28,6 +30,25 @@ using cumulative sums from the left or from the right.
 public section
 
 open Finset
+
+/-- Split a range of length `m * n` into `m` consecutive blocks of length `n`. -/
+theorem Finset.sum_range_mul_blocks {M : Type*} [AddCommMonoid M] (f : ℕ → M) (m n : ℕ) :
+    ∑ k ∈ range (m * n), f k = ∑ j ∈ range m, ∑ r : Fin n, f (j * n + r.val) := by
+  rw [← Fin.sum_univ_eq_sum_range f, ← Fin.sum_univ_eq_sum_range, ← Fintype.sum_prod_type']
+  exact (Fintype.sum_equiv finProdFinEquiv _ _ fun p => by
+    rw [finProdFinEquiv_apply_val, Nat.mul_comm, Nat.add_comm]).symm
+
+/-- Summing a function of the quotient by `n` over `m` blocks counts each value `n` times. -/
+theorem Finset.sum_range_mul_div {M : Type*} [AddCommMonoid M] (f : ℕ → M) (m n : ℕ) :
+    ∑ k ∈ range (n * m), f (k / n) = n • ∑ j ∈ range m, f j := by
+  rw [Nat.mul_comm n m, sum_range_mul_blocks, ← Finset.sum_nsmul]
+  refine sum_congr rfl fun j _ => ?_
+  calc
+    _ = ∑ _ : Fin n, f j := sum_congr rfl fun r _ => by
+      rw [Nat.add_comm, Nat.add_mul_div_right _ _ (Nat.zero_lt_of_lt r.isLt),
+        Nat.div_eq_of_lt r.isLt, Nat.zero_add]
+    _ = _ := by simp
+
 namespace Fin
 
 /-- A sum over `Fin n` of a function vanishing from `k` on is a sum over `range k`. -/

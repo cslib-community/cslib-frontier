@@ -12,6 +12,7 @@ public import CslibFrontier.MachineLearning.OnlineLearning.LowerBounds
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeWeights
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Data.Fintype.CardEmbedding
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
@@ -129,15 +130,6 @@ variable {ι : Type*} [Fintype ι]
 
 /-! ### Block averages and the full-information block learner (`FIB`) -/
 
-private theorem sum_range_mul_eq_sum_block (K m : ℕ) (f : ℕ → ℝ) :
-    ∑ t ∈ range (K * m), f t = ∑ τ ∈ range K, ∑ r : Fin m, f (τ * m + r.val) := by
-  induction K with
-  | zero => simp only [zero_mul, range_zero, sum_empty]
-  | succ K ih =>
-    rw [Nat.succ_mul, sum_range_add, ih, sum_range_succ]
-    congr 1
-    exact (Fin.sum_univ_eq_sum_range (fun r => f (K * m + r)) m).symm
-
 /-- Block-average loss vector `c^τ` of block `τ` of length `m` [BlumMansour2007AGT, §4.6, p. 94]:
 `c^τ_i = (∑_{r < m} ℓ(τ * m + r, i)) / m`. -/
 noncomputable def blockAvgLoss (m : ℕ) (ℓ : ℕ → ι → ℝ) (τ : ℕ) (i : ι) : ℝ :=
@@ -168,7 +160,7 @@ theorem mul_sum_blockAvgLoss {m : ℕ} (hm : 0 < m) (ℓ : ℕ → ι → ℝ) (
     (m : ℝ) * ∑ τ ∈ range K, blockAvgLoss m ℓ τ i = ∑ t ∈ range (K * m), ℓ t i := by
   have hm_ne : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hm.ne'
   simp only [blockAvgLoss, mul_sum]
-  rw [sum_range_mul_eq_sum_block K m (fun t => ℓ t i)]
+  rw [Finset.sum_range_mul_blocks (fun t => ℓ t i) K m]
   exact sum_congr rfl fun τ _ => mul_div_cancel₀ _ hm_ne
 
 omit [Fintype ι] in
@@ -242,7 +234,7 @@ theorem blockFullInfo_loss_eq (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) 
     ∑ t ∈ range (K * m), ∑ i, blockFullInfo H m ℓ t i * ℓ t i =
       (m : ℝ) * ∑ τ ∈ range K, ∑ i, H (blockAvgLoss m ℓ) τ i * blockAvgLoss m ℓ τ i := by
   have hm_ne : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hm.ne'
-  rw [sum_range_mul_eq_sum_block K m, mul_sum]
+  rw [Finset.sum_range_mul_blocks _ K m, mul_sum]
   refine sum_congr rfl fun τ _ => ?_
   calc ∑ r : Fin m, ∑ i, blockFullInfo H m ℓ (τ * m + r.val) i * ℓ (τ * m + r.val) i
       = ∑ i, H (blockAvgLoss m ℓ) τ i * ∑ r : Fin m, ℓ (τ * m + r.val) i := by
@@ -648,7 +640,7 @@ private theorem mabPlay_expected_loss_le_mul [DecidableEq ι] [Nonempty ι] {m K
         (Fintype.card ι : ℝ) * K +
           (m : ℝ) * ∑ τ ∈ range K,
             ∑ j, H (exploredLoss sched ω ℓ) τ j * blockAvgLoss m ℓ τ j := fun ω => by
-    rw [sum_range_mul_eq_sum_block K m, ← Fin.sum_univ_eq_sum_range]
+    rw [Finset.sum_range_mul_blocks _ K m, ← Fin.sum_univ_eq_sum_range]
     refine (sum_le_sum fun τ _ => mabPlay_block_loss_le hm sched hH ω hℓ τ).trans_eq ?_
     simp only [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, ← mul_sum]
     rw [Fin.sum_univ_eq_sum_range (fun τ =>
