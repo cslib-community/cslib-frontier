@@ -82,16 +82,14 @@ theorem exec {W b M n : ℕ} (x : Data 7) (hb : x.regs base = b)
     (hfit : Fits W (b + n + M + 2)) :
     ∃ y, ExecWithin W program x y (7 * n + 4) ∧ y.mem = normalizePrefix x.mem b M n ∧
       y.regs base = b ∧ y.regs length = n ∧ y.regs modulus = M := by
-  unfold program
-  wram_exec
+  wram_exec [program]
   let P (j : ℕ) (y : Data 7) : Prop := y.regs base = b ∧ y.regs length = n ∧
     y.regs modulus = M ∧ y.regs one = 1 ∧ y.mem = normalizePrefix x.mem b M j
   refine WP.of_spec (ExecWithin.loop_count (N := n) (T := 5) P (fun _ hy => hy.2.1) ?_ ?_ ?_) ?_
   · rintro y ⟨yb, yn, ym, yo, ymem⟩ hlt
     have hread : y.mem (b + y.regs index) = x.mem (b + y.regs index) := by
       rw [ymem]; simp [normalizePrefix]
-    unfold body
-    wram_exec [yb, ym, yo, hread]
+    wram_exec [body, yb, ym, yo, hread]
     dsimp only [P]
     wram_simp [yb, yn, ym, yo, ymem, ← normalizePrefix_succ]
   · wram_simp [Nat.zero_le]

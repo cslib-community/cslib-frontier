@@ -103,8 +103,7 @@ private theorem dfsBody_leaf_spec {w base d ptr : ℕ} {s : Data 32}
     simpa only [Nat.mul_zero, Nat.add_zero, childSpan] using (hinv 0 (by omega)).2
   have hf_p5 : Fits w (ptr + 5) := ha.of_le (by omega)
   apply WP.exists_execWithin
-  unfold dfsBody dfsEnterBody
-  wram_exec [h0, h1, h2, h3, h5, htbl, hp, hx, hkind, htbl0, htbl1]
+  wram_exec [dfsBody, dfsEnterBody, h0, h1, h2, h3, h5, htbl, hp, hx, hkind, htbl0, htbl1]
   refine ⟨⟨by struct_frame hc, by wram_simp [span], by wram_simp [hx], by wram_simp,
     by wram_simp [hrun]⟩, ?_, by mem_frame⟩
   change Header 0 none ptr _
@@ -135,8 +134,8 @@ private theorem dfsBody_enter_succ_spec {w base d ptr k : ℕ} {s : Data 32}
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hne : k + 1 ≠ 0 := by omega
   apply WP.exists_execWithin
-  unfold dfsBody dfsEnterBody
-  wram_exec [h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, htbl0, htbl1, hne]
+  wram_exec [dfsBody, dfsEnterBody,
+    h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, htbl0, htbl1, hne]
   refine ⟨⟨by struct_frame hc, by wram_simp, by wram_simp, by wram_simp [hkind],
     by wram_simp [hrun]⟩, ?_, by wram_simp, by mem_frame⟩
   simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
@@ -158,8 +157,7 @@ private theorem dfsBody_next_cluster_spec {w base d ptr k cnt : ℕ} {s : Data 3
   have hnot_lt : ¬d < k + 1 := by omega
   have hne : cnt + 1 ≠ 0 := by omega
   apply WP.exists_execWithin
-  unfold dfsBody dfsExitBody
-  wram_exec [h0, h1, hdepth, hlow, hx, hkind, hcnt, hnot_lt, hne]
+  wram_exec [dfsBody, dfsExitBody, h0, h1, hdepth, hlow, hx, hkind, hcnt, hnot_lt, hne]
   exact ⟨⟨by struct_frame hc, by wram_simp [hp], by wram_simp, by wram_simp,
     by wram_simp [hrun]⟩, by wram_simp, by mem_frame⟩
 
@@ -176,8 +174,7 @@ private theorem dfsBody_exit_node_spec {w base d ptr k : ℕ} {s : Data 32}
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hnot_lt : ¬d < k + 1 := by omega
   apply WP.exists_execWithin
-  unfold dfsBody dfsExitBody
-  wram_exec [h0, h1, hdepth, hlow, hx, hkind, hrem, hnot_lt]
+  wram_exec [dfsBody, dfsExitBody, h0, h1, hdepth, hlow, hx, hkind, hrem, hnot_lt]
   exact ⟨⟨by struct_frame hc, by wram_simp [hp], by wram_simp, by wram_simp,
     by wram_simp [hrun]⟩, by wram_simp⟩
 
@@ -193,8 +190,7 @@ private theorem dfsBody_finish_spec {w base d ptr : ℕ} {s : Data 32}
   obtain ⟨h0, h1, _, _, _, _, hroot, hdepth, hpay, _, hstk, _, _⟩ := hc
   have hlt : d < d + 1 := by omega
   apply WP.exists_execWithin
-  unfold dfsBody dfsExitBody
-  wram_exec [h0, h1, hdepth, hx, hkind, hlt]
+  wram_exec [dfsBody, dfsExitBody, h0, h1, hdepth, hx, hkind, hlt]
   exact ⟨by wram_simp [h0], by wram_simp, by wram_simp [hroot],
     by wram_simp [hpay], by wram_simp [hstk], by wram_simp⟩
 
@@ -408,20 +404,17 @@ theorem init_dispatch_spec {w base d : ℕ} {s : Data 32}
   have hspan : Fits w (span d) := ha.of_le (by omega)
   have hd : Fits w d := ha.of_le (by omega)
   apply WP.exists_execWithin
-  unfold initProgram initSetup
-  wram_exec
+  wram_exec [initProgram, initSetup]
   wram_call (sizeLoop_spec (w := w) (d := d) d (k := 0) (by omega) hspan hd)
     [hdepth, universeSize, span]
     with s₂ ⟨hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, _, hs₂d, _, hs₂t, hs₂m⟩
   have hs₂_root : s₂.regs root = base := by regs_frame
-  unfold tableSetup
-  wram_exec [hs₂0, hs₂1, hs₂2, hs₂5, hs₂_root, hs₂t]
+  wram_exec [tableSetup, hs₂0, hs₂1, hs₂2, hs₂5, hs₂_root, hs₂t]
   wram_call (tableLoop_spec (w := w) (base := base) (d := d) d (k := 0) (by omega) ha)
     [hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, hs₂_root, hs₂d, universeSize, span]
     with s₄ ⟨hs₄0, hs₄1, hs₄2, hs₄3, hs₄4, hs₄5, hs₄r, hs₄d, hs₄p, hs₄tbl, hs₄stk,
       hs₄sp, hs₄inv, hs₄frame⟩
-  · unfold dfsSetup
-    wram_exec [hs₄0, hs₄1, hs₄r, hs₄d, hs₄sp]
+  · wram_exec [dfsSetup, hs₄0, hs₄1, hs₄r, hs₄d, hs₄sp]
     wram_call (dfsLoop_spec ⟨⟨by wram_simp [hs₄0], by wram_simp [hs₄1], by wram_simp [hs₄2],
         by wram_simp [hs₄3], by wram_simp [hs₄4], by wram_simp [hs₄5],
         by wram_simp [hs₄r], by wram_simp [hs₄d], by wram_simp [hs₄p],

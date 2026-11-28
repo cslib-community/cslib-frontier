@@ -370,8 +370,7 @@ theorem clauseLoop_spec (π : List (Literal ℕ)) (ψ : CNF ℕ) (s : ScanRegs) 
     simp only [length_encodeClauseBy] at hpψ
     have hNc := hN' c (by simp)
     refine ⟨by omega, ?_⟩
-    unfold clauseBody
-    wram_exec [hlen, hone, hzero]
+    wram_exec [clauseBody, hlen, hone, hzero]
     wram_call (litLoop_spec (w := w) π c ⟨0, 0, false, s'.opened⟩ _ N ..) framed
       with v₂ m₂ ⟨rfl, hr₂, hp₂⟩
     set r := c.foldl (litStep π) ⟨0, 0, false, s'.opened⟩ with hr
@@ -406,8 +405,7 @@ theorem scan_spec (π : List (Literal ℕ)) (φ : CNF ℕ) (x : Data 32) (N : �
       ScanAt y ⟨φ.any (Falsifies π), φ.all (fun c => c.any (Holds π)),
         (unitLiteral? φ π).map litCode, φ.vars.find? fun x => !Assigned π x⟩ := by
   refine WP.exists_execWithin ?_
-  unfold scan
-  wram_exec [hzero, hone, htwo]
+  wram_exec [scan, hzero, hone, htwo]
   wram_call (clauseLoop_spec (w := w) π φ .init _ N ..) framed [ScanRegs.init]
     with v m ⟨rfl, hs⟩
   rw [show (⟨false, true, none, none⟩ : ScanRegs) = .init from rfl, foldl_clauseStep_init] at hs

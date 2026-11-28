@@ -11,7 +11,9 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential.Basic
 public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Exponential
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
+import CslibFrontier.Computability.Complexity.Classes.Padding
 import CslibFrontier.Computability.Complexity.Reduction
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
 # Exponential time relative to an oracle language
@@ -41,6 +43,11 @@ phase is a tidy normal form of the deterministic machine, and the oracle phase a
 of the polynomial-time certificate (provided by the internal oracle compiler); the two
 are sequenced by `Turing.MultiTapePTM.ComputesTidily.comp`, which charges the intermediate word.
 
+In this way `NE ⊆ E ^ NP` (`Cslib.Complexity.NE_subset_ENP`): a problem in nondeterministic time
+`2 ^ O(n)` is decided on exponentially padded instances by a problem in `NP`
+(`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`), so an exponential-time
+machine writes the padded instance and asks the `NP` oracle about it.
+
 ## Main definitions
 
 * `Cslib.Probability.IsOracleExpTimeOn`: realization by one machine within a clock `2 ^ O(n)`.
@@ -59,6 +66,7 @@ are sequenced by `Turing.MultiTapePTM.ComputesTidily.comp`, which charges the in
   `Cslib.Complexity.preimage_mem_EWithOracle`.
 * `Cslib.Complexity.E_subset_ENP`, `Cslib.Complexity.iUnion_PWithOracle_NP_subset_ENP`,
   `Cslib.Complexity.NP_subset_ENP`: `E`, `P ^ NP` and `NP` lie inside `E ^ NP`.
+* `Cslib.Complexity.NE_subset_ENP`: `NE ⊆ E ^ NP`, by padding.
 
 ## References
 
@@ -177,6 +185,26 @@ theorem iUnion_PWithOracle_NP_subset_ENP (enc : α ↪ List Bool) :
 /-- `NP` lies inside `E ^ NP`: one request decides an `NP` language. -/
 theorem NP_subset_ENP : NP encBits ⊆ ENP encBits := fun A hA =>
   iUnion_PWithOracle_NP_subset_ENP encBits (Set.mem_biUnion hA (mem_PWithOracle_self A))
+
+/-- **`NE ⊆ E ^ NP`**, by the standard padding argument. A problem decidable by a nondeterministic
+machine within time `O(2 ^ (k * n))` is decided on the padded instances
+`frame (enc a) ++ 1^{2 ^ ((k + 1) * n)}` by a problem `B ∈ NP`
+(`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`). An exponential-time machine
+writes the padded instance and asks `B` about it, with one request of length `2 ^ O(n)`
+(`Cslib.Complexity.preimage_mem_EWithOracle`). -/
+theorem NE_subset_ENP (enc : α ↪ List Bool) : NE enc ⊆ ENP enc := by
+  intro A hA
+  obtain ⟨k, hk⟩ := mem_NE_iff.mp hA
+  obtain ⟨B, hB, hAB⟩ := exists_mem_NP_frame_append_mem_iff_of_mem_NTIME hk
+  obtain ⟨d, S, hpad⟩ := exists_computableInO_frame_append_two_pow (enc := enc)
+    (f := fun n => (k + 1) * n) (by fun_prop) fun n => Nat.le_mul_of_pos_left n k.succ_pos
+  have hA_eq : A = (fun a => frame (enc a) ++
+      List.replicate (2 ^ ((k + 1) * (enc a).length)) true) ⁻¹' B :=
+    Set.ext fun a => (hAB a _ (List.length_replicate.trans_ge (Nat.pow_le_pow_right two_pos
+      (Nat.mul_le_mul_right _ k.le_succ)))).symm
+  rw [hA_eq]
+  exact mem_ENP.mpr ⟨B, hB, preimage_mem_EWithOracle (d := d * (k + 1)) (mem_PWithOracle_self B)
+    (by simpa only [Nat.mul_assoc] using hpad)⟩
 
 end Complexity
 

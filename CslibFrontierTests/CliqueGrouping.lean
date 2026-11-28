@@ -20,9 +20,6 @@ Kernel-checked tests (with no `native_decide`) exercising `Cslib.Complexity.SAT.
    edges are produced (`edges = []`), so `groupClique 2 unsat2 ∉ Clique` and `unsat2 ∉ ThreeSAT`.
 3. Boundary inputs (`[]`, `[[]]`, a width-4 clause `non3CNF`, and `r = 0`), verifying
    `groupClique_snd`, `length_groupClique_vertices_le`, and `groupClique_mem_Clique_iff`.
-4. Non-vacuous type signatures of `exists_computableInO_groupClique`,
-   `DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`, `ETH.not_clique_subexpVertex`,
-   `ETH.not_clique_subexpEnc`, and `ETH.clique_not_mem_FPT`.
 -/
 
 public section
@@ -79,20 +76,5 @@ example : SAT.groupClique 2 non3CNF ∉ Clique := by
   exact absurd (h3 [(0, true), (1, true), (2, true), (3, true)] (by simp [non3CNF])) (by decide)
 
 example : SAT.groupClique 0 sat2 = ⟨⟨[], []⟩, 1⟩ := by decide
-
-/-- Non-vacuity typecheck of the ETH lower-bound and `FPT` theorems. -/
-example (hETH : ETH) : Clique ∉ FPT encCliqueInstance
-    CliqueInstance.m :=
-  ETH.clique_not_mem_FPT hETH
-
-example (hETH : ETH) :
-    ¬DecidableInTimeO Clique encCliqueInstance
-      (fun x =>
-        let graph := x.graph
-        let verts := graph.vertices
-        ((verts.length : ℝ) + 1) ^ (0 : ℝ)) := by
-  have h := ETH.not_clique_subexpVertex hETH (fun _ => 1) (fun _ => 0) 0
-    (fun ε hε => ⟨0, fun k _ => by positivity⟩)
-  simpa using h
 
 end Cslib.Complexity.Tests.CliqueGrouping

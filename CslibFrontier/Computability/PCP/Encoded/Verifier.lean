@@ -101,8 +101,7 @@ theorem isPolyTime_proofQueries (width : ℕ) (enc : C ↪ List Bool) :
       ComputableInPolyTime.mapWithInput (.const (encOut := encList encUnary) (List.range width))
         (by fun_prop)
     exact hsrc.listAppend' hdst
-  simpa only [List.map_id', Function.comp_def] using
-    ComputableInPolyTime.unary_to_binary.map.comp h
+  exact h.reencodeList .unary_to_binary
 
 /-- A fixed finite decoder and a joint evaluator give an efficient verdict on arbitrary answers. -/
 @[fun_prop]

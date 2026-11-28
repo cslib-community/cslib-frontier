@@ -72,8 +72,7 @@ theorem exec_spreadTable {w k : ℕ} (x : Data 128)
     have hrec : Nat.Morton.spread (y.regs Reg.index / 2) * 4 + y.regs Reg.index % 2 =
         Nat.Morton.spread (y.regs Reg.index) := by
       rw [Nat.Morton.spread_eq (y.regs Reg.index)]; omega
-    unfold spreadStep
-    wram_exec [hy1, hy2, hy4, hbase, hread, hrec]
+    wram_exec [spreadStep, hy1, hy2, hy4, hbase, hread, hrec]
     refine ⟨⟨?_, by wram_simp, by wram_simp; omega, ?_, ?_⟩, by wram_simp; omega⟩
     · intro i hni
       have hne : i ≠ Reg.index ∧ i ≠ Reg.address ∧ i ≠ Reg.temporary ∧ i ≠ Reg.position := by
@@ -85,8 +84,7 @@ theorem exec_spreadTable {w k : ℕ} (x : Data 128)
       · update_simp; exact hv j (by omega)
     · intro a ha; wram_simp at ha ⊢; update_simp; exact hf a (by omega)
   refine WP.exists_execWithin ?_
-  unfold spreadTable spreadSetup
-  wram_exec [h0]
+  wram_exec [spreadTable, spreadSetup, h0]
   wram_call (ExecWithin.loop_invariant I (fun y => 2 ^ k - y.regs Reg.index) hbody
     ⟨fun i hi => by
       have hi' : i ≠ Reg.address ∧ i ≠ Reg.index := by simp only [SpreadLocal, not_or] at hi; tauto

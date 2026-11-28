@@ -88,8 +88,9 @@ dimensions). -/
   IsVPolytope P
 
 /-- A **face** of a convex set `P` is a convex extreme subset of `P`. For polytopes, this coincides
-with exposed faces (`IsPolytopeFace.isExposed`). -/
-@[expose] def IsPolytopeFace (P F : Set E) : Prop :=
+with exposed faces (`IsPolytopeFace.isExposed`). Only the real vector space structure is used, so
+no norm is assumed. -/
+@[expose] def IsPolytopeFace {V : Type*} [AddCommGroup V] [Module ℝ V] (P F : Set V) : Prop :=
   IsExtreme ℝ P F ∧ Convex ℝ F
 
 /-- The **vertex centroid** of a polytope `P`, defined as the centroid of its finite set of extreme

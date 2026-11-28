@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateKronecker
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 
 /-!
 # Nonvanishing of the relative critical-value section
@@ -78,23 +79,40 @@ noncomputable def specializedRelativeValueSection (hell : 1 ≤ ell)
   (finSuccEquiv ℤ m (finiteRelativeValueSection hell F hF)).map
     (eval₂Hom (Int.castRingHom T) x)
 
+/-- Each coefficient of the specialized section is the evaluation of its parameter polynomial. -/
+theorem coeff_specializedRelativeValueSection_eq_eval₂ (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (i : ℕ) :
+    (specializedRelativeValueSection hell F hF x).coeff i =
+      eval₂ (Int.castRingHom T) x
+        ((finSuccEquiv ℤ m (finiteRelativeValueSection hell F hF)).coeff i) :=
+  Polynomial.coeff_map _ _
+
+/-- The specialized degree is bounded by the total degree of the unspecialized section. -/
+theorem natDegree_specializedRelativeValueSection_le (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
+    (specializedRelativeValueSection hell F hF x).natDegree ≤
+      (finiteRelativeValueSection hell F hF).totalDegree := by
+  rw [specializedRelativeValueSection]
+  exact Polynomial.natDegree_map_le.trans ((natDegree_finSuccEquiv _).le.trans
+    (degreeOf_le_totalDegree _ _))
+
 /-- The univariate fiber evaluates to the fixed-power section at the supplied critical value. -/
 theorem eval_specializedRelativeValueSection (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (y : T) :
     (specializedRelativeValueSection hell F hF x).eval y =
       eval₂ (Int.castRingHom T) (Fin.cons y x) (finiteRelativeValueSection hell F hF) := by
-  let φ := Int.castRingHom T
-  have h : (Polynomial.eval₂RingHom (eval₂Hom φ x) y).comp (finSuccEquiv ℤ m).toRingHom =
-      eval₂Hom φ (Fin.cons y x) := by
-    apply MvPolynomial.ringHom_ext
-    · intro c
-      simp [φ]
-    · intro i
-      refine Fin.cases ?_ (fun j => ?_) i
-      · simp [finSuccEquiv_X_zero]
-      · simp [finSuccEquiv_X_succ]
-  rw [specializedRelativeValueSection, Polynomial.eval_map]
-  exact DFunLike.congr_fun h (finiteRelativeValueSection hell F hF)
+  rw [specializedRelativeValueSection, Polynomial.eval_map, eval₂_finSuccEquiv]
+
+/-- Evaluate the section by substituting the prescribed power of the critical value for the
+penalty in the bivariate polynomial. -/
+theorem eval_specializedRelativeValueSection_eq_bivariate (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (y : T) :
+    (specializedRelativeValueSection hell F hF x).eval y =
+      (relativeValueBivariate hell (rename finSumFinEquiv.symm F)
+        ((totalDegree_rename_le _ _).trans hF) x).eval₂
+          (Polynomial.evalRingHom (y ^ (ell ^ n + 1))) y := by
+  rw [eval_specializedRelativeValueSection, eval₂_finiteRelativeValueSection,
+    ← Polynomial.eval_map, relativeValueBivariate_map]
 
 private theorem specializedRelativeValueSection_eq_eval [IsDomain T] [Infinite T] (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
@@ -103,12 +121,12 @@ private theorem specializedRelativeValueSection_eq_eval [IsDomain T] [Infinite T
         ((totalDegree_rename_le _ _).trans hF) x)).eval (Polynomial.X ^ (ell ^ n + 1)) := by
   apply Polynomial.funext
   intro y
-  rw [eval_specializedRelativeValueSection, eval₂_finiteRelativeValueSection]
+  rw [eval_specializedRelativeValueSection_eq_bivariate]
   symm
   conv_lhs => rw [← Polynomial.coe_aeval_eq_eval]
   rw [Polynomial.Bivariate.aeval_eval_X_pow,
     Polynomial.Bivariate.aevalAeval_swap, Polynomial.coe_aevalAeval_eq_evalEval,
-    ← Polynomial.map_evalRingHom_eval, relativeValueBivariate_map]
+    ← Polynomial.map_evalRingHom_eval, Polynomial.eval_map]
 
 private theorem coeff_specializedRelativeValueSection_of_infinite [IsDomain T] [Infinite T]
     (hell : 1 ≤ ell)

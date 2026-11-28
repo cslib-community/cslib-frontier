@@ -47,8 +47,7 @@ theorem exec_loadRecord {w R j c e p : ℕ} (x : Data registers)
     obtain ⟨y, hy, hc', he', hp'', hm⟩ := this
     exact ⟨y, hy, hc', he', hp'', hm,
       fun i hi => hy.regs_eq (by unfold RecordLocal at hi; decide +revert)⟩
-  unfold loadRecord
-  wram_exec *
+  wram_exec * [loadRecord]
   wram_simp
 
 /-- The signed workspace, indexed address and returned accumulator. -/

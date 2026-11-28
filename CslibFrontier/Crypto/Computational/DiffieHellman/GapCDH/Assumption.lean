@@ -127,8 +127,7 @@ with limit `1`). -/
 theorem isOraclePPTOn_queryDDHWord {α : Type} {input : α ↪ List Bool} {u v : α → List Bool}
     (hu : ComputableInPolyTime u input encBits) (hv : ComputableInPolyTime v input encBits) :
     IsOraclePPTOn input encBool (fun a => queryDDHWord (u a) (v a)) := by
-  have hreq : ComputableInPolyTime (fun a => encDDHOracleQuery ⟨u a, v a⟩) input encBits :=
-    (ComputableInPolyTime.id' (encIn := encDDHOracleQuery)).comp (by fun_prop)
+  have hreq := (encDDHOracleQuery_mk_polyTime hu hv).encoding_comp
   have htake : IsOraclePPTOn input encBits (fun a =>
       List.take 1 <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)

@@ -60,8 +60,9 @@ on general non-isolated multigraphs (`n ≤ 2m`):
 * `Cslib.Algorithms.WordRAM.MinimumSpanningForest.MSFLiftInv.sum_le`: total edge budget bound
   `accIds.length + esCur.length ≤ es.length`.
 * `Cslib.Algorithms.WordRAM.MinimumSpanningForest.realizes_initPreprocessProg`,
-  `Cslib.Algorithms.WordRAM.MinimumSpanningForest.initPreprocessProg_spec`: Word-RAM realization
-  and framed `O(m + n)` specification for `initPreprocessProg`.
+  `Cslib.Algorithms.WordRAM.MinimumSpanningForest.initPreprocessProg_spec`,
+  `Cslib.Algorithms.WordRAM.MinimumSpanningForest.initPreprocessProg_numVertices_le`:
+  Word-RAM realization, framed `O(m + n)` spec, and vertex bound for `initPreprocessProg`.
 * `Cslib.Algorithms.WordRAM.MinimumSpanningForest.realizes_boruvkaThreeStageProg`,
   `Cslib.Algorithms.WordRAM.MinimumSpanningForest.boruvkaThreeStageProg_spec`: Word-RAM realization
   and framed `O(m + n)` specification for `boruvkaThreeStageProg` (`8 * res.numVertices ≤ nCur`).
@@ -198,6 +199,18 @@ def initPreprocessProg (a : InitPreprocessArgs) : Memory.Prog GraphSlice := do
       s.mem (a.inBase + 3 * j) < a.numVertices ∧
       s.mem (a.inBase + 3 * j + 1) < a.numVertices
 
+private theorem exists_rawEdges_of_initPreprocessSafe {w : ℕ} {a : InitPreprocessArgs}
+    {s : Memory.State} (hsafe : initPreprocessProgSafe w a s) :
+    ∃ rawEs : List (WeightedEdge a.numVertices ℕ),
+      rawEs.length = a.numEdges ∧ HoldsEdges a.inBase rawEs s.mem := by
+  rcases a with ⟨n, m, inBase⟩
+  obtain ⟨_, _, _, hedges⟩ := hsafe
+  let rawEs : List (WeightedEdge n ℕ) := List.ofFn fun i : Fin m =>
+    ⟨⟨s.mem (inBase + 3 * i.val), (hedges i.val i.isLt).1⟩,
+      ⟨s.mem (inBase + 3 * i.val + 1), (hedges i.val i.isLt).2⟩,
+      s.mem (inBase + 3 * i.val + 2)⟩
+  exact ⟨rawEs, List.length_ofFn, fun i hi => by simp [rawEs]⟩
+
 private theorem initPreprocess_word_post {w : ℕ} {a : InitPreprocessArgs} {s : Memory.State}
     (hwf : Memory.WellFormed w s) (hsafe : initPreprocessProgSafe w a s) :
     let eb1 := (Memory.spec 0).clientResult s (initIndexedEdges a.inBase a.numEdges)
@@ -214,14 +227,9 @@ private theorem initPreprocess_word_post {w : ℕ} {a : InitPreprocessArgs} {s :
       ∀ j < dd.numEdges, s₂.mem (dd.edgeBase + 4 * j) < dd.numVertices ∧
         s₂.mem (dd.edgeBase + 4 * j + 1) < dd.numVertices) := by
   rcases a with ⟨n, m, inBase⟩
-  obtain ⟨h16, hin, hfit, hedges⟩ := hsafe
-  dsimp only at hin hfit hedges ⊢
-  let rawEs : List (WeightedEdge n ℕ) := List.ofFn fun i : Fin m =>
-    ⟨⟨s.mem (inBase + 3 * i.val), (hedges i.val i.isLt).1⟩,
-      ⟨s.mem (inBase + 3 * i.val + 1), (hedges i.val i.isLt).2⟩,
-      s.mem (inBase + 3 * i.val + 2)⟩
-  have hlen : rawEs.length = m := List.length_ofFn
-  have hraw : HoldsEdges inBase rawEs s.mem := fun i hi => by simp [rawEs]
+  obtain ⟨rawEs, hlen, hraw⟩ := exists_rawEdges_of_initPreprocessSafe hsafe
+  obtain ⟨h16, hin, hfit, _⟩ := hsafe
+  dsimp only at hlen hraw hin hfit ⊢
   have h1 := framedTriple_iff_realization.mp
     (initIndexedEdges_spec h16 hwf hraw (by simpa [hlen] using hin)
       (by simpa [hlen] using hfit.of_le (by omega)))
@@ -406,6 +414,19 @@ theorem initPreprocessProg_spec {w n inBase : ℕ} {es : List (WeightedEdge n �
         exact heq_w
     rw [hL_out_eq] at hmsf_es1
     exact ⟨remIds, hrem_val, by simpa using hmsf_es1⟩
+
+/-- Any safe Word-RAM state for `initPreprocessProg` outputs at most `a.numVertices` compacted
+vertices. -/
+theorem initPreprocessProg_numVertices_le {w : ℕ} {a : InitPreprocessArgs} {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (hsafe : initPreprocessProgSafe w a s) :
+    ((Memory.spec 0).clientResult s (initPreprocessProg a)).numVertices ≤ a.numVertices := by
+  rcases a with ⟨n, m, inBase⟩
+  obtain ⟨rawEs, hlen, hraw⟩ := exists_rawEdges_of_initPreprocessSafe hsafe
+  obtain ⟨h16, hin, hfit, _⟩ := hsafe
+  dsimp only at hlen hraw hin hfit ⊢
+  have h := framedTriple_iff_realization.mp (initPreprocessProg_spec h16 hwf hraw
+    (by simpa [hlen] using hin) (by simpa [hlen] using hfit))
+  simpa [hlen] using h.2.2.2.2.1
 
 /-! ## Section 3: 3-Stage Borůvka Contraction Pipeline -/
 

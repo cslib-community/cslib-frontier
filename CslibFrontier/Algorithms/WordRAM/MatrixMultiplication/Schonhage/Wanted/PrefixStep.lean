@@ -63,8 +63,7 @@ theorem exec_prefixStep {w L m N Q t : ℕ} (key : ℕ → ℕ)
     unfold cursorAddressBase
     omega
   refine WP.exists_execWithin ?_
-  unfold prefixStep
-  wram_exec * [hcount, hoff, hcursor, hadd, hnext]
+  wram_exec * [prefixStep, hcount, hoff, hcursor, hadd, hnext]
   refine ⟨by regs_frame, by wram_simp, ?_, ?_, ?_, ?_⟩
   · wram_simp
     exact (CountingSort.count_lt_succ key Q t).symm

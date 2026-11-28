@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredBind
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+import CslibFrontier.Tactic.Space
 import CslibFrontierTests.SpaceQueryLoop
 
 /-!
@@ -30,22 +30,9 @@ word. -/
 abbrev budget (p : ℕ × List Bool) : ℕ := (encNat p.1).length + Nat.log2 (encBits p.2).length
 
 theorem compare_inSpace : ComputableInSpace compare (encPair encNat encBits) encBool budget := by
-  have hc : ComputableInSpace (fun p : ℕ × List Bool => p.1) (encPair encNat encBits) encNat
-      budget :=
-    (ComputableInLogSpace.fst encNat encBits).inSpace_context
-      (.of_le fun _ => Nat.le_add_right _ _)
   have hlen : ComputableInSpace (fun p : ℕ × List Bool => p.2.length) (encPair encNat encBits)
-      encNat budget :=
-    (computableInLogSpace_bitsLength.comp'
-      (ComputableInLogSpace.snd encNat encBits)).inSpace_context
-      ⟨1, fun p => by
-        have := length_encNat_le_log2 (le_refl p.2.length)
-        simp only [encBits_apply] at this ⊢
-        omega⟩
-  have htwo : ComputableInSpace (fun _ : ℕ × List Bool => 2) (encPair encNat encBits) encNat
-      budget := ComputableInSpace.budget_const 2
-  exact (ComputableInSpace.budget_natLt hlen (ComputableInSpace.budget_natMul htwo hc)).of_enc_eq
-    fun _ => rfl
+      encNat budget := ComputableInSpace.budget_inputLength (.refl _)
+  space [compare]
 
 example : compare (2, [true, false, true]) = true := rfl
 example : compare (1, [true, false, false]) = false := rfl

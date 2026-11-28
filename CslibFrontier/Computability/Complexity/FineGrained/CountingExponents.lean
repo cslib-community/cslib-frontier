@@ -574,11 +574,6 @@ theorem iSup_satExponent_le_unrestrictedSatExponent :
     (⨆ k : ℕ, satExponent k) ≤ unrestrictedSatExponent :=
   ciSup_le satExponent_le_unrestrictedSatExponent
 
-/-- Under `SETH`, `unrestrictedSatExponent = 1`. -/
-theorem SETH.unrestrictedSatExponent_eq_one (h : SETH) : unrestrictedSatExponent = 1 :=
-  le_antisymm unrestrictedSatExponent_le_one
-    ((SETH_iff_iSup_eq_one.mp h).symm.le.trans iSup_satExponent_le_unrestrictedSatExponent)
-
 /-! ### Clause-measured vs. variable-measured counting rates (counting sparsification) -/
 
 /-- **From variables to clauses for `#k-SAT`.** Because a width-`≤ k` formula with `m` clauses has

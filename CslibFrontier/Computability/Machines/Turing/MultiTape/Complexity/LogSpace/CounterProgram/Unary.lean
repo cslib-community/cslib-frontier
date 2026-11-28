@@ -441,6 +441,15 @@ theorem unaryToBinary {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUna
   (computableInLogSpace_binary (F := fun a _ => a) (reg 0) fun _ _ => rfl).comp'
     (pair hf (ComputableInLogSpace.const 0))
 
+/-- A logspace-computed unary natural can be stored in binary within logarithmic workspace,
+including its encoded output. Its unary length is polynomial in the encoded input length. -/
+theorem unaryToBinary_inSpace {f : γ → ℕ} (hf : ComputableInLogSpace f encIn encUnary) :
+    ComputableInSpace f encIn encNat (fun a => Nat.log2 (encIn a).length) := by
+  obtain ⟨A, D, h⟩ := hf.polyBounded_length.exists_le
+  apply (unaryToBinary hf).inSpace_of_length_log
+  refine ⟨Nat.size A + 2 * D + 1, fun a => length_encNat_le_of_le_mul_pow ?_⟩
+  simpa only [encUnary_apply, List.length_replicate] using h a
+
 /-- **The length of a bit word, in unary**, by a finite-state transducer that replaces every bit by
 `true`. -/
 @[fun_prop]

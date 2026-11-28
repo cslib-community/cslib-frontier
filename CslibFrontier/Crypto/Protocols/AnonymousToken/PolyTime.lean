@@ -475,9 +475,9 @@ theorem isPPTOn_runExtractedWord {Message : Type} {encM : Message ↪ List Bool}
     (payloadDecoderOf D).computableInPolyTime
   have hprep : ComputableInPolyTime
       (fun c : (ℕ × List Bool) × (List Bool × List Bool) => (c.1.1, encWordPair (c.2.1, c.1.2)))
-      encExtractedCaller encParamInput :=
-    (ComputableInPolyTime.fst _ _).fst'.prod
-      ((ComputableInPolyTime.snd _ _).fst'.prod (ComputableInPolyTime.fst _ _).snd')
+      encExtractedCaller encParamInput := by
+    unfold encExtractedCaller encParamInput encWordPair
+    fun_prop
   have hhandler := isPPTOn_runExtractedHandler S htarget D
   obtain ⟨dc, dd, hdecBound⟩ := hdec.polyBounded_length.exists_le
   obtain ⟨tc, td, htBound⟩ := htarget.polyBounded_length.exists_le

@@ -81,7 +81,7 @@ Locators refer to the IACR ePrint full versions: [DamgardPastroSmartZakarias2012
    most $2 / p$ ([DamgardKellerLarraiaPastroSchollSmart2013], §5.1, Lemma 1; App. D.3):
    - Stage 1 (`eval_linearCombZeroGame_eq`): $\Pr_e[\sum_\ell e_\ell \cdot \mathrm{err}_\ell = 0]
      = 1 / p$, proved via `Cslib.Probability.toOuterMeasure_uniform_linearComb_eq_zero`.
-   - Stage 2 (`eval_macKey_guess_le`): whenever
+   - Stage 2 (`eval_macKey_guess_eq`, `eval_macKey_guess_le`): whenever
      $L = \sum_\ell e_\ell \cdot \mathrm{err}_\ell \neq 0$, a uniform key
      $\alpha \in \mathbb{Z}_p$ satisfies $\alpha \cdot L = \Delta(e)$ with probability $1 / p$,
      proved via `Cslib.Probability.toOuterMeasure_uniform_linearComb_eq` on `Unit`.
@@ -115,6 +115,8 @@ $2 / p$ bound to an arbitrary finite field and removing the `AddCommMonoid` requ
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.addConst`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.mulOnline`: homomorphic linear operations and online
   Beaver multiplication on authenticated shares.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.tamperParty`: a corrupt party's additive tampering
+  of its value and MAC shares.
 * `Cslib.Crypto.Protocols.MPC.SPDZ.OpenedValue`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.PartyCheckInput`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.PartyCheckInput.AuthenticFor`,
@@ -142,6 +144,8 @@ $2 / p$ bound to an arbitrary finite field and removing the `AddCommMonoid` requ
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valShares_mulOnline_eq_beaverMulShare`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.secret_mulOnline_eq_mul`: MAC-invariant preservation,
   value-share agreement with `Beaver.beaverMulShare`, and online product correctness.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valid_tamperParty_iff`: a valid share stays valid
+  after party `i` adds `(δ_x, δ_t)` to its shares iff `α * δ_x = δ_t`.
 * `Cslib.Crypto.Protocols.MPC.SPDZ.sum_checkResidual_eq_zero`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.eval_snd_macCheckProtocol_eq_pure_true`: honest completeness of
   batch `MACCheck`.
@@ -152,7 +156,9 @@ $2 / p$ bound to an arbitrary finite field and removing the `AddCommMonoid` requ
   `Cslib.Crypto.Protocols.MPC.SPDZ.eval_linearCombZeroGame_le`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.probability_linearCombZeroGame_le`: Stage 1 weight-cancellation
   probability $1 / p$.
-* `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macKey_guess_le`: Stage 2 key-guessing probability bound.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macKey_guess_eq`,
+  `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macKey_guess_le`: Stage 2 key-guessing probability
+  (exact `1 / p` for `L ≠ 0`) and bound.
 * `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macCheckSoundnessGame_le`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.probability_macCheckSoundnessGame_le`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macCheckSoundnessAdvGame_le`: concrete $2 / p$ bound for the
@@ -350,6 +356,34 @@ theorem Valid.mulOnline {p n : ℕ} [NeZero n] {alpha : ZMod p}
     (ha : sa.Valid alpha) (hb : sb.Valid alpha) (hc : sc.Valid alpha) :
     (mulOnline sa sb sc d e).Valid alpha :=
   Valid.addConst (d * e) (((Valid.smul e ha).add (Valid.smul d hb)).add hc)
+
+/-- Corrupt party `i` submits tampered shares: it adds `δ_x` to its value share `a_i` and `δ_t` to
+its MAC share `γ_i`, leaving the public modifier `δ` and every other party's shares unchanged. -/
+@[expose] def tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    AuthShare p n where
+  delta := s.delta
+  valShares := s.valShares + Pi.single i δ_x
+  macShares := s.macShares + Pi.single i δ_t
+
+@[simp] theorem secret_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).secret = s.secret + δ_x := by
+  simp [tamperParty, secret, Finset.sum_add_distrib]
+
+@[simp] theorem macSum_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).macSum = s.macSum + δ_t := by
+  simp [tamperParty, macSum, Finset.sum_add_distrib]
+
+@[simp] theorem delta_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).delta = s.delta :=
+  rfl
+
+/-- **Single-share MAC check characterization:** when `s` is valid under `α`, party `i`'s tampered
+submission `(a_i + δ_x, γ_i + δ_t)` is valid under `α` if and only if `α * δ_x = δ_t`. -/
+theorem valid_tamperParty_iff {p n : ℕ} {alpha : ZMod p} {s : AuthShare p n} (hs : s.Valid alpha)
+    (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).Valid alpha ↔ alpha * δ_x = δ_t := by
+  rw [Valid, macSum_tamperParty, secret_tamperParty, delta_tamperParty, hs]
+  exact ⟨fun h => by linear_combination -h, fun h => by linear_combination -h⟩
 
 /-- Each party `i`'s value share in `mulOnline` agrees with `Beaver.beaverMulShare` applied to
 the party's value-share triple `⟨sa.valShares i, sb.valShares i, sc.valShares i⟩`. -/
@@ -599,7 +633,7 @@ samples an independent uniform MAC key `alpha ← $ᵗ ZMod p` and public weight
 `e ← $ᵗ (Fin T → ZMod p)`, and tests whether the adversary's (possibly `e`-adaptive)
 residual shift `deltaShift e` satisfies the cheating equation
 `alpha * linearCombAddHom err e = deltaShift e`. -/
-noncomputable def macCheckSoundnessGame (p T : ℕ) [NeZero p]
+@[expose] noncomputable def macCheckSoundnessGame (p T : ℕ) [NeZero p]
     (err : Fin T → ZMod p) (deltaShift : (Fin T → ZMod p) → ZMod p) : ProbComp Bool := do
   let alpha ← $ᵗ ZMod p
   let e ← $ᵗ (Fin T → ZMod p)
@@ -642,9 +676,25 @@ theorem probability_linearCombZeroGame_le {p T : ℕ} [Fact (Nat.Prime p)]
     Pr[linearCombZeroGame p T err] ≤ 1 / p := by
   rw [eval_linearCombZeroGame_eq herr, ENNReal.toReal_inv, ENNReal.toReal_natCast, one_div]
 
+/-- Stage-2 exact key-guessing probability: for any `L ≠ 0` and `d : ZMod p`, a uniform key
+`alpha : ZMod p` satisfies `alpha * L = d` with probability exactly `p⁻¹` (via
+`toOuterMeasure_uniform_linearComb_eq` on `Unit`). -/
+theorem eval_macKey_guess_eq {p : ℕ} [Fact (Nat.Prime p)] {L : ZMod p} (hL : L ≠ 0)
+    (d : ZMod p) :
+    ((PMF.uniformOfFintype (ZMod p)).map fun alpha => decide (alpha * L = d)) true =
+      (p : ℝ≥0∞)⁻¹ := by
+  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
+    ← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod p)),
+    PMF.toOuterMeasure_map_apply]
+  have hpre : (Equiv.funUnique Unit (ZMod p) ⁻¹'
+      ((fun alpha : ZMod p => decide (alpha * L = d)) ⁻¹' {true})) =
+      {r : Unit → ZMod p | ∑ i : Unit, r i * L = d} := Set.ext fun _ => by simp
+  rw [hpre, toOuterMeasure_uniform_linearComb_eq (d := fun _ => L) (i₀ := ()) hL d,
+    ZMod.card, one_div]
+
 /-- Stage-2 pointwise key-guessing bound: for any `L, d : ZMod p`, a uniform key `alpha : ZMod p`
-satisfies `alpha * L = d` with probability at most `(if L = 0 then 1 else 0) + p⁻¹` (proved in the
-`L ≠ 0` branch via `toOuterMeasure_uniform_linearComb_eq` on `Unit`). -/
+satisfies `alpha * L = d` with probability at most `(if L = 0 then 1 else 0) + p⁻¹` (the
+`L ≠ 0` branch is `eval_macKey_guess_eq`). -/
 theorem eval_macKey_guess_le {p : ℕ} [Fact (Nat.Prime p)] (L d : ZMod p) :
     ((PMF.uniformOfFintype (ZMod p)).map fun alpha => decide (alpha * L = d)) true ≤
       (if L = 0 then (1 : ℝ≥0∞) else 0) + (p : ℝ≥0∞)⁻¹ := by
@@ -652,14 +702,7 @@ theorem eval_macKey_guess_le {p : ℕ} [Fact (Nat.Prime p)] (L d : ZMod p) :
   · simp only [hL, ↓reduceIte]
     exact (PMF.coe_le_one _ _).trans le_self_add
   · simp only [hL, ↓reduceIte, zero_add]
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-      ← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod p)),
-      PMF.toOuterMeasure_map_apply]
-    have hpre : (Equiv.funUnique Unit (ZMod p) ⁻¹'
-        ((fun alpha : ZMod p => decide (alpha * L = d)) ⁻¹' {true})) =
-        {r : Unit → ZMod p | ∑ i : Unit, r i * L = d} := Set.ext fun _ => by simp
-    rw [hpre, toOuterMeasure_uniform_linearComb_eq (d := fun _ => L) (i₀ := ()) hL d,
-      ZMod.card, one_div]
+    exact (eval_macKey_guess_eq hL d).le
 
 /-- Concrete $2 / p$ bound for the standalone `MACCheck` cheating-equation game
 ([DamgardKellerLarraiaPastroSchollSmart2013], §5.1, Lemma 1; App. D.3): for prime `p`, any

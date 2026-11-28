@@ -378,7 +378,8 @@ private theorem isPPTOn_programWordHandlerWith {input : Caller ↪ List Bool}
           sourceEncoding _ by dsimp only [sourceEncoding]; fun_prop)
       have hcache : ComputableInPolyTime (fun pair => pair.2.2) sourceEncoding
           (encMemoCache encBits encBits) := by dsimp only [sourceEncoding]; fun_prop
-      exact hfinishSource.fst'.prod (hcache.prod hfinishSource.snd')
+      exact hfinishSource.fst'.prod
+        (encProgrammingState_mk_polyTime Log encLog hcache hfinishSource.snd')
     simpa only [bind_pure_comp] using Probability.IsPPTOn.map_with hactiveCache
       (f := fun p result =>
         let done := finish p.1.1 p.1.2.1.2 p.2 result.1 p.1.2.2.log

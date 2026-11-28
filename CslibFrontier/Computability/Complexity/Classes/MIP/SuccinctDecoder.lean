@@ -114,6 +114,12 @@ namespace Succinct3CNFInstance
 @[expose] def sumcheckDegree (x : Succinct3CNFInstance) : ℕ :=
   1 + 3 * x.code.1.length + 3 * (x.labelBits + 1)
 
+/-- The raw decoder computes the individual degree bound of the typed circuit it encodes. -/
+theorem sumcheckDegree_eq {x : Succinct3CNFInstance}
+    (c : Circuit signature x.clauseBits (3 * (x.labelBits + 1))) (hc : c.code = x.code) :
+    x.sumcheckDegree = 1 + 3 * c.size + 3 * (x.labelBits + 1) := by
+  rw [sumcheckDegree, ← hc, Circuit.length_code_fst c]
+
 /-- Lower bound used to select the prime field for assignment testing and sumcheck. -/
 @[expose] def fieldBound (x : Succinct3CNFInstance) : ℕ :=
   1000 * (x.labelBits + 1) ^ 3 + 100 * (x.sumcheckVars + 1) * (x.sumcheckDegree + 1)

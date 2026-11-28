@@ -39,8 +39,7 @@ theorem exec_restoreInput {W b n M : ℕ} (x : Data 163) (hb : x.regs Reg.base =
       y.mem = ArrayNormalize.normalizePrefix x.mem b M n ∧
       ∀ i : Fin 163, 7 ≤ i.val → y.regs i = x.regs i := by
   refine WP.exists_execWithin ?_
-  unfold restoreInput
-  wram_exec [hb, hn, hm]
+  wram_exec [restoreInput, hb, hn, hm]
   wram_call ArrayNormalize.exec renamed with y ⟨⟨ym, _, _, _⟩, yf⟩
   exact ⟨by omega, ym, frame_high_regs yf⟩
 
@@ -54,8 +53,7 @@ theorem exec_returnOutput {W b o n M : ℕ} (x : Data 163) (hb : x.regs Reg.base
       ∀ i : Fin 163, 7 ≤ i.val → y.regs i = x.regs i := by
   have hfit' : Fits W ((b + o) + n + M + 2) := by simpa only [Nat.add_assoc] using hfit
   refine WP.exists_execWithin ?_
-  unfold returnOutput
-  wram_exec [hb, ho, hn, hm]
+  wram_exec [returnOutput, hb, ho, hn, hm]
   wram_call ArrayNormalize.exec renamed [hfit'] with y ⟨⟨ym, yr, _, _⟩, yf⟩
   exact ⟨by omega, ym, yr, frame_high_regs yf⟩
 

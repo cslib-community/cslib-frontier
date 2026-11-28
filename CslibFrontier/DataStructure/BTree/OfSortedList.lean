@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.BTree.Height
 public import CslibFrontier.DataStructure.BTree.Insert
+import Mathlib.Data.Finset.Sort
+import Mathlib.Data.Fintype.EquivFin
 
 /-!
 # Bulk loading of classic B-trees
@@ -47,6 +49,8 @@ becomes a single node, which keeps the entries. Costs are not stated here.
 * `height_ofSortedList_le`: for `2 ≤ t`, the height bound of `IsWF.height_le_log`, for every
   list.
 * `isWF_ofSortedList`: on a sorted list, the result is well-formed.
+* `exists_isWF_toList_map_snd_eq`: over an infinite key type, every list of values is the value
+  list of a well-formed tree of that many entries with distinct keys.
 * `lookup_ofSortedList`: on a sorted list, lookup is `List.lookup`.
 
 ## References
@@ -521,6 +525,23 @@ theorem isWF_ofSortedList {t : ℕ} {l : List (α × β)} (ht : 2 ≤ t) (h : l.
   { two_le := ht, rootKeys_le := hs.rootKeys_le, rootKeys_pos := hs.rootKeys_pos,
     occupied_of_mem_children := hs.occupied_of_mem_children, balanced := hs.balanced,
     sorted := by rwa [toList_ofSortedList] }
+
+/-- Every list of values `vs` is the value list of a well-formed B-tree of minimum degree `t ≥ 2`
+with `vs.length` entries and distinct keys, over an infinite linearly ordered key type: bulk load
+`vs` under any `vs.length` keys in increasing order. -/
+theorem exists_isWF_toList_map_snd_eq [Infinite α] {t : ℕ} (ht : 2 ≤ t) (vs : List β) :
+    ∃ tree : BTree α β, IsWF t tree ∧ tree.size = vs.length ∧
+      (tree.toList.map Prod.fst).Nodup ∧ tree.toList.map Prod.snd = vs := by
+  obtain ⟨s, hs⟩ := Infinite.exists_subset_card_eq α vs.length
+  have hlen : (s.sort (· ≤ ·)).length = vs.length := by rw [Finset.length_sort, hs]
+  have hfst : ((s.sort (· ≤ ·)).zip vs).map Prod.fst = s.sort (· ≤ ·) := List.map_fst_zip hlen.le
+  refine ⟨ofSortedList t ((s.sort (· ≤ ·)).zip vs), isWF_ofSortedList ht ?_, ?_, ?_, ?_⟩
+  · rw [List.isSortedAssoc_iff_pairwise, hfst]
+    exact (Finset.sortedLT_sort s).pairwise
+  · rw [size_ofSortedList, List.length_zip, hlen, Nat.min_self]
+  · rw [toList_ofSortedList, hfst]
+    exact Finset.sort_nodup s _
+  · rw [toList_ofSortedList, List.map_snd_zip hlen.ge]
 
 /-- Lookup in a bulk-loaded sorted list is lookup in the list. -/
 @[simp] theorem lookup_ofSortedList {t : ℕ} {l : List (α × β)} (h : l.IsSortedAssoc) (k : α) :

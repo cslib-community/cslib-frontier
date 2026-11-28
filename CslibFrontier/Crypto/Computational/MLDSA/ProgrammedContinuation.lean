@@ -226,8 +226,9 @@ private theorem simulated_eq_publicPair (C : QuantumSigningForger) (s : Level) (
   have len : pk.length = 32 + 320 * s.params.k := by simp [pk, encodePublic]
   have sep : 8 * pk.length ≠ s.commitmentInputBits := by rw [len]; cases s <;> decide
   have key : G.h256.readBytes pk 64 = tr := by
-    simp only [G, tr, ExtendableOutput.readBytes, Xofs.withDigestRegister,
-      ExtendableOutput.withPrefixes, Keccak.length_bytesToBitsLE, sep, ↓reduceIte]
+    simp only [G, tr, ExtendableOutput.readBytes, Xofs.withDigestRegister, Xofs.withPrefixRegister,
+      Xofs.withPrefixLists, ExtendableOutput.withPrefixes, Keccak.length_bytesToBitsLE,
+      sep, ↓reduceIte]
   let st : History s G sk.tr := ⟨G, [], [], .initial, by simp, by simp⟩
   have runs := C.simulated_eq_run s H G pair.A sk pk (C.program pk) D C.initialDevice st rfl
   have draws : freshMaskDraw s pair.A sk = publicDraw s pair.publicKey :=

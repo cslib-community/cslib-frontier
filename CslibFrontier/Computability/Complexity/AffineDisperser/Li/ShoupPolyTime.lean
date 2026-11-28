@@ -53,8 +53,6 @@ namespace Cslib.AffineDisperser.Li
 open Turing.MultiTapeTM ComputableInPolyTime
 open Cslib.BitString (listDot)
 
-attribute [local irreducible] ComputableInPolyTime
-
 /-! ### Local `fun_prop` and size-bound helpers -/
 
 @[local fun_prop]

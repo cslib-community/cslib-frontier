@@ -43,10 +43,12 @@ exchange market where each buyer holds a budget-proportional share of every good
 
 ## Main definitions
 
-* `Cslib.GameTheory.Market.expenditure`, `Cslib.GameTheory.Market.IsBudgetFeasible`,
-  `Cslib.GameTheory.Market.demandSet`, `Cslib.GameTheory.Market.IsLocallyNonsatiated`: bundle cost,
-  budget feasibility, Marshallian demand correspondence, and local nonsatiation on nonnegative
-  bundles.
+* `Cslib.GameTheory.Market.IsBudgetFeasibleOn`, `Cslib.GameTheory.Market.demandSetOn`,
+  `Cslib.GameTheory.Market.IsLocallyNonsatiatedOn`: general consumption-set (`X : Set (G → ℝ)`)
+  versions of budget feasibility, Marshallian demand, and local nonsatiation, with specializations
+  `Cslib.GameTheory.Market.expenditure`, `Cslib.GameTheory.Market.IsBudgetFeasible`,
+  `Cslib.GameTheory.Market.demandSet`, `Cslib.GameTheory.Market.IsLocallyNonsatiated` on
+  nonnegative bundles.
 * `Cslib.GameTheory.Market.linearUtility`: additive linear utility `∑ g, v g * b g`.
 * `Cslib.GameTheory.Market.ExchangeMarket`: Arrow–Debreu exchange economy, with `totalSupply`,
   `income`, `IsBudgetFeasible`, `demandSet`, `IsFeasibleAllocation`, `excessDemand`,
@@ -68,6 +70,10 @@ exchange market where each buyer holds a budget-proportional share of every good
 * `Cslib.GameTheory.Market.ExchangeMarket.walras_law`: **Walras's law**
   ([CodenottiVaradarajan2007], Section 6.1.1, p. 137): under local nonsatiation, the market value
   of aggregate excess demand vanishes (`expenditure p (E.excessDemand x) = 0`).
+* `Cslib.GameTheory.Market.not_exists_paretoImprovementOn`,
+  `Cslib.GameTheory.Market.not_exists_strictParetoImprovementOn`: shared consumer-level
+  expenditure contradictions on general consumption sets (used by both exchange and production
+  welfare theorems).
 * `Cslib.GameTheory.Market.ExchangeMarket.IsCompetitiveEquilibrium.isParetoOptimal`: **First
   Welfare Theorem** ([ArrowDebreu1954]): under local nonsatiation, every competitive equilibrium
   allocation is Pareto optimal.
@@ -128,6 +134,16 @@ theorem expenditure_nonneg {p b : G → ℝ} (hp : ∀ g, 0 ≤ p g) (hb : ∀ g
     0 ≤ expenditure p b :=
   Finset.sum_nonneg fun g _ => mul_nonneg (hp g) (hb g)
 
+/-- Bundle `b` is **budget-feasible on `X`** at prices `p` and scalar budget `m` if `b ∈ X` and
+its expenditure is at most `m`. -/
+@[expose] def IsBudgetFeasibleOn (X : Set (G → ℝ)) (p : G → ℝ) (m : ℝ) (b : G → ℝ) : Prop :=
+  b ∈ X ∧ expenditure p b ≤ m
+
+theorem IsBudgetFeasibleOn.smul_price_budget {X : Set (G → ℝ)} {p : G → ℝ} {m c : ℝ}
+    {b : G → ℝ} (hc : 0 < c) :
+    IsBudgetFeasibleOn X (c • p) (c * m) b ↔ IsBudgetFeasibleOn X p m b := by
+  simp only [IsBudgetFeasibleOn, expenditure_smul_left, mul_le_mul_iff_right₀ hc]
+
 /-- Bundle `b` is **budget-feasible** at prices `p` and scalar budget `m` if it is nonnegative and
 its expenditure is at most `m`. -/
 @[expose] def IsBudgetFeasible (p : G → ℝ) (m : ℝ) (b : G → ℝ) : Prop :=
@@ -136,6 +152,23 @@ its expenditure is at most `m`. -/
 theorem IsBudgetFeasible.smul_price_budget {p : G → ℝ} {m c : ℝ} {b : G → ℝ} (hc : 0 < c) :
     IsBudgetFeasible (c • p) (c * m) b ↔ IsBudgetFeasible p m b := by
   simp only [IsBudgetFeasible, expenditure_smul_left, mul_le_mul_iff_right₀ hc]
+
+/-- The **Marshallian demand set on `X`** of a consumer with consumption set `X`, utility `u`,
+and budget `m` at prices `p`. -/
+def demandSetOn (X : Set (G → ℝ)) (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) : Set (G → ℝ) :=
+  {b | IsBudgetFeasibleOn X p m b ∧ ∀ b', IsBudgetFeasibleOn X p m b' → u b' ≤ u b}
+
+@[simp] theorem mem_demandSetOn {X : Set (G → ℝ)} {u : (G → ℝ) → ℝ} {p : G → ℝ} {m : ℝ}
+    {b : G → ℝ} :
+    b ∈ demandSetOn X u p m ↔
+      IsBudgetFeasibleOn X p m b ∧ ∀ b', IsBudgetFeasibleOn X p m b' → u b' ≤ u b :=
+  Iff.rfl
+
+theorem demandSetOn_smul (X : Set (G → ℝ)) (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) {c : ℝ}
+    (hc : 0 < c) :
+    demandSetOn X u (c • p) (c * m) = demandSetOn X u p m := by
+  ext b
+  simp only [mem_demandSetOn, IsBudgetFeasibleOn.smul_price_budget hc]
 
 /-- The **Marshallian demand set** of a consumer with utility `u` and budget `m` at prices `p`:
 the set of budget-feasible bundles maximizing `u` ([CodenottiVaradarajan2007], Section 6.1.1,
@@ -155,6 +188,13 @@ theorem demandSet_smul (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) {c : 
   ext b
   simp only [mem_demandSet, IsBudgetFeasible.smul_price_budget hc]
 
+/-- A utility function `u : (G → ℝ) → ℝ` is **locally nonsatiated on `X`** if every
+`ℓ_∞`-neighborhood of every bundle `b ∈ X` contains a strictly preferred bundle `b' ∈ X`
+([ArrowDebreu1954]). -/
+@[expose] def IsLocallyNonsatiatedOn (X : Set (G → ℝ)) (u : (G → ℝ) → ℝ) : Prop :=
+  ∀ b ∈ X, ∀ ε : ℝ, 0 < ε →
+    ∃ b' ∈ X, (∀ g, |b' g - b g| < ε) ∧ u b < u b'
+
 /-- A utility function `u : (G → ℝ) → ℝ` is **locally nonsatiated** on nonnegative consumption
 bundles if every `ℓ_∞`-neighborhood of every nonnegative bundle contains a strictly preferred
 nonnegative bundle ([ArrowDebreu1954]). Note that [CodenottiVaradarajan2007], Section 6.1.1,
@@ -164,12 +204,11 @@ nonsatiation directly. -/
   ∀ b : G → ℝ, (∀ g, 0 ≤ b g) → ∀ ε : ℝ, 0 < ε →
     ∃ b' : G → ℝ, (∀ g, 0 ≤ b' g) ∧ (∀ g, |b' g - b g| < ε) ∧ u b < u b'
 
-/-- Under local nonsatiation, any nonnegative bundle `b'` weakly preferred to a demanded bundle `b`
-costs at least the consumer's budget `m`; otherwise a nearby strictly preferred bundle would also
-be affordable. -/
-theorem IsLocallyNonsatiated.le_expenditure_of_mem_demandSet {u : (G → ℝ) → ℝ}
-    (hlns : IsLocallyNonsatiated u) {p : G → ℝ} {m : ℝ} {b b' : G → ℝ}
-    (hb : b ∈ demandSet u p m) (hb'_nn : ∀ g, 0 ≤ b' g) (hub : u b ≤ u b') :
+/-- Under local nonsatiation on `X`, any bundle `b' ∈ X` weakly preferred to a demanded bundle
+`b ∈ demandSetOn X u p m` costs at least `m`. -/
+theorem IsLocallyNonsatiatedOn.le_expenditure_of_mem_demandSetOn {X : Set (G → ℝ)}
+    {u : (G → ℝ) → ℝ} (hlns : IsLocallyNonsatiatedOn X u) {p : G → ℝ} {m : ℝ} {b b' : G → ℝ}
+    (hb : b ∈ demandSetOn X u p m) (hb'_mem : b' ∈ X) (hub : u b ≤ u b') :
     m ≤ expenditure p b' := by
   refine le_of_not_gt fun hlt => ?_
   set δ : ℝ := m - expenditure p b'
@@ -177,7 +216,7 @@ theorem IsLocallyNonsatiated.le_expenditure_of_mem_demandSet {u : (G → ℝ) �
   set S : ℝ := ∑ g : G, |p g|
   have hS_nn : 0 ≤ S := Finset.sum_nonneg fun g _ => abs_nonneg (p g)
   have hden : 0 < 1 + S := by linarith
-  obtain ⟨z, hz_nn, hz_dist, huz⟩ := hlns b' hb'_nn (δ / (1 + S)) (div_pos hδ hden)
+  obtain ⟨z, hz_mem, hz_dist, huz⟩ := hlns b' hb'_mem (δ / (1 + S)) (div_pos hδ hden)
   have hz_exp : expenditure p z ≤ m := by
     have hdiff : expenditure p z - expenditure p b' ≤ S * (δ / (1 + S)) := by
       calc
@@ -190,7 +229,31 @@ theorem IsLocallyNonsatiated.le_expenditure_of_mem_demandSet {u : (G → ℝ) �
         _ = S * (δ / (1 + S)) := by rw [← Finset.sum_mul]
     have hS_le : S * (δ / (1 + S)) ≤ δ := by rw [mul_div_assoc', div_le_iff₀ hden]; nlinarith
     linarith
-  linarith [hb.2 z ⟨hz_nn, hz_exp⟩]
+  linarith [hb.2 z ⟨hz_mem, hz_exp⟩]
+
+/-- Budget exhaustion on general consumption sets `X`. -/
+theorem IsLocallyNonsatiatedOn.expenditure_eq_of_mem_demandSetOn {X : Set (G → ℝ)}
+    {u : (G → ℝ) → ℝ} (hlns : IsLocallyNonsatiatedOn X u) {p : G → ℝ} {m : ℝ} {b : G → ℝ}
+    (hb : b ∈ demandSetOn X u p m) : expenditure p b = m :=
+  le_antisymm hb.1.2 (hlns.le_expenditure_of_mem_demandSetOn hb hb.1.1 le_rfl)
+
+/-- Any bundle `b' ∈ X` strictly preferred to a demanded bundle on `X` strictly exceeds the
+consumer's budget (valid without local nonsatiation). -/
+theorem lt_expenditure_of_mem_demandSetOn {X : Set (G → ℝ)} {u : (G → ℝ) → ℝ}
+    {p : G → ℝ} {m : ℝ} {b b' : G → ℝ}
+    (hb : b ∈ demandSetOn X u p m) (hb'_mem : b' ∈ X) (hub : u b < u b') :
+    m < expenditure p b' :=
+  lt_of_not_ge fun hle => not_le_of_gt hub (hb.2 b' ⟨hb'_mem, hle⟩)
+
+/-- Under local nonsatiation, any nonnegative bundle `b'` weakly preferred to a demanded bundle `b`
+costs at least the consumer's budget `m`; otherwise a nearby strictly preferred bundle would also
+be affordable. -/
+theorem IsLocallyNonsatiated.le_expenditure_of_mem_demandSet {u : (G → ℝ) → ℝ}
+    (hlns : IsLocallyNonsatiated u) {p : G → ℝ} {m : ℝ} {b b' : G → ℝ}
+    (hb : b ∈ demandSet u p m) (hb'_nn : ∀ g, 0 ≤ b' g) (hub : u b ≤ u b') :
+    m ≤ expenditure p b' :=
+  IsLocallyNonsatiatedOn.le_expenditure_of_mem_demandSetOn (X := {b | ∀ g, 0 ≤ b g})
+    hlns hb hb'_nn hub
 
 /-- **Budget exhaustion**: a locally nonsatiated consumer spends their entire budget at every
 optimal bundle. -/
@@ -204,7 +267,7 @@ budget (valid without local nonsatiation). -/
 theorem lt_expenditure_of_mem_demandSet {u : (G → ℝ) → ℝ} {p : G → ℝ} {m : ℝ} {b b' : G → ℝ}
     (hb : b ∈ demandSet u p m) (hb'_nn : ∀ g, 0 ≤ b' g) (hub : u b < u b') :
     m < expenditure p b' :=
-  lt_of_not_ge fun hle => not_le_of_gt hub (hb.2 b' ⟨hb'_nn, hle⟩)
+  lt_expenditure_of_mem_demandSetOn (X := {b | ∀ g, 0 ≤ b g}) hb hb'_nn hub
 
 /-- At nonnegative prices, a locally nonsatiated consumer can have a nonempty demand set only if
 at least one good has a strictly positive price. -/
@@ -341,6 +404,44 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
         _ ≤ α * m := mul_le_mul_of_nonneg_left hb'.2 hα_nn
         _ = linearUtility v b := hub_eq.symm
 
+/-- Shared consumer-level First Welfare Theorem expenditure argument on general consumption sets
+and arbitrary coalitions `S : Finset I`: if every member `i ∈ S` is locally nonsatiated on `X i`
+and demands `x i ∈ demandSetOn (X i) (u i) p (budget i)`, then no consumption profile
+`y i ∈ X i` costing at most `∑ i ∈ S, budget i` can Pareto-dominate `x` on `S`. -/
+theorem not_exists_paretoImprovementOn {I : Type*}
+    {X : I → Set (G → ℝ)} {u : I → (G → ℝ) → ℝ} {budget : I → ℝ} {p : G → ℝ}
+    {x y : I → G → ℝ} {S : Finset I}
+    (hdem : ∀ i ∈ S, x i ∈ demandSetOn (X i) (u i) p (budget i))
+    (hlns : ∀ i ∈ S, IsLocallyNonsatiatedOn (X i) (u i))
+    (hy_mem : ∀ i ∈ S, y i ∈ X i)
+    (hy_cost : ∑ i ∈ S, expenditure p (y i) ≤ ∑ i ∈ S, budget i) :
+    ¬ ((∀ i ∈ S, u i (x i) ≤ u i (y i)) ∧ ∃ i ∈ S, u i (x i) < u i (y i)) := by
+  rintro ⟨hy_le, i₀, hi₀S, hi₀⟩
+  have hsum_lt : ∑ i ∈ S, budget i < ∑ i ∈ S, expenditure p (y i) :=
+    Finset.sum_lt_sum
+      (fun i hi => (hlns i hi).le_expenditure_of_mem_demandSetOn
+        (hdem i hi) (hy_mem i hi) (hy_le i hi))
+      ⟨i₀, hi₀S, lt_expenditure_of_mem_demandSetOn (hdem i₀ hi₀S) (hy_mem i₀ hi₀S) hi₀⟩
+  linarith
+
+/-- Local-nonsatiation-free strict Pareto expenditure argument on general consumption sets: if `S`
+is nonempty and every `i ∈ S` demands `x i`, then no profile `y i ∈ X i` costing at most
+`∑ i ∈ S, budget i` can make every `i ∈ S` strictly better off. -/
+theorem not_exists_strictParetoImprovementOn {I : Type*}
+    {X : I → Set (G → ℝ)} {u : I → (G → ℝ) → ℝ} {budget : I → ℝ} {p : G → ℝ}
+    {x y : I → G → ℝ} {S : Finset I} (hS : S.Nonempty)
+    (hdem : ∀ i ∈ S, x i ∈ demandSetOn (X i) (u i) p (budget i))
+    (hy_mem : ∀ i ∈ S, y i ∈ X i)
+    (hy_cost : ∑ i ∈ S, expenditure p (y i) ≤ ∑ i ∈ S, budget i) :
+    ¬ ∀ i ∈ S, u i (x i) < u i (y i) := by
+  intro hlt
+  obtain ⟨i₀, hi₀⟩ := hS
+  have hsum_lt : ∑ i ∈ S, budget i < ∑ i ∈ S, expenditure p (y i) :=
+    Finset.sum_lt_sum
+      (fun i hi => (lt_expenditure_of_mem_demandSetOn (hdem i hi) (hy_mem i hi) (hlt i hi)).le)
+      ⟨i₀, hi₀, lt_expenditure_of_mem_demandSetOn (hdem i₀ hi₀) (hy_mem i₀ hi₀) (hlt i₀ hi₀)⟩
+  linarith
+
 /-- Shared consumer-level First Welfare Theorem expenditure argument: if every agent `i` is locally
 nonsatiated and chooses an optimal bundle `x i ∈ demandSet (u i) p (budget i)` at nonnegative prices
 `p`, and total budget equals the market value of total supply (`∑ i, budget i = expenditure p
@@ -355,12 +456,8 @@ theorem not_exists_paretoImprovement {I : Type*} [Fintype I]
       ((∀ i g, 0 ≤ y i g) ∧ ∀ g : G, ∑ i : I, y i g ≤ supply g) ∧
       (∀ i, u i (x i) ≤ u i (y i)) ∧
       ∃ i, u i (x i) < u i (y i) := by
-  rintro ⟨y, hy_feas, hy_le, ⟨i₀, hi₀⟩⟩
-  have hsum_lt : ∑ i : I, budget i < ∑ i : I, expenditure p (y i) :=
-    Finset.sum_lt_sum
-      (fun i _ => (hlns i).le_expenditure_of_mem_demandSet (hdem i) (hy_feas.1 i) (hy_le i))
-      ⟨i₀, Finset.mem_univ i₀, lt_expenditure_of_mem_demandSet (hdem i₀) (hy_feas.1 i₀) hi₀⟩
-  have hsum_le : ∑ i : I, expenditure p (y i) ≤ expenditure p supply := by
+  rintro ⟨y, hy_feas, hy_le, hi_lt⟩
+  have hsum_le : ∑ i : I, expenditure p (y i) ≤ ∑ i : I, budget i := by
     calc
       ∑ i : I, expenditure p (y i)
         = ∑ g : G, p g * ∑ i : I, y i g := by
@@ -368,8 +465,10 @@ theorem not_exists_paretoImprovement {I : Type*} [Fintype I]
             exact Finset.sum_comm
       _ ≤ ∑ g : G, p g * supply g :=
             Finset.sum_le_sum fun g _ => mul_le_mul_of_nonneg_left (hy_feas.2 g) (hp g)
-      _ = expenditure p supply := rfl
-  linarith
+      _ = ∑ i : I, budget i := hbudget.symm
+  exact not_exists_paretoImprovementOn (X := fun _ => {b | ∀ g, 0 ≤ b g})
+    (fun i _ => hdem i) (fun i _ => hlns i) (fun i _ => hy_feas.1 i) hsum_le
+    ⟨fun i _ => hy_le i, let ⟨i₀, hi₀⟩ := hi_lt; ⟨i₀, Finset.mem_univ i₀, hi₀⟩⟩
 
 end Consumer
 

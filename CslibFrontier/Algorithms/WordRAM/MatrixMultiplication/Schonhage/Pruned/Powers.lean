@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Power.Rename
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Memory
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Charged initialization and encoding-array size
@@ -56,8 +57,7 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
   have h10 : Fits w 10 := hbase.of_le (by omega)
   have hfit_pow : Fits w (10 ^ L + L + 2) := hbase.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold powers powerSetup
-  wram_exec [h10]
+  wram_exec [powers, powerSetup, h10]
   wram_call (Power.exec_rename powerRegisters powerRegisters_injective 10 L (by decide) _
     (by change Data.regs _ ten = 10; wram_simp)
     (by change Data.regs _ inputDepth = L; wram_simp [hL]) hfit_pow)
@@ -69,7 +69,10 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
     exact (hd' : y.regs inputDepth = L).trans hL.symm
   · simp only [PowersLocal, not_or] at hi
     rcases hi with ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
-    rw [hframe i fun j => by fin_cases j <;> simp [powerRegisters] <;> tauto]
+    rw [hframe i fun j => by
+      fin_cases j <;>
+        simp only [powerRegisters, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue,
+          Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, ne_eq] <;> lrat_tauto]
     wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

@@ -95,7 +95,7 @@ theorem exec_prepare {w L m t N A B : ℕ} (hmL : m ≤ L) (x : Data registers)
     with u ⟨uL, um, ut, uN, uA, uB, uD, uμ⟩
   have hreloc : ∃ v, ExecWithin (w + 2) relocateDirectory u v 1 ∧
       v = u.set BoxTable.Reg.directory (BoxQuery.directoryBase L + N) := by
-    unfold relocateDirectory; wram_exec [*]; rfl
+    wram_exec [relocateDirectory, *]; rfl
   wram_call hreloc with v rfl
   wram_call (BoxTable.exec_constructor (L := L) (m := m) (t := t) (D := directoryBase L N)
     (AA := 5) (BB := 5 + 10 ^ L) _
@@ -111,8 +111,7 @@ theorem exec_prepare {w L m t N A B : ℕ} (hmL : m ≤ L) (x : Data registers)
     with z ⟨zL, zm, zt, zH, zT, zD, zR, zV, zK, zA, zB, zdir, zvalues, zframe⟩
   have zN : z.regs BoxQuery.Reg.query = N := by regs_frame
   have zV' : z.regs BoxTable.Reg.values = valueBase L m t N := zV
-  unfold initializeCursors
-  wram_exec [zB, zT, zN, zL, zV', zK]
+  wram_exec [initializeCursors, zB, zT, zN, zL, zV', zK]
   refine ⟨by unfold preparationTime BoxQuery.preparationTime; omega,
     by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     by regs_frame, by regs_frame, by regs_frame, by regs_frame, ?_, ?_, ?_, ?_, ?_⟩

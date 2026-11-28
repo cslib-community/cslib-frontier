@@ -120,7 +120,7 @@ example : (∅ : Set (CNF ℕ)) ∈ DTIME encCNF id :=
 example (h : ETH) : 0 < satExponent 4 :=
   (ETH_iff_satExponent_pos.mp h).trans_le (satExponent_mono (by norm_num))
 
-example (h : Filter.Tendsto satExponent Filter.atTop (nhds 1)) : OVH :=
-  OVH_of_SETH (SETH_iff_tendsto.mpr h)
+example (h : ∀ δ : ℝ, δ < 1 → ¬DecidableInExpTime SAT encCNF CNF.numVars δ) : OVH :=
+  OVH_of_not_decidableInExpTime_SAT h
 
 end CslibFrontierTests.FineGrained

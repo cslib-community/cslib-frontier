@@ -444,8 +444,7 @@ private theorem arrayProbeCode_spec (I : LowerBoundInput) {w : ℕ}
   have hmem_m : s.mem (2 + s.regs midReg) = I.arr[s.regs midReg] := hs.arr_holds.get _ hm
   have hf_addr : Fits w (2 + s.regs midReg) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold arrayProbeCode
-  wram_exec [hs.base_eq, hmem_m, hf_addr, hs.key_eq, hs.one_eq, hs.zero_eq]
+  wram_exec [arrayProbeCode, hs.base_eq, hmem_m, hf_addr, hs.key_eq, hs.one_eq, hs.zero_eq]
   · refine ⟨⟨?_, ?_, ?_, ?_, ?_, hs.arr_holds⟩, ?_, ?_, ?_, ?_⟩
     · wram_simp [hs.zero_eq]
     · wram_simp [hs.one_eq]
@@ -490,8 +489,7 @@ theorem lowerBoundCode_exec (I : LowerBoundInput) {w : ℕ} (hw : Fits w (I.arr.
   have hsetup : ∃ x₁, ExecWithin w lowerBoundSetup x x₁ 8 ∧
       ArraySearchInv I x₁ ∧ x₁.regs loReg = 0 ∧ x₁.regs hiReg = I.arr.length := by
     refine WP.exists_execWithin ?_
-    unfold lowerBoundSetup
-    wram_exec [x, Data.init_regs, hm0, hm1, hf_1, hf_2, hf_n, hf_out]
+    wram_exec [lowerBoundSetup, x, Data.init_regs, hm0, hm1, hf_1, hf_2, hf_n, hf_out]
     exact ⟨⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, harr⟩, by wram_simp, by wram_simp⟩
   obtain ⟨x₁, es, hx₁_inv, hx₁_lo, hx₁_hi⟩ := hsetup
@@ -515,8 +513,7 @@ theorem lowerBoundCode_exec (I : LowerBoundInput) {w : ℕ} (hw : Fits w (I.arr.
       y.mem (2 + I.arr.length + 1) = I.result ∧
       Block.HoldsList 2 I.arr y.mem := by
     refine WP.exists_execWithin ?_
-    unfold lowerBoundFinish
-    wram_exec [hx₂_inv.out_eq, hx₂_inv.one_eq, hx₂_lo, hf_out1]
+    wram_exec [lowerBoundFinish, hx₂_inv.out_eq, hx₂_inv.one_eq, hx₂_lo, hf_out1]
     refine ⟨?_, ?_, ?_, hx₂_inv.arr_holds.frame fun a _ ha2 => ?_⟩
     · wram_simp [hx₂_inv.out_eq]
     · wram_simp

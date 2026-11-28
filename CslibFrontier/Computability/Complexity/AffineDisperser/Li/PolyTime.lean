@@ -67,8 +67,6 @@ namespace Cslib.AffineDisperser.Li
 
 open Cslib.Circuits Filter Turing.MultiTapeTM ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime
-
 /-- `primeSymDeg` is computable in polynomial time in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_primeSymDeg :

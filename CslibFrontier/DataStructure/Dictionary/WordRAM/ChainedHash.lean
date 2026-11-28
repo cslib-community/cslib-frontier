@@ -685,8 +685,7 @@ private theorem allocSpan_spec {n_max w base : ℕ} (hS : Fits w (base + space n
     {x : Data rHash} (hfr : x.regs frontierReg = base) :
     ∃ x₁, ExecWithin w (allocSpan n_max) x x₁ 3 ∧ x₁.mem = x.mem ∧
       x₁.regs baseReg = base ∧ x₁.regs frontierReg = base + space n_max := by
-  unfold allocSpan
-  wram_exec [hS.of_le, hfr]
+  wram_exec [allocSpan, hS.of_le, hfr]
   exact ⟨rfl, by wram_simp, by wram_simp⟩
 
 private theorem storeHeader_spec {U V n_max w base : ℕ}
@@ -701,8 +700,7 @@ private theorem storeHeader_spec {U V n_max w base : ℕ}
       Rep U V n_max w base b (Dictionary.empty U) y ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem y.mem := by
   refine WP.Exact.exists_exec (WP.Exact.bounded hx ?_)
-  unfold storeHeader
-  wram_exec [hS.of_le, fits_bucketBits hw, fits_hashBits hw, hbase, hb]
+  wram_exec [storeHeader, hS.of_le, fits_bucketBits hw, fits_hashBits hw, hbase, hb]
   intro hy_bdd
   obtain ⟨y, hy, hy_bdd⟩ : ∃ y : Data rHash, y = _ ∧ y.Bounded w := ⟨_, rfl, hy_bdd⟩
   rw [← hy]
@@ -848,8 +846,7 @@ private theorem findInChainBody_spec {U n_max w base : ℕ} (hS : Fits w (base +
       (x.mem (keyBase base n_max + idx₀) ≠ u.val →
         x₁.regs cur = ptr' ∧ x₁.regs found = x.regs found) := by
   refine WP.Exact.exists_exec ?_
-  unfold findInChainBody
-  wram_exec [hS.of_le, hcur, ho, hz, hkb, hxb, hu, hnext]
+  wram_exec [findInChainBody, hS.of_le, hcur, ho, hz, hkb, hxb, hu, hnext]
   · exact ⟨rfl, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
       by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
       fun _ => ⟨by wram_simp, by wram_simp, by wram_simp⟩, fun h => absurd hc h⟩
@@ -981,8 +978,7 @@ private theorem finishInsertHit_spec {U V n_max w base : ℕ}
   have hcard_eq : (Dictionary.dom s').card = (Dictionary.dom s).card :=
     Dictionary.card_dom_insert_eq_of_isSome (by simp [hsu₀]) v
   refine WP.exists_execWithin (WP.bounded hy_bdd ?_)
-  unfold finishOp finishInsert finishInsertHit
-  wram_exec [hS.of_le, htag, hz, hyf, hvb, hym, hargV]
+  wram_exec [finishOp, finishInsert, finishInsertHit, hS.of_le, htag, hz, hyf, hvb, hym, hargV]
   intro hz_bdd
   obtain ⟨z, hz_eq, hz_bdd⟩ : ∃ z : Data rHash, z = _ ∧ z.Bounded w := ⟨_, rfl, hz_bdd⟩
   rw [← hz_eq]
@@ -1049,8 +1045,8 @@ private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
     Dictionary.card_dom_insert_eq_of_eq_none hsu v
   have hmsz : y.mem (base + 3) = sz := hmy ▸ hr.mem_sz
   refine WP.exists_execWithin (WP.bounded hy_bdd ?_)
-  unfold finishOp finishInsert finishInsertMiss
-  wram_exec [hS.of_le, hbase, htag, hargU, hargV, hout, hz, ho, hhb, hkb, hvb, hxb, hyf, hmsz]
+  wram_exec [finishOp, finishInsert, finishInsertMiss,
+    hS.of_le, hbase, htag, hargU, hargV, hout, hz, ho, hhb, hkb, hvb, hxb, hyf, hmsz]
   intro hz_bdd
   obtain ⟨z, hz_eq, hz_bdd⟩ : ∃ z : Data rHash, z = _ ∧ z.Bounded w := ⟨_, rfl, hz_bdd⟩
   rw [← hz_eq]

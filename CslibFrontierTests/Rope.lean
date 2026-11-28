@@ -7,7 +7,7 @@ Authors: Paulo Matos
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.DataStructure.Rope.Basic
+public import CslibFrontier.DataStructure.Rope.Balance
 -- `import all` so that `decide +kernel` can evaluate `Rope.ofList` on concrete inputs through
 -- `List.toChunks`, whose body Batteries does not expose.
 import all Batteries.Data.List.Basic
@@ -18,7 +18,8 @@ import all Batteries.Data.List.Basic
 Checked examples for `Cslib.DataStructure.Rope` at chunk bounds `B = 1` and `B = 2`. Each part
 of `IsWF` is shown failing on a tree that satisfies the other two parts: a stale length cache, a
 stale height cache, an oversized leaf, an empty leaf, an empty internal child and a height
-imbalance. The boundary conventions of the later edit operations are checked on core lists.
+imbalance. `balanceNode` is checked in each rotation case, on both sides, and with an empty side.
+The boundary conventions of the later edit operations are checked on core lists.
 -/
 
 public section
@@ -91,6 +92,51 @@ example : IsWF 2 (ofList 2 [1, 2, 3, 4, 5]) ∧ (ofList 2 [1, 2, 3, 4, 5]).toLis
 
 /-- Bulk construction at `B = 0` makes singleton chunks, as `max 1 B` says. -/
 example : IsWF 1 (ofList 0 [1, 2, 3]) ∧ (ofList 0 [1, 2, 3]).get? 2 = some 3 := by decide +kernel
+
+/-! ### Rotations in `balanceNode` -/
+
+/-- Singleton leaves `[i]` and `[j]` under one node, of height `1`. -/
+abbrev pair (i j : ℕ) : Rope ℕ := .node 2 1 (.leaf [i]) (.leaf [j])
+
+/-- Left two levels taller, outer grandchild a node and as tall as the inner one: single rotation,
+and the height grows by one. -/
+example : IsWF 1 (balanceNode (.node 4 2 (pair 1 2) (pair 3 4)) (.leaf [5])) ∧
+    (balanceNode (.node 4 2 (pair 1 2) (pair 3 4)) (.leaf [5])).toList = [1, 2, 3, 4, 5] ∧
+    (balanceNode (.node 4 2 (pair 1 2) (pair 3 4)) (.leaf [5])).height = 3 := by decide
+
+/-- Left two levels taller with a leaf as inner grandchild: single rotation. -/
+example : IsWF 1 (balanceNode threeSingletons (.leaf [4])) ∧
+    (balanceNode threeSingletons (.leaf [4])).toList = [1, 2, 3, 4] ∧
+    (balanceNode threeSingletons (.leaf [4])).height = 2 := by decide
+
+/-- Left two levels taller, inner grandchild taller: a plain node would be unbalanced, and the
+double rotation is balanced. -/
+example : ¬ Balanced (mkNode (.node 3 2 (.leaf [1]) (pair 2 3)) (.leaf [4])) ∧
+    IsWF 1 (balanceNode (.node 3 2 (.leaf [1]) (pair 2 3)) (.leaf [4])) ∧
+    (balanceNode (.node 3 2 (.leaf [1]) (pair 2 3)) (.leaf [4])).toList = [1, 2, 3, 4] ∧
+    (balanceNode (.node 3 2 (.leaf [1]) (pair 2 3)) (.leaf [4])).height = 2 := by decide
+
+/-- The mirror cases: right two levels taller, single and double rotations. -/
+example : IsWF 1 (balanceNode (.leaf [1]) (.node 4 2 (pair 2 3) (pair 4 5))) ∧
+    (balanceNode (.leaf [1]) (.node 4 2 (pair 2 3) (pair 4 5))).toList = [1, 2, 3, 4, 5] ∧
+    (balanceNode (.leaf [1]) (.node 4 2 (pair 2 3) (pair 4 5))).height = 3 := by decide
+example : IsWF 1 (balanceNode (.leaf [1]) (.node 3 2 (.leaf [2]) (pair 3 4))) ∧
+    (balanceNode (.leaf [1]) (.node 3 2 (.leaf [2]) (pair 3 4))).toList = [1, 2, 3, 4] := by
+  decide
+example : ¬ Balanced (mkNode (.leaf [1]) (.node 3 2 (pair 2 3) (.leaf [4]))) ∧
+    IsWF 1 (balanceNode (.leaf [1]) (.node 3 2 (pair 2 3) (.leaf [4]))) ∧
+    (balanceNode (.leaf [1]) (.node 3 2 (pair 2 3) (.leaf [4]))).toList = [1, 2, 3, 4] ∧
+    (balanceNode (.leaf [1]) (.node 3 2 (pair 2 3) (.leaf [4]))).height = 2 := by decide
+
+/-- Heights within one of each other: a plain node. -/
+example : balanceNode twoLeaves (.leaf [4]) = .node 4 2 twoLeaves (.leaf [4]) := rfl
+
+/-- An empty side is dropped, even next to a taller rope. -/
+example : balanceNode .empty threeSingletons = threeSingletons := rfl
+example : balanceNode threeSingletons .empty = threeSingletons := rfl
+
+/-- Bulk construction of `5` singleton chunks has height `⌈log₂ 5⌉ = 3`. -/
+example : (ofList 1 [1, 2, 3, 4, 5]).height = 3 := by decide +kernel
 
 /-! ### Boundary conventions of the edit operations, on core lists -/
 

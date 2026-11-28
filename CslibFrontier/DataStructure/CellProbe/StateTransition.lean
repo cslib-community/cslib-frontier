@@ -191,12 +191,7 @@ abbrev ofFn {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasS
 theorem ofFn_rep {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).rep = rep :=
   rfl
@@ -205,12 +200,7 @@ theorem ofFn_rep {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D
 theorem ofFn_potential {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).potential = potential :=
   rfl
@@ -219,12 +209,7 @@ theorem ofFn_potential {f : (s : D.State) → (o : D.Op) → D.State × D.Result
 theorem ofFn_initPotential {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     [D.HasStepFn f] (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).initPotential = initPotential :=
   rfl
@@ -233,19 +218,15 @@ theorem ofFn_initPotential {f : (s : D.State) → (o : D.Op) → D.State × D.Re
 theorem ofFn_charge {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).charge = charge :=
   rfl
 
 /-- Project a cell-probe `StateTransitionImpl` to the backend-agnostic
 `Cslib.DataStructure.StateTransitionImpl D (ExecOp P)`. -/
-@[expose] def toBaseImpl (C : StateTransitionImpl D P s₀) :
+@[expose, simps -fullyApplied rep]
+def toBaseImpl (C : StateTransitionImpl D P s₀) :
     DataStructure.StateTransitionImpl D (ExecOp P) where
   rep := C.rep
   total o _ _ := ⟨_, _, _, execOp_run P _ o⟩
@@ -254,11 +235,6 @@ theorem ofFn_charge {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     subst ha hm'
     obtain ⟨s', hstep, hr', _⟩ := C.step_exec o hr hv
     exact ⟨s', hstep, hr'⟩
-
-@[simp]
-theorem toBaseImpl_rep (C : StateTransitionImpl D P s₀) :
-    C.toBaseImpl.rep = C.rep :=
-  rfl
 
 /-- Project a cell-probe `StateTransitionImpl` to `Cslib.DataStructure.Amortized` with probe count
 weight `OperationTrace.probes`. -/
@@ -402,7 +378,8 @@ theorem seqProbes_le_ofFn (C : StateTransitionImpl D P s₀)
 /-- Lift a deterministic cell-probe `StateTransitionImpl` from `cells` cells to `cells'` cells
 (`cells ≤ cells'`) via `Cslib.CellProbe.Scheme.padCells`, preserving `initPotential` and `charge`.
 -/
-@[expose] def padCells (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
+@[expose, simps -fullyApplied initPotential charge]
+def padCells (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
     StateTransitionImpl D (P.padCells h) s₀ where
   rep s m' := ∃ m : Mem cells w, m' = padMem h m ∧ C.rep s m
   potential m' := C.potential (fun i => m' (Fin.castLE h i))
@@ -437,16 +414,6 @@ theorem padCells_rep (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) (
 theorem padCells_potential (h : cells ≤ cells') (C : StateTransitionImpl D P s₀)
     (m' : Mem cells' w) :
     (C.padCells h).potential m' = C.potential (fun i => m' (Fin.castLE h i)) :=
-  rfl
-
-@[simp]
-theorem padCells_initPotential (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).initPotential = C.initPotential :=
-  rfl
-
-@[simp]
-theorem padCells_charge (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).charge = C.charge :=
   rfl
 
 end StateTransitionImpl

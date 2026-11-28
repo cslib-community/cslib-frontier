@@ -938,8 +938,7 @@ theorem EmulatesWithin.composeMulti {m n : ℕ}
     (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hφ : φ.PolyBounded pφ)
     (h : EmulatesWithin π φ g ε) :
     EmulatesWithin (composeMulti ρ π) (composeMulti ρ φ)
-      (Polynomial.X * (Polynomial.C m * g.comp (Polynomial.X + 1) + 1 + 1) +
-        (Polynomial.C m * g.comp (Polynomial.X + 1) + 1))
+      (compSimPoly (Polynomial.C m * g.comp (Polynomial.X + 1) + 1))
       (fun pA pZ κ =>
         m • ε 1 (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ
           (g.comp (Polynomial.X + 1))) κ) := by

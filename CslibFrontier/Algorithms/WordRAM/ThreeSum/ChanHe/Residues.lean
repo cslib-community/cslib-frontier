@@ -123,8 +123,7 @@ theorem exec {w M : ℕ} (x : Data 16) (values : ℕ → ℤ) (hM : 0 < M)
         omega)
     have htwo : Fits (w + 2) 2 := (show Fits 2 2 from by decide).mono (by omega)
     refine WP.exists_execWithin ?_
-    unfold body
-    wram_exec [ha, hread, hmod', hmodreg]
+    wram_exec [body, ha, hread, hmod', hmodreg]
     wram_call (Signed.exec_modulo (hfit _ hlt) hmod _ (by wram_simp) (by wram_simp))
       framed with v m ⟨hzval, hzmem, _⟩
     wram_simp at hzmem
@@ -142,8 +141,7 @@ theorem exec {w M : ℕ} (x : Data 16) (values : ℕ → ℤ) (hM : 0 < M)
     split_ifs <;> omega
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec [h1]
+  wram_exec [program, h1]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1 len (by decide)) hbody
     (by wram_simp; omega) ⟨fun i hi => by
       simp only [Data.set_regs, Function.update_apply, Fin.ext_iff, idx, one]

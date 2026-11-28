@@ -99,8 +99,7 @@ theorem exec_body {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : 
     by_cases hh : 1 < Histogram.count (fun j => residueKey M (values j)) (x.regs len)
         (residueKey M (values (x.regs idx)))
     · refine WP.exists_execWithin ?_
-      unfold body heavyCode
-      wram_exec [h1, hinput, hkey, hhist, hh]
+      wram_exec [body, heavyCode, h1, hinput, hkey, hhist, hh]
       exact ⟨by wram_simp; simp [write, hh, hcount],
         by wram_simp [hcount]; simp [heavyList, hh], by wram_simp⟩
     · have hc1 : Histogram.count (fun j => residueKey M (values j)) (x.regs len)
@@ -108,8 +107,8 @@ theorem exec_body {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : 
       cases neg <;> by_cases hs : values (x.regs idx) < 0
       all_goals
         refine WP.exists_execWithin ?_
-        unfold body lightCode
-        wram_exec [h1, h2, h4, h0, hmod, htag, hneg, hinput, hkey, hhist, hh, hc1, hs,
+        wram_exec [body, lightCode,
+          h1, h2, h4, h0, hmod, htag, hneg, hinput, hkey, hhist, hh, hc1, hs,
           encode_div_two, encode_mod_two]
         refine ⟨?_, by wram_simp [hcount]; simp [heavyList, hh], by wram_simp⟩
         wram_simp
@@ -186,8 +185,7 @@ theorem exec {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : Bool)
     rfl
   have f4 : Fits w 4 := hfit.of_le (by dsimp only [budget]; omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (ExecWithin.loop_count Inv (fun _ hy => hy.1 len (by decide)) hbody
     (by wram_simp; omega) ⟨fun i hi => by
       dsimp only [P] at hi

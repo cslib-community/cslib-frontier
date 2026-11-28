@@ -33,8 +33,7 @@ theorem exec_inputHeaders {w L m t Q : ℕ} (x : Data registers)
     ∃ y, ExecWithin w inputHeaders x y 8 ∧ y.regs BoxTable.Reg.levels = L ∧
       y.regs BoxTable.Reg.inner = m ∧ y.regs BoxTable.Reg.threshold = t ∧
       y.regs Reg.query = Q ∧ y.mem = x.mem := by
-  unfold inputHeaders
-  wram_exec [hL, hm, ht, hQ]
+  wram_exec [inputHeaders, hL, hm, ht, hQ]
   wram_simp
 
 /-- Complete original-input adaptation computes the actual span and array/directory pointers. -/

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.RealEncoding
 public import CslibFrontier.Computability.Circuit.Quantum.Uniform
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Quantum circuits with phase gates, simulated by real circuits
@@ -340,12 +341,8 @@ gate codes (`phaseCodes`). -/
 /-- The real translation has at most four gate codes per gate code. -/
 theorem length_toRealCodes_le (r : ℕ) (gs : List PhaseGateCode) :
     (toRealCodes r gs).length ≤ 4 * gs.length := by
-  induction gs with
-  | nil => simp [toRealCodes]
-  | cons c gs ih =>
-    simp only [toRealCodes, List.flatMap_cons, List.length_append, List.length_cons] at ih ⊢
-    have : (realCodes r c).length ≤ 4 := by grind [realCodes, phaseCodes]
-    omega
+  rw [Nat.mul_comm]
+  exact List.length_flatMap_le fun c _ => by grind [realCodes, phaseCodes]
 
 /-- **Four Hadamard and classical gates simulate a controlled phase gate** through the real
 encoding: the phase gate on the qubits `e` is simulated by `phaseCodes m inv qs`, when the

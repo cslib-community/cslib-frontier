@@ -165,8 +165,10 @@ CI_ONLY = {
     "Save .lake to the Actions cache": "main pushes only; CI cache",
     "Parallel-definition and duplicate-statement notices (advisory)":
         "advisory; never fails the job. Run `scripts/parallel_defs.py [--theorems]` to see it",
+    "Upload early Lean advisory notices":
+        "pull requests only; uploads the advisory parallel/duplicate summary before tail checks",
     "PR description names (advisory)":
-        "advisory; reads the pull request event. Run `scripts/check_pr_names.py --pr N`",
+        "advisory; reads the pull request event in `pr-notices`. Run `scripts/check_pr_names.py --pr N`",
     "Stage merge-group build outputs":
         "merge groups only; build handoff to main and to later merge groups",
     "Upload merge-group build outputs":

@@ -320,12 +320,14 @@ variable {α φ β γ : Type} {encA : α ↪ List Bool} {encF : φ ↪ List Bool
   {encC : γ ↪ List Bool}
 
 /-- The left summand of a value computed within a budget, within the budget. -/
+@[fun_prop]
 theorem budget_sumInl {S : α → ℕ} {f : α → β} (hf : ComputableInSpace f encA encB S) :
     ComputableInSpace (fun a => (Sum.inl (f a) : β ⊕ γ)) encA (encSum encB encC) S :=
   (((constZero [false]).append hf (encB := encBits) fun _ => rfl).mono_le fun _ =>
     (Nat.zero_add _).le)
 
 /-- The right summand of a value computed within a budget, within the budget. -/
+@[fun_prop]
 theorem budget_sumInr {S : α → ℕ} {f : α → γ} (hf : ComputableInSpace f encA encC S) :
     ComputableInSpace (fun a => (Sum.inr (f a) : β ⊕ γ)) encA (encSum encB encC) S :=
   (((constZero [true]).append hf (encB := encBits) fun _ => rfl).mono_le fun _ =>
