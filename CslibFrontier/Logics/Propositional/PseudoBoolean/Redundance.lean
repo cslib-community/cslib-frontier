@@ -3270,6 +3270,12 @@ private theorem stepTop_cases {F : List PBConstr} {obj : Option Objective} {s s'
   case case47 c ω sub q L hL n' hdom => exact dom c ω sub q L n' hL hdom
   all_goals exact unchanged _
 
+private theorem core_filter_delIds_eq_self {s : State} {st : Step}
+    (h : (s.core.any fun e => st.delIds.contains e.1) = false) :
+    s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
+  List.filter_eq_self.2 fun e he => by
+    simpa using List.any_eq_false.1 h e he
+
 /-- **Each step keeps the core invariant**, if the loaded order, if any, is good
 (`Cslib.Logic.PL.VeriPB.OrdInv`): a `red` step or a checked deletion proved in `scope leq` relies on
 its specification. -/
@@ -3279,11 +3285,6 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
   apply stepTop_cases h
   case step =>
     intro st _ _ hrun htouch
-    have hkeep : ∀ (hnt : (s.core.any fun e => st.delIds.contains e.1) = false),
-        s.core.filter (fun e => !st.delIds.contains e.1) = s.core := fun hnt =>
-      List.filter_eq_self.2 fun e he => by
-        have := List.any_eq_false.1 hnt e he
-        simpa using this
     refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit,
       hs.ids.runStep hrun⟩
     · rw [List.mem_filter] at he
@@ -3291,10 +3292,10 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
     · have ht' : s.tcb = true := ht
       have hnt : (s.core.any fun e => st.delIds.contains e.1) = false := by
         simpa [ht'] using htouch
-      rw [hkeep hnt] at hτ
+      rw [core_filter_delIds_eq_self hnt] at hτ
       exact runStep_sound _ _ _ _ _ (hs.imp ht τ hτ) hrun
     · simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
-      rw [hkeep hc.2] at hτ
+      rw [core_filter_delIds_eq_self hc.2] at hτ
       exact hs.chk hc.1 τ hτ
   case red =>
     intro c _ _ _ _ hred
@@ -3621,10 +3622,8 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
     refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
     have hnt : (s.core.any fun e => st.delIds.contains e.1) = false := by
       simpa [Option.mem_def.1 hL] using htouch
-    have hkeep : s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
-      List.filter_eq_self.2 fun e he => by simpa using List.any_eq_false.1 hnt e he
     dsimp only at hτ ⊢
-    rw [hkeep] at hτ
+    rw [core_filter_delIds_eq_self hnt] at hτ
     obtain ⟨τ', h₁, h₂⟩ := hsat τ hτ
     exact ⟨τ', runStep_sound _ _ _ _ _ h₁ hrun, h₂⟩
   case red =>
@@ -3889,14 +3888,10 @@ theorem stepTop_back {F : List PBConstr} {obj : Option Objective} {s s' : State}
   revert hc hτ
   apply stepTop_cases h
   case step =>
-    intro st _ _ _ _ hc hτ
+    intro _ _ _ _ _ hc hτ
     simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
-    have hkeep : s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
-      List.filter_eq_self.2 fun e he => by
-        have := List.any_eq_false.1 hc.2 e he
-        simpa using this
     refine ⟨hc.1, τ, ?_, le_rfl, fun _ _ => rfl⟩
-    rw [← hkeep]
+    rw [← core_filter_delIds_eq_self hc.2]
     exact hτ
   case red | dom =>
     intros
