@@ -201,9 +201,6 @@ blocks of level `0`. -/
 def gamePairs (w : ℕ) : List (ℕ × ℕ) :=
   (List.range w).map fun i => (certVar w (2 * i), certVar w (2 * i + 1))
 
-private theorem length_gamePairs (w : ℕ) : (gamePairs w).length = w := by
-  simp [gamePairs]
-
 /-- The variables of the moves are those of the blocks of level `0`. -/
 theorem roundVars_gamePairs (w : ℕ) :
     QBF.roundVars (gamePairs w) = blockVars w 0 0 ++ blockVars w 1 0 := by
@@ -229,7 +226,7 @@ theorem eval_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ
     (gameFormula tab w).eval σ = true ↔ Alternation true (List.replicate (2 * w) 1)
       fun z => ∃ τ : CookLevin.Var k State → Bool,
         CookLevin.certWord τ (2 * w) = z ∧ tab.eval τ = true := by
-  rw [gameFormula, QBF.eval_rounds_eq_true_iff, length_gamePairs]
+  rw [gameFormula, QBF.eval_rounds_eq_true_iff, show (gamePairs w).length = w by simp [gamePairs]]
   refine alternation_congr_of_length fun z hz => ?_
   rw [sum_replicate_one] at hz
   have hblocks : block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 0 0 ++

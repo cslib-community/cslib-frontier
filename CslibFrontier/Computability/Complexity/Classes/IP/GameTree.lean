@@ -128,10 +128,6 @@ variable (N cap first next leaf) in
 private def partialMax (n : ℕ) (h : List (X × X)) (i j : ℕ) : ℕ :=
   (range j).sup fun b => value N cap first next leaf n ((next^[i] first, next^[b] first) :: h)
 
-/-- A value returned into the empty stack is a fixed point. -/
-private theorem step_nil_some (v : ℕ) : step D cap first next last leaf ([], some v) =
-    ([], some v) := rfl
-
 section Correctness
 
 variable (hN : 0 < N) (hlast : ∀ i < N, last (next^[i] first) = decide (i + 1 = N))
@@ -221,8 +217,8 @@ theorem iterate_step_eval {K : ℕ} (hK : time N D ≤ K) :
       ([], some (value N cap first next leaf D [])) := by
   obtain ⟨K, rfl⟩ := Nat.exists_eq_add_of_le hK
   rw [Nat.add_comm, Function.iterate_add_apply, iterate_step_node hN hlast D [] (by simp),
-    history_nil, Function.iterate_fixed (step_nil_some (D := D) (cap := cap) (first := first)
-      (next := next) (last := last) (leaf := leaf) _)]
+    history_nil]
+  exact Function.iterate_fixed rfl K
 
 end Correctness
 
