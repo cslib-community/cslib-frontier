@@ -77,8 +77,9 @@ client is the `(D1)` search: `pFindD1` scans the gate mask and reads only packed
 * `Cslib.Algorithms.WordRAM.Refuter4n.testBit_maskOf`, `testBit_ttOf`,
   `testBit_rowWord_toDenseRow`, `eqnWord_mod`, `testBit_eqnWord_alive`: the encodings are
   faithful.
-* `Cslib.Algorithms.WordRAM.Refuter4n.maskOf_lt`, `rowLt_rowOf`, `rowWord_toDenseRow_lt`,
-  `eqnWord_lt`, `substWord_lt`, `litWord_lt`: the encodings fit in their bit ranges.
+* `Cslib.Algorithms.WordRAM.Refuter4n.maskOf_lt`, `ttOf_lt`, `argCode_lt`, `rowLt_rowOf`,
+  `rowWord_toDenseRow_lt`, `eqnWord_lt`, `substWord_lt`, `litWord_lt`: the encodings fit in their
+  bit ranges.
 * `Cslib.Algorithms.WordRAM.Refuter4n.rowEval_two_pow`, `rowEval_rowWord`, `rowEval_litWord`:
   values of coordinate, equation and literal rows.
 * `Cslib.Algorithms.WordRAM.Refuter4n.rowEval_substWord`, `PhiWords.restrict`, `PhiWords.swap`:
@@ -171,7 +172,8 @@ theorem testBit_ttOf (op : Bool → Bool → Bool) (a b : Bool) :
     cases h3 : op true false <;> cases h4 : op true true <;>
     simp only [ttOf, idx, h1, h2, h3, h4] <;> decide
 
-private theorem ttOf_lt (op : Bool → Bool → Bool) : ttOf op < 16 := by
+/-- A truth table is a 4-bit word. -/
+theorem ttOf_lt (op : Bool → Bool → Bool) : ttOf op < 16 := by
   unfold ttOf
   have := Bool.toNat_le (op false false)
   have := Bool.toNat_le (op false true)
@@ -179,7 +181,8 @@ private theorem ttOf_lt (op : Bool → Bool → Bool) : ttOf op < 16 := by
   have := Bool.toNat_le (op true true)
   omega
 
-private theorem argCode_lt {a : Arg} {N : ℕ} (h : ∀ i, a = .node i → i < N) :
+/-- The code of an argument that reads only names below `N` is below `N + 2`. -/
+theorem argCode_lt {a : Arg} {N : ℕ} (h : ∀ i, a = .node i → i < N) :
     argCode a < N + 2 := by
   cases a with
   | const b => have := Bool.toNat_le b; simp only [argCode]; omega

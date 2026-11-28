@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Ryan Anderson. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Ryan Anderson
+Authors: Christian Reitwiessner, Ryan Anderson
 -/
 
 module
@@ -59,22 +59,6 @@ def constCircuit : Circuit (fullSignature 2 Bool) 0 1 :=
 #guard encode xor3Circuit == [3, 1, 6, 0, 1, 3]
 #guard encode mixCircuit == [2, 3, 3, 0, 0, 8, 2, 1, 17, 0, 0, 3]
 
-/-! The decoder: literal codes and gate rows. `xor3`: gate `3` with row `⟨6, 2, 3⟩` and code
-`2 · (3 + 2) = 10`. `mix`: `¬x₀` has code `2 · 2 + 1 = 5`; the AND with the absorbed negation has
-truth table `0010₂ = 2`, row `⟨2, 2, 3⟩` and code `10`; the constant `true` has code `2`. -/
-
-#guard decodeLines 2 (progTriples projCircuit.program) == []
-#guard decodeLines 3 (progTriples xor3Circuit.program) == [(10, some ⟨6, 2, 3⟩)]
-#guard decodeLines 2 (progTriples mixCircuit.program) ==
-  [(5, none), (10, some ⟨2, 2, 3⟩), (2, none)]
-
-/-! The decoded rows and output agree with `initialPacked` (block 1). -/
-
-#guard ((decodeLines 2 (progTriples mixCircuit.program)).getD 1 (0, none)).2.getD ⟨0, 0, 0⟩ ==
-  (initialPacked mixCircuit).gateRows.getD 3 ⟨0, 0, 0⟩
-#guard wireLit 2 ((decodeLines 2 (progTriples mixCircuit.program)).map Prod.fst)
-  (wireCode (mixCircuit.outputs 0)) == (initialPacked mixCircuit).out
-
 /-- Whether `mem` holds the words of `P` at the addresses of `L` (`Stored`, as a check). -/
 def storedB (L : Layout) (P : PackedState) (mem : ℕ → ℕ) : Bool :=
   mem L.base == P.params && mem (L.base + 1) == P.aux && mem (L.base + 2) == P.gates &&
@@ -126,12 +110,5 @@ example : ∃ y, ExecWithin 7 initCode (.init (encode mixCircuit)) y 281 ∧
     Stored (layout mixCircuit) (initialPacked mixCircuit) y.mem := by
   obtain ⟨y, he, hs, -⟩ := exec_initCode mixCircuit (w := 7) ⟨by decide, by decide⟩
   exact ⟨y, he, hs⟩
-
-/-- The decoded gate rows are the rows of the gates of the initial state (module client of
-`snd_getD_decodeLines`). -/
-example : ((decodeLines 2 (progTriples mixCircuit.program)).getD 1 (0, none)).2 =
-    if 2 + 1 ∈ (initialState mixCircuit).gates then
-      some (rowOf ((initialState mixCircuit).gate (2 + 1))) else none :=
-  snd_getD_decodeLines mixCircuit (by decide)
 
 end CslibFrontierTests.Refuter4nInputLayout
