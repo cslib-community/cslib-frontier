@@ -1306,6 +1306,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Computability.Circuit.Approximation
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Differences
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Exec
+public import CslibFrontier.Algorithms.WordRAM.Refuter4n.InputLayout
 public import CslibFrontier.Crypto.Computational.CompositeResiduosity.Finite
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Computability.PCP.Approximation.LabelCover.MinRep
