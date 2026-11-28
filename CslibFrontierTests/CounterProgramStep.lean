@@ -40,27 +40,22 @@ example {b : ℕ} (h₀ : P.instr b = .assign 1 (const 3) (b + 1))
   cp_step
   cp_step
 
--- A block certificate supplies each instruction after `using`, without a local `have` per label.
-example {b : ℕ} (hi : ∀ i, i < 2 → P.instr (b + i) = .assign 1 (const i) (b + i + 1))
-    (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) :
-    P.Reaches w (P.Running B) (b, regs) (b + 2, (regs.set 1 0).set 1 1) := by
-  cp_step using hi 0 (by decide)
-  cp_step using hi 1 (by decide)
-
--- The label that a case split on the bit read leaves is evaluated against the term after `using`.
-example {b F : ℕ} {x : Bool} (hi : ∀ i, i < 3 → P.instr (b + i) = .assign 1 (const 0) (b + 3))
-    (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) :
-    P.Reaches w (P.Running B)
-      (match some x with | some true => b + 1 | some false => b + 2 | none => F, regs)
-      (b + 3, regs.set 1 0) := by
-  cases x
-  · cp_step using hi 2 (by decide)
-  · cp_step using hi 1 (by decide)
-
 -- Symbolic oblivious registers use the optional module's rule and retain the non-choice premise.
 example {b next r : ℕ} (hi : P.instr b = .assign 1 (add (reg r) (const 1)) next)
     (hr : r ≠ 0) (regs : List ℕ) (hB : ∀ x ∈ regs, x ≤ B) :
     P.Reaches w (P.Oblivious B) (b, regs) (next, regs.set 1 (regs.getD r 0 + 1)) := by
+  cp_step
+
+-- Reading register zero makes an assignment depend on the choice.
+/--
+error: cp_step: could not prove the side condition
+  ((reg 0).add (const 1)).readsChoice = false
+of `Turing.CounterProgram.Reaches.oassign`. Add it as a hypothesis.
+-/
+#guard_msgs in
+example {b next : ℕ} (hi : P.instr b = .assign 1 (add (reg 0) (const 1)) next)
+    (regs : List ℕ) (hB : ∀ x ∈ regs, x ≤ B) :
+    P.Reaches w (P.Oblivious B) (b, regs) (next, regs.set 1 (regs.getD 0 0 + 1)) := by
   cp_step
 
 -- A comparison decided by the value of a register, and a label written `c + 1 + 1`.
@@ -205,36 +200,6 @@ example {b F : ℕ} (h₀ : P.instr b = .read (reg 0) (b + 1) (b + 2) F)
     P.Reaches w (P.Running B) (b, regs) (b + 1, regs) := by
   cp_step
   cp_step
-
--- The term after `using` is the only evidence: here it proves the instruction at `b + 1`, not at
--- the label `b`, and the step fails although the hypothesis `h₀` states the instruction at `b`.
-/--
-error: cp_step: the term after `using` does not prove the instruction at the label of the goal. The step needs a proof of
-  P.instr b = ?i
-Type mismatch
-  hi 1
-has type
-  P.instr (b + 1) = Instr.assign 1 (const 1) (b + 1 + 1)
-but is expected to have type
-  P.instr b = ?i
--/
-#guard_msgs in
-example {b : ℕ} (h₀ : P.instr b = .assign 1 (const 0) (b + 1))
-    (hi : ∀ i, P.instr (b + i) = .assign 1 (const i) (b + i + 1))
-    (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) :
-    P.Reaches w (P.Running B) (b, regs) (b + 1, regs.set 1 0) := by
-  cp_step using hi 1
-
--- The term after `using` proves an instruction that has no stepping rule.
-/--
-error: cp_step: no stepping rule applies to
-  P.Reaches w (P.Running B) (b, regs) (b + 1, regs)
-It needs the term after `using` to prove `P.instr l = i` for the label `l` of a configuration `(l, regs)` and an assignment, comparison or read `i` with its rule imported.
--/
-#guard_msgs in
-example {b : ℕ} (h : P.instr b = .halt []) (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) :
-    P.Reaches w (P.Running B) (b, regs) (b + 1, regs) := by
-  cp_step using h
 
 /--
 error: cp_step: the goal is not a reachability goal `P.Reaches w Q s s'`

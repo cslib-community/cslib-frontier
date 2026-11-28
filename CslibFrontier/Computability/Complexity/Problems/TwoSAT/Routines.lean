@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Layout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.AllBranches
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Step
 import CslibFrontier.Foundations.Data.List.Lookup
-import Mathlib.Data.List.GetD
 
 /-!
 # Routines reading an encoded formula
@@ -52,15 +51,6 @@ open _root_.Turing _root_.Turing.CounterProgram _root_.Turing.CounterProgram.Ins
   _root_.Turing.CounterProgram.Expr Cslib.Logic.PL
 
 variable {P : CounterProgram} {w : List Bool} {B : ℕ}
-
-/-- The register `r` of a bounded list is bounded. -/
-private theorem getD_le {regs : List ℕ} (hB : ∀ r ∈ regs, r ≤ B) (i : ℕ) :
-    regs.getD i 0 ≤ B := by
-  rcases lt_or_ge i regs.length with h | h
-  · rw [List.getD_eq_getElem _ _ h]
-    exact hB _ (List.getElem_mem h)
-  · rw [List.getD_eq_default _ _ h]
-    exact Nat.zero_le _
 
 /-! ### Skipping a literal -/
 
@@ -209,9 +199,20 @@ private theorem reaches_cmpVarCode_advance (hk₁ : k < v₁.bits.length) (hk₂
   have hc₁ := getD_cmpCur_left htt hlen₁ (pos₁ := pos₁) (pos₂ := pos₂) (k := k)
   have hc₂ := getD_cmpCur_right hlen₂ (t₁ := t₁) (pos₁ := pos₁) (pos₂ := pos₂) (k := k)
   rw [length_literalBits] at hend₁
-  cp_step [hc₁] using hi 8 (by omega)
-  cp_step [List.getD_set_ne htt, hc₂] using hi 9 (by omega)
-  simp only [cmpCur, Nat.mul_add, Nat.mul_one, Nat.add_assoc]
+  refine Reaches.oassign (hi 8 (by omega)) ht₁ (by simp [Expr.readsChoice, ht₁]) hB' ?_
+  refine Reaches.oassign (hi 9 (by omega)) ht₂ (by simp [Expr.readsChoice, ht₂])
+    (List.forall_mem_set_of_forall_mem hB' (by rw [eval_add, eval_reg, eval_const, hc₁]; omega)) ?_
+  have e₁ : (add (reg t₁) (const 8)).eval (cmpCur regs t₁ t₂ pos₁ pos₂ k) =
+      pos₁ + 8 * (k + 1) := by
+    rw [eval_add, eval_reg, eval_const, hc₁]
+    ring
+  rw [e₁]
+  have e₂ : (add (reg t₂) (const 8)).eval
+      ((cmpCur regs t₁ t₂ pos₁ pos₂ k).set t₁ (pos₁ + 8 * (k + 1))) = pos₂ + 8 * (k + 1) := by
+    rw [eval_add, eval_reg, eval_const, List.getD_set_ne htt, hc₂]
+    ring
+  rw [e₂]
+  simp only [cmpCur]
   rw [List.set_comm _ _ htt.symm, List.set_set, List.set_set]
   exact Reaches.refl _
 
@@ -226,19 +227,30 @@ private theorem reaches_cmpVarCode_end (hk₁ : k ≤ v₁.bits.length) (hk₂ :
       (if v₁ = v₂ then eq else ne, cmpCur regs t₁ t₂ pos₁ pos₂ k) := by
   have hi (i : ℕ) (h : i < 10) := hcode i (by simp [cmpVarCode]; omega)
   have hB' := forall_mem_cmpCur hB hend₁ hend₂ t₁ t₂ hk₁ hk₂
+  refine Reaches.oread (hi 2 (by omega)) (by simp [Expr.readsChoice, ht₁]) hB' ?_
   rcases lt_or_eq_of_le hk₁ with hk₁' | rfl
   · -- the first variable has more digits
     have hk₂' : k = v₂.bits.length := by omega
+    simp only [eval_add, eval_reg, eval_const, getD_cmpCur_left htt hlen₁,
+      (hl₁.literal_digit hk₁').2.1, readLabel]
+    refine Reaches.oread (hi 3 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
     have hne : v₁ ≠ v₂ := fun h => by rw [h] at hk₁'; omega
-    cp_step [getD_cmpCur_left htt hlen₁, (hl₁.literal_digit hk₁').2.1] using hi 2 (by omega)
-    cp_step [getD_cmpCur_right hlen₂, hk₂', hl₂.literal_end.2.1, hne] using hi 3 (by omega)
-  · cp_step [getD_cmpCur_left htt hlen₁, hl₁.literal_end.2.1] using hi 2 (by omega)
+    simp only [eval_add, eval_reg, eval_const, getD_cmpCur_right hlen₂, hk₂',
+      hl₂.literal_end.2.1, readLabel, hne, ↓reduceIte]
+    exact Reaches.refl _
+  · simp only [eval_add, eval_reg, eval_const, getD_cmpCur_left htt hlen₁, hl₁.literal_end.2.1,
+      readLabel]
+    refine Reaches.oread (hi 4 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
+    simp only [eval_add, eval_reg, eval_const, getD_cmpCur_right hlen₂]
     rcases lt_or_eq_of_le hk₂ with hk₂' | hk₂'
     · have hne : v₁ ≠ v₂ := fun h => by rw [h] at hk₂'; omega
-      cp_step [getD_cmpCur_right hlen₂, (hl₂.literal_digit hk₂').2.1, hne] using hi 4 (by omega)
-    · have heq : v₁ = v₂ := Turing.MultiTapeTM.encNat.injective
+      simp only [(hl₂.literal_digit hk₂').2.1, readLabel, hne, ↓reduceIte]
+      exact Reaches.refl _
+    · rw [show pos₂ + 8 * v₁.bits.length + 3 = pos₂ + 8 * v₂.bits.length + 3 by rw [hk₂']]
+      have heq : v₁ = v₂ := Turing.MultiTapeTM.encNat.injective
         (by simpa using List.ext_getElem hk₂' fun k' h₁ h₂ => hpre k' h₁ h₂ h₁)
-      cp_step [getD_cmpCur_right hlen₂, heq, hl₂.literal_end.2.1] using hi 4 (by omega)
+      simp only [hl₂.literal_end.2.1, readLabel, heq, ↓reduceIte]
+      exact Reaches.refl _
 
 /-- Comparing the `k`-th digits of the two variables when both have a `k`-th digit. -/
 private theorem reaches_cmpVarCode_digit (hk₁ : k < v₁.bits.length) (hk₂ : k < v₂.bits.length) :
@@ -248,13 +260,21 @@ private theorem reaches_cmpVarCode_digit (hk₁ : k < v₁.bits.length) (hk₂ :
   have hB' := forall_mem_cmpCur hB hend₁ hend₂ t₁ t₂ hk₁.le hk₂.le
   have hc₁ := getD_cmpCur_left htt hlen₁ (pos₁ := pos₁) (pos₂ := pos₂) (k := k)
   have hc₂ := getD_cmpCur_right hlen₂ (t₁ := t₁) (pos₁ := pos₁) (pos₂ := pos₂) (k := k)
-  cp_step [hc₁, (hl₁.literal_digit hk₁).2.1] using hi 2 (by omega)
-  cp_step [hc₂, (hl₂.literal_digit hk₂).2.1] using hi 3 (by omega)
-  cp_step [hc₁, (hl₁.literal_digit hk₁).2.2] using hi 5 (by omega)
+  refine Reaches.oread (hi 2 (by omega)) (by simp [Expr.readsChoice, ht₁]) hB' ?_
+  simp only [eval_add, eval_reg, eval_const, hc₁, (hl₁.literal_digit hk₁).2.1, readLabel]
+  refine Reaches.oread (hi 3 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
+  simp only [eval_add, eval_reg, eval_const, hc₂, (hl₂.literal_digit hk₂).2.1, readLabel]
+  refine Reaches.oread (hi 5 (by omega)) (by simp [Expr.readsChoice, ht₁]) hB' ?_
+  simp only [eval_add, eval_reg, eval_const, hc₁, (hl₁.literal_digit hk₁).2.2]
+  have hd₂ : w[(add (reg t₂) (const 7)).eval (cmpCur regs t₁ t₂ pos₁ pos₂ k)]? =
+      some v₂.bits[k] := by
+    simp only [eval_add, eval_reg, eval_const, hc₂, (hl₂.literal_digit hk₂).2.2]
   cases h₁ : v₁.bits[k]
-  · cp_step [hc₂, (hl₂.literal_digit hk₂).2.2] using hi 7 (by omega)
+  · refine Reaches.oread (hi 7 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
+    rw [hd₂]
     cases v₂.bits[k] <;> exact Reaches.refl _
-  · cp_step [hc₂, (hl₂.literal_digit hk₂).2.2] using hi 6 (by omega)
+  · refine Reaches.oread (hi 6 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
+    rw [hd₂]
     cases v₂.bits[k] <;> exact Reaches.refl _
 
 /-- The loop of `cmpVarCode` from digit `k` onward. -/
@@ -319,9 +339,11 @@ theorem reaches_cmpVarCode {b p₁ p₂ t₁ t₂ eq ne : ℕ}
   have h₁ := hend₁
   rw [length_literalBits] at h₁
   refine ⟨x, y, hx, hy, ?_⟩
-  cp_step [hpos₁] using hi 0 (by omega)
-  cp_step [List.getD_set_ne ht₁p₂, hpos₂] using hi 1 (by omega)
-  simpa only [cmpCur, Nat.mul_zero, Nat.add_zero] using hreach
+  refine Reaches.oassign (hi 0 (by omega)) ht₁ (by simp [Expr.readsChoice, hp₁]) hB ?_
+  refine Reaches.oassign (hi 1 (by omega)) ht₂ (by simp [Expr.readsChoice, hp₂])
+    (List.forall_mem_set_of_forall_mem hB (by rw [eval_reg, hpos₁]; omega)) ?_
+  simpa only [eval_reg, hpos₁, List.getD_set_ne ht₁p₂, hpos₂, cmpCur, Nat.mul_zero,
+    Nat.add_zero] using hreach
 
 /-! ### Reading the polarity -/
 
