@@ -15,6 +15,8 @@ public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.Fintype.Option
 public import Mathlib.Data.Fintype.Prod
 import Batteries.Data.Vector.Lemmas
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Data.List.MinMax
 import Mathlib.Data.List.Nodup
 
 /-!
@@ -40,9 +42,9 @@ The recursion for `NBP.paths` recomputes the counts of earlier nodes at every us
 replacements avoid this. `NBP.pathsVector` stores the count of every node in a vector, in
 topological order, and the compiler uses it for `NBP.paths` (`NBP.paths_eq_pathsImpl`).
 For `NBP.pathCount` (`NBP.pathCount_eq_pathCountImpl`), the compiler counts the switched-on
-wires of the source directly when they all lead to the target, and otherwise uses
-`NBP.pathCountFrom`, which pushes the number of paths from the source down the program in an array
-ending at the highest head of those wires. A node that no path from the source reaches is stepped
+wires of the source directly when they all lead to the target, and otherwise pushes the number
+of paths from the source down the program in an array ending at the highest head of those wires,
+with a private helper. A node that no path from the source reaches is stepped
 past without reading its wires, and the push stops below the lowest node other than the target that
 a path reaches. The kernel
 definitions, their simplification rules and kernel reduction (`decide`, `rfl`) are unchanged.
@@ -67,9 +69,8 @@ it accepts and `0` on the others (`BranchingProgram.pathCount_toNBP`), and it ha
   on.
 * `Cslib.BranchingPrograms.NBP.pathsVector`, `Cslib.BranchingPrograms.NBP.pathsImpl`: the path
   counts of all nodes stored in a vector, and the compiler implementation of `NBP.paths` reading it.
-* `Cslib.BranchingPrograms.NBP.pathCountFrom`, `Cslib.BranchingPrograms.NBP.pathCountImpl`: path
-  counts pushed down from the source in an array, and the compiler implementation of
-  `NBP.pathCount`.
+* `Cslib.BranchingPrograms.NBP.pathCountImpl`: the compiler implementation of `NBP.pathCount`,
+  which pushes path counts down from the source in an array.
 * `Cslib.BranchingPrograms.NBP.Accepts`, `Cslib.BranchingPrograms.NBP.AcceptsParity`:
   nondeterministic and parity acceptance.
 * `Cslib.BranchingPrograms.BranchingProgram.toNBP`: a deterministic program as a nondeterministic
@@ -214,7 +215,7 @@ to the target with wires switched on by `x`. The bound `lo` is at most every nod
 target with a nonzero entry; once the current node is below `lo`, entry `0` is returned. A node
 whose entry is `0`, or lies past the end of `c`, is stepped past without reading its wires; any
 other node adds its entry to the entries of the heads of its switched-on wires. -/
-def pathCountFrom (x : ι → α) : {n : ℕ} → NBP ι α n → Array ℕ → ℕ → ℕ
+private def pathCountFrom (x : ι → α) : {n : ℕ} → NBP ι α n → Array ℕ → ℕ → ℕ
   | _, target, c, _ => c[0]?.getD 0
   | _, node (n := n) P wires, c, lo =>
     if n < lo then c[0]?.getD 0
@@ -230,11 +231,13 @@ def pathCountFrom (x : ι → α) : {n : ℕ} → NBP ι α n → Array ℕ → 
 private def pathsAt (x : ι → α) {n : ℕ} (P : NBP ι α n) (i : ℕ) : ℕ :=
   if h : i < n then P.paths x ⟨i, h⟩ else 0
 
-/-- `∑ i < k, f i * pathsAt x P i`: the number of completions of `f i` paths at each node `i < k`.
--/
-private def weight (x : ι → α) {n : ℕ} (P : NBP ι α n) (f : ℕ → ℕ) : ℕ → ℕ
-  | 0 => 0
-  | k + 1 => weight x P f k + f k * pathsAt x P k
+/-- The number of completions of `f i` paths at each node `i < k`. -/
+private def weight (x : ι → α) {n : ℕ} (P : NBP ι α n) (f : ℕ → ℕ) (k : ℕ) : ℕ :=
+  ∑ i ∈ Finset.range k, f i * pathsAt x P i
+
+private theorem weight_succ (x : ι → α) {n : ℕ} (P : NBP ι α n) (f : ℕ → ℕ) (k : ℕ) :
+    weight x P f (k + 1) = weight x P f k + f k * pathsAt x P k :=
+  Finset.sum_range_succ _ k
 
 /-- The number of completions of the paths counted by the array `c`. -/
 private def weightA (x : ι → α) {n : ℕ} (P : NBP ι α n) (c : Array ℕ) : ℕ :=
@@ -277,9 +280,9 @@ private theorem pathsAt_node_self (x : ι → α) {n : ℕ} (P : NBP ι α n) (w
 
 private theorem weight_low (x : ι → α) {m : ℕ} (Q : NBP ι α m) (f : ℕ → ℕ)
     (hf : ∀ i, 1 ≤ i → i < m → f i = 0) : ∀ k, weight x Q f k = if 0 < k then f 0 else 0
-  | 0 => rfl
+  | 0 => by simp [weight]
   | k + 1 => by
-    rw [weight, weight_low x Q f hf k]
+    rw [weight_succ, weight_low x Q f hf k]
     rcases k with _ | k
     · simp [pathsAt_zero]
     · by_cases hk : k + 1 < m
@@ -291,7 +294,7 @@ private theorem weight_node (x : ι → α) {n : ℕ} (P : NBP ι α n) (wires :
       if n < k then f n * ((wires.filter (·.on x)).map fun w => P.paths x w.head).sum else 0
   | 0 => by simp [weight]
   | k + 1 => by
-    rw [weight, weight, weight_node x P wires f k]
+    rw [weight_succ, weight_succ, weight_node x P wires f k]
     by_cases hk : k = n
     · subst hk
       rw [pathsAt_node_self, pathsAt_self]
@@ -306,7 +309,7 @@ private theorem weight_update (x : ι → α) {n : ℕ} (P : NBP ι α n) (f g :
     ∀ k, weight x P g k = weight x P f k + if h < k then a * pathsAt x P h else 0
   | 0 => by simp [weight]
   | k + 1 => by
-    rw [weight, weight, weight_update x P f g h a hg k, hg k]
+    rw [weight_succ, weight_succ, weight_update x P f g h a hg k, hg k]
     by_cases hk : k = h
     · subst hk
       simp [Nat.add_mul, Nat.add_assoc]
@@ -314,10 +317,9 @@ private theorem weight_update (x : ι → α) {n : ℕ} (P : NBP ι α n) (f g :
       simp only [hk, h', ↓reduceIte, Nat.add_zero]
       ac_rfl
 
-private theorem weight_zero (x : ι → α) {n : ℕ} (P : NBP ι α n) (f : ℕ → ℕ) (hf : ∀ i, f i = 0) :
-    ∀ k, weight x P f k = 0
-  | 0 => rfl
-  | k + 1 => by rw [weight, weight_zero x P f hf k, hf]; simp
+private theorem weight_zero (x : ι → α) {n : ℕ} (P : NBP ι α n) (f : ℕ → ℕ) (hf : ∀ i, f i = 0)
+    (k : ℕ) : weight x P f k = 0 :=
+  Finset.sum_eq_zero fun i _ => by rw [hf, Nat.zero_mul]
 
 private theorem getD_modify (c : Array ℕ) {h : ℕ} (hh : h < c.size) (a i : ℕ) :
     (c.modify h (· + a))[i]?.getD 0 = c[i]?.getD 0 + if i = h then a else 0 := by
@@ -427,20 +429,16 @@ private theorem pathCountFrom_eq (x : ι → α) :
             omega
 
 omit [DecidableEq α] in
-private theorem lt_foldr_max {n : ℕ} : ∀ (l : List (Wire ι α n)) (w : Wire ι α n), w ∈ l →
-    w.head.val < l.foldr (fun w m => max (w.head.val + 1) m) 0
-  | [], _, hw => by simp at hw
-  | v :: l, w, hw => by
-    rw [List.foldr_cons]
-    rcases List.mem_cons.mp hw with rfl | hw
-    · omega
-    · have := lt_foldr_max l w hw
-      omega
+private theorem lt_foldr_max {n : ℕ} {l : List (Wire ι α n)} {w : Wire ι α n} (hw : w ∈ l) :
+    w.head.val < l.foldr (fun w m => max (w.head.val + 1) m) 0 := by
+  rw [← List.foldr_map (f := fun w : Wire ι α n => w.head.val + 1) (g := max)]
+  exact List.le_max_of_le' 0 (List.mem_map_of_mem (f := fun w : Wire ι α n => w.head.val + 1) hw)
+    le_rfl
 
 /-- Compiler implementation of `NBP.pathCount`. When every switched-on wire of the source leads to
 the target, it counts those wires; otherwise it pushes the source's paths down the program with
-`NBP.pathCountFrom`, in an array that ends at the highest head of those wires. -/
-def pathCountImpl : {n : ℕ} → NBP ι α n → (ι → α) → ℕ
+the private `pathCountFrom`, in an array that ends at the highest head of those wires. -/
+@[no_expose] def pathCountImpl : {n : ℕ} → NBP ι α n → (ι → α) → ℕ
   | _, target, _ => 1
   | _, node P wires, x =>
     let on := wires.filter (·.on x)
@@ -464,7 +462,7 @@ def pathCountImpl : {n : ℕ} → NBP ι α n → (ι → α) → ℕ
         (by simpa using List.all_eq_true.mp hall w hw)]
       simp
     · rw [pathCountFrom_eq x P _ _ ?_, weightA_foldl x P 1 _ _ fun w hw => by
-          rw [Array.size_replicate]; exact lt_foldr_max _ w hw,
+          rw [Array.size_replicate]; exact lt_foldr_max hw,
         weightA_replicate, Nat.zero_add, Nat.one_mul]
       · simp only [pathsAt_fin]
       · intro i h1 h2 _
