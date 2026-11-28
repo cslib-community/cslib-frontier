@@ -5205,6 +5205,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Computability.Circuit.StraightLine
 public import CslibFrontier.Foundations.Data.BitString.Block
 public import CslibFrontier.Computability.Circuit.Monotone.Basic
+public import CslibFrontier.Computability.Circuit.CutProgram
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientCharacteristicEvaluation
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EverHeld
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
